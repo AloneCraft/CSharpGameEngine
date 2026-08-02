@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Platforms>x64</Platforms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TerraFX.Interop.Windows" Version="10.0.26100.6" />
+    <PackageReference Include="Microsoft.Direct3D.DXC" Version="1.9.2607.13" GeneratePathProperty="true" ExcludeAssets="build" />
+  </ItemGroup>
+
+  <!--
+    Microsoft.Direct3D.DXC ships build/native/*.targets meant for vcxproj consumers only;
+    SDK-style C# projects never import it. We copy the x64 DXC redistributable ourselves so
+    dxcompiler.dll/dxil.dll land next to any executable that (transitively) references this
+    project - see ADR-0003.
+  -->
+  <ItemGroup>
+    <None Include="$(PkgMicrosoft_Direct3D_DXC)\build\native\bin\x64\dxcompiler.dll" Link="dxcompiler.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(PkgMicrosoft_Direct3D_DXC)\build\native\bin\x64\dxil.dll" Link="dxil.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+
+</Project>

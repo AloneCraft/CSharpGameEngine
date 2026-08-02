@@ -1,0 +1,83 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <UseWindowsForms>false</UseWindowsForms>
+    <UseWPF>true</UseWPF>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Directory.Build.props leaves LangVersion at "default", which resolves to C# 7.3 for
+         net472 - too old for this project's Nullable annotations. Pin explicitly, matching the
+         version VS's own local VSIXProject template uses. -->
+    <LangVersion>14</LangVersion>
+
+    <!-- VSIX settings -->
+    <VSSDKBuildToolsAutoSetup>true</VSSDKBuildToolsAutoSetup>
+    <GeneratePkgDefFile>true</GeneratePkgDefFile>
+    <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
+    <IncludeDebugSymbolsInVSIXContainer>false</IncludeDebugSymbolsInVSIXContainer>
+    <IncludeDebugSymbolsInLocalVSIXDeployment>false</IncludeDebugSymbolsInLocalVSIXDeployment>
+    <CopyBuildOutputToOutputDirectory>true</CopyBuildOutputToOutputDirectory>
+    <CopyOutputSymbolsToOutputDirectory>false</CopyOutputSymbolsToOutputDirectory>
+    <StartAction>Program</StartAction>
+    <StartProgram Condition="'$(DevEnvDir)' != ''">$(DevEnvDir)devenv.exe</StartProgram>
+    <StartArguments>/rootsuffix Exp</StartArguments>
+
+    <!-- VSIX deployment copies this assembly out of the repo (into the Extensions hive), so a
+         runtime "walk up from my own location" search can never find CSharpGameEngine.slnx.
+         Bake the repo root known at build time into the assembly instead; OpenViewerCommand
+         still validates it against the marker file at runtime before trusting it. -->
+    <CSharpGameEngineRepoRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\'))</CSharpGameEngineRepoRoot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectCapability Include="CreateVsixContainer" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="18.8.739" />
+
+    <!-- In-process D3D12 rendering (ADR-0008): TerraFX.Interop.Windows (used by the net10.0
+         Graphics.D3D12 project) targets net5.0+ only and cannot be referenced from this net472
+         project. Vortice.Windows 2.4.2 is the last version series that still targets
+         netstandard2.0, so it's usable here - confirmed against real NuGet package metadata
+         before adding. Deliberately not shared with Graphics.D3D12: this stays its own
+         self-contained net472 rendering path. -->
+    <PackageReference Include="Vortice.Direct3D12" Version="2.4.2" />
+    <PackageReference Include="Vortice.DXGI" Version="2.4.2" />
+    <PackageReference Include="Vortice.D3DCompiler" Version="2.4.2" />
+    <PackageReference Include="SharpGLTF.Core" Version="1.0.6" />
+
+    <!-- ADR-0010: deserializes the JSON produced by the out-of-process FBX import bridge
+         (CSharpGameEngine.Import.Fbx.Cli). AssimpNet itself is NOT referenced here - see
+         ExternalFbxLoader.cs. Version pinned to match what SharpGLTF.Core 1.0.6 already pulls in
+         transitively (>= 10.0.1) to avoid an NU1605 downgrade error. -->
+    <PackageReference Include="System.Text.Json" Version="10.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- OleMenuCommandService's base MenuCommandService type lives here; not referenced by
+         default for SDK-style net472 projects. -->
+    <Reference Include="System.Design" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <VSCTCompile Include="OpenViewerCommandPackage.vsct">
+      <ResourceName>Menus.ctmenu</ResourceName>
+    </VSCTCompile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyMetadata Include="CSharpGameEngineRepoRoot" Value="$(CSharpGameEngineRepoRoot)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Lets CSharpGameEngine.VSExtension.Tests unit-test internal, VS-independent classes
+         (FabDownloadWatcher, KnownFolders) directly, since live VS UI automation proved unreliable
+         for verifying this logic (ADR-0011). -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>CSharpGameEngine.VSExtension.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+</Project>

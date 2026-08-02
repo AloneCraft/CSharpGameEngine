@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CommandTable xmlns="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <Extern href="stdidcmd.h" />
+  <Extern href="vsshlids.h" />
+  <Include href="KnownImageIds.vsct" />
+
+  <Commands package="guidCSharpGameEngineViewerPackage">
+    <Menus>
+      <Menu guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbar" priority="0x0000" type="Toolbar">
+        <CommandFlag>DefaultDocked</CommandFlag>
+        <Strings>
+          <ButtonText>C# Game Engine</ButtonText>
+          <CommandName>C# Game Engine</CommandName>
+        </Strings>
+      </Menu>
+    </Menus>
+
+    <Groups>
+      <Group guid="guidOpenViewerCommandPackageCmdSet" id="OpenViewerMenuGroup" priority="0x0600">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_MENU_TOOLS" />
+      </Group>
+      <Group guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarGroup" priority="0x0000">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbar" />
+      </Group>
+    </Groups>
+
+    <Buttons>
+      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenViewerCommandId" priority="0x0100" type="Button">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="OpenViewerMenuGroup" />
+        <Icon guid="ImageCatalogGuid" id="OpenFolder" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>C# Game Engine Viewer を開く</ButtonText>
+        </Strings>
+      </Button>
+      <Button guid="guidOpenViewerCommandPackageCmdSet" id="ShowViewerToolWindowCommandId" priority="0x0101" type="Button">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="OpenViewerMenuGroup" />
+        <Icon guid="ImageCatalogGuid" id="ToolWindow" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>C# Game Engine Viewer パネルを表示</ButtonText>
+        </Strings>
+      </Button>
+      <Button guid="guidOpenViewerCommandPackageCmdSet" id="ToggleFabWatchCommandId" priority="0x0102" type="Button">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="OpenViewerMenuGroup" />
+        <Icon guid="ImageCatalogGuid" id="FolderOpened" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>Fabダウンロード監視を開始</ButtonText>
+        </Strings>
+      </Button>
+      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenFabCommandId" priority="0x0103" type="Button">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="OpenViewerMenuGroup" />
+        <Icon guid="ImageCatalogGuid" id="ViewInBrowser" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>Fab を開く</ButtonText>
+        </Strings>
+      </Button>
+    </Buttons>
+  </Commands>
+
+  <CommandPlacements>
+    <CommandPlacement guid="guidOpenViewerCommandPackageCmdSet" id="OpenViewerCommandId" priority="0x0001">
+      <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarGroup" />
+    </CommandPlacement>
+    <CommandPlacement guid="guidOpenViewerCommandPackageCmdSet" id="ShowViewerToolWindowCommandId" priority="0x0002">
+      <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarGroup" />
+    </CommandPlacement>
+    <CommandPlacement guid="guidOpenViewerCommandPackageCmdSet" id="ToggleFabWatchCommandId" priority="0x0003">
+      <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarGroup" />
+    </CommandPlacement>
+    <CommandPlacement guid="guidOpenViewerCommandPackageCmdSet" id="OpenFabCommandId" priority="0x0004">
+      <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarGroup" />
+    </CommandPlacement>
+  </CommandPlacements>
+
+  <Symbols>
+    <GuidSymbol name="guidCSharpGameEngineViewerPackage" value="{aec17804-e2e4-46e7-b373-de11af816203}" />
+
+    <GuidSymbol name="guidOpenViewerCommandPackageCmdSet" value="{521655e5-0d1b-4255-8086-1039c5c2e3da}">
+      <IDSymbol name="OpenViewerMenuGroup" value="0x1020" />
+      <IDSymbol name="OpenViewerCommandId" value="0x0100" />
+      <IDSymbol name="ShowViewerToolWindowCommandId" value="0x0101" />
+      <IDSymbol name="ToggleFabWatchCommandId" value="0x0102" />
+      <IDSymbol name="OpenFabCommandId" value="0x0103" />
+      <IDSymbol name="CSharpGameEngineToolbar" value="0x1021" />
+      <IDSymbol name="CSharpGameEngineToolbarGroup" value="0x1022" />
+    </GuidSymbol>
+  </Symbols>
+</CommandTable>

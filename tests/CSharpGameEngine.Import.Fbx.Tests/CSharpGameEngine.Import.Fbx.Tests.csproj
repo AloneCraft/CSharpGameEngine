@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <!-- AssimpNet's native assimp.dll (ADR-0009) ships under runtimes/win-x64/native/ - a
+         RuntimeIdentifier is required for the test host to actually get the native binary next to
+         the test assembly (same reason as CSharpGameEngine.Extension.csproj). -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CSharpGameEngine.Import.Fbx\CSharpGameEngine.Import.Fbx.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\assets\TestFixtures\Fbx\Box.fbx" Link="Fixtures\Box.fbx" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

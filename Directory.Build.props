@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+	<Nullable>enable</Nullable>
+	<ImplicitUsings>enable</ImplicitUsings>
+	<Deterministic>true</Deterministic>
+	<DebugSymbols>true</DebugSymbols>
+	<DebugType>portable</DebugType>
+	<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+	<LangVersion>default</LangVersion>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CSharpGameEngine.Import.Fbx\CSharpGameEngine.Import.Fbx.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- AssimpNet's native assimp.dll (ADR-0009) needs a RuntimeIdentifier to be copied to output
+         (same reason as CSharpGameEngine.Extension.csproj). This process is intentionally the ONLY
+         thing that loads assimp.dll (ADR-0010) - the VSIX (net472, running inside devenv.exe)
+         never references AssimpNet directly and instead runs this as a short-lived out-of-process
+         bridge, so a native-code crash while parsing an untrusted .fbx file cannot take down
+         Visual Studio itself. -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+  </PropertyGroup>
+
+</Project>

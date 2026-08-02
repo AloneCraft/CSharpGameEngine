@@ -1,0 +1,72 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/Docs/" />
+  <Folder Name="/Docs/Architecture/">
+    <File Path="Docs/Architecture.md" />
+  </Folder>
+  <Folder Name="/Docs/Decisions/">
+    <File Path="Docs/Decisions/ADR-0001-Layered-Architecture.md" />
+    <File Path="Docs/Decisions/ADR-0002-Source-And-Artifact.md" />
+    <File Path="Docs/Decisions/ADR-0003-Windows-D3D12-Vertical-Slice.md" />
+    <File Path="Docs/Decisions/ADR-0004-Gltf-Model-Viewer-Vertical-Slice.md" />
+    <File Path="Docs/Decisions/ADR-0005-Gltf-BaseColor-Texture-Display.md" />
+    <File Path="Docs/Decisions/ADR-0006-VSIX-Extension-Skeleton.md" />
+    <File Path="Docs/Decisions/ADR-0007-VSIX-Embedded-Tool-Window.md" />
+    <File Path="Docs/Decisions/ADR-0008-VSIX-InProcess-Vortice-Renderer.md" />
+    <File Path="Docs/Decisions/ADR-0009-Fbx-Model-Import.md" />
+    <File Path="Docs/Decisions/ADR-0010-VSIX-Fbx-OutOfProcess-Bridge.md" />
+    <File Path="Docs/Decisions/ADR-0011-Fab-DropZone-And-Toolbar.md" />
+    <File Path="Docs/Decisions/ADR-0012-UserGameProject-AutoOpen-And-AssetMeta.md" />
+    <File Path="Docs/Decisions/ADR-0013-Asset-Preview-Editor-Factory.md" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path="Directory.Build.props" />
+    <File Path="global.json" />
+    <File Path="README.md" />
+  </Folder>
+  <Folder Name="/assets/">
+    <File Path="assets/Shaders/Triangle.hlsl" />
+    <File Path="assets/Shaders/Model.hlsl" />
+    <File Path="assets/TestFixtures/Gltf/Box.glb" />
+    <File Path="assets/TestFixtures/Gltf/BoxTextured.glb" />
+    <File Path="assets/TestFixtures/Gltf/Triangle.gltf" />
+    <File Path="assets/TestFixtures/Gltf/Triangle.bin" />
+    <File Path="assets/TestFixtures/Gltf/Malformed.glb" />
+    <File Path="assets/TestFixtures/Gltf/NOTICE.md" />
+    <File Path="assets/TestFixtures/Fbx/Box.fbx" />
+    <File Path="assets/TestFixtures/Fbx/NOTICE.md" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/CSharpGameEngine.Core/CSharpGameEngine.Core.csproj" />
+    <Project Path="src/CSharpGameEngine.Platform.Windows/CSharpGameEngine.Platform.Windows.csproj" />
+    <Project Path="src/CSharpGameEngine.Compiler.Hlsl/CSharpGameEngine.Compiler.Hlsl.csproj" />
+    <Project Path="src/CSharpGameEngine.Graphics.D3D12/CSharpGameEngine.Graphics.D3D12.csproj" />
+    <Project Path="src/CSharpGameEngine.Import.Gltf/CSharpGameEngine.Import.Gltf.csproj" />
+    <Project Path="src/CSharpGameEngine.Import.Fbx/CSharpGameEngine.Import.Fbx.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CSharpGameEngine.Core.Tests/CSharpGameEngine.Core.Tests.csproj" />
+    <Project Path="tests/CSharpGameEngine.Compiler.Hlsl.Tests/CSharpGameEngine.Compiler.Hlsl.Tests.csproj" />
+    <Project Path="tests/CSharpGameEngine.Graphics.D3D12.Tests/CSharpGameEngine.Graphics.D3D12.Tests.csproj" />
+    <Project Path="tests/CSharpGameEngine.Import.Gltf.Tests/CSharpGameEngine.Import.Gltf.Tests.csproj" />
+    <Project Path="tests/CSharpGameEngine.Import.Fbx.Tests/CSharpGameEngine.Import.Fbx.Tests.csproj" />
+    <Project Path="tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/CSharpGameEngine.TestHost/CSharpGameEngine.TestHost.csproj" />
+    <Project Path="tools/CSharpGameEngine.Extension/CSharpGameEngine.Extension.csproj" />
+    <Project Path="tools/CSharpGameEngine.Import.Fbx.Cli/CSharpGameEngine.Import.Fbx.Cli.csproj" />
+    <Project Path="tools/CSharpGameEngine.VSExtension/CSharpGameEngine.VSExtension.csproj">
+      <Deploy Solution="Debug|Any CPU" />
+    </Project>
+  </Folder>
+  <Folder Name="/UserGameProject/">
+    <File Path="UserGameProject/README.md" />
+    <File Path="UserGameProject/Assets/Fab/README.md" />
+  </Folder>
+</Solution>

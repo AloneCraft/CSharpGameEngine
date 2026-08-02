@@ -1,0 +1,105 @@
+# C# Game Engine
+
+- 製品表示名: `C# Game Engine`
+- 内部名: `CSharpGameEngine`
+- 現在の段階: 第3マイルストーン（glTFアセットのインポートと最小Viewer）
+
+## Build
+```bash
+dotnet restore
+dotnet build
+```
+
+## Test
+```bash
+dotnet test
+```
+
+GPU統合テスト（`CSharpGameEngine.Graphics.D3D12.Tests`内、`Category=GPU`）はWARPアダプタに対して実行され、
+非Windows環境では明示的にSkipされます。CPU側のみ実行する場合:
+```bash
+dotnet test --filter "Category!=GPU"
+```
+
+## TestHost
+```bash
+dotnet run --project tools/CSharpGameEngine.TestHost -- --help
+dotnet run --project tools/CSharpGameEngine.TestHost -- self-test
+```
+
+### Triangle（Windows + Direct3D 12）
+通常起動（ウィンドウを表示し、閉じるまで描画を継続）:
+```bash
+dotnet run --project tools/CSharpGameEngine.TestHost -- triangle
+```
+
+自動検証（非表示ウィンドウ、WARPアダプタ、Debug Layer有効、3フレーム描画後にReadback検証、成功時0終了）:
+```bash
+dotnet run --project tools/CSharpGameEngine.TestHost -- triangle --hidden --frames 3 --warp --debug-layer --verify
+```
+
+Hardware Adapterでの検証（`--warp`を外すとHardware Adapterを使用。利用不可の場合は明確なエラーで終了し、
+勝手にWARPへフォールバックしません）:
+```bash
+dotnet run --project tools/CSharpGameEngine.TestHost -- triangle --hidden --frames 3 --debug-layer --verify
+```
+
+triangleコマンドのオプション:
+- `--frames <count>`: 指定フレーム数で自動終了する
+- `--width <pixels>` / `--height <pixels>`: クライアント領域のサイズ（既定 1280x720）
+- `--hidden`: ウィンドウを表示しない（自動検証向け）
+- `--warp`: WARP（ソフトウェア）アダプタを使用する
+- `--debug-layer`: D3D12 Debug Layerを有効化する
+- `--gpu-validation`: GPU Based Validationを有効化する（`--debug-layer`と併用）
+- `--verify`: 描画結果をGPUからReadbackし、Triangleが実際に描画されたかをピクセル単位で検証する
+
+## Viewer（glTFモデル表示、Windows + Direct3D 12）
+`tools/CSharpGameEngine.Extension`は、glTF/GLBファイルをインポートして固定カメラ・簡易陰影で表示する
+最小Viewerです（テクスチャ・マテリアル・シーングラフ・カメラ操作は未実装。詳細:
+[Docs/Decisions/ADR-0004-Gltf-Model-Viewer-Vertical-Slice.md](Docs/Decisions/ADR-0004-Gltf-Model-Viewer-Vertical-Slice.md)）。
+
+同梱サンプル（Khronos公式のBox.glb）を表示:
+```bash
+dotnet run --project tools/CSharpGameEngine.Extension -- --model Samples/Box.glb
+```
+
+自動検証（非表示ウィンドウ、WARPアダプタ、Debug Layer有効、3フレーム描画後にReadback検証、成功時0終了）:
+```bash
+dotnet run --project tools/CSharpGameEngine.Extension -- --model Samples/Box.glb --hidden --frames 3 --warp --debug-layer --verify
+```
+
+Hardware Adapterでの検証:
+```bash
+dotnet run --project tools/CSharpGameEngine.Extension -- --model Samples/Box.glb --hidden --frames 3 --debug-layer --verify
+```
+
+自分で購入・ダウンロードしたFabアセット（glTF/GLB形式）を表示する場合は、
+`UserGameProject/Assets/Fab/`配下に配置し、`--model`でそのパスを指定してください
+（詳細: [UserGameProject/Assets/Fab/README.md](UserGameProject/Assets/Fab/README.md)）。
+```bash
+dotnet run --project tools/CSharpGameEngine.Extension -- --model UserGameProject/Assets/Fab/<アセット名>/<ファイル名>.gltf
+```
+
+Viewerのオプションは`triangle`コマンドと同様（`--frames` / `--width` / `--height` / `--hidden` /
+`--warp` / `--debug-layer` / `--gpu-validation` / `--verify`）に加えて、モデルパスを指定する
+`--model <path>`（必須）があります。
+
+## 動作要件
+- Windows 10 2004 (10.0.19041) 以降、x64
+- .NET SDK 10.0.302 以降（`global.json`参照）
+- Direct3D 12 Feature Level 11_0 に対応したHardware AdapterまたはWARP
+- 追加のWindows SDKやDirectX Shader Compilerの個別インストールは不要（`TerraFX.Interop.Windows`と
+  `Microsoft.Direct3D.DXC`のNuGetパッケージから必要なバイナリ・ヘッダが解決されます）
+- Debug Layerを使う場合、Windowsの「グラフィックス ツール」オプション機能が無効だと自動的に
+  Debug Layerなしで継続します（診断出力にその旨を表示）
+
+## Notes
+- Visual Studio拡張は後続マイルストーンで追加予定です。`tools/CSharpGameEngine.Extension`は
+  将来の拡張機能のロジックを見据えたプレースホルダーの実行ファイルであり、実際のVSIXではありません
+  （詳細: ADR-0004）。
+- エンジン本体は Visual Studio から独立して実行できる設計方針です。
+- `CSharpGameEngine.Core`はWindows/Direct3D/DXCに依存しません。Windows固有の実装は
+  `CSharpGameEngine.Platform.Windows` / `CSharpGameEngine.Compiler.Hlsl` / `CSharpGameEngine.Graphics.D3D12`
+  に隔離されています（詳細: [Docs/Decisions/ADR-0003-Windows-D3D12-Vertical-Slice.md](Docs/Decisions/ADR-0003-Windows-D3D12-Vertical-Slice.md)）。
+- `CSharpGameEngine.Import.Gltf`（glTF/GLBインポータ）はWindows/D3D非依存の`net10.0`プロジェクトです
+  （詳細: [Docs/Decisions/ADR-0004-Gltf-Model-Viewer-Vertical-Slice.md](Docs/Decisions/ADR-0004-Gltf-Model-Viewer-Vertical-Slice.md)）。

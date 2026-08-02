@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Represents the simulated end-user game project's asset tree in Solution Explorer. .meta
+         sidecar files (ADR-0012, one per 3D asset, holding a stable GUID - Unity/UE-style) are
+         real project items but marked Visible="false", so only the representative asset file
+         (e.g. Box.glb) shows, not its supporting .meta. A plain Exclude was tried first but found
+         (empirically, via a real Solution Explorer screenshot) not to be enough on its own -
+         modern VS's Solution Explorer still lists files physically present under an included
+         folder even when excluded from the item list; Visible="false" on an actual item is what
+         actually hides it. -->
+    <None Include="Assets\**\*" Exclude="Assets\**\*.meta" />
+    <None Include="Assets\**\*.meta" Visible="false" />
+  </ItemGroup>
+
+</Project>
