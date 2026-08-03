@@ -14,7 +14,7 @@ namespace CSharpGameEngine.VSExtension;
 /// Thin VSIX shell: registers the viewer commands (<see cref="OpenViewerCommand"/> ADR-0006,
 /// <see cref="ShowViewerToolWindowCommand"/>/<see cref="ViewerToolWindowPane"/> ADR-0007/0008/0010)
 /// and the Fab drop-zone commands (<see cref="ToggleFabWatchCommand"/>,
-/// <see cref="OpenFabCommand"/>, ADR-0011). Also auto-opens <c>UserGameProject.csproj</c> when VS
+/// <see cref="OpenFabCommand"/>, ADR-0011). Also auto-opens <c>UserGameProject.slnx</c> when VS
 /// starts with no solution open, generates asset <c>.meta</c> GUID sidecars, and registers the
 /// Solution Explorer 3D asset preview (ADR-0012/0013). Contains no engine/rendering logic of its
 /// own.
@@ -24,7 +24,7 @@ namespace CSharpGameEngine.VSExtension;
 [ProvideMenuResource("Menus.ctmenu", 1)]
 [ProvideToolWindow(typeof(ViewerToolWindowPane))]
 // Loads this package automatically when VS reaches a "no solution open" state (in addition to the
-// existing lazy command-triggered load path) so UserGameProject.csproj can be auto-opened for a
+// existing lazy command-triggered load path) so UserGameProject.slnx can be auto-opened for a
 // genuinely fresh VS launch, without affecting the normal engine-development flow of opening
 // CSharpGameEngine.slnx (which already has a solution open, so TryAutoOpenUserGameProjectAsync's
 // own defensive IsSolutionOpen check below is a no-op in that case regardless of load path).
@@ -63,7 +63,7 @@ public sealed class CSharpGameEngineViewerPackage : AsyncPackage
     }
 
     /// <summary>
-    /// Opens <c>UserGameProject.csproj</c> automatically (ADR-0012), but only when nothing is
+    /// Opens <c>UserGameProject.slnx</c> automatically (ADR-0012), but only when nothing is
     /// already open - this must never yank an already-open solution/project out from under a
     /// developer working on the engine itself (e.g. via CSharpGameEngine.slnx).
     /// </summary>
@@ -88,8 +88,8 @@ public sealed class CSharpGameEngineViewerPackage : AsyncPackage
             return;
         }
 
-        string csprojPath = Path.Combine(repoRoot, "UserGameProject", "UserGameProject.csproj");
-        if (!File.Exists(csprojPath))
+        string solutionPath = Path.Combine(repoRoot, "UserGameProject.slnx");
+        if (!File.Exists(solutionPath))
         {
             return;
         }
@@ -107,13 +107,13 @@ public sealed class CSharpGameEngineViewerPackage : AsyncPackage
             // own startup settle first before we touch solution/window state.
             await Task.Delay(TimeSpan.FromSeconds(2));
 
-            // dte.Solution.Open(csprojPath) was tried first and found (empirically, via a real Exp
-            // instance launch) to only half-work: it registered the project in the MRU list but left
-            // the Start Window showing instead of actually switching to the opened project. Routing
+            // dte.Solution.Open(solutionPath) was tried first and found (empirically, via a real Exp
+            // instance launch) to only half-work: it registered the solution in the MRU list but left
+            // the Start Window showing instead of actually switching to the opened solution. Routing
             // through the same "File.OpenProject" command a user's menu click would invoke is more
             // robust - it exercises the real, well-tested open-project code path instead of the raw
             // Solution.Open API entry point.
-            dte.ExecuteCommand("File.OpenProject", $"\"{csprojPath}\"");
+            dte.ExecuteCommand("File.OpenProject", $"\"{solutionPath}\"");
 
             // Confirmed empirically: the project genuinely loads correctly at this point
             // (Solution.IsOpen, Projects.Count=1, Solution Explorer/Git Changes tool windows both
@@ -126,7 +126,7 @@ public sealed class CSharpGameEngineViewerPackage : AsyncPackage
         catch (COMException)
         {
             // Never let a failure here take down VS startup - worst case, the user just doesn't
-            // get the auto-opened project and can open UserGameProject.csproj manually.
+            // get the auto-opened solution and can open UserGameProject.slnx manually.
         }
     }
 

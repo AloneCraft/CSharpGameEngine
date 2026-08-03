@@ -4,7 +4,10 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Folder Name="/Docs/" />
+  <Folder Name="/Docs/">
+    <File Path="20260803-0.txt" />
+    <File Path="Docs/Implementation-Status.md" />
+  </Folder>
   <Folder Name="/Docs/Architecture/">
     <File Path="Docs/Architecture.md" />
   </Folder>
@@ -22,6 +25,10 @@
     <File Path="Docs/Decisions/ADR-0011-Fab-DropZone-And-Toolbar.md" />
     <File Path="Docs/Decisions/ADR-0012-UserGameProject-AutoOpen-And-AssetMeta.md" />
     <File Path="Docs/Decisions/ADR-0013-Asset-Preview-Editor-Factory.md" />
+    <File Path="Docs/Decisions/ADR-0014-CodeAnalysis-Generator-Foundation.md" />
+  </Folder>
+  <Folder Name="/Docs/Milestones/">
+    <File Path="Docs/Milestones/M0001-CodeAnalysis-Foundation.md" />
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
@@ -48,6 +55,7 @@
     <Project Path="src/CSharpGameEngine.Graphics.D3D12/CSharpGameEngine.Graphics.D3D12.csproj" />
     <Project Path="src/CSharpGameEngine.Import.Gltf/CSharpGameEngine.Import.Gltf.csproj" />
     <Project Path="src/CSharpGameEngine.Import.Fbx/CSharpGameEngine.Import.Fbx.csproj" />
+    <Project Path="src/CSharpGameEngine.CodeAnalysis/CSharpGameEngine.CodeAnalysis.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/CSharpGameEngine.Core.Tests/CSharpGameEngine.Core.Tests.csproj" />
@@ -56,6 +64,7 @@
     <Project Path="tests/CSharpGameEngine.Import.Gltf.Tests/CSharpGameEngine.Import.Gltf.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Import.Fbx.Tests/CSharpGameEngine.Import.Fbx.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj" />
+    <Project Path="tests/CSharpGameEngine.CodeAnalysis.Tests/CSharpGameEngine.CodeAnalysis.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/CSharpGameEngine.TestHost/CSharpGameEngine.TestHost.csproj" />
@@ -68,5 +77,6 @@
   <Folder Name="/UserGameProject/">
     <File Path="UserGameProject/README.md" />
     <File Path="UserGameProject/Assets/Fab/README.md" />
+    <Project Path="UserGameProject/UserGameProject.csproj" />
   </Folder>
 </Solution>

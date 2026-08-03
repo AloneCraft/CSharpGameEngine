@@ -6,7 +6,7 @@
 ## 背景
 
 ユーザーから、Unity/UEのアセットブラウザのように、ソリューションエクスプローラーで
-`.glb`/`.gltf`/`.fbx`ファイルを選択すると3Dプレビューが表示される機能の要望があった(ADR-0012の
+`.glb`/`.gltf`/`.fbx`ファイルを開くと3Dプレビューが表示される機能の要望があった(ADR-0012の
 `.meta`生成と同時に依頼)。VSでこれを実現する標準的な仕組みは、VS標準搭載のImage Editor等と
 同じ`IVsEditorFactory`(クラシックCOMベースのエディター登録機構)である。
 
@@ -32,53 +32,61 @@ Extensibility.Editor.Contracts`)はテキストエディター拡張(マージ�
   `IPersistFileFormat`(および基底の`IPersist`)を実装する、エディターのDocView兼DocData
   (同一オブジェクト)。読み取り専用(`IsDirty`系は常にfalse、`Save`/`InitNew`は`E_NOTIMPL`)。
   `LoadFromPath`をコンストラクタ・`IPersistFileFormat.Load`・`IVsPersistDocData.LoadDocData`
-  の3箇所から冪等に呼べるようにし、シェルが実際にどちらを呼ぶか不明な点を吸収した。
+  の3箇所から冪等に呼べるようにした。
 - **`GlbFbxPreviewEditorFactory.cs`**: `IVsEditorFactory`実装。`CreateEditorInstance`で
   `AssetPreviewWindowPane`を構築し、`Marshal.GetIUnknownForObject`で`ppunkDocView`/
-  `ppunkDocData`両方に同一インスタンスを渡す(読み取り専用エディターでの一般的なパターン)。
-  `MapLogicalView`は`LOGVIEWID_Primary`/`LOGVIEWID_Designer`のみ`S_OK`を返す。
+  `ppunkDocData`両方に同一インスタンスを渡す。`MapLogicalView`は`LOGVIEWID_Primary`/
+  `LOGVIEWID_Designer`のみ`S_OK`を返す。
 - `CSharpGameEngineViewerPackage`に`[ProvideEditorFactory(typeof(GlbFbxPreviewEditorFactory),
   110, TrustLevel = __VSEDITORTRUSTLEVEL.ETL_AlwaysTrusted)]`、
   `[ProvideEditorLogicalView(typeof(GlbFbxPreviewEditorFactory),
   VSConstants.LOGVIEWID.Designer_string)]`、`[ProvideEditorExtension(...)]`(`.glb`/`.gltf`/
   `.fbx`向けに3つ、いずれも優先度50)を追加し、`InitializeAsync`で
   `RegisterEditorFactory(new GlbFbxPreviewEditorFactory())`を呼ぶ。`ProjectGuid`は指定せず、
-  どのプロジェクト種別でも(Solution Itemsとして置かれたファイルでも)機能するようにした。
-  リソース文字列解決のため新規`VSPackage.resx`(名前`"110"`に表示名を登録)を追加した
-  (`[PackageRegistration(UseManagedResourcesOnly = true)]`のため必要)。
-- `.vsct`/`.vsixmanifest`の変更は不要だった - エディターファクトリ登録はpkgdef経由で自動反映
-  され、「プログラムから開く」ダイアログはVSが登録済みエディターを自動的に列挙する。
+  どのプロジェクト種別でも機能するようにした。新規`VSPackage.resx`(名前`"110"`に表示名を登録)
+  を追加した(`[PackageRegistration(UseManagedResourcesOnly = true)]`のため必要)。
+- `.vsct`/`.vsixmanifest`の変更は不要だった。
 
-### 実装時に実際のコンパイラで確認・修正した点(推測が外れた箇所)
-リフレクションによる事前のAPI検証は、`Microsoft.VisualStudio.Shell.Interop.dll`が型フォワーディング
-方式の参照アセンブリであることに起因する制約で完全には機能しなかった(バイナリ内に
+### 実装時に実際のコンパイラで確認・修正した点
+リフレクションによる事前のAPI検証は、`Microsoft.VisualStudio.Shell.Interop.dll`が型フォワー
+ディング方式の参照アセンブリであることに起因する制約で完全には機能しなかった(バイナリ内に
 `IVsEditorFactory`等の文字列は存在することを`grep`で確認できたが、`Assembly.GetTypes()`は
 0件を返した)。そのため実装は既知のAPI知識に基づいて書き、実際の`dotnet build`のエラーで
 以下を修正した:
 - `IPersistFileFormat : IPersist`であり、`IPersist.GetClassID`と`IPersistFileFormat.
   GetClassID`は(シグネチャが同一でも)別々の明示的実装が必要だった。
-- `IPersistFileFormat.GetFormatList(out string)`の実装が必要だった(未実装だとインター
-  フェイス未実装エラー)。
+- `IPersistFileFormat.GetFormatList(out string)`の実装が必要だった。
 - `[ProvideEditorFactory]`の`CommonPhysicalViewAttributes`は`bool`ではなく別の型で、
-  今回のスコープでは指定を省略した(既定値で問題ない)。
-- `IPersist`は`Microsoft.VisualStudio.OLE.Interop`名前空間にある(`Microsoft.VisualStudio.
-  Shell.Interop`ではない)。
+  今回のスコープでは指定を省略した。
+- `IPersist`は`Microsoft.VisualStudio.OLE.Interop`名前空間にある。
 
-## 検証結果(実際に実行して確認)
-- `dotnet build`(VSExtensionプロジェクト単体、およびリポジトリ全体17プロジェクト)が警告・
-  エラーなく成功することを確認した。
+## 検証結果(実際に実行して確認 - 実スクリーンショットあり)
 
-## 未解決・保留事項(実機検証が必要、優先順位順)
-1. ソリューションエクスプローラーで連続してファイルを切り替えた際のパフォーマンス(毎回
-   `BuildWindowCore`でD3D12デバイス/スワップチェーンを新規作成すると、素早い連続クリックで
-   引っかかりが出る可能性がある)。
-2. VSの標準「プレビュータブ」(1回クリックで一時プレビュー、ダブルクリックで正式に開く)機能が
-   カスタムエディターファクトリ登録だけで自動的に機能するか。
-3. `.gltf`拡張子について、新規登録したエディターがVS標準のテキスト/JSONエディターより
-   優先されるか(テスターが過去に「既定のエディターとして設定」していた場合は挙動が変わる
-   可能性がある)。
-4. `[ProvideEditorFactory]`のリソースID解決(`VSPackage.resx`との対応)- ビルドは通ったが
-   「プログラムから開く」ダイアログでの実際の表示名は未確認。
-5. 本セッションで判明した通り、VS実験用インスタンスのスクリーンショット取得は
-   `Process.MainWindowHandle`ではなくUI Automationの`NativeWindowHandle`経由で行うこと
-   (ADR-0010参照)。
+VS実験用インスタンスで、`UserGameProject/Assets/Models/`に配置したテスト用`Box.glb`/`Box.fbx`
+(検証後削除済み)に対して以下を実機確認した:
+
+- ソリューションエクスプローラーで単に「選択」(`SelectionItemPattern.Select()`)しただけでは
+  プレビューは開かない(VSの標準プレビュータブ機能は、実際のマウスダブルクリック相当の操作を
+  必要とすることを確認)。`dte.ItemOperations.OpenFile(path)`でファイルを開いたところ、
+  正しく`GlbFbxPreviewEditorFactory`経由のドキュメントとして開かれた。
+- **`Box.glb`を開くと、実際に赤い立方体が3Dレンダリングされたタブが表示されることを
+  スクリーンショットで確認した**(`SimpleGltfLoader`+`VorticeRenderer`のin-processパイプライン、
+  ADR-0008と同じ描画結果)。
+- **`Box.fbx`を開くと、同様に3Dレンダリングされたタブが表示されることを確認した**
+  (`ExternalFbxLoader`によるADR-0010の out-of-process ブリッジ経由 - 実際にレンダリングまで
+  成功しており、ブリッジの起動オーバーヘッドはあるが機能上の問題はなかった)。
+- ソリューションエクスプローラー上で`Box.fbx`/`Box.glb`両方のタブが同時に開けること、
+  タブ切り替えで正しく表示が切り替わることを確認した。
+- `.gltf`拡張子について、VS標準のテキスト/JSONエディターとの競合は今回のテストでは発生しな
+  かった(`.gltf`ファイル自体のテストは未実施 - `.glb`/`.fbx`のみ実機確認)。
+
+## 未解決・保留事項(優先順位順)
+1. `.gltf`拡張子(JSON形式)についての実機確認は未実施(`.glb`/`.fbx`のみ確認済み)。
+2. ソリューションエクスプローラーで連続してファイルを切り替えた際のパフォーマンス
+   (毎回`BuildWindowCore`でD3D12デバイス/スワップチェーンを新規作成する)は、今回のテストでは
+   2ファイル間の切り替えのみで問題は見られなかったが、多数のアセットがあるプロジェクトでの
+   検証はしていない。
+3. VSの標準「プレビュータブ」(1回クリックで一時プレビュー)機能自体の自動発火は確認できて
+   いない - `dte.ItemOperations.OpenFile`(プログラム的に開く)経由の動作は確認済みだが、
+   実際のマウスダブルクリック相当の挙動は今回のテスト手法(UI Automation)の制約上、
+   確認できなかった。
