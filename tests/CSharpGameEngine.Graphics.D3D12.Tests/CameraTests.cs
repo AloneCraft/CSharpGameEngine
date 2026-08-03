@@ -1,0 +1,113 @@
+using System.Numerics;
+
+namespace CSharpGameEngine.Graphics.D3D12.Tests;
+
+public class CameraTests
+{
+    [Fact]
+    public void CreateDefault_SetsExpectedDefaults()
+    {
+        Camera camera = Camera.CreateDefault(new Vector3(1, 2, 3));
+
+        Assert.Equal(new Vector3(1, 2, 3), camera.Target);
+        Assert.Equal(0f, camera.Yaw);
+        Assert.True(camera.Distance > 0f);
+        Assert.True(camera.FovYRadians > 0f);
+        Assert.True(camera.NearZ > 0f);
+        Assert.True(camera.FarZ > camera.NearZ);
+    }
+
+    [Fact]
+    public void GetForward_AtZeroYawZeroPitch_PointsAlongPositiveZ()
+    {
+        Camera camera = Camera.CreateDefault(Vector3.Zero);
+        camera.Pitch = 0f;
+
+        Vector3 forward = camera.GetForward();
+
+        AssertApprox(0f, forward.X);
+        AssertApprox(0f, forward.Y);
+        AssertApprox(1f, forward.Z);
+    }
+
+    [Fact]
+    public void GetEyePosition_IsDistanceAwayFromTargetOppositeForward()
+    {
+        Camera camera = Camera.CreateDefault(new Vector3(5, 0, 0));
+        camera.Pitch = 0f;
+        camera.Distance = 3f;
+
+        Vector3 eye = camera.GetEyePosition();
+        Vector3 forward = camera.GetForward();
+
+        AssertApprox((camera.Target - (forward * camera.Distance)).X, eye.X);
+        AssertApprox((camera.Target - (forward * camera.Distance)).Y, eye.Y);
+        AssertApprox((camera.Target - (forward * camera.Distance)).Z, eye.Z);
+        AssertApprox(camera.Distance, Vector3.Distance(eye, camera.Target));
+    }
+
+    [Fact]
+    public void GetFlatForwardAndFlatRight_AreUnitLengthOrthogonalAndFlat()
+    {
+        Camera camera = Camera.CreateDefault(Vector3.Zero);
+        camera.Yaw = 0.7f;
+        camera.Pitch = 0.3f;
+
+        Vector3 flatForward = camera.GetFlatForward();
+        Vector3 flatRight = camera.GetFlatRight();
+
+        AssertApprox(0f, flatForward.Y);
+        AssertApprox(0f, flatRight.Y);
+        AssertApprox(1f, flatForward.Length());
+        AssertApprox(1f, flatRight.Length());
+        AssertApprox(0f, Vector3.Dot(flatForward, flatRight));
+    }
+
+    [Fact]
+    public void ApplyMouseDelta_ClampsPitchToConfiguredRange()
+    {
+        Camera camera = Camera.CreateDefault(Vector3.Zero);
+
+        camera.ApplyMouseDelta(deltaX: 0f, deltaY: -100000f, yawSensitivity: 1f, pitchSensitivity: 1f);
+        Assert.Equal(Camera.MaxPitchRadians, camera.Pitch);
+
+        camera.ApplyMouseDelta(deltaX: 0f, deltaY: 100000f, yawSensitivity: 1f, pitchSensitivity: 1f);
+        Assert.Equal(Camera.MinPitchRadians, camera.Pitch);
+    }
+
+    [Fact]
+    public void ApplyMouseDelta_AccumulatesYawWithoutClamping()
+    {
+        Camera camera = Camera.CreateDefault(Vector3.Zero);
+
+        camera.ApplyMouseDelta(deltaX: 1f, deltaY: 0f, yawSensitivity: 0.5f, pitchSensitivity: 1f);
+        camera.ApplyMouseDelta(deltaX: 1f, deltaY: 0f, yawSensitivity: 0.5f, pitchSensitivity: 1f);
+
+        AssertApprox(1f, camera.Yaw);
+    }
+
+    [Fact]
+    public void GetView_ProducesAnInvertibleMatrix()
+    {
+        Camera camera = Camera.CreateDefault(new Vector3(0, 1, 0));
+
+        Matrix4x4 view = camera.GetView();
+
+        Assert.True(Matrix4x4.Invert(view, out _));
+    }
+
+    [Fact]
+    public void GetProjection_ProducesAnInvertibleMatrix()
+    {
+        Camera camera = Camera.CreateDefault(Vector3.Zero);
+
+        Matrix4x4 projection = camera.GetProjection(aspectRatio: 16f / 9f);
+
+        Assert.True(Matrix4x4.Invert(projection, out _));
+    }
+
+    private static void AssertApprox(float expected, float actual, float tolerance = 1e-4f)
+    {
+        Assert.True(MathF.Abs(expected - actual) <= tolerance, $"Expected {expected} but got {actual} (tolerance {tolerance}).");
+    }
+}

@@ -12,12 +12,12 @@ namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
 /// Thin VSIX shell: registers the viewer commands (<see cref="OpenViewerCommand"/> ADR-0006,
-/// <see cref="ShowViewerToolWindowCommand"/>/<see cref="ViewerToolWindowPane"/> ADR-0007/0008/0010)
-/// and the Fab drop-zone commands (<see cref="ToggleFabWatchCommand"/>,
-/// <see cref="OpenFabCommand"/>, ADR-0011). Also auto-opens <c>UserGameProject.slnx</c> when VS
-/// starts with no solution open, generates asset <c>.meta</c> GUID sidecars, and registers the
-/// Solution Explorer 3D asset preview (ADR-0012/0013). Contains no engine/rendering logic of its
-/// own.
+/// <see cref="ShowViewerToolWindowCommand"/>/<see cref="ViewerToolWindowPane"/> ADR-0007/0008/0010),
+/// the Fab drop-zone commands (<see cref="ToggleFabWatchCommand"/>, <see cref="OpenFabCommand"/>,
+/// ADR-0011), and the ECS-driven stage command (<see cref="OpenGameCommand"/>, ADR-0016). Also
+/// auto-opens <c>UserGameProject.slnx</c> when VS starts with no solution open, generates asset
+/// <c>.meta</c> GUID sidecars, and registers the Solution Explorer 3D asset preview (ADR-0012/0013).
+/// Contains no engine/rendering logic of its own.
 /// </summary>
 [PackageRegistration(UseManagedResourcesOnly = true, AllowsBackgroundLoading = true)]
 [Guid(PackageGuidString)]
@@ -54,6 +54,7 @@ public sealed class CSharpGameEngineViewerPackage : AsyncPackage
         await ShowViewerToolWindowCommand.InitializeAsync(this);
         _fabWatchCommand = await ToggleFabWatchCommand.InitializeAsync(this);
         await OpenFabCommand.InitializeAsync(this);
+        await OpenGameCommand.InitializeAsync(this);
 
         RegisterEditorFactory(new GlbFbxPreviewEditorFactory());
 

@@ -29,6 +29,7 @@
   <ItemGroup>
     <None Include="..\..\assets\Shaders\Triangle.hlsl" Link="Shaders\Triangle.hlsl" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\Shaders\Model.hlsl" Link="Shaders\Model.hlsl" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\assets\Shaders\Stage.hlsl" Link="Shaders\Stage.hlsl" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\TestFixtures\Gltf\Box.glb" Link="Fixtures\Box.glb" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\TestFixtures\Gltf\BoxTextured.glb" Link="Fixtures\BoxTextured.glb" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\TestFixtures\Gltf\Malformed.glb" Link="Fixtures\Malformed.glb" CopyToOutputDirectory="PreserveNewest" />

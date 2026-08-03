@@ -1,3 +1,5 @@
 <Solution>
   <Project Path="UserGameProject/UserGameProject.csproj" />
+  <Project Path="src/CSharpGameEngine.Ecs/CSharpGameEngine.Ecs.csproj" />
+  <Project Path="src/CSharpGameEngine.CodeAnalysis/CSharpGameEngine.CodeAnalysis.csproj" />
 </Solution>

@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\CSharpGameEngine.CodeAnalysis\CSharpGameEngine.CodeAnalysis.csproj" />
+    <ProjectReference Include="..\..\src\CSharpGameEngine.Ecs\CSharpGameEngine.Ecs.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,390 @@
+ユーザーが書くコード
+using MyEngine.Ecs;
+
+namespace MyGame.Components;
+
+// 通常のコンポーネント
+public struct Position
+{
+    public float X;
+    public float Y;
+    public float Z;
+}
+
+public struct Rotation
+{
+    public float X;
+    public float Y;
+    public float Z;
+    public float W;
+}
+
+public struct Velocity
+{
+    public float X;
+    public float Y;
+    public float Z;
+}
+
+public struct Health
+{
+    public int Value;
+}
+
+public struct PlayerTag
+{
+}
+
+アーキタイプは次のように定義します。
+
+using MyEngine.Ecs;
+using MyGame.Components;
+
+namespace MyGame.Archetypes;
+
+[EcsArchetype]
+public partial struct MovingObject
+{
+    // 宣言順は自由
+    public partial ref Velocity Velocity { get; }
+
+    public partial ref Position Position { get; }
+}
+
+別のアーキタイプです。
+
+[EcsArchetype]
+public partial struct DamageableObject
+{
+    public partial ref Health Health { get; }
+
+    public partial ref Position Position { get; }
+}
+
+プレイヤー用です。
+
+[EcsArchetype]
+public partial struct Player
+{
+    // わざと正規化順とは異なる順番で書いている
+    public partial ref PlayerTag PlayerTag { get; }
+
+    public partial ref Velocity Velocity { get; }
+
+    public partial ref Health Health { get; }
+
+    public partial ref Rotation Rotation { get; }
+
+    public partial ref Position Position { get; }
+}
+
+ref 戻り値にしているため、コンポーネント全体をコピーせず直接変更できます。
+
+Player player = world.Create<Player>();
+
+player.Position = new Position
+{
+    X = 10,
+    Y = 2,
+    Z = 5
+};
+
+player.Velocity.X = 3;
+player.Health.Value = 100;
+コンストラクタ形式も生成する場合
+
+ユーザー側はアーキタイプ定義だけを書きます。
+
+[EcsArchetype]
+public partial struct Bullet
+{
+    public partial ref Velocity Velocity { get; }
+
+    public partial ref Position Position { get; }
+
+    public partial ref Damage Damage { get; }
+}
+
+public struct Damage
+{
+    public int Value;
+}
+
+SGが Create 用コードを生成する前提なら、使用側は次のように書けます。
+
+Bullet bullet = world.Create<Bullet>(
+    position: new Position
+    {
+        X = 0,
+        Y = 1,
+        Z = 0
+    },
+    velocity: new Velocity
+    {
+        X = 0,
+        Y = 0,
+        Z = 20
+    },
+    damage: new Damage
+    {
+        Value = 10
+    });
+
+ユーザーのプロパティ宣言順が、
+
+Velocity
+Position
+Damage
+
+であっても、生成される引数順や内部配列順はSGが決めた正規順にできます。
+
+型順序の正規化例
+
+ユーザーが次の2つを定義したとします。
+
+[EcsArchetype]
+public partial struct MovingObjectA
+{
+    public partial ref Velocity Velocity { get; }
+
+    public partial ref Position Position { get; }
+}
+[EcsArchetype]
+public partial struct MovingObjectB
+{
+    public partial ref Position Position { get; }
+
+    public partial ref Velocity Velocity { get; }
+}
+
+SGはプロパティの宣言順ではなく、安定した ComponentTypeId 順に並べます。
+
+ユーザー宣言A:
+    Velocity
+    Position
+
+ユーザー宣言B:
+    Position
+    Velocity
+
+SG正規化後:
+    Position
+    Velocity
+
+したがって、両方のアーキタイプキーは同じになります。
+
+ArchetypeKey<Position, Velocity>
+
+ただし、同じ構成に異なる名前を付けることを許可するかは設計で選べます。
+
+同一構成を統合する設計
+MovingObjectA ─┐
+               ├─ 同じ内部ArchetypeStorageを参照
+MovingObjectB ─┘
+重複をコンパイルエラーにする設計
+ECS0004:
+MovingObjectB has the same component set as MovingObjectA.
+
+基本的には、同一構成はエラーにせず、同じ内部ストレージを共有する別名ビューとして扱う方が柔軟です。
+
+タグを含む定義
+
+アーキタイプを区別したい場合は、空のタグコンポーネントを入れます。
+
+public struct PlayerTag
+{
+}
+
+public struct EnemyTag
+{
+}
+[EcsArchetype]
+public partial struct Player
+{
+    public partial ref Position Position { get; }
+
+    public partial ref Velocity Velocity { get; }
+
+    public partial ref PlayerTag PlayerTag { get; }
+}
+[EcsArchetype]
+public partial struct Enemy
+{
+    public partial ref Velocity Velocity { get; }
+
+    public partial ref EnemyTag EnemyTag { get; }
+
+    public partial ref Position Position { get; }
+}
+
+正規化後は次のようになります。
+
+Player:
+    PlayerTag
+    Position
+    Velocity
+
+Enemy:
+    EnemyTag
+    Position
+    Velocity
+
+Position + Velocity が同じでも、タグ型が違うので別アーキタイプになります。
+
+読み取り専用コンポーネントの宣言
+
+Systemやビュー単位で読み取り専用を区別したい場合は、属性をプロパティに付けられます。
+
+[EcsArchetype]
+public partial struct RenderableObject
+{
+    [EcsReadOnly]
+    public partial ref readonly Mesh Mesh { get; }
+
+    [EcsReadOnly]
+    public partial ref readonly Material Material { get; }
+
+    public partial ref Position Position { get; }
+}
+
+ただし、アーキタイプの構成判定ではrefとref readonlyを区別しません。
+
+Archetype構成:
+    Material
+    Mesh
+    Position
+
+アクセス権:
+    Material = ReadOnly
+    Mesh     = ReadOnly
+    Position = ReadWrite
+
+アクセス権はビューやQueryの情報であり、Entityのコンポーネント構成とは別に扱います。
+
+動的追加・削除を許可するアーキタイプ
+[EcsArchetype(
+    AllowAddComponent = true,
+    AllowRemoveComponent = true)]
+public partial struct Character
+{
+    public partial ref Position Position { get; }
+
+    public partial ref Health Health { get; }
+}
+
+使用コードは次の形です。
+
+Character character = world.Create<Character>();
+
+character.Position = new Position();
+character.Health.Value = 100;
+
+Entity entity = character.Entity;
+
+world.Add(
+    entity,
+    new Velocity
+    {
+        X = 1,
+        Y = 0,
+        Z = 0
+    });
+
+内部では、
+
+Character
+Position + Health
+
+        Add<Velocity>
+
+Position + Health + Velocity
+
+へ移動します。
+
+元の Character ビューを構造変更後も使わせる場合は、ビューにEntity IDだけを持たせ、アクセス時に現在のアーキタイプ位置を解決する必要があります。
+
+推奨する最終的なユーザー定義形式
+using MyEngine.Ecs;
+
+namespace MyGame;
+
+public struct Position
+{
+    public float X;
+    public float Y;
+    public float Z;
+}
+
+public struct Velocity
+{
+    public float X;
+    public float Y;
+    public float Z;
+}
+
+public struct Health
+{
+    public int Value;
+}
+
+public struct PlayerTag
+{
+}
+
+[EcsArchetype]
+public partial struct Player
+{
+    // 順番はユーザーが自由に書ける
+    public partial ref Velocity Velocity { get; }
+
+    public partial ref PlayerTag PlayerTag { get; }
+
+    public partial ref Health Health { get; }
+
+    public partial ref Position Position { get; }
+}
+
+SG内部では次の順に正規化します。
+
+PlayerTag
+Position
+Velocity
+Health
+
+実際の順序は名前順ではなく、SGが各コンポーネントに割り当てた安定した ComponentTypeId 順にします。
+
+また、同じ型を2個置くことは禁止した方が安全です。
+
+[EcsArchetype]
+public partial struct InvalidObject
+{
+    public partial ref Position CurrentPosition { get; }
+
+    // 同じPosition型が重複するためSGエラー
+    public partial ref Position PreviousPosition { get; }
+}
+
+必要ならラッパー型にします。
+
+public struct CurrentPosition
+{
+    public Position Value;
+}
+
+public struct PreviousPosition
+{
+    public Position Value;
+}
+
+[EcsArchetype]
+public partial struct ValidObject
+{
+    public partial ref CurrentPosition CurrentPosition { get; }
+
+    public partial ref PreviousPosition PreviousPosition { get; }
+}
+
+この形式なら、ユーザーは属性、partial struct、partial refプロパティだけを記述し、アーキタイプキー、SoA配列、Entityアクセス、Query、生成メソッドはすべてSGに任せられます。
+
+これを実現するSGを実装して
+そのSGを利用したユーザーコードのサンプルをUserGameProjectプロジェクトに書いて

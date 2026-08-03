@@ -26,6 +26,10 @@ public sealed unsafe class Win32Window : IDisposable
     private bool _destroyed;
     private bool _disposed;
 
+    private readonly bool[] _keyDown = new bool[256];
+    private bool _mouseCaptured;
+    private POINT _capturedCenterScreenPoint;
+
     public event Action<int, int>? Resized;
 
     public Win32Window(Win32WindowOptions options)
@@ -113,6 +117,102 @@ public sealed unsafe class Win32Window : IDisposable
         }
     }
 
+    /// <summary>True while the given virtual-key code (see <c>VK_*</c>) is held down. Cleared automatically on focus loss.</summary>
+    public bool IsKeyDown(int virtualKeyCode)
+    {
+        return virtualKeyCode is >= 0 and < 256 && _keyDown[virtualKeyCode];
+    }
+
+    public bool IsMouseCaptured => _mouseCaptured;
+
+    /// <summary>
+    /// Hides the cursor and clips it to this window (mouse-look style capture), or releases it.
+    /// Implemented by re-centering the cursor every <see cref="ConsumeMouseDelta"/> call rather
+    /// than raw input (<c>WM_INPUT</c>) - simpler and precise enough for an orbit camera, at the
+    /// cost of being bounded by the window's client area.
+    /// </summary>
+    public void SetMouseCaptured(bool captured)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (captured == _mouseCaptured)
+        {
+            return;
+        }
+
+        _mouseCaptured = captured;
+
+        if (captured)
+        {
+            _ = ShowCursor(FALSE);
+            ClipCursorToClientArea();
+            RecenterCursor();
+        }
+        else
+        {
+            _ = ShowCursor(TRUE);
+            _ = ClipCursor(null);
+        }
+    }
+
+    /// <summary>
+    /// Returns the cursor movement since the last call (0,0 when not captured), then re-centers
+    /// the cursor so the next call measures only new movement. Call at most once per frame.
+    /// </summary>
+    public (float DeltaX, float DeltaY) ConsumeMouseDelta()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (!_mouseCaptured)
+        {
+            return (0f, 0f);
+        }
+
+        POINT current;
+        if (!GetCursorPos(&current))
+        {
+            return (0f, 0f);
+        }
+
+        float deltaX = current.x - _capturedCenterScreenPoint.x;
+        float deltaY = current.y - _capturedCenterScreenPoint.y;
+
+        RecenterCursor();
+
+        return (deltaX, deltaY);
+    }
+
+    private void RecenterCursor()
+    {
+        RECT clientRect;
+        if (!GetClientRect(_hwnd, &clientRect))
+        {
+            return;
+        }
+
+        POINT center = new() { x = (clientRect.left + clientRect.right) / 2, y = (clientRect.top + clientRect.bottom) / 2 };
+        _ = ClientToScreen(_hwnd, &center);
+        _ = SetCursorPos(center.x, center.y);
+        _capturedCenterScreenPoint = center;
+    }
+
+    private void ClipCursorToClientArea()
+    {
+        RECT clientRect;
+        if (!GetClientRect(_hwnd, &clientRect))
+        {
+            return;
+        }
+
+        POINT topLeft = new() { x = clientRect.left, y = clientRect.top };
+        POINT bottomRight = new() { x = clientRect.right, y = clientRect.bottom };
+        _ = ClientToScreen(_hwnd, &topLeft);
+        _ = ClientToScreen(_hwnd, &bottomRight);
+
+        RECT screenRect = new() { left = topLeft.x, top = topLeft.y, right = bottomRight.x, bottom = bottomRight.y };
+        _ = ClipCursor(&screenRect);
+    }
+
     private void RefreshClientSize()
     {
         RECT clientRect;
@@ -165,6 +265,51 @@ public sealed unsafe class Win32Window : IDisposable
                 return result;
             }
 
+            case WM_KEYDOWN:
+            case WM_SYSKEYDOWN:
+            {
+                int virtualKeyCode = (int)wParam.Value.ToUInt64();
+                if (virtualKeyCode is >= 0 and < 256)
+                {
+                    _keyDown[virtualKeyCode] = true;
+                }
+                // SYSKEY must still reach DefWindowProcW (Alt+F4, the system menu, etc.); plain
+                // WM_KEYDOWN is fully consumed since this is a game window with no default text
+                // input/accelerator behavior to preserve.
+                return msg == WM_SYSKEYDOWN ? DefWindowProcW(hwnd, msg, wParam, lParam) : 0;
+            }
+
+            case WM_KEYUP:
+            case WM_SYSKEYUP:
+            {
+                int virtualKeyCode = (int)wParam.Value.ToUInt64();
+                if (virtualKeyCode is >= 0 and < 256)
+                {
+                    _keyDown[virtualKeyCode] = false;
+                }
+                return msg == WM_SYSKEYUP ? DefWindowProcW(hwnd, msg, wParam, lParam) : 0;
+            }
+
+            case WM_KILLFOCUS:
+                // Keys can't be reliably tracked once another window owns input focus - clear all
+                // state so a key held down during an Alt-Tab doesn't appear "stuck" on return.
+                Array.Clear(_keyDown);
+                if (_mouseCaptured)
+                {
+                    _ = ShowCursor(TRUE);
+                    _ = ClipCursor(null);
+                }
+                return DefWindowProcW(hwnd, msg, wParam, lParam);
+
+            case WM_SETFOCUS:
+                if (_mouseCaptured)
+                {
+                    _ = ShowCursor(FALSE);
+                    ClipCursorToClientArea();
+                    RecenterCursor();
+                }
+                return DefWindowProcW(hwnd, msg, wParam, lParam);
+
             default:
                 return DefWindowProcW(hwnd, msg, wParam, lParam);
         }
@@ -178,6 +323,13 @@ public sealed unsafe class Win32Window : IDisposable
         }
 
         _disposed = true;
+
+        if (_mouseCaptured)
+        {
+            _ = ShowCursor(TRUE);
+            _ = ClipCursor(null);
+            _mouseCaptured = false;
+        }
 
         if (!_destroyed && _hwnd != HWND.NULL)
         {

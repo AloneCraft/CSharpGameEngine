@@ -5,7 +5,8 @@
     <Platform Name="x86" />
   </Configurations>
   <Folder Name="/Docs/">
-    <File Path="20260803-0.txt" />
+    <File Path="Docs/20260803-0.txt" />
+    <File Path="Docs/20260803-1.txt" />
     <File Path="Docs/Implementation-Status.md" />
   </Folder>
   <Folder Name="/Docs/Architecture/">
@@ -26,9 +27,13 @@
     <File Path="Docs/Decisions/ADR-0012-UserGameProject-AutoOpen-And-AssetMeta.md" />
     <File Path="Docs/Decisions/ADR-0013-Asset-Preview-Editor-Factory.md" />
     <File Path="Docs/Decisions/ADR-0014-CodeAnalysis-Generator-Foundation.md" />
+    <File Path="Docs/Decisions/ADR-0015-Archetype-Ecs-Static-Runtime.md" />
+    <File Path="Docs/Decisions/ADR-0016-Ecs-Driven-Stage-And-ThirdPerson-Controller.md" />
   </Folder>
   <Folder Name="/Docs/Milestones/">
     <File Path="Docs/Milestones/M0001-CodeAnalysis-Foundation.md" />
+    <File Path="Docs/Milestones/M0002-Archetype-Ecs-Foundation.md" />
+    <File Path="Docs/Milestones/M0003-Ecs-Driven-Stage-Vertical-Slice.md" />
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
@@ -39,6 +44,7 @@
   <Folder Name="/assets/">
     <File Path="assets/Shaders/Triangle.hlsl" />
     <File Path="assets/Shaders/Model.hlsl" />
+    <File Path="assets/Shaders/Stage.hlsl" />
     <File Path="assets/TestFixtures/Gltf/Box.glb" />
     <File Path="assets/TestFixtures/Gltf/BoxTextured.glb" />
     <File Path="assets/TestFixtures/Gltf/Triangle.gltf" />
@@ -56,6 +62,7 @@
     <Project Path="src/CSharpGameEngine.Import.Gltf/CSharpGameEngine.Import.Gltf.csproj" />
     <Project Path="src/CSharpGameEngine.Import.Fbx/CSharpGameEngine.Import.Fbx.csproj" />
     <Project Path="src/CSharpGameEngine.CodeAnalysis/CSharpGameEngine.CodeAnalysis.csproj" />
+    <Project Path="src/CSharpGameEngine.Ecs/CSharpGameEngine.Ecs.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/CSharpGameEngine.Core.Tests/CSharpGameEngine.Core.Tests.csproj" />
@@ -65,6 +72,8 @@
     <Project Path="tests/CSharpGameEngine.Import.Fbx.Tests/CSharpGameEngine.Import.Fbx.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.CodeAnalysis.Tests/CSharpGameEngine.CodeAnalysis.Tests.csproj" />
+    <Project Path="tests/CSharpGameEngine.Ecs.Tests/CSharpGameEngine.Ecs.Tests.csproj" />
+    <Project Path="tests/UserGameProject.Tests/UserGameProject.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/CSharpGameEngine.TestHost/CSharpGameEngine.TestHost.csproj" />
