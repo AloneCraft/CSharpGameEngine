@@ -24,6 +24,10 @@
     <ProjectReference Include="..\..\src\CSharpGameEngine.Platform.Windows\CSharpGameEngine.Platform.Windows.csproj" />
     <!-- Test-only edge: production Graphics.D3D12 itself has no reference to Import.Gltf. -->
     <ProjectReference Include="..\..\src\CSharpGameEngine.Import.Gltf\CSharpGameEngine.Import.Gltf.csproj" />
+    <!-- Test-only edge, same pattern as Import.Gltf above: production Graphics.D3D12 has no
+         reference to Geometry either (ADR-0021 moved ProceduralMeshFactory there for the shape
+         palette bridge; only this integration test still needs placeholder ground/box meshes). -->
+    <ProjectReference Include="..\..\src\CSharpGameEngine.Geometry\CSharpGameEngine.Geometry.csproj" />
   </ItemGroup>
 
   <ItemGroup>

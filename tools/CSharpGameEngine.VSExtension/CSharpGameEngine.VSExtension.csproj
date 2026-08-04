@@ -37,6 +37,14 @@
     <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" ExcludeAssets="runtime" />
     <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="18.8.739" />
 
+    <!-- ADR-0021: GameEngineLayout casts EnvDTE.DTE.CommandBars (typed as plain System.Object)
+         to this strongly-typed interface to show the "C# Game Engine" toolbar programmatically -
+         no .vsct flag makes a new toolbar visible by default (confirmed against VSCT.xsd and
+         Microsoft's own shipped .vsct files; DefaultDocked only controls docked-vs-floating, not
+         shown-vs-hidden). ExcludeAssets="runtime" matches the SDK metapackage above - the real DLL
+         is supplied by devenv.exe itself at load time. -->
+    <PackageReference Include="Microsoft.VisualStudio.CommandBars" Version="17.14.40260" ExcludeAssets="runtime" />
+
     <!-- In-process D3D12 rendering (ADR-0008): TerraFX.Interop.Windows (used by the net10.0
          Graphics.D3D12 project) targets net5.0+ only and cannot be referenced from this net472
          project. Vortice.Windows 2.4.2 is the last version series that still targets

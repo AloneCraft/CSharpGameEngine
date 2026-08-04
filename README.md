@@ -21,6 +21,15 @@ GPU統合テスト（`CSharpGameEngine.Graphics.D3D12.Tests`内、`Category=GPU`
 dotnet test --filter "Category!=GPU"
 ```
 
+## VS Code
+`.vscode/launch.json`に、実行可能な6プロジェクト(`UserGameProject`・`TestHost`(self-test/triangle)・
+`Extension`(Viewer)・3つのCLIブリッジ`Import.Gltf.Cli`/`Import.Fbx.Cli`/`Primitive.Cli`)分の
+デバッグ構成を用意しています。VS Codeでリポジトリを開き、拡張機能`ms-dotnettools.csharp`
+(初回は推奨通知が出ます)をインストールした状態で「実行とデバッグ」パネルから選択してください。
+ビルドは各構成の起動前に自動実行されます(`.vscode/tasks.json`)。CLIブリッジ3つは入出力パスを
+起動時に尋ねます。`tools/CSharpGameEngine.VSExtension`(net472 VSIX)はVisual Studio本体
+(`devenv.exe`)のホストが必須のため対象外です。
+
 ## TestHost
 ```bash
 dotnet run --project tools/CSharpGameEngine.TestHost -- --help

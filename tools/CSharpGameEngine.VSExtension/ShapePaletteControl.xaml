@@ -1,0 +1,47 @@
+<UserControl x:Class="CSharpGameEngine.VSExtension.ShapePaletteControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vsshell="clr-namespace:Microsoft.VisualStudio.Shell;assembly=Microsoft.VisualStudio.Shell.15.0"
+             mc:Ignorable="d"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             d:DesignHeight="500" d:DesignWidth="260"
+             Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"
+             Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <!--
+            Column order deliberately mirrors the reference shape palette layout the user provided
+            (ADR-0021): primitives that map onto CSharpGameEngine.Geometry.ProceduralMeshFactory are
+            enabled; interactive-gizmo-driven tools (extrude/spline/path/grid) are disabled
+            placeholders, out of scope for this pass (Docs/EditorSpec.md §6).
+        -->
+        <UniformGrid Columns="2" Margin="4">
+            <Button Tag="Box" Content="ボックス" Click="PrimitiveButton_Click" Margin="3" MinHeight="40" />
+            <Button Tag="Sphere" Content="球形" Click="PrimitiveButton_Click" Margin="3" MinHeight="40" />
+
+            <Button Tag="Cylinder" Content="シリンダー" Click="PrimitiveButton_Click" Margin="3" MinHeight="40" />
+            <Button Tag="Capsule" Content="カプセル" Click="PrimitiveButton_Click" Margin="3" MinHeight="40" />
+
+            <Button Tag="Cone" Content="コーン" Click="PrimitiveButton_Click" Margin="3" MinHeight="40" />
+            <Button Tag="Torus" Content="トーラス" Click="PrimitiveButton_Click" Margin="3" MinHeight="40" />
+
+            <Button Content="矢印" IsEnabled="False" Margin="3" MinHeight="40" />
+            <Button Tag="Rectangle" Content="矩形" Click="PrimitiveButton_Click" Margin="3" MinHeight="40" />
+
+            <Button Tag="Disk" Content="ディスク" Click="PrimitiveButton_Click" Margin="3" MinHeight="40" />
+            <Button Content="階段" IsEnabled="False" Margin="3" MinHeight="40" />
+
+            <Button Content="CubeGrid" IsEnabled="False" Margin="3" MinHeight="40" />
+            <Button Content="ポリゴンを押し出し" IsEnabled="False" Margin="3" MinHeight="40" />
+
+            <Button Content="パスを押し出し" IsEnabled="False" Margin="3" MinHeight="40" />
+            <Button Content="パスを回転" IsEnabled="False" Margin="3" MinHeight="40" />
+
+            <Button Content="スプラインを回転" IsEnabled="False" Margin="3" MinHeight="40" />
+            <Button Content="スプラインを描画" IsEnabled="False" Margin="3" MinHeight="40" />
+
+            <Button Content="スプラインを抽出" IsEnabled="False" Margin="3" MinHeight="40" />
+            <Button Content="メッシュスプライン" IsEnabled="False" Margin="3" MinHeight="40" />
+        </UniformGrid>
+    </ScrollViewer>
+</UserControl>

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Numerics;
 using System.Text.Json;
 
@@ -75,12 +76,46 @@ internal sealed class SceneFile
         return new SceneFile { Nodes = nodes };
     }
 
-    /// <summary>
-    /// Resolves <see cref="SceneFileNode.ParentId"/> into a tree; a node with a null/missing parent
-    /// is a root (mirrors <c>CSharpGameEngine.Scene.SceneNodeTree</c>'s rule exactly, ADR-0020).
-    /// Throws if any node is unreachable from every root (a cycle, or a reference that never
-    /// resolves to a root) rather than silently dropping it from the Hierarchy view.
-    /// </summary>
+    public void Save(string path) => File.WriteAllText(path, ToJson());
+
+    public string ToJson()
+    {
+        JsonDocumentDto document = new()
+        {
+            SchemaVersion = 1,
+            Nodes = [.. Nodes.Select(ToJsonNode)],
+        };
+
+        return JsonSerializer.Serialize(document, JsonOptions);
+    }
+
+    private static JsonNodeDto ToJsonNode(SceneFileNode node) => new()
+    {
+        Id = node.Id.ToString("D"),
+        Name = node.Name,
+        ParentId = node.ParentId?.ToString("D"),
+        Transform = new JsonTransformDto
+        {
+            Position = FromVector3(node.Position),
+            Rotation = FromQuaternion(node.Rotation),
+            Scale = FromVector3(node.Scale),
+        },
+        MeshAssetPath = node.MeshAssetPath,
+    };
+
+    private static float[] FromVector3(Vector3 v) => [v.X, v.Y, v.Z];
+
+    private static float[] FromQuaternion(Quaternion q) => [q.X, q.Y, q.Z, q.W];
+
+    /// <summary>Returns a new <see cref="SceneFile"/> with <paramref name="node"/> appended - this type is immutable, so callers must re-<see cref="Save"/> the result (ADR-0021's shape-palette "add primitive" flow).</summary>
+    public SceneFile AddNode(SceneFileNode node) => new() { Nodes = [.. Nodes, node] };
+
+    /// <summary>The first node with no parent, or null for an empty/parent-less-free scene. Used to attach newly-spawned primitives under the scene's root (ADR-0021).</summary>
+    public Guid? FindFirstRootNodeId() => Nodes.FirstOrDefault(n => n.ParentId is null)?.Id;
+
+    /// <summary>True if any existing node already has this exact name - used to pick a non-colliding "Sphere_1"-style name for a newly-spawned primitive (ADR-0021).</summary>
+    public bool ContainsNodeNamed(string name) => Nodes.Any(n => n.Name == name);
+
     /// <summary>
     /// Resolves every node's world-space transform by walking its parent chain (child's
     /// <see cref="SceneFileNode.LocalTransform"/> composed with the parent's already-resolved
@@ -127,6 +162,12 @@ internal sealed class SceneFile
         return world;
     }
 
+    /// <summary>
+    /// Resolves <see cref="SceneFileNode.ParentId"/> into a tree; a node with a null/missing parent
+    /// is a root (mirrors <c>CSharpGameEngine.Scene.SceneNodeTree</c>'s rule exactly, ADR-0020).
+    /// Throws if any node is unreachable from every root (a cycle, or a reference that never
+    /// resolves to a root) rather than silently dropping it from the Hierarchy view.
+    /// </summary>
     public IReadOnlyList<SceneFileNodeTreeItem> BuildTree()
     {
         Dictionary<Guid, SceneFileNode> byId = [];

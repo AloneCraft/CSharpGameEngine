@@ -1,28 +1,30 @@
-using System.Text.Json;
-using CSharpGameEngine.Import.Gltf;
+using CSharpGameEngine.Bridge.Hosting;
 using CSharpGameEngine.Import.Gltf.Cli;
+
+if (args is ["--serve", var pipeName])
+{
+    await BridgeServerHost.RunAsync(pipeName, GltfBridgeWorker.Run, TimeSpan.FromMinutes(15));
+    return 0;
+}
 
 if (args.Length != 2)
 {
     Console.Error.WriteLine("Usage: CSharpGameEngine.Import.Gltf.Cli <input.glb|input.gltf> <output.json>");
+    Console.Error.WriteLine("       CSharpGameEngine.Import.Gltf.Cli --serve <pipeName>");
     return 2;
 }
 
-string inputPath = args[0];
-string outputPath = args[1];
-
-GltfImportResult result = GltfImporter.Import(inputPath);
-
-foreach (GltfImportDiagnostic diagnostic in result.Diagnostics)
+(int exitCode, string output) = GltfBridgeWorker.Run(args[0], args[1]);
+if (output.Length > 0)
 {
-    Console.WriteLine(diagnostic.ToString());
+    if (exitCode == 0)
+    {
+        Console.WriteLine(output);
+    }
+    else
+    {
+        Console.Error.WriteLine(output);
+    }
 }
 
-GltfBridgeDocument document = result.Success
-    ? GltfBridgeDocument.ForMesh(result.Mesh!)
-    : GltfBridgeDocument.ForFailure();
-
-string json = JsonSerializer.Serialize(document);
-File.WriteAllText(outputPath, json);
-
-return result.Success ? 0 : 1;
+return exitCode;

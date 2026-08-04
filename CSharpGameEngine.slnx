@@ -33,6 +33,9 @@
     <File Path="Docs/Decisions/ADR-0018-Textured-Stage-And-Ecs-Systems.md" />
     <File Path="Docs/Decisions/ADR-0019-VSIX-Gltf-OutOfProcess-Bridge.md" />
     <File Path="Docs/Decisions/ADR-0020-Scene-Preview-And-Hierarchy-Selection-Sync.md" />
+    <File Path="Docs/Decisions/ADR-0021-Editor-Layout-And-Shape-Palette.md" />
+    <File Path="Docs/Decisions/ADR-0022-Hierarchy-Drag-Drop-Asset-Placement.md" />
+    <File Path="Docs/Decisions/ADR-0023-Bridge-Process-Residency.md" />
   </Folder>
   <Folder Name="/Docs/Milestones/">
     <File Path="Docs/Milestones/M0001-CodeAnalysis-Foundation.md" />
@@ -63,6 +66,7 @@
     <Project Path="src/CSharpGameEngine.Core/CSharpGameEngine.Core.csproj" />
     <Project Path="src/CSharpGameEngine.Platform.Windows/CSharpGameEngine.Platform.Windows.csproj" />
     <Project Path="src/CSharpGameEngine.Compiler.Hlsl/CSharpGameEngine.Compiler.Hlsl.csproj" />
+    <Project Path="src/CSharpGameEngine.Geometry/CSharpGameEngine.Geometry.csproj" />
     <Project Path="src/CSharpGameEngine.Graphics.D3D12/CSharpGameEngine.Graphics.D3D12.csproj" />
     <Project Path="src/CSharpGameEngine.Import.Gltf/CSharpGameEngine.Import.Gltf.csproj" />
     <Project Path="src/CSharpGameEngine.Import.Fbx/CSharpGameEngine.Import.Fbx.csproj" />
@@ -73,6 +77,8 @@
   <Folder Name="/tests/">
     <Project Path="tests/CSharpGameEngine.Core.Tests/CSharpGameEngine.Core.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Compiler.Hlsl.Tests/CSharpGameEngine.Compiler.Hlsl.Tests.csproj" />
+    <Project Path="tests/CSharpGameEngine.Bridge.Hosting.Tests/CSharpGameEngine.Bridge.Hosting.Tests.csproj" />
+    <Project Path="tests/CSharpGameEngine.Geometry.Tests/CSharpGameEngine.Geometry.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Graphics.D3D12.Tests/CSharpGameEngine.Graphics.D3D12.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Import.Gltf.Tests/CSharpGameEngine.Import.Gltf.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Import.Fbx.Tests/CSharpGameEngine.Import.Fbx.Tests.csproj" />
@@ -88,8 +94,10 @@
     <File Path="tools/UnrealExport/README.md" />
     <Project Path="tools/CSharpGameEngine.TestHost/CSharpGameEngine.TestHost.csproj" />
     <Project Path="tools/CSharpGameEngine.Extension/CSharpGameEngine.Extension.csproj" />
+    <Project Path="tools/CSharpGameEngine.Bridge.Hosting/CSharpGameEngine.Bridge.Hosting.csproj" />
     <Project Path="tools/CSharpGameEngine.Import.Fbx.Cli/CSharpGameEngine.Import.Fbx.Cli.csproj" />
     <Project Path="tools/CSharpGameEngine.Import.Gltf.Cli/CSharpGameEngine.Import.Gltf.Cli.csproj" />
+    <Project Path="tools/CSharpGameEngine.Primitive.Cli/CSharpGameEngine.Primitive.Cli.csproj" />
     <Project Path="tools/CSharpGameEngine.VSExtension/CSharpGameEngine.VSExtension.csproj">
       <Deploy Solution="Debug|Any CPU" />
     </Project>

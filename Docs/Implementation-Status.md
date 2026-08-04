@@ -7,7 +7,11 @@ Backfillは行っておらず、ADR-0014(CSharpGameEngine.CodeAnalysis基盤)で
 ThirdPersonキャラクターコントローラー)で7エントリ、ADR-0017/ADR-0018(UE5.8 FirstPersonステージ
 移植、M0004)で既存2エントリを更新し5エントリを追加、ADR-0019(VSIXのglTFアウトオブプロセス
 ブリッジ統一)で1エントリ、ADR-0020(シーンダブルクリックプレビューとヒエラルキー選択連動)で
-3エントリを追加しています。
+3エントリを追加、ADR-0021(GameEngineレイアウトとシェイプパレット、`.scene`拡張子修正)で
+F-L8-003を更新し3エントリを追加、ADR-0022(ヒエラルキーへのドラッグ&ドロップ配置)で1エントリを
+追加、ADR-0010追記(ブリッジ起動を事前ビルド済みexeの直接起動に切り替え、シーンタブの体感速度
+問題を解消)でF-L8-002/F-L8-003を更新、ADR-0023(ブリッジプロセスの常駐化・Named Pipeサーバー)で
+F-L8-002を更新し1エントリを追加しています。
 
 ---
 
@@ -531,16 +535,23 @@ ThirdPersonキャラクターコントローラー)で7エントリ、ADR-0017/A
 - Parent capability: シーンダブルクリックプレビューとヒエラルキー選択連動
 - Status: Implemented
 - Verification: TestVerified、RuntimeVerified
-- Intended specification: Docs/Decisions/ADR-0019-VSIX-Gltf-OutOfProcess-Bridge.md
+- Intended specification: Docs/Decisions/ADR-0019-VSIX-Gltf-OutOfProcess-Bridge.md、
+  Docs/Decisions/ADR-0010-VSIX-Fbx-OutOfProcess-Bridge.md(追記: ブリッジ起動の事前ビルド済みexe
+  直接化)、Docs/Decisions/ADR-0023-Bridge-Process-Residency.md(常駐サーバー化、F-L8-008参照)
 - Implementation evidence:
   - tools/CSharpGameEngine.Import.Gltf.Cli/Program.cs
   - tools/CSharpGameEngine.Import.Gltf.Cli/GltfBridgeDocument.cs
-  - tools/CSharpGameEngine.VSExtension/ExternalBridgeProcess.cs
+  - tools/CSharpGameEngine.Import.Gltf.Cli/GltfBridgeWorker.cs(ADR-0023で`Program.cs`から抽出)
+  - tools/CSharpGameEngine.VSExtension/ExternalBridgeProcess.cs(`BridgeExecutableLocator`含む)
   - tools/CSharpGameEngine.VSExtension/ExternalGltfLoader.cs
   - tools/CSharpGameEngine.VSExtension/BridgeDocument.cs
   - tools/CSharpGameEngine.VSExtension/MeshLoader.cs
-- Tests: なし(`CSharpGameEngine.Import.Fbx.Cli`と同様、`Process.Start`薄いラッパーのため専用の
-  ユニットテストは無い。ブリッジCLI自体は`dotnet run`実行で実地確認)。
+- Tests:
+  - tests/CSharpGameEngine.VSExtension.Tests/BridgeExecutableLocatorTests.cs(`BridgeExecutableLocator`
+    の候補探索・Debug/Release/RIDサブフォルダの優先順位を一時フォルダで検証、実プロセス起動なし)
+  - ブリッジCLI自体・`MeshLoader`のキャッシュ挙動は引き続き専用ユニットテスト無し(`Process.Start`
+    薄いラッパー/実際のブリッジ起動を伴うため。`dotnet run`実行での実地確認に留める)。
+  - 常駐サーバー関連のテストはF-L8-008参照。
 - Reverse-engineered behavior:
   - `.glb`/`.gltf`はもともと`SimpleGltfLoader`(SharpGLTF.Core直接参照・in-process)で読んで
     いたが、`.fbx`(`ExternalFbxLoader`、ADR-0010)とは異なる方式だった非対称性をユーザー指摘により
@@ -552,9 +563,23 @@ ThirdPersonキャラクターコントローラー)で7エントリ、ADR-0017/A
     パッケージ参照も除去した(このプロジェクトはもうAssimpNetもSharpGLTF.Coreも直接参照しない)。
   - `dotnet run --project tools/CSharpGameEngine.Import.Gltf.Cli -- assets/TestFixtures/Gltf/Box.glb <tmp>.json`
     を実際に実行し、終了コード0・24頂点/36インデックスの正しいJSONが生成されることを確認した。
+  - **(ADR-0010追記)** シーンタブが体感で重いというユーザー報告を受け、`ExternalBridgeProcess.
+    RunProcess`が`BridgeExecutableLocator.FindExecutable`でブリッジの事前ビルド済みapphost
+    `.exe`(`bin/{Release,Debug}/net10.0[/win-x64]/<フォルダ名>.exe`、最終更新日時が新しいもの)を
+    探し、見つかればそれを直接起動するよう変更(未ビルド時のみ`dotnet run --project`に
+    フォールバック)。`Box.glb`を対象に実測したところ`dotnet run --project`が約1,985〜2,570ms
+    かかったのに対し、直接起動は約152〜178msで、ブリッジ1回あたり約13〜15倍高速化した。
+    `MeshLoader`にも絶対パス+最終更新時刻キーの`ConcurrentDictionary`キャッシュ(プロセス
+    生存期間)を追加し、`ViewerHwndHost`/`AssetPreviewHwndHost`/`SceneHwndHost`全てが再読込
+    コストを避けられるようにした。
+  - **(ADR-0023)** `ExternalBridgeProcess.RunProcess`が常駐Named Pipeサーバー経由の起動を
+    最優先で試すようになった(詳細・実測値はF-L8-008参照)。`RunAndReadJson`は
+    `useResidentServer`引数が必須になり、`ExternalGltfLoader`は`true`を指定する。
 - Conformance: Matches
 - Known deviations: None
-- Next action: なし。
+- Next action: VS実機で「シーンタブ・シェイプパレット追加時の体感速度が実際に改善したか」を
+  ユーザーに確認してもらう(ビルド・テスト・実測タイミングは確認済みだが、ライブVSでの体感は
+  未確認)。
 
 ## F-L2-001 — `CSharpGameEngine.Scene`(`SceneNode`/`Transform`/`SceneGraph`/`SceneNodeTree`)
 
@@ -628,14 +653,227 @@ ThirdPersonキャラクターコントローラー)で7エントリ、ADR-0017/A
   - `SceneEditorHub`(static)が`SceneHwndHost`(シーンオープン時に`PublishSceneOpened`)と
     `HierarchyToolWindowControl`(`SceneOpened`購読・`TreeView.SelectedItemChanged`で
     `PublishSelection`)を仲介する。選択連動はヒエラルキー→シーンの一方向のみ。
-  - `HierarchyToolWindowPane`は`CSharpGameEngineViewerPackage.InitializeAsync`内で
-    `ShowToolWindowAsync`により常時表示にした(Unityの常時ドッキングされたヒエラルキーの
-    体感に合わせた設計判断 - EditorSpec Phase 1の「パッケージロード時走査」とは異なる)。
-- Conformance: Matches(ただし実機でのダブルクリック・ハイライト表示の目視確認は未実施 -
-  下記Known deviations参照)。
-- Known deviations: `.scene.json`という複合拡張子が`ProvideEditorExtension`で実際にVS側で
-  単一の拡張子として認識されるかは、VS実験用インスタンスでの実地確認をまだ行っていない。
-  選択ハイライトの見た目(オレンジ系タイントの視認性)も同様に実機未確認。
-- Next action: 次回セッションでVS実験用インスタンス([[feedback-vsix-verification]]の
-  `NativeWindowHandle`経由スクリーンショット手順)により、ダブルクリック起動・ヒエラルキー
-  ツリー表示・選択ハイライトを実機確認する。
+  - `HierarchyToolWindowPane`の表示タイミングはADR-0021で「常時表示」から「初回起動時のみ
+    自動表示、以後はVS標準の前回状態復元に任せる」に変更された(`GameEngineLayout`、
+    F-L8-005参照)。
+  - **(ADR-0010追記)** `SceneHwndHost.LoadIntoSurface`は元々ノードを1つずつ順に`MeshLoader.Load`
+    していたが、シーンタブの体感速度問題(ADR-0010追記、F-L8-002参照)を受け、重複排除した
+    メッシュパス集合を`MeshLoader`(プロセス生存期間キャッシュ導入済み)経由で並列に事前ロード
+    してから描画オブジェクトを組み立てるよう変更した。並列待機は`Task.WhenAll(...).GetAwaiter()
+    .GetResult()`ではなく`ThreadHelper.JoinableTaskFactory.Run(...)`を使用- `LoadIntoSurface`は
+    常にUIスレッドで呼ばれるため、生の同期待機はVSTHRD002ビルドエラーになるだけでなく、本ADR
+    (0021追記)で実際に踏んだのと同種のデッドロックを再発させかねない。
+- Conformance: Matches(ユーザーの実機確認により、`.scene`ダブルクリック起動・ヒエラルキー
+  ツリー表示・選択ハイライト(オレンジ系タイント)がすべて実際に動作することを確認済み)。
+- Known deviations: **ADR-0021で判明・修正済み**: `.scene.json`という複合拡張子は
+  `ProvideEditorExtension`で単一の拡張子として認識されず、ダブルクリックしても何も開かない
+  不具合だった(実機検証で確認)。拡張子を単一の`.scene`に変更して解決した(スキーマ自体は
+  無変更)。
+- Next action: VS実機でシーンタブの体感速度が改善したかユーザーに確認してもらう(F-L8-002の
+  Next actionと同じ、ADR-0010追記参照)。
+
+## F-L2-002 — `CSharpGameEngine.Geometry`(`ProceduralMeshFactory`・6プリミティブ追加)
+
+- Layer: L2 — Type Schema / Identity
+- Parent capability: GameEngineレイアウトとシェイプパレット
+- Status: Implemented
+- Verification: TestVerified
+- Intended specification: Docs/Decisions/ADR-0021-Editor-Layout-And-Shape-Palette.md
+- Implementation evidence:
+  - src/CSharpGameEngine.Geometry/ProceduralMeshData.cs
+  - src/CSharpGameEngine.Geometry/ProceduralMeshFactory.cs
+- Tests:
+  - tests/CSharpGameEngine.Geometry.Tests/ProceduralMeshFactoryTests.cs
+- Reverse-engineered behavior:
+  - `src/CSharpGameEngine.Graphics.D3D12/ProceduralMeshFactory.cs`(`CreatePlane`/`CreateBox`のみ)
+    から移設。移設前の時点で`Graphics.D3D12`本体のどこからも参照されておらず(唯一の呼び出し元は
+    `StageGpuIntegrationTests.cs`)、`Graphics.D3D12`への`ProjectReference`は追加せず
+    `tests/CSharpGameEngine.Graphics.D3D12.Tests.csproj`から直接参照する「テスト専用エッジ」
+    とした(同csprojの`Import.Gltf`直接参照と同じ前例パターン)。
+  - `CreateSphere`は極を単一頂点にしてファンする方式(素朴なUV球のように極の列を複製して
+    quad化する方式ではない)で実装しており、これにより退化三角形が構造的に発生しない。
+    `CreateCylinder`/`CreateCone`/`CreateDisk`は共有`AddRing`/`AddQuadBand`ヘルパーで
+    リング状の頂点列とバンドの三角形分割を統一的に処理する。`CreateCapsule`は半球リング生成
+    (`AddHemisphereRings`)+円柱側面+半球リングという3段構成。
+  - 全8種(Box/Plane含む)についてretry`tests/CSharpGameEngine.Geometry.Tests`で頂点/インデックス
+    範囲・法線単位長・退化三角形の不在(三角形面積>1e-6の実測値チェック)を検証、30件全て初回
+    実行で成功。
+- Conformance: Matches
+- Known deviations: None
+- Next action: サイズ/セグメント数のパラメータ化(現在は固定値)が必要になった時点で再検討する
+  (Inspectorパネル実装時が候補)。
+
+## F-L8-005 — GameEngine既定レイアウト(`GameEngineLayout`/`ApplyGameEngineLayoutCommand`)
+
+- Layer: L8 — Visual Studio Authoring Environment
+- Parent capability: GameEngineレイアウトとシェイプパレット
+- Status: Implemented
+- Verification: TestVerified(ビルド・VSCTコンパイルのみ。実機でのレイアウト適用は未確認)
+- Intended specification: Docs/Decisions/ADR-0021-Editor-Layout-And-Shape-Palette.md
+- Implementation evidence:
+  - tools/CSharpGameEngine.VSExtension/GameEngineLayout.cs
+  - tools/CSharpGameEngine.VSExtension/ApplyGameEngineLayoutCommand.cs
+  - tools/CSharpGameEngine.VSExtension/CSharpGameEngineViewerPackage.cs
+  - tools/CSharpGameEngine.VSExtension/OpenViewerCommandPackage.vsct
+- Tests: なし(VS UIそのものへの副作用が中心のため、既存の類似コマンド群と同様専用テストは無い)。
+- Reverse-engineered behavior:
+  - VS SDKには名前付きウィンドウレイアウト(「ウィンドウ > ウィンドウ レイアウトの適用」)を
+    登録する公開APIが存在しないことを実装前に調査確認した(実装は`Microsoft.VisualStudio.Platform.WindowManagement.dll`
+    という非公開の内部アセンブリの`internal ILayoutManagementServiceInternal`にのみ存在)。
+    そのため独自のTools-menuコマンド`ApplyGameEngineLayoutCommand`で代替した。
+  - `[ProvideToolWindow]`属性の`Style`/`Window`/`Orientation`/`DockedWidth`は、そのVSハイブで
+    ツールウィンドウが初めて生成される時だけ効く既定値であり、以後はVSが`.winprf`に保存した
+    実レイアウトが優先される(実機のExpハイブの`.winprf`で確認済み)。そのため
+    `IVsWindowFrame.SetFramePos`(`VSSETFRAMEPOS.SFP_fDock | SFP_fDockLeft`/`SFP_fDockRight`、
+    `ToolWindowGuids80.SolutionExplorer`基準)による実行時の強制配置を併用する。
+  - `.vsct`にツールバーを既定表示させる宣言的フラグは存在しない(`DefaultDocked`はドッキング/
+    フローティングの区別であって表示/非表示ではない)。`EnvDTE.DTE.CommandBars`
+    (`System.Object`で返るため`Microsoft.VisualStudio.CommandBars.CommandBars`への明示キャストが
+    必要)を経由した`CommandBar.Visible = true`のみが機能する。
+  - 初回起動時のみ適用する仕組みは`SVsSettingsManager`のユーザースコープ設定ストア
+    (コレクション`CSharpGameEngine`、プロパティ`InitialLayoutApplied`)で判定する。2回目以降は
+    何もせず、VS標準の「前回開いていた状態を復元」に委ねる。
+  - **ADR-0021追記で修正**: 当初`GameEngineLayout.ApplyAsync`(`ShowToolWindowAsync`でのツール
+    ウィンドウ初回生成を含む)を`TryAutoOpenUserGameProjectAsync`からインライン`await`で
+    呼んでおり、`InitializeAsync`自身の非同期チェーンにネストされたまま実行されていたため、
+    ユーザーの実機F5デバッグで実際にデッドロックした(`WindowManagerService.CreateContentPane`の
+    内部同期待機が`InitializeAsync`自身の完了待ちで自己参照)。修正として
+    `TryApplyInitialLayoutAsync`を独立メソッドに分離し、`InitializeAsync`から
+    `JoinableTaskFactory.RunAsync(...)`で**待機せず**起動するよう変更、ユーザーが実機で動作
+    確認済み。
+- Conformance: Matches(初回起動時のデッドロックはユーザーの実機確認により解消を確認済み。
+  ツールバー表示・パネル既定配置そのものの見た目は未確認)。
+- Known deviations: ツールバー表示・パネル既定配置の見た目そのものの実機確認が未実施
+  (デッドロックの解消は確認済みだが、それとは別の確認項目)。
+- Next action: VS実験用インスタンスで初回起動時のツールバー表示・パネル配置の見た目と
+  「GameEngine レイアウトを適用」コマンドの動作を実機確認する。
+
+## F-L8-006 — シェイプパレット(`ShapePaletteToolWindowPane`/`PrimitiveSpawner`)
+
+- Layer: L8 — Visual Studio Authoring Environment
+- Parent capability: GameEngineレイアウトとシェイプパレット
+- Status: Implemented
+- Verification: RuntimeVerified(ユーザーの実機F5デバッグで、球形/シリンダー/ディスク等を実際に
+  クリックしてシーンに追加描画され、ヒエラルキーにもノードが増え、選択ハイライトも機能することを
+  スクリーンショットで確認済み)
+- Intended specification: Docs/Decisions/ADR-0021-Editor-Layout-And-Shape-Palette.md
+- Implementation evidence:
+  - tools/CSharpGameEngine.Primitive.Cli/Program.cs
+  - tools/CSharpGameEngine.VSExtension/ShapePaletteToolWindowPane.cs
+  - tools/CSharpGameEngine.VSExtension/ShapePaletteControl.xaml(.cs)
+  - tools/CSharpGameEngine.VSExtension/ShowShapePaletteToolWindowCommand.cs
+  - tools/CSharpGameEngine.VSExtension/PrimitiveSpawner.cs
+  - tools/CSharpGameEngine.VSExtension/SceneNodeAdder.cs(ADR-0022で`PrimitiveSpawner`から抽出)
+  - tools/CSharpGameEngine.VSExtension/ExternalBridgeProcess.cs(`RunProducingFile`メソッド)
+  - tools/CSharpGameEngine.VSExtension/SceneFile.cs(`Save`/`AddNode`/`FindFirstRootNodeId`/
+    `ContainsNodeNamed`メソッド)
+  - tools/CSharpGameEngine.VSExtension/SceneEditorHub.cs(`ReloadRequested`イベント)
+- Tests: なし(VSIX側のクリックハンドラ自体は専用テストが無い - `SceneFile`の`Save`往復は
+  F-L2-001/F-L8-003のテストでカバー)。
+- Reverse-engineered behavior:
+  - 8ボタン(ボックス・球形・シリンダー・カプセル・コーン・トーラス・矩形・ディスク)のみ
+    `Click`ハンドラを持ち、残り10ボタンは`IsEnabled="False"`のプレースホルダー
+    (対話的ギズモ操作が前提でEditorSpec §6のスコープ外)。
+  - `PrimitiveSpawner.SpawnAsync`: `UserGameProject/Assets/Primitives/<Name>.glb`が無ければ
+    `tools/CSharpGameEngine.Primitive.Cli`をアウトオブプロセスで起動して生成(2回目以降は
+    キャッシュされたファイルを再利用)、`SceneEditorHub.ActiveScene`が無ければ案内メッセージを
+    出して終了、新規ノードを`SceneFile.AddNode`+`Save`で書き戻し、
+    `SceneEditorHub.RequestReload`で「シーン」タブとヒエラルキーの再描画をトリガーする。
+    シーンJSONスキーマ自体は無変更 - スポーンされたプリミティブは他の`meshAssetPath`付き
+    ノードと区別されない通常のシーンノードとして扱われる。
+  - net472の`Path`には`GetRelativePath`が存在しない(.NET Core 2.0+/netstandard2.1専用のため)
+    ことをビルドエラーで確認し、`Uri.MakeRelativeUri`を使った旧来の.NET Framework向け
+    ワークアラウンドで代替した。
+  - VS threading analyzer(VSTHRD010)が`ThreadHelper.ThrowIfNotOnUIThread()`の明示呼び出しを
+    要求することを実際のビルドエラーで確認し、`SetStatusBarText`等のCOM呼び出しを行う各所に
+    追加した。
+- Conformance: Matches(ユーザーの実機確認により、シェイプクリック→シーンへの追加描画→
+  ヒエラルキーへのノード追加→選択ハイライトの一連の流れが実際に動作することを確認済み)。
+- Known deviations: None(実機確認済み)。
+- Next action: なし。
+
+## F-L8-007 — ヒエラルキーへのドラッグ&ドロップ配置(`SceneNodeAdder`)
+
+- Layer: L8 — Visual Studio Authoring Environment
+- Parent capability: ヒエラルキーへのドラッグ&ドロップ配置(EditorSpec Phase 2前半)
+- Status: Implemented
+- Verification: TestVerified(ビルドのみ。ソリューションエクスプローラーからの実ドラッグ操作は
+  実機未確認)
+- Intended specification: Docs/Decisions/ADR-0022-Hierarchy-Drag-Drop-Asset-Placement.md
+- Implementation evidence:
+  - tools/CSharpGameEngine.VSExtension/SceneNodeAdder.cs
+  - tools/CSharpGameEngine.VSExtension/HierarchyToolWindowControl.xaml(.cs)
+  - tools/CSharpGameEngine.VSExtension/PrimitiveSpawner.cs(`SceneNodeAdder`利用に更新)
+- Tests: なし(WPFドラッグ&ドロップイベントハンドラ自体は専用テストが無い - ノード追加の
+  中核ロジックは`SceneNodeAdder`経由でF-L8-003/F-L8-006のテストと同じ`SceneFile`往復テストで
+  間接的にカバーされる)。
+- Reverse-engineered behavior:
+  - `PrimitiveSpawner`(ADR-0021)が持っていた「現在開いているシーンにノードを追加・保存・
+    再読み込みトリガー」ロジックを`SceneNodeAdder.TryAddAssetNode`として抽出し、
+    `PrimitiveSpawner`と本機能の両方が共有する。
+  - `HierarchyToolWindowControl`の`TreeView`に`AllowDrop="True"`+`DragEnter`/`DragOver`/`Drop`を
+    追加。VSのソリューションエクスプローラーからのドラッグは`System.Windows.DataFormats.FileDrop`
+    (標準`CF_HDROP`)で実ファイルパスを受け取れる想定(多くのVS拡張が依存する一般的パターン、
+    ただし本プロジェクトでは実機未確認)。拡張子が`.glb`/`.gltf`/`.fbx`のいずれでもない場合は
+    `DragDropEffects.None`でドロップを拒否する。
+  - シーンJSONスキーマは無変更 - ドラッグ配置されたノードもシェイプパレット由来のノードと
+    区別されない通常のノードとして扱われる。位置は原点固定、親はシーンのルートノード。
+- Conformance: Matches(ビルド・型チェックのみ、実際のドラッグ&ドロップ操作は未確認)。
+- Known deviations: ソリューションエクスプローラーからの実ドラッグで`DataFormats.FileDrop`が
+  実際に得られるかは実機未確認。得られない場合はVS固有形式(`CF_VSSTGPROJECTITEMS`)への
+  切り替えが必要になる可能性がある。
+- Next action: VS実験用インスタンスで実際にファイルをドラッグしてヒエラルキーにドロップし、
+  ノードが追加されることを実機確認する。
+
+## F-L8-008 — ブリッジプロセスの常駐化(`CSharpGameEngine.Bridge.Hosting`/`ResidentBridgeClient`)
+
+- Layer: L8 — Visual Studio Authoring Environment
+- Parent capability: シーンダブルクリックプレビューとヒエラルキー選択連動
+- Status: Implemented
+- Verification: TestVerified、実測タイミング検証済み(RuntimeVerifiedはVS実機確認待ち)
+- Intended specification: Docs/Decisions/ADR-0023-Bridge-Process-Residency.md
+- Implementation evidence:
+  - tools/CSharpGameEngine.Bridge.Hosting/BridgeServerHost.cs
+  - tools/CSharpGameEngine.Bridge.Hosting/BridgeWireMessage.cs
+  - tools/CSharpGameEngine.Import.Gltf.Cli/Program.cs、GltfBridgeWorker.cs
+  - tools/CSharpGameEngine.Import.Fbx.Cli/Program.cs、FbxBridgeWorker.cs(`SemaphoreSlim`による
+    AssimpNetの`LogStream`排他制御含む)
+  - tools/CSharpGameEngine.Primitive.Cli/Program.cs、PrimitiveBridgeWorker.cs
+  - tools/CSharpGameEngine.VSExtension/ResidentBridgeClient.cs
+  - tools/CSharpGameEngine.VSExtension/ExternalBridgeProcess.cs(3段フォールバックの調停役)
+- Tests:
+  - tests/CSharpGameEngine.Bridge.Hosting.Tests/BridgeWireMessageTests.cs(`MemoryStream`相手の
+    フレーミング往復)
+  - tests/CSharpGameEngine.Bridge.Hosting.Tests/BridgeServerHostTests.cs(実際のNamed Pipe、
+    同一プロセス内・子プロセス起動なし: 単発往復・8件並行リクエストの無混線・ハンドラ例外後の
+    継続動作・アイドルタイムアウトでのループ終了)
+  - tests/CSharpGameEngine.VSExtension.Tests/ResidentBridgeClientTests.cs(`ComputePipeName`の
+    決定性・repoRoot/ブリッジ違いでの別名)
+- Reverse-engineered behavior:
+  - 1リクエスト=1接続(パイプの多重化なし)。`BridgeServerHost`は接続ごとに独立した`Task`へ
+    ディスパッチし、`SceneHwndHost`の並列メッシュロードにそのまま対応できる。
+  - `ResidentBridgeClient`は`--serve`常駐サーバーへの接続を最初に試み、失敗時のみ`Mutex`
+    (`Global\...`)経由で新規起動する。パイプ名は`ComputePipeName`が`repoRoot`+ブリッジ
+    フォルダ名からSHA256で決定的に生成する(`GetHashCode()`はプロセスごとにランダム化される
+    ため使用不可)。
+  - **設計変更を要した実機検証結果**: 応答待機に当初`ThreadHelper.JoinableTaskFactory.Run`
+    (VS threading analyzer VSTHRD002が推奨する、Task同期待機の標準的な回避策)を使ったところ、
+    xunitテストから実行した際に毎回約10秒かかり常駐パスが常に失敗してtier2(直接exe起動)に
+    フォールバックしていることが実測で判明した - VSホストが存在しない環境では
+    `JoinableTaskFactory`が正しく機能しなかった。生の`Thread`+`ManualResetEventSlim`による
+    待機に置き換えて解決した(VSTHRD002の対象にもならず、VSホスト依存も無い)。
+  - `FbxImporter.Import`がAssimpNetの`LogStream.Attach`/`Detach`(プロセス全体で共有される
+    ネイティブ状態)を呼び出しているため、`FbxBridgeWorker`のみ`SemaphoreSlim(1, 1)`で
+    インポート呼び出し自体を排他制御している。
+  - 実測(`Box.glb`、`ExternalBridgeProcess.RunAndReadJson`を同一プロセス内で3回連続呼び出し):
+    1回目(コールド、サーバー新規起動)約222ms、2回目(再利用)約2ms、3回目(再利用)約1ms -
+    ADR-0010追記の直接exe起動(~150-180ms)と比べてさらに約100〜150倍、当初の
+    `dotnet run --project`(~2,000-2,570ms)と比べて約1,000〜2,000倍高速化した。
+  - 常駐サーバーが1つも起動していない状態から6件の呼び出しを完全並行実行したところ、全件成功し
+    生成された常駐サーバープロセスは1つだけだった(`Mutex`による二重起動防止が実際に機能する
+    ことを確認)。
+- Conformance: Matches
+- Known deviations: None
+- Next action: VS実機でシーンタブ・シェイプパレットの体感速度を確認してもらう
+  (Next actionはF-L8-002と共通)。`Import.Fbx.Cli`の常駐化除外は「一行で切り替え可能」な形の
+  まま保留してあり、実運用でクラッシュ頻度が問題になった場合に改めて検討する。

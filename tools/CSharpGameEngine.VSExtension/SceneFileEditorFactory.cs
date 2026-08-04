@@ -6,10 +6,12 @@ using Microsoft.VisualStudio.Shell.Interop;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Registers a Solution Explorer editor for <c>*.scene.json</c> that shows the "シーン" preview
-/// document window (ADR-0020) - the same <see cref="IVsEditorFactory"/>/<c>WindowPane</c>
-/// DocView==DocData pattern as <see cref="GlbFbxPreviewEditorFactory"/> (ADR-0013), applied to scene
-/// files instead of raw mesh files.
+/// Registers a Solution Explorer editor for <c>*.scene</c> that shows the "シーン" preview document
+/// window (ADR-0020, extension corrected in ADR-0021 - <c>.scene.json</c> is a compound two-dot
+/// extension that <c>ProvideEditorExtension</c> never actually matched, so double-click silently did
+/// nothing until this fix) - the same <see cref="IVsEditorFactory"/>/<c>WindowPane</c> DocView==DocData
+/// pattern as <see cref="GlbFbxPreviewEditorFactory"/> (ADR-0013), applied to scene files instead of
+/// raw mesh files.
 /// </summary>
 [Guid(FactoryGuidString)]
 internal sealed class SceneFileEditorFactory : IVsEditorFactory
@@ -35,7 +37,10 @@ internal sealed class SceneFileEditorFactory : IVsEditorFactory
     {
         ppunkDocView = IntPtr.Zero;
         ppunkDocData = IntPtr.Zero;
-        pbstrEditorCaption = string.Empty;
+        // Unlike GlbFbxPreviewEditorFactory (which leaves this empty), name the tab explicitly - the
+        // scene document window is otherwise indistinguishable from any other editor on a plain
+        // filename. VS appends this after the base file name, e.g. "DefaultScene.scene [シーン]".
+        pbstrEditorCaption = "シーン";
         pguidCmdUI = Guid.Empty;
         pgrfCDW = 0;
 

@@ -34,10 +34,12 @@
          converted GLB + scene_meta.json (ADR-0017) are real runtime inputs SceneLoader reads via
          AppContext.BaseDirectory, so they must actually be copied to the output directory. -->
     <None Include="Assets\Stage\**\*" CopyToOutputDirectory="PreserveNewest" />
-    <!-- Docs/EditorSpec.md §3 / ADR-0020: *.scene.json is authored Source (ADR-0002), not a
-         generated artifact, hence a plain <None> item (visible, Git-tracked) rather than a
-         CopyToOutputDirectory asset - only the VSIX's Hierarchy/Scene tool windows read it today. -->
-    <None Include="DefaultScene.scene.json" />
+    <!-- Docs/EditorSpec.md §3 / ADR-0021: *.scene (single extension - VS's ProvideEditorExtension
+         cannot match a compound ".scene.json" extension, ADR-0020's original choice never actually
+         worked) is authored Source (ADR-0002), not a generated artifact, hence a plain <None> item
+         (visible, Git-tracked) rather than a CopyToOutputDirectory asset - only the VSIX's
+         Hierarchy/Scene tool windows read it today. -->
+    <None Include="DefaultScene.scene" />
   </ItemGroup>
 
   <ItemGroup>

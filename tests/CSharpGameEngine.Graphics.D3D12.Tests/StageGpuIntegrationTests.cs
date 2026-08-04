@@ -1,4 +1,5 @@
 using System.Numerics;
+using CSharpGameEngine.Geometry;
 using CSharpGameEngine.Platform.Windows;
 
 namespace CSharpGameEngine.Graphics.D3D12.Tests;

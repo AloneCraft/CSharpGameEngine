@@ -22,7 +22,7 @@ internal static class ExternalGltfLoader
         string tempJsonPath = Path.Combine(Path.GetTempPath(), $"csge-gltf-bridge-{Guid.NewGuid():N}.json");
         try
         {
-            string json = ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath, gltfPath, tempJsonPath, repoRoot, BridgeTimeout);
+            string json = ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath, gltfPath, tempJsonPath, repoRoot, BridgeTimeout, useResidentServer: true);
 
             BridgeDocument? document = JsonSerializer.Deserialize<BridgeDocument>(
                 json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });

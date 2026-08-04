@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CSharpGameEngine.Geometry\CSharpGameEngine.Geometry.csproj" />
+    <!-- ADR-0023: resident-server mode ("serve" launch argument), shared with the other 2 bridges. -->
+    <ProjectReference Include="..\CSharpGameEngine.Bridge.Hosting\CSharpGameEngine.Bridge.Hosting.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Same package tests/UserGameProject.Tests already uses to build a synthetic GLB in-memory
+         (SceneLoaderTests.cs) - MeshBuilder/SceneBuilder/SaveGLB is a proven-working pattern here. -->
+    <PackageReference Include="SharpGLTF.Toolkit" Version="1.0.6" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- Fully managed (SharpGLTF.Toolkit, like SharpGLTF.Core in ADR-0019, has no native DLL), so
+         no RuntimeIdentifier/SelfContained is needed - a plain portable net10.0 console app is
+         enough for `dotnet run` to work from the VSIX's PrimitiveBridge. -->
+  </PropertyGroup>
+
+</Project>

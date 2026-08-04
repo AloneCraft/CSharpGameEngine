@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Numerics;
 using CSharpGameEngine.VSExtension;
 using Xunit;
@@ -112,5 +113,89 @@ public class SceneFileTests
         SceneFile scene = SceneFile.Parse(json);
 
         Assert.Throws<InvalidOperationException>(() => scene.BuildTree());
+    }
+
+    [Fact]
+    public void ToJson_ThenParse_RoundTripsAllFields()
+    {
+        SceneFile original = SceneFile.Parse(SampleJson);
+
+        string json = original.ToJson();
+        SceneFile roundTripped = SceneFile.Parse(json);
+
+        Assert.Equal(original.Nodes.Count, roundTripped.Nodes.Count);
+        for (int i = 0; i < original.Nodes.Count; i++)
+        {
+            SceneFileNode expected = original.Nodes[i];
+            SceneFileNode actual = roundTripped.Nodes[i];
+
+            Assert.Equal(expected.Id, actual.Id);
+            Assert.Equal(expected.Name, actual.Name);
+            Assert.Equal(expected.ParentId, actual.ParentId);
+            Assert.Equal(expected.MeshAssetPath, actual.MeshAssetPath);
+            Assert.Equal(expected.Position, actual.Position);
+            Assert.Equal(expected.Rotation, actual.Rotation);
+            Assert.Equal(expected.Scale, actual.Scale);
+        }
+    }
+
+    [Fact]
+    public void Save_ThenLoad_RoundTripsThroughARealFile()
+    {
+        SceneFile original = SceneFile.Parse(SampleJson);
+        string path = Path.Combine(Path.GetTempPath(), $"csge-scenefile-roundtrip-{Guid.NewGuid():N}.scene");
+        try
+        {
+            original.Save(path);
+            SceneFile loaded = SceneFile.Load(path);
+
+            Assert.Equal(original.Nodes.Count, loaded.Nodes.Count);
+            Assert.Equal(original.Nodes[1].Name, loaded.Nodes[1].Name);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void AddNode_ReturnsNewInstanceWithNodeAppended_OriginalUnchanged()
+    {
+        SceneFile original = SceneFile.Parse(SampleJson);
+        SceneFileNode newNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "Sphere",
+            ParentId = original.FindFirstRootNodeId(),
+            Position = Vector3.Zero,
+            Rotation = Quaternion.Identity,
+            Scale = Vector3.One,
+            MeshAssetPath = "Assets/Primitives/Sphere.glb",
+        };
+
+        SceneFile updated = original.AddNode(newNode);
+
+        Assert.Equal(2, original.Nodes.Count);
+        Assert.Equal(3, updated.Nodes.Count);
+        Assert.Contains(updated.Nodes, n => n.Name == "Sphere");
+    }
+
+    [Fact]
+    public void FindFirstRootNodeId_ReturnsTheNodeWithNullParentId()
+    {
+        SceneFile scene = SceneFile.Parse(SampleJson);
+
+        Guid? rootId = scene.FindFirstRootNodeId();
+
+        Assert.Equal(scene.Nodes[0].Id, rootId);
+    }
+
+    [Fact]
+    public void ContainsNodeNamed_MatchesExistingNamesOnly()
+    {
+        SceneFile scene = SceneFile.Parse(SampleJson);
+
+        Assert.True(scene.ContainsNodeNamed("Box"));
+        Assert.False(scene.ContainsNodeNamed("Sphere"));
     }
 }

@@ -24,7 +24,12 @@ internal static class ExternalFbxLoader
         string tempJsonPath = Path.Combine(Path.GetTempPath(), $"csge-fbx-bridge-{Guid.NewGuid():N}.json");
         try
         {
-            string json = ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath, fbxPath, tempJsonPath, repoRoot, BridgeTimeout);
+            // useResidentServer: true - Import.Fbx.Cli is the one bridge with real native-crash risk
+            // (AssimpNet). FbxBridgeWorker already serializes the actual import via a SemaphoreSlim
+            // (ADR-0023) to remove the concurrency risk; if real-world crash frequency ever becomes
+            // a problem, flipping this single flag to false reverts to the proven one-shot path with
+            // no other changes needed.
+            string json = ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath, fbxPath, tempJsonPath, repoRoot, BridgeTimeout, useResidentServer: true);
 
             BridgeDocument? document = JsonSerializer.Deserialize<BridgeDocument>(
                 json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });

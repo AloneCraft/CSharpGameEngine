@@ -34,14 +34,6 @@
           <ButtonText>C# Game Engine Viewer を開く</ButtonText>
         </Strings>
       </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="ShowViewerToolWindowCommandId" priority="0x0101" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="OpenViewerMenuGroup" />
-        <Icon guid="ImageCatalogGuid" id="ToolWindow" />
-        <CommandFlag>IconIsMoniker</CommandFlag>
-        <Strings>
-          <ButtonText>C# Game Engine Viewer パネルを表示</ButtonText>
-        </Strings>
-      </Button>
       <Button guid="guidOpenViewerCommandPackageCmdSet" id="ToggleFabWatchCommandId" priority="0x0102" type="Button">
         <Parent guid="guidOpenViewerCommandPackageCmdSet" id="OpenViewerMenuGroup" />
         <Icon guid="ImageCatalogGuid" id="FolderOpened" />
@@ -74,14 +66,27 @@
           <ButtonText>ヒエラルキー パネルを表示</ButtonText>
         </Strings>
       </Button>
+      <Button guid="guidOpenViewerCommandPackageCmdSet" id="ApplyGameEngineLayoutCommandId" priority="0x0106" type="Button">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="OpenViewerMenuGroup" />
+        <Icon guid="ImageCatalogGuid" id="LayoutPanel" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>GameEngine レイアウトを適用</ButtonText>
+        </Strings>
+      </Button>
+      <Button guid="guidOpenViewerCommandPackageCmdSet" id="ShowShapePaletteToolWindowCommandId" priority="0x0107" type="Button">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="OpenViewerMenuGroup" />
+        <Icon guid="ImageCatalogGuid" id="ToolWindow" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>シェイプ パネルを表示</ButtonText>
+        </Strings>
+      </Button>
     </Buttons>
   </Commands>
 
   <CommandPlacements>
     <CommandPlacement guid="guidOpenViewerCommandPackageCmdSet" id="OpenViewerCommandId" priority="0x0001">
-      <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarGroup" />
-    </CommandPlacement>
-    <CommandPlacement guid="guidOpenViewerCommandPackageCmdSet" id="ShowViewerToolWindowCommandId" priority="0x0002">
       <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarGroup" />
     </CommandPlacement>
     <CommandPlacement guid="guidOpenViewerCommandPackageCmdSet" id="ToggleFabWatchCommandId" priority="0x0003">
@@ -96,6 +101,12 @@
     <CommandPlacement guid="guidOpenViewerCommandPackageCmdSet" id="ShowHierarchyToolWindowCommandId" priority="0x0006">
       <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarGroup" />
     </CommandPlacement>
+    <CommandPlacement guid="guidOpenViewerCommandPackageCmdSet" id="ApplyGameEngineLayoutCommandId" priority="0x0007">
+      <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarGroup" />
+    </CommandPlacement>
+    <CommandPlacement guid="guidOpenViewerCommandPackageCmdSet" id="ShowShapePaletteToolWindowCommandId" priority="0x0008">
+      <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarGroup" />
+    </CommandPlacement>
   </CommandPlacements>
 
   <Symbols>
@@ -104,11 +115,15 @@
     <GuidSymbol name="guidOpenViewerCommandPackageCmdSet" value="{521655e5-0d1b-4255-8086-1039c5c2e3da}">
       <IDSymbol name="OpenViewerMenuGroup" value="0x1020" />
       <IDSymbol name="OpenViewerCommandId" value="0x0100" />
-      <IDSymbol name="ShowViewerToolWindowCommandId" value="0x0101" />
+      <!-- 0x0101 (ShowViewerToolWindowCommandId) retired in ADR-0021 - do not reuse; the docked
+           single-mesh Viewer tool window it showed was removed (scene rendering now happens in the
+           "シーン" document tab, ADR-0020). -->
       <IDSymbol name="ToggleFabWatchCommandId" value="0x0102" />
       <IDSymbol name="OpenFabCommandId" value="0x0103" />
       <IDSymbol name="OpenGameCommandId" value="0x0104" />
       <IDSymbol name="ShowHierarchyToolWindowCommandId" value="0x0105" />
+      <IDSymbol name="ApplyGameEngineLayoutCommandId" value="0x0106" />
+      <IDSymbol name="ShowShapePaletteToolWindowCommandId" value="0x0107" />
       <IDSymbol name="CSharpGameEngineToolbar" value="0x1021" />
       <IDSymbol name="CSharpGameEngineToolbarGroup" value="0x1022" />
     </GuidSymbol>
