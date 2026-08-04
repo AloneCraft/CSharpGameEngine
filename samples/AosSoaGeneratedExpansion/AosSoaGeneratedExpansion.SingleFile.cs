@@ -249,12 +249,15 @@ public struct CharacterCreateInfo
 /// </summary>
 internal static class CharacterGeneratedMetadata
 {
-    internal static ReadOnlySpan<string> NormalizedSignature =>
+    private static readonly string[] normalizedSignatureBacking =
     [
         nameof(Health),
         nameof(LocalTransform),
         nameof(Velocity)
     ];
+
+    internal static ReadOnlySpan<string> NormalizedSignature =>
+        normalizedSignatureBacking;
 }
 
 /// <summary>

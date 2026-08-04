@@ -40,6 +40,13 @@
 - `UserGameProject/` はエンドユーザーのゲームプロジェクトを模擬しており、
   購入済みで手動配置される Fab アセットの置き場(`UserGameProject/Assets/Fab/`)を持つ。
   現段階ではフォルダのみであり、`.csproj` ではない。
+- `src/CSharpGameEngine.Generation.Abstractions`(L7、Roslyn 非依存)と
+  `src/CSharpGameEngine.CodeAnalysis` の `GenerateEntityGenerator` が、
+  `[GenerateEntity(EntityGenerationSettings.Kind)]` を付けた partial struct から AoS または
+  ECS SoA(`src/CSharpGameEngine.Ecs`)いずれかの物理ストレージ実装をコンパイル時に選択して
+  生成する(ADR-0024、[[Generated-Entity-Storage]]参照)。`samples/` はこのリポジトリで
+  実行可能な設計サンプル(`AosSoaGeneratedExpansion` 等)を独立プロジェクトとして置く場所で、
+  本番の `src/`/`UserGameProject/` からは参照されない。
 - `SourceLocation` の line/column は、判明している場合は **1始まり**。`0` は不明を意味する。
 - レイヤー番号はドキュメント/ソリューション整理のためだけのものであり、名前空間には含めない。
 

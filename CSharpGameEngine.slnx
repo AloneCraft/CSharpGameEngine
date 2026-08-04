@@ -8,9 +8,14 @@
     <File Path="Docs/20260803-0.txt" />
     <File Path="Docs/20260803-1.txt" />
     <File Path="Docs/Implementation-Status.md" />
+    <File Path="Docs/Conformance.md" />
+    <File Path="Docs/Implement-AoS-SoA-Entity-SourceGenerator-Prompt.md" />
   </Folder>
   <Folder Name="/Docs/Architecture/">
     <File Path="Docs/Architecture.md" />
+  </Folder>
+  <Folder Name="/Docs/Specifications/">
+    <File Path="Docs/Specifications/Generated-Entity-Storage.md" />
   </Folder>
   <Folder Name="/Docs/Decisions/">
     <File Path="Docs/Decisions/ADR-0001-Layered-Architecture.md" />
@@ -36,12 +41,14 @@
     <File Path="Docs/Decisions/ADR-0021-Editor-Layout-And-Shape-Palette.md" />
     <File Path="Docs/Decisions/ADR-0022-Hierarchy-Drag-Drop-Asset-Placement.md" />
     <File Path="Docs/Decisions/ADR-0023-Bridge-Process-Residency.md" />
+    <File Path="Docs/Decisions/ADR-0024-Generated-Entity-AoS-SoA.md" />
   </Folder>
   <Folder Name="/Docs/Milestones/">
     <File Path="Docs/Milestones/M0001-CodeAnalysis-Foundation.md" />
     <File Path="Docs/Milestones/M0002-Archetype-Ecs-Foundation.md" />
     <File Path="Docs/Milestones/M0003-Ecs-Driven-Stage-Vertical-Slice.md" />
     <File Path="Docs/Milestones/M0004-UE-FirstPerson-Stage-Port.md" />
+    <File Path="Docs/Milestones/M0005-Generated-Entity-AoS-SoA.md" />
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
@@ -72,7 +79,11 @@
     <Project Path="src/CSharpGameEngine.Import.Fbx/CSharpGameEngine.Import.Fbx.csproj" />
     <Project Path="src/CSharpGameEngine.CodeAnalysis/CSharpGameEngine.CodeAnalysis.csproj" />
     <Project Path="src/CSharpGameEngine.Ecs/CSharpGameEngine.Ecs.csproj" />
+    <Project Path="src/CSharpGameEngine.Generation.Abstractions/CSharpGameEngine.Generation.Abstractions.csproj" />
     <Project Path="src/CSharpGameEngine.Scene/CSharpGameEngine.Scene.csproj" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/AosSoaGeneratedExpansion/AosSoaGeneratedExpansion.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/CSharpGameEngine.Core.Tests/CSharpGameEngine.Core.Tests.csproj" />

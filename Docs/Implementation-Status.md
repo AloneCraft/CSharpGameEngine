@@ -11,7 +11,8 @@ ThirdPersonキャラクターコントローラー)で7エントリ、ADR-0017/A
 F-L8-003を更新し3エントリを追加、ADR-0022(ヒエラルキーへのドラッグ&ドロップ配置)で1エントリを
 追加、ADR-0010追記(ブリッジ起動を事前ビルド済みexeの直接起動に切り替え、シーンタブの体感速度
 問題を解消)でF-L8-002/F-L8-003を更新、ADR-0023(ブリッジプロセスの常駐化・Named Pipeサーバー)で
-F-L8-002を更新し1エントリを追加しています。
+F-L8-002を更新し1エントリを追加、ADR-0024(Generated Entity Source Generator、AoS/ECS SoA)で
+F-L3系2件・F-L7系3件を追加しています。
 
 ---
 
@@ -877,3 +878,145 @@ F-L8-002を更新し1エントリを追加しています。
 - Next action: VS実機でシーンタブ・シェイプパレットの体感速度を確認してもらう
   (Next actionはF-L8-002と共通)。`Import.Fbx.Cli`の常駐化除外は「一行で切り替え可能」な形の
   まま保留してあり、実運用でクラッシュ頻度が問題になった場合に改めて検討する。
+
+## F-L3-005 — `AosEntityStore<TRow>` / `EntityAllocator`
+
+- Layer: L3 — ECS / Job Runtime
+- Parent capability: Generated Entity Storage(AoS）
+- Status: Implemented
+- Verification: TestVerified
+- Intended specification: Docs/Decisions/ADR-0024-Generated-Entity-AoS-SoA.md、
+  Docs/Specifications/Generated-Entity-Storage.md
+- Implementation evidence:
+  - src/CSharpGameEngine.Ecs/AosEntityStore.cs
+  - src/CSharpGameEngine.Ecs/EntityAllocator.cs
+- Tests:
+  - tests/CSharpGameEngine.Ecs.Tests/AosEntityStoreSpec.cs
+  - tests/CSharpGameEngine.Ecs.Tests/EntityAllocatorSpec.cs
+- Reverse-engineered behavior:
+  - `AosEntityStore<TRow>`は`TRow[]`の密配列+`Entity[]`+Location Table(`int[]`、`Entity.Id`で
+    Index)を持ち、`Entity`は行配列の直接Indexとして使わない。削除はswap-backで行い、
+    移動したEntityのLocationだけを更新する。
+  - `EntityAllocator`は`World`の既存private確保ロジック(free-list+Generation増分)と同じ
+    考え方だが、意図的に別実装として複製している(`World`の既存挙動への回帰リスクを避けるため)。
+- Conformance: Matches
+- Known deviations: None
+- Next action: なし。
+
+## F-L3-006 — `World.TryGetArchetypeChunk<T>` / `ArchetypeChunk`
+
+- Layer: L3 — ECS / Job Runtime
+- Parent capability: Generated Entity Storage(SoA）
+- Status: Implemented
+- Verification: TestVerified
+- Intended specification: Docs/Decisions/ADR-0024-Generated-Entity-AoS-SoA.md、
+  Docs/Specifications/Generated-Entity-Storage.md
+- Implementation evidence:
+  - src/CSharpGameEngine.Ecs/World.cs(`TryGetArchetypeChunk<T>`)
+  - src/CSharpGameEngine.Ecs/ArchetypeChunk.cs
+  - src/CSharpGameEngine.Ecs/ArchetypeStorage.cs(`GetEntitiesSpan`/`GetColumnSpan<T>`)
+- Tests:
+  - tests/CSharpGameEngine.Ecs.Tests/ArchetypeChunkSpec.cs
+- Reverse-engineered behavior:
+  - 既存の`CollectViews<T>`と同じく、正規化済み構成に完全一致する1アーキタイプだけを返す
+    (複数アーキタイプ横断のQueryではない)。該当アーキタイプのEntityが1件も無ければ`false`を返す。
+  - このエンジンのSoAストレージはページ化されたChunkを持たないため、1つの`ArchetypeStorage`
+    全体がそのまま1つの`ArchetypeChunk`として返る(物理的な複数Chunk分割は無い)。
+  - 正規化後のComponent集合が同じ異なる`IEcsArchetype<T>`型は、`ArchetypeSignature`の
+    `Type[]`シーケンス一致により同一の`ArchetypeStorage`(=同一のChunk)を指す
+    (`ArchetypeStorageSharingSpec`が証明済みの既存挙動をそのまま継承)。
+- Conformance: Matches
+- Known deviations: 見本(`AosSoaGeneratedExpansion.SingleFile.cs`)の`ChunkCapacity`ベースの
+  物理的な複数Chunk生成とは異なり、ページングを行わない(ADR-0024で文書化済みの意図的な設計)。
+- Next action: 固定容量ページングの具体的な要件が確定した時点で再検討する。
+
+## F-L7-006 — `CSharpGameEngine.Generation.Abstractions`
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Generated Entity Storage
+- Status: Implemented
+- Verification: TestVerified
+- Intended specification: Docs/Decisions/ADR-0024-Generated-Entity-AoS-SoA.md
+- Implementation evidence:
+  - src/CSharpGameEngine.Generation.Abstractions/CSharpGameEngine.Generation.Abstractions.csproj
+  - src/CSharpGameEngine.Generation.Abstractions/EntityStorageKind.cs
+  - src/CSharpGameEngine.Generation.Abstractions/GenerateEntityAttribute.cs
+- Tests:
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/GenerateEntityGeneratorTestHelper.cs
+    (このアセンブリを参照するテストコンパイルを通じて間接的に検証)
+- Reverse-engineered behavior:
+  - net10.0、PackageReferenceなし、Roslynにも`CSharpGameEngine.Ecs`にも依存しない
+    純粋な契約アセンブリ。`EntityGenerationSettings`は同梱せず、ユーザーが自分の
+    プロジェクトへ書く慣習として扱う。
+- Conformance: Matches
+- Known deviations: None
+- Next action: なし。
+
+## F-L7-007 — `GenerateEntityGenerator`
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Generated Entity Storage
+- Status: Implemented
+- Verification: TestVerified
+- Intended specification: Docs/Decisions/ADR-0024-Generated-Entity-AoS-SoA.md、
+  Docs/Specifications/Generated-Entity-Storage.md
+- Implementation evidence:
+  - src/CSharpGameEngine.CodeAnalysis/GenerateEntityGenerator.cs
+  - src/CSharpGameEngine.CodeAnalysis/GenerateEntityAnalyzer.cs
+  - src/CSharpGameEngine.CodeAnalysis/GenerateEntityModel.cs
+  - src/CSharpGameEngine.CodeAnalysis/GenerateEntityCommonEmitter.cs
+  - src/CSharpGameEngine.CodeAnalysis/GenerateEntityAosEmitter.cs
+  - src/CSharpGameEngine.CodeAnalysis/GenerateEntitySoaEmitter.cs
+  - src/CSharpGameEngine.CodeAnalysis/GenerateEntityEmitterSupport.cs
+  - 消費側: samples/AosSoaGeneratedExpansion/(独立、参照なし)、UserGameProject.csproj
+    (`CSharpGameEngine.Generation.Abstractions`への通常参照を追加、`[GenerateEntity]`の
+    実利用は未追加)
+- Tests:
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/GenerateEntityGeneratorEmissionTests.cs
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/GenerateEntityGeneratorConstSwitchTests.cs
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/GenerateEntityAosRuntimeTests.cs
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/GenerateEntitySoaRuntimeTests.cs
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/GenerateEntityConformanceTests.cs
+- Reverse-engineered behavior:
+  - `ForAttributeWithMetadataName("CSharpGameEngine.Generation.GenerateEntityAttribute", ...)`で
+    対象構造体を検出する。属性引数の`EntityStorageKind`は`AttributeData.ConstructorArguments`
+    経由で取得し、ソース側が`const`フィールド参照であってもRoslynが解決済みの値を渡すことを
+    確認済み。
+  - Generator内部の分岐(選択Backendに応じて`GenerateEntityAosEmitter`または
+    `GenerateEntitySoaEmitter`を呼ぶ)は出力ソースには一切現れない。選択されなかった
+    Backendの`AddSource`は呼ばれない。
+  - `{Type}`(Facade)/`{Type}CreateInfo`は`public`、`{Type}Store`も`public`
+    (見本通りの`public static Character Spawn(CharacterStore store, ...)`という
+    公開静的ファクトリを書けるようにするため)。`{Type}GeneratedMetadata`/
+    `{Type}AosGeneratedData`/`{Type}SoaGeneratedArchetype`/`{Type}ChunkView`は`internal`。
+  - Component順序は「宣言順」(ユーザー向け生成メンバー)と「正規化順(FQN Ordinal)」
+    (`NormalizedSignature`・列Index)の2系統で管理し、`World.GetComponentRef<T>`へ渡す
+    `columnIndex`には正規化順を使う。
+- Conformance: Matches
+- Known deviations: None(見本との差異はF-L3-006/本Milestoneに記載の設計上の意図的な違いのみ)
+- Next action: `[GenerateEntity]`の`UserGameProject`実利用は、`Scene1.cs`との名前衝突リスクが
+  解消された時点(またはユーザーが許容した時点)で追加を検討する。
+
+## F-L7-008 — `GenerateEntityGenerator`診断(ENTGEN001〜015)
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Generated Entity Storage
+- Status: Implemented
+- Verification: TestVerified
+- Intended specification: Docs/Decisions/ADR-0024-Generated-Entity-AoS-SoA.md、
+  Docs/Specifications/Generated-Entity-Storage.md
+- Implementation evidence:
+  - src/CSharpGameEngine.CodeAnalysis/GenerateEntityDiagnostics.cs
+  - src/CSharpGameEngine.CodeAnalysis/AnalyzerReleases.Unshipped.md
+- Tests:
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/GenerateEntityGeneratorDiagnosticsTests.cs
+- Reverse-engineered behavior:
+  - `ENTGEN001`〜`015`(カテゴリ`CSharpGameEngine.EntityGeneration.CodeGen`、すべて`Error`)。
+    診断が1件でもある型はソース生成を完全にスキップする(`EcsArchetypeEmitter`と同じ規約)。
+  - `partial`が付いていないが`get`/`set`を両方持つ非static・非indexerプロパティ(Componentの
+    つもりで`partial`を付け忘れた形)は`ENTGEN005`として診断する一方、それ以外の通常メソッド・
+    staticメンバー・constは一切Componentとして数えず診断もしない
+    (`ValidCharacterSource_ProducesZeroDiagnostics`で確認)。
+- Conformance: Matches
+- Known deviations: None
+- Next action: なし。

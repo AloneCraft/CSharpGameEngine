@@ -68,6 +68,27 @@ public sealed class World
         }
     }
 
+    /// <summary>
+    /// <typeparamref name="T"/>の正規化済みコンポーネント集合と完全一致するアーキタイプストレージを、
+    /// 行ごとのオーバーヘッドがゼロのバッチビューとして取得する。<see cref="CollectViews{T}"/>と同様、
+    /// 複数アーキタイプ横断のQueryではなく、1つの正規化済み集合への完全一致のみを扱う。
+    /// 正規化済み集合が同じ別のEntity型が既に行を持っていれば、それらも同じChunkに含まれる
+    /// (<see cref="ArchetypeSignature"/>がType[]シーケンス一致で共有ストレージを解決するため)。
+    /// </summary>
+    public bool TryGetArchetypeChunk<T>(out ArchetypeChunk chunk) where T : struct, IEcsArchetype<T>
+    {
+        ArchetypeSignature signature = new(T.ComponentTypes);
+
+        if (this.storages.TryGetValue(signature, out ArchetypeStorage? storage))
+        {
+            chunk = new ArchetypeChunk(storage);
+            return true;
+        }
+
+        chunk = default;
+        return false;
+    }
+
     public bool IsAlive(Entity entity)
     {
         return entity.Id >= 0

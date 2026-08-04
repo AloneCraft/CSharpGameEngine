@@ -28,6 +28,17 @@ internal sealed class ArchetypeStorage
         return this.entities[row];
     }
 
+    internal ReadOnlySpan<Entity> GetEntitiesSpan()
+    {
+        return this.entities.AsSpan(0, this.Count);
+    }
+
+    internal Span<T> GetColumnSpan<T>(int columnIndex) where T : struct
+    {
+        ComponentColumn<T> column = (ComponentColumn<T>)this.GetColumn(columnIndex);
+        return column.Items.AsSpan(0, this.Count);
+    }
+
     internal int AddRow(Entity entity)
     {
         int row = this.Count;
