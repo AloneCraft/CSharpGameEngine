@@ -50,4 +50,33 @@ internal static class GenerateEntityEmitterSupport
             lines.Add("}");
         }
     }
+
+    /// <summary>
+    /// 単一指定時は<c>{Type}Store</c>(従来どおり)、両指定時は<c>{Type}AosStore</c>/<c>{Type}SoaStore</c>。
+    /// </summary>
+    internal static string StoreTypeName(GenerateEntityAnalysisResult result, bool aos)
+    {
+        return result.IsCombined
+            ? $"{result.StructName}{(aos ? "Aos" : "Soa")}Store"
+            : $"{result.StructName}Store";
+    }
+
+    /// <summary>
+    /// 単一指定時は<c>{Type}ChunkView</c>(従来どおり)、両指定時は<c>{Type}AosChunkView</c>/<c>{Type}SoaChunkView</c>。
+    /// </summary>
+    internal static string ChunkViewTypeName(GenerateEntityAnalysisResult result, bool aos)
+    {
+        return result.IsCombined
+            ? $"{result.StructName}{(aos ? "Aos" : "Soa")}ChunkView"
+            : $"{result.StructName}ChunkView";
+    }
+
+    /// <summary>
+    /// Facade(ユーザーのpartial struct本体)が束縛されるStoreの型名。両指定時はAoS側に束縛する
+    /// (<c>_store</c>フィールドは型を1つしか取れないため。ADR-0024参照)。
+    /// </summary>
+    internal static string FacadeStoreTypeName(GenerateEntityAnalysisResult result)
+    {
+        return StoreTypeName(result, aos: result.HasAos);
+    }
 }

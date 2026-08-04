@@ -133,17 +133,17 @@ internal static class GenerateEntityAnalyzer
             ? attributeData.ConstructorArguments[0]
             : null;
 
-        // EntityStorageKind(CSharpGameEngine.Generation.Abstractions)は
-        // ObjectOrientedAos=0, EcsSoa=1 として宣言されている。このプロジェクトは
+        // EntityStorageKind(CSharpGameEngine.Generation.Abstractions)は[Flags]で
+        // Aos=1, EcsSoa=2 として宣言されている。このプロジェクトは
         // (ADR-0014のRuntime非依存方針に従い)そのアセンブリを参照しないため、
-        // 序数を直接ここへミラーする。
-        if (kindArgument is { Kind: not TypedConstantKind.Error, Value: int kindValue } && kindValue is 0 or 1)
+        // 序数を直接ここへミラーする。1(AoSのみ)/2(SoAのみ)/3(両方)だけを受理する。
+        if (kindArgument is { Kind: not TypedConstantKind.Error, Value: int kindValue } && kindValue is 1 or 2 or 3)
         {
-            return kindValue == 0 ? GenerateEntityStorageKind.ObjectOrientedAos : GenerateEntityStorageKind.EcsSoa;
+            return (GenerateEntityStorageKind)kindValue;
         }
 
         diagnostics.Add(Diagnostic.Create(GenerateEntityDiagnostics.StorageKindMustBeResolvableConstant, structSymbol.Locations.FirstOrDefault(), structSymbol.Name));
-        return GenerateEntityStorageKind.Unresolved;
+        return GenerateEntityStorageKind.None;
     }
 
     private static List<(string PropertyName, string ComponentTypeFullyQualifiedName, int DeclarationIndex)> AnalyzeComponentProperties(
@@ -260,12 +260,18 @@ internal static class GenerateEntityAnalyzer
 
     private static void CheckGeneratedTypeNameCollisions(INamedTypeSymbol structSymbol, ImmutableArray<Diagnostic>.Builder diagnostics)
     {
+        // 両指定モードでは型名が{Type}Aos*/{Type}Soa*へ切り替わるため、実際に選択された
+        // StorageKindに関わらず、生成しうる名前をすべて予約しておく。
         HashSet<string> reservedTypeNames = new(StringComparer.Ordinal)
         {
             structSymbol.Name + "CreateInfo",
             structSymbol.Name + "Store",
+            structSymbol.Name + "AosStore",
+            structSymbol.Name + "SoaStore",
             structSymbol.Name + "GeneratedMetadata",
             structSymbol.Name + "ChunkView",
+            structSymbol.Name + "AosChunkView",
+            structSymbol.Name + "SoaChunkView",
             structSymbol.Name + "AosGeneratedData",
             structSymbol.Name + "SoaGeneratedArchetype",
         };

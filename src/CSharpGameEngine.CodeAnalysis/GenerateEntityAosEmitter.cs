@@ -53,9 +53,11 @@ internal static class GenerateEntityAosEmitter
     {
         string structName = result.StructName;
         string rowTypeName = $"{structName}AosGeneratedData";
+        string storeTypeName = GenerateEntityEmitterSupport.StoreTypeName(result, aos: true);
+        string chunkViewTypeName = GenerateEntityEmitterSupport.ChunkViewTypeName(result, aos: true);
 
         lines.Add("");
-        lines.Add($"public sealed class {structName}Store");
+        lines.Add($"public sealed class {storeTypeName}");
         lines.Add("{");
         lines.Add($"    private readonly global::CSharpGameEngine.Ecs.AosEntityStore<{rowTypeName}> store = new();");
         lines.Add("");
@@ -90,14 +92,14 @@ internal static class GenerateEntityAosEmitter
         foreach (GenerateEntityComponentModel component in result.DeclarationOrderedComponents)
         {
             lines.Add("");
-            lines.Add($"    internal ref {component.ComponentTypeFullyQualifiedName} Get{component.PropertyName}Ref(global::CSharpGameEngine.Ecs.Entity entity)");
+            lines.Add($"    public ref {component.ComponentTypeFullyQualifiedName} Get{component.PropertyName}Ref(global::CSharpGameEngine.Ecs.Entity entity)");
             lines.Add("    {");
             lines.Add($"        return ref this.store.GetRowRef(entity).{component.PropertyName};");
             lines.Add("    }");
         }
 
         lines.Add("");
-        lines.Add($"    internal bool TryGetChunk(out {structName}ChunkView view)");
+        lines.Add($"    internal bool TryGetChunk(out {chunkViewTypeName} view)");
         lines.Add("    {");
         lines.Add("        if (this.store.Count == 0)");
         lines.Add("        {");
@@ -105,7 +107,7 @@ internal static class GenerateEntityAosEmitter
         lines.Add("            return false;");
         lines.Add("        }");
         lines.Add("");
-        lines.Add($"        view = new {structName}ChunkView(this.store.AsEntitiesSpan(), this.store.AsRowsSpan());");
+        lines.Add($"        view = new {chunkViewTypeName}(this.store.AsEntitiesSpan(), this.store.AsRowsSpan());");
         lines.Add("        return true;");
         lines.Add("    }");
         lines.Add("}");
@@ -115,11 +117,12 @@ internal static class GenerateEntityAosEmitter
     {
         string structName = result.StructName;
         string rowTypeName = $"{structName}AosGeneratedData";
+        string chunkViewTypeName = GenerateEntityEmitterSupport.ChunkViewTypeName(result, aos: true);
 
         lines.Add("");
-        lines.Add($"internal readonly ref struct {structName}ChunkView");
+        lines.Add($"internal readonly ref struct {chunkViewTypeName}");
         lines.Add("{");
-        lines.Add($"    internal {structName}ChunkView(global::System.ReadOnlySpan<global::CSharpGameEngine.Ecs.Entity> entities, global::System.Span<{rowTypeName}> rows)");
+        lines.Add($"    internal {chunkViewTypeName}(global::System.ReadOnlySpan<global::CSharpGameEngine.Ecs.Entity> entities, global::System.Span<{rowTypeName}> rows)");
         lines.Add("    {");
         lines.Add("        this.Entities = entities;");
         lines.Add("        this.Rows = rows;");

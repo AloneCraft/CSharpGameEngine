@@ -72,14 +72,15 @@ internal static class GenerateEntityCommonEmitter
     private static void AppendFacade(List<string> lines, GenerateEntityAnalysisResult result)
     {
         string structName = result.StructName;
+        string storeTypeName = GenerateEntityEmitterSupport.FacadeStoreTypeName(result);
 
         lines.Add("");
         lines.Add($"public partial struct {structName} : global::System.IEquatable<{structName}>");
         lines.Add("{");
-        lines.Add($"    private readonly {structName}Store? _store;");
+        lines.Add($"    private readonly {storeTypeName}? _store;");
         lines.Add("    private readonly global::CSharpGameEngine.Ecs.Entity _entity;");
         lines.Add("");
-        lines.Add($"    internal {structName}({structName}Store store, global::CSharpGameEngine.Ecs.Entity entity)");
+        lines.Add($"    internal {structName}({storeTypeName} store, global::CSharpGameEngine.Ecs.Entity entity)");
         lines.Add("    {");
         lines.Add("        this._store = store;");
         lines.Add("        this._entity = entity;");

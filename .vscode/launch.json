@@ -68,6 +68,17 @@
       "stopAtEntry": false
     },
     {
+      "name": "UserGameProject: benchmark (AoS vs SoA)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/UserGameProject/bin/Release/net10.0-windows10.0.19041.0/win-x64/UserGameProject.exe",
+      "args": ["benchmark", "--entities", "500000", "--iterations", "51"],
+      "cwd": "${workspaceFolder}/UserGameProject",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    },
+    {
       "name": "AosSoaGeneratedExpansion (sample)",
       "type": "coreclr",
       "request": "launch",

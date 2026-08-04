@@ -37,24 +37,21 @@ public sealed class GenerateEntityGenerator : IIncrementalGenerator
             return;
         }
 
+        // Facade/CreateInfo/GeneratedMetadataは両バックエンドで同一のソースになるため、
+        // 両指定モードでも1回だけ出力する(重複定義を避ける)。
         GenerateEntityCommonEmitter.Emit(context, result);
 
         // StorageKindによる分岐はGenerator自身の内部処理に限定される。選択されなかった
         // バックエンドのAddSource呼び出しは一切行われないため、出力ソースには
         // どちらのバックエンドが選択されたかを示すRuntime分岐は一切現れない。
-        switch (result.StorageKind)
+        if (result.HasAos)
         {
-            case GenerateEntityStorageKind.ObjectOrientedAos:
-                GenerateEntityAosEmitter.Emit(context, result);
-                break;
+            GenerateEntityAosEmitter.Emit(context, result);
+        }
 
-            case GenerateEntityStorageKind.EcsSoa:
-                GenerateEntitySoaEmitter.Emit(context, result);
-                break;
-
-            case GenerateEntityStorageKind.Unresolved:
-            default:
-                break;
+        if (result.HasSoa)
+        {
+            GenerateEntitySoaEmitter.Emit(context, result);
         }
     }
 }

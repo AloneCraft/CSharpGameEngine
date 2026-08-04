@@ -78,18 +78,26 @@ internal static class GenerateEntitySoaEmitter
     {
         string structName = result.StructName;
         string archetypeTypeName = $"{structName}SoaGeneratedArchetype";
+        string storeTypeName = GenerateEntityEmitterSupport.StoreTypeName(result, aos: false);
+        string chunkViewTypeName = GenerateEntityEmitterSupport.ChunkViewTypeName(result, aos: false);
+
+        // 両指定モードではFacade(ユーザーのpartial struct本体)はAoS側にのみ生成されるため、
+        // SoA側のCreateはFacadeではなくEntityハンドルを返す。単体アクセスはこのStoreの
+        // Get{Name}Refで行う(publicなので他アセンブリからも使える)。
+        bool hasFacade = !result.IsCombined;
+        string createReturnType = hasFacade ? structName : "global::CSharpGameEngine.Ecs.Entity";
 
         lines.Add("");
-        lines.Add($"public sealed class {structName}Store");
+        lines.Add($"public sealed class {storeTypeName}");
         lines.Add("{");
         lines.Add("    private readonly global::CSharpGameEngine.Ecs.World world;");
         lines.Add("");
-        lines.Add($"    public {structName}Store(global::CSharpGameEngine.Ecs.World world)");
+        lines.Add($"    public {storeTypeName}(global::CSharpGameEngine.Ecs.World world)");
         lines.Add("    {");
         lines.Add("        this.world = world;");
         lines.Add("    }");
         lines.Add("");
-        lines.Add($"    public {structName} Create(in {structName}CreateInfo info)");
+        lines.Add($"    public {createReturnType} Create(in {structName}CreateInfo info)");
         lines.Add("    {");
         lines.Add($"        global::CSharpGameEngine.Ecs.Entity entity = this.world.CreateEntityCore<{archetypeTypeName}>();");
         lines.Add("");
@@ -100,7 +108,7 @@ internal static class GenerateEntitySoaEmitter
         }
 
         lines.Add("");
-        lines.Add($"        return new {structName}(this, entity);");
+        lines.Add(hasFacade ? $"        return new {structName}(this, entity);" : "        return entity;");
         lines.Add("    }");
         lines.Add("");
         lines.Add("    public bool IsAlive(global::CSharpGameEngine.Ecs.Entity entity)");
@@ -116,14 +124,14 @@ internal static class GenerateEntitySoaEmitter
         foreach (GenerateEntityComponentModel component in result.DeclarationOrderedComponents)
         {
             lines.Add("");
-            lines.Add($"    internal ref {component.ComponentTypeFullyQualifiedName} Get{component.PropertyName}Ref(global::CSharpGameEngine.Ecs.Entity entity)");
+            lines.Add($"    public ref {component.ComponentTypeFullyQualifiedName} Get{component.PropertyName}Ref(global::CSharpGameEngine.Ecs.Entity entity)");
             lines.Add("    {");
             lines.Add($"        return ref this.world.GetComponentRef<{component.ComponentTypeFullyQualifiedName}>(entity, {component.NormalizedIndex});");
             lines.Add("    }");
         }
 
         lines.Add("");
-        lines.Add($"    internal bool TryGetChunk(out {structName}ChunkView view)");
+        lines.Add($"    internal bool TryGetChunk(out {chunkViewTypeName} view)");
         lines.Add("    {");
         lines.Add($"        if (!this.world.TryGetArchetypeChunk<{archetypeTypeName}>(out global::CSharpGameEngine.Ecs.ArchetypeChunk chunk) || chunk.Count == 0)");
         lines.Add("        {");
@@ -131,7 +139,7 @@ internal static class GenerateEntitySoaEmitter
         lines.Add("            return false;");
         lines.Add("        }");
         lines.Add("");
-        lines.Add($"        view = new {structName}ChunkView(chunk);");
+        lines.Add($"        view = new {chunkViewTypeName}(chunk);");
         lines.Add("        return true;");
         lines.Add("    }");
         lines.Add("}");
@@ -139,14 +147,14 @@ internal static class GenerateEntitySoaEmitter
 
     private static void AppendChunkView(List<string> lines, GenerateEntityAnalysisResult result)
     {
-        string structName = result.StructName;
+        string chunkViewTypeName = GenerateEntityEmitterSupport.ChunkViewTypeName(result, aos: false);
 
         lines.Add("");
-        lines.Add($"internal readonly ref struct {structName}ChunkView");
+        lines.Add($"internal readonly ref struct {chunkViewTypeName}");
         lines.Add("{");
         lines.Add("    private readonly global::CSharpGameEngine.Ecs.ArchetypeChunk chunk;");
         lines.Add("");
-        lines.Add($"    internal {structName}ChunkView(global::CSharpGameEngine.Ecs.ArchetypeChunk chunk)");
+        lines.Add($"    internal {chunkViewTypeName}(global::CSharpGameEngine.Ecs.ArchetypeChunk chunk)");
         lines.Add("    {");
         lines.Add("        this.chunk = chunk;");
         lines.Add("    }");

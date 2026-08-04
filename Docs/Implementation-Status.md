@@ -12,7 +12,8 @@ F-L8-003を更新し3エントリを追加、ADR-0022(ヒエラルキーへの�
 追加、ADR-0010追記(ブリッジ起動を事前ビルド済みexeの直接起動に切り替え、シーンタブの体感速度
 問題を解消)でF-L8-002/F-L8-003を更新、ADR-0023(ブリッジプロセスの常駐化・Named Pipeサーバー)で
 F-L8-002を更新し1エントリを追加、ADR-0024(Generated Entity Source Generator、AoS/ECS SoA)で
-F-L3系2件・F-L7系3件を追加しています。
+F-L3系2件・F-L7系3件を追加、ADR-0024追記(`[Flags]`による1宣言からの両バックエンド生成、M0006)で
+F-L7-006/F-L7-007を更新しF-L9系1件を追加しています。
 
 ---
 
@@ -948,6 +949,8 @@ F-L3系2件・F-L7系3件を追加しています。
   - net10.0、PackageReferenceなし、Roslynにも`CSharpGameEngine.Ecs`にも依存しない
     純粋な契約アセンブリ。`EntityGenerationSettings`は同梱せず、ユーザーが自分の
     プロジェクトへ書く慣習として扱う。
+  - (M0006で更新)`EntityStorageKind`は`[Flags]`であり`Aos = 1`/`EcsSoa = 2`。
+    両方を指定すると1つの宣言から両バックエンドが生成される。
 - Conformance: Matches
 - Known deviations: None
 - Next action: なし。
@@ -992,10 +995,47 @@ F-L3系2件・F-L7系3件を追加しています。
   - Component順序は「宣言順」(ユーザー向け生成メンバー)と「正規化順(FQN Ordinal)」
     (`NormalizedSignature`・列Index)の2系統で管理し、`World.GetComponentRef<T>`へ渡す
     `columnIndex`には正規化順を使う。
+  - (M0006で追加)`[Flags]`で両方を指定した場合、Common(Facade/CreateInfo/GeneratedMetadata)は
+    1回だけ出力され、Facadeは`{Type}AosStore`に束縛される。Store/ChunkViewは
+    `{Type}Aos*`/`{Type}Soa*`へ改名され、SoA側の`Create`は`Entity`を返す(Facadeを持たないため)。
+    単一指定時の型名・アクセシビリティ・本文は`[Flags]`化前と完全に同一。
+  - (M0006で変更)`Store.Get{Name}Ref`は`internal`から`public`へ。Facadeの`{Name}Ref`が既に
+    同じ参照をpublicへ公開しており隠蔽している情報が無いこと、および両指定モードのSoA側で
+    唯一の単体アクセス経路になることによる。
 - Conformance: Matches
-- Known deviations: None(見本との差異はF-L3-006/本Milestoneに記載の設計上の意図的な違いのみ)
-- Next action: `[GenerateEntity]`の`UserGameProject`実利用は、`Scene1.cs`との名前衝突リスクが
-  解消された時点(またはユーザーが許容した時点)で追加を検討する。
+- Known deviations: None(見本との差異はF-L3-006/M0005/M0006に記載の設計上の意図的な違いのみ)
+- Next action: なし(`UserGameProject`実利用はM0006で追加済み)。
+
+## F-L9-001 — Particle Entityベンチマーク(UserGameProject)
+
+- Layer: L9 — Game / Application
+- Parent capability: Generated Entity Storage
+- Status: Implemented
+- Verification: TestVerified、RuntimeVerified(Releaseビルドで実測)
+- Intended specification: Docs/Decisions/ADR-0024-Generated-Entity-AoS-SoA.md、
+  Docs/Milestones/M0006-Generated-Entity-Benchmark.md
+- Implementation evidence:
+  - UserGameProject/Entities/Particle.cs(ユーザーが書く唯一の宣言、両フラグ指定)
+  - UserGameProject/Entities/ParticleComponents.cs、ParticleMotion.cs、ParticleSystems.cs
+  - UserGameProject/Entities/BenchmarkHarness.cs、ParticleStorageBenchmark.cs
+  - UserGameProject/Program.cs(`benchmark`サブコマンド分岐)
+- Tests:
+  - tests/UserGameProject.Tests/ParticleStorageTests.cs
+  - tests/UserGameProject.Tests/BenchmarkHarnessTests.cs
+- Reverse-engineered behavior:
+  - 1つの`[GenerateEntity(Aos | EcsSoa)] partial struct Particle`宣言から
+    `ParticleAosStore`と`ParticleSoaStore`が生成され、同一プロセスで比較計測できる。
+  - 各行に適用する計算はAoS/SoAとも同じ`ParticleMotion`を呼ぶため、計測しているのは
+    メモリレイアウトの差のみ。
+  - 実測(500,000件・51試行・中央値、.NET 10.0.10 Release): 一部コンポーネントのみを走査する
+    バッチでSoAが1.59〜1.76倍速く、ほぼ全コンポーネントに触るバッチでは差が消え(1.06倍)、
+    CreateはAoSが1.69倍速く、ランダム単体アクセスは実質同等(1.03倍)。詳細はM0006。
+  - 両バックエンドは10フレーム分のバッチ更新後も合計値が完全一致する
+    (ストレージ方式の切り替えが観測可能な結果を変えないことの実証)。
+- Conformance: Matches
+- Known deviations: 自前Stopwatchハーネスのため統計的な外れ値検出は行っていない
+  (試行回数が少ないと中央値が揺れる。M0006に明記)。
+- Next action: より厳密な数値が必要になった時点でBenchmarkDotNetの導入を検討する。
 
 ## F-L7-008 — `GenerateEntityGenerator`診断(ENTGEN001〜015)
 

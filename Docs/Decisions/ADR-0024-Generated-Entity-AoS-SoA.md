@@ -40,7 +40,7 @@ Source Generatorが選択・生成する仕組みの実装依頼があった。�
 属性引数の`EntityStorageKind`はRoslynが属性バインディング時点で解決済みの
 `TypedConstant`として渡ってくる(ソース側が`const`フィールド参照でも同じ)。
 `GenerateEntityAnalyzer.Analyze`がこの値を読み取り、`GenerateEntityGenerator`内部の
-switch文(`ObjectOrientedAos` → `GenerateEntityAosEmitter`、`EcsSoa` →
+switch文(`Aos` → `GenerateEntityAosEmitter`、`EcsSoa` →
 `GenerateEntitySoaEmitter`)で分岐する。
 
 ### 本番では選択Backendだけを生成する / Runtime分岐を残さない
@@ -102,6 +102,38 @@ AoS/SoA両対応の本機能をそこに置くのは筋が悪い。net10.0・Pac
 Abstractionsパッケージに含めない。正準サンプルは`samples/AosSoaGeneratedExpansion/`に
 実在する。
 
+### `EntityStorageKind`を`[Flags]`とし、両指定は「比較・計測モード」とする(2026-08-05追記)
+ベンチマーク(M0006)のため、AoSとSoAを**同一プロセス**で比較する必要が生じた。`Kind`は型ごとの
+属性引数なので、当初は「型を2つ宣言する」か「アセンブリを2つに分ける」しか手段がなかった。
+
+ユーザーからの提案により`[Flags]`化(`Aos = 1`、`EcsSoa = 2`)し、両方を指定すると
+**1つの宣言から両バックエンドを生成**できるようにした。ただし次の言語制約があるため、
+完全対称にはできない。
+
+- `partial`プロパティは**実装宣言を厳密に1つしか持てない**。
+- Facadeの`_store`フィールドは**具体クラス型**であり、型を1つしか取れない。
+
+したがって両指定モードでは:
+
+| 生成物 | 単一指定 | 両指定 |
+|---|---|---|
+| Facade(ユーザーのpartial struct本体) | 選択したBackendに束縛 | **AoS側にのみ**束縛(1回だけ出力) |
+| Store | `{Type}Store` | `{Type}AosStore` / `{Type}SoaStore` |
+| ChunkView | `{Type}ChunkView` | `{Type}AosChunkView` / `{Type}SoaChunkView` |
+| `Store.Create`の戻り値 | `{Type}`(Facade) | AoS: `{Type}` / SoA: `Entity` |
+
+`{Type}CreateInfo`・`{Type}GeneratedMetadata`・Facadeは両バックエンドで文字通り同一ソースに
+なるため、両指定時も**1回だけ出力**する(ユーザー提案どおり重複排除)。これにより
+`CS0102`/`CS0111`の重複定義は発生しない。
+
+SoA側はFacadeを持たないため、単体アクセスは`Store.Get{Name}Ref`で行う。これに伴い
+`Get{Name}Ref`を`internal`から`public`へ変更した(Facadeの`{Name}Ref`が既に同じ参照を
+publicに公開しており、隠蔽している情報は無いため)。
+
+**単一指定時の型名・アクセシビリティ・挙動は一切変更していない**(既存79テストは無改変で通過)。
+両指定は比較・計測のためのモードであり、本番のゲームコードは単一指定を使う — この前提のもとで、
+「公開APIを両Backendで統一する」という上記の決定は単一指定モードに対して引き続き有効とする。
+
 ### 診断ID規約: `ENTGEN`プレフィックス(`ECSGEN`と衝突させない)
 カテゴリは`CSharpGameEngine.EntityGeneration.CodeGen`。`ENTGEN001`〜`ENTGEN015`
 (詳細は[[Generated-Entity-Storage]]仕様書)。
@@ -160,6 +192,22 @@ Abstractionsパッケージに含めない。正準サンプルは`samples/AosSo
   refアクセサ/ユーザー定義`Move`・`ApplyDamage`・`IsDead`/コピーしたハンドルの同一性/Destroy/
   stale handle拒否/swap-back後のLocation正しさ/ChunkViewバッチループ/2つの生成型間の
   アーキタイプ共有のすべてが、両Backendで実際のRuntime上で機能することを確認した。
+
+## 検証結果(2026-08-05追記: 両指定モードとベンチマーク)
+
+- `dotnet test tests/CSharpGameEngine.CodeAnalysis.Tests`: 88件成功(既存79件 +
+  `GenerateEntityCombinedKindTests` 9件)。`[Flags]`化・型名切替・アクセシビリティ変更のいずれも
+  単一指定時の既存テストに回帰を起こしていない。
+- 実際に`EmitCompilerGeneratedFiles=true`でスクラッチプロジェクトをビルドし、
+  1つの`[GenerateEntity(Aos | Soa)] partial struct Particle`宣言から
+  `Particle.Common.g.cs` / `Particle.Aos.g.cs` / `Particle.Soa.g.cs`の3ファイルが
+  0エラーで生成され、`ParticleAosStore`/`ParticleSoaStore`が共存することを目視確認した。
+- `UserGameProject`に実利用(`UserGameProject/Entities/Particle.cs`、1宣言)を追加し、
+  `dotnet build -c Release`成功後、`UserGameProject.exe benchmark`を実行して実測値を取得した
+  (数値はM0006を参照。捏造値は一切含まない)。
+- `dotnet test tests/UserGameProject.Tests`: 41件成功(既存21 + 新規20)。両バックエンドが
+  同一の操作列に対して同一の結果を返すこと(`BothBackends_ProduceIdenticalResults_
+  AfterTheSameOperationSequence`)を含む。
 
 ## 未解決事項
 

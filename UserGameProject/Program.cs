@@ -16,6 +16,16 @@ using World = CSharpGameEngine.Ecs.World;
 
 const string ProductDisplayName = "C# Game Engine";
 
+// ADR-0024 / M0006: `benchmark` サブコマンドは、1つの [GenerateEntity] 宣言から生成された
+// AoS/SoA 両バックエンドを同一プロセスで実測比較する。ウィンドウもレンダラーも要らないため、
+// ゲームループより手前で分岐して終了する(tools/CSharpGameEngine.TestHost の
+// self-test / triangle と同じ「動詞先頭のサブコマンド」規約に合わせている)。
+if (args.Length > 0 && string.Equals(args[0], "benchmark", StringComparison.OrdinalIgnoreCase))
+{
+    Environment.ExitCode = UserGameProject.Entities.ParticleStorageBenchmark.Run(args[1..]);
+    return;
+}
+
 string shaderPath = Path.Combine(AppContext.BaseDirectory, "Shaders", "Stage.hlsl");
 string glbPath = Path.Combine(AppContext.BaseDirectory, "Assets", "Stage", "Lvl_FirstPerson", "Lvl_FirstPerson.glb");
 string sceneMetaPath = Path.Combine(AppContext.BaseDirectory, "Assets", "Stage", "Lvl_FirstPerson", "scene_meta.json");

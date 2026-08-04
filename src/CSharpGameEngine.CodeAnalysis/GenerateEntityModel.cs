@@ -7,12 +7,14 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// GenerateEntityGeneratorが選択する物理ストレージ方式のGenerator側ミラー。
 /// <c>CSharpGameEngine.Generation.Abstractions</c>の<c>EntityStorageKind</c>への
 /// アセンブリ参照を持たないため、属性引数から解決した値をこの内部enumへ写し取る。
+/// 値(1/2)は<c>EntityStorageKind</c>の序数と一致させること。
 /// </summary>
+[Flags]
 internal enum GenerateEntityStorageKind
 {
-    Unresolved,
-    ObjectOrientedAos,
-    EcsSoa
+    None = 0,
+    Aos = 1,
+    EcsSoa = 2
 }
 
 /// <summary>
@@ -101,4 +103,14 @@ internal readonly struct GenerateEntityAnalysisResult
         this.NormalizedComponents = normalizedComponents;
         this.Diagnostics = diagnostics;
     }
+
+    internal bool HasAos => (this.StorageKind & GenerateEntityStorageKind.Aos) != 0;
+
+    internal bool HasSoa => (this.StorageKind & GenerateEntityStorageKind.EcsSoa) != 0;
+
+    /// <summary>
+    /// 両バックエンドを1つの宣言から生成する比較・計測用モード。生成される型名が衝突しないよう
+    /// <c>{Type}Aos*</c>/<c>{Type}Soa*</c>へ切り替わり、Facadeは<see cref="HasAos"/>側にのみ生成される。
+    /// </summary>
+    internal bool IsCombined => this.HasAos && this.HasSoa;
 }

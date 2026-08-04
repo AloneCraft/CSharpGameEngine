@@ -7,7 +7,7 @@
 
 ユーザーは`[CSharpGameEngine.Generation.GenerateEntity(EntityGenerationSettings.Kind)]`を付けた
 `partial struct`(例: `Character`)と、その中の`partial`プロパティ(Component宣言)だけを書く。
-`EntityGenerationSettings.Kind`という**1つの`const`**を`ObjectOrientedAos`または`EcsSoa`に
+`EntityGenerationSettings.Kind`という**1つの`const`**を`Aos`または`EcsSoa`に
 切り替えるだけで、対象となる全Entity型の物理ストレージ実装が一括で切り替わる。切り替えは
 コンパイル時にのみ発生し、生成コードにRuntime分岐(`if`/`switch`)は一切残らない。
 
@@ -68,6 +68,38 @@ Generator側で`SemanticModel.GetConstantValue()`を手動で呼び出す必要�
 Emitterを呼ぶか分岐する。出力される生成ソースコードには、選択されなかったBackendの
 Hintファイルが一切生成されず、`EntityStorageKind`を比較するRuntime分岐も一切現れない。
 
+### 両指定(比較・計測モード)
+
+`EntityStorageKind`は`[Flags]`(`Aos = 1`、`EcsSoa = 2`)であり、両方を指定すると
+**1つの宣言から両バックエンドが生成される**。AoSとSoAを同一プロセスで比較計測するためのモード。
+
+```csharp
+public const EntityStorageKind Kind =
+    EntityStorageKind.Aos | EntityStorageKind.EcsSoa;
+```
+
+生成物は次のように変わる。
+
+| 生成物 | 単一指定 | 両指定 |
+|---|---|---|
+| `{Type}CreateInfo` / `{Type}GeneratedMetadata` | 1回 | 1回(共通) |
+| Facade(ユーザーのpartial struct本体) | 選択Backendに束縛 | **AoS側にのみ**束縛、1回だけ出力 |
+| Store | `{Type}Store` | `{Type}AosStore` / `{Type}SoaStore` |
+| ChunkView | `{Type}ChunkView` | `{Type}AosChunkView` / `{Type}SoaChunkView` |
+| 行/アーキタイプ型 | `{Type}AosGeneratedData` / `{Type}SoaGeneratedArchetype` | 同左(元から接尾辞付き) |
+| `Store.Create`の戻り値 | `{Type}`(Facade) | AoS: `{Type}` / SoA: `Entity` |
+
+**両指定時にSoA側へFacadeが生成されない理由**は、設計の選好ではなくC#の言語制約である。
+
+- `partial`プロパティは実装宣言を**厳密に1つ**しか持てない。
+- Facadeの`_store`は**具体クラス型のフィールド**であり、型を1つしか取れない。
+
+したがってSoA側の単体アクセスは`{Type}SoaStore.Get{Name}Ref(entity)`で行う
+(この理由から`Get{Name}Ref`は`public`)。バッチ経路(`ChunkView`)はFacadeを使わないため、
+両バックエンドで完全に対等に扱える。
+
+単一指定時の型名・アクセシビリティ・挙動は`[Flags]`化の前後で一切変わらない(後方互換)。
+
 ## Facadeのコピー意味(両Backend共通)
 
 公開される`Character`は、AoS/SoAどちらの場合も同一の軽量ハンドルである。
@@ -91,6 +123,9 @@ Component値そのものをコピーすることはない。したがって`copy
 
 - `{Name}`(get/set): 値のコピーを返す/書き込む通常プロパティ。
 - `{Name}Ref`(ref): Store内の実データへの直接参照。in-place変更に使う。
+
+Store側にも`public ref {ComponentType} Get{Name}Ref(Entity)`が生成される。Facadeの`{Name}Ref`は
+これを呼んでいるだけであり、両指定モードでFacadeを持たないSoA側の単体アクセス経路でもある。
 
 ## AoSの正本
 
@@ -162,6 +197,7 @@ Entity.Id -> Generation/Alive判定 -> Location Table -> 行(AoS) / Chunk内の�
 - AoS側でのアーキタイプ共有(SoAのみ対応。プロンプト自身が許容する「per-type storeを
   第一段階として実装」の扱い)
 - 固定容量ページングによる複数物理Chunk(単一Chunk方式を採用)
+- 両指定モードでのSoA側Facade生成(言語制約。上記「両指定(比較・計測モード)」参照)
 - Query/Systemフィルタ基盤、Job Scheduler、自動並列化
 - Prefab、Scene serialization、Network replication、Undo/Redo
 

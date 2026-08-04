@@ -12,7 +12,7 @@ namespace CSharpGameEngine.CodeAnalysis.Tests;
 public sealed class GenerateEntityConformanceTests
 {
     [Theory]
-    [InlineData("ObjectOrientedAos")]
+    [InlineData("Aos")]
     [InlineData("EcsSoa")]
     public void Spawn_Move_ApplyDamage_IsDead_MatchSampleObservableBehavior(string kindMemberName)
     {
@@ -20,7 +20,7 @@ public sealed class GenerateEntityConformanceTests
     }
 
     [Theory]
-    [InlineData("ObjectOrientedAos")]
+    [InlineData("Aos")]
     [InlineData("EcsSoa")]
     public void Generation_IncrementsWhenIdIsReused(string kindMemberName)
     {
@@ -28,7 +28,7 @@ public sealed class GenerateEntityConformanceTests
     }
 
     [Theory]
-    [InlineData("ObjectOrientedAos")]
+    [InlineData("Aos")]
     [InlineData("EcsSoa")]
     public void StaleHandle_IsRejectedAfterIdReuse(string kindMemberName)
     {
@@ -36,7 +36,7 @@ public sealed class GenerateEntityConformanceTests
     }
 
     [Theory]
-    [InlineData("ObjectOrientedAos")]
+    [InlineData("Aos")]
     [InlineData("EcsSoa")]
     public void CopiedHandle_PointsAtSameEntity(string kindMemberName)
     {
@@ -44,7 +44,7 @@ public sealed class GenerateEntityConformanceTests
     }
 
     [Theory]
-    [InlineData("ObjectOrientedAos")]
+    [InlineData("Aos")]
     [InlineData("EcsSoa")]
     public void BatchLoop_MoveAllEquivalent_MatchesPerEntityMove(string kindMemberName)
     {
@@ -54,7 +54,7 @@ public sealed class GenerateEntityConformanceTests
     [Fact]
     public void AosBackend_GeneratesDenseRowArrayPhysicalType_NotArchetypeChunkTypes()
     {
-        Assembly assembly = CompileForKind("ObjectOrientedAos");
+        Assembly assembly = CompileForKind("Aos");
 
         Assert.NotNull(assembly.GetType("Sample.CharacterAosGeneratedData"));
         Assert.Null(assembly.GetType("Sample.CharacterSoaGeneratedArchetype"));
@@ -79,7 +79,7 @@ public sealed class GenerateEntityConformanceTests
 
     private static Assembly CompileForKind(string kindMemberName)
     {
-        string characterAndTestEntrySource = kindMemberName == "ObjectOrientedAos"
+        string characterAndTestEntrySource = kindMemberName == "Aos"
             ? CharacterAndTestEntrySourceAos
             : CharacterAndTestEntrySourceSoa;
 

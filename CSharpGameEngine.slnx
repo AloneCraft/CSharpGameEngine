@@ -49,6 +49,7 @@
     <File Path="Docs/Milestones/M0003-Ecs-Driven-Stage-Vertical-Slice.md" />
     <File Path="Docs/Milestones/M0004-UE-FirstPerson-Stage-Port.md" />
     <File Path="Docs/Milestones/M0005-Generated-Entity-AoS-SoA.md" />
+    <File Path="Docs/Milestones/M0006-Generated-Entity-Benchmark.md" />
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />

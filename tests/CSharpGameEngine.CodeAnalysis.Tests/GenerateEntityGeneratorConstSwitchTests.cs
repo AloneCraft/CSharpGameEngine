@@ -25,7 +25,7 @@ public sealed class GenerateEntityGeneratorConstSwitchTests
     [Fact]
     public void AosKind_GeneratesOnlyAosHintFiles_NoSoaFiles()
     {
-        GeneratorDriverRunResult result = RunForKind("ObjectOrientedAos");
+        GeneratorDriverRunResult result = RunForKind("Aos");
 
         string[] hintNames = [.. result.Results[0].GeneratedSources.Select(s => s.HintName)];
 
@@ -51,7 +51,7 @@ public sealed class GenerateEntityGeneratorConstSwitchTests
     [Fact]
     public void AosOutput_DoesNotContainSoaChunkOrArchetypeTypes()
     {
-        GeneratorDriverRunResult result = RunForKind("ObjectOrientedAos");
+        GeneratorDriverRunResult result = RunForKind("Aos");
         string allText = string.Join("\n", result.Results[0].GeneratedSources.Select(s => s.SourceText.ToString()));
 
         Assert.DoesNotContain("SoaGeneratedArchetype", allText, StringComparison.Ordinal);
@@ -70,7 +70,7 @@ public sealed class GenerateEntityGeneratorConstSwitchTests
     }
 
     [Theory]
-    [InlineData("ObjectOrientedAos")]
+    [InlineData("Aos")]
     [InlineData("EcsSoa")]
     public void GeneratedSource_ContainsNoRuntimeStorageKindBranch(string kindMemberName)
     {
@@ -84,7 +84,7 @@ public sealed class GenerateEntityGeneratorConstSwitchTests
     [Fact]
     public void PublicCharacterApi_IsIdenticalBetweenAosAndSoa()
     {
-        Assembly aosAssembly = CompileForKind("ObjectOrientedAos");
+        Assembly aosAssembly = CompileForKind("Aos");
         Assembly soaAssembly = CompileForKind("EcsSoa");
 
         Type aosCharacter = aosAssembly.GetType("Sample.Character")!;

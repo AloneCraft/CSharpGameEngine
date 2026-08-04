@@ -11,7 +11,7 @@ public sealed class GenerateEntityAosRuntimeTests
 {
     private static readonly Lazy<Assembly> CompiledAssembly = new(() => GenerateEntityGeneratorTestHelper.CompileAndLoad(
         GenerateEntityGeneratorTestHelper.CommonComponents
-        + GenerateEntityGeneratorTestHelper.EntityGenerationSettings("ObjectOrientedAos")
+        + GenerateEntityGeneratorTestHelper.EntityGenerationSettings("Aos")
         + CharacterAndTestEntrySource));
 
     [Fact]
