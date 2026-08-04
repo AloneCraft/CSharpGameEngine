@@ -4,23 +4,27 @@ using CSharpGameEngine.Ecs;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Platform.Windows;
 using UserGameProject;
+using UserGameProject.Systems;
+using World = CSharpGameEngine.Ecs.World;
 
-// ThirdPerson-style ECS-driven stage vertical slice (ADR-0016): a ground plane and a player
-// character are created as ECS entities via CSharpGameEngine.Ecs, then rendered every frame with
-// StageRenderer while a mouse-orbit camera and WASD/gravity/jump character controller (see
-// PlayerController.cs) update the player's Position/Rotation components. Follows the same
-// Window+Renderer+loop composition pattern as tools/CSharpGameEngine.Extension/Program.cs.
+// UE5.8 Lvl_FirstPerson stage port (M0004, ADR-0017/ADR-0018): SceneLoader turns the exported GLB
+// + scene_meta.json into StageRenderer inputs and a set of ECS spawns, then every frame's work -
+// input, player control, camera, movable-prop animation, and pushing transforms/lighting into the
+// renderer - runs as an explicit sequence of plain systems (Systems/*.cs). There is no scheduler;
+// call order here *is* the update order, following the same Window+Renderer+loop composition
+// already used by tools/CSharpGameEngine.Extension/Program.cs and the earlier ThirdPerson slice.
 
 const string ProductDisplayName = "C# Game Engine";
-const int GroundObjectIndex = 0;
-const int PlayerObjectIndex = 1;
-const int VkSpace = 0x20;
 
 string shaderPath = Path.Combine(AppContext.BaseDirectory, "Shaders", "Stage.hlsl");
+string glbPath = Path.Combine(AppContext.BaseDirectory, "Assets", "Stage", "Lvl_FirstPerson", "Lvl_FirstPerson.glb");
+string sceneMetaPath = Path.Combine(AppContext.BaseDirectory, "Assets", "Stage", "Lvl_FirstPerson", "scene_meta.json");
+
+LoadedScene scene = SceneLoader.Load(glbPath, sceneMetaPath);
 
 using Win32Window window = new(new Win32WindowOptions
 {
-    Title = $"{ProductDisplayName} - Stage",
+    Title = $"{ProductDisplayName} - FirstPerson Stage",
     Width = 1280,
     Height = 720,
     Visible = true,
@@ -28,38 +32,79 @@ using Win32Window window = new(new Win32WindowOptions
 
 GraphicsDeviceOptions deviceOptions = new();
 
-ProceduralMeshData groundMesh = ProceduralMeshFactory.CreatePlane(width: 40f, depth: 40f);
-ProceduralMeshData characterMesh = ProceduralMeshFactory.CreateBox(new Vector3(1f, 2f, 1f));
-
 using StageRenderer renderer = StageRenderer.Create(
     window.Handle, window.ClientWidth, window.ClientHeight, deviceOptions, shaderPath,
-    [
-        new MeshCreateInfo { Positions = groundMesh.Positions, Normals = groundMesh.Normals, Indices = groundMesh.Indices, BaseColorFactor = new Vector4(0.3f, 0.55f, 0.3f, 1f) },
-        new MeshCreateInfo { Positions = characterMesh.Positions, Normals = characterMesh.Normals, Indices = characterMesh.Indices, BaseColorFactor = new Vector4(0.75f, 0.25f, 0.2f, 1f) },
-    ]);
+    scene.Meshes, scene.Materials, scene.Objects);
 
 window.Resized += (w, h) => renderer.Resize(w, h);
 
 World world = new();
 
-StaticProp ground = world.Create<StaticProp>();
-ground.Position = new Position { X = 0, Y = 0, Z = 0 };
-ground.Rotation = new Rotation { X = 0, Y = 0, Z = 0, W = 1 };
+List<StageProp> stageProps = [];
+List<MovableStageProp> movableProps = [];
+
+foreach (LoadedSceneSpawn spawn in scene.Spawns)
+{
+    Rotation rotation = new() { X = spawn.Rotation.X, Y = spawn.Rotation.Y, Z = spawn.Rotation.Z, W = spawn.Rotation.W };
+    Position position = new() { X = spawn.Position.X, Y = spawn.Position.Y, Z = spawn.Position.Z };
+    Scale scaleComponent = new() { X = spawn.Scale.X, Y = spawn.Scale.Y, Z = spawn.Scale.Z };
+    RenderObjectRef renderObjectRef = new() { Index = spawn.ObjectIndex };
+
+    if (spawn.Mobility == PropMobility.Movable)
+    {
+        MovableStageProp prop = world.Create<MovableStageProp>();
+        prop.Position = position;
+        prop.Rotation = rotation;
+        prop.Scale = scaleComponent;
+        prop.RenderObjectRef = renderObjectRef;
+    }
+    else
+    {
+        StageProp prop = world.Create<StageProp>();
+        prop.Position = position;
+        prop.Rotation = rotation;
+        prop.Scale = scaleComponent;
+        prop.RenderObjectRef = renderObjectRef;
+    }
+}
+
+world.CollectViews(stageProps);
+world.CollectViews(movableProps);
+
+if (scene.Sun is { } sun)
+{
+    world.Create<SunLight>().DirectionalLightData = sun;
+}
+if (scene.Ambient is { } ambient)
+{
+    world.Create<AmbientLight>().AmbientLightData = ambient;
+}
+if (scene.Fog is { } fog)
+{
+    world.Create<FogVolume>().FogData = fog;
+}
+
+List<SunLight> sunLights = [];
+List<AmbientLight> ambientLights = [];
+List<FogVolume> fogVolumes = [];
+world.CollectViews(sunLights);
+world.CollectViews(ambientLights);
+world.CollectViews(fogVolumes);
 
 Player player = world.Create<Player>();
-player.Position = new Position { X = 0, Y = 0, Z = 0 };
+player.Position = new Position { X = scene.PlayerStartPosition.X, Y = scene.PlayerStartPosition.Y, Z = scene.PlayerStartPosition.Z };
 player.Rotation = new Rotation { X = 0, Y = 0, Z = 0, W = 1 };
 player.Health.Value = 100;
+player.CameraRig = new CameraRig { Yaw = scene.PlayerStartYawRadians, Pitch = 0f };
 
-Camera camera = Camera.CreateDefault(new Vector3(player.Position.X, player.Position.Y + 1.6f, player.Position.Z));
-float currentYaw = 0f;
-float verticalVelocity = 0f;
-bool wasJumpKeyDown = false;
+Camera camera = Camera.CreateFirstPerson(new Vector3(player.Position.X, player.Position.Y + CameraSystem.EyeHeight, player.Position.Z));
 
 window.SetMouseCaptured(true);
 
 Stopwatch stopwatch = Stopwatch.StartNew();
 long previousTicks = stopwatch.ElapsedTicks;
+bool wasJumpKeyDown = false;
+float totalTime = 0f;
 
 while (!window.IsClosed)
 {
@@ -72,54 +117,17 @@ while (!window.IsClosed)
     long currentTicks = stopwatch.ElapsedTicks;
     float deltaTime = MathF.Min((float)((currentTicks - previousTicks) / (double)Stopwatch.Frequency), 0.1f);
     previousTicks = currentTicks;
+    totalTime += deltaTime;
 
-    (float mouseDeltaX, float mouseDeltaY) = window.ConsumeMouseDelta();
-    camera.ApplyMouseDelta(mouseDeltaX, mouseDeltaY, yawSensitivity: 0.0025f, pitchSensitivity: 0.0025f);
+    InputSystem.Update(window, ref player.InputState, ref wasJumpKeyDown);
+    PlayerControlSystem.Update(player, deltaTime);
+    CameraSystem.Update(player, ref camera);
+    MovingPropSystem.Update(movableProps, totalTime);
 
-    bool jumpKeyDown = window.IsKeyDown(VkSpace);
-    bool jumpPressed = jumpKeyDown && !wasJumpKeyDown;
-    wasJumpKeyDown = jumpKeyDown;
-
-    CharacterMotionResult motion = CharacterMotion.Compute(new CharacterMotionInput
-    {
-        FlatForward = camera.GetFlatForward(),
-        FlatRight = camera.GetFlatRight(),
-        MoveForward = window.IsKeyDown('W'),
-        MoveBack = window.IsKeyDown('S'),
-        MoveLeft = window.IsKeyDown('A'),
-        MoveRight = window.IsKeyDown('D'),
-        JumpPressed = jumpPressed,
-        CurrentY = player.Position.Y,
-        VerticalVelocity = verticalVelocity,
-        DeltaTime = deltaTime,
-    });
-
-    verticalVelocity = motion.NewVerticalVelocity;
-
-    player.Position = new Position
-    {
-        X = player.Position.X + (motion.HorizontalVelocity.X * deltaTime),
-        Y = motion.NewY,
-        Z = player.Position.Z + (motion.HorizontalVelocity.Z * deltaTime),
-    };
-
-    if (motion.HorizontalVelocity != Vector3.Zero)
-    {
-        float targetYaw = MathF.Atan2(motion.HorizontalVelocity.X, motion.HorizontalVelocity.Z);
-        currentYaw = CharacterMotion.LerpAngle(currentYaw, targetYaw, rotationSpeedRadiansPerSecond: 12f, deltaTime);
-
-        Quaternion rotationQuaternion = Quaternion.CreateFromAxisAngle(Vector3.UnitY, currentYaw);
-        player.Rotation = new Rotation { X = rotationQuaternion.X, Y = rotationQuaternion.Y, Z = rotationQuaternion.Z, W = rotationQuaternion.W };
-    }
-
-    camera.Target = new Vector3(player.Position.X, player.Position.Y + 1.6f, player.Position.Z);
     renderer.SetCamera(camera);
-
-    renderer.SetObjectTransform(GroundObjectIndex, Matrix4x4.CreateTranslation(ground.Position.X, ground.Position.Y, ground.Position.Z));
-
-    Quaternion playerRotation = new(player.Rotation.X, player.Rotation.Y, player.Rotation.Z, player.Rotation.W);
-    Matrix4x4 playerWorld = Matrix4x4.CreateFromQuaternion(playerRotation) * Matrix4x4.CreateTranslation(player.Position.X, player.Position.Y + 1f, player.Position.Z);
-    renderer.SetObjectTransform(PlayerObjectIndex, playerWorld);
+    RenderSyncSystem.SyncProps(stageProps, renderer);
+    RenderSyncSystem.SyncMovableProps(movableProps, renderer);
+    RenderSyncSystem.SyncLighting(sunLights, ambientLights, fogVolumes, renderer);
 
     renderer.RenderFrame();
 }

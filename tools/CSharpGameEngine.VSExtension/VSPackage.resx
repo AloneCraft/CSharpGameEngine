@@ -35,4 +35,7 @@
   <data name="110" xml:space="preserve">
     <value>C# Game Engine Asset Preview</value>
   </data>
+  <data name="111" xml:space="preserve">
+    <value>C# Game Engine Scene</value>
+  </data>
 </root>

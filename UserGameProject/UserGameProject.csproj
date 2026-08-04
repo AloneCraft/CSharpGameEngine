@@ -28,8 +28,16 @@
          modern VS's Solution Explorer still lists files physically present under an included
          folder even when excluded from the item list; Visible="false" on an actual item is what
          actually hides it. -->
-    <None Include="Assets\**\*" Exclude="Assets\**\*.meta" />
+    <None Include="Assets\**\*" Exclude="Assets\**\*.meta;Assets\Stage\**\*" />
     <None Include="Assets\**\*.meta" Visible="false" />
+    <!-- Unlike the Fab/user-asset tree above (Solution Explorer-only), the UE level port's
+         converted GLB + scene_meta.json (ADR-0017) are real runtime inputs SceneLoader reads via
+         AppContext.BaseDirectory, so they must actually be copied to the output directory. -->
+    <None Include="Assets\Stage\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Docs/EditorSpec.md §3 / ADR-0020: *.scene.json is authored Source (ADR-0002), not a
+         generated artifact, hence a plain <None> item (visible, Git-tracked) rather than a
+         CopyToOutputDirectory asset - only the VSIX's Hierarchy/Scene tool windows read it today. -->
+    <None Include="DefaultScene.scene.json" />
   </ItemGroup>
 
   <ItemGroup>
@@ -37,6 +45,7 @@
     <ProjectReference Include="..\src\CSharpGameEngine.CodeAnalysis\CSharpGameEngine.CodeAnalysis.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\src\CSharpGameEngine.Platform.Windows\CSharpGameEngine.Platform.Windows.csproj" />
     <ProjectReference Include="..\src\CSharpGameEngine.Graphics.D3D12\CSharpGameEngine.Graphics.D3D12.csproj" />
+    <ProjectReference Include="..\src\CSharpGameEngine.Import.Gltf\CSharpGameEngine.Import.Gltf.csproj" />
   </ItemGroup>
 
   <ItemGroup>

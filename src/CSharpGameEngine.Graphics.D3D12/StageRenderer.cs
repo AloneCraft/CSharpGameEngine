@@ -8,7 +8,9 @@ using static TerraFX.Interop.DirectX.D3D12_COMPARISON_FUNC;
 using static TerraFX.Interop.DirectX.D3D12_CULL_MODE;
 using static TerraFX.Interop.DirectX.D3D12_DESCRIPTOR_HEAP_FLAGS;
 using static TerraFX.Interop.DirectX.D3D12_DESCRIPTOR_HEAP_TYPE;
+using static TerraFX.Interop.DirectX.D3D12_DESCRIPTOR_RANGE_TYPE;
 using static TerraFX.Interop.DirectX.D3D12_FENCE_FLAGS;
+using static TerraFX.Interop.DirectX.D3D12_FILTER;
 using static TerraFX.Interop.DirectX.D3D12_HEAP_FLAGS;
 using static TerraFX.Interop.DirectX.D3D12_HEAP_TYPE;
 using static TerraFX.Interop.DirectX.D3D12_INPUT_CLASSIFICATION;
@@ -18,6 +20,10 @@ using static TerraFX.Interop.DirectX.D3D12_RESOURCE_STATES;
 using static TerraFX.Interop.DirectX.D3D12_ROOT_PARAMETER_TYPE;
 using static TerraFX.Interop.DirectX.D3D12_ROOT_SIGNATURE_FLAGS;
 using static TerraFX.Interop.DirectX.D3D12_SHADER_VISIBILITY;
+using static TerraFX.Interop.DirectX.D3D12_SRV_DIMENSION;
+using static TerraFX.Interop.DirectX.D3D12_STATIC_BORDER_COLOR;
+using static TerraFX.Interop.DirectX.D3D12_TEXTURE_ADDRESS_MODE;
+using static TerraFX.Interop.DirectX.D3D12_TEXTURE_COPY_TYPE;
 using static TerraFX.Interop.DirectX.D3D_PRIMITIVE_TOPOLOGY;
 using static TerraFX.Interop.DirectX.D3D_ROOT_SIGNATURE_VERSION;
 using static TerraFX.Interop.DirectX.DirectX;
@@ -28,7 +34,7 @@ using static TerraFX.Interop.Windows.Windows;
 
 namespace CSharpGameEngine.Graphics.D3D12;
 
-/// <summary>One procedural or imported mesh plus its solid base color, ready to hand to <see cref="StageRenderer.Create"/>.</summary>
+/// <summary>One procedural or imported mesh plus its solid base color, for the legacy (pre-ADR-0018) untextured API. Kept only as an input shape for <see cref="StageRenderer.Create(nint, int, int, GraphicsDeviceOptions, string, IReadOnlyList{MeshCreateInfo})"/>, which adapts it into one <see cref="StageMeshCreateInfo"/>+<see cref="StageMaterialCreateInfo"/>+<see cref="StageObjectCreateInfo"/> triple per entry.</summary>
 public readonly struct MeshCreateInfo
 {
     public required IReadOnlyList<Vector3> Positions { get; init; }
@@ -38,30 +44,53 @@ public readonly struct MeshCreateInfo
 }
 
 /// <summary>
-/// Renders a fixed set of untextured, independently-transformed meshes (the ECS-driven stage
-/// vertical slice, ADR-0016) with a camera that can move every frame. Deliberately a separate
-/// class from <see cref="ModelRenderer"/> rather than a shared abstraction (ADR-0004's
-/// "duplicate now, consolidate later" precedent) - the single-mesh/fixed-camera/textured contract
-/// of ModelRenderer and the multi-mesh/movable-camera/untextured contract here are different enough
-/// that generalizing now would be premature. Swap chain/RTV/DSV/fence/Resize plumbing is copied
-/// from ModelRenderer rather than shared, for the same reason.
+/// Renders a fixed set of independently-transformed, textured PBR-lite meshes (ADR-0018 extends
+/// the untextured ADR-0016 vertical slice) with a movable camera, one data-driven directional
+/// light + ambient term, and a simplified exponential height fog. Deliberately evolved in place
+/// rather than duplicated into a third renderer class (see ADR-0018): unlike the
+/// ModelRenderer/StageRenderer split in ADR-0004, the old untextured contract here is strictly
+/// subsumed by the new one (a 1x1 fallback texture per slot reproduces the old solid-color look
+/// exactly), so a third copy of the swap chain/RTV/DSV/fence/Resize plumbing would add no value.
 /// </summary>
 public sealed unsafe class StageRenderer : IDisposable
 {
     public const int FrameCount = 2;
     public const DXGI_FORMAT BackBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
     public const DXGI_FORMAT DepthBufferFormat = DXGI_FORMAT_D32_FLOAT;
+    private const DXGI_FORMAT MaterialTextureFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 
     /// <summary>D3D12 constant buffer views must start at a 256-byte aligned GPU address.</summary>
     private const uint ConstantAlignment = 256;
 
+    // FrameCB (b0) byte layout - see Stage.hlsl. Each Set* method writes only its own slice, so
+    // SetCamera/SetDirectionalLight/SetAmbientLight/SetFog may be called in any order per frame.
+    private const uint FrameViewProjectionOffset = 0;   // float4x4, 64 bytes
+    private const uint FrameCameraPositionOffset = 64;  // float4 (xyz used)
+    private const uint FrameLightDirectionOffset = 80;  // float4 (xyz used)
+    private const uint FrameLightColorOffset = 96;      // float4 (xyz used)
+    private const uint FrameAmbientColorOffset = 112;   // float4 (xyz used)
+    private const uint FrameFogParamsOffset = 128;      // float4: x=density, y=heightFalloff
+    private const uint FrameFogColorOffset = 144;       // float4 (xyz used)
+    private const uint FrameConstantsSize = 160;
+
+    // ObjectCB (b1) byte layout - see Stage.hlsl.
+    private const uint ObjectWorldOffset = 0;            // float4x4, 64 bytes
+    private const uint ObjectBaseColorFactorOffset = 64; // float4
+    private const uint ObjectMaterialParamsOffset = 80;  // float4: x=roughness, y=metallic
+
     private static readonly Vector4 ClearColorVector = new(0.35f, 0.55f, 0.85f, 1.0f);
     public static readonly PixelColor ClearColor = new(89, 140, 217, 255);
+
+    private static readonly Vector3 DefaultLightDirectionTowardLight = Vector3.Normalize(new Vector3(0.4f, 0.7f, 0.5f));
+    private static readonly Vector3 DefaultLightColor = new(1.0f, 1.0f, 1.0f);
+    private static readonly Vector3 DefaultAmbientColor = new(0.12f, 0.12f, 0.15f);
 
     private struct Vertex
     {
         public Vector3 Position;
         public Vector3 Normal;
+        public Vector4 Tangent;
+        public Vector2 Uv;
     }
 
     private GraphicsDevice? _device;
@@ -79,13 +108,27 @@ public sealed unsafe class StageRenderer : IDisposable
     private ID3D12RootSignature* _rootSignature;
     private ID3D12PipelineState* _pipelineState;
 
-    private int _objectCount;
+    // Per-mesh (indexed by meshIndex).
+    private int _meshCount;
     private ID3D12Resource*[] _vertexBuffers = [];
     private D3D12_VERTEX_BUFFER_VIEW[] _vertexBufferViews = [];
     private ID3D12Resource*[] _indexBuffers = [];
     private D3D12_INDEX_BUFFER_VIEW[] _indexBufferViews = [];
     private uint[] _indexCounts = [];
-    private Vector4[] _baseColorFactors = [];
+
+    // Per-material (indexed by materialIndex). Three textures per material: albedo, normal, metallic-roughness.
+    private int _materialCount;
+    private ID3D12Resource*[] _materialTextures = [];
+    private ID3D12DescriptorHeap* _srvHeap;
+    private uint _srvDescriptorSize;
+    private Vector4[] _materialBaseColorFactors = [];
+    private float[] _materialRoughnessFactors = [];
+    private float[] _materialMetallicFactors = [];
+
+    // Per-object (indexed by objectIndex).
+    private int _objectCount;
+    private int[] _objectMeshIndices = [];
+    private int[] _objectMaterialIndices = [];
     private Matrix4x4[] _objectTransforms = [];
 
     private ID3D12Resource* _frameConstantsBuffer;
@@ -128,10 +171,12 @@ public sealed unsafe class StageRenderer : IDisposable
 
     public static StageRenderer Create(
         nint hwnd, int width, int height, GraphicsDeviceOptions deviceOptions, string shaderPath,
-        IReadOnlyList<MeshCreateInfo> meshes)
+        IReadOnlyList<StageMeshCreateInfo> meshes, IReadOnlyList<StageMaterialCreateInfo> materials, IReadOnlyList<StageObjectCreateInfo> objects)
     {
         ArgumentNullException.ThrowIfNull(shaderPath);
         ArgumentNullException.ThrowIfNull(meshes);
+        ArgumentNullException.ThrowIfNull(materials);
+        ArgumentNullException.ThrowIfNull(objects);
         if (width <= 0 || height <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(width), "Initial width/height must both be positive.");
@@ -141,12 +186,34 @@ public sealed unsafe class StageRenderer : IDisposable
         {
             throw new ArgumentException("At least one mesh is required.", nameof(meshes));
         }
-
-        foreach (MeshCreateInfo mesh in meshes)
+        if (materials.Count == 0)
         {
-            if (mesh.Positions.Count == 0 || mesh.Positions.Count != mesh.Normals.Count || mesh.Indices.Count == 0)
+            throw new ArgumentException("At least one material is required.", nameof(materials));
+        }
+        if (objects.Count == 0)
+        {
+            throw new ArgumentException("At least one object is required.", nameof(objects));
+        }
+
+        foreach (StageMeshCreateInfo mesh in meshes)
+        {
+            if (mesh.Positions.Count == 0 || mesh.Positions.Count != mesh.Normals.Count
+                || mesh.Positions.Count != mesh.Tangents.Count || mesh.Positions.Count != mesh.Uvs.Count
+                || mesh.Indices.Count == 0)
             {
-                throw new ArgumentException("Each mesh must have at least one vertex (Positions.Count == Normals.Count) and at least one index.", nameof(meshes));
+                throw new ArgumentException("Each mesh must have at least one vertex with matching Positions/Normals/Tangents/Uvs counts, and at least one index.", nameof(meshes));
+            }
+        }
+
+        foreach (StageObjectCreateInfo obj in objects)
+        {
+            if (obj.MeshIndex < 0 || obj.MeshIndex >= meshes.Count)
+            {
+                throw new ArgumentOutOfRangeException(nameof(objects), $"Object references out-of-range MeshIndex {obj.MeshIndex}.");
+            }
+            if (obj.MaterialIndex < 0 || obj.MaterialIndex >= materials.Count)
+            {
+                throw new ArgumentOutOfRangeException(nameof(objects), $"Object references out-of-range MaterialIndex {obj.MaterialIndex}.");
             }
         }
 
@@ -159,7 +226,7 @@ public sealed unsafe class StageRenderer : IDisposable
         bool completed = false;
         try
         {
-            renderer.Initialize((HWND)hwnd, width, height, deviceOptions, shaderPath, meshes);
+            renderer.Initialize((HWND)hwnd, width, height, deviceOptions, shaderPath, meshes, materials, objects);
             completed = true;
             return renderer;
         }
@@ -172,11 +239,50 @@ public sealed unsafe class StageRenderer : IDisposable
         }
     }
 
+    /// <summary>Legacy adapter (pre-ADR-0018): one untextured solid-color mesh per object, exactly reproducing the old 1:1 mesh/material/object indexing so existing callers (and <c>StageGpuIntegrationTests</c>) keep working unchanged. Synthesized UVs/tangents never matter visually here since every material falls back to its 1x1 default textures.</summary>
+    public static StageRenderer Create(
+        nint hwnd, int width, int height, GraphicsDeviceOptions deviceOptions, string shaderPath,
+        IReadOnlyList<MeshCreateInfo> meshes)
+    {
+        ArgumentNullException.ThrowIfNull(meshes);
+
+        var stageMeshes = new StageMeshCreateInfo[meshes.Count];
+        var stageMaterials = new StageMaterialCreateInfo[meshes.Count];
+        var stageObjects = new StageObjectCreateInfo[meshes.Count];
+
+        for (int i = 0; i < meshes.Count; i++)
+        {
+            MeshCreateInfo mesh = meshes[i];
+            int vertexCount = mesh.Positions.Count;
+            var uvs = new Vector2[vertexCount];
+            var tangents = new Vector4[vertexCount];
+            for (int v = 0; v < vertexCount; v++)
+            {
+                tangents[v] = ArbitraryTangentFor(mesh.Normals[v]);
+            }
+
+            stageMeshes[i] = new StageMeshCreateInfo { Positions = mesh.Positions, Normals = mesh.Normals, Tangents = tangents, Uvs = uvs, Indices = mesh.Indices };
+            stageMaterials[i] = new StageMaterialCreateInfo { BaseColorFactor = mesh.BaseColorFactor, RoughnessFactor = 1f, MetallicFactor = 0f };
+            stageObjects[i] = new StageObjectCreateInfo { MeshIndex = i, MaterialIndex = i };
+        }
+
+        return Create(hwnd, width, height, deviceOptions, shaderPath, stageMeshes, stageMaterials, stageObjects);
+    }
+
+    /// <summary>An arbitrary unit tangent perpendicular to <paramref name="normal"/> - correct for TBN orthonormality even though it isn't aligned to any real UV direction, which is fine when the bound normal texture is always the flat 1x1 fallback (see <see cref="MaterialTextureFormat"/> fallback images).</summary>
+    private static Vector4 ArbitraryTangentFor(Vector3 normal)
+    {
+        Vector3 reference = MathF.Abs(normal.Y) < 0.99f ? Vector3.UnitY : Vector3.UnitX;
+        Vector3 tangent = Vector3.Normalize(Vector3.Cross(reference, normal));
+        return new Vector4(tangent, 1f);
+    }
+
     private StageRenderer()
     {
     }
 
-    private void Initialize(HWND hwnd, int width, int height, GraphicsDeviceOptions deviceOptions, string shaderPath, IReadOnlyList<MeshCreateInfo> meshes)
+    private void Initialize(HWND hwnd, int width, int height, GraphicsDeviceOptions deviceOptions, string shaderPath,
+        IReadOnlyList<StageMeshCreateInfo> meshes, IReadOnlyList<StageMaterialCreateInfo> materials, IReadOnlyList<StageObjectCreateInfo> objects)
     {
         _device = GraphicsDevice.Create(deviceOptions);
 
@@ -221,6 +327,8 @@ public sealed unsafe class StageRenderer : IDisposable
         CreateRootSignature();
         CreatePipelineState();
         CreateMeshBuffers(meshes);
+        CreateMaterialResources(materials);
+        CreateObjectMappings(objects);
         CreateConstantBuffers();
         UpdateViewportAndScissor(width, height);
         InitializeConstantsToDefaults();
@@ -387,16 +495,44 @@ public sealed unsafe class StageRenderer : IDisposable
         };
         objectParam.Descriptor = new D3D12_ROOT_DESCRIPTOR { ShaderRegister = 1, RegisterSpace = 0 };
 
-        D3D12_ROOT_PARAMETER* rootParams = stackalloc D3D12_ROOT_PARAMETER[2];
+        D3D12_DESCRIPTOR_RANGE srvRange = new()
+        {
+            RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+            NumDescriptors = 3,
+            BaseShaderRegister = 0,
+        };
+
+        D3D12_ROOT_PARAMETER textureParam = new()
+        {
+            ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE,
+            ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL,
+        };
+
+        D3D12_STATIC_SAMPLER_DESC staticSampler = new()
+        {
+            Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR,
+            AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+            AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+            AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+            ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER,
+            BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE,
+            MaxLOD = float.MaxValue,
+            ShaderRegister = 0,
+            ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL,
+        };
+
+        D3D12_ROOT_PARAMETER* rootParams = stackalloc D3D12_ROOT_PARAMETER[3];
         rootParams[0] = frameParam;
         rootParams[1] = objectParam;
+        rootParams[2] = textureParam;
+        rootParams[2].DescriptorTable = new D3D12_ROOT_DESCRIPTOR_TABLE { NumDescriptorRanges = 1, pDescriptorRanges = &srvRange };
 
         D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = new()
         {
-            NumParameters = 2,
+            NumParameters = 3,
             pParameters = rootParams,
-            NumStaticSamplers = 0,
-            pStaticSamplers = null,
+            NumStaticSamplers = 1,
+            pStaticSamplers = &staticSampler,
             Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT,
         };
 
@@ -437,10 +573,12 @@ public sealed unsafe class StageRenderer : IDisposable
     {
         fixed (byte* pPosition = "POSITION\0"u8)
         fixed (byte* pNormal = "NORMAL\0"u8)
+        fixed (byte* pTangent = "TANGENT\0"u8)
+        fixed (byte* pTexCoord = "TEXCOORD\0"u8)
         fixed (byte* pVertexShader = _vertexShaderBytecode)
         fixed (byte* pPixelShader = _pixelShaderBytecode)
         {
-            D3D12_INPUT_ELEMENT_DESC* inputElements = stackalloc D3D12_INPUT_ELEMENT_DESC[2]
+            D3D12_INPUT_ELEMENT_DESC* inputElements = stackalloc D3D12_INPUT_ELEMENT_DESC[4]
             {
                 new D3D12_INPUT_ELEMENT_DESC
                 {
@@ -455,6 +593,20 @@ public sealed unsafe class StageRenderer : IDisposable
                     AlignedByteOffset = 12,
                     InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
                 },
+                new D3D12_INPUT_ELEMENT_DESC
+                {
+                    SemanticName = (sbyte*)pTangent,
+                    Format = DXGI_FORMAT_R32G32B32A32_FLOAT,
+                    AlignedByteOffset = 24,
+                    InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+                },
+                new D3D12_INPUT_ELEMENT_DESC
+                {
+                    SemanticName = (sbyte*)pTexCoord,
+                    Format = DXGI_FORMAT_R32G32_FLOAT,
+                    AlignedByteOffset = 40,
+                    InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+                },
             };
 
             D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = new()
@@ -462,7 +614,7 @@ public sealed unsafe class StageRenderer : IDisposable
                 InputLayout = new D3D12_INPUT_LAYOUT_DESC
                 {
                     pInputElementDescs = inputElements,
-                    NumElements = 2,
+                    NumElements = 4,
                 },
                 pRootSignature = _rootSignature,
                 VS = new D3D12_SHADER_BYTECODE { pShaderBytecode = pVertexShader, BytecodeLength = (nuint)_vertexShaderBytecode.Length },
@@ -488,34 +640,30 @@ public sealed unsafe class StageRenderer : IDisposable
         }
     }
 
-    private void CreateMeshBuffers(IReadOnlyList<MeshCreateInfo> meshes)
+    private void CreateMeshBuffers(IReadOnlyList<StageMeshCreateInfo> meshes)
     {
-        _objectCount = meshes.Count;
-        _vertexBuffers = new ID3D12Resource*[_objectCount];
-        _vertexBufferViews = new D3D12_VERTEX_BUFFER_VIEW[_objectCount];
-        _indexBuffers = new ID3D12Resource*[_objectCount];
-        _indexBufferViews = new D3D12_INDEX_BUFFER_VIEW[_objectCount];
-        _indexCounts = new uint[_objectCount];
-        _baseColorFactors = new Vector4[_objectCount];
-        _objectTransforms = new Matrix4x4[_objectCount];
+        _meshCount = meshes.Count;
+        _vertexBuffers = new ID3D12Resource*[_meshCount];
+        _vertexBufferViews = new D3D12_VERTEX_BUFFER_VIEW[_meshCount];
+        _indexBuffers = new ID3D12Resource*[_meshCount];
+        _indexBufferViews = new D3D12_INDEX_BUFFER_VIEW[_meshCount];
+        _indexCounts = new uint[_meshCount];
 
-        for (int i = 0; i < _objectCount; i++)
+        for (int i = 0; i < _meshCount; i++)
         {
-            MeshCreateInfo mesh = meshes[i];
-            CreateVertexBuffer(i, mesh.Positions, mesh.Normals);
+            StageMeshCreateInfo mesh = meshes[i];
+            CreateVertexBuffer(i, mesh.Positions, mesh.Normals, mesh.Tangents, mesh.Uvs);
             CreateIndexBuffer(i, mesh.Indices);
-            _baseColorFactors[i] = mesh.BaseColorFactor;
-            _objectTransforms[i] = Matrix4x4.Identity;
         }
     }
 
-    private void CreateVertexBuffer(int objectIndex, IReadOnlyList<Vector3> positions, IReadOnlyList<Vector3> normals)
+    private void CreateVertexBuffer(int meshIndex, IReadOnlyList<Vector3> positions, IReadOnlyList<Vector3> normals, IReadOnlyList<Vector4> tangents, IReadOnlyList<Vector2> uvs)
     {
         int vertexCount = positions.Count;
         Vertex[] vertices = new Vertex[vertexCount];
         for (int i = 0; i < vertexCount; i++)
         {
-            vertices[i] = new Vertex { Position = positions[i], Normal = normals[i] };
+            vertices[i] = new Vertex { Position = positions[i], Normal = normals[i], Tangent = tangents[i], Uv = uvs[i] };
         }
 
         uint bufferSize = (uint)(sizeof(Vertex) * vertexCount);
@@ -537,8 +685,8 @@ public sealed unsafe class StageRenderer : IDisposable
         }
         vertexBuffer->Unmap(0, null);
 
-        _vertexBuffers[objectIndex] = vertexBuffer;
-        _vertexBufferViews[objectIndex] = new D3D12_VERTEX_BUFFER_VIEW
+        _vertexBuffers[meshIndex] = vertexBuffer;
+        _vertexBufferViews[meshIndex] = new D3D12_VERTEX_BUFFER_VIEW
         {
             BufferLocation = vertexBuffer->GetGPUVirtualAddress(),
             StrideInBytes = (uint)sizeof(Vertex),
@@ -546,7 +694,7 @@ public sealed unsafe class StageRenderer : IDisposable
         };
     }
 
-    private void CreateIndexBuffer(int objectIndex, IReadOnlyList<uint> indices)
+    private void CreateIndexBuffer(int meshIndex, IReadOnlyList<uint> indices)
     {
         int indexCount = indices.Count;
         uint[] indexArray = indices as uint[] ?? [.. indices];
@@ -569,14 +717,166 @@ public sealed unsafe class StageRenderer : IDisposable
         }
         indexBuffer->Unmap(0, null);
 
-        _indexBuffers[objectIndex] = indexBuffer;
-        _indexCounts[objectIndex] = (uint)indexCount;
-        _indexBufferViews[objectIndex] = new D3D12_INDEX_BUFFER_VIEW
+        _indexBuffers[meshIndex] = indexBuffer;
+        _indexCounts[meshIndex] = (uint)indexCount;
+        _indexBufferViews[meshIndex] = new D3D12_INDEX_BUFFER_VIEW
         {
             BufferLocation = indexBuffer->GetGPUVirtualAddress(),
             SizeInBytes = bufferSize,
             Format = DXGI_FORMAT_R32_UINT,
         };
+    }
+
+    private void CreateMaterialResources(IReadOnlyList<StageMaterialCreateInfo> materials)
+    {
+        _materialCount = materials.Count;
+        _materialTextures = new ID3D12Resource*[_materialCount * 3];
+        _materialBaseColorFactors = new Vector4[_materialCount];
+        _materialRoughnessFactors = new float[_materialCount];
+        _materialMetallicFactors = new float[_materialCount];
+
+        for (int i = 0; i < _materialCount; i++)
+        {
+            StageMaterialCreateInfo material = materials[i];
+            _materialBaseColorFactors[i] = material.BaseColorFactor;
+            _materialRoughnessFactors[i] = material.RoughnessFactor;
+            _materialMetallicFactors[i] = material.MetallicFactor;
+
+            _materialTextures[(i * 3) + 0] = CreateTextureResource(material.BaseColorTextureBytes, WhiteFallback());
+            _materialTextures[(i * 3) + 1] = CreateTextureResource(material.NormalTextureBytes, FlatNormalFallback());
+            _materialTextures[(i * 3) + 2] = CreateTextureResource(material.MetallicRoughnessTextureBytes, WhiteFallback());
+        }
+
+        D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = new()
+        {
+            Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+            NumDescriptors = (uint)(_materialCount * 3),
+            Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
+        };
+        ID3D12DescriptorHeap* srvHeap;
+        D3D12Diagnostics.EnsureSuccess(
+            _device!.Device->CreateDescriptorHeap(&srvHeapDesc, __uuidof<ID3D12DescriptorHeap>(), (void**)&srvHeap),
+            "ID3D12Device::CreateDescriptorHeap", "creating the material SRV descriptor heap");
+        _srvHeap = srvHeap;
+        _srvDescriptorSize = _device.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+        D3D12_CPU_DESCRIPTOR_HANDLE srvHeapStart = _srvHeap->GetCPUDescriptorHandleForHeapStart();
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = new()
+        {
+            Format = MaterialTextureFormat,
+            ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D,
+            Shader4ComponentMapping = (uint)TerraFX.Interop.DirectX.D3D12.D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+        };
+        srvDesc.Texture2D.MipLevels = 1;
+
+        for (int i = 0; i < _materialTextures.Length; i++)
+        {
+            D3D12_CPU_DESCRIPTOR_HANDLE handle = new(srvHeapStart, i, _srvDescriptorSize);
+            _device.Device->CreateShaderResourceView(_materialTextures[i], &srvDesc, handle);
+        }
+    }
+
+    private static DecodedImage WhiteFallback() => new(1, 1, [255, 255, 255, 255]);
+
+    /// <summary>Flat tangent-space normal (0,0,1) encoded as RGB(128,128,255), so an unmapped surface's TBN-transformed normal is exactly its own vertex normal regardless of the (possibly arbitrary) tangent.</summary>
+    private static DecodedImage FlatNormalFallback() => new(1, 1, [128, 128, 255, 255]);
+
+    /// <summary>Decodes (or falls back to a procedural default, mirroring <see cref="ModelRenderer"/>'s "every mesh gets a real SRV" rationale) and uploads one material texture slot.</summary>
+    private ID3D12Resource* CreateTextureResource(byte[]? encodedBytes, DecodedImage fallback)
+    {
+        DecodedImage image = DecodeOrFallback(encodedBytes, fallback);
+
+        D3D12_RESOURCE_DESC textureDesc = D3D12_RESOURCE_DESC.Tex2D(MaterialTextureFormat, (uint)image.Width, (uint)image.Height, mipLevels: 1);
+
+        D3D12_HEAP_PROPERTIES defaultHeapProps = new(D3D12_HEAP_TYPE_DEFAULT);
+        ID3D12Resource* texture;
+        D3D12Diagnostics.EnsureSuccess(
+            _device!.Device->CreateCommittedResource(&defaultHeapProps, D3D12_HEAP_FLAG_NONE, &textureDesc, D3D12_RESOURCE_STATE_COPY_DEST, pOptimizedClearValue: null, __uuidof<ID3D12Resource>(), (void**)&texture),
+            "ID3D12Device::CreateCommittedResource", "creating a material texture");
+
+        D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint;
+        ulong totalBytes;
+        _device.Device->GetCopyableFootprints(&textureDesc, 0, 1, 0, &footprint, null, null, &totalBytes);
+
+        D3D12_HEAP_PROPERTIES uploadHeapProps = new(D3D12_HEAP_TYPE_UPLOAD);
+        D3D12_RESOURCE_DESC stagingDesc = D3D12_RESOURCE_DESC.Buffer(totalBytes);
+
+        ID3D12Resource* staging;
+        D3D12Diagnostics.EnsureSuccess(
+            _device.Device->CreateCommittedResource(&uploadHeapProps, D3D12_HEAP_FLAG_NONE, &stagingDesc, D3D12_RESOURCE_STATE_GENERIC_READ, pOptimizedClearValue: null, __uuidof<ID3D12Resource>(), (void**)&staging),
+            "ID3D12Device::CreateCommittedResource", "creating a material texture upload staging buffer");
+
+        try
+        {
+            // GetCopyableFootprints' RowPitch is 256-byte aligned; the decoded image is tightly
+            // packed (stride = Width*4). These differ whenever Width*4 isn't already a multiple of
+            // 256, so this must be a per-row copy, not one bulk CopyBlock (same as ModelRenderer).
+            D3D12_RANGE noRead = new();
+            byte* mapped;
+            D3D12Diagnostics.EnsureSuccess(staging->Map(0, &noRead, (void**)&mapped), "ID3D12Resource::Map", "mapping a material texture upload staging buffer");
+
+            uint srcRowPitch = (uint)image.Width * 4;
+            uint dstRowPitch = footprint.Footprint.RowPitch;
+            fixed (byte* pSrc = image.Pixels)
+            {
+                for (uint y = 0; y < image.Height; y++)
+                {
+                    Unsafe.CopyBlock(mapped + (y * dstRowPitch), pSrc + (y * srcRowPitch), srcRowPitch);
+                }
+            }
+            staging->Unmap(0, null);
+
+            D3D12Diagnostics.EnsureSuccess(_commandAllocators[0]->Reset(), "ID3D12CommandAllocator::Reset", "resetting the allocator for a material texture upload");
+            D3D12Diagnostics.EnsureSuccess(_commandList->Reset(_commandAllocators[0], null), "ID3D12GraphicsCommandList::Reset", "resetting the command list for a material texture upload");
+
+            D3D12_TEXTURE_COPY_LOCATION dst = new() { pResource = texture, Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX };
+            dst.SubresourceIndex = 0;
+            D3D12_TEXTURE_COPY_LOCATION src = new() { pResource = staging, Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT };
+            src.PlacedFootprint = footprint;
+            _commandList->CopyTextureRegion(&dst, 0, 0, 0, &src, null);
+
+            D3D12_RESOURCE_BARRIER toShaderResource = D3D12_RESOURCE_BARRIER.InitTransition(texture, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+            _commandList->ResourceBarrier(1, &toShaderResource);
+
+            D3D12Diagnostics.EnsureSuccess(_commandList->Close(), "ID3D12GraphicsCommandList::Close", "closing a material texture upload command list");
+
+            ID3D12CommandList* commandListBase = (ID3D12CommandList*)_commandList;
+            _device.CommandQueue->ExecuteCommandLists(1, &commandListBase);
+
+            WaitForGpuIdle();
+        }
+        finally
+        {
+            _ = staging->Release();
+        }
+
+        return texture;
+    }
+
+    private static DecodedImage DecodeOrFallback(byte[]? encodedBytes, DecodedImage fallback)
+    {
+        if (encodedBytes is null || encodedBytes.Length == 0)
+        {
+            return fallback;
+        }
+
+        WicDecodeResult decodeResult = WicImageDecoder.Decode(encodedBytes);
+        return decodeResult.Success ? decodeResult.Image! : fallback;
+    }
+
+    private void CreateObjectMappings(IReadOnlyList<StageObjectCreateInfo> objects)
+    {
+        _objectCount = objects.Count;
+        _objectMeshIndices = new int[_objectCount];
+        _objectMaterialIndices = new int[_objectCount];
+        _objectTransforms = new Matrix4x4[_objectCount];
+
+        for (int i = 0; i < _objectCount; i++)
+        {
+            _objectMeshIndices[i] = objects[i].MeshIndex;
+            _objectMaterialIndices[i] = objects[i].MaterialIndex;
+            _objectTransforms[i] = Matrix4x4.Identity;
+        }
     }
 
     private void CreateConstantBuffers()
@@ -607,9 +907,10 @@ public sealed unsafe class StageRenderer : IDisposable
     }
 
     /// <summary>
-    /// Writes an identity world matrix (with each mesh's base color) and a default camera into
-    /// every frame-in-flight slot, so the very first Present reads initialized data even if the
-    /// caller's first SetCamera/SetObjectTransform call happens after this constructor returns.
+    /// Writes an identity world matrix (with each object's material factors), a default camera,
+    /// and default light/ambient/fog values into every frame-in-flight slot, so the very first
+    /// Present reads fully-initialized data even if the caller's first SetCamera/SetObjectTransform/
+    /// SetDirectionalLight/etc. call happens after this constructor returns.
     /// </summary>
     private void InitializeConstantsToDefaults()
     {
@@ -617,7 +918,11 @@ public sealed unsafe class StageRenderer : IDisposable
 
         for (uint frame = 0; frame < FrameCount; frame++)
         {
-            WriteFrameConstants(frame, defaultCamera.GetView() * defaultCamera.GetProjection((float)_width / _height));
+            WriteViewProjection(frame, defaultCamera.GetView() * defaultCamera.GetProjection((float)_width / _height));
+            WriteCameraPosition(frame, defaultCamera.GetEyePosition());
+            WriteDirectionalLight(frame, DefaultLightDirectionTowardLight, DefaultLightColor);
+            WriteAmbientLight(frame, DefaultAmbientColor);
+            WriteFog(frame, FogParams.None);
 
             for (int objectIndex = 0; objectIndex < _objectCount; objectIndex++)
             {
@@ -634,7 +939,26 @@ public sealed unsafe class StageRenderer : IDisposable
     public void SetCamera(in Camera camera, float aspectRatioOverride = 0f)
     {
         float aspectRatio = aspectRatioOverride > 0f ? aspectRatioOverride : (float)_width / _height;
-        WriteFrameConstants(_frameIndex, camera.GetView() * camera.GetProjection(aspectRatio));
+        WriteViewProjection(_frameIndex, camera.GetView() * camera.GetProjection(aspectRatio));
+        WriteCameraPosition(_frameIndex, camera.GetEyePosition());
+    }
+
+    /// <summary>Sets the single data-driven directional light (sun) for the frame currently being built. <paramref name="directionTowardLight"/> points from the scene toward the light (i.e. the direction surfaces should face to be lit), not the direction light travels.</summary>
+    public void SetDirectionalLight(Vector3 directionTowardLight, Vector3 color, float intensity)
+    {
+        WriteDirectionalLight(_frameIndex, directionTowardLight, color * intensity);
+    }
+
+    /// <summary>Sets the flat ambient term (a stand-in for sky/indirect lighting) for the frame currently being built.</summary>
+    public void SetAmbientLight(Vector3 color)
+    {
+        WriteAmbientLight(_frameIndex, color);
+    }
+
+    /// <summary>Sets the simplified exponential height fog for the frame currently being built. Pass <see cref="FogParams.None"/> to disable it (zero density).</summary>
+    public void SetFog(FogParams fog)
+    {
+        WriteFog(_frameIndex, fog);
     }
 
     /// <summary>Sets the world transform for one object for the frame currently being built (see <see cref="SetCamera"/> for the per-frame-slot contract).</summary>
@@ -649,10 +973,39 @@ public sealed unsafe class StageRenderer : IDisposable
         WriteObjectConstants(_frameIndex, objectIndex);
     }
 
-    private void WriteFrameConstants(uint frameIndex, Matrix4x4 viewProjection)
+    private byte* FrameSlot(uint frameIndex) => _frameConstantsMapped + (frameIndex * ConstantAlignment);
+
+    private void WriteViewProjection(uint frameIndex, Matrix4x4 viewProjection)
     {
-        byte* destination = _frameConstantsMapped + (frameIndex * ConstantAlignment);
-        Unsafe.CopyBlock(destination, &viewProjection, (uint)sizeof(Matrix4x4));
+        Unsafe.CopyBlock(FrameSlot(frameIndex) + FrameViewProjectionOffset, &viewProjection, (uint)sizeof(Matrix4x4));
+    }
+
+    private void WriteCameraPosition(uint frameIndex, Vector3 cameraPosition)
+    {
+        Vector4 packed = new(cameraPosition, 0f);
+        Unsafe.CopyBlock(FrameSlot(frameIndex) + FrameCameraPositionOffset, &packed, (uint)sizeof(Vector4));
+    }
+
+    private void WriteDirectionalLight(uint frameIndex, Vector3 directionTowardLight, Vector3 colorTimesIntensity)
+    {
+        Vector4 direction = new(Vector3.Normalize(directionTowardLight), 0f);
+        Vector4 color = new(colorTimesIntensity, 0f);
+        Unsafe.CopyBlock(FrameSlot(frameIndex) + FrameLightDirectionOffset, &direction, (uint)sizeof(Vector4));
+        Unsafe.CopyBlock(FrameSlot(frameIndex) + FrameLightColorOffset, &color, (uint)sizeof(Vector4));
+    }
+
+    private void WriteAmbientLight(uint frameIndex, Vector3 color)
+    {
+        Vector4 packed = new(color, 0f);
+        Unsafe.CopyBlock(FrameSlot(frameIndex) + FrameAmbientColorOffset, &packed, (uint)sizeof(Vector4));
+    }
+
+    private void WriteFog(uint frameIndex, FogParams fog)
+    {
+        Vector4 fogParams0 = new(fog.Density, fog.HeightFalloff, 0f, 0f);
+        Vector4 fogColor = new(fog.Color, 0f);
+        Unsafe.CopyBlock(FrameSlot(frameIndex) + FrameFogParamsOffset, &fogParams0, (uint)sizeof(Vector4));
+        Unsafe.CopyBlock(FrameSlot(frameIndex) + FrameFogColorOffset, &fogColor, (uint)sizeof(Vector4));
     }
 
     private void WriteObjectConstants(uint frameIndex, int objectIndex)
@@ -661,10 +1014,14 @@ public sealed unsafe class StageRenderer : IDisposable
         byte* destination = _objectConstantsMapped + (slot * ConstantAlignment);
 
         Matrix4x4 world = _objectTransforms[objectIndex];
-        Unsafe.CopyBlock(destination, &world, (uint)sizeof(Matrix4x4));
+        Unsafe.CopyBlock(destination + ObjectWorldOffset, &world, (uint)sizeof(Matrix4x4));
 
-        Vector4 baseColorFactor = _baseColorFactors[objectIndex];
-        Unsafe.CopyBlock(destination + 64, &baseColorFactor, (uint)sizeof(Vector4));
+        int materialIndex = _objectMaterialIndices[objectIndex];
+        Vector4 baseColorFactor = _materialBaseColorFactors[materialIndex];
+        Unsafe.CopyBlock(destination + ObjectBaseColorFactorOffset, &baseColorFactor, (uint)sizeof(Vector4));
+
+        Vector4 materialParams = new(_materialRoughnessFactors[materialIndex], _materialMetallicFactors[materialIndex], 0f, 0f);
+        Unsafe.CopyBlock(destination + ObjectMaterialParamsOffset, &materialParams, (uint)sizeof(Vector4));
     }
 
     private ulong GetFrameConstantsAddress(uint frameIndex)
@@ -676,6 +1033,11 @@ public sealed unsafe class StageRenderer : IDisposable
     {
         ulong slot = ((ulong)frameIndex * (ulong)_objectCount) + (ulong)objectIndex;
         return _objectConstantsBuffer->GetGPUVirtualAddress() + (slot * ConstantAlignment);
+    }
+
+    private D3D12_GPU_DESCRIPTOR_HANDLE GetMaterialDescriptorTable(int materialIndex)
+    {
+        return new D3D12_GPU_DESCRIPTOR_HANDLE(_srvHeap->GetGPUDescriptorHandleForHeapStart(), materialIndex * 3, _srvDescriptorSize);
     }
 
     private void UpdateViewportAndScissor(int width, int height)
@@ -773,6 +1135,9 @@ public sealed unsafe class StageRenderer : IDisposable
 
         _commandList->SetGraphicsRootSignature(_rootSignature);
         _commandList->SetPipelineState(_pipelineState);
+
+        ID3D12DescriptorHeap* srvHeap = _srvHeap;
+        _commandList->SetDescriptorHeaps(1, &srvHeap);
         _commandList->SetGraphicsRootConstantBufferView(0, GetFrameConstantsAddress(_frameIndex));
 
         fixed (D3D12_VIEWPORT* pViewport = &_viewport)
@@ -786,14 +1151,16 @@ public sealed unsafe class StageRenderer : IDisposable
 
         for (int i = 0; i < _objectCount; i++)
         {
+            int meshIndex = _objectMeshIndices[i];
             _commandList->SetGraphicsRootConstantBufferView(1, GetObjectConstantsAddress(_frameIndex, i));
+            _commandList->SetGraphicsRootDescriptorTable(2, GetMaterialDescriptorTable(_objectMaterialIndices[i]));
 
-            fixed (D3D12_VERTEX_BUFFER_VIEW* pVertexBufferView = &_vertexBufferViews[i])
-            fixed (D3D12_INDEX_BUFFER_VIEW* pIndexBufferView = &_indexBufferViews[i])
+            fixed (D3D12_VERTEX_BUFFER_VIEW* pVertexBufferView = &_vertexBufferViews[meshIndex])
+            fixed (D3D12_INDEX_BUFFER_VIEW* pIndexBufferView = &_indexBufferViews[meshIndex])
             {
                 _commandList->IASetVertexBuffers(0, 1, pVertexBufferView);
                 _commandList->IASetIndexBuffer(pIndexBufferView);
-                _commandList->DrawIndexedInstanced(_indexCounts[i], 1, 0, 0, 0);
+                _commandList->DrawIndexedInstanced(_indexCounts[meshIndex], 1, 0, 0, 0);
             }
         }
 
@@ -954,6 +1321,21 @@ public sealed unsafe class StageRenderer : IDisposable
             _objectConstantsMapped = null;
             _ = _objectConstantsBuffer->Release();
             _objectConstantsBuffer = null;
+        }
+
+        if (_srvHeap != null)
+        {
+            _ = _srvHeap->Release();
+            _srvHeap = null;
+        }
+
+        for (int i = 0; i < _materialTextures.Length; i++)
+        {
+            if (_materialTextures[i] != null)
+            {
+                _ = _materialTextures[i]->Release();
+                _materialTextures[i] = null;
+            }
         }
 
         for (int i = 0; i < _indexBuffers.Length; i++)

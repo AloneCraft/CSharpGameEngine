@@ -47,6 +47,27 @@ public sealed class World
         return ref column.Items[location.Row];
     }
 
+    /// <summary>
+    /// Appends a view for every currently-alive entity whose archetype exactly matches
+    /// <typeparamref name="T"/>'s normalized component set - not a query (see
+    /// <see cref="EcsReadOnlyAttribute"/>'s remarks: there is no multi-archetype matching or
+    /// filtering here, only enumeration of one exact archetype's storage). If no entity of this
+    /// exact archetype has ever been created, nothing is appended and no storage is allocated.
+    /// </summary>
+    public void CollectViews<T>(List<T> results) where T : struct, IEcsArchetype<T>
+    {
+        ArchetypeSignature signature = new(T.ComponentTypes);
+        if (!this.storages.TryGetValue(signature, out ArchetypeStorage? storage))
+        {
+            return;
+        }
+
+        for (int row = 0; row < storage.Count; row++)
+        {
+            results.Add(T.CreateView(this, storage.GetEntity(row)));
+        }
+    }
+
     public bool IsAlive(Entity entity)
     {
         return entity.Id >= 0

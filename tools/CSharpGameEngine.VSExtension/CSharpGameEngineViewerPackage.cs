@@ -14,8 +14,10 @@ namespace CSharpGameEngine.VSExtension;
 /// Thin VSIX shell: registers the viewer commands (<see cref="OpenViewerCommand"/> ADR-0006,
 /// <see cref="ShowViewerToolWindowCommand"/>/<see cref="ViewerToolWindowPane"/> ADR-0007/0008/0010),
 /// the Fab drop-zone commands (<see cref="ToggleFabWatchCommand"/>, <see cref="OpenFabCommand"/>,
-/// ADR-0011), and the ECS-driven stage command (<see cref="OpenGameCommand"/>, ADR-0016). Also
-/// auto-opens <c>UserGameProject.slnx</c> when VS starts with no solution open, generates asset
+/// ADR-0011), the ECS-driven stage command (<see cref="OpenGameCommand"/>, ADR-0016), and the
+/// Scene/Hierarchy feature (<see cref="SceneFileEditorFactory"/>/<see cref="SceneWindowPane"/>,
+/// <see cref="HierarchyToolWindowPane"/>/<see cref="ShowHierarchyToolWindowCommand"/>, ADR-0020).
+/// Also auto-opens <c>UserGameProject.slnx</c> when VS starts with no solution open, generates asset
 /// <c>.meta</c> GUID sidecars, and registers the Solution Explorer 3D asset preview (ADR-0012/0013).
 /// Contains no engine/rendering logic of its own.
 /// </summary>
@@ -23,6 +25,7 @@ namespace CSharpGameEngine.VSExtension;
 [Guid(PackageGuidString)]
 [ProvideMenuResource("Menus.ctmenu", 1)]
 [ProvideToolWindow(typeof(ViewerToolWindowPane))]
+[ProvideToolWindow(typeof(HierarchyToolWindowPane))]
 // Loads this package automatically when VS reaches a "no solution open" state (in addition to the
 // existing lazy command-triggered load path) so UserGameProject.slnx can be auto-opened for a
 // genuinely fresh VS launch, without affecting the normal engine-development flow of opening
@@ -40,6 +43,10 @@ namespace CSharpGameEngine.VSExtension;
 [ProvideEditorExtension(typeof(GlbFbxPreviewEditorFactory), ".glb", 50)]
 [ProvideEditorExtension(typeof(GlbFbxPreviewEditorFactory), ".gltf", 50)]
 [ProvideEditorExtension(typeof(GlbFbxPreviewEditorFactory), ".fbx", 50)]
+// Scene double-click preview (ADR-0020): registers SceneFileEditorFactory for *.scene.json.
+[ProvideEditorFactory(typeof(SceneFileEditorFactory), 111, TrustLevel = __VSEDITORTRUSTLEVEL.ETL_AlwaysTrusted)]
+[ProvideEditorLogicalView(typeof(SceneFileEditorFactory), VSConstants.LOGVIEWID.Designer_string)]
+[ProvideEditorExtension(typeof(SceneFileEditorFactory), ".scene.json", 50)]
 public sealed class CSharpGameEngineViewerPackage : AsyncPackage
 {
     public const string PackageGuidString = "aec17804-e2e4-46e7-b373-de11af816203";
@@ -55,8 +62,10 @@ public sealed class CSharpGameEngineViewerPackage : AsyncPackage
         _fabWatchCommand = await ToggleFabWatchCommand.InitializeAsync(this);
         await OpenFabCommand.InitializeAsync(this);
         await OpenGameCommand.InitializeAsync(this);
+        await ShowHierarchyToolWindowCommand.InitializeAsync(this);
 
         RegisterEditorFactory(new GlbFbxPreviewEditorFactory());
+        RegisterEditorFactory(new SceneFileEditorFactory());
 
         _assetMetaWatcher = AssetMetaWatcher.StartIfProjectExists();
 

@@ -1,0 +1,13 @@
+UE5.8の"G:\UE\5.8\WFC\Content\FirstPerson\"フォルダにmapがある。これを解析して同じステージを"UserGameProject.csproj"に同じステージを作って
+これに配置しているSM_Ramp5を例にとる
+"G:\UE\5.8\WFC\Content\LevelPrototyping\Meshes\SM_Ramp.uasset"
+"G:\UE\5.8\WFC\Content\"を直接"UserGameProject"の下にコピーする"UserGameProject\Content\"のように
+を直接Contentフォルダを読み込めればいいが、Fbx,Glmのように適切な形式に変換して配置して。テクスチャーを抜き出す。
+UserGameProjectのステージを同じように作る
+1,動かない物体,動く物体と設定できるオブジェクトを配置する
+2,ライトを実現する。
+3,カラーテクスチャ
+4,ノーマルマップ
+5,ラフネス
+6,操作できるようにする。入力抽象化はプレイヤーに結び付けるがそれもECSとして実装して
+

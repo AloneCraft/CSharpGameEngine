@@ -23,6 +23,11 @@ internal sealed class ArchetypeStorage
         return this.columns[columnIndex];
     }
 
+    internal Entity GetEntity(int row)
+    {
+        return this.entities[row];
+    }
+
     internal int AddRow(Entity entity)
     {
         int row = this.Count;

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "nodes": [
+    {
+      "id": "52df6c82-3260-49b2-a883-c8363053475f",
+      "name": "Root",
+      "parentId": null,
+      "transform": { "position": [0, 0, 0], "rotation": [0, 0, 0, 1], "scale": [1, 1, 1] },
+      "meshAssetPath": null,
+      "components": []
+    },
+    {
+      "id": "9b5f191e-b715-4cce-9d22-f568b21a4c4b",
+      "name": "Cube_A",
+      "parentId": "52df6c82-3260-49b2-a883-c8363053475f",
+      "transform": { "position": [-1.5, 0, 0], "rotation": [0, 0, 0, 1], "scale": [1, 1, 1] },
+      "meshAssetPath": "Assets/DefaultScene/Box.glb",
+      "components": []
+    },
+    {
+      "id": "4d0520fa-3803-4367-9735-90e829a98b59",
+      "name": "Cube_B",
+      "parentId": "52df6c82-3260-49b2-a883-c8363053475f",
+      "transform": { "position": [1.5, 0, 0], "rotation": [0, 0, 0, 1], "scale": [1, 1, 1] },
+      "meshAssetPath": "Assets/DefaultScene/Box.glb",
+      "components": []
+    }
+  ]
+}

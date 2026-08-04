@@ -29,11 +29,16 @@
     <File Path="Docs/Decisions/ADR-0014-CodeAnalysis-Generator-Foundation.md" />
     <File Path="Docs/Decisions/ADR-0015-Archetype-Ecs-Static-Runtime.md" />
     <File Path="Docs/Decisions/ADR-0016-Ecs-Driven-Stage-And-ThirdPerson-Controller.md" />
+    <File Path="Docs/Decisions/ADR-0017-UE-Level-Export-Pipeline.md" />
+    <File Path="Docs/Decisions/ADR-0018-Textured-Stage-And-Ecs-Systems.md" />
+    <File Path="Docs/Decisions/ADR-0019-VSIX-Gltf-OutOfProcess-Bridge.md" />
+    <File Path="Docs/Decisions/ADR-0020-Scene-Preview-And-Hierarchy-Selection-Sync.md" />
   </Folder>
   <Folder Name="/Docs/Milestones/">
     <File Path="Docs/Milestones/M0001-CodeAnalysis-Foundation.md" />
     <File Path="Docs/Milestones/M0002-Archetype-Ecs-Foundation.md" />
     <File Path="Docs/Milestones/M0003-Ecs-Driven-Stage-Vertical-Slice.md" />
+    <File Path="Docs/Milestones/M0004-UE-FirstPerson-Stage-Port.md" />
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
@@ -63,6 +68,7 @@
     <Project Path="src/CSharpGameEngine.Import.Fbx/CSharpGameEngine.Import.Fbx.csproj" />
     <Project Path="src/CSharpGameEngine.CodeAnalysis/CSharpGameEngine.CodeAnalysis.csproj" />
     <Project Path="src/CSharpGameEngine.Ecs/CSharpGameEngine.Ecs.csproj" />
+    <Project Path="src/CSharpGameEngine.Scene/CSharpGameEngine.Scene.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/CSharpGameEngine.Core.Tests/CSharpGameEngine.Core.Tests.csproj" />
@@ -73,12 +79,17 @@
     <Project Path="tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.CodeAnalysis.Tests/CSharpGameEngine.CodeAnalysis.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Ecs.Tests/CSharpGameEngine.Ecs.Tests.csproj" />
+    <Project Path="tests/CSharpGameEngine.Scene.Tests/CSharpGameEngine.Scene.Tests.csproj" />
     <Project Path="tests/UserGameProject.Tests/UserGameProject.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
+    <File Path="tools/UnrealExport/export_lvl_firstperson.py" />
+    <File Path="tools/UnrealExport/run_export.cmd" />
+    <File Path="tools/UnrealExport/README.md" />
     <Project Path="tools/CSharpGameEngine.TestHost/CSharpGameEngine.TestHost.csproj" />
     <Project Path="tools/CSharpGameEngine.Extension/CSharpGameEngine.Extension.csproj" />
     <Project Path="tools/CSharpGameEngine.Import.Fbx.Cli/CSharpGameEngine.Import.Fbx.Cli.csproj" />
+    <Project Path="tools/CSharpGameEngine.Import.Gltf.Cli/CSharpGameEngine.Import.Gltf.Cli.csproj" />
     <Project Path="tools/CSharpGameEngine.VSExtension/CSharpGameEngine.VSExtension.csproj">
       <Deploy Solution="Debug|Any CPU" />
     </Project>

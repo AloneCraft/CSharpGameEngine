@@ -5,8 +5,8 @@ namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
 /// Bare vertex/index data for the VSIX in-process renderer (ADR-0008) - no UVs/texture. Shared by
-/// <see cref="SimpleGltfLoader"/> (glTF, parsed directly in-process via SharpGLTF.Core) and
-/// <see cref="ExternalFbxLoader"/> (FBX, parsed out-of-process via ADR-0010's bridge process) so
+/// <see cref="ExternalGltfLoader"/> (glTF, ADR-0019) and <see cref="ExternalFbxLoader"/> (FBX,
+/// ADR-0010) - both parsed out-of-process via <see cref="ExternalBridgeProcess"/> - so
 /// <see cref="VorticeRenderer"/> stays format-agnostic.
 /// </summary>
 internal sealed class SimpleMesh

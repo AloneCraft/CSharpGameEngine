@@ -39,5 +39,9 @@ x86/
 .DS_Store
 Thumbs.db
 
+# Raw Unreal Engine content mirror (reference only, never read at runtime;
+# converted GLB/scene_meta.json under UserGameProject/Assets/Stage are committed instead)
+UserGameProject/Content/
+
 # Claude Code session state
 .claude/scheduled_tasks.lock

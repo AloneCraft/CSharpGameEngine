@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "conventions": {
+    "units": "meters",
+    "handedness": "right",
+    "up": "+Y"
+  },
+  "ambient": {
+    "colorRgb": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "intensity": 1.0
+  },
+  "fog": {
+    "density": 0.04360000044107437,
+    "heightFalloff": 0.20000000298023224,
+    "colorRgb": [
+      0.6,
+      0.65,
+      0.7
+    ]
+  },
+  "playerStart": {
+    "translation": [
+      0.0,
+      3.0201261220702875,
+      -0.0
+    ],
+    "yawRadians": -0.0
+  },
+  "mobilityOverrides": {
+    "SM_Cube16": "movable",
+    "SM_QuarterCylinder2": "static",
+    "SM_Cube8": "static",
+    "SM_Cube2": "static",
+    "Floor": "movable",
+    "SM_QuarterCylinder6": "static",
+    "SM_Cube9": "static",
+    "SM_Cylinder4": "static",
+    "SM_QuarterCylinder5": "static",
+    "SM_Cylinder9": "static",
+    "SM_Cylinder8": "static",
+    "SM_Cube11": "static",
+    "SM_Cylinder5": "static",
+    "SM_Cube7": "static",
+    "SM_Ramp3": "static",
+    "SM_Cylinder7": "static",
+    "SM_Ramp2": "static",
+    "SM_QuarterCylinder9": "static",
+    "SM_Ramp6": "static",
+    "SM_Cube18": "static",
+    "SM_Cube19": "static",
+    "SM_Cube17": "movable",
+    "SM_QuarterCylinder12": "static",
+    "SM_SkySphere": "static",
+    "SM_QuarterCylinder10": "static",
+    "SM_QuarterCylinder4": "static",
+    "SM_Cylinder3": "static",
+    "SM_Cylinder2": "static",
+    "SM_Ramp11": "static",
+    "SM_Ramp5": "static",
+    "SM_QuarterCylinder11": "static",
+    "SM_Cube13": "static",
+    "SM_Ramp4": "static",
+    "SM_Cube12": "static",
+    "SM_Ramp9": "static",
+    "SM_Cube3": "static",
+    "SM_Ramp8": "static",
+    "SM_Cube": "static",
+    "SM_Cube5": "static",
+    "SM_Cube10": "static",
+    "SM_QuarterCylinder7": "static",
+    "SM_Cube20": "static",
+    "SM_Cube4": "static",
+    "SM_Cube15": "static",
+    "SM_Ramp12": "static",
+    "SM_Ramp10": "static",
+    "SM_Cube6": "static",
+    "SM_QuarterCylinder": "static",
+    "SM_Cube14": "static",
+    "SM_QuarterCylinder3": "static",
+    "SM_Ramp": "static",
+    "SM_Cylinder6": "static",
+    "SM_Cylinder": "static",
+    "SM_Ramp7": "static",
+    "SM_QuarterCylinder8": "static"
+  },
+  "clearColorRgb": [
+    0.35,
+    0.55,
+    0.85
+  ],
+  "actorCounts": {
+    "staticMeshActors": 55,
+    "directionalLights": 1
+  }
+}

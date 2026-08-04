@@ -14,6 +14,10 @@ public struct Camera
     public const float MinPitchRadians = -80f * MathF.PI / 180f;
     public const float MaxPitchRadians = 40f * MathF.PI / 180f;
 
+    /// <summary>Wider than the orbit camera's range (a first-person view has no orbit-collision reason to stay near-level) - see <see cref="CreateFirstPerson"/>.</summary>
+    public const float MinPitchRadiansFirstPerson = -85f * MathF.PI / 180f;
+    public const float MaxPitchRadiansFirstPerson = 85f * MathF.PI / 180f;
+
     public Vector3 Target;
     public float Yaw;
     public float Pitch;
@@ -21,6 +25,10 @@ public struct Camera
     public float FovYRadians;
     public float NearZ;
     public float FarZ;
+
+    /// <summary>Pitch clamp range applied by <see cref="ApplyMouseDelta"/>. Set by the <c>Create*</c> factories; <see cref="MinPitchRadians"/>/<see cref="MaxPitchRadians"/> remain the orbit-camera default values callers may still compare against directly.</summary>
+    public float PitchClampMinRadians;
+    public float PitchClampMaxRadians;
 
     public static Camera CreateDefault(Vector3 target)
     {
@@ -33,6 +41,38 @@ public struct Camera
             FovYRadians = MathF.PI / 4f,
             NearZ = 0.1f,
             FarZ = 1000f,
+            PitchClampMinRadians = MinPitchRadians,
+            PitchClampMaxRadians = MaxPitchRadians,
+        };
+    }
+
+    /// <summary>
+    /// A first-person eye camera: <see cref="Distance"/> is zero, so <see cref="Target"/> doubles
+    /// as the eye position itself (the caller updates it every frame to the player's eye position,
+    /// exactly like the orbit camera's <see cref="Target"/> is already updated to the player's
+    /// position each frame). <see cref="GetView"/> looks along <see cref="GetForward"/> from there
+    /// rather than toward a distinct target point, since eye and target would otherwise coincide.
+    /// </summary>
+    public static Camera CreateFirstPerson(Vector3 eyePosition)
+    {
+        return new Camera
+        {
+            Target = eyePosition,
+            Yaw = 0f,
+            Pitch = 0f,
+            Distance = 0f,
+            FovYRadians = MathF.PI / 4f,
+            // Non-reversed-Z perspective (CreatePerspectiveFieldOfView) concentrates almost all
+            // depth-buffer precision within the first few units of Near, so Near/Far ratio matters
+            // far more than either value alone. The original 0.05/1000 (20000:1) caused visible
+            // Z-fighting across whole walls/ceilings in a ~38-unit room-scale level (M0004) - values
+            // this close to the eye were never exercised by earlier vertical-slice scenes, where the
+            // camera sat right next to the only two objects in view. 0.1/300 (3000:1) keeps a wide
+            // safety margin over this room's scale while cutting the ratio by ~7x.
+            NearZ = 0.1f,
+            FarZ = 300f,
+            PitchClampMinRadians = MinPitchRadiansFirstPerson,
+            PitchClampMaxRadians = MaxPitchRadiansFirstPerson,
         };
     }
 
@@ -67,9 +107,17 @@ public struct Camera
         return Target - (GetForward() * Distance);
     }
 
+    /// <summary>
+    /// At Distance > 0 (orbit cameras) this looks from the eye toward <see cref="Target"/>, as
+    /// before. At Distance == 0 (see <see cref="CreateFirstPerson"/>) the eye and Target coincide,
+    /// so CreateLookAt's from/to points would be identical (an undefined/degenerate view direction)
+    /// - instead it looks from the eye along <see cref="GetForward"/>.
+    /// </summary>
     public readonly Matrix4x4 GetView()
     {
-        return Matrix4x4.CreateLookAt(GetEyePosition(), Target, Vector3.UnitY);
+        Vector3 eye = GetEyePosition();
+        Vector3 lookAtPoint = Distance > 1e-4f ? Target : eye + GetForward();
+        return Matrix4x4.CreateLookAt(eye, lookAtPoint, Vector3.UnitY);
     }
 
     public readonly Matrix4x4 GetProjection(float aspectRatio)
@@ -81,6 +129,6 @@ public struct Camera
     public void ApplyMouseDelta(float deltaX, float deltaY, float yawSensitivity, float pitchSensitivity)
     {
         Yaw += deltaX * yawSensitivity;
-        Pitch = Math.Clamp(Pitch - (deltaY * pitchSensitivity), MinPitchRadians, MaxPitchRadians);
+        Pitch = Math.Clamp(Pitch - (deltaY * pitchSensitivity), PitchClampMinRadians, PitchClampMaxRadians);
     }
 }

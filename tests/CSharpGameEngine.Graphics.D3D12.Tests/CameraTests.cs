@@ -106,6 +106,37 @@ public class CameraTests
         Assert.True(Matrix4x4.Invert(projection, out _));
     }
 
+    [Fact]
+    public void CreateFirstPerson_HasZeroDistanceAndTargetIsEyePosition()
+    {
+        Camera camera = Camera.CreateFirstPerson(new Vector3(1, 2, 3));
+
+        Assert.Equal(0f, camera.Distance);
+        Assert.Equal(new Vector3(1, 2, 3), camera.Target);
+        AssertApprox(0f, Vector3.Distance(camera.GetEyePosition(), new Vector3(1, 2, 3)));
+    }
+
+    [Fact]
+    public void CreateFirstPerson_GetView_IsInvertibleNotDegenerate()
+    {
+        Camera camera = Camera.CreateFirstPerson(new Vector3(0, 1.6f, 0));
+
+        Matrix4x4 view = camera.GetView();
+
+        Assert.True(Matrix4x4.Invert(view, out _));
+    }
+
+    [Fact]
+    public void CreateFirstPerson_AllowsSteeperPitchThanOrbitCamera()
+    {
+        Camera camera = Camera.CreateFirstPerson(Vector3.Zero);
+
+        camera.ApplyMouseDelta(deltaX: 0f, deltaY: -100000f, yawSensitivity: 1f, pitchSensitivity: 1f);
+
+        Assert.Equal(Camera.MaxPitchRadiansFirstPerson, camera.Pitch);
+        Assert.True(Camera.MaxPitchRadiansFirstPerson > Camera.MaxPitchRadians);
+    }
+
     private static void AssertApprox(float expected, float actual, float tolerance = 1e-4f)
     {
         Assert.True(MathF.Abs(expected - actual) <= tolerance, $"Expected {expected} but got {actual} (tolerance {tolerance}).");
