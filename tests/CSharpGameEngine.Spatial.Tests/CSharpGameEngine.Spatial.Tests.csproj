@@ -22,6 +22,8 @@
     <ProjectReference Include="..\..\src\CSharpGameEngine.Spatial.Unity\CSharpGameEngine.Spatial.Unity.csproj" />
     <ProjectReference Include="..\..\src\CSharpGameEngine.Spatial.Unreal\CSharpGameEngine.Spatial.Unreal.csproj" />
     <ProjectReference Include="..\..\src\CSharpGameEngine.Spatial.Blender\CSharpGameEngine.Spatial.Blender.csproj" />
+    <ProjectReference Include="..\..\src\CSharpGameEngine.Spatial.Gltf\CSharpGameEngine.Spatial.Gltf.csproj" />
+    <ProjectReference Include="..\..\src\CSharpGameEngine.Spatial.Fbx\CSharpGameEngine.Spatial.Fbx.csproj" />
   </ItemGroup>
 
 </Project>

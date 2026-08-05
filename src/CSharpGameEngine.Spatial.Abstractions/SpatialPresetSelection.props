@@ -1,0 +1,54 @@
+<Project>
+
+  <!--
+    Reusable MSBuild fragment implementing Docs/RUF-Semantic-Coordinate-Specification-Prompt.md's
+    "コンパイル時プリセット選択": a consuming project sets exactly one <SpatialPreset> property
+    (Unity/Unreal/Blender) before importing this file. Exactly one Convention project is referenced,
+    a matching preprocessor constant is defined for compile-time-only branching (see
+    samples/SpatialPresetDemo/ProjectSpatial.cs), and 0 or unrecognized selections become a Build
+    Error - never a silent default and never a Runtime branch. See
+    Docs/Specifications/Spatial-RUF.md "コンパイル時プリセット選択".
+  -->
+
+  <PropertyGroup>
+    <_SpatialPresetIsUnity Condition="'$(SpatialPreset)' == 'Unity'">true</_SpatialPresetIsUnity>
+    <_SpatialPresetIsUnreal Condition="'$(SpatialPreset)' == 'Unreal'">true</_SpatialPresetIsUnreal>
+    <_SpatialPresetIsBlender Condition="'$(SpatialPreset)' == 'Blender'">true</_SpatialPresetIsBlender>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(_SpatialPresetIsUnity)' == 'true'">
+    <DefineConstants>$(DefineConstants);SPATIAL_PRESET_UNITY</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(_SpatialPresetIsUnreal)' == 'true'">
+    <DefineConstants>$(DefineConstants);SPATIAL_PRESET_UNREAL</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(_SpatialPresetIsBlender)' == 'true'">
+    <DefineConstants>$(DefineConstants);SPATIAL_PRESET_BLENDER</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(MSBuildThisFileDirectory)CSharpGameEngine.Spatial.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(_SpatialPresetIsUnity)' == 'true'">
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\CSharpGameEngine.Spatial.Unity\CSharpGameEngine.Spatial.Unity.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(_SpatialPresetIsUnreal)' == 'true'">
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\CSharpGameEngine.Spatial.Unreal\CSharpGameEngine.Spatial.Unreal.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(_SpatialPresetIsBlender)' == 'true'">
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\CSharpGameEngine.Spatial.Blender\CSharpGameEngine.Spatial.Blender.csproj" />
+  </ItemGroup>
+
+  <Target Name="ValidateSpatialPresetSelection" BeforeTargets="BeforeBuild;CoreCompile">
+    <Error Condition="'$(SpatialPreset)' == ''"
+           Text="SpatialPreset is not set. Set MSBuild property SpatialPreset to exactly one of: Unity, Unreal, Blender (e.g. -p:SpatialPreset=Unity)." />
+    <Error Condition="'$(SpatialPreset)' != '' And '$(_SpatialPresetIsUnity)' != 'true' And '$(_SpatialPresetIsUnreal)' != 'true' And '$(_SpatialPresetIsBlender)' != 'true'"
+           Text="Unrecognized SpatialPreset '$(SpatialPreset)'. Must be exactly one of: Unity, Unreal, Blender." />
+  </Target>
+
+</Project>

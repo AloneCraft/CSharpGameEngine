@@ -1,4 +1,6 @@
 using System.Numerics;
+using CSharpGameEngine.Spatial.Abstractions;
+using CSharpGameEngine.Spatial.Unity;
 
 namespace CSharpGameEngine.Graphics.D3D12;
 
@@ -7,7 +9,12 @@ namespace CSharpGameEngine.Graphics.D3D12;
 /// distance. Pure System.Numerics logic with no GPU/TerraFX dependency, so it is unit-testable
 /// without a device (mirrors the "pure-logic types stay separate for testability" precedent
 /// already used for <see cref="ViewerRunOptions"/>/<see cref="TriangleRunOptions"/>, ADR-0003 §5).
-/// Yaw is measured around +Y from +Z toward +X; pitch tilts toward +Y.
+/// Yaw is measured around +Y from +Z toward +X; pitch tilts toward +Y. Forward/Right direction math
+/// is derived in RUF (<see cref="RufVector"/>/<see cref="RufQuaternion"/>) space under
+/// <see cref="UnityCoordinateConvention"/> (ADR-0026) and converted to <see cref="Vector3"/> only at
+/// each method's return - <see cref="GetView"/>/<see cref="GetProjection"/> stay on raw
+/// <see cref="Vector3"/>/<see cref="Matrix4x4"/> since D3D's view/clip-space convention is outside
+/// RUF's scope (see Docs/Specifications/Spatial-RUF.md "Rendering境界").
 /// </summary>
 public struct Camera
 {
@@ -79,27 +86,43 @@ public struct Camera
     /// <summary>Full 3D forward direction (includes pitch), from the eye toward the target.</summary>
     public readonly Vector3 GetForward()
     {
-        float cosPitch = MathF.Cos(Pitch);
-        return Vector3.Normalize(new Vector3(
-            cosPitch * MathF.Sin(Yaw),
-            MathF.Sin(Pitch),
-            cosPitch * MathF.Cos(Yaw)));
+        // Child (pitch, in the camera's un-yawed local frame) applied first, then parent (yaw) -
+        // see RufQuaternion.operator* semantics. Pitch rotates around RufVector.Left (not Right):
+        // rotating Forward by +Pitch around Right would tilt it toward -Up, the opposite of this
+        // type's documented "pitch tilts toward +Y" (verified by hand via the standard axis-angle
+        // rotation formula, and pinned down permanently by
+        // CameraTests.GetForward_MatchesLegacyTrigFormula_AcrossYawPitchSweep).
+        RufQuaternion facing = RufQuaternion.FromAxisAngle(RufVector.Up, Yaw) * RufQuaternion.FromAxisAngle(RufVector.Left, Pitch);
+        RufVector forward = RufQuaternion.RotateVector(facing, RufVector.Forward).Normalize();
+        return (Vector3)Spatial<UnityCoordinateConvention>.ToXyz(forward);
     }
 
     /// <summary>Forward direction projected onto the XZ plane (pitch removed) - the basis for WASD movement.</summary>
     public readonly Vector3 GetFlatForward()
     {
-        return Vector3.Normalize(new Vector3(MathF.Sin(Yaw), 0f, MathF.Cos(Yaw)));
+        return (Vector3)Spatial<UnityCoordinateConvention>.ToXyz(GetFlatForwardRuf());
     }
 
     /// <summary>
-    /// Right direction on the XZ plane. Sign is provisional until verified interactively (see
-    /// ADR-0004 §6 precedent: handedness/sign conventions for this engine are only confirmed
-    /// empirically at runtime, not derived on paper) - flip if strafing feels reversed.
+    /// Right direction on the XZ plane. Built from <see cref="Spatial{TConvention}.RightFromUpForward"/>,
+    /// which is Handedness-aware (ADR-0025) - under <see cref="UnityCoordinateConvention"/> (identity
+    /// mapping, LeftHanded) this is provably identical to the previous ad-hoc
+    /// <c>Cross(Vector3.UnitY, GetFlatForward())</c> formula (verified permanently by
+    /// CameraTests.GetFlatRight_MatchesLegacyCrossProductFormula_AcrossYawSweep). The sign itself
+    /// still awaits interactive confirmation that it *feels* correct when strafing (ADR-0004 §6
+    /// precedent) - this change only proves the formula is internally consistent, not that left/right
+    /// matches human intuition at the keyboard.
     /// </summary>
     public readonly Vector3 GetFlatRight()
     {
-        return Vector3.Normalize(Vector3.Cross(Vector3.UnitY, GetFlatForward()));
+        RufVector right = Spatial<UnityCoordinateConvention>.RightFromUpForward(RufVector.Up, GetFlatForwardRuf());
+        return (Vector3)Spatial<UnityCoordinateConvention>.ToXyz(right);
+    }
+
+    private readonly RufVector GetFlatForwardRuf()
+    {
+        RufQuaternion yawOnly = RufQuaternion.FromAxisAngle(RufVector.Up, Yaw);
+        return RufQuaternion.RotateVector(yawOnly, RufVector.Forward).Normalize();
     }
 
     public readonly Vector3 GetEyePosition()
@@ -117,13 +140,21 @@ public struct Camera
     {
         Vector3 eye = GetEyePosition();
         Vector3 lookAtPoint = Distance > 1e-4f ? Target : eye + GetForward();
-        return Matrix4x4.CreateLookAt(eye, lookAtPoint, Vector3.UnitY);
+        return BuildViewMatrix(eye, lookAtPoint, Vector3.UnitY);
     }
 
     public readonly Matrix4x4 GetProjection(float aspectRatio)
     {
         return Matrix4x4.CreatePerspectiveFieldOfView(FovYRadians, aspectRatio, NearZ, FarZ);
     }
+
+    /// <summary>
+    /// Thin shared wrapper around <see cref="Matrix4x4.CreateLookAt"/> - lets <see cref="ModelRenderer"/>'s
+    /// independent bounds-fit view (which does not go through a <see cref="Camera"/> instance) build
+    /// its view matrix the same way <see cref="GetView"/> does, instead of duplicating the call
+    /// (ADR-0026).
+    /// </summary>
+    public static Matrix4x4 BuildViewMatrix(Vector3 eye, Vector3 target, Vector3 up) => Matrix4x4.CreateLookAt(eye, target, up);
 
     /// <summary>Applies raw mouse-delta input to yaw/pitch, clamping pitch to avoid gimbal flip.</summary>
     public void ApplyMouseDelta(float deltaX, float deltaY, float yawSensitivity, float pitchSensitivity)

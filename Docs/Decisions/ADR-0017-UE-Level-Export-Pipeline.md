@@ -1,7 +1,7 @@
 # ADR-0017: UE5.8レベルエクスポートパイプライン
 
 ## ステータス
-承認済み
+承認済み(**「エンジンのワールド空間はglTF空間と同一」という宣言は[[ADR-0027-Gltf-Fbx-Import-Axis-Conversion]]により上書き済み** — 2026-08-05追記。M0008でエンジンのワールド空間は`UnityCoordinateConvention`(左手系)と再宣言され、`GltfImporter`が内部でglTF空間からの軸変換を行うようになった。本ADRの決定事項自体(UnrealEditor-Cmd.exe+Pythonでのレベル全体1GLBエクスポート等)は無効化されていない)
 
 ## 背景
 

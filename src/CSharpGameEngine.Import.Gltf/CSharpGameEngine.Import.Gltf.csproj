@@ -11,4 +11,10 @@
     <PackageReference Include="SharpGLTF.Core" Version="1.0.6" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\CSharpGameEngine.Spatial.Abstractions\CSharpGameEngine.Spatial.Abstractions.csproj" />
+    <ProjectReference Include="..\CSharpGameEngine.Spatial.Unity\CSharpGameEngine.Spatial.Unity.csproj" />
+    <ProjectReference Include="..\CSharpGameEngine.Spatial.Gltf\CSharpGameEngine.Spatial.Gltf.csproj" />
+  </ItemGroup>
+
 </Project>

@@ -231,7 +231,7 @@ public static class GltfImporter
                 nodes.Add(new ImportedSceneNode
                 {
                     Name = node.Name ?? string.Empty,
-                    WorldTransform = node.WorldMatrix,
+                    WorldTransform = GltfAxisConversion.ConvertWorldTransform(node.WorldMatrix),
                     LightIndex = lightIndex,
                 });
                 continue;
@@ -275,7 +275,7 @@ public static class GltfImporter
                 nodes.Add(new ImportedSceneNode
                 {
                     Name = node.Name ?? string.Empty,
-                    WorldTransform = node.WorldMatrix,
+                    WorldTransform = GltfAxisConversion.ConvertWorldTransform(node.WorldMatrix),
                     MeshIndex = meshIndex,
                     MaterialIndex = materialIndex,
                     LightIndex = lightIndex,
@@ -451,11 +451,39 @@ public static class GltfImporter
             }
         }
 
+        // From here on, mesh-local geometry moves from glTF space into engine space (ADR-0027) - a
+        // single-axis mirror, so it must flip triangle winding to keep front-facing orientation
+        // (GltfAxisConversion.FlipTriangleWinding) and does not affect ComputeTangents' output either
+        // way (swapping a triangle's last two indices leaves its tangent/bitangent formula unchanged,
+        // verified algebraically in ADR-0027).
+        for (int i = 0; i < positions.Length; i++)
+        {
+            positions[i] = GltfAxisConversion.ConvertVector(positions[i]);
+            normals[i] = GltfAxisConversion.ConvertVector(normals[i]);
+        }
+
+        GltfAxisConversion.FlipTriangleWinding(indices);
+
         Accessor? tangentAccessor = primitive.GetVertexAccessor("TANGENT");
         Vector4[]? rawTangents = tangentAccessor is null ? null : [.. tangentAccessor.AsVector4Array()];
-        Vector4[] tangents = rawTangents is not null && rawTangents.Length == positions.Length
-            ? rawTangents
-            : ComputeTangents(positions, normals, uvs, indices);
+        Vector4[] tangents;
+        if (rawTangents is not null && rawTangents.Length == positions.Length)
+        {
+            // A source-provided TANGENT accessor is glTF-space data and must be converted
+            // explicitly (xyz direction plus a handedness-sign flip - see GltfAxisConversion.ConvertTangent).
+            tangents = new Vector4[rawTangents.Length];
+            for (int i = 0; i < rawTangents.Length; i++)
+            {
+                tangents[i] = GltfAxisConversion.ConvertTangent(rawTangents[i]);
+            }
+        }
+        else
+        {
+            // Synthesized directly from the already-converted (engine-space) positions/normals/uvs/
+            // indices above, so ComputeTangents derives a naturally-correct engine-space handedness
+            // sign with no separate flip needed.
+            tangents = ComputeTangents(positions, normals, uvs, indices);
+        }
 
         return new ImportedMeshData
         {

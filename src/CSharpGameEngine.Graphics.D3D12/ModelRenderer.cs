@@ -735,7 +735,10 @@ public sealed unsafe class ModelRenderer : IDisposable
         float distance = radius / MathF.Sin(fovY / 2f) * 1.5f;
 
         Vector3 eye = _boundsCenter + Vector3.Normalize(new Vector3(1f, 0.75f, 1f)) * distance;
-        Matrix4x4 view = Matrix4x4.CreateLookAt(eye, _boundsCenter, Vector3.UnitY);
+        // Shares Camera.GetView's view-matrix construction (ADR-0026) instead of duplicating the
+        // Matrix4x4.CreateLookAt call - this is still ModelRenderer's own independent bounds-fit eye
+        // position, not a Camera instance, so only the shared LookAt wrapper is reused here.
+        Matrix4x4 view = Camera.BuildViewMatrix(eye, _boundsCenter, Vector3.UnitY);
         Matrix4x4 projection = Matrix4x4.CreatePerspectiveFieldOfView(
             fovY,
             (float)width / height,

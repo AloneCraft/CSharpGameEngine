@@ -137,6 +137,65 @@ public class CameraTests
         Assert.True(Camera.MaxPitchRadiansFirstPerson > Camera.MaxPitchRadians);
     }
 
+    /// <summary>
+    /// Permanent regression guard for ADR-0026's RUF rewrite: independently re-derives the original
+    /// hand-written trig formula (the pre-RUF implementation) and checks GetForward against it across
+    /// a Yaw/Pitch sweep, so a future change to the RufQuaternion-based implementation cannot silently
+    /// change what "forward" means without failing a test.
+    /// </summary>
+    [Fact]
+    public void GetForward_MatchesLegacyTrigFormula_AcrossYawPitchSweep()
+    {
+        float[] yaws = [-3.0f, -1.5f, -0.7f, 0f, 0.3f, 0.7f, 1.5f, 3.0f];
+        float[] pitches = [-1.2f, -0.5f, 0f, 0.3f, 1.2f];
+
+        foreach (float yaw in yaws)
+        {
+            foreach (float pitch in pitches)
+            {
+                Camera camera = Camera.CreateDefault(Vector3.Zero);
+                camera.Yaw = yaw;
+                camera.Pitch = pitch;
+
+                Vector3 actual = camera.GetForward();
+
+                float cosPitch = MathF.Cos(pitch);
+                Vector3 expected = Vector3.Normalize(new Vector3(
+                    cosPitch * MathF.Sin(yaw),
+                    MathF.Sin(pitch),
+                    cosPitch * MathF.Cos(yaw)));
+
+                AssertApprox(expected.X, actual.X);
+                AssertApprox(expected.Y, actual.Y);
+                AssertApprox(expected.Z, actual.Z);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Permanent regression guard for ADR-0026: proves Spatial&lt;UnityCoordinateConvention&gt;.
+    /// RightFromUpForward produces the same Right direction as the original ad-hoc
+    /// Cross(Vector3.UnitY, flatForward) formula, across a Yaw sweep.
+    /// </summary>
+    [Fact]
+    public void GetFlatRight_MatchesLegacyCrossProductFormula_AcrossYawSweep()
+    {
+        float[] yaws = [-3.0f, -1.5f, -0.7f, 0f, 0.3f, 0.7f, 1.5f, 3.0f];
+
+        foreach (float yaw in yaws)
+        {
+            Camera camera = Camera.CreateDefault(Vector3.Zero);
+            camera.Yaw = yaw;
+
+            Vector3 actual = camera.GetFlatRight();
+            Vector3 expected = Vector3.Normalize(Vector3.Cross(Vector3.UnitY, camera.GetFlatForward()));
+
+            AssertApprox(expected.X, actual.X);
+            AssertApprox(expected.Y, actual.Y);
+            AssertApprox(expected.Z, actual.Z);
+        }
+    }
+
     private static void AssertApprox(float expected, float actual, float tolerance = 1e-4f)
     {
         Assert.True(MathF.Abs(expected - actual) <= tolerance, $"Expected {expected} but got {actual} (tolerance {tolerance}).");

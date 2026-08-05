@@ -1,5 +1,7 @@
 using System.Numerics;
 using CSharpGameEngine.Graphics.D3D12;
+using CSharpGameEngine.Spatial.Abstractions;
+using CSharpGameEngine.Spatial.Unity;
 
 namespace UserGameProject.Systems;
 
@@ -25,8 +27,16 @@ public static class PlayerControlSystem
             Camera.MinPitchRadiansFirstPerson,
             Camera.MaxPitchRadiansFirstPerson);
 
-        Vector3 flatForward = new(MathF.Sin(cameraRig.Yaw), 0f, MathF.Cos(cameraRig.Yaw));
-        Vector3 flatRight = Vector3.Normalize(Vector3.Cross(Vector3.UnitY, flatForward));
+        // RUF boundary (ADR-0028): yaw-only facing, flat forward/right, and the resulting body
+        // rotation are derived in RUF space (mirrors Camera.GetFlatForward/GetFlatRight, ADR-0026)
+        // before converting back to the Vector3/Quaternion types CharacterMotion and the ECS
+        // Rotation component still use.
+        RufQuaternion facingRuf = RufQuaternion.FromAxisAngle(RufVector.Up, cameraRig.Yaw);
+        RufVector flatForwardRuf = RufQuaternion.RotateVector(facingRuf, RufVector.Forward).Normalize();
+        RufVector flatRightRuf = Spatial<UnityCoordinateConvention>.RightFromUpForward(RufVector.Up, flatForwardRuf);
+
+        Vector3 flatForward = (Vector3)Spatial<UnityCoordinateConvention>.ToXyz(flatForwardRuf);
+        Vector3 flatRight = (Vector3)Spatial<UnityCoordinateConvention>.ToXyz(flatRightRuf);
 
         CharacterMotionResult motion = CharacterMotion.Compute(new CharacterMotionInput
         {
@@ -50,7 +60,6 @@ public static class PlayerControlSystem
             Z = player.Position.Z + (motion.HorizontalVelocity.Z * deltaTime),
         };
 
-        Quaternion facing = Quaternion.CreateFromAxisAngle(Vector3.UnitY, cameraRig.Yaw);
-        player.Rotation = new Rotation { X = facing.X, Y = facing.Y, Z = facing.Z, W = facing.W };
+        player.Rotation = new Rotation { X = facingRuf.R, Y = facingRuf.U, Z = facingRuf.F, W = facingRuf.W };
     }
 }

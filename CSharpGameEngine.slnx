@@ -16,6 +16,7 @@
   </Folder>
   <Folder Name="/Docs/Specifications/">
     <File Path="Docs/Specifications/Generated-Entity-Storage.md" />
+    <File Path="Docs/Specifications/Spatial-RUF.md" />
   </Folder>
   <Folder Name="/Docs/Decisions/">
     <File Path="Docs/Decisions/ADR-0001-Layered-Architecture.md" />
@@ -42,6 +43,10 @@
     <File Path="Docs/Decisions/ADR-0022-Hierarchy-Drag-Drop-Asset-Placement.md" />
     <File Path="Docs/Decisions/ADR-0023-Bridge-Process-Residency.md" />
     <File Path="Docs/Decisions/ADR-0024-Generated-Entity-AoS-SoA.md" />
+    <File Path="Docs/Decisions/ADR-0025-RUF-Semantic-Coordinates.md" />
+    <File Path="Docs/Decisions/ADR-0026-Camera-Geometry-Ruf-Integration.md" />
+    <File Path="Docs/Decisions/ADR-0027-Gltf-Fbx-Import-Axis-Conversion.md" />
+    <File Path="Docs/Decisions/ADR-0028-Ecs-Gameplay-Ruf-Boundary.md" />
   </Folder>
   <Folder Name="/Docs/Milestones/">
     <File Path="Docs/Milestones/M0001-CodeAnalysis-Foundation.md" />
@@ -50,6 +55,8 @@
     <File Path="Docs/Milestones/M0004-UE-FirstPerson-Stage-Port.md" />
     <File Path="Docs/Milestones/M0005-Generated-Entity-AoS-SoA.md" />
     <File Path="Docs/Milestones/M0006-Generated-Entity-Benchmark.md" />
+    <File Path="Docs/Milestones/M0007-RUF-Semantic-Coordinates.md" />
+    <File Path="Docs/Milestones/M0008-Renderer-Import-Ecs-Ruf-Integration.md" />
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
@@ -82,6 +89,12 @@
     <Project Path="src/CSharpGameEngine.Ecs/CSharpGameEngine.Ecs.csproj" />
     <Project Path="src/CSharpGameEngine.Generation.Abstractions/CSharpGameEngine.Generation.Abstractions.csproj" />
     <Project Path="src/CSharpGameEngine.Scene/CSharpGameEngine.Scene.csproj" />
+    <Project Path="src/CSharpGameEngine.Spatial.Abstractions/CSharpGameEngine.Spatial.Abstractions.csproj" />
+    <Project Path="src/CSharpGameEngine.Spatial.Unity/CSharpGameEngine.Spatial.Unity.csproj" />
+    <Project Path="src/CSharpGameEngine.Spatial.Unreal/CSharpGameEngine.Spatial.Unreal.csproj" />
+    <Project Path="src/CSharpGameEngine.Spatial.Blender/CSharpGameEngine.Spatial.Blender.csproj" />
+    <Project Path="src/CSharpGameEngine.Spatial.Gltf/CSharpGameEngine.Spatial.Gltf.csproj" />
+    <Project Path="src/CSharpGameEngine.Spatial.Fbx/CSharpGameEngine.Spatial.Fbx.csproj" />
   </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/AosSoaGeneratedExpansion/AosSoaGeneratedExpansion.csproj" />
@@ -98,6 +111,7 @@
     <Project Path="tests/CSharpGameEngine.CodeAnalysis.Tests/CSharpGameEngine.CodeAnalysis.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Ecs.Tests/CSharpGameEngine.Ecs.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Scene.Tests/CSharpGameEngine.Scene.Tests.csproj" />
+    <Project Path="tests/CSharpGameEngine.Spatial.Tests/CSharpGameEngine.Spatial.Tests.csproj" />
     <Project Path="tests/UserGameProject.Tests/UserGameProject.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">

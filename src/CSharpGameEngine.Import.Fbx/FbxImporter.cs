@@ -68,11 +68,16 @@ public static class FbxImporter
             return Failed("FBX mesh has no vertices.", diagnostics);
         }
 
+        // AssimpNet's own default output space is right-handed/Y-up/Forward=-Z (see
+        // FbxAxisConversion's doc comment); converted here into this engine's fixed
+        // UnityCoordinateConvention (left-handed) per ADR-0027 - positions/normals convert
+        // per-vertex (FbxAxisConversion.ConvertVector), and triangle winding is flipped below to
+        // keep front-facing orientation consistent with the mirrored positions.
         Vector3[] positions = new Vector3[mesh.VertexCount];
         for (int i = 0; i < mesh.VertexCount; i++)
         {
             Vector3D v = mesh.Vertices[i];
-            positions[i] = new Vector3(v.X, v.Y, v.Z);
+            positions[i] = FbxAxisConversion.ConvertVector(new Vector3(v.X, v.Y, v.Z));
         }
 
         Vector3[] normals;
@@ -82,7 +87,7 @@ public static class FbxImporter
             for (int i = 0; i < mesh.VertexCount; i++)
             {
                 Vector3D n = mesh.Normals[i];
-                normals[i] = new Vector3(n.X, n.Y, n.Z);
+                normals[i] = FbxAxisConversion.ConvertVector(new Vector3(n.X, n.Y, n.Z));
             }
         }
         else
@@ -129,6 +134,8 @@ public static class FbxImporter
         {
             return Failed("FBX mesh has no triangles after triangulation.", diagnostics);
         }
+
+        FbxAxisConversion.FlipTriangleWinding(indices);
 
         Vector4 baseColorFactor = new(1f, 1f, 1f, 1f);
         if (mesh.MaterialIndex >= 0 && mesh.MaterialIndex < scene.MaterialCount)

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using CSharpGameEngine.Spatial.Abstractions;
+using CSharpGameEngine.Spatial.Unity;
 
 namespace CSharpGameEngine.Geometry;
 
@@ -15,6 +17,12 @@ namespace CSharpGameEngine.Geometry;
 /// generation math on the net472 VSIX side (ADR-0019's "always go through an out-of-process bridge,
 /// never in-process" principle). Winding order is picked for consistency but does not currently
 /// affect visibility: every consumer disables backface culling.
+///
+/// Vertex/normal math is derived in RUF (<see cref="RufVector"/>) space and converted to
+/// <see cref="Vector3"/> only at the point each <c>Create*</c> method builds its
+/// <see cref="ProceduralMeshData"/> (ADR-0026). <see cref="UnityCoordinateConvention"/> is a fixed
+/// identity mapping (R=X, U=Y, F=Z), so this conversion is bit-identical to the previous
+/// direct-<see cref="Vector3"/> implementation - it does not change any output value.
 /// </summary>
 public static class ProceduralMeshFactory
 {
@@ -33,19 +41,19 @@ public static class ProceduralMeshFactory
         float halfWidth = width / 2f;
         float halfDepth = depth / 2f;
 
-        Vector3[] positions =
+        RufVector[] positions =
         [
-            new Vector3(-halfWidth, 0f, -halfDepth),
-            new Vector3(halfWidth, 0f, -halfDepth),
-            new Vector3(halfWidth, 0f, halfDepth),
-            new Vector3(-halfWidth, 0f, halfDepth),
+            new RufVector(-halfWidth, 0f, -halfDepth),
+            new RufVector(halfWidth, 0f, -halfDepth),
+            new RufVector(halfWidth, 0f, halfDepth),
+            new RufVector(-halfWidth, 0f, halfDepth),
         ];
 
-        Vector3[] normals = [Vector3.UnitY, Vector3.UnitY, Vector3.UnitY, Vector3.UnitY];
+        RufVector[] normals = [RufVector.Up, RufVector.Up, RufVector.Up, RufVector.Up];
 
         uint[] indices = [0, 1, 2, 0, 2, 3];
 
-        return new ProceduralMeshData { Positions = positions, Normals = normals, Indices = indices };
+        return new ProceduralMeshData { Positions = ToXyzArray(positions), Normals = ToXyzArray(normals), Indices = indices };
     }
 
     /// <summary>An axis-aligned box centered at the origin (24 vertices, one normal per face) sized <paramref name="size"/> on each axis.</summary>
@@ -56,32 +64,34 @@ public static class ProceduralMeshFactory
             throw new ArgumentOutOfRangeException(nameof(size), "size components must all be positive.");
         }
 
-        Vector3 half = size / 2f;
+        RufVector half = new RufVector(size.X, size.Y, size.Z) / 2f;
 
-        (Vector3 Normal, Vector3 U, Vector3 V)[] faces =
+        (RufVector Normal, RufVector U, RufVector V)[] faces =
         [
-            (Vector3.UnitZ, Vector3.UnitX, Vector3.UnitY),     // +Z
-            (-Vector3.UnitZ, -Vector3.UnitX, Vector3.UnitY),   // -Z
-            (Vector3.UnitX, -Vector3.UnitZ, Vector3.UnitY),    // +X
-            (-Vector3.UnitX, Vector3.UnitZ, Vector3.UnitY),    // -X
-            (Vector3.UnitY, Vector3.UnitX, -Vector3.UnitZ),    // +Y
-            (-Vector3.UnitY, Vector3.UnitX, Vector3.UnitZ),    // -Y
+            (RufVector.Forward, RufVector.Right, RufVector.Up),     // +Z
+            (-RufVector.Forward, -RufVector.Right, RufVector.Up),   // -Z
+            (RufVector.Right, -RufVector.Forward, RufVector.Up),    // +X
+            (-RufVector.Right, RufVector.Forward, RufVector.Up),    // -X
+            (RufVector.Up, RufVector.Right, -RufVector.Forward),    // +Y
+            (-RufVector.Up, RufVector.Right, RufVector.Forward),    // -Y
         ];
 
-        Vector3[] positions = new Vector3[faces.Length * 4];
-        Vector3[] normals = new Vector3[faces.Length * 4];
+        RufVector[] positions = new RufVector[faces.Length * 4];
+        RufVector[] normals = new RufVector[faces.Length * 4];
         uint[] indices = new uint[faces.Length * 6];
 
         for (int face = 0; face < faces.Length; face++)
         {
-            (Vector3 normal, Vector3 u, Vector3 v) = faces[face];
-            Vector3 center = normal * half;
+            (RufVector normal, RufVector u, RufVector v) = faces[face];
+            RufVector center = ScaleComponents(normal, half);
+            RufVector uHalf = ScaleComponents(u, half);
+            RufVector vHalf = ScaleComponents(v, half);
             int vertexBase = face * 4;
 
-            positions[vertexBase + 0] = center - (u * half) - (v * half);
-            positions[vertexBase + 1] = center + (u * half) - (v * half);
-            positions[vertexBase + 2] = center + (u * half) + (v * half);
-            positions[vertexBase + 3] = center - (u * half) + (v * half);
+            positions[vertexBase + 0] = center - uHalf - vHalf;
+            positions[vertexBase + 1] = center + uHalf - vHalf;
+            positions[vertexBase + 2] = center + uHalf + vHalf;
+            positions[vertexBase + 3] = center - uHalf + vHalf;
 
             for (int i = 0; i < 4; i++)
             {
@@ -97,7 +107,7 @@ public static class ProceduralMeshFactory
             indices[indexBase + 5] = (uint)(vertexBase + 3);
         }
 
-        return new ProceduralMeshData { Positions = positions, Normals = normals, Indices = indices };
+        return new ProceduralMeshData { Positions = ToXyzArray(positions), Normals = ToXyzArray(normals), Indices = indices };
     }
 
     /// <summary>
@@ -117,13 +127,13 @@ public static class ProceduralMeshFactory
         int ringStride = longitudeSegments + 1;
         int ringCount = latitudeSegments - 1;
 
-        List<Vector3> positions = [];
-        List<Vector3> normals = [];
+        List<RufVector> positions = [];
+        List<RufVector> normals = [];
         List<uint> indices = [];
 
         int northPoleIndex = positions.Count;
-        positions.Add(new Vector3(0, radius, 0));
-        normals.Add(Vector3.UnitY);
+        positions.Add(new RufVector(0, radius, 0));
+        normals.Add(RufVector.Up);
 
         int firstRingIndex = positions.Count;
         for (int lat = 1; lat < latitudeSegments; lat++)
@@ -134,15 +144,15 @@ public static class ProceduralMeshFactory
             for (int lon = 0; lon <= longitudeSegments; lon++)
             {
                 float phi = lon * 2f * MathF.PI / longitudeSegments;
-                Vector3 normal = new(MathF.Cos(phi) * sinTheta, cosTheta, MathF.Sin(phi) * sinTheta);
+                RufVector normal = new(MathF.Cos(phi) * sinTheta, cosTheta, MathF.Sin(phi) * sinTheta);
                 positions.Add(normal * radius);
                 normals.Add(normal);
             }
         }
 
         int southPoleIndex = positions.Count;
-        positions.Add(new Vector3(0, -radius, 0));
-        normals.Add(-Vector3.UnitY);
+        positions.Add(new RufVector(0, -radius, 0));
+        normals.Add(-RufVector.Up);
 
         for (int lon = 0; lon < longitudeSegments; lon++)
         {
@@ -165,7 +175,7 @@ public static class ProceduralMeshFactory
             indices.Add((uint)(lastRingStart + lon + 1));
         }
 
-        return new ProceduralMeshData { Positions = [.. positions], Normals = [.. normals], Indices = [.. indices] };
+        return new ProceduralMeshData { Positions = ToXyzArray(positions), Normals = ToXyzArray(normals), Indices = [.. indices] };
     }
 
     /// <summary>An axis-aligned (Y) capped cylinder centered at the origin.</summary>
@@ -184,8 +194,8 @@ public static class ProceduralMeshFactory
         const int segments = DefaultSegments;
         float halfHeight = height / 2f;
 
-        List<Vector3> positions = [];
-        List<Vector3> normals = [];
+        List<RufVector> positions = [];
+        List<RufVector> normals = [];
         List<uint> indices = [];
 
         int sideTopStart = AddRing(positions, normals, segments, radius, halfHeight, radial: true);
@@ -193,9 +203,9 @@ public static class ProceduralMeshFactory
         AddQuadBand(indices, sideTopStart, sideBottomStart, segments);
 
         int topCenterIndex = positions.Count;
-        positions.Add(new Vector3(0, halfHeight, 0));
-        normals.Add(Vector3.UnitY);
-        int topRingStart = AddRing(positions, normals, segments, radius, halfHeight, radial: false, capNormal: Vector3.UnitY);
+        positions.Add(new RufVector(0, halfHeight, 0));
+        normals.Add(RufVector.Up);
+        int topRingStart = AddRing(positions, normals, segments, radius, halfHeight, radial: false, capNormal: RufVector.Up);
         for (int i = 0; i < segments; i++)
         {
             indices.Add((uint)topCenterIndex);
@@ -204,9 +214,9 @@ public static class ProceduralMeshFactory
         }
 
         int bottomCenterIndex = positions.Count;
-        positions.Add(new Vector3(0, -halfHeight, 0));
-        normals.Add(-Vector3.UnitY);
-        int bottomRingStart = AddRing(positions, normals, segments, radius, -halfHeight, radial: false, capNormal: -Vector3.UnitY);
+        positions.Add(new RufVector(0, -halfHeight, 0));
+        normals.Add(-RufVector.Up);
+        int bottomRingStart = AddRing(positions, normals, segments, radius, -halfHeight, radial: false, capNormal: -RufVector.Up);
         for (int i = 0; i < segments; i++)
         {
             indices.Add((uint)bottomCenterIndex);
@@ -214,7 +224,7 @@ public static class ProceduralMeshFactory
             indices.Add((uint)(bottomRingStart + i));
         }
 
-        return new ProceduralMeshData { Positions = [.. positions], Normals = [.. normals], Indices = [.. indices] };
+        return new ProceduralMeshData { Positions = ToXyzArray(positions), Normals = ToXyzArray(normals), Indices = [.. indices] };
     }
 
     /// <summary>An axis-aligned (Y) cone centered at the origin: apex at +height/2, capped circular base at -height/2.</summary>
@@ -232,10 +242,10 @@ public static class ProceduralMeshFactory
 
         const int segments = DefaultSegments;
         float halfHeight = height / 2f;
-        Vector3 apex = new(0, halfHeight, 0);
+        RufVector apex = new(0, halfHeight, 0);
 
-        List<Vector3> positions = [];
-        List<Vector3> normals = [];
+        List<RufVector> positions = [];
+        List<RufVector> normals = [];
         List<uint> indices = [];
 
         // Flat-shaded side: each triangle gets its own three vertices (some duplication) so the
@@ -244,9 +254,9 @@ public static class ProceduralMeshFactory
         {
             float angle0 = i * 2f * MathF.PI / segments;
             float angle1 = (i + 1) * 2f * MathF.PI / segments;
-            Vector3 p0 = new(MathF.Cos(angle0) * radius, -halfHeight, MathF.Sin(angle0) * radius);
-            Vector3 p1 = new(MathF.Cos(angle1) * radius, -halfHeight, MathF.Sin(angle1) * radius);
-            Vector3 faceNormal = Vector3.Normalize(Vector3.Cross(p1 - apex, p0 - apex));
+            RufVector p0 = new(MathF.Cos(angle0) * radius, -halfHeight, MathF.Sin(angle0) * radius);
+            RufVector p1 = new(MathF.Cos(angle1) * radius, -halfHeight, MathF.Sin(angle1) * radius);
+            RufVector faceNormal = Spatial<UnityCoordinateConvention>.Cross(p1 - apex, p0 - apex).Normalize();
 
             int baseIndex = positions.Count;
             positions.Add(apex); normals.Add(faceNormal);
@@ -258,9 +268,9 @@ public static class ProceduralMeshFactory
         }
 
         int baseCenterIndex = positions.Count;
-        positions.Add(new Vector3(0, -halfHeight, 0));
-        normals.Add(-Vector3.UnitY);
-        int baseRingStart = AddRing(positions, normals, segments, radius, -halfHeight, radial: false, capNormal: -Vector3.UnitY);
+        positions.Add(new RufVector(0, -halfHeight, 0));
+        normals.Add(-RufVector.Up);
+        int baseRingStart = AddRing(positions, normals, segments, radius, -halfHeight, radial: false, capNormal: -RufVector.Up);
         for (int i = 0; i < segments; i++)
         {
             indices.Add((uint)baseCenterIndex);
@@ -268,7 +278,7 @@ public static class ProceduralMeshFactory
             indices.Add((uint)(baseRingStart + i));
         }
 
-        return new ProceduralMeshData { Positions = [.. positions], Normals = [.. normals], Indices = [.. indices] };
+        return new ProceduralMeshData { Positions = ToXyzArray(positions), Normals = ToXyzArray(normals), Indices = [.. indices] };
     }
 
     /// <summary>A torus centered at the origin in the XZ plane. <paramref name="minorRadius"/> (tube radius) must be smaller than <paramref name="majorRadius"/> (ring radius) to avoid self-intersection.</summary>
@@ -293,8 +303,8 @@ public static class ProceduralMeshFactory
         const int minorSegments = DefaultMinorSegments;
         int ringStride = minorSegments + 1;
 
-        List<Vector3> positions = [];
-        List<Vector3> normals = [];
+        List<RufVector> positions = [];
+        List<RufVector> normals = [];
         List<uint> indices = [];
 
         for (int i = 0; i <= majorSegments; i++)
@@ -310,8 +320,8 @@ public static class ProceduralMeshFactory
                 float sinPhi = MathF.Sin(phi);
                 float tubeRadius = majorRadius + (minorRadius * cosPhi);
 
-                positions.Add(new Vector3(tubeRadius * cosTheta, minorRadius * sinPhi, tubeRadius * sinTheta));
-                normals.Add(new Vector3(cosPhi * cosTheta, sinPhi, cosPhi * sinTheta));
+                positions.Add(new RufVector(tubeRadius * cosTheta, minorRadius * sinPhi, tubeRadius * sinTheta));
+                normals.Add(new RufVector(cosPhi * cosTheta, sinPhi, cosPhi * sinTheta));
             }
         }
 
@@ -320,7 +330,7 @@ public static class ProceduralMeshFactory
             AddQuadBand(indices, i * ringStride, (i + 1) * ringStride, minorSegments);
         }
 
-        return new ProceduralMeshData { Positions = [.. positions], Normals = [.. normals], Indices = [.. indices] };
+        return new ProceduralMeshData { Positions = ToXyzArray(positions), Normals = ToXyzArray(normals), Indices = [.. indices] };
     }
 
     /// <summary>A flat circular disk centered at the origin, Y=0, facing +Y.</summary>
@@ -333,11 +343,11 @@ public static class ProceduralMeshFactory
 
         const int segments = DefaultSegments;
 
-        List<Vector3> positions = [Vector3.Zero];
-        List<Vector3> normals = [Vector3.UnitY];
+        List<RufVector> positions = [RufVector.Zero];
+        List<RufVector> normals = [RufVector.Up];
         List<uint> indices = [];
 
-        int ringStart = AddRing(positions, normals, segments, radius, 0f, radial: false, capNormal: Vector3.UnitY);
+        int ringStart = AddRing(positions, normals, segments, radius, 0f, radial: false, capNormal: RufVector.Up);
         for (int i = 0; i < segments; i++)
         {
             indices.Add(0);
@@ -345,7 +355,7 @@ public static class ProceduralMeshFactory
             indices.Add((uint)(ringStart + i + 1));
         }
 
-        return new ProceduralMeshData { Positions = [.. positions], Normals = [.. normals], Indices = [.. indices] };
+        return new ProceduralMeshData { Positions = ToXyzArray(positions), Normals = ToXyzArray(normals), Indices = [.. indices] };
     }
 
     /// <summary>
@@ -370,13 +380,13 @@ public static class ProceduralMeshFactory
         int ringStride = segments + 1;
         float cylinderHalfHeight = (height / 2f) - radius;
 
-        List<Vector3> positions = [];
-        List<Vector3> normals = [];
+        List<RufVector> positions = [];
+        List<RufVector> normals = [];
         List<uint> indices = [];
 
         int topPoleIndex = positions.Count;
-        positions.Add(new Vector3(0, cylinderHalfHeight + radius, 0));
-        normals.Add(Vector3.UnitY);
+        positions.Add(new RufVector(0, cylinderHalfHeight + radius, 0));
+        normals.Add(RufVector.Up);
 
         int topFirstRing = AddHemisphereRings(positions, normals, segments, hemisphereRings, radius, cylinderHalfHeight, upperHalf: true);
 
@@ -386,8 +396,8 @@ public static class ProceduralMeshFactory
         int bottomFirstRing = AddHemisphereRings(positions, normals, segments, hemisphereRings, radius, -cylinderHalfHeight, upperHalf: false);
 
         int bottomPoleIndex = positions.Count;
-        positions.Add(new Vector3(0, -(cylinderHalfHeight + radius), 0));
-        normals.Add(-Vector3.UnitY);
+        positions.Add(new RufVector(0, -(cylinderHalfHeight + radius), 0));
+        normals.Add(-RufVector.Up);
 
         for (int lon = 0; lon < segments; lon++)
         {
@@ -420,14 +430,14 @@ public static class ProceduralMeshFactory
             indices.Add((uint)(lastBottomRing + lon + 1));
         }
 
-        return new ProceduralMeshData { Positions = [.. positions], Normals = [.. normals], Indices = [.. indices] };
+        return new ProceduralMeshData { Positions = ToXyzArray(positions), Normals = ToXyzArray(normals), Indices = [.. indices] };
     }
 
     /// <summary>
     /// Appends <paramref name="hemisphereRings"/> interior latitude rings (excluding the pole and
     /// the equator, both added separately by the caller) for one hemisphere of <see cref="CreateCapsule"/>.
     /// </summary>
-    private static int AddHemisphereRings(List<Vector3> positions, List<Vector3> normals, int segments, int hemisphereRings, float radius, float yOffset, bool upperHalf)
+    private static int AddHemisphereRings(List<RufVector> positions, List<RufVector> normals, int segments, int hemisphereRings, float radius, float yOffset, bool upperHalf)
     {
         int firstRingIndex = positions.Count;
         for (int lat = 1; lat <= hemisphereRings; lat++)
@@ -442,8 +452,8 @@ public static class ProceduralMeshFactory
             for (int lon = 0; lon <= segments; lon++)
             {
                 float phi = lon * 2f * MathF.PI / segments;
-                Vector3 normal = new(MathF.Cos(phi) * sinTheta, cosTheta, MathF.Sin(phi) * sinTheta);
-                positions.Add(new Vector3(normal.X * radius, yOffset + (normal.Y * radius), normal.Z * radius));
+                RufVector normal = new(MathF.Cos(phi) * sinTheta, cosTheta, MathF.Sin(phi) * sinTheta);
+                positions.Add(new RufVector(normal.R * radius, yOffset + (normal.U * radius), normal.F * radius));
                 normals.Add(normal);
             }
         }
@@ -452,7 +462,7 @@ public static class ProceduralMeshFactory
     }
 
     /// <summary>Appends one ring of <paramref name="segments"/>+1 vertices (a duplicate seam vertex closes the loop, keeping index math uniform with <see cref="AddQuadBand"/>). <paramref name="radial"/> selects a purely radial normal (cylinder side) vs. a caller-supplied flat <paramref name="capNormal"/> (cap/disk faces).</summary>
-    private static int AddRing(List<Vector3> positions, List<Vector3> normals, int segments, float radius, float y, bool radial, Vector3 capNormal = default)
+    private static int AddRing(List<RufVector> positions, List<RufVector> normals, int segments, float radius, float y, bool radial, RufVector capNormal = default)
     {
         int ringStart = positions.Count;
         for (int i = 0; i <= segments; i++)
@@ -460,8 +470,8 @@ public static class ProceduralMeshFactory
             float angle = i * 2f * MathF.PI / segments;
             float x = MathF.Cos(angle);
             float z = MathF.Sin(angle);
-            positions.Add(new Vector3(x * radius, y, z * radius));
-            normals.Add(radial ? new Vector3(x, 0, z) : capNormal);
+            positions.Add(new RufVector(x * radius, y, z * radius));
+            normals.Add(radial ? new RufVector(x, 0, z) : capNormal);
         }
 
         return ringStart;
@@ -483,5 +493,20 @@ public static class ProceduralMeshFactory
             indices.Add((uint)c);
             indices.Add((uint)d);
         }
+    }
+
+    /// <summary>Component-wise scale (R*R, U*U, F*F) - not exposed on <see cref="RufVector"/> itself (only scalar multiply is), needed here only for scaling an axis-aligned face direction by a per-axis extent.</summary>
+    private static RufVector ScaleComponents(RufVector value, RufVector scale) => new(value.R * scale.R, value.U * scale.U, value.F * scale.F);
+
+    /// <summary>Converts RUF-space vertex/normal data to physical XYZ storage at the output boundary (ADR-0026 "境界の原則"): identity under <see cref="UnityCoordinateConvention"/>, so this does not change any value.</summary>
+    private static Vector3[] ToXyzArray(IReadOnlyList<RufVector> values)
+    {
+        Vector3[] result = new Vector3[values.Count];
+        for (int i = 0; i < values.Count; i++)
+        {
+            result[i] = (Vector3)Spatial<UnityCoordinateConvention>.ToXyz(values[i]);
+        }
+
+        return result;
     }
 }

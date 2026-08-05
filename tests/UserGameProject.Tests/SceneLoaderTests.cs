@@ -59,7 +59,10 @@ public class SceneLoaderTests
 
             LoadedSceneSpawn spawn = Assert.Single(scene.Spawns);
             Assert.Equal(PropMobility.Movable, spawn.Mobility);
-            Assert.Equal(new Vector3(2, 0, 3), spawn.Position);
+            // glTF-space (2,0,3) -> engine-space (2,0,-3): GltfImporter now converts every node's
+            // WorldTransform from glTF's right-handed space into this engine's fixed
+            // UnityCoordinateConvention (left-handed), ADR-0027.
+            Assert.Equal(new Vector3(2, 0, -3), spawn.Position);
 
             Assert.NotNull(scene.Sun);
             Assert.Equal(4f, scene.Sun!.Value.Intensity, precision: 3);
@@ -73,8 +76,12 @@ public class SceneLoaderTests
             Assert.NotNull(scene.Fog);
             Assert.Equal(0.05f, scene.Fog!.Value.Density, precision: 3);
 
-            Assert.Equal(new Vector3(1, 2, 3), scene.PlayerStartPosition);
-            Assert.Equal(1.5f, scene.PlayerStartYawRadians, precision: 3);
+            // scene_meta.json's PlayerStart is written in glTF space by export_lvl_firstperson.py's
+            // own UE->glTF conversion, so SceneLoader applies the same glTF->engine conversion here
+            // as every other node (ADR-0027): position Z negates, and yaw negates too (a pure Y-axis
+            // rotation's angle flips sign under the same Z-mirror, since Y is the mirror's fixed axis).
+            Assert.Equal(new Vector3(1, 2, -3), scene.PlayerStartPosition);
+            Assert.Equal(-1.5f, scene.PlayerStartYawRadians, precision: 3);
 
             Assert.Single(scene.Meshes);
             Assert.Single(scene.Materials);

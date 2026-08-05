@@ -20,4 +20,16 @@
     <PackageReference Include="AssimpNet" Version="4.1.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\CSharpGameEngine.Spatial.Abstractions\CSharpGameEngine.Spatial.Abstractions.csproj" />
+    <ProjectReference Include="..\CSharpGameEngine.Spatial.Unity\CSharpGameEngine.Spatial.Unity.csproj" />
+    <ProjectReference Include="..\CSharpGameEngine.Spatial.Fbx\CSharpGameEngine.Spatial.Fbx.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>CSharpGameEngine.Import.Fbx.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
 </Project>

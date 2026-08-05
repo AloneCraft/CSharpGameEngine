@@ -97,6 +97,8 @@ public static class SceneLoader
             spawns.Add(new LoadedSceneSpawn { ObjectIndex = objectIndex, Mobility = mobility, Position = translation, Rotation = rotation, Scale = scale });
         }
 
+        (Vector3 playerStartPosition, float playerStartYawRadians) = ImportPlayerStart(meta.PlayerStart);
+
         return new LoadedScene
         {
             Meshes = meshes,
@@ -106,9 +108,40 @@ public static class SceneLoader
             Sun = sun,
             Ambient = ToAmbientData(meta.Ambient),
             Fog = ToFogData(meta.Fog),
-            PlayerStartPosition = meta.PlayerStart is { } playerStart ? new Vector3(playerStart.Translation[0], playerStart.Translation[1], playerStart.Translation[2]) : Vector3.Zero,
-            PlayerStartYawRadians = meta.PlayerStart?.YawRadians ?? 0f,
+            PlayerStartPosition = playerStartPosition,
+            PlayerStartYawRadians = playerStartYawRadians,
         };
+    }
+
+    /// <summary>
+    /// export_lvl_firstperson.py's <c>ue_to_gltf_translation</c>/<c>ue_yaw_to_gltf_yaw_radians</c>
+    /// write <c>scene_meta.json</c>'s PlayerStart already converted from UE space into glTF space
+    /// (ADR-0017) - unlike every other node, which comes from the .glb itself and is converted by
+    /// <see cref="GltfImporter"/>, PlayerStart needs the same glTF-&gt;engine conversion applied here
+    /// (ADR-0027), via the same <see cref="GltfAxisConversion.ConvertWorldTransform"/> path every
+    /// other node already goes through (rather than re-deriving the yaw sign flip by hand).
+    /// </summary>
+    private static (Vector3 Position, float YawRadians) ImportPlayerStart(SceneMetaPlayerStart? playerStart)
+    {
+        if (playerStart is null)
+        {
+            return (Vector3.Zero, 0f);
+        }
+
+        Vector3 rawPosition = new(playerStart.Translation[0], playerStart.Translation[1], playerStart.Translation[2]);
+        Matrix4x4 gltfSpaceTransform =
+            Matrix4x4.CreateFromQuaternion(Quaternion.CreateFromAxisAngle(Vector3.UnitY, playerStart.YawRadians))
+            * Matrix4x4.CreateTranslation(rawPosition);
+
+        Matrix4x4 engineSpaceTransform = GltfAxisConversion.ConvertWorldTransform(gltfSpaceTransform);
+        Matrix4x4.Decompose(engineSpaceTransform, out _, out Quaternion rotation, out Vector3 position);
+
+        // The source rotation is a pure Y-axis rotation, and Y is the mirror's fixed axis (ADR-0027),
+        // so the converted rotation is guaranteed to still be a pure Y-axis rotation - extract its
+        // angle directly instead of taking a general (and here unnecessary) Euler decomposition.
+        float yawRadians = 2f * MathF.Atan2(rotation.Y, rotation.W);
+
+        return (position, yawRadians);
     }
 
     private static DirectionalLightData? TryImportDirectionalLight(ImportedLight light, Matrix4x4 worldTransform)
@@ -118,7 +151,7 @@ public static class SceneLoader
             return null;
         }
 
-        Vector3 direction = Vector3.Normalize(Vector3.TransformNormal(-Vector3.UnitZ, worldTransform));
+        Vector3 direction = ImportedLightDirection.WorldForward(worldTransform);
         return new DirectionalLightData
         {
             DirectionTowardLightX = direction.X,

@@ -3,9 +3,11 @@
 このファイルは`.github/skills/CSharpGameEngine-Documentation/SKILL.md`が定義するConformanceモデル
 (意図した仕様 ↕ 実装 ↕ リバースエンジニアリングした観測挙動 ↕ テスト/実行検証)に従う。
 
-このファイルは**ADR-0024(Generated Entity Source Generator)由来のエントリのみ**を含む。
+このファイルは**ADR-0024(Generated Entity Source Generator)以降のADR由来のエントリのみ**を含む。
 既存機能(ADR-0001〜ADR-0023相当)への遡及的なBackfillは行っていない
-(`Docs/Implementation-Status.md`がADR-0014から遡及なしで開始した前例に倣う)。
+(`Docs/Implementation-Status.md`がADR-0014から遡及なしで開始した前例に倣う)。ADR-0025
+(RUFセマンティック座標系)分、ADR-0026/ADR-0027/ADR-0028(Renderer/Import/ECS内部へのRUF全面統合、
+M0008)分をこのファイルの末尾に追加した。
 
 ---
 
@@ -137,4 +139,199 @@
   - 診断が1件でもある型は、その型のソース生成が完全にスキップされる。
 - Intended behavior:
   - Docs/Specifications/Generated-Entity-Storage.md「Diagnostic一覧」節と同一。
+- Result: Matches
+
+### RE-L1-001 — RUF/XYZセマンティック座標コア型と`ICoordinateConvention`契約
+
+- Confidence: High
+- Evidence:
+  - src/CSharpGameEngine.Spatial.Abstractions/RufVector.cs、XyzVector.cs、ICoordinateConvention.cs、
+    CoordinateBasisValidator.cs、UnitConversion.cs、Spatial.cs
+  - tests/CSharpGameEngine.Spatial.Tests/BasisTests.cs、CoordinateBasisValidatorTests.cs、
+    UnitConversionTests.cs、ImportAxisConversionTests.cs、DeterminismTests.cs
+- Observed behavior:
+  - `RufVector`/`XyzVector`はblittable・unmanagedで、`XyzVector`→`Vector3`は`explicit`演算子のみ。
+  - `CoordinateBasisValidator`は非有限値・非単位長・非直交をそれぞれ検出するが、重複軸専用の
+    チェックは直交性チェックが先に走るため到達不能(重複軸同士の内積は必ず1になるため)。
+  - `UnitConversion`のスカラー変換は`ICoordinateConvention`の軸変換と可換(順序を入れ替えても
+    結果が変わらない)ことを実測確認した。
+- Intended behavior:
+  - Docs/Specifications/Spatial-RUF.md「RUFは意味座標であり、XYZは物理配置である」
+    「Performance原則」「未確定事項」節と同一。
+- Result: MatchesWithDocumentedExtension(重複軸チェックの到達不能性は意図した設計ではなく
+  既存コードの副次的な挙動だが、エラーにはなるため完了条件自体は満たしている。
+  ADR-0025・Spatial-RUF.mdの両方に明記済み)
+
+### RE-L1-002 — `RufQuaternion`/`ITransformConvention`/`StandardTransformConvention`
+
+- Confidence: High
+- Evidence:
+  - src/CSharpGameEngine.Spatial.Abstractions/RufQuaternion.cs、ITransformConvention.cs、
+    StandardTransformConvention.cs
+  - tests/CSharpGameEngine.Spatial.Tests/RufQuaternionTests.cs、TransformConventionTests.cs
+- Observed behavior:
+  - `StandardTransformConvention.Compose`はScale→Rotation→Translationの順(row-vector規約)。
+    `Combine`は`local*parentWorld`(child-then-parent)。`TransformNormal`は逆転置行列を使う
+    独立実装で、非一様スケール下でも法線が変換後の面に垂直なまま保たれる。
+  - `RufQuaternion.operator *`は`parent*child`で「childを先、parentを後」に適用する合成。
+    `LookRotation`はForward/Up平行時に決定的フォールバックへ切り替わりNaNを生成しない。
+- Intended behavior:
+  - Docs/Specifications/Spatial-RUF.md「Transform／Matrix Conventionとの分離」
+    「Quaternion仕様」節と同一。
+- Result: Matches
+
+### RE-L1-003 — Unity/Unreal/Blenderの具体的Convention実装
+
+- Confidence: High
+- Evidence:
+  - src/CSharpGameEngine.Spatial.Unity/UnityCoordinateConvention.cs、
+    src/CSharpGameEngine.Spatial.Unreal/UnrealCoordinateConvention.cs、
+    src/CSharpGameEngine.Spatial.Blender/BlenderWorldConvention.cs
+  - tests/CSharpGameEngine.Spatial.Tests/BasisTests.cs、RoundTripTests.cs、HandednessTests.cs
+  - samples/SpatialPresetDemoの実行結果(Docs/Decisions/ADR-0025-RUF-Semantic-Coordinates.md参照)
+- Observed behavior:
+  - 3実装とも成分の固定並べ替えのみ。Preset別に`samples/SpatialPresetDemo`を実行し、Forward軸の
+    物理XYZ値が仕様書のGolden Values(Unity=(0,0,1)、Unreal=(1,0,0)、Blender=(0,1,0))と
+    完全一致することを実測した。
+  - LeftHandedなUnity/Unrealは`Cross(Right,Up)==Forward`、RightHandedなBlenderは
+    `Cross(Right,Up)==Backward`になることを確認した。
+- Intended behavior:
+  - Docs/RUF-Semantic-Coordinate-Specification-Prompt.md「Golden Values」節と同一。
+- Result: Matches
+
+### RE-L1-004 — コンパイル時Preset選択(`SpatialPresetSelection.props`)
+
+- Confidence: High
+- Evidence:
+  - src/CSharpGameEngine.Spatial.Abstractions/SpatialPresetSelection.props
+  - samples/SpatialPresetDemo/ProjectSpatial.cs、Program.cs
+  - Docs/Decisions/ADR-0025-RUF-Semantic-Coordinates.md「検証結果」節の実行コマンドと結果
+- Observed behavior:
+  - `SpatialPreset`未指定・未知の値のいずれも`ValidateSpatialPresetSelection`ターゲットで
+    Build Errorになることを実際のコマンド実行で確認した。
+  - `samples/SpatialPresetDemo`を`CSharpGameEngine.slnx`へ登録すると、`SpatialPreset`未指定で
+    ソリューション全体の`dotnet build`が失敗することを確認したため、意図的に未登録とした。
+- Intended behavior:
+  - Docs/RUF-Semantic-Coordinate-Specification-Prompt.md「コンパイル時プリセット選択」の
+    保証事項(0件選択・複数選択をBuild Errorにする)と同一。
+- Result: MatchesWithDocumentedExtension(`samples/SpatialPresetDemo`をslnx未登録にした判断は
+  意図した設計上の差異であり、ADR-0025に明記済み)
+
+### RE-L2-003 — `CameraBasis`/`DirectionalLightBasis`/`SpotLightBasis`
+
+- Confidence: High
+- Evidence:
+  - src/CSharpGameEngine.Spatial.Abstractions/CameraBasis.cs、DirectionalLightBasis.cs、
+    SpotLightBasis.cs
+  - tests/CSharpGameEngine.Spatial.Tests/CameraBasisTests.cs、LightBasisTests.cs
+- Observed behavior:
+  - `CameraBasis`のコンストラクタは`Forward`のみ正規化し`Up`はそのまま保持する。
+  - `DirectionalLightBasis`/`SpotLightBasis`の`DirectionToLight`は常に`-Forward`。
+  - 既存`CSharpGameEngine.Graphics.D3D12.Camera`とは未接続(このマイルストーンの対象外)。
+- Intended behavior:
+  - Docs/RUF-Semantic-Coordinate-Specification-Prompt.md「Object Basis」節と同一。
+- Result: Matches
+
+### RE-L0-001 — `Camera`のRUF内部実装統合
+
+- Confidence: High
+- Evidence:
+  - src/CSharpGameEngine.Graphics.D3D12/Camera.cs
+  - tests/CSharpGameEngine.Graphics.D3D12.Tests/CameraTests.cs(既存60件、シャドウテスト2件含む)
+- Observed behavior:
+  - `GetFlatRight()`は`Spatial<UnityCoordinateConvention>.RightFromUpForward`経由になり、
+    旧`Cross(Vector3.UnitY,flatForward)`式とビット単位で一致することを実測確認した。
+  - `GetForward`/`GetFlatForward`は`RufQuaternion`合成(Pitch軸は`RufVector.Left`)になり、
+    旧手書き三角関数式とYaw/Pitch広範囲で`1e-4`許容誤差内に一致することを実測確認した。
+  - `GetView`/`GetProjection`自体は無改修(D3Dビュー/クリップ空間規約はRUF未契約のまま)。
+- Intended behavior:
+  - Docs/Decisions/ADR-0026-Camera-Geometry-Ruf-Integration.md「Camera.cs」節と同一。
+- Result: Matches
+
+### RE-L2-002 — `ProceduralMeshFactory`のRUF内部実装統合
+
+- Confidence: High
+- Evidence:
+  - src/CSharpGameEngine.Geometry/ProceduralMeshFactory.cs
+  - tests/CSharpGameEngine.Geometry.Tests/ProceduralMeshFactoryTests.cs(既存30件、無改修)
+- Observed behavior:
+  - 全8プリミティブの頂点/法線計算が`RufVector`ベースになり、出力直前の
+    `Spatial<UnityCoordinateConvention>.ToXyz`(恒等写像)により既存30件のテスト
+    (法線の厳密一致チェック含む)が無改修のまま成功することを実測確認した。
+- Intended behavior:
+  - Docs/Decisions/ADR-0026-Camera-Geometry-Ruf-Integration.md「ProceduralMeshFactory.cs」節と同一。
+- Result: Matches
+
+### RE-L0-006 — `Camera.BuildViewMatrix`共有ヘルパー
+
+- Confidence: High
+- Evidence:
+  - src/CSharpGameEngine.Graphics.D3D12/Camera.cs、ModelRenderer.cs
+- Observed behavior:
+  - `Matrix4x4.CreateLookAt`への薄い委譲。`Camera.GetView`と`ModelRenderer`独自のバウンディング
+    スフィア自動フィットeye計算の両方から呼ばれ、以前は2箇所独立していたLookAt構築を統一した。
+- Intended behavior:
+  - Docs/Decisions/ADR-0026-Camera-Geometry-Ruf-Integration.md「ModelRenderer.cs」節と同一。
+- Result: Matches
+
+### RE-L1-005 — `GltfCoordinateConvention` / RE-L1-006 — `FbxCoordinateConvention`
+
+- Confidence: High
+- Evidence:
+  - src/CSharpGameEngine.Spatial.Gltf/GltfCoordinateConvention.cs、
+    src/CSharpGameEngine.Spatial.Fbx/FbxCoordinateConvention.cs
+  - tests/CSharpGameEngine.Spatial.Tests/BasisTests.cs、RoundTripTests.cs、HandednessTests.cs
+- Observed behavior:
+  - 両方ともR=+X,U=+Y,F=-Z,RightHanded(数値的に同一定義だが独立した型)。Golden Value・
+    RoundTrip・Handedness(`Cross(Right,Up)==Backward`)をいずれも実測確認した。
+- Intended behavior:
+  - Docs/Decisions/ADR-0027-Gltf-Fbx-Import-Axis-Conversion.md「Convention新設」節と同一。
+- Result: Matches
+
+### RE-L0-005 — `GltfImporter.ImportScene`の軸変換
+
+- Confidence: High
+- Evidence:
+  - src/CSharpGameEngine.Import.Gltf/GltfAxisConversion.cs、GltfImporter.cs、
+    ImportedLightDirection.cs
+  - tests/CSharpGameEngine.Import.Gltf.Tests/GltfImporterSceneTests.cs(既存18件+Z非ゼロ新規2件)
+- Observed behavior:
+  - Translation/Rotation(ミラー行列共役変換)/メッシュローカル頂点/Tangent/Windingが変換され、
+    `ImportScene`の公開API出力は全てエンジン(`UnityCoordinateConvention`)空間になる。
+    既存fixtureのZ成分がたまたま0のため検知できなかった既存2テストとは別に、Z非ゼロの
+    新規fixtureで変換の実効性を実測確認した。
+- Intended behavior:
+  - Docs/Decisions/ADR-0027-Gltf-Fbx-Import-Axis-Conversion.md「GltfImporter.ImportScene」節と同一。
+- Result: Matches
+
+### RE-L9-003 — `SceneLoader`の軸変換・重複解消
+
+- Confidence: High
+- Evidence:
+  - UserGameProject/SceneLoader.cs
+  - tests/UserGameProject.Tests/SceneLoaderTests.cs(期待値更新3箇所)
+- Observed behavior:
+  - PlayerStart(`scene_meta.json`、既にUE→glTF変換済みの値)にも`GltfAxisConversion.
+    ConvertWorldTransform`と同じ経路を適用し、位置Z成分とYaw角(純Y軸回転、共役変換により
+    符号反転)の両方が変換されることを実測確認した。ライト方向の独自`-Vector3.UnitZ`実装は
+    `ImportedLightDirection.WorldForward`呼び出しに置き換えた。
+  - `dotnet run --project UserGameProject`を実行し15秒以上クラッシュしないこと、
+    スクリーンショットで空・床・グリッド壁が破綻なく描画されることを確認した。
+- Intended behavior:
+  - Docs/Decisions/ADR-0027-Gltf-Fbx-Import-Axis-Conversion.md「SceneLoader.cs」節と同一。
+- Result: MatchesWithDocumentedExtension(変更前との比較スクリーンショットが無いため、鏡像に
+  なっていないか等の完全な視覚的確証はユーザー自身の実機確認が必要と明記済み)
+
+### RE-L9-004 — `PlayerControlSystem`/`CameraSystem`のRUF境界配置
+
+- Confidence: High
+- Evidence:
+  - UserGameProject/Systems/PlayerControlSystem.cs、CameraSystem.cs
+  - tests/UserGameProject.Tests/PlayerControlSystemTests.cs(既存、無改修)
+- Observed behavior:
+  - flatForward/flatRight/身体の向きQuaternion/EyeHeight加算が`RufVector`/`RufQuaternion`経由に
+    なった。ECSコンポーネント(バラfloatフィールド)は無改修。`UnityCoordinateConvention`が
+    恒等写像のため既存テストが無改修のまま成功することを実測確認した。
+- Intended behavior:
+  - Docs/Decisions/ADR-0028-Ecs-Gameplay-Ruf-Boundary.md「決定事項」節と同一。
 - Result: Matches

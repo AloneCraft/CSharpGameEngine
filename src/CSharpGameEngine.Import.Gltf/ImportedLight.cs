@@ -11,9 +11,11 @@ public enum ImportedLightType
 
 /// <summary>
 /// A KHR_lights_punctual light definition. Direction is not stored here - it is derived from the
-/// owning <see cref="ImportedSceneNode.WorldTransform"/> (a punctual light always points along its
-/// node's local -Z axis, per the KHR_lights_punctual spec), so callers compute world-space
-/// direction as <c>Vector3.TransformNormal(-Vector3.UnitZ, node.WorldTransform)</c>.
+/// owning <see cref="ImportedSceneNode.WorldTransform"/> via <see cref="ImportedLightDirection.WorldForward"/>.
+/// A punctual light points along its node's local -Z axis per the KHR_lights_punctual spec, but
+/// <see cref="ImportedSceneNode.WorldTransform"/> is already converted into this engine's own
+/// (Unity-compatible) space by the time it leaves <see cref="GltfImporter"/> (ADR-0027), where local
+/// Forward is <c>+Z</c>, not glTF's own local <c>-Z</c> - do not apply <c>-Vector3.UnitZ</c> directly.
 /// </summary>
 public sealed class ImportedLight
 {
