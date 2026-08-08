@@ -7,11 +7,16 @@
 既存機能(ADR-0001〜ADR-0023相当)への遡及的なBackfillは行っていない
 (`Docs/Implementation-Status.md`がADR-0014から遡及なしで開始した前例に倣う)。ADR-0025
 (RUFセマンティック座標系)分、ADR-0026/ADR-0027/ADR-0028(Renderer/Import/ECS内部へのRUF全面統合、
-M0008)分をこのファイルの末尾に追加した。
+M0008)分をこのファイルの末尾に追加した。ADR-0029(動的Archetype SoA ECSへの全面移行、M0009)で
+`CSharpGameEngine.Ecs`/`CSharpGameEngine.Generation.Abstractions`関連の既存エントリを
+`ObsoleteSpecification`へ更新し、末尾にRE-L3-007〜010・RE-L7-009〜011・RE-L9-005を追加した。
+ADR-0030(C#コードをSceneの唯一の正本とするScene Authoring Phase A、M0010)で末尾に
+RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinition]`クラスの
+コンテキストメニュー3Dプレビュー、M0011)で末尾にRE-L7-014・RE-L8-009・RE-L9-007を追加した。
 
 ---
 
-### RE-L3-005 — `AosEntityStore<TRow>` / `EntityAllocator`
+### RE-L3-005 — `AosEntityStore<TRow>` / `EntityAllocator`(削除済み、ADR-0029/M0009)
 
 - Confidence: High
 - Evidence:
@@ -26,9 +31,10 @@ M0008)分をこのファイルの末尾に追加した。
 - Intended behavior:
   - Docs/Specifications/Generated-Entity-Storage.md「AoSの正本」「Entity・Generation・
     Locationの分離」節と同一。
-- Result: Matches
+- Result: ObsoleteSpecification(ADR-0029/M0009でSoA一本化に伴い削除。後継はF-L3-007の
+  `CSharpGameEngine.Entities.Entity`/`World`、RE-L3-007参照)
 
-### RE-L3-006 — `World.TryGetArchetypeChunk<T>` / `ArchetypeChunk`
+### RE-L3-006 — `World.TryGetArchetypeChunk<T>` / `ArchetypeChunk`(削除済み、ADR-0029/M0009)
 
 - Confidence: High
 - Evidence:
@@ -44,10 +50,11 @@ M0008)分をこのファイルの末尾に追加した。
   - Docs/Specifications/Generated-Entity-Storage.md「SoAの正本」節と同一。見本
     (`AosSoaGeneratedExpansion.SingleFile.cs`)の`ChunkCapacity`ベースの物理的な複数Chunk
     生成は、ADR-0024で単一Chunk方式へ意図的に置き換えている。
-- Result: MatchesWithDocumentedExtension(単一Chunk方式は意図した設計上の差異であり、
-  ADR-0024・本Implementation-Statusの両方に明記済み)
+- Result: ObsoleteSpecification(単一Chunk方式自体はADR-0024で意図した設計だったが、
+  Chunk/Query機構全体がADR-0029/M0009でSoA一本化に伴い削除。後継はF-L3-007〜009、
+  RE-L3-007〜009参照)
 
-### RE-L7-006 — `CSharpGameEngine.Generation.Abstractions`
+### RE-L7-006 — `CSharpGameEngine.Generation.Abstractions`(削除済み、ADR-0029/M0009)
 
 - Confidence: High
 - Evidence:
@@ -59,9 +66,10 @@ M0008)分をこのファイルの末尾に追加した。
 - Intended behavior:
   - ADR-0024「`CSharpGameEngine.Generation.Abstractions`を新設し、`EntityGenerationSettings`は
     同梱しない」節と同一。
-- Result: Matches
+- Result: ObsoleteSpecification(ADR-0029/M0009で削除。`[GameSystem]`方式ではComponent型は
+  独立したstructで十分で、専用の属性契約アセンブリは不要になった)
 
-### RE-L7-007 — `GenerateEntityGenerator`: コンパイル時Backend選択とFacade統一
+### RE-L7-007 — `GenerateEntityGenerator`: コンパイル時Backend選択とFacade統一(削除済み、ADR-0029/M0009)
 
 - Confidence: High
 - Evidence:
@@ -84,9 +92,9 @@ M0008)分をこのファイルの末尾に追加した。
 - Intended behavior:
   - ADR-0024「公開Facadeを両Backendで統一する」「物理ストレージだけをコンパイル時に
     切り替える」「本番では選択Backendだけを生成する」「Runtime分岐を残さない」節と同一。
-- Result: Matches
+- Result: ObsoleteSpecification(ADR-0029/M0009で削除。後継はF-L7-009、RE-L7-009参照)
 
-### RE-L7-007 — `GenerateEntityGenerator`: `[Flags]`による1宣言からの両バックエンド生成
+### RE-L7-007 — `GenerateEntityGenerator`: `[Flags]`による1宣言からの両バックエンド生成(削除済み、ADR-0029/M0009)
 
 - Confidence: High
 - Evidence:
@@ -104,11 +112,10 @@ M0008)分をこのファイルの末尾に追加した。
 - Intended behavior:
   - ADR-0024「`EntityStorageKind`を`[Flags]`とし、両指定は比較・計測モードとする」節、
     およびDocs/Specifications/Generated-Entity-Storage.md「両指定(比較・計測モード)」節と同一。
-- Result: MatchesWithDocumentedExtension(両指定時にSoA側へFacadeが生成されないのは
-  C#の言語制約(partialプロパティの実装宣言は1つ、`_store`は具体クラス型)に起因する意図的な
-  非対称であり、ADR-0024・仕様書の双方に理由とともに明記済み)
+- Result: ObsoleteSpecification(ADR-0024当時の設計だった`[Flags]`による2バックエンド選択自体が
+  ADR-0029/M0009でSoA一本化に伴い削除された)
 
-### RE-L9-001 — Particle Entityベンチマークの実測挙動
+### RE-L9-001 — Particle Entityベンチマークの実測挙動(削除済み、ADR-0029/M0009)
 
 - Confidence: High
 - Evidence:
@@ -123,10 +130,11 @@ M0008)分をこのファイルの末尾に追加した。
   - ADR-0024「Hot loopにReflection/Dictionary検索/Location lookup/boxing/interface dispatchなし」
     「SoAはSpanまたは配列列を直接処理」「AoSはData row配列を直接処理」というコード構造上の保証。
     観測された性能特性はこの構造から予期されるとおりのもの。
-- Result: Matches(ただし数値は自前Stopwatchハーネスによる相対比較であり、統計的厳密さは
-  BenchmarkDotNetに劣ることをM0006に明記済み)
+- Result: ObsoleteSpecification(実測値自体はM0006に記録として残るが、AoS/SoA両バックエンドの
+  選択肢自体がSoA一本化(ADR-0029/M0009)で無くなったため、再実行可能な比較ベンチマークは
+  失われた。ユーザー確認済みの許容されたトレードオフ、ADR-0029参照)
 
-### RE-L7-008 — `GenerateEntityGenerator`診断(ENTGEN001〜015)
+### RE-L7-008 — `GenerateEntityGenerator`診断(ENTGEN001〜015、削除済み、ADR-0029/M0009)
 
 - Confidence: High
 - Evidence:
@@ -139,7 +147,8 @@ M0008)分をこのファイルの末尾に追加した。
   - 診断が1件でもある型は、その型のソース生成が完全にスキップされる。
 - Intended behavior:
   - Docs/Specifications/Generated-Entity-Storage.md「Diagnostic一覧」節と同一。
-- Result: Matches
+- Result: ObsoleteSpecification(ADR-0029/M0009で削除。後継はF-L7-011のSYSGEN001〜020、
+  RE-L7-011参照)
 
 ### RE-L1-001 — RUF/XYZセマンティック座標コア型と`ICoordinateConvention`契約
 
@@ -334,4 +343,254 @@ M0008)分をこのファイルの末尾に追加した。
     恒等写像のため既存テストが無改修のまま成功することを実測確認した。
 - Intended behavior:
   - Docs/Decisions/ADR-0028-Ecs-Gameplay-Ruf-Boundary.md「決定事項」節と同一。
+- Result: Matches
+
+### RE-L3-007 — `CSharpGameEngine.Entities`: 動的Archetype生成とノーリフレクション保証
+
+- Confidence: High
+- Evidence:
+  - src/CSharpGameEngine.Entities/ComponentType.cs、World.cs、Archetype.cs
+  - tests/CSharpGameEngine.Entities.Tests/ComponentTypeRegistrySpec.cs、ArchetypeSpec.cs、
+    WorldSpec.cs
+- Observed behavior:
+  - Archetypeは`World.GetOrCreateArchetype`が実行時のComponent集合から動的生成し、
+    append-onlyのリストで管理される。`ComponentType<T>.Id`の静的初期化時に登録される
+    ファクトリデリゲート配列により、動的生成であっても`MakeGenericType`等のReflectionを
+    一度も呼ばないことをコードレビューおよびテストで確認した。
+- Intended behavior:
+  - 依頼文の「Archetypeは実行時のComponent集合によって決まる」「ReflectionやType
+    Dictionaryによる検索をホットループに入れない」、Docs/Specifications/Ecs-Soa-Systems.md
+    「動的Archetype生成」節と同一。
+- Result: Matches
+
+### RE-L3-008 — 構造変更の安全性(コールドパス限定のDictionary、Span無効化対策)
+
+- Confidence: High
+- Evidence:
+  - src/CSharpGameEngine.Entities/World.cs、Archetype.cs
+  - tests/CSharpGameEngine.Entities.Tests/StructuralChangeSpec.cs
+- Observed behavior:
+  - Component追加・削除の即時APIは`internal`であり、外部(`[Update]`メソッド)からは
+    `EntityCommandBuffer`経由でしか到達できない。Add/Removeエッジキャッシュの
+    `Dictionary<int, Archetype>`は`Playback`時(コールドパス)にのみ参照される。
+- Intended behavior:
+  - 依頼文の「構造変更はCommand Buffer経由で安全な地点にまとめて適用する」
+  - Docs/Specifications/Ecs-Soa-Systems.md「構造変更」節と同一。
+- Result: Matches
+
+### RE-L3-009 — `EntityQuery`のQueryキャッシュ差分更新
+
+- Confidence: High
+- Evidence:
+  - src/CSharpGameEngine.Entities/EntityQuery.cs
+  - samples/SoaSystemsDemo/DemoScenario.cs(実行時シナリオ)
+- Observed behavior:
+  - `samples/SoaSystemsDemo`のシナリオで、既に1回`Update`済みのQueryが、フレーム間に新規生成
+    されたArchetypeをその後のフレームで正しく検出することを実測した(`dotnet run`で"OK"を確認)。
+    新Archetypeが生まれていないフレームは`int`比較のみで完了する構造であることをコードで確認した。
+- Intended behavior:
+  - 依頼文の「新しいArchetypeが生成されたときだけQuery Cacheを更新する」、
+    Docs/Specifications/Ecs-Soa-Systems.md「EntityQuery」節と同一。
+- Result: Matches
+
+### RE-L3-010 — `EntityCommandBuffer`のPlaybackタイミング
+
+- Confidence: High
+- Evidence:
+  - src/CSharpGameEngine.Entities/EntityCommandBuffer.cs
+  - src/CSharpGameEngine.CodeAnalysis/GameSystemLoopEmitter.cs(`world.Commands.Playback(world)`
+    をループ末尾に生成)
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorEndToEndTests.cs
+    (`Commands_StructuralChangesApplyOnlyAfterPlaybackAtEndOfGeneratedLoop`)
+- Observed behavior:
+  - 行ループ中に`commands.Add<T>`を積んでも、`GeneratedGameLoop.Update`が最後に
+    `world.Commands.Playback(world)`を呼ぶまでArchetypeは変わらないことを実測確認した。
+- Intended behavior:
+  - 依頼文の「構造変更はCommand Buffer経由で安全な地点にまとめて適用する」と同一。
+- Result: Matches
+
+### RE-L7-009 — `GameSystemGenerator`: 引数からのQuery/Read-Write推論
+
+- Confidence: High
+- Evidence:
+  - src/CSharpGameEngine.CodeAnalysis/GameSystemAnalyzer.cs、GameSystemExecutorEmitter.cs
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorEmissionTests.cs、
+    GameSystemGeneratorEndToEndTests.cs
+- Observed behavior:
+  - `ref X`→Write、`in X`→Read、フィールド0のタグ型はQuery条件のみで列を持たない、という
+    推論規則が実際に生成されるコードとテキストレベル・実行時レベルの両方で一致することを
+    確認した。生成された`Execute`メソッドの行ループ内に`typeof(`/`Has<`/`Dictionary`等が
+    一切現れないことをテストでassertしている。
+- Intended behavior:
+  - 依頼文の「処理メソッドの引数からQuery条件とRead/Writeアクセスを推論する」
+    「ホットループ内ではComponent有無の判定を行わない」、
+    Docs/Specifications/Ecs-Soa-Systems.md「推論規則」節と同一。
+- Result: Matches
+
+### RE-L7-010 — `GameSystemScheduler`: Write→Read依存順序と循環時のフォールバック
+
+- Confidence: High
+- Evidence:
+  - src/CSharpGameEngine.CodeAnalysis/GameSystemScheduler.cs、GameSystemLoopEmitter.cs
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorEmissionTests.cs、
+    GameSystemGeneratorDiagnosticsTests.cs
+- Observed behavior:
+  - Write側メソッドが宣言順・クラス名Ordinal順では後であっても、Read側より先に実行される
+    ことをテストで確認した(依存関係が宣言順を上書きする実例)。循環依存を持つ2メソッド対で
+    SYSGEN019が報告されつつ、`GeneratedGameLoop.g.cs`自体はbaseline順で出力され続けることも
+    確認した。
+- Intended behavior:
+  - 依頼文の「各処理メソッドを独立した実行単位として扱う」、ユーザー回答「実行順序の決定のみ
+    (単一スレッド)」、Docs/Specifications/Ecs-Soa-Systems.md「実行順序」節と同一。
+- Result: Matches
+
+### RE-L7-011 — `GameSystemGenerator`診断(SYSGEN001〜020)
+
+- Confidence: High
+- Evidence:
+  - src/CSharpGameEngine.CodeAnalysis/GameSystemDiagnostics.cs、AnalyzerReleases.Unshipped.md
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorDiagnosticsTests.cs
+- Observed behavior:
+  - `SYSGEN001`〜`020`の20件それぞれが対象コードで報告され、正しい`[GameSystem]`クラスでは
+    いずれも報告されないことを確認した。診断が1件でもあるクラスは、そのクラス分のExecutor
+    生成が完全にスキップされる。
+- Intended behavior:
+  - Docs/Specifications/Ecs-Soa-Systems.md「診断一覧」節と同一。
+- Result: Matches
+
+### RE-L9-005 — UserGameProjectの`GameSystemGenerator`移行後の実機描画・移動
+
+- Confidence: High
+- Evidence:
+  - UserGameProject/Components.cs、Systems/*.cs、Program.cs
+  - tests/UserGameProject.Tests/PlayerControlSystemTests.cs(新API向けに書き換え)
+- Observed behavior:
+  - `dotnet run --project UserGameProject`を実行し、シミュレートしたキー入力(W前進)で
+    プレイヤーが実際に移動した後のスクリーンショットで、空・タイル張りの床・PBRシェーディング
+    された影付きプロップが破綻なく描画されることを確認した。マウスルック自体は、リモート
+    スクリーンショット取得ツール(`SetForegroundWindow`)がフォーカス喪失後の再取得時に
+    `Win32Window`の`ClipCursor`/`GetCursorPos`へ大きな一回限りのデルタを与えてしまう
+    (このセッションで新たに発見した、ECS移行とは無関係な既存の入力バグ)ため、この確認では
+    `SetMouseCaptured(true)`を一時的にコメントアウトして検証し、確認後に元へ戻した。
+  - (2026-08-05追記)上記のバグ自体を`Win32Window.cs`で修正した(F-L0-004参照)。修正後、
+    同一の`SetForegroundWindow`連打シナリオを再現し、以前は毎回Pitchが極端な角度まで飛んで
+    いたのに対し、修正後は2回連続で水平な視点のまま安定することをスクリーンショットで確認した。
+- Intended behavior:
+  - Docs/Decisions/ADR-0029-Dynamic-Archetype-Soa-Ecs.md「UserGameProjectの移行」節と同一。
+- Result: Matches(マウスルックの自動検証も含め、既知の乖離は無い)
+
+### RE-L3-011 — Scene Authoring基盤型(`Parent`/`SceneNodeTag`/`SceneNodeId`)
+
+- Confidence: High
+- Evidence:
+  - src/CSharpGameEngine.Entities/Parent.cs、SceneNodeTag.cs、SceneNodeId.cs
+  - tests/CSharpGameEngine.Entities.Tests/SceneAuthoringSpec.cs
+- Observed behavior:
+  - `Parent`/`SceneNodeTag`は他Componentと同じ`World.CreateArchetype<T1..T8>`+`GetRef<T>`経路で
+    問題なく扱えることを単体テストで確認した。`SceneNodeId`/`SceneNodeSymbol`は値ベースの
+    `record struct`として期待どおり等価性比較できる。
+- Intended behavior:
+  - Docs/Decisions/ADR-0030-Scene-Authoring-CSharp-Source-Of-Truth.md「決定事項4・8」と同一。
+- Result: Matches
+
+### RE-L7-012 — `SceneDefinitionGenerator`: Createの構文的レシーバー検証とRuntime生成
+
+- Confidence: High
+- Evidence:
+  - src/CSharpGameEngine.CodeAnalysis/SceneDefinitionAnalyzer.cs、SceneRuntimeEmitter.cs
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDefinitionGeneratorEndToEndTests.cs、
+    SceneDefinitionGeneratorEmissionTests.cs
+- Observed behavior:
+  - `CompileAndLoad`で実際にコンパイル・実行し、`CreateRuntime`が構築した`World`上でRoot→
+    MainCamera/Playerの`Parent`関係とComponent値が、`Define`本体に書いたとおりであることを
+    確認した。生成コードのテキストが2回の独立実行で完全に一致すること(決定性)も確認した。
+- Intended behavior:
+  - 依頼文の「Reflection・ラムダ式の解析・SceneBuilderの動的解釈を行わない」、
+    Docs/Decisions/ADR-0030-Scene-Authoring-CSharp-Source-Of-Truth.md「決定事項5・7」と同一。
+- Result: Matches
+
+### RE-L7-013 — `SceneDefinitionGenerator`診断(SCENE001〜009)と診断ゲート
+
+- Confidence: High
+- Evidence:
+  - src/CSharpGameEngine.CodeAnalysis/SceneDefinitionDiagnostics.cs、AnalyzerReleases.Unshipped.md
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDefinitionGeneratorDiagnosticsTests.cs
+- Observed behavior:
+  - `SCENE001`〜`009`の9件それぞれが対象コードで報告され、正しい`[SceneDefinition]`クラスでは
+    いずれも報告されないことを確認した。診断が1件でもあるクラスは、そのクラス分の
+    SceneNodeSymbol実装/CreateRuntime生成が完全にスキップされる。
+- Intended behavior:
+  - Docs/Decisions/ADR-0030-Scene-Authoring-CSharp-Source-Of-Truth.md「決定事項6」と同一。
+- Result: Matches
+
+### RE-L9-006 — `samples/SceneAuthoringDemo`の実行時Entity階層構築
+
+- Confidence: High
+- Evidence:
+  - samples/SceneAuthoringDemo/MainScene.cs、DemoScenario.cs
+  - samples/SceneAuthoringDemo/Generated/.../SceneAuthoringDemo.MainScene.SceneRuntime.g.cs
+    (`EmitCompilerGeneratedFiles`により実ファイルとして確認可能)
+- Observed behavior:
+  - `dotnet run --project samples/SceneAuthoringDemo`を実行し"OK"を確認した。生成された
+    `SceneRuntime.g.cs`を直接読み、Rootが`SceneNodeTag`のみのArchetypeで構築され、MainCamera/
+    Playerがそれぞれ`Position`/`Rotation`/`Scale`/固有Component+`Parent`のArchetypeで構築され、
+    `Parent`の初期化式が`Value = Root`(親のローカル変数をそのまま参照)になっていることを
+    目視でも確認した。
+- Intended behavior:
+  - `samples/SoaSystemsDemo/シーン構築見本.cs`のRoot/MainCamera/Player構成
+    (`LocalTransform`ではなく`Position`/`Rotation`/`Scale`の3分割Setに置き換えた点を除く)と同一。
+- Result: Matches
+
+### RE-L7-014 — `CSharpGameEngine.SceneAuthoring.Cli`: 実行ベースの汎用World走査
+
+- Confidence: High
+- Evidence:
+  - tools/CSharpGameEngine.SceneAuthoring.Cli/SceneRuntimeInvoker.cs、WorldInspector.cs
+  - tests/CSharpGameEngine.SceneAuthoring.Cli.Tests/SceneRuntimeInvokerTests.cs、
+    WorldInspectorTests.cs
+- Observed behavior:
+  - `samples/SceneAuthoringDemo`の実ビルド出力に対し、`SceneRuntimeInvoker.Invoke`で
+    `CreateRuntime`を実際にReflection実行し、`WorldInspector.Inspect`で得たノード値
+    (Root/MainCamera/Player、`MainCamera.Position == [0,2,-10]`等)が`MainScene.cs`のソースと
+    完全一致することをテストと`dotnet run`による手動実行の両方で確認した。
+    `UserGameProject/Scene1.cs`(`net10.0-windows10.0.19041.0`+`win-x64`という非標準TFM)に
+    対しても同様に実行し、6ノード全ての階層・値が一致することを確認した。
+- Intended behavior:
+  - Docs/Decisions/ADR-0031-Scene-Definition-3D-Preview.md「決定事項3」と同一
+    (テキスト解析ではなく実行して値を得る、という設計判断どおり)。
+- Result: Matches
+
+### RE-L8-009 — Scene Definition 3Dプレビュー: 既存シーンプレビュー基盤の再利用とギズモフォールバック
+
+- Confidence: High
+- Evidence:
+  - tools/CSharpGameEngine.VSExtension/PreviewSceneDefinitionCommand.cs、SceneHwndHost.cs、
+    GizmoMeshFactory.cs
+  - tests/CSharpGameEngine.VSExtension.Tests/GizmoMeshFactoryTests.cs、
+    ExternalScenePreviewLoaderTests.cs
+- Observed behavior:
+  - `ExternalScenePreviewLoaderTests`が実際にブリッジサブプロセスを起動し、
+    `samples/SceneAuthoringDemo`向けの応答が正しいことを(VSを起動せずに)確認した。
+    `GizmoMeshFactoryTests`で生成されるプレースホルダー立方体が24頂点/36インデックス・
+    単位法線・非退化三角形であることを確認した。`.vsct`のビルドで`IDM_VS_CTXT_CODEWIN`/
+    `DynamicVisibility`とも初回でエラー無く解決されることを確認した。
+- Intended behavior:
+  - Docs/Decisions/ADR-0031-Scene-Definition-3D-Preview.md「決定事項1・4・5」と同一。
+- Result: Matches(実機VS Experimental Instanceでの目視確認はユーザー側の確認待ち)
+
+### RE-L9-007 — `UserGameProject/Scene1.cs`の実行時Entity階層構築
+
+- Confidence: High
+- Evidence:
+  - UserGameProject/Scene1.cs
+  - UserGameProject/Generated/.../UserGameProject.Scene1.SceneRuntime.g.cs
+    (`EmitCompilerGeneratedFiles`により実ファイルとして確認可能)
+- Observed behavior:
+  - 生成された`Scene1.SceneRuntime.g.cs`を直接読み、Root→MainCamera/Player/Lighting、
+    Lighting→Sun/Ambientという3階層6ノードの`CreateArchetype`型引数・`GetRef`代入・`Parent`の
+    自動付与がDefine本体のとおりであることを確認した。ブリッジCLIを実際のビルド済みdllに対して
+    実行し、応答JSONが同じ階層・値と完全一致することも確認した(RE-L7-014参照)。
+- Intended behavior:
+  - `UserGameProject/Components.cs`の既存型構成、Docs/Decisions/ADR-0031-Scene-Definition-3D-Preview.md
+    と同一。
 - Result: Matches

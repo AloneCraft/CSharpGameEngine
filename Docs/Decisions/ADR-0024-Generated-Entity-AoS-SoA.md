@@ -1,7 +1,10 @@
 # ADR-0024: Generated Entity Source Generator(AoS / ECS SoA)
 
 ## ステータス
-承認済み
+Superseded by ADR-0029(動的Archetype SoA ECSへの全面移行、M0009)。本ADRが導入した
+`CSharpGameEngine.Generation.Abstractions`/`GenerateEntityGenerator`(AoS/SoA選択生成)は
+削除済み。SoA一本化に伴い、本ADR・M0006が記録していたAoS-vs-SoA比較ベンチマークは
+再実行不能になった(実測値自体はM0006に記録として残る)。
 
 ## 背景
 

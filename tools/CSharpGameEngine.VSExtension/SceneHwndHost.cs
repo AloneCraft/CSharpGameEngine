@@ -90,6 +90,13 @@ internal sealed class SceneHwndHost : HwndHost
                 .Select(node => (node, Path.GetFullPath(Path.Combine(sceneDirectory, node.MeshAssetPath!))))
                 .ToList();
 
+            // Nodes with no mesh reference (every node authored via [SceneDefinition] C# code,
+            // ADR-0031; also any hand-authored .scene node that simply has none) previously never
+            // reached SceneRenderer at all - silently invisible, or a hard ArgumentException if the
+            // whole scene had no mesh-bearing node. They now get a small placeholder gizmo cube
+            // instead, so a scene is always representable regardless of what it references.
+            List<SceneFileNode> gizmoNodes = [.. scene.Nodes.Where(node => node.MeshAssetPath is null)];
+
             // MeshLoader caches by path (process-lifetime), so warming distinct paths in parallel
             // here means a scene with several different meshes pays the bridge-process cost once,
             // concurrently, instead of once per node, serially - the dominant cost when opening the
@@ -113,6 +120,16 @@ internal sealed class SceneHwndHost : HwndHost
                 renderObjects.Add(new SceneRenderObject
                 {
                     Mesh = MeshLoader.Load(absoluteMeshPath, repoRoot),
+                    World = worldTransforms[node.Id],
+                    NodeId = node.Id,
+                });
+            }
+
+            foreach (SceneFileNode node in gizmoNodes)
+            {
+                renderObjects.Add(new SceneRenderObject
+                {
+                    Mesh = GizmoMeshFactory.Create(),
                     World = worldTransforms[node.Id],
                     NodeId = node.Id,
                 });

@@ -1,53 +1,55 @@
 using System.Numerics;
+using CSharpGameEngine.Entities;
 using CSharpGameEngine.Graphics.D3D12;
 
 namespace UserGameProject.Systems;
 
-/// <summary>Pushes ECS transform/light/fog state into <see cref="StageRenderer"/> once per frame - the only system that consumes <see cref="RenderObjectRef"/> indices.</summary>
+/// <summary>
+/// Pushes ECS transform/camera/light/fog state into <see cref="StageRenderer"/> once per frame -
+/// the only system that consumes <see cref="RenderObjectRef"/> indices or writes to the renderer.
+/// <see cref="SyncProp"/> requires exactly Position+Rotation+Scale+RenderObjectRef, which both the
+/// static and movable stage-prop archetypes satisfy (MovableStageProp is a strict superset), so one
+/// method's Query naturally covers both - the old AoS-era code needed two near-identical overloads
+/// only because each hand-declared Archetype needed its own exact-shape collection.
+/// </summary>
+[GameSystem]
 public static class RenderSyncSystem
 {
-    public static void SyncProps(List<StageProp> props, StageRenderer renderer)
+    [Update]
+    public static void SyncProp(in Position position, in Rotation rotation, in Scale scale, in RenderObjectRef renderObjectRef, [Context] StageRenderer renderer)
     {
-        foreach (StageProp prop in props)
-        {
-            renderer.SetObjectTransform(prop.RenderObjectRef.Index, ComposeTransform(prop.Position, prop.Rotation, prop.Scale));
-        }
+        renderer.SetObjectTransform(renderObjectRef.Index, ComposeTransform(position, rotation, scale));
     }
 
-    public static void SyncMovableProps(List<MovableStageProp> props, StageRenderer renderer)
+    [Update]
+    public static void SyncCameraToRenderer(in Camera camera, in PlayerTag _, [Context] StageRenderer renderer)
     {
-        foreach (MovableStageProp prop in props)
-        {
-            renderer.SetObjectTransform(prop.RenderObjectRef.Index, ComposeTransform(prop.Position, prop.Rotation, prop.Scale));
-        }
+        renderer.SetCamera(camera);
     }
 
-    /// <summary>Applies the single sun/ambient/fog singleton found, if any (0 entities = "not configured, leave the renderer's current/default value alone").</summary>
-    public static void SyncLighting(List<SunLight> suns, List<AmbientLight> ambients, List<FogVolume> fogs, StageRenderer renderer)
+    /// <summary>Applies the single sun singleton, if any (0 matching entities = "not configured, leave the renderer's current/default value alone" - the same behavior the old code got from an explicit Count check, here it falls out of the Query matching zero rows).</summary>
+    [Update]
+    public static void SyncSunLight(in DirectionalLightData light, [Context] StageRenderer renderer)
     {
-        if (suns.Count > 0)
-        {
-            DirectionalLightData light = suns[0].DirectionalLightData;
-            renderer.SetDirectionalLight(
-                new Vector3(light.DirectionTowardLightX, light.DirectionTowardLightY, light.DirectionTowardLightZ),
-                new Vector3(light.ColorR, light.ColorG, light.ColorB),
-                light.Intensity);
-        }
-
-        if (ambients.Count > 0)
-        {
-            AmbientLightData ambient = ambients[0].AmbientLightData;
-            renderer.SetAmbientLight(new Vector3(ambient.ColorR, ambient.ColorG, ambient.ColorB));
-        }
-
-        if (fogs.Count > 0)
-        {
-            FogData fog = fogs[0].FogData;
-            renderer.SetFog(new FogParams(fog.Density, fog.HeightFalloff, new Vector3(fog.ColorR, fog.ColorG, fog.ColorB)));
-        }
+        renderer.SetDirectionalLight(
+            new Vector3(light.DirectionTowardLightX, light.DirectionTowardLightY, light.DirectionTowardLightZ),
+            new Vector3(light.ColorR, light.ColorG, light.ColorB),
+            light.Intensity);
     }
 
-    private static Matrix4x4 ComposeTransform(Position position, Rotation rotation, Scale scale)
+    [Update]
+    public static void SyncAmbientLight(in AmbientLightData ambient, [Context] StageRenderer renderer)
+    {
+        renderer.SetAmbientLight(new Vector3(ambient.ColorR, ambient.ColorG, ambient.ColorB));
+    }
+
+    [Update]
+    public static void SyncFog(in FogData fog, [Context] StageRenderer renderer)
+    {
+        renderer.SetFog(new FogParams(fog.Density, fog.HeightFalloff, new Vector3(fog.ColorR, fog.ColorG, fog.ColorB)));
+    }
+
+    private static Matrix4x4 ComposeTransform(in Position position, in Rotation rotation, in Scale scale)
     {
         Quaternion rotationQuaternion = new(rotation.X, rotation.Y, rotation.Z, rotation.W);
         return Matrix4x4.CreateScale(scale.X, scale.Y, scale.Z)

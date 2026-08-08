@@ -17,7 +17,19 @@
     <Platforms>AnyCPU;x64</Platforms>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>false</SelfContained>
+    <!-- Roslyn generator output (GameSystemGenerator's Executor/GeneratedGameLoop) normally stays
+         in-memory only, so it can't be opened as a file or hold a persistent breakpoint. Writing it
+         to disk lets Visual Studio set real breakpoints in the generated code for step-through
+         debugging. <Compile Remove> below stops the SDK's default globbing from also picking these
+         files up as a second, duplicate compile input (they're already part of the compilation via
+         the analyzer itself). -->
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <CompilerGeneratedFilesOutputPath>Generated</CompilerGeneratedFilesOutputPath>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Generated\**\*.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <!-- Represents the simulated end-user game project's asset tree in Solution Explorer. .meta
@@ -43,8 +55,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\src\CSharpGameEngine.Ecs\CSharpGameEngine.Ecs.csproj" />
-    <ProjectReference Include="..\src\CSharpGameEngine.Generation.Abstractions\CSharpGameEngine.Generation.Abstractions.csproj" />
+    <ProjectReference Include="..\src\CSharpGameEngine.Entities\CSharpGameEngine.Entities.csproj" />
     <ProjectReference Include="..\src\CSharpGameEngine.CodeAnalysis\CSharpGameEngine.CodeAnalysis.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\src\CSharpGameEngine.Platform.Windows\CSharpGameEngine.Platform.Windows.csproj" />
     <ProjectReference Include="..\src\CSharpGameEngine.Graphics.D3D12\CSharpGameEngine.Graphics.D3D12.csproj" />

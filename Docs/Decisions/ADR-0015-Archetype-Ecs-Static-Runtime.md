@@ -1,7 +1,9 @@
 # ADR-0015: アーキタイプ型ECS静的ランタイムと`EcsArchetypeGenerator`
 
 ## ステータス
-承認済み
+Superseded by ADR-0029(動的Archetype SoA ECSへの全面移行、M0009)。本ADRが導入した
+`CSharpGameEngine.Ecs`(`EcsArchetypeGenerator`含む)は削除済み。動的Add/Remove(構造変更)
+非対応という本ADRの既知の制約はADR-0029で解消された。
 
 ## 背景
 

@@ -136,6 +136,21 @@ ADR-0021で、VSを起動しただけでUnity風の3ペイン構成が出来上�
 }
 ```
 
+**追記(ADR-0030、Scene Authoring Phase A)**: 上記のJSON方式は本書執筆時点でも変更していない
+(このセクションの内容自体は現行のまま有効)。ただし、将来的にはC#コードそのものをSceneの正本と
+する方式へ置き換える前提で、`[SceneDefinition] static partial class`+`SceneDefinitionGenerator`
+という並行方式をPhase Aとして追加した。Phase Aは新しいAttribute/Component/Source Generatorと
+動作するサンプル(`samples/SceneAuthoringDemo`)のみで、本書が定めるJSON方式Hierarchy Docking
+Windowの編集フロー(本セクションおよび§5)にはまだ一切統合していない。詳細は
+[[ADR-0030-Scene-Authoring-CSharp-Source-Of-Truth]]および[[M0010-Scene-Authoring-Phase-A]]を参照。
+
+**追記2(ADR-0031)**: `[SceneDefinition]`クラスをコードエディタで開いた状態での右クリック
+「シーンプレビュー」が、実際に`CreateRuntime`を実行して得たEntity階層を、本セクションが定める
+`.scene`プレビュー基盤(§2の「シーン」ドキュメントタブ)へ一時的な合成`.scene`ファイルとして
+流し込む形で追加された。これもHierarchy Docking Windowの編集フローへの統合ではなく読み取り専用の
+プレビューであり、本セクションのJSONスキーマ自体への変更は無い。詳細は
+[[ADR-0031-Scene-Definition-3D-Preview]]および[[M0011-Scene-Definition-Preview]]を参照。
+
 ## 4. レイヤー対応(`Docs/Architecture.md` のL0〜L9との対応)
 
 - **新規プロジェクト `src/CSharpGameEngine.Scene`**(net10.0、L2/L3相当)を新設する。`Core`はピュアカーネルのまま変更しない。ここに `SceneNode` / `Transform` / `Scene`(木構造・JSONシリアライズ) / `GameScript` 基底クラス(`OnStart()` / `OnUpdate(float deltaTime)` の仮想メソッドを持つ)を置く。

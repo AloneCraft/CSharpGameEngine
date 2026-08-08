@@ -29,6 +29,7 @@ public sealed unsafe class Win32Window : IDisposable
     private readonly bool[] _keyDown = new bool[256];
     private bool _mouseCaptured;
     private POINT _capturedCenterScreenPoint;
+    private bool _skipNextMouseDelta;
 
     public event Action<int, int>? Resized;
 
@@ -147,6 +148,7 @@ public sealed unsafe class Win32Window : IDisposable
             _ = ShowCursor(FALSE);
             ClipCursorToClientArea();
             RecenterCursor();
+            _skipNextMouseDelta = true;
         }
         else
         {
@@ -159,6 +161,15 @@ public sealed unsafe class Win32Window : IDisposable
     /// Returns the cursor movement since the last call (0,0 when not captured), then re-centers
     /// the cursor so the next call measures only new movement. Call at most once per frame.
     /// </summary>
+    /// <remarks>
+    /// The very first call after (re)gaining capture - either from <see cref="SetMouseCaptured"/>
+    /// or from <c>WM_SETFOCUS</c> re-clipping after a focus loss - always reports (0,0) instead of
+    /// the raw delta. <c>ClipCursor</c> is silently released by the OS whenever this process loses
+    /// the foreground, so the cursor can end up anywhere on the desktop while unclipped; without
+    /// this guard, the next real cursor position read back against the stale pre-loss center would
+    /// be reported as one huge, spurious look-delta (observed in practice: it can snap a first- or
+    /// third-person camera's pitch straight to its clamp on Alt-Tab back into the window).
+    /// </remarks>
     public (float DeltaX, float DeltaY) ConsumeMouseDelta()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -178,6 +189,12 @@ public sealed unsafe class Win32Window : IDisposable
         float deltaY = current.y - _capturedCenterScreenPoint.y;
 
         RecenterCursor();
+
+        if (_skipNextMouseDelta)
+        {
+            _skipNextMouseDelta = false;
+            return (0f, 0f);
+        }
 
         return (deltaX, deltaY);
     }
@@ -307,6 +324,7 @@ public sealed unsafe class Win32Window : IDisposable
                     _ = ShowCursor(FALSE);
                     ClipCursorToClientArea();
                     RecenterCursor();
+                    _skipNextMouseDelta = true;
                 }
                 return DefWindowProcW(hwnd, msg, wParam, lParam);
 

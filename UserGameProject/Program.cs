@@ -1,30 +1,23 @@
 using System.Diagnostics;
 using System.Numerics;
-using CSharpGameEngine.Ecs;
+using CSharpGameEngine.Entities;
+using CSharpGameEngine.Generated;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Platform.Windows;
 using UserGameProject;
 using UserGameProject.Systems;
-using World = CSharpGameEngine.Ecs.World;
 
 // UE5.8 Lvl_FirstPerson stage port (M0004, ADR-0017/ADR-0018): SceneLoader turns the exported GLB
-// + scene_meta.json into StageRenderer inputs and a set of ECS spawns, then every frame's work -
+// + scene_meta.json into StageRenderer inputs and a set of ECS spawns. Every frame's ECS work -
 // input, player control, camera, movable-prop animation, and pushing transforms/lighting into the
-// renderer - runs as an explicit sequence of plain systems (Systems/*.cs). There is no scheduler;
-// call order here *is* the update order, following the same Window+Renderer+loop composition
-// already used by tools/CSharpGameEngine.Extension/Program.cs and the earlier ThirdPerson slice.
+// renderer - now runs as the single GeneratedGameLoop.Update call (ADR-0029): GameSystemGenerator
+// infers each [GameSystem] method's Query and Read/Write access from its ref/in parameters and
+// derives the call order from Write->Read component dependencies, so there is no hand-written
+// system call sequence left here (unlike the pre-migration loop this file used to have). Only
+// window pump / camera hookup / RenderFrame stay outside the ECS, since they are not per-entity
+// data.
 
 const string ProductDisplayName = "C# Game Engine";
-
-// ADR-0024 / M0006: `benchmark` サブコマンドは、1つの [GenerateEntity] 宣言から生成された
-// AoS/SoA 両バックエンドを同一プロセスで実測比較する。ウィンドウもレンダラーも要らないため、
-// ゲームループより手前で分岐して終了する(tools/CSharpGameEngine.TestHost の
-// self-test / triangle と同じ「動詞先頭のサブコマンド」規約に合わせている)。
-if (args.Length > 0 && string.Equals(args[0], "benchmark", StringComparison.OrdinalIgnoreCase))
-{
-    Environment.ExitCode = UserGameProject.Entities.ParticleStorageBenchmark.Run(args[1..]);
-    return;
-}
 
 string shaderPath = Path.Combine(AppContext.BaseDirectory, "Shaders", "Stage.hlsl");
 string glbPath = Path.Combine(AppContext.BaseDirectory, "Assets", "Stage", "Lvl_FirstPerson", "Lvl_FirstPerson.glb");
@@ -43,77 +36,59 @@ using Win32Window window = new(new Win32WindowOptions
 GraphicsDeviceOptions deviceOptions = new();
 
 using StageRenderer renderer = StageRenderer.Create(
-    window.Handle, window.ClientWidth, window.ClientHeight, deviceOptions, shaderPath,
-    scene.Meshes, scene.Materials, scene.Objects);
+    window.Handle,window.ClientWidth,window.ClientHeight,deviceOptions,shaderPath,
+    scene.Meshes,scene.Materials,scene.Objects);
 
-window.Resized += (w, h) => renderer.Resize(w, h);
+window.Resized+=(w,h) => renderer.Resize(w,h);
 
 World world = new();
 
-List<StageProp> stageProps = [];
-List<MovableStageProp> movableProps = [];
+EntityArchetype stagePropArchetype = world.CreateArchetype<Position,Rotation,Scale,RenderObjectRef>();
+EntityArchetype movablePropArchetype = world.CreateArchetype<Position,Rotation,Scale,RenderObjectRef,Velocity,MovableTag>();
 
-foreach (LoadedSceneSpawn spawn in scene.Spawns)
-{
-    Rotation rotation = new() { X = spawn.Rotation.X, Y = spawn.Rotation.Y, Z = spawn.Rotation.Z, W = spawn.Rotation.W };
-    Position position = new() { X = spawn.Position.X, Y = spawn.Position.Y, Z = spawn.Position.Z };
-    Scale scaleComponent = new() { X = spawn.Scale.X, Y = spawn.Scale.Y, Z = spawn.Scale.Z };
-    RenderObjectRef renderObjectRef = new() { Index = spawn.ObjectIndex };
+foreach(LoadedSceneSpawn spawn in scene.Spawns) {
+    Rotation rotation = new() { X=spawn.Rotation.X,Y=spawn.Rotation.Y,Z=spawn.Rotation.Z,W=spawn.Rotation.W };
+    Position position = new() { X=spawn.Position.X,Y=spawn.Position.Y,Z=spawn.Position.Z };
+    Scale scaleComponent = new() { X=spawn.Scale.X,Y=spawn.Scale.Y,Z=spawn.Scale.Z };
+    RenderObjectRef renderObjectRef = new() { Index=spawn.ObjectIndex };
 
-    if (spawn.Mobility == PropMobility.Movable)
-    {
-        MovableStageProp prop = world.Create<MovableStageProp>();
-        prop.Position = position;
-        prop.Rotation = rotation;
-        prop.Scale = scaleComponent;
-        prop.RenderObjectRef = renderObjectRef;
-    }
-    else
-    {
-        StageProp prop = world.Create<StageProp>();
-        prop.Position = position;
-        prop.Rotation = rotation;
-        prop.Scale = scaleComponent;
-        prop.RenderObjectRef = renderObjectRef;
-    }
+    Entity prop = world.CreateEntity(spawn.Mobility==PropMobility.Movable ? movablePropArchetype : stagePropArchetype);
+    world.GetRef<Position>(prop)=position;
+    world.GetRef<Rotation>(prop)=rotation;
+    world.GetRef<Scale>(prop)=scaleComponent;
+    world.GetRef<RenderObjectRef>(prop)=renderObjectRef;
 }
 
-world.CollectViews(stageProps);
-world.CollectViews(movableProps);
-
-if (scene.Sun is { } sun)
-{
-    world.Create<SunLight>().DirectionalLightData = sun;
+if(scene.Sun is { } sun) {
+    Entity sunEntity = world.CreateEntity(world.CreateArchetype<DirectionalLightData>());
+    world.GetRef<DirectionalLightData>(sunEntity)=sun;
 }
-if (scene.Ambient is { } ambient)
-{
-    world.Create<AmbientLight>().AmbientLightData = ambient;
+if(scene.Ambient is { } ambient) {
+    Entity ambientEntity = world.CreateEntity(world.CreateArchetype<AmbientLightData>());
+    world.GetRef<AmbientLightData>(ambientEntity)=ambient;
 }
-if (scene.Fog is { } fog)
-{
-    world.Create<FogVolume>().FogData = fog;
+if(scene.Fog is { } fog) {
+    Entity fogEntity = world.CreateEntity(world.CreateArchetype<FogData>());
+    world.GetRef<FogData>(fogEntity)=fog;
 }
 
-List<SunLight> sunLights = [];
-List<AmbientLight> ambientLights = [];
-List<FogVolume> fogVolumes = [];
-world.CollectViews(sunLights);
-world.CollectViews(ambientLights);
-world.CollectViews(fogVolumes);
+// Camera lives on the player entity itself (Systems/CameraSystem.cs) rather than a Velocity
+// component, which nothing ever read even before this migration - dropped so Player's spawned
+// component set stays within CreateArchetype's 8-type-parameter arity.
+EntityArchetype playerArchetype = world.CreateArchetype<Position, Rotation, Health, VerticalMotion, CameraRig, InputState, PlayerTag, Camera>();
+Entity player = world.CreateEntity(playerArchetype);
+world.GetRef<Position>(player) = new Position { X = scene.PlayerStartPosition.X, Y = scene.PlayerStartPosition.Y, Z = scene.PlayerStartPosition.Z };
+world.GetRef<Rotation>(player) = new Rotation { X = 0, Y = 0, Z = 0, W = 1 };
+world.GetRef<Health>(player).Value = 100;
+world.GetRef<CameraRig>(player) = new CameraRig { Yaw = scene.PlayerStartYawRadians, Pitch = 0f };
 
-Player player = world.Create<Player>();
-player.Position = new Position { X = scene.PlayerStartPosition.X, Y = scene.PlayerStartPosition.Y, Z = scene.PlayerStartPosition.Z };
-player.Rotation = new Rotation { X = 0, Y = 0, Z = 0, W = 1 };
-player.Health.Value = 100;
-player.CameraRig = new CameraRig { Yaw = scene.PlayerStartYawRadians, Pitch = 0f };
-
-Camera camera = Camera.CreateFirstPerson(new Vector3(player.Position.X, player.Position.Y + CameraSystem.EyeHeight, player.Position.Z));
+Position playerStart = world.GetRef<Position>(player);
+world.GetRef<Camera>(player) = Camera.CreateFirstPerson(new Vector3(playerStart.X, playerStart.Y + CameraSystem.EyeHeight, playerStart.Z));
 
 window.SetMouseCaptured(true);
 
 Stopwatch stopwatch = Stopwatch.StartNew();
 long previousTicks = stopwatch.ElapsedTicks;
-bool wasJumpKeyDown = false;
 float totalTime = 0f;
 
 while (!window.IsClosed)
@@ -129,15 +104,8 @@ while (!window.IsClosed)
     previousTicks = currentTicks;
     totalTime += deltaTime;
 
-    InputSystem.Update(window, ref player.InputState, ref wasJumpKeyDown);
-    PlayerControlSystem.Update(player, deltaTime);
-    CameraSystem.Update(player, ref camera);
-    MovingPropSystem.Update(movableProps, totalTime);
-
-    renderer.SetCamera(camera);
-    RenderSyncSystem.SyncProps(stageProps, renderer);
-    RenderSyncSystem.SyncMovableProps(movableProps, renderer);
-    RenderSyncSystem.SyncLighting(sunLights, ambientLights, fogVolumes, renderer);
+    FrameContext frame = new(deltaTime, totalTime);
+    GeneratedGameLoop.Update(world, stageRenderer: renderer, win32Window: window, frameContext: frame);
 
     renderer.RenderFrame();
 }

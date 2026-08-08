@@ -40,13 +40,24 @@
 - `UserGameProject/` はエンドユーザーのゲームプロジェクトを模擬しており、
   購入済みで手動配置される Fab アセットの置き場(`UserGameProject/Assets/Fab/`)を持つ。
   現段階ではフォルダのみであり、`.csproj` ではない。
-- `src/CSharpGameEngine.Generation.Abstractions`(L7、Roslyn 非依存)と
-  `src/CSharpGameEngine.CodeAnalysis` の `GenerateEntityGenerator` が、
-  `[GenerateEntity(EntityGenerationSettings.Kind)]` を付けた partial struct から AoS または
-  ECS SoA(`src/CSharpGameEngine.Ecs`)いずれかの物理ストレージ実装をコンパイル時に選択して
-  生成する(ADR-0024、[[Generated-Entity-Storage]]参照)。`samples/` はこのリポジトリで
-  実行可能な設計サンプル(`AosSoaGeneratedExpansion` 等)を独立プロジェクトとして置く場所で、
-  本番の `src/`/`UserGameProject/` からは参照されない。
+- L3の唯一のECSランタイムは `src/CSharpGameEngine.Entities`(SoA専業、動的Archetype)である。
+  ユーザーはComponent型(`struct`)と`[GameSystem]`静的クラス内の`[Update]`静的メソッドだけを書き、
+  `src/CSharpGameEngine.CodeAnalysis` の `GameSystemGenerator` がメソッド引数の`ref`/`in`から
+  Query条件とRead/Writeアクセスを推論し、SoAループ・Write→Read依存順序・`GeneratedGameLoop`を
+  生成する(ADR-0029、[[Ecs-Soa-Systems]]参照)。ユーザーはQuery・foreach・Chunk走査・
+  ゲームループを書かない。旧`src/CSharpGameEngine.Ecs`(コンパイル時アーキタイプ型、ADR-0015)と
+  `src/CSharpGameEngine.Generation.Abstractions`/`GenerateEntityGenerator`
+  (AoS/SoA選択生成、ADR-0024)はADR-0029で削除した(いずれもSuperseded)。`samples/` は
+  このリポジトリで実行可能な設計サンプル(`SoaSystemsDemo`、`SceneAuthoringDemo`、および参照を
+  持たない歴史資料`AosSoaGeneratedExpansion`)を独立プロジェクトとして置く場所で、本番の
+  `src/`/`UserGameProject/`からは参照されない。
+- Scene AuthoringはPhase A(ADR-0030)として、`src/CSharpGameEngine.CodeAnalysis`の
+  `SceneDefinitionGenerator`が`[SceneDefinition] static partial class`の`Define`メソッド
+  (`Create`/`Set`呼び出しのネスト)を静的解析し、`SceneNodeSymbol`実装と`CreateRuntime`
+  (Entity/`Parent`/Component構築コード)を生成する形で足がかりだけ実装済み。既存のJSON方式
+  Scene(`src/CSharpGameEngine.Scene`、`tools/CSharpGameEngine.VSExtension/SceneFile.cs`)は
+  Phase Aでは無改修のまま並行して残る。Hierarchy Docking WindowによるRoslyn Workspace経由の
+  ライブ編集(Add/Delete/Rename/Reparent)はPhase B以降の別タスク。
 - `SourceLocation` の line/column は、判明している場合は **1始まり**。`0` は不明を意味する。
 - レイヤー番号はドキュメント/ソリューション整理のためだけのものであり、名前空間には含めない。
 - `src/CSharpGameEngine.Spatial.Abstractions`(L1、RUF/XYZ値型・`ICoordinateConvention`/

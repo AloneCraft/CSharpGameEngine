@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>CSharpGameEngine.Entities.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <!-- CSharpGameEngine.SceneAuthoring.Cli (out-of-process VSIX preview bridge) walks a live World
+         generically via reflection - see ADR-0031 - so it needs access to Archetype/ComponentType
+         internals that no public API exposes (there is no public "enumerate all component types on
+         this archetype" surface, by design: ordinary [GameSystem]/[Update] code never needs one). -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>CSharpGameEngine.SceneAuthoring.Cli</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+</Project>

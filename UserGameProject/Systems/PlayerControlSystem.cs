@@ -1,4 +1,5 @@
 using System.Numerics;
+using CSharpGameEngine.Entities;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Spatial.Abstractions;
 using CSharpGameEngine.Spatial.Unity;
@@ -13,17 +14,25 @@ namespace UserGameProject.Systems;
 /// animation concern), so the movement basis comes from CameraRig.Yaw rather than from the
 /// previous frame's velocity direction.
 /// </summary>
+[GameSystem]
 public static class PlayerControlSystem
 {
     private const float MouseYawSensitivity = 0.0025f;
     private const float MousePitchSensitivity = 0.0025f;
 
-    public static void Update(Player player, float deltaTime)
+    [Update]
+    public static void Control(
+        ref Position position,
+        ref Rotation rotation,
+        ref VerticalMotion verticalMotion,
+        ref CameraRig cameraRig,
+        in InputState inputState,
+        in PlayerTag _,
+        [Context] in FrameContext frame)
     {
-        ref CameraRig cameraRig = ref player.CameraRig;
-        cameraRig.Yaw += player.InputState.LookDeltaX * MouseYawSensitivity;
+        cameraRig.Yaw += inputState.LookDeltaX * MouseYawSensitivity;
         cameraRig.Pitch = Math.Clamp(
-            cameraRig.Pitch - (player.InputState.LookDeltaY * MousePitchSensitivity),
+            cameraRig.Pitch - (inputState.LookDeltaY * MousePitchSensitivity),
             Camera.MinPitchRadiansFirstPerson,
             Camera.MaxPitchRadiansFirstPerson);
 
@@ -42,24 +51,24 @@ public static class PlayerControlSystem
         {
             FlatForward = flatForward,
             FlatRight = flatRight,
-            MoveForward = player.InputState.MoveForward,
-            MoveBack = player.InputState.MoveBack,
-            MoveLeft = player.InputState.MoveLeft,
-            MoveRight = player.InputState.MoveRight,
-            JumpPressed = player.InputState.JumpPressed,
-            CurrentY = player.Position.Y,
-            VerticalVelocity = player.VerticalMotion.Velocity,
-            DeltaTime = deltaTime,
+            MoveForward = inputState.MoveForward,
+            MoveBack = inputState.MoveBack,
+            MoveLeft = inputState.MoveLeft,
+            MoveRight = inputState.MoveRight,
+            JumpPressed = inputState.JumpPressed,
+            CurrentY = position.Y,
+            VerticalVelocity = verticalMotion.Velocity,
+            DeltaTime = frame.DeltaTime,
         });
 
-        player.VerticalMotion = new VerticalMotion { Velocity = motion.NewVerticalVelocity, IsGrounded = motion.IsGrounded };
-        player.Position = new Position
+        verticalMotion = new VerticalMotion { Velocity = motion.NewVerticalVelocity, IsGrounded = motion.IsGrounded };
+        position = new Position
         {
-            X = player.Position.X + (motion.HorizontalVelocity.X * deltaTime),
+            X = position.X + (motion.HorizontalVelocity.X * frame.DeltaTime),
             Y = motion.NewY,
-            Z = player.Position.Z + (motion.HorizontalVelocity.Z * deltaTime),
+            Z = position.Z + (motion.HorizontalVelocity.Z * frame.DeltaTime),
         };
 
-        player.Rotation = new Rotation { X = facingRuf.R, Y = facingRuf.U, Z = facingRuf.F, W = facingRuf.W };
+        rotation = new Rotation { X = facingRuf.R, Y = facingRuf.U, Z = facingRuf.F, W = facingRuf.W };
     }
 }

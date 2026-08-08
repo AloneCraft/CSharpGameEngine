@@ -75,6 +75,18 @@ public struct InputState
 
     public float LookDeltaX;
     public float LookDeltaY;
+
+    /// <summary>Previous frame's raw (non-edge-detected) jump key state, carried on the component itself since [GameSystem] methods are independent execution units with no other place to persist frame-to-frame scratch state.</summary>
+    public bool WasJumpKeyDown;
+}
+
+/// <summary>
+/// Marks the "movable" mobility archetype (Systems/MovingPropSystem.cs): disambiguates a spinning
+/// stage prop's Query from any other entity that happens to also carry Rotation (e.g. the player).
+/// An empty struct is a tag component (SG infers no storage column for it, only a Query condition).
+/// </summary>
+public readonly struct MovableTag
+{
 }
 
 /// <summary>First-person view orientation, independent of Position (the eye location). Yaw/Pitch follow the same convention as <see cref="CSharpGameEngine.Graphics.D3D12.Camera"/>.</summary>
@@ -112,4 +124,23 @@ public struct FogData
     public float ColorR;
     public float ColorG;
     public float ColorB;
+}
+
+/// <summary>
+/// Per-frame data every <c>[GameSystem]</c> method needs but no single Entity owns - the [Context]
+/// counterpart to InputState (which *is* per-entity, since only the player has one). ElapsedSeconds
+/// is the running total since startup (Systems/MovingPropSystem.cs recomputes its spin fresh from
+/// this each frame rather than accumulating, so there is no drift).
+/// </summary>
+public readonly struct FrameContext
+{
+    public FrameContext(float deltaTime, float elapsedSeconds)
+    {
+        this.DeltaTime = deltaTime;
+        this.ElapsedSeconds = elapsedSeconds;
+    }
+
+    public float DeltaTime { get; }
+
+    public float ElapsedSeconds { get; }
 }

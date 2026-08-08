@@ -23,6 +23,12 @@
       <Group guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarGroup" priority="0x0000">
         <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbar" />
       </Group>
+      <!-- Code-editor context menu only (ADR-0031) - deliberately not also placed on the Tools menu
+           / toolbar like every other command here, since it only makes sense for the file currently
+           being edited. -->
+      <Group guid="guidOpenViewerCommandPackageCmdSet" id="SceneDefinitionContextMenuGroup" priority="0x0600">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_CODEWIN" />
+      </Group>
     </Groups>
 
     <Buttons>
@@ -82,6 +88,15 @@
           <ButtonText>シェイプ パネルを表示</ButtonText>
         </Strings>
       </Button>
+      <Button guid="guidOpenViewerCommandPackageCmdSet" id="PreviewSceneDefinitionCommandId" priority="0x0100" type="Button">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDefinitionContextMenuGroup" />
+        <Icon guid="ImageCatalogGuid" id="ToolWindow" />
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>シーンプレビュー</ButtonText>
+        </Strings>
+      </Button>
     </Buttons>
   </Commands>
 
@@ -124,8 +139,10 @@
       <IDSymbol name="ShowHierarchyToolWindowCommandId" value="0x0105" />
       <IDSymbol name="ApplyGameEngineLayoutCommandId" value="0x0106" />
       <IDSymbol name="ShowShapePaletteToolWindowCommandId" value="0x0107" />
+      <IDSymbol name="PreviewSceneDefinitionCommandId" value="0x0108" />
       <IDSymbol name="CSharpGameEngineToolbar" value="0x1021" />
       <IDSymbol name="CSharpGameEngineToolbarGroup" value="0x1022" />
+      <IDSymbol name="SceneDefinitionContextMenuGroup" value="0x1023" />
     </GuidSymbol>
   </Symbols>
 </CommandTable>
