@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <IsPackable>false</IsPackable>
+    <!-- Writes StaticArchetypeGenerator's output (Archetype/World/GeneratedGameLoop) to disk as real
+         files instead of staying in-memory only, so the user-defined half (Components.cs, Systems.cs)
+         and the SG-generated half can be read/compared side by side (same rationale as
+         samples/SoaSystemsDemo). -->
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <CompilerGeneratedFilesOutputPath>Generated</CompilerGeneratedFilesOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Generated\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Shared-source link, NOT a normal ProjectReference - World/State are partial types split
+         between Runtime.cs and this project's own generated output, so both must be part of THIS
+         compilation (ADR-0032 decision 1). -->
+    <Compile Include="..\..\src\CSharpGameEngine.StaticArchetype\Runtime.cs" Link="Runtime\Runtime.cs" />
+    <ProjectReference Include="..\..\src\CSharpGameEngine.CodeAnalysis\CSharpGameEngine.CodeAnalysis.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

@@ -14,7 +14,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Dots101\**" />
     <Compile Remove="Generated\**\*.cs" />
+    <EmbeddedResource Remove="Dots101\**" />
+    <None Remove="Dots101\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="ECS見本.cs" />
+    <Compile Remove="ECS見本.g.cs" />
   </ItemGroup>
 
   <ItemGroup>

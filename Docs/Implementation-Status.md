@@ -1959,3 +1959,115 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
 - Conformance: Matches
 - Known deviations: None
 - Next action: なし。
+
+## F-L3-012 — `CSharpGameEngine.StaticArchetype`(`Runtime.cs`)
+
+- Layer: L3 — ECS / Job Runtime
+- Parent capability: 静的(閉集合)Archetype ECS PoC(第一段階)
+- Status: Implemented
+- Verification: TestVerified
+- Intended specification: Docs/Decisions/ADR-0032-Static-Archetype-Closed-Set-Ecs.md
+- Implementation evidence:
+  - src/CSharpGameEngine.StaticArchetype/Runtime.cs
+  - src/CSharpGameEngine.StaticArchetype/CSharpGameEngine.StaticArchetype.csproj
+- Tests: 専用ユニットテストなし(`tests/CSharpGameEngine.CodeAnalysis.Tests/StaticArchetypeGenerator*Tests.cs`
+  が`Runtime.cs`をファイルリンクして毎回コンパイル対象に含めるため、その全テストが間接的な検証になる)。
+- Reverse-engineered behavior:
+  - `ISystem`/`IArchetype`は空のマーカーinterface(`static abstract`メンバー等は持たない)。`Entity`は
+    `record struct Entity(int Id)`でGeneration無し(単調増加ID割り当てのみ)。`World`/`State`は
+    `partial struct`で、Generatorが同じ`partial struct World`に構造変更API一式を追加する
+    (ADR-0032決定事項1)。`ChunkList<T>`はチャンク単位で成長する可変長配列でswap-back削除を持つ。
+  - グローバル名前空間・`internal`基調(一部メンバーのみ`public`)。識別子はPascalCaseで統一。
+- Conformance: Matches
+- Known deviations: None
+- Next action: `UserGameProject`統合パスでの名前空間再検討(ADR-0032未解決事項)。
+
+## F-L7-015 — `StaticArchetypeGenerator`(Analyzer/Model/IndexAssigner/Types・World・Loop各Emitter)
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: 静的(閉集合)Archetype ECS PoC(第一段階)
+- Status: Implemented
+- Verification: TestVerified
+- Intended specification: Docs/Decisions/ADR-0032-Static-Archetype-Closed-Set-Ecs.md
+- Implementation evidence:
+  - src/CSharpGameEngine.CodeAnalysis/StaticArchetypeGenerator.cs
+  - src/CSharpGameEngine.CodeAnalysis/StaticArchetypeAnalyzer.cs
+  - src/CSharpGameEngine.CodeAnalysis/StaticArchetypeModel.cs
+  - src/CSharpGameEngine.CodeAnalysis/StaticArchetypeIndexAssigner.cs
+  - src/CSharpGameEngine.CodeAnalysis/StaticArchetypeTypesEmitter.cs
+  - src/CSharpGameEngine.CodeAnalysis/StaticArchetypeWorldEmitter.cs
+  - src/CSharpGameEngine.CodeAnalysis/StaticArchetypeLoopEmitter.cs
+- Tests:
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/StaticArchetypeGeneratorEmissionTests.cs(6件: 出力形状・
+    出力順序・System1のループ包含・コンパイル可能性・決定性・宣言順序非依存性)
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/StaticArchetypeGeneratorEndToEndTests.cs(3件: Archetype間
+    移動+swap-back、複数System/複数オーバーロードのSubset一致発火、診断による部分除外)
+- Reverse-engineered behavior:
+  - 属性を一切使わない設計のため`ForAttributeWithMetadataName`が使えず、`CreateSyntaxProvider`で
+    base listを持つ型宣言を拾い、`AllInterfaces`をFQN文字列比較して`ISystem`実装を検出する。
+  - `compilation.GetTypeByMetadataName("ISystem")`が非nullの場合に限り出力する(`Runtime.cs`を
+    取り込んでいないプロジェクトを汚染しないためのゲート、実装中に`UserGameProject`のビルドを壊す
+    回帰として実際に発見・修正した - ADR-0032決定事項2)。
+  - Component番号は、診断の無いSystemを完全修飾名の英字順にソートし、`Update`オーバーロードを宣言順、
+    パラメータを宣言順に走査して初出順に割り当てる。Archetype集合は全オーバーロードのComponent集合の
+    和集合(重複排除)。出力順序は発見順ではなく「コンポーネント数昇順→インデックスタプル辞書式昇順」
+    (`Archetype0,Archetype1,Archetype2,Archetype01`の並びから逆算して判明)。
+  - 各`ArchetypeNN`は`Create`静的ファクトリを持ち、`EntityArchetypeIndices.Count`をそのままEntity IDに
+    使う。メインループの各Archetypeループは、部分集合一致する全System・全オーバーロードを宣言順に
+    呼ぶ(サンプルの手書き`.g.cs`は`System0`しか呼んでいなかったが書き漏れと確認済みのため、全`ISystem`
+    実装を対象に含めるよう実装した)。
+  - メインループはトップレベルステートメントではなく`GeneratedGameLoop.RunFrame`/`Run`という呼び出し
+    可能なメソッドとして生成する(`CS8802`回避、`samples/SoaSystemsDemo`の前例踏襲)。
+- Conformance: Matches(ただしメインループの生成形態はトップレベルステートメント→呼び出し可能メソッドへ
+  意図的に変更、`System1`のループ包含も書き漏れ修正として意図的に変更 - いずれもADR-0032に理由を記録)。
+- Known deviations: 上記2点(メインループの生成形態、全System包含)。
+- Next action: `UserGameProject`統合パスでの`GameSystemGenerator`置き換え検討。
+
+## F-L7-016 — `StaticArchetypeGenerator`診断(SARCH001〜015)
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: 静的(閉集合)Archetype ECS PoC(第一段階)
+- Status: Implemented
+- Verification: TestVerified
+- Intended specification: Docs/Decisions/ADR-0032-Static-Archetype-Closed-Set-Ecs.md
+- Implementation evidence:
+  - src/CSharpGameEngine.CodeAnalysis/StaticArchetypeDiagnostics.cs
+  - src/CSharpGameEngine.CodeAnalysis/AnalyzerReleases.Unshipped.md
+- Tests:
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/StaticArchetypeGeneratorDiagnosticsTests.cs
+    (SARCH001〜015すべてに1件ずつのテストケース)
+- Reverse-engineered behavior:
+  - `SARCH001`〜`015`(カテゴリ`CSharpGameEngine.StaticArchetype.CodeGen`、すべて`Error`)。
+    既存`SYSGEN`/`SCENE`とは無関係な新規カテゴリ(`CSharpGameEngine.Entities`と一切関係が無いため)。
+  - `Update`メソッドのアクセシビリティは「`public`必須」ではなく「`private`でなければ良い」という
+    ゆるい規則(サンプルの`System0`が`public`・`System1`が`internal`と混在していたことから判明)。
+  - 診断のあるSystem structは丸ごと(全オーバーロード)結合出力から除外する(既存`GameSystemGenerator`
+    と同じ全か無かの方針)。
+- Conformance: Matches
+- Known deviations: None
+- Next action: なし(第一段階スコープでは完結)。
+
+## F-L9-008 — `samples/StaticArchetypeSystemsDemo`
+
+- Layer: L9 — Game / Application
+- Parent capability: 静的(閉集合)Archetype ECS PoC(第一段階)
+- Status: Implemented
+- Verification: TestVerified
+- Intended specification: Docs/Decisions/ADR-0032-Static-Archetype-Closed-Set-Ecs.md
+- Implementation evidence:
+  - samples/StaticArchetypeSystemsDemo/Components.cs
+  - samples/StaticArchetypeSystemsDemo/Systems.cs
+  - samples/StaticArchetypeSystemsDemo/Program.cs
+  - samples/StaticArchetypeSystemsDemo/StaticArchetypeSystemsDemo.csproj
+- Tests: なし専用(`dotnet run`による実機確認のみ、`SoaSystemsDemo`とは異なり`DemoScenario`型の
+  Pass/Fail文字列を返すテストランナー構成ではなく、フレームごとのArchetype件数をコンソール出力する
+  構成)。
+- Reverse-engineered behavior:
+  - `UserGameProject/ECSの設計であるこの.g.csを生成するようなSGを作って/`の`ユーザー定義コード.cs`を
+    `Components.cs`/`Systems.cs`へそのまま昇格。`Runtime.cs`は`<Compile Include Link>`でソースリンク
+    (`<ProjectReference>`ではない、ADR-0032決定事項1)。
+  - `dotnet run`で実際に5フレーム実行し、"0=0 1=0 2=1 01=3"という定常状態(frame 0でArchetype0/
+    Archetype1の各1体がArchetype01へ移動、Archetype2は不変)を確認した。
+- Conformance: Matches
+- Known deviations: None
+- Next action: なし(第一段階スコープでは完結)。

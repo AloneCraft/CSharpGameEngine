@@ -23,4 +23,12 @@
     <ProjectReference Include="..\..\src\CSharpGameEngine.Entities\CSharpGameEngine.Entities.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Read as text by StaticArchetypeGeneratorTestHelper (not compiled here) so the emission/e2e
+         tests exercise the literal promoted sample content with zero drift risk (ADR-0032). -->
+    <None Include="..\..\src\CSharpGameEngine.StaticArchetype\Runtime.cs" Link="TestAssets\StaticArchetype\Runtime.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\samples\StaticArchetypeSystemsDemo\Components.cs" Link="TestAssets\StaticArchetype\Components.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\samples\StaticArchetypeSystemsDemo\Systems.cs" Link="TestAssets\StaticArchetype\Systems.cs" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

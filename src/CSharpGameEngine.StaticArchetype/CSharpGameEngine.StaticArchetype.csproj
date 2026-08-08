@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <IsPackable>false</IsPackable>
+    <!-- Runtime.cs's World/State are partial types that StaticArchetypeGenerator completes in the
+         SAME compilation (partial types cannot span a compiled DLL and a downstream consumer's own
+         compilation - see ADR-0032). This project exists to give Runtime.cs a canonical location and
+         a standalone smoke build: with zero user Systems in this compilation, the generator still
+         emits `Archetype` (an empty enum) so Runtime.cs's forward reference resolves. Consumers do
+         NOT reference this project's DLL - they link Runtime.cs as source (see
+         samples/StaticArchetypeSystemsDemo). -->
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <CompilerGeneratedFilesOutputPath>Generated</CompilerGeneratedFilesOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Generated\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CSharpGameEngine.CodeAnalysis\CSharpGameEngine.CodeAnalysis.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>
