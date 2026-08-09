@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\CSharpGameEngine.Import.Fbx\CSharpGameEngine.Import.Fbx.csproj" />
+    <ProjectReference Include="..\..\src\CSharpGameEngine.Import\CSharpGameEngine.Import.csproj" />
     <!-- ADR-0023: resident-server mode ("serve" launch argument), shared with the other 2 bridges. -->
     <ProjectReference Include="..\CSharpGameEngine.Bridge.Hosting\CSharpGameEngine.Bridge.Hosting.csproj" />
   </ItemGroup>

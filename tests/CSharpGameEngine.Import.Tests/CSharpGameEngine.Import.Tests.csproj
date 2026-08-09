@@ -5,6 +5,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <!-- Inherited from the former CSharpGameEngine.Import.Fbx.Tests: AssimpNet's native assimp.dll
+         (ADR-0009) ships under runtimes/win-x64/native/, and a RuntimeIdentifier is required for the
+         test host to actually get the native binary next to the test assembly (same reason as
+         CSharpGameEngine.Extension.csproj). Now that ADR-0034 put Gltf and Fbx in one assembly this
+         also applies to the glTF tests, which do not need it but are not harmed by it. -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
   </PropertyGroup>
 
   <ItemGroup>
@@ -12,7 +19,7 @@
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
     <!-- Test-only: builds small synthetic glTF fixtures in memory for ImportScene tests. The
-         shipping CSharpGameEngine.Import.Gltf project deliberately stays on SharpGLTF.Core alone. -->
+         shipping CSharpGameEngine.Import project deliberately stays on SharpGLTF.Core alone. -->
     <PackageReference Include="SharpGLTF.Toolkit" Version="1.0.6" />
   </ItemGroup>
 
@@ -21,7 +28,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\CSharpGameEngine.Import.Gltf\CSharpGameEngine.Import.Gltf.csproj" />
+    <ProjectReference Include="..\..\src\CSharpGameEngine.Import\CSharpGameEngine.Import.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -30,6 +37,7 @@
     <None Include="..\..\assets\TestFixtures\Gltf\Triangle.bin" Link="Fixtures\Triangle.bin" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\TestFixtures\Gltf\Malformed.glb" Link="Fixtures\Malformed.glb" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\TestFixtures\Gltf\BoxTextured.glb" Link="Fixtures\BoxTextured.glb" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\assets\TestFixtures\Fbx\Box.fbx" Link="Fixtures\Box.fbx" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

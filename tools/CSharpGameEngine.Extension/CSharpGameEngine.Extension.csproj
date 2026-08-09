@@ -3,8 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\CSharpGameEngine.Platform.Windows\CSharpGameEngine.Platform.Windows.csproj" />
     <ProjectReference Include="..\..\src\CSharpGameEngine.Graphics.D3D12\CSharpGameEngine.Graphics.D3D12.csproj" />
-    <ProjectReference Include="..\..\src\CSharpGameEngine.Import.Gltf\CSharpGameEngine.Import.Gltf.csproj" />
-    <ProjectReference Include="..\..\src\CSharpGameEngine.Import.Fbx\CSharpGameEngine.Import.Fbx.csproj" />
+    <ProjectReference Include="..\..\src\CSharpGameEngine.Import\CSharpGameEngine.Import.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -22,8 +22,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\CSharpGameEngine.Graphics.D3D12\CSharpGameEngine.Graphics.D3D12.csproj" />
     <ProjectReference Include="..\..\src\CSharpGameEngine.Platform.Windows\CSharpGameEngine.Platform.Windows.csproj" />
-    <!-- Test-only edge: production Graphics.D3D12 itself has no reference to Import.Gltf. -->
-    <ProjectReference Include="..\..\src\CSharpGameEngine.Import.Gltf\CSharpGameEngine.Import.Gltf.csproj" />
+    <!-- Test-only edge: production Graphics.D3D12 itself has no reference to the importers. -->
+    <ProjectReference Include="..\..\src\CSharpGameEngine.Import\CSharpGameEngine.Import.csproj" />
     <!-- ADR-0034: the former test-only edge to CSharpGameEngine.Geometry is gone - ProceduralMeshFactory
          now lives in the CSharpGameEngine.Geometry namespace inside CSharpGameEngine.Core, which
          Graphics.D3D12 already references. -->

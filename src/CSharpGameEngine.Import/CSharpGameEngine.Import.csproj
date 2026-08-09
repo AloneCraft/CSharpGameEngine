@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <!--
+    ADR-0034: the former CSharpGameEngine.Import.Gltf and .Import.Fbx projects merged here, keeping
+    their namespaces (CSharpGameEngine.Import.Gltf / .Import.Fbx) unchanged. That is what lets
+    Gltf/BoundingBox.cs and Fbx/BoundingBox.cs (likewise ImportedMesh.cs) coexist: same file name,
+    same type name, different namespace, one assembly.
+
+    This project is the "carries a third-party asset SDK" half of the net10.0 side - the reason it is
+    not folded into CSharpGameEngine.Core, which deliberately has no PackageReference at all.
+  -->
+
+  <ItemGroup>
+    <!-- Gltf/: fully managed, no native DLL (ADR-0004 §1). -->
+    <PackageReference Include="SharpGLTF.Core" Version="1.0.6" />
+    <!-- Fbx/: No pure-C# FBX library with mesh-level access exists (verified when ADR-0009 was
+         written): FbxParser (NuGet, zero deps) only exposes FBX's raw json/xml-like node tree,
+         requiring hand-written interpretation of Geometry/Vertices/PolygonVertexIndex nodes for
+         every exporter/version variation. FbxSharp cannot read binary FBX files (ASCII-only) and is
+         only tested against the 2013.3 format version - both unusable for real Fab-sourced FBX
+         assets. AssimpNet wraps the mature native Assimp library and handles FBX (binary/ASCII,
+         modern versions) reliably. This is a deliberate departure from ADR-0004 §1's "avoid native
+         deps" glTF decision - that decision relied on SharpGLTF.Core existing as a pure C# option;
+         no equivalent exists for FBX. See ADR-0009.
+
+         ADR-0034 note: because Gltf/ and Fbx/ now share one assembly, consumers that only want the
+         glTF importer also resolve AssimpNet's MANAGED assembly. The native assimp.dll is only
+         copied when the consumer sets a RuntimeIdentifier and is only loaded when FbxImporter
+         actually runs, so tools/CSharpGameEngine.Import.Gltf.Cli deliberately still sets none. -->
+    <PackageReference Include="AssimpNet" Version="4.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CSharpGameEngine.Core\CSharpGameEngine.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- FbxAxisConversion is `internal static` (ADR-0027) and unit-tested directly by
+         FbxAxisConversionTests, which now lives in the merged CSharpGameEngine.Import.Tests. -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>CSharpGameEngine.Import.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+</Project>
