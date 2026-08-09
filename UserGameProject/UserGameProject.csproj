@@ -69,8 +69,8 @@
          project's own compilation, and partial types cannot span an assembly boundary (ADR-0033). -->
     <Compile Include="..\src\CSharpGameEngine.Entities\*.cs" Link="Entities\%(Filename)%(Extension)" />
     <ProjectReference Include="..\src\CSharpGameEngine.CodeAnalysis\CSharpGameEngine.CodeAnalysis.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="..\src\CSharpGameEngine.Platform.Windows\CSharpGameEngine.Platform.Windows.csproj" />
-    <ProjectReference Include="..\src\CSharpGameEngine.Graphics.D3D12\CSharpGameEngine.Graphics.D3D12.csproj" />
+    <!-- ADR-0034: replaces the former Platform.Windows + Graphics.D3D12 pair. -->
+    <ProjectReference Include="..\src\CSharpGameEngine.Windows\CSharpGameEngine.Windows.csproj" />
     <ProjectReference Include="..\src\CSharpGameEngine.Import\CSharpGameEngine.Import.csproj" />
     <ProjectReference Include="..\src\CSharpGameEngine.Core\CSharpGameEngine.Core.csproj" />
   </ItemGroup>

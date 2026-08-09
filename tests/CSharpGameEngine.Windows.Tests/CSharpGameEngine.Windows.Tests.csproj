@@ -20,19 +20,23 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\CSharpGameEngine.Graphics.D3D12\CSharpGameEngine.Graphics.D3D12.csproj" />
-    <ProjectReference Include="..\..\src\CSharpGameEngine.Platform.Windows\CSharpGameEngine.Platform.Windows.csproj" />
-    <!-- Test-only edge: production Graphics.D3D12 itself has no reference to the importers. -->
+    <ProjectReference Include="..\..\src\CSharpGameEngine.Windows\CSharpGameEngine.Windows.csproj" />
+    <!-- Test-only edge: production CSharpGameEngine.Windows itself has no reference to the
+         importers - only the model/stage GPU integration tests load .glb fixtures. -->
     <ProjectReference Include="..\..\src\CSharpGameEngine.Import\CSharpGameEngine.Import.csproj" />
-    <!-- ADR-0034: the former test-only edge to CSharpGameEngine.Geometry is gone - ProceduralMeshFactory
-         now lives in the CSharpGameEngine.Geometry namespace inside CSharpGameEngine.Core, which
-         Graphics.D3D12 already references. -->
   </ItemGroup>
 
   <ItemGroup>
+    <!-- ADR-0034: Triangle.hlsl and Model.hlsl were declared with these exact Link paths by BOTH
+         former test projects (Graphics.D3D12.Tests and Compiler.Hlsl.Tests). Each must appear
+         exactly once here - a duplicate <None> with the same Link is an MSBuild warning, and
+         TreatWarningsAsErrors=true turns that into a build failure. -->
     <None Include="..\..\assets\Shaders\Triangle.hlsl" Link="Shaders\Triangle.hlsl" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\Shaders\Model.hlsl" Link="Shaders\Model.hlsl" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\Shaders\Stage.hlsl" Link="Shaders\Stage.hlsl" CopyToOutputDirectory="PreserveNewest" />
+    <!-- From the former Compiler.Hlsl.Tests: a deliberately broken shader for the compile-error path. -->
+    <None Include="TestShaders\SyntaxError.hlsl" CopyToOutputDirectory="PreserveNewest" />
+    <!-- From the former Graphics.D3D12.Tests. -->
     <None Include="..\..\assets\TestFixtures\Gltf\Box.glb" Link="Fixtures\Box.glb" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\TestFixtures\Gltf\BoxTextured.glb" Link="Fixtures\BoxTextured.glb" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\TestFixtures\Gltf\Malformed.glb" Link="Fixtures\Malformed.glb" CopyToOutputDirectory="PreserveNewest" />

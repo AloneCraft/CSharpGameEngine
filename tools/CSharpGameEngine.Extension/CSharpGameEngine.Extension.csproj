@@ -1,9 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\CSharpGameEngine.Platform.Windows\CSharpGameEngine.Platform.Windows.csproj" />
-    <ProjectReference Include="..\..\src\CSharpGameEngine.Graphics.D3D12\CSharpGameEngine.Graphics.D3D12.csproj" />
     <ProjectReference Include="..\..\src\CSharpGameEngine.Import\CSharpGameEngine.Import.csproj" />
+    <!-- ADR-0034: replaces the former Graphics.D3D12 + Platform.Windows + Compiler.Hlsl trio. -->
+    <ProjectReference Include="..\..\src\CSharpGameEngine.Windows\CSharpGameEngine.Windows.csproj" />
   </ItemGroup>
 
   <ItemGroup>

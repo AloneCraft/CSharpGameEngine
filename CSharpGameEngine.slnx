@@ -88,19 +88,16 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/CSharpGameEngine.Core/CSharpGameEngine.Core.csproj" />
-    <Project Path="src/CSharpGameEngine.Platform.Windows/CSharpGameEngine.Platform.Windows.csproj" />
-    <Project Path="src/CSharpGameEngine.Compiler.Hlsl/CSharpGameEngine.Compiler.Hlsl.csproj" />
-    <Project Path="src/CSharpGameEngine.Graphics.D3D12/CSharpGameEngine.Graphics.D3D12.csproj" />
     <Project Path="src/CSharpGameEngine.Import/CSharpGameEngine.Import.csproj" />
+    <Project Path="src/CSharpGameEngine.Windows/CSharpGameEngine.Windows.csproj" />
     <Project Path="src/CSharpGameEngine.CodeAnalysis/CSharpGameEngine.CodeAnalysis.csproj" />
     <Project Path="src/CSharpGameEngine.Entities/CSharpGameEngine.Entities.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/CSharpGameEngine.Core.Tests/CSharpGameEngine.Core.Tests.csproj" />
-    <Project Path="tests/CSharpGameEngine.Compiler.Hlsl.Tests/CSharpGameEngine.Compiler.Hlsl.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Bridge.Hosting.Tests/CSharpGameEngine.Bridge.Hosting.Tests.csproj" />
-    <Project Path="tests/CSharpGameEngine.Graphics.D3D12.Tests/CSharpGameEngine.Graphics.D3D12.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Import.Tests/CSharpGameEngine.Import.Tests.csproj" />
+    <Project Path="tests/CSharpGameEngine.Windows.Tests/CSharpGameEngine.Windows.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.CodeAnalysis.Tests/CSharpGameEngine.CodeAnalysis.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Entities.Tests/CSharpGameEngine.Entities.Tests.csproj" />

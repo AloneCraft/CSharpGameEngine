@@ -1,9 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <!-- ADR-0034: was 3 references (Core + Platform.Windows + Graphics.D3D12). Graphics.D3D12 and
+         Platform.Windows are now both inside CSharpGameEngine.Windows, which itself references Core,
+         so Core is only listed for the types this project uses directly. -->
+    <ProjectReference Include="..\..\src\CSharpGameEngine.Windows\CSharpGameEngine.Windows.csproj" />
     <ProjectReference Include="..\..\src\CSharpGameEngine.Core\CSharpGameEngine.Core.csproj" />
-    <ProjectReference Include="..\..\src\CSharpGameEngine.Platform.Windows\CSharpGameEngine.Platform.Windows.csproj" />
-    <ProjectReference Include="..\..\src\CSharpGameEngine.Graphics.D3D12\CSharpGameEngine.Graphics.D3D12.csproj" />
   </ItemGroup>
 
   <ItemGroup>

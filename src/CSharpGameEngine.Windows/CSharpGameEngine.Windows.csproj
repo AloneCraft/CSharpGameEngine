@@ -8,16 +8,34 @@
     <Platforms>x64</Platforms>
   </PropertyGroup>
 
+  <!--
+    ADR-0034: the former CSharpGameEngine.Graphics.D3D12 (Graphics/), .Platform.Windows (Platform/)
+    and .Compiler.Hlsl (Hlsl/) merged here with every namespace left unchanged, so
+    CSharpGameEngine.Windows.dll contains CSharpGameEngine.Graphics.D3D12,
+    CSharpGameEngine.Platform.Windows and CSharpGameEngine.Compiler.Hlsl.
+
+    The boundary is build shape, not taxonomy: this is everything that needs the windows TFM, x64,
+    unsafe, and the TerraFX/DXC native dependencies. All three inputs already had byte-identical
+    PropertyGroups and the same TerraFX.Interop.Windows reference - the split bought nothing, and
+    Graphics.D3D12 referenced Compiler.Hlsl anyway. All three are ADR-0001 L0, so this is a
+    within-layer merge.
+  -->
+
   <ItemGroup>
     <PackageReference Include="TerraFX.Interop.Windows" Version="10.0.26100.6" />
     <PackageReference Include="Microsoft.Direct3D.DXC" Version="1.9.2607.13" GeneratePathProperty="true" ExcludeAssets="build" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CSharpGameEngine.Core\CSharpGameEngine.Core.csproj" />
   </ItemGroup>
 
   <!--
     Microsoft.Direct3D.DXC ships build/native/*.targets meant for vcxproj consumers only;
     SDK-style C# projects never import it. We copy the x64 DXC redistributable ourselves so
     dxcompiler.dll/dxil.dll land next to any executable that (transitively) references this
-    project - see ADR-0003.
+    project - see ADR-0003. Moved verbatim from the former CSharpGameEngine.Compiler.Hlsl.csproj:
+    losing this block breaks HlslCompiler at RUNTIME only, which no unit test would catch.
   -->
   <ItemGroup>
     <None Include="$(PkgMicrosoft_Direct3D_DXC)\build\native\bin\x64\dxcompiler.dll" Link="dxcompiler.dll" CopyToOutputDirectory="PreserveNewest" Visible="false" />
