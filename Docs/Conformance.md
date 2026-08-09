@@ -154,9 +154,9 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.Spatial.Abstractions/RufVector.cs、XyzVector.cs、ICoordinateConvention.cs、
+  - src/CSharpGameEngine.Core/Spatial/RufVector.cs、XyzVector.cs、ICoordinateConvention.cs、
     CoordinateBasisValidator.cs、UnitConversion.cs、Spatial.cs
-  - tests/CSharpGameEngine.Spatial.Tests/BasisTests.cs、CoordinateBasisValidatorTests.cs、
+  - tests/CSharpGameEngine.Core.Tests/Spatial/BasisTests.cs、CoordinateBasisValidatorTests.cs、
     UnitConversionTests.cs、ImportAxisConversionTests.cs、DeterminismTests.cs
 - Observed behavior:
   - `RufVector`/`XyzVector`はblittable・unmanagedで、`XyzVector`→`Vector3`は`explicit`演算子のみ。
@@ -175,9 +175,9 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.Spatial.Abstractions/RufQuaternion.cs、ITransformConvention.cs、
+  - src/CSharpGameEngine.Core/Spatial/RufQuaternion.cs、ITransformConvention.cs、
     StandardTransformConvention.cs
-  - tests/CSharpGameEngine.Spatial.Tests/RufQuaternionTests.cs、TransformConventionTests.cs
+  - tests/CSharpGameEngine.Core.Tests/Spatial/RufQuaternionTests.cs、TransformConventionTests.cs
 - Observed behavior:
   - `StandardTransformConvention.Compose`はScale→Rotation→Translationの順(row-vector規約)。
     `Combine`は`local*parentWorld`(child-then-parent)。`TransformNormal`は逆転置行列を使う
@@ -193,10 +193,10 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.Spatial.Unity/UnityCoordinateConvention.cs、
-    src/CSharpGameEngine.Spatial.Unreal/UnrealCoordinateConvention.cs、
-    src/CSharpGameEngine.Spatial.Blender/BlenderWorldConvention.cs
-  - tests/CSharpGameEngine.Spatial.Tests/BasisTests.cs、RoundTripTests.cs、HandednessTests.cs
+  - src/CSharpGameEngine.Core/Spatial/Conventions/UnityCoordinateConvention.cs、
+    src/CSharpGameEngine.Core/Spatial/Conventions/UnrealCoordinateConvention.cs、
+    src/CSharpGameEngine.Core/Spatial/Conventions/BlenderWorldConvention.cs
+  - tests/CSharpGameEngine.Core.Tests/Spatial/BasisTests.cs、RoundTripTests.cs、HandednessTests.cs
   - samples/SpatialPresetDemoの実行結果(Docs/Decisions/ADR-0025-RUF-Semantic-Coordinates.md参照)
 - Observed behavior:
   - 3実装とも成分の固定並べ替えのみ。Preset別に`samples/SpatialPresetDemo`を実行し、Forward軸の
@@ -208,13 +208,18 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
   - Docs/RUF-Semantic-Coordinate-Specification-Prompt.md「Golden Values」節と同一。
 - Result: Matches
 
-### RE-L1-004 — コンパイル時Preset選択(`SpatialPresetSelection.props`)
+### RE-L1-004 — コンパイル時Preset選択(`SpatialPresetSelection.props`) 【ADR-0034で削除済み】
 
+- Status: **Removed**(ADR-0034 / M0014)。この機構の利用者は`samples/SpatialPresetDemo`だけで、
+  しかもそれは`CSharpGameEngine.slnx`へ意図的に未登録だったため、通常ビルドで一度も実行されて
+  いなかった。下記の検証記録は削除時点の証跡としてそのまま保持する。
+  Convention型自体は`CSharpGameEngine.Core`内に名前空間ごと残っており、実行時選択は引き続き可能
+  (RE-L1-002 / RE-L1-003 は有効なまま)。
 - Confidence: High
-- Evidence:
-  - src/CSharpGameEngine.Spatial.Abstractions/SpatialPresetSelection.props
-  - samples/SpatialPresetDemo/ProjectSpatial.cs、Program.cs
-  - Docs/Decisions/ADR-0025-RUF-Semantic-Coordinates.md「検証結果」節の実行コマンドと結果
+- Evidence(削除済み。履歴はgitの`f17fbd5`以前を参照):
+  - ~~src/CSharpGameEngine.Spatial.Abstractions/SpatialPresetSelection.props~~
+  - ~~samples/SpatialPresetDemo/ProjectSpatial.cs、Program.cs~~
+  - Docs/Decisions/ADR-0025-RUF-Semantic-Coordinates.md「検証結果」節の実行コマンドと結果(存続)
 - Observed behavior:
   - `SpatialPreset`未指定・未知の値のいずれも`ValidateSpatialPresetSelection`ターゲットで
     Build Errorになることを実際のコマンド実行で確認した。
@@ -230,9 +235,9 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.Spatial.Abstractions/CameraBasis.cs、DirectionalLightBasis.cs、
+  - src/CSharpGameEngine.Core/Spatial/CameraBasis.cs、DirectionalLightBasis.cs、
     SpotLightBasis.cs
-  - tests/CSharpGameEngine.Spatial.Tests/CameraBasisTests.cs、LightBasisTests.cs
+  - tests/CSharpGameEngine.Core.Tests/Spatial/CameraBasisTests.cs、LightBasisTests.cs
 - Observed behavior:
   - `CameraBasis`のコンストラクタは`Forward`のみ正規化し`Up`はそのまま保持する。
   - `DirectionalLightBasis`/`SpotLightBasis`の`DirectionToLight`は常に`-Forward`。
@@ -245,8 +250,8 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.Graphics.D3D12/Camera.cs
-  - tests/CSharpGameEngine.Graphics.D3D12.Tests/CameraTests.cs(既存60件、シャドウテスト2件含む)
+  - src/CSharpGameEngine.Windows/Graphics/Camera.cs
+  - tests/CSharpGameEngine.Windows.Tests/Graphics/CameraTests.cs(既存60件、シャドウテスト2件含む)
 - Observed behavior:
   - `GetFlatRight()`は`Spatial<UnityCoordinateConvention>.RightFromUpForward`経由になり、
     旧`Cross(Vector3.UnitY,flatForward)`式とビット単位で一致することを実測確認した。
@@ -261,8 +266,8 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.Geometry/ProceduralMeshFactory.cs
-  - tests/CSharpGameEngine.Geometry.Tests/ProceduralMeshFactoryTests.cs(既存30件、無改修)
+  - src/CSharpGameEngine.Core/Geometry/ProceduralMeshFactory.cs
+  - tests/CSharpGameEngine.Core.Tests/Geometry/ProceduralMeshFactoryTests.cs(既存30件、無改修)
 - Observed behavior:
   - 全8プリミティブの頂点/法線計算が`RufVector`ベースになり、出力直前の
     `Spatial<UnityCoordinateConvention>.ToXyz`(恒等写像)により既存30件のテスト
@@ -275,7 +280,7 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.Graphics.D3D12/Camera.cs、ModelRenderer.cs
+  - src/CSharpGameEngine.Windows/Graphics/Camera.cs、ModelRenderer.cs
 - Observed behavior:
   - `Matrix4x4.CreateLookAt`への薄い委譲。`Camera.GetView`と`ModelRenderer`独自のバウンディング
     スフィア自動フィットeye計算の両方から呼ばれ、以前は2箇所独立していたLookAt構築を統一した。
@@ -287,9 +292,9 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.Spatial.Gltf/GltfCoordinateConvention.cs、
-    src/CSharpGameEngine.Spatial.Fbx/FbxCoordinateConvention.cs
-  - tests/CSharpGameEngine.Spatial.Tests/BasisTests.cs、RoundTripTests.cs、HandednessTests.cs
+  - src/CSharpGameEngine.Core/Spatial/Conventions/GltfCoordinateConvention.cs、
+    src/CSharpGameEngine.Core/Spatial/Conventions/FbxCoordinateConvention.cs
+  - tests/CSharpGameEngine.Core.Tests/Spatial/BasisTests.cs、RoundTripTests.cs、HandednessTests.cs
 - Observed behavior:
   - 両方ともR=+X,U=+Y,F=-Z,RightHanded(数値的に同一定義だが独立した型)。Golden Value・
     RoundTrip・Handedness(`Cross(Right,Up)==Backward`)をいずれも実測確認した。
@@ -301,9 +306,9 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 
 - Confidence: High
 - Evidence:
-  - src/CSharpGameEngine.Import.Gltf/GltfAxisConversion.cs、GltfImporter.cs、
+  - src/CSharpGameEngine.Import/Gltf/GltfAxisConversion.cs、GltfImporter.cs、
     ImportedLightDirection.cs
-  - tests/CSharpGameEngine.Import.Gltf.Tests/GltfImporterSceneTests.cs(既存18件+Z非ゼロ新規2件)
+  - tests/CSharpGameEngine.Import.Tests/Gltf/GltfImporterSceneTests.cs(既存18件+Z非ゼロ新規2件)
 - Observed behavior:
   - Translation/Rotation(ミラー行列共役変換)/メッシュローカル頂点/Tangent/Windingが変換され、
     `ImportScene`の公開API出力は全てエンジン(`UnityCoordinateConvention`)空間になる。

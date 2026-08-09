@@ -149,3 +149,24 @@ dotnet run --project UserGameProject                              → 15秒以�
 - F-L1-006 — `FbxCoordinateConvention`(新規)
 - F-L0-005 — `GltfImporter.ImportScene`(既存ID更新、軸変換追加)
 - F-L9-003 — `SceneLoader`(既存ID更新、PlayerStart変換・重複解消)
+
+## ADR-0034による追記(分離保証の格下げ)
+
+[[ADR-0034-Project-Consolidation]]が`CSharpGameEngine.Import.Gltf`と`.Import.Fbx`を単一の
+`CSharpGameEngine.Import`アセンブリへ統合した。**名前空間は両方とも無変更**であり、
+`GltfAxisConversion`/`FbxAxisConversion`の実装も本ADRが定めた変換規則もまったく変わっていない。
+
+変わったのは**保証の強度**である:
+
+- 統合前: 「`Import.Fbx`が`Import.Gltf`に依存しない」ことは**アセンブリ境界**によって
+  機械的に強制されていた(参照を追加しない限りコンパイルできない)。
+- 統合後: 同一アセンブリ内の**名前空間規約**にすぎない。`Fbx/`のコードから
+  `CSharpGameEngine.Import.Gltf`の型を参照してもコンパイルは通る。**レビューで守る対象**になった。
+
+なお`Gltf/BoundingBox.cs`と`Fbx/BoundingBox.cs`(および両者の`ImportedMesh.cs`)は
+ファイル名も型名も同一だが、名前空間が異なるため1アセンブリ内で別型として共存している。
+これは名前空間を維持したことの直接的な帰結であり、フラット化していたらリネームが必要だった。
+
+`FbxAxisConversion`は`internal static`のままで、`InternalsVisibleTo`の宛先が
+`CSharpGameEngine.Import.Fbx.Tests`から`CSharpGameEngine.Import.Tests`へ変わった。
+`FbxAxisConversionTests`の3件は無改修で通っている。

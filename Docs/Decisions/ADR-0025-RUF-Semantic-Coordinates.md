@@ -155,3 +155,32 @@ Blender Forward=(0,+1,0))と完全に一致し、RUF→XYZ→RUFの往復も無�
 - F-L1-003 — Unity/Unreal/Blenderの具体的Convention実装
 - F-L1-004 — コンパイル時Preset選択(`SpatialPresetSelection.props`)と`ProjectSpatial`ファサード例
 - F-L2-003 — `CameraBasis`/`DirectionalLightBasis`/`SpotLightBasis`
+
+## ADR-0034による一部Superseded(6分割構成とSpatialPreset機構)
+
+[[ADR-0034-Project-Consolidation]]により、本ADRの次の2点は**Superseded**である。
+RUF意味座標系の設計・型・変換規則・Golden Values はすべて無変更で有効である。
+
+### 1. 6プロジェクト分割 → `CSharpGameEngine.Core`へ統合
+
+`CSharpGameEngine.Spatial.Abstractions` / `.Spatial.Unity` / `.Spatial.Unreal` /
+`.Spatial.Blender` / `.Spatial.Gltf` / `.Spatial.Fbx` の6アセンブリは
+`CSharpGameEngine.Core`1つへ統合された。**名前空間は6つとも無変更**であり、
+本ADRのGolden Values表が完全修飾型名で書かれていても無改修で正しいままである。
+
+統合の根拠は実測値である: Spatial系5プロジェクトは**合計132行**(平均26行、大半がXMLドキュメント
+コメント)しかなく、`Spatial.Fbx`と`Spatial.Gltf`は数学的に同一で、ファイル内コメントにも
+「`Import.Fbx`が`Import.Gltf`を参照しなくて済むように分けただけ」と書かれていた。
+
+### 2. `SpatialPresetSelection.props`(コンパイル時Preset選択機構)の廃止
+
+`SpatialPresetSelection.props`と、その唯一の使用例だった`samples/SpatialPresetDemo`を削除した。
+
+この機構の利用者は`samples/SpatialPresetDemo`だけで、しかも`.slnx`に未登録だったため
+**通常ビルドで一度も実行されていなかった**。エンジン本体は
+[[ADR-0026-Camera-Geometry-Ruf-Integration]]で`UnityCoordinateConvention`に固定済みであり、
+`Spatial.Unreal`/`Spatial.Blender`の本番利用はゼロだった。
+
+**失われたのは「コンパイル時に1つだけリンクする」機構だけ**である。Convention型そのものは
+`CSharpGameEngine.Core`内に名前空間ごと残っているため、実行時に選択して使うことは引き続きできる。
+本ADRの検証結果に転記済みの実測値も証跡として残っている。

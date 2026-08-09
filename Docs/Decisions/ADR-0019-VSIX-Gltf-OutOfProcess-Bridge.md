@@ -79,3 +79,16 @@ positions/normals/indices/baseColorFactorのフラット配列)なので、VSIX�
   未実施(既存の`ViewerHwndHost`はハードコードされた`Box.glb`のままで、ロード経路の変更以外に
   変わっていないため、ADR-0008以降の実績から動作継続を推定しているが、次回VS実験用インスタンス
   でのスクリーンショット確認が望ましい)。
+
+## ADR-0034による追記
+
+[[ADR-0034-Project-Consolidation]]により、`tools/CSharpGameEngine.Import.Gltf.Cli`の
+`<ProjectReference>`先が`src/CSharpGameEngine.Import.Gltf/`から`src/CSharpGameEngine.Import/`へ
+変わった。名前空間`CSharpGameEngine.Import.Gltf`は無変更で、`GltfImporter.Import(inputPath)`の
+呼び出しもJSON出力形式も本ADRの決定事項もそのままである。
+
+`Import.Gltf`と`Import.Fbx`が1アセンブリになったため、このブリッジの出力にはマネージドの
+`AssimpNet.dll`が入るようになったが、**ネイティブ`assimp.dll`は入らない**(RID固有アセットであり、
+このプロジェクトは意図的に`RuntimeIdentifier`を設定していない)。
+[[ADR-0010-VSIX-Fbx-OutOfProcess-Bridge]]と同様、VSIX側の隔離はプロセス分離によって成立している
+ため不変である。統合後に`Box.glb`の実変換を再実行し`exit=0` / `Success:true`を確認済み。

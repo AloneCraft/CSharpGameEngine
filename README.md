@@ -15,7 +15,7 @@ dotnet build
 dotnet test
 ```
 
-GPU統合テスト（`CSharpGameEngine.Graphics.D3D12.Tests`内、`Category=GPU`）はWARPアダプタに対して実行され、
+GPU統合テスト（`CSharpGameEngine.Windows.Tests`内、`Category=GPU`）はWARPアダプタに対して実行され、
 非Windows環境では明示的にSkipされます。CPU側のみ実行する場合:
 ```bash
 dotnet test --filter "Category!=GPU"
@@ -103,12 +103,25 @@ Viewerのオプションは`triangle`コマンドと同様（`--frames` / `--wid
   Debug Layerなしで継続します（診断出力にその旨を表示）
 
 ## Notes
-- Visual Studio拡張は後続マイルストーンで追加予定です。`tools/CSharpGameEngine.Extension`は
-  将来の拡張機能のロジックを見据えたプレースホルダーの実行ファイルであり、実際のVSIXではありません
-  （詳細: ADR-0004）。
+- Visual Studio拡張の本体は`tools/CSharpGameEngine.VSExtension`（net472、実際に`.vsix`を生成）です。
+  `tools/CSharpGameEngine.Extension`はヘッドレスのモデルビューア実行ファイルで、
+  `--verify`によるピクセル検証を伴うレンダリング経路のスモークに使います（VSIXではありません）。
 - エンジン本体は Visual Studio から独立して実行できる設計方針です。
-- `CSharpGameEngine.Core`はWindows/Direct3D/DXCに依存しません。Windows固有の実装は
-  `CSharpGameEngine.Platform.Windows` / `CSharpGameEngine.Compiler.Hlsl` / `CSharpGameEngine.Graphics.D3D12`
-  に隔離されています（詳細: [Docs/Decisions/ADR-0003-Windows-D3D12-Vertical-Slice.md](Docs/Decisions/ADR-0003-Windows-D3D12-Vertical-Slice.md)）。
-- `CSharpGameEngine.Import.Gltf`（glTF/GLBインポータ）はWindows/D3D非依存の`net10.0`プロジェクトです
-  （詳細: [Docs/Decisions/ADR-0004-Gltf-Model-Viewer-Vertical-Slice.md](Docs/Decisions/ADR-0004-Gltf-Model-Viewer-Vertical-Slice.md)）。
+- `src/`は5プロジェクトです（詳細:
+  [Docs/Decisions/ADR-0034-Project-Consolidation.md](Docs/Decisions/ADR-0034-Project-Consolidation.md)）。
+  **アセンブリ名と名前空間は意図的に一致していません** — 名前空間は統合前のまま維持されています。
+
+  | プロジェクト | TFM | 含む名前空間 |
+  |---|---|---|
+  | `CSharpGameEngine.CodeAnalysis` | netstandard2.0 | (Roslyn Analyzer) |
+  | `CSharpGameEngine.Entities` | net10.0 | `CSharpGameEngine.Entities`（共有ソース） |
+  | `CSharpGameEngine.Core` | net10.0 | `.Core` / `.Spatial.*` / `.Geometry` |
+  | `CSharpGameEngine.Import` | net10.0 | `.Import.Gltf` / `.Import.Fbx` |
+  | `CSharpGameEngine.Windows` | net10.0-windows / x64 | `.Platform.Windows` / `.Compiler.Hlsl` / `.Graphics.D3D12` |
+
+- `CSharpGameEngine.Core`はWindows/Direct3D/DXCに依存せず、`PackageReference`も一切持ちません。
+  Windows固有の実装は`CSharpGameEngine.Windows`に隔離されています
+  （詳細: [Docs/Decisions/ADR-0003-Windows-D3D12-Vertical-Slice.md](Docs/Decisions/ADR-0003-Windows-D3D12-Vertical-Slice.md)）。
+- `CSharpGameEngine.Import`（glTF/GLB・FBXインポータ）はWindows/D3D非依存の`net10.0`プロジェクトです
+  （詳細: [Docs/Decisions/ADR-0004-Gltf-Model-Viewer-Vertical-Slice.md](Docs/Decisions/ADR-0004-Gltf-Model-Viewer-Vertical-Slice.md)、
+  [Docs/Decisions/ADR-0009-Fbx-Model-Import.md](Docs/Decisions/ADR-0009-Fbx-Model-Import.md)）。

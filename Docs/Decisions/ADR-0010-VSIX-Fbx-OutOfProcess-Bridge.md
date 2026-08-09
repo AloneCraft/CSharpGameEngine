@@ -189,3 +189,19 @@ ADR-0021追記で経験した種類のデッドロックを再び招きかねな
 **検証状況**: ビルド・テスト・上記の実測タイミングは今回のセッションで直接確認済み。
 一方、VS実機での「シーンタブ・シェイプパレット追加時の体感速度が実際に改善したか」は
 ユーザー自身による確認が必要(未実施)。
+
+## ADR-0034による追記(VSIXの隔離は不変)
+
+[[ADR-0034-Project-Consolidation]]が`CSharpGameEngine.Import.Fbx`と`.Import.Gltf`を単一の
+`CSharpGameEngine.Import`アセンブリへ統合したが、**本ADRが確立した隔離は一切変わっていない**。
+
+理由は、本ADRの隔離が「アセンブリを分ける」ことではなく「**プロセスを分ける**」ことで
+成立しているためである。VSIX(net472、`devenv.exe`内で動作)はAssimpNetを直接参照せず、
+`tools/CSharpGameEngine.Import.Fbx.Cli`を短命な別プロセスとして起動する形のままである。
+ネイティブ`assimp.dll`がVisual Studio自身のプロセスへロードされることは引き続きない。
+
+変わったのは`Import.Fbx.Cli`の`<ProjectReference>`先が
+`src/CSharpGameEngine.Import.Fbx/` から `src/CSharpGameEngine.Import/` になった点だけである。
+ブリッジCLIの引数・JSON出力形式・`--serve`常駐モード([[ADR-0023-Bridge-Process-Residency]])は無変更。
+統合後に`Box.fbx`の実変換を再実行し、`exit=0` / `Success:true`(ネイティブ`assimp.dll`のロード成功)を
+確認済み。

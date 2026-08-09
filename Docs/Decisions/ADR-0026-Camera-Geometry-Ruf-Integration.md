@@ -91,3 +91,29 @@ dotnet build CSharpGameEngine.slnx -c Debug/Release                → 成功、
 - F-L0-001 — `Camera`(既存ID更新)
 - F-L2-002 — `CSharpGameEngine.Geometry`(既存ID更新)
 - F-L0-006 — `Camera.BuildViewMatrix`共有ヘルパー(新規)
+
+## ADR-0034による追記(アセンブリ配置の変更)
+
+[[ADR-0034-Project-Consolidation]]により、本ADRが言及するプロジェクトの**アセンブリ配置だけ**が
+変わった。**名前空間・型・RUF内部実装・Golden Values はすべて無変更**である。
+本文中のファイルパスは執筆時点のものであり、現在の位置は次のとおり読み替える:
+
+| 本ADRでの呼称 | 統合後のアセンブリ / パス | 名前空間 |
+|---|---|---|
+| `CSharpGameEngine.Spatial.Abstractions` | `CSharpGameEngine.Core`(`src/CSharpGameEngine.Core/Spatial/`) | 無変更 |
+| `CSharpGameEngine.Spatial.Unity` | `CSharpGameEngine.Core`(`src/CSharpGameEngine.Core/Spatial/Conventions/`) | 無変更 |
+| `CSharpGameEngine.Geometry` | `CSharpGameEngine.Core`(`src/CSharpGameEngine.Core/Geometry/`) | 無変更 |
+| `CSharpGameEngine.Graphics.D3D12` | `CSharpGameEngine.Windows`(`src/CSharpGameEngine.Windows/Graphics/`) | 無変更 |
+
+本ADR決定事項が記していた「`Geometry`・`Graphics.D3D12`・`UserGameProject`はいずれも
+`Spatial.Abstractions`+`Spatial.Unity`への直接`ProjectReference`を持つ」という構成は、
+`Spatial.*`が`Core`に入ったことで**`Core`への1本の参照に置き換わった**。
+「`Graphics.D3D12`と`Geometry`の間に依存関係が無い」という本ADRの観測は、両者が同一アセンブリに
+なったわけではない(`Geometry`→`Core`、`Graphics.D3D12`→`Windows`)ため引き続き成立している。
+ただし`Graphics.D3D12.Tests`が持っていた`Geometry`へのテスト専用参照辺は、
+`ProceduralMeshFactory`が`Core`内に来たことで不要になり削除した。
+
+本ADRの検証コマンドに登場するテストプロジェクトは統合されている:
+`Geometry.Tests`(30件)と`Spatial.Tests`(68件)は`CSharpGameEngine.Core.Tests`(111件)へ、
+`Graphics.D3D12.Tests`(60件)は`CSharpGameEngine.Windows.Tests`(67件)へ。
+いずれのテストコードも**無改修**で、統合後も全件成功している。

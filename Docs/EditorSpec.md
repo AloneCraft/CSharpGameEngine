@@ -203,7 +203,7 @@ Windowの編集フロー(本セクションおよび§5)にはまだ一切統合
 **ゴール**: `dotnet run --project UserGameProject`(またはVSのF5)を実行すると、現在のデフォルトシーンJSONを読み込み、全ノードをインスタンス化して描画し(Phase 1〜3でHierarchy/Viewportに組んだ内容と一致するWYSIWYG)、各ノードにアタッチされたスクリプトの`OnStart`/`OnUpdate`を実行するウィンドウが開く。
 
 **新規**:
-- `UserGameProject.csproj`に`ProjectReference`を追加: `CSharpGameEngine.Core`、`CSharpGameEngine.Scene`、`CSharpGameEngine.Graphics.D3D12`、`CSharpGameEngine.Platform.Windows`、`CSharpGameEngine.Import.Gltf`、`CSharpGameEngine.Import.Fbx`(いずれもnet10.0のため`UserGameProject`側にnet472境界の問題はない)。
+- `UserGameProject.csproj`の`ProjectReference`は既に`CSharpGameEngine.Core`/`CSharpGameEngine.Windows`/`CSharpGameEngine.Import`が揃っている(ADR-0034で5プロジェクト構成になり、旧`Scene`/`Graphics.D3D12`/`Platform.Windows`/`Import.Gltf`/`Import.Fbx`はこの3つに吸収された)。`UserGameProject`側にnet472境界の問題はない。なおシーンの正本はJSONではなくC#(`[SceneDefinition]`、ADR-0030/0031/0033)であり、`CSharpGameEngine.Scene`はADR-0034で削除済み。
 - `Program.cs`(`CSharpGameEngine.Extension`/`TestHost`と同様のWindow+Device+SwapChain構成だが、`--model <path>`ではなくシーンJSON駆動)。
 - `Graphics.D3D12`側にPhase 2のVortice版と対になる複数メッシュ対応レンダラー(§4「2レンダラー非結合の帰結」参照)。
 - 固定タイムステップの更新ループ(毎フレーム各ノードの`Components`を解決し`OnUpdate`を呼ぶ)。

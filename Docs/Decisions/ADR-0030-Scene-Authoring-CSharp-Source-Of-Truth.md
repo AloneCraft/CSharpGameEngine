@@ -159,3 +159,15 @@ dotnet test CSharpGameEngine.slnx                                     → 成功
   `SceneNodeSymbol`系)
 - F-L7-012・F-L7-013(新規) — `SceneDefinitionGenerator`(Analyzer/Model/Emitter、診断SCENE001〜009)
 - F-L9-006(新規) — `samples/SceneAuthoringDemo`
+
+## ADR-0034による訂正(旧JSON方式Sceneの削除)
+
+本ADRは「既存のJSON方式Scene(`src/CSharpGameEngine.Scene`)はPhase Aでは無改修のまま並行して
+残る」と記していたが、[[ADR-0034-Project-Consolidation]]で**`src/CSharpGameEngine.Scene`と
+`tests/CSharpGameEngine.Scene.Tests`を削除した**。理由は、Scene AuthoringがC#正本方式へ移った
+あとこのプロジェクトに**生きた利用者が1つも残らなかった**ためである(参照は自分自身のテストのみ)。
+
+VSIXが`*.scene`ファイルを読むためのパーサ
+(`tools/CSharpGameEngine.VSExtension/SceneFile.cs`)はVSIX内にそのまま残っており、影響はない。
+出荷される`UserGameProject/DefaultScene.scene`を実際に読む唯一のテストだった
+`DefaultSceneFileTests`は、削除に先立って`tests/CSharpGameEngine.VSExtension.Tests/`へ移植した。

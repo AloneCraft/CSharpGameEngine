@@ -231,9 +231,9 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
   Docs/Decisions/ADR-0018-Textured-Stage-And-Ecs-Systems.md(一人称モード追加)、
   Docs/Decisions/ADR-0026-Camera-Geometry-Ruf-Integration.md(RUF内部実装統合)
 - Implementation evidence:
-  - src/CSharpGameEngine.Graphics.D3D12/Camera.cs
+  - src/CSharpGameEngine.Windows/Graphics/Camera.cs
 - Tests:
-  - tests/CSharpGameEngine.Graphics.D3D12.Tests/CameraTests.cs
+  - tests/CSharpGameEngine.Windows.Tests/Graphics/CameraTests.cs
 - Reverse-engineered behavior:
   - Yaw/Pitch/Distance/Targetからview/projection行列を計算するUE5風スプリングアームカメラ。
     `System.Numerics`のみに依存しTerraFXを含まないため、GPU無しで単体テストできる。
@@ -264,11 +264,11 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
 - Intended specification: Docs/Decisions/ADR-0016-Ecs-Driven-Stage-And-ThirdPerson-Controller.md、
   Docs/Decisions/ADR-0018-Textured-Stage-And-Ecs-Systems.md(テクスチャ・PBR・ライティング拡張)
 - Implementation evidence:
-  - src/CSharpGameEngine.Graphics.D3D12/StageRenderer.cs
-  - src/CSharpGameEngine.Graphics.D3D12/StageRenderInputs.cs
+  - src/CSharpGameEngine.Windows/Graphics/StageRenderer.cs
+  - src/CSharpGameEngine.Windows/Graphics/StageRenderInputs.cs
   - assets/Shaders/Stage.hlsl
 - Tests:
-  - tests/CSharpGameEngine.Graphics.D3D12.Tests/StageGpuIntegrationTests.cs
+  - tests/CSharpGameEngine.Windows.Tests/Graphics/StageGpuIntegrationTests.cs
 - Reverse-engineered behavior:
   - `ModelRenderer`とは別クラス(ADR-0004の複製方針)のままだが、ADR-0018でメッシュ/マテリアル/
     オブジェクトを分離するAPI(`StageMeshCreateInfo`/`StageMaterialCreateInfo`/
@@ -302,9 +302,9 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
 - Verification: TestVerified
 - Intended specification: Docs/Decisions/ADR-0016-Ecs-Driven-Stage-And-ThirdPerson-Controller.md
 - Implementation evidence:
-  - src/CSharpGameEngine.Graphics.D3D12/ProceduralMeshFactory.cs
+  - src/CSharpGameEngine.Core/Geometry/ProceduralMeshFactory.cs
 - Tests:
-  - tests/CSharpGameEngine.Graphics.D3D12.Tests/ProceduralMeshFactoryTests.cs
+  - tests/CSharpGameEngine.Core.Tests/Geometry/ProceduralMeshFactoryTests.cs
 - Reverse-engineered behavior:
   - `CreatePlane`はY=0固定・法線+Yの矩形、`CreateBox`は24頂点(面ごとに法線分離)の
     軸整列ボックスを生成する。このリポジトリで初めての手続き的メッシュ生成コード
@@ -321,7 +321,7 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
 - Verification: RuntimeVerified
 - Intended specification: Docs/Decisions/ADR-0016-Ecs-Driven-Stage-And-ThirdPerson-Controller.md
 - Implementation evidence:
-  - src/CSharpGameEngine.Platform.Windows/Win32Window.cs
+  - src/CSharpGameEngine.Windows/Platform/Win32Window.cs
 - Tests: なし(Win32メッセージハンドリング自体の単体テストは無く、実機確認に委ねている。
   ADR-0016参照)。
 - Reverse-engineered behavior:
@@ -420,17 +420,17 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
   Docs/Decisions/ADR-0018-Textured-Stage-And-Ecs-Systems.md、
   Docs/Decisions/ADR-0027-Gltf-Fbx-Import-Axis-Conversion.md(軸変換、ADR-0017の該当宣言を上書き)
 - Implementation evidence:
-  - src/CSharpGameEngine.Import.Gltf/GltfImporter.cs(`ImportScene`メソッド)
-  - src/CSharpGameEngine.Import.Gltf/ImportedScene.cs
-  - src/CSharpGameEngine.Import.Gltf/ImportedSceneNode.cs
-  - src/CSharpGameEngine.Import.Gltf/ImportedMeshData.cs
-  - src/CSharpGameEngine.Import.Gltf/ImportedPbrMaterial.cs
-  - src/CSharpGameEngine.Import.Gltf/ImportedLight.cs
-  - src/CSharpGameEngine.Import.Gltf/ImportedLightDirection.cs(ADR-0027で新規)
-  - src/CSharpGameEngine.Import.Gltf/GltfAxisConversion.cs(ADR-0027で新規)
-  - src/CSharpGameEngine.Import.Gltf/GltfSceneImportResult.cs
+  - src/CSharpGameEngine.Import/Gltf/GltfImporter.cs(`ImportScene`メソッド)
+  - src/CSharpGameEngine.Import/Gltf/ImportedScene.cs
+  - src/CSharpGameEngine.Import/Gltf/ImportedSceneNode.cs
+  - src/CSharpGameEngine.Import/Gltf/ImportedMeshData.cs
+  - src/CSharpGameEngine.Import/Gltf/ImportedPbrMaterial.cs
+  - src/CSharpGameEngine.Import/Gltf/ImportedLight.cs
+  - src/CSharpGameEngine.Import/Gltf/ImportedLightDirection.cs(ADR-0027で新規)
+  - src/CSharpGameEngine.Import/Gltf/GltfAxisConversion.cs(ADR-0027で新規)
+  - src/CSharpGameEngine.Import/Gltf/GltfSceneImportResult.cs
 - Tests:
-  - tests/CSharpGameEngine.Import.Gltf.Tests/GltfImporterSceneTests.cs
+  - tests/CSharpGameEngine.Import.Tests/Gltf/GltfImporterSceneTests.cs
 - Reverse-engineered behavior:
   - 既存の`Import(string)`(先頭プリミティブのみ)とは独立した追加APIで、`Import`自体は
     無改修。`Scene.VisualChildren`/`Node.VisualChildren`を再帰的に歩き、メッシュまたは
@@ -674,23 +674,26 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
 
 - Layer: L2 — Type Schema / Identity
 - Parent capability: シーンダブルクリックプレビューとヒエラルキー選択連動
-- Status: Implemented
-- Verification: TestVerified
+- Status: **Removed**(ADR-0034 / M0014)
+- Verification: N/A
 - Intended specification: Docs/Decisions/ADR-0020-Scene-Preview-And-Hierarchy-Selection-Sync.md、
   Docs/EditorSpec.md §3(データモデル)
-- Implementation evidence:
-  - src/CSharpGameEngine.Scene/Transform.cs
-  - src/CSharpGameEngine.Scene/SceneNode.cs
-  - src/CSharpGameEngine.Scene/SceneGraph.cs
-  - src/CSharpGameEngine.Scene/SceneNodeTree.cs
-  - src/CSharpGameEngine.Scene/SceneJson.cs
-  - UserGameProject/DefaultScene.scene.json
-  - UserGameProject/Assets/DefaultScene/Box.glb
-- Tests:
-  - tests/CSharpGameEngine.Scene.Tests/SceneGraphJsonTests.cs
-  - tests/CSharpGameEngine.Scene.Tests/SceneNodeTreeTests.cs
-  - tests/CSharpGameEngine.Scene.Tests/DefaultSceneFileTests.cs
-- Reverse-engineered behavior:
+- Removal rationale: Scene Authoringが[[ADR-0030-Scene-Authoring-CSharp-Source-Of-Truth]]/
+  [[ADR-0031-Scene-Definition-3D-Preview]]でC#正本方式(`[SceneDefinition]`+`GameSystemGenerator`)へ
+  移った後、このJSON方式実装には**生きた利用者が1つも残らなかった**(参照は自分自身のテストのみ)。
+  [[ADR-0034-Project-Consolidation]]で`src/CSharpGameEngine.Scene`と
+  `tests/CSharpGameEngine.Scene.Tests`をディレクトリごと削除した。
+- Superseded by: F-L3-xxx系のScene Authoring(C#正本)。VSIXが`*.scene`を読むパーサーは
+  `tools/CSharpGameEngine.VSExtension/SceneFile.cs`として**VSIX内に存続**しており(F-L8-003)、
+  エディタ機能そのものは失われていない。
+- Implementation evidence(削除済み。履歴はgitの`f17fbd5`以前を参照):
+  - ~~src/CSharpGameEngine.Scene/{Transform,SceneNode,SceneGraph,SceneNodeTree,SceneJson}.cs~~
+  - UserGameProject/DefaultScene.scene(存続、VSIXが読む)
+  - UserGameProject/Assets/DefaultScene/Box.glb(存続)
+- Tests: 8件のうち7件は削除対象そのもののテストなのでカバレッジ損失なし。残る1件
+  (出荷される`UserGameProject/DefaultScene.scene`を実際に読む唯一のテスト)は削除に先立って移植した:
+  - tests/CSharpGameEngine.VSExtension.Tests/DefaultSceneFileTests.cs
+- Reverse-engineered behavior(削除時点の記録として保持):
   - EditorSpec §3のJSONスキーマ(`schemaVersion`/`nodes[].{id,name,parentId,transform,
     meshAssetPath,components}`)と完全一致する往復シリアライズを、`StableId`/`Vector3`/
     `Quaternion`用の`JsonConverter`を書かず素の文字列/`float[]`との明示的な相互変換で実装。
@@ -702,11 +705,12 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
   - `UserGameProject/DefaultScene.scene.json`はRoot+`Cube_A`/`Cube_B`(いずれも
     `Assets/DefaultScene/Box.glb`を参照、X軸上で左右に配置)の最小3ノードシーン。
     `assets/TestFixtures/Gltf/Box.glb`のコピーを新規アセットとして追加。
-- Conformance: Matches
+- Conformance: N/A(削除済み)
 - Known deviations: `UserGameProject.csproj`への`CSharpGameEngine.Scene`への`ProjectReference`は
-  追加していない(ランタイム統合はEditorSpec Phase 4のスコープ、今回は対象外)。
-- Next action: EditorSpec Phase 2(ドラッグ&ドロップ配置・Inspector)またはPhase 4(Play統合)が
-  必要になった時点で再検討する。
+  ついに追加されなかった。ランタイム統合はEditorSpec Phase 4のスコープだったが、その前に
+  Scene AuthoringがC#正本方式へ移ったため、このJSON実装は一度も本番経路に載らずに終わった。
+- Next action: 無し。EditorSpec Phase 2/Phase 4のランタイム統合は、C#正本方式
+  (`[SceneDefinition]` / `CreateRuntime(ref World)`)の上で設計する。
 
 ## F-L8-003 — シーンダブルクリックプレビューとヒエラルキー選択連動
 
@@ -774,22 +778,27 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
 - Intended specification: Docs/Decisions/ADR-0021-Editor-Layout-And-Shape-Palette.md、
   Docs/Decisions/ADR-0026-Camera-Geometry-Ruf-Integration.md(RUF内部実装統合)
 - Implementation evidence:
-  - src/CSharpGameEngine.Geometry/ProceduralMeshData.cs
-  - src/CSharpGameEngine.Geometry/ProceduralMeshFactory.cs
+  - src/CSharpGameEngine.Core/Geometry/ProceduralMeshData.cs
+  - src/CSharpGameEngine.Core/Geometry/ProceduralMeshFactory.cs
 - Tests:
-  - tests/CSharpGameEngine.Geometry.Tests/ProceduralMeshFactoryTests.cs
+  - tests/CSharpGameEngine.Core.Tests/Geometry/ProceduralMeshFactoryTests.cs
 - Reverse-engineered behavior:
   - `src/CSharpGameEngine.Graphics.D3D12/ProceduralMeshFactory.cs`(`CreatePlane`/`CreateBox`のみ)
     から移設。移設前の時点で`Graphics.D3D12`本体のどこからも参照されておらず(唯一の呼び出し元は
     `StageGpuIntegrationTests.cs`)、`Graphics.D3D12`への`ProjectReference`は追加せず
-    `tests/CSharpGameEngine.Graphics.D3D12.Tests.csproj`から直接参照する「テスト専用エッジ」
+    当時の`tests/CSharpGameEngine.Graphics.D3D12.Tests.csproj`から直接参照する「テスト専用エッジ」
     とした(同csprojの`Import.Gltf`直接参照と同じ前例パターン)。
+  - (ADR-0034追記)上記の**テスト専用エッジは解消した**。`Geometry`が
+    `CSharpGameEngine.Core`に統合され、`Graphics.D3D12`が属する`CSharpGameEngine.Windows`は
+    もともと`Core`を参照しているため、`StageGpuIntegrationTests.cs`(現
+    `tests/CSharpGameEngine.Windows.Tests/Graphics/`)は追加の参照なしに
+    `ProceduralMeshFactory`へ到達できる。名前空間`CSharpGameEngine.Geometry`は無変更。
   - `CreateSphere`は極を単一頂点にしてファンする方式(素朴なUV球のように極の列を複製して
     quad化する方式ではない)で実装しており、これにより退化三角形が構造的に発生しない。
     `CreateCylinder`/`CreateCone`/`CreateDisk`は共有`AddRing`/`AddQuadBand`ヘルパーで
     リング状の頂点列とバンドの三角形分割を統一的に処理する。`CreateCapsule`は半球リング生成
     (`AddHemisphereRings`)+円柱側面+半球リングという3段構成。
-  - 全8種(Box/Plane含む)についてretry`tests/CSharpGameEngine.Geometry.Tests`で頂点/インデックス
+  - 全8種(Box/Plane含む)についてretry`tests/CSharpGameEngine.Core.Tests`で頂点/インデックス
     範囲・法線単位長・退化三角形の不在(三角形面積>1e-6の実測値チェック)を検証、30件全て初回
     実行で成功。
   - (ADR-0026追記)全8種の頂点/法線計算を`RufVector`ベースへ書き換え、
@@ -1174,23 +1183,23 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
 - Intended specification: Docs/RUF-Semantic-Coordinate-Specification-Prompt.md、
   Docs/Decisions/ADR-0025-RUF-Semantic-Coordinates.md、Docs/Specifications/Spatial-RUF.md
 - Implementation evidence:
-  - src/CSharpGameEngine.Spatial.Abstractions/RufVector.cs
-  - src/CSharpGameEngine.Spatial.Abstractions/XyzVector.cs
-  - src/CSharpGameEngine.Spatial.Abstractions/ICoordinateConvention.cs
-  - src/CSharpGameEngine.Spatial.Abstractions/CoordinateHandedness.cs
-  - src/CSharpGameEngine.Spatial.Abstractions/PhysicalAxis.cs
-  - src/CSharpGameEngine.Spatial.Abstractions/UnitConversion.cs
-  - src/CSharpGameEngine.Spatial.Abstractions/CoordinateBasisValidator.cs
-  - src/CSharpGameEngine.Spatial.Abstractions/SpatialConfigurationException.cs
-  - src/CSharpGameEngine.Spatial.Abstractions/Spatial.cs
+  - src/CSharpGameEngine.Core/Spatial/RufVector.cs
+  - src/CSharpGameEngine.Core/Spatial/XyzVector.cs
+  - src/CSharpGameEngine.Core/Spatial/ICoordinateConvention.cs
+  - src/CSharpGameEngine.Core/Spatial/CoordinateHandedness.cs
+  - src/CSharpGameEngine.Core/Spatial/PhysicalAxis.cs
+  - src/CSharpGameEngine.Core/Spatial/UnitConversion.cs
+  - src/CSharpGameEngine.Core/Spatial/CoordinateBasisValidator.cs
+  - src/CSharpGameEngine.Core/Spatial/SpatialConfigurationException.cs
+  - src/CSharpGameEngine.Core/Spatial/Spatial.cs
 - Tests:
-  - tests/CSharpGameEngine.Spatial.Tests/BasisTests.cs
-  - tests/CSharpGameEngine.Spatial.Tests/RoundTripTests.cs
-  - tests/CSharpGameEngine.Spatial.Tests/HandednessTests.cs
-  - tests/CSharpGameEngine.Spatial.Tests/CoordinateBasisValidatorTests.cs
-  - tests/CSharpGameEngine.Spatial.Tests/UnitConversionTests.cs
-  - tests/CSharpGameEngine.Spatial.Tests/ImportAxisConversionTests.cs
-  - tests/CSharpGameEngine.Spatial.Tests/DeterminismTests.cs
+  - tests/CSharpGameEngine.Core.Tests/Spatial/BasisTests.cs
+  - tests/CSharpGameEngine.Core.Tests/Spatial/RoundTripTests.cs
+  - tests/CSharpGameEngine.Core.Tests/Spatial/HandednessTests.cs
+  - tests/CSharpGameEngine.Core.Tests/Spatial/CoordinateBasisValidatorTests.cs
+  - tests/CSharpGameEngine.Core.Tests/Spatial/UnitConversionTests.cs
+  - tests/CSharpGameEngine.Core.Tests/Spatial/ImportAxisConversionTests.cs
+  - tests/CSharpGameEngine.Core.Tests/Spatial/DeterminismTests.cs
 - Reverse-engineered behavior:
   - `RufVector`(R/U/F)と`XyzVector`(X/Y/Z)は共にblittable・unmanaged・heap割当なしの
     `readonly struct`。`XyzVector`から`System.Numerics.Vector3`への変換は`explicit`演算子のみ
@@ -1219,12 +1228,12 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
 - Intended specification: Docs/RUF-Semantic-Coordinate-Specification-Prompt.md、
   Docs/Specifications/Spatial-RUF.md
 - Implementation evidence:
-  - src/CSharpGameEngine.Spatial.Abstractions/RufQuaternion.cs
-  - src/CSharpGameEngine.Spatial.Abstractions/ITransformConvention.cs
-  - src/CSharpGameEngine.Spatial.Abstractions/StandardTransformConvention.cs
+  - src/CSharpGameEngine.Core/Spatial/RufQuaternion.cs
+  - src/CSharpGameEngine.Core/Spatial/ITransformConvention.cs
+  - src/CSharpGameEngine.Core/Spatial/StandardTransformConvention.cs
 - Tests:
-  - tests/CSharpGameEngine.Spatial.Tests/RufQuaternionTests.cs
-  - tests/CSharpGameEngine.Spatial.Tests/TransformConventionTests.cs
+  - tests/CSharpGameEngine.Core.Tests/Spatial/RufQuaternionTests.cs
+  - tests/CSharpGameEngine.Core.Tests/Spatial/TransformConventionTests.cs
 - Reverse-engineered behavior:
   - `ITransformConvention`は`ICoordinateConvention`と独立した契約で、`StandardTransformConvention`は
     Scale→Rotation→Translationの順で合成し(row-vector規約、`scale*rotation*translation`)、
@@ -1254,14 +1263,14 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
   「Golden Values」、Docs/Decisions/ADR-0025-RUF-Semantic-Coordinates.md、
   Docs/Specifications/Spatial-RUF.md
 - Implementation evidence:
-  - src/CSharpGameEngine.Spatial.Unity/UnityCoordinateConvention.cs
-  - src/CSharpGameEngine.Spatial.Unreal/UnrealCoordinateConvention.cs
-  - src/CSharpGameEngine.Spatial.Blender/BlenderWorldConvention.cs
+  - src/CSharpGameEngine.Core/Spatial/Conventions/UnityCoordinateConvention.cs
+  - src/CSharpGameEngine.Core/Spatial/Conventions/UnrealCoordinateConvention.cs
+  - src/CSharpGameEngine.Core/Spatial/Conventions/BlenderWorldConvention.cs
 - Tests:
-  - tests/CSharpGameEngine.Spatial.Tests/BasisTests.cs
-  - tests/CSharpGameEngine.Spatial.Tests/RoundTripTests.cs
-  - tests/CSharpGameEngine.Spatial.Tests/HandednessTests.cs
-  - tests/CSharpGameEngine.Spatial.Tests/ImportAxisConversionTests.cs
+  - tests/CSharpGameEngine.Core.Tests/Spatial/BasisTests.cs
+  - tests/CSharpGameEngine.Core.Tests/Spatial/RoundTripTests.cs
+  - tests/CSharpGameEngine.Core.Tests/Spatial/HandednessTests.cs
+  - tests/CSharpGameEngine.Core.Tests/Spatial/ImportAxisConversionTests.cs
 - Reverse-engineered behavior:
   - 3実装とも`ToXyz`/`FromXyz`は成分の固定並べ替えのみ(heap割当・分岐なし)。
   - `samples/SpatialPresetDemo`をPreset別に実行し、`RufVector.Forward`が物理XYZへ変換された値が
@@ -1282,18 +1291,26 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
 
 - Layer: L1 — Core Kernel
 - Parent capability: RUFセマンティック座標系
-- Status: Implemented
-- Verification: RuntimeVerified
+- Status: **Removed**(ADR-0034 / M0014)
+- Verification: N/A
 - Intended specification: Docs/RUF-Semantic-Coordinate-Specification-Prompt.md
   「コンパイル時プリセット選択」「型ベース呼び出し」、Docs/Decisions/ADR-0025-RUF-Semantic-Coordinates.md
-- Implementation evidence:
-  - src/CSharpGameEngine.Spatial.Abstractions/SpatialPresetSelection.props
-  - samples/SpatialPresetDemo/SpatialPresetDemo.csproj
-  - samples/SpatialPresetDemo/ProjectSpatial.cs
-  - samples/SpatialPresetDemo/Program.cs
+- Removal rationale: この機構の利用者は`samples/SpatialPresetDemo`だけであり、しかもそれは
+  `CSharpGameEngine.slnx`へ**意図的に未登録**だったため(下記Reverse-engineered behavior参照)、
+  **通常ビルドで一度も実行されていなかった**。エンジン本体は
+  [[ADR-0026-Camera-Geometry-Ruf-Integration]]で`UnityCoordinateConvention`に固定済みで、
+  `Spatial.Unreal`/`Spatial.Blender`の本番利用はゼロだった。
+  [[ADR-0034-Project-Consolidation]]で`SpatialPresetSelection.props`と`samples/`を削除した。
+- 失われた範囲: **「コンパイル時に1つだけリンクする」機構だけ**である。Convention型
+  (`UnityCoordinateConvention`等)は`CSharpGameEngine.Core`内に名前空間ごと残っており、
+  実行時に選択して使うことは引き続きできる(F-L1-002/F-L1-003は`Implemented`のまま)。
+- Implementation evidence(削除済み。履歴はgitの`f17fbd5`以前を参照):
+  - ~~src/CSharpGameEngine.Spatial.Abstractions/SpatialPresetSelection.props~~
+  - ~~samples/SpatialPresetDemo/{SpatialPresetDemo.csproj,ProjectSpatial.cs,Program.cs}~~
 - Tests: なし(MSBuildレベルのBuild Error検証はxunitで表現しづらいため、`dotnet build`/
-  `dotnet run`の実行結果で直接検証している。下記Reverse-engineered behavior参照)。
-- Reverse-engineered behavior:
+  `dotnet run`の実行結果で直接検証していた。実測値はADR-0025の検証結果へ転記済みで、
+  証跡そのものは失われていない)。
+- Reverse-engineered behavior(削除時点の記録として保持):
   - `$(SpatialPreset)`が`Unity`/`Unreal`/`Blender`のいずれか1つの場合のみ対応するConvention
     プロジェクトへの`ProjectReference`と`DefineConstants`(`SPATIAL_PRESET_*`)が設定される。
   - `SpatialPreset`未指定、または`Unity`/`Unreal`/`Blender`のいずれでもない値
@@ -1305,13 +1322,14 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
   - `samples/SpatialPresetDemo`は`CSharpGameEngine.slnx`に**意図的に未登録**
     (登録すると`SpatialPreset`未指定で`dotnet build CSharpGameEngine.slnx`全体が失敗することを
     実際に確認したため。既存ビルドを壊さないための判断、ADR-0025参照)。
-- Conformance: Matches
+- Conformance: N/A(削除済み)
 - Known deviations: 仕様書が想定する`dotnet test -p:SpatialPreset=Unity`のようなPreset別テスト
-  実行は、`CSharpGameEngine.Spatial.Tests`自体が3 Preset全てを1回のテスト実行内で検証する設計の
-  ため該当しない(F-L1-003参照)。Preset選択の実証は`samples/SpatialPresetDemo`のビルド/実行結果で
-  代替した。
-- Next action: 実際のゲームプロジェクトがRUFを採用する際、この`.props`をコピーする代わりに
-  参照する形で使うことを想定している。
+  実行は、旧`CSharpGameEngine.Core.Tests`(現`CSharpGameEngine.Core.Tests`の`Spatial/`)自体が
+  3 Preset全てを1回のテスト実行内で検証する設計のため該当しない(F-L1-003参照)。
+  この設計であるがゆえに、Preset機構を削除してもRUF側のテストカバレッジは一切減っていない。
+- Next action: 無し。実際のゲームプロジェクトがRUFを採用する際は、Convention型を実行時に
+  選択する形(`Spatial<UnityCoordinateConvention>`等)を使う。コンパイル時Preset選択が
+  再び必要になった時点で、実利用者を伴う形で設計し直す。
 
 ## F-L2-003 — `CameraBasis`/`DirectionalLightBasis`/`SpotLightBasis`
 
@@ -1322,12 +1340,12 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
 - Intended specification: Docs/RUF-Semantic-Coordinate-Specification-Prompt.md「Object Basis」、
   Docs/Specifications/Spatial-RUF.md
 - Implementation evidence:
-  - src/CSharpGameEngine.Spatial.Abstractions/CameraBasis.cs
-  - src/CSharpGameEngine.Spatial.Abstractions/DirectionalLightBasis.cs
-  - src/CSharpGameEngine.Spatial.Abstractions/SpotLightBasis.cs
+  - src/CSharpGameEngine.Core/Spatial/CameraBasis.cs
+  - src/CSharpGameEngine.Core/Spatial/DirectionalLightBasis.cs
+  - src/CSharpGameEngine.Core/Spatial/SpotLightBasis.cs
 - Tests:
-  - tests/CSharpGameEngine.Spatial.Tests/CameraBasisTests.cs
-  - tests/CSharpGameEngine.Spatial.Tests/LightBasisTests.cs
+  - tests/CSharpGameEngine.Core.Tests/Spatial/CameraBasisTests.cs
+  - tests/CSharpGameEngine.Core.Tests/Spatial/LightBasisTests.cs
 - Reverse-engineered behavior:
   - `CameraBasis`のコンストラクタは`Forward`を正規化するが`Up`はそのまま保持する(`Up`は
     正規化せず呼び出し元の値を保つ設計、`CameraBasisTests`で確認)。
@@ -1352,10 +1370,10 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
 - Verification: TestVerified
 - Intended specification: Docs/Decisions/ADR-0026-Camera-Geometry-Ruf-Integration.md
 - Implementation evidence:
-  - src/CSharpGameEngine.Graphics.D3D12/Camera.cs(`BuildViewMatrix`静的メソッド)
-  - src/CSharpGameEngine.Graphics.D3D12/ModelRenderer.cs(`UpdateTransformConstantBuffer`)
+  - src/CSharpGameEngine.Windows/Graphics/Camera.cs(`BuildViewMatrix`静的メソッド)
+  - src/CSharpGameEngine.Windows/Graphics/ModelRenderer.cs(`UpdateTransformConstantBuffer`)
 - Tests:
-  - tests/CSharpGameEngine.Graphics.D3D12.Tests/CameraTests.cs(`GetView`経由の間接カバレッジ)
+  - tests/CSharpGameEngine.Windows.Tests/Graphics/CameraTests.cs(`GetView`経由の間接カバレッジ)
 - Reverse-engineered behavior:
   - `Matrix4x4.CreateLookAt`への薄い委譲のみ。`Camera.GetView()`と`ModelRenderer`独自の
     バウンディングスフィア自動フィットeye計算(`Camera`インスタンスを経由しない別機能)の
@@ -1372,12 +1390,12 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
 - Verification: TestVerified
 - Intended specification: Docs/Decisions/ADR-0027-Gltf-Fbx-Import-Axis-Conversion.md
 - Implementation evidence:
-  - src/CSharpGameEngine.Spatial.Gltf/GltfCoordinateConvention.cs
+  - src/CSharpGameEngine.Core/Spatial/Conventions/GltfCoordinateConvention.cs
 - Tests:
-  - tests/CSharpGameEngine.Spatial.Tests/BasisTests.cs(`Gltf_MatchesGoldenValues`)
-  - tests/CSharpGameEngine.Spatial.Tests/RoundTripTests.cs
-  - tests/CSharpGameEngine.Spatial.Tests/HandednessTests.cs
-  - tests/CSharpGameEngine.Import.Gltf.Tests/GltfImporterSceneTests.cs(実利用側)
+  - tests/CSharpGameEngine.Core.Tests/Spatial/BasisTests.cs(`Gltf_MatchesGoldenValues`)
+  - tests/CSharpGameEngine.Core.Tests/Spatial/RoundTripTests.cs
+  - tests/CSharpGameEngine.Core.Tests/Spatial/HandednessTests.cs
+  - tests/CSharpGameEngine.Import.Tests/Gltf/GltfImporterSceneTests.cs(実利用側)
 - Reverse-engineered behavior:
   - R=+X,U=+Y,F=-Z,RightHanded(glTF仕様: 右手系・Y-up、カメラ/`KHR_lights_punctual`ライトは
     既定でローカル-Z方向)。既存Unity/Unreal/Blender Conventionと同型・同パターンだが、
@@ -1688,12 +1706,12 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
 - Verification: TestVerified
 - Intended specification: Docs/Decisions/ADR-0027-Gltf-Fbx-Import-Axis-Conversion.md
 - Implementation evidence:
-  - src/CSharpGameEngine.Spatial.Fbx/FbxCoordinateConvention.cs
+  - src/CSharpGameEngine.Core/Spatial/Conventions/FbxCoordinateConvention.cs
 - Tests:
-  - tests/CSharpGameEngine.Spatial.Tests/BasisTests.cs(`Fbx_MatchesGoldenValues`)
-  - tests/CSharpGameEngine.Spatial.Tests/RoundTripTests.cs
-  - tests/CSharpGameEngine.Spatial.Tests/HandednessTests.cs
-  - tests/CSharpGameEngine.Import.Fbx.Tests/FbxAxisConversionTests.cs(変換関数の単体テスト)
+  - tests/CSharpGameEngine.Core.Tests/Spatial/BasisTests.cs(`Fbx_MatchesGoldenValues`)
+  - tests/CSharpGameEngine.Core.Tests/Spatial/RoundTripTests.cs
+  - tests/CSharpGameEngine.Core.Tests/Spatial/HandednessTests.cs
+  - tests/CSharpGameEngine.Import.Tests/Fbx/FbxAxisConversionTests.cs(変換関数の単体テスト)
 - Reverse-engineered behavior:
   - `GltfCoordinateConvention`と数値的に同一の定義(R=+X,U=+Y,F=-Z,RightHanded)だが、
     AssimpNet公式ドキュメント(`PostProcessSteps.MakeLeftHanded`のXMLコメント: 「既定出力は

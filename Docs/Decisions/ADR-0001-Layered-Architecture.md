@@ -1,7 +1,7 @@
 # ADR-0001: レイヤードアーキテクチャ
 
 ## ステータス
-採用済み
+採用済み。[[ADR-0034-Project-Consolidation]]で注記を追加(下記「ADR-0034による注記」)。
 
 ## コンテキスト
 `CSharpGameEngine` では、ランタイム・静的コンパイル/Bake・オーサリングツールをそれぞれ独立して進化させられるアーキテクチャが必要である。
@@ -36,3 +36,20 @@
 ## 結果
 - ランタイム、Bake、オーサリングを CI/CLI 自動化で分離運用できる。
 - モジュール追加時に依存方向を検証しやすくなる。
+
+## ADR-0034による注記(レイヤーはアセンブリでは強制されない)
+
+[[ADR-0034-Project-Consolidation]]が`src/`を16プロジェクトから5へ統合した結果、
+**レイヤー境界とアセンブリ境界は一致しなくなった**。本ADRのレイヤーモデル自体は無変更である。
+
+- 統合で**下位が上位に依存する辺は1本も生まれていない**。`Import → Core`・`Windows → Core`は
+  いずれも上向きであり、依存方向の規則は守られている。
+- `CSharpGameEngine.Windows`(旧`Graphics.D3D12` + `Platform.Windows` + `Compiler.Hlsl`)は
+  3つともL0なので、**同一レイヤー内の統合**であり影響はない。
+- ただし`CSharpGameEngine.Core`はL1(診断・RUF)とL2(`CameraBasis`・`ProceduralMeshFactory`)を
+  跨ぐため、**L1とL2の境界はアセンブリでは強制されなくなった**。
+
+したがってレイヤーの追跡単位はアセンブリではなく**Feature ID**である
+(`Docs/Implementation-Status.md`)。「ランタイムレイヤー(L0-L6)は Roslyn や Visual Studio SDK を
+参照してはならない」という規則は、`src/`の5プロジェクトのうちRoslynを参照するのが
+`CSharpGameEngine.CodeAnalysis`(L7/L8側)だけである以上、引き続きプロジェクト参照で強制されている。

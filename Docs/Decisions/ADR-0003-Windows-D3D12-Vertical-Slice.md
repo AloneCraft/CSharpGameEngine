@@ -150,3 +150,35 @@ projects without touching `Core` or the shape of `TestHost`'s CLI.
   once a milestone needs more than one static mesh or more than one draw call.
 - ARM64 DXC binaries are not wired up; `Compiler.Hlsl.csproj` only copies the x64
   `Microsoft.Direct3D.DXC` redistributable. Tracked as a known gap, not silently ignored.
+
+## ADR-0034 amendment: where the DXC native copy now lives
+
+[[ADR-0034-Project-Consolidation]] merged `CSharpGameEngine.Compiler.Hlsl`,
+`CSharpGameEngine.Platform.Windows` and `CSharpGameEngine.Graphics.D3D12` into a single
+`CSharpGameEngine.Windows` assembly. **Every namespace was kept unchanged**, so
+`CSharpGameEngine.Compiler.Hlsl.HlslCompiler` and friends are still spelled exactly the same in
+source; only the assembly they live in changed.
+
+The `<None>` block that copies `dxcompiler.dll` / `dxil.dll` out of
+`$(PkgMicrosoft_Direct3D_DXC)\build\native\bin\x64\` moved **verbatim** from
+`src/CSharpGameEngine.Compiler.Hlsl/CSharpGameEngine.Compiler.Hlsl.csproj` to
+`src/CSharpGameEngine.Windows/CSharpGameEngine.Windows.csproj`. The reasoning in this ADR is
+unchanged: `Microsoft.Direct3D.DXC` ships `build/native/*.targets` meant for vcxproj consumers
+only, so SDK-style C# projects must copy the redistributable themselves.
+
+Because losing that block breaks `HlslCompiler` **at runtime only** - no unit test would catch it -
+the move was verified by inspecting the real output directories and running the renderer:
+
+```
+tools/CSharpGameEngine.TestHost/bin/Debug/net10.0-windows10.0.19041.0/{dxcompiler.dll,dxil.dll}      present
+tools/CSharpGameEngine.Extension/bin/Debug/net10.0-windows10.0.19041.0/win-x64/{dxcompiler,dxil}.dll present
+UserGameProject/bin/Debug/net10.0-windows10.0.19041.0/win-x64/{dxcompiler,dxil}.dll                  present
+
+TestHost.exe triangle --hidden --frames 3 --warp --debug-layer --verify
+  → Shader compilation: OK (0 diagnostics) / Verification: PASSED / D3D12 validation errors: 0
+```
+
+Note on how these executables must be launched: running them as `dotnet <app>.dll` (through the
+muxer) fails to load `dxcompiler`, because the app directory is not added to the native DLL search
+path in that mode. Launching the generated apphost `.exe` works. This behaviour predates ADR-0034 -
+it was reproduced identically on the pre-consolidation commit `f17fbd5` in a separate worktree.

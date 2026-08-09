@@ -81,3 +81,26 @@ Assimpリポジトリの`test/models/FBX/box.fbx`を最初に試したが、Assi
 - シーングラフ・複数メッシュ・スキニング/アニメーションは対象外。
 - VSIX側(`CSharpGameEngine.VSExtension`)でのFBX対応は、ネイティブ`assimp.dll`を
   `devenv.exe`に直接ロードするリスクがあるため、本ADRの対象外として ADR-0010 に分離した。
+
+## ADR-0034による追記(AssimpNetの到達範囲)
+
+[[ADR-0034-Project-Consolidation]]が`src/CSharpGameEngine.Import.Fbx`と
+`src/CSharpGameEngine.Import.Gltf`を単一の`src/CSharpGameEngine.Import`へ統合した。
+**名前空間`CSharpGameEngine.Import.Fbx`/`.Import.Gltf`は無変更**で、型もAPIも本ADRの決定事項も
+そのままである。本ADRのNuGetライブラリ選定根拠(純C#のFBXライブラリが存在しない件)は
+新しいcsprojに**逐語でコメントとして保持**した。
+
+副作用として、**glTFしか使わない消費者もマネージドの`AssimpNet.dll`を解決するようになった**。
+ただし本ADRが問題にしていた**ネイティブの`assimp.dll`は入らない**: これはRID固有アセットであり、
+NuGetは`RuntimeIdentifier`を設定した消費者にしかコピーしないためである。実測:
+
+| 出力 | `AssimpNet.dll`(マネージド) | `assimp.dll`(ネイティブ) |
+|---|---|---|
+| `tests/CSharpGameEngine.Import.Tests` (RID=win-x64) | あり | あり |
+| `tools/CSharpGameEngine.Import.Gltf.Cli` (RID無し) | あり | **なし** |
+| `tests/CSharpGameEngine.Windows.Tests` (RID無し) | あり | **なし** |
+
+`tools/CSharpGameEngine.Import.Gltf.Cli`は統合後も意図的に`RuntimeIdentifier`を設定していない。
+本ADR決定事項2の「`RuntimeIdentifier`を足すのはネイティブDLLが必要な消費者だけ」という方針は
+維持されている。テストプロジェクトは`Import.Fbx.Tests`と`Import.Gltf.Tests`が
+`CSharpGameEngine.Import.Tests`へ統合され、`RuntimeIdentifier=win-x64`は和集合として引き継いだ。

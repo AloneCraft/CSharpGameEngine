@@ -28,11 +28,12 @@ F-L2-003・F-L0-006を参照。
 | Unreal | +Y | +Z | +X | LeftHanded | `CSharpGameEngine.Spatial.Unreal.UnrealCoordinateConvention` |
 | Blender(交換用/世界座標) | +X | +Z | +Y | RightHanded | `CSharpGameEngine.Spatial.Blender.BlenderWorldConvention` |
 
-3つとも成分の並べ替えのみ(heap割当なし、分岐なし)。`samples/SpatialPresetDemo`で実測済み
-(F-L1-004参照)。
+3つとも成分の並べ替えのみ(heap割当なし、分岐なし)。実測は当時の`samples/SpatialPresetDemo`で
+行い、結果はADR-0025の「検証結果」節に転記済み(F-L1-004参照。デモとPreset機構自体は
+ADR-0034で削除した)。
 
-これとは別に、Import境界専用の固定Convention(`SpatialPresetSelection.props`からは選択不可、
-プロジェクトが選ぶPresetではない)が2つある:
+これとは別に、Import境界専用の固定Convention(プロジェクトが選ぶPresetではなく、
+Import実装が内部で固定的に使うもの)が2つある:
 
 | Convention | R | U | F | Handedness | 実装 | 用途 |
 |---|---|---|---|---|---|---|
@@ -157,16 +158,22 @@ UV原点・Front face winding・Normal変換・Tangent basis handednessは、`Ma
 - `ICoordinateConvention`実装はすべて`readonly struct`+`static abstract`メンバーで、
   `Spatial<TConvention>`はコンパイル時に単相化される(Runtime分岐・Reflection・Boxing・
   Virtual dispatchなし)。
-- `SpatialPresetSelection.props`によるPreset選択はMSBuildのコンパイル時条件分岐であり、
-  Dictionaryルックアップも実行時分岐も発生しない(`samples/SpatialPresetDemo`の
-  `#if SPATIAL_PRESET_*`はコンパイル時のみ)。
+- (ADR-0034で削除)`SpatialPresetSelection.props`によるコンパイル時Preset選択機構は廃止した。
+  当時はMSBuildのコンパイル時条件分岐であり、Dictionaryルックアップも実行時分岐も発生しなかった
+  (`samples/SpatialPresetDemo`の`#if SPATIAL_PRESET_*`はコンパイル時のみ)。
+  現在Conventionは型引数として実行時に選ぶが、`Spatial<TConvention>`が単相化される点は同じなので、
+  **上記のPerformance特性は失われていない**。
 - Import境界(`CoordinateBasisValidator`)はAuthoring/Build時専用で、Hot pathからは呼ばれない。
 
 ## 未確定事項
 
-- **`CSharpGameEngine.Scene/Transform.cs`は未統合**: 既存`CSharpGameEngine.Scene.Transform`との
-  重複整理・JSON永続化フォーマットへの影響・VSIX(net472)側の独立パーサーとの同期が必要になるため、
-  別マイルストーンで再検討する(ADR-0025から継続、ADR-0027時点でも対象外)。
+- ~~**`CSharpGameEngine.Scene/Transform.cs`は未統合**~~ → **消滅(ADR-0034)**。
+  Scene AuthoringがC#正本方式(`[SceneDefinition]`、ADR-0030/0031/0033)へ移った結果
+  `src/CSharpGameEngine.Scene`に生きた利用者が無くなり、ADR-0034でプロジェクトごと削除した。
+  RUFと重複していた`CSharpGameEngine.Scene.Transform`はもう存在しないため、この未確定事項は
+  「解決」ではなく「対象が消えたことによる消滅」である。VSIX(net472)側の独立パーサー
+  (`tools/CSharpGameEngine.VSExtension/SceneFile.cs`)は存続しており、そちらのRUF統合は
+  依然として未着手のまま(VSIXはnet472でRUF型を参照できないという別の制約がある)。
 - **Blenderの`BlenderGltfExportConvention`/`BlenderFbxExportConvention`への分割は未実施**:
   `BlenderWorldConvention`(Blenderワールド座標のGolden Valuesと一致)のみ実装した。Blender用の
   Import/Exportパイプライン自体が未着手のため、Export設定のForward/Up・Meshローカル前方向・
