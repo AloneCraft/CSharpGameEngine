@@ -72,8 +72,7 @@
     <ProjectReference Include="..\src\CSharpGameEngine.Platform.Windows\CSharpGameEngine.Platform.Windows.csproj" />
     <ProjectReference Include="..\src\CSharpGameEngine.Graphics.D3D12\CSharpGameEngine.Graphics.D3D12.csproj" />
     <ProjectReference Include="..\src\CSharpGameEngine.Import.Gltf\CSharpGameEngine.Import.Gltf.csproj" />
-    <ProjectReference Include="..\src\CSharpGameEngine.Spatial.Abstractions\CSharpGameEngine.Spatial.Abstractions.csproj" />
-    <ProjectReference Include="..\src\CSharpGameEngine.Spatial.Unity\CSharpGameEngine.Spatial.Unity.csproj" />
+    <ProjectReference Include="..\src\CSharpGameEngine.Core\CSharpGameEngine.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

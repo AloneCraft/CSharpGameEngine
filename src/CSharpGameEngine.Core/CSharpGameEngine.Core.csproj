@@ -7,4 +7,24 @@
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
   </PropertyGroup>
 
+  <!--
+    ADR-0034: this assembly is the "no external package dependency at all" half of the engine.
+    It absorbed the six former CSharpGameEngine.Spatial.* projects (Spatial/ + Spatial/Conventions/)
+    and CSharpGameEngine.Geometry (Geometry/) with every namespace left unchanged, so
+    CSharpGameEngine.Core.dll contains CSharpGameEngine.Core, .Spatial.Abstractions,
+    .Spatial.Unity/.Unreal/.Blender/.Gltf/.Fbx and .Geometry. Assembly name != namespace is
+    deliberate - keeping the namespaces is what made the merge a zero-`using`-edit change.
+
+    It still has no reference to Windows/D3D/DXC (ADR-0003) and no PackageReference of any kind:
+    anything a consumer can take without opting into a native dependency belongs here.
+  -->
+
+  <ItemGroup>
+    <!-- RufVector.RawCross is the only internal member in the merged Spatial surface. The grant
+         moved from the former CSharpGameEngine.Spatial.Tests to the merged test assembly. -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>CSharpGameEngine.Core.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
 </Project>

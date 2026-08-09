@@ -14,8 +14,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\CSharpGameEngine.Compiler.Hlsl\CSharpGameEngine.Compiler.Hlsl.csproj" />
-    <ProjectReference Include="..\CSharpGameEngine.Spatial.Abstractions\CSharpGameEngine.Spatial.Abstractions.csproj" />
-    <ProjectReference Include="..\CSharpGameEngine.Spatial.Unity\CSharpGameEngine.Spatial.Unity.csproj" />
+    <ProjectReference Include="..\CSharpGameEngine.Core\CSharpGameEngine.Core.csproj" />
   </ItemGroup>
 
 </Project>
