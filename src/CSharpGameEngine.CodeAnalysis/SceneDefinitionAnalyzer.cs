@@ -99,10 +99,8 @@ internal static class SceneDefinitionAnalyzer
             }
         }
 
-        if (root is { } rootNode)
-        {
-            ValidateComponentCounts(rootNode, isRoot: true, diagnostics);
-        }
+        // 旧SCENE009(1ノードのComponent数上限8)の検証はADR-0033で削除した。閉集合Archetype方式では
+        // 組み合わせごとに専用のstructを生成するため、ジェネリック型引数由来の上限が存在しない。
 
         return new SceneDefinitionClassResult(
             classSymbol.ContainingNamespace.IsGlobalNamespace ? null : classSymbol.ContainingNamespace.ToDisplayString(),
@@ -382,25 +380,6 @@ internal static class SceneDefinitionAnalyzer
         return true;
     }
 
-    /// <summary>
-    /// <c>World.CreateArchetype</c>は1〜8型引数までしか無いため、非Rootノードが暗黙に受け取る
-    /// <see cref="global::CSharpGameEngine.Entities.Parent"/>を含めた実効Component数を検証する。
-    /// Component型が0個のノードも、内部的にタグComponentを1個付与するため最低1個として数える。
-    /// </summary>
-    private static void ValidateComponentCounts(SceneNodeModel node, bool isRoot, ImmutableArray<Diagnostic>.Builder diagnostics)
-    {
-        int effectiveCount = Math.Max(node.Components.Length, 1) + (isRoot ? 0 : 1);
-
-        if (effectiveCount > 8)
-        {
-            diagnostics.Add(Diagnostic.Create(SceneDefinitionDiagnostics.TooManyComponentTypesOnNode, node.PropertyLocation, node.PropertyName, effectiveCount));
-        }
-
-        foreach (SceneNodeModel child in node.Children)
-        {
-            ValidateComponentCounts(child, isRoot: false, diagnostics);
-        }
-    }
 
     /// <summary>
     /// 元のファイルのusingディレクティブを、そのままの文字列として収集する。<see cref="ComponentSetModel.InitializerExpressionText"/>

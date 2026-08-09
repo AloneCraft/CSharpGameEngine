@@ -32,8 +32,23 @@ public struct Damage
     public int Value;
 }
 
+/// <summary>Marks the single player entity. Like <see cref="MovableTag"/>, a tag component must still be received by <c>ref</c> (ADR-0033).</summary>
 public struct PlayerTag
 {
+}
+
+/// <summary>
+/// Holds the loaded stage until <c>SceneSpawnSystem</c> has turned it into entities. Program.cs
+/// creates exactly one entity carrying this component and nothing else; everything the stage needs
+/// (props, lights, the player) is then spawned from inside a System, so the whole startup path is
+/// expressed as Components + ISystem rather than as hand-written World calls (ADR-0033).
+/// <see cref="Done"/> makes the spawn one-shot: the system runs every frame like any other, and
+/// simply does nothing once it has consumed the scene.
+/// </summary>
+public struct SceneSpawnRequest
+{
+    public LoadedScene? Scene;
+    public bool Done;
 }
 
 public struct Scale
@@ -81,11 +96,12 @@ public struct InputState
 }
 
 /// <summary>
-/// Marks the "movable" mobility archetype (Systems/MovingPropSystem.cs): disambiguates a spinning
-/// stage prop's Query from any other entity that happens to also carry Rotation (e.g. the player).
-/// An empty struct is a tag component (SG infers no storage column for it, only a Query condition).
+/// Marks the "movable" mobility archetype (Systems/Systems.cs): disambiguates a spinning stage
+/// prop from any other entity that happens to also carry Rotation (e.g. the player). A zero-field
+/// struct is a tag component - it still has to be received by <c>ref</c> like any other component,
+/// because <c>in</c>/by-value parameters are classified as Context instead (ADR-0033).
 /// </summary>
-public readonly struct MovableTag
+public struct MovableTag
 {
 }
 

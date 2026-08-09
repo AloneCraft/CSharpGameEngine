@@ -8,11 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Real (non-analyzer) reference: this bridge runs entirely in-process on the net10.0 side, so
-         it can call CSharpGameEngine.Entities directly - unlike the net472 VSIX, which cannot
-         (ADR-0031). InternalsVisibleTo on CSharpGameEngine.Entities.csproj grants WorldInspector.cs
-         access to the internal Archetype-walking surface. -->
-    <ProjectReference Include="..\..\src\CSharpGameEngine.Entities\CSharpGameEngine.Entities.csproj" />
+    <!-- No reference to CSharpGameEngine.Entities at all (ADR-0033): under the closed-archetype
+         design that project is shared SOURCE, not a shared binary, so every target compiles its own
+         World/Entity types and this bridge could never share a CLR type with them. Everything is
+         read reflectively out of the target's own generated WorldSnapshot.Capture instead. -->
     <!-- ADR-0023: resident-server mode (a serve-plus-pipe-name launch argument), shared with the
          other 3 bridges. -->
     <ProjectReference Include="..\CSharpGameEngine.Bridge.Hosting\CSharpGameEngine.Bridge.Hosting.csproj" />

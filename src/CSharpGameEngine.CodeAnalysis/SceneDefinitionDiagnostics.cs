@@ -80,11 +80,7 @@ internal static class SceneDefinitionDiagnostics
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
-    internal static readonly DiagnosticDescriptor TooManyComponentTypesOnNode = new(
-        id: "SCENE009",
-        title: "A node must not require more than 8 component types",
-        messageFormat: "Node '{0}' requires {1} component type(s) (including the implicit 'Parent' component for non-root nodes), which exceeds the 8-type-parameter limit of 'World.CreateArchetype'",
-        category: Category,
-        defaultSeverity: DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
+    // SCENE009(1ノードのComponent数が8を超えてはならない)はADR-0033で削除した。
+    // この規則は旧`World.CreateArchetype<T1..T8>`のジェネリック型引数の上限に由来するものであり、
+    // 閉集合Archetype方式では組み合わせごとに専用のstructを生成するため、そもそも上限が存在しない。
 }

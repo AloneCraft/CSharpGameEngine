@@ -1,142 +1,117 @@
 namespace CSharpGameEngine.Entities.Tests;
 
+/// <summary>
+/// 閉集合Archetype方式のランタイム(ADR-0033)の基本動作。<c>World.Create</c>/<c>MoveArchetype</c>/
+/// <c>PlaybackMoveArchetypes</c>はいずれもGeneratorがComponent構成ごとに生成したオーバーロードで、
+/// 呼び出し側はArchetype名を一切書かない。
+/// </summary>
 public class WorldSpec
 {
     [Fact]
-    public void CreateEntity_IsAlive()
+    public void Create_AssignsSequentialEntityIds_AndAppendsToTheMatchingList()
     {
         World world = new();
-        EntityArchetype archetype = world.CreateArchetype<Position>();
 
-        Entity entity = world.CreateEntity(archetype);
+        Entity first = world.Create(new Position { X = 1f });
+        Entity second = world.Create(new Position { X = 2f });
 
-        Assert.True(world.IsAlive(entity));
+        Assert.Equal(0, first.Id);
+        Assert.Equal(1, second.Id);
+        Assert.Equal(2, world.ListArchetype0.Count);
+        Assert.Equal(1f, world.ListArchetype0[0].Position.X);
+        Assert.Equal(2f, world.ListArchetype0[1].Position.X);
     }
 
     [Fact]
-    public void Destroy_MakesEntityNotAlive()
+    public void Create_ResolvesTheArchetypeFromComponentTypesAlone()
     {
         World world = new();
-        EntityArchetype archetype = world.CreateArchetype<Position>();
-        Entity entity = world.CreateEntity(archetype);
 
-        world.Destroy(entity);
+        world.Create(new Position { X = 1f });
+        world.Create(new Position { X = 2f }, new Velocity { X = 9f });
 
-        Assert.False(world.IsAlive(entity));
+        Assert.Equal(1, world.ListArchetype0.Count);
+        Assert.Equal(1, world.ListArchetype1.Count);
+        Assert.Equal(9f, world.ListArchetype1[0].Velocity.X);
     }
 
     [Fact]
-    public void Destroy_ThenCreate_ReusesIdWithIncrementedGeneration()
+    public void MoveArchetype_IsDeferredUntilPlayback()
     {
         World world = new();
-        EntityArchetype archetype = world.CreateArchetype<Position>();
-        Entity first = world.CreateEntity(archetype);
-        world.Destroy(first);
+        State state = new(world);
 
-        Entity second = world.CreateEntity(archetype);
+        Entity entity = world.Create(new Position { X = 1f });
 
-        Assert.Equal(first.Id, second.Id);
-        Assert.NotEqual(first.Generation, second.Generation);
+        world.MoveArchetype(entity, new Position { X = 5f }, new Velocity { X = 7f }, ref state);
+
+        // Playback前は移動していない。
+        Assert.Equal(1, world.ListArchetype0.Count);
+        Assert.Equal(0, world.ListArchetype1.Count);
+
+        world.PlaybackMoveArchetypes(ref state);
+
+        Assert.Equal(0, world.ListArchetype0.Count);
+        Assert.Equal(1, world.ListArchetype1.Count);
+        Assert.Equal(5f, world.ListArchetype1[0].Position.X);
+        Assert.Equal(7f, world.ListArchetype1[0].Velocity.X);
+        Assert.Equal(entity, world.ListArchetype1[0].Entity);
     }
 
     [Fact]
-    public void StaleHandle_IsNotAlive_AfterIdReuse()
+    public void MoveArchetype_SwapBackRepairsTheMovedEntitysIndex()
     {
         World world = new();
-        EntityArchetype archetype = world.CreateArchetype<Position>();
-        Entity first = world.CreateEntity(archetype);
-        world.Destroy(first);
-        world.CreateEntity(archetype);
+        State state = new(world);
 
-        Assert.False(world.IsAlive(first));
+        Entity first = world.Create(new Position { X = 1f });
+        Entity second = world.Create(new Position { X = 2f });
+        Entity third = world.Create(new Position { X = 3f });
+
+        // 先頭を移動させると、swap-backで末尾のthirdが先頭へ詰められる。
+        world.MoveArchetype(first, new Position { X = 1f }, new Velocity(), ref state);
+        world.PlaybackMoveArchetypes(ref state);
+
+        Assert.Equal(2, world.ListArchetype0.Count);
+        Assert.Equal(third, world.ListArchetype0[0].Entity);
+        Assert.Equal(second, world.ListArchetype0[1].Entity);
+
+        // 位置表が修復されていれば、詰められたthirdをさらに移動しても正しい行が消える。
+        world.MoveArchetype(third, new Position { X = 3f }, new Velocity(), ref state);
+        world.PlaybackMoveArchetypes(ref state);
+
+        Assert.Equal(1, world.ListArchetype0.Count);
+        Assert.Equal(second, world.ListArchetype0[0].Entity);
+        Assert.Equal(2f, world.ListArchetype0[0].Position.X);
     }
 
     [Fact]
-    public void GetRef_ThenWrite_IsObservedOnSubsequentRead()
+    public void PlaybackMoveArchetypes_ClearsTheCommandQueue()
     {
         World world = new();
-        EntityArchetype archetype = world.CreateArchetype<Position>();
-        Entity entity = world.CreateEntity(archetype);
+        State state = new(world);
 
-        world.GetRef<Position>(entity) = new Position { X = 5f };
+        Entity entity = world.Create(new Position());
+        world.MoveArchetype(entity, new Position(), new Velocity(), ref state);
+        world.PlaybackMoveArchetypes(ref state);
 
-        Assert.Equal(5f, world.GetRef<Position>(entity).X);
+        // 2回目のPlaybackは何もしない(コマンドが残っていれば二重適用で例外になる)。
+        world.PlaybackMoveArchetypes(ref state);
+
+        Assert.Equal(1, world.ListArchetype1.Count);
     }
 
     [Fact]
-    public void Has_DistinguishesPresentFromAbsentComponents()
+    public void State_CarriesTheWorldAndEnabledFlag()
     {
         World world = new();
-        EntityArchetype archetype = world.CreateArchetype<Position>();
-        Entity entity = world.CreateEntity(archetype);
+        State state = new(world) { Enabled = true };
 
-        Assert.False(world.Has<Velocity>(entity));
-        Assert.True(world.Has<Position>(entity));
+        Assert.True(state.Enabled);
+
+        state.Enabled = false;
+
+        Assert.False(state.Enabled);
+        Assert.Equal(0, state.World.ListArchetype0.Count);
     }
-
-    [Fact]
-    public void CreateArchetype_SameComponentSetInDifferentDeclarationOrder_ResolvesToSameArchetype()
-    {
-        World world = new();
-        EntityArchetype declaredAsPositionVelocity = world.CreateArchetype<Position, Velocity>();
-        EntityArchetype declaredAsVelocityPosition = world.CreateArchetype<Velocity, Position>();
-
-        Assert.Equal(1, world.ArchetypeCount);
-        Assert.Equal(declaredAsPositionVelocity.Archetype.Index, declaredAsVelocityPosition.Archetype.Index);
-    }
-
-    [Fact]
-    public void DestroyingMiddleEntity_RepairsSwappedEntitysData()
-    {
-        World world = new();
-        EntityArchetype archetype = world.CreateArchetype<Position>();
-        Entity a = world.CreateEntity(archetype);
-        Entity b = world.CreateEntity(archetype);
-        Entity c = world.CreateEntity(archetype);
-        world.GetRef<Position>(a) = new Position { X = 1f };
-        world.GetRef<Position>(b) = new Position { X = 2f };
-        world.GetRef<Position>(c) = new Position { X = 3f };
-
-        world.Destroy(a);
-
-        Assert.Equal(3f, world.GetRef<Position>(c).X);
-        Assert.Equal(2f, world.GetRef<Position>(b).X);
-    }
-
-    [Fact]
-    public void GetRef_ForMissingComponent_Throws()
-    {
-        World world = new();
-        EntityArchetype archetype = world.CreateArchetype<Position>();
-        Entity entity = world.CreateEntity(archetype);
-
-        Assert.Throws<InvalidOperationException>(() => world.GetRef<Velocity>(entity));
-    }
-
-    [Fact]
-    public void OperationOnDeadEntity_Throws()
-    {
-        World world = new();
-        EntityArchetype archetype = world.CreateArchetype<Position>();
-        Entity entity = world.CreateEntity(archetype);
-        world.Destroy(entity);
-
-        Assert.Throws<InvalidOperationException>(() => world.GetRef<Position>(entity));
-    }
-
-    [Fact]
-    public void CreateArchetype_WithEightComponents_Succeeds()
-    {
-        World world = new();
-
-        EntityArchetype archetype = world.CreateArchetype<Position, Velocity, Health, DisabledTag, Position2, Position3, Position4, Position5>();
-        Entity entity = world.CreateEntity(archetype);
-
-        Assert.True(world.IsAlive(entity));
-    }
-
-    public struct Position2 { public float Value; }
-    public struct Position3 { public float Value; }
-    public struct Position4 { public float Value; }
-    public struct Position5 { public float Value; }
 }

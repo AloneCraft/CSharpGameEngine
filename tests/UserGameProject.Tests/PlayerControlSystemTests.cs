@@ -1,25 +1,31 @@
 using System.Numerics;
+using CSharpGameEngine.Entities;
 using CSharpGameEngine.Graphics.D3D12;
 using UserGameProject.Systems;
 
 namespace UserGameProject.Tests;
 
 /// <summary>
-/// PlayerControlSystem.Control is a plain static method that GameSystemGenerator (ADR-0029) wraps
-/// in a Query/SoA loop purely from its ref/in parameters - the method body itself has no ECS
-/// dependency, so these tests call it directly with local ref/in arguments and never need a World
-/// or Entity. InputState is scripted exactly as Systems/InputSystem.cs would have written it, so
-/// these tests never need a Win32Window either.
+/// PlayerControlSystem.Update's body has no ECS dependency of its own - GameSystemGenerator
+/// (ADR-0033) derives the Archetype and dispatch purely from its parameters - so these tests call it
+/// directly with local ref arguments and never need real entities. A throwaway World/State is still
+/// passed because every Update ends with a trailing `ref State`, but this method never touches it.
+/// InputState is scripted exactly as InputSystem would have written it, so no Win32Window is needed
+/// either.
 /// </summary>
 public class PlayerControlSystemTests
 {
     private const float DeltaTime = 1f / 60f;
 
-    private static void RunControl(ref Position position, ref Rotation rotation, ref VerticalMotion verticalMotion, ref CameraRig cameraRig, in InputState inputState)
+    private static void RunControl(ref Position position, ref Rotation rotation, ref VerticalMotion verticalMotion, ref CameraRig cameraRig, ref InputState inputState)
     {
         PlayerTag playerTag = default;
         FrameContext frame = new(DeltaTime, 0f);
-        PlayerControlSystem.Control(ref position, ref rotation, ref verticalMotion, ref cameraRig, in inputState, in playerTag, in frame);
+        World world = new();
+        State state = new(world);
+        PlayerControlSystem system = new();
+
+        system.Update(ref position, ref rotation, ref verticalMotion, ref cameraRig, ref inputState, ref playerTag, in frame, ref state);
     }
 
     [Fact]
@@ -31,7 +37,7 @@ public class PlayerControlSystemTests
         CameraRig cameraRig = default;
         InputState inputState = new() { MoveForward = true };
 
-        RunControl(ref position, ref rotation, ref verticalMotion, ref cameraRig, in inputState);
+        RunControl(ref position, ref rotation, ref verticalMotion, ref cameraRig, ref inputState);
 
         Assert.Equal(0f, position.X, precision: 4);
         Assert.True(position.Z > 0f, $"Expected forward movement along +Z, got Z={position.Z}.");
@@ -46,7 +52,7 @@ public class PlayerControlSystemTests
         CameraRig cameraRig = default;
         InputState inputState = new() { LookDeltaX = 100f };
 
-        RunControl(ref position, ref rotation, ref verticalMotion, ref cameraRig, in inputState);
+        RunControl(ref position, ref rotation, ref verticalMotion, ref cameraRig, ref inputState);
 
         Assert.True(cameraRig.Yaw > 0f, "Expected a positive mouse-X delta to increase Yaw.");
     }
@@ -61,7 +67,7 @@ public class PlayerControlSystemTests
         // A huge upward look (negative Y delta pitches up, matching Camera.ApplyMouseDelta's convention).
         InputState inputState = new() { LookDeltaY = -1_000_000f };
 
-        RunControl(ref position, ref rotation, ref verticalMotion, ref cameraRig, in inputState);
+        RunControl(ref position, ref rotation, ref verticalMotion, ref cameraRig, ref inputState);
 
         Assert.Equal(Camera.MaxPitchRadiansFirstPerson, cameraRig.Pitch, precision: 4);
     }
@@ -75,7 +81,7 @@ public class PlayerControlSystemTests
         CameraRig cameraRig = default;
         InputState inputState = new() { LookDeltaX = 250f };
 
-        RunControl(ref position, ref rotation, ref verticalMotion, ref cameraRig, in inputState);
+        RunControl(ref position, ref rotation, ref verticalMotion, ref cameraRig, ref inputState);
 
         Quaternion expected = Quaternion.CreateFromAxisAngle(Vector3.UnitY, cameraRig.Yaw);
         Quaternion actual = new(rotation.X, rotation.Y, rotation.Z, rotation.W);
@@ -91,7 +97,7 @@ public class PlayerControlSystemTests
         CameraRig cameraRig = default;
         InputState inputState = new() { JumpPressed = true };
 
-        RunControl(ref position, ref rotation, ref verticalMotion, ref cameraRig, in inputState);
+        RunControl(ref position, ref rotation, ref verticalMotion, ref cameraRig, ref inputState);
 
         float expectedVelocity = CharacterMotion.JumpSpeed - (CharacterMotion.Gravity / 60f);
         Assert.Equal(expectedVelocity, verticalMotion.Velocity, precision: 3);
@@ -107,7 +113,7 @@ public class PlayerControlSystemTests
         CameraRig cameraRig = default;
         InputState inputState = new();
 
-        RunControl(ref position, ref rotation, ref verticalMotion, ref cameraRig, in inputState);
+        RunControl(ref position, ref rotation, ref verticalMotion, ref cameraRig, ref inputState);
 
         Assert.Equal(1f, position.X, precision: 4);
         Assert.Equal(0f, position.Y, precision: 4);

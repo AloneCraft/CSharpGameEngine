@@ -28,26 +28,23 @@ public class SceneAuthoringSpec
     public void Parent_CanBeAttachedToEntity_AndReadBack()
     {
         World world = new();
-        EntityArchetype rootArchetype = world.CreateArchetype<Position>();
-        EntityArchetype childArchetype = world.CreateArchetype<Position, Parent>();
-        Entity root = world.CreateEntity(rootArchetype);
-        Entity child = world.CreateEntity(childArchetype);
 
-        world.GetRef<Parent>(child) = new Parent { Value = root };
+        Entity root = world.Create(new Position());
+        Entity child = world.Create(new Position(), new Parent { Value = root });
 
-        Assert.Equal(root, world.GetRef<Parent>(child).Value);
+        Assert.Equal(root, world.ListArchetype2[0].Parent.Value);
+        Assert.Equal(child, world.ListArchetype2[0].Entity);
     }
 
     [Fact]
     public void SceneNodeTag_CanBeUsedAsSoleArchetypeComponent_ForEmptyNodes()
     {
         World world = new();
-        EntityArchetype archetype = world.CreateArchetype<SceneNodeTag>();
 
-        Entity entity = world.CreateEntity(archetype);
+        Entity entity = world.Create(new SceneNodeTag());
 
-        Assert.True(world.IsAlive(entity));
-        Assert.True(world.Has<SceneNodeTag>(entity));
+        Assert.Equal(1, world.ListArchetype3.Count);
+        Assert.Equal(entity, world.ListArchetype3[0].Entity);
     }
 
     [Fact]

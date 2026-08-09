@@ -3,13 +3,43 @@ using System.Reflection;
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 
 /// <summary>
-/// SceneDefinitionGeneratorが出力したコード(SceneNodeSymbol実装+CreateRuntime)を実際にコンパイル・
-/// Emit・ロードし、実World上でEntity/Parent/Component構造が正しく構築されることを検証する。
-/// CreateRuntimeはRootのEntityしか返さないため、MainCamera/PlayerはEntityQueryで(それぞれ固有の
-/// Camera/PlayerTagを持つArchetypeとして)見つけ出して検証する。
+/// 生成された<c>SceneNodeSymbol</c>実装+<c>CreateRuntime</c>を実際にコンパイル・Emit・ロードし、
+/// 実World上でEntity/Parent/Component構造が正しく構築されることを検証する。
+/// ADR-0033で<c>CreateRuntime</c>は<c>ref World</c>を取るようになり、内容の確認はQueryではなく
+/// 生成された<c>WorldSnapshot.Capture</c>(VSIXプレビューブリッジと同じ経路)で行う。
 /// </summary>
 public sealed class SceneDefinitionGeneratorEndToEndTests
 {
+    /// <summary>スナップショットから、指定した名前のComponentを持つ最初のエントリを探すヘルパー(テスト対象ソースへ埋め込む)。</summary>
+    private const string SnapshotHelpers = """
+
+        public static class SnapshotQuery
+        {
+            public static ArchetypeSnapshotEntry? FindByComponent(ArchetypeSnapshotEntry[] entries, string componentTypeName)
+            {
+                foreach (ArchetypeSnapshotEntry entry in entries)
+                {
+                    foreach (object value in entry.ComponentValues)
+                    {
+                        if (value.GetType().Name == componentTypeName) return entry;
+                    }
+                }
+
+                return null;
+            }
+
+            public static T Component<T>(ArchetypeSnapshotEntry entry)
+            {
+                foreach (object value in entry.ComponentValues)
+                {
+                    if (value is T typed) return typed;
+                }
+
+                throw new InvalidOperationException("component not found: " + typeof(T).Name);
+            }
+        }
+        """;
+
     [Fact]
     public void CreateRuntime_BuildsEntityGraph_WithParentAndComponentsFromDefine()
     {
@@ -55,40 +85,33 @@ public sealed class SceneDefinitionGeneratorEndToEndTests
                 {
                     World world = new World();
 
-                    Entity root = MainScene.CreateRuntime(world);
+                    Entity root = MainScene.CreateRuntime(ref world);
 
-                    if (!world.IsAlive(root)) return "FAIL:RootNotAlive";
-                    if (!world.Has<SceneNodeTag>(root)) return "FAIL:RootMissingSceneNodeTag";
-                    if (world.Has<Parent>(root)) return "FAIL:RootShouldNotHaveParent";
+                    ArchetypeSnapshotEntry[] entries = WorldSnapshot.Capture(world);
+                    if (entries.Length != 3) return "FAIL:EntityCount=" + entries.Length;
 
-                    EntityQuery cameraQuery = EntityQuery.Create(all: [ComponentType<Camera>.Id], none: [], access: [ComponentType<Camera>.Id]);
-                    QueryMatches cameraMatches = cameraQuery.Update(world);
-                    if (cameraMatches.Count != 1) return "FAIL:CameraArchetypeCount";
-                    Archetype cameraArchetype = cameraMatches.ArchetypeAt(0);
-                    if (cameraArchetype.Count != 1) return "FAIL:CameraEntityCount";
-                    Entity mainCamera = cameraArchetype.Entities[0];
+                    ArchetypeSnapshotEntry? rootEntry = SnapshotQuery.FindByComponent(entries, "SceneNodeTag");
+                    if (rootEntry is null) return "FAIL:RootMissingSceneNodeTag";
+                    if (rootEntry.Value.EntityId != root.Id) return "FAIL:RootIdMismatch";
+                    if (rootEntry.Value.HasParent) return "FAIL:RootShouldNotHaveParent";
 
-                    if (!world.Has<Parent>(mainCamera)) return "FAIL:MainCameraMissingParent";
-                    if (world.GetRef<Parent>(mainCamera).Value != root) return "FAIL:MainCameraParentMismatch";
-                    if (world.GetRef<Position>(mainCamera).Z != -10f) return "FAIL:MainCameraPosition";
-                    if (world.GetRef<Camera>(mainCamera).FieldOfView != 60f) return "FAIL:MainCameraFieldOfView";
+                    ArchetypeSnapshotEntry? cameraEntry = SnapshotQuery.FindByComponent(entries, "Camera");
+                    if (cameraEntry is null) return "FAIL:CameraMissing";
+                    if (!cameraEntry.Value.HasParent) return "FAIL:MainCameraMissingParent";
+                    if (cameraEntry.Value.ParentEntityId != root.Id) return "FAIL:MainCameraParentMismatch";
+                    if (SnapshotQuery.Component<Position>(cameraEntry.Value).Z != -10f) return "FAIL:MainCameraPosition";
+                    if (SnapshotQuery.Component<Camera>(cameraEntry.Value).FieldOfView != 60f) return "FAIL:MainCameraFieldOfView";
 
-                    EntityQuery playerQuery = EntityQuery.Create(all: [ComponentType<PlayerTag>.Id], none: [], access: [ComponentType<PlayerTag>.Id]);
-                    QueryMatches playerMatches = playerQuery.Update(world);
-                    if (playerMatches.Count != 1) return "FAIL:PlayerArchetypeCount";
-                    Archetype playerArchetype = playerMatches.ArchetypeAt(0);
-                    if (playerArchetype.Count != 1) return "FAIL:PlayerEntityCount";
-                    Entity player = playerArchetype.Entities[0];
-
-                    if (!world.Has<Parent>(player)) return "FAIL:PlayerMissingParent";
-                    if (world.GetRef<Parent>(player).Value != root) return "FAIL:PlayerParentMismatch";
-                    if (world.GetRef<Position>(player).X != 1f) return "FAIL:PlayerPosition";
-                    if (world.GetRef<Health>(player).Value != 100f) return "FAIL:PlayerHealth";
+                    ArchetypeSnapshotEntry? playerEntry = SnapshotQuery.FindByComponent(entries, "PlayerTag");
+                    if (playerEntry is null) return "FAIL:PlayerMissing";
+                    if (playerEntry.Value.ParentEntityId != root.Id) return "FAIL:PlayerParentMismatch";
+                    if (SnapshotQuery.Component<Position>(playerEntry.Value).X != 1f) return "FAIL:PlayerPosition";
+                    if (SnapshotQuery.Component<Health>(playerEntry.Value).Value != 100f) return "FAIL:PlayerHealth";
 
                     return "OK";
                 }
             }
-            """;
+            """ + SnapshotHelpers;
 
         Assembly assembly = SceneDefinitionGeneratorTestHelper.CompileAndLoad(source);
         object? result = SceneDefinitionGeneratorTestHelper.Invoke(assembly, "Sample.TestEntry", "RunScenario");
@@ -127,24 +150,24 @@ public sealed class SceneDefinitionGeneratorEndToEndTests
                 {
                     World world = new World();
 
-                    Entity root = MinimalScene.CreateRuntime(world);
+                    Entity root = MinimalScene.CreateRuntime(ref world);
 
-                    if (!world.Has<SceneNodeTag>(root)) return "FAIL:RootMissingSceneNodeTag";
+                    ArchetypeSnapshotEntry[] entries = WorldSnapshot.Capture(world);
+                    if (entries.Length != 2) return "FAIL:EntityCount=" + entries.Length;
 
-                    EntityQuery childQuery = EntityQuery.Create(all: [ComponentType<Health>.Id, ComponentType<Parent>.Id], none: [], access: [ComponentType<Health>.Id, ComponentType<Parent>.Id]);
-                    QueryMatches childMatches = childQuery.Update(world);
-                    if (childMatches.Count != 1) return "FAIL:ChildArchetypeCount";
-                    Archetype childArchetype = childMatches.ArchetypeAt(0);
-                    if (childArchetype.Count != 1) return "FAIL:ChildEntityCount";
-                    Entity child = childArchetype.Entities[0];
+                    ArchetypeSnapshotEntry? rootEntry = SnapshotQuery.FindByComponent(entries, "SceneNodeTag");
+                    if (rootEntry is null) return "FAIL:RootMissingSceneNodeTag";
+                    if (rootEntry.Value.EntityId != root.Id) return "FAIL:RootIdMismatch";
 
-                    if (world.GetRef<Parent>(child).Value != root) return "FAIL:ChildParentMismatch";
-                    if (world.GetRef<Health>(child).Value != 42f) return "FAIL:ChildHealth";
+                    ArchetypeSnapshotEntry? childEntry = SnapshotQuery.FindByComponent(entries, "Health");
+                    if (childEntry is null) return "FAIL:ChildMissing";
+                    if (childEntry.Value.ParentEntityId != root.Id) return "FAIL:ChildParentMismatch";
+                    if (SnapshotQuery.Component<Health>(childEntry.Value).Value != 42f) return "FAIL:ChildHealth";
 
                     return "OK";
                 }
             }
-            """;
+            """ + SnapshotHelpers;
 
         Assembly assembly = SceneDefinitionGeneratorTestHelper.CompileAndLoad(source);
         object? result = SceneDefinitionGeneratorTestHelper.Invoke(assembly, "Sample.TestEntry", "RunScenario");

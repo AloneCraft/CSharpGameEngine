@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Numerics;
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Generated;
 using CSharpGameEngine.Graphics.D3D12;
@@ -8,14 +7,17 @@ using UserGameProject;
 using UserGameProject.Systems;
 
 // UE5.8 Lvl_FirstPerson stage port (M0004, ADR-0017/ADR-0018): SceneLoader turns the exported GLB
-// + scene_meta.json into StageRenderer inputs and a set of ECS spawns. Every frame's ECS work -
-// input, player control, camera, movable-prop animation, and pushing transforms/lighting into the
-// renderer - now runs as the single GeneratedGameLoop.Update call (ADR-0029): GameSystemGenerator
-// infers each [GameSystem] method's Query and Read/Write access from its ref/in parameters and
-// derives the call order from Write->Read component dependencies, so there is no hand-written
-// system call sequence left here (unlike the pre-migration loop this file used to have). Only
-// window pump / camera hookup / RenderFrame stay outside the ECS, since they are not per-entity
-// data.
+// + scene_meta.json into StageRenderer inputs and a set of ECS spawns.
+//
+// Everything ECS-shaped now lives in Components.cs + Systems/Systems.cs (ADR-0033): even the
+// startup spawning of props/lights/player is a System (SceneSpawnSystem), reached by creating a
+// single SceneSpawnRequest entity below. No generated Archetype identifier appears anywhere in
+// hand-written code - World.Create's overloads are resolved by the component types alone.
+//
+// What stays here is only what the generator cannot know: window/renderer/scene-file setup, and
+// the per-tick calls of this particular engine (PumpEvents / FrameContext / RenderFrame). That is
+// also why this loop calls the generated RunFrame per frame rather than the generated Run, whose
+// own while-loop would freeze the Context arguments for its entire duration.
 
 const string ProductDisplayName = "C# Game Engine";
 
@@ -43,49 +45,20 @@ window.Resized+=(w,h) => renderer.Resize(w,h);
 
 World world = new();
 
-EntityArchetype stagePropArchetype = world.CreateArchetype<Position,Rotation,Scale,RenderObjectRef>();
-EntityArchetype movablePropArchetype = world.CreateArchetype<Position,Rotation,Scale,RenderObjectRef,Velocity,MovableTag>();
-
-foreach(LoadedSceneSpawn spawn in scene.Spawns) {
-    Rotation rotation = new() { X=spawn.Rotation.X,Y=spawn.Rotation.Y,Z=spawn.Rotation.Z,W=spawn.Rotation.W };
-    Position position = new() { X=spawn.Position.X,Y=spawn.Position.Y,Z=spawn.Position.Z };
-    Scale scaleComponent = new() { X=spawn.Scale.X,Y=spawn.Scale.Y,Z=spawn.Scale.Z };
-    RenderObjectRef renderObjectRef = new() { Index=spawn.ObjectIndex };
-
-    Entity prop = world.CreateEntity(spawn.Mobility==PropMobility.Movable ? movablePropArchetype : stagePropArchetype);
-    world.GetRef<Position>(prop)=position;
-    world.GetRef<Rotation>(prop)=rotation;
-    world.GetRef<Scale>(prop)=scaleComponent;
-    world.GetRef<RenderObjectRef>(prop)=renderObjectRef;
-}
-
-if(scene.Sun is { } sun) {
-    Entity sunEntity = world.CreateEntity(world.CreateArchetype<DirectionalLightData>());
-    world.GetRef<DirectionalLightData>(sunEntity)=sun;
-}
-if(scene.Ambient is { } ambient) {
-    Entity ambientEntity = world.CreateEntity(world.CreateArchetype<AmbientLightData>());
-    world.GetRef<AmbientLightData>(ambientEntity)=ambient;
-}
-if(scene.Fog is { } fog) {
-    Entity fogEntity = world.CreateEntity(world.CreateArchetype<FogData>());
-    world.GetRef<FogData>(fogEntity)=fog;
-}
-
-// Camera lives on the player entity itself (Systems/CameraSystem.cs) rather than a Velocity
-// component, which nothing ever read even before this migration - dropped so Player's spawned
-// component set stays within CreateArchetype's 8-type-parameter arity.
-EntityArchetype playerArchetype = world.CreateArchetype<Position, Rotation, Health, VerticalMotion, CameraRig, InputState, PlayerTag, Camera>();
-Entity player = world.CreateEntity(playerArchetype);
-world.GetRef<Position>(player) = new Position { X = scene.PlayerStartPosition.X, Y = scene.PlayerStartPosition.Y, Z = scene.PlayerStartPosition.Z };
-world.GetRef<Rotation>(player) = new Rotation { X = 0, Y = 0, Z = 0, W = 1 };
-world.GetRef<Health>(player).Value = 100;
-world.GetRef<CameraRig>(player) = new CameraRig { Yaw = scene.PlayerStartYawRadians, Pitch = 0f };
-
-Position playerStart = world.GetRef<Position>(player);
-world.GetRef<Camera>(player) = Camera.CreateFirstPerson(new Vector3(playerStart.X, playerStart.Y + CameraSystem.EyeHeight, playerStart.Z));
+// The only entity created outside the ECS: SceneSpawnSystem consumes it on the first frame and
+// creates everything else (props, lights, player).
+world.Create(new SceneSpawnRequest { Scene = scene });
 
 window.SetMouseCaptured(true);
+
+State state = new(world) { Enabled = true };
+
+SceneSpawnSystem sceneSpawnSystem = new();
+InputSystem inputSystem = new();
+PlayerControlSystem playerControlSystem = new();
+CameraSystem cameraSystem = new();
+MovingPropSystem movingPropSystem = new();
+RenderSyncSystem renderSyncSystem = new();
 
 Stopwatch stopwatch = Stopwatch.StartNew();
 long previousTicks = stopwatch.ElapsedTicks;
@@ -105,7 +78,18 @@ while (!window.IsClosed)
     totalTime += deltaTime;
 
     FrameContext frame = new(deltaTime, totalTime);
-    GeneratedGameLoop.Update(world, stageRenderer: renderer, win32Window: window, frameContext: frame);
+
+    GeneratedGameLoop.RunFrame(
+        ref state,
+        ref sceneSpawnSystem,
+        ref inputSystem,
+        ref playerControlSystem,
+        ref cameraSystem,
+        ref movingPropSystem,
+        ref renderSyncSystem,
+        renderer,
+        window,
+        in frame);
 
     renderer.RenderFrame();
 }

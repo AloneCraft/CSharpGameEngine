@@ -5,19 +5,25 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <IsPackable>false</IsPackable>
+    <!-- Runtime.cs's World/State are partial types that GameSystemGenerator completes in the SAME
+         compilation, and partial types cannot span a compiled DLL and a downstream consumer's own
+         compilation (ADR-0033). So this project is NOT referenced as a binary by anyone: it is the
+         canonical SOURCE location that every consumer pulls in via
+         <Compile Include="..\src\CSharpGameEngine.Entities\*.cs" Link="..." />.
+         Building it standalone is a smoke test: with zero ISystem structs in this compilation, the
+         generator still emits an empty `Archetype` enum plus an empty `partial struct World`, so
+         Runtime.cs's forward references resolve. -->
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <CompilerGeneratedFilesOutputPath>Generated</CompilerGeneratedFilesOutputPath>
   </PropertyGroup>
 
   <ItemGroup>
-    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-      <_Parameter1>CSharpGameEngine.Entities.Tests</_Parameter1>
-    </AssemblyAttribute>
-    <!-- CSharpGameEngine.SceneAuthoring.Cli (out-of-process VSIX preview bridge) walks a live World
-         generically via reflection - see ADR-0031 - so it needs access to Archetype/ComponentType
-         internals that no public API exposes (there is no public "enumerate all component types on
-         this archetype" surface, by design: ordinary [GameSystem]/[Update] code never needs one). -->
-    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-      <_Parameter1>CSharpGameEngine.SceneAuthoring.Cli</_Parameter1>
-    </AssemblyAttribute>
+    <Compile Remove="Generated\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CSharpGameEngine.CodeAnalysis\CSharpGameEngine.CodeAnalysis.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

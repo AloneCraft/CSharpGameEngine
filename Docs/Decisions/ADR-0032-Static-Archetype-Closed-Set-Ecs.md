@@ -2,11 +2,19 @@
 
 ## ステータス
 
-第一段階のみ承認済み。`UserGameProject`/`GameSystemGenerator`/`CSharpGameEngine.Entities`への統合
-(本設計による置き換え)は別パスに明示的に延期する。本ADRが対象とするのは、新規独立プロジェクト
-`src/CSharpGameEngine.StaticArchetype`+`CSharpGameEngine.CodeAnalysis`内の新規Generator
-(`StaticArchetypeGenerator`)+新規サンプル`samples/StaticArchetypeSystemsDemo`のみであり、
-既存の本番ECS(ADR-0029/M0009)には一切手を入れていない。
+第一段階として承認・実装済み。本番統合は[[ADR-0033-Static-Archetype-Ecs-Migration]](M0013)で完了した。
+
+本ADRが対象としたのは、既存の本番ECS(ADR-0029/M0009)に一切手を入れずに設計を独立検証することであり、
+そのために作った`src/CSharpGameEngine.StaticArchetype`と`samples/StaticArchetypeSystemsDemo`は
+ADR-0033で役割を終えて削除された(内容は`src/CSharpGameEngine.Entities`と`GameSystemGenerator`へ吸収)。
+`StaticArchetypeGenerator`もADR-0033決定事項7の統合により`GameSystemGenerator`へ改称・吸収されている。
+
+**ADR-0033で変更された本ADRの決定事項**:
+- Archetypeの命名(本ADR決定事項4の「インデックス連結」)は、実際に生成させると
+  `Archetype0001020304050613`となり実用に耐えないため、出現順の連番へ変更された。
+- 全型がグローバル名前空間(本ADR決定事項8)だったのは、`CSharpGameEngine.Entities`名前空間へ移された。
+- `[Context]`相当・`Spawn`によるArchetype宣言・`WorldSnapshot`は、いずれも本ADRには無かった機能として
+  ADR-0033で追加された。
 
 本設計は[[ADR-0015-Archetype-Ecs-Static-Runtime]](旧`CSharpGameEngine.Ecs`、CRTP`IEcsArchetype<TSelf>`+
 プロパティベースのComponent宣言、Superseded済み)とは無関係の、別物の新設計である。

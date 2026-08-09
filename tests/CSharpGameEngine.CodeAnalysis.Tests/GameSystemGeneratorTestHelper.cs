@@ -9,26 +9,53 @@ namespace CSharpGameEngine.CodeAnalysis.Tests;
 internal static class GameSystemGeneratorTestHelper
 {
     /// <summary>
-    /// テストでよく使う共通コンポーネント一式。個々のテストのソースに連結して使う。
+    /// 実プロジェクトでは<c>Directory.Build.props</c>の<c>ImplicitUsings=enable</c>により
+    /// <c>System</c>等が暗黙<c>using</c>されるが、このヘルパーは生の<see cref="CSharpCompilation"/>を
+    /// 使うためMSBuildのSDK生成<c>GlobalUsings.g.cs</c>を経由しない。実プロジェクトと同じ前提を
+    /// 明示的に補う。
     /// </summary>
-    internal const string CommonComponents = """
-        using CSharpGameEngine.Entities;
+    private const string ImplicitUsingsSource = "global using System;\nglobal using System.Collections.Generic;\nglobal using System.Linq;\n";
 
+    /// <summary>正本の<c>Runtime.cs</c>(src/CSharpGameEngine.Entities)。テストと実体のドリフトを防ぐためファイルから読む。</summary>
+    internal static readonly string RuntimeSource = ReadTestAsset("Runtime.cs");
+
+    /// <summary>
+    /// Scene Authoringの型一式(<c>[SceneDefinition]</c>を含むテストで必要)。各ファイルは
+    /// file-scoped namespaceを持つため、1つの文字列へ連結せず個別の構文ツリーとして渡す。
+    /// </summary>
+    internal static readonly string[] SceneAuthoringSources =
+    [
+        ReadTestAsset("Parent.cs"),
+        ReadTestAsset("SceneNodeTag.cs"),
+        ReadTestAsset("SceneNodeId.cs"),
+        ReadTestAsset("SceneNodeSymbol.cs"),
+        ReadTestAsset("SceneBuilder.cs"),
+        ReadTestAsset("SceneNodeBuilder.cs"),
+        ReadTestAsset("SceneDefinitionAttribute.cs"),
+    ];
+
+    /// <summary>テストでよく使う共通コンポーネント一式。個々のテストのソースに連結して使う。</summary>
+    internal const string CommonComponents = """
         namespace Sample;
 
         public struct Position { public float X; public float Y; public float Z; }
         public struct Velocity { public float X; public float Y; public float Z; }
         public struct Health { public int Value; }
-        public readonly struct DisabledTag { }
-        public readonly struct MovableTag { }
+        public struct PlayerTag { }
+        public struct MovableTag { }
+        public readonly struct FrameContext
+        {
+            public FrameContext(float deltaTime) { this.DeltaTime = deltaTime; }
+            public float DeltaTime { get; }
+        }
+        public sealed class Log { public System.Collections.Generic.List<string> Entries = new(); }
         """;
 
-    internal static CSharpCompilation CreateCompilation(params string[] sources)
-    {
-        return CreateCompilation(LanguageVersion.Latest, sources);
-    }
+    private static string ReadTestAsset(string fileName) =>
+        File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "Entities", fileName));
 
-    internal static CSharpCompilation CreateCompilation(LanguageVersion languageVersion, params string[] sources)
+    /// <summary><see cref="RuntimeSource"/>を常に含めるコンパイルを作る(全コンパイルがWorld/State/ISystemを必要とするため)。</summary>
+    internal static CSharpCompilation CreateCompilation(params string[] extraSources)
     {
         List<MetadataReference> references = [];
 
@@ -40,9 +67,8 @@ internal static class GameSystemGeneratorTestHelper
             }
         }
 
-        references.Add(MetadataReference.CreateFromFile(typeof(CSharpGameEngine.Entities.World).Assembly.Location));
-
-        CSharpParseOptions parseOptions = new(languageVersion);
+        CSharpParseOptions parseOptions = new(LanguageVersion.Latest);
+        List<string> sources = [ImplicitUsingsSource, RuntimeSource, .. extraSources];
 
         return CSharpCompilation.Create(
             "GameSystemGeneratorTestAssembly",
@@ -58,18 +84,13 @@ internal static class GameSystemGeneratorTestHelper
         return driver.GetRunResult();
     }
 
-    internal static GeneratorDriverRunResult RunGenerator(params string[] sources)
-    {
-        return RunGenerator(CreateCompilation(sources));
-    }
+    internal static GeneratorDriverRunResult RunGenerator(params string[] extraSources) =>
+        RunGenerator(CreateCompilation(extraSources));
 
-    /// <summary>
-    /// ソースをGameSystemGeneratorに通し、生成コードを合流させた最終コンパイルを実際にEmitして、
-    /// メモリ上に読み込む。E2Eテストがリフレクションで実行結果を検証するために使う。
-    /// </summary>
-    internal static Assembly CompileAndLoad(params string[] sources)
+    /// <summary>生成コードを合流させた最終コンパイルを実際にEmitしてメモリ上に読み込む。E2Eテストがリフレクションで実行結果を検証するために使う。</summary>
+    internal static Assembly CompileAndLoad(params string[] extraSources)
     {
-        CSharpCompilation compilation = CreateCompilation(sources);
+        CSharpCompilation compilation = CreateCompilation(extraSources);
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new GameSystemGenerator());
         driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out Compilation outputCompilation, out ImmutableArray<Diagnostic> generatorDiagnostics);
 
@@ -90,10 +111,15 @@ internal static class GameSystemGeneratorTestHelper
         return Assembly.Load(stream.ToArray());
     }
 
+    /// <summary>この設計の型は<c>internal</c>基調なので、Non-publicも検索対象に含める。</summary>
     internal static object? Invoke(Assembly assembly, string typeFullName, string methodName, params object?[]? args)
     {
         Type type = assembly.GetType(typeFullName) ?? throw new InvalidOperationException($"Type '{typeFullName}' not found.");
-        MethodInfo method = type.GetMethod(methodName) ?? throw new InvalidOperationException($"Method '{methodName}' not found on '{typeFullName}'.");
+        MethodInfo method = type.GetMethod(methodName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException($"Method '{methodName}' not found on '{typeFullName}'.");
         return method.Invoke(null, args);
     }
+
+    internal static string GeneratedText(GeneratorDriverRunResult result, string hintName) =>
+        result.Results[0].GeneratedSources.Single(s => s.HintName == hintName).SourceText.ToString();
 }

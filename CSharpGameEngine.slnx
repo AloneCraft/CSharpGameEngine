@@ -1,5 +1,7 @@
 <Solution>
-  <Configurations>`r`n    <Platform Name="x64" />`r`n  </Configurations>
+  <Configurations>
+    <Platform Name="x64" />
+  </Configurations>
   <Folder Name="/Docs/">
     <File Path="Docs/20260803-0.txt" />
     <File Path="Docs/20260803-1.txt" />
@@ -48,6 +50,7 @@
     <File Path="Docs/Decisions/ADR-0030-Scene-Authoring-CSharp-Source-Of-Truth.md" />
     <File Path="Docs/Decisions/ADR-0031-Scene-Definition-3D-Preview.md" />
     <File Path="Docs/Decisions/ADR-0032-Static-Archetype-Closed-Set-Ecs.md" />
+    <File Path="Docs/Decisions/ADR-0033-Static-Archetype-Ecs-Migration.md" />
   </Folder>
   <Folder Name="/Docs/Milestones/">
     <File Path="Docs/Milestones/M0001-CodeAnalysis-Foundation.md" />
@@ -62,6 +65,7 @@
     <File Path="Docs/Milestones/M0010-Scene-Authoring-Phase-A.md" />
     <File Path="Docs/Milestones/M0011-Scene-Definition-Preview.md" />
     <File Path="Docs/Milestones/M0012-Static-Archetype-Closed-Set-Ecs-Poc.md" />
+    <File Path="Docs/Milestones/M0013-Static-Archetype-Ecs-Migration.md" />
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
@@ -92,7 +96,6 @@
     <Project Path="src/CSharpGameEngine.Import.Fbx/CSharpGameEngine.Import.Fbx.csproj" />
     <Project Path="src/CSharpGameEngine.CodeAnalysis/CSharpGameEngine.CodeAnalysis.csproj" />
     <Project Path="src/CSharpGameEngine.Entities/CSharpGameEngine.Entities.csproj" />
-    <Project Path="src/CSharpGameEngine.StaticArchetype/CSharpGameEngine.StaticArchetype.csproj" />
     <Project Path="src/CSharpGameEngine.Scene/CSharpGameEngine.Scene.csproj" />
     <Project Path="src/CSharpGameEngine.Spatial.Abstractions/CSharpGameEngine.Spatial.Abstractions.csproj" />
     <Project Path="src/CSharpGameEngine.Spatial.Unity/CSharpGameEngine.Spatial.Unity.csproj" />
@@ -100,12 +103,6 @@
     <Project Path="src/CSharpGameEngine.Spatial.Blender/CSharpGameEngine.Spatial.Blender.csproj" />
     <Project Path="src/CSharpGameEngine.Spatial.Gltf/CSharpGameEngine.Spatial.Gltf.csproj" />
     <Project Path="src/CSharpGameEngine.Spatial.Fbx/CSharpGameEngine.Spatial.Fbx.csproj" />
-  </Folder>
-  <Folder Name="/samples/">
-    <Project Path="samples/AosSoaGeneratedExpansion/AosSoaGeneratedExpansion.csproj" />
-    <Project Path="samples/SoaSystemsDemo/SoaSystemsDemo.csproj" />
-    <Project Path="samples/SceneAuthoringDemo/SceneAuthoringDemo.csproj" />
-    <Project Path="samples/StaticArchetypeSystemsDemo/StaticArchetypeSystemsDemo.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/CSharpGameEngine.Core.Tests/CSharpGameEngine.Core.Tests.csproj" />
@@ -135,7 +132,7 @@
     <Project Path="tools/CSharpGameEngine.Primitive.Cli/CSharpGameEngine.Primitive.Cli.csproj" />
     <Project Path="tools/CSharpGameEngine.SceneAuthoring.Cli/CSharpGameEngine.SceneAuthoring.Cli.csproj" />
     <Project Path="tools/CSharpGameEngine.VSExtension/CSharpGameEngine.VSExtension.csproj">
-      <Deploy Solution="Debug|Any CPU" />
+      <Deploy Solution="Debug|x64" />
     </Project>
   </Folder>
   <Folder Name="/UserGameProject/">

@@ -18,7 +18,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\CSharpGameEngine.Entities\CSharpGameEngine.Entities.csproj" />
+    <!-- Shared source, not a binary reference: World/State are partial types the generator completes
+         inside THIS compilation (ADR-0033). -->
+    <Compile Include="..\..\src\CSharpGameEngine.Entities\*.cs" Link="Entities\%(Filename)%(Extension)" />
+    <ProjectReference Include="..\..\src\CSharpGameEngine.CodeAnalysis\CSharpGameEngine.CodeAnalysis.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

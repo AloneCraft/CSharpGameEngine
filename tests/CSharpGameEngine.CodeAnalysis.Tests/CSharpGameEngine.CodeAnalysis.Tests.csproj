@@ -26,9 +26,16 @@
   <ItemGroup>
     <!-- Read as text by StaticArchetypeGeneratorTestHelper (not compiled here) so the emission/e2e
          tests exercise the literal promoted sample content with zero drift risk (ADR-0032). -->
-    <None Include="..\..\src\CSharpGameEngine.StaticArchetype\Runtime.cs" Link="TestAssets\StaticArchetype\Runtime.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\samples\StaticArchetypeSystemsDemo\Components.cs" Link="TestAssets\StaticArchetype\Components.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\samples\StaticArchetypeSystemsDemo\Systems.cs" Link="TestAssets\StaticArchetype\Systems.cs" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The real runtime source the generator completes, read as text by GameSystemGeneratorTestHelper
+         so every generator test compiles against exactly what ships (ADR-0033). -->
+    <None Include="..\..\src\CSharpGameEngine.Entities\Runtime.cs" Link="TestAssets\Entities\Runtime.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\CSharpGameEngine.Entities\Parent.cs" Link="TestAssets\Entities\Parent.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\CSharpGameEngine.Entities\SceneNodeTag.cs" Link="TestAssets\Entities\SceneNodeTag.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\CSharpGameEngine.Entities\SceneNodeId.cs" Link="TestAssets\Entities\SceneNodeId.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\CSharpGameEngine.Entities\SceneNodeSymbol.cs" Link="TestAssets\Entities\SceneNodeSymbol.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\CSharpGameEngine.Entities\SceneBuilder.cs" Link="TestAssets\Entities\SceneBuilder.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\CSharpGameEngine.Entities\SceneNodeBuilder.cs" Link="TestAssets\Entities\SceneNodeBuilder.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\CSharpGameEngine.Entities\SceneDefinitionAttribute.cs" Link="TestAssets\Entities\SceneDefinitionAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

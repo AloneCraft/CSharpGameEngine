@@ -76,16 +76,19 @@ public sealed class SceneDefinitionGeneratorEmissionTests
         GeneratedSourceResult generated = Assert.Single(result.Results[0].GeneratedSources, s => s.HintName == "Sample.MainScene.SceneRuntime.g.cs");
         string text = generated.SourceText.ToString();
 
-        Assert.Contains("public static global::CSharpGameEngine.Entities.Entity CreateRuntime(global::CSharpGameEngine.Entities.World world)", text);
-        Assert.Contains("global::CSharpGameEngine.Entities.Entity Root = world.CreateEntity(world.CreateArchetype<global::CSharpGameEngine.Entities.SceneNodeTag>());", text);
-        Assert.Contains("global::CSharpGameEngine.Entities.Entity MainCamera = world.CreateEntity(world.CreateArchetype<global::Sample.Camera, global::CSharpGameEngine.Entities.Parent>());", text);
-        Assert.Contains("world.GetRef<global::Sample.Camera>(MainCamera) = new Camera { FieldOfView = 60f };", text);
-        Assert.Contains("world.GetRef<global::CSharpGameEngine.Entities.Parent>(MainCamera) = new global::CSharpGameEngine.Entities.Parent { Value = Root };", text);
+        // ADR-0033: Worldがstructになったため`ref World`を取る。ノードごとの生成は、旧実装の
+        // 「CreateEntity + Componentごとの後付けGetRef代入」から、生成されたArchetypeのCreate
+        // ファクトリ1回の呼び出しへ簡潔化された。
+        Assert.Contains("public static global::CSharpGameEngine.Entities.Entity CreateRuntime(ref global::CSharpGameEngine.Entities.World world)", text);
+        Assert.Contains("Entity Root = global::CSharpGameEngine.Entities.Archetype", text);
+        Assert.Contains(".Create(ref world, default);", text);
+        Assert.Contains("new Camera { FieldOfView = 60f }", text);
+        Assert.Contains("new global::CSharpGameEngine.Entities.Parent { Value = Root }", text);
         Assert.Contains("return Root;", text);
 
-        // Rootは空ノード(Set呼び出しなし)なのでSceneNodeTagのみ持ち、GetRef<SceneNodeTag>行は生成されない
-        // (デフォルト値以外に設定すべきフィールドが無いため)。
-        Assert.DoesNotContain("GetRef<global::CSharpGameEngine.Entities.SceneNodeTag>", text);
+        // 後付けの代入パスは無くなった。
+        Assert.DoesNotContain("GetRef<", text);
+        Assert.DoesNotContain("CreateArchetype<", text);
     }
 
     [Fact]
@@ -129,6 +132,20 @@ public sealed class SceneDefinitionGeneratorEmissionTests
         string[] secondTexts = [.. second.Results[0].GeneratedSources.OrderBy(s => s.HintName, StringComparer.Ordinal).Select(s => s.HintName + "\n" + s.SourceText)];
 
         Assert.Equal(firstTexts, secondTexts);
-        Assert.Equal(2, firstTexts.Length);
+
+        // ADR-0033でScene生成はGameSystemGeneratorへ統合されたため、Sceneクラスごとの2ファイルに加えて
+        // コンパイル全体で共有されるArchetype/World/Snapshot/ゲームループも同じ実行で出力される。
+        string[] hintNames = [.. first.Results[0].GeneratedSources.Select(s => s.HintName).OrderBy(n => n, StringComparer.Ordinal)];
+
+        Assert.Equal(
+            [
+                "GameSystem.Loop.g.cs",
+                "GameSystem.Snapshot.g.cs",
+                "GameSystem.Types.g.cs",
+                "GameSystem.World.g.cs",
+                "Sample.MainScene.SceneNodes.g.cs",
+                "Sample.MainScene.SceneRuntime.g.cs",
+            ],
+            hintNames);
     }
 }

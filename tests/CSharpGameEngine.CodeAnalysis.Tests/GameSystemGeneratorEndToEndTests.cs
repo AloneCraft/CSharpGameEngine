@@ -3,214 +3,262 @@ using System.Reflection;
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 
 /// <summary>
-/// GameSystemGeneratorが出力したコード(Executor+GeneratedGameLoop)を実際にコンパイル・Emit・
-/// ロードし、実World/Entityを使って実行する。「引数からQueryとRead/Writeを推論する」「SoAループを
-/// 生成する」「構造変更はCommand Buffer経由でループ末尾に安全に適用される」という新仕様の
-/// 中核契約が、Generatorが実際に出力するコードで機能することを証明する最重要テスト。
+/// GameSystemGeneratorが出力したコード(Archetype/World/GeneratedGameLoop/WorldSnapshot)を実際に
+/// コンパイル・Emit・ロードして実行する。「Archetypeは閉じた集合としてコンパイル時に確定する」
+/// 「部分集合一致で複数System・複数オーバーロードが発火する」「構造変更はフレーム末尾にまとめて
+/// 適用される」という設計の中核契約を、生成された実コードで証明する最重要テスト。
 /// </summary>
 public sealed class GameSystemGeneratorEndToEndTests
 {
+    private const string Components = """
+        namespace Sample;
+
+        public struct Position { public float X; }
+        public struct Velocity { public float X; }
+        public struct Health { public int Value; }
+        public struct MovableTag { }
+        public readonly struct FrameContext
+        {
+            public FrameContext(float deltaTime) { this.DeltaTime = deltaTime; }
+            public float DeltaTime { get; }
+        }
+        """;
+
     [Fact]
-    public void Move_ProcessesEntitiesAcrossMultipleArchetypes_UsingSoaSpans()
+    public void SubsetDispatch_FiresEveryMatchingOverloadOncePerEntity()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
+        string source = """
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Generated;
+            using Sample;
 
+            namespace Game;
 
-            [GameSystem]
-            public static class MovementSystems
+            internal struct CountingSystem : ISystem
             {
-                [Update]
-                public static void Move(ref Position position, in Velocity velocity)
+                public int PositionOnly;
+                public int PositionAndVelocity;
+
+                public bool Update(ref Position position, ref State state)
                 {
-                    position.X += velocity.X;
-                    position.Y += velocity.Y;
-                    position.Z += velocity.Z;
+                    this.PositionOnly++;
+                    return true;
+                }
+
+                public bool Update(ref Position position, ref Velocity velocity, ref State state)
+                {
+                    this.PositionAndVelocity++;
+                    return true;
                 }
             }
 
-            public static class TestEntry
+            internal static class TestEntry
             {
-                public static string RunScenario()
+                internal static string RunScenario()
                 {
-                    World world = new World();
+                    World world = new();
+                    State state = new(world) { Enabled = true };
 
-                    EntityArchetype posVel = world.CreateArchetype<Position, Velocity>();
-                    EntityArchetype posVelHealth = world.CreateArchetype<Position, Velocity, Health>();
+                    world.Create(new Position());
+                    world.Create(new Position(), new Velocity());
 
-                    Entity a = world.CreateEntity(posVel);
-                    world.GetRef<Velocity>(a) = new Velocity { X = 1, Y = 0, Z = 0 };
+                    CountingSystem counting = new();
+                    GeneratedGameLoop.RunFrame(ref state, ref counting);
 
-                    Entity b = world.CreateEntity(posVelHealth);
-                    world.GetRef<Velocity>(b) = new Velocity { X = 0, Y = 2, Z = 0 };
-                    world.GetRef<Health>(b) = new Health { Value = 50 };
-
-                    CSharpGameEngine.Generated.GeneratedGameLoop.Update(world);
-
-                    if (world.GetRef<Position>(a).X != 1) return "FAIL:A.X";
-                    if (world.GetRef<Position>(b).Y != 2) return "FAIL:B.Y";
-                    if (world.GetRef<Health>(b).Value != 50) return "FAIL:B.HealthUntouched";
+                    // {Position} は2体(単独 + {Position,Velocity}の方にも部分集合一致)にヒットする。
+                    if (counting.PositionOnly != 2) return "FAIL:PositionOnly=" + counting.PositionOnly;
+                    if (counting.PositionAndVelocity != 1) return "FAIL:PositionAndVelocity=" + counting.PositionAndVelocity;
 
                     return "OK";
                 }
             }
             """;
 
-        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(source);
-        object? result = GameSystemGeneratorTestHelper.Invoke(assembly, "Sample.TestEntry", "RunScenario");
+        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(Components, source);
+        object? result = GameSystemGeneratorTestHelper.Invoke(assembly, "Game.TestEntry", "RunScenario");
 
         Assert.Equal("OK", result);
     }
 
     [Fact]
-    public void Without_ExcludesEntitiesThatHaveTheExcludedComponent()
+    public void MoveArchetype_AppliesAtEndOfFrame_AndSwapBackKeepsIndicesValid()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
+        string source = """
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Generated;
+            using Sample;
 
+            namespace Game;
 
-            [GameSystem]
-            public static class ActiveOnlySystems
+            internal struct PromoteSystem : ISystem
             {
-                [Update]
-                [Without(typeof(DisabledTag))]
-                public static void Move(ref Position position, in Velocity velocity)
+                public bool Update(Entity entity, ref Position position, ref State state)
                 {
-                    position.X += velocity.X;
+                    state.World.MoveArchetype(entity, position, new Velocity { X = 3f }, ref state);
+                    return true;
                 }
+
+                public bool Update(ref Position position, ref Velocity velocity, ref State state) => true;
             }
 
-            public static class TestEntry
+            internal static class TestEntry
             {
-                public static string RunScenario()
+                internal static string RunScenario()
                 {
-                    World world = new World();
+                    World world = new();
+                    State state = new(world) { Enabled = true };
 
-                    EntityArchetype active = world.CreateArchetype<Position, Velocity>();
-                    EntityArchetype disabled = world.CreateArchetype<Position, Velocity, DisabledTag>();
+                    world.Create(new Position { X = 1f });
+                    world.Create(new Position { X = 2f });
 
-                    Entity a = world.CreateEntity(active);
-                    world.GetRef<Velocity>(a) = new Velocity { X = 5 };
+                    PromoteSystem system = new();
+                    GeneratedGameLoop.RunFrame(ref state, ref system);
 
-                    Entity b = world.CreateEntity(disabled);
-                    world.GetRef<Velocity>(b) = new Velocity { X = 5 };
+                    if (world.ListArchetype0.Count != 0) return "FAIL:sourceNotEmptied=" + world.ListArchetype0.Count;
+                    if (world.ListArchetype1.Count != 2) return "FAIL:destinationCount=" + world.ListArchetype1.Count;
+                    if (world.ListArchetype1[0].Velocity.X != 3f) return "FAIL:velocityNotApplied";
 
-                    CSharpGameEngine.Generated.GeneratedGameLoop.Update(world);
+                    // 2フレーム目は移動元が空なので何も起きない。
+                    GeneratedGameLoop.RunFrame(ref state, ref system);
 
-                    if (world.GetRef<Position>(a).X != 5) return "FAIL:ActiveEntityNotMoved";
-                    if (world.GetRef<Position>(b).X != 0) return "FAIL:DisabledEntityWasMoved";
+                    if (world.ListArchetype1.Count != 2) return "FAIL:secondFrameCount=" + world.ListArchetype1.Count;
 
                     return "OK";
                 }
             }
             """;
 
-        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(source);
-        object? result = GameSystemGeneratorTestHelper.Invoke(assembly, "Sample.TestEntry", "RunScenario");
+        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(Components, source);
+        object? result = GameSystemGeneratorTestHelper.Invoke(assembly, "Game.TestEntry", "RunScenario");
 
         Assert.Equal("OK", result);
     }
 
     [Fact]
-    public void Context_And_CurrentEntity_AreForwardedToEachExecuteCall()
+    public void ContextParameters_ReachTheSystemBody()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
+        string source = """
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Generated;
+            using Sample;
 
+            namespace Game;
 
-            public struct FrameContext
+            internal struct MoveSystem : ISystem
             {
-                public float DeltaTime;
-            }
-
-            public sealed class Log
-            {
-                public System.Collections.Generic.List<int> VisitedEntityIds = new();
-            }
-
-            [GameSystem]
-            public static class MovementSystems
-            {
-                [Update]
-                public static void Move(ref Position position, in Velocity velocity, [Context] in FrameContext frame, [Context] Log log, [CurrentEntity] Entity self)
+                public bool Update(ref Position position, in FrameContext frame, ref State state)
                 {
-                    position.X += velocity.X * frame.DeltaTime;
-                    log.VisitedEntityIds.Add(self.Id);
+                    position.X += frame.DeltaTime;
+                    return true;
                 }
             }
 
-            public static class TestEntry
+            internal static class TestEntry
             {
-                public static string RunScenario()
+                internal static string RunScenario()
                 {
-                    World world = new World();
-                    EntityArchetype posVel = world.CreateArchetype<Position, Velocity>();
+                    World world = new();
+                    State state = new(world) { Enabled = true };
 
-                    Entity a = world.CreateEntity(posVel);
-                    world.GetRef<Velocity>(a) = new Velocity { X = 10 };
+                    world.Create(new Position { X = 0f });
 
-                    FrameContext frame = new FrameContext { DeltaTime = 0.5f };
-                    Log log = new Log();
+                    MoveSystem system = new();
+                    FrameContext frame = new(0.5f);
+                    GeneratedGameLoop.RunFrame(ref state, ref system, in frame);
 
-                    CSharpGameEngine.Generated.GeneratedGameLoop.Update(world, frame, log);
-
-                    if (world.GetRef<Position>(a).X != 5) return "FAIL:Position";
-                    if (log.VisitedEntityIds.Count != 1 || log.VisitedEntityIds[0] != a.Id) return "FAIL:CurrentEntity";
+                    if (world.ListArchetype0[0].Position.X != 0.5f) return "FAIL:X=" + world.ListArchetype0[0].Position.X;
 
                     return "OK";
                 }
             }
             """;
 
-        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(source);
-        object? result = GameSystemGeneratorTestHelper.Invoke(assembly, "Sample.TestEntry", "RunScenario");
+        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(Components, source);
+        object? result = GameSystemGeneratorTestHelper.Invoke(assembly, "Game.TestEntry", "RunScenario");
 
         Assert.Equal("OK", result);
     }
 
     [Fact]
-    public void Commands_StructuralChangesApplyOnlyAfterPlaybackAtEndOfGeneratedLoop()
+    public void SpawnDeclaredArchetype_IsCreatableThroughWorldCreate()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
+        string source = """
+            using CSharpGameEngine.Entities;
+            using Sample;
 
+            namespace Game;
 
-            [GameSystem]
-            public static class HealthSystems
+            internal struct OnlySystem : ISystem
             {
-                [Update]
-                public static void DisableDeadEntity(in Health health, [CurrentEntity] Entity self, [Commands] EntityCommandBuffer commands)
-                {
-                    if (health.Value <= 0)
-                    {
-                        commands.Add<DisabledTag>(self);
-                    }
-                }
+                public bool Update(ref Position position, ref State state) => true;
             }
 
-            public static class TestEntry
+            // Healthを読むSystemが1つも無いため、この宣言が無いと{Position,Health}のArchetypeは生成されない。
+            internal struct BigSpawn : ISystem
             {
-                public static string RunScenario()
+                public void Spawn(ref Position position, ref Health health) { }
+            }
+
+            internal static class TestEntry
+            {
+                internal static string RunScenario()
                 {
-                    World world = new World();
-                    EntityArchetype withHealth = world.CreateArchetype<Health>();
+                    World world = new();
 
-                    Entity alive = world.CreateEntity(withHealth);
-                    world.GetRef<Health>(alive) = new Health { Value = 10 };
+                    Entity entity = world.Create(new Position { X = 4f }, new Health { Value = 99 });
 
-                    Entity dead = world.CreateEntity(withHealth);
-                    world.GetRef<Health>(dead) = new Health { Value = 0 };
-
-                    if (world.Has<DisabledTag>(alive) || world.Has<DisabledTag>(dead)) return "FAIL:PreconditionAlreadyDisabled";
-
-                    CSharpGameEngine.Generated.GeneratedGameLoop.Update(world);
-
-                    if (world.Has<DisabledTag>(alive)) return "FAIL:AliveWasDisabled";
-                    if (!world.Has<DisabledTag>(dead)) return "FAIL:DeadWasNotDisabled";
+                    if (world.ListArchetype1.Count != 1) return "FAIL:count=" + world.ListArchetype1.Count;
+                    if (world.ListArchetype1[0].Health.Value != 99) return "FAIL:health";
+                    if (world.ListArchetype1[0].Entity != entity) return "FAIL:entity";
 
                     return "OK";
                 }
             }
             """;
 
-        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(source);
-        object? result = GameSystemGeneratorTestHelper.Invoke(assembly, "Sample.TestEntry", "RunScenario");
+        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(Components, source);
+        object? result = GameSystemGeneratorTestHelper.Invoke(assembly, "Game.TestEntry", "RunScenario");
+
+        Assert.Equal("OK", result);
+    }
+
+    [Fact]
+    public void WorldSnapshot_CapturesLiveEntitiesForTheOutOfProcessBridge()
+    {
+        string source = """
+            using CSharpGameEngine.Entities;
+            using Sample;
+
+            namespace Game;
+
+            internal struct OnlySystem : ISystem
+            {
+                public bool Update(ref Position position, ref State state) => true;
+            }
+
+            internal static class TestEntry
+            {
+                internal static string RunScenario()
+                {
+                    World world = new();
+                    world.Create(new Position { X = 1f });
+                    world.Create(new Position { X = 2f });
+
+                    ArchetypeSnapshotEntry[] entries = WorldSnapshot.Capture(world);
+
+                    if (entries.Length != 2) return "FAIL:length=" + entries.Length;
+                    if (entries[0].EntityId != 0) return "FAIL:entityId";
+                    if (entries[0].HasParent) return "FAIL:unexpectedParent";
+                    if (entries[0].ComponentValues.Length != 1) return "FAIL:componentCount";
+                    if (((Position)entries[1].ComponentValues[0]).X != 2f) return "FAIL:componentValue";
+
+                    return "OK";
+                }
+            }
+            """;
+
+        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(Components, source);
+        object? result = GameSystemGeneratorTestHelper.Invoke(assembly, "Game.TestEntry", "RunScenario");
 
         Assert.Equal("OK", result);
     }

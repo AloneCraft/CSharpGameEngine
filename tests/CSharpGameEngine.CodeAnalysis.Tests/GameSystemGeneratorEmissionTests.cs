@@ -5,231 +5,225 @@ namespace CSharpGameEngine.CodeAnalysis.Tests;
 
 public sealed class GameSystemGeneratorEmissionTests
 {
+    private const string TwoSystems = """
+        using CSharpGameEngine.Entities;
+        using Sample;
+
+        namespace Game;
+
+        internal struct FirstSystem : ISystem
+        {
+            public bool Update(ref Position position, ref State state) => true;
+        }
+
+        internal struct SecondSystem : ISystem
+        {
+            public bool Update(ref Position position, ref Velocity velocity, ref State state) => true;
+        }
+        """;
+
     [Fact]
-    public void SimpleMoveMethod_GeneratesExpectedExecutorShape()
+    public void ArchetypesAreNamedByDiscoveryOrder_NotByComponentIndexConcatenation()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
-
-
-            [GameSystem]
-            public static class MovementSystems
-            {
-                [Update]
-                public static void Move(ref Position position, in Velocity velocity)
-                {
-                }
-            }
-            """;
-
-        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(source);
+        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(
+            GameSystemGeneratorTestHelper.CommonComponents, TwoSystems);
 
         Assert.Empty(result.Diagnostics);
-        GeneratedSourceResult generated = Assert.Single(result.Results[0].GeneratedSources, s => s.HintName == "Sample.MovementSystems.Move.Executor.g.cs");
-        string text = generated.SourceText.ToString();
 
-        Assert.Contains("internal static class MovementSystems_Move_Executor", text);
-        Assert.Contains("global::CSharpGameEngine.Entities.ComponentType<global::Sample.Position>.Id", text);
-        Assert.Contains("global::CSharpGameEngine.Entities.ComponentType<global::Sample.Velocity>.Id", text);
-        Assert.Contains("global::System.Span<global::Sample.Position> position = archetype.GetSpan<global::Sample.Position>(", text);
-        Assert.Contains("global::System.ReadOnlySpan<global::Sample.Velocity> velocity = archetype.GetReadOnlySpan<global::Sample.Velocity>(", text);
-        Assert.Contains("global::Sample.MovementSystems.Move(", text);
-        Assert.Contains("ref position[row]", text);
-        Assert.Contains("in velocity[row]", text);
+        string text = GameSystemGeneratorTestHelper.GeneratedText(result, "GameSystem.Types.g.cs");
+
+        // ADR-0033: Archetype名は出現順の連番。Component集合を連結した名前(Archetype0001…)は、
+        // 読めない上にComponentを1つ足すだけで全部の名前が変わってしまうため採用していない。
+        Assert.Contains("public enum Archetype\n{\n    Archetype0,\n    Archetype1,\n}", text);
+        Assert.Contains("public struct Archetype0 : IArchetype", text);
+        Assert.Contains("public struct Archetype1 : IArchetype", text);
     }
 
     [Fact]
-    public void GeneratedExecutor_NeverUsesReflectionOrDictionaryLookups()
+    public void CreateFactory_ReturnsTheCreatedEntity()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
+        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(
+            GameSystemGeneratorTestHelper.CommonComponents, TwoSystems);
 
+        string text = GameSystemGeneratorTestHelper.GeneratedText(result, "GameSystem.Types.g.cs");
 
-            [GameSystem]
-            public static class MovementSystems
-            {
-                [Update]
-                public static void Move(ref Position position, in Velocity velocity)
-                {
-                }
-            }
-            """;
-
-        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(source);
-        GeneratedSourceResult generated = Assert.Single(result.Results[0].GeneratedSources, s => s.HintName == "Sample.MovementSystems.Move.Executor.g.cs");
-        string text = generated.SourceText.ToString();
-
-        Assert.DoesNotContain("typeof(", text);
-        Assert.DoesNotContain("Has<", text);
-        Assert.DoesNotContain(".Contains(", text);
-        Assert.DoesNotContain("Dictionary", text);
-        Assert.DoesNotContain("GetType()", text);
+        Assert.Contains("public static Entity Create(ref World World,", text);
+        Assert.Contains("        return Entity;", text);
     }
 
     [Fact]
-    public void TagComponent_IsHoistedOutsideMatchLoop_AndExcludedFromAccessArray()
+    public void WorldGetsCreateOverloads_SoCallersNeverNameAnArchetype()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
+        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(
+            GameSystemGeneratorTestHelper.CommonComponents, TwoSystems);
 
+        string text = GameSystemGeneratorTestHelper.GeneratedText(result, "GameSystem.World.g.cs");
 
-            [GameSystem]
-            public static class MovingPropSystems
-            {
-                [Update]
-                public static void Spin(ref Position position, in MovableTag tag)
-                {
-                }
-            }
-            """;
-
-        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(source);
-        GeneratedSourceResult generated = Assert.Single(result.Results[0].GeneratedSources, s => s.HintName == "Sample.MovingPropSystems.Spin.Executor.g.cs");
-        string text = generated.SourceText.ToString();
-
-        Assert.Contains("global::Sample.MovableTag tag = default;", text);
-
-        int hoistIndex = text.IndexOf("global::Sample.MovableTag tag = default;", StringComparison.Ordinal);
-        int loopIndex = text.IndexOf("for (int matchIndex = 0;", StringComparison.Ordinal);
-        Assert.True(hoistIndex >= 0 && loopIndex >= 0 && hoistIndex < loopIndex, "Tag default must be hoisted before the match loop.");
-
-        int accessStart = text.IndexOf("access: new int[]", StringComparison.Ordinal);
-        int accessEnd = text.IndexOf(");", accessStart, StringComparison.Ordinal);
-        string accessBlock = text[accessStart..accessEnd];
-
-        Assert.Contains("Position", accessBlock);
-        Assert.DoesNotContain("MovableTag", accessBlock);
+        Assert.Contains("public Entity Create(global::Sample.Position Position)", text);
+        Assert.Contains("public Entity Create(global::Sample.Position Position, global::Sample.Velocity Velocity)", text);
+        Assert.Contains("public bool MoveArchetype(Entity Entity, global::Sample.Position Position, ref State State)", text);
+        Assert.Contains("public void PlaybackMoveArchetypes(ref State State)", text);
     }
 
     [Fact]
-    public void WithoutAttribute_AddsExcludedTypeToNoneArray()
+    public void DispatchOrderFollowsSourceDeclarationOrder()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
+        // FirstSystem/SecondSystem は宣言順どおりに呼ばれなければならない(ADR-0033決定事項1:
+        // Component引数が全てrefになった結果、Write→Readの自動順序決定は原理的に不可能)。
+        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(
+            GameSystemGeneratorTestHelper.CommonComponents, TwoSystems);
 
+        string text = GameSystemGeneratorTestHelper.GeneratedText(result, "GameSystem.Loop.g.cs");
 
-            [GameSystem]
-            public static class ActiveOnlySystems
-            {
-                [Update]
-                [Without(typeof(DisabledTag))]
-                public static void Move(ref Position position)
-                {
-                }
-            }
-            """;
+        int first = text.IndexOf("firstSystem.Update(", StringComparison.Ordinal);
+        int second = text.IndexOf("secondSystem.Update(", StringComparison.Ordinal);
 
-        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(source);
-        GeneratedSourceResult generated = Assert.Single(result.Results[0].GeneratedSources, s => s.HintName == "Sample.ActiveOnlySystems.Move.Executor.g.cs");
-        string text = generated.SourceText.ToString();
-
-        Assert.Contains("none: new int[]", text);
-        Assert.Contains("global::CSharpGameEngine.Entities.ComponentType<global::Sample.DisabledTag>.Id,", text);
+        Assert.True(first >= 0 && second >= 0, "both systems must be dispatched");
+        Assert.True(first < second, "declaration order must be preserved");
     }
 
     [Fact]
-    public void TwoDifferentGameSystemClasses_WithSameMethodName_CompileTogetherWithoutCollision()
+    public void SubsetDispatch_RunsASmallerOverloadAgainstASupersetArchetype()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
+        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(
+            GameSystemGeneratorTestHelper.CommonComponents, TwoSystems);
 
+        string text = GameSystemGeneratorTestHelper.GeneratedText(result, "GameSystem.Loop.g.cs");
 
-            [GameSystem]
-            public static class MovementSystems
+        // Archetype1 は {Position, Velocity}。{Position} だけを要求する FirstSystem もここに一致する。
+        int archetype1Loop = text.IndexOf("ListArchetype1.Count", StringComparison.Ordinal);
+        string archetype1Body = text[archetype1Loop..];
+
+        Assert.Contains("firstSystem.Update(ref Archetype.Position, ref State)", archetype1Body);
+        Assert.Contains("secondSystem.Update(ref Archetype.Position, ref Archetype.Velocity, ref State)", archetype1Body);
+    }
+
+    [Fact]
+    public void SpawnMethod_RegistersAnArchetypeButIsNeverDispatched()
+    {
+        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(
+            GameSystemGeneratorTestHelper.CommonComponents,
+            """
+            using CSharpGameEngine.Entities;
+            using Sample;
+
+            namespace Game;
+
+            internal struct OnlySystem : ISystem
             {
-                [Update]
-                public static void Move(ref Position position)
-                {
-                }
+                public bool Update(ref Position position, ref State state) => true;
             }
 
-            [GameSystem]
-            public static class PhysicsSystems
+            internal struct HealthSpawn : ISystem
             {
-                [Update]
-                public static void Move(ref Velocity velocity)
-                {
-                }
+                public void Spawn(ref Position position, ref Health health) { }
             }
-            """;
-
-        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(source);
+            """);
 
         Assert.Empty(result.Diagnostics);
-        Assert.Contains(result.Results[0].GeneratedSources, s => s.HintName == "Sample.MovementSystems.Move.Executor.g.cs");
-        Assert.Contains(result.Results[0].GeneratedSources, s => s.HintName == "Sample.PhysicsSystems.Move.Executor.g.cs");
 
-        string movementText = result.Results[0].GeneratedSources.Single(s => s.HintName == "Sample.MovementSystems.Move.Executor.g.cs").SourceText.ToString();
-        string physicsText = result.Results[0].GeneratedSources.Single(s => s.HintName == "Sample.PhysicsSystems.Move.Executor.g.cs").SourceText.ToString();
+        string types = GameSystemGeneratorTestHelper.GeneratedText(result, "GameSystem.Types.g.cs");
+        string loop = GameSystemGeneratorTestHelper.GeneratedText(result, "GameSystem.Loop.g.cs");
 
-        Assert.Contains("internal static class MovementSystems_Move_Executor", movementText);
-        Assert.Contains("internal static class PhysicsSystems_Move_Executor", physicsText);
+        // Spawnが宣言した {Position, Health} のArchetypeとCreateは生成される。
+        Assert.Contains("global::Sample.Health Health", types);
 
-        // テキストの形だけでなく、実際にEmitして「同一名前空間に2つのExecutor型」が本当に
-        // コンパイル可能(型名が衝突しない)ことを証明する - これが本命の回帰テスト。
-        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(source);
-        Assert.NotNull(assembly.GetType("Sample.MovementSystems_Move_Executor"));
-        Assert.NotNull(assembly.GetType("Sample.PhysicsSystems_Move_Executor"));
+        // しかしSpawn自体はディスパッチされない。
+        Assert.DoesNotContain("healthSpawn", loop);
+        Assert.DoesNotContain(".Spawn(", loop);
     }
 
     [Fact]
-    public void GeneratedGameLoop_CallsWriterBeforeReader_EvenWhenReaderIsDeclaredFirst()
+    public void ContextParameters_AreThreadedThroughRunFrame()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
+        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(
+            GameSystemGeneratorTestHelper.CommonComponents,
+            """
+            using CSharpGameEngine.Entities;
+            using Sample;
 
+            namespace Game;
 
-            [GameSystem]
-            public static class ConsumerFirstDeclared
+            internal struct ContextSystem : ISystem
             {
-                [Update]
-                public static void ReadHealthWritePosition(ref Position position, in Health health)
-                {
-                }
+                public bool Update(ref Position position, in FrameContext frame, Log log, ref State state) => true;
             }
-
-            [GameSystem]
-            public static class ProducerDeclaredSecond
-            {
-                [Update]
-                public static void WriteHealth(ref Health health)
-                {
-                }
-            }
-            """;
-
-        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(source);
+            """);
 
         Assert.Empty(result.Diagnostics);
-        GeneratedSourceResult loop = Assert.Single(result.Results[0].GeneratedSources, s => s.HintName == "GeneratedGameLoop.g.cs");
-        string text = loop.SourceText.ToString();
 
-        int producerIndex = text.IndexOf("ProducerDeclaredSecond_WriteHealth_Executor.Execute(", StringComparison.Ordinal);
-        int consumerIndex = text.IndexOf("ConsumerFirstDeclared_ReadHealthWritePosition_Executor.Execute(", StringComparison.Ordinal);
+        string text = GameSystemGeneratorTestHelper.GeneratedText(result, "GameSystem.Loop.g.cs");
 
-        Assert.True(producerIndex >= 0, "producer call not found");
-        Assert.True(consumerIndex >= 0, "consumer call not found");
-        Assert.True(producerIndex < consumerIndex, "Write(Health) must execute before Read(Health) despite ConsumerFirstDeclared sorting first in baseline (declaration/name) order");
+        // 構造体Contextは`in`、参照型Contextは値渡し(属性は一切使わず、ref-kindだけで判別される)。
+        Assert.Contains("in global::Sample.FrameContext frameContext", text);
+        Assert.Contains("global::Sample.Log log", text);
+        Assert.Contains("contextSystem.Update(ref Archetype.Position, in frameContext, log, ref State)", text);
+    }
 
-        Assert.Contains("world.Commands.Playback(world);", text);
+    [Fact]
+    public void WorldSnapshot_IsEmittedForTheOutOfProcessPreviewBridge()
+    {
+        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(
+            GameSystemGeneratorTestHelper.CommonComponents, TwoSystems);
+
+        string text = GameSystemGeneratorTestHelper.GeneratedText(result, "GameSystem.Snapshot.g.cs");
+
+        Assert.Contains("public static class WorldSnapshot", text);
+        Assert.Contains("public static ArchetypeSnapshotEntry[] Capture(in World World)", text);
+        Assert.Contains("ComponentValues = new object[]", text);
+    }
+
+    [Fact]
+    public void PromotedSample_Compiles()
+    {
+        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(
+            GameSystemGeneratorTestHelper.CommonComponents, TwoSystems);
+
+        Assert.NotNull(assembly.GetType("CSharpGameEngine.Generated.GeneratedGameLoop"));
+        Assert.NotNull(assembly.GetType("CSharpGameEngine.Entities.WorldSnapshot"));
     }
 
     [Fact]
     public void GeneratorIsDeterministic_AcrossTwoIndependentRuns()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
-
-
-            [GameSystem]
-            public static class MovementSystems
-            {
-                [Update]
-                public static void Move(ref Position position, in Velocity velocity)
-                {
-                }
-            }
-            """;
-
-        GeneratorDriverRunResult first = GameSystemGeneratorTestHelper.RunGenerator(source);
-        GeneratorDriverRunResult second = GameSystemGeneratorTestHelper.RunGenerator(source);
+        GeneratorDriverRunResult first = GameSystemGeneratorTestHelper.RunGenerator(
+            GameSystemGeneratorTestHelper.CommonComponents, TwoSystems);
+        GeneratorDriverRunResult second = GameSystemGeneratorTestHelper.RunGenerator(
+            GameSystemGeneratorTestHelper.CommonComponents, TwoSystems);
 
         string[] firstTexts = [.. first.Results[0].GeneratedSources.OrderBy(s => s.HintName, StringComparer.Ordinal).Select(s => s.HintName + "\n" + s.SourceText)];
         string[] secondTexts = [.. second.Results[0].GeneratedSources.OrderBy(s => s.HintName, StringComparer.Ordinal).Select(s => s.HintName + "\n" + s.SourceText)];
 
         Assert.Equal(firstTexts, secondTexts);
+    }
+
+    [Fact]
+    public void SystemWithDiagnostics_IsExcluded_ButValidSystemsStillGenerate()
+    {
+        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(
+            GameSystemGeneratorTestHelper.CommonComponents,
+            """
+            using CSharpGameEngine.Entities;
+            using Sample;
+
+            namespace Game;
+
+            internal struct ValidSystem : ISystem
+            {
+                public bool Update(ref Position position, ref State state) => true;
+            }
+
+            internal struct BrokenSystem : ISystem
+            {
+                public bool Update(ref Velocity velocity) => true;
+            }
+            """);
+
+        Assert.Contains(result.Diagnostics, d => d.Id == "SYSGEN013");
+
+        string loop = GameSystemGeneratorTestHelper.GeneratedText(result, "GameSystem.Loop.g.cs");
+
+        Assert.Contains("validSystem", loop);
+        Assert.DoesNotContain("brokenSystem", loop);
     }
 }

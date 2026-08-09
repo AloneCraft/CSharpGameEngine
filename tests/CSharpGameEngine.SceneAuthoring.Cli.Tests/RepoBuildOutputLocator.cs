@@ -5,9 +5,14 @@ namespace CSharpGameEngine.SceneAuthoring.Cli.Tests;
 /// (walking up from <see cref="AppContext.BaseDirectory"/> to the <c>CSharpGameEngine.slnx</c>
 /// marker, mirroring <c>BridgeExecutableLocator</c>'s own "newest by write time across
 /// Debug/Release" tie-break). Used by <see cref="SceneRuntimeInvokerTests"/> to point at
-/// <c>samples/SceneAuthoringDemo</c>'s real build output - the project reference with
+/// <c>UserGameProject</c>'s real build output - the project reference with
 /// <c>ReferenceOutputAssembly="false"</c> in this test project's csproj guarantees that dll exists
 /// by the time tests run.
+///
+/// <para>
+/// TFM/RIDのサブディレクトリ名(<c>net10.0-windows10.0.19041.0/win-x64</c>のような)はプロジェクト
+/// ごとに異なるため決め打ちにせず、<c>bin/{Configuration}</c>配下を再帰探索して最新のものを選ぶ。
+/// </para>
 /// </summary>
 internal static class RepoBuildOutputLocator
 {
@@ -16,19 +21,19 @@ internal static class RepoBuildOutputLocator
         string repoRoot = FindRepoRoot();
         string binRoot = Path.Combine(repoRoot, projectRelativeDirectory, "bin");
 
-        string[] candidates =
-        [
-            Path.Combine(binRoot, "Debug", "net10.0", assemblyFileName),
-            Path.Combine(binRoot, "Release", "net10.0", assemblyFileName),
-        ];
+        if (!Directory.Exists(binRoot))
+        {
+            throw new InvalidOperationException(
+                $"'{binRoot}' が存在しません。'dotnet build {projectRelativeDirectory}' を先に実行してください。");
+        }
 
-        string? found = candidates
-            .Where(File.Exists)
+        string? found = Directory
+            .EnumerateFiles(binRoot, assemblyFileName, SearchOption.AllDirectories)
             .OrderByDescending(File.GetLastWriteTimeUtc)
             .FirstOrDefault();
 
         return found ?? throw new InvalidOperationException(
-            $"'{assemblyFileName}' が見つかりませんでした({string.Join(", ", candidates)})。'dotnet build {projectRelativeDirectory}' を先に実行してください。");
+            $"'{assemblyFileName}' が '{binRoot}' 配下に見つかりませんでした。'dotnet build {projectRelativeDirectory}' を先に実行してください。");
     }
 
     internal static string FindRepoRoot()

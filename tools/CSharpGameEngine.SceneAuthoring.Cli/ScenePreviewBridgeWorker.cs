@@ -21,7 +21,7 @@ internal static class ScenePreviewBridgeWorker
             string sceneClassSimpleNameHint = Path.GetFileNameWithoutExtension(request.SourceFilePath);
 
             SceneRuntimeInvoker.InvocationResult invocationResult = SceneRuntimeInvoker.Invoke(request.TargetAssemblyPath, sceneClassSimpleNameHint);
-            IReadOnlyList<ScenePreviewNode> nodes = WorldInspector.Inspect(invocationResult.World);
+            IReadOnlyList<ScenePreviewNode> nodes = WorldInspector.Inspect(invocationResult.Snapshot);
             ScenePreviewNode[] namedNodes = ApplyRecoveredNames(nodes, nodeNames);
 
             ScenePreviewBridgeDocument document = new()

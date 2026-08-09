@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -7,87 +6,44 @@ using Microsoft.CodeAnalysis.Text;
 namespace CSharpGameEngine.CodeAnalysis;
 
 /// <summary>
-/// コンパイル内の全<c>[GameSystem]</c>クラス(<c>.Collect()</c>)から、単一の
-/// <c>CSharpGameEngine.Generated.GeneratedGameLoop.Update(...)</c>を生成する。実行順序は
-/// <see cref="GameSystemScheduler"/>が計算する決定的トポロジカル順。循環を検出した場合でも
-/// (SYSGEN019をError報告した上で)baseline順でループ自体は出力する — 既存2ジェネレータの
-/// 「診断があれば出力しない」ゲートからの意図的な逸脱で、ループを丸ごと省くと呼び出し側で
-/// 「型が見つからない」という無関係な二次エラーが大量発生するため。診断が1件でもあるクラスは
-/// (そのクラス分のExecutorがそもそも生成されていないので)このスケジューリング対象から除外する。
+/// <c>CSharpGameEngine.Generated.GeneratedGameLoop</c>に<c>RunFrame</c>(1フレーム分)と
+/// <c>Run</c>(<c>while(State.Enabled)</c>で回す)を生成する。
+///
+/// <list type="bullet">
+/// <item>各Archetypeのリストを<b>後方から</b>走査する(<c>Detach</c>のswap-back削除に対して安全)。</item>
+/// <item>部分集合一致でディスパッチする: あるオーバーロードのComponent集合がArchetypeの集合の部分集合
+/// なら呼ぶ。これにより1つのメソッドが複数のArchetypeに自然に一致する(旧設計のQuery一致と同じ効果)。</item>
+/// <item><c>Spawn</c>ロールのメソッドはArchetype形状の宣言専用なので、ディスパッチ対象から除外する。</item>
+/// <item>実行順序はソース上の記述順(ADR-0033決定事項1)。<see cref="GameSystemRegistry.ValidSystems"/>が
+/// 既にその順で整列済み。</item>
+/// </list>
+///
+/// トップレベルステートメントとしては出力しない(1コンパイルにつきトップレベルステートメントを含む
+/// ファイルは1つまでという制約 - CS8802 - をSGが安全に保証できないため)。
 /// </summary>
 internal static class GameSystemLoopEmitter
 {
-    private const string GeneratedHintName = "GeneratedGameLoop.g.cs";
+    private const string HintName = "GameSystem.Loop.g.cs";
 
-    internal static void Emit(SourceProductionContext context, ImmutableArray<GameSystemClassResult> allClasses)
+    internal static void Emit(SourceProductionContext context, GameSystemRegistry registry)
     {
-        List<(string ClassFullyQualifiedName, SystemMethodModel Method)> flatMethods = [];
+        List<GameSystemResult> dispatchSystems = [.. registry.ValidSystems.Where(static s => s.Methods.Any(static m => m.Role == GameSystemMethodRole.Dispatch))];
 
-        foreach (GameSystemClassResult classResult in allClasses)
-        {
-            if (classResult.Diagnostics.Length > 0)
-            {
-                continue;
-            }
-
-            foreach (SystemMethodModel method in classResult.Methods)
-            {
-                flatMethods.Add((classResult.ClassFullyQualifiedName, method));
-            }
-        }
-
-        if (flatMethods.Count == 0)
+        if (registry.Archetypes.Length == 0 || dispatchSystems.Count == 0)
         {
             return;
         }
 
-        List<SystemMethodModel> methods = [.. flatMethods.Select(static m => m.Method)];
-        List<string> classFullyQualifiedNames = [.. flatMethods.Select(static m => m.ClassFullyQualifiedName)];
+        Dictionary<string, int> componentIndexByType = new(StringComparer.Ordinal);
 
-        GameSystemScheduler.ScheduleResult schedule = GameSystemScheduler.Schedule(methods, classFullyQualifiedNames);
-
-        if (schedule.HasCycle)
+        foreach (GameSystemComponentInfo component in registry.ComponentsByIndex)
         {
-            string cycleDescription = string.Join(", ", schedule.CycleNodeIndices.Select(i => $"{classFullyQualifiedNames[i]}.{methods[i].MethodName}"));
-            Location location = methods[schedule.CycleNodeIndices[0]].MethodLocation;
-            context.ReportDiagnostic(Diagnostic.Create(GameSystemDiagnostics.CircularSystemDependency, location, cycleDescription));
+            componentIndexByType[component.TypeFullyQualifiedName] = component.Index;
         }
 
-        ImmutableArray<int> executionOrder = schedule.HasCycle ? schedule.BaselineOrder : schedule.TopologicalOrder;
+        List<SystemBinding> systems = BuildSystemBindings(dispatchSystems);
+        List<ContextBinding> contexts = BuildContextBindings(dispatchSystems);
 
-        Dictionary<string, bool> contextTypeIsReferenceType = new(StringComparer.Ordinal);
-
-        foreach (SystemMethodModel method in methods)
-        {
-            foreach (ContextParameterModel contextParameter in method.ContextParameters)
-            {
-                contextTypeIsReferenceType[contextParameter.TypeFullyQualifiedName] = contextParameter.IsReferenceType;
-            }
-        }
-
-        List<string> sortedContextTypes = [.. contextTypeIsReferenceType.Keys];
-        sortedContextTypes.Sort(StringComparer.Ordinal);
-
-        Dictionary<string, string> contextParameterNameByType = new(StringComparer.Ordinal);
-        HashSet<string> usedParameterNames = new(StringComparer.Ordinal);
-
-        foreach (string contextType in sortedContextTypes)
-        {
-            contextParameterNameByType[contextType] = BuildContextParameterName(contextType, usedParameterNames);
-        }
-
-        string source = string.Join("\n", BuildSourceLines(executionOrder, methods, classFullyQualifiedNames, sortedContextTypes, contextTypeIsReferenceType, contextParameterNameByType));
-        context.AddSource(GeneratedHintName, SourceText.From(source, Encoding.UTF8));
-    }
-
-    private static List<string> BuildSourceLines(
-        ImmutableArray<int> executionOrder,
-        List<SystemMethodModel> methods,
-        List<string> classFullyQualifiedNames,
-        List<string> sortedContextTypes,
-        Dictionary<string, bool> contextTypeIsReferenceType,
-        Dictionary<string, string> contextParameterNameByType)
-    {
         List<string> lines =
         [
             "// <auto-generated/>",
@@ -97,61 +53,122 @@ internal static class GameSystemLoopEmitter
             "",
             "internal static class GeneratedGameLoop",
             "{",
-            $"    internal static void Update({BuildUpdateParameterList(sortedContextTypes, contextTypeIsReferenceType, contextParameterNameByType)})",
+            $"    internal static void RunFrame({BuildRunFrameParameterList(systems, contexts)})",
             "    {",
         ];
 
-        foreach (int index in executionOrder)
+        foreach (GameSystemArchetypeInfo archetype in registry.Archetypes)
         {
-            SystemMethodModel method = methods[index];
-            string executorFqn = $"global::{classFullyQualifiedNames[index]}_{method.MethodName}_Executor";
-            List<string> callArguments = ["world"];
-
-            foreach (ContextParameterModel contextParameter in method.ContextParameters)
-            {
-                string parameterName = contextParameterNameByType[contextParameter.TypeFullyQualifiedName];
-                string modifier = contextParameter.IsReferenceType ? string.Empty : "in ";
-                callArguments.Add($"{modifier}{parameterName}");
-            }
-
-            lines.Add($"        {executorFqn}.Execute({string.Join(", ", callArguments)});");
+            lines.AddRange(BuildArchetypeLoopBody(archetype, registry, systems, contexts, componentIndexByType));
         }
 
         lines.Add("");
-        lines.Add("        world.Commands.Playback(world);");
+        lines.Add("        State.World.PlaybackMoveArchetypes(ref State);");
+        lines.Add("    }");
+        lines.Add("");
+        lines.Add($"    internal static void Run({BuildRunParameterList(contexts)})");
+        lines.Add("    {");
+
+        foreach (SystemBinding system in systems)
+        {
+            lines.Add($"        var {system.VariableName} = new {system.TypeReference}();");
+        }
+
+        lines.Add("");
+        lines.Add("        while (State.Enabled)");
+        lines.Add("        {");
+        lines.Add($"            RunFrame({BuildRunFrameArgumentList(systems, contexts)});");
+        lines.Add("        }");
         lines.Add("    }");
         lines.Add("}");
         lines.Add("");
 
-        return lines;
+        context.AddSource(HintName, SourceText.From(string.Join("\n", lines), Encoding.UTF8));
+    }
+
+    private readonly struct SystemBinding(string typeReference, string variableName, GameSystemResult system)
+    {
+        internal readonly string TypeReference = typeReference;
+        internal readonly string VariableName = variableName;
+        internal readonly GameSystemResult System = system;
+    }
+
+    private readonly struct ContextBinding(string typeFullyQualifiedName, string parameterName, bool isReferenceType)
+    {
+        internal readonly string TypeFullyQualifiedName = typeFullyQualifiedName;
+        internal readonly string ParameterName = parameterName;
+        internal readonly bool IsReferenceType = isReferenceType;
+    }
+
+    private static List<SystemBinding> BuildSystemBindings(List<GameSystemResult> dispatchSystems)
+    {
+        List<SystemBinding> systems = [];
+        HashSet<string> usedNames = new(StringComparer.Ordinal);
+
+        foreach (GameSystemResult system in dispatchSystems)
+        {
+            systems.Add(new SystemBinding(system.GlobalQualifiedName, BuildLocalName(system.ClassName, usedNames), system));
+        }
+
+        return systems;
     }
 
     /// <summary>
-    /// <c>context0</c>のような不透明な連番名だと、呼び出し側(例: UserGameProjectのゲームループ)が
-    /// 引数の並び順(FQNの辞書順という非直感的な規則)を覚えないと正しく呼べず、名前付き引数も
-    /// 使えない。単純型名(先頭を小文字化)から名前を作り、衝突時のみ連番を足すことで、
-    /// <c>Update(world, stageRenderer: r, frameContext: f, ...)</c>のように名前付き引数で
-    /// 安全に呼べるようにする。同一の<paramref name="sortedContextTypes"/>集合に対しては
-    /// (集合が既にFQN順にソート済みのため)常に同じ名前が決定的に割り当てられる。
+    /// コンパイル内で使われているContext型を重複排除し、FQN Ordinal順に並べる。パラメータ名は単純型名の
+    /// 先頭を小文字化したもの(衝突時は連番、C#予約語なら<c>@</c>エスケープ)なので、呼び出し側は
+    /// 名前付き引数で安全に呼べる。
     /// </summary>
-    private static string BuildContextParameterName(string typeFullyQualifiedName, HashSet<string> usedParameterNames)
+    private static List<ContextBinding> BuildContextBindings(List<GameSystemResult> dispatchSystems)
     {
-        string simpleName = ExtractSimpleTypeName(typeFullyQualifiedName);
-        string candidate = char.ToLowerInvariant(simpleName[0]) + simpleName.Substring(1);
+        Dictionary<string, bool> isReferenceTypeByFqn = new(StringComparer.Ordinal);
+
+        foreach (GameSystemResult system in dispatchSystems)
+        {
+            foreach (GameSystemMethodModel method in system.Methods)
+            {
+                if (method.Role != GameSystemMethodRole.Dispatch)
+                {
+                    continue;
+                }
+
+                foreach (GameSystemContextParameterModel contextParameter in method.Contexts)
+                {
+                    isReferenceTypeByFqn[contextParameter.TypeFullyQualifiedName] = contextParameter.IsReferenceType;
+                }
+            }
+        }
+
+        List<string> sortedFqns = [.. isReferenceTypeByFqn.Keys];
+        sortedFqns.Sort(StringComparer.Ordinal);
+
+        List<ContextBinding> contexts = [];
+        HashSet<string> usedNames = new(StringComparer.Ordinal);
+
+        foreach (string fqn in sortedFqns)
+        {
+            contexts.Add(new ContextBinding(fqn, BuildLocalName(GameSystemIndexAssigner.ExtractSimpleTypeName(fqn), usedNames), isReferenceTypeByFqn[fqn]));
+        }
+
+        return contexts;
+    }
+
+    private static string BuildLocalName(string simpleTypeName, HashSet<string> usedNames)
+    {
+        string candidate = char.ToLowerInvariant(simpleTypeName[0]) + simpleTypeName.Substring(1);
 
         if (SyntaxFacts.GetKeywordKind(candidate) != SyntaxKind.None || SyntaxFacts.GetContextualKeywordKind(candidate) != SyntaxKind.None)
         {
             candidate = "@" + candidate;
         }
 
-        if (usedParameterNames.Add(candidate))
+        if (usedNames.Add(candidate))
         {
             return candidate;
         }
 
         int suffix = 2;
 
-        while (!usedParameterNames.Add(candidate + suffix))
+        while (!usedNames.Add(candidate + suffix))
         {
             suffix++;
         }
@@ -159,38 +176,116 @@ internal static class GameSystemLoopEmitter
         return candidate + suffix;
     }
 
-    private static string ExtractSimpleTypeName(string typeFullyQualifiedName)
+    private static string BuildRunFrameParameterList(List<SystemBinding> systems, List<ContextBinding> contexts)
     {
-        string value = typeFullyQualifiedName;
-        int genericArgumentsStart = value.IndexOf('<');
-
-        if (genericArgumentsStart >= 0)
-        {
-            value = value.Substring(0, genericArgumentsStart);
-        }
-
-        if (value.EndsWith("?", StringComparison.Ordinal))
-        {
-            value = value.Substring(0, value.Length - 1);
-        }
-
-        int lastDot = value.LastIndexOf('.');
-        return lastDot >= 0 ? value.Substring(lastDot + 1) : value;
+        List<string> parameters = ["ref global::CSharpGameEngine.Entities.State State"];
+        parameters.AddRange(systems.Select(static s => $"ref {s.TypeReference} {s.VariableName}"));
+        parameters.AddRange(contexts.Select(static c => $"{(c.IsReferenceType ? string.Empty : "in ")}{c.TypeFullyQualifiedName} {c.ParameterName}"));
+        return string.Join(", ", parameters);
     }
 
-    private static string BuildUpdateParameterList(
-        List<string> sortedContextTypes,
-        Dictionary<string, bool> contextTypeIsReferenceType,
-        Dictionary<string, string> contextParameterNameByType)
+    private static string BuildRunParameterList(List<ContextBinding> contexts)
     {
-        List<string> parameters = ["global::CSharpGameEngine.Entities.World world"];
+        List<string> parameters = ["ref global::CSharpGameEngine.Entities.State State"];
+        parameters.AddRange(contexts.Select(static c => $"{(c.IsReferenceType ? string.Empty : "in ")}{c.TypeFullyQualifiedName} {c.ParameterName}"));
+        return string.Join(", ", parameters);
+    }
 
-        foreach (string contextType in sortedContextTypes)
+    private static string BuildRunFrameArgumentList(List<SystemBinding> systems, List<ContextBinding> contexts)
+    {
+        List<string> arguments = ["ref State"];
+        arguments.AddRange(systems.Select(static s => $"ref {s.VariableName}"));
+        arguments.AddRange(contexts.Select(static c => $"{(c.IsReferenceType ? string.Empty : "in ")}{c.ParameterName}"));
+        return string.Join(", ", arguments);
+    }
+
+    private static List<string> BuildArchetypeLoopBody(
+        GameSystemArchetypeInfo archetype,
+        GameSystemRegistry registry,
+        List<SystemBinding> systems,
+        List<ContextBinding> contexts,
+        Dictionary<string, int> componentIndexByType)
+    {
+        Dictionary<string, string> contextNameByFqn = new(StringComparer.Ordinal);
+
+        foreach (ContextBinding context in contexts)
         {
-            string modifier = contextTypeIsReferenceType[contextType] ? string.Empty : "in ";
-            parameters.Add($"{modifier}{contextType} {contextParameterNameByType[contextType]}");
+            contextNameByFqn[context.TypeFullyQualifiedName] = context.ParameterName;
         }
 
-        return string.Join(", ", parameters);
+        Dictionary<string, string> fieldNameByComponentFqn = new(StringComparer.Ordinal);
+
+        foreach (GameSystemComponentInfo component in registry.ComponentsByIndex)
+        {
+            fieldNameByComponentFqn[component.TypeFullyQualifiedName] = component.FieldName;
+        }
+
+        List<string> callLines = [];
+
+        foreach (SystemBinding system in systems)
+        {
+            foreach (GameSystemMethodModel method in system.System.Methods)
+            {
+                if (method.Role != GameSystemMethodRole.Dispatch)
+                {
+                    continue;
+                }
+
+                long methodMask = 0;
+
+                foreach (GameSystemComponentParameterModel component in method.Components)
+                {
+                    methodMask |= 1L << componentIndexByType[component.TypeFullyQualifiedName];
+                }
+
+                if ((archetype.Mask & methodMask) != methodMask)
+                {
+                    continue;
+                }
+
+                List<string> callArguments = [];
+
+                foreach (GameSystemParameterSlot slot in method.CallOrder)
+                {
+                    switch (slot.Role)
+                    {
+                        case GameSystemParameterRole.Entity:
+                            callArguments.Add("Archetype.Entity");
+                            break;
+                        case GameSystemParameterRole.Component:
+                            callArguments.Add($"ref Archetype.{fieldNameByComponentFqn[method.Components[slot.Index].TypeFullyQualifiedName]}");
+                            break;
+                        case GameSystemParameterRole.Context:
+                            GameSystemContextParameterModel contextParameter = method.Contexts[slot.Index];
+                            string modifier = contextParameter.IsReferenceType ? string.Empty : "in ";
+                            callArguments.Add($"{modifier}{contextNameByFqn[contextParameter.TypeFullyQualifiedName]}");
+                            break;
+                        case GameSystemParameterRole.State:
+                            callArguments.Add("ref State");
+                            break;
+                    }
+                }
+
+                callLines.Add($"            if (!{system.VariableName}.Update({string.Join(", ", callArguments)})) continue;");
+            }
+        }
+
+        if (callLines.Count == 0)
+        {
+            return [];
+        }
+
+        List<string> lines =
+        [
+            "",
+            $"        for (var Index = State.World.{archetype.ListFieldName}.Count - 1; Index >= 0; Index--)",
+            "        {",
+            $"            ref var Archetype = ref State.World.{archetype.ListFieldName}[Index];",
+        ];
+
+        lines.AddRange(callLines);
+        lines.Add("        }");
+
+        return lines;
     }
 }

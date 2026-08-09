@@ -1,7 +1,12 @@
 # ADR-0029: 動的Archetype SoA ECSへの全面移行(`CSharpGameEngine.Entities` + `GameSystemGenerator`)
 
 ## ステータス
-承認済み
+Superseded by [[ADR-0033-Static-Archetype-Ecs-Migration]](静的(閉集合)Archetype ECSへの全面移行、M0013)。
+本ADRが導入した動的Archetype方式(`World`の`Dictionary<ComponentTypeSet, Archetype>`、`EntityQuery`の
+差分スキャン、`EntityCommandBuffer`、`[GameSystem]`/`[Update]`等の属性)は削除済み。本ADRの中核だった
+「引数からQuery・Read/Writeアクセスを推論する」という発想はADR-0033にも引き継がれているが、
+Component引数がすべて`ref`になったことでRead/Writeの区別が消え、本ADRが実装したWrite→Readの自動
+実行順序決定(`GameSystemScheduler`)は原理的に成立しなくなり失われた(ADR-0033決定事項3)。
 
 ## 背景
 

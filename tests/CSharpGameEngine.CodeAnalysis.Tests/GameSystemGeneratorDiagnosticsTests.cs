@@ -4,408 +4,310 @@ namespace CSharpGameEngine.CodeAnalysis.Tests;
 
 public sealed class GameSystemGeneratorDiagnosticsTests
 {
+    private const string Preamble = """
+        using CSharpGameEngine.Entities;
+
+        namespace Sample;
+
+        public struct Position { public float X; }
+        public struct Velocity { public float X; }
+
+        """;
+
     [Fact]
-    public void NonStaticGameSystemClass_ReportsSysgen001()
+    public void NonStructSystem_ReportsSysgen001()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
-
-
-            [GameSystem]
-            public class NonStaticSystem
+        AssertHasDiagnostic(
+            """
+            internal class NonStructSystem : ISystem
             {
-                [Update]
-                public static void Move(ref Position position) { }
+                public bool Update(ref Position position, ref State state) => true;
             }
-            """;
-
-        AssertHasDiagnostic(source, "SYSGEN001");
+            """,
+            "SYSGEN001");
     }
 
     [Fact]
-    public void GenericGameSystemClass_ReportsSysgen002()
+    public void GenericSystem_ReportsSysgen002()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
-
-
-            [GameSystem]
-            public static class GenericSystem<T>
+        AssertHasDiagnostic(
+            """
+            internal struct GenericSystem<T> : ISystem
             {
-                [Update]
-                public static void Move(ref Position position) { }
+                public bool Update(ref Position position, ref State state) => true;
             }
-            """;
-
-        AssertHasDiagnostic(source, "SYSGEN002");
+            """,
+            "SYSGEN002");
     }
 
     [Fact]
-    public void NestedGameSystemClass_ReportsSysgen003()
+    public void NestedSystem_ReportsSysgen003()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
-
-
-            public static class Container
+        AssertHasDiagnostic(
+            """
+            internal static class Container
             {
-                [GameSystem]
-                public static class NestedSystem
+                internal struct NestedSystem : ISystem
                 {
-                    [Update]
-                    public static void Move(ref Position position) { }
+                    public bool Update(ref Position position, ref State state) => true;
                 }
             }
-            """;
-
-        AssertHasDiagnostic(source, "SYSGEN003");
+            """,
+            "SYSGEN003");
     }
 
     [Fact]
-    public void NonStaticUpdateMethod_ReportsSysgen004()
+    public void StaticUpdateMethod_ReportsSysgen004()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
-
-
-            [GameSystem]
-            public class InstanceMethodSystem
+        AssertHasDiagnostic(
+            """
+            internal struct StaticUpdateSystem : ISystem
             {
-                [Update]
-                public void Move(ref Position position) { }
+                public static bool Update(ref Position position, ref State state) => true;
             }
-            """;
-
-        AssertHasDiagnostic(source, "SYSGEN004");
+            """,
+            "SYSGEN004");
     }
 
     [Fact]
-    public void NonVoidUpdateMethod_ReportsSysgen005()
+    public void PrivateUpdateMethod_ReportsSysgen005()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
-
-
-            [GameSystem]
-            public static class NonVoidReturnSystem
+        AssertHasDiagnostic(
+            """
+            internal struct PrivateUpdateSystem : ISystem
             {
-                [Update]
-                public static int Move(ref Position position) { return 0; }
+                private bool Update(ref Position position, ref State state) => true;
             }
-            """;
-
-        AssertHasDiagnostic(source, "SYSGEN005");
+            """,
+            "SYSGEN005");
     }
 
     [Fact]
-    public void GenericUpdateMethod_ReportsSysgen006()
+    public void NonBoolUpdateMethod_ReportsSysgen006()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
-
-
-            [GameSystem]
-            public static class GenericMethodSystem
+        AssertHasDiagnostic(
+            """
+            internal struct VoidUpdateSystem : ISystem
             {
-                [Update]
-                public static void Move<T>(ref Position position) { }
+                public void Update(ref Position position, ref State state) { }
             }
-            """;
-
-        AssertHasDiagnostic(source, "SYSGEN006");
+            """,
+            "SYSGEN006");
     }
 
     [Fact]
-    public void PrivateUpdateMethod_ReportsSysgen007()
+    public void GenericUpdateMethod_ReportsSysgen007()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
-
-
-            [GameSystem]
-            public static class PrivateMethodSystem
+        AssertHasDiagnostic(
+            """
+            internal struct GenericUpdateSystem : ISystem
             {
-                [Update]
-                private static void Move(ref Position position) { }
+                public bool Update<T>(ref Position position, ref State state) => true;
             }
-            """;
-
-        AssertHasDiagnostic(source, "SYSGEN007");
+            """,
+            "SYSGEN007");
     }
 
     [Fact]
-    public void UpdateMethodWithoutComponentParameter_ReportsSysgen008()
+    public void UpdateWithoutComponentParameter_ReportsSysgen008()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
-
-
-            [GameSystem]
-            public static class NoComponentParamSystem
+        AssertHasDiagnostic(
+            """
+            internal struct NoComponentSystem : ISystem
             {
-                [Update]
-                public static void Move() { }
+                public bool Update(ref State state) => true;
             }
-            """;
+            """,
+            "SYSGEN008");
+    }
 
-        AssertHasDiagnostic(source, "SYSGEN008");
+    /// <summary>
+    /// SYSGEN009は欠番(到達不能): 「refならComponent、ref以外ならContext」という構造的推論のため、
+    /// refでないパラメータは壊れたComponentではなく正当なContextになる。<c>out</c>のような不正な
+    /// 渡し方はContext側の規則であるSYSGEN018が捕捉する。
+    /// </summary>
+    [Fact]
+    public void OutParameter_ReportsSysgen018_BecauseItIsClassifiedAsAMalformedContext()
+    {
+        AssertHasDiagnostic(
+            """
+            internal struct OutParameterSystem : ISystem
+            {
+                public bool Update(ref Position position, out Velocity velocity, ref State state) { velocity = default; return true; }
+            }
+            """,
+            "SYSGEN018");
     }
 
     [Fact]
-    public void ByValueComponentParameter_ReportsSysgen009()
+    public void RefToNonStruct_ReportsSysgen010()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
-
-
-            [GameSystem]
-            public static class ByValueComponentSystem
+        AssertHasDiagnostic(
+            """
+            internal struct RefClassSystem : ISystem
             {
-                [Update]
-                public static void Move(Position position) { }
+                public bool Update(ref string text, ref State state) => true;
             }
-            """;
-
-        AssertHasDiagnostic(source, "SYSGEN009");
-    }
-
-    [Fact]
-    public void ReferenceTypeComponentParameter_ReportsSysgen010()
-    {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
-
-
-            [GameSystem]
-            public static class BadComponentTypeSystem
-            {
-                [Update]
-                public static void Move(ref string name) { }
-            }
-            """;
-
-        AssertHasDiagnostic(source, "SYSGEN010");
+            """,
+            "SYSGEN010");
     }
 
     [Fact]
     public void DuplicateComponentType_ReportsSysgen011()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
-
-
-            [GameSystem]
-            public static class DuplicateComponentSystem
+        AssertHasDiagnostic(
+            """
+            internal struct DuplicateComponentSystem : ISystem
             {
-                [Update]
-                public static void Move(ref Position position, ref Position position2) { }
+                public bool Update(ref Position a, ref Position b, ref State state) => true;
             }
-            """;
-
-        AssertHasDiagnostic(source, "SYSGEN011");
+            """,
+            "SYSGEN011");
     }
 
     [Fact]
-    public void TagComponentPassedByRef_ReportsSysgen012()
+    public void LeadingEntityPassedByRef_ReportsSysgen012()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
-
-
-            [GameSystem]
-            public static class TagRefSystem
+        AssertHasDiagnostic(
+            """
+            internal struct RefEntitySystem : ISystem
             {
-                [Update]
-                public static void Move(ref MovableTag tag) { }
+                public bool Update(ref Entity entity, ref Position position, ref State state) => true;
             }
-            """;
-
-        AssertHasDiagnostic(source, "SYSGEN012");
+            """,
+            "SYSGEN012");
     }
 
     [Fact]
-    public void ContextStructParameterPassedByRef_ReportsSysgen013()
+    public void UpdateWithoutTrailingState_ReportsSysgen013()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
-
-
-            [GameSystem]
-            public static class BadContextRefSystem
+        AssertHasDiagnostic(
+            """
+            internal struct NoStateSystem : ISystem
             {
-                [Update]
-                public static void Move(ref Position position, [Context] ref Velocity velocity) { }
+                public bool Update(ref Position position) => true;
             }
-            """;
-
-        AssertHasDiagnostic(source, "SYSGEN013");
+            """,
+            "SYSGEN013");
     }
 
     [Fact]
-    public void CurrentEntityParameterPassedByRef_ReportsSysgen014()
+    public void StateUsedAsComponent_ReportsSysgen014()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
-
-
-            [GameSystem]
-            public static class BadCurrentEntitySystem
+        AssertHasDiagnostic(
+            """
+            internal struct StateAsComponentSystem : ISystem
             {
-                [Update]
-                public static void Move(ref Position position, [CurrentEntity] ref Entity entity) { }
+                public bool Update(ref State extra, ref Position position, ref State state) => true;
             }
-            """;
-
-        AssertHasDiagnostic(source, "SYSGEN014");
+            """,
+            "SYSGEN014");
     }
 
     [Fact]
-    public void CommandsParameterPassedByIn_ReportsSysgen015()
+    public void SystemWithNoUpdateOrSpawn_ReportsSysgen015()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
-
-
-            [GameSystem]
-            public static class BadCommandsSystem
+        AssertHasDiagnostic(
+            """
+            internal struct EmptySystem : ISystem
             {
-                [Update]
-                public static void Move(ref Position position, [Commands] in EntityCommandBuffer commands) { }
             }
-            """;
-
-        AssertHasDiagnostic(source, "SYSGEN015");
+            """,
+            "SYSGEN015");
     }
 
     [Fact]
-    public void ParameterCombiningContextAndCurrentEntity_ReportsSysgen016()
+    public void SpawnReturningNonVoid_ReportsSysgen016()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
-
-
-            [GameSystem]
-            public static class MultiRoleSystem
+        AssertHasDiagnostic(
+            """
+            internal struct BadSpawnSystem : ISystem
             {
-                [Update]
-                public static void Move(ref Position position, [Context, CurrentEntity] Velocity extra) { }
+                public bool Spawn(ref Position position) => true;
             }
-            """;
-
-        AssertHasDiagnostic(source, "SYSGEN016");
+            """,
+            "SYSGEN016");
     }
 
     [Fact]
-    public void DuplicateCurrentEntityParameter_ReportsSysgen017()
+    public void SpawnDeclaringState_ReportsSysgen017()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
-
-
-            [GameSystem]
-            public static class DuplicateCurrentEntitySystem
+        AssertHasDiagnostic(
+            """
+            internal struct SpawnWithStateSystem : ISystem
             {
-                [Update]
-                public static void Move(ref Position position, [CurrentEntity] Entity e1, [CurrentEntity] Entity e2) { }
+                public void Spawn(ref Position position, ref State state) { }
             }
-            """;
-
-        AssertHasDiagnostic(source, "SYSGEN017");
+            """,
+            "SYSGEN017");
     }
 
     [Fact]
-    public void DuplicateUpdateMethodName_ReportsSysgen018()
+    public void ContextPassedByRefReadonly_ReportsSysgen018()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
-
-
-            [GameSystem]
-            public static class DuplicateMethodNameSystem
+        // 参照型のContextは値渡しでなければならない(`in`は不可)。
+        AssertHasDiagnostic(
+            """
+            internal struct BadContextSystem : ISystem
             {
-                [Update]
-                public static void Move(ref Position position) { }
-
-                [Update]
-                public static void Move(ref Velocity velocity) { }
+                public bool Update(ref Position position, in Log log, ref State state) => true;
             }
-            """;
 
-        AssertHasDiagnostic(source, "SYSGEN018");
+            public sealed class Log { }
+            """,
+            "SYSGEN018");
     }
 
     [Fact]
-    public void MutualWriteReadDependency_ReportsSysgen019_ButStillEmitsGeneratedGameLoop()
+    public void DuplicateContextType_ReportsSysgen019()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
-
-
-            [GameSystem]
-            public static class CircularSystemA
+        AssertHasDiagnostic(
+            """
+            internal struct DuplicateContextSystem : ISystem
             {
-                [Update]
-                public static void WriteHealthReadPosition(ref Health health, in Position position) { }
+                public bool Update(ref Position position, in Frame a, in Frame b, ref State state) => true;
             }
 
-            [GameSystem]
-            public static class CircularSystemB
-            {
-                [Update]
-                public static void WritePositionReadHealth(ref Position position, in Health health) { }
-            }
-            """;
-
-        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(source);
-
-        Assert.Contains(result.Diagnostics, d => d.Id == "SYSGEN019");
-        Assert.Contains(result.Results[0].GeneratedSources, s => s.HintName == "GeneratedGameLoop.g.cs");
+            public readonly struct Frame { }
+            """,
+            "SYSGEN019");
     }
 
     [Fact]
-    public void WithoutArgumentNotAStruct_ReportsSysgen020()
+    public void ComponentTypesSharingASimpleName_ReportsSysgen020()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
-
-
-            [GameSystem]
-            public static class BadWithoutSystem
+        AssertHasDiagnostic(
+            """
+            internal struct CollidingSystem : ISystem
             {
-                [Update]
-                [Without(typeof(string))]
-                public static void Move(ref Position position) { }
+                public bool Update(ref Position a, ref Other.Position b, ref State state) => true;
             }
-            """;
 
-        AssertHasDiagnostic(source, "SYSGEN020");
+            namespace Other
+            {
+                public struct Position { public float X; }
+            }
+            """,
+            "SYSGEN020");
     }
 
     [Fact]
-    public void ValidSystem_ProducesNoDiagnosticsAndGeneratesExecutor()
+    public void ValidSystem_ReportsNothing()
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
-
-
-            [GameSystem]
-            public static class MovementSystems
+        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(
+            Preamble + """
+            internal struct ValidSystem : ISystem
             {
-                [Update]
-                public static void Move(ref Position position, in Velocity velocity)
-                {
-                    position.X += velocity.X;
-                }
+                public bool Update(Entity entity, ref Position position, ref Velocity velocity, ref State state) => true;
             }
-            """;
-
-        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(source);
+            """);
 
         Assert.Empty(result.Diagnostics);
-        Assert.Contains(result.Results[0].GeneratedSources, s => s.HintName.Contains("Move.Executor.g.cs", StringComparison.Ordinal));
     }
 
-    [Fact]
-    public void SystemWithDiagnostics_DoesNotGenerateExecutorSource()
+    private static void AssertHasDiagnostic(string systemSource, string diagnosticId)
     {
-        string source = GameSystemGeneratorTestHelper.CommonComponents + """
-
-
-            [GameSystem]
-            public static class NoComponentParamSystem
-            {
-                [Update]
-                public static void Move() { }
-            }
-            """;
-
-        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(source);
-
-        Assert.DoesNotContain(result.Results[0].GeneratedSources, s => s.HintName.Contains("NoComponentParamSystem", StringComparison.Ordinal));
-    }
-
-    private static void AssertHasDiagnostic(string source, string diagnosticId)
-    {
-        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(source);
+        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(Preamble + systemSource);
 
         Assert.Contains(result.Diagnostics, d => d.Id == diagnosticId);
     }

@@ -205,14 +205,20 @@ public sealed class SceneDefinitionGeneratorDiagnosticsTests
         AssertHasDiagnostic(source, "SCENE008");
     }
 
+    /// <summary>
+    /// 旧SCENE009(1ノードのComponent数が8を超えてはならない)はADR-0033で削除した。この規則は
+    /// 旧<c>World.CreateArchetype&lt;T1..T8&gt;</c>のジェネリック型引数の上限に由来するもので、
+    /// 閉集合Archetype方式では組み合わせごとに専用のstructを生成するため上限自体が存在しない。
+    /// ここでは「9個でも診断が出ずに生成できる」ことを回帰テストとして確認する。
+    /// </summary>
     [Fact]
-    public void NonRootNodeWithEightComponents_ExceedsArchetypeLimit_ReportsScene009()
+    public void NodeWithManyComponents_IsAllowed_BecauseThereIsNoGenericArityLimitAnymore()
     {
         string source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
 
 
             [SceneDefinition]
-            public static partial class TooManyComponentsScene
+            public static partial class ManyComponentsScene
             {
                 private static partial SceneNodeSymbol Root { get; }
 
@@ -232,6 +238,7 @@ public sealed class SceneDefinitionGeneratorDiagnosticsTests
                             Overloaded.Set(new C6());
                             Overloaded.Set(new C7());
                             Overloaded.Set(new C8());
+                            Overloaded.Set(new C9());
                         });
                     });
                 }
@@ -245,9 +252,12 @@ public sealed class SceneDefinitionGeneratorDiagnosticsTests
             public struct C6 { public int V; }
             public struct C7 { public int V; }
             public struct C8 { public int V; }
+            public struct C9 { public int V; }
             """;
 
-        AssertHasDiagnostic(source, "SCENE009");
+        GeneratorDriverRunResult result = SceneDefinitionGeneratorTestHelper.RunGenerator(source);
+
+        Assert.Empty(result.Diagnostics);
     }
 
     [Fact]
