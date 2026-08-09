@@ -1,6 +1,0 @@
-<Solution>
-  <Project Path="UserGameProject/UserGameProject.csproj" />
-  <Project Path="src/CSharpGameEngine.Ecs/CSharpGameEngine.Ecs.csproj" />
-  <Project Path="src/CSharpGameEngine.Generation.Abstractions/CSharpGameEngine.Generation.Abstractions.csproj" />
-  <Project Path="src/CSharpGameEngine.CodeAnalysis/CSharpGameEngine.CodeAnalysis.csproj" />
-</Solution>

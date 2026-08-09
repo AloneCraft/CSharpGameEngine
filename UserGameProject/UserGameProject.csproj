@@ -8,8 +8,10 @@
     <IsPackable>false</IsPackable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- AnyCPU is listed alongside x64 so VS's Configuration Manager can map a plain "Any CPU"
-         solution platform (the default for a fresh solution with no explicit <Configurations>,
-         e.g. UserGameProject.slnx) without leaving this project's "Build" checkbox unchecked.
+         solution platform without leaving this project's "Build" checkbox unchecked. Retained
+         defensively after ADR-0034 deleted the second solution file (UserGameProject.slnx) that
+         originally motivated it: CSharpGameEngine.slnx declares x64 explicitly, so only x64 is
+         exercised today, but AnyCPU costs nothing and keeps the project openable standalone.
          Safe because RuntimeIdentifier=win-x64 above already pins the actual native bitness
          (TerraFX/D3D12) regardless of which Platform label is active - unlike
          tools/CSharpGameEngine.TestHost, which has no RuntimeIdentifier and genuinely needs
