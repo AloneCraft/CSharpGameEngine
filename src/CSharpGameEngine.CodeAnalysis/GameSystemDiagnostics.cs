@@ -230,6 +230,22 @@ internal static class GameSystemDiagnostics {
         defaultSeverity:DiagnosticSeverity.Error,
         isEnabledByDefault:true);
 
+    /// <summary>
+    /// Archetypeの一致判定は<c>long</c>のビットマスク(<c>1L &lt;&lt; ComponentIndex</c>)で行うため、
+    /// Component型が65個目に達した時点で<b>無診断のまま静かに壊れる</b>(65個目以降のビットが溢れ、
+    /// 部分集合判定が誤った結果を返す)。Scene DSLとエンジン標準Component群の導入で64は現実的に
+    /// 到達しうるため、破綻する前に明示的に止める(ADR-0040 リスクO-12)。
+    /// マスクの拡幅(4×<c>ulong</c>)が必要になったら、影響箇所は<c>GameSystemArchetypeInfo.Mask</c>・
+    /// <c>GameSystemIndexAssigner.Assign</c>・<c>GameSystemLoopEmitter</c>の部分集合判定の3つだけである。
+    /// </summary>
+    internal static readonly DiagnosticDescriptor TooManyComponentTypes=new(
+        id:"SYSGEN026",
+        title:"A compilation must not declare more than 64 distinct component types",
+        messageFormat:"This compilation declares {0} distinct component types, but the archetype mask is 64 bits wide so at most {1} are supported",
+        category:Category,
+        defaultSeverity:DiagnosticSeverity.Error,
+        isEnabledByDefault:true);
+
     /// <summary>1つのSystem解析結果が持つ全診断を報告する。生成には関与しない診断専用の出力段。</summary>
     internal static void ReportAll(SourceProductionContext Context,GameSystemResult Result){
         foreach(Diagnostic diagnostic in Result.Diagnostics){

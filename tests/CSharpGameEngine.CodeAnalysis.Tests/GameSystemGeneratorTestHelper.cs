@@ -29,8 +29,6 @@ internal static class GameSystemGeneratorTestHelper {
     /// file-scoped namespaceを持つため、1つの文字列へ連結せず個別の構文ツリーとして渡す。
     /// </summary>
     internal static readonly string[]SceneAuthoringSources=[
-        ReadTestAsset("Parent.cs"),
-        ReadTestAsset("SceneNodeTag.cs"),
         ReadTestAsset("SceneNodeId.cs"),
         ReadTestAsset("SceneNodeSymbol.cs"),
         ReadTestAsset("SceneBuilder.cs"),
@@ -55,6 +53,10 @@ internal static class GameSystemGeneratorTestHelper {
         ReadTestAsset("SceneInstance.cs"),
         ReadTestAsset("SceneInstanceTable.cs"),
         ReadTestAsset("ISceneDefinition.cs"),
+        // SGが自動付与する予約Component。Sceneに子ノードや空ノードがあれば必ず生成コードへ現れるため、
+        // Bootstrapと同じく常時含める(宣言しない限りArchetypeにはならないので副作用は無い)。
+        ReadTestAsset("Parent.cs"),
+        ReadTestAsset("SceneNodeTag.cs"),
     ];
 
     /// <summary>

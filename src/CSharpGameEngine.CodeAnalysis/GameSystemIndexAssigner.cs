@@ -26,6 +26,9 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// </para>
 /// </summary>
 internal static class GameSystemIndexAssigner {
+    /// <summary>Archetypeマスクが<c>long</c>であることに由来する上限(SYSGEN026)。</summary>
+    internal const int MaxComponentTypes=64;
+
     internal static GameSystemRegistry Assign(
         ImmutableArray<GameSystemResult>AllSystems,
         IReadOnlyList<IReadOnlyList<string>>AdditionalComponentSets,
@@ -73,6 +76,16 @@ internal static class GameSystemIndexAssigner {
         }
 
         ImmutableArray<Diagnostic>.Builder Diagnostics=ImmutableArray.CreateBuilder<Diagnostic>();
+
+        // マスクは long なので65個目以降のビットが溢れ、部分集合判定が静かに誤り始める。
+        if(ComponentTypesByIndex.Count>MaxComponentTypes){
+            Diagnostics.Add(Diagnostic.Create(
+                GameSystemDiagnostics.TooManyComponentTypes,
+                Location.None,
+                ComponentTypesByIndex.Count,
+                MaxComponentTypes));
+        }
+
         ImmutableArray<GameSystemComponentInfo>ComponentsByIndex=BuildComponents(ComponentTypesByIndex,Diagnostics);
 
         // comboByKeyは挿入順を保つDictionaryではないため、出現順は別途記録したリストから取る。

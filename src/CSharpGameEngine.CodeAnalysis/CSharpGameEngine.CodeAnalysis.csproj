@@ -41,6 +41,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- 生成層のモデル(SceneEmitModel/GenerationGate)は internal だが、値等価性が壊れると
+         インクリメンタルキャッシュが静かにミスし続けて性能だけが劣化する。テストで直接固定する。 -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>CSharpGameEngine.CodeAnalysis.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
   </ItemGroup>
 

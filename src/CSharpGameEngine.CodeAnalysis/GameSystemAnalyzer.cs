@@ -18,6 +18,9 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// </summary>
 internal static class GameSystemAnalyzer {
     internal const string SystemInterfaceFullyQualifiedName="global::CSharpGameEngine.Entities.ISystem";
+
+    /// <summary><c>Compilation.GetTypeByMetadataName</c>用(<c>global::</c>接頭辞を付けない)。</summary>
+    internal const string SystemInterfaceMetadataName="CSharpGameEngine.Entities.ISystem";
     internal const string EntityFullyQualifiedName="global::CSharpGameEngine.Entities.Entity";
     internal const string StateFullyQualifiedName="global::CSharpGameEngine.Entities.State";
 

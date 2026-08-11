@@ -52,15 +52,14 @@ internal static class GameSystemEntryPointEmitter {
     /// 解析結果だけで揃う。
     /// </summary>
     internal static Plan ShouldEmitPlan(
-        Compilation compilation,
+        GenerationGate Gate,
         ImmutableArray<GameSystemResult>Systems,
-        GameSystemOrderContext OrderContext,
-        CancellationToken cancellationToken){
-        if(compilation.Options.OutputKind is not (OutputKind.ConsoleApplication or OutputKind.WindowsApplication)){
+        GameSystemOrderContext OrderContext){
+        if(Gate.OutputKind is not (OutputKind.ConsoleApplication or OutputKind.WindowsApplication)){
             return new Plan(false,null);
         }
 
-        if(compilation.GetEntryPoint(cancellationToken)is not null){
+        if(Gate.HasUserEntryPoint){
             return new Plan(false,null);
         }
 

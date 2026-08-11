@@ -52,6 +52,15 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
             static(Node,_)=>Node is ClassDeclarationSyntax,
             static(Ctx,Ct)=>SceneDefinitionAnalyzer.Analyze(Ctx,Ct));
 
+        // ADR-0040のScene DSL。`IScene`には属性が無いためForAttributeWithMetadataNameが使えず、
+        // ISystemと同じく安価な構文プレディケートで絞ってから意味解析で確認する。
+        // 流れるのはシンボルを持たないSceneEmitModelだけ(SceneModelBridgeのXMLコメント参照)。
+        IncrementalValuesProvider<SceneEmitModel>SceneDeclarations=Context.SyntaxProvider.CreateSyntaxProvider(
+                static(Node,_)=>SceneModelBridge.IsSceneCandidate(Node),
+                static(Ctx,Ct)=>SceneModelBridge.TryAnalyze(Ctx,Ct))
+            .Where(static Result=>Result.HasValue)
+            .Select(static(Result,_)=>Result!.Value);
+
         // ADR-0036: ファイル横断・System横断の実行順序を宣言する唯一の属性。ISystem実装struct自身に
         // 直接付けるか、`file`スコープのマーカークラスへ付けてファイル既定値にするかのいずれか
         // (GameSystemOrderAnalyzer.Analyzeがどちらかを判別する)。
@@ -82,16 +91,22 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
         // ため、結合前の段で個別に出力できる。
         Context.RegisterSourceOutput(Scenes,static(Spc,Result)=>SceneNodeSymbolEmitter.Emit(Spc,Result));
 
-        IncrementalValueProvider<((ImmutableArray<GameSystemResult>Systems,ImmutableArray<SceneDefinitionClassResult>Scenes,ImmutableArray<GameSystemOrderResult>SystemOrders,ImmutableArray<StartupSceneClassResult>StartupScenes)Sources,Compilation Compilation)>Combined=
+        // Compilationそのものをキャッシュキーに含めると、キーストロークのたびに重い生成段が丸ごと
+        // 再実行されてしまう。生成可否の判定に必要な事実だけを小さな比較可能値へ縮約する(ADR-0040)。
+        IncrementalValueProvider<GenerationGate>Gate=Context.CompilationProvider.Select(
+            static(Compilation,Ct)=>GenerationGate.FromCompilation(Compilation,Ct));
+
+        IncrementalValueProvider<((ImmutableArray<GameSystemResult>Systems,ImmutableArray<SceneDefinitionClassResult>Scenes,ImmutableArray<GameSystemOrderResult>SystemOrders,ImmutableArray<StartupSceneClassResult>StartupScenes,ImmutableArray<SceneEmitModel>SceneDeclarations)Sources,GenerationGate Gate)>Combined=
             Systems.Collect()
                 .Combine(Scenes.Collect())
                 .Combine(SystemOrders.Collect())
                 .Combine(StartupScenes.Collect())
-                .Select(static(Data,_)=>(Data.Left.Left.Left,Data.Left.Left.Right,Data.Left.Right,Data.Right))
-                .Combine(Context.CompilationProvider);
+                .Combine(SceneDeclarations.Collect())
+                .Select(static(Data,_)=>(Data.Left.Left.Left.Left,Data.Left.Left.Left.Right,Data.Left.Left.Right,Data.Left.Right,Data.Right))
+                .Combine(Gate);
 
         Context.RegisterSourceOutput(Combined,static(Spc,Source)=>{
-            if(Source.Compilation.GetTypeByMetadataName(RuntimeMarkerMetadataName)is null){
+            if(!Source.Gate.HasRuntimeMarker){
                 return;
             }
 
@@ -141,10 +156,22 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
                 AdditionalComponentSets.AddRange(StartupSceneSystemEmitter.CollectComponentSets(StartupScene));
             }
 
+            // ADR-0040のScene DSL。Collect()の順序に依存しないよう必ず整列してから収集する
+            // (決定論性テストが両方の実行で同じ出力になることを要求している)。
+            List<SceneEmitModel>ValidSceneDeclarations=[.. Source.Sources.SceneDeclarations.Where(static S=>S.CanEmit)];
+            ValidSceneDeclarations.Sort(static(A,B)=>{
+                var ByFile=string.CompareOrdinal(A.FilePath,B.FilePath);
+                return ByFile!=0?ByFile:A.DeclarationPosition.CompareTo(B.DeclarationPosition);
+            });
+
+            foreach(SceneEmitModel SceneDeclaration in ValidSceneDeclarations){
+                AdditionalComponentSets.AddRange(SceneComponentSetCollector.Collect(SceneDeclaration));
+            }
+
             // エントリポイントを出すかどうかはレジストリ構築の前に決める。生成する場合にだけ
             // Bootstrapの形状を登録し、出さないコンパイルへ余計なArchetypeが増えないようにする。
             GameSystemEntryPointEmitter.Plan EntryPointPlan=
-                GameSystemEntryPointEmitter.ShouldEmitPlan(Source.Compilation,AllSystemResults,MergedOrderContext,Spc.CancellationToken);
+                GameSystemEntryPointEmitter.ShouldEmitPlan(Source.Gate,AllSystemResults,MergedOrderContext);
 
             if(EntryPointPlan.Diagnostic is { } EntryPointDiagnostic){
                 Spc.ReportDiagnostic(EntryPointDiagnostic);
@@ -175,6 +202,10 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
 
             foreach(StartupSceneClassResult startupScene in StartupSceneResults){
                 StartupSceneSystemEmitter.EmitHiddenSystem(Spc,startupScene);
+            }
+
+            foreach(SceneEmitModel SceneDeclaration in ValidSceneDeclarations){
+                SceneInstantiateEmitter.Emit(Spc,SceneDeclaration,Registry);
             }
         });
     }
