@@ -21,6 +21,20 @@
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="4.14.0" PrivateAssets="all" />
   </ItemGroup>
 
+  <!--
+    Scene解析の共有ソース(ADR-0040)。ProjectReferenceではなくソースリンクなのは、アナライザーは
+    自己完結アセンブリとして読み込まれ、OutputItemType="Analyzer"が推移的依存DLLを確実には流さないため。
+    まったく同じソースが tools/CSharpGameEngine.VSExtension(net472)へもリンクされ、SGとVSIXが
+    定義上同じSceneを見ることを保証する。
+    SceneDslDiagnosticsのリリース追跡(RS2008)は、実際にアナライザーとして出荷されるこのプロジェクトが
+    AnalyzerReleases.*.md で一元的に負う。
+  -->
+  <ItemGroup>
+    <Compile Include="..\CSharpGameEngine.SceneModel\**\*.cs"
+             Exclude="..\CSharpGameEngine.SceneModel\obj\**\*.cs;..\CSharpGameEngine.SceneModel\bin\**\*.cs"
+             Link="SceneModel\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
   <ItemGroup>
     <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
     <AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />

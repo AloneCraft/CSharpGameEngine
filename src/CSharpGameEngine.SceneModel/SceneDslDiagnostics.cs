@@ -166,13 +166,21 @@ internal static class SceneDslDiagnostics {
         defaultSeverity:DiagnosticSeverity.Error,
         isEnabledByDefault:true);
 
+    /// <summary>
+    /// 唯一、コンパイル全体を見ないと判定できない規則。<c>CompilationEnd</c>タグが必要で(RS1037)、
+    /// その代償としてIDEでは「ソリューション全体の解析」を有効にしないとスクイグルが出ない。
+    /// ビルド時には常に検出される。
+    /// </summary>
     internal static readonly DiagnosticDescriptor DuplicateStartupSceneOrder=new(
         id:"SCENE118",
         title:"Startup scenes must not share the same Order",
         messageFormat:"Startup scene order '{0}' is declared by both '{1}' and '{2}'; startup order must be unambiguous",
         category:Category,
         defaultSeverity:DiagnosticSeverity.Error,
-        isEnabledByDefault:true);
+        isEnabledByDefault:true,
+        description:null,
+        helpLinkUri:null,
+        WellKnownDiagnosticTags.CompilationEnd);
 
     /// <summary>
     /// <c>SceneDslAnalyzer.SupportedDiagnostics</c>が返す全ルール。ここに追加し忘れると

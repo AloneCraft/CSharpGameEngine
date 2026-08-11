@@ -40,6 +40,11 @@
     <None Include="..\..\src\CSharpGameEngine.Entities\SceneDefinitionAttribute.cs" Link="TestAssets\Entities\SceneDefinitionAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Entities\StartupSceneAttribute.cs" Link="TestAssets\Entities\StartupSceneAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Entities\SceneEntityAttribute.cs" Link="TestAssets\Entities\SceneEntityAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Scene DSL (ADR-0040): the declaration surface SceneDslAnalyzer analyses. -->
+    <None Include="..\..\src\CSharpGameEngine.Entities\IScene.cs" Link="TestAssets\Entities\IScene.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\CSharpGameEngine.Entities\Node.cs" Link="TestAssets\Entities\Node.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\CSharpGameEngine.Core\Authoring\SceneFactoryAttribute.cs" Link="TestAssets\Core\SceneFactoryAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\CSharpGameEngine.Core\Authoring\SceneAssetsAttribute.cs" Link="TestAssets\Core\SceneAssetsAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

@@ -44,6 +44,19 @@ internal static class GameSystemGeneratorTestHelper {
         ReadTestAsset("SceneEntityAttribute.cs"),
     ];
 
+    /// <summary>
+    /// Scene DSLの宣言表面(ADR-0040)。<c>[SceneFactory]</c>/<c>[SceneAssets]</c>はCSharpGameEngine.Core側の
+    /// ため別ディレクトリから読む(<c>CSharpGameEngine.Windows</c>がEntitiesを参照していないため、
+    /// 属性はCoreに置かれている)。
+    /// </summary>
+    internal static readonly string[]SceneDslSources=[
+        ReadTestAsset("IScene.cs"),
+        ReadTestAsset("Node.cs"),
+        ReadTestAsset("StartupSceneAttribute.cs"),
+        ReadCoreTestAsset("SceneFactoryAttribute.cs"),
+        ReadCoreTestAsset("SceneAssetsAttribute.cs"),
+    ];
+
     /// <summary>テストでよく使う共通コンポーネント一式。個々のテストのソースに連結して使う。</summary>
     internal const string CommonComponents="""
         namespace Sample;
@@ -63,6 +76,9 @@ internal static class GameSystemGeneratorTestHelper {
 
     private static string ReadTestAsset(string FileName)=>
         File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"TestAssets","Entities",FileName));
+
+    private static string ReadCoreTestAsset(string FileName)=>
+        File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"TestAssets","Core",FileName));
 
     /// <summary><see cref="RuntimeSource"/>を常に含めるコンパイルを作る(全コンパイルがWorld/State/ISystemを必要とするため)。</summary>
     internal static CSharpCompilation CreateCompilation(params string[]ExtraSources)=>

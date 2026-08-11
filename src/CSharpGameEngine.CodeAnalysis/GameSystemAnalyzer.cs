@@ -243,12 +243,12 @@ internal static class GameSystemAnalyzer {
     private static string TypeFqn(IParameterSymbol Parameter)=>
         Parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
-    /// <summary><see cref="StartupSceneAnalyzer"/>もTuple要素/戻り値の判定に同じ規則を再利用する。</summary>
-    internal static bool IsNonNullableStruct(ITypeSymbol type){
-        if(type.TypeKind!=TypeKind.Struct){
-            return false;
-        }
-
-        return type is not INamedTypeSymbol { ConstructedFrom.SpecialType:SpecialType.System_Nullable_T };
-    }
+    /// <summary>
+    /// <see cref="StartupSceneAnalyzer"/>もTuple要素/戻り値の判定に同じ規則を再利用する。
+    /// 実体は共有ソースの<see cref="global::CSharpGameEngine.SceneAnalysis.SceneTypePredicates.IsNonNullableStruct"/>
+    /// にあり、ここは委譲するだけ(ADR-0040)。2箇所に同じ規則を書くと「Systemでは通るがSceneでは通らない」
+    /// というズレが生まれ、Scene DSLとSystemが同一のArchetype空間を共有するという前提が壊れる。
+    /// </summary>
+    internal static bool IsNonNullableStruct(ITypeSymbol type)=>
+        global::CSharpGameEngine.SceneAnalysis.SceneTypePredicates.IsNonNullableStruct(type);
 }
