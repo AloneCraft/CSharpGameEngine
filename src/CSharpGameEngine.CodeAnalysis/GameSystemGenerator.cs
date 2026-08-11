@@ -62,6 +62,14 @@ public sealed class GameSystemGenerator : IIncrementalGenerator
             static (Node, _) => Node is TypeDeclarationSyntax,
             static (Ctx, _) => GameSystemOrderAnalyzer.Analyze(Ctx));
 
+        // [StartupScene]: 手書きのGameStartup : ISystemの代わりに、Component初期値だけの宣言的Sceneから
+        // Order = 0の{Bootstrap}合成Systemを作る(StartupSceneSystemEmitter参照)。SceneDefinitionと同様、
+        // ノード形状はSystemのUpdate/Spawn形状と同一のArchetype空間へ合流する。
+        IncrementalValuesProvider<StartupSceneClassResult> StartupScenes = Context.SyntaxProvider.ForAttributeWithMetadataName(
+            StartupSceneAnalyzer.StartupSceneAttributeFullyQualifiedName,
+            static (Node, _) => Node is ClassDeclarationSyntax,
+            static (Ctx, _) => StartupSceneAnalyzer.Analyze(Ctx));
+
         Context.RegisterSourceOutput(Systems, static (Spc, Result) => GameSystemDiagnostics.ReportAll(Spc, Result));
 
         Context.RegisterSourceOutput(Scenes, static (Spc, Result) =>
@@ -72,15 +80,18 @@ public sealed class GameSystemGenerator : IIncrementalGenerator
             }
         });
 
+        Context.RegisterSourceOutput(StartupScenes, static (Spc, Result) => StartupSceneDiagnostics.ReportAll(Spc, Result));
+
         // SceneNodeSymbolの生成はArchetypeレジストリに依存しない(SceneNodeSymbol/SceneNodeIdしか触らない)
         // ため、結合前の段で個別に出力できる。
         Context.RegisterSourceOutput(Scenes, static (Spc, Result) => SceneNodeSymbolEmitter.Emit(Spc, Result));
 
-        IncrementalValueProvider<((ImmutableArray<GameSystemResult> Systems, ImmutableArray<SceneDefinitionClassResult> Scenes, ImmutableArray<GameSystemOrderResult> SystemOrders) Sources, Compilation Compilation)> Combined =
+        IncrementalValueProvider<((ImmutableArray<GameSystemResult> Systems, ImmutableArray<SceneDefinitionClassResult> Scenes, ImmutableArray<GameSystemOrderResult> SystemOrders, ImmutableArray<StartupSceneClassResult> StartupScenes) Sources, Compilation Compilation)> Combined =
             Systems.Collect()
                 .Combine(Scenes.Collect())
                 .Combine(SystemOrders.Collect())
-                .Select(static (Data, _) => (Data.Left.Left, Data.Left.Right, Data.Right))
+                .Combine(StartupScenes.Collect())
+                .Select(static (Data, _) => (Data.Left.Left.Left, Data.Left.Left.Right, Data.Left.Right, Data.Right))
                 .Combine(Context.CompilationProvider);
 
         Context.RegisterSourceOutput(Combined, static (Spc, Source) =>
@@ -92,6 +103,7 @@ public sealed class GameSystemGenerator : IIncrementalGenerator
 
             ImmutableArray<GameSystemResult> SystemResults = Source.Sources.Systems;
             ImmutableArray<SceneDefinitionClassResult> SceneResults = Source.Sources.Scenes;
+            ImmutableArray<StartupSceneClassResult> StartupSceneResults = Source.Sources.StartupScenes;
 
             (GameSystemOrderContext OrderContext, ImmutableArray<Diagnostic> SystemOrderDiagnostics) =
                 GameSystemOrderAnalyzer.BuildMap(Source.Sources.SystemOrders);
@@ -101,6 +113,34 @@ public sealed class GameSystemGenerator : IIncrementalGenerator
                 Spc.ReportDiagnostic(SystemOrderDiagnostic);
             }
 
+            // [StartupScene]は「Order = 0のQuery {Bootstrap}を持つ合成System」として、実際に検出された
+            // Systemと同じモデル・同じ実行順序比較(GameSystemExecutionOrder)へ合流する(理由は
+            // StartupSceneSystemEmitterのXMLコメント参照)。[StartupScene(Order = N)]の明示値は、
+            // [SystemOrder]をSystem自身へ直接付けた場合と同じ優先度で扱うため、実際に検出されたSystemの
+            // SystemOrderByFqnマップへ合成Systemの完全修飾名を追加登録したコピーを作る。
+            List<GameSystemResult> ValidStartupSystems = [];
+            Dictionary<string, int> MergedSystemOrderByFqn = new(StringComparer.Ordinal);
+
+            foreach (KeyValuePair<string, int> ExistingOrder in OrderContext.SystemOrderByFqn)
+            {
+                MergedSystemOrderByFqn[ExistingOrder.Key] = ExistingOrder.Value;
+            }
+
+            foreach (StartupSceneClassResult StartupScene in StartupSceneResults)
+            {
+                if (StartupScene.Diagnostics.Length > 0)
+                {
+                    continue;
+                }
+
+                GameSystemResult SyntheticSystem = StartupSceneSystemEmitter.BuildSyntheticSystemResult(StartupScene);
+                ValidStartupSystems.Add(SyntheticSystem);
+                MergedSystemOrderByFqn[SyntheticSystem.ClassFullyQualifiedName] = StartupScene.Order;
+            }
+
+            GameSystemOrderContext MergedOrderContext = new(MergedSystemOrderByFqn, OrderContext.FileOrderByPath);
+            ImmutableArray<GameSystemResult> AllSystemResults = [.. SystemResults, .. ValidStartupSystems];
+
             List<IReadOnlyList<string>> AdditionalComponentSets = [];
 
             foreach (SceneDefinitionClassResult Scene in SceneResults)
@@ -108,10 +148,15 @@ public sealed class GameSystemGenerator : IIncrementalGenerator
                 AdditionalComponentSets.AddRange(SceneRuntimeEmitter.CollectComponentSets(Scene));
             }
 
+            foreach (StartupSceneClassResult StartupScene in StartupSceneResults)
+            {
+                AdditionalComponentSets.AddRange(StartupSceneSystemEmitter.CollectComponentSets(StartupScene));
+            }
+
             // エントリポイントを出すかどうかはレジストリ構築の前に決める。生成する場合にだけ
             // Bootstrapの形状を登録し、出さないコンパイルへ余計なArchetypeが増えないようにする。
             GameSystemEntryPointEmitter.Plan EntryPointPlan =
-                GameSystemEntryPointEmitter.ShouldEmitPlan(Source.Compilation, SystemResults, OrderContext, Spc.CancellationToken);
+                GameSystemEntryPointEmitter.ShouldEmitPlan(Source.Compilation, AllSystemResults, MergedOrderContext, Spc.CancellationToken);
 
             if (EntryPointPlan.Diagnostic is { } EntryPointDiagnostic)
             {
@@ -123,7 +168,7 @@ public sealed class GameSystemGenerator : IIncrementalGenerator
                 AdditionalComponentSets.Add([GameSystemEntryPointEmitter.BootstrapComponentFullyQualifiedName]);
             }
 
-            GameSystemRegistry Registry = GameSystemIndexAssigner.Assign(SystemResults, AdditionalComponentSets, OrderContext);
+            GameSystemRegistry Registry = GameSystemIndexAssigner.Assign(AllSystemResults, AdditionalComponentSets, MergedOrderContext);
 
             foreach (Diagnostic diagnostic in Registry.Diagnostics)
             {
@@ -143,6 +188,11 @@ public sealed class GameSystemGenerator : IIncrementalGenerator
             foreach (SceneDefinitionClassResult scene in SceneResults)
             {
                 SceneRuntimeEmitter.Emit(Spc, scene, Registry);
+            }
+
+            foreach (StartupSceneClassResult startupScene in StartupSceneResults)
+            {
+                StartupSceneSystemEmitter.EmitHiddenSystem(Spc, startupScene);
             }
         });
     }

@@ -285,7 +285,8 @@ internal static class GameSystemAnalyzer
     private static string TypeFqn(IParameterSymbol Parameter) =>
         Parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
-    private static bool IsNonNullableStruct(ITypeSymbol type)
+    /// <summary><see cref="StartupSceneAnalyzer"/>もTuple要素/戻り値の判定に同じ規則を再利用する。</summary>
+    internal static bool IsNonNullableStruct(ITypeSymbol type)
     {
         if (type.TypeKind != TypeKind.Struct)
         {

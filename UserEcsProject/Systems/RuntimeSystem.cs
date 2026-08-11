@@ -1,4 +1,5 @@
 using System.Numerics;
+using CSharpGameEngine.Audio.Abstractions;
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Import.Fbx;
@@ -8,27 +9,27 @@ namespace UserEcsProject.Systems;
 
 // ============================================================================
 // エンジンが提供するべきSystem。いずれ共有ソースへ移す(=ランタイム側)。
-// このプロジェクト固有のSystemは Systems/GameSystems.cs にある。
+// このプロジェクト固有のStartup Scene宣言は Scenes/MainScene.cs にある。
 //
 // ここにゲーム固有のリテラルは1つも無い。ウィンドウのタイトル/サイズ、レベルのFBXパス、
 // シェーダーのパス、初期カメラはすべてComponentの値として渡ってくる。
 //
 // Program.csは存在せず、`Main`はSGが生成する(Generated/.../GameSystem.EntryPoint.g.cs)。
 // 生成されたMainが作るのはWorld・State・Bootstrapシード1個だけで、ウィンドウもレンダラーも
-// レベルも、GameStartupSystemとこのファイルのSystemが作る。
+// レベルも、MainScene([StartupScene]宣言からSGが合成するSystem)とこのファイルのSystemが作る。
 //
 // 実行順序について(ADR-0033決定事項1 + ADR-0036 + GameSystemLoopEmitterの構造):
 //   生成ループは「Archetype順が外側・System順が内側」。そしてArchetypeの出現順は、
 //   Systemの並び順に引数の組を登録した順そのもの。したがって
 //   「1ファイルにフレーム順で書けば、Archetypeループの順序もフレーム順になる」。
-//   このファイル内の7つは相互に順序が意味を持つので、絶対に分割しないこと。
+//   このファイル内の9つは相互に順序が意味を持つので、絶対に分割しないこと。
 //
-//   このファイルはfileスコープのマーカーで[SystemOrder(1)]なので、Systems/GameSystems.csの
-//   GameStartup([SystemOrder(0)]をSystem自身に直接指定)より必ず後に走る。
+//   このファイルはfileスコープのマーカーで[SystemOrder(1)]なので、Scenes/MainScene.csの
+//   [StartupScene(Order = 0)]から合成されるSystemより必ず後に走る。
 //   ファイル名のアルファベット順には一切依存しない。
 //
 //   現在の出現順:
-//     Archetype0 {Bootstrap}              … GameStartup(GameSystems.cs) 起動時に1回
+//     Archetype0 {Bootstrap}              … MainScene(Scenes/MainScene.cs) 起動時に1回
 //     Archetype1 {AppHost}                … Windowの宣言形状(実体の入らない空ループ)
 //     Archetype2 {AppHost, Level}         … Window → LevelLoad
 //     Archetype3 {DirectionalLight}       … DirectionalLight
@@ -36,16 +37,24 @@ namespace UserEcsProject.Systems;
 //     Archetype5 {SpotLight}              … SpotLight
 //     Archetype6 {Transform, Renderable}  … TransformSync
 //     Archetype7 {FramePresent}           … Present(必ず最後)
+//     Archetype8 {AudioListener}          … AudioListenerSpawn(Archetype形状の宣言のみ、ディスパッチ無し)
+//     Archetype9 {AudioSource}            … AudioPlayback
 //
 //   Archetype.Createは即時追加で、各ループは開始時にCountを読む。よってArchetype0が作った
 //   appエンティティはArchetype2のループ開始前に存在し、Archetype2が作ったdirectionalLight/
-//   pointLight/spotLight/renderable/presentエンティティもArchetype3〜7のループ開始前に存在する ―
-//   起動処理はすべてフレーム1で完了する。
+//   pointLight/spotLight/renderable/present/audioListener/audioSourceエンティティも
+//   Archetype3〜9のループ開始前に存在する ― 起動処理はすべてフレーム1で完了する。
 //
 //   PointLight/SpotLightはStageRenderer側で毎フレーム加算・リセットされる(ADR-0037)。ライトの
 //   種類はUnityのように実行時に切り替えるものではなく、DirectionalLight/PointLight/SpotLightを
 //   それぞれ固定のComponent型・専用Systemとして分けている(切り替えが要らない代わりに、
 //   新しいライト種を足すときはComponent+Systemを素直に1組追加する)。
+//
+//   AudioListener/AudioSourceは別Entityなので、閉集合Archetypeの制約上、両者を横断参照する
+//   距離減衰は実装していない(ADR-0039「既知の制約」参照)。AudioEngineHandleはLevelLoadが
+//   StageRendererと同じタイミングで生成し、Level→FramePresentへコピーしてPresentが破棄する
+//   (Renderer/Windowと同じ経路)。オーディオバックエンド自体はAudioBackend.cs(このプロジェクトの
+//   プラットフォーム依存集中点)経由でのみ参照し、CSharpGameEngine.Audio.XAudio2を直接参照しない。
 //
 // 移設先はCSharpGameEngine.Entitiesではあり得ない(net10.0・ProjectReferenceゼロのプラット
 // フォーム非依存ソースで、StageRenderer/Win32Windowを参照した瞬間に単体ビルドとADR-0001の階層が
@@ -136,6 +145,21 @@ internal struct LevelLoad : ISystem
         level.Renderer = Renderer;
         level.Loaded = true;
 
+        // StageRendererと同じタイミングでAudioEngineを生成する。level.Listener/Sourceも
+        // Sun/PointLight/SpotLightと同じ「値渡しで置いてあったものをここで実Entity化する」パターン。
+        AudioEngineHandle AudioEngine = GameAudio.CreateEngine();
+        level.AudioEngine = AudioEngine;
+
+        state.World.Create(level.Listener);
+
+        UserEcsProject.AudioSource Source = level.Source;
+        AudioVoiceHandle Voice = GameAudio.CreateVoice(AudioEngine, sampleRate: 44100, channels: 1);
+        Voice = GameAudio.SubmitBuffer(Voice, ProceduralAudioClip.GenerateSineWave(440f, 1f, 44100), Source.Loop);
+        GameAudio.SetVolume(Voice, Source.Volume);
+        GameAudio.Start(Voice);
+        Source.Voice = Voice;
+        state.World.Create(Source);
+
         // level.Sun/PointLight/SpotLightはまだ存在しないレンダラーを指せないので値渡しのまま
         // 置いてあった。ここで初めてレンダラーが確定するため、コピーしてRendererを埋めてから
         // Entityにする(Renderable/FramePresentと同じ「作成時にコピーする」パターン)。
@@ -167,7 +191,7 @@ internal struct LevelLoad : ISystem
             },
             new Renderable { Renderer = Renderer, ObjectIndex = 0 });
 
-        state.World.Create(new FramePresent { Window = window, Renderer = Renderer });
+        state.World.Create(new FramePresent { Window = window, Renderer = Renderer, AudioEngine = AudioEngine });
 
         return true;
     }
@@ -275,6 +299,12 @@ internal struct Present : ISystem
         {
             Renderer.Dispose();
             window.Dispose();
+
+            if (present.AudioEngine is { } AudioEngine)
+            {
+                GameAudio.DestroyEngine(AudioEngine);
+            }
+
             return true;
         }
 
@@ -284,6 +314,43 @@ internal struct Present : ISystem
         }
 
         Renderer.RenderFrame();
+        return true;
+    }
+}
+
+/// <summary>
+/// {AudioListener}のArchetype形状だけを宣言する(ADR-0033のSpawn用途: どのUpdateとも一致しない
+/// 構成を成立させる)。距離減衰は未実装のため、現時点ではディスパッチ対象を持たない
+/// (ADR-0039「既知の制約」参照)。
+/// </summary>
+internal struct AudioListenerSpawn : ISystem
+{
+    public void Spawn(ref AudioListener listener)
+    {
+    }
+}
+
+/// <summary>
+/// 毎フレーム<see cref="AudioSource.Volume"/>を<see cref="AudioSource.Voice"/>へ同期し、終了時に
+/// 破棄する(DirectionalLight等と同じ「毎フレーム同期・終了時破棄」パターン)。
+/// </summary>
+internal struct AudioPlayback : ISystem
+{
+    public bool Update(ref AudioSource source, ref State state)
+    {
+        if (source.Voice is not { } Voice)
+        {
+            return true;
+        }
+
+        if (!state.Enabled)
+        {
+            GameAudio.Stop(Voice);
+            GameAudio.DestroyVoice(Voice);
+            return true;
+        }
+
+        GameAudio.SetVolume(Voice, source.Volume);
         return true;
     }
 }

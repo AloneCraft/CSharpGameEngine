@@ -161,7 +161,9 @@ internal static class GameSystemLoopEmitter
         return Contexts;
     }
 
-    private static string BuildLocalName(string SimpleTypeName, HashSet<string> UsedNames)
+    /// <summary><see cref="StartupSceneSystemEmitter"/>も、Scene Entityプロパティ名からローカル変数名を
+    /// 作る際に同じ規則(キーワード衝突エスケープ・重複時の連番)を再利用する。</summary>
+    internal static string BuildLocalName(string SimpleTypeName, HashSet<string> UsedNames)
     {
         string Candidate = char.ToLowerInvariant(SimpleTypeName[0]) + SimpleTypeName.Substring(1);
 

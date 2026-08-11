@@ -4,7 +4,7 @@ using CSharpGameEngine.Platform.Windows;
 namespace UserEcsProject;
 
 // ============================================================================
-// エンジンオブジェクト(Win32Window / StageRenderer)はComponentのフィールドとして持つ。
+// エンジンオブジェクト(Win32Window / StageRenderer / AudioEngineHandle)はComponentのフィールドとして持つ。
 //
 // Componentの要件は「非nullableのstructであること」だけなので、参照型フィールドを持つことは制約に
 // 触れない(UserGameProjectの SceneSpawnRequest { LoadedScene? Scene } と同じ既存パターン)。
@@ -18,7 +18,7 @@ namespace UserEcsProject;
 // 依存関係を明示する唯一の書き方である。
 //
 // このファイルのComponentは全部エンジン側の語彙で、Systems/RuntimeSystem.cs と一緒にランタイムへ
-// 移す対象。ゲーム固有のComponentを足すときは、Systems/GameSystems.cs と対になる別ファイルに置くこと。
+// 移す対象。ゲーム固有のComponentを足すときは、Scenes/MainScene.cs と対になる別ファイルに置くこと。
 // ============================================================================
 
 /// <summary>
@@ -40,8 +40,8 @@ public struct AppHost
 ///
 /// <para>
 /// <b>どの</b>レベルをどのシェーダーでどのカメラから見るかは全部ゲーム側の決定なので、値はすべて
-/// <c>GameStartup</c>(Systems/GameSystems.cs)が入れる。LevelLoadはここに入っている
-/// ものを読むだけで、リテラルを1つも持たない。
+/// <c>MainScene</c>(Scenes/MainScene.cs)の<c>[SceneEntity]</c>宣言が入れる。LevelLoadはここに
+/// 入っているものを読むだけで、リテラルを1つも持たない。
 /// </para>
 /// </summary>
 public struct Level
@@ -72,6 +72,53 @@ public struct Level
 
     /// <summary>LevelLoadSystemが生成する。StageRendererはメッシュ集合を確定させてからしか作れない。</summary>
     public StageRenderer? Renderer;
+
+    /// <summary>
+    /// リスナーの初期値。<see cref="Sun"/>と同じ「値渡し→LevelLoadが実Entityを作る」パターン
+    /// (AudioListener自体はエンジンハンドルを持たないため、Rendererのような「確定後に埋める」対象は無い)。
+    /// </summary>
+    public AudioListener Listener;
+
+    /// <summary>音源の初期値。<see cref="Sun"/>と同じパターンで、<see cref="AudioSource.Voice"/>は
+    /// <see cref="AudioEngine"/>確定後にLevelLoadが埋める。</summary>
+    public AudioSource Source;
+
+    /// <summary>LevelLoadが生成する共有オーディオエンジン。StageRendererと同じく、確定前はnull。</summary>
+    public AudioEngineHandle? AudioEngine;
+}
+
+/// <summary>
+/// 単一のオーディオリスナー(「耳」)。現時点では位置を持つだけの器で、<see cref="AudioSource"/>との
+/// 距離減衰計算は行わない — 閉集合Archetypeでは別Entityのコンポーネントを横断参照できないため
+/// (ADR-0033)、リスナーとソースが別Entityである以上、両者を1つのUpdateで同時に読むSystemは書けない。
+/// 距離減衰を実装する場合は、両者を同一Entityにまとめるか、値を毎フレームコピーする別の仕組みが要る
+/// (ADR-0039「既知の制約」参照)。
+/// </summary>
+public struct AudioListener
+{
+    public float PositionX;
+    public float PositionY;
+    public float PositionZ;
+}
+
+/// <summary>
+/// 単一のオーディオソース。AudioPlaybackSystemが毎フレーム<see cref="Volume"/>を<see cref="Voice"/>へ
+/// 反映し、終了時に破棄する(<see cref="DirectionalLight"/>の<c>Renderer</c>と同じ「作成時にコピー・
+/// 毎フレーム同期・終了時破棄」パターン)。<see cref="Voice"/>は<c>struct</c>を包む<c>Nullable&lt;T&gt;</c>
+/// であり、<see cref="Win32Window"/>等の参照型null許容フィールドと意味は同じ(未生成はnull)だが、
+/// ハンドル自体はネイティブポインタを持たない安全な値型(<c>AudioBackend.cs</c>参照)。
+/// </summary>
+public struct AudioSource
+{
+    public float PositionX;
+    public float PositionY;
+    public float PositionZ;
+
+    public float Volume;
+    public bool Loop;
+
+    /// <summary>LevelLoadが生成する。AudioEngine確定後にしか作れない。</summary>
+    public AudioVoiceHandle? Voice;
 }
 
 /// <summary>
@@ -190,4 +237,7 @@ public struct FramePresent
 {
     public Win32Window? Window;
     public StageRenderer? Renderer;
+
+    /// <summary>LevelLoadがコピーする。Presentが終了時にここから破棄する(Renderer/Windowと同じ経路)。</summary>
+    public AudioEngineHandle? AudioEngine;
 }

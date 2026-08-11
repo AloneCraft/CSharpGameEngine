@@ -37,3 +37,13 @@ SCENE005 | CSharpGameEngine.Entities.CodeGen | Error | SceneDefinitionDiagnostic
 SCENE006 | CSharpGameEngine.Entities.CodeGen | Error | SceneDefinitionDiagnostics
 SCENE007 | CSharpGameEngine.Entities.CodeGen | Error | SceneDefinitionDiagnostics
 SCENE008 | CSharpGameEngine.Entities.CodeGen | Error | SceneDefinitionDiagnostics
+STARTUP001 | CSharpGameEngine.Entities.CodeGen | Error | StartupSceneDiagnostics
+STARTUP002 | CSharpGameEngine.Entities.CodeGen | Error | StartupSceneDiagnostics
+STARTUP003 | CSharpGameEngine.Entities.CodeGen | Error | StartupSceneDiagnostics
+STARTUP004 | CSharpGameEngine.Entities.CodeGen | Error | StartupSceneDiagnostics
+STARTUP005 | CSharpGameEngine.Entities.CodeGen | Error | StartupSceneDiagnostics
+STARTUP006 | CSharpGameEngine.Entities.CodeGen | Error | StartupSceneDiagnostics
+STARTUP007 | CSharpGameEngine.Entities.CodeGen | Error | StartupSceneDiagnostics
+STARTUP008 | CSharpGameEngine.Entities.CodeGen | Error | StartupSceneDiagnostics
+STARTUP009 | CSharpGameEngine.Entities.CodeGen | Error | StartupSceneDiagnostics
+STARTUP010 | CSharpGameEngine.Entities.CodeGen | Error | StartupSceneDiagnostics

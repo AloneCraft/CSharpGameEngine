@@ -129,9 +129,9 @@ file sealed class Order
 ```
 
 属性を付けなければ従来どおりファイルパスのOrdinal順にフォールバックする(後方互換)。
-`UserGameProject/Systems/Systems.cs`(単一ファイル集約)と`UserEcsProject/Systems/`
-(`GameSystems.cs`=`GameStartupSystem`に`[SystemOrder(0)]`を直接、`RuntimeSystem.cs`=fileマーカーに
-`[SystemOrder(1)]`)がその実例。
+`UserGameProject/Systems/Systems.cs`(単一ファイル集約)と`UserEcsProject/`
+(`Scenes/MainScene.cs`=`[StartupScene(Order = 0)]`から合成されるSystem、`Systems/RuntimeSystem.cs`=
+fileマーカーに`[SystemOrder(1)]`)がその実例。
 
 > 実行順序の正しさは記述する人間の責任になった。順序を誤ってもビルドは通り、症状(例: カメラが1フレーム
 > 遅れる)は実行時にしか現れない。
@@ -195,6 +195,41 @@ internal static class GeneratedEntryPoint
 従う。したがって**1ファイルにフレーム順でSystemを並べれば、Archetypeループの順序もフレーム順になる**。
 フレーム末尾に置きたい処理(Present等)は、最後のSystemが宣言する専用Componentの単独Entityにする。
 
+## `[StartupScene]`/`[SceneEntity]`宣言(合成System)
+
+`Bootstrap`を消費する起動処理を毎回`ISystem`として手書きする(`Bootstrap.Done`判定+
+`State.World.Create(...)`)代わりに、Component初期値だけを宣言できる。
+
+```csharp
+[StartupScene(Order = 0)]
+internal static partial class MainScene
+{
+    [SceneEntity]
+    internal static (AppHost App, Level Level) Application => (
+        new AppHost { Title = "...", Width = 1280, Height = 720 },
+        new Level { Path = "...", ShaderPath = "..." });
+}
+```
+
+- `[StartupScene]`は`static partial class`が対象。`Order`は合成Systemの実効的な順序値で、
+  `[SystemOrder]`をSystem自身へ直接付けた場合と同じ優先度(`GameSystemOrderContext.SystemOrderByFqn`)
+  で扱われる。
+- `[SceneEntity]`は`static`・getter付き・非indexer・非ref返しのプロパティが対象。戻り値が単一の
+  非nullable structなら1 Componentのみのentity、`ValueTuple`(要素名必須)ならその各要素を持つentity。
+- 1クラスにつき`Query = {Bootstrap}`・`Order = 属性値`の合成`ISystem`が1つ生成される
+  (`{ClassName}__StartupSystem`、同じ名前空間)。中身は旧来の手書き`GameStartup`と同じ意味:
+  `Bootstrap.Done`判定 → 各`[SceneEntity]`プロパティを1回だけ評価 → `state.World.Create(...)`。
+- 合成Systemは他のSystemと**区別なく**同じ`GameSystemExecutionOrder`/`GameSystemIndexAssigner`/
+  `GameSystemLoopEmitter`を通る(1つのGeneratorが自分自身の出力を同一実行内で再検出できないため、
+  構文木からの再検出ではなく`GameSystemResult`を直接構築して合流させる。詳細は
+  `StartupSceneSystemEmitter`のXMLコメント参照)。
+- Entityの出力Component集合(上記の例なら`{AppHost, Level}`)は、既存Systemが同じ集合を宣言済みなら
+  そちらが優先され、Archetypeの出現順は動かない(重複登録は`GameSystemIndexAssigner`のRegisterSetが
+  黙って無視する)。どのSystemの引数にも現れない集合の場合だけ、既存System由来のArchetypeの後ろへ
+  追加される。
+- 診断IDは`STARTUP001`〜`010`(下記診断セクション参照)。
+- 実例は`UserEcsProject/Scenes/MainScene.cs`(旧`GameStartup : ISystem`からの移行)。
+
 ## Scene Authoringとの統合
 
 `[SceneDefinition]`クラスのノード構成も**同じArchetype空間**へ入る(単一の`partial struct World`/
@@ -255,6 +290,25 @@ Generatorは`CSharpGameEngine.Entities.ISystem`型がコンパイル内に実在
 
 Scene Authoringの診断は`SCENE001`〜`008`(`SCENE009`はADR-0033で削除。旧
 `World.CreateArchetype<T1..T8>`のジェネリック型引数上限に由来する規則で、閉集合方式には上限が無い)。
+
+`[StartupScene]`/`[SceneEntity]`の診断は`STARTUP001`〜`010`(同じくカテゴリ`CSharpGameEngine.Entities.CodeGen`、
+すべて`Error`)。
+
+| ID | 内容 |
+|---|---|
+| STARTUP001 | `[StartupScene]`の対象が`static partial class`でない |
+| STARTUP002 | `[StartupScene]`クラスがジェネリック |
+| STARTUP003 | `[SceneEntity]`プロパティが`static`でない |
+| STARTUP004 | `[SceneEntity]`がindexerに付いている |
+| STARTUP005 | `[SceneEntity]`プロパティに`get`アクセサが無い |
+| STARTUP006 | `[SceneEntity]`プロパティが`ref`/`ref readonly`で返している |
+| STARTUP007 | 戻り値が非nullable structでも`ValueTuple`でもない |
+| STARTUP008 | Tuple要素が非nullable structでない |
+| STARTUP009 | 同一Tuple内でComponent型が重複している |
+| STARTUP010 | Tuple要素に明示的な名前が無い(既定の`ItemN`のまま) |
+
+診断が1件でもある`[StartupScene]`クラスは、そのクラス分の出力(合成System・Entity生成コード)を
+丸ごとスキップする。
 
 ## 既知の制約
 

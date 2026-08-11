@@ -2118,3 +2118,166 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
 - Conformance: Matches
 - Known deviations: None
 - Next action: なし。
+
+## F-L3-013 — `CSharpGameEngine.Entities`(`StartupSceneAttribute`/`SceneEntityAttribute`)
+
+- Layer: L3 — ECS / Job Runtime
+- Parent capability: 静的(閉集合)Archetype ECS
+- Status: Implemented
+- Verification: TestVerified、RuntimeVerified
+- Intended specification: Docs/Decisions/ADR-0038-Startup-Scene-Declarative-Api.md、
+  Docs/Specifications/Ecs-Soa-Systems.md#startupscenesceneentity宣言合成system
+- Implementation evidence:
+  - src/CSharpGameEngine.Entities/StartupSceneAttribute.cs
+  - src/CSharpGameEngine.Entities/SceneEntityAttribute.cs
+- Tests:
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/StartupSceneGeneratorDiagnosticsTests.cs(正常系2件が
+    両Attributeの実使用形を兼ねる)
+- Reverse-engineered behavior:
+  - `StartupSceneAttribute`は`AttributeTargets.Class`、`Order`は`int`の`init`プロパティ(コンストラクタ
+    引数ではなく名前付き引数`[StartupScene(Order = 0)]`で渡す設計、`SystemOrderAttribute`の
+    コンストラクタ引数方式とは意図的に異なる)。
+  - `SceneEntityAttribute`は`AttributeTargets.Property`(マーカー、プロパティ無し)。
+  - いずれも`SystemOrderAttribute`/`Bootstrap`/`Parent`と同じく`src/CSharpGameEngine.Entities/`に
+    手書きで置かれ、消費側csprojのワイルドカード(`*.cs`)経由で伝播する。
+- Conformance: Matches
+- Known deviations: None
+- Next action: なし。
+
+## F-L7-017 — `GameSystemGenerator`(`StartupSceneAnalyzer`/`StartupSceneSystemEmitter`、合成System統合)
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: 静的(閉集合)Archetype ECS
+- Status: Implemented
+- Verification: TestVerified、RuntimeVerified
+- Intended specification: Docs/Decisions/ADR-0038-Startup-Scene-Declarative-Api.md、
+  Docs/Specifications/Ecs-Soa-Systems.md#startupscenesceneentity宣言合成system
+- Implementation evidence:
+  - src/CSharpGameEngine.CodeAnalysis/StartupSceneModel.cs
+  - src/CSharpGameEngine.CodeAnalysis/StartupSceneAnalyzer.cs
+  - src/CSharpGameEngine.CodeAnalysis/StartupSceneSystemEmitter.cs
+  - src/CSharpGameEngine.CodeAnalysis/GameSystemGenerator.cs(4本目の`ForAttributeWithMetadataName`
+    プロバイダ、合成`GameSystemResult`のマージ、`SystemOrderByFqn`への追加登録)
+  - src/CSharpGameEngine.CodeAnalysis/GameSystemAnalyzer.cs(`IsNonNullableStruct`を`internal`化して共有)
+  - src/CSharpGameEngine.CodeAnalysis/GameSystemLoopEmitter.cs(`BuildLocalName`を`internal`化して共有)
+- Tests:
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/StartupSceneGeneratorEmissionTests.cs(隠しstruct生成、
+    Bootstrap.Doneガードの位置、単一/Tuple Entityの評価回数、複数Entityの宣言順出力、
+    `GameSystem.Loop.g.cs`からのディスパッチ、Archetype出現順の非破壊、エントリポイント単独生成、決定性)
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/StartupSceneGeneratorEndToEndTests.cs(単一/Tuple Entityの
+    実生成・2フレーム目の非重複、後続Systemによる同一フレーム内の読み取り、Scene propertyの評価回数)
+- Reverse-engineered behavior:
+  - Roslynの1つのGeneratorは自分自身が生成した構文木を同じ実行内で再検出できないため、
+    `[StartupScene]`から`ISystem`実装structのソースだけを生成して既存`GameSystemAnalyzer`による
+    再検出に期待する設計は取れない。`StartupSceneSystemEmitter.BuildSyntheticSystemResult`が
+    `GameSystemResult`を直接構築し、実際に検出されたSystemと同じ`List`へ合流させてから
+    `GameSystemIndexAssigner.Assign`/`GameSystemLoopEmitter.Emit`/`GameSystemEntryPointEmitter`へ
+    渡す(いずれも合成か実際に検出されたものかを区別しない)。
+  - 合成Systemの実体(`{ClassName}__StartupSystem`、元クラスと同じ名前空間)は
+    `StartupSceneSystemEmitter.EmitHiddenSystem`が同じGenerator実行内で生成する。
+  - `[StartupScene(Order = N)]`は、実際に検出されたSystemの`SystemOrderByFqn`マップへ合成Systemの
+    完全修飾名を追加登録することで、`[SystemOrder]`をSystem自身へ直接付けた場合と同じ優先度として
+    扱われる(`GameSystemExecutionOrder`自体は無変更)。
+  - Entityの出力Component集合は`AdditionalComponentSets`経由で登録される。実際に検出されたSystemの
+    引数集合が先に登録されるため、同じ集合を既存Systemが宣言済みならArchetypeの出現順は変わらない
+    (`UserEcsProject`の`{AppHost, Level}`はLevelLoadが登録済みのため、`MainScene`の同集合出力は
+    新しいArchetypeを作らない — 生成コードで実際に確認済み)。
+  - `[SceneDefinition]`(F-L7-012/013)とは責務が異なると判断し、統合ではなく独立したAttribute/
+    Analyzer/Emitterとして追加した(ADR-0038参照)。
+- Conformance: Matches
+- Known deviations: None
+- Next action: なし。
+
+## F-L7-018 — `GameSystemGenerator`診断(STARTUP001〜010)
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: 静的(閉集合)Archetype ECS
+- Status: Implemented
+- Verification: TestVerified
+- Intended specification: Docs/Decisions/ADR-0038-Startup-Scene-Declarative-Api.md
+- Implementation evidence:
+  - src/CSharpGameEngine.CodeAnalysis/StartupSceneDiagnostics.cs
+  - src/CSharpGameEngine.CodeAnalysis/AnalyzerReleases.Unshipped.md
+- Tests:
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/StartupSceneGeneratorDiagnosticsTests.cs(STARTUP001〜010の
+    各1件+正常系2件)
+- Reverse-engineered behavior:
+  - カテゴリ`CSharpGameEngine.Entities.CodeGen`、すべて`Error`(既存SYSGEN/SCENE系と同じ規約)。
+  - `[SceneEntity]`がプロパティ以外に付く場合(`AttributeTargets.Property`が言語レベルで拒否)、
+    同一クラス内でEntity論理名(プロパティ名)が衝突する場合(C#の重複宣言禁止)、生成型名/Hint Nameが
+    衝突する場合(元クラスのFQNから1:1に導出するため構造的に起こり得ない)は、専用診断を設けていない
+    (SYSGEN009と同じ「欠番の理由をコードコメントに残す」方針)。
+- Conformance: Matches
+- Known deviations: None
+- Next action: なし。
+
+## F-L1-007 — `CSharpGameEngine.Audio.Abstractions`(`IAudioBackend`/`AudioBackend<TBackend,...>`/`ProceduralAudioClip`)
+
+- Layer: L1 — Core Kernel
+- Parent capability: Audio再生(AudioSource/AudioListener)
+- Status: Implemented
+- Verification: TestVerified
+- Intended specification: Docs/Decisions/ADR-0039-Audio-Backend-Abstraction.md
+- Implementation evidence:
+  - src/CSharpGameEngine.Core/Audio/IAudioBackend.cs
+  - src/CSharpGameEngine.Core/Audio/AudioBackend.cs
+  - src/CSharpGameEngine.Core/Audio/ProceduralAudioClip.cs
+- Tests:
+  - tests/CSharpGameEngine.Core.Tests/Audio/ProceduralAudioClipTests.cs(サンプル数・振幅範囲・
+    引数検証)
+  - tests/CSharpGameEngine.Core.Tests/Audio/AudioBackendFacadeTests.cs(ハードウェア非依存のフェイク
+    バックエンドで、ジェネリックFacadeが全メンバーを実際に転送することを検証)
+- Reverse-engineered behavior:
+  - `IAudioBackend<TEngine, TVoice>`は`CSharpGameEngine.Spatial.Abstractions.ICoordinateConvention`
+    (ADR-0025)と同じく全メンバーが`static abstract`、`TEngine`/`TVoice`は`struct`制約。
+  - `AudioBackend<TBackend, TEngine, TVoice>`は`Spatial<TConvention>`と同型の`static class`
+    Facadeで、`TBackend.Method(...)`という型引数への直接静的呼び出しに解決される(JITの
+    ジェネリック値型モノモーフィゼーションにより、仮想ディスパッチ・Boxing・Reflectionが原理的に
+    存在しない)。
+  - `SubmitBuffer`は`void`ではなく更新後の`TVoice`を返す。`TVoice`は不変値型であり、バックエンドが
+    (例: 確保したネイティブバッファへのポインタのように)後で覚えておく必要がある情報をハンドル自体
+    へ折り込んで返す以外に手段が無いため。
+  - `ProceduralAudioClip.GenerateSineWave`はプラットフォーム非依存の純粋関数。リポジトリに音声
+    アセット(.wav等)が1件も無いため、ファイルI/O無しで可聴PCMを得る唯一の経路として存在する。
+- Conformance: Matches
+- Known deviations: None
+- Next action: 2つ目の具体的バックエンドが必要になった時点で、`AudioBackendFacadeTests`のフェイク
+  実装で検証済みの拡張性を実バックエンドで再確認する。
+
+## F-L4-001 — `CSharpGameEngine.Windows`(`XAudio2Backend`/`XAudio2EngineHandle`/`XAudio2VoiceHandle`)
+
+- Layer: L4 — Domain Servers
+- Parent capability: Audio再生(AudioSource/AudioListener)
+- Status: Implemented
+- Verification: TestVerified、RuntimeVerified
+- Intended specification: Docs/Decisions/ADR-0039-Audio-Backend-Abstraction.md
+- Implementation evidence:
+  - src/CSharpGameEngine.Windows/Audio/XAudio2Backend.cs
+  - src/CSharpGameEngine.Windows/Audio/XAudio2EngineHandle.cs
+  - src/CSharpGameEngine.Windows/Audio/XAudio2VoiceHandle.cs
+  - src/CSharpGameEngine.Windows/Audio/AudioException.cs
+  - src/CSharpGameEngine.Windows/Audio/AudioDiagnostics.cs
+  - UserEcsProject/AudioBackend.cs(プラットフォーム選択の集中点、`GameAudio`非ジェネリックFacade)
+- Tests:
+  - tests/CSharpGameEngine.Windows.Tests/Audio/XAudio2BackendTests.cs(実オーディオデバイスに対する
+    CreateEngine→CreateVoice→SubmitBuffer→Start→Stop→DestroyVoice→DestroyEngineのスモークテスト、
+    `[WindowsOnlyFact]`)
+- Reverse-engineered behavior:
+  - `IAudioBackend<XAudio2EngineHandle, XAudio2VoiceHandle>`を実装する唯一の具体的バックエンド。
+    `readonly unsafe struct`でフィールドを持たず、ネイティブポインタは`XAudio2EngineHandle`/
+    `XAudio2VoiceHandle`(いずれも内部に`nint`のみを持つ)の側に閉じ込める。
+  - `XAudio2Create`→`IXAudio2::CreateMasteringVoice`→`IXAudio2::CreateSourceVoice`→
+    `SubmitSourceBuffer`という`TerraFX.Interop.DirectX`経由のCOM呼び出しは、既存
+    `CSharpGameEngine.Graphics.D3D12.GraphicsDevice`/`StageRenderer`と同じ作法(`->`呼び出し、
+    `AudioDiagnostics.EnsureSuccess`によるHRESULT検査)。追加のNuGetパッケージは不要
+    (`TerraFX.Interop.Windows`は既にD3D12用に参照済みで、XAudio2バインディングも同梱されている)。
+  - PCMバッファは`NativeMemory.Alloc`で確保し、`DestroyVoice`まで解放を遅延する(`SubmitBuffer`が
+    ハンドルへポインタを折り込んで返す設計、F-L1-007参照)。
+  - VoiceはCOM `Release`ではなく`IXAudio2Voice::DestroyVoice()`で破棄する(XAudio2固有の非COM解放
+    メソッド)。Engineは標準COM `Release`。
+  - `UserEcsProject/AudioBackend.cs`が唯一このバックエンドを名指しする場所(`global using`
+    エイリアス2行 + `GameAudio`Facade)。`UserEcsProject/Components.cs`/`Systems/RuntimeSystem.cs`/
+    `Scenes/MainScene.cs`はいずれも`CSharpGameEngine.Audio.XAudio2`を直接参照しない。
+- Conformance: Matches
+- Known deviations: 距離減衰・3D定位は未実装(ADR-0039「既知の制約」参照)。
+- Next action: なし。

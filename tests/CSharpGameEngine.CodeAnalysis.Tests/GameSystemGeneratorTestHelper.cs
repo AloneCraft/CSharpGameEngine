@@ -40,6 +40,13 @@ internal static class GameSystemGeneratorTestHelper
         ReadTestAsset("SceneDefinitionAttribute.cs"),
     ];
 
+    /// <summary><c>[StartupScene]</c>/<c>[SceneEntity]</c>(<see cref="StartupSceneAnalyzer"/>)を使うテストが追加で必要とする型一式。</summary>
+    internal static readonly string[] StartupSceneSources =
+    [
+        ReadTestAsset("StartupSceneAttribute.cs"),
+        ReadTestAsset("SceneEntityAttribute.cs"),
+    ];
+
     /// <summary>テストでよく使う共通コンポーネント一式。個々のテストのソースに連結して使う。</summary>
     internal const string CommonComponents = """
         namespace Sample;
