@@ -6,6 +6,5 @@ namespace CSharpGameEngine.Entities;
 /// Hierarchy Docking Window(将来のPhase B)もこのクラスの構文木を直接解析・編集する対象になる。
 /// </summary>
 [AttributeUsage(AttributeTargets.Class)]
-public sealed class SceneDefinitionAttribute : Attribute
-{
+public sealed class SceneDefinitionAttribute:Attribute {
 }

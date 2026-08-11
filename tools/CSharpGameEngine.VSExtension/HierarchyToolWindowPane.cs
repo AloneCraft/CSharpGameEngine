@@ -9,13 +9,11 @@ namespace CSharpGameEngine.VSExtension;
 /// <see cref="SceneEditorHub"/> events.
 /// </summary>
 [Guid(PaneGuidString)]
-public sealed class HierarchyToolWindowPane : ToolWindowPane
-{
-    public const string PaneGuidString = "21310c74-a151-49af-a47b-67c543d80eb9";
+public sealed class HierarchyToolWindowPane:ToolWindowPane {
+    public const string PaneGuidString="21310c74-a151-49af-a47b-67c543d80eb9";
 
-    public HierarchyToolWindowPane() : base(null)
-    {
-        Caption = "ヒエラルキー";
-        Content = new HierarchyToolWindowControl();
+    public HierarchyToolWindowPane():base(null){
+        Caption="ヒエラルキー";
+        Content=new HierarchyToolWindowControl();
     }
 }

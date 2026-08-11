@@ -24,57 +24,50 @@ namespace CSharpGameEngine.VSExtension;
 /// assembly) - <see cref="IVsWindowFrame.SetFramePos"/> is the one publicly supported way to force
 /// tool-window placement, and is used here instead.
 /// </summary>
-internal static class GameEngineLayout
-{
-    private const string SettingsCollectionPath = "CSharpGameEngine";
-    private const string InitialLayoutAppliedPropertyName = "InitialLayoutApplied";
-    private const string ToolbarName = "C# Game Engine";
-    private const string DefaultSceneRelativePath = @"UserGameProject\DefaultScene.scene";
+internal static class GameEngineLayout {
+    private const string SettingsCollectionPath="CSharpGameEngine";
+    private const string InitialLayoutAppliedPropertyName="InitialLayoutApplied";
+    private const string ToolbarName="C# Game Engine";
+    private const string DefaultSceneRelativePath=@"UserGameProject\DefaultScene.scene";
 
-    public static async Task<bool> WasInitialLayoutAppliedAsync(AsyncPackage package)
-    {
+    public static async Task<bool>WasInitialLayoutAppliedAsync(AsyncPackage package){
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
-        WritableSettingsStore Store = GetUserSettingsStore(package);
+        WritableSettingsStore Store=GetUserSettingsStore(package);
         return Store.CollectionExists(SettingsCollectionPath)
-            && Store.PropertyExists(SettingsCollectionPath, InitialLayoutAppliedPropertyName)
-            && Store.GetBoolean(SettingsCollectionPath, InitialLayoutAppliedPropertyName);
+            &&Store.PropertyExists(SettingsCollectionPath,InitialLayoutAppliedPropertyName)
+            &&Store.GetBoolean(SettingsCollectionPath,InitialLayoutAppliedPropertyName);
     }
 
-    public static async Task MarkInitialLayoutAppliedAsync(AsyncPackage package)
-    {
+    public static async Task MarkInitialLayoutAppliedAsync(AsyncPackage package){
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
-        WritableSettingsStore Store = GetUserSettingsStore(package);
-        if (!Store.CollectionExists(SettingsCollectionPath))
-        {
+        WritableSettingsStore Store=GetUserSettingsStore(package);
+        if(!Store.CollectionExists(SettingsCollectionPath)){
             Store.CreateCollection(SettingsCollectionPath);
         }
 
-        Store.SetBoolean(SettingsCollectionPath, InitialLayoutAppliedPropertyName, true);
+        Store.SetBoolean(SettingsCollectionPath,InitialLayoutAppliedPropertyName,true);
     }
 
-    private static WritableSettingsStore GetUserSettingsStore(AsyncPackage package)
-    {
-        ShellSettingsManager settingsManager = new(package);
+    private static WritableSettingsStore GetUserSettingsStore(AsyncPackage package){
+        ShellSettingsManager settingsManager=new(package);
         return settingsManager.GetWritableSettingsStore(SettingsScope.UserSettings);
     }
 
     /// <summary>Shows the toolbar, docks Hierarchy left / ShapePalette right of Solution Explorer, and opens the default scene as a document tab.</summary>
-    public static async Task ApplyAsync(AsyncPackage package, DTE Dte, string RepoRoot)
-    {
+    public static async Task ApplyAsync(AsyncPackage package,DTE Dte,string RepoRoot){
         await package.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
 
         ShowToolbar(Dte);
 
-        ToolWindowPane HierarchyWindow = await package.ShowToolWindowAsync(typeof(HierarchyToolWindowPane), 0, true, package.DisposalToken);
-        ToolWindowPane ShapeWindow = await package.ShowToolWindowAsync(typeof(ShapePaletteToolWindowPane), 0, true, package.DisposalToken);
+        ToolWindowPane HierarchyWindow= await package.ShowToolWindowAsync(typeof(HierarchyToolWindowPane),0,true,package.DisposalToken);
+        ToolWindowPane ShapeWindow= await package.ShowToolWindowAsync(typeof(ShapePaletteToolWindowPane),0,true,package.DisposalToken);
 
-        Guid SolutionExplorer = new(ToolWindowGuids80.SolutionExplorer);
-        SetFramePos(HierarchyWindow, VSSETFRAMEPOS.SFP_fDock | VSSETFRAMEPOS.SFP_fDockLeft, SolutionExplorer, Width: 300);
-        SetFramePos(ShapeWindow, VSSETFRAMEPOS.SFP_fDock | VSSETFRAMEPOS.SFP_fDockRight, SolutionExplorer, Width: 260);
+        Guid SolutionExplorer=new(ToolWindowGuids80.SolutionExplorer);
+        SetFramePos(HierarchyWindow,VSSETFRAMEPOS.SFP_fDock|VSSETFRAMEPOS.SFP_fDockLeft,SolutionExplorer,Width:300);
+        SetFramePos(ShapeWindow,VSSETFRAMEPOS.SFP_fDock|VSSETFRAMEPOS.SFP_fDockRight,SolutionExplorer,Width:260);
 
-        string ScenePath = Path.Combine(RepoRoot, DefaultSceneRelativePath);
-        if (File.Exists(ScenePath))
-        {
+        var ScenePath=Path.Combine(RepoRoot,DefaultSceneRelativePath);
+        if(File.Exists(ScenePath)){
             // dte.ItemOperations.OpenFile(...) is the confirmed-reliable way to route through the
             // real IVsEditorFactory-based open path (ADR-0013) - mere selection or a raw file-open
             // API does not reliably trigger a custom editor factory.
@@ -82,38 +75,31 @@ internal static class GameEngineLayout
         }
     }
 
-    private static void ShowToolbar(DTE Dte)
-    {
+    private static void ShowToolbar(DTE Dte){
         ThreadHelper.ThrowIfNotOnUIThread();
 
-        try
-        {
+        try {
             // DTE.CommandBars is typed as plain System.Object (not the strongly-typed CommandBars
             // interface) even on EnvDTE80.DTE2 - an explicit cast is required.
-            if (Dte.CommandBars is not CommandBars commandBars)
-            {
+            if(Dte.CommandBars is not CommandBars commandBars){
                 return;
             }
 
-            CommandBar Toolbar = commandBars[ToolbarName];
-            Toolbar.Visible = true;
-        }
-        catch (Exception)
-        {
+            CommandBar Toolbar=commandBars[ToolbarName];
+            Toolbar.Visible=true;
+        } catch(Exception){
             // Best-effort: a missing/renamed toolbar or unexpected COM failure must never take
             // down package init or ApplyGameEngineLayoutCommand.
         }
     }
 
-    private static void SetFramePos(ToolWindowPane Pane, VSSETFRAMEPOS Position, Guid RelativeTo, int Width)
-    {
+    private static void SetFramePos(ToolWindowPane Pane,VSSETFRAMEPOS Position,Guid RelativeTo,int Width){
         ThreadHelper.ThrowIfNotOnUIThread();
 
-        if (Pane.Frame is not IVsWindowFrame Frame)
-        {
+        if(Pane.Frame is not IVsWindowFrame Frame){
             return;
         }
 
-        Frame.SetFramePos(Position, ref RelativeTo, 0, 0, Width, 0);
+        Frame.SetFramePos(Position,ref RelativeTo,0,0,Width,0);
     }
 }

@@ -24,14 +24,13 @@ namespace UserEcsProject;
 /// <summary>
 /// アプリケーション本体。ウィンドウの設定値と、WindowSystemが遅延生成したウィンドウ実体を持つ。
 /// </summary>
-public struct AppHost
-{
+public struct AppHost {
     public string Title;
     public int Width;
     public int Height;
 
     /// <summary>WindowSystemが最初のフレームで生成する。それまではnull。</summary>
-    public Win32Window? Window;
+    public Win32Window?Window;
 }
 
 /// <summary>
@@ -44,8 +43,7 @@ public struct AppHost
 /// 入っているものを読むだけで、リテラルを1つも持たない。
 /// </para>
 /// </summary>
-public struct Level
-{
+public struct Level {
     /// <summary>FBXのパス。アプリのベースディレクトリ(<c>AppContext.BaseDirectory</c>)からの相対。</summary>
     public string Path;
 
@@ -71,7 +69,7 @@ public struct Level
     public bool Loaded;
 
     /// <summary>LevelLoadSystemが生成する。StageRendererはメッシュ集合を確定させてからしか作れない。</summary>
-    public StageRenderer? Renderer;
+    public StageRenderer?Renderer;
 
     /// <summary>
     /// リスナーの初期値。<see cref="Sun"/>と同じ「値渡し→LevelLoadが実Entityを作る」パターン
@@ -84,7 +82,7 @@ public struct Level
     public AudioSource Source;
 
     /// <summary>LevelLoadが生成する共有オーディオエンジン。StageRendererと同じく、確定前はnull。</summary>
-    public AudioEngineHandle? AudioEngine;
+    public AudioEngineHandle?AudioEngine;
 }
 
 /// <summary>
@@ -94,8 +92,7 @@ public struct Level
 /// 距離減衰を実装する場合は、両者を同一Entityにまとめるか、値を毎フレームコピーする別の仕組みが要る
 /// (ADR-0039「既知の制約」参照)。
 /// </summary>
-public struct AudioListener
-{
+public struct AudioListener {
     public float PositionX;
     public float PositionY;
     public float PositionZ;
@@ -108,8 +105,7 @@ public struct AudioListener
 /// であり、<see cref="Win32Window"/>等の参照型null許容フィールドと意味は同じ(未生成はnull)だが、
 /// ハンドル自体はネイティブポインタを持たない安全な値型(<c>AudioBackend.cs</c>参照)。
 /// </summary>
-public struct AudioSource
-{
+public struct AudioSource {
     public float PositionX;
     public float PositionY;
     public float PositionZ;
@@ -118,15 +114,14 @@ public struct AudioSource
     public bool Loop;
 
     /// <summary>LevelLoadが生成する。AudioEngine確定後にしか作れない。</summary>
-    public AudioVoiceHandle? Voice;
+    public AudioVoiceHandle?Voice;
 }
 
 /// <summary>
 /// ECSのEntityが所有するワールド変換。TransformSyncSystemが毎フレームStageRendererの
 /// ワールド行列へ変換して書き込む。
 /// </summary>
-public struct Transform
-{
+public struct Transform {
     public float PositionX;
     public float PositionY;
     public float PositionZ;
@@ -142,9 +137,8 @@ public struct Transform
 }
 
 /// <summary>このEntityの変換を書き込む先のStageRendererオブジェクト。</summary>
-public struct Renderable
-{
-    public StageRenderer? Renderer;
+public struct Renderable {
+    public StageRenderer?Renderer;
     public int ObjectIndex;
 }
 
@@ -153,9 +147,8 @@ public struct Renderable
 /// <see cref="Renderer"/>へ書き込む。<see cref="DirectionTowardLightX"/>等は光源へ向かうベクトルで、
 /// 呼び出し側が正規化しておく必要はない(<c>StageRenderer</c>側で正規化される)。
 /// </summary>
-public struct DirectionalLight
-{
-    public StageRenderer? Renderer;
+public struct DirectionalLight {
+    public StageRenderer?Renderer;
 
     public float DirectionTowardLightX;
     public float DirectionTowardLightY;
@@ -175,9 +168,8 @@ public struct DirectionalLight
 /// Archetypeが分かれるため、切り替え不要でSystemはそのライト種の処理だけ書けばよい)。
 /// PointLightSystemが毎フレーム<see cref="Renderer"/>へ書き込む。
 /// </summary>
-public struct PointLight
-{
-    public StageRenderer? Renderer;
+public struct PointLight {
+    public StageRenderer?Renderer;
 
     public float PositionX;
     public float PositionY;
@@ -199,9 +191,8 @@ public struct PointLight
 /// <see cref="OuterConeAngleRadians"/>を超えるとゼロで、その間は滑らかに減衰する。
 /// SpotLightSystemが毎フレーム<see cref="Renderer"/>へ書き込む。
 /// </summary>
-public struct SpotLight
-{
-    public StageRenderer? Renderer;
+public struct SpotLight {
+    public StageRenderer?Renderer;
 
     public float PositionX;
     public float PositionY;
@@ -233,11 +224,10 @@ public struct SpotLight
 /// 最後に出現するようにしないと、描画同期より前にPresentしてしまう(Systems/RuntimeSystem.csの
 /// 冒頭コメント参照)。
 /// </summary>
-public struct FramePresent
-{
-    public Win32Window? Window;
-    public StageRenderer? Renderer;
+public struct FramePresent {
+    public Win32Window?Window;
+    public StageRenderer?Renderer;
 
     /// <summary>LevelLoadがコピーする。Presentが終了時にここから破棄する(Renderer/Windowと同じ経路)。</summary>
-    public AudioEngineHandle? AudioEngine;
+    public AudioEngineHandle?AudioEngine;
 }

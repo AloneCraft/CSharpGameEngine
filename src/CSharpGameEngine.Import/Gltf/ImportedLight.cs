@@ -2,8 +2,7 @@ using System.Numerics;
 
 namespace CSharpGameEngine.Import.Gltf;
 
-public enum ImportedLightType
-{
+public enum ImportedLightType {
     Directional,
     Point,
     Spot,
@@ -17,11 +16,10 @@ public enum ImportedLightType
 /// (Unity-compatible) space by the time it leaves <see cref="GltfImporter"/> (ADR-0027), where local
 /// Forward is <c>+Z</c>, not glTF's own local <c>-Z</c> - do not apply <c>-Vector3.UnitZ</c> directly.
 /// </summary>
-public sealed class ImportedLight
-{
-    public required ImportedLightType LightType { get; init; }
+public sealed class ImportedLight {
+    public required ImportedLightType LightType { get; init;}
 
-    public required Vector3 Color { get; init; }
+    public required Vector3 Color { get; init;}
 
-    public required float Intensity { get; init; }
+    public required float Intensity { get; init;}
 }

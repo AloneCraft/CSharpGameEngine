@@ -7,9 +7,8 @@ namespace CSharpGameEngine.VSExtension;
 /// bridge's single "input path", since the shared bridge transport
 /// (<see cref="ExternalBridgeProcess"/>) is fixed to exactly one input + one output path.
 /// </summary>
-internal sealed class ScenePreviewRequest
-{
-    public string SourceFilePath { get; set; } = "";
+internal sealed class ScenePreviewRequest {
+    public string SourceFilePath { get; set;}="";
 
-    public string TargetAssemblyPath { get; set; } = "";
+    public string TargetAssemblyPath { get; set;}="";
 }

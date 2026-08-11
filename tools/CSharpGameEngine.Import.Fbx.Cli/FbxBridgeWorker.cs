@@ -18,36 +18,30 @@ namespace CSharpGameEngine.Import.Fbx.Cli;
 /// this can never happen - the rest of resident mode's speed benefit (skipping process/CLR startup)
 /// is unaffected.
 /// </summary>
-internal static class FbxBridgeWorker
-{
-    private static readonly SemaphoreSlim ImportGate = new(1, 1);
+internal static class FbxBridgeWorker {
+    private static readonly SemaphoreSlim ImportGate=new(1,1);
 
-    public static (int ExitCode, string Output) Run(string InputPath, string OutputPath)
-    {
+    public static(int ExitCode,string Output)Run(string InputPath,string OutputPath){
         FbxImportResult Result;
         ImportGate.Wait();
-        try
-        {
-            Result = FbxImporter.Import(InputPath);
-        }
-        finally
-        {
+        try {
+            Result=FbxImporter.Import(InputPath);
+        } finally {
             ImportGate.Release();
         }
 
-        List<string> Lines = [];
-        foreach (FbxImportDiagnostic Diagnostic in Result.Diagnostics)
-        {
-            Lines.Add(Diagnostic.ToString() ?? string.Empty);
+        List<string>Lines=[];
+        foreach(FbxImportDiagnostic Diagnostic in Result.Diagnostics){
+            Lines.Add(Diagnostic.ToString()??string.Empty);
         }
 
-        FbxBridgeDocument Document = Result.Success
-            ? FbxBridgeDocument.ForMesh(Result.Mesh!)
-            : FbxBridgeDocument.ForFailure();
+        FbxBridgeDocument Document=Result.Success
+            ?FbxBridgeDocument.ForMesh(Result.Mesh!)
+            :FbxBridgeDocument.ForFailure();
 
-        string Json = JsonSerializer.Serialize(Document);
-        File.WriteAllText(OutputPath, Json);
+        var Json=JsonSerializer.Serialize(Document);
+        File.WriteAllText(OutputPath,Json);
 
-        return (Result.Success ? 0 : 1, string.Join(Environment.NewLine, Lines));
+        return(Result.Success?0:1,string.Join(Environment.NewLine,Lines));
     }
 }

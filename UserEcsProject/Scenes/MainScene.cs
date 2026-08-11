@@ -24,10 +24,9 @@ namespace UserEcsProject.Scenes;
 /// 「どのシェーダーで」「どのカメラから」「どんな太陽光・点光源・スポットライトで」見るのかを宣言する。
 /// 以前<c>Program.cs</c>の先頭にあった定数が、そのままここのComponent初期値になっている。
 /// </summary>
-[StartupScene(Order = 0)]
-internal static partial class MainScene
-{
-    private const string ProductDisplayName = "C# Game Engine";
+[StartupScene(Order=0)]
+internal static partial class MainScene {
+    private const string ProductDisplayName="C# Game Engine";
 
     /// <summary>
     /// 唯一のStartup Entity: ウィンドウ設定(<see cref="AppHost"/>)とレベル設定(<see cref="Level"/>)を
@@ -36,74 +35,67 @@ internal static partial class MainScene
     /// ライトEntityを組み立てる(責務分担はADR-0033のまま変更していない)。
     /// </summary>
     [SceneEntity]
-    internal static (AppHost App, Level Level) Application => (
-        App: new AppHost
-        {
-            Title = $"{ProductDisplayName} - ECS FBX Rendering PoC",
-            Width = 1280,
-            Height = 720,
+    internal static(AppHost App,Level Level)Application=>(
+        App:new AppHost {
+            Title= $"{ProductDisplayName} - ECS FBX Rendering PoC",
+            Width=1280,
+            Height=720,
         },
 
-        Level: new Level
-        {
-            Path = Path.Combine("Assets", "Primitives", "Box.fbx"),
-            ShaderPath = Path.Combine("Shaders", "Stage.hlsl"),
-            Camera = Camera.CreateDefault(Vector3.Zero),
+        Level:new Level {
+            Path=Path.Combine("Assets","Primitives","Box.fbx"),
+            ShaderPath=Path.Combine("Shaders","Stage.hlsl"),
+            Camera=Camera.CreateDefault(Vector3.Zero),
 
-            Sun = new UserEcsProject.DirectionalLight
-            {
-                DirectionTowardLightX = 0.4f,
-                DirectionTowardLightY = 0.7f,
-                DirectionTowardLightZ = 0.5f,
-                ColorR = 1f,
-                ColorG = 0.95f,
-                ColorB = 0.9f,
-                Intensity = 1.0f,
+            Sun=new UserEcsProject.DirectionalLight {
+                DirectionTowardLightX=0.4f,
+                DirectionTowardLightY=0.7f,
+                DirectionTowardLightZ=0.5f,
+                ColorR=1f,
+                ColorG=0.95f,
+                ColorB=0.9f,
+                Intensity=1.0f,
             },
 
-            PointLight = new UserEcsProject.PointLight
-            {
-                PositionX = 1.5f,
-                PositionY = 1.0f,
-                PositionZ = -1.5f,
-                ColorR = 0.2f,
-                ColorG = 0.5f,
-                ColorB = 1.0f,
-                Intensity = 6f,
-                Range = 6f,
+            PointLight=new UserEcsProject.PointLight {
+                PositionX=1.5f,
+                PositionY=1.0f,
+                PositionZ=-1.5f,
+                ColorR=0.2f,
+                ColorG=0.5f,
+                ColorB=1.0f,
+                Intensity=6f,
+                Range=6f,
             },
 
-            SpotLight = new UserEcsProject.SpotLight
-            {
-                PositionX = -1.5f,
-                PositionY = 2.0f,
-                PositionZ = -1.5f,
-                DirectionX = 0.4f,
-                DirectionY = -0.6f,
-                DirectionZ = 0.4f,
-                ColorR = 1.0f,
-                ColorG = 0.3f,
-                ColorB = 0.1f,
-                Intensity = 10f,
-                Range = 8f,
-                InnerConeAngleRadians = 12f * MathF.PI / 180f,
-                OuterConeAngleRadians = 22f * MathF.PI / 180f,
+            SpotLight=new UserEcsProject.SpotLight {
+                PositionX=-1.5f,
+                PositionY=2.0f,
+                PositionZ=-1.5f,
+                DirectionX=0.4f,
+                DirectionY=-0.6f,
+                DirectionZ=0.4f,
+                ColorR=1.0f,
+                ColorG=0.3f,
+                ColorB=0.1f,
+                Intensity=10f,
+                Range=8f,
+                InnerConeAngleRadians=12f*MathF.PI/180f,
+                OuterConeAngleRadians=22f*MathF.PI/180f,
             },
 
-            Listener = new UserEcsProject.AudioListener
-            {
-                PositionX = 0f,
-                PositionY = 0f,
-                PositionZ = 0f,
+            Listener=new UserEcsProject.AudioListener {
+                PositionX=0f,
+                PositionY=0f,
+                PositionZ=0f,
             },
 
-            Source = new UserEcsProject.AudioSource
-            {
-                PositionX = 0f,
-                PositionY = 0f,
-                PositionZ = -1f,
-                Volume = 0.3f,
-                Loop = true,
+            Source=new UserEcsProject.AudioSource {
+                PositionX=0f,
+                PositionY=0f,
+                PositionZ=-1f,
+                Volume=0.3f,
+                Loop=true,
             },
         });
 }

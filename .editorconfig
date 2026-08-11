@@ -17,6 +17,14 @@ csharp_style_qualification_for_field = true:suggestion
 csharp_style_qualification_for_property = true:suggestion
 csharp_style_qualification_for_method = true:suggestion
 csharp_style_qualification_for_event = true:suggestion
+csharp_new_line_before_open_brace = none
+csharp_new_line_before_else = false
+csharp_new_line_before_catch = false
+csharp_new_line_before_finally = false
+csharp_new_line_before_members_in_object_initializers = false
+csharp_new_line_before_members_in_anonymous_types = false
+csharp_space_around_binary_operators = before_and_after
+dotnet_style_allow_multiple_blank_lines_experimental = false:warning
 
 dotnet_naming_rule.parameters_should_be_pascal_case.symbols = method_parameters
 dotnet_naming_rule.parameters_should_be_pascal_case.style = pascal_case_style

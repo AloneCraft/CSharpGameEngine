@@ -22,72 +22,62 @@ namespace CSharpGameEngine.VSExtension;
 /// subscribes to <see cref="SceneEditorHub.ReloadRequested"/> to re-read this same file after
 /// <see cref="PrimitiveSpawner"/> (ADR-0021) appends a new node to it.
 /// </summary>
-internal sealed class SceneHwndHost : HwndHost
-{
-    private string? RepoRoot;
+internal sealed class SceneHwndHost:HwndHost {
+    private string?RepoRoot;
     private string ScenePath;
-    private RenderSurfaceWindow? Surface;
-    private SceneRenderer? Renderer;
-    private EventHandler? RenderingHandler;
-    private Action<Guid?>? SelectionHandler;
-    private Action? ReloadHandler;
+    private RenderSurfaceWindow?Surface;
+    private SceneRenderer?Renderer;
+    private EventHandler?RenderingHandler;
+    private Action<Guid?>?SelectionHandler;
+    private Action?ReloadHandler;
 
-    public SceneHwndHost(string ScenePath)
-    {
-        this.ScenePath = ScenePath;
+    public SceneHwndHost(string ScenePath){
+        this.ScenePath=ScenePath;
     }
 
-    protected override HandleRef BuildWindowCore(HandleRef HwndParent)
-    {
-        Surface = new RenderSurfaceWindow(HwndParent.Handle, 800, 600);
+    protected override HandleRef BuildWindowCore(HandleRef HwndParent){
+        Surface=new RenderSurfaceWindow(HwndParent.Handle,800,600);
         LoadIntoSurface();
-        return new HandleRef(this, Surface.Handle);
+        return new HandleRef(this,Surface.Handle);
     }
 
-    protected override void DestroyWindowCore(HandleRef Hwnd)
-    {
+    protected override void DestroyWindowCore(HandleRef Hwnd){
         TearDownRenderer();
 
         Surface?.Dispose();
-        Surface = null;
+        Surface=null;
     }
 
     /// <summary>Reloads the preview with a different scene file - used if VS reuses this pane's doc data for a renamed/reloaded document.</summary>
-    public void SetScenePath(string ScenePath)
-    {
-        this.ScenePath = ScenePath;
-        if (Surface is not null)
-        {
+    public void SetScenePath(string ScenePath){
+        this.ScenePath=ScenePath;
+        if(Surface is not null){
             TearDownRenderer();
             LoadIntoSurface();
         }
     }
 
-    private void LoadIntoSurface()
-    {
-        if (Surface is null)
-        {
+    private void LoadIntoSurface(){
+        if(Surface is null){
             return;
         }
 
-        try
-        {
-            this.RepoRoot ??= RepoLocator.ResolveRepoRoot();
-            if (this.RepoRoot is null)
-            {
+        try {
+            this.RepoRoot??=RepoLocator.ResolveRepoRoot();
+            if(this.RepoRoot is null){
                 throw new InvalidOperationException($"リポジトリルート({RepoLocator.RepoMarkerFileName})が見つかりませんでした。");
             }
-            string RepoRoot = this.RepoRoot;
+            var RepoRoot=this.RepoRoot;
 
-            SceneFile Scene = SceneFile.Load(ScenePath);
-            IReadOnlyDictionary<Guid, Matrix4x4> WorldTransforms = Scene.ComputeWorldTransforms();
+            SceneFile Scene=SceneFile.Load(ScenePath);
+            IReadOnlyDictionary<Guid,Matrix4x4>WorldTransforms=Scene.ComputeWorldTransforms();
 
-            string SceneDirectory = Path.GetDirectoryName(ScenePath)
-                ?? throw new InvalidOperationException($"シーンファイルのディレクトリを解決できませんでした: {ScenePath}");
+            var SceneDirectory=Path.GetDirectoryName(ScenePath)
+                ??throw new InvalidOperationException($"シーンファイルのディレクトリを解決できませんでした: {ScenePath}");
 
-            List<(SceneFileNode Node, string AbsoluteMeshPath)> MeshNodes = Scene.Nodes
-                .Where(Node => Node.MeshAssetPath is not null)
-                .Select(Node => (Node, Path.GetFullPath(Path.Combine(SceneDirectory, Node.MeshAssetPath!))))
+            List<(SceneFileNode Node,string AbsoluteMeshPath)>MeshNodes=Scene.Nodes
+                .Where(Node=>Node.MeshAssetPath is not null)
+                .Select(Node=>(Node,Path.GetFullPath(Path.Combine(SceneDirectory,Node.MeshAssetPath!))))
                 .ToList();
 
             // Nodes with no mesh reference (every node authored via [SceneDefinition] C# code,
@@ -95,7 +85,7 @@ internal sealed class SceneHwndHost : HwndHost
             // reached SceneRenderer at all - silently invisible, or a hard ArgumentException if the
             // whole scene had no mesh-bearing node. They now get a small placeholder gizmo cube
             // instead, so a scene is always representable regardless of what it references.
-            List<SceneFileNode> GizmoNodes = [.. Scene.Nodes.Where(Node => Node.MeshAssetPath is null)];
+            List<SceneFileNode>GizmoNodes=[.. Scene.Nodes.Where(Node=>Node.MeshAssetPath is null)];
 
             // MeshLoader caches by path (process-lifetime), so warming distinct paths in parallel
             // here means a scene with several different meshes pays the bridge-process cost once,
@@ -108,52 +98,46 @@ internal sealed class SceneHwndHost : HwndHost
             // separately, JoinableTaskFactory was confirmed (ADR-0023) to misbehave outside a fully
             // running VS host. WarmMeshCache below uses raw Thread/Join instead - no Task, no
             // JoinableTaskFactory, nothing for either failure mode to attach to.
-            string[] DistinctMeshPaths = MeshNodes
-                .Select(N => N.AbsoluteMeshPath)
+            var DistinctMeshPaths=MeshNodes
+                .Select(N=>N.AbsoluteMeshPath)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
-            WarmMeshCache(DistinctMeshPaths, RepoRoot);
+            WarmMeshCache(DistinctMeshPaths,RepoRoot);
 
-            List<SceneRenderObject> RenderObjects = [];
-            foreach ((SceneFileNode Node, string AbsoluteMeshPath) in MeshNodes)
-            {
-                RenderObjects.Add(new SceneRenderObject
-                {
-                    Mesh = MeshLoader.Load(AbsoluteMeshPath, RepoRoot),
-                    World = WorldTransforms[Node.Id],
-                    NodeId = Node.Id,
+            List<SceneRenderObject>RenderObjects=[];
+            foreach((SceneFileNode Node,var AbsoluteMeshPath)in MeshNodes){
+                RenderObjects.Add(new SceneRenderObject {
+                    Mesh=MeshLoader.Load(AbsoluteMeshPath,RepoRoot),
+                    World=WorldTransforms[Node.Id],
+                    NodeId=Node.Id,
                 });
             }
 
-            foreach (SceneFileNode node in GizmoNodes)
-            {
-                RenderObjects.Add(new SceneRenderObject
-                {
-                    Mesh = GizmoMeshFactory.Create(),
-                    World = WorldTransforms[node.Id],
-                    NodeId = node.Id,
+            foreach(SceneFileNode node in GizmoNodes){
+                RenderObjects.Add(new SceneRenderObject {
+                    Mesh=GizmoMeshFactory.Create(),
+                    World=WorldTransforms[node.Id],
+                    NodeId=node.Id,
                 });
             }
 
-            Renderer = new SceneRenderer(Surface.Handle, 800, 600, RenderObjects);
+            Renderer=new SceneRenderer(Surface.Handle,800,600,RenderObjects);
 
-            Surface.Resized += (W, H) => Renderer?.Resize(W, H);
+            Surface.Resized+=(W,H)=>Renderer?.Resize(W,H);
 
-            RenderingHandler = (_, _) => Renderer?.RenderFrame();
-            CompositionTarget.Rendering += RenderingHandler;
+            RenderingHandler=(_,_)=>Renderer?.RenderFrame();
+            CompositionTarget.Rendering+=RenderingHandler;
 
-            SelectionHandler = NodeId => Renderer?.SetSelectedNode(NodeId);
-            SceneEditorHub.SelectedNodeChanged += SelectionHandler;
+            SelectionHandler=NodeId=>Renderer?.SetSelectedNode(NodeId);
+            SceneEditorHub.SelectedNodeChanged+=SelectionHandler;
 
             // Fired after PrimitiveSpawner rewrites this same file on disk (ADR-0021) - reload from
             // the current path rather than the whole BuildWindowCore/surface-creation path.
-            ReloadHandler = () => SetScenePath(ScenePath);
-            SceneEditorHub.ReloadRequested += ReloadHandler;
+            ReloadHandler=()=>SetScenePath(ScenePath);
+            SceneEditorHub.ReloadRequested+=ReloadHandler;
 
-            SceneEditorHub.PublishSceneOpened(Scene, ScenePath);
-        }
-        catch (Exception Ex)
-        {
+            SceneEditorHub.PublishSceneOpened(Scene,ScenePath);
+        } catch(Exception Ex){
             System.Windows.MessageBox.Show(
                 $"シーンのプレビューに失敗しました: {Ex}",
                 "C# Game Engine Scene",
@@ -168,67 +152,53 @@ internal sealed class SceneHwndHost : HwndHost
     /// <see cref="Thread.Join()"/> - deliberately not <c>Task</c>/<c>async</c>/
     /// <c>JoinableTaskFactory</c> (see the call site's comment for why).
     /// </summary>
-    private static void WarmMeshCache(IReadOnlyList<string> DistinctMeshPaths, string RepoRoot)
-    {
-        if (DistinctMeshPaths.Count == 0)
-        {
+    private static void WarmMeshCache(IReadOnlyList<string>DistinctMeshPaths,string RepoRoot){
+        if(DistinctMeshPaths.Count==0){
             return;
         }
 
-        Thread[] Threads = new Thread[DistinctMeshPaths.Count];
-        Exception?[] Errors = new Exception?[DistinctMeshPaths.Count];
+        Thread[]Threads=new Thread[DistinctMeshPaths.Count];
+        Exception?[]Errors=new Exception?[DistinctMeshPaths.Count];
 
-        for (int i = 0; i < DistinctMeshPaths.Count; i++)
-        {
-            int index = i;
-            Threads[index] = new Thread(() =>
-            {
-                try
-                {
-                    MeshLoader.Load(DistinctMeshPaths[index], RepoRoot);
+        for(var i=0;i<DistinctMeshPaths.Count;i++){
+            var index=i;
+            Threads[index]=new Thread(()=>{
+                try {
+                    MeshLoader.Load(DistinctMeshPaths[index],RepoRoot);
+                } catch(Exception Ex){
+                    Errors[index]=Ex;
                 }
-                catch (Exception Ex)
-                {
-                    Errors[index] = Ex;
-                }
-            })
-            { IsBackground = true };
+            }){ IsBackground=true };
             Threads[index].Start();
         }
 
-        foreach (Thread thread in Threads)
-        {
+        foreach(Thread thread in Threads){
             thread.Join();
         }
 
-        Exception? FirstError = Array.Find(Errors, Error => Error is not null);
-        if (FirstError is not null)
-        {
+        Exception?FirstError=Array.Find(Errors,Error=>Error is not null);
+        if(FirstError is not null){
             ExceptionDispatchInfo.Capture(FirstError).Throw();
         }
     }
 
-    private void TearDownRenderer()
-    {
-        if (RenderingHandler is not null)
-        {
-            CompositionTarget.Rendering -= RenderingHandler;
-            RenderingHandler = null;
+    private void TearDownRenderer(){
+        if(RenderingHandler is not null){
+            CompositionTarget.Rendering-=RenderingHandler;
+            RenderingHandler=null;
         }
 
-        if (SelectionHandler is not null)
-        {
-            SceneEditorHub.SelectedNodeChanged -= SelectionHandler;
-            SelectionHandler = null;
+        if(SelectionHandler is not null){
+            SceneEditorHub.SelectedNodeChanged-=SelectionHandler;
+            SelectionHandler=null;
         }
 
-        if (ReloadHandler is not null)
-        {
-            SceneEditorHub.ReloadRequested -= ReloadHandler;
-            ReloadHandler = null;
+        if(ReloadHandler is not null){
+            SceneEditorHub.ReloadRequested-=ReloadHandler;
+            ReloadHandler=null;
         }
 
         Renderer?.Dispose();
-        Renderer = null;
+        Renderer=null;
     }
 }

@@ -10,15 +10,13 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// </remarks>
 
 /// <summary>1つの<c>Set(new Foo { ... })</c>呼び出しが表す、1ノードが持つ1Componentの初期化。</summary>
-internal readonly struct ComponentSetModel
-{
+internal readonly struct ComponentSetModel {
     internal readonly string TypeFullyQualifiedName;
     internal readonly string InitializerExpressionText;
 
-    internal ComponentSetModel(string typeFullyQualifiedName, string initializerExpressionText)
-    {
-        this.TypeFullyQualifiedName = typeFullyQualifiedName;
-        this.InitializerExpressionText = initializerExpressionText;
+    internal ComponentSetModel(string typeFullyQualifiedName,string initializerExpressionText){
+        this.TypeFullyQualifiedName=typeFullyQualifiedName;
+        this.InitializerExpressionText=initializerExpressionText;
     }
 }
 
@@ -29,26 +27,24 @@ internal readonly struct ComponentSetModel
 /// (ユーザーが直書きすることはない、Rename後は再計算されるだけで値が変わること自体は無害という
 /// Phase Aの設計判断は<see cref="global::CSharpGameEngine.Entities.SceneNodeId"/>のコメント参照)。
 /// </summary>
-internal readonly struct SceneNodeModel
-{
+internal readonly struct SceneNodeModel {
     internal readonly string PropertyName;
     internal readonly ulong NodeId;
     internal readonly Location PropertyLocation;
-    internal readonly ImmutableArray<ComponentSetModel> Components;
-    internal readonly ImmutableArray<SceneNodeModel> Children;
+    internal readonly ImmutableArray<ComponentSetModel>Components;
+    internal readonly ImmutableArray<SceneNodeModel>Children;
 
     internal SceneNodeModel(
         string propertyName,
         ulong nodeId,
         Location propertyLocation,
-        ImmutableArray<ComponentSetModel> components,
-        ImmutableArray<SceneNodeModel> children)
-    {
-        this.PropertyName = propertyName;
-        this.NodeId = nodeId;
-        this.PropertyLocation = propertyLocation;
-        this.Components = components;
-        this.Children = children;
+        ImmutableArray<ComponentSetModel>components,
+        ImmutableArray<SceneNodeModel>children){
+        this.PropertyName=propertyName;
+        this.NodeId=nodeId;
+        this.PropertyLocation=propertyLocation;
+        this.Components=components;
+        this.Children=children;
     }
 }
 
@@ -61,27 +57,25 @@ internal readonly struct SceneNodeModel
 /// 元のファイルのusingディレクティブをそのままの文字列で保持しておく(意味解析による完全修飾名への
 /// 書き換えは行わない — Phase Aでは元ファイル冒頭のusingをそのまま生成ファイルへ複製する方針で十分)。
 /// </summary>
-internal readonly struct SceneDefinitionClassResult
-{
-    internal readonly string? Namespace;
+internal readonly struct SceneDefinitionClassResult {
+    internal readonly string?Namespace;
     internal readonly string ClassName;
-    internal readonly ImmutableArray<string> UsingDirectives;
-    internal readonly SceneNodeModel? Root;
-    internal readonly ImmutableArray<Diagnostic> Diagnostics;
+    internal readonly ImmutableArray<string>UsingDirectives;
+    internal readonly SceneNodeModel?Root;
+    internal readonly ImmutableArray<Diagnostic>Diagnostics;
 
     internal SceneDefinitionClassResult(
-        string? @namespace,
+        string?@namespace,
         string className,
-        ImmutableArray<string> usingDirectives,
-        SceneNodeModel? root,
-        ImmutableArray<Diagnostic> diagnostics)
-    {
-        this.Namespace = @namespace;
-        this.ClassName = className;
-        this.UsingDirectives = usingDirectives;
-        this.Root = root;
-        this.Diagnostics = diagnostics;
+        ImmutableArray<string>usingDirectives,
+        SceneNodeModel?root,
+        ImmutableArray<Diagnostic>diagnostics){
+        this.Namespace=@namespace;
+        this.ClassName=className;
+        this.UsingDirectives=usingDirectives;
+        this.Root=root;
+        this.Diagnostics=diagnostics;
     }
 
-    internal string ClassFullyQualifiedName => this.Namespace is null ? this.ClassName : $"{this.Namespace}.{this.ClassName}";
+    internal string ClassFullyQualifiedName=>this.Namespace is null?this.ClassName: $"{this.Namespace}.{this.ClassName}";
 }

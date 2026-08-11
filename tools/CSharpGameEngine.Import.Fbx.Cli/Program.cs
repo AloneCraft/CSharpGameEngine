@@ -1,28 +1,22 @@
 using CSharpGameEngine.Bridge.Hosting;
 using CSharpGameEngine.Import.Fbx.Cli;
 
-if (args is ["--serve", var PipeName])
-{
-    await BridgeServerHost.RunAsync(PipeName, FbxBridgeWorker.Run, TimeSpan.FromMinutes(15));
+if(args is["--serve", var PipeName]){
+    await BridgeServerHost.RunAsync(PipeName,FbxBridgeWorker.Run,TimeSpan.FromMinutes(15));
     return 0;
 }
 
-if (args.Length != 2)
-{
+if(args.Length!=2){
     Console.Error.WriteLine("Usage: CSharpGameEngine.Import.Fbx.Cli <input.fbx> <output.json>");
     Console.Error.WriteLine("       CSharpGameEngine.Import.Fbx.Cli --serve <pipeName>");
     return 2;
 }
 
-(int ExitCode, string Output) = FbxBridgeWorker.Run(args[0], args[1]);
-if (Output.Length > 0)
-{
-    if (ExitCode == 0)
-    {
+(var ExitCode,var Output)=FbxBridgeWorker.Run(args[0],args[1]);
+if(Output.Length>0){
+    if(ExitCode==0){
         Console.WriteLine(Output);
-    }
-    else
-    {
+    } else {
         Console.Error.WriteLine(Output);
     }
 }

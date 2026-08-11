@@ -16,18 +16,17 @@ namespace CSharpGameEngine.VSExtension;
 /// <c>CSharpGameEngine.Graphics.D3D12</c> - simplest possible synchronous (no frames-in-flight)
 /// renderer: fixed camera, Lambertian shading, no textures/materials beyond baseColorFactor.
 /// </summary>
-internal sealed class VorticeRenderer : IDisposable
-{
-    private const int FrameCount = 2;
-    private static readonly Format BackBufferFormat = Format.R8G8B8A8_UNorm;
-    private static readonly Format DepthBufferFormat = Format.D32_Float;
+internal sealed class VorticeRenderer:IDisposable {
+    private const int FrameCount=2;
+    private static readonly Format BackBufferFormat=Format.R8G8B8A8_UNorm;
+    private static readonly Format DepthBufferFormat=Format.D32_Float;
 
     private readonly ID3D12Device Device;
     private readonly ID3D12CommandQueue CommandQueue;
     private readonly IDXGISwapChain3 SwapChain;
     private readonly ID3D12DescriptorHeap RtvHeap;
     private readonly int RtvDescriptorSize;
-    private readonly ID3D12Resource[] RenderTargets = new ID3D12Resource[FrameCount];
+    private readonly ID3D12Resource[]RenderTargets=new ID3D12Resource[FrameCount];
     private readonly ID3D12DescriptorHeap DsvHeap;
     private ID3D12Resource DepthBuffer;
     private readonly ID3D12CommandAllocator CommandAllocator;
@@ -53,20 +52,18 @@ internal sealed class VorticeRenderer : IDisposable
     private int Height;
 
     [StructLayout(LayoutKind.Sequential)]
-    private struct Vertex
-    {
+    private struct Vertex {
         public Vector3 Position;
         public Vector3 Normal;
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    private struct TransformConstants
-    {
+    private struct TransformConstants {
         public Matrix4x4 Mvp;
         public Vector4 BaseColorFactor;
     }
 
-    private const string ShaderSource = """
+    private const string ShaderSource="""
         cbuffer TransformCB : register(b0)
         {
             row_major float4x4 MVP;
@@ -96,152 +93,141 @@ internal sealed class VorticeRenderer : IDisposable
         }
         """;
 
-    public VorticeRenderer(IntPtr Hwnd, int Width, int Height, SimpleMesh Mesh)
-    {
-        this.Width = Math.Max(1, Width);
-        this.Height = Math.Max(1, Height);
-        BoundsCenter = Mesh.BoundsCenter;
-        BoundsRadius = Mesh.BoundsRadius > 0f ? Mesh.BoundsRadius : 1f;
-        BaseColorFactor = Mesh.BaseColorFactor;
+    public VorticeRenderer(IntPtr Hwnd,int Width,int Height,SimpleMesh Mesh){
+        this.Width=Math.Max(1,Width);
+        this.Height=Math.Max(1,Height);
+        BoundsCenter=Mesh.BoundsCenter;
+        BoundsRadius=Mesh.BoundsRadius>0f?Mesh.BoundsRadius:1f;
+        BaseColorFactor=Mesh.BaseColorFactor;
 
-        using IDXGIFactory4 Factory = DXGI.CreateDXGIFactory1<IDXGIFactory4>();
+        using IDXGIFactory4 Factory=DXGI.CreateDXGIFactory1<IDXGIFactory4>();
 
-        IDXGIAdapter1? ChosenAdapter = null;
-        for (int i = 0; Factory.EnumAdapters1(i, out IDXGIAdapter1 Adapter).Success; i++)
-        {
-            if ((Adapter.Description1.Flags & AdapterFlags.Software) != 0)
-            {
+        IDXGIAdapter1?ChosenAdapter=null;
+        for(var i=0;Factory.EnumAdapters1(i,out IDXGIAdapter1 Adapter).Success;i++){
+            if((Adapter.Description1.Flags&AdapterFlags.Software)!=0){
                 Adapter.Dispose();
                 continue;
             }
 
-            ChosenAdapter = Adapter;
+            ChosenAdapter=Adapter;
             break;
         }
 
-        Device = ChosenAdapter is not null
-            ? D3D12.D3D12CreateDevice<ID3D12Device>(ChosenAdapter, FeatureLevel.Level_11_0)
-            : D3D12.D3D12CreateDevice<ID3D12Device>(null, FeatureLevel.Level_11_0);
+        Device=ChosenAdapter is not null
+            ?D3D12.D3D12CreateDevice<ID3D12Device>(ChosenAdapter,FeatureLevel.Level_11_0)
+            :D3D12.D3D12CreateDevice<ID3D12Device>(null,FeatureLevel.Level_11_0);
         ChosenAdapter?.Dispose();
 
-        CommandQueue = Device.CreateCommandQueue(CommandListType.Direct);
+        CommandQueue=Device.CreateCommandQueue(CommandListType.Direct);
 
-        SwapChainDescription1 swapChainDescription = new()
-        {
-            Width = this.Width,
-            Height = this.Height,
-            Format = BackBufferFormat,
-            BufferUsage = Usage.RenderTargetOutput,
-            BufferCount = FrameCount,
-            SampleDescription = new SampleDescription(1, 0),
-            SwapEffect = SwapEffect.FlipDiscard,
+        SwapChainDescription1 swapChainDescription=new(){
+            Width=this.Width,
+            Height=this.Height,
+            Format=BackBufferFormat,
+            BufferUsage=Usage.RenderTargetOutput,
+            BufferCount=FrameCount,
+            SampleDescription=new SampleDescription(1,0),
+            SwapEffect=SwapEffect.FlipDiscard,
         };
 
-        using IDXGISwapChain1 TempSwapChain = Factory.CreateSwapChainForHwnd(CommandQueue, Hwnd, swapChainDescription);
-        SwapChain = TempSwapChain.QueryInterface<IDXGISwapChain3>();
+        using IDXGISwapChain1 TempSwapChain=Factory.CreateSwapChainForHwnd(CommandQueue,Hwnd,swapChainDescription);
+        SwapChain=TempSwapChain.QueryInterface<IDXGISwapChain3>();
 
-        RtvHeap = Device.CreateDescriptorHeap(new DescriptorHeapDescription(DescriptorHeapType.RenderTargetView, FrameCount));
-        RtvDescriptorSize = Device.GetDescriptorHandleIncrementSize(DescriptorHeapType.RenderTargetView);
+        RtvHeap=Device.CreateDescriptorHeap(new DescriptorHeapDescription(DescriptorHeapType.RenderTargetView,FrameCount));
+        RtvDescriptorSize=Device.GetDescriptorHandleIncrementSize(DescriptorHeapType.RenderTargetView);
         CreateRenderTargetViews();
 
-        DsvHeap = Device.CreateDescriptorHeap(new DescriptorHeapDescription(DescriptorHeapType.DepthStencilView, 1));
-        DepthBuffer = CreateDepthBuffer(this.Width, this.Height);
+        DsvHeap=Device.CreateDescriptorHeap(new DescriptorHeapDescription(DescriptorHeapType.DepthStencilView,1));
+        DepthBuffer=CreateDepthBuffer(this.Width,this.Height);
 
-        CommandAllocator = Device.CreateCommandAllocator(CommandListType.Direct);
-        CommandList = Device.CreateCommandList<ID3D12GraphicsCommandList>(CommandListType.Direct, CommandAllocator);
+        CommandAllocator=Device.CreateCommandAllocator(CommandListType.Direct);
+        CommandList=Device.CreateCommandList<ID3D12GraphicsCommandList>(CommandListType.Direct,CommandAllocator);
         CommandList.Close();
 
-        RootParameter1 TransformParameter = new(RootParameterType.ConstantBufferView, new RootDescriptor1(0, 0), ShaderVisibility.All);
-        RootSignatureDescription1 rootSignatureDescription = new(
+        RootParameter1 TransformParameter=new(RootParameterType.ConstantBufferView,new RootDescriptor1(0,0),ShaderVisibility.All);
+        RootSignatureDescription1 rootSignatureDescription=new(
             RootSignatureFlags.AllowInputAssemblerInputLayout,
             [TransformParameter]);
-        RootSignature = Device.CreateRootSignature(0, new VersionedRootSignatureDescription(rootSignatureDescription));
+        RootSignature=Device.CreateRootSignature(0,new VersionedRootSignatureDescription(rootSignatureDescription));
 
-        Result VsCompileResult = Compiler.Compile(ShaderSource, "VSMain", "VorticeRenderer", "vs_5_0", out Blob? VertexShaderBlob, out Blob? VsErrorBlob);
-        if (VsCompileResult.Failure || VertexShaderBlob is null)
-        {
+        Result VsCompileResult=Compiler.Compile(ShaderSource,"VSMain","VorticeRenderer","vs_5_0",out Blob?VertexShaderBlob,out Blob?VsErrorBlob);
+        if(VsCompileResult.Failure||VertexShaderBlob is null){
             throw new InvalidOperationException($"Vertex shader compilation failed: {VsErrorBlob?.AsString()}");
         }
 
-        Result PsCompileResult = Compiler.Compile(ShaderSource, "PSMain", "VorticeRenderer", "ps_5_0", out Blob? PixelShaderBlob, out Blob? PsErrorBlob);
-        if (PsCompileResult.Failure || PixelShaderBlob is null)
-        {
+        Result PsCompileResult=Compiler.Compile(ShaderSource,"PSMain","VorticeRenderer","ps_5_0",out Blob?PixelShaderBlob,out Blob?PsErrorBlob);
+        if(PsCompileResult.Failure||PixelShaderBlob is null){
             throw new InvalidOperationException($"Pixel shader compilation failed: {PsErrorBlob?.AsString()}");
         }
 
-        using Blob VertexShaderBlobOwned = VertexShaderBlob;
-        using Blob PixelShaderBlobOwned = PixelShaderBlob;
+        using Blob VertexShaderBlobOwned=VertexShaderBlob;
+        using Blob PixelShaderBlobOwned=PixelShaderBlob;
         VsErrorBlob?.Dispose();
         PsErrorBlob?.Dispose();
 
-        InputElementDescription[] InputElements =
-        [
-            new InputElementDescription("POSITION", 0, Format.R32G32B32_Float, 0, 0),
-            new InputElementDescription("NORMAL", 0, Format.R32G32B32_Float, 12, 0),
+        InputElementDescription[]InputElements=[
+            new InputElementDescription("POSITION",0,Format.R32G32B32_Float,0,0),
+            new InputElementDescription("NORMAL",0,Format.R32G32B32_Float,12,0),
         ];
 
-        GraphicsPipelineStateDescription PsoDescription = new()
-        {
-            RootSignature = RootSignature,
-            VertexShader = VertexShaderBlobOwned.AsBytes(),
-            PixelShader = PixelShaderBlobOwned.AsBytes(),
-            InputLayout = new InputLayoutDescription(InputElements),
-            SampleMask = uint.MaxValue,
-            PrimitiveTopologyType = PrimitiveTopologyType.Triangle,
-            RasterizerState = RasterizerDescription.CullNone,
-            BlendState = BlendDescription.Opaque,
-            DepthStencilState = DepthStencilDescription.Default,
-            DepthStencilFormat = DepthBufferFormat,
-            RenderTargetFormats = [BackBufferFormat],
-            SampleDescription = new SampleDescription(1, 0),
+        GraphicsPipelineStateDescription PsoDescription=new(){
+            RootSignature=RootSignature,
+            VertexShader=VertexShaderBlobOwned.AsBytes(),
+            PixelShader=PixelShaderBlobOwned.AsBytes(),
+            InputLayout=new InputLayoutDescription(InputElements),
+            SampleMask=uint.MaxValue,
+            PrimitiveTopologyType=PrimitiveTopologyType.Triangle,
+            RasterizerState=RasterizerDescription.CullNone,
+            BlendState=BlendDescription.Opaque,
+            DepthStencilState=DepthStencilDescription.Default,
+            DepthStencilFormat=DepthBufferFormat,
+            RenderTargetFormats=[BackBufferFormat],
+            SampleDescription=new SampleDescription(1,0),
         };
-        PipelineState = Device.CreateGraphicsPipelineState(PsoDescription);
+        PipelineState=Device.CreateGraphicsPipelineState(PsoDescription);
 
-        Vertex[] Vertices = new Vertex[Mesh.Positions.Length];
-        for (int i = 0; i < Vertices.Length; i++)
-        {
-            Vertices[i] = new Vertex { Position = Mesh.Positions[i], Normal = Mesh.Normals[i] };
+        Vertex[]Vertices=new Vertex[Mesh.Positions.Length];
+        for(var i=0;i<Vertices.Length;i++){
+            Vertices[i]=new Vertex { Position=Mesh.Positions[i],Normal=Mesh.Normals[i]};
         }
 
-        int VertexBufferSize = Vertices.Length * Marshal.SizeOf<Vertex>();
-        VertexBuffer = CreateUploadBuffer(VertexBufferSize, Vertices);
-        VertexBufferView = new VertexBufferView(VertexBuffer.GPUVirtualAddress, VertexBufferSize, Marshal.SizeOf<Vertex>());
+        var VertexBufferSize=Vertices.Length*Marshal.SizeOf<Vertex>();
+        VertexBuffer=CreateUploadBuffer(VertexBufferSize,Vertices);
+        VertexBufferView=new VertexBufferView(VertexBuffer.GPUVirtualAddress,VertexBufferSize,Marshal.SizeOf<Vertex>());
 
-        IndexCount = Mesh.Indices.Length;
-        int IndexBufferSize = IndexCount * sizeof(uint);
-        IndexBuffer = CreateUploadBuffer(IndexBufferSize, Mesh.Indices);
+        IndexCount=Mesh.Indices.Length;
+        var IndexBufferSize=IndexCount*sizeof(uint);
+        IndexBuffer=CreateUploadBuffer(IndexBufferSize,Mesh.Indices);
         // is32Bit: true - mesh.Indices is uint[] (32-bit). Passing false here silently
         // reinterprets the index buffer as 16-bit indices, scrambling the triangle list into
         // garbage geometry (confirmed empirically - this was the cause of the "bowtie"-looking
         // Box.glb render).
-        IndexBufferView = new IndexBufferView(IndexBuffer.GPUVirtualAddress, IndexBufferSize, true);
+        IndexBufferView=new IndexBufferView(IndexBuffer.GPUVirtualAddress,IndexBufferSize,true);
 
-        ConstantBufferSize = (Marshal.SizeOf<TransformConstants>() + 255) & ~255;
-        ConstantBuffer = Device.CreateCommittedResource(
+        ConstantBufferSize=(Marshal.SizeOf<TransformConstants>()+255)&~255;
+        ConstantBuffer=Device.CreateCommittedResource(
             HeapType.Upload,
-            new ResourceDescription
-            {
-                Dimension = ResourceDimension.Buffer,
-                Width = (ulong)ConstantBufferSize,
-                Height = 1,
-                DepthOrArraySize = 1,
-                MipLevels = 1,
-                SampleDescription = new SampleDescription(1, 0),
-                Layout = TextureLayout.RowMajor,
-                Format = Format.Unknown,
+            new ResourceDescription {
+                Dimension=ResourceDimension.Buffer,
+                Width=(ulong)ConstantBufferSize,
+                Height=1,
+                DepthOrArraySize=1,
+                MipLevels=1,
+                SampleDescription=new SampleDescription(1,0),
+                Layout=TextureLayout.RowMajor,
+                Format=Format.Unknown,
             },
             ResourceStates.GenericRead);
 
-        Fence = Device.CreateFence(0);
-        FenceValue = 1;
-        FenceEvent = NativeEvent.CreateAutoResetEvent();
+        Fence=Device.CreateFence(0);
+        FenceValue=1;
+        FenceEvent=NativeEvent.CreateAutoResetEvent();
 
         UpdateTransformConstantBuffer();
     }
 
-    private ID3D12Resource CreateUploadBuffer<T>(int SizeInBytes, T[] Data) where T : struct
-    {
-        ID3D12Resource Resource = Device.CreateCommittedResource(
+    private ID3D12Resource CreateUploadBuffer<T>(int SizeInBytes,T[]Data) where T:struct {
+        ID3D12Resource Resource=Device.CreateCommittedResource(
             HeapType.Upload,
             ResourceDescription.Buffer((ulong)SizeInBytes),
             ResourceStates.GenericRead);
@@ -251,128 +237,116 @@ internal sealed class VorticeRenderer : IDisposable
         // (confirmed empirically - see ADR-0008), so unsafe pointer code fails to compile there
         // even though this project's own csproj enables it. MemoryMarshal.Write works on a Span
         // without needing an unsafe context.
-        Span<byte> Mapped = Resource.Map<byte>(0, SizeInBytes);
-        int ElementSize = Marshal.SizeOf<T>();
-        for (int i = 0; i < Data.Length; i++)
-        {
-            MemoryMarshal.Write(Mapped.Slice(i * ElementSize, ElementSize), ref Data[i]);
+        Span<byte>Mapped=Resource.Map<byte>(0,SizeInBytes);
+        var ElementSize=Marshal.SizeOf<T>();
+        for(var i=0;i<Data.Length;i++){
+            MemoryMarshal.Write(Mapped.Slice(i*ElementSize,ElementSize),ref Data[i]);
         }
-        Resource.Unmap(0, null);
+        Resource.Unmap(0,null);
         return Resource;
     }
 
-    private ID3D12Resource CreateDepthBuffer(int W, int H)
-    {
-        ResourceDescription Description = ResourceDescription.Texture2D(DepthBufferFormat, (uint)W, (uint)H, 1, 1);
-        Description.Flags = ResourceFlags.AllowDepthStencil;
+    private ID3D12Resource CreateDepthBuffer(int W,int H){
+        ResourceDescription Description=ResourceDescription.Texture2D(DepthBufferFormat,(uint)W,(uint)H,1,1);
+        Description.Flags=ResourceFlags.AllowDepthStencil;
 
-        ID3D12Resource buffer = Device.CreateCommittedResource(
+        ID3D12Resource buffer=Device.CreateCommittedResource(
             HeapType.Default,
             Description,
             ResourceStates.DepthWrite,
-            new ClearValue(DepthBufferFormat, 1.0f, 0));
+            new ClearValue(DepthBufferFormat,1.0f,0));
 
-        Device.CreateDepthStencilView(buffer, null, DsvHeap.GetCPUDescriptorHandleForHeapStart());
+        Device.CreateDepthStencilView(buffer,null,DsvHeap.GetCPUDescriptorHandleForHeapStart());
         return buffer;
     }
 
-    private void CreateRenderTargetViews()
-    {
-        CpuDescriptorHandle Handle = RtvHeap.GetCPUDescriptorHandleForHeapStart();
-        for (int i = 0; i < FrameCount; i++)
-        {
-            RenderTargets[i] = SwapChain.GetBuffer<ID3D12Resource>(i);
-            Device.CreateRenderTargetView(RenderTargets[i], null, Handle);
-            Handle += RtvDescriptorSize;
+    private void CreateRenderTargetViews(){
+        CpuDescriptorHandle Handle=RtvHeap.GetCPUDescriptorHandleForHeapStart();
+        for(var i=0;i<FrameCount;i++){
+            RenderTargets[i]=SwapChain.GetBuffer<ID3D12Resource>(i);
+            Device.CreateRenderTargetView(RenderTargets[i],null,Handle);
+            Handle+=RtvDescriptorSize;
         }
     }
 
-    private void UpdateTransformConstantBuffer()
-    {
-        Vector3 Eye = BoundsCenter + Vector3.Normalize(new Vector3(1, 0.75f, 1)) * (BoundsRadius * 3.0f);
-        Matrix4x4 View = Matrix4x4.CreateLookAt(Eye, BoundsCenter, Vector3.UnitY);
-        Matrix4x4 Projection = Matrix4x4.CreatePerspectiveFieldOfView(
-            (float)(Math.PI / 4.0), Math.Max(1, Width) / (float)Math.Max(1, Height), 0.05f, BoundsRadius * 20f);
-        Matrix4x4 Mvp = View * Projection;
+    private void UpdateTransformConstantBuffer(){
+        Vector3 Eye=BoundsCenter+Vector3.Normalize(new Vector3(1,0.75f,1))*(BoundsRadius*3.0f);
+        Matrix4x4 View=Matrix4x4.CreateLookAt(Eye,BoundsCenter,Vector3.UnitY);
+        Matrix4x4 Projection=Matrix4x4.CreatePerspectiveFieldOfView(
+            (float)(Math.PI/4.0),Math.Max(1,Width)/(float)Math.Max(1,Height),0.05f,BoundsRadius*20f);
+        Matrix4x4 Mvp=View*Projection;
 
-        TransformConstants Constants = new() { Mvp = Mvp, BaseColorFactor = BaseColorFactor };
-        Span<byte> Mapped = ConstantBuffer.Map<byte>(0, ConstantBufferSize);
-        MemoryMarshal.Write(Mapped, ref Constants);
-        ConstantBuffer.Unmap(0, null);
+        TransformConstants Constants=new(){ Mvp=Mvp,BaseColorFactor=BaseColorFactor };
+        Span<byte>Mapped=ConstantBuffer.Map<byte>(0,ConstantBufferSize);
+        MemoryMarshal.Write(Mapped,ref Constants);
+        ConstantBuffer.Unmap(0,null);
     }
 
-    public void Resize(int NewWidth, int NewHeight)
-    {
-        NewWidth = Math.Max(1, NewWidth);
-        NewHeight = Math.Max(1, NewHeight);
-        if (NewWidth == Width && NewHeight == Height)
-        {
+    public void Resize(int NewWidth,int NewHeight){
+        NewWidth=Math.Max(1,NewWidth);
+        NewHeight=Math.Max(1,NewHeight);
+        if(NewWidth==Width&&NewHeight==Height){
             return;
         }
 
         WaitForGpuIdle();
 
-        for (int i = 0; i < FrameCount; i++)
-        {
+        for(var i=0;i<FrameCount;i++){
             RenderTargets[i].Dispose();
         }
         DepthBuffer.Dispose();
 
-        Width = NewWidth;
-        Height = NewHeight;
-        SwapChain.ResizeBuffers(FrameCount, Width, Height, BackBufferFormat, SwapChainFlags.None);
+        Width=NewWidth;
+        Height=NewHeight;
+        SwapChain.ResizeBuffers(FrameCount,Width,Height,BackBufferFormat,SwapChainFlags.None);
         CreateRenderTargetViews();
-        DepthBuffer = CreateDepthBuffer(Width, Height);
+        DepthBuffer=CreateDepthBuffer(Width,Height);
 
         UpdateTransformConstantBuffer();
     }
 
-    public void RenderFrame()
-    {
+    public void RenderFrame(){
         CommandAllocator.Reset();
-        CommandList.Reset(CommandAllocator, PipelineState);
+        CommandList.Reset(CommandAllocator,PipelineState);
 
-        int FrameIndex = SwapChain.CurrentBackBufferIndex;
+        var FrameIndex=SwapChain.CurrentBackBufferIndex;
 
-        CommandList.ResourceBarrierTransition(RenderTargets[FrameIndex], ResourceStates.Present, ResourceStates.RenderTarget);
+        CommandList.ResourceBarrierTransition(RenderTargets[FrameIndex],ResourceStates.Present,ResourceStates.RenderTarget);
 
-        CpuDescriptorHandle RtvHandle = RtvHeap.GetCPUDescriptorHandleForHeapStart() + (FrameIndex * RtvDescriptorSize);
-        CpuDescriptorHandle DsvHandle = DsvHeap.GetCPUDescriptorHandleForHeapStart();
-        CommandList.OMSetRenderTargets(RtvHandle, DsvHandle);
-        CommandList.ClearRenderTargetView(RtvHandle, new Vortice.Mathematics.Color4(5 / 255f, 5 / 255f, 20 / 255f, 1f));
-        CommandList.ClearDepthStencilView(DsvHandle, ClearFlags.Depth, 1.0f, 0);
+        CpuDescriptorHandle RtvHandle=RtvHeap.GetCPUDescriptorHandleForHeapStart()+(FrameIndex*RtvDescriptorSize);
+        CpuDescriptorHandle DsvHandle=DsvHeap.GetCPUDescriptorHandleForHeapStart();
+        CommandList.OMSetRenderTargets(RtvHandle,DsvHandle);
+        CommandList.ClearRenderTargetView(RtvHandle,new Vortice.Mathematics.Color4(5/255f,5/255f,20/255f,1f));
+        CommandList.ClearDepthStencilView(DsvHandle,ClearFlags.Depth,1.0f,0);
 
         CommandList.SetGraphicsRootSignature(RootSignature);
-        CommandList.SetGraphicsRootConstantBufferView(0, ConstantBuffer.GPUVirtualAddress);
+        CommandList.SetGraphicsRootConstantBufferView(0,ConstantBuffer.GPUVirtualAddress);
         CommandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
-        CommandList.IASetVertexBuffers(0, VertexBufferView);
+        CommandList.IASetVertexBuffers(0,VertexBufferView);
         CommandList.IASetIndexBuffer(IndexBufferView);
-        CommandList.RSSetViewport(0, 0, Width, Height);
-        CommandList.RSSetScissorRect(Width, Height);
-        CommandList.DrawIndexedInstanced(IndexCount, 1, 0, 0, 0);
+        CommandList.RSSetViewport(0,0,Width,Height);
+        CommandList.RSSetScissorRect(Width,Height);
+        CommandList.DrawIndexedInstanced(IndexCount,1,0,0,0);
 
-        CommandList.ResourceBarrierTransition(RenderTargets[FrameIndex], ResourceStates.RenderTarget, ResourceStates.Present);
+        CommandList.ResourceBarrierTransition(RenderTargets[FrameIndex],ResourceStates.RenderTarget,ResourceStates.Present);
         CommandList.Close();
 
         CommandQueue.ExecuteCommandList(CommandList);
-        SwapChain.Present(1, PresentFlags.None);
+        SwapChain.Present(1,PresentFlags.None);
 
         WaitForGpuIdle();
     }
 
-    private void WaitForGpuIdle()
-    {
-        ulong ValueToSignal = FenceValue++;
-        CommandQueue.Signal(Fence, ValueToSignal);
-        if (Fence.CompletedValue < ValueToSignal)
-        {
-            Fence.SetEventOnCompletion(ValueToSignal, FenceEvent);
+    private void WaitForGpuIdle(){
+        var ValueToSignal=FenceValue++;
+        CommandQueue.Signal(Fence,ValueToSignal);
+        if(Fence.CompletedValue<ValueToSignal){
+            Fence.SetEventOnCompletion(ValueToSignal,FenceEvent);
             NativeEvent.Wait(FenceEvent);
         }
     }
 
-    public void Dispose()
-    {
+    public void Dispose(){
         WaitForGpuIdle();
 
         ConstantBuffer.Dispose();
@@ -384,8 +358,7 @@ internal sealed class VorticeRenderer : IDisposable
         CommandAllocator.Dispose();
         DepthBuffer.Dispose();
         DsvHeap.Dispose();
-        for (int i = 0; i < FrameCount; i++)
-        {
+        for(var i=0;i<FrameCount;i++){
             RenderTargets[i].Dispose();
         }
         RtvHeap.Dispose();

@@ -14,13 +14,12 @@ namespace CSharpGameEngine.VSExtension;
 /// raw mesh files.
 /// </summary>
 [Guid(FactoryGuidString)]
-internal sealed class SceneFileEditorFactory : IVsEditorFactory
-{
-    public const string FactoryGuidString = "2a3f932f-0897-457e-a74f-815bda2fd1e9";
+internal sealed class SceneFileEditorFactory:IVsEditorFactory {
+    public const string FactoryGuidString="2a3f932f-0897-457e-a74f-815bda2fd1e9";
 
-    public int SetSite(Microsoft.VisualStudio.OLE.Interop.IServiceProvider Psp) => VSConstants.S_OK;
+    public int SetSite(Microsoft.VisualStudio.OLE.Interop.IServiceProvider Psp)=>VSConstants.S_OK;
 
-    public int Close() => VSConstants.S_OK;
+    public int Close()=>VSConstants.S_OK;
 
     public int CreateEditorInstance(
         uint GrfCreateDoc,
@@ -33,34 +32,31 @@ internal sealed class SceneFileEditorFactory : IVsEditorFactory
         out IntPtr PpunkDocData,
         out string PbstrEditorCaption,
         out Guid PguidCmdUI,
-        out int PgrfCDW)
-    {
-        PpunkDocView = IntPtr.Zero;
-        PpunkDocData = IntPtr.Zero;
+        out int PgrfCDW){
+        PpunkDocView=IntPtr.Zero;
+        PpunkDocData=IntPtr.Zero;
         // Unlike GlbFbxPreviewEditorFactory (which leaves this empty), name the tab explicitly - the
         // scene document window is otherwise indistinguishable from any other editor on a plain
         // filename. VS appends this after the base file name, e.g. "DefaultScene.scene [シーン]".
-        PbstrEditorCaption = "シーン";
-        PguidCmdUI = Guid.Empty;
-        PgrfCDW = 0;
+        PbstrEditorCaption="シーン";
+        PguidCmdUI=Guid.Empty;
+        PgrfCDW=0;
 
-        if (PunkDocDataExisting != IntPtr.Zero)
-        {
+        if(PunkDocDataExisting!=IntPtr.Zero){
             // We don't know how to adopt someone else's docData - only ever create fresh.
             return VSConstants.VS_E_INCOMPATIBLEDOCDATA;
         }
 
-        SceneWindowPane Pane = new(PszMkDocument);
-        PpunkDocView = Marshal.GetIUnknownForObject(Pane);
-        PpunkDocData = Marshal.GetIUnknownForObject(Pane);
+        SceneWindowPane Pane=new(PszMkDocument);
+        PpunkDocView=Marshal.GetIUnknownForObject(Pane);
+        PpunkDocData=Marshal.GetIUnknownForObject(Pane);
         return VSConstants.S_OK;
     }
 
-    public int MapLogicalView(ref Guid RguidLogicalView, out string PbstrPhysicalView)
-    {
-        PbstrPhysicalView = null!;
-        return RguidLogicalView == VSConstants.LOGVIEWID_Primary || RguidLogicalView == VSConstants.LOGVIEWID_Designer
-            ? VSConstants.S_OK
-            : VSConstants.E_NOTIMPL;
+    public int MapLogicalView(ref Guid RguidLogicalView,out string PbstrPhysicalView){
+        PbstrPhysicalView=null!;
+        return RguidLogicalView==VSConstants.LOGVIEWID_Primary||RguidLogicalView==VSConstants.LOGVIEWID_Designer
+            ?VSConstants.S_OK
+            :VSConstants.E_NOTIMPL;
     }
 }

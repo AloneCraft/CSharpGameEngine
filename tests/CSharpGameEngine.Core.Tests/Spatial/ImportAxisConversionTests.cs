@@ -12,45 +12,43 @@ namespace CSharpGameEngine.Spatial.Tests;
 /// Unit conversion -&gt; Semantic RUF normalization"). A full file importer is out of scope for this
 /// milestone; only the conversion functions themselves are exercised here.
 /// </summary>
-public class ImportAxisConversionTests
-{
+public class ImportAxisConversionTests {
     [Fact]
     public void Unity_ImportedForwardAxis_BecomesRufForward()
-        => Assert.Equal(RufVector.Forward, UnityCoordinateConvention.FromXyz(new XyzVector(0f, 0f, 1f)));
+        =>Assert.Equal(RufVector.Forward,UnityCoordinateConvention.FromXyz(new XyzVector(0f,0f,1f)));
 
     [Fact]
     public void Unreal_ImportedForwardAxis_BecomesRufForward()
-        => Assert.Equal(RufVector.Forward, UnrealCoordinateConvention.FromXyz(new XyzVector(1f, 0f, 0f)));
+        =>Assert.Equal(RufVector.Forward,UnrealCoordinateConvention.FromXyz(new XyzVector(1f,0f,0f)));
 
     [Fact]
     public void Blender_ImportedForwardAxis_BecomesRufForward()
-        => Assert.Equal(RufVector.Forward, BlenderWorldConvention.FromXyz(new XyzVector(0f, 1f, 0f)));
+        =>Assert.Equal(RufVector.Forward,BlenderWorldConvention.FromXyz(new XyzVector(0f,1f,0f)));
 
     [Fact]
-    public void Unity_AxisConversionAndUnitConversion_AreOrderIndependent() => AssertOrderIndependent<UnityCoordinateConvention>();
+    public void Unity_AxisConversionAndUnitConversion_AreOrderIndependent()=>AssertOrderIndependent<UnityCoordinateConvention>();
 
     [Fact]
-    public void Unreal_AxisConversionAndUnitConversion_AreOrderIndependent() => AssertOrderIndependent<UnrealCoordinateConvention>();
+    public void Unreal_AxisConversionAndUnitConversion_AreOrderIndependent()=>AssertOrderIndependent<UnrealCoordinateConvention>();
 
     [Fact]
-    public void Blender_AxisConversionAndUnitConversion_AreOrderIndependent() => AssertOrderIndependent<BlenderWorldConvention>();
+    public void Blender_AxisConversionAndUnitConversion_AreOrderIndependent()=>AssertOrderIndependent<BlenderWorldConvention>();
 
     private static void AssertOrderIndependent<TConvention>()
-        where TConvention : struct, ICoordinateConvention
-    {
-        XyzVector RawCentimeters = new(300f, -150f, 75f);
-        float MetersPerCentimeter = UnitConversion.MetersFromCentimeters(1f);
+        where TConvention:struct,ICoordinateConvention {
+        XyzVector RawCentimeters=new(300f,-150f,75f);
+        var MetersPerCentimeter=UnitConversion.MetersFromCentimeters(1f);
 
-        RufVector AxisFirstThenUnit = TConvention.FromXyz(RawCentimeters) * MetersPerCentimeter;
+        RufVector AxisFirstThenUnit=TConvention.FromXyz(RawCentimeters)*MetersPerCentimeter;
 
-        XyzVector UnitFirst = new(
+        XyzVector UnitFirst=new(
             UnitConversion.MetersFromCentimeters(RawCentimeters.X),
             UnitConversion.MetersFromCentimeters(RawCentimeters.Y),
             UnitConversion.MetersFromCentimeters(RawCentimeters.Z));
-        RufVector UnitFirstThenAxis = TConvention.FromXyz(UnitFirst);
+        RufVector UnitFirstThenAxis=TConvention.FromXyz(UnitFirst);
 
-        Assert.Equal(AxisFirstThenUnit.R, UnitFirstThenAxis.R, precision: 4);
-        Assert.Equal(AxisFirstThenUnit.U, UnitFirstThenAxis.U, precision: 4);
-        Assert.Equal(AxisFirstThenUnit.F, UnitFirstThenAxis.F, precision: 4);
+        Assert.Equal(AxisFirstThenUnit.R,UnitFirstThenAxis.R,precision:4);
+        Assert.Equal(AxisFirstThenUnit.U,UnitFirstThenAxis.U,precision:4);
+        Assert.Equal(AxisFirstThenUnit.F,UnitFirstThenAxis.F,precision:4);
     }
 }

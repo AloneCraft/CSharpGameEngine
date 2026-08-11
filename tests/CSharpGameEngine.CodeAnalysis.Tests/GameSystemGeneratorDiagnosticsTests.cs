@@ -2,9 +2,8 @@ using Microsoft.CodeAnalysis;
 
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 
-public sealed class GameSystemGeneratorDiagnosticsTests
-{
-    private const string Preamble = """
+public sealed class GameSystemGeneratorDiagnosticsTests {
+    private const string Preamble="""
         using CSharpGameEngine.Entities;
 
         namespace Sample;
@@ -15,8 +14,7 @@ public sealed class GameSystemGeneratorDiagnosticsTests
         """;
 
     [Fact]
-    public void NonStructSystem_ReportsSysgen001()
-    {
+    public void NonStructSystem_ReportsSysgen001(){
         AssertHasDiagnostic(
             """
             internal class NonStructSystem : ISystem
@@ -28,8 +26,7 @@ public sealed class GameSystemGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void GenericSystem_ReportsSysgen002()
-    {
+    public void GenericSystem_ReportsSysgen002(){
         AssertHasDiagnostic(
             """
             internal struct GenericSystem<T> : ISystem
@@ -41,8 +38,7 @@ public sealed class GameSystemGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void NestedSystem_ReportsSysgen003()
-    {
+    public void NestedSystem_ReportsSysgen003(){
         AssertHasDiagnostic(
             """
             internal static class Container
@@ -57,8 +53,7 @@ public sealed class GameSystemGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void StaticUpdateMethod_ReportsSysgen004()
-    {
+    public void StaticUpdateMethod_ReportsSysgen004(){
         AssertHasDiagnostic(
             """
             internal struct StaticUpdateSystem : ISystem
@@ -70,8 +65,7 @@ public sealed class GameSystemGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void PrivateUpdateMethod_ReportsSysgen005()
-    {
+    public void PrivateUpdateMethod_ReportsSysgen005(){
         AssertHasDiagnostic(
             """
             internal struct PrivateUpdateSystem : ISystem
@@ -83,8 +77,7 @@ public sealed class GameSystemGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void NonBoolUpdateMethod_ReportsSysgen006()
-    {
+    public void NonBoolUpdateMethod_ReportsSysgen006(){
         AssertHasDiagnostic(
             """
             internal struct VoidUpdateSystem : ISystem
@@ -96,8 +89,7 @@ public sealed class GameSystemGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void GenericUpdateMethod_ReportsSysgen007()
-    {
+    public void GenericUpdateMethod_ReportsSysgen007(){
         AssertHasDiagnostic(
             """
             internal struct GenericUpdateSystem : ISystem
@@ -109,8 +101,7 @@ public sealed class GameSystemGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void UpdateWithoutComponentParameter_ReportsSysgen008()
-    {
+    public void UpdateWithoutComponentParameter_ReportsSysgen008(){
         AssertHasDiagnostic(
             """
             internal struct NoComponentSystem : ISystem
@@ -127,8 +118,7 @@ public sealed class GameSystemGeneratorDiagnosticsTests
     /// 渡し方はContext側の規則であるSYSGEN018が捕捉する。
     /// </summary>
     [Fact]
-    public void OutParameter_ReportsSysgen018_BecauseItIsClassifiedAsAMalformedContext()
-    {
+    public void OutParameter_ReportsSysgen018_BecauseItIsClassifiedAsAMalformedContext(){
         AssertHasDiagnostic(
             """
             internal struct OutParameterSystem : ISystem
@@ -140,8 +130,7 @@ public sealed class GameSystemGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void RefToNonStruct_ReportsSysgen010()
-    {
+    public void RefToNonStruct_ReportsSysgen010(){
         AssertHasDiagnostic(
             """
             internal struct RefClassSystem : ISystem
@@ -153,8 +142,7 @@ public sealed class GameSystemGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void DuplicateComponentType_ReportsSysgen011()
-    {
+    public void DuplicateComponentType_ReportsSysgen011(){
         AssertHasDiagnostic(
             """
             internal struct DuplicateComponentSystem : ISystem
@@ -166,8 +154,7 @@ public sealed class GameSystemGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void LeadingEntityPassedByRef_ReportsSysgen012()
-    {
+    public void LeadingEntityPassedByRef_ReportsSysgen012(){
         AssertHasDiagnostic(
             """
             internal struct RefEntitySystem : ISystem
@@ -179,8 +166,7 @@ public sealed class GameSystemGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void UpdateWithoutTrailingState_ReportsSysgen013()
-    {
+    public void UpdateWithoutTrailingState_ReportsSysgen013(){
         AssertHasDiagnostic(
             """
             internal struct NoStateSystem : ISystem
@@ -192,8 +178,7 @@ public sealed class GameSystemGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void StateUsedAsComponent_ReportsSysgen014()
-    {
+    public void StateUsedAsComponent_ReportsSysgen014(){
         AssertHasDiagnostic(
             """
             internal struct StateAsComponentSystem : ISystem
@@ -205,8 +190,7 @@ public sealed class GameSystemGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void SystemWithNoUpdateOrSpawn_ReportsSysgen015()
-    {
+    public void SystemWithNoUpdateOrSpawn_ReportsSysgen015(){
         AssertHasDiagnostic(
             """
             internal struct EmptySystem : ISystem
@@ -217,8 +201,7 @@ public sealed class GameSystemGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void SpawnReturningNonVoid_ReportsSysgen016()
-    {
+    public void SpawnReturningNonVoid_ReportsSysgen016(){
         AssertHasDiagnostic(
             """
             internal struct BadSpawnSystem : ISystem
@@ -230,8 +213,7 @@ public sealed class GameSystemGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void SpawnDeclaringState_ReportsSysgen017()
-    {
+    public void SpawnDeclaringState_ReportsSysgen017(){
         AssertHasDiagnostic(
             """
             internal struct SpawnWithStateSystem : ISystem
@@ -243,8 +225,7 @@ public sealed class GameSystemGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void ContextPassedByRefReadonly_ReportsSysgen018()
-    {
+    public void ContextPassedByRefReadonly_ReportsSysgen018(){
         // 参照型のContextは値渡しでなければならない(`in`は不可)。
         AssertHasDiagnostic(
             """
@@ -259,8 +240,7 @@ public sealed class GameSystemGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void DuplicateContextType_ReportsSysgen019()
-    {
+    public void DuplicateContextType_ReportsSysgen019(){
         AssertHasDiagnostic(
             """
             internal struct DuplicateContextSystem : ISystem
@@ -274,8 +254,7 @@ public sealed class GameSystemGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void ComponentTypesSharingASimpleName_ReportsSysgen020()
-    {
+    public void ComponentTypesSharingASimpleName_ReportsSysgen020(){
         AssertHasDiagnostic(
             """
             internal struct CollidingSystem : ISystem
@@ -292,10 +271,9 @@ public sealed class GameSystemGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void ValidSystem_ReportsNothing()
-    {
-        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
-            Preamble + """
+    public void ValidSystem_ReportsNothing(){
+        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
+            Preamble+"""
             internal struct ValidSystem : ISystem
             {
                 public bool Update(Entity entity, ref Position position, ref Velocity velocity, ref State state) => true;
@@ -305,10 +283,9 @@ public sealed class GameSystemGeneratorDiagnosticsTests
         Assert.Empty(Result.Diagnostics);
     }
 
-    private static void AssertHasDiagnostic(string SystemSource, string DiagnosticId)
-    {
-        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(Preamble + SystemSource);
+    private static void AssertHasDiagnostic(string SystemSource,string DiagnosticId){
+        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(Preamble+SystemSource);
 
-        Assert.Contains(Result.Diagnostics, D => D.Id == DiagnosticId);
+        Assert.Contains(Result.Diagnostics,D=>D.Id==DiagnosticId);
     }
 }

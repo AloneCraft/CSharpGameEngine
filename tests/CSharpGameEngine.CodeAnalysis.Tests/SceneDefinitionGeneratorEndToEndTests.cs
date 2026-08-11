@@ -8,10 +8,9 @@ namespace CSharpGameEngine.CodeAnalysis.Tests;
 /// ADR-0033で<c>CreateRuntime</c>は<c>ref World</c>を取るようになり、内容の確認はQueryではなく
 /// 生成された<c>WorldSnapshot.Capture</c>(VSIXプレビューブリッジと同じ経路)で行う。
 /// </summary>
-public sealed class SceneDefinitionGeneratorEndToEndTests
-{
+public sealed class SceneDefinitionGeneratorEndToEndTests {
     /// <summary>スナップショットから、指定した名前のComponentを持つ最初のエントリを探すヘルパー(テスト対象ソースへ埋め込む)。</summary>
-    private const string SnapshotHelpers = """
+    private const string SnapshotHelpers="""
 
         public static class SnapshotQuery
         {
@@ -41,9 +40,8 @@ public sealed class SceneDefinitionGeneratorEndToEndTests
         """;
 
     [Fact]
-    public void CreateRuntime_BuildsEntityGraph_WithParentAndComponentsFromDefine()
-    {
-        string Source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
+    public void CreateRuntime_BuildsEntityGraph_WithParentAndComponentsFromDefine(){
+        var Source=SceneDefinitionGeneratorTestHelper.CommonComponents+"""
 
 
             [SceneDefinition]
@@ -111,18 +109,17 @@ public sealed class SceneDefinitionGeneratorEndToEndTests
                     return "OK";
                 }
             }
-            """ + SnapshotHelpers;
+            """+SnapshotHelpers;
 
-        Assembly assembly = SceneDefinitionGeneratorTestHelper.CompileAndLoad(Source);
-        object? Result = SceneDefinitionGeneratorTestHelper.Invoke(assembly, "Sample.TestEntry", "RunScenario");
+        Assembly assembly=SceneDefinitionGeneratorTestHelper.CompileAndLoad(Source);
+        var Result=SceneDefinitionGeneratorTestHelper.Invoke(assembly,"Sample.TestEntry","RunScenario");
 
-        Assert.Equal("OK", Result);
+        Assert.Equal("OK",Result);
     }
 
     [Fact]
-    public void CreateRuntime_EmptyNode_GetsSceneNodeTag_AndSingleSetComponentIsApplied()
-    {
-        string Source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
+    public void CreateRuntime_EmptyNode_GetsSceneNodeTag_AndSingleSetComponentIsApplied(){
+        var Source=SceneDefinitionGeneratorTestHelper.CommonComponents+"""
 
 
             [SceneDefinition]
@@ -167,11 +164,11 @@ public sealed class SceneDefinitionGeneratorEndToEndTests
                     return "OK";
                 }
             }
-            """ + SnapshotHelpers;
+            """+SnapshotHelpers;
 
-        Assembly assembly = SceneDefinitionGeneratorTestHelper.CompileAndLoad(Source);
-        object? Result = SceneDefinitionGeneratorTestHelper.Invoke(assembly, "Sample.TestEntry", "RunScenario");
+        Assembly assembly=SceneDefinitionGeneratorTestHelper.CompileAndLoad(Source);
+        var Result=SceneDefinitionGeneratorTestHelper.Invoke(assembly,"Sample.TestEntry","RunScenario");
 
-        Assert.Equal("OK", Result);
+        Assert.Equal("OK",Result);
     }
 }

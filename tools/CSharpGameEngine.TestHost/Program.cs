@@ -3,138 +3,114 @@ using CSharpGameEngine.Core;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Platform.Windows;
 
-const string ProductDisplayName = "C# Game Engine";
-const string InternalName = "CSharpGameEngine";
+const string ProductDisplayName="C# Game Engine";
+const string InternalName="CSharpGameEngine";
 
-if (args.Length == 0 || IsHelp(args[0]))
-{
+if(args.Length==0||IsHelp(args[0])){
     PrintHelp();
     return;
 }
 
-int ExitCode = args[0] switch
-{
-    "self-test" => RunSelfTest(),
-    "triangle" => RunTriangle(args[1..]),
-    _ => RunUnknownCommand(args[0]),
+var ExitCode=args[0]switch {
+    "self-test"=>RunSelfTest(),
+    "triangle"=>RunTriangle(args[1..]),
+    _ =>RunUnknownCommand(args[0]),
 };
 
-Environment.ExitCode = ExitCode;
+Environment.ExitCode=ExitCode;
 
-static bool IsHelp(string Command) =>
-    string.Equals(Command, "--help", StringComparison.OrdinalIgnoreCase) ||
-    string.Equals(Command, "-h", StringComparison.OrdinalIgnoreCase) ||
-    string.Equals(Command, "help", StringComparison.OrdinalIgnoreCase);
+static bool IsHelp(string Command)=>
+    string.Equals(Command,"--help",StringComparison.OrdinalIgnoreCase)||
+    string.Equals(Command,"-h",StringComparison.OrdinalIgnoreCase)||
+    string.Equals(Command,"help",StringComparison.OrdinalIgnoreCase);
 
-static int RunSelfTest()
-{
+static int RunSelfTest(){
     Console.WriteLine($"[{ProductDisplayName}] self-test started.");
 
-    try
-    {
-        StableId stableId = StableId.New();
-        if (!stableId.IsValid)
-        {
+    try {
+        StableId stableId=StableId.New();
+        if(!stableId.IsValid){
             Console.WriteLine("FAILED: StableId generation returned an invalid ID.");
             return 1;
         }
 
-        DiagnosticBag Bag = new();
-        Bag.Add(new Diagnostic("TH0001", DiagnosticSeverity.Info, "Self-test diagnostic emitted.", SourceLocation.Unknown));
+        DiagnosticBag Bag=new();
+        Bag.Add(new Diagnostic("TH0001",DiagnosticSeverity.Info,"Self-test diagnostic emitted.",SourceLocation.Unknown));
 
         Console.WriteLine($"StableId: {stableId}");
-        foreach (Diagnostic diagnostic in Bag)
-        {
+        foreach(Diagnostic diagnostic in Bag){
             Console.WriteLine(diagnostic.ToString());
         }
 
         Console.WriteLine($"SUCCESS: {InternalName} core self-test completed.");
         return 0;
-    }
-    catch (Exception Ex)
-    {
+    } catch(Exception Ex){
         Console.WriteLine($"FAILED: self-test crashed: {Ex.Message}");
         return 1;
     }
 }
 
-static int RunTriangle(string[] TriangleArgs)
-{
-    TriangleOptionsParseResult ParseResult = TriangleOptionsParser.Parse(TriangleArgs);
-    if (!ParseResult.Success)
-    {
+static int RunTriangle(string[]TriangleArgs){
+    TriangleOptionsParseResult ParseResult=TriangleOptionsParser.Parse(TriangleArgs);
+    if(!ParseResult.Success){
         Console.WriteLine($"FAILED: {ParseResult.Error}");
         return 2;
     }
 
-    TriangleRunOptions Options = ParseResult.Options!;
-    string ShaderPath = Path.Combine(AppContext.BaseDirectory, "Shaders", "Triangle.hlsl");
+    TriangleRunOptions Options=ParseResult.Options!;
+    var ShaderPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Triangle.hlsl");
 
     Console.WriteLine($"Product: {ProductDisplayName} ({InternalName})");
-    Console.WriteLine($"Mode: {(Options.Hidden ? "hidden" : "windowed")}, frames={(Options.Frames is int F ? F.ToString() : "until closed")}, verify={Options.Verify}");
+    Console.WriteLine($"Mode: {(Options.Hidden?"hidden":"windowed")}, frames={(Options.Frames is int F?F.ToString():"until closed")}, verify={Options.Verify}");
 
-    using Win32Window Window = new(new Win32WindowOptions
-    {
-        Title = $"{ProductDisplayName} - Triangle",
-        Width = Options.Width,
-        Height = Options.Height,
-        Visible = !Options.Hidden,
+    using Win32Window Window=new(new Win32WindowOptions {
+        Title= $"{ProductDisplayName} - Triangle",
+        Width=Options.Width,
+        Height=Options.Height,
+        Visible=!Options.Hidden,
     });
 
-    GraphicsDeviceOptions DeviceOptions = new()
-    {
-        UseWarp = Options.UseWarp,
-        EnableDebugLayer = Options.EnableDebugLayer,
-        EnableGpuBasedValidation = Options.EnableGpuValidation,
+    GraphicsDeviceOptions DeviceOptions=new(){
+        UseWarp=Options.UseWarp,
+        EnableDebugLayer=Options.EnableDebugLayer,
+        EnableGpuBasedValidation=Options.EnableGpuValidation,
     };
 
     TriangleRenderer Renderer;
-    try
-    {
-        Renderer = TriangleRenderer.Create(Window.Handle, Window.ClientWidth, Window.ClientHeight, DeviceOptions, ShaderPath);
-    }
-    catch (Exception Ex)
-    {
+    try {
+        Renderer=TriangleRenderer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath);
+    } catch(Exception Ex){
         Console.WriteLine($"FAILED: could not initialize the D3D12 renderer: {Ex.Message}");
         return 1;
     }
 
-    Window.Resized += (W, H) => Renderer.Resize(W, H);
+    Window.Resized+=(W,H)=>Renderer.Resize(W,H);
 
-    Console.WriteLine($"Adapter: {Renderer.AdapterDescription} ({(Renderer.IsWarp ? "WARP" : "Hardware")})");
+    Console.WriteLine($"Adapter: {Renderer.AdapterDescription} ({(Renderer.IsWarp?"WARP":"Hardware")})");
     Console.WriteLine($"Feature level: {GraphicsDevice.RequiredFeatureLevel}");
     Console.WriteLine($"Back buffer format: {TriangleRenderer.BackBufferFormat}, {Options.Width}x{Options.Height}");
-    Console.WriteLine($"Debug layer: {(Renderer.DebugLayerEnabled ? "enabled" : "disabled")}{(Renderer.GpuBasedValidationEnabled ? " (+GPU-based validation)" : string.Empty)}");
-    Console.WriteLine($"Shader compilation: {(Renderer.ShaderCompilationSucceeded ? "OK" : "FAILED")} ({Renderer.ShaderDiagnostics.Count} diagnostic(s))");
-    foreach (HlslDiagnostic diagnostic in Renderer.ShaderDiagnostics)
-    {
+    Console.WriteLine($"Debug layer: {(Renderer.DebugLayerEnabled?"enabled":"disabled")}{(Renderer.GpuBasedValidationEnabled?" (+GPU-based validation)":string.Empty)}");
+    Console.WriteLine($"Shader compilation: {(Renderer.ShaderCompilationSucceeded?"OK":"FAILED")} ({Renderer.ShaderDiagnostics.Count} diagnostic(s))");
+    foreach(HlslDiagnostic diagnostic in Renderer.ShaderDiagnostics){
         Console.WriteLine($"  {diagnostic}");
     }
 
-    int ExitCode = 0;
-    try
-    {
-        if (Options.Frames is int FrameCount)
-        {
-            for (int i = 0; i < FrameCount && !Window.IsClosed; i++)
-            {
+    var ExitCode=0;
+    try {
+        if(Options.Frames is int FrameCount){
+            for(var i=0;i<FrameCount&&!Window.IsClosed;i++){
                 Window.PumpEvents();
-                if (Window.IsClosed || Window.IsMinimized)
-                {
+                if(Window.IsClosed||Window.IsMinimized){
                     continue;
                 }
 
-                bool IsLastFrame = i == FrameCount - 1;
-                Renderer.RenderFrame(CaptureForVerification: Options.Verify && IsLastFrame);
+                var IsLastFrame=i==FrameCount-1;
+                Renderer.RenderFrame(CaptureForVerification:Options.Verify&&IsLastFrame);
             }
-        }
-        else
-        {
-            while (!Window.IsClosed)
-            {
+        } else {
+            while(!Window.IsClosed){
                 Window.PumpEvents();
-                if (!Window.IsClosed && !Window.IsMinimized)
-                {
+                if(!Window.IsClosed&&!Window.IsMinimized){
                     Renderer.RenderFrame();
                 }
             }
@@ -142,60 +118,48 @@ static int RunTriangle(string[] TriangleArgs)
 
         Console.WriteLine($"Frames rendered: {Renderer.FramesRendered}");
 
-        if (Options.Verify)
-        {
-            if (Renderer.LastCapturedFrame is null)
-            {
+        if(Options.Verify){
+            if(Renderer.LastCapturedFrame is null){
                 Console.WriteLine("Verification: FAILED (no frame was captured for readback).");
-                ExitCode = 1;
-            }
-            else
-            {
-                TriangleVerificationResult Verification = TrianglePixelVerifier.Verify(Renderer.LastCapturedFrame, TriangleRenderer.ClearColor);
-                Console.WriteLine($"Verification: {(Verification.Success ? "PASSED" : "FAILED")} - {Verification.Details}");
-                if (!Verification.Success)
-                {
-                    ExitCode = 1;
+                ExitCode=1;
+            } else {
+                TriangleVerificationResult Verification=TrianglePixelVerifier.Verify(Renderer.LastCapturedFrame,TriangleRenderer.ClearColor);
+                Console.WriteLine($"Verification: {(Verification.Success?"PASSED":"FAILED")} - {Verification.Details}");
+                if(!Verification.Success){
+                    ExitCode=1;
                 }
             }
         }
 
-        int ErrorMessageCount = Renderer.ErrorOrWorseMessageCount;
+        var ErrorMessageCount=Renderer.ErrorOrWorseMessageCount;
         Console.WriteLine($"D3D12 validation errors: {ErrorMessageCount}");
-        if (ErrorMessageCount > 0)
-        {
-            foreach (D3D12DebugMessage Message in Renderer.DebugMessages)
-            {
-                if (Message.IsErrorOrWorse)
-                {
+        if(ErrorMessageCount>0){
+            foreach(D3D12DebugMessage Message in Renderer.DebugMessages){
+                if(Message.IsErrorOrWorse){
                     Console.WriteLine($"  {Message}");
                 }
             }
 
-            ExitCode = 1;
+            ExitCode=1;
         }
-    }
-    finally
-    {
+    } finally {
         Renderer.Dispose();
     }
 
-    Console.WriteLine(ExitCode == 0
+    Console.WriteLine(ExitCode==0
         ? $"SUCCESS: {InternalName} triangle finished."
         : $"FAILED: {InternalName} triangle finished with errors.");
 
     return ExitCode;
 }
 
-static int RunUnknownCommand(string Command)
-{
+static int RunUnknownCommand(string Command){
     Console.WriteLine($"Unknown command: {Command}");
     PrintHelp();
     return 2;
 }
 
-static void PrintHelp()
-{
+static void PrintHelp(){
     Console.WriteLine($"{ProductDisplayName} ({InternalName}) TestHost");
     Console.WriteLine("Usage:");
     Console.WriteLine("  --help                Show this help.");

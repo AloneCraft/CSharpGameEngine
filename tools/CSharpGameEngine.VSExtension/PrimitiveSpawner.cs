@@ -14,46 +14,38 @@ namespace CSharpGameEngine.VSExtension;
 /// referencing it to the currently-open scene. The scene JSON schema itself is untouched - a
 /// spawned primitive is indistinguishable from any other <c>meshAssetPath</c>-bearing node.
 /// </summary>
-internal static class PrimitiveSpawner
-{
-    private const string BridgeProjectRelativePath = @"tools\CSharpGameEngine.Primitive.Cli";
-    private static readonly TimeSpan BridgeTimeout = TimeSpan.FromSeconds(60);
+internal static class PrimitiveSpawner {
+    private const string BridgeProjectRelativePath=@"tools\CSharpGameEngine.Primitive.Cli";
+    private static readonly TimeSpan BridgeTimeout=TimeSpan.FromSeconds(60);
 
-    public static async Task SpawnAsync(string PrimitiveKind)
-    {
+    public static async Task SpawnAsync(string PrimitiveKind){
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-        try
-        {
-            string? RepoRoot = RepoLocator.ResolveRepoRoot();
-            if (RepoRoot is null)
-            {
+        try {
+            var RepoRoot=RepoLocator.ResolveRepoRoot();
+            if(RepoRoot is null){
                 throw new InvalidOperationException($"リポジトリルート({RepoLocator.RepoMarkerFileName})が見つかりませんでした。");
             }
 
-            string PrimitivesDirectory = Path.Combine(RepoRoot, "UserGameProject", "Assets", "Primitives");
+            var PrimitivesDirectory=Path.Combine(RepoRoot,"UserGameProject","Assets","Primitives");
             Directory.CreateDirectory(PrimitivesDirectory);
-            string GlbPath = Path.Combine(PrimitivesDirectory, $"{PrimitiveKind}.glb");
+            var GlbPath=Path.Combine(PrimitivesDirectory, $"{PrimitiveKind}.glb");
 
-            if (!File.Exists(GlbPath))
-            {
+            if(!File.Exists(GlbPath)){
                 SetStatusBarText($"{PrimitiveKind} を生成しています...");
-                await Task.Run(() => ExternalBridgeProcess.RunProducingFile(BridgeProjectRelativePath, PrimitiveKind, GlbPath, RepoRoot, BridgeTimeout, UseResidentServer: true));
+                await Task.Run(()=>ExternalBridgeProcess.RunProducingFile(BridgeProjectRelativePath,PrimitiveKind,GlbPath,RepoRoot,BridgeTimeout,UseResidentServer:true));
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                 SetStatusBarText(string.Empty);
             }
 
-            if (!SceneNodeAdder.TryAddAssetNode(GlbPath, PrimitiveKind, out string? ErrorMessage))
-            {
+            if(!SceneNodeAdder.TryAddAssetNode(GlbPath,PrimitiveKind,out var ErrorMessage)){
                 System.Windows.MessageBox.Show(
                     ErrorMessage,
                     "C# Game Engine Shape Palette",
                     System.Windows.MessageBoxButton.OK,
                     System.Windows.MessageBoxImage.Information);
             }
-        }
-        catch (Exception Ex)
-        {
+        } catch(Exception Ex){
             System.Windows.MessageBox.Show(
                 $"シェイプの配置に失敗しました: {Ex}",
                 "C# Game Engine Shape Palette",
@@ -62,12 +54,10 @@ internal static class PrimitiveSpawner
         }
     }
 
-    private static void SetStatusBarText(string Text)
-    {
+    private static void SetStatusBarText(string Text){
         ThreadHelper.ThrowIfNotOnUIThread();
 
-        if (Package.GetGlobalService(typeof(SVsStatusbar)) is IVsStatusbar StatusBar)
-        {
+        if(Package.GetGlobalService(typeof(SVsStatusbar))is IVsStatusbar StatusBar){
             StatusBar.SetText(Text);
         }
     }

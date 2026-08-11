@@ -9,11 +9,10 @@ namespace CSharpGameEngine.CodeAnalysis.Tests;
 /// この生成物だけは「出してはいけないコンパイルで出すとCS0017(エントリポイントの重複)でビルドを
 /// 壊す」ため、出す条件よりも<b>出さない条件</b>のテストが本体になる。
 /// </summary>
-public sealed class GameSystemEntryPointTests
-{
-    private const string EntryPointHintName = "GameSystem.EntryPoint.g.cs";
+public sealed class GameSystemEntryPointTests {
+    private const string EntryPointHintName="GameSystem.EntryPoint.g.cs";
 
-    private const string StartupAndTickSystems = """
+    private const string StartupAndTickSystems="""
         using CSharpGameEngine.Entities;
         using Sample;
 
@@ -41,37 +40,34 @@ public sealed class GameSystemEntryPointTests
         """;
 
     [Fact]
-    public void EntryPointIsGenerated_ForAnApplicationWithoutItsOwnMain()
-    {
-        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
+    public void EntryPointIsGenerated_ForAnApplicationWithoutItsOwnMain(){
+        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
             GameSystemGeneratorTestHelper.CreateApplicationCompilation(
-                GameSystemGeneratorTestHelper.CommonComponents, StartupAndTickSystems));
+                GameSystemGeneratorTestHelper.CommonComponents,StartupAndTickSystems));
 
         Assert.Empty(Result.Diagnostics);
 
-        string Text = GameSystemGeneratorTestHelper.GeneratedText(Result, EntryPointHintName);
+        var Text=GameSystemGeneratorTestHelper.GeneratedText(Result,EntryPointHintName);
 
-        Assert.Contains("private static void Main()", Text);
-        Assert.Contains("World.Create(new global::CSharpGameEngine.Entities.Bootstrap());", Text);
-        Assert.Contains("GeneratedGameLoop.Run(ref State);", Text);
+        Assert.Contains("private static void Main()",Text);
+        Assert.Contains("World.Create(new global::CSharpGameEngine.Entities.Bootstrap());",Text);
+        Assert.Contains("GeneratedGameLoop.Run(ref State);",Text);
     }
 
     [Fact]
-    public void EntryPointIsNotGenerated_ForALibrary()
-    {
+    public void EntryPointIsNotGenerated_ForALibrary(){
         // テストプロジェクトや共有ソースのスモークビルドがこれに当たる。
-        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
-            GameSystemGeneratorTestHelper.CommonComponents, StartupAndTickSystems);
+        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
+            GameSystemGeneratorTestHelper.CommonComponents,StartupAndTickSystems);
 
         Assert.Empty(Result.Diagnostics);
         AssertNoEntryPoint(Result);
     }
 
     [Fact]
-    public void EntryPointIsNotGenerated_WhenTheUserWroteTheirOwnMain()
-    {
+    public void EntryPointIsNotGenerated_WhenTheUserWroteTheirOwnMain(){
         // UserGameProjectの回帰。手書きProgram.csがある限りSGは黙る(CS0017を起こさない)。
-        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
+        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
             GameSystemGeneratorTestHelper.CreateApplicationCompilation(
                 GameSystemGeneratorTestHelper.CommonComponents,
                 StartupAndTickSystems,
@@ -89,10 +85,9 @@ public sealed class GameSystemEntryPointTests
     }
 
     [Fact]
-    public void EntryPointIsNotGenerated_ForAnApplicationWithoutAnySystem()
-    {
+    public void EntryPointIsNotGenerated_ForAnApplicationWithoutAnySystem(){
         // Systemが無ければループも無い。Mainが要るなら手書きするしかなく、CS5001がそのまま正しい。
-        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
+        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
             GameSystemGeneratorTestHelper.CreateApplicationCompilation(
                 GameSystemGeneratorTestHelper.CommonComponents));
 
@@ -100,10 +95,9 @@ public sealed class GameSystemEntryPointTests
     }
 
     [Fact]
-    public void ContextParameter_ReportsSysgen021_AndSuppressesTheEntryPoint()
-    {
+    public void ContextParameter_ReportsSysgen021_AndSuppressesTheEntryPoint(){
         // Contextは`Run`の引数になるため、生成されたMainには渡す値を作る手段が無い。
-        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
+        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
             GameSystemGeneratorTestHelper.CreateApplicationCompilation(
                 GameSystemGeneratorTestHelper.CommonComponents,
                 """
@@ -118,19 +112,18 @@ public sealed class GameSystemEntryPointTests
                 }
                 """));
 
-        Diagnostic diagnostic = Assert.Single(Result.Diagnostics, D => D.Id == "SYSGEN021");
+        Diagnostic diagnostic=Assert.Single(Result.Diagnostics,D=>D.Id=="SYSGEN021");
 
-        Assert.Contains("Game.ContextSystem", diagnostic.GetMessage());
-        Assert.Contains("Sample.Log", diagnostic.GetMessage());
+        Assert.Contains("Game.ContextSystem",diagnostic.GetMessage());
+        Assert.Contains("Sample.Log",diagnostic.GetMessage());
         AssertNoEntryPoint(Result);
     }
 
     [Fact]
-    public void BootstrapArchetypeIsNotRegistered_WhenNoEntryPointIsGenerated()
-    {
+    public void BootstrapArchetypeIsNotRegistered_WhenNoEntryPointIsGenerated(){
         // 生成しないコンパイルにまでBootstrapのArchetypeが増えると、Archetype番号がずれるうえに
         // 誰も入らない空ループが出る。注入はエントリポイントを出すと決めた場合だけに限定している。
-        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
+        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
             GameSystemGeneratorTestHelper.CommonComponents,
             """
             using CSharpGameEngine.Entities;
@@ -144,17 +137,16 @@ public sealed class GameSystemEntryPointTests
             }
             """);
 
-        string Types = GameSystemGeneratorTestHelper.GeneratedText(Result, "GameSystem.Types.g.cs");
+        var Types=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.Types.g.cs");
 
-        Assert.DoesNotContain("Bootstrap", Types);
+        Assert.DoesNotContain("Bootstrap",Types);
     }
 
     [Fact]
-    public void BootstrapArchetypeExists_EvenIfNoSystemDeclaresIt()
-    {
+    public void BootstrapArchetypeExists_EvenIfNoSystemDeclaresIt(){
         // 生成されたMainは必ず`World.Create(new Bootstrap())`を呼ぶので、Bootstrapを受け取るSystemが
         // 1つも無くてもオーバーロードが存在しなければならない。
-        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
+        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
             GameSystemGeneratorTestHelper.CreateApplicationCompilation(
                 GameSystemGeneratorTestHelper.CommonComponents,
                 """
@@ -169,10 +161,10 @@ public sealed class GameSystemEntryPointTests
                 }
                 """));
 
-        string World = GameSystemGeneratorTestHelper.GeneratedText(Result, "GameSystem.World.g.cs");
+        var World=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.World.g.cs");
 
-        Assert.Contains("public Entity Create(global::CSharpGameEngine.Entities.Bootstrap Bootstrap)", World);
-        Assert.Contains(EntryPointHintName, Result.Results[0].GeneratedSources.Select(S => S.HintName));
+        Assert.Contains("public Entity Create(global::CSharpGameEngine.Entities.Bootstrap Bootstrap)",World);
+        Assert.Contains(EntryPointHintName,Result.Results[0].GeneratedSources.Select(S=>S.HintName));
     }
 
     /// <summary>
@@ -181,9 +173,8 @@ public sealed class GameSystemEntryPointTests
     /// 成立することの証明で、この機能の中核契約にあたる。
     /// </summary>
     [Fact]
-    public void GeneratedMain_SeedsBootstrap_RunsFrames_AndStopsWhenStateIsDisabled()
-    {
-        CSharpCompilation compilation = GameSystemGeneratorTestHelper.CreateApplicationCompilation(
+    public void GeneratedMain_SeedsBootstrap_RunsFrames_AndStopsWhenStateIsDisabled(){
+        CSharpCompilation compilation=GameSystemGeneratorTestHelper.CreateApplicationCompilation(
             GameSystemGeneratorTestHelper.CommonComponents,
             """
             using CSharpGameEngine.Entities;
@@ -229,17 +220,17 @@ public sealed class GameSystemEntryPointTests
             }
             """);
 
-        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(compilation);
+        Assembly assembly=GameSystemGeneratorTestHelper.CompileAndLoad(compilation);
 
-        GameSystemGeneratorTestHelper.Invoke(assembly, "CSharpGameEngine.Generated.GeneratedEntryPoint", "Main");
+        GameSystemGeneratorTestHelper.Invoke(assembly,"CSharpGameEngine.Generated.GeneratedEntryPoint","Main");
 
         // Spawned=1: Bootstrapは一度きり。Frames=3: 停止条件どおり。BootstrapTicks=3: Bootstrapの
         // Archetypeループは毎フレーム回り続ける(閉集合方式にDestroyは無い)。
         // Frames=3がBootstrapTicksと一致すること自体が「Archetype0(Bootstrap)が作ったEntityは
         // 同じフレームのうちにArchetype1(Position)のループで処理される」ことの証明でもある。
-        Assert.Equal("1:3:3", GameSystemGeneratorTestHelper.Invoke(assembly, "Game.Trace", "Result"));
+        Assert.Equal("1:3:3",GameSystemGeneratorTestHelper.Invoke(assembly,"Game.Trace","Result"));
     }
 
-    private static void AssertNoEntryPoint(GeneratorDriverRunResult Result) =>
-        Assert.DoesNotContain(EntryPointHintName, Result.Results[0].GeneratedSources.Select(S => S.HintName));
+    private static void AssertNoEntryPoint(GeneratorDriverRunResult Result)=>
+        Assert.DoesNotContain(EntryPointHintName,Result.Results[0].GeneratedSources.Select(S=>S.HintName));
 }

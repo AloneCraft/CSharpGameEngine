@@ -10,26 +10,25 @@ namespace CSharpGameEngine.Audio.Abstractions;
 /// <typeparamref name="TBackend"/>/<typeparamref name="TEngine"/>/<typeparamref name="TVoice"/>
 /// themselves - see <c>UserEcsProject/GameAudio.cs</c>.
 /// </summary>
-public static class AudioBackend<TBackend, TEngine, TVoice>
-    where TBackend : struct, IAudioBackend<TEngine, TVoice>
-    where TEngine : struct
-    where TVoice : struct
-{
-    public static TEngine CreateEngine() => TBackend.CreateEngine();
+public static class AudioBackend<TBackend,TEngine,TVoice>
+    where TBackend:struct,IAudioBackend<TEngine,TVoice>
+    where TEngine:struct
+    where TVoice:struct {
+    public static TEngine CreateEngine()=>TBackend.CreateEngine();
 
-    public static void DestroyEngine(in TEngine engine) => TBackend.DestroyEngine(engine);
+    public static void DestroyEngine(in TEngine engine)=>TBackend.DestroyEngine(engine);
 
-    public static TVoice CreateVoice(in TEngine engine, int sampleRate, int channels) =>
-        TBackend.CreateVoice(engine, sampleRate, channels);
+    public static TVoice CreateVoice(in TEngine engine,int sampleRate,int channels)=>
+        TBackend.CreateVoice(engine,sampleRate,channels);
 
-    public static TVoice SubmitBuffer(in TVoice voice, ReadOnlySpan<short> samples, bool loop) =>
-        TBackend.SubmitBuffer(voice, samples, loop);
+    public static TVoice SubmitBuffer(in TVoice voice,ReadOnlySpan<short>samples,bool loop)=>
+        TBackend.SubmitBuffer(voice,samples,loop);
 
-    public static void Start(in TVoice voice) => TBackend.Start(voice);
+    public static void Start(in TVoice voice)=>TBackend.Start(voice);
 
-    public static void Stop(in TVoice voice) => TBackend.Stop(voice);
+    public static void Stop(in TVoice voice)=>TBackend.Stop(voice);
 
-    public static void SetVolume(in TVoice voice, float volume) => TBackend.SetVolume(voice, volume);
+    public static void SetVolume(in TVoice voice,float volume)=>TBackend.SetVolume(voice,volume);
 
-    public static void DestroyVoice(in TVoice voice) => TBackend.DestroyVoice(voice);
+    public static void DestroyVoice(in TVoice voice)=>TBackend.DestroyVoice(voice);
 }

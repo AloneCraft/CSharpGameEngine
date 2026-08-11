@@ -8,9 +8,8 @@ namespace CSharpGameEngine.CodeAnalysis.Tests;
 /// 「部分集合一致で複数System・複数オーバーロードが発火する」「構造変更はフレーム末尾にまとめて
 /// 適用される」という設計の中核契約を、生成された実コードで証明する最重要テスト。
 /// </summary>
-public sealed class GameSystemGeneratorEndToEndTests
-{
-    private const string Components = """
+public sealed class GameSystemGeneratorEndToEndTests {
+    private const string Components="""
         namespace Sample;
 
         public struct Position { public float X; }
@@ -25,9 +24,8 @@ public sealed class GameSystemGeneratorEndToEndTests
         """;
 
     [Fact]
-    public void SubsetDispatch_FiresEveryMatchingOverloadOncePerEntity()
-    {
-        string Source = """
+    public void SubsetDispatch_FiresEveryMatchingOverloadOncePerEntity(){
+        var Source="""
             using CSharpGameEngine.Entities;
             using CSharpGameEngine.Generated;
             using Sample;
@@ -74,16 +72,15 @@ public sealed class GameSystemGeneratorEndToEndTests
             }
             """;
 
-        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(Components, Source);
-        object? Result = GameSystemGeneratorTestHelper.Invoke(assembly, "Game.TestEntry", "RunScenario");
+        Assembly assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
+        var Result=GameSystemGeneratorTestHelper.Invoke(assembly,"Game.TestEntry","RunScenario");
 
-        Assert.Equal("OK", Result);
+        Assert.Equal("OK",Result);
     }
 
     [Fact]
-    public void MoveArchetype_AppliesAtEndOfFrame_AndSwapBackKeepsIndicesValid()
-    {
-        string Source = """
+    public void MoveArchetype_AppliesAtEndOfFrame_AndSwapBackKeepsIndicesValid(){
+        var Source="""
             using CSharpGameEngine.Entities;
             using CSharpGameEngine.Generated;
             using Sample;
@@ -128,16 +125,15 @@ public sealed class GameSystemGeneratorEndToEndTests
             }
             """;
 
-        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(Components, Source);
-        object? Result = GameSystemGeneratorTestHelper.Invoke(assembly, "Game.TestEntry", "RunScenario");
+        Assembly assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
+        var Result=GameSystemGeneratorTestHelper.Invoke(assembly,"Game.TestEntry","RunScenario");
 
-        Assert.Equal("OK", Result);
+        Assert.Equal("OK",Result);
     }
 
     [Fact]
-    public void ContextParameters_ReachTheSystemBody()
-    {
-        string Source = """
+    public void ContextParameters_ReachTheSystemBody(){
+        var Source="""
             using CSharpGameEngine.Entities;
             using CSharpGameEngine.Generated;
             using Sample;
@@ -173,16 +169,15 @@ public sealed class GameSystemGeneratorEndToEndTests
             }
             """;
 
-        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(Components, Source);
-        object? Result = GameSystemGeneratorTestHelper.Invoke(assembly, "Game.TestEntry", "RunScenario");
+        Assembly assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
+        var Result=GameSystemGeneratorTestHelper.Invoke(assembly,"Game.TestEntry","RunScenario");
 
-        Assert.Equal("OK", Result);
+        Assert.Equal("OK",Result);
     }
 
     [Fact]
-    public void SpawnDeclaredArchetype_IsCreatableThroughWorldCreate()
-    {
-        string Source = """
+    public void SpawnDeclaredArchetype_IsCreatableThroughWorldCreate(){
+        var Source="""
             using CSharpGameEngine.Entities;
             using Sample;
 
@@ -216,16 +211,15 @@ public sealed class GameSystemGeneratorEndToEndTests
             }
             """;
 
-        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(Components, Source);
-        object? Result = GameSystemGeneratorTestHelper.Invoke(assembly, "Game.TestEntry", "RunScenario");
+        Assembly assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
+        var Result=GameSystemGeneratorTestHelper.Invoke(assembly,"Game.TestEntry","RunScenario");
 
-        Assert.Equal("OK", Result);
+        Assert.Equal("OK",Result);
     }
 
     [Fact]
-    public void WorldSnapshot_CapturesLiveEntitiesForTheOutOfProcessBridge()
-    {
-        string Source = """
+    public void WorldSnapshot_CapturesLiveEntitiesForTheOutOfProcessBridge(){
+        var Source="""
             using CSharpGameEngine.Entities;
             using Sample;
 
@@ -257,10 +251,10 @@ public sealed class GameSystemGeneratorEndToEndTests
             }
             """;
 
-        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(Components, Source);
-        object? Result = GameSystemGeneratorTestHelper.Invoke(assembly, "Game.TestEntry", "RunScenario");
+        Assembly assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
+        var Result=GameSystemGeneratorTestHelper.Invoke(assembly,"Game.TestEntry","RunScenario");
 
-        Assert.Equal("OK", Result);
+        Assert.Equal("OK",Result);
     }
 }
 

@@ -12,7 +12,6 @@ namespace CSharpGameEngine.Entities;
 /// (<c>Destroy</c>は閉集合方式に存在しないため、フラグが唯一の手段)。
 /// </para>
 /// </summary>
-public struct Bootstrap
-{
+public struct Bootstrap {
     public bool Done;
 }

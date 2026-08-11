@@ -11,209 +11,173 @@ using static TerraFX.Interop.Windows.Windows;
 namespace CSharpGameEngine.Compiler.Hlsl;
 
 /// <summary>Compiles a single HLSL entry point to DXIL bytecode using DXC (DirectXShaderCompiler).</summary>
-public static class HlslCompiler
-{
-    private static readonly Regex DiagnosticLinePattern = new(
+public static class HlslCompiler {
+    private static readonly Regex DiagnosticLinePattern=new(
         @"^(?<file>[^:\r\n]+):(?<line>\d+):(?<column>\d+):\s*(?<severity>error|warning|note)\s*:\s*(?<message>.*)$",
-        RegexOptions.Compiled | RegexOptions.Multiline);
+        RegexOptions.Compiled|RegexOptions.Multiline);
 
-    public static unsafe HlslCompileResult Compile(HlslCompileRequest Request)
-    {
+    public static unsafe HlslCompileResult Compile(HlslCompileRequest Request){
         ArgumentNullException.ThrowIfNull(Request);
 
-        string FullPath = Path.GetFullPath(Request.FilePath);
-        string SourceName = Path.GetFileName(FullPath);
+        var FullPath=Path.GetFullPath(Request.FilePath);
+        var SourceName=Path.GetFileName(FullPath);
 
-        byte[] SourceBytes;
-        try
-        {
-            SourceBytes = File.ReadAllBytes(FullPath);
-        }
-        catch (Exception Ex) when (Ex is IOException or UnauthorizedAccessException)
-        {
-            return HlslCompileResult.Failed([new HlslDiagnostic(SourceName, 0, 0, HlslDiagnosticSeverity.Error, $"Could not read shader source: {Ex.Message}")]);
+        byte[]SourceBytes;
+        try {
+            SourceBytes=File.ReadAllBytes(FullPath);
+        } catch(Exception Ex) when (Ex is IOException or UnauthorizedAccessException){
+            return HlslCompileResult.Failed([new HlslDiagnostic(SourceName,0,0,HlslDiagnosticSeverity.Error, $"Could not read shader source: {Ex.Message}")]);
         }
 
-        IDxcUtils* Utils = null;
-        IDxcCompiler3* compiler = null;
-        IDxcResult* Result = null;
-        nint[] NativeArgs = [];
+        IDxcUtils*Utils=null;
+        IDxcCompiler3*compiler=null;
+        IDxcResult*Result=null;
+        nint[]NativeArgs=[];
 
-        try
-        {
-            Utils = CreateDxcInstance<IDxcUtils>(CLSID.CLSID_DxcUtils, SourceName, "DxcCreateInstance(CLSID_DxcUtils)");
-            compiler = CreateDxcInstance<IDxcCompiler3>(CLSID.CLSID_DxcCompiler, SourceName, "DxcCreateInstance(CLSID_DxcCompiler)");
+        try {
+            Utils=CreateDxcInstance<IDxcUtils>(CLSID.CLSID_DxcUtils,SourceName,"DxcCreateInstance(CLSID_DxcUtils)");
+            compiler=CreateDxcInstance<IDxcCompiler3>(CLSID.CLSID_DxcCompiler,SourceName,"DxcCreateInstance(CLSID_DxcCompiler)");
 
-            List<string> ArgStrings = BuildArguments(Request, SourceName);
-            NativeArgs = new nint[ArgStrings.Count];
-            for (int i = 0; i < ArgStrings.Count; i++)
-            {
-                NativeArgs[i] = Marshal.StringToHGlobalUni(ArgStrings[i]);
+            List<string>ArgStrings=BuildArguments(Request,SourceName);
+            NativeArgs=new nint[ArgStrings.Count];
+            for(var i=0;i<ArgStrings.Count;i++){
+                NativeArgs[i]=Marshal.StringToHGlobalUni(ArgStrings[i]);
             }
 
-            fixed (byte* PSource = SourceBytes)
-            fixed (nint* PNativeArgs = NativeArgs)
-            {
-                DxcBuffer SourceBuffer = new()
-                {
-                    Ptr = PSource,
-                    Size = (nuint)SourceBytes.Length,
-                    Encoding = DXC_CP_UTF8,
+            fixed(byte*PSource=SourceBytes)
+            fixed(nint*PNativeArgs=NativeArgs){
+                DxcBuffer SourceBuffer=new(){
+                    Ptr=PSource,
+                    Size=(nuint)SourceBytes.Length,
+                    Encoding=DXC_CP_UTF8,
                 };
 
-                IDxcResult* LocalResult;
-                HRESULT Hr = compiler->Compile(
+                IDxcResult*LocalResult;
+                HRESULT Hr=compiler->Compile(
                     &SourceBuffer,
                     (char**)PNativeArgs,
                     (uint)NativeArgs.Length,
-                    pIncludeHandler: null,
+                    pIncludeHandler:null,
                     __uuidof<IDxcResult>(),
                     (void**)&LocalResult);
-                Result = LocalResult;
+                Result=LocalResult;
 
-                if (Hr.FAILED)
-                {
-                    return HlslCompileResult.Failed([new HlslDiagnostic(SourceName, 0, 0, HlslDiagnosticSeverity.Error,
+                if(Hr.FAILED){
+                    return HlslCompileResult.Failed([new HlslDiagnostic(SourceName,0,0,HlslDiagnosticSeverity.Error,
                         $"IDxcCompiler3::Compile failed. HRESULT=0x{Hr.Value:X8}")]);
                 }
             }
 
-            List<HlslDiagnostic> Diagnostics = ReadDiagnostics(Result, SourceName);
+            List<HlslDiagnostic>Diagnostics=ReadDiagnostics(Result,SourceName);
 
             HRESULT Status;
-            _ = Result->GetStatus(&Status);
+            _=Result->GetStatus(&Status);
 
-            if (Status.FAILED)
-            {
-                if (Diagnostics.Count == 0)
-                {
-                    Diagnostics.Add(new HlslDiagnostic(SourceName, 0, 0, HlslDiagnosticSeverity.Error,
+            if(Status.FAILED){
+                if(Diagnostics.Count==0){
+                    Diagnostics.Add(new HlslDiagnostic(SourceName,0,0,HlslDiagnosticSeverity.Error,
                         $"DXC reported failure with no diagnostic text. HRESULT=0x{Status.Value:X8}"));
                 }
                 return HlslCompileResult.Failed(Diagnostics);
             }
 
-            byte[]? Bytecode = ReadObjectBytecode(Result);
-            if (Bytecode is null || Bytecode.Length == 0)
-            {
-                Diagnostics.Add(new HlslDiagnostic(SourceName, 0, 0, HlslDiagnosticSeverity.Error,
+            var Bytecode=ReadObjectBytecode(Result);
+            if(Bytecode is null||Bytecode.Length==0){
+                Diagnostics.Add(new HlslDiagnostic(SourceName,0,0,HlslDiagnosticSeverity.Error,
                     "DXC reported success but produced no DXIL bytecode."));
                 return HlslCompileResult.Failed(Diagnostics);
             }
 
-            return HlslCompileResult.Succeeded(Bytecode, Diagnostics);
-        }
-        finally
-        {
-            foreach (nint P in NativeArgs)
-            {
-                if (P != 0)
-                {
+            return HlslCompileResult.Succeeded(Bytecode,Diagnostics);
+        } finally {
+            foreach(var P in NativeArgs){
+                if(P!=0){
                     Marshal.FreeHGlobal(P);
                 }
             }
 
-            if (Result != null)
-            {
-                _ = Result->Release();
+            if(Result!=null){
+                _=Result->Release();
             }
 
-            if (compiler != null)
-            {
-                _ = compiler->Release();
+            if(compiler!=null){
+                _=compiler->Release();
             }
 
-            if (Utils != null)
-            {
-                _ = Utils->Release();
+            if(Utils!=null){
+                _=Utils->Release();
             }
         }
     }
 
-    private static unsafe T* CreateDxcInstance<T>(in Guid Clsid, string SourceName, string ApiName)
-        where T : unmanaged, INativeGuid
-    {
-        Guid ClsidCopy = Clsid;
-        T* Instance;
-        HRESULT Hr = DxcCreateInstance(&ClsidCopy, __uuidof<T>(), (void**)&Instance);
+    private static unsafe T*CreateDxcInstance<T>(in Guid Clsid,string SourceName,string ApiName)
+        where T:unmanaged,INativeGuid {
+        Guid ClsidCopy=Clsid;
+        T*Instance;
+        HRESULT Hr=DxcCreateInstance(&ClsidCopy,__uuidof<T>(),(void**)&Instance);
 
-        if (Hr.FAILED)
-        {
+        if(Hr.FAILED){
             throw new InvalidOperationException($"{ApiName} failed while compiling '{SourceName}'. HRESULT=0x{Hr.Value:X8}");
         }
 
         return Instance;
     }
 
-    private static List<string> BuildArguments(HlslCompileRequest Request, string SourceName)
-    {
-        List<string> Args =
-        [
+    private static List<string>BuildArguments(HlslCompileRequest Request,string SourceName){
+        List<string>Args=[
             SourceName,
-            "-E", Request.EntryPoint,
-            "-T", Request.TargetProfile,
+            "-E",Request.EntryPoint,
+            "-T",Request.TargetProfile,
         ];
 
-        foreach (HlslDefine Define in Request.Defines)
-        {
+        foreach(HlslDefine Define in Request.Defines){
             Args.Add("-D");
             Args.Add(Define.ToString());
         }
 
-        if (Request.EnableDebugInfo)
-        {
+        if(Request.EnableDebugInfo){
             Args.Add("-Zi");
             Args.Add("-Od");
             Args.Add("-Qembed_debug");
-        }
-        else
-        {
+        } else {
             Args.Add("-O3");
         }
 
         return Args;
     }
 
-    private static unsafe List<HlslDiagnostic> ReadDiagnostics(IDxcResult* Result, string SourceName)
-    {
-        List<HlslDiagnostic> Diagnostics = [];
+    private static unsafe List<HlslDiagnostic>ReadDiagnostics(IDxcResult*Result,string SourceName){
+        List<HlslDiagnostic>Diagnostics=[];
 
-        if (!Result->HasOutput(DXC_OUT_ERRORS))
-        {
+        if(!Result->HasOutput(DXC_OUT_ERRORS)){
             return Diagnostics;
         }
 
-        IDxcBlobUtf8* Errors = null;
-        try
-        {
-            HRESULT Hr = Result->GetOutput(DXC_OUT_ERRORS, __uuidof<IDxcBlobUtf8>(), (void**)&Errors, ppOutputName: null);
-            if (Hr.FAILED || Errors == null)
-            {
+        IDxcBlobUtf8*Errors=null;
+        try {
+            HRESULT Hr=Result->GetOutput(DXC_OUT_ERRORS,__uuidof<IDxcBlobUtf8>(),(void**)&Errors,ppOutputName:null);
+            if(Hr.FAILED||Errors==null){
                 return Diagnostics;
             }
 
-            nuint Length = Errors->GetStringLength();
-            if (Length == 0)
-            {
+            var Length=Errors->GetStringLength();
+            if(Length==0){
                 return Diagnostics;
             }
 
-            string Text = Marshal.PtrToStringUTF8((nint)Errors->GetStringPointer(), (int)Length);
-            MatchCollection Matches = DiagnosticLinePattern.Matches(Text);
+            var Text=Marshal.PtrToStringUTF8((nint)Errors->GetStringPointer(),(int)Length);
+            MatchCollection Matches=DiagnosticLinePattern.Matches(Text);
 
-            if (Matches.Count == 0)
-            {
-                Diagnostics.Add(new HlslDiagnostic(SourceName, 0, 0, HlslDiagnosticSeverity.Error, Text.Trim()));
+            if(Matches.Count==0){
+                Diagnostics.Add(new HlslDiagnostic(SourceName,0,0,HlslDiagnosticSeverity.Error,Text.Trim()));
                 return Diagnostics;
             }
 
-            foreach (Match match in Matches)
-            {
-                HlslDiagnosticSeverity Severity = match.Groups["severity"].Value switch
-                {
-                    "error" => HlslDiagnosticSeverity.Error,
-                    "warning" => HlslDiagnosticSeverity.Warning,
-                    _ => HlslDiagnosticSeverity.Info,
+            foreach(Match match in Matches){
+                HlslDiagnosticSeverity Severity=match.Groups["severity"].Value switch {
+                    "error"=>HlslDiagnosticSeverity.Error,
+                    "warning"=>HlslDiagnosticSeverity.Warning,
+                    _ =>HlslDiagnosticSeverity.Info,
                 };
 
                 Diagnostics.Add(new HlslDiagnostic(
@@ -225,47 +189,36 @@ public static class HlslCompiler
             }
 
             return Diagnostics;
-        }
-        finally
-        {
-            if (Errors != null)
-            {
-                _ = Errors->Release();
+        } finally {
+            if(Errors!=null){
+                _=Errors->Release();
             }
         }
     }
 
-    private static unsafe byte[]? ReadObjectBytecode(IDxcResult* Result)
-    {
-        if (!Result->HasOutput(DXC_OUT_OBJECT))
-        {
+    private static unsafe byte[]?ReadObjectBytecode(IDxcResult*Result){
+        if(!Result->HasOutput(DXC_OUT_OBJECT)){
             return null;
         }
 
-        IDxcBlob* ObjectBlob = null;
-        try
-        {
-            HRESULT Hr = Result->GetOutput(DXC_OUT_OBJECT, __uuidof<IDxcBlob>(), (void**)&ObjectBlob, ppOutputName: null);
-            if (Hr.FAILED || ObjectBlob == null)
-            {
+        IDxcBlob*ObjectBlob=null;
+        try {
+            HRESULT Hr=Result->GetOutput(DXC_OUT_OBJECT,__uuidof<IDxcBlob>(),(void**)&ObjectBlob,ppOutputName:null);
+            if(Hr.FAILED||ObjectBlob==null){
                 return null;
             }
 
-            nuint Size = ObjectBlob->GetBufferSize();
-            if (Size == 0)
-            {
+            var Size=ObjectBlob->GetBufferSize();
+            if(Size==0){
                 return null;
             }
 
-            byte[] Bytecode = new byte[Size];
-            Marshal.Copy((nint)ObjectBlob->GetBufferPointer(), Bytecode, 0, Bytecode.Length);
+            var Bytecode=new byte[Size];
+            Marshal.Copy((nint)ObjectBlob->GetBufferPointer(),Bytecode,0,Bytecode.Length);
             return Bytecode;
-        }
-        finally
-        {
-            if (ObjectBlob != null)
-            {
-                _ = ObjectBlob->Release();
+        } finally {
+            if(ObjectBlob!=null){
+                _=ObjectBlob->Release();
             }
         }
     }

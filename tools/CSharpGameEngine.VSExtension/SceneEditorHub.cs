@@ -14,24 +14,22 @@ namespace CSharpGameEngine.VSExtension;
 /// most-recently-opened scene is tracked ("last one wins") - this repo has a single scene file
 /// today, and Docs/EditorSpec.md §6 excludes multi-scene transitions from scope anyway.
 /// </summary>
-internal static class SceneEditorHub
-{
-    public static event Action<SceneFile, string>? SceneOpened;
+internal static class SceneEditorHub {
+    public static event Action<SceneFile,string>?SceneOpened;
 
-    public static event Action<Guid?>? SelectedNodeChanged;
+    public static event Action<Guid?>?SelectedNodeChanged;
 
     /// <summary>Raised after <see cref="ActiveScene"/>'s file has been rewritten on disk (e.g. a primitive was appended, ADR-0021) - the Scene view re-reads its own path in response.</summary>
-    public static event Action? ReloadRequested;
+    public static event Action?ReloadRequested;
 
-    public static (SceneFile Scene, string Path)? ActiveScene { get; private set; }
+    public static(SceneFile Scene,string Path)?ActiveScene { get;private set;}
 
-    public static void PublishSceneOpened(SceneFile Scene, string Path)
-    {
-        ActiveScene = (Scene, Path);
-        SceneOpened?.Invoke(Scene, Path);
+    public static void PublishSceneOpened(SceneFile Scene,string Path){
+        ActiveScene=(Scene,Path);
+        SceneOpened?.Invoke(Scene,Path);
     }
 
-    public static void PublishSelection(Guid? NodeId) => SelectedNodeChanged?.Invoke(NodeId);
+    public static void PublishSelection(Guid?NodeId)=>SelectedNodeChanged?.Invoke(NodeId);
 
-    public static void RequestReload() => ReloadRequested?.Invoke();
+    public static void RequestReload()=>ReloadRequested?.Invoke();
 }

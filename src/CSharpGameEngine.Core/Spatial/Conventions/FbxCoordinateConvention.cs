@@ -15,17 +15,16 @@ namespace CSharpGameEngine.Spatial.Fbx;
 /// NOT normalize the same way) would not require renaming a "Gltf"-named type. See
 /// Docs/Decisions/ADR-0027-Gltf-Fbx-Import-Axis-Conversion.md.
 /// </summary>
-public readonly struct FbxCoordinateConvention : ICoordinateConvention
-{
-    public static CoordinateHandedness Handedness => CoordinateHandedness.RightHanded;
+public readonly struct FbxCoordinateConvention:ICoordinateConvention {
+    public static CoordinateHandedness Handedness=>CoordinateHandedness.RightHanded;
 
-    public static XyzVector ToXyz(in RufVector Value) => new(Value.R, Value.U, -Value.F);
+    public static XyzVector ToXyz(in RufVector Value)=>new(Value.R,Value.U,-Value.F);
 
-    public static RufVector FromXyz(in XyzVector Value) => new(Value.X, Value.Y, -Value.Z);
+    public static RufVector FromXyz(in XyzVector Value)=>new(Value.X,Value.Y,-Value.Z);
 
-    public static XyzVector RightXyz => new(1f, 0f, 0f);
+    public static XyzVector RightXyz=>new(1f,0f,0f);
 
-    public static XyzVector UpXyz => new(0f, 1f, 0f);
+    public static XyzVector UpXyz=>new(0f,1f,0f);
 
-    public static XyzVector ForwardXyz => new(0f, 0f, -1f);
+    public static XyzVector ForwardXyz=>new(0f,0f,-1f);
 }

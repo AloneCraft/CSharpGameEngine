@@ -10,7 +10,6 @@ namespace CSharpGameEngine.Entities;
 /// 名前にしている(このプロパティ自体はEntityそのものではなく、Entity生成に使うComponent値の宣言)。
 /// </para>
 /// </summary>
-[AttributeUsage(AttributeTargets.Property, AllowMultiple = false, Inherited = false)]
-public sealed class SceneEntityAttribute : Attribute
-{
+[AttributeUsage(AttributeTargets.Property,AllowMultiple=false,Inherited=false)]
+public sealed class SceneEntityAttribute:Attribute {
 }

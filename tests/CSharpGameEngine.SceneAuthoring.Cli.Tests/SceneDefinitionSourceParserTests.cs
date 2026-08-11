@@ -1,11 +1,9 @@
 namespace CSharpGameEngine.SceneAuthoring.Cli.Tests;
 
-public class SceneDefinitionSourceParserTests
-{
+public class SceneDefinitionSourceParserTests {
     [Fact]
-    public void ParseNodeNamesInDeclarationOrder_MatchesSceneAuthoringDemoShape()
-    {
-        string Source = """
+    public void ParseNodeNamesInDeclarationOrder_MatchesSceneAuthoringDemoShape(){
+        var Source="""
             using CSharpGameEngine.Entities;
 
             namespace Sample;
@@ -37,25 +35,23 @@ public class SceneDefinitionSourceParserTests
             }
             """;
 
-        IReadOnlyList<string> Names = SceneDefinitionSourceParser.ParseNodeNamesInDeclarationOrder(Source);
+        IReadOnlyList<string>Names=SceneDefinitionSourceParser.ParseNodeNamesInDeclarationOrder(Source);
 
-        Assert.Equal(["Root", "MainCamera", "Player"], Names);
+        Assert.Equal(["Root","MainCamera","Player"],Names);
     }
 
     [Fact]
-    public void ParseNodeNamesInDeclarationOrder_NoSceneDefinitionClass_ReturnsEmpty()
-    {
-        string Source = "public class NotAScene { }";
+    public void ParseNodeNamesInDeclarationOrder_NoSceneDefinitionClass_ReturnsEmpty(){
+        var Source="public class NotAScene { }";
 
-        IReadOnlyList<string> Names = SceneDefinitionSourceParser.ParseNodeNamesInDeclarationOrder(Source);
+        IReadOnlyList<string>Names=SceneDefinitionSourceParser.ParseNodeNamesInDeclarationOrder(Source);
 
         Assert.Empty(Names);
     }
 
     [Fact]
-    public void ParseNodeNamesInDeclarationOrder_QualifiedAttributeForm_IsRecognized()
-    {
-        string Source = """
+    public void ParseNodeNamesInDeclarationOrder_QualifiedAttributeForm_IsRecognized(){
+        var Source="""
             [CSharpGameEngine.Entities.SceneDefinition]
             public static partial class QualifiedScene
             {
@@ -68,15 +64,14 @@ public class SceneDefinitionSourceParserTests
             }
             """;
 
-        IReadOnlyList<string> Names = SceneDefinitionSourceParser.ParseNodeNamesInDeclarationOrder(Source);
+        IReadOnlyList<string>Names=SceneDefinitionSourceParser.ParseNodeNamesInDeclarationOrder(Source);
 
-        Assert.Equal(["Root"], Names);
+        Assert.Equal(["Root"],Names);
     }
 
     [Fact]
-    public void ParseNodeNamesInDeclarationOrder_DeeplyNestedTree_IsDepthFirst()
-    {
-        string Source = """
+    public void ParseNodeNamesInDeclarationOrder_DeeplyNestedTree_IsDepthFirst(){
+        var Source="""
             using CSharpGameEngine.Entities;
 
             namespace Sample;
@@ -103,8 +98,8 @@ public class SceneDefinitionSourceParserTests
             }
             """;
 
-        IReadOnlyList<string> Names = SceneDefinitionSourceParser.ParseNodeNamesInDeclarationOrder(Source);
+        IReadOnlyList<string>Names=SceneDefinitionSourceParser.ParseNodeNamesInDeclarationOrder(Source);
 
-        Assert.Equal(["Root", "Branch", "Leaf"], Names);
+        Assert.Equal(["Root","Branch","Leaf"],Names);
     }
 }

@@ -6,7 +6,6 @@ namespace CSharpGameEngine.Entities;
 /// Scene定義の入れ子構造から自動的にこのComponentを子Entityへ付与する。ユーザーが
 /// 直接<c>Set</c>する必要はない。
 /// </summary>
-public struct Parent
-{
+public struct Parent {
     public Entity Value;
 }

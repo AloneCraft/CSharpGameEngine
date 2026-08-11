@@ -6,26 +6,22 @@ namespace CSharpGameEngine.Entities;
 /// <c>SceneDefinitionGenerator</c>が構文として解析するだけで、このクラス自身のメソッド本体は
 /// 通常のRuntime Buildでは実行されない。
 /// </summary>
-public sealed class SceneNodeBuilder
-{
-    internal SceneNodeBuilder(SceneNodeSymbol symbol)
-    {
-        this.Symbol = symbol;
+public sealed class SceneNodeBuilder {
+    internal SceneNodeBuilder(SceneNodeSymbol symbol){
+        this.Symbol=symbol;
     }
 
-    public SceneNodeSymbol Symbol { get; }
+    public SceneNodeSymbol Symbol { get;}
 
-    public void Create(SceneNodeSymbol symbol, Action<SceneNodeBuilder> Definition)
-    {
+    public void Create(SceneNodeSymbol symbol,Action<SceneNodeBuilder>Definition){
         ArgumentNullException.ThrowIfNull(Definition);
 
-        SceneNodeBuilder Child = new(symbol);
+        SceneNodeBuilder Child=new(symbol);
         Definition(Child);
     }
 
     public void Set<T>(T Component)
-        where T : struct
-    {
+        where T:struct {
         // Authoring時の記述用API。SceneDefinitionGeneratorはDefineの構文木を解析するだけで
         // これを実行しないため、ここでは意図的に何もしない。
     }

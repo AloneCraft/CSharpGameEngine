@@ -11,8 +11,7 @@ namespace CSharpGameEngine.Import.Gltf;
 /// local Forward is <c>+Vector3.UnitZ</c> (not glTF's own local <c>-Z</c>, which only applied before
 /// <see cref="GltfAxisConversion.ConvertWorldTransform"/> ran).
 /// </summary>
-public static class ImportedLightDirection
-{
-    public static Vector3 WorldForward(Matrix4x4 EngineSpaceWorldTransform) =>
-        Vector3.Normalize(Vector3.TransformNormal(Vector3.UnitZ, EngineSpaceWorldTransform));
+public static class ImportedLightDirection {
+    public static Vector3 WorldForward(Matrix4x4 EngineSpaceWorldTransform)=>
+        Vector3.Normalize(Vector3.TransformNormal(Vector3.UnitZ,EngineSpaceWorldTransform));
 }

@@ -32,84 +32,77 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// </para>
 /// </summary>
 [Generator(LanguageNames.CSharp)]
-public sealed class GameSystemGenerator : IIncrementalGenerator
-{
+public sealed class GameSystemGenerator:IIncrementalGenerator {
     /// <summary><c>GetTypeByMetadataName</c>用のメタデータ名(<c>global::</c>接頭辞は付けない)。</summary>
-    private const string RuntimeMarkerMetadataName = "CSharpGameEngine.Entities.ISystem";
+    private const string RuntimeMarkerMetadataName="CSharpGameEngine.Entities.ISystem";
 
-    private const string SceneDefinitionAttributeFullyQualifiedName = "CSharpGameEngine.Entities.SceneDefinitionAttribute";
+    private const string SceneDefinitionAttributeFullyQualifiedName="CSharpGameEngine.Entities.SceneDefinitionAttribute";
 
-    public void Initialize(IncrementalGeneratorInitializationContext Context)
-    {
-        IncrementalValuesProvider<GameSystemResult?> Candidates = Context.SyntaxProvider.CreateSyntaxProvider(
-            static (Node, _) => Node is TypeDeclarationSyntax { BaseList.Types.Count: > 0 },
-            static (Ctx, _) => TryAnalyzeSystem(Ctx));
+    public void Initialize(IncrementalGeneratorInitializationContext Context){
+        IncrementalValuesProvider<GameSystemResult?>Candidates=Context.SyntaxProvider.CreateSyntaxProvider(
+            static(Node,_)=>Node is TypeDeclarationSyntax { BaseList.Types.Count:>0 },
+            static(Ctx,_)=>TryAnalyzeSystem(Ctx));
 
-        IncrementalValuesProvider<GameSystemResult> Systems = Candidates
-            .Where(static Result => Result.HasValue)
-            .Select(static (Result, _) => Result!.Value);
+        IncrementalValuesProvider<GameSystemResult>Systems=Candidates
+            .Where(static Result=>Result.HasValue)
+            .Select(static(Result,_)=>Result!.Value);
 
-        IncrementalValuesProvider<SceneDefinitionClassResult> Scenes = Context.SyntaxProvider.ForAttributeWithMetadataName(
+        IncrementalValuesProvider<SceneDefinitionClassResult>Scenes=Context.SyntaxProvider.ForAttributeWithMetadataName(
             SceneDefinitionAttributeFullyQualifiedName,
-            static (Node, _) => Node is ClassDeclarationSyntax,
-            static (Ctx, Ct) => SceneDefinitionAnalyzer.Analyze(Ctx, Ct));
+            static(Node,_)=>Node is ClassDeclarationSyntax,
+            static(Ctx,Ct)=>SceneDefinitionAnalyzer.Analyze(Ctx,Ct));
 
         // ADR-0036: ファイル横断・System横断の実行順序を宣言する唯一の属性。ISystem実装struct自身に
         // 直接付けるか、`file`スコープのマーカークラスへ付けてファイル既定値にするかのいずれか
         // (GameSystemOrderAnalyzer.Analyzeがどちらかを判別する)。
-        IncrementalValuesProvider<GameSystemOrderResult> SystemOrders = Context.SyntaxProvider.ForAttributeWithMetadataName(
+        IncrementalValuesProvider<GameSystemOrderResult>SystemOrders=Context.SyntaxProvider.ForAttributeWithMetadataName(
             GameSystemOrderAnalyzer.SystemOrderAttributeFullyQualifiedName,
-            static (Node, _) => Node is TypeDeclarationSyntax,
-            static (Ctx, _) => GameSystemOrderAnalyzer.Analyze(Ctx));
+            static(Node,_)=>Node is TypeDeclarationSyntax,
+            static(Ctx,_)=>GameSystemOrderAnalyzer.Analyze(Ctx));
 
         // [StartupScene]: 手書きのGameStartup : ISystemの代わりに、Component初期値だけの宣言的Sceneから
         // Order = 0の{Bootstrap}合成Systemを作る(StartupSceneSystemEmitter参照)。SceneDefinitionと同様、
         // ノード形状はSystemのUpdate/Spawn形状と同一のArchetype空間へ合流する。
-        IncrementalValuesProvider<StartupSceneClassResult> StartupScenes = Context.SyntaxProvider.ForAttributeWithMetadataName(
+        IncrementalValuesProvider<StartupSceneClassResult>StartupScenes=Context.SyntaxProvider.ForAttributeWithMetadataName(
             StartupSceneAnalyzer.StartupSceneAttributeFullyQualifiedName,
-            static (Node, _) => Node is ClassDeclarationSyntax,
-            static (Ctx, _) => StartupSceneAnalyzer.Analyze(Ctx));
+            static(Node,_)=>Node is ClassDeclarationSyntax,
+            static(Ctx,_)=>StartupSceneAnalyzer.Analyze(Ctx));
 
-        Context.RegisterSourceOutput(Systems, static (Spc, Result) => GameSystemDiagnostics.ReportAll(Spc, Result));
+        Context.RegisterSourceOutput(Systems,static(Spc,Result)=>GameSystemDiagnostics.ReportAll(Spc,Result));
 
-        Context.RegisterSourceOutput(Scenes, static (Spc, Result) =>
-        {
-            foreach (Diagnostic diagnostic in Result.Diagnostics)
-            {
+        Context.RegisterSourceOutput(Scenes,static(Spc,Result)=>{
+            foreach(Diagnostic diagnostic in Result.Diagnostics){
                 Spc.ReportDiagnostic(diagnostic);
             }
         });
 
-        Context.RegisterSourceOutput(StartupScenes, static (Spc, Result) => StartupSceneDiagnostics.ReportAll(Spc, Result));
+        Context.RegisterSourceOutput(StartupScenes,static(Spc,Result)=>StartupSceneDiagnostics.ReportAll(Spc,Result));
 
         // SceneNodeSymbolの生成はArchetypeレジストリに依存しない(SceneNodeSymbol/SceneNodeIdしか触らない)
         // ため、結合前の段で個別に出力できる。
-        Context.RegisterSourceOutput(Scenes, static (Spc, Result) => SceneNodeSymbolEmitter.Emit(Spc, Result));
+        Context.RegisterSourceOutput(Scenes,static(Spc,Result)=>SceneNodeSymbolEmitter.Emit(Spc,Result));
 
-        IncrementalValueProvider<((ImmutableArray<GameSystemResult> Systems, ImmutableArray<SceneDefinitionClassResult> Scenes, ImmutableArray<GameSystemOrderResult> SystemOrders, ImmutableArray<StartupSceneClassResult> StartupScenes) Sources, Compilation Compilation)> Combined =
+        IncrementalValueProvider<((ImmutableArray<GameSystemResult>Systems,ImmutableArray<SceneDefinitionClassResult>Scenes,ImmutableArray<GameSystemOrderResult>SystemOrders,ImmutableArray<StartupSceneClassResult>StartupScenes)Sources,Compilation Compilation)>Combined=
             Systems.Collect()
                 .Combine(Scenes.Collect())
                 .Combine(SystemOrders.Collect())
                 .Combine(StartupScenes.Collect())
-                .Select(static (Data, _) => (Data.Left.Left.Left, Data.Left.Left.Right, Data.Left.Right, Data.Right))
+                .Select(static(Data,_)=>(Data.Left.Left.Left,Data.Left.Left.Right,Data.Left.Right,Data.Right))
                 .Combine(Context.CompilationProvider);
 
-        Context.RegisterSourceOutput(Combined, static (Spc, Source) =>
-        {
-            if (Source.Compilation.GetTypeByMetadataName(RuntimeMarkerMetadataName) is null)
-            {
+        Context.RegisterSourceOutput(Combined,static(Spc,Source)=>{
+            if(Source.Compilation.GetTypeByMetadataName(RuntimeMarkerMetadataName)is null){
                 return;
             }
 
-            ImmutableArray<GameSystemResult> SystemResults = Source.Sources.Systems;
-            ImmutableArray<SceneDefinitionClassResult> SceneResults = Source.Sources.Scenes;
-            ImmutableArray<StartupSceneClassResult> StartupSceneResults = Source.Sources.StartupScenes;
+            ImmutableArray<GameSystemResult>SystemResults=Source.Sources.Systems;
+            ImmutableArray<SceneDefinitionClassResult>SceneResults=Source.Sources.Scenes;
+            ImmutableArray<StartupSceneClassResult>StartupSceneResults=Source.Sources.StartupScenes;
 
-            (GameSystemOrderContext OrderContext, ImmutableArray<Diagnostic> SystemOrderDiagnostics) =
+            (GameSystemOrderContext OrderContext,ImmutableArray<Diagnostic>SystemOrderDiagnostics)=
                 GameSystemOrderAnalyzer.BuildMap(Source.Sources.SystemOrders);
 
-            foreach (Diagnostic SystemOrderDiagnostic in SystemOrderDiagnostics)
-            {
+            foreach(Diagnostic SystemOrderDiagnostic in SystemOrderDiagnostics){
                 Spc.ReportDiagnostic(SystemOrderDiagnostic);
             }
 
@@ -118,95 +111,82 @@ public sealed class GameSystemGenerator : IIncrementalGenerator
             // StartupSceneSystemEmitterのXMLコメント参照)。[StartupScene(Order = N)]の明示値は、
             // [SystemOrder]をSystem自身へ直接付けた場合と同じ優先度で扱うため、実際に検出されたSystemの
             // SystemOrderByFqnマップへ合成Systemの完全修飾名を追加登録したコピーを作る。
-            List<GameSystemResult> ValidStartupSystems = [];
-            Dictionary<string, int> MergedSystemOrderByFqn = new(StringComparer.Ordinal);
+            List<GameSystemResult>ValidStartupSystems=[];
+            Dictionary<string,int>MergedSystemOrderByFqn=new(StringComparer.Ordinal);
 
-            foreach (KeyValuePair<string, int> ExistingOrder in OrderContext.SystemOrderByFqn)
-            {
-                MergedSystemOrderByFqn[ExistingOrder.Key] = ExistingOrder.Value;
+            foreach(KeyValuePair<string,int>ExistingOrder in OrderContext.SystemOrderByFqn){
+                MergedSystemOrderByFqn[ExistingOrder.Key]=ExistingOrder.Value;
             }
 
-            foreach (StartupSceneClassResult StartupScene in StartupSceneResults)
-            {
-                if (StartupScene.Diagnostics.Length > 0)
-                {
+            foreach(StartupSceneClassResult StartupScene in StartupSceneResults){
+                if(StartupScene.Diagnostics.Length>0){
                     continue;
                 }
 
-                GameSystemResult SyntheticSystem = StartupSceneSystemEmitter.BuildSyntheticSystemResult(StartupScene);
+                GameSystemResult SyntheticSystem=StartupSceneSystemEmitter.BuildSyntheticSystemResult(StartupScene);
                 ValidStartupSystems.Add(SyntheticSystem);
-                MergedSystemOrderByFqn[SyntheticSystem.ClassFullyQualifiedName] = StartupScene.Order;
+                MergedSystemOrderByFqn[SyntheticSystem.ClassFullyQualifiedName]=StartupScene.Order;
             }
 
-            GameSystemOrderContext MergedOrderContext = new(MergedSystemOrderByFqn, OrderContext.FileOrderByPath);
-            ImmutableArray<GameSystemResult> AllSystemResults = [.. SystemResults, .. ValidStartupSystems];
+            GameSystemOrderContext MergedOrderContext=new(MergedSystemOrderByFqn,OrderContext.FileOrderByPath);
+            ImmutableArray<GameSystemResult>AllSystemResults=[.. SystemResults,.. ValidStartupSystems];
 
-            List<IReadOnlyList<string>> AdditionalComponentSets = [];
+            List<IReadOnlyList<string>>AdditionalComponentSets=[];
 
-            foreach (SceneDefinitionClassResult Scene in SceneResults)
-            {
+            foreach(SceneDefinitionClassResult Scene in SceneResults){
                 AdditionalComponentSets.AddRange(SceneRuntimeEmitter.CollectComponentSets(Scene));
             }
 
-            foreach (StartupSceneClassResult StartupScene in StartupSceneResults)
-            {
+            foreach(StartupSceneClassResult StartupScene in StartupSceneResults){
                 AdditionalComponentSets.AddRange(StartupSceneSystemEmitter.CollectComponentSets(StartupScene));
             }
 
             // エントリポイントを出すかどうかはレジストリ構築の前に決める。生成する場合にだけ
             // Bootstrapの形状を登録し、出さないコンパイルへ余計なArchetypeが増えないようにする。
-            GameSystemEntryPointEmitter.Plan EntryPointPlan =
-                GameSystemEntryPointEmitter.ShouldEmitPlan(Source.Compilation, AllSystemResults, MergedOrderContext, Spc.CancellationToken);
+            GameSystemEntryPointEmitter.Plan EntryPointPlan=
+                GameSystemEntryPointEmitter.ShouldEmitPlan(Source.Compilation,AllSystemResults,MergedOrderContext,Spc.CancellationToken);
 
-            if (EntryPointPlan.Diagnostic is { } EntryPointDiagnostic)
-            {
+            if(EntryPointPlan.Diagnostic is { } EntryPointDiagnostic){
                 Spc.ReportDiagnostic(EntryPointDiagnostic);
             }
 
-            if (EntryPointPlan.Emit)
-            {
+            if(EntryPointPlan.Emit){
                 AdditionalComponentSets.Add([GameSystemEntryPointEmitter.BootstrapComponentFullyQualifiedName]);
             }
 
-            GameSystemRegistry Registry = GameSystemIndexAssigner.Assign(AllSystemResults, AdditionalComponentSets, MergedOrderContext);
+            GameSystemRegistry Registry=GameSystemIndexAssigner.Assign(AllSystemResults,AdditionalComponentSets,MergedOrderContext);
 
-            foreach (Diagnostic diagnostic in Registry.Diagnostics)
-            {
+            foreach(Diagnostic diagnostic in Registry.Diagnostics){
                 Spc.ReportDiagnostic(diagnostic);
             }
 
-            GameSystemTypesEmitter.Emit(Spc, Registry);
-            GameSystemWorldEmitter.Emit(Spc, Registry);
-            GameSystemSnapshotEmitter.Emit(Spc, Registry);
-            GameSystemLoopEmitter.Emit(Spc, Registry);
+            GameSystemTypesEmitter.Emit(Spc,Registry);
+            GameSystemWorldEmitter.Emit(Spc,Registry);
+            GameSystemSnapshotEmitter.Emit(Spc,Registry);
+            GameSystemLoopEmitter.Emit(Spc,Registry);
 
-            if (EntryPointPlan.Emit)
-            {
-                GameSystemEntryPointEmitter.Emit(Spc, Registry);
+            if(EntryPointPlan.Emit){
+                GameSystemEntryPointEmitter.Emit(Spc,Registry);
             }
 
-            foreach (SceneDefinitionClassResult scene in SceneResults)
-            {
-                SceneRuntimeEmitter.Emit(Spc, scene, Registry);
+            foreach(SceneDefinitionClassResult scene in SceneResults){
+                SceneRuntimeEmitter.Emit(Spc,scene,Registry);
             }
 
-            foreach (StartupSceneClassResult startupScene in StartupSceneResults)
-            {
-                StartupSceneSystemEmitter.EmitHiddenSystem(Spc, startupScene);
+            foreach(StartupSceneClassResult startupScene in StartupSceneResults){
+                StartupSceneSystemEmitter.EmitHiddenSystem(Spc,startupScene);
             }
         });
     }
 
-    private static GameSystemResult? TryAnalyzeSystem(GeneratorSyntaxContext Ctx)
-    {
-        if (Ctx.SemanticModel.GetDeclaredSymbol(Ctx.Node) is not INamedTypeSymbol Symbol)
-        {
+    private static GameSystemResult?TryAnalyzeSystem(GeneratorSyntaxContext Ctx){
+        if(Ctx.SemanticModel.GetDeclaredSymbol(Ctx.Node)is not INamedTypeSymbol Symbol){
             return null;
         }
 
-        bool ImplementsISystem = Symbol.AllInterfaces.Any(static I =>
-            I.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == GameSystemAnalyzer.SystemInterfaceFullyQualifiedName);
+        var ImplementsISystem=Symbol.AllInterfaces.Any(static I=>
+            I.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)==GameSystemAnalyzer.SystemInterfaceFullyQualifiedName);
 
-        return ImplementsISystem ? GameSystemAnalyzer.Analyze(Symbol) : null;
+        return ImplementsISystem?GameSystemAnalyzer.Analyze(Symbol):null;
     }
 }

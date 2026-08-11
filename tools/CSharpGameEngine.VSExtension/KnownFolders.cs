@@ -9,29 +9,23 @@ namespace CSharpGameEngine.VSExtension;
 /// actual default downloads folder rather than guessing <c>%USERPROFILE%\Downloads</c> (which is
 /// wrong when the user has relocated it).
 /// </summary>
-internal static class KnownFolders
-{
-    private static readonly Guid DownloadsFolderId = new("374DE290-123F-4565-9164-39C4925E467B");
+internal static class KnownFolders {
+    private static readonly Guid DownloadsFolderId=new("374DE290-123F-4565-9164-39C4925E467B");
 
-    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    [DllImport("shell32.dll",CharSet=CharSet.Unicode)]
     private static extern int SHGetKnownFolderPath(
-        [MarshalAs(UnmanagedType.LPStruct)] Guid Rfid, uint DwFlags, IntPtr HToken, out IntPtr PszPath);
+        [MarshalAs(UnmanagedType.LPStruct)]Guid Rfid,uint DwFlags,IntPtr HToken,out IntPtr PszPath);
 
-    public static string GetDownloadsFolder()
-    {
-        int Hr = SHGetKnownFolderPath(DownloadsFolderId, 0, IntPtr.Zero, out IntPtr PathPtr);
-        if (Hr != 0)
-        {
+    public static string GetDownloadsFolder(){
+        var Hr=SHGetKnownFolderPath(DownloadsFolderId,0,IntPtr.Zero,out IntPtr PathPtr);
+        if(Hr!=0){
             throw new InvalidOperationException($"SHGetKnownFolderPath(FOLDERID_Downloads) failed (0x{Hr:X8}).");
         }
 
-        try
-        {
+        try {
             return Marshal.PtrToStringUni(PathPtr)
-                ?? throw new InvalidOperationException("SHGetKnownFolderPath returned a null path.");
-        }
-        finally
-        {
+                ??throw new InvalidOperationException("SHGetKnownFolderPath returned a null path.");
+        } finally {
             Marshal.FreeCoTaskMem(PathPtr);
         }
     }

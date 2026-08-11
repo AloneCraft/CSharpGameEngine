@@ -10,12 +10,11 @@ namespace CSharpGameEngine.Entities;
 /// <c>[SystemOrder]</c>(<see cref="SystemOrderAttribute"/>)と同じ実行順序モデルへ合流する。
 /// </para>
 /// </summary>
-[AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
-public sealed class StartupSceneAttribute : Attribute
-{
+[AttributeUsage(AttributeTargets.Class,AllowMultiple=false,Inherited=false)]
+public sealed class StartupSceneAttribute:Attribute {
     /// <summary>
     /// この宣言から合成される起動Systemの実行順序。<see cref="SystemOrderAttribute"/>を
     /// <c>ISystem</c>実装struct自身へ直接付けた場合と同じ優先度で扱われる。
     /// </summary>
-    public int Order { get; init; }
+    public int Order { get; init;}
 }

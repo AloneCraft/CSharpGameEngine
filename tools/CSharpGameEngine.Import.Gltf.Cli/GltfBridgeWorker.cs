@@ -9,25 +9,22 @@ namespace CSharpGameEngine.Import.Gltf.Cli;
 /// logic. Returns diagnostics as a value instead of calling <see cref="Console"/> directly - those
 /// are process-wide statics that would race across the resident server's concurrent requests.
 /// </summary>
-internal static class GltfBridgeWorker
-{
-    public static (int ExitCode, string Output) Run(string InputPath, string OutputPath)
-    {
-        GltfImportResult Result = GltfImporter.Import(InputPath);
+internal static class GltfBridgeWorker {
+    public static(int ExitCode,string Output)Run(string InputPath,string OutputPath){
+        GltfImportResult Result=GltfImporter.Import(InputPath);
 
-        List<string> Lines = [];
-        foreach (GltfImportDiagnostic Diagnostic in Result.Diagnostics)
-        {
-            Lines.Add(Diagnostic.ToString() ?? string.Empty);
+        List<string>Lines=[];
+        foreach(GltfImportDiagnostic Diagnostic in Result.Diagnostics){
+            Lines.Add(Diagnostic.ToString()??string.Empty);
         }
 
-        GltfBridgeDocument Document = Result.Success
-            ? GltfBridgeDocument.ForMesh(Result.Mesh!)
-            : GltfBridgeDocument.ForFailure();
+        GltfBridgeDocument Document=Result.Success
+            ?GltfBridgeDocument.ForMesh(Result.Mesh!)
+            :GltfBridgeDocument.ForFailure();
 
-        string Json = JsonSerializer.Serialize(Document);
-        File.WriteAllText(OutputPath, Json);
+        var Json=JsonSerializer.Serialize(Document);
+        File.WriteAllText(OutputPath,Json);
 
-        return (Result.Success ? 0 : 1, string.Join(Environment.NewLine, Lines));
+        return(Result.Success?0:1,string.Join(Environment.NewLine,Lines));
     }
 }

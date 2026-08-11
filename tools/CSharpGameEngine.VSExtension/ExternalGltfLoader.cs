@@ -12,31 +12,25 @@ namespace CSharpGameEngine.VSExtension;
 /// instead of the previous state where FBX alone was process-isolated and glTF was parsed in-process
 /// via SharpGLTF.Core directly inside <c>devenv.exe</c> - that asymmetry was deliberately removed.
 /// </summary>
-internal static class ExternalGltfLoader
-{
-    private const string BridgeProjectRelativePath = @"tools\CSharpGameEngine.Import.Gltf.Cli";
-    private static readonly TimeSpan BridgeTimeout = TimeSpan.FromSeconds(60);
+internal static class ExternalGltfLoader {
+    private const string BridgeProjectRelativePath=@"tools\CSharpGameEngine.Import.Gltf.Cli";
+    private static readonly TimeSpan BridgeTimeout=TimeSpan.FromSeconds(60);
 
-    public static SimpleMesh Load(string GltfPath, string RepoRoot)
-    {
-        string TempJsonPath = Path.Combine(Path.GetTempPath(), $"csge-gltf-bridge-{Guid.NewGuid():N}.json");
-        try
-        {
-            string Json = ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath, GltfPath, TempJsonPath, RepoRoot, BridgeTimeout, UseResidentServer: true);
+    public static SimpleMesh Load(string GltfPath,string RepoRoot){
+        var TempJsonPath=Path.Combine(Path.GetTempPath(), $"csge-gltf-bridge-{Guid.NewGuid():N}.json");
+        try {
+            var Json=ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath,GltfPath,TempJsonPath,RepoRoot,BridgeTimeout,UseResidentServer:true);
 
-            BridgeDocument? Document = JsonSerializer.Deserialize<BridgeDocument>(
-                Json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            BridgeDocument?Document=JsonSerializer.Deserialize<BridgeDocument>(
+                Json,new JsonSerializerOptions { PropertyNameCaseInsensitive=true });
 
-            if (Document is null || !Document.Success)
-            {
+            if(Document is null||!Document.Success){
                 throw new InvalidOperationException("glTFファイルのインポートに失敗しました(詳細はブリッジプロセスの出力を確認してください)。");
             }
 
             return Document.ToSimpleMesh();
-        }
-        finally
-        {
-            try { File.Delete(TempJsonPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        } finally {
+            try { File.Delete(TempJsonPath);} catch(IOException){ } catch(UnauthorizedAccessException){ }
         }
     }
 }

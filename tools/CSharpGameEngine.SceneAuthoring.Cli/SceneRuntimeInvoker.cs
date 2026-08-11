@@ -20,49 +20,47 @@ namespace CSharpGameEngine.SceneAuthoring.Cli;
 /// and this bridge never names those types at compile time.
 /// </para>
 /// </summary>
-internal static class SceneRuntimeInvoker
-{
+internal static class SceneRuntimeInvoker {
     /// <summary>
     /// <paramref name="Snapshot"/> is the boxed <c>ArchetypeSnapshotEntry[]</c> produced by the
     /// target's generated <c>WorldSnapshot.Capture</c>; it is read reflectively by
     /// <see cref="WorldInspector"/>. <paramref name="RootEntityId"/> is the root node's Entity Id.
     /// </summary>
-    internal readonly record struct InvocationResult(Array Snapshot, int RootEntityId, string SceneClassFullName);
+    internal readonly record struct InvocationResult(Array Snapshot,int RootEntityId,string SceneClassFullName);
 
-    private const string WorldTypeFullName = "CSharpGameEngine.Entities.World";
-    private const string WorldSnapshotTypeFullName = "CSharpGameEngine.Entities.WorldSnapshot";
+    private const string WorldTypeFullName="CSharpGameEngine.Entities.World";
+    private const string WorldSnapshotTypeFullName="CSharpGameEngine.Entities.WorldSnapshot";
 
-    internal static InvocationResult Invoke(string TargetAssemblyPath, string SceneClassSimpleNameHint)
-    {
-        SceneAuthoringLoadContext Context = new(TargetAssemblyPath);
-        Assembly TargetAssembly = Context.LoadFromAssemblyPath(TargetAssemblyPath);
+    internal static InvocationResult Invoke(string TargetAssemblyPath,string SceneClassSimpleNameHint){
+        SceneAuthoringLoadContext Context=new(TargetAssemblyPath);
+        Assembly TargetAssembly=Context.LoadFromAssemblyPath(TargetAssemblyPath);
 
-        Type SceneType = FindSceneDefinitionType(TargetAssembly, SceneClassSimpleNameHint)
-            ?? throw new InvalidOperationException($"'{TargetAssemblyPath}' に [SceneDefinition] クラスが見つかりませんでした(ヒント: '{SceneClassSimpleNameHint}')。");
+        Type SceneType=FindSceneDefinitionType(TargetAssembly,SceneClassSimpleNameHint)
+            ??throw new InvalidOperationException($"'{TargetAssemblyPath}' に [SceneDefinition] クラスが見つかりませんでした(ヒント: '{SceneClassSimpleNameHint}')。");
 
-        MethodInfo CreateRuntime = SceneType.GetMethod("CreateRuntime", BindingFlags.Public | BindingFlags.Static)
-            ?? throw new InvalidOperationException($"'{SceneType.FullName}' に CreateRuntime(ref World) が見つかりませんでした。");
+        MethodInfo CreateRuntime=SceneType.GetMethod("CreateRuntime",BindingFlags.Public|BindingFlags.Static)
+            ??throw new InvalidOperationException($"'{SceneType.FullName}' に CreateRuntime(ref World) が見つかりませんでした。");
 
-        Type WorldType = FindType(TargetAssembly, WorldTypeFullName);
-        object BoxedWorld = Activator.CreateInstance(WorldType)
-            ?? throw new InvalidOperationException($"'{WorldTypeFullName}' のインスタンスを生成できませんでした。");
+        Type WorldType=FindType(TargetAssembly,WorldTypeFullName);
+        var BoxedWorld=Activator.CreateInstance(WorldType)
+            ??throw new InvalidOperationException($"'{WorldTypeFullName}' のインスタンスを生成できませんでした。");
 
         // CreateRuntime takes `ref World` (World is a struct now), so the mutated World has to be read
         // back out of the argument array - reflection's standard by-ref calling convention.
-        object?[] Arguments = [BoxedWorld];
-        object? Result = CreateRuntime.Invoke(null, Arguments);
-        BoxedWorld = Arguments[0]!;
+        object?[]Arguments=[BoxedWorld];
+        var Result=CreateRuntime.Invoke(null,Arguments);
+        BoxedWorld=Arguments[0]!;
 
-        int RootEntityId = ReadEntityId(Result)
-            ?? throw new InvalidOperationException($"'{SceneType.FullName}.CreateRuntime' の戻り値が Entity ではありませんでした。");
+        var RootEntityId=ReadEntityId(Result)
+            ??throw new InvalidOperationException($"'{SceneType.FullName}.CreateRuntime' の戻り値が Entity ではありませんでした。");
 
-        Type SnapshotType = FindType(TargetAssembly, WorldSnapshotTypeFullName);
-        MethodInfo Capture = SnapshotType.GetMethod("Capture", BindingFlags.Public | BindingFlags.Static)
-            ?? throw new InvalidOperationException($"'{WorldSnapshotTypeFullName}' に Capture(in World) が見つかりませんでした。");
+        Type SnapshotType=FindType(TargetAssembly,WorldSnapshotTypeFullName);
+        MethodInfo Capture=SnapshotType.GetMethod("Capture",BindingFlags.Public|BindingFlags.Static)
+            ??throw new InvalidOperationException($"'{WorldSnapshotTypeFullName}' に Capture(in World) が見つかりませんでした。");
 
-        Array Snapshot = (Array)Capture.Invoke(null, [BoxedWorld])!;
+        Array Snapshot=(Array)Capture.Invoke(null,[BoxedWorld])!;
 
-        string SceneClassFullName = SceneType.FullName ?? SceneType.Name;
+        var SceneClassFullName=SceneType.FullName??SceneType.Name;
 
         // Only a request, not an immediate teardown: the snapshot array's elements are the target
         // context's own types, so actual collection is deferred by the GC until the caller drops it.
@@ -70,37 +68,28 @@ internal static class SceneRuntimeInvoker
         // one long-lived process (ADR-0031 flags repeated load/unload cycles as unverified).
         Context.Unload();
 
-        return new InvocationResult(Snapshot, RootEntityId, SceneClassFullName);
+        return new InvocationResult(Snapshot,RootEntityId,SceneClassFullName);
     }
 
-    private static Type FindType(Assembly TargetAssembly, string FullName)
-    {
+    private static Type FindType(Assembly TargetAssembly,string FullName){
         // The runtime types live in whichever assembly compiled Runtime.cs - normally the target
         // itself, but a target could also link it from a shared project it references.
-        Type? type = TargetAssembly.GetType(FullName);
+        Type?type=TargetAssembly.GetType(FullName);
 
-        if (type is not null)
-        {
+        if(type is not null){
             return type;
         }
 
-        foreach (AssemblyName Referenced in TargetAssembly.GetReferencedAssemblies())
-        {
-            try
-            {
-                type = AssemblyLoadContext.GetLoadContext(TargetAssembly)?.LoadFromAssemblyName(Referenced).GetType(FullName);
-            }
-            catch (FileNotFoundException)
-            {
+        foreach(AssemblyName Referenced in TargetAssembly.GetReferencedAssemblies()){
+            try {
+                type=AssemblyLoadContext.GetLoadContext(TargetAssembly)?.LoadFromAssemblyName(Referenced).GetType(FullName);
+            } catch(FileNotFoundException){
                 continue;
-            }
-            catch (BadImageFormatException)
-            {
+            } catch(BadImageFormatException){
                 continue;
             }
 
-            if (type is not null)
-            {
+            if(type is not null){
                 return type;
             }
         }
@@ -109,51 +98,43 @@ internal static class SceneRuntimeInvoker
     }
 
     /// <summary><c>Entity</c> is the target's own CLR type, so its <c>Id</c> is read reflectively.</summary>
-    internal static int? ReadEntityId(object? BoxedEntity)
-    {
-        if (BoxedEntity is null)
-        {
+    internal static int?ReadEntityId(object?BoxedEntity){
+        if(BoxedEntity is null){
             return null;
         }
 
-        Type type = BoxedEntity.GetType();
+        Type type=BoxedEntity.GetType();
 
-        if (type.FullName != "CSharpGameEngine.Entities.Entity")
-        {
+        if(type.FullName!="CSharpGameEngine.Entities.Entity"){
             return null;
         }
 
-        PropertyInfo? IdProperty = type.GetProperty("Id", BindingFlags.Public | BindingFlags.Instance);
+        PropertyInfo?IdProperty=type.GetProperty("Id",BindingFlags.Public|BindingFlags.Instance);
 
-        return IdProperty?.GetValue(BoxedEntity) as int?;
+        return IdProperty?.GetValue(BoxedEntity)as int?;
     }
 
-    private static Type? FindSceneDefinitionType(Assembly assembly, string SimpleNameHint)
-    {
-        const string SceneDefinitionAttributeFullName = "CSharpGameEngine.Entities.SceneDefinitionAttribute";
+    private static Type?FindSceneDefinitionType(Assembly assembly,string SimpleNameHint){
+        const string SceneDefinitionAttributeFullName="CSharpGameEngine.Entities.SceneDefinitionAttribute";
 
-        List<Type> Candidates = [];
+        List<Type>Candidates=[];
 
-        foreach (Type type in assembly.GetTypes())
-        {
-            foreach (CustomAttributeData attribute in type.GetCustomAttributesData())
-            {
-                if (attribute.AttributeType.FullName == SceneDefinitionAttributeFullName)
-                {
+        foreach(Type type in assembly.GetTypes()){
+            foreach(CustomAttributeData attribute in type.GetCustomAttributesData()){
+                if(attribute.AttributeType.FullName==SceneDefinitionAttributeFullName){
                     Candidates.Add(type);
                     break;
                 }
             }
         }
 
-        Type? ByHint = Candidates.Find(T => T.Name == SimpleNameHint);
+        Type?ByHint=Candidates.Find(T=>T.Name==SimpleNameHint);
 
-        if (ByHint is not null)
-        {
+        if(ByHint is not null){
             return ByHint;
         }
 
-        return Candidates.Count > 0 ? Candidates[0] : null;
+        return Candidates.Count>0?Candidates[0]:null;
     }
 }
 
@@ -168,19 +149,16 @@ internal static class SceneRuntimeInvoker
 /// its own. Everything the bridge reads back is handled reflectively for exactly that reason.
 /// </para>
 /// </summary>
-internal sealed class SceneAuthoringLoadContext : AssemblyLoadContext
-{
+internal sealed class SceneAuthoringLoadContext:AssemblyLoadContext {
     private readonly AssemblyDependencyResolver Resolver;
 
     internal SceneAuthoringLoadContext(string TargetAssemblyPath)
-        : base(name: "ScenePreview", isCollectible: true)
-    {
-        this.Resolver = new AssemblyDependencyResolver(TargetAssemblyPath);
+        :base(name:"ScenePreview",isCollectible:true){
+        this.Resolver=new AssemblyDependencyResolver(TargetAssemblyPath);
     }
 
-    protected override Assembly? Load(AssemblyName assemblyName)
-    {
-        string? path = this.Resolver.ResolveAssemblyToPath(assemblyName);
-        return path is not null ? this.LoadFromAssemblyPath(path) : null;
+    protected override Assembly?Load(AssemblyName assemblyName){
+        var path=this.Resolver.ResolveAssemblyToPath(assemblyName);
+        return path is not null?this.LoadFromAssemblyPath(path):null;
     }
 }

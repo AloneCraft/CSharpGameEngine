@@ -22,37 +22,33 @@ namespace CSharpGameEngine.VSExtension.Tests;
 /// by real usage (e.g. via a live VS session), so a rigid count would fail the moment someone
 /// actually uses the feature against this file - only the two original seed nodes are asserted.
 /// </summary>
-public sealed class DefaultSceneFileTests
-{
+public sealed class DefaultSceneFileTests {
     [Fact]
-    public void Load_ShippedDefaultScene_HasRootAndTwoCubeChildrenAmongItsNodes()
-    {
-        string path = Path.Combine(FindRepoRoot(), "UserGameProject", "DefaultScene.scene");
+    public void Load_ShippedDefaultScene_HasRootAndTwoCubeChildrenAmongItsNodes(){
+        var path=Path.Combine(FindRepoRoot(),"UserGameProject","DefaultScene.scene");
         Assert.True(File.Exists(path), $"DefaultScene.scene not found at {path}");
 
-        SceneFile Scene = SceneFile.Load(path);
+        SceneFile Scene=SceneFile.Load(path);
 
-        SceneFileNode Root = Assert.Single(Scene.Nodes, N => N.ParentId is null);
-        Assert.Equal("Root", Root.Name);
+        SceneFileNode Root=Assert.Single(Scene.Nodes,N=>N.ParentId is null);
+        Assert.Equal("Root",Root.Name);
 
-        Assert.Contains(Scene.Nodes, N => N.ParentId == Root.Id && N.Name == "Cube_A" && N.MeshAssetPath == "Assets/DefaultScene/Box.glb");
-        Assert.Contains(Scene.Nodes, N => N.ParentId == Root.Id && N.Name == "Cube_B" && N.MeshAssetPath == "Assets/DefaultScene/Box.glb");
+        Assert.Contains(Scene.Nodes,N=>N.ParentId==Root.Id&&N.Name=="Cube_A"&&N.MeshAssetPath=="Assets/DefaultScene/Box.glb");
+        Assert.Contains(Scene.Nodes,N=>N.ParentId==Root.Id&&N.Name=="Cube_B"&&N.MeshAssetPath=="Assets/DefaultScene/Box.glb");
     }
 
     /// <summary>
     /// リポジトリルートは<c>CSharpGameEngine.slnx</c>を辿って探す(相対階層の決め打ちにすると
     /// TFM/RIDのサブディレクトリ差で壊れるため)。<see cref="ExternalScenePreviewLoaderTests"/>と同じ方式。
     /// </summary>
-    private static string FindRepoRoot()
-    {
-        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+    private static string FindRepoRoot(){
+        DirectoryInfo?directory=new(AppContext.BaseDirectory);
 
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "CSharpGameEngine.slnx")))
-        {
-            directory = directory.Parent;
+        while(directory is not null&&!File.Exists(Path.Combine(directory.FullName,"CSharpGameEngine.slnx"))){
+            directory=directory.Parent;
         }
 
         return directory?.FullName
-            ?? throw new InvalidOperationException($"'CSharpGameEngine.slnx' を辿って探索しましたが、リポジトリルートが見つかりませんでした(起点: {AppContext.BaseDirectory})。");
+            ??throw new InvalidOperationException($"'CSharpGameEngine.slnx' を辿って探索しましたが、リポジトリルートが見つかりませんでした(起点: {AppContext.BaseDirectory})。");
     }
 }

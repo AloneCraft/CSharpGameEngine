@@ -12,17 +12,16 @@ namespace CSharpGameEngine.Spatial.Gltf;
 /// into this engine's fixed <see cref="CSharpGameEngine.Spatial.Unity.UnityCoordinateConvention"/>
 /// (ADR-0026), never exposed as a selectable <c>SpatialPreset</c>.
 /// </summary>
-public readonly struct GltfCoordinateConvention : ICoordinateConvention
-{
-    public static CoordinateHandedness Handedness => CoordinateHandedness.RightHanded;
+public readonly struct GltfCoordinateConvention:ICoordinateConvention {
+    public static CoordinateHandedness Handedness=>CoordinateHandedness.RightHanded;
 
-    public static XyzVector ToXyz(in RufVector Value) => new(Value.R, Value.U, -Value.F);
+    public static XyzVector ToXyz(in RufVector Value)=>new(Value.R,Value.U,-Value.F);
 
-    public static RufVector FromXyz(in XyzVector Value) => new(Value.X, Value.Y, -Value.Z);
+    public static RufVector FromXyz(in XyzVector Value)=>new(Value.X,Value.Y,-Value.Z);
 
-    public static XyzVector RightXyz => new(1f, 0f, 0f);
+    public static XyzVector RightXyz=>new(1f,0f,0f);
 
-    public static XyzVector UpXyz => new(0f, 1f, 0f);
+    public static XyzVector UpXyz=>new(0f,1f,0f);
 
-    public static XyzVector ForwardXyz => new(0f, 0f, -1f);
+    public static XyzVector ForwardXyz=>new(0f,0f,-1f);
 }

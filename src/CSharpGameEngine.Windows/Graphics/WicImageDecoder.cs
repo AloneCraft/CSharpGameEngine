@@ -9,26 +9,24 @@ using static TerraFX.Interop.Windows.Windows;
 namespace CSharpGameEngine.Graphics.D3D12;
 
 /// <summary>Tightly-packed RGBA8 pixel data (stride = Width * 4).</summary>
-public sealed record DecodedImage(int Width, int Height, byte[] Pixels);
+public sealed record DecodedImage(int Width,int Height,byte[]Pixels);
 
-public sealed class WicDecodeResult
-{
-    private WicDecodeResult(bool success, DecodedImage? image, string? error)
-    {
-        Success = success;
-        Image = image;
-        Error = error;
+public sealed class WicDecodeResult {
+    private WicDecodeResult(bool success,DecodedImage?image,string?error){
+        Success=success;
+        Image=image;
+        Error=error;
     }
 
-    public bool Success { get; }
+    public bool Success { get;}
 
-    public DecodedImage? Image { get; }
+    public DecodedImage?Image { get;}
 
-    public string? Error { get; }
+    public string?Error { get;}
 
-    public static WicDecodeResult Succeeded(DecodedImage image) => new(true, image, null);
+    public static WicDecodeResult Succeeded(DecodedImage image)=>new(true,image,null);
 
-    public static WicDecodeResult Failed(string error) => new(false, null, error);
+    public static WicDecodeResult Failed(string error)=>new(false,null,error);
 }
 
 /// <summary>
@@ -36,124 +34,100 @@ public sealed class WicDecodeResult
 /// via the Windows Imaging Component, using the TerraFX.Interop.Windows bindings already used
 /// throughout this project - no new package dependency. Windows-only.
 /// </summary>
-public static unsafe class WicImageDecoder
-{
+public static unsafe class WicImageDecoder {
     // RPC_E_CHANGEDMODE: COM was already initialized on this thread with a different concurrency
     // model. Not fatal - proceed without owning the CoInitializeEx call (skip CoUninitialize).
-    private const int RPC_E_CHANGEDMODE = unchecked((int)0x80010106);
+    private const int RPC_E_CHANGEDMODE=unchecked((int)0x80010106);
 
-    public static WicDecodeResult Decode(byte[] EncodedBytes)
-    {
+    public static WicDecodeResult Decode(byte[]EncodedBytes){
         ArgumentNullException.ThrowIfNull(EncodedBytes);
-        if (EncodedBytes.Length == 0)
-        {
+        if(EncodedBytes.Length==0){
             return WicDecodeResult.Failed("Encoded image byte array is empty.");
         }
 
-        HRESULT CoInitHr = CoInitializeEx(null, (uint)COINIT_APARTMENTTHREADED);
-        if (CoInitHr.FAILED && CoInitHr.Value != RPC_E_CHANGEDMODE)
-        {
+        HRESULT CoInitHr=CoInitializeEx(null,(uint)COINIT_APARTMENTTHREADED);
+        if(CoInitHr.FAILED&&CoInitHr.Value!=RPC_E_CHANGEDMODE){
             return WicDecodeResult.Failed($"CoInitializeEx failed. HRESULT=0x{CoInitHr.Value:X8}");
         }
-        bool OwnsComInit = CoInitHr.SUCCEEDED;
+        var OwnsComInit=CoInitHr.SUCCEEDED;
 
-        IWICImagingFactory* Factory = null;
-        IStream* stream = null;
-        IWICBitmapDecoder* Decoder = null;
-        IWICBitmapFrameDecode* Frame = null;
-        IWICFormatConverter* converter = null;
+        IWICImagingFactory*Factory=null;
+        IStream*stream=null;
+        IWICBitmapDecoder*Decoder=null;
+        IWICBitmapFrameDecode*Frame=null;
+        IWICFormatConverter*converter=null;
 
-        try
-        {
-            Guid FactoryClsid = CLSID.CLSID_WICImagingFactory;
-            HRESULT Hr = CoCreateInstance(&FactoryClsid, null, (uint)CLSCTX_INPROC_SERVER, __uuidof<IWICImagingFactory>(), (void**)&Factory);
-            if (Hr.FAILED)
-            {
+        try {
+            Guid FactoryClsid=CLSID.CLSID_WICImagingFactory;
+            HRESULT Hr=CoCreateInstance(&FactoryClsid,null,(uint)CLSCTX_INPROC_SERVER,__uuidof<IWICImagingFactory>(),(void**)&Factory);
+            if(Hr.FAILED){
                 return WicDecodeResult.Failed($"CoCreateInstance(CLSID_WICImagingFactory) failed. HRESULT=0x{Hr.Value:X8}");
             }
 
-            fixed (byte* PBytes = EncodedBytes)
-            {
-                stream = SHCreateMemStream(PBytes, (uint)EncodedBytes.Length);
+            fixed(byte*PBytes=EncodedBytes){
+                stream=SHCreateMemStream(PBytes,(uint)EncodedBytes.Length);
             }
-            if (stream == null)
-            {
+            if(stream==null){
                 return WicDecodeResult.Failed("SHCreateMemStream returned null.");
             }
 
-            Hr = Factory->CreateDecoderFromStream(stream, null, WICDecodeMetadataCacheOnDemand, &Decoder);
-            if (Hr.FAILED)
-            {
+            Hr=Factory->CreateDecoderFromStream(stream,null,WICDecodeMetadataCacheOnDemand,&Decoder);
+            if(Hr.FAILED){
                 return WicDecodeResult.Failed($"IWICImagingFactory::CreateDecoderFromStream failed (unrecognized/corrupt image data). HRESULT=0x{Hr.Value:X8}");
             }
 
-            Hr = Decoder->GetFrame(0, &Frame);
-            if (Hr.FAILED)
-            {
+            Hr=Decoder->GetFrame(0,&Frame);
+            if(Hr.FAILED){
                 return WicDecodeResult.Failed($"IWICBitmapDecoder::GetFrame failed. HRESULT=0x{Hr.Value:X8}");
             }
 
-            Hr = Factory->CreateFormatConverter(&converter);
-            if (Hr.FAILED)
-            {
+            Hr=Factory->CreateFormatConverter(&converter);
+            if(Hr.FAILED){
                 return WicDecodeResult.Failed($"IWICImagingFactory::CreateFormatConverter failed. HRESULT=0x{Hr.Value:X8}");
             }
 
-            Guid RgbaFormat = GUID.GUID_WICPixelFormat32bppRGBA;
-            Hr = converter->Initialize((IWICBitmapSource*)Frame, &RgbaFormat, WICBitmapDitherTypeNone, null, 0.0, WICBitmapPaletteTypeCustom);
-            if (Hr.FAILED)
-            {
+            Guid RgbaFormat=GUID.GUID_WICPixelFormat32bppRGBA;
+            Hr=converter->Initialize((IWICBitmapSource*)Frame,&RgbaFormat,WICBitmapDitherTypeNone,null,0.0,WICBitmapPaletteTypeCustom);
+            if(Hr.FAILED){
                 return WicDecodeResult.Failed($"IWICFormatConverter::Initialize failed. HRESULT=0x{Hr.Value:X8}");
             }
 
-            uint Width, Height;
-            Hr = converter->GetSize(&Width, &Height);
-            if (Hr.FAILED)
-            {
+            uint Width,Height;
+            Hr=converter->GetSize(&Width,&Height);
+            if(Hr.FAILED){
                 return WicDecodeResult.Failed($"IWICFormatConverter::GetSize failed. HRESULT=0x{Hr.Value:X8}");
             }
-            if (Width == 0 || Height == 0)
-            {
+            if(Width==0||Height==0){
                 return WicDecodeResult.Failed($"Decoded image has zero size ({Width}x{Height}).");
             }
 
-            uint Stride = Width * 4;
-            byte[] Pixels = new byte[Stride * Height];
-            fixed (byte* PPixels = Pixels)
-            {
-                Hr = converter->CopyPixels(null, Stride, (uint)Pixels.Length, PPixels);
+            var Stride=Width*4;
+            var Pixels=new byte[Stride*Height];
+            fixed(byte*PPixels=Pixels){
+                Hr=converter->CopyPixels(null,Stride,(uint)Pixels.Length,PPixels);
             }
-            if (Hr.FAILED)
-            {
+            if(Hr.FAILED){
                 return WicDecodeResult.Failed($"IWICFormatConverter::CopyPixels failed. HRESULT=0x{Hr.Value:X8}");
             }
 
-            return WicDecodeResult.Succeeded(new DecodedImage((int)Width, (int)Height, Pixels));
-        }
-        finally
-        {
-            if (converter != null)
-            {
-                _ = converter->Release();
+            return WicDecodeResult.Succeeded(new DecodedImage((int)Width,(int)Height,Pixels));
+        } finally {
+            if(converter!=null){
+                _=converter->Release();
             }
-            if (Frame != null)
-            {
-                _ = Frame->Release();
+            if(Frame!=null){
+                _=Frame->Release();
             }
-            if (Decoder != null)
-            {
-                _ = Decoder->Release();
+            if(Decoder!=null){
+                _=Decoder->Release();
             }
-            if (stream != null)
-            {
-                _ = stream->Release();
+            if(stream!=null){
+                _=stream->Release();
             }
-            if (Factory != null)
-            {
-                _ = Factory->Release();
+            if(Factory!=null){
+                _=Factory->Release();
             }
-            if (OwnsComInit)
-            {
+            if(OwnsComInit){
                 CoUninitialize();
             }
         }

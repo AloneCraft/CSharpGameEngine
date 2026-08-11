@@ -13,45 +13,38 @@ namespace CSharpGameEngine.VSExtension;
 /// rendering/engine logic itself. See <see cref="ShowViewerToolWindowCommand"/>/
 /// <see cref="ViewerHwndHost"/> (ADR-0007) for the embedded-in-VS alternative.
 /// </summary>
-internal sealed class OpenViewerCommand
-{
-    public const int CommandId = 0x0100;
-    public static readonly Guid CommandSet = new("521655e5-0d1b-4255-8086-1039c5c2e3da");
+internal sealed class OpenViewerCommand {
+    public const int CommandId=0x0100;
+    public static readonly Guid CommandSet=new("521655e5-0d1b-4255-8086-1039c5c2e3da");
 
-    private const string ViewerModelArgument = "Samples/Box.glb";
+    private const string ViewerModelArgument="Samples/Box.glb";
 
     private readonly AsyncPackage Package;
 
-    private OpenViewerCommand(AsyncPackage package, OleMenuCommandService CommandService)
-    {
-        Package = package ?? throw new ArgumentNullException(nameof(package));
-        if (CommandService is null)
-        {
+    private OpenViewerCommand(AsyncPackage package,OleMenuCommandService CommandService){
+        Package=package??throw new ArgumentNullException(nameof(package));
+        if(CommandService is null){
             throw new ArgumentNullException(nameof(CommandService));
         }
 
-        CommandID MenuCommandId = new(CommandSet, CommandId);
-        MenuCommand MenuItem = new(Execute, MenuCommandId);
+        CommandID MenuCommandId=new(CommandSet,CommandId);
+        MenuCommand MenuItem=new(Execute,MenuCommandId);
         CommandService.AddCommand(MenuItem);
     }
 
-    public static async Task InitializeAsync(AsyncPackage package)
-    {
+    public static async Task InitializeAsync(AsyncPackage package){
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
-        object? Service = await package.GetServiceAsync(typeof(IMenuCommandService));
-        if (Service is not OleMenuCommandService CommandService)
-        {
+        var Service= await package.GetServiceAsync(typeof(IMenuCommandService));
+        if(Service is not OleMenuCommandService CommandService){
             throw new InvalidOperationException($"{nameof(IMenuCommandService)} is not available from the VS shell.");
         }
 
-        _ = new OpenViewerCommand(package, CommandService);
+        _=new OpenViewerCommand(package,CommandService);
     }
 
-    private void Execute(object Sender, EventArgs E)
-    {
-        string? RepoRoot = RepoLocator.ResolveRepoRoot();
-        if (RepoRoot is null)
-        {
+    private void Execute(object Sender,EventArgs E){
+        var RepoRoot=RepoLocator.ResolveRepoRoot();
+        if(RepoRoot is null){
             ShowMessage(
                 $"リポジトリルート({RepoLocator.RepoMarkerFileName})が見つかりませんでした。このVSIXは開発中のスケルトンであり、" +
                 "ビルド時に埋め込んだパスでのみ動作します。詳細はADR-0006を参照してください。",
@@ -59,24 +52,19 @@ internal sealed class OpenViewerCommand
             return;
         }
 
-        ProcessStartInfo StartInfo = new("dotnet", $"run --project tools/CSharpGameEngine.Extension -- --model {ViewerModelArgument}")
-        {
-            WorkingDirectory = RepoRoot,
-            UseShellExecute = false,
+        ProcessStartInfo StartInfo=new("dotnet", $"run --project tools/CSharpGameEngine.Extension -- --model {ViewerModelArgument}"){
+            WorkingDirectory=RepoRoot,
+            UseShellExecute=false,
         };
 
-        try
-        {
+        try {
             Process.Start(StartInfo);
-        }
-        catch (Exception Ex)
-        {
-            ShowMessage($"ビューアの起動に失敗しました: {Ex.Message}", OLEMSGICON.OLEMSGICON_CRITICAL);
+        } catch(Exception Ex){
+            ShowMessage($"ビューアの起動に失敗しました: {Ex.Message}",OLEMSGICON.OLEMSGICON_CRITICAL);
         }
     }
 
-    private void ShowMessage(string Message, OLEMSGICON Icon)
-    {
+    private void ShowMessage(string Message,OLEMSGICON Icon){
         VsShellUtilities.ShowMessageBox(
             Package,
             Message,

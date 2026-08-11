@@ -12,42 +12,35 @@ namespace CSharpGameEngine.VSExtension;
 /// only carries one "input path", so this writes a small request DTO to a temp JSON file first and
 /// passes that file's path as the input.
 /// </summary>
-internal static class ExternalScenePreviewLoader
-{
-    private const string BridgeProjectRelativePath = @"tools\CSharpGameEngine.SceneAuthoring.Cli";
-    private static readonly TimeSpan BridgeTimeout = TimeSpan.FromSeconds(60);
-    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+internal static class ExternalScenePreviewLoader {
+    private const string BridgeProjectRelativePath=@"tools\CSharpGameEngine.SceneAuthoring.Cli";
+    private static readonly TimeSpan BridgeTimeout=TimeSpan.FromSeconds(60);
+    private static readonly JsonSerializerOptions JsonOptions=new(){ PropertyNameCaseInsensitive=true };
 
-    public static ScenePreviewBridgeDocument Load(string SourceFilePath, string TargetAssemblyPath, string RepoRoot)
-    {
-        string RequestJsonPath = Path.Combine(Path.GetTempPath(), $"csge-scenepreview-request-{Guid.NewGuid():N}.json");
-        string ResponseJsonPath = Path.Combine(Path.GetTempPath(), $"csge-scenepreview-response-{Guid.NewGuid():N}.json");
+    public static ScenePreviewBridgeDocument Load(string SourceFilePath,string TargetAssemblyPath,string RepoRoot){
+        var RequestJsonPath=Path.Combine(Path.GetTempPath(), $"csge-scenepreview-request-{Guid.NewGuid():N}.json");
+        var ResponseJsonPath=Path.Combine(Path.GetTempPath(), $"csge-scenepreview-response-{Guid.NewGuid():N}.json");
 
-        try
-        {
-            ScenePreviewRequest Request = new() { SourceFilePath = SourceFilePath, TargetAssemblyPath = TargetAssemblyPath };
-            File.WriteAllText(RequestJsonPath, JsonSerializer.Serialize(Request));
+        try {
+            ScenePreviewRequest Request=new(){ SourceFilePath=SourceFilePath,TargetAssemblyPath=TargetAssemblyPath };
+            File.WriteAllText(RequestJsonPath,JsonSerializer.Serialize(Request));
 
-            string Json = ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath, RequestJsonPath, ResponseJsonPath, RepoRoot, BridgeTimeout, UseResidentServer: true);
+            var Json=ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath,RequestJsonPath,ResponseJsonPath,RepoRoot,BridgeTimeout,UseResidentServer:true);
 
-            ScenePreviewBridgeDocument? Document = JsonSerializer.Deserialize<ScenePreviewBridgeDocument>(Json, JsonOptions);
+            ScenePreviewBridgeDocument?Document=JsonSerializer.Deserialize<ScenePreviewBridgeDocument>(Json,JsonOptions);
 
-            if (Document is null || !Document.Success)
-            {
-                throw new InvalidOperationException($"シーンプレビューの生成に失敗しました: {Document?.ErrorMessage ?? "(詳細不明)"}");
+            if(Document is null||!Document.Success){
+                throw new InvalidOperationException($"シーンプレビューの生成に失敗しました: {Document?.ErrorMessage??"(詳細不明)"}");
             }
 
             return Document;
-        }
-        finally
-        {
+        } finally {
             TryDelete(RequestJsonPath);
             TryDelete(ResponseJsonPath);
         }
     }
 
-    private static void TryDelete(string path)
-    {
-        try { File.Delete(path); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+    private static void TryDelete(string path){
+        try { File.Delete(path);} catch(IOException){ } catch(UnauthorizedAccessException){ }
     }
 }

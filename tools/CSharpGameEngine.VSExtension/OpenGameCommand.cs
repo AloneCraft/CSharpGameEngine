@@ -12,69 +12,57 @@ namespace CSharpGameEngine.VSExtension;
 /// The VSIX remains a .NET Framework process, so the net10.0 ECS application is intentionally
 /// started out of process rather than referenced or executed in-process.
 /// </summary>
-internal sealed class OpenGameCommand
-{
-    public const int CommandId = 0x0104;
-    public static readonly Guid CommandSet = new("521655e5-0d1b-4255-8086-1039c5c2e3da");
+internal sealed class OpenGameCommand {
+    public const int CommandId=0x0104;
+    public static readonly Guid CommandSet=new("521655e5-0d1b-4255-8086-1039c5c2e3da");
 
-    private const string ProjectPath = "UserEcsProject";
+    private const string ProjectPath="UserEcsProject";
 
     private readonly AsyncPackage Package;
 
-    private OpenGameCommand(AsyncPackage package, OleMenuCommandService CommandService)
-    {
-        Package = package ?? throw new ArgumentNullException(nameof(package));
-        if (CommandService is null)
-        {
+    private OpenGameCommand(AsyncPackage package,OleMenuCommandService CommandService){
+        Package=package??throw new ArgumentNullException(nameof(package));
+        if(CommandService is null){
             throw new ArgumentNullException(nameof(CommandService));
         }
 
-        CommandID MenuCommandId = new(CommandSet, CommandId);
-        MenuCommand MenuItem = new(Execute, MenuCommandId);
+        CommandID MenuCommandId=new(CommandSet,CommandId);
+        MenuCommand MenuItem=new(Execute,MenuCommandId);
         CommandService.AddCommand(MenuItem);
     }
 
-    public static async Task InitializeAsync(AsyncPackage package)
-    {
+    public static async Task InitializeAsync(AsyncPackage package){
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
-        object? Service = await package.GetServiceAsync(typeof(IMenuCommandService));
-        if (Service is not OleMenuCommandService CommandService)
-        {
+        var Service= await package.GetServiceAsync(typeof(IMenuCommandService));
+        if(Service is not OleMenuCommandService CommandService){
             throw new InvalidOperationException($"{nameof(IMenuCommandService)} is not available from the VS shell.");
         }
 
-        _ = new OpenGameCommand(package, CommandService);
+        _=new OpenGameCommand(package,CommandService);
     }
 
-    private void Execute(object Sender, EventArgs E)
-    {
-        string? RepoRoot = RepoLocator.ResolveRepoRoot();
-        if (RepoRoot is null)
-        {
+    private void Execute(object Sender,EventArgs E){
+        var RepoRoot=RepoLocator.ResolveRepoRoot();
+        if(RepoRoot is null){
             ShowMessage(
                 $"リポジトリルート({RepoLocator.RepoMarkerFileName})が見つかりませんでした。",
                 OLEMSGICON.OLEMSGICON_WARNING);
             return;
         }
 
-        ProcessStartInfo StartInfo = new("dotnet", $"run --project \"{ProjectPath}\"")
-        {
-            WorkingDirectory = RepoRoot,
-            UseShellExecute = false,
+        ProcessStartInfo StartInfo=new("dotnet", $"run --project \"{ProjectPath}\""){
+            WorkingDirectory=RepoRoot,
+            UseShellExecute=false,
         };
 
-        try
-        {
+        try {
             Process.Start(StartInfo);
-        }
-        catch (Exception Ex)
-        {
-            ShowMessage($"UserEcsProjectの起動に失敗しました: {Ex.Message}", OLEMSGICON.OLEMSGICON_CRITICAL);
+        } catch(Exception Ex){
+            ShowMessage($"UserEcsProjectの起動に失敗しました: {Ex.Message}",OLEMSGICON.OLEMSGICON_CRITICAL);
         }
     }
 
-    private void ShowMessage(string Message, OLEMSGICON Icon)
-    {
+    private void ShowMessage(string Message,OLEMSGICON Icon){
         VsShellUtilities.ShowMessageBox(
             Package,
             Message,

@@ -13,12 +13,11 @@ namespace CSharpGameEngine.CodeAnalysis.Tests;
 /// 生成が走るには<c>ISystem</c>型がコンパイル内に実在する必要があるため、
 /// <see cref="CommonComponents"/>にダミーのSystemを1つ含めてある。
 /// </summary>
-internal static class SceneDefinitionGeneratorTestHelper
-{
-    private const string ImplicitUsingsSource = "global using System;\nglobal using System.Collections.Generic;\nglobal using System.Linq;\n";
+internal static class SceneDefinitionGeneratorTestHelper {
+    private const string ImplicitUsingsSource="global using System;\nglobal using System.Collections.Generic;\nglobal using System.Linq;\n";
 
     /// <summary>テストでよく使う共通コンポーネント一式。個々のテストのソースに連結して使う。</summary>
-    internal const string CommonComponents = """
+    internal const string CommonComponents="""
         using CSharpGameEngine.Entities;
 
         namespace Sample;
@@ -38,24 +37,20 @@ internal static class SceneDefinitionGeneratorTestHelper
         }
         """;
 
-    internal static CSharpCompilation CreateCompilation(params string[] Sources) =>
-        CreateCompilation(LanguageVersion.Latest, Sources);
+    internal static CSharpCompilation CreateCompilation(params string[]Sources)=>
+        CreateCompilation(LanguageVersion.Latest,Sources);
 
-    internal static CSharpCompilation CreateCompilation(LanguageVersion languageVersion, params string[] Sources)
-    {
-        List<MetadataReference> References = [];
+    internal static CSharpCompilation CreateCompilation(LanguageVersion languageVersion,params string[]Sources){
+        List<MetadataReference>References=[];
 
-        foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            if (!assembly.IsDynamic && !string.IsNullOrEmpty(assembly.Location))
-            {
+        foreach(Assembly assembly in AppDomain.CurrentDomain.GetAssemblies()){
+            if(!assembly.IsDynamic&&!string.IsNullOrEmpty(assembly.Location)){
                 References.Add(MetadataReference.CreateFromFile(assembly.Location));
             }
         }
 
-        CSharpParseOptions parseOptions = new(languageVersion);
-        List<string> AllSources =
-        [
+        CSharpParseOptions parseOptions=new(languageVersion);
+        List<string>AllSources=[
             ImplicitUsingsSource,
             GameSystemGeneratorTestHelper.RuntimeSource,
             .. GameSystemGeneratorTestHelper.SceneAuthoringSources,
@@ -64,50 +59,45 @@ internal static class SceneDefinitionGeneratorTestHelper
 
         return CSharpCompilation.Create(
             "SceneDefinitionGeneratorTestAssembly",
-            [.. AllSources.Select(Source => CSharpSyntaxTree.ParseText(Source, parseOptions))],
+            [.. AllSources.Select(Source=>CSharpSyntaxTree.ParseText(Source,parseOptions))],
             References,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
     }
 
-    internal static GeneratorDriverRunResult RunGenerator(CSharpCompilation compilation)
-    {
-        GeneratorDriver Driver = CSharpGeneratorDriver.Create(new GameSystemGenerator());
-        Driver = Driver.RunGenerators(compilation);
+    internal static GeneratorDriverRunResult RunGenerator(CSharpCompilation compilation){
+        GeneratorDriver Driver=CSharpGeneratorDriver.Create(new GameSystemGenerator());
+        Driver=Driver.RunGenerators(compilation);
         return Driver.GetRunResult();
     }
 
-    internal static GeneratorDriverRunResult RunGenerator(params string[] Sources) =>
+    internal static GeneratorDriverRunResult RunGenerator(params string[]Sources)=>
         RunGenerator(CreateCompilation(Sources));
 
     /// <summary>生成コードを合流させた最終コンパイルを実際にEmitしてメモリ上に読み込む。E2Eテストがリフレクションで実行結果を検証するために使う。</summary>
-    internal static Assembly CompileAndLoad(params string[] Sources)
-    {
-        CSharpCompilation compilation = CreateCompilation(Sources);
-        GeneratorDriver Driver = CSharpGeneratorDriver.Create(new GameSystemGenerator());
-        Driver = Driver.RunGeneratorsAndUpdateCompilation(compilation, out Compilation OutputCompilation, out ImmutableArray<Diagnostic> GeneratorDiagnostics);
+    internal static Assembly CompileAndLoad(params string[]Sources){
+        CSharpCompilation compilation=CreateCompilation(Sources);
+        GeneratorDriver Driver=CSharpGeneratorDriver.Create(new GameSystemGenerator());
+        Driver=Driver.RunGeneratorsAndUpdateCompilation(compilation,out Compilation OutputCompilation,out ImmutableArray<Diagnostic>GeneratorDiagnostics);
 
-        if (!GeneratorDiagnostics.IsEmpty)
-        {
-            throw new InvalidOperationException("Generator diagnostics:\n" + string.Join("\n", GeneratorDiagnostics));
+        if(!GeneratorDiagnostics.IsEmpty){
+            throw new InvalidOperationException("Generator diagnostics:\n"+string.Join("\n",GeneratorDiagnostics));
         }
 
-        using MemoryStream stream = new();
-        EmitResult emitResult = OutputCompilation.Emit(stream);
+        using MemoryStream stream=new();
+        EmitResult emitResult=OutputCompilation.Emit(stream);
 
-        if (!emitResult.Success)
-        {
-            IEnumerable<Diagnostic> Errors = emitResult.Diagnostics.Where(D => D.Severity == DiagnosticSeverity.Error);
-            throw new InvalidOperationException("Compilation failed:\n" + string.Join("\n", Errors));
+        if(!emitResult.Success){
+            IEnumerable<Diagnostic>Errors=emitResult.Diagnostics.Where(D=>D.Severity==DiagnosticSeverity.Error);
+            throw new InvalidOperationException("Compilation failed:\n"+string.Join("\n",Errors));
         }
 
         return Assembly.Load(stream.ToArray());
     }
 
-    internal static object? Invoke(Assembly assembly, string TypeFullName, string MethodName, params object?[]? Args)
-    {
-        Type type = assembly.GetType(TypeFullName) ?? throw new InvalidOperationException($"Type '{TypeFullName}' not found.");
-        MethodInfo Method = type.GetMethod(MethodName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-            ?? throw new InvalidOperationException($"Method '{MethodName}' not found on '{TypeFullName}'.");
-        return Method.Invoke(null, Args);
+    internal static object?Invoke(Assembly assembly,string TypeFullName,string MethodName,params object?[]?Args){
+        Type type=assembly.GetType(TypeFullName)??throw new InvalidOperationException($"Type '{TypeFullName}' not found.");
+        MethodInfo Method=type.GetMethod(MethodName,BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Static)
+            ??throw new InvalidOperationException($"Method '{MethodName}' not found on '{TypeFullName}'.");
+        return Method.Invoke(null,Args);
     }
 }

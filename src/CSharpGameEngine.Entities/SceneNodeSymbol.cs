@@ -5,4 +5,4 @@ namespace CSharpGameEngine.Entities;
 /// <c>SceneDefinitionGenerator</c>が生成する<c>static partial SceneNodeSymbol</c>プロパティの
 /// 戻り値として現れる、コンパイル時に確定した「このノードを指す」というマーカー。
 /// </summary>
-public readonly record struct SceneNodeSymbol(SceneNodeId Id, string Name);
+public readonly record struct SceneNodeSymbol(SceneNodeId Id,string Name);

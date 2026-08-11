@@ -1,7 +1,6 @@
 namespace CSharpGameEngine.Compiler.Hlsl;
 
-public enum HlslDiagnosticSeverity
-{
+public enum HlslDiagnosticSeverity {
     Info,
     Warning,
     Error,
@@ -12,10 +11,9 @@ public sealed record HlslDiagnostic(
     int Line,
     int Column,
     HlslDiagnosticSeverity Severity,
-    string Message)
-{
-    public override string ToString() =>
-        Line > 0
+    string Message){
+    public override string ToString()=>
+        Line>0
             ? $"{FileName}({Line},{Column}): {Severity}: {Message}"
             : $"{FileName}: {Severity}: {Message}";
 }

@@ -6,15 +6,12 @@ namespace CSharpGameEngine.Spatial.Abstractions;
 /// import unit scale, non-finite values). Deliberately not thrown from hot-path per-frame
 /// conversions - see Docs/Specifications/Spatial-RUF.md "エラー処理".
 /// </summary>
-public sealed class SpatialConfigurationException : Exception
-{
+public sealed class SpatialConfigurationException:Exception {
     public SpatialConfigurationException(string message)
-        : base(message)
-    {
+        :base(message){
     }
 
-    public SpatialConfigurationException(string message, Exception innerException)
-        : base(message, innerException)
-    {
+    public SpatialConfigurationException(string message,Exception innerException)
+        :base(message,innerException){
     }
 }

@@ -7,9 +7,8 @@ namespace CSharpGameEngine.CodeAnalysis.Tests;
 /// 既存の<c>GameSystemGenerator</c>パイプラインへ「実際に検出されたSystemと区別なく」合流すること
 /// (Archetype順序の維持・ループへのディスパッチ・エントリポイント連携)が最重要の契約。
 /// </summary>
-public sealed class StartupSceneGeneratorEmissionTests
-{
-    private const string Components = """
+public sealed class StartupSceneGeneratorEmissionTests {
+    private const string Components="""
         namespace Sample;
 
         public struct AppHost { public int Width; }
@@ -19,9 +18,8 @@ public sealed class StartupSceneGeneratorEmissionTests
         """;
 
     [Fact]
-    public void HiddenStartupSystem_ImplementsISystem_AndGuardsWithBootstrapDone()
-    {
-        string Source = """
+    public void HiddenStartupSystem_ImplementsISystem_AndGuardsWithBootstrapDone(){
+        var Source="""
             using CSharpGameEngine.Entities;
             using Sample;
 
@@ -35,24 +33,23 @@ public sealed class StartupSceneGeneratorEmissionTests
             }
             """;
 
-        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
-            [.. GameSystemGeneratorTestHelper.StartupSceneSources, Components, Source]);
+        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
+            [.. GameSystemGeneratorTestHelper.StartupSceneSources,Components,Source]);
 
-        string Text = GameSystemGeneratorTestHelper.GeneratedText(Result, "Game.MainScene.StartupSystem.g.cs");
+        var Text=GameSystemGeneratorTestHelper.GeneratedText(Result,"Game.MainScene.StartupSystem.g.cs");
 
-        Assert.Contains("internal struct MainScene__StartupSystem : global::CSharpGameEngine.Entities.ISystem", Text);
-        Assert.Contains("if (bootstrap.Done)", Text);
-        Assert.Contains("bootstrap.Done = true;", Text);
+        Assert.Contains("internal struct MainScene__StartupSystem : global::CSharpGameEngine.Entities.ISystem",Text);
+        Assert.Contains("if (Bootstrap.Done)",Text);
+        Assert.Contains("Bootstrap.Done = true;",Text);
 
-        int DoneGuardIndex = Text.IndexOf("if (bootstrap.Done)", StringComparison.Ordinal);
-        int CreateIndex = Text.IndexOf("state.World.Create(", StringComparison.Ordinal);
-        Assert.True(DoneGuardIndex < CreateIndex, "Bootstrap.Doneのガードは、World.Create呼び出しより前に生成されなければならない。");
+        var DoneGuardIndex=Text.IndexOf("if (Bootstrap.Done)",StringComparison.Ordinal);
+        var CreateIndex=Text.IndexOf("State.World.Create(",StringComparison.Ordinal);
+        Assert.True(DoneGuardIndex<CreateIndex,"Bootstrap.Doneのガードは、World.Create呼び出しより前に生成されなければならない。");
     }
 
     [Fact]
-    public void SingleComponentEntity_PassesPropertyDirectlyWithoutIntermediateLocal()
-    {
-        string Source = """
+    public void SingleComponentEntity_PassesPropertyDirectlyWithoutIntermediateLocal(){
+        var Source="""
             using CSharpGameEngine.Entities;
             using Sample;
 
@@ -66,19 +63,18 @@ public sealed class StartupSceneGeneratorEmissionTests
             }
             """;
 
-        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
-            [.. GameSystemGeneratorTestHelper.StartupSceneSources, Components, Source]);
+        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
+            [.. GameSystemGeneratorTestHelper.StartupSceneSources,Components,Source]);
 
-        string Text = GameSystemGeneratorTestHelper.GeneratedText(Result, "Game.MainScene.StartupSystem.g.cs");
+        var Text=GameSystemGeneratorTestHelper.GeneratedText(Result,"Game.MainScene.StartupSystem.g.cs");
 
-        Assert.Contains("state.World.Create(global::Game.MainScene.Origin);", Text);
-        Assert.DoesNotContain("var origin", Text);
+        Assert.Contains("State.World.Create(global::Game.MainScene.Origin);",Text);
+        Assert.DoesNotContain("var Origin",Text);
     }
 
     [Fact]
-    public void TupleEntity_EvaluatesPropertyOnceAndAccessesNamedElements()
-    {
-        string Source = """
+    public void TupleEntity_EvaluatesPropertyOnceAndAccessesNamedElements(){
+        var Source="""
             using CSharpGameEngine.Entities;
             using Sample;
 
@@ -92,31 +88,29 @@ public sealed class StartupSceneGeneratorEmissionTests
             }
             """;
 
-        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
-            [.. GameSystemGeneratorTestHelper.StartupSceneSources, Components, Source]);
+        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
+            [.. GameSystemGeneratorTestHelper.StartupSceneSources,Components,Source]);
 
-        string Text = GameSystemGeneratorTestHelper.GeneratedText(Result, "Game.MainScene.StartupSystem.g.cs");
+        var Text=GameSystemGeneratorTestHelper.GeneratedText(Result,"Game.MainScene.StartupSystem.g.cs");
 
-        Assert.Contains("var application = global::Game.MainScene.Application;", Text);
-        Assert.Contains("state.World.Create(application.App, application.Level);", Text);
+        Assert.Contains("var Application = global::Game.MainScene.Application;",Text);
+        Assert.Contains("State.World.Create(Application.App, Application.Level);",Text);
 
         // "global::Game.MainScene.Application"というプロパティ参照(=評価)は1回だけ出現するはず。
-        int OccurrenceCount = 0;
-        int SearchIndex = 0;
+        var OccurrenceCount=0;
+        var SearchIndex=0;
 
-        while ((SearchIndex = Text.IndexOf("global::Game.MainScene.Application", SearchIndex, StringComparison.Ordinal)) >= 0)
-        {
+        while((SearchIndex=Text.IndexOf("global::Game.MainScene.Application",SearchIndex,StringComparison.Ordinal))>=0){
             OccurrenceCount++;
-            SearchIndex += 1;
+            SearchIndex+=1;
         }
 
-        Assert.Equal(1, OccurrenceCount);
+        Assert.Equal(1,OccurrenceCount);
     }
 
     [Fact]
-    public void MultipleSceneEntities_AreEmittedInSourceDeclarationOrder()
-    {
-        string Source = """
+    public void MultipleSceneEntities_AreEmittedInSourceDeclarationOrder(){
+        var Source="""
             using CSharpGameEngine.Entities;
             using Sample;
 
@@ -133,24 +127,23 @@ public sealed class StartupSceneGeneratorEmissionTests
             }
             """;
 
-        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
-            [.. GameSystemGeneratorTestHelper.StartupSceneSources, Components, Source]);
+        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
+            [.. GameSystemGeneratorTestHelper.StartupSceneSources,Components,Source]);
 
-        string Text = GameSystemGeneratorTestHelper.GeneratedText(Result, "Game.MainScene.StartupSystem.g.cs");
+        var Text=GameSystemGeneratorTestHelper.GeneratedText(Result,"Game.MainScene.StartupSystem.g.cs");
 
         // Sourceの宣言順はSecondが先だが、両方ともプロパティ宣言位置で決定的に整列されるため、
         // 生成コード内でもSecond用のCreate呼び出しがFirstより先に出現するはず。
-        int SecondIndex = Text.IndexOf("global::Game.MainScene.Second", StringComparison.Ordinal);
-        int FirstIndex = Text.IndexOf("global::Game.MainScene.First", StringComparison.Ordinal);
+        var SecondIndex=Text.IndexOf("global::Game.MainScene.Second",StringComparison.Ordinal);
+        var FirstIndex=Text.IndexOf("global::Game.MainScene.First",StringComparison.Ordinal);
 
-        Assert.True(SecondIndex >= 0 && FirstIndex >= 0);
-        Assert.True(SecondIndex < FirstIndex);
+        Assert.True(SecondIndex>=0&&FirstIndex>=0);
+        Assert.True(SecondIndex<FirstIndex);
     }
 
     [Fact]
-    public void SyntheticSystem_IsDispatchedFromGeneratedGameLoop()
-    {
-        string Source = """
+    public void SyntheticSystem_IsDispatchedFromGeneratedGameLoop(){
+        var Source="""
             using CSharpGameEngine.Entities;
             using Sample;
 
@@ -164,12 +157,12 @@ public sealed class StartupSceneGeneratorEmissionTests
             }
             """;
 
-        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
-            [.. GameSystemGeneratorTestHelper.StartupSceneSources, Components, Source]);
+        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
+            [.. GameSystemGeneratorTestHelper.StartupSceneSources,Components,Source]);
 
-        string Text = GameSystemGeneratorTestHelper.GeneratedText(Result, "GameSystem.Loop.g.cs");
+        var Text=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.Loop.g.cs");
 
-        Assert.Contains("mainScene__StartupSystem.Update(", Text);
+        Assert.Contains("MainScene__StartupSystem.Update(",Text);
     }
 
     /// <summary>
@@ -178,9 +171,8 @@ public sealed class StartupSceneGeneratorEmissionTests
     /// 検証する(要件セクション9)。
     /// </summary>
     [Fact]
-    public void StartupSceneOutputArchetype_DoesNotDisturbExistingSystemDerivedOrder()
-    {
-        string Source = """
+    public void StartupSceneOutputArchetype_DoesNotDisturbExistingSystemDerivedOrder(){
+        var Source="""
             using CSharpGameEngine.Entities;
             using Sample;
 
@@ -207,20 +199,19 @@ public sealed class StartupSceneGeneratorEmissionTests
             }
             """;
 
-        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
-            [.. GameSystemGeneratorTestHelper.StartupSceneSources, Components, Source]);
+        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
+            [.. GameSystemGeneratorTestHelper.StartupSceneSources,Components,Source]);
 
-        string Text = GameSystemGeneratorTestHelper.GeneratedText(Result, "GameSystem.Types.g.cs");
+        var Text=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.Types.g.cs");
 
         // Archetype0 {Bootstrap} (合成Startup System自身), Archetype1 {AppHost} (Window),
         // Archetype2 {AppHost, Level} (LevelLoad = MainSceneのTuple出力と同一集合、二重登録されない)。
-        Assert.Contains("public enum Archetype\n{\n    Archetype0,\n    Archetype1,\n    Archetype2,\n}", Text);
+        Assert.Contains("public enum Archetype {\n    Archetype0,\n    Archetype1,\n    Archetype2,\n}",Text);
     }
 
     [Fact]
-    public void Generator_ProducesEntryPoint_WhenStartupSceneIsTheOnlySystem()
-    {
-        string Source = """
+    public void Generator_ProducesEntryPoint_WhenStartupSceneIsTheOnlySystem(){
+        var Source="""
             using CSharpGameEngine.Entities;
             using Sample;
 
@@ -234,20 +225,19 @@ public sealed class StartupSceneGeneratorEmissionTests
             }
             """;
 
-        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
+        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
             GameSystemGeneratorTestHelper.CreateApplicationCompilation(
-                [.. GameSystemGeneratorTestHelper.StartupSceneSources, Components, Source]));
+                [.. GameSystemGeneratorTestHelper.StartupSceneSources,Components,Source]));
 
-        string Text = GameSystemGeneratorTestHelper.GeneratedText(Result, "GameSystem.EntryPoint.g.cs");
+        var Text=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.EntryPoint.g.cs");
 
-        Assert.Contains("World.Create(new global::CSharpGameEngine.Entities.Bootstrap());", Text);
-        Assert.Contains("GeneratedGameLoop.Run(ref State);", Text);
+        Assert.Contains("World.Create(new global::CSharpGameEngine.Entities.Bootstrap());",Text);
+        Assert.Contains("GeneratedGameLoop.Run(ref State);",Text);
     }
 
     [Fact]
-    public void Generator_IsDeterministic_AcrossTwoIndependentRunsWithStartupScene()
-    {
-        string Source = """
+    public void Generator_IsDeterministic_AcrossTwoIndependentRunsWithStartupScene(){
+        var Source="""
             using CSharpGameEngine.Entities;
             using Sample;
 
@@ -261,14 +251,14 @@ public sealed class StartupSceneGeneratorEmissionTests
             }
             """;
 
-        string[] AllSources = [.. GameSystemGeneratorTestHelper.StartupSceneSources, Components, Source];
+        string[]AllSources=[.. GameSystemGeneratorTestHelper.StartupSceneSources,Components,Source];
 
-        GeneratorDriverRunResult First = GameSystemGeneratorTestHelper.RunGenerator(AllSources);
-        GeneratorDriverRunResult Second = GameSystemGeneratorTestHelper.RunGenerator(AllSources);
+        GeneratorDriverRunResult First=GameSystemGeneratorTestHelper.RunGenerator(AllSources);
+        GeneratorDriverRunResult Second=GameSystemGeneratorTestHelper.RunGenerator(AllSources);
 
-        string[] FirstTexts = [.. First.Results[0].GeneratedSources.OrderBy(S => S.HintName, StringComparer.Ordinal).Select(S => S.SourceText.ToString())];
-        string[] SecondTexts = [.. Second.Results[0].GeneratedSources.OrderBy(S => S.HintName, StringComparer.Ordinal).Select(S => S.SourceText.ToString())];
+        string[]FirstTexts=[.. First.Results[0].GeneratedSources.OrderBy(S=>S.HintName,StringComparer.Ordinal).Select(S=>S.SourceText.ToString())];
+        string[]SecondTexts=[.. Second.Results[0].GeneratedSources.OrderBy(S=>S.HintName,StringComparer.Ordinal).Select(S=>S.SourceText.ToString())];
 
-        Assert.Equal(FirstTexts, SecondTexts);
+        Assert.Equal(FirstTexts,SecondTexts);
     }
 }

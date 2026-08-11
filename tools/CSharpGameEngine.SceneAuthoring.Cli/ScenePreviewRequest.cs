@@ -7,9 +7,8 @@ namespace CSharpGameEngine.SceneAuthoring.Cli;
 /// one of these to a temp JSON file and passes that file's path as the single "input path"
 /// (ADR-0031) rather than widening the shared, already-proven transport.
 /// </summary>
-public sealed record ScenePreviewRequest
-{
-    public required string SourceFilePath { get; init; }
+public sealed record ScenePreviewRequest {
+    public required string SourceFilePath { get; init;}
 
-    public required string TargetAssemblyPath { get; init; }
+    public required string TargetAssemblyPath { get; init;}
 }

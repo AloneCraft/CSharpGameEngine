@@ -10,18 +10,17 @@ namespace CSharpGameEngine.Import.Gltf;
 /// that share the same <see cref="Name"/> and <see cref="WorldTransform"/> but differ in
 /// <see cref="MeshIndex"/>/<see cref="MaterialIndex"/>, since each primitive is a separate drawable.
 /// </summary>
-public sealed class ImportedSceneNode
-{
-    public required string Name { get; init; }
+public sealed class ImportedSceneNode {
+    public required string Name { get; init;}
 
-    public required Matrix4x4 WorldTransform { get; init; }
+    public required Matrix4x4 WorldTransform { get; init;}
 
     /// <summary>Index into <see cref="ImportedScene.Meshes"/>. Null for light-only nodes.</summary>
-    public int? MeshIndex { get; init; }
+    public int?MeshIndex { get; init;}
 
     /// <summary>Index into <see cref="ImportedScene.Materials"/>. Null exactly when <see cref="MeshIndex"/> is null.</summary>
-    public int? MaterialIndex { get; init; }
+    public int?MaterialIndex { get; init;}
 
     /// <summary>Index into <see cref="ImportedScene.Lights"/>. Null for mesh nodes.</summary>
-    public int? LightIndex { get; init; }
+    public int?LightIndex { get; init;}
 }

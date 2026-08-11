@@ -12,57 +12,49 @@ namespace CSharpGameEngine.VSExtension.Tests;
 /// Downloads folder (ADR-0011) - live VS UI automation proved unreliable for verifying this in a
 /// running Exp instance, but the watcher itself has no VS dependency, so it's fully testable here.
 /// </summary>
-public sealed class FabDownloadWatcherTests : IDisposable
-{
+public sealed class FabDownloadWatcherTests:IDisposable {
     private readonly string WatchedFolder;
     private readonly string DestinationFolder;
 
-    public FabDownloadWatcherTests()
-    {
-        string Root = Path.Combine(Path.GetTempPath(), "csge-fabwatch-tests-" + Guid.NewGuid().ToString("N"));
-        WatchedFolder = Path.Combine(Root, "Downloads");
-        DestinationFolder = Path.Combine(Root, "Assets", "Fab");
+    public FabDownloadWatcherTests(){
+        var Root=Path.Combine(Path.GetTempPath(),"csge-fabwatch-tests-"+Guid.NewGuid().ToString("N"));
+        WatchedFolder=Path.Combine(Root,"Downloads");
+        DestinationFolder=Path.Combine(Root,"Assets","Fab");
         Directory.CreateDirectory(WatchedFolder);
     }
 
-    public void Dispose()
-    {
-        try
-        {
-            Directory.Delete(Path.GetDirectoryName(WatchedFolder)!, recursive: true);
-        }
-        catch (IOException)
-        {
+    public void Dispose(){
+        try {
+            Directory.Delete(Path.GetDirectoryName(WatchedFolder)!,recursive:true);
+        } catch(IOException){
         }
     }
 
     [Fact]
-    public void MatchingExtension_GetsCopiedToDestination()
-    {
-        List<string> Copied = [];
-        using FabDownloadWatcher Watcher = new(WatchedFolder, DestinationFolder, Copied.Add, _ => { });
+    public void MatchingExtension_GetsCopiedToDestination(){
+        List<string>Copied=[];
+        using FabDownloadWatcher Watcher=new(WatchedFolder,DestinationFolder,Copied.Add,_=>{ });
         Watcher.Start();
 
-        string SourcePath = Path.Combine(WatchedFolder, "RockProp.glb");
-        File.WriteAllText(SourcePath, "fake glb bytes");
+        var SourcePath=Path.Combine(WatchedFolder,"RockProp.glb");
+        File.WriteAllText(SourcePath,"fake glb bytes");
 
-        string? DestinationPath = WaitFor(() => Copied.Count > 0 ? Copied[0] : null, TimeSpan.FromSeconds(10));
+        var DestinationPath=WaitFor(()=>Copied.Count>0?Copied[0]:null,TimeSpan.FromSeconds(10));
 
         Assert.NotNull(DestinationPath);
-        Assert.Equal(Path.Combine(DestinationFolder, "RockProp.glb"), DestinationPath);
+        Assert.Equal(Path.Combine(DestinationFolder,"RockProp.glb"),DestinationPath);
         Assert.True(File.Exists(DestinationPath));
-        Assert.Equal("fake glb bytes", File.ReadAllText(DestinationPath!));
+        Assert.Equal("fake glb bytes",File.ReadAllText(DestinationPath!));
     }
 
     [Fact]
-    public void NonMatchingExtension_IsIgnored()
-    {
-        List<string> Copied = [];
-        List<string> Errors = [];
-        using FabDownloadWatcher Watcher = new(WatchedFolder, DestinationFolder, Copied.Add, Errors.Add);
+    public void NonMatchingExtension_IsIgnored(){
+        List<string>Copied=[];
+        List<string>Errors=[];
+        using FabDownloadWatcher Watcher=new(WatchedFolder,DestinationFolder,Copied.Add,Errors.Add);
         Watcher.Start();
 
-        File.WriteAllText(Path.Combine(WatchedFolder, "installer.exe"), "not a fab asset");
+        File.WriteAllText(Path.Combine(WatchedFolder,"installer.exe"),"not a fab asset");
 
         // Give the watcher a fair chance to (incorrectly) react before asserting nothing happened.
         Thread.Sleep(1000);
@@ -72,14 +64,13 @@ public sealed class FabDownloadWatcherTests : IDisposable
     }
 
     [Fact]
-    public void Stop_PreventsFurtherCopies()
-    {
-        List<string> Copied = [];
-        using FabDownloadWatcher Watcher = new(WatchedFolder, DestinationFolder, Copied.Add, _ => { });
+    public void Stop_PreventsFurtherCopies(){
+        List<string>Copied=[];
+        using FabDownloadWatcher Watcher=new(WatchedFolder,DestinationFolder,Copied.Add,_=>{ });
         Watcher.Start();
         Watcher.Stop();
 
-        File.WriteAllText(Path.Combine(WatchedFolder, "AfterStop.glb"), "should not be copied");
+        File.WriteAllText(Path.Combine(WatchedFolder,"AfterStop.glb"),"should not be copied");
 
         Thread.Sleep(1000);
 
@@ -87,33 +78,29 @@ public sealed class FabDownloadWatcherTests : IDisposable
     }
 
     [Fact]
-    public void DuplicateFileName_GetsUniqueSuffix()
-    {
+    public void DuplicateFileName_GetsUniqueSuffix(){
         Directory.CreateDirectory(DestinationFolder);
-        File.WriteAllText(Path.Combine(DestinationFolder, "Prop.glb"), "existing file - must not be overwritten");
+        File.WriteAllText(Path.Combine(DestinationFolder,"Prop.glb"),"existing file - must not be overwritten");
 
-        List<string> Copied = [];
-        using FabDownloadWatcher Watcher = new(WatchedFolder, DestinationFolder, Copied.Add, _ => { });
+        List<string>Copied=[];
+        using FabDownloadWatcher Watcher=new(WatchedFolder,DestinationFolder,Copied.Add,_=>{ });
         Watcher.Start();
 
-        File.WriteAllText(Path.Combine(WatchedFolder, "Prop.glb"), "newly downloaded file");
+        File.WriteAllText(Path.Combine(WatchedFolder,"Prop.glb"),"newly downloaded file");
 
-        string? DestinationPath = WaitFor(() => Copied.Count > 0 ? Copied[0] : null, TimeSpan.FromSeconds(10));
+        var DestinationPath=WaitFor(()=>Copied.Count>0?Copied[0]:null,TimeSpan.FromSeconds(10));
 
         Assert.NotNull(DestinationPath);
-        Assert.NotEqual(Path.Combine(DestinationFolder, "Prop.glb"), DestinationPath);
-        Assert.Equal("existing file - must not be overwritten", File.ReadAllText(Path.Combine(DestinationFolder, "Prop.glb")));
-        Assert.Equal("newly downloaded file", File.ReadAllText(DestinationPath!));
+        Assert.NotEqual(Path.Combine(DestinationFolder,"Prop.glb"),DestinationPath);
+        Assert.Equal("existing file - must not be overwritten",File.ReadAllText(Path.Combine(DestinationFolder,"Prop.glb")));
+        Assert.Equal("newly downloaded file",File.ReadAllText(DestinationPath!));
     }
 
-    private static string? WaitFor(Func<string?> GetValue, TimeSpan timeout)
-    {
-        DateTime Deadline = DateTime.UtcNow + timeout;
-        while (DateTime.UtcNow < Deadline)
-        {
-            string? Value = GetValue();
-            if (Value is not null)
-            {
+    private static string?WaitFor(Func<string?>GetValue,TimeSpan timeout){
+        DateTime Deadline=DateTime.UtcNow+timeout;
+        while(DateTime.UtcNow<Deadline){
+            var Value=GetValue();
+            if(Value is not null){
                 return Value;
             }
 

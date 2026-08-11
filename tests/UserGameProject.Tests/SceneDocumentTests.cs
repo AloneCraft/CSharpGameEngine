@@ -3,9 +3,8 @@ using System.Text.Json;
 namespace UserGameProject.Tests;
 
 /// <summary>Parses the exact JSON shape tools/UnrealExport/export_lvl_firstperson.py writes (a real captured sample, trimmed to its parsed fields plus the export-time-only fields SceneMetaDocument deliberately leaves unmapped).</summary>
-public class SceneDocumentTests
-{
-    private const string RealSampleJson = """
+public class SceneDocumentTests {
+    private const string RealSampleJson="""
         {
           "version": 1,
           "conventions": { "units": "meters", "handedness": "right", "up": "+Y" },
@@ -18,35 +17,33 @@ public class SceneDocumentTests
         }
         """;
 
-    private static readonly JsonSerializerOptions Options = new() { PropertyNameCaseInsensitive = true };
+    private static readonly JsonSerializerOptions Options=new(){ PropertyNameCaseInsensitive=true };
 
     [Fact]
-    public void Deserialize_RealExportSample_ParsesAmbientFogPlayerStartAndMobility()
-    {
-        SceneMetaDocument? Document = JsonSerializer.Deserialize<SceneMetaDocument>(RealSampleJson, Options);
+    public void Deserialize_RealExportSample_ParsesAmbientFogPlayerStartAndMobility(){
+        SceneMetaDocument?Document=JsonSerializer.Deserialize<SceneMetaDocument>(RealSampleJson,Options);
 
         Assert.NotNull(Document);
         Assert.NotNull(Document.Ambient);
-        Assert.Equal([1.0f, 1.0f, 1.0f], Document.Ambient!.ColorRgb);
-        Assert.Equal(1.0f, Document.Ambient.Intensity);
+        Assert.Equal([1.0f,1.0f,1.0f],Document.Ambient!.ColorRgb);
+        Assert.Equal(1.0f,Document.Ambient.Intensity);
 
         Assert.NotNull(Document.Fog);
-        Assert.Equal(0.0436f, Document.Fog!.Density, precision: 4);
-        Assert.Equal(0.2f, Document.Fog.HeightFalloff);
+        Assert.Equal(0.0436f,Document.Fog!.Density,precision:4);
+        Assert.Equal(0.2f,Document.Fog.HeightFalloff);
 
         Assert.NotNull(Document.PlayerStart);
-        Assert.Equal(3.0201261f, Document.PlayerStart!.Translation[1], precision: 3);
+        Assert.Equal(3.0201261f,Document.PlayerStart!.Translation[1],precision:3);
 
-        Assert.Equal("movable", Document.MobilityOverrides["SM_Cube16"]);
-        Assert.Equal("static", Document.MobilityOverrides["SM_Ramp5"]);
+        Assert.Equal("movable",Document.MobilityOverrides["SM_Cube16"]);
+        Assert.Equal("static",Document.MobilityOverrides["SM_Ramp5"]);
     }
 
     [Fact]
-    public void Deserialize_MissingOptionalSections_LeavesThemNull()
-    {
-        const string Json = """{ "mobilityOverrides": {} }""";
+    public void Deserialize_MissingOptionalSections_LeavesThemNull(){
+        const string Json="""{ "mobilityOverrides": {} }""";
 
-        SceneMetaDocument? Document = JsonSerializer.Deserialize<SceneMetaDocument>(Json, Options);
+        SceneMetaDocument?Document=JsonSerializer.Deserialize<SceneMetaDocument>(Json,Options);
 
         Assert.NotNull(Document);
         Assert.Null(Document.Ambient);

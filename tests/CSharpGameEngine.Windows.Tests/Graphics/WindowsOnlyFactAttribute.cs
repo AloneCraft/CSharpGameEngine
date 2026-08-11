@@ -4,13 +4,10 @@ namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// A <see cref="FactAttribute"/> that reports as explicitly Skipped (not silently passed) on
 /// non-Windows platforms. On Windows it always runs - never auto-skip a failing GPU test here.
 /// </summary>
-public sealed class WindowsOnlyFactAttribute : FactAttribute
-{
-    public WindowsOnlyFactAttribute()
-    {
-        if (!OperatingSystem.IsWindows())
-        {
-            Skip = "Requires Windows (D3D12/DXGI).";
+public sealed class WindowsOnlyFactAttribute:FactAttribute {
+    public WindowsOnlyFactAttribute(){
+        if(!OperatingSystem.IsWindows()){
+            Skip="Requires Windows (D3D12/DXGI).";
         }
     }
 }

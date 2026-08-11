@@ -8,17 +8,16 @@ namespace CSharpGameEngine.Spatial.Abstractions;
 /// no reflection, no boxing, no Service Locator/global mutable setting (see
 /// Docs/Specifications/Spatial-RUF.md "パフォーマンス要件"/"コード品質").
 /// </summary>
-public interface ICoordinateConvention
-{
-    static abstract CoordinateHandedness Handedness { get; }
+public interface ICoordinateConvention {
+    static abstract CoordinateHandedness Handedness { get;}
 
     static abstract XyzVector ToXyz(in RufVector Value);
 
     static abstract RufVector FromXyz(in XyzVector Value);
 
-    static abstract XyzVector RightXyz { get; }
+    static abstract XyzVector RightXyz { get;}
 
-    static abstract XyzVector UpXyz { get; }
+    static abstract XyzVector UpXyz { get;}
 
-    static abstract XyzVector ForwardXyz { get; }
+    static abstract XyzVector ForwardXyz { get;}
 }

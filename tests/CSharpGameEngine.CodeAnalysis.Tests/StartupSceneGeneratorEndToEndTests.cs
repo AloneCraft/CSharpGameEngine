@@ -8,9 +8,8 @@ namespace CSharpGameEngine.CodeAnalysis.Tests;
 /// 「2フレーム目以降は<c>Bootstrap.Done</c>により再生成しない」という、UserEcsProjectの実挙動と
 /// 同じ契約を、生成された実コードで証明する。
 /// </summary>
-public sealed class StartupSceneGeneratorEndToEndTests
-{
-    private const string Components = """
+public sealed class StartupSceneGeneratorEndToEndTests {
+    private const string Components="""
         namespace Sample;
 
         public struct AppHost { public int Width; }
@@ -19,9 +18,8 @@ public sealed class StartupSceneGeneratorEndToEndTests
         """;
 
     [Fact]
-    public void SingleComponentEntity_IsCreatedOnce_AndNotDuplicatedOnSubsequentFrames()
-    {
-        string Source = """
+    public void SingleComponentEntity_IsCreatedOnce_AndNotDuplicatedOnSubsequentFrames(){
+        var Source="""
             using CSharpGameEngine.Entities;
             using CSharpGameEngine.Generated;
             using Sample;
@@ -59,17 +57,16 @@ public sealed class StartupSceneGeneratorEndToEndTests
             }
             """;
 
-        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(
-            [.. GameSystemGeneratorTestHelper.StartupSceneSources, Components, Source]);
-        object? Result = GameSystemGeneratorTestHelper.Invoke(assembly, "Game.TestEntry", "RunScenario");
+        Assembly assembly=GameSystemGeneratorTestHelper.CompileAndLoad(
+            [.. GameSystemGeneratorTestHelper.StartupSceneSources,Components,Source]);
+        var Result=GameSystemGeneratorTestHelper.Invoke(assembly,"Game.TestEntry","RunScenario");
 
-        Assert.Equal("OK", Result);
+        Assert.Equal("OK",Result);
     }
 
     [Fact]
-    public void TupleEntity_CreatesOneEntityWithBothComponentValues()
-    {
-        string Source = """
+    public void TupleEntity_CreatesOneEntityWithBothComponentValues(){
+        var Source="""
             using CSharpGameEngine.Entities;
             using CSharpGameEngine.Generated;
             using Sample;
@@ -105,11 +102,11 @@ public sealed class StartupSceneGeneratorEndToEndTests
             }
             """;
 
-        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(
-            [.. GameSystemGeneratorTestHelper.StartupSceneSources, Components, Source]);
-        object? Result = GameSystemGeneratorTestHelper.Invoke(assembly, "Game.TestEntry", "RunScenario");
+        Assembly assembly=GameSystemGeneratorTestHelper.CompileAndLoad(
+            [.. GameSystemGeneratorTestHelper.StartupSceneSources,Components,Source]);
+        var Result=GameSystemGeneratorTestHelper.Invoke(assembly,"Game.TestEntry","RunScenario");
 
-        Assert.Equal("OK", Result);
+        Assert.Equal("OK",Result);
     }
 
     /// <summary>
@@ -117,9 +114,8 @@ public sealed class StartupSceneGeneratorEndToEndTests
     /// 実Systemが同じフレーム内(即時World.Createの連鎖)で読み取れることを検証する。
     /// </summary>
     [Fact]
-    public void RealSystemDownstream_ObservesEntityCreatedByStartupScene_WithinTheSameFrame()
-    {
-        string Source = """
+    public void RealSystemDownstream_ObservesEntityCreatedByStartupScene_WithinTheSameFrame(){
+        var Source="""
             using CSharpGameEngine.Entities;
             using CSharpGameEngine.Generated;
             using Sample;
@@ -165,18 +161,17 @@ public sealed class StartupSceneGeneratorEndToEndTests
             }
             """;
 
-        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(
-            [.. GameSystemGeneratorTestHelper.StartupSceneSources, Components, Source]);
-        object? Result = GameSystemGeneratorTestHelper.Invoke(assembly, "Game.TestEntry", "RunScenario");
+        Assembly assembly=GameSystemGeneratorTestHelper.CompileAndLoad(
+            [.. GameSystemGeneratorTestHelper.StartupSceneSources,Components,Source]);
+        var Result=GameSystemGeneratorTestHelper.Invoke(assembly,"Game.TestEntry","RunScenario");
 
-        Assert.Equal("OK", Result);
+        Assert.Equal("OK",Result);
     }
 
     /// <summary>Scene propertyの評価回数を副作用カウンターで数える。1フレーム目に1回だけ評価されること。</summary>
     [Fact]
-    public void SceneProperty_IsEvaluatedExactlyOnce()
-    {
-        string Source = """
+    public void SceneProperty_IsEvaluatedExactlyOnce(){
+        var Source="""
             using CSharpGameEngine.Entities;
             using CSharpGameEngine.Generated;
             using Sample;
@@ -219,10 +214,10 @@ public sealed class StartupSceneGeneratorEndToEndTests
             }
             """;
 
-        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(
-            [.. GameSystemGeneratorTestHelper.StartupSceneSources, Components, Source]);
-        object? Result = GameSystemGeneratorTestHelper.Invoke(assembly, "Game.TestEntry", "RunScenario");
+        Assembly assembly=GameSystemGeneratorTestHelper.CompileAndLoad(
+            [.. GameSystemGeneratorTestHelper.StartupSceneSources,Components,Source]);
+        var Result=GameSystemGeneratorTestHelper.Invoke(assembly,"Game.TestEntry","RunScenario");
 
-        Assert.Equal("OK", Result);
+        Assert.Equal("OK",Result);
     }
 }

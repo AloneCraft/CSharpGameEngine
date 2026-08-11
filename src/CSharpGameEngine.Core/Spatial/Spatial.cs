@@ -9,11 +9,10 @@ namespace CSharpGameEngine.Spatial.Abstractions;
 /// so application code never has to spell out <typeparamref name="TConvention"/> itself.
 /// </summary>
 public static class Spatial<TConvention>
-    where TConvention : struct, ICoordinateConvention
-{
-    public static XyzVector ToXyz(in RufVector Value) => TConvention.ToXyz(Value);
+    where TConvention:struct,ICoordinateConvention {
+    public static XyzVector ToXyz(in RufVector Value)=>TConvention.ToXyz(Value);
 
-    public static RufVector FromXyz(in XyzVector Value) => TConvention.FromXyz(Value);
+    public static RufVector FromXyz(in XyzVector Value)=>TConvention.FromXyz(Value);
 
     /// <summary>
     /// Physically correct cross product of two RUF-space vectors: converts both operands to this
@@ -25,9 +24,8 @@ public static class Spatial<TConvention>
     /// <c>Cross(Right, Up) == Forward</c>; for a RightHanded convention,
     /// <c>Cross(Right, Up) == Backward</c>.
     /// </summary>
-    public static RufVector Cross(in RufVector Left, in RufVector Right)
-    {
-        XyzVector CrossXyz = XyzVector.Cross(TConvention.ToXyz(Left), TConvention.ToXyz(Right));
+    public static RufVector Cross(in RufVector Left,in RufVector Right){
+        XyzVector CrossXyz=XyzVector.Cross(TConvention.ToXyz(Left),TConvention.ToXyz(Right));
         return TConvention.FromXyz(CrossXyz);
     }
 
@@ -38,9 +36,8 @@ public static class Spatial<TConvention>
     /// exposing a raw cross product everywhere - see Docs/Specifications/Spatial-RUF.md
     /// "Cross Product仕様".
     /// </summary>
-    public static RufVector RightFromUpForward(in RufVector Up, in RufVector Forward)
-    {
-        RufVector RawCross = Cross(Up, Forward);
-        return TConvention.Handedness == CoordinateHandedness.LeftHanded ? RawCross : -RawCross;
+    public static RufVector RightFromUpForward(in RufVector Up,in RufVector Forward){
+        RufVector RawCross=Cross(Up,Forward);
+        return TConvention.Handedness==CoordinateHandedness.LeftHanded?RawCross:-RawCross;
     }
 }

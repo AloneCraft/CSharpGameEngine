@@ -17,43 +17,35 @@ namespace CSharpGameEngine.VSExtension;
 /// path-combination/glob logic are deliberately split so the latter is unit-testable without a
 /// running VS host, mirroring <see cref="BridgeExecutableLocator"/>'s own split.
 /// </summary>
-internal static class ProjectOutputAssemblyResolver
-{
-    internal static string? TryResolve(Project project)
-    {
+internal static class ProjectOutputAssemblyResolver {
+    internal static string?TryResolve(Project project){
         ThreadHelper.ThrowIfNotOnUIThread();
 
-        string? ProjectDirectory = Path.GetDirectoryName(project.FullName);
-        if (string.IsNullOrEmpty(ProjectDirectory))
-        {
+        var ProjectDirectory=Path.GetDirectoryName(project.FullName);
+        if(string.IsNullOrEmpty(ProjectDirectory)){
             return null;
         }
 
-        string? ViaProperties = TryResolveViaProperties(project, ProjectDirectory);
-        if (ViaProperties is not null && File.Exists(ViaProperties))
-        {
+        var ViaProperties=TryResolveViaProperties(project,ProjectDirectory);
+        if(ViaProperties is not null&&File.Exists(ViaProperties)){
             return ViaProperties;
         }
 
         // None of this repo's projects set an explicit <AssemblyName> (same assumption
         // BridgeExecutableLocator already documents), so the output dll name always matches the
         // project file's own base name.
-        string AssemblyFileName = Path.GetFileNameWithoutExtension(project.FullName) + ".dll";
-        return FindNewestByGlob(ProjectDirectory, AssemblyFileName);
+        var AssemblyFileName=Path.GetFileNameWithoutExtension(project.FullName)+".dll";
+        return FindNewestByGlob(ProjectDirectory,AssemblyFileName);
     }
 
-    private static string? TryResolveViaProperties(Project project, string ProjectDirectory)
-    {
+    private static string?TryResolveViaProperties(Project project,string ProjectDirectory){
         ThreadHelper.ThrowIfNotOnUIThread();
 
-        try
-        {
-            string OutputFileName = (string)project.Properties.Item("OutputFileName").Value;
-            string OutputPath = (string)project.ConfigurationManager.ActiveConfiguration.Properties.Item("OutputPath").Value;
-            return CombineOutputPath(ProjectDirectory, OutputPath, OutputFileName);
-        }
-        catch (Exception)
-        {
+        try {
+            var OutputFileName=(string)project.Properties.Item("OutputFileName").Value;
+            var OutputPath=(string)project.ConfigurationManager.ActiveConfiguration.Properties.Item("OutputPath").Value;
+            return CombineOutputPath(ProjectDirectory,OutputPath,OutputFileName);
+        } catch(Exception){
             // Property read can fail for reasons unrelated to whether the project is buildable
             // (project not yet loaded, non-standard project system, etc.) - the glob fallback in
             // TryResolve covers for it.
@@ -61,19 +53,17 @@ internal static class ProjectOutputAssemblyResolver
         }
     }
 
-    internal static string CombineOutputPath(string ProjectDirectory, string OutputPath, string OutputFileName) =>
-        Path.GetFullPath(Path.Combine(ProjectDirectory, OutputPath, OutputFileName));
+    internal static string CombineOutputPath(string ProjectDirectory,string OutputPath,string OutputFileName)=>
+        Path.GetFullPath(Path.Combine(ProjectDirectory,OutputPath,OutputFileName));
 
-    internal static string? FindNewestByGlob(string ProjectDirectory, string AssemblyFileName)
-    {
-        string BinDirectory = Path.Combine(ProjectDirectory, "bin");
+    internal static string?FindNewestByGlob(string ProjectDirectory,string AssemblyFileName){
+        var BinDirectory=Path.Combine(ProjectDirectory,"bin");
 
-        if (!Directory.Exists(BinDirectory))
-        {
+        if(!Directory.Exists(BinDirectory)){
             return null;
         }
 
-        return Directory.EnumerateFiles(BinDirectory, AssemblyFileName, SearchOption.AllDirectories)
+        return Directory.EnumerateFiles(BinDirectory,AssemblyFileName,SearchOption.AllDirectories)
             .OrderByDescending(File.GetLastWriteTimeUtc)
             .FirstOrDefault();
     }

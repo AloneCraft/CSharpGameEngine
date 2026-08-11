@@ -17,32 +17,27 @@ namespace CSharpGameEngine.SceneAuthoring.Cli;
 /// (<see cref="ScenePreviewBridgeWorker"/> falls back to unnamed nodes when the count does not line
 /// up with <see cref="WorldInspector"/>'s output).
 /// </summary>
-internal static class SceneDefinitionSourceParser
-{
-    internal static IReadOnlyList<string> ParseNodeNamesInDeclarationOrder(string SourceText)
-    {
-        CompilationUnitSyntax Root = (CompilationUnitSyntax)CSharpSyntaxTree.ParseText(SourceText).GetRoot();
+internal static class SceneDefinitionSourceParser {
+    internal static IReadOnlyList<string>ParseNodeNamesInDeclarationOrder(string SourceText){
+        CompilationUnitSyntax Root=(CompilationUnitSyntax)CSharpSyntaxTree.ParseText(SourceText).GetRoot();
 
-        ClassDeclarationSyntax? SceneClass = Root.DescendantNodes()
+        ClassDeclarationSyntax?SceneClass=Root.DescendantNodes()
             .OfType<ClassDeclarationSyntax>()
             .FirstOrDefault(HasSceneDefinitionAttribute);
 
-        MethodDeclarationSyntax? DefineMethod = SceneClass?.Members
+        MethodDeclarationSyntax?DefineMethod=SceneClass?.Members
             .OfType<MethodDeclarationSyntax>()
-            .FirstOrDefault(M => M.Identifier.Text == "Define");
+            .FirstOrDefault(M=>M.Identifier.Text=="Define");
 
-        if (DefineMethod?.Body is not { } DefineBody)
-        {
-            return [];
+        if(DefineMethod?.Body is not { } DefineBody){
+            return[];
         }
 
-        List<string> Names = [];
+        List<string>Names=[];
 
-        foreach (StatementSyntax Statement in DefineBody.Statements)
-        {
-            if (TryGetCreateInvocation(Statement, out InvocationExpressionSyntax? Invocation))
-            {
-                CollectNodeNames(Invocation!, Names);
+        foreach(StatementSyntax Statement in DefineBody.Statements){
+            if(TryGetCreateInvocation(Statement,out InvocationExpressionSyntax?Invocation)){
+                CollectNodeNames(Invocation!,Names);
             }
         }
 
@@ -50,52 +45,42 @@ internal static class SceneDefinitionSourceParser
     }
 
     /// <summary>Recurses depth-first, matching the exact order <c>SceneRuntimeEmitter</c> creates entities in - this is what makes zipping this list against <c>Entity.Id</c>-sorted runtime nodes sound.</summary>
-    private static void CollectNodeNames(InvocationExpressionSyntax CreateInvocation, List<string> Names)
-    {
-        SeparatedSyntaxList<ArgumentSyntax> Arguments = CreateInvocation.ArgumentList.Arguments;
+    private static void CollectNodeNames(InvocationExpressionSyntax CreateInvocation,List<string>Names){
+        SeparatedSyntaxList<ArgumentSyntax>Arguments=CreateInvocation.ArgumentList.Arguments;
 
-        if (Arguments.Count != 2
-            || Arguments[0].Expression is not IdentifierNameSyntax NodeArgIdentifier
-            || Arguments[1].Expression is not SimpleLambdaExpressionSyntax { Body: BlockSyntax LambdaBlock })
-        {
+        if(Arguments.Count!=2
+            ||Arguments[0].Expression is not IdentifierNameSyntax NodeArgIdentifier
+            ||Arguments[1].Expression is not SimpleLambdaExpressionSyntax { Body:BlockSyntax LambdaBlock }){
             return;
         }
 
         Names.Add(NodeArgIdentifier.Identifier.Text);
 
-        foreach (StatementSyntax Statement in LambdaBlock.Statements)
-        {
-            if (TryGetCreateInvocation(Statement, out InvocationExpressionSyntax? ChildInvocation))
-            {
-                CollectNodeNames(ChildInvocation!, Names);
+        foreach(StatementSyntax Statement in LambdaBlock.Statements){
+            if(TryGetCreateInvocation(Statement,out InvocationExpressionSyntax?ChildInvocation)){
+                CollectNodeNames(ChildInvocation!,Names);
             }
         }
     }
 
-    private static bool TryGetCreateInvocation(StatementSyntax Statement, out InvocationExpressionSyntax? Invocation)
-    {
-        if (Statement is ExpressionStatementSyntax { Expression: InvocationExpressionSyntax Inv }
-            && Inv.Expression is MemberAccessExpressionSyntax { Name.Identifier.Text: "Create" })
-        {
-            Invocation = Inv;
+    private static bool TryGetCreateInvocation(StatementSyntax Statement,out InvocationExpressionSyntax?Invocation){
+        if(Statement is ExpressionStatementSyntax { Expression:InvocationExpressionSyntax Inv }
+            &&Inv.Expression is MemberAccessExpressionSyntax { Name.Identifier.Text:"Create" }){
+            Invocation=Inv;
             return true;
         }
 
-        Invocation = null;
+        Invocation=null;
         return false;
     }
 
-    private static bool HasSceneDefinitionAttribute(ClassDeclarationSyntax ClassDeclaration)
-    {
-        foreach (AttributeListSyntax AttributeList in ClassDeclaration.AttributeLists)
-        {
-            foreach (AttributeSyntax attribute in AttributeList.Attributes)
-            {
-                string Name = attribute.Name.ToString();
+    private static bool HasSceneDefinitionAttribute(ClassDeclarationSyntax ClassDeclaration){
+        foreach(AttributeListSyntax AttributeList in ClassDeclaration.AttributeLists){
+            foreach(AttributeSyntax attribute in AttributeList.Attributes){
+                var Name=attribute.Name.ToString();
 
-                if (Name is "SceneDefinition" or "SceneDefinitionAttribute"
-                    or "CSharpGameEngine.Entities.SceneDefinition" or "CSharpGameEngine.Entities.SceneDefinitionAttribute")
-                {
+                if(Name is "SceneDefinition" or "SceneDefinitionAttribute"
+                    or "CSharpGameEngine.Entities.SceneDefinition" or "CSharpGameEngine.Entities.SceneDefinitionAttribute"){
                     return true;
                 }
             }

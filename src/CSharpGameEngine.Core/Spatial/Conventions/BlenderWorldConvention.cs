@@ -11,17 +11,16 @@ namespace CSharpGameEngine.Spatial.Blender;
 /// implemented this milestone). <see cref="ToXyz"/>/<see cref="FromXyz"/> are a fixed component
 /// permutation - no branching, no allocation.
 /// </summary>
-public readonly struct BlenderWorldConvention : ICoordinateConvention
-{
-    public static CoordinateHandedness Handedness => CoordinateHandedness.RightHanded;
+public readonly struct BlenderWorldConvention:ICoordinateConvention {
+    public static CoordinateHandedness Handedness=>CoordinateHandedness.RightHanded;
 
-    public static XyzVector ToXyz(in RufVector Value) => new(Value.R, Value.F, Value.U);
+    public static XyzVector ToXyz(in RufVector Value)=>new(Value.R,Value.F,Value.U);
 
-    public static RufVector FromXyz(in XyzVector Value) => new(Value.X, Value.Z, Value.Y);
+    public static RufVector FromXyz(in XyzVector Value)=>new(Value.X,Value.Z,Value.Y);
 
-    public static XyzVector RightXyz => new(1f, 0f, 0f);
+    public static XyzVector RightXyz=>new(1f,0f,0f);
 
-    public static XyzVector UpXyz => new(0f, 0f, 1f);
+    public static XyzVector UpXyz=>new(0f,0f,1f);
 
-    public static XyzVector ForwardXyz => new(0f, 1f, 0f);
+    public static XyzVector ForwardXyz=>new(0f,1f,0f);
 }

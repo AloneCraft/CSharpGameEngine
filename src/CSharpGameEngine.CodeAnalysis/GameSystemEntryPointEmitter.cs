@@ -25,26 +25,23 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// コンパイルを見るので、この判定が自分自身のMainに反応することもない。
 /// </para>
 /// </summary>
-internal static class GameSystemEntryPointEmitter
-{
-    private const string HintName = "GameSystem.EntryPoint.g.cs";
+internal static class GameSystemEntryPointEmitter {
+    private const string HintName="GameSystem.EntryPoint.g.cs";
 
     /// <summary>生成されたMainが唯一作成するシードEntityのComponent(<c>Entities/Bootstrap.cs</c>)。</summary>
-    internal const string BootstrapComponentFullyQualifiedName = "global::CSharpGameEngine.Entities.Bootstrap";
+    internal const string BootstrapComponentFullyQualifiedName="global::CSharpGameEngine.Entities.Bootstrap";
 
     /// <summary>
     /// エントリポイントを生成するかどうかの判定結果。<see cref="Diagnostic"/>は
     /// 「生成すべき状況なのに生成できない」場合の理由(CS5001の代わりに原因を伝えるため)。
     /// </summary>
-    internal readonly struct Plan
-    {
+    internal readonly struct Plan {
         internal readonly bool Emit;
-        internal readonly Diagnostic? Diagnostic;
+        internal readonly Diagnostic?Diagnostic;
 
-        internal Plan(bool emit, Diagnostic? diagnostic)
-        {
-            this.Emit = emit;
-            this.Diagnostic = diagnostic;
+        internal Plan(bool emit,Diagnostic?diagnostic){
+            this.Emit=emit;
+            this.Diagnostic=diagnostic;
         }
     }
 
@@ -56,111 +53,91 @@ internal static class GameSystemEntryPointEmitter
     /// </summary>
     internal static Plan ShouldEmitPlan(
         Compilation compilation,
-        ImmutableArray<GameSystemResult> Systems,
+        ImmutableArray<GameSystemResult>Systems,
         GameSystemOrderContext OrderContext,
-        CancellationToken cancellationToken)
-    {
-        if (compilation.Options.OutputKind is not (OutputKind.ConsoleApplication or OutputKind.WindowsApplication))
-        {
-            return new Plan(false, null);
+        CancellationToken cancellationToken){
+        if(compilation.Options.OutputKind is not (OutputKind.ConsoleApplication or OutputKind.WindowsApplication)){
+            return new Plan(false,null);
         }
 
-        if (compilation.GetEntryPoint(cancellationToken) is not null)
-        {
-            return new Plan(false, null);
+        if(compilation.GetEntryPoint(cancellationToken)is not null){
+            return new Plan(false,null);
         }
 
-        if (!GameSystemLoopEmitter.HasDispatchSystem(Systems))
-        {
+        if(!GameSystemLoopEmitter.HasDispatchSystem(Systems)){
             // Systemが1つも無い実行可能プロジェクトは、そもそもこのECSでループを回す意図が無い。
             // Mainが要るなら手書きするしかなく、CS5001がそのまま正しい診断になる。
-            return new Plan(false, null);
+            return new Plan(false,null);
         }
 
-        if (FindFirstContextParameter(Systems, OrderContext) is { } Offending)
-        {
-            return new Plan(false, Diagnostic.Create(
+        if(FindFirstContextParameter(Systems,OrderContext)is { } Offending){
+            return new Plan(false,Diagnostic.Create(
                 GameSystemDiagnostics.EntryPointCannotSupplyContext,
                 Location.None,
                 Offending.SystemName,
                 Offending.TypeFullyQualifiedName));
         }
 
-        return new Plan(true, null);
+        return new Plan(true,null);
     }
 
     /// <summary>
     /// 最初に見つかったContext引数(宣言順で決定的)。Contextは<c>Run</c>の引数になるため、生成された
     /// Mainには渡す値を作る手段が無い。
     /// </summary>
-    private static (string SystemName, string TypeFullyQualifiedName)? FindFirstContextParameter(
-        ImmutableArray<GameSystemResult> Systems,
-        GameSystemOrderContext OrderContext)
-    {
-        List<GameSystemResult> Ordered = [.. Systems.Where(static S => S.Diagnostics.Length == 0)];
-        Ordered.Sort((A, B) => GameSystemExecutionOrder.Compare(A, B, OrderContext));
+    private static(string SystemName,string TypeFullyQualifiedName)?FindFirstContextParameter(
+        ImmutableArray<GameSystemResult>Systems,
+        GameSystemOrderContext OrderContext){
+        List<GameSystemResult>Ordered=[.. Systems.Where(static S=>S.Diagnostics.Length==0)];
+        Ordered.Sort((A,B)=>GameSystemExecutionOrder.Compare(A,B,OrderContext));
 
-        foreach (GameSystemResult system in Ordered)
-        {
-            foreach (GameSystemMethodModel Method in system.Methods)
-            {
-                if (Method.Role != GameSystemMethodRole.Dispatch || Method.Contexts.Length == 0)
-                {
+        foreach(GameSystemResult system in Ordered){
+            foreach(GameSystemMethodModel Method in system.Methods){
+                if(Method.Role!=GameSystemMethodRole.Dispatch||Method.Contexts.Length==0){
                     continue;
                 }
 
-                return (system.ClassFullyQualifiedName, Method.Contexts[0].TypeFullyQualifiedName);
+                return(system.ClassFullyQualifiedName,Method.Contexts[0].TypeFullyQualifiedName);
             }
         }
 
         return null;
     }
 
-    internal static void Emit(SourceProductionContext Context, GameSystemRegistry Registry)
-    {
-        int BootstrapComponentIndex = -1;
+    internal static void Emit(SourceProductionContext Context,GameSystemRegistry Registry){
+        var BootstrapComponentIndex=-1;
 
-        foreach (GameSystemComponentInfo Component in Registry.ComponentsByIndex)
-        {
-            if (Component.TypeFullyQualifiedName == BootstrapComponentFullyQualifiedName)
-            {
-                BootstrapComponentIndex = Component.Index;
+        foreach(GameSystemComponentInfo Component in Registry.ComponentsByIndex){
+            if(Component.TypeFullyQualifiedName==BootstrapComponentFullyQualifiedName){
+                BootstrapComponentIndex=Component.Index;
                 break;
             }
         }
 
         // 呼び出し側がBootstrapのComponent集合を注入済みなので到達しない想定。生成した`Main`が
         // 存在しない`World.Create`オーバーロードを呼ぶ事態だけは避けたいので防御的に確認する。
-        if (BootstrapComponentIndex < 0 || Registry.FindArchetype([BootstrapComponentIndex]) is null)
-        {
+        if(BootstrapComponentIndex<0||Registry.FindArchetype([BootstrapComponentIndex])is null){
             return;
         }
 
-        List<string> Lines =
-        [
+        List<string>Lines=[
             "// <auto-generated/>",
             "#nullable enable",
-            "",
             "namespace CSharpGameEngine.Generated;",
-            "",
             "/// <summary>",
             "/// 起動処理はすべてSystemが行う。ここが作るのはWorld・State・シードEntityの3つだけで、",
             "/// ウィンドウやレンダラーの生成はBootstrapを受け取るSystemの仕事になる。",
             "/// </summary>",
-            "internal static class GeneratedEntryPoint",
-            "{",
-            "    private static void Main()",
-            "    {",
+            "internal static class GeneratedEntryPoint {",
+            "    private static void Main() {",
             "        var World = new global::CSharpGameEngine.Entities.World();",
             $"        World.Create(new {BootstrapComponentFullyQualifiedName}());",
             "        var State = new global::CSharpGameEngine.Entities.State(World) { Enabled = true };",
-            "",
             "        GeneratedGameLoop.Run(ref State);",
             "    }",
             "}",
-            "",
         ];
 
-        Context.AddSource(HintName, SourceText.From(string.Join("\n", Lines), Encoding.UTF8));
+        Context.AddSource(HintName,SourceText.From(string.Join("\n",Lines),Encoding.UTF8));
     }
 }

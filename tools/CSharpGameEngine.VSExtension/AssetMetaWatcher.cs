@@ -14,27 +14,23 @@ namespace CSharpGameEngine.VSExtension;
 /// (Fab download watcher, manual copy, "Add Existing Item", etc). Never overwrites an existing
 /// <c>.meta</c> - the whole point of the GUID is that it stays stable once assigned.
 /// </summary>
-internal sealed class AssetMetaWatcher : IDisposable
-{
-    public static readonly string[] WatchedExtensions = [".glb", ".gltf", ".fbx"];
+internal sealed class AssetMetaWatcher:IDisposable {
+    public static readonly string[]WatchedExtensions=[".glb",".gltf",".fbx"];
 
     private readonly FileSystemWatcher Watcher;
 
-    private AssetMetaWatcher(string AssetsRoot)
-    {
-        foreach (string ExistingAsset in Directory.EnumerateFiles(AssetsRoot, "*", SearchOption.AllDirectories))
-        {
+    private AssetMetaWatcher(string AssetsRoot){
+        foreach(var ExistingAsset in Directory.EnumerateFiles(AssetsRoot,"*",SearchOption.AllDirectories)){
             GenerateMetaIfMissing(ExistingAsset);
         }
 
-        Watcher = new FileSystemWatcher(AssetsRoot)
-        {
-            NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite,
-            IncludeSubdirectories = true,
+        Watcher=new FileSystemWatcher(AssetsRoot){
+            NotifyFilter=NotifyFilters.FileName|NotifyFilters.LastWrite,
+            IncludeSubdirectories=true,
         };
-        Watcher.Created += (_, E) => HandleCandidate(E.FullPath);
-        Watcher.Renamed += (_, E) => HandleCandidate(E.FullPath);
-        Watcher.EnableRaisingEvents = true;
+        Watcher.Created+=(_,E)=>HandleCandidate(E.FullPath);
+        Watcher.Renamed+=(_,E)=>HandleCandidate(E.FullPath);
+        Watcher.EnableRaisingEvents=true;
     }
 
     /// <summary>
@@ -42,81 +38,61 @@ internal sealed class AssetMetaWatcher : IDisposable
     /// Returns <see langword="null"/> (does nothing) if the repo root or Assets folder can't be
     /// found - never throws, since this runs unconditionally on package load.
     /// </summary>
-    public static AssetMetaWatcher? StartIfProjectExists()
-    {
-        string? RepoRoot = RepoLocator.ResolveRepoRoot();
-        if (RepoRoot is null)
-        {
+    public static AssetMetaWatcher?StartIfProjectExists(){
+        var RepoRoot=RepoLocator.ResolveRepoRoot();
+        if(RepoRoot is null){
             return null;
         }
 
-        string AssetsRoot = Path.Combine(RepoRoot, "UserGameProject", "Assets");
-        return Directory.Exists(AssetsRoot) ? new AssetMetaWatcher(AssetsRoot) : null;
+        var AssetsRoot=Path.Combine(RepoRoot,"UserGameProject","Assets");
+        return Directory.Exists(AssetsRoot)?new AssetMetaWatcher(AssetsRoot):null;
     }
 
-    private void HandleCandidate(string path)
-    {
-        if (!WatchedExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
-        {
+    private void HandleCandidate(string path){
+        if(!WatchedExtensions.Contains(Path.GetExtension(path),StringComparer.OrdinalIgnoreCase)){
             return;
         }
 
-        ThreadPool.QueueUserWorkItem(_ => GenerateMetaWhenReady(path));
+        ThreadPool.QueueUserWorkItem(_=>GenerateMetaWhenReady(path));
     }
 
-    private static void GenerateMetaWhenReady(string AssetPath)
-    {
-        if (!WaitUntilReadable(AssetPath, TimeSpan.FromSeconds(30)))
-        {
+    private static void GenerateMetaWhenReady(string AssetPath){
+        if(!WaitUntilReadable(AssetPath,TimeSpan.FromSeconds(30))){
             return;
         }
 
-        try
-        {
+        try {
             GenerateMetaIfMissing(AssetPath);
-        }
-        catch (IOException)
-        {
-        }
-        catch (UnauthorizedAccessException)
-        {
+        } catch(IOException){
+        } catch(UnauthorizedAccessException){
         }
     }
 
-    private static void GenerateMetaIfMissing(string AssetPath)
-    {
-        if (!WatchedExtensions.Contains(Path.GetExtension(AssetPath), StringComparer.OrdinalIgnoreCase))
-        {
+    private static void GenerateMetaIfMissing(string AssetPath){
+        if(!WatchedExtensions.Contains(Path.GetExtension(AssetPath),StringComparer.OrdinalIgnoreCase)){
             return;
         }
 
-        string MetaPath = AssetPath + ".meta";
-        if (File.Exists(MetaPath))
-        {
+        var MetaPath=AssetPath+".meta";
+        if(File.Exists(MetaPath)){
             return;
         }
 
-        string guid = Guid.NewGuid().ToString("N");
+        var guid=Guid.NewGuid().ToString("N");
         File.WriteAllText(MetaPath, $"guid: {guid}\n");
     }
 
-    private static bool WaitUntilReadable(string path, TimeSpan timeout)
-    {
-        DateTime Deadline = DateTime.UtcNow + timeout;
-        while (DateTime.UtcNow < Deadline)
-        {
-            if (!File.Exists(path))
-            {
+    private static bool WaitUntilReadable(string path,TimeSpan timeout){
+        DateTime Deadline=DateTime.UtcNow+timeout;
+        while(DateTime.UtcNow<Deadline){
+            if(!File.Exists(path)){
                 return false;
             }
 
-            try
-            {
-                using FileStream stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            try {
+                using FileStream stream=File.Open(path,FileMode.Open,FileAccess.Read,FileShare.Read);
                 return true;
-            }
-            catch (IOException)
-            {
+            } catch(IOException){
                 Thread.Sleep(500);
             }
         }
@@ -124,5 +100,5 @@ internal sealed class AssetMetaWatcher : IDisposable
         return false;
     }
 
-    public void Dispose() => Watcher.Dispose();
+    public void Dispose()=>Watcher.Dispose();
 }

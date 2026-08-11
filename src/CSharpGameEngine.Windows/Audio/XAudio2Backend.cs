@@ -17,17 +17,15 @@ namespace CSharpGameEngine.Audio.XAudio2;
 /// inside this type's methods. Same COM idiom as <c>CSharpGameEngine.Graphics.D3D12.GraphicsDevice</c>
 /// (<c>-&gt;</c> calls, <see cref="AudioDiagnostics.EnsureSuccess"/> for HRESULT checks).
 /// </summary>
-public readonly unsafe struct XAudio2Backend : IAudioBackend<XAudio2EngineHandle, XAudio2VoiceHandle>
-{
-    public static XAudio2EngineHandle CreateEngine()
-    {
-        IXAudio2* engine;
+public readonly unsafe struct XAudio2Backend:IAudioBackend<XAudio2EngineHandle,XAudio2VoiceHandle>{
+    public static XAudio2EngineHandle CreateEngine(){
+        IXAudio2*engine;
         AudioDiagnostics.EnsureSuccess(
-            XAudio2Create(&engine, 0, (uint)XAUDIO2_DEFAULT_PROCESSOR),
-            "XAudio2Create", "creating the XAudio2 engine");
+            XAudio2Create(&engine,0,(uint)XAUDIO2_DEFAULT_PROCESSOR),
+            "XAudio2Create","creating the XAudio2 engine");
 
-        IXAudio2MasteringVoice* masteringVoice;
-        HRESULT hr = engine->CreateMasteringVoice(
+        IXAudio2MasteringVoice*masteringVoice;
+        HRESULT hr=engine->CreateMasteringVoice(
             &masteringVoice,
             (uint)XAUDIO2_DEFAULT_CHANNELS,
             (uint)XAUDIO2_DEFAULT_SAMPLERATE,
@@ -36,98 +34,87 @@ public readonly unsafe struct XAudio2Backend : IAudioBackend<XAudio2EngineHandle
             null,
             AudioCategory_GameEffects);
 
-        if (hr.FAILED)
-        {
-            _ = engine->Release();
-            AudioDiagnostics.EnsureSuccess(hr, "IXAudio2::CreateMasteringVoice", "creating the mastering voice");
+        if(hr.FAILED){
+            _=engine->Release();
+            AudioDiagnostics.EnsureSuccess(hr,"IXAudio2::CreateMasteringVoice","creating the mastering voice");
         }
 
-        return new XAudio2EngineHandle((nint)engine, (nint)masteringVoice);
+        return new XAudio2EngineHandle((nint)engine,(nint)masteringVoice);
     }
 
-    public static void DestroyEngine(in XAudio2EngineHandle engine)
-    {
-        if (engine.MasteringVoicePointer != 0)
-        {
+    public static void DestroyEngine(in XAudio2EngineHandle engine){
+        if(engine.MasteringVoicePointer!=0){
             ((IXAudio2MasteringVoice*)engine.MasteringVoicePointer)->DestroyVoice();
         }
 
-        if (engine.EnginePointer != 0)
-        {
-            _ = ((IXAudio2*)engine.EnginePointer)->Release();
+        if(engine.EnginePointer!=0){
+            _=((IXAudio2*)engine.EnginePointer)->Release();
         }
     }
 
-    public static XAudio2VoiceHandle CreateVoice(in XAudio2EngineHandle engine, int sampleRate, int channels)
-    {
-        var pEngine = (IXAudio2*)engine.EnginePointer;
+    public static XAudio2VoiceHandle CreateVoice(in XAudio2EngineHandle engine,int sampleRate,int channels){
+        var pEngine=(IXAudio2*)engine.EnginePointer;
 
-        ushort blockAlign = (ushort)(channels * (16 / 8));
-        WAVEFORMATEX format = new()
-        {
-            wFormatTag = (ushort)WAVE_FORMAT_PCM,
-            nChannels = (ushort)channels,
-            nSamplesPerSec = (uint)sampleRate,
-            wBitsPerSample = 16,
-            nBlockAlign = blockAlign,
-            nAvgBytesPerSec = (uint)sampleRate * blockAlign,
-            cbSize = 0,
+        var blockAlign=(ushort)(channels*(16/8));
+        WAVEFORMATEX format=new(){
+            wFormatTag=(ushort)WAVE_FORMAT_PCM,
+            nChannels=(ushort)channels,
+            nSamplesPerSec=(uint)sampleRate,
+            wBitsPerSample=16,
+            nBlockAlign=blockAlign,
+            nAvgBytesPerSec=(uint)sampleRate*blockAlign,
+            cbSize=0,
         };
 
-        IXAudio2SourceVoice* voice;
+        IXAudio2SourceVoice*voice;
         AudioDiagnostics.EnsureSuccess(
-            pEngine->CreateSourceVoice(&voice, &format, 0, XAUDIO2_DEFAULT_FREQ_RATIO, null, null, null),
-            "IXAudio2::CreateSourceVoice", "creating a source voice");
+            pEngine->CreateSourceVoice(&voice,&format,0,XAUDIO2_DEFAULT_FREQ_RATIO,null,null,null),
+            "IXAudio2::CreateSourceVoice","creating a source voice");
 
-        return new XAudio2VoiceHandle((nint)voice, 0);
+        return new XAudio2VoiceHandle((nint)voice,0);
     }
 
-    public static XAudio2VoiceHandle SubmitBuffer(in XAudio2VoiceHandle voice, ReadOnlySpan<short> samples, bool loop)
-    {
-        var pVoice = (IXAudio2SourceVoice*)voice.VoicePointer;
+    public static XAudio2VoiceHandle SubmitBuffer(in XAudio2VoiceHandle voice,ReadOnlySpan<short>samples,bool loop){
+        var pVoice=(IXAudio2SourceVoice*)voice.VoicePointer;
 
-        int byteCount = samples.Length * sizeof(short);
-        void* buffer = NativeMemory.Alloc((nuint)byteCount);
-        samples.CopyTo(new Span<short>(buffer, samples.Length));
+        var byteCount=samples.Length*sizeof(short);
+        var buffer=NativeMemory.Alloc((nuint)byteCount);
+        samples.CopyTo(new Span<short>(buffer,samples.Length));
 
-        XAUDIO2_BUFFER xaBuffer = new()
-        {
-            AudioBytes = (uint)byteCount,
-            pAudioData = (byte*)buffer,
-            LoopCount = (uint)(loop ? XAUDIO2_LOOP_INFINITE : 0),
+        XAUDIO2_BUFFER xaBuffer=new(){
+            AudioBytes=(uint)byteCount,
+            pAudioData=(byte*)buffer,
+            LoopCount=(uint)(loop?XAUDIO2_LOOP_INFINITE:0),
         };
 
         AudioDiagnostics.EnsureSuccess(
-            pVoice->SubmitSourceBuffer(&xaBuffer, null),
-            "IXAudio2SourceVoice::SubmitSourceBuffer", "submitting the PCM buffer");
+            pVoice->SubmitSourceBuffer(&xaBuffer,null),
+            "IXAudio2SourceVoice::SubmitSourceBuffer","submitting the PCM buffer");
 
-        return new XAudio2VoiceHandle(voice.VoicePointer, (nint)buffer);
+        return new XAudio2VoiceHandle(voice.VoicePointer,(nint)buffer);
     }
 
-    public static void Start(in XAudio2VoiceHandle voice) =>
+    public static void Start(in XAudio2VoiceHandle voice)=>
         AudioDiagnostics.EnsureSuccess(
-            ((IXAudio2SourceVoice*)voice.VoicePointer)->Start(0, (uint)XAUDIO2_COMMIT_NOW),
-            "IXAudio2SourceVoice::Start", "starting playback");
+            ((IXAudio2SourceVoice*)voice.VoicePointer)->Start(0,(uint)XAUDIO2_COMMIT_NOW),
+            "IXAudio2SourceVoice::Start","starting playback");
 
-    public static void Stop(in XAudio2VoiceHandle voice) =>
+    public static void Stop(in XAudio2VoiceHandle voice)=>
         AudioDiagnostics.EnsureSuccess(
-            ((IXAudio2SourceVoice*)voice.VoicePointer)->Stop(0, (uint)XAUDIO2_COMMIT_NOW),
-            "IXAudio2SourceVoice::Stop", "stopping playback");
+            ((IXAudio2SourceVoice*)voice.VoicePointer)->Stop(0,(uint)XAUDIO2_COMMIT_NOW),
+            "IXAudio2SourceVoice::Stop","stopping playback");
 
-    public static void SetVolume(in XAudio2VoiceHandle voice, float volume) =>
+    public static void SetVolume(in XAudio2VoiceHandle voice,float volume)=>
         AudioDiagnostics.EnsureSuccess(
-            ((IXAudio2SourceVoice*)voice.VoicePointer)->SetVolume(volume, (uint)XAUDIO2_COMMIT_NOW),
-            "IXAudio2Voice::SetVolume", "setting voice volume");
+            ((IXAudio2SourceVoice*)voice.VoicePointer)->SetVolume(volume,(uint)XAUDIO2_COMMIT_NOW),
+            "IXAudio2Voice::SetVolume","setting voice volume");
 
-    public static void DestroyVoice(in XAudio2VoiceHandle voice)
-    {
-        if (voice.VoicePointer != 0)
-        {
+    public static void DestroyVoice(in XAudio2VoiceHandle voice){
+        if(voice.VoicePointer!=0){
             ((IXAudio2SourceVoice*)voice.VoicePointer)->DestroyVoice();
         }
 
-        if (voice.BufferDataPointer != 0)
-        {
+        if(voice.BufferDataPointer!=0){
             NativeMemory.Free((void*)voice.BufferDataPointer);
         }
     }

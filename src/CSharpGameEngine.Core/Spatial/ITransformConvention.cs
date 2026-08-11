@@ -11,15 +11,14 @@ namespace CSharpGameEngine.Spatial.Abstractions;
 /// pure 16-float storage; the actual row/column-vector and multiplication-order convention lives
 /// entirely inside a given implementation's method bodies, not in the type itself.
 /// </summary>
-public interface ITransformConvention
-{
-    static abstract Matrix4x4 Compose(in RufVector Position, in RufQuaternion Rotation, in RufVector Scale);
+public interface ITransformConvention {
+    static abstract Matrix4x4 Compose(in RufVector Position,in RufQuaternion Rotation,in RufVector Scale);
 
-    static abstract Matrix4x4 Combine(in Matrix4x4 ParentWorld, in Matrix4x4 Local);
+    static abstract Matrix4x4 Combine(in Matrix4x4 ParentWorld,in Matrix4x4 Local);
 
-    static abstract RufVector TransformPoint(in Matrix4x4 Transform, in RufVector Point);
+    static abstract RufVector TransformPoint(in Matrix4x4 Transform,in RufVector Point);
 
-    static abstract RufVector TransformDirection(in Matrix4x4 Transform, in RufVector Direction);
+    static abstract RufVector TransformDirection(in Matrix4x4 Transform,in RufVector Direction);
 
-    static abstract RufVector TransformNormal(in Matrix4x4 Transform, in RufVector Normal);
+    static abstract RufVector TransformNormal(in Matrix4x4 Transform,in RufVector Normal);
 }

@@ -19,65 +19,62 @@ using UserGameProject.Systems;
 // also why this loop calls the generated RunFrame per frame rather than the generated Run, whose
 // own while-loop would freeze the Context arguments for its entire duration.
 
-const string ProductDisplayName = "C# Game Engine";
+const string ProductDisplayName="C# Game Engine";
 
-string ShaderPath = Path.Combine(AppContext.BaseDirectory, "Shaders", "Stage.hlsl");
-string GlbPath = Path.Combine(AppContext.BaseDirectory, "Assets", "Stage", "Lvl_FirstPerson", "Lvl_FirstPerson.glb");
-string SceneMetaPath = Path.Combine(AppContext.BaseDirectory, "Assets", "Stage", "Lvl_FirstPerson", "scene_meta.json");
+var ShaderPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.hlsl");
+var GlbPath=Path.Combine(AppContext.BaseDirectory,"Assets","Stage","Lvl_FirstPerson","Lvl_FirstPerson.glb");
+var SceneMetaPath=Path.Combine(AppContext.BaseDirectory,"Assets","Stage","Lvl_FirstPerson","scene_meta.json");
 
-LoadedScene Scene = SceneLoader.Load(GlbPath, SceneMetaPath);
+LoadedScene Scene=SceneLoader.Load(GlbPath,SceneMetaPath);
 
-using Win32Window Window = new(new Win32WindowOptions
-{
-    Title = $"{ProductDisplayName} - FirstPerson Stage",
-    Width = 1280,
-    Height = 720,
-    Visible = true,
+using Win32Window Window=new(new Win32WindowOptions {
+    Title= $"{ProductDisplayName} - FirstPerson Stage",
+    Width=1280,
+    Height=720,
+    Visible=true,
 });
 
-GraphicsDeviceOptions DeviceOptions = new();
+GraphicsDeviceOptions DeviceOptions=new();
 
-using StageRenderer Renderer = StageRenderer.Create(
+using StageRenderer Renderer=StageRenderer.Create(
     Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
     Scene.Meshes,Scene.Materials,Scene.Objects);
 
-Window.Resized+=(W,H) => Renderer.Resize(W,H);
+Window.Resized+=(W,H)=>Renderer.Resize(W,H);
 
-World world = new();
+World world=new();
 
 // The only entity created outside the ECS: SceneSpawn consumes it on the first frame and
 // creates everything else (props, lights, player).
-world.Create(new SceneSpawnRequest { Scene = Scene });
+world.Create(new SceneSpawnRequest { Scene=Scene });
 
 Window.SetMouseCaptured(true);
 
-State state = new(world) { Enabled = true };
+State state=new(world){ Enabled=true };
 
-SceneSpawn SceneSpawnSystem = new();
-Input InputSystem = new();
-PlayerControl PlayerControlSystem = new();
-UserGameProject.Systems.Camera CameraSystem = new();
-MovingProp MovingPropSystem = new();
-RenderSync RenderSyncSystem = new();
+SceneSpawn SceneSpawnSystem=new();
+Input InputSystem=new();
+PlayerControl PlayerControlSystem=new();
+UserGameProject.Systems.Camera CameraSystem=new();
+MovingProp MovingPropSystem=new();
+RenderSync RenderSyncSystem=new();
 
-Stopwatch stopwatch = Stopwatch.StartNew();
-long PreviousTicks = stopwatch.ElapsedTicks;
-float TotalTime = 0f;
+Stopwatch stopwatch=Stopwatch.StartNew();
+var PreviousTicks=stopwatch.ElapsedTicks;
+var TotalTime=0f;
 
-while (!Window.IsClosed)
-{
+while(!Window.IsClosed){
     Window.PumpEvents();
-    if (Window.IsClosed || Window.IsMinimized)
-    {
+    if(Window.IsClosed||Window.IsMinimized){
         continue;
     }
 
-    long CurrentTicks = stopwatch.ElapsedTicks;
-    float DeltaTime = MathF.Min((float)((CurrentTicks - PreviousTicks) / (double)Stopwatch.Frequency), 0.1f);
-    PreviousTicks = CurrentTicks;
-    TotalTime += DeltaTime;
+    var CurrentTicks=stopwatch.ElapsedTicks;
+    var DeltaTime=MathF.Min((float)((CurrentTicks-PreviousTicks)/(double)Stopwatch.Frequency),0.1f);
+    PreviousTicks=CurrentTicks;
+    TotalTime+=DeltaTime;
 
-    FrameContext Frame = new(DeltaTime, TotalTime);
+    FrameContext Frame=new(DeltaTime,TotalTime);
 
     GeneratedGameLoop.RunFrame(
         ref state,

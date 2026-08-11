@@ -12,70 +12,58 @@ namespace CSharpGameEngine.VSExtension;
 /// sample. <see cref="SetModelPath"/> supports being told a new path after the surface already
 /// exists, so the same pane instance can be reused if VS reloads the same doc data.
 /// </summary>
-internal sealed class AssetPreviewHwndHost : HwndHost
-{
-    private string? RepoRoot;
+internal sealed class AssetPreviewHwndHost:HwndHost {
+    private string?RepoRoot;
     private string ModelPath;
-    private RenderSurfaceWindow? Surface;
-    private VorticeRenderer? Renderer;
-    private EventHandler? RenderingHandler;
+    private RenderSurfaceWindow?Surface;
+    private VorticeRenderer?Renderer;
+    private EventHandler?RenderingHandler;
 
-    public AssetPreviewHwndHost(string ModelPath)
-    {
-        this.ModelPath = ModelPath;
+    public AssetPreviewHwndHost(string ModelPath){
+        this.ModelPath=ModelPath;
     }
 
-    protected override HandleRef BuildWindowCore(HandleRef HwndParent)
-    {
-        Surface = new RenderSurfaceWindow(HwndParent.Handle, 800, 600);
+    protected override HandleRef BuildWindowCore(HandleRef HwndParent){
+        Surface=new RenderSurfaceWindow(HwndParent.Handle,800,600);
         LoadIntoSurface();
-        return new HandleRef(this, Surface.Handle);
+        return new HandleRef(this,Surface.Handle);
     }
 
-    protected override void DestroyWindowCore(HandleRef Hwnd)
-    {
+    protected override void DestroyWindowCore(HandleRef Hwnd){
         TearDownRenderer();
 
         Surface?.Dispose();
-        Surface = null;
+        Surface=null;
     }
 
     /// <summary>Reloads the preview with a different file - used if VS reuses this pane's doc data for a renamed/reloaded document.</summary>
-    public void SetModelPath(string ModelPath)
-    {
-        this.ModelPath = ModelPath;
-        if (Surface is not null)
-        {
+    public void SetModelPath(string ModelPath){
+        this.ModelPath=ModelPath;
+        if(Surface is not null){
             TearDownRenderer();
             LoadIntoSurface();
         }
     }
 
-    private void LoadIntoSurface()
-    {
-        if (Surface is null)
-        {
+    private void LoadIntoSurface(){
+        if(Surface is null){
             return;
         }
 
-        try
-        {
-            RepoRoot ??= RepoLocator.ResolveRepoRoot();
-            if (RepoRoot is null)
-            {
+        try {
+            RepoRoot??=RepoLocator.ResolveRepoRoot();
+            if(RepoRoot is null){
                 throw new InvalidOperationException($"リポジトリルート({RepoLocator.RepoMarkerFileName})が見つかりませんでした。");
             }
 
-            SimpleMesh Mesh = MeshLoader.Load(ModelPath, RepoRoot);
-            Renderer = new VorticeRenderer(Surface.Handle, 800, 600, Mesh);
+            SimpleMesh Mesh=MeshLoader.Load(ModelPath,RepoRoot);
+            Renderer=new VorticeRenderer(Surface.Handle,800,600,Mesh);
 
-            Surface.Resized += (W, H) => Renderer?.Resize(W, H);
+            Surface.Resized+=(W,H)=>Renderer?.Resize(W,H);
 
-            RenderingHandler = (_, _) => Renderer?.RenderFrame();
-            CompositionTarget.Rendering += RenderingHandler;
-        }
-        catch (Exception Ex)
-        {
+            RenderingHandler=(_,_)=>Renderer?.RenderFrame();
+            CompositionTarget.Rendering+=RenderingHandler;
+        } catch(Exception Ex){
             System.Windows.MessageBox.Show(
                 $"アセットのプレビューに失敗しました: {Ex}",
                 "C# Game Engine Asset Preview",
@@ -84,15 +72,13 @@ internal sealed class AssetPreviewHwndHost : HwndHost
         }
     }
 
-    private void TearDownRenderer()
-    {
-        if (RenderingHandler is not null)
-        {
-            CompositionTarget.Rendering -= RenderingHandler;
-            RenderingHandler = null;
+    private void TearDownRenderer(){
+        if(RenderingHandler is not null){
+            CompositionTarget.Rendering-=RenderingHandler;
+            RenderingHandler=null;
         }
 
         Renderer?.Dispose();
-        Renderer = null;
+        Renderer=null;
     }
 }

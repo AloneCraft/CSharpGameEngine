@@ -9,13 +9,11 @@ namespace CSharpGameEngine.VSExtension;
 /// drives <see cref="PrimitiveSpawner"/> for the enabled buttons.
 /// </summary>
 [Guid(PaneGuidString)]
-public sealed class ShapePaletteToolWindowPane : ToolWindowPane
-{
-    public const string PaneGuidString = "e9476ca8-8e2d-4597-bb05-e0c89c156d5c";
+public sealed class ShapePaletteToolWindowPane:ToolWindowPane {
+    public const string PaneGuidString="e9476ca8-8e2d-4597-bb05-e0c89c156d5c";
 
-    public ShapePaletteToolWindowPane() : base(null)
-    {
-        Caption = "シェイプ";
-        Content = new ShapePaletteControl();
+    public ShapePaletteToolWindowPane():base(null){
+        Caption="シェイプ";
+        Content=new ShapePaletteControl();
     }
 }

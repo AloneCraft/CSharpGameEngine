@@ -12,56 +12,54 @@ namespace CSharpGameEngine.Spatial.Tests;
 /// must match the documented Golden Values, be unit length, be mutually orthogonal, and the
 /// Left/Down/Backward opposites must hold in physical XYZ space too.
 /// </summary>
-public class BasisTests
-{
+public class BasisTests {
     [Fact]
     public void Unity_MatchesGoldenValues()
-        => AssertBasis<UnityCoordinateConvention>(
-            new XyzVector(1f, 0f, 0f), new XyzVector(0f, 1f, 0f), new XyzVector(0f, 0f, 1f), CoordinateHandedness.LeftHanded);
+        =>AssertBasis<UnityCoordinateConvention>(
+            new XyzVector(1f,0f,0f),new XyzVector(0f,1f,0f),new XyzVector(0f,0f,1f),CoordinateHandedness.LeftHanded);
 
     [Fact]
     public void Unreal_MatchesGoldenValues()
-        => AssertBasis<UnrealCoordinateConvention>(
-            new XyzVector(0f, 1f, 0f), new XyzVector(0f, 0f, 1f), new XyzVector(1f, 0f, 0f), CoordinateHandedness.LeftHanded);
+        =>AssertBasis<UnrealCoordinateConvention>(
+            new XyzVector(0f,1f,0f),new XyzVector(0f,0f,1f),new XyzVector(1f,0f,0f),CoordinateHandedness.LeftHanded);
 
     [Fact]
     public void Blender_MatchesGoldenValues()
-        => AssertBasis<BlenderWorldConvention>(
-            new XyzVector(1f, 0f, 0f), new XyzVector(0f, 0f, 1f), new XyzVector(0f, 1f, 0f), CoordinateHandedness.RightHanded);
+        =>AssertBasis<BlenderWorldConvention>(
+            new XyzVector(1f,0f,0f),new XyzVector(0f,0f,1f),new XyzVector(0f,1f,0f),CoordinateHandedness.RightHanded);
 
     [Fact]
     public void Gltf_MatchesGoldenValues()
-        => AssertBasis<GltfCoordinateConvention>(
-            new XyzVector(1f, 0f, 0f), new XyzVector(0f, 1f, 0f), new XyzVector(0f, 0f, -1f), CoordinateHandedness.RightHanded);
+        =>AssertBasis<GltfCoordinateConvention>(
+            new XyzVector(1f,0f,0f),new XyzVector(0f,1f,0f),new XyzVector(0f,0f,-1f),CoordinateHandedness.RightHanded);
 
     [Fact]
     public void Fbx_MatchesGoldenValues()
-        => AssertBasis<FbxCoordinateConvention>(
-            new XyzVector(1f, 0f, 0f), new XyzVector(0f, 1f, 0f), new XyzVector(0f, 0f, -1f), CoordinateHandedness.RightHanded);
+        =>AssertBasis<FbxCoordinateConvention>(
+            new XyzVector(1f,0f,0f),new XyzVector(0f,1f,0f),new XyzVector(0f,0f,-1f),CoordinateHandedness.RightHanded);
 
-    private static void AssertBasis<TConvention>(XyzVector ExpectedRight, XyzVector ExpectedUp, XyzVector ExpectedForward, CoordinateHandedness ExpectedHandedness)
-        where TConvention : struct, ICoordinateConvention
-    {
-        Assert.Equal(ExpectedRight, TConvention.RightXyz);
-        Assert.Equal(ExpectedUp, TConvention.UpXyz);
-        Assert.Equal(ExpectedForward, TConvention.ForwardXyz);
-        Assert.Equal(ExpectedHandedness, TConvention.Handedness);
+    private static void AssertBasis<TConvention>(XyzVector ExpectedRight,XyzVector ExpectedUp,XyzVector ExpectedForward,CoordinateHandedness ExpectedHandedness)
+        where TConvention:struct,ICoordinateConvention {
+        Assert.Equal(ExpectedRight,TConvention.RightXyz);
+        Assert.Equal(ExpectedUp,TConvention.UpXyz);
+        Assert.Equal(ExpectedForward,TConvention.ForwardXyz);
+        Assert.Equal(ExpectedHandedness,TConvention.Handedness);
 
-        Assert.Equal(1f, TConvention.RightXyz.Length, precision: 5);
-        Assert.Equal(1f, TConvention.UpXyz.Length, precision: 5);
-        Assert.Equal(1f, TConvention.ForwardXyz.Length, precision: 5);
+        Assert.Equal(1f,TConvention.RightXyz.Length,precision:5);
+        Assert.Equal(1f,TConvention.UpXyz.Length,precision:5);
+        Assert.Equal(1f,TConvention.ForwardXyz.Length,precision:5);
 
-        Assert.Equal(0f, XyzVector.Dot(TConvention.RightXyz, TConvention.UpXyz), precision: 5);
-        Assert.Equal(0f, XyzVector.Dot(TConvention.UpXyz, TConvention.ForwardXyz), precision: 5);
-        Assert.Equal(0f, XyzVector.Dot(TConvention.ForwardXyz, TConvention.RightXyz), precision: 5);
+        Assert.Equal(0f,XyzVector.Dot(TConvention.RightXyz,TConvention.UpXyz),precision:5);
+        Assert.Equal(0f,XyzVector.Dot(TConvention.UpXyz,TConvention.ForwardXyz),precision:5);
+        Assert.Equal(0f,XyzVector.Dot(TConvention.ForwardXyz,TConvention.RightXyz),precision:5);
 
         CoordinateBasisValidator.Validate<TConvention>();
 
-        Assert.Equal(TConvention.RightXyz, TConvention.ToXyz(RufVector.Right));
-        Assert.Equal(TConvention.UpXyz, TConvention.ToXyz(RufVector.Up));
-        Assert.Equal(TConvention.ForwardXyz, TConvention.ToXyz(RufVector.Forward));
-        Assert.Equal(-TConvention.RightXyz, TConvention.ToXyz(RufVector.Left));
-        Assert.Equal(-TConvention.UpXyz, TConvention.ToXyz(RufVector.Down));
-        Assert.Equal(-TConvention.ForwardXyz, TConvention.ToXyz(RufVector.Backward));
+        Assert.Equal(TConvention.RightXyz,TConvention.ToXyz(RufVector.Right));
+        Assert.Equal(TConvention.UpXyz,TConvention.ToXyz(RufVector.Up));
+        Assert.Equal(TConvention.ForwardXyz,TConvention.ToXyz(RufVector.Forward));
+        Assert.Equal(-TConvention.RightXyz,TConvention.ToXyz(RufVector.Left));
+        Assert.Equal(-TConvention.UpXyz,TConvention.ToXyz(RufVector.Down));
+        Assert.Equal(-TConvention.ForwardXyz,TConvention.ToXyz(RufVector.Backward));
     }
 }

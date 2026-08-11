@@ -13,48 +13,39 @@ namespace CSharpGameEngine.VSExtension;
 /// session under the user's own control - this command does nothing beyond launching the URL, and
 /// the VSIX never automates or intercepts any part of that flow.
 /// </summary>
-internal sealed class OpenFabCommand
-{
-    public const int CommandId = 0x0103;
-    public static readonly Guid CommandSet = new("521655e5-0d1b-4255-8086-1039c5c2e3da");
+internal sealed class OpenFabCommand {
+    public const int CommandId=0x0103;
+    public static readonly Guid CommandSet=new("521655e5-0d1b-4255-8086-1039c5c2e3da");
 
-    private const string FabUrl = "https://www.fab.com/";
+    private const string FabUrl="https://www.fab.com/";
 
     private readonly AsyncPackage Package;
 
-    private OpenFabCommand(AsyncPackage package, OleMenuCommandService CommandService)
-    {
-        Package = package ?? throw new ArgumentNullException(nameof(package));
-        if (CommandService is null)
-        {
+    private OpenFabCommand(AsyncPackage package,OleMenuCommandService CommandService){
+        Package=package??throw new ArgumentNullException(nameof(package));
+        if(CommandService is null){
             throw new ArgumentNullException(nameof(CommandService));
         }
 
-        CommandID MenuCommandId = new(CommandSet, CommandId);
-        MenuCommand MenuItem = new(Execute, MenuCommandId);
+        CommandID MenuCommandId=new(CommandSet,CommandId);
+        MenuCommand MenuItem=new(Execute,MenuCommandId);
         CommandService.AddCommand(MenuItem);
     }
 
-    public static async Task InitializeAsync(AsyncPackage package)
-    {
+    public static async Task InitializeAsync(AsyncPackage package){
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
-        object? Service = await package.GetServiceAsync(typeof(IMenuCommandService));
-        if (Service is not OleMenuCommandService CommandService)
-        {
+        var Service= await package.GetServiceAsync(typeof(IMenuCommandService));
+        if(Service is not OleMenuCommandService CommandService){
             throw new InvalidOperationException($"{nameof(IMenuCommandService)} is not available from the VS shell.");
         }
 
-        _ = new OpenFabCommand(package, CommandService);
+        _=new OpenFabCommand(package,CommandService);
     }
 
-    private void Execute(object Sender, EventArgs E)
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo(FabUrl) { UseShellExecute = true });
-        }
-        catch (Exception Ex)
-        {
+    private void Execute(object Sender,EventArgs E){
+        try {
+            Process.Start(new ProcessStartInfo(FabUrl){ UseShellExecute=true });
+        } catch(Exception Ex){
             VsShellUtilities.ShowMessageBox(
                 Package,
                 $"ブラウザの起動に失敗しました: {Ex.Message}",

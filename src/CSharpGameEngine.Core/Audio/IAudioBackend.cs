@@ -11,15 +11,14 @@ namespace CSharpGameEngine.Audio.Abstractions;
 /// </summary>
 /// <typeparam name="TEngine">Opaque handle to one running audio engine instance.</typeparam>
 /// <typeparam name="TVoice">Opaque handle to one playable voice created from an engine.</typeparam>
-public interface IAudioBackend<TEngine, TVoice>
-    where TEngine : struct
-    where TVoice : struct
-{
+public interface IAudioBackend<TEngine,TVoice>
+    where TEngine:struct
+    where TVoice:struct {
     static abstract TEngine CreateEngine();
 
     static abstract void DestroyEngine(in TEngine engine);
 
-    static abstract TVoice CreateVoice(in TEngine engine, int sampleRate, int channels);
+    static abstract TVoice CreateVoice(in TEngine engine,int sampleRate,int channels);
 
     /// <summary>
     /// Submits 16-bit PCM samples for playback and returns the updated handle. The handle is
@@ -27,13 +26,13 @@ public interface IAudioBackend<TEngine, TVoice>
     /// value type; a backend that must remember where it copied <paramref name="samples"/> (so
     /// <see cref="DestroyVoice"/> can free it) folds that into the returned handle.
     /// </summary>
-    static abstract TVoice SubmitBuffer(in TVoice voice, ReadOnlySpan<short> samples, bool loop);
+    static abstract TVoice SubmitBuffer(in TVoice voice,ReadOnlySpan<short>samples,bool loop);
 
     static abstract void Start(in TVoice voice);
 
     static abstract void Stop(in TVoice voice);
 
-    static abstract void SetVolume(in TVoice voice, float volume);
+    static abstract void SetVolume(in TVoice voice,float volume);
 
     static abstract void DestroyVoice(in TVoice voice);
 }

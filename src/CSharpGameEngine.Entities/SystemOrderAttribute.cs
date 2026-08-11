@@ -35,13 +35,11 @@ namespace CSharpGameEngine.Entities;
 /// 以外に手段が無い。
 /// </para>
 /// </summary>
-[AttributeUsage(AttributeTargets.Struct | AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
-public sealed class SystemOrderAttribute : Attribute
-{
-    public SystemOrderAttribute(int order)
-    {
-        this.Order = order;
+[AttributeUsage(AttributeTargets.Struct|AttributeTargets.Class,AllowMultiple=false,Inherited=false)]
+public sealed class SystemOrderAttribute:Attribute {
+    public SystemOrderAttribute(int order){
+        this.Order=order;
     }
 
-    public int Order { get; }
+    public int Order { get;}
 }

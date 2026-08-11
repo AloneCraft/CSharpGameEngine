@@ -14,30 +14,25 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// 順序を、②はファイル内で自分の順序を持たない全Systemの既定値を表すため、①が優先される。
 /// </para>
 /// </summary>
-internal static class GameSystemExecutionOrder
-{
-    internal static int Compare(GameSystemResult A, GameSystemResult B, GameSystemOrderContext Context)
-    {
-        int OrderA = OrderOf(A, Context);
-        int OrderB = OrderOf(B, Context);
-        int OrderCompare = OrderA.CompareTo(OrderB);
+internal static class GameSystemExecutionOrder {
+    internal static int Compare(GameSystemResult A,GameSystemResult B,GameSystemOrderContext Context){
+        var OrderA=OrderOf(A,Context);
+        var OrderB=OrderOf(B,Context);
+        var OrderCompare=OrderA.CompareTo(OrderB);
 
-        if (OrderCompare != 0)
-        {
+        if(OrderCompare!=0){
             return OrderCompare;
         }
 
-        int FileCompare = string.CompareOrdinal(A.FilePath, B.FilePath);
-        return FileCompare != 0 ? FileCompare : A.DeclarationPosition.CompareTo(B.DeclarationPosition);
+        var FileCompare=string.CompareOrdinal(A.FilePath,B.FilePath);
+        return FileCompare!=0?FileCompare:A.DeclarationPosition.CompareTo(B.DeclarationPosition);
     }
 
-    private static int OrderOf(GameSystemResult system, GameSystemOrderContext Context)
-    {
-        if (Context.SystemOrderByFqn.TryGetValue(system.ClassFullyQualifiedName, out int ExplicitOrder))
-        {
+    private static int OrderOf(GameSystemResult system,GameSystemOrderContext Context){
+        if(Context.SystemOrderByFqn.TryGetValue(system.ClassFullyQualifiedName,out var ExplicitOrder)){
             return ExplicitOrder;
         }
 
-        return Context.FileOrderByPath.TryGetValue(system.FilePath, out int FileOrder) ? FileOrder : 0;
+        return Context.FileOrderByPath.TryGetValue(system.FilePath,out var FileOrder)?FileOrder:0;
     }
 }

@@ -8,8 +8,7 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// <c>record</c>/<c>record struct</c>が要求する<c>System.Runtime.CompilerServices.IsExternalInit</c>を
 /// BCLが提供しないため、recordではなく通常のstructとして定義する(既存Model群と同じ理由)。
 /// </remarks>
-internal enum GameSystemMethodRole
-{
+internal enum GameSystemMethodRole {
     /// <summary><c>Update</c>: Archetypeを登録し、毎フレームのディスパッチ対象になる。</summary>
     Dispatch,
 
@@ -17,8 +16,7 @@ internal enum GameSystemMethodRole
     SpawnOnly,
 }
 
-internal enum GameSystemParameterRole
-{
+internal enum GameSystemParameterRole {
     Entity,
     Component,
     Context,
@@ -30,69 +28,61 @@ internal enum GameSystemParameterRole
 /// 並び順の情報を失うため、Emitterがユーザーメソッドを位置引数で正しく呼び出すにはこの順序情報が
 /// 別途必要になる。
 /// </summary>
-internal readonly struct GameSystemParameterSlot
-{
+internal readonly struct GameSystemParameterSlot {
     internal readonly GameSystemParameterRole Role;
     internal readonly int Index;
 
-    internal GameSystemParameterSlot(GameSystemParameterRole role, int index)
-    {
-        this.Role = role;
-        this.Index = index;
+    internal GameSystemParameterSlot(GameSystemParameterRole role,int index){
+        this.Role=role;
+        this.Index=index;
     }
 }
 
-internal readonly struct GameSystemComponentParameterModel
-{
+internal readonly struct GameSystemComponentParameterModel {
     internal readonly string ParameterName;
     internal readonly string TypeFullyQualifiedName;
 
-    internal GameSystemComponentParameterModel(string parameterName, string typeFullyQualifiedName)
-    {
-        this.ParameterName = parameterName;
-        this.TypeFullyQualifiedName = typeFullyQualifiedName;
+    internal GameSystemComponentParameterModel(string parameterName,string typeFullyQualifiedName){
+        this.ParameterName=parameterName;
+        this.TypeFullyQualifiedName=typeFullyQualifiedName;
     }
 }
 
 /// <summary>Context引数(Query無関係、ゲームループの引数としてそのまま転送される)。値型は<c>in</c>、参照型は値渡し。</summary>
-internal readonly struct GameSystemContextParameterModel
-{
+internal readonly struct GameSystemContextParameterModel {
     internal readonly string ParameterName;
     internal readonly string TypeFullyQualifiedName;
     internal readonly bool IsReferenceType;
 
-    internal GameSystemContextParameterModel(string parameterName, string typeFullyQualifiedName, bool isReferenceType)
-    {
-        this.ParameterName = parameterName;
-        this.TypeFullyQualifiedName = typeFullyQualifiedName;
-        this.IsReferenceType = isReferenceType;
+    internal GameSystemContextParameterModel(string parameterName,string typeFullyQualifiedName,bool isReferenceType){
+        this.ParameterName=parameterName;
+        this.TypeFullyQualifiedName=typeFullyQualifiedName;
+        this.IsReferenceType=isReferenceType;
     }
 }
 
 /// <summary>1つの<c>Update</c>/<c>Spawn</c>オーバーロードの解析結果。</summary>
-internal readonly struct GameSystemMethodModel
-{
+internal readonly struct GameSystemMethodModel {
     internal readonly GameSystemMethodRole Role;
     internal readonly bool HasLeadingEntityParameter;
-    internal readonly ImmutableArray<GameSystemComponentParameterModel> Components;
-    internal readonly ImmutableArray<GameSystemContextParameterModel> Contexts;
-    internal readonly ImmutableArray<GameSystemParameterSlot> CallOrder;
+    internal readonly ImmutableArray<GameSystemComponentParameterModel>Components;
+    internal readonly ImmutableArray<GameSystemContextParameterModel>Contexts;
+    internal readonly ImmutableArray<GameSystemParameterSlot>CallOrder;
     internal readonly int DeclarationPosition;
 
     internal GameSystemMethodModel(
         GameSystemMethodRole role,
         bool hasLeadingEntityParameter,
-        ImmutableArray<GameSystemComponentParameterModel> components,
-        ImmutableArray<GameSystemContextParameterModel> contexts,
-        ImmutableArray<GameSystemParameterSlot> callOrder,
-        int declarationPosition)
-    {
-        this.Role = role;
-        this.HasLeadingEntityParameter = hasLeadingEntityParameter;
-        this.Components = components;
-        this.Contexts = contexts;
-        this.CallOrder = callOrder;
-        this.DeclarationPosition = declarationPosition;
+        ImmutableArray<GameSystemComponentParameterModel>components,
+        ImmutableArray<GameSystemContextParameterModel>contexts,
+        ImmutableArray<GameSystemParameterSlot>callOrder,
+        int declarationPosition){
+        this.Role=role;
+        this.HasLeadingEntityParameter=hasLeadingEntityParameter;
+        this.Components=components;
+        this.Contexts=contexts;
+        this.CallOrder=callOrder;
+        this.DeclarationPosition=declarationPosition;
     }
 }
 
@@ -100,12 +90,11 @@ internal readonly struct GameSystemMethodModel
 /// 1つの<c>ISystem</c>実装structの解析結果。<see cref="Diagnostics"/>が1件でもあれば、このstruct分の
 /// 出力を丸ごとスキップする(既存ジェネレータと同じ全か無かの方針)。
 /// </summary>
-internal readonly struct GameSystemResult
-{
-    internal readonly string? Namespace;
+internal readonly struct GameSystemResult {
+    internal readonly string?Namespace;
     internal readonly string ClassName;
-    internal readonly ImmutableArray<GameSystemMethodModel> Methods;
-    internal readonly ImmutableArray<Diagnostic> Diagnostics;
+    internal readonly ImmutableArray<GameSystemMethodModel>Methods;
+    internal readonly ImmutableArray<Diagnostic>Diagnostics;
 
     /// <summary>
     /// 実行順序の決定に使う宣言位置。ADR-0033決定事項1により、実行順は「ソース上の記述順」。
@@ -116,38 +105,35 @@ internal readonly struct GameSystemResult
     internal readonly int DeclarationPosition;
 
     internal GameSystemResult(
-        string? @namespace,
+        string?@namespace,
         string className,
-        ImmutableArray<GameSystemMethodModel> methods,
-        ImmutableArray<Diagnostic> diagnostics,
+        ImmutableArray<GameSystemMethodModel>methods,
+        ImmutableArray<Diagnostic>diagnostics,
         string filePath,
-        int declarationPosition)
-    {
-        this.Namespace = @namespace;
-        this.ClassName = className;
-        this.Methods = methods;
-        this.Diagnostics = diagnostics;
-        this.FilePath = filePath;
-        this.DeclarationPosition = declarationPosition;
+        int declarationPosition){
+        this.Namespace=@namespace;
+        this.ClassName=className;
+        this.Methods=methods;
+        this.Diagnostics=diagnostics;
+        this.FilePath=filePath;
+        this.DeclarationPosition=declarationPosition;
     }
 
-    internal string ClassFullyQualifiedName => this.Namespace is null ? this.ClassName : $"{this.Namespace}.{this.ClassName}";
+    internal string ClassFullyQualifiedName=>this.Namespace is null?this.ClassName: $"{this.Namespace}.{this.ClassName}";
 
-    internal string GlobalQualifiedName => this.Namespace is null ? $"global::{this.ClassName}" : $"global::{this.Namespace}.{this.ClassName}";
+    internal string GlobalQualifiedName=>this.Namespace is null? $"global::{this.ClassName}" : $"global::{this.Namespace}.{this.ClassName}";
 }
 
 /// <summary>コンパイル全体で発見された1つのComponent型に、初出順で割り当てられたグローバルインデックス。</summary>
-internal readonly struct GameSystemComponentInfo
-{
+internal readonly struct GameSystemComponentInfo {
     internal readonly int Index;
     internal readonly string TypeFullyQualifiedName;
     internal readonly string FieldName;
 
-    internal GameSystemComponentInfo(int index, string typeFullyQualifiedName, string fieldName)
-    {
-        this.Index = index;
-        this.TypeFullyQualifiedName = typeFullyQualifiedName;
-        this.FieldName = fieldName;
+    internal GameSystemComponentInfo(int index,string typeFullyQualifiedName,string fieldName){
+        this.Index=index;
+        this.TypeFullyQualifiedName=typeFullyQualifiedName;
+        this.FieldName=fieldName;
     }
 }
 
@@ -157,32 +143,29 @@ internal readonly struct GameSystemComponentInfo
 /// <c>World.Create</c>/<c>MoveArchetype</c>のパラメータ順もこれに従うため、呼び出し側は自分が
 /// 宣言したとおりの順序で引数を渡せる(内部インデックスの並びを知る必要がない)。
 /// </summary>
-internal readonly struct GameSystemArchetypeInfo
-{
+internal readonly struct GameSystemArchetypeInfo {
     internal readonly string Name;
-    internal readonly ImmutableArray<int> ComponentIndices;
+    internal readonly ImmutableArray<int>ComponentIndices;
     internal readonly long Mask;
 
-    internal GameSystemArchetypeInfo(string name, ImmutableArray<int> componentIndices, long mask)
-    {
-        this.Name = name;
-        this.ComponentIndices = componentIndices;
-        this.Mask = mask;
+    internal GameSystemArchetypeInfo(string name,ImmutableArray<int>componentIndices,long mask){
+        this.Name=name;
+        this.ComponentIndices=componentIndices;
+        this.Mask=mask;
     }
 
-    internal string ListFieldName => $"List{this.Name}";
+    internal string ListFieldName=> $"List{this.Name}";
 
-    internal string MoveCommandTypeName => $"MoveTo{this.Name}Command";
+    internal string MoveCommandTypeName=> $"MoveTo{this.Name}Command";
 
-    internal string MoveCommandsFieldName => $"MoveTo{this.Name}Commands";
+    internal string MoveCommandsFieldName=> $"MoveTo{this.Name}Commands";
 }
 
 /// <summary>
 /// <c>[SystemOrder]</c>の付け先2種類(ADR-0036)。<c>System</c>はそのSystem1つだけの順序、
 /// <c>FileMarker</c>はファイル内で自分の順序を持たない全Systemの既定順序になる。
 /// </summary>
-internal enum GameSystemOrderTargetKind
-{
+internal enum GameSystemOrderTargetKind {
     System,
     FileMarker,
 }
@@ -192,8 +175,7 @@ internal enum GameSystemOrderTargetKind
 /// ファイル横断・Systemごとの実行順序は本来ADR-0033の「記述順」からは導出できない(構造的な
 /// 手がかりが無い)ため、この属性だけが例外的に許される宣言的キーになる(ADR-0036)。
 /// </summary>
-internal readonly struct GameSystemOrderResult
-{
+internal readonly struct GameSystemOrderResult {
     internal readonly GameSystemOrderTargetKind Kind;
     internal readonly string FilePath;
     internal readonly int Order;
@@ -202,27 +184,26 @@ internal readonly struct GameSystemOrderResult
     internal readonly string TargetName;
 
     /// <summary><see cref="GameSystemOrderTargetKind.System"/>のときだけ設定される、対象Systemの完全修飾名。<see cref="GameSystemResult.ClassFullyQualifiedName"/>と同じキー空間。</summary>
-    internal readonly string? SystemFullyQualifiedName;
+    internal readonly string?SystemFullyQualifiedName;
 
     internal readonly Location Location;
-    internal readonly ImmutableArray<Diagnostic> Diagnostics;
+    internal readonly ImmutableArray<Diagnostic>Diagnostics;
 
     internal GameSystemOrderResult(
         GameSystemOrderTargetKind kind,
         string filePath,
         int order,
         string targetName,
-        string? systemFullyQualifiedName,
+        string?systemFullyQualifiedName,
         Location location,
-        ImmutableArray<Diagnostic> diagnostics)
-    {
-        this.Kind = kind;
-        this.FilePath = filePath;
-        this.Order = order;
-        this.TargetName = targetName;
-        this.SystemFullyQualifiedName = systemFullyQualifiedName;
-        this.Location = location;
-        this.Diagnostics = diagnostics;
+        ImmutableArray<Diagnostic>diagnostics){
+        this.Kind=kind;
+        this.FilePath=filePath;
+        this.Order=order;
+        this.TargetName=targetName;
+        this.SystemFullyQualifiedName=systemFullyQualifiedName;
+        this.Location=location;
+        this.Diagnostics=diagnostics;
     }
 }
 
@@ -230,15 +211,13 @@ internal readonly struct GameSystemOrderResult
 /// <see cref="GameSystemExecutionOrder.Compare"/>が引く2種類のマップをまとめたもの。System単体の
 /// 明示指定がファイル既定より優先される(<see cref="GameSystemExecutionOrder"/>参照)。
 /// </summary>
-internal readonly struct GameSystemOrderContext
-{
-    internal readonly IReadOnlyDictionary<string, int> SystemOrderByFqn;
-    internal readonly IReadOnlyDictionary<string, int> FileOrderByPath;
+internal readonly struct GameSystemOrderContext {
+    internal readonly IReadOnlyDictionary<string,int>SystemOrderByFqn;
+    internal readonly IReadOnlyDictionary<string,int>FileOrderByPath;
 
-    internal GameSystemOrderContext(IReadOnlyDictionary<string, int> systemOrderByFqn, IReadOnlyDictionary<string, int> fileOrderByPath)
-    {
-        this.SystemOrderByFqn = systemOrderByFqn;
-        this.FileOrderByPath = fileOrderByPath;
+    internal GameSystemOrderContext(IReadOnlyDictionary<string,int>systemOrderByFqn,IReadOnlyDictionary<string,int>fileOrderByPath){
+        this.SystemOrderByFqn=systemOrderByFqn;
+        this.FileOrderByPath=fileOrderByPath;
     }
 }
 
@@ -248,23 +227,21 @@ internal readonly struct GameSystemOrderContext
 /// 辞書式昇順)で確定済み、<see cref="ValidSystems"/>は実行順序(記述順、<c>[SystemOrder]</c>があれば
 /// それを優先キーとする)で並んでいる。
 /// </summary>
-internal readonly struct GameSystemRegistry
-{
-    internal readonly ImmutableArray<GameSystemComponentInfo> ComponentsByIndex;
-    internal readonly ImmutableArray<GameSystemArchetypeInfo> Archetypes;
-    internal readonly ImmutableArray<GameSystemResult> ValidSystems;
-    internal readonly ImmutableArray<Diagnostic> Diagnostics;
+internal readonly struct GameSystemRegistry {
+    internal readonly ImmutableArray<GameSystemComponentInfo>ComponentsByIndex;
+    internal readonly ImmutableArray<GameSystemArchetypeInfo>Archetypes;
+    internal readonly ImmutableArray<GameSystemResult>ValidSystems;
+    internal readonly ImmutableArray<Diagnostic>Diagnostics;
 
     internal GameSystemRegistry(
-        ImmutableArray<GameSystemComponentInfo> componentsByIndex,
-        ImmutableArray<GameSystemArchetypeInfo> archetypes,
-        ImmutableArray<GameSystemResult> validSystems,
-        ImmutableArray<Diagnostic> diagnostics)
-    {
-        this.ComponentsByIndex = componentsByIndex;
-        this.Archetypes = archetypes;
-        this.ValidSystems = validSystems;
-        this.Diagnostics = diagnostics;
+        ImmutableArray<GameSystemComponentInfo>componentsByIndex,
+        ImmutableArray<GameSystemArchetypeInfo>archetypes,
+        ImmutableArray<GameSystemResult>validSystems,
+        ImmutableArray<Diagnostic>diagnostics){
+        this.ComponentsByIndex=componentsByIndex;
+        this.Archetypes=archetypes;
+        this.ValidSystems=validSystems;
+        this.Diagnostics=diagnostics;
     }
 
     /// <summary>
@@ -272,34 +249,28 @@ internal readonly struct GameSystemRegistry
     /// <see cref="GameSystemArchetypeInfo.ComponentIndices"/>は宣言順であり昇順とは限らないため、
     /// 両辺をソートして比較する)。SceneRuntimeEmitterが使う。
     /// </summary>
-    internal GameSystemArchetypeInfo? FindArchetype(IReadOnlyList<int> ComponentIndices)
-    {
-        List<int> Wanted = [.. ComponentIndices];
+    internal GameSystemArchetypeInfo?FindArchetype(IReadOnlyList<int>ComponentIndices){
+        List<int>Wanted=[.. ComponentIndices];
         Wanted.Sort();
 
-        foreach (GameSystemArchetypeInfo Archetype in this.Archetypes)
-        {
-            if (Archetype.ComponentIndices.Length != Wanted.Count)
-            {
+        foreach(GameSystemArchetypeInfo Archetype in this.Archetypes){
+            if(Archetype.ComponentIndices.Length!=Wanted.Count){
                 continue;
             }
 
-            List<int> Candidate = [.. Archetype.ComponentIndices];
+            List<int>Candidate=[.. Archetype.ComponentIndices];
             Candidate.Sort();
 
-            bool Same = true;
+            var Same=true;
 
-            for (int i = 0; i < Wanted.Count; i++)
-            {
-                if (Candidate[i] != Wanted[i])
-                {
-                    Same = false;
+            for(var i=0;i<Wanted.Count;i++){
+                if(Candidate[i]!=Wanted[i]){
+                    Same=false;
                     break;
                 }
             }
 
-            if (Same)
-            {
+            if(Same){
                 return Archetype;
             }
         }

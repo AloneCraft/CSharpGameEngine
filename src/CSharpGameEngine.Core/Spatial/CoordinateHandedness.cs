@@ -7,8 +7,7 @@ namespace CSharpGameEngine.Spatial.Abstractions;
 /// Docs/Specifications/Spatial-RUF.md "Handedness の定義" for the verified relationship between
 /// this value and <see cref="Spatial{TConvention}.Cross"/>.
 /// </summary>
-public enum CoordinateHandedness
-{
+public enum CoordinateHandedness {
     LeftHanded,
     RightHanded,
 }

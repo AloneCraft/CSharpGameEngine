@@ -18,25 +18,22 @@ namespace CSharpGameEngine.VSExtension;
 /// bridge process at all - complementing the ADR-0010 addendum fix (prebuilt-exe launch) rather than
 /// replacing it, since caching alone cannot help a scene's first, cold load.
 /// </summary>
-internal static class MeshLoader
-{
-    private static readonly ConcurrentDictionary<string, (SimpleMesh Mesh, DateTime LastWriteTimeUtc)> Cache = new(StringComparer.OrdinalIgnoreCase);
+internal static class MeshLoader {
+    private static readonly ConcurrentDictionary<string,(SimpleMesh Mesh,DateTime LastWriteTimeUtc)>Cache=new(StringComparer.OrdinalIgnoreCase);
 
-    public static SimpleMesh Load(string ModelPath, string RepoRoot)
-    {
-        string FullPath = Path.GetFullPath(ModelPath);
-        DateTime LastWriteTimeUtc = File.GetLastWriteTimeUtc(FullPath);
+    public static SimpleMesh Load(string ModelPath,string RepoRoot){
+        var FullPath=Path.GetFullPath(ModelPath);
+        DateTime LastWriteTimeUtc=File.GetLastWriteTimeUtc(FullPath);
 
-        if (Cache.TryGetValue(FullPath, out var Cached) && Cached.LastWriteTimeUtc == LastWriteTimeUtc)
-        {
+        if(Cache.TryGetValue(FullPath,out var Cached)&&Cached.LastWriteTimeUtc==LastWriteTimeUtc){
             return Cached.Mesh;
         }
 
-        SimpleMesh Mesh = string.Equals(Path.GetExtension(FullPath), ".fbx", StringComparison.OrdinalIgnoreCase)
-            ? ExternalFbxLoader.Load(FullPath, RepoRoot)
-            : ExternalGltfLoader.Load(FullPath, RepoRoot);
+        SimpleMesh Mesh=string.Equals(Path.GetExtension(FullPath),".fbx",StringComparison.OrdinalIgnoreCase)
+            ?ExternalFbxLoader.Load(FullPath,RepoRoot)
+            :ExternalGltfLoader.Load(FullPath,RepoRoot);
 
-        Cache[FullPath] = (Mesh, LastWriteTimeUtc);
+        Cache[FullPath]=(Mesh,LastWriteTimeUtc);
         return Mesh;
     }
 }

@@ -7,13 +7,11 @@ namespace CSharpGameEngine.Entities;
 /// メソッド本体は一切実行されない(Editor Preview等でインタープリター的に<c>Define</c>を
 /// 直接呼び出す将来用途のための余地として存在する)。
 /// </summary>
-public sealed class SceneBuilder
-{
-    public void Create(SceneNodeSymbol Symbol, Action<SceneNodeBuilder> Definition)
-    {
+public sealed class SceneBuilder {
+    public void Create(SceneNodeSymbol Symbol,Action<SceneNodeBuilder>Definition){
         ArgumentNullException.ThrowIfNull(Definition);
 
-        SceneNodeBuilder Builder = new(Symbol);
+        SceneNodeBuilder Builder=new(Symbol);
         Definition(Builder);
     }
 }

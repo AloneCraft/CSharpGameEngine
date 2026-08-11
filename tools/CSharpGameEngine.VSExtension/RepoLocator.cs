@@ -13,22 +13,19 @@ namespace CSharpGameEngine.VSExtension;
 /// <see cref="OpenViewerCommand"/> and <see cref="ViewerHwndHost"/> so both launch the viewer the
 /// same way.
 /// </summary>
-internal static class RepoLocator
-{
-    internal const string RepoMarkerFileName = "CSharpGameEngine.slnx";
+internal static class RepoLocator {
+    internal const string RepoMarkerFileName="CSharpGameEngine.slnx";
 
-    public static string? ResolveRepoRoot()
-    {
-        string? RepoRoot = Assembly.GetExecutingAssembly()
+    public static string?ResolveRepoRoot(){
+        var RepoRoot=Assembly.GetExecutingAssembly()
             .GetCustomAttributes<AssemblyMetadataAttribute>()
-            .FirstOrDefault(attribute => attribute.Key == "CSharpGameEngineRepoRoot")
+            .FirstOrDefault(attribute=>attribute.Key=="CSharpGameEngineRepoRoot")
             ?.Value;
 
-        if (string.IsNullOrEmpty(RepoRoot))
-        {
+        if(string.IsNullOrEmpty(RepoRoot)){
             return null;
         }
 
-        return File.Exists(Path.Combine(RepoRoot, RepoMarkerFileName)) ? RepoRoot : null;
+        return File.Exists(Path.Combine(RepoRoot,RepoMarkerFileName))?RepoRoot:null;
     }
 }

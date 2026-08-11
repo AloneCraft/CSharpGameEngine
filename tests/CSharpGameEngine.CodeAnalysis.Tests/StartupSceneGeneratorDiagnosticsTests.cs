@@ -2,9 +2,8 @@ using Microsoft.CodeAnalysis;
 
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 
-public sealed class StartupSceneGeneratorDiagnosticsTests
-{
-    private const string Preamble = """
+public sealed class StartupSceneGeneratorDiagnosticsTests {
+    private const string Preamble="""
         using CSharpGameEngine.Entities;
 
         namespace Sample;
@@ -22,8 +21,7 @@ public sealed class StartupSceneGeneratorDiagnosticsTests
         """;
 
     [Fact]
-    public void NonStaticClass_ReportsStartup001()
-    {
+    public void NonStaticClass_ReportsStartup001(){
         AssertHasDiagnostic(
             """
             [StartupScene(Order = 0)]
@@ -37,8 +35,7 @@ public sealed class StartupSceneGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void NonPartialClass_ReportsStartup001()
-    {
+    public void NonPartialClass_ReportsStartup001(){
         AssertHasDiagnostic(
             """
             [StartupScene(Order = 0)]
@@ -52,8 +49,7 @@ public sealed class StartupSceneGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void GenericClass_ReportsStartup002()
-    {
+    public void GenericClass_ReportsStartup002(){
         AssertHasDiagnostic(
             """
             [StartupScene(Order = 0)]
@@ -67,8 +63,7 @@ public sealed class StartupSceneGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void NonStaticProperty_ReportsStartup003()
-    {
+    public void NonStaticProperty_ReportsStartup003(){
         AssertHasDiagnostic(
             """
             [StartupScene(Order = 0)]
@@ -82,8 +77,7 @@ public sealed class StartupSceneGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void Indexer_ReportsStartup004()
-    {
+    public void Indexer_ReportsStartup004(){
         // インデクサーはインスタンスメンバーにしかなれない(static class内には書けない)ため、
         // このケースはSTARTUP001(非static)と同時に発生する。AssertHasDiagnosticは含有だけを見る。
         AssertHasDiagnostic(
@@ -99,8 +93,7 @@ public sealed class StartupSceneGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void SetOnlyProperty_ReportsStartup005()
-    {
+    public void SetOnlyProperty_ReportsStartup005(){
         AssertHasDiagnostic(
             """
             [StartupScene(Order = 0)]
@@ -114,8 +107,7 @@ public sealed class StartupSceneGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void RefReturningProperty_ReportsStartup006()
-    {
+    public void RefReturningProperty_ReportsStartup006(){
         AssertHasDiagnostic(
             """
             [StartupScene(Order = 0)]
@@ -131,8 +123,7 @@ public sealed class StartupSceneGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void NonStructReturnType_ReportsStartup007()
-    {
+    public void NonStructReturnType_ReportsStartup007(){
         AssertHasDiagnostic(
             """
             [StartupScene(Order = 0)]
@@ -146,8 +137,7 @@ public sealed class StartupSceneGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void NullableStructReturnType_ReportsStartup007()
-    {
+    public void NullableStructReturnType_ReportsStartup007(){
         AssertHasDiagnostic(
             """
             [StartupScene(Order = 0)]
@@ -161,8 +151,7 @@ public sealed class StartupSceneGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void ClassComponentInTuple_ReportsStartup008()
-    {
+    public void ClassComponentInTuple_ReportsStartup008(){
         AssertHasDiagnostic(
             """
             public sealed class NotAComponent { }
@@ -178,8 +167,7 @@ public sealed class StartupSceneGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void DuplicateComponentTypeInTuple_ReportsStartup009()
-    {
+    public void DuplicateComponentTypeInTuple_ReportsStartup009(){
         AssertHasDiagnostic(
             """
             [StartupScene(Order = 0)]
@@ -193,8 +181,7 @@ public sealed class StartupSceneGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void UnnamedTupleElement_ReportsStartup010()
-    {
+    public void UnnamedTupleElement_ReportsStartup010(){
         AssertHasDiagnostic(
             """
             [StartupScene(Order = 0)]
@@ -208,10 +195,9 @@ public sealed class StartupSceneGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void ValidSingleComponentEntity_ReportsNothing()
-    {
-        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
-            [.. GameSystemGeneratorTestHelper.StartupSceneSources, Preamble + """
+    public void ValidSingleComponentEntity_ReportsNothing(){
+        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
+            [.. GameSystemGeneratorTestHelper.StartupSceneSources,Preamble+"""
             [StartupScene(Order = 0)]
             internal static partial class MainScene
             {
@@ -224,10 +210,9 @@ public sealed class StartupSceneGeneratorDiagnosticsTests
     }
 
     [Fact]
-    public void ValidTupleEntity_ReportsNothing()
-    {
-        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
-            [.. GameSystemGeneratorTestHelper.StartupSceneSources, Preamble + """
+    public void ValidTupleEntity_ReportsNothing(){
+        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
+            [.. GameSystemGeneratorTestHelper.StartupSceneSources,Preamble+"""
             [StartupScene(Order = 0)]
             internal static partial class MainScene
             {
@@ -239,11 +224,10 @@ public sealed class StartupSceneGeneratorDiagnosticsTests
         Assert.Empty(Result.Diagnostics);
     }
 
-    private static void AssertHasDiagnostic(string SceneSource, string DiagnosticId)
-    {
-        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
-            [.. GameSystemGeneratorTestHelper.StartupSceneSources, Preamble + SceneSource]);
+    private static void AssertHasDiagnostic(string SceneSource,string DiagnosticId){
+        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
+            [.. GameSystemGeneratorTestHelper.StartupSceneSources,Preamble+SceneSource]);
 
-        Assert.Contains(Result.Diagnostics, D => D.Id == DiagnosticId);
+        Assert.Contains(Result.Diagnostics,D=>D.Id==DiagnosticId);
     }
 }

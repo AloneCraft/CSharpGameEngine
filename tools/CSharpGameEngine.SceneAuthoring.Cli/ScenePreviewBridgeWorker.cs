@@ -8,36 +8,30 @@ namespace CSharpGameEngine.SceneAuthoring.Cli;
 /// logic. Returns diagnostics as a value instead of calling <see cref="Console"/> directly - those
 /// are process-wide statics that would race across the resident server's concurrent requests.
 /// </summary>
-internal static class ScenePreviewBridgeWorker
-{
-    public static (int ExitCode, string Output) Run(string InputPath, string OutputPath)
-    {
-        try
-        {
-            ScenePreviewRequest Request = JsonSerializer.Deserialize<ScenePreviewRequest>(File.ReadAllText(InputPath))
-                ?? throw new InvalidOperationException($"リクエストファイル '{InputPath}' を読み取れませんでした。");
+internal static class ScenePreviewBridgeWorker {
+    public static(int ExitCode,string Output)Run(string InputPath,string OutputPath){
+        try {
+            ScenePreviewRequest Request=JsonSerializer.Deserialize<ScenePreviewRequest>(File.ReadAllText(InputPath))
+                ??throw new InvalidOperationException($"リクエストファイル '{InputPath}' を読み取れませんでした。");
 
-            IReadOnlyList<string> NodeNames = SceneDefinitionSourceParser.ParseNodeNamesInDeclarationOrder(File.ReadAllText(Request.SourceFilePath));
-            string SceneClassSimpleNameHint = Path.GetFileNameWithoutExtension(Request.SourceFilePath);
+            IReadOnlyList<string>NodeNames=SceneDefinitionSourceParser.ParseNodeNamesInDeclarationOrder(File.ReadAllText(Request.SourceFilePath));
+            var SceneClassSimpleNameHint=Path.GetFileNameWithoutExtension(Request.SourceFilePath);
 
-            SceneRuntimeInvoker.InvocationResult InvocationResult = SceneRuntimeInvoker.Invoke(Request.TargetAssemblyPath, SceneClassSimpleNameHint);
-            IReadOnlyList<ScenePreviewNode> Nodes = WorldInspector.Inspect(InvocationResult.Snapshot);
-            ScenePreviewNode[] NamedNodes = ApplyRecoveredNames(Nodes, NodeNames);
+            SceneRuntimeInvoker.InvocationResult InvocationResult=SceneRuntimeInvoker.Invoke(Request.TargetAssemblyPath,SceneClassSimpleNameHint);
+            IReadOnlyList<ScenePreviewNode>Nodes=WorldInspector.Inspect(InvocationResult.Snapshot);
+            ScenePreviewNode[]NamedNodes=ApplyRecoveredNames(Nodes,NodeNames);
 
-            ScenePreviewBridgeDocument Document = new()
-            {
-                Success = true,
-                SceneClassFullName = InvocationResult.SceneClassFullName,
-                Nodes = NamedNodes,
+            ScenePreviewBridgeDocument Document=new(){
+                Success=true,
+                SceneClassFullName=InvocationResult.SceneClassFullName,
+                Nodes=NamedNodes,
             };
 
-            File.WriteAllText(OutputPath, JsonSerializer.Serialize(Document));
-            return (0, string.Empty);
-        }
-        catch (Exception Ex)
-        {
-            File.WriteAllText(OutputPath, JsonSerializer.Serialize(ScenePreviewBridgeDocument.ForFailure(Ex.Message)));
-            return (1, Ex.Message);
+            File.WriteAllText(OutputPath,JsonSerializer.Serialize(Document));
+            return(0,string.Empty);
+        } catch(Exception Ex){
+            File.WriteAllText(OutputPath,JsonSerializer.Serialize(ScenePreviewBridgeDocument.ForFailure(Ex.Message)));
+            return(1,Ex.Message);
         }
     }
 
@@ -48,18 +42,15 @@ internal static class ScenePreviewBridgeWorker
     /// anything caused the counts to diverge, leaving every node unnamed is safer than risking a
     /// wrong pairing (ADR-0031).
     /// </summary>
-    private static ScenePreviewNode[] ApplyRecoveredNames(IReadOnlyList<ScenePreviewNode> Nodes, IReadOnlyList<string> NodeNames)
-    {
-        if (Nodes.Count != NodeNames.Count)
-        {
-            return [.. Nodes];
+    private static ScenePreviewNode[]ApplyRecoveredNames(IReadOnlyList<ScenePreviewNode>Nodes,IReadOnlyList<string>NodeNames){
+        if(Nodes.Count!=NodeNames.Count){
+            return[.. Nodes];
         }
 
-        ScenePreviewNode[] Named = new ScenePreviewNode[Nodes.Count];
+        ScenePreviewNode[]Named=new ScenePreviewNode[Nodes.Count];
 
-        for (int i = 0; i < Nodes.Count; i++)
-        {
-            Named[i] = Nodes[i] with { Name = NodeNames[i] };
+        for(var i=0;i<Nodes.Count;i++){
+            Named[i]=Nodes[i] with { Name=NodeNames[i]};
         }
 
         return Named;

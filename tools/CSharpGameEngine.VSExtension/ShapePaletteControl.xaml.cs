@@ -8,20 +8,16 @@ namespace CSharpGameEngine.VSExtension;
 /// primitive-shape buttons. Enabled buttons call <see cref="PrimitiveSpawner.SpawnAsync"/>; the rest
 /// are disabled placeholders for interactive-gizmo-driven tools out of today's scope.
 /// </summary>
-public partial class ShapePaletteControl : UserControl
-{
-    public ShapePaletteControl()
-    {
+public partial class ShapePaletteControl:UserControl {
+    public ShapePaletteControl(){
         InitializeComponent();
     }
 
-    private void PrimitiveButton_Click(object Sender, RoutedEventArgs E)
-    {
-        if (Sender is not Button { Tag: string PrimitiveKind })
-        {
+    private void PrimitiveButton_Click(object Sender,RoutedEventArgs E){
+        if(Sender is not Button { Tag:string PrimitiveKind }){
             return;
         }
 
-        _ = PrimitiveSpawner.SpawnAsync(PrimitiveKind);
+        _=PrimitiveSpawner.SpawnAsync(PrimitiveKind);
     }
 }

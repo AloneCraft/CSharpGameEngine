@@ -14,36 +14,30 @@ namespace CSharpGameEngine.VSExtension;
 /// helper process and surfaces here as a plain exception (caught by
 /// <see cref="ViewerHwndHost.BuildWindowCore"/>) instead of taking down Visual Studio itself.
 /// </summary>
-internal static class ExternalFbxLoader
-{
-    private const string BridgeProjectRelativePath = @"tools\CSharpGameEngine.Import.Fbx.Cli";
-    private static readonly TimeSpan BridgeTimeout = TimeSpan.FromSeconds(60);
+internal static class ExternalFbxLoader {
+    private const string BridgeProjectRelativePath=@"tools\CSharpGameEngine.Import.Fbx.Cli";
+    private static readonly TimeSpan BridgeTimeout=TimeSpan.FromSeconds(60);
 
-    public static SimpleMesh Load(string FbxPath, string RepoRoot)
-    {
-        string TempJsonPath = Path.Combine(Path.GetTempPath(), $"csge-fbx-bridge-{Guid.NewGuid():N}.json");
-        try
-        {
+    public static SimpleMesh Load(string FbxPath,string RepoRoot){
+        var TempJsonPath=Path.Combine(Path.GetTempPath(), $"csge-fbx-bridge-{Guid.NewGuid():N}.json");
+        try {
             // useResidentServer: true - Import.Fbx.Cli is the one bridge with real native-crash risk
             // (AssimpNet). FbxBridgeWorker already serializes the actual import via a SemaphoreSlim
             // (ADR-0023) to remove the concurrency risk; if real-world crash frequency ever becomes
             // a problem, flipping this single flag to false reverts to the proven one-shot path with
             // no other changes needed.
-            string Json = ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath, FbxPath, TempJsonPath, RepoRoot, BridgeTimeout, UseResidentServer: true);
+            var Json=ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath,FbxPath,TempJsonPath,RepoRoot,BridgeTimeout,UseResidentServer:true);
 
-            BridgeDocument? Document = JsonSerializer.Deserialize<BridgeDocument>(
-                Json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            BridgeDocument?Document=JsonSerializer.Deserialize<BridgeDocument>(
+                Json,new JsonSerializerOptions { PropertyNameCaseInsensitive=true });
 
-            if (Document is null || !Document.Success)
-            {
+            if(Document is null||!Document.Success){
                 throw new InvalidOperationException("FBXファイルのインポートに失敗しました(詳細はブリッジプロセスの出力を確認してください)。");
             }
 
             return Document.ToSimpleMesh();
-        }
-        finally
-        {
-            try { File.Delete(TempJsonPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        } finally {
+            try { File.Delete(TempJsonPath);} catch(IOException){ } catch(UnauthorizedAccessException){ }
         }
     }
 }

@@ -12,11 +12,10 @@ namespace CSharpGameEngine.VSExtension;
 /// a clear "no [SceneDefinition] class found" error from the bridge). Accepts the bare attribute name,
 /// the <c>Attribute</c>-suffixed form, and the fully-qualified form.
 /// </summary>
-internal static class SceneDefinitionTextDetector
-{
-    private static readonly Regex Pattern = new(
+internal static class SceneDefinitionTextDetector {
+    private static readonly Regex Pattern=new(
         @"\[\s*(CSharpGameEngine\.Entities\.)?SceneDefinition(Attribute)?\s*(\(|\])",
         RegexOptions.Compiled);
 
-    internal static bool LooksLikeSceneDefinition(string SourceText) => Pattern.IsMatch(SourceText);
+    internal static bool LooksLikeSceneDefinition(string SourceText)=>Pattern.IsMatch(SourceText);
 }

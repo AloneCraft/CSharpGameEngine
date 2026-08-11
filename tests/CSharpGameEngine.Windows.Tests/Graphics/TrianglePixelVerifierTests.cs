@@ -3,121 +3,106 @@ using static TerraFX.Interop.DirectX.DXGI_FORMAT;
 
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 
-public class TrianglePixelVerifierTests
-{
-    private static readonly PixelColor Background = new(5, 5, 20, 255);
-    private static readonly PixelColor Foreground = new(220, 30, 30, 255);
+public class TrianglePixelVerifierTests {
+    private static readonly PixelColor Background=new(5,5,20,255);
+    private static readonly PixelColor Foreground=new(220,30,30,255);
 
-    private static PixelReadbackResult BuildFrame(int Width, int Height, uint ExtraRowPitchPadding, DXGI_FORMAT Format, Func<int, int, bool> IsForeground)
-    {
-        int BytesPerPixel = 4;
-        uint RowPitch = (uint)(Width * BytesPerPixel) + ExtraRowPitchPadding;
-        byte[] Pixels = new byte[RowPitch * Height];
+    private static PixelReadbackResult BuildFrame(int Width,int Height,uint ExtraRowPitchPadding,DXGI_FORMAT Format,Func<int,int,bool>IsForeground){
+        var BytesPerPixel=4;
+        var RowPitch=(uint)(Width*BytesPerPixel)+ExtraRowPitchPadding;
+        var Pixels=new byte[RowPitch*Height];
 
-        for (int y = 0; y < Height; y++)
-        {
-            for (int x = 0; x < Width; x++)
-            {
-                PixelColor Color = IsForeground(x, y) ? Foreground : Background;
-                long Offset = (long)y * RowPitch + (x * BytesPerPixel);
+        for(var y=0;y<Height;y++){
+            for(var x=0;x<Width;x++){
+                PixelColor Color=IsForeground(x,y)?Foreground:Background;
+                var Offset=(long)y*RowPitch+(x*BytesPerPixel);
 
-                if (Format == DXGI_FORMAT_B8G8R8A8_UNORM)
-                {
-                    Pixels[Offset] = Color.B;
-                    Pixels[Offset + 1] = Color.G;
-                    Pixels[Offset + 2] = Color.R;
-                    Pixels[Offset + 3] = Color.A;
-                }
-                else
-                {
-                    Pixels[Offset] = Color.R;
-                    Pixels[Offset + 1] = Color.G;
-                    Pixels[Offset + 2] = Color.B;
-                    Pixels[Offset + 3] = Color.A;
+                if(Format==DXGI_FORMAT_B8G8R8A8_UNORM){
+                    Pixels[Offset]=Color.B;
+                    Pixels[Offset+1]=Color.G;
+                    Pixels[Offset+2]=Color.R;
+                    Pixels[Offset+3]=Color.A;
+                } else {
+                    Pixels[Offset]=Color.R;
+                    Pixels[Offset+1]=Color.G;
+                    Pixels[Offset+2]=Color.B;
+                    Pixels[Offset+3]=Color.A;
                 }
             }
         }
 
-        return new PixelReadbackResult
-        {
-            Width = Width,
-            Height = Height,
-            RowPitch = RowPitch,
-            Format = Format,
-            Pixels = Pixels,
+        return new PixelReadbackResult {
+            Width=Width,
+            Height=Height,
+            RowPitch=RowPitch,
+            Format=Format,
+            Pixels=Pixels,
         };
     }
 
     [Fact]
-    public void Verify_CenterFilledCornersBackground_Succeeds()
-    {
-        PixelReadbackResult Frame = BuildFrame(256, 256, ExtraRowPitchPadding: 0, DXGI_FORMAT_R8G8B8A8_UNORM,
-            (X, Y) => Math.Abs(X - 128) < 40 && Math.Abs(Y - 128) < 40);
+    public void Verify_CenterFilledCornersBackground_Succeeds(){
+        PixelReadbackResult Frame=BuildFrame(256,256,ExtraRowPitchPadding:0,DXGI_FORMAT_R8G8B8A8_UNORM,
+            (X,Y)=>Math.Abs(X-128)<40&&Math.Abs(Y-128)<40);
 
-        TriangleVerificationResult Result = TrianglePixelVerifier.Verify(Frame, Background);
+        TriangleVerificationResult Result=TrianglePixelVerifier.Verify(Frame,Background);
 
-        Assert.True(Result.Success, Result.Details);
-        Assert.Equal(Foreground, Result.CenterColor);
+        Assert.True(Result.Success,Result.Details);
+        Assert.Equal(Foreground,Result.CenterColor);
     }
 
     [Fact]
-    public void Verify_EntirelyBackground_FailsBecauseCenterDoesNotDiffer()
-    {
-        PixelReadbackResult Frame = BuildFrame(256, 256, ExtraRowPitchPadding: 0, DXGI_FORMAT_R8G8B8A8_UNORM, (_, _) => false);
+    public void Verify_EntirelyBackground_FailsBecauseCenterDoesNotDiffer(){
+        PixelReadbackResult Frame=BuildFrame(256,256,ExtraRowPitchPadding:0,DXGI_FORMAT_R8G8B8A8_UNORM,(_,_)=>false);
 
-        TriangleVerificationResult Result = TrianglePixelVerifier.Verify(Frame, Background);
+        TriangleVerificationResult Result=TrianglePixelVerifier.Verify(Frame,Background);
 
         Assert.False(Result.Success);
-        Assert.Contains("nothing appears to have been drawn", Result.Details);
+        Assert.Contains("nothing appears to have been drawn",Result.Details);
     }
 
     [Fact]
-    public void Verify_ForegroundBleedsIntoCorners_Fails()
-    {
-        PixelReadbackResult Frame = BuildFrame(256, 256, ExtraRowPitchPadding: 0, DXGI_FORMAT_R8G8B8A8_UNORM, (_, _) => true);
+    public void Verify_ForegroundBleedsIntoCorners_Fails(){
+        PixelReadbackResult Frame=BuildFrame(256,256,ExtraRowPitchPadding:0,DXGI_FORMAT_R8G8B8A8_UNORM,(_,_)=>true);
 
-        TriangleVerificationResult Result = TrianglePixelVerifier.Verify(Frame, Background);
+        TriangleVerificationResult Result=TrianglePixelVerifier.Verify(Frame,Background);
 
         Assert.False(Result.Success);
-        Assert.Contains("corner", Result.Details);
+        Assert.Contains("corner",Result.Details);
     }
 
     [Fact]
-    public void Verify_HandlesRowPitchPaddingLargerThanTightWidth()
-    {
-        PixelReadbackResult Frame = BuildFrame(17, 13, ExtraRowPitchPadding: 231, DXGI_FORMAT_R8G8B8A8_UNORM,
-            (X, Y) => Math.Abs(X - 8) < 3 && Math.Abs(Y - 6) < 3);
+    public void Verify_HandlesRowPitchPaddingLargerThanTightWidth(){
+        PixelReadbackResult Frame=BuildFrame(17,13,ExtraRowPitchPadding:231,DXGI_FORMAT_R8G8B8A8_UNORM,
+            (X,Y)=>Math.Abs(X-8)<3&&Math.Abs(Y-6)<3);
 
-        TriangleVerificationResult Result = TrianglePixelVerifier.Verify(Frame, Background);
+        TriangleVerificationResult Result=TrianglePixelVerifier.Verify(Frame,Background);
 
-        Assert.True(Result.Success, Result.Details);
+        Assert.True(Result.Success,Result.Details);
     }
 
     [Fact]
-    public void Verify_BgraFormat_ReadsChannelsInCorrectOrder()
-    {
-        PixelReadbackResult Frame = BuildFrame(64, 64, ExtraRowPitchPadding: 0, DXGI_FORMAT_B8G8R8A8_UNORM,
-            (X, Y) => Math.Abs(X - 32) < 10 && Math.Abs(Y - 32) < 10);
+    public void Verify_BgraFormat_ReadsChannelsInCorrectOrder(){
+        PixelReadbackResult Frame=BuildFrame(64,64,ExtraRowPitchPadding:0,DXGI_FORMAT_B8G8R8A8_UNORM,
+            (X,Y)=>Math.Abs(X-32)<10&&Math.Abs(Y-32)<10);
 
-        TriangleVerificationResult Result = TrianglePixelVerifier.Verify(Frame, Background);
+        TriangleVerificationResult Result=TrianglePixelVerifier.Verify(Frame,Background);
 
-        Assert.True(Result.Success, Result.Details);
-        Assert.Equal(Foreground, Result.CenterColor);
+        Assert.True(Result.Success,Result.Details);
+        Assert.Equal(Foreground,Result.CenterColor);
     }
 
     [Fact]
-    public void Verify_ZeroSizedFrame_FailsCleanly()
-    {
-        PixelReadbackResult Frame = new()
-        {
-            Width = 0,
-            Height = 0,
-            RowPitch = 0,
-            Format = DXGI_FORMAT_R8G8B8A8_UNORM,
-            Pixels = [],
+    public void Verify_ZeroSizedFrame_FailsCleanly(){
+        PixelReadbackResult Frame=new(){
+            Width=0,
+            Height=0,
+            RowPitch=0,
+            Format=DXGI_FORMAT_R8G8B8A8_UNORM,
+            Pixels=[],
         };
 
-        TriangleVerificationResult Result = TrianglePixelVerifier.Verify(Frame, Background);
+        TriangleVerificationResult Result=TrianglePixelVerifier.Verify(Frame,Background);
 
         Assert.False(Result.Success);
     }

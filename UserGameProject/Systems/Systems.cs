@@ -35,60 +35,50 @@ namespace UserGameProject.Systems;
 /// types passed - so no generated Archetype identifier ever appears in hand-written code
 /// (ADR-0033). This doubles as the reference example of how to spawn from a System.
 /// </summary>
-internal struct SceneSpawn : ISystem
-{
-    public bool Update(ref SceneSpawnRequest Request, ref State state)
-    {
-        if (Request.Done || Request.Scene is not { } Scene)
-        {
+internal struct SceneSpawn:ISystem {
+    public bool Update(ref SceneSpawnRequest Request,ref State state){
+        if(Request.Done||Request.Scene is not { } Scene){
             return true;
         }
 
-        Request.Done = true;
+        Request.Done=true;
 
-        foreach (LoadedSceneSpawn Spawn in Scene.Spawns)
-        {
-            Position position = new() { X = Spawn.Position.X, Y = Spawn.Position.Y, Z = Spawn.Position.Z };
-            Rotation rotation = new() { X = Spawn.Rotation.X, Y = Spawn.Rotation.Y, Z = Spawn.Rotation.Z, W = Spawn.Rotation.W };
-            Scale scale = new() { X = Spawn.Scale.X, Y = Spawn.Scale.Y, Z = Spawn.Scale.Z };
-            RenderObjectRef renderObjectRef = new() { Index = Spawn.ObjectIndex };
+        foreach(LoadedSceneSpawn Spawn in Scene.Spawns){
+            Position position=new(){ X=Spawn.Position.X,Y=Spawn.Position.Y,Z=Spawn.Position.Z };
+            Rotation rotation=new(){ X=Spawn.Rotation.X,Y=Spawn.Rotation.Y,Z=Spawn.Rotation.Z,W=Spawn.Rotation.W };
+            Scale scale=new(){ X=Spawn.Scale.X,Y=Spawn.Scale.Y,Z=Spawn.Scale.Z };
+            RenderObjectRef renderObjectRef=new(){ Index=Spawn.ObjectIndex };
 
-            if (Spawn.Mobility == PropMobility.Movable)
-            {
-                state.World.Create(position, rotation, scale, renderObjectRef, new MovableTag());
-            }
-            else
-            {
-                state.World.Create(position, rotation, scale, renderObjectRef);
+            if(Spawn.Mobility==PropMobility.Movable){
+                state.World.Create(position,rotation,scale,renderObjectRef,new MovableTag());
+            } else {
+                state.World.Create(position,rotation,scale,renderObjectRef);
             }
         }
 
-        if (Scene.Sun is { } Sun)
-        {
+        if(Scene.Sun is { } Sun){
             state.World.Create(Sun);
         }
 
-        if (Scene.Ambient is { } Ambient)
-        {
+        if(Scene.Ambient is { } Ambient){
             state.World.Create(Ambient);
         }
 
-        if (Scene.Fog is { } Fog)
-        {
+        if(Scene.Fog is { } Fog){
             state.World.Create(Fog);
         }
 
-        Position PlayerStart = new() { X = Scene.PlayerStartPosition.X, Y = Scene.PlayerStartPosition.Y, Z = Scene.PlayerStartPosition.Z };
+        Position PlayerStart=new(){ X=Scene.PlayerStartPosition.X,Y=Scene.PlayerStartPosition.Y,Z=Scene.PlayerStartPosition.Z };
 
         state.World.Create(
             PlayerStart,
-            new Rotation { X = 0f, Y = 0f, Z = 0f, W = 1f },
-            new Health { Value = 100 },
+            new Rotation { X=0f,Y=0f,Z=0f,W=1f },
+            new Health { Value=100 },
             new VerticalMotion(),
-            new CameraRig { Yaw = Scene.PlayerStartYawRadians, Pitch = 0f },
+            new CameraRig { Yaw=Scene.PlayerStartYawRadians,Pitch=0f },
             new InputState(),
             new PlayerTag(),
-            CSharpGameEngine.Graphics.D3D12.Camera.CreateFirstPerson(new Vector3(PlayerStart.X, PlayerStart.Y + Camera.EyeHeight, PlayerStart.Z)));
+            CSharpGameEngine.Graphics.D3D12.Camera.CreateFirstPerson(new Vector3(PlayerStart.X,PlayerStart.Y+Camera.EyeHeight,PlayerStart.Z)));
 
         return true;
     }
@@ -101,24 +91,22 @@ internal struct SceneSpawn : ISystem
 /// this writes, so they stay testable with a hand-built <see cref="InputState"/> and would need no
 /// changes at all if the input backend were ever swapped out.
 /// </summary>
-internal struct Input : ISystem
-{
-    private const int VkSpace = 0x20;
+internal struct Input:ISystem {
+    private const int VkSpace=0x20;
 
-    public bool Update(ref InputState state, ref PlayerTag _, Win32Window Window, ref State GameState)
-    {
-        bool JumpKeyDown = Window.IsKeyDown(VkSpace);
-        state.JumpPressed = JumpKeyDown && !state.WasJumpKeyDown;
-        state.WasJumpKeyDown = JumpKeyDown;
+    public bool Update(ref InputState state,ref PlayerTag _,Win32Window Window,ref State GameState){
+        var JumpKeyDown=Window.IsKeyDown(VkSpace);
+        state.JumpPressed=JumpKeyDown&&!state.WasJumpKeyDown;
+        state.WasJumpKeyDown=JumpKeyDown;
 
-        state.MoveForward = Window.IsKeyDown('W');
-        state.MoveBack = Window.IsKeyDown('S');
-        state.MoveLeft = Window.IsKeyDown('A');
-        state.MoveRight = Window.IsKeyDown('D');
+        state.MoveForward=Window.IsKeyDown('W');
+        state.MoveBack=Window.IsKeyDown('S');
+        state.MoveLeft=Window.IsKeyDown('A');
+        state.MoveRight=Window.IsKeyDown('D');
 
-        (float DeltaX, float DeltaY) = Window.ConsumeMouseDelta();
-        state.LookDeltaX = DeltaX;
-        state.LookDeltaY = DeltaY;
+        (var DeltaX,var DeltaY)=Window.ConsumeMouseDelta();
+        state.LookDeltaX=DeltaX;
+        state.LookDeltaY=DeltaY;
 
         return true;
     }
@@ -132,10 +120,9 @@ internal struct Input : ISystem
 /// animation concern), so the movement basis comes from CameraRig.Yaw rather than from the
 /// previous frame's velocity direction.
 /// </summary>
-internal struct PlayerControl : ISystem
-{
-    private const float MouseYawSensitivity = 0.0025f;
-    private const float MousePitchSensitivity = 0.0025f;
+internal struct PlayerControl:ISystem {
+    private const float MouseYawSensitivity=0.0025f;
+    private const float MousePitchSensitivity=0.0025f;
 
     public bool Update(
         ref Position position,
@@ -145,11 +132,10 @@ internal struct PlayerControl : ISystem
         ref InputState inputState,
         ref PlayerTag _,
         in FrameContext Frame,
-        ref State GameState)
-    {
-        cameraRig.Yaw += inputState.LookDeltaX * MouseYawSensitivity;
-        cameraRig.Pitch = Math.Clamp(
-            cameraRig.Pitch - (inputState.LookDeltaY * MousePitchSensitivity),
+        ref State GameState){
+        cameraRig.Yaw+=inputState.LookDeltaX*MouseYawSensitivity;
+        cameraRig.Pitch=Math.Clamp(
+            cameraRig.Pitch-(inputState.LookDeltaY*MousePitchSensitivity),
             CSharpGameEngine.Graphics.D3D12.Camera.MinPitchRadiansFirstPerson,
             CSharpGameEngine.Graphics.D3D12.Camera.MaxPitchRadiansFirstPerson);
 
@@ -157,36 +143,34 @@ internal struct PlayerControl : ISystem
         // rotation are derived in RUF space (mirrors Camera.GetFlatForward/GetFlatRight, ADR-0026)
         // before converting back to the Vector3/Quaternion types CharacterMotion and the ECS
         // Rotation component still use.
-        RufQuaternion FacingRuf = RufQuaternion.FromAxisAngle(RufVector.Up, cameraRig.Yaw);
-        RufVector FlatForwardRuf = RufQuaternion.RotateVector(FacingRuf, RufVector.Forward).Normalize();
-        RufVector FlatRightRuf = Spatial<UnityCoordinateConvention>.RightFromUpForward(RufVector.Up, FlatForwardRuf);
+        RufQuaternion FacingRuf=RufQuaternion.FromAxisAngle(RufVector.Up,cameraRig.Yaw);
+        RufVector FlatForwardRuf=RufQuaternion.RotateVector(FacingRuf,RufVector.Forward).Normalize();
+        RufVector FlatRightRuf=Spatial<UnityCoordinateConvention>.RightFromUpForward(RufVector.Up,FlatForwardRuf);
 
-        Vector3 FlatForward = (Vector3)Spatial<UnityCoordinateConvention>.ToXyz(FlatForwardRuf);
-        Vector3 FlatRight = (Vector3)Spatial<UnityCoordinateConvention>.ToXyz(FlatRightRuf);
+        Vector3 FlatForward=(Vector3)Spatial<UnityCoordinateConvention>.ToXyz(FlatForwardRuf);
+        Vector3 FlatRight=(Vector3)Spatial<UnityCoordinateConvention>.ToXyz(FlatRightRuf);
 
-        CharacterMotionResult Motion = CharacterMotion.Compute(new CharacterMotionInput
-        {
-            FlatForward = FlatForward,
-            FlatRight = FlatRight,
-            MoveForward = inputState.MoveForward,
-            MoveBack = inputState.MoveBack,
-            MoveLeft = inputState.MoveLeft,
-            MoveRight = inputState.MoveRight,
-            JumpPressed = inputState.JumpPressed,
-            CurrentY = position.Y,
-            VerticalVelocity = verticalMotion.Velocity,
-            DeltaTime = Frame.DeltaTime,
+        CharacterMotionResult Motion=CharacterMotion.Compute(new CharacterMotionInput {
+            FlatForward=FlatForward,
+            FlatRight=FlatRight,
+            MoveForward=inputState.MoveForward,
+            MoveBack=inputState.MoveBack,
+            MoveLeft=inputState.MoveLeft,
+            MoveRight=inputState.MoveRight,
+            JumpPressed=inputState.JumpPressed,
+            CurrentY=position.Y,
+            VerticalVelocity=verticalMotion.Velocity,
+            DeltaTime=Frame.DeltaTime,
         });
 
-        verticalMotion = new VerticalMotion { Velocity = Motion.NewVerticalVelocity, IsGrounded = Motion.IsGrounded };
-        position = new Position
-        {
-            X = position.X + (Motion.HorizontalVelocity.X * Frame.DeltaTime),
-            Y = Motion.NewY,
-            Z = position.Z + (Motion.HorizontalVelocity.Z * Frame.DeltaTime),
+        verticalMotion=new VerticalMotion { Velocity=Motion.NewVerticalVelocity,IsGrounded=Motion.IsGrounded };
+        position=new Position {
+            X=position.X+(Motion.HorizontalVelocity.X*Frame.DeltaTime),
+            Y=Motion.NewY,
+            Z=position.Z+(Motion.HorizontalVelocity.Z*Frame.DeltaTime),
         };
 
-        rotation = new Rotation { X = FacingRuf.R, Y = FacingRuf.U, Z = FacingRuf.F, W = FacingRuf.W };
+        rotation=new Rotation { X=FacingRuf.R,Y=FacingRuf.U,Z=FacingRuf.F,W=FacingRuf.W };
 
         return true;
     }
@@ -201,19 +185,17 @@ internal struct PlayerControl : ISystem
 /// support. First-person: Camera.Target doubles as the eye position itself (see
 /// <see cref="CSharpGameEngine.Graphics.D3D12.Camera.CreateFirstPerson"/>).
 /// </summary>
-internal struct Camera : ISystem
-{
-    public const float EyeHeight = 1.6f;
+internal struct Camera:ISystem {
+    public const float EyeHeight=1.6f;
 
-    public bool Update(ref CSharpGameEngine.Graphics.D3D12.Camera camera, ref Position position, ref CameraRig cameraRig, ref PlayerTag _, ref State GameState)
-    {
+    public bool Update(ref CSharpGameEngine.Graphics.D3D12.Camera camera,ref Position position,ref CameraRig cameraRig,ref PlayerTag _,ref State GameState){
         // EyeHeight is added along RUF Up (ADR-0028), matching Camera/PlayerControl's shared
         // RUF-space convention rather than assuming which raw component is "up".
-        RufVector PositionRuf = new(position.X, position.Y, position.Z);
-        RufVector EyeRuf = PositionRuf + (RufVector.Up * EyeHeight);
-        camera.Target = (Vector3)Spatial<UnityCoordinateConvention>.ToXyz(EyeRuf);
-        camera.Yaw = cameraRig.Yaw;
-        camera.Pitch = cameraRig.Pitch;
+        RufVector PositionRuf=new(position.X,position.Y,position.Z);
+        RufVector EyeRuf=PositionRuf+(RufVector.Up*EyeHeight);
+        camera.Target=(Vector3)Spatial<UnityCoordinateConvention>.ToXyz(EyeRuf);
+        camera.Yaw=cameraRig.Yaw;
+        camera.Pitch=cameraRig.Pitch;
 
         return true;
     }
@@ -225,14 +207,12 @@ internal struct Camera : ISystem
 /// remember each prop's original position. There is no gameplay reason for the motion beyond
 /// visibly proving Static vs Movable props are independently spawnable and updatable.
 /// </summary>
-internal struct MovingProp : ISystem
-{
-    private const float SpinSpeedRadiansPerSecond = 0.8f;
+internal struct MovingProp:ISystem {
+    private const float SpinSpeedRadiansPerSecond=0.8f;
 
-    public bool Update(ref Rotation rotation, ref MovableTag _, in FrameContext Frame, ref State GameState)
-    {
-        Quaternion Spin = Quaternion.CreateFromAxisAngle(Vector3.UnitY, Frame.ElapsedSeconds * SpinSpeedRadiansPerSecond);
-        rotation = new Rotation { X = Spin.X, Y = Spin.Y, Z = Spin.Z, W = Spin.W };
+    public bool Update(ref Rotation rotation,ref MovableTag _,in FrameContext Frame,ref State GameState){
+        Quaternion Spin=Quaternion.CreateFromAxisAngle(Vector3.UnitY,Frame.ElapsedSeconds*SpinSpeedRadiansPerSecond);
+        rotation=new Rotation { X=Spin.X,Y=Spin.Y,Z=Spin.Z,W=Spin.W };
 
         return true;
     }
@@ -247,49 +227,42 @@ internal struct MovingProp : ISystem
 /// subset dispatch naturally covers both with one method - the same property the old Query-based
 /// design had, and the reason the pre-migration AoS-era code needed two near-identical overloads.
 /// </summary>
-internal struct RenderSync : ISystem
-{
-    public bool Update(ref Position position, ref Rotation rotation, ref Scale scale, ref RenderObjectRef renderObjectRef, StageRenderer Renderer, ref State GameState)
-    {
-        Renderer.SetObjectTransform(renderObjectRef.Index, ComposeTransform(position, rotation, scale));
+internal struct RenderSync:ISystem {
+    public bool Update(ref Position position,ref Rotation rotation,ref Scale scale,ref RenderObjectRef renderObjectRef,StageRenderer Renderer,ref State GameState){
+        Renderer.SetObjectTransform(renderObjectRef.Index,ComposeTransform(position,rotation,scale));
         return true;
     }
 
-    public bool Update(ref CSharpGameEngine.Graphics.D3D12.Camera camera, ref PlayerTag _, StageRenderer Renderer, ref State GameState)
-    {
+    public bool Update(ref CSharpGameEngine.Graphics.D3D12.Camera camera,ref PlayerTag _,StageRenderer Renderer,ref State GameState){
         Renderer.SetCamera(camera);
         return true;
     }
 
     /// <summary>Applies the single sun singleton, if any (0 matching entities = "not configured, leave the renderer's current/default value alone").</summary>
-    public bool Update(ref DirectionalLightData Light, StageRenderer Renderer, ref State GameState)
-    {
+    public bool Update(ref DirectionalLightData Light,StageRenderer Renderer,ref State GameState){
         Renderer.SetDirectionalLight(
-            new Vector3(Light.DirectionTowardLightX, Light.DirectionTowardLightY, Light.DirectionTowardLightZ),
-            new Vector3(Light.ColorR, Light.ColorG, Light.ColorB),
+            new Vector3(Light.DirectionTowardLightX,Light.DirectionTowardLightY,Light.DirectionTowardLightZ),
+            new Vector3(Light.ColorR,Light.ColorG,Light.ColorB),
             Light.Intensity);
 
         return true;
     }
 
-    public bool Update(ref AmbientLightData Ambient, StageRenderer Renderer, ref State GameState)
-    {
-        Renderer.SetAmbientLight(new Vector3(Ambient.ColorR, Ambient.ColorG, Ambient.ColorB));
+    public bool Update(ref AmbientLightData Ambient,StageRenderer Renderer,ref State GameState){
+        Renderer.SetAmbientLight(new Vector3(Ambient.ColorR,Ambient.ColorG,Ambient.ColorB));
         return true;
     }
 
-    public bool Update(ref FogData Fog, StageRenderer Renderer, ref State GameState)
-    {
-        Renderer.SetFog(new FogParams(Fog.Density, Fog.HeightFalloff, new Vector3(Fog.ColorR, Fog.ColorG, Fog.ColorB)));
+    public bool Update(ref FogData Fog,StageRenderer Renderer,ref State GameState){
+        Renderer.SetFog(new FogParams(Fog.Density,Fog.HeightFalloff,new Vector3(Fog.ColorR,Fog.ColorG,Fog.ColorB)));
         return true;
     }
 
-    private static Matrix4x4 ComposeTransform(in Position position, in Rotation rotation, in Scale scale)
-    {
-        Quaternion RotationQuaternion = new(rotation.X, rotation.Y, rotation.Z, rotation.W);
-        return Matrix4x4.CreateScale(scale.X, scale.Y, scale.Z)
-            * Matrix4x4.CreateFromQuaternion(RotationQuaternion)
-            * Matrix4x4.CreateTranslation(position.X, position.Y, position.Z);
+    private static Matrix4x4 ComposeTransform(in Position position,in Rotation rotation,in Scale scale){
+        Quaternion RotationQuaternion=new(rotation.X,rotation.Y,rotation.Z,rotation.W);
+        return Matrix4x4.CreateScale(scale.X,scale.Y,scale.Z)
+            *Matrix4x4.CreateFromQuaternion(RotationQuaternion)
+            *Matrix4x4.CreateTranslation(position.X,position.Y,position.Z);
     }
 }
 
@@ -305,8 +278,7 @@ internal struct RenderSync : ISystem
 /// Playerの8Component構成。どの<c>Update</c>とも一致しない(特に<see cref="Health"/>はどのSystemからも
 /// 参照されていない)ため、この宣言が無いとPlayerを生成できない。
 /// </summary>
-internal struct PlayerSpawn : ISystem
-{
+internal struct PlayerSpawn:ISystem {
     public void Spawn(
         ref Position position,
         ref Rotation rotation,
@@ -315,8 +287,7 @@ internal struct PlayerSpawn : ISystem
         ref CameraRig cameraRig,
         ref InputState inputState,
         ref PlayerTag playerTag,
-        ref CSharpGameEngine.Graphics.D3D12.Camera camera)
-    {
+        ref CSharpGameEngine.Graphics.D3D12.Camera camera){
     }
 }
 
@@ -325,14 +296,12 @@ internal struct PlayerSpawn : ISystem
 /// <see cref="MovingProp"/>(Rotation/MovableTag)の両方に部分集合一致で拾われるが、その和集合
 /// そのものはどの<c>Update</c>にも現れないため、ここで宣言する。
 /// </summary>
-internal struct MovableStagePropSpawn : ISystem
-{
+internal struct MovableStagePropSpawn:ISystem {
     public void Spawn(
         ref Position position,
         ref Rotation rotation,
         ref Scale scale,
         ref RenderObjectRef renderObjectRef,
-        ref MovableTag movableTag)
-    {
+        ref MovableTag movableTag){
     }
 }

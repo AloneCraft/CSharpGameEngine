@@ -6,14 +6,12 @@ namespace CSharpGameEngine.Audio.XAudio2;
 /// context; <see cref="XAudio2Backend"/> is the only place that casts these back to the real COM
 /// pointer types.
 /// </summary>
-public readonly struct XAudio2EngineHandle
-{
+public readonly struct XAudio2EngineHandle {
     internal readonly nint EnginePointer;
     internal readonly nint MasteringVoicePointer;
 
-    internal XAudio2EngineHandle(nint enginePointer, nint masteringVoicePointer)
-    {
-        EnginePointer = enginePointer;
-        MasteringVoicePointer = masteringVoicePointer;
+    internal XAudio2EngineHandle(nint enginePointer,nint masteringVoicePointer){
+        EnginePointer=enginePointer;
+        MasteringVoicePointer=masteringVoicePointer;
     }
 }
