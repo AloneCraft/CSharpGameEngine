@@ -1,4 +1,5 @@
 using System.Numerics;
+using CSharpGameEngine.Authoring;
 using CSharpGameEngine.Spatial.Abstractions;
 using CSharpGameEngine.Spatial.Unity;
 
@@ -36,6 +37,12 @@ public struct Camera {
     public float PitchClampMinRadians;
     public float PitchClampMaxRadians;
 
+    /// <summary>
+    /// <c>[SceneFactory]</c>: Scene DSLから呼べる(ADR-0040)。Scene DSLは任意のメソッド呼び出しを
+    /// 許可しないが、既存のstaticファクトリを全部オブジェクト初期化子へ展開させるのは実用的でないため、
+    /// 明示的にオプトインする。引数自体はScene DSLの値式でなければならない。
+    /// </summary>
+    [SceneFactory]
     public static Camera CreateDefault(Vector3 target){
         return new Camera {
             Target=target,
@@ -57,6 +64,7 @@ public struct Camera {
     /// position each frame). <see cref="GetView"/> looks along <see cref="GetForward"/> from there
     /// rather than toward a distinct target point, since eye and target would otherwise coincide.
     /// </summary>
+    [SceneFactory]
     public static Camera CreateFirstPerson(Vector3 EyePosition){
         return new Camera {
             Target=EyePosition,

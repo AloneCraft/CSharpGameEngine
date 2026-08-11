@@ -3,7 +3,7 @@ using System.Reflection;
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 
 /// <summary>
-/// GameSystemGeneratorが出力したコード(Archetype/World/GeneratedGameLoop/WorldSnapshot)を実際に
+/// GameSystemGeneratorが出力したコード(Archetype/World/GeneratedGameLoop)を実際に
 /// コンパイル・Emit・ロードして実行する。「Archetypeは閉じた集合としてコンパイル時に確定する」
 /// 「部分集合一致で複数System・複数オーバーロードが発火する」「構造変更はフレーム末尾にまとめて
 /// 適用される」という設計の中核契約を、生成された実コードで証明する最重要テスト。
@@ -217,44 +217,5 @@ public sealed class GameSystemGeneratorEndToEndTests {
         Assert.Equal("OK",Result);
     }
 
-    [Fact]
-    public void WorldSnapshot_CapturesLiveEntitiesForTheOutOfProcessBridge(){
-        var Source="""
-            using CSharpGameEngine.Entities;
-            using Sample;
-
-            namespace Game;
-
-            internal struct OnlySystem : ISystem
-            {
-                public bool Update(ref Position position, ref State state) => true;
-            }
-
-            internal static class TestEntry
-            {
-                internal static string RunScenario()
-                {
-                    World world = new();
-                    world.Create(new Position { X = 1f });
-                    world.Create(new Position { X = 2f });
-
-                    ArchetypeSnapshotEntry[] entries = WorldSnapshot.Capture(world);
-
-                    if (entries.Length != 2) return "FAIL:length=" + entries.Length;
-                    if (entries[0].EntityId != 0) return "FAIL:entityId";
-                    if (entries[0].HasParent) return "FAIL:unexpectedParent";
-                    if (entries[0].ComponentValues.Length != 1) return "FAIL:componentCount";
-                    if (((Position)entries[1].ComponentValues[0]).X != 2f) return "FAIL:componentValue";
-
-                    return "OK";
-                }
-            }
-            """;
-
-        Assembly assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
-        var Result=GameSystemGeneratorTestHelper.Invoke(assembly,"Game.TestEntry","RunScenario");
-
-        Assert.Equal("OK",Result);
-    }
 }
 

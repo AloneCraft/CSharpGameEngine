@@ -137,10 +137,9 @@ public sealed class SceneDslAnalyzerTests {
     }
 
     [Fact]
-    public void Scene117_IsNotYetReported_BecauseStartupSceneStillTargetsTheLegacyForm(){
-        // [StartupScene]をIScene実装へ再ターゲットするのはPhase 5。それまで
-        // [StartupScene]+[SceneEntity](タプルプロパティ形式)は現役の正しい仕組みであり、
-        // ここで報告すると既存の正しいコードを壊す(UserEcsProject/Scenes/MainScene.csで実測)。
+    public void Scene117_StartupSceneOnATypeThatIsNotAScene(){
+        // [StartupScene]はIScene実装にのみ意味がある。Instantiateを持たない型に付いていても
+        // 何も起きず静かに無視されるため、付け間違いとして報告する。
         ImmutableArray<Diagnostic>Diagnostics=Analyze("""
             using CSharpGameEngine.Entities;
             namespace Game;
@@ -149,7 +148,19 @@ public sealed class SceneDslAnalyzerTests {
             }
             """);
 
-        Assert.Empty(Diagnostics);
+        Assert.Equal(["SCENE117"],Ids(Diagnostics));
+    }
+
+    [Fact]
+    public void StartupSceneOnASceneDeclaration_IsAccepted(){
+        Assert.Empty(Analyze("""
+            using CSharpGameEngine.Entities;
+            namespace Game;
+            [StartupScene(Order=0)]
+            public partial class MainScene:IScene {
+                public Node Root=>new() { Name="Root" };
+            }
+            """));
     }
 
     [Fact]

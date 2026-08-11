@@ -1,4 +1,4 @@
-<Solution>
+﻿<Solution>
   <Configurations>
     <Platform Name="x64" />
   </Configurations>
@@ -110,7 +110,6 @@
     <Project Path="tests/CSharpGameEngine.SceneModel.Tests/CSharpGameEngine.SceneModel.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Entities.Tests/CSharpGameEngine.Entities.Tests.csproj" />
     <Project Path="tests/UserGameProject.Tests/UserGameProject.Tests.csproj" />
-    <Project Path="tests/CSharpGameEngine.SceneAuthoring.Cli.Tests/CSharpGameEngine.SceneAuthoring.Cli.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <File Path="tools/UnrealExport/export_lvl_firstperson.py" />
@@ -123,7 +122,6 @@
     <Project Path="tools/CSharpGameEngine.Import.Fbx.Cli/CSharpGameEngine.Import.Fbx.Cli.csproj" />
     <Project Path="tools/CSharpGameEngine.Import.Gltf.Cli/CSharpGameEngine.Import.Gltf.Cli.csproj" />
     <Project Path="tools/CSharpGameEngine.Primitive.Cli/CSharpGameEngine.Primitive.Cli.csproj" />
-    <Project Path="tools/CSharpGameEngine.SceneAuthoring.Cli/CSharpGameEngine.SceneAuthoring.Cli.csproj" />
     <Project Path="tools/CSharpGameEngine.VSExtension/CSharpGameEngine.VSExtension.csproj">
       <Deploy Solution="Debug|*" />
     </Project>

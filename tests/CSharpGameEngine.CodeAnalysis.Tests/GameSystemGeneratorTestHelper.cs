@@ -24,23 +24,6 @@ internal static class GameSystemGeneratorTestHelper {
     /// <summary>ADR-0036の<c>[SystemOrder]</c>。全コンパイルに含めても、実際に付けなければ何も変わらない。</summary>
     internal static readonly string SystemOrderAttributeSource=ReadTestAsset("SystemOrderAttribute.cs");
 
-    /// <summary>
-    /// Scene Authoringの型一式(<c>[SceneDefinition]</c>を含むテストで必要)。各ファイルは
-    /// file-scoped namespaceを持つため、1つの文字列へ連結せず個別の構文ツリーとして渡す。
-    /// </summary>
-    internal static readonly string[]SceneAuthoringSources=[
-        ReadTestAsset("SceneNodeId.cs"),
-        ReadTestAsset("SceneNodeSymbol.cs"),
-        ReadTestAsset("SceneBuilder.cs"),
-        ReadTestAsset("SceneNodeBuilder.cs"),
-        ReadTestAsset("SceneDefinitionAttribute.cs"),
-    ];
-
-    /// <summary><c>[StartupScene]</c>/<c>[SceneEntity]</c>(<see cref="StartupSceneAnalyzer"/>)を使うテストが追加で必要とする型一式。</summary>
-    internal static readonly string[]StartupSceneSources=[
-        ReadTestAsset("StartupSceneAttribute.cs"),
-        ReadTestAsset("SceneEntityAttribute.cs"),
-    ];
 
     /// <summary>
     /// <c>Runtime.cs</c>が直接参照するScene関連の型(ADR-0040)。<c>World</c>が<c>InstantiateScene&lt;TScene&gt;</c>や

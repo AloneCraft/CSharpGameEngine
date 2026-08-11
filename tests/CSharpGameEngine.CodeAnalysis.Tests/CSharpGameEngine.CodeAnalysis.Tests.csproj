@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -33,13 +33,7 @@
     <None Include="..\..\src\CSharpGameEngine.Entities\SystemOrderAttribute.cs" Link="TestAssets\Entities\SystemOrderAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Entities\Parent.cs" Link="TestAssets\Entities\Parent.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Entities\SceneNodeTag.cs" Link="TestAssets\Entities\SceneNodeTag.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\CSharpGameEngine.Entities\SceneNodeId.cs" Link="TestAssets\Entities\SceneNodeId.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\CSharpGameEngine.Entities\SceneNodeSymbol.cs" Link="TestAssets\Entities\SceneNodeSymbol.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\CSharpGameEngine.Entities\SceneBuilder.cs" Link="TestAssets\Entities\SceneBuilder.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\CSharpGameEngine.Entities\SceneNodeBuilder.cs" Link="TestAssets\Entities\SceneNodeBuilder.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\CSharpGameEngine.Entities\SceneDefinitionAttribute.cs" Link="TestAssets\Entities\SceneDefinitionAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Entities\StartupSceneAttribute.cs" Link="TestAssets\Entities\StartupSceneAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\CSharpGameEngine.Entities\SceneEntityAttribute.cs" Link="TestAssets\Entities\SceneEntityAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
     <!-- Scene DSL (ADR-0040). IScene/Node/SceneInstance/SceneInstanceTable/ISceneDefinition are
          referenced by Runtime.cs itself, so GameSystemGeneratorTestHelper includes them in *every*
          compilation - omitting one shows up immediately as CS0246 across the generator tests. -->

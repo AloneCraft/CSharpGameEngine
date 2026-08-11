@@ -62,24 +62,26 @@ public sealed class SceneDslAnalyzer:DiagnosticAnalyzer {
 
     /// <summary>
     /// <c>IScene</c>実装クラスを<see cref="SceneDeclarationAnalyzer"/>へ渡し、得られた診断をそのまま流す。
-    ///
-    /// <para>
-    /// <b>SCENE117(<c>[StartupScene]</c>は<c>IScene</c>実装にのみ付けられる)はまだ報告しない。</b>
-    /// <c>[StartupScene]</c>を<c>IScene</c>へ再ターゲットするのはPhase 5であり、現時点の
-    /// <c>[StartupScene]</c>+<c>[SceneEntity]</c>(タプルプロパティ形式)は正しく動作している現役の
-    /// 仕組みである。ここで報告すると、まだ真になっていない規則で既存の正しいコードを壊すことになる。
-    /// Descriptorは<see cref="SupportedDiagnostics"/>に載せたまま、Phase 5で
-    /// <c>[SceneEntity]</c>の削除と同時に報告を有効化する。
-    /// </para>
+    /// <c>[StartupScene]</c>が<c>IScene</c>実装でない型に付いている場合(SCENE117)もここで拾う —
+    /// その属性は<c>Instantiate</c>を持たない型に対しては何の意味も持たず、静かに無視されるため。
     /// </summary>
     private static void AnalyzeNamedType(SymbolAnalysisContext Context,SceneDslAnalysisState State){
         INamedTypeSymbol Type=(INamedTypeSymbol)Context.Symbol;
+        var ImplementsScene=SceneTypePredicates.ImplementsSceneInterface(Type);
+        (var IsStartupScene,var Order)=SceneDeclarationAnalyzer.ReadStartupScene(Type);
 
-        if(!SceneTypePredicates.ImplementsSceneInterface(Type)){
+        if(IsStartupScene&&!ImplementsScene){
+            Context.ReportDiagnostic(Diagnostic.Create(
+                SceneDslDiagnostics.StartupSceneMustImplementIScene,
+                Type.Locations.FirstOrDefault(),
+                Type.Name));
             return;
         }
 
-        (var IsStartupScene,var Order)=SceneDeclarationAnalyzer.ReadStartupScene(Type);
+        if(!ImplementsScene){
+            return;
+        }
+
         SceneModel Model=SceneDeclarationAnalyzer.Analyze(Type,Context.Compilation,Context.CancellationToken);
 
         foreach(Diagnostic Diagnostic in Model.Diagnostics){

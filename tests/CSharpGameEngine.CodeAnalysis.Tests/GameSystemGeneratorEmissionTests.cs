@@ -169,24 +169,11 @@ public sealed class GameSystemGeneratorEmissionTests {
     }
 
     [Fact]
-    public void WorldSnapshot_IsEmittedForTheOutOfProcessPreviewBridge(){
-        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
-            GameSystemGeneratorTestHelper.CommonComponents,TwoSystems);
-
-        var Text=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.Snapshot.g.cs");
-
-        Assert.Contains("public static class WorldSnapshot",Text);
-        Assert.Contains("public static ArchetypeSnapshotEntry[] Capture(in World World)",Text);
-        Assert.Contains("ComponentValues = new object[]",Text);
-    }
-
-    [Fact]
     public void PromotedSample_Compiles(){
         Assembly assembly=GameSystemGeneratorTestHelper.CompileAndLoad(
             GameSystemGeneratorTestHelper.CommonComponents,TwoSystems);
 
         Assert.NotNull(assembly.GetType("CSharpGameEngine.Generated.GeneratedGameLoop"));
-        Assert.NotNull(assembly.GetType("CSharpGameEngine.Entities.WorldSnapshot"));
     }
 
     [Fact]

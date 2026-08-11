@@ -45,7 +45,6 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
         await ShowHierarchyToolWindowCommand.InitializeAsync(this);
         await ShowShapePaletteToolWindowCommand.InitializeAsync(this);
         await ApplyGameEngineLayoutCommand.InitializeAsync(this);
-        await PreviewSceneDefinitionCommand.InitializeAsync(this);
 
         RegisterEditorFactory(new GlbFbxPreviewEditorFactory());
         RegisterEditorFactory(new SceneFileEditorFactory());

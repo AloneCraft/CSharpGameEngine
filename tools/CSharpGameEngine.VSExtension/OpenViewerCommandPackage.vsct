@@ -88,15 +88,10 @@
           <ButtonText>シェイプ パネルを表示</ButtonText>
         </Strings>
       </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="PreviewSceneDefinitionCommandId" priority="0x0100" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDefinitionContextMenuGroup" />
-        <Icon guid="ImageCatalogGuid" id="ToolWindow" />
-        <CommandFlag>DynamicVisibility</CommandFlag>
-        <CommandFlag>IconIsMoniker</CommandFlag>
-        <Strings>
-          <ButtonText>シーンプレビュー</ButtonText>
-        </Strings>
-      </Button>
+      <!-- 0x0108 (PreviewSceneDefinitionCommandId) は ADR-0040 で退役した。VSIX の Scene 表示は
+           対象プロジェクトをビルドして別プロセスで CreateRuntime を実行する方式をやめ、SceneModel を
+           直接描画する方式へ移行したため、このコマンド自体が不要になった。0x0101 と同様、この ID は
+           再利用しないこと (既にインストール済みの VS がキーバインドやカスタマイズを保持している)。 -->
     </Buttons>
   </Commands>
 
@@ -139,9 +134,13 @@
       <IDSymbol name="ShowHierarchyToolWindowCommandId" value="0x0105" />
       <IDSymbol name="ApplyGameEngineLayoutCommandId" value="0x0106" />
       <IDSymbol name="ShowShapePaletteToolWindowCommandId" value="0x0107" />
-      <IDSymbol name="PreviewSceneDefinitionCommandId" value="0x0108" />
+      <!-- 0x0108 (PreviewSceneDefinitionCommandId) retired in ADR-0040 - do not reuse; the
+           execution-based preview it triggered (build the target project, run CreateRuntime out of
+           process, read WorldSnapshot reflectively) was replaced by rendering the SceneModel
+           directly, which needs no command of its own. -->
       <IDSymbol name="CSharpGameEngineToolbar" value="0x1021" />
       <IDSymbol name="CSharpGameEngineToolbarGroup" value="0x1022" />
+      <!-- 0x1023 (SceneDefinitionContextMenuGroup) retired together with 0x0108. -->
       <IDSymbol name="SceneDefinitionContextMenuGroup" value="0x1023" />
     </GuidSymbol>
   </Symbols>

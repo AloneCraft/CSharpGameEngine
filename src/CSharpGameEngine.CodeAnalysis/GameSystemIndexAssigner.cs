@@ -6,8 +6,10 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// <summary>
 /// 診断のないSystemだけを対象に、Component型へグローバルインデックスを割り当て、Archetype集合を
 /// 導出する純粋関数(ADR-0033)。形状の要求元は3つ: <c>Update</c>オーバーロード、<c>Spawn</c>
-/// オーバーロード、そして<c>[SceneDefinition]</c>のノード形状。いずれも同一のArchetype空間へ入る
+/// オーバーロード、そして<c>IScene</c>のノード形状(ADR-0040)。いずれも同一のArchetype空間へ入る
 /// (単一の<c>partial struct World</c>/<c>enum Archetype</c>を作るため、生成は1回しか行えない)。
+/// Scene由来の集合は<c>AdditionalComponentSets</c>として<b>実Systemの後に</b>登録されるため、
+/// Sceneを足してもSystem由来のArchetype番号は動かない。
 ///
 /// <para>
 /// 実行順序(ADR-0033決定事項1)は「ソース上の記述順」。整列は<see cref="GameSystemExecutionOrder"/>に
