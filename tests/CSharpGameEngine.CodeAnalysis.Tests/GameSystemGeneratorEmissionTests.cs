@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using Microsoft.CodeAnalysis;
 
 namespace CSharpGameEngine.CodeAnalysis.Tests;
@@ -25,44 +25,44 @@ public sealed class GameSystemGeneratorEmissionTests
     [Fact]
     public void ArchetypesAreNamedByDiscoveryOrder_NotByComponentIndexConcatenation()
     {
-        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(
+        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
             GameSystemGeneratorTestHelper.CommonComponents, TwoSystems);
 
-        Assert.Empty(result.Diagnostics);
+        Assert.Empty(Result.Diagnostics);
 
-        string text = GameSystemGeneratorTestHelper.GeneratedText(result, "GameSystem.Types.g.cs");
+        string Text = GameSystemGeneratorTestHelper.GeneratedText(Result, "GameSystem.Types.g.cs");
 
         // ADR-0033: Archetype名は出現順の連番。Component集合を連結した名前(Archetype0001…)は、
         // 読めない上にComponentを1つ足すだけで全部の名前が変わってしまうため採用していない。
-        Assert.Contains("public enum Archetype\n{\n    Archetype0,\n    Archetype1,\n}", text);
-        Assert.Contains("public sealed class Archetype0 : IArchetype", text);
-        Assert.Contains("public sealed class Archetype1 : IArchetype", text);
+        Assert.Contains("public enum Archetype\n{\n    Archetype0,\n    Archetype1,\n}", Text);
+        Assert.Contains("public sealed class Archetype0 : IArchetype", Text);
+        Assert.Contains("public sealed class Archetype1 : IArchetype", Text);
     }
 
     [Fact]
     public void CreateFactory_ReturnsTheCreatedEntity()
     {
-        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(
+        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
             GameSystemGeneratorTestHelper.CommonComponents, TwoSystems);
 
-        string text = GameSystemGeneratorTestHelper.GeneratedText(result, "GameSystem.Types.g.cs");
+        string Text = GameSystemGeneratorTestHelper.GeneratedText(Result, "GameSystem.Types.g.cs");
 
-        Assert.Contains("public static Entity Create(ref World World,", text);
-        Assert.Contains("        return Entity;", text);
+        Assert.Contains("public static Entity Create(ref World World,", Text);
+        Assert.Contains("        return Entity;", Text);
     }
 
     [Fact]
     public void WorldGetsCreateOverloads_SoCallersNeverNameAnArchetype()
     {
-        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(
+        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
             GameSystemGeneratorTestHelper.CommonComponents, TwoSystems);
 
-        string text = GameSystemGeneratorTestHelper.GeneratedText(result, "GameSystem.World.g.cs");
+        string Text = GameSystemGeneratorTestHelper.GeneratedText(Result, "GameSystem.World.g.cs");
 
-        Assert.Contains("public Entity Create(global::Sample.Position Position)", text);
-        Assert.Contains("public Entity Create(global::Sample.Position Position, global::Sample.Velocity Velocity)", text);
-        Assert.Contains("public bool MoveArchetype(Entity Entity, global::Sample.Position Position, ref State State)", text);
-        Assert.Contains("public void PlaybackMoveArchetypes(ref State State)", text);
+        Assert.Contains("public Entity Create(global::Sample.Position Position)", Text);
+        Assert.Contains("public Entity Create(global::Sample.Position Position, global::Sample.Velocity Velocity)", Text);
+        Assert.Contains("public bool MoveArchetype(Entity Entity, global::Sample.Position Position, ref State State)", Text);
+        Assert.Contains("public void PlaybackMoveArchetypes(ref State State)", Text);
     }
 
     [Fact]
@@ -70,38 +70,38 @@ public sealed class GameSystemGeneratorEmissionTests
     {
         // FirstSystem/SecondSystem は宣言順どおりに呼ばれなければならない(ADR-0033決定事項1:
         // Component引数が全てrefになった結果、Write→Readの自動順序決定は原理的に不可能)。
-        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(
+        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
             GameSystemGeneratorTestHelper.CommonComponents, TwoSystems);
 
-        string text = GameSystemGeneratorTestHelper.GeneratedText(result, "GameSystem.Loop.g.cs");
+        string Text = GameSystemGeneratorTestHelper.GeneratedText(Result, "GameSystem.Loop.g.cs");
 
-        int first = text.IndexOf("firstSystem.Update(", StringComparison.Ordinal);
-        int second = text.IndexOf("secondSystem.Update(", StringComparison.Ordinal);
+        int First = Text.IndexOf("firstSystem.Update(", StringComparison.Ordinal);
+        int Second = Text.IndexOf("secondSystem.Update(", StringComparison.Ordinal);
 
-        Assert.True(first >= 0 && second >= 0, "both systems must be dispatched");
-        Assert.True(first < second, "declaration order must be preserved");
+        Assert.True(First >= 0 && Second >= 0, "both systems must be dispatched");
+        Assert.True(First < Second, "declaration order must be preserved");
     }
 
     [Fact]
     public void SubsetDispatch_RunsASmallerOverloadAgainstASupersetArchetype()
     {
-        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(
+        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
             GameSystemGeneratorTestHelper.CommonComponents, TwoSystems);
 
-        string text = GameSystemGeneratorTestHelper.GeneratedText(result, "GameSystem.Loop.g.cs");
+        string Text = GameSystemGeneratorTestHelper.GeneratedText(Result, "GameSystem.Loop.g.cs");
 
         // Archetype1 は {Position, Velocity}。{Position} だけを要求する FirstSystem もここに一致する。
-        int archetype1Loop = text.IndexOf("State.World.Archetype1.Count", StringComparison.Ordinal);
-        string archetype1Body = text[archetype1Loop..];
+        int Archetype1Loop = Text.IndexOf("State.World.Archetype1.Count", StringComparison.Ordinal);
+        string Archetype1Body = Text[Archetype1Loop..];
 
-        Assert.Contains("firstSystem.Update(ref State.World.Archetype1.GetPositionRefUnchecked(Index), ref State)", archetype1Body);
-        Assert.Contains("secondSystem.Update(ref State.World.Archetype1.GetPositionRefUnchecked(Index), ref State.World.Archetype1.GetVelocityRefUnchecked(Index), ref State)", archetype1Body);
+        Assert.Contains("firstSystem.Update(ref State.World.Archetype1.GetPositionRefUnchecked(Index), ref State)", Archetype1Body);
+        Assert.Contains("secondSystem.Update(ref State.World.Archetype1.GetPositionRefUnchecked(Index), ref State.World.Archetype1.GetVelocityRefUnchecked(Index), ref State)", Archetype1Body);
     }
 
     [Fact]
     public void SpawnMethod_RegistersAnArchetypeButIsNeverDispatched()
     {
-        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(
+        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
             GameSystemGeneratorTestHelper.CommonComponents,
             """
             using CSharpGameEngine.Entities;
@@ -120,23 +120,23 @@ public sealed class GameSystemGeneratorEmissionTests
             }
             """);
 
-        Assert.Empty(result.Diagnostics);
+        Assert.Empty(Result.Diagnostics);
 
-        string types = GameSystemGeneratorTestHelper.GeneratedText(result, "GameSystem.Types.g.cs");
-        string loop = GameSystemGeneratorTestHelper.GeneratedText(result, "GameSystem.Loop.g.cs");
+        string Types = GameSystemGeneratorTestHelper.GeneratedText(Result, "GameSystem.Types.g.cs");
+        string Loop = GameSystemGeneratorTestHelper.GeneratedText(Result, "GameSystem.Loop.g.cs");
 
         // Spawnが宣言した {Position, Health} のArchetypeとCreateは生成される。
-        Assert.Contains("global::Sample.Health Health", types);
+        Assert.Contains("global::Sample.Health Health", Types);
 
         // しかしSpawn自体はディスパッチされない。
-        Assert.DoesNotContain("healthSpawn", loop);
-        Assert.DoesNotContain(".Spawn(", loop);
+        Assert.DoesNotContain("healthSpawn", Loop);
+        Assert.DoesNotContain(".Spawn(", Loop);
     }
 
     [Fact]
     public void ContextParameters_AreThreadedThroughRunFrame()
     {
-        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(
+        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
             GameSystemGeneratorTestHelper.CommonComponents,
             """
             using CSharpGameEngine.Entities;
@@ -150,27 +150,27 @@ public sealed class GameSystemGeneratorEmissionTests
             }
             """);
 
-        Assert.Empty(result.Diagnostics);
+        Assert.Empty(Result.Diagnostics);
 
-        string text = GameSystemGeneratorTestHelper.GeneratedText(result, "GameSystem.Loop.g.cs");
+        string Text = GameSystemGeneratorTestHelper.GeneratedText(Result, "GameSystem.Loop.g.cs");
 
         // 構造体Contextは`in`、参照型Contextは値渡し(属性は一切使わず、ref-kindだけで判別される)。
-        Assert.Contains("in global::Sample.FrameContext frameContext", text);
-        Assert.Contains("global::Sample.Log log", text);
-        Assert.Contains("contextSystem.Update(ref State.World.Archetype0.GetPositionRefUnchecked(Index), in frameContext, log, ref State)", text);
+        Assert.Contains("in global::Sample.FrameContext frameContext", Text);
+        Assert.Contains("global::Sample.Log log", Text);
+        Assert.Contains("contextSystem.Update(ref State.World.Archetype0.GetPositionRefUnchecked(Index), in frameContext, log, ref State)", Text);
     }
 
     [Fact]
     public void WorldSnapshot_IsEmittedForTheOutOfProcessPreviewBridge()
     {
-        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(
+        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
             GameSystemGeneratorTestHelper.CommonComponents, TwoSystems);
 
-        string text = GameSystemGeneratorTestHelper.GeneratedText(result, "GameSystem.Snapshot.g.cs");
+        string Text = GameSystemGeneratorTestHelper.GeneratedText(Result, "GameSystem.Snapshot.g.cs");
 
-        Assert.Contains("public static class WorldSnapshot", text);
-        Assert.Contains("public static ArchetypeSnapshotEntry[] Capture(in World World)", text);
-        Assert.Contains("ComponentValues = new object[]", text);
+        Assert.Contains("public static class WorldSnapshot", Text);
+        Assert.Contains("public static ArchetypeSnapshotEntry[] Capture(in World World)", Text);
+        Assert.Contains("ComponentValues = new object[]", Text);
     }
 
     [Fact]
@@ -186,21 +186,21 @@ public sealed class GameSystemGeneratorEmissionTests
     [Fact]
     public void GeneratorIsDeterministic_AcrossTwoIndependentRuns()
     {
-        GeneratorDriverRunResult first = GameSystemGeneratorTestHelper.RunGenerator(
+        GeneratorDriverRunResult First = GameSystemGeneratorTestHelper.RunGenerator(
             GameSystemGeneratorTestHelper.CommonComponents, TwoSystems);
-        GeneratorDriverRunResult second = GameSystemGeneratorTestHelper.RunGenerator(
+        GeneratorDriverRunResult Second = GameSystemGeneratorTestHelper.RunGenerator(
             GameSystemGeneratorTestHelper.CommonComponents, TwoSystems);
 
-        string[] firstTexts = [.. first.Results[0].GeneratedSources.OrderBy(s => s.HintName, StringComparer.Ordinal).Select(s => s.HintName + "\n" + s.SourceText)];
-        string[] secondTexts = [.. second.Results[0].GeneratedSources.OrderBy(s => s.HintName, StringComparer.Ordinal).Select(s => s.HintName + "\n" + s.SourceText)];
+        string[] FirstTexts = [.. First.Results[0].GeneratedSources.OrderBy(S => S.HintName, StringComparer.Ordinal).Select(S => S.HintName + "\n" + S.SourceText)];
+        string[] SecondTexts = [.. Second.Results[0].GeneratedSources.OrderBy(S => S.HintName, StringComparer.Ordinal).Select(S => S.HintName + "\n" + S.SourceText)];
 
-        Assert.Equal(firstTexts, secondTexts);
+        Assert.Equal(FirstTexts, SecondTexts);
     }
 
     [Fact]
     public void SystemWithDiagnostics_IsExcluded_ButValidSystemsStillGenerate()
     {
-        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(
+        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
             GameSystemGeneratorTestHelper.CommonComponents,
             """
             using CSharpGameEngine.Entities;
@@ -219,12 +219,12 @@ public sealed class GameSystemGeneratorEmissionTests
             }
             """);
 
-        Assert.Contains(result.Diagnostics, d => d.Id == "SYSGEN013");
+        Assert.Contains(Result.Diagnostics, D => D.Id == "SYSGEN013");
 
-        string loop = GameSystemGeneratorTestHelper.GeneratedText(result, "GameSystem.Loop.g.cs");
+        string Loop = GameSystemGeneratorTestHelper.GeneratedText(Result, "GameSystem.Loop.g.cs");
 
-        Assert.Contains("validSystem", loop);
-        Assert.DoesNotContain("brokenSystem", loop);
+        Assert.Contains("validSystem", Loop);
+        Assert.DoesNotContain("brokenSystem", Loop);
     }
 }
 

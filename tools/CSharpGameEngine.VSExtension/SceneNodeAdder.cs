@@ -17,76 +17,76 @@ namespace CSharpGameEngine.VSExtension;
 internal static class SceneNodeAdder
 {
     /// <summary>
-    /// Adds <paramref name="absoluteMeshPath"/> as a new node named after <paramref name="nameHint"/>
-    /// (de-duplicated against existing node names). Returns false with <paramref name="errorMessage"/>
+    /// Adds <paramref name="AbsoluteMeshPath"/> as a new node named after <paramref name="NameHint"/>
+    /// (de-duplicated against existing node names). Returns false with <paramref name="ErrorMessage"/>
     /// set if no scene is currently open - callers decide how to surface that (message box, status
     /// bar, etc.) rather than this method popping UI itself.
     /// </summary>
-    public static bool TryAddAssetNode(string absoluteMeshPath, string nameHint, out string? errorMessage)
+    public static bool TryAddAssetNode(string AbsoluteMeshPath, string NameHint, out string? ErrorMessage)
     {
         ThreadHelper.ThrowIfNotOnUIThread();
 
-        (SceneFile Scene, string Path)? active = SceneEditorHub.ActiveScene;
-        if (active is null)
+        (SceneFile Scene, string Path)? Active = SceneEditorHub.ActiveScene;
+        if (Active is null)
         {
-            errorMessage = "アセットを配置するには、先にシーンファイル(.scene)を開いてください。";
+            ErrorMessage = "アセットを配置するには、先にシーンファイル(.scene)を開いてください。";
             return false;
         }
 
-        (SceneFile scene, string scenePath) = active.Value;
-        string sceneDirectory = Path.GetDirectoryName(scenePath)
-            ?? throw new InvalidOperationException($"シーンファイルのディレクトリを解決できませんでした: {scenePath}");
+        (SceneFile Scene, string ScenePath) = Active.Value;
+        string SceneDirectory = Path.GetDirectoryName(ScenePath)
+            ?? throw new InvalidOperationException($"シーンファイルのディレクトリを解決できませんでした: {ScenePath}");
 
-        string relativeMeshPath = GetRelativePath(sceneDirectory, absoluteMeshPath);
+        string RelativeMeshPath = GetRelativePath(SceneDirectory, AbsoluteMeshPath);
 
-        SceneFileNode node = new()
+        SceneFileNode Node = new()
         {
             Id = Guid.NewGuid(),
-            Name = GenerateUniqueName(scene, nameHint),
-            ParentId = scene.FindFirstRootNodeId(),
+            Name = GenerateUniqueName(Scene, NameHint),
+            ParentId = Scene.FindFirstRootNodeId(),
             Position = Vector3.Zero,
             Rotation = Quaternion.Identity,
             Scale = Vector3.One,
-            MeshAssetPath = relativeMeshPath,
+            MeshAssetPath = RelativeMeshPath,
         };
 
-        SceneFile updated = scene.AddNode(node);
-        updated.Save(scenePath);
+        SceneFile Updated = Scene.AddNode(Node);
+        Updated.Save(ScenePath);
 
         SceneEditorHub.RequestReload();
 
-        errorMessage = null;
+        ErrorMessage = null;
         return true;
     }
 
-    public static string GenerateUniqueName(SceneFile scene, string baseName)
+    public static string GenerateUniqueName(SceneFile Scene, string BaseName)
     {
-        if (!scene.ContainsNodeNamed(baseName))
+        if (!Scene.ContainsNodeNamed(BaseName))
         {
-            return baseName;
+            return BaseName;
         }
 
-        int suffix = 1;
-        string candidate;
+        int Suffix = 1;
+        string Candidate;
         do
         {
-            candidate = $"{baseName}_{suffix}";
-            suffix++;
+            Candidate = $"{BaseName}_{Suffix}";
+            Suffix++;
         }
-        while (scene.ContainsNodeNamed(candidate));
+        while (Scene.ContainsNodeNamed(Candidate));
 
-        return candidate;
+        return Candidate;
     }
 
     /// <summary><c>Path.GetRelativePath</c> does not exist on net472's BCL (it's a .NET Core 2.0+/netstandard2.1 addition) - the classic <see cref="Uri.MakeRelativeUri"/> workaround produces the same forward-slash-separated result the scene JSON schema expects.</summary>
-    public static string GetRelativePath(string fromDirectory, string toPath)
+    public static string GetRelativePath(string FromDirectory, string ToPath)
     {
-        string fromDirectoryWithSeparator = fromDirectory.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)
-            ? fromDirectory
-            : fromDirectory + Path.DirectorySeparatorChar;
+        string FromDirectoryWithSeparator = FromDirectory.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)
+            ? FromDirectory
+            : FromDirectory + Path.DirectorySeparatorChar;
 
-        Uri fromUri = new(fromDirectoryWithSeparator);
-        Uri toUri = new(toPath);
-        return Uri.UnescapeDataString(fromUri.MakeRelativeUri(toUri).ToString());
+        Uri FromUri = new(FromDirectoryWithSeparator);
+        Uri ToUri = new(ToPath);
+        return Uri.UnescapeDataString(FromUri.MakeRelativeUri(ToUri).ToString());
     }
 }

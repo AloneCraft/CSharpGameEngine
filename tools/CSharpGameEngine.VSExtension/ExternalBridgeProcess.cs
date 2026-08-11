@@ -31,88 +31,88 @@ namespace CSharpGameEngine.VSExtension;
 /// </summary>
 internal static class ExternalBridgeProcess
 {
-    public static string RunAndReadJson(string bridgeProjectRelativePath, string inputPath, string outputJsonPath, string repoRoot, TimeSpan timeout, bool useResidentServer)
+    public static string RunAndReadJson(string BridgeProjectRelativePath, string InputPath, string OutputJsonPath, string RepoRoot, TimeSpan timeout, bool UseResidentServer)
     {
-        RunProcess(bridgeProjectRelativePath, inputPath, outputJsonPath, repoRoot, timeout, useResidentServer);
+        RunProcess(BridgeProjectRelativePath, InputPath, OutputJsonPath, RepoRoot, timeout, UseResidentServer);
 
-        if (!File.Exists(outputJsonPath))
+        if (!File.Exists(OutputJsonPath))
         {
-            throw new InvalidOperationException($"インポートブリッジ({bridgeProjectRelativePath})が出力ファイルを生成しませんでした。");
+            throw new InvalidOperationException($"インポートブリッジ({BridgeProjectRelativePath})が出力ファイルを生成しませんでした。");
         }
 
-        return File.ReadAllText(outputJsonPath);
+        return File.ReadAllText(OutputJsonPath);
     }
 
     /// <summary>Like <see cref="RunAndReadJson"/> but for a bridge that writes a binary file (e.g. a <c>.glb</c>) the caller will load separately rather than read back as text here.</summary>
-    public static void RunProducingFile(string bridgeProjectRelativePath, string firstArg, string outputPath, string repoRoot, TimeSpan timeout, bool useResidentServer)
+    public static void RunProducingFile(string BridgeProjectRelativePath, string FirstArg, string OutputPath, string RepoRoot, TimeSpan timeout, bool UseResidentServer)
     {
-        RunProcess(bridgeProjectRelativePath, firstArg, outputPath, repoRoot, timeout, useResidentServer);
+        RunProcess(BridgeProjectRelativePath, FirstArg, OutputPath, RepoRoot, timeout, UseResidentServer);
 
-        if (!File.Exists(outputPath))
+        if (!File.Exists(OutputPath))
         {
-            throw new InvalidOperationException($"生成ブリッジ({bridgeProjectRelativePath})が出力ファイルを生成しませんでした。");
+            throw new InvalidOperationException($"生成ブリッジ({BridgeProjectRelativePath})が出力ファイルを生成しませんでした。");
         }
     }
 
-    private static void RunProcess(string bridgeProjectRelativePath, string firstArg, string outputPath, string repoRoot, TimeSpan timeout, bool useResidentServer)
+    private static void RunProcess(string BridgeProjectRelativePath, string FirstArg, string OutputPath, string RepoRoot, TimeSpan timeout, bool UseResidentServer)
     {
-        string? executablePath = BridgeExecutableLocator.FindExecutable(repoRoot, bridgeProjectRelativePath);
+        string? ExecutablePath = BridgeExecutableLocator.FindExecutable(RepoRoot, BridgeProjectRelativePath);
 
-        if (executablePath is not null && useResidentServer &&
-            ResidentBridgeClient.TryRun(executablePath, repoRoot, bridgeProjectRelativePath, firstArg, outputPath, timeout, out int residentExitCode, out string residentOutput))
+        if (ExecutablePath is not null && UseResidentServer &&
+            ResidentBridgeClient.TryRun(ExecutablePath, RepoRoot, BridgeProjectRelativePath, FirstArg, OutputPath, timeout, out int ResidentExitCode, out string ResidentOutput))
         {
-            if (residentExitCode != 0)
+            if (ResidentExitCode != 0)
             {
                 throw new InvalidOperationException(
-                    $"インポートブリッジ({bridgeProjectRelativePath})がエラー終了しました(exit code {residentExitCode})。\n{residentOutput}");
+                    $"インポートブリッジ({BridgeProjectRelativePath})がエラー終了しました(exit code {ResidentExitCode})。\n{ResidentOutput}");
             }
 
             return;
         }
 
-        RunOneShotProcess(bridgeProjectRelativePath, firstArg, outputPath, repoRoot, timeout, executablePath);
+        RunOneShotProcess(BridgeProjectRelativePath, FirstArg, OutputPath, RepoRoot, timeout, ExecutablePath);
     }
 
-    private static void RunOneShotProcess(string bridgeProjectRelativePath, string firstArg, string outputPath, string repoRoot, TimeSpan timeout, string? executablePath)
+    private static void RunOneShotProcess(string BridgeProjectRelativePath, string FirstArg, string OutputPath, string RepoRoot, TimeSpan timeout, string? ExecutablePath)
     {
-        ProcessStartInfo startInfo = executablePath is not null
-            ? new ProcessStartInfo(executablePath, $"\"{firstArg}\" \"{outputPath}\"")
+        ProcessStartInfo StartInfo = ExecutablePath is not null
+            ? new ProcessStartInfo(ExecutablePath, $"\"{FirstArg}\" \"{OutputPath}\"")
             : new ProcessStartInfo(
                 "dotnet",
-                $"run --project \"{bridgeProjectRelativePath}\" -- \"{firstArg}\" \"{outputPath}\"");
+                $"run --project \"{BridgeProjectRelativePath}\" -- \"{FirstArg}\" \"{OutputPath}\"");
 
-        startInfo.WorkingDirectory = repoRoot;
-        startInfo.UseShellExecute = false;
-        startInfo.RedirectStandardOutput = true;
-        startInfo.RedirectStandardError = true;
-        startInfo.CreateNoWindow = true;
+        StartInfo.WorkingDirectory = RepoRoot;
+        StartInfo.UseShellExecute = false;
+        StartInfo.RedirectStandardOutput = true;
+        StartInfo.RedirectStandardError = true;
+        StartInfo.CreateNoWindow = true;
 
-        using Process process = new() { StartInfo = startInfo };
+        using Process process = new() { StartInfo = StartInfo };
 
         // Read both streams via the event-based API (BeginOutputReadLine/BeginErrorReadLine)
         // before WaitForExit: reading them synchronously and sequentially here would deadlock if
         // the child fills the OS pipe buffer for the stream being read second while blocked
         // writing to the (unread) first stream.
-        StringBuilder stdout = new();
-        StringBuilder stderr = new();
-        process.OutputDataReceived += (_, e) => { if (e.Data is not null) stdout.AppendLine(e.Data); };
-        process.ErrorDataReceived += (_, e) => { if (e.Data is not null) stderr.AppendLine(e.Data); };
+        StringBuilder Stdout = new();
+        StringBuilder Stderr = new();
+        process.OutputDataReceived += (_, E) => { if (E.Data is not null) Stdout.AppendLine(E.Data); };
+        process.ErrorDataReceived += (_, E) => { if (E.Data is not null) Stderr.AppendLine(E.Data); };
 
         process.Start();
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
 
-        bool exited = process.WaitForExit((int)timeout.TotalMilliseconds);
-        if (!exited)
+        bool Exited = process.WaitForExit((int)timeout.TotalMilliseconds);
+        if (!Exited)
         {
             try { process.Kill(); } catch (InvalidOperationException) { }
-            throw new TimeoutException($"インポートブリッジ({bridgeProjectRelativePath})が{timeout.TotalSeconds}秒以内に終了しませんでした。");
+            throw new TimeoutException($"インポートブリッジ({BridgeProjectRelativePath})が{timeout.TotalSeconds}秒以内に終了しませんでした。");
         }
 
         if (process.ExitCode != 0)
         {
             throw new InvalidOperationException(
-                $"インポートブリッジ({bridgeProjectRelativePath})がエラー終了しました(exit code {process.ExitCode})。\n{stdout}\n{stderr}");
+                $"インポートブリッジ({BridgeProjectRelativePath})がエラー終了しました(exit code {process.ExitCode})。\n{Stdout}\n{Stderr}");
         }
     }
 }
@@ -132,38 +132,38 @@ internal static class BridgeExecutableLocator
 {
     private static readonly string[] Configurations = ["Release", "Debug"];
 
-    public static string? FindExecutable(string repoRoot, string bridgeProjectRelativePath)
+    public static string? FindExecutable(string RepoRoot, string BridgeProjectRelativePath)
     {
-        string exeFileName = Path.GetFileName(bridgeProjectRelativePath) + ".exe";
-        string binDirectory = Path.Combine(repoRoot, bridgeProjectRelativePath, "bin");
+        string ExeFileName = Path.GetFileName(BridgeProjectRelativePath) + ".exe";
+        string BinDirectory = Path.Combine(RepoRoot, BridgeProjectRelativePath, "bin");
 
-        string? best = null;
-        DateTime bestWriteTimeUtc = DateTime.MinValue;
+        string? Best = null;
+        DateTime BestWriteTimeUtc = DateTime.MinValue;
 
-        foreach (string configuration in Configurations)
+        foreach (string Configuration in Configurations)
         {
-            string[] candidates =
+            string[] Candidates =
             [
-                Path.Combine(binDirectory, configuration, "net10.0", exeFileName),
-                Path.Combine(binDirectory, configuration, "net10.0", "win-x64", exeFileName),
+                Path.Combine(BinDirectory, Configuration, "net10.0", ExeFileName),
+                Path.Combine(BinDirectory, Configuration, "net10.0", "win-x64", ExeFileName),
             ];
 
-            foreach (string candidate in candidates)
+            foreach (string Candidate in Candidates)
             {
-                if (!File.Exists(candidate))
+                if (!File.Exists(Candidate))
                 {
                     continue;
                 }
 
-                DateTime writeTimeUtc = File.GetLastWriteTimeUtc(candidate);
-                if (best is null || writeTimeUtc > bestWriteTimeUtc)
+                DateTime WriteTimeUtc = File.GetLastWriteTimeUtc(Candidate);
+                if (Best is null || WriteTimeUtc > BestWriteTimeUtc)
                 {
-                    best = candidate;
-                    bestWriteTimeUtc = writeTimeUtc;
+                    Best = Candidate;
+                    BestWriteTimeUtc = WriteTimeUtc;
                 }
             }
         }
 
-        return best;
+        return Best;
     }
 }

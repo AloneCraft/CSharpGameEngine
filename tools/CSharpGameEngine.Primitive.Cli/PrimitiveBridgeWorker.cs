@@ -17,13 +17,13 @@ namespace CSharpGameEngine.Primitive.Cli;
 /// </summary>
 internal static class PrimitiveBridgeWorker
 {
-    public static (int ExitCode, string Output) Run(string primitiveName, string outputPath)
+    public static (int ExitCode, string Output) Run(string PrimitiveName, string OutputPath)
     {
         // Fixed default dimensions - no size/segment-count configuration UI exists yet (ADR-0021); a
         // future Inspector-driven "add with parameters" flow can extend this switch. "Rectangle"
         // reuses the existing CreatePlane (already used for the ground plane elsewhere) rather than
         // a new method.
-        ProceduralMeshData? mesh = primitiveName switch
+        ProceduralMeshData? Mesh = PrimitiveName switch
         {
             "Box" => ProceduralMeshFactory.CreateBox(new Vector3(1f, 1f, 1f)),
             "Sphere" => ProceduralMeshFactory.CreateSphere(0.5f),
@@ -36,35 +36,35 @@ internal static class PrimitiveBridgeWorker
             _ => null,
         };
 
-        if (mesh is null)
+        if (Mesh is null)
         {
-            return (1, $"Unknown primitive name: {primitiveName}");
+            return (1, $"Unknown primitive name: {PrimitiveName}");
         }
 
-        SaveAsGlb(mesh.Value, primitiveName, outputPath);
+        SaveAsGlb(Mesh.Value, PrimitiveName, OutputPath);
         return (0, string.Empty);
     }
 
-    private static void SaveAsGlb(ProceduralMeshData mesh, string meshName, string outputPath)
+    private static void SaveAsGlb(ProceduralMeshData Mesh, string MeshName, string OutputPath)
     {
-        MeshBuilder<VertexPositionNormal, VertexEmpty, VertexEmpty> meshBuilder = new(meshName);
-        var primitive = meshBuilder.UsePrimitive(new MaterialBuilder(meshName).WithMetallicRoughness());
+        MeshBuilder<VertexPositionNormal, VertexEmpty, VertexEmpty> meshBuilder = new(MeshName);
+        var primitive = meshBuilder.UsePrimitive(new MaterialBuilder(MeshName).WithMetallicRoughness());
 
-        for (int i = 0; i + 2 < mesh.Indices.Length; i += 3)
+        for (int i = 0; i + 2 < Mesh.Indices.Length; i += 3)
         {
-            uint ia = mesh.Indices[i];
-            uint ib = mesh.Indices[i + 1];
-            uint ic = mesh.Indices[i + 2];
+            uint Ia = Mesh.Indices[i];
+            uint Ib = Mesh.Indices[i + 1];
+            uint Ic = Mesh.Indices[i + 2];
 
-            VertexPositionNormal va = new(mesh.Positions[ia], mesh.Normals[ia]);
-            VertexPositionNormal vb = new(mesh.Positions[ib], mesh.Normals[ib]);
-            VertexPositionNormal vc = new(mesh.Positions[ic], mesh.Normals[ic]);
+            VertexPositionNormal Va = new(Mesh.Positions[Ia], Mesh.Normals[Ia]);
+            VertexPositionNormal Vb = new(Mesh.Positions[Ib], Mesh.Normals[Ib]);
+            VertexPositionNormal Vc = new(Mesh.Positions[Ic], Mesh.Normals[Ic]);
 
-            primitive.AddTriangle(va, vb, vc);
+            primitive.AddTriangle(Va, Vb, Vc);
         }
 
         SceneBuilder sceneBuilder = new();
         sceneBuilder.AddRigidMesh(meshBuilder, Matrix4x4.Identity);
-        sceneBuilder.ToGltf2().SaveGLB(outputPath);
+        sceneBuilder.ToGltf2().SaveGLB(OutputPath);
     }
 }

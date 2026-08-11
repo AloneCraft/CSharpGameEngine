@@ -39,14 +39,14 @@ public sealed class CSharpGameEngineBootstrapGenerator : IIncrementalGenerator
         "",
     ];
 
-    public void Initialize(IncrementalGeneratorInitializationContext context)
+    public void Initialize(IncrementalGeneratorInitializationContext Context)
     {
-        context.RegisterPostInitializationOutput(EmitBootstrapSource);
+        Context.RegisterPostInitializationOutput(EmitBootstrapSource);
     }
 
-    private static void EmitBootstrapSource(IncrementalGeneratorPostInitializationContext context)
+    private static void EmitBootstrapSource(IncrementalGeneratorPostInitializationContext Context)
     {
-        string source = string.Join("\n", GeneratedSourceLines);
-        context.AddSource(GeneratedHintName, SourceText.From(source, Encoding.UTF8));
+        string Source = string.Join("\n", GeneratedSourceLines);
+        Context.AddSource(GeneratedHintName, SourceText.From(Source, Encoding.UTF8));
     }
 }

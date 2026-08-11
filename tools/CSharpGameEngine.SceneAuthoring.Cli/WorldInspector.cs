@@ -25,84 +25,84 @@ namespace CSharpGameEngine.SceneAuthoring.Cli;
 /// </summary>
 internal static class WorldInspector
 {
-    internal static IReadOnlyList<ScenePreviewNode> Inspect(Array snapshot)
+    internal static IReadOnlyList<ScenePreviewNode> Inspect(Array Snapshot)
     {
-        List<ScenePreviewNode> nodes = [];
+        List<ScenePreviewNode> Nodes = [];
 
-        foreach (object? boxedEntry in snapshot)
+        foreach (object? BoxedEntry in Snapshot)
         {
-            if (boxedEntry is null)
+            if (BoxedEntry is null)
             {
                 continue;
             }
 
-            Type entryType = boxedEntry.GetType();
-            RawNode node = new(ReadInt(entryType, boxedEntry, "EntityId"));
+            Type EntryType = BoxedEntry.GetType();
+            RawNode Node = new(ReadInt(EntryType, BoxedEntry, "EntityId"));
 
-            if (ReadBool(entryType, boxedEntry, "HasParent"))
+            if (ReadBool(EntryType, BoxedEntry, "HasParent"))
             {
-                node.ParentEntityId = ReadInt(entryType, boxedEntry, "ParentEntityId");
+                Node.ParentEntityId = ReadInt(EntryType, BoxedEntry, "ParentEntityId");
             }
 
-            if (ReadField(entryType, boxedEntry, "ComponentValues") is object?[] componentValues)
+            if (ReadField(EntryType, BoxedEntry, "ComponentValues") is object?[] ComponentValues)
             {
-                foreach (object? componentValue in componentValues)
+                foreach (object? ComponentValue in ComponentValues)
                 {
-                    if (componentValue is not null)
+                    if (ComponentValue is not null)
                     {
-                        ApplyComponent(node, componentValue.GetType(), componentValue);
+                        ApplyComponent(Node, ComponentValue.GetType(), ComponentValue);
                     }
                 }
             }
 
-            nodes.Add(node.ToScenePreviewNode());
+            Nodes.Add(Node.ToScenePreviewNode());
         }
 
-        return [.. nodes.OrderBy(n => n.EntityId)];
+        return [.. Nodes.OrderBy(N => N.EntityId)];
     }
 
-    private static void ApplyComponent(RawNode node, Type clrType, object value)
+    private static void ApplyComponent(RawNode Node, Type ClrType, object Value)
     {
-        node.ComponentTypeNames.Add(clrType.Name);
+        Node.ComponentTypeNames.Add(ClrType.Name);
 
-        switch (clrType.Name)
+        switch (ClrType.Name)
         {
             case "Position":
-                node.Position = ReadVector3Like(clrType, value);
+                Node.Position = ReadVector3Like(ClrType, Value);
                 break;
             case "Rotation":
-                node.Rotation = ReadQuaternionLike(clrType, value);
+                Node.Rotation = ReadQuaternionLike(ClrType, Value);
                 break;
             case "Scale":
-                node.Scale = ReadVector3Like(clrType, value);
+                Node.Scale = ReadVector3Like(ClrType, Value);
                 break;
         }
     }
 
-    private static object? ReadField(Type type, object instance, string fieldName) =>
-        type.GetField(fieldName, BindingFlags.Public | BindingFlags.Instance)?.GetValue(instance);
+    private static object? ReadField(Type type, object Instance, string FieldName) =>
+        type.GetField(FieldName, BindingFlags.Public | BindingFlags.Instance)?.GetValue(Instance);
 
-    private static int ReadInt(Type type, object instance, string fieldName) =>
-        ReadField(type, instance, fieldName) is int value ? value : 0;
+    private static int ReadInt(Type type, object Instance, string FieldName) =>
+        ReadField(type, Instance, FieldName) is int Value ? Value : 0;
 
-    private static bool ReadBool(Type type, object instance, string fieldName) =>
-        ReadField(type, instance, fieldName) is true;
+    private static bool ReadBool(Type type, object Instance, string FieldName) =>
+        ReadField(type, Instance, FieldName) is true;
 
-    private static float[] ReadVector3Like(Type clrType, object value) =>
-        [ReadFloatField(clrType, value, "X"), ReadFloatField(clrType, value, "Y"), ReadFloatField(clrType, value, "Z")];
+    private static float[] ReadVector3Like(Type ClrType, object Value) =>
+        [ReadFloatField(ClrType, Value, "X"), ReadFloatField(ClrType, Value, "Y"), ReadFloatField(ClrType, Value, "Z")];
 
-    private static float[] ReadQuaternionLike(Type clrType, object value) =>
-        [ReadFloatField(clrType, value, "X"), ReadFloatField(clrType, value, "Y"), ReadFloatField(clrType, value, "Z"), ReadFloatField(clrType, value, "W")];
+    private static float[] ReadQuaternionLike(Type ClrType, object Value) =>
+        [ReadFloatField(ClrType, Value, "X"), ReadFloatField(ClrType, Value, "Y"), ReadFloatField(ClrType, Value, "Z"), ReadFloatField(ClrType, Value, "W")];
 
-    private static float ReadFloatField(Type clrType, object value, string fieldName)
+    private static float ReadFloatField(Type ClrType, object Value, string FieldName)
     {
-        FieldInfo? field = clrType.GetField(fieldName, BindingFlags.Public | BindingFlags.Instance);
-        return field is not null && field.GetValue(value) is float floatValue ? floatValue : 0f;
+        FieldInfo? Field = ClrType.GetField(FieldName, BindingFlags.Public | BindingFlags.Instance);
+        return Field is not null && Field.GetValue(Value) is float FloatValue ? FloatValue : 0f;
     }
 
-    private sealed class RawNode(int entityId)
+    private sealed class RawNode(int EntityId)
     {
-        public int EntityId { get; } = entityId;
+        public int EntityId { get; } = EntityId;
 
         public int? ParentEntityId { get; set; }
 

@@ -16,39 +16,39 @@ internal sealed class ShowHierarchyToolWindowCommand
     public const int CommandId = 0x0105;
     public static readonly Guid CommandSet = new("521655e5-0d1b-4255-8086-1039c5c2e3da");
 
-    private readonly AsyncPackage _package;
+    private readonly AsyncPackage Package;
 
-    private ShowHierarchyToolWindowCommand(AsyncPackage package, OleMenuCommandService commandService)
+    private ShowHierarchyToolWindowCommand(AsyncPackage package, OleMenuCommandService CommandService)
     {
-        _package = package ?? throw new ArgumentNullException(nameof(package));
-        if (commandService is null)
+        Package = package ?? throw new ArgumentNullException(nameof(package));
+        if (CommandService is null)
         {
-            throw new ArgumentNullException(nameof(commandService));
+            throw new ArgumentNullException(nameof(CommandService));
         }
 
-        CommandID menuCommandId = new(CommandSet, CommandId);
-        MenuCommand menuItem = new(Execute, menuCommandId);
-        commandService.AddCommand(menuItem);
+        CommandID MenuCommandId = new(CommandSet, CommandId);
+        MenuCommand MenuItem = new(Execute, MenuCommandId);
+        CommandService.AddCommand(MenuItem);
     }
 
     public static async Task InitializeAsync(AsyncPackage package)
     {
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
-        object? service = await package.GetServiceAsync(typeof(IMenuCommandService));
-        if (service is not OleMenuCommandService commandService)
+        object? Service = await package.GetServiceAsync(typeof(IMenuCommandService));
+        if (Service is not OleMenuCommandService CommandService)
         {
             throw new InvalidOperationException($"{nameof(IMenuCommandService)} is not available from the VS shell.");
         }
 
-        _ = new ShowHierarchyToolWindowCommand(package, commandService);
+        _ = new ShowHierarchyToolWindowCommand(package, CommandService);
     }
 
-    private void Execute(object sender, EventArgs e)
+    private void Execute(object Sender, EventArgs E)
     {
-        _ = _package.JoinableTaskFactory.RunAsync(async delegate
+        _ = Package.JoinableTaskFactory.RunAsync(async delegate
         {
-            ToolWindowPane window = await _package.ShowToolWindowAsync(typeof(HierarchyToolWindowPane), 0, true, _package.DisposalToken);
-            if (window?.Frame is null)
+            ToolWindowPane Window = await Package.ShowToolWindowAsync(typeof(HierarchyToolWindowPane), 0, true, Package.DisposalToken);
+            if (Window?.Frame is null)
             {
                 throw new NotSupportedException("Cannot create the Hierarchy tool window.");
             }

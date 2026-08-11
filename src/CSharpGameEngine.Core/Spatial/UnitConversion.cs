@@ -12,11 +12,11 @@ public static class UnitConversion
 {
     private const float MetersPerCentimeter = 0.01f;
 
-    public static float MetersFromCentimeters(float centimeters) => centimeters * MetersPerCentimeter;
+    public static float MetersFromCentimeters(float Centimeters) => Centimeters * MetersPerCentimeter;
 
-    public static float CentimetersFromMeters(float meters) => meters / MetersPerCentimeter;
+    public static float CentimetersFromMeters(float Meters) => Meters / MetersPerCentimeter;
 
-    public static float RadiansFromDegrees(float degrees) => degrees * (MathF.PI / 180f);
+    public static float RadiansFromDegrees(float Degrees) => Degrees * (MathF.PI / 180f);
 
-    public static float DegreesFromRadians(float radians) => radians * (180f / MathF.PI);
+    public static float DegreesFromRadians(float Radians) => Radians * (180f / MathF.PI);
 }

@@ -36,7 +36,7 @@ internal sealed class BridgeDocument
             throw new InvalidOperationException("インポートされたメッシュに頂点がありません。");
         }
 
-        (Vector3 center, float radius) = SimpleMesh.ComputeBoundingSphere(positions);
+        (Vector3 Center, float Radius) = SimpleMesh.ComputeBoundingSphere(positions);
 
         return new SimpleMesh
         {
@@ -44,19 +44,19 @@ internal sealed class BridgeDocument
             Normals = normals,
             Indices = Indices,
             BaseColorFactor = baseColorFactor,
-            BoundsCenter = center,
-            BoundsRadius = radius,
+            BoundsCenter = Center,
+            BoundsRadius = Radius,
         };
     }
 
-    private static Vector3[] ToVector3Array(float[] flat)
+    private static Vector3[] ToVector3Array(float[] Flat)
     {
-        Vector3[] result = new Vector3[flat.Length / 3];
-        for (int i = 0; i < result.Length; i++)
+        Vector3[] Result = new Vector3[Flat.Length / 3];
+        for (int i = 0; i < Result.Length; i++)
         {
-            result[i] = new Vector3(flat[(i * 3) + 0], flat[(i * 3) + 1], flat[(i * 3) + 2]);
+            Result[i] = new Vector3(Flat[(i * 3) + 0], Flat[(i * 3) + 1], Flat[(i * 3) + 2]);
         }
 
-        return result;
+        return Result;
     }
 }

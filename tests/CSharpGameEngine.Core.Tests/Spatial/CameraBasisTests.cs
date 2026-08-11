@@ -8,20 +8,20 @@ public class CameraBasisTests
     [Fact]
     public void Forward_IsNormalized()
     {
-        CameraBasis camera = new(new RufVector(3f, 0f, 0f), RufVector.Up);
+        CameraBasis Camera = new(new RufVector(3f, 0f, 0f), RufVector.Up);
 
-        Assert.Equal(1f, camera.Forward.Length, precision: 5);
-        Assert.Equal(RufVector.Right.R, camera.Forward.R, precision: 5);
+        Assert.Equal(1f, Camera.Forward.Length, precision: 5);
+        Assert.Equal(RufVector.Right.R, Camera.Forward.R, precision: 5);
     }
 
     [Fact]
     public void Forward_IsTheViewDirection()
     {
-        RufVector lookDirection = new RufVector(1f, 1f, 1f).Normalize();
-        CameraBasis camera = new(lookDirection, RufVector.Up);
+        RufVector LookDirection = new RufVector(1f, 1f, 1f).Normalize();
+        CameraBasis Camera = new(LookDirection, RufVector.Up);
 
-        Assert.Equal(lookDirection.R, camera.Forward.R, precision: 5);
-        Assert.Equal(lookDirection.U, camera.Forward.U, precision: 5);
-        Assert.Equal(lookDirection.F, camera.Forward.F, precision: 5);
+        Assert.Equal(LookDirection.R, Camera.Forward.R, precision: 5);
+        Assert.Equal(LookDirection.U, Camera.Forward.U, precision: 5);
+        Assert.Equal(LookDirection.F, Camera.Forward.F, precision: 5);
     }
 }

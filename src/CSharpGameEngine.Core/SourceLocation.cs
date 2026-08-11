@@ -50,16 +50,16 @@ public readonly struct SourceLocation : IEquatable<SourceLocation>
         return $"{FilePath}({Line},{Column})";
     }
 
-    public bool Equals(SourceLocation other) =>
-        StringComparer.Ordinal.Equals(FilePath, other.FilePath) &&
-        Line == other.Line &&
-        Column == other.Column;
+    public bool Equals(SourceLocation Other) =>
+        StringComparer.Ordinal.Equals(FilePath, Other.FilePath) &&
+        Line == Other.Line &&
+        Column == Other.Column;
 
-    public override bool Equals(object? obj) => obj is SourceLocation other && Equals(other);
+    public override bool Equals(object? Obj) => Obj is SourceLocation Other && Equals(Other);
 
     public override int GetHashCode() => HashCode.Combine(StringComparer.Ordinal.GetHashCode(FilePath ?? string.Empty), Line, Column);
 
-    public static bool operator ==(SourceLocation left, SourceLocation right) => left.Equals(right);
+    public static bool operator ==(SourceLocation Left, SourceLocation Right) => Left.Equals(Right);
 
-    public static bool operator !=(SourceLocation left, SourceLocation right) => !left.Equals(right);
+    public static bool operator !=(SourceLocation Left, SourceLocation Right) => !Left.Equals(Right);
 }

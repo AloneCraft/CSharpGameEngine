@@ -27,29 +27,29 @@ public readonly struct XyzVector : IEquatable<XyzVector>
 
     public float Length => MathF.Sqrt(LengthSquared);
 
-    public static XyzVector operator +(XyzVector left, XyzVector right) => new(left.X + right.X, left.Y + right.Y, left.Z + right.Z);
+    public static XyzVector operator +(XyzVector Left, XyzVector Right) => new(Left.X + Right.X, Left.Y + Right.Y, Left.Z + Right.Z);
 
-    public static XyzVector operator -(XyzVector left, XyzVector right) => new(left.X - right.X, left.Y - right.Y, left.Z - right.Z);
+    public static XyzVector operator -(XyzVector Left, XyzVector Right) => new(Left.X - Right.X, Left.Y - Right.Y, Left.Z - Right.Z);
 
-    public static XyzVector operator -(XyzVector value) => new(-value.X, -value.Y, -value.Z);
+    public static XyzVector operator -(XyzVector Value) => new(-Value.X, -Value.Y, -Value.Z);
 
-    public static XyzVector operator *(XyzVector value, float scalar) => new(value.X * scalar, value.Y * scalar, value.Z * scalar);
+    public static XyzVector operator *(XyzVector Value, float Scalar) => new(Value.X * Scalar, Value.Y * Scalar, Value.Z * Scalar);
 
-    public static XyzVector operator *(float scalar, XyzVector value) => value * scalar;
+    public static XyzVector operator *(float Scalar, XyzVector Value) => Value * Scalar;
 
-    public static XyzVector operator /(XyzVector value, float scalar) => new(value.X / scalar, value.Y / scalar, value.Z / scalar);
+    public static XyzVector operator /(XyzVector Value, float Scalar) => new(Value.X / Scalar, Value.Y / Scalar, Value.Z / Scalar);
 
-    public static float Dot(XyzVector left, XyzVector right) => (left.X * right.X) + (left.Y * right.Y) + (left.Z * right.Z);
+    public static float Dot(XyzVector Left, XyzVector Right) => (Left.X * Right.X) + (Left.Y * Right.Y) + (Left.Z * Right.Z);
 
     /// <summary>
     /// Standard right-hand-rule cross product formula applied directly to the X/Y/Z components.
     /// This is the one unambiguous physical cross product in this codebase - see
     /// <see cref="Spatial{TConvention}.Cross"/> for the RUF-space, convention-aware counterpart.
     /// </summary>
-    public static XyzVector Cross(XyzVector left, XyzVector right) => new(
-        (left.Y * right.Z) - (left.Z * right.Y),
-        (left.Z * right.X) - (left.X * right.Z),
-        (left.X * right.Y) - (left.Y * right.X));
+    public static XyzVector Cross(XyzVector Left, XyzVector Right) => new(
+        (Left.Y * Right.Z) - (Left.Z * Right.Y),
+        (Left.Z * Right.X) - (Left.X * Right.Z),
+        (Left.X * Right.Y) - (Left.Y * Right.X));
 
     public XyzVector Normalize()
     {
@@ -66,19 +66,19 @@ public readonly struct XyzVector : IEquatable<XyzVector>
     /// Explicit (never implicit) conversion to the raw <see cref="Vector3"/> storage type used by
     /// ECS chunks/SIMD/renderer internals - see Docs/Specifications/Spatial-RUF.md "境界の原則".
     /// </summary>
-    public static explicit operator Vector3(XyzVector value) => new(value.X, value.Y, value.Z);
+    public static explicit operator Vector3(XyzVector Value) => new(Value.X, Value.Y, Value.Z);
 
-    public static explicit operator XyzVector(Vector3 value) => new(value.X, value.Y, value.Z);
+    public static explicit operator XyzVector(Vector3 Value) => new(Value.X, Value.Y, Value.Z);
 
-    public bool Equals(XyzVector other) => X.Equals(other.X) && Y.Equals(other.Y) && Z.Equals(other.Z);
+    public bool Equals(XyzVector Other) => X.Equals(Other.X) && Y.Equals(Other.Y) && Z.Equals(Other.Z);
 
-    public override bool Equals(object? obj) => obj is XyzVector other && Equals(other);
+    public override bool Equals(object? Obj) => Obj is XyzVector Other && Equals(Other);
 
     public override int GetHashCode() => HashCode.Combine(X, Y, Z);
 
-    public static bool operator ==(XyzVector left, XyzVector right) => left.Equals(right);
+    public static bool operator ==(XyzVector Left, XyzVector Right) => Left.Equals(Right);
 
-    public static bool operator !=(XyzVector left, XyzVector right) => !left.Equals(right);
+    public static bool operator !=(XyzVector Left, XyzVector Right) => !Left.Equals(Right);
 
     public override string ToString() => FormattableString.Invariant($"Xyz({X}, {Y}, {Z})");
 }

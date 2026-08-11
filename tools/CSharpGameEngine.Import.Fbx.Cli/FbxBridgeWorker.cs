@@ -22,32 +22,32 @@ internal static class FbxBridgeWorker
 {
     private static readonly SemaphoreSlim ImportGate = new(1, 1);
 
-    public static (int ExitCode, string Output) Run(string inputPath, string outputPath)
+    public static (int ExitCode, string Output) Run(string InputPath, string OutputPath)
     {
-        FbxImportResult result;
+        FbxImportResult Result;
         ImportGate.Wait();
         try
         {
-            result = FbxImporter.Import(inputPath);
+            Result = FbxImporter.Import(InputPath);
         }
         finally
         {
             ImportGate.Release();
         }
 
-        List<string> lines = [];
-        foreach (FbxImportDiagnostic diagnostic in result.Diagnostics)
+        List<string> Lines = [];
+        foreach (FbxImportDiagnostic Diagnostic in Result.Diagnostics)
         {
-            lines.Add(diagnostic.ToString() ?? string.Empty);
+            Lines.Add(Diagnostic.ToString() ?? string.Empty);
         }
 
-        FbxBridgeDocument document = result.Success
-            ? FbxBridgeDocument.ForMesh(result.Mesh!)
+        FbxBridgeDocument Document = Result.Success
+            ? FbxBridgeDocument.ForMesh(Result.Mesh!)
             : FbxBridgeDocument.ForFailure();
 
-        string json = JsonSerializer.Serialize(document);
-        File.WriteAllText(outputPath, json);
+        string Json = JsonSerializer.Serialize(Document);
+        File.WriteAllText(OutputPath, Json);
 
-        return (result.Success ? 0 : 1, string.Join(Environment.NewLine, lines));
+        return (Result.Success ? 0 : 1, string.Join(Environment.NewLine, Lines));
     }
 }

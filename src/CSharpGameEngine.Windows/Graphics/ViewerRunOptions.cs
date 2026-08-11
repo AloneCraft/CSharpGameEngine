@@ -30,52 +30,52 @@ public sealed record ViewerOptionsParseResult(bool Success, ViewerRunOptions? Op
 
 public static class ViewerOptionsParser
 {
-    public static ViewerOptionsParseResult Parse(IReadOnlyList<string> args)
+    public static ViewerOptionsParseResult Parse(IReadOnlyList<string> Args)
     {
-        ArgumentNullException.ThrowIfNull(args);
+        ArgumentNullException.ThrowIfNull(Args);
 
-        string? modelPath = null;
-        int? frames = null;
-        int width = 1280;
-        int height = 720;
-        bool hidden = false;
-        bool useWarp = false;
-        bool enableDebugLayer = false;
-        bool enableGpuValidation = false;
-        bool verify = false;
+        string? ModelPath = null;
+        int? Frames = null;
+        int Width = 1280;
+        int Height = 720;
+        bool Hidden = false;
+        bool UseWarp = false;
+        bool EnableDebugLayer = false;
+        bool EnableGpuValidation = false;
+        bool Verify = false;
 
-        for (int i = 0; i < args.Count; i++)
+        for (int i = 0; i < Args.Count; i++)
         {
-            string arg = args[i];
-            switch (arg)
+            string Arg = Args[i];
+            switch (Arg)
             {
                 case "--model":
                 {
-                    if (i + 1 >= args.Count)
+                    if (i + 1 >= Args.Count)
                     {
                         return ViewerOptionsParseResult.Fail("--model requires a file path value.");
                     }
-                    modelPath = args[++i];
+                    ModelPath = Args[++i];
                     break;
                 }
 
                 case "--frames":
                 {
-                    if (!TryReadIntValue(args, ref i, out int value))
+                    if (!TryReadIntValue(Args, ref i, out int Value))
                     {
                         return ViewerOptionsParseResult.Fail("--frames requires an integer value.");
                     }
-                    if (value <= 0)
+                    if (Value <= 0)
                     {
-                        return ViewerOptionsParseResult.Fail($"--frames must be a positive integer (got {value}).");
+                        return ViewerOptionsParseResult.Fail($"--frames must be a positive integer (got {Value}).");
                     }
-                    frames = value;
+                    Frames = Value;
                     break;
                 }
 
                 case "--width":
                 {
-                    if (!TryReadIntValue(args, ref i, out int value))
+                    if (!TryReadIntValue(Args, ref i, out int value))
                     {
                         return ViewerOptionsParseResult.Fail("--width requires an integer value.");
                     }
@@ -83,13 +83,13 @@ public static class ViewerOptionsParser
                     {
                         return ViewerOptionsParseResult.Fail($"--width must be a positive integer (got {value}).");
                     }
-                    width = value;
+                    Width = value;
                     break;
                 }
 
                 case "--height":
                 {
-                    if (!TryReadIntValue(args, ref i, out int value))
+                    if (!TryReadIntValue(Args, ref i, out int value))
                     {
                         return ViewerOptionsParseResult.Fail("--height requires an integer value.");
                     }
@@ -97,61 +97,61 @@ public static class ViewerOptionsParser
                     {
                         return ViewerOptionsParseResult.Fail($"--height must be a positive integer (got {value}).");
                     }
-                    height = value;
+                    Height = value;
                     break;
                 }
 
                 case "--hidden":
-                    hidden = true;
+                    Hidden = true;
                     break;
 
                 case "--warp":
-                    useWarp = true;
+                    UseWarp = true;
                     break;
 
                 case "--debug-layer":
-                    enableDebugLayer = true;
+                    EnableDebugLayer = true;
                     break;
 
                 case "--gpu-validation":
-                    enableGpuValidation = true;
+                    EnableGpuValidation = true;
                     break;
 
                 case "--verify":
-                    verify = true;
+                    Verify = true;
                     break;
 
                 default:
-                    return ViewerOptionsParseResult.Fail($"Unknown option: {arg}");
+                    return ViewerOptionsParseResult.Fail($"Unknown option: {Arg}");
             }
         }
 
-        if (modelPath is null)
+        if (ModelPath is null)
         {
             return ViewerOptionsParseResult.Fail("--model <path> is required.");
         }
 
-        ViewerRunOptions options = new()
+        ViewerRunOptions Options = new()
         {
-            ModelPath = modelPath,
-            Frames = frames,
-            Width = width,
-            Height = height,
-            Hidden = hidden,
-            UseWarp = useWarp,
-            EnableDebugLayer = enableDebugLayer,
-            EnableGpuValidation = enableGpuValidation,
-            Verify = verify,
+            ModelPath = ModelPath,
+            Frames = Frames,
+            Width = Width,
+            Height = Height,
+            Hidden = Hidden,
+            UseWarp = UseWarp,
+            EnableDebugLayer = EnableDebugLayer,
+            EnableGpuValidation = EnableGpuValidation,
+            Verify = Verify,
         };
 
-        return ViewerOptionsParseResult.Ok(options);
+        return ViewerOptionsParseResult.Ok(Options);
     }
 
-    private static bool TryReadIntValue(IReadOnlyList<string> args, ref int index, out int value)
+    private static bool TryReadIntValue(IReadOnlyList<string> Args, ref int index, out int Value)
     {
-        if (index + 1 >= args.Count || !int.TryParse(args[index + 1], out value))
+        if (index + 1 >= Args.Count || !int.TryParse(Args[index + 1], out Value))
         {
-            value = 0;
+            Value = 0;
             return false;
         }
 

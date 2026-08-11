@@ -25,16 +25,16 @@ public sealed class BootstrapGeneratorTests
             [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)],
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
-        GeneratorDriver driver = CSharpGeneratorDriver.Create(new CSharpGameEngineBootstrapGenerator());
-        return driver.RunGenerators(compilation).GetRunResult();
+        GeneratorDriver Driver = CSharpGeneratorDriver.Create(new CSharpGameEngineBootstrapGenerator());
+        return Driver.RunGenerators(compilation).GetRunResult();
     }
 
     [Fact]
     public void RunGenerators_EmitsExactlyOneSourceMatchingExpectedText()
     {
-        GeneratorDriverRunResult result = RunGenerator();
+        GeneratorDriverRunResult Result = RunGenerator();
 
-        GeneratedSourceResult generated = Assert.Single(result.Results[0].GeneratedSources);
+        GeneratedSourceResult generated = Assert.Single(Result.Results[0].GeneratedSources);
         Assert.Equal(CSharpGameEngineBootstrapGenerator.GeneratedHintName, generated.HintName);
         Assert.Equal(ExpectedGeneratedSource, generated.SourceText.ToString());
     }
@@ -42,24 +42,24 @@ public sealed class BootstrapGeneratorTests
     [Fact]
     public void GeneratedSource_ParsesWithoutDiagnostics()
     {
-        GeneratorDriverRunResult result = RunGenerator();
-        GeneratedSourceResult generated = Assert.Single(result.Results[0].GeneratedSources);
+        GeneratorDriverRunResult Result = RunGenerator();
+        GeneratedSourceResult generated = Assert.Single(Result.Results[0].GeneratedSources);
 
-        SyntaxTree reparsed = CSharpSyntaxTree.ParseText(generated.SourceText.ToString());
+        SyntaxTree Reparsed = CSharpSyntaxTree.ParseText(generated.SourceText.ToString());
 
-        Assert.Empty(reparsed.GetDiagnostics());
+        Assert.Empty(Reparsed.GetDiagnostics());
     }
 
     [Fact]
     public void RunGenerators_ProducesIdenticalOutputAcrossIndependentRuns()
     {
-        GeneratorDriverRunResult first = RunGenerator();
-        GeneratorDriverRunResult second = RunGenerator();
+        GeneratorDriverRunResult First = RunGenerator();
+        GeneratorDriverRunResult Second = RunGenerator();
 
-        string firstText = Assert.Single(first.Results[0].GeneratedSources).SourceText.ToString();
-        string secondText = Assert.Single(second.Results[0].GeneratedSources).SourceText.ToString();
+        string FirstText = Assert.Single(First.Results[0].GeneratedSources).SourceText.ToString();
+        string SecondText = Assert.Single(Second.Results[0].GeneratedSources).SourceText.ToString();
 
-        Assert.Equal(firstText, secondText);
-        Assert.Equal(ExpectedGeneratedSource, firstText);
+        Assert.Equal(FirstText, SecondText);
+        Assert.Equal(ExpectedGeneratedSource, FirstText);
     }
 }

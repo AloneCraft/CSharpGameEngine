@@ -21,16 +21,16 @@ internal static class GizmoMeshFactory
 {
     private static readonly Vector4 DefaultTint = new(0.4f, 0.65f, 0.95f, 1f);
 
-    internal static SimpleMesh Create(float size = 0.3f, Vector4? tint = null)
+    internal static SimpleMesh Create(float Size = 0.3f, Vector4? Tint = null)
     {
-        if (size <= 0f)
+        if (Size <= 0f)
         {
-            throw new ArgumentOutOfRangeException(nameof(size), "size must be positive.");
+            throw new ArgumentOutOfRangeException(nameof(Size), "size must be positive.");
         }
 
-        float half = size / 2f;
+        float half = Size / 2f;
 
-        (Vector3 Normal, Vector3 U, Vector3 V)[] faces =
+        (Vector3 Normal, Vector3 U, Vector3 V)[] Faces =
         [
             (Vector3.UnitZ, Vector3.UnitX, Vector3.UnitY),      // +Z
             (-Vector3.UnitZ, -Vector3.UnitX, Vector3.UnitY),    // -Z
@@ -40,47 +40,47 @@ internal static class GizmoMeshFactory
             (-Vector3.UnitY, Vector3.UnitX, Vector3.UnitZ),     // -Y
         ];
 
-        Vector3[] positions = new Vector3[faces.Length * 4];
-        Vector3[] normals = new Vector3[faces.Length * 4];
-        uint[] indices = new uint[faces.Length * 6];
+        Vector3[] Positions = new Vector3[Faces.Length * 4];
+        Vector3[] Normals = new Vector3[Faces.Length * 4];
+        uint[] Indices = new uint[Faces.Length * 6];
 
-        for (int face = 0; face < faces.Length; face++)
+        for (int face = 0; face < Faces.Length; face++)
         {
-            (Vector3 normal, Vector3 u, Vector3 v) = faces[face];
-            Vector3 center = normal * half;
-            Vector3 uHalf = u * half;
-            Vector3 vHalf = v * half;
-            int vertexBase = face * 4;
+            (Vector3 Normal, Vector3 U, Vector3 V) = Faces[face];
+            Vector3 Center = Normal * half;
+            Vector3 UHalf = U * half;
+            Vector3 VHalf = V * half;
+            int VertexBase = face * 4;
 
-            positions[vertexBase + 0] = center - uHalf - vHalf;
-            positions[vertexBase + 1] = center + uHalf - vHalf;
-            positions[vertexBase + 2] = center + uHalf + vHalf;
-            positions[vertexBase + 3] = center - uHalf + vHalf;
+            Positions[VertexBase + 0] = Center - UHalf - VHalf;
+            Positions[VertexBase + 1] = Center + UHalf - VHalf;
+            Positions[VertexBase + 2] = Center + UHalf + VHalf;
+            Positions[VertexBase + 3] = Center - UHalf + VHalf;
 
             for (int i = 0; i < 4; i++)
             {
-                normals[vertexBase + i] = normal;
+                Normals[VertexBase + i] = Normal;
             }
 
-            int indexBase = face * 6;
-            indices[indexBase + 0] = (uint)(vertexBase + 0);
-            indices[indexBase + 1] = (uint)(vertexBase + 1);
-            indices[indexBase + 2] = (uint)(vertexBase + 2);
-            indices[indexBase + 3] = (uint)(vertexBase + 0);
-            indices[indexBase + 4] = (uint)(vertexBase + 2);
-            indices[indexBase + 5] = (uint)(vertexBase + 3);
+            int IndexBase = face * 6;
+            Indices[IndexBase + 0] = (uint)(VertexBase + 0);
+            Indices[IndexBase + 1] = (uint)(VertexBase + 1);
+            Indices[IndexBase + 2] = (uint)(VertexBase + 2);
+            Indices[IndexBase + 3] = (uint)(VertexBase + 0);
+            Indices[IndexBase + 4] = (uint)(VertexBase + 2);
+            Indices[IndexBase + 5] = (uint)(VertexBase + 3);
         }
 
-        (Vector3 boundsCenter, float boundsRadius) = SimpleMesh.ComputeBoundingSphere(positions);
+        (Vector3 BoundsCenter, float BoundsRadius) = SimpleMesh.ComputeBoundingSphere(Positions);
 
         return new SimpleMesh
         {
-            Positions = positions,
-            Normals = normals,
-            Indices = indices,
-            BaseColorFactor = tint ?? DefaultTint,
-            BoundsCenter = boundsCenter,
-            BoundsRadius = boundsRadius,
+            Positions = Positions,
+            Normals = Normals,
+            Indices = Indices,
+            BaseColorFactor = Tint ?? DefaultTint,
+            BoundsCenter = BoundsCenter,
+            BoundsRadius = BoundsRadius,
         };
     }
 }

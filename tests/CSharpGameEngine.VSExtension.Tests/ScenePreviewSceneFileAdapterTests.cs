@@ -11,7 +11,7 @@ public sealed class ScenePreviewSceneFileAdapterTests
     [Fact]
     public void ToSceneFile_ResolvesParentIdFromParentEntityId()
     {
-        ScenePreviewBridgeDocument document = new()
+        ScenePreviewBridgeDocument Document = new()
         {
             Success = true,
             SceneClassFullName = "Sample.MainScene",
@@ -22,48 +22,48 @@ public sealed class ScenePreviewSceneFileAdapterTests
             ],
         };
 
-        SceneFile scene = ScenePreviewSceneFileAdapter.ToSceneFile(document);
+        SceneFile Scene = ScenePreviewSceneFileAdapter.ToSceneFile(Document);
 
-        Assert.Equal(2, scene.Nodes.Count);
-        SceneFileNode root = scene.Nodes.Single(n => n.Name == "Root");
-        SceneFileNode mainCamera = scene.Nodes.Single(n => n.Name == "MainCamera");
-        Assert.Null(root.ParentId);
-        Assert.Equal(root.Id, mainCamera.ParentId);
-        Assert.Equal(new Vector3(0f, 2f, -10f), mainCamera.Position);
+        Assert.Equal(2, Scene.Nodes.Count);
+        SceneFileNode Root = Scene.Nodes.Single(N => N.Name == "Root");
+        SceneFileNode MainCamera = Scene.Nodes.Single(N => N.Name == "MainCamera");
+        Assert.Null(Root.ParentId);
+        Assert.Equal(Root.Id, MainCamera.ParentId);
+        Assert.Equal(new Vector3(0f, 2f, -10f), MainCamera.Position);
     }
 
     [Fact]
     public void ToSceneFile_EveryNodeHasNullMeshAssetPath()
     {
-        ScenePreviewBridgeDocument document = new()
+        ScenePreviewBridgeDocument Document = new()
         {
             Success = true,
             Nodes = [new ScenePreviewNodeDto { EntityId = 0, Name = "Root" }],
         };
 
-        SceneFile scene = ScenePreviewSceneFileAdapter.ToSceneFile(document);
+        SceneFile Scene = ScenePreviewSceneFileAdapter.ToSceneFile(Document);
 
-        Assert.All(scene.Nodes, n => Assert.Null(n.MeshAssetPath));
+        Assert.All(Scene.Nodes, N => Assert.Null(N.MeshAssetPath));
     }
 
     [Fact]
     public void ToSceneFile_MissingName_FallsBackToEntityIdLabel()
     {
-        ScenePreviewBridgeDocument document = new()
+        ScenePreviewBridgeDocument Document = new()
         {
             Success = true,
             Nodes = [new ScenePreviewNodeDto { EntityId = 5, Name = null }],
         };
 
-        SceneFile scene = ScenePreviewSceneFileAdapter.ToSceneFile(document);
+        SceneFile Scene = ScenePreviewSceneFileAdapter.ToSceneFile(Document);
 
-        Assert.Equal("Entity5", Assert.Single(scene.Nodes).Name);
+        Assert.Equal("Entity5", Assert.Single(Scene.Nodes).Name);
     }
 
     [Fact]
     public void ToSceneFile_ResultBuildsTreeAndComputesWorldTransforms()
     {
-        ScenePreviewBridgeDocument document = new()
+        ScenePreviewBridgeDocument Document = new()
         {
             Success = true,
             Nodes =
@@ -73,16 +73,16 @@ public sealed class ScenePreviewSceneFileAdapterTests
             ],
         };
 
-        SceneFile scene = ScenePreviewSceneFileAdapter.ToSceneFile(document);
+        SceneFile Scene = ScenePreviewSceneFileAdapter.ToSceneFile(Document);
 
-        IReadOnlyList<SceneFileNodeTreeItem> tree = scene.BuildTree();
-        SceneFileNodeTreeItem root = Assert.Single(tree);
-        Assert.Equal("Root", root.Node.Name);
-        SceneFileNodeTreeItem child = Assert.Single(root.Children);
-        Assert.Equal("Child", child.Node.Name);
+        IReadOnlyList<SceneFileNodeTreeItem> Tree = Scene.BuildTree();
+        SceneFileNodeTreeItem Root = Assert.Single(Tree);
+        Assert.Equal("Root", Root.Node.Name);
+        SceneFileNodeTreeItem Child = Assert.Single(Root.Children);
+        Assert.Equal("Child", Child.Node.Name);
 
-        IReadOnlyDictionary<System.Guid, Matrix4x4> worldTransforms = scene.ComputeWorldTransforms();
-        Assert.Equal(2, worldTransforms.Count);
+        IReadOnlyDictionary<System.Guid, Matrix4x4> WorldTransforms = Scene.ComputeWorldTransforms();
+        Assert.Equal(2, WorldTransforms.Count);
     }
 
     [Fact]
@@ -97,9 +97,9 @@ public sealed class ScenePreviewSceneFileAdapterTests
     [Fact]
     public void ResolveTempScenePath_SameClassName_ReturnsSamePathAcrossCalls()
     {
-        string first = ScenePreviewSceneFileAdapter.ResolveTempScenePath("Sample.MainScene");
-        string second = ScenePreviewSceneFileAdapter.ResolveTempScenePath("Sample.MainScene");
+        string First = ScenePreviewSceneFileAdapter.ResolveTempScenePath("Sample.MainScene");
+        string Second = ScenePreviewSceneFileAdapter.ResolveTempScenePath("Sample.MainScene");
 
-        Assert.Equal(first, second);
+        Assert.Equal(First, Second);
     }
 }

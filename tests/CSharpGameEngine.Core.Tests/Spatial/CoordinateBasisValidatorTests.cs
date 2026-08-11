@@ -50,8 +50,8 @@ public class CoordinateBasisValidatorTests
     private readonly struct NonOrthogonalConvention : ICoordinateConvention
     {
         public static CoordinateHandedness Handedness => CoordinateHandedness.RightHanded;
-        public static XyzVector ToXyz(in RufVector value) => new(value.R, value.U, value.F);
-        public static RufVector FromXyz(in XyzVector value) => new(value.X, value.Y, value.Z);
+        public static XyzVector ToXyz(in RufVector Value) => new(Value.R, Value.U, Value.F);
+        public static RufVector FromXyz(in XyzVector Value) => new(Value.X, Value.Y, Value.Z);
         public static XyzVector RightXyz => new(1f, 0f, 0f);
         public static XyzVector UpXyz => new(0.7071f, 0.7071f, 0f);
         public static XyzVector ForwardXyz => new(0f, 0f, 1f);
@@ -60,8 +60,8 @@ public class CoordinateBasisValidatorTests
     private readonly struct NonUnitLengthConvention : ICoordinateConvention
     {
         public static CoordinateHandedness Handedness => CoordinateHandedness.RightHanded;
-        public static XyzVector ToXyz(in RufVector value) => new(value.R, value.U, value.F);
-        public static RufVector FromXyz(in XyzVector value) => new(value.X, value.Y, value.Z);
+        public static XyzVector ToXyz(in RufVector Value) => new(Value.R, Value.U, Value.F);
+        public static RufVector FromXyz(in XyzVector Value) => new(Value.X, Value.Y, Value.Z);
         public static XyzVector RightXyz => new(2f, 0f, 0f);
         public static XyzVector UpXyz => new(0f, 1f, 0f);
         public static XyzVector ForwardXyz => new(0f, 0f, 1f);
@@ -70,8 +70,8 @@ public class CoordinateBasisValidatorTests
     private readonly struct NonFiniteConvention : ICoordinateConvention
     {
         public static CoordinateHandedness Handedness => CoordinateHandedness.RightHanded;
-        public static XyzVector ToXyz(in RufVector value) => new(value.R, value.U, value.F);
-        public static RufVector FromXyz(in XyzVector value) => new(value.X, value.Y, value.Z);
+        public static XyzVector ToXyz(in RufVector Value) => new(Value.R, Value.U, Value.F);
+        public static RufVector FromXyz(in XyzVector Value) => new(Value.X, Value.Y, Value.Z);
         public static XyzVector RightXyz => new(float.NaN, 0f, 0f);
         public static XyzVector UpXyz => new(0f, 1f, 0f);
         public static XyzVector ForwardXyz => new(0f, 0f, 1f);
@@ -80,8 +80,8 @@ public class CoordinateBasisValidatorTests
     private readonly struct DuplicateAxisConvention : ICoordinateConvention
     {
         public static CoordinateHandedness Handedness => CoordinateHandedness.RightHanded;
-        public static XyzVector ToXyz(in RufVector value) => new(value.R, value.U, value.F);
-        public static RufVector FromXyz(in XyzVector value) => new(value.X, value.Y, value.Z);
+        public static XyzVector ToXyz(in RufVector Value) => new(Value.R, Value.U, Value.F);
+        public static RufVector FromXyz(in XyzVector Value) => new(Value.X, Value.Y, Value.Z);
         public static XyzVector RightXyz => new(1f, 0f, 0f);
         public static XyzVector UpXyz => new(0f, 1f, 0f);
         public static XyzVector ForwardXyz => new(1f, 0f, 0f);

@@ -294,7 +294,7 @@ public sealed class GameSystemGeneratorDiagnosticsTests
     [Fact]
     public void ValidSystem_ReportsNothing()
     {
-        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(
+        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
             Preamble + """
             internal struct ValidSystem : ISystem
             {
@@ -302,13 +302,13 @@ public sealed class GameSystemGeneratorDiagnosticsTests
             }
             """);
 
-        Assert.Empty(result.Diagnostics);
+        Assert.Empty(Result.Diagnostics);
     }
 
-    private static void AssertHasDiagnostic(string systemSource, string diagnosticId)
+    private static void AssertHasDiagnostic(string SystemSource, string DiagnosticId)
     {
-        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(Preamble + systemSource);
+        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(Preamble + SystemSource);
 
-        Assert.Contains(result.Diagnostics, d => d.Id == diagnosticId);
+        Assert.Contains(Result.Diagnostics, D => D.Id == DiagnosticId);
     }
 }

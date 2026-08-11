@@ -22,40 +22,40 @@ public sealed class FbxBridgeDocument
 
     public float[] BaseColorFactor { get; init; } = [1f, 1f, 1f, 1f];
 
-    public static FbxBridgeDocument ForMesh(ImportedMesh mesh) => new()
+    public static FbxBridgeDocument ForMesh(ImportedMesh Mesh) => new()
     {
         Success = true,
-        Positions = Flatten3(mesh.Positions),
-        Normals = Flatten3(mesh.Normals),
-        Uvs = Flatten2(mesh.Uvs),
-        Indices = [.. mesh.Indices],
-        BaseColorFactor = [mesh.BaseColorFactor.X, mesh.BaseColorFactor.Y, mesh.BaseColorFactor.Z, mesh.BaseColorFactor.W],
+        Positions = Flatten3(Mesh.Positions),
+        Normals = Flatten3(Mesh.Normals),
+        Uvs = Flatten2(Mesh.Uvs),
+        Indices = [.. Mesh.Indices],
+        BaseColorFactor = [Mesh.BaseColorFactor.X, Mesh.BaseColorFactor.Y, Mesh.BaseColorFactor.Z, Mesh.BaseColorFactor.W],
     };
 
     public static FbxBridgeDocument ForFailure() => new() { Success = false };
 
-    private static float[] Flatten3(IReadOnlyList<System.Numerics.Vector3> values)
+    private static float[] Flatten3(IReadOnlyList<System.Numerics.Vector3> Values)
     {
-        float[] flat = new float[values.Count * 3];
-        for (int i = 0; i < values.Count; i++)
+        float[] Flat = new float[Values.Count * 3];
+        for (int i = 0; i < Values.Count; i++)
         {
-            flat[(i * 3) + 0] = values[i].X;
-            flat[(i * 3) + 1] = values[i].Y;
-            flat[(i * 3) + 2] = values[i].Z;
+            Flat[(i * 3) + 0] = Values[i].X;
+            Flat[(i * 3) + 1] = Values[i].Y;
+            Flat[(i * 3) + 2] = Values[i].Z;
         }
 
-        return flat;
+        return Flat;
     }
 
-    private static float[] Flatten2(IReadOnlyList<System.Numerics.Vector2> values)
+    private static float[] Flatten2(IReadOnlyList<System.Numerics.Vector2> Values)
     {
-        float[] flat = new float[values.Count * 2];
-        for (int i = 0; i < values.Count; i++)
+        float[] Flat = new float[Values.Count * 2];
+        for (int i = 0; i < Values.Count; i++)
         {
-            flat[(i * 2) + 0] = values[i].X;
-            flat[(i * 2) + 1] = values[i].Y;
+            Flat[(i * 2) + 0] = Values[i].X;
+            Flat[(i * 2) + 1] = Values[i].Y;
         }
 
-        return flat;
+        return Flat;
     }
 }

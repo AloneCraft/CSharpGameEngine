@@ -5,60 +5,60 @@ public sealed class StableIdSpec
     [Fact]
     public void New_CreatesValidId()
     {
-        StableId id = StableId.New();
+        StableId Id = StableId.New();
 
-        Assert.True(id.IsValid);
+        Assert.True(Id.IsValid);
     }
 
     [Fact]
     public void New_CreatesUsuallyDifferentIds()
     {
-        StableId first = StableId.New();
-        StableId second = StableId.New();
+        StableId First = StableId.New();
+        StableId Second = StableId.New();
 
-        Assert.NotEqual(first, second);
+        Assert.NotEqual(First, Second);
     }
 
     [Fact]
     public void ToStringAndParse_RoundTrip()
     {
-        StableId original = StableId.New();
-        string text = original.ToString();
+        StableId Original = StableId.New();
+        string Text = Original.ToString();
 
-        StableId parsed = StableId.Parse(text);
+        StableId Parsed = StableId.Parse(Text);
 
-        Assert.Equal(original, parsed);
+        Assert.Equal(Original, Parsed);
     }
 
     [Fact]
     public void TryParse_HandlesValidAndInvalidValues()
     {
-        StableId original = StableId.New();
+        StableId Original = StableId.New();
 
-        bool success = StableId.TryParse(original.ToString(), out StableId valid);
-        bool failed = StableId.TryParse("not-a-stable-id", out StableId invalid);
+        bool Success = StableId.TryParse(Original.ToString(), out StableId Valid);
+        bool Failed = StableId.TryParse("not-a-stable-id", out StableId Invalid);
 
-        Assert.True(success);
-        Assert.Equal(original, valid);
-        Assert.False(failed);
-        Assert.Equal(default, invalid);
+        Assert.True(Success);
+        Assert.Equal(Original, Valid);
+        Assert.False(Failed);
+        Assert.Equal(default, Invalid);
     }
 
     [Fact]
     public void Default_IsInvalid()
     {
-        StableId value = default;
+        StableId Value = default;
 
-        Assert.False(value.IsValid);
+        Assert.False(Value.IsValid);
     }
 
     [Fact]
     public void EqualityAndHashCode_AreConsistent()
     {
-        StableId original = StableId.New();
-        StableId copy = StableId.Parse(original.ToString());
+        StableId Original = StableId.New();
+        StableId Copy = StableId.Parse(Original.ToString());
 
-        Assert.True(original == copy);
-        Assert.Equal(original.GetHashCode(), copy.GetHashCode());
+        Assert.True(Original == Copy);
+        Assert.Equal(Original.GetHashCode(), Copy.GetHashCode());
     }
 }

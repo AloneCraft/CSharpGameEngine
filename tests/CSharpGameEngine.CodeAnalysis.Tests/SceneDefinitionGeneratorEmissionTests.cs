@@ -7,7 +7,7 @@ public sealed class SceneDefinitionGeneratorEmissionTests
     [Fact]
     public void SimpleScene_GeneratesExpectedSceneNodesShape()
     {
-        string source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
+        string Source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
 
 
             [SceneDefinition]
@@ -30,24 +30,24 @@ public sealed class SceneDefinitionGeneratorEmissionTests
             }
             """;
 
-        GeneratorDriverRunResult result = SceneDefinitionGeneratorTestHelper.RunGenerator(source);
+        GeneratorDriverRunResult Result = SceneDefinitionGeneratorTestHelper.RunGenerator(Source);
 
-        Assert.Empty(result.Diagnostics);
-        GeneratedSourceResult generated = Assert.Single(result.Results[0].GeneratedSources, s => s.HintName == "Sample.MainScene.SceneNodes.g.cs");
-        string text = generated.SourceText.ToString();
+        Assert.Empty(Result.Diagnostics);
+        GeneratedSourceResult generated = Assert.Single(Result.Results[0].GeneratedSources, S => S.HintName == "Sample.MainScene.SceneNodes.g.cs");
+        string Text = generated.SourceText.ToString();
 
-        Assert.Contains("partial class MainScene", text);
-        Assert.Contains("private static partial global::CSharpGameEngine.Entities.SceneNodeSymbol Root", text);
-        Assert.Contains("private static partial global::CSharpGameEngine.Entities.SceneNodeSymbol MainCamera", text);
-        Assert.Contains("nameof(Root)", text);
-        Assert.Contains("nameof(MainCamera)", text);
-        Assert.Contains("new global::CSharpGameEngine.Entities.SceneNodeId(0x", text);
+        Assert.Contains("partial class MainScene", Text);
+        Assert.Contains("private static partial global::CSharpGameEngine.Entities.SceneNodeSymbol Root", Text);
+        Assert.Contains("private static partial global::CSharpGameEngine.Entities.SceneNodeSymbol MainCamera", Text);
+        Assert.Contains("nameof(Root)", Text);
+        Assert.Contains("nameof(MainCamera)", Text);
+        Assert.Contains("new global::CSharpGameEngine.Entities.SceneNodeId(0x", Text);
     }
 
     [Fact]
     public void SimpleScene_GeneratesExpectedSceneRuntimeShape()
     {
-        string source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
+        string Source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
 
 
             [SceneDefinition]
@@ -70,31 +70,31 @@ public sealed class SceneDefinitionGeneratorEmissionTests
             }
             """;
 
-        GeneratorDriverRunResult result = SceneDefinitionGeneratorTestHelper.RunGenerator(source);
+        GeneratorDriverRunResult Result = SceneDefinitionGeneratorTestHelper.RunGenerator(Source);
 
-        Assert.Empty(result.Diagnostics);
-        GeneratedSourceResult generated = Assert.Single(result.Results[0].GeneratedSources, s => s.HintName == "Sample.MainScene.SceneRuntime.g.cs");
-        string text = generated.SourceText.ToString();
+        Assert.Empty(Result.Diagnostics);
+        GeneratedSourceResult generated = Assert.Single(Result.Results[0].GeneratedSources, S => S.HintName == "Sample.MainScene.SceneRuntime.g.cs");
+        string Text = generated.SourceText.ToString();
 
         // ADR-0033: Worldがstructになったため`ref World`を取る。ノードごとの生成は、旧実装の
         // 「CreateEntity + Componentごとの後付けGetRef代入」から、生成されたArchetypeのCreate
         // ファクトリ1回の呼び出しへ簡潔化された。
-        Assert.Contains("public static global::CSharpGameEngine.Entities.Entity CreateRuntime(ref global::CSharpGameEngine.Entities.World world)", text);
-        Assert.Contains("Entity Root = global::CSharpGameEngine.Entities.Archetype", text);
-        Assert.Contains(".Create(ref world, default);", text);
-        Assert.Contains("new Camera { FieldOfView = 60f }", text);
-        Assert.Contains("new global::CSharpGameEngine.Entities.Parent { Value = Root }", text);
-        Assert.Contains("return Root;", text);
+        Assert.Contains("public static global::CSharpGameEngine.Entities.Entity CreateRuntime(ref global::CSharpGameEngine.Entities.World world)", Text);
+        Assert.Contains("Entity Root = global::CSharpGameEngine.Entities.Archetype", Text);
+        Assert.Contains(".Create(ref world, default);", Text);
+        Assert.Contains("new Camera { FieldOfView = 60f }", Text);
+        Assert.Contains("new global::CSharpGameEngine.Entities.Parent { Value = Root }", Text);
+        Assert.Contains("return Root;", Text);
 
         // 後付けの代入パスは無くなった。
-        Assert.DoesNotContain("GetRef<", text);
-        Assert.DoesNotContain("CreateArchetype<", text);
+        Assert.DoesNotContain("GetRef<", Text);
+        Assert.DoesNotContain("CreateArchetype<", Text);
     }
 
     [Fact]
     public void GeneratorIsDeterministic_AcrossTwoIndependentRuns()
     {
-        string source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
+        string Source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
 
 
             [SceneDefinition]
@@ -125,17 +125,17 @@ public sealed class SceneDefinitionGeneratorEmissionTests
             }
             """;
 
-        GeneratorDriverRunResult first = SceneDefinitionGeneratorTestHelper.RunGenerator(source);
-        GeneratorDriverRunResult second = SceneDefinitionGeneratorTestHelper.RunGenerator(source);
+        GeneratorDriverRunResult First = SceneDefinitionGeneratorTestHelper.RunGenerator(Source);
+        GeneratorDriverRunResult Second = SceneDefinitionGeneratorTestHelper.RunGenerator(Source);
 
-        string[] firstTexts = [.. first.Results[0].GeneratedSources.OrderBy(s => s.HintName, StringComparer.Ordinal).Select(s => s.HintName + "\n" + s.SourceText)];
-        string[] secondTexts = [.. second.Results[0].GeneratedSources.OrderBy(s => s.HintName, StringComparer.Ordinal).Select(s => s.HintName + "\n" + s.SourceText)];
+        string[] FirstTexts = [.. First.Results[0].GeneratedSources.OrderBy(S => S.HintName, StringComparer.Ordinal).Select(S => S.HintName + "\n" + S.SourceText)];
+        string[] SecondTexts = [.. Second.Results[0].GeneratedSources.OrderBy(S => S.HintName, StringComparer.Ordinal).Select(S => S.HintName + "\n" + S.SourceText)];
 
-        Assert.Equal(firstTexts, secondTexts);
+        Assert.Equal(FirstTexts, SecondTexts);
 
         // ADR-0033でScene生成はGameSystemGeneratorへ統合されたため、Sceneクラスごとの2ファイルに加えて
         // コンパイル全体で共有されるArchetype/World/Snapshot/ゲームループも同じ実行で出力される。
-        string[] hintNames = [.. first.Results[0].GeneratedSources.Select(s => s.HintName).OrderBy(n => n, StringComparer.Ordinal)];
+        string[] HintNames = [.. First.Results[0].GeneratedSources.Select(S => S.HintName).OrderBy(N => N, StringComparer.Ordinal)];
 
         Assert.Equal(
             [
@@ -146,6 +146,6 @@ public sealed class SceneDefinitionGeneratorEmissionTests
                 "Sample.MainScene.SceneNodes.g.cs",
                 "Sample.MainScene.SceneRuntime.g.cs",
             ],
-            hintNames);
+            HintNames);
     }
 }

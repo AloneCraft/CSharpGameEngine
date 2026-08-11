@@ -23,35 +23,35 @@ public class SceneDocumentTests
     [Fact]
     public void Deserialize_RealExportSample_ParsesAmbientFogPlayerStartAndMobility()
     {
-        SceneMetaDocument? document = JsonSerializer.Deserialize<SceneMetaDocument>(RealSampleJson, Options);
+        SceneMetaDocument? Document = JsonSerializer.Deserialize<SceneMetaDocument>(RealSampleJson, Options);
 
-        Assert.NotNull(document);
-        Assert.NotNull(document.Ambient);
-        Assert.Equal([1.0f, 1.0f, 1.0f], document.Ambient!.ColorRgb);
-        Assert.Equal(1.0f, document.Ambient.Intensity);
+        Assert.NotNull(Document);
+        Assert.NotNull(Document.Ambient);
+        Assert.Equal([1.0f, 1.0f, 1.0f], Document.Ambient!.ColorRgb);
+        Assert.Equal(1.0f, Document.Ambient.Intensity);
 
-        Assert.NotNull(document.Fog);
-        Assert.Equal(0.0436f, document.Fog!.Density, precision: 4);
-        Assert.Equal(0.2f, document.Fog.HeightFalloff);
+        Assert.NotNull(Document.Fog);
+        Assert.Equal(0.0436f, Document.Fog!.Density, precision: 4);
+        Assert.Equal(0.2f, Document.Fog.HeightFalloff);
 
-        Assert.NotNull(document.PlayerStart);
-        Assert.Equal(3.0201261f, document.PlayerStart!.Translation[1], precision: 3);
+        Assert.NotNull(Document.PlayerStart);
+        Assert.Equal(3.0201261f, Document.PlayerStart!.Translation[1], precision: 3);
 
-        Assert.Equal("movable", document.MobilityOverrides["SM_Cube16"]);
-        Assert.Equal("static", document.MobilityOverrides["SM_Ramp5"]);
+        Assert.Equal("movable", Document.MobilityOverrides["SM_Cube16"]);
+        Assert.Equal("static", Document.MobilityOverrides["SM_Ramp5"]);
     }
 
     [Fact]
     public void Deserialize_MissingOptionalSections_LeavesThemNull()
     {
-        const string json = """{ "mobilityOverrides": {} }""";
+        const string Json = """{ "mobilityOverrides": {} }""";
 
-        SceneMetaDocument? document = JsonSerializer.Deserialize<SceneMetaDocument>(json, Options);
+        SceneMetaDocument? Document = JsonSerializer.Deserialize<SceneMetaDocument>(Json, Options);
 
-        Assert.NotNull(document);
-        Assert.Null(document.Ambient);
-        Assert.Null(document.Fog);
-        Assert.Null(document.PlayerStart);
-        Assert.Empty(document.MobilityOverrides);
+        Assert.NotNull(Document);
+        Assert.Null(Document.Ambient);
+        Assert.Null(Document.Fog);
+        Assert.Null(Document.PlayerStart);
+        Assert.Empty(Document.MobilityOverrides);
     }
 }

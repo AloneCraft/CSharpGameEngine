@@ -19,9 +19,9 @@ internal static class ExternalFbxLoader
     private const string BridgeProjectRelativePath = @"tools\CSharpGameEngine.Import.Fbx.Cli";
     private static readonly TimeSpan BridgeTimeout = TimeSpan.FromSeconds(60);
 
-    public static SimpleMesh Load(string fbxPath, string repoRoot)
+    public static SimpleMesh Load(string FbxPath, string RepoRoot)
     {
-        string tempJsonPath = Path.Combine(Path.GetTempPath(), $"csge-fbx-bridge-{Guid.NewGuid():N}.json");
+        string TempJsonPath = Path.Combine(Path.GetTempPath(), $"csge-fbx-bridge-{Guid.NewGuid():N}.json");
         try
         {
             // useResidentServer: true - Import.Fbx.Cli is the one bridge with real native-crash risk
@@ -29,21 +29,21 @@ internal static class ExternalFbxLoader
             // (ADR-0023) to remove the concurrency risk; if real-world crash frequency ever becomes
             // a problem, flipping this single flag to false reverts to the proven one-shot path with
             // no other changes needed.
-            string json = ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath, fbxPath, tempJsonPath, repoRoot, BridgeTimeout, useResidentServer: true);
+            string Json = ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath, FbxPath, TempJsonPath, RepoRoot, BridgeTimeout, UseResidentServer: true);
 
-            BridgeDocument? document = JsonSerializer.Deserialize<BridgeDocument>(
-                json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            BridgeDocument? Document = JsonSerializer.Deserialize<BridgeDocument>(
+                Json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
-            if (document is null || !document.Success)
+            if (Document is null || !Document.Success)
             {
                 throw new InvalidOperationException("FBXファイルのインポートに失敗しました(詳細はブリッジプロセスの出力を確認してください)。");
             }
 
-            return document.ToSimpleMesh();
+            return Document.ToSimpleMesh();
         }
         finally
         {
-            try { File.Delete(tempJsonPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            try { File.Delete(TempJsonPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         }
     }
 }

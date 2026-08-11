@@ -11,9 +11,9 @@ namespace CSharpGameEngine.Spatial.Abstractions;
 public static class Spatial<TConvention>
     where TConvention : struct, ICoordinateConvention
 {
-    public static XyzVector ToXyz(in RufVector value) => TConvention.ToXyz(value);
+    public static XyzVector ToXyz(in RufVector Value) => TConvention.ToXyz(Value);
 
-    public static RufVector FromXyz(in XyzVector value) => TConvention.FromXyz(value);
+    public static RufVector FromXyz(in XyzVector Value) => TConvention.FromXyz(Value);
 
     /// <summary>
     /// Physically correct cross product of two RUF-space vectors: converts both operands to this
@@ -25,10 +25,10 @@ public static class Spatial<TConvention>
     /// <c>Cross(Right, Up) == Forward</c>; for a RightHanded convention,
     /// <c>Cross(Right, Up) == Backward</c>.
     /// </summary>
-    public static RufVector Cross(in RufVector left, in RufVector right)
+    public static RufVector Cross(in RufVector Left, in RufVector Right)
     {
-        XyzVector crossXyz = XyzVector.Cross(TConvention.ToXyz(left), TConvention.ToXyz(right));
-        return TConvention.FromXyz(crossXyz);
+        XyzVector CrossXyz = XyzVector.Cross(TConvention.ToXyz(Left), TConvention.ToXyz(Right));
+        return TConvention.FromXyz(CrossXyz);
     }
 
     /// <summary>
@@ -38,9 +38,9 @@ public static class Spatial<TConvention>
     /// exposing a raw cross product everywhere - see Docs/Specifications/Spatial-RUF.md
     /// "Cross Product仕様".
     /// </summary>
-    public static RufVector RightFromUpForward(in RufVector up, in RufVector forward)
+    public static RufVector RightFromUpForward(in RufVector Up, in RufVector Forward)
     {
-        RufVector rawCross = Cross(up, forward);
-        return TConvention.Handedness == CoordinateHandedness.LeftHanded ? rawCross : -rawCross;
+        RufVector RawCross = Cross(Up, Forward);
+        return TConvention.Handedness == CoordinateHandedness.LeftHanded ? RawCross : -RawCross;
     }
 }

@@ -17,26 +17,26 @@ internal static class ExternalGltfLoader
     private const string BridgeProjectRelativePath = @"tools\CSharpGameEngine.Import.Gltf.Cli";
     private static readonly TimeSpan BridgeTimeout = TimeSpan.FromSeconds(60);
 
-    public static SimpleMesh Load(string gltfPath, string repoRoot)
+    public static SimpleMesh Load(string GltfPath, string RepoRoot)
     {
-        string tempJsonPath = Path.Combine(Path.GetTempPath(), $"csge-gltf-bridge-{Guid.NewGuid():N}.json");
+        string TempJsonPath = Path.Combine(Path.GetTempPath(), $"csge-gltf-bridge-{Guid.NewGuid():N}.json");
         try
         {
-            string json = ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath, gltfPath, tempJsonPath, repoRoot, BridgeTimeout, useResidentServer: true);
+            string Json = ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath, GltfPath, TempJsonPath, RepoRoot, BridgeTimeout, UseResidentServer: true);
 
-            BridgeDocument? document = JsonSerializer.Deserialize<BridgeDocument>(
-                json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            BridgeDocument? Document = JsonSerializer.Deserialize<BridgeDocument>(
+                Json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
-            if (document is null || !document.Success)
+            if (Document is null || !Document.Success)
             {
                 throw new InvalidOperationException("glTFファイルのインポートに失敗しました(詳細はブリッジプロセスの出力を確認してください)。");
             }
 
-            return document.ToSimpleMesh();
+            return Document.ToSimpleMesh();
         }
         finally
         {
-            try { File.Delete(tempJsonPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            try { File.Delete(TempJsonPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         }
     }
 }

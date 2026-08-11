@@ -23,23 +23,23 @@ internal sealed class PreviewSceneDefinitionCommand
     public const int CommandId = 0x0108;
     public static readonly Guid CommandSet = new("521655e5-0d1b-4255-8086-1039c5c2e3da");
 
-    private readonly AsyncPackage _package;
-    private readonly DTE _dte;
+    private readonly AsyncPackage Package;
+    private readonly DTE Dte;
 
-    private PreviewSceneDefinitionCommand(AsyncPackage package, OleMenuCommandService commandService, DTE dte)
+    private PreviewSceneDefinitionCommand(AsyncPackage package, OleMenuCommandService CommandService, DTE Dte)
     {
-        _package = package ?? throw new ArgumentNullException(nameof(package));
-        _dte = dte ?? throw new ArgumentNullException(nameof(dte));
+        Package = package ?? throw new ArgumentNullException(nameof(package));
+        this.Dte = Dte ?? throw new ArgumentNullException(nameof(Dte));
 
-        if (commandService is null)
+        if (CommandService is null)
         {
-            throw new ArgumentNullException(nameof(commandService));
+            throw new ArgumentNullException(nameof(CommandService));
         }
 
-        CommandID menuCommandId = new(CommandSet, CommandId);
-        OleMenuCommand command = new(Execute, menuCommandId);
+        CommandID MenuCommandId = new(CommandSet, CommandId);
+        OleMenuCommand command = new(Execute, MenuCommandId);
         command.BeforeQueryStatus += UpdateVisibility;
-        commandService.AddCommand(command);
+        CommandService.AddCommand(command);
     }
 
     public static async Task InitializeAsync(AsyncPackage package)
@@ -47,37 +47,37 @@ internal sealed class PreviewSceneDefinitionCommand
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
 
         object? menuCommandService = await package.GetServiceAsync(typeof(IMenuCommandService));
-        if (menuCommandService is not OleMenuCommandService commandService)
+        if (menuCommandService is not OleMenuCommandService CommandService)
         {
             throw new InvalidOperationException($"{nameof(IMenuCommandService)} is not available from the VS shell.");
         }
 
-        object? dteService = await package.GetServiceAsync(typeof(SDTE));
-        if (dteService is not DTE dte)
+        object? DteService = await package.GetServiceAsync(typeof(SDTE));
+        if (DteService is not DTE Dte)
         {
             throw new InvalidOperationException($"{nameof(SDTE)} is not available from the VS shell.");
         }
 
-        _ = new PreviewSceneDefinitionCommand(package, commandService, dte);
+        _ = new PreviewSceneDefinitionCommand(package, CommandService, Dte);
     }
 
-    private void UpdateVisibility(object sender, EventArgs e)
+    private void UpdateVisibility(object Sender, EventArgs E)
     {
         ThreadHelper.ThrowIfNotOnUIThread();
 
-        if (sender is not OleMenuCommand menuCommand)
+        if (Sender is not OleMenuCommand menuCommand)
         {
             return;
         }
 
-        bool visible = false;
+        bool Visible = false;
 
         try
         {
-            if (TryGetActiveDocumentText(out string activeDocumentText)
-                && SceneDefinitionTextDetector.LooksLikeSceneDefinition(activeDocumentText))
+            if (TryGetActiveDocumentText(out string ActiveDocumentText)
+                && SceneDefinitionTextDetector.LooksLikeSceneDefinition(ActiveDocumentText))
             {
-                visible = true;
+                Visible = true;
             }
         }
         catch (Exception)
@@ -86,62 +86,62 @@ internal sealed class PreviewSceneDefinitionCommand
             // fail closed (command stays hidden) rather than surface an error dialog from a menu.
         }
 
-        menuCommand.Visible = visible;
-        menuCommand.Enabled = visible;
+        menuCommand.Visible = Visible;
+        menuCommand.Enabled = Visible;
     }
 
-    private bool TryGetActiveDocumentText(out string text)
+    private bool TryGetActiveDocumentText(out string Text)
     {
         ThreadHelper.ThrowIfNotOnUIThread();
-        text = "";
+        Text = "";
 
-        Document? activeDocument = _dte.ActiveDocument;
-        if (activeDocument is null || !string.Equals(Path.GetExtension(activeDocument.FullName), ".cs", StringComparison.OrdinalIgnoreCase))
+        Document? ActiveDocument = Dte.ActiveDocument;
+        if (ActiveDocument is null || !string.Equals(Path.GetExtension(ActiveDocument.FullName), ".cs", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
-        if (activeDocument.Object("TextDocument") is not TextDocument textDocument)
+        if (ActiveDocument.Object("TextDocument") is not TextDocument textDocument)
         {
             return false;
         }
 
-        text = textDocument.StartPoint.CreateEditPoint().GetText(textDocument.EndPoint);
+        Text = textDocument.StartPoint.CreateEditPoint().GetText(textDocument.EndPoint);
         return true;
     }
 
-    private void Execute(object sender, EventArgs e)
+    private void Execute(object Sender, EventArgs E)
     {
         ThreadHelper.ThrowIfNotOnUIThread();
 
         try
         {
-            Document? activeDocument = _dte.ActiveDocument;
-            if (activeDocument is null)
+            Document? ActiveDocument = Dte.ActiveDocument;
+            if (ActiveDocument is null)
             {
                 ShowMessage("プレビュー対象のドキュメントが開かれていません。");
                 return;
             }
 
-            string sourcePath = activeDocument.FullName;
-            Project? containingProject = activeDocument.ProjectItem?.ContainingProject;
-            if (containingProject is null)
+            string SourcePath = ActiveDocument.FullName;
+            Project? ContainingProject = ActiveDocument.ProjectItem?.ContainingProject;
+            if (ContainingProject is null)
             {
                 ShowMessage("このドキュメントの所属プロジェクトを特定できませんでした。");
                 return;
             }
 
-            string? repoRoot = RepoLocator.ResolveRepoRoot();
-            if (repoRoot is null)
+            string? RepoRoot = RepoLocator.ResolveRepoRoot();
+            if (RepoRoot is null)
             {
                 ShowMessage($"リポジトリルート({RepoLocator.RepoMarkerFileName})が見つかりませんでした。");
                 return;
             }
 
-            string? assemblyPath = ProjectOutputAssemblyResolver.TryResolve(containingProject);
-            if (assemblyPath is null)
+            string? AssemblyPath = ProjectOutputAssemblyResolver.TryResolve(ContainingProject);
+            if (AssemblyPath is null)
             {
-                ShowMessage($"'{containingProject.Name}' のビルド出力が見つかりませんでした。先にプロジェクトをビルドしてから再実行してください。");
+                ShowMessage($"'{ContainingProject.Name}' のビルド出力が見つかりませんでした。先にプロジェクトをビルドしてから再実行してください。");
                 return;
             }
 
@@ -149,32 +149,32 @@ internal sealed class PreviewSceneDefinitionCommand
             // through JoinableTaskFactory - matches SceneHwndHost.LoadIntoSurface's own reasoning for
             // its bridge calls (this repo has hit real nested-JoinableTaskFactory deadlocks twice
             // before; a plain blocking call from a normal Execute handler has no such risk).
-            ScenePreviewBridgeDocument document = ExternalScenePreviewLoader.Load(sourcePath, assemblyPath, repoRoot);
+            ScenePreviewBridgeDocument document = ExternalScenePreviewLoader.Load(SourcePath, AssemblyPath, RepoRoot);
 
-            SceneFile scene = ScenePreviewSceneFileAdapter.ToSceneFile(document);
-            string scenePath = ScenePreviewSceneFileAdapter.ResolveTempScenePath(document.SceneClassFullName ?? Path.GetFileNameWithoutExtension(sourcePath));
-            scene.Save(scenePath);
+            SceneFile Scene = ScenePreviewSceneFileAdapter.ToSceneFile(document);
+            string ScenePath = ScenePreviewSceneFileAdapter.ResolveTempScenePath(document.SceneClassFullName ?? Path.GetFileNameWithoutExtension(SourcePath));
+            Scene.Save(ScenePath);
 
             // dte.ItemOperations.OpenFile(...) is the confirmed-reliable way to route through the
             // real IVsEditorFactory-based open path (ADR-0013) - mere selection or a raw file-open
             // API does not reliably trigger a custom editor factory.
-            _dte.ItemOperations.OpenFile(scenePath);
+            Dte.ItemOperations.OpenFile(ScenePath);
 
             // Forces an already-open preview tab for this same class to refresh, matching how
             // PrimitiveSpawner already relies on this same event after rewriting a .scene on disk.
             SceneEditorHub.RequestReload();
         }
-        catch (Exception ex)
+        catch (Exception Ex)
         {
-            ShowMessage($"シーンプレビューの作成に失敗しました:\n{ex.Message}");
+            ShowMessage($"シーンプレビューの作成に失敗しました:\n{Ex.Message}");
         }
     }
 
-    private void ShowMessage(string message)
+    private void ShowMessage(string Message)
     {
         VsShellUtilities.ShowMessageBox(
-            _package,
-            message,
+            Package,
+            Message,
             "C# Game Engine Scene",
             OLEMSGICON.OLEMSGICON_WARNING,
             OLEMSGBUTTON.OLEMSGBUTTON_OK,

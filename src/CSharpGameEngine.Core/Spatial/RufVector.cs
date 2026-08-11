@@ -36,13 +36,13 @@ public readonly struct RufVector : IEquatable<RufVector>
 
     public static RufVector operator -(RufVector left, RufVector right) => new(left.R - right.R, left.U - right.U, left.F - right.F);
 
-    public static RufVector operator -(RufVector value) => new(-value.R, -value.U, -value.F);
+    public static RufVector operator -(RufVector Value) => new(-Value.R, -Value.U, -Value.F);
 
-    public static RufVector operator *(RufVector value, float scalar) => new(value.R * scalar, value.U * scalar, value.F * scalar);
+    public static RufVector operator *(RufVector Value, float Scalar) => new(Value.R * Scalar, Value.U * Scalar, Value.F * Scalar);
 
-    public static RufVector operator *(float scalar, RufVector value) => value * scalar;
+    public static RufVector operator *(float Scalar, RufVector Value) => Value * Scalar;
 
-    public static RufVector operator /(RufVector value, float scalar) => new(value.R / scalar, value.U / scalar, value.F / scalar);
+    public static RufVector operator /(RufVector Value, float Scalar) => new(Value.R / Scalar, Value.U / Scalar, Value.F / Scalar);
 
     public static float Dot(RufVector left, RufVector right) => (left.R * right.R) + (left.U * right.U) + (left.F * right.F);
 
@@ -71,9 +71,9 @@ public readonly struct RufVector : IEquatable<RufVector>
         (left.F * right.R) - (left.R * right.F),
         (left.R * right.U) - (left.U * right.R));
 
-    public bool Equals(RufVector other) => R.Equals(other.R) && U.Equals(other.U) && F.Equals(other.F);
+    public bool Equals(RufVector Other) => R.Equals(Other.R) && U.Equals(Other.U) && F.Equals(Other.F);
 
-    public override bool Equals(object? obj) => obj is RufVector other && Equals(other);
+    public override bool Equals(object? Obj) => Obj is RufVector Other && Equals(Other);
 
     public override int GetHashCode() => HashCode.Combine(R, U, F);
 

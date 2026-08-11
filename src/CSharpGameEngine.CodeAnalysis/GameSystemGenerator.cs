@@ -39,124 +39,124 @@ public sealed class GameSystemGenerator : IIncrementalGenerator
 
     private const string SceneDefinitionAttributeFullyQualifiedName = "CSharpGameEngine.Entities.SceneDefinitionAttribute";
 
-    public void Initialize(IncrementalGeneratorInitializationContext context)
+    public void Initialize(IncrementalGeneratorInitializationContext Context)
     {
-        IncrementalValuesProvider<GameSystemResult?> candidates = context.SyntaxProvider.CreateSyntaxProvider(
-            static (node, _) => node is TypeDeclarationSyntax { BaseList.Types.Count: > 0 },
-            static (ctx, _) => TryAnalyzeSystem(ctx));
+        IncrementalValuesProvider<GameSystemResult?> Candidates = Context.SyntaxProvider.CreateSyntaxProvider(
+            static (Node, _) => Node is TypeDeclarationSyntax { BaseList.Types.Count: > 0 },
+            static (Ctx, _) => TryAnalyzeSystem(Ctx));
 
-        IncrementalValuesProvider<GameSystemResult> systems = candidates
-            .Where(static result => result.HasValue)
-            .Select(static (result, _) => result!.Value);
+        IncrementalValuesProvider<GameSystemResult> Systems = Candidates
+            .Where(static Result => Result.HasValue)
+            .Select(static (Result, _) => Result!.Value);
 
-        IncrementalValuesProvider<SceneDefinitionClassResult> scenes = context.SyntaxProvider.ForAttributeWithMetadataName(
+        IncrementalValuesProvider<SceneDefinitionClassResult> Scenes = Context.SyntaxProvider.ForAttributeWithMetadataName(
             SceneDefinitionAttributeFullyQualifiedName,
-            static (node, _) => node is ClassDeclarationSyntax,
-            static (ctx, ct) => SceneDefinitionAnalyzer.Analyze(ctx, ct));
+            static (Node, _) => Node is ClassDeclarationSyntax,
+            static (Ctx, Ct) => SceneDefinitionAnalyzer.Analyze(Ctx, Ct));
 
         // ADR-0036: ファイル横断・System横断の実行順序を宣言する唯一の属性。ISystem実装struct自身に
         // 直接付けるか、`file`スコープのマーカークラスへ付けてファイル既定値にするかのいずれか
         // (GameSystemOrderAnalyzer.Analyzeがどちらかを判別する)。
-        IncrementalValuesProvider<GameSystemOrderResult> systemOrders = context.SyntaxProvider.ForAttributeWithMetadataName(
+        IncrementalValuesProvider<GameSystemOrderResult> SystemOrders = Context.SyntaxProvider.ForAttributeWithMetadataName(
             GameSystemOrderAnalyzer.SystemOrderAttributeFullyQualifiedName,
-            static (node, _) => node is TypeDeclarationSyntax,
-            static (ctx, _) => GameSystemOrderAnalyzer.Analyze(ctx));
+            static (Node, _) => Node is TypeDeclarationSyntax,
+            static (Ctx, _) => GameSystemOrderAnalyzer.Analyze(Ctx));
 
-        context.RegisterSourceOutput(systems, static (spc, result) => GameSystemDiagnostics.ReportAll(spc, result));
+        Context.RegisterSourceOutput(Systems, static (Spc, Result) => GameSystemDiagnostics.ReportAll(Spc, Result));
 
-        context.RegisterSourceOutput(scenes, static (spc, result) =>
+        Context.RegisterSourceOutput(Scenes, static (Spc, Result) =>
         {
-            foreach (Diagnostic diagnostic in result.Diagnostics)
+            foreach (Diagnostic diagnostic in Result.Diagnostics)
             {
-                spc.ReportDiagnostic(diagnostic);
+                Spc.ReportDiagnostic(diagnostic);
             }
         });
 
         // SceneNodeSymbolの生成はArchetypeレジストリに依存しない(SceneNodeSymbol/SceneNodeIdしか触らない)
         // ため、結合前の段で個別に出力できる。
-        context.RegisterSourceOutput(scenes, static (spc, result) => SceneNodeSymbolEmitter.Emit(spc, result));
+        Context.RegisterSourceOutput(Scenes, static (Spc, Result) => SceneNodeSymbolEmitter.Emit(Spc, Result));
 
-        IncrementalValueProvider<((ImmutableArray<GameSystemResult> Systems, ImmutableArray<SceneDefinitionClassResult> Scenes, ImmutableArray<GameSystemOrderResult> SystemOrders) Sources, Compilation Compilation)> combined =
-            systems.Collect()
-                .Combine(scenes.Collect())
-                .Combine(systemOrders.Collect())
-                .Select(static (data, _) => (data.Left.Left, data.Left.Right, data.Right))
-                .Combine(context.CompilationProvider);
+        IncrementalValueProvider<((ImmutableArray<GameSystemResult> Systems, ImmutableArray<SceneDefinitionClassResult> Scenes, ImmutableArray<GameSystemOrderResult> SystemOrders) Sources, Compilation Compilation)> Combined =
+            Systems.Collect()
+                .Combine(Scenes.Collect())
+                .Combine(SystemOrders.Collect())
+                .Select(static (Data, _) => (Data.Left.Left, Data.Left.Right, Data.Right))
+                .Combine(Context.CompilationProvider);
 
-        context.RegisterSourceOutput(combined, static (spc, source) =>
+        Context.RegisterSourceOutput(Combined, static (Spc, Source) =>
         {
-            if (source.Compilation.GetTypeByMetadataName(RuntimeMarkerMetadataName) is null)
+            if (Source.Compilation.GetTypeByMetadataName(RuntimeMarkerMetadataName) is null)
             {
                 return;
             }
 
-            ImmutableArray<GameSystemResult> systemResults = source.Sources.Systems;
-            ImmutableArray<SceneDefinitionClassResult> sceneResults = source.Sources.Scenes;
+            ImmutableArray<GameSystemResult> SystemResults = Source.Sources.Systems;
+            ImmutableArray<SceneDefinitionClassResult> SceneResults = Source.Sources.Scenes;
 
-            (GameSystemOrderContext orderContext, ImmutableArray<Diagnostic> systemOrderDiagnostics) =
-                GameSystemOrderAnalyzer.BuildMap(source.Sources.SystemOrders);
+            (GameSystemOrderContext OrderContext, ImmutableArray<Diagnostic> SystemOrderDiagnostics) =
+                GameSystemOrderAnalyzer.BuildMap(Source.Sources.SystemOrders);
 
-            foreach (Diagnostic systemOrderDiagnostic in systemOrderDiagnostics)
+            foreach (Diagnostic SystemOrderDiagnostic in SystemOrderDiagnostics)
             {
-                spc.ReportDiagnostic(systemOrderDiagnostic);
+                Spc.ReportDiagnostic(SystemOrderDiagnostic);
             }
 
-            List<IReadOnlyList<string>> additionalComponentSets = [];
+            List<IReadOnlyList<string>> AdditionalComponentSets = [];
 
-            foreach (SceneDefinitionClassResult scene in sceneResults)
+            foreach (SceneDefinitionClassResult Scene in SceneResults)
             {
-                additionalComponentSets.AddRange(SceneRuntimeEmitter.CollectComponentSets(scene));
+                AdditionalComponentSets.AddRange(SceneRuntimeEmitter.CollectComponentSets(Scene));
             }
 
             // エントリポイントを出すかどうかはレジストリ構築の前に決める。生成する場合にだけ
             // Bootstrapの形状を登録し、出さないコンパイルへ余計なArchetypeが増えないようにする。
-            GameSystemEntryPointEmitter.Plan entryPointPlan =
-                GameSystemEntryPointEmitter.ShouldEmitPlan(source.Compilation, systemResults, orderContext, spc.CancellationToken);
+            GameSystemEntryPointEmitter.Plan EntryPointPlan =
+                GameSystemEntryPointEmitter.ShouldEmitPlan(Source.Compilation, SystemResults, OrderContext, Spc.CancellationToken);
 
-            if (entryPointPlan.Diagnostic is { } entryPointDiagnostic)
+            if (EntryPointPlan.Diagnostic is { } EntryPointDiagnostic)
             {
-                spc.ReportDiagnostic(entryPointDiagnostic);
+                Spc.ReportDiagnostic(EntryPointDiagnostic);
             }
 
-            if (entryPointPlan.Emit)
+            if (EntryPointPlan.Emit)
             {
-                additionalComponentSets.Add([GameSystemEntryPointEmitter.BootstrapComponentFullyQualifiedName]);
+                AdditionalComponentSets.Add([GameSystemEntryPointEmitter.BootstrapComponentFullyQualifiedName]);
             }
 
-            GameSystemRegistry registry = GameSystemIndexAssigner.Assign(systemResults, additionalComponentSets, orderContext);
+            GameSystemRegistry Registry = GameSystemIndexAssigner.Assign(SystemResults, AdditionalComponentSets, OrderContext);
 
-            foreach (Diagnostic diagnostic in registry.Diagnostics)
+            foreach (Diagnostic diagnostic in Registry.Diagnostics)
             {
-                spc.ReportDiagnostic(diagnostic);
+                Spc.ReportDiagnostic(diagnostic);
             }
 
-            GameSystemTypesEmitter.Emit(spc, registry);
-            GameSystemWorldEmitter.Emit(spc, registry);
-            GameSystemSnapshotEmitter.Emit(spc, registry);
-            GameSystemLoopEmitter.Emit(spc, registry);
+            GameSystemTypesEmitter.Emit(Spc, Registry);
+            GameSystemWorldEmitter.Emit(Spc, Registry);
+            GameSystemSnapshotEmitter.Emit(Spc, Registry);
+            GameSystemLoopEmitter.Emit(Spc, Registry);
 
-            if (entryPointPlan.Emit)
+            if (EntryPointPlan.Emit)
             {
-                GameSystemEntryPointEmitter.Emit(spc, registry);
+                GameSystemEntryPointEmitter.Emit(Spc, Registry);
             }
 
-            foreach (SceneDefinitionClassResult scene in sceneResults)
+            foreach (SceneDefinitionClassResult scene in SceneResults)
             {
-                SceneRuntimeEmitter.Emit(spc, scene, registry);
+                SceneRuntimeEmitter.Emit(Spc, scene, Registry);
             }
         });
     }
 
-    private static GameSystemResult? TryAnalyzeSystem(GeneratorSyntaxContext ctx)
+    private static GameSystemResult? TryAnalyzeSystem(GeneratorSyntaxContext Ctx)
     {
-        if (ctx.SemanticModel.GetDeclaredSymbol(ctx.Node) is not INamedTypeSymbol symbol)
+        if (Ctx.SemanticModel.GetDeclaredSymbol(Ctx.Node) is not INamedTypeSymbol Symbol)
         {
             return null;
         }
 
-        bool implementsISystem = symbol.AllInterfaces.Any(static i =>
-            i.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == GameSystemAnalyzer.SystemInterfaceFullyQualifiedName);
+        bool ImplementsISystem = Symbol.AllInterfaces.Any(static I =>
+            I.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == GameSystemAnalyzer.SystemInterfaceFullyQualifiedName);
 
-        return implementsISystem ? GameSystemAnalyzer.Analyze(symbol) : null;
+        return ImplementsISystem ? GameSystemAnalyzer.Analyze(Symbol) : null;
     }
 }

@@ -7,30 +7,30 @@ namespace CSharpGameEngine.VSExtension;
 internal static class NativeEvent
 {
     [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern IntPtr CreateEvent(IntPtr lpEventAttributes, [MarshalAs(UnmanagedType.Bool)] bool bManualReset, [MarshalAs(UnmanagedType.Bool)] bool bInitialState, string? lpName);
+    private static extern IntPtr CreateEvent(IntPtr LpEventAttributes, [MarshalAs(UnmanagedType.Bool)] bool BManualReset, [MarshalAs(UnmanagedType.Bool)] bool BInitialState, string? LpName);
 
     [DllImport("kernel32.dll")]
-    private static extern uint WaitForSingleObject(IntPtr hHandle, uint dwMilliseconds);
+    private static extern uint WaitForSingleObject(IntPtr HHandle, uint DwMilliseconds);
 
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool CloseHandle(IntPtr hObject);
+    private static extern bool CloseHandle(IntPtr HObject);
 
     private const uint Infinite = 0xFFFFFFFF;
 
     public static IntPtr CreateAutoResetEvent()
     {
-        IntPtr handle = CreateEvent(IntPtr.Zero, false, false, null);
-        if (handle == IntPtr.Zero)
+        IntPtr Handle = CreateEvent(IntPtr.Zero, false, false, null);
+        if (Handle == IntPtr.Zero)
         {
-            int error = Marshal.GetLastWin32Error();
-            throw new InvalidOperationException($"CreateEvent failed with Win32 error 0x{error:X8}.");
+            int Error = Marshal.GetLastWin32Error();
+            throw new InvalidOperationException($"CreateEvent failed with Win32 error 0x{Error:X8}.");
         }
 
-        return handle;
+        return Handle;
     }
 
-    public static void Wait(IntPtr eventHandle) => WaitForSingleObject(eventHandle, Infinite);
+    public static void Wait(IntPtr EventHandle) => WaitForSingleObject(EventHandle, Infinite);
 
-    public static void Close(IntPtr eventHandle) => CloseHandle(eventHandle);
+    public static void Close(IntPtr EventHandle) => CloseHandle(EventHandle);
 }

@@ -5,45 +5,45 @@ namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// <summary>WIC decode needs no D3D12 device, so these are Windows-only, not GPU-category tests.</summary>
 public class WicImageDecoderTests
 {
-    private static string FixturePath(string fileName) => Path.Combine(AppContext.BaseDirectory, "Fixtures", fileName);
+    private static string FixturePath(string FileName) => Path.Combine(AppContext.BaseDirectory, "Fixtures", FileName);
 
     [WindowsOnlyFact]
     public void Decode_RealPngFromBoxTextured_Succeeds()
     {
-        GltfImportResult importResult = GltfImporter.Import(FixturePath("BoxTextured.glb"));
-        Assert.True(importResult.Success, string.Join(Environment.NewLine, importResult.Diagnostics));
-        byte[]? textureBytes = importResult.Mesh!.BaseColorTextureBytes;
-        Assert.NotNull(textureBytes);
+        GltfImportResult ImportResult = GltfImporter.Import(FixturePath("BoxTextured.glb"));
+        Assert.True(ImportResult.Success, string.Join(Environment.NewLine, ImportResult.Diagnostics));
+        byte[]? TextureBytes = ImportResult.Mesh!.BaseColorTextureBytes;
+        Assert.NotNull(TextureBytes);
 
-        WicDecodeResult result = WicImageDecoder.Decode(textureBytes!);
+        WicDecodeResult Result = WicImageDecoder.Decode(TextureBytes!);
 
-        Assert.True(result.Success, result.Error);
-        Assert.NotNull(result.Image);
-        Assert.True(result.Image!.Width > 0);
-        Assert.True(result.Image.Height > 0);
-        Assert.Equal(result.Image.Width * result.Image.Height * 4, result.Image.Pixels.Length);
+        Assert.True(Result.Success, Result.Error);
+        Assert.NotNull(Result.Image);
+        Assert.True(Result.Image!.Width > 0);
+        Assert.True(Result.Image.Height > 0);
+        Assert.Equal(Result.Image.Width * Result.Image.Height * 4, Result.Image.Pixels.Length);
     }
 
     [WindowsOnlyFact]
     public void Decode_EmptyBytes_FailsCleanly()
     {
-        WicDecodeResult result = WicImageDecoder.Decode([]);
+        WicDecodeResult Result = WicImageDecoder.Decode([]);
 
-        Assert.False(result.Success);
-        Assert.Null(result.Image);
-        Assert.NotNull(result.Error);
+        Assert.False(Result.Success);
+        Assert.Null(Result.Image);
+        Assert.NotNull(Result.Error);
     }
 
     [WindowsOnlyFact]
     public void Decode_GarbageBytes_FailsNotException()
     {
-        byte[] garbage = "NOT_A_VALID_IMAGE_FILE_JUST_GARBAGE_BYTES_FOR_TESTING"u8.ToArray();
+        byte[] Garbage = "NOT_A_VALID_IMAGE_FILE_JUST_GARBAGE_BYTES_FOR_TESTING"u8.ToArray();
 
-        WicDecodeResult result = WicImageDecoder.Decode(garbage);
+        WicDecodeResult Result = WicImageDecoder.Decode(Garbage);
 
-        Assert.False(result.Success);
-        Assert.Null(result.Image);
-        Assert.NotNull(result.Error);
+        Assert.False(Result.Success);
+        Assert.Null(Result.Image);
+        Assert.NotNull(Result.Error);
     }
 
     [WindowsOnlyFact]

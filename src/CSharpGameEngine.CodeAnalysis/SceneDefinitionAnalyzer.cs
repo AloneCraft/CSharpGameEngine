@@ -25,77 +25,77 @@ internal static class SceneDefinitionAnalyzer
     private const string SceneNodeSymbolFullyQualifiedName = "global::CSharpGameEngine.Entities.SceneNodeSymbol";
     private const string SceneBuilderFullyQualifiedName = "global::CSharpGameEngine.Entities.SceneBuilder";
 
-    internal static SceneDefinitionClassResult Analyze(GeneratorAttributeSyntaxContext ctx, CancellationToken cancellationToken)
+    internal static SceneDefinitionClassResult Analyze(GeneratorAttributeSyntaxContext Ctx, CancellationToken cancellationToken)
     {
-        INamedTypeSymbol classSymbol = (INamedTypeSymbol)ctx.TargetSymbol;
-        ClassDeclarationSyntax classDeclaration = (ClassDeclarationSyntax)ctx.TargetNode;
-        SemanticModel semanticModel = ctx.SemanticModel;
-        ImmutableArray<Diagnostic>.Builder diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
+        INamedTypeSymbol ClassSymbol = (INamedTypeSymbol)Ctx.TargetSymbol;
+        ClassDeclarationSyntax ClassDeclaration = (ClassDeclarationSyntax)Ctx.TargetNode;
+        SemanticModel semanticModel = Ctx.SemanticModel;
+        ImmutableArray<Diagnostic>.Builder Diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
 
-        if (!classSymbol.IsStatic || classSymbol.TypeKind != TypeKind.Class || !classDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword))
+        if (!ClassSymbol.IsStatic || ClassSymbol.TypeKind != TypeKind.Class || !ClassDeclaration.Modifiers.Any(SyntaxKind.PartialKeyword))
         {
-            diagnostics.Add(Diagnostic.Create(SceneDefinitionDiagnostics.MustBeStaticPartialClass, classSymbol.Locations.FirstOrDefault(), classSymbol.Name));
+            Diagnostics.Add(Diagnostic.Create(SceneDefinitionDiagnostics.MustBeStaticPartialClass, ClassSymbol.Locations.FirstOrDefault(), ClassSymbol.Name));
         }
 
-        Dictionary<string, IPropertySymbol> declaredNodesByName = new(StringComparer.Ordinal);
-        HashSet<string> knownNodePropertyNames = new(StringComparer.Ordinal);
+        Dictionary<string, IPropertySymbol> DeclaredNodesByName = new(StringComparer.Ordinal);
+        HashSet<string> KnownNodePropertyNames = new(StringComparer.Ordinal);
 
-        foreach (ISymbol member in classSymbol.GetMembers())
+        foreach (ISymbol Member in ClassSymbol.GetMembers())
         {
-            if (member is not IPropertySymbol property || property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) != SceneNodeSymbolFullyQualifiedName)
+            if (Member is not IPropertySymbol Property || Property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) != SceneNodeSymbolFullyQualifiedName)
             {
                 continue;
             }
 
-            knownNodePropertyNames.Add(property.Name);
+            KnownNodePropertyNames.Add(Property.Name);
 
-            bool isWellFormed = property.DeclaredAccessibility == Accessibility.Private
-                && property.IsStatic
-                && property.IsPartialDefinition
-                && property.GetMethod is not null
-                && property.SetMethod is null;
+            bool IsWellFormed = Property.DeclaredAccessibility == Accessibility.Private
+                && Property.IsStatic
+                && Property.IsPartialDefinition
+                && Property.GetMethod is not null
+                && Property.SetMethod is null;
 
-            if (!isWellFormed)
+            if (!IsWellFormed)
             {
-                diagnostics.Add(Diagnostic.Create(SceneDefinitionDiagnostics.NodePropertyMustBeStaticPartialGetOnly, property.Locations.FirstOrDefault(), property.Name));
+                Diagnostics.Add(Diagnostic.Create(SceneDefinitionDiagnostics.NodePropertyMustBeStaticPartialGetOnly, Property.Locations.FirstOrDefault(), Property.Name));
                 continue;
             }
 
-            declaredNodesByName[property.Name] = property;
+            DeclaredNodesByName[Property.Name] = Property;
         }
 
-        IMethodSymbol? defineMethod = classSymbol.GetMembers("Define").OfType<IMethodSymbol>().FirstOrDefault(IsDefineMethodSignature);
+        IMethodSymbol? DefineMethod = ClassSymbol.GetMembers("Define").OfType<IMethodSymbol>().FirstOrDefault(IsDefineMethodSignature);
 
-        HashSet<string> createdNodeNames = new(StringComparer.Ordinal);
-        SceneNodeModel? root = null;
-        int topLevelCreateCount = 0;
+        HashSet<string> CreatedNodeNames = new(StringComparer.Ordinal);
+        SceneNodeModel? Root = null;
+        int TopLevelCreateCount = 0;
 
-        if (defineMethod is not null
-            && defineMethod.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(cancellationToken) is MethodDeclarationSyntax { Body: { } defineBody })
+        if (DefineMethod is not null
+            && DefineMethod.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax(cancellationToken) is MethodDeclarationSyntax { Body: { } DefineBody })
         {
-            root = AnalyzeTopLevel(
-                defineBody,
-                defineMethod.Parameters[0].Name,
+            Root = AnalyzeTopLevel(
+                DefineBody,
+                DefineMethod.Parameters[0].Name,
                 semanticModel,
-                declaredNodesByName,
-                knownNodePropertyNames,
-                createdNodeNames,
-                diagnostics,
-                out topLevelCreateCount,
+                DeclaredNodesByName,
+                KnownNodePropertyNames,
+                CreatedNodeNames,
+                Diagnostics,
+                out TopLevelCreateCount,
                 cancellationToken);
         }
 
-        if (topLevelCreateCount != 1)
+        if (TopLevelCreateCount != 1)
         {
-            Location? location = defineMethod?.Locations.FirstOrDefault() ?? classSymbol.Locations.FirstOrDefault();
-            diagnostics.Add(Diagnostic.Create(SceneDefinitionDiagnostics.TopLevelCreateMustBeSingle, location, topLevelCreateCount));
+            Location? location = DefineMethod?.Locations.FirstOrDefault() ?? ClassSymbol.Locations.FirstOrDefault();
+            Diagnostics.Add(Diagnostic.Create(SceneDefinitionDiagnostics.TopLevelCreateMustBeSingle, location, TopLevelCreateCount));
         }
 
-        foreach (KeyValuePair<string, IPropertySymbol> declared in declaredNodesByName)
+        foreach (KeyValuePair<string, IPropertySymbol> Declared in DeclaredNodesByName)
         {
-            if (!createdNodeNames.Contains(declared.Key))
+            if (!CreatedNodeNames.Contains(Declared.Key))
             {
-                diagnostics.Add(Diagnostic.Create(SceneDefinitionDiagnostics.DeclaredNodeNotCreated, declared.Value.Locations.FirstOrDefault(), declared.Key));
+                Diagnostics.Add(Diagnostic.Create(SceneDefinitionDiagnostics.DeclaredNodeNotCreated, Declared.Value.Locations.FirstOrDefault(), Declared.Key));
             }
         }
 
@@ -103,171 +103,171 @@ internal static class SceneDefinitionAnalyzer
         // 組み合わせごとに専用のstructを生成するため、ジェネリック型引数由来の上限が存在しない。
 
         return new SceneDefinitionClassResult(
-            classSymbol.ContainingNamespace.IsGlobalNamespace ? null : classSymbol.ContainingNamespace.ToDisplayString(),
-            classSymbol.Name,
-            [.. CollectUsingDirectives(classDeclaration)],
-            root,
-            diagnostics.ToImmutable());
+            ClassSymbol.ContainingNamespace.IsGlobalNamespace ? null : ClassSymbol.ContainingNamespace.ToDisplayString(),
+            ClassSymbol.Name,
+            [.. CollectUsingDirectives(ClassDeclaration)],
+            Root,
+            Diagnostics.ToImmutable());
     }
 
-    private static bool IsDefineMethodSignature(IMethodSymbol method)
+    private static bool IsDefineMethodSignature(IMethodSymbol Method)
     {
-        return method.IsStatic
-            && method.ReturnsVoid
-            && method.Parameters.Length == 1
-            && method.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == SceneBuilderFullyQualifiedName;
+        return Method.IsStatic
+            && Method.ReturnsVoid
+            && Method.Parameters.Length == 1
+            && Method.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == SceneBuilderFullyQualifiedName;
     }
 
     /// <summary><c>Define</c>直下のブロック: <c>Scene.Create(...)</c>だけを許可し、個数(SCENE006)を数える。</summary>
     private static SceneNodeModel? AnalyzeTopLevel(
-        BlockSyntax defineBody,
-        string sceneParameterName,
+        BlockSyntax DefineBody,
+        string SceneParameterName,
         SemanticModel semanticModel,
-        Dictionary<string, IPropertySymbol> declaredNodesByName,
-        HashSet<string> knownNodePropertyNames,
-        HashSet<string> createdNodeNames,
-        ImmutableArray<Diagnostic>.Builder diagnostics,
-        out int topLevelCreateCount,
+        Dictionary<string, IPropertySymbol> DeclaredNodesByName,
+        HashSet<string> KnownNodePropertyNames,
+        HashSet<string> CreatedNodeNames,
+        ImmutableArray<Diagnostic>.Builder Diagnostics,
+        out int TopLevelCreateCount,
         CancellationToken cancellationToken)
     {
-        List<SceneNodeModel> topLevelModels = [];
-        topLevelCreateCount = 0;
+        List<SceneNodeModel> TopLevelModels = [];
+        TopLevelCreateCount = 0;
 
-        foreach (StatementSyntax statement in defineBody.Statements)
+        foreach (StatementSyntax Statement in DefineBody.Statements)
         {
-            if (!TryGetMemberInvocation(statement, out string receiverName, out string methodName, out InvocationExpressionSyntax invocation)
-                || receiverName != sceneParameterName
-                || methodName != "Create")
+            if (!TryGetMemberInvocation(Statement, out string ReceiverName, out string MethodName, out InvocationExpressionSyntax Invocation)
+                || ReceiverName != SceneParameterName
+                || MethodName != "Create")
             {
-                diagnostics.Add(Diagnostic.Create(SceneDefinitionDiagnostics.UnsupportedSyntaxInDefine, statement.GetLocation(), statement.ToString().Trim()));
+                Diagnostics.Add(Diagnostic.Create(SceneDefinitionDiagnostics.UnsupportedSyntaxInDefine, Statement.GetLocation(), Statement.ToString().Trim()));
                 continue;
             }
 
-            topLevelCreateCount++;
+            TopLevelCreateCount++;
 
-            if (!TryParseCreateArguments(invocation, diagnostics, out string nodeArgName, out BlockSyntax lambdaBlock))
+            if (!TryParseCreateArguments(Invocation, Diagnostics, out string NodeArgName, out BlockSyntax LambdaBlock))
             {
                 continue;
             }
 
-            SceneNodeModel? model = ResolveChild(
-                nodeArgName,
-                lambdaBlock,
-                invocation,
+            SceneNodeModel? Model = ResolveChild(
+                NodeArgName,
+                LambdaBlock,
+                Invocation,
                 semanticModel,
-                declaredNodesByName,
-                knownNodePropertyNames,
-                createdNodeNames,
-                diagnostics,
+                DeclaredNodesByName,
+                KnownNodePropertyNames,
+                CreatedNodeNames,
+                Diagnostics,
                 cancellationToken);
 
-            if (model is { } m)
+            if (Model is { } M)
             {
-                topLevelModels.Add(m);
+                TopLevelModels.Add(M);
             }
         }
 
-        return topLevelCreateCount == 1 && topLevelModels.Count == 1 ? topLevelModels[0] : null;
+        return TopLevelCreateCount == 1 && TopLevelModels.Count == 1 ? TopLevelModels[0] : null;
     }
 
     /// <summary>あるノードのCreateラムダ本体: <c>Create</c>(子ノード)と<c>Set</c>(Component)の両方を許可する。</summary>
     private static (ImmutableArray<ComponentSetModel> Components, ImmutableArray<SceneNodeModel> Children) AnalyzeNodeBody(
-        string scopeName,
-        BlockSyntax block,
+        string ScopeName,
+        BlockSyntax Block,
         SemanticModel semanticModel,
-        Dictionary<string, IPropertySymbol> declaredNodesByName,
-        HashSet<string> knownNodePropertyNames,
-        HashSet<string> createdNodeNames,
-        ImmutableArray<Diagnostic>.Builder diagnostics,
+        Dictionary<string, IPropertySymbol> DeclaredNodesByName,
+        HashSet<string> KnownNodePropertyNames,
+        HashSet<string> CreatedNodeNames,
+        ImmutableArray<Diagnostic>.Builder Diagnostics,
         CancellationToken cancellationToken)
     {
-        List<ComponentSetModel> components = [];
-        List<SceneNodeModel> children = [];
+        List<ComponentSetModel> Components = [];
+        List<SceneNodeModel> Children = [];
 
-        foreach (StatementSyntax statement in block.Statements)
+        foreach (StatementSyntax Statement in Block.Statements)
         {
-            if (!TryGetMemberInvocation(statement, out string receiverName, out string methodName, out InvocationExpressionSyntax invocation) || receiverName != scopeName)
+            if (!TryGetMemberInvocation(Statement, out string ReceiverName, out string MethodName, out InvocationExpressionSyntax Invocation) || ReceiverName != ScopeName)
             {
-                diagnostics.Add(Diagnostic.Create(SceneDefinitionDiagnostics.UnsupportedSyntaxInDefine, statement.GetLocation(), statement.ToString().Trim()));
+                Diagnostics.Add(Diagnostic.Create(SceneDefinitionDiagnostics.UnsupportedSyntaxInDefine, Statement.GetLocation(), Statement.ToString().Trim()));
                 continue;
             }
 
-            if (methodName == "Create")
+            if (MethodName == "Create")
             {
-                if (!TryParseCreateArguments(invocation, diagnostics, out string nodeArgName, out BlockSyntax lambdaBlock))
+                if (!TryParseCreateArguments(Invocation, Diagnostics, out string NodeArgName, out BlockSyntax LambdaBlock))
                 {
                     continue;
                 }
 
-                SceneNodeModel? child = ResolveChild(
-                    nodeArgName,
-                    lambdaBlock,
-                    invocation,
+                SceneNodeModel? Child = ResolveChild(
+                    NodeArgName,
+                    LambdaBlock,
+                    Invocation,
                     semanticModel,
-                    declaredNodesByName,
-                    knownNodePropertyNames,
-                    createdNodeNames,
-                    diagnostics,
+                    DeclaredNodesByName,
+                    KnownNodePropertyNames,
+                    CreatedNodeNames,
+                    Diagnostics,
                     cancellationToken);
 
-                if (child is { } c)
+                if (Child is { } C)
                 {
-                    children.Add(c);
+                    Children.Add(C);
                 }
 
                 continue;
             }
 
-            if (methodName == "Set")
+            if (MethodName == "Set")
             {
-                ComponentSetModel? component = AnalyzeSetCall(scopeName, invocation, semanticModel, diagnostics, cancellationToken);
+                ComponentSetModel? Component = AnalyzeSetCall(ScopeName, Invocation, semanticModel, Diagnostics, cancellationToken);
 
-                if (component is { } value)
+                if (Component is { } Value)
                 {
-                    components.Add(value);
+                    Components.Add(Value);
                 }
 
                 continue;
             }
 
-            diagnostics.Add(Diagnostic.Create(SceneDefinitionDiagnostics.UnsupportedSyntaxInDefine, invocation.GetLocation(), invocation.ToString().Trim()));
+            Diagnostics.Add(Diagnostic.Create(SceneDefinitionDiagnostics.UnsupportedSyntaxInDefine, Invocation.GetLocation(), Invocation.ToString().Trim()));
         }
 
-        return ([.. components], [.. children]);
+        return ([.. Components], [.. Children]);
     }
 
     private static ComponentSetModel? AnalyzeSetCall(
-        string scopeName,
-        InvocationExpressionSyntax invocation,
+        string ScopeName,
+        InvocationExpressionSyntax Invocation,
         SemanticModel semanticModel,
-        ImmutableArray<Diagnostic>.Builder diagnostics,
+        ImmutableArray<Diagnostic>.Builder Diagnostics,
         CancellationToken cancellationToken)
     {
-        if (invocation.ArgumentList.Arguments.Count != 1)
+        if (Invocation.ArgumentList.Arguments.Count != 1)
         {
-            diagnostics.Add(Diagnostic.Create(SceneDefinitionDiagnostics.UnsupportedSyntaxInDefine, invocation.GetLocation(), invocation.ToString().Trim()));
+            Diagnostics.Add(Diagnostic.Create(SceneDefinitionDiagnostics.UnsupportedSyntaxInDefine, Invocation.GetLocation(), Invocation.ToString().Trim()));
             return null;
         }
 
-        ExpressionSyntax setArgument = invocation.ArgumentList.Arguments[0].Expression;
+        ExpressionSyntax SetArgument = Invocation.ArgumentList.Arguments[0].Expression;
 
-        if (setArgument is not ObjectCreationExpressionSyntax objectCreation)
+        if (SetArgument is not ObjectCreationExpressionSyntax ObjectCreation)
         {
-            diagnostics.Add(Diagnostic.Create(SceneDefinitionDiagnostics.ComponentInitializerMustBeObjectCreationExpression, setArgument.GetLocation(), scopeName));
+            Diagnostics.Add(Diagnostic.Create(SceneDefinitionDiagnostics.ComponentInitializerMustBeObjectCreationExpression, SetArgument.GetLocation(), ScopeName));
             return null;
         }
 
-        ITypeSymbol? componentType = semanticModel.GetTypeInfo(objectCreation, cancellationToken).Type;
+        ITypeSymbol? ComponentType = semanticModel.GetTypeInfo(ObjectCreation, cancellationToken).Type;
 
-        if (componentType is null)
+        if (ComponentType is null)
         {
-            diagnostics.Add(Diagnostic.Create(SceneDefinitionDiagnostics.ComponentInitializerMustBeObjectCreationExpression, setArgument.GetLocation(), scopeName));
+            Diagnostics.Add(Diagnostic.Create(SceneDefinitionDiagnostics.ComponentInitializerMustBeObjectCreationExpression, SetArgument.GetLocation(), ScopeName));
             return null;
         }
 
-        string typeFullyQualifiedName = componentType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-        string initializerText = objectCreation.NormalizeWhitespace().ToFullString();
-        return new ComponentSetModel(typeFullyQualifiedName, initializerText);
+        string TypeFullyQualifiedName = ComponentType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        string InitializerText = ObjectCreation.NormalizeWhitespace().ToFullString();
+        return new ComponentSetModel(TypeFullyQualifiedName, InitializerText);
     }
 
     /// <summary>
@@ -276,45 +276,45 @@ internal static class SceneDefinitionAnalyzer
     /// (SCENE002で既に報告済みの不正な宣言を除き)SCENE007として報告する。
     /// </summary>
     private static SceneNodeModel? ResolveChild(
-        string nodeArgName,
-        BlockSyntax lambdaBlock,
-        InvocationExpressionSyntax invocation,
+        string NodeArgName,
+        BlockSyntax LambdaBlock,
+        InvocationExpressionSyntax Invocation,
         SemanticModel semanticModel,
-        Dictionary<string, IPropertySymbol> declaredNodesByName,
-        HashSet<string> knownNodePropertyNames,
-        HashSet<string> createdNodeNames,
-        ImmutableArray<Diagnostic>.Builder diagnostics,
+        Dictionary<string, IPropertySymbol> DeclaredNodesByName,
+        HashSet<string> KnownNodePropertyNames,
+        HashSet<string> CreatedNodeNames,
+        ImmutableArray<Diagnostic>.Builder Diagnostics,
         CancellationToken cancellationToken)
     {
-        if (!declaredNodesByName.TryGetValue(nodeArgName, out IPropertySymbol? property))
+        if (!DeclaredNodesByName.TryGetValue(NodeArgName, out IPropertySymbol? Property))
         {
-            if (!knownNodePropertyNames.Contains(nodeArgName))
+            if (!KnownNodePropertyNames.Contains(NodeArgName))
             {
-                diagnostics.Add(Diagnostic.Create(SceneDefinitionDiagnostics.UnsupportedSyntaxInDefine, invocation.GetLocation(), invocation.ToString().Trim()));
+                Diagnostics.Add(Diagnostic.Create(SceneDefinitionDiagnostics.UnsupportedSyntaxInDefine, Invocation.GetLocation(), Invocation.ToString().Trim()));
             }
 
             return null;
         }
 
-        if (!createdNodeNames.Add(nodeArgName))
+        if (!CreatedNodeNames.Add(NodeArgName))
         {
-            diagnostics.Add(Diagnostic.Create(SceneDefinitionDiagnostics.DuplicateNodeCreation, invocation.GetLocation(), nodeArgName));
+            Diagnostics.Add(Diagnostic.Create(SceneDefinitionDiagnostics.DuplicateNodeCreation, Invocation.GetLocation(), NodeArgName));
             return null;
         }
 
-        (ImmutableArray<ComponentSetModel> components, ImmutableArray<SceneNodeModel> children) = AnalyzeNodeBody(
-            nodeArgName,
-            lambdaBlock,
+        (ImmutableArray<ComponentSetModel> Components, ImmutableArray<SceneNodeModel> Children) = AnalyzeNodeBody(
+            NodeArgName,
+            LambdaBlock,
             semanticModel,
-            declaredNodesByName,
-            knownNodePropertyNames,
-            createdNodeNames,
-            diagnostics,
+            DeclaredNodesByName,
+            KnownNodePropertyNames,
+            CreatedNodeNames,
+            Diagnostics,
             cancellationToken);
 
-        ulong nodeId = ComputeNodeId(property.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
-        Location location = property.Locations.FirstOrDefault() ?? Location.None;
-        return new SceneNodeModel(nodeArgName, nodeId, location, components, children);
+        ulong NodeId = ComputeNodeId(Property.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+        Location location = Property.Locations.FirstOrDefault() ?? Location.None;
+        return new SceneNodeModel(NodeArgName, NodeId, location, Components, Children);
     }
 
     /// <summary>
@@ -322,23 +322,23 @@ internal static class SceneDefinitionAnalyzer
     /// (ローカル変数宣言、if/for、複合式など)はfalseを返し、呼び出し側がSCENE007を報告する。
     /// </summary>
     private static bool TryGetMemberInvocation(
-        StatementSyntax statement,
-        out string receiverName,
-        out string methodName,
-        out InvocationExpressionSyntax invocation)
+        StatementSyntax Statement,
+        out string ReceiverName,
+        out string MethodName,
+        out InvocationExpressionSyntax Invocation)
     {
-        if (statement is ExpressionStatementSyntax { Expression: InvocationExpressionSyntax inv }
-            && inv.Expression is MemberAccessExpressionSyntax { Expression: IdentifierNameSyntax receiverIdentifier } memberAccess)
+        if (Statement is ExpressionStatementSyntax { Expression: InvocationExpressionSyntax Inv }
+            && Inv.Expression is MemberAccessExpressionSyntax { Expression: IdentifierNameSyntax ReceiverIdentifier } MemberAccess)
         {
-            receiverName = receiverIdentifier.Identifier.Text;
-            methodName = memberAccess.Name.Identifier.Text;
-            invocation = inv;
+            ReceiverName = ReceiverIdentifier.Identifier.Text;
+            MethodName = MemberAccess.Name.Identifier.Text;
+            Invocation = Inv;
             return true;
         }
 
-        receiverName = string.Empty;
-        methodName = string.Empty;
-        invocation = null!;
+        ReceiverName = string.Empty;
+        MethodName = string.Empty;
+        Invocation = null!;
         return false;
     }
 
@@ -347,36 +347,36 @@ internal static class SceneDefinitionAnalyzer
     /// SCENE007、第1引数とラムダ引数名が一致しない場合はSCENE003を報告する。
     /// </summary>
     private static bool TryParseCreateArguments(
-        InvocationExpressionSyntax invocation,
-        ImmutableArray<Diagnostic>.Builder diagnostics,
-        out string nodeArgName,
-        out BlockSyntax lambdaBlock)
+        InvocationExpressionSyntax Invocation,
+        ImmutableArray<Diagnostic>.Builder Diagnostics,
+        out string NodeArgName,
+        out BlockSyntax LambdaBlock)
     {
-        nodeArgName = string.Empty;
-        lambdaBlock = null!;
+        NodeArgName = string.Empty;
+        LambdaBlock = null!;
 
-        SeparatedSyntaxList<ArgumentSyntax> arguments = invocation.ArgumentList.Arguments;
+        SeparatedSyntaxList<ArgumentSyntax> Arguments = Invocation.ArgumentList.Arguments;
 
-        if (arguments.Count != 2
-            || arguments[0].Expression is not IdentifierNameSyntax nodeArgIdentifier
-            || arguments[1].Expression is not SimpleLambdaExpressionSyntax lambda
-            || lambda.Body is not BlockSyntax block)
+        if (Arguments.Count != 2
+            || Arguments[0].Expression is not IdentifierNameSyntax NodeArgIdentifier
+            || Arguments[1].Expression is not SimpleLambdaExpressionSyntax Lambda
+            || Lambda.Body is not BlockSyntax Block)
         {
-            diagnostics.Add(Diagnostic.Create(SceneDefinitionDiagnostics.UnsupportedSyntaxInDefine, invocation.GetLocation(), invocation.ToString().Trim()));
+            Diagnostics.Add(Diagnostic.Create(SceneDefinitionDiagnostics.UnsupportedSyntaxInDefine, Invocation.GetLocation(), Invocation.ToString().Trim()));
             return false;
         }
 
-        string argName = nodeArgIdentifier.Identifier.Text;
-        string lambdaParamName = lambda.Parameter.Identifier.Text;
+        string ArgName = NodeArgIdentifier.Identifier.Text;
+        string LambdaParamName = Lambda.Parameter.Identifier.Text;
 
-        if (argName != lambdaParamName)
+        if (ArgName != LambdaParamName)
         {
-            diagnostics.Add(Diagnostic.Create(SceneDefinitionDiagnostics.CreateArgumentAndLambdaParameterNameMismatch, invocation.GetLocation(), argName, lambdaParamName));
+            Diagnostics.Add(Diagnostic.Create(SceneDefinitionDiagnostics.CreateArgumentAndLambdaParameterNameMismatch, Invocation.GetLocation(), ArgName, LambdaParamName));
             return false;
         }
 
-        nodeArgName = argName;
-        lambdaBlock = block;
+        NodeArgName = ArgName;
+        LambdaBlock = Block;
         return true;
     }
 
@@ -387,51 +387,51 @@ internal static class SceneDefinitionAnalyzer
     /// (意味解析による完全修飾化は行わない、Phase Aの簡略化方針)。ブロックスコープ・ファイルスコープ両方の
     /// namespace宣言(<see cref="BaseNamespaceDeclarationSyntax"/>)とコンパイル単位直下の両方を辿る。
     /// </summary>
-    private static List<string> CollectUsingDirectives(ClassDeclarationSyntax classDeclaration)
+    private static List<string> CollectUsingDirectives(ClassDeclarationSyntax ClassDeclaration)
     {
-        List<string> usings = [];
-        SyntaxNode? node = classDeclaration.Parent;
+        List<string> Usings = [];
+        SyntaxNode? Node = ClassDeclaration.Parent;
 
-        while (node is not null)
+        while (Node is not null)
         {
-            if (node is BaseNamespaceDeclarationSyntax namespaceDeclaration)
+            if (Node is BaseNamespaceDeclarationSyntax NamespaceDeclaration)
             {
-                foreach (UsingDirectiveSyntax usingDirective in namespaceDeclaration.Usings)
+                foreach (UsingDirectiveSyntax UsingDirective in NamespaceDeclaration.Usings)
                 {
-                    usings.Add(usingDirective.NormalizeWhitespace().ToFullString().Trim());
+                    Usings.Add(UsingDirective.NormalizeWhitespace().ToFullString().Trim());
                 }
             }
-            else if (node is CompilationUnitSyntax compilationUnit)
+            else if (Node is CompilationUnitSyntax CompilationUnit)
             {
-                foreach (UsingDirectiveSyntax usingDirective in compilationUnit.Usings)
+                foreach (UsingDirectiveSyntax usingDirective in CompilationUnit.Usings)
                 {
-                    usings.Add(usingDirective.NormalizeWhitespace().ToFullString().Trim());
+                    Usings.Add(usingDirective.NormalizeWhitespace().ToFullString().Trim());
                 }
             }
 
-            node = node.Parent;
+            Node = Node.Parent;
         }
 
-        return usings;
+        return Usings;
     }
 
     /// <summary>
     /// ノードを表す<c>partial</c>プロパティの完全修飾シンボル名から決定論的に導出する、標準的なFNV-1a
     /// 64bitハッシュ(<see cref="global::CSharpGameEngine.Entities.SceneNodeId"/>参照)。
     /// </summary>
-    private static ulong ComputeNodeId(string fullyQualifiedName)
+    private static ulong ComputeNodeId(string FullyQualifiedName)
     {
         const ulong OffsetBasis = 14695981039346656037UL;
         const ulong Prime = 1099511628211UL;
 
-        ulong hash = OffsetBasis;
+        ulong Hash = OffsetBasis;
 
-        foreach (byte b in Encoding.UTF8.GetBytes(fullyQualifiedName))
+        foreach (byte B in Encoding.UTF8.GetBytes(FullyQualifiedName))
         {
-            hash ^= b;
-            hash *= Prime;
+            Hash ^= B;
+            Hash *= Prime;
         }
 
-        return hash;
+        return Hash;
     }
 }

@@ -24,71 +24,71 @@ public partial class HierarchyToolWindowControl : UserControl
 
         SceneEditorHub.SceneOpened += OnSceneOpened;
 
-        if (SceneEditorHub.ActiveScene is { } active)
+        if (SceneEditorHub.ActiveScene is { } Active)
         {
-            PopulateTree(active.Scene);
+            PopulateTree(Active.Scene);
         }
     }
 
     // SceneEditorHub.SceneOpened is always raised from SceneHwndHost.LoadIntoSurface, itself only
     // ever called from HwndHost.BuildWindowCore/DestroyWindowCore - both always on the UI thread -
     // so no thread marshaling is needed here.
-    private void OnSceneOpened(SceneFile scene, string path) => PopulateTree(scene);
+    private void OnSceneOpened(SceneFile Scene, string path) => PopulateTree(Scene);
 
-    private void PopulateTree(SceneFile scene)
+    private void PopulateTree(SceneFile Scene)
     {
         try
         {
-            Tree.ItemsSource = scene.BuildTree();
+            Tree.ItemsSource = Scene.BuildTree();
         }
-        catch (InvalidOperationException ex)
+        catch (InvalidOperationException Ex)
         {
             System.Windows.MessageBox.Show(
-                $"ヒエラルキーの表示に失敗しました: {ex.Message}",
+                $"ヒエラルキーの表示に失敗しました: {Ex.Message}",
                 "C# Game Engine Hierarchy",
                 System.Windows.MessageBoxButton.OK,
                 System.Windows.MessageBoxImage.Error);
         }
     }
 
-    private void Tree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
+    private void Tree_SelectedItemChanged(object Sender, RoutedPropertyChangedEventArgs<object> E)
     {
-        Guid? nodeId = e.NewValue is SceneFileNodeTreeItem item ? item.Node.Id : null;
-        SceneEditorHub.PublishSelection(nodeId);
+        Guid? NodeId = E.NewValue is SceneFileNodeTreeItem Item ? Item.Node.Id : null;
+        SceneEditorHub.PublishSelection(NodeId);
     }
 
     private static readonly string[] SupportedDropExtensions = [".glb", ".gltf", ".fbx"];
 
-    private void Tree_DragEnterOrOver(object sender, DragEventArgs e)
+    private void Tree_DragEnterOrOver(object Sender, DragEventArgs E)
     {
-        e.Effects = HasSupportedDroppedFile(e.Data) ? DragDropEffects.Copy : DragDropEffects.None;
-        e.Handled = true;
+        E.Effects = HasSupportedDroppedFile(E.Data) ? DragDropEffects.Copy : DragDropEffects.None;
+        E.Handled = true;
     }
 
-    private void Tree_Drop(object sender, DragEventArgs e)
+    private void Tree_Drop(object Sender, DragEventArgs E)
     {
         Microsoft.VisualStudio.Shell.ThreadHelper.ThrowIfNotOnUIThread();
 
-        e.Handled = true;
+        E.Handled = true;
 
-        if (!e.Data.GetDataPresent(DataFormats.FileDrop))
+        if (!E.Data.GetDataPresent(DataFormats.FileDrop))
         {
             return;
         }
 
-        string[] paths = (string[])e.Data.GetData(DataFormats.FileDrop);
-        foreach (string path in paths)
+        string[] Paths = (string[])E.Data.GetData(DataFormats.FileDrop);
+        foreach (string path in Paths)
         {
             if (!IsSupportedAssetPath(path))
             {
                 continue;
             }
 
-            string nameHint = Path.GetFileNameWithoutExtension(path);
-            if (!SceneNodeAdder.TryAddAssetNode(path, nameHint, out string? errorMessage))
+            string NameHint = Path.GetFileNameWithoutExtension(path);
+            if (!SceneNodeAdder.TryAddAssetNode(path, NameHint, out string? ErrorMessage))
             {
                 System.Windows.MessageBox.Show(
-                    errorMessage,
+                    ErrorMessage,
                     "C# Game Engine Hierarchy",
                     System.Windows.MessageBoxButton.OK,
                     System.Windows.MessageBoxImage.Information);
@@ -97,15 +97,15 @@ public partial class HierarchyToolWindowControl : UserControl
         }
     }
 
-    private static bool HasSupportedDroppedFile(IDataObject data)
+    private static bool HasSupportedDroppedFile(IDataObject Data)
     {
-        if (!data.GetDataPresent(DataFormats.FileDrop))
+        if (!Data.GetDataPresent(DataFormats.FileDrop))
         {
             return false;
         }
 
-        string[] paths = (string[])data.GetData(DataFormats.FileDrop);
-        return paths.Any(IsSupportedAssetPath);
+        string[] Paths = (string[])Data.GetData(DataFormats.FileDrop);
+        return Paths.Any(IsSupportedAssetPath);
     }
 
     private static bool IsSupportedAssetPath(string path) =>

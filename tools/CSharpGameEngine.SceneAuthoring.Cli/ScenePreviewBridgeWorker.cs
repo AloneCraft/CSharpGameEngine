@@ -10,58 +10,58 @@ namespace CSharpGameEngine.SceneAuthoring.Cli;
 /// </summary>
 internal static class ScenePreviewBridgeWorker
 {
-    public static (int ExitCode, string Output) Run(string inputPath, string outputPath)
+    public static (int ExitCode, string Output) Run(string InputPath, string OutputPath)
     {
         try
         {
-            ScenePreviewRequest request = JsonSerializer.Deserialize<ScenePreviewRequest>(File.ReadAllText(inputPath))
-                ?? throw new InvalidOperationException($"リクエストファイル '{inputPath}' を読み取れませんでした。");
+            ScenePreviewRequest Request = JsonSerializer.Deserialize<ScenePreviewRequest>(File.ReadAllText(InputPath))
+                ?? throw new InvalidOperationException($"リクエストファイル '{InputPath}' を読み取れませんでした。");
 
-            IReadOnlyList<string> nodeNames = SceneDefinitionSourceParser.ParseNodeNamesInDeclarationOrder(File.ReadAllText(request.SourceFilePath));
-            string sceneClassSimpleNameHint = Path.GetFileNameWithoutExtension(request.SourceFilePath);
+            IReadOnlyList<string> NodeNames = SceneDefinitionSourceParser.ParseNodeNamesInDeclarationOrder(File.ReadAllText(Request.SourceFilePath));
+            string SceneClassSimpleNameHint = Path.GetFileNameWithoutExtension(Request.SourceFilePath);
 
-            SceneRuntimeInvoker.InvocationResult invocationResult = SceneRuntimeInvoker.Invoke(request.TargetAssemblyPath, sceneClassSimpleNameHint);
-            IReadOnlyList<ScenePreviewNode> nodes = WorldInspector.Inspect(invocationResult.Snapshot);
-            ScenePreviewNode[] namedNodes = ApplyRecoveredNames(nodes, nodeNames);
+            SceneRuntimeInvoker.InvocationResult InvocationResult = SceneRuntimeInvoker.Invoke(Request.TargetAssemblyPath, SceneClassSimpleNameHint);
+            IReadOnlyList<ScenePreviewNode> Nodes = WorldInspector.Inspect(InvocationResult.Snapshot);
+            ScenePreviewNode[] NamedNodes = ApplyRecoveredNames(Nodes, NodeNames);
 
-            ScenePreviewBridgeDocument document = new()
+            ScenePreviewBridgeDocument Document = new()
             {
                 Success = true,
-                SceneClassFullName = invocationResult.SceneClassFullName,
-                Nodes = namedNodes,
+                SceneClassFullName = InvocationResult.SceneClassFullName,
+                Nodes = NamedNodes,
             };
 
-            File.WriteAllText(outputPath, JsonSerializer.Serialize(document));
+            File.WriteAllText(OutputPath, JsonSerializer.Serialize(Document));
             return (0, string.Empty);
         }
-        catch (Exception ex)
+        catch (Exception Ex)
         {
-            File.WriteAllText(outputPath, JsonSerializer.Serialize(ScenePreviewBridgeDocument.ForFailure(ex.Message)));
-            return (1, ex.Message);
+            File.WriteAllText(OutputPath, JsonSerializer.Serialize(ScenePreviewBridgeDocument.ForFailure(Ex.Message)));
+            return (1, Ex.Message);
         }
     }
 
     /// <summary>
     /// Zips positionally only when the counts match: <c>nodes</c> is already <c>Entity.Id</c>-sorted
     /// (= depth-first declaration order, by construction of <c>SceneRuntimeEmitter</c>) and
-    /// <paramref name="nodeNames"/> is the same depth-first order recovered from source text - but if
+    /// <paramref name="NodeNames"/> is the same depth-first order recovered from source text - but if
     /// anything caused the counts to diverge, leaving every node unnamed is safer than risking a
     /// wrong pairing (ADR-0031).
     /// </summary>
-    private static ScenePreviewNode[] ApplyRecoveredNames(IReadOnlyList<ScenePreviewNode> nodes, IReadOnlyList<string> nodeNames)
+    private static ScenePreviewNode[] ApplyRecoveredNames(IReadOnlyList<ScenePreviewNode> Nodes, IReadOnlyList<string> NodeNames)
     {
-        if (nodes.Count != nodeNames.Count)
+        if (Nodes.Count != NodeNames.Count)
         {
-            return [.. nodes];
+            return [.. Nodes];
         }
 
-        ScenePreviewNode[] named = new ScenePreviewNode[nodes.Count];
+        ScenePreviewNode[] Named = new ScenePreviewNode[Nodes.Count];
 
-        for (int i = 0; i < nodes.Count; i++)
+        for (int i = 0; i < Nodes.Count; i++)
         {
-            named[i] = nodes[i] with { Name = nodeNames[i] };
+            Named[i] = Nodes[i] with { Name = NodeNames[i] };
         }
 
-        return named;
+        return Named;
     }
 }

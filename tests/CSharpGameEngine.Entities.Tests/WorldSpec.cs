@@ -1,4 +1,4 @@
-﻿namespace CSharpGameEngine.Entities.Tests;
+namespace CSharpGameEngine.Entities.Tests;
 
 /// <summary>
 /// 閉集合Archetype方式のランタイム(ADR-0033)の基本動作。<c>World.Create</c>/<c>MoveArchetype</c>/
@@ -12,11 +12,11 @@ public class WorldSpec
     {
         World world = new();
 
-        Entity first = world.Create(new Position { X = 1f });
-        Entity second = world.Create(new Position { X = 2f });
+        Entity First = world.Create(new Position { X = 1f });
+        Entity Second = world.Create(new Position { X = 2f });
 
-        Assert.Equal(0, first.Id);
-        Assert.Equal(1, second.Id);
+        Assert.Equal(0, First.Id);
+        Assert.Equal(1, Second.Id);
         Assert.Equal(2, world.Archetype0.Count);
         Assert.Equal(1f, world.Archetype0.GetPositionRefUnchecked(0).X);
         Assert.Equal(2f, world.Archetype0.GetPositionRefUnchecked(1).X);
@@ -64,24 +64,24 @@ public class WorldSpec
         World world = new();
         State state = new(world);
 
-        Entity first = world.Create(new Position { X = 1f });
-        Entity second = world.Create(new Position { X = 2f });
-        Entity third = world.Create(new Position { X = 3f });
+        Entity First = world.Create(new Position { X = 1f });
+        Entity Second = world.Create(new Position { X = 2f });
+        Entity Third = world.Create(new Position { X = 3f });
 
         // 先頭を移動させると、swap-backで末尾のthirdが先頭へ詰められる。
-        world.MoveArchetype(first, new Position { X = 1f }, new Velocity(), ref state);
+        world.MoveArchetype(First, new Position { X = 1f }, new Velocity(), ref state);
         world.PlaybackMoveArchetypes(ref state);
 
         Assert.Equal(2, world.Archetype0.Count);
-        Assert.Equal(third, world.Archetype0.GetEntityRefUnchecked(0));
-        Assert.Equal(second, world.Archetype0.GetEntityRefUnchecked(1));
+        Assert.Equal(Third, world.Archetype0.GetEntityRefUnchecked(0));
+        Assert.Equal(Second, world.Archetype0.GetEntityRefUnchecked(1));
 
         // 位置表が修復されていれば、詰められたthirdをさらに移動しても正しい行が消える。
-        world.MoveArchetype(third, new Position { X = 3f }, new Velocity(), ref state);
+        world.MoveArchetype(Third, new Position { X = 3f }, new Velocity(), ref state);
         world.PlaybackMoveArchetypes(ref state);
 
         Assert.Equal(1, world.Archetype0.Count);
-        Assert.Equal(second, world.Archetype0.GetEntityRefUnchecked(0));
+        Assert.Equal(Second, world.Archetype0.GetEntityRefUnchecked(0));
         Assert.Equal(2f, world.Archetype0.GetPositionRefUnchecked(0).X);
     }
 

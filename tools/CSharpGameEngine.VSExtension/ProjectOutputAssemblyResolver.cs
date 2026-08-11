@@ -23,34 +23,34 @@ internal static class ProjectOutputAssemblyResolver
     {
         ThreadHelper.ThrowIfNotOnUIThread();
 
-        string? projectDirectory = Path.GetDirectoryName(project.FullName);
-        if (string.IsNullOrEmpty(projectDirectory))
+        string? ProjectDirectory = Path.GetDirectoryName(project.FullName);
+        if (string.IsNullOrEmpty(ProjectDirectory))
         {
             return null;
         }
 
-        string? viaProperties = TryResolveViaProperties(project, projectDirectory);
-        if (viaProperties is not null && File.Exists(viaProperties))
+        string? ViaProperties = TryResolveViaProperties(project, ProjectDirectory);
+        if (ViaProperties is not null && File.Exists(ViaProperties))
         {
-            return viaProperties;
+            return ViaProperties;
         }
 
         // None of this repo's projects set an explicit <AssemblyName> (same assumption
         // BridgeExecutableLocator already documents), so the output dll name always matches the
         // project file's own base name.
-        string assemblyFileName = Path.GetFileNameWithoutExtension(project.FullName) + ".dll";
-        return FindNewestByGlob(projectDirectory, assemblyFileName);
+        string AssemblyFileName = Path.GetFileNameWithoutExtension(project.FullName) + ".dll";
+        return FindNewestByGlob(ProjectDirectory, AssemblyFileName);
     }
 
-    private static string? TryResolveViaProperties(Project project, string projectDirectory)
+    private static string? TryResolveViaProperties(Project project, string ProjectDirectory)
     {
         ThreadHelper.ThrowIfNotOnUIThread();
 
         try
         {
-            string outputFileName = (string)project.Properties.Item("OutputFileName").Value;
-            string outputPath = (string)project.ConfigurationManager.ActiveConfiguration.Properties.Item("OutputPath").Value;
-            return CombineOutputPath(projectDirectory, outputPath, outputFileName);
+            string OutputFileName = (string)project.Properties.Item("OutputFileName").Value;
+            string OutputPath = (string)project.ConfigurationManager.ActiveConfiguration.Properties.Item("OutputPath").Value;
+            return CombineOutputPath(ProjectDirectory, OutputPath, OutputFileName);
         }
         catch (Exception)
         {
@@ -61,19 +61,19 @@ internal static class ProjectOutputAssemblyResolver
         }
     }
 
-    internal static string CombineOutputPath(string projectDirectory, string outputPath, string outputFileName) =>
-        Path.GetFullPath(Path.Combine(projectDirectory, outputPath, outputFileName));
+    internal static string CombineOutputPath(string ProjectDirectory, string OutputPath, string OutputFileName) =>
+        Path.GetFullPath(Path.Combine(ProjectDirectory, OutputPath, OutputFileName));
 
-    internal static string? FindNewestByGlob(string projectDirectory, string assemblyFileName)
+    internal static string? FindNewestByGlob(string ProjectDirectory, string AssemblyFileName)
     {
-        string binDirectory = Path.Combine(projectDirectory, "bin");
+        string BinDirectory = Path.Combine(ProjectDirectory, "bin");
 
-        if (!Directory.Exists(binDirectory))
+        if (!Directory.Exists(BinDirectory))
         {
             return null;
         }
 
-        return Directory.EnumerateFiles(binDirectory, assemblyFileName, SearchOption.AllDirectories)
+        return Directory.EnumerateFiles(BinDirectory, AssemblyFileName, SearchOption.AllDirectories)
             .OrderByDescending(File.GetLastWriteTimeUtc)
             .FirstOrDefault();
     }

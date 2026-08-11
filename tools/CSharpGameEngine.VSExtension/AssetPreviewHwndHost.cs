@@ -14,37 +14,37 @@ namespace CSharpGameEngine.VSExtension;
 /// </summary>
 internal sealed class AssetPreviewHwndHost : HwndHost
 {
-    private string? _repoRoot;
-    private string _modelPath;
-    private RenderSurfaceWindow? _surface;
-    private VorticeRenderer? _renderer;
-    private EventHandler? _renderingHandler;
+    private string? RepoRoot;
+    private string ModelPath;
+    private RenderSurfaceWindow? Surface;
+    private VorticeRenderer? Renderer;
+    private EventHandler? RenderingHandler;
 
-    public AssetPreviewHwndHost(string modelPath)
+    public AssetPreviewHwndHost(string ModelPath)
     {
-        _modelPath = modelPath;
+        this.ModelPath = ModelPath;
     }
 
-    protected override HandleRef BuildWindowCore(HandleRef hwndParent)
+    protected override HandleRef BuildWindowCore(HandleRef HwndParent)
     {
-        _surface = new RenderSurfaceWindow(hwndParent.Handle, 800, 600);
+        Surface = new RenderSurfaceWindow(HwndParent.Handle, 800, 600);
         LoadIntoSurface();
-        return new HandleRef(this, _surface.Handle);
+        return new HandleRef(this, Surface.Handle);
     }
 
-    protected override void DestroyWindowCore(HandleRef hwnd)
+    protected override void DestroyWindowCore(HandleRef Hwnd)
     {
         TearDownRenderer();
 
-        _surface?.Dispose();
-        _surface = null;
+        Surface?.Dispose();
+        Surface = null;
     }
 
     /// <summary>Reloads the preview with a different file - used if VS reuses this pane's doc data for a renamed/reloaded document.</summary>
-    public void SetModelPath(string modelPath)
+    public void SetModelPath(string ModelPath)
     {
-        _modelPath = modelPath;
-        if (_surface is not null)
+        this.ModelPath = ModelPath;
+        if (Surface is not null)
         {
             TearDownRenderer();
             LoadIntoSurface();
@@ -53,31 +53,31 @@ internal sealed class AssetPreviewHwndHost : HwndHost
 
     private void LoadIntoSurface()
     {
-        if (_surface is null)
+        if (Surface is null)
         {
             return;
         }
 
         try
         {
-            _repoRoot ??= RepoLocator.ResolveRepoRoot();
-            if (_repoRoot is null)
+            RepoRoot ??= RepoLocator.ResolveRepoRoot();
+            if (RepoRoot is null)
             {
                 throw new InvalidOperationException($"リポジトリルート({RepoLocator.RepoMarkerFileName})が見つかりませんでした。");
             }
 
-            SimpleMesh mesh = MeshLoader.Load(_modelPath, _repoRoot);
-            _renderer = new VorticeRenderer(_surface.Handle, 800, 600, mesh);
+            SimpleMesh Mesh = MeshLoader.Load(ModelPath, RepoRoot);
+            Renderer = new VorticeRenderer(Surface.Handle, 800, 600, Mesh);
 
-            _surface.Resized += (w, h) => _renderer?.Resize(w, h);
+            Surface.Resized += (W, H) => Renderer?.Resize(W, H);
 
-            _renderingHandler = (_, _) => _renderer?.RenderFrame();
-            CompositionTarget.Rendering += _renderingHandler;
+            RenderingHandler = (_, _) => Renderer?.RenderFrame();
+            CompositionTarget.Rendering += RenderingHandler;
         }
-        catch (Exception ex)
+        catch (Exception Ex)
         {
             System.Windows.MessageBox.Show(
-                $"アセットのプレビューに失敗しました: {ex}",
+                $"アセットのプレビューに失敗しました: {Ex}",
                 "C# Game Engine Asset Preview",
                 System.Windows.MessageBoxButton.OK,
                 System.Windows.MessageBoxImage.Error);
@@ -86,13 +86,13 @@ internal sealed class AssetPreviewHwndHost : HwndHost
 
     private void TearDownRenderer()
     {
-        if (_renderingHandler is not null)
+        if (RenderingHandler is not null)
         {
-            CompositionTarget.Rendering -= _renderingHandler;
-            _renderingHandler = null;
+            CompositionTarget.Rendering -= RenderingHandler;
+            RenderingHandler = null;
         }
 
-        _renderer?.Dispose();
-        _renderer = null;
+        Renderer?.Dispose();
+        Renderer = null;
     }
 }

@@ -38,19 +38,19 @@ public class ImportAxisConversionTests
     private static void AssertOrderIndependent<TConvention>()
         where TConvention : struct, ICoordinateConvention
     {
-        XyzVector rawCentimeters = new(300f, -150f, 75f);
-        float metersPerCentimeter = UnitConversion.MetersFromCentimeters(1f);
+        XyzVector RawCentimeters = new(300f, -150f, 75f);
+        float MetersPerCentimeter = UnitConversion.MetersFromCentimeters(1f);
 
-        RufVector axisFirstThenUnit = TConvention.FromXyz(rawCentimeters) * metersPerCentimeter;
+        RufVector AxisFirstThenUnit = TConvention.FromXyz(RawCentimeters) * MetersPerCentimeter;
 
-        XyzVector unitFirst = new(
-            UnitConversion.MetersFromCentimeters(rawCentimeters.X),
-            UnitConversion.MetersFromCentimeters(rawCentimeters.Y),
-            UnitConversion.MetersFromCentimeters(rawCentimeters.Z));
-        RufVector unitFirstThenAxis = TConvention.FromXyz(unitFirst);
+        XyzVector UnitFirst = new(
+            UnitConversion.MetersFromCentimeters(RawCentimeters.X),
+            UnitConversion.MetersFromCentimeters(RawCentimeters.Y),
+            UnitConversion.MetersFromCentimeters(RawCentimeters.Z));
+        RufVector UnitFirstThenAxis = TConvention.FromXyz(UnitFirst);
 
-        Assert.Equal(axisFirstThenUnit.R, unitFirstThenAxis.R, precision: 4);
-        Assert.Equal(axisFirstThenUnit.U, unitFirstThenAxis.U, precision: 4);
-        Assert.Equal(axisFirstThenUnit.F, unitFirstThenAxis.F, precision: 4);
+        Assert.Equal(AxisFirstThenUnit.R, UnitFirstThenAxis.R, precision: 4);
+        Assert.Equal(AxisFirstThenUnit.U, UnitFirstThenAxis.U, precision: 4);
+        Assert.Equal(AxisFirstThenUnit.F, UnitFirstThenAxis.F, precision: 4);
     }
 }

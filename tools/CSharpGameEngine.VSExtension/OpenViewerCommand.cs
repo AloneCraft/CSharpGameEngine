@@ -20,37 +20,37 @@ internal sealed class OpenViewerCommand
 
     private const string ViewerModelArgument = "Samples/Box.glb";
 
-    private readonly AsyncPackage _package;
+    private readonly AsyncPackage Package;
 
-    private OpenViewerCommand(AsyncPackage package, OleMenuCommandService commandService)
+    private OpenViewerCommand(AsyncPackage package, OleMenuCommandService CommandService)
     {
-        _package = package ?? throw new ArgumentNullException(nameof(package));
-        if (commandService is null)
+        Package = package ?? throw new ArgumentNullException(nameof(package));
+        if (CommandService is null)
         {
-            throw new ArgumentNullException(nameof(commandService));
+            throw new ArgumentNullException(nameof(CommandService));
         }
 
-        CommandID menuCommandId = new(CommandSet, CommandId);
-        MenuCommand menuItem = new(Execute, menuCommandId);
-        commandService.AddCommand(menuItem);
+        CommandID MenuCommandId = new(CommandSet, CommandId);
+        MenuCommand MenuItem = new(Execute, MenuCommandId);
+        CommandService.AddCommand(MenuItem);
     }
 
     public static async Task InitializeAsync(AsyncPackage package)
     {
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
-        object? service = await package.GetServiceAsync(typeof(IMenuCommandService));
-        if (service is not OleMenuCommandService commandService)
+        object? Service = await package.GetServiceAsync(typeof(IMenuCommandService));
+        if (Service is not OleMenuCommandService CommandService)
         {
             throw new InvalidOperationException($"{nameof(IMenuCommandService)} is not available from the VS shell.");
         }
 
-        _ = new OpenViewerCommand(package, commandService);
+        _ = new OpenViewerCommand(package, CommandService);
     }
 
-    private void Execute(object sender, EventArgs e)
+    private void Execute(object Sender, EventArgs E)
     {
-        string? repoRoot = RepoLocator.ResolveRepoRoot();
-        if (repoRoot is null)
+        string? RepoRoot = RepoLocator.ResolveRepoRoot();
+        if (RepoRoot is null)
         {
             ShowMessage(
                 $"リポジトリルート({RepoLocator.RepoMarkerFileName})が見つかりませんでした。このVSIXは開発中のスケルトンであり、" +
@@ -59,29 +59,29 @@ internal sealed class OpenViewerCommand
             return;
         }
 
-        ProcessStartInfo startInfo = new("dotnet", $"run --project tools/CSharpGameEngine.Extension -- --model {ViewerModelArgument}")
+        ProcessStartInfo StartInfo = new("dotnet", $"run --project tools/CSharpGameEngine.Extension -- --model {ViewerModelArgument}")
         {
-            WorkingDirectory = repoRoot,
+            WorkingDirectory = RepoRoot,
             UseShellExecute = false,
         };
 
         try
         {
-            Process.Start(startInfo);
+            Process.Start(StartInfo);
         }
-        catch (Exception ex)
+        catch (Exception Ex)
         {
-            ShowMessage($"ビューアの起動に失敗しました: {ex.Message}", OLEMSGICON.OLEMSGICON_CRITICAL);
+            ShowMessage($"ビューアの起動に失敗しました: {Ex.Message}", OLEMSGICON.OLEMSGICON_CRITICAL);
         }
     }
 
-    private void ShowMessage(string message, OLEMSGICON icon)
+    private void ShowMessage(string Message, OLEMSGICON Icon)
     {
         VsShellUtilities.ShowMessageBox(
-            _package,
-            message,
+            Package,
+            Message,
             "C# Game Engine Viewer",
-            icon,
+            Icon,
             OLEMSGBUTTON.OLEMSGBUTTON_OK,
             OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
     }

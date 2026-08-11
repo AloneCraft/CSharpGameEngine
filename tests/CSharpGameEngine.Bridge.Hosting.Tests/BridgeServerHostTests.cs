@@ -18,75 +18,75 @@ public class BridgeServerHostTests
     [Fact]
     public async Task SingleRequest_ReturnsHandlerResult()
     {
-        string pipeName = UniquePipeName();
-        _ = BridgeServerHost.RunAsync(pipeName, (firstArg, outputPath) => (0, $"{firstArg}|{outputPath}"), TimeSpan.FromSeconds(5));
+        string PipeName = UniquePipeName();
+        _ = BridgeServerHost.RunAsync(PipeName, (FirstArg, OutputPath) => (0, $"{FirstArg}|{OutputPath}"), TimeSpan.FromSeconds(5));
 
-        BridgeServerResponse response = await SendRequestAsync(pipeName, "input.glb", "output.json");
+        BridgeServerResponse Response = await SendRequestAsync(PipeName, "input.glb", "output.json");
 
-        Assert.Equal(0, response.ExitCode);
-        Assert.Equal("input.glb|output.json", response.Output);
+        Assert.Equal(0, Response.ExitCode);
+        Assert.Equal("input.glb|output.json", Response.Output);
     }
 
     [Fact]
     public async Task ConcurrentRequests_DoNotCrossTalk()
     {
-        string pipeName = UniquePipeName();
+        string PipeName = UniquePipeName();
         _ = BridgeServerHost.RunAsync(
-            pipeName,
-            (firstArg, _) =>
+            PipeName,
+            (FirstArg, _) =>
             {
                 Thread.Sleep(50);
-                return (0, $"handled:{firstArg}");
+                return (0, $"handled:{FirstArg}");
             },
             TimeSpan.FromSeconds(5));
 
-        Task<BridgeServerResponse>[] requests =
+        Task<BridgeServerResponse>[] Requests =
         [
-            .. Enumerable.Range(0, 8).Select(i => SendRequestAsync(pipeName, $"mesh-{i}.glb", "out.json"))
+            .. Enumerable.Range(0, 8).Select(I => SendRequestAsync(PipeName, $"mesh-{I}.glb", "out.json"))
         ];
-        BridgeServerResponse[] responses = await Task.WhenAll(requests);
+        BridgeServerResponse[] Responses = await Task.WhenAll(Requests);
 
-        for (int i = 0; i < responses.Length; i++)
+        for (int i = 0; i < Responses.Length; i++)
         {
-            Assert.Equal($"handled:mesh-{i}.glb", responses[i].Output);
+            Assert.Equal($"handled:mesh-{i}.glb", Responses[i].Output);
         }
     }
 
     [Fact]
     public async Task HandlerThrows_ReturnsFailureResponse_AndServerStaysUsable()
     {
-        string pipeName = UniquePipeName();
+        string PipeName = UniquePipeName();
         _ = BridgeServerHost.RunAsync(
-            pipeName,
-            (firstArg, _) => firstArg == "bad.fbx"
+            PipeName,
+            (FirstArg, _) => FirstArg == "bad.fbx"
                 ? throw new InvalidOperationException("corrupt file")
                 : (0, "ok"),
             TimeSpan.FromSeconds(5));
 
-        BridgeServerResponse failure = await SendRequestAsync(pipeName, "bad.fbx", "out.json");
-        Assert.Equal(1, failure.ExitCode);
-        Assert.Contains("corrupt file", failure.Output);
+        BridgeServerResponse Failure = await SendRequestAsync(PipeName, "bad.fbx", "out.json");
+        Assert.Equal(1, Failure.ExitCode);
+        Assert.Contains("corrupt file", Failure.Output);
 
-        BridgeServerResponse success = await SendRequestAsync(pipeName, "good.fbx", "out.json");
-        Assert.Equal(0, success.ExitCode);
-        Assert.Equal("ok", success.Output);
+        BridgeServerResponse Success = await SendRequestAsync(PipeName, "good.fbx", "out.json");
+        Assert.Equal(0, Success.ExitCode);
+        Assert.Equal("ok", Success.Output);
     }
 
     [Fact]
     public async Task IdleTimeout_ExitsAcceptLoop()
     {
-        string pipeName = UniquePipeName();
-        Task serverTask = BridgeServerHost.RunAsync(pipeName, (_, _) => (0, ""), TimeSpan.FromMilliseconds(200));
+        string PipeName = UniquePipeName();
+        Task ServerTask = BridgeServerHost.RunAsync(PipeName, (_, _) => (0, ""), TimeSpan.FromMilliseconds(200));
 
-        await serverTask.WaitAsync(TimeSpan.FromSeconds(10));
+        await ServerTask.WaitAsync(TimeSpan.FromSeconds(10));
     }
 
-    private static async Task<BridgeServerResponse> SendRequestAsync(string pipeName, string firstArg, string outputPath)
+    private static async Task<BridgeServerResponse> SendRequestAsync(string PipeName, string FirstArg, string OutputPath)
     {
-        using NamedPipeClientStream client = new(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
-        await client.ConnectAsync((int)TimeSpan.FromSeconds(5).TotalMilliseconds);
+        using NamedPipeClientStream Client = new(".", PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+        await Client.ConnectAsync((int)TimeSpan.FromSeconds(5).TotalMilliseconds);
 
-        await BridgeWireMessage.WriteAsync(client, new BridgeServerRequest { Args = [firstArg, outputPath] }, CancellationToken.None);
-        return await BridgeWireMessage.ReadAsync<BridgeServerResponse>(client, CancellationToken.None);
+        await BridgeWireMessage.WriteAsync(Client, new BridgeServerRequest { Args = [FirstArg, OutputPath] }, CancellationToken.None);
+        return await BridgeWireMessage.ReadAsync<BridgeServerResponse>(Client, CancellationToken.None);
     }
 }

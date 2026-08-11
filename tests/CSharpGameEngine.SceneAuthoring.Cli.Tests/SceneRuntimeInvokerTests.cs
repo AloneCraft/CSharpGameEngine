@@ -19,48 +19,48 @@ public class SceneRuntimeInvokerTests
     [Fact]
     public void Invoke_TestScene_ProducesRootMainCameraPlayerWithCorrectValues()
     {
-        string assemblyPath = FindOwnAssembly();
+        string AssemblyPath = FindOwnAssembly();
 
-        SceneRuntimeInvoker.InvocationResult result = SceneRuntimeInvoker.Invoke(assemblyPath, "TestScene");
+        SceneRuntimeInvoker.InvocationResult Result = SceneRuntimeInvoker.Invoke(AssemblyPath, "TestScene");
 
-        Assert.Equal("CSharpGameEngine.SceneAuthoring.Cli.Tests.TestScene", result.SceneClassFullName);
+        Assert.Equal("CSharpGameEngine.SceneAuthoring.Cli.Tests.TestScene", Result.SceneClassFullName);
 
-        IReadOnlyList<ScenePreviewNode> nodes = WorldInspector.Inspect(result.Snapshot);
-        Assert.Equal(3, nodes.Count);
+        IReadOnlyList<ScenePreviewNode> Nodes = WorldInspector.Inspect(Result.Snapshot);
+        Assert.Equal(3, Nodes.Count);
 
-        ScenePreviewNode root = Assert.Single(nodes, n => n.EntityId == result.RootEntityId);
-        Assert.Null(root.ParentEntityId);
-        Assert.Contains("SceneNodeTag", root.ComponentTypeNames);
+        ScenePreviewNode Root = Assert.Single(Nodes, N => N.EntityId == Result.RootEntityId);
+        Assert.Null(Root.ParentEntityId);
+        Assert.Contains("SceneNodeTag", Root.ComponentTypeNames);
 
-        ScenePreviewNode mainCamera = Assert.Single(nodes, n => n.ComponentTypeNames.Contains("Scale"));
-        Assert.Equal(root.EntityId, mainCamera.ParentEntityId);
-        Assert.Equal([0f, 2f, -10f], mainCamera.Position);
-        Assert.Equal([0f, 0f, 0f, 1f], mainCamera.Rotation);
-        Assert.Equal([1f, 1f, 1f], mainCamera.Scale);
+        ScenePreviewNode MainCamera = Assert.Single(Nodes, N => N.ComponentTypeNames.Contains("Scale"));
+        Assert.Equal(Root.EntityId, MainCamera.ParentEntityId);
+        Assert.Equal([0f, 2f, -10f], MainCamera.Position);
+        Assert.Equal([0f, 0f, 0f, 1f], MainCamera.Rotation);
+        Assert.Equal([1f, 1f, 1f], MainCamera.Scale);
 
-        ScenePreviewNode player = Assert.Single(nodes, n => n.ComponentTypeNames.Contains("Health"));
-        Assert.Equal(root.EntityId, player.ParentEntityId);
-        Assert.Equal([1f, 0f, 3f], player.Position);
+        ScenePreviewNode Player = Assert.Single(Nodes, N => N.ComponentTypeNames.Contains("Health"));
+        Assert.Equal(Root.EntityId, Player.ParentEntityId);
+        Assert.Equal([1f, 0f, 3f], Player.Position);
     }
 
     [Fact]
     public void Invoke_UnknownClassHint_StillFindsTheSoleSceneDefinitionType()
     {
-        SceneRuntimeInvoker.InvocationResult result = SceneRuntimeInvoker.Invoke(FindOwnAssembly(), "NoSuchHint");
+        SceneRuntimeInvoker.InvocationResult Result = SceneRuntimeInvoker.Invoke(FindOwnAssembly(), "NoSuchHint");
 
-        Assert.Equal("CSharpGameEngine.SceneAuthoring.Cli.Tests.TestScene", result.SceneClassFullName);
+        Assert.Equal("CSharpGameEngine.SceneAuthoring.Cli.Tests.TestScene", Result.SceneClassFullName);
     }
 
     [Fact]
     public void Invoke_CalledTwiceInSameProcess_BothSucceedIndependently()
     {
-        string assemblyPath = FindOwnAssembly();
+        string AssemblyPath = FindOwnAssembly();
 
-        SceneRuntimeInvoker.InvocationResult first = SceneRuntimeInvoker.Invoke(assemblyPath, "TestScene");
-        SceneRuntimeInvoker.InvocationResult second = SceneRuntimeInvoker.Invoke(assemblyPath, "TestScene");
+        SceneRuntimeInvoker.InvocationResult First = SceneRuntimeInvoker.Invoke(AssemblyPath, "TestScene");
+        SceneRuntimeInvoker.InvocationResult Second = SceneRuntimeInvoker.Invoke(AssemblyPath, "TestScene");
 
-        Assert.Equal(3, WorldInspector.Inspect(first.Snapshot).Count);
-        Assert.Equal(3, WorldInspector.Inspect(second.Snapshot).Count);
+        Assert.Equal(3, WorldInspector.Inspect(First.Snapshot).Count);
+        Assert.Equal(3, WorldInspector.Inspect(Second.Snapshot).Count);
     }
 
     /// <summary>

@@ -14,85 +14,85 @@ public static class TrianglePixelVerifier
 {
     public const byte DefaultTolerance = 24;
 
-    public static TriangleVerificationResult Verify(PixelReadbackResult readback, PixelColor backgroundColor, byte tolerance = DefaultTolerance)
+    public static TriangleVerificationResult Verify(PixelReadbackResult Readback, PixelColor BackgroundColor, byte Tolerance = DefaultTolerance)
     {
-        ArgumentNullException.ThrowIfNull(readback);
+        ArgumentNullException.ThrowIfNull(Readback);
 
-        if (readback.Width <= 0 || readback.Height <= 0)
+        if (Readback.Width <= 0 || Readback.Height <= 0)
         {
             return new TriangleVerificationResult(false, default, [], "Readback has no pixels (width or height is zero).");
         }
 
-        const double edgeInset = 0.05;
-        int insetX = Math.Max(1, (int)(readback.Width * edgeInset));
-        int insetY = Math.Max(1, (int)(readback.Height * edgeInset));
+        const double EdgeInset = 0.05;
+        int InsetX = Math.Max(1, (int)(Readback.Width * EdgeInset));
+        int InsetY = Math.Max(1, (int)(Readback.Height * EdgeInset));
 
-        PixelColor center = ReadPixel(readback, readback.Width / 2, readback.Height / 2);
+        PixelColor Center = ReadPixel(Readback, Readback.Width / 2, Readback.Height / 2);
 
-        (int X, int Y)[] cornerPositions =
+        (int X, int Y)[] CornerPositions =
         [
-            (insetX, insetY),
-            (readback.Width - 1 - insetX, insetY),
-            (insetX, readback.Height - 1 - insetY),
-            (readback.Width - 1 - insetX, readback.Height - 1 - insetY),
+            (InsetX, InsetY),
+            (Readback.Width - 1 - InsetX, InsetY),
+            (InsetX, Readback.Height - 1 - InsetY),
+            (Readback.Width - 1 - InsetX, Readback.Height - 1 - InsetY),
         ];
 
-        PixelColor[] corners = new PixelColor[cornerPositions.Length];
-        for (int i = 0; i < cornerPositions.Length; i++)
+        PixelColor[] Corners = new PixelColor[CornerPositions.Length];
+        for (int i = 0; i < CornerPositions.Length; i++)
         {
-            corners[i] = ReadPixel(readback, cornerPositions[i].X, cornerPositions[i].Y);
+            Corners[i] = ReadPixel(Readback, CornerPositions[i].X, CornerPositions[i].Y);
         }
 
-        bool centerDiffersFromBackground = !IsClose(center, backgroundColor, tolerance);
+        bool CenterDiffersFromBackground = !IsClose(Center, BackgroundColor, Tolerance);
 
-        List<string> cornerFailures = [];
-        for (int i = 0; i < corners.Length; i++)
+        List<string> CornerFailures = [];
+        for (int i = 0; i < Corners.Length; i++)
         {
-            if (!IsClose(corners[i], backgroundColor, tolerance))
+            if (!IsClose(Corners[i], BackgroundColor, Tolerance))
             {
-                cornerFailures.Add($"corner[{i}] at {cornerPositions[i]} = {corners[i]} is not close to background {backgroundColor}");
+                CornerFailures.Add($"corner[{i}] at {CornerPositions[i]} = {Corners[i]} is not close to background {BackgroundColor}");
             }
         }
 
-        bool success = centerDiffersFromBackground && cornerFailures.Count == 0;
+        bool Success = CenterDiffersFromBackground && CornerFailures.Count == 0;
 
-        string details = success
-            ? $"center={center} differs from background={backgroundColor}; all corners match background within tolerance {tolerance}."
-            : BuildFailureDetails(centerDiffersFromBackground, center, backgroundColor, cornerFailures);
+        string Details = Success
+            ? $"center={Center} differs from background={BackgroundColor}; all corners match background within tolerance {Tolerance}."
+            : BuildFailureDetails(CenterDiffersFromBackground, Center, BackgroundColor, CornerFailures);
 
-        return new TriangleVerificationResult(success, center, corners, details);
+        return new TriangleVerificationResult(Success, Center, Corners, Details);
     }
 
-    private static string BuildFailureDetails(bool centerDiffersFromBackground, PixelColor center, PixelColor backgroundColor, List<string> cornerFailures)
+    private static string BuildFailureDetails(bool CenterDiffersFromBackground, PixelColor Center, PixelColor BackgroundColor, List<string> CornerFailures)
     {
-        List<string> parts = [];
-        if (!centerDiffersFromBackground)
+        List<string> Parts = [];
+        if (!CenterDiffersFromBackground)
         {
-            parts.Add($"center={center} is too close to background={backgroundColor}; nothing appears to have been drawn.");
+            Parts.Add($"center={Center} is too close to background={BackgroundColor}; nothing appears to have been drawn.");
         }
-        parts.AddRange(cornerFailures);
-        return string.Join(" ", parts);
+        Parts.AddRange(CornerFailures);
+        return string.Join(" ", Parts);
     }
 
-    private static bool IsClose(PixelColor a, PixelColor b, byte tolerance) =>
-        Math.Abs(a.R - b.R) <= tolerance &&
-        Math.Abs(a.G - b.G) <= tolerance &&
-        Math.Abs(a.B - b.B) <= tolerance;
+    private static bool IsClose(PixelColor A, PixelColor B, byte Tolerance) =>
+        Math.Abs(A.R - B.R) <= Tolerance &&
+        Math.Abs(A.G - B.G) <= Tolerance &&
+        Math.Abs(A.B - B.B) <= Tolerance;
 
-    private static PixelColor ReadPixel(PixelReadbackResult readback, int x, int y)
+    private static PixelColor ReadPixel(PixelReadbackResult Readback, int X, int Y)
     {
-        const int bytesPerPixel = 4;
-        long offset = (long)y * readback.RowPitch + (x * bytesPerPixel);
+        const int BytesPerPixel = 4;
+        long Offset = (long)Y * Readback.RowPitch + (X * BytesPerPixel);
 
-        byte b0 = readback.Pixels[offset];
-        byte b1 = readback.Pixels[offset + 1];
-        byte b2 = readback.Pixels[offset + 2];
-        byte b3 = readback.Pixels[offset + 3];
+        byte B0 = Readback.Pixels[Offset];
+        byte B1 = Readback.Pixels[Offset + 1];
+        byte B2 = Readback.Pixels[Offset + 2];
+        byte B3 = Readback.Pixels[Offset + 3];
 
-        return readback.Format switch
+        return Readback.Format switch
         {
-            DXGI_FORMAT_B8G8R8A8_UNORM => new PixelColor(b2, b1, b0, b3),
-            _ => new PixelColor(b0, b1, b2, b3),
+            DXGI_FORMAT_B8G8R8A8_UNORM => new PixelColor(B2, B1, B0, B3),
+            _ => new PixelColor(B0, B1, B2, B3),
         };
     }
 }

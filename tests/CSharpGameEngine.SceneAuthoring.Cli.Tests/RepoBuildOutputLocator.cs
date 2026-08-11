@@ -16,24 +16,24 @@ namespace CSharpGameEngine.SceneAuthoring.Cli.Tests;
 /// </summary>
 internal static class RepoBuildOutputLocator
 {
-    internal static string FindProjectAssembly(string projectRelativeDirectory, string assemblyFileName)
+    internal static string FindProjectAssembly(string ProjectRelativeDirectory, string AssemblyFileName)
     {
-        string repoRoot = FindRepoRoot();
-        string binRoot = Path.Combine(repoRoot, projectRelativeDirectory, "bin");
+        string RepoRoot = FindRepoRoot();
+        string BinRoot = Path.Combine(RepoRoot, ProjectRelativeDirectory, "bin");
 
-        if (!Directory.Exists(binRoot))
+        if (!Directory.Exists(BinRoot))
         {
             throw new InvalidOperationException(
-                $"'{binRoot}' が存在しません。'dotnet build {projectRelativeDirectory}' を先に実行してください。");
+                $"'{BinRoot}' が存在しません。'dotnet build {ProjectRelativeDirectory}' を先に実行してください。");
         }
 
-        string? found = Directory
-            .EnumerateFiles(binRoot, assemblyFileName, SearchOption.AllDirectories)
+        string? Found = Directory
+            .EnumerateFiles(BinRoot, AssemblyFileName, SearchOption.AllDirectories)
             .OrderByDescending(File.GetLastWriteTimeUtc)
             .FirstOrDefault();
 
-        return found ?? throw new InvalidOperationException(
-            $"'{assemblyFileName}' が '{binRoot}' 配下に見つかりませんでした。'dotnet build {projectRelativeDirectory}' を先に実行してください。");
+        return Found ?? throw new InvalidOperationException(
+            $"'{AssemblyFileName}' が '{BinRoot}' 配下に見つかりませんでした。'dotnet build {ProjectRelativeDirectory}' を先に実行してください。");
     }
 
     internal static string FindRepoRoot()

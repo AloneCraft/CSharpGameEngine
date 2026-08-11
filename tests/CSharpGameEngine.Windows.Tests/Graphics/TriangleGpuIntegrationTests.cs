@@ -15,7 +15,7 @@ public class TriangleGpuIntegrationTests
     [Trait("Category", "GPU")]
     public void Triangle_Warp_DebugLayer_Verify_RendersAndPasses()
     {
-        RunWithTimeout(() => RunTriangleGpuScenario(useWarp: true), TimeSpan.FromSeconds(60));
+        RunWithTimeout(() => RunTriangleGpuScenario(UseWarp: true), TimeSpan.FromSeconds(60));
     }
 
     private static void RunWithTimeout(Action action, TimeSpan timeout)
@@ -27,9 +27,9 @@ public class TriangleGpuIntegrationTests
         }
     }
 
-    private static void RunTriangleGpuScenario(bool useWarp)
+    private static void RunTriangleGpuScenario(bool UseWarp)
     {
-        using Win32Window window = new(new Win32WindowOptions
+        using Win32Window Window = new(new Win32WindowOptions
         {
             Title = "CSharpGameEngine GPU Test",
             Width = 256,
@@ -37,42 +37,42 @@ public class TriangleGpuIntegrationTests
             Visible = false,
         });
 
-        GraphicsDeviceOptions deviceOptions = new()
+        GraphicsDeviceOptions DeviceOptions = new()
         {
-            UseWarp = useWarp,
+            UseWarp = UseWarp,
             EnableDebugLayer = true,
         };
 
-        using TriangleRenderer renderer = TriangleRenderer.Create(window.Handle, window.ClientWidth, window.ClientHeight, deviceOptions, ShaderPath);
+        using TriangleRenderer Renderer = TriangleRenderer.Create(Window.Handle, Window.ClientWidth, Window.ClientHeight, DeviceOptions, ShaderPath);
 
-        Assert.True(renderer.ShaderCompilationSucceeded, string.Join(Environment.NewLine, renderer.ShaderDiagnostics));
-        Assert.Equal(useWarp, renderer.IsWarp);
-        Assert.True(renderer.DebugLayerEnabled);
+        Assert.True(Renderer.ShaderCompilationSucceeded, string.Join(Environment.NewLine, Renderer.ShaderDiagnostics));
+        Assert.Equal(UseWarp, Renderer.IsWarp);
+        Assert.True(Renderer.DebugLayerEnabled);
 
-        const int totalFrames = 3;
-        for (int frame = 0; frame < totalFrames; frame++)
+        const int TotalFrames = 3;
+        for (int frame = 0; frame < TotalFrames; frame++)
         {
-            window.PumpEvents();
-            renderer.RenderFrame(captureForVerification: frame == totalFrames - 1);
+            Window.PumpEvents();
+            Renderer.RenderFrame(CaptureForVerification: frame == TotalFrames - 1);
         }
 
-        Assert.Equal((uint)totalFrames, renderer.FramesRendered);
-        Assert.NotNull(renderer.LastCapturedFrame);
+        Assert.Equal((uint)TotalFrames, Renderer.FramesRendered);
+        Assert.NotNull(Renderer.LastCapturedFrame);
 
-        TriangleVerificationResult verification = TrianglePixelVerifier.Verify(renderer.LastCapturedFrame!, TriangleRenderer.ClearColor);
-        Assert.True(verification.Success, verification.Details);
+        TriangleVerificationResult Verification = TrianglePixelVerifier.Verify(Renderer.LastCapturedFrame!, TriangleRenderer.ClearColor);
+        Assert.True(Verification.Success, Verification.Details);
 
-        Assert.Equal(0, renderer.ErrorOrWorseMessageCount);
+        Assert.Equal(0, Renderer.ErrorOrWorseMessageCount);
 
         // Resize must not require recreating the renderer, and rendering must continue correctly afterward.
-        renderer.Resize(128, 128);
-        renderer.RenderFrame(captureForVerification: true);
+        Renderer.Resize(128, 128);
+        Renderer.RenderFrame(CaptureForVerification: true);
 
-        Assert.NotNull(renderer.LastCapturedFrame);
-        Assert.Equal(128, renderer.LastCapturedFrame!.Width);
-        TriangleVerificationResult resizedVerification = TrianglePixelVerifier.Verify(renderer.LastCapturedFrame, TriangleRenderer.ClearColor);
-        Assert.True(resizedVerification.Success, resizedVerification.Details);
+        Assert.NotNull(Renderer.LastCapturedFrame);
+        Assert.Equal(128, Renderer.LastCapturedFrame!.Width);
+        TriangleVerificationResult ResizedVerification = TrianglePixelVerifier.Verify(Renderer.LastCapturedFrame, TriangleRenderer.ClearColor);
+        Assert.True(ResizedVerification.Success, ResizedVerification.Details);
 
-        Assert.Equal(0, renderer.ErrorOrWorseMessageCount);
+        Assert.Equal(0, Renderer.ErrorOrWorseMessageCount);
     }
 }

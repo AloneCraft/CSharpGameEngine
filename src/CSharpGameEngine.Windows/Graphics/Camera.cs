@@ -60,11 +60,11 @@ public struct Camera
     /// position each frame). <see cref="GetView"/> looks along <see cref="GetForward"/> from there
     /// rather than toward a distinct target point, since eye and target would otherwise coincide.
     /// </summary>
-    public static Camera CreateFirstPerson(Vector3 eyePosition)
+    public static Camera CreateFirstPerson(Vector3 EyePosition)
     {
         return new Camera
         {
-            Target = eyePosition,
+            Target = EyePosition,
             Yaw = 0f,
             Pitch = 0f,
             Distance = 0f,
@@ -92,9 +92,9 @@ public struct Camera
         // type's documented "pitch tilts toward +Y" (verified by hand via the standard axis-angle
         // rotation formula, and pinned down permanently by
         // CameraTests.GetForward_MatchesLegacyTrigFormula_AcrossYawPitchSweep).
-        RufQuaternion facing = RufQuaternion.FromAxisAngle(RufVector.Up, Yaw) * RufQuaternion.FromAxisAngle(RufVector.Left, Pitch);
-        RufVector forward = RufQuaternion.RotateVector(facing, RufVector.Forward).Normalize();
-        return (Vector3)Spatial<UnityCoordinateConvention>.ToXyz(forward);
+        RufQuaternion Facing = RufQuaternion.FromAxisAngle(RufVector.Up, Yaw) * RufQuaternion.FromAxisAngle(RufVector.Left, Pitch);
+        RufVector Forward = RufQuaternion.RotateVector(Facing, RufVector.Forward).Normalize();
+        return (Vector3)Spatial<UnityCoordinateConvention>.ToXyz(Forward);
     }
 
     /// <summary>Forward direction projected onto the XZ plane (pitch removed) - the basis for WASD movement.</summary>
@@ -115,14 +115,14 @@ public struct Camera
     /// </summary>
     public readonly Vector3 GetFlatRight()
     {
-        RufVector right = Spatial<UnityCoordinateConvention>.RightFromUpForward(RufVector.Up, GetFlatForwardRuf());
-        return (Vector3)Spatial<UnityCoordinateConvention>.ToXyz(right);
+        RufVector Right = Spatial<UnityCoordinateConvention>.RightFromUpForward(RufVector.Up, GetFlatForwardRuf());
+        return (Vector3)Spatial<UnityCoordinateConvention>.ToXyz(Right);
     }
 
     private readonly RufVector GetFlatForwardRuf()
     {
-        RufQuaternion yawOnly = RufQuaternion.FromAxisAngle(RufVector.Up, Yaw);
-        return RufQuaternion.RotateVector(yawOnly, RufVector.Forward).Normalize();
+        RufQuaternion YawOnly = RufQuaternion.FromAxisAngle(RufVector.Up, Yaw);
+        return RufQuaternion.RotateVector(YawOnly, RufVector.Forward).Normalize();
     }
 
     public readonly Vector3 GetEyePosition()
@@ -138,14 +138,14 @@ public struct Camera
     /// </summary>
     public readonly Matrix4x4 GetView()
     {
-        Vector3 eye = GetEyePosition();
-        Vector3 lookAtPoint = Distance > 1e-4f ? Target : eye + GetForward();
-        return BuildViewMatrix(eye, lookAtPoint, Vector3.UnitY);
+        Vector3 Eye = GetEyePosition();
+        Vector3 LookAtPoint = Distance > 1e-4f ? Target : Eye + GetForward();
+        return BuildViewMatrix(Eye, LookAtPoint, Vector3.UnitY);
     }
 
-    public readonly Matrix4x4 GetProjection(float aspectRatio)
+    public readonly Matrix4x4 GetProjection(float AspectRatio)
     {
-        return Matrix4x4.CreatePerspectiveFieldOfView(FovYRadians, aspectRatio, NearZ, FarZ);
+        return Matrix4x4.CreatePerspectiveFieldOfView(FovYRadians, AspectRatio, NearZ, FarZ);
     }
 
     /// <summary>
@@ -154,12 +154,12 @@ public struct Camera
     /// its view matrix the same way <see cref="GetView"/> does, instead of duplicating the call
     /// (ADR-0026).
     /// </summary>
-    public static Matrix4x4 BuildViewMatrix(Vector3 eye, Vector3 target, Vector3 up) => Matrix4x4.CreateLookAt(eye, target, up);
+    public static Matrix4x4 BuildViewMatrix(Vector3 Eye, Vector3 target, Vector3 Up) => Matrix4x4.CreateLookAt(Eye, target, Up);
 
     /// <summary>Applies raw mouse-delta input to yaw/pitch, clamping pitch to avoid gimbal flip.</summary>
-    public void ApplyMouseDelta(float deltaX, float deltaY, float yawSensitivity, float pitchSensitivity)
+    public void ApplyMouseDelta(float DeltaX, float DeltaY, float YawSensitivity, float PitchSensitivity)
     {
-        Yaw += deltaX * yawSensitivity;
-        Pitch = Math.Clamp(Pitch - (deltaY * pitchSensitivity), PitchClampMinRadians, PitchClampMaxRadians);
+        Yaw += DeltaX * YawSensitivity;
+        Pitch = Math.Clamp(Pitch - (DeltaY * PitchSensitivity), PitchClampMinRadians, PitchClampMaxRadians);
     }
 }

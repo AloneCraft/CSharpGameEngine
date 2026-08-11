@@ -34,22 +34,22 @@ internal static class GameEngineLayout
     public static async Task<bool> WasInitialLayoutAppliedAsync(AsyncPackage package)
     {
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
-        WritableSettingsStore store = GetUserSettingsStore(package);
-        return store.CollectionExists(SettingsCollectionPath)
-            && store.PropertyExists(SettingsCollectionPath, InitialLayoutAppliedPropertyName)
-            && store.GetBoolean(SettingsCollectionPath, InitialLayoutAppliedPropertyName);
+        WritableSettingsStore Store = GetUserSettingsStore(package);
+        return Store.CollectionExists(SettingsCollectionPath)
+            && Store.PropertyExists(SettingsCollectionPath, InitialLayoutAppliedPropertyName)
+            && Store.GetBoolean(SettingsCollectionPath, InitialLayoutAppliedPropertyName);
     }
 
     public static async Task MarkInitialLayoutAppliedAsync(AsyncPackage package)
     {
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
-        WritableSettingsStore store = GetUserSettingsStore(package);
-        if (!store.CollectionExists(SettingsCollectionPath))
+        WritableSettingsStore Store = GetUserSettingsStore(package);
+        if (!Store.CollectionExists(SettingsCollectionPath))
         {
-            store.CreateCollection(SettingsCollectionPath);
+            Store.CreateCollection(SettingsCollectionPath);
         }
 
-        store.SetBoolean(SettingsCollectionPath, InitialLayoutAppliedPropertyName, true);
+        Store.SetBoolean(SettingsCollectionPath, InitialLayoutAppliedPropertyName, true);
     }
 
     private static WritableSettingsStore GetUserSettingsStore(AsyncPackage package)
@@ -59,30 +59,30 @@ internal static class GameEngineLayout
     }
 
     /// <summary>Shows the toolbar, docks Hierarchy left / ShapePalette right of Solution Explorer, and opens the default scene as a document tab.</summary>
-    public static async Task ApplyAsync(AsyncPackage package, DTE dte, string repoRoot)
+    public static async Task ApplyAsync(AsyncPackage package, DTE Dte, string RepoRoot)
     {
         await package.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
 
-        ShowToolbar(dte);
+        ShowToolbar(Dte);
 
-        ToolWindowPane hierarchyWindow = await package.ShowToolWindowAsync(typeof(HierarchyToolWindowPane), 0, true, package.DisposalToken);
-        ToolWindowPane shapeWindow = await package.ShowToolWindowAsync(typeof(ShapePaletteToolWindowPane), 0, true, package.DisposalToken);
+        ToolWindowPane HierarchyWindow = await package.ShowToolWindowAsync(typeof(HierarchyToolWindowPane), 0, true, package.DisposalToken);
+        ToolWindowPane ShapeWindow = await package.ShowToolWindowAsync(typeof(ShapePaletteToolWindowPane), 0, true, package.DisposalToken);
 
-        Guid solutionExplorer = new(ToolWindowGuids80.SolutionExplorer);
-        SetFramePos(hierarchyWindow, VSSETFRAMEPOS.SFP_fDock | VSSETFRAMEPOS.SFP_fDockLeft, solutionExplorer, width: 300);
-        SetFramePos(shapeWindow, VSSETFRAMEPOS.SFP_fDock | VSSETFRAMEPOS.SFP_fDockRight, solutionExplorer, width: 260);
+        Guid SolutionExplorer = new(ToolWindowGuids80.SolutionExplorer);
+        SetFramePos(HierarchyWindow, VSSETFRAMEPOS.SFP_fDock | VSSETFRAMEPOS.SFP_fDockLeft, SolutionExplorer, Width: 300);
+        SetFramePos(ShapeWindow, VSSETFRAMEPOS.SFP_fDock | VSSETFRAMEPOS.SFP_fDockRight, SolutionExplorer, Width: 260);
 
-        string scenePath = Path.Combine(repoRoot, DefaultSceneRelativePath);
-        if (File.Exists(scenePath))
+        string ScenePath = Path.Combine(RepoRoot, DefaultSceneRelativePath);
+        if (File.Exists(ScenePath))
         {
             // dte.ItemOperations.OpenFile(...) is the confirmed-reliable way to route through the
             // real IVsEditorFactory-based open path (ADR-0013) - mere selection or a raw file-open
             // API does not reliably trigger a custom editor factory.
-            dte.ItemOperations.OpenFile(scenePath);
+            Dte.ItemOperations.OpenFile(ScenePath);
         }
     }
 
-    private static void ShowToolbar(DTE dte)
+    private static void ShowToolbar(DTE Dte)
     {
         ThreadHelper.ThrowIfNotOnUIThread();
 
@@ -90,13 +90,13 @@ internal static class GameEngineLayout
         {
             // DTE.CommandBars is typed as plain System.Object (not the strongly-typed CommandBars
             // interface) even on EnvDTE80.DTE2 - an explicit cast is required.
-            if (dte.CommandBars is not CommandBars commandBars)
+            if (Dte.CommandBars is not CommandBars commandBars)
             {
                 return;
             }
 
-            CommandBar toolbar = commandBars[ToolbarName];
-            toolbar.Visible = true;
+            CommandBar Toolbar = commandBars[ToolbarName];
+            Toolbar.Visible = true;
         }
         catch (Exception)
         {
@@ -105,15 +105,15 @@ internal static class GameEngineLayout
         }
     }
 
-    private static void SetFramePos(ToolWindowPane pane, VSSETFRAMEPOS position, Guid relativeTo, int width)
+    private static void SetFramePos(ToolWindowPane Pane, VSSETFRAMEPOS Position, Guid RelativeTo, int Width)
     {
         ThreadHelper.ThrowIfNotOnUIThread();
 
-        if (pane.Frame is not IVsWindowFrame frame)
+        if (Pane.Frame is not IVsWindowFrame Frame)
         {
             return;
         }
 
-        frame.SetFramePos(position, ref relativeTo, 0, 0, width, 0);
+        Frame.SetFramePos(Position, ref RelativeTo, 0, 0, Width, 0);
     }
 }

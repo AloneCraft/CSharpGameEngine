@@ -11,9 +11,9 @@ public readonly struct UnityCoordinateConvention : ICoordinateConvention
 {
     public static CoordinateHandedness Handedness => CoordinateHandedness.LeftHanded;
 
-    public static XyzVector ToXyz(in RufVector value) => new(value.R, value.U, value.F);
+    public static XyzVector ToXyz(in RufVector Value) => new(Value.R, Value.U, Value.F);
 
-    public static RufVector FromXyz(in XyzVector value) => new(value.X, value.Y, value.Z);
+    public static RufVector FromXyz(in XyzVector Value) => new(Value.X, Value.Y, Value.Z);
 
     public static XyzVector RightXyz => new(1f, 0f, 0f);
 

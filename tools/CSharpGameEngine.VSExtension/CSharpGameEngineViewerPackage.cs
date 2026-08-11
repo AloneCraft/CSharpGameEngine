@@ -34,14 +34,14 @@ public sealed class CSharpGameEngineViewerPackage : AsyncPackage
 {
     public const string PackageGuidString = "aec17804-e2e4-46e7-b373-de11af816203";
 
-    private ToggleFabWatchCommand? _fabWatchCommand;
-    private AssetMetaWatcher? _assetMetaWatcher;
+    private ToggleFabWatchCommand? FabWatchCommand;
+    private AssetMetaWatcher? AssetMetaWatcher;
 
     protected override async Task InitializeAsync(CancellationToken cancellationToken, IProgress<ServiceProgressData> progress)
     {
         await this.JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
         await OpenViewerCommand.InitializeAsync(this);
-        _fabWatchCommand = await ToggleFabWatchCommand.InitializeAsync(this);
+        FabWatchCommand = await ToggleFabWatchCommand.InitializeAsync(this);
         await OpenFabCommand.InitializeAsync(this);
         await OpenGameCommand.InitializeAsync(this);
         await ShowHierarchyToolWindowCommand.InitializeAsync(this);
@@ -52,7 +52,7 @@ public sealed class CSharpGameEngineViewerPackage : AsyncPackage
         RegisterEditorFactory(new GlbFbxPreviewEditorFactory());
         RegisterEditorFactory(new SceneFileEditorFactory());
 
-        _assetMetaWatcher = AssetMetaWatcher.StartIfProjectExists();
+        AssetMetaWatcher = AssetMetaWatcher.StartIfProjectExists();
         await TryAutoOpenUserEcsProjectAsync();
 
         _ = JoinableTaskFactory.RunAsync(TryApplyInitialLayoutAsync);
@@ -71,20 +71,20 @@ public sealed class CSharpGameEngineViewerPackage : AsyncPackage
             return;
         }
 
-        solution.GetProperty((int)__VSPROPID.VSPROPID_IsSolutionOpen, out object isOpenObj);
-        if (isOpenObj is bool isOpen && isOpen)
+        solution.GetProperty((int)__VSPROPID.VSPROPID_IsSolutionOpen, out object IsOpenObj);
+        if (IsOpenObj is bool IsOpen && IsOpen)
         {
             return;
         }
 
-        string? repoRoot = RepoLocator.ResolveRepoRoot();
-        if (repoRoot is null)
+        string? RepoRoot = RepoLocator.ResolveRepoRoot();
+        if (RepoRoot is null)
         {
             return;
         }
 
-        string solutionPath = Path.Combine(repoRoot, "UserEcsProject.slnx");
-        if (!File.Exists(solutionPath) || await GetServiceAsync(typeof(SDTE)) is not DTE dte)
+        string SolutionPath = Path.Combine(RepoRoot, "UserEcsProject.slnx");
+        if (!File.Exists(SolutionPath) || await GetServiceAsync(typeof(SDTE)) is not DTE Dte)
         {
             return;
         }
@@ -92,9 +92,9 @@ public sealed class CSharpGameEngineViewerPackage : AsyncPackage
         try
         {
             await Task.Delay(TimeSpan.FromSeconds(2));
-            dte.ExecuteCommand("File.OpenProject", $"\"{solutionPath}\"");
-            dte.MainWindow.Visible = true;
-            dte.MainWindow.Activate();
+            Dte.ExecuteCommand("File.OpenProject", $"\"{SolutionPath}\"");
+            Dte.MainWindow.Visible = true;
+            Dte.MainWindow.Activate();
         }
         catch (COMException)
         {
@@ -113,14 +113,14 @@ public sealed class CSharpGameEngineViewerPackage : AsyncPackage
                 return;
             }
 
-            string? repoRoot = RepoLocator.ResolveRepoRoot();
-            if (repoRoot is null || await GetServiceAsync(typeof(SDTE)) is not DTE dte)
+            string? RepoRoot = RepoLocator.ResolveRepoRoot();
+            if (RepoRoot is null || await GetServiceAsync(typeof(SDTE)) is not DTE Dte)
             {
                 return;
             }
 
             await Task.Delay(TimeSpan.FromSeconds(3));
-            await GameEngineLayout.ApplyAsync(this, dte, repoRoot);
+            await GameEngineLayout.ApplyAsync(this, Dte, RepoRoot);
             await GameEngineLayout.MarkInitialLayoutAppliedAsync(this);
         }
         catch (COMException)
@@ -129,14 +129,14 @@ public sealed class CSharpGameEngineViewerPackage : AsyncPackage
         }
     }
 
-    protected override void Dispose(bool disposing)
+    protected override void Dispose(bool Disposing)
     {
-        if (disposing)
+        if (Disposing)
         {
-            _fabWatchCommand?.Dispose();
-            _assetMetaWatcher?.Dispose();
+            FabWatchCommand?.Dispose();
+            AssetMetaWatcher?.Dispose();
         }
 
-        base.Dispose(disposing);
+        base.Dispose(Disposing);
     }
 }

@@ -43,44 +43,44 @@ public sealed unsafe class TriangleRenderer : IDisposable
         public Vector4 Color;
     }
 
-    private GraphicsDevice? _device;
-    private IDXGISwapChain3* _swapChain;
-    private ID3D12DescriptorHeap* _rtvHeap;
-    private uint _rtvDescriptorSize;
-    private readonly ID3D12Resource*[] _backBuffers = new ID3D12Resource*[FrameCount];
-    private readonly ID3D12CommandAllocator*[] _commandAllocators = new ID3D12CommandAllocator*[FrameCount];
-    private ID3D12GraphicsCommandList* _commandList;
-    private ID3D12Fence* _fence;
-    private readonly ulong[] _fenceValues = new ulong[FrameCount];
-    private HANDLE _fenceEvent;
-    private ID3D12RootSignature* _rootSignature;
-    private ID3D12PipelineState* _pipelineState;
-    private ID3D12Resource* _vertexBuffer;
-    private D3D12_VERTEX_BUFFER_VIEW _vertexBufferView;
-    private ID3D12Resource* _readbackBuffer;
-    private ulong _readbackBufferSize;
-    private D3D12_PLACED_SUBRESOURCE_FOOTPRINT _readbackFootprint;
+    private GraphicsDevice? Device;
+    private IDXGISwapChain3* SwapChain;
+    private ID3D12DescriptorHeap* RtvHeap;
+    private uint RtvDescriptorSize;
+    private readonly ID3D12Resource*[] BackBuffers = new ID3D12Resource*[FrameCount];
+    private readonly ID3D12CommandAllocator*[] CommandAllocators = new ID3D12CommandAllocator*[FrameCount];
+    private ID3D12GraphicsCommandList* CommandList;
+    private ID3D12Fence* Fence;
+    private readonly ulong[] FenceValues = new ulong[FrameCount];
+    private HANDLE FenceEvent;
+    private ID3D12RootSignature* RootSignature;
+    private ID3D12PipelineState* PipelineState;
+    private ID3D12Resource* VertexBuffer;
+    private D3D12_VERTEX_BUFFER_VIEW VertexBufferView;
+    private ID3D12Resource* ReadbackBuffer;
+    private ulong ReadbackBufferSize;
+    private D3D12_PLACED_SUBRESOURCE_FOOTPRINT ReadbackFootprint;
 
-    private uint _frameIndex;
-    private int _width;
-    private int _height;
-    private bool _sizeIsZero;
-    private bool _disposed;
+    private uint FrameIndex;
+    private int Width;
+    private int Height;
+    private bool SizeIsZero;
+    private bool Disposed;
 
-    private D3D12_VIEWPORT _viewport;
-    private RECT _scissorRect;
+    private D3D12_VIEWPORT Viewport;
+    private RECT ScissorRect;
 
-    public string AdapterDescription => _device?.AdapterDescription ?? string.Empty;
+    public string AdapterDescription => Device?.AdapterDescription ?? string.Empty;
 
-    public bool IsWarp => _device?.IsWarp ?? false;
+    public bool IsWarp => Device?.IsWarp ?? false;
 
-    public bool DebugLayerEnabled => _device?.DebugLayerEnabled ?? false;
+    public bool DebugLayerEnabled => Device?.DebugLayerEnabled ?? false;
 
-    public bool GpuBasedValidationEnabled => _device?.GpuBasedValidationEnabled ?? false;
+    public bool GpuBasedValidationEnabled => Device?.GpuBasedValidationEnabled ?? false;
 
-    public IReadOnlyList<D3D12DebugMessage> DebugMessages => _device?.CollectedMessages ?? [];
+    public IReadOnlyList<D3D12DebugMessage> DebugMessages => Device?.CollectedMessages ?? [];
 
-    public int ErrorOrWorseMessageCount => _device?.ErrorOrWorseMessageCount ?? 0;
+    public int ErrorOrWorseMessageCount => Device?.ErrorOrWorseMessageCount ?? 0;
 
     public bool ShaderCompilationSucceeded { get; private set; }
 
@@ -88,32 +88,32 @@ public sealed unsafe class TriangleRenderer : IDisposable
 
     public uint FramesRendered { get; private set; }
 
-    public static TriangleRenderer Create(nint hwnd, int width, int height, GraphicsDeviceOptions deviceOptions, string shaderPath)
+    public static TriangleRenderer Create(nint Hwnd, int Width, int Height, GraphicsDeviceOptions DeviceOptions, string ShaderPath)
     {
-        ArgumentNullException.ThrowIfNull(shaderPath);
-        if (width <= 0 || height <= 0)
+        ArgumentNullException.ThrowIfNull(ShaderPath);
+        if (Width <= 0 || Height <= 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(width), "Initial width/height must both be positive.");
+            throw new ArgumentOutOfRangeException(nameof(Width), "Initial width/height must both be positive.");
         }
 
-        TriangleRenderer renderer = new()
+        TriangleRenderer Renderer = new()
         {
-            _width = width,
-            _height = height,
+            Width = Width,
+            Height = Height,
         };
 
-        bool completed = false;
+        bool Completed = false;
         try
         {
-            renderer.Initialize((HWND)hwnd, width, height, deviceOptions, shaderPath);
-            completed = true;
-            return renderer;
+            Renderer.Initialize((HWND)Hwnd, Width, Height, DeviceOptions, ShaderPath);
+            Completed = true;
+            return Renderer;
         }
         finally
         {
-            if (!completed)
+            if (!Completed)
             {
-                renderer.Dispose();
+                Renderer.Dispose();
             }
         }
     }
@@ -122,232 +122,232 @@ public sealed unsafe class TriangleRenderer : IDisposable
     {
     }
 
-    private void Initialize(HWND hwnd, int width, int height, GraphicsDeviceOptions deviceOptions, string shaderPath)
+    private void Initialize(HWND Hwnd, int Width, int Height, GraphicsDeviceOptions DeviceOptions, string ShaderPath)
     {
-        _device = GraphicsDevice.Create(deviceOptions);
+        Device = GraphicsDevice.Create(DeviceOptions);
 
-        CreateSwapChain(hwnd, width, height);
+        CreateSwapChain(Hwnd, Width, Height);
         CreateRtvHeap();
         CreateRenderTargetViews();
 
         for (int i = 0; i < FrameCount; i++)
         {
-            ID3D12CommandAllocator* allocator;
+            ID3D12CommandAllocator* Allocator;
             D3D12Diagnostics.EnsureSuccess(
-                _device.Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, __uuidof<ID3D12CommandAllocator>(), (void**)&allocator),
+                Device.Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, __uuidof<ID3D12CommandAllocator>(), (void**)&Allocator),
                 "ID3D12Device::CreateCommandAllocator", "creating a frame command allocator");
-            _commandAllocators[i] = allocator;
+            CommandAllocators[i] = Allocator;
         }
 
-        ID3D12GraphicsCommandList* commandList;
+        ID3D12GraphicsCommandList* CommandList;
         D3D12Diagnostics.EnsureSuccess(
-            _device.Device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, _commandAllocators[0], null, __uuidof<ID3D12GraphicsCommandList>(), (void**)&commandList),
+            Device.Device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, CommandAllocators[0], null, __uuidof<ID3D12GraphicsCommandList>(), (void**)&CommandList),
             "ID3D12Device::CreateCommandList", "creating the graphics command list");
-        _commandList = commandList;
-        D3D12Diagnostics.EnsureSuccess(_commandList->Close(), "ID3D12GraphicsCommandList::Close", "closing the initial command list state");
+        this.CommandList = CommandList;
+        D3D12Diagnostics.EnsureSuccess(CommandList->Close(), "ID3D12GraphicsCommandList::Close", "closing the initial command list state");
 
-        ID3D12Fence* fence;
+        ID3D12Fence* Fence;
         D3D12Diagnostics.EnsureSuccess(
-            _device.Device->CreateFence(0, D3D12_FENCE_FLAG_NONE, __uuidof<ID3D12Fence>(), (void**)&fence),
+            Device.Device->CreateFence(0, D3D12_FENCE_FLAG_NONE, __uuidof<ID3D12Fence>(), (void**)&Fence),
             "ID3D12Device::CreateFence", "creating the frame fence");
-        _fence = fence;
+        this.Fence = Fence;
 
-        _fenceEvent = CreateEventW(lpEventAttributes: null, bManualReset: FALSE, bInitialState: FALSE, lpName: null);
-        if (_fenceEvent == HANDLE.NULL)
+        FenceEvent = CreateEventW(lpEventAttributes: null, bManualReset: FALSE, bInitialState: FALSE, lpName: null);
+        if (FenceEvent == HANDLE.NULL)
         {
             throw new InvalidOperationException("CreateEventW failed while creating the frame fence event.");
         }
 
-        _frameIndex = _swapChain->GetCurrentBackBufferIndex();
-        _fenceValues[_frameIndex] = 1;
+        FrameIndex = SwapChain->GetCurrentBackBufferIndex();
+        FenceValues[FrameIndex] = 1;
 
-        CompileShaders(shaderPath);
+        CompileShaders(ShaderPath);
         CreateRootSignature();
         CreatePipelineState();
         CreateVertexBuffer();
-        UpdateViewportAndScissor(width, height);
+        UpdateViewportAndScissor(Width, Height);
     }
 
-    private void CreateSwapChain(HWND hwnd, int width, int height)
+    private void CreateSwapChain(HWND Hwnd, int Width, int Height)
     {
-        DXGI_SWAP_CHAIN_DESC1 desc = new()
+        DXGI_SWAP_CHAIN_DESC1 Desc = new()
         {
             BufferCount = FrameCount,
-            Width = (uint)width,
-            Height = (uint)height,
+            Width = (uint)Width,
+            Height = (uint)Height,
             Format = BackBufferFormat,
             BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT,
             SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD,
             SampleDesc = new DXGI_SAMPLE_DESC(1, 0),
         };
 
-        IDXGISwapChain1* swapChain1;
+        IDXGISwapChain1* SwapChain1;
         D3D12Diagnostics.EnsureSuccess(
-            _device!.Factory->CreateSwapChainForHwnd(
-                (IUnknown*)_device.CommandQueue,
-                hwnd,
-                &desc,
+            Device!.Factory->CreateSwapChainForHwnd(
+                (IUnknown*)Device.CommandQueue,
+                Hwnd,
+                &Desc,
                 pFullscreenDesc: null,
                 pRestrictToOutput: null,
-                &swapChain1),
+                &SwapChain1),
             "IDXGIFactory4::CreateSwapChainForHwnd", "creating the swap chain");
 
-        IDXGISwapChain3* swapChain3;
-        HRESULT hr = swapChain1->QueryInterface(__uuidof<IDXGISwapChain3>(), (void**)&swapChain3);
-        _ = swapChain1->Release();
-        D3D12Diagnostics.EnsureSuccess(hr, "IDXGISwapChain1::QueryInterface(IDXGISwapChain3)", "upgrading the swap chain interface");
+        IDXGISwapChain3* SwapChain3;
+        HRESULT Hr = SwapChain1->QueryInterface(__uuidof<IDXGISwapChain3>(), (void**)&SwapChain3);
+        _ = SwapChain1->Release();
+        D3D12Diagnostics.EnsureSuccess(Hr, "IDXGISwapChain1::QueryInterface(IDXGISwapChain3)", "upgrading the swap chain interface");
 
-        _swapChain = swapChain3;
+        SwapChain = SwapChain3;
     }
 
     private void CreateRtvHeap()
     {
-        D3D12_DESCRIPTOR_HEAP_DESC desc = new()
+        D3D12_DESCRIPTOR_HEAP_DESC Desc = new()
         {
             NumDescriptors = FrameCount,
             Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
         };
 
-        ID3D12DescriptorHeap* heap;
+        ID3D12DescriptorHeap* Heap;
         D3D12Diagnostics.EnsureSuccess(
-            _device!.Device->CreateDescriptorHeap(&desc, __uuidof<ID3D12DescriptorHeap>(), (void**)&heap),
+            Device!.Device->CreateDescriptorHeap(&Desc, __uuidof<ID3D12DescriptorHeap>(), (void**)&Heap),
             "ID3D12Device::CreateDescriptorHeap", "creating the RTV descriptor heap");
 
-        _rtvHeap = heap;
-        _rtvDescriptorSize = _device.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+        RtvHeap = Heap;
+        RtvDescriptorSize = Device.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
     }
 
     private void CreateRenderTargetViews()
     {
-        D3D12_CPU_DESCRIPTOR_HANDLE rtvBase = _rtvHeap->GetCPUDescriptorHandleForHeapStart();
+        D3D12_CPU_DESCRIPTOR_HANDLE RtvBase = RtvHeap->GetCPUDescriptorHandleForHeapStart();
 
         for (uint i = 0; i < FrameCount; i++)
         {
-            ID3D12Resource* backBuffer;
+            ID3D12Resource* BackBuffer;
             D3D12Diagnostics.EnsureSuccess(
-                _swapChain->GetBuffer(i, __uuidof<ID3D12Resource>(), (void**)&backBuffer),
+                SwapChain->GetBuffer(i, __uuidof<ID3D12Resource>(), (void**)&BackBuffer),
                 "IDXGISwapChain3::GetBuffer", "retrieving a back buffer", $"buffer[{i}]");
 
-            D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = new(rtvBase, (int)i, _rtvDescriptorSize);
-            _device!.Device->CreateRenderTargetView(backBuffer, pDesc: null, rtvHandle);
+            D3D12_CPU_DESCRIPTOR_HANDLE RtvHandle = new(RtvBase, (int)i, RtvDescriptorSize);
+            Device!.Device->CreateRenderTargetView(BackBuffer, pDesc: null, RtvHandle);
 
-            _backBuffers[i] = backBuffer;
+            BackBuffers[i] = BackBuffer;
         }
     }
 
-    private void CompileShaders(string shaderPath)
+    private void CompileShaders(string ShaderPath)
     {
-        bool debugShaders = false;
+        bool DebugShaders = false;
 #if DEBUG
-        debugShaders = true;
+        DebugShaders = true;
 #endif
 
-        HlslCompileResult vs = HlslCompiler.Compile(new HlslCompileRequest
+        HlslCompileResult Vs = HlslCompiler.Compile(new HlslCompileRequest
         {
-            FilePath = shaderPath,
+            FilePath = ShaderPath,
             EntryPoint = "VSMain",
             TargetProfile = "vs_6_0",
-            EnableDebugInfo = debugShaders,
+            EnableDebugInfo = DebugShaders,
         });
 
-        HlslCompileResult ps = HlslCompiler.Compile(new HlslCompileRequest
+        HlslCompileResult Ps = HlslCompiler.Compile(new HlslCompileRequest
         {
-            FilePath = shaderPath,
+            FilePath = ShaderPath,
             EntryPoint = "PSMain",
             TargetProfile = "ps_6_0",
-            EnableDebugInfo = debugShaders,
+            EnableDebugInfo = DebugShaders,
         });
 
-        ShaderCompilationSucceeded = vs.Success && ps.Success;
-        ShaderDiagnostics = [.. vs.Diagnostics, .. ps.Diagnostics];
+        ShaderCompilationSucceeded = Vs.Success && Ps.Success;
+        ShaderDiagnostics = [.. Vs.Diagnostics, .. Ps.Diagnostics];
 
         if (!ShaderCompilationSucceeded)
         {
-            string details = string.Join(Environment.NewLine, ShaderDiagnostics);
-            throw new InvalidOperationException($"HLSL shader compilation failed for '{shaderPath}':{Environment.NewLine}{details}");
+            string Details = string.Join(Environment.NewLine, ShaderDiagnostics);
+            throw new InvalidOperationException($"HLSL shader compilation failed for '{ShaderPath}':{Environment.NewLine}{Details}");
         }
 
-        _vertexShaderBytecode = vs.Bytecode;
-        _pixelShaderBytecode = ps.Bytecode;
+        VertexShaderBytecode = Vs.Bytecode;
+        PixelShaderBytecode = Ps.Bytecode;
     }
 
-    private byte[] _vertexShaderBytecode = [];
-    private byte[] _pixelShaderBytecode = [];
+    private byte[] VertexShaderBytecode = [];
+    private byte[] PixelShaderBytecode = [];
 
     private void CreateRootSignature()
     {
-        D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = new()
+        D3D12_ROOT_SIGNATURE_DESC RootSignatureDesc = new()
         {
             Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT,
         };
 
-        ID3DBlob* signatureBlob = null;
-        ID3DBlob* errorBlob = null;
+        ID3DBlob* SignatureBlob = null;
+        ID3DBlob* ErrorBlob = null;
         try
         {
-            HRESULT hr = D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signatureBlob, &errorBlob);
-            if (hr.FAILED)
+            HRESULT Hr = D3D12SerializeRootSignature(&RootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &SignatureBlob, &ErrorBlob);
+            if (Hr.FAILED)
             {
-                string error = errorBlob != null
-                    ? new string((sbyte*)errorBlob->GetBufferPointer())
+                string Error = ErrorBlob != null
+                    ? new string((sbyte*)ErrorBlob->GetBufferPointer())
                     : "(no error blob)";
-                throw new D3D12Exception("D3D12SerializeRootSignature", hr.Value, "serializing the empty root signature", error);
+                throw new D3D12Exception("D3D12SerializeRootSignature", Hr.Value, "serializing the empty root signature", Error);
             }
 
-            ID3D12RootSignature* rootSignature;
+            ID3D12RootSignature* RootSignature;
             D3D12Diagnostics.EnsureSuccess(
-                _device!.Device->CreateRootSignature(0, signatureBlob->GetBufferPointer(), signatureBlob->GetBufferSize(), __uuidof<ID3D12RootSignature>(), (void**)&rootSignature),
+                Device!.Device->CreateRootSignature(0, SignatureBlob->GetBufferPointer(), SignatureBlob->GetBufferSize(), __uuidof<ID3D12RootSignature>(), (void**)&RootSignature),
                 "ID3D12Device::CreateRootSignature", "creating the root signature");
-            _rootSignature = rootSignature;
+            this.RootSignature = RootSignature;
         }
         finally
         {
-            if (signatureBlob != null)
+            if (SignatureBlob != null)
             {
-                _ = signatureBlob->Release();
+                _ = SignatureBlob->Release();
             }
 
-            if (errorBlob != null)
+            if (ErrorBlob != null)
             {
-                _ = errorBlob->Release();
+                _ = ErrorBlob->Release();
             }
         }
     }
 
     private void CreatePipelineState()
     {
-        fixed (byte* pPosition = "POSITION\0"u8)
-        fixed (byte* pColor = "COLOR\0"u8)
-        fixed (byte* pVertexShader = _vertexShaderBytecode)
-        fixed (byte* pPixelShader = _pixelShaderBytecode)
+        fixed (byte* PPosition = "POSITION\0"u8)
+        fixed (byte* PColor = "COLOR\0"u8)
+        fixed (byte* PVertexShader = VertexShaderBytecode)
+        fixed (byte* PPixelShader = PixelShaderBytecode)
         {
-            D3D12_INPUT_ELEMENT_DESC* inputElements = stackalloc D3D12_INPUT_ELEMENT_DESC[2]
+            D3D12_INPUT_ELEMENT_DESC* InputElements = stackalloc D3D12_INPUT_ELEMENT_DESC[2]
             {
                 new D3D12_INPUT_ELEMENT_DESC
                 {
-                    SemanticName = (sbyte*)pPosition,
+                    SemanticName = (sbyte*)PPosition,
                     Format = DXGI_FORMAT_R32G32B32_FLOAT,
                     InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
                 },
                 new D3D12_INPUT_ELEMENT_DESC
                 {
-                    SemanticName = (sbyte*)pColor,
+                    SemanticName = (sbyte*)PColor,
                     Format = DXGI_FORMAT_R32G32B32A32_FLOAT,
                     AlignedByteOffset = 12,
                     InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
                 },
             };
 
-            D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = new()
+            D3D12_GRAPHICS_PIPELINE_STATE_DESC PsoDesc = new()
             {
                 InputLayout = new D3D12_INPUT_LAYOUT_DESC
                 {
-                    pInputElementDescs = inputElements,
+                    pInputElementDescs = InputElements,
                     NumElements = 2,
                 },
-                pRootSignature = _rootSignature,
-                VS = new D3D12_SHADER_BYTECODE { pShaderBytecode = pVertexShader, BytecodeLength = (nuint)_vertexShaderBytecode.Length },
-                PS = new D3D12_SHADER_BYTECODE { pShaderBytecode = pPixelShader, BytecodeLength = (nuint)_pixelShaderBytecode.Length },
+                pRootSignature = RootSignature,
+                VS = new D3D12_SHADER_BYTECODE { pShaderBytecode = PVertexShader, BytecodeLength = (nuint)VertexShaderBytecode.Length },
+                PS = new D3D12_SHADER_BYTECODE { pShaderBytecode = PPixelShader, BytecodeLength = (nuint)PixelShaderBytecode.Length },
                 RasterizerState = D3D12_RASTERIZER_DESC.DEFAULT,
                 BlendState = D3D12_BLEND_DESC.DEFAULT,
                 DepthStencilState = D3D12_DEPTH_STENCIL_DESC.DEFAULT,
@@ -356,83 +356,83 @@ public sealed unsafe class TriangleRenderer : IDisposable
                 NumRenderTargets = 1,
                 SampleDesc = new DXGI_SAMPLE_DESC(1, 0),
             };
-            psoDesc.DepthStencilState.DepthEnable = FALSE;
+            PsoDesc.DepthStencilState.DepthEnable = FALSE;
             // Vertex winding follows the task's stated top/bottom-left/bottom-right order, which is
             // counter-clockwise in NDC; disable culling rather than reorder the specified vertices.
-            psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-            psoDesc.RTVFormats[0] = BackBufferFormat;
+            PsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+            PsoDesc.RTVFormats[0] = BackBufferFormat;
 
-            ID3D12PipelineState* pipelineState;
+            ID3D12PipelineState* PipelineState;
             D3D12Diagnostics.EnsureSuccess(
-                _device!.Device->CreateGraphicsPipelineState(&psoDesc, __uuidof<ID3D12PipelineState>(), (void**)&pipelineState),
+                Device!.Device->CreateGraphicsPipelineState(&PsoDesc, __uuidof<ID3D12PipelineState>(), (void**)&PipelineState),
                 "ID3D12Device::CreateGraphicsPipelineState", "creating the triangle pipeline state");
-            _pipelineState = pipelineState;
+            this.PipelineState = PipelineState;
         }
     }
 
     private void CreateVertexBuffer()
     {
-        const int vertexCount = 3;
-        Vertex* vertices = stackalloc Vertex[vertexCount]
+        const int VertexCount = 3;
+        Vertex* Vertices = stackalloc Vertex[VertexCount]
         {
             new Vertex { Position = new Vector3(0.0f, 0.6f, 0.0f), Color = new Vector4(1, 0, 0, 1) },
             new Vertex { Position = new Vector3(-0.6f, -0.6f, 0.0f), Color = new Vector4(0, 1, 0, 1) },
             new Vertex { Position = new Vector3(0.6f, -0.6f, 0.0f), Color = new Vector4(0, 0, 1, 1) },
         };
 
-        uint bufferSize = (uint)sizeof(Vertex) * vertexCount;
+        uint BufferSize = (uint)sizeof(Vertex) * VertexCount;
 
-        D3D12_HEAP_PROPERTIES heapProps = new(D3D12_HEAP_TYPE_UPLOAD);
-        D3D12_RESOURCE_DESC bufferDesc = D3D12_RESOURCE_DESC.Buffer(bufferSize);
+        D3D12_HEAP_PROPERTIES HeapProps = new(D3D12_HEAP_TYPE_UPLOAD);
+        D3D12_RESOURCE_DESC BufferDesc = D3D12_RESOURCE_DESC.Buffer(BufferSize);
 
-        ID3D12Resource* vertexBuffer;
+        ID3D12Resource* VertexBuffer;
         D3D12Diagnostics.EnsureSuccess(
-            _device!.Device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, pOptimizedClearValue: null, __uuidof<ID3D12Resource>(), (void**)&vertexBuffer),
+            Device!.Device->CreateCommittedResource(&HeapProps, D3D12_HEAP_FLAG_NONE, &BufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, pOptimizedClearValue: null, __uuidof<ID3D12Resource>(), (void**)&VertexBuffer),
             "ID3D12Device::CreateCommittedResource", "creating the triangle vertex buffer (upload heap)");
 
-        D3D12_RANGE noRead = new();
-        byte* mapped;
-        D3D12Diagnostics.EnsureSuccess(vertexBuffer->Map(0, &noRead, (void**)&mapped), "ID3D12Resource::Map", "mapping the vertex buffer");
-        Unsafe.CopyBlock(mapped, vertices, bufferSize);
-        vertexBuffer->Unmap(0, null);
+        D3D12_RANGE NoRead = new();
+        byte* Mapped;
+        D3D12Diagnostics.EnsureSuccess(VertexBuffer->Map(0, &NoRead, (void**)&Mapped), "ID3D12Resource::Map", "mapping the vertex buffer");
+        Unsafe.CopyBlock(Mapped, Vertices, BufferSize);
+        VertexBuffer->Unmap(0, null);
 
-        _vertexBuffer = vertexBuffer;
-        _vertexBufferView = new D3D12_VERTEX_BUFFER_VIEW
+        this.VertexBuffer = VertexBuffer;
+        VertexBufferView = new D3D12_VERTEX_BUFFER_VIEW
         {
-            BufferLocation = vertexBuffer->GetGPUVirtualAddress(),
+            BufferLocation = VertexBuffer->GetGPUVirtualAddress(),
             StrideInBytes = (uint)sizeof(Vertex),
-            SizeInBytes = bufferSize,
+            SizeInBytes = BufferSize,
         };
     }
 
-    private void UpdateViewportAndScissor(int width, int height)
+    private void UpdateViewportAndScissor(int Width, int Height)
     {
-        _viewport = new D3D12_VIEWPORT
+        Viewport = new D3D12_VIEWPORT
         {
             TopLeftX = 0,
             TopLeftY = 0,
-            Width = width,
-            Height = height,
+            Width = Width,
+            Height = Height,
             MinDepth = 0.0f,
             MaxDepth = 1.0f,
         };
 
-        _scissorRect = new RECT { left = 0, top = 0, right = width, bottom = height };
-        _width = width;
-        _height = height;
+        ScissorRect = new RECT { left = 0, top = 0, right = Width, bottom = Height };
+        this.Width = Width;
+        this.Height = Height;
     }
 
-    public void Resize(int width, int height)
+    public void Resize(int Width, int Height)
     {
-        if (width <= 0 || height <= 0)
+        if (Width <= 0 || Height <= 0)
         {
-            _sizeIsZero = true;
+            SizeIsZero = true;
             return;
         }
 
-        _sizeIsZero = false;
+        SizeIsZero = false;
 
-        if (width == _width && height == _height)
+        if (this.Width == Width && this.Height == Height)
         {
             return;
         }
@@ -443,102 +443,102 @@ public sealed unsafe class TriangleRenderer : IDisposable
         // which would otherwise desynchronize the per-slot fence values from the fence's actual
         // completed value and hang a later SetEventOnCompletion wait on a value nothing ever
         // signals. Resync every slot to the value we just confirmed the GPU has reached.
-        ulong syncedFenceValue = _fenceValues[_frameIndex];
+        ulong SyncedFenceValue = FenceValues[FrameIndex];
         for (int i = 0; i < FrameCount; i++)
         {
-            _fenceValues[i] = syncedFenceValue;
+            FenceValues[i] = SyncedFenceValue;
         }
 
         for (int i = 0; i < FrameCount; i++)
         {
-            if (_backBuffers[i] != null)
+            if (BackBuffers[i] != null)
             {
-                _ = _backBuffers[i]->Release();
-                _backBuffers[i] = null;
+                _ = BackBuffers[i]->Release();
+                BackBuffers[i] = null;
             }
         }
 
         ReleaseReadbackBuffer();
 
         D3D12Diagnostics.EnsureSuccess(
-            _swapChain->ResizeBuffers(FrameCount, (uint)width, (uint)height, BackBufferFormat, 0),
+            SwapChain->ResizeBuffers(FrameCount, (uint)Width, (uint)Height, BackBufferFormat, 0),
             "IDXGISwapChain3::ResizeBuffers", "resizing the swap chain");
 
         CreateRenderTargetViews();
-        _frameIndex = _swapChain->GetCurrentBackBufferIndex();
-        UpdateViewportAndScissor(width, height);
+        FrameIndex = SwapChain->GetCurrentBackBufferIndex();
+        UpdateViewportAndScissor(Width, Height);
     }
 
-    public void RenderFrame(bool captureForVerification = false)
+    public void RenderFrame(bool CaptureForVerification = false)
     {
-        if (_sizeIsZero)
+        if (SizeIsZero)
         {
             return;
         }
 
-        ID3D12CommandAllocator* allocator = _commandAllocators[_frameIndex];
-        D3D12Diagnostics.EnsureSuccess(allocator->Reset(), "ID3D12CommandAllocator::Reset", "resetting the frame command allocator");
-        D3D12Diagnostics.EnsureSuccess(_commandList->Reset(allocator, _pipelineState), "ID3D12GraphicsCommandList::Reset", "resetting the graphics command list");
+        ID3D12CommandAllocator* Allocator = CommandAllocators[FrameIndex];
+        D3D12Diagnostics.EnsureSuccess(Allocator->Reset(), "ID3D12CommandAllocator::Reset", "resetting the frame command allocator");
+        D3D12Diagnostics.EnsureSuccess(CommandList->Reset(Allocator, PipelineState), "ID3D12GraphicsCommandList::Reset", "resetting the graphics command list");
 
-        ID3D12Resource* backBuffer = _backBuffers[_frameIndex];
+        ID3D12Resource* BackBuffer = BackBuffers[FrameIndex];
 
-        D3D12_RESOURCE_BARRIER toRenderTarget = D3D12_RESOURCE_BARRIER.InitTransition(backBuffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-        _commandList->ResourceBarrier(1, &toRenderTarget);
+        D3D12_RESOURCE_BARRIER ToRenderTarget = D3D12_RESOURCE_BARRIER.InitTransition(BackBuffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+        CommandList->ResourceBarrier(1, &ToRenderTarget);
 
-        D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = new(_rtvHeap->GetCPUDescriptorHandleForHeapStart(), (int)_frameIndex, _rtvDescriptorSize);
-        _commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, null);
+        D3D12_CPU_DESCRIPTOR_HANDLE RtvHandle = new(RtvHeap->GetCPUDescriptorHandleForHeapStart(), (int)FrameIndex, RtvDescriptorSize);
+        CommandList->OMSetRenderTargets(1, &RtvHandle, FALSE, null);
 
         Vector4 clearColor = ClearColorVector;
-        _commandList->ClearRenderTargetView(rtvHandle, (float*)&clearColor, 0, null);
+        CommandList->ClearRenderTargetView(RtvHandle, (float*)&clearColor, 0, null);
 
-        _commandList->SetGraphicsRootSignature(_rootSignature);
-        _commandList->SetPipelineState(_pipelineState);
+        CommandList->SetGraphicsRootSignature(RootSignature);
+        CommandList->SetPipelineState(PipelineState);
 
-        fixed (D3D12_VIEWPORT* pViewport = &_viewport)
-        fixed (RECT* pScissorRect = &_scissorRect)
-        fixed (D3D12_VERTEX_BUFFER_VIEW* pVertexBufferView = &_vertexBufferView)
+        fixed (D3D12_VIEWPORT* PViewport = &Viewport)
+        fixed (RECT* PScissorRect = &ScissorRect)
+        fixed (D3D12_VERTEX_BUFFER_VIEW* PVertexBufferView = &VertexBufferView)
         {
-            _commandList->RSSetViewports(1, pViewport);
-            _commandList->RSSetScissorRects(1, pScissorRect);
-            _commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-            _commandList->IASetVertexBuffers(0, 1, pVertexBufferView);
-            _commandList->DrawInstanced(3, 1, 0, 0);
+            CommandList->RSSetViewports(1, PViewport);
+            CommandList->RSSetScissorRects(1, PScissorRect);
+            CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+            CommandList->IASetVertexBuffers(0, 1, PVertexBufferView);
+            CommandList->DrawInstanced(3, 1, 0, 0);
         }
 
-        if (captureForVerification)
+        if (CaptureForVerification)
         {
             EnsureReadbackBuffer();
 
-            D3D12_RESOURCE_BARRIER toCopySource = D3D12_RESOURCE_BARRIER.InitTransition(backBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE);
-            _commandList->ResourceBarrier(1, &toCopySource);
+            D3D12_RESOURCE_BARRIER ToCopySource = D3D12_RESOURCE_BARRIER.InitTransition(BackBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE);
+            CommandList->ResourceBarrier(1, &ToCopySource);
 
-            D3D12_TEXTURE_COPY_LOCATION dst = new() { pResource = _readbackBuffer, Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT };
-            dst.PlacedFootprint = _readbackFootprint;
-            D3D12_TEXTURE_COPY_LOCATION src = new() { pResource = backBuffer, Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX };
-            src.SubresourceIndex = 0;
-            _commandList->CopyTextureRegion(&dst, 0, 0, 0, &src, null);
+            D3D12_TEXTURE_COPY_LOCATION Dst = new() { pResource = ReadbackBuffer, Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT };
+            Dst.PlacedFootprint = ReadbackFootprint;
+            D3D12_TEXTURE_COPY_LOCATION Src = new() { pResource = BackBuffer, Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX };
+            Src.SubresourceIndex = 0;
+            CommandList->CopyTextureRegion(&Dst, 0, 0, 0, &Src, null);
 
-            D3D12_RESOURCE_BARRIER toPresent = D3D12_RESOURCE_BARRIER.InitTransition(backBuffer, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PRESENT);
-            _commandList->ResourceBarrier(1, &toPresent);
+            D3D12_RESOURCE_BARRIER ToPresent = D3D12_RESOURCE_BARRIER.InitTransition(BackBuffer, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PRESENT);
+            CommandList->ResourceBarrier(1, &ToPresent);
         }
         else
         {
-            D3D12_RESOURCE_BARRIER toPresent = D3D12_RESOURCE_BARRIER.InitTransition(backBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-            _commandList->ResourceBarrier(1, &toPresent);
+            D3D12_RESOURCE_BARRIER toPresent = D3D12_RESOURCE_BARRIER.InitTransition(BackBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+            CommandList->ResourceBarrier(1, &toPresent);
         }
 
-        D3D12Diagnostics.EnsureSuccess(_commandList->Close(), "ID3D12GraphicsCommandList::Close", "closing the frame command list");
+        D3D12Diagnostics.EnsureSuccess(CommandList->Close(), "ID3D12GraphicsCommandList::Close", "closing the frame command list");
 
-        ID3D12CommandList* commandListBase = (ID3D12CommandList*)_commandList;
-        _device!.CommandQueue->ExecuteCommandLists(1, &commandListBase);
+        ID3D12CommandList* CommandListBase = (ID3D12CommandList*)CommandList;
+        Device!.CommandQueue->ExecuteCommandLists(1, &CommandListBase);
 
-        D3D12Diagnostics.EnsureSuccess(_swapChain->Present(1, 0), "IDXGISwapChain3::Present", "presenting the frame");
+        D3D12Diagnostics.EnsureSuccess(SwapChain->Present(1, 0), "IDXGISwapChain3::Present", "presenting the frame");
 
         MoveToNextFrame();
-        _device.PollDebugMessages();
+        Device.PollDebugMessages();
         FramesRendered++;
 
-        if (captureForVerification)
+        if (CaptureForVerification)
         {
             WaitForGpuIdle();
             LastCapturedFrame = ReadBackCapturedFrame();
@@ -549,174 +549,174 @@ public sealed unsafe class TriangleRenderer : IDisposable
 
     private void EnsureReadbackBuffer()
     {
-        if (_readbackBuffer != null)
+        if (this.ReadbackBuffer != null)
         {
             return;
         }
 
-        D3D12_RESOURCE_DESC textureDesc = D3D12_RESOURCE_DESC.Tex2D(BackBufferFormat, (uint)_width, (uint)_height, mipLevels: 1);
+        D3D12_RESOURCE_DESC TextureDesc = D3D12_RESOURCE_DESC.Tex2D(BackBufferFormat, (uint)Width, (uint)Height, mipLevels: 1);
 
-        D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint;
-        ulong totalBytes;
-        _device!.Device->GetCopyableFootprints(&textureDesc, 0, 1, 0, &footprint, null, null, &totalBytes);
+        D3D12_PLACED_SUBRESOURCE_FOOTPRINT Footprint;
+        ulong TotalBytes;
+        Device!.Device->GetCopyableFootprints(&TextureDesc, 0, 1, 0, &Footprint, null, null, &TotalBytes);
 
-        D3D12_HEAP_PROPERTIES heapProps = new(D3D12_HEAP_TYPE_READBACK);
-        D3D12_RESOURCE_DESC bufferDesc = D3D12_RESOURCE_DESC.Buffer(totalBytes);
+        D3D12_HEAP_PROPERTIES HeapProps = new(D3D12_HEAP_TYPE_READBACK);
+        D3D12_RESOURCE_DESC BufferDesc = D3D12_RESOURCE_DESC.Buffer(TotalBytes);
 
-        ID3D12Resource* readbackBuffer;
+        ID3D12Resource* ReadbackBuffer;
         D3D12Diagnostics.EnsureSuccess(
-            _device.Device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_COPY_DEST, pOptimizedClearValue: null, __uuidof<ID3D12Resource>(), (void**)&readbackBuffer),
+            Device.Device->CreateCommittedResource(&HeapProps, D3D12_HEAP_FLAG_NONE, &BufferDesc, D3D12_RESOURCE_STATE_COPY_DEST, pOptimizedClearValue: null, __uuidof<ID3D12Resource>(), (void**)&ReadbackBuffer),
             "ID3D12Device::CreateCommittedResource", "creating the pixel-verification readback buffer");
 
-        _readbackBuffer = readbackBuffer;
-        _readbackBufferSize = totalBytes;
-        _readbackFootprint = footprint;
+        this.ReadbackBuffer = ReadbackBuffer;
+        ReadbackBufferSize = TotalBytes;
+        ReadbackFootprint = Footprint;
     }
 
     private void ReleaseReadbackBuffer()
     {
-        if (_readbackBuffer != null)
+        if (ReadbackBuffer != null)
         {
-            _ = _readbackBuffer->Release();
-            _readbackBuffer = null;
-            _readbackBufferSize = 0;
+            _ = ReadbackBuffer->Release();
+            ReadbackBuffer = null;
+            ReadbackBufferSize = 0;
         }
     }
 
     private PixelReadbackResult ReadBackCapturedFrame()
     {
-        D3D12_RANGE readRange = new() { Begin = 0, End = (nuint)_readbackBufferSize };
-        void* mapped;
-        D3D12Diagnostics.EnsureSuccess(_readbackBuffer->Map(0, &readRange, &mapped), "ID3D12Resource::Map", "mapping the readback buffer");
+        D3D12_RANGE ReadRange = new() { Begin = 0, End = (nuint)ReadbackBufferSize };
+        void* Mapped;
+        D3D12Diagnostics.EnsureSuccess(ReadbackBuffer->Map(0, &ReadRange, &Mapped), "ID3D12Resource::Map", "mapping the readback buffer");
 
-        byte[] data = new byte[_readbackBufferSize];
-        fixed (byte* pData = data)
+        byte[] Data = new byte[ReadbackBufferSize];
+        fixed (byte* PData = Data)
         {
-            Unsafe.CopyBlock(pData, mapped, (uint)_readbackBufferSize);
+            Unsafe.CopyBlock(PData, Mapped, (uint)ReadbackBufferSize);
         }
 
-        D3D12_RANGE writtenRange = new();
-        _readbackBuffer->Unmap(0, &writtenRange);
+        D3D12_RANGE WrittenRange = new();
+        ReadbackBuffer->Unmap(0, &WrittenRange);
 
         return new PixelReadbackResult
         {
-            Width = _width,
-            Height = _height,
-            RowPitch = _readbackFootprint.Footprint.RowPitch,
+            Width = Width,
+            Height = Height,
+            RowPitch = ReadbackFootprint.Footprint.RowPitch,
             Format = BackBufferFormat,
-            Pixels = data,
+            Pixels = Data,
         };
     }
 
     private void MoveToNextFrame()
     {
-        ulong currentFenceValue = _fenceValues[_frameIndex];
-        D3D12Diagnostics.EnsureSuccess(_device!.CommandQueue->Signal(_fence, currentFenceValue), "ID3D12CommandQueue::Signal", "signaling the frame fence");
+        ulong CurrentFenceValue = FenceValues[FrameIndex];
+        D3D12Diagnostics.EnsureSuccess(Device!.CommandQueue->Signal(Fence, CurrentFenceValue), "ID3D12CommandQueue::Signal", "signaling the frame fence");
 
-        _frameIndex = _swapChain->GetCurrentBackBufferIndex();
+        FrameIndex = SwapChain->GetCurrentBackBufferIndex();
 
-        if (_fence->GetCompletedValue() < _fenceValues[_frameIndex])
+        if (Fence->GetCompletedValue() < FenceValues[FrameIndex])
         {
-            D3D12Diagnostics.EnsureSuccess(_fence->SetEventOnCompletion(_fenceValues[_frameIndex], _fenceEvent), "ID3D12Fence::SetEventOnCompletion", "waiting for the next frame slot");
-            _ = WaitForSingleObjectEx(_fenceEvent, INFINITE, FALSE);
+            D3D12Diagnostics.EnsureSuccess(Fence->SetEventOnCompletion(FenceValues[FrameIndex], FenceEvent), "ID3D12Fence::SetEventOnCompletion", "waiting for the next frame slot");
+            _ = WaitForSingleObjectEx(FenceEvent, INFINITE, FALSE);
         }
 
-        _fenceValues[_frameIndex] = currentFenceValue + 1;
+        FenceValues[FrameIndex] = CurrentFenceValue + 1;
     }
 
     private void WaitForGpuIdle()
     {
-        if (_device == null || _fence == null)
+        if (Device == null || Fence == null)
         {
             return;
         }
 
-        D3D12Diagnostics.EnsureSuccess(_device.CommandQueue->Signal(_fence, _fenceValues[_frameIndex]), "ID3D12CommandQueue::Signal", "signaling the GPU-idle fence");
-        D3D12Diagnostics.EnsureSuccess(_fence->SetEventOnCompletion(_fenceValues[_frameIndex], _fenceEvent), "ID3D12Fence::SetEventOnCompletion", "waiting for the GPU to go idle");
-        _ = WaitForSingleObjectEx(_fenceEvent, INFINITE, FALSE);
-        _fenceValues[_frameIndex]++;
+        D3D12Diagnostics.EnsureSuccess(Device.CommandQueue->Signal(Fence, FenceValues[FrameIndex]), "ID3D12CommandQueue::Signal", "signaling the GPU-idle fence");
+        D3D12Diagnostics.EnsureSuccess(Fence->SetEventOnCompletion(FenceValues[FrameIndex], FenceEvent), "ID3D12Fence::SetEventOnCompletion", "waiting for the GPU to go idle");
+        _ = WaitForSingleObjectEx(FenceEvent, INFINITE, FALSE);
+        FenceValues[FrameIndex]++;
     }
 
     public void Dispose()
     {
-        if (_disposed)
+        if (Disposed)
         {
             return;
         }
 
-        _disposed = true;
+        Disposed = true;
 
         WaitForGpuIdle();
 
         ReleaseReadbackBuffer();
 
-        if (_vertexBuffer != null)
+        if (VertexBuffer != null)
         {
-            _ = _vertexBuffer->Release();
-            _vertexBuffer = null;
+            _ = VertexBuffer->Release();
+            VertexBuffer = null;
         }
 
-        if (_pipelineState != null)
+        if (PipelineState != null)
         {
-            _ = _pipelineState->Release();
-            _pipelineState = null;
+            _ = PipelineState->Release();
+            PipelineState = null;
         }
 
-        if (_rootSignature != null)
+        if (RootSignature != null)
         {
-            _ = _rootSignature->Release();
-            _rootSignature = null;
+            _ = RootSignature->Release();
+            RootSignature = null;
         }
 
-        if (_fenceEvent != HANDLE.NULL)
+        if (FenceEvent != HANDLE.NULL)
         {
-            _ = CloseHandle(_fenceEvent);
-            _fenceEvent = HANDLE.NULL;
+            _ = CloseHandle(FenceEvent);
+            FenceEvent = HANDLE.NULL;
         }
 
-        if (_fence != null)
+        if (Fence != null)
         {
-            _ = _fence->Release();
-            _fence = null;
+            _ = Fence->Release();
+            Fence = null;
         }
 
-        if (_commandList != null)
+        if (CommandList != null)
         {
-            _ = _commandList->Release();
-            _commandList = null;
+            _ = CommandList->Release();
+            CommandList = null;
         }
 
         for (int i = 0; i < FrameCount; i++)
         {
-            if (_commandAllocators[i] != null)
+            if (CommandAllocators[i] != null)
             {
-                _ = _commandAllocators[i]->Release();
-                _commandAllocators[i] = null;
+                _ = CommandAllocators[i]->Release();
+                CommandAllocators[i] = null;
             }
         }
 
         for (int i = 0; i < FrameCount; i++)
         {
-            if (_backBuffers[i] != null)
+            if (BackBuffers[i] != null)
             {
-                _ = _backBuffers[i]->Release();
-                _backBuffers[i] = null;
+                _ = BackBuffers[i]->Release();
+                BackBuffers[i] = null;
             }
         }
 
-        if (_rtvHeap != null)
+        if (RtvHeap != null)
         {
-            _ = _rtvHeap->Release();
-            _rtvHeap = null;
+            _ = RtvHeap->Release();
+            RtvHeap = null;
         }
 
-        if (_swapChain != null)
+        if (SwapChain != null)
         {
-            _ = _swapChain->Release();
-            _swapChain = null;
+            _ = SwapChain->Release();
+            SwapChain = null;
         }
 
-        _device?.Dispose();
-        _device = null;
+        Device?.Dispose();
+        Device = null;
     }
 }

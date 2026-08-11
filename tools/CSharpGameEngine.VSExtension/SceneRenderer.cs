@@ -34,24 +34,24 @@ internal sealed class SceneRenderer : IDisposable
     private static readonly Format BackBufferFormat = Format.R8G8B8A8_UNorm;
     private static readonly Format DepthBufferFormat = Format.D32_Float;
 
-    private readonly ID3D12Device device;
-    private readonly ID3D12CommandQueue commandQueue;
-    private readonly IDXGISwapChain3 swapChain;
-    private readonly ID3D12DescriptorHeap rtvHeap;
-    private readonly int rtvDescriptorSize;
-    private readonly ID3D12Resource[] renderTargets = new ID3D12Resource[FrameCount];
-    private readonly ID3D12DescriptorHeap dsvHeap;
-    private ID3D12Resource depthBuffer;
-    private readonly ID3D12CommandAllocator commandAllocator;
-    private readonly ID3D12GraphicsCommandList commandList;
-    private readonly ID3D12RootSignature rootSignature;
-    private readonly ID3D12PipelineState pipelineState;
-    private readonly ID3D12Fence fence;
-    private ulong fenceValue;
-    private readonly IntPtr fenceEvent;
+    private readonly ID3D12Device Device;
+    private readonly ID3D12CommandQueue CommandQueue;
+    private readonly IDXGISwapChain3 SwapChain;
+    private readonly ID3D12DescriptorHeap RtvHeap;
+    private readonly int RtvDescriptorSize;
+    private readonly ID3D12Resource[] RenderTargets = new ID3D12Resource[FrameCount];
+    private readonly ID3D12DescriptorHeap DsvHeap;
+    private ID3D12Resource DepthBuffer;
+    private readonly ID3D12CommandAllocator CommandAllocator;
+    private readonly ID3D12GraphicsCommandList CommandList;
+    private readonly ID3D12RootSignature RootSignature;
+    private readonly ID3D12PipelineState PipelineState;
+    private readonly ID3D12Fence Fence;
+    private ulong FenceValue;
+    private readonly IntPtr FenceEvent;
 
-    private readonly ID3D12Resource constantBuffer;
-    private readonly int alignedSlotSize;
+    private readonly ID3D12Resource ConstantBuffer;
+    private readonly int AlignedSlotSize;
 
     private sealed class ObjectResources
     {
@@ -65,13 +65,13 @@ internal sealed class SceneRenderer : IDisposable
         public required Vector4 BaseColorFactor;
     }
 
-    private readonly List<ObjectResources> objects = [];
-    private readonly Vector3 boundsCenter;
-    private readonly float boundsRadius;
-    private Guid? selectedNodeId;
+    private readonly List<ObjectResources> Objects = [];
+    private readonly Vector3 BoundsCenter;
+    private readonly float BoundsRadius;
+    private Guid? SelectedNodeId;
 
-    private int width;
-    private int height;
+    private int Width;
+    private int Height;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct Vertex
@@ -121,44 +121,44 @@ internal sealed class SceneRenderer : IDisposable
         }
         """;
 
-    public SceneRenderer(IntPtr hwnd, int width, int height, IReadOnlyList<SceneRenderObject> renderObjects)
+    public SceneRenderer(IntPtr Hwnd, int Width, int Height, IReadOnlyList<SceneRenderObject> RenderObjects)
     {
-        if (renderObjects.Count == 0)
+        if (RenderObjects.Count == 0)
         {
-            throw new ArgumentException("シーンに描画可能なオブジェクトがありません。", nameof(renderObjects));
+            throw new ArgumentException("シーンに描画可能なオブジェクトがありません。", nameof(RenderObjects));
         }
 
-        this.width = Math.Max(1, width);
-        this.height = Math.Max(1, height);
+        this.Width = Math.Max(1, Width);
+        this.Height = Math.Max(1, Height);
 
-        (boundsCenter, boundsRadius) = ComputeSceneBounds(renderObjects);
+        (BoundsCenter, BoundsRadius) = ComputeSceneBounds(RenderObjects);
 
-        using IDXGIFactory4 factory = DXGI.CreateDXGIFactory1<IDXGIFactory4>();
+        using IDXGIFactory4 Factory = DXGI.CreateDXGIFactory1<IDXGIFactory4>();
 
-        IDXGIAdapter1? chosenAdapter = null;
-        for (int i = 0; factory.EnumAdapters1(i, out IDXGIAdapter1 adapter).Success; i++)
+        IDXGIAdapter1? ChosenAdapter = null;
+        for (int i = 0; Factory.EnumAdapters1(i, out IDXGIAdapter1 Adapter).Success; i++)
         {
-            if ((adapter.Description1.Flags & AdapterFlags.Software) != 0)
+            if ((Adapter.Description1.Flags & AdapterFlags.Software) != 0)
             {
-                adapter.Dispose();
+                Adapter.Dispose();
                 continue;
             }
 
-            chosenAdapter = adapter;
+            ChosenAdapter = Adapter;
             break;
         }
 
-        device = chosenAdapter is not null
-            ? D3D12.D3D12CreateDevice<ID3D12Device>(chosenAdapter, FeatureLevel.Level_11_0)
+        Device = ChosenAdapter is not null
+            ? D3D12.D3D12CreateDevice<ID3D12Device>(ChosenAdapter, FeatureLevel.Level_11_0)
             : D3D12.D3D12CreateDevice<ID3D12Device>(null, FeatureLevel.Level_11_0);
-        chosenAdapter?.Dispose();
+        ChosenAdapter?.Dispose();
 
-        commandQueue = device.CreateCommandQueue(CommandListType.Direct);
+        CommandQueue = Device.CreateCommandQueue(CommandListType.Direct);
 
         SwapChainDescription1 swapChainDescription = new()
         {
-            Width = this.width,
-            Height = this.height,
+            Width = this.Width,
+            Height = this.Height,
             Format = BackBufferFormat,
             BufferUsage = Usage.RenderTargetOutput,
             BufferCount = FrameCount,
@@ -166,55 +166,55 @@ internal sealed class SceneRenderer : IDisposable
             SwapEffect = SwapEffect.FlipDiscard,
         };
 
-        using IDXGISwapChain1 tempSwapChain = factory.CreateSwapChainForHwnd(commandQueue, hwnd, swapChainDescription);
-        swapChain = tempSwapChain.QueryInterface<IDXGISwapChain3>();
+        using IDXGISwapChain1 TempSwapChain = Factory.CreateSwapChainForHwnd(CommandQueue, Hwnd, swapChainDescription);
+        SwapChain = TempSwapChain.QueryInterface<IDXGISwapChain3>();
 
-        rtvHeap = device.CreateDescriptorHeap(new DescriptorHeapDescription(DescriptorHeapType.RenderTargetView, FrameCount));
-        rtvDescriptorSize = device.GetDescriptorHandleIncrementSize(DescriptorHeapType.RenderTargetView);
+        RtvHeap = Device.CreateDescriptorHeap(new DescriptorHeapDescription(DescriptorHeapType.RenderTargetView, FrameCount));
+        RtvDescriptorSize = Device.GetDescriptorHandleIncrementSize(DescriptorHeapType.RenderTargetView);
         CreateRenderTargetViews();
 
-        dsvHeap = device.CreateDescriptorHeap(new DescriptorHeapDescription(DescriptorHeapType.DepthStencilView, 1));
-        depthBuffer = CreateDepthBuffer(this.width, this.height);
+        DsvHeap = Device.CreateDescriptorHeap(new DescriptorHeapDescription(DescriptorHeapType.DepthStencilView, 1));
+        DepthBuffer = CreateDepthBuffer(this.Width, this.Height);
 
-        commandAllocator = device.CreateCommandAllocator(CommandListType.Direct);
-        commandList = device.CreateCommandList<ID3D12GraphicsCommandList>(CommandListType.Direct, commandAllocator);
-        commandList.Close();
+        CommandAllocator = Device.CreateCommandAllocator(CommandListType.Direct);
+        CommandList = Device.CreateCommandList<ID3D12GraphicsCommandList>(CommandListType.Direct, CommandAllocator);
+        CommandList.Close();
 
-        RootParameter1 transformParameter = new(RootParameterType.ConstantBufferView, new RootDescriptor1(0, 0), ShaderVisibility.All);
+        RootParameter1 TransformParameter = new(RootParameterType.ConstantBufferView, new RootDescriptor1(0, 0), ShaderVisibility.All);
         RootSignatureDescription1 rootSignatureDescription = new(
             RootSignatureFlags.AllowInputAssemblerInputLayout,
-            [transformParameter]);
-        rootSignature = device.CreateRootSignature(0, new VersionedRootSignatureDescription(rootSignatureDescription));
+            [TransformParameter]);
+        RootSignature = Device.CreateRootSignature(0, new VersionedRootSignatureDescription(rootSignatureDescription));
 
-        Result vsCompileResult = Compiler.Compile(ShaderSource, "VSMain", "SceneRenderer", "vs_5_0", out Blob? vertexShaderBlob, out Blob? vsErrorBlob);
-        if (vsCompileResult.Failure || vertexShaderBlob is null)
+        Result VsCompileResult = Compiler.Compile(ShaderSource, "VSMain", "SceneRenderer", "vs_5_0", out Blob? VertexShaderBlob, out Blob? VsErrorBlob);
+        if (VsCompileResult.Failure || VertexShaderBlob is null)
         {
-            throw new InvalidOperationException($"Vertex shader compilation failed: {vsErrorBlob?.AsString()}");
+            throw new InvalidOperationException($"Vertex shader compilation failed: {VsErrorBlob?.AsString()}");
         }
 
-        Result psCompileResult = Compiler.Compile(ShaderSource, "PSMain", "SceneRenderer", "ps_5_0", out Blob? pixelShaderBlob, out Blob? psErrorBlob);
-        if (psCompileResult.Failure || pixelShaderBlob is null)
+        Result PsCompileResult = Compiler.Compile(ShaderSource, "PSMain", "SceneRenderer", "ps_5_0", out Blob? PixelShaderBlob, out Blob? PsErrorBlob);
+        if (PsCompileResult.Failure || PixelShaderBlob is null)
         {
-            throw new InvalidOperationException($"Pixel shader compilation failed: {psErrorBlob?.AsString()}");
+            throw new InvalidOperationException($"Pixel shader compilation failed: {PsErrorBlob?.AsString()}");
         }
 
-        using Blob vertexShaderBlobOwned = vertexShaderBlob;
-        using Blob pixelShaderBlobOwned = pixelShaderBlob;
-        vsErrorBlob?.Dispose();
-        psErrorBlob?.Dispose();
+        using Blob VertexShaderBlobOwned = VertexShaderBlob;
+        using Blob PixelShaderBlobOwned = PixelShaderBlob;
+        VsErrorBlob?.Dispose();
+        PsErrorBlob?.Dispose();
 
-        InputElementDescription[] inputElements =
+        InputElementDescription[] InputElements =
         [
             new InputElementDescription("POSITION", 0, Format.R32G32B32_Float, 0, 0),
             new InputElementDescription("NORMAL", 0, Format.R32G32B32_Float, 12, 0),
         ];
 
-        GraphicsPipelineStateDescription psoDescription = new()
+        GraphicsPipelineStateDescription PsoDescription = new()
         {
-            RootSignature = rootSignature,
-            VertexShader = vertexShaderBlobOwned.AsBytes(),
-            PixelShader = pixelShaderBlobOwned.AsBytes(),
-            InputLayout = new InputLayoutDescription(inputElements),
+            RootSignature = RootSignature,
+            VertexShader = VertexShaderBlobOwned.AsBytes(),
+            PixelShader = PixelShaderBlobOwned.AsBytes(),
+            InputLayout = new InputLayoutDescription(InputElements),
             SampleMask = uint.MaxValue,
             PrimitiveTopologyType = PrimitiveTopologyType.Triangle,
             RasterizerState = RasterizerDescription.CullNone,
@@ -224,15 +224,15 @@ internal sealed class SceneRenderer : IDisposable
             RenderTargetFormats = [BackBufferFormat],
             SampleDescription = new SampleDescription(1, 0),
         };
-        pipelineState = device.CreateGraphicsPipelineState(psoDescription);
+        PipelineState = Device.CreateGraphicsPipelineState(PsoDescription);
 
-        alignedSlotSize = (Marshal.SizeOf<TransformConstants>() + 255) & ~255;
-        constantBuffer = device.CreateCommittedResource(
+        AlignedSlotSize = (Marshal.SizeOf<TransformConstants>() + 255) & ~255;
+        ConstantBuffer = Device.CreateCommittedResource(
             HeapType.Upload,
             new ResourceDescription
             {
                 Dimension = ResourceDimension.Buffer,
-                Width = (ulong)(alignedSlotSize * renderObjects.Count),
+                Width = (ulong)(AlignedSlotSize * RenderObjects.Count),
                 Height = 1,
                 DepthOrArraySize = 1,
                 MipLevels = 1,
@@ -242,166 +242,166 @@ internal sealed class SceneRenderer : IDisposable
             },
             ResourceStates.GenericRead);
 
-        foreach (SceneRenderObject renderObject in renderObjects)
+        foreach (SceneRenderObject RenderObject in RenderObjects)
         {
-            objects.Add(CreateObjectResources(renderObject));
+            Objects.Add(CreateObjectResources(RenderObject));
         }
 
-        fence = device.CreateFence(0);
-        fenceValue = 1;
-        fenceEvent = NativeEvent.CreateAutoResetEvent();
+        Fence = Device.CreateFence(0);
+        FenceValue = 1;
+        FenceEvent = NativeEvent.CreateAutoResetEvent();
 
         UpdateAllConstantBuffers();
     }
 
-    private ObjectResources CreateObjectResources(SceneRenderObject renderObject)
+    private ObjectResources CreateObjectResources(SceneRenderObject RenderObject)
     {
-        SimpleMesh mesh = renderObject.Mesh;
+        SimpleMesh Mesh = RenderObject.Mesh;
 
-        Vertex[] vertices = new Vertex[mesh.Positions.Length];
-        for (int i = 0; i < vertices.Length; i++)
+        Vertex[] Vertices = new Vertex[Mesh.Positions.Length];
+        for (int i = 0; i < Vertices.Length; i++)
         {
-            vertices[i] = new Vertex { Position = mesh.Positions[i], Normal = mesh.Normals[i] };
+            Vertices[i] = new Vertex { Position = Mesh.Positions[i], Normal = Mesh.Normals[i] };
         }
 
-        int vertexBufferSize = vertices.Length * Marshal.SizeOf<Vertex>();
-        ID3D12Resource vertexBuffer = CreateUploadBuffer(vertexBufferSize, vertices);
-        VertexBufferView vertexBufferView = new(vertexBuffer.GPUVirtualAddress, vertexBufferSize, Marshal.SizeOf<Vertex>());
+        int VertexBufferSize = Vertices.Length * Marshal.SizeOf<Vertex>();
+        ID3D12Resource VertexBuffer = CreateUploadBuffer(VertexBufferSize, Vertices);
+        VertexBufferView vertexBufferView = new(VertexBuffer.GPUVirtualAddress, VertexBufferSize, Marshal.SizeOf<Vertex>());
 
-        int indexCount = mesh.Indices.Length;
-        int indexBufferSize = indexCount * sizeof(uint);
-        ID3D12Resource indexBuffer = CreateUploadBuffer(indexBufferSize, mesh.Indices);
+        int IndexCount = Mesh.Indices.Length;
+        int IndexBufferSize = IndexCount * sizeof(uint);
+        ID3D12Resource IndexBuffer = CreateUploadBuffer(IndexBufferSize, Mesh.Indices);
         // is32Bit: true - mesh.Indices is uint[] (32-bit); see VorticeRenderer.cs for the empirical
         // "bowtie geometry" pitfall this avoids.
-        IndexBufferView indexBufferView = new(indexBuffer.GPUVirtualAddress, indexBufferSize, true);
+        IndexBufferView indexBufferView = new(IndexBuffer.GPUVirtualAddress, IndexBufferSize, true);
 
         return new ObjectResources
         {
-            NodeId = renderObject.NodeId,
-            World = renderObject.World,
-            VertexBuffer = vertexBuffer,
+            NodeId = RenderObject.NodeId,
+            World = RenderObject.World,
+            VertexBuffer = VertexBuffer,
             VertexBufferView = vertexBufferView,
-            IndexBuffer = indexBuffer,
+            IndexBuffer = IndexBuffer,
             IndexBufferView = indexBufferView,
-            IndexCount = indexCount,
-            BaseColorFactor = mesh.BaseColorFactor,
+            IndexCount = IndexCount,
+            BaseColorFactor = Mesh.BaseColorFactor,
         };
     }
 
-    private ID3D12Resource CreateUploadBuffer<T>(int sizeInBytes, T[] data) where T : struct
+    private ID3D12Resource CreateUploadBuffer<T>(int SizeInBytes, T[] Data) where T : struct
     {
-        ID3D12Resource resource = device.CreateCommittedResource(
+        ID3D12Resource Resource = Device.CreateCommittedResource(
             HeapType.Upload,
-            ResourceDescription.Buffer((ulong)sizeInBytes),
+            ResourceDescription.Buffer((ulong)SizeInBytes),
             ResourceStates.GenericRead);
 
         // Avoid unsafe/fixed raw pointers - the WPF XAML markup-compile pass builds this project
         // through a generated temporary csproj that does not inherit AllowUnsafeBlocks (ADR-0008).
-        Span<byte> mapped = resource.Map<byte>(0, sizeInBytes);
-        int elementSize = Marshal.SizeOf<T>();
-        for (int i = 0; i < data.Length; i++)
+        Span<byte> Mapped = Resource.Map<byte>(0, SizeInBytes);
+        int ElementSize = Marshal.SizeOf<T>();
+        for (int i = 0; i < Data.Length; i++)
         {
-            MemoryMarshal.Write(mapped.Slice(i * elementSize, elementSize), ref data[i]);
+            MemoryMarshal.Write(Mapped.Slice(i * ElementSize, ElementSize), ref Data[i]);
         }
-        resource.Unmap(0, null);
-        return resource;
+        Resource.Unmap(0, null);
+        return Resource;
     }
 
-    private ID3D12Resource CreateDepthBuffer(int w, int h)
+    private ID3D12Resource CreateDepthBuffer(int W, int H)
     {
-        ResourceDescription description = ResourceDescription.Texture2D(DepthBufferFormat, (uint)w, (uint)h, 1, 1);
-        description.Flags = ResourceFlags.AllowDepthStencil;
+        ResourceDescription Description = ResourceDescription.Texture2D(DepthBufferFormat, (uint)W, (uint)H, 1, 1);
+        Description.Flags = ResourceFlags.AllowDepthStencil;
 
-        ID3D12Resource buffer = device.CreateCommittedResource(
+        ID3D12Resource buffer = Device.CreateCommittedResource(
             HeapType.Default,
-            description,
+            Description,
             ResourceStates.DepthWrite,
             new ClearValue(DepthBufferFormat, 1.0f, 0));
 
-        device.CreateDepthStencilView(buffer, null, dsvHeap.GetCPUDescriptorHandleForHeapStart());
+        Device.CreateDepthStencilView(buffer, null, DsvHeap.GetCPUDescriptorHandleForHeapStart());
         return buffer;
     }
 
     private void CreateRenderTargetViews()
     {
-        CpuDescriptorHandle handle = rtvHeap.GetCPUDescriptorHandleForHeapStart();
+        CpuDescriptorHandle Handle = RtvHeap.GetCPUDescriptorHandleForHeapStart();
         for (int i = 0; i < FrameCount; i++)
         {
-            renderTargets[i] = swapChain.GetBuffer<ID3D12Resource>(i);
-            device.CreateRenderTargetView(renderTargets[i], null, handle);
-            handle += rtvDescriptorSize;
+            RenderTargets[i] = SwapChain.GetBuffer<ID3D12Resource>(i);
+            Device.CreateRenderTargetView(RenderTargets[i], null, Handle);
+            Handle += RtvDescriptorSize;
         }
     }
 
-    private static (Vector3 Center, float Radius) ComputeSceneBounds(IReadOnlyList<SceneRenderObject> renderObjects)
+    private static (Vector3 Center, float Radius) ComputeSceneBounds(IReadOnlyList<SceneRenderObject> RenderObjects)
     {
-        Vector3? min = null;
-        Vector3? max = null;
+        Vector3? Min = null;
+        Vector3? Max = null;
 
-        foreach (SceneRenderObject renderObject in renderObjects)
+        foreach (SceneRenderObject RenderObject in RenderObjects)
+        {
+            foreach (Vector3 LocalPosition in RenderObject.Mesh.Positions)
+            {
+                Vector3 WorldPosition = Vector3.Transform(LocalPosition, RenderObject.World);
+                Min = Min is null ? WorldPosition : Vector3.Min(Min.Value, WorldPosition);
+                Max = Max is null ? WorldPosition : Vector3.Max(Max.Value, WorldPosition);
+            }
+        }
+
+        Vector3 Center = (Min!.Value + Max!.Value) * 0.5f;
+        float Radius = 0f;
+        foreach (SceneRenderObject renderObject in RenderObjects)
         {
             foreach (Vector3 localPosition in renderObject.Mesh.Positions)
             {
                 Vector3 worldPosition = Vector3.Transform(localPosition, renderObject.World);
-                min = min is null ? worldPosition : Vector3.Min(min.Value, worldPosition);
-                max = max is null ? worldPosition : Vector3.Max(max.Value, worldPosition);
+                Radius = Math.Max(Radius, Vector3.Distance(Center, worldPosition));
             }
         }
 
-        Vector3 center = (min!.Value + max!.Value) * 0.5f;
-        float radius = 0f;
-        foreach (SceneRenderObject renderObject in renderObjects)
-        {
-            foreach (Vector3 localPosition in renderObject.Mesh.Positions)
-            {
-                Vector3 worldPosition = Vector3.Transform(localPosition, renderObject.World);
-                radius = Math.Max(radius, Vector3.Distance(center, worldPosition));
-            }
-        }
-
-        return (center, radius > 0f ? radius : 1f);
+        return (Center, Radius > 0f ? Radius : 1f);
     }
 
     private void UpdateAllConstantBuffers()
     {
-        Matrix4x4 view = ComputeViewMatrix();
-        Matrix4x4 projection = ComputeProjectionMatrix();
+        Matrix4x4 View = ComputeViewMatrix();
+        Matrix4x4 Projection = ComputeProjectionMatrix();
 
-        int totalSize = alignedSlotSize * objects.Count;
-        Span<byte> mapped = constantBuffer.Map<byte>(0, totalSize);
-        for (int i = 0; i < objects.Count; i++)
+        int TotalSize = AlignedSlotSize * Objects.Count;
+        Span<byte> Mapped = ConstantBuffer.Map<byte>(0, TotalSize);
+        for (int i = 0; i < Objects.Count; i++)
         {
-            ObjectResources obj = objects[i];
-            Matrix4x4 mvp = obj.World * view * projection;
-            float selected = obj.NodeId == selectedNodeId ? 1f : 0f;
-            TransformConstants constants = new() { Mvp = mvp, BaseColorFactor = obj.BaseColorFactor, Selected = selected };
-            MemoryMarshal.Write(mapped.Slice(i * alignedSlotSize, Marshal.SizeOf<TransformConstants>()), ref constants);
+            ObjectResources Obj = Objects[i];
+            Matrix4x4 Mvp = Obj.World * View * Projection;
+            float Selected = Obj.NodeId == SelectedNodeId ? 1f : 0f;
+            TransformConstants Constants = new() { Mvp = Mvp, BaseColorFactor = Obj.BaseColorFactor, Selected = Selected };
+            MemoryMarshal.Write(Mapped.Slice(i * AlignedSlotSize, Marshal.SizeOf<TransformConstants>()), ref Constants);
         }
-        constantBuffer.Unmap(0, null);
+        ConstantBuffer.Unmap(0, null);
     }
 
     private Matrix4x4 ComputeViewMatrix()
     {
-        Vector3 eye = boundsCenter + Vector3.Normalize(new Vector3(1, 0.75f, 1)) * (boundsRadius * 3.0f);
-        return Matrix4x4.CreateLookAt(eye, boundsCenter, Vector3.UnitY);
+        Vector3 Eye = BoundsCenter + Vector3.Normalize(new Vector3(1, 0.75f, 1)) * (BoundsRadius * 3.0f);
+        return Matrix4x4.CreateLookAt(Eye, BoundsCenter, Vector3.UnitY);
     }
 
     private Matrix4x4 ComputeProjectionMatrix() =>
         Matrix4x4.CreatePerspectiveFieldOfView(
-            (float)(Math.PI / 4.0), Math.Max(1, width) / (float)Math.Max(1, height), 0.05f, boundsRadius * 20f);
+            (float)(Math.PI / 4.0), Math.Max(1, Width) / (float)Math.Max(1, Height), 0.05f, BoundsRadius * 20f);
 
     /// <summary>Called when <see cref="SceneEditorHub.SelectedNodeChanged"/> fires from the Hierarchy tool window.</summary>
-    public void SetSelectedNode(Guid? nodeId)
+    public void SetSelectedNode(Guid? NodeId)
     {
-        selectedNodeId = nodeId;
+        SelectedNodeId = NodeId;
         UpdateAllConstantBuffers();
     }
 
-    public void Resize(int newWidth, int newHeight)
+    public void Resize(int NewWidth, int NewHeight)
     {
-        newWidth = Math.Max(1, newWidth);
-        newHeight = Math.Max(1, newHeight);
-        if (newWidth == width && newHeight == height)
+        NewWidth = Math.Max(1, NewWidth);
+        NewHeight = Math.Max(1, NewHeight);
+        if (NewWidth == Width && NewHeight == Height)
         {
             return;
         }
@@ -410,65 +410,65 @@ internal sealed class SceneRenderer : IDisposable
 
         for (int i = 0; i < FrameCount; i++)
         {
-            renderTargets[i].Dispose();
+            RenderTargets[i].Dispose();
         }
-        depthBuffer.Dispose();
+        DepthBuffer.Dispose();
 
-        width = newWidth;
-        height = newHeight;
-        swapChain.ResizeBuffers(FrameCount, width, height, BackBufferFormat, SwapChainFlags.None);
+        Width = NewWidth;
+        Height = NewHeight;
+        SwapChain.ResizeBuffers(FrameCount, Width, Height, BackBufferFormat, SwapChainFlags.None);
         CreateRenderTargetViews();
-        depthBuffer = CreateDepthBuffer(width, height);
+        DepthBuffer = CreateDepthBuffer(Width, Height);
 
         UpdateAllConstantBuffers();
     }
 
     public void RenderFrame()
     {
-        commandAllocator.Reset();
-        commandList.Reset(commandAllocator, pipelineState);
+        CommandAllocator.Reset();
+        CommandList.Reset(CommandAllocator, PipelineState);
 
-        int frameIndex = swapChain.CurrentBackBufferIndex;
+        int FrameIndex = SwapChain.CurrentBackBufferIndex;
 
-        commandList.ResourceBarrierTransition(renderTargets[frameIndex], ResourceStates.Present, ResourceStates.RenderTarget);
+        CommandList.ResourceBarrierTransition(RenderTargets[FrameIndex], ResourceStates.Present, ResourceStates.RenderTarget);
 
-        CpuDescriptorHandle rtvHandle = rtvHeap.GetCPUDescriptorHandleForHeapStart() + (frameIndex * rtvDescriptorSize);
-        CpuDescriptorHandle dsvHandle = dsvHeap.GetCPUDescriptorHandleForHeapStart();
-        commandList.OMSetRenderTargets(rtvHandle, dsvHandle);
-        commandList.ClearRenderTargetView(rtvHandle, new Vortice.Mathematics.Color4(5 / 255f, 5 / 255f, 20 / 255f, 1f));
-        commandList.ClearDepthStencilView(dsvHandle, ClearFlags.Depth, 1.0f, 0);
+        CpuDescriptorHandle RtvHandle = RtvHeap.GetCPUDescriptorHandleForHeapStart() + (FrameIndex * RtvDescriptorSize);
+        CpuDescriptorHandle DsvHandle = DsvHeap.GetCPUDescriptorHandleForHeapStart();
+        CommandList.OMSetRenderTargets(RtvHandle, DsvHandle);
+        CommandList.ClearRenderTargetView(RtvHandle, new Vortice.Mathematics.Color4(5 / 255f, 5 / 255f, 20 / 255f, 1f));
+        CommandList.ClearDepthStencilView(DsvHandle, ClearFlags.Depth, 1.0f, 0);
 
-        commandList.SetGraphicsRootSignature(rootSignature);
-        commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
-        commandList.RSSetViewport(0, 0, width, height);
-        commandList.RSSetScissorRect(width, height);
+        CommandList.SetGraphicsRootSignature(RootSignature);
+        CommandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
+        CommandList.RSSetViewport(0, 0, Width, Height);
+        CommandList.RSSetScissorRect(Width, Height);
 
-        for (int i = 0; i < objects.Count; i++)
+        for (int i = 0; i < Objects.Count; i++)
         {
-            ObjectResources obj = objects[i];
-            commandList.SetGraphicsRootConstantBufferView(0, constantBuffer.GPUVirtualAddress + (ulong)(i * alignedSlotSize));
-            commandList.IASetVertexBuffers(0, obj.VertexBufferView);
-            commandList.IASetIndexBuffer(obj.IndexBufferView);
-            commandList.DrawIndexedInstanced(obj.IndexCount, 1, 0, 0, 0);
+            ObjectResources Obj = Objects[i];
+            CommandList.SetGraphicsRootConstantBufferView(0, ConstantBuffer.GPUVirtualAddress + (ulong)(i * AlignedSlotSize));
+            CommandList.IASetVertexBuffers(0, Obj.VertexBufferView);
+            CommandList.IASetIndexBuffer(Obj.IndexBufferView);
+            CommandList.DrawIndexedInstanced(Obj.IndexCount, 1, 0, 0, 0);
         }
 
-        commandList.ResourceBarrierTransition(renderTargets[frameIndex], ResourceStates.RenderTarget, ResourceStates.Present);
-        commandList.Close();
+        CommandList.ResourceBarrierTransition(RenderTargets[FrameIndex], ResourceStates.RenderTarget, ResourceStates.Present);
+        CommandList.Close();
 
-        commandQueue.ExecuteCommandList(commandList);
-        swapChain.Present(1, PresentFlags.None);
+        CommandQueue.ExecuteCommandList(CommandList);
+        SwapChain.Present(1, PresentFlags.None);
 
         WaitForGpuIdle();
     }
 
     private void WaitForGpuIdle()
     {
-        ulong valueToSignal = fenceValue++;
-        commandQueue.Signal(fence, valueToSignal);
-        if (fence.CompletedValue < valueToSignal)
+        ulong ValueToSignal = FenceValue++;
+        CommandQueue.Signal(Fence, ValueToSignal);
+        if (Fence.CompletedValue < ValueToSignal)
         {
-            fence.SetEventOnCompletion(valueToSignal, fenceEvent);
-            NativeEvent.Wait(fenceEvent);
+            Fence.SetEventOnCompletion(ValueToSignal, FenceEvent);
+            NativeEvent.Wait(FenceEvent);
         }
     }
 
@@ -476,27 +476,27 @@ internal sealed class SceneRenderer : IDisposable
     {
         WaitForGpuIdle();
 
-        constantBuffer.Dispose();
-        foreach (ObjectResources obj in objects)
+        ConstantBuffer.Dispose();
+        foreach (ObjectResources Obj in Objects)
         {
-            obj.IndexBuffer.Dispose();
-            obj.VertexBuffer.Dispose();
+            Obj.IndexBuffer.Dispose();
+            Obj.VertexBuffer.Dispose();
         }
-        pipelineState.Dispose();
-        rootSignature.Dispose();
-        commandList.Dispose();
-        commandAllocator.Dispose();
-        depthBuffer.Dispose();
-        dsvHeap.Dispose();
+        PipelineState.Dispose();
+        RootSignature.Dispose();
+        CommandList.Dispose();
+        CommandAllocator.Dispose();
+        DepthBuffer.Dispose();
+        DsvHeap.Dispose();
         for (int i = 0; i < FrameCount; i++)
         {
-            renderTargets[i].Dispose();
+            RenderTargets[i].Dispose();
         }
-        rtvHeap.Dispose();
-        swapChain.Dispose();
-        commandQueue.Dispose();
-        fence.Dispose();
-        NativeEvent.Close(fenceEvent);
-        device.Dispose();
+        RtvHeap.Dispose();
+        SwapChain.Dispose();
+        CommandQueue.Dispose();
+        Fence.Dispose();
+        NativeEvent.Close(FenceEvent);
+        Device.Dispose();
     }
 }

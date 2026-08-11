@@ -23,11 +23,11 @@ public class CameraTests
         Camera camera = Camera.CreateDefault(Vector3.Zero);
         camera.Pitch = 0f;
 
-        Vector3 forward = camera.GetForward();
+        Vector3 Forward = camera.GetForward();
 
-        AssertApprox(0f, forward.X);
-        AssertApprox(0f, forward.Y);
-        AssertApprox(1f, forward.Z);
+        AssertApprox(0f, Forward.X);
+        AssertApprox(0f, Forward.Y);
+        AssertApprox(1f, Forward.Z);
     }
 
     [Fact]
@@ -37,13 +37,13 @@ public class CameraTests
         camera.Pitch = 0f;
         camera.Distance = 3f;
 
-        Vector3 eye = camera.GetEyePosition();
-        Vector3 forward = camera.GetForward();
+        Vector3 Eye = camera.GetEyePosition();
+        Vector3 Forward = camera.GetForward();
 
-        AssertApprox((camera.Target - (forward * camera.Distance)).X, eye.X);
-        AssertApprox((camera.Target - (forward * camera.Distance)).Y, eye.Y);
-        AssertApprox((camera.Target - (forward * camera.Distance)).Z, eye.Z);
-        AssertApprox(camera.Distance, Vector3.Distance(eye, camera.Target));
+        AssertApprox((camera.Target - (Forward * camera.Distance)).X, Eye.X);
+        AssertApprox((camera.Target - (Forward * camera.Distance)).Y, Eye.Y);
+        AssertApprox((camera.Target - (Forward * camera.Distance)).Z, Eye.Z);
+        AssertApprox(camera.Distance, Vector3.Distance(Eye, camera.Target));
     }
 
     [Fact]
@@ -53,14 +53,14 @@ public class CameraTests
         camera.Yaw = 0.7f;
         camera.Pitch = 0.3f;
 
-        Vector3 flatForward = camera.GetFlatForward();
-        Vector3 flatRight = camera.GetFlatRight();
+        Vector3 FlatForward = camera.GetFlatForward();
+        Vector3 FlatRight = camera.GetFlatRight();
 
-        AssertApprox(0f, flatForward.Y);
-        AssertApprox(0f, flatRight.Y);
-        AssertApprox(1f, flatForward.Length());
-        AssertApprox(1f, flatRight.Length());
-        AssertApprox(0f, Vector3.Dot(flatForward, flatRight));
+        AssertApprox(0f, FlatForward.Y);
+        AssertApprox(0f, FlatRight.Y);
+        AssertApprox(1f, FlatForward.Length());
+        AssertApprox(1f, FlatRight.Length());
+        AssertApprox(0f, Vector3.Dot(FlatForward, FlatRight));
     }
 
     [Fact]
@@ -68,10 +68,10 @@ public class CameraTests
     {
         Camera camera = Camera.CreateDefault(Vector3.Zero);
 
-        camera.ApplyMouseDelta(deltaX: 0f, deltaY: -100000f, yawSensitivity: 1f, pitchSensitivity: 1f);
+        camera.ApplyMouseDelta(DeltaX: 0f, DeltaY: -100000f, YawSensitivity: 1f, PitchSensitivity: 1f);
         Assert.Equal(Camera.MaxPitchRadians, camera.Pitch);
 
-        camera.ApplyMouseDelta(deltaX: 0f, deltaY: 100000f, yawSensitivity: 1f, pitchSensitivity: 1f);
+        camera.ApplyMouseDelta(DeltaX: 0f, DeltaY: 100000f, YawSensitivity: 1f, PitchSensitivity: 1f);
         Assert.Equal(Camera.MinPitchRadians, camera.Pitch);
     }
 
@@ -80,8 +80,8 @@ public class CameraTests
     {
         Camera camera = Camera.CreateDefault(Vector3.Zero);
 
-        camera.ApplyMouseDelta(deltaX: 1f, deltaY: 0f, yawSensitivity: 0.5f, pitchSensitivity: 1f);
-        camera.ApplyMouseDelta(deltaX: 1f, deltaY: 0f, yawSensitivity: 0.5f, pitchSensitivity: 1f);
+        camera.ApplyMouseDelta(DeltaX: 1f, DeltaY: 0f, YawSensitivity: 0.5f, PitchSensitivity: 1f);
+        camera.ApplyMouseDelta(DeltaX: 1f, DeltaY: 0f, YawSensitivity: 0.5f, PitchSensitivity: 1f);
 
         AssertApprox(1f, camera.Yaw);
     }
@@ -91,9 +91,9 @@ public class CameraTests
     {
         Camera camera = Camera.CreateDefault(new Vector3(0, 1, 0));
 
-        Matrix4x4 view = camera.GetView();
+        Matrix4x4 View = camera.GetView();
 
-        Assert.True(Matrix4x4.Invert(view, out _));
+        Assert.True(Matrix4x4.Invert(View, out _));
     }
 
     [Fact]
@@ -101,9 +101,9 @@ public class CameraTests
     {
         Camera camera = Camera.CreateDefault(Vector3.Zero);
 
-        Matrix4x4 projection = camera.GetProjection(aspectRatio: 16f / 9f);
+        Matrix4x4 Projection = camera.GetProjection(AspectRatio: 16f / 9f);
 
-        Assert.True(Matrix4x4.Invert(projection, out _));
+        Assert.True(Matrix4x4.Invert(Projection, out _));
     }
 
     [Fact]
@@ -121,9 +121,9 @@ public class CameraTests
     {
         Camera camera = Camera.CreateFirstPerson(new Vector3(0, 1.6f, 0));
 
-        Matrix4x4 view = camera.GetView();
+        Matrix4x4 View = camera.GetView();
 
-        Assert.True(Matrix4x4.Invert(view, out _));
+        Assert.True(Matrix4x4.Invert(View, out _));
     }
 
     [Fact]
@@ -131,7 +131,7 @@ public class CameraTests
     {
         Camera camera = Camera.CreateFirstPerson(Vector3.Zero);
 
-        camera.ApplyMouseDelta(deltaX: 0f, deltaY: -100000f, yawSensitivity: 1f, pitchSensitivity: 1f);
+        camera.ApplyMouseDelta(DeltaX: 0f, DeltaY: -100000f, YawSensitivity: 1f, PitchSensitivity: 1f);
 
         Assert.Equal(Camera.MaxPitchRadiansFirstPerson, camera.Pitch);
         Assert.True(Camera.MaxPitchRadiansFirstPerson > Camera.MaxPitchRadians);
@@ -146,28 +146,28 @@ public class CameraTests
     [Fact]
     public void GetForward_MatchesLegacyTrigFormula_AcrossYawPitchSweep()
     {
-        float[] yaws = [-3.0f, -1.5f, -0.7f, 0f, 0.3f, 0.7f, 1.5f, 3.0f];
-        float[] pitches = [-1.2f, -0.5f, 0f, 0.3f, 1.2f];
+        float[] Yaws = [-3.0f, -1.5f, -0.7f, 0f, 0.3f, 0.7f, 1.5f, 3.0f];
+        float[] Pitches = [-1.2f, -0.5f, 0f, 0.3f, 1.2f];
 
-        foreach (float yaw in yaws)
+        foreach (float Yaw in Yaws)
         {
-            foreach (float pitch in pitches)
+            foreach (float Pitch in Pitches)
             {
                 Camera camera = Camera.CreateDefault(Vector3.Zero);
-                camera.Yaw = yaw;
-                camera.Pitch = pitch;
+                camera.Yaw = Yaw;
+                camera.Pitch = Pitch;
 
-                Vector3 actual = camera.GetForward();
+                Vector3 Actual = camera.GetForward();
 
-                float cosPitch = MathF.Cos(pitch);
-                Vector3 expected = Vector3.Normalize(new Vector3(
-                    cosPitch * MathF.Sin(yaw),
-                    MathF.Sin(pitch),
-                    cosPitch * MathF.Cos(yaw)));
+                float CosPitch = MathF.Cos(Pitch);
+                Vector3 Expected = Vector3.Normalize(new Vector3(
+                    CosPitch * MathF.Sin(Yaw),
+                    MathF.Sin(Pitch),
+                    CosPitch * MathF.Cos(Yaw)));
 
-                AssertApprox(expected.X, actual.X);
-                AssertApprox(expected.Y, actual.Y);
-                AssertApprox(expected.Z, actual.Z);
+                AssertApprox(Expected.X, Actual.X);
+                AssertApprox(Expected.Y, Actual.Y);
+                AssertApprox(Expected.Z, Actual.Z);
             }
         }
     }
@@ -180,24 +180,24 @@ public class CameraTests
     [Fact]
     public void GetFlatRight_MatchesLegacyCrossProductFormula_AcrossYawSweep()
     {
-        float[] yaws = [-3.0f, -1.5f, -0.7f, 0f, 0.3f, 0.7f, 1.5f, 3.0f];
+        float[] Yaws = [-3.0f, -1.5f, -0.7f, 0f, 0.3f, 0.7f, 1.5f, 3.0f];
 
-        foreach (float yaw in yaws)
+        foreach (float Yaw in Yaws)
         {
             Camera camera = Camera.CreateDefault(Vector3.Zero);
-            camera.Yaw = yaw;
+            camera.Yaw = Yaw;
 
-            Vector3 actual = camera.GetFlatRight();
-            Vector3 expected = Vector3.Normalize(Vector3.Cross(Vector3.UnitY, camera.GetFlatForward()));
+            Vector3 Actual = camera.GetFlatRight();
+            Vector3 Expected = Vector3.Normalize(Vector3.Cross(Vector3.UnitY, camera.GetFlatForward()));
 
-            AssertApprox(expected.X, actual.X);
-            AssertApprox(expected.Y, actual.Y);
-            AssertApprox(expected.Z, actual.Z);
+            AssertApprox(Expected.X, Actual.X);
+            AssertApprox(Expected.Y, Actual.Y);
+            AssertApprox(Expected.Z, Actual.Z);
         }
     }
 
-    private static void AssertApprox(float expected, float actual, float tolerance = 1e-4f)
+    private static void AssertApprox(float Expected, float Actual, float Tolerance = 1e-4f)
     {
-        Assert.True(MathF.Abs(expected - actual) <= tolerance, $"Expected {expected} but got {actual} (tolerance {tolerance}).");
+        Assert.True(MathF.Abs(Expected - Actual) <= Tolerance, $"Expected {Expected} but got {Actual} (tolerance {Tolerance}).");
     }
 }

@@ -28,41 +28,41 @@ public sealed record TriangleOptionsParseResult(bool Success, TriangleRunOptions
 
 public static class TriangleOptionsParser
 {
-    public static TriangleOptionsParseResult Parse(IReadOnlyList<string> args)
+    public static TriangleOptionsParseResult Parse(IReadOnlyList<string> Args)
     {
-        ArgumentNullException.ThrowIfNull(args);
+        ArgumentNullException.ThrowIfNull(Args);
 
-        int? frames = null;
-        int width = 1280;
-        int height = 720;
-        bool hidden = false;
-        bool useWarp = false;
-        bool enableDebugLayer = false;
-        bool enableGpuValidation = false;
-        bool verify = false;
+        int? Frames = null;
+        int Width = 1280;
+        int Height = 720;
+        bool Hidden = false;
+        bool UseWarp = false;
+        bool EnableDebugLayer = false;
+        bool EnableGpuValidation = false;
+        bool Verify = false;
 
-        for (int i = 0; i < args.Count; i++)
+        for (int i = 0; i < Args.Count; i++)
         {
-            string arg = args[i];
-            switch (arg)
+            string Arg = Args[i];
+            switch (Arg)
             {
                 case "--frames":
                 {
-                    if (!TryReadIntValue(args, ref i, out int value))
+                    if (!TryReadIntValue(Args, ref i, out int Value))
                     {
                         return TriangleOptionsParseResult.Fail("--frames requires an integer value.");
                     }
-                    if (value <= 0)
+                    if (Value <= 0)
                     {
-                        return TriangleOptionsParseResult.Fail($"--frames must be a positive integer (got {value}).");
+                        return TriangleOptionsParseResult.Fail($"--frames must be a positive integer (got {Value}).");
                     }
-                    frames = value;
+                    Frames = Value;
                     break;
                 }
 
                 case "--width":
                 {
-                    if (!TryReadIntValue(args, ref i, out int value))
+                    if (!TryReadIntValue(Args, ref i, out int value))
                     {
                         return TriangleOptionsParseResult.Fail("--width requires an integer value.");
                     }
@@ -70,13 +70,13 @@ public static class TriangleOptionsParser
                     {
                         return TriangleOptionsParseResult.Fail($"--width must be a positive integer (got {value}).");
                     }
-                    width = value;
+                    Width = value;
                     break;
                 }
 
                 case "--height":
                 {
-                    if (!TryReadIntValue(args, ref i, out int value))
+                    if (!TryReadIntValue(Args, ref i, out int value))
                     {
                         return TriangleOptionsParseResult.Fail("--height requires an integer value.");
                     }
@@ -84,55 +84,55 @@ public static class TriangleOptionsParser
                     {
                         return TriangleOptionsParseResult.Fail($"--height must be a positive integer (got {value}).");
                     }
-                    height = value;
+                    Height = value;
                     break;
                 }
 
                 case "--hidden":
-                    hidden = true;
+                    Hidden = true;
                     break;
 
                 case "--warp":
-                    useWarp = true;
+                    UseWarp = true;
                     break;
 
                 case "--debug-layer":
-                    enableDebugLayer = true;
+                    EnableDebugLayer = true;
                     break;
 
                 case "--gpu-validation":
-                    enableGpuValidation = true;
+                    EnableGpuValidation = true;
                     break;
 
                 case "--verify":
-                    verify = true;
+                    Verify = true;
                     break;
 
                 default:
-                    return TriangleOptionsParseResult.Fail($"Unknown option: {arg}");
+                    return TriangleOptionsParseResult.Fail($"Unknown option: {Arg}");
             }
         }
 
-        TriangleRunOptions options = new()
+        TriangleRunOptions Options = new()
         {
-            Frames = frames,
-            Width = width,
-            Height = height,
-            Hidden = hidden,
-            UseWarp = useWarp,
-            EnableDebugLayer = enableDebugLayer,
-            EnableGpuValidation = enableGpuValidation,
-            Verify = verify,
+            Frames = Frames,
+            Width = Width,
+            Height = Height,
+            Hidden = Hidden,
+            UseWarp = UseWarp,
+            EnableDebugLayer = EnableDebugLayer,
+            EnableGpuValidation = EnableGpuValidation,
+            Verify = Verify,
         };
 
-        return TriangleOptionsParseResult.Ok(options);
+        return TriangleOptionsParseResult.Ok(Options);
     }
 
-    private static bool TryReadIntValue(IReadOnlyList<string> args, ref int index, out int value)
+    private static bool TryReadIntValue(IReadOnlyList<string> Args, ref int index, out int Value)
     {
-        if (index + 1 >= args.Count || !int.TryParse(args[index + 1], out value))
+        if (index + 1 >= Args.Count || !int.TryParse(Args[index + 1], out Value))
         {
-            value = 0;
+            Value = 0;
             return false;
         }
 

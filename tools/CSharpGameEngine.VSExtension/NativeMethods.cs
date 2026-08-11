@@ -23,56 +23,56 @@ internal static class NativeMethods
     public const uint WM_SETFOCUS = 0x0007;
 
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-    public delegate IntPtr WndProcDelegate(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+    public delegate IntPtr WndProcDelegate(IntPtr HWnd, uint Msg, IntPtr WParam, IntPtr LParam);
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     public struct WNDCLASSEX
     {
-        public uint cbSize;
-        public uint style;
-        public WndProcDelegate lpfnWndProc;
-        public int cbClsExtra;
-        public int cbWndExtra;
-        public IntPtr hInstance;
-        public IntPtr hIcon;
-        public IntPtr hCursor;
-        public IntPtr hbrBackground;
-        [MarshalAs(UnmanagedType.LPWStr)] public string? lpszMenuName;
-        [MarshalAs(UnmanagedType.LPWStr)] public string lpszClassName;
-        public IntPtr hIconSm;
+        public uint CbSize;
+        public uint Style;
+        public WndProcDelegate LpfnWndProc;
+        public int CbClsExtra;
+        public int CbWndExtra;
+        public IntPtr HInstance;
+        public IntPtr HIcon;
+        public IntPtr HCursor;
+        public IntPtr HbrBackground;
+        [MarshalAs(UnmanagedType.LPWStr)] public string? LpszMenuName;
+        [MarshalAs(UnmanagedType.LPWStr)] public string LpszClassName;
+        public IntPtr HIconSm;
     }
 
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-    public static extern ushort RegisterClassEx(ref WNDCLASSEX lpwcx);
+    public static extern ushort RegisterClassEx(ref WNDCLASSEX Lpwcx);
 
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     public static extern IntPtr CreateWindowEx(
-        uint dwExStyle,
-        string lpClassName,
-        string lpWindowName,
-        uint dwStyle,
-        int x,
-        int y,
-        int nWidth,
-        int nHeight,
-        IntPtr hWndParent,
-        IntPtr hMenu,
-        IntPtr hInstance,
-        IntPtr lpParam);
+        uint DwExStyle,
+        string LpClassName,
+        string LpWindowName,
+        uint DwStyle,
+        int X,
+        int Y,
+        int NWidth,
+        int NHeight,
+        IntPtr HWndParent,
+        IntPtr HMenu,
+        IntPtr HInstance,
+        IntPtr LpParam);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    public static extern IntPtr DefWindowProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+    public static extern IntPtr DefWindowProc(IntPtr HWnd, uint Msg, IntPtr WParam, IntPtr LParam);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
-    public static extern bool DestroyWindow(IntPtr hWnd);
+    public static extern bool DestroyWindow(IntPtr HWnd);
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
-    public static extern IntPtr GetModuleHandle(string? lpModuleName);
+    public static extern IntPtr GetModuleHandle(string? LpModuleName);
 
     [DllImport("user32.dll")]
     public static extern IntPtr GetFocus();
 
     [DllImport("user32.dll")]
-    public static extern IntPtr SetFocus(IntPtr hWnd);
+    public static extern IntPtr SetFocus(IntPtr HWnd);
 }

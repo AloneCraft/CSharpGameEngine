@@ -15,9 +15,9 @@ public readonly struct BlenderWorldConvention : ICoordinateConvention
 {
     public static CoordinateHandedness Handedness => CoordinateHandedness.RightHanded;
 
-    public static XyzVector ToXyz(in RufVector value) => new(value.R, value.F, value.U);
+    public static XyzVector ToXyz(in RufVector Value) => new(Value.R, Value.F, Value.U);
 
-    public static RufVector FromXyz(in XyzVector value) => new(value.X, value.Z, value.Y);
+    public static RufVector FromXyz(in XyzVector Value) => new(Value.X, Value.Z, Value.Y);
 
     public static XyzVector RightXyz => new(1f, 0f, 0f);
 

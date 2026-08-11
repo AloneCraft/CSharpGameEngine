@@ -5,116 +5,116 @@ namespace CSharpGameEngine.Geometry.Tests;
 
 public class ProceduralMeshFactoryTests
 {
-    private static void AssertIndicesInRange(ProceduralMeshData mesh)
+    private static void AssertIndicesInRange(ProceduralMeshData Mesh)
     {
-        foreach (uint index in mesh.Indices)
+        foreach (uint index in Mesh.Indices)
         {
-            Assert.InRange(index, 0u, (uint)mesh.Positions.Length - 1);
+            Assert.InRange(index, 0u, (uint)Mesh.Positions.Length - 1);
         }
     }
 
-    private static void AssertNoDegenerateTriangles(ProceduralMeshData mesh)
+    private static void AssertNoDegenerateTriangles(ProceduralMeshData Mesh)
     {
-        Assert.True(mesh.Indices.Length % 3 == 0, "Index count must be a multiple of 3.");
+        Assert.True(Mesh.Indices.Length % 3 == 0, "Index count must be a multiple of 3.");
 
-        for (int i = 0; i < mesh.Indices.Length; i += 3)
+        for (int i = 0; i < Mesh.Indices.Length; i += 3)
         {
-            Vector3 a = mesh.Positions[mesh.Indices[i]];
-            Vector3 b = mesh.Positions[mesh.Indices[i + 1]];
-            Vector3 c = mesh.Positions[mesh.Indices[i + 2]];
+            Vector3 A = Mesh.Positions[Mesh.Indices[i]];
+            Vector3 B = Mesh.Positions[Mesh.Indices[i + 1]];
+            Vector3 C = Mesh.Positions[Mesh.Indices[i + 2]];
 
-            float area = Vector3.Cross(b - a, c - a).Length() / 2f;
-            Assert.True(area > 1e-6f, $"Degenerate triangle at index {i} (area={area}).");
+            float Area = Vector3.Cross(B - A, C - A).Length() / 2f;
+            Assert.True(Area > 1e-6f, $"Degenerate triangle at index {i} (area={Area}).");
         }
     }
 
-    private static void AssertNormalsAreUnitLength(ProceduralMeshData mesh)
+    private static void AssertNormalsAreUnitLength(ProceduralMeshData Mesh)
     {
-        foreach (Vector3 normal in mesh.Normals)
+        foreach (Vector3 Normal in Mesh.Normals)
         {
-            Assert.Equal(1f, normal.Length(), precision: 4);
+            Assert.Equal(1f, Normal.Length(), precision: 4);
         }
     }
 
     [Fact]
     public void CreatePlane_ProducesFourVerticesOnYZeroFacingUp()
     {
-        ProceduralMeshData mesh = ProceduralMeshFactory.CreatePlane(width: 10f, depth: 4f);
+        ProceduralMeshData Mesh = ProceduralMeshFactory.CreatePlane(Width: 10f, Depth: 4f);
 
-        Assert.Equal(4, mesh.Positions.Length);
-        Assert.Equal(4, mesh.Normals.Length);
-        Assert.Equal(6, mesh.Indices.Length);
+        Assert.Equal(4, Mesh.Positions.Length);
+        Assert.Equal(4, Mesh.Normals.Length);
+        Assert.Equal(6, Mesh.Indices.Length);
 
-        foreach (Vector3 position in mesh.Positions)
+        foreach (Vector3 Position in Mesh.Positions)
         {
-            Assert.Equal(0f, position.Y);
-            Assert.InRange(position.X, -5f, 5f);
-            Assert.InRange(position.Z, -2f, 2f);
+            Assert.Equal(0f, Position.Y);
+            Assert.InRange(Position.X, -5f, 5f);
+            Assert.InRange(Position.Z, -2f, 2f);
         }
 
-        foreach (Vector3 normal in mesh.Normals)
+        foreach (Vector3 Normal in Mesh.Normals)
         {
-            Assert.Equal(Vector3.UnitY, normal);
+            Assert.Equal(Vector3.UnitY, Normal);
         }
     }
 
     [Fact]
     public void CreatePlane_IndicesFormTwoValidTriangles()
     {
-        ProceduralMeshData mesh = ProceduralMeshFactory.CreatePlane(width: 2f, depth: 2f);
+        ProceduralMeshData Mesh = ProceduralMeshFactory.CreatePlane(Width: 2f, Depth: 2f);
 
-        Assert.Equal(6, mesh.Indices.Length);
-        AssertIndicesInRange(mesh);
-        AssertNoDegenerateTriangles(mesh);
+        Assert.Equal(6, Mesh.Indices.Length);
+        AssertIndicesInRange(Mesh);
+        AssertNoDegenerateTriangles(Mesh);
     }
 
     [Theory]
     [InlineData(0f, 1f)]
     [InlineData(1f, 0f)]
     [InlineData(-1f, 1f)]
-    public void CreatePlane_NonPositiveDimensions_Throws(float width, float depth)
+    public void CreatePlane_NonPositiveDimensions_Throws(float Width, float Depth)
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => ProceduralMeshFactory.CreatePlane(width, depth));
+        Assert.Throws<ArgumentOutOfRangeException>(() => ProceduralMeshFactory.CreatePlane(Width, Depth));
     }
 
     [Fact]
     public void CreateBox_Produces24VerticesAnd36Indices()
     {
-        ProceduralMeshData mesh = ProceduralMeshFactory.CreateBox(new Vector3(2f, 4f, 6f));
+        ProceduralMeshData Mesh = ProceduralMeshFactory.CreateBox(new Vector3(2f, 4f, 6f));
 
-        Assert.Equal(24, mesh.Positions.Length);
-        Assert.Equal(24, mesh.Normals.Length);
-        Assert.Equal(36, mesh.Indices.Length);
-        AssertIndicesInRange(mesh);
-        AssertNoDegenerateTriangles(mesh);
+        Assert.Equal(24, Mesh.Positions.Length);
+        Assert.Equal(24, Mesh.Normals.Length);
+        Assert.Equal(36, Mesh.Indices.Length);
+        AssertIndicesInRange(Mesh);
+        AssertNoDegenerateTriangles(Mesh);
     }
 
     [Fact]
     public void CreateBox_AllVerticesStayWithinHalfExtents()
     {
-        Vector3 size = new(2f, 4f, 6f);
-        ProceduralMeshData mesh = ProceduralMeshFactory.CreateBox(size);
-        Vector3 half = size / 2f;
+        Vector3 Size = new(2f, 4f, 6f);
+        ProceduralMeshData Mesh = ProceduralMeshFactory.CreateBox(Size);
+        Vector3 half = Size / 2f;
 
-        foreach (Vector3 position in mesh.Positions)
+        foreach (Vector3 Position in Mesh.Positions)
         {
-            Assert.InRange(position.X, -half.X, half.X);
-            Assert.InRange(position.Y, -half.Y, half.Y);
-            Assert.InRange(position.Z, -half.Z, half.Z);
+            Assert.InRange(Position.X, -half.X, half.X);
+            Assert.InRange(Position.Y, -half.Y, half.Y);
+            Assert.InRange(Position.Z, -half.Z, half.Z);
         }
     }
 
     [Fact]
     public void CreateBox_AllNormalsAreAxisAlignedUnitVectors()
     {
-        ProceduralMeshData mesh = ProceduralMeshFactory.CreateBox(Vector3.One);
+        ProceduralMeshData Mesh = ProceduralMeshFactory.CreateBox(Vector3.One);
 
-        foreach (Vector3 normal in mesh.Normals)
+        foreach (Vector3 Normal in Mesh.Normals)
         {
-            Assert.Equal(1f, normal.Length(), precision: 5);
+            Assert.Equal(1f, Normal.Length(), precision: 5);
 
-            int nonZeroComponents = (normal.X != 0f ? 1 : 0) + (normal.Y != 0f ? 1 : 0) + (normal.Z != 0f ? 1 : 0);
-            Assert.Equal(1, nonZeroComponents);
+            int NonZeroComponents = (Normal.X != 0f ? 1 : 0) + (Normal.Y != 0f ? 1 : 0) + (Normal.Z != 0f ? 1 : 0);
+            Assert.Equal(1, NonZeroComponents);
         }
     }
 
@@ -123,24 +123,24 @@ public class ProceduralMeshFactoryTests
     [InlineData(1f, 0f, 1f)]
     [InlineData(1f, 1f, 0f)]
     [InlineData(-1f, 1f, 1f)]
-    public void CreateBox_NonPositiveSizeComponent_Throws(float x, float y, float z)
+    public void CreateBox_NonPositiveSizeComponent_Throws(float X, float Y, float Z)
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => ProceduralMeshFactory.CreateBox(new Vector3(x, y, z)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => ProceduralMeshFactory.CreateBox(new Vector3(X, Y, Z)));
     }
 
     [Fact]
     public void CreateSphere_AllVerticesLieOnTheSphereSurface()
     {
-        ProceduralMeshData mesh = ProceduralMeshFactory.CreateSphere(2.5f);
+        ProceduralMeshData Mesh = ProceduralMeshFactory.CreateSphere(2.5f);
 
-        foreach (Vector3 position in mesh.Positions)
+        foreach (Vector3 Position in Mesh.Positions)
         {
-            Assert.Equal(2.5f, position.Length(), precision: 4);
+            Assert.Equal(2.5f, Position.Length(), precision: 4);
         }
 
-        AssertIndicesInRange(mesh);
-        AssertNoDegenerateTriangles(mesh);
-        AssertNormalsAreUnitLength(mesh);
+        AssertIndicesInRange(Mesh);
+        AssertNoDegenerateTriangles(Mesh);
+        AssertNormalsAreUnitLength(Mesh);
     }
 
     [Fact]
@@ -152,99 +152,99 @@ public class ProceduralMeshFactoryTests
     [Fact]
     public void CreateCylinder_VerticesStayWithinRadiusAndHalfHeight()
     {
-        ProceduralMeshData mesh = ProceduralMeshFactory.CreateCylinder(radius: 1.5f, height: 4f);
+        ProceduralMeshData Mesh = ProceduralMeshFactory.CreateCylinder(Radius: 1.5f, Height: 4f);
 
-        foreach (Vector3 position in mesh.Positions)
+        foreach (Vector3 Position in Mesh.Positions)
         {
-            Assert.InRange(new Vector2(position.X, position.Z).Length(), 0f, 1.5f + 1e-4f);
-            Assert.InRange(position.Y, -2f - 1e-4f, 2f + 1e-4f);
+            Assert.InRange(new Vector2(Position.X, Position.Z).Length(), 0f, 1.5f + 1e-4f);
+            Assert.InRange(Position.Y, -2f - 1e-4f, 2f + 1e-4f);
         }
 
-        AssertIndicesInRange(mesh);
-        AssertNoDegenerateTriangles(mesh);
-        AssertNormalsAreUnitLength(mesh);
+        AssertIndicesInRange(Mesh);
+        AssertNoDegenerateTriangles(Mesh);
+        AssertNormalsAreUnitLength(Mesh);
     }
 
     [Theory]
     [InlineData(0f, 1f)]
     [InlineData(1f, 0f)]
-    public void CreateCylinder_NonPositiveDimension_Throws(float radius, float height)
+    public void CreateCylinder_NonPositiveDimension_Throws(float Radius, float Height)
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => ProceduralMeshFactory.CreateCylinder(radius, height));
+        Assert.Throws<ArgumentOutOfRangeException>(() => ProceduralMeshFactory.CreateCylinder(Radius, Height));
     }
 
     [Fact]
     public void CreateCone_ApexAtTopAndBaseAtBottom()
     {
-        ProceduralMeshData mesh = ProceduralMeshFactory.CreateCone(radius: 1f, height: 3f);
+        ProceduralMeshData Mesh = ProceduralMeshFactory.CreateCone(Radius: 1f, Height: 3f);
 
-        Assert.Contains(mesh.Positions, p => p == new Vector3(0, 1.5f, 0));
-        foreach (Vector3 position in mesh.Positions)
+        Assert.Contains(Mesh.Positions, P => P == new Vector3(0, 1.5f, 0));
+        foreach (Vector3 Position in Mesh.Positions)
         {
-            Assert.InRange(position.Y, -1.5f - 1e-4f, 1.5f + 1e-4f);
+            Assert.InRange(Position.Y, -1.5f - 1e-4f, 1.5f + 1e-4f);
         }
 
-        AssertIndicesInRange(mesh);
-        AssertNoDegenerateTriangles(mesh);
-        AssertNormalsAreUnitLength(mesh);
+        AssertIndicesInRange(Mesh);
+        AssertNoDegenerateTriangles(Mesh);
+        AssertNormalsAreUnitLength(Mesh);
     }
 
     [Theory]
     [InlineData(0f, 1f)]
     [InlineData(1f, 0f)]
-    public void CreateCone_NonPositiveDimension_Throws(float radius, float height)
+    public void CreateCone_NonPositiveDimension_Throws(float Radius, float Height)
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => ProceduralMeshFactory.CreateCone(radius, height));
+        Assert.Throws<ArgumentOutOfRangeException>(() => ProceduralMeshFactory.CreateCone(Radius, Height));
     }
 
     [Fact]
     public void CreateTorus_VerticesStayWithinMajorPlusMinorRadius()
     {
-        ProceduralMeshData mesh = ProceduralMeshFactory.CreateTorus(majorRadius: 2f, minorRadius: 0.5f);
+        ProceduralMeshData Mesh = ProceduralMeshFactory.CreateTorus(MajorRadius: 2f, MinorRadius: 0.5f);
 
-        foreach (Vector3 position in mesh.Positions)
+        foreach (Vector3 Position in Mesh.Positions)
         {
-            Assert.InRange(new Vector2(position.X, position.Z).Length(), 2f - 0.5f - 1e-3f, 2f + 0.5f + 1e-3f);
-            Assert.InRange(position.Y, -0.5f - 1e-4f, 0.5f + 1e-4f);
+            Assert.InRange(new Vector2(Position.X, Position.Z).Length(), 2f - 0.5f - 1e-3f, 2f + 0.5f + 1e-3f);
+            Assert.InRange(Position.Y, -0.5f - 1e-4f, 0.5f + 1e-4f);
         }
 
-        AssertIndicesInRange(mesh);
-        AssertNoDegenerateTriangles(mesh);
-        AssertNormalsAreUnitLength(mesh);
+        AssertIndicesInRange(Mesh);
+        AssertNoDegenerateTriangles(Mesh);
+        AssertNormalsAreUnitLength(Mesh);
     }
 
     [Fact]
     public void CreateTorus_MinorRadiusNotSmallerThanMajor_Throws()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => ProceduralMeshFactory.CreateTorus(majorRadius: 1f, minorRadius: 1f));
+        Assert.Throws<ArgumentOutOfRangeException>(() => ProceduralMeshFactory.CreateTorus(MajorRadius: 1f, MinorRadius: 1f));
     }
 
     [Theory]
     [InlineData(0f, 0.5f)]
     [InlineData(1f, 0f)]
-    public void CreateTorus_NonPositiveDimension_Throws(float majorRadius, float minorRadius)
+    public void CreateTorus_NonPositiveDimension_Throws(float MajorRadius, float MinorRadius)
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => ProceduralMeshFactory.CreateTorus(majorRadius, minorRadius));
+        Assert.Throws<ArgumentOutOfRangeException>(() => ProceduralMeshFactory.CreateTorus(MajorRadius, MinorRadius));
     }
 
     [Fact]
     public void CreateDisk_AllVerticesOnYZeroFacingUp()
     {
-        ProceduralMeshData mesh = ProceduralMeshFactory.CreateDisk(radius: 1.2f);
+        ProceduralMeshData Mesh = ProceduralMeshFactory.CreateDisk(Radius: 1.2f);
 
-        foreach (Vector3 position in mesh.Positions)
+        foreach (Vector3 Position in Mesh.Positions)
         {
-            Assert.Equal(0f, position.Y);
-            Assert.InRange(new Vector2(position.X, position.Z).Length(), 0f, 1.2f + 1e-4f);
+            Assert.Equal(0f, Position.Y);
+            Assert.InRange(new Vector2(Position.X, Position.Z).Length(), 0f, 1.2f + 1e-4f);
         }
 
-        foreach (Vector3 normal in mesh.Normals)
+        foreach (Vector3 Normal in Mesh.Normals)
         {
-            Assert.Equal(Vector3.UnitY, normal);
+            Assert.Equal(Vector3.UnitY, Normal);
         }
 
-        AssertIndicesInRange(mesh);
-        AssertNoDegenerateTriangles(mesh);
+        AssertIndicesInRange(Mesh);
+        AssertNoDegenerateTriangles(Mesh);
     }
 
     [Fact]
@@ -256,33 +256,33 @@ public class ProceduralMeshFactoryTests
     [Fact]
     public void CreateCapsule_VerticesStayWithinRadiusAndHalfHeight()
     {
-        ProceduralMeshData mesh = ProceduralMeshFactory.CreateCapsule(radius: 1f, height: 4f);
+        ProceduralMeshData Mesh = ProceduralMeshFactory.CreateCapsule(Radius: 1f, Height: 4f);
 
-        Assert.Contains(mesh.Positions, p => p == new Vector3(0, 2f, 0));
-        Assert.Contains(mesh.Positions, p => p == new Vector3(0, -2f, 0));
+        Assert.Contains(Mesh.Positions, P => P == new Vector3(0, 2f, 0));
+        Assert.Contains(Mesh.Positions, P => P == new Vector3(0, -2f, 0));
 
-        foreach (Vector3 position in mesh.Positions)
+        foreach (Vector3 Position in Mesh.Positions)
         {
-            Assert.InRange(new Vector2(position.X, position.Z).Length(), 0f, 1f + 1e-4f);
-            Assert.InRange(position.Y, -2f - 1e-4f, 2f + 1e-4f);
+            Assert.InRange(new Vector2(Position.X, Position.Z).Length(), 0f, 1f + 1e-4f);
+            Assert.InRange(Position.Y, -2f - 1e-4f, 2f + 1e-4f);
         }
 
-        AssertIndicesInRange(mesh);
-        AssertNoDegenerateTriangles(mesh);
-        AssertNormalsAreUnitLength(mesh);
+        AssertIndicesInRange(Mesh);
+        AssertNoDegenerateTriangles(Mesh);
+        AssertNormalsAreUnitLength(Mesh);
     }
 
     [Fact]
     public void CreateCapsule_HeightNotExceedingTwiceRadius_Throws()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => ProceduralMeshFactory.CreateCapsule(radius: 1f, height: 2f));
+        Assert.Throws<ArgumentOutOfRangeException>(() => ProceduralMeshFactory.CreateCapsule(Radius: 1f, Height: 2f));
     }
 
     [Theory]
     [InlineData(0f, 4f)]
     [InlineData(-1f, 4f)]
-    public void CreateCapsule_NonPositiveRadius_Throws(float radius, float height)
+    public void CreateCapsule_NonPositiveRadius_Throws(float Radius, float Height)
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => ProceduralMeshFactory.CreateCapsule(radius, height));
+        Assert.Throws<ArgumentOutOfRangeException>(() => ProceduralMeshFactory.CreateCapsule(Radius, Height));
     }
 }

@@ -15,38 +15,38 @@ namespace CSharpGameEngine.VSExtension;
 /// </summary>
 internal static class ScenePreviewSceneFileAdapter
 {
-    internal static SceneFile ToSceneFile(ScenePreviewBridgeDocument document)
+    internal static SceneFile ToSceneFile(ScenePreviewBridgeDocument Document)
     {
-        Dictionary<int, Guid> idsByEntityId = document.Nodes.ToDictionary(n => n.EntityId, _ => Guid.NewGuid());
+        Dictionary<int, Guid> IdsByEntityId = Document.Nodes.ToDictionary(N => N.EntityId, _ => Guid.NewGuid());
 
-        List<SceneFileNode> nodes = [];
-        foreach (ScenePreviewNodeDto node in document.Nodes)
+        List<SceneFileNode> Nodes = [];
+        foreach (ScenePreviewNodeDto Node in Document.Nodes)
         {
-            nodes.Add(new SceneFileNode
+            Nodes.Add(new SceneFileNode
             {
-                Id = idsByEntityId[node.EntityId],
-                Name = node.Name ?? $"Entity{node.EntityId}",
-                ParentId = node.ParentEntityId is int parentEntityId ? idsByEntityId[parentEntityId] : null,
-                Position = ToVector3(node.Position),
-                Rotation = ToQuaternion(node.Rotation),
-                Scale = ToVector3(node.Scale),
+                Id = IdsByEntityId[Node.EntityId],
+                Name = Node.Name ?? $"Entity{Node.EntityId}",
+                ParentId = Node.ParentEntityId is int ParentEntityId ? IdsByEntityId[ParentEntityId] : null,
+                Position = ToVector3(Node.Position),
+                Rotation = ToQuaternion(Node.Rotation),
+                Scale = ToVector3(Node.Scale),
                 MeshAssetPath = null,
             });
         }
 
-        return new SceneFile { Nodes = nodes };
+        return new SceneFile { Nodes = Nodes };
     }
 
     /// <summary>Deterministic per-scene-class temp path, outside the repo tree entirely - re-previewing the same class overwrites the same file rather than accumulating one per click.</summary>
-    internal static string ResolveTempScenePath(string sceneClassFullName)
+    internal static string ResolveTempScenePath(string SceneClassFullName)
     {
-        char[] sanitized = [.. sceneClassFullName.Select(c => char.IsLetterOrDigit(c) || c == '.' ? c : '_')];
+        char[] Sanitized = [.. SceneClassFullName.Select(C => char.IsLetterOrDigit(C) || C == '.' ? C : '_')];
         string directory = Path.Combine(Path.GetTempPath(), "CSharpGameEngine.ScenePreview");
         Directory.CreateDirectory(directory);
-        return Path.Combine(directory, new string(sanitized) + ".scene");
+        return Path.Combine(directory, new string(Sanitized) + ".scene");
     }
 
-    private static Vector3 ToVector3(float[] v) => v.Length == 3 ? new Vector3(v[0], v[1], v[2]) : Vector3.Zero;
+    private static Vector3 ToVector3(float[] V) => V.Length == 3 ? new Vector3(V[0], V[1], V[2]) : Vector3.Zero;
 
-    private static Quaternion ToQuaternion(float[] v) => v.Length == 4 ? new Quaternion(v[0], v[1], v[2], v[3]) : Quaternion.Identity;
+    private static Quaternion ToQuaternion(float[] V) => V.Length == 4 ? new Quaternion(V[0], V[1], V[2], V[3]) : Quaternion.Identity;
 }

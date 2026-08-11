@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -34,41 +34,41 @@ public sealed class ChunkList<T>
     private const int ChunkSize = 1 << ChunkShift;
     private const int ChunkMask = ChunkSize - 1;
 
-    private T[][] chunks = [];
+    private T[][] Chunks = [];
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void EnsureCapacity(int requiredCount)
+    internal void EnsureCapacity(int RequiredCount)
     {
-        Debug.Assert(requiredCount >= 0, "CGE-ECS-UNCHECKED-001: requiredCount must be non-negative; remove this assertion after hot-path validation.");
+        Debug.Assert(RequiredCount >= 0, "CGE-ECS-UNCHECKED-001: requiredCount must be non-negative; remove this assertion after hot-path validation.");
 
-        if (requiredCount == 0)
+        if (RequiredCount == 0)
         {
             return;
         }
 
-        int chunkIndex = (requiredCount - 1) >> ChunkShift;
+        int ChunkIndex = (RequiredCount - 1) >> ChunkShift;
 
-        if (chunkIndex >= this.chunks.Length)
+        if (ChunkIndex >= this.Chunks.Length)
         {
-            int length = this.chunks.Length == 0 ? 1 : this.chunks.Length;
-            while (length <= chunkIndex)
+            int Length = this.Chunks.Length == 0 ? 1 : this.Chunks.Length;
+            while (Length <= ChunkIndex)
             {
-                length <<= 1;
+                Length <<= 1;
             }
 
-            Array.Resize(ref this.chunks, length);
+            Array.Resize(ref this.Chunks, Length);
         }
 
-        if (this.chunks[chunkIndex] is null)
+        if (this.Chunks[ChunkIndex] is null)
         {
-            this.chunks[chunkIndex] = new T[ChunkSize];
+            this.Chunks[ChunkIndex] = new T[ChunkSize];
         }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal ref T GetRefUnchecked(int index)
     {
-        return ref this.chunks[index >> ChunkShift][index & ChunkMask];
+        return ref this.Chunks[index >> ChunkShift][index & ChunkMask];
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -84,16 +84,16 @@ public sealed class ChunkList<T>
 /// <summary>位置表・構造変更キュー用の論理長を持つ内部バッファ。</summary>
 internal sealed class ChunkBuffer<T>
 {
-    private readonly ChunkList<T> items = new();
+    private readonly ChunkList<T> Items = new();
 
     internal int Count { get; private set; }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void Add(T item)
+    internal void Add(T Item)
     {
         int index = this.Count;
-        this.items.EnsureCapacity(index + 1);
-        this.items.GetRefUnchecked(index) = item;
+        this.Items.EnsureCapacity(index + 1);
+        this.Items.GetRefUnchecked(index) = Item;
         this.Count = index + 1;
     }
 
@@ -101,7 +101,7 @@ internal sealed class ChunkBuffer<T>
     internal ref T GetRefUnchecked(int index)
     {
         Debug.Assert((uint)index < (uint)this.Count, "CGE-ECS-UNCHECKED-002: buffer index must be valid; remove this assertion after hot-path validation.");
-        return ref this.items.GetRefUnchecked(index);
+        return ref this.Items.GetRefUnchecked(index);
     }
 
     internal void Clear()
@@ -110,7 +110,7 @@ internal sealed class ChunkBuffer<T>
         {
             for (int index = 0; index < this.Count; index++)
             {
-                this.items.ClearAtUnchecked(index);
+                this.Items.ClearAtUnchecked(index);
             }
         }
 

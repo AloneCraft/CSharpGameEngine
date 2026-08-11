@@ -25,21 +25,21 @@ internal sealed class SimpleMesh
 
     public static (Vector3 Center, float Radius) ComputeBoundingSphere(Vector3[] positions)
     {
-        Vector3 min = positions[0];
-        Vector3 max = positions[0];
-        foreach (Vector3 p in positions)
+        Vector3 Min = positions[0];
+        Vector3 Max = positions[0];
+        foreach (Vector3 P in positions)
         {
-            min = Vector3.Min(min, p);
-            max = Vector3.Max(max, p);
+            Min = Vector3.Min(Min, P);
+            Max = Vector3.Max(Max, P);
         }
 
-        Vector3 center = (min + max) * 0.5f;
-        float radius = 0f;
+        Vector3 Center = (Min + Max) * 0.5f;
+        float Radius = 0f;
         foreach (Vector3 p in positions)
         {
-            radius = Math.Max(radius, Vector3.Distance(center, p));
+            Radius = Math.Max(Radius, Vector3.Distance(Center, p));
         }
 
-        return (center, radius);
+        return (Center, Radius);
     }
 }

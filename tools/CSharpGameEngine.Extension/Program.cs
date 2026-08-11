@@ -16,222 +16,222 @@ if (args.Length == 0 || IsHelp(args[0]))
 
 Environment.ExitCode = RunViewer(args);
 
-static bool IsHelp(string arg) =>
-    string.Equals(arg, "--help", StringComparison.OrdinalIgnoreCase) ||
-    string.Equals(arg, "-h", StringComparison.OrdinalIgnoreCase) ||
-    string.Equals(arg, "help", StringComparison.OrdinalIgnoreCase);
+static bool IsHelp(string Arg) =>
+    string.Equals(Arg, "--help", StringComparison.OrdinalIgnoreCase) ||
+    string.Equals(Arg, "-h", StringComparison.OrdinalIgnoreCase) ||
+    string.Equals(Arg, "help", StringComparison.OrdinalIgnoreCase);
 
-static int RunViewer(string[] args)
+static int RunViewer(string[] Args)
 {
-    ViewerOptionsParseResult parseResult = ViewerOptionsParser.Parse(args);
-    if (!parseResult.Success)
+    ViewerOptionsParseResult ParseResult = ViewerOptionsParser.Parse(Args);
+    if (!ParseResult.Success)
     {
-        Console.WriteLine($"FAILED: {parseResult.Error}");
+        Console.WriteLine($"FAILED: {ParseResult.Error}");
         return 2;
     }
 
-    ViewerRunOptions options = parseResult.Options!;
-    string modelPath = ResolveModelPath(options.ModelPath);
+    ViewerRunOptions Options = ParseResult.Options!;
+    string ModelPath = ResolveModelPath(Options.ModelPath);
 
     Console.WriteLine($"Product: {ProductDisplayName} ({InternalName}) Viewer");
-    Console.WriteLine($"Model: {modelPath}");
+    Console.WriteLine($"Model: {ModelPath}");
 
-    IReadOnlyList<Vector3> positions;
-    IReadOnlyList<Vector3> normals;
-    IReadOnlyList<Vector2> uvs;
-    IReadOnlyList<uint> indices;
-    byte[]? baseColorTextureBytes;
-    Vector4 baseColorFactor;
-    Vector3 boundsCenter;
-    float boundsRadius;
+    IReadOnlyList<Vector3> Positions;
+    IReadOnlyList<Vector3> Normals;
+    IReadOnlyList<Vector2> Uvs;
+    IReadOnlyList<uint> Indices;
+    byte[]? BaseColorTextureBytes;
+    Vector4 BaseColorFactor;
+    Vector3 BoundsCenter;
+    float BoundsRadius;
 
-    string extension = Path.GetExtension(modelPath);
-    if (string.Equals(extension, ".fbx", StringComparison.OrdinalIgnoreCase))
+    string Extension = Path.GetExtension(ModelPath);
+    if (string.Equals(Extension, ".fbx", StringComparison.OrdinalIgnoreCase))
     {
-        CSharpGameEngine.Import.Fbx.FbxImportResult fbxResult = FbxImporter.Import(modelPath);
-        foreach (CSharpGameEngine.Import.Fbx.FbxImportDiagnostic diagnostic in fbxResult.Diagnostics)
+        CSharpGameEngine.Import.Fbx.FbxImportResult FbxResult = FbxImporter.Import(ModelPath);
+        foreach (CSharpGameEngine.Import.Fbx.FbxImportDiagnostic Diagnostic in FbxResult.Diagnostics)
         {
-            Console.WriteLine($"  {diagnostic}");
+            Console.WriteLine($"  {Diagnostic}");
         }
 
-        if (!fbxResult.Success)
+        if (!FbxResult.Success)
         {
             Console.WriteLine("FAILED: could not import model.");
             return 1;
         }
 
-        CSharpGameEngine.Import.Fbx.ImportedMesh fbxMesh = fbxResult.Mesh!;
-        positions = fbxMesh.Positions;
-        normals = fbxMesh.Normals;
-        uvs = fbxMesh.Uvs;
-        indices = fbxMesh.Indices;
-        baseColorTextureBytes = fbxMesh.BaseColorTextureBytes;
-        baseColorFactor = fbxMesh.BaseColorFactor;
-        boundsCenter = fbxMesh.Bounds.Center;
-        boundsRadius = fbxMesh.Bounds.BoundingSphereRadius;
+        CSharpGameEngine.Import.Fbx.ImportedMesh FbxMesh = FbxResult.Mesh!;
+        Positions = FbxMesh.Positions;
+        Normals = FbxMesh.Normals;
+        Uvs = FbxMesh.Uvs;
+        Indices = FbxMesh.Indices;
+        BaseColorTextureBytes = FbxMesh.BaseColorTextureBytes;
+        BaseColorFactor = FbxMesh.BaseColorFactor;
+        BoundsCenter = FbxMesh.Bounds.Center;
+        BoundsRadius = FbxMesh.Bounds.BoundingSphereRadius;
     }
     else
     {
-        CSharpGameEngine.Import.Gltf.GltfImportResult gltfResult = GltfImporter.Import(modelPath);
-        foreach (CSharpGameEngine.Import.Gltf.GltfImportDiagnostic diagnostic in gltfResult.Diagnostics)
+        CSharpGameEngine.Import.Gltf.GltfImportResult GltfResult = GltfImporter.Import(ModelPath);
+        foreach (CSharpGameEngine.Import.Gltf.GltfImportDiagnostic diagnostic in GltfResult.Diagnostics)
         {
             Console.WriteLine($"  {diagnostic}");
         }
 
-        if (!gltfResult.Success)
+        if (!GltfResult.Success)
         {
             Console.WriteLine("FAILED: could not import model.");
             return 1;
         }
 
-        CSharpGameEngine.Import.Gltf.ImportedMesh gltfMesh = gltfResult.Mesh!;
-        positions = gltfMesh.Positions;
-        normals = gltfMesh.Normals;
-        uvs = gltfMesh.Uvs;
-        indices = gltfMesh.Indices;
-        baseColorTextureBytes = gltfMesh.BaseColorTextureBytes;
-        baseColorFactor = gltfMesh.BaseColorFactor;
-        boundsCenter = gltfMesh.Bounds.Center;
-        boundsRadius = gltfMesh.Bounds.BoundingSphereRadius;
+        CSharpGameEngine.Import.Gltf.ImportedMesh GltfMesh = GltfResult.Mesh!;
+        Positions = GltfMesh.Positions;
+        Normals = GltfMesh.Normals;
+        Uvs = GltfMesh.Uvs;
+        Indices = GltfMesh.Indices;
+        BaseColorTextureBytes = GltfMesh.BaseColorTextureBytes;
+        BaseColorFactor = GltfMesh.BaseColorFactor;
+        BoundsCenter = GltfMesh.Bounds.Center;
+        BoundsRadius = GltfMesh.Bounds.BoundingSphereRadius;
     }
 
-    Console.WriteLine($"Mesh: {positions.Count} vertices, {indices.Count / 3} triangles, bounds radius={boundsRadius:F3}");
+    Console.WriteLine($"Mesh: {Positions.Count} vertices, {Indices.Count / 3} triangles, bounds radius={BoundsRadius:F3}");
 
-    string shaderPath = Path.Combine(AppContext.BaseDirectory, "Shaders", "Model.hlsl");
-    Console.WriteLine($"Mode: {(options.Hidden ? "hidden" : "windowed")}, frames={(options.Frames is int f ? f.ToString() : "until closed")}, verify={options.Verify}");
+    string ShaderPath = Path.Combine(AppContext.BaseDirectory, "Shaders", "Model.hlsl");
+    Console.WriteLine($"Mode: {(Options.Hidden ? "hidden" : "windowed")}, frames={(Options.Frames is int F ? F.ToString() : "until closed")}, verify={Options.Verify}");
 
-    using Win32Window window = new(new Win32WindowOptions
+    using Win32Window Window = new(new Win32WindowOptions
     {
         Title = $"{ProductDisplayName} - Viewer",
-        Width = options.Width,
-        Height = options.Height,
-        Visible = !options.Hidden,
+        Width = Options.Width,
+        Height = Options.Height,
+        Visible = !Options.Hidden,
     });
 
-    GraphicsDeviceOptions deviceOptions = new()
+    GraphicsDeviceOptions DeviceOptions = new()
     {
-        UseWarp = options.UseWarp,
-        EnableDebugLayer = options.EnableDebugLayer,
-        EnableGpuBasedValidation = options.EnableGpuValidation,
+        UseWarp = Options.UseWarp,
+        EnableDebugLayer = Options.EnableDebugLayer,
+        EnableGpuBasedValidation = Options.EnableGpuValidation,
     };
 
-    ModelRenderer renderer;
+    ModelRenderer Renderer;
     try
     {
-        renderer = ModelRenderer.Create(
-            window.Handle, window.ClientWidth, window.ClientHeight, deviceOptions, shaderPath,
-            positions, normals, uvs, indices, baseColorTextureBytes, baseColorFactor,
-            boundsCenter, boundsRadius);
+        Renderer = ModelRenderer.Create(
+            Window.Handle, Window.ClientWidth, Window.ClientHeight, DeviceOptions, ShaderPath,
+            Positions, Normals, Uvs, Indices, BaseColorTextureBytes, BaseColorFactor,
+            BoundsCenter, BoundsRadius);
     }
-    catch (Exception ex)
+    catch (Exception Ex)
     {
-        Console.WriteLine($"FAILED: could not initialize the D3D12 renderer: {ex.Message}");
+        Console.WriteLine($"FAILED: could not initialize the D3D12 renderer: {Ex.Message}");
         return 1;
     }
 
-    window.Resized += (w, h) => renderer.Resize(w, h);
+    Window.Resized += (W, H) => Renderer.Resize(W, H);
 
-    Console.WriteLine($"Adapter: {renderer.AdapterDescription} ({(renderer.IsWarp ? "WARP" : "Hardware")})");
+    Console.WriteLine($"Adapter: {Renderer.AdapterDescription} ({(Renderer.IsWarp ? "WARP" : "Hardware")})");
     Console.WriteLine($"Feature level: {GraphicsDevice.RequiredFeatureLevel}");
-    Console.WriteLine($"Back buffer format: {ModelRenderer.BackBufferFormat}, depth format: {ModelRenderer.DepthBufferFormat}, {options.Width}x{options.Height}");
-    Console.WriteLine($"Debug layer: {(renderer.DebugLayerEnabled ? "enabled" : "disabled")}{(renderer.GpuBasedValidationEnabled ? " (+GPU-based validation)" : string.Empty)}");
-    Console.WriteLine($"Shader compilation: {(renderer.ShaderCompilationSucceeded ? "OK" : "FAILED")} ({renderer.ShaderDiagnostics.Count} diagnostic(s))");
-    foreach (HlslDiagnostic diagnostic in renderer.ShaderDiagnostics)
+    Console.WriteLine($"Back buffer format: {ModelRenderer.BackBufferFormat}, depth format: {ModelRenderer.DepthBufferFormat}, {Options.Width}x{Options.Height}");
+    Console.WriteLine($"Debug layer: {(Renderer.DebugLayerEnabled ? "enabled" : "disabled")}{(Renderer.GpuBasedValidationEnabled ? " (+GPU-based validation)" : string.Empty)}");
+    Console.WriteLine($"Shader compilation: {(Renderer.ShaderCompilationSucceeded ? "OK" : "FAILED")} ({Renderer.ShaderDiagnostics.Count} diagnostic(s))");
+    foreach (HlslDiagnostic diagnostic in Renderer.ShaderDiagnostics)
     {
         Console.WriteLine($"  {diagnostic}");
     }
 
-    Console.WriteLine($"Base color texture: {(renderer.TextureLoaded ? "loaded" : "fallback (white 1x1)")}{(renderer.TextureLoadError is string error ? $" - {error}" : string.Empty)}");
+    Console.WriteLine($"Base color texture: {(Renderer.TextureLoaded ? "loaded" : "fallback (white 1x1)")}{(Renderer.TextureLoadError is string Error ? $" - {Error}" : string.Empty)}");
 
-    int exitCode = 0;
+    int ExitCode = 0;
     try
     {
-        if (options.Frames is int frameCount)
+        if (Options.Frames is int FrameCount)
         {
-            for (int i = 0; i < frameCount && !window.IsClosed; i++)
+            for (int i = 0; i < FrameCount && !Window.IsClosed; i++)
             {
-                window.PumpEvents();
-                if (window.IsClosed || window.IsMinimized)
+                Window.PumpEvents();
+                if (Window.IsClosed || Window.IsMinimized)
                 {
                     continue;
                 }
 
-                bool isLastFrame = i == frameCount - 1;
-                renderer.RenderFrame(captureForVerification: options.Verify && isLastFrame);
+                bool IsLastFrame = i == FrameCount - 1;
+                Renderer.RenderFrame(CaptureForVerification: Options.Verify && IsLastFrame);
             }
         }
         else
         {
-            while (!window.IsClosed)
+            while (!Window.IsClosed)
             {
-                window.PumpEvents();
-                if (!window.IsClosed && !window.IsMinimized)
+                Window.PumpEvents();
+                if (!Window.IsClosed && !Window.IsMinimized)
                 {
-                    renderer.RenderFrame();
+                    Renderer.RenderFrame();
                 }
             }
         }
 
-        Console.WriteLine($"Frames rendered: {renderer.FramesRendered}");
+        Console.WriteLine($"Frames rendered: {Renderer.FramesRendered}");
 
-        if (options.Verify)
+        if (Options.Verify)
         {
-            if (renderer.LastCapturedFrame is null)
+            if (Renderer.LastCapturedFrame is null)
             {
                 Console.WriteLine("Verification: FAILED (no frame was captured for readback).");
-                exitCode = 1;
+                ExitCode = 1;
             }
             else
             {
-                ModelVerificationResult verification = ModelPixelVerifier.Verify(renderer.LastCapturedFrame, ModelRenderer.ClearColor);
-                Console.WriteLine($"Verification: {(verification.Success ? "PASSED" : "FAILED")} - {verification.Details}");
-                if (!verification.Success)
+                ModelVerificationResult Verification = ModelPixelVerifier.Verify(Renderer.LastCapturedFrame, ModelRenderer.ClearColor);
+                Console.WriteLine($"Verification: {(Verification.Success ? "PASSED" : "FAILED")} - {Verification.Details}");
+                if (!Verification.Success)
                 {
-                    exitCode = 1;
+                    ExitCode = 1;
                 }
             }
         }
 
-        int errorMessageCount = renderer.ErrorOrWorseMessageCount;
-        Console.WriteLine($"D3D12 validation errors: {errorMessageCount}");
-        if (errorMessageCount > 0)
+        int ErrorMessageCount = Renderer.ErrorOrWorseMessageCount;
+        Console.WriteLine($"D3D12 validation errors: {ErrorMessageCount}");
+        if (ErrorMessageCount > 0)
         {
-            foreach (D3D12DebugMessage message in renderer.DebugMessages)
+            foreach (D3D12DebugMessage Message in Renderer.DebugMessages)
             {
-                if (message.IsErrorOrWorse)
+                if (Message.IsErrorOrWorse)
                 {
-                    Console.WriteLine($"  {message}");
+                    Console.WriteLine($"  {Message}");
                 }
             }
 
-            exitCode = 1;
+            ExitCode = 1;
         }
     }
     finally
     {
-        renderer.Dispose();
+        Renderer.Dispose();
     }
 
-    Console.WriteLine(exitCode == 0
+    Console.WriteLine(ExitCode == 0
         ? $"SUCCESS: {InternalName} viewer finished."
         : $"FAILED: {InternalName} viewer finished with errors.");
 
-    return exitCode;
+    return ExitCode;
 }
 
-static string ResolveModelPath(string modelPath)
+static string ResolveModelPath(string ModelPath)
 {
     // Resolve relative to the current directory first (matches `--model` pointing at any real
     // file, e.g. under UserGameProject/Assets/Fab/); fall back to the executable's own directory
     // so the bundled Samples/Box.glb works whether invoked via `dotnet run` from the repo root or
     // by running the built .exe directly from its output directory.
-    if (File.Exists(modelPath) || Path.IsPathRooted(modelPath))
+    if (File.Exists(ModelPath) || Path.IsPathRooted(ModelPath))
     {
-        return modelPath;
+        return ModelPath;
     }
 
-    string besideExecutable = Path.Combine(AppContext.BaseDirectory, modelPath);
-    return File.Exists(besideExecutable) ? besideExecutable : modelPath;
+    string BesideExecutable = Path.Combine(AppContext.BaseDirectory, ModelPath);
+    return File.Exists(BesideExecutable) ? BesideExecutable : ModelPath;
 }
 
 static void PrintHelp()

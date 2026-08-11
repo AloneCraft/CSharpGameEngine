@@ -19,81 +19,81 @@ public static class ModelPixelVerifier
     public const double DefaultMaxForegroundRatio = 0.98;
 
     public static ModelVerificationResult Verify(
-        PixelReadbackResult readback,
-        PixelColor backgroundColor,
-        byte tolerance = DefaultTolerance,
-        double minForegroundRatio = DefaultMinForegroundRatio,
-        double maxForegroundRatio = DefaultMaxForegroundRatio)
+        PixelReadbackResult Readback,
+        PixelColor BackgroundColor,
+        byte Tolerance = DefaultTolerance,
+        double MinForegroundRatio = DefaultMinForegroundRatio,
+        double MaxForegroundRatio = DefaultMaxForegroundRatio)
     {
-        ArgumentNullException.ThrowIfNull(readback);
+        ArgumentNullException.ThrowIfNull(Readback);
 
-        if (readback.Width <= 0 || readback.Height <= 0)
+        if (Readback.Width <= 0 || Readback.Height <= 0)
         {
             return new ModelVerificationResult(false, default, 0.0, "Readback has no pixels (width or height is zero).");
         }
 
-        PixelColor center = ReadPixel(readback, readback.Width / 2, readback.Height / 2);
+        PixelColor Center = ReadPixel(Readback, Readback.Width / 2, Readback.Height / 2);
 
-        long foregroundCount = 0;
-        long totalCount = (long)readback.Width * readback.Height;
+        long ForegroundCount = 0;
+        long TotalCount = (long)Readback.Width * Readback.Height;
 
-        for (int y = 0; y < readback.Height; y++)
+        for (int y = 0; y < Readback.Height; y++)
         {
-            for (int x = 0; x < readback.Width; x++)
+            for (int x = 0; x < Readback.Width; x++)
             {
-                if (!IsClose(ReadPixel(readback, x, y), backgroundColor, tolerance))
+                if (!IsClose(ReadPixel(Readback, x, y), BackgroundColor, Tolerance))
                 {
-                    foregroundCount++;
+                    ForegroundCount++;
                 }
             }
         }
 
-        double foregroundRatio = (double)foregroundCount / totalCount;
-        bool centerDiffersFromBackground = !IsClose(center, backgroundColor, tolerance);
-        bool ratioInBand = foregroundRatio >= minForegroundRatio && foregroundRatio <= maxForegroundRatio;
+        double ForegroundRatio = (double)ForegroundCount / TotalCount;
+        bool CenterDiffersFromBackground = !IsClose(Center, BackgroundColor, Tolerance);
+        bool RatioInBand = ForegroundRatio >= MinForegroundRatio && ForegroundRatio <= MaxForegroundRatio;
 
-        bool success = centerDiffersFromBackground && ratioInBand;
+        bool Success = CenterDiffersFromBackground && RatioInBand;
 
-        string details = success
-            ? $"center={center} differs from background={backgroundColor}; foreground ratio={foregroundRatio:P2} is within [{minForegroundRatio:P0},{maxForegroundRatio:P0}]."
-            : BuildFailureDetails(centerDiffersFromBackground, ratioInBand, center, backgroundColor, foregroundRatio, minForegroundRatio, maxForegroundRatio);
+        string Details = Success
+            ? $"center={Center} differs from background={BackgroundColor}; foreground ratio={ForegroundRatio:P2} is within [{MinForegroundRatio:P0},{MaxForegroundRatio:P0}]."
+            : BuildFailureDetails(CenterDiffersFromBackground, RatioInBand, Center, BackgroundColor, ForegroundRatio, MinForegroundRatio, MaxForegroundRatio);
 
-        return new ModelVerificationResult(success, center, foregroundRatio, details);
+        return new ModelVerificationResult(Success, Center, ForegroundRatio, Details);
     }
 
-    private static string BuildFailureDetails(bool centerDiffersFromBackground, bool ratioInBand, PixelColor center, PixelColor backgroundColor, double foregroundRatio, double minForegroundRatio, double maxForegroundRatio)
+    private static string BuildFailureDetails(bool CenterDiffersFromBackground, bool RatioInBand, PixelColor Center, PixelColor BackgroundColor, double ForegroundRatio, double MinForegroundRatio, double MaxForegroundRatio)
     {
-        List<string> parts = [];
-        if (!centerDiffersFromBackground)
+        List<string> Parts = [];
+        if (!CenterDiffersFromBackground)
         {
-            parts.Add($"center={center} is too close to background={backgroundColor}; nothing appears to have been drawn there.");
+            Parts.Add($"center={Center} is too close to background={BackgroundColor}; nothing appears to have been drawn there.");
         }
-        if (!ratioInBand)
+        if (!RatioInBand)
         {
-            parts.Add($"foreground ratio={foregroundRatio:P2} is outside the plausible band [{minForegroundRatio:P0},{maxForegroundRatio:P0}].");
+            Parts.Add($"foreground ratio={ForegroundRatio:P2} is outside the plausible band [{MinForegroundRatio:P0},{MaxForegroundRatio:P0}].");
         }
-        return string.Join(" ", parts);
+        return string.Join(" ", Parts);
     }
 
-    private static bool IsClose(PixelColor a, PixelColor b, byte tolerance) =>
-        Math.Abs(a.R - b.R) <= tolerance &&
-        Math.Abs(a.G - b.G) <= tolerance &&
-        Math.Abs(a.B - b.B) <= tolerance;
+    private static bool IsClose(PixelColor A, PixelColor B, byte Tolerance) =>
+        Math.Abs(A.R - B.R) <= Tolerance &&
+        Math.Abs(A.G - B.G) <= Tolerance &&
+        Math.Abs(A.B - B.B) <= Tolerance;
 
-    private static PixelColor ReadPixel(PixelReadbackResult readback, int x, int y)
+    private static PixelColor ReadPixel(PixelReadbackResult Readback, int X, int Y)
     {
-        const int bytesPerPixel = 4;
-        long offset = ((long)y * readback.RowPitch) + (x * bytesPerPixel);
+        const int BytesPerPixel = 4;
+        long Offset = ((long)Y * Readback.RowPitch) + (X * BytesPerPixel);
 
-        byte b0 = readback.Pixels[offset];
-        byte b1 = readback.Pixels[offset + 1];
-        byte b2 = readback.Pixels[offset + 2];
-        byte b3 = readback.Pixels[offset + 3];
+        byte B0 = Readback.Pixels[Offset];
+        byte B1 = Readback.Pixels[Offset + 1];
+        byte B2 = Readback.Pixels[Offset + 2];
+        byte B3 = Readback.Pixels[Offset + 3];
 
-        return readback.Format switch
+        return Readback.Format switch
         {
-            DXGI_FORMAT_B8G8R8A8_UNORM => new PixelColor(b2, b1, b0, b3),
-            _ => new PixelColor(b0, b1, b2, b3),
+            DXGI_FORMAT_B8G8R8A8_UNORM => new PixelColor(B2, B1, B0, B3),
+            _ => new PixelColor(B0, B1, B2, B3),
         };
     }
 }

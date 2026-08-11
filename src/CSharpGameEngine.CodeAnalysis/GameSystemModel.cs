@@ -272,35 +272,35 @@ internal readonly struct GameSystemRegistry
     /// <see cref="GameSystemArchetypeInfo.ComponentIndices"/>は宣言順であり昇順とは限らないため、
     /// 両辺をソートして比較する)。SceneRuntimeEmitterが使う。
     /// </summary>
-    internal GameSystemArchetypeInfo? FindArchetype(IReadOnlyList<int> componentIndices)
+    internal GameSystemArchetypeInfo? FindArchetype(IReadOnlyList<int> ComponentIndices)
     {
-        List<int> wanted = [.. componentIndices];
-        wanted.Sort();
+        List<int> Wanted = [.. ComponentIndices];
+        Wanted.Sort();
 
-        foreach (GameSystemArchetypeInfo archetype in this.Archetypes)
+        foreach (GameSystemArchetypeInfo Archetype in this.Archetypes)
         {
-            if (archetype.ComponentIndices.Length != wanted.Count)
+            if (Archetype.ComponentIndices.Length != Wanted.Count)
             {
                 continue;
             }
 
-            List<int> candidate = [.. archetype.ComponentIndices];
-            candidate.Sort();
+            List<int> Candidate = [.. Archetype.ComponentIndices];
+            Candidate.Sort();
 
-            bool same = true;
+            bool Same = true;
 
-            for (int i = 0; i < wanted.Count; i++)
+            for (int i = 0; i < Wanted.Count; i++)
             {
-                if (candidate[i] != wanted[i])
+                if (Candidate[i] != Wanted[i])
                 {
-                    same = false;
+                    Same = false;
                     break;
                 }
             }
 
-            if (same)
+            if (Same)
             {
-                return archetype;
+                return Archetype;
             }
         }
 

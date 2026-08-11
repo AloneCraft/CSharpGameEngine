@@ -27,7 +27,7 @@ namespace UserEcsProject.Systems;
 /// そのままここのComponent初期値になっている。
 /// </summary>
 [SystemOrder(0)]
-internal struct GameStartupSystem : ISystem
+internal struct GameStartup : ISystem
 {
     private const string ProductDisplayName = "C# Game Engine";
 
@@ -52,7 +52,7 @@ internal struct GameStartupSystem : ISystem
                 Path = Path.Combine("Assets", "Primitives", "Box.fbx"),
                 ShaderPath = Path.Combine("Shaders", "Stage.hlsl"),
                 Camera = Camera.CreateDefault(Vector3.Zero),
-                Sun = new DirectionalLight
+                Sun = new UserEcsProject.DirectionalLight
                 {
                     DirectionTowardLightX = 0.4f,
                     DirectionTowardLightY = 0.7f,
@@ -62,7 +62,7 @@ internal struct GameStartupSystem : ISystem
                     ColorB = 0.9f,
                     Intensity = 1.0f,
                 },
-                PointLight = new PointLight
+                PointLight = new UserEcsProject.PointLight
                 {
                     PositionX = 1.5f,
                     PositionY = 1.0f,
@@ -73,7 +73,7 @@ internal struct GameStartupSystem : ISystem
                     Intensity = 6f,
                     Range = 6f,
                 },
-                SpotLight = new SpotLight
+                SpotLight = new UserEcsProject.SpotLight
                 {
                     PositionX = -1.5f,
                     PositionY = 2.0f,

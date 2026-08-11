@@ -19,16 +19,16 @@ internal static class RepoLocator
 
     public static string? ResolveRepoRoot()
     {
-        string? repoRoot = Assembly.GetExecutingAssembly()
+        string? RepoRoot = Assembly.GetExecutingAssembly()
             .GetCustomAttributes<AssemblyMetadataAttribute>()
             .FirstOrDefault(attribute => attribute.Key == "CSharpGameEngineRepoRoot")
             ?.Value;
 
-        if (string.IsNullOrEmpty(repoRoot))
+        if (string.IsNullOrEmpty(RepoRoot))
         {
             return null;
         }
 
-        return File.Exists(Path.Combine(repoRoot, RepoMarkerFileName)) ? repoRoot : null;
+        return File.Exists(Path.Combine(RepoRoot, RepoMarkerFileName)) ? RepoRoot : null;
     }
 }

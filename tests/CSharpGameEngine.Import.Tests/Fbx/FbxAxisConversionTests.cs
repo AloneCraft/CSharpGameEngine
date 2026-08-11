@@ -12,31 +12,31 @@ public class FbxAxisConversionTests
     [Fact]
     public void ConvertVector_NegatesZ()
     {
-        Vector3 converted = FbxAxisConversion.ConvertVector(new Vector3(1f, 2f, 3f));
+        Vector3 Converted = FbxAxisConversion.ConvertVector(new Vector3(1f, 2f, 3f));
 
-        Assert.Equal(new Vector3(1f, 2f, -3f), converted);
+        Assert.Equal(new Vector3(1f, 2f, -3f), Converted);
     }
 
     [Fact]
     public void ConvertVector_LeavesXAndYUnaffected_OnlyZChanges()
     {
-        Vector3 converted = FbxAxisConversion.ConvertVector(Vector3.UnitX);
-        Assert.Equal(Vector3.UnitX, converted);
+        Vector3 Converted = FbxAxisConversion.ConvertVector(Vector3.UnitX);
+        Assert.Equal(Vector3.UnitX, Converted);
 
-        converted = FbxAxisConversion.ConvertVector(Vector3.UnitY);
-        Assert.Equal(Vector3.UnitY, converted);
+        Converted = FbxAxisConversion.ConvertVector(Vector3.UnitY);
+        Assert.Equal(Vector3.UnitY, Converted);
 
-        converted = FbxAxisConversion.ConvertVector(Vector3.UnitZ);
-        Assert.Equal(-Vector3.UnitZ, converted);
+        Converted = FbxAxisConversion.ConvertVector(Vector3.UnitZ);
+        Assert.Equal(-Vector3.UnitZ, Converted);
     }
 
     [Fact]
     public void FlipTriangleWinding_SwapsSecondAndThirdIndexOfEachTriangle()
     {
-        List<uint> indices = [0, 1, 2, 3, 4, 5];
+        List<uint> Indices = [0, 1, 2, 3, 4, 5];
 
-        FbxAxisConversion.FlipTriangleWinding(indices);
+        FbxAxisConversion.FlipTriangleWinding(Indices);
 
-        Assert.Equal<IEnumerable<uint>>([0, 2, 1, 3, 5, 4], indices);
+        Assert.Equal<IEnumerable<uint>>([0, 2, 1, 3, 5, 4], Indices);
     }
 }

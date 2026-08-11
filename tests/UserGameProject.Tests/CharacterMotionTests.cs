@@ -7,7 +7,7 @@ public class CharacterMotionTests
     private static readonly Vector3 Forward = new(0f, 0f, 1f);
     private static readonly Vector3 Right = new(1f, 0f, 0f);
 
-    private static CharacterMotionInput NoInputAt(float currentY = 0f, float verticalVelocity = 0f, float deltaTime = 1f / 60f)
+    private static CharacterMotionInput NoInputAt(float CurrentY = 0f, float VerticalVelocity = 0f, float DeltaTime = 1f / 60f)
     {
         return new CharacterMotionInput
         {
@@ -18,119 +18,119 @@ public class CharacterMotionTests
             MoveLeft = false,
             MoveRight = false,
             JumpPressed = false,
-            CurrentY = currentY,
-            VerticalVelocity = verticalVelocity,
-            DeltaTime = deltaTime,
+            CurrentY = CurrentY,
+            VerticalVelocity = VerticalVelocity,
+            DeltaTime = DeltaTime,
         };
     }
 
     [Fact]
     public void NoInput_OnGround_StaysGroundedWithNoMovement()
     {
-        CharacterMotionResult result = CharacterMotion.Compute(NoInputAt(currentY: 0f, verticalVelocity: 0f));
+        CharacterMotionResult Result = CharacterMotion.Compute(NoInputAt(CurrentY: 0f, VerticalVelocity: 0f));
 
-        Assert.Equal(Vector3.Zero, result.HorizontalVelocity);
-        Assert.Equal(0f, result.NewY);
-        Assert.Equal(0f, result.NewVerticalVelocity);
-        Assert.True(result.IsGrounded);
+        Assert.Equal(Vector3.Zero, Result.HorizontalVelocity);
+        Assert.Equal(0f, Result.NewY);
+        Assert.Equal(0f, Result.NewVerticalVelocity);
+        Assert.True(Result.IsGrounded);
     }
 
     [Fact]
     public void MoveForward_ProducesVelocityAlongFlatForward()
     {
-        CharacterMotionInput input = NoInputAt() with { MoveForward = true };
+        CharacterMotionInput Input = NoInputAt() with { MoveForward = true };
 
-        CharacterMotionResult result = CharacterMotion.Compute(input);
+        CharacterMotionResult Result = CharacterMotion.Compute(Input);
 
-        Vector3 expected = Forward * CharacterMotion.MoveSpeed;
-        Assert.Equal(expected.X, result.HorizontalVelocity.X, 4);
-        Assert.Equal(expected.Y, result.HorizontalVelocity.Y, 4);
-        Assert.Equal(expected.Z, result.HorizontalVelocity.Z, 4);
+        Vector3 Expected = Forward * CharacterMotion.MoveSpeed;
+        Assert.Equal(Expected.X, Result.HorizontalVelocity.X, 4);
+        Assert.Equal(Expected.Y, Result.HorizontalVelocity.Y, 4);
+        Assert.Equal(Expected.Z, Result.HorizontalVelocity.Z, 4);
     }
 
     [Fact]
     public void MoveForwardAndRight_NormalizesToMoveSpeedNotSqrtTwoTimesMoveSpeed()
     {
-        CharacterMotionInput input = NoInputAt() with { MoveForward = true, MoveRight = true };
+        CharacterMotionInput Input = NoInputAt() with { MoveForward = true, MoveRight = true };
 
-        CharacterMotionResult result = CharacterMotion.Compute(input);
+        CharacterMotionResult Result = CharacterMotion.Compute(Input);
 
-        Assert.Equal(CharacterMotion.MoveSpeed, result.HorizontalVelocity.Length(), 4);
+        Assert.Equal(CharacterMotion.MoveSpeed, Result.HorizontalVelocity.Length(), 4);
     }
 
     [Fact]
     public void MoveForwardAndBack_CancelOutToZero()
     {
-        CharacterMotionInput input = NoInputAt() with { MoveForward = true, MoveBack = true };
+        CharacterMotionInput Input = NoInputAt() with { MoveForward = true, MoveBack = true };
 
-        CharacterMotionResult result = CharacterMotion.Compute(input);
+        CharacterMotionResult Result = CharacterMotion.Compute(Input);
 
-        Assert.Equal(Vector3.Zero, result.HorizontalVelocity);
+        Assert.Equal(Vector3.Zero, Result.HorizontalVelocity);
     }
 
     [Fact]
     public void Jump_WhenGrounded_LaunchesUpwardMinusOneFrameOfGravity()
     {
-        CharacterMotionInput input = NoInputAt(currentY: 0f, verticalVelocity: 0f) with { JumpPressed = true };
+        CharacterMotionInput Input = NoInputAt(CurrentY: 0f, VerticalVelocity: 0f) with { JumpPressed = true };
 
-        CharacterMotionResult result = CharacterMotion.Compute(input);
+        CharacterMotionResult Result = CharacterMotion.Compute(Input);
 
-        float expectedVelocity = CharacterMotion.JumpSpeed - (CharacterMotion.Gravity * input.DeltaTime);
-        Assert.Equal(expectedVelocity, result.NewVerticalVelocity, 4);
-        Assert.False(result.IsGrounded);
-        Assert.True(result.NewY > 0f);
+        float ExpectedVelocity = CharacterMotion.JumpSpeed - (CharacterMotion.Gravity * Input.DeltaTime);
+        Assert.Equal(ExpectedVelocity, Result.NewVerticalVelocity, 4);
+        Assert.False(Result.IsGrounded);
+        Assert.True(Result.NewY > 0f);
     }
 
     [Fact]
     public void Jump_WhenAirborne_IsIgnored()
     {
-        CharacterMotionInput input = NoInputAt(currentY: 5f, verticalVelocity: 1f) with { JumpPressed = true };
+        CharacterMotionInput Input = NoInputAt(CurrentY: 5f, VerticalVelocity: 1f) with { JumpPressed = true };
 
-        CharacterMotionResult result = CharacterMotion.Compute(input);
+        CharacterMotionResult Result = CharacterMotion.Compute(Input);
 
         // Airborne jump presses must not add JumpSpeed - only gravity should have been applied.
-        float expectedVelocity = 1f - (CharacterMotion.Gravity * input.DeltaTime);
-        Assert.Equal(expectedVelocity, result.NewVerticalVelocity, 4);
+        float ExpectedVelocity = 1f - (CharacterMotion.Gravity * Input.DeltaTime);
+        Assert.Equal(ExpectedVelocity, Result.NewVerticalVelocity, 4);
     }
 
     [Fact]
     public void Airborne_FallsUnderGravityOverTime()
     {
-        CharacterMotionInput input = NoInputAt(currentY: 10f, verticalVelocity: 0f);
+        CharacterMotionInput Input = NoInputAt(CurrentY: 10f, VerticalVelocity: 0f);
 
-        CharacterMotionResult result = CharacterMotion.Compute(input);
+        CharacterMotionResult Result = CharacterMotion.Compute(Input);
 
-        Assert.True(result.NewY < 10f);
-        Assert.True(result.NewVerticalVelocity < 0f);
-        Assert.False(result.IsGrounded);
+        Assert.True(Result.NewY < 10f);
+        Assert.True(Result.NewVerticalVelocity < 0f);
+        Assert.False(Result.IsGrounded);
     }
 
     [Fact]
     public void FallingBelowGround_ClampsToZeroAndZeroesVerticalVelocity()
     {
-        CharacterMotionInput input = NoInputAt(currentY: 0.05f, verticalVelocity: -20f, deltaTime: 1f);
+        CharacterMotionInput Input = NoInputAt(CurrentY: 0.05f, VerticalVelocity: -20f, DeltaTime: 1f);
 
-        CharacterMotionResult result = CharacterMotion.Compute(input);
+        CharacterMotionResult Result = CharacterMotion.Compute(Input);
 
-        Assert.Equal(0f, result.NewY);
-        Assert.Equal(0f, result.NewVerticalVelocity);
-        Assert.True(result.IsGrounded);
+        Assert.Equal(0f, Result.NewY);
+        Assert.Equal(0f, Result.NewVerticalVelocity);
+        Assert.True(Result.IsGrounded);
     }
 
     [Fact]
     public void LerpAngle_StepsTowardTargetByAtMostMaxStep()
     {
-        float result = CharacterMotion.LerpAngle(current: 0f, target: MathF.PI / 2f, rotationSpeedRadiansPerSecond: 1f, deltaTime: 0.1f);
+        float Result = CharacterMotion.LerpAngle(Current: 0f, Target: MathF.PI / 2f, RotationSpeedRadiansPerSecond: 1f, DeltaTime: 0.1f);
 
-        Assert.Equal(0.1f, result, 4);
+        Assert.Equal(0.1f, Result, 4);
     }
 
     [Fact]
     public void LerpAngle_ReachesTargetExactlyWhenWithinOneStep()
     {
-        float result = CharacterMotion.LerpAngle(current: 0f, target: 0.05f, rotationSpeedRadiansPerSecond: 10f, deltaTime: 1f);
+        float Result = CharacterMotion.LerpAngle(Current: 0f, Target: 0.05f, RotationSpeedRadiansPerSecond: 10f, DeltaTime: 1f);
 
-        Assert.Equal(0.05f, result, 4);
+        Assert.Equal(0.05f, Result, 4);
     }
 
     [Fact]
@@ -138,11 +138,11 @@ public class CharacterMotionTests
     {
         // current is just below +PI, target is just above -PI - the short way is a small step
         // "forward" across the wrap boundary, not the long way back through 0.
-        float current = MathF.PI - 0.05f;
-        float target = -MathF.PI + 0.05f;
+        float Current = MathF.PI - 0.05f;
+        float Target = -MathF.PI + 0.05f;
 
-        float result = CharacterMotion.LerpAngle(current, target, rotationSpeedRadiansPerSecond: 100f, deltaTime: 1f);
+        float Result = CharacterMotion.LerpAngle(Current, Target, RotationSpeedRadiansPerSecond: 100f, DeltaTime: 1f);
 
-        Assert.Equal(target, result, 3);
+        Assert.Equal(Target, Result, 3);
     }
 }

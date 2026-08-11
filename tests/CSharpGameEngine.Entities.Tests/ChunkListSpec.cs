@@ -1,4 +1,4 @@
-﻿namespace CSharpGameEngine.Entities.Tests;
+namespace CSharpGameEngine.Entities.Tests;
 
 public class ChunkListSpec
 {
@@ -24,8 +24,8 @@ public class ChunkListSpec
         ChunkList<Position> list = new();
         list.EnsureCapacity(1);
         list.GetRefUnchecked(0) = new Position { X = 1f };
-        ref Position slot = ref list.GetRefUnchecked(0);
-        slot.X = 42f;
+        ref Position Slot = ref list.GetRefUnchecked(0);
+        Slot.X = 42f;
         Assert.Equal(42f, list.GetRefUnchecked(0).X);
     }
 

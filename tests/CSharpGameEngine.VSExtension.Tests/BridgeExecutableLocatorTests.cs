@@ -14,19 +14,19 @@ namespace CSharpGameEngine.VSExtension.Tests;
 public sealed class BridgeExecutableLocatorTests : IDisposable
 {
     private const string BridgeProjectRelativePath = @"tools\Sample.Bridge.Cli";
-    private readonly string _repoRoot;
+    private readonly string RepoRoot;
 
     public BridgeExecutableLocatorTests()
     {
-        _repoRoot = Path.Combine(Path.GetTempPath(), "csge-bridgelocator-tests-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_repoRoot);
+        RepoRoot = Path.Combine(Path.GetTempPath(), "csge-bridgelocator-tests-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(RepoRoot);
     }
 
     public void Dispose()
     {
         try
         {
-            Directory.Delete(_repoRoot, recursive: true);
+            Directory.Delete(RepoRoot, recursive: true);
         }
         catch (IOException)
         {
@@ -36,66 +36,66 @@ public sealed class BridgeExecutableLocatorTests : IDisposable
     [Fact]
     public void NoBuiltExecutable_ReturnsNull()
     {
-        string? result = BridgeExecutableLocator.FindExecutable(_repoRoot, BridgeProjectRelativePath);
+        string? Result = BridgeExecutableLocator.FindExecutable(RepoRoot, BridgeProjectRelativePath);
 
-        Assert.Null(result);
+        Assert.Null(Result);
     }
 
     [Fact]
     public void DebugBuildOnly_IsFound()
     {
-        string exePath = CreateExe("Debug", ridSubfolder: null, DateTime.UtcNow);
+        string ExePath = CreateExe("Debug", RidSubfolder: null, DateTime.UtcNow);
 
-        string? result = BridgeExecutableLocator.FindExecutable(_repoRoot, BridgeProjectRelativePath);
+        string? Result = BridgeExecutableLocator.FindExecutable(RepoRoot, BridgeProjectRelativePath);
 
-        Assert.Equal(exePath, result);
+        Assert.Equal(ExePath, Result);
     }
 
     [Fact]
     public void RuntimeIdentifierSubfolder_IsFound()
     {
-        string exePath = CreateExe("Debug", "win-x64", DateTime.UtcNow);
+        string ExePath = CreateExe("Debug", "win-x64", DateTime.UtcNow);
 
-        string? result = BridgeExecutableLocator.FindExecutable(_repoRoot, BridgeProjectRelativePath);
+        string? Result = BridgeExecutableLocator.FindExecutable(RepoRoot, BridgeProjectRelativePath);
 
-        Assert.Equal(exePath, result);
+        Assert.Equal(ExePath, Result);
     }
 
     [Fact]
     public void MultipleCandidates_PicksNewestByWriteTime_EvenWhenReleaseIsNewer()
     {
-        DateTime now = DateTime.UtcNow;
-        CreateExe("Debug", ridSubfolder: null, now);
-        string newerReleaseExePath = CreateExe("Release", ridSubfolder: null, now.AddMinutes(5));
+        DateTime Now = DateTime.UtcNow;
+        CreateExe("Debug", RidSubfolder: null, Now);
+        string NewerReleaseExePath = CreateExe("Release", RidSubfolder: null, Now.AddMinutes(5));
 
-        string? result = BridgeExecutableLocator.FindExecutable(_repoRoot, BridgeProjectRelativePath);
+        string? Result = BridgeExecutableLocator.FindExecutable(RepoRoot, BridgeProjectRelativePath);
 
-        Assert.Equal(newerReleaseExePath, result);
+        Assert.Equal(NewerReleaseExePath, Result);
     }
 
     [Fact]
     public void MultipleCandidates_PicksNewestByWriteTime_EvenWhenDebugIsNewer()
     {
-        DateTime now = DateTime.UtcNow;
-        CreateExe("Release", ridSubfolder: null, now);
-        string newerDebugExePath = CreateExe("Debug", ridSubfolder: null, now.AddMinutes(5));
+        DateTime Now = DateTime.UtcNow;
+        CreateExe("Release", RidSubfolder: null, Now);
+        string NewerDebugExePath = CreateExe("Debug", RidSubfolder: null, Now.AddMinutes(5));
 
-        string? result = BridgeExecutableLocator.FindExecutable(_repoRoot, BridgeProjectRelativePath);
+        string? Result = BridgeExecutableLocator.FindExecutable(RepoRoot, BridgeProjectRelativePath);
 
-        Assert.Equal(newerDebugExePath, result);
+        Assert.Equal(NewerDebugExePath, Result);
     }
 
-    private string CreateExe(string configuration, string? ridSubfolder, DateTime writeTimeUtc)
+    private string CreateExe(string Configuration, string? RidSubfolder, DateTime WriteTimeUtc)
     {
-        string directory = ridSubfolder is null
-            ? Path.Combine(_repoRoot, BridgeProjectRelativePath, "bin", configuration, "net10.0")
-            : Path.Combine(_repoRoot, BridgeProjectRelativePath, "bin", configuration, "net10.0", ridSubfolder);
+        string directory = RidSubfolder is null
+            ? Path.Combine(RepoRoot, BridgeProjectRelativePath, "bin", Configuration, "net10.0")
+            : Path.Combine(RepoRoot, BridgeProjectRelativePath, "bin", Configuration, "net10.0", RidSubfolder);
         Directory.CreateDirectory(directory);
 
-        string exePath = Path.Combine(directory, "Sample.Bridge.Cli.exe");
-        File.WriteAllText(exePath, "fake exe bytes");
-        File.SetLastWriteTimeUtc(exePath, writeTimeUtc);
+        string ExePath = Path.Combine(directory, "Sample.Bridge.Cli.exe");
+        File.WriteAllText(ExePath, "fake exe bytes");
+        File.SetLastWriteTimeUtc(ExePath, WriteTimeUtc);
 
-        return exePath;
+        return ExePath;
     }
 }

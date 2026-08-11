@@ -16,28 +16,28 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// </summary>
 internal static class GameSystemExecutionOrder
 {
-    internal static int Compare(GameSystemResult a, GameSystemResult b, GameSystemOrderContext context)
+    internal static int Compare(GameSystemResult A, GameSystemResult B, GameSystemOrderContext Context)
     {
-        int orderA = OrderOf(a, context);
-        int orderB = OrderOf(b, context);
-        int orderCompare = orderA.CompareTo(orderB);
+        int OrderA = OrderOf(A, Context);
+        int OrderB = OrderOf(B, Context);
+        int OrderCompare = OrderA.CompareTo(OrderB);
 
-        if (orderCompare != 0)
+        if (OrderCompare != 0)
         {
-            return orderCompare;
+            return OrderCompare;
         }
 
-        int fileCompare = string.CompareOrdinal(a.FilePath, b.FilePath);
-        return fileCompare != 0 ? fileCompare : a.DeclarationPosition.CompareTo(b.DeclarationPosition);
+        int FileCompare = string.CompareOrdinal(A.FilePath, B.FilePath);
+        return FileCompare != 0 ? FileCompare : A.DeclarationPosition.CompareTo(B.DeclarationPosition);
     }
 
-    private static int OrderOf(GameSystemResult system, GameSystemOrderContext context)
+    private static int OrderOf(GameSystemResult system, GameSystemOrderContext Context)
     {
-        if (context.SystemOrderByFqn.TryGetValue(system.ClassFullyQualifiedName, out int explicitOrder))
+        if (Context.SystemOrderByFqn.TryGetValue(system.ClassFullyQualifiedName, out int ExplicitOrder))
         {
-            return explicitOrder;
+            return ExplicitOrder;
         }
 
-        return context.FileOrderByPath.TryGetValue(system.FilePath, out int fileOrder) ? fileOrder : 0;
+        return Context.FileOrderByPath.TryGetValue(system.FilePath, out int FileOrder) ? FileOrder : 0;
     }
 }

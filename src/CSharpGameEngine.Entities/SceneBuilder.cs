@@ -9,11 +9,11 @@ namespace CSharpGameEngine.Entities;
 /// </summary>
 public sealed class SceneBuilder
 {
-    public void Create(SceneNodeSymbol symbol, Action<SceneNodeBuilder> definition)
+    public void Create(SceneNodeSymbol Symbol, Action<SceneNodeBuilder> Definition)
     {
-        ArgumentNullException.ThrowIfNull(definition);
+        ArgumentNullException.ThrowIfNull(Definition);
 
-        SceneNodeBuilder builder = new(symbol);
-        definition(builder);
+        SceneNodeBuilder Builder = new(Symbol);
+        Definition(Builder);
     }
 }

@@ -20,44 +20,44 @@ internal sealed class OpenFabCommand
 
     private const string FabUrl = "https://www.fab.com/";
 
-    private readonly AsyncPackage _package;
+    private readonly AsyncPackage Package;
 
-    private OpenFabCommand(AsyncPackage package, OleMenuCommandService commandService)
+    private OpenFabCommand(AsyncPackage package, OleMenuCommandService CommandService)
     {
-        _package = package ?? throw new ArgumentNullException(nameof(package));
-        if (commandService is null)
+        Package = package ?? throw new ArgumentNullException(nameof(package));
+        if (CommandService is null)
         {
-            throw new ArgumentNullException(nameof(commandService));
+            throw new ArgumentNullException(nameof(CommandService));
         }
 
-        CommandID menuCommandId = new(CommandSet, CommandId);
-        MenuCommand menuItem = new(Execute, menuCommandId);
-        commandService.AddCommand(menuItem);
+        CommandID MenuCommandId = new(CommandSet, CommandId);
+        MenuCommand MenuItem = new(Execute, MenuCommandId);
+        CommandService.AddCommand(MenuItem);
     }
 
     public static async Task InitializeAsync(AsyncPackage package)
     {
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
-        object? service = await package.GetServiceAsync(typeof(IMenuCommandService));
-        if (service is not OleMenuCommandService commandService)
+        object? Service = await package.GetServiceAsync(typeof(IMenuCommandService));
+        if (Service is not OleMenuCommandService CommandService)
         {
             throw new InvalidOperationException($"{nameof(IMenuCommandService)} is not available from the VS shell.");
         }
 
-        _ = new OpenFabCommand(package, commandService);
+        _ = new OpenFabCommand(package, CommandService);
     }
 
-    private void Execute(object sender, EventArgs e)
+    private void Execute(object Sender, EventArgs E)
     {
         try
         {
             Process.Start(new ProcessStartInfo(FabUrl) { UseShellExecute = true });
         }
-        catch (Exception ex)
+        catch (Exception Ex)
         {
             VsShellUtilities.ShowMessageBox(
-                _package,
-                $"ブラウザの起動に失敗しました: {ex.Message}",
+                Package,
+                $"ブラウザの起動に失敗しました: {Ex.Message}",
                 "C# Game Engine Viewer",
                 OLEMSGICON.OLEMSGICON_CRITICAL,
                 OLEMSGBUTTON.OLEMSGBUTTON_OK,

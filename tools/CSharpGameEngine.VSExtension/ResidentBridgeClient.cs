@@ -35,33 +35,33 @@ internal static class ResidentBridgeClient
     /// second devenv.exe (or the same one restarted) would compute a different name and never find
     /// an already-running server.
     /// </summary>
-    internal static string ComputePipeName(string repoRoot, string bridgeProjectRelativePath)
+    internal static string ComputePipeName(string RepoRoot, string BridgeProjectRelativePath)
     {
-        string seed = $"{Path.GetFullPath(repoRoot)}|{bridgeProjectRelativePath}";
-        using SHA256 sha256 = SHA256.Create();
-        byte[] hash = sha256.ComputeHash(Encoding.UTF8.GetBytes(seed));
-        string hex = BitConverter.ToString(hash).Replace("-", "");
-        return $"CSharpGameEngine.Bridge.{hex}";
+        string Seed = $"{Path.GetFullPath(RepoRoot)}|{BridgeProjectRelativePath}";
+        using SHA256 Sha256 = SHA256.Create();
+        byte[] Hash = Sha256.ComputeHash(Encoding.UTF8.GetBytes(Seed));
+        string Hex = BitConverter.ToString(Hash).Replace("-", "");
+        return $"CSharpGameEngine.Bridge.{Hex}";
     }
 
-    internal static bool TryRun(string executablePath, string repoRoot, string bridgeProjectRelativePath, string firstArg, string outputPath, TimeSpan requestTimeout, out int exitCode, out string output)
+    internal static bool TryRun(string ExecutablePath, string RepoRoot, string BridgeProjectRelativePath, string FirstArg, string OutputPath, TimeSpan RequestTimeout, out int ExitCode, out string Output)
     {
-        string pipeName = ComputePipeName(repoRoot, bridgeProjectRelativePath);
+        string PipeName = ComputePipeName(RepoRoot, BridgeProjectRelativePath);
 
-        if (TryConnectAndRun(pipeName, firstArg, outputPath, requestTimeout, out exitCode, out output))
+        if (TryConnectAndRun(PipeName, FirstArg, OutputPath, RequestTimeout, out ExitCode, out Output))
         {
             return true;
         }
 
-        if (!TrySpawnServer(executablePath, repoRoot, pipeName))
+        if (!TrySpawnServer(ExecutablePath, RepoRoot, PipeName))
         {
             return false;
         }
 
-        DateTime deadline = DateTime.UtcNow + SpawnRetryTimeout;
-        while (DateTime.UtcNow < deadline)
+        DateTime Deadline = DateTime.UtcNow + SpawnRetryTimeout;
+        while (DateTime.UtcNow < Deadline)
         {
-            if (TryConnectAndRun(pipeName, firstArg, outputPath, requestTimeout, out exitCode, out output))
+            if (TryConnectAndRun(PipeName, FirstArg, OutputPath, RequestTimeout, out ExitCode, out Output))
             {
                 return true;
             }
@@ -72,67 +72,67 @@ internal static class ResidentBridgeClient
         return false;
     }
 
-    private static bool TryConnectAndRun(string pipeName, string firstArg, string outputPath, TimeSpan requestTimeout, out int exitCode, out string output)
+    private static bool TryConnectAndRun(string PipeName, string FirstArg, string OutputPath, TimeSpan RequestTimeout, out int ExitCode, out string Output)
     {
-        exitCode = 0;
-        output = string.Empty;
+        ExitCode = 0;
+        Output = string.Empty;
 
         try
         {
-            using NamedPipeClientStream pipe = new(".", pipeName, PipeDirection.InOut, PipeOptions.None);
-            pipe.Connect((int)ConnectTimeout.TotalMilliseconds);
+            using NamedPipeClientStream Pipe = new(".", PipeName, PipeDirection.InOut, PipeOptions.None);
+            Pipe.Connect((int)ConnectTimeout.TotalMilliseconds);
 
-            WriteMessage(pipe, new ResidentBridgeRequest { Args = [firstArg, outputPath] });
-            ResidentBridgeResponse response = ReadMessage<ResidentBridgeResponse>(pipe, requestTimeout);
+            WriteMessage(Pipe, new ResidentBridgeRequest { Args = [FirstArg, OutputPath] });
+            ResidentBridgeResponse Response = ReadMessage<ResidentBridgeResponse>(Pipe, RequestTimeout);
 
-            exitCode = response.ExitCode;
-            output = response.Output;
+            ExitCode = Response.ExitCode;
+            Output = Response.Output;
             return true;
         }
-        catch (Exception ex) when (ex is TimeoutException or IOException or UnauthorizedAccessException or InvalidOperationException)
+        catch (Exception Ex) when (Ex is TimeoutException or IOException or UnauthorizedAccessException or InvalidOperationException)
         {
             return false;
         }
     }
 
-    private static bool TryConnectOnly(string pipeName, TimeSpan connectTimeout)
+    private static bool TryConnectOnly(string PipeName, TimeSpan connectTimeout)
     {
         try
         {
-            using NamedPipeClientStream pipe = new(".", pipeName, PipeDirection.InOut, PipeOptions.None);
-            pipe.Connect((int)connectTimeout.TotalMilliseconds);
+            using NamedPipeClientStream Pipe = new(".", PipeName, PipeDirection.InOut, PipeOptions.None);
+            Pipe.Connect((int)connectTimeout.TotalMilliseconds);
             return true;
         }
-        catch (Exception ex) when (ex is TimeoutException or IOException or UnauthorizedAccessException)
+        catch (Exception Ex) when (Ex is TimeoutException or IOException or UnauthorizedAccessException)
         {
             return false;
         }
     }
 
     /// <summary>
-    /// Launches <paramref name="executablePath"/> (the same prebuilt exe <see cref="BridgeExecutableLocator"/>
+    /// Launches <paramref name="ExecutablePath"/> (the same prebuilt exe <see cref="BridgeExecutableLocator"/>
     /// already found) in <c>--serve</c> mode. Gated by a <see cref="Mutex"/> so N callers racing to
     /// discover "no server running" (e.g. SceneHwndHost warming several distinct meshes in parallel)
     /// spawn at most one process instead of N - losing racers just wait for the winner instead of
     /// each spawning their own, then cleaning up redundant instances afterward.
     /// </summary>
-    private static bool TrySpawnServer(string executablePath, string repoRoot, string pipeName)
+    private static bool TrySpawnServer(string ExecutablePath, string RepoRoot, string PipeName)
     {
-        using Mutex mutex = new(initiallyOwned: false, $@"Global\{pipeName}.SpawnMutex");
+        using Mutex mutex = new(initiallyOwned: false, $@"Global\{PipeName}.SpawnMutex");
 
-        bool acquired;
+        bool Acquired;
         try
         {
-            acquired = mutex.WaitOne(SpawnMutexTimeout);
+            Acquired = mutex.WaitOne(SpawnMutexTimeout);
         }
         catch (AbandonedMutexException)
         {
             // A previous holder (e.g. a devenv.exe that crashed mid-spawn) never released this -
             // treat it as acquired rather than failing forever on every future call.
-            acquired = true;
+            Acquired = true;
         }
 
-        if (!acquired)
+        if (!Acquired)
         {
             // Someone else is presumably spawning right now - TryRun's own retry loop will pick up
             // the connection once it's ready, without us doing anything further here.
@@ -141,25 +141,25 @@ internal static class ResidentBridgeClient
 
         try
         {
-            if (TryConnectOnly(pipeName, ConnectTimeout))
+            if (TryConnectOnly(PipeName, ConnectTimeout))
             {
                 // The mutex's previous holder already finished starting a server - nothing to do.
                 return true;
             }
 
-            ProcessStartInfo startInfo = new(executablePath, $"--serve \"{pipeName}\"")
+            ProcessStartInfo StartInfo = new(ExecutablePath, $"--serve \"{PipeName}\"")
             {
-                WorkingDirectory = repoRoot,
+                WorkingDirectory = RepoRoot,
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 // Deliberately NOT redirecting stdout/stderr: nobody drains those pipes for this
                 // process's 15-minute idle-timeout lifetime, and an unread OS pipe buffer filling up
                 // would block the server's own writes and hang it.
             };
-            Process.Start(startInfo);
+            Process.Start(StartInfo);
             return true;
         }
-        catch (Exception ex) when (ex is InvalidOperationException or Win32Exception)
+        catch (Exception Ex) when (Ex is InvalidOperationException or Win32Exception)
         {
             return false;
         }
@@ -169,12 +169,12 @@ internal static class ResidentBridgeClient
         }
     }
 
-    private static void WriteMessage<T>(Stream stream, T value)
+    private static void WriteMessage<T>(Stream stream, T Value)
     {
-        byte[] payload = JsonSerializer.SerializeToUtf8Bytes(value);
-        byte[] lengthPrefix = BitConverter.GetBytes(payload.Length);
-        stream.Write(lengthPrefix, 0, lengthPrefix.Length);
-        stream.Write(payload, 0, payload.Length);
+        byte[] Payload = JsonSerializer.SerializeToUtf8Bytes(Value);
+        byte[] LengthPrefix = BitConverter.GetBytes(Payload.Length);
+        stream.Write(LengthPrefix, 0, LengthPrefix.Length);
+        stream.Write(Payload, 0, Payload.Length);
         stream.Flush();
     }
 
@@ -197,61 +197,61 @@ internal static class ResidentBridgeClient
     /// </summary>
     private static T ReadMessage<T>(Stream stream, TimeSpan timeout)
     {
-        T? result = default;
-        Exception? error = null;
-        using ManualResetEventSlim completed = new(initialState: false);
+        T? Result = default;
+        Exception? Error = null;
+        using ManualResetEventSlim Completed = new(initialState: false);
 
-        Thread readerThread = new(() =>
+        Thread ReaderThread = new(() =>
         {
             try
             {
-                byte[] lengthPrefix = ReadExactly(stream, 4);
-                int length = BitConverter.ToInt32(lengthPrefix, 0);
-                byte[] payload = ReadExactly(stream, length);
+                byte[] LengthPrefix = ReadExactly(stream, 4);
+                int Length = BitConverter.ToInt32(LengthPrefix, 0);
+                byte[] Payload = ReadExactly(stream, Length);
 
-                result = JsonSerializer.Deserialize<T>(payload)
+                Result = JsonSerializer.Deserialize<T>(Payload)
                     ?? throw new InvalidOperationException("常駐ブリッジサーバーからの応答が空でした。");
             }
-            catch (Exception ex)
+            catch (Exception Ex)
             {
-                error = ex;
+                Error = Ex;
             }
             finally
             {
-                completed.Set();
+                Completed.Set();
             }
         })
         { IsBackground = true };
-        readerThread.Start();
+        ReaderThread.Start();
 
-        if (!completed.Wait(timeout))
+        if (!Completed.Wait(timeout))
         {
             throw new TimeoutException("常駐ブリッジサーバーからの応答がタイムアウトしました。");
         }
 
-        if (error is not null)
+        if (Error is not null)
         {
             // Preserves the original stack trace/type (unlike a bare `throw error;`) - matters here
             // since TryConnectAndRun's catch filter matches on the exception's original type.
-            ExceptionDispatchInfo.Capture(error).Throw();
+            ExceptionDispatchInfo.Capture(Error).Throw();
         }
 
-        return result!;
+        return Result!;
     }
 
-    private static byte[] ReadExactly(Stream stream, int count)
+    private static byte[] ReadExactly(Stream stream, int Count)
     {
-        byte[] buffer = new byte[count];
-        int offset = 0;
-        while (offset < count)
+        byte[] buffer = new byte[Count];
+        int Offset = 0;
+        while (Offset < Count)
         {
-            int read = stream.Read(buffer, offset, count - offset);
-            if (read == 0)
+            int Read = stream.Read(buffer, Offset, Count - Offset);
+            if (Read == 0)
             {
                 throw new IOException("常駐ブリッジサーバーとの接続が予期せず切断されました。");
             }
 
-            offset += read;
+            Offset += Read;
         }
 
         return buffer;

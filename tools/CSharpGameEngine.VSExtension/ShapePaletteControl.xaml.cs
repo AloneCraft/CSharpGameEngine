@@ -15,13 +15,13 @@ public partial class ShapePaletteControl : UserControl
         InitializeComponent();
     }
 
-    private void PrimitiveButton_Click(object sender, RoutedEventArgs e)
+    private void PrimitiveButton_Click(object Sender, RoutedEventArgs E)
     {
-        if (sender is not Button { Tag: string primitiveKind })
+        if (Sender is not Button { Tag: string PrimitiveKind })
         {
             return;
         }
 
-        _ = PrimitiveSpawner.SpawnAsync(primitiveKind);
+        _ = PrimitiveSpawner.SpawnAsync(PrimitiveKind);
     }
 }

@@ -1,27 +1,27 @@
-﻿namespace CSharpGameEngine.Entities.Tests;
+namespace CSharpGameEngine.Entities.Tests;
 
 public class SceneAuthoringSpec
 {
     [Fact]
     public void SceneNodeId_Equality_IsValueBased()
     {
-        SceneNodeId a = new(42UL);
-        SceneNodeId b = new(42UL);
-        SceneNodeId c = new(43UL);
+        SceneNodeId A = new(42UL);
+        SceneNodeId B = new(42UL);
+        SceneNodeId C = new(43UL);
 
-        Assert.Equal(a, b);
-        Assert.NotEqual(a, c);
+        Assert.Equal(A, B);
+        Assert.NotEqual(A, C);
     }
 
     [Fact]
     public void SceneNodeSymbol_Equality_IsValueBased()
     {
-        SceneNodeSymbol a = new(new SceneNodeId(1UL), "Root");
-        SceneNodeSymbol b = new(new SceneNodeId(1UL), "Root");
-        SceneNodeSymbol c = new(new SceneNodeId(1UL), "Player");
+        SceneNodeSymbol A = new(new SceneNodeId(1UL), "Root");
+        SceneNodeSymbol B = new(new SceneNodeId(1UL), "Root");
+        SceneNodeSymbol C = new(new SceneNodeId(1UL), "Player");
 
-        Assert.Equal(a, b);
-        Assert.NotEqual(a, c);
+        Assert.Equal(A, B);
+        Assert.NotEqual(A, C);
     }
 
     [Fact]
@@ -29,11 +29,11 @@ public class SceneAuthoringSpec
     {
         World world = new();
 
-        Entity root = world.Create(new Position());
-        Entity child = world.Create(new Position(), new Parent { Value = root });
+        Entity Root = world.Create(new Position());
+        Entity Child = world.Create(new Position(), new Parent { Value = Root });
 
-        Assert.Equal(root, world.Archetype2.GetParentRefUnchecked(0).Value);
-        Assert.Equal(child, world.Archetype2.GetEntityRefUnchecked(0));
+        Assert.Equal(Root, world.Archetype2.GetParentRefUnchecked(0).Value);
+        Assert.Equal(Child, world.Archetype2.GetEntityRefUnchecked(0));
     }
 
     [Fact]
@@ -50,66 +50,66 @@ public class SceneAuthoringSpec
     [Fact]
     public void SceneBuilder_Create_InvokesDefinitionCallback()
     {
-        SceneBuilder builder = new();
-        bool invoked = false;
+        SceneBuilder Builder = new();
+        bool Invoked = false;
 
-        builder.Create(new SceneNodeSymbol(new SceneNodeId(1UL), "Root"), _ => invoked = true);
+        Builder.Create(new SceneNodeSymbol(new SceneNodeId(1UL), "Root"), _ => Invoked = true);
 
-        Assert.True(invoked);
+        Assert.True(Invoked);
     }
 
     [Fact]
     public void SceneBuilder_Create_NullDefinition_Throws()
     {
-        SceneBuilder builder = new();
+        SceneBuilder Builder = new();
 
         Assert.Throws<ArgumentNullException>(
-            () => builder.Create(new SceneNodeSymbol(new SceneNodeId(1UL), "Root"), null!));
+            () => Builder.Create(new SceneNodeSymbol(new SceneNodeId(1UL), "Root"), null!));
     }
 
     [Fact]
     public void SceneNodeBuilder_Symbol_ReturnsConstructorValue()
     {
-        SceneNodeSymbol symbol = new(new SceneNodeId(7UL), "Root");
-        SceneNodeSymbol? observed = null;
+        SceneNodeSymbol Symbol = new(new SceneNodeId(7UL), "Root");
+        SceneNodeSymbol? Observed = null;
 
-        new SceneBuilder().Create(symbol, node => observed = node.Symbol);
+        new SceneBuilder().Create(Symbol, Node => Observed = Node.Symbol);
 
-        Assert.Equal(symbol, observed);
+        Assert.Equal(Symbol, Observed);
     }
 
     [Fact]
     public void SceneNodeBuilder_Create_InvokesChildDefinitionCallback_WithChildSymbol()
     {
-        SceneBuilder builder = new();
-        SceneNodeSymbol childSymbol = new(new SceneNodeId(2UL), "Child");
-        SceneNodeSymbol? observed = null;
+        SceneBuilder Builder = new();
+        SceneNodeSymbol ChildSymbol = new(new SceneNodeId(2UL), "Child");
+        SceneNodeSymbol? Observed = null;
 
-        builder.Create(new SceneNodeSymbol(new SceneNodeId(1UL), "Root"), node =>
+        Builder.Create(new SceneNodeSymbol(new SceneNodeId(1UL), "Root"), Node =>
         {
-            node.Create(childSymbol, child => observed = child.Symbol);
+            Node.Create(ChildSymbol, Child => Observed = Child.Symbol);
         });
 
-        Assert.Equal(childSymbol, observed);
+        Assert.Equal(ChildSymbol, Observed);
     }
 
     [Fact]
     public void SceneNodeBuilder_Create_NullDefinition_Throws()
     {
-        SceneBuilder builder = new();
+        SceneBuilder Builder = new();
 
-        Assert.Throws<ArgumentNullException>(() => builder.Create(
+        Assert.Throws<ArgumentNullException>(() => Builder.Create(
             new SceneNodeSymbol(new SceneNodeId(1UL), "Root"),
-            node => node.Create(new SceneNodeSymbol(new SceneNodeId(2UL), "Child"), null!)));
+            Node => Node.Create(new SceneNodeSymbol(new SceneNodeId(2UL), "Child"), null!)));
     }
 
     [Fact]
     public void SceneNodeBuilder_Set_DoesNotThrow()
     {
-        SceneBuilder builder = new();
+        SceneBuilder Builder = new();
 
         Exception? exception = Record.Exception(() =>
-            builder.Create(new SceneNodeSymbol(new SceneNodeId(1UL), "Root"), node => node.Set(new Position())));
+            Builder.Create(new SceneNodeSymbol(new SceneNodeId(1UL), "Root"), Node => Node.Set(new Position())));
 
         Assert.Null(exception);
     }

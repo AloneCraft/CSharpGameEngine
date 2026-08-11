@@ -16,45 +16,45 @@ internal sealed class GlbFbxPreviewEditorFactory : IVsEditorFactory
 {
     public const string FactoryGuidString = "6a2f0f1f-3b6a-4e6f-9b1b-3a6a2f0f1f3b";
 
-    public int SetSite(Microsoft.VisualStudio.OLE.Interop.IServiceProvider psp) => VSConstants.S_OK;
+    public int SetSite(Microsoft.VisualStudio.OLE.Interop.IServiceProvider Psp) => VSConstants.S_OK;
 
     public int Close() => VSConstants.S_OK;
 
     public int CreateEditorInstance(
-        uint grfCreateDoc,
-        string pszMkDocument,
-        string pszPhysicalView,
-        IVsHierarchy pvHier,
-        uint itemid,
-        IntPtr punkDocDataExisting,
-        out IntPtr ppunkDocView,
-        out IntPtr ppunkDocData,
-        out string pbstrEditorCaption,
-        out Guid pguidCmdUI,
-        out int pgrfCDW)
+        uint GrfCreateDoc,
+        string PszMkDocument,
+        string PszPhysicalView,
+        IVsHierarchy PvHier,
+        uint Itemid,
+        IntPtr PunkDocDataExisting,
+        out IntPtr PpunkDocView,
+        out IntPtr PpunkDocData,
+        out string PbstrEditorCaption,
+        out Guid PguidCmdUI,
+        out int PgrfCDW)
     {
-        ppunkDocView = IntPtr.Zero;
-        ppunkDocData = IntPtr.Zero;
-        pbstrEditorCaption = string.Empty;
-        pguidCmdUI = Guid.Empty;
-        pgrfCDW = 0;
+        PpunkDocView = IntPtr.Zero;
+        PpunkDocData = IntPtr.Zero;
+        PbstrEditorCaption = string.Empty;
+        PguidCmdUI = Guid.Empty;
+        PgrfCDW = 0;
 
-        if (punkDocDataExisting != IntPtr.Zero)
+        if (PunkDocDataExisting != IntPtr.Zero)
         {
             // We don't know how to adopt someone else's docData - only ever create fresh.
             return VSConstants.VS_E_INCOMPATIBLEDOCDATA;
         }
 
-        AssetPreviewWindowPane pane = new(pszMkDocument);
-        ppunkDocView = Marshal.GetIUnknownForObject(pane);
-        ppunkDocData = Marshal.GetIUnknownForObject(pane);
+        AssetPreviewWindowPane Pane = new(PszMkDocument);
+        PpunkDocView = Marshal.GetIUnknownForObject(Pane);
+        PpunkDocData = Marshal.GetIUnknownForObject(Pane);
         return VSConstants.S_OK;
     }
 
-    public int MapLogicalView(ref Guid rguidLogicalView, out string pbstrPhysicalView)
+    public int MapLogicalView(ref Guid RguidLogicalView, out string PbstrPhysicalView)
     {
-        pbstrPhysicalView = null!;
-        return rguidLogicalView == VSConstants.LOGVIEWID_Primary || rguidLogicalView == VSConstants.LOGVIEWID_Designer
+        PbstrPhysicalView = null!;
+        return RguidLogicalView == VSConstants.LOGVIEWID_Primary || RguidLogicalView == VSConstants.LOGVIEWID_Designer
             ? VSConstants.S_OK
             : VSConstants.E_NOTIMPL;
     }

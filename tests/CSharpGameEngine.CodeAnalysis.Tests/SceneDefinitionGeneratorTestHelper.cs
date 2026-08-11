@@ -38,76 +38,76 @@ internal static class SceneDefinitionGeneratorTestHelper
         }
         """;
 
-    internal static CSharpCompilation CreateCompilation(params string[] sources) =>
-        CreateCompilation(LanguageVersion.Latest, sources);
+    internal static CSharpCompilation CreateCompilation(params string[] Sources) =>
+        CreateCompilation(LanguageVersion.Latest, Sources);
 
-    internal static CSharpCompilation CreateCompilation(LanguageVersion languageVersion, params string[] sources)
+    internal static CSharpCompilation CreateCompilation(LanguageVersion languageVersion, params string[] Sources)
     {
-        List<MetadataReference> references = [];
+        List<MetadataReference> References = [];
 
         foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
         {
             if (!assembly.IsDynamic && !string.IsNullOrEmpty(assembly.Location))
             {
-                references.Add(MetadataReference.CreateFromFile(assembly.Location));
+                References.Add(MetadataReference.CreateFromFile(assembly.Location));
             }
         }
 
         CSharpParseOptions parseOptions = new(languageVersion);
-        List<string> allSources =
+        List<string> AllSources =
         [
             ImplicitUsingsSource,
             GameSystemGeneratorTestHelper.RuntimeSource,
             .. GameSystemGeneratorTestHelper.SceneAuthoringSources,
-            .. sources,
+            .. Sources,
         ];
 
         return CSharpCompilation.Create(
             "SceneDefinitionGeneratorTestAssembly",
-            [.. allSources.Select(source => CSharpSyntaxTree.ParseText(source, parseOptions))],
-            references,
+            [.. AllSources.Select(Source => CSharpSyntaxTree.ParseText(Source, parseOptions))],
+            References,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
     }
 
     internal static GeneratorDriverRunResult RunGenerator(CSharpCompilation compilation)
     {
-        GeneratorDriver driver = CSharpGeneratorDriver.Create(new GameSystemGenerator());
-        driver = driver.RunGenerators(compilation);
-        return driver.GetRunResult();
+        GeneratorDriver Driver = CSharpGeneratorDriver.Create(new GameSystemGenerator());
+        Driver = Driver.RunGenerators(compilation);
+        return Driver.GetRunResult();
     }
 
-    internal static GeneratorDriverRunResult RunGenerator(params string[] sources) =>
-        RunGenerator(CreateCompilation(sources));
+    internal static GeneratorDriverRunResult RunGenerator(params string[] Sources) =>
+        RunGenerator(CreateCompilation(Sources));
 
     /// <summary>生成コードを合流させた最終コンパイルを実際にEmitしてメモリ上に読み込む。E2Eテストがリフレクションで実行結果を検証するために使う。</summary>
-    internal static Assembly CompileAndLoad(params string[] sources)
+    internal static Assembly CompileAndLoad(params string[] Sources)
     {
-        CSharpCompilation compilation = CreateCompilation(sources);
-        GeneratorDriver driver = CSharpGeneratorDriver.Create(new GameSystemGenerator());
-        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out Compilation outputCompilation, out ImmutableArray<Diagnostic> generatorDiagnostics);
+        CSharpCompilation compilation = CreateCompilation(Sources);
+        GeneratorDriver Driver = CSharpGeneratorDriver.Create(new GameSystemGenerator());
+        Driver = Driver.RunGeneratorsAndUpdateCompilation(compilation, out Compilation OutputCompilation, out ImmutableArray<Diagnostic> GeneratorDiagnostics);
 
-        if (!generatorDiagnostics.IsEmpty)
+        if (!GeneratorDiagnostics.IsEmpty)
         {
-            throw new InvalidOperationException("Generator diagnostics:\n" + string.Join("\n", generatorDiagnostics));
+            throw new InvalidOperationException("Generator diagnostics:\n" + string.Join("\n", GeneratorDiagnostics));
         }
 
         using MemoryStream stream = new();
-        EmitResult emitResult = outputCompilation.Emit(stream);
+        EmitResult emitResult = OutputCompilation.Emit(stream);
 
         if (!emitResult.Success)
         {
-            IEnumerable<Diagnostic> errors = emitResult.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error);
-            throw new InvalidOperationException("Compilation failed:\n" + string.Join("\n", errors));
+            IEnumerable<Diagnostic> Errors = emitResult.Diagnostics.Where(D => D.Severity == DiagnosticSeverity.Error);
+            throw new InvalidOperationException("Compilation failed:\n" + string.Join("\n", Errors));
         }
 
         return Assembly.Load(stream.ToArray());
     }
 
-    internal static object? Invoke(Assembly assembly, string typeFullName, string methodName, params object?[]? args)
+    internal static object? Invoke(Assembly assembly, string TypeFullName, string MethodName, params object?[]? Args)
     {
-        Type type = assembly.GetType(typeFullName) ?? throw new InvalidOperationException($"Type '{typeFullName}' not found.");
-        MethodInfo method = type.GetMethod(methodName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-            ?? throw new InvalidOperationException($"Method '{methodName}' not found on '{typeFullName}'.");
-        return method.Invoke(null, args);
+        Type type = assembly.GetType(TypeFullName) ?? throw new InvalidOperationException($"Type '{TypeFullName}' not found.");
+        MethodInfo Method = type.GetMethod(MethodName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException($"Method '{MethodName}' not found on '{TypeFullName}'.");
+        return Method.Invoke(null, Args);
     }
 }

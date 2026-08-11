@@ -7,20 +7,20 @@ public class BoundingBoxTests
     [Fact]
     public void FromPoints_ComputesCenterExtentsAndRadius()
     {
-        Vector3[] points =
+        Vector3[] Points =
         [
             new Vector3(-1, -2, -3),
             new Vector3(1, 2, 3),
             new Vector3(0, 0, 0),
         ];
 
-        BoundingBox box = BoundingBox.FromPoints(points);
+        BoundingBox Box = BoundingBox.FromPoints(Points);
 
-        Assert.Equal(new Vector3(-1, -2, -3), box.Min);
-        Assert.Equal(new Vector3(1, 2, 3), box.Max);
-        Assert.Equal(Vector3.Zero, box.Center);
-        Assert.Equal(new Vector3(1, 2, 3), box.Extents);
-        Assert.Equal(new Vector3(1, 2, 3).Length(), box.BoundingSphereRadius, precision: 5);
+        Assert.Equal(new Vector3(-1, -2, -3), Box.Min);
+        Assert.Equal(new Vector3(1, 2, 3), Box.Max);
+        Assert.Equal(Vector3.Zero, Box.Center);
+        Assert.Equal(new Vector3(1, 2, 3), Box.Extents);
+        Assert.Equal(new Vector3(1, 2, 3).Length(), Box.BoundingSphereRadius, precision: 5);
     }
 
     [Fact]

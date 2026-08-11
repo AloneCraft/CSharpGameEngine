@@ -43,7 +43,7 @@ public sealed class SceneDefinitionGeneratorEndToEndTests
     [Fact]
     public void CreateRuntime_BuildsEntityGraph_WithParentAndComponentsFromDefine()
     {
-        string source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
+        string Source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
 
 
             [SceneDefinition]
@@ -113,16 +113,16 @@ public sealed class SceneDefinitionGeneratorEndToEndTests
             }
             """ + SnapshotHelpers;
 
-        Assembly assembly = SceneDefinitionGeneratorTestHelper.CompileAndLoad(source);
-        object? result = SceneDefinitionGeneratorTestHelper.Invoke(assembly, "Sample.TestEntry", "RunScenario");
+        Assembly assembly = SceneDefinitionGeneratorTestHelper.CompileAndLoad(Source);
+        object? Result = SceneDefinitionGeneratorTestHelper.Invoke(assembly, "Sample.TestEntry", "RunScenario");
 
-        Assert.Equal("OK", result);
+        Assert.Equal("OK", Result);
     }
 
     [Fact]
     public void CreateRuntime_EmptyNode_GetsSceneNodeTag_AndSingleSetComponentIsApplied()
     {
-        string source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
+        string Source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
 
 
             [SceneDefinition]
@@ -169,9 +169,9 @@ public sealed class SceneDefinitionGeneratorEndToEndTests
             }
             """ + SnapshotHelpers;
 
-        Assembly assembly = SceneDefinitionGeneratorTestHelper.CompileAndLoad(source);
-        object? result = SceneDefinitionGeneratorTestHelper.Invoke(assembly, "Sample.TestEntry", "RunScenario");
+        Assembly assembly = SceneDefinitionGeneratorTestHelper.CompileAndLoad(Source);
+        object? Result = SceneDefinitionGeneratorTestHelper.Invoke(assembly, "Sample.TestEntry", "RunScenario");
 
-        Assert.Equal("OK", result);
+        Assert.Equal("OK", Result);
     }
 }

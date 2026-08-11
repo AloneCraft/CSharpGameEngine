@@ -10,21 +10,21 @@ public readonly record struct BoundingBox(Vector3 Min, Vector3 Max)
 
     public float BoundingSphereRadius => Extents.Length();
 
-    public static BoundingBox FromPoints(IReadOnlyList<Vector3> points)
+    public static BoundingBox FromPoints(IReadOnlyList<Vector3> Points)
     {
-        ArgumentNullException.ThrowIfNull(points);
-        if (points.Count == 0)
+        ArgumentNullException.ThrowIfNull(Points);
+        if (Points.Count == 0)
         {
-            throw new ArgumentException("Cannot compute a bounding box from an empty point list.", nameof(points));
+            throw new ArgumentException("Cannot compute a bounding box from an empty point list.", nameof(Points));
         }
 
-        Vector3 min = points[0];
-        Vector3 max = points[0];
+        Vector3 min = Points[0];
+        Vector3 max = Points[0];
 
-        for (int i = 1; i < points.Count; i++)
+        for (int i = 1; i < Points.Count; i++)
         {
-            min = Vector3.Min(min, points[i]);
-            max = Vector3.Max(max, points[i]);
+            min = Vector3.Min(min, Points[i]);
+            max = Vector3.Max(max, Points[i]);
         }
 
         return new BoundingBox(min, max);

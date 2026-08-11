@@ -19,10 +19,10 @@ public class UnitConversionTests
     [Fact]
     public void MetersCentimeters_RoundTrip()
     {
-        float original = 173.4f;
-        float roundTripped = UnitConversion.CentimetersFromMeters(UnitConversion.MetersFromCentimeters(original));
+        float Original = 173.4f;
+        float RoundTripped = UnitConversion.CentimetersFromMeters(UnitConversion.MetersFromCentimeters(Original));
 
-        Assert.Equal(original, roundTripped, precision: 3);
+        Assert.Equal(Original, RoundTripped, precision: 3);
     }
 
     [Fact]
@@ -36,9 +36,9 @@ public class UnitConversionTests
     [Fact]
     public void DegreesRadians_RoundTrip()
     {
-        float original = 57.3f;
-        float roundTripped = UnitConversion.DegreesFromRadians(UnitConversion.RadiansFromDegrees(original));
+        float Original = 57.3f;
+        float RoundTripped = UnitConversion.DegreesFromRadians(UnitConversion.RadiansFromDegrees(Original));
 
-        Assert.Equal(original, roundTripped, precision: 3);
+        Assert.Equal(Original, RoundTripped, precision: 3);
     }
 }

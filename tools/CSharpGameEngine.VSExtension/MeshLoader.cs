@@ -22,21 +22,21 @@ internal static class MeshLoader
 {
     private static readonly ConcurrentDictionary<string, (SimpleMesh Mesh, DateTime LastWriteTimeUtc)> Cache = new(StringComparer.OrdinalIgnoreCase);
 
-    public static SimpleMesh Load(string modelPath, string repoRoot)
+    public static SimpleMesh Load(string ModelPath, string RepoRoot)
     {
-        string fullPath = Path.GetFullPath(modelPath);
-        DateTime lastWriteTimeUtc = File.GetLastWriteTimeUtc(fullPath);
+        string FullPath = Path.GetFullPath(ModelPath);
+        DateTime LastWriteTimeUtc = File.GetLastWriteTimeUtc(FullPath);
 
-        if (Cache.TryGetValue(fullPath, out var cached) && cached.LastWriteTimeUtc == lastWriteTimeUtc)
+        if (Cache.TryGetValue(FullPath, out var Cached) && Cached.LastWriteTimeUtc == LastWriteTimeUtc)
         {
-            return cached.Mesh;
+            return Cached.Mesh;
         }
 
-        SimpleMesh mesh = string.Equals(Path.GetExtension(fullPath), ".fbx", StringComparison.OrdinalIgnoreCase)
-            ? ExternalFbxLoader.Load(fullPath, repoRoot)
-            : ExternalGltfLoader.Load(fullPath, repoRoot);
+        SimpleMesh Mesh = string.Equals(Path.GetExtension(FullPath), ".fbx", StringComparison.OrdinalIgnoreCase)
+            ? ExternalFbxLoader.Load(FullPath, RepoRoot)
+            : ExternalGltfLoader.Load(FullPath, RepoRoot);
 
-        Cache[fullPath] = (mesh, lastWriteTimeUtc);
-        return mesh;
+        Cache[FullPath] = (Mesh, LastWriteTimeUtc);
+        return Mesh;
     }
 }

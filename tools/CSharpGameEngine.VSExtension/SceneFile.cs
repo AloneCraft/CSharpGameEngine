@@ -53,23 +53,23 @@ internal sealed class SceneFile
 
     public static SceneFile Load(string path) => Parse(File.ReadAllText(path));
 
-    public static SceneFile Parse(string json)
+    public static SceneFile Parse(string Json)
     {
-        JsonDocumentDto document = JsonSerializer.Deserialize<JsonDocumentDto>(json, JsonOptions)
+        JsonDocumentDto Document = JsonSerializer.Deserialize<JsonDocumentDto>(Json, JsonOptions)
             ?? throw new InvalidDataException("シーンJSONの読み込みに失敗しました。");
 
-        List<SceneFileNode> nodes = new(document.Nodes.Count);
-        foreach (JsonNodeDto node in document.Nodes)
+        List<SceneFileNode> nodes = new(Document.Nodes.Count);
+        foreach (JsonNodeDto Node in Document.Nodes)
         {
             nodes.Add(new SceneFileNode
             {
-                Id = Guid.ParseExact(node.Id, "D"),
-                Name = node.Name,
-                ParentId = node.ParentId is null ? null : Guid.ParseExact(node.ParentId, "D"),
-                Position = ToVector3(node.Transform.Position),
-                Rotation = ToQuaternion(node.Transform.Rotation),
-                Scale = ToVector3(node.Transform.Scale),
-                MeshAssetPath = node.MeshAssetPath,
+                Id = Guid.ParseExact(Node.Id, "D"),
+                Name = Node.Name,
+                ParentId = Node.ParentId is null ? null : Guid.ParseExact(Node.ParentId, "D"),
+                Position = ToVector3(Node.Transform.Position),
+                Rotation = ToQuaternion(Node.Transform.Rotation),
+                Scale = ToVector3(Node.Transform.Scale),
+                MeshAssetPath = Node.MeshAssetPath,
             });
         }
 
@@ -80,41 +80,41 @@ internal sealed class SceneFile
 
     public string ToJson()
     {
-        JsonDocumentDto document = new()
+        JsonDocumentDto Document = new()
         {
             SchemaVersion = 1,
             Nodes = [.. Nodes.Select(ToJsonNode)],
         };
 
-        return JsonSerializer.Serialize(document, JsonOptions);
+        return JsonSerializer.Serialize(Document, JsonOptions);
     }
 
-    private static JsonNodeDto ToJsonNode(SceneFileNode node) => new()
+    private static JsonNodeDto ToJsonNode(SceneFileNode Node) => new()
     {
-        Id = node.Id.ToString("D"),
-        Name = node.Name,
-        ParentId = node.ParentId?.ToString("D"),
+        Id = Node.Id.ToString("D"),
+        Name = Node.Name,
+        ParentId = Node.ParentId?.ToString("D"),
         Transform = new JsonTransformDto
         {
-            Position = FromVector3(node.Position),
-            Rotation = FromQuaternion(node.Rotation),
-            Scale = FromVector3(node.Scale),
+            Position = FromVector3(Node.Position),
+            Rotation = FromQuaternion(Node.Rotation),
+            Scale = FromVector3(Node.Scale),
         },
-        MeshAssetPath = node.MeshAssetPath,
+        MeshAssetPath = Node.MeshAssetPath,
     };
 
-    private static float[] FromVector3(Vector3 v) => [v.X, v.Y, v.Z];
+    private static float[] FromVector3(Vector3 V) => [V.X, V.Y, V.Z];
 
-    private static float[] FromQuaternion(Quaternion q) => [q.X, q.Y, q.Z, q.W];
+    private static float[] FromQuaternion(Quaternion Q) => [Q.X, Q.Y, Q.Z, Q.W];
 
-    /// <summary>Returns a new <see cref="SceneFile"/> with <paramref name="node"/> appended - this type is immutable, so callers must re-<see cref="Save"/> the result (ADR-0021's shape-palette "add primitive" flow).</summary>
-    public SceneFile AddNode(SceneFileNode node) => new() { Nodes = [.. Nodes, node] };
+    /// <summary>Returns a new <see cref="SceneFile"/> with <paramref name="Node"/> appended - this type is immutable, so callers must re-<see cref="Save"/> the result (ADR-0021's shape-palette "add primitive" flow).</summary>
+    public SceneFile AddNode(SceneFileNode Node) => new() { Nodes = [.. Nodes, Node] };
 
     /// <summary>The first node with no parent, or null for an empty/parent-less-free scene. Used to attach newly-spawned primitives under the scene's root (ADR-0021).</summary>
-    public Guid? FindFirstRootNodeId() => Nodes.FirstOrDefault(n => n.ParentId is null)?.Id;
+    public Guid? FindFirstRootNodeId() => Nodes.FirstOrDefault(N => N.ParentId is null)?.Id;
 
     /// <summary>True if any existing node already has this exact name - used to pick a non-colliding "Sphere_1"-style name for a newly-spawned primitive (ADR-0021).</summary>
-    public bool ContainsNodeNamed(string name) => Nodes.Any(n => n.Name == name);
+    public bool ContainsNodeNamed(string Name) => Nodes.Any(N => N.Name == Name);
 
     /// <summary>
     /// Resolves every node's world-space transform by walking its parent chain (child's
@@ -125,41 +125,41 @@ internal sealed class SceneFile
     /// </summary>
     public IReadOnlyDictionary<Guid, Matrix4x4> ComputeWorldTransforms()
     {
-        Dictionary<Guid, SceneFileNode> byId = [];
-        foreach (SceneFileNode node in Nodes)
+        Dictionary<Guid, SceneFileNode> ById = [];
+        foreach (SceneFileNode Node in Nodes)
         {
-            byId[node.Id] = node;
+            ById[Node.Id] = Node;
         }
 
-        Dictionary<Guid, Matrix4x4> resolved = [];
-        HashSet<Guid> visiting = [];
+        Dictionary<Guid, Matrix4x4> Resolved = [];
+        HashSet<Guid> Visiting = [];
         foreach (SceneFileNode node in Nodes)
         {
-            ResolveWorldTransform(node, byId, resolved, visiting);
+            ResolveWorldTransform(node, ById, Resolved, Visiting);
         }
 
-        return resolved;
+        return Resolved;
     }
 
-    private static Matrix4x4 ResolveWorldTransform(SceneFileNode node, Dictionary<Guid, SceneFileNode> byId, Dictionary<Guid, Matrix4x4> resolved, HashSet<Guid> visiting)
+    private static Matrix4x4 ResolveWorldTransform(SceneFileNode Node, Dictionary<Guid, SceneFileNode> ById, Dictionary<Guid, Matrix4x4> Resolved, HashSet<Guid> Visiting)
     {
-        if (resolved.TryGetValue(node.Id, out Matrix4x4 cached))
+        if (Resolved.TryGetValue(Node.Id, out Matrix4x4 Cached))
         {
-            return cached;
+            return Cached;
         }
 
-        if (!visiting.Add(node.Id))
+        if (!Visiting.Add(Node.Id))
         {
-            throw new InvalidOperationException($"シーンノードの親子関係に循環参照が検出されました(ノードId: {node.Id})。");
+            throw new InvalidOperationException($"シーンノードの親子関係に循環参照が検出されました(ノードId: {Node.Id})。");
         }
 
-        Matrix4x4 world = node.ParentId is Guid parentId && byId.TryGetValue(parentId, out SceneFileNode? parent)
-            ? node.LocalTransform * ResolveWorldTransform(parent, byId, resolved, visiting)
-            : node.LocalTransform;
+        Matrix4x4 World = Node.ParentId is Guid ParentId && ById.TryGetValue(ParentId, out SceneFileNode? Parent)
+            ? Node.LocalTransform * ResolveWorldTransform(Parent, ById, Resolved, Visiting)
+            : Node.LocalTransform;
 
-        visiting.Remove(node.Id);
-        resolved[node.Id] = world;
-        return world;
+        Visiting.Remove(Node.Id);
+        Resolved[Node.Id] = World;
+        return World;
     }
 
     /// <summary>
@@ -170,66 +170,66 @@ internal sealed class SceneFile
     /// </summary>
     public IReadOnlyList<SceneFileNodeTreeItem> BuildTree()
     {
-        Dictionary<Guid, SceneFileNode> byId = [];
-        foreach (SceneFileNode node in Nodes)
+        Dictionary<Guid, SceneFileNode> ById = [];
+        foreach (SceneFileNode Node in Nodes)
         {
-            byId[node.Id] = node;
+            ById[Node.Id] = Node;
         }
 
-        Dictionary<Guid, List<SceneFileNode>> childrenByParent = [];
+        Dictionary<Guid, List<SceneFileNode>> ChildrenByParent = [];
         foreach (SceneFileNode node in Nodes)
         {
-            if (node.ParentId is Guid parentId && byId.ContainsKey(parentId))
+            if (node.ParentId is Guid ParentId && ById.ContainsKey(ParentId))
             {
-                if (!childrenByParent.TryGetValue(parentId, out List<SceneFileNode>? siblings))
+                if (!ChildrenByParent.TryGetValue(ParentId, out List<SceneFileNode>? Siblings))
                 {
-                    siblings = [];
-                    childrenByParent[parentId] = siblings;
+                    Siblings = [];
+                    ChildrenByParent[ParentId] = Siblings;
                 }
 
-                siblings.Add(node);
+                Siblings.Add(node);
             }
         }
 
-        HashSet<Guid> visited = [];
-        List<SceneFileNodeTreeItem> roots = [];
+        HashSet<Guid> Visited = [];
+        List<SceneFileNodeTreeItem> Roots = [];
         foreach (SceneFileNode node in Nodes)
         {
-            bool isRoot = node.ParentId is null || !byId.ContainsKey(node.ParentId.Value);
-            if (isRoot)
+            bool IsRoot = node.ParentId is null || !ById.ContainsKey(node.ParentId.Value);
+            if (IsRoot)
             {
-                roots.Add(BuildItem(node, childrenByParent, visited));
+                Roots.Add(BuildItem(node, ChildrenByParent, Visited));
             }
         }
 
-        if (visited.Count != Nodes.Count)
+        if (Visited.Count != Nodes.Count)
         {
             throw new InvalidOperationException(
-                $"シーンノードの親子関係に循環参照または解決不能な参照があります({Nodes.Count - visited.Count}件のノードがツリーに到達できません)。");
+                $"シーンノードの親子関係に循環参照または解決不能な参照があります({Nodes.Count - Visited.Count}件のノードがツリーに到達できません)。");
         }
 
-        return roots;
+        return Roots;
     }
 
-    private static SceneFileNodeTreeItem BuildItem(SceneFileNode node, Dictionary<Guid, List<SceneFileNode>> childrenByParent, HashSet<Guid> visited)
+    private static SceneFileNodeTreeItem BuildItem(SceneFileNode Node, Dictionary<Guid, List<SceneFileNode>> ChildrenByParent, HashSet<Guid> Visited)
     {
-        visited.Add(node.Id);
+        Visited.Add(Node.Id);
 
-        List<SceneFileNodeTreeItem> children = [];
-        if (childrenByParent.TryGetValue(node.Id, out List<SceneFileNode>? childNodes))
+        List<SceneFileNodeTreeItem> Children = [];
+        if (ChildrenByParent.TryGetValue(Node.Id, out List<SceneFileNode>? ChildNodes))
         {
-            foreach (SceneFileNode child in childNodes)
+            foreach (SceneFileNode Child in ChildNodes)
             {
-                children.Add(BuildItem(child, childrenByParent, visited));
+                Children.Add(BuildItem(Child, ChildrenByParent, Visited));
             }
         }
 
-        return new SceneFileNodeTreeItem { Node = node, Children = children };
+        return new SceneFileNodeTreeItem { Node = Node, Children = Children };
     }
 
-    private static Vector3 ToVector3(float[] v) => new(v[0], v[1], v[2]);
+    private static Vector3 ToVector3(float[] V) => new(V[0], V[1], V[2]);
 
-    private static Quaternion ToQuaternion(float[] v) => new(v[0], v[1], v[2], v[3]);
+    private static Quaternion ToQuaternion(float[] V) => new(V[0], V[1], V[2], V[3]);
 
     private sealed class JsonDocumentDto
     {

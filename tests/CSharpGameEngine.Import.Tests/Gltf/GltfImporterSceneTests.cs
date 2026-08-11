@@ -15,15 +15,15 @@ namespace CSharpGameEngine.Import.Gltf.Tests;
 /// </summary>
 public class GltfImporterSceneTests
 {
-    private static MeshBuilder<VertexPosition, VertexTexture1, VertexEmpty> BuildTriangleMesh(string name, MaterialBuilder material)
+    private static MeshBuilder<VertexPosition, VertexTexture1, VertexEmpty> BuildTriangleMesh(string Name, MaterialBuilder Material)
     {
-        var mesh = new MeshBuilder<VertexPosition, VertexTexture1, VertexEmpty>(name);
-        var primitive = mesh.UsePrimitive(material);
-        primitive.AddTriangle(
+        var Mesh = new MeshBuilder<VertexPosition, VertexTexture1, VertexEmpty>(Name);
+        var Primitive = Mesh.UsePrimitive(Material);
+        Primitive.AddTriangle(
             (new VertexPosition(0, 0, 0), new VertexTexture1(new Vector2(0, 0))),
             (new VertexPosition(1, 0, 0), new VertexTexture1(new Vector2(1, 0))),
             (new VertexPosition(0, 1, 0), new VertexTexture1(new Vector2(0, 1))));
-        return mesh;
+        return Mesh;
     }
 
     private static string SaveToTempGlb(SceneBuilder sceneBuilder)
@@ -36,28 +36,28 @@ public class GltfImporterSceneTests
     [Fact]
     public void ImportScene_NestedNodes_ComposesWorldTransformThroughParentChain()
     {
-        var mesh = BuildTriangleMesh("probe", new MaterialBuilder("mat").WithMetallicRoughness());
+        var Mesh = BuildTriangleMesh("probe", new MaterialBuilder("mat").WithMetallicRoughness());
 
-        var parent = new NodeBuilder("Parent");
-        parent.LocalTransform = new AffineTransform(Matrix4x4.CreateTranslation(10, 0, 0));
-        NodeBuilder child = parent.CreateNode("Child");
-        child.LocalTransform = new AffineTransform(Matrix4x4.CreateTranslation(0, 5, 0));
+        var Parent = new NodeBuilder("Parent");
+        Parent.LocalTransform = new AffineTransform(Matrix4x4.CreateTranslation(10, 0, 0));
+        NodeBuilder Child = Parent.CreateNode("Child");
+        Child.LocalTransform = new AffineTransform(Matrix4x4.CreateTranslation(0, 5, 0));
 
         var sceneBuilder = new SceneBuilder();
-        sceneBuilder.AddRigidMesh(mesh, child);
+        sceneBuilder.AddRigidMesh(Mesh, Child);
 
         string path = SaveToTempGlb(sceneBuilder);
         try
         {
-            GltfSceneImportResult result = GltfImporter.ImportScene(path);
+            GltfSceneImportResult Result = GltfImporter.ImportScene(path);
 
-            Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
-            ImportedSceneNode node = Assert.Single(result.Scene!.Nodes);
-            Assert.Equal("Child", node.Name);
+            Assert.True(Result.Success, string.Join(Environment.NewLine, Result.Diagnostics));
+            ImportedSceneNode Node = Assert.Single(Result.Scene!.Nodes);
+            Assert.Equal("Child", Node.Name);
 
             // World translation must be the composed parent(10,0,0) * child(0,5,0) = (10,5,0), not
             // just the child's own local offset - this is the whole point of using WorldMatrix.
-            Assert.Equal(new Vector3(10, 5, 0), node.WorldTransform.Translation);
+            Assert.Equal(new Vector3(10, 5, 0), Node.WorldTransform.Translation);
         }
         finally
         {
@@ -74,23 +74,23 @@ public class GltfImporterSceneTests
     [Fact]
     public void ImportScene_NodeWithZTranslation_NegatesZWhenConvertingToEngineSpace()
     {
-        var mesh = BuildTriangleMesh("probe", new MaterialBuilder("mat").WithMetallicRoughness());
+        var Mesh = BuildTriangleMesh("probe", new MaterialBuilder("mat").WithMetallicRoughness());
 
-        var node = new NodeBuilder("ZOffset");
-        node.LocalTransform = new AffineTransform(Matrix4x4.CreateTranslation(0, 0, 5));
+        var Node = new NodeBuilder("ZOffset");
+        Node.LocalTransform = new AffineTransform(Matrix4x4.CreateTranslation(0, 0, 5));
 
         var sceneBuilder = new SceneBuilder();
-        sceneBuilder.AddRigidMesh(mesh, node);
+        sceneBuilder.AddRigidMesh(Mesh, Node);
 
         string path = SaveToTempGlb(sceneBuilder);
         try
         {
-            GltfSceneImportResult result = GltfImporter.ImportScene(path);
+            GltfSceneImportResult Result = GltfImporter.ImportScene(path);
 
-            Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
-            ImportedSceneNode importedNode = Assert.Single(result.Scene!.Nodes);
+            Assert.True(Result.Success, string.Join(Environment.NewLine, Result.Diagnostics));
+            ImportedSceneNode ImportedNode = Assert.Single(Result.Scene!.Nodes);
 
-            Assert.Equal(new Vector3(0, 0, -5), importedNode.WorldTransform.Translation);
+            Assert.Equal(new Vector3(0, 0, -5), ImportedNode.WorldTransform.Translation);
         }
         finally
         {
@@ -102,26 +102,26 @@ public class GltfImporterSceneTests
     [Fact]
     public void ImportScene_MeshLocalPositions_AreConvertedToEngineSpace()
     {
-        var mesh = new MeshBuilder<VertexPosition, VertexTexture1, VertexEmpty>("zProbe");
-        var primitive = mesh.UsePrimitive(new MaterialBuilder("mat").WithMetallicRoughness());
-        primitive.AddTriangle(
+        var Mesh = new MeshBuilder<VertexPosition, VertexTexture1, VertexEmpty>("zProbe");
+        var Primitive = Mesh.UsePrimitive(new MaterialBuilder("mat").WithMetallicRoughness());
+        Primitive.AddTriangle(
             (new VertexPosition(0, 0, 0), new VertexTexture1(new Vector2(0, 0))),
             (new VertexPosition(1, 0, 0), new VertexTexture1(new Vector2(1, 0))),
             (new VertexPosition(0, 1, 2), new VertexTexture1(new Vector2(0, 1))));
 
         var sceneBuilder = new SceneBuilder();
-        sceneBuilder.AddRigidMesh(mesh, new NodeBuilder("ZProbeNode"));
+        sceneBuilder.AddRigidMesh(Mesh, new NodeBuilder("ZProbeNode"));
 
         string path = SaveToTempGlb(sceneBuilder);
         try
         {
-            GltfSceneImportResult result = GltfImporter.ImportScene(path);
+            GltfSceneImportResult Result = GltfImporter.ImportScene(path);
 
-            Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
-            ImportedMeshData meshData = Assert.Single(result.Scene!.Meshes);
+            Assert.True(Result.Success, string.Join(Environment.NewLine, Result.Diagnostics));
+            ImportedMeshData MeshData = Assert.Single(Result.Scene!.Meshes);
 
             // Source vertex was glTF-space (0,1,2); engine space must have Z negated to (0,1,-2).
-            Assert.Contains(meshData.Positions, p => Vector3.Distance(p, new Vector3(0, 1, -2)) < 0.001f);
+            Assert.Contains(MeshData.Positions, P => Vector3.Distance(P, new Vector3(0, 1, -2)) < 0.001f);
         }
         finally
         {
@@ -132,22 +132,22 @@ public class GltfImporterSceneTests
     [Fact]
     public void ImportScene_MultipleMeshInstances_ShareOneMeshEntryPerLogicalMesh()
     {
-        var mesh = BuildTriangleMesh("shared", new MaterialBuilder("mat").WithMetallicRoughness());
+        var Mesh = BuildTriangleMesh("shared", new MaterialBuilder("mat").WithMetallicRoughness());
 
         var sceneBuilder = new SceneBuilder();
-        sceneBuilder.AddRigidMesh(mesh, new NodeBuilder("First"));
-        sceneBuilder.AddRigidMesh(mesh, new NodeBuilder("Second") { LocalTransform = new AffineTransform(Matrix4x4.CreateTranslation(3, 0, 0)) });
+        sceneBuilder.AddRigidMesh(Mesh, new NodeBuilder("First"));
+        sceneBuilder.AddRigidMesh(Mesh, new NodeBuilder("Second") { LocalTransform = new AffineTransform(Matrix4x4.CreateTranslation(3, 0, 0)) });
 
         string path = SaveToTempGlb(sceneBuilder);
         try
         {
-            GltfSceneImportResult result = GltfImporter.ImportScene(path);
+            GltfSceneImportResult Result = GltfImporter.ImportScene(path);
 
-            Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
-            ImportedScene scene = result.Scene!;
-            Assert.Equal(2, scene.Nodes.Count);
-            Assert.Single(scene.Meshes);
-            Assert.All(scene.Nodes, n => Assert.Equal(0, n.MeshIndex));
+            Assert.True(Result.Success, string.Join(Environment.NewLine, Result.Diagnostics));
+            ImportedScene Scene = Result.Scene!;
+            Assert.Equal(2, Scene.Nodes.Count);
+            Assert.Single(Scene.Meshes);
+            Assert.All(Scene.Nodes, N => Assert.Equal(0, N.MeshIndex));
         }
         finally
         {
@@ -158,29 +158,29 @@ public class GltfImporterSceneTests
     [Fact]
     public void ImportScene_PrimitiveWithoutTangentAccessor_GeneratesUnitTangentsOrthogonalToNormal()
     {
-        var mesh = BuildTriangleMesh("noTangent", new MaterialBuilder("mat").WithMetallicRoughness());
+        var Mesh = BuildTriangleMesh("noTangent", new MaterialBuilder("mat").WithMetallicRoughness());
 
         var sceneBuilder = new SceneBuilder();
-        sceneBuilder.AddRigidMesh(mesh, new NodeBuilder("Flat"));
+        sceneBuilder.AddRigidMesh(Mesh, new NodeBuilder("Flat"));
 
         string path = SaveToTempGlb(sceneBuilder);
         try
         {
-            GltfSceneImportResult result = GltfImporter.ImportScene(path);
+            GltfSceneImportResult Result = GltfImporter.ImportScene(path);
 
-            Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
-            ImportedMeshData meshData = Assert.Single(result.Scene!.Meshes);
+            Assert.True(Result.Success, string.Join(Environment.NewLine, Result.Diagnostics));
+            ImportedMeshData MeshData = Assert.Single(Result.Scene!.Meshes);
 
-            Assert.Equal(meshData.Positions.Count, meshData.Tangents.Count);
-            for (int i = 0; i < meshData.Positions.Count; i++)
+            Assert.Equal(MeshData.Positions.Count, MeshData.Tangents.Count);
+            for (int i = 0; i < MeshData.Positions.Count; i++)
             {
-                Vector3 normal = meshData.Normals[i];
-                Vector4 tangent4 = meshData.Tangents[i];
-                var tangent = new Vector3(tangent4.X, tangent4.Y, tangent4.Z);
+                Vector3 Normal = MeshData.Normals[i];
+                Vector4 Tangent4 = MeshData.Tangents[i];
+                var Tangent = new Vector3(Tangent4.X, Tangent4.Y, Tangent4.Z);
 
-                Assert.Equal(1.0f, tangent.Length(), precision: 3);
-                Assert.Equal(0.0f, Vector3.Dot(normal, tangent), precision: 3);
-                Assert.True(tangent4.W is 1f or -1f);
+                Assert.Equal(1.0f, Tangent.Length(), precision: 3);
+                Assert.Equal(0.0f, Vector3.Dot(Normal, Tangent), precision: 3);
+                Assert.True(Tangent4.W is 1f or -1f);
             }
         }
         finally
@@ -193,23 +193,23 @@ public class GltfImporterSceneTests
     public void ImportScene_DirectionalLightNode_ImportsColorIntensityAndWorldDirection()
     {
         var sceneBuilder = new SceneBuilder();
-        var light = new LightBuilder.Directional { Color = new Vector3(1, 0, 0), Intensity = 6 };
+        var Light = new LightBuilder.Directional { Color = new Vector3(1, 0, 0), Intensity = 6 };
         // A light pointing straight down: rotate -90 degrees around +X so local -Z (the fixed
         // KHR_lights_punctual direction) maps to world -Y.
-        var lightNode = new NodeBuilder("Sun") { LocalTransform = new AffineTransform(Quaternion.CreateFromAxisAngle(Vector3.UnitX, -MathF.PI / 2f)) };
-        sceneBuilder.AddLight(light, lightNode);
+        var LightNode = new NodeBuilder("Sun") { LocalTransform = new AffineTransform(Quaternion.CreateFromAxisAngle(Vector3.UnitX, -MathF.PI / 2f)) };
+        sceneBuilder.AddLight(Light, LightNode);
 
         string path = SaveToTempGlb(sceneBuilder);
         try
         {
-            GltfSceneImportResult result = GltfImporter.ImportScene(path);
+            GltfSceneImportResult Result = GltfImporter.ImportScene(path);
 
-            Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
-            ImportedSceneNode node = Assert.Single(result.Scene!.Nodes);
-            Assert.NotNull(node.LightIndex);
-            Assert.Null(node.MeshIndex);
+            Assert.True(Result.Success, string.Join(Environment.NewLine, Result.Diagnostics));
+            ImportedSceneNode Node = Assert.Single(Result.Scene!.Nodes);
+            Assert.NotNull(Node.LightIndex);
+            Assert.Null(Node.MeshIndex);
 
-            ImportedLight importedLight = result.Scene.Lights[node.LightIndex!.Value];
+            ImportedLight importedLight = Result.Scene.Lights[Node.LightIndex!.Value];
             Assert.Equal(ImportedLightType.Directional, importedLight.LightType);
             Assert.Equal(6f, importedLight.Intensity, precision: 3);
             Assert.Equal(new Vector3(1, 0, 0), importedLight.Color);
@@ -217,8 +217,8 @@ public class GltfImporterSceneTests
             // node.WorldTransform is already engine-space (ADR-0027): local Forward there is +Z, not
             // glTF's own local -Z, so the direction must come from ImportedLightDirection.WorldForward
             // rather than a hand-rolled -Vector3.UnitZ transform.
-            Vector3 worldDirection = ImportedLightDirection.WorldForward(node.WorldTransform);
-            Assert.Equal(new Vector3(0, -1, 0), worldDirection, EqualityComparerFor(0.001f));
+            Vector3 WorldDirection = ImportedLightDirection.WorldForward(Node.WorldTransform);
+            Assert.Equal(new Vector3(0, -1, 0), WorldDirection, EqualityComparerFor(0.001f));
         }
         finally
         {
@@ -229,22 +229,22 @@ public class GltfImporterSceneTests
     [Fact]
     public void ImportScene_FileDoesNotExist_ReturnsFailedWithError()
     {
-        string missingPath = Path.Combine(Path.GetTempPath(), "does-not-exist-scene.glb");
+        string MissingPath = Path.Combine(Path.GetTempPath(), "does-not-exist-scene.glb");
 
-        GltfSceneImportResult result = GltfImporter.ImportScene(missingPath);
+        GltfSceneImportResult Result = GltfImporter.ImportScene(MissingPath);
 
-        Assert.False(result.Success);
-        Assert.Null(result.Scene);
-        Assert.Contains(result.Diagnostics, d => d.Severity == GltfImportDiagnosticSeverity.Error && d.Message.Contains(missingPath));
+        Assert.False(Result.Success);
+        Assert.Null(Result.Scene);
+        Assert.Contains(Result.Diagnostics, D => D.Severity == GltfImportDiagnosticSeverity.Error && D.Message.Contains(MissingPath));
     }
 
-    private static IEqualityComparer<Vector3> EqualityComparerFor(float tolerance) =>
-        new ApproximateVector3Comparer(tolerance);
+    private static IEqualityComparer<Vector3> EqualityComparerFor(float Tolerance) =>
+        new ApproximateVector3Comparer(Tolerance);
 
-    private sealed class ApproximateVector3Comparer(float tolerance) : IEqualityComparer<Vector3>
+    private sealed class ApproximateVector3Comparer(float Tolerance) : IEqualityComparer<Vector3>
     {
-        public bool Equals(Vector3 x, Vector3 y) => Vector3.Distance(x, y) <= tolerance;
+        public bool Equals(Vector3 X, Vector3 Y) => Vector3.Distance(X, Y) <= Tolerance;
 
-        public int GetHashCode(Vector3 obj) => 0;
+        public int GetHashCode(Vector3 Obj) => 0;
     }
 }

@@ -6,26 +6,26 @@ using UserGameProject.Systems;
 namespace UserGameProject.Tests;
 
 /// <summary>
-/// PlayerControlSystem.Update's body has no ECS dependency of its own - GameSystemGenerator
+/// PlayerControl.Update's body has no ECS dependency of its own - GameSystemGenerator
 /// (ADR-0033) derives the Archetype and dispatch purely from its parameters - so these tests call it
 /// directly with local ref arguments and never need real entities. A throwaway World/State is still
 /// passed because every Update ends with a trailing `ref State`, but this method never touches it.
-/// InputState is scripted exactly as InputSystem would have written it, so no Win32Window is needed
+/// InputState is scripted exactly as Input would have written it, so no Win32Window is needed
 /// either.
 /// </summary>
-public class PlayerControlSystemTests
+public class PlayerControlTests
 {
     private const float DeltaTime = 1f / 60f;
 
     private static void RunControl(ref Position position, ref Rotation rotation, ref VerticalMotion verticalMotion, ref CameraRig cameraRig, ref InputState inputState)
     {
         PlayerTag playerTag = default;
-        FrameContext frame = new(DeltaTime, 0f);
+        FrameContext Frame = new(DeltaTime, 0f);
         World world = new();
         State state = new(world);
-        PlayerControlSystem system = new();
+        PlayerControl system = new();
 
-        system.Update(ref position, ref rotation, ref verticalMotion, ref cameraRig, ref inputState, ref playerTag, in frame, ref state);
+        system.Update(ref position, ref rotation, ref verticalMotion, ref cameraRig, ref inputState, ref playerTag, in Frame, ref state);
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public class PlayerControlSystemTests
 
         RunControl(ref position, ref rotation, ref verticalMotion, ref cameraRig, ref inputState);
 
-        Assert.Equal(Camera.MaxPitchRadiansFirstPerson, cameraRig.Pitch, precision: 4);
+        Assert.Equal(CSharpGameEngine.Graphics.D3D12.Camera.MaxPitchRadiansFirstPerson, cameraRig.Pitch, precision: 4);
     }
 
     [Fact]
@@ -83,9 +83,9 @@ public class PlayerControlSystemTests
 
         RunControl(ref position, ref rotation, ref verticalMotion, ref cameraRig, ref inputState);
 
-        Quaternion expected = Quaternion.CreateFromAxisAngle(Vector3.UnitY, cameraRig.Yaw);
-        Quaternion actual = new(rotation.X, rotation.Y, rotation.Z, rotation.W);
-        Assert.True(Quaternion.Dot(expected, actual) > 0.9999f, $"Expected Rotation to match CameraRig.Yaw exactly, expected={expected}, actual={actual}.");
+        Quaternion Expected = Quaternion.CreateFromAxisAngle(Vector3.UnitY, cameraRig.Yaw);
+        Quaternion Actual = new(rotation.X, rotation.Y, rotation.Z, rotation.W);
+        Assert.True(Quaternion.Dot(Expected, Actual) > 0.9999f, $"Expected Rotation to match CameraRig.Yaw exactly, expected={Expected}, actual={Actual}.");
     }
 
     [Fact]
@@ -99,8 +99,8 @@ public class PlayerControlSystemTests
 
         RunControl(ref position, ref rotation, ref verticalMotion, ref cameraRig, ref inputState);
 
-        float expectedVelocity = CharacterMotion.JumpSpeed - (CharacterMotion.Gravity / 60f);
-        Assert.Equal(expectedVelocity, verticalMotion.Velocity, precision: 3);
+        float ExpectedVelocity = CharacterMotion.JumpSpeed - (CharacterMotion.Gravity / 60f);
+        Assert.Equal(ExpectedVelocity, verticalMotion.Velocity, precision: 3);
         Assert.False(verticalMotion.IsGrounded);
     }
 

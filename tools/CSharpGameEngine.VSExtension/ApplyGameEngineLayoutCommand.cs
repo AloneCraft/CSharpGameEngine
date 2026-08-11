@@ -20,51 +20,51 @@ internal sealed class ApplyGameEngineLayoutCommand
     public const int CommandId = 0x0106;
     public static readonly Guid CommandSet = new("521655e5-0d1b-4255-8086-1039c5c2e3da");
 
-    private readonly AsyncPackage _package;
+    private readonly AsyncPackage Package;
 
-    private ApplyGameEngineLayoutCommand(AsyncPackage package, OleMenuCommandService commandService)
+    private ApplyGameEngineLayoutCommand(AsyncPackage package, OleMenuCommandService CommandService)
     {
-        _package = package ?? throw new ArgumentNullException(nameof(package));
-        if (commandService is null)
+        Package = package ?? throw new ArgumentNullException(nameof(package));
+        if (CommandService is null)
         {
-            throw new ArgumentNullException(nameof(commandService));
+            throw new ArgumentNullException(nameof(CommandService));
         }
 
-        CommandID menuCommandId = new(CommandSet, CommandId);
-        MenuCommand menuItem = new(Execute, menuCommandId);
-        commandService.AddCommand(menuItem);
+        CommandID MenuCommandId = new(CommandSet, CommandId);
+        MenuCommand MenuItem = new(Execute, MenuCommandId);
+        CommandService.AddCommand(MenuItem);
     }
 
     public static async Task InitializeAsync(AsyncPackage package)
     {
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
-        object? service = await package.GetServiceAsync(typeof(IMenuCommandService));
-        if (service is not OleMenuCommandService commandService)
+        object? Service = await package.GetServiceAsync(typeof(IMenuCommandService));
+        if (Service is not OleMenuCommandService CommandService)
         {
             throw new InvalidOperationException($"{nameof(IMenuCommandService)} is not available from the VS shell.");
         }
 
-        _ = new ApplyGameEngineLayoutCommand(package, commandService);
+        _ = new ApplyGameEngineLayoutCommand(package, CommandService);
     }
 
-    private void Execute(object sender, EventArgs e)
+    private void Execute(object Sender, EventArgs E)
     {
-        _ = _package.JoinableTaskFactory.RunAsync(async delegate
+        _ = Package.JoinableTaskFactory.RunAsync(async delegate
         {
-            await _package.JoinableTaskFactory.SwitchToMainThreadAsync(_package.DisposalToken);
+            await Package.JoinableTaskFactory.SwitchToMainThreadAsync(Package.DisposalToken);
 
-            if (await _package.GetServiceAsync(typeof(SDTE)) is not DTE dte)
+            if (await Package.GetServiceAsync(typeof(SDTE)) is not DTE Dte)
             {
                 return;
             }
 
-            string? repoRoot = RepoLocator.ResolveRepoRoot();
-            if (repoRoot is null)
+            string? RepoRoot = RepoLocator.ResolveRepoRoot();
+            if (RepoRoot is null)
             {
                 return;
             }
 
-            await GameEngineLayout.ApplyAsync(_package, dte, repoRoot);
+            await GameEngineLayout.ApplyAsync(Package, Dte, RepoRoot);
         });
     }
 }

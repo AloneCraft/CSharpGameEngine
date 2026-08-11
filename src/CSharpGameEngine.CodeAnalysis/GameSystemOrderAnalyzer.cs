@@ -17,55 +17,55 @@ internal static class GameSystemOrderAnalyzer
     /// 順序)、それ以外のclassなら<see cref="GameSystemOrderTargetKind.FileMarker"/>(ファイルの既定順序)
     /// として扱う。structだが<c>ISystem</c>を実装していない場合はSYSGEN025(付けても効果が無い)。
     /// </summary>
-    internal static GameSystemOrderResult Analyze(GeneratorAttributeSyntaxContext ctx)
+    internal static GameSystemOrderResult Analyze(GeneratorAttributeSyntaxContext Ctx)
     {
-        ImmutableArray<Diagnostic>.Builder diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
+        ImmutableArray<Diagnostic>.Builder Diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
 
-        var symbol = (INamedTypeSymbol)ctx.TargetSymbol;
-        Location location = symbol.Locations.FirstOrDefault() ?? Location.None;
-        string filePath = ctx.TargetNode.SyntaxTree.FilePath;
+        var Symbol = (INamedTypeSymbol)Ctx.TargetSymbol;
+        Location location = Symbol.Locations.FirstOrDefault() ?? Location.None;
+        string FilePath = Ctx.TargetNode.SyntaxTree.FilePath;
 
-        int order = 0;
-        AttributeData attribute = ctx.Attributes[0];
+        int Order = 0;
+        AttributeData attribute = Ctx.Attributes[0];
 
-        if (attribute.ConstructorArguments.Length == 1 && attribute.ConstructorArguments[0].Value is int value)
+        if (attribute.ConstructorArguments.Length == 1 && attribute.ConstructorArguments[0].Value is int Value)
         {
-            order = value;
+            Order = Value;
         }
 
-        if (symbol.TypeKind == TypeKind.Struct)
+        if (Symbol.TypeKind == TypeKind.Struct)
         {
-            bool implementsISystem = symbol.AllInterfaces.Any(static i =>
-                i.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == GameSystemAnalyzer.SystemInterfaceFullyQualifiedName);
+            bool ImplementsISystem = Symbol.AllInterfaces.Any(static I =>
+                I.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) == GameSystemAnalyzer.SystemInterfaceFullyQualifiedName);
 
-            if (!implementsISystem)
+            if (!ImplementsISystem)
             {
-                diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.SystemOrderOnNonSystemStruct, location, symbol.Name));
+                Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.SystemOrderOnNonSystemStruct, location, Symbol.Name));
             }
 
             return new GameSystemOrderResult(
                 GameSystemOrderTargetKind.System,
-                filePath,
-                order,
-                symbol.Name,
-                GameSystemAnalyzer.ComputeClassFullyQualifiedName(symbol),
+                FilePath,
+                Order,
+                Symbol.Name,
+                GameSystemAnalyzer.ComputeClassFullyQualifiedName(Symbol),
                 location,
-                diagnostics.ToImmutable());
+                Diagnostics.ToImmutable());
         }
 
-        if (!symbol.IsFileLocal)
+        if (!Symbol.IsFileLocal)
         {
-            diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.SystemOrderMarkerMustBeFileScoped, location, symbol.Name));
+            Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.SystemOrderMarkerMustBeFileScoped, location, Symbol.Name));
         }
 
         return new GameSystemOrderResult(
             GameSystemOrderTargetKind.FileMarker,
-            filePath,
-            order,
-            symbol.Name,
+            FilePath,
+            Order,
+            Symbol.Name,
             null,
             location,
-            diagnostics.ToImmutable());
+            Diagnostics.ToImmutable());
     }
 
     /// <summary>
@@ -73,81 +73,81 @@ internal static class GameSystemOrderAnalyzer
     /// 検出できない診断(1ファイル複数マーカー・複数ファイル同一値)を作る。
     /// </summary>
     internal static (GameSystemOrderContext Context, ImmutableArray<Diagnostic> Diagnostics) BuildMap(
-        ImmutableArray<GameSystemOrderResult> results)
+        ImmutableArray<GameSystemOrderResult> Results)
     {
-        ImmutableArray<Diagnostic>.Builder diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
+        ImmutableArray<Diagnostic>.Builder Diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
 
-        foreach (GameSystemOrderResult result in results)
+        foreach (GameSystemOrderResult Result in Results)
         {
-            diagnostics.AddRange(result.Diagnostics);
+            Diagnostics.AddRange(Result.Diagnostics);
         }
 
-        Dictionary<string, int> systemOrderByFqn = new(StringComparer.Ordinal);
+        Dictionary<string, int> SystemOrderByFqn = new(StringComparer.Ordinal);
 
-        foreach (GameSystemOrderResult result in results)
+        foreach (GameSystemOrderResult result in Results)
         {
-            if (result.Kind == GameSystemOrderTargetKind.System && result.SystemFullyQualifiedName is { } fqn)
+            if (result.Kind == GameSystemOrderTargetKind.System && result.SystemFullyQualifiedName is { } Fqn)
             {
                 // AllowMultiple=falseにより同一Systemへの複数付与はコンパイラ自身がCS0579で弾くため、
                 // ここでの重複は起こり得ない。System同士が同じ明示値を選ぶのは意図的な「同着」を
                 // 表現する正当な使い方なので、重複チェックはしない(ファイル既定値とは扱いが異なる)。
-                systemOrderByFqn[fqn] = result.Order;
+                SystemOrderByFqn[Fqn] = result.Order;
             }
         }
 
-        List<GameSystemOrderResult> fileMarkers = [.. results.Where(static r => r.Kind == GameSystemOrderTargetKind.FileMarker)];
-        Dictionary<string, int> fileOrderByPath = new(StringComparer.Ordinal);
+        List<GameSystemOrderResult> FileMarkers = [.. Results.Where(static R => R.Kind == GameSystemOrderTargetKind.FileMarker)];
+        Dictionary<string, int> FileOrderByPath = new(StringComparer.Ordinal);
 
-        foreach (IGrouping<string, GameSystemOrderResult> group in fileMarkers.GroupBy(static r => r.FilePath, StringComparer.Ordinal))
+        foreach (IGrouping<string, GameSystemOrderResult> Group in FileMarkers.GroupBy(static R => R.FilePath, StringComparer.Ordinal))
         {
-            List<GameSystemOrderResult> markers = [.. group];
+            List<GameSystemOrderResult> Markers = [.. Group];
 
-            if (markers.Count > 1)
+            if (Markers.Count > 1)
             {
-                for (int i = 1; i < markers.Count; i++)
+                for (int i = 1; i < Markers.Count; i++)
                 {
-                    diagnostics.Add(Diagnostic.Create(
+                    Diagnostics.Add(Diagnostic.Create(
                         GameSystemDiagnostics.DuplicateFileOrderInOneFile,
-                        markers[i].Location,
-                        markers[0].FilePath,
-                        markers[0].TargetName,
-                        markers[i].TargetName));
+                        Markers[i].Location,
+                        Markers[0].FilePath,
+                        Markers[0].TargetName,
+                        Markers[i].TargetName));
                 }
 
                 // 曖昧な状態でも生成は続行できるよう、宣言順で先に見つかったものを採用する。
                 // TreatWarningsAsErrors=trueにより上記診断でビルド自体は失敗するため、この選択が
                 // 実害を持つのは診断を無視して読み進めた場合のみ。
-                markers.Sort(static (a, b) => a.Location.SourceSpan.Start.CompareTo(b.Location.SourceSpan.Start));
+                Markers.Sort(static (A, B) => A.Location.SourceSpan.Start.CompareTo(B.Location.SourceSpan.Start));
             }
 
-            fileOrderByPath[group.Key] = markers[0].Order;
+            FileOrderByPath[Group.Key] = Markers[0].Order;
         }
 
         // ファイル既定値の衝突だけをエラーにする(ユーザー確認済み): あるファイル全体の実行順が
         // 未定義に戻ってしまうため。System単体の明示値同士が衝突しても「意図的な同着」でありうるため
         // 対象外(前段のsystemOrderByFqn側では重複チェックをしていない)。
-        foreach (IGrouping<int, KeyValuePair<string, int>> group in fileOrderByPath.GroupBy(static kv => kv.Value))
+        foreach (IGrouping<int, KeyValuePair<string, int>> group in FileOrderByPath.GroupBy(static Kv => Kv.Value))
         {
-            List<string> filePaths = [.. group.Select(static kv => kv.Key)];
+            List<string> FilePaths = [.. group.Select(static Kv => Kv.Key)];
 
-            if (filePaths.Count < 2)
+            if (FilePaths.Count < 2)
             {
                 continue;
             }
 
-            filePaths.Sort(StringComparer.Ordinal);
+            FilePaths.Sort(StringComparer.Ordinal);
 
-            for (int i = 1; i < filePaths.Count; i++)
+            for (int i = 1; i < FilePaths.Count; i++)
             {
-                diagnostics.Add(Diagnostic.Create(
+                Diagnostics.Add(Diagnostic.Create(
                     GameSystemDiagnostics.DuplicateFileOrderValue,
                     Location.None,
-                    filePaths[0],
-                    filePaths[i],
+                    FilePaths[0],
+                    FilePaths[i],
                     group.Key));
             }
         }
 
-        return (new GameSystemOrderContext(systemOrderByFqn, fileOrderByPath), diagnostics.ToImmutable());
+        return (new GameSystemOrderContext(SystemOrderByFqn, FileOrderByPath), Diagnostics.ToImmutable());
     }
 }

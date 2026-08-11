@@ -28,118 +28,118 @@ namespace CSharpGameEngine.CodeAnalysis;
 internal static class GameSystemIndexAssigner
 {
     internal static GameSystemRegistry Assign(
-        ImmutableArray<GameSystemResult> allSystems,
-        IReadOnlyList<IReadOnlyList<string>> additionalComponentSets,
-        GameSystemOrderContext orderContext)
+        ImmutableArray<GameSystemResult> AllSystems,
+        IReadOnlyList<IReadOnlyList<string>> AdditionalComponentSets,
+        GameSystemOrderContext OrderContext)
     {
-        List<GameSystemResult> validSystems = [.. allSystems.Where(static s => s.Diagnostics.Length == 0)];
-        validSystems.Sort((a, b) => GameSystemExecutionOrder.Compare(a, b, orderContext));
+        List<GameSystemResult> ValidSystems = [.. AllSystems.Where(static S => S.Diagnostics.Length == 0)];
+        ValidSystems.Sort((A, B) => GameSystemExecutionOrder.Compare(A, B, OrderContext));
 
-        Dictionary<string, int> componentIndexByType = new(StringComparer.Ordinal);
-        List<string> componentTypesByIndex = [];
-        HashSet<string> seenComboKeys = new(StringComparer.Ordinal);
-        List<List<int>> combosInDiscoveryOrder = [];
+        Dictionary<string, int> ComponentIndexByType = new(StringComparer.Ordinal);
+        List<string> ComponentTypesByIndex = [];
+        HashSet<string> SeenComboKeys = new(StringComparer.Ordinal);
+        List<List<int>> CombosInDiscoveryOrder = [];
 
-        void RegisterSet(IReadOnlyList<string> componentTypeFqns)
+        void RegisterSet(IReadOnlyList<string> ComponentTypeFqns)
         {
-            List<int> indices = new(componentTypeFqns.Count);
+            List<int> Indices = new(ComponentTypeFqns.Count);
 
-            foreach (string typeFqn in componentTypeFqns)
+            foreach (string TypeFqn in ComponentTypeFqns)
             {
-                if (!componentIndexByType.TryGetValue(typeFqn, out int index))
+                if (!ComponentIndexByType.TryGetValue(TypeFqn, out int Index))
                 {
-                    index = componentTypesByIndex.Count;
-                    componentIndexByType.Add(typeFqn, index);
-                    componentTypesByIndex.Add(typeFqn);
+                    Index = ComponentTypesByIndex.Count;
+                    ComponentIndexByType.Add(TypeFqn, Index);
+                    ComponentTypesByIndex.Add(TypeFqn);
                 }
 
-                indices.Add(index);
+                Indices.Add(Index);
             }
 
             // 同一性の判定は集合(ソート済みキー)で行うが、保持するのは宣言順のまま。生成される
             // World.Create/MoveArchetypeのパラメータ順が、最初にこの構成を宣言したメソッドの
             // 引数順と一致するようにするため。
-            List<int> sorted = [.. indices];
-            sorted.Sort();
+            List<int> Sorted = [.. Indices];
+            Sorted.Sort();
 
-            if (seenComboKeys.Add(string.Join(",", sorted)))
+            if (SeenComboKeys.Add(string.Join(",", Sorted)))
             {
-                combosInDiscoveryOrder.Add(indices);
+                CombosInDiscoveryOrder.Add(Indices);
             }
         }
 
-        foreach (GameSystemResult system in validSystems)
+        foreach (GameSystemResult system in ValidSystems)
         {
-            foreach (GameSystemMethodModel method in system.Methods)
+            foreach (GameSystemMethodModel Method in system.Methods)
             {
-                RegisterSet([.. method.Components.Select(static c => c.TypeFullyQualifiedName)]);
+                RegisterSet([.. Method.Components.Select(static C => C.TypeFullyQualifiedName)]);
             }
         }
 
-        foreach (IReadOnlyList<string> componentSet in additionalComponentSets)
+        foreach (IReadOnlyList<string> ComponentSet in AdditionalComponentSets)
         {
-            RegisterSet(componentSet);
+            RegisterSet(ComponentSet);
         }
 
-        ImmutableArray<Diagnostic>.Builder diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
-        ImmutableArray<GameSystemComponentInfo> componentsByIndex = BuildComponents(componentTypesByIndex, diagnostics);
+        ImmutableArray<Diagnostic>.Builder Diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
+        ImmutableArray<GameSystemComponentInfo> ComponentsByIndex = BuildComponents(ComponentTypesByIndex, Diagnostics);
 
         // comboByKeyは挿入順を保つDictionaryではないため、出現順は別途記録したリストから取る。
-        List<GameSystemArchetypeInfo> archetypes = [];
+        List<GameSystemArchetypeInfo> Archetypes = [];
 
-        for (int archetypeIndex = 0; archetypeIndex < combosInDiscoveryOrder.Count; archetypeIndex++)
+        for (int archetypeIndex = 0; archetypeIndex < CombosInDiscoveryOrder.Count; archetypeIndex++)
         {
-            List<int> combo = combosInDiscoveryOrder[archetypeIndex];
-            long mask = 0;
+            List<int> Combo = CombosInDiscoveryOrder[archetypeIndex];
+            long Mask = 0;
 
-            foreach (int index in combo)
+            foreach (int Index in Combo)
             {
-                mask |= 1L << index;
+                Mask |= 1L << Index;
             }
 
-            archetypes.Add(new GameSystemArchetypeInfo($"Archetype{archetypeIndex}", [.. combo], mask));
+            Archetypes.Add(new GameSystemArchetypeInfo($"Archetype{archetypeIndex}", [.. Combo], Mask));
         }
 
-        return new GameSystemRegistry(componentsByIndex, [.. archetypes], [.. validSystems], diagnostics.ToImmutable());
+        return new GameSystemRegistry(ComponentsByIndex, [.. Archetypes], [.. ValidSystems], Diagnostics.ToImmutable());
     }
 
     /// <summary>
     /// 生成される<c>ArchetypeNN</c>のフィールド名にはComponent型の単純名を使う(サンプルに忠実)。
     /// 異なる名前空間の同名型が2つあるとフィールド名が衝突するため、SYSGEN020で明示的に弾く。
     /// </summary>
-    private static ImmutableArray<GameSystemComponentInfo> BuildComponents(List<string> componentTypesByIndex, ImmutableArray<Diagnostic>.Builder diagnostics)
+    private static ImmutableArray<GameSystemComponentInfo> BuildComponents(List<string> ComponentTypesByIndex, ImmutableArray<Diagnostic>.Builder Diagnostics)
     {
-        Dictionary<string, string> typeBySimpleName = new(StringComparer.Ordinal);
-        ImmutableArray<GameSystemComponentInfo>.Builder builder = ImmutableArray.CreateBuilder<GameSystemComponentInfo>(componentTypesByIndex.Count);
+        Dictionary<string, string> TypeBySimpleName = new(StringComparer.Ordinal);
+        ImmutableArray<GameSystemComponentInfo>.Builder Builder = ImmutableArray.CreateBuilder<GameSystemComponentInfo>(ComponentTypesByIndex.Count);
 
-        for (int index = 0; index < componentTypesByIndex.Count; index++)
+        for (int index = 0; index < ComponentTypesByIndex.Count; index++)
         {
-            string typeFqn = componentTypesByIndex[index];
-            string simpleName = ExtractSimpleTypeName(typeFqn);
+            string TypeFqn = ComponentTypesByIndex[index];
+            string SimpleName = ExtractSimpleTypeName(TypeFqn);
 
-            if (typeBySimpleName.TryGetValue(simpleName, out string? existing))
+            if (TypeBySimpleName.TryGetValue(SimpleName, out string? Existing))
             {
-                diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.ComponentSimpleNameCollision, Location.None, existing, typeFqn, simpleName));
+                Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.ComponentSimpleNameCollision, Location.None, Existing, TypeFqn, SimpleName));
             }
             else
             {
-                typeBySimpleName.Add(simpleName, typeFqn);
+                TypeBySimpleName.Add(SimpleName, TypeFqn);
             }
 
-            builder.Add(new GameSystemComponentInfo(index, typeFqn, simpleName));
+            Builder.Add(new GameSystemComponentInfo(index, TypeFqn, SimpleName));
         }
 
-        return builder.ToImmutable();
+        return Builder.ToImmutable();
     }
 
-    internal static string ExtractSimpleTypeName(string typeFullyQualifiedName)
+    internal static string ExtractSimpleTypeName(string TypeFullyQualifiedName)
     {
         const string GlobalPrefix = "global::";
-        string value = typeFullyQualifiedName.StartsWith(GlobalPrefix, StringComparison.Ordinal)
-            ? typeFullyQualifiedName.Substring(GlobalPrefix.Length)
-            : typeFullyQualifiedName;
+        string Value = TypeFullyQualifiedName.StartsWith(GlobalPrefix, StringComparison.Ordinal)
+            ? TypeFullyQualifiedName.Substring(GlobalPrefix.Length)
+            : TypeFullyQualifiedName;
 
-        int lastDot = value.LastIndexOf('.');
-        return lastDot >= 0 ? value.Substring(lastDot + 1) : value;
+        int LastDot = Value.LastIndexOf('.');
+        return LastDot >= 0 ? Value.Substring(LastDot + 1) : Value;
     }
 }

@@ -11,23 +11,23 @@ namespace CSharpGameEngine.Import.Gltf.Cli;
 /// </summary>
 internal static class GltfBridgeWorker
 {
-    public static (int ExitCode, string Output) Run(string inputPath, string outputPath)
+    public static (int ExitCode, string Output) Run(string InputPath, string OutputPath)
     {
-        GltfImportResult result = GltfImporter.Import(inputPath);
+        GltfImportResult Result = GltfImporter.Import(InputPath);
 
-        List<string> lines = [];
-        foreach (GltfImportDiagnostic diagnostic in result.Diagnostics)
+        List<string> Lines = [];
+        foreach (GltfImportDiagnostic Diagnostic in Result.Diagnostics)
         {
-            lines.Add(diagnostic.ToString() ?? string.Empty);
+            Lines.Add(Diagnostic.ToString() ?? string.Empty);
         }
 
-        GltfBridgeDocument document = result.Success
-            ? GltfBridgeDocument.ForMesh(result.Mesh!)
+        GltfBridgeDocument Document = Result.Success
+            ? GltfBridgeDocument.ForMesh(Result.Mesh!)
             : GltfBridgeDocument.ForFailure();
 
-        string json = JsonSerializer.Serialize(document);
-        File.WriteAllText(outputPath, json);
+        string Json = JsonSerializer.Serialize(Document);
+        File.WriteAllText(OutputPath, Json);
 
-        return (result.Success ? 0 : 1, string.Join(Environment.NewLine, lines));
+        return (Result.Success ? 0 : 1, string.Join(Environment.NewLine, Lines));
     }
 }

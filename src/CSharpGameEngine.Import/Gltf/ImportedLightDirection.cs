@@ -13,6 +13,6 @@ namespace CSharpGameEngine.Import.Gltf;
 /// </summary>
 public static class ImportedLightDirection
 {
-    public static Vector3 WorldForward(Matrix4x4 engineSpaceWorldTransform) =>
-        Vector3.Normalize(Vector3.TransformNormal(Vector3.UnitZ, engineSpaceWorldTransform));
+    public static Vector3 WorldForward(Matrix4x4 EngineSpaceWorldTransform) =>
+        Vector3.Normalize(Vector3.TransformNormal(Vector3.UnitZ, EngineSpaceWorldTransform));
 }

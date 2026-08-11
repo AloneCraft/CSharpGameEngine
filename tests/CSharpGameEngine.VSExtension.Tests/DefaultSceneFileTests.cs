@@ -30,13 +30,13 @@ public sealed class DefaultSceneFileTests
         string path = Path.Combine(FindRepoRoot(), "UserGameProject", "DefaultScene.scene");
         Assert.True(File.Exists(path), $"DefaultScene.scene not found at {path}");
 
-        SceneFile scene = SceneFile.Load(path);
+        SceneFile Scene = SceneFile.Load(path);
 
-        SceneFileNode root = Assert.Single(scene.Nodes, n => n.ParentId is null);
-        Assert.Equal("Root", root.Name);
+        SceneFileNode Root = Assert.Single(Scene.Nodes, N => N.ParentId is null);
+        Assert.Equal("Root", Root.Name);
 
-        Assert.Contains(scene.Nodes, n => n.ParentId == root.Id && n.Name == "Cube_A" && n.MeshAssetPath == "Assets/DefaultScene/Box.glb");
-        Assert.Contains(scene.Nodes, n => n.ParentId == root.Id && n.Name == "Cube_B" && n.MeshAssetPath == "Assets/DefaultScene/Box.glb");
+        Assert.Contains(Scene.Nodes, N => N.ParentId == Root.Id && N.Name == "Cube_A" && N.MeshAssetPath == "Assets/DefaultScene/Box.glb");
+        Assert.Contains(Scene.Nodes, N => N.ParentId == Root.Id && N.Name == "Cube_B" && N.MeshAssetPath == "Assets/DefaultScene/Box.glb");
     }
 
     /// <summary>

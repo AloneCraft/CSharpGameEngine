@@ -7,7 +7,7 @@ public sealed class SceneDefinitionGeneratorDiagnosticsTests
     [Fact]
     public void NonStaticOrPartialClass_ReportsScene001()
     {
-        string source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
+        string Source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
 
 
             [SceneDefinition]
@@ -16,13 +16,13 @@ public sealed class SceneDefinitionGeneratorDiagnosticsTests
             }
             """;
 
-        AssertHasDiagnostic(source, "SCENE001");
+        AssertHasDiagnostic(Source, "SCENE001");
     }
 
     [Fact]
     public void NonPrivateNodeProperty_ReportsScene002()
     {
-        string source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
+        string Source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
 
 
             [SceneDefinition]
@@ -36,13 +36,13 @@ public sealed class SceneDefinitionGeneratorDiagnosticsTests
             }
             """;
 
-        AssertHasDiagnostic(source, "SCENE002");
+        AssertHasDiagnostic(Source, "SCENE002");
     }
 
     [Fact]
     public void CreateArgumentAndLambdaParameterNameMismatch_ReportsScene003()
     {
-        string source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
+        string Source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
 
 
             [SceneDefinition]
@@ -59,13 +59,13 @@ public sealed class SceneDefinitionGeneratorDiagnosticsTests
             }
             """;
 
-        AssertHasDiagnostic(source, "SCENE003");
+        AssertHasDiagnostic(Source, "SCENE003");
     }
 
     [Fact]
     public void DeclaredNodeNeverCreated_ReportsScene004()
     {
-        string source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
+        string Source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
 
 
             [SceneDefinition]
@@ -84,13 +84,13 @@ public sealed class SceneDefinitionGeneratorDiagnosticsTests
             }
             """;
 
-        AssertHasDiagnostic(source, "SCENE004");
+        AssertHasDiagnostic(Source, "SCENE004");
     }
 
     [Fact]
     public void SameNodeCreatedTwice_ReportsScene005()
     {
-        string source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
+        string Source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
 
 
             [SceneDefinition]
@@ -111,13 +111,13 @@ public sealed class SceneDefinitionGeneratorDiagnosticsTests
             }
             """;
 
-        AssertHasDiagnostic(source, "SCENE005");
+        AssertHasDiagnostic(Source, "SCENE005");
     }
 
     [Fact]
     public void MultipleTopLevelCreateCalls_ReportsScene006()
     {
-        string source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
+        string Source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
 
 
             [SceneDefinition]
@@ -135,13 +135,13 @@ public sealed class SceneDefinitionGeneratorDiagnosticsTests
             }
             """;
 
-        AssertHasDiagnostic(source, "SCENE006");
+        AssertHasDiagnostic(Source, "SCENE006");
     }
 
     [Fact]
     public void NoTopLevelCreateCalls_ReportsScene006()
     {
-        string source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
+        string Source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
 
 
             [SceneDefinition]
@@ -153,13 +153,13 @@ public sealed class SceneDefinitionGeneratorDiagnosticsTests
             }
             """;
 
-        AssertHasDiagnostic(source, "SCENE006");
+        AssertHasDiagnostic(Source, "SCENE006");
     }
 
     [Fact]
     public void LoopInsideDefine_ReportsScene007()
     {
-        string source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
+        string Source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
 
 
             [SceneDefinition]
@@ -178,13 +178,13 @@ public sealed class SceneDefinitionGeneratorDiagnosticsTests
             }
             """;
 
-        AssertHasDiagnostic(source, "SCENE007");
+        AssertHasDiagnostic(Source, "SCENE007");
     }
 
     [Fact]
     public void SetArgumentIsNotObjectCreation_ReportsScene008()
     {
-        string source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
+        string Source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
 
 
             [SceneDefinition]
@@ -202,7 +202,7 @@ public sealed class SceneDefinitionGeneratorDiagnosticsTests
             }
             """;
 
-        AssertHasDiagnostic(source, "SCENE008");
+        AssertHasDiagnostic(Source, "SCENE008");
     }
 
     /// <summary>
@@ -214,7 +214,7 @@ public sealed class SceneDefinitionGeneratorDiagnosticsTests
     [Fact]
     public void NodeWithManyComponents_IsAllowed_BecauseThereIsNoGenericArityLimitAnymore()
     {
-        string source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
+        string Source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
 
 
             [SceneDefinition]
@@ -255,15 +255,15 @@ public sealed class SceneDefinitionGeneratorDiagnosticsTests
             public struct C9 { public int V; }
             """;
 
-        GeneratorDriverRunResult result = SceneDefinitionGeneratorTestHelper.RunGenerator(source);
+        GeneratorDriverRunResult Result = SceneDefinitionGeneratorTestHelper.RunGenerator(Source);
 
-        Assert.Empty(result.Diagnostics);
+        Assert.Empty(Result.Diagnostics);
     }
 
     [Fact]
     public void WellFormedScene_ProducesNoDiagnostics()
     {
-        string source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
+        string Source = SceneDefinitionGeneratorTestHelper.CommonComponents + """
 
 
             [SceneDefinition]
@@ -300,15 +300,15 @@ public sealed class SceneDefinitionGeneratorDiagnosticsTests
             }
             """;
 
-        GeneratorDriverRunResult result = SceneDefinitionGeneratorTestHelper.RunGenerator(source);
+        GeneratorDriverRunResult Result = SceneDefinitionGeneratorTestHelper.RunGenerator(Source);
 
-        Assert.Empty(result.Diagnostics);
+        Assert.Empty(Result.Diagnostics);
     }
 
-    private static void AssertHasDiagnostic(string source, string diagnosticId)
+    private static void AssertHasDiagnostic(string Source, string DiagnosticId)
     {
-        GeneratorDriverRunResult result = SceneDefinitionGeneratorTestHelper.RunGenerator(source);
+        GeneratorDriverRunResult Result = SceneDefinitionGeneratorTestHelper.RunGenerator(Source);
 
-        Assert.Contains(result.Diagnostics, d => d.Id == diagnosticId);
+        Assert.Contains(Result.Diagnostics, D => D.Id == DiagnosticId);
     }
 }

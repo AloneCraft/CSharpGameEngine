@@ -16,27 +16,27 @@ public class ResidentBridgeClientTests
     [Fact]
     public void ComputePipeName_SameInputs_ReturnsSameName()
     {
-        string first = ResidentBridgeClient.ComputePipeName(@"G:\repo", @"tools\CSharpGameEngine.Import.Gltf.Cli");
-        string second = ResidentBridgeClient.ComputePipeName(@"G:\repo", @"tools\CSharpGameEngine.Import.Gltf.Cli");
+        string First = ResidentBridgeClient.ComputePipeName(@"G:\repo", @"tools\CSharpGameEngine.Import.Gltf.Cli");
+        string Second = ResidentBridgeClient.ComputePipeName(@"G:\repo", @"tools\CSharpGameEngine.Import.Gltf.Cli");
 
-        Assert.Equal(first, second);
+        Assert.Equal(First, Second);
     }
 
     [Fact]
     public void ComputePipeName_DifferentRepoRoot_ReturnsDifferentName()
     {
-        string first = ResidentBridgeClient.ComputePipeName(@"G:\repo-one", @"tools\CSharpGameEngine.Import.Gltf.Cli");
-        string second = ResidentBridgeClient.ComputePipeName(@"G:\repo-two", @"tools\CSharpGameEngine.Import.Gltf.Cli");
+        string First = ResidentBridgeClient.ComputePipeName(@"G:\repo-one", @"tools\CSharpGameEngine.Import.Gltf.Cli");
+        string Second = ResidentBridgeClient.ComputePipeName(@"G:\repo-two", @"tools\CSharpGameEngine.Import.Gltf.Cli");
 
-        Assert.NotEqual(first, second);
+        Assert.NotEqual(First, Second);
     }
 
     [Fact]
     public void ComputePipeName_DifferentBridgeProject_ReturnsDifferentName()
     {
-        string gltf = ResidentBridgeClient.ComputePipeName(@"G:\repo", @"tools\CSharpGameEngine.Import.Gltf.Cli");
-        string fbx = ResidentBridgeClient.ComputePipeName(@"G:\repo", @"tools\CSharpGameEngine.Import.Fbx.Cli");
+        string Gltf = ResidentBridgeClient.ComputePipeName(@"G:\repo", @"tools\CSharpGameEngine.Import.Gltf.Cli");
+        string Fbx = ResidentBridgeClient.ComputePipeName(@"G:\repo", @"tools\CSharpGameEngine.Import.Fbx.Cli");
 
-        Assert.NotEqual(gltf, fbx);
+        Assert.NotEqual(Gltf, Fbx);
     }
 }

@@ -11,9 +11,9 @@ public readonly struct UnrealCoordinateConvention : ICoordinateConvention
 {
     public static CoordinateHandedness Handedness => CoordinateHandedness.LeftHanded;
 
-    public static XyzVector ToXyz(in RufVector value) => new(value.F, value.R, value.U);
+    public static XyzVector ToXyz(in RufVector Value) => new(Value.F, Value.R, Value.U);
 
-    public static RufVector FromXyz(in XyzVector value) => new(value.Y, value.Z, value.X);
+    public static RufVector FromXyz(in XyzVector Value) => new(Value.Y, Value.Z, Value.X);
 
     public static XyzVector RightXyz => new(0f, 1f, 0f);
 

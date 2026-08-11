@@ -8,43 +8,43 @@ public class ModelPixelVerifierTests
     private static readonly PixelColor Background = new(5, 5, 20, 255);
     private static readonly PixelColor Foreground = new(200, 150, 100, 255);
 
-    private static PixelReadbackResult BuildFrame(int width, int height, uint extraRowPitchPadding, DXGI_FORMAT format, Func<int, int, bool> isForeground)
+    private static PixelReadbackResult BuildFrame(int Width, int Height, uint ExtraRowPitchPadding, DXGI_FORMAT Format, Func<int, int, bool> IsForeground)
     {
-        int bytesPerPixel = 4;
-        uint rowPitch = (uint)(width * bytesPerPixel) + extraRowPitchPadding;
-        byte[] pixels = new byte[rowPitch * height];
+        int BytesPerPixel = 4;
+        uint RowPitch = (uint)(Width * BytesPerPixel) + ExtraRowPitchPadding;
+        byte[] Pixels = new byte[RowPitch * Height];
 
-        for (int y = 0; y < height; y++)
+        for (int y = 0; y < Height; y++)
         {
-            for (int x = 0; x < width; x++)
+            for (int x = 0; x < Width; x++)
             {
-                PixelColor color = isForeground(x, y) ? Foreground : Background;
-                long offset = ((long)y * rowPitch) + (x * bytesPerPixel);
+                PixelColor Color = IsForeground(x, y) ? Foreground : Background;
+                long Offset = ((long)y * RowPitch) + (x * BytesPerPixel);
 
-                if (format == DXGI_FORMAT_B8G8R8A8_UNORM)
+                if (Format == DXGI_FORMAT_B8G8R8A8_UNORM)
                 {
-                    pixels[offset] = color.B;
-                    pixels[offset + 1] = color.G;
-                    pixels[offset + 2] = color.R;
-                    pixels[offset + 3] = color.A;
+                    Pixels[Offset] = Color.B;
+                    Pixels[Offset + 1] = Color.G;
+                    Pixels[Offset + 2] = Color.R;
+                    Pixels[Offset + 3] = Color.A;
                 }
                 else
                 {
-                    pixels[offset] = color.R;
-                    pixels[offset + 1] = color.G;
-                    pixels[offset + 2] = color.B;
-                    pixels[offset + 3] = color.A;
+                    Pixels[Offset] = Color.R;
+                    Pixels[Offset + 1] = Color.G;
+                    Pixels[Offset + 2] = Color.B;
+                    Pixels[Offset + 3] = Color.A;
                 }
             }
         }
 
         return new PixelReadbackResult
         {
-            Width = width,
-            Height = height,
-            RowPitch = rowPitch,
-            Format = format,
-            Pixels = pixels,
+            Width = Width,
+            Height = Height,
+            RowPitch = RowPitch,
+            Format = Format,
+            Pixels = Pixels,
         };
     }
 
@@ -52,67 +52,67 @@ public class ModelPixelVerifierTests
     public void Verify_PlausibleCoverage_Succeeds()
     {
         // A centered disc covering roughly 20% of a 100x100 frame.
-        PixelReadbackResult frame = BuildFrame(100, 100, extraRowPitchPadding: 0, DXGI_FORMAT_R8G8B8A8_UNORM,
-            (x, y) => (x - 50) * (x - 50) + (y - 50) * (y - 50) < 32 * 32);
+        PixelReadbackResult Frame = BuildFrame(100, 100, ExtraRowPitchPadding: 0, DXGI_FORMAT_R8G8B8A8_UNORM,
+            (X, Y) => (X - 50) * (X - 50) + (Y - 50) * (Y - 50) < 32 * 32);
 
-        ModelVerificationResult result = ModelPixelVerifier.Verify(frame, Background);
+        ModelVerificationResult Result = ModelPixelVerifier.Verify(Frame, Background);
 
-        Assert.True(result.Success, result.Details);
-        Assert.Equal(Foreground, result.CenterColor);
-        Assert.InRange(result.ForegroundRatio, 0.05, 0.98);
+        Assert.True(Result.Success, Result.Details);
+        Assert.Equal(Foreground, Result.CenterColor);
+        Assert.InRange(Result.ForegroundRatio, 0.05, 0.98);
     }
 
     [Fact]
     public void Verify_EntirelyBackground_Fails()
     {
-        PixelReadbackResult frame = BuildFrame(64, 64, extraRowPitchPadding: 0, DXGI_FORMAT_R8G8B8A8_UNORM, (_, _) => false);
+        PixelReadbackResult Frame = BuildFrame(64, 64, ExtraRowPitchPadding: 0, DXGI_FORMAT_R8G8B8A8_UNORM, (_, _) => false);
 
-        ModelVerificationResult result = ModelPixelVerifier.Verify(frame, Background);
+        ModelVerificationResult Result = ModelPixelVerifier.Verify(Frame, Background);
 
-        Assert.False(result.Success);
-        Assert.Equal(0.0, result.ForegroundRatio);
-        Assert.Contains("nothing appears to have been drawn", result.Details);
+        Assert.False(Result.Success);
+        Assert.Equal(0.0, Result.ForegroundRatio);
+        Assert.Contains("nothing appears to have been drawn", Result.Details);
     }
 
     [Fact]
     public void Verify_EntirelyForeground_Fails()
     {
-        PixelReadbackResult frame = BuildFrame(64, 64, extraRowPitchPadding: 0, DXGI_FORMAT_R8G8B8A8_UNORM, (_, _) => true);
+        PixelReadbackResult Frame = BuildFrame(64, 64, ExtraRowPitchPadding: 0, DXGI_FORMAT_R8G8B8A8_UNORM, (_, _) => true);
 
-        ModelVerificationResult result = ModelPixelVerifier.Verify(frame, Background);
+        ModelVerificationResult Result = ModelPixelVerifier.Verify(Frame, Background);
 
-        Assert.False(result.Success);
-        Assert.Equal(1.0, result.ForegroundRatio);
-        Assert.Contains("plausible band", result.Details);
+        Assert.False(Result.Success);
+        Assert.Equal(1.0, Result.ForegroundRatio);
+        Assert.Contains("plausible band", Result.Details);
     }
 
     [Fact]
     public void Verify_HandlesRowPitchPaddingLargerThanTightWidth()
     {
-        PixelReadbackResult frame = BuildFrame(17, 13, extraRowPitchPadding: 231, DXGI_FORMAT_R8G8B8A8_UNORM,
-            (x, y) => Math.Abs(x - 8) < 4 && Math.Abs(y - 6) < 4);
+        PixelReadbackResult Frame = BuildFrame(17, 13, ExtraRowPitchPadding: 231, DXGI_FORMAT_R8G8B8A8_UNORM,
+            (X, Y) => Math.Abs(X - 8) < 4 && Math.Abs(Y - 6) < 4);
 
-        ModelVerificationResult result = ModelPixelVerifier.Verify(frame, Background);
+        ModelVerificationResult Result = ModelPixelVerifier.Verify(Frame, Background);
 
-        Assert.True(result.Success, result.Details);
+        Assert.True(Result.Success, Result.Details);
     }
 
     [Fact]
     public void Verify_BgraFormat_ReadsChannelsInCorrectOrder()
     {
-        PixelReadbackResult frame = BuildFrame(64, 64, extraRowPitchPadding: 0, DXGI_FORMAT_B8G8R8A8_UNORM,
-            (x, y) => Math.Abs(x - 32) < 10 && Math.Abs(y - 32) < 10);
+        PixelReadbackResult Frame = BuildFrame(64, 64, ExtraRowPitchPadding: 0, DXGI_FORMAT_B8G8R8A8_UNORM,
+            (X, Y) => Math.Abs(X - 32) < 10 && Math.Abs(Y - 32) < 10);
 
-        ModelVerificationResult result = ModelPixelVerifier.Verify(frame, Background);
+        ModelVerificationResult Result = ModelPixelVerifier.Verify(Frame, Background);
 
-        Assert.True(result.Success, result.Details);
-        Assert.Equal(Foreground, result.CenterColor);
+        Assert.True(Result.Success, Result.Details);
+        Assert.Equal(Foreground, Result.CenterColor);
     }
 
     [Fact]
     public void Verify_ZeroSizedFrame_FailsCleanly()
     {
-        PixelReadbackResult frame = new()
+        PixelReadbackResult Frame = new()
         {
             Width = 0,
             Height = 0,
@@ -121,8 +121,8 @@ public class ModelPixelVerifierTests
             Pixels = [],
         };
 
-        ModelVerificationResult result = ModelPixelVerifier.Verify(frame, Background);
+        ModelVerificationResult Result = ModelPixelVerifier.Verify(Frame, Background);
 
-        Assert.False(result.Success);
+        Assert.False(Result.Success);
     }
 }

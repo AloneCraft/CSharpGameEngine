@@ -25,13 +25,13 @@ internal static class SceneEditorHub
 
     public static (SceneFile Scene, string Path)? ActiveScene { get; private set; }
 
-    public static void PublishSceneOpened(SceneFile scene, string path)
+    public static void PublishSceneOpened(SceneFile Scene, string Path)
     {
-        ActiveScene = (scene, path);
-        SceneOpened?.Invoke(scene, path);
+        ActiveScene = (Scene, Path);
+        SceneOpened?.Invoke(Scene, Path);
     }
 
-    public static void PublishSelection(Guid? nodeId) => SelectedNodeChanged?.Invoke(nodeId);
+    public static void PublishSelection(Guid? NodeId) => SelectedNodeChanged?.Invoke(NodeId);
 
     public static void RequestReload() => ReloadRequested?.Invoke();
 }

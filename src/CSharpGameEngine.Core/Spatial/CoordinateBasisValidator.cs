@@ -17,51 +17,51 @@ public static class CoordinateBasisValidator
     public static void Validate<TConvention>()
         where TConvention : struct, ICoordinateConvention
     {
-        XyzVector right = TConvention.RightXyz;
-        XyzVector up = TConvention.UpXyz;
-        XyzVector forward = TConvention.ForwardXyz;
-        string conventionName = typeof(TConvention).Name;
+        XyzVector Right = TConvention.RightXyz;
+        XyzVector Up = TConvention.UpXyz;
+        XyzVector Forward = TConvention.ForwardXyz;
+        string ConventionName = typeof(TConvention).Name;
 
-        ValidateFinite(right, conventionName, nameof(ICoordinateConvention.RightXyz));
-        ValidateFinite(up, conventionName, nameof(ICoordinateConvention.UpXyz));
-        ValidateFinite(forward, conventionName, nameof(ICoordinateConvention.ForwardXyz));
+        ValidateFinite(Right, ConventionName, nameof(ICoordinateConvention.RightXyz));
+        ValidateFinite(Up, ConventionName, nameof(ICoordinateConvention.UpXyz));
+        ValidateFinite(Forward, ConventionName, nameof(ICoordinateConvention.ForwardXyz));
 
-        ValidateUnitLength(right, conventionName, nameof(ICoordinateConvention.RightXyz));
-        ValidateUnitLength(up, conventionName, nameof(ICoordinateConvention.UpXyz));
-        ValidateUnitLength(forward, conventionName, nameof(ICoordinateConvention.ForwardXyz));
+        ValidateUnitLength(Right, ConventionName, nameof(ICoordinateConvention.RightXyz));
+        ValidateUnitLength(Up, ConventionName, nameof(ICoordinateConvention.UpXyz));
+        ValidateUnitLength(Forward, ConventionName, nameof(ICoordinateConvention.ForwardXyz));
 
-        ValidateOrthogonal(right, up, conventionName, "Right", "Up");
-        ValidateOrthogonal(up, forward, conventionName, "Up", "Forward");
-        ValidateOrthogonal(forward, right, conventionName, "Forward", "Right");
+        ValidateOrthogonal(Right, Up, ConventionName, "Right", "Up");
+        ValidateOrthogonal(Up, Forward, ConventionName, "Up", "Forward");
+        ValidateOrthogonal(Forward, Right, ConventionName, "Forward", "Right");
 
-        if (right == up || up == forward || forward == right)
+        if (Right == Up || Up == Forward || Forward == Right)
         {
-            throw new SpatialConfigurationException($"{conventionName}: Right/Up/Forward must not duplicate the same physical axis (Right={right}, Up={up}, Forward={forward}).");
+            throw new SpatialConfigurationException($"{ConventionName}: Right/Up/Forward must not duplicate the same physical axis (Right={Right}, Up={Up}, Forward={Forward}).");
         }
     }
 
-    private static void ValidateFinite(XyzVector axis, string conventionName, string axisName)
+    private static void ValidateFinite(XyzVector Axis, string ConventionName, string AxisName)
     {
-        if (!float.IsFinite(axis.X) || !float.IsFinite(axis.Y) || !float.IsFinite(axis.Z))
+        if (!float.IsFinite(Axis.X) || !float.IsFinite(Axis.Y) || !float.IsFinite(Axis.Z))
         {
-            throw new SpatialConfigurationException($"{conventionName}.{axisName} must be finite, but was {axis}.");
+            throw new SpatialConfigurationException($"{ConventionName}.{AxisName} must be finite, but was {Axis}.");
         }
     }
 
-    private static void ValidateUnitLength(XyzVector axis, string conventionName, string axisName)
+    private static void ValidateUnitLength(XyzVector Axis, string ConventionName, string AxisName)
     {
-        if (MathF.Abs(axis.Length - 1f) > LengthTolerance)
+        if (MathF.Abs(Axis.Length - 1f) > LengthTolerance)
         {
-            throw new SpatialConfigurationException($"{conventionName}.{axisName} must be unit length, but was {axis} (length {axis.Length}).");
+            throw new SpatialConfigurationException($"{ConventionName}.{AxisName} must be unit length, but was {Axis} (length {Axis.Length}).");
         }
     }
 
-    private static void ValidateOrthogonal(XyzVector a, XyzVector b, string conventionName, string aName, string bName)
+    private static void ValidateOrthogonal(XyzVector A, XyzVector B, string ConventionName, string AName, string BName)
     {
-        float dot = XyzVector.Dot(a, b);
-        if (MathF.Abs(dot) > OrthogonalityTolerance)
+        float Dot = XyzVector.Dot(A, B);
+        if (MathF.Abs(Dot) > OrthogonalityTolerance)
         {
-            throw new SpatialConfigurationException($"{conventionName}: {aName} and {bName} must be orthogonal, but their dot product was {dot}.");
+            throw new SpatialConfigurationException($"{ConventionName}: {AName} and {BName} must be orthogonal, but their dot product was {Dot}.");
         }
     }
 }

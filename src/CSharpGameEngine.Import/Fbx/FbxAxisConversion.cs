@@ -18,18 +18,18 @@ namespace CSharpGameEngine.Import.Fbx;
 internal static class FbxAxisConversion
 {
     /// <summary>Converts one AssimpNet-space point or direction into engine space. Under the two fixed Conventions involved, this reduces to negating Z.</summary>
-    public static Vector3 ConvertVector(Vector3 assimpSpaceValue)
+    public static Vector3 ConvertVector(Vector3 AssimpSpaceValue)
     {
-        RufVector ruf = Spatial<FbxCoordinateConvention>.FromXyz((XyzVector)assimpSpaceValue);
-        return (Vector3)Spatial<UnityCoordinateConvention>.ToXyz(ruf);
+        RufVector Ruf = Spatial<FbxCoordinateConvention>.FromXyz((XyzVector)AssimpSpaceValue);
+        return (Vector3)Spatial<UnityCoordinateConvention>.ToXyz(Ruf);
     }
 
     /// <summary>Swaps two indices of each triangle so front-facing winding is preserved after a single-axis position mirror - see GltfAxisConversion.FlipTriangleWinding (same reasoning, no visible effect today since every consumer disables backface culling).</summary>
-    public static void FlipTriangleWinding(List<uint> indices)
+    public static void FlipTriangleWinding(List<uint> Indices)
     {
-        for (int i = 0; i + 2 < indices.Count; i += 3)
+        for (int i = 0; i + 2 < Indices.Count; i += 3)
         {
-            (indices[i + 1], indices[i + 2]) = (indices[i + 2], indices[i + 1]);
+            (Indices[i + 1], Indices[i + 2]) = (Indices[i + 2], Indices[i + 1]);
         }
     }
 }

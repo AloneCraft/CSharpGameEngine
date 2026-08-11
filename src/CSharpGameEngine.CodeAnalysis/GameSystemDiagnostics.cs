@@ -232,11 +232,11 @@ internal static class GameSystemDiagnostics
         isEnabledByDefault: true);
 
     /// <summary>1つのSystem解析結果が持つ全診断を報告する。生成には関与しない診断専用の出力段。</summary>
-    internal static void ReportAll(SourceProductionContext context, GameSystemResult result)
+    internal static void ReportAll(SourceProductionContext Context, GameSystemResult Result)
     {
-        foreach (Diagnostic diagnostic in result.Diagnostics)
+        foreach (Diagnostic diagnostic in Result.Diagnostics)
         {
-            context.ReportDiagnostic(diagnostic);
+            Context.ReportDiagnostic(diagnostic);
         }
     }
 }

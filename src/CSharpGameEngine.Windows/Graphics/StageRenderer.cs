@@ -107,79 +107,79 @@ public sealed unsafe class StageRenderer : IDisposable
         public Vector2 Uv;
     }
 
-    private GraphicsDevice? _device;
-    private IDXGISwapChain3* _swapChain;
-    private ID3D12DescriptorHeap* _rtvHeap;
-    private uint _rtvDescriptorSize;
-    private readonly ID3D12Resource*[] _backBuffers = new ID3D12Resource*[FrameCount];
-    private ID3D12DescriptorHeap* _dsvHeap;
-    private ID3D12Resource* _depthBuffer;
-    private readonly ID3D12CommandAllocator*[] _commandAllocators = new ID3D12CommandAllocator*[FrameCount];
-    private ID3D12GraphicsCommandList* _commandList;
-    private ID3D12Fence* _fence;
-    private readonly ulong[] _fenceValues = new ulong[FrameCount];
-    private HANDLE _fenceEvent;
-    private ID3D12RootSignature* _rootSignature;
-    private ID3D12PipelineState* _pipelineState;
+    private GraphicsDevice? Device;
+    private IDXGISwapChain3* SwapChain;
+    private ID3D12DescriptorHeap* RtvHeap;
+    private uint RtvDescriptorSize;
+    private readonly ID3D12Resource*[] BackBuffers = new ID3D12Resource*[FrameCount];
+    private ID3D12DescriptorHeap* DsvHeap;
+    private ID3D12Resource* DepthBuffer;
+    private readonly ID3D12CommandAllocator*[] CommandAllocators = new ID3D12CommandAllocator*[FrameCount];
+    private ID3D12GraphicsCommandList* CommandList;
+    private ID3D12Fence* Fence;
+    private readonly ulong[] FenceValues = new ulong[FrameCount];
+    private HANDLE FenceEvent;
+    private ID3D12RootSignature* RootSignature;
+    private ID3D12PipelineState* PipelineState;
 
     // Per-mesh (indexed by meshIndex).
-    private int _meshCount;
-    private ID3D12Resource*[] _vertexBuffers = [];
-    private D3D12_VERTEX_BUFFER_VIEW[] _vertexBufferViews = [];
-    private ID3D12Resource*[] _indexBuffers = [];
-    private D3D12_INDEX_BUFFER_VIEW[] _indexBufferViews = [];
-    private uint[] _indexCounts = [];
+    private int MeshCount;
+    private ID3D12Resource*[] VertexBuffers = [];
+    private D3D12_VERTEX_BUFFER_VIEW[] VertexBufferViews = [];
+    private ID3D12Resource*[] IndexBuffers = [];
+    private D3D12_INDEX_BUFFER_VIEW[] IndexBufferViews = [];
+    private uint[] IndexCounts = [];
 
     // Per-material (indexed by materialIndex). Three textures per material: albedo, normal, metallic-roughness.
-    private int _materialCount;
-    private ID3D12Resource*[] _materialTextures = [];
-    private ID3D12DescriptorHeap* _srvHeap;
-    private uint _srvDescriptorSize;
-    private Vector4[] _materialBaseColorFactors = [];
-    private float[] _materialRoughnessFactors = [];
-    private float[] _materialMetallicFactors = [];
+    private int MaterialCount;
+    private ID3D12Resource*[] MaterialTextures = [];
+    private ID3D12DescriptorHeap* SrvHeap;
+    private uint SrvDescriptorSize;
+    private Vector4[] MaterialBaseColorFactors = [];
+    private float[] MaterialRoughnessFactors = [];
+    private float[] MaterialMetallicFactors = [];
 
     // Per-object (indexed by objectIndex).
-    private int _objectCount;
-    private int[] _objectMeshIndices = [];
-    private int[] _objectMaterialIndices = [];
-    private Matrix4x4[] _objectTransforms = [];
+    private int ObjectCount;
+    private int[] ObjectMeshIndices = [];
+    private int[] ObjectMaterialIndices = [];
+    private Matrix4x4[] ObjectTransforms = [];
 
-    private ID3D12Resource* _frameConstantsBuffer;
-    private byte* _frameConstantsMapped;
-    private ID3D12Resource* _objectConstantsBuffer;
-    private byte* _objectConstantsMapped;
+    private ID3D12Resource* FrameConstantsBuffer;
+    private byte* FrameConstantsMapped;
+    private ID3D12Resource* ObjectConstantsBuffer;
+    private byte* ObjectConstantsMapped;
 
     // Point/spot lights are additive per frame (AddPointLight/AddSpotLight), unlike the singleton
     // directional light/ambient/fog which are overwritten in place. Counts reset to zero at the end
     // of RenderFrame so a light that stops calling Add (its owning Entity went away) doesn't linger.
-    private int _pointLightCount;
-    private int _spotLightCount;
+    private int PointLightCount;
+    private int SpotLightCount;
 
-    private ID3D12Resource* _readbackBuffer;
-    private ulong _readbackBufferSize;
-    private D3D12_PLACED_SUBRESOURCE_FOOTPRINT _readbackFootprint;
+    private ID3D12Resource* ReadbackBuffer;
+    private ulong ReadbackBufferSize;
+    private D3D12_PLACED_SUBRESOURCE_FOOTPRINT ReadbackFootprint;
 
-    private uint _frameIndex;
-    private int _width;
-    private int _height;
-    private bool _sizeIsZero;
-    private bool _disposed;
+    private uint FrameIndex;
+    private int Width;
+    private int Height;
+    private bool SizeIsZero;
+    private bool Disposed;
 
-    private D3D12_VIEWPORT _viewport;
-    private RECT _scissorRect;
+    private D3D12_VIEWPORT Viewport;
+    private RECT ScissorRect;
 
-    public string AdapterDescription => _device?.AdapterDescription ?? string.Empty;
+    public string AdapterDescription => Device?.AdapterDescription ?? string.Empty;
 
-    public bool IsWarp => _device?.IsWarp ?? false;
+    public bool IsWarp => Device?.IsWarp ?? false;
 
-    public bool DebugLayerEnabled => _device?.DebugLayerEnabled ?? false;
+    public bool DebugLayerEnabled => Device?.DebugLayerEnabled ?? false;
 
-    public bool GpuBasedValidationEnabled => _device?.GpuBasedValidationEnabled ?? false;
+    public bool GpuBasedValidationEnabled => Device?.GpuBasedValidationEnabled ?? false;
 
-    public IReadOnlyList<D3D12DebugMessage> DebugMessages => _device?.CollectedMessages ?? [];
+    public IReadOnlyList<D3D12DebugMessage> DebugMessages => Device?.CollectedMessages ?? [];
 
-    public int ErrorOrWorseMessageCount => _device?.ErrorOrWorseMessageCount ?? 0;
+    public int ErrorOrWorseMessageCount => Device?.ErrorOrWorseMessageCount ?? 0;
 
     public bool ShaderCompilationSucceeded { get; private set; }
 
@@ -190,345 +190,345 @@ public sealed unsafe class StageRenderer : IDisposable
     public PixelReadbackResult? LastCapturedFrame { get; private set; }
 
     public static StageRenderer Create(
-        nint hwnd, int width, int height, GraphicsDeviceOptions deviceOptions, string shaderPath,
-        IReadOnlyList<StageMeshCreateInfo> meshes, IReadOnlyList<StageMaterialCreateInfo> materials, IReadOnlyList<StageObjectCreateInfo> objects)
+        nint Hwnd, int Width, int Height, GraphicsDeviceOptions DeviceOptions, string ShaderPath,
+        IReadOnlyList<StageMeshCreateInfo> Meshes, IReadOnlyList<StageMaterialCreateInfo> Materials, IReadOnlyList<StageObjectCreateInfo> Objects)
     {
-        ArgumentNullException.ThrowIfNull(shaderPath);
-        ArgumentNullException.ThrowIfNull(meshes);
-        ArgumentNullException.ThrowIfNull(materials);
-        ArgumentNullException.ThrowIfNull(objects);
-        if (width <= 0 || height <= 0)
+        ArgumentNullException.ThrowIfNull(ShaderPath);
+        ArgumentNullException.ThrowIfNull(Meshes);
+        ArgumentNullException.ThrowIfNull(Materials);
+        ArgumentNullException.ThrowIfNull(Objects);
+        if (Width <= 0 || Height <= 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(width), "Initial width/height must both be positive.");
+            throw new ArgumentOutOfRangeException(nameof(Width), "Initial width/height must both be positive.");
         }
 
-        if (meshes.Count == 0)
+        if (Meshes.Count == 0)
         {
-            throw new ArgumentException("At least one mesh is required.", nameof(meshes));
+            throw new ArgumentException("At least one mesh is required.", nameof(Meshes));
         }
-        if (materials.Count == 0)
+        if (Materials.Count == 0)
         {
-            throw new ArgumentException("At least one material is required.", nameof(materials));
+            throw new ArgumentException("At least one material is required.", nameof(Materials));
         }
-        if (objects.Count == 0)
+        if (Objects.Count == 0)
         {
-            throw new ArgumentException("At least one object is required.", nameof(objects));
+            throw new ArgumentException("At least one object is required.", nameof(Objects));
         }
 
-        foreach (StageMeshCreateInfo mesh in meshes)
+        foreach (StageMeshCreateInfo Mesh in Meshes)
         {
-            if (mesh.Positions.Count == 0 || mesh.Positions.Count != mesh.Normals.Count
-                || mesh.Positions.Count != mesh.Tangents.Count || mesh.Positions.Count != mesh.Uvs.Count
-                || mesh.Indices.Count == 0)
+            if (Mesh.Positions.Count == 0 || Mesh.Positions.Count != Mesh.Normals.Count
+                || Mesh.Positions.Count != Mesh.Tangents.Count || Mesh.Positions.Count != Mesh.Uvs.Count
+                || Mesh.Indices.Count == 0)
             {
-                throw new ArgumentException("Each mesh must have at least one vertex with matching Positions/Normals/Tangents/Uvs counts, and at least one index.", nameof(meshes));
+                throw new ArgumentException("Each mesh must have at least one vertex with matching Positions/Normals/Tangents/Uvs counts, and at least one index.", nameof(Meshes));
             }
         }
 
-        foreach (StageObjectCreateInfo obj in objects)
+        foreach (StageObjectCreateInfo Obj in Objects)
         {
-            if (obj.MeshIndex < 0 || obj.MeshIndex >= meshes.Count)
+            if (Obj.MeshIndex < 0 || Obj.MeshIndex >= Meshes.Count)
             {
-                throw new ArgumentOutOfRangeException(nameof(objects), $"Object references out-of-range MeshIndex {obj.MeshIndex}.");
+                throw new ArgumentOutOfRangeException(nameof(Objects), $"Object references out-of-range MeshIndex {Obj.MeshIndex}.");
             }
-            if (obj.MaterialIndex < 0 || obj.MaterialIndex >= materials.Count)
+            if (Obj.MaterialIndex < 0 || Obj.MaterialIndex >= Materials.Count)
             {
-                throw new ArgumentOutOfRangeException(nameof(objects), $"Object references out-of-range MaterialIndex {obj.MaterialIndex}.");
+                throw new ArgumentOutOfRangeException(nameof(Objects), $"Object references out-of-range MaterialIndex {Obj.MaterialIndex}.");
             }
         }
 
-        StageRenderer renderer = new()
+        StageRenderer Renderer = new()
         {
-            _width = width,
-            _height = height,
+            Width = Width,
+            Height = Height,
         };
 
-        bool completed = false;
+        bool Completed = false;
         try
         {
-            renderer.Initialize((HWND)hwnd, width, height, deviceOptions, shaderPath, meshes, materials, objects);
-            completed = true;
-            return renderer;
+            Renderer.Initialize((HWND)Hwnd, Width, Height, DeviceOptions, ShaderPath, Meshes, Materials, Objects);
+            Completed = true;
+            return Renderer;
         }
         finally
         {
-            if (!completed)
+            if (!Completed)
             {
-                renderer.Dispose();
+                Renderer.Dispose();
             }
         }
     }
 
     /// <summary>Legacy adapter (pre-ADR-0018): one untextured solid-color mesh per object, exactly reproducing the old 1:1 mesh/material/object indexing so existing callers (and <c>StageGpuIntegrationTests</c>) keep working unchanged. Synthesized UVs/tangents never matter visually here since every material falls back to its 1x1 default textures.</summary>
     public static StageRenderer Create(
-        nint hwnd, int width, int height, GraphicsDeviceOptions deviceOptions, string shaderPath,
-        IReadOnlyList<MeshCreateInfo> meshes)
+        nint Hwnd, int Width, int Height, GraphicsDeviceOptions DeviceOptions, string ShaderPath,
+        IReadOnlyList<MeshCreateInfo> Meshes)
     {
-        ArgumentNullException.ThrowIfNull(meshes);
+        ArgumentNullException.ThrowIfNull(Meshes);
 
-        var stageMeshes = new StageMeshCreateInfo[meshes.Count];
-        var stageMaterials = new StageMaterialCreateInfo[meshes.Count];
-        var stageObjects = new StageObjectCreateInfo[meshes.Count];
+        var StageMeshes = new StageMeshCreateInfo[Meshes.Count];
+        var StageMaterials = new StageMaterialCreateInfo[Meshes.Count];
+        var StageObjects = new StageObjectCreateInfo[Meshes.Count];
 
-        for (int i = 0; i < meshes.Count; i++)
+        for (int i = 0; i < Meshes.Count; i++)
         {
-            MeshCreateInfo mesh = meshes[i];
-            int vertexCount = mesh.Positions.Count;
-            var uvs = new Vector2[vertexCount];
-            var tangents = new Vector4[vertexCount];
-            for (int v = 0; v < vertexCount; v++)
+            MeshCreateInfo Mesh = Meshes[i];
+            int VertexCount = Mesh.Positions.Count;
+            var Uvs = new Vector2[VertexCount];
+            var Tangents = new Vector4[VertexCount];
+            for (int v = 0; v < VertexCount; v++)
             {
-                tangents[v] = ArbitraryTangentFor(mesh.Normals[v]);
+                Tangents[v] = ArbitraryTangentFor(Mesh.Normals[v]);
             }
 
-            stageMeshes[i] = new StageMeshCreateInfo { Positions = mesh.Positions, Normals = mesh.Normals, Tangents = tangents, Uvs = uvs, Indices = mesh.Indices };
-            stageMaterials[i] = new StageMaterialCreateInfo { BaseColorFactor = mesh.BaseColorFactor, RoughnessFactor = 1f, MetallicFactor = 0f };
-            stageObjects[i] = new StageObjectCreateInfo { MeshIndex = i, MaterialIndex = i };
+            StageMeshes[i] = new StageMeshCreateInfo { Positions = Mesh.Positions, Normals = Mesh.Normals, Tangents = Tangents, Uvs = Uvs, Indices = Mesh.Indices };
+            StageMaterials[i] = new StageMaterialCreateInfo { BaseColorFactor = Mesh.BaseColorFactor, RoughnessFactor = 1f, MetallicFactor = 0f };
+            StageObjects[i] = new StageObjectCreateInfo { MeshIndex = i, MaterialIndex = i };
         }
 
-        return Create(hwnd, width, height, deviceOptions, shaderPath, stageMeshes, stageMaterials, stageObjects);
+        return Create(Hwnd, Width, Height, DeviceOptions, ShaderPath, StageMeshes, StageMaterials, StageObjects);
     }
 
-    /// <summary>An arbitrary unit tangent perpendicular to <paramref name="normal"/> - correct for TBN orthonormality even though it isn't aligned to any real UV direction, which is fine when the bound normal texture is always the flat 1x1 fallback (see <see cref="MaterialTextureFormat"/> fallback images).</summary>
-    private static Vector4 ArbitraryTangentFor(Vector3 normal)
+    /// <summary>An arbitrary unit tangent perpendicular to <paramref name="Normal"/> - correct for TBN orthonormality even though it isn't aligned to any real UV direction, which is fine when the bound normal texture is always the flat 1x1 fallback (see <see cref="MaterialTextureFormat"/> fallback images).</summary>
+    private static Vector4 ArbitraryTangentFor(Vector3 Normal)
     {
-        Vector3 reference = MathF.Abs(normal.Y) < 0.99f ? Vector3.UnitY : Vector3.UnitX;
-        Vector3 tangent = Vector3.Normalize(Vector3.Cross(reference, normal));
-        return new Vector4(tangent, 1f);
+        Vector3 Reference = MathF.Abs(Normal.Y) < 0.99f ? Vector3.UnitY : Vector3.UnitX;
+        Vector3 Tangent = Vector3.Normalize(Vector3.Cross(Reference, Normal));
+        return new Vector4(Tangent, 1f);
     }
 
     private StageRenderer()
     {
     }
 
-    private void Initialize(HWND hwnd, int width, int height, GraphicsDeviceOptions deviceOptions, string shaderPath,
-        IReadOnlyList<StageMeshCreateInfo> meshes, IReadOnlyList<StageMaterialCreateInfo> materials, IReadOnlyList<StageObjectCreateInfo> objects)
+    private void Initialize(HWND Hwnd, int Width, int Height, GraphicsDeviceOptions DeviceOptions, string ShaderPath,
+        IReadOnlyList<StageMeshCreateInfo> Meshes, IReadOnlyList<StageMaterialCreateInfo> Materials, IReadOnlyList<StageObjectCreateInfo> Objects)
     {
-        _device = GraphicsDevice.Create(deviceOptions);
+        Device = GraphicsDevice.Create(DeviceOptions);
 
-        CreateSwapChain(hwnd, width, height);
+        CreateSwapChain(Hwnd, Width, Height);
         CreateRtvHeap();
         CreateRenderTargetViews();
         CreateDsvHeap();
-        CreateDepthBuffer(width, height);
+        CreateDepthBuffer(Width, Height);
 
         for (int i = 0; i < FrameCount; i++)
         {
-            ID3D12CommandAllocator* allocator;
+            ID3D12CommandAllocator* Allocator;
             D3D12Diagnostics.EnsureSuccess(
-                _device.Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, __uuidof<ID3D12CommandAllocator>(), (void**)&allocator),
+                Device.Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, __uuidof<ID3D12CommandAllocator>(), (void**)&Allocator),
                 "ID3D12Device::CreateCommandAllocator", "creating a frame command allocator");
-            _commandAllocators[i] = allocator;
+            CommandAllocators[i] = Allocator;
         }
 
-        ID3D12GraphicsCommandList* commandList;
+        ID3D12GraphicsCommandList* CommandList;
         D3D12Diagnostics.EnsureSuccess(
-            _device.Device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, _commandAllocators[0], null, __uuidof<ID3D12GraphicsCommandList>(), (void**)&commandList),
+            Device.Device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, CommandAllocators[0], null, __uuidof<ID3D12GraphicsCommandList>(), (void**)&CommandList),
             "ID3D12Device::CreateCommandList", "creating the graphics command list");
-        _commandList = commandList;
-        D3D12Diagnostics.EnsureSuccess(_commandList->Close(), "ID3D12GraphicsCommandList::Close", "closing the initial command list state");
+        this.CommandList = CommandList;
+        D3D12Diagnostics.EnsureSuccess(CommandList->Close(), "ID3D12GraphicsCommandList::Close", "closing the initial command list state");
 
-        ID3D12Fence* fence;
+        ID3D12Fence* Fence;
         D3D12Diagnostics.EnsureSuccess(
-            _device.Device->CreateFence(0, D3D12_FENCE_FLAG_NONE, __uuidof<ID3D12Fence>(), (void**)&fence),
+            Device.Device->CreateFence(0, D3D12_FENCE_FLAG_NONE, __uuidof<ID3D12Fence>(), (void**)&Fence),
             "ID3D12Device::CreateFence", "creating the frame fence");
-        _fence = fence;
+        this.Fence = Fence;
 
-        _fenceEvent = CreateEventW(lpEventAttributes: null, bManualReset: FALSE, bInitialState: FALSE, lpName: null);
-        if (_fenceEvent == HANDLE.NULL)
+        FenceEvent = CreateEventW(lpEventAttributes: null, bManualReset: FALSE, bInitialState: FALSE, lpName: null);
+        if (FenceEvent == HANDLE.NULL)
         {
             throw new InvalidOperationException("CreateEventW failed while creating the frame fence event.");
         }
 
-        _frameIndex = _swapChain->GetCurrentBackBufferIndex();
-        _fenceValues[_frameIndex] = 1;
+        FrameIndex = SwapChain->GetCurrentBackBufferIndex();
+        FenceValues[FrameIndex] = 1;
 
-        CompileShaders(shaderPath);
+        CompileShaders(ShaderPath);
         CreateRootSignature();
         CreatePipelineState();
-        CreateMeshBuffers(meshes);
-        CreateMaterialResources(materials);
-        CreateObjectMappings(objects);
+        CreateMeshBuffers(Meshes);
+        CreateMaterialResources(Materials);
+        CreateObjectMappings(Objects);
         CreateConstantBuffers();
-        UpdateViewportAndScissor(width, height);
+        UpdateViewportAndScissor(Width, Height);
         InitializeConstantsToDefaults();
     }
 
-    private void CreateSwapChain(HWND hwnd, int width, int height)
+    private void CreateSwapChain(HWND Hwnd, int Width, int Height)
     {
-        DXGI_SWAP_CHAIN_DESC1 desc = new()
+        DXGI_SWAP_CHAIN_DESC1 Desc = new()
         {
             BufferCount = FrameCount,
-            Width = (uint)width,
-            Height = (uint)height,
+            Width = (uint)Width,
+            Height = (uint)Height,
             Format = BackBufferFormat,
             BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT,
             SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD,
             SampleDesc = new DXGI_SAMPLE_DESC(1, 0),
         };
 
-        IDXGISwapChain1* swapChain1;
+        IDXGISwapChain1* SwapChain1;
         D3D12Diagnostics.EnsureSuccess(
-            _device!.Factory->CreateSwapChainForHwnd(
-                (IUnknown*)_device.CommandQueue,
-                hwnd,
-                &desc,
+            Device!.Factory->CreateSwapChainForHwnd(
+                (IUnknown*)Device.CommandQueue,
+                Hwnd,
+                &Desc,
                 pFullscreenDesc: null,
                 pRestrictToOutput: null,
-                &swapChain1),
+                &SwapChain1),
             "IDXGIFactory4::CreateSwapChainForHwnd", "creating the swap chain");
 
-        IDXGISwapChain3* swapChain3;
-        HRESULT hr = swapChain1->QueryInterface(__uuidof<IDXGISwapChain3>(), (void**)&swapChain3);
-        _ = swapChain1->Release();
-        D3D12Diagnostics.EnsureSuccess(hr, "IDXGISwapChain1::QueryInterface(IDXGISwapChain3)", "upgrading the swap chain interface");
+        IDXGISwapChain3* SwapChain3;
+        HRESULT Hr = SwapChain1->QueryInterface(__uuidof<IDXGISwapChain3>(), (void**)&SwapChain3);
+        _ = SwapChain1->Release();
+        D3D12Diagnostics.EnsureSuccess(Hr, "IDXGISwapChain1::QueryInterface(IDXGISwapChain3)", "upgrading the swap chain interface");
 
-        _swapChain = swapChain3;
+        SwapChain = SwapChain3;
     }
 
     private void CreateRtvHeap()
     {
-        D3D12_DESCRIPTOR_HEAP_DESC desc = new()
+        D3D12_DESCRIPTOR_HEAP_DESC Desc = new()
         {
             NumDescriptors = FrameCount,
             Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
         };
 
-        ID3D12DescriptorHeap* heap;
+        ID3D12DescriptorHeap* Heap;
         D3D12Diagnostics.EnsureSuccess(
-            _device!.Device->CreateDescriptorHeap(&desc, __uuidof<ID3D12DescriptorHeap>(), (void**)&heap),
+            Device!.Device->CreateDescriptorHeap(&Desc, __uuidof<ID3D12DescriptorHeap>(), (void**)&Heap),
             "ID3D12Device::CreateDescriptorHeap", "creating the RTV descriptor heap");
 
-        _rtvHeap = heap;
-        _rtvDescriptorSize = _device.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+        RtvHeap = Heap;
+        RtvDescriptorSize = Device.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
     }
 
     private void CreateRenderTargetViews()
     {
-        D3D12_CPU_DESCRIPTOR_HANDLE rtvBase = _rtvHeap->GetCPUDescriptorHandleForHeapStart();
+        D3D12_CPU_DESCRIPTOR_HANDLE RtvBase = RtvHeap->GetCPUDescriptorHandleForHeapStart();
 
         for (uint i = 0; i < FrameCount; i++)
         {
-            ID3D12Resource* backBuffer;
+            ID3D12Resource* BackBuffer;
             D3D12Diagnostics.EnsureSuccess(
-                _swapChain->GetBuffer(i, __uuidof<ID3D12Resource>(), (void**)&backBuffer),
+                SwapChain->GetBuffer(i, __uuidof<ID3D12Resource>(), (void**)&BackBuffer),
                 "IDXGISwapChain3::GetBuffer", "retrieving a back buffer", $"buffer[{i}]");
 
-            D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = new(rtvBase, (int)i, _rtvDescriptorSize);
-            _device!.Device->CreateRenderTargetView(backBuffer, pDesc: null, rtvHandle);
+            D3D12_CPU_DESCRIPTOR_HANDLE RtvHandle = new(RtvBase, (int)i, RtvDescriptorSize);
+            Device!.Device->CreateRenderTargetView(BackBuffer, pDesc: null, RtvHandle);
 
-            _backBuffers[i] = backBuffer;
+            BackBuffers[i] = BackBuffer;
         }
     }
 
     private void CreateDsvHeap()
     {
-        D3D12_DESCRIPTOR_HEAP_DESC desc = new()
+        D3D12_DESCRIPTOR_HEAP_DESC Desc = new()
         {
             NumDescriptors = 1,
             Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV,
         };
 
-        ID3D12DescriptorHeap* heap;
+        ID3D12DescriptorHeap* Heap;
         D3D12Diagnostics.EnsureSuccess(
-            _device!.Device->CreateDescriptorHeap(&desc, __uuidof<ID3D12DescriptorHeap>(), (void**)&heap),
+            Device!.Device->CreateDescriptorHeap(&Desc, __uuidof<ID3D12DescriptorHeap>(), (void**)&Heap),
             "ID3D12Device::CreateDescriptorHeap", "creating the DSV descriptor heap");
 
-        _dsvHeap = heap;
+        DsvHeap = Heap;
     }
 
-    private void CreateDepthBuffer(int width, int height)
+    private void CreateDepthBuffer(int Width, int Height)
     {
-        D3D12_RESOURCE_DESC resourceDesc = D3D12_RESOURCE_DESC.Tex2D(DepthBufferFormat, (uint)width, (uint)height, mipLevels: 1);
-        resourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+        D3D12_RESOURCE_DESC ResourceDesc = D3D12_RESOURCE_DESC.Tex2D(DepthBufferFormat, (uint)Width, (uint)Height, mipLevels: 1);
+        ResourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
-        D3D12_HEAP_PROPERTIES heapProps = new(D3D12_HEAP_TYPE_DEFAULT);
-        D3D12_CLEAR_VALUE clearValue = new(DepthBufferFormat, 1.0f, 0);
+        D3D12_HEAP_PROPERTIES HeapProps = new(D3D12_HEAP_TYPE_DEFAULT);
+        D3D12_CLEAR_VALUE ClearValue = new(DepthBufferFormat, 1.0f, 0);
 
-        ID3D12Resource* depthBuffer;
+        ID3D12Resource* DepthBuffer;
         D3D12Diagnostics.EnsureSuccess(
-            _device!.Device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &resourceDesc, D3D12_RESOURCE_STATE_DEPTH_WRITE, &clearValue, __uuidof<ID3D12Resource>(), (void**)&depthBuffer),
+            Device!.Device->CreateCommittedResource(&HeapProps, D3D12_HEAP_FLAG_NONE, &ResourceDesc, D3D12_RESOURCE_STATE_DEPTH_WRITE, &ClearValue, __uuidof<ID3D12Resource>(), (void**)&DepthBuffer),
             "ID3D12Device::CreateCommittedResource", "creating the depth buffer");
 
-        D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = new()
+        D3D12_DEPTH_STENCIL_VIEW_DESC DsvDesc = new()
         {
             Format = DepthBufferFormat,
             ViewDimension = D3D12_DSV_DIMENSION.D3D12_DSV_DIMENSION_TEXTURE2D,
         };
-        _device.Device->CreateDepthStencilView(depthBuffer, &dsvDesc, _dsvHeap->GetCPUDescriptorHandleForHeapStart());
+        Device.Device->CreateDepthStencilView(DepthBuffer, &DsvDesc, DsvHeap->GetCPUDescriptorHandleForHeapStart());
 
-        _depthBuffer = depthBuffer;
+        this.DepthBuffer = DepthBuffer;
     }
 
-    private void CompileShaders(string shaderPath)
+    private void CompileShaders(string ShaderPath)
     {
-        bool debugShaders = false;
+        bool DebugShaders = false;
 #if DEBUG
-        debugShaders = true;
+        DebugShaders = true;
 #endif
 
-        HlslCompileResult vs = HlslCompiler.Compile(new HlslCompileRequest
+        HlslCompileResult Vs = HlslCompiler.Compile(new HlslCompileRequest
         {
-            FilePath = shaderPath,
+            FilePath = ShaderPath,
             EntryPoint = "VSMain",
             TargetProfile = "vs_6_0",
-            EnableDebugInfo = debugShaders,
+            EnableDebugInfo = DebugShaders,
         });
 
-        HlslCompileResult ps = HlslCompiler.Compile(new HlslCompileRequest
+        HlslCompileResult Ps = HlslCompiler.Compile(new HlslCompileRequest
         {
-            FilePath = shaderPath,
+            FilePath = ShaderPath,
             EntryPoint = "PSMain",
             TargetProfile = "ps_6_0",
-            EnableDebugInfo = debugShaders,
+            EnableDebugInfo = DebugShaders,
         });
 
-        ShaderCompilationSucceeded = vs.Success && ps.Success;
-        ShaderDiagnostics = [.. vs.Diagnostics, .. ps.Diagnostics];
+        ShaderCompilationSucceeded = Vs.Success && Ps.Success;
+        ShaderDiagnostics = [.. Vs.Diagnostics, .. Ps.Diagnostics];
 
         if (!ShaderCompilationSucceeded)
         {
-            string details = string.Join(Environment.NewLine, ShaderDiagnostics);
-            throw new InvalidOperationException($"HLSL shader compilation failed for '{shaderPath}':{Environment.NewLine}{details}");
+            string Details = string.Join(Environment.NewLine, ShaderDiagnostics);
+            throw new InvalidOperationException($"HLSL shader compilation failed for '{ShaderPath}':{Environment.NewLine}{Details}");
         }
 
-        _vertexShaderBytecode = vs.Bytecode;
-        _pixelShaderBytecode = ps.Bytecode;
+        VertexShaderBytecode = Vs.Bytecode;
+        PixelShaderBytecode = Ps.Bytecode;
     }
 
-    private byte[] _vertexShaderBytecode = [];
-    private byte[] _pixelShaderBytecode = [];
+    private byte[] VertexShaderBytecode = [];
+    private byte[] PixelShaderBytecode = [];
 
     private void CreateRootSignature()
     {
-        D3D12_ROOT_PARAMETER frameParam = new()
+        D3D12_ROOT_PARAMETER FrameParam = new()
         {
             ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV,
             ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL,
         };
-        frameParam.Descriptor = new D3D12_ROOT_DESCRIPTOR { ShaderRegister = 0, RegisterSpace = 0 };
+        FrameParam.Descriptor = new D3D12_ROOT_DESCRIPTOR { ShaderRegister = 0, RegisterSpace = 0 };
 
-        D3D12_ROOT_PARAMETER objectParam = new()
+        D3D12_ROOT_PARAMETER ObjectParam = new()
         {
             ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV,
             ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL,
         };
-        objectParam.Descriptor = new D3D12_ROOT_DESCRIPTOR { ShaderRegister = 1, RegisterSpace = 0 };
+        ObjectParam.Descriptor = new D3D12_ROOT_DESCRIPTOR { ShaderRegister = 1, RegisterSpace = 0 };
 
-        D3D12_DESCRIPTOR_RANGE srvRange = new()
+        D3D12_DESCRIPTOR_RANGE SrvRange = new()
         {
             RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
             NumDescriptors = 3,
             BaseShaderRegister = 0,
         };
 
-        D3D12_ROOT_PARAMETER textureParam = new()
+        D3D12_ROOT_PARAMETER TextureParam = new()
         {
             ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE,
             ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL,
         };
 
-        D3D12_STATIC_SAMPLER_DESC staticSampler = new()
+        D3D12_STATIC_SAMPLER_DESC StaticSampler = new()
         {
             Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR,
             AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP,
@@ -541,104 +541,104 @@ public sealed unsafe class StageRenderer : IDisposable
             ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL,
         };
 
-        D3D12_ROOT_PARAMETER* rootParams = stackalloc D3D12_ROOT_PARAMETER[3];
-        rootParams[0] = frameParam;
-        rootParams[1] = objectParam;
-        rootParams[2] = textureParam;
-        rootParams[2].DescriptorTable = new D3D12_ROOT_DESCRIPTOR_TABLE { NumDescriptorRanges = 1, pDescriptorRanges = &srvRange };
+        D3D12_ROOT_PARAMETER* RootParams = stackalloc D3D12_ROOT_PARAMETER[3];
+        RootParams[0] = FrameParam;
+        RootParams[1] = ObjectParam;
+        RootParams[2] = TextureParam;
+        RootParams[2].DescriptorTable = new D3D12_ROOT_DESCRIPTOR_TABLE { NumDescriptorRanges = 1, pDescriptorRanges = &SrvRange };
 
-        D3D12_ROOT_SIGNATURE_DESC rootSignatureDesc = new()
+        D3D12_ROOT_SIGNATURE_DESC RootSignatureDesc = new()
         {
             NumParameters = 3,
-            pParameters = rootParams,
+            pParameters = RootParams,
             NumStaticSamplers = 1,
-            pStaticSamplers = &staticSampler,
+            pStaticSamplers = &StaticSampler,
             Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT,
         };
 
-        ID3DBlob* signatureBlob = null;
-        ID3DBlob* errorBlob = null;
+        ID3DBlob* SignatureBlob = null;
+        ID3DBlob* ErrorBlob = null;
         try
         {
-            HRESULT hr = D3D12SerializeRootSignature(&rootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &signatureBlob, &errorBlob);
-            if (hr.FAILED)
+            HRESULT Hr = D3D12SerializeRootSignature(&RootSignatureDesc, D3D_ROOT_SIGNATURE_VERSION_1, &SignatureBlob, &ErrorBlob);
+            if (Hr.FAILED)
             {
-                string error = errorBlob != null
-                    ? new string((sbyte*)errorBlob->GetBufferPointer())
+                string Error = ErrorBlob != null
+                    ? new string((sbyte*)ErrorBlob->GetBufferPointer())
                     : "(no error blob)";
-                throw new D3D12Exception("D3D12SerializeRootSignature", hr.Value, "serializing the stage root signature", error);
+                throw new D3D12Exception("D3D12SerializeRootSignature", Hr.Value, "serializing the stage root signature", Error);
             }
 
-            ID3D12RootSignature* rootSignature;
+            ID3D12RootSignature* RootSignature;
             D3D12Diagnostics.EnsureSuccess(
-                _device!.Device->CreateRootSignature(0, signatureBlob->GetBufferPointer(), signatureBlob->GetBufferSize(), __uuidof<ID3D12RootSignature>(), (void**)&rootSignature),
+                Device!.Device->CreateRootSignature(0, SignatureBlob->GetBufferPointer(), SignatureBlob->GetBufferSize(), __uuidof<ID3D12RootSignature>(), (void**)&RootSignature),
                 "ID3D12Device::CreateRootSignature", "creating the root signature");
-            _rootSignature = rootSignature;
+            this.RootSignature = RootSignature;
         }
         finally
         {
-            if (signatureBlob != null)
+            if (SignatureBlob != null)
             {
-                _ = signatureBlob->Release();
+                _ = SignatureBlob->Release();
             }
 
-            if (errorBlob != null)
+            if (ErrorBlob != null)
             {
-                _ = errorBlob->Release();
+                _ = ErrorBlob->Release();
             }
         }
     }
 
     private void CreatePipelineState()
     {
-        fixed (byte* pPosition = "POSITION\0"u8)
-        fixed (byte* pNormal = "NORMAL\0"u8)
-        fixed (byte* pTangent = "TANGENT\0"u8)
-        fixed (byte* pTexCoord = "TEXCOORD\0"u8)
-        fixed (byte* pVertexShader = _vertexShaderBytecode)
-        fixed (byte* pPixelShader = _pixelShaderBytecode)
+        fixed (byte* PPosition = "POSITION\0"u8)
+        fixed (byte* PNormal = "NORMAL\0"u8)
+        fixed (byte* PTangent = "TANGENT\0"u8)
+        fixed (byte* PTexCoord = "TEXCOORD\0"u8)
+        fixed (byte* PVertexShader = VertexShaderBytecode)
+        fixed (byte* PPixelShader = PixelShaderBytecode)
         {
-            D3D12_INPUT_ELEMENT_DESC* inputElements = stackalloc D3D12_INPUT_ELEMENT_DESC[4]
+            D3D12_INPUT_ELEMENT_DESC* InputElements = stackalloc D3D12_INPUT_ELEMENT_DESC[4]
             {
                 new D3D12_INPUT_ELEMENT_DESC
                 {
-                    SemanticName = (sbyte*)pPosition,
+                    SemanticName = (sbyte*)PPosition,
                     Format = DXGI_FORMAT_R32G32B32_FLOAT,
                     InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
                 },
                 new D3D12_INPUT_ELEMENT_DESC
                 {
-                    SemanticName = (sbyte*)pNormal,
+                    SemanticName = (sbyte*)PNormal,
                     Format = DXGI_FORMAT_R32G32B32_FLOAT,
                     AlignedByteOffset = 12,
                     InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
                 },
                 new D3D12_INPUT_ELEMENT_DESC
                 {
-                    SemanticName = (sbyte*)pTangent,
+                    SemanticName = (sbyte*)PTangent,
                     Format = DXGI_FORMAT_R32G32B32A32_FLOAT,
                     AlignedByteOffset = 24,
                     InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
                 },
                 new D3D12_INPUT_ELEMENT_DESC
                 {
-                    SemanticName = (sbyte*)pTexCoord,
+                    SemanticName = (sbyte*)PTexCoord,
                     Format = DXGI_FORMAT_R32G32_FLOAT,
                     AlignedByteOffset = 40,
                     InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
                 },
             };
 
-            D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = new()
+            D3D12_GRAPHICS_PIPELINE_STATE_DESC PsoDesc = new()
             {
                 InputLayout = new D3D12_INPUT_LAYOUT_DESC
                 {
-                    pInputElementDescs = inputElements,
+                    pInputElementDescs = InputElements,
                     NumElements = 4,
                 },
-                pRootSignature = _rootSignature,
-                VS = new D3D12_SHADER_BYTECODE { pShaderBytecode = pVertexShader, BytecodeLength = (nuint)_vertexShaderBytecode.Length },
-                PS = new D3D12_SHADER_BYTECODE { pShaderBytecode = pPixelShader, BytecodeLength = (nuint)_pixelShaderBytecode.Length },
+                pRootSignature = RootSignature,
+                VS = new D3D12_SHADER_BYTECODE { pShaderBytecode = PVertexShader, BytecodeLength = (nuint)VertexShaderBytecode.Length },
+                PS = new D3D12_SHADER_BYTECODE { pShaderBytecode = PPixelShader, BytecodeLength = (nuint)PixelShaderBytecode.Length },
                 RasterizerState = D3D12_RASTERIZER_DESC.DEFAULT,
                 BlendState = D3D12_BLEND_DESC.DEFAULT,
                 DepthStencilState = D3D12_DEPTH_STENCIL_DESC.DEFAULT,
@@ -649,150 +649,150 @@ public sealed unsafe class StageRenderer : IDisposable
                 SampleDesc = new DXGI_SAMPLE_DESC(1, 0),
             };
             // Real backface culling is deferred, same rationale as ModelRenderer (ADR-0004).
-            psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-            psoDesc.RTVFormats[0] = BackBufferFormat;
+            PsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+            PsoDesc.RTVFormats[0] = BackBufferFormat;
 
-            ID3D12PipelineState* pipelineState;
+            ID3D12PipelineState* PipelineState;
             D3D12Diagnostics.EnsureSuccess(
-                _device!.Device->CreateGraphicsPipelineState(&psoDesc, __uuidof<ID3D12PipelineState>(), (void**)&pipelineState),
+                Device!.Device->CreateGraphicsPipelineState(&PsoDesc, __uuidof<ID3D12PipelineState>(), (void**)&PipelineState),
                 "ID3D12Device::CreateGraphicsPipelineState", "creating the stage pipeline state");
-            _pipelineState = pipelineState;
+            this.PipelineState = PipelineState;
         }
     }
 
-    private void CreateMeshBuffers(IReadOnlyList<StageMeshCreateInfo> meshes)
+    private void CreateMeshBuffers(IReadOnlyList<StageMeshCreateInfo> Meshes)
     {
-        _meshCount = meshes.Count;
-        _vertexBuffers = new ID3D12Resource*[_meshCount];
-        _vertexBufferViews = new D3D12_VERTEX_BUFFER_VIEW[_meshCount];
-        _indexBuffers = new ID3D12Resource*[_meshCount];
-        _indexBufferViews = new D3D12_INDEX_BUFFER_VIEW[_meshCount];
-        _indexCounts = new uint[_meshCount];
+        MeshCount = Meshes.Count;
+        VertexBuffers = new ID3D12Resource*[MeshCount];
+        VertexBufferViews = new D3D12_VERTEX_BUFFER_VIEW[MeshCount];
+        IndexBuffers = new ID3D12Resource*[MeshCount];
+        IndexBufferViews = new D3D12_INDEX_BUFFER_VIEW[MeshCount];
+        IndexCounts = new uint[MeshCount];
 
-        for (int i = 0; i < _meshCount; i++)
+        for (int i = 0; i < MeshCount; i++)
         {
-            StageMeshCreateInfo mesh = meshes[i];
-            CreateVertexBuffer(i, mesh.Positions, mesh.Normals, mesh.Tangents, mesh.Uvs);
-            CreateIndexBuffer(i, mesh.Indices);
+            StageMeshCreateInfo Mesh = Meshes[i];
+            CreateVertexBuffer(i, Mesh.Positions, Mesh.Normals, Mesh.Tangents, Mesh.Uvs);
+            CreateIndexBuffer(i, Mesh.Indices);
         }
     }
 
-    private void CreateVertexBuffer(int meshIndex, IReadOnlyList<Vector3> positions, IReadOnlyList<Vector3> normals, IReadOnlyList<Vector4> tangents, IReadOnlyList<Vector2> uvs)
+    private void CreateVertexBuffer(int MeshIndex, IReadOnlyList<Vector3> Positions, IReadOnlyList<Vector3> Normals, IReadOnlyList<Vector4> Tangents, IReadOnlyList<Vector2> Uvs)
     {
-        int vertexCount = positions.Count;
-        Vertex[] vertices = new Vertex[vertexCount];
-        for (int i = 0; i < vertexCount; i++)
+        int VertexCount = Positions.Count;
+        Vertex[] Vertices = new Vertex[VertexCount];
+        for (int i = 0; i < VertexCount; i++)
         {
-            vertices[i] = new Vertex { Position = positions[i], Normal = normals[i], Tangent = tangents[i], Uv = uvs[i] };
+            Vertices[i] = new Vertex { Position = Positions[i], Normal = Normals[i], Tangent = Tangents[i], Uv = Uvs[i] };
         }
 
-        uint bufferSize = (uint)(sizeof(Vertex) * vertexCount);
+        uint BufferSize = (uint)(sizeof(Vertex) * VertexCount);
 
-        D3D12_HEAP_PROPERTIES heapProps = new(D3D12_HEAP_TYPE_UPLOAD);
-        D3D12_RESOURCE_DESC bufferDesc = D3D12_RESOURCE_DESC.Buffer(bufferSize);
+        D3D12_HEAP_PROPERTIES HeapProps = new(D3D12_HEAP_TYPE_UPLOAD);
+        D3D12_RESOURCE_DESC BufferDesc = D3D12_RESOURCE_DESC.Buffer(BufferSize);
 
-        ID3D12Resource* vertexBuffer;
+        ID3D12Resource* VertexBuffer;
         D3D12Diagnostics.EnsureSuccess(
-            _device!.Device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, pOptimizedClearValue: null, __uuidof<ID3D12Resource>(), (void**)&vertexBuffer),
+            Device!.Device->CreateCommittedResource(&HeapProps, D3D12_HEAP_FLAG_NONE, &BufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, pOptimizedClearValue: null, __uuidof<ID3D12Resource>(), (void**)&VertexBuffer),
             "ID3D12Device::CreateCommittedResource", "creating a stage vertex buffer (upload heap)");
 
-        D3D12_RANGE noRead = new();
-        byte* mapped;
-        D3D12Diagnostics.EnsureSuccess(vertexBuffer->Map(0, &noRead, (void**)&mapped), "ID3D12Resource::Map", "mapping a stage vertex buffer");
-        fixed (Vertex* pVertices = vertices)
+        D3D12_RANGE NoRead = new();
+        byte* Mapped;
+        D3D12Diagnostics.EnsureSuccess(VertexBuffer->Map(0, &NoRead, (void**)&Mapped), "ID3D12Resource::Map", "mapping a stage vertex buffer");
+        fixed (Vertex* PVertices = Vertices)
         {
-            Unsafe.CopyBlock(mapped, pVertices, bufferSize);
+            Unsafe.CopyBlock(Mapped, PVertices, BufferSize);
         }
-        vertexBuffer->Unmap(0, null);
+        VertexBuffer->Unmap(0, null);
 
-        _vertexBuffers[meshIndex] = vertexBuffer;
-        _vertexBufferViews[meshIndex] = new D3D12_VERTEX_BUFFER_VIEW
+        VertexBuffers[MeshIndex] = VertexBuffer;
+        VertexBufferViews[MeshIndex] = new D3D12_VERTEX_BUFFER_VIEW
         {
-            BufferLocation = vertexBuffer->GetGPUVirtualAddress(),
+            BufferLocation = VertexBuffer->GetGPUVirtualAddress(),
             StrideInBytes = (uint)sizeof(Vertex),
-            SizeInBytes = bufferSize,
+            SizeInBytes = BufferSize,
         };
     }
 
-    private void CreateIndexBuffer(int meshIndex, IReadOnlyList<uint> indices)
+    private void CreateIndexBuffer(int MeshIndex, IReadOnlyList<uint> Indices)
     {
-        int indexCount = indices.Count;
-        uint[] indexArray = indices as uint[] ?? [.. indices];
-        uint bufferSize = (uint)(sizeof(uint) * indexCount);
+        int IndexCount = Indices.Count;
+        uint[] IndexArray = Indices as uint[] ?? [.. Indices];
+        uint BufferSize = (uint)(sizeof(uint) * IndexCount);
 
-        D3D12_HEAP_PROPERTIES heapProps = new(D3D12_HEAP_TYPE_UPLOAD);
-        D3D12_RESOURCE_DESC bufferDesc = D3D12_RESOURCE_DESC.Buffer(bufferSize);
+        D3D12_HEAP_PROPERTIES HeapProps = new(D3D12_HEAP_TYPE_UPLOAD);
+        D3D12_RESOURCE_DESC BufferDesc = D3D12_RESOURCE_DESC.Buffer(BufferSize);
 
-        ID3D12Resource* indexBuffer;
+        ID3D12Resource* IndexBuffer;
         D3D12Diagnostics.EnsureSuccess(
-            _device!.Device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, pOptimizedClearValue: null, __uuidof<ID3D12Resource>(), (void**)&indexBuffer),
+            Device!.Device->CreateCommittedResource(&HeapProps, D3D12_HEAP_FLAG_NONE, &BufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, pOptimizedClearValue: null, __uuidof<ID3D12Resource>(), (void**)&IndexBuffer),
             "ID3D12Device::CreateCommittedResource", "creating a stage index buffer (upload heap)");
 
-        D3D12_RANGE noRead = new();
-        byte* mapped;
-        D3D12Diagnostics.EnsureSuccess(indexBuffer->Map(0, &noRead, (void**)&mapped), "ID3D12Resource::Map", "mapping a stage index buffer");
-        fixed (uint* pIndices = indexArray)
+        D3D12_RANGE NoRead = new();
+        byte* Mapped;
+        D3D12Diagnostics.EnsureSuccess(IndexBuffer->Map(0, &NoRead, (void**)&Mapped), "ID3D12Resource::Map", "mapping a stage index buffer");
+        fixed (uint* PIndices = IndexArray)
         {
-            Unsafe.CopyBlock(mapped, pIndices, bufferSize);
+            Unsafe.CopyBlock(Mapped, PIndices, BufferSize);
         }
-        indexBuffer->Unmap(0, null);
+        IndexBuffer->Unmap(0, null);
 
-        _indexBuffers[meshIndex] = indexBuffer;
-        _indexCounts[meshIndex] = (uint)indexCount;
-        _indexBufferViews[meshIndex] = new D3D12_INDEX_BUFFER_VIEW
+        IndexBuffers[MeshIndex] = IndexBuffer;
+        IndexCounts[MeshIndex] = (uint)IndexCount;
+        IndexBufferViews[MeshIndex] = new D3D12_INDEX_BUFFER_VIEW
         {
-            BufferLocation = indexBuffer->GetGPUVirtualAddress(),
-            SizeInBytes = bufferSize,
+            BufferLocation = IndexBuffer->GetGPUVirtualAddress(),
+            SizeInBytes = BufferSize,
             Format = DXGI_FORMAT_R32_UINT,
         };
     }
 
-    private void CreateMaterialResources(IReadOnlyList<StageMaterialCreateInfo> materials)
+    private void CreateMaterialResources(IReadOnlyList<StageMaterialCreateInfo> Materials)
     {
-        _materialCount = materials.Count;
-        _materialTextures = new ID3D12Resource*[_materialCount * 3];
-        _materialBaseColorFactors = new Vector4[_materialCount];
-        _materialRoughnessFactors = new float[_materialCount];
-        _materialMetallicFactors = new float[_materialCount];
+        MaterialCount = Materials.Count;
+        MaterialTextures = new ID3D12Resource*[MaterialCount * 3];
+        MaterialBaseColorFactors = new Vector4[MaterialCount];
+        MaterialRoughnessFactors = new float[MaterialCount];
+        MaterialMetallicFactors = new float[MaterialCount];
 
-        for (int i = 0; i < _materialCount; i++)
+        for (int i = 0; i < MaterialCount; i++)
         {
-            StageMaterialCreateInfo material = materials[i];
-            _materialBaseColorFactors[i] = material.BaseColorFactor;
-            _materialRoughnessFactors[i] = material.RoughnessFactor;
-            _materialMetallicFactors[i] = material.MetallicFactor;
+            StageMaterialCreateInfo Material = Materials[i];
+            MaterialBaseColorFactors[i] = Material.BaseColorFactor;
+            MaterialRoughnessFactors[i] = Material.RoughnessFactor;
+            MaterialMetallicFactors[i] = Material.MetallicFactor;
 
-            _materialTextures[(i * 3) + 0] = CreateTextureResource(material.BaseColorTextureBytes, WhiteFallback());
-            _materialTextures[(i * 3) + 1] = CreateTextureResource(material.NormalTextureBytes, FlatNormalFallback());
-            _materialTextures[(i * 3) + 2] = CreateTextureResource(material.MetallicRoughnessTextureBytes, WhiteFallback());
+            MaterialTextures[(i * 3) + 0] = CreateTextureResource(Material.BaseColorTextureBytes, WhiteFallback());
+            MaterialTextures[(i * 3) + 1] = CreateTextureResource(Material.NormalTextureBytes, FlatNormalFallback());
+            MaterialTextures[(i * 3) + 2] = CreateTextureResource(Material.MetallicRoughnessTextureBytes, WhiteFallback());
         }
 
-        D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = new()
+        D3D12_DESCRIPTOR_HEAP_DESC SrvHeapDesc = new()
         {
             Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-            NumDescriptors = (uint)(_materialCount * 3),
+            NumDescriptors = (uint)(MaterialCount * 3),
             Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
         };
-        ID3D12DescriptorHeap* srvHeap;
+        ID3D12DescriptorHeap* SrvHeap;
         D3D12Diagnostics.EnsureSuccess(
-            _device!.Device->CreateDescriptorHeap(&srvHeapDesc, __uuidof<ID3D12DescriptorHeap>(), (void**)&srvHeap),
+            Device!.Device->CreateDescriptorHeap(&SrvHeapDesc, __uuidof<ID3D12DescriptorHeap>(), (void**)&SrvHeap),
             "ID3D12Device::CreateDescriptorHeap", "creating the material SRV descriptor heap");
-        _srvHeap = srvHeap;
-        _srvDescriptorSize = _device.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        this.SrvHeap = SrvHeap;
+        SrvDescriptorSize = Device.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-        D3D12_CPU_DESCRIPTOR_HANDLE srvHeapStart = _srvHeap->GetCPUDescriptorHandleForHeapStart();
-        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = new()
+        D3D12_CPU_DESCRIPTOR_HANDLE SrvHeapStart = SrvHeap->GetCPUDescriptorHandleForHeapStart();
+        D3D12_SHADER_RESOURCE_VIEW_DESC SrvDesc = new()
         {
             Format = MaterialTextureFormat,
             ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D,
             Shader4ComponentMapping = (uint)TerraFX.Interop.DirectX.D3D12.D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
         };
-        srvDesc.Texture2D.MipLevels = 1;
+        SrvDesc.Texture2D.MipLevels = 1;
 
-        for (int i = 0; i < _materialTextures.Length; i++)
+        for (int i = 0; i < MaterialTextures.Length; i++)
         {
-            D3D12_CPU_DESCRIPTOR_HANDLE handle = new(srvHeapStart, i, _srvDescriptorSize);
-            _device.Device->CreateShaderResourceView(_materialTextures[i], &srvDesc, handle);
+            D3D12_CPU_DESCRIPTOR_HANDLE Handle = new(SrvHeapStart, i, SrvDescriptorSize);
+            Device.Device->CreateShaderResourceView(MaterialTextures[i], &SrvDesc, Handle);
         }
     }
 
@@ -802,28 +802,28 @@ public sealed unsafe class StageRenderer : IDisposable
     private static DecodedImage FlatNormalFallback() => new(1, 1, [128, 128, 255, 255]);
 
     /// <summary>Decodes (or falls back to a procedural default, mirroring <see cref="ModelRenderer"/>'s "every mesh gets a real SRV" rationale) and uploads one material texture slot.</summary>
-    private ID3D12Resource* CreateTextureResource(byte[]? encodedBytes, DecodedImage fallback)
+    private ID3D12Resource* CreateTextureResource(byte[]? EncodedBytes, DecodedImage Fallback)
     {
-        DecodedImage image = DecodeOrFallback(encodedBytes, fallback);
+        DecodedImage Image = DecodeOrFallback(EncodedBytes, Fallback);
 
-        D3D12_RESOURCE_DESC textureDesc = D3D12_RESOURCE_DESC.Tex2D(MaterialTextureFormat, (uint)image.Width, (uint)image.Height, mipLevels: 1);
+        D3D12_RESOURCE_DESC TextureDesc = D3D12_RESOURCE_DESC.Tex2D(MaterialTextureFormat, (uint)Image.Width, (uint)Image.Height, mipLevels: 1);
 
-        D3D12_HEAP_PROPERTIES defaultHeapProps = new(D3D12_HEAP_TYPE_DEFAULT);
-        ID3D12Resource* texture;
+        D3D12_HEAP_PROPERTIES DefaultHeapProps = new(D3D12_HEAP_TYPE_DEFAULT);
+        ID3D12Resource* Texture;
         D3D12Diagnostics.EnsureSuccess(
-            _device!.Device->CreateCommittedResource(&defaultHeapProps, D3D12_HEAP_FLAG_NONE, &textureDesc, D3D12_RESOURCE_STATE_COPY_DEST, pOptimizedClearValue: null, __uuidof<ID3D12Resource>(), (void**)&texture),
+            Device!.Device->CreateCommittedResource(&DefaultHeapProps, D3D12_HEAP_FLAG_NONE, &TextureDesc, D3D12_RESOURCE_STATE_COPY_DEST, pOptimizedClearValue: null, __uuidof<ID3D12Resource>(), (void**)&Texture),
             "ID3D12Device::CreateCommittedResource", "creating a material texture");
 
-        D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint;
-        ulong totalBytes;
-        _device.Device->GetCopyableFootprints(&textureDesc, 0, 1, 0, &footprint, null, null, &totalBytes);
+        D3D12_PLACED_SUBRESOURCE_FOOTPRINT Footprint;
+        ulong TotalBytes;
+        Device.Device->GetCopyableFootprints(&TextureDesc, 0, 1, 0, &Footprint, null, null, &TotalBytes);
 
-        D3D12_HEAP_PROPERTIES uploadHeapProps = new(D3D12_HEAP_TYPE_UPLOAD);
-        D3D12_RESOURCE_DESC stagingDesc = D3D12_RESOURCE_DESC.Buffer(totalBytes);
+        D3D12_HEAP_PROPERTIES UploadHeapProps = new(D3D12_HEAP_TYPE_UPLOAD);
+        D3D12_RESOURCE_DESC StagingDesc = D3D12_RESOURCE_DESC.Buffer(TotalBytes);
 
-        ID3D12Resource* staging;
+        ID3D12Resource* Staging;
         D3D12Diagnostics.EnsureSuccess(
-            _device.Device->CreateCommittedResource(&uploadHeapProps, D3D12_HEAP_FLAG_NONE, &stagingDesc, D3D12_RESOURCE_STATE_GENERIC_READ, pOptimizedClearValue: null, __uuidof<ID3D12Resource>(), (void**)&staging),
+            Device.Device->CreateCommittedResource(&UploadHeapProps, D3D12_HEAP_FLAG_NONE, &StagingDesc, D3D12_RESOURCE_STATE_GENERIC_READ, pOptimizedClearValue: null, __uuidof<ID3D12Resource>(), (void**)&Staging),
             "ID3D12Device::CreateCommittedResource", "creating a material texture upload staging buffer");
 
         try
@@ -831,99 +831,99 @@ public sealed unsafe class StageRenderer : IDisposable
             // GetCopyableFootprints' RowPitch is 256-byte aligned; the decoded image is tightly
             // packed (stride = Width*4). These differ whenever Width*4 isn't already a multiple of
             // 256, so this must be a per-row copy, not one bulk CopyBlock (same as ModelRenderer).
-            D3D12_RANGE noRead = new();
-            byte* mapped;
-            D3D12Diagnostics.EnsureSuccess(staging->Map(0, &noRead, (void**)&mapped), "ID3D12Resource::Map", "mapping a material texture upload staging buffer");
+            D3D12_RANGE NoRead = new();
+            byte* Mapped;
+            D3D12Diagnostics.EnsureSuccess(Staging->Map(0, &NoRead, (void**)&Mapped), "ID3D12Resource::Map", "mapping a material texture upload staging buffer");
 
-            uint srcRowPitch = (uint)image.Width * 4;
-            uint dstRowPitch = footprint.Footprint.RowPitch;
-            fixed (byte* pSrc = image.Pixels)
+            uint SrcRowPitch = (uint)Image.Width * 4;
+            uint DstRowPitch = Footprint.Footprint.RowPitch;
+            fixed (byte* PSrc = Image.Pixels)
             {
-                for (uint y = 0; y < image.Height; y++)
+                for (uint y = 0; y < Image.Height; y++)
                 {
-                    Unsafe.CopyBlock(mapped + (y * dstRowPitch), pSrc + (y * srcRowPitch), srcRowPitch);
+                    Unsafe.CopyBlock(Mapped + (y * DstRowPitch), PSrc + (y * SrcRowPitch), SrcRowPitch);
                 }
             }
-            staging->Unmap(0, null);
+            Staging->Unmap(0, null);
 
-            D3D12Diagnostics.EnsureSuccess(_commandAllocators[0]->Reset(), "ID3D12CommandAllocator::Reset", "resetting the allocator for a material texture upload");
-            D3D12Diagnostics.EnsureSuccess(_commandList->Reset(_commandAllocators[0], null), "ID3D12GraphicsCommandList::Reset", "resetting the command list for a material texture upload");
+            D3D12Diagnostics.EnsureSuccess(CommandAllocators[0]->Reset(), "ID3D12CommandAllocator::Reset", "resetting the allocator for a material texture upload");
+            D3D12Diagnostics.EnsureSuccess(CommandList->Reset(CommandAllocators[0], null), "ID3D12GraphicsCommandList::Reset", "resetting the command list for a material texture upload");
 
-            D3D12_TEXTURE_COPY_LOCATION dst = new() { pResource = texture, Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX };
-            dst.SubresourceIndex = 0;
-            D3D12_TEXTURE_COPY_LOCATION src = new() { pResource = staging, Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT };
-            src.PlacedFootprint = footprint;
-            _commandList->CopyTextureRegion(&dst, 0, 0, 0, &src, null);
+            D3D12_TEXTURE_COPY_LOCATION Dst = new() { pResource = Texture, Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX };
+            Dst.SubresourceIndex = 0;
+            D3D12_TEXTURE_COPY_LOCATION Src = new() { pResource = Staging, Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT };
+            Src.PlacedFootprint = Footprint;
+            CommandList->CopyTextureRegion(&Dst, 0, 0, 0, &Src, null);
 
-            D3D12_RESOURCE_BARRIER toShaderResource = D3D12_RESOURCE_BARRIER.InitTransition(texture, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-            _commandList->ResourceBarrier(1, &toShaderResource);
+            D3D12_RESOURCE_BARRIER ToShaderResource = D3D12_RESOURCE_BARRIER.InitTransition(Texture, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+            CommandList->ResourceBarrier(1, &ToShaderResource);
 
-            D3D12Diagnostics.EnsureSuccess(_commandList->Close(), "ID3D12GraphicsCommandList::Close", "closing a material texture upload command list");
+            D3D12Diagnostics.EnsureSuccess(CommandList->Close(), "ID3D12GraphicsCommandList::Close", "closing a material texture upload command list");
 
-            ID3D12CommandList* commandListBase = (ID3D12CommandList*)_commandList;
-            _device.CommandQueue->ExecuteCommandLists(1, &commandListBase);
+            ID3D12CommandList* CommandListBase = (ID3D12CommandList*)CommandList;
+            Device.CommandQueue->ExecuteCommandLists(1, &CommandListBase);
 
             WaitForGpuIdle();
         }
         finally
         {
-            _ = staging->Release();
+            _ = Staging->Release();
         }
 
-        return texture;
+        return Texture;
     }
 
-    private static DecodedImage DecodeOrFallback(byte[]? encodedBytes, DecodedImage fallback)
+    private static DecodedImage DecodeOrFallback(byte[]? EncodedBytes, DecodedImage Fallback)
     {
-        if (encodedBytes is null || encodedBytes.Length == 0)
+        if (EncodedBytes is null || EncodedBytes.Length == 0)
         {
-            return fallback;
+            return Fallback;
         }
 
-        WicDecodeResult decodeResult = WicImageDecoder.Decode(encodedBytes);
-        return decodeResult.Success ? decodeResult.Image! : fallback;
+        WicDecodeResult DecodeResult = WicImageDecoder.Decode(EncodedBytes);
+        return DecodeResult.Success ? DecodeResult.Image! : Fallback;
     }
 
-    private void CreateObjectMappings(IReadOnlyList<StageObjectCreateInfo> objects)
+    private void CreateObjectMappings(IReadOnlyList<StageObjectCreateInfo> Objects)
     {
-        _objectCount = objects.Count;
-        _objectMeshIndices = new int[_objectCount];
-        _objectMaterialIndices = new int[_objectCount];
-        _objectTransforms = new Matrix4x4[_objectCount];
+        ObjectCount = Objects.Count;
+        ObjectMeshIndices = new int[ObjectCount];
+        ObjectMaterialIndices = new int[ObjectCount];
+        ObjectTransforms = new Matrix4x4[ObjectCount];
 
-        for (int i = 0; i < _objectCount; i++)
+        for (int i = 0; i < ObjectCount; i++)
         {
-            _objectMeshIndices[i] = objects[i].MeshIndex;
-            _objectMaterialIndices[i] = objects[i].MaterialIndex;
-            _objectTransforms[i] = Matrix4x4.Identity;
+            ObjectMeshIndices[i] = Objects[i].MeshIndex;
+            ObjectMaterialIndices[i] = Objects[i].MaterialIndex;
+            ObjectTransforms[i] = Matrix4x4.Identity;
         }
     }
 
     private void CreateConstantBuffers()
     {
-        uint frameBufferSize = ConstantAlignment * FrameCount;
-        CreateUploadBuffer(frameBufferSize, out _frameConstantsBuffer, out _frameConstantsMapped, "creating the frame constant buffer");
+        uint FrameBufferSize = ConstantAlignment * FrameCount;
+        CreateUploadBuffer(FrameBufferSize, out FrameConstantsBuffer, out FrameConstantsMapped, "creating the frame constant buffer");
 
-        uint objectBufferSize = ConstantAlignment * (uint)_objectCount * FrameCount;
-        CreateUploadBuffer(objectBufferSize, out _objectConstantsBuffer, out _objectConstantsMapped, "creating the object constant buffer");
+        uint ObjectBufferSize = ConstantAlignment * (uint)ObjectCount * FrameCount;
+        CreateUploadBuffer(ObjectBufferSize, out ObjectConstantsBuffer, out ObjectConstantsMapped, "creating the object constant buffer");
     }
 
-    private void CreateUploadBuffer(uint size, out ID3D12Resource* buffer, out byte* mapped, string context)
+    private void CreateUploadBuffer(uint Size, out ID3D12Resource* buffer, out byte* Mapped, string Context)
     {
-        D3D12_HEAP_PROPERTIES heapProps = new(D3D12_HEAP_TYPE_UPLOAD);
-        D3D12_RESOURCE_DESC bufferDesc = D3D12_RESOURCE_DESC.Buffer(size);
+        D3D12_HEAP_PROPERTIES HeapProps = new(D3D12_HEAP_TYPE_UPLOAD);
+        D3D12_RESOURCE_DESC BufferDesc = D3D12_RESOURCE_DESC.Buffer(Size);
 
-        ID3D12Resource* resource;
+        ID3D12Resource* Resource;
         D3D12Diagnostics.EnsureSuccess(
-            _device!.Device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, pOptimizedClearValue: null, __uuidof<ID3D12Resource>(), (void**)&resource),
-            "ID3D12Device::CreateCommittedResource", context);
+            Device!.Device->CreateCommittedResource(&HeapProps, D3D12_HEAP_FLAG_NONE, &BufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, pOptimizedClearValue: null, __uuidof<ID3D12Resource>(), (void**)&Resource),
+            "ID3D12Device::CreateCommittedResource", Context);
 
-        D3D12_RANGE noRead = new();
-        byte* ptr;
-        D3D12Diagnostics.EnsureSuccess(resource->Map(0, &noRead, (void**)&ptr), "ID3D12Resource::Map", context);
+        D3D12_RANGE NoRead = new();
+        byte* Ptr;
+        D3D12Diagnostics.EnsureSuccess(Resource->Map(0, &NoRead, (void**)&Ptr), "ID3D12Resource::Map", Context);
 
-        buffer = resource;
-        mapped = ptr;
+        buffer = Resource;
+        Mapped = Ptr;
     }
 
     /// <summary>
@@ -934,18 +934,18 @@ public sealed unsafe class StageRenderer : IDisposable
     /// </summary>
     private void InitializeConstantsToDefaults()
     {
-        Camera defaultCamera = Camera.CreateDefault(Vector3.Zero);
+        Camera DefaultCamera = Camera.CreateDefault(Vector3.Zero);
 
         for (uint frame = 0; frame < FrameCount; frame++)
         {
-            WriteViewProjection(frame, defaultCamera.GetView() * defaultCamera.GetProjection((float)_width / _height));
-            WriteCameraPosition(frame, defaultCamera.GetEyePosition());
+            WriteViewProjection(frame, DefaultCamera.GetView() * DefaultCamera.GetProjection((float)Width / Height));
+            WriteCameraPosition(frame, DefaultCamera.GetEyePosition());
             WriteDirectionalLight(frame, DefaultLightDirectionTowardLight, DefaultLightColor);
             WriteAmbientLight(frame, DefaultAmbientColor);
             WriteFog(frame, FogParams.None);
             WriteLightCounts(frame); // D3D12 does not guarantee zero-initialized upload-heap memory; without this the very first frame could loop over garbage PointLights/SpotLights entries.
 
-            for (int objectIndex = 0; objectIndex < _objectCount; objectIndex++)
+            for (int objectIndex = 0; objectIndex < ObjectCount; objectIndex++)
             {
                 WriteObjectConstants(frame, objectIndex);
             }
@@ -957,29 +957,29 @@ public sealed unsafe class StageRenderer : IDisposable
     /// before <see cref="RenderFrame"/> - the constant buffer is double-buffered per frame-in-flight
     /// slot (<see cref="FrameCount"/>) and only the current slot is written here.
     /// </summary>
-    public void SetCamera(in Camera camera, float aspectRatioOverride = 0f)
+    public void SetCamera(in Camera camera, float AspectRatioOverride = 0f)
     {
-        float aspectRatio = aspectRatioOverride > 0f ? aspectRatioOverride : (float)_width / _height;
-        WriteViewProjection(_frameIndex, camera.GetView() * camera.GetProjection(aspectRatio));
-        WriteCameraPosition(_frameIndex, camera.GetEyePosition());
+        float AspectRatio = AspectRatioOverride > 0f ? AspectRatioOverride : (float)Width / Height;
+        WriteViewProjection(FrameIndex, camera.GetView() * camera.GetProjection(AspectRatio));
+        WriteCameraPosition(FrameIndex, camera.GetEyePosition());
     }
 
-    /// <summary>Sets the single data-driven directional light (sun) for the frame currently being built. <paramref name="directionTowardLight"/> points from the scene toward the light (i.e. the direction surfaces should face to be lit), not the direction light travels.</summary>
-    public void SetDirectionalLight(Vector3 directionTowardLight, Vector3 color, float intensity)
+    /// <summary>Sets the single data-driven directional light (sun) for the frame currently being built. <paramref name="DirectionTowardLight"/> points from the scene toward the light (i.e. the direction surfaces should face to be lit), not the direction light travels.</summary>
+    public void SetDirectionalLight(Vector3 DirectionTowardLight, Vector3 Color, float Intensity)
     {
-        WriteDirectionalLight(_frameIndex, directionTowardLight, color * intensity);
+        WriteDirectionalLight(FrameIndex, DirectionTowardLight, Color * Intensity);
     }
 
     /// <summary>Sets the flat ambient term (a stand-in for sky/indirect lighting) for the frame currently being built.</summary>
-    public void SetAmbientLight(Vector3 color)
+    public void SetAmbientLight(Vector3 Color)
     {
-        WriteAmbientLight(_frameIndex, color);
+        WriteAmbientLight(FrameIndex, Color);
     }
 
     /// <summary>Sets the simplified exponential height fog for the frame currently being built. Pass <see cref="FogParams.None"/> to disable it (zero density).</summary>
-    public void SetFog(FogParams fog)
+    public void SetFog(FogParams Fog)
     {
-        WriteFog(_frameIndex, fog);
+        WriteFog(FrameIndex, Fog);
     }
 
     /// <summary>
@@ -990,176 +990,176 @@ public sealed unsafe class StageRenderer : IDisposable
     /// <see cref="RenderFrame"/>, so a light that stops calling this simply stops contributing on
     /// the next frame (no stale state to clear).
     /// </summary>
-    public void AddPointLight(Vector3 position, Vector3 color, float intensity, float range)
+    public void AddPointLight(Vector3 Position, Vector3 Color, float Intensity, float range)
     {
-        if (_pointLightCount >= MaxPointLights)
+        if (PointLightCount >= MaxPointLights)
         {
             Debug.Assert(false, $"CGE-STAGE-LIGHT-001: exceeded MaxPointLights ({MaxPointLights}); extra point lights are silently dropped this frame.");
             return;
         }
 
-        WritePointLight(_frameIndex, _pointLightCount, position, range, color * intensity);
-        _pointLightCount++;
-        WriteLightCounts(_frameIndex);
+        WritePointLight(FrameIndex, PointLightCount, Position, range, Color * Intensity);
+        PointLightCount++;
+        WriteLightCounts(FrameIndex);
     }
 
     /// <summary>
     /// Adds one spot light (a point light additionally narrowed to a cone) for the frame currently
-    /// being built. <paramref name="direction"/> is the direction the cone points toward (need not
+    /// being built. <paramref name="Direction"/> is the direction the cone points toward (need not
     /// be normalized) and the brightness falls off smoothly between
-    /// <paramref name="innerConeAngleRadians"/> (full brightness) and
-    /// <paramref name="outerConeAngleRadians"/> (zero). Additive per frame - see
+    /// <paramref name="InnerConeAngleRadians"/> (full brightness) and
+    /// <paramref name="OuterConeAngleRadians"/> (zero). Additive per frame - see
     /// <see cref="AddPointLight"/> for the accumulate/reset contract.
     /// </summary>
-    public void AddSpotLight(Vector3 position, Vector3 direction, Vector3 color, float intensity, float range, float innerConeAngleRadians, float outerConeAngleRadians)
+    public void AddSpotLight(Vector3 Position, Vector3 Direction, Vector3 Color, float Intensity, float range, float InnerConeAngleRadians, float OuterConeAngleRadians)
     {
-        if (_spotLightCount >= MaxSpotLights)
+        if (SpotLightCount >= MaxSpotLights)
         {
             Debug.Assert(false, $"CGE-STAGE-LIGHT-002: exceeded MaxSpotLights ({MaxSpotLights}); extra spot lights are silently dropped this frame.");
             return;
         }
 
-        WriteSpotLight(_frameIndex, _spotLightCount, position, range, Vector3.Normalize(direction), MathF.Cos(innerConeAngleRadians), color * intensity, MathF.Cos(outerConeAngleRadians));
-        _spotLightCount++;
-        WriteLightCounts(_frameIndex);
+        WriteSpotLight(FrameIndex, SpotLightCount, Position, range, Vector3.Normalize(Direction), MathF.Cos(InnerConeAngleRadians), Color * Intensity, MathF.Cos(OuterConeAngleRadians));
+        SpotLightCount++;
+        WriteLightCounts(FrameIndex);
     }
 
     /// <summary>Sets the world transform for one object for the frame currently being built (see <see cref="SetCamera"/> for the per-frame-slot contract).</summary>
-    public void SetObjectTransform(int objectIndex, Matrix4x4 world)
+    public void SetObjectTransform(int ObjectIndex, Matrix4x4 World)
     {
-        if (objectIndex < 0 || objectIndex >= _objectCount)
+        if (ObjectIndex < 0 || ObjectIndex >= ObjectCount)
         {
-            throw new ArgumentOutOfRangeException(nameof(objectIndex));
+            throw new ArgumentOutOfRangeException(nameof(ObjectIndex));
         }
 
-        _objectTransforms[objectIndex] = world;
-        WriteObjectConstants(_frameIndex, objectIndex);
+        ObjectTransforms[ObjectIndex] = World;
+        WriteObjectConstants(FrameIndex, ObjectIndex);
     }
 
-    private byte* FrameSlot(uint frameIndex) => _frameConstantsMapped + (frameIndex * ConstantAlignment);
+    private byte* FrameSlot(uint FrameIndex) => FrameConstantsMapped + (FrameIndex * ConstantAlignment);
 
-    private void WriteViewProjection(uint frameIndex, Matrix4x4 viewProjection)
+    private void WriteViewProjection(uint FrameIndex, Matrix4x4 ViewProjection)
     {
-        Unsafe.CopyBlock(FrameSlot(frameIndex) + FrameViewProjectionOffset, &viewProjection, (uint)sizeof(Matrix4x4));
+        Unsafe.CopyBlock(FrameSlot(FrameIndex) + FrameViewProjectionOffset, &ViewProjection, (uint)sizeof(Matrix4x4));
     }
 
-    private void WriteCameraPosition(uint frameIndex, Vector3 cameraPosition)
+    private void WriteCameraPosition(uint FrameIndex, Vector3 CameraPosition)
     {
-        Vector4 packed = new(cameraPosition, 0f);
-        Unsafe.CopyBlock(FrameSlot(frameIndex) + FrameCameraPositionOffset, &packed, (uint)sizeof(Vector4));
+        Vector4 Packed = new(CameraPosition, 0f);
+        Unsafe.CopyBlock(FrameSlot(FrameIndex) + FrameCameraPositionOffset, &Packed, (uint)sizeof(Vector4));
     }
 
-    private void WriteDirectionalLight(uint frameIndex, Vector3 directionTowardLight, Vector3 colorTimesIntensity)
+    private void WriteDirectionalLight(uint FrameIndex, Vector3 DirectionTowardLight, Vector3 ColorTimesIntensity)
     {
-        Vector4 direction = new(Vector3.Normalize(directionTowardLight), 0f);
-        Vector4 color = new(colorTimesIntensity, 0f);
-        Unsafe.CopyBlock(FrameSlot(frameIndex) + FrameLightDirectionOffset, &direction, (uint)sizeof(Vector4));
-        Unsafe.CopyBlock(FrameSlot(frameIndex) + FrameLightColorOffset, &color, (uint)sizeof(Vector4));
+        Vector4 Direction = new(Vector3.Normalize(DirectionTowardLight), 0f);
+        Vector4 Color = new(ColorTimesIntensity, 0f);
+        Unsafe.CopyBlock(FrameSlot(FrameIndex) + FrameLightDirectionOffset, &Direction, (uint)sizeof(Vector4));
+        Unsafe.CopyBlock(FrameSlot(FrameIndex) + FrameLightColorOffset, &Color, (uint)sizeof(Vector4));
     }
 
-    private void WriteAmbientLight(uint frameIndex, Vector3 color)
+    private void WriteAmbientLight(uint FrameIndex, Vector3 Color)
     {
-        Vector4 packed = new(color, 0f);
-        Unsafe.CopyBlock(FrameSlot(frameIndex) + FrameAmbientColorOffset, &packed, (uint)sizeof(Vector4));
+        Vector4 Packed = new(Color, 0f);
+        Unsafe.CopyBlock(FrameSlot(FrameIndex) + FrameAmbientColorOffset, &Packed, (uint)sizeof(Vector4));
     }
 
-    private void WriteFog(uint frameIndex, FogParams fog)
+    private void WriteFog(uint FrameIndex, FogParams Fog)
     {
-        Vector4 fogParams0 = new(fog.Density, fog.HeightFalloff, 0f, 0f);
-        Vector4 fogColor = new(fog.Color, 0f);
-        Unsafe.CopyBlock(FrameSlot(frameIndex) + FrameFogParamsOffset, &fogParams0, (uint)sizeof(Vector4));
-        Unsafe.CopyBlock(FrameSlot(frameIndex) + FrameFogColorOffset, &fogColor, (uint)sizeof(Vector4));
+        Vector4 FogParams0 = new(Fog.Density, Fog.HeightFalloff, 0f, 0f);
+        Vector4 FogColor = new(Fog.Color, 0f);
+        Unsafe.CopyBlock(FrameSlot(FrameIndex) + FrameFogParamsOffset, &FogParams0, (uint)sizeof(Vector4));
+        Unsafe.CopyBlock(FrameSlot(FrameIndex) + FrameFogColorOffset, &FogColor, (uint)sizeof(Vector4));
     }
 
     /// <summary>Writes Stage.hlsl's PointLightData[index] (2 float4: position+range, color*intensity).</summary>
-    private void WritePointLight(uint frameIndex, int index, Vector3 position, float range, Vector3 colorTimesIntensity)
+    private void WritePointLight(uint FrameIndex, int index, Vector3 Position, float range, Vector3 ColorTimesIntensity)
     {
-        byte* destination = FrameSlot(frameIndex) + FramePointLightsOffset + ((uint)index * PointLightStride);
-        Vector4 positionAndRange = new(position, range);
-        Vector4 colorPacked = new(colorTimesIntensity, 0f);
-        Unsafe.CopyBlock(destination, &positionAndRange, (uint)sizeof(Vector4));
-        Unsafe.CopyBlock(destination + 16, &colorPacked, (uint)sizeof(Vector4));
+        byte* Destination = FrameSlot(FrameIndex) + FramePointLightsOffset + ((uint)index * PointLightStride);
+        Vector4 PositionAndRange = new(Position, range);
+        Vector4 ColorPacked = new(ColorTimesIntensity, 0f);
+        Unsafe.CopyBlock(Destination, &PositionAndRange, (uint)sizeof(Vector4));
+        Unsafe.CopyBlock(Destination + 16, &ColorPacked, (uint)sizeof(Vector4));
     }
 
     /// <summary>Writes Stage.hlsl's SpotLightData[index] (3 float4: position+range, direction+innerCos, color*intensity+outerCos).</summary>
-    private void WriteSpotLight(uint frameIndex, int index, Vector3 position, float range, Vector3 direction, float innerConeCos, Vector3 colorTimesIntensity, float outerConeCos)
+    private void WriteSpotLight(uint FrameIndex, int index, Vector3 Position, float range, Vector3 Direction, float InnerConeCos, Vector3 ColorTimesIntensity, float OuterConeCos)
     {
-        byte* destination = FrameSlot(frameIndex) + FrameSpotLightsOffset + ((uint)index * SpotLightStride);
-        Vector4 positionAndRange = new(position, range);
-        Vector4 directionAndInnerCos = new(direction, innerConeCos);
-        Vector4 colorAndOuterCos = new(colorTimesIntensity, outerConeCos);
-        Unsafe.CopyBlock(destination, &positionAndRange, (uint)sizeof(Vector4));
-        Unsafe.CopyBlock(destination + 16, &directionAndInnerCos, (uint)sizeof(Vector4));
-        Unsafe.CopyBlock(destination + 32, &colorAndOuterCos, (uint)sizeof(Vector4));
+        byte* Destination = FrameSlot(FrameIndex) + FrameSpotLightsOffset + ((uint)index * SpotLightStride);
+        Vector4 PositionAndRange = new(Position, range);
+        Vector4 DirectionAndInnerCos = new(Direction, InnerConeCos);
+        Vector4 ColorAndOuterCos = new(ColorTimesIntensity, OuterConeCos);
+        Unsafe.CopyBlock(Destination, &PositionAndRange, (uint)sizeof(Vector4));
+        Unsafe.CopyBlock(Destination + 16, &DirectionAndInnerCos, (uint)sizeof(Vector4));
+        Unsafe.CopyBlock(Destination + 32, &ColorAndOuterCos, (uint)sizeof(Vector4));
     }
 
     /// <summary>Writes Stage.hlsl's FrameCB.LightCounts (int4: x=active point lights, y=active spot lights).</summary>
-    private void WriteLightCounts(uint frameIndex)
+    private void WriteLightCounts(uint FrameIndex)
     {
-        int* counts = stackalloc int[4] { _pointLightCount, _spotLightCount, 0, 0 };
-        Unsafe.CopyBlock(FrameSlot(frameIndex) + FrameLightCountsOffset, counts, 16);
+        int* Counts = stackalloc int[4] { PointLightCount, SpotLightCount, 0, 0 };
+        Unsafe.CopyBlock(FrameSlot(FrameIndex) + FrameLightCountsOffset, Counts, 16);
     }
 
-    private void WriteObjectConstants(uint frameIndex, int objectIndex)
+    private void WriteObjectConstants(uint FrameIndex, int ObjectIndex)
     {
-        ulong slot = ((ulong)frameIndex * (ulong)_objectCount) + (ulong)objectIndex;
-        byte* destination = _objectConstantsMapped + (slot * ConstantAlignment);
+        ulong Slot = ((ulong)FrameIndex * (ulong)ObjectCount) + (ulong)ObjectIndex;
+        byte* Destination = ObjectConstantsMapped + (Slot * ConstantAlignment);
 
-        Matrix4x4 world = _objectTransforms[objectIndex];
-        Unsafe.CopyBlock(destination + ObjectWorldOffset, &world, (uint)sizeof(Matrix4x4));
+        Matrix4x4 World = ObjectTransforms[ObjectIndex];
+        Unsafe.CopyBlock(Destination + ObjectWorldOffset, &World, (uint)sizeof(Matrix4x4));
 
-        int materialIndex = _objectMaterialIndices[objectIndex];
-        Vector4 baseColorFactor = _materialBaseColorFactors[materialIndex];
-        Unsafe.CopyBlock(destination + ObjectBaseColorFactorOffset, &baseColorFactor, (uint)sizeof(Vector4));
+        int MaterialIndex = ObjectMaterialIndices[ObjectIndex];
+        Vector4 BaseColorFactor = MaterialBaseColorFactors[MaterialIndex];
+        Unsafe.CopyBlock(Destination + ObjectBaseColorFactorOffset, &BaseColorFactor, (uint)sizeof(Vector4));
 
-        Vector4 materialParams = new(_materialRoughnessFactors[materialIndex], _materialMetallicFactors[materialIndex], 0f, 0f);
-        Unsafe.CopyBlock(destination + ObjectMaterialParamsOffset, &materialParams, (uint)sizeof(Vector4));
+        Vector4 MaterialParams = new(MaterialRoughnessFactors[MaterialIndex], MaterialMetallicFactors[MaterialIndex], 0f, 0f);
+        Unsafe.CopyBlock(Destination + ObjectMaterialParamsOffset, &MaterialParams, (uint)sizeof(Vector4));
     }
 
-    private ulong GetFrameConstantsAddress(uint frameIndex)
+    private ulong GetFrameConstantsAddress(uint FrameIndex)
     {
-        return _frameConstantsBuffer->GetGPUVirtualAddress() + (frameIndex * ConstantAlignment);
+        return FrameConstantsBuffer->GetGPUVirtualAddress() + (FrameIndex * ConstantAlignment);
     }
 
-    private ulong GetObjectConstantsAddress(uint frameIndex, int objectIndex)
+    private ulong GetObjectConstantsAddress(uint FrameIndex, int ObjectIndex)
     {
-        ulong slot = ((ulong)frameIndex * (ulong)_objectCount) + (ulong)objectIndex;
-        return _objectConstantsBuffer->GetGPUVirtualAddress() + (slot * ConstantAlignment);
+        ulong Slot = ((ulong)FrameIndex * (ulong)ObjectCount) + (ulong)ObjectIndex;
+        return ObjectConstantsBuffer->GetGPUVirtualAddress() + (Slot * ConstantAlignment);
     }
 
-    private D3D12_GPU_DESCRIPTOR_HANDLE GetMaterialDescriptorTable(int materialIndex)
+    private D3D12_GPU_DESCRIPTOR_HANDLE GetMaterialDescriptorTable(int MaterialIndex)
     {
-        return new D3D12_GPU_DESCRIPTOR_HANDLE(_srvHeap->GetGPUDescriptorHandleForHeapStart(), materialIndex * 3, _srvDescriptorSize);
+        return new D3D12_GPU_DESCRIPTOR_HANDLE(SrvHeap->GetGPUDescriptorHandleForHeapStart(), MaterialIndex * 3, SrvDescriptorSize);
     }
 
-    private void UpdateViewportAndScissor(int width, int height)
+    private void UpdateViewportAndScissor(int Width, int Height)
     {
-        _viewport = new D3D12_VIEWPORT
+        Viewport = new D3D12_VIEWPORT
         {
             TopLeftX = 0,
             TopLeftY = 0,
-            Width = width,
-            Height = height,
+            Width = Width,
+            Height = Height,
             MinDepth = 0.0f,
             MaxDepth = 1.0f,
         };
 
-        _scissorRect = new RECT { left = 0, top = 0, right = width, bottom = height };
-        _width = width;
-        _height = height;
+        ScissorRect = new RECT { left = 0, top = 0, right = Width, bottom = Height };
+        this.Width = Width;
+        this.Height = Height;
     }
 
-    public void Resize(int width, int height)
+    public void Resize(int Width, int Height)
     {
-        if (width <= 0 || height <= 0)
+        if (Width <= 0 || Height <= 0)
         {
-            _sizeIsZero = true;
+            SizeIsZero = true;
             return;
         }
 
-        _sizeIsZero = false;
+        SizeIsZero = false;
 
-        if (width == _width && height == _height)
+        if (this.Width == Width && this.Height == Height)
         {
             return;
         }
@@ -1168,134 +1168,134 @@ public sealed unsafe class StageRenderer : IDisposable
 
         // See ModelRenderer.Resize / ADR-0003 §8: ResizeBuffers restarts the swap chain's
         // back-buffer index cycle, which would otherwise desynchronize the per-slot fence values.
-        ulong syncedFenceValue = _fenceValues[_frameIndex];
+        ulong SyncedFenceValue = FenceValues[FrameIndex];
         for (int i = 0; i < FrameCount; i++)
         {
-            _fenceValues[i] = syncedFenceValue;
+            FenceValues[i] = SyncedFenceValue;
         }
 
         for (int i = 0; i < FrameCount; i++)
         {
-            if (_backBuffers[i] != null)
+            if (BackBuffers[i] != null)
             {
-                _ = _backBuffers[i]->Release();
-                _backBuffers[i] = null;
+                _ = BackBuffers[i]->Release();
+                BackBuffers[i] = null;
             }
         }
 
         ReleaseReadbackBuffer();
 
-        if (_depthBuffer != null)
+        if (DepthBuffer != null)
         {
-            _ = _depthBuffer->Release();
-            _depthBuffer = null;
+            _ = DepthBuffer->Release();
+            DepthBuffer = null;
         }
 
         D3D12Diagnostics.EnsureSuccess(
-            _swapChain->ResizeBuffers(FrameCount, (uint)width, (uint)height, BackBufferFormat, 0),
+            SwapChain->ResizeBuffers(FrameCount, (uint)Width, (uint)Height, BackBufferFormat, 0),
             "IDXGISwapChain3::ResizeBuffers", "resizing the swap chain");
 
         CreateRenderTargetViews();
-        CreateDepthBuffer(width, height);
-        _frameIndex = _swapChain->GetCurrentBackBufferIndex();
-        UpdateViewportAndScissor(width, height);
+        CreateDepthBuffer(Width, Height);
+        FrameIndex = SwapChain->GetCurrentBackBufferIndex();
+        UpdateViewportAndScissor(Width, Height);
     }
 
-    public void RenderFrame(bool captureForVerification = false)
+    public void RenderFrame(bool CaptureForVerification = false)
     {
-        if (_sizeIsZero)
+        if (SizeIsZero)
         {
             return;
         }
 
-        ID3D12CommandAllocator* allocator = _commandAllocators[_frameIndex];
-        D3D12Diagnostics.EnsureSuccess(allocator->Reset(), "ID3D12CommandAllocator::Reset", "resetting the frame command allocator");
-        D3D12Diagnostics.EnsureSuccess(_commandList->Reset(allocator, _pipelineState), "ID3D12GraphicsCommandList::Reset", "resetting the graphics command list");
+        ID3D12CommandAllocator* Allocator = CommandAllocators[FrameIndex];
+        D3D12Diagnostics.EnsureSuccess(Allocator->Reset(), "ID3D12CommandAllocator::Reset", "resetting the frame command allocator");
+        D3D12Diagnostics.EnsureSuccess(CommandList->Reset(Allocator, PipelineState), "ID3D12GraphicsCommandList::Reset", "resetting the graphics command list");
 
-        ID3D12Resource* backBuffer = _backBuffers[_frameIndex];
+        ID3D12Resource* BackBuffer = BackBuffers[FrameIndex];
 
-        D3D12_RESOURCE_BARRIER toRenderTarget = D3D12_RESOURCE_BARRIER.InitTransition(backBuffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-        _commandList->ResourceBarrier(1, &toRenderTarget);
+        D3D12_RESOURCE_BARRIER ToRenderTarget = D3D12_RESOURCE_BARRIER.InitTransition(BackBuffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+        CommandList->ResourceBarrier(1, &ToRenderTarget);
 
-        D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = new(_rtvHeap->GetCPUDescriptorHandleForHeapStart(), (int)_frameIndex, _rtvDescriptorSize);
-        D3D12_CPU_DESCRIPTOR_HANDLE dsvHandle = _dsvHeap->GetCPUDescriptorHandleForHeapStart();
-        _commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+        D3D12_CPU_DESCRIPTOR_HANDLE RtvHandle = new(RtvHeap->GetCPUDescriptorHandleForHeapStart(), (int)FrameIndex, RtvDescriptorSize);
+        D3D12_CPU_DESCRIPTOR_HANDLE DsvHandle = DsvHeap->GetCPUDescriptorHandleForHeapStart();
+        CommandList->OMSetRenderTargets(1, &RtvHandle, FALSE, &DsvHandle);
 
         Vector4 clearColor = ClearColorVector;
-        _commandList->ClearRenderTargetView(rtvHandle, (float*)&clearColor, 0, null);
-        _commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, null);
+        CommandList->ClearRenderTargetView(RtvHandle, (float*)&clearColor, 0, null);
+        CommandList->ClearDepthStencilView(DsvHandle, D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, null);
 
-        _commandList->SetGraphicsRootSignature(_rootSignature);
-        _commandList->SetPipelineState(_pipelineState);
+        CommandList->SetGraphicsRootSignature(RootSignature);
+        CommandList->SetPipelineState(PipelineState);
 
-        ID3D12DescriptorHeap* srvHeap = _srvHeap;
-        _commandList->SetDescriptorHeaps(1, &srvHeap);
-        _commandList->SetGraphicsRootConstantBufferView(0, GetFrameConstantsAddress(_frameIndex));
+        ID3D12DescriptorHeap* SrvHeap = this.SrvHeap;
+        CommandList->SetDescriptorHeaps(1, &SrvHeap);
+        CommandList->SetGraphicsRootConstantBufferView(0, GetFrameConstantsAddress(FrameIndex));
 
-        fixed (D3D12_VIEWPORT* pViewport = &_viewport)
-        fixed (RECT* pScissorRect = &_scissorRect)
+        fixed (D3D12_VIEWPORT* PViewport = &Viewport)
+        fixed (RECT* PScissorRect = &ScissorRect)
         {
-            _commandList->RSSetViewports(1, pViewport);
-            _commandList->RSSetScissorRects(1, pScissorRect);
+            CommandList->RSSetViewports(1, PViewport);
+            CommandList->RSSetScissorRects(1, PScissorRect);
         }
 
-        _commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-        for (int i = 0; i < _objectCount; i++)
+        for (int i = 0; i < ObjectCount; i++)
         {
-            int meshIndex = _objectMeshIndices[i];
-            _commandList->SetGraphicsRootConstantBufferView(1, GetObjectConstantsAddress(_frameIndex, i));
-            _commandList->SetGraphicsRootDescriptorTable(2, GetMaterialDescriptorTable(_objectMaterialIndices[i]));
+            int MeshIndex = ObjectMeshIndices[i];
+            CommandList->SetGraphicsRootConstantBufferView(1, GetObjectConstantsAddress(FrameIndex, i));
+            CommandList->SetGraphicsRootDescriptorTable(2, GetMaterialDescriptorTable(ObjectMaterialIndices[i]));
 
-            fixed (D3D12_VERTEX_BUFFER_VIEW* pVertexBufferView = &_vertexBufferViews[meshIndex])
-            fixed (D3D12_INDEX_BUFFER_VIEW* pIndexBufferView = &_indexBufferViews[meshIndex])
+            fixed (D3D12_VERTEX_BUFFER_VIEW* PVertexBufferView = &VertexBufferViews[MeshIndex])
+            fixed (D3D12_INDEX_BUFFER_VIEW* PIndexBufferView = &IndexBufferViews[MeshIndex])
             {
-                _commandList->IASetVertexBuffers(0, 1, pVertexBufferView);
-                _commandList->IASetIndexBuffer(pIndexBufferView);
-                _commandList->DrawIndexedInstanced(_indexCounts[meshIndex], 1, 0, 0, 0);
+                CommandList->IASetVertexBuffers(0, 1, PVertexBufferView);
+                CommandList->IASetIndexBuffer(PIndexBufferView);
+                CommandList->DrawIndexedInstanced(IndexCounts[MeshIndex], 1, 0, 0, 0);
             }
         }
 
-        if (captureForVerification)
+        if (CaptureForVerification)
         {
             EnsureReadbackBuffer();
 
-            D3D12_RESOURCE_BARRIER toCopySource = D3D12_RESOURCE_BARRIER.InitTransition(backBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE);
-            _commandList->ResourceBarrier(1, &toCopySource);
+            D3D12_RESOURCE_BARRIER ToCopySource = D3D12_RESOURCE_BARRIER.InitTransition(BackBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE);
+            CommandList->ResourceBarrier(1, &ToCopySource);
 
-            D3D12_TEXTURE_COPY_LOCATION dst = new() { pResource = _readbackBuffer, Type = D3D12_TEXTURE_COPY_TYPE.D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT };
-            dst.PlacedFootprint = _readbackFootprint;
-            D3D12_TEXTURE_COPY_LOCATION src = new() { pResource = backBuffer, Type = D3D12_TEXTURE_COPY_TYPE.D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX };
-            src.SubresourceIndex = 0;
-            _commandList->CopyTextureRegion(&dst, 0, 0, 0, &src, null);
+            D3D12_TEXTURE_COPY_LOCATION Dst = new() { pResource = ReadbackBuffer, Type = D3D12_TEXTURE_COPY_TYPE.D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT };
+            Dst.PlacedFootprint = ReadbackFootprint;
+            D3D12_TEXTURE_COPY_LOCATION Src = new() { pResource = BackBuffer, Type = D3D12_TEXTURE_COPY_TYPE.D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX };
+            Src.SubresourceIndex = 0;
+            CommandList->CopyTextureRegion(&Dst, 0, 0, 0, &Src, null);
 
-            D3D12_RESOURCE_BARRIER toPresent = D3D12_RESOURCE_BARRIER.InitTransition(backBuffer, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PRESENT);
-            _commandList->ResourceBarrier(1, &toPresent);
+            D3D12_RESOURCE_BARRIER ToPresent = D3D12_RESOURCE_BARRIER.InitTransition(BackBuffer, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PRESENT);
+            CommandList->ResourceBarrier(1, &ToPresent);
         }
         else
         {
-            D3D12_RESOURCE_BARRIER toPresent = D3D12_RESOURCE_BARRIER.InitTransition(backBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-            _commandList->ResourceBarrier(1, &toPresent);
+            D3D12_RESOURCE_BARRIER toPresent = D3D12_RESOURCE_BARRIER.InitTransition(BackBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+            CommandList->ResourceBarrier(1, &toPresent);
         }
 
-        D3D12Diagnostics.EnsureSuccess(_commandList->Close(), "ID3D12GraphicsCommandList::Close", "closing the frame command list");
+        D3D12Diagnostics.EnsureSuccess(CommandList->Close(), "ID3D12GraphicsCommandList::Close", "closing the frame command list");
 
-        ID3D12CommandList* commandListBase = (ID3D12CommandList*)_commandList;
-        _device!.CommandQueue->ExecuteCommandLists(1, &commandListBase);
+        ID3D12CommandList* CommandListBase = (ID3D12CommandList*)CommandList;
+        Device!.CommandQueue->ExecuteCommandLists(1, &CommandListBase);
 
-        D3D12Diagnostics.EnsureSuccess(_swapChain->Present(1, 0), "IDXGISwapChain3::Present", "presenting the frame");
+        D3D12Diagnostics.EnsureSuccess(SwapChain->Present(1, 0), "IDXGISwapChain3::Present", "presenting the frame");
 
         MoveToNextFrame();
-        _device.PollDebugMessages();
+        Device.PollDebugMessages();
         FramesRendered++;
 
         // The point/spot light counts (and the data they gate) have already been submitted to the
         // GPU above; reset so the next frame starts from zero and only reflects lights that call
         // AddPointLight/AddSpotLight again this frame (see the fields' doc comment).
-        _pointLightCount = 0;
-        _spotLightCount = 0;
+        PointLightCount = 0;
+        SpotLightCount = 0;
 
-        if (captureForVerification)
+        if (CaptureForVerification)
         {
             WaitForGpuIdle();
             LastCapturedFrame = ReadBackCapturedFrame();
@@ -1304,229 +1304,229 @@ public sealed unsafe class StageRenderer : IDisposable
 
     private void EnsureReadbackBuffer()
     {
-        if (_readbackBuffer != null)
+        if (this.ReadbackBuffer != null)
         {
             return;
         }
 
-        D3D12_RESOURCE_DESC textureDesc = D3D12_RESOURCE_DESC.Tex2D(BackBufferFormat, (uint)_width, (uint)_height, mipLevels: 1);
+        D3D12_RESOURCE_DESC TextureDesc = D3D12_RESOURCE_DESC.Tex2D(BackBufferFormat, (uint)Width, (uint)Height, mipLevels: 1);
 
-        D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint;
-        ulong totalBytes;
-        _device!.Device->GetCopyableFootprints(&textureDesc, 0, 1, 0, &footprint, null, null, &totalBytes);
+        D3D12_PLACED_SUBRESOURCE_FOOTPRINT Footprint;
+        ulong TotalBytes;
+        Device!.Device->GetCopyableFootprints(&TextureDesc, 0, 1, 0, &Footprint, null, null, &TotalBytes);
 
-        D3D12_HEAP_PROPERTIES heapProps = new(D3D12_HEAP_TYPE_READBACK);
-        D3D12_RESOURCE_DESC bufferDesc = D3D12_RESOURCE_DESC.Buffer(totalBytes);
+        D3D12_HEAP_PROPERTIES HeapProps = new(D3D12_HEAP_TYPE_READBACK);
+        D3D12_RESOURCE_DESC BufferDesc = D3D12_RESOURCE_DESC.Buffer(TotalBytes);
 
-        ID3D12Resource* readbackBuffer;
+        ID3D12Resource* ReadbackBuffer;
         D3D12Diagnostics.EnsureSuccess(
-            _device.Device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &bufferDesc, D3D12_RESOURCE_STATE_COPY_DEST, pOptimizedClearValue: null, __uuidof<ID3D12Resource>(), (void**)&readbackBuffer),
+            Device.Device->CreateCommittedResource(&HeapProps, D3D12_HEAP_FLAG_NONE, &BufferDesc, D3D12_RESOURCE_STATE_COPY_DEST, pOptimizedClearValue: null, __uuidof<ID3D12Resource>(), (void**)&ReadbackBuffer),
             "ID3D12Device::CreateCommittedResource", "creating the pixel-verification readback buffer");
 
-        _readbackBuffer = readbackBuffer;
-        _readbackBufferSize = totalBytes;
-        _readbackFootprint = footprint;
+        this.ReadbackBuffer = ReadbackBuffer;
+        ReadbackBufferSize = TotalBytes;
+        ReadbackFootprint = Footprint;
     }
 
     private void ReleaseReadbackBuffer()
     {
-        if (_readbackBuffer != null)
+        if (ReadbackBuffer != null)
         {
-            _ = _readbackBuffer->Release();
-            _readbackBuffer = null;
-            _readbackBufferSize = 0;
+            _ = ReadbackBuffer->Release();
+            ReadbackBuffer = null;
+            ReadbackBufferSize = 0;
         }
     }
 
     private PixelReadbackResult ReadBackCapturedFrame()
     {
-        D3D12_RANGE readRange = new() { Begin = 0, End = (nuint)_readbackBufferSize };
-        void* mapped;
-        D3D12Diagnostics.EnsureSuccess(_readbackBuffer->Map(0, &readRange, &mapped), "ID3D12Resource::Map", "mapping the readback buffer");
+        D3D12_RANGE ReadRange = new() { Begin = 0, End = (nuint)ReadbackBufferSize };
+        void* Mapped;
+        D3D12Diagnostics.EnsureSuccess(ReadbackBuffer->Map(0, &ReadRange, &Mapped), "ID3D12Resource::Map", "mapping the readback buffer");
 
-        byte[] data = new byte[_readbackBufferSize];
-        fixed (byte* pData = data)
+        byte[] Data = new byte[ReadbackBufferSize];
+        fixed (byte* PData = Data)
         {
-            Unsafe.CopyBlock(pData, mapped, (uint)_readbackBufferSize);
+            Unsafe.CopyBlock(PData, Mapped, (uint)ReadbackBufferSize);
         }
 
-        D3D12_RANGE writtenRange = new();
-        _readbackBuffer->Unmap(0, &writtenRange);
+        D3D12_RANGE WrittenRange = new();
+        ReadbackBuffer->Unmap(0, &WrittenRange);
 
         return new PixelReadbackResult
         {
-            Width = _width,
-            Height = _height,
-            RowPitch = _readbackFootprint.Footprint.RowPitch,
+            Width = Width,
+            Height = Height,
+            RowPitch = ReadbackFootprint.Footprint.RowPitch,
             Format = BackBufferFormat,
-            Pixels = data,
+            Pixels = Data,
         };
     }
 
     private void MoveToNextFrame()
     {
-        ulong currentFenceValue = _fenceValues[_frameIndex];
-        D3D12Diagnostics.EnsureSuccess(_device!.CommandQueue->Signal(_fence, currentFenceValue), "ID3D12CommandQueue::Signal", "signaling the frame fence");
+        ulong CurrentFenceValue = FenceValues[FrameIndex];
+        D3D12Diagnostics.EnsureSuccess(Device!.CommandQueue->Signal(Fence, CurrentFenceValue), "ID3D12CommandQueue::Signal", "signaling the frame fence");
 
-        _frameIndex = _swapChain->GetCurrentBackBufferIndex();
+        FrameIndex = SwapChain->GetCurrentBackBufferIndex();
 
-        if (_fence->GetCompletedValue() < _fenceValues[_frameIndex])
+        if (Fence->GetCompletedValue() < FenceValues[FrameIndex])
         {
-            D3D12Diagnostics.EnsureSuccess(_fence->SetEventOnCompletion(_fenceValues[_frameIndex], _fenceEvent), "ID3D12Fence::SetEventOnCompletion", "waiting for the next frame slot");
-            _ = WaitForSingleObjectEx(_fenceEvent, INFINITE, FALSE);
+            D3D12Diagnostics.EnsureSuccess(Fence->SetEventOnCompletion(FenceValues[FrameIndex], FenceEvent), "ID3D12Fence::SetEventOnCompletion", "waiting for the next frame slot");
+            _ = WaitForSingleObjectEx(FenceEvent, INFINITE, FALSE);
         }
 
-        _fenceValues[_frameIndex] = currentFenceValue + 1;
+        FenceValues[FrameIndex] = CurrentFenceValue + 1;
     }
 
     private void WaitForGpuIdle()
     {
-        if (_device == null || _fence == null)
+        if (Device == null || Fence == null)
         {
             return;
         }
 
-        D3D12Diagnostics.EnsureSuccess(_device.CommandQueue->Signal(_fence, _fenceValues[_frameIndex]), "ID3D12CommandQueue::Signal", "signaling the GPU-idle fence");
-        D3D12Diagnostics.EnsureSuccess(_fence->SetEventOnCompletion(_fenceValues[_frameIndex], _fenceEvent), "ID3D12Fence::SetEventOnCompletion", "waiting for the GPU to go idle");
-        _ = WaitForSingleObjectEx(_fenceEvent, INFINITE, FALSE);
-        _fenceValues[_frameIndex]++;
+        D3D12Diagnostics.EnsureSuccess(Device.CommandQueue->Signal(Fence, FenceValues[FrameIndex]), "ID3D12CommandQueue::Signal", "signaling the GPU-idle fence");
+        D3D12Diagnostics.EnsureSuccess(Fence->SetEventOnCompletion(FenceValues[FrameIndex], FenceEvent), "ID3D12Fence::SetEventOnCompletion", "waiting for the GPU to go idle");
+        _ = WaitForSingleObjectEx(FenceEvent, INFINITE, FALSE);
+        FenceValues[FrameIndex]++;
     }
 
     public void Dispose()
     {
-        if (_disposed)
+        if (Disposed)
         {
             return;
         }
 
-        _disposed = true;
+        Disposed = true;
 
         WaitForGpuIdle();
 
         ReleaseReadbackBuffer();
 
-        if (_frameConstantsBuffer != null)
+        if (FrameConstantsBuffer != null)
         {
-            _frameConstantsBuffer->Unmap(0, null);
-            _frameConstantsMapped = null;
-            _ = _frameConstantsBuffer->Release();
-            _frameConstantsBuffer = null;
+            FrameConstantsBuffer->Unmap(0, null);
+            FrameConstantsMapped = null;
+            _ = FrameConstantsBuffer->Release();
+            FrameConstantsBuffer = null;
         }
 
-        if (_objectConstantsBuffer != null)
+        if (ObjectConstantsBuffer != null)
         {
-            _objectConstantsBuffer->Unmap(0, null);
-            _objectConstantsMapped = null;
-            _ = _objectConstantsBuffer->Release();
-            _objectConstantsBuffer = null;
+            ObjectConstantsBuffer->Unmap(0, null);
+            ObjectConstantsMapped = null;
+            _ = ObjectConstantsBuffer->Release();
+            ObjectConstantsBuffer = null;
         }
 
-        if (_srvHeap != null)
+        if (SrvHeap != null)
         {
-            _ = _srvHeap->Release();
-            _srvHeap = null;
+            _ = SrvHeap->Release();
+            SrvHeap = null;
         }
 
-        for (int i = 0; i < _materialTextures.Length; i++)
+        for (int i = 0; i < MaterialTextures.Length; i++)
         {
-            if (_materialTextures[i] != null)
+            if (MaterialTextures[i] != null)
             {
-                _ = _materialTextures[i]->Release();
-                _materialTextures[i] = null;
+                _ = MaterialTextures[i]->Release();
+                MaterialTextures[i] = null;
             }
         }
 
-        for (int i = 0; i < _indexBuffers.Length; i++)
+        for (int i = 0; i < IndexBuffers.Length; i++)
         {
-            if (_indexBuffers[i] != null)
+            if (IndexBuffers[i] != null)
             {
-                _ = _indexBuffers[i]->Release();
-                _indexBuffers[i] = null;
+                _ = IndexBuffers[i]->Release();
+                IndexBuffers[i] = null;
             }
         }
 
-        for (int i = 0; i < _vertexBuffers.Length; i++)
+        for (int i = 0; i < VertexBuffers.Length; i++)
         {
-            if (_vertexBuffers[i] != null)
+            if (VertexBuffers[i] != null)
             {
-                _ = _vertexBuffers[i]->Release();
-                _vertexBuffers[i] = null;
+                _ = VertexBuffers[i]->Release();
+                VertexBuffers[i] = null;
             }
         }
 
-        if (_pipelineState != null)
+        if (PipelineState != null)
         {
-            _ = _pipelineState->Release();
-            _pipelineState = null;
+            _ = PipelineState->Release();
+            PipelineState = null;
         }
 
-        if (_rootSignature != null)
+        if (RootSignature != null)
         {
-            _ = _rootSignature->Release();
-            _rootSignature = null;
+            _ = RootSignature->Release();
+            RootSignature = null;
         }
 
-        if (_fenceEvent != HANDLE.NULL)
+        if (FenceEvent != HANDLE.NULL)
         {
-            _ = CloseHandle(_fenceEvent);
-            _fenceEvent = HANDLE.NULL;
+            _ = CloseHandle(FenceEvent);
+            FenceEvent = HANDLE.NULL;
         }
 
-        if (_fence != null)
+        if (Fence != null)
         {
-            _ = _fence->Release();
-            _fence = null;
+            _ = Fence->Release();
+            Fence = null;
         }
 
-        if (_commandList != null)
+        if (CommandList != null)
         {
-            _ = _commandList->Release();
-            _commandList = null;
+            _ = CommandList->Release();
+            CommandList = null;
         }
 
         for (int i = 0; i < FrameCount; i++)
         {
-            if (_commandAllocators[i] != null)
+            if (CommandAllocators[i] != null)
             {
-                _ = _commandAllocators[i]->Release();
-                _commandAllocators[i] = null;
+                _ = CommandAllocators[i]->Release();
+                CommandAllocators[i] = null;
             }
         }
 
-        if (_depthBuffer != null)
+        if (DepthBuffer != null)
         {
-            _ = _depthBuffer->Release();
-            _depthBuffer = null;
+            _ = DepthBuffer->Release();
+            DepthBuffer = null;
         }
 
-        if (_dsvHeap != null)
+        if (DsvHeap != null)
         {
-            _ = _dsvHeap->Release();
-            _dsvHeap = null;
+            _ = DsvHeap->Release();
+            DsvHeap = null;
         }
 
         for (int i = 0; i < FrameCount; i++)
         {
-            if (_backBuffers[i] != null)
+            if (BackBuffers[i] != null)
             {
-                _ = _backBuffers[i]->Release();
-                _backBuffers[i] = null;
+                _ = BackBuffers[i]->Release();
+                BackBuffers[i] = null;
             }
         }
 
-        if (_rtvHeap != null)
+        if (RtvHeap != null)
         {
-            _ = _rtvHeap->Release();
-            _rtvHeap = null;
+            _ = RtvHeap->Release();
+            RtvHeap = null;
         }
 
-        if (_swapChain != null)
+        if (SwapChain != null)
         {
-            _ = _swapChain->Release();
-            _swapChain = null;
+            _ = SwapChain->Release();
+            SwapChain = null;
         }
 
-        _device?.Dispose();
-        _device = null;
+        Device?.Dispose();
+        Device = null;
     }
 }

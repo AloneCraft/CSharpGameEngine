@@ -39,78 +39,78 @@ public static class CharacterMotion
     public const float Gravity = 18.0f;
     public const float JumpSpeed = 6.0f;
 
-    public static CharacterMotionResult Compute(in CharacterMotionInput input)
+    public static CharacterMotionResult Compute(in CharacterMotionInput Input)
     {
-        Vector3 moveDirection = Vector3.Zero;
-        if (input.MoveForward)
+        Vector3 MoveDirection = Vector3.Zero;
+        if (Input.MoveForward)
         {
-            moveDirection += input.FlatForward;
+            MoveDirection += Input.FlatForward;
         }
-        if (input.MoveBack)
+        if (Input.MoveBack)
         {
-            moveDirection -= input.FlatForward;
+            MoveDirection -= Input.FlatForward;
         }
-        if (input.MoveRight)
+        if (Input.MoveRight)
         {
-            moveDirection += input.FlatRight;
+            MoveDirection += Input.FlatRight;
         }
-        if (input.MoveLeft)
+        if (Input.MoveLeft)
         {
-            moveDirection -= input.FlatRight;
-        }
-
-        if (moveDirection != Vector3.Zero)
-        {
-            moveDirection = Vector3.Normalize(moveDirection);
+            MoveDirection -= Input.FlatRight;
         }
 
-        bool wasGrounded = input.CurrentY <= 0f;
-        float verticalVelocity = input.VerticalVelocity;
-
-        if (wasGrounded && input.JumpPressed)
+        if (MoveDirection != Vector3.Zero)
         {
-            verticalVelocity = JumpSpeed;
+            MoveDirection = Vector3.Normalize(MoveDirection);
         }
 
-        verticalVelocity -= Gravity * input.DeltaTime;
+        bool WasGrounded = Input.CurrentY <= 0f;
+        float VerticalVelocity = Input.VerticalVelocity;
 
-        float newY = input.CurrentY + (verticalVelocity * input.DeltaTime);
-        bool isGrounded = newY <= 0f;
-        if (isGrounded)
+        if (WasGrounded && Input.JumpPressed)
         {
-            newY = 0f;
-            verticalVelocity = 0f;
+            VerticalVelocity = JumpSpeed;
+        }
+
+        VerticalVelocity -= Gravity * Input.DeltaTime;
+
+        float NewY = Input.CurrentY + (VerticalVelocity * Input.DeltaTime);
+        bool IsGrounded = NewY <= 0f;
+        if (IsGrounded)
+        {
+            NewY = 0f;
+            VerticalVelocity = 0f;
         }
 
         return new CharacterMotionResult
         {
-            HorizontalVelocity = moveDirection * MoveSpeed,
-            NewY = newY,
-            NewVerticalVelocity = verticalVelocity,
-            IsGrounded = isGrounded,
+            HorizontalVelocity = MoveDirection * MoveSpeed,
+            NewY = NewY,
+            NewVerticalVelocity = VerticalVelocity,
+            IsGrounded = IsGrounded,
         };
     }
 
-    /// <summary>Steps <paramref name="current"/> toward <paramref name="target"/> (radians) by the shortest path, at most <paramref name="rotationSpeedRadiansPerSecond"/>*<paramref name="deltaTime"/>.</summary>
-    public static float LerpAngle(float current, float target, float rotationSpeedRadiansPerSecond, float deltaTime)
+    /// <summary>Steps <paramref name="Current"/> toward <paramref name="Target"/> (radians) by the shortest path, at most <paramref name="RotationSpeedRadiansPerSecond"/>*<paramref name="DeltaTime"/>.</summary>
+    public static float LerpAngle(float Current, float Target, float RotationSpeedRadiansPerSecond, float DeltaTime)
     {
-        float difference = WrapAngle(target - current);
-        float maxStep = rotationSpeedRadiansPerSecond * deltaTime;
-        float step = Math.Clamp(difference, -maxStep, maxStep);
-        return WrapAngle(current + step);
+        float Difference = WrapAngle(Target - Current);
+        float MaxStep = RotationSpeedRadiansPerSecond * DeltaTime;
+        float Step = Math.Clamp(Difference, -MaxStep, MaxStep);
+        return WrapAngle(Current + Step);
     }
 
-    private static float WrapAngle(float angleRadians)
+    private static float WrapAngle(float AngleRadians)
     {
-        angleRadians %= MathF.Tau;
-        if (angleRadians > MathF.PI)
+        AngleRadians %= MathF.Tau;
+        if (AngleRadians > MathF.PI)
         {
-            angleRadians -= MathF.Tau;
+            AngleRadians -= MathF.Tau;
         }
-        if (angleRadians < -MathF.PI)
+        if (AngleRadians < -MathF.PI)
         {
-            angleRadians += MathF.Tau;
+            AngleRadians += MathF.Tau;
         }
-        return angleRadians;
+        return AngleRadians;
     }
 }

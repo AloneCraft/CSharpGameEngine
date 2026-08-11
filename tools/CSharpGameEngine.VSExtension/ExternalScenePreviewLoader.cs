@@ -18,31 +18,31 @@ internal static class ExternalScenePreviewLoader
     private static readonly TimeSpan BridgeTimeout = TimeSpan.FromSeconds(60);
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
-    public static ScenePreviewBridgeDocument Load(string sourceFilePath, string targetAssemblyPath, string repoRoot)
+    public static ScenePreviewBridgeDocument Load(string SourceFilePath, string TargetAssemblyPath, string RepoRoot)
     {
-        string requestJsonPath = Path.Combine(Path.GetTempPath(), $"csge-scenepreview-request-{Guid.NewGuid():N}.json");
-        string responseJsonPath = Path.Combine(Path.GetTempPath(), $"csge-scenepreview-response-{Guid.NewGuid():N}.json");
+        string RequestJsonPath = Path.Combine(Path.GetTempPath(), $"csge-scenepreview-request-{Guid.NewGuid():N}.json");
+        string ResponseJsonPath = Path.Combine(Path.GetTempPath(), $"csge-scenepreview-response-{Guid.NewGuid():N}.json");
 
         try
         {
-            ScenePreviewRequest request = new() { SourceFilePath = sourceFilePath, TargetAssemblyPath = targetAssemblyPath };
-            File.WriteAllText(requestJsonPath, JsonSerializer.Serialize(request));
+            ScenePreviewRequest Request = new() { SourceFilePath = SourceFilePath, TargetAssemblyPath = TargetAssemblyPath };
+            File.WriteAllText(RequestJsonPath, JsonSerializer.Serialize(Request));
 
-            string json = ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath, requestJsonPath, responseJsonPath, repoRoot, BridgeTimeout, useResidentServer: true);
+            string Json = ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath, RequestJsonPath, ResponseJsonPath, RepoRoot, BridgeTimeout, UseResidentServer: true);
 
-            ScenePreviewBridgeDocument? document = JsonSerializer.Deserialize<ScenePreviewBridgeDocument>(json, JsonOptions);
+            ScenePreviewBridgeDocument? Document = JsonSerializer.Deserialize<ScenePreviewBridgeDocument>(Json, JsonOptions);
 
-            if (document is null || !document.Success)
+            if (Document is null || !Document.Success)
             {
-                throw new InvalidOperationException($"シーンプレビューの生成に失敗しました: {document?.ErrorMessage ?? "(詳細不明)"}");
+                throw new InvalidOperationException($"シーンプレビューの生成に失敗しました: {Document?.ErrorMessage ?? "(詳細不明)"}");
             }
 
-            return document;
+            return Document;
         }
         finally
         {
-            TryDelete(requestJsonPath);
-            TryDelete(responseJsonPath);
+            TryDelete(RequestJsonPath);
+            TryDelete(ResponseJsonPath);
         }
     }
 

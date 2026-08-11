@@ -38,7 +38,7 @@ public struct PlayerTag
 }
 
 /// <summary>
-/// Holds the loaded stage until <c>SceneSpawnSystem</c> has turned it into entities. Program.cs
+/// Holds the loaded stage until <c>SceneSpawn</c> has turned it into entities. Program.cs
 /// creates exactly one entity carrying this component and nothing else; everything the stage needs
 /// (props, lights, the player) is then spawned from inside a System, so the whole startup path is
 /// expressed as Components + ISystem rather than as hand-written World calls (ADR-0033).
@@ -58,13 +58,13 @@ public struct Scale
     public float Z;
 }
 
-/// <summary>Index into the StageRenderer object array this entity's transform is written to each frame (see Systems/RenderSyncSystem.cs).</summary>
+/// <summary>Index into the StageRenderer object array this entity's transform is written to each frame (see Systems/Systems.cs, RenderSync).</summary>
 public struct RenderObjectRef
 {
     public int Index;
 }
 
-/// <summary>Gravity/jump state carried across frames for <see cref="CSharpGameEngine.Graphics.D3D12"/>-independent character motion (see Systems/PlayerControlSystem.cs, which feeds this into PlayerController.CharacterMotion).</summary>
+/// <summary>Gravity/jump state carried across frames for <see cref="CSharpGameEngine.Graphics.D3D12"/>-independent character motion (see Systems/Systems.cs, PlayerControl, which feeds this into PlayerController.CharacterMotion).</summary>
 public struct VerticalMotion
 {
     public float Velocity;
@@ -72,7 +72,7 @@ public struct VerticalMotion
 }
 
 /// <summary>
-/// The player's abstracted input for one frame, written only by Systems/InputSystem.cs (which is
+/// The player's abstracted input for one frame, written only by Systems/Systems.cs's Input (which is
 /// the sole place that touches Win32Window) and read by every other system - this component *is*
 /// the input abstraction required by the FirstPerson port: downstream systems never see a window
 /// or a virtual key code, only this data, so they are testable with a hand-built InputState and
@@ -85,7 +85,7 @@ public struct InputState
     public bool MoveLeft;
     public bool MoveRight;
 
-    /// <summary>Edge-detected (true only on the frame the jump key was first pressed) - InputSystem does the edge detection, matching CharacterMotionInput.JumpPressed's existing contract.</summary>
+    /// <summary>Edge-detected (true only on the frame the jump key was first pressed) - Input does the edge detection, matching CharacterMotionInput.JumpPressed's existing contract.</summary>
     public bool JumpPressed;
 
     public float LookDeltaX;
@@ -112,7 +112,7 @@ public struct CameraRig
     public float Pitch;
 }
 
-/// <summary>A single data-driven directional light (the "sun"). DirectionTowardLight need not be normalized by callers - RenderSyncSystem normalizes it before handing it to StageRenderer.</summary>
+/// <summary>A single data-driven directional light (the "sun"). DirectionTowardLight need not be normalized by callers - RenderSync normalizes it before handing it to StageRenderer.</summary>
 public struct DirectionalLightData
 {
     public float DirectionTowardLightX;
@@ -145,7 +145,7 @@ public struct FogData
 /// <summary>
 /// Per-frame data every <c>[GameSystem]</c> method needs but no single Entity owns - the [Context]
 /// counterpart to InputState (which *is* per-entity, since only the player has one). ElapsedSeconds
-/// is the running total since startup (Systems/MovingPropSystem.cs recomputes its spin fresh from
+/// is the running total since startup (Systems/Systems.cs, MovingProp recomputes its spin fresh from
 /// this each frame rather than accumulating, so there is no drift).
 /// </summary>
 public readonly struct FrameContext

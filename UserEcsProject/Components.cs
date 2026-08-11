@@ -35,12 +35,12 @@ public struct AppHost
 }
 
 /// <summary>
-/// レベル(= このエンジンではFBXファイル1つ)。LevelLoadSystemがインポートし、その内容から
+/// レベル(= このエンジンではFBXファイル1つ)。LevelLoadがインポートし、その内容から
 /// StageRendererを生成して、描画対象のEntityを撒く。
 ///
 /// <para>
 /// <b>どの</b>レベルをどのシェーダーでどのカメラから見るかは全部ゲーム側の決定なので、値はすべて
-/// <c>GameStartupSystem</c>(Systems/GameSystems.cs)が入れる。LevelLoadSystemはここに入っている
+/// <c>GameStartup</c>(Systems/GameSystems.cs)が入れる。LevelLoadはここに入っている
 /// ものを読むだけで、リテラルを1つも持たない。
 /// </para>
 /// </summary>

@@ -39,13 +39,13 @@ public class BasisTests
         => AssertBasis<FbxCoordinateConvention>(
             new XyzVector(1f, 0f, 0f), new XyzVector(0f, 1f, 0f), new XyzVector(0f, 0f, -1f), CoordinateHandedness.RightHanded);
 
-    private static void AssertBasis<TConvention>(XyzVector expectedRight, XyzVector expectedUp, XyzVector expectedForward, CoordinateHandedness expectedHandedness)
+    private static void AssertBasis<TConvention>(XyzVector ExpectedRight, XyzVector ExpectedUp, XyzVector ExpectedForward, CoordinateHandedness ExpectedHandedness)
         where TConvention : struct, ICoordinateConvention
     {
-        Assert.Equal(expectedRight, TConvention.RightXyz);
-        Assert.Equal(expectedUp, TConvention.UpXyz);
-        Assert.Equal(expectedForward, TConvention.ForwardXyz);
-        Assert.Equal(expectedHandedness, TConvention.Handedness);
+        Assert.Equal(ExpectedRight, TConvention.RightXyz);
+        Assert.Equal(ExpectedUp, TConvention.UpXyz);
+        Assert.Equal(ExpectedForward, TConvention.ForwardXyz);
+        Assert.Equal(ExpectedHandedness, TConvention.Handedness);
 
         Assert.Equal(1f, TConvention.RightXyz.Length, precision: 5);
         Assert.Equal(1f, TConvention.UpXyz.Length, precision: 5);

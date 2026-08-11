@@ -23,25 +23,25 @@ public sealed class ExternalScenePreviewLoaderTests
     [Fact]
     public void Load_TestScene_ReturnsRootMainCameraPlayer()
     {
-        string repoRoot = FindRepoRoot();
-        string fixtureDirectory = Path.Combine(repoRoot, "tests", "CSharpGameEngine.SceneAuthoring.Cli.Tests");
-        string sourcePath = Path.Combine(fixtureDirectory, "TestScene.cs");
-        string? assemblyPath = FindNewestAssembly(Path.Combine(fixtureDirectory, "bin"), "CSharpGameEngine.SceneAuthoring.Cli.Tests.dll");
+        string RepoRoot = FindRepoRoot();
+        string FixtureDirectory = Path.Combine(RepoRoot, "tests", "CSharpGameEngine.SceneAuthoring.Cli.Tests");
+        string SourcePath = Path.Combine(FixtureDirectory, "TestScene.cs");
+        string? AssemblyPath = FindNewestAssembly(Path.Combine(FixtureDirectory, "bin"), "CSharpGameEngine.SceneAuthoring.Cli.Tests.dll");
 
-        if (assemblyPath is null)
+        if (AssemblyPath is null)
         {
             throw new InvalidOperationException(
                 "CSharpGameEngine.SceneAuthoring.Cli.Tests.dll が見つかりませんでした。'dotnet build tests/CSharpGameEngine.SceneAuthoring.Cli.Tests' を先に実行してください。");
         }
 
-        ScenePreviewBridgeDocument document = ExternalScenePreviewLoader.Load(sourcePath, assemblyPath, repoRoot);
+        ScenePreviewBridgeDocument Document = ExternalScenePreviewLoader.Load(SourcePath, AssemblyPath, RepoRoot);
 
-        Assert.True(document.Success, document.ErrorMessage);
-        Assert.Equal("CSharpGameEngine.SceneAuthoring.Cli.Tests.TestScene", document.SceneClassFullName);
-        Assert.Equal(3, document.Nodes.Length);
-        Assert.Contains(document.Nodes, n => n.Name == "Root" && n.ParentEntityId == null);
-        Assert.Contains(document.Nodes, n => n.Name == "MainCamera" && n.ComponentTypeNames.Contains("Scale"));
-        Assert.Contains(document.Nodes, n => n.Name == "Player" && n.ComponentTypeNames.Contains("Health"));
+        Assert.True(Document.Success, Document.ErrorMessage);
+        Assert.Equal("CSharpGameEngine.SceneAuthoring.Cli.Tests.TestScene", Document.SceneClassFullName);
+        Assert.Equal(3, Document.Nodes.Length);
+        Assert.Contains(Document.Nodes, N => N.Name == "Root" && N.ParentEntityId == null);
+        Assert.Contains(Document.Nodes, N => N.Name == "MainCamera" && N.ComponentTypeNames.Contains("Scale"));
+        Assert.Contains(Document.Nodes, N => N.Name == "Player" && N.ComponentTypeNames.Contains("Health"));
     }
 
     private static string FindRepoRoot()
@@ -57,14 +57,14 @@ public sealed class ExternalScenePreviewLoaderTests
             ?? throw new InvalidOperationException($"'CSharpGameEngine.slnx' を辿って探索しましたが、リポジトリルートが見つかりませんでした(起点: {AppContext.BaseDirectory})。");
     }
 
-    private static string? FindNewestAssembly(string binRoot, string assemblyFileName)
+    private static string? FindNewestAssembly(string BinRoot, string AssemblyFileName)
     {
-        if (!Directory.Exists(binRoot))
+        if (!Directory.Exists(BinRoot))
         {
             return null;
         }
 
-        return Directory.EnumerateFiles(binRoot, assemblyFileName, SearchOption.AllDirectories)
+        return Directory.EnumerateFiles(BinRoot, AssemblyFileName, SearchOption.AllDirectories)
             .OrderByDescending(File.GetLastWriteTimeUtc)
             .FirstOrDefault();
     }

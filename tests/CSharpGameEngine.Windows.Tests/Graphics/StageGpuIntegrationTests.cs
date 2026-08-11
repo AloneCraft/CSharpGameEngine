@@ -53,10 +53,10 @@ public class StageGpuIntegrationTests
 
     private static void RunStageGpuScenario()
     {
-        ProceduralMeshData ground = ProceduralMeshFactory.CreatePlane(width: 20f, depth: 20f);
-        ProceduralMeshData character = ProceduralMeshFactory.CreateBox(new Vector3(1f, 2f, 1f));
+        ProceduralMeshData Ground = ProceduralMeshFactory.CreatePlane(Width: 20f, Depth: 20f);
+        ProceduralMeshData Character = ProceduralMeshFactory.CreateBox(new Vector3(1f, 2f, 1f));
 
-        using Win32Window window = new(new Win32WindowOptions
+        using Win32Window Window = new(new Win32WindowOptions
         {
             Title = "CSharpGameEngine Stage GPU Test",
             Width = 256,
@@ -64,46 +64,46 @@ public class StageGpuIntegrationTests
             Visible = false,
         });
 
-        GraphicsDeviceOptions deviceOptions = new()
+        GraphicsDeviceOptions DeviceOptions = new()
         {
             UseWarp = true,
             EnableDebugLayer = true,
         };
 
-        using StageRenderer renderer = StageRenderer.Create(
-            window.Handle, window.ClientWidth, window.ClientHeight, deviceOptions, ShaderPath,
+        using StageRenderer Renderer = StageRenderer.Create(
+            Window.Handle, Window.ClientWidth, Window.ClientHeight, DeviceOptions, ShaderPath,
             [
-                new MeshCreateInfo { Positions = ground.Positions, Normals = ground.Normals, Indices = ground.Indices, BaseColorFactor = new Vector4(0.3f, 0.6f, 0.3f, 1f) },
-                new MeshCreateInfo { Positions = character.Positions, Normals = character.Normals, Indices = character.Indices, BaseColorFactor = new Vector4(0.8f, 0.2f, 0.2f, 1f) },
+                new MeshCreateInfo { Positions = Ground.Positions, Normals = Ground.Normals, Indices = Ground.Indices, BaseColorFactor = new Vector4(0.3f, 0.6f, 0.3f, 1f) },
+                new MeshCreateInfo { Positions = Character.Positions, Normals = Character.Normals, Indices = Character.Indices, BaseColorFactor = new Vector4(0.8f, 0.2f, 0.2f, 1f) },
             ]);
 
-        Assert.True(renderer.ShaderCompilationSucceeded, string.Join(Environment.NewLine, renderer.ShaderDiagnostics));
-        Assert.True(renderer.IsWarp);
+        Assert.True(Renderer.ShaderCompilationSucceeded, string.Join(Environment.NewLine, Renderer.ShaderDiagnostics));
+        Assert.True(Renderer.IsWarp);
 
         Camera camera = Camera.CreateDefault(new Vector3(0f, 1f, 0f));
-        renderer.SetCamera(camera);
-        renderer.SetObjectTransform(0, Matrix4x4.Identity);
-        renderer.SetObjectTransform(1, Matrix4x4.CreateTranslation(0f, 1f, 0f));
+        Renderer.SetCamera(camera);
+        Renderer.SetObjectTransform(0, Matrix4x4.Identity);
+        Renderer.SetObjectTransform(1, Matrix4x4.CreateTranslation(0f, 1f, 0f));
 
         for (int i = 0; i < 3; i++)
         {
-            renderer.RenderFrame(captureForVerification: i == 2);
+            Renderer.RenderFrame(CaptureForVerification: i == 2);
         }
 
-        Assert.Equal(3u, renderer.FramesRendered);
-        Assert.NotNull(renderer.LastCapturedFrame);
+        Assert.Equal(3u, Renderer.FramesRendered);
+        Assert.NotNull(Renderer.LastCapturedFrame);
 
-        ModelVerificationResult verification = ModelPixelVerifier.Verify(renderer.LastCapturedFrame!, StageRenderer.ClearColor);
-        Assert.True(verification.Success, verification.Details);
+        ModelVerificationResult Verification = ModelPixelVerifier.Verify(Renderer.LastCapturedFrame!, StageRenderer.ClearColor);
+        Assert.True(Verification.Success, Verification.Details);
 
-        Assert.Equal(0, renderer.ErrorOrWorseMessageCount);
+        Assert.Equal(0, Renderer.ErrorOrWorseMessageCount);
     }
 
     private static void RunStageResizeScenario()
     {
-        ProceduralMeshData ground = ProceduralMeshFactory.CreatePlane(width: 10f, depth: 10f);
+        ProceduralMeshData Ground = ProceduralMeshFactory.CreatePlane(Width: 10f, Depth: 10f);
 
-        using Win32Window window = new(new Win32WindowOptions
+        using Win32Window Window = new(new Win32WindowOptions
         {
             Title = "CSharpGameEngine Stage Resize GPU Test",
             Width = 128,
@@ -111,37 +111,37 @@ public class StageGpuIntegrationTests
             Visible = false,
         });
 
-        GraphicsDeviceOptions deviceOptions = new()
+        GraphicsDeviceOptions DeviceOptions = new()
         {
             UseWarp = true,
             EnableDebugLayer = true,
         };
 
-        using StageRenderer renderer = StageRenderer.Create(
-            window.Handle, window.ClientWidth, window.ClientHeight, deviceOptions, ShaderPath,
-            [new MeshCreateInfo { Positions = ground.Positions, Normals = ground.Normals, Indices = ground.Indices, BaseColorFactor = Vector4.One }]);
+        using StageRenderer Renderer = StageRenderer.Create(
+            Window.Handle, Window.ClientWidth, Window.ClientHeight, DeviceOptions, ShaderPath,
+            [new MeshCreateInfo { Positions = Ground.Positions, Normals = Ground.Normals, Indices = Ground.Indices, BaseColorFactor = Vector4.One }]);
 
         Camera camera = Camera.CreateDefault(Vector3.Zero);
-        renderer.SetCamera(camera);
-        renderer.SetObjectTransform(0, Matrix4x4.Identity);
-        renderer.RenderFrame();
+        Renderer.SetCamera(camera);
+        Renderer.SetObjectTransform(0, Matrix4x4.Identity);
+        Renderer.RenderFrame();
 
-        renderer.Resize(256, 256);
-        renderer.SetCamera(camera);
-        renderer.SetObjectTransform(0, Matrix4x4.Identity);
-        renderer.RenderFrame(captureForVerification: true);
+        Renderer.Resize(256, 256);
+        Renderer.SetCamera(camera);
+        Renderer.SetObjectTransform(0, Matrix4x4.Identity);
+        Renderer.RenderFrame(CaptureForVerification: true);
 
-        Assert.NotNull(renderer.LastCapturedFrame);
-        Assert.Equal(256, renderer.LastCapturedFrame!.Width);
-        Assert.Equal(256, renderer.LastCapturedFrame.Height);
-        Assert.Equal(0, renderer.ErrorOrWorseMessageCount);
+        Assert.NotNull(Renderer.LastCapturedFrame);
+        Assert.Equal(256, Renderer.LastCapturedFrame!.Width);
+        Assert.Equal(256, Renderer.LastCapturedFrame.Height);
+        Assert.Equal(0, Renderer.ErrorOrWorseMessageCount);
     }
 
     private static void RunTwoMaterialsScenario()
     {
-        ProceduralMeshData box = ProceduralMeshFactory.CreateBox(new Vector3(1.2f, 1.2f, 1.2f));
+        ProceduralMeshData Box = ProceduralMeshFactory.CreateBox(new Vector3(1.2f, 1.2f, 1.2f));
 
-        using Win32Window window = new(new Win32WindowOptions
+        using Win32Window Window = new(new Win32WindowOptions
         {
             Title = "CSharpGameEngine Stage Multi-Material GPU Test",
             Width = 256,
@@ -149,73 +149,73 @@ public class StageGpuIntegrationTests
             Visible = false,
         });
 
-        GraphicsDeviceOptions deviceOptions = new() { UseWarp = true, EnableDebugLayer = true };
+        GraphicsDeviceOptions DeviceOptions = new() { UseWarp = true, EnableDebugLayer = true };
 
-        var uvs = new Vector2[box.Positions.Length];
-        var tangents = new Vector4[box.Positions.Length];
-        for (int i = 0; i < box.Positions.Length; i++)
+        var Uvs = new Vector2[Box.Positions.Length];
+        var Tangents = new Vector4[Box.Positions.Length];
+        for (int i = 0; i < Box.Positions.Length; i++)
         {
-            tangents[i] = new Vector4(1, 0, 0, 1);
+            Tangents[i] = new Vector4(1, 0, 0, 1);
         }
 
-        StageMeshCreateInfo mesh = new() { Positions = box.Positions, Normals = box.Normals, Tangents = tangents, Uvs = uvs, Indices = box.Indices };
-        StageMaterialCreateInfo redMaterial = new() { BaseColorFactor = new Vector4(1, 0, 0, 1), RoughnessFactor = 1f, MetallicFactor = 0f };
-        StageMaterialCreateInfo blueMaterial = new() { BaseColorFactor = new Vector4(0, 0, 1, 1), RoughnessFactor = 1f, MetallicFactor = 0f };
+        StageMeshCreateInfo Mesh = new() { Positions = Box.Positions, Normals = Box.Normals, Tangents = Tangents, Uvs = Uvs, Indices = Box.Indices };
+        StageMaterialCreateInfo RedMaterial = new() { BaseColorFactor = new Vector4(1, 0, 0, 1), RoughnessFactor = 1f, MetallicFactor = 0f };
+        StageMaterialCreateInfo BlueMaterial = new() { BaseColorFactor = new Vector4(0, 0, 1, 1), RoughnessFactor = 1f, MetallicFactor = 0f };
 
-        using StageRenderer renderer = StageRenderer.Create(
-            window.Handle, window.ClientWidth, window.ClientHeight, deviceOptions, ShaderPath,
-            [mesh],
-            [redMaterial, blueMaterial],
+        using StageRenderer Renderer = StageRenderer.Create(
+            Window.Handle, Window.ClientWidth, Window.ClientHeight, DeviceOptions, ShaderPath,
+            [Mesh],
+            [RedMaterial, BlueMaterial],
             [
                 new StageObjectCreateInfo { MeshIndex = 0, MaterialIndex = 0 },
                 new StageObjectCreateInfo { MeshIndex = 0, MaterialIndex = 1 },
             ]);
 
-        Assert.True(renderer.ShaderCompilationSucceeded, string.Join(Environment.NewLine, renderer.ShaderDiagnostics));
+        Assert.True(Renderer.ShaderCompilationSucceeded, string.Join(Environment.NewLine, Renderer.ShaderDiagnostics));
 
         Camera camera = Camera.CreateDefault(Vector3.Zero);
-        renderer.SetCamera(camera);
-        renderer.SetAmbientLight(new Vector3(0.4f, 0.4f, 0.4f));
-        renderer.SetDirectionalLight(new Vector3(0.3f, 0.8f, 0.4f), Vector3.One, 2f);
-        renderer.SetObjectTransform(0, Matrix4x4.CreateTranslation(-1.0f, 0f, 0f));
-        renderer.SetObjectTransform(1, Matrix4x4.CreateTranslation(1.0f, 0f, 0f));
+        Renderer.SetCamera(camera);
+        Renderer.SetAmbientLight(new Vector3(0.4f, 0.4f, 0.4f));
+        Renderer.SetDirectionalLight(new Vector3(0.3f, 0.8f, 0.4f), Vector3.One, 2f);
+        Renderer.SetObjectTransform(0, Matrix4x4.CreateTranslation(-1.0f, 0f, 0f));
+        Renderer.SetObjectTransform(1, Matrix4x4.CreateTranslation(1.0f, 0f, 0f));
 
         for (int i = 0; i < 3; i++)
         {
-            renderer.RenderFrame(captureForVerification: i == 2);
+            Renderer.RenderFrame(CaptureForVerification: i == 2);
         }
 
-        Assert.NotNull(renderer.LastCapturedFrame);
-        PixelReadbackResult frame = renderer.LastCapturedFrame!;
+        Assert.NotNull(Renderer.LastCapturedFrame);
+        PixelReadbackResult Frame = Renderer.LastCapturedFrame!;
 
-        bool foundReddish = false;
-        bool foundBluish = false;
-        for (int y = 0; y < frame.Height && !(foundReddish && foundBluish); y++)
+        bool FoundReddish = false;
+        bool FoundBluish = false;
+        for (int y = 0; y < Frame.Height && !(FoundReddish && FoundBluish); y++)
         {
-            for (int x = 0; x < frame.Width; x++)
+            for (int x = 0; x < Frame.Width; x++)
             {
-                PixelColor pixel = ReadPixel(frame, x, y);
-                if (pixel.R > pixel.G + 15 && pixel.R > pixel.B + 15)
+                PixelColor Pixel = ReadPixel(Frame, x, y);
+                if (Pixel.R > Pixel.G + 15 && Pixel.R > Pixel.B + 15)
                 {
-                    foundReddish = true;
+                    FoundReddish = true;
                 }
-                if (pixel.B > pixel.R + 15 && pixel.B > pixel.G + 15)
+                if (Pixel.B > Pixel.R + 15 && Pixel.B > Pixel.G + 15)
                 {
-                    foundBluish = true;
+                    FoundBluish = true;
                 }
             }
         }
 
-        Assert.True(foundReddish, "Expected at least one red-dominant pixel from the object using materialIndex 0.");
-        Assert.True(foundBluish, "Expected at least one blue-dominant pixel from the object using materialIndex 1.");
-        Assert.Equal(0, renderer.ErrorOrWorseMessageCount);
+        Assert.True(FoundReddish, "Expected at least one red-dominant pixel from the object using materialIndex 0.");
+        Assert.True(FoundBluish, "Expected at least one blue-dominant pixel from the object using materialIndex 1.");
+        Assert.Equal(0, Renderer.ErrorOrWorseMessageCount);
     }
 
     private static void RunLightingApiScenario()
     {
-        ProceduralMeshData ground = ProceduralMeshFactory.CreatePlane(width: 20f, depth: 20f);
+        ProceduralMeshData Ground = ProceduralMeshFactory.CreatePlane(Width: 20f, Depth: 20f);
 
-        using Win32Window window = new(new Win32WindowOptions
+        using Win32Window Window = new(new Win32WindowOptions
         {
             Title = "CSharpGameEngine Stage Lighting API GPU Test",
             Width = 128,
@@ -223,53 +223,53 @@ public class StageGpuIntegrationTests
             Visible = false,
         });
 
-        GraphicsDeviceOptions deviceOptions = new() { UseWarp = true, EnableDebugLayer = true };
+        GraphicsDeviceOptions DeviceOptions = new() { UseWarp = true, EnableDebugLayer = true };
 
-        var uvs = new Vector2[ground.Positions.Length];
-        var tangents = new Vector4[ground.Positions.Length];
-        for (int i = 0; i < ground.Positions.Length; i++)
+        var Uvs = new Vector2[Ground.Positions.Length];
+        var Tangents = new Vector4[Ground.Positions.Length];
+        for (int i = 0; i < Ground.Positions.Length; i++)
         {
-            tangents[i] = new Vector4(1, 0, 0, 1);
+            Tangents[i] = new Vector4(1, 0, 0, 1);
         }
 
-        StageMeshCreateInfo mesh = new() { Positions = ground.Positions, Normals = ground.Normals, Tangents = tangents, Uvs = uvs, Indices = ground.Indices };
-        StageMaterialCreateInfo material = new() { BaseColorFactor = Vector4.One, RoughnessFactor = 1f, MetallicFactor = 0f };
+        StageMeshCreateInfo Mesh = new() { Positions = Ground.Positions, Normals = Ground.Normals, Tangents = Tangents, Uvs = Uvs, Indices = Ground.Indices };
+        StageMaterialCreateInfo Material = new() { BaseColorFactor = Vector4.One, RoughnessFactor = 1f, MetallicFactor = 0f };
 
-        using StageRenderer renderer = StageRenderer.Create(
-            window.Handle, window.ClientWidth, window.ClientHeight, deviceOptions, ShaderPath,
-            [mesh], [material], [new StageObjectCreateInfo { MeshIndex = 0, MaterialIndex = 0 }]);
+        using StageRenderer Renderer = StageRenderer.Create(
+            Window.Handle, Window.ClientWidth, Window.ClientHeight, DeviceOptions, ShaderPath,
+            [Mesh], [Material], [new StageObjectCreateInfo { MeshIndex = 0, MaterialIndex = 0 }]);
 
         Camera camera = Camera.CreateDefault(Vector3.Zero);
-        renderer.SetCamera(camera);
-        renderer.SetObjectTransform(0, Matrix4x4.Identity);
+        Renderer.SetCamera(camera);
+        Renderer.SetObjectTransform(0, Matrix4x4.Identity);
 
-        renderer.SetAmbientLight(Vector3.Zero);
-        renderer.SetDirectionalLight(Vector3.UnitY, Vector3.Zero, 0f);
-        renderer.RenderFrame();
-        renderer.RenderFrame();
-        renderer.RenderFrame(captureForVerification: true);
-        PixelColor darkCenter = ReadPixel(renderer.LastCapturedFrame!, renderer.LastCapturedFrame!.Width / 2, renderer.LastCapturedFrame!.Height / 2);
+        Renderer.SetAmbientLight(Vector3.Zero);
+        Renderer.SetDirectionalLight(Vector3.UnitY, Vector3.Zero, 0f);
+        Renderer.RenderFrame();
+        Renderer.RenderFrame();
+        Renderer.RenderFrame(CaptureForVerification: true);
+        PixelColor DarkCenter = ReadPixel(Renderer.LastCapturedFrame!, Renderer.LastCapturedFrame!.Width / 2, Renderer.LastCapturedFrame!.Height / 2);
 
-        renderer.SetCamera(camera);
-        renderer.SetAmbientLight(new Vector3(0.3f, 0.3f, 0.3f));
-        renderer.SetDirectionalLight(Vector3.UnitY, Vector3.One, 3f);
-        renderer.SetObjectTransform(0, Matrix4x4.Identity);
-        renderer.RenderFrame();
-        renderer.RenderFrame();
-        renderer.RenderFrame(captureForVerification: true);
-        PixelColor brightCenter = ReadPixel(renderer.LastCapturedFrame!, renderer.LastCapturedFrame!.Width / 2, renderer.LastCapturedFrame!.Height / 2);
+        Renderer.SetCamera(camera);
+        Renderer.SetAmbientLight(new Vector3(0.3f, 0.3f, 0.3f));
+        Renderer.SetDirectionalLight(Vector3.UnitY, Vector3.One, 3f);
+        Renderer.SetObjectTransform(0, Matrix4x4.Identity);
+        Renderer.RenderFrame();
+        Renderer.RenderFrame();
+        Renderer.RenderFrame(CaptureForVerification: true);
+        PixelColor BrightCenter = ReadPixel(Renderer.LastCapturedFrame!, Renderer.LastCapturedFrame!.Width / 2, Renderer.LastCapturedFrame!.Height / 2);
 
-        int darkSum = darkCenter.R + darkCenter.G + darkCenter.B;
-        int brightSum = brightCenter.R + brightCenter.G + brightCenter.B;
-        Assert.True(darkSum < 15, $"Expected a near-black center pixel with zero light/ambient, got {darkCenter} (sum={darkSum}).");
-        Assert.True(brightSum > darkSum + 200, $"Expected SetDirectionalLight/SetAmbientLight to meaningfully brighten the center pixel: dark={darkCenter}, bright={brightCenter}.");
-        Assert.Equal(0, renderer.ErrorOrWorseMessageCount);
+        int DarkSum = DarkCenter.R + DarkCenter.G + DarkCenter.B;
+        int BrightSum = BrightCenter.R + BrightCenter.G + BrightCenter.B;
+        Assert.True(DarkSum < 15, $"Expected a near-black center pixel with zero light/ambient, got {DarkCenter} (sum={DarkSum}).");
+        Assert.True(BrightSum > DarkSum + 200, $"Expected SetDirectionalLight/SetAmbientLight to meaningfully brighten the center pixel: dark={DarkCenter}, bright={BrightCenter}.");
+        Assert.Equal(0, Renderer.ErrorOrWorseMessageCount);
     }
 
-    private static PixelColor ReadPixel(PixelReadbackResult readback, int x, int y)
+    private static PixelColor ReadPixel(PixelReadbackResult Readback, int X, int Y)
     {
-        const int bytesPerPixel = 4;
-        long offset = ((long)y * readback.RowPitch) + (x * bytesPerPixel);
-        return new PixelColor(readback.Pixels[offset], readback.Pixels[offset + 1], readback.Pixels[offset + 2], readback.Pixels[offset + 3]);
+        const int BytesPerPixel = 4;
+        long Offset = ((long)Y * Readback.RowPitch) + (X * BytesPerPixel);
+        return new PixelColor(Readback.Pixels[Offset], Readback.Pixels[Offset + 1], Readback.Pixels[Offset + 2], Readback.Pixels[Offset + 3]);
     }
 }

@@ -15,15 +15,15 @@ public sealed class SceneNodeBuilder
 
     public SceneNodeSymbol Symbol { get; }
 
-    public void Create(SceneNodeSymbol symbol, Action<SceneNodeBuilder> definition)
+    public void Create(SceneNodeSymbol symbol, Action<SceneNodeBuilder> Definition)
     {
-        ArgumentNullException.ThrowIfNull(definition);
+        ArgumentNullException.ThrowIfNull(Definition);
 
-        SceneNodeBuilder child = new(symbol);
-        definition(child);
+        SceneNodeBuilder Child = new(symbol);
+        Definition(Child);
     }
 
-    public void Set<T>(T component)
+    public void Set<T>(T Component)
         where T : struct
     {
         // Authoring時の記述用API。SceneDefinitionGeneratorはDefineの構文木を解析するだけで

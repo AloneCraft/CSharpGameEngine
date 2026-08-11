@@ -22,10 +22,10 @@ namespace CSharpGameEngine.Import.Gltf;
 public static class GltfAxisConversion
 {
     /// <summary>Converts one glTF-space point or direction (both are plain linear maps here - no translation component to treat specially) into engine space. Under the two fixed Conventions involved, this reduces to negating Z.</summary>
-    public static Vector3 ConvertVector(Vector3 gltfSpaceValue)
+    public static Vector3 ConvertVector(Vector3 GltfSpaceValue)
     {
-        RufVector ruf = Spatial<GltfCoordinateConvention>.FromXyz((XyzVector)gltfSpaceValue);
-        return (Vector3)Spatial<UnityCoordinateConvention>.ToXyz(ruf);
+        RufVector Ruf = Spatial<GltfCoordinateConvention>.FromXyz((XyzVector)GltfSpaceValue);
+        return (Vector3)Spatial<UnityCoordinateConvention>.ToXyz(Ruf);
     }
 
     /// <summary>
@@ -35,10 +35,10 @@ public static class GltfAxisConversion
     /// tangent) * w</c> unless w is negated to compensate (verified algebraically in
     /// ADR-0027 - cross(mirror(a), mirror(b)) = -mirror(cross(a, b)) for any orthogonal mirror).
     /// </summary>
-    public static Vector4 ConvertTangent(Vector4 gltfSpaceTangent)
+    public static Vector4 ConvertTangent(Vector4 GltfSpaceTangent)
     {
-        Vector3 converted = ConvertVector(new Vector3(gltfSpaceTangent.X, gltfSpaceTangent.Y, gltfSpaceTangent.Z));
-        return new Vector4(converted, -gltfSpaceTangent.W);
+        Vector3 Converted = ConvertVector(new Vector3(GltfSpaceTangent.X, GltfSpaceTangent.Y, GltfSpaceTangent.Z));
+        return new Vector4(Converted, -GltfSpaceTangent.W);
     }
 
     /// <summary>
@@ -51,43 +51,43 @@ public static class GltfAxisConversion
     /// afterward via <see cref="StandardTransformConvention.Compose"/> keeps this using the same
     /// Scale-then-Rotation-then-Translation convention as the rest of the engine (ADR-0025).
     /// </summary>
-    public static Matrix4x4 ConvertWorldTransform(Matrix4x4 gltfSpaceWorldTransform)
+    public static Matrix4x4 ConvertWorldTransform(Matrix4x4 GltfSpaceWorldTransform)
     {
-        if (!Matrix4x4.Decompose(gltfSpaceWorldTransform, out Vector3 scale, out Quaternion rotation, out Vector3 translation))
+        if (!Matrix4x4.Decompose(GltfSpaceWorldTransform, out Vector3 Scale, out Quaternion Rotation, out Vector3 Translation))
         {
             // Non-decomposable (e.g. singular/degenerate) source matrices are passed through
             // unconverted rather than thrown away - a best-effort fallback for content this engine
             // does not otherwise validate at import time.
-            return gltfSpaceWorldTransform;
+            return GltfSpaceWorldTransform;
         }
 
-        Vector3 convertedTranslation = ConvertVector(translation);
-        Quaternion convertedRotation = MirrorRotationAroundZ(rotation);
+        Vector3 ConvertedTranslation = ConvertVector(Translation);
+        Quaternion ConvertedRotation = MirrorRotationAroundZ(Rotation);
 
-        RufVector translationRuf = new(convertedTranslation.X, convertedTranslation.Y, convertedTranslation.Z);
-        RufQuaternion rotationRuf = new(convertedRotation.X, convertedRotation.Y, convertedRotation.Z, convertedRotation.W);
-        RufVector scaleRuf = new(scale.X, scale.Y, scale.Z);
+        RufVector TranslationRuf = new(ConvertedTranslation.X, ConvertedTranslation.Y, ConvertedTranslation.Z);
+        RufQuaternion RotationRuf = new(ConvertedRotation.X, ConvertedRotation.Y, ConvertedRotation.Z, ConvertedRotation.W);
+        RufVector ScaleRuf = new(Scale.X, Scale.Y, Scale.Z);
 
-        return StandardTransformConvention.Compose(translationRuf, rotationRuf, scaleRuf);
+        return StandardTransformConvention.Compose(TranslationRuf, RotationRuf, ScaleRuf);
     }
 
     /// <summary>Swaps two indices of each triangle so front-facing winding is preserved after a single-axis position mirror (which otherwise inverts every triangle's chirality). No visible effect today (every consumer disables backface culling), but keeps winding correct if that ever changes, and keeps triangle orientation consistent with the (already-flipped) tangent/normal data.</summary>
-    public static void FlipTriangleWinding(uint[] indices)
+    public static void FlipTriangleWinding(uint[] Indices)
     {
-        for (int i = 0; i + 2 < indices.Length; i += 3)
+        for (int i = 0; i + 2 < Indices.Length; i += 3)
         {
-            (indices[i + 1], indices[i + 2]) = (indices[i + 2], indices[i + 1]);
+            (Indices[i + 1], Indices[i + 2]) = (Indices[i + 2], Indices[i + 1]);
         }
     }
 
-    private static Quaternion MirrorRotationAroundZ(Quaternion rotation)
+    private static Quaternion MirrorRotationAroundZ(Quaternion Rotation)
     {
-        Matrix4x4 r = Matrix4x4.CreateFromQuaternion(rotation);
-        Matrix4x4 mirrored = new(
-            r.M11, r.M12, -r.M13, 0f,
-            r.M21, r.M22, -r.M23, 0f,
-            -r.M31, -r.M32, r.M33, 0f,
+        Matrix4x4 R = Matrix4x4.CreateFromQuaternion(Rotation);
+        Matrix4x4 Mirrored = new(
+            R.M11, R.M12, -R.M13, 0f,
+            R.M21, R.M22, -R.M23, 0f,
+            -R.M31, -R.M32, R.M33, 0f,
             0f, 0f, 0f, 1f);
-        return Quaternion.CreateFromRotationMatrix(mirrored);
+        return Quaternion.CreateFromRotationMatrix(Mirrored);
     }
 }

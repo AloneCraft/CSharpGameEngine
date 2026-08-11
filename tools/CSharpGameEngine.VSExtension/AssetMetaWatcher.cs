@@ -18,23 +18,23 @@ internal sealed class AssetMetaWatcher : IDisposable
 {
     public static readonly string[] WatchedExtensions = [".glb", ".gltf", ".fbx"];
 
-    private readonly FileSystemWatcher _watcher;
+    private readonly FileSystemWatcher Watcher;
 
-    private AssetMetaWatcher(string assetsRoot)
+    private AssetMetaWatcher(string AssetsRoot)
     {
-        foreach (string existingAsset in Directory.EnumerateFiles(assetsRoot, "*", SearchOption.AllDirectories))
+        foreach (string ExistingAsset in Directory.EnumerateFiles(AssetsRoot, "*", SearchOption.AllDirectories))
         {
-            GenerateMetaIfMissing(existingAsset);
+            GenerateMetaIfMissing(ExistingAsset);
         }
 
-        _watcher = new FileSystemWatcher(assetsRoot)
+        Watcher = new FileSystemWatcher(AssetsRoot)
         {
             NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite,
             IncludeSubdirectories = true,
         };
-        _watcher.Created += (_, e) => HandleCandidate(e.FullPath);
-        _watcher.Renamed += (_, e) => HandleCandidate(e.FullPath);
-        _watcher.EnableRaisingEvents = true;
+        Watcher.Created += (_, E) => HandleCandidate(E.FullPath);
+        Watcher.Renamed += (_, E) => HandleCandidate(E.FullPath);
+        Watcher.EnableRaisingEvents = true;
     }
 
     /// <summary>
@@ -44,14 +44,14 @@ internal sealed class AssetMetaWatcher : IDisposable
     /// </summary>
     public static AssetMetaWatcher? StartIfProjectExists()
     {
-        string? repoRoot = RepoLocator.ResolveRepoRoot();
-        if (repoRoot is null)
+        string? RepoRoot = RepoLocator.ResolveRepoRoot();
+        if (RepoRoot is null)
         {
             return null;
         }
 
-        string assetsRoot = Path.Combine(repoRoot, "UserGameProject", "Assets");
-        return Directory.Exists(assetsRoot) ? new AssetMetaWatcher(assetsRoot) : null;
+        string AssetsRoot = Path.Combine(RepoRoot, "UserGameProject", "Assets");
+        return Directory.Exists(AssetsRoot) ? new AssetMetaWatcher(AssetsRoot) : null;
     }
 
     private void HandleCandidate(string path)
@@ -64,16 +64,16 @@ internal sealed class AssetMetaWatcher : IDisposable
         ThreadPool.QueueUserWorkItem(_ => GenerateMetaWhenReady(path));
     }
 
-    private static void GenerateMetaWhenReady(string assetPath)
+    private static void GenerateMetaWhenReady(string AssetPath)
     {
-        if (!WaitUntilReadable(assetPath, TimeSpan.FromSeconds(30)))
+        if (!WaitUntilReadable(AssetPath, TimeSpan.FromSeconds(30)))
         {
             return;
         }
 
         try
         {
-            GenerateMetaIfMissing(assetPath);
+            GenerateMetaIfMissing(AssetPath);
         }
         catch (IOException)
         {
@@ -83,27 +83,27 @@ internal sealed class AssetMetaWatcher : IDisposable
         }
     }
 
-    private static void GenerateMetaIfMissing(string assetPath)
+    private static void GenerateMetaIfMissing(string AssetPath)
     {
-        if (!WatchedExtensions.Contains(Path.GetExtension(assetPath), StringComparer.OrdinalIgnoreCase))
+        if (!WatchedExtensions.Contains(Path.GetExtension(AssetPath), StringComparer.OrdinalIgnoreCase))
         {
             return;
         }
 
-        string metaPath = assetPath + ".meta";
-        if (File.Exists(metaPath))
+        string MetaPath = AssetPath + ".meta";
+        if (File.Exists(MetaPath))
         {
             return;
         }
 
         string guid = Guid.NewGuid().ToString("N");
-        File.WriteAllText(metaPath, $"guid: {guid}\n");
+        File.WriteAllText(MetaPath, $"guid: {guid}\n");
     }
 
     private static bool WaitUntilReadable(string path, TimeSpan timeout)
     {
-        DateTime deadline = DateTime.UtcNow + timeout;
-        while (DateTime.UtcNow < deadline)
+        DateTime Deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < Deadline)
         {
             if (!File.Exists(path))
             {
@@ -124,5 +124,5 @@ internal sealed class AssetMetaWatcher : IDisposable
         return false;
     }
 
-    public void Dispose() => _watcher.Dispose();
+    public void Dispose() => Watcher.Dispose();
 }

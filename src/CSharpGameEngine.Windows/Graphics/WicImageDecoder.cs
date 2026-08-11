@@ -42,93 +42,93 @@ public static unsafe class WicImageDecoder
     // model. Not fatal - proceed without owning the CoInitializeEx call (skip CoUninitialize).
     private const int RPC_E_CHANGEDMODE = unchecked((int)0x80010106);
 
-    public static WicDecodeResult Decode(byte[] encodedBytes)
+    public static WicDecodeResult Decode(byte[] EncodedBytes)
     {
-        ArgumentNullException.ThrowIfNull(encodedBytes);
-        if (encodedBytes.Length == 0)
+        ArgumentNullException.ThrowIfNull(EncodedBytes);
+        if (EncodedBytes.Length == 0)
         {
             return WicDecodeResult.Failed("Encoded image byte array is empty.");
         }
 
-        HRESULT coInitHr = CoInitializeEx(null, (uint)COINIT_APARTMENTTHREADED);
-        if (coInitHr.FAILED && coInitHr.Value != RPC_E_CHANGEDMODE)
+        HRESULT CoInitHr = CoInitializeEx(null, (uint)COINIT_APARTMENTTHREADED);
+        if (CoInitHr.FAILED && CoInitHr.Value != RPC_E_CHANGEDMODE)
         {
-            return WicDecodeResult.Failed($"CoInitializeEx failed. HRESULT=0x{coInitHr.Value:X8}");
+            return WicDecodeResult.Failed($"CoInitializeEx failed. HRESULT=0x{CoInitHr.Value:X8}");
         }
-        bool ownsComInit = coInitHr.SUCCEEDED;
+        bool OwnsComInit = CoInitHr.SUCCEEDED;
 
-        IWICImagingFactory* factory = null;
+        IWICImagingFactory* Factory = null;
         IStream* stream = null;
-        IWICBitmapDecoder* decoder = null;
-        IWICBitmapFrameDecode* frame = null;
+        IWICBitmapDecoder* Decoder = null;
+        IWICBitmapFrameDecode* Frame = null;
         IWICFormatConverter* converter = null;
 
         try
         {
-            Guid factoryClsid = CLSID.CLSID_WICImagingFactory;
-            HRESULT hr = CoCreateInstance(&factoryClsid, null, (uint)CLSCTX_INPROC_SERVER, __uuidof<IWICImagingFactory>(), (void**)&factory);
-            if (hr.FAILED)
+            Guid FactoryClsid = CLSID.CLSID_WICImagingFactory;
+            HRESULT Hr = CoCreateInstance(&FactoryClsid, null, (uint)CLSCTX_INPROC_SERVER, __uuidof<IWICImagingFactory>(), (void**)&Factory);
+            if (Hr.FAILED)
             {
-                return WicDecodeResult.Failed($"CoCreateInstance(CLSID_WICImagingFactory) failed. HRESULT=0x{hr.Value:X8}");
+                return WicDecodeResult.Failed($"CoCreateInstance(CLSID_WICImagingFactory) failed. HRESULT=0x{Hr.Value:X8}");
             }
 
-            fixed (byte* pBytes = encodedBytes)
+            fixed (byte* PBytes = EncodedBytes)
             {
-                stream = SHCreateMemStream(pBytes, (uint)encodedBytes.Length);
+                stream = SHCreateMemStream(PBytes, (uint)EncodedBytes.Length);
             }
             if (stream == null)
             {
                 return WicDecodeResult.Failed("SHCreateMemStream returned null.");
             }
 
-            hr = factory->CreateDecoderFromStream(stream, null, WICDecodeMetadataCacheOnDemand, &decoder);
-            if (hr.FAILED)
+            Hr = Factory->CreateDecoderFromStream(stream, null, WICDecodeMetadataCacheOnDemand, &Decoder);
+            if (Hr.FAILED)
             {
-                return WicDecodeResult.Failed($"IWICImagingFactory::CreateDecoderFromStream failed (unrecognized/corrupt image data). HRESULT=0x{hr.Value:X8}");
+                return WicDecodeResult.Failed($"IWICImagingFactory::CreateDecoderFromStream failed (unrecognized/corrupt image data). HRESULT=0x{Hr.Value:X8}");
             }
 
-            hr = decoder->GetFrame(0, &frame);
-            if (hr.FAILED)
+            Hr = Decoder->GetFrame(0, &Frame);
+            if (Hr.FAILED)
             {
-                return WicDecodeResult.Failed($"IWICBitmapDecoder::GetFrame failed. HRESULT=0x{hr.Value:X8}");
+                return WicDecodeResult.Failed($"IWICBitmapDecoder::GetFrame failed. HRESULT=0x{Hr.Value:X8}");
             }
 
-            hr = factory->CreateFormatConverter(&converter);
-            if (hr.FAILED)
+            Hr = Factory->CreateFormatConverter(&converter);
+            if (Hr.FAILED)
             {
-                return WicDecodeResult.Failed($"IWICImagingFactory::CreateFormatConverter failed. HRESULT=0x{hr.Value:X8}");
+                return WicDecodeResult.Failed($"IWICImagingFactory::CreateFormatConverter failed. HRESULT=0x{Hr.Value:X8}");
             }
 
-            Guid rgbaFormat = GUID.GUID_WICPixelFormat32bppRGBA;
-            hr = converter->Initialize((IWICBitmapSource*)frame, &rgbaFormat, WICBitmapDitherTypeNone, null, 0.0, WICBitmapPaletteTypeCustom);
-            if (hr.FAILED)
+            Guid RgbaFormat = GUID.GUID_WICPixelFormat32bppRGBA;
+            Hr = converter->Initialize((IWICBitmapSource*)Frame, &RgbaFormat, WICBitmapDitherTypeNone, null, 0.0, WICBitmapPaletteTypeCustom);
+            if (Hr.FAILED)
             {
-                return WicDecodeResult.Failed($"IWICFormatConverter::Initialize failed. HRESULT=0x{hr.Value:X8}");
+                return WicDecodeResult.Failed($"IWICFormatConverter::Initialize failed. HRESULT=0x{Hr.Value:X8}");
             }
 
-            uint width, height;
-            hr = converter->GetSize(&width, &height);
-            if (hr.FAILED)
+            uint Width, Height;
+            Hr = converter->GetSize(&Width, &Height);
+            if (Hr.FAILED)
             {
-                return WicDecodeResult.Failed($"IWICFormatConverter::GetSize failed. HRESULT=0x{hr.Value:X8}");
+                return WicDecodeResult.Failed($"IWICFormatConverter::GetSize failed. HRESULT=0x{Hr.Value:X8}");
             }
-            if (width == 0 || height == 0)
+            if (Width == 0 || Height == 0)
             {
-                return WicDecodeResult.Failed($"Decoded image has zero size ({width}x{height}).");
-            }
-
-            uint stride = width * 4;
-            byte[] pixels = new byte[stride * height];
-            fixed (byte* pPixels = pixels)
-            {
-                hr = converter->CopyPixels(null, stride, (uint)pixels.Length, pPixels);
-            }
-            if (hr.FAILED)
-            {
-                return WicDecodeResult.Failed($"IWICFormatConverter::CopyPixels failed. HRESULT=0x{hr.Value:X8}");
+                return WicDecodeResult.Failed($"Decoded image has zero size ({Width}x{Height}).");
             }
 
-            return WicDecodeResult.Succeeded(new DecodedImage((int)width, (int)height, pixels));
+            uint Stride = Width * 4;
+            byte[] Pixels = new byte[Stride * Height];
+            fixed (byte* PPixels = Pixels)
+            {
+                Hr = converter->CopyPixels(null, Stride, (uint)Pixels.Length, PPixels);
+            }
+            if (Hr.FAILED)
+            {
+                return WicDecodeResult.Failed($"IWICFormatConverter::CopyPixels failed. HRESULT=0x{Hr.Value:X8}");
+            }
+
+            return WicDecodeResult.Succeeded(new DecodedImage((int)Width, (int)Height, Pixels));
         }
         finally
         {
@@ -136,23 +136,23 @@ public static unsafe class WicImageDecoder
             {
                 _ = converter->Release();
             }
-            if (frame != null)
+            if (Frame != null)
             {
-                _ = frame->Release();
+                _ = Frame->Release();
             }
-            if (decoder != null)
+            if (Decoder != null)
             {
-                _ = decoder->Release();
+                _ = Decoder->Release();
             }
             if (stream != null)
             {
                 _ = stream->Release();
             }
-            if (factory != null)
+            if (Factory != null)
             {
-                _ = factory->Release();
+                _ = Factory->Release();
             }
-            if (ownsComInit)
+            if (OwnsComInit)
             {
                 CoUninitialize();
             }

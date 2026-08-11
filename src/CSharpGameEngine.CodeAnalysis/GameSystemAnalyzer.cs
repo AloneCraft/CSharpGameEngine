@@ -25,66 +25,66 @@ internal static class GameSystemAnalyzer
     private const string UpdateMethodName = "Update";
     private const string SpawnMethodName = "Spawn";
 
-    internal static GameSystemResult Analyze(INamedTypeSymbol systemSymbol)
+    internal static GameSystemResult Analyze(INamedTypeSymbol SystemSymbol)
     {
-        ImmutableArray<Diagnostic>.Builder diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
+        ImmutableArray<Diagnostic>.Builder Diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
 
-        if (systemSymbol.TypeKind != TypeKind.Struct)
+        if (SystemSymbol.TypeKind != TypeKind.Struct)
         {
-            diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.SystemMustBeStruct, systemSymbol.Locations.FirstOrDefault(), systemSymbol.Name));
+            Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.SystemMustBeStruct, SystemSymbol.Locations.FirstOrDefault(), SystemSymbol.Name));
         }
 
-        if (systemSymbol.IsGenericType)
+        if (SystemSymbol.IsGenericType)
         {
-            diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.SystemMustNotBeGeneric, systemSymbol.Locations.FirstOrDefault(), systemSymbol.Name));
+            Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.SystemMustNotBeGeneric, SystemSymbol.Locations.FirstOrDefault(), SystemSymbol.Name));
         }
 
-        if (systemSymbol.ContainingType is not null)
+        if (SystemSymbol.ContainingType is not null)
         {
-            diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.SystemMustNotBeNested, systemSymbol.Locations.FirstOrDefault(), systemSymbol.Name));
+            Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.SystemMustNotBeNested, SystemSymbol.Locations.FirstOrDefault(), SystemSymbol.Name));
         }
 
-        List<IMethodSymbol> methods = [];
+        List<IMethodSymbol> Methods = [];
 
-        foreach (ISymbol member in systemSymbol.GetMembers())
+        foreach (ISymbol Member in SystemSymbol.GetMembers())
         {
-            if (member is IMethodSymbol { MethodKind: MethodKind.Ordinary } method
-                && (method.Name == UpdateMethodName || method.Name == SpawnMethodName))
+            if (Member is IMethodSymbol { MethodKind: MethodKind.Ordinary } Method
+                && (Method.Name == UpdateMethodName || Method.Name == SpawnMethodName))
             {
-                methods.Add(method);
+                Methods.Add(Method);
             }
         }
 
-        if (methods.Count == 0)
+        if (Methods.Count == 0)
         {
-            diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.SystemHasNoRecognizedMethod, systemSymbol.Locations.FirstOrDefault(), systemSymbol.Name));
+            Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.SystemHasNoRecognizedMethod, SystemSymbol.Locations.FirstOrDefault(), SystemSymbol.Name));
         }
 
         // 同一struct内のオーバーロード順序は、実行順序(ADR-0033決定事項1: 記述順)に直結するため
         // ソース上の宣言位置で並べる。GetMembers()の順序はメタデータ順で保証が弱いので明示的に整列する。
-        methods.Sort(static (a, b) => GetDeclarationPosition(a).CompareTo(GetDeclarationPosition(b)));
+        Methods.Sort(static (A, B) => GetDeclarationPosition(A).CompareTo(GetDeclarationPosition(B)));
 
-        List<GameSystemMethodModel> methodModels = [];
+        List<GameSystemMethodModel> MethodModels = [];
 
-        foreach (IMethodSymbol method in methods)
+        foreach (IMethodSymbol method in Methods)
         {
-            GameSystemMethodModel? model = AnalyzeMethod(method, diagnostics);
+            GameSystemMethodModel? Model = AnalyzeMethod(method, Diagnostics);
 
-            if (model is { } value)
+            if (Model is { } Value)
             {
-                methodModels.Add(value);
+                MethodModels.Add(Value);
             }
         }
 
-        Location typeLocation = systemSymbol.Locations.FirstOrDefault() ?? Location.None;
+        Location TypeLocation = SystemSymbol.Locations.FirstOrDefault() ?? Location.None;
 
         return new GameSystemResult(
-            systemSymbol.ContainingNamespace.IsGlobalNamespace ? null : systemSymbol.ContainingNamespace.ToDisplayString(),
-            systemSymbol.Name,
-            [.. methodModels],
-            diagnostics.ToImmutable(),
-            typeLocation.SourceTree?.FilePath ?? string.Empty,
-            typeLocation.SourceSpan.Start);
+            SystemSymbol.ContainingNamespace.IsGlobalNamespace ? null : SystemSymbol.ContainingNamespace.ToDisplayString(),
+            SystemSymbol.Name,
+            [.. MethodModels],
+            Diagnostics.ToImmutable(),
+            TypeLocation.SourceTree?.FilePath ?? string.Empty,
+            TypeLocation.SourceSpan.Start);
     }
 
     /// <summary>
@@ -93,197 +93,197 @@ internal static class GameSystemAnalyzer
     /// <c>[SystemOrder]</c>を直接付けられたSystemを、<see cref="GameSystemResult"/>側と同じキーで
     /// 引き当てるために必要(2箇所が別々の規則で名前を作るとキーがズレて対応付けが失敗する)。
     /// </summary>
-    internal static string ComputeClassFullyQualifiedName(INamedTypeSymbol symbol) =>
-        symbol.ContainingNamespace.IsGlobalNamespace
-            ? symbol.Name
-            : $"{symbol.ContainingNamespace.ToDisplayString()}.{symbol.Name}";
+    internal static string ComputeClassFullyQualifiedName(INamedTypeSymbol Symbol) =>
+        Symbol.ContainingNamespace.IsGlobalNamespace
+            ? Symbol.Name
+            : $"{Symbol.ContainingNamespace.ToDisplayString()}.{Symbol.Name}";
 
-    private static int GetDeclarationPosition(ISymbol symbol)
+    private static int GetDeclarationPosition(ISymbol Symbol)
     {
-        Location location = symbol.Locations.FirstOrDefault() ?? Location.None;
+        Location location = Symbol.Locations.FirstOrDefault() ?? Location.None;
         return location.SourceSpan.Start;
     }
 
-    private static GameSystemMethodModel? AnalyzeMethod(IMethodSymbol method, ImmutableArray<Diagnostic>.Builder diagnostics)
+    private static GameSystemMethodModel? AnalyzeMethod(IMethodSymbol Method, ImmutableArray<Diagnostic>.Builder Diagnostics)
     {
-        bool isSpawn = method.Name == SpawnMethodName;
-        GameSystemMethodRole role = isSpawn ? GameSystemMethodRole.SpawnOnly : GameSystemMethodRole.Dispatch;
-        bool isValid = true;
-        Location methodLocation = method.Locations.FirstOrDefault() ?? Location.None;
+        bool IsSpawn = Method.Name == SpawnMethodName;
+        GameSystemMethodRole Role = IsSpawn ? GameSystemMethodRole.SpawnOnly : GameSystemMethodRole.Dispatch;
+        bool IsValid = true;
+        Location MethodLocation = Method.Locations.FirstOrDefault() ?? Location.None;
 
-        if (method.IsStatic)
+        if (Method.IsStatic)
         {
-            diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.MethodMustBeInstance, methodLocation, method.Name));
-            isValid = false;
+            Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.MethodMustBeInstance, MethodLocation, Method.Name));
+            IsValid = false;
         }
 
-        if (method.DeclaredAccessibility == Accessibility.Private)
+        if (Method.DeclaredAccessibility == Accessibility.Private)
         {
-            diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.MethodMustNotBePrivate, methodLocation, method.Name));
-            isValid = false;
+            Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.MethodMustNotBePrivate, MethodLocation, Method.Name));
+            IsValid = false;
         }
 
-        if (method.IsGenericMethod)
+        if (Method.IsGenericMethod)
         {
-            diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.MethodMustNotBeGeneric, methodLocation, method.Name));
-            isValid = false;
+            Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.MethodMustNotBeGeneric, MethodLocation, Method.Name));
+            IsValid = false;
         }
 
-        if (isSpawn)
+        if (IsSpawn)
         {
-            if (!method.ReturnsVoid)
+            if (!Method.ReturnsVoid)
             {
-                diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.SpawnMethodMustReturnVoid, methodLocation, method.Name, method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
-                isValid = false;
+                Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.SpawnMethodMustReturnVoid, MethodLocation, Method.Name, Method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
+                IsValid = false;
             }
         }
-        else if (method.ReturnType.SpecialType != SpecialType.System_Boolean)
+        else if (Method.ReturnType.SpecialType != SpecialType.System_Boolean)
         {
-            diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.UpdateMethodMustReturnBool, methodLocation, method.Name, method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
-            isValid = false;
+            Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.UpdateMethodMustReturnBool, MethodLocation, Method.Name, Method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
+            IsValid = false;
         }
 
-        ImmutableArray<IParameterSymbol> parameters = method.Parameters;
-        bool hasLeadingEntity = false;
-        int scanStart = 0;
-        int scanEndExclusive = parameters.Length;
+        ImmutableArray<IParameterSymbol> Parameters = Method.Parameters;
+        bool HasLeadingEntity = false;
+        int ScanStart = 0;
+        int ScanEndExclusive = Parameters.Length;
 
-        if (parameters.Length > 0)
+        if (Parameters.Length > 0)
         {
-            IParameterSymbol first = parameters[0];
+            IParameterSymbol First = Parameters[0];
 
-            if (TypeFqn(first) == EntityFullyQualifiedName)
+            if (TypeFqn(First) == EntityFullyQualifiedName)
             {
-                if (isSpawn)
+                if (IsSpawn)
                 {
-                    diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.SpawnMethodMustNotDeclareEntityOrState, methodLocation, method.Name));
-                    isValid = false;
+                    Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.SpawnMethodMustNotDeclareEntityOrState, MethodLocation, Method.Name));
+                    IsValid = false;
                 }
                 else
                 {
-                    if (first.RefKind != RefKind.None)
+                    if (First.RefKind != RefKind.None)
                     {
-                        diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.LeadingEntityParameterMustBeByValueFirst, methodLocation, method.Name));
-                        isValid = false;
+                        Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.LeadingEntityParameterMustBeByValueFirst, MethodLocation, Method.Name));
+                        IsValid = false;
                     }
 
-                    hasLeadingEntity = true;
+                    HasLeadingEntity = true;
                 }
 
-                scanStart = 1;
+                ScanStart = 1;
             }
         }
 
-        bool hasTrailingState = parameters.Length > scanStart
-            && parameters[parameters.Length - 1].RefKind == RefKind.Ref
-            && TypeFqn(parameters[parameters.Length - 1]) == StateFullyQualifiedName;
+        bool HasTrailingState = Parameters.Length > ScanStart
+            && Parameters[Parameters.Length - 1].RefKind == RefKind.Ref
+            && TypeFqn(Parameters[Parameters.Length - 1]) == StateFullyQualifiedName;
 
-        if (isSpawn)
+        if (IsSpawn)
         {
-            if (hasTrailingState)
+            if (HasTrailingState)
             {
-                diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.SpawnMethodMustNotDeclareEntityOrState, methodLocation, method.Name));
-                isValid = false;
-                scanEndExclusive = parameters.Length - 1;
+                Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.SpawnMethodMustNotDeclareEntityOrState, MethodLocation, Method.Name));
+                IsValid = false;
+                ScanEndExclusive = Parameters.Length - 1;
             }
         }
-        else if (hasTrailingState)
+        else if (HasTrailingState)
         {
-            scanEndExclusive = parameters.Length - 1;
+            ScanEndExclusive = Parameters.Length - 1;
         }
         else
         {
-            diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.UpdateMethodMustEndWithRefState, methodLocation, method.Name));
-            isValid = false;
+            Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.UpdateMethodMustEndWithRefState, MethodLocation, Method.Name));
+            IsValid = false;
         }
 
-        List<GameSystemComponentParameterModel> components = [];
-        List<GameSystemContextParameterModel> contexts = [];
-        List<GameSystemParameterSlot> callOrder = [];
-        HashSet<string> seenComponentTypes = new(StringComparer.Ordinal);
-        HashSet<string> seenContextTypes = new(StringComparer.Ordinal);
+        List<GameSystemComponentParameterModel> Components = [];
+        List<GameSystemContextParameterModel> Contexts = [];
+        List<GameSystemParameterSlot> CallOrder = [];
+        HashSet<string> SeenComponentTypes = new(StringComparer.Ordinal);
+        HashSet<string> SeenContextTypes = new(StringComparer.Ordinal);
 
-        if (hasLeadingEntity)
+        if (HasLeadingEntity)
         {
-            callOrder.Add(new GameSystemParameterSlot(GameSystemParameterRole.Entity, 0));
+            CallOrder.Add(new GameSystemParameterSlot(GameSystemParameterRole.Entity, 0));
         }
 
-        for (int i = scanStart; i < scanEndExclusive; i++)
+        for (int i = ScanStart; i < ScanEndExclusive; i++)
         {
-            IParameterSymbol parameter = parameters[i];
-            string parameterTypeFqn = TypeFqn(parameter);
+            IParameterSymbol Parameter = Parameters[i];
+            string ParameterTypeFqn = TypeFqn(Parameter);
 
-            if (parameterTypeFqn == EntityFullyQualifiedName || parameterTypeFqn == StateFullyQualifiedName)
+            if (ParameterTypeFqn == EntityFullyQualifiedName || ParameterTypeFqn == StateFullyQualifiedName)
             {
-                diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.EntityOrStateMustNotBeUsedAsComponent, parameter.Locations.FirstOrDefault(), parameter.Name, method.Name, parameterTypeFqn));
-                isValid = false;
+                Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.EntityOrStateMustNotBeUsedAsComponent, Parameter.Locations.FirstOrDefault(), Parameter.Name, Method.Name, ParameterTypeFqn));
+                IsValid = false;
                 continue;
             }
 
-            if (parameter.RefKind == RefKind.Ref)
+            if (Parameter.RefKind == RefKind.Ref)
             {
-                if (!IsNonNullableStruct(parameter.Type))
+                if (!IsNonNullableStruct(Parameter.Type))
                 {
-                    diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.ComponentTypeMustBeNonNullableStruct, parameter.Locations.FirstOrDefault(), parameter.Name, method.Name, parameterTypeFqn));
-                    isValid = false;
+                    Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.ComponentTypeMustBeNonNullableStruct, Parameter.Locations.FirstOrDefault(), Parameter.Name, Method.Name, ParameterTypeFqn));
+                    IsValid = false;
                     continue;
                 }
 
-                if (!seenComponentTypes.Add(parameterTypeFqn))
+                if (!SeenComponentTypes.Add(ParameterTypeFqn))
                 {
-                    diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.DuplicateComponentParameter, parameter.Locations.FirstOrDefault(), method.Name, parameterTypeFqn));
-                    isValid = false;
+                    Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.DuplicateComponentParameter, Parameter.Locations.FirstOrDefault(), Method.Name, ParameterTypeFqn));
+                    IsValid = false;
                     continue;
                 }
 
-                callOrder.Add(new GameSystemParameterSlot(GameSystemParameterRole.Component, components.Count));
-                components.Add(new GameSystemComponentParameterModel(parameter.Name, parameterTypeFqn));
+                CallOrder.Add(new GameSystemParameterSlot(GameSystemParameterRole.Component, Components.Count));
+                Components.Add(new GameSystemComponentParameterModel(Parameter.Name, ParameterTypeFqn));
                 continue;
             }
 
             // ref以外はContext。ただし`out`/`ref readonly`のような中途半端な渡し方は弾く。
-            bool isReferenceType = parameter.Type.IsReferenceType;
-            bool refKindOk = isReferenceType ? parameter.RefKind == RefKind.None : parameter.RefKind == RefKind.In;
+            bool IsReferenceType = Parameter.Type.IsReferenceType;
+            bool RefKindOk = IsReferenceType ? Parameter.RefKind == RefKind.None : Parameter.RefKind == RefKind.In;
 
-            if (!refKindOk)
+            if (!RefKindOk)
             {
-                diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.ContextParameterMustBeInOrByValue, parameter.Locations.FirstOrDefault(), parameter.Name, method.Name, parameter.RefKind.ToString()));
-                isValid = false;
+                Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.ContextParameterMustBeInOrByValue, Parameter.Locations.FirstOrDefault(), Parameter.Name, Method.Name, Parameter.RefKind.ToString()));
+                IsValid = false;
                 continue;
             }
 
-            if (!seenContextTypes.Add(parameterTypeFqn))
+            if (!SeenContextTypes.Add(ParameterTypeFqn))
             {
-                diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.DuplicateContextParameter, parameter.Locations.FirstOrDefault(), method.Name, parameterTypeFqn));
-                isValid = false;
+                Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.DuplicateContextParameter, Parameter.Locations.FirstOrDefault(), Method.Name, ParameterTypeFqn));
+                IsValid = false;
                 continue;
             }
 
-            callOrder.Add(new GameSystemParameterSlot(GameSystemParameterRole.Context, contexts.Count));
-            contexts.Add(new GameSystemContextParameterModel(parameter.Name, parameterTypeFqn, isReferenceType));
+            CallOrder.Add(new GameSystemParameterSlot(GameSystemParameterRole.Context, Contexts.Count));
+            Contexts.Add(new GameSystemContextParameterModel(Parameter.Name, ParameterTypeFqn, IsReferenceType));
         }
 
-        if (hasTrailingState && !isSpawn)
+        if (HasTrailingState && !IsSpawn)
         {
-            callOrder.Add(new GameSystemParameterSlot(GameSystemParameterRole.State, 0));
+            CallOrder.Add(new GameSystemParameterSlot(GameSystemParameterRole.State, 0));
         }
 
-        if (components.Count == 0)
+        if (Components.Count == 0)
         {
-            diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.MethodMustHaveAtLeastOneComponentParameter, methodLocation, method.Name));
-            isValid = false;
+            Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.MethodMustHaveAtLeastOneComponentParameter, MethodLocation, Method.Name));
+            IsValid = false;
         }
 
-        if (!isValid)
+        if (!IsValid)
         {
             return null;
         }
 
-        return new GameSystemMethodModel(role, hasLeadingEntity, [.. components], [.. contexts], [.. callOrder], GetDeclarationPosition(method));
+        return new GameSystemMethodModel(Role, HasLeadingEntity, [.. Components], [.. Contexts], [.. CallOrder], GetDeclarationPosition(Method));
     }
 
-    private static string TypeFqn(IParameterSymbol parameter) =>
-        parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+    private static string TypeFqn(IParameterSymbol Parameter) =>
+        Parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
     private static bool IsNonNullableStruct(ITypeSymbol type)
     {

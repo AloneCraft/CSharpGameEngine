@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 
@@ -27,7 +27,7 @@ public sealed class GameSystemGeneratorEndToEndTests
     [Fact]
     public void SubsetDispatch_FiresEveryMatchingOverloadOncePerEntity()
     {
-        string source = """
+        string Source = """
             using CSharpGameEngine.Entities;
             using CSharpGameEngine.Generated;
             using Sample;
@@ -74,16 +74,16 @@ public sealed class GameSystemGeneratorEndToEndTests
             }
             """;
 
-        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(Components, source);
-        object? result = GameSystemGeneratorTestHelper.Invoke(assembly, "Game.TestEntry", "RunScenario");
+        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(Components, Source);
+        object? Result = GameSystemGeneratorTestHelper.Invoke(assembly, "Game.TestEntry", "RunScenario");
 
-        Assert.Equal("OK", result);
+        Assert.Equal("OK", Result);
     }
 
     [Fact]
     public void MoveArchetype_AppliesAtEndOfFrame_AndSwapBackKeepsIndicesValid()
     {
-        string source = """
+        string Source = """
             using CSharpGameEngine.Entities;
             using CSharpGameEngine.Generated;
             using Sample;
@@ -128,16 +128,16 @@ public sealed class GameSystemGeneratorEndToEndTests
             }
             """;
 
-        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(Components, source);
-        object? result = GameSystemGeneratorTestHelper.Invoke(assembly, "Game.TestEntry", "RunScenario");
+        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(Components, Source);
+        object? Result = GameSystemGeneratorTestHelper.Invoke(assembly, "Game.TestEntry", "RunScenario");
 
-        Assert.Equal("OK", result);
+        Assert.Equal("OK", Result);
     }
 
     [Fact]
     public void ContextParameters_ReachTheSystemBody()
     {
-        string source = """
+        string Source = """
             using CSharpGameEngine.Entities;
             using CSharpGameEngine.Generated;
             using Sample;
@@ -173,16 +173,16 @@ public sealed class GameSystemGeneratorEndToEndTests
             }
             """;
 
-        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(Components, source);
-        object? result = GameSystemGeneratorTestHelper.Invoke(assembly, "Game.TestEntry", "RunScenario");
+        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(Components, Source);
+        object? Result = GameSystemGeneratorTestHelper.Invoke(assembly, "Game.TestEntry", "RunScenario");
 
-        Assert.Equal("OK", result);
+        Assert.Equal("OK", Result);
     }
 
     [Fact]
     public void SpawnDeclaredArchetype_IsCreatableThroughWorldCreate()
     {
-        string source = """
+        string Source = """
             using CSharpGameEngine.Entities;
             using Sample;
 
@@ -216,16 +216,16 @@ public sealed class GameSystemGeneratorEndToEndTests
             }
             """;
 
-        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(Components, source);
-        object? result = GameSystemGeneratorTestHelper.Invoke(assembly, "Game.TestEntry", "RunScenario");
+        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(Components, Source);
+        object? Result = GameSystemGeneratorTestHelper.Invoke(assembly, "Game.TestEntry", "RunScenario");
 
-        Assert.Equal("OK", result);
+        Assert.Equal("OK", Result);
     }
 
     [Fact]
     public void WorldSnapshot_CapturesLiveEntitiesForTheOutOfProcessBridge()
     {
-        string source = """
+        string Source = """
             using CSharpGameEngine.Entities;
             using Sample;
 
@@ -257,10 +257,10 @@ public sealed class GameSystemGeneratorEndToEndTests
             }
             """;
 
-        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(Components, source);
-        object? result = GameSystemGeneratorTestHelper.Invoke(assembly, "Game.TestEntry", "RunScenario");
+        Assembly assembly = GameSystemGeneratorTestHelper.CompileAndLoad(Components, Source);
+        object? Result = GameSystemGeneratorTestHelper.Invoke(assembly, "Game.TestEntry", "RunScenario");
 
-        Assert.Equal("OK", result);
+        Assert.Equal("OK", Result);
     }
 }
 

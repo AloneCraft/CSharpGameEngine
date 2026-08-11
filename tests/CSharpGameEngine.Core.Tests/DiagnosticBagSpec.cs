@@ -5,35 +5,35 @@ public sealed class DiagnosticBagSpec
     [Fact]
     public void Add_PreservesInsertionOrder()
     {
-        DiagnosticBag bag = new();
-        Diagnostic first = new("CGE1001", DiagnosticSeverity.Info, "A", SourceLocation.Unknown);
-        Diagnostic second = new("CGE1002", DiagnosticSeverity.Warning, "B", SourceLocation.Unknown);
+        DiagnosticBag Bag = new();
+        Diagnostic First = new("CGE1001", DiagnosticSeverity.Info, "A", SourceLocation.Unknown);
+        Diagnostic Second = new("CGE1002", DiagnosticSeverity.Warning, "B", SourceLocation.Unknown);
 
-        bag.Add(first);
-        bag.Add(second);
+        Bag.Add(First);
+        Bag.Add(Second);
 
-        Assert.Equal([first, second], bag.ToArray());
+        Assert.Equal([First, Second], Bag.ToArray());
     }
 
     [Fact]
     public void HasErrors_IsTrueOnlyWhenErrorExists()
     {
-        DiagnosticBag bag = new();
+        DiagnosticBag Bag = new();
 
-        bag.Add(new Diagnostic("CGE1003", DiagnosticSeverity.Info, "info", SourceLocation.Unknown));
-        Assert.False(bag.HasErrors);
+        Bag.Add(new Diagnostic("CGE1003", DiagnosticSeverity.Info, "info", SourceLocation.Unknown));
+        Assert.False(Bag.HasErrors);
 
-        bag.Add(new Diagnostic("CGE1004", DiagnosticSeverity.Error, "error", SourceLocation.Unknown));
-        Assert.True(bag.HasErrors);
+        Bag.Add(new Diagnostic("CGE1004", DiagnosticSeverity.Error, "error", SourceLocation.Unknown));
+        Assert.True(Bag.HasErrors);
     }
 
     [Fact]
     public void EmptyBag_IsLightweightAndUsable()
     {
-        DiagnosticBag bag = new();
+        DiagnosticBag Bag = new();
 
-        Assert.True(bag.Count == 0);
-        Assert.False(bag.HasErrors);
-        Assert.Empty(bag);
+        Assert.True(Bag.Count == 0);
+        Assert.False(Bag.HasErrors);
+        Assert.Empty(Bag);
     }
 }

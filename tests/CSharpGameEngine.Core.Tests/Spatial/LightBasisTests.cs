@@ -11,31 +11,31 @@ public class LightBasisTests
     [Fact]
     public void DirectionalLight_ForwardIsTravelDirection_DirectionToLightIsOpposite()
     {
-        DirectionalLightBasis light = new(new RufVector(0f, -1f, 1f).Normalize());
+        DirectionalLightBasis Light = new(new RufVector(0f, -1f, 1f).Normalize());
 
-        AssertOpposite(light.Forward, light.DirectionToLight);
+        AssertOpposite(Light.Forward, Light.DirectionToLight);
     }
 
     [Fact]
     public void SpotLight_ForwardIsConeDirection_DirectionToLightIsOpposite()
     {
-        SpotLightBasis spot = new(new RufVector(1f, -1f, 0f).Normalize());
+        SpotLightBasis Spot = new(new RufVector(1f, -1f, 0f).Normalize());
 
-        AssertOpposite(spot.Forward, spot.DirectionToLight);
+        AssertOpposite(Spot.Forward, Spot.DirectionToLight);
     }
 
     [Fact]
     public void DirectionalLight_Forward_IsNormalized()
     {
-        DirectionalLightBasis light = new(new RufVector(0f, 0f, 5f));
+        DirectionalLightBasis Light = new(new RufVector(0f, 0f, 5f));
 
-        Assert.Equal(1f, light.Forward.Length, precision: 5);
+        Assert.Equal(1f, Light.Forward.Length, precision: 5);
     }
 
-    private static void AssertOpposite(RufVector forward, RufVector directionToLight)
+    private static void AssertOpposite(RufVector Forward, RufVector DirectionToLight)
     {
-        Assert.Equal(-forward.R, directionToLight.R, precision: 5);
-        Assert.Equal(-forward.U, directionToLight.U, precision: 5);
-        Assert.Equal(-forward.F, directionToLight.F, precision: 5);
+        Assert.Equal(-Forward.R, DirectionToLight.R, precision: 5);
+        Assert.Equal(-Forward.U, DirectionToLight.U, precision: 5);
+        Assert.Equal(-Forward.F, DirectionToLight.F, precision: 5);
     }
 }

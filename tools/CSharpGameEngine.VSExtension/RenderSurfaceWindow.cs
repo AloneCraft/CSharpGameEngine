@@ -13,66 +13,66 @@ internal sealed class RenderSurfaceWindow : IDisposable
 {
     private const string ClassName = "CSharpGameEngine.VSExtension.RenderSurface";
 
-    private static readonly object s_registrationLock = new();
-    private static readonly WndProcDelegate s_wndProcDelegate = WndProc;
-    private static bool s_classRegistered;
+    private static readonly object S_registrationLock = new();
+    private static readonly WndProcDelegate S_wndProcDelegate = WndProc;
+    private static bool S_classRegistered;
 
-    private static readonly System.Collections.Generic.Dictionary<IntPtr, RenderSurfaceWindow> s_instances = [];
+    private static readonly System.Collections.Generic.Dictionary<IntPtr, RenderSurfaceWindow> S_instances = [];
 
-    private IntPtr _hwnd;
-    private readonly IntPtr _parentHwnd;
-    private bool _disposed;
+    private IntPtr Hwnd;
+    private readonly IntPtr ParentHwnd;
+    private bool Disposed;
 
     public event Action<int, int>? Resized;
 
-    public RenderSurfaceWindow(IntPtr parentHwnd, int width, int height)
+    public RenderSurfaceWindow(IntPtr ParentHwnd, int Width, int Height)
     {
         EnsureClassRegistered();
-        _parentHwnd = parentHwnd;
+        this.ParentHwnd = ParentHwnd;
 
-        _hwnd = CreateWindowEx(
+        Hwnd = CreateWindowEx(
             WS_EX_NOREDIRECTIONBITMAP,
             ClassName,
             string.Empty,
             WS_CHILD | WS_VISIBLE,
             0,
             0,
-            width,
-            height,
-            parentHwnd,
+            Width,
+            Height,
+            ParentHwnd,
             IntPtr.Zero,
             GetModuleHandle(null),
             IntPtr.Zero);
 
-        if (_hwnd == IntPtr.Zero)
+        if (Hwnd == IntPtr.Zero)
         {
-            int error = Marshal.GetLastWin32Error();
-            throw new InvalidOperationException($"CreateWindowEx failed with Win32 error 0x{error:X8}.");
+            int Error = Marshal.GetLastWin32Error();
+            throw new InvalidOperationException($"CreateWindowEx failed with Win32 error 0x{Error:X8}.");
         }
 
-        lock (s_instances)
+        lock (S_instances)
         {
-            s_instances[_hwnd] = this;
+            S_instances[Hwnd] = this;
         }
     }
 
-    public IntPtr Handle => _hwnd;
+    public IntPtr Handle => Hwnd;
 
     public void Dispose()
     {
-        if (_disposed)
+        if (Disposed)
         {
             return;
         }
 
-        _disposed = true;
+        Disposed = true;
 
-        lock (s_instances)
+        lock (S_instances)
         {
-            s_instances.Remove(_hwnd);
+            S_instances.Remove(Hwnd);
         }
 
-        if (_hwnd != IntPtr.Zero)
+        if (Hwnd != IntPtr.Zero)
         {
             // If this native child window still owns real Win32 keyboard focus when destroyed,
             // Windows leaves focus dangling on a handle that no longer exists and WPF's own focus
@@ -80,72 +80,72 @@ internal sealed class RenderSurfaceWindow : IDisposable
             // of the VS session - Tab/Backspace/Delete stop reaching the text editor even after this
             // pane is closed, while plain character input (routed differently) keeps working. Hand
             // focus back to the parent HWND before tearing down the native window.
-            if (GetFocus() == _hwnd)
+            if (GetFocus() == Hwnd)
             {
-                SetFocus(_parentHwnd);
+                SetFocus(ParentHwnd);
             }
 
-            _ = DestroyWindow(_hwnd);
-            _hwnd = IntPtr.Zero;
+            _ = DestroyWindow(Hwnd);
+            Hwnd = IntPtr.Zero;
         }
     }
 
     private static void EnsureClassRegistered()
     {
-        if (s_classRegistered)
+        if (S_classRegistered)
         {
             return;
         }
 
-        lock (s_registrationLock)
+        lock (S_registrationLock)
         {
-            if (s_classRegistered)
+            if (S_classRegistered)
             {
                 return;
             }
 
-            WNDCLASSEX wc = new()
+            WNDCLASSEX Wc = new()
             {
-                cbSize = (uint)Marshal.SizeOf<WNDCLASSEX>(),
-                style = 0,
-                lpfnWndProc = s_wndProcDelegate,
-                hInstance = GetModuleHandle(null),
-                hCursor = IntPtr.Zero,
-                lpszClassName = ClassName,
+                CbSize = (uint)Marshal.SizeOf<WNDCLASSEX>(),
+                Style = 0,
+                LpfnWndProc = S_wndProcDelegate,
+                HInstance = GetModuleHandle(null),
+                HCursor = IntPtr.Zero,
+                LpszClassName = ClassName,
             };
 
-            if (RegisterClassEx(ref wc) == 0)
+            if (RegisterClassEx(ref Wc) == 0)
             {
-                int error = Marshal.GetLastWin32Error();
-                throw new InvalidOperationException($"RegisterClassEx failed with Win32 error 0x{error:X8}.");
+                int Error = Marshal.GetLastWin32Error();
+                throw new InvalidOperationException($"RegisterClassEx failed with Win32 error 0x{Error:X8}.");
             }
 
-            s_classRegistered = true;
+            S_classRegistered = true;
         }
     }
 
-    private static IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
+    private static IntPtr WndProc(IntPtr HWnd, uint Msg, IntPtr WParam, IntPtr LParam)
     {
-        if (msg == WM_SIZE)
+        if (Msg == WM_SIZE)
         {
-            RenderSurfaceWindow? instance;
-            lock (s_instances)
+            RenderSurfaceWindow? Instance;
+            lock (S_instances)
             {
-                s_instances.TryGetValue(hWnd, out instance);
+                S_instances.TryGetValue(HWnd, out Instance);
             }
 
-            if (instance is not null)
+            if (Instance is not null)
             {
-                long lp = lParam.ToInt64();
-                int width = (int)(lp & 0xFFFF);
-                int height = (int)((lp >> 16) & 0xFFFF);
-                instance.Resized?.Invoke(width, height);
+                long Lp = LParam.ToInt64();
+                int Width = (int)(Lp & 0xFFFF);
+                int Height = (int)((Lp >> 16) & 0xFFFF);
+                Instance.Resized?.Invoke(Width, Height);
             }
 
             return IntPtr.Zero;
         }
 
-        if (msg == WM_SETFOCUS)
+        if (Msg == WM_SETFOCUS)
         {
             // This window is a pure render target with no keyboard interaction of its own. It never
             // implements WM_SETFOCUS/WM_KILLFOCUS beyond DefWindowProc's no-op, so WPF's HwndHost/
@@ -155,20 +155,20 @@ internal sealed class RenderSurfaceWindow : IDisposable
             // Tab/Backspace/Delete everywhere (not just in this pane) while plain character input
             // (routed differently) keeps working. Refuse focus outright by bouncing it straight back
             // to the parent HWND instead of ever actually holding it.
-            RenderSurfaceWindow? focusedInstance;
-            lock (s_instances)
+            RenderSurfaceWindow? FocusedInstance;
+            lock (S_instances)
             {
-                s_instances.TryGetValue(hWnd, out focusedInstance);
+                S_instances.TryGetValue(HWnd, out FocusedInstance);
             }
 
-            if (focusedInstance is not null)
+            if (FocusedInstance is not null)
             {
-                SetFocus(focusedInstance._parentHwnd);
+                SetFocus(FocusedInstance.ParentHwnd);
             }
 
             return IntPtr.Zero;
         }
 
-        return DefWindowProc(hWnd, msg, wParam, lParam);
+        return DefWindowProc(HWnd, Msg, WParam, LParam);
     }
 }

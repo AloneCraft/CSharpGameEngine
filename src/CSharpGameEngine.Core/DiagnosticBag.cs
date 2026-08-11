@@ -4,17 +4,17 @@ namespace CSharpGameEngine.Core;
 
 public sealed class DiagnosticBag : IReadOnlyCollection<Diagnostic>
 {
-    private List<Diagnostic>? items;
+    private List<Diagnostic>? Items;
     private bool hasErrors;
 
-    public int Count => this.items?.Count ?? 0;
+    public int Count => this.Items?.Count ?? 0;
 
     public bool HasErrors => this.hasErrors;
 
     public void Add(Diagnostic diagnostic)
     {
-        this.items ??= [];
-        this.items.Add(diagnostic);
+        this.Items ??= [];
+        this.Items.Add(diagnostic);
 
         if (diagnostic.Severity == DiagnosticSeverity.Error)
         {
@@ -24,9 +24,9 @@ public sealed class DiagnosticBag : IReadOnlyCollection<Diagnostic>
 
     public IEnumerator<Diagnostic> GetEnumerator()
     {
-        return this.items is null
+        return this.Items is null
             ? ((IEnumerable<Diagnostic>)Array.Empty<Diagnostic>()).GetEnumerator()
-            : this.items.GetEnumerator();
+            : this.Items.GetEnumerator();
     }
 
     IEnumerator IEnumerable.GetEnumerator() => this.GetEnumerator();

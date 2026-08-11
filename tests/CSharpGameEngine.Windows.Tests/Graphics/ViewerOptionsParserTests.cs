@@ -5,66 +5,66 @@ public class ViewerOptionsParserTests
     [Fact]
     public void Parse_ModelOnly_UsesDefaults()
     {
-        ViewerOptionsParseResult result = ViewerOptionsParser.Parse(["--model", "Samples/Box.glb"]);
+        ViewerOptionsParseResult Result = ViewerOptionsParser.Parse(["--model", "Samples/Box.glb"]);
 
-        Assert.True(result.Success);
-        Assert.NotNull(result.Options);
-        Assert.Equal("Samples/Box.glb", result.Options!.ModelPath);
-        Assert.Null(result.Options.Frames);
-        Assert.Equal(1280, result.Options.Width);
-        Assert.Equal(720, result.Options.Height);
-        Assert.False(result.Options.Hidden);
-        Assert.False(result.Options.UseWarp);
-        Assert.False(result.Options.EnableDebugLayer);
-        Assert.False(result.Options.EnableGpuValidation);
-        Assert.False(result.Options.Verify);
+        Assert.True(Result.Success);
+        Assert.NotNull(Result.Options);
+        Assert.Equal("Samples/Box.glb", Result.Options!.ModelPath);
+        Assert.Null(Result.Options.Frames);
+        Assert.Equal(1280, Result.Options.Width);
+        Assert.Equal(720, Result.Options.Height);
+        Assert.False(Result.Options.Hidden);
+        Assert.False(Result.Options.UseWarp);
+        Assert.False(Result.Options.EnableDebugLayer);
+        Assert.False(Result.Options.EnableGpuValidation);
+        Assert.False(Result.Options.Verify);
     }
 
     [Fact]
     public void Parse_FullCombination_ParsesAllFlags()
     {
-        ViewerOptionsParseResult result = ViewerOptionsParser.Parse(
+        ViewerOptionsParseResult Result = ViewerOptionsParser.Parse(
             ["--model", "Samples/Box.glb", "--hidden", "--frames", "3", "--warp", "--debug-layer", "--gpu-validation", "--verify"]);
 
-        Assert.True(result.Success);
-        ViewerRunOptions options = result.Options!;
-        Assert.Equal("Samples/Box.glb", options.ModelPath);
-        Assert.Equal(3, options.Frames);
-        Assert.True(options.Hidden);
-        Assert.True(options.UseWarp);
-        Assert.True(options.EnableDebugLayer);
-        Assert.True(options.EnableGpuValidation);
-        Assert.True(options.Verify);
+        Assert.True(Result.Success);
+        ViewerRunOptions Options = Result.Options!;
+        Assert.Equal("Samples/Box.glb", Options.ModelPath);
+        Assert.Equal(3, Options.Frames);
+        Assert.True(Options.Hidden);
+        Assert.True(Options.UseWarp);
+        Assert.True(Options.EnableDebugLayer);
+        Assert.True(Options.EnableGpuValidation);
+        Assert.True(Options.Verify);
     }
 
     [Fact]
     public void Parse_MissingModel_Fails()
     {
-        ViewerOptionsParseResult result = ViewerOptionsParser.Parse(["--frames", "3"]);
+        ViewerOptionsParseResult Result = ViewerOptionsParser.Parse(["--frames", "3"]);
 
-        Assert.False(result.Success);
-        Assert.Null(result.Options);
-        Assert.Contains("--model", result.Error);
+        Assert.False(Result.Success);
+        Assert.Null(Result.Options);
+        Assert.Contains("--model", Result.Error);
     }
 
     [Fact]
     public void Parse_ModelMissingValue_Fails()
     {
-        ViewerOptionsParseResult result = ViewerOptionsParser.Parse(["--model"]);
+        ViewerOptionsParseResult Result = ViewerOptionsParser.Parse(["--model"]);
 
-        Assert.False(result.Success);
+        Assert.False(Result.Success);
     }
 
     [Theory]
     [InlineData("0")]
     [InlineData("-1")]
     [InlineData("notanumber")]
-    public void Parse_InvalidFrames_Fails(string value)
+    public void Parse_InvalidFrames_Fails(string Value)
     {
-        ViewerOptionsParseResult result = ViewerOptionsParser.Parse(["--model", "Samples/Box.glb", "--frames", value]);
+        ViewerOptionsParseResult Result = ViewerOptionsParser.Parse(["--model", "Samples/Box.glb", "--frames", Value]);
 
-        Assert.False(result.Success);
-        Assert.Null(result.Options);
+        Assert.False(Result.Success);
+        Assert.Null(Result.Options);
     }
 
     [Theory]
@@ -72,20 +72,20 @@ public class ViewerOptionsParserTests
     [InlineData("--width", "-100")]
     [InlineData("--height", "0")]
     [InlineData("--height", "-1")]
-    public void Parse_InvalidWidthOrHeight_Rejected(string flag, string value)
+    public void Parse_InvalidWidthOrHeight_Rejected(string Flag, string Value)
     {
-        ViewerOptionsParseResult result = ViewerOptionsParser.Parse(["--model", "Samples/Box.glb", flag, value]);
+        ViewerOptionsParseResult Result = ViewerOptionsParser.Parse(["--model", "Samples/Box.glb", Flag, Value]);
 
-        Assert.False(result.Success);
-        Assert.Null(result.Options);
+        Assert.False(Result.Success);
+        Assert.Null(Result.Options);
     }
 
     [Fact]
     public void Parse_UnknownOption_Fails()
     {
-        ViewerOptionsParseResult result = ViewerOptionsParser.Parse(["--model", "Samples/Box.glb", "--not-a-real-option"]);
+        ViewerOptionsParseResult Result = ViewerOptionsParser.Parse(["--model", "Samples/Box.glb", "--not-a-real-option"]);
 
-        Assert.False(result.Success);
-        Assert.Contains("--not-a-real-option", result.Error);
+        Assert.False(Result.Success);
+        Assert.Contains("--not-a-real-option", Result.Error);
     }
 }

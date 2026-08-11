@@ -5,19 +5,19 @@ public sealed class SourceLocationSpec
     [Fact]
     public void Unknown_CanBeRepresented()
     {
-        SourceLocation unknown = SourceLocation.Unknown;
+        SourceLocation Unknown = SourceLocation.Unknown;
 
-        Assert.True(unknown.IsUnknown);
-        Assert.Equal("<unknown>", unknown.ToString());
-        Assert.Equal(0, unknown.Line);
-        Assert.Equal(0, unknown.Column);
+        Assert.True(Unknown.IsUnknown);
+        Assert.Equal("<unknown>", Unknown.ToString());
+        Assert.Equal(0, Unknown.Line);
+        Assert.Equal(0, Unknown.Column);
     }
 
     [Fact]
     public void ToString_UsesSpecifiedReadableFormat()
     {
-        SourceLocation location = new("Assets/Player.scene", 12, 3);
+        SourceLocation Location = new("Assets/Player.scene", 12, 3);
 
-        Assert.Equal("Assets/Player.scene(12,3)", location.ToString());
+        Assert.Equal("Assets/Player.scene(12,3)", Location.ToString());
     }
 }

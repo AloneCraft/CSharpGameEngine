@@ -18,5 +18,5 @@ internal static class SceneDefinitionTextDetector
         @"\[\s*(CSharpGameEngine\.Entities\.)?SceneDefinition(Attribute)?\s*(\(|\])",
         RegexOptions.Compiled);
 
-    internal static bool LooksLikeSceneDefinition(string sourceText) => Pattern.IsMatch(sourceText);
+    internal static bool LooksLikeSceneDefinition(string SourceText) => Pattern.IsMatch(SourceText);
 }

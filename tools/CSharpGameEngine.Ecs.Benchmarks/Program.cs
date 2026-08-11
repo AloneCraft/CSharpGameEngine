@@ -1,72 +1,72 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Generated;
 
-const int defaultEntities = 100_000;
-const int defaultFrames = 300;
-int entities = args.Length > 0 && int.TryParse(args[0], out int parsedEntities) ? parsedEntities : defaultEntities;
-int frames = args.Length > 1 && int.TryParse(args[1], out int parsedFrames) ? parsedFrames : defaultFrames;
+const int DefaultEntities = 100_000;
+const int DefaultFrames = 300;
+int Entities = args.Length > 0 && int.TryParse(args[0], out int ParsedEntities) ? ParsedEntities : DefaultEntities;
+int Frames = args.Length > 1 && int.TryParse(args[1], out int ParsedFrames) ? ParsedFrames : DefaultFrames;
 
-Console.WriteLine($"AoS/SoA ECS benchmark: entities={entities:N0}, frames={frames:N0}");
-RunAos(entities, frames);
-RunSoa(entities, frames);
+Console.WriteLine($"AoS/SoA ECS benchmark: entities={Entities:N0}, frames={Frames:N0}");
+RunAos(Entities, Frames);
+RunSoa(Entities, Frames);
 
-static void RunAos(int entities, int frames)
+static void RunAos(int Entities, int Frames)
 {
-    AosRow[] rows = new AosRow[entities];
-    for (int index = 0; index < rows.Length; index++)
+    AosRow[] Rows = new AosRow[Entities];
+    for (int index = 0; index < Rows.Length; index++)
     {
-        rows[index].Velocity.X = 1f;
-        rows[index].ColdA = index;
-        rows[index].ColdB = index * 2L;
+        Rows[index].Velocity.X = 1f;
+        Rows[index].ColdA = index;
+        Rows[index].ColdB = index * 2L;
     }
 
-    WarmUpAos(rows);
-    long before = GC.GetAllocatedBytesForCurrentThread();
-    long start = Stopwatch.GetTimestamp();
-    for (int frame = 0; frame < frames; frame++)
+    WarmUpAos(Rows);
+    long Before = GC.GetAllocatedBytesForCurrentThread();
+    long Start = Stopwatch.GetTimestamp();
+    for (int frame = 0; frame < Frames; frame++)
     {
-        for (int index = 0; index < rows.Length; index++)
+        for (int index = 0; index < Rows.Length; index++)
         {
-            rows[index].Position.X += rows[index].Velocity.X;
+            Rows[index].Position.X += Rows[index].Velocity.X;
         }
     }
 
-    Print("AoS", Stopwatch.GetElapsedTime(start), GC.GetAllocatedBytesForCurrentThread() - before, rows[^1].Position.X);
+    Print("AoS", Stopwatch.GetElapsedTime(Start), GC.GetAllocatedBytesForCurrentThread() - Before, Rows[^1].Position.X);
 }
 
-static void RunSoa(int entities, int frames)
+static void RunSoa(int Entities, int Frames)
 {
     World world = new();
     State state = new(world) { Enabled = true };
-    for (int index = 0; index < entities; index++)
+    for (int index = 0; index < Entities; index++)
     {
         world.Create(new Position(), new Velocity { X = 1f }, new ColdA { Value = index }, new ColdB { Value = index * 2L });
     }
 
     BenchmarkSystem system = new();
     GeneratedGameLoop.RunFrame(ref state, ref system);
-    long before = GC.GetAllocatedBytesForCurrentThread();
-    long start = Stopwatch.GetTimestamp();
-    for (int frame = 0; frame < frames; frame++)
+    long Before = GC.GetAllocatedBytesForCurrentThread();
+    long Start = Stopwatch.GetTimestamp();
+    for (int frame = 0; frame < Frames; frame++)
     {
         GeneratedGameLoop.RunFrame(ref state, ref system);
     }
 
-    Print("SoA", Stopwatch.GetElapsedTime(start), GC.GetAllocatedBytesForCurrentThread() - before, world.Archetype1.GetPositionRefUnchecked(entities - 1).X);
+    Print("SoA", Stopwatch.GetElapsedTime(Start), GC.GetAllocatedBytesForCurrentThread() - Before, world.Archetype1.GetPositionRefUnchecked(Entities - 1).X);
 }
 
-static void WarmUpAos(AosRow[] rows)
+static void WarmUpAos(AosRow[] Rows)
 {
-    for (int index = 0; index < rows.Length; index++)
+    for (int index = 0; index < Rows.Length; index++)
     {
-        rows[index].Position.X += rows[index].Velocity.X;
+        Rows[index].Position.X += Rows[index].Velocity.X;
     }
 }
 
-static void Print(string layout, TimeSpan elapsed, long allocatedBytes, float checksum)
+static void Print(string Layout, TimeSpan Elapsed, long AllocatedBytes, float Checksum)
 {
-    Console.WriteLine($"{layout}: {elapsed.TotalMilliseconds:F2} ms, allocated={allocatedBytes:N0} B, checksum={checksum:F0}");
+    Console.WriteLine($"{Layout}: {Elapsed.TotalMilliseconds:F2} ms, allocated={AllocatedBytes:N0} B, checksum={Checksum:F0}");
 }
 
 internal struct BenchmarkSystem : ISystem

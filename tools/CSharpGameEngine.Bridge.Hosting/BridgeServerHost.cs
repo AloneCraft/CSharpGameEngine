@@ -19,61 +19,61 @@ namespace CSharpGameEngine.Bridge.Hosting;
 public static class BridgeServerHost
 {
     public static async Task RunAsync(
-        string pipeName,
-        Func<string, string, (int ExitCode, string Output)> handler,
-        TimeSpan idleTimeout,
+        string PipeName,
+        Func<string, string, (int ExitCode, string Output)> Handler,
+        TimeSpan IdleTimeout,
         CancellationToken cancellationToken = default)
     {
-        using CancellationTokenSource idleCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        idleCts.CancelAfter(idleTimeout);
+        using CancellationTokenSource IdleCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        IdleCts.CancelAfter(IdleTimeout);
 
         while (true)
         {
-            NamedPipeServerStream pipe = new(
-                pipeName, PipeDirection.InOut, NamedPipeServerStream.MaxAllowedServerInstances,
+            NamedPipeServerStream Pipe = new(
+                PipeName, PipeDirection.InOut, NamedPipeServerStream.MaxAllowedServerInstances,
                 PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
 
             try
             {
-                await pipe.WaitForConnectionAsync(idleCts.Token);
+                await Pipe.WaitForConnectionAsync(IdleCts.Token);
             }
-            catch (OperationCanceledException) when (idleCts.IsCancellationRequested)
+            catch (OperationCanceledException) when (IdleCts.IsCancellationRequested)
             {
-                await pipe.DisposeAsync();
+                await Pipe.DisposeAsync();
                 return;
             }
 
             // Reset the idle window now that a connection came in, before handing it off - a burst
             // of requests should keep the server alive for idleTimeout past the *last* one, not the
             // first.
-            idleCts.CancelAfter(idleTimeout);
+            IdleCts.CancelAfter(IdleTimeout);
 
-            _ = HandleConnectionAsync(pipe, handler);
+            _ = HandleConnectionAsync(Pipe, Handler);
         }
     }
 
-    private static async Task HandleConnectionAsync(NamedPipeServerStream pipe, Func<string, string, (int ExitCode, string Output)> handler)
+    private static async Task HandleConnectionAsync(NamedPipeServerStream Pipe, Func<string, string, (int ExitCode, string Output)> Handler)
     {
-        await using (pipe)
+        await using (Pipe)
         {
             try
             {
-                BridgeServerRequest request = await BridgeWireMessage.ReadAsync<BridgeServerRequest>(pipe, CancellationToken.None);
-                string firstArg = request.Args.Length > 0 ? request.Args[0] : string.Empty;
-                string outputPath = request.Args.Length > 1 ? request.Args[1] : string.Empty;
+                BridgeServerRequest Request = await BridgeWireMessage.ReadAsync<BridgeServerRequest>(Pipe, CancellationToken.None);
+                string FirstArg = Request.Args.Length > 0 ? Request.Args[0] : string.Empty;
+                string OutputPath = Request.Args.Length > 1 ? Request.Args[1] : string.Empty;
 
-                (int exitCode, string output) = handler(firstArg, outputPath);
+                (int ExitCode, string Output) = Handler(FirstArg, OutputPath);
 
-                await BridgeWireMessage.WriteAsync(pipe, new BridgeServerResponse { ExitCode = exitCode, Output = output }, CancellationToken.None);
+                await BridgeWireMessage.WriteAsync(Pipe, new BridgeServerResponse { ExitCode = ExitCode, Output = Output }, CancellationToken.None);
             }
-            catch (Exception ex)
+            catch (Exception Ex)
             {
                 // A handler exception (bad input file etc.) must not take the resident process down -
                 // report it as a normal failure response instead, exactly like the one-shot bridge's
                 // non-zero exit code + stderr text.
                 try
                 {
-                    await BridgeWireMessage.WriteAsync(pipe, new BridgeServerResponse { ExitCode = 1, Output = ex.Message }, CancellationToken.None);
+                    await BridgeWireMessage.WriteAsync(Pipe, new BridgeServerResponse { ExitCode = 1, Output = Ex.Message }, CancellationToken.None);
                 }
                 catch
                 {

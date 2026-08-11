@@ -20,118 +20,118 @@ internal sealed class ToggleFabWatchCommand : IDisposable
 
     private const string DestinationRelativePath = @"UserGameProject\Assets\Fab";
 
-    private readonly AsyncPackage _package;
-    private readonly OleMenuCommand _command;
-    private FabDownloadWatcher? _watcher;
+    private readonly AsyncPackage Package;
+    private readonly OleMenuCommand Command;
+    private FabDownloadWatcher? Watcher;
 
-    private ToggleFabWatchCommand(AsyncPackage package, OleMenuCommandService commandService)
+    private ToggleFabWatchCommand(AsyncPackage package, OleMenuCommandService CommandService)
     {
-        _package = package ?? throw new ArgumentNullException(nameof(package));
-        if (commandService is null)
+        Package = package ?? throw new ArgumentNullException(nameof(package));
+        if (CommandService is null)
         {
-            throw new ArgumentNullException(nameof(commandService));
+            throw new ArgumentNullException(nameof(CommandService));
         }
 
-        CommandID menuCommandId = new(CommandSet, CommandId);
-        _command = new OleMenuCommand(Execute, menuCommandId);
-        _command.BeforeQueryStatus += UpdateText;
-        commandService.AddCommand(_command);
+        CommandID MenuCommandId = new(CommandSet, CommandId);
+        Command = new OleMenuCommand(Execute, MenuCommandId);
+        Command.BeforeQueryStatus += UpdateText;
+        CommandService.AddCommand(Command);
     }
 
     public static async Task<ToggleFabWatchCommand> InitializeAsync(AsyncPackage package)
     {
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
-        object? service = await package.GetServiceAsync(typeof(IMenuCommandService));
-        if (service is not OleMenuCommandService commandService)
+        object? Service = await package.GetServiceAsync(typeof(IMenuCommandService));
+        if (Service is not OleMenuCommandService CommandService)
         {
             throw new InvalidOperationException($"{nameof(IMenuCommandService)} is not available from the VS shell.");
         }
 
-        return new ToggleFabWatchCommand(package, commandService);
+        return new ToggleFabWatchCommand(package, CommandService);
     }
 
-    private void UpdateText(object sender, EventArgs e)
+    private void UpdateText(object Sender, EventArgs E)
     {
-        bool running = _watcher?.IsRunning ?? false;
-        _command.Text = running ? "Fabダウンロード監視を停止" : "Fabダウンロード監視を開始";
-        _command.Checked = running;
+        bool Running = Watcher?.IsRunning ?? false;
+        Command.Text = Running ? "Fabダウンロード監視を停止" : "Fabダウンロード監視を開始";
+        Command.Checked = Running;
     }
 
-    private void Execute(object sender, EventArgs e)
+    private void Execute(object Sender, EventArgs E)
     {
-        if (_watcher is { IsRunning: true })
+        if (Watcher is { IsRunning: true })
         {
-            _watcher.Stop();
-            ShowMessage($"Fabダウンロード監視を停止しました。\n監視フォルダ: {_watcher.WatchedFolder}");
+            Watcher.Stop();
+            ShowMessage($"Fabダウンロード監視を停止しました。\n監視フォルダ: {Watcher.WatchedFolder}");
             return;
         }
 
-        string? repoRoot = RepoLocator.ResolveRepoRoot();
-        if (repoRoot is null)
+        string? RepoRoot = RepoLocator.ResolveRepoRoot();
+        if (RepoRoot is null)
         {
             ShowMessage($"リポジトリルート({RepoLocator.RepoMarkerFileName})が見つかりませんでした。", OLEMSGICON.OLEMSGICON_WARNING);
             return;
         }
 
-        string downloadsFolder;
+        string DownloadsFolder;
         try
         {
-            downloadsFolder = KnownFolders.GetDownloadsFolder();
+            DownloadsFolder = KnownFolders.GetDownloadsFolder();
         }
-        catch (Exception ex)
+        catch (Exception Ex)
         {
-            ShowMessage($"ダウンロードフォルダの取得に失敗しました: {ex.Message}", OLEMSGICON.OLEMSGICON_CRITICAL);
+            ShowMessage($"ダウンロードフォルダの取得に失敗しました: {Ex.Message}", OLEMSGICON.OLEMSGICON_CRITICAL);
             return;
         }
 
-        string destination = Path.Combine(repoRoot, DestinationRelativePath);
+        string Destination = Path.Combine(RepoRoot, DestinationRelativePath);
 
-        _watcher?.Dispose();
-        _watcher = new FabDownloadWatcher(downloadsFolder, destination, OnFileCopied, OnWatchError);
-        _watcher.Start();
+        Watcher?.Dispose();
+        Watcher = new FabDownloadWatcher(DownloadsFolder, Destination, OnFileCopied, OnWatchError);
+        Watcher.Start();
 
         ShowMessage(
             "Fabダウンロード監視を開始しました。\n" +
-            $"監視フォルダ: {downloadsFolder}\n" +
-            $"コピー先: {destination}\n\n" +
+            $"監視フォルダ: {DownloadsFolder}\n" +
+            $"コピー先: {Destination}\n\n" +
             $"対応拡張子: {string.Join(", ", FabDownloadWatcher.WatchedExtensions)}\n\n" +
             "Fab自体へのログイン・ダウンロードはこのウィンドウでは行いません - 常にブラウザ上でご自身の操作で行ってください。");
     }
 
-    private void OnFileCopied(string destinationPath)
+    private void OnFileCopied(string DestinationPath)
     {
-        _ = _package.JoinableTaskFactory.RunAsync(async delegate
+        _ = Package.JoinableTaskFactory.RunAsync(async delegate
         {
-            await _package.JoinableTaskFactory.SwitchToMainThreadAsync();
-            if (await _package.GetServiceAsync(typeof(SVsStatusbar)) is IVsStatusbar statusBar)
+            await Package.JoinableTaskFactory.SwitchToMainThreadAsync();
+            if (await Package.GetServiceAsync(typeof(SVsStatusbar)) is IVsStatusbar StatusBar)
             {
-                statusBar.SetText($"Fab: {Path.GetFileName(destinationPath)} を Assets/Fab にコピーしました。");
+                StatusBar.SetText($"Fab: {Path.GetFileName(DestinationPath)} を Assets/Fab にコピーしました。");
             }
         });
     }
 
-    private void OnWatchError(string message)
+    private void OnWatchError(string Message)
     {
-        _ = _package.JoinableTaskFactory.RunAsync(async delegate
+        _ = Package.JoinableTaskFactory.RunAsync(async delegate
         {
-            await _package.JoinableTaskFactory.SwitchToMainThreadAsync();
-            if (await _package.GetServiceAsync(typeof(SVsStatusbar)) is IVsStatusbar statusBar)
+            await Package.JoinableTaskFactory.SwitchToMainThreadAsync();
+            if (await Package.GetServiceAsync(typeof(SVsStatusbar)) is IVsStatusbar StatusBar)
             {
-                statusBar.SetText($"Fabダウンロード監視でエラー: {message}");
+                StatusBar.SetText($"Fabダウンロード監視でエラー: {Message}");
             }
         });
     }
 
-    private void ShowMessage(string message, OLEMSGICON icon = OLEMSGICON.OLEMSGICON_INFO)
+    private void ShowMessage(string Message, OLEMSGICON Icon = OLEMSGICON.OLEMSGICON_INFO)
     {
         VsShellUtilities.ShowMessageBox(
-            _package,
-            message,
+            Package,
+            Message,
             "C# Game Engine Viewer",
-            icon,
+            Icon,
             OLEMSGBUTTON.OLEMSGBUTTON_OK,
             OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);
     }
 
-    public void Dispose() => _watcher?.Dispose();
+    public void Dispose() => Watcher?.Dispose();
 }

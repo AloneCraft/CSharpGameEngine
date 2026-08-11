@@ -12,9 +12,9 @@ public interface ICoordinateConvention
 {
     static abstract CoordinateHandedness Handedness { get; }
 
-    static abstract XyzVector ToXyz(in RufVector value);
+    static abstract XyzVector ToXyz(in RufVector Value);
 
-    static abstract RufVector FromXyz(in XyzVector value);
+    static abstract RufVector FromXyz(in XyzVector Value);
 
     static abstract XyzVector RightXyz { get; }
 

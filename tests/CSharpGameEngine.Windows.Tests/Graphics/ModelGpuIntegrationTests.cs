@@ -22,14 +22,14 @@ public class ModelGpuIntegrationTests
     {
         // Box.glb has no texture, only a red baseColorFactor (0.8,0,0,1) - a regression check that
         // the white-fallback-texture x factor path still renders sensibly after the texture-support changes.
-        RunWithTimeout(() => RunModelGpuScenario(BoxPath, useWarp: true), TimeSpan.FromSeconds(60));
+        RunWithTimeout(() => RunModelGpuScenario(BoxPath, UseWarp: true), TimeSpan.FromSeconds(60));
     }
 
     [WindowsOnlyFact]
     [Trait("Category", "GPU")]
     public void Model_BoxTextured_Warp_DebugLayer_Verify_RendersAndPasses()
     {
-        RunWithTimeout(() => RunModelGpuScenario(BoxTexturedPath, useWarp: true), TimeSpan.FromSeconds(60));
+        RunWithTimeout(() => RunModelGpuScenario(BoxTexturedPath, UseWarp: true), TimeSpan.FromSeconds(60));
     }
 
     private static void RunWithTimeout(Action action, TimeSpan timeout)
@@ -41,13 +41,13 @@ public class ModelGpuIntegrationTests
         }
     }
 
-    private static void RunModelGpuScenario(string modelPath, bool useWarp)
+    private static void RunModelGpuScenario(string ModelPath, bool UseWarp)
     {
-        GltfImportResult importResult = GltfImporter.Import(modelPath);
-        Assert.True(importResult.Success, string.Join(Environment.NewLine, importResult.Diagnostics));
-        ImportedMesh mesh = importResult.Mesh!;
+        GltfImportResult ImportResult = GltfImporter.Import(ModelPath);
+        Assert.True(ImportResult.Success, string.Join(Environment.NewLine, ImportResult.Diagnostics));
+        ImportedMesh Mesh = ImportResult.Mesh!;
 
-        using Win32Window window = new(new Win32WindowOptions
+        using Win32Window Window = new(new Win32WindowOptions
         {
             Title = "CSharpGameEngine Model GPU Test",
             Width = 256,
@@ -55,46 +55,46 @@ public class ModelGpuIntegrationTests
             Visible = false,
         });
 
-        GraphicsDeviceOptions deviceOptions = new()
+        GraphicsDeviceOptions DeviceOptions = new()
         {
-            UseWarp = useWarp,
+            UseWarp = UseWarp,
             EnableDebugLayer = true,
         };
 
-        using ModelRenderer renderer = ModelRenderer.Create(
-            window.Handle, window.ClientWidth, window.ClientHeight, deviceOptions, ShaderPath,
-            mesh.Positions, mesh.Normals, mesh.Uvs, mesh.Indices, mesh.BaseColorTextureBytes, mesh.BaseColorFactor,
-            mesh.Bounds.Center, mesh.Bounds.BoundingSphereRadius);
+        using ModelRenderer Renderer = ModelRenderer.Create(
+            Window.Handle, Window.ClientWidth, Window.ClientHeight, DeviceOptions, ShaderPath,
+            Mesh.Positions, Mesh.Normals, Mesh.Uvs, Mesh.Indices, Mesh.BaseColorTextureBytes, Mesh.BaseColorFactor,
+            Mesh.Bounds.Center, Mesh.Bounds.BoundingSphereRadius);
 
-        Assert.True(renderer.ShaderCompilationSucceeded, string.Join(Environment.NewLine, renderer.ShaderDiagnostics));
-        Assert.Equal(useWarp, renderer.IsWarp);
-        Assert.True(renderer.DebugLayerEnabled);
+        Assert.True(Renderer.ShaderCompilationSucceeded, string.Join(Environment.NewLine, Renderer.ShaderDiagnostics));
+        Assert.Equal(UseWarp, Renderer.IsWarp);
+        Assert.True(Renderer.DebugLayerEnabled);
 
-        const int totalFrames = 3;
-        for (int frame = 0; frame < totalFrames; frame++)
+        const int TotalFrames = 3;
+        for (int frame = 0; frame < TotalFrames; frame++)
         {
-            window.PumpEvents();
-            renderer.RenderFrame(captureForVerification: frame == totalFrames - 1);
+            Window.PumpEvents();
+            Renderer.RenderFrame(CaptureForVerification: frame == TotalFrames - 1);
         }
 
-        Assert.Equal((uint)totalFrames, renderer.FramesRendered);
-        Assert.NotNull(renderer.LastCapturedFrame);
+        Assert.Equal((uint)TotalFrames, Renderer.FramesRendered);
+        Assert.NotNull(Renderer.LastCapturedFrame);
 
-        ModelVerificationResult verification = ModelPixelVerifier.Verify(renderer.LastCapturedFrame!, ModelRenderer.ClearColor);
-        Assert.True(verification.Success, verification.Details);
+        ModelVerificationResult Verification = ModelPixelVerifier.Verify(Renderer.LastCapturedFrame!, ModelRenderer.ClearColor);
+        Assert.True(Verification.Success, Verification.Details);
 
-        Assert.Equal(0, renderer.ErrorOrWorseMessageCount);
+        Assert.Equal(0, Renderer.ErrorOrWorseMessageCount);
 
         // Exercises the depth-buffer-recreate-on-resize path, which has no TriangleRenderer
         // precedent (see ADR-0004).
-        renderer.Resize(128, 128);
-        renderer.RenderFrame(captureForVerification: true);
+        Renderer.Resize(128, 128);
+        Renderer.RenderFrame(CaptureForVerification: true);
 
-        Assert.NotNull(renderer.LastCapturedFrame);
-        Assert.Equal(128, renderer.LastCapturedFrame!.Width);
-        ModelVerificationResult resizedVerification = ModelPixelVerifier.Verify(renderer.LastCapturedFrame, ModelRenderer.ClearColor);
-        Assert.True(resizedVerification.Success, resizedVerification.Details);
+        Assert.NotNull(Renderer.LastCapturedFrame);
+        Assert.Equal(128, Renderer.LastCapturedFrame!.Width);
+        ModelVerificationResult ResizedVerification = ModelPixelVerifier.Verify(Renderer.LastCapturedFrame, ModelRenderer.ClearColor);
+        Assert.True(ResizedVerification.Success, ResizedVerification.Details);
 
-        Assert.Equal(0, renderer.ErrorOrWorseMessageCount);
+        Assert.Equal(0, Renderer.ErrorOrWorseMessageCount);
     }
 }

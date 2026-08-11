@@ -20,11 +20,11 @@ public sealed unsafe class GraphicsDevice : IDisposable
     public const D3D_FEATURE_LEVEL RequiredFeatureLevel = D3D_FEATURE_LEVEL_11_0;
 
     private IDXGIFactory4* _factory;
-    private IDXGIAdapter1* _adapter;
+    private IDXGIAdapter1* Adapter;
     private ID3D12Device* _device;
     private ID3D12CommandQueue* _commandQueue;
-    private ID3D12InfoQueue* _infoQueue;
-    private bool _disposed;
+    private ID3D12InfoQueue* InfoQueue;
+    private bool Disposed;
 
     private readonly List<D3D12DebugMessage> _collectedMessages = [];
 
@@ -50,61 +50,61 @@ public sealed unsafe class GraphicsDevice : IDisposable
 
     public ID3D12CommandQueue* CommandQueue => _commandQueue;
 
-    public static GraphicsDevice Create(GraphicsDeviceOptions options)
+    public static GraphicsDevice Create(GraphicsDeviceOptions Options)
     {
-        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(Options);
 
-        GraphicsDevice result = new();
-        bool completed = false;
+        GraphicsDevice Result = new();
+        bool Completed = false;
         try
         {
-            if (options.EnableDebugLayer)
+            if (Options.EnableDebugLayer)
             {
-                result.EnableDebugLayer(options.EnableGpuBasedValidation);
+                Result.EnableDebugLayer(Options.EnableGpuBasedValidation);
             }
 
-            uint factoryFlags = options.EnableDebugLayer ? DXGI_CREATE_FACTORY_DEBUG : 0u;
+            uint FactoryFlags = Options.EnableDebugLayer ? DXGI_CREATE_FACTORY_DEBUG : 0u;
 
             IDXGIFactory4* factory;
             D3D12Diagnostics.EnsureSuccess(
-                CreateDXGIFactory2(factoryFlags, __uuidof<IDXGIFactory4>(), (void**)&factory),
+                CreateDXGIFactory2(FactoryFlags, __uuidof<IDXGIFactory4>(), (void**)&factory),
                 "CreateDXGIFactory2", "creating the DXGI factory");
-            result._factory = factory;
+            Result._factory = factory;
 
-            result._adapter = SelectAdapter(factory, options.UseWarp, out bool isWarp);
-            result.IsWarp = isWarp;
-            result.AdapterDescription = ReadAdapterDescription(result._adapter);
+            Result.Adapter = SelectAdapter(factory, Options.UseWarp, out bool isWarp);
+            Result.IsWarp = isWarp;
+            Result.AdapterDescription = ReadAdapterDescription(Result.Adapter);
 
             ID3D12Device* device;
             D3D12Diagnostics.EnsureSuccess(
-                D3D12CreateDevice((IUnknown*)result._adapter, RequiredFeatureLevel, __uuidof<ID3D12Device>(), (void**)&device),
-                "D3D12CreateDevice", "creating the D3D12 device", result.AdapterDescription);
-            result._device = device;
+                D3D12CreateDevice((IUnknown*)Result.Adapter, RequiredFeatureLevel, __uuidof<ID3D12Device>(), (void**)&device),
+                "D3D12CreateDevice", "creating the D3D12 device", Result.AdapterDescription);
+            Result._device = device;
 
-            if (options.EnableDebugLayer)
+            if (Options.EnableDebugLayer)
             {
-                result.TryCreateInfoQueue();
+                Result.TryCreateInfoQueue();
             }
 
-            D3D12_COMMAND_QUEUE_DESC queueDesc = new()
+            D3D12_COMMAND_QUEUE_DESC QueueDesc = new()
             {
                 Type = D3D12_COMMAND_LIST_TYPE_DIRECT,
             };
 
             ID3D12CommandQueue* queue;
             D3D12Diagnostics.EnsureSuccess(
-                device->CreateCommandQueue(&queueDesc, __uuidof<ID3D12CommandQueue>(), (void**)&queue),
+                device->CreateCommandQueue(&QueueDesc, __uuidof<ID3D12CommandQueue>(), (void**)&queue),
                 "ID3D12Device::CreateCommandQueue", "creating the direct command queue");
-            result._commandQueue = queue;
+            Result._commandQueue = queue;
 
-            completed = true;
-            return result;
+            Completed = true;
+            return Result;
         }
         finally
         {
-            if (!completed)
+            if (!Completed)
             {
-                result.Dispose();
+                Result.Dispose();
             }
         }
     }
@@ -112,38 +112,38 @@ public sealed unsafe class GraphicsDevice : IDisposable
     /// <summary>Pulls any newly-recorded debug-layer messages into <see cref="CollectedMessages"/>. Cheap no-op when the info queue is unavailable or empty.</summary>
     public void PollDebugMessages()
     {
-        if (_infoQueue == null)
+        if (InfoQueue == null)
         {
             return;
         }
 
-        ulong stored = _infoQueue->GetNumStoredMessages();
-        for (ulong i = 0; i < stored; i++)
+        ulong Stored = InfoQueue->GetNumStoredMessages();
+        for (ulong i = 0; i < Stored; i++)
         {
-            nuint messageLength;
-            HRESULT hr = _infoQueue->GetMessage(i, null, &messageLength);
-            if (hr.FAILED || messageLength == 0)
+            nuint MessageLength;
+            HRESULT Hr = InfoQueue->GetMessage(i, null, &MessageLength);
+            if (Hr.FAILED || MessageLength == 0)
             {
                 continue;
             }
 
-            byte* buffer = (byte*)NativeMemory.Alloc(messageLength);
+            byte* buffer = (byte*)NativeMemory.Alloc(MessageLength);
             try
             {
-                D3D12_MESSAGE* message = (D3D12_MESSAGE*)buffer;
-                hr = _infoQueue->GetMessage(i, message, &messageLength);
-                if (hr.FAILED)
+                D3D12_MESSAGE* Message = (D3D12_MESSAGE*)buffer;
+                Hr = InfoQueue->GetMessage(i, Message, &MessageLength);
+                if (Hr.FAILED)
                 {
                     continue;
                 }
 
-                string description = message->pDescription != null
-                    ? new string(message->pDescription)
+                string Description = Message->pDescription != null
+                    ? new string(Message->pDescription)
                     : string.Empty;
 
-                D3D12DebugMessage record = new(message->Severity, message->Category, message->ID, description);
-                _collectedMessages.Add(record);
-                if (record.IsErrorOrWorse)
+                D3D12DebugMessage Record = new(Message->Severity, Message->Category, Message->ID, Description);
+                _collectedMessages.Add(Record);
+                if (Record.IsErrorOrWorse)
                 {
                     ErrorOrWorseMessageCount++;
                 }
@@ -154,82 +154,82 @@ public sealed unsafe class GraphicsDevice : IDisposable
             }
         }
 
-        _infoQueue->ClearStoredMessages();
+        InfoQueue->ClearStoredMessages();
     }
 
-    private void EnableDebugLayer(bool enableGpuBasedValidation)
+    private void EnableDebugLayer(bool EnableGpuBasedValidation)
     {
-        ID3D12Debug1* debugController;
-        HRESULT hr = D3D12GetDebugInterface(__uuidof<ID3D12Debug1>(), (void**)&debugController);
-        if (hr.FAILED)
+        ID3D12Debug1* DebugController;
+        HRESULT Hr = D3D12GetDebugInterface(__uuidof<ID3D12Debug1>(), (void**)&DebugController);
+        if (Hr.FAILED)
         {
-            Console.Error.WriteLine($"[CSharpGameEngine] D3D12GetDebugInterface failed (HRESULT=0x{hr.Value:X8}); the D3D12 debug layer requires the 'Graphics Tools' optional Windows feature. Continuing without it.");
+            Console.Error.WriteLine($"[CSharpGameEngine] D3D12GetDebugInterface failed (HRESULT=0x{Hr.Value:X8}); the D3D12 debug layer requires the 'Graphics Tools' optional Windows feature. Continuing without it.");
             return;
         }
 
-        debugController->EnableDebugLayer();
+        DebugController->EnableDebugLayer();
         DebugLayerEnabled = true;
 
-        if (enableGpuBasedValidation)
+        if (EnableGpuBasedValidation)
         {
-            debugController->SetEnableGPUBasedValidation(TRUE);
+            DebugController->SetEnableGPUBasedValidation(TRUE);
             GpuBasedValidationEnabled = true;
         }
 
-        _ = debugController->Release();
+        _ = DebugController->Release();
     }
 
     private void TryCreateInfoQueue()
     {
-        ID3D12InfoQueue* infoQueue;
-        HRESULT hr = _device->QueryInterface(__uuidof<ID3D12InfoQueue>(), (void**)&infoQueue);
-        if (hr.SUCCEEDED)
+        ID3D12InfoQueue* InfoQueue;
+        HRESULT Hr = _device->QueryInterface(__uuidof<ID3D12InfoQueue>(), (void**)&InfoQueue);
+        if (Hr.SUCCEEDED)
         {
-            _infoQueue = infoQueue;
+            this.InfoQueue = InfoQueue;
         }
     }
 
-    private static IDXGIAdapter1* SelectAdapter(IDXGIFactory4* factory, bool useWarp, out bool isWarp)
+    private static IDXGIAdapter1* SelectAdapter(IDXGIFactory4* factory, bool UseWarp, out bool isWarp)
     {
-        if (useWarp)
+        if (UseWarp)
         {
-            IDXGIAdapter1* warpAdapter;
+            IDXGIAdapter1* WarpAdapter;
             D3D12Diagnostics.EnsureSuccess(
-                factory->EnumWarpAdapter(__uuidof<IDXGIAdapter1>(), (void**)&warpAdapter),
+                factory->EnumWarpAdapter(__uuidof<IDXGIAdapter1>(), (void**)&WarpAdapter),
                 "IDXGIFactory4::EnumWarpAdapter", "selecting the WARP software adapter");
             isWarp = true;
-            return warpAdapter;
+            return WarpAdapter;
         }
 
         isWarp = false;
 
         for (uint index = 0; ; index++)
         {
-            IDXGIAdapter1* adapter;
-            HRESULT hr = factory->EnumAdapters1(index, &adapter);
-            if (hr.Value == DXGI_ERROR_NOT_FOUND)
+            IDXGIAdapter1* Adapter;
+            HRESULT Hr = factory->EnumAdapters1(index, &Adapter);
+            if (Hr.Value == DXGI_ERROR_NOT_FOUND)
             {
                 break;
             }
 
-            D3D12Diagnostics.EnsureSuccess(hr, "IDXGIFactory1::EnumAdapters1", "enumerating DXGI adapters");
+            D3D12Diagnostics.EnsureSuccess(Hr, "IDXGIFactory1::EnumAdapters1", "enumerating DXGI adapters");
 
-            DXGI_ADAPTER_DESC1 desc;
-            _ = adapter->GetDesc1(&desc);
+            DXGI_ADAPTER_DESC1 Desc;
+            _ = Adapter->GetDesc1(&Desc);
 
-            if (((DXGI_ADAPTER_FLAG)desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) != 0)
+            if (((DXGI_ADAPTER_FLAG)Desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) != 0)
             {
-                _ = adapter->Release();
+                _ = Adapter->Release();
                 continue;
             }
 
-            HRESULT supportHr = D3D12CreateDevice((IUnknown*)adapter, RequiredFeatureLevel, __uuidof<ID3D12Device>(), null);
-            if (supportHr.SUCCEEDED)
+            HRESULT SupportHr = D3D12CreateDevice((IUnknown*)Adapter, RequiredFeatureLevel, __uuidof<ID3D12Device>(), null);
+            if (SupportHr.SUCCEEDED)
             {
-                return adapter;
+                return Adapter;
             }
 
-            _ = adapter->Release();
+            _ = Adapter->Release();
         }
 
         throw new InvalidOperationException(
@@ -237,24 +237,24 @@ public sealed unsafe class GraphicsDevice : IDisposable
             "Pass --warp to explicitly use the WARP software adapter instead.");
     }
 
-    private static string ReadAdapterDescription(IDXGIAdapter1* adapter)
+    private static string ReadAdapterDescription(IDXGIAdapter1* Adapter)
     {
-        DXGI_ADAPTER_DESC1 desc;
-        _ = adapter->GetDesc1(&desc);
+        DXGI_ADAPTER_DESC1 Desc;
+        _ = Adapter->GetDesc1(&Desc);
 
-        Span<char> nameChars = desc.Description;
-        int nullIndex = nameChars.IndexOf('\0');
-        return new string(nullIndex >= 0 ? nameChars[..nullIndex] : nameChars);
+        Span<char> NameChars = Desc.Description;
+        int NullIndex = NameChars.IndexOf('\0');
+        return new string(NullIndex >= 0 ? NameChars[..NullIndex] : NameChars);
     }
 
     public void Dispose()
     {
-        if (_disposed)
+        if (Disposed)
         {
             return;
         }
 
-        _disposed = true;
+        Disposed = true;
 
         if (_commandQueue != null)
         {
@@ -262,10 +262,10 @@ public sealed unsafe class GraphicsDevice : IDisposable
             _commandQueue = null;
         }
 
-        if (_infoQueue != null)
+        if (InfoQueue != null)
         {
-            _ = _infoQueue->Release();
-            _infoQueue = null;
+            _ = InfoQueue->Release();
+            InfoQueue = null;
         }
 
         if (_device != null)
@@ -274,10 +274,10 @@ public sealed unsafe class GraphicsDevice : IDisposable
             _device = null;
         }
 
-        if (_adapter != null)
+        if (Adapter != null)
         {
-            _ = _adapter->Release();
-            _adapter = null;
+            _ = Adapter->Release();
+            Adapter = null;
         }
 
         if (_factory != null)

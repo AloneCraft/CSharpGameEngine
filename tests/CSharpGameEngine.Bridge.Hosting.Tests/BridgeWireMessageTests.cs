@@ -9,27 +9,27 @@ public class BridgeWireMessageTests
     public async Task WriteThenRead_RoundTripsRequest()
     {
         using MemoryStream stream = new();
-        BridgeServerRequest original = new() { Args = ["input.glb", "output.json"] };
+        BridgeServerRequest Original = new() { Args = ["input.glb", "output.json"] };
 
-        await BridgeWireMessage.WriteAsync(stream, original, CancellationToken.None);
+        await BridgeWireMessage.WriteAsync(stream, Original, CancellationToken.None);
         stream.Position = 0;
-        BridgeServerRequest roundTripped = await BridgeWireMessage.ReadAsync<BridgeServerRequest>(stream, CancellationToken.None);
+        BridgeServerRequest RoundTripped = await BridgeWireMessage.ReadAsync<BridgeServerRequest>(stream, CancellationToken.None);
 
-        Assert.Equal(original.Args, roundTripped.Args);
+        Assert.Equal(Original.Args, RoundTripped.Args);
     }
 
     [Fact]
     public async Task WriteThenRead_RoundTripsResponse()
     {
         using MemoryStream stream = new();
-        BridgeServerResponse original = new() { ExitCode = 1, Output = "Failed to parse FBX file 'bad.fbx': corrupt header" };
+        BridgeServerResponse Original = new() { ExitCode = 1, Output = "Failed to parse FBX file 'bad.fbx': corrupt header" };
 
-        await BridgeWireMessage.WriteAsync(stream, original, CancellationToken.None);
+        await BridgeWireMessage.WriteAsync(stream, Original, CancellationToken.None);
         stream.Position = 0;
-        BridgeServerResponse roundTripped = await BridgeWireMessage.ReadAsync<BridgeServerResponse>(stream, CancellationToken.None);
+        BridgeServerResponse RoundTripped = await BridgeWireMessage.ReadAsync<BridgeServerResponse>(stream, CancellationToken.None);
 
-        Assert.Equal(original.ExitCode, roundTripped.ExitCode);
-        Assert.Equal(original.Output, roundTripped.Output);
+        Assert.Equal(Original.ExitCode, RoundTripped.ExitCode);
+        Assert.Equal(Original.Output, RoundTripped.Output);
     }
 
     [Fact]
@@ -40,11 +40,11 @@ public class BridgeWireMessageTests
         await BridgeWireMessage.WriteAsync(stream, new BridgeServerResponse { ExitCode = 0, Output = "second" }, CancellationToken.None);
         stream.Position = 0;
 
-        BridgeServerResponse first = await BridgeWireMessage.ReadAsync<BridgeServerResponse>(stream, CancellationToken.None);
-        BridgeServerResponse second = await BridgeWireMessage.ReadAsync<BridgeServerResponse>(stream, CancellationToken.None);
+        BridgeServerResponse First = await BridgeWireMessage.ReadAsync<BridgeServerResponse>(stream, CancellationToken.None);
+        BridgeServerResponse Second = await BridgeWireMessage.ReadAsync<BridgeServerResponse>(stream, CancellationToken.None);
 
-        Assert.Equal("first", first.Output);
-        Assert.Equal("second", second.Output);
+        Assert.Equal("first", First.Output);
+        Assert.Equal("second", Second.Output);
     }
 
     [Fact]

@@ -12,19 +12,19 @@ if (args.Length == 0 || IsHelp(args[0]))
     return;
 }
 
-int exitCode = args[0] switch
+int ExitCode = args[0] switch
 {
     "self-test" => RunSelfTest(),
     "triangle" => RunTriangle(args[1..]),
     _ => RunUnknownCommand(args[0]),
 };
 
-Environment.ExitCode = exitCode;
+Environment.ExitCode = ExitCode;
 
-static bool IsHelp(string command) =>
-    string.Equals(command, "--help", StringComparison.OrdinalIgnoreCase) ||
-    string.Equals(command, "-h", StringComparison.OrdinalIgnoreCase) ||
-    string.Equals(command, "help", StringComparison.OrdinalIgnoreCase);
+static bool IsHelp(string Command) =>
+    string.Equals(Command, "--help", StringComparison.OrdinalIgnoreCase) ||
+    string.Equals(Command, "-h", StringComparison.OrdinalIgnoreCase) ||
+    string.Equals(Command, "help", StringComparison.OrdinalIgnoreCase);
 
 static int RunSelfTest()
 {
@@ -39,11 +39,11 @@ static int RunSelfTest()
             return 1;
         }
 
-        DiagnosticBag bag = new();
-        bag.Add(new Diagnostic("TH0001", DiagnosticSeverity.Info, "Self-test diagnostic emitted.", SourceLocation.Unknown));
+        DiagnosticBag Bag = new();
+        Bag.Add(new Diagnostic("TH0001", DiagnosticSeverity.Info, "Self-test diagnostic emitted.", SourceLocation.Unknown));
 
         Console.WriteLine($"StableId: {stableId}");
-        foreach (Diagnostic diagnostic in bag)
+        foreach (Diagnostic diagnostic in Bag)
         {
             Console.WriteLine(diagnostic.ToString());
         }
@@ -51,145 +51,145 @@ static int RunSelfTest()
         Console.WriteLine($"SUCCESS: {InternalName} core self-test completed.");
         return 0;
     }
-    catch (Exception ex)
+    catch (Exception Ex)
     {
-        Console.WriteLine($"FAILED: self-test crashed: {ex.Message}");
+        Console.WriteLine($"FAILED: self-test crashed: {Ex.Message}");
         return 1;
     }
 }
 
-static int RunTriangle(string[] triangleArgs)
+static int RunTriangle(string[] TriangleArgs)
 {
-    TriangleOptionsParseResult parseResult = TriangleOptionsParser.Parse(triangleArgs);
-    if (!parseResult.Success)
+    TriangleOptionsParseResult ParseResult = TriangleOptionsParser.Parse(TriangleArgs);
+    if (!ParseResult.Success)
     {
-        Console.WriteLine($"FAILED: {parseResult.Error}");
+        Console.WriteLine($"FAILED: {ParseResult.Error}");
         return 2;
     }
 
-    TriangleRunOptions options = parseResult.Options!;
-    string shaderPath = Path.Combine(AppContext.BaseDirectory, "Shaders", "Triangle.hlsl");
+    TriangleRunOptions Options = ParseResult.Options!;
+    string ShaderPath = Path.Combine(AppContext.BaseDirectory, "Shaders", "Triangle.hlsl");
 
     Console.WriteLine($"Product: {ProductDisplayName} ({InternalName})");
-    Console.WriteLine($"Mode: {(options.Hidden ? "hidden" : "windowed")}, frames={(options.Frames is int f ? f.ToString() : "until closed")}, verify={options.Verify}");
+    Console.WriteLine($"Mode: {(Options.Hidden ? "hidden" : "windowed")}, frames={(Options.Frames is int F ? F.ToString() : "until closed")}, verify={Options.Verify}");
 
-    using Win32Window window = new(new Win32WindowOptions
+    using Win32Window Window = new(new Win32WindowOptions
     {
         Title = $"{ProductDisplayName} - Triangle",
-        Width = options.Width,
-        Height = options.Height,
-        Visible = !options.Hidden,
+        Width = Options.Width,
+        Height = Options.Height,
+        Visible = !Options.Hidden,
     });
 
-    GraphicsDeviceOptions deviceOptions = new()
+    GraphicsDeviceOptions DeviceOptions = new()
     {
-        UseWarp = options.UseWarp,
-        EnableDebugLayer = options.EnableDebugLayer,
-        EnableGpuBasedValidation = options.EnableGpuValidation,
+        UseWarp = Options.UseWarp,
+        EnableDebugLayer = Options.EnableDebugLayer,
+        EnableGpuBasedValidation = Options.EnableGpuValidation,
     };
 
-    TriangleRenderer renderer;
+    TriangleRenderer Renderer;
     try
     {
-        renderer = TriangleRenderer.Create(window.Handle, window.ClientWidth, window.ClientHeight, deviceOptions, shaderPath);
+        Renderer = TriangleRenderer.Create(Window.Handle, Window.ClientWidth, Window.ClientHeight, DeviceOptions, ShaderPath);
     }
-    catch (Exception ex)
+    catch (Exception Ex)
     {
-        Console.WriteLine($"FAILED: could not initialize the D3D12 renderer: {ex.Message}");
+        Console.WriteLine($"FAILED: could not initialize the D3D12 renderer: {Ex.Message}");
         return 1;
     }
 
-    window.Resized += (w, h) => renderer.Resize(w, h);
+    Window.Resized += (W, H) => Renderer.Resize(W, H);
 
-    Console.WriteLine($"Adapter: {renderer.AdapterDescription} ({(renderer.IsWarp ? "WARP" : "Hardware")})");
+    Console.WriteLine($"Adapter: {Renderer.AdapterDescription} ({(Renderer.IsWarp ? "WARP" : "Hardware")})");
     Console.WriteLine($"Feature level: {GraphicsDevice.RequiredFeatureLevel}");
-    Console.WriteLine($"Back buffer format: {TriangleRenderer.BackBufferFormat}, {options.Width}x{options.Height}");
-    Console.WriteLine($"Debug layer: {(renderer.DebugLayerEnabled ? "enabled" : "disabled")}{(renderer.GpuBasedValidationEnabled ? " (+GPU-based validation)" : string.Empty)}");
-    Console.WriteLine($"Shader compilation: {(renderer.ShaderCompilationSucceeded ? "OK" : "FAILED")} ({renderer.ShaderDiagnostics.Count} diagnostic(s))");
-    foreach (HlslDiagnostic diagnostic in renderer.ShaderDiagnostics)
+    Console.WriteLine($"Back buffer format: {TriangleRenderer.BackBufferFormat}, {Options.Width}x{Options.Height}");
+    Console.WriteLine($"Debug layer: {(Renderer.DebugLayerEnabled ? "enabled" : "disabled")}{(Renderer.GpuBasedValidationEnabled ? " (+GPU-based validation)" : string.Empty)}");
+    Console.WriteLine($"Shader compilation: {(Renderer.ShaderCompilationSucceeded ? "OK" : "FAILED")} ({Renderer.ShaderDiagnostics.Count} diagnostic(s))");
+    foreach (HlslDiagnostic diagnostic in Renderer.ShaderDiagnostics)
     {
         Console.WriteLine($"  {diagnostic}");
     }
 
-    int exitCode = 0;
+    int ExitCode = 0;
     try
     {
-        if (options.Frames is int frameCount)
+        if (Options.Frames is int FrameCount)
         {
-            for (int i = 0; i < frameCount && !window.IsClosed; i++)
+            for (int i = 0; i < FrameCount && !Window.IsClosed; i++)
             {
-                window.PumpEvents();
-                if (window.IsClosed || window.IsMinimized)
+                Window.PumpEvents();
+                if (Window.IsClosed || Window.IsMinimized)
                 {
                     continue;
                 }
 
-                bool isLastFrame = i == frameCount - 1;
-                renderer.RenderFrame(captureForVerification: options.Verify && isLastFrame);
+                bool IsLastFrame = i == FrameCount - 1;
+                Renderer.RenderFrame(CaptureForVerification: Options.Verify && IsLastFrame);
             }
         }
         else
         {
-            while (!window.IsClosed)
+            while (!Window.IsClosed)
             {
-                window.PumpEvents();
-                if (!window.IsClosed && !window.IsMinimized)
+                Window.PumpEvents();
+                if (!Window.IsClosed && !Window.IsMinimized)
                 {
-                    renderer.RenderFrame();
+                    Renderer.RenderFrame();
                 }
             }
         }
 
-        Console.WriteLine($"Frames rendered: {renderer.FramesRendered}");
+        Console.WriteLine($"Frames rendered: {Renderer.FramesRendered}");
 
-        if (options.Verify)
+        if (Options.Verify)
         {
-            if (renderer.LastCapturedFrame is null)
+            if (Renderer.LastCapturedFrame is null)
             {
                 Console.WriteLine("Verification: FAILED (no frame was captured for readback).");
-                exitCode = 1;
+                ExitCode = 1;
             }
             else
             {
-                TriangleVerificationResult verification = TrianglePixelVerifier.Verify(renderer.LastCapturedFrame, TriangleRenderer.ClearColor);
-                Console.WriteLine($"Verification: {(verification.Success ? "PASSED" : "FAILED")} - {verification.Details}");
-                if (!verification.Success)
+                TriangleVerificationResult Verification = TrianglePixelVerifier.Verify(Renderer.LastCapturedFrame, TriangleRenderer.ClearColor);
+                Console.WriteLine($"Verification: {(Verification.Success ? "PASSED" : "FAILED")} - {Verification.Details}");
+                if (!Verification.Success)
                 {
-                    exitCode = 1;
+                    ExitCode = 1;
                 }
             }
         }
 
-        int errorMessageCount = renderer.ErrorOrWorseMessageCount;
-        Console.WriteLine($"D3D12 validation errors: {errorMessageCount}");
-        if (errorMessageCount > 0)
+        int ErrorMessageCount = Renderer.ErrorOrWorseMessageCount;
+        Console.WriteLine($"D3D12 validation errors: {ErrorMessageCount}");
+        if (ErrorMessageCount > 0)
         {
-            foreach (D3D12DebugMessage message in renderer.DebugMessages)
+            foreach (D3D12DebugMessage Message in Renderer.DebugMessages)
             {
-                if (message.IsErrorOrWorse)
+                if (Message.IsErrorOrWorse)
                 {
-                    Console.WriteLine($"  {message}");
+                    Console.WriteLine($"  {Message}");
                 }
             }
 
-            exitCode = 1;
+            ExitCode = 1;
         }
     }
     finally
     {
-        renderer.Dispose();
+        Renderer.Dispose();
     }
 
-    Console.WriteLine(exitCode == 0
+    Console.WriteLine(ExitCode == 0
         ? $"SUCCESS: {InternalName} triangle finished."
         : $"FAILED: {InternalName} triangle finished with errors.");
 
-    return exitCode;
+    return ExitCode;
 }
 
-static int RunUnknownCommand(string command)
+static int RunUnknownCommand(string Command)
 {
-    Console.WriteLine($"Unknown command: {command}");
+    Console.WriteLine($"Unknown command: {Command}");
     PrintHelp();
     return 2;
 }

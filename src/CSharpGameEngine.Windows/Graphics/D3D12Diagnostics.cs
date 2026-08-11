@@ -4,11 +4,11 @@ namespace CSharpGameEngine.Graphics.D3D12;
 
 internal static class D3D12Diagnostics
 {
-    public static void EnsureSuccess(HRESULT hr, string api, string context, string? subject = null)
+    public static void EnsureSuccess(HRESULT Hr, string Api, string Context, string? Subject = null)
     {
-        if (hr.FAILED)
+        if (Hr.FAILED)
         {
-            throw new D3D12Exception(api, hr.Value, context, subject);
+            throw new D3D12Exception(Api, Hr.Value, Context, Subject);
         }
     }
 }

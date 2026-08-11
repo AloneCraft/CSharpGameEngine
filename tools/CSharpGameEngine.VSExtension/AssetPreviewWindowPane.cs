@@ -16,101 +16,101 @@ namespace CSharpGameEngine.VSExtension;
 /// </summary>
 internal sealed class AssetPreviewWindowPane : WindowPane, IVsPersistDocData, IPersistFileFormat
 {
-    private readonly AssetPreviewControl _control;
-    private string _filePath;
+    private readonly AssetPreviewControl Control;
+    private string FilePath;
 
-    public AssetPreviewWindowPane(string filePath)
+    public AssetPreviewWindowPane(string FilePath)
     {
-        _filePath = filePath;
-        _control = new AssetPreviewControl(filePath);
-        Content = _control;
+        this.FilePath = FilePath;
+        Control = new AssetPreviewControl(FilePath);
+        Content = Control;
     }
 
-    private int LoadFromPath(string path)
+    private int LoadFromPath(string Path)
     {
-        _filePath = path;
-        _control.SetModelPath(path);
+        FilePath = Path;
+        Control.SetModelPath(Path);
         return VSConstants.S_OK;
     }
 
     // IPersist (base interface of IPersistFileFormat - a distinct member from
     // IPersistFileFormat.GetClassID despite the identical signature/semantics).
-    int IPersist.GetClassID(out Guid pClassID)
+    int IPersist.GetClassID(out Guid PClassID)
     {
-        pClassID = typeof(GlbFbxPreviewEditorFactory).GUID;
+        PClassID = typeof(GlbFbxPreviewEditorFactory).GUID;
         return VSConstants.S_OK;
     }
 
     // IPersistFileFormat
-    int IPersistFileFormat.GetClassID(out Guid pClassID)
+    int IPersistFileFormat.GetClassID(out Guid PClassID)
     {
-        pClassID = typeof(GlbFbxPreviewEditorFactory).GUID;
+        PClassID = typeof(GlbFbxPreviewEditorFactory).GUID;
         return VSConstants.S_OK;
     }
 
-    int IPersistFileFormat.GetFormatList(out string ppszFormatList)
+    int IPersistFileFormat.GetFormatList(out string PpszFormatList)
     {
-        ppszFormatList = string.Empty;
+        PpszFormatList = string.Empty;
         return VSConstants.S_OK;
     }
 
-    int IPersistFileFormat.IsDirty(out int pfDirty)
+    int IPersistFileFormat.IsDirty(out int PfDirty)
     {
-        pfDirty = 0;
+        PfDirty = 0;
         return VSConstants.S_OK;
     }
 
-    int IPersistFileFormat.InitNew(uint nFormatIndex) => VSConstants.E_NOTIMPL;
+    int IPersistFileFormat.InitNew(uint NFormatIndex) => VSConstants.E_NOTIMPL;
 
-    int IPersistFileFormat.Load(string pszFilename, uint grfMode, int fReadOnly) => LoadFromPath(pszFilename);
+    int IPersistFileFormat.Load(string PszFilename, uint GrfMode, int FReadOnly) => LoadFromPath(PszFilename);
 
-    int IPersistFileFormat.Save(string pszFilename, int fRemember, uint nFormatIndex) => VSConstants.E_NOTIMPL;
+    int IPersistFileFormat.Save(string PszFilename, int FRemember, uint NFormatIndex) => VSConstants.E_NOTIMPL;
 
-    int IPersistFileFormat.SaveCompleted(string pszFilename) => VSConstants.S_OK;
+    int IPersistFileFormat.SaveCompleted(string PszFilename) => VSConstants.S_OK;
 
-    int IPersistFileFormat.GetCurFile(out string ppszFilename, out uint pnFormatIndex)
+    int IPersistFileFormat.GetCurFile(out string PpszFilename, out uint PnFormatIndex)
     {
-        ppszFilename = _filePath;
-        pnFormatIndex = 0;
+        PpszFilename = FilePath;
+        PnFormatIndex = 0;
         return VSConstants.S_OK;
     }
 
     // IVsPersistDocData
-    int IVsPersistDocData.GetGuidEditorType(out Guid pClassID)
+    int IVsPersistDocData.GetGuidEditorType(out Guid PClassID)
     {
-        pClassID = typeof(GlbFbxPreviewEditorFactory).GUID;
+        PClassID = typeof(GlbFbxPreviewEditorFactory).GUID;
         return VSConstants.S_OK;
     }
 
-    int IVsPersistDocData.IsDocDataDirty(out int pfDirty)
+    int IVsPersistDocData.IsDocDataDirty(out int PfDirty)
     {
-        pfDirty = 0;
+        PfDirty = 0;
         return VSConstants.S_OK;
     }
 
-    int IVsPersistDocData.SetUntitledDocPath(string pszDocDataPath) => VSConstants.E_NOTIMPL;
+    int IVsPersistDocData.SetUntitledDocPath(string PszDocDataPath) => VSConstants.E_NOTIMPL;
 
-    int IVsPersistDocData.LoadDocData(string pszMkDocument) => LoadFromPath(pszMkDocument);
+    int IVsPersistDocData.LoadDocData(string PszMkDocument) => LoadFromPath(PszMkDocument);
 
-    int IVsPersistDocData.SaveDocData(VSSAVEFLAGS dwSave, out string pbstrMkDocumentNew, out int pfSaveCanceled)
+    int IVsPersistDocData.SaveDocData(VSSAVEFLAGS DwSave, out string PbstrMkDocumentNew, out int PfSaveCanceled)
     {
-        pbstrMkDocumentNew = null!;
-        pfSaveCanceled = 0;
+        PbstrMkDocumentNew = null!;
+        PfSaveCanceled = 0;
         return VSConstants.S_OK;
     }
 
     int IVsPersistDocData.Close() => VSConstants.S_OK;
 
-    int IVsPersistDocData.OnRegisterDocData(uint docCookie, IVsHierarchy pHierNew, uint itemidNew) => VSConstants.S_OK;
+    int IVsPersistDocData.OnRegisterDocData(uint DocCookie, IVsHierarchy PHierNew, uint ItemidNew) => VSConstants.S_OK;
 
-    int IVsPersistDocData.RenameDocData(uint grfAttribs, IVsHierarchy pHierNew, uint itemidNew, string pszMkDocumentNew) =>
-        LoadFromPath(pszMkDocumentNew);
+    int IVsPersistDocData.RenameDocData(uint GrfAttribs, IVsHierarchy PHierNew, uint ItemidNew, string PszMkDocumentNew) =>
+        LoadFromPath(PszMkDocumentNew);
 
-    int IVsPersistDocData.IsDocDataReloadable(out int pfReloadable)
+    int IVsPersistDocData.IsDocDataReloadable(out int PfReloadable)
     {
-        pfReloadable = 1;
+        PfReloadable = 1;
         return VSConstants.S_OK;
     }
 
-    int IVsPersistDocData.ReloadDocData(uint grfFlags) => LoadFromPath(_filePath);
+    int IVsPersistDocData.ReloadDocData(uint GrfFlags) => LoadFromPath(FilePath);
 }

@@ -13,13 +13,13 @@ namespace CSharpGameEngine.Spatial.Abstractions;
 /// </summary>
 public interface ITransformConvention
 {
-    static abstract Matrix4x4 Compose(in RufVector position, in RufQuaternion rotation, in RufVector scale);
+    static abstract Matrix4x4 Compose(in RufVector Position, in RufQuaternion Rotation, in RufVector Scale);
 
-    static abstract Matrix4x4 Combine(in Matrix4x4 parentWorld, in Matrix4x4 local);
+    static abstract Matrix4x4 Combine(in Matrix4x4 ParentWorld, in Matrix4x4 Local);
 
-    static abstract RufVector TransformPoint(in Matrix4x4 transform, in RufVector point);
+    static abstract RufVector TransformPoint(in Matrix4x4 Transform, in RufVector Point);
 
-    static abstract RufVector TransformDirection(in Matrix4x4 transform, in RufVector direction);
+    static abstract RufVector TransformDirection(in Matrix4x4 Transform, in RufVector Direction);
 
-    static abstract RufVector TransformNormal(in Matrix4x4 transform, in RufVector normal);
+    static abstract RufVector TransformNormal(in Matrix4x4 Transform, in RufVector Normal);
 }

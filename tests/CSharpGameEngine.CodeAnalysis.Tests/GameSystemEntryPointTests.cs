@@ -43,35 +43,35 @@ public sealed class GameSystemEntryPointTests
     [Fact]
     public void EntryPointIsGenerated_ForAnApplicationWithoutItsOwnMain()
     {
-        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(
+        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
             GameSystemGeneratorTestHelper.CreateApplicationCompilation(
                 GameSystemGeneratorTestHelper.CommonComponents, StartupAndTickSystems));
 
-        Assert.Empty(result.Diagnostics);
+        Assert.Empty(Result.Diagnostics);
 
-        string text = GameSystemGeneratorTestHelper.GeneratedText(result, EntryPointHintName);
+        string Text = GameSystemGeneratorTestHelper.GeneratedText(Result, EntryPointHintName);
 
-        Assert.Contains("private static void Main()", text);
-        Assert.Contains("World.Create(new global::CSharpGameEngine.Entities.Bootstrap());", text);
-        Assert.Contains("GeneratedGameLoop.Run(ref State);", text);
+        Assert.Contains("private static void Main()", Text);
+        Assert.Contains("World.Create(new global::CSharpGameEngine.Entities.Bootstrap());", Text);
+        Assert.Contains("GeneratedGameLoop.Run(ref State);", Text);
     }
 
     [Fact]
     public void EntryPointIsNotGenerated_ForALibrary()
     {
         // テストプロジェクトや共有ソースのスモークビルドがこれに当たる。
-        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(
+        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
             GameSystemGeneratorTestHelper.CommonComponents, StartupAndTickSystems);
 
-        Assert.Empty(result.Diagnostics);
-        AssertNoEntryPoint(result);
+        Assert.Empty(Result.Diagnostics);
+        AssertNoEntryPoint(Result);
     }
 
     [Fact]
     public void EntryPointIsNotGenerated_WhenTheUserWroteTheirOwnMain()
     {
         // UserGameProjectの回帰。手書きProgram.csがある限りSGは黙る(CS0017を起こさない)。
-        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(
+        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
             GameSystemGeneratorTestHelper.CreateApplicationCompilation(
                 GameSystemGeneratorTestHelper.CommonComponents,
                 StartupAndTickSystems,
@@ -84,26 +84,26 @@ public sealed class GameSystemEntryPointTests
                 }
                 """));
 
-        Assert.Empty(result.Diagnostics);
-        AssertNoEntryPoint(result);
+        Assert.Empty(Result.Diagnostics);
+        AssertNoEntryPoint(Result);
     }
 
     [Fact]
     public void EntryPointIsNotGenerated_ForAnApplicationWithoutAnySystem()
     {
         // Systemが無ければループも無い。Mainが要るなら手書きするしかなく、CS5001がそのまま正しい。
-        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(
+        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
             GameSystemGeneratorTestHelper.CreateApplicationCompilation(
                 GameSystemGeneratorTestHelper.CommonComponents));
 
-        AssertNoEntryPoint(result);
+        AssertNoEntryPoint(Result);
     }
 
     [Fact]
     public void ContextParameter_ReportsSysgen021_AndSuppressesTheEntryPoint()
     {
         // Contextは`Run`の引数になるため、生成されたMainには渡す値を作る手段が無い。
-        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(
+        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
             GameSystemGeneratorTestHelper.CreateApplicationCompilation(
                 GameSystemGeneratorTestHelper.CommonComponents,
                 """
@@ -118,11 +118,11 @@ public sealed class GameSystemEntryPointTests
                 }
                 """));
 
-        Diagnostic diagnostic = Assert.Single(result.Diagnostics, d => d.Id == "SYSGEN021");
+        Diagnostic diagnostic = Assert.Single(Result.Diagnostics, D => D.Id == "SYSGEN021");
 
         Assert.Contains("Game.ContextSystem", diagnostic.GetMessage());
         Assert.Contains("Sample.Log", diagnostic.GetMessage());
-        AssertNoEntryPoint(result);
+        AssertNoEntryPoint(Result);
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public sealed class GameSystemEntryPointTests
     {
         // 生成しないコンパイルにまでBootstrapのArchetypeが増えると、Archetype番号がずれるうえに
         // 誰も入らない空ループが出る。注入はエントリポイントを出すと決めた場合だけに限定している。
-        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(
+        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
             GameSystemGeneratorTestHelper.CommonComponents,
             """
             using CSharpGameEngine.Entities;
@@ -144,9 +144,9 @@ public sealed class GameSystemEntryPointTests
             }
             """);
 
-        string types = GameSystemGeneratorTestHelper.GeneratedText(result, "GameSystem.Types.g.cs");
+        string Types = GameSystemGeneratorTestHelper.GeneratedText(Result, "GameSystem.Types.g.cs");
 
-        Assert.DoesNotContain("Bootstrap", types);
+        Assert.DoesNotContain("Bootstrap", Types);
     }
 
     [Fact]
@@ -154,7 +154,7 @@ public sealed class GameSystemEntryPointTests
     {
         // 生成されたMainは必ず`World.Create(new Bootstrap())`を呼ぶので、Bootstrapを受け取るSystemが
         // 1つも無くてもオーバーロードが存在しなければならない。
-        GeneratorDriverRunResult result = GameSystemGeneratorTestHelper.RunGenerator(
+        GeneratorDriverRunResult Result = GameSystemGeneratorTestHelper.RunGenerator(
             GameSystemGeneratorTestHelper.CreateApplicationCompilation(
                 GameSystemGeneratorTestHelper.CommonComponents,
                 """
@@ -169,10 +169,10 @@ public sealed class GameSystemEntryPointTests
                 }
                 """));
 
-        string world = GameSystemGeneratorTestHelper.GeneratedText(result, "GameSystem.World.g.cs");
+        string World = GameSystemGeneratorTestHelper.GeneratedText(Result, "GameSystem.World.g.cs");
 
-        Assert.Contains("public Entity Create(global::CSharpGameEngine.Entities.Bootstrap Bootstrap)", world);
-        Assert.Contains(EntryPointHintName, result.Results[0].GeneratedSources.Select(s => s.HintName));
+        Assert.Contains("public Entity Create(global::CSharpGameEngine.Entities.Bootstrap Bootstrap)", World);
+        Assert.Contains(EntryPointHintName, Result.Results[0].GeneratedSources.Select(S => S.HintName));
     }
 
     /// <summary>
@@ -240,6 +240,6 @@ public sealed class GameSystemEntryPointTests
         Assert.Equal("1:3:3", GameSystemGeneratorTestHelper.Invoke(assembly, "Game.Trace", "Result"));
     }
 
-    private static void AssertNoEntryPoint(GeneratorDriverRunResult result) =>
-        Assert.DoesNotContain(EntryPointHintName, result.Results[0].GeneratedSources.Select(s => s.HintName));
+    private static void AssertNoEntryPoint(GeneratorDriverRunResult Result) =>
+        Assert.DoesNotContain(EntryPointHintName, Result.Results[0].GeneratedSources.Select(S => S.HintName));
 }
