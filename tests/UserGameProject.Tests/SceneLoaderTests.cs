@@ -81,6 +81,10 @@ public class SceneLoaderTests {
             Assert.Single(Scene.Meshes);
             Assert.Single(Scene.Materials);
             Assert.Single(Scene.Objects);
+            Assert.Equal(1,Scene.Assets.RenderableCount);
+            Assert.True(Scene.Assets.Contains(Spawn.Mesh,Spawn.Material));
+            Assert.Equal(0,Spawn.Mesh.Value);
+            Assert.Equal(0,Spawn.Material.Value);
         } finally {
             File.Delete(GlbPath);
             File.Delete(MetaPath);
@@ -100,5 +104,17 @@ public class SceneLoaderTests {
             File.Delete(GlbPath);
             File.Delete(MetaPath);
         }
+    }
+
+    [Fact]
+    public void Load_RealFirstPersonStage_ProvidesTwentyOrMoreSharedRenderableResources(){
+        var GlbPath=Path.Combine(AppContext.BaseDirectory,"Assets","Stage","Lvl_FirstPerson","Lvl_FirstPerson.glb");
+        var MetaPath=Path.Combine(AppContext.BaseDirectory,"Assets","Stage","Lvl_FirstPerson","scene_meta.json");
+
+        LoadedScene Scene=SceneLoader.Load(GlbPath,MetaPath);
+
+        Assert.True(Scene.Spawns.Length>=20,"Expected a rich stage with at least twenty renderables.");
+        Assert.Equal(Scene.Spawns.Length,Scene.Assets.RenderableCount);
+        Assert.All(Scene.Spawns,Spawn=>Assert.True(Scene.Assets.Contains(Spawn.Mesh,Spawn.Material)));
     }
 }

@@ -38,7 +38,7 @@ GraphicsDeviceOptions DeviceOptions=new();
 
 using StageRenderer Renderer=StageRenderer.Create(
     Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
-    Scene.Meshes,Scene.Materials,Scene.Objects);
+    Scene.Assets.Meshes,Scene.Assets.Materials,Scene.Assets.Objects);
 
 Window.Resized+=(W,H)=>Renderer.Resize(W,H);
 
@@ -51,12 +51,19 @@ world.Create(new SceneSpawnRequest { Scene=Scene });
 Window.SetMouseCaptured(true);
 
 State state=new(world){ Enabled=true };
+TransformHierarchyRuntime TransformHierarchy=new();
+using AudioRuntime Audio=new();
 
 SceneSpawn SceneSpawnSystem=new();
 Input InputSystem=new();
 PlayerControl PlayerControlSystem=new();
 UserGameProject.Systems.Camera CameraSystem=new();
-MovingProp MovingPropSystem=new();
+LocalToWorld LocalToWorldSystem=new();
+ParentToWorld ParentToWorldSystem=new();
+RotationMotion RotationMotionSystem=new();
+OrbitMotionSystem OrbitMotionSystem=new();
+AudioListenerSync AudioListenerSystem=new();
+AudioSourcePlayback AudioSourceSystem=new();
 RenderSync RenderSyncSystem=new();
 
 Stopwatch stopwatch=Stopwatch.StartNew();
@@ -82,11 +89,18 @@ while(!Window.IsClosed){
         ref InputSystem,
         ref PlayerControlSystem,
         ref CameraSystem,
-        ref MovingPropSystem,
+        ref LocalToWorldSystem,
+        ref ParentToWorldSystem,
+        ref RotationMotionSystem,
+        ref OrbitMotionSystem,
+        ref AudioListenerSystem,
+        ref AudioSourceSystem,
         ref RenderSyncSystem,
         Renderer,
         Window,
-        in Frame);
+        Audio,
+        in Frame,
+        TransformHierarchy);
 
     Renderer.RenderFrame();
 }

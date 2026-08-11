@@ -290,11 +290,15 @@ public static class GltfImporter {
         MaterialChannel?BaseColorChannel=material.FindChannel("BaseColor");
         MaterialChannel?NormalChannel=material.FindChannel("Normal");
         MaterialChannel?MetallicRoughnessChannel=material.FindChannel("MetallicRoughness");
+        MaterialChannel?EmissiveChannel=material.FindChannel("Emissive");
 
         return new ImportedPbrMaterial {
             BaseColorFactor=BaseColorChannel?.Color??new Vector4(1f,1f,1f,1f),
             MetallicFactor=MetallicRoughnessChannel?.GetFactor("MetallicFactor")??1f,
             RoughnessFactor=MetallicRoughnessChannel?.GetFactor("RoughnessFactor")??1f,
+            EmissiveFactor=EmissiveChannel is { Color: var EmissiveColor }
+                ? new Vector3(EmissiveColor.X,EmissiveColor.Y,EmissiveColor.Z)
+                : Vector3.Zero,
             BaseColorTextureBytes=ExtractTextureBytes(BaseColorChannel),
             NormalTextureBytes=ExtractTextureBytes(NormalChannel),
             MetallicRoughnessTextureBytes=ExtractTextureBytes(MetallicRoughnessChannel),

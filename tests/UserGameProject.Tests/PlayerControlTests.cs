@@ -112,4 +112,62 @@ public class PlayerControlTests {
         Assert.Equal(2f,position.Z,precision:4);
         Assert.True(verticalMotion.IsGrounded);
     }
+
+    [Fact]
+    public void OrbitMotionSystem_AtQuarterTurn_MovesEntityAroundConfiguredCenter(){
+        Position position=default;
+        OrbitMotion motion=new(){
+            CenterX=10f,
+            CenterY=3f,
+            CenterZ=-2f,
+            Radius=4f,
+            AngularSpeedRadiansPerSecond=MathF.PI/2f,
+        };
+        FrameContext frame=new(DeltaTime,1f);
+        World world=new();
+        State state=new(world);
+        OrbitMotionSystem system=new();
+
+        system.Update(ref position,ref motion,in frame,ref state);
+
+        Assert.Equal(10f,position.X,precision:4);
+        Assert.Equal(3f,position.Y,precision:4);
+        Assert.Equal(2f,position.Z,precision:4);
+    }
+
+    [Fact]
+    public void RotationMotion_UsesConfiguredAxisSpeedAndPhase(){
+        Rotation rotation=default;
+        RotateMotion motion=new(){ AxisX=0f,AxisY=1f,AxisZ=0f,RadiansPerSecond=MathF.PI,PhaseRadians=0f };
+        FrameContext frame=new(DeltaTime,0.5f);
+        World world=new();
+        State state=new(world);
+        RotationMotion system=new();
+
+        system.Update(ref rotation,ref motion,in frame,ref state);
+
+        Quaternion actual=new(rotation.X,rotation.Y,rotation.Z,rotation.W);
+        Quaternion expected=Quaternion.CreateFromAxisAngle(Vector3.UnitY,MathF.PI/2f);
+        Assert.True(Quaternion.Dot(actual,expected)>0.9999f);
+    }
+
+    [Fact]
+    public void ParentToWorld_CombinesChildLocalWithCachedParentWorld(){
+        TransformHierarchyRuntime hierarchy=new();
+        hierarchy.Set(7,Matrix4x4.CreateTranslation(5f,0f,0f));
+        Position position=new(){ X=1f,Y=2f,Z=3f };
+        Rotation rotation=new(){ W=1f };
+        Scale scale=new(){ X=1f,Y=1f,Z=1f };
+        WorldTransform world=default;
+        Parent parent=new(){ Value=new Entity(7) };
+        World stateWorld=new();
+        State state=new(stateWorld);
+        ParentToWorld system=new();
+
+        system.Update(new Entity(8),ref position,ref rotation,ref scale,ref world,ref parent,hierarchy,ref state);
+
+        Assert.Equal(6f,world.Value.Translation.X,precision:4);
+        Assert.Equal(2f,world.Value.Translation.Y,precision:4);
+        Assert.Equal(3f,world.Value.Translation.Z,precision:4);
+    }
 }

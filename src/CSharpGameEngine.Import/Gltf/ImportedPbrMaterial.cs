@@ -15,6 +15,9 @@ public sealed class ImportedPbrMaterial {
 
     public required float RoughnessFactor { get; init;}
 
+    /// <summary>glTF emissive RGB factor carried into the HDR renderer.</summary>
+    public Vector3 EmissiveFactor { get; init;}
+
     public byte[]?BaseColorTextureBytes { get; init;}
 
     public byte[]?NormalTextureBytes { get; init;}

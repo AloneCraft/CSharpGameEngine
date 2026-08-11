@@ -56,7 +56,12 @@ public sealed unsafe class StageRenderer:IDisposable {
     public const int FrameCount=2;
     public const DXGI_FORMAT BackBufferFormat=DXGI_FORMAT_R8G8B8A8_UNORM;
     public const DXGI_FORMAT DepthBufferFormat=DXGI_FORMAT_D32_FLOAT;
+    private const DXGI_FORMAT HdrColorFormat=DXGI_FORMAT_R16G16B16A16_FLOAT;
     private const DXGI_FORMAT MaterialTextureFormat=DXGI_FORMAT_R8G8B8A8_UNORM;
+    private const DXGI_FORMAT ShadowMapResourceFormat=DXGI_FORMAT_R32_TYPELESS;
+    private const DXGI_FORMAT ShadowMapDsvFormat=DXGI_FORMAT_D32_FLOAT;
+    private const DXGI_FORMAT ShadowMapSrvFormat=DXGI_FORMAT_R32_FLOAT;
+    private const int ShadowMapResolution=1024;
 
     /// <summary>D3D12 constant buffer views must start at a 256-byte aligned GPU address.</summary>
     private const uint ConstantAlignment=512;
@@ -83,14 +88,19 @@ public sealed unsafe class StageRenderer:IDisposable {
     private const uint FrameLightCountsOffset=160;    // int4: x=active point lights, y=active spot lights
     private const uint FramePointLightsOffset=176;    // MaxPointLights * PointLightStride bytes
     private const uint FrameSpotLightsOffset=FramePointLightsOffset+(MaxPointLights*PointLightStride); // MaxSpotLights * SpotLightStride bytes
-    private const uint FrameConstantsSize=FrameSpotLightsOffset+(MaxSpotLights*SpotLightStride);
+    private const uint FrameShadowViewProjectionOffset=FrameSpotLightsOffset+(MaxSpotLights*SpotLightStride);
+    private const uint FrameConstantsSize=FrameShadowViewProjectionOffset+64;
 
     // ObjectCB (b1) byte layout - see Stage.hlsl.
     private const uint ObjectWorldOffset=0;            // float4x4, 64 bytes
     private const uint ObjectBaseColorFactorOffset=64; // float4
     private const uint ObjectMaterialParamsOffset=80;  // float4: x=roughness, y=metallic
+    private const uint ObjectEmissiveFactorOffset=96;  // float4: xyz = emissive HDR factor
 
-    private static readonly Vector4 ClearColorVector=new(0.35f,0.55f,0.85f,1.0f);
+    // HDR clear values are the inverse ACES values for the public LDR ClearColor. This keeps the
+    // empty-scene background stable across the new post-process pass while geometry still benefits
+    // from HDR lighting and bloom.
+    private static readonly Vector4 ClearColorVector=new(0.23238164f,0.4095592f,1.2785315f,1.0f);
     public static readonly PixelColor ClearColor=new(89,140,217,255);
 
     private static readonly Vector3 DefaultLightDirectionTowardLight=Vector3.Normalize(new Vector3(0.4f,0.7f,0.5f));
@@ -110,7 +120,11 @@ public sealed unsafe class StageRenderer:IDisposable {
     private uint RtvDescriptorSize;
     private readonly ID3D12Resource*[]BackBuffers=new ID3D12Resource*[FrameCount];
     private ID3D12DescriptorHeap*DsvHeap;
+    private uint DsvDescriptorSize;
     private ID3D12Resource*DepthBuffer;
+    private ID3D12Resource*HdrColorBuffer;
+    private ID3D12DescriptorHeap*HdrSrvHeap;
+    private ID3D12Resource*ShadowMap;
     private readonly ID3D12CommandAllocator*[]CommandAllocators=new ID3D12CommandAllocator*[FrameCount];
     private ID3D12GraphicsCommandList*CommandList;
     private ID3D12Fence*Fence;
@@ -118,6 +132,13 @@ public sealed unsafe class StageRenderer:IDisposable {
     private HANDLE FenceEvent;
     private ID3D12RootSignature*RootSignature;
     private ID3D12PipelineState*PipelineState;
+    private ID3D12RootSignature*ShadowRootSignature;
+    private ID3D12PipelineState*ShadowPipelineState;
+    private ID3D12RootSignature*PostProcessRootSignature;
+    private ID3D12PipelineState*PostProcessPipelineState;
+    private byte[]ShadowVertexShaderBytecode=[];
+    private byte[]FullscreenVertexShaderBytecode=[];
+    private byte[]PostProcessPixelShaderBytecode=[];
 
     // Per-mesh (indexed by meshIndex).
     private int MeshCount;
@@ -127,7 +148,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     private D3D12_INDEX_BUFFER_VIEW[]IndexBufferViews=[];
     private uint[]IndexCounts=[];
 
-    // Per-material (indexed by materialIndex). Three textures per material: albedo, normal, metallic-roughness.
+    // Per-material (indexed by materialIndex). Three material textures plus one shared shadow SRV.
     private int MaterialCount;
     private ID3D12Resource*[]MaterialTextures=[];
     private ID3D12DescriptorHeap*SrvHeap;
@@ -135,6 +156,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     private Vector4[]MaterialBaseColorFactors=[];
     private float[]MaterialRoughnessFactors=[];
     private float[]MaterialMetallicFactors=[];
+    private Vector3[]MaterialEmissiveFactors=[];
 
     // Per-object (indexed by objectIndex).
     private int ObjectCount;
@@ -146,6 +168,8 @@ public sealed unsafe class StageRenderer:IDisposable {
     private byte*FrameConstantsMapped;
     private ID3D12Resource*ObjectConstantsBuffer;
     private byte*ObjectConstantsMapped;
+    private ID3D12Resource*ShadowConstantsBuffer;
+    private byte*ShadowConstantsMapped;
 
     // Point/spot lights are additive per frame (AddPointLight/AddSpotLight), unlike the singleton
     // directional light/ambient/fog which are overwritten in place. Counts reset to zero at the end
@@ -287,6 +311,8 @@ public sealed unsafe class StageRenderer:IDisposable {
         CreateRenderTargetViews();
         CreateDsvHeap();
         CreateDepthBuffer(Width,Height);
+        CreateHdrColorBuffer(Width,Height);
+        CreateShadowMap();
 
         for(var i=0;i<FrameCount;i++){
             ID3D12CommandAllocator*Allocator;
@@ -319,11 +345,16 @@ public sealed unsafe class StageRenderer:IDisposable {
 
         CompileShaders(ShaderPath);
         CreateRootSignature();
+        CreateShadowRootSignature();
+        CreatePostProcessRootSignature();
         CreatePipelineState();
+        CreateShadowPipelineState();
+        CreatePostProcessPipelineState();
         CreateMeshBuffers(Meshes);
         CreateMaterialResources(Materials);
         CreateObjectMappings(Objects);
         CreateConstantBuffers();
+        CreateShadowConstantsBuffer();
         UpdateViewportAndScissor(Width,Height);
         InitializeConstantsToDefaults();
     }
@@ -360,7 +391,7 @@ public sealed unsafe class StageRenderer:IDisposable {
 
     private void CreateRtvHeap(){
         D3D12_DESCRIPTOR_HEAP_DESC Desc=new(){
-            NumDescriptors=FrameCount,
+            NumDescriptors=FrameCount+1,
             Type=D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
         };
 
@@ -391,7 +422,7 @@ public sealed unsafe class StageRenderer:IDisposable {
 
     private void CreateDsvHeap(){
         D3D12_DESCRIPTOR_HEAP_DESC Desc=new(){
-            NumDescriptors=1,
+            NumDescriptors=2,
             Type=D3D12_DESCRIPTOR_HEAP_TYPE_DSV,
         };
 
@@ -401,6 +432,7 @@ public sealed unsafe class StageRenderer:IDisposable {
             "ID3D12Device::CreateDescriptorHeap","creating the DSV descriptor heap");
 
         DsvHeap=Heap;
+        DsvDescriptorSize=Device.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
     }
 
     private void CreateDepthBuffer(int Width,int Height){
@@ -424,6 +456,55 @@ public sealed unsafe class StageRenderer:IDisposable {
         this.DepthBuffer=DepthBuffer;
     }
 
+    private void CreateHdrColorBuffer(int Width,int Height){
+        D3D12_RESOURCE_DESC ResourceDesc=D3D12_RESOURCE_DESC.Tex2D(HdrColorFormat,(uint)Width,(uint)Height,mipLevels:1);
+        ResourceDesc.Flags|=D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+        D3D12_HEAP_PROPERTIES HeapProps=new(D3D12_HEAP_TYPE_DEFAULT);
+        D3D12_CLEAR_VALUE ClearValue=new(HdrColorFormat,0f,0);
+        ID3D12Resource*Resource;
+        D3D12Diagnostics.EnsureSuccess(
+            Device!.Device->CreateCommittedResource(&HeapProps,D3D12_HEAP_FLAG_NONE,&ResourceDesc,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,&ClearValue,__uuidof<ID3D12Resource>(),(void**)&Resource),
+            nameof(CreateHdrColorBuffer),nameof(CreateHdrColorBuffer));
+
+        D3D12_CPU_DESCRIPTOR_HANDLE RtvHandle=new(RtvHeap->GetCPUDescriptorHandleForHeapStart(),FrameCount,RtvDescriptorSize);
+        Device.Device->CreateRenderTargetView(Resource,pDesc:null,RtvHandle);
+        HdrColorBuffer=Resource;
+
+        if(HdrSrvHeap==null){
+            D3D12_DESCRIPTOR_HEAP_DESC SrvHeapDesc=new(){ Type=D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,NumDescriptors=1,Flags=D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE };
+            ID3D12DescriptorHeap*SrvHeap;
+            D3D12Diagnostics.EnsureSuccess(
+                Device.Device->CreateDescriptorHeap(&SrvHeapDesc,__uuidof<ID3D12DescriptorHeap>(),(void**)&SrvHeap),
+                nameof(CreateHdrColorBuffer),nameof(CreateHdrColorBuffer));
+            HdrSrvHeap=SrvHeap;
+        }
+
+        D3D12_SHADER_RESOURCE_VIEW_DESC SrvDesc=new(){
+            Format=HdrColorFormat,
+            ViewDimension=D3D12_SRV_DIMENSION.D3D12_SRV_DIMENSION_TEXTURE2D,
+            Shader4ComponentMapping=(uint)TerraFX.Interop.DirectX.D3D12.D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+        };
+        SrvDesc.Texture2D.MipLevels=1;
+        Device.Device->CreateShaderResourceView(Resource,&SrvDesc,HdrSrvHeap->GetCPUDescriptorHandleForHeapStart());
+    }
+
+    private void CreateShadowMap(){
+        D3D12_RESOURCE_DESC ResourceDesc=D3D12_RESOURCE_DESC.Tex2D(ShadowMapResourceFormat,ShadowMapResolution,ShadowMapResolution,mipLevels:1);
+        ResourceDesc.Flags|=D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+
+        D3D12_HEAP_PROPERTIES HeapProps=new(D3D12_HEAP_TYPE_DEFAULT);
+        D3D12_CLEAR_VALUE ClearValue=new(ShadowMapDsvFormat,1.0f,0);
+        ID3D12Resource*Resource;
+        D3D12Diagnostics.EnsureSuccess(
+            Device!.Device->CreateCommittedResource(&HeapProps,D3D12_HEAP_FLAG_NONE,&ResourceDesc,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,&ClearValue,__uuidof<ID3D12Resource>(),(void**)&Resource),
+            nameof(CreateShadowMap),nameof(CreateShadowMap));
+
+        D3D12_DEPTH_STENCIL_VIEW_DESC DsvDesc=new(){ Format=ShadowMapDsvFormat,ViewDimension=D3D12_DSV_DIMENSION.D3D12_DSV_DIMENSION_TEXTURE2D };
+        D3D12_CPU_DESCRIPTOR_HANDLE ShadowDsv=new(DsvHeap->GetCPUDescriptorHandleForHeapStart(),1,DsvDescriptorSize);
+        Device.Device->CreateDepthStencilView(Resource,&DsvDesc,ShadowDsv);
+        ShadowMap=Resource;
+    }
+
     private void CompileShaders(string ShaderPath){
         var DebugShaders=false;
 #if DEBUG
@@ -444,8 +525,22 @@ public sealed unsafe class StageRenderer:IDisposable {
             EnableDebugInfo=DebugShaders,
         });
 
-        ShaderCompilationSucceeded=Vs.Success&&Ps.Success;
-        ShaderDiagnostics=[.. Vs.Diagnostics,.. Ps.Diagnostics];
+        HlslCompileResult FullscreenVs=HlslCompiler.Compile(new HlslCompileRequest {
+            FilePath=ShaderPath,
+            EntryPoint="FullscreenVS",
+            TargetProfile="vs_6_0",
+            EnableDebugInfo=DebugShaders,
+        });
+
+        HlslCompileResult PostPs=HlslCompiler.Compile(new HlslCompileRequest {
+            FilePath=ShaderPath,
+            EntryPoint="PostProcessPS",
+            TargetProfile="ps_6_0",
+            EnableDebugInfo=DebugShaders,
+        });
+
+        ShaderCompilationSucceeded=Vs.Success&&Ps.Success&&FullscreenVs.Success&&PostPs.Success;
+        ShaderDiagnostics=[.. Vs.Diagnostics,.. Ps.Diagnostics,.. FullscreenVs.Diagnostics,.. PostPs.Diagnostics];
 
         if(!ShaderCompilationSucceeded){
             var Details=string.Join(Environment.NewLine,ShaderDiagnostics);
@@ -454,6 +549,8 @@ public sealed unsafe class StageRenderer:IDisposable {
 
         VertexShaderBytecode=Vs.Bytecode;
         PixelShaderBytecode=Ps.Bytecode;
+        FullscreenVertexShaderBytecode=FullscreenVs.Bytecode;
+        PostProcessPixelShaderBytecode=PostPs.Bytecode;
     }
 
     private byte[]VertexShaderBytecode=[];
@@ -474,7 +571,7 @@ public sealed unsafe class StageRenderer:IDisposable {
 
         D3D12_DESCRIPTOR_RANGE SrvRange=new(){
             RangeType=D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
-            NumDescriptors=3,
+            NumDescriptors=4,
             BaseShaderRegister=0,
         };
 
@@ -495,17 +592,32 @@ public sealed unsafe class StageRenderer:IDisposable {
             ShaderVisibility=D3D12_SHADER_VISIBILITY_PIXEL,
         };
 
+        D3D12_STATIC_SAMPLER_DESC ShadowSampler=new(){
+            Filter=D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT,
+            AddressU=D3D12_TEXTURE_ADDRESS_MODE_BORDER,
+            AddressV=D3D12_TEXTURE_ADDRESS_MODE_BORDER,
+            AddressW=D3D12_TEXTURE_ADDRESS_MODE_BORDER,
+            ComparisonFunc=D3D12_COMPARISON_FUNC_LESS_EQUAL,
+            BorderColor=D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE,
+            MaxLOD=float.MaxValue,
+            ShaderRegister=1,
+            ShaderVisibility=D3D12_SHADER_VISIBILITY_PIXEL,
+        };
+
         D3D12_ROOT_PARAMETER*RootParams=stackalloc D3D12_ROOT_PARAMETER[3];
         RootParams[0]=FrameParam;
         RootParams[1]=ObjectParam;
         RootParams[2]=TextureParam;
         RootParams[2].DescriptorTable=new D3D12_ROOT_DESCRIPTOR_TABLE { NumDescriptorRanges=1,pDescriptorRanges=&SrvRange };
+        D3D12_STATIC_SAMPLER_DESC*StaticSamplers=stackalloc D3D12_STATIC_SAMPLER_DESC[2];
+        StaticSamplers[0]=StaticSampler;
+        StaticSamplers[1]=ShadowSampler;
 
         D3D12_ROOT_SIGNATURE_DESC RootSignatureDesc=new(){
             NumParameters=3,
             pParameters=RootParams,
-            NumStaticSamplers=1,
-            pStaticSamplers=&StaticSampler,
+            NumStaticSamplers=2,
+            pStaticSamplers=StaticSamplers,
             Flags=D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT,
         };
 
@@ -533,6 +645,78 @@ public sealed unsafe class StageRenderer:IDisposable {
             if(ErrorBlob!=null){
                 _=ErrorBlob->Release();
             }
+        }
+    }
+
+    private void CreateShadowRootSignature(){
+        D3D12_ROOT_PARAMETER FrameParam=new(){ ParameterType=D3D12_ROOT_PARAMETER_TYPE_CBV,ShaderVisibility=D3D12_SHADER_VISIBILITY_VERTEX };
+        FrameParam.Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=0,RegisterSpace=0 };
+        D3D12_ROOT_PARAMETER ObjectParam=new(){ ParameterType=D3D12_ROOT_PARAMETER_TYPE_CBV,ShaderVisibility=D3D12_SHADER_VISIBILITY_VERTEX };
+        ObjectParam.Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=1,RegisterSpace=0 };
+        D3D12_ROOT_PARAMETER*RootParams=stackalloc D3D12_ROOT_PARAMETER[2];
+        RootParams[0]=FrameParam;
+        RootParams[1]=ObjectParam;
+        D3D12_ROOT_SIGNATURE_DESC RootSignatureDesc=new(){ NumParameters=2,pParameters=RootParams,Flags=D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT };
+        ID3DBlob*SignatureBlob=null;
+        ID3DBlob*ErrorBlob=null;
+        try {
+            D3D12Diagnostics.EnsureSuccess(D3D12SerializeRootSignature(&RootSignatureDesc,D3D_ROOT_SIGNATURE_VERSION_1,&SignatureBlob,&ErrorBlob),nameof(CreateShadowRootSignature),nameof(CreateShadowRootSignature));
+            ID3D12RootSignature*Signature;
+            D3D12Diagnostics.EnsureSuccess(Device!.Device->CreateRootSignature(0,SignatureBlob->GetBufferPointer(),SignatureBlob->GetBufferSize(),__uuidof<ID3D12RootSignature>(),(void**)&Signature),nameof(CreateShadowRootSignature),nameof(CreateShadowRootSignature));
+            ShadowRootSignature=Signature;
+        } finally {
+            if(SignatureBlob!=null){ _=SignatureBlob->Release(); }
+            if(ErrorBlob!=null){ _=ErrorBlob->Release(); }
+        }
+    }
+
+    private void CreatePostProcessRootSignature(){
+        D3D12_DESCRIPTOR_RANGE SceneRange=new(){
+            RangeType=D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+            NumDescriptors=1,
+            BaseShaderRegister=0,
+        };
+        D3D12_ROOT_PARAMETER SceneParam=new(){
+            ParameterType=D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE,
+            ShaderVisibility=D3D12_SHADER_VISIBILITY_PIXEL,
+        };
+        SceneParam.DescriptorTable=new D3D12_ROOT_DESCRIPTOR_TABLE { NumDescriptorRanges=1,pDescriptorRanges=&SceneRange };
+
+        D3D12_STATIC_SAMPLER_DESC Sampler=new(){
+            Filter=D3D12_FILTER_MIN_MAG_MIP_LINEAR,
+            AddressU=D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+            AddressV=D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+            AddressW=D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+            ComparisonFunc=D3D12_COMPARISON_FUNC_NEVER,
+            BorderColor=D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE,
+            MaxLOD=float.MaxValue,
+            ShaderRegister=0,
+            ShaderVisibility=D3D12_SHADER_VISIBILITY_PIXEL,
+        };
+
+        D3D12_ROOT_PARAMETER*RootParams=stackalloc D3D12_ROOT_PARAMETER[1];
+        RootParams[0]=SceneParam;
+        D3D12_ROOT_SIGNATURE_DESC RootSignatureDesc=new(){
+            NumParameters=1,
+            pParameters=RootParams,
+            NumStaticSamplers=1,
+            pStaticSamplers=&Sampler,
+        };
+
+        ID3DBlob*SignatureBlob=null;
+        ID3DBlob*ErrorBlob=null;
+        try {
+            D3D12Diagnostics.EnsureSuccess(
+                D3D12SerializeRootSignature(&RootSignatureDesc,D3D_ROOT_SIGNATURE_VERSION_1,&SignatureBlob,&ErrorBlob),
+                nameof(CreatePostProcessRootSignature),nameof(CreatePostProcessRootSignature));
+            ID3D12RootSignature*Signature;
+            D3D12Diagnostics.EnsureSuccess(
+                Device!.Device->CreateRootSignature(0,SignatureBlob->GetBufferPointer(),SignatureBlob->GetBufferSize(),__uuidof<ID3D12RootSignature>(),(void**)&Signature),
+                nameof(CreatePostProcessRootSignature),nameof(CreatePostProcessRootSignature));
+            PostProcessRootSignature=Signature;
+        } finally {
+            if(SignatureBlob!=null){ _=SignatureBlob->Release(); }
+            if(ErrorBlob!=null){ _=ErrorBlob->Release(); }
         }
     }
 
@@ -588,13 +772,74 @@ public sealed unsafe class StageRenderer:IDisposable {
             };
             // Real backface culling is deferred, same rationale as ModelRenderer (ADR-0004).
             PsoDesc.RasterizerState.CullMode=D3D12_CULL_MODE_NONE;
-            PsoDesc.RTVFormats[0]=BackBufferFormat;
+            PsoDesc.RTVFormats[0]=HdrColorFormat;
 
             ID3D12PipelineState*PipelineState;
             D3D12Diagnostics.EnsureSuccess(
                 Device!.Device->CreateGraphicsPipelineState(&PsoDesc,__uuidof<ID3D12PipelineState>(),(void**)&PipelineState),
                 "ID3D12Device::CreateGraphicsPipelineState","creating the stage pipeline state");
             this.PipelineState=PipelineState;
+        }
+    }
+
+    private void CreateShadowPipelineState(){
+        fixed(byte*PPosition="POSITION\0"u8)
+        fixed(byte*PNormal="NORMAL\0"u8)
+        fixed(byte*PTangent="TANGENT\0"u8)
+        fixed(byte*PTexCoord="TEXCOORD\0"u8)
+        fixed(byte*PVertexShader=VertexShaderBytecode){
+            D3D12_INPUT_ELEMENT_DESC*InputElements=stackalloc D3D12_INPUT_ELEMENT_DESC[4]{
+                new D3D12_INPUT_ELEMENT_DESC { SemanticName=(sbyte*)PPosition,Format=DXGI_FORMAT_R32G32B32_FLOAT,InputSlotClass=D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA },
+                new D3D12_INPUT_ELEMENT_DESC { SemanticName=(sbyte*)PNormal,Format=DXGI_FORMAT_R32G32B32_FLOAT,AlignedByteOffset=12,InputSlotClass=D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA },
+                new D3D12_INPUT_ELEMENT_DESC { SemanticName=(sbyte*)PTangent,Format=DXGI_FORMAT_R32G32B32A32_FLOAT,AlignedByteOffset=24,InputSlotClass=D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA },
+                new D3D12_INPUT_ELEMENT_DESC { SemanticName=(sbyte*)PTexCoord,Format=DXGI_FORMAT_R32G32_FLOAT,AlignedByteOffset=40,InputSlotClass=D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA },
+            };
+            D3D12_GRAPHICS_PIPELINE_STATE_DESC PsoDesc=new(){
+                InputLayout=new D3D12_INPUT_LAYOUT_DESC { pInputElementDescs=InputElements,NumElements=4 },
+                pRootSignature=ShadowRootSignature,
+                VS=new D3D12_SHADER_BYTECODE { pShaderBytecode=PVertexShader,BytecodeLength=(nuint)VertexShaderBytecode.Length },
+                RasterizerState=D3D12_RASTERIZER_DESC.DEFAULT,
+                BlendState=D3D12_BLEND_DESC.DEFAULT,
+                DepthStencilState=D3D12_DEPTH_STENCIL_DESC.DEFAULT,
+                SampleMask=uint.MaxValue,
+                PrimitiveTopologyType=D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
+                NumRenderTargets=0,
+                DSVFormat=ShadowMapDsvFormat,
+                SampleDesc=new DXGI_SAMPLE_DESC(1,0),
+            };
+            PsoDesc.RasterizerState.CullMode=D3D12_CULL_MODE_NONE;
+            ID3D12PipelineState*Pipeline;
+            D3D12Diagnostics.EnsureSuccess(Device!.Device->CreateGraphicsPipelineState(&PsoDesc,__uuidof<ID3D12PipelineState>(),(void**)&Pipeline),nameof(CreateShadowPipelineState),nameof(CreateShadowPipelineState));
+            ShadowPipelineState=Pipeline;
+        }
+    }
+
+    private void CreatePostProcessPipelineState(){
+        fixed(byte*PVertexShader=FullscreenVertexShaderBytecode)
+        fixed(byte*PPixelShader=PostProcessPixelShaderBytecode){
+            D3D12_GRAPHICS_PIPELINE_STATE_DESC PsoDesc=new(){
+                pRootSignature=PostProcessRootSignature,
+                VS=new D3D12_SHADER_BYTECODE { pShaderBytecode=PVertexShader,BytecodeLength=(nuint)FullscreenVertexShaderBytecode.Length },
+                PS=new D3D12_SHADER_BYTECODE { pShaderBytecode=PPixelShader,BytecodeLength=(nuint)PostProcessPixelShaderBytecode.Length },
+                RasterizerState=D3D12_RASTERIZER_DESC.DEFAULT,
+                BlendState=D3D12_BLEND_DESC.DEFAULT,
+                DepthStencilState=D3D12_DEPTH_STENCIL_DESC.DEFAULT,
+                SampleMask=uint.MaxValue,
+                PrimitiveTopologyType=D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
+                NumRenderTargets=1,
+                RTVFormats=default,
+                DSVFormat=DXGI_FORMAT_UNKNOWN,
+                SampleDesc=new DXGI_SAMPLE_DESC(1,0),
+            };
+            PsoDesc.DepthStencilState.DepthEnable=FALSE;
+            PsoDesc.RasterizerState.CullMode=D3D12_CULL_MODE_NONE;
+            PsoDesc.RTVFormats[0]=BackBufferFormat;
+
+            ID3D12PipelineState*Pipeline;
+            D3D12Diagnostics.EnsureSuccess(
+                Device!.Device->CreateGraphicsPipelineState(&PsoDesc,__uuidof<ID3D12PipelineState>(),(void**)&Pipeline),
+                nameof(CreatePostProcessPipelineState),nameof(CreatePostProcessPipelineState));
+            PostProcessPipelineState=Pipeline;
         }
     }
 
@@ -682,12 +927,14 @@ public sealed unsafe class StageRenderer:IDisposable {
         MaterialBaseColorFactors=new Vector4[MaterialCount];
         MaterialRoughnessFactors=new float[MaterialCount];
         MaterialMetallicFactors=new float[MaterialCount];
+        MaterialEmissiveFactors=new Vector3[MaterialCount];
 
         for(var i=0;i<MaterialCount;i++){
             StageMaterialCreateInfo Material=Materials[i];
             MaterialBaseColorFactors[i]=Material.BaseColorFactor;
             MaterialRoughnessFactors[i]=Material.RoughnessFactor;
             MaterialMetallicFactors[i]=Material.MetallicFactor;
+            MaterialEmissiveFactors[i]=Material.EmissiveFactor;
 
             MaterialTextures[(i*3)+0]=CreateTextureResource(Material.BaseColorTextureBytes,WhiteFallback());
             MaterialTextures[(i*3)+1]=CreateTextureResource(Material.NormalTextureBytes,FlatNormalFallback());
@@ -696,7 +943,7 @@ public sealed unsafe class StageRenderer:IDisposable {
 
         D3D12_DESCRIPTOR_HEAP_DESC SrvHeapDesc=new(){
             Type=D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-            NumDescriptors=(uint)(MaterialCount*3),
+            NumDescriptors=(uint)(MaterialCount*4),
             Flags=D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
         };
         ID3D12DescriptorHeap*SrvHeap;
@@ -715,8 +962,19 @@ public sealed unsafe class StageRenderer:IDisposable {
         SrvDesc.Texture2D.MipLevels=1;
 
         for(var i=0;i<MaterialTextures.Length;i++){
-            D3D12_CPU_DESCRIPTOR_HANDLE Handle=new(SrvHeapStart,i,SrvDescriptorSize);
+            D3D12_CPU_DESCRIPTOR_HANDLE Handle=new(SrvHeapStart,(i/3)*4+(i%3),SrvDescriptorSize);
             Device.Device->CreateShaderResourceView(MaterialTextures[i],&SrvDesc,Handle);
+        }
+
+        D3D12_SHADER_RESOURCE_VIEW_DESC ShadowSrvDesc=new(){
+            Format=ShadowMapSrvFormat,
+            ViewDimension=D3D12_SRV_DIMENSION_TEXTURE2D,
+            Shader4ComponentMapping=(uint)TerraFX.Interop.DirectX.D3D12.D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+        };
+        ShadowSrvDesc.Texture2D.MipLevels=1;
+        for(var i=0;i<MaterialCount;i++){
+            D3D12_CPU_DESCRIPTOR_HANDLE Handle=new(SrvHeapStart,(i*4)+3,SrvDescriptorSize);
+            Device.Device->CreateShaderResourceView(ShadowMap,&ShadowSrvDesc,Handle);
         }
     }
 
@@ -821,6 +1079,11 @@ public sealed unsafe class StageRenderer:IDisposable {
         CreateUploadBuffer(ObjectBufferSize,out ObjectConstantsBuffer,out ObjectConstantsMapped,"creating the object constant buffer");
     }
 
+    private void CreateShadowConstantsBuffer(){
+        var ShadowBufferSize=ConstantAlignment*FrameCount;
+        CreateUploadBuffer(ShadowBufferSize,out ShadowConstantsBuffer,out ShadowConstantsMapped,nameof(CreateShadowConstantsBuffer));
+    }
+
     private void CreateUploadBuffer(uint Size,out ID3D12Resource*buffer,out byte*Mapped,string Context){
         D3D12_HEAP_PROPERTIES HeapProps=new(D3D12_HEAP_TYPE_UPLOAD);
         D3D12_RESOURCE_DESC BufferDesc=D3D12_RESOURCE_DESC.Buffer(Size);
@@ -853,6 +1116,7 @@ public sealed unsafe class StageRenderer:IDisposable {
             WriteDirectionalLight(frame,DefaultLightDirectionTowardLight,DefaultLightColor);
             WriteAmbientLight(frame,DefaultAmbientColor);
             WriteFog(frame,FogParams.None);
+            WriteShadowViewProjection(frame,BuildShadowViewProjection(DefaultLightDirectionTowardLight));
             WriteLightCounts(frame); // D3D12 does not guarantee zero-initialized upload-heap memory; without this the very first frame could loop over garbage PointLights/SpotLights entries.
 
             for(var objectIndex=0;objectIndex<ObjectCount;objectIndex++){
@@ -875,6 +1139,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     /// <summary>Sets the single data-driven directional light (sun) for the frame currently being built. <paramref name="DirectionTowardLight"/> points from the scene toward the light (i.e. the direction surfaces should face to be lit), not the direction light travels.</summary>
     public void SetDirectionalLight(Vector3 DirectionTowardLight,Vector3 Color,float Intensity){
         WriteDirectionalLight(FrameIndex,DirectionTowardLight,Color*Intensity);
+        WriteShadowViewProjection(FrameIndex,BuildShadowViewProjection(DirectionTowardLight));
     }
 
     /// <summary>Sets the flat ambient term (a stand-in for sky/indirect lighting) for the frame currently being built.</summary>
@@ -965,6 +1230,17 @@ public sealed unsafe class StageRenderer:IDisposable {
         Unsafe.CopyBlock(FrameSlot(FrameIndex)+FrameFogColorOffset,&FogColor,(uint)sizeof(Vector4));
     }
 
+    private static Matrix4x4 BuildShadowViewProjection(Vector3 DirectionTowardLight){
+        Vector3 Direction=Vector3.Normalize(DirectionTowardLight);
+        Matrix4x4 View=Matrix4x4.CreateLookAt(-(Direction*35f),Vector3.Zero,Vector3.UnitY);
+        return View*Matrix4x4.CreateOrthographic(40f,40f,0.1f,80f);
+    }
+
+    private void WriteShadowViewProjection(uint FrameIndex,Matrix4x4 ShadowViewProjection){
+        Unsafe.CopyBlock(FrameSlot(FrameIndex)+FrameShadowViewProjectionOffset,&ShadowViewProjection,(uint)sizeof(Matrix4x4));
+        Unsafe.CopyBlock(ShadowConstantsMapped+(FrameIndex*ConstantAlignment),&ShadowViewProjection,(uint)sizeof(Matrix4x4));
+    }
+
     /// <summary>Writes Stage.hlsl's PointLightData[index] (2 float4: position+range, color*intensity).</summary>
     private void WritePointLight(uint FrameIndex,int index,Vector3 Position,float range,Vector3 ColorTimesIntensity){
         var Destination=FrameSlot(FrameIndex)+FramePointLightsOffset+((uint)index*PointLightStride);
@@ -1004,6 +1280,9 @@ public sealed unsafe class StageRenderer:IDisposable {
 
         Vector4 MaterialParams=new(MaterialRoughnessFactors[MaterialIndex],MaterialMetallicFactors[MaterialIndex],0f,0f);
         Unsafe.CopyBlock(Destination+ObjectMaterialParamsOffset,&MaterialParams,(uint)sizeof(Vector4));
+
+        Vector4 EmissiveFactor=new(MaterialEmissiveFactors[MaterialIndex],1f);
+        Unsafe.CopyBlock(Destination+ObjectEmissiveFactorOffset,&EmissiveFactor,(uint)sizeof(Vector4));
     }
 
     private ulong GetFrameConstantsAddress(uint FrameIndex){
@@ -1015,8 +1294,11 @@ public sealed unsafe class StageRenderer:IDisposable {
         return ObjectConstantsBuffer->GetGPUVirtualAddress()+(Slot*ConstantAlignment);
     }
 
+    private ulong GetShadowConstantsAddress(uint FrameIndex)=>
+        ShadowConstantsBuffer->GetGPUVirtualAddress()+(FrameIndex*ConstantAlignment);
+
     private D3D12_GPU_DESCRIPTOR_HANDLE GetMaterialDescriptorTable(int MaterialIndex){
-        return new D3D12_GPU_DESCRIPTOR_HANDLE(SrvHeap->GetGPUDescriptorHandleForHeapStart(),MaterialIndex*3,SrvDescriptorSize);
+        return new D3D12_GPU_DESCRIPTOR_HANDLE(SrvHeap->GetGPUDescriptorHandleForHeapStart(),MaterialIndex*4,SrvDescriptorSize);
     }
 
     private void UpdateViewportAndScissor(int Width,int Height){
@@ -1069,14 +1351,48 @@ public sealed unsafe class StageRenderer:IDisposable {
             DepthBuffer=null;
         }
 
+        if(HdrColorBuffer!=null){
+            _=HdrColorBuffer->Release();
+            HdrColorBuffer=null;
+        }
+
         D3D12Diagnostics.EnsureSuccess(
             SwapChain->ResizeBuffers(FrameCount,(uint)Width,(uint)Height,BackBufferFormat,0),
             "IDXGISwapChain3::ResizeBuffers","resizing the swap chain");
 
         CreateRenderTargetViews();
         CreateDepthBuffer(Width,Height);
+        CreateHdrColorBuffer(Width,Height);
         FrameIndex=SwapChain->GetCurrentBackBufferIndex();
         UpdateViewportAndScissor(Width,Height);
+    }
+
+    private void RenderShadowPass(){
+        D3D12_RESOURCE_BARRIER ToDepth=D3D12_RESOURCE_BARRIER.InitTransition(ShadowMap,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_DEPTH_WRITE);
+        CommandList->ResourceBarrier(1,&ToDepth);
+        D3D12_CPU_DESCRIPTOR_HANDLE ShadowDsv=new(DsvHeap->GetCPUDescriptorHandleForHeapStart(),1,DsvDescriptorSize);
+        CommandList->OMSetRenderTargets(0,null,FALSE,&ShadowDsv);
+        CommandList->ClearDepthStencilView(ShadowDsv,D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH,1.0f,0,0,null);
+        CommandList->SetGraphicsRootSignature(ShadowRootSignature);
+        CommandList->SetPipelineState(ShadowPipelineState);
+        CommandList->SetGraphicsRootConstantBufferView(0,GetShadowConstantsAddress(FrameIndex));
+        D3D12_VIEWPORT ShadowViewport=new(){ Width=ShadowMapResolution,Height=ShadowMapResolution,MinDepth=0f,MaxDepth=1f };
+        RECT ShadowScissor=new(){ left=0,top=0,right=ShadowMapResolution,bottom=ShadowMapResolution };
+        CommandList->RSSetViewports(1,&ShadowViewport);
+        CommandList->RSSetScissorRects(1,&ShadowScissor);
+        CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        for(var i=0;i<ObjectCount;i++){
+            var MeshIndex=ObjectMeshIndices[i];
+            CommandList->SetGraphicsRootConstantBufferView(1,GetObjectConstantsAddress(FrameIndex,i));
+            fixed(D3D12_VERTEX_BUFFER_VIEW*PVertexBufferView=&VertexBufferViews[MeshIndex])
+            fixed(D3D12_INDEX_BUFFER_VIEW*PIndexBufferView=&IndexBufferViews[MeshIndex]){
+                CommandList->IASetVertexBuffers(0,1,PVertexBufferView);
+                CommandList->IASetIndexBuffer(PIndexBufferView);
+                CommandList->DrawIndexedInstanced(IndexCounts[MeshIndex],1,0,0,0);
+            }
+        }
+        D3D12_RESOURCE_BARRIER ToShader=D3D12_RESOURCE_BARRIER.InitTransition(ShadowMap,D3D12_RESOURCE_STATE_DEPTH_WRITE,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+        CommandList->ResourceBarrier(1,&ToShader);
     }
 
     public void RenderFrame(bool CaptureForVerification=false){
@@ -1088,17 +1404,19 @@ public sealed unsafe class StageRenderer:IDisposable {
         D3D12Diagnostics.EnsureSuccess(Allocator->Reset(),"ID3D12CommandAllocator::Reset","resetting the frame command allocator");
         D3D12Diagnostics.EnsureSuccess(CommandList->Reset(Allocator,PipelineState),"ID3D12GraphicsCommandList::Reset","resetting the graphics command list");
 
+        RenderShadowPass();
+
         ID3D12Resource*BackBuffer=BackBuffers[FrameIndex];
 
-        D3D12_RESOURCE_BARRIER ToRenderTarget=D3D12_RESOURCE_BARRIER.InitTransition(BackBuffer,D3D12_RESOURCE_STATE_PRESENT,D3D12_RESOURCE_STATE_RENDER_TARGET);
-        CommandList->ResourceBarrier(1,&ToRenderTarget);
+        D3D12_RESOURCE_BARRIER ToHdrRenderTarget=D3D12_RESOURCE_BARRIER.InitTransition(HdrColorBuffer,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_RENDER_TARGET);
+        CommandList->ResourceBarrier(1,&ToHdrRenderTarget);
 
-        D3D12_CPU_DESCRIPTOR_HANDLE RtvHandle=new(RtvHeap->GetCPUDescriptorHandleForHeapStart(),(int)FrameIndex,RtvDescriptorSize);
+        D3D12_CPU_DESCRIPTOR_HANDLE HdrRtvHandle=new(RtvHeap->GetCPUDescriptorHandleForHeapStart(),FrameCount,RtvDescriptorSize);
         D3D12_CPU_DESCRIPTOR_HANDLE DsvHandle=DsvHeap->GetCPUDescriptorHandleForHeapStart();
-        CommandList->OMSetRenderTargets(1,&RtvHandle,FALSE,&DsvHandle);
+        CommandList->OMSetRenderTargets(1,&HdrRtvHandle,FALSE,&DsvHandle);
 
         Vector4 clearColor=ClearColorVector;
-        CommandList->ClearRenderTargetView(RtvHandle,(float*)&clearColor,0,null);
+        CommandList->ClearRenderTargetView(HdrRtvHandle,(float*)&clearColor,0,null);
         CommandList->ClearDepthStencilView(DsvHandle,D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH,1.0f,0,0,null);
 
         CommandList->SetGraphicsRootSignature(RootSignature);
@@ -1128,6 +1446,26 @@ public sealed unsafe class StageRenderer:IDisposable {
                 CommandList->DrawIndexedInstanced(IndexCounts[MeshIndex],1,0,0,0);
             }
         }
+
+        D3D12_RESOURCE_BARRIER ToHdrShaderResource=D3D12_RESOURCE_BARRIER.InitTransition(HdrColorBuffer,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+        CommandList->ResourceBarrier(1,&ToHdrShaderResource);
+
+        D3D12_RESOURCE_BARRIER ToBackBufferRenderTarget=D3D12_RESOURCE_BARRIER.InitTransition(BackBuffer,D3D12_RESOURCE_STATE_PRESENT,D3D12_RESOURCE_STATE_RENDER_TARGET);
+        CommandList->ResourceBarrier(1,&ToBackBufferRenderTarget);
+        D3D12_CPU_DESCRIPTOR_HANDLE RtvHandle=new(RtvHeap->GetCPUDescriptorHandleForHeapStart(),(int)FrameIndex,RtvDescriptorSize);
+        CommandList->OMSetRenderTargets(1,&RtvHandle,FALSE,null);
+        CommandList->SetGraphicsRootSignature(PostProcessRootSignature);
+        CommandList->SetPipelineState(PostProcessPipelineState);
+        ID3D12DescriptorHeap*PostSrvHeap=HdrSrvHeap;
+        CommandList->SetDescriptorHeaps(1,&PostSrvHeap);
+        CommandList->SetGraphicsRootDescriptorTable(0,HdrSrvHeap->GetGPUDescriptorHandleForHeapStart());
+        fixed(D3D12_VIEWPORT*PViewport=&Viewport)
+        fixed(RECT*PScissorRect=&ScissorRect){
+            CommandList->RSSetViewports(1,PViewport);
+            CommandList->RSSetScissorRects(1,PScissorRect);
+        }
+        CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        CommandList->DrawInstanced(3,1,0,0);
 
         if(CaptureForVerification){
             EnsureReadbackBuffer();
@@ -1275,6 +1613,23 @@ public sealed unsafe class StageRenderer:IDisposable {
             ObjectConstantsBuffer=null;
         }
 
+        if(ShadowConstantsBuffer!=null){
+            ShadowConstantsBuffer->Unmap(0,null);
+            ShadowConstantsMapped=null;
+            _=ShadowConstantsBuffer->Release();
+            ShadowConstantsBuffer=null;
+        }
+
+        if(HdrColorBuffer!=null){
+            _=HdrColorBuffer->Release();
+            HdrColorBuffer=null;
+        }
+
+        if(HdrSrvHeap!=null){
+            _=HdrSrvHeap->Release();
+            HdrSrvHeap=null;
+        }
+
         if(SrvHeap!=null){
             _=SrvHeap->Release();
             SrvHeap=null;
@@ -1306,9 +1661,29 @@ public sealed unsafe class StageRenderer:IDisposable {
             PipelineState=null;
         }
 
+        if(ShadowPipelineState!=null){
+            _=ShadowPipelineState->Release();
+            ShadowPipelineState=null;
+        }
+
+        if(PostProcessPipelineState!=null){
+            _=PostProcessPipelineState->Release();
+            PostProcessPipelineState=null;
+        }
+
         if(RootSignature!=null){
             _=RootSignature->Release();
             RootSignature=null;
+        }
+
+        if(ShadowRootSignature!=null){
+            _=ShadowRootSignature->Release();
+            ShadowRootSignature=null;
+        }
+
+        if(PostProcessRootSignature!=null){
+            _=PostProcessRootSignature->Release();
+            PostProcessRootSignature=null;
         }
 
         if(FenceEvent!=HANDLE.NULL){
@@ -1336,6 +1711,11 @@ public sealed unsafe class StageRenderer:IDisposable {
         if(DepthBuffer!=null){
             _=DepthBuffer->Release();
             DepthBuffer=null;
+        }
+
+        if(ShadowMap!=null){
+            _=ShadowMap->Release();
+            ShadowMap=null;
         }
 
         if(DsvHeap!=null){

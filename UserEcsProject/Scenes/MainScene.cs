@@ -37,15 +37,15 @@ internal static partial class MainScene {
     [SceneEntity]
     internal static(AppHost App,Level Level)Application=>(
         App:new AppHost {
-            Title= $"{ProductDisplayName} - ECS FBX Rendering PoC",
+            Title= $"{ProductDisplayName} - FirstPerson Stage",
             Width=1280,
             Height=720,
         },
 
         Level:new Level {
-            Path=Path.Combine("Assets","Primitives","Box.fbx"),
+            Path=Path.Combine("Assets","Stage","Lvl_FirstPerson","Lvl_FirstPerson.glb"),
             ShaderPath=Path.Combine("Shaders","Stage.hlsl"),
-            Camera=Camera.CreateDefault(Vector3.Zero),
+            Camera=Camera.CreateFirstPerson(new Vector3(0f,4.62f,0f)),
 
             Sun=new UserEcsProject.DirectionalLight {
                 DirectionTowardLightX=0.4f,

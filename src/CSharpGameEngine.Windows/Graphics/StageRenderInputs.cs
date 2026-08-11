@@ -25,6 +25,9 @@ public readonly struct StageMaterialCreateInfo {
     public required float RoughnessFactor { get; init;}
     public required float MetallicFactor { get; init;}
 
+    /// <summary>HDR emissive RGB factor, added before tone mapping and bloom.</summary>
+    public Vector3 EmissiveFactor { get; init;}
+
     public byte[]?BaseColorTextureBytes { get; init;}
     public byte[]?NormalTextureBytes { get; init;}
 

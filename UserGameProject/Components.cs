@@ -50,9 +50,26 @@ public struct Scale {
     public float Z;
 }
 
-/// <summary>Index into the StageRenderer object array this entity's transform is written to each frame (see Systems/Systems.cs, RenderSync).</summary>
-public struct RenderObjectRef {
-    public int Index;
+/// <summary>Computed world matrix. Local Position/Rotation/Scale remain the authored entity state.</summary>
+public struct WorldTransform {
+    public System.Numerics.Matrix4x4 Value;
+}
+
+/// <summary>Lightweight index into the mesh collection owned by the scene resource.</summary>
+public readonly record struct MeshHandle(int Value);
+
+/// <summary>Lightweight index into the material collection owned by the scene resource.</summary>
+public readonly record struct MaterialHandle(int Value);
+
+/// <summary>
+/// A reusable renderable component. Mesh and material are immutable scene-resource handles; the
+/// renderer object index identifies this entity's independently transformable instance. GPU
+/// resources remain owned once by the scene resource and StageRenderer, not once per entity.
+/// </summary>
+public struct MeshRenderer {
+    public MeshHandle Mesh;
+    public MaterialHandle Material;
+    public int ObjectIndex;
 }
 
 /// <summary>Gravity/jump state carried across frames for <see cref="CSharpGameEngine.Graphics.D3D12"/>-independent character motion (see Systems/Systems.cs, PlayerControl, which feeds this into PlayerController.CharacterMotion).</summary>
@@ -93,6 +110,25 @@ public struct InputState {
 public struct MovableTag {
 }
 
+/// <summary>Generic rotation motion evaluated from absolute elapsed time.</summary>
+public struct RotateMotion {
+    public float AxisX;
+    public float AxisY;
+    public float AxisZ;
+    public float RadiansPerSecond;
+    public float PhaseRadians;
+}
+
+/// <summary>Generic circular motion for a position; useful for lights and gameplay props alike.</summary>
+public struct OrbitMotion {
+    public float CenterX;
+    public float CenterY;
+    public float CenterZ;
+    public float Radius;
+    public float AngularSpeedRadiansPerSecond;
+    public float PhaseRadians;
+}
+
 /// <summary>First-person view orientation, independent of Position (the eye location). Yaw/Pitch follow the same convention as <see cref="CSharpGameEngine.Graphics.D3D12.Camera"/>.</summary>
 public struct CameraRig {
     public float Yaw;
@@ -108,6 +144,50 @@ public struct DirectionalLightData {
     public float ColorG;
     public float ColorB;
     public float Intensity;
+}
+
+/// <summary>Omnidirectional punctual light. Its world position is supplied by <see cref=Position/>.</summary>
+public struct PointLightData {
+    public float ColorR;
+    public float ColorG;
+    public float ColorB;
+    public float Intensity;
+    public float Range;
+}
+
+/// <summary>Conical punctual light. Its world position is supplied by <see cref=Position/>.</summary>
+public struct SpotLightData {
+    public float DirectionX;
+    public float DirectionY;
+    public float DirectionZ;
+    public float ColorR;
+    public float ColorG;
+    public float ColorB;
+    public float Intensity;
+    public float Range;
+    public float InnerConeAngleRadians;
+    public float OuterConeAngleRadians;
+}
+
+/// <summary>Stable index into the audio resource registry owned by <see cref=AudioRuntime/>.</summary>
+public readonly record struct AudioClipHandle(int Value);
+
+/// <summary>
+/// Data-only 3D audio source. The voice/backend handle intentionally lives in AudioRuntime, not in
+/// this component, so entities remain portable and the same clip samples can be shared by many
+/// sources.
+/// </summary>
+public struct AudioSourceData {
+    public AudioClipHandle Clip;
+    public float Volume;
+    public float MinDistance;
+    public float MaxDistance;
+    public bool Loop;
+    public bool Playing;
+}
+
+/// <summary>Tag attached to the player whose Position becomes the 3D audio listener position.</summary>
+public struct AudioListenerData {
 }
 
 /// <summary>Flat ambient term approximating sky/indirect light (see ADR-0017's SkyLight approximation).</summary>
@@ -129,7 +209,7 @@ public struct FogData {
 /// <summary>
 /// Per-frame data every <c>[GameSystem]</c> method needs but no single Entity owns - the [Context]
 /// counterpart to InputState (which *is* per-entity, since only the player has one). ElapsedSeconds
-/// is the running total since startup (Systems/Systems.cs, MovingProp recomputes its spin fresh from
+/// is the running total since startup (Systems/Systems.cs, RotationMotion recomputes its spin fresh from
 /// this each frame rather than accumulating, so there is no drift).
 /// </summary>
 public readonly struct FrameContext {

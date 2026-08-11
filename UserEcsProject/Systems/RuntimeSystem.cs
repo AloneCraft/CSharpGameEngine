@@ -2,7 +2,7 @@ using System.Numerics;
 using CSharpGameEngine.Audio.Abstractions;
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Graphics.D3D12;
-using CSharpGameEngine.Import.Fbx;
+using CSharpGameEngine.Import.Gltf;
 using CSharpGameEngine.Platform.Windows;
 
 namespace UserEcsProject.Systems;
@@ -109,12 +109,8 @@ internal struct LevelLoad:ISystem {
             return true;
         }
 
-        var FbxPath=Path.Combine(AppContext.BaseDirectory,level.Path);
-        FbxImportResult ImportResult=FbxImporter.Import(FbxPath);
-
-        if(!ImportResult.Success||ImportResult.Mesh is not { } Mesh){
-            throw new InvalidOperationException($"Failed to import '{FbxPath}': {string.Join("; ",ImportResult.Diagnostics)}");
-        }
+        var GlbPath=Path.Combine(AppContext.BaseDirectory,level.Path);
+        StageSceneData Scene=StageSceneData.Load(GlbPath);
 
         StageRenderer Renderer=StageRenderer.Create(
             window.Handle,
@@ -122,12 +118,7 @@ internal struct LevelLoad:ISystem {
             window.ClientHeight,
             new GraphicsDeviceOptions(),
             Path.Combine(AppContext.BaseDirectory,level.ShaderPath),
-            [new MeshCreateInfo {
-                Positions=Mesh.Positions,
-                Normals=Mesh.Normals,
-                Indices=Mesh.Indices,
-                BaseColorFactor=Mesh.BaseColorFactor,
-            }]);
+            Scene.Meshes,Scene.Materials,Scene.Objects);
 
         window.Resized+=(Width,Height)=>Renderer.Resize(Width,Height);
         Renderer.SetCamera(level.Camera);
@@ -165,20 +156,28 @@ internal struct LevelLoad:ISystem {
         spotLight.Renderer=Renderer;
         state.World.Create(spotLight);
 
-        state.World.Create(
-            new Transform {
-                PositionX=0f,
-                PositionY=0f,
-                PositionZ=0f,
-                RotationX=0f,
-                RotationY=0f,
-                RotationZ=0f,
-                RotationW=1f,
-                ScaleX=1f,
-                ScaleY=1f,
-                ScaleZ=1f,
-            },
-            new Renderable { Renderer=Renderer,ObjectIndex=0 });
+        for(var objectIndex=0;objectIndex<Scene.Objects.Length;objectIndex++){
+            Matrix4x4.Decompose(
+                Scene.ObjectTransforms[objectIndex],
+                out Vector3 scale,
+                out Quaternion rotation,
+                out Vector3 translation);
+
+            state.World.Create(
+                new Transform {
+                    PositionX=translation.X,
+                    PositionY=translation.Y,
+                    PositionZ=translation.Z,
+                    RotationX=rotation.X,
+                    RotationY=rotation.Y,
+                    RotationZ=rotation.Z,
+                    RotationW=rotation.W,
+                    ScaleX=scale.X,
+                    ScaleY=scale.Y,
+                    ScaleZ=scale.Z,
+                },
+                new Renderable { Renderer=Renderer,ObjectIndex=objectIndex });
+        }
 
         state.World.Create(new FramePresent { Window=window,Renderer=Renderer,AudioEngine=AudioEngine });
 

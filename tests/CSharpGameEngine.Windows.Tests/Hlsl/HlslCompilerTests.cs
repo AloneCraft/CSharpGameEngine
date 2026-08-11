@@ -8,6 +8,7 @@ public class HlslCompilerTests {
     private static string SyntaxErrorShaderPath=>Path.Combine(AppContext.BaseDirectory,"TestShaders","SyntaxError.hlsl");
 
     private static string ModelShaderPath=>Path.Combine(AppContext.BaseDirectory,"Shaders","Model.hlsl");
+    private static string StageShaderPath=>Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.hlsl");
 
     [Fact]
     public void Compile_ValidVertexShader_Succeeds(){
@@ -94,5 +95,24 @@ public class HlslCompilerTests {
 
         Assert.True(Result.Success,string.Join(Environment.NewLine,Result.Diagnostics));
         Assert.NotEmpty(Result.Bytecode);
+    }
+
+    [Fact]
+    public void Compile_StagePostProcessShaders_Succeeds(){
+        HlslCompileResult Vertex=HlslCompiler.Compile(new HlslCompileRequest {
+            FilePath=StageShaderPath,
+            EntryPoint="FullscreenVS",
+            TargetProfile="vs_6_0",
+        });
+        HlslCompileResult Pixel=HlslCompiler.Compile(new HlslCompileRequest {
+            FilePath=StageShaderPath,
+            EntryPoint="PostProcessPS",
+            TargetProfile="ps_6_0",
+        });
+
+        Assert.True(Vertex.Success,string.Join(Environment.NewLine,Vertex.Diagnostics));
+        Assert.True(Pixel.Success,string.Join(Environment.NewLine,Pixel.Diagnostics));
+        Assert.NotEmpty(Vertex.Bytecode);
+        Assert.NotEmpty(Pixel.Bytecode);
     }
 }

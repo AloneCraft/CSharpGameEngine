@@ -21,7 +21,7 @@ namespace UserGameProject.Systems;
 //   PlayerControl … InputStateを読み、Position/Rotation/CameraRig等を書く
 //   Camera       … Position/CameraRigを読み、Cameraを書く(PlayerControlの後でなければ
 //                  カメラがちょうど1フレーム遅れる)
-//   MovingProp   … Rotationを書く(Cameraとは独立、RenderSyncより前であればよい)
+//   RotationMotion / OrbitMotionSystem … 回転・軌道を更新(Cameraとは独立、RenderSyncより前であればよい)
 //   RenderSync   … 全ての結果をStageRendererへ流し込む(最後)
 //
 // Component引数の注意: タグComponent(PlayerTag/MovableTag)も`ref`で受ける必要がある。`in`にすると
@@ -42,17 +42,35 @@ internal struct SceneSpawn:ISystem {
         }
 
         Request.Done=true;
+        Entity parentEntity=default;
+        var parentCreated=false;
+        var childCreated=false;
 
         foreach(LoadedSceneSpawn Spawn in Scene.Spawns){
             Position position=new(){ X=Spawn.Position.X,Y=Spawn.Position.Y,Z=Spawn.Position.Z };
             Rotation rotation=new(){ X=Spawn.Rotation.X,Y=Spawn.Rotation.Y,Z=Spawn.Rotation.Z,W=Spawn.Rotation.W };
             Scale scale=new(){ X=Spawn.Scale.X,Y=Spawn.Scale.Y,Z=Spawn.Scale.Z };
-            RenderObjectRef renderObjectRef=new(){ Index=Spawn.ObjectIndex };
+            WorldTransform worldTransform=new(){ Value=Matrix4x4.Identity };
+            MeshRenderer meshRenderer=new(){ Mesh=Spawn.Mesh,Material=Spawn.Material,ObjectIndex=Spawn.ObjectIndex };
 
             if(Spawn.Mobility==PropMobility.Movable){
-                state.World.Create(position,rotation,scale,renderObjectRef,new MovableTag());
+                state.World.Create(
+                    position,
+                    rotation,
+                    scale,
+                    worldTransform,
+                    meshRenderer,
+                    new RotateMotion { AxisX=0f,AxisY=1f,AxisZ=0f,RadiansPerSecond=0.8f });
             } else {
-                state.World.Create(position,rotation,scale,renderObjectRef);
+                if(!parentCreated){
+                    parentEntity=state.World.Create(position,rotation,scale,worldTransform,meshRenderer);
+                    parentCreated=true;
+                } else if(!childCreated){
+                    state.World.Create(position,rotation,scale,worldTransform,meshRenderer,new Parent { Value=parentEntity });
+                    childCreated=true;
+                } else {
+                    state.World.Create(position,rotation,scale,worldTransform,meshRenderer);
+                }
             }
         }
 
@@ -68,6 +86,59 @@ internal struct SceneSpawn:ISystem {
             state.World.Create(Fog);
         }
 
+        // Ordinary data entities, not fixed renderer fields: the imported stage plus these
+        // practical lights exercise the same general multi-light path used by future games.
+        state.World.Create(
+            new Position { X=-4f,Y=2.5f,Z=-3f },
+            new PointLightData { ColorR=0.15f,ColorG=0.55f,ColorB=1f,Intensity=28f,Range=8f });
+        state.World.Create(
+            new Position { X=4f,Y=2.2f,Z=-2f },
+            new PointLightData { ColorR=1f,ColorG=0.18f,ColorB=0.08f,Intensity=24f,Range=7f });
+        state.World.Create(
+            new Position { X=-3f,Y=1.7f,Z=4f },
+            new PointLightData { ColorR=0.18f,ColorG=1f,ColorB=0.55f,Intensity=18f,Range=6f });
+        state.World.Create(
+            new Position { X=0f,Y=2.8f,Z=0f },
+            new PointLightData { ColorR=0.9f,ColorG=0.2f,ColorB=1f,Intensity=20f,Range=6f },
+            new OrbitMotion { CenterX=0f,CenterY=2.8f,CenterZ=0f,Radius=3.5f,AngularSpeedRadiansPerSecond=0.55f });
+        state.World.Create(
+            new Position { X=-5f,Y=4f,Z=-5f },
+            new SpotLightData {
+                DirectionX=0.6f,DirectionY=-0.7f,DirectionZ=0.4f,
+                ColorR=0.55f,ColorG=0.75f,ColorB=1f,Intensity=55f,Range=14f,
+                InnerConeAngleRadians=0.20f,OuterConeAngleRadians=0.42f,
+            });
+        state.World.Create(
+            new Position { X=5f,Y=3.5f,Z=3f },
+            new SpotLightData {
+                DirectionX=-0.6f,DirectionY=-0.65f,DirectionZ=-0.35f,
+                ColorR=1f,ColorG=0.35f,ColorB=0.12f,Intensity=50f,Range=13f,
+                InnerConeAngleRadians=0.18f,OuterConeAngleRadians=0.38f,
+            });
+
+        // Two sources share one clip resource; the third follows a reusable orbit.
+        state.World.Create(
+            new Position { X=-2f,Y=1.2f,Z=1f },
+            new AudioSourceData {
+                Clip=new AudioClipHandle(0),Volume=0.28f,MinDistance=1.5f,MaxDistance=18f,
+                Loop=true,Playing=true,
+            });
+        state.World.Create(
+            new Position { X=3f,Y=1.4f,Z=-3f },
+            new AudioSourceData {
+                Clip=new AudioClipHandle(0),Volume=0.22f,MinDistance=1.5f,MaxDistance=18f,
+                Loop=true,Playing=true,
+            });
+        state.World.Create(
+            new Position { X=0f,Y=1.5f,Z=2f },
+            new AudioSourceData {
+                Clip=new AudioClipHandle(1),Volume=0.18f,MinDistance=1f,MaxDistance=14f,
+                Loop=true,Playing=true,
+            },
+            new OrbitMotion {
+                CenterX=0f,CenterY=1.5f,CenterZ=2f,Radius=4f,AngularSpeedRadiansPerSecond=0.35f,
+            });
+
         Position PlayerStart=new(){ X=Scene.PlayerStartPosition.X,Y=Scene.PlayerStartPosition.Y,Z=Scene.PlayerStartPosition.Z };
 
         state.World.Create(
@@ -78,6 +149,7 @@ internal struct SceneSpawn:ISystem {
             new CameraRig { Yaw=Scene.PlayerStartYawRadians,Pitch=0f },
             new InputState(),
             new PlayerTag(),
+            new AudioListenerData(),
             CSharpGameEngine.Graphics.D3D12.Camera.CreateFirstPerson(new Vector3(PlayerStart.X,PlayerStart.Y+Camera.EyeHeight,PlayerStart.Z)));
 
         return true;
@@ -201,35 +273,94 @@ internal struct Camera:ISystem {
     }
 }
 
+/// <summary>Resolves local Position/Rotation/Scale into a cached world matrix for root entities.</summary>
+internal struct LocalToWorld:ISystem {
+    public bool Update(Entity entity,ref Position position,ref Rotation rotation,ref Scale scale,ref WorldTransform world,TransformHierarchyRuntime hierarchy,ref State state){
+        world.Value=ComposeTransform(position,rotation,scale);
+        hierarchy.Set(entity.Id,world.Value);
+        return true;
+    }
+
+    private static Matrix4x4 ComposeTransform(in Position position,in Rotation rotation,in Scale scale){
+        Quaternion q=new(rotation.X,rotation.Y,rotation.Z,rotation.W);
+        return Matrix4x4.CreateScale(scale.X,scale.Y,scale.Z)*Matrix4x4.CreateFromQuaternion(q)*Matrix4x4.CreateTranslation(position.X,position.Y,position.Z);
+    }
+}
+
+/// <summary>Resolves a child after its parent root has been cached by LocalToWorld.</summary>
+internal struct ParentToWorld:ISystem {
+    public bool Update(Entity entity,ref Position position,ref Rotation rotation,ref Scale scale,ref WorldTransform world,ref Parent parent,TransformHierarchyRuntime hierarchy,ref State state){
+        Matrix4x4 local=LocalToWorldMatrix(position,rotation,scale);
+        world.Value=hierarchy.TryGet(parent.Value.Id,out Matrix4x4 parentWorld)?local*parentWorld:local;
+        hierarchy.Set(entity.Id,world.Value);
+        return true;
+    }
+
+    private static Matrix4x4 LocalToWorldMatrix(in Position position,in Rotation rotation,in Scale scale){
+        Quaternion q=new(rotation.X,rotation.Y,rotation.Z,rotation.W);
+        return Matrix4x4.CreateScale(scale.X,scale.Y,scale.Z)*Matrix4x4.CreateFromQuaternion(q)*Matrix4x4.CreateTranslation(position.X,position.Y,position.Z);
+    }
+}
+
 /// <summary>
 /// Demonstrates the "movable" mobility archetype: a continuous spin, recomputed fresh from
 /// elapsed time each frame (not accumulated frame-to-frame) so there is no drift and no need to
 /// remember each prop's original position. There is no gameplay reason for the motion beyond
 /// visibly proving Static vs Movable props are independently spawnable and updatable.
 /// </summary>
-internal struct MovingProp:ISystem {
-    private const float SpinSpeedRadiansPerSecond=0.8f;
-
-    public bool Update(ref Rotation rotation,ref MovableTag _,in FrameContext Frame,ref State GameState){
-        Quaternion Spin=Quaternion.CreateFromAxisAngle(Vector3.UnitY,Frame.ElapsedSeconds*SpinSpeedRadiansPerSecond);
+internal struct RotationMotion:ISystem {
+    public bool Update(ref Rotation rotation,ref RotateMotion motion,in FrameContext Frame,ref State GameState){
+        Vector3 axis=Vector3.Normalize(new Vector3(motion.AxisX,motion.AxisY,motion.AxisZ));
+        Quaternion Spin=Quaternion.CreateFromAxisAngle(axis,motion.PhaseRadians+(Frame.ElapsedSeconds*motion.RadiansPerSecond));
         rotation=new Rotation { X=Spin.X,Y=Spin.Y,Z=Spin.Z,W=Spin.W };
 
         return true;
     }
 }
 
+/// <summary>Moves an entity around a horizontal circle without retaining per-frame mutable state.</summary>
+internal struct OrbitMotionSystem:ISystem {
+    public bool Update(ref Position position,ref OrbitMotion motion,in FrameContext Frame,ref State GameState){
+        var angle=motion.PhaseRadians+(Frame.ElapsedSeconds*motion.AngularSpeedRadiansPerSecond);
+        position.X=motion.CenterX+(MathF.Cos(angle)*motion.Radius);
+        position.Y=motion.CenterY;
+        position.Z=motion.CenterZ+(MathF.Sin(angle)*motion.Radius);
+        return true;
+    }
+}
+
+/// <summary>Copies the player Position into the shared audio listener resource each frame.</summary>
+internal struct AudioListenerSync:ISystem {
+    public bool Update(ref Position position,ref AudioListenerData _,AudioRuntime Audio,ref State GameState){
+        Audio.SetListenerPosition(new Vector3(position.X,position.Y,position.Z));
+        return true;
+    }
+}
+
+/// <summary>Creates/updates one backend voice per source entity and applies distance attenuation.</summary>
+internal struct AudioSourcePlayback:ISystem {
+    public bool Update(Entity entity,ref Position position,ref AudioSourceData source,AudioRuntime Audio,ref State GameState){
+        if(!source.Playing){
+            Audio.RemoveSource(entity);
+            return true;
+        }
+
+        Audio.UpdateSource(entity,new Vector3(position.X,position.Y,position.Z),source);
+        return true;
+    }
+}
+
 /// <summary>
 /// Pushes ECS transform/camera/light/fog state into <see cref="StageRenderer"/> once per frame -
-/// the only system that consumes <see cref="RenderObjectRef"/> indices or writes to the renderer.
-/// <see cref="Update(ref Position, ref Rotation, ref Scale, ref RenderObjectRef, StageRenderer, ref State)"/>
-/// requires exactly Position+Rotation+Scale+RenderObjectRef, which both the static and movable
+/// the only system that consumes <see cref="MeshRenderer"/> object indices or writes to the renderer.
+/// Its renderable overload requires WorldTransform+MeshRenderer, which both the static and movable
 /// stage-prop archetypes satisfy (the movable one is a strict superset), so the generator's
 /// subset dispatch naturally covers both with one method - the same property the old Query-based
 /// design had, and the reason the pre-migration AoS-era code needed two near-identical overloads.
 /// </summary>
 internal struct RenderSync:ISystem {
-    public bool Update(ref Position position,ref Rotation rotation,ref Scale scale,ref RenderObjectRef renderObjectRef,StageRenderer Renderer,ref State GameState){
-        Renderer.SetObjectTransform(renderObjectRef.Index,ComposeTransform(position,rotation,scale));
+    public bool Update(ref WorldTransform worldTransform,ref MeshRenderer meshRenderer,StageRenderer Renderer,ref State GameState){
+        Renderer.SetObjectTransform(meshRenderer.ObjectIndex,worldTransform.Value);
         return true;
     }
 
@@ -258,12 +389,27 @@ internal struct RenderSync:ISystem {
         return true;
     }
 
-    private static Matrix4x4 ComposeTransform(in Position position,in Rotation rotation,in Scale scale){
-        Quaternion RotationQuaternion=new(rotation.X,rotation.Y,rotation.Z,rotation.W);
-        return Matrix4x4.CreateScale(scale.X,scale.Y,scale.Z)
-            *Matrix4x4.CreateFromQuaternion(RotationQuaternion)
-            *Matrix4x4.CreateTranslation(position.X,position.Y,position.Z);
+    public bool Update(ref Position position,ref PointLightData light,StageRenderer Renderer,ref State GameState){
+        Renderer.AddPointLight(
+            new Vector3(position.X,position.Y,position.Z),
+            new Vector3(light.ColorR,light.ColorG,light.ColorB),
+            light.Intensity,
+            light.Range);
+        return true;
     }
+
+    public bool Update(ref Position position,ref SpotLightData light,StageRenderer Renderer,ref State GameState){
+        Renderer.AddSpotLight(
+            new Vector3(position.X,position.Y,position.Z),
+            new Vector3(light.DirectionX,light.DirectionY,light.DirectionZ),
+            new Vector3(light.ColorR,light.ColorG,light.ColorB),
+            light.Intensity,
+            light.Range,
+            light.InnerConeAngleRadians,
+            light.OuterConeAngleRadians);
+        return true;
+    }
+
 }
 
 // ============================================================================
@@ -287,13 +433,14 @@ internal struct PlayerSpawn:ISystem {
         ref CameraRig cameraRig,
         ref InputState inputState,
         ref PlayerTag playerTag,
+        ref AudioListenerData audioListener,
         ref CSharpGameEngine.Graphics.D3D12.Camera camera){
     }
 }
 
 /// <summary>
-/// 可動ステージプロップの構成。<see cref="RenderSync"/>(Position/Rotation/Scale/RenderObjectRef)と
-/// <see cref="MovingProp"/>(Rotation/MovableTag)の両方に部分集合一致で拾われるが、その和集合
+/// 可動ステージプロップの構成。<see cref="RenderSync"/>(WorldTransform/MeshRenderer)と
+/// <see cref="RotationMotion"/>(Rotation/RotateMotion)の両方に部分集合一致で拾われるが、その和集合
 /// そのものはどの<c>Update</c>にも現れないため、ここで宣言する。
 /// </summary>
 internal struct MovableStagePropSpawn:ISystem {
@@ -301,7 +448,43 @@ internal struct MovableStagePropSpawn:ISystem {
         ref Position position,
         ref Rotation rotation,
         ref Scale scale,
-        ref RenderObjectRef renderObjectRef,
-        ref MovableTag movableTag){
+        ref WorldTransform worldTransform,
+        ref MeshRenderer meshRenderer,
+        ref RotateMotion rotateMotion){
+    }
+}
+
+internal struct StaticStagePropSpawn:ISystem {
+    public void Spawn(ref Position position,ref Rotation rotation,ref Scale scale,ref WorldTransform worldTransform,ref MeshRenderer meshRenderer){
+    }
+}
+
+internal struct ChildStagePropSpawn:ISystem {
+    public void Spawn(ref Position position,ref Rotation rotation,ref Scale scale,ref WorldTransform worldTransform,ref MeshRenderer meshRenderer,ref Parent parent){
+    }
+}
+
+internal struct PointLightSpawn:ISystem {
+    public void Spawn(ref Position position,ref PointLightData pointLight){
+    }
+}
+
+internal struct OrbitingPointLightSpawn:ISystem {
+    public void Spawn(ref Position position,ref PointLightData pointLight,ref OrbitMotion orbitMotion){
+    }
+}
+
+internal struct AudioSourceSpawn:ISystem {
+    public void Spawn(ref Position position,ref AudioSourceData audioSource){
+    }
+}
+
+internal struct OrbitingAudioSourceSpawn:ISystem {
+    public void Spawn(ref Position position,ref AudioSourceData audioSource,ref OrbitMotion orbitMotion){
+    }
+}
+
+internal struct SpotLightSpawn:ISystem {
+    public void Spawn(ref Position position,ref SpotLightData spotLight){
     }
 }

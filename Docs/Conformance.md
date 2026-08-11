@@ -599,3 +599,16 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
   - `UserGameProject/Components.cs`の既存型構成、Docs/Decisions/ADR-0031-Scene-Definition-3D-Preview.md
     と同一。
 - Result: Matches
+
+## 2026-08 Runtime Component/System/Resource expansion addendum
+
+- `UserGameProject` now exercises reusable ECS data for shared mesh/material handles, world-transform
+  hierarchy, camera, directional/point/spot lights, motion, input, and 3D audio sources/listener.
+- `StageRenderer` now has a real directional shadow pass and an HDR offscreen target. Imported
+  emissive factors feed the same HDR path; the fullscreen post-process performs a thresholded
+  spatial 3x3 bloom blur followed by ACES tone mapping.
+- Evidence: `dotnet test tests/CSharpGameEngine.Windows.Tests/CSharpGameEngine.Windows.Tests.csproj -c Debug
+  --filter FullyQualifiedName~StageGpuIntegrationTests` (4/4), the post-process shader compile test,
+  and the UserGame/Core test suites listed in `Docs/Implementation-Status.md`.
+- The old `UserEcsProject` audio sample remains intentionally unchanged and still has its historical
+  single-entity/2D limitation; the new `UserGameProject/AudioRuntime` is the practical 3D path.

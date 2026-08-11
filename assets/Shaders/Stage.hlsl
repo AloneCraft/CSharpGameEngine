@@ -4,7 +4,8 @@
 // point/spot lights + flat ambient term, and a simplified exponential height fog.
 // Model matrix + material factors are per-object (ObjectCB, b1); view/projection, camera position,
 // lights, ambient and fog are per-frame (FrameCB, b0). Textures are shared per-material via a
-// 3-descriptor SRV table (t0=BaseColor, t1=Normal, t2=MetallicRoughness); a material baked to a
+// 4-descriptor SRV table (t0=BaseColor, t1=Normal, t2=MetallicRoughness, t3=DirectionalShadow);
+// a material baked to a
 // flat factor (no spatial variation) binds a neutral 1x1 fallback texture in that slot.
 
 // Fixed capacities (no light culling/clustering in this vertical slice - see ADR-0037): the frame
@@ -38,6 +39,7 @@ cbuffer FrameCB : register(b0)
     int4 LightCounts;                  // x = active point lights, y = active spot lights
     PointLightData PointLights[MAX_POINT_LIGHTS];
     SpotLightData SpotLights[MAX_SPOT_LIGHTS];
+    row_major float4x4 ShadowViewProjection;
 };
 
 cbuffer ObjectCB : register(b1)
@@ -45,12 +47,15 @@ cbuffer ObjectCB : register(b1)
     row_major float4x4 World;
     float4 BaseColorFactor;
     float4 MaterialParams; // x = roughness factor, y = metallic factor
+    float4 EmissiveFactor; // xyz = HDR emissive factor
 };
 
 Texture2D BaseColorTexture : register(t0);
 Texture2D NormalTexture : register(t1);
 Texture2D MetallicRoughnessTexture : register(t2);
+Texture2D ShadowMap : register(t3);
 SamplerState LinearSampler : register(s0);
+SamplerComparisonState ShadowSampler : register(s1);
 
 static const float PI = 3.14159265359;
 
@@ -69,6 +74,7 @@ struct VertexOutput
     float3 Normal : NORMAL;
     float4 Tangent : TANGENT;
     float2 Uv : TEXCOORD1;
+    float4 ShadowPosition : TEXCOORD2;
 };
 
 VertexOutput VSMain(VertexInput input)
@@ -80,6 +86,7 @@ VertexOutput VSMain(VertexInput input)
     output.Normal = mul(input.Normal, (float3x3)World);
     output.Tangent = float4(mul(input.Tangent.xyz, (float3x3)World), input.Tangent.w);
     output.Uv = input.Uv;
+    output.ShadowPosition = mul(worldPosition, ShadowViewProjection);
     return output;
 }
 
@@ -187,6 +194,89 @@ float3 ComputeSpotLightContribution(SpotLightData light, float3 worldPosition, f
     return EvaluateLitSurface(n, v, l, baseColor, roughness, metallic, f0) * light.ColorAndOuterCos.xyz * distanceAttenuation * coneAttenuation;
 }
 
+float ComputeDirectionalShadow(float4 shadowPosition)
+{
+    float3 projected = shadowPosition.xyz / max(shadowPosition.w, 1e-5);
+    float2 uv = (projected.xy * float2(0.5, -0.5)) + 0.5;
+    if (any(uv <= 0.0) || any(uv >= 1.0) || projected.z <= 0.0 || projected.z >= 1.0)
+    {
+        return 1.0;
+    }
+
+    float bias = 0.0015;
+    float2 texel = 1.0 / 1024.0;
+    float visibility = 0.0;
+    [unroll]
+    for (int x = -1; x <= 1; x++)
+    {
+        [unroll]
+        for (int y = -1; y <= 1; y++)
+        {
+            visibility += ShadowMap.SampleCmpLevelZero(ShadowSampler, uv + float2(x, y) * texel, projected.z - bias);
+        }
+    }
+    return visibility / 9.0;
+}
+
+float3 ToneMapAces(float3 color)
+{
+    float3 a = color * (2.51 * color + 0.03);
+    float3 b = color * (2.43 * color + 0.59) + 0.14;
+    return saturate(a / b);
+}
+
+struct PostProcessVertexOutput
+{
+    float4 Position : SV_Position;
+    float2 Uv : TEXCOORD0;
+};
+
+PostProcessVertexOutput FullscreenVS(uint vertexId : SV_VertexID)
+{
+    float2 positions[3] = {
+        float2(-1.0, -1.0), float2(-1.0, 3.0), float2(3.0, -1.0)
+    };
+    float2 uvs[3] = {
+        float2(0.0, 1.0), float2(0.0, -1.0), float2(2.0, 1.0)
+    };
+
+    PostProcessVertexOutput output;
+    output.Position = float4(positions[vertexId], 0.0, 1.0);
+    output.Uv = uvs[vertexId];
+    return output;
+}
+
+Texture2D SceneColor : register(t0);
+SamplerState PostProcessSampler : register(s0);
+
+float4 PostProcessPS(PostProcessVertexOutput input) : SV_Target
+{
+    uint width;
+    uint height;
+    SceneColor.GetDimensions(width, height);
+    float2 texel = 1.0 / float2(width, height);
+
+    // Thresholded 3x3 spatial blur: neighboring HDR pixels contribute only when bright.
+    float3 center = SceneColor.SampleLevel(PostProcessSampler, input.Uv, 0.0).rgb;
+    float3 bloom = 0.0;
+    const float weights[3] = { 0.0625, 0.125, 0.0625 };
+    [unroll]
+    for (int x = -1; x <= 1; x++)
+    {
+        [unroll]
+        for (int y = -1; y <= 1; y++)
+        {
+            float3 sampleColor = SceneColor.SampleLevel(
+                PostProcessSampler, input.Uv + (float2(x, y) * texel), 0.0).rgb;
+            float3 bright = max(sampleColor - 1.0, 0.0);
+            bloom += bright * weights[x + 1] * weights[y + 1];
+        }
+    }
+
+    float3 color = center + (bloom * 1.8);
+    return float4(ToneMapAces(color), 1.0);
+}
+
 float4 PSMain(VertexOutput input) : SV_Target
 {
     float3 baseColor = BaseColorTexture.Sample(LinearSampler, input.Uv).rgb * BaseColorFactor.rgb;
@@ -208,7 +298,8 @@ float4 PSMain(VertexOutput input) : SV_Target
     float3 f0 = lerp(float3(0.04, 0.04, 0.04), baseColor, metallic);
 
     float3 l = normalize(LightDirectionTowardLight.xyz);
-    float3 lighting = EvaluateLitSurface(n, v, l, baseColor, roughness, metallic, f0) * LightColorTimesIntensity.xyz;
+    float shadow = ComputeDirectionalShadow(input.ShadowPosition);
+    float3 lighting = EvaluateLitSurface(n, v, l, baseColor, roughness, metallic, f0) * LightColorTimesIntensity.xyz * shadow;
 
     int numPointLights = LightCounts.x;
     for (int i = 0; i < numPointLights; i++)
@@ -223,6 +314,7 @@ float4 PSMain(VertexOutput input) : SV_Target
     }
 
     float3 color = (AmbientColor.xyz * baseColor) + lighting;
+    color += EmissiveFactor.xyz;
 
     // Simplified exponential height fog: density falls off with height above ground (Y=0).
     float viewDistance = length(CameraPositionWS.xyz - input.WorldPosition);
@@ -230,5 +322,7 @@ float4 PSMain(VertexOutput input) : SV_Target
     float fogFactor = saturate(1.0 - exp(-FogParams0.x * heightTerm * viewDistance));
     color = lerp(color, FogColor.xyz, fogFactor);
 
-    return float4(saturate(color), 1.0);
+    // Keep the lighting result in HDR. StageRenderer composites this target through PostProcessPS,
+    // where a thresholded spatial blur and ACES tone mapping are applied exactly once.
+    return float4(color, 1.0);
 }

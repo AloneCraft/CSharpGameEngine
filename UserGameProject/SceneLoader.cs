@@ -14,6 +14,10 @@ public enum PropMobility {
 public sealed class LoadedSceneSpawn {
     public required int ObjectIndex { get; init;}
 
+    public required MeshHandle Mesh { get; init;}
+
+    public required MaterialHandle Material { get; init;}
+
     public required PropMobility Mobility { get; init;}
 
     public required Vector3 Position { get; init;}
@@ -23,7 +27,33 @@ public sealed class LoadedSceneSpawn {
     public required Vector3 Scale { get; init;}
 }
 
+/// <summary>
+/// Shared CPU-side scene resources. The arrays are passed once to <c>StageRenderer.Create</c>,
+/// which creates one GPU mesh/material resource per entry. Entity components only retain the
+/// compact handles established here.
+/// </summary>
+public sealed class SceneAssetResources {
+    public SceneAssetResources(StageMeshCreateInfo[] meshes,StageMaterialCreateInfo[] materials,StageObjectCreateInfo[] objects){
+        this.Meshes=meshes;
+        this.Materials=materials;
+        this.Objects=objects;
+    }
+
+    public StageMeshCreateInfo[] Meshes { get;}
+
+    public StageMaterialCreateInfo[] Materials { get;}
+
+    public StageObjectCreateInfo[] Objects { get;}
+
+    public int RenderableCount=>this.Objects.Length;
+
+    public bool Contains(MeshHandle mesh,MaterialHandle material)=>
+        (uint)mesh.Value<(uint)this.Meshes.Length&&(uint)material.Value<(uint)this.Materials.Length;
+}
+
 public sealed class LoadedScene {
+    public required SceneAssetResources Assets { get; init;}
+
     public required StageMeshCreateInfo[]Meshes { get; init;}
 
     public required StageMaterialCreateInfo[]Materials { get; init;}
@@ -85,15 +115,27 @@ public static class SceneLoader {
             var MobilityText=Meta.MobilityOverrides.GetValueOrDefault(Node.Name,"static");
             PropMobility Mobility=string.Equals(MobilityText,"movable",StringComparison.OrdinalIgnoreCase)?PropMobility.Movable:PropMobility.Static;
 
-            Spawns.Add(new LoadedSceneSpawn { ObjectIndex=ObjectIndex,Mobility=Mobility,Position=Translation,Rotation=rotation,Scale=scale });
+            Spawns.Add(new LoadedSceneSpawn {
+                ObjectIndex=ObjectIndex,
+                Mesh=new MeshHandle(MeshIndex),
+                Material=new MaterialHandle(MaterialIndex),
+                Mobility=Mobility,
+                Position=Translation,
+                Rotation=rotation,
+                Scale=scale,
+            });
         }
 
         (Vector3 PlayerStartPosition,var PlayerStartYawRadians)=ImportPlayerStart(Meta.PlayerStart);
 
+        StageMeshCreateInfo[] MeshArray=[.. Meshes];
+        StageMaterialCreateInfo[] MaterialArray=[.. Materials];
+        StageObjectCreateInfo[] ObjectArray=[.. Objects];
         return new LoadedScene {
-            Meshes=Meshes,
-            Materials=Materials,
-            Objects=[.. Objects],
+            Assets=new SceneAssetResources(MeshArray,MaterialArray,ObjectArray),
+            Meshes=MeshArray,
+            Materials=MaterialArray,
+            Objects=ObjectArray,
             Spawns=[.. Spawns],
             Sun=Sun,
             Ambient=ToAmbientData(Meta.Ambient),
@@ -189,6 +231,7 @@ public static class SceneLoader {
         BaseColorFactor=Material.BaseColorFactor,
         RoughnessFactor=Material.RoughnessFactor,
         MetallicFactor=Material.MetallicFactor,
+        EmissiveFactor=Material.EmissiveFactor,
         BaseColorTextureBytes=Material.BaseColorTextureBytes,
         NormalTextureBytes=Material.NormalTextureBytes,
         MetallicRoughnessTextureBytes=Material.MetallicRoughnessTextureBytes,

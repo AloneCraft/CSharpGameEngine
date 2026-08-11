@@ -294,6 +294,41 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
 - Known deviations: sRGB/ガンマ補正非対応(意図的、ADR-0018参照)。
 - Next action: なし。
 
+## F-L3-014 — UserGameProject runtime component/system/resource stage
+
+- Layer: L3 — ECS / runtime resources
+- Status: Implemented
+- Verification: TestVerified / RuntimeVerified (renderer integration)
+- Implementation evidence:
+  - UserGameProject/Components.cs (`MeshHandle`, `MaterialHandle`, `MeshRenderer`, motion, parent/world, light and audio data)
+  - UserGameProject/SceneLoader.cs (`SceneAssetResources`, per-spawn shared handles)
+  - UserGameProject/TransformHierarchyRuntime.cs
+  - UserGameProject/Systems/Systems.cs (`SceneSpawn`, `LocalToWorld`, `ParentToWorld`, motion, listener/source playback)
+  - UserGameProject/AudioRuntime.cs (`AudioClipResource`, shared clip registry, XAudio2 voice lifetime)
+- Tests:
+  - tests/UserGameProject.Tests/SceneLoaderTests.cs
+  - tests/UserGameProject.Tests/PlayerControlTests.cs (motion and parent/world composition)
+  - tests/CSharpGameEngine.Core.Tests/Audio/AudioSpatializationTests.cs
+- Result: Shared mesh/material and audio resources are referenced by lightweight handles; the GLB metadata drives 55 static mesh actors and the sample additionally creates point/spot lights, moving props, parent/child transforms, a listener and three 3D sources.
+- Known deviations: Audio backend remains Windows/XAudio2-specific in this sample facade; the data/components and distance attenuation function are platform-independent.
+
+## F-L0-007 — StageRenderer directional shadow, HDR, ACES and spatial bloom
+
+- Layer: L0 — Platform / D3D12 renderer
+- Status: Implemented
+- Verification: TestVerified / RuntimeVerified
+- Implementation evidence:
+  - src/CSharpGameEngine.Windows/Graphics/StageRenderer.cs (`RenderShadowPass`, HDR target, fullscreen post-process pass, resize/dispose paths)
+  - assets/Shaders/Stage.hlsl (`ShadowMap`, `ComputeDirectionalShadow`, `FullscreenVS`, `PostProcessPS`, `ToneMapAces`)
+- Tests:
+  - tests/CSharpGameEngine.Windows.Tests/Hlsl/HlslCompilerTests.cs (`Compile_StagePostProcessShaders_Succeeds`)
+  - tests/CSharpGameEngine.Windows.Tests/Graphics/StageGpuIntegrationTests.cs (4/4, including shadow/light output and resize)
+- Result: Scene lighting is rendered into `R16G16B16A16_FLOAT`; imported PBR base color, normal,
+  metallic/roughness, and emissive factors reach the shader. A thresholded 3x3 HDR spatial blur is
+  added and the result is ACES tone-mapped into the existing swap-chain format. The public clear
+  color is preserved via an inverse-ACES HDR clear value.
+- Known deviations: Bloom is intentionally a compact single-pass 3x3 blur, not a multi-resolution separable bloom chain.
+
 ## F-L0-003 — `ProceduralMeshFactory`(手続き的メッシュ生成)
 
 - Layer: L0 — Platform / Native Backends
@@ -2279,5 +2314,6 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
     エイリアス2行 + `GameAudio`Facade)。`UserEcsProject/Components.cs`/`Systems/RuntimeSystem.cs`/
     `Scenes/MainScene.cs`はいずれも`CSharpGameEngine.Audio.XAudio2`を直接参照しない。
 - Conformance: Matches
-- Known deviations: 距離減衰・3D定位は未実装(ADR-0039「既知の制約」参照)。
+- Known deviations: `UserEcsProject`の旧サンプルはADR-0039の単一Entity制約を維持する。一方、今回の
+  `UserGameProject/AudioRuntime`はEntityごとの音源、Listener位置、距離減衰を実装済み。
 - Next action: なし。
