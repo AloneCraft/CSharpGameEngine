@@ -40,9 +40,14 @@
     <None Include="..\..\src\CSharpGameEngine.Entities\SceneDefinitionAttribute.cs" Link="TestAssets\Entities\SceneDefinitionAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Entities\StartupSceneAttribute.cs" Link="TestAssets\Entities\StartupSceneAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Entities\SceneEntityAttribute.cs" Link="TestAssets\Entities\SceneEntityAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
-    <!-- Scene DSL (ADR-0040): the declaration surface SceneDslAnalyzer analyses. -->
+    <!-- Scene DSL (ADR-0040). IScene/Node/SceneInstance/SceneInstanceTable/ISceneDefinition are
+         referenced by Runtime.cs itself, so GameSystemGeneratorTestHelper includes them in *every*
+         compilation - omitting one shows up immediately as CS0246 across the generator tests. -->
     <None Include="..\..\src\CSharpGameEngine.Entities\IScene.cs" Link="TestAssets\Entities\IScene.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Entities\Node.cs" Link="TestAssets\Entities\Node.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\CSharpGameEngine.Entities\SceneInstance.cs" Link="TestAssets\Entities\SceneInstance.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\CSharpGameEngine.Entities\SceneInstanceTable.cs" Link="TestAssets\Entities\SceneInstanceTable.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\CSharpGameEngine.Entities\ISceneDefinition.cs" Link="TestAssets\Entities\ISceneDefinition.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Core\Authoring\SceneFactoryAttribute.cs" Link="TestAssets\Core\SceneFactoryAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Core\Authoring\SceneAssetsAttribute.cs" Link="TestAssets\Core\SceneAssetsAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

@@ -41,18 +41,12 @@ internal static class SceneDefinitionGeneratorTestHelper {
         CreateCompilation(LanguageVersion.Latest,Sources);
 
     internal static CSharpCompilation CreateCompilation(LanguageVersion languageVersion,params string[]Sources){
-        List<MetadataReference>References=[];
-
-        foreach(Assembly assembly in AppDomain.CurrentDomain.GetAssemblies()){
-            if(!assembly.IsDynamic&&!string.IsNullOrEmpty(assembly.Location)){
-                References.Add(MetadataReference.CreateFromFile(assembly.Location));
-            }
-        }
-
         CSharpParseOptions parseOptions=new(languageVersion);
         List<string>AllSources=[
             ImplicitUsingsSource,
             GameSystemGeneratorTestHelper.RuntimeSource,
+            // Runtime.csのWorldがInstantiateScene/UnloadSceneを持つため、Scene関連の型は必須になった。
+            .. GameSystemGeneratorTestHelper.SceneRuntimeSources,
             .. GameSystemGeneratorTestHelper.SceneAuthoringSources,
             .. Sources,
         ];
@@ -60,7 +54,7 @@ internal static class SceneDefinitionGeneratorTestHelper {
         return CSharpCompilation.Create(
             "SceneDefinitionGeneratorTestAssembly",
             [.. AllSources.Select(Source=>CSharpSyntaxTree.ParseText(Source,parseOptions))],
-            References,
+            GameSystemGeneratorTestHelper.References,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
     }
 

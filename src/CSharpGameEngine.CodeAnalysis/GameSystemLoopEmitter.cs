@@ -61,7 +61,7 @@ internal static class GameSystemLoopEmitter {
             Lines.AddRange(BuildArchetypeLoopBody(Archetype,Registry,Systems,Contexts,ComponentIndexByType));
         }
 
-        Lines.Add("        State.World.PlaybackMoveArchetypes(ref State);");
+        Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
         Lines.Add("    }");
         Lines.Add($"    internal static void Run({BuildRunParameterList(Contexts)}) {{");
 

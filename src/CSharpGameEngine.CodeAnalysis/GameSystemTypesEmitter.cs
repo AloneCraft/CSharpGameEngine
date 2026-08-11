@@ -13,6 +13,9 @@ internal static class GameSystemTypesEmitter {
             "#nullable enable",
             "namespace CSharpGameEngine.Entities;",
             "public enum Archetype {",
+            // 破棄されたEntityの墓石(ADR-0040)。IDは再配布されないため、この値の行を指す古いハンドルは
+            // 「死んでいる」としか解決されず、別のEntityに化けることは構造的に起こらない。
+            "    None = -1,",
         ];
 
         foreach(GameSystemArchetypeInfo Archetype in Registry.Archetypes){
@@ -56,7 +59,9 @@ internal static class GameSystemTypesEmitter {
         Lines.Add("    public int Count { get; private set; }");
         Lines.Add($"    public static Entity Create(ref World World, {Parameters}) {{");
         Lines.Add("        var Entity = new Entity(World.EntityArchetypeIndices.Count);");
-        Lines.Add($"        World.EntityArchetypeIndices.Add((Entity, Archetype.{Archetype.Name}, World.{Archetype.Name}.Count));");
+        // SceneSlotは-1(World直属)で作る。Sceneに帰属させるのは生成されたInstantiateが呼ぶ
+        // World.AttachToSceneの役目であり、Create自体はSceneを知らない(既存の全呼び出し側が壊れない)。
+        Lines.Add($"        World.EntityArchetypeIndices.Add((Entity, Archetype.{Archetype.Name}, World.{Archetype.Name}.Count, -1));");
         Lines.Add($"        World.{Archetype.Name}.Add(Entity, {Arguments});");
         Lines.Add("        return Entity;");
         Lines.Add("    }");

@@ -15,7 +15,15 @@ internal static class GameSystemWorldEmitter {
         ];
 
         if(Registry.Archetypes.Length==0){
+            // Archetypeが1つも無いコンパイルでも、Runtime.csの手書き部分(UnloadScene等)が
+            // Destroy/PlaybackStructuralChangesを呼ぶため、空実装だけは必ず出す。
+            // Archetypeが無い = Entityも作れないので、破棄は本当に何もしない。
             Lines.Add("public partial struct World() {");
+            Lines.Add("    public void Destroy(Entity Entity) {");
+            Lines.Add("    }");
+            Lines.Add("    public void PlaybackStructuralChanges(ref State State) {");
+            Lines.Add("        this.PlaybackSceneCommands();");
+            Lines.Add("    }");
             Lines.Add("}");
             Context.AddSource(HintName,SourceText.From(string.Join("\n",Lines),Encoding.UTF8));
             return;
@@ -47,6 +55,7 @@ internal static class GameSystemWorldEmitter {
         }
 
         Lines.AddRange(BuildDetach(Registry));
+        Lines.AddRange(BuildDestroy());
 
         foreach(GameSystemArchetypeInfo archetype in Registry.Archetypes){
             Lines.AddRange(BuildMoveArchetypeOverload(archetype,Registry));
@@ -94,10 +103,33 @@ internal static class GameSystemWorldEmitter {
             Lines.Add("            }");
         }
 
+        // 墓石(既に破棄済み)は何もしない。Destroyが冪等であることの土台。
+        Lines.Add("            case Archetype.None: break;");
         Lines.Add("            default: throw new global::System.ArgumentOutOfRangeException();");
         Lines.Add("        }");
         Lines.Add("    }");
         return Lines;
+    }
+
+    /// <summary>
+    /// Entityの破棄(ADR-0040、案A: 墓石のみでIDは再利用しない)。SoA列からはswap-backで取り除き、
+    /// 位置表の行には<c>Archetype.None</c>の墓石を書く。そのIdは二度と再配布されないため、
+    /// 古いハンドルが別のEntityに化けることは構造的に起こらない。
+    /// </summary>
+    private static List<string>BuildDestroy(){
+        return[
+            "    public void Destroy(Entity Entity) {",
+            "        if (!this.IsAlive(Entity)) {",
+            "            return;",
+            "        }",
+            "        this.Detach(Entity);",
+            // Detachは「移動してきた側」の行を書き換えるため、refはここで取り直す。
+            "        ref var Row = ref this.EntityArchetypeIndices.GetRefUnchecked(Entity.Id);",
+            "        Row.Archetype = Archetype.None;",
+            "        Row.Index = -1;",
+            "        Row.SceneSlot = -1;",
+            "    }",
+        ];
     }
 
     private static List<string>BuildMoveArchetypeOverload(GameSystemArchetypeInfo Archetype,GameSystemRegistry Registry){
@@ -107,8 +139,13 @@ internal static class GameSystemWorldEmitter {
         return[$"    public bool MoveArchetype(Entity Entity, {Parameters}, ref State State) {{", $"        int PayloadIndex = this.{Archetype.MoveCommandsFieldName}.Count;", $"        this.{Archetype.MoveCommandsFieldName}.Add(new({Arguments}));", $"        this.MoveCommands.Add(new(Entity, Archetype.{Archetype.Name}, PayloadIndex));","        return true;","    }"];
     }
 
+    /// <summary>
+    /// フレーム末尾の唯一のプレイバックバリア。<b>Archetype移動を先に、破棄を後に</b>適用する —
+    /// 同一フレームで「移動してから破棄」したEntityに対して、破棄後の墓石行へ移動を適用してしまうのを
+    /// 防ぐため。破棄側(<c>PlaybackSceneCommands</c>)は手書きで、Archetypeを知らない。
+    /// </summary>
     private static List<string>BuildPlaybackMoveArchetypes(GameSystemRegistry Registry){
-        List<string>Lines=["    public void PlaybackMoveArchetypes(ref State State) {","        for (int Index = 0; Index < this.MoveCommands.Count; Index++) {","            ref var Command = ref this.MoveCommands.GetRefUnchecked(Index);","            switch (Command.Destination) {"];
+        List<string>Lines=["    public void PlaybackStructuralChanges(ref State State) {","        for (int Index = 0; Index < this.MoveCommands.Count; Index++) {","            ref var Command = ref this.MoveCommands.GetRefUnchecked(Index);","            switch (Command.Destination) {"];
 
         foreach(GameSystemArchetypeInfo Archetype in Registry.Archetypes){
             Lines.Add($"                case Archetype.{Archetype.Name}:");
@@ -123,6 +160,7 @@ internal static class GameSystemWorldEmitter {
         foreach(GameSystemArchetypeInfo archetype in Registry.Archetypes){
             Lines.Add($"        this.{archetype.MoveCommandsFieldName}.Clear();");
         }
+        Lines.Add("        this.PlaybackSceneCommands();");
         Lines.Add("    }");
         return Lines;
     }
@@ -130,8 +168,26 @@ internal static class GameSystemWorldEmitter {
     private static List<string>BuildApplyMoveArchetype(GameSystemArchetypeInfo Archetype,GameSystemRegistry Registry){
         List<(string TypeFullyQualifiedName,string FieldName)>Components=GameSystemTypesEmitter.BuildComponentFields(Archetype,Registry);
         var Parameters=string.Join(", ",Components.Select(C=> $"Command.{C.FieldName}"));
-        List<string>Lines=[$"    private void ApplyMove{Archetype.Name}(in {Archetype.MoveCommandTypeName} Command) {{","        ref var Location = ref this.EntityArchetypeIndices.GetRefUnchecked(Command.Entity.Id);", $"        if (Location.Archetype == Archetype.{Archetype.Name}) {{", $"            this.{Archetype.Name}.Overwrite(Location.Index, {Parameters});","            return;","        }", $"        int DestinationIndex = this.{Archetype.Name}.Count;", $"        this.{Archetype.Name}.Add(Command.Entity, {Parameters});","        this.Detach(Command.Entity);", $"        this.EntityArchetypeIndices.GetRefUnchecked(Command.Entity.Id) = (Command.Entity, Archetype.{Archetype.Name}, DestinationIndex);","    }"];
-        return Lines;
+        return[
+            $"    private void ApplyMove{Archetype.Name}(in {Archetype.MoveCommandTypeName} Command) {{",
+            // 既に破棄されたEntityへ移動を適用すると墓石行が生き返ってしまう。
+            "        if (!this.IsAlive(Command.Entity)) {",
+            "            return;",
+            "        }",
+            "        ref var Location = ref this.EntityArchetypeIndices.GetRefUnchecked(Command.Entity.Id);",
+            $"        if (Location.Archetype == Archetype.{Archetype.Name}) {{",
+            $"            this.{Archetype.Name}.Overwrite(Location.Index, {Parameters});",
+            "            return;",
+            "        }",
+            $"        int DestinationIndex = this.{Archetype.Name}.Count;",
+            $"        this.{Archetype.Name}.Add(Command.Entity, {Parameters});",
+            "        this.Detach(Command.Entity);",
+            // タプルごと代入するとSceneSlotが消えてArchetype移動でScene所有権を失う。必ずフィールド単位で更新する。
+            "        ref var Updated = ref this.EntityArchetypeIndices.GetRefUnchecked(Command.Entity.Id);",
+            $"        Updated.Archetype = Archetype.{Archetype.Name};",
+            "        Updated.Index = DestinationIndex;",
+            "    }",
+        ];
     }
 }
 

@@ -32,7 +32,8 @@ public sealed class GameSystemGeneratorEmissionTests {
 
         // ADR-0033: Archetype名は出現順の連番。Component集合を連結した名前(Archetype0001…)は、
         // 読めない上にComponentを1つ足すだけで全部の名前が変わってしまうため採用していない。
-        Assert.Contains("public enum Archetype {\n    Archetype0,\n    Archetype1,\n}",Text);
+        // None = -1 は破棄されたEntityの墓石(ADR-0040)。必ず先頭に来る。
+        Assert.Contains("public enum Archetype {\n    None = -1,\n    Archetype0,\n    Archetype1,\n}",Text);
         Assert.Contains("public sealed class Archetype0 : IArchetype",Text);
         Assert.Contains("public sealed class Archetype1 : IArchetype",Text);
     }
@@ -58,7 +59,22 @@ public sealed class GameSystemGeneratorEmissionTests {
         Assert.Contains("public Entity Create(global::Sample.Position Position)",Text);
         Assert.Contains("public Entity Create(global::Sample.Position Position, global::Sample.Velocity Velocity)",Text);
         Assert.Contains("public bool MoveArchetype(Entity Entity, global::Sample.Position Position, ref State State)",Text);
-        Assert.Contains("public void PlaybackMoveArchetypes(ref State State)",Text);
+        Assert.Contains("public void PlaybackStructuralChanges(ref State State)",Text);
+        Assert.Contains("public void Destroy(Entity Entity)",Text);
+    }
+
+    [Fact]
+    public void ArchetypeMove_PreservesSceneOwnership(){
+        // タプルごと代入するとSceneSlotが消え、Archetype移動しただけでEntityがSceneから外れてしまう
+        // (ADR-0040)。必ずフィールド単位で更新すること。
+        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
+            GameSystemGeneratorTestHelper.CommonComponents,TwoSystems);
+
+        var Text=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.World.g.cs");
+
+        Assert.Contains("Updated.Archetype = Archetype.Archetype0;",Text);
+        Assert.Contains("Updated.Index = DestinationIndex;",Text);
+        Assert.DoesNotContain("= (Command.Entity, Archetype.Archetype0, DestinationIndex);",Text);
     }
 
     [Fact]

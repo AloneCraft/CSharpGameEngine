@@ -45,13 +45,25 @@ internal static class GameSystemGeneratorTestHelper {
     ];
 
     /// <summary>
-    /// Scene DSLの宣言表面(ADR-0040)。<c>[SceneFactory]</c>/<c>[SceneAssets]</c>はCSharpGameEngine.Core側の
-    /// ため別ディレクトリから読む(<c>CSharpGameEngine.Windows</c>がEntitiesを参照していないため、
-    /// 属性はCoreに置かれている)。
+    /// <c>Runtime.cs</c>が直接参照するScene関連の型(ADR-0040)。<c>World</c>が<c>InstantiateScene&lt;TScene&gt;</c>や
+    /// <c>UnloadScene</c>を持つようになったため、これらは<b>全てのテストコンパイルに必須</b>である
+    /// (1つでも欠けると生成テスト全体がCS0246で落ちる)。
     /// </summary>
-    internal static readonly string[]SceneDslSources=[
+    internal static readonly string[]SceneRuntimeSources=[
         ReadTestAsset("IScene.cs"),
         ReadTestAsset("Node.cs"),
+        ReadTestAsset("SceneInstance.cs"),
+        ReadTestAsset("SceneInstanceTable.cs"),
+        ReadTestAsset("ISceneDefinition.cs"),
+    ];
+
+    /// <summary>
+    /// Scene DSLのテストが<b>追加で</b>必要とする型。宣言表面そのもの(<c>IScene</c>/<c>Node</c>)は
+    /// <see cref="SceneRuntimeSources"/>で常に含まれるためここには入れない(重複定義になる)。
+    /// <c>[SceneFactory]</c>/<c>[SceneAssets]</c>はCSharpGameEngine.Core側のため別ディレクトリから読む
+    /// (<c>CSharpGameEngine.Windows</c>がEntitiesを参照していないため、属性はCoreに置かれている)。
+    /// </summary>
+    internal static readonly string[]SceneDslSources=[
         ReadTestAsset("StartupSceneAttribute.cs"),
         ReadCoreTestAsset("SceneFactoryAttribute.cs"),
         ReadCoreTestAsset("SceneAssetsAttribute.cs"),
@@ -85,32 +97,37 @@ internal static class GameSystemGeneratorTestHelper {
         CreateCompilation([.. ExtraSources.Select(static Source=>(Path:(string?)null,Source:Source))]);
 
     /// <summary>
+    /// メタデータ参照はプロセス内で不変なので一度だけ作る。テストごとに<c>CreateFromFile</c>し直すと
+    /// 数百アセンブリ分のメタデータをディスクから読み直すことになり、テストスイート全体の実行時間が
+    /// これだけで支配される。
+    /// </summary>
+    internal static readonly MetadataReference[]References=[
+        .. AppDomain.CurrentDomain.GetAssemblies()
+            .Where(static Assembly=>!Assembly.IsDynamic&&!string.IsNullOrEmpty(Assembly.Location))
+            .Select(static Assembly=>MetadataReference.CreateFromFile(Assembly.Location)),
+    ];
+
+    private static readonly CSharpParseOptions ParseOptions=new(LanguageVersion.Latest);
+
+    /// <summary>
     /// ファイルパスを明示できるオーバーロード。ADR-0036の<c>[SystemOrder]</c>をfileマーカー経由で
     /// 使う場合は<c>SyntaxTree.FilePath</c>をキーにするため、「ファイル名のアルファベット順とは逆の
     /// 実行順序になる」ことを証明するテストには実在するかのようなパスの指定が要る(既定の
     /// <c>ParseText</c>はパス無し = 空文字列になり、複数ファイルを区別できない)。
     /// </summary>
     internal static CSharpCompilation CreateCompilation(IEnumerable<(string?Path,string Source)>ExtraSources){
-        List<MetadataReference>References=[];
-
-        foreach(Assembly assembly in AppDomain.CurrentDomain.GetAssemblies()){
-            if(!assembly.IsDynamic&&!string.IsNullOrEmpty(assembly.Location)){
-                References.Add(MetadataReference.CreateFromFile(assembly.Location));
-            }
-        }
-
-        CSharpParseOptions parseOptions=new(LanguageVersion.Latest);
         List<(string?Path,string Source)>Sources=[
             (null,ImplicitUsingsSource),
             (null,RuntimeSource),
             (null,BootstrapSource),
             (null,SystemOrderAttributeSource),
+            .. SceneRuntimeSources.Select(static Source=>((string?)null,Source)),
             .. ExtraSources,
         ];
 
         return CSharpCompilation.Create(
             "GameSystemGeneratorTestAssembly",
-            [.. Sources.Select(S=>CSharpSyntaxTree.ParseText(S.Source,parseOptions,path:S.Path??string.Empty))],
+            [.. Sources.Select(static S=>CSharpSyntaxTree.ParseText(S.Source,ParseOptions,path:S.Path??string.Empty))],
             References,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
     }

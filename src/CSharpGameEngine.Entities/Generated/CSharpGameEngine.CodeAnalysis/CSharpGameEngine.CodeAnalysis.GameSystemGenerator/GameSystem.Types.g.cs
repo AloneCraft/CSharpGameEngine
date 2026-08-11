@@ -2,4 +2,5 @@
 #nullable enable
 namespace CSharpGameEngine.Entities;
 public enum Archetype {
+    None = -1,
 }

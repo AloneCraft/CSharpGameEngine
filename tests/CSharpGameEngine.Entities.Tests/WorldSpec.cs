@@ -2,7 +2,7 @@ namespace CSharpGameEngine.Entities.Tests;
 
 /// <summary>
 /// 閉集合Archetype方式のランタイム(ADR-0033)の基本動作。<c>World.Create</c>/<c>MoveArchetype</c>/
-/// <c>PlaybackMoveArchetypes</c>はいずれもGeneratorがComponent構成ごとに生成したオーバーロードで、
+/// <c>PlaybackStructuralChanges</c>はいずれもGeneratorがComponent構成ごとに生成したオーバーロードで、
 /// 呼び出し側はArchetype名を一切書かない。
 /// </summary>
 public class WorldSpec {
@@ -45,7 +45,7 @@ public class WorldSpec {
         Assert.Equal(1,world.Archetype0.Count);
         Assert.Equal(0,world.Archetype1.Count);
 
-        world.PlaybackMoveArchetypes(ref state);
+        world.PlaybackStructuralChanges(ref state);
 
         Assert.Equal(0,world.Archetype0.Count);
         Assert.Equal(1,world.Archetype1.Count);
@@ -65,7 +65,7 @@ public class WorldSpec {
 
         // 先頭を移動させると、swap-backで末尾のthirdが先頭へ詰められる。
         world.MoveArchetype(First,new Position { X=1f },new Velocity(),ref state);
-        world.PlaybackMoveArchetypes(ref state);
+        world.PlaybackStructuralChanges(ref state);
 
         Assert.Equal(2,world.Archetype0.Count);
         Assert.Equal(Third,world.Archetype0.GetEntityRefUnchecked(0));
@@ -73,7 +73,7 @@ public class WorldSpec {
 
         // 位置表が修復されていれば、詰められたthirdをさらに移動しても正しい行が消える。
         world.MoveArchetype(Third,new Position { X=3f },new Velocity(),ref state);
-        world.PlaybackMoveArchetypes(ref state);
+        world.PlaybackStructuralChanges(ref state);
 
         Assert.Equal(1,world.Archetype0.Count);
         Assert.Equal(Second,world.Archetype0.GetEntityRefUnchecked(0));
@@ -81,16 +81,16 @@ public class WorldSpec {
     }
 
     [Fact]
-    public void PlaybackMoveArchetypes_ClearsTheCommandQueue(){
+    public void PlaybackStructuralChanges_ClearsTheCommandQueue(){
         World world=new();
         State state=new(world);
 
         Entity entity=world.Create(new Position());
         world.MoveArchetype(entity,new Position(),new Velocity(),ref state);
-        world.PlaybackMoveArchetypes(ref state);
+        world.PlaybackStructuralChanges(ref state);
 
         // 2回目のPlaybackは何もしない(コマンドが残っていれば二重適用で例外になる)。
-        world.PlaybackMoveArchetypes(ref state);
+        world.PlaybackStructuralChanges(ref state);
 
         Assert.Equal(1,world.Archetype1.Count);
     }

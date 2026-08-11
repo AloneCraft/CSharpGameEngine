@@ -2,4 +2,9 @@
 #nullable enable
 namespace CSharpGameEngine.Entities;
 public partial struct World() {
+    public void Destroy(Entity Entity) {
+    }
+    public void PlaybackStructuralChanges(ref State State) {
+        this.PlaybackSceneCommands();
+    }
 }

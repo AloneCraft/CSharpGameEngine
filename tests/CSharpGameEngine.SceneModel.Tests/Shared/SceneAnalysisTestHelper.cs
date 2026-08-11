@@ -73,17 +73,22 @@ internal static class SceneAnalysisTestHelper {
     private static string ReadTestAsset(string Area,string FileName)=>
         File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"TestAssets",Area,FileName));
 
-    internal static CSharpCompilation CreateCompilation(params string[]ExtraSources){
-        List<MetadataReference>References=[];
+    /// <summary>
+    /// メタデータ参照はプロセス内で不変なので一度だけ作る。<see cref="CreateCompilation"/>のたびに
+    /// <c>CreateFromFile</c>し直すと数百アセンブリ分のメタデータをディスクから読み直すことになり、
+    /// 1テストで数百回コンパイルするresilience fuzzがスイート全体の実行時間を支配してしまう。
+    /// </summary>
+    private static readonly MetadataReference[]References=[
+        .. AppDomain.CurrentDomain.GetAssemblies()
+            .Where(static Assembly=>!Assembly.IsDynamic&&!string.IsNullOrEmpty(Assembly.Location))
+            .Select(static Assembly=>MetadataReference.CreateFromFile(Assembly.Location)),
+    ];
 
-        foreach(Assembly Assembly in AppDomain.CurrentDomain.GetAssemblies()){
-            if(!Assembly.IsDynamic&&!string.IsNullOrEmpty(Assembly.Location)){
-                References.Add(MetadataReference.CreateFromFile(Assembly.Location));
-            }
-        }
+    private static readonly CSharpParseOptions ParseOptions=new(LanguageVersion.Latest);
 
-        CSharpParseOptions ParseOptions=new(LanguageVersion.Latest);
-        List<string>Sources=[
+    /// <summary>Scene DSLの土台となる型群。毎回同じ文字列をパースし直さないよう構文ツリーを使い回す。</summary>
+    private static readonly SyntaxTree[]FixtureTrees=[
+        .. new[]{
             ImplicitUsingsSource,
             EntityStubSource,
             SceneInterfaceSource,
@@ -93,12 +98,13 @@ internal static class SceneAnalysisTestHelper {
             StartupSceneAttributeSource,
             SceneFactoryAttributeSource,
             SceneAssetsAttributeSource,
-            .. ExtraSources,
-        ];
+        }.Select(static Source=>CSharpSyntaxTree.ParseText(Source,ParseOptions)),
+    ];
 
+    internal static CSharpCompilation CreateCompilation(params string[]ExtraSources){
         CSharpCompilation Compilation=CSharpCompilation.Create(
             "SceneModelTestAssembly",
-            [.. Sources.Select(Source=>CSharpSyntaxTree.ParseText(Source,ParseOptions))],
+            [.. FixtureTrees,.. ExtraSources.Select(static Source=>CSharpSyntaxTree.ParseText(Source,ParseOptions))],
             References,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 

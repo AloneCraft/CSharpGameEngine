@@ -206,7 +206,7 @@ public sealed class StartupSceneGeneratorEmissionTests {
 
         // Archetype0 {Bootstrap} (合成Startup System自身), Archetype1 {AppHost} (Window),
         // Archetype2 {AppHost, Level} (LevelLoad = MainSceneのTuple出力と同一集合、二重登録されない)。
-        Assert.Contains("public enum Archetype {\n    Archetype0,\n    Archetype1,\n    Archetype2,\n}",Text);
+        Assert.Contains("public enum Archetype {\n    None = -1,\n    Archetype0,\n    Archetype1,\n    Archetype2,\n}",Text);
     }
 
     [Fact]
