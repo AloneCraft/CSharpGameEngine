@@ -4,18 +4,6 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace CSharpGameEngine.CodeAnalysis;
 
-/// <summary>
-/// <c>MoveCommandHeader</c>+Archetypeごとの<c>MoveToArchetypeNNCommand</c>と、<c>partial struct
-/// World</c>の拡張(<c>ListArchetypeNN</c>フィールド・<c>MoveArchetype</c>オーバーロード・
-/// <c>Detach</c>・<c>PlaybackMoveArchetypes</c>・<c>ApplyMoveArchetypeNN</c>)を生成する。
-///
-/// <para>
-/// <c>Runtime.cs</c>側の<c>World</c>宣言はフィールド初期化子(<c>EntityArchetypeIndices = new()</c>)を
-/// 持ち、フィールド初期化子を持つstructはpartialの構成全体で明示的に宣言されたコンストラクターを
-/// 1つ持たなければならない(CS8983)。そのためArchetypeが1つも無くても
-/// <c>public partial struct World() { }</c>(空の主コンストラクター)だけは常に出力する。
-/// </para>
-/// </summary>
 internal static class GameSystemWorldEmitter
 {
     private const string HintName = "GameSystem.World.g.cs";
@@ -36,8 +24,6 @@ internal static class GameSystemWorldEmitter
             lines.Add("public partial struct World()");
             lines.Add("{");
             lines.Add("}");
-            lines.Add("");
-
             context.AddSource(HintName, SourceText.From(string.Join("\n", lines), Encoding.UTF8));
             return;
         }
@@ -60,15 +46,14 @@ internal static class GameSystemWorldEmitter
 
         foreach (GameSystemArchetypeInfo archetype in registry.Archetypes)
         {
-            lines.Add($"    public readonly ChunkList<{archetype.Name}> {archetype.ListFieldName} = new();");
+            lines.Add($"    public readonly {archetype.Name} {archetype.Name} = new();");
         }
 
         lines.Add("");
-        lines.Add("    internal readonly ChunkList<MoveCommandHeader> MoveCommands = new();");
-
+        lines.Add("    internal readonly ChunkBuffer<MoveCommandHeader> MoveCommands = new();");
         foreach (GameSystemArchetypeInfo archetype in registry.Archetypes)
         {
-            lines.Add($"    internal readonly ChunkList<{archetype.MoveCommandTypeName}> {archetype.MoveCommandsFieldName} = new();");
+            lines.Add($"    internal readonly ChunkBuffer<{archetype.MoveCommandTypeName}> {archetype.MoveCommandsFieldName} = new();");
         }
 
         foreach (GameSystemArchetypeInfo archetype in registry.Archetypes)
@@ -96,8 +81,6 @@ internal static class GameSystemWorldEmitter
         }
 
         lines.Add("}");
-        lines.Add("");
-
         context.AddSource(HintName, SourceText.From(string.Join("\n", lines), Encoding.UTF8));
     }
 
@@ -105,13 +88,7 @@ internal static class GameSystemWorldEmitter
     {
         List<(string TypeFullyQualifiedName, string FieldName)> components = GameSystemTypesEmitter.BuildComponentFields(archetype, registry);
         string parameters = string.Join(", ", components.Select(c => $"{c.TypeFullyQualifiedName} {c.FieldName}"));
-
-        List<string> lines =
-        [
-            $"public struct {archetype.MoveCommandTypeName}(Entity Entity, {parameters})",
-            "{",
-            "    public Entity Entity = Entity;",
-        ];
+        List<string> lines = [$"public struct {archetype.MoveCommandTypeName}(Entity Entity, {parameters})", "{", "    public Entity Entity = Entity;"];
 
         foreach ((string typeFqn, string fieldName) in components)
         {
@@ -119,32 +96,29 @@ internal static class GameSystemWorldEmitter
         }
 
         lines.Add("}");
-
         return lines;
+    }
+
+    private static List<string> BuildCreateOverload(GameSystemArchetypeInfo archetype, GameSystemRegistry registry)
+    {
+        List<(string TypeFullyQualifiedName, string FieldName)> components = GameSystemTypesEmitter.BuildComponentFields(archetype, registry);
+        string parameters = string.Join(", ", components.Select(c => $"{c.TypeFullyQualifiedName} {c.FieldName}"));
+        string arguments = string.Join(", ", components.Select(c => c.FieldName));
+        return [$"    public Entity Create({parameters})", "    {", $"        return {archetype.Name}.Create(ref this, {arguments});", "    }"];
     }
 
     private static List<string> BuildDetach(GameSystemRegistry registry)
     {
-        List<string> lines =
-        [
-            "    private void Detach(Entity Entity)",
-            "    {",
-            "        ref var EntityArchetypeIndex = ref this.EntityArchetypeIndices[Entity.Id];",
-            "        var Index = EntityArchetypeIndex.Index;",
-            "",
-            "        switch (EntityArchetypeIndex.Archetype)",
-            "        {",
-        ];
+        List<string> lines = ["    private void Detach(Entity Entity)", "    {", "        ref var EntityArchetypeIndex = ref this.EntityArchetypeIndices.GetRefUnchecked(Entity.Id);", "        int Index = EntityArchetypeIndex.Index;", "", "        switch (EntityArchetypeIndex.Archetype)", "        {"];
 
         foreach (GameSystemArchetypeInfo archetype in registry.Archetypes)
         {
             lines.Add($"            case Archetype.{archetype.Name}:");
             lines.Add("            {");
-            lines.Add($"                if (this.{archetype.ListFieldName}.RemoveAtSwapBack(Index, out var Moved))");
+            lines.Add($"                if (this.{archetype.Name}.RemoveAtSwapBack(Index, out Entity MovedEntity))");
             lines.Add("                {");
-            lines.Add("                    this.EntityArchetypeIndices[Moved.Entity.Id].Index = Index;");
+            lines.Add("                    this.EntityArchetypeIndices.GetRefUnchecked(MovedEntity.Id).Index = Index;");
             lines.Add("                }");
-            lines.Add("");
             lines.Add("                break;");
             lines.Add("            }");
         }
@@ -152,100 +126,46 @@ internal static class GameSystemWorldEmitter
         lines.Add("            default: throw new global::System.ArgumentOutOfRangeException();");
         lines.Add("        }");
         lines.Add("    }");
-
         return lines;
-    }
-
-    /// <summary>
-    /// Archetypeごとの<c>Create</c>オーバーロード。Component型の組み合わせでオーバーロード解決されるため、
-    /// 呼び出し側は<c>ArchetypeNN</c>という内部識別子を一切書かずにEntityを生成できる
-    /// (<c>MoveArchetype</c>と対になる設計)。
-    /// </summary>
-    private static List<string> BuildCreateOverload(GameSystemArchetypeInfo archetype, GameSystemRegistry registry)
-    {
-        List<(string TypeFullyQualifiedName, string FieldName)> components = GameSystemTypesEmitter.BuildComponentFields(archetype, registry);
-        string parameters = string.Join(", ", components.Select(c => $"{c.TypeFullyQualifiedName} {c.FieldName}"));
-        string arguments = string.Join(", ", components.Select(c => c.FieldName));
-
-        return
-        [
-            $"    public Entity Create({parameters})",
-            "    {",
-            $"        return {archetype.Name}.Create(ref this, {arguments});",
-            "    }",
-        ];
     }
 
     private static List<string> BuildMoveArchetypeOverload(GameSystemArchetypeInfo archetype, GameSystemRegistry registry)
     {
         List<(string TypeFullyQualifiedName, string FieldName)> components = GameSystemTypesEmitter.BuildComponentFields(archetype, registry);
         string parameters = string.Join(", ", components.Select(c => $"{c.TypeFullyQualifiedName} {c.FieldName}"));
-        string newArguments = string.Join(", ", new[] { "Entity" }.Concat(components.Select(c => c.FieldName)));
-
-        return
-        [
-            $"    public bool MoveArchetype(Entity Entity, {parameters}, ref State State)",
-            "    {",
-            $"        var PayloadIndex = this.{archetype.MoveCommandsFieldName}.Count;",
-            $"        this.{archetype.MoveCommandsFieldName}.Add(new({newArguments}));",
-            $"        this.MoveCommands.Add(new(Entity, Archetype.{archetype.Name}, PayloadIndex));",
-            "        return true;",
-            "    }",
-        ];
+        string arguments = string.Join(", ", new[] { "Entity" }.Concat(components.Select(c => c.FieldName)));
+        return [$"    public bool MoveArchetype(Entity Entity, {parameters}, ref State State)", "    {", $"        int PayloadIndex = this.{archetype.MoveCommandsFieldName}.Count;", $"        this.{archetype.MoveCommandsFieldName}.Add(new({arguments}));", $"        this.MoveCommands.Add(new(Entity, Archetype.{archetype.Name}, PayloadIndex));", "        return true;", "    }"];
     }
 
     private static List<string> BuildPlaybackMoveArchetypes(GameSystemRegistry registry)
     {
-        List<string> lines =
-        [
-            "    public void PlaybackMoveArchetypes(ref State State)",
-            "    {",
-            "        for (var Index = 0; Index < this.MoveCommands.Count; Index++)",
-            "        {",
-            "            var Command = this.MoveCommands[Index];",
-            "",
-            "            switch (Command.Destination)",
-            "            {",
-        ];
+        List<string> lines = ["    public void PlaybackMoveArchetypes(ref State State)", "    {", "        for (int Index = 0; Index < this.MoveCommands.Count; Index++)", "        {", "            ref var Command = ref this.MoveCommands.GetRefUnchecked(Index);", "            switch (Command.Destination)", "            {"];
 
         foreach (GameSystemArchetypeInfo archetype in registry.Archetypes)
         {
             lines.Add($"                case Archetype.{archetype.Name}:");
-            lines.Add($"                    this.ApplyMove{archetype.Name}(in this.{archetype.MoveCommandsFieldName}[Command.PayloadIndex]);");
+            lines.Add($"                    this.ApplyMove{archetype.Name}(in this.{archetype.MoveCommandsFieldName}.GetRefUnchecked(Command.PayloadIndex));");
             lines.Add("                    break;");
         }
 
         lines.Add("                default: throw new global::System.ArgumentOutOfRangeException();");
         lines.Add("            }");
         lines.Add("        }");
-        lines.Add("");
         lines.Add("        this.MoveCommands.Clear();");
-
         foreach (GameSystemArchetypeInfo archetype in registry.Archetypes)
         {
             lines.Add($"        this.{archetype.MoveCommandsFieldName}.Clear();");
         }
-
         lines.Add("    }");
-
         return lines;
     }
 
     private static List<string> BuildApplyMoveArchetype(GameSystemArchetypeInfo archetype, GameSystemRegistry registry)
     {
         List<(string TypeFullyQualifiedName, string FieldName)> components = GameSystemTypesEmitter.BuildComponentFields(archetype, registry);
-        string newArguments = string.Join(", ", new[] { "Command.Entity" }.Concat(components.Select(c => $"Command.{c.FieldName}")));
-
-        return
-        [
-            $"    private void ApplyMove{archetype.Name}(in {archetype.MoveCommandTypeName} Command)",
-            "    {",
-            "        this.Detach(Command.Entity);",
-            "",
-            $"        var Index = this.{archetype.ListFieldName}.Count;",
-            $"        this.{archetype.ListFieldName}.Add(new({newArguments}));",
-            $"        this.EntityArchetypeIndices[Command.Entity.Id] = (Command.Entity, Archetype.{archetype.Name}, Index);",
-            "    }",
-        ];
+        string parameters = string.Join(", ", components.Select(c => $"Command.{c.FieldName}"));
+        List<string> lines = [$"    private void ApplyMove{archetype.Name}(in {archetype.MoveCommandTypeName} Command)", "    {", "        ref var Location = ref this.EntityArchetypeIndices.GetRefUnchecked(Command.Entity.Id);", $"        if (Location.Archetype == Archetype.{archetype.Name})", "        {", $"            this.{archetype.Name}.Overwrite(Location.Index, {parameters});", "            return;", "        }", "", $"        int DestinationIndex = this.{archetype.Name}.Count;", $"        this.{archetype.Name}.Add(Command.Entity, {parameters});", "        this.Detach(Command.Entity);", $"        this.EntityArchetypeIndices.GetRefUnchecked(Command.Entity.Id) = (Command.Entity, Archetype.{archetype.Name}, DestinationIndex);", "    }"];
+        return lines;
     }
 }
+

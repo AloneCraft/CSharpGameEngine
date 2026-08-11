@@ -1,0 +1,166 @@
+using System.Collections.Immutable;
+using System.Text;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Text;
+
+namespace CSharpGameEngine.CodeAnalysis;
+
+/// <summary>
+/// <c>CSharpGameEngine.Generated.GeneratedEntryPoint.Main</c>を生成し、消費プロジェクトから
+/// <c>Program.cs</c>そのものを不要にする。
+///
+/// <para>
+/// ADR-0033決定事項10では「メインループ本体は生成しない」としていたが、その理由はContext引数に
+/// あった: Contextは<c>Run</c>の呼び出し前に構築されてループ全体で固定されるため、ウィンドウや
+/// レンダラーのように「起動後に遅延生成したいもの」をECSの中で作れなかった。エンジンオブジェクトを
+/// Componentのフィールドとして持たせるとContext引数がゼロになり、<c>Run</c>のシグネチャが
+/// <c>(ref State)</c>に確定する。そこまで来て初めてMainは機械的に出力できる。
+/// </para>
+///
+/// <para>
+/// 生成するのは<see cref="ShouldEmitPlan"/>の4条件をすべて満たすコンパイルだけである。とくに
+/// 「ユーザーのエントリポイントが存在しない」ことを<c>Compilation.GetEntryPoint</c>で確認するため、
+/// 手書きの<c>Program.cs</c>を持つプロジェクト(<c>UserGameProject</c>)や、そもそもライブラリである
+/// テストプロジェクトはCS0017(エントリポイントの重複)を起こさない。Generatorは自分の出力を含まない
+/// コンパイルを見るので、この判定が自分自身のMainに反応することもない。
+/// </para>
+/// </summary>
+internal static class GameSystemEntryPointEmitter
+{
+    private const string HintName = "GameSystem.EntryPoint.g.cs";
+
+    /// <summary>生成されたMainが唯一作成するシードEntityのComponent(<c>Entities/Bootstrap.cs</c>)。</summary>
+    internal const string BootstrapComponentFullyQualifiedName = "global::CSharpGameEngine.Entities.Bootstrap";
+
+    /// <summary>
+    /// エントリポイントを生成するかどうかの判定結果。<see cref="Diagnostic"/>は
+    /// 「生成すべき状況なのに生成できない」場合の理由(CS5001の代わりに原因を伝えるため)。
+    /// </summary>
+    internal readonly struct Plan
+    {
+        internal readonly bool Emit;
+        internal readonly Diagnostic? Diagnostic;
+
+        internal Plan(bool emit, Diagnostic? diagnostic)
+        {
+            this.Emit = emit;
+            this.Diagnostic = diagnostic;
+        }
+    }
+
+    /// <summary>
+    /// <see cref="GameSystemIndexAssigner.Assign"/>の<b>前</b>に判定する。生成すると決まった場合にだけ
+    /// <see cref="BootstrapComponentFullyQualifiedName"/>をArchetypeレジストリへ注入したいためで、
+    /// 判定に必要な情報(ディスパッチSystemの有無・Context引数の有無)はレジストリを作る前の
+    /// 解析結果だけで揃う。
+    /// </summary>
+    internal static Plan ShouldEmitPlan(
+        Compilation compilation,
+        ImmutableArray<GameSystemResult> systems,
+        GameSystemOrderContext orderContext,
+        CancellationToken cancellationToken)
+    {
+        if (compilation.Options.OutputKind is not (OutputKind.ConsoleApplication or OutputKind.WindowsApplication))
+        {
+            return new Plan(false, null);
+        }
+
+        if (compilation.GetEntryPoint(cancellationToken) is not null)
+        {
+            return new Plan(false, null);
+        }
+
+        if (!GameSystemLoopEmitter.HasDispatchSystem(systems))
+        {
+            // Systemが1つも無い実行可能プロジェクトは、そもそもこのECSでループを回す意図が無い。
+            // Mainが要るなら手書きするしかなく、CS5001がそのまま正しい診断になる。
+            return new Plan(false, null);
+        }
+
+        if (FindFirstContextParameter(systems, orderContext) is { } offending)
+        {
+            return new Plan(false, Diagnostic.Create(
+                GameSystemDiagnostics.EntryPointCannotSupplyContext,
+                Location.None,
+                offending.SystemName,
+                offending.TypeFullyQualifiedName));
+        }
+
+        return new Plan(true, null);
+    }
+
+    /// <summary>
+    /// 最初に見つかったContext引数(宣言順で決定的)。Contextは<c>Run</c>の引数になるため、生成された
+    /// Mainには渡す値を作る手段が無い。
+    /// </summary>
+    private static (string SystemName, string TypeFullyQualifiedName)? FindFirstContextParameter(
+        ImmutableArray<GameSystemResult> systems,
+        GameSystemOrderContext orderContext)
+    {
+        List<GameSystemResult> ordered = [.. systems.Where(static s => s.Diagnostics.Length == 0)];
+        ordered.Sort((a, b) => GameSystemExecutionOrder.Compare(a, b, orderContext));
+
+        foreach (GameSystemResult system in ordered)
+        {
+            foreach (GameSystemMethodModel method in system.Methods)
+            {
+                if (method.Role != GameSystemMethodRole.Dispatch || method.Contexts.Length == 0)
+                {
+                    continue;
+                }
+
+                return (system.ClassFullyQualifiedName, method.Contexts[0].TypeFullyQualifiedName);
+            }
+        }
+
+        return null;
+    }
+
+    internal static void Emit(SourceProductionContext context, GameSystemRegistry registry)
+    {
+        int bootstrapComponentIndex = -1;
+
+        foreach (GameSystemComponentInfo component in registry.ComponentsByIndex)
+        {
+            if (component.TypeFullyQualifiedName == BootstrapComponentFullyQualifiedName)
+            {
+                bootstrapComponentIndex = component.Index;
+                break;
+            }
+        }
+
+        // 呼び出し側がBootstrapのComponent集合を注入済みなので到達しない想定。生成した`Main`が
+        // 存在しない`World.Create`オーバーロードを呼ぶ事態だけは避けたいので防御的に確認する。
+        if (bootstrapComponentIndex < 0 || registry.FindArchetype([bootstrapComponentIndex]) is null)
+        {
+            return;
+        }
+
+        List<string> lines =
+        [
+            "// <auto-generated/>",
+            "#nullable enable",
+            "",
+            "namespace CSharpGameEngine.Generated;",
+            "",
+            "/// <summary>",
+            "/// 起動処理はすべてSystemが行う。ここが作るのはWorld・State・シードEntityの3つだけで、",
+            "/// ウィンドウやレンダラーの生成はBootstrapを受け取るSystemの仕事になる。",
+            "/// </summary>",
+            "internal static class GeneratedEntryPoint",
+            "{",
+            "    private static void Main()",
+            "    {",
+            "        var World = new global::CSharpGameEngine.Entities.World();",
+            $"        World.Create(new {BootstrapComponentFullyQualifiedName}());",
+            "        var State = new global::CSharpGameEngine.Entities.State(World) { Enabled = true };",
+            "",
+            "        GeneratedGameLoop.Run(ref State);",
+            "    }",
+            "}",
+            "",
+        ];
+
+        context.AddSource(HintName, SourceText.From(string.Join("\n", lines), Encoding.UTF8));
+    }
+}

@@ -51,6 +51,9 @@
     <File Path="Docs/Decisions/ADR-0031-Scene-Definition-3D-Preview.md" />
     <File Path="Docs/Decisions/ADR-0032-Static-Archetype-Closed-Set-Ecs.md" />
     <File Path="Docs/Decisions/ADR-0033-Static-Archetype-Ecs-Migration.md" />
+    <File Path="Docs/Decisions/ADR-0034-Project-Consolidation.md" />
+    <File Path="Docs/Decisions/ADR-0035-Generated-Entry-Point-And-Engine-Objects-As-Components.md" />
+    <File Path="Docs/Decisions/ADR-0036-System-Order-Attribute.md" />
   </Folder>
   <Folder Name="/Docs/Milestones/">
     <File Path="Docs/Milestones/M0001-CodeAnalysis-Foundation.md" />
@@ -66,6 +69,9 @@
     <File Path="Docs/Milestones/M0011-Scene-Definition-Preview.md" />
     <File Path="Docs/Milestones/M0012-Static-Archetype-Closed-Set-Ecs-Poc.md" />
     <File Path="Docs/Milestones/M0013-Static-Archetype-Ecs-Migration.md" />
+    <File Path="Docs/Milestones/M0014-Project-Consolidation.md" />
+    <File Path="Docs/Milestones/M0015-Generated-Entry-Point.md" />
+    <File Path="Docs/Milestones/M0016-System-Order-Attribute.md" />
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
@@ -109,6 +115,7 @@
     <File Path="tools/UnrealExport/run_export.cmd" />
     <File Path="tools/UnrealExport/README.md" />
     <Project Path="tools/CSharpGameEngine.TestHost/CSharpGameEngine.TestHost.csproj" />
+    <Project Path="tools/CSharpGameEngine.Ecs.Benchmarks/CSharpGameEngine.Ecs.Benchmarks.csproj" />
     <Project Path="tools/CSharpGameEngine.Extension/CSharpGameEngine.Extension.csproj" />
     <Project Path="tools/CSharpGameEngine.Bridge.Hosting/CSharpGameEngine.Bridge.Hosting.csproj" />
     <Project Path="tools/CSharpGameEngine.Import.Fbx.Cli/CSharpGameEngine.Import.Fbx.Cli.csproj" />
@@ -117,6 +124,11 @@
     <Project Path="tools/CSharpGameEngine.SceneAuthoring.Cli/CSharpGameEngine.SceneAuthoring.Cli.csproj" />
     <Project Path="tools/CSharpGameEngine.VSExtension/CSharpGameEngine.VSExtension.csproj">
       <Deploy Solution="Debug|*" />
+    </Project>
+  </Folder>
+  <Folder Name="/UserEcsProject/">
+    <Project Path="UserEcsProject/UserEcsProject.csproj">
+      <Platform Project="x64" />
     </Project>
   </Folder>
   <Folder Name="/UserGameProject/">

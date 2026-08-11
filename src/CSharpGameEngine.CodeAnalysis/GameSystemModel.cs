@@ -178,9 +178,75 @@ internal readonly struct GameSystemArchetypeInfo
 }
 
 /// <summary>
+/// <c>[SystemOrder]</c>の付け先2種類(ADR-0036)。<c>System</c>はそのSystem1つだけの順序、
+/// <c>FileMarker</c>はファイル内で自分の順序を持たない全Systemの既定順序になる。
+/// </summary>
+internal enum GameSystemOrderTargetKind
+{
+    System,
+    FileMarker,
+}
+
+/// <summary>
+/// <c>[SystemOrder]</c>属性(<see cref="GameSystemOrderAnalyzer"/>)を1つ付けた対象の解析結果。
+/// ファイル横断・Systemごとの実行順序は本来ADR-0033の「記述順」からは導出できない(構造的な
+/// 手がかりが無い)ため、この属性だけが例外的に許される宣言的キーになる(ADR-0036)。
+/// </summary>
+internal readonly struct GameSystemOrderResult
+{
+    internal readonly GameSystemOrderTargetKind Kind;
+    internal readonly string FilePath;
+    internal readonly int Order;
+
+    /// <summary>診断メッセージ用の型名(Systemの場合もマーカーの場合も単純名)。</summary>
+    internal readonly string TargetName;
+
+    /// <summary><see cref="GameSystemOrderTargetKind.System"/>のときだけ設定される、対象Systemの完全修飾名。<see cref="GameSystemResult.ClassFullyQualifiedName"/>と同じキー空間。</summary>
+    internal readonly string? SystemFullyQualifiedName;
+
+    internal readonly Location Location;
+    internal readonly ImmutableArray<Diagnostic> Diagnostics;
+
+    internal GameSystemOrderResult(
+        GameSystemOrderTargetKind kind,
+        string filePath,
+        int order,
+        string targetName,
+        string? systemFullyQualifiedName,
+        Location location,
+        ImmutableArray<Diagnostic> diagnostics)
+    {
+        this.Kind = kind;
+        this.FilePath = filePath;
+        this.Order = order;
+        this.TargetName = targetName;
+        this.SystemFullyQualifiedName = systemFullyQualifiedName;
+        this.Location = location;
+        this.Diagnostics = diagnostics;
+    }
+}
+
+/// <summary>
+/// <see cref="GameSystemExecutionOrder.Compare"/>が引く2種類のマップをまとめたもの。System単体の
+/// 明示指定がファイル既定より優先される(<see cref="GameSystemExecutionOrder"/>参照)。
+/// </summary>
+internal readonly struct GameSystemOrderContext
+{
+    internal readonly IReadOnlyDictionary<string, int> SystemOrderByFqn;
+    internal readonly IReadOnlyDictionary<string, int> FileOrderByPath;
+
+    internal GameSystemOrderContext(IReadOnlyDictionary<string, int> systemOrderByFqn, IReadOnlyDictionary<string, int> fileOrderByPath)
+    {
+        this.SystemOrderByFqn = systemOrderByFqn;
+        this.FileOrderByPath = fileOrderByPath;
+    }
+}
+
+/// <summary>
 /// <see cref="GameSystemIndexAssigner.Assign"/>の出力。診断のあるSystemは<see cref="ValidSystems"/>
 /// から除外済み、<see cref="Archetypes"/>は決定的な出力順序(コンポーネント数昇順→インデックスタプル
-/// 辞書式昇順)で確定済み、<see cref="ValidSystems"/>は実行順序(記述順)で並んでいる。
+/// 辞書式昇順)で確定済み、<see cref="ValidSystems"/>は実行順序(記述順、<c>[SystemOrder]</c>があれば
+/// それを優先キーとする)で並んでいる。
 /// </summary>
 internal readonly struct GameSystemRegistry
 {

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using CSharpGameEngine.Compiler.Hlsl;
@@ -60,10 +61,20 @@ public sealed unsafe class StageRenderer : IDisposable
     private const DXGI_FORMAT MaterialTextureFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 
     /// <summary>D3D12 constant buffer views must start at a 256-byte aligned GPU address.</summary>
-    private const uint ConstantAlignment = 256;
+    private const uint ConstantAlignment = 512;
 
-    // FrameCB (b0) byte layout - see Stage.hlsl. Each Set* method writes only its own slice, so
-    // SetCamera/SetDirectionalLight/SetAmbientLight/SetFog may be called in any order per frame.
+    /// <summary>Fixed capacity, no light culling/clustering in this vertical slice (ADR-0037). Must match Stage.hlsl's MAX_POINT_LIGHTS.</summary>
+    public const int MaxPointLights = 4;
+
+    /// <summary>Fixed capacity, no light culling/clustering in this vertical slice (ADR-0037). Must match Stage.hlsl's MAX_SPOT_LIGHTS.</summary>
+    public const int MaxSpotLights = 4;
+
+    private const uint PointLightStride = 32; // 2 float4 - see Stage.hlsl's PointLightData
+    private const uint SpotLightStride = 48;  // 3 float4 - see Stage.hlsl's SpotLightData
+
+    // FrameCB (b0) byte layout - see Stage.hlsl. Each Set*/Add* method writes only its own slice,
+    // so SetCamera/SetDirectionalLight/SetAmbientLight/SetFog/AddPointLight/AddSpotLight may be
+    // called in any order per frame.
     private const uint FrameViewProjectionOffset = 0;   // float4x4, 64 bytes
     private const uint FrameCameraPositionOffset = 64;  // float4 (xyz used)
     private const uint FrameLightDirectionOffset = 80;  // float4 (xyz used)
@@ -71,7 +82,10 @@ public sealed unsafe class StageRenderer : IDisposable
     private const uint FrameAmbientColorOffset = 112;   // float4 (xyz used)
     private const uint FrameFogParamsOffset = 128;      // float4: x=density, y=heightFalloff
     private const uint FrameFogColorOffset = 144;       // float4 (xyz used)
-    private const uint FrameConstantsSize = 160;
+    private const uint FrameLightCountsOffset = 160;    // int4: x=active point lights, y=active spot lights
+    private const uint FramePointLightsOffset = 176;    // MaxPointLights * PointLightStride bytes
+    private const uint FrameSpotLightsOffset = FramePointLightsOffset + (MaxPointLights * PointLightStride); // MaxSpotLights * SpotLightStride bytes
+    private const uint FrameConstantsSize = FrameSpotLightsOffset + (MaxSpotLights * SpotLightStride);
 
     // ObjectCB (b1) byte layout - see Stage.hlsl.
     private const uint ObjectWorldOffset = 0;            // float4x4, 64 bytes
@@ -135,6 +149,12 @@ public sealed unsafe class StageRenderer : IDisposable
     private byte* _frameConstantsMapped;
     private ID3D12Resource* _objectConstantsBuffer;
     private byte* _objectConstantsMapped;
+
+    // Point/spot lights are additive per frame (AddPointLight/AddSpotLight), unlike the singleton
+    // directional light/ambient/fog which are overwritten in place. Counts reset to zero at the end
+    // of RenderFrame so a light that stops calling Add (its owning Entity went away) doesn't linger.
+    private int _pointLightCount;
+    private int _spotLightCount;
 
     private ID3D12Resource* _readbackBuffer;
     private ulong _readbackBufferSize;
@@ -923,6 +943,7 @@ public sealed unsafe class StageRenderer : IDisposable
             WriteDirectionalLight(frame, DefaultLightDirectionTowardLight, DefaultLightColor);
             WriteAmbientLight(frame, DefaultAmbientColor);
             WriteFog(frame, FogParams.None);
+            WriteLightCounts(frame); // D3D12 does not guarantee zero-initialized upload-heap memory; without this the very first frame could loop over garbage PointLights/SpotLights entries.
 
             for (int objectIndex = 0; objectIndex < _objectCount; objectIndex++)
             {
@@ -959,6 +980,48 @@ public sealed unsafe class StageRenderer : IDisposable
     public void SetFog(FogParams fog)
     {
         WriteFog(_frameIndex, fog);
+    }
+
+    /// <summary>
+    /// Adds one point light (radiates equally in all directions, attenuated by distance with a
+    /// smooth falloff that reaches zero at <paramref name="range"/>) for the frame currently being
+    /// built. Unlike <see cref="SetDirectionalLight"/>, this is additive per frame: call it once per
+    /// active light, up to <see cref="MaxPointLights"/> - the count resets to zero at the end of
+    /// <see cref="RenderFrame"/>, so a light that stops calling this simply stops contributing on
+    /// the next frame (no stale state to clear).
+    /// </summary>
+    public void AddPointLight(Vector3 position, Vector3 color, float intensity, float range)
+    {
+        if (_pointLightCount >= MaxPointLights)
+        {
+            Debug.Assert(false, $"CGE-STAGE-LIGHT-001: exceeded MaxPointLights ({MaxPointLights}); extra point lights are silently dropped this frame.");
+            return;
+        }
+
+        WritePointLight(_frameIndex, _pointLightCount, position, range, color * intensity);
+        _pointLightCount++;
+        WriteLightCounts(_frameIndex);
+    }
+
+    /// <summary>
+    /// Adds one spot light (a point light additionally narrowed to a cone) for the frame currently
+    /// being built. <paramref name="direction"/> is the direction the cone points toward (need not
+    /// be normalized) and the brightness falls off smoothly between
+    /// <paramref name="innerConeAngleRadians"/> (full brightness) and
+    /// <paramref name="outerConeAngleRadians"/> (zero). Additive per frame - see
+    /// <see cref="AddPointLight"/> for the accumulate/reset contract.
+    /// </summary>
+    public void AddSpotLight(Vector3 position, Vector3 direction, Vector3 color, float intensity, float range, float innerConeAngleRadians, float outerConeAngleRadians)
+    {
+        if (_spotLightCount >= MaxSpotLights)
+        {
+            Debug.Assert(false, $"CGE-STAGE-LIGHT-002: exceeded MaxSpotLights ({MaxSpotLights}); extra spot lights are silently dropped this frame.");
+            return;
+        }
+
+        WriteSpotLight(_frameIndex, _spotLightCount, position, range, Vector3.Normalize(direction), MathF.Cos(innerConeAngleRadians), color * intensity, MathF.Cos(outerConeAngleRadians));
+        _spotLightCount++;
+        WriteLightCounts(_frameIndex);
     }
 
     /// <summary>Sets the world transform for one object for the frame currently being built (see <see cref="SetCamera"/> for the per-frame-slot contract).</summary>
@@ -1006,6 +1069,35 @@ public sealed unsafe class StageRenderer : IDisposable
         Vector4 fogColor = new(fog.Color, 0f);
         Unsafe.CopyBlock(FrameSlot(frameIndex) + FrameFogParamsOffset, &fogParams0, (uint)sizeof(Vector4));
         Unsafe.CopyBlock(FrameSlot(frameIndex) + FrameFogColorOffset, &fogColor, (uint)sizeof(Vector4));
+    }
+
+    /// <summary>Writes Stage.hlsl's PointLightData[index] (2 float4: position+range, color*intensity).</summary>
+    private void WritePointLight(uint frameIndex, int index, Vector3 position, float range, Vector3 colorTimesIntensity)
+    {
+        byte* destination = FrameSlot(frameIndex) + FramePointLightsOffset + ((uint)index * PointLightStride);
+        Vector4 positionAndRange = new(position, range);
+        Vector4 colorPacked = new(colorTimesIntensity, 0f);
+        Unsafe.CopyBlock(destination, &positionAndRange, (uint)sizeof(Vector4));
+        Unsafe.CopyBlock(destination + 16, &colorPacked, (uint)sizeof(Vector4));
+    }
+
+    /// <summary>Writes Stage.hlsl's SpotLightData[index] (3 float4: position+range, direction+innerCos, color*intensity+outerCos).</summary>
+    private void WriteSpotLight(uint frameIndex, int index, Vector3 position, float range, Vector3 direction, float innerConeCos, Vector3 colorTimesIntensity, float outerConeCos)
+    {
+        byte* destination = FrameSlot(frameIndex) + FrameSpotLightsOffset + ((uint)index * SpotLightStride);
+        Vector4 positionAndRange = new(position, range);
+        Vector4 directionAndInnerCos = new(direction, innerConeCos);
+        Vector4 colorAndOuterCos = new(colorTimesIntensity, outerConeCos);
+        Unsafe.CopyBlock(destination, &positionAndRange, (uint)sizeof(Vector4));
+        Unsafe.CopyBlock(destination + 16, &directionAndInnerCos, (uint)sizeof(Vector4));
+        Unsafe.CopyBlock(destination + 32, &colorAndOuterCos, (uint)sizeof(Vector4));
+    }
+
+    /// <summary>Writes Stage.hlsl's FrameCB.LightCounts (int4: x=active point lights, y=active spot lights).</summary>
+    private void WriteLightCounts(uint frameIndex)
+    {
+        int* counts = stackalloc int[4] { _pointLightCount, _spotLightCount, 0, 0 };
+        Unsafe.CopyBlock(FrameSlot(frameIndex) + FrameLightCountsOffset, counts, 16);
     }
 
     private void WriteObjectConstants(uint frameIndex, int objectIndex)
@@ -1196,6 +1288,12 @@ public sealed unsafe class StageRenderer : IDisposable
         MoveToNextFrame();
         _device.PollDebugMessages();
         FramesRendered++;
+
+        // The point/spot light counts (and the data they gate) have already been submitted to the
+        // GPU above; reset so the next frame starts from zero and only reflects lights that call
+        // AddPointLight/AddSpotLight again this frame (see the fields' doc comment).
+        _pointLightCount = 0;
+        _spotLightCount = 0;
 
         if (captureForVerification)
         {

@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 
@@ -66,16 +66,15 @@ internal static class GameSystemSnapshotEmitter
             string? parentFieldName = components.FirstOrDefault(c => c.TypeFullyQualifiedName == ParentComponentFullyQualifiedName).FieldName;
 
             lines.Add("");
-            lines.Add($"        for (var Index = 0; Index < World.{archetype.ListFieldName}.Count; Index++)");
+            lines.Add($"        for (var Index = 0; Index < World.{archetype.Name}.Count; Index++)");
             lines.Add("        {");
-            lines.Add($"            ref var Archetype = ref World.{archetype.ListFieldName}[Index];");
             lines.Add("            Entries.Add(new ArchetypeSnapshotEntry");
             lines.Add("            {");
-            lines.Add("                EntityId = Archetype.Entity.Id,");
+            lines.Add($"                EntityId = World.{archetype.Name}.GetEntityRefUnchecked(Index).Id,");
 
             if (parentFieldName is not null)
             {
-                lines.Add($"                ParentEntityId = Archetype.{parentFieldName}.Value.Id,");
+                lines.Add($"                ParentEntityId = World.{archetype.Name}.Get{parentFieldName}RefUnchecked(Index).Value.Id,");
                 lines.Add("                HasParent = true,");
             }
             else
@@ -85,7 +84,7 @@ internal static class GameSystemSnapshotEmitter
             }
 
             lines.Add($"                ArchetypeName = \"{archetype.Name}\",");
-            lines.Add($"                ComponentValues = new object[] {{ {string.Join(", ", components.Select(c => $"Archetype.{c.FieldName}"))} }},");
+            lines.Add($"                ComponentValues = new object[] {{ {string.Join(", ", components.Select(c => $"World.{archetype.Name}.Get{c.FieldName}RefUnchecked(Index)"))} }},");
             lines.Add("            });");
             lines.Add("        }");
         }
@@ -99,3 +98,5 @@ internal static class GameSystemSnapshotEmitter
         context.AddSource(HintName, SourceText.From(string.Join("\n", lines), Encoding.UTF8));
     }
 }
+
+

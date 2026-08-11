@@ -6,7 +6,8 @@ namespace CSharpGameEngine.CodeAnalysis;
 
 /// <summary>
 /// <c>ISystem</c>を実装するstructと<c>[SceneDefinition]</c>クラスから、閉じた集合として列挙される
-/// Archetype群・<c>World</c>の構造変更API・メインループ・Sceneランタイムを生成する(ADR-0033)。
+/// Archetype群・<c>World</c>の構造変更API・メインループ・Sceneランタイム、そして条件を満たす場合は
+/// エントリポイントまで生成する(ADR-0033、エントリポイントは<see cref="GameSystemEntryPointEmitter"/>)。
 ///
 /// <para>
 /// 属性を一切使わない設計(Component/Systemはいずれもマーカー無しの構造的推論)のため、System検出には
@@ -53,6 +54,14 @@ public sealed class GameSystemGenerator : IIncrementalGenerator
             static (node, _) => node is ClassDeclarationSyntax,
             static (ctx, ct) => SceneDefinitionAnalyzer.Analyze(ctx, ct));
 
+        // ADR-0036: ファイル横断・System横断の実行順序を宣言する唯一の属性。ISystem実装struct自身に
+        // 直接付けるか、`file`スコープのマーカークラスへ付けてファイル既定値にするかのいずれか
+        // (GameSystemOrderAnalyzer.Analyzeがどちらかを判別する)。
+        IncrementalValuesProvider<GameSystemOrderResult> systemOrders = context.SyntaxProvider.ForAttributeWithMetadataName(
+            GameSystemOrderAnalyzer.SystemOrderAttributeFullyQualifiedName,
+            static (node, _) => node is TypeDeclarationSyntax,
+            static (ctx, _) => GameSystemOrderAnalyzer.Analyze(ctx));
+
         context.RegisterSourceOutput(systems, static (spc, result) => GameSystemDiagnostics.ReportAll(spc, result));
 
         context.RegisterSourceOutput(scenes, static (spc, result) =>
@@ -67,8 +76,12 @@ public sealed class GameSystemGenerator : IIncrementalGenerator
         // ため、結合前の段で個別に出力できる。
         context.RegisterSourceOutput(scenes, static (spc, result) => SceneNodeSymbolEmitter.Emit(spc, result));
 
-        IncrementalValueProvider<((ImmutableArray<GameSystemResult> Systems, ImmutableArray<SceneDefinitionClassResult> Scenes) Sources, Compilation Compilation)> combined =
-            systems.Collect().Combine(scenes.Collect()).Combine(context.CompilationProvider);
+        IncrementalValueProvider<((ImmutableArray<GameSystemResult> Systems, ImmutableArray<SceneDefinitionClassResult> Scenes, ImmutableArray<GameSystemOrderResult> SystemOrders) Sources, Compilation Compilation)> combined =
+            systems.Collect()
+                .Combine(scenes.Collect())
+                .Combine(systemOrders.Collect())
+                .Select(static (data, _) => (data.Left.Left, data.Left.Right, data.Right))
+                .Combine(context.CompilationProvider);
 
         context.RegisterSourceOutput(combined, static (spc, source) =>
         {
@@ -80,14 +93,37 @@ public sealed class GameSystemGenerator : IIncrementalGenerator
             ImmutableArray<GameSystemResult> systemResults = source.Sources.Systems;
             ImmutableArray<SceneDefinitionClassResult> sceneResults = source.Sources.Scenes;
 
-            List<IReadOnlyList<string>> sceneComponentSets = [];
+            (GameSystemOrderContext orderContext, ImmutableArray<Diagnostic> systemOrderDiagnostics) =
+                GameSystemOrderAnalyzer.BuildMap(source.Sources.SystemOrders);
+
+            foreach (Diagnostic systemOrderDiagnostic in systemOrderDiagnostics)
+            {
+                spc.ReportDiagnostic(systemOrderDiagnostic);
+            }
+
+            List<IReadOnlyList<string>> additionalComponentSets = [];
 
             foreach (SceneDefinitionClassResult scene in sceneResults)
             {
-                sceneComponentSets.AddRange(SceneRuntimeEmitter.CollectComponentSets(scene));
+                additionalComponentSets.AddRange(SceneRuntimeEmitter.CollectComponentSets(scene));
             }
 
-            GameSystemRegistry registry = GameSystemIndexAssigner.Assign(systemResults, sceneComponentSets);
+            // エントリポイントを出すかどうかはレジストリ構築の前に決める。生成する場合にだけ
+            // Bootstrapの形状を登録し、出さないコンパイルへ余計なArchetypeが増えないようにする。
+            GameSystemEntryPointEmitter.Plan entryPointPlan =
+                GameSystemEntryPointEmitter.ShouldEmitPlan(source.Compilation, systemResults, orderContext, spc.CancellationToken);
+
+            if (entryPointPlan.Diagnostic is { } entryPointDiagnostic)
+            {
+                spc.ReportDiagnostic(entryPointDiagnostic);
+            }
+
+            if (entryPointPlan.Emit)
+            {
+                additionalComponentSets.Add([GameSystemEntryPointEmitter.BootstrapComponentFullyQualifiedName]);
+            }
+
+            GameSystemRegistry registry = GameSystemIndexAssigner.Assign(systemResults, additionalComponentSets, orderContext);
 
             foreach (Diagnostic diagnostic in registry.Diagnostics)
             {
@@ -98,6 +134,11 @@ public sealed class GameSystemGenerator : IIncrementalGenerator
             GameSystemWorldEmitter.Emit(spc, registry);
             GameSystemSnapshotEmitter.Emit(spc, registry);
             GameSystemLoopEmitter.Emit(spc, registry);
+
+            if (entryPointPlan.Emit)
+            {
+                GameSystemEntryPointEmitter.Emit(spc, registry);
+            }
 
             foreach (SceneDefinitionClassResult scene in sceneResults)
             {

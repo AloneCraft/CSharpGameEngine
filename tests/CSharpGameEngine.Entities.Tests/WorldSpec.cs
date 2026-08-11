@@ -1,4 +1,4 @@
-namespace CSharpGameEngine.Entities.Tests;
+﻿namespace CSharpGameEngine.Entities.Tests;
 
 /// <summary>
 /// 閉集合Archetype方式のランタイム(ADR-0033)の基本動作。<c>World.Create</c>/<c>MoveArchetype</c>/
@@ -17,9 +17,9 @@ public class WorldSpec
 
         Assert.Equal(0, first.Id);
         Assert.Equal(1, second.Id);
-        Assert.Equal(2, world.ListArchetype0.Count);
-        Assert.Equal(1f, world.ListArchetype0[0].Position.X);
-        Assert.Equal(2f, world.ListArchetype0[1].Position.X);
+        Assert.Equal(2, world.Archetype0.Count);
+        Assert.Equal(1f, world.Archetype0.GetPositionRefUnchecked(0).X);
+        Assert.Equal(2f, world.Archetype0.GetPositionRefUnchecked(1).X);
     }
 
     [Fact]
@@ -30,9 +30,9 @@ public class WorldSpec
         world.Create(new Position { X = 1f });
         world.Create(new Position { X = 2f }, new Velocity { X = 9f });
 
-        Assert.Equal(1, world.ListArchetype0.Count);
-        Assert.Equal(1, world.ListArchetype1.Count);
-        Assert.Equal(9f, world.ListArchetype1[0].Velocity.X);
+        Assert.Equal(1, world.Archetype0.Count);
+        Assert.Equal(1, world.Archetype1.Count);
+        Assert.Equal(9f, world.Archetype1.GetVelocityRefUnchecked(0).X);
     }
 
     [Fact]
@@ -46,16 +46,16 @@ public class WorldSpec
         world.MoveArchetype(entity, new Position { X = 5f }, new Velocity { X = 7f }, ref state);
 
         // Playback前は移動していない。
-        Assert.Equal(1, world.ListArchetype0.Count);
-        Assert.Equal(0, world.ListArchetype1.Count);
+        Assert.Equal(1, world.Archetype0.Count);
+        Assert.Equal(0, world.Archetype1.Count);
 
         world.PlaybackMoveArchetypes(ref state);
 
-        Assert.Equal(0, world.ListArchetype0.Count);
-        Assert.Equal(1, world.ListArchetype1.Count);
-        Assert.Equal(5f, world.ListArchetype1[0].Position.X);
-        Assert.Equal(7f, world.ListArchetype1[0].Velocity.X);
-        Assert.Equal(entity, world.ListArchetype1[0].Entity);
+        Assert.Equal(0, world.Archetype0.Count);
+        Assert.Equal(1, world.Archetype1.Count);
+        Assert.Equal(5f, world.Archetype1.GetPositionRefUnchecked(0).X);
+        Assert.Equal(7f, world.Archetype1.GetVelocityRefUnchecked(0).X);
+        Assert.Equal(entity, world.Archetype1.GetEntityRefUnchecked(0));
     }
 
     [Fact]
@@ -72,17 +72,17 @@ public class WorldSpec
         world.MoveArchetype(first, new Position { X = 1f }, new Velocity(), ref state);
         world.PlaybackMoveArchetypes(ref state);
 
-        Assert.Equal(2, world.ListArchetype0.Count);
-        Assert.Equal(third, world.ListArchetype0[0].Entity);
-        Assert.Equal(second, world.ListArchetype0[1].Entity);
+        Assert.Equal(2, world.Archetype0.Count);
+        Assert.Equal(third, world.Archetype0.GetEntityRefUnchecked(0));
+        Assert.Equal(second, world.Archetype0.GetEntityRefUnchecked(1));
 
         // 位置表が修復されていれば、詰められたthirdをさらに移動しても正しい行が消える。
         world.MoveArchetype(third, new Position { X = 3f }, new Velocity(), ref state);
         world.PlaybackMoveArchetypes(ref state);
 
-        Assert.Equal(1, world.ListArchetype0.Count);
-        Assert.Equal(second, world.ListArchetype0[0].Entity);
-        Assert.Equal(2f, world.ListArchetype0[0].Position.X);
+        Assert.Equal(1, world.Archetype0.Count);
+        Assert.Equal(second, world.Archetype0.GetEntityRefUnchecked(0));
+        Assert.Equal(2f, world.Archetype0.GetPositionRefUnchecked(0).X);
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public class WorldSpec
         // 2回目のPlaybackは何もしない(コマンドが残っていれば二重適用で例外になる)。
         world.PlaybackMoveArchetypes(ref state);
 
-        Assert.Equal(1, world.ListArchetype1.Count);
+        Assert.Equal(1, world.Archetype1.Count);
     }
 
     [Fact]
@@ -112,6 +112,7 @@ public class WorldSpec
         state.Enabled = false;
 
         Assert.False(state.Enabled);
-        Assert.Equal(0, state.World.ListArchetype0.Count);
+        Assert.Equal(0, state.World.Archetype0.Count);
     }
 }
+

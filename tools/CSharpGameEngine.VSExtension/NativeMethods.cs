@@ -20,6 +20,7 @@ internal static class NativeMethods
     public const uint WS_EX_NOREDIRECTIONBITMAP = 0x00200000;
 
     public const uint WM_SIZE = 0x0005;
+    public const uint WM_SETFOCUS = 0x0007;
 
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
     public delegate IntPtr WndProcDelegate(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
@@ -68,4 +69,10 @@ internal static class NativeMethods
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
     public static extern IntPtr GetModuleHandle(string? lpModuleName);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetFocus();
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr SetFocus(IntPtr hWnd);
 }

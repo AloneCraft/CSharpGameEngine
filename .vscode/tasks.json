@@ -1,16 +1,32 @@
-{
-  "version": "2.0.0",
-  "tasks": [
-    {
-      "label": "build",
-      "type": "process",
-      "command": "dotnet",
-      "args": ["build", "${workspaceFolder}/CSharpGameEngine.slnx"],
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      },
-      "problemMatcher": "$msCompile"
-    }
-  ]
+﻿{
+    "version":  "2.0.0",
+    "tasks":  [
+                  {
+                      "label":  "build",
+                      "type":  "process",
+                      "command":  "dotnet",
+                      "args":  [
+                                   "build",
+                                   "${workspaceFolder}/CSharpGameEngine.slnx"
+                               ],
+                      "group":  {
+                                    "kind":  "build",
+                                    "isDefault":  true
+                                },
+                      "problemMatcher":  "$msCompile"
+                  },
+                  {
+                      "label":  "Extension: build and launch Visual Studio experimental instance",
+                      "type":  "process",
+                      "command":  "powershell.exe",
+                      "args":  [
+                                   "-NoProfile",
+                                   "-ExecutionPolicy",
+                                   "Bypass",
+                                   "-File",
+                                   "${workspaceFolder}/tools/Launch-VSExtension.ps1"
+                               ],
+                      "problemMatcher":  "$msCompile"
+                  }
+              ]
 }

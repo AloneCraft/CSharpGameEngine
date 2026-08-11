@@ -170,6 +170,67 @@ internal static class GameSystemDiagnostics
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true);
 
+    /// <summary>
+    /// エントリポイントを生成すべき状況(Exe・ユーザーのMain無し・System有り)なのにContext引数が
+    /// あるため生成できないケース。何もしないとCS5001「エントリポイントが見つかりません」だけが出て
+    /// 原因が分からないため、理由を名指しする。
+    /// </summary>
+    internal static readonly DiagnosticDescriptor EntryPointCannotSupplyContext = new(
+        id: "SYSGEN021",
+        title: "Cannot generate an entry point while a Context parameter is declared",
+        messageFormat: "'{0}' declares the Context parameter '{1}', which the generated entry point cannot construct; hold it in a component and create it from a System, or write Program.cs by hand",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    /// <c>[SystemOrder]</c>(ADR-0036)をファイル既定値として使う場合、`file`スコープのマーカークラス
+    /// 専用に限定している。通常のクラスに付けると、そのクラス名がファイルの外へ漏れる
+    /// (=マーカーのつもりが公開APIの一部になる)ため、意図を強制する。ISystem実装struct自身に
+    /// 直接付ける場合(そのSystem1つだけの順序)はこの制約を受けない。
+    /// </summary>
+    internal static readonly DiagnosticDescriptor SystemOrderMarkerMustBeFileScoped = new(
+        id: "SYSGEN022",
+        title: "A [SystemOrder] file marker must be a file-scoped ('file') class",
+        messageFormat: "'{0}' is decorated with [SystemOrder] as a file-default marker but is not declared with the 'file' modifier; add 'file' so the marker does not leak outside its file",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    /// <summary>1ファイルの既定順序は一意でなければならない。2つ以上のマーカーがあると、そのファイルの既定値が定まらない。</summary>
+    internal static readonly DiagnosticDescriptor DuplicateFileOrderInOneFile = new(
+        id: "SYSGEN023",
+        title: "A file must declare at most one [SystemOrder] file marker",
+        messageFormat: "File '{0}' declares a [SystemOrder] file marker on more than one class ('{1}' and '{2}'); only one marker is allowed per file",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    /// 2つの異なるファイルが同じ明示的なファイル既定値を宣言すると、その2ファイル間の相対順序が
+    /// 未定義に戻ってしまう(この属性を導入した目的そのものが達成できなくなる)。System単体に直接
+    /// 付けた明示値同士が重複するのは「意図的な同着」でありうるため対象外(ファイル既定値だけの規則)。
+    /// </summary>
+    internal static readonly DiagnosticDescriptor DuplicateFileOrderValue = new(
+        id: "SYSGEN024",
+        title: "Two files must not declare the same explicit [SystemOrder] file-default value",
+        messageFormat: "Files '{0}' and '{1}' both declare a [SystemOrder({2})] file marker; give them different values so their relative order is unambiguous",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
+    /// <summary>
+    /// <c>[SystemOrder]</c>をstructに付けたが<c>ISystem</c>を実装していない場合、その値はどこからも
+    /// 参照されず静かに無視される。付け間違いに気づけるよう報告する。
+    /// </summary>
+    internal static readonly DiagnosticDescriptor SystemOrderOnNonSystemStruct = new(
+        id: "SYSGEN025",
+        title: "[SystemOrder] on a struct has no effect unless the struct implements ISystem",
+        messageFormat: "'{0}' is decorated with [SystemOrder] but does not implement ISystem, so this value is never used",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true);
+
     /// <summary>1つのSystem解析結果が持つ全診断を報告する。生成には関与しない診断専用の出力段。</summary>
     internal static void ReportAll(SourceProductionContext context, GameSystemResult result)
     {

@@ -29,6 +29,8 @@
     <!-- The real runtime source the generator completes, read as text by GameSystemGeneratorTestHelper
          so every generator test compiles against exactly what ships (ADR-0033). -->
     <None Include="..\..\src\CSharpGameEngine.Entities\Runtime.cs" Link="TestAssets\Entities\Runtime.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\CSharpGameEngine.Entities\Bootstrap.cs" Link="TestAssets\Entities\Bootstrap.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\CSharpGameEngine.Entities\SystemOrderAttribute.cs" Link="TestAssets\Entities\SystemOrderAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Entities\Parent.cs" Link="TestAssets\Entities\Parent.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Entities\SceneNodeTag.cs" Link="TestAssets\Entities\SceneNodeTag.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Entities\SceneNodeId.cs" Link="TestAssets\Entities\SceneNodeId.cs" CopyToOutputDirectory="PreserveNewest" />

@@ -24,6 +24,11 @@ SYSGEN017 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SYSGEN018 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SYSGEN019 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SYSGEN020 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
+SYSGEN021 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
+SYSGEN022 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
+SYSGEN023 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
+SYSGEN024 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
+SYSGEN025 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SCENE001 | CSharpGameEngine.Entities.CodeGen | Error | SceneDefinitionDiagnostics
 SCENE002 | CSharpGameEngine.Entities.CodeGen | Error | SceneDefinitionDiagnostics
 SCENE003 | CSharpGameEngine.Entities.CodeGen | Error | SceneDefinitionDiagnostics

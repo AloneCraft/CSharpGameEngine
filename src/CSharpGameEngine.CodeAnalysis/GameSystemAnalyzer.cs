@@ -87,6 +87,17 @@ internal static class GameSystemAnalyzer
             typeLocation.SourceSpan.Start);
     }
 
+    /// <summary>
+    /// <see cref="GameSystemResult.ClassFullyQualifiedName"/>と同じ規則(名前空間.型名、グローバル
+    /// 名前空間ならglobal::無しの型名のみ)で完全修飾名を作る。<see cref="GameSystemOrderAnalyzer"/>が
+    /// <c>[SystemOrder]</c>を直接付けられたSystemを、<see cref="GameSystemResult"/>側と同じキーで
+    /// 引き当てるために必要(2箇所が別々の規則で名前を作るとキーがズレて対応付けが失敗する)。
+    /// </summary>
+    internal static string ComputeClassFullyQualifiedName(INamedTypeSymbol symbol) =>
+        symbol.ContainingNamespace.IsGlobalNamespace
+            ? symbol.Name
+            : $"{symbol.ContainingNamespace.ToDisplayString()}.{symbol.Name}";
+
     private static int GetDeclarationPosition(ISymbol symbol)
     {
         Location location = symbol.Locations.FirstOrDefault() ?? Location.None;

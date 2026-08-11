@@ -10,10 +10,11 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// (単一の<c>partial struct World</c>/<c>enum Archetype</c>を作るため、生成は1回しか行えない)。
 ///
 /// <para>
-/// 実行順序(ADR-0033決定事項1)は「ソース上の記述順」。Systemは(ファイルパス, 宣言位置)で整列し、
-/// 同一struct内のオーバーロードは宣言位置順(<see cref="GameSystemAnalyzer"/>で整列済み)。
-/// ファイルパスをキーに使うのはマシン依存の再現性リスクがあるため、実運用では1ファイルへの集約を
-/// 推奨する(ファイルをまたいだ場合の決定性を担保するためのタイブレークとしてのみ使う)。
+/// 実行順序(ADR-0033決定事項1)は「ソース上の記述順」。整列は<see cref="GameSystemExecutionOrder"/>に
+/// 委譲しており、キーは①<c>[SystemOrder]</c>をSystemへ直接付けた明示値 ②<c>[SystemOrder]</c>を
+/// ファイルマーカーへ付けたファイル既定値(いずれもADR-0036、宣言が無ければ0) ③ファイルパスの
+/// Ordinal順(後方互換のタイブレーク) ④宣言位置(同一struct内のオーバーロード順、
+/// <see cref="GameSystemAnalyzer"/>で整列済み)。
 /// </para>
 ///
 /// <para>
@@ -28,14 +29,11 @@ internal static class GameSystemIndexAssigner
 {
     internal static GameSystemRegistry Assign(
         ImmutableArray<GameSystemResult> allSystems,
-        IReadOnlyList<IReadOnlyList<string>> additionalComponentSets)
+        IReadOnlyList<IReadOnlyList<string>> additionalComponentSets,
+        GameSystemOrderContext orderContext)
     {
         List<GameSystemResult> validSystems = [.. allSystems.Where(static s => s.Diagnostics.Length == 0)];
-        validSystems.Sort(static (a, b) =>
-        {
-            int fileCompare = string.CompareOrdinal(a.FilePath, b.FilePath);
-            return fileCompare != 0 ? fileCompare : a.DeclarationPosition.CompareTo(b.DeclarationPosition);
-        });
+        validSystems.Sort((a, b) => GameSystemExecutionOrder.Compare(a, b, orderContext));
 
         Dictionary<string, int> componentIndexByType = new(StringComparer.Ordinal);
         List<string> componentTypesByIndex = [];

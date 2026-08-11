@@ -20,6 +20,7 @@ internal sealed class RenderSurfaceWindow : IDisposable
     private static readonly System.Collections.Generic.Dictionary<IntPtr, RenderSurfaceWindow> s_instances = [];
 
     private IntPtr _hwnd;
+    private readonly IntPtr _parentHwnd;
     private bool _disposed;
 
     public event Action<int, int>? Resized;
@@ -27,6 +28,7 @@ internal sealed class RenderSurfaceWindow : IDisposable
     public RenderSurfaceWindow(IntPtr parentHwnd, int width, int height)
     {
         EnsureClassRegistered();
+        _parentHwnd = parentHwnd;
 
         _hwnd = CreateWindowEx(
             WS_EX_NOREDIRECTIONBITMAP,
@@ -72,6 +74,17 @@ internal sealed class RenderSurfaceWindow : IDisposable
 
         if (_hwnd != IntPtr.Zero)
         {
+            // If this native child window still owns real Win32 keyboard focus when destroyed,
+            // Windows leaves focus dangling on a handle that no longer exists and WPF's own focus
+            // tracking (Keyboard.FocusedElement) desyncs from the real OS focus state for the rest
+            // of the VS session - Tab/Backspace/Delete stop reaching the text editor even after this
+            // pane is closed, while plain character input (routed differently) keeps working. Hand
+            // focus back to the parent HWND before tearing down the native window.
+            if (GetFocus() == _hwnd)
+            {
+                SetFocus(_parentHwnd);
+            }
+
             _ = DestroyWindow(_hwnd);
             _hwnd = IntPtr.Zero;
         }
@@ -127,6 +140,30 @@ internal sealed class RenderSurfaceWindow : IDisposable
                 int width = (int)(lp & 0xFFFF);
                 int height = (int)((lp >> 16) & 0xFFFF);
                 instance.Resized?.Invoke(width, height);
+            }
+
+            return IntPtr.Zero;
+        }
+
+        if (msg == WM_SETFOCUS)
+        {
+            // This window is a pure render target with no keyboard interaction of its own. It never
+            // implements WM_SETFOCUS/WM_KILLFOCUS beyond DefWindowProc's no-op, so WPF's HwndHost/
+            // HwndSource keyboard-input-sink machinery is never notified when real Win32 focus
+            // actually lands here (e.g. a mouse click into the 3D preview) - Keyboard.FocusedElement
+            // then desyncs from the real OS focus state for the rest of the VS session, breaking
+            // Tab/Backspace/Delete everywhere (not just in this pane) while plain character input
+            // (routed differently) keeps working. Refuse focus outright by bouncing it straight back
+            // to the parent HWND instead of ever actually holding it.
+            RenderSurfaceWindow? focusedInstance;
+            lock (s_instances)
+            {
+                s_instances.TryGetValue(hWnd, out focusedInstance);
+            }
+
+            if (focusedInstance is not null)
+            {
+                SetFocus(focusedInstance._parentHwnd);
             }
 
             return IntPtr.Zero;

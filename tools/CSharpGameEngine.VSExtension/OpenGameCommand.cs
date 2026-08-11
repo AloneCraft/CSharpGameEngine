@@ -8,21 +8,16 @@ using Microsoft.VisualStudio.Shell.Interop;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Tools-menu command that launches the ECS-driven stage vertical slice (<c>UserGameProject</c>,
-/// ADR-0016) as a separate top-level window - the exact same "spawn a separate net10.0 process,
-/// don't embed it" mechanism as <see cref="OpenViewerCommand"/> (ADR-0006), chosen deliberately
-/// over a docked tool window: <c>CSharpGameEngine.Ecs</c> uses C# 11 static abstract interface
-/// members, which the .NET Framework 4.7.2 CLR this VSIX runs on does not support at all, so it
-/// cannot be referenced or run in-process here the way <see cref="ViewerHwndHost"/>/
-/// <see cref="VorticeRenderer"/> run the glTF viewer in-process. Embedding a separate process's
-/// window into a docked VS tool window (HWND reparenting or a shared-texture bridge) is real,
-/// unbuilt work with no precedent in this codebase yet and is deliberately deferred; see ADR-0016.
-/// Contains no rendering/engine/ECS logic itself.
+/// Tools-menu command that launches UserEcsProject as a separate top-level window.
+/// The VSIX remains a .NET Framework process, so the net10.0 ECS application is intentionally
+/// started out of process rather than referenced or executed in-process.
 /// </summary>
 internal sealed class OpenGameCommand
 {
     public const int CommandId = 0x0104;
     public static readonly Guid CommandSet = new("521655e5-0d1b-4255-8086-1039c5c2e3da");
+
+    private const string ProjectPath = "UserEcsProject";
 
     private readonly AsyncPackage _package;
 
@@ -57,13 +52,12 @@ internal sealed class OpenGameCommand
         if (repoRoot is null)
         {
             ShowMessage(
-                $"リポジトリルート({RepoLocator.RepoMarkerFileName})が見つかりませんでした。このVSIXは開発中のスケルトンであり、" +
-                "ビルド時に埋め込んだパスでのみ動作します。詳細はADR-0006を参照してください。",
+                $"リポジトリルート({RepoLocator.RepoMarkerFileName})が見つかりませんでした。",
                 OLEMSGICON.OLEMSGICON_WARNING);
             return;
         }
 
-        ProcessStartInfo startInfo = new("dotnet", "run --project UserGameProject")
+        ProcessStartInfo startInfo = new("dotnet", $"run --project \"{ProjectPath}\"")
         {
             WorkingDirectory = repoRoot,
             UseShellExecute = false,
@@ -75,7 +69,7 @@ internal sealed class OpenGameCommand
         }
         catch (Exception ex)
         {
-            ShowMessage($"ゲームの起動に失敗しました: {ex.Message}", OLEMSGICON.OLEMSGICON_CRITICAL);
+            ShowMessage($"UserEcsProjectの起動に失敗しました: {ex.Message}", OLEMSGICON.OLEMSGICON_CRITICAL);
         }
     }
 

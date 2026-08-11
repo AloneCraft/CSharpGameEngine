@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using Microsoft.CodeAnalysis;
 
 namespace CSharpGameEngine.CodeAnalysis.Tests;
@@ -35,8 +35,8 @@ public sealed class GameSystemGeneratorEmissionTests
         // ADR-0033: Archetype名は出現順の連番。Component集合を連結した名前(Archetype0001…)は、
         // 読めない上にComponentを1つ足すだけで全部の名前が変わってしまうため採用していない。
         Assert.Contains("public enum Archetype\n{\n    Archetype0,\n    Archetype1,\n}", text);
-        Assert.Contains("public struct Archetype0 : IArchetype", text);
-        Assert.Contains("public struct Archetype1 : IArchetype", text);
+        Assert.Contains("public sealed class Archetype0 : IArchetype", text);
+        Assert.Contains("public sealed class Archetype1 : IArchetype", text);
     }
 
     [Fact]
@@ -91,11 +91,11 @@ public sealed class GameSystemGeneratorEmissionTests
         string text = GameSystemGeneratorTestHelper.GeneratedText(result, "GameSystem.Loop.g.cs");
 
         // Archetype1 は {Position, Velocity}。{Position} だけを要求する FirstSystem もここに一致する。
-        int archetype1Loop = text.IndexOf("ListArchetype1.Count", StringComparison.Ordinal);
+        int archetype1Loop = text.IndexOf("State.World.Archetype1.Count", StringComparison.Ordinal);
         string archetype1Body = text[archetype1Loop..];
 
-        Assert.Contains("firstSystem.Update(ref Archetype.Position, ref State)", archetype1Body);
-        Assert.Contains("secondSystem.Update(ref Archetype.Position, ref Archetype.Velocity, ref State)", archetype1Body);
+        Assert.Contains("firstSystem.Update(ref State.World.Archetype1.GetPositionRefUnchecked(Index), ref State)", archetype1Body);
+        Assert.Contains("secondSystem.Update(ref State.World.Archetype1.GetPositionRefUnchecked(Index), ref State.World.Archetype1.GetVelocityRefUnchecked(Index), ref State)", archetype1Body);
     }
 
     [Fact]
@@ -157,7 +157,7 @@ public sealed class GameSystemGeneratorEmissionTests
         // 構造体Contextは`in`、参照型Contextは値渡し(属性は一切使わず、ref-kindだけで判別される)。
         Assert.Contains("in global::Sample.FrameContext frameContext", text);
         Assert.Contains("global::Sample.Log log", text);
-        Assert.Contains("contextSystem.Update(ref Archetype.Position, in frameContext, log, ref State)", text);
+        Assert.Contains("contextSystem.Update(ref State.World.Archetype0.GetPositionRefUnchecked(Index), in frameContext, log, ref State)", text);
     }
 
     [Fact]
@@ -227,3 +227,4 @@ public sealed class GameSystemGeneratorEmissionTests
         Assert.DoesNotContain("brokenSystem", loop);
     }
 }
+

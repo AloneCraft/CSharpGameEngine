@@ -1987,9 +1987,13 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
 - Status: Implemented
 - Verification: TestVerified
 - Intended specification: Docs/Decisions/ADR-0033-Static-Archetype-Ecs-Migration.md、
+  Docs/Decisions/ADR-0035-Generated-Entry-Point-And-Engine-Objects-As-Components.md、
+  Docs/Decisions/ADR-0036-System-Order-Attribute.md、
   Docs/Specifications/Ecs-Soa-Systems.md
 - Implementation evidence:
   - src/CSharpGameEngine.Entities/Runtime.cs
+  - src/CSharpGameEngine.Entities/Bootstrap.cs
+  - src/CSharpGameEngine.Entities/SystemOrderAttribute.cs
   - src/CSharpGameEngine.Entities/CSharpGameEngine.Entities.csproj
 - Tests:
   - tests/CSharpGameEngine.Entities.Tests/WorldSpec.cs(生成された`Create`/`MoveArchetype`/
@@ -2008,17 +2012,25 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
     ことのスモークテストとして機能する。
   - M0012の`src/CSharpGameEngine.StaticArchetype/Runtime.cs`を、グローバル名前空間から
     `CSharpGameEngine.Entities`名前空間へ移して統合したもの(旧プロジェクトは削除済み)。
+  - `Bootstrap`(M0015)は生成されたエントリポイントが作る唯一のシードEntityのComponent。
+    `Parent`/`SceneNodeTag`と同じ「エンジンが持つComponent」で、`Done`フラグを持つのは閉集合方式に
+    `Destroy`が無くArchetypeループが毎フレーム回り続けるため(ADR-0035決定事項3)。
+  - `SystemOrderAttribute`(M0016)は「属性を一切使わない構造的推論」(ADR-0033決定事項2)からの
+    唯一の例外。`ISystem`実装struct自身に直接(そのSystem1つだけの順序)、または`file`スコープの
+    マーカークラスに(ファイル既定値)、どちらにも付けられる(ADR-0036)。
 - Conformance: Matches
 - Known deviations: None
 - Next action: なし。
 
-## F-L7-015 — `GameSystemGenerator`(Analyzer/Model/IndexAssigner/Types・World・Snapshot・Loop各Emitter)
+## F-L7-015 — `GameSystemGenerator`(Analyzer/Model/IndexAssigner/Types・World・Snapshot・Loop・EntryPoint各Emitter)
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: 静的(閉集合)Archetype ECS
 - Status: Implemented
 - Verification: TestVerified
 - Intended specification: Docs/Decisions/ADR-0033-Static-Archetype-Ecs-Migration.md、
+  Docs/Decisions/ADR-0035-Generated-Entry-Point-And-Engine-Objects-As-Components.md、
+  Docs/Decisions/ADR-0036-System-Order-Attribute.md、
   Docs/Specifications/Ecs-Soa-Systems.md
 - Implementation evidence:
   - src/CSharpGameEngine.CodeAnalysis/GameSystemGenerator.cs(ISystem+[SceneDefinition]の統合エントリポイント)
@@ -2029,8 +2041,16 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
   - src/CSharpGameEngine.CodeAnalysis/GameSystemWorldEmitter.cs
   - src/CSharpGameEngine.CodeAnalysis/GameSystemSnapshotEmitter.cs
   - src/CSharpGameEngine.CodeAnalysis/GameSystemLoopEmitter.cs
+  - src/CSharpGameEngine.CodeAnalysis/GameSystemEntryPointEmitter.cs(M0015)
+  - src/CSharpGameEngine.CodeAnalysis/GameSystemOrderAnalyzer.cs(M0016)
+  - src/CSharpGameEngine.CodeAnalysis/GameSystemExecutionOrder.cs(M0016)
   - src/CSharpGameEngine.CodeAnalysis/SceneRuntimeEmitter.cs(Createファクトリ呼び出しへ書き換え)
 - Tests:
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemEntryPointTests.cs(出力条件4種、SYSGEN021、
+    Bootstrap Archetypeの注入が生成時のみであること、生成された`Main`の実行)
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemOrderTests.cs(ファイル名に逆らう
+    `[SystemOrder]`順で生成`Main`を実行、System直接指定がファイル既定値より優先されること、
+    既存タイブレークの後方互換回帰、SYSGEN022〜025)
   - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorEmissionTests.cs(出現順の連番命名、
     `Create`の戻り値、`World.Create`オーバーロード、記述順ディスパッチ、部分集合一致、Spawn除外、
     Contextのスレッディング、WorldSnapshot、決定性)
@@ -2044,29 +2064,40 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
   - Archetype名は出現順の連番(`Archetype0`,`Archetype1`,…)。`ComponentIndices`は最初にその構成を
     宣言したメソッドの引数順で保持され、`World.Create`/`MoveArchetype`のパラメータ順もそれに従う。
     これによりArchetype名は完全に内部識別子になり、ユーザーコードに現れない。
-  - 実行順序はソース上の記述順(`(FilePath Ordinal, SourceSpan.Start)`)。旧`GameSystemScheduler`の
-    Write→Read自動順序決定は、Component引数が全て`ref`になったことで原理的に成立しなくなり削除された。
+  - 実行順序はソース上の記述順。整列キーは`GameSystemExecutionOrder.Compare`に一本化されており、
+    実効値は①`[SystemOrder]`をSystem自身に直接付けた明示値 ②`[SystemOrder]`をfileマーカーへ
+    付けたファイル既定値(いずれもADR-0036、既定0、①が優先)、そのうえで③`FilePath` Ordinal
+    (既存タイブレーク) ④`SourceSpan.Start`の順。旧`GameSystemScheduler`のWrite→Read自動順序決定は、
+    Component引数が全て`ref`になったことで原理的に成立しなくなり削除された。
   - `[SceneDefinition]`のノード形状も同じArchetype空間へ入れるため、SceneDefinitionGeneratorは
     独立したGeneratorではなくこのパイプラインの一部になっている(ADR-0033決定事項7)。
   - 出力は`CSharpGameEngine.Entities.ISystem`型がコンパイル内に実在する場合のみ(無関係なプロジェクトの
     汚染防止、ADR-0032実装時に確認済みの回帰への対策)。
+  - エントリポイント(`GameSystem.EntryPoint.g.cs`)は、①OutputKindがアプリケーション
+    ②`Compilation.GetEntryPoint`がnull ③ディスパッチSystemが1件以上 ④Context引数がゼロ、の4条件を
+    すべて満たす場合のみ出力する(ADR-0035決定事項2)。`{Bootstrap}`のArchetypeも、出力すると決めた
+    ときだけ`additionalComponentSets`へ注入する。④だけ落ちる場合はSYSGEN021で理由を報告する。
 - Conformance: Matches
 - Known deviations: 実行順序の自動決定を失い、記述順という手動規則に置き換わった(ADR-0033に明記)。
 - Next action: なし。
 
-## F-L7-016 — `GameSystemGenerator`診断(SYSGEN001〜020、SYSGEN009は欠番)
+## F-L7-016 — `GameSystemGenerator`診断(SYSGEN001〜025、SYSGEN009は欠番)
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: 静的(閉集合)Archetype ECS
 - Status: Implemented
 - Verification: TestVerified
-- Intended specification: Docs/Decisions/ADR-0033-Static-Archetype-Ecs-Migration.md
+- Intended specification: Docs/Decisions/ADR-0033-Static-Archetype-Ecs-Migration.md、
+  Docs/Decisions/ADR-0035-Generated-Entry-Point-And-Engine-Objects-As-Components.md、
+  Docs/Decisions/ADR-0036-System-Order-Attribute.md
 - Implementation evidence:
   - src/CSharpGameEngine.CodeAnalysis/GameSystemDiagnostics.cs
   - src/CSharpGameEngine.CodeAnalysis/AnalyzerReleases.Unshipped.md
 - Tests:
   - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorDiagnosticsTests.cs(SYSGEN001〜020の
     各1件+正常系1件。SYSGEN009は欠番であることを、`out`引数がSYSGEN018として報告されるテストで記録)
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemEntryPointTests.cs(SYSGEN021)
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemOrderTests.cs(SYSGEN022〜025)
 - Reverse-engineered behavior:
   - 属性ベースだった旧SYSGEN001〜020とM0012のSARCH001〜015をいずれも破棄し、構造的推論ベースの規則へ
     全面的に振り直した(`AnalyzerReleases.Shipped.md`が空のため「Removed Rules」管理は不要だった)。
@@ -2075,6 +2106,15 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
     `out`のような不正な渡し方はContext側の規則SYSGEN018が捕捉する(ADR-0015に同種の前例あり)。
   - SCENE009(1ノードのComponent数8以下)も削除。旧`World.CreateArchetype<T1..T8>`のジェネリック型引数
     上限に由来する規則で、閉集合方式には上限が無い。
+  - SYSGEN021(M0015)は「エントリポイントを生成すべき状況(Exe・ユーザーのMain無し・System有り)なのに
+    Context引数があるため生成できない」ケース。放置するとCS5001だけが出て原因が分からないため、
+    どのSystemのどのContext型が妨げているかを名指しする。
+  - SYSGEN022〜025(M0016、ADR-0036)は`[SystemOrder]`の誤用: 022=fileマーカーとして使ったが
+    `file`スコープでない、023=1ファイルに複数のマーカーがある(ファイル既定値が定まらない)、
+    024=2つ以上の異なるファイルが同じ明示的なファイル既定値を宣言している(ユーザー確認済みで
+    ビルドエラーに設定。System単体の明示値同士の重複や、暗黙の0同士が並ぶのは対象外 —
+    `ForAttributeWithMetadataName`が明示的に属性を付けた対象しか集めないため)、025=structに
+    付けたが`ISystem`を実装していない(値がどこにも効かない)。
 - Conformance: Matches
 - Known deviations: None
 - Next action: なし。

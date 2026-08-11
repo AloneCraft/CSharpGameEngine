@@ -1,142 +1,175 @@
-{
-  "version": "0.2.0",
-  "configurations": [
-    {
-      "name": "UserGameProject",
-      "type": "coreclr",
-      "request": "launch",
-      "preLaunchTask": "build",
-      "program": "${workspaceFolder}/UserGameProject/bin/Debug/net10.0-windows10.0.19041.0/win-x64/UserGameProject.exe",
-      "args": [],
-      "cwd": "${workspaceFolder}/UserGameProject",
-      "console": "internalConsole",
-      "stopAtEntry": false
-    },
-    {
-      "name": "TestHost: self-test",
-      "type": "coreclr",
-      "request": "launch",
-      "preLaunchTask": "build",
-      "program": "${workspaceFolder}/tools/CSharpGameEngine.TestHost/bin/Debug/net10.0-windows10.0.19041.0/CSharpGameEngine.TestHost.exe",
-      "args": ["self-test"],
-      "cwd": "${workspaceFolder}/tools/CSharpGameEngine.TestHost",
-      "console": "internalConsole",
-      "stopAtEntry": false
-    },
-    {
-      "name": "TestHost: triangle",
-      "type": "coreclr",
-      "request": "launch",
-      "preLaunchTask": "build",
-      "program": "${workspaceFolder}/tools/CSharpGameEngine.TestHost/bin/Debug/net10.0-windows10.0.19041.0/CSharpGameEngine.TestHost.exe",
-      "args": ["triangle"],
-      "cwd": "${workspaceFolder}/tools/CSharpGameEngine.TestHost",
-      "console": "internalConsole",
-      "stopAtEntry": false
-    },
-    {
-      "name": "Extension: Viewer (Box.glb sample)",
-      "type": "coreclr",
-      "request": "launch",
-      "preLaunchTask": "build",
-      "program": "${workspaceFolder}/tools/CSharpGameEngine.Extension/bin/Debug/net10.0-windows10.0.19041.0/win-x64/CSharpGameEngine.Extension.exe",
-      "args": ["--model", "Samples/Box.glb"],
-      "cwd": "${workspaceFolder}/tools/CSharpGameEngine.Extension",
-      "console": "internalConsole",
-      "stopAtEntry": false
-    },
-    {
-      "name": "Import.Gltf.Cli",
-      "type": "coreclr",
-      "request": "launch",
-      "preLaunchTask": "build",
-      "program": "${workspaceFolder}/tools/CSharpGameEngine.Import.Gltf.Cli/bin/Debug/net10.0/CSharpGameEngine.Import.Gltf.Cli.exe",
-      "args": ["${input:gltfInputPath}", "${input:gltfOutputPath}"],
-      "cwd": "${workspaceFolder}",
-      "console": "internalConsole",
-      "stopAtEntry": false
-    },
-    {
-      "name": "Import.Fbx.Cli",
-      "type": "coreclr",
-      "request": "launch",
-      "preLaunchTask": "build",
-      "program": "${workspaceFolder}/tools/CSharpGameEngine.Import.Fbx.Cli/bin/Debug/net10.0/win-x64/CSharpGameEngine.Import.Fbx.Cli.exe",
-      "args": ["${input:fbxInputPath}", "${input:fbxOutputPath}"],
-      "cwd": "${workspaceFolder}",
-      "console": "internalConsole",
-      "stopAtEntry": false
-    },
-    {
-      "name": "UserGameProject: benchmark (AoS vs SoA)",
-      "type": "coreclr",
-      "request": "launch",
-      "preLaunchTask": "build",
-      "program": "${workspaceFolder}/UserGameProject/bin/Release/net10.0-windows10.0.19041.0/win-x64/UserGameProject.exe",
-      "args": ["benchmark", "--entities", "500000", "--iterations", "51"],
-      "cwd": "${workspaceFolder}/UserGameProject",
-      "console": "internalConsole",
-      "stopAtEntry": false
-    },
-    {
-      "name": "AosSoaGeneratedExpansion (sample)",
-      "type": "coreclr",
-      "request": "launch",
-      "preLaunchTask": "build",
-      "program": "${workspaceFolder}/samples/AosSoaGeneratedExpansion/bin/Debug/net10.0/AosSoaGeneratedExpansion.exe",
-      "args": [],
-      "cwd": "${workspaceFolder}/samples/AosSoaGeneratedExpansion",
-      "console": "internalConsole",
-      "stopAtEntry": false
-    },
-    {
-      "name": "Primitive.Cli",
-      "type": "coreclr",
-      "request": "launch",
-      "preLaunchTask": "build",
-      "program": "${workspaceFolder}/tools/CSharpGameEngine.Primitive.Cli/bin/Debug/net10.0/CSharpGameEngine.Primitive.Cli.exe",
-      "args": ["${input:primitiveKind}", "${input:primitiveOutputPath}"],
-      "cwd": "${workspaceFolder}",
-      "console": "internalConsole",
-      "stopAtEntry": false
-    }
-  ],
-  "inputs": [
-    {
-      "id": "gltfInputPath",
-      "type": "promptString",
-      "description": "Import.Gltf.Cli: input .glb/.gltf path",
-      "default": "assets/TestFixtures/Gltf/Box.glb"
-    },
-    {
-      "id": "gltfOutputPath",
-      "type": "promptString",
-      "description": "Import.Gltf.Cli: output .json path",
-      "default": "${workspaceFolder}/.vscode/out/gltf-import.json"
-    },
-    {
-      "id": "fbxInputPath",
-      "type": "promptString",
-      "description": "Import.Fbx.Cli: input .fbx path",
-      "default": "assets/TestFixtures/Fbx/Box.fbx"
-    },
-    {
-      "id": "fbxOutputPath",
-      "type": "promptString",
-      "description": "Import.Fbx.Cli: output .json path",
-      "default": "${workspaceFolder}/.vscode/out/fbx-import.json"
-    },
-    {
-      "id": "primitiveKind",
-      "type": "promptString",
-      "description": "Primitive.Cli: primitive name (Box/Sphere/Cylinder/Capsule/Cone/Torus/Rectangle/Disk)",
-      "default": "Sphere"
-    },
-    {
-      "id": "primitiveOutputPath",
-      "type": "promptString",
-      "description": "Primitive.Cli: output .glb path",
-      "default": "${workspaceFolder}/.vscode/out/primitive.glb"
-    }
-  ]
+﻿{
+    "version":  "0.2.0",
+    "configurations":  [
+                           {
+                               "name":  "UserGameProject",
+                               "type":  "coreclr",
+                               "request":  "launch",
+                               "preLaunchTask":  "build",
+                               "program":  "${workspaceFolder}/UserGameProject/bin/Debug/net10.0-windows10.0.19041.0/win-x64/UserGameProject.exe",
+                               "args":  [
+
+                                        ],
+                               "cwd":  "${workspaceFolder}/UserGameProject",
+                               "console":  "internalConsole",
+                               "stopAtEntry":  false
+                           },
+                           {
+                               "name":  "TestHost: self-test",
+                               "type":  "coreclr",
+                               "request":  "launch",
+                               "preLaunchTask":  "build",
+                               "program":  "${workspaceFolder}/tools/CSharpGameEngine.TestHost/bin/Debug/net10.0-windows10.0.19041.0/CSharpGameEngine.TestHost.exe",
+                               "args":  [
+                                            "self-test"
+                                        ],
+                               "cwd":  "${workspaceFolder}/tools/CSharpGameEngine.TestHost",
+                               "console":  "internalConsole",
+                               "stopAtEntry":  false
+                           },
+                           {
+                               "name":  "TestHost: triangle",
+                               "type":  "coreclr",
+                               "request":  "launch",
+                               "preLaunchTask":  "build",
+                               "program":  "${workspaceFolder}/tools/CSharpGameEngine.TestHost/bin/Debug/net10.0-windows10.0.19041.0/CSharpGameEngine.TestHost.exe",
+                               "args":  [
+                                            "triangle"
+                                        ],
+                               "cwd":  "${workspaceFolder}/tools/CSharpGameEngine.TestHost",
+                               "console":  "internalConsole",
+                               "stopAtEntry":  false
+                           },
+                           {
+                               "name":  "Extension: Viewer (Box.glb sample)",
+                               "type":  "coreclr",
+                               "request":  "launch",
+                               "preLaunchTask":  "build",
+                               "program":  "${workspaceFolder}/tools/CSharpGameEngine.Extension/bin/Debug/net10.0-windows10.0.19041.0/win-x64/CSharpGameEngine.Extension.exe",
+                               "args":  [
+                                            "--model",
+                                            "Samples/Box.glb"
+                                        ],
+                               "cwd":  "${workspaceFolder}/tools/CSharpGameEngine.Extension",
+                               "console":  "internalConsole",
+                               "stopAtEntry":  false
+                           },
+                           {
+                               "name":  "Import.Gltf.Cli",
+                               "type":  "coreclr",
+                               "request":  "launch",
+                               "preLaunchTask":  "build",
+                               "program":  "${workspaceFolder}/tools/CSharpGameEngine.Import.Gltf.Cli/bin/Debug/net10.0/CSharpGameEngine.Import.Gltf.Cli.exe",
+                               "args":  [
+                                            "${input:gltfInputPath}",
+                                            "${input:gltfOutputPath}"
+                                        ],
+                               "cwd":  "${workspaceFolder}",
+                               "console":  "internalConsole",
+                               "stopAtEntry":  false
+                           },
+                           {
+                               "name":  "Import.Fbx.Cli",
+                               "type":  "coreclr",
+                               "request":  "launch",
+                               "preLaunchTask":  "build",
+                               "program":  "${workspaceFolder}/tools/CSharpGameEngine.Import.Fbx.Cli/bin/Debug/net10.0/win-x64/CSharpGameEngine.Import.Fbx.Cli.exe",
+                               "args":  [
+                                            "${input:fbxInputPath}",
+                                            "${input:fbxOutputPath}"
+                                        ],
+                               "cwd":  "${workspaceFolder}",
+                               "console":  "internalConsole",
+                               "stopAtEntry":  false
+                           },
+                           {
+                               "name":  "UserGameProject: benchmark (AoS vs SoA)",
+                               "type":  "coreclr",
+                               "request":  "launch",
+                               "preLaunchTask":  "build",
+                               "program":  "${workspaceFolder}/UserGameProject/bin/Release/net10.0-windows10.0.19041.0/win-x64/UserGameProject.exe",
+                               "args":  [
+                                            "benchmark",
+                                            "--entities",
+                                            "500000",
+                                            "--iterations",
+                                            "51"
+                                        ],
+                               "cwd":  "${workspaceFolder}/UserGameProject",
+                               "console":  "internalConsole",
+                               "stopAtEntry":  false
+                           },
+                           {
+                               "name":  "AosSoaGeneratedExpansion (sample)",
+                               "type":  "coreclr",
+                               "request":  "launch",
+                               "preLaunchTask":  "build",
+                               "program":  "${workspaceFolder}/samples/AosSoaGeneratedExpansion/bin/Debug/net10.0/AosSoaGeneratedExpansion.exe",
+                               "args":  [
+
+                                        ],
+                               "cwd":  "${workspaceFolder}/samples/AosSoaGeneratedExpansion",
+                               "console":  "internalConsole",
+                               "stopAtEntry":  false
+                           },
+                           {
+                               "name":  "Primitive.Cli",
+                               "type":  "coreclr",
+                               "request":  "launch",
+                               "preLaunchTask":  "build",
+                               "program":  "${workspaceFolder}/tools/CSharpGameEngine.Primitive.Cli/bin/Debug/net10.0/CSharpGameEngine.Primitive.Cli.exe",
+                               "args":  [
+                                            "${input:primitiveKind}",
+                                            "${input:primitiveOutputPath}"
+                                        ],
+                               "cwd":  "${workspaceFolder}",
+                               "console":  "internalConsole",
+                               "stopAtEntry":  false
+                           },
+                           {
+                               "name":  "CSharpGameEngine.VSExtension: Visual Studio experimental instance",
+                               "type":  "node-terminal",
+                               "request":  "launch",
+                               "command":  "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"${workspaceFolder}/tools/Launch-VSExtension.ps1\"",
+                               "cwd":  "${workspaceFolder}"
+                           }
+                       ],
+    "inputs":  [
+                   {
+                       "id":  "gltfInputPath",
+                       "type":  "promptString",
+                       "description":  "Import.Gltf.Cli: input .glb/.gltf path",
+                       "default":  "assets/TestFixtures/Gltf/Box.glb"
+                   },
+                   {
+                       "id":  "gltfOutputPath",
+                       "type":  "promptString",
+                       "description":  "Import.Gltf.Cli: output .json path",
+                       "default":  "${workspaceFolder}/.vscode/out/gltf-import.json"
+                   },
+                   {
+                       "id":  "fbxInputPath",
+                       "type":  "promptString",
+                       "description":  "Import.Fbx.Cli: input .fbx path",
+                       "default":  "assets/TestFixtures/Fbx/Box.fbx"
+                   },
+                   {
+                       "id":  "fbxOutputPath",
+                       "type":  "promptString",
+                       "description":  "Import.Fbx.Cli: output .json path",
+                       "default":  "${workspaceFolder}/.vscode/out/fbx-import.json"
+                   },
+                   {
+                       "id":  "primitiveKind",
+                       "type":  "promptString",
+                       "description":  "Primitive.Cli: primitive name (Box/Sphere/Cylinder/Capsule/Cone/Torus/Rectangle/Disk)",
+                       "default":  "Sphere"
+                   },
+                   {
+                       "id":  "primitiveOutputPath",
+                       "type":  "promptString",
+                       "description":  "Primitive.Cli: output .glb path",
+                       "default":  "${workspaceFolder}/.vscode/out/primitive.glb"
+                   }
+               ]
 }

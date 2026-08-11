@@ -25,6 +25,15 @@ internal static class GameSystemLoopEmitter
 {
     private const string HintName = "GameSystem.Loop.g.cs";
 
+    /// <summary>
+    /// <c>GeneratedGameLoop</c>が出力される条件のうち、System側の条件。
+    /// <see cref="GameSystemEntryPointEmitter"/>が「ループが存在するか」をレジストリ構築前に
+    /// 判定する必要があるため、同じ述語をここから共有する(2箇所で条件がズレると、生成された
+    /// エントリポイントが存在しない<c>GeneratedGameLoop</c>を呼ぶ壊れ方をする)。
+    /// </summary>
+    internal static bool HasDispatchSystem(IEnumerable<GameSystemResult> systems) =>
+        systems.Any(static s => s.Diagnostics.Length == 0 && s.Methods.Any(static m => m.Role == GameSystemMethodRole.Dispatch));
+
     internal static void Emit(SourceProductionContext context, GameSystemRegistry registry)
     {
         List<GameSystemResult> dispatchSystems = [.. registry.ValidSystems.Where(static s => s.Methods.Any(static m => m.Role == GameSystemMethodRole.Dispatch))];
@@ -250,10 +259,10 @@ internal static class GameSystemLoopEmitter
                     switch (slot.Role)
                     {
                         case GameSystemParameterRole.Entity:
-                            callArguments.Add("Archetype.Entity");
+                            callArguments.Add($"State.World.{archetype.Name}.GetEntityRefUnchecked(Index)");
                             break;
                         case GameSystemParameterRole.Component:
-                            callArguments.Add($"ref Archetype.{fieldNameByComponentFqn[method.Components[slot.Index].TypeFullyQualifiedName]}");
+                            callArguments.Add($"ref State.World.{archetype.Name}.Get{fieldNameByComponentFqn[method.Components[slot.Index].TypeFullyQualifiedName]}RefUnchecked(Index)");
                             break;
                         case GameSystemParameterRole.Context:
                             GameSystemContextParameterModel contextParameter = method.Contexts[slot.Index];
@@ -278,9 +287,8 @@ internal static class GameSystemLoopEmitter
         List<string> lines =
         [
             "",
-            $"        for (var Index = State.World.{archetype.ListFieldName}.Count - 1; Index >= 0; Index--)",
+            $"        for (var Index = State.World.{archetype.Name}.Count - 1; Index >= 0; Index--)",
             "        {",
-            $"            ref var Archetype = ref State.World.{archetype.ListFieldName}[Index];",
         ];
 
         lines.AddRange(callLines);
@@ -289,3 +297,6 @@ internal static class GameSystemLoopEmitter
         return lines;
     }
 }
+
+
+

@@ -1,17 +1,9 @@
-using System.Text;
+﻿using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 
 namespace CSharpGameEngine.CodeAnalysis;
 
-/// <summary>
-/// <c>Archetype</c> enumと、Archetypeごとの<c>ArchetypeNN</c> structを生成する。<c>Archetype</c>は
-/// Systemが1つも無くても常に出力する(<c>Runtime.cs</c>の<c>World.EntityArchetypeIndices</c>フィールドが
-/// この型を前方参照しているため、空でも型自体は存在しなければならない)。
-/// 各<c>ArchetypeNN</c>は明示コンストラクタ+<c>Create</c>静的ファクトリ+<c>Archetype</c>静的プロパティ+
-/// publicフィールドを持つ。<c>Create</c>は生成した<c>Entity</c>を返す(Program.csと
-/// SceneRuntimeEmitterが必要とするため。ADR-0033決定事項5)。
-/// </summary>
 internal static class GameSystemTypesEmitter
 {
     private const string HintName = "GameSystem.Types.g.cs";
@@ -38,15 +30,13 @@ internal static class GameSystemTypesEmitter
 
         foreach (GameSystemArchetypeInfo archetype in registry.Archetypes)
         {
-            lines.AddRange(BuildArchetypeStruct(archetype, registry));
+            lines.AddRange(BuildArchetypeStorage(archetype, registry));
         }
 
         lines.Add("");
-
         context.AddSource(HintName, SourceText.From(string.Join("\n", lines), Encoding.UTF8));
     }
 
-    /// <summary>Archetypeの各Componentを(型FQN, フィールド名)として、グローバルインデックス昇順で返す。</summary>
     internal static List<(string TypeFullyQualifiedName, string FieldName)> BuildComponentFields(GameSystemArchetypeInfo archetype, GameSystemRegistry registry)
     {
         List<(string, string)> components = [];
@@ -60,48 +50,124 @@ internal static class GameSystemTypesEmitter
         return components;
     }
 
-    private static List<string> BuildArchetypeStruct(GameSystemArchetypeInfo archetype, GameSystemRegistry registry)
+    private static List<string> BuildArchetypeStorage(GameSystemArchetypeInfo archetype, GameSystemRegistry registry)
     {
         List<(string TypeFullyQualifiedName, string FieldName)> components = BuildComponentFields(archetype, registry);
         string parameters = string.Join(", ", components.Select(c => $"{c.TypeFullyQualifiedName} {c.FieldName}"));
+        string arguments = string.Join(", ", components.Select(c => c.FieldName));
 
         List<string> lines =
         [
-            $"public struct {archetype.Name} : IArchetype",
+            "",
+            $"public sealed class {archetype.Name} : IArchetype",
             "{",
-            $"    public {archetype.Name}(Entity Entity, {parameters})",
-            "    {",
-            "        this.Entity = Entity;",
+            "    private readonly ChunkList<Entity> entities = new();",
         ];
 
-        foreach ((string _, string fieldName) in components)
+        foreach ((string typeFqn, string fieldName) in components)
         {
-            lines.Add($"        this.{fieldName} = {fieldName};");
+            lines.Add($"    private readonly ChunkList<{typeFqn}> {ToColumnName(fieldName)} = new();");
         }
 
-        lines.Add("    }");
+        lines.Add("");
+        lines.Add("    public int Count { get; private set; }");
         lines.Add("");
         lines.Add($"    public static Entity Create(ref World World, {parameters})");
         lines.Add("    {");
         lines.Add("        var Entity = new Entity(World.EntityArchetypeIndices.Count);");
-        lines.Add($"        World.EntityArchetypeIndices.Add((Entity, Archetype.{archetype.Name}, World.{archetype.ListFieldName}.Count));");
-
-        string createArguments = string.Join(", ", new[] { "Entity" }.Concat(components.Select(c => c.FieldName)));
-        lines.Add($"        World.{archetype.ListFieldName}.Add(new {archetype.Name}({createArguments}));");
+        lines.Add($"        World.EntityArchetypeIndices.Add((Entity, Archetype.{archetype.Name}, World.{archetype.Name}.Count));");
+        lines.Add($"        World.{archetype.Name}.Add(Entity, {arguments});");
         lines.Add("        return Entity;");
         lines.Add("    }");
         lines.Add("");
-        lines.Add($"    public static Archetype Archetype => Archetype.{archetype.Name};");
+        lines.Add("    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+        lines.Add($"    internal void Add(Entity Entity, {parameters})");
+        lines.Add("    {");
+        lines.Add("        int Index = this.Count;");
+        lines.Add("        this.entities.EnsureCapacity(Index + 1);");
+
+        foreach ((string _, string fieldName) in components)
+        {
+            lines.Add($"        this.{ToColumnName(fieldName)}.EnsureCapacity(Index + 1);");
+        }
+
+        lines.Add("        this.entities.GetRefUnchecked(Index) = Entity;");
+        foreach ((string _, string fieldName) in components)
+        {
+            lines.Add($"        this.{ToColumnName(fieldName)}.GetRefUnchecked(Index) = {fieldName};");
+        }
+
+        lines.Add("        this.Count = Index + 1;");
+        lines.Add("    }");
         lines.Add("");
-        lines.Add("    public Entity Entity;");
+        lines.Add("    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
+        lines.Add("    internal bool RemoveAtSwapBack(int Index, out Entity MovedEntity)");
+        lines.Add("    {");
+        lines.Add("        this.AssertIndex(Index);");
+        lines.Add("        int Last = this.Count - 1;");
+        lines.Add("        if (Index != Last)");
+        lines.Add("        {");
+        lines.Add("            MovedEntity = this.entities.GetRefUnchecked(Last);");
+        lines.Add("            this.entities.GetRefUnchecked(Index) = MovedEntity;");
+        foreach ((string _, string fieldName) in components)
+        {
+            string column = ToColumnName(fieldName);
+            lines.Add($"            this.{column}.GetRefUnchecked(Index) = this.{column}.GetRefUnchecked(Last);");
+        }
+        lines.Add("            this.ClearLast(Last);");
+        lines.Add("            this.Count = Last;");
+        lines.Add("            return true;");
+        lines.Add("        }");
+        lines.Add("");
+        lines.Add("        MovedEntity = default;");
+        lines.Add("        this.ClearLast(Last);");
+        lines.Add("        this.Count = Last;");
+        lines.Add("        return false;");
+        lines.Add("    }");
+        lines.Add("");
+        lines.Add("    internal void Overwrite(int Index, " + parameters + ")");
+        lines.Add("    {");
+        lines.Add("        this.AssertIndex(Index);");
+        foreach ((string _, string fieldName) in components)
+        {
+            lines.Add($"        this.{ToColumnName(fieldName)}.GetRefUnchecked(Index) = {fieldName};");
+        }
+        lines.Add("    }");
+        lines.Add("");
+        lines.Add("    [global::System.Diagnostics.Conditional(\"DEBUG\")]");
+        lines.Add("    private void AssertIndex(int Index)");
+        lines.Add("    {");
+        lines.Add("        global::System.Diagnostics.Debug.Assert((uint)Index < (uint)this.Count, \"CGE-ECS-UNCHECKED-003: archetype index must be valid; remove this assertion after hot-path validation.\");");
+        lines.Add("    }");
+        lines.Add("");
+        lines.Add("    private void ClearLast(int Index)");
+        lines.Add("    {");
+        lines.Add("        this.entities.ClearAtUnchecked(Index);");
+        foreach ((string _, string fieldName) in components)
+        {
+            lines.Add($"        this.{ToColumnName(fieldName)}.ClearAtUnchecked(Index);");
+        }
+        lines.Add("    }");
+        lines.Add("");
+        lines.Add("    public ref Entity GetEntityRefUnchecked(int Index)");
+        lines.Add("    {");
+        lines.Add("        this.AssertIndex(Index);");
+        lines.Add("        return ref this.entities.GetRefUnchecked(Index);");
+        lines.Add("    }");
 
         foreach ((string typeFqn, string fieldName) in components)
         {
-            lines.Add($"    public {typeFqn} {fieldName};");
+            lines.Add("");
+            lines.Add($"    public ref {typeFqn} Get{fieldName}RefUnchecked(int Index)");
+            lines.Add("    {");
+            lines.Add("        this.AssertIndex(Index);");
+            lines.Add($"        return ref this.{ToColumnName(fieldName)}.GetRefUnchecked(Index);");
+            lines.Add("    }");
         }
 
         lines.Add("}");
-
         return lines;
     }
+
+    private static string ToColumnName(string fieldName) => char.ToLowerInvariant(fieldName[0]) + fieldName.Substring(1) + "s";
 }

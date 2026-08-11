@@ -39,6 +39,7 @@ internal struct MovementSystem : ISystem
 ```
 
 実行可能な完全版は`UserGameProject/`(`Components.cs`・`Systems/Systems.cs`・`Program.cs`)を参照。
+`Program.cs`を持たない構成(エントリポイントもSGが生成する)の実例は`UserEcsProject/`。
 
 ## 推論規則
 
@@ -105,12 +106,32 @@ Componentは`ref`必須・Contextは`ref`禁止なので、ref-kindだけで曖�
 無くなり、旧設計のWrite→Read自動トポロジカルソートは原理的に成立しないため、この単純な規則を採用した
 (ADR-0033決定事項3)。
 
-- Systemの整列キー: `(SyntaxTree.FilePath のOrdinal順, Location.SourceSpan.Start)`
+- Systemの実効的な順序値(`GameSystemExecutionOrder.OrderOf`): ①`[SystemOrder]`をSystem自身に
+  直接付けた明示値 ②`[SystemOrder]`をfileマーカーへ付けたファイル既定値(いずれもADR-0036、
+  宣言が無ければ0、①が②より優先)
+- 整列キー(`GameSystemExecutionOrder.Compare`): ①上記の実効値 ②`SyntaxTree.FilePath`のOrdinal順
+  (既存タイブレーク) ③`Location.SourceSpan.Start`
 - 同一struct内の`Update`オーバーロード: 宣言順
 
-Roslynがファイルを渡す順序は保証されないため、**順序が意味を持つSystemは1ファイルへ集約すること**
-(ファイルパスは複数ファイルにまたがった場合の決定性を担保するタイブレークとしてのみ使う)。
-`UserGameProject/Systems/Systems.cs`がその実例。
+Roslynがファイルを渡す順序は保証されないため、**順序が意味を持つSystemは1ファイルへ集約すること**が
+基本だが、それが難しい場合は`[SystemOrder(int)]`(ADR-0036)で明示できる。2通りの付け方がある:
+
+```csharp
+// ①ISystem実装struct自身に直接 — そのSystemだけの順序
+[SystemOrder(0)]
+internal struct FooSystem : ISystem { ... }
+
+// ②fileスコープのマーカークラスに — ファイル内で自分の順序を持たない全Systemの既定値
+[SystemOrder(1)]
+file sealed class Order
+{
+}
+```
+
+属性を付けなければ従来どおりファイルパスのOrdinal順にフォールバックする(後方互換)。
+`UserGameProject/Systems/Systems.cs`(単一ファイル集約)と`UserEcsProject/Systems/`
+(`GameSystems.cs`=`GameStartupSystem`に`[SystemOrder(0)]`を直接、`RuntimeSystem.cs`=fileマーカーに
+`[SystemOrder(1)]`)がその実例。
 
 > 実行順序の正しさは記述する人間の責任になった。順序を誤ってもビルドは通り、症状(例: カメラが1フレーム
 > 遅れる)は実行時にしか現れない。
@@ -143,6 +164,36 @@ internal static class GeneratedGameLoop
 - `RunFrame`の末尾で必ず`State.World.PlaybackMoveArchetypes(ref State)`を呼ぶ。
 - `Run`は`while(State.Enabled)`で`RunFrame`を回すが、Context引数をループ全体で固定してしまうため、
   毎フレーム値が変わるContext(`FrameContext`等)を使う実アプリは`RunFrame`を直接呼ぶ。
+
+## 生成されるエントリポイント(ADR-0035)
+
+Context引数を1つも使わない実行可能プロジェクトでは、`Run`のシグネチャが`Run(ref State)`に確定するため、
+Generatorが`Main`まで出力できる。`Program.cs`は不要になる。
+
+```csharp
+internal static class GeneratedEntryPoint
+{
+    private static void Main()
+    {
+        var World = new World();
+        World.Create(new Bootstrap());          // 生成されたMainが作る唯一のEntity
+        var State = new State(World) { Enabled = true };
+        GeneratedGameLoop.Run(ref State);
+    }
+}
+```
+
+出力条件は①OutputKindがアプリケーション ②`Compilation.GetEntryPoint`がnull ③ディスパッチSystemが
+1件以上 ④Context引数がゼロ、の4つすべて。④だけ落ちる場合はSYSGEN021で理由を報告する。
+
+`Bootstrap`を`ref`で受け取る`Update`が「起動時に一度だけ走る処理」になり、そこから
+`State.World.Create(...)`でウィンドウ・レンダラー・レベルを含む全Entityを組み立てる。エンジン
+オブジェクト(`Win32Window`/`StageRenderer`)はComponentのフィールドとして持たせる — Contextにすると
+ループ開始前に構築せざるを得ず、遅延生成が表現できないため。実例は`UserEcsProject/`。
+
+順序について: 生成ループはArchetype順が外側・System順が内側で、Archetypeの出現順はSystemの並び順に
+従う。したがって**1ファイルにフレーム順でSystemを並べれば、Archetypeループの順序もフレーム順になる**。
+フレーム末尾に置きたい処理(Present等)は、最後のSystemが宣言する専用Componentの単独Entityにする。
 
 ## Scene Authoringとの統合
 
@@ -197,6 +248,8 @@ Generatorは`CSharpGameEngine.Entities.ISystem`型がコンパイル内に実在
 | SYSGEN016〜017 | `Spawn`固有(`void`必須、Entity/State引数不可) |
 | SYSGEN018〜019 | Context引数(`in`(struct)または値渡し(参照型)、同一メソッド内での型重複禁止) |
 | SYSGEN020 | 異なるComponent型が同じ単純名を持つ(生成フィールド名が衝突する) |
+| SYSGEN021 | Context引数があるためエントリポイントを生成できない(ADR-0035) |
+| SYSGEN022〜025 | `[SystemOrder]`の誤用(fileマーカーが`file`スコープでない、1ファイル複数マーカー、複数ファイルが同一のファイル既定値、非ISystem structへの付与。ADR-0036) |
 
 診断が1件でもある`ISystem` structは、そのstruct分の出力を丸ごとスキップする。
 
@@ -209,7 +262,8 @@ Scene Authoringの診断は`SCENE001`〜`008`(`SCENE009`はADR-0033で削除。�
 - 部分集合判定を`long`ビットマスクで行うため、1コンパイルあたりのComponent型は最大63種類。
 - Archetype名は出現順の連番なので、Systemを増減すると既存Archetypeの番号がずれる(ユーザーコードは
   Archetype名を参照しないため実害は無いが、生成コードを名指しするテストは影響を受ける)。
-- 実行順序は記述順依存。複数ファイルへ分割した場合の順序はファイルパスのOrdinal順に依存する。
+- 実行順序は記述順依存。複数ファイルへ分割した場合、`[SystemOrder]`(ADR-0036)を使わなければ
+  ファイルパスのOrdinal順に依存する。
 - 汎用の`Add<T>`/`Remove<T>`/`Destroy`(旧`EntityCommandBuffer`)と除外条件(旧`[Without]`)は未実装。
 - `ISystem`の検出に属性ベースの高速パス(`ForAttributeWithMetadataName`)が使えず、base listを持つ全型宣言に
   対して意味解析を行う。

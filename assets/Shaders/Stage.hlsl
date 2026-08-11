@@ -1,10 +1,30 @@
 // Textured PBR-lite shader for the ECS-driven stage (ADR-0016 vertical slice extended by
-// ADR-0018): GGX Cook-Torrance specular + Lambert diffuse, tangent-space normal mapping, a single
-// data-driven directional light + flat ambient term, and a simplified exponential height fog.
+// ADR-0018, point/spot lights added by ADR-0037): GGX Cook-Torrance specular + Lambert diffuse,
+// tangent-space normal mapping, a single data-driven directional light + a fixed-capacity set of
+// point/spot lights + flat ambient term, and a simplified exponential height fog.
 // Model matrix + material factors are per-object (ObjectCB, b1); view/projection, camera position,
-// light, ambient and fog are per-frame (FrameCB, b0). Textures are shared per-material via a
+// lights, ambient and fog are per-frame (FrameCB, b0). Textures are shared per-material via a
 // 3-descriptor SRV table (t0=BaseColor, t1=Normal, t2=MetallicRoughness); a material baked to a
 // flat factor (no spatial variation) binds a neutral 1x1 fallback texture in that slot.
+
+// Fixed capacities (no light culling/clustering in this vertical slice - see ADR-0037): the frame
+// constant buffer always reserves room for the maximum, and FrameCB.LightCounts says how many of
+// each are actually populated this frame. Must match StageRenderer.MaxPointLights/MaxSpotLights.
+#define MAX_POINT_LIGHTS 4
+#define MAX_SPOT_LIGHTS 4
+
+struct PointLightData
+{
+    float4 PositionAndRange;      // xyz = world position, w = range (distance at which attenuation reaches zero)
+    float4 ColorTimesIntensity;   // xyz used
+};
+
+struct SpotLightData
+{
+    float4 PositionAndRange;      // xyz = world position, w = range
+    float4 DirectionAndInnerCos;  // xyz = unit direction the cone points toward, w = cos(inner half-angle)
+    float4 ColorAndOuterCos;      // xyz = color * intensity, w = cos(outer half-angle)
+};
 
 cbuffer FrameCB : register(b0)
 {
@@ -15,6 +35,9 @@ cbuffer FrameCB : register(b0)
     float4 AmbientColor;               // xyz used
     float4 FogParams0;                 // x = density, y = height falloff
     float4 FogColor;                   // xyz used
+    int4 LightCounts;                  // x = active point lights, y = active spot lights
+    PointLightData PointLights[MAX_POINT_LIGHTS];
+    SpotLightData SpotLights[MAX_SPOT_LIGHTS];
 };
 
 cbuffer ObjectCB : register(b1)
@@ -84,6 +107,86 @@ float3 FresnelSchlick(float vDotH, float3 f0)
     return f0 + ((1.0 - f0) * pow(saturate(1.0 - vDotH), 5.0));
 }
 
+// Shared Cook-Torrance evaluation for a light arriving from direction `l` (unit, surface-to-light),
+// already scaled by whatever distance/cone attenuation the caller computed.
+float3 EvaluateLitSurface(float3 n, float3 v, float3 l, float3 baseColor, float roughness, float metallic, float3 f0)
+{
+    float3 h = normalize(v + l);
+    float nDotL = saturate(dot(n, l));
+    float nDotV = saturate(dot(n, v)) + 1e-4;
+    float nDotH = saturate(dot(n, h));
+    float vDotH = saturate(dot(v, h));
+
+    float3 fresnel = FresnelSchlick(vDotH, f0);
+    float d = DistributionGgx(nDotH, roughness);
+    float vis = VisibilitySmithGgxCorrelated(nDotL, nDotV, roughness);
+    float3 specular = d * vis * fresnel;
+
+    float3 kd = (1.0 - fresnel) * (1.0 - metallic);
+    float3 diffuse = kd * baseColor / PI;
+
+    return (diffuse + specular) * nDotL;
+}
+
+// Smooth windowed inverse-square falloff that reaches exactly zero at `range` (Karis, "Moving
+// Frostbite to PBR" 2014), avoiding both an unbounded 1/d^2 singularity and a hard-edged cutoff.
+float DistanceAttenuation(float distance, float range)
+{
+    float distSq = distance * distance;
+    float rangeSq = max(range * range, 1e-4);
+    float windowed = saturate(1.0 - ((distSq * distSq) / (rangeSq * rangeSq)));
+    return (windowed * windowed) / max(distSq, 1e-4);
+}
+
+float3 ComputePointLightContribution(PointLightData light, float3 worldPosition, float3 n, float3 v, float3 baseColor, float roughness, float metallic, float3 f0)
+{
+    float3 toLight = light.PositionAndRange.xyz - worldPosition;
+    float distance = length(toLight);
+    float range = light.PositionAndRange.w;
+
+    if (distance >= range)
+    {
+        return float3(0.0, 0.0, 0.0);
+    }
+
+    float3 l = toLight / max(distance, 1e-5);
+    float attenuation = DistanceAttenuation(distance, range);
+
+    return EvaluateLitSurface(n, v, l, baseColor, roughness, metallic, f0) * light.ColorTimesIntensity.xyz * attenuation;
+}
+
+float3 ComputeSpotLightContribution(SpotLightData light, float3 worldPosition, float3 n, float3 v, float3 baseColor, float roughness, float metallic, float3 f0)
+{
+    float3 toLight = light.PositionAndRange.xyz - worldPosition;
+    float distance = length(toLight);
+    float range = light.PositionAndRange.w;
+
+    if (distance >= range)
+    {
+        return float3(0.0, 0.0, 0.0);
+    }
+
+    float3 l = toLight / max(distance, 1e-5);
+
+    // The cone axis points AWAY from the light (toward the scene), so the surface is inside the
+    // cone when the direction FROM the light TO the surface (-l) aligns with that axis.
+    float3 coneAxis = light.DirectionAndInnerCos.xyz;
+    float innerCos = light.DirectionAndInnerCos.w;
+    float outerCos = light.ColorAndOuterCos.w;
+    float cosAngle = dot(-l, coneAxis);
+    float coneAttenuation = saturate((cosAngle - outerCos) / max(innerCos - outerCos, 1e-4));
+    coneAttenuation *= coneAttenuation;
+
+    if (coneAttenuation <= 0.0)
+    {
+        return float3(0.0, 0.0, 0.0);
+    }
+
+    float distanceAttenuation = DistanceAttenuation(distance, range);
+
+    return EvaluateLitSurface(n, v, l, baseColor, roughness, metallic, f0) * light.ColorAndOuterCos.xyz * distanceAttenuation * coneAttenuation;
+}
+
 float4 PSMain(VertexOutput input) : SV_Target
 {
     float3 baseColor = BaseColorTexture.Sample(LinearSampler, input.Uv).rgb * BaseColorFactor.rgb;
@@ -102,25 +205,23 @@ float4 PSMain(VertexOutput input) : SV_Target
     float3 n = normalize(mul(normalSampleTs, tbn));
 
     float3 v = normalize(CameraPositionWS.xyz - input.WorldPosition);
-    float3 l = normalize(LightDirectionTowardLight.xyz);
-    float3 h = normalize(v + l);
-
-    float nDotL = saturate(dot(n, l));
-    float nDotV = saturate(dot(n, v)) + 1e-4;
-    float nDotH = saturate(dot(n, h));
-    float vDotH = saturate(dot(v, h));
-
     float3 f0 = lerp(float3(0.04, 0.04, 0.04), baseColor, metallic);
-    float3 fresnel = FresnelSchlick(vDotH, f0);
 
-    float d = DistributionGgx(nDotH, roughness);
-    float vis = VisibilitySmithGgxCorrelated(nDotL, nDotV, roughness);
-    float3 specular = d * vis * fresnel;
+    float3 l = normalize(LightDirectionTowardLight.xyz);
+    float3 lighting = EvaluateLitSurface(n, v, l, baseColor, roughness, metallic, f0) * LightColorTimesIntensity.xyz;
 
-    float3 kd = (1.0 - fresnel) * (1.0 - metallic);
-    float3 diffuse = kd * baseColor / PI;
+    int numPointLights = LightCounts.x;
+    for (int i = 0; i < numPointLights; i++)
+    {
+        lighting += ComputePointLightContribution(PointLights[i], input.WorldPosition, n, v, baseColor, roughness, metallic, f0);
+    }
 
-    float3 lighting = (diffuse + specular) * nDotL * LightColorTimesIntensity.xyz;
+    int numSpotLights = LightCounts.y;
+    for (int j = 0; j < numSpotLights; j++)
+    {
+        lighting += ComputeSpotLightContribution(SpotLights[j], input.WorldPosition, n, v, baseColor, roughness, metallic, f0);
+    }
+
     float3 color = (AmbientColor.xyz * baseColor) + lighting;
 
     // Simplified exponential height fog: density falls off with height above ground (Y=0).

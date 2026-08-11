@@ -1,4 +1,4 @@
-namespace CSharpGameEngine.Entities.Tests;
+﻿namespace CSharpGameEngine.Entities.Tests;
 
 public class SceneAuthoringSpec
 {
@@ -32,8 +32,8 @@ public class SceneAuthoringSpec
         Entity root = world.Create(new Position());
         Entity child = world.Create(new Position(), new Parent { Value = root });
 
-        Assert.Equal(root, world.ListArchetype2[0].Parent.Value);
-        Assert.Equal(child, world.ListArchetype2[0].Entity);
+        Assert.Equal(root, world.Archetype2.GetParentRefUnchecked(0).Value);
+        Assert.Equal(child, world.Archetype2.GetEntityRefUnchecked(0));
     }
 
     [Fact]
@@ -43,8 +43,8 @@ public class SceneAuthoringSpec
 
         Entity entity = world.Create(new SceneNodeTag());
 
-        Assert.Equal(1, world.ListArchetype3.Count);
-        Assert.Equal(entity, world.ListArchetype3[0].Entity);
+        Assert.Equal(1, world.Archetype3.Count);
+        Assert.Equal(entity, world.Archetype3.GetEntityRefUnchecked(0));
     }
 
     [Fact]
@@ -114,3 +114,4 @@ public class SceneAuthoringSpec
         Assert.Null(exception);
     }
 }
+

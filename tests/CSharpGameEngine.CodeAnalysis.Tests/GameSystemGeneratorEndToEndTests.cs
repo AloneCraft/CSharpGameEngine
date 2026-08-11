@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 
@@ -114,14 +114,14 @@ public sealed class GameSystemGeneratorEndToEndTests
                     PromoteSystem system = new();
                     GeneratedGameLoop.RunFrame(ref state, ref system);
 
-                    if (world.ListArchetype0.Count != 0) return "FAIL:sourceNotEmptied=" + world.ListArchetype0.Count;
-                    if (world.ListArchetype1.Count != 2) return "FAIL:destinationCount=" + world.ListArchetype1.Count;
-                    if (world.ListArchetype1[0].Velocity.X != 3f) return "FAIL:velocityNotApplied";
+                    if (world.Archetype0.Count != 0) return "FAIL:sourceNotEmptied=" + world.Archetype0.Count;
+                    if (world.Archetype1.Count != 2) return "FAIL:destinationCount=" + world.Archetype1.Count;
+                    if (world.Archetype1.GetVelocityRefUnchecked(0).X != 3f) return "FAIL:velocityNotApplied";
 
                     // 2フレーム目は移動元が空なので何も起きない。
                     GeneratedGameLoop.RunFrame(ref state, ref system);
 
-                    if (world.ListArchetype1.Count != 2) return "FAIL:secondFrameCount=" + world.ListArchetype1.Count;
+                    if (world.Archetype1.Count != 2) return "FAIL:secondFrameCount=" + world.Archetype1.Count;
 
                     return "OK";
                 }
@@ -166,7 +166,7 @@ public sealed class GameSystemGeneratorEndToEndTests
                     FrameContext frame = new(0.5f);
                     GeneratedGameLoop.RunFrame(ref state, ref system, in frame);
 
-                    if (world.ListArchetype0[0].Position.X != 0.5f) return "FAIL:X=" + world.ListArchetype0[0].Position.X;
+                    if (world.Archetype0.GetPositionRefUnchecked(0).X != 0.5f) return "FAIL:X=" + world.Archetype0.GetPositionRefUnchecked(0).X;
 
                     return "OK";
                 }
@@ -207,9 +207,9 @@ public sealed class GameSystemGeneratorEndToEndTests
 
                     Entity entity = world.Create(new Position { X = 4f }, new Health { Value = 99 });
 
-                    if (world.ListArchetype1.Count != 1) return "FAIL:count=" + world.ListArchetype1.Count;
-                    if (world.ListArchetype1[0].Health.Value != 99) return "FAIL:health";
-                    if (world.ListArchetype1[0].Entity != entity) return "FAIL:entity";
+                    if (world.Archetype1.Count != 1) return "FAIL:count=" + world.Archetype1.Count;
+                    if (world.Archetype1.GetHealthRefUnchecked(0).Value != 99) return "FAIL:health";
+                    if (world.Archetype1.GetEntityRefUnchecked(0) != entity) return "FAIL:entity";
 
                     return "OK";
                 }
@@ -263,3 +263,4 @@ public sealed class GameSystemGeneratorEndToEndTests
         Assert.Equal("OK", result);
     }
 }
+

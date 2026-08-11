@@ -155,6 +155,14 @@ SceneのノードとSystemの`Update`/`Spawn`は**同一のArchetype空間**へ�
 
 ### 10. 起動コードもComponent + ISystemで書く
 
+> **更新([[ADR-0035-Generated-Entry-Point-And-Engine-Objects-As-Components]])**: 本項の後半
+> 「メインループ本体は生成しない / Program.csは手書きのループから`RunFrame`を呼ぶ」は、条件付きで
+> 覆された。`Program.cs`が残る原因はContext引数(ループ開始前に構築されて全期間で固定される)であり、
+> エンジンオブジェクトをComponentのフィールドへ移すとContextがゼロになって`Run(ref State)`という
+> 固定シグネチャが得られる。この状態のプロジェクトにはGeneratorが`Main`を出力し、`Program.cs`自体が
+> 不要になる。本項の記述は`UserGameProject`(Contextを多用し手書きProgram.csを持つ)には現在も
+> そのまま当てはまる。
+
 ユーザーの依頼1(起動コードのSG生成)は、「Program.csをSGが出力する」形ではなく「**起動処理そのものを
 ECSで書けるようにする**」形で満たした。`UserGameProject`では`SceneSpawnRequest`コンポーネントを1つ持つ
 エンティティをProgram.csが生成し、`SceneSpawnSystem`がそれを消費してステージ・ライト・Playerをすべて
