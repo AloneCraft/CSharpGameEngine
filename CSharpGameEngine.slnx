@@ -97,6 +97,7 @@
     <Project Path="src/CSharpGameEngine.Import/CSharpGameEngine.Import.csproj" />
     <Project Path="src/CSharpGameEngine.Windows/CSharpGameEngine.Windows.csproj" />
     <Project Path="src/CSharpGameEngine.CodeAnalysis/CSharpGameEngine.CodeAnalysis.csproj" />
+    <Project Path="src/CSharpGameEngine.SceneModel/CSharpGameEngine.SceneModel.csproj" />
     <Project Path="src/CSharpGameEngine.Entities/CSharpGameEngine.Entities.csproj" />
   </Folder>
   <Folder Name="/tests/">
@@ -106,6 +107,7 @@
     <Project Path="tests/CSharpGameEngine.Windows.Tests/CSharpGameEngine.Windows.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.CodeAnalysis.Tests/CSharpGameEngine.CodeAnalysis.Tests.csproj" />
+    <Project Path="tests/CSharpGameEngine.SceneModel.Tests/CSharpGameEngine.SceneModel.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Entities.Tests/CSharpGameEngine.Entities.Tests.csproj" />
     <Project Path="tests/UserGameProject.Tests/UserGameProject.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.SceneAuthoring.Cli.Tests/CSharpGameEngine.SceneAuthoring.Cli.Tests.csproj" />

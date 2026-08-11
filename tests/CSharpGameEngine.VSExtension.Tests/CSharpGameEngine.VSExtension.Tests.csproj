@@ -4,12 +4,32 @@
     <TargetFramework>net472</TargetFramework>
     <LangVersion>14</LangVersion>
     <IsPackable>false</IsPackable>
+    <!-- Release tracking for the Scene DSL descriptors is owned by CSharpGameEngine.CodeAnalysis,
+         which is where they actually ship as an analyzer. Tracking them again here would create a
+         second list to keep in sync. -->
+    <NoWarn>$(NoWarn);RS2008</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <!-- Unlike the VSIX itself (which must bind to the Roslyn that Visual Studio hosts), this test
+         process runs standalone, so it needs the Roslyn runtime assemblies. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
+  </ItemGroup>
+
+  <!--
+    The shared Scene analysis source (ADR-0040). Linking it here proves the single most important
+    constraint of the shared-source design: this code must compile under BOTH netstandard2.0 (the
+    analyzer) and net472 (the VSIX). Discovering a net472-incompatible construct after the analyzer
+    work is finished would be an expensive rewrite, so the link is established up front - the parity
+    tests that consume it arrive with the Scene editor work.
+  -->
+  <ItemGroup>
+    <Compile Include="..\..\src\CSharpGameEngine.SceneModel\**\*.cs"
+             Exclude="..\..\src\CSharpGameEngine.SceneModel\obj\**\*.cs;..\..\src\CSharpGameEngine.SceneModel\bin\**\*.cs"
+             Link="SceneModel\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

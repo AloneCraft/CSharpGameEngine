@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>14</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>CSharpGameEngine.SceneAnalysis</RootNamespace>
+    <!--
+      RS2008(アナライザーリリース追跡)はここでは抑止する。SceneDslDiagnosticsのDiagnosticDescriptorは
+      このアセンブリからは出荷されず、共有ソースとしてリンクされた先の CSharpGameEngine.CodeAnalysis で
+      AnalyzerReleases.Unshipped.md により追跡される。両方で追跡すると一覧が二重管理になり、
+      「片方だけ更新した」というズレが必ず起きる。追跡の実効性は出荷側で担保される。
+    -->
+    <NoWarn>$(NoWarn);RS2008</NoWarn>
+  </PropertyGroup>
+
+  <!--
+    このプロジェクトはバイナリ参照されない。CSharpGameEngine.CodeAnalysis(netstandard2.0のアナライザー)と
+    CSharpGameEngine.VSExtension(net472)の双方へ <Compile Include> で「共有ソース」としてリンクされる
+    (ADR-0040)。ProjectReferenceにしないのは、(a) アナライザーは自己完結アセンブリとして読み込まれ
+    OutputItemType="Analyzer" が推移的依存DLLを確実には流さないため、(b) VSIXへDLLを同梱するとVSが
+    ホストするRoslynとの二重ロードになるため。CSharpGameEngine.Entitiesと同じ確立済みパターンである。
+
+    ★ここのソースは netstandard2.0 と net472 の両方でコンパイルできなければならない。
+      record / init は使用禁止(netstandard2.0がIsExternalInitを提供しない)。
+
+    Microsoft.CodeAnalysis.Analyzers はあえて参照しない。DiagnosticDescriptorのリリース追跡
+    (RS2000/RS2008)は、実際にアナライザーとして出荷される CSharpGameEngine.CodeAnalysis 側の
+    AnalyzerReleases.*.md で一元管理する。
+  -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>
