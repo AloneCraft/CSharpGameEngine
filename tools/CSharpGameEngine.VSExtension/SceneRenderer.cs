@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using CSharpGameEngine.SceneAnalysis;
 using SharpGen.Runtime;
 using Vortice.D3DCompiler;
 using Vortice.Direct3D;
@@ -10,13 +11,18 @@ using Vortice.DXGI;
 
 namespace CSharpGameEngine.VSExtension;
 
-/// <summary>One drawable object in a "シーン" preview (ADR-0020): a mesh, its resolved world transform, and the scene node id it represents (for selection highlighting).</summary>
+/// <summary>
+/// One drawable object in the Scene Designer preview: a mesh, its resolved world transform, and the
+/// <see cref="NodePath"/> it represents (for selection highlighting). Identity switched from a
+/// <c>.scene</c>-JSON <c>Guid</c> to <see cref="NodePath"/> (ADR-0040 Phase 9) since the live-Roslyn
+/// SceneModel pipeline has no Guid concept - NodePath is already the sole node identity Hierarchy uses.
+/// </summary>
 internal sealed class SceneRenderObject {
     public required SimpleMesh Mesh { get; init;}
 
     public required Matrix4x4 World { get; init;}
 
-    public required Guid NodeId { get; init;}
+    public required NodePath NodeId { get; init;}
 }
 
 /// <summary>
@@ -52,7 +58,7 @@ internal sealed class SceneRenderer:IDisposable {
     private readonly int AlignedSlotSize;
 
     private sealed class ObjectResources {
-        public required Guid NodeId;
+        public required NodePath NodeId;
         public required Matrix4x4 World;
         public required ID3D12Resource VertexBuffer;
         public required VertexBufferView VertexBufferView;
@@ -65,7 +71,7 @@ internal sealed class SceneRenderer:IDisposable {
     private readonly List<ObjectResources>Objects=[];
     private readonly Vector3 BoundsCenter;
     private readonly float BoundsRadius;
-    private Guid?SelectedNodeId;
+    private NodePath?SelectedNodeId;
 
     private int Width;
     private int Height;
@@ -342,7 +348,7 @@ internal sealed class SceneRenderer:IDisposable {
         for(var i=0;i<Objects.Count;i++){
             ObjectResources Obj=Objects[i];
             Matrix4x4 Mvp=Obj.World*View*Projection;
-            var Selected=Obj.NodeId==SelectedNodeId?1f:0f;
+            var Selected=SelectedNodeId is { } Selection&&Obj.NodeId.Equals(Selection)?1f:0f;
             TransformConstants Constants=new(){ Mvp=Mvp,BaseColorFactor=Obj.BaseColorFactor,Selected=Selected };
             MemoryMarshal.Write(Mapped.Slice(i*AlignedSlotSize,Marshal.SizeOf<TransformConstants>()),ref Constants);
         }
@@ -358,8 +364,8 @@ internal sealed class SceneRenderer:IDisposable {
         Matrix4x4.CreatePerspectiveFieldOfView(
             (float)(Math.PI/4.0),Math.Max(1,Width)/(float)Math.Max(1,Height),0.05f,BoundsRadius*20f);
 
-    /// <summary>Called when <see cref="SceneEditorHub.SelectedNodeChanged"/> fires from the Hierarchy tool window.</summary>
-    public void SetSelectedNode(Guid?NodeId){
+    /// <summary>Called when <see cref="SceneEditorHub.SelectedNodePathChanged"/> fires from the Hierarchy tool window.</summary>
+    public void SetSelectedNode(NodePath?NodeId){
         SelectedNodeId=NodeId;
         UpdateAllConstantBuffers();
     }

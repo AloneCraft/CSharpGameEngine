@@ -21,15 +21,14 @@ namespace CSharpGameEngine.VSExtension;
     Orientation=ToolWindowOrientation.Left,DockedWidth=300)]
 [ProvideToolWindow(typeof(ShapePaletteToolWindowPane),
     Style=VsDockStyle.Tabbed,Window=ToolWindowGuids80.SolutionExplorer)]
+[ProvideToolWindow(typeof(SceneDesignerToolWindowPane),
+    Style=VsDockStyle.Tabbed,Window=ToolWindowGuids80.SolutionExplorer)]
 [ProvideAutoLoad("adfc4e64-0397-11d1-9f4e-00a0c911004f",PackageAutoLoadFlags.BackgroundLoad)]
 [ProvideEditorFactory(typeof(GlbFbxPreviewEditorFactory),110,TrustLevel=__VSEDITORTRUSTLEVEL.ETL_AlwaysTrusted)]
 [ProvideEditorLogicalView(typeof(GlbFbxPreviewEditorFactory),VSConstants.LOGVIEWID.Designer_string)]
 [ProvideEditorExtension(typeof(GlbFbxPreviewEditorFactory),".glb",50)]
 [ProvideEditorExtension(typeof(GlbFbxPreviewEditorFactory),".gltf",50)]
 [ProvideEditorExtension(typeof(GlbFbxPreviewEditorFactory),".fbx",50)]
-[ProvideEditorFactory(typeof(SceneFileEditorFactory),111,TrustLevel=__VSEDITORTRUSTLEVEL.ETL_AlwaysTrusted)]
-[ProvideEditorLogicalView(typeof(SceneFileEditorFactory),VSConstants.LOGVIEWID.Designer_string)]
-[ProvideEditorExtension(typeof(SceneFileEditorFactory),".scene",50)]
 public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
     public const string PackageGuidString="aec17804-e2e4-46e7-b373-de11af816203";
 
@@ -47,9 +46,9 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
         await ShowHierarchyToolWindowCommand.InitializeAsync(this);
         await ShowShapePaletteToolWindowCommand.InitializeAsync(this);
         await ApplyGameEngineLayoutCommand.InitializeAsync(this);
+        await OpenSceneDesignerCommand.InitializeAsync(this);
 
         RegisterEditorFactory(new GlbFbxPreviewEditorFactory());
-        RegisterEditorFactory(new SceneFileEditorFactory());
 
         // ADR-0040: the Scene editor reads scenes from live Roslyn. Both of these degrade to null
         // when the managed language service is unavailable, in which case the Hierarchy simply shows
@@ -58,6 +57,7 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
 
         if(SceneWorkspace is not null){
             SceneWorkspace.ModelChanged+=SceneEditorHub.PublishSceneModel;
+            SceneWorkspace.AllModelsChanged+=SceneEditorHub.PublishAllSceneModels;
             DocumentTracker=ActiveDocumentTracker.Start(SceneWorkspace);
         }
 
@@ -132,6 +132,7 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
 
             if(SceneWorkspace is not null){
                 SceneWorkspace.ModelChanged-=SceneEditorHub.PublishSceneModel;
+                SceneWorkspace.AllModelsChanged-=SceneEditorHub.PublishAllSceneModels;
                 SceneWorkspace.Dispose();
             }
         }

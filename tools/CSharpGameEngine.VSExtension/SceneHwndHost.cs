@@ -1,39 +1,34 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Numerics;
-using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
-using System.Threading;
 using System.Windows.Interop;
 using System.Windows.Media;
+using CSharpGameEngine.SceneAnalysis;
 
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
 /// In-process D3D12 embedding (same pattern as <see cref="AssetPreviewHwndHost"/>, ADR-0013) for the
-/// "シーン" preview document window (ADR-0020, extension corrected to <c>*.scene</c> in ADR-0021):
-/// loads a scene file via <see cref="SceneFile"/>, resolves each node's <c>MeshAssetPath</c> through
-/// <see cref="MeshLoader"/> (out-of-process, ADR-0010/ADR-0019), and renders every mesh-bearing node
-/// via <see cref="SceneRenderer"/>. Publishes the loaded scene to <see cref="SceneEditorHub"/> so the
-/// always-visible Hierarchy tool window can display its node tree, subscribes to
-/// <see cref="SceneEditorHub.SelectedNodeChanged"/> to highlight the corresponding object, and
-/// subscribes to <see cref="SceneEditorHub.ReloadRequested"/> to re-read this same file after
-/// <see cref="PrimitiveSpawner"/> (ADR-0021) appends a new node to it.
+/// Scene Designer tool window (ADR-0040 Phase 9). Targets a specific <c>IScene</c>-implementing
+/// class by <see cref="SetTarget"/>, resolves it out of
+/// <see cref="SceneEditorHub.ActiveAllSceneModels"/> (published by <see cref="SceneWorkspaceService"/>
+/// - live Roslyn, no build step), converts it via <see cref="SceneModelRenderObjectBuilder"/> and
+/// renders every node via <see cref="SceneRenderer"/>. Replaces the earlier <c>.scene</c>-JSON-based
+/// version of this class (ADR-0020/ADR-0021) - re-analyzed in place rather than duplicated, since the
+/// old data source goes away entirely in this same phase (see ADR-0040 Phase 9's "known limitations":
+/// drag-and-drop placement, which still writes to <c>.scene</c>, is temporarily non-functional until
+/// Phase 10 moves it onto Roslyn-based source edits too).
 /// </summary>
 internal sealed class SceneHwndHost:HwndHost {
     private string?RepoRoot;
-    private string ScenePath;
+    private string?TargetFilePath;
+    private string?TargetClassName;
     private RenderSurfaceWindow?Surface;
     private SceneRenderer?Renderer;
     private EventHandler?RenderingHandler;
-    private Action<Guid?>?SelectionHandler;
-    private Action?ReloadHandler;
-
-    public SceneHwndHost(string ScenePath){
-        this.ScenePath=ScenePath;
-    }
+    private Action<IReadOnlyList<SceneModel>>?ModelsHandler;
+    private Action<NodePath?>?SelectionHandler;
 
     protected override HandleRef BuildWindowCore(HandleRef HwndParent){
         Surface=new RenderSurfaceWindow(HwndParent.Handle,800,600);
@@ -48,9 +43,11 @@ internal sealed class SceneHwndHost:HwndHost {
         Surface=null;
     }
 
-    /// <summary>Reloads the preview with a different scene file - used if VS reuses this pane's doc data for a renamed/reloaded document.</summary>
-    public void SetScenePath(string ScenePath){
-        this.ScenePath=ScenePath;
+    /// <summary>Points this host at a specific class in a specific file - called once by <c>OpenSceneDesignerCommand</c> when the tool window is shown/retargeted.</summary>
+    public void SetTarget(string FilePath,string ClassName){
+        this.TargetFilePath=FilePath;
+        this.TargetClassName=ClassName;
+
         if(Surface is not null){
             TearDownRenderer();
             LoadIntoSurface();
@@ -62,6 +59,35 @@ internal sealed class SceneHwndHost:HwndHost {
             return;
         }
 
+        if(ModelsHandler is null){
+            ModelsHandler=_=>Rebuild();
+            SceneEditorHub.AllSceneModelsChanged+=ModelsHandler;
+        }
+
+        if(SelectionHandler is null){
+            SelectionHandler=Path=>Renderer?.SetSelectedNode(Path);
+            SceneEditorHub.SelectedNodePathChanged+=SelectionHandler;
+        }
+
+        if(RenderingHandler is null){
+            RenderingHandler=(_,_)=>Renderer?.RenderFrame();
+            CompositionTarget.Rendering+=RenderingHandler;
+
+            // Subscribed once here (not inside Rebuild, which runs on every re-analysis) - it always
+            // resizes whatever Renderer currently holds via the field, so re-subscribing per rebuild
+            // would just accumulate redundant duplicate calls per resize.
+            Surface.Resized+=(W,H)=>Renderer?.Resize(W,H);
+        }
+
+        Rebuild();
+    }
+
+    /// <summary>(Re)builds <see cref="Renderer"/> from the current <see cref="SceneEditorHub.ActiveAllSceneModels"/> - called on first load and every live re-analysis.</summary>
+    private void Rebuild(){
+        if(Surface is null||TargetFilePath is null||TargetClassName is null){
+            return;
+        }
+
         try {
             this.RepoRoot??=RepoLocator.ResolveRepoRoot();
             if(this.RepoRoot is null){
@@ -69,116 +95,38 @@ internal sealed class SceneHwndHost:HwndHost {
             }
             var RepoRoot=this.RepoRoot;
 
-            SceneFile Scene=SceneFile.Load(ScenePath);
-            IReadOnlyDictionary<Guid,Matrix4x4>WorldTransforms=Scene.ComputeWorldTransforms();
+            SceneModel?Model=SceneEditorHub.ActiveAllSceneModels.FirstOrDefault(
+                M=>string.Equals(M.FilePath,TargetFilePath,StringComparison.OrdinalIgnoreCase)
+                    &&string.Equals(M.ClassName,TargetClassName,StringComparison.Ordinal));
 
-            var SceneDirectory=Path.GetDirectoryName(ScenePath)
-                ??throw new InvalidOperationException($"シーンファイルのディレクトリを解決できませんでした: {ScenePath}");
-
-            List<(SceneFileNode Node,string AbsoluteMeshPath)>MeshNodes=Scene.Nodes
-                .Where(Node=>Node.MeshAssetPath is not null)
-                .Select(Node=>(Node,Path.GetFullPath(Path.Combine(SceneDirectory,Node.MeshAssetPath!))))
-                .ToList();
-
-            // Nodes with no mesh reference (every node authored via [SceneDefinition] C# code,
-            // ADR-0031; also any hand-authored .scene node that simply has none) previously never
-            // reached SceneRenderer at all - silently invisible, or a hard ArgumentException if the
-            // whole scene had no mesh-bearing node. They now get a small placeholder gizmo cube
-            // instead, so a scene is always representable regardless of what it references.
-            List<SceneFileNode>GizmoNodes=[.. Scene.Nodes.Where(Node=>Node.MeshAssetPath is null)];
-
-            // MeshLoader caches by path (process-lifetime), so warming distinct paths in parallel
-            // here means a scene with several different meshes pays the bridge-process cost once,
-            // concurrently, instead of once per node, serially - the dominant cost when opening the
-            // シーン tab for the first time (see ADR-0010 addendum). BuildWindowCore is called from
-            // deep inside WPF's own window-creation machinery, not a plain UI-thread event handler -
-            // a Task-based wait here (even routed through ThreadHelper.JoinableTaskFactory.Run) risks
-            // exactly the nested-JoinableTaskFactory deadlock class this project has hit more than
-            // once before (see the "project-vsix-joinabletask-deadlock" memory / ADR-0021 追記), and
-            // separately, JoinableTaskFactory was confirmed (ADR-0023) to misbehave outside a fully
-            // running VS host. WarmMeshCache below uses raw Thread/Join instead - no Task, no
-            // JoinableTaskFactory, nothing for either failure mode to attach to.
-            var DistinctMeshPaths=MeshNodes
-                .Select(N=>N.AbsoluteMeshPath)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-            WarmMeshCache(DistinctMeshPaths,RepoRoot);
-
-            List<SceneRenderObject>RenderObjects=[];
-            foreach((SceneFileNode Node,var AbsoluteMeshPath)in MeshNodes){
-                RenderObjects.Add(new SceneRenderObject {
-                    Mesh=MeshLoader.Load(AbsoluteMeshPath,RepoRoot),
-                    World=WorldTransforms[Node.Id],
-                    NodeId=Node.Id,
-                });
+            if(Model is null){
+                // Not (yet) found - e.g. analysis hasn't caught up with a just-opened tool window, or
+                // the class was renamed/deleted out from under us. Leave the last good frame on
+                // screen rather than tearing the renderer down on every transient miss.
+                return;
             }
 
-            foreach(SceneFileNode node in GizmoNodes){
-                RenderObjects.Add(new SceneRenderObject {
-                    Mesh=GizmoMeshFactory.Create(),
-                    World=WorldTransforms[node.Id],
-                    NodeId=node.Id,
-                });
+            var RenderObjects=SceneModelRenderObjectBuilder.Build(
+                Model,
+                EnumMemberName=>SceneModelRenderObjectBuilder.ResolveViaBridge(EnumMemberName,RepoRoot));
+
+            if(RenderObjects.Count==0){
+                // SceneRenderer requires at least one object; an empty scene (e.g. mid-edit with a
+                // syntax error, or a genuinely componentless root) has nothing to draw yet.
+                Renderer?.Dispose();
+                Renderer=null;
+                return;
             }
 
+            Renderer?.Dispose();
             Renderer=new SceneRenderer(Surface.Handle,800,600,RenderObjects);
-
             Surface.Resized+=(W,H)=>Renderer?.Resize(W,H);
-
-            RenderingHandler=(_,_)=>Renderer?.RenderFrame();
-            CompositionTarget.Rendering+=RenderingHandler;
-
-            SelectionHandler=NodeId=>Renderer?.SetSelectedNode(NodeId);
-            SceneEditorHub.SelectedNodeChanged+=SelectionHandler;
-
-            // Fired after PrimitiveSpawner rewrites this same file on disk (ADR-0021) - reload from
-            // the current path rather than the whole BuildWindowCore/surface-creation path.
-            ReloadHandler=()=>SetScenePath(ScenePath);
-            SceneEditorHub.ReloadRequested+=ReloadHandler;
-
-            SceneEditorHub.PublishSceneOpened(Scene,ScenePath);
         } catch(Exception Ex){
             System.Windows.MessageBox.Show(
-                $"シーンのプレビューに失敗しました: {Ex}",
-                "C# Game Engine Scene",
+                $"シーン デザイナーの表示に失敗しました: {Ex}",
+                "C# Game Engine Scene Designer",
                 System.Windows.MessageBoxButton.OK,
                 System.Windows.MessageBoxImage.Error);
-        }
-    }
-
-    /// <summary>
-    /// Loads each of <paramref name="DistinctMeshPaths"/> via <see cref="MeshLoader"/> on its own
-    /// background <see cref="Thread"/>, concurrently, then waits for all of them with a plain
-    /// <see cref="Thread.Join()"/> - deliberately not <c>Task</c>/<c>async</c>/
-    /// <c>JoinableTaskFactory</c> (see the call site's comment for why).
-    /// </summary>
-    private static void WarmMeshCache(IReadOnlyList<string>DistinctMeshPaths,string RepoRoot){
-        if(DistinctMeshPaths.Count==0){
-            return;
-        }
-
-        Thread[]Threads=new Thread[DistinctMeshPaths.Count];
-        Exception?[]Errors=new Exception?[DistinctMeshPaths.Count];
-
-        for(var i=0;i<DistinctMeshPaths.Count;i++){
-            var index=i;
-            Threads[index]=new Thread(()=>{
-                try {
-                    MeshLoader.Load(DistinctMeshPaths[index],RepoRoot);
-                } catch(Exception Ex){
-                    Errors[index]=Ex;
-                }
-            }){ IsBackground=true };
-            Threads[index].Start();
-        }
-
-        foreach(Thread thread in Threads){
-            thread.Join();
-        }
-
-        Exception?FirstError=Array.Find(Errors,Error=>Error is not null);
-        if(FirstError is not null){
-            ExceptionDispatchInfo.Capture(FirstError).Throw();
         }
     }
 
@@ -188,14 +136,14 @@ internal sealed class SceneHwndHost:HwndHost {
             RenderingHandler=null;
         }
 
-        if(SelectionHandler is not null){
-            SceneEditorHub.SelectedNodeChanged-=SelectionHandler;
-            SelectionHandler=null;
+        if(ModelsHandler is not null){
+            SceneEditorHub.AllSceneModelsChanged-=ModelsHandler;
+            ModelsHandler=null;
         }
 
-        if(ReloadHandler is not null){
-            SceneEditorHub.ReloadRequested-=ReloadHandler;
-            ReloadHandler=null;
+        if(SelectionHandler is not null){
+            SceneEditorHub.SelectedNodePathChanged-=SelectionHandler;
+            SelectionHandler=null;
         }
 
         Renderer?.Dispose();

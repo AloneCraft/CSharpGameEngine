@@ -68,6 +68,17 @@ internal sealed class SceneWorkspaceService : IDisposable {
     internal event Action<SceneModel?>?ModelChanged;
 
     /// <summary>
+    /// Every <c>IScene</c> implementation found in the active document (ADR-0040 Phase 9), not just
+    /// the first - Scene Designer needs to target one specific class by name when a file declares
+    /// several (e.g. PrimitiveShowcaseScene.cs). <see cref="CurrentModel"/>/<see cref="ModelChanged"/>
+    /// stay unchanged (still "the first one found") so Hierarchy's existing behavior is untouched;
+    /// this is computed in the same analysis pass, not a second one.
+    /// </summary>
+    internal IReadOnlyList<SceneModel>AllModels { get;private set;}=[];
+
+    internal event Action<IReadOnlyList<SceneModel>>?AllModelsChanged;
+
+    /// <summary>
     /// Acquires the workspace through <c>SComponentModel</c> rather than exporting a MEF part - this
     /// VSIX has no MEF components and adding one just to pull a service would be a larger change
     /// than the service is worth. Returns null (rather than throwing) when the workspace is not
@@ -155,7 +166,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
         // work joinable, and the handle is stored so VS can still block on it during shutdown.
         this.RunningAnalysis=this.TaskFactory.RunAsync(async ()=>{
             try {
-                SceneModel?Model= await this.AnalyzeAsync(Source.Token).ConfigureAwait(false);
+                IReadOnlyList<SceneModel>Models= await this.AnalyzeAllAsync(Source.Token).ConfigureAwait(false);
 
                 // A cancelled analysis must not overwrite the newer one that cancelled it.
                 if(Source.Token.IsCancellationRequested){
@@ -163,8 +174,11 @@ internal sealed class SceneWorkspaceService : IDisposable {
                 }
 
                 await this.TaskFactory.SwitchToMainThreadAsync(Source.Token);
-                this.CurrentModel=Model;
-                this.ModelChanged?.Invoke(Model);
+                SceneModel?First=Models.Count>0?Models[0]:null;
+                this.CurrentModel=First;
+                this.AllModels=Models;
+                this.ModelChanged?.Invoke(First);
+                this.AllModelsChanged?.Invoke(Models);
             } catch(OperationCanceledException){
                 // Superseded by a newer analysis.
             } catch(Exception){
@@ -175,17 +189,23 @@ internal sealed class SceneWorkspaceService : IDisposable {
         });
     }
 
-    private async Task<SceneModel?>AnalyzeAsync(CancellationToken CancellationToken){
+    /// <summary>
+    /// Every <c>IScene</c> implementation declared in the active document, in declaration order.
+    /// Only scenes declared in *this* document are considered - a project may hold several documents
+    /// with their own scenes, and showing whichever one happened to be found first would make the
+    /// tree depend on compilation order.
+    /// </summary>
+    private async Task<IReadOnlyList<SceneModel>>AnalyzeAllAsync(CancellationToken CancellationToken){
         DocumentId?DocumentId=this.ActiveDocumentId;
 
         if(DocumentId is null){
-            return null;
+            return [];
         }
 
         Document?Document=this.Workspace.CurrentSolution.GetDocument(DocumentId);
 
         if(Document is null){
-            return null;
+            return [];
         }
 
         Compilation?Compilation= await Document.Project.GetCompilationAsync(CancellationToken).ConfigureAwait(false);
@@ -193,18 +213,17 @@ internal sealed class SceneWorkspaceService : IDisposable {
         SemanticModel?SemanticModel= await Document.GetSemanticModelAsync(CancellationToken).ConfigureAwait(false);
 
         if(Compilation is null||Root is null||SemanticModel is null){
-            return null;
+            return [];
         }
 
-        // Only scenes declared in *this* document. A project may hold several, and showing whichever
-        // one happened to be found first would make the tree depend on compilation order.
+        List<SceneModel>Models=[];
         foreach(INamedTypeSymbol Type in EnumerateDeclaredTypes(Root,SemanticModel,CancellationToken)){
             if(SceneTypePredicates.ImplementsSceneInterface(Type)){
-                return SceneDeclarationAnalyzer.Analyze(Type,Compilation,CancellationToken);
+                Models.Add(SceneDeclarationAnalyzer.Analyze(Type,Compilation,CancellationToken));
             }
         }
 
-        return null;
+        return Models;
     }
 
     private static IEnumerable<INamedTypeSymbol>EnumerateDeclaredTypes(SyntaxNode Root,SemanticModel SemanticModel,CancellationToken CancellationToken){

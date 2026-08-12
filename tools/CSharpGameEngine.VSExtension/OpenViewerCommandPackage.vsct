@@ -29,6 +29,12 @@
       <Group guid="guidOpenViewerCommandPackageCmdSet" id="SceneDefinitionContextMenuGroup" priority="0x0600">
         <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_CODEWIN" />
       </Group>
+      <!-- ADR-0040 Phase 9: code-editor context menu only, same rationale as
+           SceneDefinitionContextMenuGroup above (which it does not reuse - that group/id pair is
+           retired, see the Symbols section). -->
+      <Group guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" priority="0x0600">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_CODEWIN" />
+      </Group>
     </Groups>
 
     <Buttons>
@@ -92,6 +98,12 @@
            対象プロジェクトをビルドして別プロセスで CreateRuntime を実行する方式をやめ、SceneModel を
            直接描画する方式へ移行したため、このコマンド自体が不要になった。0x0101 と同様、この ID は
            再利用しないこと (既にインストール済みの VS がキーバインドやカスタマイズを保持している)。 -->
+      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerCommandId" priority="0x0100" type="Button">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
+        <Strings>
+          <ButtonText>シーン デザイナーで開く</ButtonText>
+        </Strings>
+      </Button>
     </Buttons>
   </Commands>
 
@@ -142,6 +154,9 @@
       <IDSymbol name="CSharpGameEngineToolbarGroup" value="0x1022" />
       <!-- 0x1023 (SceneDefinitionContextMenuGroup) retired together with 0x0108. -->
       <IDSymbol name="SceneDefinitionContextMenuGroup" value="0x1023" />
+      <!-- ADR-0040 Phase 9. -->
+      <IDSymbol name="OpenSceneDesignerCommandId" value="0x0109" />
+      <IDSymbol name="SceneDesignerContextMenuGroup" value="0x1024" />
     </GuidSymbol>
   </Symbols>
 </CommandTable>

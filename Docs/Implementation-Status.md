@@ -814,8 +814,12 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
   `ProvideEditorExtension`で単一の拡張子として認識されず、ダブルクリックしても何も開かない
   不具合だった(実機検証で確認)。拡張子を単一の`.scene`に変更して解決した(スキーマ自体は
   無変更)。
-- Next action: VS実機でシーンタブの体感速度が改善したかユーザーに確認してもらう(F-L8-002の
-  Next actionと同じ、ADR-0010追記参照)。
+- Next action: なし。
+- **(2026-08、ADR-0040 Phase 9で置き換え)** `.scene`ダブルクリックによるドキュメントタブ方式の
+  プレビューは廃止した。`SceneFileEditorFactory`/`SceneWindowPane`/`SceneWindowControl`は削除、
+  `SceneHwndHost`/`SceneRenderer`は流用しつつデータソースを`.scene`ファイルからライブRoslynの
+  `SceneModel`へ差し替えた。後継はF-L8-010を参照。このエントリは歴史的記録として残す
+  (`SceneFile.cs`のパース自体は`SceneNodeAdder`の書き込み側でPhase 10まで存続)。
 
 ## F-L2-002 — `CSharpGameEngine.Geometry`(`ProceduralMeshFactory`・6プリミティブ追加)
 
@@ -1996,8 +2000,11 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
   - `.vsct`のビルドは`IDM_VS_CTXT_CODEWIN`/`DynamicVisibility`とも初回で正常にコンパイルされた。
 - Conformance: Matches
 - Known deviations: None
-- Next action: 実機VS Experimental Instanceでのコンテキストメニュー表示/非表示切替・3D描画の
-  目視確認・既存`.scene`プレビューへの無影響確認(ユーザー側、F-L8-006〜008と同じ役割分担)。
+- Next action: なし。
+- **(気づいた既存ドキュメント欠落、今回のタスク範囲外につき記録のみ)** このエントリが挙げる実装
+  ファイル(`PreviewSceneDefinitionCommand.cs`等)はすべて既にリポジトリから削除済み
+  (`.vsct`のコメントいわく ADR-0040 で退役、実行ベースのプレビューを`SceneModel`直接描画へ
+  移行したため)。エントリ自体を「削除済み」へ更新する作業は本タスク(Phase 9)の対象に含めない。
 
 ## F-L9-007 — `UserGameProject/Scene1.cs`
 
@@ -2389,4 +2396,78 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
 - Known deviations: プリミティブごとの色/マテリアル指定は無し。起動後の動的な追加・削除は不可
   (全レンダラー共通の「Create時にロースター確定」という制約を踏襲)。`UserGameProject`側の並行
   コンポーネント体系(`MeshRenderer`/`RenderSync`)への配線は未実施。
-- Next action: Phase 9(VSIX Scene ViewをSceneModel描画へ)がこの`PrimitiveMesh`語彙を前提とする。
+- Next action: なし。Phase 9(VSIX Scene ViewをSceneModel描画へ)がこの`PrimitiveMesh`語彙を前提として
+  実装済み(F-L8-010参照)。
+
+## F-L8-010 — Scene デザイナー: `.scene`からSceneModel(ライブRoslyn)描画への移行
+
+- Layer: L8 — Visual Studio Authoring Environment
+- Parent capability: Scene DSL(ADR-0040 / M0019 Phase 9)
+- Status: Implemented
+- Verification: TestVerified(実機VS Experimental Instanceでの目視確認はユーザー側で実施予定)
+- Intended specification: なし(新規ADRは書かず、既存フェーズと同じく`ADR-0040 / M0019 Phase 9`として
+  コミット。ADR-0040自体の文書化はPhase 11で行う)
+- Implementation evidence:
+  - tools/CSharpGameEngine.VSExtension/SceneModelRenderObjectBuilder.cs(新規)
+  - tools/CSharpGameEngine.VSExtension/SceneHwndHost.cs(`.scene`読み込みをSceneModel解決へ全面改修)
+  - tools/CSharpGameEngine.VSExtension/SceneRenderer.cs(`SceneRenderObject.NodeId`を`Guid`から
+    `NodePath`へ変更)
+  - tools/CSharpGameEngine.VSExtension/SceneWorkspaceService.cs(`AllModels`/`AllModelsChanged`を
+    追加。アクティブドキュメント内の`IScene`実装を「最初の1件」だけでなく全件収集するよう拡張、
+    既存の`CurrentModel`/`ModelChanged`は無改修)
+  - tools/CSharpGameEngine.VSExtension/SceneEditorHub.cs(`AllSceneModelsChanged`を追加、`.scene`
+    JSON専用だった旧Guidチャンネル(`SceneOpened`/`SelectedNodeChanged`/`PublishSelection`)を削除)
+  - tools/CSharpGameEngine.VSExtension/SceneDesignerToolWindowPane.cs、
+    SceneDesignerToolWindowControl.xaml(.cs)(新規、`HierarchyToolWindowPane`と同型のToolWindowPane)
+  - tools/CSharpGameEngine.VSExtension/OpenSceneDesignerCommand.cs(新規、コードエディタコンテキスト
+    メニューコマンド)
+  - tools/CSharpGameEngine.VSExtension/ScenePickerDialog.xaml(.cs)(新規、複数`IScene`クラスが
+    あるファイル用のピッカーダイアログ)
+  - tools/CSharpGameEngine.VSExtension/OpenViewerCommandPackage.vsct(`OpenSceneDesignerCommandId`/
+    `SceneDesignerContextMenuGroup`を追加、`0x0108`/`0x1023`は退役のため再利用せず)
+  - tools/CSharpGameEngine.VSExtension/CSharpGameEngineViewerPackage.cs(`SceneFileEditorFactory`の
+    `[ProvideEditorFactory]`登録を削除、`SceneDesignerToolWindowPane`の`[ProvideToolWindow]`を追加)
+  - tools/CSharpGameEngine.VSExtension/GameEngineLayout.cs(既定レイアウトが`.scene`をドキュメント
+    タブで開く処理を削除、Scene デザイナー ツールウィンドウのドッキングに置き換え)
+  - 削除: SceneFileEditorFactory.cs、SceneWindowPane.cs、SceneWindowControl.xaml(.cs)
+- Tests:
+  - tests/CSharpGameEngine.VSExtension.Tests/SceneModelRenderObjectBuilderTests.cs(新規、Transform/
+    PrimitiveMesh値抽出・回転未指定時のIdentityフォールバック・Gizmoフォールバック・NodePath同一性の
+    7件、実解析済み`SceneModel`に対して検証)
+  - 既存のtests/CSharpGameEngine.VSExtension.Tests/配下(SceneFileTests.cs等)は無改修のまま54/54成功
+- Reverse-engineered behavior:
+  - **トリガー方式の決定**: 当初案(`.cs`ファイル用の2つ目の`IVsEditorFactory`+`LOGVIEWID_Designer`)は
+    実機での「開く方法」挙動が未検証のまま採用するリスクがあったため、このリポジトリに実績のある
+    コードエディタコンテキストメニューコマンド(`IDM_VS_CTXT_CODEWIN`)+`ToolWindowPane`
+    (`HierarchyToolWindowPane`と同じ、確実に動く実績パターン)へ変更した。ソリューション
+    エクスプローラー/クラスビューのシンボルサブノードへのコマンド追加(当初のユーザー要望)は
+    VS SDKの非公開・非対応拡張ポイントと判明したため採用しなかった。
+  - `OpenSceneDesignerCommand`は`SceneWorkspaceService`の解析結果(`SceneEditorHub.ActiveAllSceneModels`)
+    を再利用するだけで、コマンド自身はRoslynを一切呼ばない(`BeforeQueryStatus`/`Execute`とも
+    キャッシュ済みの値を読むだけ)。
+  - `SceneModelRenderObjectBuilder`は`global::UserEcsProject.Transform`(プロジェクト固有、
+    ハードコード)と`global::CSharpGameEngine.Runtime.Windows.PrimitiveMesh`(エンジン標準、
+    Phase 6)の2つのComponent型を完全修飾名で認識する。`PrimitiveMesh.Type`(enum)の解決は
+    `SceneValue.ReferencedSymbol`(`EnumMember`用)から行う — `SceneValue`には`float`/enum用の
+    型付きアクセサが無いため、値抽出ロジックはこのタスクで新規に書いた。
+  - プリミティブ形状の実メッシュ生成は、VSIXがnet10.0の`ProceduralMeshFactory`を直接参照できない
+    (ADR-0008)ため、既存の`tools/CSharpGameEngine.Primitive.Cli`ブリッジ(Shape Paletteと共有)を
+    そのまま再利用し、`UserGameProject/Assets/Primitives/`の既存キャッシュも共有する。
+    `PrimitiveType.Plane`はブリッジ側の命名(`"Rectangle"`)と異なるため変換マップを持つ。
+  - `SceneHwndHost.Rebuild`は`SceneEditorHub.AllSceneModelsChanged`(250msデバウンス済み)購読の
+    たびに走るが、対象クラスが見つからない場合(解析未追従・削除等)は前回の描画をそのまま残す
+    (`Renderer`を破棄しない)。`SceneRenderer`はオブジェクト0件で例外を投げるため、
+    ロースターが空になるケースだけは明示的にガードしている。
+  - 階層Transform合成は行わない(ランタイム側`UserEcsProject`も未実装の既存ギャップのため、
+    そこに合わせている)。`Level`コンポーネント(.glbステージ全体参照)もPhase 9では描画しない。
+- Conformance: Matches(自動テストの範囲。実機VS Experimental Instanceでのコンテキストメニュー
+  表示・ピッカーダイアログ・3D描画・ライブ更新の目視確認はユーザー側で実施予定)。
+- Known deviations: ドラッグ&ドロップでの配置(`SceneNodeAdder`、`.scene`書き込み)はこのフェーズ
+  完了時点で一時的に機能しなくなる(`SceneEditorHub.ActiveScene`を発行する経路が無くなったため、
+  常に「シーンファイルを開いてください」エラーになる) — Phase 10でRoslynベースのソース書き込みへ
+  移行するまでの既知の受け入れ済み退行。
+- Next action: 実機VS Experimental Instanceでの目視確認(ユーザー側): (1) `PrimitiveShowcaseScene.cs`
+  (2クラス)を開きコードエディタ右クリック→「シーン デザイナーで開く」→ピッカー表示、
+  (2) `MainScene.cs`(1クラス)で同操作→ピッカー無しで直接表示、(3) Box/Sphereプリミティブの
+  描画確認、(4) Transform値編集後250ms程度での反映確認、(5) Tab/Backspace/Delete等の既存VS入力の
+  回帰確認。

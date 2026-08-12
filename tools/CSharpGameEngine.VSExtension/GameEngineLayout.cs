@@ -28,7 +28,6 @@ internal static class GameEngineLayout {
     private const string SettingsCollectionPath="CSharpGameEngine";
     private const string InitialLayoutAppliedPropertyName="InitialLayoutApplied";
     private const string ToolbarName="C# Game Engine";
-    private const string DefaultSceneRelativePath=@"UserGameProject\DefaultScene.scene";
 
     public static async Task<bool>WasInitialLayoutAppliedAsync(AsyncPackage package){
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
@@ -53,26 +52,26 @@ internal static class GameEngineLayout {
         return settingsManager.GetWritableSettingsStore(SettingsScope.UserSettings);
     }
 
-    /// <summary>Shows the toolbar, docks Hierarchy left / ShapePalette right of Solution Explorer, and opens the default scene as a document tab.</summary>
+    /// <summary>
+    /// Shows the toolbar and docks Hierarchy / Scene Designer / ShapePalette around Solution
+    /// Explorer. No longer opens a default scene document tab (ADR-0040 Phase 9 retired the
+    /// <c>.scene</c> document editor entirely - Scene Designer is opened per-class via
+    /// <see cref="OpenSceneDesignerCommand"/>'s code-editor context menu entry instead of a fixed
+    /// default file).
+    /// </summary>
     public static async Task ApplyAsync(AsyncPackage package,DTE Dte,string RepoRoot){
         await package.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
 
         ShowToolbar(Dte);
 
         ToolWindowPane HierarchyWindow= await package.ShowToolWindowAsync(typeof(HierarchyToolWindowPane),0,true,package.DisposalToken);
+        ToolWindowPane SceneDesignerWindow= await package.ShowToolWindowAsync(typeof(SceneDesignerToolWindowPane),0,true,package.DisposalToken);
         ToolWindowPane ShapeWindow= await package.ShowToolWindowAsync(typeof(ShapePaletteToolWindowPane),0,true,package.DisposalToken);
 
         Guid SolutionExplorer=new(ToolWindowGuids80.SolutionExplorer);
         SetFramePos(HierarchyWindow,VSSETFRAMEPOS.SFP_fDock|VSSETFRAMEPOS.SFP_fDockLeft,SolutionExplorer,Width:300);
+        SetFramePos(SceneDesignerWindow,VSSETFRAMEPOS.SFP_fDock|VSSETFRAMEPOS.SFP_fDockRight,SolutionExplorer,Width:260);
         SetFramePos(ShapeWindow,VSSETFRAMEPOS.SFP_fDock|VSSETFRAMEPOS.SFP_fDockRight,SolutionExplorer,Width:260);
-
-        var ScenePath=Path.Combine(RepoRoot,DefaultSceneRelativePath);
-        if(File.Exists(ScenePath)){
-            // dte.ItemOperations.OpenFile(...) is the confirmed-reliable way to route through the
-            // real IVsEditorFactory-based open path (ADR-0013) - mere selection or a raw file-open
-            // API does not reliably trigger a custom editor factory.
-            Dte.ItemOperations.OpenFile(ScenePath);
-        }
     }
 
     private static void ShowToolbar(DTE Dte){
