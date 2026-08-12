@@ -105,7 +105,16 @@ internal struct Window:ISystem {
 /// </summary>
 internal struct LevelLoad:ISystem {
     public bool Update(ref AppHost App,ref Level level,ref State state){
-        if(level.Loaded||App.Window is not { } window){
+        if(level.Loaded){
+            // StageRenderer.SetCameraは「ダブルバッファされた2つのフレームスロットのうち今回の
+            // フレームが使う側だけを書く」設計のため、毎フレーム呼ばないと片方のスロットが
+            // 起動時カメラのまま固定される(実測されたバグ、Docs/Conformance.md参照)。
+            // DirectionalLight/PointLight/SpotLightと同じ「毎フレーム状態を再送する」パターンに合わせる。
+            level.Renderer?.SetCamera(level.Camera);
+            return true;
+        }
+
+        if(App.Window is not { } window){
             return true;
         }
 

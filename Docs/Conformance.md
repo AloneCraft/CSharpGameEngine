@@ -612,3 +612,24 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
   and the UserGame/Core test suites listed in `Docs/Implementation-Status.md`.
 - The old `UserEcsProject` audio sample remains intentionally unchanged and still has its historical
   single-entity/2D limitation; the new `UserGameProject/AudioRuntime` is the practical 3D path.
+
+## 2026-08 StageRenderer FrameCB frame-slot sizing fix
+
+- Mismatch → now Matches: `585abf6` added a `ShadowViewProjection` field to `FrameCB`, growing it to
+  560 bytes, but left the double-buffered per-frame-slot stride at the unrelated
+  `ConstantAlignment=512`. `SetDirectionalLight`'s per-frame write (`UserEcsProject/Systems/RuntimeSystem.cs`)
+  therefore corrupted/overran the adjacent frame slot every other frame — the "ぐちゃぐちゃな表示"
+  (scrambled display) `585abf6`'s own commit message self-reported. Independently, `LevelLoad` called
+  `Renderer.SetCamera` only once at load instead of every frame, so one of the two frame slots stayed
+  pinned to the constructor-time default camera instead of the scene camera.
+- Fix: `StageRenderer.FrameConstantsStride` is now derived from `FrameConstantsSize` (rounded up to
+  the 256-byte root CBV alignment) instead of reusing `ConstantAlignment`, so future `FrameCB` growth
+  keeps the slot width in sync automatically; `LevelLoad` now calls `SetCamera` every frame like the
+  sibling light systems; the shadow pass got its own `VSShadowMain` entry point instead of reusing
+  `VSMain` (removing an incidental out-of-bounds constant read for `FrameIndex=1`, latent but not
+  visible).
+- Evidence: 2 new tests in `StageGpuIntegrationTests.cs`
+  (`Stage_Warp_BothFrameInFlightSlots_RenderIdenticalImagesForAnUnchangingScene`,
+  `Stage_Warp_BlockerCastsAVisibleShadowOnTheGroundPlane`, 6/6 total), full-solution build (0
+  warnings/errors), and a live `UserEcsProject.exe` launch captured via `PrintWindow` across multiple
+  frames confirming a single stable scene with no per-frame alternation.

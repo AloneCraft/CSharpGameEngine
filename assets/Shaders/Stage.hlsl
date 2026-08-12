@@ -90,6 +90,23 @@ VertexOutput VSMain(VertexInput input)
     return output;
 }
 
+// シャドウパス(深度のみ・NumRenderTargets=0)専用の頂点シェーダー。ShadowConstantsBufferの内容と
+// 正確に一致する最小限のcbufferだけを宣言する(ObjectCB(b1)はメインパスと共有・変更なし)。
+// 以前はメインのVSMainを流用しており、ViewProjection(FrameCBのオフセット0)がシャドウパスでは
+// b0の再バインド(ShadowConstantsBuffer)によって偶然シャドウ行列を指すという脆い挙動に依存していた
+// うえ、VSMainが計算する未使用のShadowPosition varying(FrameCBのオフセット496から読む)が
+// ShadowConstantsBufferの確保範囲を超えて読む未定義動作を含んでいた。
+cbuffer ShadowFrameCB : register(b0)
+{
+    row_major float4x4 ShadowViewProjectionOnly;
+};
+
+float4 VSShadowMain(VertexInput input) : SV_Position
+{
+    float4 worldPosition = mul(float4(input.Position, 1.0), World);
+    return mul(worldPosition, ShadowViewProjectionOnly);
+}
+
 // GGX normal distribution function (Trowbridge-Reitz).
 float DistributionGgx(float nDotH, float roughness)
 {

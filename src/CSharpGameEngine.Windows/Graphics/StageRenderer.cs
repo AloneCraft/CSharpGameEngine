@@ -91,6 +91,15 @@ public sealed unsafe class StageRenderer:IDisposable {
     private const uint FrameShadowViewProjectionOffset=FrameSpotLightsOffset+(MaxSpotLights*SpotLightStride);
     private const uint FrameConstantsSize=FrameShadowViewProjectionOffset+64;
 
+    /// <summary>
+    /// FrameConstantsBuffer専用のフレームスロット幅。FrameConstantsSize以上、かつD3D12のroot CBV
+    /// アライメント要件(256バイト)の倍数でなければならない。汎用のConstantAlignmentを流用せず
+    /// FrameConstantsSizeから計算するのは、FrameCBを将来また拡張したとき(ShadowViewProjection追加時に
+    /// スロット幅の更新を忘れ、フレームスロット間でデータが衝突・範囲外書き込みを起こしていた実際の
+    /// 回帰の再発を防ぐため)にスロット幅が自動的に追従するようにするため。
+    /// </summary>
+    private const uint FrameConstantsStride=((FrameConstantsSize+255u)/256u)*256u;
+
     // ObjectCB (b1) byte layout - see Stage.hlsl.
     private const uint ObjectWorldOffset=0;            // float4x4, 64 bytes
     private const uint ObjectBaseColorFactorOffset=64; // float4
@@ -539,8 +548,15 @@ public sealed unsafe class StageRenderer:IDisposable {
             EnableDebugInfo=DebugShaders,
         });
 
-        ShaderCompilationSucceeded=Vs.Success&&Ps.Success&&FullscreenVs.Success&&PostPs.Success;
-        ShaderDiagnostics=[.. Vs.Diagnostics,.. Ps.Diagnostics,.. FullscreenVs.Diagnostics,.. PostPs.Diagnostics];
+        HlslCompileResult ShadowVs=HlslCompiler.Compile(new HlslCompileRequest {
+            FilePath=ShaderPath,
+            EntryPoint="VSShadowMain",
+            TargetProfile="vs_6_0",
+            EnableDebugInfo=DebugShaders,
+        });
+
+        ShaderCompilationSucceeded=Vs.Success&&Ps.Success&&FullscreenVs.Success&&PostPs.Success&&ShadowVs.Success;
+        ShaderDiagnostics=[.. Vs.Diagnostics,.. Ps.Diagnostics,.. FullscreenVs.Diagnostics,.. PostPs.Diagnostics,.. ShadowVs.Diagnostics];
 
         if(!ShaderCompilationSucceeded){
             var Details=string.Join(Environment.NewLine,ShaderDiagnostics);
@@ -551,6 +567,7 @@ public sealed unsafe class StageRenderer:IDisposable {
         PixelShaderBytecode=Ps.Bytecode;
         FullscreenVertexShaderBytecode=FullscreenVs.Bytecode;
         PostProcessPixelShaderBytecode=PostPs.Bytecode;
+        ShadowVertexShaderBytecode=ShadowVs.Bytecode;
     }
 
     private byte[]VertexShaderBytecode=[];
@@ -787,7 +804,7 @@ public sealed unsafe class StageRenderer:IDisposable {
         fixed(byte*PNormal="NORMAL\0"u8)
         fixed(byte*PTangent="TANGENT\0"u8)
         fixed(byte*PTexCoord="TEXCOORD\0"u8)
-        fixed(byte*PVertexShader=VertexShaderBytecode){
+        fixed(byte*PVertexShader=ShadowVertexShaderBytecode){
             D3D12_INPUT_ELEMENT_DESC*InputElements=stackalloc D3D12_INPUT_ELEMENT_DESC[4]{
                 new D3D12_INPUT_ELEMENT_DESC { SemanticName=(sbyte*)PPosition,Format=DXGI_FORMAT_R32G32B32_FLOAT,InputSlotClass=D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA },
                 new D3D12_INPUT_ELEMENT_DESC { SemanticName=(sbyte*)PNormal,Format=DXGI_FORMAT_R32G32B32_FLOAT,AlignedByteOffset=12,InputSlotClass=D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA },
@@ -797,7 +814,7 @@ public sealed unsafe class StageRenderer:IDisposable {
             D3D12_GRAPHICS_PIPELINE_STATE_DESC PsoDesc=new(){
                 InputLayout=new D3D12_INPUT_LAYOUT_DESC { pInputElementDescs=InputElements,NumElements=4 },
                 pRootSignature=ShadowRootSignature,
-                VS=new D3D12_SHADER_BYTECODE { pShaderBytecode=PVertexShader,BytecodeLength=(nuint)VertexShaderBytecode.Length },
+                VS=new D3D12_SHADER_BYTECODE { pShaderBytecode=PVertexShader,BytecodeLength=(nuint)ShadowVertexShaderBytecode.Length },
                 RasterizerState=D3D12_RASTERIZER_DESC.DEFAULT,
                 BlendState=D3D12_BLEND_DESC.DEFAULT,
                 DepthStencilState=D3D12_DEPTH_STENCIL_DESC.DEFAULT,
@@ -1072,7 +1089,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     }
 
     private void CreateConstantBuffers(){
-        var FrameBufferSize=ConstantAlignment*FrameCount;
+        var FrameBufferSize=FrameConstantsStride*FrameCount;
         CreateUploadBuffer(FrameBufferSize,out FrameConstantsBuffer,out FrameConstantsMapped,"creating the frame constant buffer");
 
         var ObjectBufferSize=ConstantAlignment*(uint)ObjectCount*FrameCount;
@@ -1200,7 +1217,7 @@ public sealed unsafe class StageRenderer:IDisposable {
         WriteObjectConstants(FrameIndex,ObjectIndex);
     }
 
-    private byte*FrameSlot(uint FrameIndex)=>FrameConstantsMapped+(FrameIndex*ConstantAlignment);
+    private byte*FrameSlot(uint FrameIndex)=>FrameConstantsMapped+(FrameIndex*FrameConstantsStride);
 
     private void WriteViewProjection(uint FrameIndex,Matrix4x4 ViewProjection){
         Unsafe.CopyBlock(FrameSlot(FrameIndex)+FrameViewProjectionOffset,&ViewProjection,(uint)sizeof(Matrix4x4));
@@ -1286,7 +1303,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     }
 
     private ulong GetFrameConstantsAddress(uint FrameIndex){
-        return FrameConstantsBuffer->GetGPUVirtualAddress()+(FrameIndex*ConstantAlignment);
+        return FrameConstantsBuffer->GetGPUVirtualAddress()+(FrameIndex*FrameConstantsStride);
     }
 
     private ulong GetObjectConstantsAddress(uint FrameIndex,int ObjectIndex){

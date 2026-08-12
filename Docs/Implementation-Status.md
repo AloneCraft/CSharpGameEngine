@@ -322,12 +322,25 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
   - assets/Shaders/Stage.hlsl (`ShadowMap`, `ComputeDirectionalShadow`, `FullscreenVS`, `PostProcessPS`, `ToneMapAces`)
 - Tests:
   - tests/CSharpGameEngine.Windows.Tests/Hlsl/HlslCompilerTests.cs (`Compile_StagePostProcessShaders_Succeeds`)
-  - tests/CSharpGameEngine.Windows.Tests/Graphics/StageGpuIntegrationTests.cs (4/4, including shadow/light output and resize)
+  - tests/CSharpGameEngine.Windows.Tests/Graphics/StageGpuIntegrationTests.cs (6/6, including shadow/light output, resize,
+    per-frame-slot stability, and shadow-casting)
 - Result: Scene lighting is rendered into `R16G16B16A16_FLOAT`; imported PBR base color, normal,
   metallic/roughness, and emissive factors reach the shader. A thresholded 3x3 HDR spatial blur is
   added and the result is ACES tone-mapped into the existing swap-chain format. The public clear
   color is preserved via an inverse-ACES HDR clear value.
 - Known deviations: Bloom is intentionally a compact single-pass 3x3 blur, not a multi-resolution separable bloom chain.
+- Bug fix (2026-08): the `ShadowViewProjection` field added to `FrameCB` grew the struct to 560 bytes
+  while the double-buffered per-frame-slot stride stayed at the unrelated `ConstantAlignment=512`,
+  so `SetDirectionalLight`'s per-frame write silently corrupted/overran the adjacent frame slot every
+  other frame (visible as scrambled/garbled geometry in `UserEcsProject`). Separately,
+  `UserEcsProject/Systems/RuntimeSystem.cs`'s `LevelLoad` only called `Renderer.SetCamera` once at
+  load instead of every frame like the sibling light systems, so one of the two frame slots stayed
+  pinned to the constructor-time default camera. Fixed by introducing a `FrameConstantsStride`
+  derived from `FrameConstantsSize` (so any future `FrameCB` growth keeps the slot width in sync),
+  moving `SetCamera` into `LevelLoad`'s per-frame path, and giving the shadow pass its own
+  `VSShadowMain` entry point (removing an incidental, previously latent, out-of-bounds constant read
+  for `FrameIndex=1` in the shadow pass's unused `ShadowPosition` varying). Verified via 2 new GPU
+  regression tests and a real `UserEcsProject.exe` launch + window capture.
 
 ## F-L0-003 — `ProceduralMeshFactory`(手続き的メッシュ生成)
 
