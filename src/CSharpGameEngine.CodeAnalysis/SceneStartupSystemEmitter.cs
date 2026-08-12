@@ -64,9 +64,17 @@ internal static class SceneStartupSystemEmitter {
     }
 
     /// <summary>
-    /// <see cref="BuildSyntheticSystemResult"/>が指す隠しstructの実体を生成する。<c>Bootstrap.Done</c>で
-    /// 1回だけ走ることを保証し、生成された<c>Instantiate</c>を呼ぶ。Reflection・<c>object[]</c>・Boxingは
-    /// いずれも使わない。
+    /// <see cref="BuildSyntheticSystemResult"/>が指す隠しstructの実体を生成する。<c>[StartupScene]</c>は
+    /// 複数のシーンが共存できる(<c>GameSystemGenerator</c>が<c>IsStartupScene</c>なシーンをループして
+    /// それぞれこの合成Systemを1つずつ作る)。共有される唯一の<c>Bootstrap</c>Entityの
+    /// <c>Bootstrap.Done</c>フィールドを複数のSystemで読み書きすると、同一フレーム内で先に実行された
+    /// Systemが<c>Done=true</c>にした時点で残り全員が「もう実行済み」と誤認して自分の
+    /// <c>InstantiateScene</c>を一度も呼ばずに終わる(実測されたバグ: MainScene以外の
+    /// StartupSceneが常に無視される)。1回だけ走ることの保証は、System構造体インスタンスが
+    /// <c>Run()</c>内で1つだけ生成され全フレームを通して同じインスタンスがrefで渡され続ける
+    /// (<c>GameSystemEntryPointEmitter</c>参照)ことを利用した、Scene専用のprivate instance field
+    /// (<c>Bootstrap</c>コンポーネントとは無関係)で表現する — 複数シーンが互いに独立して
+    /// 一度だけ走れるようにするため。Reflection・<c>object[]</c>・Boxingはいずれも使わない。
     /// </summary>
     internal static void EmitHiddenSystem(SourceProductionContext Context,SceneEmitModel Scene){
         if(!Scene.CanEmit){
@@ -81,11 +89,12 @@ internal static class SceneStartupSystemEmitter {
         }
 
         Lines.Add($"internal struct {HiddenTypeName} : {SystemInterfaceFullyQualifiedName} {{");
+        Lines.Add("    private bool Done;");
         Lines.Add($"    public bool Update(ref {BootstrapComponentFullyQualifiedName} Bootstrap, ref {StateFullyQualifiedName} State) {{");
-        Lines.Add("        if (Bootstrap.Done) {");
+        Lines.Add("        if (Done) {");
         Lines.Add("            return true;");
         Lines.Add("        }");
-        Lines.Add("        Bootstrap.Done = true;");
+        Lines.Add("        Done = true;");
 
         // State.Worldはget-onlyプロパティなのでrefを取れない。InstantiateScene<TScene>()は
         // Worldのインスタンスメソッドなのでプロパティの値に対して呼べる。Worldのフィールドはすべて

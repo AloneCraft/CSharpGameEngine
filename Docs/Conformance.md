@@ -633,3 +633,23 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
   `Stage_Warp_BlockerCastsAVisibleShadowOnTheGroundPlane`, 6/6 total), full-solution build (0
   warnings/errors), and a live `UserEcsProject.exe` launch captured via `PrintWindow` across multiple
   frames confirming a single stable scene with no per-frame alternation.
+
+## 2026-08 `[StartupScene]` multiple-scene Bootstrap.Done collision fix (ADR-0040 Phase 6)
+
+- Mismatch → now Matches: discovered while implementing `PrimitiveMesh`/`RenderServer` (F-L4-002).
+  `SceneStartupSystemEmitter.EmitHiddenSystem` generated every `{ClassName}__StartupSystem` to read
+  and write the single shared `Bootstrap.Done` field. With more than one `[StartupScene]` class, the
+  first one to run in a frame set `Done=true`, so every subsequently-chained `__StartupSystem` for
+  that same frame saw `Done` already true and skipped its own `InstantiateScene` call forever - only
+  the first-declared `[StartupScene]` (`MainScene`, `Order=0`) ever actually instantiated. A
+  standalone repro (two showcase primitives scaled to 6x and floated above the room) rendered nothing
+  until fixed, and rendered clearly once fixed - see the screenshots from that session.
+- Fix: each generated `__StartupSystem` now guards its one-time `InstantiateScene` call with a
+  private instance field (`Done`) instead of the shared ECS `Bootstrap.Done` field, relying on the
+  same "System struct instances are created once per `Run()` and persist across all frames" guarantee
+  `LevelLoad`'s own accumulator overload (F-L4-002) depends on.
+- Evidence: new regression test
+  `SceneDslGeneratorEndToEndTests.MultipleStartupScenes_BothInstantiateIndependently_ThroughTheGeneratedRunFrameChain`
+  drives the actual generated `RunFrame` chain with two `[StartupScene]` classes and asserts both
+  produce an entity (previously only one did); full `CSharpGameEngine.CodeAnalysis.Tests` suite
+  (100/100); live `UserEcsProject.exe` re-verified with both a Box and a Sphere primitive visible.

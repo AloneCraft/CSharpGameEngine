@@ -2235,6 +2235,17 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
 - Conformance: Matches
 - Known deviations: None
 - Next action: なし。
+- Bug fix (2026-08、ADR-0040 Phase 6): `[StartupScene]`が複数のシーンで共存する場合、生成される
+  `{ClassName}__StartupSystem`は全員が唯一共有される`Bootstrap`Entityの`Bootstrap.Done`フィールドを
+  直接読み書きしていたため、同一フレーム内で先に実行された1つが`Done=true`にした時点で残り全員が
+  「実行済み」と誤認し、自分の`InstantiateScene`を一度も呼ばずに終わっていた(宣言順が2番目以降の
+  `StartupScene`が実機で常に無視されるという形で発覚)。`StartupSceneSystemEmitter.EmitHiddenSystem`
+  (現ファイル名`SceneStartupSystemEmitter.cs`)を、共有`Bootstrap.Done`ではなく各Systemインスタンス
+  固有のprivate instance field(`Done`)を1回きりの判定に使うよう修正(System構造体インスタンスは
+  `Run()`内で1つだけ生成され全フレームを通して同一インスタンスがrefで渡され続けることを利用)。
+  `tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslGeneratorEndToEndTests.cs`に、2つの
+  `[StartupScene]`が生成された実際の`RunFrame`連鎖を通してどちらも独立にインスタンス化されることを
+  固定する回帰テストを追加。
 
 ## F-L7-018 — `GameSystemGenerator`診断(STARTUP001〜010)
 
@@ -2330,3 +2341,52 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
 - Known deviations: `UserEcsProject`の旧サンプルはADR-0039の単一Entity制約を維持する。一方、今回の
   `UserGameProject/AudioRuntime`はEntityごとの音源、Listener位置、距離減衰を実装済み。
 - Next action: なし。
+
+## F-L4-002 — `CSharpGameEngine.Runtime.Windows`(`PrimitiveMesh`/`PrimitiveType`/`RenderServer`)
+
+- Layer: L4 — Domain Servers
+- Parent capability: Scene DSL(ADR-0040 / M0019 Phase 6)
+- Status: Implemented
+- Verification: TestVerified、RuntimeVerified
+- Intended specification: なし(新規ADRは書かず、既存フェーズと同じく`ADR-0040 / M0019 Phase 6`として
+  コミット。ADR-0040自体の文書化はPhase 11で行う)
+- Implementation evidence:
+  - src/CSharpGameEngine.Windows/Runtime/PrimitiveType.cs
+  - src/CSharpGameEngine.Windows/Runtime/PrimitiveMesh.cs
+  - src/CSharpGameEngine.Windows/Runtime/RenderServer.cs
+  - src/CSharpGameEngine.Windows/Graphics/StageRenderer.cs(`ArbitraryTangentFor`を`internal`化して共有)
+  - UserEcsProject/Systems/RuntimeSystem.cs(`LevelLoad`に`{Transform,PrimitiveMesh}`用の宣言順
+    アキュムレータオーバーロードを追加)
+  - UserEcsProject/Scenes/PrimitiveShowcaseScene.cs(デモ、`MainScene.cs`は無変更)
+- Tests:
+  - tests/CSharpGameEngine.Windows.Tests/Runtime/RenderServerTests.cs(デデュープ、全`PrimitiveType`の
+    妥当性、実WARP GPUパイプラインでのBox描画)
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorEndToEndTests.cs(宣言順アキュムレータの
+    核心契約、およびScene DSLのChildren由来Archetypeが実System由来の全Archetypeより後に処理される
+    ことの固定回帰テスト)
+- Reverse-engineered behavior:
+  - `PrimitiveMesh{ PrimitiveType Type }`はサイズ指定を持たない単位サイズのプリミティブ
+    (Unityの`GameObject.CreatePrimitive`と同じ規約)。配置先Nodeの`Transform.Scale`でサイズを決める。
+  - `RenderServer.BuildPrimitiveRoster`は`StageRenderer.Create`が要求するロースター断片を作る
+    純粋関数(静的ビルド関数 — このリポジトリに`Server`/`Registry`接尾辞のステートフルクラスの
+    先例が無いため)。同じ`PrimitiveType`は1つの`StageMeshCreateInfo`にデデュープする。全プリミティブは
+    1つの共有デフォルトマテリアルを使う(個別マテリアル指定はスコープ外)。
+  - `StageRenderer.Create`はメッシュ/マテリアル/オブジェクトのロースターをCreate時に一括で要求し、
+    構築後に追加するAPIを持たない(このリポジトリの全レンダラーに共通する制約)。そのため
+    `LevelLoad`に、`{AppHost,Level}`用オーバーロードより先に宣言した`{Transform,PrimitiveMesh}`用
+    オーバーロードを追加し、Scene DSLが撒いたプリミティブを先に集めてから.glbロースターへ連結して
+    1回の`StageRenderer.Create`に渡す(同一struct内のオーバーロード宣言順がArchetype登録順・
+    したがって1フレーム内の実行順に直結することを利用、ADR-0033決定事項1)。
+  - デモの2つのプリミティブは、`MainScene.Root`の`Children`にせず、それぞれ独立した`[StartupScene]`
+    (`Order=1`/`Order=2`)の単一Rootノードとして宣言している。Childrenにすると自動付与される`Parent`
+    により別Archetype(`{Transform,PrimitiveMesh,Parent}`)になり、Scene DSL由来の追加Archetypeは
+    実System由来の全Archetypeより後に登録される(ADR-0038)ため、`LevelLoad`がロースターを確定させた
+    後に処理されてしまい描画から漏れる(実際にハマって確認した)。
+  - この実装の過程で、`[StartupScene]`の複数シーン共存機能そのものに実バグを発見・修正した
+    (F-L7-017の追記参照): 複数の合成Systemが共有`Bootstrap.Done`を直接読み書きしていたため、
+    宣言順が2番目以降の`StartupScene`が常に無視されていた。
+- Conformance: Matches
+- Known deviations: プリミティブごとの色/マテリアル指定は無し。起動後の動的な追加・削除は不可
+  (全レンダラー共通の「Create時にロースター確定」という制約を踏襲)。`UserGameProject`側の並行
+  コンポーネント体系(`MeshRenderer`/`RenderSync`)への配線は未実施。
+- Next action: Phase 9(VSIX Scene ViewをSceneModel描画へ)がこの`PrimitiveMesh`語彙を前提とする。

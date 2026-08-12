@@ -301,8 +301,8 @@ public sealed unsafe class StageRenderer:IDisposable {
         return Create(Hwnd,Width,Height,DeviceOptions,ShaderPath,StageMeshes,StageMaterials,StageObjects);
     }
 
-    /// <summary>An arbitrary unit tangent perpendicular to <paramref name="Normal"/> - correct for TBN orthonormality even though it isn't aligned to any real UV direction, which is fine when the bound normal texture is always the flat 1x1 fallback (see <see cref="MaterialTextureFormat"/> fallback images).</summary>
-    private static Vector4 ArbitraryTangentFor(Vector3 Normal){
+    /// <summary>An arbitrary unit tangent perpendicular to <paramref name="Normal"/> - correct for TBN orthonormality even though it isn't aligned to any real UV direction, which is fine when the bound normal texture is always the flat 1x1 fallback (see <see cref="MaterialTextureFormat"/> fallback images). Internal (not private) so <see cref="CSharpGameEngine.Runtime.Windows.RenderServer"/> can reuse the same untextured-mesh UV/tangent synthesis instead of duplicating it.</summary>
+    internal static Vector4 ArbitraryTangentFor(Vector3 Normal){
         Vector3 Reference=MathF.Abs(Normal.Y)<0.99f?Vector3.UnitY:Vector3.UnitX;
         Vector3 Tangent=Vector3.Normalize(Vector3.Cross(Reference,Normal));
         return new Vector4(Tangent,1f);

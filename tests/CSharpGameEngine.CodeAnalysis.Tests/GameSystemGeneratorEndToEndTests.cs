@@ -78,6 +78,151 @@ public sealed class GameSystemGeneratorEndToEndTests {
         Assert.Equal("OK",Result);
     }
 
+    /// <summary>
+    /// ADR-0040 Phase 6のLevelLoadアキュムレータ(RuntimeSystem.cs)が依拠する核心契約: 同一struct内で
+    /// 先に宣言したUpdateオーバーロードのArchetypeは、後に宣言した(互いに部分集合関係にない)
+    /// オーバーロードのArchetypeより1フレーム内で必ず先に処理される。private instance fieldでの
+    /// 状態共有(SubsetDispatch_FiresEveryMatchingOverloadOncePerEntityで実証済みの一般原理)と
+    /// 組み合わせて、「先に全部集めてから後で使う」というパターンを成立させる根拠。
+    /// </summary>
+    [Fact]
+    public void DeclarationOrderedOverloads_AccumulatorIsFullyPopulatedBeforeLaterOverloadRuns(){
+        var Source="""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Generated;
+            using Sample;
+
+            namespace Game;
+
+            internal struct AccumulatingSystem : ISystem
+            {
+                // 先に宣言: {Position} を集める。
+                public int Collected;
+
+                public bool Update(ref Position position, ref State state)
+                {
+                    Collected++;
+                    return true;
+                }
+
+                // 後に宣言: {Position} とは互いに素な {Velocity} 単体を担当し、集計済みの値を読む。
+                public int SnapshotAtConsumeTime;
+
+                public bool Update(ref Velocity velocity, ref State state)
+                {
+                    SnapshotAtConsumeTime = Collected;
+                    return true;
+                }
+            }
+
+            internal static class TestEntry
+            {
+                internal static string RunScenario()
+                {
+                    World world = new();
+                    State state = new(world) { Enabled = true };
+
+                    world.Create(new Position { X = 1f });
+                    world.Create(new Position { X = 2f });
+                    world.Create(new Position { X = 3f });
+                    world.Create(new Velocity { X = 0f });
+
+                    AccumulatingSystem system = new();
+                    GeneratedGameLoop.RunFrame(ref state, ref system);
+
+                    if (system.SnapshotAtConsumeTime != 3) return "FAIL:SnapshotAtConsumeTime=" + system.SnapshotAtConsumeTime;
+
+                    return "OK";
+                }
+            }
+            """;
+
+        Assembly assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
+        var Result=GameSystemGeneratorTestHelper.Invoke(assembly,"Game.TestEntry","RunScenario");
+
+        Assert.Equal("OK",Result);
+    }
+
+    /// <summary>
+    /// ADR-0040 Phase 6実装中に実際にハマった落とし穴の固定回帰テスト: Scene DSLのChildrenは自動で
+    /// Parentが付与され、Systemがオーバーロードで宣言したのと同じComponent部分集合であっても
+    /// (部分集合一致でUpdateは発火するが)実体のArchetypeは別物になる。Scene由来の追加Archetypeは
+    /// 実Systemが宣言した全Archetypeより<b>後に</b>登録される(ADR-0038)ため、上のテストと同じ
+    /// 「先に宣言したオーバーロードで集めてから後で読む」パターンは、対象がScene DSLの子ノード
+    /// (Parent付き)だと機能しない — 親と同じ階層(Rootまたは兄弟)に直接置く必要がある。
+    /// PrimitiveShowcaseScene.csがChildrenではなく独立したRootを使っているのはこのため。
+    /// </summary>
+    [Fact]
+    public void SceneChildNodeArchetype_IsProcessedAfterAllSystemDeclaredArchetypes(){
+        var ComponentsAndSystem="""
+            namespace Sample;
+            public struct Foo { }
+            public struct Trigger { }
+            """;
+        var Source="""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Generated;
+            using Sample;
+
+            namespace Game;
+
+            internal struct AccumulatingSystem : ISystem
+            {
+                // 先に宣言: {Position, Foo} を集める(LevelLoadの{Transform,PrimitiveMesh}に相当)。
+                public int Collected;
+
+                public bool Update(ref Position position, ref Foo foo, ref State state)
+                {
+                    Collected++;
+                    return true;
+                }
+
+                // 後に宣言: {Trigger} 単体を担当し、集計済みの値を読む(LevelLoadの{AppHost,Level}に相当)。
+                public int SnapshotAtConsumeTime;
+
+                public bool Update(ref Trigger trigger, ref State state)
+                {
+                    SnapshotAtConsumeTime = Collected;
+                    return true;
+                }
+            }
+
+            public partial class MainScene : IScene
+            {
+                public Node Root => new() {
+                    Components = [new Trigger()],
+                    // ここがChildrenなので子ノードには自動でParentが付与される -> {Position,Foo,Parent}。
+                    Children = [new Node { Components = [new Position(), new Foo()] }],
+                };
+            }
+
+            internal static class TestEntry
+            {
+                internal static string RunScenario()
+                {
+                    World world = new();
+                    world.InstantiateScene<MainScene>();
+                    State state = new(world) { Enabled = true };
+
+                    AccumulatingSystem system = new();
+                    GeneratedGameLoop.RunFrame(ref state, ref system);
+
+                    // {Position,Foo,Parent} はScene専用Archetypeとして{Trigger}より後ろに登録されるため、
+                    // Triggerオーバーロードが読む時点ではまだ処理されておらず0のまま(意図通りの挙動)。
+                    if (system.SnapshotAtConsumeTime != 0) return "FAIL:SnapshotAtConsumeTime=" + system.SnapshotAtConsumeTime;
+
+                    return "OK";
+                }
+            }
+            """;
+
+        Assembly assembly=GameSystemGeneratorTestHelper.CompileAndLoad(
+            [.. GameSystemGeneratorTestHelper.SceneDslSources,Components,ComponentsAndSystem,Source]);
+        var Result=GameSystemGeneratorTestHelper.Invoke(assembly,"Game.TestEntry","RunScenario");
+
+        Assert.Equal("OK",Result);
+    }
+
     [Fact]
     public void MoveArchetype_AppliesAtEndOfFrame_AndSwapBackKeepsIndicesValid(){
         var Source="""

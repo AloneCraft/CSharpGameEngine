@@ -118,6 +118,67 @@ public sealed class SceneDslGeneratorEndToEndTests {
         Assert.Equal(2,Invoke(Assembly,"InstantiateAndCountEntities"));
     }
 
+    /// <summary>
+    /// 実バグの回帰テスト(ADR-0040 Phase 6): <c>[StartupScene]</c>は複数のシーンが共存できる
+    /// (<c>GameSystemGenerator</c>が対象シーンをループしてそれぞれ合成Systemを1つずつ作る)。
+    /// 各合成Systemが唯一共有される<c>Bootstrap</c>Entityの<c>Bootstrap.Done</c>フィールドを直接
+    /// 読み書きしていた頃は、同一フレーム内で先に実行されたSystemが<c>Done=true</c>にした時点で
+    /// 残り全員が「もう実行済み」と誤認し、自分の<c>InstantiateScene</c>を一度も呼ばずに終わっていた
+    /// (宣言順が2番目以降の<c>StartupScene</c>が実機で常に無視されるという形で発覚)。生成された
+    /// 実際の<c>RunFrame</c>連鎖を通して、2番目のSceneも実際にインスタンス化されることを固定する。
+    /// </summary>
+    [Fact]
+    public void MultipleStartupScenes_BothInstantiateIndependently_ThroughTheGeneratedRunFrameChain(){
+        Assembly Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(
+            [.. GameSystemGeneratorTestHelper.SceneDslSources,Components,"""
+                using CSharpGameEngine.Entities;
+                using CSharpGameEngine.Generated;
+                using Sample;
+
+                namespace Game;
+
+                [StartupScene(Order = 0)]
+                public partial class SceneA : IScene {
+                    public Node Root => new() { Components = [new Light { Intensity = 1f }] };
+                }
+
+                [StartupScene(Order = 1)]
+                public partial class SceneB : IScene {
+                    public Node Root => new() { Components = [new Light { Intensity = 2f }] };
+                }
+
+                internal static class TestEntry
+                {
+                    internal static string RunScenario()
+                    {
+                        World world = new();
+                        world.Create(new Bootstrap());
+                        State state = new(world) { Enabled = true };
+
+                        var sceneAStartup = new SceneA__StartupSystem();
+                        var sceneBStartup = new SceneB__StartupSystem();
+                        var keepAlive = new KeepGeneratorAlive();
+                        GeneratedGameLoop.RunFrame(ref state, ref sceneAStartup, ref keepAlive, ref sceneBStartup);
+
+                        var count = 0;
+                        for (var i = 0; i < world.EntityArchetypeIndices.Count; i++)
+                        {
+                            if (world.IsAlive(new Entity(i))) count++;
+                        }
+
+                        // Bootstrapエンティティ自身(1) + SceneA/SceneBそれぞれ1エンティティずつ(2) = 3。
+                        // 2番目のStartupSceneが無視されるバグがあれば2のままになる。
+                        if (count != 3) return "FAIL:count=" + count;
+
+                        return "OK";
+                    }
+                }
+                """]);
+
+        var Result=GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.TestEntry","RunScenario");
+        Assert.Equal("OK",Result);
+    }
+
     [Fact]
     public void ComponentlessSceneStillInstantiates(){
         Assembly Assembly=CompileScene("""

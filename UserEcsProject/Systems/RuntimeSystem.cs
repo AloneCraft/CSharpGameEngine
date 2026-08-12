@@ -4,6 +4,7 @@ using CSharpGameEngine.Entities;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Import.Gltf;
 using CSharpGameEngine.Platform.Windows;
+using CSharpGameEngine.Runtime.Windows;
 
 namespace UserEcsProject.Systems;
 
@@ -28,17 +29,19 @@ namespace UserEcsProject.Systems;
 //   [StartupScene(Order = 0)]から合成されるSystemより必ず後に走る。
 //   ファイル名のアルファベット順には一切依存しない。
 //
-//   現在の出現順:
-//     Archetype0 {Bootstrap}              … MainScene(Scenes/MainScene.cs) 起動時に1回
-//     Archetype1 {AppHost}                … Windowの宣言形状(実体の入らない空ループ)
-//     Archetype2 {AppHost, Level}         … Window → LevelLoad
-//     Archetype3 {DirectionalLight}       … DirectionalLight
-//     Archetype4 {PointLight}             … PointLight
-//     Archetype5 {SpotLight}              … SpotLight
-//     Archetype6 {Transform, Renderable}  … TransformSync
-//     Archetype7 {FramePresent}           … Present(必ず最後)
-//     Archetype8 {AudioListener}          … AudioListenerSpawn(Archetype形状の宣言のみ、ディスパッチ無し)
-//     Archetype9 {AudioSource}            … AudioPlayback
+//   現在の出現順(ADR-0040 Phase 6でPrimitiveMesh用のLevelLoadオーバーロードを追加、既存の番号がずれた):
+//     Archetype0  {Bootstrap}                  … MainScene/PrimitiveShowcaseScene 起動時に1回
+//     Archetype1  {AppHost}                    … Windowの宣言形状(実体の入らない空ループ)
+//     Archetype2  {Transform, PrimitiveMesh}   … LevelLoad(1つ目のUpdateオーバーロード。{AppHost,Level}
+//                                                  より必ず先に宣言・登録すること — 詳細はLevelLoad内コメント参照)
+//     Archetype3  {AppHost, Level}             … LevelLoad(2つ目のUpdateオーバーロード)
+//     Archetype4  {DirectionalLight}           … DirectionalLight
+//     Archetype5  {PointLight}                 … PointLight
+//     Archetype6  {SpotLight}                  … SpotLight
+//     Archetype7  {Transform, Renderable}      … TransformSync
+//     Archetype8  {FramePresent}               … Present(必ず最後)
+//     Archetype9  {AudioListener}              … AudioListenerSpawn(Archetype形状の宣言のみ、ディスパッチ無し)
+//     Archetype10 {AudioSource}                … AudioPlayback
 //
 //   Archetype.Createは即時追加で、各ループは開始時にCountを読む。よってArchetype0が作った
 //   appエンティティはArchetype2のループ開始前に存在し、Archetype2が作ったdirectionalLight/
@@ -104,6 +107,28 @@ internal struct Window:ISystem {
 /// Program.csが残っていた本当の理由がこれだった。
 /// </summary>
 internal struct LevelLoad:ISystem {
+    // {Transform,PrimitiveMesh}用のこのオーバーロードは、必ず下の{AppHost,Level}用オーバーロードより
+    // 前に宣言すること。同一struct内のオーバーロード順序はArchetype登録順に直結し(ADR-0033決定事項1、
+    // GameSystemAnalyzer.cs参照)、生成ループはArchetype順が外側なので、先に宣言したオーバーロードの
+    // Archetypeは1フレーム内で必ず先に処理される。この2つのオーバーロードは互いに部分集合関係にない
+    // 別々のArchetypeを担当するため、宣言順を入れ替えるとコンパイルエラー無しで静かに
+    // pendingPrimitivesが空のままStageRenderer.Createへ渡り、Scene DSLで宣言したPrimitiveMeshが
+    // 一切描画されなくなる(ADR-0040 Phase 6)。
+    private List<(Transform Transform,PrimitiveMesh Mesh)>?pendingPrimitives;
+    private bool rosterCaptured;
+
+    public bool Update(ref Transform transform,ref PrimitiveMesh mesh,ref State state){
+        if(rosterCaptured){
+            // PrimitiveMeshはStageRenderer.Create時に確定する起動専用のロースターの一部であり、
+            // このリポジトリの全レンダラーに共通する「オブジェクト集合はCreate時に固定」という制約を
+            // そのまま踏襲する(起動後の動的追加は非対応)。
+            return true;
+        }
+
+        (pendingPrimitives??=[]).Add((transform,mesh));
+        return true;
+    }
+
     public bool Update(ref AppHost App,ref Level level,ref State state){
         if(level.Loaded){
             // StageRenderer.SetCameraは「ダブルバッファされた2つのフレームスロットのうち今回の
@@ -121,13 +146,23 @@ internal struct LevelLoad:ISystem {
         var GlbPath=Path.Combine(AppContext.BaseDirectory,level.Path);
         StageSceneData Scene=StageSceneData.Load(GlbPath);
 
+        // Scene DSLが宣言した{Transform,PrimitiveMesh}エンティティは、上のオーバーロードが同じ
+        // フレーム内で先に処理済みなので、この時点でpendingPrimitivesは確定している。.glbロースターに
+        // 連結して1回のStageRenderer.Createへ渡す(2つ目のRendererは作らない — 同一HWNDへの2つの
+        // SwapChainは破綻しうる上、Camera/Light/RenderFrame呼び出しを二重配線する必要が生じるため)。
+        List<(Transform Transform,PrimitiveMesh Mesh)>Pending=pendingPrimitives??=[];
+        (StageMeshCreateInfo[]PrimitiveMeshes,StageMaterialCreateInfo[]PrimitiveMaterials,StageObjectCreateInfo[]PrimitiveObjects)=
+            RenderServer.BuildPrimitiveRoster([.. Pending.Select(P=>P.Mesh.Type)],Scene.Meshes.Length,Scene.Materials.Length);
+
         StageRenderer Renderer=StageRenderer.Create(
             window.Handle,
             window.ClientWidth,
             window.ClientHeight,
             new GraphicsDeviceOptions(),
             Path.Combine(AppContext.BaseDirectory,level.ShaderPath),
-            Scene.Meshes,Scene.Materials,Scene.Objects);
+            [.. Scene.Meshes,.. PrimitiveMeshes],
+            [.. Scene.Materials,.. PrimitiveMaterials],
+            [.. Scene.Objects,.. PrimitiveObjects]);
 
         window.Resized+=(Width,Height)=>Renderer.Resize(Width,Height);
         Renderer.SetCamera(level.Camera);
@@ -187,6 +222,18 @@ internal struct LevelLoad:ISystem {
                 },
                 new Renderable { Renderer=Renderer,ObjectIndex=objectIndex });
         }
+
+        // 元の{Transform,PrimitiveMesh}エンティティ自体は変更・破棄しない(何も後から読まないため
+        // 無害)。Sun/PointLight/SpotLightと同じ「値渡しで置いてあったものをここで実Entity化する」
+        // パターンで、.glbオブジェクトに続くObjectIndexを持つ新しい{Transform,Renderable}エンティティを
+        // 別途作る(MoveArchetypeは使わない — 使ってもObjectIndex確定前に全プリミティブを列挙すると
+        // いう同じ問題を移すだけで解決しない)。
+        for(var i=0;i<Pending.Count;i++){
+            state.World.Create(Pending[i].Transform,new Renderable { Renderer=Renderer,ObjectIndex=Scene.Objects.Length+i });
+        }
+
+        rosterCaptured=true;
+        pendingPrimitives=null;
 
         state.World.Create(new FramePresent { Window=window,Renderer=Renderer,AudioEngine=AudioEngine });
 
