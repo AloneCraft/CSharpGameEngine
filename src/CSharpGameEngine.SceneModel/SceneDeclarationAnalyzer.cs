@@ -16,6 +16,20 @@ namespace CSharpGameEngine.SceneAnalysis;
 /// </para>
 /// </summary>
 internal static class SceneDeclarationAnalyzer {
+    /// <summary>
+    /// Scene宣言かもしれない構文ノードの安価な事前判定。<c>IScene</c>には属性が無いため
+    /// <c>ForAttributeWithMetadataName</c>が使えず、<c>ISystem</c>と同じくbase listを持つクラス宣言を
+    /// 拾ってから意味解析で確認するしかない。
+    ///
+    /// <para>
+    /// SGとVSIXの両方がこの述語を使う。片方だけが別の絞り込みをすると「SGは見つけるがエディターは
+    /// 見つけない」Sceneが生まれるため、共有ソース側に置いている。
+    /// </para>
+    /// </summary>
+    internal static bool IsSceneCandidate(SyntaxNode Node){
+        return Node is ClassDeclarationSyntax { BaseList.Types.Count:>0 };
+    }
+
     internal static SceneModel Analyze(INamedTypeSymbol ClassSymbol,Compilation Compilation,CancellationToken CancellationToken){
         ImmutableArray<Diagnostic>.Builder Diagnostics=ImmutableArray.CreateBuilder<Diagnostic>();
         var ClassFullyQualifiedName=ComputeClassFullyQualifiedName(ClassSymbol);

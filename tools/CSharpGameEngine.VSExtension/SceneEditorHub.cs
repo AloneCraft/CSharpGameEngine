@@ -1,4 +1,5 @@
 using System;
+using CSharpGameEngine.SceneAnalysis;
 
 namespace CSharpGameEngine.VSExtension;
 
@@ -32,4 +33,34 @@ internal static class SceneEditorHub {
     public static void PublishSelection(Guid?NodeId)=>SelectedNodeChanged?.Invoke(NodeId);
 
     public static void RequestReload()=>ReloadRequested?.Invoke();
+
+    // ------------------------------------------------------------------------------------------
+    // ADR-0040: the Scene DSL channel. C# source is the single source of truth, so the model here
+    // comes from live Roslyn rather than a .scene file.
+    //
+    // This runs alongside the SceneFile channel above rather than replacing it outright: the 3D
+    // Scene view still renders from .scene until it is moved onto SceneModel too. Keeping both
+    // channels for exactly one step means neither the Hierarchy nor the Scene view is ever broken
+    // mid-migration. The SceneFile channel and everything above this line go away with that step.
+    // ------------------------------------------------------------------------------------------
+
+    /// <summary>Raised whenever the analysed scene changes - including to null, when the active document declares none.</summary>
+    public static event Action<SceneModel?>?SceneModelChanged;
+
+    /// <summary>Selection is keyed by <see cref="NodePath"/>: names are optional and not unique, and text spans move on every edit.</summary>
+    public static event Action<NodePath?>?SelectedNodePathChanged;
+
+    public static SceneModel?ActiveSceneModel { get;private set;}
+
+    public static NodePath?SelectedNodePath { get;private set;}
+
+    public static void PublishSceneModel(SceneModel?Model){
+        ActiveSceneModel=Model;
+        SceneModelChanged?.Invoke(Model);
+    }
+
+    public static void PublishSelectedNodePath(NodePath?Path){
+        SelectedNodePath=Path;
+        SelectedNodePathChanged?.Invoke(Path);
+    }
 }

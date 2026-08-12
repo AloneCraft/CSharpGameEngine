@@ -27,6 +27,11 @@
          Bake the repo root known at build time into the assembly instead; OpenViewerCommand
          still validates it against the marker file at runtime before trusting it. -->
     <CSharpGameEngineRepoRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\'))</CSharpGameEngineRepoRoot>
+
+    <!-- Release tracking for the Scene DSL descriptors is owned by CSharpGameEngine.CodeAnalysis,
+         which is where they actually ship as an analyzer. Tracking them again here would create a
+         second list to keep in sync. -->
+    <NoWarn>$(NoWarn);RS2008</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -62,6 +67,33 @@
          since-removed transitive SharpGLTF.Core dependency; kept pinned since it's already proven
          to work on net472. -->
     <PackageReference Include="System.Text.Json" Version="10.0.1" />
+
+    <!-- ADR-0040: the Scene editor reads scenes from live Roslyn instead of a .scene file, so this
+         project compiles against Roslyn and the VisualStudioWorkspace. ExcludeAssets="runtime" is
+         essential - devenv.exe already hosts Roslyn, and shipping our own copy inside the .vsix
+         would load a second set of the same assemblies. Version 4.14.0 matches what VS 17.14 hosts
+         and what CSharpGameEngine.CodeAnalysis compiles against, so the shared source behaves
+         identically in both hosts. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" ExcludeAssets="runtime" />
+    <!-- VisualStudioWorkspace lives here, and it is not part of the Microsoft.VisualStudio.SDK
+         metapackage (confirmed by CS0234 on Microsoft.VisualStudio.LanguageServices before adding
+         it). Versioned with Roslyn, not with the VS SDK. -->
+    <PackageReference Include="Microsoft.VisualStudio.LanguageServices" Version="4.14.0" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <!--
+    ADR-0040: the one and only Scene analysis implementation, shared as source with
+    CSharpGameEngine.CodeAnalysis (the Source Generator). Both hosts run the same code on their own
+    Roslyn instance - the SG on the compiler's Compilation, this project on the
+    VisualStudioWorkspace's - which is what makes "the SG accepts it but the editor breaks" a
+    structurally impossible class of bug. It is linked rather than referenced because an analyzer
+    cannot reliably carry a dependency DLL, and because a DLL here would need its own Roslyn.
+  -->
+  <ItemGroup>
+    <Compile Include="..\..\src\CSharpGameEngine.SceneModel\**\*.cs"
+             Exclude="..\..\src\CSharpGameEngine.SceneModel\obj\**\*.cs;..\..\src\CSharpGameEngine.SceneModel\bin\**\*.cs"
+             Link="SceneModel\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>

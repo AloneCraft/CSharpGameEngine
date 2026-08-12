@@ -22,12 +22,10 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// </summary>
 internal static class SceneModelBridge {
     /// <summary>
-    /// <c>IScene</c>には属性が無いため<c>ForAttributeWithMetadataName</c>が使えず、
-    /// <c>ISystem</c>と同じく安価な構文プレディケートで絞ってから意味解析で確認する。
+    /// 構文レベルの事前判定は共有ソース側に置いてある。VSIXも同じ述語で候補を絞るため、片方だけが
+    /// 別の絞り込みをして「SGは見つけるがエディターは見つけない」Sceneが生まれることがない。
     /// </summary>
-    internal static bool IsSceneCandidate(SyntaxNode Node){
-        return Node is ClassDeclarationSyntax { BaseList.Types.Count:>0 };
-    }
+    internal static bool IsSceneCandidate(SyntaxNode Node)=>SceneDeclarationAnalyzer.IsSceneCandidate(Node);
 
     internal static SceneEmitModel?TryAnalyze(GeneratorSyntaxContext Ctx,CancellationToken CancellationToken){
         if(Ctx.SemanticModel.GetDeclaredSymbol(Ctx.Node,CancellationToken) is not INamedTypeSymbol Symbol

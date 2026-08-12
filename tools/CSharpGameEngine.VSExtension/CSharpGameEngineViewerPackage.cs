@@ -35,6 +35,8 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
 
     private ToggleFabWatchCommand?FabWatchCommand;
     private AssetMetaWatcher?AssetMetaWatcher;
+    private SceneWorkspaceService?SceneWorkspace;
+    private ActiveDocumentTracker?DocumentTracker;
 
     protected override async Task InitializeAsync(CancellationToken cancellationToken,IProgress<ServiceProgressData>progress){
         await this.JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
@@ -48,6 +50,16 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
 
         RegisterEditorFactory(new GlbFbxPreviewEditorFactory());
         RegisterEditorFactory(new SceneFileEditorFactory());
+
+        // ADR-0040: the Scene editor reads scenes from live Roslyn. Both of these degrade to null
+        // when the managed language service is unavailable, in which case the Hierarchy simply shows
+        // its "open a scene file" message instead of failing package load.
+        SceneWorkspace=SceneWorkspaceService.Initialize();
+
+        if(SceneWorkspace is not null){
+            SceneWorkspace.ModelChanged+=SceneEditorHub.PublishSceneModel;
+            DocumentTracker=ActiveDocumentTracker.Start(SceneWorkspace);
+        }
 
         AssetMetaWatcher=AssetMetaWatcher.StartIfProjectExists();
         await TryAutoOpenUserEcsProjectAsync();
@@ -116,6 +128,12 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
         if(Disposing){
             FabWatchCommand?.Dispose();
             AssetMetaWatcher?.Dispose();
+            DocumentTracker?.Dispose();
+
+            if(SceneWorkspace is not null){
+                SceneWorkspace.ModelChanged-=SceneEditorHub.PublishSceneModel;
+                SceneWorkspace.Dispose();
+            }
         }
 
         base.Dispose(Disposing);

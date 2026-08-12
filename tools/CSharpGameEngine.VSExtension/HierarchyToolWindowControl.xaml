@@ -4,13 +4,41 @@
              mc:Ignorable="d"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:vsshell="clr-namespace:Microsoft.VisualStudio.Shell;assembly=Microsoft.VisualStudio.Shell.15.0"
+             Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"
+             Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
              d:DesignHeight="400" d:DesignWidth="300">
     <Grid>
-        <TreeView x:Name="Tree" SelectedItemChanged="Tree_SelectedItemChanged"
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Shown when the active document declares no IScene, so an empty tree is never ambiguous
+             between "no scene here" and "the scene failed to load". -->
+        <TextBlock x:Name="EmptyMessage" Grid.Row="0" Margin="8"
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource {x:Static vsshell:VsBrushes.GrayTextKey}}"
+                   Text="IScene を実装したクラスを含む .cs ファイルを開いてください。" />
+
+        <TreeView x:Name="Tree" Grid.Row="1" SelectedItemChanged="Tree_SelectedItemChanged"
+                  Background="Transparent" BorderThickness="0"
                   AllowDrop="True" DragEnter="Tree_DragEnterOrOver" DragOver="Tree_DragEnterOrOver" Drop="Tree_Drop">
+            <TreeView.ItemContainerStyle>
+                <!-- Two-way so the user's own expand/collapse and the code-driven selection restore
+                     stay in sync across the rebuild that follows every keystroke. -->
+                <Style TargetType="TreeViewItem">
+                    <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                    <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
+                </Style>
+            </TreeView.ItemContainerStyle>
             <TreeView.ItemTemplate>
                 <HierarchicalDataTemplate ItemsSource="{Binding Children}">
-                    <TextBlock Text="{Binding Node.Name}" />
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding DisplayName}" />
+                        <TextBlock Text="{Binding ComponentSummary}" Margin="8,0,0,0"
+                                   Foreground="{DynamicResource {x:Static vsshell:VsBrushes.GrayTextKey}}" />
+                    </StackPanel>
                 </HierarchicalDataTemplate>
             </TreeView.ItemTemplate>
         </TreeView>
