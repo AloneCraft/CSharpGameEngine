@@ -86,6 +86,46 @@ public struct Camera {
         };
     }
 
+    /// <summary>
+    /// An orbit camera framed so the given world-space bounds fit entirely in view, seen from a
+    /// fixed elevated diagonal angle. Reuses the exact (1,0.75,1) eye direction and
+    /// Radius/sin(FovY/2)*1.5 distance relationship already used by <c>ModelRenderer</c>'s thumbnail
+    /// camera and the VSIX <c>SceneRenderer</c>/<c>VorticeRenderer</c> preview cameras, instead of
+    /// inventing a differently-angled fifth "frame everything" convention. Since <see cref="Camera"/>
+    /// has no raw eye-position constructor, the direction is converted into this type's orbit
+    /// (<see cref="Target"/>/<see cref="Yaw"/>/<see cref="Pitch"/>/<see cref="Distance"/>)
+    /// representation by inverting <see cref="GetForward"/>'s documented
+    /// Forward=(CosPitch*SinYaw, SinPitch, CosPitch*CosYaw) formula.
+    /// </summary>
+    [SceneFactory]
+    public static Camera CreateBoundsFit(Vector3 BoundsMin,Vector3 BoundsMax){
+        Vector3 Target=(BoundsMin+BoundsMax)/2f;
+        float Radius=MathF.Max(Vector3.Distance(BoundsMin,BoundsMax)/2f,0.001f);
+        float FovY=MathF.PI/4f;
+        // Distance=Radius/sin(FovY/2) is the exact tangent distance at which the enclosing sphere
+        // (radius=half the AABB diagonal, so it bounds the box from every direction, not just this
+        // one) fills the vertical FOV edge-to-edge - true regardless of view direction, since a
+        // sphere's silhouette is the same from anywhere outside it. *1.1f only adds a small safety
+        // margin over that exact value, unlike ModelRenderer/VorticeRenderer's *1.5f/*3.0f (tuned for
+        // arbitrary-rotation thumbnail previews); a fixed demo angle can sit close to the tangent
+        // distance and still keep every corner of the level in frame.
+        float Distance=Radius/MathF.Sin(FovY/2f)*1.1f;
+
+        Vector3 Forward=-Vector3.Normalize(new Vector3(1f,0.75f,1f));
+
+        return new Camera {
+            Target=Target,
+            Yaw=MathF.Atan2(Forward.X,Forward.Z),
+            Pitch=MathF.Asin(Forward.Y),
+            Distance=Distance,
+            FovYRadians=FovY,
+            NearZ=0.1f,
+            FarZ=Distance+(Radius*4f),
+            PitchClampMinRadians=MinPitchRadians,
+            PitchClampMaxRadians=MaxPitchRadians,
+        };
+    }
+
     /// <summary>Full 3D forward direction (includes pitch), from the eye toward the target.</summary>
     public readonly Vector3 GetForward(){
         // Child (pitch, in the camera's un-yawed local frame) applied first, then parent (yaw) -

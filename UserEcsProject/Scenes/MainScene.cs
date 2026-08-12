@@ -50,7 +50,12 @@ internal partial class MainScene:IScene {
             new Level {
                 Path="Assets/Stage/Lvl_FirstPerson/Lvl_FirstPerson.glb",
                 ShaderPath="Shaders/Stage.hlsl",
-                Camera=Camera.CreateFirstPerson(new Vector3(0f,4.62f,0f)),
+
+                // Lvl_FirstPerson.glbの実測ワールド境界(SM_SkySphereを除く、部屋本体の全パーツ:
+                // 床・壁・ランプ・シリンダー等55オブジェクト)。デモとして部屋全体を1画面に収める
+                // ため、以前の一人称視点(CreateFirstPerson、部屋の内部に立って一方向を見る)から、
+                // 全パーツを俯瞰する軌道カメラ(CreateBoundsFit)へ変更した。
+                Camera=Camera.CreateBoundsFit(new Vector3(-20f,-1f,-20f),new Vector3(20f,4f,20f)),
 
                 Sun=new UserEcsProject.DirectionalLight {
                     DirectionTowardLightX=0.4f,

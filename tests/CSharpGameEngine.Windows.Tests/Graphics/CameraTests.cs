@@ -179,6 +179,42 @@ public class CameraTests {
         }
     }
 
+    [Fact]
+    public void CreateBoundsFit_TargetsBoundsCenter(){
+        Camera camera=Camera.CreateBoundsFit(new Vector3(-20,-1,-20),new Vector3(20,4,20));
+
+        AssertApprox(0f,camera.Target.X);
+        AssertApprox(1.5f,camera.Target.Y);
+        AssertApprox(0f,camera.Target.Z);
+    }
+
+    [Fact]
+    public void CreateBoundsFit_EyeOffsetFromTarget_MatchesTheSharedDiagonalDirection(){
+        // Same (1,0.75,1) eye direction ModelRenderer's thumbnail camera and the VSIX
+        // SceneRenderer/VorticeRenderer preview cameras already use.
+        Camera camera=Camera.CreateBoundsFit(new Vector3(-1,-1,-1),new Vector3(1,1,1));
+
+        Vector3 EyeOffset=Vector3.Normalize(camera.GetEyePosition()-camera.Target);
+        Vector3 Expected=Vector3.Normalize(new Vector3(1f,0.75f,1f));
+
+        AssertApprox(Expected.X,EyeOffset.X);
+        AssertApprox(Expected.Y,EyeOffset.Y);
+        AssertApprox(Expected.Z,EyeOffset.Z);
+    }
+
+    [Fact]
+    public void CreateBoundsFit_DistanceIsFarEnoughThatTheWholeBoundingSphereFitsWithinTheFieldOfView(){
+        Vector3 Min=new(-20,-1,-20);
+        Vector3 Max=new(20,4,20);
+        Camera camera=Camera.CreateBoundsFit(Min,Max);
+
+        float Radius=Vector3.Distance(Min,Max)/2f;
+        float HalfAngleToBoundingSphere=MathF.Asin(Radius/camera.Distance);
+
+        Assert.True(HalfAngleToBoundingSphere<camera.FovYRadians/2f,
+            $"Bounding sphere half-angle {HalfAngleToBoundingSphere} must be smaller than the camera's half FOV {camera.FovYRadians/2f}.");
+    }
+
     private static void AssertApprox(float Expected,float Actual,float Tolerance=1e-4f){
         Assert.True(MathF.Abs(Expected-Actual)<=Tolerance, $"Expected {Expected} but got {Actual} (tolerance {Tolerance}).");
     }
