@@ -34,8 +34,8 @@ public static class RenderServer {
         }
 
         StageMeshCreateInfo[]Meshes=new StageMeshCreateInfo[DistinctTypes.Count];
-        for(var i=0;i<DistinctTypes.Count;i++){
-            Meshes[i]=ToStageMesh(CreateProceduralMesh(DistinctTypes[i]));
+        for(var Index=0;Index<DistinctTypes.Count;Index++){
+            Meshes[Index]=ToStageMesh(CreateProceduralMesh(DistinctTypes[Index]));
         }
 
         StageMaterialCreateInfo[]Materials=[
@@ -43,9 +43,9 @@ public static class RenderServer {
         ];
 
         StageObjectCreateInfo[]Objects=new StageObjectCreateInfo[Types.Count];
-        for(var i=0;i<Types.Count;i++){
-            Objects[i]=new StageObjectCreateInfo {
-                MeshIndex=MeshIndexOffset+MeshIndexByType[Types[i]],
+        for(var Index=0;Index<Types.Count;Index++){
+            Objects[Index]=new StageObjectCreateInfo {
+                MeshIndex=MeshIndexOffset+MeshIndexByType[Types[Index]],
                 MaterialIndex=MaterialIndexOffset,
             };
         }
@@ -71,8 +71,8 @@ public static class RenderServer {
         var VertexCount=Mesh.Positions.Length;
         Vector2[]Uvs=new Vector2[VertexCount];
         Vector4[]Tangents=new Vector4[VertexCount];
-        for(var i=0;i<VertexCount;i++){
-            Tangents[i]=StageRenderer.ArbitraryTangentFor(Mesh.Normals[i]);
+        for(var Index=0;Index<VertexCount;Index++){
+            Tangents[Index]=StageRenderer.ArbitraryTangentFor(Mesh.Normals[Index]);
         }
 
         return new StageMeshCreateInfo { Positions=Mesh.Positions,Normals=Mesh.Normals,Tangents=Tangents,Uvs=Uvs,Indices=Mesh.Indices };

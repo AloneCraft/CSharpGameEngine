@@ -112,20 +112,20 @@ internal struct LevelLoad:ISystem {
     // GameSystemAnalyzer.cs参照)、生成ループはArchetype順が外側なので、先に宣言したオーバーロードの
     // Archetypeは1フレーム内で必ず先に処理される。この2つのオーバーロードは互いに部分集合関係にない
     // 別々のArchetypeを担当するため、宣言順を入れ替えるとコンパイルエラー無しで静かに
-    // pendingPrimitivesが空のままStageRenderer.Createへ渡り、Scene DSLで宣言したPrimitiveMeshが
+    // PendingPrimitivesが空のままStageRenderer.Createへ渡り、Scene DSLで宣言したPrimitiveMeshが
     // 一切描画されなくなる(ADR-0040 Phase 6)。
-    private List<(Transform Transform,PrimitiveMesh Mesh)>?pendingPrimitives;
-    private bool rosterCaptured;
+    private List<(Transform Transform,PrimitiveMesh Mesh)>?PendingPrimitives;
+    private bool RosterCaptured;
 
     public bool Update(ref Transform transform,ref PrimitiveMesh mesh,ref State state){
-        if(rosterCaptured){
+        if(RosterCaptured){
             // PrimitiveMeshはStageRenderer.Create時に確定する起動専用のロースターの一部であり、
             // このリポジトリの全レンダラーに共通する「オブジェクト集合はCreate時に固定」という制約を
             // そのまま踏襲する(起動後の動的追加は非対応)。
             return true;
         }
 
-        (pendingPrimitives??=[]).Add((transform,mesh));
+        (PendingPrimitives??=[]).Add((transform,mesh));
         return true;
     }
 
@@ -147,10 +147,10 @@ internal struct LevelLoad:ISystem {
         StageSceneData Scene=StageSceneData.Load(GlbPath);
 
         // Scene DSLが宣言した{Transform,PrimitiveMesh}エンティティは、上のオーバーロードが同じ
-        // フレーム内で先に処理済みなので、この時点でpendingPrimitivesは確定している。.glbロースターに
+        // フレーム内で先に処理済みなので、この時点でPendingPrimitivesは確定している。.glbロースターに
         // 連結して1回のStageRenderer.Createへ渡す(2つ目のRendererは作らない — 同一HWNDへの2つの
         // SwapChainは破綻しうる上、Camera/Light/RenderFrame呼び出しを二重配線する必要が生じるため)。
-        List<(Transform Transform,PrimitiveMesh Mesh)>Pending=pendingPrimitives??=[];
+        List<(Transform Transform,PrimitiveMesh Mesh)>Pending=PendingPrimitives??=[];
         (StageMeshCreateInfo[]PrimitiveMeshes,StageMaterialCreateInfo[]PrimitiveMaterials,StageObjectCreateInfo[]PrimitiveObjects)=
             RenderServer.BuildPrimitiveRoster([.. Pending.Select(P=>P.Mesh.Type)],Scene.Meshes.Length,Scene.Materials.Length);
 
@@ -228,12 +228,12 @@ internal struct LevelLoad:ISystem {
         // パターンで、.glbオブジェクトに続くObjectIndexを持つ新しい{Transform,Renderable}エンティティを
         // 別途作る(MoveArchetypeは使わない — 使ってもObjectIndex確定前に全プリミティブを列挙すると
         // いう同じ問題を移すだけで解決しない)。
-        for(var i=0;i<Pending.Count;i++){
-            state.World.Create(Pending[i].Transform,new Renderable { Renderer=Renderer,ObjectIndex=Scene.Objects.Length+i });
+        for(var Index=0;Index<Pending.Count;Index++){
+            state.World.Create(Pending[Index].Transform,new Renderable { Renderer=Renderer,ObjectIndex=Scene.Objects.Length+Index });
         }
 
-        rosterCaptured=true;
-        pendingPrimitives=null;
+        RosterCaptured=true;
+        PendingPrimitives=null;
 
         state.World.Create(new FramePresent { Window=window,Renderer=Renderer,AudioEngine=AudioEngine });
 

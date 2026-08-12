@@ -151,24 +151,24 @@ public sealed class SceneDslGeneratorEndToEndTests {
                 {
                     internal static string RunScenario()
                     {
-                        World world = new();
-                        world.Create(new Bootstrap());
-                        State state = new(world) { Enabled = true };
+                        World World = new();
+                        World.Create(new Bootstrap());
+                        State State = new(World) { Enabled = true };
 
-                        var sceneAStartup = new SceneA__StartupSystem();
-                        var sceneBStartup = new SceneB__StartupSystem();
-                        var keepAlive = new KeepGeneratorAlive();
-                        GeneratedGameLoop.RunFrame(ref state, ref sceneAStartup, ref keepAlive, ref sceneBStartup);
+                        var SceneAStartup = new SceneA__StartupSystem();
+                        var SceneBStartup = new SceneB__StartupSystem();
+                        var KeepAlive = new KeepGeneratorAlive();
+                        GeneratedGameLoop.RunFrame(ref State, ref SceneAStartup, ref KeepAlive, ref SceneBStartup);
 
-                        var count = 0;
-                        for (var i = 0; i < world.EntityArchetypeIndices.Count; i++)
+                        var Count = 0;
+                        for (var Index = 0; Index < World.EntityArchetypeIndices.Count; Index++)
                         {
-                            if (world.IsAlive(new Entity(i))) count++;
+                            if (World.IsAlive(new Entity(Index))) Count++;
                         }
 
                         // Bootstrapエンティティ自身(1) + SceneA/SceneBそれぞれ1エンティティずつ(2) = 3。
                         // 2番目のStartupSceneが無視されるバグがあれば2のままになる。
-                        if (count != 3) return "FAIL:count=" + count;
+                        if (Count != 3) return "FAIL:count=" + Count;
 
                         return "OK";
                     }
