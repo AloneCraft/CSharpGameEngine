@@ -171,12 +171,12 @@ public sealed unsafe class ModelRenderer:IDisposable {
         CreateDsvHeap();
         CreateDepthBuffer(Width,Height);
 
-        for(var i=0;i<FrameCount;i++){
+        for(var I=0;I<FrameCount;I++){
             ID3D12CommandAllocator*Allocator;
             D3D12Diagnostics.EnsureSuccess(
                 Device.Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,__uuidof<ID3D12CommandAllocator>(),(void**)&Allocator),
                 "ID3D12Device::CreateCommandAllocator","creating a frame command allocator");
-            CommandAllocators[i]=Allocator;
+            CommandAllocators[I]=Allocator;
         }
 
         ID3D12GraphicsCommandList*CommandList;
@@ -259,16 +259,16 @@ public sealed unsafe class ModelRenderer:IDisposable {
     private void CreateRenderTargetViews(){
         D3D12_CPU_DESCRIPTOR_HANDLE RtvBase=RtvHeap->GetCPUDescriptorHandleForHeapStart();
 
-        for(uint i=0;i<FrameCount;i++){
+        for(uint I=0;I<FrameCount;I++){
             ID3D12Resource*BackBuffer;
             D3D12Diagnostics.EnsureSuccess(
-                SwapChain->GetBuffer(i,__uuidof<ID3D12Resource>(),(void**)&BackBuffer),
-                "IDXGISwapChain3::GetBuffer","retrieving a back buffer", $"buffer[{i}]");
+                SwapChain->GetBuffer(I,__uuidof<ID3D12Resource>(),(void**)&BackBuffer),
+                "IDXGISwapChain3::GetBuffer","retrieving a back buffer", $"buffer[{I}]");
 
-            D3D12_CPU_DESCRIPTOR_HANDLE RtvHandle=new(RtvBase,(int)i,RtvDescriptorSize);
+            D3D12_CPU_DESCRIPTOR_HANDLE RtvHandle=new(RtvBase,(int)I,RtvDescriptorSize);
             Device!.Device->CreateRenderTargetView(BackBuffer,pDesc:null,RtvHandle);
 
-            BackBuffers[i]=BackBuffer;
+            BackBuffers[I]=BackBuffer;
         }
     }
 
@@ -475,8 +475,8 @@ public sealed unsafe class ModelRenderer:IDisposable {
     private void CreateVertexBuffer(IReadOnlyList<Vector3>Positions,IReadOnlyList<Vector3>Normals,IReadOnlyList<Vector2>Uvs){
         var VertexCount=Positions.Count;
         Vertex[]Vertices=new Vertex[VertexCount];
-        for(var i=0;i<VertexCount;i++){
-            Vertices[i]=new Vertex { Position=Positions[i],Normal=Normals[i],Uv=Uvs[i]};
+        for(var I=0;I<VertexCount;I++){
+            Vertices[I]=new Vertex { Position=Positions[I],Normal=Normals[I],Uv=Uvs[I]};
         }
 
         var BufferSize=(uint)(sizeof(Vertex)*VertexCount);
@@ -591,8 +591,8 @@ public sealed unsafe class ModelRenderer:IDisposable {
             var SrcRowPitch=(uint)Image.Width*4;
             var DstRowPitch=Footprint.Footprint.RowPitch;
             fixed(byte*PSrc=Image.Pixels){
-                for(uint y=0;y<Image.Height;y++){
-                    Unsafe.CopyBlock(Mapped+(y*DstRowPitch),PSrc+(y*SrcRowPitch),SrcRowPitch);
+                for(uint Y=0;Y<Image.Height;Y++){
+                    Unsafe.CopyBlock(Mapped+(Y*DstRowPitch),PSrc+(Y*SrcRowPitch),SrcRowPitch);
                 }
             }
             Staging->Unmap(0,null);
@@ -716,14 +716,14 @@ public sealed unsafe class ModelRenderer:IDisposable {
         // See TriangleRenderer.Resize / ADR-0003 §8: ResizeBuffers restarts the swap chain's
         // back-buffer index cycle, which would otherwise desynchronize the per-slot fence values.
         var SyncedFenceValue=FenceValues[FrameIndex];
-        for(var i=0;i<FrameCount;i++){
-            FenceValues[i]=SyncedFenceValue;
+        for(var I=0;I<FrameCount;I++){
+            FenceValues[I]=SyncedFenceValue;
         }
 
-        for(var i=0;i<FrameCount;i++){
-            if(BackBuffers[i]!=null){
-                _=BackBuffers[i]->Release();
-                BackBuffers[i]=null;
+        for(var I=0;I<FrameCount;I++){
+            if(BackBuffers[I]!=null){
+                _=BackBuffers[I]->Release();
+                BackBuffers[I]=null;
             }
         }
 
@@ -763,8 +763,8 @@ public sealed unsafe class ModelRenderer:IDisposable {
         D3D12_CPU_DESCRIPTOR_HANDLE DsvHandle=DsvHeap->GetCPUDescriptorHandleForHeapStart();
         CommandList->OMSetRenderTargets(1,&RtvHandle,FALSE,&DsvHandle);
 
-        Vector4 clearColor=ClearColorVector;
-        CommandList->ClearRenderTargetView(RtvHandle,(float*)&clearColor,0,null);
+        Vector4 ClearColor=ClearColorVector;
+        CommandList->ClearRenderTargetView(RtvHandle,(float*)&ClearColor,0,null);
         CommandList->ClearDepthStencilView(DsvHandle,D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH,1.0f,0,0,null);
 
         CommandList->SetGraphicsRootSignature(RootSignature);
@@ -802,8 +802,8 @@ public sealed unsafe class ModelRenderer:IDisposable {
             D3D12_RESOURCE_BARRIER ToPresent=D3D12_RESOURCE_BARRIER.InitTransition(BackBuffer,D3D12_RESOURCE_STATE_COPY_SOURCE,D3D12_RESOURCE_STATE_PRESENT);
             CommandList->ResourceBarrier(1,&ToPresent);
         } else {
-            D3D12_RESOURCE_BARRIER toPresent=D3D12_RESOURCE_BARRIER.InitTransition(BackBuffer,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_PRESENT);
-            CommandList->ResourceBarrier(1,&toPresent);
+            D3D12_RESOURCE_BARRIER ToPresent=D3D12_RESOURCE_BARRIER.InitTransition(BackBuffer,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_PRESENT);
+            CommandList->ResourceBarrier(1,&ToPresent);
         }
 
         D3D12Diagnostics.EnsureSuccess(CommandList->Close(),"ID3D12GraphicsCommandList::Close","closing the frame command list");
@@ -965,10 +965,10 @@ public sealed unsafe class ModelRenderer:IDisposable {
             CommandList=null;
         }
 
-        for(var i=0;i<FrameCount;i++){
-            if(CommandAllocators[i]!=null){
-                _=CommandAllocators[i]->Release();
-                CommandAllocators[i]=null;
+        for(var I=0;I<FrameCount;I++){
+            if(CommandAllocators[I]!=null){
+                _=CommandAllocators[I]->Release();
+                CommandAllocators[I]=null;
             }
         }
 
@@ -982,10 +982,10 @@ public sealed unsafe class ModelRenderer:IDisposable {
             DsvHeap=null;
         }
 
-        for(var i=0;i<FrameCount;i++){
-            if(BackBuffers[i]!=null){
-                _=BackBuffers[i]->Release();
-                BackBuffers[i]=null;
+        for(var I=0;I<FrameCount;I++){
+            if(BackBuffers[I]!=null){
+                _=BackBuffers[I]->Release();
+                BackBuffers[I]=null;
             }
         }
 

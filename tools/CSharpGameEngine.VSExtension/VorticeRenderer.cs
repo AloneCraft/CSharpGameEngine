@@ -103,7 +103,7 @@ internal sealed class VorticeRenderer:IDisposable {
         using IDXGIFactory4 Factory=DXGI.CreateDXGIFactory1<IDXGIFactory4>();
 
         IDXGIAdapter1?ChosenAdapter=null;
-        for(var i=0;Factory.EnumAdapters1(i,out IDXGIAdapter1 Adapter).Success;i++){
+        for(var I=0;Factory.EnumAdapters1(I,out IDXGIAdapter1 Adapter).Success;I++){
             if((Adapter.Description1.Flags&AdapterFlags.Software)!=0){
                 Adapter.Dispose();
                 continue;
@@ -120,7 +120,7 @@ internal sealed class VorticeRenderer:IDisposable {
 
         CommandQueue=Device.CreateCommandQueue(CommandListType.Direct);
 
-        SwapChainDescription1 swapChainDescription=new(){
+        SwapChainDescription1 SwapChainDescription=new(){
             Width=this.Width,
             Height=this.Height,
             Format=BackBufferFormat,
@@ -130,7 +130,7 @@ internal sealed class VorticeRenderer:IDisposable {
             SwapEffect=SwapEffect.FlipDiscard,
         };
 
-        using IDXGISwapChain1 TempSwapChain=Factory.CreateSwapChainForHwnd(CommandQueue,Hwnd,swapChainDescription);
+        using IDXGISwapChain1 TempSwapChain=Factory.CreateSwapChainForHwnd(CommandQueue,Hwnd,SwapChainDescription);
         SwapChain=TempSwapChain.QueryInterface<IDXGISwapChain3>();
 
         RtvHeap=Device.CreateDescriptorHeap(new DescriptorHeapDescription(DescriptorHeapType.RenderTargetView,FrameCount));
@@ -145,10 +145,10 @@ internal sealed class VorticeRenderer:IDisposable {
         CommandList.Close();
 
         RootParameter1 TransformParameter=new(RootParameterType.ConstantBufferView,new RootDescriptor1(0,0),ShaderVisibility.All);
-        RootSignatureDescription1 rootSignatureDescription=new(
+        RootSignatureDescription1 RootSignatureDescription=new(
             RootSignatureFlags.AllowInputAssemblerInputLayout,
             [TransformParameter]);
-        RootSignature=Device.CreateRootSignature(0,new VersionedRootSignatureDescription(rootSignatureDescription));
+        RootSignature=Device.CreateRootSignature(0,new VersionedRootSignatureDescription(RootSignatureDescription));
 
         Result VsCompileResult=Compiler.Compile(ShaderSource,"VSMain","VorticeRenderer","vs_5_0",out Blob?VertexShaderBlob,out Blob?VsErrorBlob);
         if(VsCompileResult.Failure||VertexShaderBlob is null){
@@ -187,8 +187,8 @@ internal sealed class VorticeRenderer:IDisposable {
         PipelineState=Device.CreateGraphicsPipelineState(PsoDescription);
 
         Vertex[]Vertices=new Vertex[Mesh.Positions.Length];
-        for(var i=0;i<Vertices.Length;i++){
-            Vertices[i]=new Vertex { Position=Mesh.Positions[i],Normal=Mesh.Normals[i]};
+        for(var I=0;I<Vertices.Length;I++){
+            Vertices[I]=new Vertex { Position=Mesh.Positions[I],Normal=Mesh.Normals[I]};
         }
 
         var VertexBufferSize=Vertices.Length*Marshal.SizeOf<Vertex>();
@@ -239,8 +239,8 @@ internal sealed class VorticeRenderer:IDisposable {
         // without needing an unsafe context.
         Span<byte>Mapped=Resource.Map<byte>(0,SizeInBytes);
         var ElementSize=Marshal.SizeOf<T>();
-        for(var i=0;i<Data.Length;i++){
-            MemoryMarshal.Write(Mapped.Slice(i*ElementSize,ElementSize),ref Data[i]);
+        for(var I=0;I<Data.Length;I++){
+            MemoryMarshal.Write(Mapped.Slice(I*ElementSize,ElementSize),ref Data[I]);
         }
         Resource.Unmap(0,null);
         return Resource;
@@ -250,21 +250,21 @@ internal sealed class VorticeRenderer:IDisposable {
         ResourceDescription Description=ResourceDescription.Texture2D(DepthBufferFormat,(uint)W,(uint)H,1,1);
         Description.Flags=ResourceFlags.AllowDepthStencil;
 
-        ID3D12Resource buffer=Device.CreateCommittedResource(
+        ID3D12Resource Buffer=Device.CreateCommittedResource(
             HeapType.Default,
             Description,
             ResourceStates.DepthWrite,
             new ClearValue(DepthBufferFormat,1.0f,0));
 
-        Device.CreateDepthStencilView(buffer,null,DsvHeap.GetCPUDescriptorHandleForHeapStart());
-        return buffer;
+        Device.CreateDepthStencilView(Buffer,null,DsvHeap.GetCPUDescriptorHandleForHeapStart());
+        return Buffer;
     }
 
     private void CreateRenderTargetViews(){
         CpuDescriptorHandle Handle=RtvHeap.GetCPUDescriptorHandleForHeapStart();
-        for(var i=0;i<FrameCount;i++){
-            RenderTargets[i]=SwapChain.GetBuffer<ID3D12Resource>(i);
-            Device.CreateRenderTargetView(RenderTargets[i],null,Handle);
+        for(var I=0;I<FrameCount;I++){
+            RenderTargets[I]=SwapChain.GetBuffer<ID3D12Resource>(I);
+            Device.CreateRenderTargetView(RenderTargets[I],null,Handle);
             Handle+=RtvDescriptorSize;
         }
     }
@@ -291,8 +291,8 @@ internal sealed class VorticeRenderer:IDisposable {
 
         WaitForGpuIdle();
 
-        for(var i=0;i<FrameCount;i++){
-            RenderTargets[i].Dispose();
+        for(var I=0;I<FrameCount;I++){
+            RenderTargets[I].Dispose();
         }
         DepthBuffer.Dispose();
 
@@ -358,8 +358,8 @@ internal sealed class VorticeRenderer:IDisposable {
         CommandAllocator.Dispose();
         DepthBuffer.Dispose();
         DsvHeap.Dispose();
-        for(var i=0;i<FrameCount;i++){
-            RenderTargets[i].Dispose();
+        for(var I=0;I<FrameCount;I++){
+            RenderTargets[I].Dispose();
         }
         RtvHeap.Dispose();
         SwapChain.Dispose();

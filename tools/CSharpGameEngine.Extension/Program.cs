@@ -65,8 +65,8 @@ static int RunViewer(string[]Args){
         BoundsRadius=FbxMesh.Bounds.BoundingSphereRadius;
     } else {
         CSharpGameEngine.Import.Gltf.GltfImportResult GltfResult=GltfImporter.Import(ModelPath);
-        foreach(CSharpGameEngine.Import.Gltf.GltfImportDiagnostic diagnostic in GltfResult.Diagnostics){
-            Console.WriteLine($"  {diagnostic}");
+        foreach(CSharpGameEngine.Import.Gltf.GltfImportDiagnostic Diagnostic in GltfResult.Diagnostics){
+            Console.WriteLine($"  {Diagnostic}");
         }
 
         if(!GltfResult.Success){
@@ -121,8 +121,8 @@ static int RunViewer(string[]Args){
     Console.WriteLine($"Back buffer format: {ModelRenderer.BackBufferFormat}, depth format: {ModelRenderer.DepthBufferFormat}, {Options.Width}x{Options.Height}");
     Console.WriteLine($"Debug layer: {(Renderer.DebugLayerEnabled?"enabled":"disabled")}{(Renderer.GpuBasedValidationEnabled?" (+GPU-based validation)":string.Empty)}");
     Console.WriteLine($"Shader compilation: {(Renderer.ShaderCompilationSucceeded?"OK":"FAILED")} ({Renderer.ShaderDiagnostics.Count} diagnostic(s))");
-    foreach(HlslDiagnostic diagnostic in Renderer.ShaderDiagnostics){
-        Console.WriteLine($"  {diagnostic}");
+    foreach(HlslDiagnostic Diagnostic in Renderer.ShaderDiagnostics){
+        Console.WriteLine($"  {Diagnostic}");
     }
 
     Console.WriteLine($"Base color texture: {(Renderer.TextureLoaded?"loaded":"fallback (white 1x1)")}{(Renderer.TextureLoadError is string Error? $" - {Error}" :string.Empty)}");
@@ -130,13 +130,13 @@ static int RunViewer(string[]Args){
     var ExitCode=0;
     try {
         if(Options.Frames is int FrameCount){
-            for(var i=0;i<FrameCount&&!Window.IsClosed;i++){
+            for(var I=0;I<FrameCount&&!Window.IsClosed;I++){
                 Window.PumpEvents();
                 if(Window.IsClosed||Window.IsMinimized){
                     continue;
                 }
 
-                var IsLastFrame=i==FrameCount-1;
+                var IsLastFrame=I==FrameCount-1;
                 Renderer.RenderFrame(CaptureForVerification:Options.Verify&&IsLastFrame);
             }
         } else {

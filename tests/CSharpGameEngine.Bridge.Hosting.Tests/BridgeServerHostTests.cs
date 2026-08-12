@@ -41,8 +41,8 @@ public class BridgeServerHostTests {
         ];
         BridgeServerResponse[]Responses= await Task.WhenAll(Requests);
 
-        for(var i=0;i<Responses.Length;i++){
-            Assert.Equal($"handled:mesh-{i}.glb",Responses[i].Output);
+        for(var I=0;I<Responses.Length;I++){
+            Assert.Equal($"handled:mesh-{I}.glb",Responses[I].Output);
         }
     }
 

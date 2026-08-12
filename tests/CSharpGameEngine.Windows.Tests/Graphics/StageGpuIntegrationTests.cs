@@ -72,10 +72,10 @@ public class StageGpuIntegrationTests {
         RunWithTimeout(RunShadowCastingScenario,TimeSpan.FromSeconds(60));
     }
 
-    private static void RunWithTimeout(Action action,TimeSpan timeout){
-        Task task=Task.Run(action);
-        if(!task.Wait(timeout)){
-            throw new TimeoutException($"GPU test did not complete within {timeout}.");
+    private static void RunWithTimeout(Action Action,TimeSpan Timeout){
+        Task Task=Task.Run(Action);
+        if(!Task.Wait(Timeout)){
+            throw new TimeoutException($"GPU test did not complete within {Timeout}.");
         }
     }
 
@@ -105,13 +105,13 @@ public class StageGpuIntegrationTests {
         Assert.True(Renderer.ShaderCompilationSucceeded,string.Join(Environment.NewLine,Renderer.ShaderDiagnostics));
         Assert.True(Renderer.IsWarp);
 
-        Camera camera=Camera.CreateDefault(new Vector3(0f,1f,0f));
-        Renderer.SetCamera(camera);
+        Camera Camera=Camera.CreateDefault(new Vector3(0f,1f,0f));
+        Renderer.SetCamera(Camera);
         Renderer.SetObjectTransform(0,Matrix4x4.Identity);
         Renderer.SetObjectTransform(1,Matrix4x4.CreateTranslation(0f,1f,0f));
 
-        for(var i=0;i<3;i++){
-            Renderer.RenderFrame(CaptureForVerification:i==2);
+        for(var I=0;I<3;I++){
+            Renderer.RenderFrame(CaptureForVerification:I==2);
         }
 
         Assert.Equal(3u,Renderer.FramesRendered);
@@ -142,13 +142,13 @@ public class StageGpuIntegrationTests {
             Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
             [new MeshCreateInfo { Positions=Ground.Positions,Normals=Ground.Normals,Indices=Ground.Indices,BaseColorFactor=Vector4.One }]);
 
-        Camera camera=Camera.CreateDefault(Vector3.Zero);
-        Renderer.SetCamera(camera);
+        Camera Camera=Camera.CreateDefault(Vector3.Zero);
+        Renderer.SetCamera(Camera);
         Renderer.SetObjectTransform(0,Matrix4x4.Identity);
         Renderer.RenderFrame();
 
         Renderer.Resize(256,256);
-        Renderer.SetCamera(camera);
+        Renderer.SetCamera(Camera);
         Renderer.SetObjectTransform(0,Matrix4x4.Identity);
         Renderer.RenderFrame(CaptureForVerification:true);
 
@@ -172,8 +172,8 @@ public class StageGpuIntegrationTests {
 
         var Uvs=new Vector2[Box.Positions.Length];
         var Tangents=new Vector4[Box.Positions.Length];
-        for(var i=0;i<Box.Positions.Length;i++){
-            Tangents[i]=new Vector4(1,0,0,1);
+        for(var I=0;I<Box.Positions.Length;I++){
+            Tangents[I]=new Vector4(1,0,0,1);
         }
 
         StageMeshCreateInfo Mesh=new(){ Positions=Box.Positions,Normals=Box.Normals,Tangents=Tangents,Uvs=Uvs,Indices=Box.Indices };
@@ -191,15 +191,15 @@ public class StageGpuIntegrationTests {
 
         Assert.True(Renderer.ShaderCompilationSucceeded,string.Join(Environment.NewLine,Renderer.ShaderDiagnostics));
 
-        Camera camera=Camera.CreateDefault(Vector3.Zero);
-        Renderer.SetCamera(camera);
+        Camera Camera=Camera.CreateDefault(Vector3.Zero);
+        Renderer.SetCamera(Camera);
         Renderer.SetAmbientLight(new Vector3(0.4f,0.4f,0.4f));
         Renderer.SetDirectionalLight(new Vector3(0.3f,0.8f,0.4f),Vector3.One,2f);
         Renderer.SetObjectTransform(0,Matrix4x4.CreateTranslation(-1.0f,0f,0f));
         Renderer.SetObjectTransform(1,Matrix4x4.CreateTranslation(1.0f,0f,0f));
 
-        for(var i=0;i<3;i++){
-            Renderer.RenderFrame(CaptureForVerification:i==2);
+        for(var I=0;I<3;I++){
+            Renderer.RenderFrame(CaptureForVerification:I==2);
         }
 
         Assert.NotNull(Renderer.LastCapturedFrame);
@@ -207,9 +207,9 @@ public class StageGpuIntegrationTests {
 
         var FoundReddish=false;
         var FoundBluish=false;
-        for(var y=0;y<Frame.Height&&!(FoundReddish&&FoundBluish);y++){
-            for(var x=0;x<Frame.Width;x++){
-                PixelColor Pixel=ReadPixel(Frame,x,y);
+        for(var Y=0;Y<Frame.Height&&!(FoundReddish&&FoundBluish);Y++){
+            for(var X=0;X<Frame.Width;X++){
+                PixelColor Pixel=ReadPixel(Frame,X,Y);
                 if(Pixel.R>Pixel.G+15&&Pixel.R>Pixel.B+15){
                     FoundReddish=true;
                 }
@@ -238,8 +238,8 @@ public class StageGpuIntegrationTests {
 
         var Uvs=new Vector2[Ground.Positions.Length];
         var Tangents=new Vector4[Ground.Positions.Length];
-        for(var i=0;i<Ground.Positions.Length;i++){
-            Tangents[i]=new Vector4(1,0,0,1);
+        for(var I=0;I<Ground.Positions.Length;I++){
+            Tangents[I]=new Vector4(1,0,0,1);
         }
 
         StageMeshCreateInfo Mesh=new(){ Positions=Ground.Positions,Normals=Ground.Normals,Tangents=Tangents,Uvs=Uvs,Indices=Ground.Indices };
@@ -249,8 +249,8 @@ public class StageGpuIntegrationTests {
             Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
             [Mesh],[Material],[new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 }]);
 
-        Camera camera=Camera.CreateDefault(Vector3.Zero);
-        Renderer.SetCamera(camera);
+        Camera Camera=Camera.CreateDefault(Vector3.Zero);
+        Renderer.SetCamera(Camera);
         Renderer.SetObjectTransform(0,Matrix4x4.Identity);
 
         Renderer.SetAmbientLight(Vector3.Zero);
@@ -260,7 +260,7 @@ public class StageGpuIntegrationTests {
         Renderer.RenderFrame(CaptureForVerification:true);
         PixelColor DarkCenter=ReadPixel(Renderer.LastCapturedFrame!,Renderer.LastCapturedFrame!.Width/2,Renderer.LastCapturedFrame!.Height/2);
 
-        Renderer.SetCamera(camera);
+        Renderer.SetCamera(Camera);
         Renderer.SetAmbientLight(new Vector3(0.3f,0.3f,0.3f));
         Renderer.SetDirectionalLight(Vector3.UnitY,Vector3.One,3f);
         Renderer.SetObjectTransform(0,Matrix4x4.Identity);
@@ -290,8 +290,8 @@ public class StageGpuIntegrationTests {
 
         var Uvs=new Vector2[Box.Positions.Length];
         var Tangents=new Vector4[Box.Positions.Length];
-        for(var i=0;i<Box.Positions.Length;i++){
-            Tangents[i]=new Vector4(1,0,0,1);
+        for(var I=0;I<Box.Positions.Length;I++){
+            Tangents[I]=new Vector4(1,0,0,1);
         }
 
         StageMeshCreateInfo Mesh=new(){ Positions=Box.Positions,Normals=Box.Normals,Tangents=Tangents,Uvs=Uvs,Indices=Box.Indices };
@@ -303,14 +303,14 @@ public class StageGpuIntegrationTests {
 
         Assert.True(Renderer.ShaderCompilationSucceeded,string.Join(Environment.NewLine,Renderer.ShaderDiagnostics));
 
-        Camera camera=Camera.CreateDefault(Vector3.Zero);
+        Camera Camera=Camera.CreateDefault(Vector3.Zero);
         Vector3 LightDirection=Vector3.Normalize(new Vector3(0.3f,0.8f,0.4f));
 
         // RuntimeSystem.cs's LevelLoad/DirectionalLight systems push this exact set every real
         // frame - the pattern the 4 tests above never reproduce, which is why none of them could
         // see the FrameCB slot-corruption/stale-camera bugs this test guards against.
         void PushPerFrameState(){
-            Renderer.SetCamera(camera);
+            Renderer.SetCamera(Camera);
             Renderer.SetAmbientLight(new Vector3(0.25f,0.25f,0.25f));
             Renderer.SetDirectionalLight(LightDirection,Vector3.One,2f);
             Renderer.SetObjectTransform(0,Matrix4x4.Identity);
@@ -332,10 +332,10 @@ public class StageGpuIntegrationTests {
 
         var MismatchedPixels=0;
         const int Tolerance=2;
-        for(var y=0;y<FirstSlotFrame.Height;y++){
-            for(var x=0;x<FirstSlotFrame.Width;x++){
-                PixelColor A=ReadPixel(FirstSlotFrame,x,y);
-                PixelColor B=ReadPixel(SecondSlotFrame,x,y);
+        for(var Y=0;Y<FirstSlotFrame.Height;Y++){
+            for(var X=0;X<FirstSlotFrame.Width;X++){
+                PixelColor A=ReadPixel(FirstSlotFrame,X,Y);
+                PixelColor B=ReadPixel(SecondSlotFrame,X,Y);
                 if(Math.Abs(A.R-B.R)>Tolerance||Math.Abs(A.G-B.G)>Tolerance||Math.Abs(A.B-B.B)>Tolerance){
                     MismatchedPixels++;
                 }
@@ -365,14 +365,14 @@ public class StageGpuIntegrationTests {
 
         var GroundUvs=new Vector2[Ground.Positions.Length];
         var GroundTangents=new Vector4[Ground.Positions.Length];
-        for(var i=0;i<Ground.Positions.Length;i++){
-            GroundTangents[i]=new Vector4(1,0,0,1);
+        for(var I=0;I<Ground.Positions.Length;I++){
+            GroundTangents[I]=new Vector4(1,0,0,1);
         }
 
         var BlockerUvs=new Vector2[Blocker.Positions.Length];
         var BlockerTangents=new Vector4[Blocker.Positions.Length];
-        for(var i=0;i<Blocker.Positions.Length;i++){
-            BlockerTangents[i]=new Vector4(1,0,0,1);
+        for(var I=0;I<Blocker.Positions.Length;I++){
+            BlockerTangents[I]=new Vector4(1,0,0,1);
         }
 
         StageMeshCreateInfo GroundMesh=new(){ Positions=Ground.Positions,Normals=Ground.Normals,Tangents=GroundTangents,Uvs=GroundUvs,Indices=Ground.Indices };
@@ -392,24 +392,24 @@ public class StageGpuIntegrationTests {
         // Nearly-top-down orbit camera targeting the world origin, so the captured frame's center
         // pixel corresponds to the ground point directly below the blocker once the blocker is
         // moved above the origin - no per-pixel-to-world-space projection math needed.
-        Camera camera=Camera.CreateDefault(Vector3.Zero);
-        camera.Pitch=-89f*MathF.PI/180f;
-        camera.Distance=20f;
-        camera.FarZ=200f;
+        Camera Camera=Camera.CreateDefault(Vector3.Zero);
+        Camera.Pitch=-89f*MathF.PI/180f;
+        Camera.Distance=20f;
+        Camera.FarZ=200f;
 
         Vector3 LightDirection=Vector3.Normalize(new Vector3(0.05f,1f,0.05f));
         Vector3 FarAway=new(500f,500f,500f);
         Vector3 AboveOrigin=new(0f,4f,0f);
 
         PixelColor RenderCenterWithBlockerAt(Vector3 BlockerPosition){
-            Renderer.SetCamera(camera);
+            Renderer.SetCamera(Camera);
             Renderer.SetAmbientLight(new Vector3(0.15f,0.15f,0.15f));
             Renderer.SetDirectionalLight(LightDirection,Vector3.One,3f);
             Renderer.SetObjectTransform(0,Matrix4x4.Identity);
             Renderer.SetObjectTransform(1,Matrix4x4.CreateTranslation(BlockerPosition));
 
-            for(var i=0;i<3;i++){
-                Renderer.RenderFrame(CaptureForVerification:i==2);
+            for(var I=0;I<3;I++){
+                Renderer.RenderFrame(CaptureForVerification:I==2);
             }
 
             return ReadPixel(Renderer.LastCapturedFrame!,Renderer.LastCapturedFrame!.Width/2,Renderer.LastCapturedFrame!.Height/2);

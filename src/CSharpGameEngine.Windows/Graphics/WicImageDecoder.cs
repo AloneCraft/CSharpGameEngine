@@ -12,10 +12,10 @@ namespace CSharpGameEngine.Graphics.D3D12;
 public sealed record DecodedImage(int Width,int Height,byte[]Pixels);
 
 public sealed class WicDecodeResult {
-    private WicDecodeResult(bool success,DecodedImage?image,string?error){
-        Success=success;
-        Image=image;
-        Error=error;
+    private WicDecodeResult(bool Success,DecodedImage?Image,string?Error){
+        this.Success=Success;
+        this.Image=Image;
+        this.Error=Error;
     }
 
     public bool Success { get;}
@@ -24,9 +24,9 @@ public sealed class WicDecodeResult {
 
     public string?Error { get;}
 
-    public static WicDecodeResult Succeeded(DecodedImage image)=>new(true,image,null);
+    public static WicDecodeResult Succeeded(DecodedImage Image)=>new(true,Image,null);
 
-    public static WicDecodeResult Failed(string error)=>new(false,null,error);
+    public static WicDecodeResult Failed(string Error)=>new(false,null,Error);
 }
 
 /// <summary>
@@ -52,10 +52,10 @@ public static unsafe class WicImageDecoder {
         var OwnsComInit=CoInitHr.SUCCEEDED;
 
         IWICImagingFactory*Factory=null;
-        IStream*stream=null;
+        IStream*Stream=null;
         IWICBitmapDecoder*Decoder=null;
         IWICBitmapFrameDecode*Frame=null;
-        IWICFormatConverter*converter=null;
+        IWICFormatConverter*Converter=null;
 
         try {
             Guid FactoryClsid=CLSID.CLSID_WICImagingFactory;
@@ -65,13 +65,13 @@ public static unsafe class WicImageDecoder {
             }
 
             fixed(byte*PBytes=EncodedBytes){
-                stream=SHCreateMemStream(PBytes,(uint)EncodedBytes.Length);
+                Stream=SHCreateMemStream(PBytes,(uint)EncodedBytes.Length);
             }
-            if(stream==null){
+            if(Stream==null){
                 return WicDecodeResult.Failed("SHCreateMemStream returned null.");
             }
 
-            Hr=Factory->CreateDecoderFromStream(stream,null,WICDecodeMetadataCacheOnDemand,&Decoder);
+            Hr=Factory->CreateDecoderFromStream(Stream,null,WICDecodeMetadataCacheOnDemand,&Decoder);
             if(Hr.FAILED){
                 return WicDecodeResult.Failed($"IWICImagingFactory::CreateDecoderFromStream failed (unrecognized/corrupt image data). HRESULT=0x{Hr.Value:X8}");
             }
@@ -81,19 +81,19 @@ public static unsafe class WicImageDecoder {
                 return WicDecodeResult.Failed($"IWICBitmapDecoder::GetFrame failed. HRESULT=0x{Hr.Value:X8}");
             }
 
-            Hr=Factory->CreateFormatConverter(&converter);
+            Hr=Factory->CreateFormatConverter(&Converter);
             if(Hr.FAILED){
                 return WicDecodeResult.Failed($"IWICImagingFactory::CreateFormatConverter failed. HRESULT=0x{Hr.Value:X8}");
             }
 
             Guid RgbaFormat=GUID.GUID_WICPixelFormat32bppRGBA;
-            Hr=converter->Initialize((IWICBitmapSource*)Frame,&RgbaFormat,WICBitmapDitherTypeNone,null,0.0,WICBitmapPaletteTypeCustom);
+            Hr=Converter->Initialize((IWICBitmapSource*)Frame,&RgbaFormat,WICBitmapDitherTypeNone,null,0.0,WICBitmapPaletteTypeCustom);
             if(Hr.FAILED){
                 return WicDecodeResult.Failed($"IWICFormatConverter::Initialize failed. HRESULT=0x{Hr.Value:X8}");
             }
 
             uint Width,Height;
-            Hr=converter->GetSize(&Width,&Height);
+            Hr=Converter->GetSize(&Width,&Height);
             if(Hr.FAILED){
                 return WicDecodeResult.Failed($"IWICFormatConverter::GetSize failed. HRESULT=0x{Hr.Value:X8}");
             }
@@ -104,7 +104,7 @@ public static unsafe class WicImageDecoder {
             var Stride=Width*4;
             var Pixels=new byte[Stride*Height];
             fixed(byte*PPixels=Pixels){
-                Hr=converter->CopyPixels(null,Stride,(uint)Pixels.Length,PPixels);
+                Hr=Converter->CopyPixels(null,Stride,(uint)Pixels.Length,PPixels);
             }
             if(Hr.FAILED){
                 return WicDecodeResult.Failed($"IWICFormatConverter::CopyPixels failed. HRESULT=0x{Hr.Value:X8}");
@@ -112,8 +112,8 @@ public static unsafe class WicImageDecoder {
 
             return WicDecodeResult.Succeeded(new DecodedImage((int)Width,(int)Height,Pixels));
         } finally {
-            if(converter!=null){
-                _=converter->Release();
+            if(Converter!=null){
+                _=Converter->Release();
             }
             if(Frame!=null){
                 _=Frame->Release();
@@ -121,8 +121,8 @@ public static unsafe class WicImageDecoder {
             if(Decoder!=null){
                 _=Decoder->Release();
             }
-            if(stream!=null){
-                _=stream->Release();
+            if(Stream!=null){
+                _=Stream->Release();
             }
             if(Factory!=null){
                 _=Factory->Release();

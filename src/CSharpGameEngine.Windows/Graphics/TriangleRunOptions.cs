@@ -19,9 +19,9 @@ public sealed class TriangleRunOptions {
 }
 
 public sealed record TriangleOptionsParseResult(bool Success,TriangleRunOptions?Options,string?Error){
-    public static TriangleOptionsParseResult Ok(TriangleRunOptions options)=>new(true,options,null);
+    public static TriangleOptionsParseResult Ok(TriangleRunOptions Options)=>new(true,Options,null);
 
-    public static TriangleOptionsParseResult Fail(string error)=>new(false,null,error);
+    public static TriangleOptionsParseResult Fail(string Error)=>new(false,null,Error);
 }
 
 public static class TriangleOptionsParser {
@@ -37,11 +37,11 @@ public static class TriangleOptionsParser {
         var EnableGpuValidation=false;
         var Verify=false;
 
-        for(var i=0;i<Args.Count;i++){
-            var Arg=Args[i];
+        for(var I=0;I<Args.Count;I++){
+            var Arg=Args[I];
             switch(Arg){
                 case "--frames":{
-                        if(!TryReadIntValue(Args,ref i,out var Value)){
+                        if(!TryReadIntValue(Args,ref I,out var Value)){
                             return TriangleOptionsParseResult.Fail("--frames requires an integer value.");
                         }
                         if(Value<=0){
@@ -52,24 +52,24 @@ public static class TriangleOptionsParser {
                     }
 
                 case "--width":{
-                        if(!TryReadIntValue(Args,ref i,out var value)){
+                        if(!TryReadIntValue(Args,ref I,out var Value)){
                             return TriangleOptionsParseResult.Fail("--width requires an integer value.");
                         }
-                        if(value<=0){
-                            return TriangleOptionsParseResult.Fail($"--width must be a positive integer (got {value}).");
+                        if(Value<=0){
+                            return TriangleOptionsParseResult.Fail($"--width must be a positive integer (got {Value}).");
                         }
-                        Width=value;
+                        Width=Value;
                         break;
                     }
 
                 case "--height":{
-                        if(!TryReadIntValue(Args,ref i,out var value)){
+                        if(!TryReadIntValue(Args,ref I,out var Value)){
                             return TriangleOptionsParseResult.Fail("--height requires an integer value.");
                         }
-                        if(value<=0){
-                            return TriangleOptionsParseResult.Fail($"--height must be a positive integer (got {value}).");
+                        if(Value<=0){
+                            return TriangleOptionsParseResult.Fail($"--height must be a positive integer (got {Value}).");
                         }
-                        Height=value;
+                        Height=Value;
                         break;
                     }
 
@@ -112,13 +112,13 @@ public static class TriangleOptionsParser {
         return TriangleOptionsParseResult.Ok(Options);
     }
 
-    private static bool TryReadIntValue(IReadOnlyList<string>Args,ref int index,out int Value){
-        if(index+1>=Args.Count||!int.TryParse(Args[index+1],out Value)){
+    private static bool TryReadIntValue(IReadOnlyList<string>Args,ref int Index,out int Value){
+        if(Index+1>=Args.Count||!int.TryParse(Args[Index+1],out Value)){
             Value=0;
             return false;
         }
 
-        index++;
+        Index++;
         return true;
     }
 }

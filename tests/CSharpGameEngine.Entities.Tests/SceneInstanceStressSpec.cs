@@ -12,59 +12,59 @@ namespace CSharpGameEngine.Entities.Tests;
 public sealed class SceneInstanceStressSpec {
     private const int EntitiesPerScene=5;
 
-    private static SceneInstance Instantiate(ref World world){
-        SceneInstance Instance=world.BeginSceneInstance();
-        Entity Root=world.AttachToScene(Instance,world.Create(new Position()));
+    private static SceneInstance Instantiate(ref World World){
+        SceneInstance Instance=World.BeginSceneInstance();
+        Entity Root=World.AttachToScene(Instance,World.Create(new Position()));
 
         for(var Index=1;Index<EntitiesPerScene;Index++){
-            world.AttachToScene(Instance,world.Create(new Position { X=Index },new Parent { Value=Root }));
+            World.AttachToScene(Instance,World.Create(new Position { X=Index },new Parent { Value=Root }));
         }
 
-        world.EndSceneInstance(Instance,Root);
+        World.EndSceneInstance(Instance,Root);
         return Instance;
     }
 
     [Fact]
     public void RepeatedLoadUnload_GrowsThePositionTableLinearlyAndNothingElse(){
         const int Iterations=1000;
-        World world=new();
+        World World=new();
 
         for(var Index=0;Index<Iterations;Index++){
-            SceneInstance Instance=Instantiate(ref world);
-            world.UnloadScene(Instance);
+            SceneInstance Instance=Instantiate(ref World);
+            World.UnloadScene(Instance);
         }
 
         // 位置表は単調増加する。これが案Aの唯一の代償である。
-        Assert.Equal(Iterations*EntitiesPerScene,world.EntityArchetypeIndices.Count);
+        Assert.Equal(Iterations*EntitiesPerScene,World.EntityArchetypeIndices.Count);
 
         // Archetypeのストレージは一切増えない(swap-backで再利用される)。
-        Assert.Equal(0,world.Archetype0.Count);
-        Assert.Equal(0,world.Archetype2.Count);
+        Assert.Equal(0,World.Archetype0.Count);
+        Assert.Equal(0,World.Archetype2.Count);
     }
 
     [Fact]
     public void RepeatedLoadUnload_ReusesSceneSlotsSoTheSceneTableStaysConstant(){
         // Sceneスロットは再利用するので、こちらは増えない。
-        World world=new();
-        SceneInstance First=Instantiate(ref world);
-        world.UnloadScene(First);
+        World World=new();
+        SceneInstance First=Instantiate(ref World);
+        World.UnloadScene(First);
 
         for(var Index=0;Index<1000;Index++){
-            SceneInstance Instance=Instantiate(ref world);
+            SceneInstance Instance=Instantiate(ref World);
 
             Assert.Equal(First.Slot,Instance.Slot);
 
-            world.UnloadScene(Instance);
+            World.UnloadScene(Instance);
         }
     }
 
     [Fact]
     public void ScenesLoadedWithoutUnloadingKeepDistinctSlots(){
-        World world=new();
+        World World=new();
         HashSet<int>Slots=[];
 
         for(var Index=0;Index<100;Index++){
-            Slots.Add(Instantiate(ref world).Slot);
+            Slots.Add(Instantiate(ref World).Slot);
         }
 
         Assert.Equal(100,Slots.Count);

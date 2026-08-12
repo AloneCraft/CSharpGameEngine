@@ -24,8 +24,8 @@ internal static class FbxAxisConversion {
 
     /// <summary>Swaps two indices of each triangle so front-facing winding is preserved after a single-axis position mirror - see GltfAxisConversion.FlipTriangleWinding (same reasoning, no visible effect today since every consumer disables backface culling).</summary>
     public static void FlipTriangleWinding(List<uint>Indices){
-        for(var i=0;i+2<Indices.Count;i+=3){
-            (Indices[i+1],Indices[i+2])=(Indices[i+2],Indices[i+1]);
+        for(var I=0;I+2<Indices.Count;I+=3){
+            (Indices[I+1],Indices[I+2])=(Indices[I+2],Indices[I+1]);
         }
     }
 }

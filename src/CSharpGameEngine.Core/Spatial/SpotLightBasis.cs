@@ -5,8 +5,8 @@ public readonly struct SpotLightBasis {
     /// <summary>The direction the spot cone extends toward.</summary>
     public RufVector Forward { get;}
 
-    public SpotLightBasis(RufVector forward){
-        Forward=forward.Normalize();
+    public SpotLightBasis(RufVector Forward){
+        this.Forward= Forward.Normalize();
     }
 
     /// <summary>The direction from a surface toward the light - always the opposite of <see cref="Forward"/>.</summary>

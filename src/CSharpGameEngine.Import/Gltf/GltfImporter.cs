@@ -30,12 +30,12 @@ public static class GltfImporter {
             return Failed("glTF file contains no meshes.");
         }
 
-        Mesh mesh=Model.LogicalMeshes[0];
-        if(mesh.Primitives.Count==0){
+        Mesh Mesh=Model.LogicalMeshes[0];
+        if(Mesh.Primitives.Count==0){
             return Failed("glTF mesh contains no primitives.");
         }
 
-        MeshPrimitive Primitive=mesh.Primitives[0];
+        MeshPrimitive Primitive=Mesh.Primitives[0];
 
         Accessor?PositionAccessor=Primitive.GetVertexAccessor("POSITION");
         if(PositionAccessor is null){
@@ -52,11 +52,11 @@ public static class GltfImporter {
         Vector2[]?RawUvs=UvAccessor is null?null:[.. UvAccessor.AsVector2Array()];
         var UvsUsable=RawUvs is not null&&RawUvs.Length==RawPositions.Length;
 
-        Material?material=Primitive.Material;
-        MaterialChannel?BaseColorChannel=material?.FindChannel("BaseColor");
+        Material?Material=Primitive.Material;
+        MaterialChannel?BaseColorChannel=Material?.FindChannel("BaseColor");
         Vector4 BaseColorFactor=BaseColorChannel?.Color??new Vector4(1f,1f,1f,1f);
-        var BaseColorTextureBytes=BaseColorChannel?.Texture?.PrimaryImage is Image image
-            ?image.Content.Content.ToArray()
+        var BaseColorTextureBytes=BaseColorChannel?.Texture?.PrimaryImage is Image Image
+            ?Image.Content.Content.ToArray()
             :null;
 
         List<(int A,int B,int C)>Triangles=[.. Primitive.GetTriangleIndices()];
@@ -81,10 +81,10 @@ public static class GltfImporter {
             Uvs=UvsUsable?RawUvs!:new Vector2[RawPositions.Length];
             Indices=new uint[Triangles.Count*3];
 
-            for(var i=0;i<Triangles.Count;i++){
-                Indices[(i*3)+0]=(uint)Triangles[i].A;
-                Indices[(i*3)+1]=(uint)Triangles[i].B;
-                Indices[(i*3)+2]=(uint)Triangles[i].C;
+            for(var I=0;I<Triangles.Count;I++){
+                Indices[(I*3)+0]=(uint)Triangles[I].A;
+                Indices[(I*3)+1]=(uint)Triangles[I].B;
+                Indices[(I*3)+2]=(uint)Triangles[I].C;
             }
         } else {
             // A vertex shared by multiple faces can only hold one NORMAL value, so a missing/
@@ -99,8 +99,8 @@ public static class GltfImporter {
             Uvs=new Vector2[Triangles.Count*3];
             Indices=new uint[Triangles.Count*3];
 
-            for(var i=0;i<Triangles.Count;i++){
-                (var A,var B,var C)=Triangles[i];
+            for(var I=0;I<Triangles.Count;I++){
+                (var A,var B,var C)=Triangles[I];
                 Vector3 Pa=RawPositions[A];
                 Vector3 Pb=RawPositions[B];
                 Vector3 Pc=RawPositions[C];
@@ -110,7 +110,7 @@ public static class GltfImporter {
                     ?Vector3.Normalize(FaceNormalUnnormalized)
                     :Vector3.UnitY;
 
-                var BaseIndex=i*3;
+                var BaseIndex=I*3;
                 Positions[BaseIndex+0]=Pa;
                 Positions[BaseIndex+1]=Pb;
                 Positions[BaseIndex+2]=Pc;
@@ -126,7 +126,7 @@ public static class GltfImporter {
             }
         }
 
-        ImportedMesh importedMesh=new(){
+        ImportedMesh ImportedMesh=new(){
             Positions=Positions,
             Normals=Normals,
             Uvs=Uvs,
@@ -136,7 +136,7 @@ public static class GltfImporter {
             Bounds=BoundingBox.FromPoints(Positions),
         };
 
-        return GltfImportResult.Succeeded(importedMesh,Diagnostics);
+        return GltfImportResult.Succeeded(ImportedMesh,Diagnostics);
     }
 
     private static GltfImportResult Failed(string Message)=>
@@ -181,11 +181,11 @@ public static class GltfImporter {
         var LightIndexByGltfLight=new Dictionary<PunctualLight,int>();
         List<ImportedSceneNode>Nodes=[];
 
-        foreach(Node node in Flatten(Model.DefaultScene.VisualChildren)){
-            Mesh?mesh=node.Mesh;
-            PunctualLight?Light=node.PunctualLight;
+        foreach(Node Node in Flatten(Model.DefaultScene.VisualChildren)){
+            Mesh?Mesh=Node.Mesh;
+            PunctualLight?Light=Node.PunctualLight;
 
-            if(mesh is null&&Light is null){
+            if(Mesh is null&&Light is null){
                 continue;
             }
 
@@ -199,46 +199,46 @@ public static class GltfImporter {
                 LightIndex=ExistingLightIndex;
             }
 
-            if(mesh is null){
+            if(Mesh is null){
                 Nodes.Add(new ImportedSceneNode {
-                    Name=node.Name??string.Empty,
-                    WorldTransform=GltfAxisConversion.ConvertWorldTransform(node.WorldMatrix),
+                    Name=Node.Name??string.Empty,
+                    WorldTransform=GltfAxisConversion.ConvertWorldTransform(Node.WorldMatrix),
                     LightIndex=LightIndex,
                 });
                 continue;
             }
 
-            if(!MeshIndexByGltfMesh.TryGetValue(mesh,out List<(int PrimitiveIndex,int MeshIndex)>?PrimitiveMeshIndices)){
+            if(!MeshIndexByGltfMesh.TryGetValue(Mesh,out List<(int PrimitiveIndex,int MeshIndex)>?PrimitiveMeshIndices)){
                 PrimitiveMeshIndices=[];
-                for(var primitiveIndex=0;primitiveIndex<mesh.Primitives.Count;primitiveIndex++){
-                    MeshPrimitive Primitive=mesh.Primitives[primitiveIndex];
-                    ImportedMeshData?MeshData=ImportPrimitiveGeometry(Primitive,Diagnostics,mesh.Name??node.Name??"(unnamed)");
+                for(var PrimitiveIndex=0;PrimitiveIndex<Mesh.Primitives.Count;PrimitiveIndex++){
+                    MeshPrimitive Primitive=Mesh.Primitives[PrimitiveIndex];
+                    ImportedMeshData?MeshData=ImportPrimitiveGeometry(Primitive,Diagnostics,Mesh.Name??Node.Name??"(unnamed)");
                     if(MeshData is null){
                         continue;
                     }
 
-                    PrimitiveMeshIndices.Add((primitiveIndex,Meshes.Count));
+                    PrimitiveMeshIndices.Add((PrimitiveIndex,Meshes.Count));
                     Meshes.Add(MeshData);
                 }
-                MeshIndexByGltfMesh[mesh]=PrimitiveMeshIndices;
+                MeshIndexByGltfMesh[Mesh]=PrimitiveMeshIndices;
             }
 
             foreach((var PrimitiveIndex,var MeshIndex)in PrimitiveMeshIndices){
-                MeshPrimitive primitive=mesh.Primitives[PrimitiveIndex];
-                Material?material=primitive.Material;
+                MeshPrimitive Primitive=Mesh.Primitives[PrimitiveIndex];
+                Material?Material=Primitive.Material;
 
                 int MaterialIndex;
-                if(material is null){
+                if(Material is null){
                     MaterialIndex=GetOrAddDefaultMaterial(Materials,MaterialIndexByGltfMaterial);
-                } else if(!MaterialIndexByGltfMaterial.TryGetValue(material,out MaterialIndex)){
+                } else if(!MaterialIndexByGltfMaterial.TryGetValue(Material,out MaterialIndex)){
                     MaterialIndex=Materials.Count;
-                    Materials.Add(ImportMaterial(material));
-                    MaterialIndexByGltfMaterial[material]=MaterialIndex;
+                    Materials.Add(ImportMaterial(Material));
+                    MaterialIndexByGltfMaterial[Material]=MaterialIndex;
                 }
 
                 Nodes.Add(new ImportedSceneNode {
-                    Name=node.Name??string.Empty,
-                    WorldTransform=GltfAxisConversion.ConvertWorldTransform(node.WorldMatrix),
+                    Name=Node.Name??string.Empty,
+                    WorldTransform=GltfAxisConversion.ConvertWorldTransform(Node.WorldMatrix),
                     MeshIndex=MeshIndex,
                     MaterialIndex=MaterialIndex,
                     LightIndex=LightIndex,
@@ -246,21 +246,21 @@ public static class GltfImporter {
             }
         }
 
-        ImportedScene scene=new(){
+        ImportedScene Scene=new(){
             Nodes=Nodes,
             Meshes=Meshes,
             Materials=Materials,
             Lights=Lights,
         };
 
-        return GltfSceneImportResult.Succeeded(scene,Diagnostics);
+        return GltfSceneImportResult.Succeeded(Scene,Diagnostics);
     }
 
     /// <summary>Depth-first walk of the full visual node hierarchy - top-level scene children are not guaranteed to be the only nodes (a source scene may nest transform/pivot nodes), so every descendant is visited.</summary>
     private static IEnumerable<Node>Flatten(IEnumerable<Node>Roots){
-        foreach(Node node in Roots){
-            yield return node;
-            foreach(Node Descendant in Flatten(node.VisualChildren)){
+        foreach(Node Node in Roots){
+            yield return Node;
+            foreach(Node Descendant in Flatten(Node.VisualChildren)){
                 yield return Descendant;
             }
         }
@@ -270,11 +270,11 @@ public static class GltfImporter {
         // Keyed by null via a sentinel-free path: a primitive with no Material at all is rare in
         // practice for this importer's real content, so it's not worth a Dictionary<Material?,int>
         // (Material is a reference type but SharpGLTF never hands out a boxed "null key" instance).
-        for(var i=0;i<Materials.Count;i++){
-            ImportedPbrMaterial Candidate=Materials[i];
+        for(var I=0;I<Materials.Count;I++){
+            ImportedPbrMaterial Candidate=Materials[I];
             if(Candidate is { BaseColorTextureBytes:null,NormalTextureBytes:null,MetallicRoughnessTextureBytes:null }
                 &&Candidate.BaseColorFactor==new Vector4(1f,1f,1f,1f)){
-                return i;
+                return I;
             }
         }
 
@@ -286,11 +286,11 @@ public static class GltfImporter {
         return Materials.Count-1;
     }
 
-    private static ImportedPbrMaterial ImportMaterial(Material material){
-        MaterialChannel?BaseColorChannel=material.FindChannel("BaseColor");
-        MaterialChannel?NormalChannel=material.FindChannel("Normal");
-        MaterialChannel?MetallicRoughnessChannel=material.FindChannel("MetallicRoughness");
-        MaterialChannel?EmissiveChannel=material.FindChannel("Emissive");
+    private static ImportedPbrMaterial ImportMaterial(Material Material){
+        MaterialChannel?BaseColorChannel=Material.FindChannel("BaseColor");
+        MaterialChannel?NormalChannel=Material.FindChannel("Normal");
+        MaterialChannel?MetallicRoughnessChannel=Material.FindChannel("MetallicRoughness");
+        MaterialChannel?EmissiveChannel=Material.FindChannel("Emissive");
 
         return new ImportedPbrMaterial {
             BaseColorFactor=BaseColorChannel?.Color??new Vector4(1f,1f,1f,1f),
@@ -306,7 +306,7 @@ public static class GltfImporter {
     }
 
     private static byte[]?ExtractTextureBytes(MaterialChannel?Channel)=>
-        Channel?.Texture?.PrimaryImage is Image image?image.Content.Content.ToArray():null;
+        Channel?.Texture?.PrimaryImage is Image Image?Image.Content.Content.ToArray():null;
 
     private static ImportedLight ImportLight(PunctualLight Light)=>new(){
         LightType=Light.LightType switch {
@@ -357,10 +357,10 @@ public static class GltfImporter {
             Uvs=UvsUsable?RawUvs!:new Vector2[RawPositions.Length];
             Indices=new uint[Triangles.Count*3];
 
-            for(var i=0;i<Triangles.Count;i++){
-                Indices[(i*3)+0]=(uint)Triangles[i].A;
-                Indices[(i*3)+1]=(uint)Triangles[i].B;
-                Indices[(i*3)+2]=(uint)Triangles[i].C;
+            for(var I=0;I<Triangles.Count;I++){
+                Indices[(I*3)+0]=(uint)Triangles[I].A;
+                Indices[(I*3)+1]=(uint)Triangles[I].B;
+                Indices[(I*3)+2]=(uint)Triangles[I].C;
             }
         } else {
             Diagnostics.Add(new GltfImportDiagnostic(GltfImportDiagnosticSeverity.Warning, $"'{Context}': NORMAL attribute missing or inconsistent; synthesized {Triangles.Count} flat per-face normal(s)."));
@@ -370,8 +370,8 @@ public static class GltfImporter {
             Uvs=new Vector2[Triangles.Count*3];
             Indices=new uint[Triangles.Count*3];
 
-            for(var i=0;i<Triangles.Count;i++){
-                (var A,var B,var C)=Triangles[i];
+            for(var I=0;I<Triangles.Count;I++){
+                (var A,var B,var C)=Triangles[I];
                 Vector3 Pa=RawPositions[A];
                 Vector3 Pb=RawPositions[B];
                 Vector3 Pc=RawPositions[C];
@@ -381,7 +381,7 @@ public static class GltfImporter {
                     ?Vector3.Normalize(FaceNormalUnnormalized)
                     :Vector3.UnitY;
 
-                var BaseIndex=i*3;
+                var BaseIndex=I*3;
                 Positions[BaseIndex+0]=Pa;
                 Positions[BaseIndex+1]=Pb;
                 Positions[BaseIndex+2]=Pc;
@@ -402,9 +402,9 @@ public static class GltfImporter {
         // (GltfAxisConversion.FlipTriangleWinding) and does not affect ComputeTangents' output either
         // way (swapping a triangle's last two indices leaves its tangent/bitangent formula unchanged,
         // verified algebraically in ADR-0027).
-        for(var i=0;i<Positions.Length;i++){
-            Positions[i]=GltfAxisConversion.ConvertVector(Positions[i]);
-            Normals[i]=GltfAxisConversion.ConvertVector(Normals[i]);
+        for(var I=0;I<Positions.Length;I++){
+            Positions[I]=GltfAxisConversion.ConvertVector(Positions[I]);
+            Normals[I]=GltfAxisConversion.ConvertVector(Normals[I]);
         }
 
         GltfAxisConversion.FlipTriangleWinding(Indices);
@@ -416,8 +416,8 @@ public static class GltfImporter {
             // A source-provided TANGENT accessor is glTF-space data and must be converted
             // explicitly (xyz direction plus a handedness-sign flip - see GltfAxisConversion.ConvertTangent).
             Tangents=new Vector4[RawTangents.Length];
-            for(var i=0;i<RawTangents.Length;i++){
-                Tangents[i]=GltfAxisConversion.ConvertTangent(RawTangents[i]);
+            for(var I=0;I<RawTangents.Length;I++){
+                Tangents[I]=GltfAxisConversion.ConvertTangent(RawTangents[I]);
             }
         } else {
             // Synthesized directly from the already-converted (engine-space) positions/normals/uvs/
@@ -449,10 +449,10 @@ public static class GltfImporter {
         Vector3[]Tan=new Vector3[VertexCount];
         Vector3[]Bitan=new Vector3[VertexCount];
 
-        for(var i=0;i+2<Indices.Count;i+=3){
-            var I0=Indices[i];
-            var I1=Indices[i+1];
-            var I2=Indices[i+2];
+        for(var I=0;I+2<Indices.Count;I+=3){
+            var I0=Indices[I];
+            var I1=Indices[I+1];
+            var I2=Indices[I+2];
 
             Vector3 Edge1=Positions[(int)I1]-Positions[(int)I0];
             Vector3 Edge2=Positions[(int)I2]-Positions[(int)I0];
@@ -473,17 +473,17 @@ public static class GltfImporter {
         }
 
         Vector4[]Result=new Vector4[VertexCount];
-        for(var i=0;i<VertexCount;i++){
-            Vector3 N=Normals[i];
-            Vector3 T=Tan[i];
+        for(var I=0;I<VertexCount;I++){
+            Vector3 N=Normals[I];
+            Vector3 T=Tan[I];
 
             Vector3 Orthogonalized=T-(N*Vector3.Dot(N,T));
             Vector3 SafeTangent=Orthogonalized.LengthSquared()>1e-12f
                 ?Vector3.Normalize(Orthogonalized)
                 :ArbitraryTangentFor(N);
 
-            var Handedness=Vector3.Dot(Vector3.Cross(N,SafeTangent),Bitan[i])<0f?-1f:1f;
-            Result[i]=new Vector4(SafeTangent,Handedness);
+            var Handedness=Vector3.Dot(Vector3.Cross(N,SafeTangent),Bitan[I])<0f?-1f:1f;
+            Result[I]=new Vector4(SafeTangent,Handedness);
         }
 
         return Result;

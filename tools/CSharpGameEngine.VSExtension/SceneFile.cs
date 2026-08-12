@@ -48,15 +48,15 @@ internal sealed class SceneFile {
 
     private static readonly JsonSerializerOptions JsonOptions=new(){ PropertyNameCaseInsensitive=true };
 
-    public static SceneFile Load(string path)=>Parse(File.ReadAllText(path));
+    public static SceneFile Load(string Path)=>Parse(File.ReadAllText(Path));
 
     public static SceneFile Parse(string Json){
         JsonDocumentDto Document=JsonSerializer.Deserialize<JsonDocumentDto>(Json,JsonOptions)
             ??throw new InvalidDataException("シーンJSONの読み込みに失敗しました。");
 
-        List<SceneFileNode>nodes=new(Document.Nodes.Count);
+        List<SceneFileNode>Nodes=new(Document.Nodes.Count);
         foreach(JsonNodeDto Node in Document.Nodes){
-            nodes.Add(new SceneFileNode {
+            Nodes.Add(new SceneFileNode {
                 Id=Guid.ParseExact(Node.Id,"D"),
                 Name=Node.Name,
                 ParentId=Node.ParentId is null?null:Guid.ParseExact(Node.ParentId,"D"),
@@ -67,10 +67,10 @@ internal sealed class SceneFile {
             });
         }
 
-        return new SceneFile { Nodes=nodes };
+        return new SceneFile { Nodes=Nodes };
     }
 
-    public void Save(string path)=>File.WriteAllText(path,ToJson());
+    public void Save(string Path)=>File.WriteAllText(Path,ToJson());
 
     public string ToJson(){
         JsonDocumentDto Document=new(){
@@ -121,8 +121,8 @@ internal sealed class SceneFile {
 
         Dictionary<Guid,Matrix4x4>Resolved=[];
         HashSet<Guid>Visiting=[];
-        foreach(SceneFileNode node in Nodes){
-            ResolveWorldTransform(node,ById,Resolved,Visiting);
+        foreach(SceneFileNode Node in Nodes){
+            ResolveWorldTransform(Node,ById,Resolved,Visiting);
         }
 
         return Resolved;
@@ -159,23 +159,23 @@ internal sealed class SceneFile {
         }
 
         Dictionary<Guid,List<SceneFileNode>>ChildrenByParent=[];
-        foreach(SceneFileNode node in Nodes){
-            if(node.ParentId is Guid ParentId&&ById.ContainsKey(ParentId)){
+        foreach(SceneFileNode Node in Nodes){
+            if(Node.ParentId is Guid ParentId&&ById.ContainsKey(ParentId)){
                 if(!ChildrenByParent.TryGetValue(ParentId,out List<SceneFileNode>?Siblings)){
                     Siblings=[];
                     ChildrenByParent[ParentId]=Siblings;
                 }
 
-                Siblings.Add(node);
+                Siblings.Add(Node);
             }
         }
 
         HashSet<Guid>Visited=[];
         List<SceneFileNodeTreeItem>Roots=[];
-        foreach(SceneFileNode node in Nodes){
-            var IsRoot=node.ParentId is null||!ById.ContainsKey(node.ParentId.Value);
+        foreach(SceneFileNode Node in Nodes){
+            var IsRoot=Node.ParentId is null||!ById.ContainsKey(Node.ParentId.Value);
             if(IsRoot){
-                Roots.Add(BuildItem(node,ChildrenByParent,Visited));
+                Roots.Add(BuildItem(Node,ChildrenByParent,Visited));
             }
         }
 

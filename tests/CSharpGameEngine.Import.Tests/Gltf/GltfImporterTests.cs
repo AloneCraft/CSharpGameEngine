@@ -18,8 +18,8 @@ public class GltfImporterTests {
         Assert.DoesNotContain(Result.Diagnostics,D=>D.Severity==GltfImportDiagnosticSeverity.Error);
         Assert.Contains(Result.Diagnostics,D=>D.Severity==GltfImportDiagnosticSeverity.Warning&&D.Message.Contains("TEXCOORD_0"));
 
-        foreach(var index in Result.Mesh.Indices){
-            Assert.True(index<Result.Mesh.Positions.Count);
+        foreach(var Index in Result.Mesh.Indices){
+            Assert.True(Index<Result.Mesh.Positions.Count);
         }
     }
 
@@ -122,10 +122,10 @@ public class GltfImporterTests {
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void Import_NullOrWhitespacePath_Throws(string?path){
+    public void Import_NullOrWhitespacePath_Throws(string?Path){
         // ArgumentException.ThrowIfNullOrWhiteSpace throws ArgumentNullException specifically for
         // null, and plain ArgumentException for empty/whitespace - both are acceptable here.
-        Assert.ThrowsAny<ArgumentException>(()=>GltfImporter.Import(path!));
+        Assert.ThrowsAny<ArgumentException>(()=>GltfImporter.Import(Path!));
     }
 
     [Fact]

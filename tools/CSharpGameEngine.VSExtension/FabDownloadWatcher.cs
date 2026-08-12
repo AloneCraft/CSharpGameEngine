@@ -32,15 +32,15 @@ internal sealed class FabDownloadWatcher:IDisposable {
 
     public bool IsRunning=>Watcher.EnableRaisingEvents;
 
-    public FabDownloadWatcher(string watchedFolder,string DestinationFolder,Action<string>OnFileCopied,Action<string>OnError){
-        WatchedFolder=watchedFolder??throw new ArgumentNullException(nameof(watchedFolder));
+    public FabDownloadWatcher(string WatchedFolder,string DestinationFolder,Action<string>OnFileCopied,Action<string>OnError){
+        this.WatchedFolder= WatchedFolder ?? throw new ArgumentNullException(nameof(WatchedFolder));
         this.DestinationFolder=DestinationFolder??throw new ArgumentNullException(nameof(DestinationFolder));
         this.OnFileCopied=OnFileCopied??throw new ArgumentNullException(nameof(OnFileCopied));
         this.OnError=OnError??throw new ArgumentNullException(nameof(OnError));
 
         Directory.CreateDirectory(DestinationFolder);
 
-        Watcher=new FileSystemWatcher(watchedFolder){
+        Watcher=new FileSystemWatcher(WatchedFolder){
             NotifyFilter=NotifyFilters.FileName|NotifyFilters.LastWrite,
             IncludeSubdirectories=false,
         };
@@ -57,13 +57,13 @@ internal sealed class FabDownloadWatcher:IDisposable {
 
     public void Stop()=>Watcher.EnableRaisingEvents=false;
 
-    private void HandleCandidate(string path){
-        var Extension=Path.GetExtension(path);
+    private void HandleCandidate(string Path){
+        var Extension= System.IO.Path.GetExtension(Path);
         if(!WatchedExtensions.Contains(Extension,StringComparer.OrdinalIgnoreCase)){
             return;
         }
 
-        ThreadPool.QueueUserWorkItem(_=>CopyWhenReady(path));
+        ThreadPool.QueueUserWorkItem(_=>CopyWhenReady(Path));
     }
 
     private void CopyWhenReady(string SourcePath){
@@ -80,15 +80,15 @@ internal sealed class FabDownloadWatcher:IDisposable {
         }
     }
 
-    private static bool WaitUntilReadable(string path,TimeSpan timeout){
-        DateTime Deadline=DateTime.UtcNow+timeout;
+    private static bool WaitUntilReadable(string Path,TimeSpan Timeout){
+        DateTime Deadline=DateTime.UtcNow+Timeout;
         while(DateTime.UtcNow<Deadline){
-            if(!File.Exists(path)){
+            if(!File.Exists(Path)){
                 return false;
             }
 
             try {
-                using FileStream stream=File.Open(path,FileMode.Open,FileAccess.Read,FileShare.None);
+                using FileStream Stream=File.Open(Path,FileMode.Open,FileAccess.Read,FileShare.None);
                 return true;
             } catch(IOException){
                 Thread.Sleep(500);
@@ -98,19 +98,19 @@ internal sealed class FabDownloadWatcher:IDisposable {
         return false;
     }
 
-    private static string MakeUnique(string path){
-        if(!File.Exists(path)){
-            return path;
+    private static string MakeUnique(string Path){
+        if(!File.Exists(Path)){
+            return Path;
         }
 
-        var directory=Path.GetDirectoryName(path);
-        var NameWithoutExtension=Path.GetFileNameWithoutExtension(path);
-        var Extension=Path.GetExtension(path);
+        var Directory= System.IO.Path.GetDirectoryName(Path);
+        var NameWithoutExtension= System.IO.Path.GetFileNameWithoutExtension(Path);
+        var Extension= System.IO.Path.GetExtension(Path);
 
         var Counter=1;
         string Candidate;
         do {
-            Candidate=Path.Combine(directory??string.Empty, $"{NameWithoutExtension} ({Counter}){Extension}");
+            Candidate= System.IO.Path.Combine(Directory ?? string.Empty, $"{NameWithoutExtension} ({Counter}){Extension}");
             Counter++;
         } while(File.Exists(Candidate));
 

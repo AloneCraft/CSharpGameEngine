@@ -24,21 +24,21 @@ public sealed class BridgeServerResponse {
 /// <see cref="MemoryStream"/> without spawning a real pipe or process.
 /// </summary>
 public static class BridgeWireMessage {
-    public static async Task WriteAsync<T>(Stream stream,T Value,CancellationToken cancellationToken){
+    public static async Task WriteAsync<T>(Stream Stream,T Value,CancellationToken CancellationToken){
         var Payload=JsonSerializer.SerializeToUtf8Bytes(Value);
         var LengthPrefix=BitConverter.GetBytes(Payload.Length);
-        await stream.WriteAsync(LengthPrefix,cancellationToken);
-        await stream.WriteAsync(Payload,cancellationToken);
-        await stream.FlushAsync(cancellationToken);
+        await Stream.WriteAsync(LengthPrefix,CancellationToken);
+        await Stream.WriteAsync(Payload,CancellationToken);
+        await Stream.FlushAsync(CancellationToken);
     }
 
-    public static async Task<T>ReadAsync<T>(Stream stream,CancellationToken cancellationToken){
+    public static async Task<T>ReadAsync<T>(Stream Stream,CancellationToken CancellationToken){
         var LengthPrefix=new byte[4];
-        await stream.ReadExactlyAsync(LengthPrefix,cancellationToken);
+        await Stream.ReadExactlyAsync(LengthPrefix,CancellationToken);
         var Length=BitConverter.ToInt32(LengthPrefix,0);
 
         var Payload=new byte[Length];
-        await stream.ReadExactlyAsync(Payload,cancellationToken);
+        await Stream.ReadExactlyAsync(Payload,CancellationToken);
 
         return JsonSerializer.Deserialize<T>(Payload)
             ??throw new InvalidOperationException($"Failed to deserialize {typeof(T).Name} from the bridge wire protocol.");

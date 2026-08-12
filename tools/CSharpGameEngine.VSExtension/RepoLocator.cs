@@ -19,7 +19,7 @@ internal static class RepoLocator {
     public static string?ResolveRepoRoot(){
         var RepoRoot=Assembly.GetExecutingAssembly()
             .GetCustomAttributes<AssemblyMetadataAttribute>()
-            .FirstOrDefault(attribute=>attribute.Key=="CSharpGameEngineRepoRoot")
+            .FirstOrDefault(Attribute=>Attribute.Key=="CSharpGameEngineRepoRoot")
             ?.Value;
 
         if(string.IsNullOrEmpty(RepoRoot)){

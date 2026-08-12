@@ -25,7 +25,7 @@ internal static class GizmoMeshFactory {
             throw new ArgumentOutOfRangeException(nameof(Size),"size must be positive.");
         }
 
-        var half=Size/2f;
+        var Half=Size/2f;
 
         (Vector3 Normal,Vector3 U,Vector3 V)[]Faces=[
             (Vector3.UnitZ,Vector3.UnitX,Vector3.UnitY),      // +Z
@@ -40,23 +40,23 @@ internal static class GizmoMeshFactory {
         Vector3[]Normals=new Vector3[Faces.Length*4];
         var Indices=new uint[Faces.Length*6];
 
-        for(var face=0;face<Faces.Length;face++){
-            (Vector3 Normal,Vector3 U,Vector3 V)=Faces[face];
-            Vector3 Center=Normal*half;
-            Vector3 UHalf=U*half;
-            Vector3 VHalf=V*half;
-            var VertexBase=face*4;
+        for(var Face=0;Face<Faces.Length;Face++){
+            (Vector3 Normal,Vector3 U,Vector3 V)=Faces[Face];
+            Vector3 Center=Normal*Half;
+            Vector3 UHalf=U*Half;
+            Vector3 VHalf=V*Half;
+            var VertexBase=Face*4;
 
             Positions[VertexBase+0]=Center-UHalf-VHalf;
             Positions[VertexBase+1]=Center+UHalf-VHalf;
             Positions[VertexBase+2]=Center+UHalf+VHalf;
             Positions[VertexBase+3]=Center-UHalf+VHalf;
 
-            for(var i=0;i<4;i++){
-                Normals[VertexBase+i]=Normal;
+            for(var I=0;I<4;I++){
+                Normals[VertexBase+I]=Normal;
             }
 
-            var IndexBase=face*6;
+            var IndexBase=Face*6;
             Indices[IndexBase+0]=(uint)(VertexBase+0);
             Indices[IndexBase+1]=(uint)(VertexBase+1);
             Indices[IndexBase+2]=(uint)(VertexBase+2);

@@ -112,10 +112,10 @@ public sealed class GameSystemEntryPointTests {
                 }
                 """));
 
-        Diagnostic diagnostic=Assert.Single(Result.Diagnostics,D=>D.Id=="SYSGEN021");
+        Diagnostic Diagnostic=Assert.Single(Result.Diagnostics,D=>D.Id=="SYSGEN021");
 
-        Assert.Contains("Game.ContextSystem",diagnostic.GetMessage());
-        Assert.Contains("Sample.Log",diagnostic.GetMessage());
+        Assert.Contains("Game.ContextSystem",Diagnostic.GetMessage());
+        Assert.Contains("Sample.Log",Diagnostic.GetMessage());
         AssertNoEntryPoint(Result);
     }
 
@@ -174,7 +174,7 @@ public sealed class GameSystemEntryPointTests {
     /// </summary>
     [Fact]
     public void GeneratedMain_SeedsBootstrap_RunsFrames_AndStopsWhenStateIsDisabled(){
-        CSharpCompilation compilation=GameSystemGeneratorTestHelper.CreateApplicationCompilation(
+        CSharpCompilation Compilation=GameSystemGeneratorTestHelper.CreateApplicationCompilation(
             GameSystemGeneratorTestHelper.CommonComponents,
             """
             using CSharpGameEngine.Entities;
@@ -220,15 +220,15 @@ public sealed class GameSystemEntryPointTests {
             }
             """);
 
-        Assembly assembly=GameSystemGeneratorTestHelper.CompileAndLoad(compilation);
+        Assembly Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Compilation);
 
-        GameSystemGeneratorTestHelper.Invoke(assembly,"CSharpGameEngine.Generated.GeneratedEntryPoint","Main");
+        GameSystemGeneratorTestHelper.Invoke(Assembly,"CSharpGameEngine.Generated.GeneratedEntryPoint","Main");
 
         // Spawned=1: Bootstrapは一度きり。Frames=3: 停止条件どおり。BootstrapTicks=3: Bootstrapの
         // Archetypeループは毎フレーム回り続ける(閉集合方式にDestroyは無い)。
         // Frames=3がBootstrapTicksと一致すること自体が「Archetype0(Bootstrap)が作ったEntityは
         // 同じフレームのうちにArchetype1(Position)のループで処理される」ことの証明でもある。
-        Assert.Equal("1:3:3",GameSystemGeneratorTestHelper.Invoke(assembly,"Game.Trace","Result"));
+        Assert.Equal("1:3:3",GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.Trace","Result"));
     }
 
     private static void AssertNoEntryPoint(GeneratorDriverRunResult Result)=>

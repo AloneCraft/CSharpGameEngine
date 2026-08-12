@@ -61,8 +61,8 @@ internal static class GameSystemAnalyzer {
 
         List<GameSystemMethodModel>MethodModels=[];
 
-        foreach(IMethodSymbol method in Methods){
-            GameSystemMethodModel?Model=AnalyzeMethod(method,Diagnostics);
+        foreach(IMethodSymbol Method in Methods){
+            GameSystemMethodModel?Model=AnalyzeMethod(Method,Diagnostics);
 
             if(Model is { } Value){
                 MethodModels.Add(Value);
@@ -92,8 +92,8 @@ internal static class GameSystemAnalyzer {
             : $"{Symbol.ContainingNamespace.ToDisplayString()}.{Symbol.Name}";
 
     private static int GetDeclarationPosition(ISymbol Symbol){
-        Location location=Symbol.Locations.FirstOrDefault()??Location.None;
-        return location.SourceSpan.Start;
+        Location Location=Symbol.Locations.FirstOrDefault()??Location.None;
+        return Location.SourceSpan.Start;
     }
 
     private static GameSystemMethodModel?AnalyzeMethod(IMethodSymbol Method,ImmutableArray<Diagnostic>.Builder Diagnostics){
@@ -179,8 +179,8 @@ internal static class GameSystemAnalyzer {
             CallOrder.Add(new GameSystemParameterSlot(GameSystemParameterRole.Entity,0));
         }
 
-        for(var i=ScanStart;i<ScanEndExclusive;i++){
-            IParameterSymbol Parameter=Parameters[i];
+        for(var I=ScanStart;I<ScanEndExclusive;I++){
+            IParameterSymbol Parameter=Parameters[I];
             var ParameterTypeFqn=TypeFqn(Parameter);
 
             if(ParameterTypeFqn==EntityFullyQualifiedName||ParameterTypeFqn==StateFullyQualifiedName){
@@ -253,6 +253,6 @@ internal static class GameSystemAnalyzer {
     /// (<c>ref</c>パラメーターの検証)で2箇所に同じ規則を書くと「Systemでは通るがSceneでは通らない」
     /// というズレが生まれ、両者が同一のArchetype空間を共有するという前提が壊れる。
     /// </summary>
-    internal static bool IsNonNullableStruct(ITypeSymbol type)=>
-        global::CSharpGameEngine.SceneAnalysis.SceneTypePredicates.IsNonNullableStruct(type);
+    internal static bool IsNonNullableStruct(ITypeSymbol Type)=>
+        global::CSharpGameEngine.SceneAnalysis.SceneTypePredicates.IsNonNullableStruct(Type);
 }

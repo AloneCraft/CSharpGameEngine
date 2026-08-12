@@ -284,18 +284,18 @@ public sealed unsafe class StageRenderer:IDisposable {
         var StageMaterials=new StageMaterialCreateInfo[Meshes.Count];
         var StageObjects=new StageObjectCreateInfo[Meshes.Count];
 
-        for(var i=0;i<Meshes.Count;i++){
-            MeshCreateInfo Mesh=Meshes[i];
+        for(var I=0;I<Meshes.Count;I++){
+            MeshCreateInfo Mesh=Meshes[I];
             var VertexCount=Mesh.Positions.Count;
             var Uvs=new Vector2[VertexCount];
             var Tangents=new Vector4[VertexCount];
-            for(var v=0;v<VertexCount;v++){
-                Tangents[v]=ArbitraryTangentFor(Mesh.Normals[v]);
+            for(var V=0;V<VertexCount;V++){
+                Tangents[V]=ArbitraryTangentFor(Mesh.Normals[V]);
             }
 
-            StageMeshes[i]=new StageMeshCreateInfo { Positions=Mesh.Positions,Normals=Mesh.Normals,Tangents=Tangents,Uvs=Uvs,Indices=Mesh.Indices };
-            StageMaterials[i]=new StageMaterialCreateInfo { BaseColorFactor=Mesh.BaseColorFactor,RoughnessFactor=1f,MetallicFactor=0f };
-            StageObjects[i]=new StageObjectCreateInfo { MeshIndex=i,MaterialIndex=i };
+            StageMeshes[I]=new StageMeshCreateInfo { Positions=Mesh.Positions,Normals=Mesh.Normals,Tangents=Tangents,Uvs=Uvs,Indices=Mesh.Indices };
+            StageMaterials[I]=new StageMaterialCreateInfo { BaseColorFactor=Mesh.BaseColorFactor,RoughnessFactor=1f,MetallicFactor=0f };
+            StageObjects[I]=new StageObjectCreateInfo { MeshIndex=I,MaterialIndex=I };
         }
 
         return Create(Hwnd,Width,Height,DeviceOptions,ShaderPath,StageMeshes,StageMaterials,StageObjects);
@@ -323,12 +323,12 @@ public sealed unsafe class StageRenderer:IDisposable {
         CreateHdrColorBuffer(Width,Height);
         CreateShadowMap();
 
-        for(var i=0;i<FrameCount;i++){
+        for(var I=0;I<FrameCount;I++){
             ID3D12CommandAllocator*Allocator;
             D3D12Diagnostics.EnsureSuccess(
                 Device.Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,__uuidof<ID3D12CommandAllocator>(),(void**)&Allocator),
                 "ID3D12Device::CreateCommandAllocator","creating a frame command allocator");
-            CommandAllocators[i]=Allocator;
+            CommandAllocators[I]=Allocator;
         }
 
         ID3D12GraphicsCommandList*CommandList;
@@ -416,16 +416,16 @@ public sealed unsafe class StageRenderer:IDisposable {
     private void CreateRenderTargetViews(){
         D3D12_CPU_DESCRIPTOR_HANDLE RtvBase=RtvHeap->GetCPUDescriptorHandleForHeapStart();
 
-        for(uint i=0;i<FrameCount;i++){
+        for(uint I=0;I<FrameCount;I++){
             ID3D12Resource*BackBuffer;
             D3D12Diagnostics.EnsureSuccess(
-                SwapChain->GetBuffer(i,__uuidof<ID3D12Resource>(),(void**)&BackBuffer),
-                "IDXGISwapChain3::GetBuffer","retrieving a back buffer", $"buffer[{i}]");
+                SwapChain->GetBuffer(I,__uuidof<ID3D12Resource>(),(void**)&BackBuffer),
+                "IDXGISwapChain3::GetBuffer","retrieving a back buffer", $"buffer[{I}]");
 
-            D3D12_CPU_DESCRIPTOR_HANDLE RtvHandle=new(RtvBase,(int)i,RtvDescriptorSize);
+            D3D12_CPU_DESCRIPTOR_HANDLE RtvHandle=new(RtvBase,(int)I,RtvDescriptorSize);
             Device!.Device->CreateRenderTargetView(BackBuffer,pDesc:null,RtvHandle);
 
-            BackBuffers[i]=BackBuffer;
+            BackBuffers[I]=BackBuffer;
         }
     }
 
@@ -868,18 +868,18 @@ public sealed unsafe class StageRenderer:IDisposable {
         IndexBufferViews=new D3D12_INDEX_BUFFER_VIEW[MeshCount];
         IndexCounts=new uint[MeshCount];
 
-        for(var i=0;i<MeshCount;i++){
-            StageMeshCreateInfo Mesh=Meshes[i];
-            CreateVertexBuffer(i,Mesh.Positions,Mesh.Normals,Mesh.Tangents,Mesh.Uvs);
-            CreateIndexBuffer(i,Mesh.Indices);
+        for(var I=0;I<MeshCount;I++){
+            StageMeshCreateInfo Mesh=Meshes[I];
+            CreateVertexBuffer(I,Mesh.Positions,Mesh.Normals,Mesh.Tangents,Mesh.Uvs);
+            CreateIndexBuffer(I,Mesh.Indices);
         }
     }
 
     private void CreateVertexBuffer(int MeshIndex,IReadOnlyList<Vector3>Positions,IReadOnlyList<Vector3>Normals,IReadOnlyList<Vector4>Tangents,IReadOnlyList<Vector2>Uvs){
         var VertexCount=Positions.Count;
         Vertex[]Vertices=new Vertex[VertexCount];
-        for(var i=0;i<VertexCount;i++){
-            Vertices[i]=new Vertex { Position=Positions[i],Normal=Normals[i],Tangent=Tangents[i],Uv=Uvs[i]};
+        for(var I=0;I<VertexCount;I++){
+            Vertices[I]=new Vertex { Position=Positions[I],Normal=Normals[I],Tangent=Tangents[I],Uv=Uvs[I]};
         }
 
         var BufferSize=(uint)(sizeof(Vertex)*VertexCount);
@@ -946,16 +946,16 @@ public sealed unsafe class StageRenderer:IDisposable {
         MaterialMetallicFactors=new float[MaterialCount];
         MaterialEmissiveFactors=new Vector3[MaterialCount];
 
-        for(var i=0;i<MaterialCount;i++){
-            StageMaterialCreateInfo Material=Materials[i];
-            MaterialBaseColorFactors[i]=Material.BaseColorFactor;
-            MaterialRoughnessFactors[i]=Material.RoughnessFactor;
-            MaterialMetallicFactors[i]=Material.MetallicFactor;
-            MaterialEmissiveFactors[i]=Material.EmissiveFactor;
+        for(var I=0;I<MaterialCount;I++){
+            StageMaterialCreateInfo Material=Materials[I];
+            MaterialBaseColorFactors[I]=Material.BaseColorFactor;
+            MaterialRoughnessFactors[I]=Material.RoughnessFactor;
+            MaterialMetallicFactors[I]=Material.MetallicFactor;
+            MaterialEmissiveFactors[I]=Material.EmissiveFactor;
 
-            MaterialTextures[(i*3)+0]=CreateTextureResource(Material.BaseColorTextureBytes,WhiteFallback());
-            MaterialTextures[(i*3)+1]=CreateTextureResource(Material.NormalTextureBytes,FlatNormalFallback());
-            MaterialTextures[(i*3)+2]=CreateTextureResource(Material.MetallicRoughnessTextureBytes,WhiteFallback());
+            MaterialTextures[(I*3)+0]=CreateTextureResource(Material.BaseColorTextureBytes,WhiteFallback());
+            MaterialTextures[(I*3)+1]=CreateTextureResource(Material.NormalTextureBytes,FlatNormalFallback());
+            MaterialTextures[(I*3)+2]=CreateTextureResource(Material.MetallicRoughnessTextureBytes,WhiteFallback());
         }
 
         D3D12_DESCRIPTOR_HEAP_DESC SrvHeapDesc=new(){
@@ -978,9 +978,9 @@ public sealed unsafe class StageRenderer:IDisposable {
         };
         SrvDesc.Texture2D.MipLevels=1;
 
-        for(var i=0;i<MaterialTextures.Length;i++){
-            D3D12_CPU_DESCRIPTOR_HANDLE Handle=new(SrvHeapStart,(i/3)*4+(i%3),SrvDescriptorSize);
-            Device.Device->CreateShaderResourceView(MaterialTextures[i],&SrvDesc,Handle);
+        for(var I=0;I<MaterialTextures.Length;I++){
+            D3D12_CPU_DESCRIPTOR_HANDLE Handle=new(SrvHeapStart,(I/3)*4+(I%3),SrvDescriptorSize);
+            Device.Device->CreateShaderResourceView(MaterialTextures[I],&SrvDesc,Handle);
         }
 
         D3D12_SHADER_RESOURCE_VIEW_DESC ShadowSrvDesc=new(){
@@ -989,8 +989,8 @@ public sealed unsafe class StageRenderer:IDisposable {
             Shader4ComponentMapping=(uint)TerraFX.Interop.DirectX.D3D12.D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
         };
         ShadowSrvDesc.Texture2D.MipLevels=1;
-        for(var i=0;i<MaterialCount;i++){
-            D3D12_CPU_DESCRIPTOR_HANDLE Handle=new(SrvHeapStart,(i*4)+3,SrvDescriptorSize);
+        for(var I=0;I<MaterialCount;I++){
+            D3D12_CPU_DESCRIPTOR_HANDLE Handle=new(SrvHeapStart,(I*4)+3,SrvDescriptorSize);
             Device.Device->CreateShaderResourceView(ShadowMap,&ShadowSrvDesc,Handle);
         }
     }
@@ -1035,8 +1035,8 @@ public sealed unsafe class StageRenderer:IDisposable {
             var SrcRowPitch=(uint)Image.Width*4;
             var DstRowPitch=Footprint.Footprint.RowPitch;
             fixed(byte*PSrc=Image.Pixels){
-                for(uint y=0;y<Image.Height;y++){
-                    Unsafe.CopyBlock(Mapped+(y*DstRowPitch),PSrc+(y*SrcRowPitch),SrcRowPitch);
+                for(uint Y=0;Y<Image.Height;Y++){
+                    Unsafe.CopyBlock(Mapped+(Y*DstRowPitch),PSrc+(Y*SrcRowPitch),SrcRowPitch);
                 }
             }
             Staging->Unmap(0,null);
@@ -1081,10 +1081,10 @@ public sealed unsafe class StageRenderer:IDisposable {
         ObjectMaterialIndices=new int[ObjectCount];
         ObjectTransforms=new Matrix4x4[ObjectCount];
 
-        for(var i=0;i<ObjectCount;i++){
-            ObjectMeshIndices[i]=Objects[i].MeshIndex;
-            ObjectMaterialIndices[i]=Objects[i].MaterialIndex;
-            ObjectTransforms[i]=Matrix4x4.Identity;
+        for(var I=0;I<ObjectCount;I++){
+            ObjectMeshIndices[I]=Objects[I].MeshIndex;
+            ObjectMaterialIndices[I]=Objects[I].MaterialIndex;
+            ObjectTransforms[I]=Matrix4x4.Identity;
         }
     }
 
@@ -1101,7 +1101,7 @@ public sealed unsafe class StageRenderer:IDisposable {
         CreateUploadBuffer(ShadowBufferSize,out ShadowConstantsBuffer,out ShadowConstantsMapped,nameof(CreateShadowConstantsBuffer));
     }
 
-    private void CreateUploadBuffer(uint Size,out ID3D12Resource*buffer,out byte*Mapped,string Context){
+    private void CreateUploadBuffer(uint Size,out ID3D12Resource*Buffer,out byte*Mapped,string Context){
         D3D12_HEAP_PROPERTIES HeapProps=new(D3D12_HEAP_TYPE_UPLOAD);
         D3D12_RESOURCE_DESC BufferDesc=D3D12_RESOURCE_DESC.Buffer(Size);
 
@@ -1114,7 +1114,7 @@ public sealed unsafe class StageRenderer:IDisposable {
         byte*Ptr;
         D3D12Diagnostics.EnsureSuccess(Resource->Map(0,&NoRead,(void**)&Ptr),"ID3D12Resource::Map",Context);
 
-        buffer=Resource;
+        Buffer=Resource;
         Mapped=Ptr;
     }
 
@@ -1127,17 +1127,17 @@ public sealed unsafe class StageRenderer:IDisposable {
     private void InitializeConstantsToDefaults(){
         Camera DefaultCamera=Camera.CreateDefault(Vector3.Zero);
 
-        for(uint frame=0;frame<FrameCount;frame++){
-            WriteViewProjection(frame,DefaultCamera.GetView()*DefaultCamera.GetProjection((float)Width/Height));
-            WriteCameraPosition(frame,DefaultCamera.GetEyePosition());
-            WriteDirectionalLight(frame,DefaultLightDirectionTowardLight,DefaultLightColor);
-            WriteAmbientLight(frame,DefaultAmbientColor);
-            WriteFog(frame,FogParams.None);
-            WriteShadowViewProjection(frame,BuildShadowViewProjection(DefaultLightDirectionTowardLight));
-            WriteLightCounts(frame); // D3D12 does not guarantee zero-initialized upload-heap memory; without this the very first frame could loop over garbage PointLights/SpotLights entries.
+        for(uint Frame=0;Frame<FrameCount;Frame++){
+            WriteViewProjection(Frame,DefaultCamera.GetView()*DefaultCamera.GetProjection((float)Width/Height));
+            WriteCameraPosition(Frame,DefaultCamera.GetEyePosition());
+            WriteDirectionalLight(Frame,DefaultLightDirectionTowardLight,DefaultLightColor);
+            WriteAmbientLight(Frame,DefaultAmbientColor);
+            WriteFog(Frame,FogParams.None);
+            WriteShadowViewProjection(Frame,BuildShadowViewProjection(DefaultLightDirectionTowardLight));
+            WriteLightCounts(Frame); // D3D12 does not guarantee zero-initialized upload-heap memory; without this the very first frame could loop over garbage PointLights/SpotLights entries.
 
-            for(var objectIndex=0;objectIndex<ObjectCount;objectIndex++){
-                WriteObjectConstants(frame,objectIndex);
+            for(var ObjectIndex=0;ObjectIndex<ObjectCount;ObjectIndex++){
+                WriteObjectConstants(Frame,ObjectIndex);
             }
         }
     }
@@ -1147,10 +1147,10 @@ public sealed unsafe class StageRenderer:IDisposable {
     /// before <see cref="RenderFrame"/> - the constant buffer is double-buffered per frame-in-flight
     /// slot (<see cref="FrameCount"/>) and only the current slot is written here.
     /// </summary>
-    public void SetCamera(in Camera camera,float AspectRatioOverride=0f){
+    public void SetCamera(in Camera Camera,float AspectRatioOverride=0f){
         var AspectRatio=AspectRatioOverride>0f?AspectRatioOverride:(float)Width/Height;
-        WriteViewProjection(FrameIndex,camera.GetView()*camera.GetProjection(AspectRatio));
-        WriteCameraPosition(FrameIndex,camera.GetEyePosition());
+        WriteViewProjection(FrameIndex,Camera.GetView()*Camera.GetProjection(AspectRatio));
+        WriteCameraPosition(FrameIndex,Camera.GetEyePosition());
     }
 
     /// <summary>Sets the single data-driven directional light (sun) for the frame currently being built. <paramref name="DirectionTowardLight"/> points from the scene toward the light (i.e. the direction surfaces should face to be lit), not the direction light travels.</summary>
@@ -1171,19 +1171,19 @@ public sealed unsafe class StageRenderer:IDisposable {
 
     /// <summary>
     /// Adds one point light (radiates equally in all directions, attenuated by distance with a
-    /// smooth falloff that reaches zero at <paramref name="range"/>) for the frame currently being
+    /// smooth falloff that reaches zero at <paramref name="Range"/>) for the frame currently being
     /// built. Unlike <see cref="SetDirectionalLight"/>, this is additive per frame: call it once per
     /// active light, up to <see cref="MaxPointLights"/> - the count resets to zero at the end of
     /// <see cref="RenderFrame"/>, so a light that stops calling this simply stops contributing on
     /// the next frame (no stale state to clear).
     /// </summary>
-    public void AddPointLight(Vector3 Position,Vector3 Color,float Intensity,float range){
+    public void AddPointLight(Vector3 Position,Vector3 Color,float Intensity,float Range){
         if(PointLightCount>=MaxPointLights){
             Debug.Assert(false, $"CGE-STAGE-LIGHT-001: exceeded MaxPointLights ({MaxPointLights}); extra point lights are silently dropped this frame.");
             return;
         }
 
-        WritePointLight(FrameIndex,PointLightCount,Position,range,Color*Intensity);
+        WritePointLight(FrameIndex,PointLightCount,Position,Range,Color*Intensity);
         PointLightCount++;
         WriteLightCounts(FrameIndex);
     }
@@ -1196,13 +1196,13 @@ public sealed unsafe class StageRenderer:IDisposable {
     /// <paramref name="OuterConeAngleRadians"/> (zero). Additive per frame - see
     /// <see cref="AddPointLight"/> for the accumulate/reset contract.
     /// </summary>
-    public void AddSpotLight(Vector3 Position,Vector3 Direction,Vector3 Color,float Intensity,float range,float InnerConeAngleRadians,float OuterConeAngleRadians){
+    public void AddSpotLight(Vector3 Position,Vector3 Direction,Vector3 Color,float Intensity,float Range,float InnerConeAngleRadians,float OuterConeAngleRadians){
         if(SpotLightCount>=MaxSpotLights){
             Debug.Assert(false, $"CGE-STAGE-LIGHT-002: exceeded MaxSpotLights ({MaxSpotLights}); extra spot lights are silently dropped this frame.");
             return;
         }
 
-        WriteSpotLight(FrameIndex,SpotLightCount,Position,range,Vector3.Normalize(Direction),MathF.Cos(InnerConeAngleRadians),Color*Intensity,MathF.Cos(OuterConeAngleRadians));
+        WriteSpotLight(FrameIndex,SpotLightCount,Position,Range,Vector3.Normalize(Direction),MathF.Cos(InnerConeAngleRadians),Color*Intensity,MathF.Cos(OuterConeAngleRadians));
         SpotLightCount++;
         WriteLightCounts(FrameIndex);
     }
@@ -1259,18 +1259,18 @@ public sealed unsafe class StageRenderer:IDisposable {
     }
 
     /// <summary>Writes Stage.hlsl's PointLightData[index] (2 float4: position+range, color*intensity).</summary>
-    private void WritePointLight(uint FrameIndex,int index,Vector3 Position,float range,Vector3 ColorTimesIntensity){
-        var Destination=FrameSlot(FrameIndex)+FramePointLightsOffset+((uint)index*PointLightStride);
-        Vector4 PositionAndRange=new(Position,range);
+    private void WritePointLight(uint FrameIndex,int Index,Vector3 Position,float Range,Vector3 ColorTimesIntensity){
+        var Destination=FrameSlot(FrameIndex)+FramePointLightsOffset+((uint)Index*PointLightStride);
+        Vector4 PositionAndRange=new(Position,Range);
         Vector4 ColorPacked=new(ColorTimesIntensity,0f);
         Unsafe.CopyBlock(Destination,&PositionAndRange,(uint)sizeof(Vector4));
         Unsafe.CopyBlock(Destination+16,&ColorPacked,(uint)sizeof(Vector4));
     }
 
     /// <summary>Writes Stage.hlsl's SpotLightData[index] (3 float4: position+range, direction+innerCos, color*intensity+outerCos).</summary>
-    private void WriteSpotLight(uint FrameIndex,int index,Vector3 Position,float range,Vector3 Direction,float InnerConeCos,Vector3 ColorTimesIntensity,float OuterConeCos){
-        var Destination=FrameSlot(FrameIndex)+FrameSpotLightsOffset+((uint)index*SpotLightStride);
-        Vector4 PositionAndRange=new(Position,range);
+    private void WriteSpotLight(uint FrameIndex,int Index,Vector3 Position,float Range,Vector3 Direction,float InnerConeCos,Vector3 ColorTimesIntensity,float OuterConeCos){
+        var Destination=FrameSlot(FrameIndex)+FrameSpotLightsOffset+((uint)Index*SpotLightStride);
+        Vector4 PositionAndRange=new(Position,Range);
         Vector4 DirectionAndInnerCos=new(Direction,InnerConeCos);
         Vector4 ColorAndOuterCos=new(ColorTimesIntensity,OuterConeCos);
         Unsafe.CopyBlock(Destination,&PositionAndRange,(uint)sizeof(Vector4));
@@ -1350,14 +1350,14 @@ public sealed unsafe class StageRenderer:IDisposable {
         // See ModelRenderer.Resize / ADR-0003 §8: ResizeBuffers restarts the swap chain's
         // back-buffer index cycle, which would otherwise desynchronize the per-slot fence values.
         var SyncedFenceValue=FenceValues[FrameIndex];
-        for(var i=0;i<FrameCount;i++){
-            FenceValues[i]=SyncedFenceValue;
+        for(var I=0;I<FrameCount;I++){
+            FenceValues[I]=SyncedFenceValue;
         }
 
-        for(var i=0;i<FrameCount;i++){
-            if(BackBuffers[i]!=null){
-                _=BackBuffers[i]->Release();
-                BackBuffers[i]=null;
+        for(var I=0;I<FrameCount;I++){
+            if(BackBuffers[I]!=null){
+                _=BackBuffers[I]->Release();
+                BackBuffers[I]=null;
             }
         }
 
@@ -1398,9 +1398,9 @@ public sealed unsafe class StageRenderer:IDisposable {
         CommandList->RSSetViewports(1,&ShadowViewport);
         CommandList->RSSetScissorRects(1,&ShadowScissor);
         CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        for(var i=0;i<ObjectCount;i++){
-            var MeshIndex=ObjectMeshIndices[i];
-            CommandList->SetGraphicsRootConstantBufferView(1,GetObjectConstantsAddress(FrameIndex,i));
+        for(var I=0;I<ObjectCount;I++){
+            var MeshIndex=ObjectMeshIndices[I];
+            CommandList->SetGraphicsRootConstantBufferView(1,GetObjectConstantsAddress(FrameIndex,I));
             fixed(D3D12_VERTEX_BUFFER_VIEW*PVertexBufferView=&VertexBufferViews[MeshIndex])
             fixed(D3D12_INDEX_BUFFER_VIEW*PIndexBufferView=&IndexBufferViews[MeshIndex]){
                 CommandList->IASetVertexBuffers(0,1,PVertexBufferView);
@@ -1432,8 +1432,8 @@ public sealed unsafe class StageRenderer:IDisposable {
         D3D12_CPU_DESCRIPTOR_HANDLE DsvHandle=DsvHeap->GetCPUDescriptorHandleForHeapStart();
         CommandList->OMSetRenderTargets(1,&HdrRtvHandle,FALSE,&DsvHandle);
 
-        Vector4 clearColor=ClearColorVector;
-        CommandList->ClearRenderTargetView(HdrRtvHandle,(float*)&clearColor,0,null);
+        Vector4 ClearColor=ClearColorVector;
+        CommandList->ClearRenderTargetView(HdrRtvHandle,(float*)&ClearColor,0,null);
         CommandList->ClearDepthStencilView(DsvHandle,D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH,1.0f,0,0,null);
 
         CommandList->SetGraphicsRootSignature(RootSignature);
@@ -1451,10 +1451,10 @@ public sealed unsafe class StageRenderer:IDisposable {
 
         CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-        for(var i=0;i<ObjectCount;i++){
-            var MeshIndex=ObjectMeshIndices[i];
-            CommandList->SetGraphicsRootConstantBufferView(1,GetObjectConstantsAddress(FrameIndex,i));
-            CommandList->SetGraphicsRootDescriptorTable(2,GetMaterialDescriptorTable(ObjectMaterialIndices[i]));
+        for(var I=0;I<ObjectCount;I++){
+            var MeshIndex=ObjectMeshIndices[I];
+            CommandList->SetGraphicsRootConstantBufferView(1,GetObjectConstantsAddress(FrameIndex,I));
+            CommandList->SetGraphicsRootDescriptorTable(2,GetMaterialDescriptorTable(ObjectMaterialIndices[I]));
 
             fixed(D3D12_VERTEX_BUFFER_VIEW*PVertexBufferView=&VertexBufferViews[MeshIndex])
             fixed(D3D12_INDEX_BUFFER_VIEW*PIndexBufferView=&IndexBufferViews[MeshIndex]){
@@ -1499,8 +1499,8 @@ public sealed unsafe class StageRenderer:IDisposable {
             D3D12_RESOURCE_BARRIER ToPresent=D3D12_RESOURCE_BARRIER.InitTransition(BackBuffer,D3D12_RESOURCE_STATE_COPY_SOURCE,D3D12_RESOURCE_STATE_PRESENT);
             CommandList->ResourceBarrier(1,&ToPresent);
         } else {
-            D3D12_RESOURCE_BARRIER toPresent=D3D12_RESOURCE_BARRIER.InitTransition(BackBuffer,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_PRESENT);
-            CommandList->ResourceBarrier(1,&toPresent);
+            D3D12_RESOURCE_BARRIER ToPresent=D3D12_RESOURCE_BARRIER.InitTransition(BackBuffer,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_PRESENT);
+            CommandList->ResourceBarrier(1,&ToPresent);
         }
 
         D3D12Diagnostics.EnsureSuccess(CommandList->Close(),"ID3D12GraphicsCommandList::Close","closing the frame command list");
@@ -1652,24 +1652,24 @@ public sealed unsafe class StageRenderer:IDisposable {
             SrvHeap=null;
         }
 
-        for(var i=0;i<MaterialTextures.Length;i++){
-            if(MaterialTextures[i]!=null){
-                _=MaterialTextures[i]->Release();
-                MaterialTextures[i]=null;
+        for(var I=0;I<MaterialTextures.Length;I++){
+            if(MaterialTextures[I]!=null){
+                _=MaterialTextures[I]->Release();
+                MaterialTextures[I]=null;
             }
         }
 
-        for(var i=0;i<IndexBuffers.Length;i++){
-            if(IndexBuffers[i]!=null){
-                _=IndexBuffers[i]->Release();
-                IndexBuffers[i]=null;
+        for(var I=0;I<IndexBuffers.Length;I++){
+            if(IndexBuffers[I]!=null){
+                _=IndexBuffers[I]->Release();
+                IndexBuffers[I]=null;
             }
         }
 
-        for(var i=0;i<VertexBuffers.Length;i++){
-            if(VertexBuffers[i]!=null){
-                _=VertexBuffers[i]->Release();
-                VertexBuffers[i]=null;
+        for(var I=0;I<VertexBuffers.Length;I++){
+            if(VertexBuffers[I]!=null){
+                _=VertexBuffers[I]->Release();
+                VertexBuffers[I]=null;
             }
         }
 
@@ -1718,10 +1718,10 @@ public sealed unsafe class StageRenderer:IDisposable {
             CommandList=null;
         }
 
-        for(var i=0;i<FrameCount;i++){
-            if(CommandAllocators[i]!=null){
-                _=CommandAllocators[i]->Release();
-                CommandAllocators[i]=null;
+        for(var I=0;I<FrameCount;I++){
+            if(CommandAllocators[I]!=null){
+                _=CommandAllocators[I]->Release();
+                CommandAllocators[I]=null;
             }
         }
 
@@ -1740,10 +1740,10 @@ public sealed unsafe class StageRenderer:IDisposable {
             DsvHeap=null;
         }
 
-        for(var i=0;i<FrameCount;i++){
-            if(BackBuffers[i]!=null){
-                _=BackBuffers[i]->Release();
-                BackBuffers[i]=null;
+        for(var I=0;I<FrameCount;I++){
+            if(BackBuffers[I]!=null){
+                _=BackBuffers[I]->Release();
+                BackBuffers[I]=null;
             }
         }
 

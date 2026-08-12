@@ -29,10 +29,10 @@ public class ModelGpuIntegrationTests {
         RunWithTimeout(()=>RunModelGpuScenario(BoxTexturedPath,UseWarp:true),TimeSpan.FromSeconds(60));
     }
 
-    private static void RunWithTimeout(Action action,TimeSpan timeout){
-        Task task=Task.Run(action);
-        if(!task.Wait(timeout)){
-            throw new TimeoutException($"GPU test did not complete within {timeout}.");
+    private static void RunWithTimeout(Action Action,TimeSpan Timeout){
+        Task Task=Task.Run(Action);
+        if(!Task.Wait(Timeout)){
+            throw new TimeoutException($"GPU test did not complete within {Timeout}.");
         }
     }
 
@@ -63,9 +63,9 @@ public class ModelGpuIntegrationTests {
         Assert.True(Renderer.DebugLayerEnabled);
 
         const int TotalFrames=3;
-        for(var frame=0;frame<TotalFrames;frame++){
+        for(var Frame=0;Frame<TotalFrames;Frame++){
             Window.PumpEvents();
-            Renderer.RenderFrame(CaptureForVerification:frame==TotalFrames-1);
+            Renderer.RenderFrame(CaptureForVerification:Frame==TotalFrames-1);
         }
 
         Assert.Equal((uint)TotalFrames,Renderer.FramesRendered);

@@ -4,18 +4,18 @@ namespace CSharpGameEngine.Core;
 
 public sealed class DiagnosticBag:IReadOnlyCollection<Diagnostic>{
     private List<Diagnostic>?Items;
-    private bool hasErrors;
+    private bool HasErrorsValue;
 
     public int Count=>this.Items?.Count??0;
 
-    public bool HasErrors=>this.hasErrors;
+    public bool HasErrors=>this.HasErrorsValue;
 
-    public void Add(Diagnostic diagnostic){
+    public void Add(Diagnostic Diagnostic){
         this.Items??=[];
-        this.Items.Add(diagnostic);
+        this.Items.Add(Diagnostic);
 
-        if(diagnostic.Severity==DiagnosticSeverity.Error){
-            this.hasErrors=true;
+        if(Diagnostic.Severity==DiagnosticSeverity.Error){
+            this.HasErrorsValue=true;
         }
     }
 

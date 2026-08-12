@@ -18,11 +18,11 @@ public readonly struct RufQuaternion:IEquatable<RufQuaternion>{
     public float F { get;}
     public float W { get;}
 
-    public RufQuaternion(float r,float u,float f,float w){
-        R=r;
-        U=u;
-        F=f;
-        W=w;
+    public RufQuaternion(float R,float U,float F,float W){
+        this.R= R;
+        this.U= U;
+        this.F= F;
+        this.W= W;
     }
 
     public static readonly RufQuaternion Identity=new(0f,0f,0f,1f);
@@ -43,8 +43,8 @@ public readonly struct RufQuaternion:IEquatable<RufQuaternion>{
     public static RufQuaternion operator*(RufQuaternion Parent,RufQuaternion Child)
         =>FromSystemQuaternion(Parent.ToSystemQuaternion()*Child.ToSystemQuaternion());
 
-    public static RufVector RotateVector(in RufQuaternion Rotation,in RufVector vector){
-        Vector3 Rotated=Vector3.Transform(new Vector3(vector.R,vector.U,vector.F),Rotation.ToSystemQuaternion());
+    public static RufVector RotateVector(in RufQuaternion Rotation,in RufVector Vector){
+        Vector3 Rotated=Vector3.Transform(new Vector3(Vector.R,Vector.U,Vector.F),Rotation.ToSystemQuaternion());
         return new RufVector(Rotated.X,Rotated.Y,Rotated.Z);
     }
 

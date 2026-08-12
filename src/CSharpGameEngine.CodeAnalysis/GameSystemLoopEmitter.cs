@@ -78,10 +78,10 @@ internal static class GameSystemLoopEmitter {
         Context.AddSource(HintName,SourceText.From(string.Join("\n",Lines),Encoding.UTF8));
     }
 
-    private readonly struct SystemBinding(string TypeReference,string VariableName,GameSystemResult system){
+    private readonly struct SystemBinding(string TypeReference,string VariableName,GameSystemResult System){
         internal readonly string TypeReference=TypeReference;
         internal readonly string VariableName=VariableName;
-        internal readonly GameSystemResult System=system;
+        internal readonly GameSystemResult System=System;
     }
 
     private readonly struct ContextBinding(string TypeFullyQualifiedName,string ParameterName,bool IsReferenceType){

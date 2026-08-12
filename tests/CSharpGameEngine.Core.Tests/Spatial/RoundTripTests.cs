@@ -48,10 +48,10 @@ public class RoundTripTests {
 
     private static void AssertRufRoundTrip<TConvention>()
         where TConvention:struct,ICoordinateConvention {
-        Random random=new(Seed);
+        Random Random=new(Seed);
 
-        for(var i=0;i<SampleCount;i++){
-            RufVector Original=NextRuf(random);
+        for(var I=0;I<SampleCount;I++){
+            RufVector Original=NextRuf(Random);
             RufVector RoundTripped=TConvention.FromXyz(TConvention.ToXyz(Original));
 
             Assert.Equal(Original.R,RoundTripped.R,precision:4);
@@ -62,10 +62,10 @@ public class RoundTripTests {
 
     private static void AssertXyzRoundTrip<TConvention>()
         where TConvention:struct,ICoordinateConvention {
-        Random random=new(Seed);
+        Random Random=new(Seed);
 
-        for(var i=0;i<SampleCount;i++){
-            XyzVector Original=NextXyz(random);
+        for(var I=0;I<SampleCount;I++){
+            XyzVector Original=NextXyz(Random);
             XyzVector RoundTripped=TConvention.ToXyz(TConvention.FromXyz(Original));
 
             Assert.Equal(Original.X,RoundTripped.X,precision:4);
@@ -74,9 +74,9 @@ public class RoundTripTests {
         }
     }
 
-    private static RufVector NextRuf(Random random)=>new(NextComponent(random),NextComponent(random),NextComponent(random));
+    private static RufVector NextRuf(Random Random)=>new(NextComponent(Random),NextComponent(Random),NextComponent(Random));
 
-    private static XyzVector NextXyz(Random random)=>new(NextComponent(random),NextComponent(random),NextComponent(random));
+    private static XyzVector NextXyz(Random Random)=>new(NextComponent(Random),NextComponent(Random),NextComponent(Random));
 
-    private static float NextComponent(Random random)=>(float)((random.NextDouble()*200d)-100d);
+    private static float NextComponent(Random Random)=>(float)((Random.NextDouble()*200d)-100d);
 }

@@ -61,10 +61,10 @@ public class RenderServerTests {
         RunWithTimeout(RunBoxRenderScenario,TimeSpan.FromSeconds(60));
     }
 
-    private static void RunWithTimeout(Action action,TimeSpan timeout){
-        Task task=Task.Run(action);
-        if(!task.Wait(timeout)){
-            throw new TimeoutException($"GPU test did not complete within {timeout}.");
+    private static void RunWithTimeout(Action Action,TimeSpan Timeout){
+        Task Task=Task.Run(Action);
+        if(!Task.Wait(Timeout)){
+            throw new TimeoutException($"GPU test did not complete within {Timeout}.");
         }
     }
 
@@ -87,14 +87,14 @@ public class RenderServerTests {
 
         Assert.True(Renderer.ShaderCompilationSucceeded,string.Join(Environment.NewLine,Renderer.ShaderDiagnostics));
 
-        Camera camera=Camera.CreateDefault(Vector3.Zero);
-        Renderer.SetCamera(camera);
+        Camera Camera=Camera.CreateDefault(Vector3.Zero);
+        Renderer.SetCamera(Camera);
         Renderer.SetAmbientLight(new Vector3(0.4f,0.4f,0.4f));
         Renderer.SetDirectionalLight(Vector3.UnitY,Vector3.One,2f);
         Renderer.SetObjectTransform(0,Matrix4x4.Identity);
 
-        for(var i=0;i<3;i++){
-            Renderer.RenderFrame(CaptureForVerification:i==2);
+        for(var I=0;I<3;I++){
+            Renderer.RenderFrame(CaptureForVerification:I==2);
         }
 
         Assert.NotNull(Renderer.LastCapturedFrame);

@@ -17,31 +17,31 @@ public sealed class BootstrapGeneratorTests {
         "}\n";
 
     private static GeneratorDriverRunResult RunGenerator(){
-        CSharpCompilation compilation=CSharpCompilation.Create(
+        CSharpCompilation Compilation=CSharpCompilation.Create(
             "TestAssembly",
             [CSharpSyntaxTree.ParseText("// intentionally empty")],
             [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)],
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         GeneratorDriver Driver=CSharpGeneratorDriver.Create(new CSharpGameEngineBootstrapGenerator());
-        return Driver.RunGenerators(compilation).GetRunResult();
+        return Driver.RunGenerators(Compilation).GetRunResult();
     }
 
     [Fact]
     public void RunGenerators_EmitsExactlyOneSourceMatchingExpectedText(){
         GeneratorDriverRunResult Result=RunGenerator();
 
-        GeneratedSourceResult generated=Assert.Single(Result.Results[0].GeneratedSources);
-        Assert.Equal(CSharpGameEngineBootstrapGenerator.GeneratedHintName,generated.HintName);
-        Assert.Equal(ExpectedGeneratedSource,generated.SourceText.ToString());
+        GeneratedSourceResult Generated=Assert.Single(Result.Results[0].GeneratedSources);
+        Assert.Equal(CSharpGameEngineBootstrapGenerator.GeneratedHintName,Generated.HintName);
+        Assert.Equal(ExpectedGeneratedSource,Generated.SourceText.ToString());
     }
 
     [Fact]
     public void GeneratedSource_ParsesWithoutDiagnostics(){
         GeneratorDriverRunResult Result=RunGenerator();
-        GeneratedSourceResult generated=Assert.Single(Result.Results[0].GeneratedSources);
+        GeneratedSourceResult Generated=Assert.Single(Result.Results[0].GeneratedSources);
 
-        SyntaxTree Reparsed=CSharpSyntaxTree.ParseText(generated.SourceText.ToString());
+        SyntaxTree Reparsed=CSharpSyntaxTree.ParseText(Generated.SourceText.ToString());
 
         Assert.Empty(Reparsed.GetDiagnostics());
     }

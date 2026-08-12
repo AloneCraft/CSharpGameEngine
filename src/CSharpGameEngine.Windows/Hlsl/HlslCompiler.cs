@@ -30,18 +30,18 @@ public static class HlslCompiler {
         }
 
         IDxcUtils*Utils=null;
-        IDxcCompiler3*compiler=null;
+        IDxcCompiler3*Compiler=null;
         IDxcResult*Result=null;
         nint[]NativeArgs=[];
 
         try {
             Utils=CreateDxcInstance<IDxcUtils>(CLSID.CLSID_DxcUtils,SourceName,"DxcCreateInstance(CLSID_DxcUtils)");
-            compiler=CreateDxcInstance<IDxcCompiler3>(CLSID.CLSID_DxcCompiler,SourceName,"DxcCreateInstance(CLSID_DxcCompiler)");
+            Compiler=CreateDxcInstance<IDxcCompiler3>(CLSID.CLSID_DxcCompiler,SourceName,"DxcCreateInstance(CLSID_DxcCompiler)");
 
             List<string>ArgStrings=BuildArguments(Request,SourceName);
             NativeArgs=new nint[ArgStrings.Count];
-            for(var i=0;i<ArgStrings.Count;i++){
-                NativeArgs[i]=Marshal.StringToHGlobalUni(ArgStrings[i]);
+            for(var I=0;I<ArgStrings.Count;I++){
+                NativeArgs[I]=Marshal.StringToHGlobalUni(ArgStrings[I]);
             }
 
             fixed(byte*PSource=SourceBytes)
@@ -53,7 +53,7 @@ public static class HlslCompiler {
                 };
 
                 IDxcResult*LocalResult;
-                HRESULT Hr=compiler->Compile(
+                HRESULT Hr=Compiler->Compile(
                     &SourceBuffer,
                     (char**)PNativeArgs,
                     (uint)NativeArgs.Length,
@@ -100,8 +100,8 @@ public static class HlslCompiler {
                 _=Result->Release();
             }
 
-            if(compiler!=null){
-                _=compiler->Release();
+            if(Compiler!=null){
+                _=Compiler->Release();
             }
 
             if(Utils!=null){
@@ -173,19 +173,19 @@ public static class HlslCompiler {
                 return Diagnostics;
             }
 
-            foreach(Match match in Matches){
-                HlslDiagnosticSeverity Severity=match.Groups["severity"].Value switch {
+            foreach(Match Match in Matches){
+                HlslDiagnosticSeverity Severity=Match.Groups["severity"].Value switch {
                     "error"=>HlslDiagnosticSeverity.Error,
                     "warning"=>HlslDiagnosticSeverity.Warning,
                     _ =>HlslDiagnosticSeverity.Info,
                 };
 
                 Diagnostics.Add(new HlslDiagnostic(
-                    match.Groups["file"].Value,
-                    int.Parse(match.Groups["line"].Value),
-                    int.Parse(match.Groups["column"].Value),
+                    Match.Groups["file"].Value,
+                    int.Parse(Match.Groups["line"].Value),
+                    int.Parse(Match.Groups["column"].Value),
                     Severity,
-                    match.Groups["message"].Value.TrimEnd()));
+                    Match.Groups["message"].Value.TrimEnd()));
             }
 
             return Diagnostics;

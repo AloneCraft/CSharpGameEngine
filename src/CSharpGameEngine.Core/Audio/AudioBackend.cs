@@ -16,19 +16,19 @@ public static class AudioBackend<TBackend,TEngine,TVoice>
     where TVoice:struct {
     public static TEngine CreateEngine()=>TBackend.CreateEngine();
 
-    public static void DestroyEngine(in TEngine engine)=>TBackend.DestroyEngine(engine);
+    public static void DestroyEngine(in TEngine Engine)=>TBackend.DestroyEngine(Engine);
 
-    public static TVoice CreateVoice(in TEngine engine,int sampleRate,int channels)=>
-        TBackend.CreateVoice(engine,sampleRate,channels);
+    public static TVoice CreateVoice(in TEngine Engine,int SampleRate,int Channels)=>
+        TBackend.CreateVoice(Engine,SampleRate,Channels);
 
-    public static TVoice SubmitBuffer(in TVoice voice,ReadOnlySpan<short>samples,bool loop)=>
-        TBackend.SubmitBuffer(voice,samples,loop);
+    public static TVoice SubmitBuffer(in TVoice Voice,ReadOnlySpan<short>Samples,bool Loop)=>
+        TBackend.SubmitBuffer(Voice,Samples,Loop);
 
-    public static void Start(in TVoice voice)=>TBackend.Start(voice);
+    public static void Start(in TVoice Voice)=>TBackend.Start(Voice);
 
-    public static void Stop(in TVoice voice)=>TBackend.Stop(voice);
+    public static void Stop(in TVoice Voice)=>TBackend.Stop(Voice);
 
-    public static void SetVolume(in TVoice voice,float volume)=>TBackend.SetVolume(voice,volume);
+    public static void SetVolume(in TVoice Voice,float Volume)=>TBackend.SetVolume(Voice,Volume);
 
-    public static void DestroyVoice(in TVoice voice)=>TBackend.DestroyVoice(voice);
+    public static void DestroyVoice(in TVoice Voice)=>TBackend.DestroyVoice(Voice);
 }

@@ -28,13 +28,13 @@ public sealed class GizmoMeshFactoryTests {
     public void Create_NoDegenerateTriangles(){
         SimpleMesh Mesh=GizmoMeshFactory.Create();
 
-        for(var i=0;i<Mesh.Indices.Length;i+=3){
-            Vector3 A=Mesh.Positions[Mesh.Indices[i]];
-            Vector3 B=Mesh.Positions[Mesh.Indices[i+1]];
-            Vector3 C=Mesh.Positions[Mesh.Indices[i+2]];
+        for(var I=0;I<Mesh.Indices.Length;I+=3){
+            Vector3 A=Mesh.Positions[Mesh.Indices[I]];
+            Vector3 B=Mesh.Positions[Mesh.Indices[I+1]];
+            Vector3 C=Mesh.Positions[Mesh.Indices[I+2]];
 
             var Area=Vector3.Cross(B-A,C-A).Length();
-            Assert.True(Area>0.0001f, $"Degenerate triangle at index {i}");
+            Assert.True(Area>0.0001f, $"Degenerate triangle at index {I}");
         }
     }
 

@@ -67,8 +67,8 @@ internal static class GameSystemIndexAssigner {
             }
         }
 
-        foreach(GameSystemResult system in ValidSystems){
-            foreach(GameSystemMethodModel Method in system.Methods){
+        foreach(GameSystemResult System in ValidSystems){
+            foreach(GameSystemMethodModel Method in System.Methods){
                 RegisterSet([.. Method.Components.Select(static C=>C.TypeFullyQualifiedName)]);
             }
         }
@@ -93,15 +93,15 @@ internal static class GameSystemIndexAssigner {
         // comboByKeyは挿入順を保つDictionaryではないため、出現順は別途記録したリストから取る。
         List<GameSystemArchetypeInfo>Archetypes=[];
 
-        for(var archetypeIndex=0;archetypeIndex<CombosInDiscoveryOrder.Count;archetypeIndex++){
-            List<int>Combo=CombosInDiscoveryOrder[archetypeIndex];
+        for(var ArchetypeIndex=0;ArchetypeIndex<CombosInDiscoveryOrder.Count;ArchetypeIndex++){
+            List<int>Combo=CombosInDiscoveryOrder[ArchetypeIndex];
             long Mask=0;
 
             foreach(var Index in Combo){
                 Mask|=1L<<Index;
             }
 
-            Archetypes.Add(new GameSystemArchetypeInfo($"Archetype{archetypeIndex}",[.. Combo],Mask));
+            Archetypes.Add(new GameSystemArchetypeInfo($"Archetype{ArchetypeIndex}",[.. Combo],Mask));
         }
 
         return new GameSystemRegistry(ComponentsByIndex,[.. Archetypes],[.. ValidSystems],Diagnostics.ToImmutable());
@@ -115,8 +115,8 @@ internal static class GameSystemIndexAssigner {
         Dictionary<string,string>TypeBySimpleName=new(StringComparer.Ordinal);
         ImmutableArray<GameSystemComponentInfo>.Builder Builder=ImmutableArray.CreateBuilder<GameSystemComponentInfo>(ComponentTypesByIndex.Count);
 
-        for(var index=0;index<ComponentTypesByIndex.Count;index++){
-            var TypeFqn=ComponentTypesByIndex[index];
+        for(var Index=0;Index<ComponentTypesByIndex.Count;Index++){
+            var TypeFqn=ComponentTypesByIndex[Index];
             var SimpleName=ExtractSimpleTypeName(TypeFqn);
 
             if(TypeBySimpleName.TryGetValue(SimpleName,out var Existing)){
@@ -125,7 +125,7 @@ internal static class GameSystemIndexAssigner {
                 TypeBySimpleName.Add(SimpleName,TypeFqn);
             }
 
-            Builder.Add(new GameSystemComponentInfo(index,TypeFqn,SimpleName));
+            Builder.Add(new GameSystemComponentInfo(Index,TypeFqn,SimpleName));
         }
 
         return Builder.ToImmutable();

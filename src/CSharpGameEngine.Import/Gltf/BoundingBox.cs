@@ -15,14 +15,14 @@ public readonly record struct BoundingBox(Vector3 Min,Vector3 Max){
             throw new ArgumentException("Cannot compute a bounding box from an empty point list.",nameof(Points));
         }
 
-        Vector3 min=Points[0];
-        Vector3 max=Points[0];
+        Vector3 Min=Points[0];
+        Vector3 Max=Points[0];
 
-        for(var i=1;i<Points.Count;i++){
-            min=Vector3.Min(min,Points[i]);
-            max=Vector3.Max(max,Points[i]);
+        for(var I=1;I<Points.Count;I++){
+            Min=Vector3.Min(Min,Points[I]);
+            Max=Vector3.Max(Max,Points[I]);
         }
 
-        return new BoundingBox(min,max);
+        return new BoundingBox(Min,Max);
     }
 }

@@ -21,8 +21,8 @@ internal sealed class OpenFabCommand {
 
     private readonly AsyncPackage Package;
 
-    private OpenFabCommand(AsyncPackage package,OleMenuCommandService CommandService){
-        Package=package??throw new ArgumentNullException(nameof(package));
+    private OpenFabCommand(AsyncPackage Package,OleMenuCommandService CommandService){
+        this.Package= Package ?? throw new ArgumentNullException(nameof(Package));
         if(CommandService is null){
             throw new ArgumentNullException(nameof(CommandService));
         }
@@ -32,14 +32,14 @@ internal sealed class OpenFabCommand {
         CommandService.AddCommand(MenuItem);
     }
 
-    public static async Task InitializeAsync(AsyncPackage package){
-        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
-        var Service= await package.GetServiceAsync(typeof(IMenuCommandService));
+    public static async Task InitializeAsync(AsyncPackage Package){
+        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(Package.DisposalToken);
+        var Service= await Package.GetServiceAsync(typeof(IMenuCommandService));
         if(Service is not OleMenuCommandService CommandService){
             throw new InvalidOperationException($"{nameof(IMenuCommandService)} is not available from the VS shell.");
         }
 
-        _=new OpenFabCommand(package,CommandService);
+        _=new OpenFabCommand(Package,CommandService);
     }
 
     private void Execute(object Sender,EventArgs E){

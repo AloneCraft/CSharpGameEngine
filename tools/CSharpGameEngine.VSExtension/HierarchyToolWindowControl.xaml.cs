@@ -105,13 +105,13 @@ public partial class HierarchyToolWindowControl:UserControl {
         }
 
         var Paths=(string[])E.Data.GetData(DataFormats.FileDrop);
-        foreach(var path in Paths){
-            if(!IsSupportedAssetPath(path)){
+        foreach(var Path in Paths){
+            if(!IsSupportedAssetPath(Path)){
                 continue;
             }
 
-            var NameHint=Path.GetFileNameWithoutExtension(path);
-            if(!SceneNodeAdder.TryAddAssetNode(path,NameHint,out var ErrorMessage)){
+            var NameHint= System.IO.Path.GetFileNameWithoutExtension(Path);
+            if(!SceneNodeAdder.TryAddAssetNode(Path, NameHint, out var ErrorMessage)){
                 System.Windows.MessageBox.Show(
                     ErrorMessage,
                     "C# Game Engine Hierarchy",
@@ -131,6 +131,6 @@ public partial class HierarchyToolWindowControl:UserControl {
         return Paths.Any(IsSupportedAssetPath);
     }
 
-    private static bool IsSupportedAssetPath(string path)=>
-        SupportedDropExtensions.Contains(Path.GetExtension(path),StringComparer.OrdinalIgnoreCase);
+    private static bool IsSupportedAssetPath(string Path)=>
+        SupportedDropExtensions.Contains(System.IO.Path.GetExtension(Path), StringComparer.OrdinalIgnoreCase);
 }

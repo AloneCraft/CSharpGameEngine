@@ -20,6 +20,8 @@ internal static class NativeMethods {
 
     public const uint WM_SIZE=0x0005;
     public const uint WM_SETFOCUS=0x0007;
+    public const int SW_HIDE=0;
+    public const int SW_SHOWNA=8;
 
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
     public delegate IntPtr WndProcDelegate(IntPtr HWnd,uint Msg,IntPtr WParam,IntPtr LParam);
@@ -73,4 +75,8 @@ internal static class NativeMethods {
 
     [DllImport("user32.dll")]
     public static extern IntPtr SetFocus(IntPtr HWnd);
+
+    [DllImport("user32.dll")]
+    [return:MarshalAs(UnmanagedType.Bool)]
+    public static extern bool ShowWindow(IntPtr HWnd,int NCmdShow);
 }

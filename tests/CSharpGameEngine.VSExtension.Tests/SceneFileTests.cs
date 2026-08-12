@@ -118,9 +118,9 @@ public class SceneFileTests {
         SceneFile RoundTripped=SceneFile.Parse(Json);
 
         Assert.Equal(Original.Nodes.Count,RoundTripped.Nodes.Count);
-        for(var i=0;i<Original.Nodes.Count;i++){
-            SceneFileNode Expected=Original.Nodes[i];
-            SceneFileNode Actual=RoundTripped.Nodes[i];
+        for(var I=0;I<Original.Nodes.Count;I++){
+            SceneFileNode Expected=Original.Nodes[I];
+            SceneFileNode Actual=RoundTripped.Nodes[I];
 
             Assert.Equal(Expected.Id,Actual.Id);
             Assert.Equal(Expected.Name,Actual.Name);
@@ -135,15 +135,15 @@ public class SceneFileTests {
     [Fact]
     public void Save_ThenLoad_RoundTripsThroughARealFile(){
         SceneFile Original=SceneFile.Parse(SampleJson);
-        var path=Path.Combine(Path.GetTempPath(), $"csge-scenefile-roundtrip-{Guid.NewGuid():N}.scene");
+        var Path= System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"csge-scenefile-roundtrip-{Guid.NewGuid():N}.scene");
         try {
-            Original.Save(path);
-            SceneFile Loaded=SceneFile.Load(path);
+            Original.Save(Path);
+            var Loaded= SceneFile.Load(Path);
 
             Assert.Equal(Original.Nodes.Count,Loaded.Nodes.Count);
             Assert.Equal(Original.Nodes[1].Name,Loaded.Nodes[1].Name);
         } finally {
-            File.Delete(path);
+            File.Delete(Path);
         }
     }
 

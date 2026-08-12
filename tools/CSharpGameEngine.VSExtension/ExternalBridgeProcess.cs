@@ -30,8 +30,8 @@ namespace CSharpGameEngine.VSExtension;
 /// inside <c>devenv.exe</c>.
 /// </summary>
 internal static class ExternalBridgeProcess {
-    public static string RunAndReadJson(string BridgeProjectRelativePath,string InputPath,string OutputJsonPath,string RepoRoot,TimeSpan timeout,bool UseResidentServer){
-        RunProcess(BridgeProjectRelativePath,InputPath,OutputJsonPath,RepoRoot,timeout,UseResidentServer);
+    public static string RunAndReadJson(string BridgeProjectRelativePath,string InputPath,string OutputJsonPath,string RepoRoot,TimeSpan Timeout,bool UseResidentServer){
+        RunProcess(BridgeProjectRelativePath,InputPath,OutputJsonPath,RepoRoot,Timeout,UseResidentServer);
 
         if(!File.Exists(OutputJsonPath)){
             throw new InvalidOperationException($"インポートブリッジ({BridgeProjectRelativePath})が出力ファイルを生成しませんでした。");
@@ -41,19 +41,19 @@ internal static class ExternalBridgeProcess {
     }
 
     /// <summary>Like <see cref="RunAndReadJson"/> but for a bridge that writes a binary file (e.g. a <c>.glb</c>) the caller will load separately rather than read back as text here.</summary>
-    public static void RunProducingFile(string BridgeProjectRelativePath,string FirstArg,string OutputPath,string RepoRoot,TimeSpan timeout,bool UseResidentServer){
-        RunProcess(BridgeProjectRelativePath,FirstArg,OutputPath,RepoRoot,timeout,UseResidentServer);
+    public static void RunProducingFile(string BridgeProjectRelativePath,string FirstArg,string OutputPath,string RepoRoot,TimeSpan Timeout,bool UseResidentServer){
+        RunProcess(BridgeProjectRelativePath,FirstArg,OutputPath,RepoRoot,Timeout,UseResidentServer);
 
         if(!File.Exists(OutputPath)){
             throw new InvalidOperationException($"生成ブリッジ({BridgeProjectRelativePath})が出力ファイルを生成しませんでした。");
         }
     }
 
-    private static void RunProcess(string BridgeProjectRelativePath,string FirstArg,string OutputPath,string RepoRoot,TimeSpan timeout,bool UseResidentServer){
+    private static void RunProcess(string BridgeProjectRelativePath,string FirstArg,string OutputPath,string RepoRoot,TimeSpan Timeout,bool UseResidentServer){
         var ExecutablePath=BridgeExecutableLocator.FindExecutable(RepoRoot,BridgeProjectRelativePath);
 
         if(ExecutablePath is not null&&UseResidentServer&&
-            ResidentBridgeClient.TryRun(ExecutablePath,RepoRoot,BridgeProjectRelativePath,FirstArg,OutputPath,timeout,out var ResidentExitCode,out var ResidentOutput)){
+            ResidentBridgeClient.TryRun(ExecutablePath,RepoRoot,BridgeProjectRelativePath,FirstArg,OutputPath,Timeout,out var ResidentExitCode,out var ResidentOutput)){
             if(ResidentExitCode!=0){
                 throw new InvalidOperationException(
                     $"インポートブリッジ({BridgeProjectRelativePath})がエラー終了しました(exit code {ResidentExitCode})。\n{ResidentOutput}");
@@ -62,10 +62,10 @@ internal static class ExternalBridgeProcess {
             return;
         }
 
-        RunOneShotProcess(BridgeProjectRelativePath,FirstArg,OutputPath,RepoRoot,timeout,ExecutablePath);
+        RunOneShotProcess(BridgeProjectRelativePath,FirstArg,OutputPath,RepoRoot,Timeout,ExecutablePath);
     }
 
-    private static void RunOneShotProcess(string BridgeProjectRelativePath,string FirstArg,string OutputPath,string RepoRoot,TimeSpan timeout,string?ExecutablePath){
+    private static void RunOneShotProcess(string BridgeProjectRelativePath,string FirstArg,string OutputPath,string RepoRoot,TimeSpan Timeout,string?ExecutablePath){
         ProcessStartInfo StartInfo=ExecutablePath is not null
             ?new ProcessStartInfo(ExecutablePath, $"\"{FirstArg}\" \"{OutputPath}\"")
             :new ProcessStartInfo(
@@ -78,7 +78,7 @@ internal static class ExternalBridgeProcess {
         StartInfo.RedirectStandardError=true;
         StartInfo.CreateNoWindow=true;
 
-        using Process process=new(){ StartInfo=StartInfo };
+        using Process Process=new(){ StartInfo=StartInfo };
 
         // Read both streams via the event-based API (BeginOutputReadLine/BeginErrorReadLine)
         // before WaitForExit: reading them synchronously and sequentially here would deadlock if
@@ -86,22 +86,22 @@ internal static class ExternalBridgeProcess {
         // writing to the (unread) first stream.
         StringBuilder Stdout=new();
         StringBuilder Stderr=new();
-        process.OutputDataReceived+=(_,E)=>{ if(E.Data is not null)Stdout.AppendLine(E.Data);};
-        process.ErrorDataReceived+=(_,E)=>{ if(E.Data is not null)Stderr.AppendLine(E.Data);};
+        Process.OutputDataReceived+=(_,E)=>{ if(E.Data is not null)Stdout.AppendLine(E.Data);};
+        Process.ErrorDataReceived+=(_,E)=>{ if(E.Data is not null)Stderr.AppendLine(E.Data);};
 
-        process.Start();
-        process.BeginOutputReadLine();
-        process.BeginErrorReadLine();
+        Process.Start();
+        Process.BeginOutputReadLine();
+        Process.BeginErrorReadLine();
 
-        var Exited=process.WaitForExit((int)timeout.TotalMilliseconds);
+        var Exited=Process.WaitForExit((int)Timeout.TotalMilliseconds);
         if(!Exited){
-            try { process.Kill();} catch(InvalidOperationException){ }
-            throw new TimeoutException($"インポートブリッジ({BridgeProjectRelativePath})が{timeout.TotalSeconds}秒以内に終了しませんでした。");
+            try { Process.Kill();} catch(InvalidOperationException){ }
+            throw new TimeoutException($"インポートブリッジ({BridgeProjectRelativePath})が{Timeout.TotalSeconds}秒以内に終了しませんでした。");
         }
 
-        if(process.ExitCode!=0){
+        if(Process.ExitCode!=0){
             throw new InvalidOperationException(
-                $"インポートブリッジ({BridgeProjectRelativePath})がエラー終了しました(exit code {process.ExitCode})。\n{Stdout}\n{Stderr}");
+                $"インポートブリッジ({BridgeProjectRelativePath})がエラー終了しました(exit code {Process.ExitCode})。\n{Stdout}\n{Stderr}");
         }
     }
 }

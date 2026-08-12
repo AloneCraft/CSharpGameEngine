@@ -48,12 +48,12 @@ internal sealed class AssetMetaWatcher:IDisposable {
         return Directory.Exists(AssetsRoot)?new AssetMetaWatcher(AssetsRoot):null;
     }
 
-    private void HandleCandidate(string path){
-        if(!WatchedExtensions.Contains(Path.GetExtension(path),StringComparer.OrdinalIgnoreCase)){
+    private void HandleCandidate(string Path){
+        if(!WatchedExtensions.Contains(System.IO.Path.GetExtension(Path), StringComparer.OrdinalIgnoreCase)){
             return;
         }
 
-        ThreadPool.QueueUserWorkItem(_=>GenerateMetaWhenReady(path));
+        ThreadPool.QueueUserWorkItem(_=>GenerateMetaWhenReady(Path));
     }
 
     private static void GenerateMetaWhenReady(string AssetPath){
@@ -78,19 +78,19 @@ internal sealed class AssetMetaWatcher:IDisposable {
             return;
         }
 
-        var guid=Guid.NewGuid().ToString("N");
-        File.WriteAllText(MetaPath, $"guid: {guid}\n");
+        var Guid= System.Guid.NewGuid().ToString("N");
+        File.WriteAllText(MetaPath, $"guid: {Guid}\n");
     }
 
-    private static bool WaitUntilReadable(string path,TimeSpan timeout){
-        DateTime Deadline=DateTime.UtcNow+timeout;
+    private static bool WaitUntilReadable(string Path,TimeSpan Timeout){
+        DateTime Deadline=DateTime.UtcNow+Timeout;
         while(DateTime.UtcNow<Deadline){
-            if(!File.Exists(path)){
+            if(!File.Exists(Path)){
                 return false;
             }
 
             try {
-                using FileStream stream=File.Open(path,FileMode.Open,FileAccess.Read,FileShare.Read);
+                using FileStream Stream=File.Open(Path,FileMode.Open,FileAccess.Read,FileShare.Read);
                 return true;
             } catch(IOException){
                 Thread.Sleep(500);

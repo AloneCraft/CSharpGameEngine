@@ -127,9 +127,9 @@ internal static class GameSystemGeneratorTestHelper {
     internal static CSharpCompilation CreateApplicationCompilation(IEnumerable<(string?Path,string Source)>ExtraSources)=>
         CreateCompilation(ExtraSources).WithOptions(new CSharpCompilationOptions(OutputKind.ConsoleApplication));
 
-    internal static GeneratorDriverRunResult RunGenerator(CSharpCompilation compilation){
+    internal static GeneratorDriverRunResult RunGenerator(CSharpCompilation Compilation){
         GeneratorDriver Driver=CSharpGeneratorDriver.Create(new GameSystemGenerator());
-        Driver=Driver.RunGenerators(compilation);
+        Driver=Driver.RunGenerators(Compilation);
         return Driver.GetRunResult();
     }
 
@@ -143,29 +143,29 @@ internal static class GameSystemGeneratorTestHelper {
     internal static Assembly CompileAndLoad(params string[]ExtraSources)=>
         CompileAndLoad(CreateCompilation(ExtraSources));
 
-    internal static Assembly CompileAndLoad(CSharpCompilation compilation){
+    internal static Assembly CompileAndLoad(CSharpCompilation Compilation){
         GeneratorDriver Driver=CSharpGeneratorDriver.Create(new GameSystemGenerator());
-        Driver=Driver.RunGeneratorsAndUpdateCompilation(compilation,out Compilation OutputCompilation,out ImmutableArray<Diagnostic>GeneratorDiagnostics);
+        Driver=Driver.RunGeneratorsAndUpdateCompilation(Compilation,out Compilation OutputCompilation,out ImmutableArray<Diagnostic>GeneratorDiagnostics);
 
         if(!GeneratorDiagnostics.IsEmpty){
             throw new InvalidOperationException("Generator diagnostics:\n"+string.Join("\n",GeneratorDiagnostics));
         }
 
-        using MemoryStream stream=new();
-        EmitResult emitResult=OutputCompilation.Emit(stream);
+        using MemoryStream Stream=new();
+        EmitResult EmitResult=OutputCompilation.Emit(Stream);
 
-        if(!emitResult.Success){
-            IEnumerable<Diagnostic>Errors=emitResult.Diagnostics.Where(D=>D.Severity==DiagnosticSeverity.Error);
+        if(!EmitResult.Success){
+            IEnumerable<Diagnostic>Errors=EmitResult.Diagnostics.Where(D=>D.Severity==DiagnosticSeverity.Error);
             throw new InvalidOperationException("Compilation failed:\n"+string.Join("\n",Errors));
         }
 
-        return Assembly.Load(stream.ToArray());
+        return Assembly.Load(Stream.ToArray());
     }
 
     /// <summary>この設計の型は<c>internal</c>基調なので、Non-publicも検索対象に含める。</summary>
-    internal static object?Invoke(Assembly assembly,string TypeFullName,string MethodName,params object?[]?Args){
-        Type type=assembly.GetType(TypeFullName)??throw new InvalidOperationException($"Type '{TypeFullName}' not found.");
-        MethodInfo Method=type.GetMethod(MethodName,BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Static)
+    internal static object?Invoke(Assembly Assembly,string TypeFullName,string MethodName,params object?[]?Args){
+        Type Type=Assembly.GetType(TypeFullName)??throw new InvalidOperationException($"Type '{TypeFullName}' not found.");
+        MethodInfo Method=Type.GetMethod(MethodName,BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Static)
             ??throw new InvalidOperationException($"Method '{MethodName}' not found on '{TypeFullName}'.");
         return Method.Invoke(null,Args);
     }

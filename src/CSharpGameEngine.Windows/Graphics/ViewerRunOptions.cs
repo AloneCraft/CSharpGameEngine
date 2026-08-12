@@ -21,9 +21,9 @@ public sealed class ViewerRunOptions {
 }
 
 public sealed record ViewerOptionsParseResult(bool Success,ViewerRunOptions?Options,string?Error){
-    public static ViewerOptionsParseResult Ok(ViewerRunOptions options)=>new(true,options,null);
+    public static ViewerOptionsParseResult Ok(ViewerRunOptions Options)=>new(true,Options,null);
 
-    public static ViewerOptionsParseResult Fail(string error)=>new(false,null,error);
+    public static ViewerOptionsParseResult Fail(string Error)=>new(false,null,Error);
 }
 
 public static class ViewerOptionsParser {
@@ -40,19 +40,19 @@ public static class ViewerOptionsParser {
         var EnableGpuValidation=false;
         var Verify=false;
 
-        for(var i=0;i<Args.Count;i++){
-            var Arg=Args[i];
+        for(var I=0;I<Args.Count;I++){
+            var Arg=Args[I];
             switch(Arg){
                 case "--model":{
-                        if(i+1>=Args.Count){
+                        if(I+1>=Args.Count){
                             return ViewerOptionsParseResult.Fail("--model requires a file path value.");
                         }
-                        ModelPath=Args[++i];
+                        ModelPath=Args[++I];
                         break;
                     }
 
                 case "--frames":{
-                        if(!TryReadIntValue(Args,ref i,out var Value)){
+                        if(!TryReadIntValue(Args,ref I,out var Value)){
                             return ViewerOptionsParseResult.Fail("--frames requires an integer value.");
                         }
                         if(Value<=0){
@@ -63,24 +63,24 @@ public static class ViewerOptionsParser {
                     }
 
                 case "--width":{
-                        if(!TryReadIntValue(Args,ref i,out var value)){
+                        if(!TryReadIntValue(Args,ref I,out var Value)){
                             return ViewerOptionsParseResult.Fail("--width requires an integer value.");
                         }
-                        if(value<=0){
-                            return ViewerOptionsParseResult.Fail($"--width must be a positive integer (got {value}).");
+                        if(Value<=0){
+                            return ViewerOptionsParseResult.Fail($"--width must be a positive integer (got {Value}).");
                         }
-                        Width=value;
+                        Width=Value;
                         break;
                     }
 
                 case "--height":{
-                        if(!TryReadIntValue(Args,ref i,out var value)){
+                        if(!TryReadIntValue(Args,ref I,out var Value)){
                             return ViewerOptionsParseResult.Fail("--height requires an integer value.");
                         }
-                        if(value<=0){
-                            return ViewerOptionsParseResult.Fail($"--height must be a positive integer (got {value}).");
+                        if(Value<=0){
+                            return ViewerOptionsParseResult.Fail($"--height must be a positive integer (got {Value}).");
                         }
-                        Height=value;
+                        Height=Value;
                         break;
                     }
 
@@ -128,13 +128,13 @@ public static class ViewerOptionsParser {
         return ViewerOptionsParseResult.Ok(Options);
     }
 
-    private static bool TryReadIntValue(IReadOnlyList<string>Args,ref int index,out int Value){
-        if(index+1>=Args.Count||!int.TryParse(Args[index+1],out Value)){
+    private static bool TryReadIntValue(IReadOnlyList<string>Args,ref int Index,out int Value){
+        if(Index+1>=Args.Count||!int.TryParse(Args[Index+1],out Value)){
             Value=0;
             return false;
         }
 
-        index++;
+        Index++;
         return true;
     }
 }

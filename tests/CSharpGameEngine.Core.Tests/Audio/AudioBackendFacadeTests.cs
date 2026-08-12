@@ -15,24 +15,24 @@ public class AudioBackendFacadeTests {
     public void CreateEngine_ForwardsToBackend(){
         FakeBackend.Reset();
 
-        var engine=AudioBackend<FakeBackend,int,int>.CreateEngine();
+        var Engine=AudioBackend<FakeBackend,int,int>.CreateEngine();
 
         Assert.Equal(1,FakeBackend.EnginesCreated);
-        Assert.Equal(1,engine);
+        Assert.Equal(1,Engine);
     }
 
     [Fact]
     public void FullLifecycle_ForwardsEveryCallToBackend(){
         FakeBackend.Reset();
 
-        var engine=AudioBackend<FakeBackend,int,int>.CreateEngine();
-        var voice=AudioBackend<FakeBackend,int,int>.CreateVoice(engine,44100,1);
-        voice=AudioBackend<FakeBackend,int,int>.SubmitBuffer(voice,new short[]{ 1,2,3 },loop:true);
-        AudioBackend<FakeBackend,int,int>.SetVolume(voice,0.5f);
-        AudioBackend<FakeBackend,int,int>.Start(voice);
-        AudioBackend<FakeBackend,int,int>.Stop(voice);
-        AudioBackend<FakeBackend,int,int>.DestroyVoice(voice);
-        AudioBackend<FakeBackend,int,int>.DestroyEngine(engine);
+        var Engine=AudioBackend<FakeBackend,int,int>.CreateEngine();
+        var Voice=AudioBackend<FakeBackend,int,int>.CreateVoice(Engine,44100,1);
+        Voice=AudioBackend<FakeBackend,int,int>.SubmitBuffer(Voice,new short[]{ 1,2,3 },Loop:true);
+        AudioBackend<FakeBackend,int,int>.SetVolume(Voice,0.5f);
+        AudioBackend<FakeBackend,int,int>.Start(Voice);
+        AudioBackend<FakeBackend,int,int>.Stop(Voice);
+        AudioBackend<FakeBackend,int,int>.DestroyVoice(Voice);
+        AudioBackend<FakeBackend,int,int>.DestroyEngine(Engine);
 
         Assert.Equal(1,FakeBackend.VoicesCreated);
         Assert.Equal(3,FakeBackend.LastSubmittedSampleCount);
@@ -77,25 +77,25 @@ public class AudioBackendFacadeTests {
             return 1;
         }
 
-        public static void DestroyEngine(in int engine)=>EngineDestroyed=true;
+        public static void DestroyEngine(in int Engine)=>EngineDestroyed=true;
 
-        public static int CreateVoice(in int engine,int sampleRate,int channels){
+        public static int CreateVoice(in int Engine,int SampleRate,int Channels){
             VoicesCreated++;
             return 42;
         }
 
-        public static int SubmitBuffer(in int voice,ReadOnlySpan<short>samples,bool loop){
-            LastSubmittedSampleCount=samples.Length;
-            LastLoop=loop;
-            return voice;
+        public static int SubmitBuffer(in int Voice,ReadOnlySpan<short>Samples,bool Loop){
+            LastSubmittedSampleCount=Samples.Length;
+            LastLoop=Loop;
+            return Voice;
         }
 
-        public static void Start(in int voice)=>Started=true;
+        public static void Start(in int Voice)=>Started=true;
 
-        public static void Stop(in int voice)=>Stopped=true;
+        public static void Stop(in int Voice)=>Stopped=true;
 
-        public static void SetVolume(in int voice,float volume)=>LastVolume=volume;
+        public static void SetVolume(in int Voice,float Volume)=>LastVolume=Volume;
 
-        public static void DestroyVoice(in int voice)=>VoiceDestroyed=true;
+        public static void DestroyVoice(in int Voice)=>VoiceDestroyed=true;
     }
 }

@@ -21,8 +21,8 @@ public static class BridgeServerHost {
         string PipeName,
         Func<string,string,(int ExitCode,string Output)>Handler,
         TimeSpan IdleTimeout,
-        CancellationToken cancellationToken=default){
-        using CancellationTokenSource IdleCts=CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        CancellationToken CancellationToken=default){
+        using CancellationTokenSource IdleCts=CancellationTokenSource.CreateLinkedTokenSource(CancellationToken);
         IdleCts.CancelAfter(IdleTimeout);
 
         while(true){

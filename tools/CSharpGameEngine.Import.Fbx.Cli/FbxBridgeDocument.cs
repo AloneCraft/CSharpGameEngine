@@ -34,10 +34,10 @@ public sealed class FbxBridgeDocument {
 
     private static float[]Flatten3(IReadOnlyList<System.Numerics.Vector3>Values){
         var Flat=new float[Values.Count*3];
-        for(var i=0;i<Values.Count;i++){
-            Flat[(i*3)+0]=Values[i].X;
-            Flat[(i*3)+1]=Values[i].Y;
-            Flat[(i*3)+2]=Values[i].Z;
+        for(var I=0;I<Values.Count;I++){
+            Flat[(I*3)+0]=Values[I].X;
+            Flat[(I*3)+1]=Values[I].Y;
+            Flat[(I*3)+2]=Values[I].Z;
         }
 
         return Flat;
@@ -45,9 +45,9 @@ public sealed class FbxBridgeDocument {
 
     private static float[]Flatten2(IReadOnlyList<System.Numerics.Vector2>Values){
         var Flat=new float[Values.Count*2];
-        for(var i=0;i<Values.Count;i++){
-            Flat[(i*2)+0]=Values[i].X;
-            Flat[(i*2)+1]=Values[i].Y;
+        for(var I=0;I<Values.Count;I++){
+            Flat[(I*2)+0]=Values[I].X;
+            Flat[(I*2)+1]=Values[I].Y;
         }
 
         return Flat;

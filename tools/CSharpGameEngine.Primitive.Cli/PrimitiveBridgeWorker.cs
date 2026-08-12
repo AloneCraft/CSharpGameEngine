@@ -42,23 +42,23 @@ internal static class PrimitiveBridgeWorker {
     }
 
     private static void SaveAsGlb(ProceduralMeshData Mesh,string MeshName,string OutputPath){
-        MeshBuilder<VertexPositionNormal,VertexEmpty,VertexEmpty>meshBuilder=new(MeshName);
-        var primitive=meshBuilder.UsePrimitive(new MaterialBuilder(MeshName).WithMetallicRoughness());
+        MeshBuilder<VertexPositionNormal,VertexEmpty,VertexEmpty>MeshBuilder=new(MeshName);
+        var Primitive=MeshBuilder.UsePrimitive(new MaterialBuilder(MeshName).WithMetallicRoughness());
 
-        for(var i=0;i+2<Mesh.Indices.Length;i+=3){
-            var Ia=Mesh.Indices[i];
-            var Ib=Mesh.Indices[i+1];
-            var Ic=Mesh.Indices[i+2];
+        for(var I=0;I+2<Mesh.Indices.Length;I+=3){
+            var Ia=Mesh.Indices[I];
+            var Ib=Mesh.Indices[I+1];
+            var Ic=Mesh.Indices[I+2];
 
             VertexPositionNormal Va=new(Mesh.Positions[Ia],Mesh.Normals[Ia]);
             VertexPositionNormal Vb=new(Mesh.Positions[Ib],Mesh.Normals[Ib]);
             VertexPositionNormal Vc=new(Mesh.Positions[Ic],Mesh.Normals[Ic]);
 
-            primitive.AddTriangle(Va,Vb,Vc);
+            Primitive.AddTriangle(Va,Vb,Vc);
         }
 
-        SceneBuilder sceneBuilder=new();
-        sceneBuilder.AddRigidMesh(meshBuilder,Matrix4x4.Identity);
-        sceneBuilder.ToGltf2().SaveGLB(OutputPath);
+        SceneBuilder SceneBuilder=new();
+        SceneBuilder.AddRigidMesh(MeshBuilder,Matrix4x4.Identity);
+        SceneBuilder.ToGltf2().SaveGLB(OutputPath);
     }
 }

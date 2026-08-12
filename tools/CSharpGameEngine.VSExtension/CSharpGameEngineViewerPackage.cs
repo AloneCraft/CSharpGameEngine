@@ -37,8 +37,8 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
     private SceneWorkspaceService?SceneWorkspace;
     private ActiveDocumentTracker?DocumentTracker;
 
-    protected override async Task InitializeAsync(CancellationToken cancellationToken,IProgress<ServiceProgressData>progress){
-        await this.JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
+    protected override async Task InitializeAsync(CancellationToken CancellationToken,IProgress<ServiceProgressData>Progress){
+        await this.JoinableTaskFactory.SwitchToMainThreadAsync(CancellationToken);
         await OpenViewerCommand.InitializeAsync(this);
         FabWatchCommand= await ToggleFabWatchCommand.InitializeAsync(this);
         await OpenFabCommand.InitializeAsync(this);
@@ -46,7 +46,6 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
         await ShowHierarchyToolWindowCommand.InitializeAsync(this);
         await ShowShapePaletteToolWindowCommand.InitializeAsync(this);
         await ApplyGameEngineLayoutCommand.InitializeAsync(this);
-        await OpenSceneDesignerCommand.InitializeAsync(this);
 
         RegisterEditorFactory(new GlbFbxPreviewEditorFactory());
 
@@ -59,6 +58,9 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             SceneWorkspace.ModelChanged+=SceneEditorHub.PublishSceneModel;
             SceneWorkspace.AllModelsChanged+=SceneEditorHub.PublishAllSceneModels;
             DocumentTracker=ActiveDocumentTracker.Start(SceneWorkspace);
+            if(DocumentTracker is not null){
+                await OpenSceneDesignerCommand.InitializeAsync(this,SceneWorkspace,DocumentTracker);
+            }
         }
 
         AssetMetaWatcher=AssetMetaWatcher.StartIfProjectExists();
@@ -74,11 +76,11 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
     private async Task TryAutoOpenUserEcsProjectAsync(){
         await this.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-        if(await GetServiceAsync(typeof(SVsSolution))is not IVsSolution solution){
+        if(await GetServiceAsync(typeof(SVsSolution))is not IVsSolution Solution){
             return;
         }
 
-        solution.GetProperty((int)__VSPROPID.VSPROPID_IsSolutionOpen,out var IsOpenObj);
+        Solution.GetProperty((int)__VSPROPID.VSPROPID_IsSolutionOpen,out var IsOpenObj);
         if(IsOpenObj is bool IsOpen&&IsOpen){
             return;
         }

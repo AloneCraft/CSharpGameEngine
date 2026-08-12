@@ -5,32 +5,32 @@ namespace CSharpGameEngine.Audio.Tests;
 public class ProceduralAudioClipTests {
     [Fact]
     public void GenerateSineWave_ReturnsExpectedSampleCount(){
-        var samples=ProceduralAudioClip.GenerateSineWave(440f,1f,44100);
+        var Samples=ProceduralAudioClip.GenerateSineWave(440f,1f,44100);
 
-        Assert.Equal(44100,samples.Length);
+        Assert.Equal(44100,Samples.Length);
     }
 
     [Fact]
     public void GenerateSineWave_StaysWithinAmplitudeScale(){
-        var samples=ProceduralAudioClip.GenerateSineWave(440f,0.5f,44100,amplitudeScale:0.3f);
+        var Samples=ProceduralAudioClip.GenerateSineWave(440f,0.5f,44100,AmplitudeScale:0.3f);
 
-        var limit=(short)(short.MaxValue*0.3f+1);
+        var Limit=(short)(short.MaxValue*0.3f+1);
 
-        Assert.All(samples,sample=>Assert.InRange(sample,(short)-limit,limit));
+        Assert.All(Samples,Sample=>Assert.InRange(Sample,(short)-Limit,Limit));
     }
 
     [Fact]
     public void GenerateSineWave_IsNotSilent(){
-        var samples=ProceduralAudioClip.GenerateSineWave(440f,0.1f,44100);
+        var Samples=ProceduralAudioClip.GenerateSineWave(440f,0.1f,44100);
 
-        Assert.Contains(samples,sample=>sample!=0);
+        Assert.Contains(Samples,Sample=>Sample!=0);
     }
 
     [Theory]
     [InlineData(0f,1f,44100)]
     [InlineData(440f,0f,44100)]
     [InlineData(440f,1f,0)]
-    public void GenerateSineWave_RejectsNonPositiveArguments(float frequencyHz,float durationSeconds,int sampleRate){
-        Assert.Throws<ArgumentOutOfRangeException>(()=>ProceduralAudioClip.GenerateSineWave(frequencyHz,durationSeconds,sampleRate));
+    public void GenerateSineWave_RejectsNonPositiveArguments(float FrequencyHz,float DurationSeconds,int SampleRate){
+        Assert.Throws<ArgumentOutOfRangeException>(()=>ProceduralAudioClip.GenerateSineWave(FrequencyHz,DurationSeconds,SampleRate));
     }
 }

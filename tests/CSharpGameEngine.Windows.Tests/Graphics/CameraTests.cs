@@ -5,22 +5,22 @@ namespace CSharpGameEngine.Graphics.D3D12.Tests;
 public class CameraTests {
     [Fact]
     public void CreateDefault_SetsExpectedDefaults(){
-        Camera camera=Camera.CreateDefault(new Vector3(1,2,3));
+        Camera Camera=Camera.CreateDefault(new Vector3(1,2,3));
 
-        Assert.Equal(new Vector3(1,2,3),camera.Target);
-        Assert.Equal(0f,camera.Yaw);
-        Assert.True(camera.Distance>0f);
-        Assert.True(camera.FovYRadians>0f);
-        Assert.True(camera.NearZ>0f);
-        Assert.True(camera.FarZ>camera.NearZ);
+        Assert.Equal(new Vector3(1,2,3),Camera.Target);
+        Assert.Equal(0f,Camera.Yaw);
+        Assert.True(Camera.Distance>0f);
+        Assert.True(Camera.FovYRadians>0f);
+        Assert.True(Camera.NearZ>0f);
+        Assert.True(Camera.FarZ>Camera.NearZ);
     }
 
     [Fact]
     public void GetForward_AtZeroYawZeroPitch_PointsAlongPositiveZ(){
-        Camera camera=Camera.CreateDefault(Vector3.Zero);
-        camera.Pitch=0f;
+        Camera Camera=Camera.CreateDefault(Vector3.Zero);
+        Camera.Pitch=0f;
 
-        Vector3 Forward=camera.GetForward();
+        Vector3 Forward=Camera.GetForward();
 
         AssertApprox(0f,Forward.X);
         AssertApprox(0f,Forward.Y);
@@ -29,27 +29,27 @@ public class CameraTests {
 
     [Fact]
     public void GetEyePosition_IsDistanceAwayFromTargetOppositeForward(){
-        Camera camera=Camera.CreateDefault(new Vector3(5,0,0));
-        camera.Pitch=0f;
-        camera.Distance=3f;
+        Camera Camera=Camera.CreateDefault(new Vector3(5,0,0));
+        Camera.Pitch=0f;
+        Camera.Distance=3f;
 
-        Vector3 Eye=camera.GetEyePosition();
-        Vector3 Forward=camera.GetForward();
+        Vector3 Eye=Camera.GetEyePosition();
+        Vector3 Forward=Camera.GetForward();
 
-        AssertApprox((camera.Target-(Forward*camera.Distance)).X,Eye.X);
-        AssertApprox((camera.Target-(Forward*camera.Distance)).Y,Eye.Y);
-        AssertApprox((camera.Target-(Forward*camera.Distance)).Z,Eye.Z);
-        AssertApprox(camera.Distance,Vector3.Distance(Eye,camera.Target));
+        AssertApprox((Camera.Target-(Forward*Camera.Distance)).X,Eye.X);
+        AssertApprox((Camera.Target-(Forward*Camera.Distance)).Y,Eye.Y);
+        AssertApprox((Camera.Target-(Forward*Camera.Distance)).Z,Eye.Z);
+        AssertApprox(Camera.Distance,Vector3.Distance(Eye,Camera.Target));
     }
 
     [Fact]
     public void GetFlatForwardAndFlatRight_AreUnitLengthOrthogonalAndFlat(){
-        Camera camera=Camera.CreateDefault(Vector3.Zero);
-        camera.Yaw=0.7f;
-        camera.Pitch=0.3f;
+        Camera Camera=Camera.CreateDefault(Vector3.Zero);
+        Camera.Yaw=0.7f;
+        Camera.Pitch=0.3f;
 
-        Vector3 FlatForward=camera.GetFlatForward();
-        Vector3 FlatRight=camera.GetFlatRight();
+        Vector3 FlatForward=Camera.GetFlatForward();
+        Vector3 FlatRight=Camera.GetFlatRight();
 
         AssertApprox(0f,FlatForward.Y);
         AssertApprox(0f,FlatRight.Y);
@@ -60,68 +60,68 @@ public class CameraTests {
 
     [Fact]
     public void ApplyMouseDelta_ClampsPitchToConfiguredRange(){
-        Camera camera=Camera.CreateDefault(Vector3.Zero);
+        Camera Camera=Camera.CreateDefault(Vector3.Zero);
 
-        camera.ApplyMouseDelta(DeltaX:0f,DeltaY:-100000f,YawSensitivity:1f,PitchSensitivity:1f);
-        Assert.Equal(Camera.MaxPitchRadians,camera.Pitch);
+        Camera.ApplyMouseDelta(DeltaX:0f,DeltaY:-100000f,YawSensitivity:1f,PitchSensitivity:1f);
+        Assert.Equal(Camera.MaxPitchRadians,Camera.Pitch);
 
-        camera.ApplyMouseDelta(DeltaX:0f,DeltaY:100000f,YawSensitivity:1f,PitchSensitivity:1f);
-        Assert.Equal(Camera.MinPitchRadians,camera.Pitch);
+        Camera.ApplyMouseDelta(DeltaX:0f,DeltaY:100000f,YawSensitivity:1f,PitchSensitivity:1f);
+        Assert.Equal(Camera.MinPitchRadians,Camera.Pitch);
     }
 
     [Fact]
     public void ApplyMouseDelta_AccumulatesYawWithoutClamping(){
-        Camera camera=Camera.CreateDefault(Vector3.Zero);
+        Camera Camera=Camera.CreateDefault(Vector3.Zero);
 
-        camera.ApplyMouseDelta(DeltaX:1f,DeltaY:0f,YawSensitivity:0.5f,PitchSensitivity:1f);
-        camera.ApplyMouseDelta(DeltaX:1f,DeltaY:0f,YawSensitivity:0.5f,PitchSensitivity:1f);
+        Camera.ApplyMouseDelta(DeltaX:1f,DeltaY:0f,YawSensitivity:0.5f,PitchSensitivity:1f);
+        Camera.ApplyMouseDelta(DeltaX:1f,DeltaY:0f,YawSensitivity:0.5f,PitchSensitivity:1f);
 
-        AssertApprox(1f,camera.Yaw);
+        AssertApprox(1f,Camera.Yaw);
     }
 
     [Fact]
     public void GetView_ProducesAnInvertibleMatrix(){
-        Camera camera=Camera.CreateDefault(new Vector3(0,1,0));
+        Camera Camera=Camera.CreateDefault(new Vector3(0,1,0));
 
-        Matrix4x4 View=camera.GetView();
+        Matrix4x4 View=Camera.GetView();
 
         Assert.True(Matrix4x4.Invert(View,out _));
     }
 
     [Fact]
     public void GetProjection_ProducesAnInvertibleMatrix(){
-        Camera camera=Camera.CreateDefault(Vector3.Zero);
+        Camera Camera=Camera.CreateDefault(Vector3.Zero);
 
-        Matrix4x4 Projection=camera.GetProjection(AspectRatio:16f/9f);
+        Matrix4x4 Projection=Camera.GetProjection(AspectRatio:16f/9f);
 
         Assert.True(Matrix4x4.Invert(Projection,out _));
     }
 
     [Fact]
     public void CreateFirstPerson_HasZeroDistanceAndTargetIsEyePosition(){
-        Camera camera=Camera.CreateFirstPerson(new Vector3(1,2,3));
+        Camera Camera=Camera.CreateFirstPerson(new Vector3(1,2,3));
 
-        Assert.Equal(0f,camera.Distance);
-        Assert.Equal(new Vector3(1,2,3),camera.Target);
-        AssertApprox(0f,Vector3.Distance(camera.GetEyePosition(),new Vector3(1,2,3)));
+        Assert.Equal(0f,Camera.Distance);
+        Assert.Equal(new Vector3(1,2,3),Camera.Target);
+        AssertApprox(0f,Vector3.Distance(Camera.GetEyePosition(),new Vector3(1,2,3)));
     }
 
     [Fact]
     public void CreateFirstPerson_GetView_IsInvertibleNotDegenerate(){
-        Camera camera=Camera.CreateFirstPerson(new Vector3(0,1.6f,0));
+        Camera Camera=Camera.CreateFirstPerson(new Vector3(0,1.6f,0));
 
-        Matrix4x4 View=camera.GetView();
+        Matrix4x4 View=Camera.GetView();
 
         Assert.True(Matrix4x4.Invert(View,out _));
     }
 
     [Fact]
     public void CreateFirstPerson_AllowsSteeperPitchThanOrbitCamera(){
-        Camera camera=Camera.CreateFirstPerson(Vector3.Zero);
+        Camera Camera=Camera.CreateFirstPerson(Vector3.Zero);
 
-        camera.ApplyMouseDelta(DeltaX:0f,DeltaY:-100000f,YawSensitivity:1f,PitchSensitivity:1f);
+        Camera.ApplyMouseDelta(DeltaX:0f,DeltaY:-100000f,YawSensitivity:1f,PitchSensitivity:1f);
 
-        Assert.Equal(Camera.MaxPitchRadiansFirstPerson,camera.Pitch);
+        Assert.Equal(Camera.MaxPitchRadiansFirstPerson,Camera.Pitch);
         Assert.True(Camera.MaxPitchRadiansFirstPerson>Camera.MaxPitchRadians);
     }
 
@@ -138,11 +138,11 @@ public class CameraTests {
 
         foreach(var Yaw in Yaws){
             foreach(var Pitch in Pitches){
-                Camera camera=Camera.CreateDefault(Vector3.Zero);
-                camera.Yaw=Yaw;
-                camera.Pitch=Pitch;
+                Camera Camera=Camera.CreateDefault(Vector3.Zero);
+                Camera.Yaw=Yaw;
+                Camera.Pitch=Pitch;
 
-                Vector3 Actual=camera.GetForward();
+                Vector3 Actual=Camera.GetForward();
 
                 var CosPitch=MathF.Cos(Pitch);
                 Vector3 Expected=Vector3.Normalize(new Vector3(
@@ -167,11 +167,11 @@ public class CameraTests {
         float[]Yaws=[-3.0f,-1.5f,-0.7f,0f,0.3f,0.7f,1.5f,3.0f];
 
         foreach(var Yaw in Yaws){
-            Camera camera=Camera.CreateDefault(Vector3.Zero);
-            camera.Yaw=Yaw;
+            Camera Camera=Camera.CreateDefault(Vector3.Zero);
+            Camera.Yaw=Yaw;
 
-            Vector3 Actual=camera.GetFlatRight();
-            Vector3 Expected=Vector3.Normalize(Vector3.Cross(Vector3.UnitY,camera.GetFlatForward()));
+            Vector3 Actual=Camera.GetFlatRight();
+            Vector3 Expected=Vector3.Normalize(Vector3.Cross(Vector3.UnitY,Camera.GetFlatForward()));
 
             AssertApprox(Expected.X,Actual.X);
             AssertApprox(Expected.Y,Actual.Y);
@@ -181,20 +181,20 @@ public class CameraTests {
 
     [Fact]
     public void CreateBoundsFit_TargetsBoundsCenter(){
-        Camera camera=Camera.CreateBoundsFit(new Vector3(-20,-1,-20),new Vector3(20,4,20));
+        Camera Camera=Camera.CreateBoundsFit(new Vector3(-20,-1,-20),new Vector3(20,4,20));
 
-        AssertApprox(0f,camera.Target.X);
-        AssertApprox(1.5f,camera.Target.Y);
-        AssertApprox(0f,camera.Target.Z);
+        AssertApprox(0f,Camera.Target.X);
+        AssertApprox(1.5f,Camera.Target.Y);
+        AssertApprox(0f,Camera.Target.Z);
     }
 
     [Fact]
     public void CreateBoundsFit_EyeOffsetFromTarget_MatchesTheSharedDiagonalDirection(){
         // Same (1,0.75,1) eye direction ModelRenderer's thumbnail camera and the VSIX
         // SceneRenderer/VorticeRenderer preview cameras already use.
-        Camera camera=Camera.CreateBoundsFit(new Vector3(-1,-1,-1),new Vector3(1,1,1));
+        Camera Camera=Camera.CreateBoundsFit(new Vector3(-1,-1,-1),new Vector3(1,1,1));
 
-        Vector3 EyeOffset=Vector3.Normalize(camera.GetEyePosition()-camera.Target);
+        Vector3 EyeOffset=Vector3.Normalize(Camera.GetEyePosition()-Camera.Target);
         Vector3 Expected=Vector3.Normalize(new Vector3(1f,0.75f,1f));
 
         AssertApprox(Expected.X,EyeOffset.X);
@@ -206,13 +206,13 @@ public class CameraTests {
     public void CreateBoundsFit_DistanceIsFarEnoughThatTheWholeBoundingSphereFitsWithinTheFieldOfView(){
         Vector3 Min=new(-20,-1,-20);
         Vector3 Max=new(20,4,20);
-        Camera camera=Camera.CreateBoundsFit(Min,Max);
+        Camera Camera=Camera.CreateBoundsFit(Min,Max);
 
         float Radius=Vector3.Distance(Min,Max)/2f;
-        float HalfAngleToBoundingSphere=MathF.Asin(Radius/camera.Distance);
+        float HalfAngleToBoundingSphere=MathF.Asin(Radius/Camera.Distance);
 
-        Assert.True(HalfAngleToBoundingSphere<camera.FovYRadians/2f,
-            $"Bounding sphere half-angle {HalfAngleToBoundingSphere} must be smaller than the camera's half FOV {camera.FovYRadians/2f}.");
+        Assert.True(HalfAngleToBoundingSphere<Camera.FovYRadians/2f,
+            $"Bounding sphere half-angle {HalfAngleToBoundingSphere} must be smaller than the camera's half FOV {Camera.FovYRadians/2f}.");
     }
 
     private static void AssertApprox(float Expected,float Actual,float Tolerance=1e-4f){

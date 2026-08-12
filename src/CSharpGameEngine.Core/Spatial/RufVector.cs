@@ -12,10 +12,10 @@ public readonly struct RufVector:IEquatable<RufVector>{
     public float U { get;}
     public float F { get;}
 
-    public RufVector(float r,float u,float f){
-        R=r;
-        U=u;
-        F=f;
+    public RufVector(float R,float U,float F){
+        this.R= R;
+        this.U= U;
+        this.F= F;
     }
 
     public static readonly RufVector Zero=new(0f,0f,0f);
@@ -30,9 +30,9 @@ public readonly struct RufVector:IEquatable<RufVector>{
 
     public float Length=>MathF.Sqrt(LengthSquared);
 
-    public static RufVector operator+(RufVector left,RufVector right)=>new(left.R+right.R,left.U+right.U,left.F+right.F);
+    public static RufVector operator+(RufVector Left,RufVector Right)=>new(Left.R+Right.R,Left.U+Right.U,Left.F+Right.F);
 
-    public static RufVector operator-(RufVector left,RufVector right)=>new(left.R-right.R,left.U-right.U,left.F-right.F);
+    public static RufVector operator-(RufVector Left,RufVector Right)=>new(Left.R-Right.R,Left.U-Right.U,Left.F-Right.F);
 
     public static RufVector operator-(RufVector Value)=>new(-Value.R,-Value.U,-Value.F);
 
@@ -42,15 +42,15 @@ public readonly struct RufVector:IEquatable<RufVector>{
 
     public static RufVector operator/(RufVector Value,float Scalar)=>new(Value.R/Scalar,Value.U/Scalar,Value.F/Scalar);
 
-    public static float Dot(RufVector left,RufVector right)=>(left.R*right.R)+(left.U*right.U)+(left.F*right.F);
+    public static float Dot(RufVector Left,RufVector Right)=>(Left.R*Right.R)+(Left.U*Right.U)+(Left.F*Right.F);
 
     public RufVector Normalize(){
-        var length=Length;
-        if(length<=0f||!float.IsFinite(length)){
+        var Length= this.Length;
+        if(Length <= 0f||!float.IsFinite(Length)){
             throw new SpatialConfigurationException($"Cannot normalize a zero-length or non-finite {nameof(RufVector)}: {this}.");
         }
 
-        return this/length;
+        return this/Length;
     }
 
     /// <summary>
@@ -62,10 +62,10 @@ public readonly struct RufVector:IEquatable<RufVector>{
     /// self-consistent local bases (e.g. <see cref="RufQuaternion.LookRotation"/>) where no
     /// external physical convention is involved.
     /// </summary>
-    internal static RufVector RawCross(RufVector left,RufVector right)=>new(
-        (left.U*right.F)-(left.F*right.U),
-        (left.F*right.R)-(left.R*right.F),
-        (left.R*right.U)-(left.U*right.R));
+    internal static RufVector RawCross(RufVector Left,RufVector Right)=>new(
+        (Left.U*Right.F)-(Left.F*Right.U),
+        (Left.F*Right.R)-(Left.R*Right.F),
+        (Left.R*Right.U)-(Left.U*Right.R));
 
     public bool Equals(RufVector Other)=>R.Equals(Other.R)&&U.Equals(Other.U)&&F.Equals(Other.F);
 
@@ -73,9 +73,9 @@ public readonly struct RufVector:IEquatable<RufVector>{
 
     public override int GetHashCode()=>HashCode.Combine(R,U,F);
 
-    public static bool operator==(RufVector left,RufVector right)=>left.Equals(right);
+    public static bool operator==(RufVector Left,RufVector Right)=>Left.Equals(Right);
 
-    public static bool operator!=(RufVector left,RufVector right)=>!left.Equals(right);
+    public static bool operator!=(RufVector Left,RufVector Right)=>!Left.Equals(Right);
 
     public override string ToString()=>FormattableString.Invariant($"Ruf({R}, {U}, {F})");
 }

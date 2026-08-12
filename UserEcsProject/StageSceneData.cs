@@ -6,11 +6,11 @@ namespace UserEcsProject;
 
 /// <summary>CPU-side resources for the complete imported stage.</summary>
 public sealed class StageSceneData {
-    private StageSceneData(StageMeshCreateInfo[] meshes,StageMaterialCreateInfo[] materials,StageObjectCreateInfo[] objects,Matrix4x4[] transforms){
-        Meshes=meshes;
-        Materials=materials;
-        Objects=objects;
-        ObjectTransforms=transforms;
+    private StageSceneData(StageMeshCreateInfo[] Meshes,StageMaterialCreateInfo[] Materials,StageObjectCreateInfo[] Objects,Matrix4x4[] Transforms){
+        this.Meshes=Meshes;
+        this.Materials=Materials;
+        this.Objects=Objects;
+        ObjectTransforms=Transforms;
     }
 
     public StageMeshCreateInfo[] Meshes { get; }
@@ -18,42 +18,42 @@ public sealed class StageSceneData {
     public StageObjectCreateInfo[] Objects { get; }
     public Matrix4x4[] ObjectTransforms { get; }
 
-    public static StageSceneData Load(string glbPath){
-        GltfSceneImportResult importResult=GltfImporter.ImportScene(glbPath);
-        if(!importResult.Success||importResult.Scene is not { } scene){
-            throw new InvalidOperationException($"Failed to import '{glbPath}': {string.Join("; ",importResult.Diagnostics)}");
+    public static StageSceneData Load(string GlbPath){
+        GltfSceneImportResult ImportResult=GltfImporter.ImportScene(GlbPath);
+        if(!ImportResult.Success||ImportResult.Scene is not { } Scene){
+            throw new InvalidOperationException($"Failed to import '{GlbPath}': {string.Join("; ",ImportResult.Diagnostics)}");
         }
 
-        StageMeshCreateInfo[] meshes=[.. scene.Meshes.Select(mesh=>new StageMeshCreateInfo {
-            Positions=mesh.Positions,
-            Normals=mesh.Normals,
-            Tangents=mesh.Tangents,
-            Uvs=mesh.Uvs,
-            Indices=mesh.Indices,
+        StageMeshCreateInfo[] Meshes=[.. Scene.Meshes.Select(Mesh=>new StageMeshCreateInfo {
+            Positions=Mesh.Positions,
+            Normals=Mesh.Normals,
+            Tangents=Mesh.Tangents,
+            Uvs=Mesh.Uvs,
+            Indices=Mesh.Indices,
         })];
-        StageMaterialCreateInfo[] materials=[.. scene.Materials.Select(material=>new StageMaterialCreateInfo {
-            BaseColorFactor=material.BaseColorFactor,
-            RoughnessFactor=material.RoughnessFactor,
-            MetallicFactor=material.MetallicFactor,
-            EmissiveFactor=material.EmissiveFactor,
-            BaseColorTextureBytes=material.BaseColorTextureBytes,
-            NormalTextureBytes=material.NormalTextureBytes,
-            MetallicRoughnessTextureBytes=material.MetallicRoughnessTextureBytes,
+        StageMaterialCreateInfo[] Materials=[.. Scene.Materials.Select(Material=>new StageMaterialCreateInfo {
+            BaseColorFactor=Material.BaseColorFactor,
+            RoughnessFactor=Material.RoughnessFactor,
+            MetallicFactor=Material.MetallicFactor,
+            EmissiveFactor=Material.EmissiveFactor,
+            BaseColorTextureBytes=Material.BaseColorTextureBytes,
+            NormalTextureBytes=Material.NormalTextureBytes,
+            MetallicRoughnessTextureBytes=Material.MetallicRoughnessTextureBytes,
         })];
 
-        List<StageObjectCreateInfo> objects=[];
-        List<Matrix4x4> transforms=[];
-        foreach(ImportedSceneNode node in scene.Nodes){
-            if(node.MeshIndex is not int meshIndex||node.MaterialIndex is not int materialIndex){
+        List<StageObjectCreateInfo> Objects=[];
+        List<Matrix4x4> Transforms=[];
+        foreach(ImportedSceneNode Node in Scene.Nodes){
+            if(Node.MeshIndex is not int MeshIndex||Node.MaterialIndex is not int MaterialIndex){
                 continue;
             }
-            objects.Add(new StageObjectCreateInfo { MeshIndex=meshIndex,MaterialIndex=materialIndex });
-            transforms.Add(node.WorldTransform);
+            Objects.Add(new StageObjectCreateInfo { MeshIndex=MeshIndex,MaterialIndex=MaterialIndex });
+            Transforms.Add(Node.WorldTransform);
         }
 
-        if(objects.Count==0){
-            throw new InvalidOperationException($"The stage '{glbPath}' contains no drawable mesh nodes.");
+        if(Objects.Count==0){
+            throw new InvalidOperationException($"The stage '{GlbPath}' contains no drawable mesh nodes.");
         }
-        return new StageSceneData(meshes,materials,[.. objects],[.. transforms]);
+        return new StageSceneData(Meshes,Materials,[.. Objects],[.. Transforms]);
     }
 }

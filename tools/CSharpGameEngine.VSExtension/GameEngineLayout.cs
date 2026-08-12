@@ -29,17 +29,17 @@ internal static class GameEngineLayout {
     private const string InitialLayoutAppliedPropertyName="InitialLayoutApplied";
     private const string ToolbarName="C# Game Engine";
 
-    public static async Task<bool>WasInitialLayoutAppliedAsync(AsyncPackage package){
-        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
-        WritableSettingsStore Store=GetUserSettingsStore(package);
+    public static async Task<bool>WasInitialLayoutAppliedAsync(AsyncPackage Package){
+        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(Package.DisposalToken);
+        WritableSettingsStore Store=GetUserSettingsStore(Package);
         return Store.CollectionExists(SettingsCollectionPath)
             &&Store.PropertyExists(SettingsCollectionPath,InitialLayoutAppliedPropertyName)
             &&Store.GetBoolean(SettingsCollectionPath,InitialLayoutAppliedPropertyName);
     }
 
-    public static async Task MarkInitialLayoutAppliedAsync(AsyncPackage package){
-        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
-        WritableSettingsStore Store=GetUserSettingsStore(package);
+    public static async Task MarkInitialLayoutAppliedAsync(AsyncPackage Package){
+        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(Package.DisposalToken);
+        WritableSettingsStore Store=GetUserSettingsStore(Package);
         if(!Store.CollectionExists(SettingsCollectionPath)){
             Store.CreateCollection(SettingsCollectionPath);
         }
@@ -47,9 +47,9 @@ internal static class GameEngineLayout {
         Store.SetBoolean(SettingsCollectionPath,InitialLayoutAppliedPropertyName,true);
     }
 
-    private static WritableSettingsStore GetUserSettingsStore(AsyncPackage package){
-        ShellSettingsManager settingsManager=new(package);
-        return settingsManager.GetWritableSettingsStore(SettingsScope.UserSettings);
+    private static WritableSettingsStore GetUserSettingsStore(AsyncPackage Package){
+        ShellSettingsManager SettingsManager=new(Package);
+        return SettingsManager.GetWritableSettingsStore(SettingsScope.UserSettings);
     }
 
     /// <summary>
@@ -59,14 +59,14 @@ internal static class GameEngineLayout {
     /// <see cref="OpenSceneDesignerCommand"/>'s code-editor context menu entry instead of a fixed
     /// default file).
     /// </summary>
-    public static async Task ApplyAsync(AsyncPackage package,DTE Dte,string RepoRoot){
-        await package.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
+    public static async Task ApplyAsync(AsyncPackage Package,DTE Dte,string RepoRoot){
+        await Package.JoinableTaskFactory.SwitchToMainThreadAsync(Package.DisposalToken);
 
         ShowToolbar(Dte);
 
-        ToolWindowPane HierarchyWindow= await package.ShowToolWindowAsync(typeof(HierarchyToolWindowPane),0,true,package.DisposalToken);
-        ToolWindowPane SceneDesignerWindow= await package.ShowToolWindowAsync(typeof(SceneDesignerToolWindowPane),0,true,package.DisposalToken);
-        ToolWindowPane ShapeWindow= await package.ShowToolWindowAsync(typeof(ShapePaletteToolWindowPane),0,true,package.DisposalToken);
+        ToolWindowPane HierarchyWindow= await Package.ShowToolWindowAsync(typeof(HierarchyToolWindowPane),0,true,Package.DisposalToken);
+        ToolWindowPane SceneDesignerWindow= await Package.ShowToolWindowAsync(typeof(SceneDesignerToolWindowPane),0,true,Package.DisposalToken);
+        ToolWindowPane ShapeWindow= await Package.ShowToolWindowAsync(typeof(ShapePaletteToolWindowPane),0,true,Package.DisposalToken);
 
         Guid SolutionExplorer=new(ToolWindowGuids80.SolutionExplorer);
         SetFramePos(HierarchyWindow,VSSETFRAMEPOS.SFP_fDock|VSSETFRAMEPOS.SFP_fDockLeft,SolutionExplorer,Width:300);
@@ -80,11 +80,11 @@ internal static class GameEngineLayout {
         try {
             // DTE.CommandBars is typed as plain System.Object (not the strongly-typed CommandBars
             // interface) even on EnvDTE80.DTE2 - an explicit cast is required.
-            if(Dte.CommandBars is not CommandBars commandBars){
+            if(Dte.CommandBars is not CommandBars CommandBars){
                 return;
             }
 
-            CommandBar Toolbar=commandBars[ToolbarName];
+            CommandBar Toolbar=CommandBars[ToolbarName];
             Toolbar.Visible=true;
         } catch(Exception){
             // Best-effort: a missing/renamed toolbar or unexpected COM failure must never take

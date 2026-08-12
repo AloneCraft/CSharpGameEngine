@@ -33,10 +33,10 @@ public sealed class LoadedSceneSpawn {
 /// compact handles established here.
 /// </summary>
 public sealed class SceneAssetResources {
-    public SceneAssetResources(StageMeshCreateInfo[] meshes,StageMaterialCreateInfo[] materials,StageObjectCreateInfo[] objects){
-        this.Meshes=meshes;
-        this.Materials=materials;
-        this.Objects=objects;
+    public SceneAssetResources(StageMeshCreateInfo[] Meshes,StageMaterialCreateInfo[] Materials,StageObjectCreateInfo[] Objects){
+        this.Meshes=Meshes;
+        this.Materials=Materials;
+        this.Objects=Objects;
     }
 
     public StageMeshCreateInfo[] Meshes { get;}
@@ -47,8 +47,8 @@ public sealed class SceneAssetResources {
 
     public int RenderableCount=>this.Objects.Length;
 
-    public bool Contains(MeshHandle mesh,MaterialHandle material)=>
-        (uint)mesh.Value<(uint)this.Meshes.Length&&(uint)material.Value<(uint)this.Materials.Length;
+    public bool Contains(MeshHandle Mesh,MaterialHandle Material)=>
+        (uint)Mesh.Value<(uint)this.Meshes.Length&&(uint)Material.Value<(uint)this.Materials.Length;
 }
 
 public sealed class LoadedScene {
@@ -111,7 +111,7 @@ public static class SceneLoader {
             var ObjectIndex=Objects.Count;
             Objects.Add(new StageObjectCreateInfo { MeshIndex=MeshIndex,MaterialIndex=MaterialIndex });
 
-            Matrix4x4.Decompose(Node.WorldTransform,out Vector3 scale,out Quaternion rotation,out Vector3 Translation);
+            Matrix4x4.Decompose(Node.WorldTransform,out Vector3 Scale,out Quaternion Rotation,out Vector3 Translation);
             var MobilityText=Meta.MobilityOverrides.GetValueOrDefault(Node.Name,"static");
             PropMobility Mobility=string.Equals(MobilityText,"movable",StringComparison.OrdinalIgnoreCase)?PropMobility.Movable:PropMobility.Static;
 
@@ -121,8 +121,8 @@ public static class SceneLoader {
                 Material=new MaterialHandle(MaterialIndex),
                 Mobility=Mobility,
                 Position=Translation,
-                Rotation=rotation,
-                Scale=scale,
+                Rotation=Rotation,
+                Scale=Scale,
             });
         }
 
@@ -164,14 +164,14 @@ public static class SceneLoader {
             *Matrix4x4.CreateTranslation(RawPosition);
 
         Matrix4x4 EngineSpaceTransform=GltfAxisConversion.ConvertWorldTransform(GltfSpaceTransform);
-        Matrix4x4.Decompose(EngineSpaceTransform,out _,out Quaternion rotation,out Vector3 position);
+        Matrix4x4.Decompose(EngineSpaceTransform,out _,out Quaternion Rotation,out Vector3 Position);
 
         // The source rotation is a pure Y-axis rotation, and Y is the mirror's fixed axis (ADR-0027),
         // so the converted rotation is guaranteed to still be a pure Y-axis rotation - extract its
         // angle directly instead of taking a general (and here unnecessary) Euler decomposition.
-        var YawRadians=2f*MathF.Atan2(rotation.Y,rotation.W);
+        var YawRadians=2f*MathF.Atan2(Rotation.Y,Rotation.W);
 
-        return(position,YawRadians);
+        return(Position,YawRadians);
     }
 
     private static DirectionalLightData?TryImportDirectionalLight(ImportedLight Light,Matrix4x4 WorldTransform){

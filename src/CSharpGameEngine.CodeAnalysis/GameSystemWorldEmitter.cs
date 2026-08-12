@@ -41,30 +41,30 @@ internal static class GameSystemWorldEmitter {
 
         Lines.Add("public partial struct World() {");
 
-        foreach(GameSystemArchetypeInfo archetype in Registry.Archetypes){
-            Lines.Add($"    public readonly {archetype.Name} {archetype.Name} = new();");
+        foreach(GameSystemArchetypeInfo Archetype in Registry.Archetypes){
+            Lines.Add($"    public readonly {Archetype.Name} {Archetype.Name} = new();");
         }
 
         Lines.Add("    internal readonly ChunkBuffer<MoveCommandHeader> MoveCommands = new();");
-        foreach(GameSystemArchetypeInfo archetype in Registry.Archetypes){
-            Lines.Add($"    internal readonly ChunkBuffer<{archetype.MoveCommandTypeName}> {archetype.MoveCommandsFieldName} = new();");
+        foreach(GameSystemArchetypeInfo Archetype in Registry.Archetypes){
+            Lines.Add($"    internal readonly ChunkBuffer<{Archetype.MoveCommandTypeName}> {Archetype.MoveCommandsFieldName} = new();");
         }
 
-        foreach(GameSystemArchetypeInfo archetype in Registry.Archetypes){
-            Lines.AddRange(BuildCreateOverload(archetype,Registry));
+        foreach(GameSystemArchetypeInfo Archetype in Registry.Archetypes){
+            Lines.AddRange(BuildCreateOverload(Archetype,Registry));
         }
 
         Lines.AddRange(BuildDetach(Registry));
         Lines.AddRange(BuildDestroy());
 
-        foreach(GameSystemArchetypeInfo archetype in Registry.Archetypes){
-            Lines.AddRange(BuildMoveArchetypeOverload(archetype,Registry));
+        foreach(GameSystemArchetypeInfo Archetype in Registry.Archetypes){
+            Lines.AddRange(BuildMoveArchetypeOverload(Archetype,Registry));
         }
 
         Lines.AddRange(BuildPlaybackMoveArchetypes(Registry));
 
-        foreach(GameSystemArchetypeInfo archetype in Registry.Archetypes){
-            Lines.AddRange(BuildApplyMoveArchetype(archetype,Registry));
+        foreach(GameSystemArchetypeInfo Archetype in Registry.Archetypes){
+            Lines.AddRange(BuildApplyMoveArchetype(Archetype,Registry));
         }
 
         Lines.Add("}");
@@ -157,8 +157,8 @@ internal static class GameSystemWorldEmitter {
         Lines.Add("            }");
         Lines.Add("        }");
         Lines.Add("        this.MoveCommands.Clear();");
-        foreach(GameSystemArchetypeInfo archetype in Registry.Archetypes){
-            Lines.Add($"        this.{archetype.MoveCommandsFieldName}.Clear();");
+        foreach(GameSystemArchetypeInfo Archetype in Registry.Archetypes){
+            Lines.Add($"        this.{Archetype.MoveCommandsFieldName}.Clear();");
         }
         Lines.Add("        this.PlaybackSceneCommands();");
         Lines.Add("    }");

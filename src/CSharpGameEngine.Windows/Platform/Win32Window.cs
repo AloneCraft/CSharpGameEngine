@@ -17,8 +17,8 @@ public sealed unsafe class Win32Window:IDisposable {
     private const string ClassName="CSharpGameEngine.Win32Window";
     private static readonly char*IDC_ARROW=(char*)0x7F00;
 
-    private static readonly object S_registrationLock=new();
-    private static bool S_classRegistered;
+    private static readonly object RegistrationLock=new();
+    private static bool ClassRegistered;
 
     private GCHandle SelfHandle;
     private HWND Hwnd;
@@ -48,11 +48,11 @@ public sealed unsafe class Win32Window:IDisposable {
         var WindowHeight=WindowRect.bottom-WindowRect.top;
 
         HWND Hwnd;
-        fixed(char*className=ClassName)
-        fixed(char*Title=Options.Title){
-            Hwnd=CreateWindowExW(
+        fixed(char*ClassName= Win32Window.ClassName)
+        fixed(char*Title= Options.Title){
+            Hwnd= CreateWindowExW(
                 0,
-                className,
+                ClassName,
                 Title,
                 Style,
                 CW_USEDEFAULT,
@@ -265,9 +265,9 @@ public sealed unsafe class Win32Window:IDisposable {
 
             case WM_KEYUP:
             case WM_SYSKEYUP:{
-                    var virtualKeyCode=(int)WParam.Value.ToUInt64();
-                    if(virtualKeyCode is>=0 and <256){
-                        KeyDown[virtualKeyCode]=false;
+                    var VirtualKeyCode=(int)WParam.Value.ToUInt64();
+                    if(VirtualKeyCode is>=0 and <256){
+                        KeyDown[VirtualKeyCode]=false;
                     }
                     return Msg==WM_SYSKEYUP?DefWindowProcW(Hwnd,Msg,WParam,LParam):0;
                 }
@@ -322,32 +322,32 @@ public sealed unsafe class Win32Window:IDisposable {
     }
 
     private static void EnsureClassRegistered(){
-        if(S_classRegistered){
+        if(ClassRegistered){
             return;
         }
 
-        lock(S_registrationLock){
-            if(S_classRegistered){
+        lock(RegistrationLock){
+            if(ClassRegistered){
                 return;
             }
 
-            fixed(char*className=ClassName){
-                WNDCLASSEXW Wc=new(){
+            fixed(char*ClassName= Win32Window.ClassName){
+                WNDCLASSEXW Wc =new(){
                     cbSize=(uint)sizeof(WNDCLASSEXW),
                     style=0,
                     lpfnWndProc=&WndProc,
-                    hInstance=GetModuleHandleForCurrentProcess(),
-                    hCursor=LoadCursorW(HINSTANCE.NULL,IDC_ARROW),
-                    lpszClassName=className,
+                    hInstance= GetModuleHandleForCurrentProcess(),
+                    hCursor= LoadCursorW(HINSTANCE.NULL, IDC_ARROW),
+                    lpszClassName= ClassName,
                 };
 
-                if(RegisterClassExW(&Wc)==0){
-                    var Error=Marshal.GetLastWin32Error();
+                if(RegisterClassExW(&Wc) ==0){
+                    var Error= Marshal.GetLastWin32Error();
                     throw new InvalidOperationException($"RegisterClassExW failed with Win32 error 0x{Error:X8}.");
                 }
             }
 
-            S_classRegistered=true;
+            ClassRegistered=true;
         }
     }
 
@@ -364,8 +364,8 @@ public sealed unsafe class Win32Window:IDisposable {
 
         var UserData=GetWindowLongPtrW(Hwnd,GWLP_USERDATA);
         if(UserData!=0){
-            GCHandle handle=GCHandle.FromIntPtr(UserData);
-            if(handle.Target is Win32Window Window){
+            GCHandle Handle=GCHandle.FromIntPtr(UserData);
+            if(Handle.Target is Win32Window Window){
                 try {
                     return Window.HandleMessage(Hwnd,Msg,WParam,LParam);
                 } catch {

@@ -13,142 +13,142 @@ namespace CSharpGameEngine.Entities.Tests;
 public sealed class EntityDestroySpec {
     [Fact]
     public void CreatedEntityIsAlive(){
-        World world=new();
+        World World=new();
 
-        Entity entity=world.Create(new Position { X=1f });
+        Entity Entity=World.Create(new Position { X=1f });
 
-        Assert.True(world.IsAlive(entity));
+        Assert.True(World.IsAlive(Entity));
     }
 
     [Fact]
     public void DestroyedEntityIsNoLongerAlive(){
-        World world=new();
-        Entity entity=world.Create(new Position { X=1f });
+        World World=new();
+        Entity Entity=World.Create(new Position { X=1f });
 
-        world.Destroy(entity);
+        World.Destroy(Entity);
 
-        Assert.False(world.IsAlive(entity));
+        Assert.False(World.IsAlive(Entity));
     }
 
     [Fact]
     public void DestroyIsIdempotent(){
-        World world=new();
-        Entity entity=world.Create(new Position());
+        World World=new();
+        Entity Entity=World.Create(new Position());
 
-        world.Destroy(entity);
-        world.Destroy(entity);
+        World.Destroy(Entity);
+        World.Destroy(Entity);
 
-        Assert.False(world.IsAlive(entity));
+        Assert.False(World.IsAlive(Entity));
     }
 
     [Fact]
     public void NeverSeenEntityIsNotAlive(){
-        World world=new();
+        World World=new();
 
-        Assert.False(world.IsAlive(new Entity(0)));
-        Assert.False(world.IsAlive(new Entity(999)));
-        Assert.False(world.IsAlive(new Entity(-1)));
+        Assert.False(World.IsAlive(new Entity(0)));
+        Assert.False(World.IsAlive(new Entity(999)));
+        Assert.False(World.IsAlive(new Entity(-1)));
     }
 
     [Fact]
     public void DestroyedIdIsNeverHandedOutAgain(){
         // これが「世代を持たなくてもstale handleが別Entityに化けない」ことの根拠である。
-        World world=new();
-        Entity first=world.Create(new Position { X=1f });
-        world.Destroy(first);
+        World World=new();
+        Entity First=World.Create(new Position { X=1f });
+        World.Destroy(First);
 
-        Entity second=world.Create(new Position { X=2f });
+        Entity Second=World.Create(new Position { X=2f });
 
-        Assert.NotEqual(first.Id,second.Id);
-        Assert.False(world.IsAlive(first));
-        Assert.True(world.IsAlive(second));
+        Assert.NotEqual(First.Id,Second.Id);
+        Assert.False(World.IsAlive(First));
+        Assert.True(World.IsAlive(Second));
     }
 
     [Fact]
     public void SurvivingEntityKeepsItsIdentityAfterASwapBack(){
         // 末尾のEntityが消えた行へ座り直すが、Entity.Idは動かない。動くのはArchetype内の座席番号だけ。
-        World world=new();
-        Entity a=world.Create(new Position { X=1f });
-        Entity b=world.Create(new Position { X=2f });
-        Entity c=world.Create(new Position { X=3f });
+        World World=new();
+        Entity A=World.Create(new Position { X=1f });
+        Entity B=World.Create(new Position { X=2f });
+        Entity C=World.Create(new Position { X=3f });
 
-        world.Destroy(b);
+        World.Destroy(B);
 
-        Assert.True(world.IsAlive(a));
-        Assert.False(world.IsAlive(b));
-        Assert.True(world.IsAlive(c));
-        Assert.Equal(3f,world.Archetype0.GetPositionRefUnchecked(world.Archetype0.Count-1).X);
-        Assert.Equal(2,world.Archetype0.Count);
+        Assert.True(World.IsAlive(A));
+        Assert.False(World.IsAlive(B));
+        Assert.True(World.IsAlive(C));
+        Assert.Equal(3f,World.Archetype0.GetPositionRefUnchecked(World.Archetype0.Count-1).X);
+        Assert.Equal(2,World.Archetype0.Count);
     }
 
     [Fact]
     public void DestroyingTheLastEntityDoesNotDisturbTheOthers(){
-        World world=new();
-        Entity a=world.Create(new Position { X=1f });
-        Entity b=world.Create(new Position { X=2f });
+        World World=new();
+        Entity A=World.Create(new Position { X=1f });
+        Entity B=World.Create(new Position { X=2f });
 
-        world.Destroy(b);
+        World.Destroy(B);
 
-        Assert.True(world.IsAlive(a));
-        Assert.Equal(1,world.Archetype0.Count);
-        Assert.Equal(1f,world.Archetype0.GetPositionRefUnchecked(0).X);
+        Assert.True(World.IsAlive(A));
+        Assert.Equal(1,World.Archetype0.Count);
+        Assert.Equal(1f,World.Archetype0.GetPositionRefUnchecked(0).X);
     }
 
     [Fact]
     public void DeferredDestroyIsAppliedAtThePlaybackBarrier(){
-        World world=new();
-        State state=new(world){ Enabled=true };
-        Entity entity=world.Create(new Position());
+        World World=new();
+        State State=new(World){ Enabled=true };
+        Entity Entity=World.Create(new Position());
 
-        world.DestroyDeferred(entity,ref state);
+        World.DestroyDeferred(Entity,ref State);
 
-        Assert.True(world.IsAlive(entity));
+        Assert.True(World.IsAlive(Entity));
 
-        world.PlaybackStructuralChanges(ref state);
+        World.PlaybackStructuralChanges(ref State);
 
-        Assert.False(world.IsAlive(entity));
+        Assert.False(World.IsAlive(Entity));
     }
 
     [Fact]
     public void DeferredDestroyQueueIsDrained(){
-        World world=new();
-        State state=new(world){ Enabled=true };
-        Entity entity=world.Create(new Position());
+        World World=new();
+        State State=new(World){ Enabled=true };
+        Entity Entity=World.Create(new Position());
 
-        world.DestroyDeferred(entity,ref state);
-        world.PlaybackStructuralChanges(ref state);
-        world.PlaybackStructuralChanges(ref state);
+        World.DestroyDeferred(Entity,ref State);
+        World.PlaybackStructuralChanges(ref State);
+        World.PlaybackStructuralChanges(ref State);
 
-        Assert.False(world.IsAlive(entity));
+        Assert.False(World.IsAlive(Entity));
     }
 
     [Fact]
     public void MoveThenDestroyInTheSameFrame_LeavesTheEntityDestroyed(){
         // プレイバックはMoveを先に、Destroyを後に適用する。逆順だと、破棄後の墓石行へ移動を
         // 適用して生き返らせてしまう。
-        World world=new();
-        State state=new(world){ Enabled=true };
-        Entity entity=world.Create(new Position { X=1f });
+        World World=new();
+        State State=new(World){ Enabled=true };
+        Entity Entity=World.Create(new Position { X=1f });
 
-        world.MoveArchetype(entity,new Position { X=9f },new Velocity { X=1f },ref state);
-        world.DestroyDeferred(entity,ref state);
-        world.PlaybackStructuralChanges(ref state);
+        World.MoveArchetype(Entity,new Position { X=9f },new Velocity { X=1f },ref State);
+        World.DestroyDeferred(Entity,ref State);
+        World.PlaybackStructuralChanges(ref State);
 
-        Assert.False(world.IsAlive(entity));
-        Assert.Equal(0,world.Archetype1.Count);
+        Assert.False(World.IsAlive(Entity));
+        Assert.Equal(0,World.Archetype1.Count);
     }
 
     [Fact]
     public void MoveAppliedToAnAlreadyDestroyedEntityIsIgnored(){
-        World world=new();
-        State state=new(world){ Enabled=true };
-        Entity entity=world.Create(new Position { X=1f });
+        World World=new();
+        State State=new(World){ Enabled=true };
+        Entity Entity=World.Create(new Position { X=1f });
 
-        world.MoveArchetype(entity,new Position { X=9f },new Velocity { X=1f },ref state);
-        world.Destroy(entity);
-        world.PlaybackStructuralChanges(ref state);
+        World.MoveArchetype(Entity,new Position { X=9f },new Velocity { X=1f },ref State);
+        World.Destroy(Entity);
+        World.PlaybackStructuralChanges(ref State);
 
-        Assert.False(world.IsAlive(entity));
-        Assert.Equal(0,world.Archetype1.Count);
+        Assert.False(World.IsAlive(Entity));
+        Assert.Equal(0,World.Archetype1.Count);
     }
 }

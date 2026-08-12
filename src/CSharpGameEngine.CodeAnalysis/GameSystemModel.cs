@@ -32,9 +32,9 @@ internal readonly struct GameSystemParameterSlot {
     internal readonly GameSystemParameterRole Role;
     internal readonly int Index;
 
-    internal GameSystemParameterSlot(GameSystemParameterRole role,int index){
-        this.Role=role;
-        this.Index=index;
+    internal GameSystemParameterSlot(GameSystemParameterRole Role,int Index){
+        this.Role=Role;
+        this.Index=Index;
     }
 }
 
@@ -42,9 +42,9 @@ internal readonly struct GameSystemComponentParameterModel {
     internal readonly string ParameterName;
     internal readonly string TypeFullyQualifiedName;
 
-    internal GameSystemComponentParameterModel(string parameterName,string typeFullyQualifiedName){
-        this.ParameterName=parameterName;
-        this.TypeFullyQualifiedName=typeFullyQualifiedName;
+    internal GameSystemComponentParameterModel(string ParameterName,string TypeFullyQualifiedName){
+        this.ParameterName=ParameterName;
+        this.TypeFullyQualifiedName=TypeFullyQualifiedName;
     }
 }
 
@@ -54,10 +54,10 @@ internal readonly struct GameSystemContextParameterModel {
     internal readonly string TypeFullyQualifiedName;
     internal readonly bool IsReferenceType;
 
-    internal GameSystemContextParameterModel(string parameterName,string typeFullyQualifiedName,bool isReferenceType){
-        this.ParameterName=parameterName;
-        this.TypeFullyQualifiedName=typeFullyQualifiedName;
-        this.IsReferenceType=isReferenceType;
+    internal GameSystemContextParameterModel(string ParameterName,string TypeFullyQualifiedName,bool IsReferenceType){
+        this.ParameterName=ParameterName;
+        this.TypeFullyQualifiedName=TypeFullyQualifiedName;
+        this.IsReferenceType=IsReferenceType;
     }
 }
 
@@ -71,18 +71,18 @@ internal readonly struct GameSystemMethodModel {
     internal readonly int DeclarationPosition;
 
     internal GameSystemMethodModel(
-        GameSystemMethodRole role,
-        bool hasLeadingEntityParameter,
-        ImmutableArray<GameSystemComponentParameterModel>components,
-        ImmutableArray<GameSystemContextParameterModel>contexts,
-        ImmutableArray<GameSystemParameterSlot>callOrder,
-        int declarationPosition){
-        this.Role=role;
-        this.HasLeadingEntityParameter=hasLeadingEntityParameter;
-        this.Components=components;
-        this.Contexts=contexts;
-        this.CallOrder=callOrder;
-        this.DeclarationPosition=declarationPosition;
+        GameSystemMethodRole Role,
+        bool HasLeadingEntityParameter,
+        ImmutableArray<GameSystemComponentParameterModel>Components,
+        ImmutableArray<GameSystemContextParameterModel>Contexts,
+        ImmutableArray<GameSystemParameterSlot>CallOrder,
+        int DeclarationPosition){
+        this.Role=Role;
+        this.HasLeadingEntityParameter=HasLeadingEntityParameter;
+        this.Components=Components;
+        this.Contexts=Contexts;
+        this.CallOrder=CallOrder;
+        this.DeclarationPosition=DeclarationPosition;
     }
 }
 
@@ -105,18 +105,18 @@ internal readonly struct GameSystemResult {
     internal readonly int DeclarationPosition;
 
     internal GameSystemResult(
-        string?@namespace,
-        string className,
-        ImmutableArray<GameSystemMethodModel>methods,
-        ImmutableArray<Diagnostic>diagnostics,
-        string filePath,
-        int declarationPosition){
-        this.Namespace=@namespace;
-        this.ClassName=className;
-        this.Methods=methods;
-        this.Diagnostics=diagnostics;
-        this.FilePath=filePath;
-        this.DeclarationPosition=declarationPosition;
+        string?Namespace,
+        string ClassName,
+        ImmutableArray<GameSystemMethodModel>Methods,
+        ImmutableArray<Diagnostic>Diagnostics,
+        string FilePath,
+        int DeclarationPosition){
+        this.Namespace=Namespace;
+        this.ClassName=ClassName;
+        this.Methods=Methods;
+        this.Diagnostics=Diagnostics;
+        this.FilePath=FilePath;
+        this.DeclarationPosition=DeclarationPosition;
     }
 
     internal string ClassFullyQualifiedName=>this.Namespace is null?this.ClassName: $"{this.Namespace}.{this.ClassName}";
@@ -130,10 +130,10 @@ internal readonly struct GameSystemComponentInfo {
     internal readonly string TypeFullyQualifiedName;
     internal readonly string FieldName;
 
-    internal GameSystemComponentInfo(int index,string typeFullyQualifiedName,string fieldName){
-        this.Index=index;
-        this.TypeFullyQualifiedName=typeFullyQualifiedName;
-        this.FieldName=fieldName;
+    internal GameSystemComponentInfo(int Index,string TypeFullyQualifiedName,string FieldName){
+        this.Index=Index;
+        this.TypeFullyQualifiedName=TypeFullyQualifiedName;
+        this.FieldName=FieldName;
     }
 }
 
@@ -148,10 +148,10 @@ internal readonly struct GameSystemArchetypeInfo {
     internal readonly ImmutableArray<int>ComponentIndices;
     internal readonly long Mask;
 
-    internal GameSystemArchetypeInfo(string name,ImmutableArray<int>componentIndices,long mask){
-        this.Name=name;
-        this.ComponentIndices=componentIndices;
-        this.Mask=mask;
+    internal GameSystemArchetypeInfo(string Name,ImmutableArray<int>ComponentIndices,long Mask){
+        this.Name=Name;
+        this.ComponentIndices=ComponentIndices;
+        this.Mask=Mask;
     }
 
     internal string ListFieldName=> $"List{this.Name}";
@@ -190,20 +190,20 @@ internal readonly struct GameSystemOrderResult {
     internal readonly ImmutableArray<Diagnostic>Diagnostics;
 
     internal GameSystemOrderResult(
-        GameSystemOrderTargetKind kind,
-        string filePath,
-        int order,
-        string targetName,
-        string?systemFullyQualifiedName,
-        Location location,
-        ImmutableArray<Diagnostic>diagnostics){
-        this.Kind=kind;
-        this.FilePath=filePath;
-        this.Order=order;
-        this.TargetName=targetName;
-        this.SystemFullyQualifiedName=systemFullyQualifiedName;
-        this.Location=location;
-        this.Diagnostics=diagnostics;
+        GameSystemOrderTargetKind Kind,
+        string FilePath,
+        int Order,
+        string TargetName,
+        string?SystemFullyQualifiedName,
+        Location Location,
+        ImmutableArray<Diagnostic>Diagnostics){
+        this.Kind=Kind;
+        this.FilePath=FilePath;
+        this.Order=Order;
+        this.TargetName=TargetName;
+        this.SystemFullyQualifiedName=SystemFullyQualifiedName;
+        this.Location=Location;
+        this.Diagnostics=Diagnostics;
     }
 }
 
@@ -215,9 +215,9 @@ internal readonly struct GameSystemOrderContext {
     internal readonly IReadOnlyDictionary<string,int>SystemOrderByFqn;
     internal readonly IReadOnlyDictionary<string,int>FileOrderByPath;
 
-    internal GameSystemOrderContext(IReadOnlyDictionary<string,int>systemOrderByFqn,IReadOnlyDictionary<string,int>fileOrderByPath){
-        this.SystemOrderByFqn=systemOrderByFqn;
-        this.FileOrderByPath=fileOrderByPath;
+    internal GameSystemOrderContext(IReadOnlyDictionary<string,int>SystemOrderByFqn,IReadOnlyDictionary<string,int>FileOrderByPath){
+        this.SystemOrderByFqn=SystemOrderByFqn;
+        this.FileOrderByPath=FileOrderByPath;
     }
 }
 
@@ -234,14 +234,14 @@ internal readonly struct GameSystemRegistry {
     internal readonly ImmutableArray<Diagnostic>Diagnostics;
 
     internal GameSystemRegistry(
-        ImmutableArray<GameSystemComponentInfo>componentsByIndex,
-        ImmutableArray<GameSystemArchetypeInfo>archetypes,
-        ImmutableArray<GameSystemResult>validSystems,
-        ImmutableArray<Diagnostic>diagnostics){
-        this.ComponentsByIndex=componentsByIndex;
-        this.Archetypes=archetypes;
-        this.ValidSystems=validSystems;
-        this.Diagnostics=diagnostics;
+        ImmutableArray<GameSystemComponentInfo>ComponentsByIndex,
+        ImmutableArray<GameSystemArchetypeInfo>Archetypes,
+        ImmutableArray<GameSystemResult>ValidSystems,
+        ImmutableArray<Diagnostic>Diagnostics){
+        this.ComponentsByIndex=ComponentsByIndex;
+        this.Archetypes=Archetypes;
+        this.ValidSystems=ValidSystems;
+        this.Diagnostics=Diagnostics;
     }
 
     /// <summary>
@@ -263,8 +263,8 @@ internal readonly struct GameSystemRegistry {
 
             var Same=true;
 
-            for(var i=0;i<Wanted.Count;i++){
-                if(Candidate[i]!=Wanted[i]){
+            for(var I=0;I<Wanted.Count;I++){
+                if(Candidate[I]!=Wanted[I]){
                     Same=false;
                     break;
                 }

@@ -170,10 +170,10 @@ public sealed class GameSystemGeneratorEmissionTests {
 
     [Fact]
     public void PromotedSample_Compiles(){
-        Assembly assembly=GameSystemGeneratorTestHelper.CompileAndLoad(
+        Assembly Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(
             GameSystemGeneratorTestHelper.CommonComponents,TwoSystems);
 
-        Assert.NotNull(assembly.GetType("CSharpGameEngine.Generated.GeneratedGameLoop"));
+        Assert.NotNull(Assembly.GetType("CSharpGameEngine.Generated.GeneratedGameLoop"));
     }
 
     [Fact]

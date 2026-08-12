@@ -1,19 +1,19 @@
 namespace CSharpGameEngine.Core;
 
 public readonly struct Diagnostic {
-    public Diagnostic(string code,DiagnosticSeverity severity,string message,SourceLocation location){
-        if(string.IsNullOrWhiteSpace(code)){
-            throw new ArgumentException("Diagnostic code is required.",nameof(code));
+    public Diagnostic(string Code,DiagnosticSeverity Severity,string Message,SourceLocation Location){
+        if(string.IsNullOrWhiteSpace(Code)){
+            throw new ArgumentException("Diagnostic code is required.",nameof(Code));
         }
 
-        if(string.IsNullOrWhiteSpace(message)){
-            throw new ArgumentException("Diagnostic message is required.",nameof(message));
+        if(string.IsNullOrWhiteSpace(Message)){
+            throw new ArgumentException("Diagnostic message is required.",nameof(Message));
         }
 
-        Code=code;
-        Severity=severity;
-        Message=message;
-        Location=location;
+        this.Code=Code;
+        this.Severity=Severity;
+        this.Message=Message;
+        this.Location=Location;
     }
 
     public string Code { get;}

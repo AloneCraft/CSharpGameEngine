@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using CSharpGameEngine.SceneAnalysis;
 using Microsoft.VisualStudio.Shell;
 
 namespace CSharpGameEngine.VSExtension;
@@ -21,5 +22,5 @@ public sealed class SceneDesignerToolWindowPane:ToolWindowPane {
         Content=Control;
     }
 
-    public void SetTarget(string FilePath,string ClassName)=>Control.SetTarget(FilePath,ClassName);
+    internal void SetTarget(SceneModel Model)=>Control.SetTarget(Model);
 }

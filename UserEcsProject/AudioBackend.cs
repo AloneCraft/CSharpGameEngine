@@ -24,24 +24,24 @@ internal static class GameAudio {
     public static AudioEngineHandle CreateEngine()=>
         AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.CreateEngine();
 
-    public static void DestroyEngine(in AudioEngineHandle engine)=>
-        AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.DestroyEngine(engine);
+    public static void DestroyEngine(in AudioEngineHandle Engine)=>
+        AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.DestroyEngine(Engine);
 
-    public static AudioVoiceHandle CreateVoice(in AudioEngineHandle engine,int sampleRate,int channels)=>
-        AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.CreateVoice(engine,sampleRate,channels);
+    public static AudioVoiceHandle CreateVoice(in AudioEngineHandle Engine,int SampleRate,int Channels)=>
+        AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.CreateVoice(Engine,SampleRate,Channels);
 
-    public static AudioVoiceHandle SubmitBuffer(in AudioVoiceHandle voice,ReadOnlySpan<short>samples,bool loop)=>
-        AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.SubmitBuffer(voice,samples,loop);
+    public static AudioVoiceHandle SubmitBuffer(in AudioVoiceHandle Voice,ReadOnlySpan<short>Samples,bool Loop)=>
+        AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.SubmitBuffer(Voice,Samples,Loop);
 
-    public static void Start(in AudioVoiceHandle voice)=>
-        AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.Start(voice);
+    public static void Start(in AudioVoiceHandle Voice)=>
+        AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.Start(Voice);
 
-    public static void Stop(in AudioVoiceHandle voice)=>
-        AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.Stop(voice);
+    public static void Stop(in AudioVoiceHandle Voice)=>
+        AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.Stop(Voice);
 
-    public static void SetVolume(in AudioVoiceHandle voice,float volume)=>
-        AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.SetVolume(voice,volume);
+    public static void SetVolume(in AudioVoiceHandle Voice,float Volume)=>
+        AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.SetVolume(Voice,Volume);
 
-    public static void DestroyVoice(in AudioVoiceHandle voice)=>
-        AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.DestroyVoice(voice);
+    public static void DestroyVoice(in AudioVoiceHandle Voice)=>
+        AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.DestroyVoice(Voice);
 }

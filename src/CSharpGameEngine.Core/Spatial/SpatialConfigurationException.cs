@@ -7,11 +7,11 @@ namespace CSharpGameEngine.Spatial.Abstractions;
 /// conversions - see Docs/Specifications/Spatial-RUF.md "エラー処理".
 /// </summary>
 public sealed class SpatialConfigurationException:Exception {
-    public SpatialConfigurationException(string message)
-        :base(message){
+    public SpatialConfigurationException(string Message)
+        :base(Message){
     }
 
-    public SpatialConfigurationException(string message,Exception innerException)
-        :base(message,innerException){
+    public SpatialConfigurationException(string Message,Exception InnerException)
+        :base(Message,InnerException){
     }
 }

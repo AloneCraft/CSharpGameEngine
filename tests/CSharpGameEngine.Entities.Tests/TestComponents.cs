@@ -26,30 +26,30 @@ public struct DisabledTag {
 /// </summary>
 internal struct TestSystem:ISystem {
     /// <summary>移動元Archetype: <c>{Position}</c>。</summary>
-    public bool Update(Entity entity,ref Position position,ref State state){
+    public bool Update(Entity Entity,ref Position Position,ref State State){
         return true;
     }
 
     /// <summary>移動先Archetype: <c>{Position, Velocity}</c>。</summary>
-    public bool Update(Entity entity,ref Position position,ref Velocity velocity,ref State state){
+    public bool Update(Entity Entity,ref Position Position,ref Velocity Velocity,ref State State){
         return true;
     }
 }
 
 /// <summary>Scene Authoringが使う構成(親子リンクと空ノード)を宣言する。</summary>
 internal struct SceneShapeSpawn:ISystem {
-    public void Spawn(ref Position position,ref Parent parent){
+    public void Spawn(ref Position Position,ref Parent Parent){
     }
 
-    public void Spawn(ref SceneNodeTag sceneNodeTag){
+    public void Spawn(ref SceneNodeTag SceneNodeTag){
     }
 }
 
 /// <summary>単独の<c>{Health}</c>と、タグを含む構成。</summary>
 internal struct HealthSpawn:ISystem {
-    public void Spawn(ref Health health){
+    public void Spawn(ref Health Health){
     }
 
-    public void Spawn(ref Health health,ref DisabledTag disabledTag){
+    public void Spawn(ref Health Health,ref DisabledTag DisabledTag){
     }
 }

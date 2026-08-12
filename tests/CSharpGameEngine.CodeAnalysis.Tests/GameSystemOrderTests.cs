@@ -85,7 +85,7 @@ public sealed class GameSystemOrderTests {
     /// </summary>
     [Fact]
     public void CrossSourceExecutionOrder_FollowsSystemOrderValue_NotAlphabeticalFileName(){
-        CSharpCompilation compilation=GameSystemGeneratorTestHelper.CreateApplicationCompilation(
+        CSharpCompilation Compilation=GameSystemGeneratorTestHelper.CreateApplicationCompilation(
         [
             ((string?)"AFirst.cs",AFirstSource),
             ("Startup.cs",StartupSource),
@@ -93,11 +93,11 @@ public sealed class GameSystemOrderTests {
             (null,GameSystemGeneratorTestHelper.CommonComponents),
         ]);
 
-        Assembly assembly=GameSystemGeneratorTestHelper.CompileAndLoad(compilation);
+        Assembly Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Compilation);
 
-        GameSystemGeneratorTestHelper.Invoke(assembly,"CSharpGameEngine.Generated.GeneratedEntryPoint","Main");
+        GameSystemGeneratorTestHelper.Invoke(Assembly,"CSharpGameEngine.Generated.GeneratedEntryPoint","Main");
 
-        Assert.Equal("Z,A",GameSystemGeneratorTestHelper.Invoke(assembly,"Game.Trace","Result"));
+        Assert.Equal("Z,A",GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.Trace","Result"));
     }
 
     /// <summary>
@@ -156,18 +156,18 @@ public sealed class GameSystemOrderTests {
             }
             """;
 
-        CSharpCompilation compilation=GameSystemGeneratorTestHelper.CreateApplicationCompilation(
+        CSharpCompilation Compilation=GameSystemGeneratorTestHelper.CreateApplicationCompilation(
         [
             ((string?)"AFirst.cs",FirstSource),
             ("BSecond.cs",SecondSourceWithTraceAndStartup),
             (null,GameSystemGeneratorTestHelper.CommonComponents),
         ]);
 
-        Assembly assembly=GameSystemGeneratorTestHelper.CompileAndLoad(compilation);
+        Assembly Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Compilation);
 
-        GameSystemGeneratorTestHelper.Invoke(assembly,"CSharpGameEngine.Generated.GeneratedEntryPoint","Main");
+        GameSystemGeneratorTestHelper.Invoke(Assembly,"CSharpGameEngine.Generated.GeneratedEntryPoint","Main");
 
-        Assert.Equal("First,Second",GameSystemGeneratorTestHelper.Invoke(assembly,"Game.Trace","Result"));
+        Assert.Equal("First,Second",GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.Trace","Result"));
     }
 
     /// <summary>
@@ -179,7 +179,7 @@ public sealed class GameSystemOrderTests {
         // 要求する(CS9068)。ヘルパーの既定ソース群(Runtime/Bootstrap/SystemOrderAttribute等)は
         // すべてパス無し(空文字列)を共有しているため、file型を含むソースだけは必ずパス付きの
         // オーバーロードで実在するファイル名を与える。
-        CSharpCompilation compilation=GameSystemGeneratorTestHelper.CreateApplicationCompilation(
+        CSharpCompilation Compilation=GameSystemGeneratorTestHelper.CreateApplicationCompilation(
         [
             ((string?)"Combined.cs","""
             using CSharpGameEngine.Entities;
@@ -233,11 +233,11 @@ public sealed class GameSystemOrderTests {
             (null,GameSystemGeneratorTestHelper.CommonComponents),
         ]);
 
-        Assembly assembly=GameSystemGeneratorTestHelper.CompileAndLoad(compilation);
+        Assembly Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Compilation);
 
-        GameSystemGeneratorTestHelper.Invoke(assembly,"CSharpGameEngine.Generated.GeneratedEntryPoint","Main");
+        GameSystemGeneratorTestHelper.Invoke(Assembly,"CSharpGameEngine.Generated.GeneratedEntryPoint","Main");
 
-        Assert.Equal("Override,Default",GameSystemGeneratorTestHelper.Invoke(assembly,"Game.Trace","Result"));
+        Assert.Equal("Override,Default",GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.Trace","Result"));
     }
 
     [Fact]

@@ -23,8 +23,8 @@ internal sealed class ToggleFabWatchCommand:IDisposable {
     private readonly OleMenuCommand Command;
     private FabDownloadWatcher?Watcher;
 
-    private ToggleFabWatchCommand(AsyncPackage package,OleMenuCommandService CommandService){
-        Package=package??throw new ArgumentNullException(nameof(package));
+    private ToggleFabWatchCommand(AsyncPackage Package,OleMenuCommandService CommandService){
+        this.Package= Package ?? throw new ArgumentNullException(nameof(Package));
         if(CommandService is null){
             throw new ArgumentNullException(nameof(CommandService));
         }
@@ -35,14 +35,14 @@ internal sealed class ToggleFabWatchCommand:IDisposable {
         CommandService.AddCommand(Command);
     }
 
-    public static async Task<ToggleFabWatchCommand>InitializeAsync(AsyncPackage package){
-        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
-        var Service= await package.GetServiceAsync(typeof(IMenuCommandService));
+    public static async Task<ToggleFabWatchCommand>InitializeAsync(AsyncPackage Package){
+        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(Package.DisposalToken);
+        var Service= await Package.GetServiceAsync(typeof(IMenuCommandService));
         if(Service is not OleMenuCommandService CommandService){
             throw new InvalidOperationException($"{nameof(IMenuCommandService)} is not available from the VS shell.");
         }
 
-        return new ToggleFabWatchCommand(package,CommandService);
+        return new ToggleFabWatchCommand(Package,CommandService);
     }
 
     private void UpdateText(object Sender,EventArgs E){

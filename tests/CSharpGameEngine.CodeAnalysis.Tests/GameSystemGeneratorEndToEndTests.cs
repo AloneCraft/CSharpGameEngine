@@ -72,8 +72,8 @@ public sealed class GameSystemGeneratorEndToEndTests {
             }
             """;
 
-        Assembly assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
-        var Result=GameSystemGeneratorTestHelper.Invoke(assembly,"Game.TestEntry","RunScenario");
+        Assembly Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
+        var Result=GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.TestEntry","RunScenario");
 
         Assert.Equal("OK",Result);
     }
@@ -137,8 +137,8 @@ public sealed class GameSystemGeneratorEndToEndTests {
             }
             """;
 
-        Assembly assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
-        var Result=GameSystemGeneratorTestHelper.Invoke(assembly,"Game.TestEntry","RunScenario");
+        Assembly Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
+        var Result=GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.TestEntry","RunScenario");
 
         Assert.Equal("OK",Result);
     }
@@ -216,9 +216,9 @@ public sealed class GameSystemGeneratorEndToEndTests {
             }
             """;
 
-        Assembly assembly=GameSystemGeneratorTestHelper.CompileAndLoad(
+        Assembly Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(
             [.. GameSystemGeneratorTestHelper.SceneDslSources,Components,ComponentsAndSystem,Source]);
-        var Result=GameSystemGeneratorTestHelper.Invoke(assembly,"Game.TestEntry","RunScenario");
+        var Result=GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.TestEntry","RunScenario");
 
         Assert.Equal("OK",Result);
     }
@@ -270,8 +270,8 @@ public sealed class GameSystemGeneratorEndToEndTests {
             }
             """;
 
-        Assembly assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
-        var Result=GameSystemGeneratorTestHelper.Invoke(assembly,"Game.TestEntry","RunScenario");
+        Assembly Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
+        var Result=GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.TestEntry","RunScenario");
 
         Assert.Equal("OK",Result);
     }
@@ -314,8 +314,8 @@ public sealed class GameSystemGeneratorEndToEndTests {
             }
             """;
 
-        Assembly assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
-        var Result=GameSystemGeneratorTestHelper.Invoke(assembly,"Game.TestEntry","RunScenario");
+        Assembly Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
+        var Result=GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.TestEntry","RunScenario");
 
         Assert.Equal("OK",Result);
     }
@@ -356,8 +356,8 @@ public sealed class GameSystemGeneratorEndToEndTests {
             }
             """;
 
-        Assembly assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
-        var Result=GameSystemGeneratorTestHelper.Invoke(assembly,"Game.TestEntry","RunScenario");
+        Assembly Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
+        var Result=GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.TestEntry","RunScenario");
 
         Assert.Equal("OK",Result);
     }

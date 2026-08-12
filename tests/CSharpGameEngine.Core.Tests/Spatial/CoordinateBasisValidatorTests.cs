@@ -40,9 +40,9 @@ public class CoordinateBasisValidatorTests {
     /// </summary>
     [Fact]
     public void DuplicateAxes_ThrowsViaOrthogonalityCheck(){
-        SpatialConfigurationException exception=Assert.Throws<SpatialConfigurationException>(CoordinateBasisValidator.Validate<DuplicateAxisConvention>);
+        SpatialConfigurationException Exception=Assert.Throws<SpatialConfigurationException>(CoordinateBasisValidator.Validate<DuplicateAxisConvention>);
 
-        Assert.Contains("orthogonal",exception.Message,StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("orthogonal",Exception.Message,StringComparison.OrdinalIgnoreCase);
     }
 
     private readonly struct NonOrthogonalConvention:ICoordinateConvention {

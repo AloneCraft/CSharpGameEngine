@@ -36,79 +36,79 @@ namespace UserGameProject.Systems;
 /// (ADR-0033). This doubles as the reference example of how to spawn from a System.
 /// </summary>
 internal struct SceneSpawn:ISystem {
-    public bool Update(ref SceneSpawnRequest Request,ref State state){
+    public bool Update(ref SceneSpawnRequest Request,ref State State){
         if(Request.Done||Request.Scene is not { } Scene){
             return true;
         }
 
         Request.Done=true;
-        Entity parentEntity=default;
-        var parentCreated=false;
-        var childCreated=false;
+        Entity ParentEntity=default;
+        var ParentCreated=false;
+        var ChildCreated=false;
 
         foreach(LoadedSceneSpawn Spawn in Scene.Spawns){
-            Position position=new(){ X=Spawn.Position.X,Y=Spawn.Position.Y,Z=Spawn.Position.Z };
-            Rotation rotation=new(){ X=Spawn.Rotation.X,Y=Spawn.Rotation.Y,Z=Spawn.Rotation.Z,W=Spawn.Rotation.W };
-            Scale scale=new(){ X=Spawn.Scale.X,Y=Spawn.Scale.Y,Z=Spawn.Scale.Z };
-            WorldTransform worldTransform=new(){ Value=Matrix4x4.Identity };
-            MeshRenderer meshRenderer=new(){ Mesh=Spawn.Mesh,Material=Spawn.Material,ObjectIndex=Spawn.ObjectIndex };
+            Position Position=new(){ X=Spawn.Position.X,Y=Spawn.Position.Y,Z=Spawn.Position.Z };
+            Rotation Rotation=new(){ X=Spawn.Rotation.X,Y=Spawn.Rotation.Y,Z=Spawn.Rotation.Z,W=Spawn.Rotation.W };
+            Scale Scale=new(){ X=Spawn.Scale.X,Y=Spawn.Scale.Y,Z=Spawn.Scale.Z };
+            WorldTransform WorldTransform=new(){ Value=Matrix4x4.Identity };
+            MeshRenderer MeshRenderer=new(){ Mesh=Spawn.Mesh,Material=Spawn.Material,ObjectIndex=Spawn.ObjectIndex };
 
             if(Spawn.Mobility==PropMobility.Movable){
-                state.World.Create(
-                    position,
-                    rotation,
-                    scale,
-                    worldTransform,
-                    meshRenderer,
+                State.World.Create(
+                    Position,
+                    Rotation,
+                    Scale,
+                    WorldTransform,
+                    MeshRenderer,
                     new RotateMotion { AxisX=0f,AxisY=1f,AxisZ=0f,RadiansPerSecond=0.8f });
             } else {
-                if(!parentCreated){
-                    parentEntity=state.World.Create(position,rotation,scale,worldTransform,meshRenderer);
-                    parentCreated=true;
-                } else if(!childCreated){
-                    state.World.Create(position,rotation,scale,worldTransform,meshRenderer,new Parent { Value=parentEntity });
-                    childCreated=true;
+                if(!ParentCreated){
+                    ParentEntity=State.World.Create(Position,Rotation,Scale,WorldTransform,MeshRenderer);
+                    ParentCreated=true;
+                } else if(!ChildCreated){
+                    State.World.Create(Position,Rotation,Scale,WorldTransform,MeshRenderer,new Parent { Value=ParentEntity });
+                    ChildCreated=true;
                 } else {
-                    state.World.Create(position,rotation,scale,worldTransform,meshRenderer);
+                    State.World.Create(Position,Rotation,Scale,WorldTransform,MeshRenderer);
                 }
             }
         }
 
         if(Scene.Sun is { } Sun){
-            state.World.Create(Sun);
+            State.World.Create(Sun);
         }
 
         if(Scene.Ambient is { } Ambient){
-            state.World.Create(Ambient);
+            State.World.Create(Ambient);
         }
 
         if(Scene.Fog is { } Fog){
-            state.World.Create(Fog);
+            State.World.Create(Fog);
         }
 
         // Ordinary data entities, not fixed renderer fields: the imported stage plus these
         // practical lights exercise the same general multi-light path used by future games.
-        state.World.Create(
+        State.World.Create(
             new Position { X=-4f,Y=2.5f,Z=-3f },
             new PointLightData { ColorR=0.15f,ColorG=0.55f,ColorB=1f,Intensity=28f,Range=8f });
-        state.World.Create(
+        State.World.Create(
             new Position { X=4f,Y=2.2f,Z=-2f },
             new PointLightData { ColorR=1f,ColorG=0.18f,ColorB=0.08f,Intensity=24f,Range=7f });
-        state.World.Create(
+        State.World.Create(
             new Position { X=-3f,Y=1.7f,Z=4f },
             new PointLightData { ColorR=0.18f,ColorG=1f,ColorB=0.55f,Intensity=18f,Range=6f });
-        state.World.Create(
+        State.World.Create(
             new Position { X=0f,Y=2.8f,Z=0f },
             new PointLightData { ColorR=0.9f,ColorG=0.2f,ColorB=1f,Intensity=20f,Range=6f },
             new OrbitMotion { CenterX=0f,CenterY=2.8f,CenterZ=0f,Radius=3.5f,AngularSpeedRadiansPerSecond=0.55f });
-        state.World.Create(
+        State.World.Create(
             new Position { X=-5f,Y=4f,Z=-5f },
             new SpotLightData {
                 DirectionX=0.6f,DirectionY=-0.7f,DirectionZ=0.4f,
                 ColorR=0.55f,ColorG=0.75f,ColorB=1f,Intensity=55f,Range=14f,
                 InnerConeAngleRadians=0.20f,OuterConeAngleRadians=0.42f,
             });
-        state.World.Create(
+        State.World.Create(
             new Position { X=5f,Y=3.5f,Z=3f },
             new SpotLightData {
                 DirectionX=-0.6f,DirectionY=-0.65f,DirectionZ=-0.35f,
@@ -117,19 +117,19 @@ internal struct SceneSpawn:ISystem {
             });
 
         // Two sources share one clip resource; the third follows a reusable orbit.
-        state.World.Create(
+        State.World.Create(
             new Position { X=-2f,Y=1.2f,Z=1f },
             new AudioSourceData {
                 Clip=new AudioClipHandle(0),Volume=0.28f,MinDistance=1.5f,MaxDistance=18f,
                 Loop=true,Playing=true,
             });
-        state.World.Create(
+        State.World.Create(
             new Position { X=3f,Y=1.4f,Z=-3f },
             new AudioSourceData {
                 Clip=new AudioClipHandle(0),Volume=0.22f,MinDistance=1.5f,MaxDistance=18f,
                 Loop=true,Playing=true,
             });
-        state.World.Create(
+        State.World.Create(
             new Position { X=0f,Y=1.5f,Z=2f },
             new AudioSourceData {
                 Clip=new AudioClipHandle(1),Volume=0.18f,MinDistance=1f,MaxDistance=14f,
@@ -141,7 +141,7 @@ internal struct SceneSpawn:ISystem {
 
         Position PlayerStart=new(){ X=Scene.PlayerStartPosition.X,Y=Scene.PlayerStartPosition.Y,Z=Scene.PlayerStartPosition.Z };
 
-        state.World.Create(
+        State.World.Create(
             PlayerStart,
             new Rotation { X=0f,Y=0f,Z=0f,W=1f },
             new Health { Value=100 },
@@ -166,19 +166,19 @@ internal struct SceneSpawn:ISystem {
 internal struct Input:ISystem {
     private const int VkSpace=0x20;
 
-    public bool Update(ref InputState state,ref PlayerTag _,Win32Window Window,ref State GameState){
+    public bool Update(ref InputState State,ref PlayerTag _,Win32Window Window,ref State GameState){
         var JumpKeyDown=Window.IsKeyDown(VkSpace);
-        state.JumpPressed=JumpKeyDown&&!state.WasJumpKeyDown;
-        state.WasJumpKeyDown=JumpKeyDown;
+        State.JumpPressed=JumpKeyDown&&!State.WasJumpKeyDown;
+        State.WasJumpKeyDown=JumpKeyDown;
 
-        state.MoveForward=Window.IsKeyDown('W');
-        state.MoveBack=Window.IsKeyDown('S');
-        state.MoveLeft=Window.IsKeyDown('A');
-        state.MoveRight=Window.IsKeyDown('D');
+        State.MoveForward=Window.IsKeyDown('W');
+        State.MoveBack=Window.IsKeyDown('S');
+        State.MoveLeft=Window.IsKeyDown('A');
+        State.MoveRight=Window.IsKeyDown('D');
 
         (var DeltaX,var DeltaY)=Window.ConsumeMouseDelta();
-        state.LookDeltaX=DeltaX;
-        state.LookDeltaY=DeltaY;
+        State.LookDeltaX=DeltaX;
+        State.LookDeltaY=DeltaY;
 
         return true;
     }
@@ -197,17 +197,17 @@ internal struct PlayerControl:ISystem {
     private const float MousePitchSensitivity=0.0025f;
 
     public bool Update(
-        ref Position position,
-        ref Rotation rotation,
-        ref VerticalMotion verticalMotion,
-        ref CameraRig cameraRig,
-        ref InputState inputState,
+        ref Position Position,
+        ref Rotation Rotation,
+        ref VerticalMotion VerticalMotion,
+        ref CameraRig CameraRig,
+        ref InputState InputState,
         ref PlayerTag _,
         in FrameContext Frame,
         ref State GameState){
-        cameraRig.Yaw+=inputState.LookDeltaX*MouseYawSensitivity;
-        cameraRig.Pitch=Math.Clamp(
-            cameraRig.Pitch-(inputState.LookDeltaY*MousePitchSensitivity),
+        CameraRig.Yaw+=InputState.LookDeltaX*MouseYawSensitivity;
+        CameraRig.Pitch=Math.Clamp(
+            CameraRig.Pitch-(InputState.LookDeltaY*MousePitchSensitivity),
             CSharpGameEngine.Graphics.D3D12.Camera.MinPitchRadiansFirstPerson,
             CSharpGameEngine.Graphics.D3D12.Camera.MaxPitchRadiansFirstPerson);
 
@@ -215,7 +215,7 @@ internal struct PlayerControl:ISystem {
         // rotation are derived in RUF space (mirrors Camera.GetFlatForward/GetFlatRight, ADR-0026)
         // before converting back to the Vector3/Quaternion types CharacterMotion and the ECS
         // Rotation component still use.
-        RufQuaternion FacingRuf=RufQuaternion.FromAxisAngle(RufVector.Up,cameraRig.Yaw);
+        RufQuaternion FacingRuf=RufQuaternion.FromAxisAngle(RufVector.Up,CameraRig.Yaw);
         RufVector FlatForwardRuf=RufQuaternion.RotateVector(FacingRuf,RufVector.Forward).Normalize();
         RufVector FlatRightRuf=Spatial<UnityCoordinateConvention>.RightFromUpForward(RufVector.Up,FlatForwardRuf);
 
@@ -225,24 +225,24 @@ internal struct PlayerControl:ISystem {
         CharacterMotionResult Motion=CharacterMotion.Compute(new CharacterMotionInput {
             FlatForward=FlatForward,
             FlatRight=FlatRight,
-            MoveForward=inputState.MoveForward,
-            MoveBack=inputState.MoveBack,
-            MoveLeft=inputState.MoveLeft,
-            MoveRight=inputState.MoveRight,
-            JumpPressed=inputState.JumpPressed,
-            CurrentY=position.Y,
-            VerticalVelocity=verticalMotion.Velocity,
+            MoveForward=InputState.MoveForward,
+            MoveBack=InputState.MoveBack,
+            MoveLeft=InputState.MoveLeft,
+            MoveRight=InputState.MoveRight,
+            JumpPressed=InputState.JumpPressed,
+            CurrentY=Position.Y,
+            VerticalVelocity=VerticalMotion.Velocity,
             DeltaTime=Frame.DeltaTime,
         });
 
-        verticalMotion=new VerticalMotion { Velocity=Motion.NewVerticalVelocity,IsGrounded=Motion.IsGrounded };
-        position=new Position {
-            X=position.X+(Motion.HorizontalVelocity.X*Frame.DeltaTime),
+        VerticalMotion=new VerticalMotion { Velocity=Motion.NewVerticalVelocity,IsGrounded=Motion.IsGrounded };
+        Position=new Position {
+            X=Position.X+(Motion.HorizontalVelocity.X*Frame.DeltaTime),
             Y=Motion.NewY,
-            Z=position.Z+(Motion.HorizontalVelocity.Z*Frame.DeltaTime),
+            Z=Position.Z+(Motion.HorizontalVelocity.Z*Frame.DeltaTime),
         };
 
-        rotation=new Rotation { X=FacingRuf.R,Y=FacingRuf.U,Z=FacingRuf.F,W=FacingRuf.W };
+        Rotation=new Rotation { X=FacingRuf.R,Y=FacingRuf.U,Z=FacingRuf.F,W=FacingRuf.W };
 
         return true;
     }
@@ -260,14 +260,14 @@ internal struct PlayerControl:ISystem {
 internal struct Camera:ISystem {
     public const float EyeHeight=1.6f;
 
-    public bool Update(ref CSharpGameEngine.Graphics.D3D12.Camera camera,ref Position position,ref CameraRig cameraRig,ref PlayerTag _,ref State GameState){
+    public bool Update(ref CSharpGameEngine.Graphics.D3D12.Camera Camera,ref Position Position,ref CameraRig CameraRig,ref PlayerTag _,ref State GameState){
         // EyeHeight is added along RUF Up (ADR-0028), matching Camera/PlayerControl's shared
         // RUF-space convention rather than assuming which raw component is "up".
-        RufVector PositionRuf=new(position.X,position.Y,position.Z);
+        RufVector PositionRuf=new(Position.X,Position.Y,Position.Z);
         RufVector EyeRuf=PositionRuf+(RufVector.Up*EyeHeight);
-        camera.Target=(Vector3)Spatial<UnityCoordinateConvention>.ToXyz(EyeRuf);
-        camera.Yaw=cameraRig.Yaw;
-        camera.Pitch=cameraRig.Pitch;
+        Camera.Target=(Vector3)Spatial<UnityCoordinateConvention>.ToXyz(EyeRuf);
+        Camera.Yaw=CameraRig.Yaw;
+        Camera.Pitch=CameraRig.Pitch;
 
         return true;
     }
@@ -275,30 +275,30 @@ internal struct Camera:ISystem {
 
 /// <summary>Resolves local Position/Rotation/Scale into a cached world matrix for root entities.</summary>
 internal struct LocalToWorld:ISystem {
-    public bool Update(Entity entity,ref Position position,ref Rotation rotation,ref Scale scale,ref WorldTransform world,TransformHierarchyRuntime hierarchy,ref State state){
-        world.Value=ComposeTransform(position,rotation,scale);
-        hierarchy.Set(entity.Id,world.Value);
+    public bool Update(Entity Entity,ref Position Position,ref Rotation Rotation,ref Scale Scale,ref WorldTransform World,TransformHierarchyRuntime Hierarchy,ref State State){
+        World.Value=ComposeTransform(Position,Rotation,Scale);
+        Hierarchy.Set(Entity.Id,World.Value);
         return true;
     }
 
-    private static Matrix4x4 ComposeTransform(in Position position,in Rotation rotation,in Scale scale){
-        Quaternion q=new(rotation.X,rotation.Y,rotation.Z,rotation.W);
-        return Matrix4x4.CreateScale(scale.X,scale.Y,scale.Z)*Matrix4x4.CreateFromQuaternion(q)*Matrix4x4.CreateTranslation(position.X,position.Y,position.Z);
+    private static Matrix4x4 ComposeTransform(in Position Position,in Rotation Rotation,in Scale Scale){
+        Quaternion Q=new(Rotation.X,Rotation.Y,Rotation.Z,Rotation.W);
+        return Matrix4x4.CreateScale(Scale.X,Scale.Y,Scale.Z)*Matrix4x4.CreateFromQuaternion(Q)*Matrix4x4.CreateTranslation(Position.X,Position.Y,Position.Z);
     }
 }
 
 /// <summary>Resolves a child after its parent root has been cached by LocalToWorld.</summary>
 internal struct ParentToWorld:ISystem {
-    public bool Update(Entity entity,ref Position position,ref Rotation rotation,ref Scale scale,ref WorldTransform world,ref Parent parent,TransformHierarchyRuntime hierarchy,ref State state){
-        Matrix4x4 local=LocalToWorldMatrix(position,rotation,scale);
-        world.Value=hierarchy.TryGet(parent.Value.Id,out Matrix4x4 parentWorld)?local*parentWorld:local;
-        hierarchy.Set(entity.Id,world.Value);
+    public bool Update(Entity Entity,ref Position Position,ref Rotation Rotation,ref Scale Scale,ref WorldTransform World,ref Parent Parent,TransformHierarchyRuntime Hierarchy,ref State State){
+        Matrix4x4 Local=LocalToWorldMatrix(Position,Rotation,Scale);
+        World.Value=Hierarchy.TryGet(Parent.Value.Id,out Matrix4x4 ParentWorld)?Local*ParentWorld:Local;
+        Hierarchy.Set(Entity.Id,World.Value);
         return true;
     }
 
-    private static Matrix4x4 LocalToWorldMatrix(in Position position,in Rotation rotation,in Scale scale){
-        Quaternion q=new(rotation.X,rotation.Y,rotation.Z,rotation.W);
-        return Matrix4x4.CreateScale(scale.X,scale.Y,scale.Z)*Matrix4x4.CreateFromQuaternion(q)*Matrix4x4.CreateTranslation(position.X,position.Y,position.Z);
+    private static Matrix4x4 LocalToWorldMatrix(in Position Position,in Rotation Rotation,in Scale Scale){
+        Quaternion Q=new(Rotation.X,Rotation.Y,Rotation.Z,Rotation.W);
+        return Matrix4x4.CreateScale(Scale.X,Scale.Y,Scale.Z)*Matrix4x4.CreateFromQuaternion(Q)*Matrix4x4.CreateTranslation(Position.X,Position.Y,Position.Z);
     }
 }
 
@@ -309,10 +309,10 @@ internal struct ParentToWorld:ISystem {
 /// visibly proving Static vs Movable props are independently spawnable and updatable.
 /// </summary>
 internal struct RotationMotion:ISystem {
-    public bool Update(ref Rotation rotation,ref RotateMotion motion,in FrameContext Frame,ref State GameState){
-        Vector3 axis=Vector3.Normalize(new Vector3(motion.AxisX,motion.AxisY,motion.AxisZ));
-        Quaternion Spin=Quaternion.CreateFromAxisAngle(axis,motion.PhaseRadians+(Frame.ElapsedSeconds*motion.RadiansPerSecond));
-        rotation=new Rotation { X=Spin.X,Y=Spin.Y,Z=Spin.Z,W=Spin.W };
+    public bool Update(ref Rotation Rotation,ref RotateMotion Motion,in FrameContext Frame,ref State GameState){
+        Vector3 Axis=Vector3.Normalize(new Vector3(Motion.AxisX,Motion.AxisY,Motion.AxisZ));
+        Quaternion Spin=Quaternion.CreateFromAxisAngle(Axis,Motion.PhaseRadians+(Frame.ElapsedSeconds*Motion.RadiansPerSecond));
+        Rotation=new Rotation { X=Spin.X,Y=Spin.Y,Z=Spin.Z,W=Spin.W };
 
         return true;
     }
@@ -320,32 +320,32 @@ internal struct RotationMotion:ISystem {
 
 /// <summary>Moves an entity around a horizontal circle without retaining per-frame mutable state.</summary>
 internal struct OrbitMotionSystem:ISystem {
-    public bool Update(ref Position position,ref OrbitMotion motion,in FrameContext Frame,ref State GameState){
-        var angle=motion.PhaseRadians+(Frame.ElapsedSeconds*motion.AngularSpeedRadiansPerSecond);
-        position.X=motion.CenterX+(MathF.Cos(angle)*motion.Radius);
-        position.Y=motion.CenterY;
-        position.Z=motion.CenterZ+(MathF.Sin(angle)*motion.Radius);
+    public bool Update(ref Position Position,ref OrbitMotion Motion,in FrameContext Frame,ref State GameState){
+        var Angle=Motion.PhaseRadians+(Frame.ElapsedSeconds*Motion.AngularSpeedRadiansPerSecond);
+        Position.X=Motion.CenterX+(MathF.Cos(Angle)*Motion.Radius);
+        Position.Y=Motion.CenterY;
+        Position.Z=Motion.CenterZ+(MathF.Sin(Angle)*Motion.Radius);
         return true;
     }
 }
 
 /// <summary>Copies the player Position into the shared audio listener resource each frame.</summary>
 internal struct AudioListenerSync:ISystem {
-    public bool Update(ref Position position,ref AudioListenerData _,AudioRuntime Audio,ref State GameState){
-        Audio.SetListenerPosition(new Vector3(position.X,position.Y,position.Z));
+    public bool Update(ref Position Position,ref AudioListenerData _,AudioRuntime Audio,ref State GameState){
+        Audio.SetListenerPosition(new Vector3(Position.X,Position.Y,Position.Z));
         return true;
     }
 }
 
 /// <summary>Creates/updates one backend voice per source entity and applies distance attenuation.</summary>
 internal struct AudioSourcePlayback:ISystem {
-    public bool Update(Entity entity,ref Position position,ref AudioSourceData source,AudioRuntime Audio,ref State GameState){
-        if(!source.Playing){
-            Audio.RemoveSource(entity);
+    public bool Update(Entity Entity,ref Position Position,ref AudioSourceData Source,AudioRuntime Audio,ref State GameState){
+        if(!Source.Playing){
+            Audio.RemoveSource(Entity);
             return true;
         }
 
-        Audio.UpdateSource(entity,new Vector3(position.X,position.Y,position.Z),source);
+        Audio.UpdateSource(Entity,new Vector3(Position.X,Position.Y,Position.Z),Source);
         return true;
     }
 }
@@ -359,13 +359,13 @@ internal struct AudioSourcePlayback:ISystem {
 /// design had, and the reason the pre-migration AoS-era code needed two near-identical overloads.
 /// </summary>
 internal struct RenderSync:ISystem {
-    public bool Update(ref WorldTransform worldTransform,ref MeshRenderer meshRenderer,StageRenderer Renderer,ref State GameState){
-        Renderer.SetObjectTransform(meshRenderer.ObjectIndex,worldTransform.Value);
+    public bool Update(ref WorldTransform WorldTransform,ref MeshRenderer MeshRenderer,StageRenderer Renderer,ref State GameState){
+        Renderer.SetObjectTransform(MeshRenderer.ObjectIndex,WorldTransform.Value);
         return true;
     }
 
-    public bool Update(ref CSharpGameEngine.Graphics.D3D12.Camera camera,ref PlayerTag _,StageRenderer Renderer,ref State GameState){
-        Renderer.SetCamera(camera);
+    public bool Update(ref CSharpGameEngine.Graphics.D3D12.Camera Camera,ref PlayerTag _,StageRenderer Renderer,ref State GameState){
+        Renderer.SetCamera(Camera);
         return true;
     }
 
@@ -389,24 +389,24 @@ internal struct RenderSync:ISystem {
         return true;
     }
 
-    public bool Update(ref Position position,ref PointLightData light,StageRenderer Renderer,ref State GameState){
+    public bool Update(ref Position Position,ref PointLightData Light,StageRenderer Renderer,ref State GameState){
         Renderer.AddPointLight(
-            new Vector3(position.X,position.Y,position.Z),
-            new Vector3(light.ColorR,light.ColorG,light.ColorB),
-            light.Intensity,
-            light.Range);
+            new Vector3(Position.X,Position.Y,Position.Z),
+            new Vector3(Light.ColorR,Light.ColorG,Light.ColorB),
+            Light.Intensity,
+            Light.Range);
         return true;
     }
 
-    public bool Update(ref Position position,ref SpotLightData light,StageRenderer Renderer,ref State GameState){
+    public bool Update(ref Position Position,ref SpotLightData Light,StageRenderer Renderer,ref State GameState){
         Renderer.AddSpotLight(
-            new Vector3(position.X,position.Y,position.Z),
-            new Vector3(light.DirectionX,light.DirectionY,light.DirectionZ),
-            new Vector3(light.ColorR,light.ColorG,light.ColorB),
-            light.Intensity,
-            light.Range,
-            light.InnerConeAngleRadians,
-            light.OuterConeAngleRadians);
+            new Vector3(Position.X,Position.Y,Position.Z),
+            new Vector3(Light.DirectionX,Light.DirectionY,Light.DirectionZ),
+            new Vector3(Light.ColorR,Light.ColorG,Light.ColorB),
+            Light.Intensity,
+            Light.Range,
+            Light.InnerConeAngleRadians,
+            Light.OuterConeAngleRadians);
         return true;
     }
 
@@ -426,15 +426,15 @@ internal struct RenderSync:ISystem {
 /// </summary>
 internal struct PlayerSpawn:ISystem {
     public void Spawn(
-        ref Position position,
-        ref Rotation rotation,
-        ref Health health,
-        ref VerticalMotion verticalMotion,
-        ref CameraRig cameraRig,
-        ref InputState inputState,
-        ref PlayerTag playerTag,
-        ref AudioListenerData audioListener,
-        ref CSharpGameEngine.Graphics.D3D12.Camera camera){
+        ref Position Position,
+        ref Rotation Rotation,
+        ref Health Health,
+        ref VerticalMotion VerticalMotion,
+        ref CameraRig CameraRig,
+        ref InputState InputState,
+        ref PlayerTag PlayerTag,
+        ref AudioListenerData AudioListener,
+        ref CSharpGameEngine.Graphics.D3D12.Camera Camera){
     }
 }
 
@@ -445,46 +445,46 @@ internal struct PlayerSpawn:ISystem {
 /// </summary>
 internal struct MovableStagePropSpawn:ISystem {
     public void Spawn(
-        ref Position position,
-        ref Rotation rotation,
-        ref Scale scale,
-        ref WorldTransform worldTransform,
-        ref MeshRenderer meshRenderer,
-        ref RotateMotion rotateMotion){
+        ref Position Position,
+        ref Rotation Rotation,
+        ref Scale Scale,
+        ref WorldTransform WorldTransform,
+        ref MeshRenderer MeshRenderer,
+        ref RotateMotion RotateMotion){
     }
 }
 
 internal struct StaticStagePropSpawn:ISystem {
-    public void Spawn(ref Position position,ref Rotation rotation,ref Scale scale,ref WorldTransform worldTransform,ref MeshRenderer meshRenderer){
+    public void Spawn(ref Position Position,ref Rotation Rotation,ref Scale Scale,ref WorldTransform WorldTransform,ref MeshRenderer MeshRenderer){
     }
 }
 
 internal struct ChildStagePropSpawn:ISystem {
-    public void Spawn(ref Position position,ref Rotation rotation,ref Scale scale,ref WorldTransform worldTransform,ref MeshRenderer meshRenderer,ref Parent parent){
+    public void Spawn(ref Position Position,ref Rotation Rotation,ref Scale Scale,ref WorldTransform WorldTransform,ref MeshRenderer MeshRenderer,ref Parent Parent){
     }
 }
 
 internal struct PointLightSpawn:ISystem {
-    public void Spawn(ref Position position,ref PointLightData pointLight){
+    public void Spawn(ref Position Position,ref PointLightData PointLight){
     }
 }
 
 internal struct OrbitingPointLightSpawn:ISystem {
-    public void Spawn(ref Position position,ref PointLightData pointLight,ref OrbitMotion orbitMotion){
+    public void Spawn(ref Position Position,ref PointLightData PointLight,ref OrbitMotion OrbitMotion){
     }
 }
 
 internal struct AudioSourceSpawn:ISystem {
-    public void Spawn(ref Position position,ref AudioSourceData audioSource){
+    public void Spawn(ref Position Position,ref AudioSourceData AudioSource){
     }
 }
 
 internal struct OrbitingAudioSourceSpawn:ISystem {
-    public void Spawn(ref Position position,ref AudioSourceData audioSource,ref OrbitMotion orbitMotion){
+    public void Spawn(ref Position Position,ref AudioSourceData AudioSource,ref OrbitMotion OrbitMotion){
     }
 }
 
 internal struct SpotLightSpawn:ISystem {
-    public void Spawn(ref Position position,ref SpotLightData spotLight){
+    public void Spawn(ref Position Position,ref SpotLightData SpotLight){
     }
 }

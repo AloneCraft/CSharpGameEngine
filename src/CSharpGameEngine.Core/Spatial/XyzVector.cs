@@ -13,10 +13,10 @@ public readonly struct XyzVector:IEquatable<XyzVector>{
     public float Y { get;}
     public float Z { get;}
 
-    public XyzVector(float x,float y,float z){
-        X=x;
-        Y=y;
-        Z=z;
+    public XyzVector(float X,float Y,float Z){
+        this.X= X;
+        this.Y= Y;
+        this.Z= Z;
     }
 
     public static readonly XyzVector Zero=new(0f,0f,0f);
@@ -50,12 +50,12 @@ public readonly struct XyzVector:IEquatable<XyzVector>{
         (Left.X*Right.Y)-(Left.Y*Right.X));
 
     public XyzVector Normalize(){
-        var length=Length;
-        if(length<=0f||!float.IsFinite(length)){
+        var Length= this.Length;
+        if(Length <= 0f||!float.IsFinite(Length)){
             throw new SpatialConfigurationException($"Cannot normalize a zero-length or non-finite {nameof(XyzVector)}: {this}.");
         }
 
-        return this/length;
+        return this/Length;
     }
 
     /// <summary>

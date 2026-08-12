@@ -14,26 +14,26 @@ public class XAudio2BackendTests {
     [WindowsOnlyFact]
     [Trait("Category","Audio")]
     public void CreateEngine_ThenDestroy_DoesNotThrow(){
-        XAudio2EngineHandle engine=AudioBackend<XAudio2Backend,XAudio2EngineHandle,XAudio2VoiceHandle>.CreateEngine();
-        AudioBackend<XAudio2Backend,XAudio2EngineHandle,XAudio2VoiceHandle>.DestroyEngine(engine);
+        XAudio2EngineHandle Engine=AudioBackend<XAudio2Backend,XAudio2EngineHandle,XAudio2VoiceHandle>.CreateEngine();
+        AudioBackend<XAudio2Backend,XAudio2EngineHandle,XAudio2VoiceHandle>.DestroyEngine(Engine);
     }
 
     [WindowsOnlyFact]
     [Trait("Category","Audio")]
     public void FullPlaybackLifecycle_DoesNotThrow(){
-        XAudio2EngineHandle engine=AudioBackend<XAudio2Backend,XAudio2EngineHandle,XAudio2VoiceHandle>.CreateEngine();
+        XAudio2EngineHandle Engine=AudioBackend<XAudio2Backend,XAudio2EngineHandle,XAudio2VoiceHandle>.CreateEngine();
 
         try {
-            XAudio2VoiceHandle voice=AudioBackend<XAudio2Backend,XAudio2EngineHandle,XAudio2VoiceHandle>.CreateVoice(engine,sampleRate:44100,channels:1);
-            var samples=ProceduralAudioClip.GenerateSineWave(440f,0.1f,44100);
+            XAudio2VoiceHandle Voice=AudioBackend<XAudio2Backend,XAudio2EngineHandle,XAudio2VoiceHandle>.CreateVoice(Engine,SampleRate:44100,Channels:1);
+            var Samples=ProceduralAudioClip.GenerateSineWave(440f,0.1f,44100);
 
-            voice=AudioBackend<XAudio2Backend,XAudio2EngineHandle,XAudio2VoiceHandle>.SubmitBuffer(voice,samples,loop:true);
-            AudioBackend<XAudio2Backend,XAudio2EngineHandle,XAudio2VoiceHandle>.SetVolume(voice,0.1f);
-            AudioBackend<XAudio2Backend,XAudio2EngineHandle,XAudio2VoiceHandle>.Start(voice);
-            AudioBackend<XAudio2Backend,XAudio2EngineHandle,XAudio2VoiceHandle>.Stop(voice);
-            AudioBackend<XAudio2Backend,XAudio2EngineHandle,XAudio2VoiceHandle>.DestroyVoice(voice);
+            Voice=AudioBackend<XAudio2Backend,XAudio2EngineHandle,XAudio2VoiceHandle>.SubmitBuffer(Voice,Samples,Loop:true);
+            AudioBackend<XAudio2Backend,XAudio2EngineHandle,XAudio2VoiceHandle>.SetVolume(Voice,0.1f);
+            AudioBackend<XAudio2Backend,XAudio2EngineHandle,XAudio2VoiceHandle>.Start(Voice);
+            AudioBackend<XAudio2Backend,XAudio2EngineHandle,XAudio2VoiceHandle>.Stop(Voice);
+            AudioBackend<XAudio2Backend,XAudio2EngineHandle,XAudio2VoiceHandle>.DestroyVoice(Voice);
         } finally {
-            AudioBackend<XAudio2Backend,XAudio2EngineHandle,XAudio2VoiceHandle>.DestroyEngine(engine);
+            AudioBackend<XAudio2Backend,XAudio2EngineHandle,XAudio2VoiceHandle>.DestroyEngine(Engine);
         }
     }
 }

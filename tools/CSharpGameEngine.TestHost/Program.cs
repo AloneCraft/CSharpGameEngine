@@ -28,8 +28,8 @@ static int RunSelfTest(){
     Console.WriteLine($"[{ProductDisplayName}] self-test started.");
 
     try {
-        StableId stableId=StableId.New();
-        if(!stableId.IsValid){
+        StableId StableId=StableId.New();
+        if(!StableId.IsValid){
             Console.WriteLine("FAILED: StableId generation returned an invalid ID.");
             return 1;
         }
@@ -37,9 +37,9 @@ static int RunSelfTest(){
         DiagnosticBag Bag=new();
         Bag.Add(new Diagnostic("TH0001",DiagnosticSeverity.Info,"Self-test diagnostic emitted.",SourceLocation.Unknown));
 
-        Console.WriteLine($"StableId: {stableId}");
-        foreach(Diagnostic diagnostic in Bag){
-            Console.WriteLine(diagnostic.ToString());
+        Console.WriteLine($"StableId: {StableId}");
+        foreach(Diagnostic Diagnostic in Bag){
+            Console.WriteLine(Diagnostic.ToString());
         }
 
         Console.WriteLine($"SUCCESS: {InternalName} core self-test completed.");
@@ -91,20 +91,20 @@ static int RunTriangle(string[]TriangleArgs){
     Console.WriteLine($"Back buffer format: {TriangleRenderer.BackBufferFormat}, {Options.Width}x{Options.Height}");
     Console.WriteLine($"Debug layer: {(Renderer.DebugLayerEnabled?"enabled":"disabled")}{(Renderer.GpuBasedValidationEnabled?" (+GPU-based validation)":string.Empty)}");
     Console.WriteLine($"Shader compilation: {(Renderer.ShaderCompilationSucceeded?"OK":"FAILED")} ({Renderer.ShaderDiagnostics.Count} diagnostic(s))");
-    foreach(HlslDiagnostic diagnostic in Renderer.ShaderDiagnostics){
-        Console.WriteLine($"  {diagnostic}");
+    foreach(HlslDiagnostic Diagnostic in Renderer.ShaderDiagnostics){
+        Console.WriteLine($"  {Diagnostic}");
     }
 
     var ExitCode=0;
     try {
         if(Options.Frames is int FrameCount){
-            for(var i=0;i<FrameCount&&!Window.IsClosed;i++){
+            for(var I=0;I<FrameCount&&!Window.IsClosed;I++){
                 Window.PumpEvents();
                 if(Window.IsClosed||Window.IsMinimized){
                     continue;
                 }
 
-                var IsLastFrame=i==FrameCount-1;
+                var IsLastFrame=I==FrameCount-1;
                 Renderer.RenderFrame(CaptureForVerification:Options.Verify&&IsLastFrame);
             }
         } else {

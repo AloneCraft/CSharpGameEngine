@@ -12,10 +12,10 @@ public class ModelPixelVerifierTests {
         var RowPitch=(uint)(Width*BytesPerPixel)+ExtraRowPitchPadding;
         var Pixels=new byte[RowPitch*Height];
 
-        for(var y=0;y<Height;y++){
-            for(var x=0;x<Width;x++){
-                PixelColor Color=IsForeground(x,y)?Foreground:Background;
-                var Offset=((long)y*RowPitch)+(x*BytesPerPixel);
+        for(var Y=0;Y<Height;Y++){
+            for(var X=0;X<Width;X++){
+                PixelColor Color=IsForeground(X,Y)?Foreground:Background;
+                var Offset=((long)Y*RowPitch)+(X*BytesPerPixel);
 
                 if(Format==DXGI_FORMAT_B8G8R8A8_UNORM){
                     Pixels[Offset]=Color.B;

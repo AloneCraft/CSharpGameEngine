@@ -15,8 +15,8 @@ public class FbxImporterTests {
         Assert.Equal(0,Result.Mesh.Indices.Count%3);
         Assert.DoesNotContain(Result.Diagnostics,D=>D.Severity==FbxImportDiagnosticSeverity.Error);
 
-        foreach(var index in Result.Mesh.Indices){
-            Assert.True(index<Result.Mesh.Positions.Count);
+        foreach(var Index in Result.Mesh.Indices){
+            Assert.True(Index<Result.Mesh.Positions.Count);
         }
     }
 
@@ -48,8 +48,8 @@ public class FbxImporterTests {
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void Import_NullOrWhitespacePath_Throws(string?path){
-        Assert.ThrowsAny<ArgumentException>(()=>FbxImporter.Import(path!));
+    public void Import_NullOrWhitespacePath_Throws(string?Path){
+        Assert.ThrowsAny<ArgumentException>(()=>FbxImporter.Import(Path!));
     }
 
     [Fact]

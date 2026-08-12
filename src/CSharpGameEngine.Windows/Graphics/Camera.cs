@@ -43,9 +43,9 @@ public struct Camera {
     /// 明示的にオプトインする。引数自体はScene DSLの値式でなければならない。
     /// </summary>
     [SceneFactory]
-    public static Camera CreateDefault(Vector3 target){
+    public static Camera CreateDefault(Vector3 Target){
         return new Camera {
-            Target=target,
+            Target=Target,
             Yaw=0f,
             Pitch=-15f*MathF.PI/180f,
             Distance=4.5f,
@@ -190,7 +190,7 @@ public struct Camera {
     /// its view matrix the same way <see cref="GetView"/> does, instead of duplicating the call
     /// (ADR-0026).
     /// </summary>
-    public static Matrix4x4 BuildViewMatrix(Vector3 Eye,Vector3 target,Vector3 Up)=>Matrix4x4.CreateLookAt(Eye,target,Up);
+    public static Matrix4x4 BuildViewMatrix(Vector3 Eye,Vector3 Target,Vector3 Up)=>Matrix4x4.CreateLookAt(Eye,Target,Up);
 
     /// <summary>Applies raw mouse-delta input to yaw/pitch, clamping pitch to avoid gimbal flip.</summary>
     public void ApplyMouseDelta(float DeltaX,float DeltaY,float YawSensitivity,float PitchSensitivity){

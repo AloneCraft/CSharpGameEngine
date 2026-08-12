@@ -10,8 +10,8 @@ public readonly struct DirectionalLightBasis {
     /// <summary>The direction light travels.</summary>
     public RufVector Forward { get;}
 
-    public DirectionalLightBasis(RufVector forward){
-        Forward=forward.Normalize();
+    public DirectionalLightBasis(RufVector Forward){
+        this.Forward= Forward.Normalize();
     }
 
     /// <summary>The direction from a surface toward the light - always the opposite of <see cref="Forward"/>.</summary>

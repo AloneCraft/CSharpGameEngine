@@ -5,21 +5,21 @@ namespace CSharpGameEngine.Geometry.Tests;
 
 public class ProceduralMeshFactoryTests {
     private static void AssertIndicesInRange(ProceduralMeshData Mesh){
-        foreach(var index in Mesh.Indices){
-            Assert.InRange(index,0u,(uint)Mesh.Positions.Length-1);
+        foreach(var Index in Mesh.Indices){
+            Assert.InRange(Index,0u,(uint)Mesh.Positions.Length-1);
         }
     }
 
     private static void AssertNoDegenerateTriangles(ProceduralMeshData Mesh){
         Assert.True(Mesh.Indices.Length%3==0,"Index count must be a multiple of 3.");
 
-        for(var i=0;i<Mesh.Indices.Length;i+=3){
-            Vector3 A=Mesh.Positions[Mesh.Indices[i]];
-            Vector3 B=Mesh.Positions[Mesh.Indices[i+1]];
-            Vector3 C=Mesh.Positions[Mesh.Indices[i+2]];
+        for(var I=0;I<Mesh.Indices.Length;I+=3){
+            Vector3 A=Mesh.Positions[Mesh.Indices[I]];
+            Vector3 B=Mesh.Positions[Mesh.Indices[I+1]];
+            Vector3 C=Mesh.Positions[Mesh.Indices[I+2]];
 
             var Area=Vector3.Cross(B-A,C-A).Length()/2f;
-            Assert.True(Area>1e-6f, $"Degenerate triangle at index {i} (area={Area}).");
+            Assert.True(Area>1e-6f, $"Degenerate triangle at index {I} (area={Area}).");
         }
     }
 
@@ -80,12 +80,12 @@ public class ProceduralMeshFactoryTests {
     public void CreateBox_AllVerticesStayWithinHalfExtents(){
         Vector3 Size=new(2f,4f,6f);
         ProceduralMeshData Mesh=ProceduralMeshFactory.CreateBox(Size);
-        Vector3 half=Size/2f;
+        Vector3 Half=Size/2f;
 
         foreach(Vector3 Position in Mesh.Positions){
-            Assert.InRange(Position.X,-half.X,half.X);
-            Assert.InRange(Position.Y,-half.Y,half.Y);
-            Assert.InRange(Position.Z,-half.Z,half.Z);
+            Assert.InRange(Position.X,-Half.X,Half.X);
+            Assert.InRange(Position.Y,-Half.Y,Half.Y);
+            Assert.InRange(Position.Z,-Half.Z,Half.Z);
         }
     }
 

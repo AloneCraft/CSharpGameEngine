@@ -8,18 +8,18 @@ using AudioVoiceHandle=CSharpGameEngine.Audio.XAudio2.XAudio2VoiceHandle;
 namespace UserGameProject;
 
 public sealed class AudioRuntime:IDisposable {
-    private readonly Dictionary<AudioClipHandle,AudioClipResource> clips=[];
-    private readonly Dictionary<int,VoiceState> voices=[];
-    private AudioEngineHandle engine;
-    private bool engineCreated;
-    private bool disposed;
+    private readonly Dictionary<AudioClipHandle,AudioClipResource> Clips=[];
+    private readonly Dictionary<int,VoiceState> Voices=[];
+    private AudioEngineHandle Engine;
+    private bool EngineCreated;
+    private bool Disposed;
 
     public AudioRuntime(){
         try {
-            engine=AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.CreateEngine();
-            engineCreated=true;
-        } catch (Exception exception) {
-            InitializationError=exception.Message;
+            Engine=AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.CreateEngine();
+            EngineCreated=true;
+        } catch (Exception Exception) {
+            InitializationError=Exception.Message;
         }
 
         RegisterClip(new AudioClipHandle(0),new AudioClipResource(
@@ -28,73 +28,73 @@ public sealed class AudioRuntime:IDisposable {
             ProceduralAudioClip.GenerateSineWave(660f,0.75f,44100,0.22f),44100,1));
     }
 
-    public bool IsAvailable=>engineCreated&&!disposed;
+    public bool IsAvailable=>EngineCreated&&!Disposed;
     public string?InitializationError{ get; private set;}
     public Vector3 ListenerPosition{ get; private set;}
 
-    public void RegisterClip(AudioClipHandle handle,AudioClipResource clip){
-        ArgumentNullException.ThrowIfNull(clip);
-        clips[handle]=clip;
+    public void RegisterClip(AudioClipHandle Handle,AudioClipResource Clip){
+        ArgumentNullException.ThrowIfNull(Clip);
+        Clips[Handle]=Clip;
     }
 
-    public void SetListenerPosition(in Vector3 position)=>ListenerPosition=position;
+    public void SetListenerPosition(in Vector3 Position)=>ListenerPosition=Position;
 
-    public void UpdateSource(Entity entity,in Vector3 sourcePosition,in AudioSourceData source){
-        if(disposed||!engineCreated||!source.Playing||!clips.TryGetValue(source.Clip,out AudioClipResource? clip)){
-            RemoveSource(entity);
+    public void UpdateSource(Entity Entity,in Vector3 SourcePosition,in AudioSourceData Source){
+        if(Disposed||!EngineCreated||!Source.Playing||!Clips.TryGetValue(Source.Clip,out AudioClipResource? Clip)){
+            RemoveSource(Entity);
             return;
         }
 
-        if(!voices.TryGetValue(entity.Id,out VoiceState voice)||voice.Clip!=source.Clip){
-            if(voices.ContainsKey(entity.Id)){
-                AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.Stop(voice.Voice);
-                AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.DestroyVoice(voice.Voice);
+        if(!Voices.TryGetValue(Entity.Id,out VoiceState Voice)||Voice.Clip!=Source.Clip){
+            if(Voices.ContainsKey(Entity.Id)){
+                AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.Stop(Voice.Voice);
+                AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.DestroyVoice(Voice.Voice);
             }
 
-            AudioVoiceHandle handle=AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.CreateVoice(
-                engine,clip.SampleRate,clip.Channels);
-            handle=AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.SubmitBuffer(
-                handle,clip.Samples,source.Loop);
-            AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.Start(handle);
-            voice=new VoiceState(handle,source.Clip);
-            voices[entity.Id]=voice;
+            AudioVoiceHandle Handle=AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.CreateVoice(
+                Engine,Clip.SampleRate,Clip.Channels);
+            Handle=AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.SubmitBuffer(
+                Handle,Clip.Samples,Source.Loop);
+            AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.Start(Handle);
+            Voice=new VoiceState(Handle,Source.Clip);
+            Voices[Entity.Id]=Voice;
         }
 
-        var volume=AudioSpatialization.ComputeAttenuatedVolume(
-            source.Volume,ListenerPosition,sourcePosition,source.MinDistance,source.MaxDistance);
-        AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.SetVolume(voice.Voice,volume);
+        var Volume=AudioSpatialization.ComputeAttenuatedVolume(
+            Source.Volume,ListenerPosition,SourcePosition,Source.MinDistance,Source.MaxDistance);
+        AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.SetVolume(Voice.Voice,Volume);
     }
 
-    public void RemoveSource(Entity entity){
-        if(!voices.Remove(entity.Id,out VoiceState voice)){
+    public void RemoveSource(Entity Entity){
+        if(!Voices.Remove(Entity.Id,out VoiceState Voice)){
             return;
         }
 
-        if(!disposed&&engineCreated){
-            AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.Stop(voice.Voice);
+        if(!Disposed&&EngineCreated){
+            AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.Stop(Voice.Voice);
         }
 
-        AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.DestroyVoice(voice.Voice);
+        AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.DestroyVoice(Voice.Voice);
     }
 
     public void Dispose(){
-        if(disposed){
+        if(Disposed){
             return;
         }
 
-        disposed=true;
-        foreach(VoiceState voice in voices.Values){
-            if(engineCreated){
-                AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.Stop(voice.Voice);
+        Disposed=true;
+        foreach(VoiceState Voice in Voices.Values){
+            if(EngineCreated){
+                AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.Stop(Voice.Voice);
             }
 
-            AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.DestroyVoice(voice.Voice);
+            AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.DestroyVoice(Voice.Voice);
         }
 
-        voices.Clear();
-        if(engineCreated){
-            AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.DestroyEngine(engine);
-            engineCreated=false;
+        Voices.Clear();
+        if(EngineCreated){
+            AudioBackend<XAudio2Backend,AudioEngineHandle,AudioVoiceHandle>.DestroyEngine(Engine);
+            EngineCreated=false;
         }
     }
 
@@ -102,18 +102,18 @@ public sealed class AudioRuntime:IDisposable {
 }
 
 public sealed class AudioClipResource {
-    public AudioClipResource(short[] samples,int sampleRate,int channels){
-        Samples=samples??throw new ArgumentNullException(nameof(samples));
-        if(samples.Length==0){
-            throw new ArgumentException("Audio clips must contain at least one sample.",nameof(samples));
+    public AudioClipResource(short[] Samples,int SampleRate,int Channels){
+        this.Samples= Samples ?? throw new ArgumentNullException(nameof(Samples));
+        if(Samples.Length==0){
+            throw new ArgumentException("Audio clips must contain at least one sample.",nameof(Samples));
         }
 
-        if(sampleRate<=0||channels<=0){
-            throw new ArgumentOutOfRangeException(nameof(sampleRate),"Sample rate and channels must be positive.");
+        if(SampleRate<=0||Channels<=0){
+            throw new ArgumentOutOfRangeException(nameof(SampleRate),"Sample rate and channels must be positive.");
         }
 
-        SampleRate=sampleRate;
-        Channels=channels;
+        this.SampleRate=SampleRate;
+        this.Channels=Channels;
     }
 
     public short[]Samples{ get;}

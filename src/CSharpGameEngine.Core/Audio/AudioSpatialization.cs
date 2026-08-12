@@ -10,31 +10,31 @@ namespace CSharpGameEngine.Audio.Abstractions;
 /// </summary>
 public static class AudioSpatialization {
     public static float ComputeAttenuatedVolume(
-        float sourceVolume,
-        in Vector3 listenerPosition,
-        in Vector3 sourcePosition,
-        float minDistance,
-        float maxDistance){
-        if(float.IsNaN(sourceVolume)||float.IsInfinity(sourceVolume)){
+        float SourceVolume,
+        in Vector3 ListenerPosition,
+        in Vector3 SourcePosition,
+        float MinDistance,
+        float MaxDistance){
+        if(float.IsNaN(SourceVolume)||float.IsInfinity(SourceVolume)){
             return 0f;
         }
 
-        minDistance=MathF.Max(0f,minDistance);
-        maxDistance=MathF.Max(minDistance+float.Epsilon,maxDistance);
-        sourceVolume=Math.Clamp(sourceVolume,0f,1f);
+        MinDistance=MathF.Max(0f,MinDistance);
+        MaxDistance=MathF.Max(MinDistance+float.Epsilon,MaxDistance);
+        SourceVolume=Math.Clamp(SourceVolume,0f,1f);
 
-        var distance=Vector3.Distance(listenerPosition,sourcePosition);
-        if(distance<=minDistance){
-            return sourceVolume;
+        var Distance=Vector3.Distance(ListenerPosition,SourcePosition);
+        if(Distance<=MinDistance){
+            return SourceVolume;
         }
 
-        if(distance>=maxDistance){
+        if(Distance>=MaxDistance){
             return 0f;
         }
 
-        var normalized=(distance-minDistance)/(maxDistance-minDistance);
+        var Normalized=(Distance-MinDistance)/(MaxDistance-MinDistance);
         // Smooth falloff avoids an audible step at either boundary.
-        var fade=1f-(normalized*normalized*(3f-(2f*normalized)));
-        return sourceVolume*Math.Clamp(fade,0f,1f);
+        var Fade=1f-(Normalized*Normalized*(3f-(2f*Normalized)));
+        return SourceVolume*Math.Clamp(Fade,0f,1f);
     }
 }

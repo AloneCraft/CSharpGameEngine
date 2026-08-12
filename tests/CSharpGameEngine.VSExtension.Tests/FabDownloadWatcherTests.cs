@@ -96,8 +96,8 @@ public sealed class FabDownloadWatcherTests:IDisposable {
         Assert.Equal("newly downloaded file",File.ReadAllText(DestinationPath!));
     }
 
-    private static string?WaitFor(Func<string?>GetValue,TimeSpan timeout){
-        DateTime Deadline=DateTime.UtcNow+timeout;
+    private static string?WaitFor(Func<string?>GetValue,TimeSpan Timeout){
+        DateTime Deadline=DateTime.UtcNow+Timeout;
         while(DateTime.UtcNow<Deadline){
             var Value=GetValue();
             if(Value is not null){

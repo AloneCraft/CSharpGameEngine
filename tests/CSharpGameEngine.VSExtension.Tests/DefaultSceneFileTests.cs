@@ -25,10 +25,10 @@ namespace CSharpGameEngine.VSExtension.Tests;
 public sealed class DefaultSceneFileTests {
     [Fact]
     public void Load_ShippedDefaultScene_HasRootAndTwoCubeChildrenAmongItsNodes(){
-        var path=Path.Combine(FindRepoRoot(),"UserGameProject","DefaultScene.scene");
-        Assert.True(File.Exists(path), $"DefaultScene.scene not found at {path}");
+        var Path= System.IO.Path.Combine(FindRepoRoot(),"UserGameProject","DefaultScene.scene");
+        Assert.True(File.Exists(Path), $"DefaultScene.scene not found at {Path}");
 
-        SceneFile Scene=SceneFile.Load(path);
+        var Scene= SceneFile.Load(Path);
 
         SceneFileNode Root=Assert.Single(Scene.Nodes,N=>N.ParentId is null);
         Assert.Equal("Root",Root.Name);
@@ -42,13 +42,13 @@ public sealed class DefaultSceneFileTests {
     /// TFM/RIDのサブディレクトリ差で壊れるため)。<see cref="ExternalScenePreviewLoaderTests"/>と同じ方式。
     /// </summary>
     private static string FindRepoRoot(){
-        DirectoryInfo?directory=new(AppContext.BaseDirectory);
+        DirectoryInfo?Directory=new(AppContext.BaseDirectory);
 
-        while(directory is not null&&!File.Exists(Path.Combine(directory.FullName,"CSharpGameEngine.slnx"))){
-            directory=directory.Parent;
+        while(Directory is not null&&!File.Exists(Path.Combine(Directory.FullName,"CSharpGameEngine.slnx"))){
+            Directory=Directory.Parent;
         }
 
-        return directory?.FullName
+        return Directory?.FullName
             ??throw new InvalidOperationException($"'CSharpGameEngine.slnx' を辿って探索しましたが、リポジトリルートが見つかりませんでした(起点: {AppContext.BaseDirectory})。");
     }
 }

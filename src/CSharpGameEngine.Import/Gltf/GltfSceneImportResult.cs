@@ -1,10 +1,10 @@
 namespace CSharpGameEngine.Import.Gltf;
 
 public sealed class GltfSceneImportResult {
-    private GltfSceneImportResult(bool success,ImportedScene?scene,IReadOnlyList<GltfImportDiagnostic>diagnostics){
-        Success=success;
-        Scene=scene;
-        Diagnostics=diagnostics;
+    private GltfSceneImportResult(bool Success,ImportedScene?Scene,IReadOnlyList<GltfImportDiagnostic>Diagnostics){
+        this.Success=Success;
+        this.Scene=Scene;
+        this.Diagnostics=Diagnostics;
     }
 
     public bool Success { get;}
@@ -14,9 +14,9 @@ public sealed class GltfSceneImportResult {
 
     public IReadOnlyList<GltfImportDiagnostic>Diagnostics { get;}
 
-    public static GltfSceneImportResult Succeeded(ImportedScene scene,IReadOnlyList<GltfImportDiagnostic>diagnostics)=>
-        new(true,scene,diagnostics);
+    public static GltfSceneImportResult Succeeded(ImportedScene Scene,IReadOnlyList<GltfImportDiagnostic>Diagnostics)=>
+        new(true,Scene,Diagnostics);
 
-    public static GltfSceneImportResult Failed(IReadOnlyList<GltfImportDiagnostic>diagnostics)=>
-        new(false,null,diagnostics);
+    public static GltfSceneImportResult Failed(IReadOnlyList<GltfImportDiagnostic>Diagnostics)=>
+        new(false,null,Diagnostics);
 }

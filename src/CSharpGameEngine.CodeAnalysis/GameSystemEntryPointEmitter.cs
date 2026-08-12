@@ -39,9 +39,9 @@ internal static class GameSystemEntryPointEmitter {
         internal readonly bool Emit;
         internal readonly Diagnostic?Diagnostic;
 
-        internal Plan(bool emit,Diagnostic?diagnostic){
-            this.Emit=emit;
-            this.Diagnostic=diagnostic;
+        internal Plan(bool Emit,Diagnostic?Diagnostic){
+            this.Emit=Emit;
+            this.Diagnostic=Diagnostic;
         }
     }
 
@@ -90,13 +90,13 @@ internal static class GameSystemEntryPointEmitter {
         List<GameSystemResult>Ordered=[.. Systems.Where(static S=>S.Diagnostics.Length==0)];
         Ordered.Sort((A,B)=>GameSystemExecutionOrder.Compare(A,B,OrderContext));
 
-        foreach(GameSystemResult system in Ordered){
-            foreach(GameSystemMethodModel Method in system.Methods){
+        foreach(GameSystemResult System in Ordered){
+            foreach(GameSystemMethodModel Method in System.Methods){
                 if(Method.Role!=GameSystemMethodRole.Dispatch||Method.Contexts.Length==0){
                     continue;
                 }
 
-                return(system.ClassFullyQualifiedName,Method.Contexts[0].TypeFullyQualifiedName);
+                return(System.ClassFullyQualifiedName,Method.Contexts[0].TypeFullyQualifiedName);
             }
         }
 

@@ -10,8 +10,8 @@ public readonly struct XAudio2VoiceHandle {
     internal readonly nint VoicePointer;
     internal readonly nint BufferDataPointer;
 
-    internal XAudio2VoiceHandle(nint voicePointer,nint bufferDataPointer){
-        VoicePointer=voicePointer;
-        BufferDataPointer=bufferDataPointer;
+    internal XAudio2VoiceHandle(nint VoicePointer,nint BufferDataPointer){
+        this.VoicePointer= VoicePointer;
+        this.BufferDataPointer= BufferDataPointer;
     }
 }

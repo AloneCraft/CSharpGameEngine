@@ -192,14 +192,14 @@ public sealed class ChunkList<T>{
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal ref T GetRefUnchecked(int index){
-        return ref this.Chunks[index >> ChunkShift][index&ChunkMask];
+    internal ref T GetRefUnchecked(int Index){
+        return ref this.Chunks[Index >> ChunkShift][Index&ChunkMask];
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void ClearAtUnchecked(int index){
+    internal void ClearAtUnchecked(int Index){
         if(RuntimeHelpers.IsReferenceOrContainsReferences<T>()){
-            this.GetRefUnchecked(index)=default!;
+            this.GetRefUnchecked(Index)=default!;
         }
     }
 }
@@ -212,22 +212,22 @@ internal sealed class ChunkBuffer<T>{
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void Add(T Item){
-        var index=this.Count;
-        this.Items.EnsureCapacity(index+1);
-        this.Items.GetRefUnchecked(index)=Item;
-        this.Count=index+1;
+        var Index=this.Count;
+        this.Items.EnsureCapacity(Index+1);
+        this.Items.GetRefUnchecked(Index)=Item;
+        this.Count=Index+1;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal ref T GetRefUnchecked(int index){
-        Debug.Assert((uint)index<(uint)this.Count,"CGE-ECS-UNCHECKED-002: buffer index must be valid; remove this assertion after hot-path validation.");
-        return ref this.Items.GetRefUnchecked(index);
+    internal ref T GetRefUnchecked(int Index){
+        Debug.Assert((uint)Index<(uint)this.Count,"CGE-ECS-UNCHECKED-002: buffer index must be valid; remove this assertion after hot-path validation.");
+        return ref this.Items.GetRefUnchecked(Index);
     }
 
     internal void Clear(){
         if(RuntimeHelpers.IsReferenceOrContainsReferences<T>()){
-            for(var index=0;index<this.Count;index++){
-                this.Items.ClearAtUnchecked(index);
+            for(var Index=0;Index<this.Count;Index++){
+                this.Items.ClearAtUnchecked(Index);
             }
         }
 

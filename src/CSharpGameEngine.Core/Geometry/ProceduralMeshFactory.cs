@@ -58,7 +58,7 @@ public static class ProceduralMeshFactory {
             throw new ArgumentOutOfRangeException(nameof(Size),"size components must all be positive.");
         }
 
-        RufVector half=new RufVector(Size.X,Size.Y,Size.Z)/2f;
+        RufVector Half=new RufVector(Size.X,Size.Y,Size.Z)/2f;
 
         (RufVector Normal,RufVector U,RufVector V)[]Faces=[
             (RufVector.Forward,RufVector.Right,RufVector.Up),     // +Z
@@ -73,23 +73,23 @@ public static class ProceduralMeshFactory {
         RufVector[]Normals=new RufVector[Faces.Length*4];
         var Indices=new uint[Faces.Length*6];
 
-        for(var face=0;face<Faces.Length;face++){
-            (RufVector Normal,RufVector U,RufVector V)=Faces[face];
-            RufVector Center=ScaleComponents(Normal,half);
-            RufVector UHalf=ScaleComponents(U,half);
-            RufVector VHalf=ScaleComponents(V,half);
-            var VertexBase=face*4;
+        for(var Face=0;Face<Faces.Length;Face++){
+            (RufVector Normal,RufVector U,RufVector V)=Faces[Face];
+            RufVector Center=ScaleComponents(Normal,Half);
+            RufVector UHalf=ScaleComponents(U,Half);
+            RufVector VHalf=ScaleComponents(V,Half);
+            var VertexBase=Face*4;
 
             Positions[VertexBase+0]=Center-UHalf-VHalf;
             Positions[VertexBase+1]=Center+UHalf-VHalf;
             Positions[VertexBase+2]=Center+UHalf+VHalf;
             Positions[VertexBase+3]=Center-UHalf+VHalf;
 
-            for(var i=0;i<4;i++){
-                Normals[VertexBase+i]=Normal;
+            for(var I=0;I<4;I++){
+                Normals[VertexBase+I]=Normal;
             }
 
-            var IndexBase=face*6;
+            var IndexBase=Face*6;
             Indices[IndexBase+0]=(uint)(VertexBase+0);
             Indices[IndexBase+1]=(uint)(VertexBase+1);
             Indices[IndexBase+2]=(uint)(VertexBase+2);
@@ -125,12 +125,12 @@ public static class ProceduralMeshFactory {
         Normals.Add(RufVector.Up);
 
         var FirstRingIndex=Positions.Count;
-        for(var lat=1;lat<LatitudeSegments;lat++){
-            var Theta=lat*MathF.PI/LatitudeSegments;
+        for(var Lat=1;Lat<LatitudeSegments;Lat++){
+            var Theta=Lat*MathF.PI/LatitudeSegments;
             var SinTheta=MathF.Sin(Theta);
             var CosTheta=MathF.Cos(Theta);
-            for(var lon=0;lon<=LongitudeSegments;lon++){
-                var Phi=lon*2f*MathF.PI/LongitudeSegments;
+            for(var Lon=0;Lon<=LongitudeSegments;Lon++){
+                var Phi=Lon*2f*MathF.PI/LongitudeSegments;
                 RufVector Normal=new(MathF.Cos(Phi)*SinTheta,CosTheta,MathF.Sin(Phi)*SinTheta);
                 Positions.Add(Normal*Radius);
                 Normals.Add(Normal);
@@ -141,22 +141,22 @@ public static class ProceduralMeshFactory {
         Positions.Add(new RufVector(0,-Radius,0));
         Normals.Add(-RufVector.Up);
 
-        for(var lon=0;lon<LongitudeSegments;lon++){
+        for(var Lon=0;Lon<LongitudeSegments;Lon++){
             Indices.Add((uint)NorthPoleIndex);
-            Indices.Add((uint)(FirstRingIndex+lon));
-            Indices.Add((uint)(FirstRingIndex+lon+1));
+            Indices.Add((uint)(FirstRingIndex+Lon));
+            Indices.Add((uint)(FirstRingIndex+Lon+1));
         }
 
-        for(var ring=0;ring<RingCount-1;ring++){
-            var RingStart=FirstRingIndex+(ring*RingStride);
+        for(var Ring=0;Ring<RingCount-1;Ring++){
+            var RingStart=FirstRingIndex+(Ring*RingStride);
             AddQuadBand(Indices,RingStart,RingStart+RingStride,LongitudeSegments);
         }
 
         var LastRingStart=FirstRingIndex+((RingCount-1)*RingStride);
-        for(var lon=0;lon<LongitudeSegments;lon++){
-            Indices.Add((uint)(LastRingStart+lon));
+        for(var Lon=0;Lon<LongitudeSegments;Lon++){
+            Indices.Add((uint)(LastRingStart+Lon));
             Indices.Add((uint)SouthPoleIndex);
-            Indices.Add((uint)(LastRingStart+lon+1));
+            Indices.Add((uint)(LastRingStart+Lon+1));
         }
 
         return new ProceduralMeshData { Positions=ToXyzArray(Positions),Normals=ToXyzArray(Normals),Indices=[.. Indices]};
@@ -187,20 +187,20 @@ public static class ProceduralMeshFactory {
         Positions.Add(new RufVector(0,HalfHeight,0));
         Normals.Add(RufVector.Up);
         var TopRingStart=AddRing(Positions,Normals,Segments,Radius,HalfHeight,Radial:false,CapNormal:RufVector.Up);
-        for(var i=0;i<Segments;i++){
+        for(var I=0;I<Segments;I++){
             Indices.Add((uint)TopCenterIndex);
-            Indices.Add((uint)(TopRingStart+i));
-            Indices.Add((uint)(TopRingStart+i+1));
+            Indices.Add((uint)(TopRingStart+I));
+            Indices.Add((uint)(TopRingStart+I+1));
         }
 
         var BottomCenterIndex=Positions.Count;
         Positions.Add(new RufVector(0,-HalfHeight,0));
         Normals.Add(-RufVector.Up);
         var BottomRingStart=AddRing(Positions,Normals,Segments,Radius,-HalfHeight,Radial:false,CapNormal:-RufVector.Up);
-        for(var i=0;i<Segments;i++){
+        for(var I=0;I<Segments;I++){
             Indices.Add((uint)BottomCenterIndex);
-            Indices.Add((uint)(BottomRingStart+i+1));
-            Indices.Add((uint)(BottomRingStart+i));
+            Indices.Add((uint)(BottomRingStart+I+1));
+            Indices.Add((uint)(BottomRingStart+I));
         }
 
         return new ProceduralMeshData { Positions=ToXyzArray(Positions),Normals=ToXyzArray(Normals),Indices=[.. Indices]};
@@ -226,9 +226,9 @@ public static class ProceduralMeshFactory {
 
         // Flat-shaded side: each triangle gets its own three vertices (some duplication) so the
         // per-face normal (derived from the cross product, not interpolated) is exact.
-        for(var i=0;i<Segments;i++){
-            var Angle0=i*2f*MathF.PI/Segments;
-            var Angle1=(i+1)*2f*MathF.PI/Segments;
+        for(var I=0;I<Segments;I++){
+            var Angle0=I*2f*MathF.PI/Segments;
+            var Angle1=(I+1)*2f*MathF.PI/Segments;
             RufVector P0=new(MathF.Cos(Angle0)*Radius,-HalfHeight,MathF.Sin(Angle0)*Radius);
             RufVector P1=new(MathF.Cos(Angle1)*Radius,-HalfHeight,MathF.Sin(Angle1)*Radius);
             RufVector FaceNormal=Spatial<UnityCoordinateConvention>.Cross(P1-Apex,P0-Apex).Normalize();
@@ -246,10 +246,10 @@ public static class ProceduralMeshFactory {
         Positions.Add(new RufVector(0,-HalfHeight,0));
         Normals.Add(-RufVector.Up);
         var BaseRingStart=AddRing(Positions,Normals,Segments,Radius,-HalfHeight,Radial:false,CapNormal:-RufVector.Up);
-        for(var i=0;i<Segments;i++){
+        for(var I=0;I<Segments;I++){
             Indices.Add((uint)BaseCenterIndex);
-            Indices.Add((uint)(BaseRingStart+i+1));
-            Indices.Add((uint)(BaseRingStart+i));
+            Indices.Add((uint)(BaseRingStart+I+1));
+            Indices.Add((uint)(BaseRingStart+I));
         }
 
         return new ProceduralMeshData { Positions=ToXyzArray(Positions),Normals=ToXyzArray(Normals),Indices=[.. Indices]};
@@ -277,13 +277,13 @@ public static class ProceduralMeshFactory {
         List<RufVector>Normals=[];
         List<uint>Indices=[];
 
-        for(var i=0;i<=MajorSegments;i++){
-            var Theta=i*2f*MathF.PI/MajorSegments;
+        for(var I=0;I<=MajorSegments;I++){
+            var Theta=I*2f*MathF.PI/MajorSegments;
             var CosTheta=MathF.Cos(Theta);
             var SinTheta=MathF.Sin(Theta);
 
-            for(var j=0;j<=MinorSegments;j++){
-                var Phi=j*2f*MathF.PI/MinorSegments;
+            for(var J=0;J<=MinorSegments;J++){
+                var Phi=J*2f*MathF.PI/MinorSegments;
                 var CosPhi=MathF.Cos(Phi);
                 var SinPhi=MathF.Sin(Phi);
                 var TubeRadius=MajorRadius+(MinorRadius*CosPhi);
@@ -293,8 +293,8 @@ public static class ProceduralMeshFactory {
             }
         }
 
-        for(var i=0;i<MajorSegments;i++){
-            AddQuadBand(Indices,i*RingStride,(i+1)*RingStride,MinorSegments);
+        for(var I=0;I<MajorSegments;I++){
+            AddQuadBand(Indices,I*RingStride,(I+1)*RingStride,MinorSegments);
         }
 
         return new ProceduralMeshData { Positions=ToXyzArray(Positions),Normals=ToXyzArray(Normals),Indices=[.. Indices]};
@@ -313,10 +313,10 @@ public static class ProceduralMeshFactory {
         List<uint>Indices=[];
 
         var RingStart=AddRing(Positions,Normals,Segments,Radius,0f,Radial:false,CapNormal:RufVector.Up);
-        for(var i=0;i<Segments;i++){
+        for(var I=0;I<Segments;I++){
             Indices.Add(0);
-            Indices.Add((uint)(RingStart+i));
-            Indices.Add((uint)(RingStart+i+1));
+            Indices.Add((uint)(RingStart+I));
+            Indices.Add((uint)(RingStart+I+1));
         }
 
         return new ProceduralMeshData { Positions=ToXyzArray(Positions),Normals=ToXyzArray(Normals),Indices=[.. Indices]};
@@ -360,14 +360,14 @@ public static class ProceduralMeshFactory {
         Positions.Add(new RufVector(0,-(CylinderHalfHeight+Radius),0));
         Normals.Add(-RufVector.Up);
 
-        for(var lon=0;lon<Segments;lon++){
+        for(var Lon=0;Lon<Segments;Lon++){
             Indices.Add((uint)TopPoleIndex);
-            Indices.Add((uint)(TopFirstRing+lon));
-            Indices.Add((uint)(TopFirstRing+lon+1));
+            Indices.Add((uint)(TopFirstRing+Lon));
+            Indices.Add((uint)(TopFirstRing+Lon+1));
         }
 
-        for(var ring=0;ring<HemisphereRings-1;ring++){
-            var A0=TopFirstRing+(ring*RingStride);
+        for(var Ring=0;Ring<HemisphereRings-1;Ring++){
+            var A0=TopFirstRing+(Ring*RingStride);
             AddQuadBand(Indices,A0,A0+RingStride,Segments);
         }
 
@@ -375,16 +375,16 @@ public static class ProceduralMeshFactory {
         AddQuadBand(Indices,CylTopRing,CylBottomRing,Segments);
         AddQuadBand(Indices,CylBottomRing,BottomFirstRing,Segments);
 
-        for(var ring=0;ring<HemisphereRings-1;ring++){
-            var a0=BottomFirstRing+(ring*RingStride);
-            AddQuadBand(Indices,a0,a0+RingStride,Segments);
+        for(var Ring=0;Ring<HemisphereRings-1;Ring++){
+            var A0=BottomFirstRing+(Ring*RingStride);
+            AddQuadBand(Indices,A0,A0+RingStride,Segments);
         }
 
         var LastBottomRing=BottomFirstRing+((HemisphereRings-1)*RingStride);
-        for(var lon=0;lon<Segments;lon++){
-            Indices.Add((uint)(LastBottomRing+lon));
+        for(var Lon=0;Lon<Segments;Lon++){
+            Indices.Add((uint)(LastBottomRing+Lon));
             Indices.Add((uint)BottomPoleIndex);
-            Indices.Add((uint)(LastBottomRing+lon+1));
+            Indices.Add((uint)(LastBottomRing+Lon+1));
         }
 
         return new ProceduralMeshData { Positions=ToXyzArray(Positions),Normals=ToXyzArray(Normals),Indices=[.. Indices]};
@@ -396,16 +396,16 @@ public static class ProceduralMeshFactory {
     /// </summary>
     private static int AddHemisphereRings(List<RufVector>Positions,List<RufVector>Normals,int Segments,int HemisphereRings,float Radius,float YOffset,bool UpperHalf){
         var FirstRingIndex=Positions.Count;
-        for(var lat=1;lat<=HemisphereRings;lat++){
-            var Fraction=lat/(float)(HemisphereRings+1); // (0, 1)
+        for(var Lat=1;Lat<=HemisphereRings;Lat++){
+            var Fraction=Lat/(float)(HemisphereRings+1); // (0, 1)
             var Theta=UpperHalf
                 ?Fraction*(MathF.PI/2f)                  // (0, pi/2): pole -> equator
                 :(MathF.PI/2f)+(Fraction*(MathF.PI/2f)); // (pi/2, pi): equator -> pole
             var SinTheta=MathF.Sin(Theta);
             var CosTheta=MathF.Cos(Theta);
 
-            for(var lon=0;lon<=Segments;lon++){
-                var Phi=lon*2f*MathF.PI/Segments;
+            for(var Lon=0;Lon<=Segments;Lon++){
+                var Phi=Lon*2f*MathF.PI/Segments;
                 RufVector Normal=new(MathF.Cos(Phi)*SinTheta,CosTheta,MathF.Sin(Phi)*SinTheta);
                 Positions.Add(new RufVector(Normal.R*Radius,YOffset+(Normal.U*Radius),Normal.F*Radius));
                 Normals.Add(Normal);
@@ -418,8 +418,8 @@ public static class ProceduralMeshFactory {
     /// <summary>Appends one ring of <paramref name="Segments"/>+1 vertices (a duplicate seam vertex closes the loop, keeping index math uniform with <see cref="AddQuadBand"/>). <paramref name="Radial"/> selects a purely radial normal (cylinder side) vs. a caller-supplied flat <paramref name="CapNormal"/> (cap/disk faces).</summary>
     private static int AddRing(List<RufVector>Positions,List<RufVector>Normals,int Segments,float Radius,float Y,bool Radial,RufVector CapNormal=default){
         var RingStart=Positions.Count;
-        for(var i=0;i<=Segments;i++){
-            var Angle=i*2f*MathF.PI/Segments;
+        for(var I=0;I<=Segments;I++){
+            var Angle=I*2f*MathF.PI/Segments;
             var X=MathF.Cos(Angle);
             var Z=MathF.Sin(Angle);
             Positions.Add(new RufVector(X*Radius,Y,Z*Radius));
@@ -431,10 +431,10 @@ public static class ProceduralMeshFactory {
 
     /// <summary>Quads a band between two same-length (<paramref name="Segments"/>+1 vertex) rings.</summary>
     private static void AddQuadBand(List<uint>Indices,int RingAStart,int RingBStart,int Segments){
-        for(var i=0;i<Segments;i++){
-            var A=RingAStart+i;
+        for(var I=0;I<Segments;I++){
+            var A=RingAStart+I;
             var B=A+1;
-            var C=RingBStart+i;
+            var C=RingBStart+I;
             var D=C+1;
             Indices.Add((uint)A);
             Indices.Add((uint)C);
@@ -451,8 +451,8 @@ public static class ProceduralMeshFactory {
     /// <summary>Converts RUF-space vertex/normal data to physical XYZ storage at the output boundary (ADR-0026 "境界の原則"): identity under <see cref="UnityCoordinateConvention"/>, so this does not change any value.</summary>
     private static Vector3[]ToXyzArray(IReadOnlyList<RufVector>Values){
         Vector3[]Result=new Vector3[Values.Count];
-        for(var i=0;i<Values.Count;i++){
-            Result[i]=(Vector3)Spatial<UnityCoordinateConvention>.ToXyz(Values[i]);
+        for(var I=0;I<Values.Count;I++){
+            Result[I]=(Vector3)Spatial<UnityCoordinateConvention>.ToXyz(Values[I]);
         }
 
         return Result;

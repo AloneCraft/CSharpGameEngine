@@ -11,204 +11,204 @@ namespace CSharpGameEngine.Entities.Tests;
 /// </summary>
 public sealed class SceneInstanceSpec {
     /// <summary>生成された<c>Instantiate</c>が行うことを手で書いたもの。Phase 4以降はSGがこれを出す。</summary>
-    private static (SceneInstance Instance,Entity Root,Entity Child)Instantiate(ref World world,float Seed){
-        SceneInstance Instance=world.BeginSceneInstance();
-        Entity Root=world.AttachToScene(Instance,world.Create(new Position { X=Seed }));
-        Entity Child=world.AttachToScene(Instance,world.Create(new Position { X=Seed+1f },new Parent { Value=Root }));
-        world.EndSceneInstance(Instance,Root);
+    private static (SceneInstance Instance,Entity Root,Entity Child)Instantiate(ref World World,float Seed){
+        SceneInstance Instance=World.BeginSceneInstance();
+        Entity Root=World.AttachToScene(Instance,World.Create(new Position { X=Seed }));
+        Entity Child=World.AttachToScene(Instance,World.Create(new Position { X=Seed+1f },new Parent { Value=Root }));
+        World.EndSceneInstance(Instance,Root);
         return (Instance,Root,Child);
     }
 
     [Fact]
     public void InstantiatingTheSameSceneTwiceProducesIndependentInstances(){
-        World world=new();
+        World World=new();
 
-        (SceneInstance A,Entity RootA,_)=Instantiate(ref world,10f);
-        (SceneInstance B,Entity RootB,_)=Instantiate(ref world,20f);
+        (SceneInstance A,Entity RootA,_)=Instantiate(ref World,10f);
+        (SceneInstance B,Entity RootB,_)=Instantiate(ref World,20f);
 
         Assert.NotEqual(A,B);
         Assert.NotEqual(RootA,RootB);
-        Assert.True(world.IsSceneAlive(A));
-        Assert.True(world.IsSceneAlive(B));
-        Assert.Equal(RootA,world.GetSceneRoot(A));
-        Assert.Equal(RootB,world.GetSceneRoot(B));
+        Assert.True(World.IsSceneAlive(A));
+        Assert.True(World.IsSceneAlive(B));
+        Assert.Equal(RootA,World.GetSceneRoot(A));
+        Assert.Equal(RootB,World.GetSceneRoot(B));
     }
 
     [Fact]
     public void UnloadingOneSceneLeavesTheOtherUntouched(){
-        World world=new();
-        (SceneInstance A,Entity RootA,Entity ChildA)=Instantiate(ref world,10f);
-        (SceneInstance B,Entity RootB,Entity ChildB)=Instantiate(ref world,20f);
+        World World=new();
+        (SceneInstance A,Entity RootA,Entity ChildA)=Instantiate(ref World,10f);
+        (SceneInstance B,Entity RootB,Entity ChildB)=Instantiate(ref World,20f);
 
-        world.UnloadScene(A);
+        World.UnloadScene(A);
 
-        Assert.False(world.IsSceneAlive(A));
-        Assert.False(world.IsAlive(RootA));
-        Assert.False(world.IsAlive(ChildA));
-        Assert.True(world.IsSceneAlive(B));
-        Assert.True(world.IsAlive(RootB));
-        Assert.True(world.IsAlive(ChildB));
+        Assert.False(World.IsSceneAlive(A));
+        Assert.False(World.IsAlive(RootA));
+        Assert.False(World.IsAlive(ChildA));
+        Assert.True(World.IsSceneAlive(B));
+        Assert.True(World.IsAlive(RootB));
+        Assert.True(World.IsAlive(ChildB));
     }
 
     [Fact]
     public void EntitiesReportTheSceneThatCreatedThem(){
-        World world=new();
-        (SceneInstance A,Entity RootA,Entity ChildA)=Instantiate(ref world,10f);
+        World World=new();
+        (SceneInstance A,Entity RootA,Entity ChildA)=Instantiate(ref World,10f);
 
-        Assert.Equal(A,world.GetOwningScene(RootA));
-        Assert.Equal(A,world.GetOwningScene(ChildA));
+        Assert.Equal(A,World.GetOwningScene(RootA));
+        Assert.Equal(A,World.GetOwningScene(ChildA));
     }
 
     [Fact]
     public void WorldOwnedEntitiesBelongToNoScene(){
         // Sceneに属さないWorld直属Entityも許可する。World.Createはそのまま使える。
-        World world=new();
+        World World=new();
 
-        Entity Loose=world.Create(new Position { X=1f });
+        Entity Loose=World.Create(new Position { X=1f });
 
-        Assert.True(world.IsAlive(Loose));
-        Assert.True(world.GetOwningScene(Loose).IsNone);
+        Assert.True(World.IsAlive(Loose));
+        Assert.True(World.GetOwningScene(Loose).IsNone);
     }
 
     [Fact]
     public void GameplayCanAttachARuntimeEntityToAScene(){
-        World world=new();
-        (SceneInstance A,_,_)=Instantiate(ref world,10f);
+        World World=new();
+        (SceneInstance A,_,_)=Instantiate(ref World,10f);
 
-        Entity Spawned=world.AttachToScene(A,world.Create(new Position { X=99f }));
+        Entity Spawned=World.AttachToScene(A,World.Create(new Position { X=99f }));
 
-        Assert.Equal(A,world.GetOwningScene(Spawned));
+        Assert.Equal(A,World.GetOwningScene(Spawned));
 
-        world.UnloadScene(A);
+        World.UnloadScene(A);
 
-        Assert.False(world.IsAlive(Spawned));
+        Assert.False(World.IsAlive(Spawned));
     }
 
     [Fact]
     public void HandlesToAnUnloadedSceneAreRejected(){
-        World world=new();
-        (SceneInstance A,_,_)=Instantiate(ref world,10f);
+        World World=new();
+        (SceneInstance A,_,_)=Instantiate(ref World,10f);
 
-        world.UnloadScene(A);
+        World.UnloadScene(A);
 
-        Assert.False(world.IsSceneAlive(A));
-        Assert.Equal(default,world.GetSceneRoot(A));
+        Assert.False(World.IsSceneAlive(A));
+        Assert.Equal(default,World.GetSceneRoot(A));
 
         // 二重アンロードは黙って無視される。
-        world.UnloadScene(A);
+        World.UnloadScene(A);
     }
 
     [Fact]
     public void ReusedSlotDoesNotResurrectAnOldHandle(){
         // SceneスロットはEntity Idと違って再利用する。だからこそ世代が要る(ABA問題)。
-        World world=new();
-        (SceneInstance A,_,_)=Instantiate(ref world,10f);
-        world.UnloadScene(A);
+        World World=new();
+        (SceneInstance A,_,_)=Instantiate(ref World,10f);
+        World.UnloadScene(A);
 
-        (SceneInstance B,Entity RootB,_)=Instantiate(ref world,20f);
+        (SceneInstance B,Entity RootB,_)=Instantiate(ref World,20f);
 
         Assert.Equal(A.Slot,B.Slot);
         Assert.NotEqual(A.Version,B.Version);
-        Assert.False(world.IsSceneAlive(A));
-        Assert.True(world.IsSceneAlive(B));
-        Assert.Equal(RootB,world.GetSceneRoot(B));
+        Assert.False(World.IsSceneAlive(A));
+        Assert.True(World.IsSceneAlive(B));
+        Assert.Equal(RootB,World.GetSceneRoot(B));
     }
 
     [Fact]
     public void DefaultAndNoneHandlesAreNeverAlive(){
-        World world=new();
-        Instantiate(ref world,10f);
+        World World=new();
+        Instantiate(ref World,10f);
 
-        Assert.False(world.IsSceneAlive(default));
-        Assert.False(world.IsSceneAlive(SceneInstance.None));
+        Assert.False(World.IsSceneAlive(default));
+        Assert.False(World.IsSceneAlive(SceneInstance.None));
         Assert.True(SceneInstance.None.IsNone);
     }
 
     [Fact]
     public void EntityDestroyedByGameplayIsSkippedDuringUnload(){
-        World world=new();
-        (SceneInstance A,Entity RootA,Entity ChildA)=Instantiate(ref world,10f);
+        World World=new();
+        (SceneInstance A,Entity RootA,Entity ChildA)=Instantiate(ref World,10f);
 
-        world.Destroy(ChildA);
-        world.UnloadScene(A);
+        World.Destroy(ChildA);
+        World.UnloadScene(A);
 
-        Assert.False(world.IsAlive(RootA));
-        Assert.False(world.IsAlive(ChildA));
-        Assert.False(world.IsSceneAlive(A));
+        Assert.False(World.IsAlive(RootA));
+        Assert.False(World.IsAlive(ChildA));
+        Assert.False(World.IsSceneAlive(A));
     }
 
     [Fact]
     public void DeferredUnloadIsAppliedAtThePlaybackBarrier(){
-        World world=new();
-        State state=new(world){ Enabled=true };
-        (SceneInstance A,Entity RootA,_)=Instantiate(ref world,10f);
+        World World=new();
+        State State=new(World){ Enabled=true };
+        (SceneInstance A,Entity RootA,_)=Instantiate(ref World,10f);
 
-        world.UnloadSceneDeferred(A,ref state);
+        World.UnloadSceneDeferred(A,ref State);
 
-        Assert.True(world.IsAlive(RootA));
+        Assert.True(World.IsAlive(RootA));
 
-        world.PlaybackStructuralChanges(ref state);
+        World.PlaybackStructuralChanges(ref State);
 
-        Assert.False(world.IsAlive(RootA));
-        Assert.False(world.IsSceneAlive(A));
+        Assert.False(World.IsAlive(RootA));
+        Assert.False(World.IsSceneAlive(A));
     }
 
     [Fact]
     public void ThreeScenesCoexistInOneWorld(){
-        World world=new();
+        World World=new();
 
-        (SceneInstance A,Entity RootA,_)=Instantiate(ref world,10f);
-        (SceneInstance B,Entity RootB,_)=Instantiate(ref world,20f);
-        (SceneInstance C,Entity RootC,_)=Instantiate(ref world,30f);
+        (SceneInstance A,Entity RootA,_)=Instantiate(ref World,10f);
+        (SceneInstance B,Entity RootB,_)=Instantiate(ref World,20f);
+        (SceneInstance C,Entity RootC,_)=Instantiate(ref World,30f);
 
-        Assert.True(world.IsSceneAlive(A));
-        Assert.True(world.IsSceneAlive(B));
-        Assert.True(world.IsSceneAlive(C));
+        Assert.True(World.IsSceneAlive(A));
+        Assert.True(World.IsSceneAlive(B));
+        Assert.True(World.IsSceneAlive(C));
 
-        world.UnloadScene(B);
+        World.UnloadScene(B);
 
-        Assert.True(world.IsAlive(RootA));
-        Assert.False(world.IsAlive(RootB));
-        Assert.True(world.IsAlive(RootC));
+        Assert.True(World.IsAlive(RootA));
+        Assert.False(World.IsAlive(RootB));
+        Assert.True(World.IsAlive(RootC));
     }
 
     [Fact]
     public void ArchetypeMoveKeepsSceneOwnership(){
         // 位置表をタプルごと代入するとSceneSlotが消え、Archetype移動しただけでSceneから外れてしまう。
-        World world=new();
-        State state=new(world){ Enabled=true };
-        (SceneInstance A,Entity RootA,_)=Instantiate(ref world,10f);
+        World World=new();
+        State State=new(World){ Enabled=true };
+        (SceneInstance A,Entity RootA,_)=Instantiate(ref World,10f);
 
-        world.MoveArchetype(RootA,new Position { X=5f },new Velocity { X=1f },ref state);
-        world.PlaybackStructuralChanges(ref state);
+        World.MoveArchetype(RootA,new Position { X=5f },new Velocity { X=1f },ref State);
+        World.PlaybackStructuralChanges(ref State);
 
-        Assert.Equal(A,world.GetOwningScene(RootA));
+        Assert.Equal(A,World.GetOwningScene(RootA));
 
-        world.UnloadScene(A);
+        World.UnloadScene(A);
 
-        Assert.False(world.IsAlive(RootA));
+        Assert.False(World.IsAlive(RootA));
     }
 
     [Fact]
     public void ReattachingAnEntityMovesOwnershipAndTheOldSceneNoLongerDestroysIt(){
         // 所有権は位置表のSceneSlotが正で、SceneInstanceSlot.Entitiesは追記のみの記録である。
         // 付け替え元のUnloadが新しいSceneのEntityを巻き添えに壊してはならない。
-        World world=new();
-        (SceneInstance A,_,_)=Instantiate(ref world,10f);
-        (SceneInstance B,_,_)=Instantiate(ref world,20f);
-        Entity Moved=world.AttachToScene(A,world.Create(new Position { X=99f }));
+        World World=new();
+        (SceneInstance A,_,_)=Instantiate(ref World,10f);
+        (SceneInstance B,_,_)=Instantiate(ref World,20f);
+        Entity Moved=World.AttachToScene(A,World.Create(new Position { X=99f }));
 
-        world.AttachToScene(B,Moved);
+        World.AttachToScene(B,Moved);
 
-        Assert.Equal(B,world.GetOwningScene(Moved));
+        Assert.Equal(B,World.GetOwningScene(Moved));
 
-        world.UnloadScene(A);
+        World.UnloadScene(A);
 
-        Assert.True(world.IsAlive(Moved));
+        Assert.True(World.IsAlive(Moved));
 
-        world.UnloadScene(B);
+        World.UnloadScene(B);
 
-        Assert.False(world.IsAlive(Moved));
+        Assert.False(World.IsAlive(Moved));
     }
 
     [Fact]
@@ -216,13 +216,13 @@ public sealed class SceneInstanceSpec {
         // 閉集合Archetypeでは親のEntityハンドルがComponentデータの中に生で入る。親を含むSceneを
         // アンロードすると、他Scene/World直属の子が持つParent.Valueは死んだEntityを指す。
         // 親子を辿るSystemは必ずIsAliveでガードすること(ADR-0040 既知の制約)。
-        World world=new();
-        (SceneInstance A,Entity RootA,_)=Instantiate(ref world,10f);
-        Entity Outsider=world.Create(new Position { X=1f },new Parent { Value=RootA });
+        World World=new();
+        (SceneInstance A,Entity RootA,_)=Instantiate(ref World,10f);
+        Entity Outsider=World.Create(new Position { X=1f },new Parent { Value=RootA });
 
-        world.UnloadScene(A);
+        World.UnloadScene(A);
 
-        Assert.True(world.IsAlive(Outsider));
-        Assert.False(world.IsAlive(RootA));
+        Assert.True(World.IsAlive(Outsider));
+        Assert.False(World.IsAlive(RootA));
     }
 }

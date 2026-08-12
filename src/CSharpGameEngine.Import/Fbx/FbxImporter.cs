@@ -24,19 +24,19 @@ public static class FbxImporter {
         // import failed overall (confirmed empirically); only Import()'s own explicit checks
         // below (empty scene, no vertices, no triangles) are treated as fatal.
         List<FbxImportDiagnostic>Diagnostics=[];
-        LogStream logStream=new((Msg,_)=>{
+        LogStream LogStream=new((Msg,_)=>{
             var Trimmed=Msg.Trim();
             if(Trimmed.StartsWith("Error",StringComparison.OrdinalIgnoreCase)||
                 Trimmed.StartsWith("Warn",StringComparison.OrdinalIgnoreCase)){
                 Diagnostics.Add(new FbxImportDiagnostic(FbxImportDiagnosticSeverity.Warning, $"Assimp: {Trimmed}"));
             }
         });
-        logStream.Attach();
+        LogStream.Attach();
 
         using AssimpContext Context=new();
-        Scene scene;
+        Scene Scene;
         try {
-            scene=Context.ImportFile(
+            Scene=Context.ImportFile(
                 FullPath,
                 PostProcessSteps.Triangulate|PostProcessSteps.GenerateSmoothNormals|PostProcessSteps.JoinIdenticalVertices);
         } catch(Exception Ex){
@@ -44,15 +44,15 @@ public static class FbxImporter {
             // bad file must never escape as an unhandled exception from this importer.
             return Failed($"Failed to parse FBX file '{FullPath}': {Ex.Message}");
         } finally {
-            logStream.Detach();
+            LogStream.Detach();
         }
 
-        if(scene is null||scene.MeshCount==0){
+        if(Scene is null||Scene.MeshCount==0){
             return Failed("FBX file contains no meshes.",Diagnostics);
         }
 
-        Assimp.Mesh mesh=scene.Meshes[0];
-        if(mesh.VertexCount==0){
+        Assimp.Mesh Mesh=Scene.Meshes[0];
+        if(Mesh.VertexCount==0){
             return Failed("FBX mesh has no vertices.",Diagnostics);
         }
 
@@ -61,50 +61,50 @@ public static class FbxImporter {
         // UnityCoordinateConvention (left-handed) per ADR-0027 - positions/normals convert
         // per-vertex (FbxAxisConversion.ConvertVector), and triangle winding is flipped below to
         // keep front-facing orientation consistent with the mirrored positions.
-        Vector3[]Positions=new Vector3[mesh.VertexCount];
-        for(var i=0;i<mesh.VertexCount;i++){
-            Vector3D V=mesh.Vertices[i];
-            Positions[i]=FbxAxisConversion.ConvertVector(new Vector3(V.X,V.Y,V.Z));
+        Vector3[]Positions=new Vector3[Mesh.VertexCount];
+        for(var I=0;I<Mesh.VertexCount;I++){
+            Vector3D V=Mesh.Vertices[I];
+            Positions[I]=FbxAxisConversion.ConvertVector(new Vector3(V.X,V.Y,V.Z));
         }
 
         Vector3[]Normals;
-        if(mesh.HasNormals){
-            Normals=new Vector3[mesh.VertexCount];
-            for(var i=0;i<mesh.VertexCount;i++){
-                Vector3D N=mesh.Normals[i];
-                Normals[i]=FbxAxisConversion.ConvertVector(new Vector3(N.X,N.Y,N.Z));
+        if(Mesh.HasNormals){
+            Normals=new Vector3[Mesh.VertexCount];
+            for(var I=0;I<Mesh.VertexCount;I++){
+                Vector3D N=Mesh.Normals[I];
+                Normals[I]=FbxAxisConversion.ConvertVector(new Vector3(N.X,N.Y,N.Z));
             }
         } else {
             Diagnostics.Add(new FbxImportDiagnostic(FbxImportDiagnosticSeverity.Warning,
                 "Mesh has no normals even after GenerateSmoothNormals; defaulting to +Y for every vertex."));
-            Normals=new Vector3[mesh.VertexCount];
+            Normals=new Vector3[Mesh.VertexCount];
             Array.Fill(Normals,Vector3.UnitY);
         }
 
         Vector2[]Uvs;
-        if(mesh.HasTextureCoords(0)){
-            Uvs=new Vector2[mesh.VertexCount];
-            List<Vector3D>Channel=mesh.TextureCoordinateChannels[0];
-            for(var i=0;i<mesh.VertexCount;i++){
-                Vector3D Uv=Channel[i];
-                Uvs[i]=new Vector2(Uv.X,Uv.Y);
+        if(Mesh.HasTextureCoords(0)){
+            Uvs=new Vector2[Mesh.VertexCount];
+            List<Vector3D>Channel=Mesh.TextureCoordinateChannels[0];
+            for(var I=0;I<Mesh.VertexCount;I++){
+                Vector3D Uv=Channel[I];
+                Uvs[I]=new Vector2(Uv.X,Uv.Y);
             }
         } else {
             Diagnostics.Add(new FbxImportDiagnostic(FbxImportDiagnosticSeverity.Warning,
                 "Mesh has no TEXCOORD channel 0; synthesized (0,0) UV for every vertex."));
-            Uvs=new Vector2[mesh.VertexCount];
+            Uvs=new Vector2[Mesh.VertexCount];
         }
 
         List<uint>Indices=[];
-        foreach(Face face in mesh.Faces){
-            if(face.IndexCount!=3){
+        foreach(Face Face in Mesh.Faces){
+            if(Face.IndexCount!=3){
                 // Triangulate should guarantee this; skip any degenerate leftovers defensively.
                 continue;
             }
 
-            Indices.Add((uint)face.Indices[0]);
-            Indices.Add((uint)face.Indices[1]);
-            Indices.Add((uint)face.Indices[2]);
+            Indices.Add((uint)Face.Indices[0]);
+            Indices.Add((uint)Face.Indices[1]);
+            Indices.Add((uint)Face.Indices[2]);
         }
 
         if(Indices.Count==0){
@@ -114,15 +114,15 @@ public static class FbxImporter {
         FbxAxisConversion.FlipTriangleWinding(Indices);
 
         Vector4 BaseColorFactor=new(1f,1f,1f,1f);
-        if(mesh.MaterialIndex>=0&&mesh.MaterialIndex<scene.MaterialCount){
-            Assimp.Material material=scene.Materials[mesh.MaterialIndex];
-            if(material.HasColorDiffuse){
-                Color4D C=material.ColorDiffuse;
+        if(Mesh.MaterialIndex>=0&&Mesh.MaterialIndex<Scene.MaterialCount){
+            Assimp.Material Material=Scene.Materials[Mesh.MaterialIndex];
+            if(Material.HasColorDiffuse){
+                Color4D C=Material.ColorDiffuse;
                 BaseColorFactor=new Vector4(C.R,C.G,C.B,C.A);
             }
         }
 
-        ImportedMesh importedMesh=new(){
+        ImportedMesh ImportedMesh=new(){
             Positions=Positions,
             Normals=Normals,
             Uvs=Uvs,
@@ -132,7 +132,7 @@ public static class FbxImporter {
             Bounds=BoundingBox.FromPoints(Positions),
         };
 
-        return FbxImportResult.Succeeded(importedMesh,Diagnostics);
+        return FbxImportResult.Succeeded(ImportedMesh,Diagnostics);
     }
 
     private static FbxImportResult Failed(string Message,IReadOnlyList<FbxImportDiagnostic>?Extra=null){

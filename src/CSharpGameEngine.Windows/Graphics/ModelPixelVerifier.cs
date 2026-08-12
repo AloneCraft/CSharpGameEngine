@@ -34,9 +34,9 @@ public static class ModelPixelVerifier {
         long ForegroundCount=0;
         var TotalCount=(long)Readback.Width*Readback.Height;
 
-        for(var y=0;y<Readback.Height;y++){
-            for(var x=0;x<Readback.Width;x++){
-                if(!IsClose(ReadPixel(Readback,x,y),BackgroundColor,Tolerance)){
+        for(var Y=0;Y<Readback.Height;Y++){
+            for(var X=0;X<Readback.Width;X++){
+                if(!IsClose(ReadPixel(Readback,X,Y),BackgroundColor,Tolerance)){
                     ForegroundCount++;
                 }
             }

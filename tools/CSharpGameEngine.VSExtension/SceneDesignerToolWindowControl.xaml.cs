@@ -1,5 +1,6 @@
 using System;
 using System.Windows.Controls;
+using CSharpGameEngine.SceneAnalysis;
 
 namespace CSharpGameEngine.VSExtension;
 
@@ -10,13 +11,19 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     public SceneDesignerToolWindowControl(){
         InitializeComponent();
         Host=new SceneHwndHost();
-        RootGrid.Children.Add(Host);
+        Host.StatusChanged+=this.OnStatusChanged;
+        RenderHostGrid.Children.Add(Host);
     }
 
-    public void SetTarget(string FilePath,string ClassName)=>Host.SetTarget(FilePath,ClassName);
+    internal void SetTarget(SceneModel Model)=>Host.SetTarget(Model);
 
     // WindowPane/ToolWindowPane only disposes Content when it implements IDisposable - without this,
     // the native window inside SceneHwndHost never runs DestroyWindowCore when the tool window closes
     // (same fix as the old SceneWindowControl, see RenderSurfaceWindow.Dispose).
-    public void Dispose()=>Host.Dispose();
+    public void Dispose(){
+        Host.StatusChanged-=this.OnStatusChanged;
+        Host.Dispose();
+    }
+
+    private void OnStatusChanged(string Status)=>StatusText.Text=Status;
 }

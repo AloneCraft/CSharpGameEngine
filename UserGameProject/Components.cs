@@ -213,9 +213,9 @@ public struct FogData {
 /// this each frame rather than accumulating, so there is no drift).
 /// </summary>
 public readonly struct FrameContext {
-    public FrameContext(float deltaTime,float elapsedSeconds){
-        this.DeltaTime=deltaTime;
-        this.ElapsedSeconds=elapsedSeconds;
+    public FrameContext(float DeltaTime,float ElapsedSeconds){
+        this.DeltaTime=DeltaTime;
+        this.ElapsedSeconds=ElapsedSeconds;
     }
 
     public float DeltaTime { get;}

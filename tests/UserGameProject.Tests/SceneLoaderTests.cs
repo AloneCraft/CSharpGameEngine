@@ -17,17 +17,17 @@ public class SceneLoaderTests {
             (new VertexPosition(1,0,0),new VertexTexture1(new Vector2(1,0))),
             (new VertexPosition(0,1,0),new VertexTexture1(new Vector2(0,1))));
 
-        var sceneBuilder=new SceneBuilder();
+        var SceneBuilder=new SceneBuilder();
         var CubeNode=new NodeBuilder(CubeName){ LocalTransform=new AffineTransform(Matrix4x4.CreateTranslation(2,0,3))};
-        sceneBuilder.AddRigidMesh(Mesh,CubeNode);
+        SceneBuilder.AddRigidMesh(Mesh,CubeNode);
 
         var Light=new LightBuilder.Directional { Color=new Vector3(1,1,1),Intensity=4 };
         var LightNode=new NodeBuilder("Sun"){ LocalTransform=new AffineTransform(Quaternion.CreateFromAxisAngle(Vector3.UnitX,-MathF.PI/2f))};
-        sceneBuilder.AddLight(Light,LightNode);
+        SceneBuilder.AddLight(Light,LightNode);
 
-        var path=Path.Combine(Path.GetTempPath(), $"scene-loader-test-{Guid.NewGuid():N}.glb");
-        sceneBuilder.ToGltf2().SaveGLB(path);
-        return path;
+        var Path= System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"scene-loader-test-{Guid.NewGuid():N}.glb");
+        SceneBuilder.ToGltf2().SaveGLB(Path);
+        return Path;
     }
 
     private static string WriteSceneMeta(string CubeName,string Mobility){
@@ -40,9 +40,9 @@ public class SceneLoaderTests {
             }
             """;
 
-        var path=Path.Combine(Path.GetTempPath(), $"scene-meta-test-{Guid.NewGuid():N}.json");
-        File.WriteAllText(path,Json);
-        return path;
+        var Path= System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"scene-meta-test-{Guid.NewGuid():N}.json");
+        File.WriteAllText(Path, Json);
+        return Path;
     }
 
     [Fact]

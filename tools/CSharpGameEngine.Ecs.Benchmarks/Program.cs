@@ -13,18 +13,18 @@ RunSoa(Entities,Frames);
 
 static void RunAos(int Entities,int Frames){
     AosRow[]Rows=new AosRow[Entities];
-    for(var index=0;index<Rows.Length;index++){
-        Rows[index].Velocity.X=1f;
-        Rows[index].ColdA=index;
-        Rows[index].ColdB=index*2L;
+    for(var Index=0;Index<Rows.Length;Index++){
+        Rows[Index].Velocity.X=1f;
+        Rows[Index].ColdA=Index;
+        Rows[Index].ColdB=Index*2L;
     }
 
     WarmUpAos(Rows);
     var Before=GC.GetAllocatedBytesForCurrentThread();
     var Start=Stopwatch.GetTimestamp();
-    for(var frame=0;frame<Frames;frame++){
-        for(var index=0;index<Rows.Length;index++){
-            Rows[index].Position.X+=Rows[index].Velocity.X;
+    for(var Frame=0;Frame<Frames;Frame++){
+        for(var Index=0;Index<Rows.Length;Index++){
+            Rows[Index].Position.X+=Rows[Index].Velocity.X;
         }
     }
 
@@ -32,26 +32,26 @@ static void RunAos(int Entities,int Frames){
 }
 
 static void RunSoa(int Entities,int Frames){
-    World world=new();
-    State state=new(world){ Enabled=true };
-    for(var index=0;index<Entities;index++){
-        world.Create(new Position(),new Velocity { X=1f },new ColdA { Value=index },new ColdB { Value=index*2L });
+    World World=new();
+    State State=new(World){ Enabled=true };
+    for(var Index=0;Index<Entities;Index++){
+        World.Create(new Position(),new Velocity { X=1f },new ColdA { Value=Index },new ColdB { Value=Index*2L });
     }
 
-    BenchmarkSystem system=new();
-    GeneratedGameLoop.RunFrame(ref state,ref system);
+    BenchmarkSystem System=new();
+    GeneratedGameLoop.RunFrame(ref State,ref System);
     var Before=GC.GetAllocatedBytesForCurrentThread();
     var Start=Stopwatch.GetTimestamp();
-    for(var frame=0;frame<Frames;frame++){
-        GeneratedGameLoop.RunFrame(ref state,ref system);
+    for(var Frame=0;Frame<Frames;Frame++){
+        GeneratedGameLoop.RunFrame(ref State,ref System);
     }
 
-    Print("SoA",Stopwatch.GetElapsedTime(Start),GC.GetAllocatedBytesForCurrentThread()-Before,world.Archetype1.GetPositionRefUnchecked(Entities-1).X);
+    Print("SoA",Stopwatch.GetElapsedTime(Start),GC.GetAllocatedBytesForCurrentThread()-Before,World.Archetype1.GetPositionRefUnchecked(Entities-1).X);
 }
 
 static void WarmUpAos(AosRow[]Rows){
-    for(var index=0;index<Rows.Length;index++){
-        Rows[index].Position.X+=Rows[index].Velocity.X;
+    for(var Index=0;Index<Rows.Length;Index++){
+        Rows[Index].Position.X+=Rows[Index].Velocity.X;
     }
 }
 
@@ -60,14 +60,14 @@ static void Print(string Layout,TimeSpan Elapsed,long AllocatedBytes,float Check
 }
 
 internal struct BenchmarkSystem:ISystem {
-    public bool Update(ref Position position,ref Velocity velocity,ref State state){
-        position.X+=velocity.X;
+    public bool Update(ref Position Position,ref Velocity Velocity,ref State State){
+        Position.X+=Velocity.X;
         return true;
     }
 }
 
 internal struct BenchmarkShape:ISystem {
-    public void Spawn(ref Position position,ref Velocity velocity,ref ColdA coldA,ref ColdB coldB){
+    public void Spawn(ref Position Position,ref Velocity Velocity,ref ColdA ColdA,ref ColdB ColdB){
     }
 }
 

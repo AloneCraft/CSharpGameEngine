@@ -41,6 +41,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
     private readonly JoinableTaskFactory TaskFactory;
     private readonly VisualStudioWorkspace Workspace;
     private readonly object Gate=new();
+    private readonly SceneAnalysisGenerationGate<DocumentId>AnalysisGeneration=new();
     private System.Threading.Timer?DebounceTimer;
     private CancellationTokenSource?PendingAnalysis;
 
@@ -52,6 +53,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
     private JoinableTask?RunningAnalysis;
 
     private DocumentId?ActiveDocumentId;
+    private string?ActiveDocumentPath;
     private bool Disposed;
 
     private SceneWorkspaceService(VisualStudioWorkspace Workspace,JoinableTaskFactory TaskFactory){
@@ -106,14 +108,49 @@ internal sealed class SceneWorkspaceService : IDisposable {
     }
 
     /// <summary>Points the service at a document; passing null clears the model.</summary>
-    internal void SetActiveDocument(DocumentId?DocumentId){
-        this.ActiveDocumentId=DocumentId;
+    internal void SetActiveDocument(string?FilePath){
+        ThreadHelper.ThrowIfNotOnUIThread();
+
+        DocumentId?DocumentId=FilePath is null?null:this.FindDocument(FilePath);
+        lock(this.Gate){
+            if(string.Equals(this.ActiveDocumentPath,FilePath,StringComparison.OrdinalIgnoreCase)
+                &&Equals(this.ActiveDocumentId,DocumentId)){
+                return;
+            }
+
+            this.ActiveDocumentPath=FilePath;
+            this.ActiveDocumentId=DocumentId;
+            this.AnalysisGeneration.ActivateDocument(DocumentId);
+            this.CancelPendingAnalysisNoLock();
+        }
+
+        // A document switch invalidates the old tree immediately. The command no longer consumes
+        // this transient cache; it analyses its captured file directly, so this cannot recreate the
+        // old BeforeQueryStatus/Execute race.
+        this.CurrentModel=null;
+        this.AllModels=[];
+        this.ModelChanged?.Invoke(null);
+        this.AllModelsChanged?.Invoke(this.AllModels);
         this.ScheduleAnalysis();
     }
 
     /// <summary>Resolves a file path to a document in the current solution. Null when the file is not part of it.</summary>
     internal DocumentId?FindDocument(string FilePath){
         return this.Workspace.CurrentSolution.GetDocumentIdsWithFilePath(FilePath).FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Analyses the exact file captured by a command invocation instead of reading the debounced,
+    /// mutable active-document cache. This makes the command's 0/1/N decision independent of focus
+    /// changes while its asynchronous work is in flight.
+    /// </summary>
+    internal async Task<IReadOnlyList<SceneModel>>AnalyzeFileNowAsync(string FilePath,CancellationToken CancellationToken){
+        DocumentId?DocumentId=this.FindDocument(FilePath);
+        if(DocumentId is null){
+            throw new InvalidOperationException($"Roslynワークスペース内に対象ファイルが見つかりませんでした: {FilePath}");
+        }
+
+        return await this.AnalyzeAllAsync(DocumentId,CancellationToken).ConfigureAwait(false);
     }
 
     private void OnWorkspaceChanged(object Sender,WorkspaceChangeEventArgs Args){
@@ -139,41 +176,51 @@ internal sealed class SceneWorkspaceService : IDisposable {
                 return;
             }
 
-            this.DebounceTimer?.Dispose();
+            this.CancelPendingAnalysisNoLock();
+            DocumentId?ResolvedDocumentId=this.ActiveDocumentPath is null
+                ?null
+                :this.FindDocument(this.ActiveDocumentPath);
+            SceneAnalysisRequest<DocumentId>Request;
+            if(!Equals(this.ActiveDocumentId,ResolvedDocumentId)){
+                this.ActiveDocumentId=ResolvedDocumentId;
+                Request=this.AnalysisGeneration.ActivateDocument(ResolvedDocumentId);
+            } else {
+                Request=this.AnalysisGeneration.Refresh();
+            }
+
+            CancellationTokenSource Source=new();
+            this.PendingAnalysis=Source;
             this.DebounceTimer=new System.Threading.Timer(
-                static State=>((SceneWorkspaceService)State).StartAnalysis(),
-                this,
+                static State=>((ScheduledAnalysis)State).Service.StartAnalysis((ScheduledAnalysis)State),
+                new ScheduledAnalysis(this,Request,Source),
                 DebounceDelay,
                 Timeout.InfiniteTimeSpan);
         }
     }
 
-    private void StartAnalysis(){
-        CancellationTokenSource Source;
-
-        lock(this.Gate){
-            if(this.Disposed){
-                return;
-            }
-
-            this.PendingAnalysis?.Cancel();
-            this.PendingAnalysis?.Dispose();
-            this.PendingAnalysis=new CancellationTokenSource();
-            Source=this.PendingAnalysis;
-        }
-
+    private void StartAnalysis(ScheduledAnalysis Scheduled){
         // Started from a timer callback, so there is nothing to await it here. RunAsync keeps the
         // work joinable, and the handle is stored so VS can still block on it during shutdown.
         this.RunningAnalysis=this.TaskFactory.RunAsync(async ()=>{
             try {
-                IReadOnlyList<SceneModel>Models= await this.AnalyzeAllAsync(Source.Token).ConfigureAwait(false);
+                IReadOnlyList<SceneModel>Models= await this.AnalyzeAllAsync(
+                    Scheduled.Request.Document,
+                    Scheduled.Token).ConfigureAwait(false);
 
                 // A cancelled analysis must not overwrite the newer one that cancelled it.
-                if(Source.Token.IsCancellationRequested){
+                if(Scheduled.Token.IsCancellationRequested){
                     return;
                 }
 
-                await this.TaskFactory.SwitchToMainThreadAsync(Source.Token);
+                await this.TaskFactory.SwitchToMainThreadAsync(Scheduled.Token);
+                lock(this.Gate){
+                    if(this.Disposed
+                        ||Scheduled.Token.IsCancellationRequested
+                        ||!this.AnalysisGeneration.IsCurrent(Scheduled.Request)){
+                        return;
+                    }
+                }
+
                 SceneModel?First=Models.Count>0?Models[0]:null;
                 this.CurrentModel=First;
                 this.AllModels=Models;
@@ -181,10 +228,11 @@ internal sealed class SceneWorkspaceService : IDisposable {
                 this.AllModelsChanged?.Invoke(Models);
             } catch(OperationCanceledException){
                 // Superseded by a newer analysis.
-            } catch(Exception){
+            } catch(Exception Ex){
                 // Never let a transient analysis failure take down VS or blank the tree; the last
-                // good model stays visible. Incomplete syntax is expected here, not exceptional -
-                // SceneDeclarationAnalyzer is built not to throw on it, and this is the backstop.
+                // good model stays visible. Do not silently turn this into a legitimate zero-scene
+                // result: ActivityLog preserves the distinction for diagnosis.
+                ActivityLog.LogError(nameof(SceneWorkspaceService),Ex.ToString());
             }
         });
     }
@@ -195,9 +243,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
     /// with their own scenes, and showing whichever one happened to be found first would make the
     /// tree depend on compilation order.
     /// </summary>
-    private async Task<IReadOnlyList<SceneModel>>AnalyzeAllAsync(CancellationToken CancellationToken){
-        DocumentId?DocumentId=this.ActiveDocumentId;
-
+    private async Task<IReadOnlyList<SceneModel>>AnalyzeAllAsync(DocumentId?DocumentId,CancellationToken CancellationToken){
         if(DocumentId is null){
             return [];
         }
@@ -205,7 +251,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
         Document?Document=this.Workspace.CurrentSolution.GetDocument(DocumentId);
 
         if(Document is null){
-            return [];
+            throw new InvalidOperationException($"Roslynワークスペース内に対象Documentが見つかりませんでした: {DocumentId}");
         }
 
         Compilation?Compilation= await Document.Project.GetCompilationAsync(CancellationToken).ConfigureAwait(false);
@@ -213,7 +259,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
         SemanticModel?SemanticModel= await Document.GetSemanticModelAsync(CancellationToken).ConfigureAwait(false);
 
         if(Compilation is null||Root is null||SemanticModel is null){
-            return [];
+            throw new InvalidOperationException($"Roslyn解析に必要なCompilation/SyntaxRoot/SemanticModelを取得できませんでした: {Document.FilePath}");
         }
 
         List<SceneModel>Models=[];
@@ -247,14 +293,35 @@ internal sealed class SceneWorkspaceService : IDisposable {
             }
 
             this.Disposed=true;
-            this.DebounceTimer?.Dispose();
-            this.DebounceTimer=null;
-            this.PendingAnalysis?.Cancel();
-            this.PendingAnalysis?.Dispose();
-            this.PendingAnalysis=null;
+            this.CancelPendingAnalysisNoLock();
         }
 
         this.Workspace.WorkspaceChanged-=this.OnWorkspaceChanged;
         Instance=null;
+    }
+
+    private void CancelPendingAnalysisNoLock(){
+        this.DebounceTimer?.Dispose();
+        this.DebounceTimer=null;
+        this.PendingAnalysis?.Cancel();
+        this.PendingAnalysis?.Dispose();
+        this.PendingAnalysis=null;
+    }
+
+    private sealed class ScheduledAnalysis {
+        internal ScheduledAnalysis(
+            SceneWorkspaceService Service,
+            SceneAnalysisRequest<DocumentId>Request,
+            CancellationTokenSource Source){
+            this.Service=Service;
+            this.Request=Request;
+            this.Token=Source.Token;
+        }
+
+        internal SceneWorkspaceService Service { get;}
+
+        internal SceneAnalysisRequest<DocumentId>Request { get;}
+
+        internal CancellationToken Token { get;}
     }
 }

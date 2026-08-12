@@ -144,8 +144,8 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
 
             GameSystemRegistry Registry=GameSystemIndexAssigner.Assign(AllSystemResults,AdditionalComponentSets,MergedOrderContext);
 
-            foreach(Diagnostic diagnostic in Registry.Diagnostics){
-                Spc.ReportDiagnostic(diagnostic);
+            foreach(Diagnostic Diagnostic in Registry.Diagnostics){
+                Spc.ReportDiagnostic(Diagnostic);
             }
 
             GameSystemTypesEmitter.Emit(Spc,Registry);

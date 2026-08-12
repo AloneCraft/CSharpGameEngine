@@ -17,8 +17,8 @@ internal sealed class ShowHierarchyToolWindowCommand {
 
     private readonly AsyncPackage Package;
 
-    private ShowHierarchyToolWindowCommand(AsyncPackage package,OleMenuCommandService CommandService){
-        Package=package??throw new ArgumentNullException(nameof(package));
+    private ShowHierarchyToolWindowCommand(AsyncPackage Package,OleMenuCommandService CommandService){
+        this.Package= Package ?? throw new ArgumentNullException(nameof(Package));
         if(CommandService is null){
             throw new ArgumentNullException(nameof(CommandService));
         }
@@ -28,14 +28,14 @@ internal sealed class ShowHierarchyToolWindowCommand {
         CommandService.AddCommand(MenuItem);
     }
 
-    public static async Task InitializeAsync(AsyncPackage package){
-        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
-        var Service= await package.GetServiceAsync(typeof(IMenuCommandService));
+    public static async Task InitializeAsync(AsyncPackage Package){
+        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(Package.DisposalToken);
+        var Service= await Package.GetServiceAsync(typeof(IMenuCommandService));
         if(Service is not OleMenuCommandService CommandService){
             throw new InvalidOperationException($"{nameof(IMenuCommandService)} is not available from the VS shell.");
         }
 
-        _=new ShowHierarchyToolWindowCommand(package,CommandService);
+        _=new ShowHierarchyToolWindowCommand(Package,CommandService);
     }
 
     private void Execute(object Sender,EventArgs E){

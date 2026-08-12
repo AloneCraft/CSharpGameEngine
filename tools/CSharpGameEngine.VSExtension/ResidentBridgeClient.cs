@@ -84,10 +84,10 @@ internal static class ResidentBridgeClient {
         }
     }
 
-    private static bool TryConnectOnly(string PipeName,TimeSpan connectTimeout){
+    private static bool TryConnectOnly(string PipeName,TimeSpan ConnectTimeout){
         try {
             using NamedPipeClientStream Pipe=new(".",PipeName,PipeDirection.InOut,PipeOptions.None);
-            Pipe.Connect((int)connectTimeout.TotalMilliseconds);
+            Pipe.Connect((int)ConnectTimeout.TotalMilliseconds);
             return true;
         } catch(Exception Ex) when (Ex is TimeoutException or IOException or UnauthorizedAccessException){
             return false;
@@ -102,11 +102,11 @@ internal static class ResidentBridgeClient {
     /// each spawning their own, then cleaning up redundant instances afterward.
     /// </summary>
     private static bool TrySpawnServer(string ExecutablePath,string RepoRoot,string PipeName){
-        using Mutex mutex=new(initiallyOwned:false, $@"Global\{PipeName}.SpawnMutex");
+        using Mutex Mutex=new(initiallyOwned:false, $@"Global\{PipeName}.SpawnMutex");
 
         bool Acquired;
         try {
-            Acquired=mutex.WaitOne(SpawnMutexTimeout);
+            Acquired=Mutex.WaitOne(SpawnMutexTimeout);
         } catch(AbandonedMutexException){
             // A previous holder (e.g. a devenv.exe that crashed mid-spawn) never released this -
             // treat it as acquired rather than failing forever on every future call.
@@ -138,16 +138,16 @@ internal static class ResidentBridgeClient {
         } catch(Exception Ex) when (Ex is InvalidOperationException or Win32Exception){
             return false;
         } finally {
-            mutex.ReleaseMutex();
+            Mutex.ReleaseMutex();
         }
     }
 
-    private static void WriteMessage<T>(Stream stream,T Value){
+    private static void WriteMessage<T>(Stream Stream,T Value){
         var Payload=JsonSerializer.SerializeToUtf8Bytes(Value);
         var LengthPrefix=BitConverter.GetBytes(Payload.Length);
-        stream.Write(LengthPrefix,0,LengthPrefix.Length);
-        stream.Write(Payload,0,Payload.Length);
-        stream.Flush();
+        Stream.Write(LengthPrefix,0,LengthPrefix.Length);
+        Stream.Write(Payload,0,Payload.Length);
+        Stream.Flush();
     }
 
     /// <summary>
@@ -167,16 +167,16 @@ internal static class ResidentBridgeClient {
     /// so it sidesteps both the deadlock class VSTHRD002 guards against and the JoinableTaskFactory
     /// dependency, without needing an analyzer suppression.
     /// </summary>
-    private static T ReadMessage<T>(Stream stream,TimeSpan timeout){
+    private static T ReadMessage<T>(Stream Stream,TimeSpan Timeout){
         T?Result=default;
         Exception?Error=null;
         using ManualResetEventSlim Completed=new(initialState:false);
 
         Thread ReaderThread=new(()=>{
             try {
-                var LengthPrefix=ReadExactly(stream,4);
+                var LengthPrefix=ReadExactly(Stream,4);
                 var Length=BitConverter.ToInt32(LengthPrefix,0);
-                var Payload=ReadExactly(stream,Length);
+                var Payload=ReadExactly(Stream,Length);
 
                 Result=JsonSerializer.Deserialize<T>(Payload)
                     ??throw new InvalidOperationException("常駐ブリッジサーバーからの応答が空でした。");
@@ -188,7 +188,7 @@ internal static class ResidentBridgeClient {
         }){ IsBackground=true };
         ReaderThread.Start();
 
-        if(!Completed.Wait(timeout)){
+        if(!Completed.Wait(Timeout)){
             throw new TimeoutException("常駐ブリッジサーバーからの応答がタイムアウトしました。");
         }
 
@@ -201,11 +201,11 @@ internal static class ResidentBridgeClient {
         return Result!;
     }
 
-    private static byte[]ReadExactly(Stream stream,int Count){
-        var buffer=new byte[Count];
+    private static byte[]ReadExactly(Stream Stream,int Count){
+        var Buffer=new byte[Count];
         var Offset=0;
         while(Offset<Count){
-            var Read=stream.Read(buffer,Offset,Count-Offset);
+            var Read=Stream.Read(Buffer,Offset,Count-Offset);
             if(Read==0){
                 throw new IOException("常駐ブリッジサーバーとの接続が予期せず切断されました。");
             }
@@ -213,7 +213,7 @@ internal static class ResidentBridgeClient {
             Offset+=Read;
         }
 
-        return buffer;
+        return Buffer;
     }
 
     private sealed class ResidentBridgeRequest {

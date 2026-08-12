@@ -7,8 +7,8 @@ namespace CSharpGameEngine.VSExtension.Tests;
 public sealed class KnownFoldersTests {
     [Fact]
     public void GetDownloadsFolder_ReturnsAnExistingDirectory(){
-        var path=KnownFolders.GetDownloadsFolder();
+        var Path=KnownFolders.GetDownloadsFolder();
 
-        Assert.True(Directory.Exists(path), $"Resolved downloads folder does not exist: {path}");
+        Assert.True(Directory.Exists(Path), $"Resolved downloads folder does not exist: {Path}");
     }
 }

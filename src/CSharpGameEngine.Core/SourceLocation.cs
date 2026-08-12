@@ -3,18 +3,18 @@ namespace CSharpGameEngine.Core;
 public readonly struct SourceLocation:IEquatable<SourceLocation>{
     public static SourceLocation Unknown { get;}=new(null,0,0);
 
-    public SourceLocation(string?filePath,int line,int column){
-        if(line<0){
-            throw new ArgumentOutOfRangeException(nameof(line));
+    public SourceLocation(string?FilePath,int Line,int Column){
+        if(Line<0){
+            throw new ArgumentOutOfRangeException(nameof(Line));
         }
 
-        if(column<0){
-            throw new ArgumentOutOfRangeException(nameof(column));
+        if(Column<0){
+            throw new ArgumentOutOfRangeException(nameof(Column));
         }
 
-        FilePath=string.IsNullOrWhiteSpace(filePath)?null:filePath;
-        Line=line;
-        Column=column;
+        this.FilePath=string.IsNullOrWhiteSpace(FilePath) ?null: FilePath;
+        this.Line=Line;
+        this.Column=Column;
     }
 
     public string?FilePath { get;}

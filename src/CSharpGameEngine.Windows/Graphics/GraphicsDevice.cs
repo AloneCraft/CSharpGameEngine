@@ -18,14 +18,14 @@ namespace CSharpGameEngine.Graphics.D3D12;
 public sealed unsafe class GraphicsDevice:IDisposable {
     public const D3D_FEATURE_LEVEL RequiredFeatureLevel=D3D_FEATURE_LEVEL_11_0;
 
-    private IDXGIFactory4*_factory;
+    private IDXGIFactory4*FactoryHandle;
     private IDXGIAdapter1*Adapter;
-    private ID3D12Device*_device;
-    private ID3D12CommandQueue*_commandQueue;
+    private ID3D12Device*DeviceHandle;
+    private ID3D12CommandQueue*CommandQueueHandle;
     private ID3D12InfoQueue*InfoQueue;
     private bool Disposed;
 
-    private readonly List<D3D12DebugMessage>_collectedMessages=[];
+    private readonly List<D3D12DebugMessage>CollectedMessagesValue=[];
 
     private GraphicsDevice(){
     }
@@ -38,15 +38,15 @@ public sealed unsafe class GraphicsDevice:IDisposable {
 
     public string AdapterDescription { get;private set;}=string.Empty;
 
-    public IReadOnlyList<D3D12DebugMessage>CollectedMessages=>_collectedMessages;
+    public IReadOnlyList<D3D12DebugMessage>CollectedMessages=>CollectedMessagesValue;
 
     public int ErrorOrWorseMessageCount { get;private set;}
 
-    public IDXGIFactory4*Factory=>_factory;
+    public IDXGIFactory4*Factory=>FactoryHandle;
 
-    public ID3D12Device*Device=>_device;
+    public ID3D12Device*Device=>DeviceHandle;
 
-    public ID3D12CommandQueue*CommandQueue=>_commandQueue;
+    public ID3D12CommandQueue*CommandQueue=>CommandQueueHandle;
 
     public static GraphicsDevice Create(GraphicsDeviceOptions Options){
         ArgumentNullException.ThrowIfNull(Options);
@@ -60,21 +60,21 @@ public sealed unsafe class GraphicsDevice:IDisposable {
 
             var FactoryFlags=Options.EnableDebugLayer?DXGI_CREATE_FACTORY_DEBUG:0u;
 
-            IDXGIFactory4*factory;
+            IDXGIFactory4*Factory;
             D3D12Diagnostics.EnsureSuccess(
-                CreateDXGIFactory2(FactoryFlags,__uuidof<IDXGIFactory4>(),(void**)&factory),
+                CreateDXGIFactory2(FactoryFlags,__uuidof<IDXGIFactory4>(),(void**)&Factory),
                 "CreateDXGIFactory2","creating the DXGI factory");
-            Result._factory=factory;
+            Result.FactoryHandle=Factory;
 
-            Result.Adapter=SelectAdapter(factory,Options.UseWarp,out var isWarp);
-            Result.IsWarp=isWarp;
+            Result.Adapter=SelectAdapter(Factory,Options.UseWarp,out var IsWarp);
+            Result.IsWarp=IsWarp;
             Result.AdapterDescription=ReadAdapterDescription(Result.Adapter);
 
-            ID3D12Device*device;
+            ID3D12Device*Device;
             D3D12Diagnostics.EnsureSuccess(
-                D3D12CreateDevice((IUnknown*)Result.Adapter,RequiredFeatureLevel,__uuidof<ID3D12Device>(),(void**)&device),
+                D3D12CreateDevice((IUnknown*)Result.Adapter,RequiredFeatureLevel,__uuidof<ID3D12Device>(),(void**)&Device),
                 "D3D12CreateDevice","creating the D3D12 device",Result.AdapterDescription);
-            Result._device=device;
+            Result.DeviceHandle=Device;
 
             if(Options.EnableDebugLayer){
                 Result.TryCreateInfoQueue();
@@ -84,11 +84,11 @@ public sealed unsafe class GraphicsDevice:IDisposable {
                 Type=D3D12_COMMAND_LIST_TYPE_DIRECT,
             };
 
-            ID3D12CommandQueue*queue;
+            ID3D12CommandQueue*Queue;
             D3D12Diagnostics.EnsureSuccess(
-                device->CreateCommandQueue(&QueueDesc,__uuidof<ID3D12CommandQueue>(),(void**)&queue),
+                Device->CreateCommandQueue(&QueueDesc,__uuidof<ID3D12CommandQueue>(),(void**)&Queue),
                 "ID3D12Device::CreateCommandQueue","creating the direct command queue");
-            Result._commandQueue=queue;
+            Result.CommandQueueHandle=Queue;
 
             Completed=true;
             return Result;
@@ -106,17 +106,17 @@ public sealed unsafe class GraphicsDevice:IDisposable {
         }
 
         var Stored=InfoQueue->GetNumStoredMessages();
-        for(ulong i=0;i<Stored;i++){
+        for(ulong I=0;I<Stored;I++){
             nuint MessageLength;
-            HRESULT Hr=InfoQueue->GetMessage(i,null,&MessageLength);
+            HRESULT Hr=InfoQueue->GetMessage(I,null,&MessageLength);
             if(Hr.FAILED||MessageLength==0){
                 continue;
             }
 
-            var buffer=(byte*)NativeMemory.Alloc(MessageLength);
+            var Buffer=(byte*)NativeMemory.Alloc(MessageLength);
             try {
-                D3D12_MESSAGE*Message=(D3D12_MESSAGE*)buffer;
-                Hr=InfoQueue->GetMessage(i,Message,&MessageLength);
+                D3D12_MESSAGE*Message=(D3D12_MESSAGE*)Buffer;
+                Hr=InfoQueue->GetMessage(I,Message,&MessageLength);
                 if(Hr.FAILED){
                     continue;
                 }
@@ -126,12 +126,12 @@ public sealed unsafe class GraphicsDevice:IDisposable {
                     :string.Empty;
 
                 D3D12DebugMessage Record=new(Message->Severity,Message->Category,Message->ID,Description);
-                _collectedMessages.Add(Record);
+                CollectedMessagesValue.Add(Record);
                 if(Record.IsErrorOrWorse){
                     ErrorOrWorseMessageCount++;
                 }
             } finally {
-                NativeMemory.Free(buffer);
+                NativeMemory.Free(Buffer);
             }
         }
 
@@ -159,27 +159,27 @@ public sealed unsafe class GraphicsDevice:IDisposable {
 
     private void TryCreateInfoQueue(){
         ID3D12InfoQueue*InfoQueue;
-        HRESULT Hr=_device->QueryInterface(__uuidof<ID3D12InfoQueue>(),(void**)&InfoQueue);
+        HRESULT Hr=Device->QueryInterface(__uuidof<ID3D12InfoQueue>(),(void**)&InfoQueue);
         if(Hr.SUCCEEDED){
             this.InfoQueue=InfoQueue;
         }
     }
 
-    private static IDXGIAdapter1*SelectAdapter(IDXGIFactory4*factory,bool UseWarp,out bool isWarp){
+    private static IDXGIAdapter1*SelectAdapter(IDXGIFactory4*Factory,bool UseWarp,out bool IsWarp){
         if(UseWarp){
             IDXGIAdapter1*WarpAdapter;
             D3D12Diagnostics.EnsureSuccess(
-                factory->EnumWarpAdapter(__uuidof<IDXGIAdapter1>(),(void**)&WarpAdapter),
+                Factory->EnumWarpAdapter(__uuidof<IDXGIAdapter1>(),(void**)&WarpAdapter),
                 "IDXGIFactory4::EnumWarpAdapter","selecting the WARP software adapter");
-            isWarp=true;
+            IsWarp=true;
             return WarpAdapter;
         }
 
-        isWarp=false;
+        IsWarp=false;
 
-        for(uint index=0;;index++){
+        for(uint Index=0;;Index++){
             IDXGIAdapter1*Adapter;
-            HRESULT Hr=factory->EnumAdapters1(index,&Adapter);
+            HRESULT Hr=Factory->EnumAdapters1(Index,&Adapter);
             if(Hr.Value==DXGI_ERROR_NOT_FOUND){
                 break;
             }
@@ -223,9 +223,9 @@ public sealed unsafe class GraphicsDevice:IDisposable {
 
         Disposed=true;
 
-        if(_commandQueue!=null){
-            _=_commandQueue->Release();
-            _commandQueue=null;
+        if(CommandQueueHandle!=null){
+            _=CommandQueueHandle->Release();
+            CommandQueueHandle=null;
         }
 
         if(InfoQueue!=null){
@@ -233,9 +233,9 @@ public sealed unsafe class GraphicsDevice:IDisposable {
             InfoQueue=null;
         }
 
-        if(_device!=null){
-            _=_device->Release();
-            _device=null;
+        if(DeviceHandle!=null){
+            _=DeviceHandle->Release();
+            DeviceHandle=null;
         }
 
         if(Adapter!=null){
@@ -243,9 +243,9 @@ public sealed unsafe class GraphicsDevice:IDisposable {
             Adapter=null;
         }
 
-        if(_factory!=null){
-            _=_factory->Release();
-            _factory=null;
+        if(FactoryHandle!=null){
+            _=FactoryHandle->Release();
+            FactoryHandle=null;
         }
     }
 }

@@ -34,16 +34,16 @@ public static class TrianglePixelVerifier {
         ];
 
         PixelColor[]Corners=new PixelColor[CornerPositions.Length];
-        for(var i=0;i<CornerPositions.Length;i++){
-            Corners[i]=ReadPixel(Readback,CornerPositions[i].X,CornerPositions[i].Y);
+        for(var I=0;I<CornerPositions.Length;I++){
+            Corners[I]=ReadPixel(Readback,CornerPositions[I].X,CornerPositions[I].Y);
         }
 
         var CenterDiffersFromBackground=!IsClose(Center,BackgroundColor,Tolerance);
 
         List<string>CornerFailures=[];
-        for(var i=0;i<Corners.Length;i++){
-            if(!IsClose(Corners[i],BackgroundColor,Tolerance)){
-                CornerFailures.Add($"corner[{i}] at {CornerPositions[i]} = {Corners[i]} is not close to background {BackgroundColor}");
+        for(var I=0;I<Corners.Length;I++){
+            if(!IsClose(Corners[I],BackgroundColor,Tolerance)){
+                CornerFailures.Add($"corner[{I}] at {CornerPositions[I]} = {Corners[I]} is not close to background {BackgroundColor}");
             }
         }
 

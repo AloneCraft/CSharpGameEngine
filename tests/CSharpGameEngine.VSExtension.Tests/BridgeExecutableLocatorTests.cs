@@ -75,12 +75,12 @@ public sealed class BridgeExecutableLocatorTests:IDisposable {
     }
 
     private string CreateExe(string Configuration,string?RidSubfolder,DateTime WriteTimeUtc){
-        var directory=RidSubfolder is null
+        var Directory=RidSubfolder is null
             ?Path.Combine(RepoRoot,BridgeProjectRelativePath,"bin",Configuration,"net10.0")
             :Path.Combine(RepoRoot,BridgeProjectRelativePath,"bin",Configuration,"net10.0",RidSubfolder);
-        Directory.CreateDirectory(directory);
+        System.IO.Directory.CreateDirectory(Directory);
 
-        var ExePath=Path.Combine(directory,"Sample.Bridge.Cli.exe");
+        var ExePath=Path.Combine(Directory,"Sample.Bridge.Cli.exe");
         File.WriteAllText(ExePath,"fake exe bytes");
         File.SetLastWriteTimeUtc(ExePath,WriteTimeUtc);
 

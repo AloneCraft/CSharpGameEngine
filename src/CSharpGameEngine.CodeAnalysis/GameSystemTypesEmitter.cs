@@ -24,8 +24,8 @@ internal static class GameSystemTypesEmitter {
 
         Lines.Add("}");
 
-        foreach(GameSystemArchetypeInfo archetype in Registry.Archetypes){
-            Lines.AddRange(BuildArchetypeStorage(archetype,Registry));
+        foreach(GameSystemArchetypeInfo Archetype in Registry.Archetypes){
+            Lines.AddRange(BuildArchetypeStorage(Archetype,Registry));
         }
 
         Context.AddSource(HintName,SourceText.From(string.Join("\n",Lines),Encoding.UTF8));
@@ -70,13 +70,13 @@ internal static class GameSystemTypesEmitter {
         Lines.Add("        int Index = this.Count;");
         Lines.Add("        this.Entities.EnsureCapacity(Index + 1);");
 
-        foreach((var _,var fieldName)in Components){
-            Lines.Add($"        this.{ToColumnName(fieldName)}.EnsureCapacity(Index + 1);");
+        foreach((var _,var FieldName)in Components){
+            Lines.Add($"        this.{ToColumnName(FieldName)}.EnsureCapacity(Index + 1);");
         }
 
         Lines.Add("        this.Entities.GetRefUnchecked(Index) = Entity;");
-        foreach((var _,var fieldName)in Components){
-            Lines.Add($"        this.{ToColumnName(fieldName)}.GetRefUnchecked(Index) = {fieldName};");
+        foreach((var _,var FieldName)in Components){
+            Lines.Add($"        this.{ToColumnName(FieldName)}.GetRefUnchecked(Index) = {FieldName};");
         }
 
         Lines.Add("        this.Count = Index + 1;");
@@ -88,8 +88,8 @@ internal static class GameSystemTypesEmitter {
         Lines.Add("        if (Index != Last) {");
         Lines.Add("            MovedEntity = this.Entities.GetRefUnchecked(Last);");
         Lines.Add("            this.Entities.GetRefUnchecked(Index) = MovedEntity;");
-        foreach((var _,var fieldName)in Components){
-            var Column=ToColumnName(fieldName);
+        foreach((var _,var FieldName)in Components){
+            var Column=ToColumnName(FieldName);
             Lines.Add($"            this.{Column}.GetRefUnchecked(Index) = this.{Column}.GetRefUnchecked(Last);");
         }
         Lines.Add("            this.ClearLast(Last);");
@@ -103,8 +103,8 @@ internal static class GameSystemTypesEmitter {
         Lines.Add("    }");
         Lines.Add("    internal void Overwrite(int Index, "+Parameters+") {");
         Lines.Add("        this.AssertIndex(Index);");
-        foreach((var _,var fieldName)in Components){
-            Lines.Add($"        this.{ToColumnName(fieldName)}.GetRefUnchecked(Index) = {fieldName};");
+        foreach((var _,var FieldName)in Components){
+            Lines.Add($"        this.{ToColumnName(FieldName)}.GetRefUnchecked(Index) = {FieldName};");
         }
         Lines.Add("    }");
         Lines.Add("    [global::System.Diagnostics.Conditional(\"DEBUG\")]");
@@ -113,8 +113,8 @@ internal static class GameSystemTypesEmitter {
         Lines.Add("    }");
         Lines.Add("    private void ClearLast(int Index) {");
         Lines.Add("        this.Entities.ClearAtUnchecked(Index);");
-        foreach((var _,var fieldName)in Components){
-            Lines.Add($"        this.{ToColumnName(fieldName)}.ClearAtUnchecked(Index);");
+        foreach((var _,var FieldName)in Components){
+            Lines.Add($"        this.{ToColumnName(FieldName)}.ClearAtUnchecked(Index);");
         }
         Lines.Add("    }");
         Lines.Add("    public ref Entity GetEntityRefUnchecked(int Index) {");
@@ -122,10 +122,10 @@ internal static class GameSystemTypesEmitter {
         Lines.Add("        return ref this.Entities.GetRefUnchecked(Index);");
         Lines.Add("    }");
 
-        foreach((var typeFqn,var fieldName)in Components){
-            Lines.Add($"    public ref {typeFqn} Get{fieldName}RefUnchecked(int Index) {{");
+        foreach((var TypeFqn,var FieldName)in Components){
+            Lines.Add($"    public ref {TypeFqn} Get{FieldName}RefUnchecked(int Index) {{");
             Lines.Add("        this.AssertIndex(Index);");
-            Lines.Add($"        return ref this.{ToColumnName(fieldName)}.GetRefUnchecked(Index);");
+            Lines.Add($"        return ref this.{ToColumnName(FieldName)}.GetRefUnchecked(Index);");
             Lines.Add("    }");
         }
 

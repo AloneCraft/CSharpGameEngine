@@ -16,23 +16,23 @@ public interface IAudioBackend<TEngine,TVoice>
     where TVoice:struct {
     static abstract TEngine CreateEngine();
 
-    static abstract void DestroyEngine(in TEngine engine);
+    static abstract void DestroyEngine(in TEngine Engine);
 
-    static abstract TVoice CreateVoice(in TEngine engine,int sampleRate,int channels);
+    static abstract TVoice CreateVoice(in TEngine Engine,int SampleRate,int Channels);
 
     /// <summary>
     /// Submits 16-bit PCM samples for playback and returns the updated handle. The handle is
     /// returned (rather than mutated in place) because <typeparamref name="TVoice"/> is an immutable
-    /// value type; a backend that must remember where it copied <paramref name="samples"/> (so
+    /// value type; a backend that must remember where it copied <paramref name="Samples"/> (so
     /// <see cref="DestroyVoice"/> can free it) folds that into the returned handle.
     /// </summary>
-    static abstract TVoice SubmitBuffer(in TVoice voice,ReadOnlySpan<short>samples,bool loop);
+    static abstract TVoice SubmitBuffer(in TVoice Voice,ReadOnlySpan<short>Samples,bool Loop);
 
-    static abstract void Start(in TVoice voice);
+    static abstract void Start(in TVoice Voice);
 
-    static abstract void Stop(in TVoice voice);
+    static abstract void Stop(in TVoice Voice);
 
-    static abstract void SetVolume(in TVoice voice,float volume);
+    static abstract void SetVolume(in TVoice Voice,float Volume);
 
-    static abstract void DestroyVoice(in TVoice voice);
+    static abstract void DestroyVoice(in TVoice Voice);
 }

@@ -1,10 +1,10 @@
 namespace CSharpGameEngine.Import.Fbx;
 
 public sealed class FbxImportResult {
-    private FbxImportResult(bool success,ImportedMesh?mesh,IReadOnlyList<FbxImportDiagnostic>diagnostics){
-        Success=success;
-        Mesh=mesh;
-        Diagnostics=diagnostics;
+    private FbxImportResult(bool Success,ImportedMesh?Mesh,IReadOnlyList<FbxImportDiagnostic>Diagnostics){
+        this.Success=Success;
+        this.Mesh=Mesh;
+        this.Diagnostics=Diagnostics;
     }
 
     public bool Success { get;}
@@ -14,9 +14,9 @@ public sealed class FbxImportResult {
 
     public IReadOnlyList<FbxImportDiagnostic>Diagnostics { get;}
 
-    public static FbxImportResult Succeeded(ImportedMesh mesh,IReadOnlyList<FbxImportDiagnostic>diagnostics)=>
-        new(true,mesh,diagnostics);
+    public static FbxImportResult Succeeded(ImportedMesh Mesh,IReadOnlyList<FbxImportDiagnostic>Diagnostics)=>
+        new(true,Mesh,Diagnostics);
 
-    public static FbxImportResult Failed(IReadOnlyList<FbxImportDiagnostic>diagnostics)=>
-        new(false,null,diagnostics);
+    public static FbxImportResult Failed(IReadOnlyList<FbxImportDiagnostic>Diagnostics)=>
+        new(false,null,Diagnostics);
 }

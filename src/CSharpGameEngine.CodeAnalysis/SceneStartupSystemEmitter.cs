@@ -48,9 +48,9 @@ internal static class SceneStartupSystemEmitter {
 
         GameSystemMethodModel Method=new(
             GameSystemMethodRole.Dispatch,
-            hasLeadingEntityParameter:false,
+            HasLeadingEntityParameter:false,
             Components,
-            contexts:[],
+            Contexts:[],
             CallOrder,
             Scene.DeclarationPosition);
 
@@ -58,7 +58,7 @@ internal static class SceneStartupSystemEmitter {
             Scene.Namespace,
             HiddenSystemSimpleName(Scene),
             [Method],
-            diagnostics:[],
+            Diagnostics:[],
             Scene.FilePath,
             Scene.DeclarationPosition);
     }

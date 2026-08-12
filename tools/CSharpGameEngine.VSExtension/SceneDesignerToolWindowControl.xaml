@@ -5,5 +5,17 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              d:DesignHeight="400" d:DesignWidth="600">
-    <Grid x:Name="RootGrid" />
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Padding="8,5" Background="#202020">
+            <TextBlock x:Name="StatusText" Foreground="#D8D8D8"
+                       Text="シーンを選択してください。" TextTrimming="CharacterEllipsis" />
+        </Border>
+
+        <Grid x:Name="RenderHostGrid" Grid.Row="1" Background="#050514" />
+    </Grid>
 </UserControl>

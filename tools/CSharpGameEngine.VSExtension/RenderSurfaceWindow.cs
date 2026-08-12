@@ -12,11 +12,11 @@ namespace CSharpGameEngine.VSExtension;
 internal sealed class RenderSurfaceWindow:IDisposable {
     private const string ClassName="CSharpGameEngine.VSExtension.RenderSurface";
 
-    private static readonly object S_registrationLock=new();
-    private static readonly WndProcDelegate S_wndProcDelegate=WndProc;
-    private static bool S_classRegistered;
+    private static readonly object RegistrationLock=new();
+    private static readonly WndProcDelegate WndProcDelegate=WndProc;
+    private static bool ClassRegistered;
 
-    private static readonly System.Collections.Generic.Dictionary<IntPtr,RenderSurfaceWindow>S_instances=[];
+    private static readonly System.Collections.Generic.Dictionary<IntPtr,RenderSurfaceWindow>Instances=[];
 
     private IntPtr Hwnd;
     private readonly IntPtr ParentHwnd;
@@ -24,7 +24,7 @@ internal sealed class RenderSurfaceWindow:IDisposable {
 
     public event Action<int,int>?Resized;
 
-    public RenderSurfaceWindow(IntPtr ParentHwnd,int Width,int Height){
+    public RenderSurfaceWindow(IntPtr ParentHwnd,int Width,int Height,bool InitiallyVisible=true){
         EnsureClassRegistered();
         this.ParentHwnd=ParentHwnd;
 
@@ -32,7 +32,7 @@ internal sealed class RenderSurfaceWindow:IDisposable {
             WS_EX_NOREDIRECTIONBITMAP,
             ClassName,
             string.Empty,
-            WS_CHILD|WS_VISIBLE,
+            WS_CHILD|(InitiallyVisible?WS_VISIBLE:0),
             0,
             0,
             Width,
@@ -47,12 +47,22 @@ internal sealed class RenderSurfaceWindow:IDisposable {
             throw new InvalidOperationException($"CreateWindowEx failed with Win32 error 0x{Error:X8}.");
         }
 
-        lock(S_instances){
-            S_instances[Hwnd]=this;
+        lock(Instances){
+            Instances[Hwnd]=this;
         }
     }
 
     public IntPtr Handle=>Hwnd;
+
+    /// <summary>
+    /// 未描画の <c>WS_EX_NOREDIRECTIONBITMAP</c> 子HWNDは、ドッキング先に以前表示されていた
+    /// ToolWindowを背面から露出させることがある。RendererがPresent可能な間だけ表示する。
+    /// </summary>
+    public void SetVisible(bool Visible){
+        if(!Disposed&&Hwnd!=IntPtr.Zero){
+            _=ShowWindow(Hwnd,Visible?SW_SHOWNA:SW_HIDE);
+        }
+    }
 
     public void Dispose(){
         if(Disposed){
@@ -61,8 +71,8 @@ internal sealed class RenderSurfaceWindow:IDisposable {
 
         Disposed=true;
 
-        lock(S_instances){
-            S_instances.Remove(Hwnd);
+        lock(Instances){
+            Instances.Remove(Hwnd);
         }
 
         if(Hwnd!=IntPtr.Zero){
@@ -82,19 +92,19 @@ internal sealed class RenderSurfaceWindow:IDisposable {
     }
 
     private static void EnsureClassRegistered(){
-        if(S_classRegistered){
+        if(ClassRegistered){
             return;
         }
 
-        lock(S_registrationLock){
-            if(S_classRegistered){
+        lock(RegistrationLock){
+            if(ClassRegistered){
                 return;
             }
 
             WNDCLASSEX Wc=new(){
                 CbSize=(uint)Marshal.SizeOf<WNDCLASSEX>(),
                 Style=0,
-                LpfnWndProc=S_wndProcDelegate,
+                LpfnWndProc=WndProcDelegate,
                 HInstance=GetModuleHandle(null),
                 HCursor=IntPtr.Zero,
                 LpszClassName=ClassName,
@@ -105,15 +115,15 @@ internal sealed class RenderSurfaceWindow:IDisposable {
                 throw new InvalidOperationException($"RegisterClassEx failed with Win32 error 0x{Error:X8}.");
             }
 
-            S_classRegistered=true;
+            ClassRegistered=true;
         }
     }
 
     private static IntPtr WndProc(IntPtr HWnd,uint Msg,IntPtr WParam,IntPtr LParam){
         if(Msg==WM_SIZE){
             RenderSurfaceWindow?Instance;
-            lock(S_instances){
-                S_instances.TryGetValue(HWnd,out Instance);
+            lock(Instances){
+                Instances.TryGetValue(HWnd,out Instance);
             }
 
             if(Instance is not null){
@@ -136,8 +146,8 @@ internal sealed class RenderSurfaceWindow:IDisposable {
             // (routed differently) keeps working. Refuse focus outright by bouncing it straight back
             // to the parent HWND instead of ever actually holding it.
             RenderSurfaceWindow?FocusedInstance;
-            lock(S_instances){
-                S_instances.TryGetValue(HWnd,out FocusedInstance);
+            lock(Instances){
+                Instances.TryGetValue(HWnd,out FocusedInstance);
             }
 
             if(FocusedInstance is not null){

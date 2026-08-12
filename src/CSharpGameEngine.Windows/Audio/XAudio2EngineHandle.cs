@@ -10,8 +10,8 @@ public readonly struct XAudio2EngineHandle {
     internal readonly nint EnginePointer;
     internal readonly nint MasteringVoicePointer;
 
-    internal XAudio2EngineHandle(nint enginePointer,nint masteringVoicePointer){
-        EnginePointer=enginePointer;
-        MasteringVoicePointer=masteringVoicePointer;
+    internal XAudio2EngineHandle(nint EnginePointer,nint MasteringVoicePointer){
+        this.EnginePointer= EnginePointer;
+        this.MasteringVoicePointer= MasteringVoicePointer;
     }
 }

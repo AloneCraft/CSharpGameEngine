@@ -28,11 +28,11 @@ internal static class GameSystemExecutionOrder {
         return FileCompare!=0?FileCompare:A.DeclarationPosition.CompareTo(B.DeclarationPosition);
     }
 
-    private static int OrderOf(GameSystemResult system,GameSystemOrderContext Context){
-        if(Context.SystemOrderByFqn.TryGetValue(system.ClassFullyQualifiedName,out var ExplicitOrder)){
+    private static int OrderOf(GameSystemResult System,GameSystemOrderContext Context){
+        if(Context.SystemOrderByFqn.TryGetValue(System.ClassFullyQualifiedName,out var ExplicitOrder)){
             return ExplicitOrder;
         }
 
-        return Context.FileOrderByPath.TryGetValue(system.FilePath,out var FileOrder)?FileOrder:0;
+        return Context.FileOrderByPath.TryGetValue(System.FilePath,out var FileOrder)?FileOrder:0;
     }
 }

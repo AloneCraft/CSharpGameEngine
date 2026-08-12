@@ -15,8 +15,8 @@ public readonly struct CameraBasis {
     /// <summary>The camera's reference Up, used to build <see cref="Forward"/>'s orthonormal basis.</summary>
     public RufVector Up { get;}
 
-    public CameraBasis(RufVector forward,RufVector up){
-        Forward=forward.Normalize();
-        Up=up;
+    public CameraBasis(RufVector Forward,RufVector Up){
+        this.Forward= Forward.Normalize();
+        this.Up= Up;
     }
 }

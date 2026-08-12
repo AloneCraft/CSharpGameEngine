@@ -68,8 +68,8 @@ public static class GltfAxisConversion {
 
     /// <summary>Swaps two indices of each triangle so front-facing winding is preserved after a single-axis position mirror (which otherwise inverts every triangle's chirality). No visible effect today (every consumer disables backface culling), but keeps winding correct if that ever changes, and keeps triangle orientation consistent with the (already-flipped) tangent/normal data.</summary>
     public static void FlipTriangleWinding(uint[]Indices){
-        for(var i=0;i+2<Indices.Length;i+=3){
-            (Indices[i+1],Indices[i+2])=(Indices[i+2],Indices[i+1]);
+        for(var I=0;I+2<Indices.Length;I+=3){
+            (Indices[I+1],Indices[I+2])=(Indices[I+2],Indices[I+1]);
         }
     }
 

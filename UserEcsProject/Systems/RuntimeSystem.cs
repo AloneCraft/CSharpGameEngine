@@ -77,8 +77,8 @@ file sealed class Order;
 /// falseを返して同じEntityの後続System(=LevelLoadSystem)をスキップする。
 /// </summary>
 internal struct Window:ISystem {
-    public bool Update(ref AppHost App,ref State state){
-        if(App.Window is not { } window){
+    public bool Update(ref AppHost App,ref State State){
+        if(App.Window is not { } Window){
             App.Window=new Win32Window(new Win32WindowOptions {
                 Title=App.Title,
                 Width=App.Width,
@@ -89,10 +89,10 @@ internal struct Window:ISystem {
             return true;
         }
 
-        window.PumpEvents();
+        Window.PumpEvents();
 
-        if(window.IsClosed){
-            state.Enabled=false;
+        if(Window.IsClosed){
+            State.Enabled=false;
             return false;
         }
 
@@ -117,7 +117,7 @@ internal struct LevelLoad:ISystem {
     private List<(Transform Transform,PrimitiveMesh Mesh)>?PendingPrimitives;
     private bool RosterCaptured;
 
-    public bool Update(ref Transform transform,ref PrimitiveMesh mesh,ref State state){
+    public bool Update(ref Transform Transform,ref PrimitiveMesh Mesh,ref State State){
         if(RosterCaptured){
             // PrimitiveMeshはStageRenderer.Create時に確定する起動専用のロースターの一部であり、
             // このリポジトリの全レンダラーに共通する「オブジェクト集合はCreate時に固定」という制約を
@@ -125,25 +125,25 @@ internal struct LevelLoad:ISystem {
             return true;
         }
 
-        (PendingPrimitives??=[]).Add((transform,mesh));
+        (PendingPrimitives??=[]).Add((Transform,Mesh));
         return true;
     }
 
-    public bool Update(ref AppHost App,ref Level level,ref State state){
-        if(level.Loaded){
+    public bool Update(ref AppHost App,ref Level Level,ref State State){
+        if(Level.Loaded){
             // StageRenderer.SetCameraは「ダブルバッファされた2つのフレームスロットのうち今回の
             // フレームが使う側だけを書く」設計のため、毎フレーム呼ばないと片方のスロットが
             // 起動時カメラのまま固定される(実測されたバグ、Docs/Conformance.md参照)。
             // DirectionalLight/PointLight/SpotLightと同じ「毎フレーム状態を再送する」パターンに合わせる。
-            level.Renderer?.SetCamera(level.Camera);
+            Level.Renderer?.SetCamera(Level.Camera);
             return true;
         }
 
-        if(App.Window is not { } window){
+        if(App.Window is not { } Window){
             return true;
         }
 
-        var GlbPath=Path.Combine(AppContext.BaseDirectory,level.Path);
+        var GlbPath=Path.Combine(AppContext.BaseDirectory,Level.Path);
         StageSceneData Scene=StageSceneData.Load(GlbPath);
 
         // Scene DSLが宣言した{Transform,PrimitiveMesh}エンティティは、上のオーバーロードが同じ
@@ -155,72 +155,72 @@ internal struct LevelLoad:ISystem {
             RenderServer.BuildPrimitiveRoster([.. Pending.Select(P=>P.Mesh.Type)],Scene.Meshes.Length,Scene.Materials.Length);
 
         StageRenderer Renderer=StageRenderer.Create(
-            window.Handle,
-            window.ClientWidth,
-            window.ClientHeight,
+            Window.Handle,
+            Window.ClientWidth,
+            Window.ClientHeight,
             new GraphicsDeviceOptions(),
-            Path.Combine(AppContext.BaseDirectory,level.ShaderPath),
+            Path.Combine(AppContext.BaseDirectory,Level.ShaderPath),
             [.. Scene.Meshes,.. PrimitiveMeshes],
             [.. Scene.Materials,.. PrimitiveMaterials],
             [.. Scene.Objects,.. PrimitiveObjects]);
 
-        window.Resized+=(Width,Height)=>Renderer.Resize(Width,Height);
-        Renderer.SetCamera(level.Camera);
+        Window.Resized+=(Width,Height)=>Renderer.Resize(Width,Height);
+        Renderer.SetCamera(Level.Camera);
 
-        level.Renderer=Renderer;
-        level.Loaded=true;
+        Level.Renderer=Renderer;
+        Level.Loaded=true;
 
         // StageRendererと同じタイミングでAudioEngineを生成する。level.Listener/Sourceも
         // Sun/PointLight/SpotLightと同じ「値渡しで置いてあったものをここで実Entity化する」パターン。
         AudioEngineHandle AudioEngine=GameAudio.CreateEngine();
-        level.AudioEngine=AudioEngine;
+        Level.AudioEngine=AudioEngine;
 
-        state.World.Create(level.Listener);
+        State.World.Create(Level.Listener);
 
-        UserEcsProject.AudioSource Source=level.Source;
-        AudioVoiceHandle Voice=GameAudio.CreateVoice(AudioEngine,sampleRate:44100,channels:1);
+        UserEcsProject.AudioSource Source=Level.Source;
+        AudioVoiceHandle Voice=GameAudio.CreateVoice(AudioEngine,SampleRate:44100,Channels:1);
         Voice=GameAudio.SubmitBuffer(Voice,ProceduralAudioClip.GenerateSineWave(440f,1f,44100),Source.Loop);
         GameAudio.SetVolume(Voice,Source.Volume);
         GameAudio.Start(Voice);
         Source.Voice=Voice;
-        state.World.Create(Source);
+        State.World.Create(Source);
 
         // level.Sun/PointLight/SpotLightはまだ存在しないレンダラーを指せないので値渡しのまま
         // 置いてあった。ここで初めてレンダラーが確定するため、コピーしてRendererを埋めてから
         // Entityにする(Renderable/FramePresentと同じ「作成時にコピーする」パターン)。
-        UserEcsProject.DirectionalLight Sun=level.Sun;
+        UserEcsProject.DirectionalLight Sun=Level.Sun;
         Sun.Renderer=Renderer;
-        state.World.Create(Sun);
+        State.World.Create(Sun);
 
-        UserEcsProject.PointLight pointLight=level.PointLight;
-        pointLight.Renderer=Renderer;
-        state.World.Create(pointLight);
+        UserEcsProject.PointLight PointLight=Level.PointLight;
+        PointLight.Renderer=Renderer;
+        State.World.Create(PointLight);
 
-        UserEcsProject.SpotLight spotLight=level.SpotLight;
-        spotLight.Renderer=Renderer;
-        state.World.Create(spotLight);
+        UserEcsProject.SpotLight SpotLight=Level.SpotLight;
+        SpotLight.Renderer=Renderer;
+        State.World.Create(SpotLight);
 
-        for(var objectIndex=0;objectIndex<Scene.Objects.Length;objectIndex++){
+        for(var ObjectIndex=0;ObjectIndex<Scene.Objects.Length;ObjectIndex++){
             Matrix4x4.Decompose(
-                Scene.ObjectTransforms[objectIndex],
-                out Vector3 scale,
-                out Quaternion rotation,
-                out Vector3 translation);
+                Scene.ObjectTransforms[ObjectIndex],
+                out Vector3 Scale,
+                out Quaternion Rotation,
+                out Vector3 Translation);
 
-            state.World.Create(
+            State.World.Create(
                 new Transform {
-                    PositionX=translation.X,
-                    PositionY=translation.Y,
-                    PositionZ=translation.Z,
-                    RotationX=rotation.X,
-                    RotationY=rotation.Y,
-                    RotationZ=rotation.Z,
-                    RotationW=rotation.W,
-                    ScaleX=scale.X,
-                    ScaleY=scale.Y,
-                    ScaleZ=scale.Z,
+                    PositionX=Translation.X,
+                    PositionY=Translation.Y,
+                    PositionZ=Translation.Z,
+                    RotationX=Rotation.X,
+                    RotationY=Rotation.Y,
+                    RotationZ=Rotation.Z,
+                    RotationW=Rotation.W,
+                    ScaleX=Scale.X,
+                    ScaleY=Scale.Y,
+                    ScaleZ=Scale.Z,
                 },
-                new Renderable { Renderer=Renderer,ObjectIndex=objectIndex });
+                new Renderable { Renderer=Renderer,ObjectIndex=ObjectIndex });
         }
 
         // 元の{Transform,PrimitiveMesh}エンティティ自体は変更・破棄しない(何も後から読まないため
@@ -229,13 +229,13 @@ internal struct LevelLoad:ISystem {
         // 別途作る(MoveArchetypeは使わない — 使ってもObjectIndex確定前に全プリミティブを列挙すると
         // いう同じ問題を移すだけで解決しない)。
         for(var Index=0;Index<Pending.Count;Index++){
-            state.World.Create(Pending[Index].Transform,new Renderable { Renderer=Renderer,ObjectIndex=Scene.Objects.Length+Index });
+            State.World.Create(Pending[Index].Transform,new Renderable { Renderer=Renderer,ObjectIndex=Scene.Objects.Length+Index });
         }
 
         RosterCaptured=true;
         PendingPrimitives=null;
 
-        state.World.Create(new FramePresent { Window=window,Renderer=Renderer,AudioEngine=AudioEngine });
+        State.World.Create(new FramePresent { Window=Window,Renderer=Renderer,AudioEngine=AudioEngine });
 
         return true;
     }
@@ -246,7 +246,7 @@ internal struct LevelLoad:ISystem {
 /// 光源へ向かうベクトルで、<c>StageRenderer</c>側で正規化されるため呼び出し側での正規化は不要。
 /// </summary>
 internal struct DirectionalLight:ISystem {
-    public bool Update(ref UserEcsProject.DirectionalLight Light,ref State state){
+    public bool Update(ref UserEcsProject.DirectionalLight Light,ref State State){
         if(Light.Renderer is not { } Renderer){
             return true;
         }
@@ -262,7 +262,7 @@ internal struct DirectionalLight:ISystem {
 
 /// <summary>点光源を毎フレーム<see cref="StageRenderer"/>へ加算する(<see cref="StageRenderer.AddPointLight"/>参照)。</summary>
 internal struct PointLight:ISystem {
-    public bool Update(ref UserEcsProject.PointLight Light,ref State state){
+    public bool Update(ref UserEcsProject.PointLight Light,ref State State){
         if(Light.Renderer is not { } Renderer){
             return true;
         }
@@ -279,7 +279,7 @@ internal struct PointLight:ISystem {
 
 /// <summary>スポットライトを毎フレーム<see cref="StageRenderer"/>へ加算する(<see cref="StageRenderer.AddSpotLight"/>参照)。</summary>
 internal struct SpotLight:ISystem {
-    public bool Update(ref UserEcsProject.SpotLight Light,ref State state){
+    public bool Update(ref UserEcsProject.SpotLight Light,ref State State){
         if(Light.Renderer is not { } Renderer){
             return true;
         }
@@ -299,17 +299,17 @@ internal struct SpotLight:ISystem {
 
 /// <summary>ECSのTransformを、そのEntityが指すStageRendererオブジェクトのワールド行列へ同期する。</summary>
 internal struct TransformSync:ISystem {
-    public bool Update(ref Transform transform,ref Renderable renderable,ref State state){
-        if(renderable.Renderer is not { } Renderer){
+    public bool Update(ref Transform Transform,ref Renderable Renderable,ref State State){
+        if(Renderable.Renderer is not { } Renderer){
             return true;
         }
 
-        Quaternion Rotation=new(transform.RotationX,transform.RotationY,transform.RotationZ,transform.RotationW);
-        Matrix4x4 world=Matrix4x4.CreateScale(transform.ScaleX,transform.ScaleY,transform.ScaleZ)
+        Quaternion Rotation=new(Transform.RotationX,Transform.RotationY,Transform.RotationZ,Transform.RotationW);
+        Matrix4x4 World=Matrix4x4.CreateScale(Transform.ScaleX,Transform.ScaleY,Transform.ScaleZ)
             *Matrix4x4.CreateFromQuaternion(Rotation)
-            *Matrix4x4.CreateTranslation(transform.PositionX,transform.PositionY,transform.PositionZ);
+            *Matrix4x4.CreateTranslation(Transform.PositionX,Transform.PositionY,Transform.PositionZ);
 
-        Renderer.SetObjectTransform(renderable.ObjectIndex,world);
+        Renderer.SetObjectTransform(Renderable.ObjectIndex,World);
         return true;
     }
 }
@@ -320,7 +320,7 @@ internal struct TransformSync:ISystem {
 /// (ADR-0039「既知の制約」参照)。
 /// </summary>
 internal struct AudioListenerSpawn:ISystem {
-    public void Spawn(ref AudioListener listener){
+    public void Spawn(ref AudioListener Listener){
     }
 }
 
@@ -331,18 +331,18 @@ internal struct AudioListenerSpawn:ISystem {
 /// Voiceへアクセスすると解放済みポインタを触ってAccessViolationになる)。
 /// </summary>
 internal struct AudioPlayback:ISystem {
-    public bool Update(ref AudioSource source,ref State state){
-        if(source.Voice is not { } Voice){
+    public bool Update(ref AudioSource Source,ref State State){
+        if(Source.Voice is not { } Voice){
             return true;
         }
 
-        if(!state.Enabled){
+        if(!State.Enabled){
             GameAudio.Stop(Voice);
             GameAudio.DestroyVoice(Voice);
             return true;
         }
 
-        GameAudio.SetVolume(Voice,source.Volume);
+        GameAudio.SetVolume(Voice,Source.Volume);
         return true;
     }
 }
@@ -353,23 +353,23 @@ internal struct AudioPlayback:ISystem {
 /// <see cref="AudioPlayback"/>より後に実行される必要がある(Voice破棄前にEngineを破棄しない)。
 /// </summary>
 internal struct Present:ISystem {
-    public bool Update(ref FramePresent present,ref State state){
-        if(present.Window is not { } window||present.Renderer is not { } Renderer){
+    public bool Update(ref FramePresent Present,ref State State){
+        if(Present.Window is not { } Window||Present.Renderer is not { } Renderer){
             return true;
         }
 
-        if(!state.Enabled){
+        if(!State.Enabled){
             Renderer.Dispose();
-            window.Dispose();
+            Window.Dispose();
 
-            if(present.AudioEngine is { } AudioEngine){
+            if(Present.AudioEngine is { } AudioEngine){
                 GameAudio.DestroyEngine(AudioEngine);
             }
 
             return true;
         }
 
-        if(window.IsMinimized){
+        if(Window.IsMinimized){
             return true;
         }
 

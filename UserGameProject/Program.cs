@@ -42,15 +42,15 @@ using StageRenderer Renderer=StageRenderer.Create(
 
 Window.Resized+=(W,H)=>Renderer.Resize(W,H);
 
-World world=new();
+World World=new();
 
 // The only entity created outside the ECS: SceneSpawn consumes it on the first frame and
 // creates everything else (props, lights, player).
-world.Create(new SceneSpawnRequest { Scene=Scene });
+World.Create(new SceneSpawnRequest { Scene=Scene });
 
 Window.SetMouseCaptured(true);
 
-State state=new(world){ Enabled=true };
+State State=new(World){ Enabled=true };
 TransformHierarchyRuntime TransformHierarchy=new();
 using AudioRuntime Audio=new();
 
@@ -66,8 +66,8 @@ AudioListenerSync AudioListenerSystem=new();
 AudioSourcePlayback AudioSourceSystem=new();
 RenderSync RenderSyncSystem=new();
 
-Stopwatch stopwatch=Stopwatch.StartNew();
-var PreviousTicks=stopwatch.ElapsedTicks;
+Stopwatch Stopwatch=Stopwatch.StartNew();
+var PreviousTicks=Stopwatch.ElapsedTicks;
 var TotalTime=0f;
 
 while(!Window.IsClosed){
@@ -76,7 +76,7 @@ while(!Window.IsClosed){
         continue;
     }
 
-    var CurrentTicks=stopwatch.ElapsedTicks;
+    var CurrentTicks=Stopwatch.ElapsedTicks;
     var DeltaTime=MathF.Min((float)((CurrentTicks-PreviousTicks)/(double)Stopwatch.Frequency),0.1f);
     PreviousTicks=CurrentTicks;
     TotalTime+=DeltaTime;
@@ -84,7 +84,7 @@ while(!Window.IsClosed){
     FrameContext Frame=new(DeltaTime,TotalTime);
 
     GeneratedGameLoop.RunFrame(
-        ref state,
+        ref State,
         ref SceneSpawnSystem,
         ref InputSystem,
         ref PlayerControlSystem,
