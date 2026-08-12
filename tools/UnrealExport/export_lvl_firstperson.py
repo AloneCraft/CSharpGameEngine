@@ -1,47 +1,26 @@
-"""
-UE5.8 Lvl_FirstPerson -> UserGameProject export script (ADR-0017).
+"""UE 5.8 FirstPerson level -> C# Scene DSL import staging data.
 
-Run via UnrealEditor-Cmd.exe against G:\\UE\\5.8\\WFC\\WFC.uproject (see run_export.cmd).
-Not part of the C# solution; lives outside src/ on purpose (a dev-time authoring tool that
-requires the Unreal Editor, not something CI or the game itself ever executes).
-
-What this script exports and why:
-  1. The entire level as ONE glTF binary (.glb) via UGLTFExporter.ExportToGLTF(World, ...).
-     Passing the UWorld object (not individual StaticMesh assets) makes UE itself do:
-       - unit/axis conversion (cm/Z-up/left-handed -> m/Y-up/right-handed) per node transform
-       - per-actor material *override* resolution and UV-space baking (bBakeMaterialInputs =
-         UseMeshData) - this is why the whole level is exported instead of the 3 unique meshes:
-         exporting bare StaticMesh assets would use each mesh's *default* material slot and
-         miss any per-component override the level actually uses.
-       - DirectionalLight -> KHR_lights_punctual (bExportLights = True), with direction baked
-         into the light node's transform and Intensity/Color copied through unconverted
-         (verified against Engine/Plugins/Enterprise/GLTFExporter source - no lux/candela
-         rescale is applied by the exporter itself).
-  2. A small supplementary scene_meta.json for exactly the things GLTFExporter cannot see,
-     because they aren't StaticMeshActor/Light actors: SkyLight (ambient approximation),
-     ExponentialHeightFog, PlayerStart (the one place this script does its own UE->glTF
-     coordinate conversion), and a mobility tag per actor label (glTF has no such concept).
+The Unreal project is opened read-only. The source level is never saved: actors are temporarily
+placed at identity only while a selected-actor glTF is exported and are restored in a finally
+block. A whole-level GLB is written only below .artifacts as a coordinate-conversion oracle for
+the .NET generator; it is not a runtime asset.
 """
 
+import hashlib
 import json
 import os
+import re
 import sys
 
 import unreal
 
 LEVEL_ASSET_PATH = "/Game/FirstPerson/Lvl_FirstPerson"
 REPO_ROOT = "G:/GitHub/CSharpGameEngine"
-OUTPUT_DIR = f"{REPO_ROOT}/UserGameProject/Assets/Stage/Lvl_FirstPerson"
-GLB_PATH = f"{OUTPUT_DIR}/Lvl_FirstPerson.glb"
-SCENE_META_PATH = f"{OUTPUT_DIR}/scene_meta.json"
-
-# Actors to force into the "movable" archetype for the static/movable demo (Phase 4). The level
-# is expected to be 100% Static/Stationary mobility otherwise. Adjust these labels after Phase 1
-# acceptance once the real actor labels in the exported glTF node names are confirmed.
-MOBILITY_OVERRIDE_LABELS = {
-    "SM_Cube16": "movable",
-    "SM_Cube17": "movable",
-}
+OUTPUT_DIR = f"{REPO_ROOT}/UserEcsProject/Assets/Stage/Lvl_FirstPerson"
+MESH_OUTPUT_DIR = f"{OUTPUT_DIR}/Meshes"
+STAGING_DIR = f"{REPO_ROOT}/.artifacts/UnrealExport/Lvl_FirstPerson"
+STAGING_GLB_PATH = f"{STAGING_DIR}/Lvl_FirstPerson.staging.glb"
+MANIFEST_PATH = f"{STAGING_DIR}/manifest.json"
 
 
 def log(message: str) -> None:
@@ -56,178 +35,225 @@ def log_error(message: str) -> None:
     unreal.log_error(f"[UnrealExport] {message}")
 
 
-def ue_to_gltf_translation(location: unreal.Vector) -> list:
-    # UE centimeters, left-handed Z-up -> glTF meters, right-handed Y-up.
-    # Matches Epic's own FGLTFCoreUtilities convention: (x, z, y) * scale, Y negated for handedness.
-    scale = 0.01
-    return [location.x * scale, location.z * scale, -location.y * scale]
-
-
-def ue_yaw_to_gltf_yaw_radians(rotation: unreal.Rotator) -> float:
-    import math
-    # UE yaw is left-handed degrees around +Z; glTF/engine yaw here is right-handed radians
-    # around +Y. Negate for handedness flip, matching the translation's Y negation above.
-    return -math.radians(rotation.yaw)
+def require_force_for_existing_output() -> None:
+    if not os.path.exists(MANIFEST_PATH) and not os.path.exists(MESH_OUTPUT_DIR):
+        return
+    if os.environ.get("CSGE_UNREAL_EXPORT_FORCE") != "1":
+        raise RuntimeError(
+            "Output already exists. Re-run tools/UnrealExport/run_export.cmd --force "
+            "to replace generated import data."
+        )
 
 
 def load_level() -> unreal.World:
-    level_subsystem = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
-    ok = level_subsystem.load_level(LEVEL_ASSET_PATH)
-    if not ok:
-        raise RuntimeError(f"LevelEditorSubsystem.load_level failed for '{LEVEL_ASSET_PATH}'")
-
-    editor_subsystem = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem)
-    world = editor_subsystem.get_editor_world()
+    subsystem = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+    if not subsystem.load_level(LEVEL_ASSET_PATH):
+        raise RuntimeError(f"Could not load '{LEVEL_ASSET_PATH}'")
+    world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
     if world is None:
-        raise RuntimeError("UnrealEditorSubsystem.get_editor_world() returned None after load_level")
+        raise RuntimeError("get_editor_world returned None")
     return world
 
 
-def get_all_actors() -> list:
-    actor_subsystem = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
-    return actor_subsystem.get_all_level_actors()
+def all_level_actors() -> list:
+    actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors()
+    return sorted(actors, key=lambda actor: actor.get_actor_label())
 
 
-def try_get_component(actor: unreal.Actor, property_name: str):
-    try:
-        return actor.get_editor_property(property_name)
-    except Exception as ex:  # noqa: BLE001 - best-effort metadata extraction, never fatal
-        log_warning(f"get_editor_property('{property_name}') failed on {actor.get_actor_label()}: {ex}")
-        return None
-
-
-def get_mobility_string(actor: unreal.Actor) -> str:
-    try:
-        root = actor.root_component
-        if root is None:
-            return "static"
-        mobility = root.mobility
-        if mobility == unreal.ComponentMobility.MOVABLE:
-            return "movable"
-        return "static"
-    except Exception as ex:  # noqa: BLE001
-        log_warning(f"Could not read mobility for {actor.get_actor_label()}: {ex}")
-        return "static"
-
-
-def export_level_glb(world: unreal.World) -> None:
+def gltf_options() -> unreal.GLTFExportOptions:
     options = unreal.GLTFExportOptions()
     options.export_uniform_scale = 0.01
     options.bake_material_inputs = unreal.GLTFMaterialBakeMode.USE_MESH_DATA
     options.default_material_bake_size = unreal.GLTFMaterialBakeSize(x=1024, y=1024)
     options.export_lights = True
+    return options
 
-    # The Blueprint signature has 5 params (Object, FilePath, Options, SelectedActors, OutMessages&)
-    # and a bool return, but OutMessages is a non-const reference output param: UE's Python binding
-    # generator drops it from the call *and* replaces the bool return with the out-param itself
-    # (confirmed empirically - a 5th positional arg raises "takes at most 4 arguments", and
-    # unpacking the single-object return as a tuple raises "cannot unpack non-iterable
-    # GLTFExportMessages object"). Success is therefore judged solely from messages.errors below.
-    messages = unreal.GLTFExporter.export_to_gltf(world, GLB_PATH, options, set())
 
+def export_gltf(world: unreal.World, path: str, selected_actors: set) -> None:
+    messages = unreal.GLTFExporter.export_to_gltf(world, path, gltf_options(), selected_actors)
     for suggestion in messages.suggestions:
         log(f"suggestion: {suggestion}")
     for warning in messages.warnings:
         log_warning(str(warning))
     for error in messages.errors:
         log_error(str(error))
-
     if len(messages.errors) > 0:
-        raise RuntimeError(f"GLTFExporter reported {len(messages.errors)} error(s); see log above")
-
-    log(f"Exported level GLB: {GLB_PATH}")
+        raise RuntimeError(f"GLTFExporter reported {len(messages.errors)} error(s) for '{path}'")
 
 
-def build_scene_meta(actors: list) -> dict:
-    static_mesh_actor_count = 0
-    directional_light_count = 0
+def static_mesh_component(actor: unreal.StaticMeshActor):
+    components = actor.get_components_by_class(unreal.StaticMeshComponent)
+    if len(components) != 1:
+        raise RuntimeError(
+            f"StaticMeshActor '{actor.get_actor_label()}' has {len(components)} StaticMeshComponents"
+        )
+    return components[0]
+
+
+def render_variant(actor: unreal.StaticMeshActor) -> tuple:
+    component = static_mesh_component(actor)
+    mesh = component.get_editor_property("static_mesh")
+    if mesh is None:
+        raise RuntimeError(f"StaticMeshActor '{actor.get_actor_label()}' has no StaticMesh")
+    materials = []
+    for index in range(component.get_num_materials()):
+        material = component.get_material(index)
+        materials.append(material.get_path_name() if material is not None else "")
+    return mesh.get_path_name(), tuple(materials)
+
+
+def safe_asset_stem(source_mesh_path: str, material_paths: tuple) -> str:
+    mesh_name = source_mesh_path.rsplit("/", 1)[-1].split(".", 1)[0]
+    sanitized = re.sub(r"[^A-Za-z0-9_]", "_", mesh_name).strip("_") or "StaticMesh"
+    digest_source = json.dumps([source_mesh_path, list(material_paths)], separators=(",", ":"))
+    digest = hashlib.sha256(digest_source.encode("utf-8")).hexdigest()[:10]
+    return f"{sanitized}_{digest}"
+
+
+def mobility(actor: unreal.StaticMeshActor) -> str:
+    component = static_mesh_component(actor)
+    return "Movable" if component.mobility == unreal.ComponentMobility.MOVABLE else "Static"
+
+
+def export_variant_at_identity(world: unreal.World, actor: unreal.StaticMeshActor, output_path: str) -> None:
+    original = actor.get_actor_transform()
+    identity = unreal.Transform(
+        location=unreal.Vector(0.0, 0.0, 0.0),
+        rotation=unreal.Rotator(0.0, 0.0, 0.0),
+        scale=unreal.Vector(1.0, 1.0, 1.0),
+    )
+    try:
+        if not actor.set_actor_transform(identity, False, True):
+            raise RuntimeError(f"Could not temporarily reset '{actor.get_actor_label()}'")
+        export_gltf(world, output_path, {actor})
+    finally:
+        actor.set_actor_transform(original, False, True)
+
+
+def try_property(value, name: str):
+    try:
+        return value.get_editor_property(name)
+    except Exception as ex:  # noqa: BLE001 - UE versions rename some editor properties
+        log_warning(f"Could not read {value.get_name()}.{name}: {ex}")
+        return None
+
+
+def ue_to_engine_translation(location: unreal.Vector) -> list:
+    return [location.x * 0.01, location.z * 0.01, -location.y * 0.01]
+
+
+def build_environment(actors: list) -> dict:
+    import math
+
     ambient = None
     fog = None
     player_start = None
-    mobility_by_label = {}
+    directional_light_count = 0
 
     for actor in actors:
-        label = actor.get_actor_label()
-
-        if isinstance(actor, unreal.StaticMeshActor):
-            static_mesh_actor_count += 1
-            mobility_by_label[label] = get_mobility_string(actor)
-
-        elif isinstance(actor, unreal.DirectionalLight):
+        if isinstance(actor, unreal.DirectionalLight):
             directional_light_count += 1
-
         elif isinstance(actor, unreal.SkyLight):
-            component = try_get_component(actor, "light_component")
+            component = try_property(actor, "light_component")
             if component is not None:
                 color = component.light_color
                 ambient = {
+                    "name": actor.get_actor_label(),
                     "colorRgb": [color.r / 255.0, color.g / 255.0, color.b / 255.0],
                     "intensity": component.intensity,
                 }
-
         elif isinstance(actor, unreal.ExponentialHeightFog):
-            component = try_get_component(actor, "component")
+            component = try_property(actor, "component")
             if component is not None:
                 fog = {
+                    "name": actor.get_actor_label(),
                     "density": component.fog_density,
                     "heightFalloff": component.fog_height_falloff,
-                    # Property name to confirm at run time - FogInscatteringColor is deprecated
-                    # in 5.8; fall back to a neutral gray if the active property can't be read.
                     "colorRgb": [0.6, 0.65, 0.7],
                 }
-
         elif isinstance(actor, unreal.PlayerStart):
             transform = actor.get_actor_transform()
+            rotation = transform.rotation.rotator()
             player_start = {
-                "translation": ue_to_gltf_translation(transform.translation),
-                "yawRadians": ue_yaw_to_gltf_yaw_radians(transform.rotation.rotator()),
+                "name": actor.get_actor_label(),
+                "translation": ue_to_engine_translation(transform.translation),
+                "yawRadians": -math.radians(rotation.yaw),
+                "pitchRadians": math.radians(rotation.pitch),
             }
 
-    for label, mobility in MOBILITY_OVERRIDE_LABELS.items():
-        if label in mobility_by_label:
-            mobility_by_label[label] = mobility
-        else:
-            log_warning(f"MOBILITY_OVERRIDE_LABELS references unknown actor label '{label}'")
-
-    log(f"StaticMeshActor count: {static_mesh_actor_count}")
-    log(f"DirectionalLight count: {directional_light_count}")
-
+    if directional_light_count != 1:
+        raise RuntimeError(f"Expected one DirectionalLight, found {directional_light_count}")
+    if ambient is None or fog is None or player_start is None:
+        raise RuntimeError("SkyLight, ExponentialHeightFog, or PlayerStart was not found")
     return {
-        "version": 1,
-        "conventions": {"units": "meters", "handedness": "right", "up": "+Y"},
-        "ambient": ambient or {"colorRgb": [0.15, 0.15, 0.18], "intensity": 1.0},
+        "ambient": ambient,
         "fog": fog,
         "playerStart": player_start,
-        "mobilityOverrides": mobility_by_label,
-        "clearColorRgb": [0.35, 0.55, 0.85],
-        "actorCounts": {
-            "staticMeshActors": static_mesh_actor_count,
-            "directionalLights": directional_light_count,
-        },
+        "directionalLightCount": directional_light_count,
     }
 
 
 def main() -> None:
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    require_force_for_existing_output()
+    os.makedirs(MESH_OUTPUT_DIR, exist_ok=True)
+    os.makedirs(STAGING_DIR, exist_ok=True)
 
     world = load_level()
-    actors = get_all_actors()
-    log(f"get_all_level_actors() returned {len(actors)} actor(s)")
+    actors = all_level_actors()
+    mesh_actors = [actor for actor in actors if isinstance(actor, unreal.StaticMeshActor)]
+    labels = [actor.get_actor_label() for actor in mesh_actors]
+    if len(labels) != len(set(labels)):
+        raise RuntimeError("StaticMeshActor labels must be unique")
+    if len(mesh_actors) != 55:
+        raise RuntimeError(f"Expected 55 StaticMeshActors, found {len(mesh_actors)}")
 
-    export_level_glb(world)
+    export_gltf(world, STAGING_GLB_PATH, set())
+    log(f"Exported coordinate oracle: {STAGING_GLB_PATH}")
 
-    scene_meta = build_scene_meta(actors)
-    with open(SCENE_META_PATH, "w", encoding="utf-8") as f:
-        json.dump(scene_meta, f, indent=2)
-    log(f"Wrote scene metadata: {SCENE_META_PATH}")
+    variant_by_key = {}
+    actor_entries = []
+    for actor in mesh_actors:
+        source_mesh_path, material_paths = render_variant(actor)
+        key = (source_mesh_path, material_paths)
+        if key not in variant_by_key:
+            stem = safe_asset_stem(source_mesh_path, material_paths)
+            absolute_path = f"{MESH_OUTPUT_DIR}/{stem}.glb"
+            export_variant_at_identity(world, actor, absolute_path)
+            variant_by_key[key] = {
+                "assetPath": f"Assets/Stage/Lvl_FirstPerson/Meshes/{stem}.glb",
+                "sourceMesh": source_mesh_path,
+                "materials": list(material_paths),
+            }
+            log(f"Exported render variant: {stem}.glb")
 
-    log("Export complete.")
+        actor_entries.append({
+            "label": actor.get_actor_label(),
+            "assetPath": variant_by_key[key]["assetPath"],
+            "sourceMesh": source_mesh_path,
+            "materials": list(material_paths),
+            "mobility": mobility(actor),
+        })
+
+    manifest = {
+        "version": 2,
+        "levelAssetPath": LEVEL_ASSET_PATH,
+        "stagingGlb": STAGING_GLB_PATH,
+        "actors": actor_entries,
+        "renderVariants": sorted(variant_by_key.values(), key=lambda item: item["assetPath"]),
+        "environment": build_environment(actors),
+    }
+    with open(MANIFEST_PATH, "w", encoding="utf-8", newline="\n") as output:
+        json.dump(manifest, output, ensure_ascii=False, indent=2)
+        output.write("\n")
+
+    log(f"Wrote manifest: {MANIFEST_PATH}")
+    log(f"Exported {len(mesh_actors)} actors using {len(variant_by_key)} render variants")
 
 
 if __name__ == "__main__":
     try:
         main()
-    except Exception as ex:  # noqa: BLE001 - top-level: make failures visible in the commandlet log
+    except Exception as ex:  # noqa: BLE001 - top level must make commandlet failure visible
         log_error(f"FAILED: {ex}")
         import traceback
 

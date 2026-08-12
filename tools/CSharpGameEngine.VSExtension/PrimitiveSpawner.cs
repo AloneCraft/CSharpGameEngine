@@ -9,7 +9,7 @@ namespace CSharpGameEngine.VSExtension;
 /// <summary>
 /// Drives the "シェイプ" palette's enabled buttons (ADR-0021): generates the requested primitive's
 /// <c>.glb</c> once via the out-of-process <c>tools/CSharpGameEngine.Primitive.Cli</c> bridge
-/// (cached under <c>UserGameProject/Assets/Primitives/</c>, so a second click of the same shape
+/// (cached under <c>UserEcsProject/Assets/Primitives/</c>, so a second click of the same shape
 /// skips regeneration), then hands off to <see cref="SceneNodeAdder"/> (ADR-0022) to append a node
 /// referencing it to the currently-open scene. The scene JSON schema itself is untouched - a
 /// spawned primitive is indistinguishable from any other <c>meshAssetPath</c>-bearing node.
@@ -27,7 +27,7 @@ internal static class PrimitiveSpawner {
                 throw new InvalidOperationException($"リポジトリルート({RepoLocator.RepoMarkerFileName})が見つかりませんでした。");
             }
 
-            var PrimitivesDirectory=Path.Combine(RepoRoot,"UserGameProject","Assets","Primitives");
+            var PrimitivesDirectory=Path.Combine(RepoRoot,"UserEcsProject","Assets","Primitives");
             Directory.CreateDirectory(PrimitivesDirectory);
             var GlbPath=Path.Combine(PrimitivesDirectory, $"{PrimitiveKind}.glb");
 

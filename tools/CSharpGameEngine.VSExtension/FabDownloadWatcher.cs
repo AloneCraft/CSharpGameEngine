@@ -7,7 +7,7 @@ namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
 /// Watches the OS downloads folder and copies newly-completed files matching
-/// <see cref="WatchedExtensions"/> into the project's <c>UserGameProject/Assets/Fab/</c> folder
+/// <see cref="WatchedExtensions"/> into the project's <c>UserEcsProject/Assets/Fab/</c> folder
 /// (ADR-0011). This is a pure "drop zone" convenience - it never talks to Fab, never logs in, and
 /// never downloads anything itself. The actual browse/login/purchase/download flow always happens
 /// in the user's own browser via <see cref="OpenFabCommand"/>; this class only reacts to files that

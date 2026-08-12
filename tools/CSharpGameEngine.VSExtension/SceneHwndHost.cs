@@ -161,7 +161,8 @@ internal sealed class SceneHwndHost:HwndHost {
         string RepoRoot=this.RepoRoot;
         IReadOnlyList<SceneRenderObject>RenderObjects=SceneModelRenderObjectBuilder.Build(
             Request.Model,
-            EnumMemberName=>SceneModelRenderObjectBuilder.ResolveViaBridge(EnumMemberName,RepoRoot));
+            EnumMemberName=>SceneModelRenderObjectBuilder.ResolveViaBridge(EnumMemberName,RepoRoot),
+            AssetPath=>SceneModelRenderObjectBuilder.ResolveStaticMeshViaBridge(AssetPath,RepoRoot));
         return new SceneRenderBuildResult(Request,RenderObjects);
     }
 

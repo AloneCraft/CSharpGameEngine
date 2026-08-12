@@ -10,6 +10,7 @@ public sealed class SceneValueReaderTests {
         using CSharpGameEngine.Authoring;
         [SceneAssets]
         public static class Assets {
+            public const string Stage="Assets/Stage/Test.glb";
             public static readonly MaterialAsset Floor=new MaterialAsset("Assets/Floor.mat");
             public static MaterialAsset Wall { get; }=new MaterialAsset("Assets/Wall.mat");
             public static MaterialAsset Mutable { get; set; }
@@ -174,6 +175,17 @@ public sealed class SceneValueReaderTests {
         Assert.Equal(SceneValueKind.StaticMemberRef,Value.Kind);
         Assert.Equal("global::Sample.Assets.Floor",Value.EmitExpressionText);
         Assert.False(Value.IsEditable);
+    }
+
+    [Fact]
+    public void ConstStringOnSceneAssets_KeepsSymbolAndResolvedValue(){
+        SceneModel Model=AnalyzeComponent("new Label { Text=Assets.Stage }");
+
+        SceneAnalysisTestHelper.AssertNoDiagnostics(Model);
+        SceneValue Value=FirstMemberValue(Model);
+        Assert.Equal(SceneValueKind.StaticMemberRef,Value.Kind);
+        Assert.Equal("global::Sample.Assets.Stage",Value.EmitExpressionText);
+        Assert.Equal("Assets/Stage/Test.glb",Value.ConstantValue);
     }
 
     [Fact]

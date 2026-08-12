@@ -18,7 +18,6 @@
 
   <ItemGroup>
     <None Include="Assets\**\*" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\UserGameProject\Assets\Stage\**\*" Link="Assets\Stage\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

@@ -2471,3 +2471,8 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
   (2) `MainScene.cs`(1クラス)で同操作→ピッカー無しで直接表示、(3) Box/Sphereプリミティブの
   描画確認、(4) Transform値編集後250ms程度での反映確認、(5) Tab/Backspace/Delete等の既存VS入力の
   回帰確認。
+# 2026-08 UE FirstPerson宣言型Scene移行
+
+- `UserGameProject`と一体型`Lvl_FirstPerson.glb`ランタイムを廃止し、`UserEcsProject`へ統合した。
+- UE 5.8の55 StaticMeshActorを9個の共有描画資産へ分解し、配置・Mobility・DirectionalLight・SkyLight・Fog・PlayerStartを`FirstPersonStageScene.cs`で宣言する。
+- 実行時とScene Designerは同じ`StaticMesh.AssetPath`を解決し、C# Sceneを配置の正本とする。

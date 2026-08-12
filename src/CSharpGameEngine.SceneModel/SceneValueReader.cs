@@ -268,11 +268,15 @@ internal sealed class SceneValueReader {
             &&StaticMember.ContainingType is { } Container
             &&SceneTypePredicates.HasAttribute(Container,SceneDslWellKnownNames.SceneAssetsAttributeMetadataName)
             &&IsReadOnlyMember(StaticMember)){
+            // [SceneAssets] の const string は、Source Generator ではシンボル参照のまま
+            // 出力しつつ、VSIX では実ファイルを解決する必要がある。参照種別を失わずに
+            // ConstantValue も保持し、両者が同じ SceneModel を共有できるようにする。
+            Optional<object?>StaticMemberConstant=this.SemanticModel.GetConstantValue(Expression,this.CancellationToken);
             return this.Create(
                 SceneValueKind.StaticMemberRef,
                 Expression,
                 ResolvedType,
-                ConstantValue:null,
+                StaticMemberConstant.HasValue?StaticMemberConstant.Value:null,
                 StaticMember,
                 SceneEmitExpressionWriter.WriteSymbolReference(StaticMember));
         }

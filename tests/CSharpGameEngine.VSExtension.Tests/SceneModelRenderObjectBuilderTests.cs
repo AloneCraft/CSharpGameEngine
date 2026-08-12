@@ -29,7 +29,14 @@ public sealed class SceneModelRenderObjectBuilderTests {
 
         namespace CSharpGameEngine.Runtime.Windows {
             public struct PrimitiveMesh { public PrimitiveType Type; }
+            public struct StaticMesh { public string AssetPath; }
             public enum PrimitiveType { Plane, Box, Sphere, Cylinder, Cone, Torus, Disk, Capsule }
+        }
+
+        namespace Game {
+            using CSharpGameEngine.Authoring;
+            [SceneAssets]
+            public static class Assets { public const string Stage="Assets/Stage/Test.glb"; }
         }
         """;
 
@@ -132,6 +139,25 @@ public sealed class SceneModelRenderObjectBuilderTests {
         var Result=SceneModelRenderObjectBuilder.Build(Model,static _=>throw new Xunit.Sdk.XunitException("resolver should not be called for a node with no PrimitiveMesh component"));
 
         Assert.Equal(GizmoTint,Assert.Single(Result).Mesh.BaseColorFactor);
+    }
+
+    [Fact]
+    public void Build_NodeWithStaticMesh_ResolvesSceneAssetsConstPath(){
+        SceneModel Model=Analyze("""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Runtime.Windows;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() { Components=[new StaticMesh { AssetPath=Assets.Stage }] };
+            }
+            """);
+        SimpleMesh Marker=new() { Positions=[Vector3.Zero],Normals=[Vector3.UnitY],Indices=[0,0,0],BaseColorFactor=Vector4.One,BoundsCenter=Vector3.Zero,BoundsRadius=1f };
+        string?RequestedPath=null;
+
+        var Result=SceneModelRenderObjectBuilder.Build(Model,static _=>null,Path=>{ RequestedPath=Path;return Marker; });
+
+        Assert.Equal("Assets/Stage/Test.glb",RequestedPath);
+        Assert.Same(Marker,Assert.Single(Result).Mesh);
     }
 
     [Fact]

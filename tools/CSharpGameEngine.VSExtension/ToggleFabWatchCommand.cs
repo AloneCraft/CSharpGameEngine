@@ -10,14 +10,14 @@ namespace CSharpGameEngine.VSExtension;
 /// <summary>
 /// Tools-menu/toolbar command that starts or stops <see cref="FabDownloadWatcher"/> (ADR-0011).
 /// Purely a local convenience: it copies files the user already downloaded via their own browser
-/// session on fab.com into <c>UserGameProject/Assets/Fab/</c>. It never touches fab.com itself -
+/// session on fab.com into <c>UserEcsProject/Assets/Fab/</c>. It never touches fab.com itself -
 /// see <see cref="OpenFabCommand"/> for that.
 /// </summary>
 internal sealed class ToggleFabWatchCommand:IDisposable {
     public const int CommandId=0x0102;
     public static readonly Guid CommandSet=new("521655e5-0d1b-4255-8086-1039c5c2e3da");
 
-    private const string DestinationRelativePath=@"UserGameProject\Assets\Fab";
+    private const string DestinationRelativePath=@"UserEcsProject\Assets\Fab";
 
     private readonly AsyncPackage Package;
     private readonly OleMenuCommand Command;

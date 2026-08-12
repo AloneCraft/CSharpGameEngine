@@ -20,7 +20,6 @@ namespace UserEcsProject.Scenes;
 // (Archetype2、System 側の宣言順で早期に登録される)に収まり、正しく拾われる。
 // ============================================================================
 
-[StartupScene(Order=1)]
 internal partial class PrimitiveShowcaseBoxScene:IScene {
     public Node Root=>new(){
         Name="ShowcaseBox",
@@ -31,7 +30,6 @@ internal partial class PrimitiveShowcaseBoxScene:IScene {
     };
 }
 
-[StartupScene(Order=2)]
 internal partial class PrimitiveShowcaseSphereScene:IScene {
     public Node Root=>new(){
         Name="ShowcaseSphere",

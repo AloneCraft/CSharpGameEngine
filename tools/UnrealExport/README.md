@@ -1,35 +1,30 @@
-# UnrealExport
+# Unreal FirstPerson Scene Import
 
-Dev-time tool (ADR-0017): exports `G:\UE\5.8\WFC\Content\FirstPerson\Lvl_FirstPerson.umap` into
-`UserGameProject/Assets/Stage/Lvl_FirstPerson/` as a single textured glTF binary plus a small
-JSON manifest for the handful of things the GLTFExporter plugin cannot see on its own.
+`G:\UE\5.8\WFC\Content\FirstPerson\Lvl_FirstPerson.umap`を、一体型ステージGLBではなく
+C# Scene DSLのノード群として一度だけ取り込む開発用ツールです。UEの`.umap`／`.uasset`は保存しません。
 
-Not part of the C# solution - requires a local Unreal Engine 5.8 editor install and is never run
-by the game or by CI. Re-run it only when the source UE level changes.
+## 実行
 
-## Usage
+初回:
 
-```bash
+```cmd
 tools\UnrealExport\run_export.cmd
 ```
 
-Requires:
-- Unreal Engine 5.8 editor installed at `C:\Program Files\Epic Games\UE_5.8`
-- `G:\UE\5.8\WFC\WFC.uproject` present (the source UE project)
+生成済みC#を明示的に置き換える場合だけ:
 
-## Output
+```cmd
+tools\UnrealExport\run_export.cmd --force
+```
 
-- `UserGameProject/Assets/Stage/Lvl_FirstPerson/Lvl_FirstPerson.glb` - the whole level as one
-  glTF binary: one node per StaticMeshActor (baked material honoring per-actor overrides, UE
-  cm/Z-up converted to glTF m/Y-up by the exporter itself) plus a `KHR_lights_punctual`
-  DirectionalLight node.
-- `UserGameProject/Assets/Stage/Lvl_FirstPerson/scene_meta.json` - SkyLight ambient
-  approximation, ExponentialHeightFog params, PlayerStart transform (the one manually-converted
-  value - PlayerStart isn't an exportable glTF object type), and a mobility tag per actor label.
+取り込み後は`UserEcsProject/Scenes/FirstPersonStageScene.cs`が配置の正本です。UEとの同期は行いません。
 
-## Acceptance check
+## 出力
 
-The script logs `StaticMeshActor count` and `DirectionalLight count` from
-`get_all_level_actors()`. Expected: 52 StaticMeshActors (20 SM_Cube + 20 SM_QuarterCylinder + 12
-SM_Ramp) and 1 DirectionalLight. If World Partition only loaded a subset, the count will be
-short - see ADR-0017 for the WorldPartitionEditorSubsystem cell-forcing fallback.
+- `UserEcsProject/Assets/Stage/Lvl_FirstPerson/Meshes/*.glb`: ソースStaticMeshと解決済みマテリアル構成で共有した個別描画資産。
+- `UserEcsProject/Scenes/FirstPersonStageAssets.cs`: `[SceneAssets]`資産カタログ。
+- `UserEcsProject/Scenes/FirstPersonStageScene.cs`: 55 StaticMeshActor、DirectionalLight、SkyLight、Fog、PlayerStartの宣言。
+- `.artifacts/UnrealExport/Lvl_FirstPerson/`: 座標変換照合用の一時レベルGLBとmanifest。Git／ランタイム対象外。
+
+現在の受け入れ基準はStaticMeshActor 55体、DirectionalLight 1体、SkyLight／Fog／PlayerStart各1体です。
+SkyAtmosphere、VolumetricCloud、Brush、Blueprint、GameMode、アニメーションは対象外です。

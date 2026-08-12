@@ -66,7 +66,7 @@ public sealed class GameSystemEntryPointTests {
 
     [Fact]
     public void EntryPointIsNotGenerated_WhenTheUserWroteTheirOwnMain(){
-        // UserGameProjectの回帰。手書きProgram.csがある限りSGは黙る(CS0017を起こさない)。
+        // 手書きProgram.csを持つ従来型プロジェクトの回帰。SGは黙る(CS0017を起こさない)。
         GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
             GameSystemGeneratorTestHelper.CreateApplicationCompilation(
                 GameSystemGeneratorTestHelper.CommonComponents,

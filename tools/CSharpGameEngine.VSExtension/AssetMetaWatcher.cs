@@ -7,7 +7,7 @@ namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
 /// Generates a Unity/UE-style <c>&lt;file&gt;.meta</c> sidecar (a stable GUID, nothing else - ADR-0012)
-/// next to every 3D asset under <c>UserGameProject/Assets</c>. Runs automatically whenever the VSIX
+/// next to every 3D asset under <c>UserEcsProject/Assets</c>. Runs automatically whenever the VSIX
 /// package loads (no user toggle, unlike <see cref="FabDownloadWatcher"/> - this is pure bookkeeping
 /// with no privacy/intentionality concerns): an initial scan covers files already present, then a
 /// <see cref="FileSystemWatcher"/> covers anything added afterward, regardless of how it got there
@@ -34,7 +34,7 @@ internal sealed class AssetMetaWatcher:IDisposable {
     }
 
     /// <summary>
-    /// Resolves the repo root and starts watching <c>UserGameProject/Assets</c> if it exists.
+    /// Resolves the repo root and starts watching <c>UserEcsProject/Assets</c> if it exists.
     /// Returns <see langword="null"/> (does nothing) if the repo root or Assets folder can't be
     /// found - never throws, since this runs unconditionally on package load.
     /// </summary>
@@ -44,7 +44,7 @@ internal sealed class AssetMetaWatcher:IDisposable {
             return null;
         }
 
-        var AssetsRoot=Path.Combine(RepoRoot,"UserGameProject","Assets");
+        var AssetsRoot=Path.Combine(RepoRoot,"UserEcsProject","Assets");
         return Directory.Exists(AssetsRoot)?new AssetMetaWatcher(AssetsRoot):null;
     }
 

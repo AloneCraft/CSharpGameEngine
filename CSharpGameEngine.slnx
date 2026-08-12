@@ -109,7 +109,6 @@
     <Project Path="tests/CSharpGameEngine.CodeAnalysis.Tests/CSharpGameEngine.CodeAnalysis.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.SceneModel.Tests/CSharpGameEngine.SceneModel.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Entities.Tests/CSharpGameEngine.Entities.Tests.csproj" />
-    <Project Path="tests/UserGameProject.Tests/UserGameProject.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <File Path="tools/UnrealExport/export_lvl_firstperson.py" />
@@ -122,6 +121,7 @@
     <Project Path="tools/CSharpGameEngine.Import.Fbx.Cli/CSharpGameEngine.Import.Fbx.Cli.csproj" />
     <Project Path="tools/CSharpGameEngine.Import.Gltf.Cli/CSharpGameEngine.Import.Gltf.Cli.csproj" />
     <Project Path="tools/CSharpGameEngine.Primitive.Cli/CSharpGameEngine.Primitive.Cli.csproj" />
+    <Project Path="tools/CSharpGameEngine.Unreal.SceneImporter/CSharpGameEngine.Unreal.SceneImporter.csproj" />
     <Project Path="tools/CSharpGameEngine.VSExtension/CSharpGameEngine.VSExtension.csproj">
       <Deploy Solution="Debug|*" />
     </Project>
@@ -130,10 +130,5 @@
     <Project Path="UserEcsProject/UserEcsProject.csproj">
       <Platform Project="x64" />
     </Project>
-  </Folder>
-  <Folder Name="/UserGameProject/">
-    <File Path="UserGameProject/README.md" />
-    <File Path="UserGameProject/Assets/Fab/README.md" />
-    <Project Path="UserGameProject/UserGameProject.csproj" />
   </Folder>
 </Solution>

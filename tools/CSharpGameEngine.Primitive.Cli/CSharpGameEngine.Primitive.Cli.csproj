@@ -7,7 +7,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Same package tests/UserGameProject.Tests already uses to build a synthetic GLB in-memory
+    <!-- Package used to build a synthetic GLB in-memory
          (SceneLoaderTests.cs) - MeshBuilder/SceneBuilder/SaveGLB is a proven-working pattern here. -->
     <PackageReference Include="SharpGLTF.Toolkit" Version="1.0.6" />
   </ItemGroup>

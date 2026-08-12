@@ -147,3 +147,4 @@ UserGameProject/Assets/Stage/Lvl_FirstPerson/
 
 ## 関連機能
 - F-L7-005 — UEレベルエクスポートパイプライン(`tools/UnrealExport`)
+# 2026-08 追記: ADR-0040/M0019の宣言型Scene移行により、レベル全体を1 GLBとして実行時に読む方式は廃止した。現在は個別描画資産と`FirstPersonStageScene.cs`を生成し、C#を正本とする。以下は当時の判断記録として保持する。

@@ -2,15 +2,15 @@
     "version":  "0.2.0",
     "configurations":  [
                            {
-                               "name":  "UserGameProject",
+                               "name":  "UserEcsProject",
                                "type":  "coreclr",
                                "request":  "launch",
                                "preLaunchTask":  "build",
-                               "program":  "${workspaceFolder}/UserGameProject/bin/Debug/net10.0-windows10.0.19041.0/win-x64/UserGameProject.exe",
+                               "program":  "${workspaceFolder}/UserEcsProject/bin/Debug/net10.0-windows10.0.19041.0/win-x64/UserEcsProject.exe",
                                "args":  [
 
                                         ],
-                               "cwd":  "${workspaceFolder}/UserGameProject",
+                               "cwd":  "${workspaceFolder}/UserEcsProject",
                                "console":  "internalConsole",
                                "stopAtEntry":  false
                            },
@@ -79,23 +79,6 @@
                                             "${input:fbxOutputPath}"
                                         ],
                                "cwd":  "${workspaceFolder}",
-                               "console":  "internalConsole",
-                               "stopAtEntry":  false
-                           },
-                           {
-                               "name":  "UserGameProject: benchmark (AoS vs SoA)",
-                               "type":  "coreclr",
-                               "request":  "launch",
-                               "preLaunchTask":  "build",
-                               "program":  "${workspaceFolder}/UserGameProject/bin/Release/net10.0-windows10.0.19041.0/win-x64/UserGameProject.exe",
-                               "args":  [
-                                            "benchmark",
-                                            "--entities",
-                                            "500000",
-                                            "--iterations",
-                                            "51"
-                                        ],
-                               "cwd":  "${workspaceFolder}/UserGameProject",
                                "console":  "internalConsole",
                                "stopAtEntry":  false
                            },

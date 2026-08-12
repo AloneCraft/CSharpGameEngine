@@ -187,7 +187,7 @@ static int RunViewer(string[]Args){
 
 static string ResolveModelPath(string ModelPath){
     // Resolve relative to the current directory first (matches `--model` pointing at any real
-    // file, e.g. under UserGameProject/Assets/Fab/); fall back to the executable's own directory
+    // file, e.g. under UserEcsProject/Assets/Fab/); fall back to the executable's own directory
     // so the bundled Samples/Box.glb works whether invoked via `dotnet run` from the repo root or
     // by running the built .exe directly from its output directory.
     if(File.Exists(ModelPath)||Path.IsPathRooted(ModelPath)){

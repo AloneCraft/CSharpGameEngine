@@ -22,7 +22,7 @@ dotnet test --filter "Category!=GPU"
 ```
 
 ## VS Code
-`.vscode/launch.json`に、実行可能な6プロジェクト(`UserGameProject`・`TestHost`(self-test/triangle)・
+`.vscode/launch.json`に、`UserEcsProject`・`TestHost`(self-test/triangle)・
 `Extension`(Viewer)・3つのCLIブリッジ`Import.Gltf.Cli`/`Import.Fbx.Cli`/`Primitive.Cli`)分の
 デバッグ構成を用意しています。VS Codeでリポジトリを開き、拡張機能`ms-dotnettools.csharp`
 (初回は推奨通知が出ます)をインストールした状態で「実行とデバッグ」パネルから選択してください。
@@ -83,10 +83,9 @@ dotnet run --project tools/CSharpGameEngine.Extension -- --model Samples/Box.glb
 ```
 
 自分で購入・ダウンロードしたFabアセット（glTF/GLB形式）を表示する場合は、
-`UserGameProject/Assets/Fab/`配下に配置し、`--model`でそのパスを指定してください
-（詳細: [UserGameProject/Assets/Fab/README.md](UserGameProject/Assets/Fab/README.md)）。
+`UserEcsProject/Assets/Fab/`配下に配置し、`--model`でそのパスを指定してください。
 ```bash
-dotnet run --project tools/CSharpGameEngine.Extension -- --model UserGameProject/Assets/Fab/<アセット名>/<ファイル名>.gltf
+dotnet run --project tools/CSharpGameEngine.Extension -- --model UserEcsProject/Assets/Fab/<アセット名>/<ファイル名>.gltf
 ```
 
 Viewerのオプションは`triangle`コマンドと同様（`--frames` / `--width` / `--height` / `--hidden` /

@@ -23,6 +23,9 @@ internal sealed class SceneRenderObject {
     public required Matrix4x4 World { get; init;}
 
     public required NodePath NodeId { get; init;}
+
+    /// <summary>Sky domeなど、描画するが編集対象ステージの自動フレーミングには含めない場合はfalse。</summary>
+    public bool IncludeInBounds { get; init;}=true;
 }
 
 /// <summary>
@@ -320,6 +323,7 @@ internal sealed class SceneRenderer:IDisposable {
         Vector3?Max=null;
 
         foreach(SceneRenderObject RenderObject in RenderObjects){
+            if(!RenderObject.IncludeInBounds)continue;
             foreach(Vector3 LocalPosition in RenderObject.Mesh.Positions){
                 Vector3 WorldPosition=Vector3.Transform(LocalPosition,RenderObject.World);
                 Min=Min is null?WorldPosition:Vector3.Min(Min.Value,WorldPosition);
@@ -327,9 +331,11 @@ internal sealed class SceneRenderer:IDisposable {
             }
         }
 
-        Vector3 Center=(Min!.Value+Max!.Value)*0.5f;
+        if(Min is null||Max is null)return(Vector3.Zero,1f);
+        Vector3 Center=(Min.Value+Max.Value)*0.5f;
         var Radius=0f;
         foreach(SceneRenderObject RenderObject in RenderObjects){
+            if(!RenderObject.IncludeInBounds)continue;
             foreach(Vector3 LocalPosition in RenderObject.Mesh.Positions){
                 Vector3 WorldPosition=Vector3.Transform(LocalPosition,RenderObject.World);
                 Radius=Math.Max(Radius,Vector3.Distance(Center,WorldPosition));

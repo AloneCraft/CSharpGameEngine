@@ -7,7 +7,7 @@ namespace UserEcsProject;
 // エンジンオブジェクト(Win32Window / StageRenderer / AudioEngineHandle)はComponentのフィールドとして持つ。
 //
 // Componentの要件は「非nullableのstructであること」だけなので、参照型フィールドを持つことは制約に
-// 触れない(UserGameProjectの SceneSpawnRequest { LoadedScene? Scene } と同じ既存パターン)。
+// 触れない(遅延生成するエンジンオブジェクトをComponentへ保持する既存パターン)。
 // これらをContext引数ではなくComponentにしたことが、Program.csを不要にする鍵になっている:
 // Contextはループ開始前に構築されて`Run`の全期間で固定されるため、生成されたエントリポイントには
 // 渡す値を作る手段が無い。Componentに載せればSystemの中で遅延生成でき、Context引数がゼロになって
@@ -83,6 +83,31 @@ public struct Level {
 
     /// <summary>LevelLoadが生成する共有オーディオエンジン。StageRendererと同じく、確定前はnull。</summary>
     public AudioEngineHandle?AudioEngine;
+}
+
+/// <summary>SkyLightをStageRendererの単純な環境光へ写像した宣言Component。</summary>
+public struct AmbientLight {
+    public float ColorR;
+    public float ColorG;
+    public float ColorB;
+    public float Intensity;
+    public StageRenderer?Renderer;
+}
+
+/// <summary>UEのExponentialHeightFogから取り込む単純な指数高さFog。</summary>
+public struct HeightFog {
+    public float Density;
+    public float HeightFalloff;
+    public float ColorR;
+    public float ColorG;
+    public float ColorB;
+    public StageRenderer?Renderer;
+}
+
+/// <summary>実行時の初期一人称カメラ位置と向きを宣言する。</summary>
+public struct PlayerStart {
+    public float YawRadians;
+    public float PitchRadians;
 }
 
 /// <summary>
