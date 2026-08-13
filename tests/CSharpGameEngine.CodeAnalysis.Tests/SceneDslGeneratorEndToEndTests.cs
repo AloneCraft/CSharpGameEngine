@@ -26,6 +26,7 @@ public sealed class SceneDslGeneratorEndToEndTests {
     /// </summary>
     private const string Driver="""
         using CSharpGameEngine.Entities;
+        using Sample;
         namespace Game;
         public static class Driver {
             public static int InstantiateAndCountEntities(){
@@ -50,6 +51,21 @@ public sealed class SceneDslGeneratorEndToEndTests {
                 }
                 World.UnloadScene(A);
                 return !World.IsAlive(RootA)&&World.IsAlive(RootB)&&!World.IsSceneAlive(A)&&World.IsSceneAlive(B);
+            }
+            public static bool LooksUpComponentsWithoutReflection(){
+                World World=new();
+                SceneInstance Instance=World.InstantiateScene<MainScene>();
+                Entity Root=World.GetSceneRoot(Instance);
+
+                if(!World.TryGetComponent(Root,out Transform Transform)
+                    ||Transform.X!=1f){
+                    return false;
+                }
+
+                Entity Child=new(Root.Id+1);
+                return World.TryGetComponent(Child,out Parent Parent)
+                    &&Parent.Value==Root
+                    &&!World.TryGetComponent(Child,out Transform _);
             }
         }
         """;
@@ -116,6 +132,23 @@ public sealed class SceneDslGeneratorEndToEndTests {
             """);
 
         Assert.Equal(2,Invoke(Assembly,"InstantiateAndCountEntities"));
+    }
+
+    [Fact]
+    public void InstantiateScene_ProvidesTypedComponentLookupForSceneEntities(){
+        Assembly Assembly=CompileScene("""
+            using CSharpGameEngine.Entities;
+            using Sample;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() {
+                    Components=[new Transform { X=1f }],
+                    Children=[new Node { Components=[new Light { Intensity=7f }] }],
+                };
+            }
+            """);
+
+        Assert.True((bool)Invoke(Assembly,"LooksUpComponentsWithoutReflection")!);
     }
 
     /// <summary>

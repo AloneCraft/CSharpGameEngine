@@ -14,7 +14,14 @@
           <CommandName>C# Game Engine</CommandName>
         </Strings>
       </Menu>
-    </Menus>
+      <Menu guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSubmenuCommandId" priority="0x0100" type="Menu">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <CommandFlag>DontCache</CommandFlag>
+        <Strings>
+          <ButtonText>シーン デザイナーで開く</ButtonText>
+        </Strings>
+      </Menu>    </Menus>
 
     <Groups>
       <Group guid="guidOpenViewerCommandPackageCmdSet" id="OpenViewerMenuGroup" priority="0x0600">
@@ -34,6 +41,9 @@
            retired, see the Symbols section). -->
       <Group guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" priority="0x0600">
         <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_CODEWIN" />
+      </Group>
+      <Group guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerDynamicItemsGroup" priority="0x0100">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerSubmenuCommandId" />
       </Group>
     </Groups>
 
@@ -100,11 +110,23 @@
            再利用しないこと (既にインストール済みの VS がキーバインドやカスタマイズを保持している)。 -->
       <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerCommandId" priority="0x0100" type="Button">
         <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <CommandFlag>TextChanges</CommandFlag>
         <Strings>
           <ButtonText>シーン デザイナーで開く</ButtonText>
         </Strings>
       </Button>
-    </Buttons>
+      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerDynamicItemStart" priority="0x0100" type="Button">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerDynamicItemsGroup" />
+        <CommandFlag>DynamicItemStart</CommandFlag>
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <CommandFlag>TextChanges</CommandFlag>
+        <!-- Checked は OLECMDF_LATCHED として VS 標準の選択表示を行う。 -->
+        <CommandFlag>TogglePatternAvailable</CommandFlag>
+        <Strings>
+          <ButtonText>Scene</ButtonText>
+        </Strings>
+      </Button>    </Buttons>
   </Commands>
 
   <CommandPlacements>
@@ -157,6 +179,10 @@
       <!-- ADR-0040 Phase 9. -->
       <IDSymbol name="OpenSceneDesignerCommandId" value="0x0109" />
       <IDSymbol name="SceneDesignerContextMenuGroup" value="0x1024" />
+      <IDSymbol name="SceneDesignerDynamicItemsGroup" value="0x1026" />
+      <IDSymbol name="OpenSceneDesignerSubmenuCommandId" value="0x010A" />
+      <IDSymbol name="OpenSceneDesignerDynamicItemStart" value="0x0110" />
+      <IDSymbol name="SceneDesignerSubmenu" value="0x1025" />
     </GuidSymbol>
   </Symbols>
 </CommandTable>

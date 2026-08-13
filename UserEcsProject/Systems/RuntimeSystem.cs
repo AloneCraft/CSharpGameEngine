@@ -3,6 +3,8 @@ using CSharpGameEngine.Entities;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Platform.Windows;
 using CSharpGameEngine.Runtime.Windows;
+using RenderCamera=CSharpGameEngine.Graphics.D3D12.Camera;
+using SceneCamera=CSharpGameEngine.Runtime.Windows.Camera;
 
 namespace UserEcsProject.Systems;
 
@@ -37,9 +39,12 @@ internal struct LevelLoad:ISystem {
     private UserEcsProject.DirectionalLight PendingSun;
     private Transform PendingPlayerTransform;
     private PlayerStart PendingPlayerStart;
+    private Transform PendingCameraTransform;
+    private SceneCamera PendingCamera;
     private bool HasEnvironment;
     private bool HasSun;
     private bool HasPlayerStart;
+    private bool HasActiveCamera;
     private bool CollectionPassStarted;
     private bool RosterCaptured;
 
@@ -68,11 +73,16 @@ internal struct LevelLoad:ISystem {
         return true;
     }
 
+    public bool Update(ref Transform Transform,ref SceneCamera Camera,ref State State){
+        if(!RosterCaptured&&Camera.Active){ PendingCameraTransform=Transform;PendingCamera=Camera;HasActiveCamera=true; }
+        return true;
+    }
+
     public bool Update(ref AppHost App,ref Level Level,ref State State){
-        if(Level.Loaded){ Level.Renderer?.SetCamera(Level.Camera);return true; }
+        if(Level.Loaded){ Level.Renderer?.SetCamera(Level.RenderCamera);return true; }
         if(App.Window is not{ }Window)return true;
         if(!CollectionPassStarted){ CollectionPassStarted=true;return true; }
-        if(!HasEnvironment||!HasSun||!HasPlayerStart){
+        if(!HasEnvironment||!HasSun||!HasPlayerStart||!HasActiveCamera){
             throw new InvalidOperationException("FirstPersonStageSceneの環境光、Fog、DirectionalLight、PlayerStartが揃っていません。");
         }
 
@@ -82,10 +92,13 @@ internal struct LevelLoad:ISystem {
             Path.Combine(AppContext.BaseDirectory,Level.ShaderPath),Scene.Meshes,Scene.Materials,Scene.Objects);
         Window.Resized+=(Width,Height)=>Renderer.Resize(Width,Height);
 
-        Camera Camera=Camera.CreateFirstPerson(new Vector3(PendingPlayerTransform.PositionX,PendingPlayerTransform.PositionY,PendingPlayerTransform.PositionZ));
+        RenderCamera Camera=RenderCamera.CreateFirstPerson(new Vector3(PendingCameraTransform.PositionX,PendingCameraTransform.PositionY,PendingCameraTransform.PositionZ));
         Camera.Yaw=PendingPlayerStart.YawRadians;
         Camera.Pitch=PendingPlayerStart.PitchRadians;
-        Level.Camera=Camera;
+        Camera.FovYRadians=PendingCamera.FovYRadians;
+        Camera.NearZ=PendingCamera.NearZ;
+        Camera.FarZ=PendingCamera.FarZ;
+        Level.RenderCamera=Camera;
         Level.Renderer=Renderer;
         Level.Loaded=true;
         Renderer.SetCamera(Camera);

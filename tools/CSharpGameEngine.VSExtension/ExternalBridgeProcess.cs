@@ -134,7 +134,11 @@ internal static class BridgeExecutableLocator {
             ];
 
             foreach(var Candidate in Candidates){
-                if(!File.Exists(Candidate)){
+                // An apphost without its runtimeconfig is not runnable. It can be left behind
+                // by an incomplete build; launching it produces a misleading hostpolicy.dll error.
+                // Fall back to dotnet run until the portable output is complete.
+                string RuntimeConfigPath=Path.ChangeExtension(Candidate,".runtimeconfig.json");
+                if(!File.Exists(Candidate)||!File.Exists(RuntimeConfigPath)){
                     continue;
                 }
 

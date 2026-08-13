@@ -4,6 +4,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Interop;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using CSharpGameEngine.SceneAnalysis;
@@ -28,15 +29,27 @@ internal sealed class SceneHwndHost:HwndHost {
     private string?TargetFilePath;
     private string?TargetClassName;
     private SceneModel?TargetModel;
+    private SceneKey?TargetKey;
+    private SceneDocumentSnapshot?TargetSnapshot;
+    private NodePath?SelectedNodePath;
     private RenderSurfaceWindow?Surface;
     private SceneRenderer?Renderer;
     private LatestOnlyThreadWorker<SceneRenderBuildRequest,SceneRenderBuildResult>?BuildWorker;
     private EventHandler?RenderingHandler;
-    private Action<IReadOnlyList<SceneModel>>?ModelsHandler;
-    private Action<NodePath?>?SelectionHandler;
     private Action<int,int>?ResizeHandler;
 
     internal event Action<string>?StatusChanged;
+
+    public SceneHwndHost(){
+        // Surfaceは描画先でありキーボード入力を持つコントロールではない。HwndHostの既定
+        // TabInto経路を残すと、float/dockやマウスクリック後にVSのTab等がSurfaceへ入り、
+        // WPFとWin32のフォーカスがずれてコードエディタの制御キーが効かなくなる。
+        Focusable=false;
+        KeyboardNavigation.SetIsTabStop(this,RenderSurfaceFocusPolicy.AllowTabInto);
+    }
+
+    protected override bool TabIntoCore(TraversalRequest Request)
+        =>RenderSurfaceFocusPolicy.AllowTabInto;
 
     protected override HandleRef BuildWindowCore(HandleRef HwndParent){
         // Rendererが最初のPresentを行えるまで子HWNDを隠す。NOREDIRECTIONBITMAPの空Surfaceを
@@ -64,39 +77,41 @@ internal sealed class SceneHwndHost:HwndHost {
         Surface=null;
     }
 
-    /// <summary>Points this host at a specific class in a specific file - called once by <c>OpenSceneDesignerCommand</c> when the tool window is shown/retargeted.</summary>
-    internal void SetTarget(SceneModel Model){
-        this.TargetFilePath=Model.FilePath;
-        this.TargetClassName=Model.ClassName;
-        this.TargetModel=Model;
+    /// <summary>
+    /// Session が pin した snapshot を描画対象にします。解析中の blocking error は Last Known Good
+    /// projection を保持するので、ここでrendererを空へ戻しません。
+    /// </summary>
+    internal void SetTarget(SceneDocumentSnapshot Snapshot){
+        this.TargetKey=Snapshot.Key;
+        this.TargetSnapshot=Snapshot;
+        SceneModel?Model=Snapshot.LastKnownGoodModel??Snapshot.CurrentModel;
+        if(Model is not null){
+            this.TargetFilePath=Model.FilePath;
+            this.TargetClassName=Model.ClassName;
+            this.TargetModel=Model;
+        }
 
         if(Surface is not null){
-            DisposeRenderer();
             Rebuild();
         }
+    }
+
+    /// <summary>EditorNodeIdを現在snapshotのNodePathへ解決して既存Rendererへ渡します。</summary>
+    internal void SetSelection(SceneDocumentSnapshot Snapshot,SceneSelection Selection){
+        if(this.TargetKey is not { } Key||!Key.Equals(Snapshot.Key)){
+            return;
+        }
+
+        this.SelectedNodePath=Selection.PrimaryNodeId is { } Id
+            &&Snapshot.Projection?.TryGetNode(Id,out SceneProjectionNode Node)==true
+            ?Node.Path
+            :null;
+        Renderer?.SetSelectedNode(this.SelectedNodePath);
     }
 
     private void LoadIntoSurface(){
         if(Surface is null){
             return;
-        }
-
-        if(ModelsHandler is null){
-            ModelsHandler=Models=>{
-                SceneModel?Updated=Models.FirstOrDefault(
-                    M=>string.Equals(M.FilePath,TargetFilePath,StringComparison.OrdinalIgnoreCase)
-                        &&string.Equals(M.ClassName,TargetClassName,StringComparison.Ordinal));
-                if(Updated is not null){
-                    TargetModel=Updated;
-                    Rebuild();
-                }
-            };
-            SceneEditorHub.AllSceneModelsChanged+=ModelsHandler;
-        }
-
-        if(SelectionHandler is null){
-            SelectionHandler=Path=>Renderer?.SetSelectedNode(Path);
-            SceneEditorHub.SelectedNodePathChanged+=SelectionHandler;
         }
 
         if(RenderingHandler is null){
@@ -113,9 +128,9 @@ internal sealed class SceneHwndHost:HwndHost {
         Rebuild();
     }
 
-    /// <summary>(Re)builds <see cref="Renderer"/> from the current <see cref="SceneEditorHub.ActiveAllSceneModels"/> - called on first load and every live re-analysis.</summary>
+    /// <summary>(Re)builds <see cref="Renderer"/> from the pin 済み <see cref="SceneDocumentSnapshot"/>.</summary>
     private void Rebuild(){
-        if(Surface is null||TargetFilePath is null||TargetClassName is null){
+        if(Surface is null||TargetKey is null||TargetSnapshot is null||TargetFilePath is null||TargetClassName is null){
             return;
         }
 
@@ -147,6 +162,8 @@ internal sealed class SceneHwndHost:HwndHost {
         // 未処理要求を置換するため、ブリッジプロセスが無制限に増えることもない。
         BuildWorker?.Request(new SceneRenderBuildRequest(
             Model,
+            TargetKey.Value,
+            TargetSnapshot.AnalysisGeneration,
             TargetFilePath,
             TargetClassName,
             Surface.Handle));
@@ -169,8 +186,9 @@ internal sealed class SceneHwndHost:HwndHost {
     private void OnBuildCompleted(SceneRenderBuildRequest Request,SceneRenderBuildResult?Result,Exception?Error){
         if(Surface is null
             ||Surface.Handle!=Request.SurfaceHandle
-            ||!string.Equals(TargetFilePath,Request.FilePath,StringComparison.OrdinalIgnoreCase)
-            ||!string.Equals(TargetClassName,Request.ClassName,StringComparison.Ordinal)){
+            ||TargetKey is not { } Key
+            ||!Key.Equals(Request.Key)
+            ||TargetSnapshot?.AnalysisGeneration!=Request.AnalysisGeneration){
             return;
         }
 
@@ -196,7 +214,7 @@ internal sealed class SceneHwndHost:HwndHost {
         try {
             DisposeRenderer();
             Renderer=new SceneRenderer(Surface.Handle,800,600,Result.RenderObjects);
-            Renderer.SetSelectedNode(SceneEditorHub.SelectedNodePath);
+            Renderer.SetSelectedNode(this.SelectedNodePath);
             Surface.SetVisible(true);
             SetStatus($"表示中: {Result.Request.ClassName}");
         } catch(Exception Ex){
@@ -218,16 +236,6 @@ internal sealed class SceneHwndHost:HwndHost {
             RenderingHandler=null;
         }
 
-        if(ModelsHandler is not null){
-            SceneEditorHub.AllSceneModelsChanged-=ModelsHandler;
-            ModelsHandler=null;
-        }
-
-        if(SelectionHandler is not null){
-            SceneEditorHub.SelectedNodePathChanged-=SelectionHandler;
-            SelectionHandler=null;
-        }
-
         if(ResizeHandler is not null&&Surface is not null){
             Surface.Resized-=ResizeHandler;
             ResizeHandler=null;
@@ -238,6 +246,8 @@ internal sealed class SceneHwndHost:HwndHost {
 
     private sealed record SceneRenderBuildRequest(
         SceneModel Model,
+        SceneKey Key,
+        long AnalysisGeneration,
         string FilePath,
         string ClassName,
         IntPtr SurfaceHandle);

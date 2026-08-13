@@ -117,8 +117,45 @@ internal sealed class ActiveDocumentTracker : IVsSelectionEvents,IDisposable {
     private bool TryGetActiveTextViewPath(out string DocumentPath){
         ThreadHelper.ThrowIfNotOnUIThread();
 
+        return this.TryGetActiveTextView(out _,out DocumentPath);
+    }
+
+    /// <summary>
+    /// コマンド起動元のテキストビューを固定します。ToolWindow表示後にGetActiveViewを呼ぶと、
+    /// 既にVSシェルへフォーカスが移った後なので、右クリック元を確実に復元できません。
+    /// </summary>
+    internal IVsTextView? CaptureActiveTextView(string ExpectedFilePath){
+        ThreadHelper.ThrowIfNotOnUIThread();
+
+        return this.TryGetActiveTextView(out IVsTextView View,out string DocumentPath)
+            &&string.Equals(DocumentPath,ExpectedFilePath,StringComparison.OrdinalIgnoreCase)
+            ?View
+            :null;
+    }
+
+    /// <summary>
+    /// 右クリックコマンドの型境界にはキャレット位置を使う。既にアクティブなテキストバッファだけを
+    /// 同期的に読み、ここからRoslyn解析を開始してはならない。
+    /// </summary>
+    internal bool TryCaptureActiveCaretPosition(string ExpectedFilePath,out int Position){
+        ThreadHelper.ThrowIfNotOnUIThread();
+
+        Position=0;
+        if(!this.TryGetActiveTextView(out IVsTextView View,out string DocumentPath)
+            ||!string.Equals(DocumentPath,ExpectedFilePath,StringComparison.OrdinalIgnoreCase)
+            ||View.GetCaretPos(out int Line,out int Column)!=VSConstants.S_OK
+            ||View.GetBuffer(out IVsTextLines Buffer)!=VSConstants.S_OK){
+            return false;
+        }
+
+        return Buffer.GetPositionOfLineIndex(Line,Column,out Position)==VSConstants.S_OK;
+    }
+    private bool TryGetActiveTextView(out IVsTextView View,out string DocumentPath){
+        ThreadHelper.ThrowIfNotOnUIThread();
+
+        View=null!;
         DocumentPath=string.Empty;
-        if(this.TextManager.GetActiveView(0,null,out IVsTextView View)!=VSConstants.S_OK
+        if(this.TextManager.GetActiveView(0,null,out View)!=VSConstants.S_OK
             ||View.GetBuffer(out IVsTextLines Buffer)!=VSConstants.S_OK
             ||Buffer is not IPersistFileFormat PersistFile
             ||PersistFile.GetCurFile(out var Path,out _)!=VSConstants.S_OK

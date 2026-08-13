@@ -20,7 +20,8 @@
     <CopyOutputSymbolsToOutputDirectory>false</CopyOutputSymbolsToOutputDirectory>
     <StartAction>Program</StartAction>
     <StartProgram Condition="'$(DevEnvDir)' != ''">$(DevEnvDir)devenv.exe</StartProgram>
-    <StartArguments>/rootsuffix Exp</StartArguments>
+    <UserEcsProjectSolutionPath>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\UserEcsProject.slnx'))</UserEcsProjectSolutionPath>
+    <StartArguments>/rootsuffix Exp &quot;$(UserEcsProjectSolutionPath)&quot;</StartArguments>
 
     <!-- VSIX deployment copies this assembly out of the repo (into the Extensions hive), so a
          runtime "walk up from my own location" search can never find CSharpGameEngine.slnx.

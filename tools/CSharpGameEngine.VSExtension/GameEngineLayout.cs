@@ -1,7 +1,7 @@
 using System;
-using System.IO;
 using System.Threading.Tasks;
 using EnvDTE;
+using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.CommandBars;
 using Microsoft.VisualStudio.Settings;
 using Microsoft.VisualStudio.Shell;
@@ -12,8 +12,8 @@ namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
 /// Builds the "GameEngine" default panel arrangement (ADR-0021): the "C# Game Engine" toolbar made
-/// visible, Hierarchy docked left / ShapePalette docked right of Solution Explorer, and the default
-/// scene opened as a document tab. Two call sites: once automatically on a genuinely first launch
+/// visible, Hierarchy docked left / ShapePalette docked right of Solution Explorer without
+/// activating either pane. Two call sites: once automatically on a genuinely first launch
 /// (<see cref="CSharpGameEngineViewerPackage"/>, gated by <see cref="WasInitialLayoutAppliedAsync"/>
 /// so it never re-fights a user's own later layout changes - VS's own window-profile persistence
 /// handles "restore what was open last time" from then on), and on demand via
@@ -53,25 +53,57 @@ internal static class GameEngineLayout {
     }
 
     /// <summary>
-    /// Shows the toolbar and docks Hierarchy / Scene Designer / ShapePalette around Solution
-    /// Explorer. No longer opens a default scene document tab (ADR-0040 Phase 9 retired the
-    /// <c>.scene</c> document editor entirely - Scene Designer is opened per-class via
-    /// <see cref="OpenSceneDesignerCommand"/>'s code-editor context menu entry instead of a fixed
-    /// default file).
+    /// Shows the toolbar and docks the auxiliary Hierarchy / ShapePalette panes around Solution
+    /// Explorer without taking keyboard focus. Scene Designer is deliberately excluded: it needs a
+    /// concrete IScene target and is opened only through <see cref="OpenSceneDesignerCommand"/>.
     /// </summary>
-    public static async Task ApplyAsync(AsyncPackage Package,DTE Dte,string RepoRoot){
+    public static async Task ApplyAsync(AsyncPackage Package,DTE Dte){
         await Package.JoinableTaskFactory.SwitchToMainThreadAsync(Package.DisposalToken);
 
         ShowToolbar(Dte);
 
-        ToolWindowPane HierarchyWindow= await Package.ShowToolWindowAsync(typeof(HierarchyToolWindowPane),0,true,Package.DisposalToken);
-        ToolWindowPane SceneDesignerWindow= await Package.ShowToolWindowAsync(typeof(SceneDesignerToolWindowPane),0,true,Package.DisposalToken);
-        ToolWindowPane ShapeWindow= await Package.ShowToolWindowAsync(typeof(ShapePaletteToolWindowPane),0,true,Package.DisposalToken);
-
         Guid SolutionExplorer=new(ToolWindowGuids80.SolutionExplorer);
-        SetFramePos(HierarchyWindow,VSSETFRAMEPOS.SFP_fDock|VSSETFRAMEPOS.SFP_fDockLeft,SolutionExplorer,Width:300);
-        SetFramePos(SceneDesignerWindow,VSSETFRAMEPOS.SFP_fDock|VSSETFRAMEPOS.SFP_fDockRight,SolutionExplorer,Width:260);
-        SetFramePos(ShapeWindow,VSSETFRAMEPOS.SFP_fDock|VSSETFRAMEPOS.SFP_fDockRight,SolutionExplorer,Width:260);
+        foreach(InitialLayoutToolWindowSpec Specification in InitialLayoutToolWindowPlan.ToolWindows){
+            ToolWindowPane Pane=await Package.FindToolWindowAsync(
+                GetToolWindowType(Specification.Kind),
+                0,
+                true,
+                Package.DisposalToken);
+            SetFramePos(Pane,GetFramePosition(Specification.Kind),SolutionExplorer,Specification.Width);
+
+            if(Specification.Presentation==ToolWindowPresentation.NonActivating){
+                ShowFrameWithoutActivation(Pane);
+            }
+        }
+    }
+
+    private static System.Type GetToolWindowType(InitialLayoutToolWindowKind Kind)=>Kind switch {
+        InitialLayoutToolWindowKind.Hierarchy=>typeof(HierarchyToolWindowPane),
+        InitialLayoutToolWindowKind.ShapePalette=>typeof(ShapePaletteToolWindowPane),
+        _=>throw new System.ArgumentOutOfRangeException(nameof(Kind),Kind,"初期レイアウトに含められないToolWindowです。"),
+    };
+
+    private static VSSETFRAMEPOS GetFramePosition(InitialLayoutToolWindowKind Kind)=>Kind switch {
+        InitialLayoutToolWindowKind.Hierarchy=>VSSETFRAMEPOS.SFP_fDock|VSSETFRAMEPOS.SFP_fDockLeft,
+        InitialLayoutToolWindowKind.ShapePalette=>VSSETFRAMEPOS.SFP_fDock|VSSETFRAMEPOS.SFP_fDockRight,
+        _=>throw new System.ArgumentOutOfRangeException(nameof(Kind),Kind,"初期レイアウトに含められないToolWindowです。"),
+    };
+
+    private static void ShowFrameWithoutActivation(ToolWindowPane Pane){
+        ThreadHelper.ThrowIfNotOnUIThread();
+
+        if(Pane.Frame is not IVsWindowFrame Frame){
+            return;
+        }
+
+        ToolWindowFramePresenter.ShowWithoutActivation(
+            ()=>ShowNoActivate(Frame),
+            RestoreFocus:null);
+    }
+
+    private static void ShowNoActivate(IVsWindowFrame Frame){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        ErrorHandler.ThrowOnFailure(Frame.ShowNoActivate());
     }
 
     private static void ShowToolbar(DTE Dte){

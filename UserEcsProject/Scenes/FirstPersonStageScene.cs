@@ -1045,6 +1045,7 @@ internal partial class FirstPersonStageScene:IScene {
                         ScaleZ=1f,
                     },
                     new PlayerStart { YawRadians=0f,PitchRadians=0f },
+                    new Camera { Active=true },
                 ],
             },
         ],

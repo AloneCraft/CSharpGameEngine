@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using CSharpGameEngine.SceneAnalysis;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.VisualStudio.ComponentModelHost;
 using Microsoft.VisualStudio.LanguageServices;
 using Microsoft.VisualStudio.Shell;
@@ -44,6 +45,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
     private readonly SceneAnalysisGenerationGate<DocumentId>AnalysisGeneration=new();
     private System.Threading.Timer?DebounceTimer;
     private CancellationTokenSource?PendingAnalysis;
+    private readonly Dictionary<ProjectId,ProjectSceneCatalogCache>ProjectSceneCatalogs=[];
 
     /// <summary>
     /// The in-flight analysis. Held rather than discarded so the fire-and-forget stays observable
@@ -54,6 +56,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
 
     private DocumentId?ActiveDocumentId;
     private string?ActiveDocumentPath;
+    private SceneDocumentMenuSnapshot ActiveMenuSnapshot=new(SceneDesignerTargetState.Unavailable,[],[]);
     private bool Disposed;
 
     private SceneWorkspaceService(VisualStudioWorkspace Workspace,JoinableTaskFactory TaskFactory){
@@ -79,6 +82,17 @@ internal sealed class SceneWorkspaceService : IDisposable {
     internal IReadOnlyList<SceneModel>AllModels { get;private set;}=[];
 
     internal event Action<IReadOnlyList<SceneModel>>?AllModelsChanged;
+    /// <summary>
+    /// UIコマンド状態判定専用の解析済みスナップショット。Roslyn処理を開始・待機しない。
+    /// </summary>
+    internal SceneDocumentMenuSnapshot GetMenuSnapshot(string FilePath){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        lock(this.Gate){
+            return string.Equals(this.ActiveDocumentPath,FilePath,StringComparison.OrdinalIgnoreCase)
+                ?this.ActiveMenuSnapshot
+                :new SceneDocumentMenuSnapshot(SceneDesignerTargetState.Unavailable,[],[]);
+        }
+    }
 
     /// <summary>
     /// Acquires the workspace through <c>SComponentModel</c> rather than exporting a MEF part - this
@@ -122,6 +136,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
             this.ActiveDocumentId=DocumentId;
             this.AnalysisGeneration.ActivateDocument(DocumentId);
             this.CancelPendingAnalysisNoLock();
+            this.ActiveMenuSnapshot=new(this.ActiveDocumentPath is null?SceneDesignerTargetState.Unavailable:SceneDesignerTargetState.Analyzing,[],[]);
         }
 
         // A document switch invalidates the old tree immediately. The command no longer consumes
@@ -129,6 +144,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
         // old BeforeQueryStatus/Execute race.
         this.CurrentModel=null;
         this.AllModels=[];
+
         this.ModelChanged?.Invoke(null);
         this.AllModelsChanged?.Invoke(this.AllModels);
         this.ScheduleAnalysis();
@@ -137,6 +153,22 @@ internal sealed class SceneWorkspaceService : IDisposable {
     /// <summary>Resolves a file path to a document in the current solution. Null when the file is not part of it.</summary>
     internal DocumentId?FindDocument(string FilePath){
         return this.Workspace.CurrentSolution.GetDocumentIdsWithFilePath(FilePath).FirstOrDefault();
+    }
+    /// <summary>
+    /// Roslyn の実 ProjectId と完全修飾 Scene 名から、Designer session 用の不変キーを作成します。
+    /// ファイルパスや単純クラス名をキーにすると、同名 partial/別プロジェクトの Scene を誤って結合する
+    /// ためです。ソリューション外の Document は session に載せません。
+    /// </summary>
+    internal SceneKey?TryCreateSceneKey(SceneModel Model){
+        DocumentId?DocumentId=this.FindDocument(Model.FilePath);
+        Document?Document=DocumentId is { } Id
+            ?this.Workspace.CurrentSolution.GetDocument(Id)
+            :null;
+        if(Document is null){
+            return null;
+        }
+
+        return new SceneKey(Document.Project.Id.Id.ToString("N"),Model.ClassFullyQualifiedName);
     }
 
     /// <summary>
@@ -147,10 +179,97 @@ internal sealed class SceneWorkspaceService : IDisposable {
     internal async Task<IReadOnlyList<SceneModel>>AnalyzeFileNowAsync(string FilePath,CancellationToken CancellationToken){
         DocumentId?DocumentId=this.FindDocument(FilePath);
         if(DocumentId is null){
-            throw new InvalidOperationException($"Roslynワークスペース内に対象ファイルが見つかりませんでした: {FilePath}");
+            throw new InvalidOperationException($"Roslyn workspace に対象ファイルがありません: {FilePath}");
         }
 
-        return await this.AnalyzeAllAsync(DocumentId,CancellationToken).ConfigureAwait(false);
+        SceneDocumentAnalysisResult Result=await this.AnalyzeAllAsync(DocumentId,CancellationToken).ConfigureAwait(false);
+        return Result.Models;
+    }
+
+    /// <summary>
+    /// 現在（または ActiveDocumentTracker が保持している最後）の C# 文書と同じ Project だけから
+    /// Scene を集めます。ここは Roslyn のみを背景で読むため、ComboBox の展開が UI thread を
+    /// ブロックしたり、描画用 bridge process を起動したりしません。
+    /// </summary>
+    internal async Task<ProjectSceneCatalog?>GetActiveProjectSceneCatalogAsync(CancellationToken CancellationToken){
+        DocumentId?ActiveId;
+        lock(this.Gate){
+            ActiveId=this.ActiveDocumentId;
+        }
+
+        Document?Document=ActiveId is { } Id?this.Workspace.CurrentSolution.GetDocument(Id):null;
+        if(Document is null){
+            return null;
+        }
+
+        Project Project=Document.Project;
+        lock(this.Gate){
+            if(this.ProjectSceneCatalogs.TryGetValue(Project.Id,out ProjectSceneCatalogCache?Cached)
+                &&Cached.Version.Equals(Project.Version)){
+                return Cached.Catalog;
+            }
+        }
+
+        Compilation?Compilation=await Project.GetCompilationAsync(CancellationToken).ConfigureAwait(false);
+        if(Compilation is null){
+            return null;
+        }
+
+        string ProjectKey=Project.Id.Id.ToString("N");
+        List<ProjectSceneCatalogEntry>Entries=[];
+        foreach(INamedTypeSymbol Type in EnumerateTypes(Compilation.Assembly.GlobalNamespace)){
+            CancellationToken.ThrowIfCancellationRequested();
+            if(!SceneTypePredicates.ImplementsSceneInterface(Type)){
+                continue;
+            }
+
+            TypeDeclarationSyntax?Declaration=Type.DeclaringSyntaxReferences
+                .Select(Reference=>Reference.GetSyntax(CancellationToken) as TypeDeclarationSyntax)
+                .Where(static Candidate=>Candidate is not null)
+                .Cast<TypeDeclarationSyntax>()
+                .Where(Candidate=>!IsGeneratedSceneFile(Candidate.SyntaxTree,CancellationToken))
+                .OrderBy(Candidate=>Candidate.SyntaxTree.FilePath,StringComparer.OrdinalIgnoreCase)
+                .ThenBy(Candidate=>Candidate.SpanStart)
+                .FirstOrDefault();
+            if(Declaration is null||string.IsNullOrWhiteSpace(Declaration.SyntaxTree.FilePath)){
+                continue;
+            }
+
+            Entries.Add(new ProjectSceneCatalogEntry(
+                new SceneKey(ProjectKey,SceneDeclarationAnalyzer.ComputeClassFullyQualifiedName(Type)),
+                Type.Name,
+                Declaration.SyntaxTree.FilePath,
+                Declaration.SpanStart));
+        }
+
+        ProjectSceneCatalog Catalog=new(ProjectKey,ProjectSceneCatalogPresentation.Create(ProjectKey,Entries));
+        lock(this.Gate){
+            if(!this.Disposed){
+                this.ProjectSceneCatalogs[Project.Id]=new(Project.Version,Catalog);
+            }
+        }
+
+        return Catalog;
+    }
+
+    /// <summary>ComboBox が保持する <see cref="SceneKey"/> を、現在の Project で再解決します。</summary>
+    internal async Task<SceneModel?>ResolveSceneAsync(SceneKey Key,CancellationToken CancellationToken){
+        Project?Project=this.Workspace.CurrentSolution.Projects.FirstOrDefault(Candidate=>
+            string.Equals(Candidate.Id.Id.ToString("N"),Key.ProjectId,StringComparison.Ordinal));
+        if(Project is null){
+            return null;
+        }
+
+        Compilation?Compilation=await Project.GetCompilationAsync(CancellationToken).ConfigureAwait(false);
+        if(Compilation is null){
+            return null;
+        }
+
+        INamedTypeSymbol?Type=EnumerateTypes(Compilation.Assembly.GlobalNamespace).FirstOrDefault(Candidate=>
+            string.Equals(SceneDeclarationAnalyzer.ComputeClassFullyQualifiedName(Candidate),Key.ClassFullyQualifiedName,StringComparison.Ordinal));
+        return Type is null||!SceneTypePredicates.ImplementsSceneInterface(Type)
+            ?null
+            :SceneDeclarationAnalyzer.Analyze(Type,Compilation,CancellationToken);
     }
 
     private void OnWorkspaceChanged(object Sender,WorkspaceChangeEventArgs Args){
@@ -177,6 +296,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
             }
 
             this.CancelPendingAnalysisNoLock();
+            this.ActiveMenuSnapshot=new(this.ActiveDocumentPath is null?SceneDesignerTargetState.Unavailable:SceneDesignerTargetState.Analyzing,[],[]);
             DocumentId?ResolvedDocumentId=this.ActiveDocumentPath is null
                 ?null
                 :this.FindDocument(this.ActiveDocumentPath);
@@ -188,6 +308,9 @@ internal sealed class SceneWorkspaceService : IDisposable {
                 Request=this.AnalysisGeneration.Refresh();
             }
 
+            // 古い型Spanで別クラスを有効化しない。BeforeQueryStatusはこの状態を見るだけで、
+            // ここからRoslynを待機しない。
+            this.ActiveMenuSnapshot=new(SceneDesignerTargetState.Analyzing,[],[]);
             CancellationTokenSource Source=new();
             this.PendingAnalysis=Source;
             this.DebounceTimer=new System.Threading.Timer(
@@ -203,7 +326,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
         // work joinable, and the handle is stored so VS can still block on it during shutdown.
         this.RunningAnalysis=this.TaskFactory.RunAsync(async ()=>{
             try {
-                IReadOnlyList<SceneModel>Models= await this.AnalyzeAllAsync(
+                SceneDocumentAnalysisResult Result=await this.AnalyzeAllAsync(
                     Scheduled.Request.Document,
                     Scheduled.Token).ConfigureAwait(false);
 
@@ -213,79 +336,87 @@ internal sealed class SceneWorkspaceService : IDisposable {
                 }
 
                 await this.TaskFactory.SwitchToMainThreadAsync(Scheduled.Token);
+                SceneModel?First=Result.Models.Count>0?Result.Models[0]:null;
                 lock(this.Gate){
                     if(this.Disposed
                         ||Scheduled.Token.IsCancellationRequested
                         ||!this.AnalysisGeneration.IsCurrent(Scheduled.Request)){
                         return;
                     }
+
+                    this.CurrentModel=First;
+                    this.AllModels=Result.Models;
+                    this.ActiveMenuSnapshot=Result.MenuSnapshot;
                 }
 
-                SceneModel?First=Models.Count>0?Models[0]:null;
-                this.CurrentModel=First;
-                this.AllModels=Models;
                 this.ModelChanged?.Invoke(First);
-                this.AllModelsChanged?.Invoke(Models);
+                this.AllModelsChanged?.Invoke(Result.Models);
             } catch(OperationCanceledException){
                 // Superseded by a newer analysis.
             } catch(Exception Ex){
-                // Never let a transient analysis failure take down VS or blank the tree; the last
-                // good model stays visible. Do not silently turn this into a legitimate zero-scene
-                // result: ActivityLog preserves the distinction for diagnosis.
                 ActivityLog.LogError(nameof(SceneWorkspaceService),Ex.ToString());
+                await this.TaskFactory.SwitchToMainThreadAsync();
+                lock(this.Gate){
+                    if(this.Disposed||!this.AnalysisGeneration.IsCurrent(Scheduled.Request)){
+                        return;
+                    }
+
+                    this.ActiveMenuSnapshot=new(SceneDesignerTargetState.Failed,[],[]);
+                }
             }
         });
     }
 
     /// <summary>
-    /// Every <c>IScene</c> implementation declared in the active document, in declaration order.
-    /// Only scenes declared in *this* document are considered - a project may hold several documents
-    /// with their own scenes, and showing whichever one happened to be found first would make the
-    /// tree depend on compilation order.
+    /// アクティブ文書に宣言された全<c>IScene</c>実装を宣言順で解析する。並行して保持する型範囲は
+    /// コードウィンドウの右クリック専用のVSIX内部メタデータであり、Source Generatorと共有する
+    /// <c>SceneModel</c>契約は変更しない。
     /// </summary>
-    private async Task<IReadOnlyList<SceneModel>>AnalyzeAllAsync(DocumentId?DocumentId,CancellationToken CancellationToken){
+    private async Task<SceneDocumentAnalysisResult>AnalyzeAllAsync(DocumentId?DocumentId,CancellationToken CancellationToken){
         if(DocumentId is null){
-            return [];
+            return new([],new SceneDocumentMenuSnapshot(SceneDesignerTargetState.Unavailable,[],[]));
         }
 
         Document?Document=this.Workspace.CurrentSolution.GetDocument(DocumentId);
-
         if(Document is null){
-            throw new InvalidOperationException($"Roslynワークスペース内に対象Documentが見つかりませんでした: {DocumentId}");
+            throw new InvalidOperationException($"Roslyn workspace に対象Documentがありません: {DocumentId}");
         }
 
-        Compilation?Compilation= await Document.Project.GetCompilationAsync(CancellationToken).ConfigureAwait(false);
-        SyntaxNode?Root= await Document.GetSyntaxRootAsync(CancellationToken).ConfigureAwait(false);
-        SemanticModel?SemanticModel= await Document.GetSemanticModelAsync(CancellationToken).ConfigureAwait(false);
-
+        Compilation?Compilation=await Document.Project.GetCompilationAsync(CancellationToken).ConfigureAwait(false);
+        SyntaxNode?Root=await Document.GetSyntaxRootAsync(CancellationToken).ConfigureAwait(false);
+        SemanticModel?SemanticModel=await Document.GetSemanticModelAsync(CancellationToken).ConfigureAwait(false);
         if(Compilation is null||Root is null||SemanticModel is null){
-            throw new InvalidOperationException($"Roslyn解析に必要なCompilation/SyntaxRoot/SemanticModelを取得できませんでした: {Document.FilePath}");
+            throw new InvalidOperationException($"Roslyn解析に必要な情報を取得できませんでした: {Document.FilePath}");
         }
 
         List<SceneModel>Models=[];
-        foreach(INamedTypeSymbol Type in EnumerateDeclaredTypes(Root,SemanticModel,CancellationToken)){
-            if(SceneTypePredicates.ImplementsSceneInterface(Type)){
-                Models.Add(SceneDeclarationAnalyzer.Analyze(Type,Compilation,CancellationToken));
-            }
-        }
-
-        return Models;
-    }
-
-    private static IEnumerable<INamedTypeSymbol>EnumerateDeclaredTypes(SyntaxNode Root,SemanticModel SemanticModel,CancellationToken CancellationToken){
-        foreach(SyntaxNode Node in Root.DescendantNodes()){
+        List<SceneDesignerMenuItem>Items=[];
+        List<SceneDocumentTypeRange>TypeRanges=[];
+        foreach(TypeDeclarationSyntax Declaration in Root.DescendantNodes().OfType<TypeDeclarationSyntax>().OrderBy(Node=>Node.SpanStart)){
             CancellationToken.ThrowIfCancellationRequested();
-
-            if(!SceneDeclarationAnalyzer.IsSceneCandidate(Node)){
-                continue;
+            bool IsScene=false;
+            string?FullyQualifiedName=null;
+            if(SceneDeclarationAnalyzer.IsSceneCandidate(Declaration)
+                &&SemanticModel.GetDeclaredSymbol(Declaration,CancellationToken)is INamedTypeSymbol Type
+                &&SceneTypePredicates.ImplementsSceneInterface(Type)){
+                SceneModel Model=SceneDeclarationAnalyzer.Analyze(Type,Compilation,CancellationToken);
+                Models.Add(Model);
+                Items.Add(new SceneDesignerMenuItem(Model.ClassName,Model.ClassFullyQualifiedName));
+                IsScene=true;
+                FullyQualifiedName=Model.ClassFullyQualifiedName;
             }
 
-            if(SemanticModel.GetDeclaredSymbol(Node,CancellationToken)is INamedTypeSymbol Type){
-                yield return Type;
-            }
+            TypeRanges.Add(new SceneDocumentTypeRange(
+                Declaration.SpanStart,
+                Declaration.Span.End,
+                IsScene,
+                FullyQualifiedName));
         }
-    }
 
+        return new(
+            Models,
+            new SceneDocumentMenuSnapshot(SceneDesignerTargetState.SceneType,TypeRanges,Items));
+    }
     public void Dispose(){
         lock(this.Gate){
             if(this.Disposed){
@@ -297,7 +428,55 @@ internal sealed class SceneWorkspaceService : IDisposable {
         }
 
         this.Workspace.WorkspaceChanged-=this.OnWorkspaceChanged;
+        this.ProjectSceneCatalogs.Clear();
         Instance=null;
+    }
+
+    private static IEnumerable<INamedTypeSymbol>EnumerateTypes(INamespaceSymbol Namespace){
+        foreach(INamedTypeSymbol Type in Namespace.GetTypeMembers()){
+            yield return Type;
+            foreach(INamedTypeSymbol Nested in EnumerateNestedTypes(Type)){
+                yield return Nested;
+            }
+        }
+
+        foreach(INamespaceSymbol Child in Namespace.GetNamespaceMembers()){
+            foreach(INamedTypeSymbol Type in EnumerateTypes(Child)){
+                yield return Type;
+            }
+        }
+    }
+
+    private static IEnumerable<INamedTypeSymbol>EnumerateNestedTypes(INamedTypeSymbol Type){
+        foreach(INamedTypeSymbol Nested in Type.GetTypeMembers()){
+            yield return Nested;
+            foreach(INamedTypeSymbol Descendant in EnumerateNestedTypes(Nested)){
+                yield return Descendant;
+            }
+        }
+    }
+
+    private static bool IsGeneratedSceneFile(SyntaxTree SyntaxTree,CancellationToken CancellationToken){
+        string FilePath=SyntaxTree.FilePath??string.Empty;
+        if(FilePath.EndsWith(".g.cs",StringComparison.OrdinalIgnoreCase)
+            ||FilePath.EndsWith(".generated.cs",StringComparison.OrdinalIgnoreCase)){
+            return true;
+        }
+
+        Microsoft.CodeAnalysis.Text.SourceText Text=SyntaxTree.GetText(CancellationToken);
+        int PrefixLength=Math.Min(Text.Length,256);
+        return Text.ToString(Microsoft.CodeAnalysis.Text.TextSpan.FromBounds(0,PrefixLength))
+            .IndexOf("<auto-generated",StringComparison.OrdinalIgnoreCase)>=0;
+    }
+
+    private sealed class ProjectSceneCatalogCache {
+        internal ProjectSceneCatalogCache(VersionStamp Version,ProjectSceneCatalog Catalog){
+            this.Version=Version;
+            this.Catalog=Catalog;
+        }
+
+        internal VersionStamp Version { get; }
+        internal ProjectSceneCatalog Catalog { get; }
     }
 
     private void CancelPendingAnalysisNoLock(){

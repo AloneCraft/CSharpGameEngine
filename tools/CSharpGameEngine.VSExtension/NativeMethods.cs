@@ -20,6 +20,8 @@ internal static class NativeMethods {
 
     public const uint WM_SIZE=0x0005;
     public const uint WM_SETFOCUS=0x0007;
+    public const uint WM_MOUSEACTIVATE=0x0021;
+    public const int MA_NOACTIVATE=3;
     public const int SW_HIDE=0;
     public const int SW_SHOWNA=8;
 
@@ -75,6 +77,9 @@ internal static class NativeMethods {
 
     [DllImport("user32.dll")]
     public static extern IntPtr SetFocus(IntPtr HWnd);
+    [DllImport("user32.dll")]
+    [return:MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsWindow(IntPtr HWnd);
 
     [DllImport("user32.dll")]
     [return:MarshalAs(UnmanagedType.Bool)]

@@ -35,6 +35,17 @@ public sealed class BridgeExecutableLocatorTests:IDisposable {
     }
 
     [Fact]
+    public void AppHostWithoutRuntimeConfig_ReturnsNull(){
+        string DirectoryPath=Path.Combine(RepoRoot,BridgeProjectRelativePath,"bin","Debug","net10.0");
+        Directory.CreateDirectory(DirectoryPath);
+        File.WriteAllText(Path.Combine(DirectoryPath,"Sample.Bridge.Cli.exe"),"stale apphost");
+
+        var Result=BridgeExecutableLocator.FindExecutable(RepoRoot,BridgeProjectRelativePath);
+
+        Assert.Null(Result);
+    }
+
+    [Fact]
     public void DebugBuildOnly_IsFound(){
         var ExePath=CreateExe("Debug",RidSubfolder:null,DateTime.UtcNow);
 
@@ -82,6 +93,7 @@ public sealed class BridgeExecutableLocatorTests:IDisposable {
 
         var ExePath=Path.Combine(Directory,"Sample.Bridge.Cli.exe");
         File.WriteAllText(ExePath,"fake exe bytes");
+        File.WriteAllText(Path.Combine(Directory,"Sample.Bridge.Cli.runtimeconfig.json"),"{}");
         File.SetLastWriteTimeUtc(ExePath,WriteTimeUtc);
 
         return ExePath;

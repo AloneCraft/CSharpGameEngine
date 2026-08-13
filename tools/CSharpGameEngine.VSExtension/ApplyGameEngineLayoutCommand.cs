@@ -50,12 +50,8 @@ internal sealed class ApplyGameEngineLayoutCommand {
                 return;
             }
 
-            var RepoRoot=RepoLocator.ResolveRepoRoot();
-            if(RepoRoot is null){
-                return;
-            }
 
-            await GameEngineLayout.ApplyAsync(Package,Dte,RepoRoot);
+            await GameEngineLayout.ApplyAsync(Package,Dte);
         });
     }
 }

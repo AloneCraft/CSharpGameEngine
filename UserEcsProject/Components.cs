@@ -1,5 +1,6 @@
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Platform.Windows;
+using RenderCamera=CSharpGameEngine.Graphics.D3D12.Camera;
 
 namespace UserEcsProject;
 
@@ -51,7 +52,7 @@ public struct Level {
     public string ShaderPath;
 
     /// <summary>レンダラー生成時に一度だけ適用する初期カメラ。</summary>
-    public Camera Camera;
+    public RenderCamera RenderCamera;
 
     /// <summary>
     /// 太陽光の初期値。<see cref="DirectionalLight.Renderer"/>はまだ存在しないレンダラーを指せないため
@@ -146,20 +147,6 @@ public struct AudioSource {
 /// ECSのEntityが所有するワールド変換。TransformSyncSystemが毎フレームStageRendererの
 /// ワールド行列へ変換して書き込む。
 /// </summary>
-public struct Transform {
-    public float PositionX;
-    public float PositionY;
-    public float PositionZ;
-
-    public float RotationX;
-    public float RotationY;
-    public float RotationZ;
-    public float RotationW;
-
-    public float ScaleX;
-    public float ScaleY;
-    public float ScaleZ;
-}
 
 /// <summary>このEntityの変換を書き込む先のStageRendererオブジェクト。</summary>
 public struct Renderable {

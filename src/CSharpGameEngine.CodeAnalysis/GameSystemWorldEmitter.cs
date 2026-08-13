@@ -54,6 +54,10 @@ internal static class GameSystemWorldEmitter {
             Lines.AddRange(BuildCreateOverload(Archetype,Registry));
         }
 
+        for(var ComponentIndex=0;ComponentIndex<Registry.ComponentsByIndex.Length;ComponentIndex++){
+            Lines.AddRange(BuildTryGetComponentOverload(ComponentIndex,Registry));
+        }
+
         Lines.AddRange(BuildDetach(Registry));
         Lines.AddRange(BuildDestroy());
 
@@ -89,6 +93,35 @@ internal static class GameSystemWorldEmitter {
         var Parameters=string.Join(", ",Components.Select(C=> $"{C.TypeFullyQualifiedName} {C.FieldName}"));
         var Arguments=string.Join(", ",Components.Select(C=>C.FieldName));
         return[$"    public Entity Create({Parameters}) {{", $"        return {Archetype.Name}.Create(ref this, {Arguments});","    }"];
+    }
+
+    private static List<string>BuildTryGetComponentOverload(int ComponentIndex,GameSystemRegistry Registry){
+        GameSystemComponentInfo Component=Registry.ComponentsByIndex[ComponentIndex];
+        List<string>Lines=[
+            $"    public bool TryGetComponent(Entity Entity,out {Component.TypeFullyQualifiedName} Value) {{",
+            "        Value = default;",
+            "        if (!this.IsAlive(Entity)) {",
+            "            return false;",
+            "        }",
+            "        ref var Location = ref this.EntityArchetypeIndices.GetRefUnchecked(Entity.Id);",
+            "        switch (Location.Archetype) {",
+        ];
+
+        foreach(GameSystemArchetypeInfo Archetype in Registry.Archetypes){
+            if(!Archetype.ComponentIndices.Contains(ComponentIndex)){
+                continue;
+            }
+
+            Lines.Add($"            case Archetype.{Archetype.Name}:");
+            Lines.Add($"                Value = this.{Archetype.Name}.Get{Component.FieldName}RefUnchecked(Location.Index);");
+            Lines.Add("                return true;");
+        }
+
+        Lines.Add("            default:");
+        Lines.Add("                return false;");
+        Lines.Add("        }");
+        Lines.Add("    }");
+        return Lines;
     }
 
     private static List<string>BuildDetach(GameSystemRegistry Registry){

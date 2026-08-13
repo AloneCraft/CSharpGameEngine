@@ -20,6 +20,7 @@ internal sealed class RenderSurfaceWindow:IDisposable {
 
     private IntPtr Hwnd;
     private readonly IntPtr ParentHwnd;
+    private IntPtr LastExternalFocusHwnd;
     private bool Disposed;
 
     public event Action<int,int>?Resized;
@@ -81,12 +82,24 @@ internal sealed class RenderSurfaceWindow:IDisposable {
             // tracking (Keyboard.FocusedElement) desyncs from the real OS focus state for the rest
             // of the VS session - Tab/Backspace/Delete stop reaching the text editor even after this
             // pane is closed, while plain character input (routed differently) keeps working. Hand
-            // focus back to the parent HWND before tearing down the native window.
-            if(GetFocus()==Hwnd){
-                SetFocus(ParentHwnd);
+            // focus back to the last valid external owner (or the parent as a fallback) before
+            // tearing down the native window.
+            IntPtr SurfaceHandle=Hwnd;
+            IntPtr CurrentFocus=GetFocus();
+            bool PreviousIsWindow=LastExternalFocusHwnd!=IntPtr.Zero&&IsWindow(LastExternalFocusHwnd);
+            bool ParentIsWindow=ParentHwnd!=IntPtr.Zero&&IsWindow(ParentHwnd);
+            IntPtr ReturnTarget=RenderSurfaceFocusPolicy.SelectReturnTarget(
+                LastExternalFocusHwnd,
+                PreviousIsWindow,
+                SurfaceHandle,
+                ParentHwnd,
+                ParentIsWindow);
+            if(RenderSurfaceFocusPolicy.ShouldRestoreFocus(
+                CurrentFocus,SurfaceHandle,ReturnTarget)){
+                SetFocus(ReturnTarget);
             }
 
-            _=DestroyWindow(Hwnd);
+            _=DestroyWindow(SurfaceHandle);
             Hwnd=IntPtr.Zero;
         }
     }
@@ -136,22 +149,42 @@ internal sealed class RenderSurfaceWindow:IDisposable {
             return IntPtr.Zero;
         }
 
-        if(Msg==WM_SETFOCUS){
-            // This window is a pure render target with no keyboard interaction of its own. It never
-            // implements WM_SETFOCUS/WM_KILLFOCUS beyond DefWindowProc's no-op, so WPF's HwndHost/
-            // HwndSource keyboard-input-sink machinery is never notified when real Win32 focus
-            // actually lands here (e.g. a mouse click into the 3D preview) - Keyboard.FocusedElement
-            // then desyncs from the real OS focus state for the rest of the VS session, breaking
-            // Tab/Backspace/Delete everywhere (not just in this pane) while plain character input
-            // (routed differently) keeps working. Refuse focus outright by bouncing it straight back
-            // to the parent HWND instead of ever actually holding it.
+        RenderSurfaceFocusAction FocusAction=RenderSurfaceFocusPolicy.GetAction(Msg);
+
+        if(FocusAction==RenderSurfaceFocusAction.MouseWithoutActivation){
+            // MA_NOACTIVATEはマウスイベント自体を捨てず、Surfaceをアクティブ化しない。
+            // 3Dビューの将来のPicking入力は維持しつつ、VSのキーボードフォーカスは奪わない。
+            return new IntPtr(MA_NOACTIVATE);
+        }
+
+        // これは a162478 以来のネイティブD3D12子HWNDにおけるWin32/WPFフォーカス不整合の防御です。
+        // Packageの起動方法や初期ToolWindowの非アクティブ表示とは別層で維持します。
+        if(FocusAction==RenderSurfaceFocusAction.ReturnFocus){
+            // Surfaceは純粋な描画先でキーボード入力を所有しない。ここで実フォーカスを保持すると
+            // WPFのHwndHost/HwndSourceとWin32のフォーカスがずれ、VS全体でTab、Backspace、
+            // Deleteなどがコードエディタへ届かなくなる（通常の文字入力だけ動く場合がある）。
+            // a162478では親HWNDへ戻していたが、現在の親はScene Designer ToolWindowである。
+            // WM_SETFOCUSのwParam（直前の所有者）を優先しないと、次のTabがコード編集ではなく
+            // VSシェルのフォーカス巡回としてナビゲーションバーへ移動してしまう。
             RenderSurfaceWindow?FocusedInstance;
             lock(Instances){
                 Instances.TryGetValue(HWnd,out FocusedInstance);
             }
 
             if(FocusedInstance is not null){
-                SetFocus(FocusedInstance.ParentHwnd);
+                bool PreviousIsWindow=WParam!=IntPtr.Zero&&IsWindow(WParam);
+                bool ParentIsWindow=FocusedInstance.ParentHwnd!=IntPtr.Zero
+                    &&IsWindow(FocusedInstance.ParentHwnd);
+                IntPtr ReturnTarget=RenderSurfaceFocusPolicy.SelectReturnTarget(
+                    WParam,
+                    PreviousIsWindow,
+                    HWnd,
+                    FocusedInstance.ParentHwnd,
+                    ParentIsWindow);
+                if(ReturnTarget!=IntPtr.Zero){
+                    FocusedInstance.LastExternalFocusHwnd=ReturnTarget;
+                    SetFocus(ReturnTarget);
+                }
             }
 
             return IntPtr.Zero;

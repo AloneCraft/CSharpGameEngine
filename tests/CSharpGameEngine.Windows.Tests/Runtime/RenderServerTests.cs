@@ -87,7 +87,7 @@ public class RenderServerTests {
 
         Assert.True(Renderer.ShaderCompilationSucceeded,string.Join(Environment.NewLine,Renderer.ShaderDiagnostics));
 
-        Camera Camera=Camera.CreateDefault(Vector3.Zero);
+        CSharpGameEngine.Graphics.D3D12.Camera Camera=CSharpGameEngine.Graphics.D3D12.Camera.CreateDefault(Vector3.Zero);
         Renderer.SetCamera(Camera);
         Renderer.SetAmbientLight(new Vector3(0.4f,0.4f,0.4f));
         Renderer.SetDirectionalLight(Vector3.UnitY,Vector3.One,2f);

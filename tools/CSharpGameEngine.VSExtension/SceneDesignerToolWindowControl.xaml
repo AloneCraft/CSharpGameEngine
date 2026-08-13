@@ -1,9 +1,9 @@
 <UserControl x:Class="CSharpGameEngine.VSExtension.SceneDesignerToolWindowControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             mc:Ignorable="d"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
              d:DesignHeight="400" d:DesignWidth="600">
     <Grid>
         <Grid.RowDefinitions>
@@ -12,10 +12,29 @@
         </Grid.RowDefinitions>
 
         <Border Grid.Row="0" Padding="8,5" Background="#202020">
-            <TextBlock x:Name="StatusText" Foreground="#D8D8D8"
-                       Text="シーンを選択してください。" TextTrimming="CharacterEllipsis" />
+            <DockPanel LastChildFill="True">
+                <ComboBox x:Name="SceneSelector"
+                          Width="270"
+                          Margin="0,0,10,0"
+                          DisplayMemberPath="DisplayName"
+                          IsEnabled="False"
+                          SelectionChanged="OnSceneSelectionChanged"
+                          ToolTip="現在の C# 文書と同じプロジェクトの Scene を選択します。" />
+                <TextBlock x:Name="StatusText"
+                           VerticalAlignment="Center"
+                           Foreground="#D8D8D8"
+                           Text="シーンを選択してください。"
+                           TextTrimming="CharacterEllipsis" />
+            </DockPanel>
         </Border>
 
-        <Grid x:Name="RenderHostGrid" Grid.Row="1" Background="#050514" />
+        <Grid x:Name="RenderHostGrid" Grid.Row="1" Background="#050514">
+            <TextBlock x:Name="EmptyStateText"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Foreground="#D8D8D8"
+                       FontSize="14"
+                       Text="シーンを選択してください。" />
+        </Grid>
     </Grid>
 </UserControl>
