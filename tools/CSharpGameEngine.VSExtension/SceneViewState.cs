@@ -145,8 +145,11 @@ internal sealed class SceneViewState {
         IReadOnlyCollection<NavigationKey>HeldKeys,float DeltaX,float DeltaY,float DeltaTime,bool Shift,bool Ctrl){
         Vector3 Eye=GetEyePosition(); // 更新前のYaw/Pitch/FocusPosition/FocusDistanceから導出
 
+        // 実機検証(M0020 Phase 1): Pitch(上下)の既定挙動が仕様と逆だったため、Orbit(ApplyOrbit、
+        // こちらは実機確認済みで正しい)と共有する ApplyLookDelta 自体は変えず、Fly/Look側の
+        // DeltaYだけ符号反転して渡す。InvertLookYはこの訂正後の既定に対する追加反転として機能する。
         (Yaw,Pitch)=SceneViewCamera.ApplyLookDelta(
-            Yaw,Pitch,DeltaX,DeltaY,LookSensitivity,LookSensitivity,InvertLookX,InvertLookY);
+            Yaw,Pitch,DeltaX,-DeltaY,LookSensitivity,LookSensitivity,InvertLookX,InvertLookY);
 
         Vector3 MoveDirection=Vector3.Zero;
         Vector3 Forward=SceneViewCamera.GetForward(Yaw,Pitch); // 更新後のYaw/Pitch
@@ -180,7 +183,8 @@ internal sealed class SceneViewState {
         Vector3 Right=SceneViewCamera.GetFlatRight(Yaw);
         Vector3 Up=SceneViewCamera.GetUp(Yaw,Pitch);
         float Scale=FocusDistance*PanSensitivityPerFocusDistance;
-        FocusPosition+=((-DeltaX*Right)+(DeltaY*Up))*Scale;
+        // 実機検証(M0020 Phase 1): 左右(X)の既定挙動が仕様と逆だったため符号を訂正(上下Yは確認済み)。
+        FocusPosition+=((DeltaX*Right)+(DeltaY*Up))*Scale;
     }
 
     internal void ApplyDolly(int WheelNotches)=>

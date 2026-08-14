@@ -26,9 +26,7 @@ internal static class NativeMethods {
     public const int SW_SHOWNA=8;
 
     // M0020 Phase 1(ADR-0041 決定事項2): マウスのボタン・移動はここで受ける。WM_MOUSEACTIVATEが
-    // MA_NOACTIVATEでもヒットテストで子HWNDへ届く。WM_MOUSEWHEELはあえて追加しない —
-    // フォーカスを持つHWND宛にpostされるため、Win32フォーカスを一切取らないこのサーフェスには
-    // 構造的に届かない(ホイールはWPF側のPreviewMouseWheelで受ける)。
+    // MA_NOACTIVATEでもヒットテストで子HWNDへ届く。
     public const uint WM_MOUSEMOVE=0x0200;
     public const uint WM_LBUTTONDOWN=0x0201;
     public const uint WM_LBUTTONUP=0x0202;
@@ -36,6 +34,13 @@ internal static class NativeMethods {
     public const uint WM_RBUTTONUP=0x0205;
     public const uint WM_MBUTTONDOWN=0x0207;
     public const uint WM_MBUTTONUP=0x0208;
+
+    // 設計時はWM_MOUSEWHEELを「フォーカスを持つHWND宛」と想定しWPF側のPreviewMouseWheelで
+    // 受ける計画だったが、実機のExperimental Instanceで一切発火しないことが判明した(VS自体が
+    // カーソル直下のHWNDへホイールをリダイレクトする挙動を持つため、他のマウスメッセージ同様に
+    // ヒットテストでこの子HWNDへ届くと見られる)。他のマウスメッセージと同じくここで受ける
+    // (M0020 Phase 1 実機検証、ADR-0041訂正済み)。
+    public const uint WM_MOUSEWHEEL=0x020A;
 
     // Alt+Tabやモーダルダイアログ等でキャプチャが奪われた通知。これを処理しないと、対応するボタン
     // Upが二度と届かず入力状態機械がドラッグ状態に永久固着する。

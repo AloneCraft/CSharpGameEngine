@@ -93,23 +93,30 @@ SceneView状態を宣言へ保存しない原則(§20)。
 維持」と明記している経路)。メッセージはイベントへ変換して新規の**純粋・ユニットテスト可能**な
 `SceneInputStateMachine`へ転送する。
 
-**マウス(ホイール)**: `WM_MOUSEWHEEL`は**カーソル下ではなくフォーカスを持つHWND宛**にpostされる。
-サーフェスは`RenderSurfaceFocusPolicy`によりWin32フォーカスを**決して取らない**ので、ホイール
-メッセージは子HWNDへ**構造的に届かない**。ホイールは下記キーボード方式(ビューポートクリックで
-ホストGridへ`Keyboard.Focus`)の副産物としてWPF側で受ける — フォーカスがWPF内にあればホイールはVSの
-WPF `HwndSource`宛に届き、`RenderHostGrid`の`PreviewMouseWheel`で取れる(`HwndHost`はairspaceを
-占有するのでトンネル段の`Preview`で拾い、バブルには頼らない)。最初のクリック前はホイールが
-コードエディタへ行く — Unity/VS標準と同じ「ペインを一度クリックする」挙動である。
+**マウス(ホイール)**: `RenderSurfaceWindow.WndProc`に`WM_MOUSEWHEEL`を追加し、他のマウスメッセージと
+同じくここで受ける。`wParam`上位ワードの符号付き回転量(`WHEEL_DELTA`=120単位)を
+`RenderSurfaceMouseMessageTranslator.DecodeWheelDelta`で取り出し、`RenderSurfaceWindow.WheelInput`
+イベント経由で`SceneHwndHost.HandleWheel`へ渡す。フォーカスの有無に関わらず動作する
+(`RenderSurfaceFocusPolicy`によりこのサーフェスはWin32フォーカスを決して取らないが、ホイールは
+それとは無関係にヒットテストで届く)。
 
-> **2026-08 訂正(M0020 Phase 0)**: 初版は`WM_MOUSEWHEEL`もWndProcで受ける計画だったが、上記の
-> フォーカス依存により実現不能。ホイールのみWPF経路とするのが確定形である。
+> **2026-08 訂正(M0020 Phase 0)**: 初版は`WM_MOUSEWHEEL`もWndProcで受ける計画だったが、
+> 「`WM_MOUSEWHEEL`はフォーカスを持つHWND宛にpostされ、Win32フォーカスを取らないこの
+> サーフェスには構造的に届かない」という理解のもとWPF側`PreviewMouseWheel`経由に変更した。
+>
+> **2026-08 再訂正(M0020 Phase 1、実機検証)**: 上記の"フォーカス依存"という理解が誤りだった。
+> 実際にExperimental Instanceで検証したところ、WPF側`PreviewMouseWheel`はビューポート上で
+> **一度も発火しなかった**(RMB/MMB/Alt+LMB/WASDQEはすべて仕様どおり動作したにも関わらず)。
+> VS自体がカーソル直下のHWNDへホイールをリダイレクトしていると見られ、他のマウスメッセージと
+> 同様にヒットテストでこの子HWNDへ直接届く。WndProcでの直接受信へ戻すのが確定形であり、
+> WPF側の`PreviewMouseWheel`購読は削除した(実機で機能しないコードを残さない)。
 
 **座標単位**: `WndProc`の`LPARAM`はサーフェスのクライアント座標の**物理ピクセル**、WPFの
 `GetPosition`は**DIP**(1/96インチ)。スワップチェーン・ビューポート・ピッキングレイはすべて物理
 ピクセルなので**物理ピクセルを正本**とし、WPF由来の座標は
 `PresentationSource.FromVisual(...).CompositionTarget.TransformToDevice`で変換してから`PointerEvent`を
-作る(150%スケーリングで1.5倍ずれる)。ホイール量は`HIWORD(wParam)`も`MouseWheelEventArgs.Delta`も
-同じ`WHEEL_DELTA=120`単位なので変換不要。
+作る(150%スケーリングで1.5倍ずれる)。ホイール量(`HIWORD(wParam)`、`WHEEL_DELTA=120`単位)は
+位置情報を持たないため、この座標変換とは無関係。
 
 - 状態機械は仕様§12の優先順位(1. Modal操作 2. ナビゲーション 3. ギズモ操作 4. 選択
   5. コンテキストメニュー)を状態遷移として実装する。RMBドラッグ中は選択・ギズモ操作を開始しない。

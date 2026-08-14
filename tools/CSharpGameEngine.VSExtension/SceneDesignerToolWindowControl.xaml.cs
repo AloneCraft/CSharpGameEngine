@@ -25,13 +25,13 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
 
     public SceneDesignerToolWindowControl(){
         InitializeComponent();
-        // M0020 Phase 1(ADR-0041 決定事項2): ナビゲーション(Wheel/WASDQE)を受けるにはWPFの
-        // キーボードフォーカスが要る。IsTabStopは変えない — Tab巡回でここへ止まらせず、
+        // M0020 Phase 1(ADR-0041 決定事項2): ナビゲーション(WASDQE)を受けるにはWPFの
+        // キーボードフォーカスが要る(Wheelはネイティブ側で受けるためフォーカス不要、
+        // SceneHwndHost.HandleWheel参照)。IsTabStopは変えない — Tab巡回でここへ止まらせず、
         // ビューポート内をクリックしたときだけ(OnViewportActivated)フォーカスを与える。
         RenderHostGrid.Focusable=true;
         KeyboardNavigation.SetIsTabStop(RenderHostGrid,false);
         this.Loaded+=this.OnLoaded;
-        RenderHostGrid.PreviewMouseWheel+=this.OnViewportPreviewMouseWheel;
         RenderHostGrid.KeyDown+=this.OnViewportKeyDown;
         RenderHostGrid.KeyUp+=this.OnViewportKeyUp;
         RenderHostGrid.LostKeyboardFocus+=this.OnViewportLostKeyboardFocus;
@@ -284,9 +284,6 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             Keyboard.Focus(RenderHostGrid);
         }
     }
-
-    private void OnViewportPreviewMouseWheel(object Sender,MouseWheelEventArgs Args)=>
-        this.Host?.HandleWheel(Args.Delta);
 
     private void OnViewportKeyDown(object Sender,KeyEventArgs Args){
         if(TryMapNavigationKey(Args.Key,out NavigationKey NavKey)){

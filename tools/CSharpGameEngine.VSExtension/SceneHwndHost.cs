@@ -84,6 +84,7 @@ internal sealed class SceneHwndHost:HwndHost {
         ViewState=SceneViewState.CreateFromSettings();
         InputMachine=new SceneInputStateMachine();
         Surface.PointerInput+=OnPointerInput;
+        Surface.WheelInput+=HandleWheel;
         SynchronizationContext UiContext=SynchronizationContext.Current
             ??new DispatcherSynchronizationContext(this.Dispatcher);
 #pragma warning disable VSTHRD001 // 生workerの完了を非同期Postするだけで、同期wait/message pumpは行わない。
@@ -106,6 +107,7 @@ internal sealed class SceneHwndHost:HwndHost {
 
         if(Surface is not null){
             Surface.PointerInput-=OnPointerInput;
+            Surface.WheelInput-=HandleWheel;
         }
 
         // 保険の書き込み(通常はActiveTool等を変更した時点で即時書き込み済み)。
@@ -273,11 +275,13 @@ internal sealed class SceneHwndHost:HwndHost {
     }
 
     /// <summary>
-    /// WPFの<c>PreviewMouseWheel</c>から呼ぶ(M0020 Phase 1 Step 8)。Deltaは
-    /// <c>MouseWheelEventArgs.Delta</c>そのもの(<c>WHEEL_DELTA</c>=120単位)。Fly中(RMB押下中)は
-    /// AdjustNavigationSpeed、それ以外はDolly(Perspective)/Zoom(Orthographic)。
+    /// <see cref="RenderSurfaceWindow.WheelInput"/>の購読先。設計時はWPFの<c>PreviewMouseWheel</c>で
+    /// 受ける計画だったが、実機検証で発火しないことが判明したため、他のマウス入力と同じく
+    /// <see cref="RenderSurfaceWindow"/>のWndProcから受け取る(M0020 Phase 1訂正、ADR-0041)。
+    /// Deltaは<c>WHEEL_DELTA</c>=120単位。Fly中(RMB押下中)はAdjustNavigationSpeed、それ以外は
+    /// Dolly(Perspective)/Zoom(Orthographic)。
     /// </summary>
-    internal void HandleWheel(int Delta){
+    private void HandleWheel(int Delta){
         if(InputMachine is not { } Machine||ViewState is not { } State){
             return;
         }

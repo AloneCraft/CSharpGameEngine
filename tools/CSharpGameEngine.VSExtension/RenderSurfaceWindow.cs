@@ -28,6 +28,10 @@ internal sealed class RenderSurfaceWindow:IDisposable {
     /// <summary>マウスのボタン・移動・キャプチャ喪失(M0020 Phase 1、ADR-0041 決定事項2)。座標は物理ピクセル。</summary>
     public event Action<PointerEvent>?PointerInput;
 
+    /// <summary>マウスホイール(WHEEL_DELTA=120単位、符号付き)。実機検証でWPF側PreviewMouseWheelが
+    /// 発火しないことが判明したため、他のマウスメッセージと同じくここで受ける(M0020 Phase 1訂正)。</summary>
+    public event Action<int>?WheelInput;
+
     public RenderSurfaceWindow(IntPtr ParentHwnd,int Width,int Height,bool InitiallyVisible=true){
         EnsureClassRegistered();
         this.ParentHwnd=ParentHwnd;
@@ -163,6 +167,16 @@ internal sealed class RenderSurfaceWindow:IDisposable {
                 Instance.Resized?.Invoke(Width,Height);
             }
 
+            return IntPtr.Zero;
+        }
+
+        if(Msg==WM_MOUSEWHEEL){
+            RenderSurfaceWindow?WheelInstance;
+            lock(Instances){
+                Instances.TryGetValue(HWnd,out WheelInstance);
+            }
+
+            WheelInstance?.WheelInput?.Invoke(RenderSurfaceMouseMessageTranslator.DecodeWheelDelta(WParam));
             return IntPtr.Zero;
         }
 

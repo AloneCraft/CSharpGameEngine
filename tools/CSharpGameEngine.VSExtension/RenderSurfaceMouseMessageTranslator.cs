@@ -88,4 +88,7 @@ internal static class RenderSurfaceMouseMessageTranslator {
     internal static int DecodeX(IntPtr LParam)=>unchecked((short)(LParam.ToInt64()&0xFFFF));
 
     internal static int DecodeY(IntPtr LParam)=>unchecked((short)((LParam.ToInt64()>>16)&0xFFFF));
+
+    /// <summary>WM_MOUSEWHEELのwParam上位ワードは符号付きの回転量(WHEEL_DELTA=120単位)。</summary>
+    internal static int DecodeWheelDelta(IntPtr WParam)=>unchecked((short)((WParam.ToInt64()>>16)&0xFFFF));
 }

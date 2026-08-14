@@ -121,7 +121,7 @@ unproject(§6で使用): `Inverse(View * Projection)`でNDC→ワールド。透
 | 経路 | メッセージ/イベント | 変換先 |
 |---|---|---|
 | `RenderSurfaceWindow.WndProc`(追加) | `WM_LBUTTONDOWN/UP`、`WM_RBUTTONDOWN/UP`、`WM_MBUTTONDOWN/UP`、`WM_MOUSEMOVE` | `PointerEvent { Button, Position, Modifiers }`(**座標は物理ピクセル**) |
-| WPF(`RenderHostGrid`) | `PreviewMouseWheel` | `PointerEvent`(ホイール。`WM_MOUSEWHEEL`は**フォーカスを持つHWND宛**なのでネイティブ子には構造的に届かない。DIP→`TransformToDevice`で物理ピクセルへ) |
+| `RenderSurfaceWindow.WndProc`(追加) | `WM_MOUSEWHEEL` | `int Delta`(`WHEEL_DELTA`=120単位、`WheelInput`イベント)。設計時はWPF `PreviewMouseWheel`経由の予定だったが、M0020 Phase 1の実機検証で一切発火しないことが判明したため他のマウスメッセージと同じくここで受ける(ADR-0041訂正) |
 | WPF(`RenderHostGrid`、`Focusable=true`) | `KeyDown`/`KeyUp`/`LostKeyboardFocus` | `KeyEvent { Key, IsDown }` / フォーカス喪失通知 |
 
 **座標単位**: `WndProc`は物理ピクセル、WPFはDIP(1/96インチ)。スワップチェーン・ビューポート・

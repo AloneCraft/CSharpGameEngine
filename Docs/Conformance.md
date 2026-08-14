@@ -725,3 +725,31 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
 - Evidence: `dotnet build CSharpGameEngine.slnx -c Debug` 成功・警告0/エラー0、
   `dotnet test` 622件成功・失敗0(610 − 9 + 21)。削除の取りこぼしgrepは0件。
   実機VS Experimental Instanceでの目視確認(10項目)は未実施。
+
+## 2026-08 M0020 Phase 1: 実機検証で判明した3件の不具合(設計時の事実誤り1件・実装バグ2件)
+
+Phase 1(ナビゲーション)実装完了後、実機のExperimental Instanceで動作確認したところ、Tab/Backspace/
+Deleteの非回帰(最優先項目)は問題なかったが、以下3件が仕様と異なる挙動を示した。
+
+- **ObsoleteSpecification removed(設計時の事実誤り)**: ADR-0041 決定事項2は「`WM_MOUSEWHEEL`は
+  フォーカスを持つHWND宛にpostされ、Win32フォーカスを取らない`RenderSurfaceWindow`には構造的に
+  届かない」という理解のもと、ホイールをWPF側`RenderHostGrid.PreviewMouseWheel`で受ける設計に
+  していた(M0020 Phase 0時点)。**実機検証の結果、この`PreviewMouseWheel`はビューポート上で
+  一度も発火しなかった**(同時にRMB Look/Fly・MMB Pan・Alt+LMB Orbit・WASDQEはすべて仕様どおり
+  動作していたため、フォーカス自体の問題ではない)。VS自体がカーソル直下のHWNDへホイールを
+  リダイレクトしていると見られ、他のマウスメッセージと同様にヒットテストで`RenderSurfaceWindow`の
+  WndProcへ直接届く。`WM_MOUSEWHEEL`をWndProcで直接受ける実装へ戻し(`RenderSurfaceWindow.
+  WheelInput`イベント新設)、機能しないWPF側`PreviewMouseWheel`購読は削除した。
+- **Mismatch → now Matches(実装バグ、Look/Fly)**: `SceneViewState.TickFly`のPitch(上下視点)が
+  既定(`InvertLookY=false`)で仕様と逆方向に動いていた。design doc §3の`Pitch += Δy * 感度 *
+  (InvertLookY ? -1 : 1)`に対し、実装は共有関数`SceneViewCamera.ApplyLookDelta`内部で
+  `Pitch -= Δy * ...`という逆符号の式になっていた。Orbit(Alt+LMB、`ApplyLookDelta`を共有)は
+  実機で正しい方向だったため共有関数自体は変更せず、Fly/Look側の呼び出しでのみ`DeltaY`を反転して
+  渡すよう修正した。
+- **Mismatch → now Matches(実装バグ、Pan)**: `SceneViewState.ApplyPan`の左右(X)移動が既定で
+  仕様と逆方向に動いていた(上下Yは正しかった)。カメラ右ベクトル方向の項の符号を反転して修正した。
+- Evidence: `dotnet build CSharpGameEngine.slnx -c Debug` 成功・警告0/エラー0、`dotnet test`
+  688件成功・失敗0(686 + `DecodeWheelDelta`用2件)。3件とも実機のExperimental Instanceでの
+  目視確認により発見された(ユニットテストでは検出不能な種類の不具合 — ホイール未発火は実HWND間の
+  メッセージルーティングの問題、符号反転2件は「値は変化するが向きが逆」という閉形式の数式だけでは
+  仕様適合を保証できないクラスのバグ)。

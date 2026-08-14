@@ -93,6 +93,16 @@ public sealed class RenderSurfaceMouseMessageTranslatorTests {
         Assert.Equal(1080,RenderSurfaceMouseMessageTranslator.DecodeY(LParam));
     }
 
+    [Fact]
+    public void DecodeWheelDelta_ForwardNotch_ReturnsPositiveWheelDelta()=>
+        Assert.Equal(120,RenderSurfaceMouseMessageTranslator.DecodeWheelDelta(MakeWheelWParam(120)));
+
+    [Fact]
+    public void DecodeWheelDelta_BackwardNotch_ReturnsNegativeWheelDelta()=>
+        Assert.Equal(-120,RenderSurfaceMouseMessageTranslator.DecodeWheelDelta(MakeWheelWParam(-120)));
+
     private static IntPtr MakeLParam(int X,int Y)=>
         new(unchecked(((short)Y<<16)|((short)X&0xFFFF)));
+
+    private static IntPtr MakeWheelWParam(short Delta)=>new(unchecked(Delta<<16));
 }
