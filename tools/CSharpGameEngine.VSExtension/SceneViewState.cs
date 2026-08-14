@@ -80,6 +80,13 @@ internal sealed class SceneViewState {
     private const float OrbitSensitivity=0.0025f;
     private const float PanSensitivityPerFocusDistance=0.0025f;
 
+    // 実機検証(M0020 Phase 2): SceneCameraFraming.ComputeDistanceの1.1倍余白はシーン全体を収める
+    // 前提でチューニングされており、シーン全体よりずっと小さい単一オブジェクトへのFocusSelectionに
+    // そのまま使うと視野の約84%を占めるほど窮屈に寄ってしまう(実測 Radius=3.5 → 約10.1ユニット、
+    // FovY=45°時カバー率cos(FovY/2)/1.1)。ComputeDistance自体は初期シーンフレーミングの既存テストで
+    // 固定済みのため変更せず、FocusSelection側だけ追加の余白を掛けて約50%カバー率に緩める。
+    private const float FocusSelectionExtraMargin=1.7f;
+
     /// <summary>呼び出しはHwndHostのライフサイクルコールバック内、つまり構造的にUIスレッド保証がある。</summary>
     internal static SceneViewState CreateFromSettings(){
         ThreadHelper.ThrowIfNotOnUIThread();
@@ -141,10 +148,12 @@ internal sealed class SceneViewState {
     /// M0020 Phase 2 FocusSelection(F)用。<see cref="ResetToBounds"/>と違い視線方向(Yaw/Pitch)と
     /// <see cref="LastKnownBoundsRadius"/>(Far平面のフロア)は変えない — 選択対象がシーン全体より
     /// ずっと小さくても、シーンの他の部分がクリップされないようにする。
+    /// <see cref="FocusSelectionExtraMargin"/>で<see cref="SceneCameraFraming.ComputeDistance"/>の
+    /// 窮屈な余白を緩める(実機検証で発見 — 詳細は同定数のコメント参照)。
     /// </summary>
     internal void FocusOnBounds(Vector3 BoundsCenter,float BoundsRadius){
         FocusPosition=BoundsCenter;
-        FocusDistance=SceneCameraFraming.ComputeDistance(BoundsRadius,FovYRadians);
+        FocusDistance=SceneCameraFraming.ComputeDistance(BoundsRadius,FovYRadians)*FocusSelectionExtraMargin;
         OrthographicSize=BoundsRadius;
     }
 

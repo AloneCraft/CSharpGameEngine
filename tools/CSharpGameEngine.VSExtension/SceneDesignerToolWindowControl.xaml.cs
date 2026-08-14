@@ -303,6 +303,12 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             ?Id
             :null;
 
+        // どのノードが選択されたか実機で目視確認できるようにする(選択のハイライト以外に
+        // フィードバックが無かったため)。
+        StatusText.Text=HitId is { } DisplayId&&Snapshot.Projection?.TryGetNode(DisplayId,out SceneProjectionNode DisplayNode)==true
+            ?$"選択: {DisplayNode.Node.DisplayName}({DisplayNode.Path.ToDisplayString()})"
+            :"選択解除";
+
         if(!CtrlHeld){
             Session.Selection.Select(
                 Snapshot.Key,HitId is { } Single?[Single]:[],HitId,

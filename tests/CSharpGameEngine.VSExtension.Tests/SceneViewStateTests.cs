@@ -119,7 +119,9 @@ public sealed class SceneViewStateTests {
         State.FocusOnBounds(new Vector3(5f,6f,7f),BoundsRadius:2f);
 
         Assert.Equal(new Vector3(5f,6f,7f),State.FocusPosition);
-        Assert.Equal(SceneCameraFraming.ComputeDistance(2f,State.FovYRadians),State.FocusDistance,Precision);
+        // ComputeDistance本体(初期シーンフレーミング用、1.1倍余白)に加えて、単一オブジェクトへの
+        // FocusSelectionが窮屈になりすぎないよう追加の余白(1.7倍)がかかる(実機検証で発見)。
+        Assert.Equal(SceneCameraFraming.ComputeDistance(2f,State.FovYRadians)*1.7f,State.FocusDistance,Precision);
         Assert.Equal(0.5f,State.Yaw,Precision);
         Assert.Equal(0.3f,State.Pitch,Precision);
     }
