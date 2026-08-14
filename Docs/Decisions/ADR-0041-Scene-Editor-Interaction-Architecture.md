@@ -216,9 +216,10 @@ Esc
 ### 8. 永続状態の保存先はVS `WritableSettingsStore`(仕様§3/§20)
 
 `GameEngineLayout.cs`の既存前例(`ShellSettingsManager`→`SettingsScope.UserSettings`、コレクション
-`CSharpGameEngine`)に倣い、コレクション`CSharpGameEngine\SceneEditor`へ仕様§3の5項目
-(`ActiveTool`/`TransformSpace`/`ProjectionMode`/`NavigationPreset`/`NavigationSpeedMultiplier`)
-のみを保存する。カメラ姿勢・`FocusPosition`・選択・ギズモ表示状態はセッション内のみ
+`CSharpGameEngine`)に倣い、コレクション`CSharpGameEngine\SceneEditor`へ7項目
+(`ActiveTool`/`TransformSpace`/`ProjectionMode`/`NavigationPreset`/`NavigationSpeedMultiplier`/
+`InvertLookX`/`InvertLookY`、Scene-Editor-Design.md §10)のみを保存する。
+カメラ姿勢・`FocusPosition`・選択・ギズモ表示状態はセッション内のみ
 (`SceneKey`別の永続化は将来判断)。**`SceneDeclaration`(C#ソース)へはSceneView状態を一切
 書き込まない**(仕様§20)。`FollowView`/`Duplicate`/`VertexSnap`/`SurfaceSnap`/`FastNavigation`/
 `PrecisionNavigation`はキー押下中のみ有効の一時状態であり、永続モード化しない(仕様§3)。
@@ -291,7 +292,7 @@ Phase 0〜6は「`SceneRenderer`全再構築+状態外出し(決定事項1)」�
 
 ### 得られるもの
 
-- 仕様§3の原則どおり永続モードが5項目に限定され、その他はすべて「押している間だけ」の直交修飾に
+- 仕様§3の原則どおり永続モードが7項目に限定され、その他はすべて「押している間だけ」の直交修飾に
   なる。状態機械・カメラ・ピッキング・ギズモ判定が純粋層に分離され、VS無しでユニットテストできる。
 - 既存の未配線部品(`SceneEditOperation`/`ApplyLatest`/`SceneTextBufferWriter`/
   `SceneSelectionOrigin.Viewport`/`SceneNode`の書き込みアンカー)がすべて設計どおりの位置に収まり、

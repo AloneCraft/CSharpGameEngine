@@ -25,9 +25,16 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
 
     public SceneDesignerToolWindowControl(){
         InitializeComponent();
-        RenderHostGrid.Focusable=false;
+        // M0020 Phase 1(ADR-0041 決定事項2): ナビゲーション(Wheel/WASDQE)を受けるにはWPFの
+        // キーボードフォーカスが要る。IsTabStopは変えない — Tab巡回でここへ止まらせず、
+        // ビューポート内をクリックしたときだけ(OnViewportActivated)フォーカスを与える。
+        RenderHostGrid.Focusable=true;
         KeyboardNavigation.SetIsTabStop(RenderHostGrid,false);
         this.Loaded+=this.OnLoaded;
+        RenderHostGrid.PreviewMouseWheel+=this.OnViewportPreviewMouseWheel;
+        RenderHostGrid.KeyDown+=this.OnViewportKeyDown;
+        RenderHostGrid.KeyUp+=this.OnViewportKeyUp;
+        RenderHostGrid.LostKeyboardFocus+=this.OnViewportLostKeyboardFocus;
     }
 
     internal void SetSession(SceneEditorSessionService Session){
@@ -110,6 +117,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
 
         SceneHwndHost Host=new();
         Host.StatusChanged+=this.OnStatusChanged;
+        Host.ViewportActivated+=this.OnViewportActivated;
         this.Host=Host;
         EmptyStateText.Visibility=Visibility.Collapsed;
         RenderHostGrid.Children.Add(Host);
@@ -132,6 +140,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         this.Host=null;
         RenderHostGrid.Children.Remove(Host);
         Host.StatusChanged-=this.OnStatusChanged;
+        Host.ViewportActivated-=this.OnViewportActivated;
         // Dispose triggers DestroyWindowCore, which cancels the latest-wins worker and disposes the
         // native child HWND. Its stale callback is additionally rejected by SceneHwndHost's surface
         // and generation checks, so it cannot repaint this WPF-only empty state.
@@ -261,6 +270,50 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
 
     private void OnStatusChanged(string Status){
         StatusText.Text=Status;
+    }
+
+    /// <summary>
+    /// <see cref="SceneHwndHost.ViewportActivated"/>の購読先。ビューポート内をクリックした
+    /// 瞬間だけキーボードフォーカスを与える(ADR-0041 決定事項2) — <see cref="OnLoaded"/>や
+    /// <see cref="ShowSnapshot"/>/<see cref="SelectSceneAsync"/>では絶対に呼ばない。VS標準の
+    /// ツールウィンドウフォーカスモデルを踏襲し、開いただけ・シーンを切り替えただけでは
+    /// コードエディタからフォーカスを奪わない。
+    /// </summary>
+    private void OnViewportActivated(){
+        if(!RenderHostGrid.IsKeyboardFocusWithin){
+            Keyboard.Focus(RenderHostGrid);
+        }
+    }
+
+    private void OnViewportPreviewMouseWheel(object Sender,MouseWheelEventArgs Args)=>
+        this.Host?.HandleWheel(Args.Delta);
+
+    private void OnViewportKeyDown(object Sender,KeyEventArgs Args){
+        if(TryMapNavigationKey(Args.Key,out NavigationKey NavKey)){
+            this.Host?.HandleKeyDown(NavKey);
+        }
+    }
+
+    private void OnViewportKeyUp(object Sender,KeyEventArgs Args){
+        if(TryMapNavigationKey(Args.Key,out NavigationKey NavKey)){
+            this.Host?.HandleKeyUp(NavKey);
+        }
+    }
+
+    /// <summary>Alt+Tab等でVS自体からフォーカスが抜けた場合もここが発火し、Held Keyの張り付きを防ぐ。</summary>
+    private void OnViewportLostKeyboardFocus(object Sender,KeyboardFocusChangedEventArgs Args)=>
+        this.Host?.ClearHeldFlyKeys();
+
+    private static bool TryMapNavigationKey(Key WpfKey,out NavigationKey NavKey){
+        switch(WpfKey){
+            case Key.W: NavKey=NavigationKey.W; return true;
+            case Key.A: NavKey=NavigationKey.A; return true;
+            case Key.S: NavKey=NavigationKey.S; return true;
+            case Key.D: NavKey=NavigationKey.D; return true;
+            case Key.Q: NavKey=NavigationKey.Q; return true;
+            case Key.E: NavKey=NavigationKey.E; return true;
+            default: NavKey=default; return false;
+        }
     }
 
 #pragma warning disable VSTHRD001 // WPF Dispatcher is the owning UI dispatcher of this control; no AsyncPackage/JTF chain is available here.
