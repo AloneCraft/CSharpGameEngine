@@ -50,6 +50,12 @@ internal static class NativeMethods {
     public const int VK_CONTROL=0x11;
     public const int VK_MENU=0x12;
 
+    // WNDCLASSEX.HCursorへ渡す標準矢印カーソル。MAKEINTRESOURCE(32512)であり実ポインタではない。
+    public static readonly IntPtr IDC_ARROW=new(32512);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr LoadCursor(IntPtr HInstance,IntPtr LpCursorName);
+
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
     public delegate IntPtr WndProcDelegate(IntPtr HWnd,uint Msg,IntPtr WParam,IntPtr LParam);
 

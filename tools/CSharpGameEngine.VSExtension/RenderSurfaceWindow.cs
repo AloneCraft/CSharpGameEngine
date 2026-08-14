@@ -140,7 +140,12 @@ internal sealed class RenderSurfaceWindow:IDisposable {
                 Style=0,
                 LpfnWndProc=WndProcDelegate,
                 HInstance=GetModuleHandle(null),
-                HCursor=IntPtr.Zero,
+                // HCursorが未設定(NULL)だとDefWindowProcはWM_SETCURSORで何もしない仕様のため、
+                // 直前に別の場所(テキストのIビーム等)で表示されていたカーソル形状がこのSurface上
+                // でも固着し続けていた。標準の矢印を明示することでDefWindowProcの既定処理が
+                // 毎回正しくリセットする(ドラッグキャプチャ中もWM_SETCURSORは届き続けるため
+                // 同様に効く)。
+                HCursor=LoadCursor(IntPtr.Zero,IDC_ARROW),
                 LpszClassName=ClassName,
             };
 
