@@ -6,8 +6,10 @@ using System.Threading.Tasks;
 using EnvDTE;
 using CSharpGameEngine.SceneAnalysis;
 using Microsoft.VisualStudio;
+using Microsoft.VisualStudio.Settings;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
+using Microsoft.VisualStudio.Shell.Settings;
 
 namespace CSharpGameEngine.VSExtension;
 
@@ -61,6 +63,8 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
         // when the managed language service is unavailable, in which case the Hierarchy simply shows
         // its "open a scene file" message instead of failing package load.
         SceneWorkspace=SceneWorkspaceService.Initialize();
+        SceneEditorSettings.ConfigureStoreProvider(
+            ()=>new ShellSettingsManager(this).GetWritableSettingsStore(SettingsScope.UserSettings));
 
         if(SceneWorkspace is not null){
             SceneSession=new SceneEditorSessionService(SceneWorkspace);
@@ -198,6 +202,7 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             SceneSession?.Dispose();
             SceneSession=null;
             SceneDesignerToolWindowPane.ConfigureSessionProvider(null);
+            SceneEditorSettings.ConfigureStoreProvider(null);
 
             if(SceneWorkspace is not null){
                 SceneWorkspace.ModelChanged-=SceneEditorHub.PublishSceneModel;

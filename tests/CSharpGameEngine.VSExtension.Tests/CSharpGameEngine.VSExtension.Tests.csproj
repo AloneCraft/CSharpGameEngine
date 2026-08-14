@@ -17,6 +17,13 @@
     <!-- Unlike the VSIX itself (which must bind to the Roslyn that Visual Studio hosts), this test
          process runs standalone, so it needs the Roslyn runtime assemblies. -->
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
+    <!-- Same reasoning as Microsoft.CodeAnalysis.CSharp above: the VSIX excludes this package's
+         runtime assets (devenv.exe supplies Microsoft.VisualStudio.Shell.15.0.dll etc. itself), but
+         this standalone test process has no VS host to supply them. SceneEditorSettingsTests needs
+         the real WritableSettingsStore/ThreadHelper types loadable at runtime (FakeWritableSettingsStore
+         derives from the real abstract class; it never talks to an actual running VS). -->
+    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" />
+    <PackageReference Include="Microsoft.VisualStudio.Sdk.TestFramework" Version="17.11.66" />
   </ItemGroup>
 
   <!--
