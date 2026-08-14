@@ -88,4 +88,26 @@ internal static class SceneViewCamera {
             MinPitchRadians),MaxPitchRadians);
         return(NewYaw,NewPitch);
     }
+
+    /// <summary>
+    /// M0020 Phase 2 ピッキング用。スクリーン座標(物理ピクセル)をワールド空間のレイへ変換する。
+    /// Near/Far点を両方unprojectし差分を方向にする標準手法 — 設計書§3の「透視は視点から、平行は
+    /// 方向固定のレイ」という場合分けを、この手法は分岐なしで数学的に包含する(Orthographicでも
+    /// Near/Farの差分は投影方向に一致する)。
+    /// </summary>
+    internal static(Vector3 Origin,Vector3 Direction)ScreenPointToRay(
+        Matrix4x4 View,Matrix4x4 Projection,float ScreenX,float ScreenY,float ViewportWidth,float ViewportHeight){
+        float NdcX=(2f*ScreenX/ViewportWidth)-1f;
+        float NdcY=1f-(2f*ScreenY/ViewportHeight); // スクリーンYは下向き、NDC Yは上向き。
+        Matrix4x4.Invert(View*Projection,out Matrix4x4 InverseViewProjection);
+        Vector3 NearWorld=UnprojectNdc(NdcX,NdcY,0f,InverseViewProjection);
+        Vector3 FarWorld=UnprojectNdc(NdcX,NdcY,1f,InverseViewProjection);
+        return(NearWorld,Vector3.Normalize(FarWorld-NearWorld));
+    }
+
+    private static Vector3 UnprojectNdc(float NdcX,float NdcY,float NdcZ,Matrix4x4 InverseViewProjection){
+        Vector4 Clip=new(NdcX,NdcY,NdcZ,1f);
+        Vector4 World=Vector4.Transform(Clip,InverseViewProjection);
+        return new Vector3(World.X,World.Y,World.Z)/World.W;
+    }
 }

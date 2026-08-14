@@ -112,6 +112,49 @@ public sealed class SceneViewCameraTests {
         Assert.Equal(-PitchNormal,PitchInverted,4);
     }
 
+    [Fact]
+    public void ScreenPointToRay_ViewportCenter_DirectionMatchesForward(){
+        Vector3 Focus=new(1f,2f,3f);
+        const float Yaw=0.4f;
+        const float Pitch=0.15f;
+        Matrix4x4 View=SceneViewCamera.GetView(Focus,Yaw,Pitch,FocusDistance:5f);
+        Matrix4x4 Projection=SceneViewCamera.GetProjection((float)(Math.PI/4.0),1f,0.1f,100f);
+
+        (_,Vector3 Direction)=SceneViewCamera.ScreenPointToRay(View,Projection,400f,300f,800f,600f);
+
+        AssertApprox(SceneViewCamera.GetForward(Yaw,Pitch),Direction);
+    }
+
+    [Fact]
+    public void ScreenPointToRay_KnownWorldPoint_RayPassesThroughIt(){
+        Vector3 Focus=Vector3.Zero;
+        Matrix4x4 View=SceneViewCamera.GetView(Focus,Yaw:0.3f,Pitch:0.2f,FocusDistance:10f);
+        Matrix4x4 Projection=SceneViewCamera.GetProjection((float)(Math.PI/4.0),800f/600f,0.1f,100f);
+        Vector3 WorldPoint=new(2f,1f,-3f);
+
+        Vector4 Clip=Vector4.Transform(new Vector4(WorldPoint,1f),View*Projection);
+        Vector3 Ndc=new Vector3(Clip.X,Clip.Y,Clip.Z)/Clip.W;
+        float ScreenX=(Ndc.X+1f)/2f*800f;
+        float ScreenY=(1f-Ndc.Y)/2f*600f;
+
+        (Vector3 Origin,Vector3 Direction)=SceneViewCamera.ScreenPointToRay(View,Projection,ScreenX,ScreenY,800f,600f);
+
+        float T=Vector3.Dot(WorldPoint-Origin,Direction);
+        Vector3 ClosestPointOnRay=Origin+(Direction*T);
+        Assert.Equal(0f,Vector3.Distance(ClosestPointOnRay,WorldPoint),2);
+    }
+
+    [Fact]
+    public void ScreenPointToRay_Orthographic_ProducesParallelRaysAcrossScreen(){
+        Matrix4x4 View=SceneViewCamera.GetView(Vector3.Zero,Yaw:0.1f,Pitch:0.1f,FocusDistance:10f);
+        Matrix4x4 Projection=Matrix4x4.CreateOrthographic(10f,10f,0.1f,100f);
+
+        (_,Vector3 DirectionA)=SceneViewCamera.ScreenPointToRay(View,Projection,100f,100f,800f,600f);
+        (_,Vector3 DirectionB)=SceneViewCamera.ScreenPointToRay(View,Projection,700f,500f,800f,600f);
+
+        AssertApprox(DirectionA,DirectionB);
+    }
+
     private static void AssertApprox(Vector3 Expected,Vector3 Actual){
         Assert.Equal(Expected.X,Actual.X,Precision);
         Assert.Equal(Expected.Y,Actual.Y,Precision);

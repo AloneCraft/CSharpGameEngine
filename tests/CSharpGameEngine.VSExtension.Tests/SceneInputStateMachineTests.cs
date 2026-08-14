@@ -1,9 +1,12 @@
+using CSharpGameEngine.SceneAnalysis;
+
 namespace CSharpGameEngine.VSExtension.Tests;
 
 /// <summary>
 /// <see cref="SceneInputStateMachine"/>の状態遷移。仕様§12の優先順位
 /// (Modal操作>ナビゲーション>ギズモ>選択>コンテキストメニュー)をRMB/MMB/Alt+LMBのドラッグが
-/// 他の操作を排他的に占有する形で固定する。
+/// 他の操作を排他的に占有する形で固定する。<c>PendingSelect</c>(M0020 Phase 2)関連のテストは
+/// Navigation(RMB/MMB)がSelectionより優先順位が高いこと(選択待ち中の中断)も固定する。
 /// </summary>
 public sealed class SceneInputStateMachineTests {
     private static readonly RawInputModifiers NoModifiers=default;
@@ -41,13 +44,14 @@ public sealed class SceneInputStateMachineTests {
     }
 
     [Fact]
-    public void Idle_PlainLeftButtonDown_StaysIdle(){
+    public void Idle_LeftButtonDown_TransitionsToPendingSelectAndBeginsCapture(){
         SceneInputStateMachine Machine=new();
 
         SceneInputStepResult Result=Machine.Handle(Down(PointerButton.Left,0,0));
 
-        Assert.Equal(SceneNavState.Idle,Result.State);
-        Assert.Equal(SceneCaptureAction.None,Result.Capture);
+        Assert.Equal(SceneNavState.PendingSelect,Result.State);
+        Assert.Equal(SceneCaptureAction.Begin,Result.Capture);
+        Assert.Equal(SceneNavState.PendingSelect,Machine.State);
     }
 
     [Fact]
@@ -126,6 +130,77 @@ public sealed class SceneInputStateMachineTests {
         SceneInputStepResult Result=Machine.Handle(Up(PointerButton.Left,0,0));
 
         Assert.Equal(SceneNavState.Idle,Result.State);
+    }
+
+    [Fact]
+    public void PendingSelect_LeftButtonUp_ConfirmsStoredHitAndReturnsToIdle(){
+        SceneInputStateMachine Machine=new();
+        NodePath Hit=NodePath.Root.Append(2);
+        Machine.Handle(Down(PointerButton.Left,0,0),Hit);
+
+        SceneInputStepResult Result=Machine.Handle(Up(PointerButton.Left,0,0));
+
+        Assert.Equal(SceneNavState.Idle,Result.State);
+        Assert.Equal(SceneCaptureAction.End,Result.Capture);
+        Assert.True(Result.SelectionConfirmed);
+        Assert.Equal(Hit,Result.ConfirmedNodePath);
+        Assert.False(Result.ConfirmedCtrl);
+    }
+
+    [Fact]
+    public void PendingSelect_LeftButtonUp_NoHit_ConfirmsNullNodePath(){
+        SceneInputStateMachine Machine=new();
+        Machine.Handle(Down(PointerButton.Left,0,0),HitNodePath:null);
+
+        SceneInputStepResult Result=Machine.Handle(Up(PointerButton.Left,0,0));
+
+        Assert.True(Result.SelectionConfirmed);
+        Assert.Null(Result.ConfirmedNodePath);
+    }
+
+    [Fact]
+    public void PendingSelect_LeftButtonUp_WithCtrlHeld_ConfirmsCtrlFlag(){
+        SceneInputStateMachine Machine=new();
+        RawInputModifiers CtrlModifiers=new(Shift:false,Ctrl:true,Alt:false);
+        Machine.Handle(new PointerEvent(PointerEventKind.Down,PointerButton.Left,0,0,CtrlModifiers),NodePath.Root);
+
+        SceneInputStepResult Result=Machine.Handle(Up(PointerButton.Left,0,0));
+
+        Assert.True(Result.SelectionConfirmed);
+        Assert.True(Result.ConfirmedCtrl);
+    }
+
+    [Fact]
+    public void PendingSelect_CaptureLost_ReturnsToIdleWithoutConfirming(){
+        SceneInputStateMachine Machine=new();
+        Machine.Handle(Down(PointerButton.Left,0,0),NodePath.Root);
+
+        SceneInputStepResult Result=Machine.Handle(CaptureLost());
+
+        Assert.Equal(SceneNavState.Idle,Result.State);
+        Assert.False(Result.SelectionConfirmed);
+    }
+
+    [Fact]
+    public void PendingSelect_RightButtonDown_PreemptsToFlying(){
+        SceneInputStateMachine Machine=new();
+        Machine.Handle(Down(PointerButton.Left,0,0),NodePath.Root);
+
+        SceneInputStepResult Result=Machine.Handle(Down(PointerButton.Right,0,0));
+
+        Assert.Equal(SceneNavState.Flying,Result.State);
+        Assert.Equal(SceneCaptureAction.Begin,Result.Capture);
+    }
+
+    [Fact]
+    public void PendingSelect_MiddleButtonDown_PreemptsToPanning(){
+        SceneInputStateMachine Machine=new();
+        Machine.Handle(Down(PointerButton.Left,0,0),NodePath.Root);
+
+        SceneInputStepResult Result=Machine.Handle(Down(PointerButton.Middle,0,0));
+
+        Assert.Equal(SceneNavState.Panning,Result.State);
+        Assert.Equal(SceneCaptureAction.Begin,Result.Capture);
     }
 
     [Fact]

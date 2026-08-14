@@ -60,6 +60,36 @@ public sealed class SceneCameraFramingTests {
     }
 
     [Fact]
+    public void ComputeSelectionBounds_IncludesSkyDomeFlaggedObject_UnlikeComputeBounds(){
+        SceneRenderObject SkyDome=CreateObject(
+            Matrix4x4.CreateScale(400f),
+            new Vector3(-1f,0f,0f),new Vector3(1f,0f,0f),
+            IncludeInBounds:false);
+
+        (Vector3 ComputeBoundsCenter,float ComputeBoundsRadius)=SceneCameraFraming.ComputeBounds([SkyDome]);
+        (Vector3 SelectionCenter,float SelectionRadius)=SceneCameraFraming.ComputeSelectionBounds([SkyDome]);
+
+        // ComputeBounds は IncludeInBounds=false を除外するので縮退フォールバックへ落ちる。
+        Assert.Equal(Vector3.Zero,ComputeBoundsCenter);
+        Assert.Equal(1f,ComputeBoundsRadius);
+
+        // ComputeSelectionBounds は明示的に選択されたオブジェクトなので実際の頂点から半径を出す。
+        Assert.Equal(Vector3.Zero,SelectionCenter);
+        Assert.Equal(400f,SelectionRadius,3);
+    }
+
+    [Fact]
+    public void ComputeSelectionBounds_AllObjectsIncluded_MatchesComputeBounds(){
+        SceneRenderObject Object=CreateObject(Matrix4x4.Identity,Vector3.Zero,new Vector3(4f,0f,0f));
+
+        (Vector3 ComputeBoundsCenter,float ComputeBoundsRadius)=SceneCameraFraming.ComputeBounds([Object]);
+        (Vector3 SelectionCenter,float SelectionRadius)=SceneCameraFraming.ComputeSelectionBounds([Object]);
+
+        Assert.Equal(ComputeBoundsCenter,SelectionCenter);
+        Assert.Equal(ComputeBoundsRadius,SelectionRadius,3);
+    }
+
+    [Fact]
     public void ComputeDistance_IsTheTangentDistanceForTheVerticalFieldOfViewWithSafetyMargin(){
         const float Radius=5f;
         const float FovY=(float)(Math.PI/3.0);

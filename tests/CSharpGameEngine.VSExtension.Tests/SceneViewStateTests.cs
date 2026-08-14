@@ -113,6 +113,27 @@ public sealed class SceneViewStateTests {
     }
 
     [Fact]
+    public void FocusOnBounds_ChangesFocusPositionAndDistance_PreservesYawPitch(){
+        SceneViewState State=new(){ FocusPosition=Vector3.Zero,FocusDistance=1f,Yaw=0.5f,Pitch=0.3f };
+
+        State.FocusOnBounds(new Vector3(5f,6f,7f),BoundsRadius:2f);
+
+        Assert.Equal(new Vector3(5f,6f,7f),State.FocusPosition);
+        Assert.Equal(SceneCameraFraming.ComputeDistance(2f,State.FovYRadians),State.FocusDistance,Precision);
+        Assert.Equal(0.5f,State.Yaw,Precision);
+        Assert.Equal(0.3f,State.Pitch,Precision);
+    }
+
+    [Fact]
+    public void FocusOnBounds_DoesNotChangeLastKnownBoundsRadius(){
+        SceneViewState State=new(){ LastKnownBoundsRadius=50f };
+
+        State.FocusOnBounds(Vector3.One,BoundsRadius:2f);
+
+        Assert.Equal(50f,State.LastKnownBoundsRadius);
+    }
+
+    [Fact]
     public void Orbit_ChangesYawPitch_FocusPositionUnchanged(){
         SceneViewState State=new(){ FocusPosition=new Vector3(3f,4f,5f),FocusDistance=6f,Yaw=0.1f,Pitch=0.1f };
         Vector3 FocusBefore=State.FocusPosition;

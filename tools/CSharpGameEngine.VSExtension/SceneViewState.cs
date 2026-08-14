@@ -138,6 +138,17 @@ internal sealed class SceneViewState {
     }
 
     /// <summary>
+    /// M0020 Phase 2 FocusSelection(F)用。<see cref="ResetToBounds"/>と違い視線方向(Yaw/Pitch)と
+    /// <see cref="LastKnownBoundsRadius"/>(Far平面のフロア)は変えない — 選択対象がシーン全体より
+    /// ずっと小さくても、シーンの他の部分がクリップされないようにする。
+    /// </summary>
+    internal void FocusOnBounds(Vector3 BoundsCenter,float BoundsRadius){
+        FocusPosition=BoundsCenter;
+        FocusDistance=SceneCameraFraming.ComputeDistance(BoundsRadius,FovYRadians);
+        OrthographicSize=BoundsRadius;
+    }
+
+    /// <summary>
     /// Look(向きのみ)とFly(WASDQE移動)は同一RMBセッション内で同時に起こりうるため1関数に定式化する
     /// (design doc §2の不変条件: Fly中は視点位置を直接動かし、終了時にFocusPositionを再導出する)。
     /// </summary>

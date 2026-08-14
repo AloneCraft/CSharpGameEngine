@@ -14,7 +14,7 @@ namespace CSharpGameEngine.VSExtension;
 /// 純粋な計算だけなので GPU も HWND も要らず、ユニットテストできる(バウンズ計算がテスト可能に
 /// なったのはこの移設の副産物)。M0020 Phase 1 でナビゲーションが入ると、呼び出し側が
 /// <c>SceneViewState</c> 由来の view/projection を渡すようになり、ここは初期フレーミング専用になる。
-/// Phase 2 の FocusSelection は <see cref="ComputeBounds"/> の選択ノード版を足す場所。
+/// M0020 Phase 2 の FocusSelection(F)は選択ノード版の <see cref="ComputeSelectionBounds"/> を使う。
 /// </para>
 ///
 /// <para>
@@ -42,13 +42,26 @@ internal static class SceneCameraFraming {
     /// ワールド空間の境界球。<c>Radius</c> は中心から最遠頂点までの距離(AABB 半対角ではない)。
     /// <c>IncludeInBounds=false</c> のオブジェクト(Sky dome 等)は描画されるが半径には寄与しない。
     /// </summary>
-    internal static(Vector3 Center,float Radius)ComputeBounds(IReadOnlyList<SceneRenderObject>RenderObjects){
+    internal static(Vector3 Center,float Radius)ComputeBounds(IReadOnlyList<SceneRenderObject>RenderObjects)=>
+        ComputeBoundsCore(RenderObjects,RespectIncludeInBoundsFlag:true);
+
+    /// <summary>
+    /// M0020 Phase 2 FocusSelection(F)用。選択済みオブジェクトのみを渡す前提であり、
+    /// <c>IncludeInBounds=false</c>(Sky dome等、自動フレーミング専用の除外)は無視して収める
+    /// (ユーザーが明示的にそのオブジェクトを選択している以上、除外すると縮退したフォールバック
+    /// <c>(Zero,1f)</c>へ落ちて原点へジャンプしてしまうため)。
+    /// </summary>
+    internal static(Vector3 Center,float Radius)ComputeSelectionBounds(IReadOnlyList<SceneRenderObject>SelectedRenderObjects)=>
+        ComputeBoundsCore(SelectedRenderObjects,RespectIncludeInBoundsFlag:false);
+
+    private static(Vector3 Center,float Radius)ComputeBoundsCore(
+        IReadOnlyList<SceneRenderObject>RenderObjects,bool RespectIncludeInBoundsFlag){
         Vector3 Minimum=new(float.MaxValue);
         Vector3 Maximum=new(float.MinValue);
         var Any=false;
 
         foreach(SceneRenderObject RenderObject in RenderObjects){
-            if(!RenderObject.IncludeInBounds){
+            if(RespectIncludeInBoundsFlag&&!RenderObject.IncludeInBounds){
                 continue;
             }
 
@@ -67,7 +80,7 @@ internal static class SceneCameraFraming {
         Vector3 Center=(Minimum+Maximum)*0.5f;
         var Radius=0f;
         foreach(SceneRenderObject RenderObject in RenderObjects){
-            if(!RenderObject.IncludeInBounds){
+            if(RespectIncludeInBoundsFlag&&!RenderObject.IncludeInBounds){
                 continue;
             }
 
