@@ -8,9 +8,6 @@ namespace CSharpGameEngine.VSExtension;
 
 /// <summary>ライブRoslyn SceneModelをScene Designerの描画オブジェクトへ変換する。</summary>
 internal static class SceneModelRenderObjectBuilder {
-    private const string TransformTypeFullyQualifiedName="global::UserEcsProject.Transform";
-    private const string PrimitiveMeshTypeFullyQualifiedName="global::CSharpGameEngine.Runtime.Windows.PrimitiveMesh";
-    private const string StaticMeshTypeFullyQualifiedName="global::CSharpGameEngine.Runtime.Windows.StaticMesh";
     private const string PrimitiveBridgeProjectRelativePath=@"tools\CSharpGameEngine.Primitive.Cli";
     private static readonly TimeSpan BridgeTimeout=TimeSpan.FromSeconds(60);
 
@@ -19,28 +16,49 @@ internal static class SceneModelRenderObjectBuilder {
         Func<string,SimpleMesh?>ResolvePrimitiveMesh,
         Func<string,SimpleMesh?>?ResolveStaticMesh=null){
         List<SceneRenderObject>Result=[];
-        if(Model.Root is null)return Result;
+        if(Model.Root is not{ }Root)return Result;
 
-        foreach(SceneNode Node in Model.EnumerateNodes()){
-            Matrix4x4 World=ExtractWorldTransform(Node);
+        Append(Root,Matrix4x4.Identity);
+        return Result;
+
+        // Model.EnumerateNodes() は親コンテキスト(深さも親も)を返さないため、ここは自前の pre-order
+        // 再帰へ切り替える。列挙順はどちらも「自分 → 子を宣言順」なので NodePath の並びは不変。
+        // SceneNode.Children は入れ子の ObjectCreationExpression から構築されるツリーであり、JSON の
+        // ParentId のような任意参照が存在しないのでサイクルガードは不要。深さも解析器が
+        // SceneDslWellKnownNames.MaxRecursionDepth で打ち切っている。
+        void Append(SceneNode Node,Matrix4x4 ParentWorld){
+            // world = local * parentWorld。式はランタイムの TransformMath.ToWorld と同一
+            // (TransformWorldResolverTests が固定している規約)。net472 から net10.0 の型は参照
+            // できないため、型ではなく式1つだけをここへ写している(GizmoMeshFactory と同じ複製方針)。
+            // M0020 Phase 3 の SetTransform が TryCalculateLocal を要求した時点で共有方式を再検討する。
+            Matrix4x4 World=ExtractLocalTransform(Node)*ParentWorld;
+
+            string?AssetPath=ExtractStaticMeshAssetPath(Node);
             SimpleMesh Mesh;
-            if(ExtractStaticMeshAssetPath(Node)is{ }AssetPath&&ResolveStaticMesh is not null){
+            if(AssetPath is not null&&ResolveStaticMesh is not null){
                 Mesh=ResolveStaticMesh(AssetPath)??GizmoMeshFactory.Create();
             } else if(ExtractPrimitiveMeshEnumMemberName(Node)is{ }EnumMemberName){
                 Mesh=ResolvePrimitiveMesh(EnumMemberName)??GizmoMeshFactory.Create();
             } else {
                 Mesh=GizmoMeshFactory.Create();
             }
+
             Result.Add(new SceneRenderObject {
                 Mesh=Mesh,
                 World=World,
                 NodeId=Node.Path,
-                IncludeInBounds=ExtractStaticMeshAssetPath(Node) is not{ }BoundsAssetPath
-                    ||BoundsAssetPath.IndexOf("SkySphere",StringComparison.OrdinalIgnoreCase)<0,
+                IncludeInBounds=!IsSkyDomeAsset(AssetPath),
             });
+
+            foreach(SceneNode Child in Node.Children){
+                Append(Child,World);
+            }
         }
-        return Result;
     }
+
+    /// <summary>Sky dome は描画するが、編集対象ステージの自動フレーミング半径には含めない。</summary>
+    private static bool IsSkyDomeAsset(string?AssetPath)=>
+        AssetPath is not null&&AssetPath.IndexOf("SkySphere",StringComparison.OrdinalIgnoreCase)>=0;
 
     internal static SimpleMesh?ResolveViaBridge(string PrimitiveTypeEnumMemberName,string RepoRoot){
         string?BridgeKind=MapToBridgeKind(PrimitiveTypeEnumMemberName);
@@ -65,8 +83,8 @@ internal static class SceneModelRenderObjectBuilder {
         "Cone"=>"Cone","Torus"=>"Torus","Disk"=>"Disk","Capsule"=>"Capsule",_=>null,
     };
 
-    private static Matrix4x4 ExtractWorldTransform(SceneNode Node){
-        SceneComponent?Transform=Node.FindComponent(TransformTypeFullyQualifiedName);
+    private static Matrix4x4 ExtractLocalTransform(SceneNode Node){
+        SceneComponent?Transform=SceneComponentBindings.FindComponent(Node,SceneComponentRole.LocalTransform);
         if(Transform is null)return Matrix4x4.Identity;
         Vector3 Position=new(ReadFloat(Transform,"PositionX"),ReadFloat(Transform,"PositionY"),ReadFloat(Transform,"PositionZ"));
         Quaternion Rotation=new(ReadFloat(Transform,"RotationX"),ReadFloat(Transform,"RotationY"),ReadFloat(Transform,"RotationZ"),ReadFloat(Transform,"RotationW"));
@@ -81,8 +99,10 @@ internal static class SceneModelRenderObjectBuilder {
         };
 
     private static string?ExtractPrimitiveMeshEnumMemberName(SceneNode Node)=>
-        Node.FindComponent(PrimitiveMeshTypeFullyQualifiedName)?.FindMember("Type")?.Value.ReferencedSymbol?.Name;
+        SceneComponentBindings.FindComponent(Node,SceneComponentRole.PrimitiveMesh)
+            ?.FindMember("Type")?.Value.ReferencedSymbol?.Name;
 
     private static string?ExtractStaticMeshAssetPath(SceneNode Node)=>
-        Node.FindComponent(StaticMeshTypeFullyQualifiedName)?.FindMember("AssetPath")?.Value.ConstantValue as string;
+        SceneComponentBindings.FindComponent(Node,SceneComponentRole.StaticMesh)
+            ?.FindMember("AssetPath")?.Value.ConstantValue as string;
 }

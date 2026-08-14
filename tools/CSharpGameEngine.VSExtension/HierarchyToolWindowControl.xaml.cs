@@ -1,6 +1,4 @@
-using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -21,10 +19,11 @@ namespace CSharpGameEngine.VSExtension;
 /// </para>
 ///
 /// <para>
-/// Selecting a node publishes <see cref="SceneEditorHub.PublishSelectedNodePath"/>. The 3D Scene view
-/// still renders from the .scene file and listens on the older Guid-keyed channel; it moves onto this
-/// one when it is switched over to SceneModel. Drag and drop still writes to .scene for the same
-/// reason - it becomes a C# source insertion in the same step.
+/// Selecting a node publishes <see cref="SceneEditorHub.PublishSelectedNodePath"/>, which the Scene
+/// Designer turns into a viewport highlight. Both sides now read the same live-Roslyn
+/// <see cref="SceneModel"/> (ADR-0040 Phase 9). Drag-and-drop asset placement used to write to a
+/// <c>.scene</c> file and was removed in M0020 Phase 0 together with that dead write path; it returns
+/// as a C# source insertion (<c>SceneEditOperation</c>) in a later milestone.
 /// </para>
 /// </summary>
 public partial class HierarchyToolWindowControl:UserControl {
@@ -87,50 +86,4 @@ public partial class HierarchyToolWindowControl:UserControl {
         NodePath?Path=E.NewValue is SceneNodeViewModel Item?Item.Path:null;
         SceneEditorHub.PublishSelectedNodePath(Path);
     }
-
-    private static readonly string[]SupportedDropExtensions=[".glb",".gltf",".fbx"];
-
-    private void Tree_DragEnterOrOver(object Sender,DragEventArgs E){
-        E.Effects=HasSupportedDroppedFile(E.Data)?DragDropEffects.Copy:DragDropEffects.None;
-        E.Handled=true;
-    }
-
-    private void Tree_Drop(object Sender,DragEventArgs E){
-        Microsoft.VisualStudio.Shell.ThreadHelper.ThrowIfNotOnUIThread();
-
-        E.Handled=true;
-
-        if(!E.Data.GetDataPresent(DataFormats.FileDrop)){
-            return;
-        }
-
-        var Paths=(string[])E.Data.GetData(DataFormats.FileDrop);
-        foreach(var Path in Paths){
-            if(!IsSupportedAssetPath(Path)){
-                continue;
-            }
-
-            var NameHint= System.IO.Path.GetFileNameWithoutExtension(Path);
-            if(!SceneNodeAdder.TryAddAssetNode(Path, NameHint, out var ErrorMessage)){
-                System.Windows.MessageBox.Show(
-                    ErrorMessage,
-                    "C# Game Engine Hierarchy",
-                    System.Windows.MessageBoxButton.OK,
-                    System.Windows.MessageBoxImage.Information);
-                return;
-            }
-        }
-    }
-
-    private static bool HasSupportedDroppedFile(IDataObject Data){
-        if(!Data.GetDataPresent(DataFormats.FileDrop)){
-            return false;
-        }
-
-        var Paths=(string[])Data.GetData(DataFormats.FileDrop);
-        return Paths.Any(IsSupportedAssetPath);
-    }
-
-    private static bool IsSupportedAssetPath(string Path)=>
-        SupportedDropExtensions.Contains(System.IO.Path.GetExtension(Path), StringComparer.OrdinalIgnoreCase);
 }

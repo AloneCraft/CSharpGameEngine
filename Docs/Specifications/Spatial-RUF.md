@@ -172,8 +172,10 @@ UV原点・Front face winding・Normal変換・Tangent basis handednessは、`Ma
   `src/CSharpGameEngine.Scene`に生きた利用者が無くなり、ADR-0034でプロジェクトごと削除した。
   RUFと重複していた`CSharpGameEngine.Scene.Transform`はもう存在しないため、この未確定事項は
   「解決」ではなく「対象が消えたことによる消滅」である。VSIX(net472)側の独立パーサー
-  (`tools/CSharpGameEngine.VSExtension/SceneFile.cs`)は存続しており、そちらのRUF統合は
-  依然として未着手のまま(VSIXはnet472でRUF型を参照できないという別の制約がある)。
+  (`tools/CSharpGameEngine.VSExtension/SceneFile.cs`)も**M0020 Phase 0で削除した**。現在のVSIXの
+  Transform表現は`System.Numerics.Matrix4x4`直で、親子合成式`world = local * parentWorld`のみを
+  ランタイムの`TransformMath.ToWorld`と一致させている(型は複製せず式だけを写す方針。net472から
+  RUF型を参照できないという制約は不変)。
 - **Blenderの`BlenderGltfExportConvention`/`BlenderFbxExportConvention`への分割は未実施**:
   `BlenderWorldConvention`(Blenderワールド座標のGolden Valuesと一致)のみ実装した。Blender用の
   Import/Exportパイプライン自体が未着手のため、Export設定のForward/Up・Meshローカル前方向・

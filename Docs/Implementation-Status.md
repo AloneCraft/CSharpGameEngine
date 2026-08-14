@@ -26,6 +26,9 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
 2026-08のシーンエディタ設計文書整備(ADR-0040全面改稿・ADR-0041/M0019/M0020/
 Scene-Editor-Design.md新規)でF-L8-011をPlannedで追加し、F-L4-002/F-L8-010の「ADR-0040自体の
 文書化はPhase 11で行う」注記を解消、旧`Docs/EditorSpec.md`の削除に伴う参照注記を行いました。
+続くM0020 Phase 0(前提修正とデッドコード削除)でF-L8-006/F-L8-007をRemovedへ更新し、
+F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存記述と
+`UserGameProject/Assets/Primitives/`のパス記述を現状へ訂正しています。
 
 ---
 
@@ -736,7 +739,8 @@ Scene-Editor-Design.md新規)でF-L8-011をPlannedで追加し、F-L4-002/F-L8-0
   [[ADR-0034-Project-Consolidation]]で`src/CSharpGameEngine.Scene`と
   `tests/CSharpGameEngine.Scene.Tests`をディレクトリごと削除した。
 - Superseded by: F-L3-xxx系のScene Authoring(C#正本)。VSIXが`*.scene`を読むパーサーは
-  `tools/CSharpGameEngine.VSExtension/SceneFile.cs`として**VSIX内に存続**しており(F-L8-003)、
+  `tools/CSharpGameEngine.VSExtension/SceneFile.cs`としてVSIX内に存続していたが、M0020 Phase 0で
+  削除した(読み取り経路はライブRoslyn`SceneModel`へ完全移行済み、F-L8-010)。当時の記録として(F-L8-003)、
   エディタ機能そのものは失われていない。
 - Implementation evidence(削除済み。履歴はgitの`f17fbd5`以前を参照):
   - ~~src/CSharpGameEngine.Scene/{Transform,SceneNode,SceneGraph,SceneNodeTree,SceneJson}.cs~~
@@ -823,8 +827,14 @@ Scene-Editor-Design.md新規)でF-L8-011をPlannedで追加し、F-L4-002/F-L8-0
 - **(2026-08、ADR-0040 Phase 9で置き換え)** `.scene`ダブルクリックによるドキュメントタブ方式の
   プレビューは廃止した。`SceneFileEditorFactory`/`SceneWindowPane`/`SceneWindowControl`は削除、
   `SceneHwndHost`/`SceneRenderer`は流用しつつデータソースを`.scene`ファイルからライブRoslynの
-  `SceneModel`へ差し替えた。後継はF-L8-010を参照。このエントリは歴史的記録として残す
-  (`SceneFile.cs`のパース自体は`SceneNodeAdder`の書き込み側でPhase 10まで存続)。
+  `SceneModel`へ差し替えた。後継はF-L8-010を参照。このエントリは歴史的記録として残す。
+- **(2026-08、M0020 Phase 0で完全撤去)** 上記時点では「`SceneFile.cs`のパース自体は
+  `SceneNodeAdder`の書き込み側でPhase 10まで存続」と記録していたが、Phase 10を待たず
+  `SceneFile.cs`/`SceneNodeAdder.cs`/`SceneFileTests.cs`ごと削除した(シェイプパレットと
+  ヒエラルキーのドラッグ&ドロップも同時に撤去、F-L8-006/F-L8-007参照)。したがってこのエントリの
+  Implementation evidenceに挙がっているVSIX側ファイルはすべて現存しない
+  (`SceneFileEditorFactory.cs`/`SceneWindowPane.cs`/`SceneWindowControl.xaml(.cs)`はPhase 9時点で、
+  `SceneFile.cs`はPhase 0時点で削除)。リポジトリ内に`*.scene`ファイルは1つも残っていない。
 
 ## F-L2-002 — `CSharpGameEngine.Geometry`(`ProceduralMeshFactory`・6プリミティブ追加)
 
@@ -916,22 +926,34 @@ Scene-Editor-Design.md新規)でF-L8-011をPlannedで追加し、F-L4-002/F-L8-0
 
 - Layer: L8 — Visual Studio Authoring Environment
 - Parent capability: GameEngineレイアウトとシェイプパレット
-- Status: Implemented
-- Verification: RuntimeVerified(ユーザーの実機F5デバッグで、球形/シリンダー/ディスク等を実際に
-  クリックしてシーンに追加描画され、ヒエラルキーにもノードが増え、選択ハイライトも機能することを
-  スクリーンショットで確認済み)
+- Status: **Removed**(M0020 Phase 0)
+- Verification: N/A(削除済み。削除前の最終状態はRuntimeVerifiedだったが、ADR-0040 Phase 9以降は
+  下記のとおり機能しなくなっていた)
 - Intended specification: Docs/Decisions/ADR-0021-Editor-Layout-And-Shape-Palette.md
-- Implementation evidence:
-  - tools/CSharpGameEngine.Primitive.Cli/Program.cs
-  - tools/CSharpGameEngine.VSExtension/ShapePaletteToolWindowPane.cs
-  - tools/CSharpGameEngine.VSExtension/ShapePaletteControl.xaml(.cs)
-  - tools/CSharpGameEngine.VSExtension/ShowShapePaletteToolWindowCommand.cs
-  - tools/CSharpGameEngine.VSExtension/PrimitiveSpawner.cs
-  - tools/CSharpGameEngine.VSExtension/SceneNodeAdder.cs(ADR-0022で`PrimitiveSpawner`から抽出)
-  - tools/CSharpGameEngine.VSExtension/ExternalBridgeProcess.cs(`RunProducingFile`メソッド)
-  - tools/CSharpGameEngine.VSExtension/SceneFile.cs(`Save`/`AddNode`/`FindFirstRootNodeId`/
-    `ContainsNodeNamed`メソッド)
-  - tools/CSharpGameEngine.VSExtension/SceneEditorHub.cs(`ReloadRequested`イベント)
+- Removal rationale: 配置先が`.scene`ファイルであり、ADR-0040 Phase 9で読み取り経路がライブRoslynの
+  `SceneModel`へ移った時点で`SceneEditorHub.ActiveScene`の発行元が消滅した。以後このパレットは
+  押しても「シーンファイル(.scene)を開いてください」という案内ダイアログを出すだけのUIであり、
+  ユーザー決定によりPhase 10を待たず全面削除した。**プリミティブ生成そのものは
+  `tools/CSharpGameEngine.Primitive.Cli`として存続**し、Scene デザイナーの`PrimitiveMesh`描画
+  (`SceneModelRenderObjectBuilder.ResolveViaBridge`)が利用している。
+- Superseded by: 宣言の直接編集(`SceneEditOperation`、M0020 Phase 3以降)+ ヒエラルキー編集
+  マイルストーン。
+- Implementation evidence(削除済み。履歴はgitの`e2033ed`以前を参照):
+  - tools/CSharpGameEngine.Primitive.Cli/Program.cs(**存続** — 描画側が利用)
+  - ~~tools/CSharpGameEngine.VSExtension/ShapePaletteToolWindowPane.cs~~
+  - ~~tools/CSharpGameEngine.VSExtension/ShapePaletteControl.xaml(.cs)~~
+  - ~~tools/CSharpGameEngine.VSExtension/ShowShapePaletteToolWindowCommand.cs~~
+  - ~~tools/CSharpGameEngine.VSExtension/PrimitiveSpawner.cs~~
+  - ~~tools/CSharpGameEngine.VSExtension/SceneNodeAdder.cs~~(ADR-0022で`PrimitiveSpawner`から抽出)
+  - tools/CSharpGameEngine.VSExtension/ExternalBridgeProcess.cs(`RunProducingFile`は**存続** —
+    消費者が`SceneModelRenderObjectBuilder.ResolveViaBridge`へ移った)
+  - ~~tools/CSharpGameEngine.VSExtension/SceneFile.cs~~
+  - tools/CSharpGameEngine.VSExtension/SceneEditorHub.cs(`ReloadRequested`イベントを削除)
+  - tools/CSharpGameEngine.VSExtension/OpenViewerCommandPackage.vsct(コマンドID`0x0107`を退役 —
+    `0x0101`/`0x0108`と同じ作法でコメントのみ残し、IDは再利用しない)
+  - tools/CSharpGameEngine.VSExtension/InitialLayoutToolWindowPlan.cs、GameEngineLayout.cs、
+    CSharpGameEngineViewerPackage.cs(初回レイアウトからシェイプパレットの列挙子・型マップ・
+    `[ProvideToolWindow]`登録を削除)
 - Tests: なし(VSIX側のクリックハンドラ自体は専用テストが無い - `SceneFile`の`Save`往復は
   F-L2-001/F-L8-003のテストでカバー)。
 - Reverse-engineered behavior:
@@ -939,7 +961,7 @@ Scene-Editor-Design.md新規)でF-L8-011をPlannedで追加し、F-L4-002/F-L8-0
     `Click`ハンドラを持ち、残り10ボタンは`IsEnabled="False"`のプレースホルダー
     (対話的ギズモ操作が前提でEditorSpec §6のスコープ外。EditorSpec.mdは2026-08に削除され、
     ギズモ操作は[[ADR-0041-Scene-Editor-Interaction-Architecture]] / M0020のスコープになった)。
-  - `PrimitiveSpawner.SpawnAsync`: `UserGameProject/Assets/Primitives/<Name>.glb`が無ければ
+  - `PrimitiveSpawner.SpawnAsync`: `UserEcsProject/Assets/Primitives/<Name>.glb`が無ければ
     `tools/CSharpGameEngine.Primitive.Cli`をアウトオブプロセスで起動して生成(2回目以降は
     キャッシュされたファイルを再利用)、`SceneEditorHub.ActiveScene`が無ければ案内メッセージを
     出して終了、新規ノードを`SceneFile.AddNode`+`Save`で書き戻し、
@@ -952,27 +974,34 @@ Scene-Editor-Design.md新規)でF-L8-011をPlannedで追加し、F-L4-002/F-L8-0
   - VS threading analyzer(VSTHRD010)が`ThreadHelper.ThrowIfNotOnUIThread()`の明示呼び出しを
     要求することを実際のビルドエラーで確認し、`SetStatusBarText`等のCOM呼び出しを行う各所に
     追加した。
-- Conformance: Matches(ユーザーの実機確認により、シェイプクリック→シーンへの追加描画→
-  ヒエラルキーへのノード追加→選択ハイライトの一連の流れが実際に動作することを確認済み)。
-- Known deviations: None(実機確認済み)。
-- Next action: なし。
+- Conformance: N/A(削除済み)。削除前は「ユーザーの実機確認により一連の流れが動作」だったが、
+  ADR-0040 Phase 9以降は書き込み先を失って恒久エラーだった。
+- Known deviations: N/A(削除済み)。
+- Next action: なし。プリミティブのクリック配置を復活させる場合は`SceneEditOperation`ベースで
+  再設計する([[ADR-0041-Scene-Editor-Interaction-Architecture]]、ヒエラルキー編集マイルストーン)。
 
 ## F-L8-007 — ヒエラルキーへのドラッグ&ドロップ配置(`SceneNodeAdder`)
 
 - Layer: L8 — Visual Studio Authoring Environment
 - Parent capability: ヒエラルキーへのドラッグ&ドロップ配置(旧EditorSpec Phase 2前半。
   EditorSpec.mdは2026-08削除、生き残り項目は[[M0020-Scene-Editor-Interaction]]へ移設)
-- Status: Implemented
-- Verification: TestVerified(ビルドのみ。ソリューションエクスプローラーからの実ドラッグ操作は
-  実機未確認)
+- Status: **Removed**(M0020 Phase 0)
+- Verification: N/A(削除済み。削除前もTestVerified=ビルドのみで、ソリューションエクスプローラーから
+  の実ドラッグ操作は一度も実機確認されないまま終わった)
 - Intended specification: Docs/Decisions/ADR-0022-Hierarchy-Drag-Drop-Asset-Placement.md
-- Implementation evidence:
-  - tools/CSharpGameEngine.VSExtension/SceneNodeAdder.cs
-  - tools/CSharpGameEngine.VSExtension/HierarchyToolWindowControl.xaml(.cs)
-  - tools/CSharpGameEngine.VSExtension/PrimitiveSpawner.cs(`SceneNodeAdder`利用に更新)
-- Tests: なし(WPFドラッグ&ドロップイベントハンドラ自体は専用テストが無い - ノード追加の
-  中核ロジックは`SceneNodeAdder`経由でF-L8-003/F-L8-006のテストと同じ`SceneFile`往復テストで
-  間接的にカバーされる)。
+- Removal rationale: F-L8-006と同一の理由。書き込み先の`.scene`と`SceneEditorHub.ActiveScene`の
+  発行元がADR-0040 Phase 9で消滅し、ドロップしても常に案内ダイアログを出すだけだった。
+  `AllowDrop`ごと削除したので「ドロップしても何も起きない」ではなく「ドロップ自体を受け付けない」
+  状態になる(機能的損失はゼロ、UIアフォーダンスの消失のみ)。`SceneNodeAdder.GetRelativePath`
+  (net472用の`Path.GetRelativePath`ポリフィル)も他の消費者が無いため一緒に落とした — ヒエラルキー
+  編集マイルストーンで必要になったら書き直す。
+- Superseded by: `SceneEditOperation`ベースのソース挿入(ヒエラルキー編集マイルストーン)。
+- Implementation evidence(削除済み。履歴はgitの`e2033ed`以前を参照):
+  - ~~tools/CSharpGameEngine.VSExtension/SceneNodeAdder.cs~~
+  - tools/CSharpGameEngine.VSExtension/HierarchyToolWindowControl.xaml(.cs)(`AllowDrop`と
+    `DragEnter`/`DragOver`/`Drop`束縛、および対応する5メソッドを削除。TreeView本体は存続)
+  - ~~tools/CSharpGameEngine.VSExtension/PrimitiveSpawner.cs~~
+- Tests: なし(削除前も専用テストは無く、`SceneFile`往復テスト経由の間接カバーのみだった)。
 - Reverse-engineered behavior:
   - `PrimitiveSpawner`(ADR-0021)が持っていた「現在開いているシーンにノードを追加・保存・
     再読み込みトリガー」ロジックを`SceneNodeAdder.TryAddAssetNode`として抽出し、
@@ -984,14 +1013,12 @@ Scene-Editor-Design.md新規)でF-L8-011をPlannedで追加し、F-L4-002/F-L8-0
     `DragDropEffects.None`でドロップを拒否する。
   - シーンJSONスキーマは無変更 - ドラッグ配置されたノードもシェイプパレット由来のノードと
     区別されない通常のノードとして扱われる。位置は原点固定、親はシーンのルートノード。
-- Conformance: Matches(ビルド・型チェックのみ、実際のドラッグ&ドロップ操作は未確認)。
-- Known deviations: ソリューションエクスプローラーからの実ドラッグで`DataFormats.FileDrop`が
-  実際に得られるかは実機未確認。得られない場合はVS固有形式(`CF_VSSTGPROJECTITEMS`)への
-  切り替えが必要になる可能性がある。
-- Next action: (2026-08更新)この機能はPhase 9以降、`SceneEditorHub.ActiveScene`の発行元が
-  無くなり恒久エラーになる受け入れ済み退行状態(F-L8-010参照)。`SceneNodeAdder`/`SceneFile`は
-  M0020 Phase 0で削除し、Roslynベースのソース書き込み(`SceneEditOperation`)へ移行する予定
-  ([[ADR-0041-Scene-Editor-Interaction-Architecture]])。実機ドラッグ確認は移行後に実施する。
+- Conformance: N/A(削除済み)。
+- Known deviations: N/A(削除済み)。削除時点でも「ソリューションエクスプローラーからの実ドラッグで
+  `DataFormats.FileDrop`が得られるか」は未検証のままだった — 再実装時に改めて確認が必要。
+- Next action: なし。再実装は`SceneEditOperation`ベースで行う
+  ([[ADR-0041-Scene-Editor-Interaction-Architecture]]、[[M0020-Scene-Editor-Interaction]]の
+  「意図的に除外したこと」)。
 
 ## F-L8-008 — ブリッジプロセスの常駐化(`CSharpGameEngine.Bridge.Hosting`/`ResidentBridgeClient`)
 
@@ -2456,27 +2483,36 @@ Scene-Editor-Design.md新規)でF-L8-011をPlannedで追加し、F-L4-002/F-L8-0
   - `OpenSceneDesignerCommand`は`SceneWorkspaceService`の解析結果(`SceneEditorHub.ActiveAllSceneModels`)
     を再利用するだけで、コマンド自身はRoslynを一切呼ばない(`BeforeQueryStatus`/`Execute`とも
     キャッシュ済みの値を読むだけ)。
-  - `SceneModelRenderObjectBuilder`は`global::UserEcsProject.Transform`(プロジェクト固有、
-    ハードコード)と`global::CSharpGameEngine.Runtime.Windows.PrimitiveMesh`(エンジン標準、
-    Phase 6)の2つのComponent型を完全修飾名で認識する。`PrimitiveMesh.Type`(enum)の解決は
+  - **(M0020 Phase 0で修正、F-L8-011参照)** `SceneModelRenderObjectBuilder`は
+    `global::UserEcsProject.Transform`(プロジェクト固有、ハードコード)と
+    `global::CSharpGameEngine.Runtime.Windows.PrimitiveMesh`(エンジン標準、
+    Phase 6)の2つのComponent型を完全修飾名で認識していた。**実シーンのTransformは
+    `global::CSharpGameEngine.Runtime.Windows.Transform`であり一致しないため、全ノードがIdentityで
+    原点に重なって描画される実バグだった**(ユニットテストは`namespace UserEcsProject`の
+    フィクスチャを自前宣言してハードコードに合わせていたためグリーンを維持していた)。
+    Phase 0で`SceneComponentBindings`表へ置換した。`PrimitiveMesh.Type`(enum)の解決は
     `SceneValue.ReferencedSymbol`(`EnumMember`用)から行う — `SceneValue`には`float`/enum用の
     型付きアクセサが無いため、値抽出ロジックはこのタスクで新規に書いた。
   - プリミティブ形状の実メッシュ生成は、VSIXがnet10.0の`ProceduralMeshFactory`を直接参照できない
     (ADR-0008)ため、既存の`tools/CSharpGameEngine.Primitive.Cli`ブリッジ(Shape Paletteと共有)を
-    そのまま再利用し、`UserGameProject/Assets/Primitives/`の既存キャッシュも共有する。
+    そのまま再利用し、`UserEcsProject/Assets/Primitives/`の既存キャッシュも共有する
+    (シェイプパレットはM0020 Phase 0で削除されたが、ブリッジとキャッシュは描画側が引き続き使う)。
     `PrimitiveType.Plane`はブリッジ側の命名(`"Rectangle"`)と異なるため変換マップを持つ。
-  - `SceneHwndHost.Rebuild`は`SceneEditorHub.AllSceneModelsChanged`(250msデバウンス済み)購読の
-    たびに走るが、対象クラスが見つからない場合(解析未追従・削除等)は前回の描画をそのまま残す
-    (`Renderer`を破棄しない)。`SceneRenderer`はオブジェクト0件で例外を投げるため、
-    ロースターが空になるケースだけは明示的にガードしている。
-  - 階層Transform合成は行わない(ランタイム側`UserEcsProject`も未実装の既存ギャップのため、
-    そこに合わせている)。`Level`コンポーネント(.glbステージ全体参照)もPhase 9では描画しない。
+  - `SceneHwndHost.Rebuild`は250msデバウンス済みのスナップショット更新のたびに走るが、対象クラスが
+    見つからない場合(解析未追従・削除等)は前回の描画をそのまま残す(`Renderer`を破棄しない)。
+    **(M0020 Phase 0で変更)** Phase 9時点は`SceneRenderer`がオブジェクト0件で例外を投げるため
+    ロースターが空になるケースをホスト側でガードしていたが、Phase 0で例外側を撤廃し
+    (グリッド/ギズモのみのフレームを許容するため)、ホスト側のガードも削除した。
+  - **(M0020 Phase 0で実装、F-L8-011参照)** Phase 9時点では階層Transform合成を行わず、各ノードの
+    ローカルTRSをワールドとして使っていた(ランタイム側も未実装の既存ギャップに合わせていた)。
+    Phase 0でpre-order DFSによる`world = local * parentWorld`の畳み込みを実装した。
+    `Level`コンポーネント(.glbステージ全体参照)は引き続き描画しない。
 - Conformance: Matches(自動テストの範囲。実機VS Experimental Instanceでのコンテキストメニュー
   表示・ピッカーダイアログ・3D描画・ライブ更新の目視確認はユーザー側で実施予定)。
 - Known deviations: ドラッグ&ドロップでの配置(`SceneNodeAdder`、`.scene`書き込み)はこのフェーズ
-  完了時点で一時的に機能しなくなる(`SceneEditorHub.ActiveScene`を発行する経路が無くなったため、
-  常に「シーンファイルを開いてください」エラーになる) — Phase 10でRoslynベースのソース書き込みへ
-  移行するまでの既知の受け入れ済み退行。
+  完了時点で一時的に機能しなくなった(`SceneEditorHub.ActiveScene`を発行する経路が無くなったため、
+  常に「シーンファイルを開いてください」エラーになる) — 既知の受け入れ済み退行だった。
+  **M0020 Phase 0で当該機能ごと削除して清算した**(F-L8-006/F-L8-007をRemovedへ)。
 - Next action: (2026-08更新)実機VS Experimental Instanceでの目視確認は未消化のまま
   [[M0020-Scene-Editor-Interaction]] Phase 0の完了基準へ統合した。あわせてPhase 0では
   `SceneModelRenderObjectBuilder`のTransform型ハードコード(`global::UserEcsProject.Transform`)に
@@ -2490,19 +2526,55 @@ Scene-Editor-Design.md新規)でF-L8-011をPlannedで追加し、F-L4-002/F-L8-0
 
 - Layer: L8 — Visual Studio Authoring Environment
 - Parent capability: Scene DSL双方向エディタ(ADR-0040)の操作系
-- Status: Planned
-- Verification: N/A(未実装)
+- Status: **PartiallyImplemented**(M0020 Phase 0 のみ実装済み。Phase 1〜7は計画済み)
+- Verification: TestVerified(Phase 0。ただし`SceneRenderer`の空オブジェクト対応3箇所はHWNDとD3D12
+  デバイスを要求するためユニットテスト不能で、そこだけはCodeVerified止まり。実機VS Experimental
+  Instanceでの目視確認は未実施 — [[M0020-Scene-Editor-Interaction]]の検証節に10項目の手順を記載)
 - Intended specification: `Docs/シーンエディタの仕様.md`(要求仕様)、
   Docs/Decisions/ADR-0041-Scene-Editor-Interaction-Architecture.md(意思決定)、
   Docs/Specifications/Scene-Editor-Design.md(詳細設計)
-- Implementation evidence: なし(計画のみ。フェーズ計画と完了基準は
-  [[M0020-Scene-Editor-Interaction]])
-- Tests: 計画(Scene-Editor-Design.md §11のテスト戦略: 入力状態機械・カメラ数学・レイキャスト・
-  ギズモ拘束ソルバ・編集トランザクションの純粋層ユニットテスト)
-- Reverse-engineered behavior: N/A
-- Conformance: N/A
-- Known deviations: N/A
-- Next action: M0020 Phase 0(前提バグ修正とデッドコード削除)から着手する。
+- Implementation evidence(Phase 0):
+  - tools/CSharpGameEngine.VSExtension/SceneComponentBinding.cs(新規。`SceneComponentRole`/
+    `SceneComponentBinding`/`SceneComponentBindings`。FQNハードコードを宣言的な表へ置換)
+  - tools/CSharpGameEngine.VSExtension/SceneCameraFraming.cs(新規。視点ポリシーと境界球計算を
+    `SceneRenderer`から移設した純粋static)
+  - tools/CSharpGameEngine.VSExtension/SceneModelRenderObjectBuilder.cs(FQN表化、
+    `ExtractWorldTransform`→`ExtractLocalTransform`改名、`EnumerateNodes`のフラット列挙を
+    `ParentWorld`を運ぶpre-order再帰へ置換)
+  - tools/CSharpGameEngine.VSExtension/SceneRenderer.cs(`SetCamera`+`ConstantsDirty`追加、
+    `ComputeViewMatrix`/`ComputeProjectionMatrix`/`ComputeSceneBounds`/`BoundsCenter`/`BoundsRadius`
+    削除、空リストの`throw`撤去と定数バッファ幅クランプ、更新経路を`RenderFrame`冒頭の1本へ統一)
+  - tools/CSharpGameEngine.VSExtension/SceneHwndHost.cs(`ApplyCamera()`新設と毎フレーム・リサイズ・
+    再生成時の配線、`Count==0`ガード削除、`800,600`ハードコード撤去)
+  - 削除: SceneFile.cs、SceneNodeAdder.cs、PrimitiveSpawner.cs、ShapePaletteControl.xaml(.cs)、
+    ShapePaletteToolWindowPane.cs、ShowShapePaletteToolWindowCommand.cs(F-L8-006/007参照)
+- Tests(Phase 0、新規21件):
+  - tests/CSharpGameEngine.VSExtension.Tests/SceneComponentBindingTests.cs(5件。実FQNの認識、
+    退役FQNを認識しないこと、Role照合、`Enum.GetValues`による「消費者のないRole宣言」の機械的検出)
+  - tests/CSharpGameEngine.VSExtension.Tests/SceneCameraFramingTests.cs(9件。境界球計算4件、
+    FOV導出距離、旧3.0*R比で5%以内、視点方向、境界球がFOVに収まることのNDC投影検証、退化入力)
+  - tests/CSharpGameEngine.VSExtension.Tests/SceneModelRenderObjectBuilderTests.cs(+7件。親子/孫の
+    合成、Transform無しの子の継承、回転した親の下での子配置=乗算順の固定、pre-order順序、
+    SkySphereのフレーミング除外、Root無しで空リスト)。フィクスチャの名前空間を
+    `UserEcsProject`→`CSharpGameEngine.Runtime.Windows`へ移した(これを忘れると2件が落ちる)
+  - 削除: SceneFileTests.cs(9件)
+- Reverse-engineered behavior:
+  - Phase 0 の階層合成は式(`local * parentWorld`)のみをランタイムから複製し、型
+    (`TransformMath`)は参照しない — net472からnet10.0の型は参照不可(`GizmoMeshFactory`と同じ方針)。
+    Phase 3 の`SetTransform`が`TryCalculateLocal`を要求した時点で共有方式を再検討する。
+  - `SceneNode.Children`は構文木の入れ子から構築されるツリーなのでサイクルガードは不要
+    (深さは解析器が`MaxRecursionDepth`=64で打ち切る)。
+  - 初期フレーミングは`Distance = Radius/sin(FovY/2)*1.1`(真の境界球半径)。旧固定値`3.0*Radius`と
+    4%差で、near/farは旧値(0.05 / `Radius*20`)を維持 — `Camera.CreateBoundsFit`の`far=D+4R`では
+    `IncludeInBounds=false`で除外しているSky domeがクリップされるため。
+  - 退化半径では`far`が`near`を下回り`CreatePerspectiveFieldOfView`が例外を投げるバグを退化入力
+    テストが検出し、`far`に下限ガードを追加した。
+- Conformance: Matches(自動テストの範囲)。実機目視は未実施。
+- Known deviations: 入れ子`Children`を持つシーンがリポジトリに1つも無いため、**階層Transform合成の
+  実シーン証跡が存在しない**(ユニットテスト4件のみが証跡)。アスペクト比<1では水平FOVが狭くなり
+  境界球が横にはみ出す(Phase 0以前と同じ挙動として踏襲)。
+- Next action: 実機目視確認10項目([[M0020-Scene-Editor-Interaction]]検証節、特にZ-fighting)。
+  その後 M0020 Phase 1(ナビゲーション)へ。
 
 # 2026-08 UE FirstPerson宣言型Scene移行
 

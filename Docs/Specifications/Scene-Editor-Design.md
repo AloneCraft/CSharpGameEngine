@@ -78,11 +78,24 @@ M0020                           … 実装フェーズ計画と完了条件
 
 ## 3. カメラ数学(§仕様4)
 
-数学はnet10.0の`src/CSharpGameEngine.Windows/Graphics/Camera.cs`(実績・テスト済み)を
-net472側へ複製した`SceneViewCamera`(仮称)に置く。行列規約は**現行`SceneRenderer`と同一**
+数学はnet10.0の`src/CSharpGameEngine.Windows/Graphics/Camera.cs`(型は
+`CSharpGameEngine.Graphics.D3D12.Camera`。Scene DSLのComponent `Runtime.Windows.Camera`とは別物)の
+**式**をnet472側へ書き写した`SceneViewCamera`(仮称)に置く。行列規約は**現行`SceneRenderer`と同一**
 (System.Numericsの行ベクトル規約、`Matrix4x4.CreateLookAt`/`CreatePerspectiveFieldOfView`、
 MVP = `World * View * Projection`)。エンジン座標系との対応は
 [[ADR-0026-Camera-Geometry-Ruf-Integration]]の既存整理に従い、本設計で新しい変換は導入しない。
+
+**移植時の制約(2026-08 訂正、ADR-0041 決定事項1の訂正と対応)**: `Graphics/Camera.cs`は依存ゼロ
+ではない — `[SceneFactory]`(`CSharpGameEngine.Authoring`)属性を持ち、`GetForward`/`GetFlatForward`/
+`GetFlatRight`は`RufQuaternion`/`RufVector`/`Spatial<UnityCoordinateConvention>`(いずれもnet10.0)を
+経由する。net472側では属性を落とし、`CameraTests`が固定している閉形式
+`Forward = normalize(cosPitch*sinYaw, sinPitch, cosPitch*cosYaw)` /
+`FlatRight = normalize(Cross(UnitY, FlatForward))`へインライン展開する。**`MathF`はnet472に存在
+しない**ので`(float)Math.*`を使う(Phase 0 の`SceneCameraFraming`が既にこの規約で書かれている)。
+
+初期フレーミング(Phase 0 で`SceneCameraFraming`として実装済み): 方向`normalize(1,0.75,1)`、距離
+`Radius / sin(FovY/2) * 1.1`(`Radius`は真の境界球半径=中心から最遠頂点までの距離)、near `0.05`、
+far `Radius*20`。`Camera.CreateBoundsFit`とはRadiusの定義(AABB半対角)とnear/farが異なる。
 
 | 概念操作 | 計算 |
 |---|---|
@@ -107,8 +120,19 @@ unproject(§6で使用): `Inverse(View * Projection)`でNDC→ワールド。透
 
 | 経路 | メッセージ/イベント | 変換先 |
 |---|---|---|
-| `RenderSurfaceWindow.WndProc`(追加) | `WM_LBUTTONDOWN/UP`、`WM_RBUTTONDOWN/UP`、`WM_MBUTTONDOWN/UP`、`WM_MOUSEMOVE`、`WM_MOUSEWHEEL` | `PointerEvent { Button, Position, WheelDelta, Modifiers }` |
-| WPF(`SceneDesignerToolWindowControl`のホストGrid、`Focusable=true`) | `KeyDown`/`KeyUp`/`LostKeyboardFocus` | `KeyEvent { Key, IsDown }` / フォーカス喪失通知 |
+| `RenderSurfaceWindow.WndProc`(追加) | `WM_LBUTTONDOWN/UP`、`WM_RBUTTONDOWN/UP`、`WM_MBUTTONDOWN/UP`、`WM_MOUSEMOVE` | `PointerEvent { Button, Position, Modifiers }`(**座標は物理ピクセル**) |
+| WPF(`RenderHostGrid`) | `PreviewMouseWheel` | `PointerEvent`(ホイール。`WM_MOUSEWHEEL`は**フォーカスを持つHWND宛**なのでネイティブ子には構造的に届かない。DIP→`TransformToDevice`で物理ピクセルへ) |
+| WPF(`RenderHostGrid`、`Focusable=true`) | `KeyDown`/`KeyUp`/`LostKeyboardFocus` | `KeyEvent { Key, IsDown }` / フォーカス喪失通知 |
+
+**座標単位**: `WndProc`は物理ピクセル、WPFはDIP(1/96インチ)。スワップチェーン・ビューポート・
+ピッキングレイはすべて物理ピクセルなので物理ピクセルを正本とし、WPF由来の座標は
+`PresentationSource.FromVisual(...).CompositionTarget.TransformToDevice`で変換する(150%スケーリングで
+1.5倍ずれる)。ホイール量は両経路とも`WHEEL_DELTA=120`単位なので変換不要。
+
+**既存の初期値**: `SceneDesignerToolWindowControl`のコンストラクタは現在`RenderHostGrid.Focusable=false`
+かつ`IsTabStop=false`を設定している(F5起動時のフォーカス奪取バグ対策、コミット`394ff04`)。Phase 1では
+`Focusable`のみ`true`へ反転し、`IsTabStop=false`は維持する(Tabがここへ着地しないようにする)。
+フォーカス移動はビューポート内のマウス押下時のみに限り、`OnLoaded`/`ShowSnapshot`等では行わない。
 
 ビューポート内のボタン押下時、`SceneHwndHost`がWPFホストGridへ`Keyboard.Focus`する(VS標準の
 ツールウィンドウアクティブ化)。ネイティブ子HWNDは`RenderSurfaceFocusPolicy`無改変のまま
@@ -276,15 +300,25 @@ Undo/Redo(仕様§17): 追加実装なし。1コミット=1テキストUndo単�
 
 ## 9. Component認識(SceneComponentBinding)と語彙ギャップ
 
-`SceneModelRenderObjectBuilder`のFQNハードコードを、宣言的なバインディング表へ置換する
-(M0020 Phase 0)。
+`SceneModelRenderObjectBuilder`のFQNハードコードを、宣言的なバインディング表
+(`SceneComponentBindings`)へ置換した(**M0020 Phase 0 で実装済み**)。
 
-| Component完全修飾名 | エディタ上の意味 |
-|---|---|
-| `global::CSharpGameEngine.Runtime.Windows.Transform` | ローカルTRS。**親子合成**: DFSで`TransformMath.ToWorld(Local, ParentWorld)`を畳み込む(現状の「各ノードのローカル=ワールド」を廃止) |
-| `global::CSharpGameEngine.Runtime.Windows.PrimitiveMesh` | プリミティブ描画(既存) |
-| `global::CSharpGameEngine.Runtime.Windows.StaticMesh` | アセット描画(既存) |
-| `global::CSharpGameEngine.Runtime.Windows.Camera` | FrustumGizmo対象(Phase 6) |
+| Component完全修飾名 | `SceneComponentRole` | エディタ上の意味 |
+|---|---|---|
+| `global::CSharpGameEngine.Runtime.Windows.Transform` | `LocalTransform` | ローカルTRS。**親子合成**: pre-order DFSで`world = local * parentWorld`を畳み込む(Phase 0 で「各ノードのローカル=ワールド」を廃止済み) |
+| `global::CSharpGameEngine.Runtime.Windows.PrimitiveMesh` | `PrimitiveMesh` | プリミティブ描画 |
+| `global::CSharpGameEngine.Runtime.Windows.StaticMesh` | `StaticMesh` | アセット描画 |
+| `global::CSharpGameEngine.Runtime.Windows.Camera` | (Phase 6 で追加) | FrustumGizmo対象 |
+
+合成式はランタイムの`TransformMath.ToWorld`(`TransformWorldResolverTests`が固定している規約)と
+**同一だが、型は参照しない** — net472からnet10.0の型は参照できないため、式1つだけを写している
+(`GizmoMeshFactory`と同じ複製方針、ADR-0041 代替案節)。Phase 3 の`SetTransform`が
+`TryCalculateLocal`を要求した時点で共有方式を再検討する。`SceneNode.Children`は構文木由来の
+ツリーなのでサイクルガードは不要(深さは解析器が`MaxRecursionDepth`で打ち切る)。
+
+enumメンバー名は`Transform`ではなく`LocalTransform`にしてある(`Transform` struct型名との混同を避け、
+「これはローカル、worldは合成結果」という区別を型名で表す)。**退役した`global::UserEcsProject.Transform`は
+登録しない** — 互換のため両方登録するとバグを静かに塗り潰し、直ったかどうかが判定不能になる。
 
 語彙ギャップ(ADR-0041決定事項9): ライト各種は`UserEcsProject`(L9)にのみ存在し、RectLightは
 存在しない。ライトギズモはPhase 6着手時の小ADRで「エンジン標準化」か「L9型のBinding登録」かを

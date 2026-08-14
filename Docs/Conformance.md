@@ -679,3 +679,49 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
   グリーンのまま実バグを検出しない。あわせて階層Transform合成の未実装も記録した。
 - Evidence: `grep -rE '\?{4,}'`が対象拡張子で0件、`dotnet build CSharpGameEngine.slnx -c Debug`
   成功・`dotnet test`全件成功(文書整備・コメント修復の前後で不変)。
+
+## 2026-08 M0020 Phase 0: 実バグ2件の修正と設計時の事実誤り3件の訂正
+
+- **Mismatch → now Matches(実装バグ)**: `SceneModelRenderObjectBuilder`がTransform型を
+  `global::UserEcsProject.Transform`でハードコードしていたため、実シーンの
+  `global::CSharpGameEngine.Runtime.Windows.Transform`が認識されず、全ノードがIdentity・原点に
+  重なって描画されていた。**ユニットテストは`namespace UserEcsProject`のフィクスチャを自前宣言して
+  ハードコードに合わせていたため、グリーンを維持したまま実バグを隠していた**。新規
+  `SceneComponentBindings`表へ置換し、フィクスチャを実FQNへ移した(この2つは同一編集で行う必要が
+  ある — 片方だけ直すと別の2テストが落ちる)。退役FQNは意図的に登録しない(両方登録すると
+  「直ったかどうか」が判定不能になる)。
+- **Mismatch → now Matches(未実装)**: 階層Transform合成が無く、各ノードのローカルTRSをワールドと
+  して使っていた。`world = local * parentWorld`はランタイム側の`TransformMath.ToWorld`/
+  `TransformWorldResolver`/`TransformWorldResolverTests`が既に固定している規約であり、エディタは
+  新しい規約を導入していない(net472/net10.0のTFM壁のため型ではなく式のみを複製)。ただし
+  **入れ子`Children`を持つシーンがリポジトリに1つも存在しないため、実シーンでの証跡は無く、
+  ユニットテスト4件のみが証跡**である。
+- **ObsoleteSpecification removed(設計時の事実誤り3件)**:
+  1. ADR-0041 決定事項1 は`src/CSharpGameEngine.Windows/Graphics/Camera.cs`を「純
+     `System.Numerics`・依存なし」と記述していたが誤り。実際は`[SceneFactory]`
+     (`CSharpGameEngine.Authoring`)と`Spatial.Abstractions`/`Spatial.Unity`経由のRUF(いずれも
+     net10.0)に依存する。net472移植では属性を落とし、方向計算を`CameraTests`が固定する閉形式へ
+     インライン展開する必要がある(`MathF`もnet472に存在しない)。
+  2. 同決定事項の「初期フレーミングは`CreateBoundsFit`相当を用い現行の見た目を維持する」は
+     自己矛盾だった(`CreateBoundsFit`はAABB半対角・near 0.1・far D+4R、現行は真の境界球半径*3.0・
+     near 0.05・far R*20)。FOV導出形`Radius/sin(FovY/2)*1.1`を採用しRadiusは真の境界球半径、
+     near/farは現行値を維持する形で確定した(FovY=45°で2.874*R、旧3.0*Rと4%差)。この主張は
+     `ComputeDistance_AtFortyFiveDegrees_StaysWithinFivePercentOfTheLegacyThreeRadiusFraming`が固定する。
+  3. ADR-0041 決定事項2 は`WM_MOUSEWHEEL`を`RenderSurfaceWindow.WndProc`で受ける計画だったが、
+     ホイールメッセージは**フォーカスを持つHWND宛**であり、`RenderSurfaceFocusPolicy`により
+     Win32フォーカスを取らないサーフェスへは構造的に届かない。ホイールはWPFの
+     `RenderHostGrid.PreviewMouseWheel`から取る。併せて座標単位の不一致(WndProc=物理ピクセル /
+     WPF=DIP)を記録し、物理ピクセルを正本として`TransformToDevice`で変換すると定めた。
+- **新たに見つけた実装バグ(テストが検出)**: `SceneCameraFraming`の退化半径で`far`(0.02)が
+  `near`(0.05)を下回り`Matrix4x4.CreatePerspectiveFieldOfView`が`ArgumentOutOfRangeException`を
+  投げていた。`far`に下限ガードを追加。実経路では`ComputeBounds`が半径を1fで床打ちするため到達
+  しないが、退化入力テストがその境界を踏んだ。
+- **受け入れ済み退行の清算**: ADR-0040 Phase 9で書き込み経路を失った`.scene`系
+  (`SceneFile.cs`/`SceneNodeAdder.cs`)、シェイプパレット一式、ヒエラルキーのドラッグ&ドロップを、
+  Phase 10を待たず全面削除した(台帳F-L8-006/007をRemoved、F-L8-002/003/010を更新)。
+  プリミティブ生成ブリッジ(`tools/CSharpGameEngine.Primitive.Cli`)は描画側が使うため存続。
+- **注記**: `SceneRenderer`の空オブジェクトフレーム許容は観測可能なバグの修正ではなく、
+  Phase 3(グリッド/ギズモ)の前提整備である。`Count==0`はPhase 0の本番経路では到達不能。
+- Evidence: `dotnet build CSharpGameEngine.slnx -c Debug` 成功・警告0/エラー0、
+  `dotnet test` 622件成功・失敗0(610 − 9 + 21)。削除の取りこぼしgrepは0件。
+  実機VS Experimental Instanceでの目視確認(10項目)は未実施。

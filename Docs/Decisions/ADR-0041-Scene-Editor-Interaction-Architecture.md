@@ -55,20 +55,61 @@ SceneView状態を宣言へ保存しない原則(§20)。
 `ComputeViewMatrix`の固定計算をやめ、view/proj行列を毎フレーム外部から受け取る
 (`SetCamera(in Matrix4x4 View,in Matrix4x4 Projection)`+毎フレームの定数バッファ更新)。
 
-カメラ数学はnet10.0側の実績実装`src/CSharpGameEngine.Windows/Graphics/Camera.cs`(orbit、
-`ApplyMouseDelta`、`CreateBoundsFit`、純`System.Numerics`、テスト済み)を**net472へ複製**する。
-TFM境界の共有は`GizmoMeshFactory.cs`冒頭コメントの前例(小さな断片は複製し、ランタイムAPIを
-エディタ都合で汚さない)に従う。初期フレーミングは`CreateBoundsFit`相当を用い、現行の見た目
-(`normalize(1,0.75,1)`方向からのバウンズフィット)を維持する。座標系は
+カメラ数学はnet10.0側の実績実装`src/CSharpGameEngine.Windows/Graphics/Camera.cs`(型は
+`CSharpGameEngine.Graphics.D3D12.Camera`。Scene DSLのComponent `CSharpGameEngine.Runtime.Windows.Camera`
+とは**別物**)の**式**をnet472側へ書き写す。TFM境界の共有は`GizmoMeshFactory.cs`冒頭コメントの前例
+(小さな断片は複製し、ランタイムAPIをエディタ都合で汚さない)に従う。座標系は
 [[ADR-0026-Camera-Geometry-Ruf-Integration]]のエンジン規約(左手系、+Y up、+Z forward)。
+
+> **2026-08 訂正(M0020 Phase 0 の実装時に判明)**: 本節の初版は`Graphics/Camera.cs`を「純
+> `System.Numerics`」と記述していたが**誤り**だった。実際は`[SceneFactory]`
+> (`CSharpGameEngine.Authoring`)属性を持ち、`GetForward`/`GetFlatForward`/`GetFlatRight`は
+> `RufQuaternion`/`RufVector`/`Spatial<UnityCoordinateConvention>`(いずれもnet10.0の
+> `CSharpGameEngine.Core`)を経由する。したがってnet472移植では (a) `[SceneFactory]`を落とし、
+> (b) 方向計算を既存テスト`CameraTests.GetForward_MatchesLegacyTrigFormula_AcrossYawPitchSweep` /
+> `GetFlatRight_MatchesLegacyCrossProductFormula_AcrossYawSweep`が固定している閉形式
+> `Forward = normalize(cosPitch*sinYaw, sinPitch, cosPitch*cosYaw)` /
+> `FlatRight = normalize(Cross(UnitY, FlatForward))`へインライン展開する。さらに**`MathF`はnet472に
+> 存在しない**ので`(float)Math.*`を使う(Phase 0 の`SceneCameraFraming`は最初からこの形で書いた)。
+
+初期フレーミングは`Distance = Radius / sin(FovY/2) * 1.1`(`CreateBoundsFit`と同じFOV導出形)を採る。
+ただし`Radius`は`CreateBoundsFit`のAABB半対角ではなく、`ComputeSceneBounds`の**真の境界球半径**
+(中心から最遠頂点までの距離)を使う。FovY=45°で約`2.874*Radius`となり、Phase 0まで使っていた固定値
+`3.0*Radius`と4%しか違わないため見た目は実質不変(この主張は
+`SceneCameraFramingTests.ComputeDistance_AtFortyFiveDegrees_StaysWithinFivePercentOfTheLegacyThreeRadiusFraming`
+が固定している)。方向は`normalize(1,0.75,1)`のまま。near/farはPhase 0では現行値(`0.05` /
+`Radius*20`)を維持する — Sky domeを自動フレーミング半径から除外しつつ描画しているため、
+`CreateBoundsFit`の`far = Distance + 4*Radius`ではSky domeがクリップされる。Phase 1で
+`FocusDistance`からfarを再計算する。
+
+> 初版は「`CreateBoundsFit`相当を用い、現行の見た目を維持する」と書いていたが、両者は距離係数も
+> `Radius`の定義もnear/farも異なるため自己矛盾だった。上記が確定形である。
 
 ### 2. 入力ルーティング: マウスはWndProc→純粋状態機械、キーボードはVS標準フォーカスモデル
 
-**マウス**: `RenderSurfaceWindow.WndProc`に`WM_LBUTTONDOWN/UP`・`WM_RBUTTONDOWN/UP`・
-`WM_MBUTTONDOWN/UP`・`WM_MOUSEMOVE`・`WM_MOUSEWHEEL`を追加する。`WM_MOUSEACTIVATE`が
-`MA_NOACTIVATE`でもマウスメッセージは子HWNDへ届く(現行コメントが「将来のPicking入力のために
+**マウス(ボタン・移動)**: `RenderSurfaceWindow.WndProc`に`WM_LBUTTONDOWN/UP`・
+`WM_RBUTTONDOWN/UP`・`WM_MBUTTONDOWN/UP`・`WM_MOUSEMOVE`を追加する。`WM_MOUSEACTIVATE`が
+`MA_NOACTIVATE`でもこれらはヒットテストで子HWNDへ届く(現行コメントが「将来のPicking入力のために
 維持」と明記している経路)。メッセージはイベントへ変換して新規の**純粋・ユニットテスト可能**な
 `SceneInputStateMachine`へ転送する。
+
+**マウス(ホイール)**: `WM_MOUSEWHEEL`は**カーソル下ではなくフォーカスを持つHWND宛**にpostされる。
+サーフェスは`RenderSurfaceFocusPolicy`によりWin32フォーカスを**決して取らない**ので、ホイール
+メッセージは子HWNDへ**構造的に届かない**。ホイールは下記キーボード方式(ビューポートクリックで
+ホストGridへ`Keyboard.Focus`)の副産物としてWPF側で受ける — フォーカスがWPF内にあればホイールはVSの
+WPF `HwndSource`宛に届き、`RenderHostGrid`の`PreviewMouseWheel`で取れる(`HwndHost`はairspaceを
+占有するのでトンネル段の`Preview`で拾い、バブルには頼らない)。最初のクリック前はホイールが
+コードエディタへ行く — Unity/VS標準と同じ「ペインを一度クリックする」挙動である。
+
+> **2026-08 訂正(M0020 Phase 0)**: 初版は`WM_MOUSEWHEEL`もWndProcで受ける計画だったが、上記の
+> フォーカス依存により実現不能。ホイールのみWPF経路とするのが確定形である。
+
+**座標単位**: `WndProc`の`LPARAM`はサーフェスのクライアント座標の**物理ピクセル**、WPFの
+`GetPosition`は**DIP**(1/96インチ)。スワップチェーン・ビューポート・ピッキングレイはすべて物理
+ピクセルなので**物理ピクセルを正本**とし、WPF由来の座標は
+`PresentationSource.FromVisual(...).CompositionTarget.TransformToDevice`で変換してから`PointerEvent`を
+作る(150%スケーリングで1.5倍ずれる)。ホイール量は`HIWORD(wParam)`も`MouseWheelEventArgs.Delta`も
+同じ`WHEEL_DELTA=120`単位なので変換不要。
 
 - 状態機械は仕様§12の優先順位(1. Modal操作 2. ナビゲーション 3. ギズモ操作 4. 選択
   5. コンテキストメニュー)を状態遷移として実装する。RMBドラッグ中は選択・ギズモ操作を開始しない。
@@ -226,9 +267,18 @@ Phase 0〜6は「`SceneRenderer`全再構築+状態外出し(決定事項1)」�
 - **ネイティブ子HWNDにWin32フォーカスを持たせて`WM_KEYDOWN`を直接受ける**: コミット`a162478`で
   実証済みのVS全体フォーカス破壊バグを再発させる。`RenderSurfaceFocusPolicy`の存在理由そのもので
   あり不採用。
-- **カメラ数学の共有ソース化**(`SceneModel`と同じ`<Compile Include>`方式): `Graphics/Camera.cs`は
-  依存ゼロで技術的には可能だが、エディタカメラはfly/pan/焦点距離など編集専用の拡張が必要で、
-  ランタイムAPIをエディタ都合で変化させたくない。`GizmoMeshFactory`の複製前例に従い複製を選択。
+- **カメラ数学の共有ソース化**(`SceneModel`と同じ`<Compile Include>`方式): 採らない理由は依存の
+  有無ではない(初版が書いていた「依存ゼロだから技術的には可能」という前提自体が誤りだった —
+  決定事項1の訂正を参照)。エディタカメラはfly/pan/焦点距離など編集専用の拡張が必要で、ランタイムAPIを
+  エディタ都合で変化させたくないため。`GizmoMeshFactory`の複製前例に従い複製を選択。
+- **`Runtime/Transform.cs`の共有ソース化**(階層Transform合成のため): 技術的には通る(純
+  `System.Numerics`で、`Matrix4x4.Invert`/`Decompose`もnet472に存在する)。しかし`public struct Transform`
+  と`CSharpGameEngine.Runtime.Windows`名前空間をVSIXアセンブリへ持ち込むことになる。VSIXが現在
+  linkしている共有ソースは`SceneModel/**`一本で、その存在理由は「SGとエディタが同じ**解析コード**を
+  走らせる」ことにある。ここにランタイムのComponent型を足すと、アナライザーが文字列としてしか見ない
+  型名の第二定義が生まれ、VSIXがエンジンランタイム型をホストしていると主張することになる。Phase 0 の
+  階層合成は`Local * ParentWorld`の乗算1個であり型を必要としないため、式だけを写した。**Phase 3 の
+  `SetTransform`が`TryCalculateLocal`(非自明なTRS分解)を要求した時点で再検討する。**
 - **GPUピッキング**(IDバッファ読み戻し): 現行レンダラーは`Present(1)`+`WaitForGpuIdle`の最小構成で
   読み戻しパスが無く、CPU側に全メッシュが既にあるため、CPUレイキャストの方が実装・テストともに
   小さい。頂点・面スナップにも同一の幾何クエリを流用できる。
@@ -259,9 +309,25 @@ Phase 0〜6は「`SceneRenderer`全再構築+状態外出し(決定事項1)」�
 
 ## 検証結果(実際に実行して確認)
 
-本ADRは設計文書のみ(実装なし)。文書整備自体の検証は[[M0020-Scene-Editor-Interaction]]冒頭の
-検証記録を参照(文字化けゼロ確認・`dotnet build`/`dotnet test`が文書整備前後で不変であること)。
-実装の検証結果はM0020の各Phase完了時に本節へ追記する。
+### Phase 0(2026-08、決定事項1・9・11の一部を実装)
+
+```
+dotnet build CSharpGameEngine.slnx -c Debug → 成功、警告0/エラー0
+dotnet test  CSharpGameEngine.slnx -c Debug --no-build
+  → 全8プロジェクト 622件成功・失敗0
+    (ベースライン610 − SceneFileTests 9 + 階層合成7 + SceneComponentBinding 5 + SceneCameraFraming 9)
+```
+
+実装したのは決定事項1の一部(`SceneRenderer`からのカメラ外部注入=`SetCamera`+`ConstantsDirty`、
+`SceneCameraFraming`への視点ポリシー移設)、決定事項9のバインディング表化、決定事項11の前提整備
+(空オブジェクトフレームの許容)。`SceneViewState`・入力・ピッキング・ギズモはPhase 1以降。
+
+`SceneCameraFramingTests.FrameBounds_DegenerateBoundsAndAspect_ProduceFiniteMatrices`が実装バグを
+1件検出した: 退化半径では`far`が`near`を下回り`Matrix4x4.CreatePerspectiveFieldOfView`が
+`ArgumentOutOfRangeException`を投げていた(`far`に下限ガードを追加して修正)。
+
+実機VS Experimental Instanceでの目視確認は[[M0020-Scene-Editor-Interaction]]の検証節に記録する。
+Phase 1以降の検証結果も同様に本節へ追記する。
 
 ## 関連機能
 

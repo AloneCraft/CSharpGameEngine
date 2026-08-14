@@ -24,10 +24,10 @@ namespace CSharpGameEngine.VSExtension;
 /// process per distinct mesh) per open.</item>
 /// </list>
 /// Used by <see cref="ExternalFbxLoader"/>/<see cref="ExternalGltfLoader"/> (second arg is a JSON
-/// path the caller reads back via <see cref="RunAndReadJson"/>) and by <see cref="PrimitiveSpawner"/>
-/// (second arg is a <c>.glb</c> path the caller only needs to know exists afterward, via
-/// <see cref="RunProducingFile"/>) - so no model/mesh data ever needs to be generated in-process
-/// inside <c>devenv.exe</c>.
+/// path the caller reads back via <see cref="RunAndReadJson"/>) and by
+/// <see cref="SceneModelRenderObjectBuilder.ResolveViaBridge"/> (second arg is a <c>.glb</c> path the
+/// caller only needs to know exists afterward, via <see cref="RunProducingFile"/>) - so no model/mesh
+/// data ever needs to be generated in-process inside <c>devenv.exe</c>.
 /// </summary>
 internal static class ExternalBridgeProcess {
     public static string RunAndReadJson(string BridgeProjectRelativePath,string InputPath,string OutputJsonPath,string RepoRoot,TimeSpan Timeout,bool UseResidentServer){

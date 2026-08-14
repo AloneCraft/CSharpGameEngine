@@ -96,14 +96,6 @@
           <ButtonText>GameEngine レイアウトを適用</ButtonText>
         </Strings>
       </Button>
-      <Button guid="guidOpenViewerCommandPackageCmdSet" id="ShowShapePaletteToolWindowCommandId" priority="0x0107" type="Button">
-        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="OpenViewerMenuGroup" />
-        <Icon guid="ImageCatalogGuid" id="ToolWindow" />
-        <CommandFlag>IconIsMoniker</CommandFlag>
-        <Strings>
-          <ButtonText>シェイプ パネルを表示</ButtonText>
-        </Strings>
-      </Button>
       <!-- 0x0108 (PreviewSceneDefinitionCommandId) は ADR-0040 で退役した。VSIX の Scene 表示は
            対象プロジェクトをビルドして別プロセスで CreateRuntime を実行する方式をやめ、SceneModel を
            直接描画する方式へ移行したため、このコマンド自体が不要になった。0x0101 と同様、この ID は
@@ -148,9 +140,6 @@
     <CommandPlacement guid="guidOpenViewerCommandPackageCmdSet" id="ApplyGameEngineLayoutCommandId" priority="0x0007">
       <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarGroup" />
     </CommandPlacement>
-    <CommandPlacement guid="guidOpenViewerCommandPackageCmdSet" id="ShowShapePaletteToolWindowCommandId" priority="0x0008">
-      <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarGroup" />
-    </CommandPlacement>
   </CommandPlacements>
 
   <Symbols>
@@ -167,7 +156,12 @@
       <IDSymbol name="OpenGameCommandId" value="0x0104" />
       <IDSymbol name="ShowHierarchyToolWindowCommandId" value="0x0105" />
       <IDSymbol name="ApplyGameEngineLayoutCommandId" value="0x0106" />
-      <IDSymbol name="ShowShapePaletteToolWindowCommandId" value="0x0107" />
+      <!-- 0x0107 (ShowShapePaletteToolWindowCommandId) は M0020 Phase 0 で退役した。シェイプ
+           パレットの配置先は .scene ファイルであり、ADR-0040 Phase 9 で読み取り経路がライブ Roslyn の
+           SceneModel へ移った時点で書き込み先が消え、押しても案内ダイアログを出すだけの UI に
+           なっていた。プリミティブ生成そのものは tools/CSharpGameEngine.Primitive.Cli として存続し、
+           Scene デザイナーの PrimitiveMesh 描画が利用している。0x0101/0x0108 と同様、この ID は
+           再利用しないこと (既にインストール済みの VS がキーバインドやカスタマイズを保持している)。 -->
       <!-- 0x0108 (PreviewSceneDefinitionCommandId) retired in ADR-0040 - do not reuse; the
            execution-based preview it triggered (build the target project, run CreateRuntime out of
            process, read WorldSnapshot reflectively) was replaced by rendering the SceneModel

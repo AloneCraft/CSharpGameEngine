@@ -29,12 +29,17 @@ internal sealed class SceneRenderObject {
 }
 
 /// <summary>
-/// Multi-object counterpart to <see cref="VorticeRenderer"/> (ADR-0008) for the "シーン" preview
-/// window (ADR-0020): one vertex/index buffer per object, a per-object constant buffer slot, and a
-/// selection tint driven by <see cref="SetSelectedNode"/> (published via <see cref="SceneEditorHub"/>
-/// when a Hierarchy node is clicked). Deliberately a separate class from <see cref="VorticeRenderer"/>
-/// rather than generalizing it in place, so the existing single-mesh <see cref="ViewerHwndHost"/>/
-/// <see cref="AssetPreviewHwndHost"/> paths are not put at risk by this change.
+/// Multi-object counterpart to <see cref="VorticeRenderer"/> (ADR-0008) for the Scene Designer tool
+/// window (ADR-0020/ADR-0040): one vertex/index buffer per object, a per-object constant buffer slot,
+/// and a selection tint driven by <see cref="SetSelectedNode"/>. Deliberately a separate class from
+/// <see cref="VorticeRenderer"/> rather than generalizing it in place, so the existing single-mesh
+/// <see cref="ViewerHwndHost"/>/<see cref="AssetPreviewHwndHost"/> paths are not put at risk.
+///
+/// <para>
+/// This type holds no editing view state: the camera is injected through <see cref="SetCamera"/> by
+/// <see cref="SceneHwndHost"/> and framing/bounds policy lives in <see cref="SceneCameraFraming"/>
+/// (ADR-0041 decision 1), because the renderer itself is disposed and rebuilt on every re-analysis.
+/// </para>
 /// </summary>
 internal sealed class SceneRenderer:IDisposable {
     private const int FrameCount=2;
@@ -72,9 +77,13 @@ internal sealed class SceneRenderer:IDisposable {
     }
 
     private readonly List<ObjectResources>Objects=[];
-    private readonly Vector3 BoundsCenter;
-    private readonly float BoundsRadius;
     private NodePath?SelectedNodeId;
+
+    private Matrix4x4 CurrentView;
+    private Matrix4x4 CurrentProjection;
+
+    /// <summary>定数バッファの唯一の更新トリガ。ctor/<see cref="SetCamera"/>/<see cref="SetSelectedNode"/>が立て、<see cref="RenderFrame"/>が消費する。</summary>
+    private bool ConstantsDirty;
 
     private int Width;
     private int Height;
@@ -125,15 +134,18 @@ internal sealed class SceneRenderer:IDisposable {
         }
         """;
 
-    public SceneRenderer(IntPtr Hwnd,int Width,int Height,IReadOnlyList<SceneRenderObject>RenderObjects){
-        if(RenderObjects.Count==0){
-            throw new ArgumentException("シーンに描画可能なオブジェクトがありません。",nameof(RenderObjects));
-        }
-
+    /// <summary>
+    /// 描画オブジェクトは0件でも構わない(グリッド/ギズモだけのフレームは正当。M0020 Phase 3 の前提)。
+    /// カメラは必須引数にしてある — 「カメラ未設定のまま最初のフレームを描く」未定義状態を
+    /// 構造的に作れなくするため(ADR-0041 決定事項1)。
+    /// </summary>
+    public SceneRenderer(
+        IntPtr Hwnd,int Width,int Height,IReadOnlyList<SceneRenderObject>RenderObjects,
+        in Matrix4x4 InitialView,in Matrix4x4 InitialProjection){
         this.Width=Math.Max(1,Width);
         this.Height=Math.Max(1,Height);
-
-        (BoundsCenter,BoundsRadius)=ComputeSceneBounds(RenderObjects);
+        this.CurrentView=InitialView;
+        this.CurrentProjection=InitialProjection;
 
         using IDXGIFactory4 Factory=DXGI.CreateDXGIFactory1<IDXGIFactory4>();
 
@@ -226,7 +238,8 @@ internal sealed class SceneRenderer:IDisposable {
             HeapType.Upload,
             new ResourceDescription {
                 Dimension=ResourceDimension.Buffer,
-                Width=(ulong)(AlignedSlotSize*RenderObjects.Count),
+                // D3D12 は 0 バイトの buffer を許可しないので、0件でも1スロット分は確保する。
+                Width=(ulong)(AlignedSlotSize*Math.Max(1,RenderObjects.Count)),
                 Height=1,
                 DepthOrArraySize=1,
                 MipLevels=1,
@@ -244,7 +257,22 @@ internal sealed class SceneRenderer:IDisposable {
         FenceValue=1;
         FenceEvent=NativeEvent.CreateAutoResetEvent();
 
-        UpdateAllConstantBuffers();
+        ConstantsDirty=true;
+    }
+
+    /// <summary>
+    /// view/projection を外部(<see cref="SceneHwndHost"/>、M0020 Phase 1 以降は <c>SceneViewState</c>)
+    /// から注入する。ADR-0041 決定事項1: レンダラーは編集ビュー状態を持たない。値が変わらなければ
+    /// 何もしないので、毎フレーム呼んでも静止時のコストは行列比較2回だけ。
+    /// </summary>
+    public void SetCamera(in Matrix4x4 View,in Matrix4x4 Projection){
+        if(CurrentView.Equals(View)&&CurrentProjection.Equals(Projection)){
+            return;
+        }
+
+        CurrentView=View;
+        CurrentProjection=Projection;
+        ConstantsDirty=true;
     }
 
     private ObjectResources CreateObjectResources(SceneRenderObject RenderObject){
@@ -318,42 +346,17 @@ internal sealed class SceneRenderer:IDisposable {
         }
     }
 
-    private static(Vector3 Center,float Radius)ComputeSceneBounds(IReadOnlyList<SceneRenderObject>RenderObjects){
-        Vector3?Min=null;
-        Vector3?Max=null;
-
-        foreach(SceneRenderObject RenderObject in RenderObjects){
-            if(!RenderObject.IncludeInBounds)continue;
-            foreach(Vector3 LocalPosition in RenderObject.Mesh.Positions){
-                Vector3 WorldPosition=Vector3.Transform(LocalPosition,RenderObject.World);
-                Min=Min is null?WorldPosition:Vector3.Min(Min.Value,WorldPosition);
-                Max=Max is null?WorldPosition:Vector3.Max(Max.Value,WorldPosition);
-            }
-        }
-
-        if(Min is null||Max is null)return(Vector3.Zero,1f);
-        Vector3 Center=(Min.Value+Max.Value)*0.5f;
-        var Radius=0f;
-        foreach(SceneRenderObject RenderObject in RenderObjects){
-            if(!RenderObject.IncludeInBounds)continue;
-            foreach(Vector3 LocalPosition in RenderObject.Mesh.Positions){
-                Vector3 WorldPosition=Vector3.Transform(LocalPosition,RenderObject.World);
-                Radius=Math.Max(Radius,Vector3.Distance(Center,WorldPosition));
-            }
-        }
-
-        return(Center,Radius>0f?Radius:1f);
-    }
-
     private void UpdateAllConstantBuffers(){
-        Matrix4x4 View=ComputeViewMatrix();
-        Matrix4x4 Projection=ComputeProjectionMatrix();
+        if(Objects.Count==0){
+            // 0件では Map/Unmap 自体を行わない(TotalSize=0 の Map は不正)。
+            return;
+        }
 
         var TotalSize=AlignedSlotSize*Objects.Count;
         Span<byte>Mapped=ConstantBuffer.Map<byte>(0,TotalSize);
         for(var I=0;I<Objects.Count;I++){
             ObjectResources Obj=Objects[I];
-            Matrix4x4 Mvp=Obj.World*View*Projection;
+            Matrix4x4 Mvp=Obj.World*CurrentView*CurrentProjection;
             var Selected=SelectedNodeId is { } Selection&&Obj.NodeId.Equals(Selection)?1f:0f;
             TransformConstants Constants=new(){ Mvp=Mvp,BaseColorFactor=Obj.BaseColorFactor,Selected=Selected };
             MemoryMarshal.Write(Mapped.Slice(I*AlignedSlotSize,Marshal.SizeOf<TransformConstants>()),ref Constants);
@@ -361,19 +364,10 @@ internal sealed class SceneRenderer:IDisposable {
         ConstantBuffer.Unmap(0,null);
     }
 
-    private Matrix4x4 ComputeViewMatrix(){
-        Vector3 Eye=BoundsCenter+Vector3.Normalize(new Vector3(1,0.75f,1))*(BoundsRadius*3.0f);
-        return Matrix4x4.CreateLookAt(Eye,BoundsCenter,Vector3.UnitY);
-    }
-
-    private Matrix4x4 ComputeProjectionMatrix()=>
-        Matrix4x4.CreatePerspectiveFieldOfView(
-            (float)(Math.PI/4.0),Math.Max(1,Width)/(float)Math.Max(1,Height),0.05f,BoundsRadius*20f);
-
-    /// <summary>Called when <see cref="SceneEditorHub.SelectedNodePathChanged"/> fires from the Hierarchy tool window.</summary>
+    /// <summary>ヒエラルキー/ビューポートの選択が変わったときに呼ばれる(<see cref="SceneHwndHost.SetSelection"/>経由)。</summary>
     public void SetSelectedNode(NodePath?NodeId){
         SelectedNodeId=NodeId;
-        UpdateAllConstantBuffers();
+        ConstantsDirty=true;
     }
 
     public void Resize(int NewWidth,int NewHeight){
@@ -396,10 +390,18 @@ internal sealed class SceneRenderer:IDisposable {
         CreateRenderTargetViews();
         DepthBuffer=CreateDepthBuffer(Width,Height);
 
-        UpdateAllConstantBuffers();
+        // アスペクト比に追従した projection は所有者(SceneHwndHost)が SetCamera で入れ直す。
     }
 
     public void RenderFrame(){
+        if(ConstantsDirty){
+            // 現状は RenderFrame 末尾の WaitForGpuIdle により、ここでの上書きが前フレームの GPU 読み取りと
+            // 競合しない。M0020 Phase 7 で WaitForGpuIdle を外してフレームインフライト化する際は、
+            // 定数バッファを FrameCount 分に多重化してからこの書き込みを行う必要がある。
+            UpdateAllConstantBuffers();
+            ConstantsDirty=false;
+        }
+
         CommandAllocator.Reset();
         CommandList.Reset(CommandAllocator,PipelineState);
 

@@ -22,8 +22,7 @@
                    Text="IScene を実装したクラスを含む .cs ファイルを開いてください。" />
 
         <TreeView x:Name="Tree" Grid.Row="1" SelectedItemChanged="Tree_SelectedItemChanged"
-                  Background="Transparent" BorderThickness="0"
-                  AllowDrop="True" DragEnter="Tree_DragEnterOrOver" DragOver="Tree_DragEnterOrOver" Drop="Tree_Drop">
+                  Background="Transparent" BorderThickness="0">
             <TreeView.ItemContainerStyle>
                 <!-- Two-way so the user's own expand/collapse and the code-driven selection restore
                      stay in sync across the rebuild that follows every keystroke. -->

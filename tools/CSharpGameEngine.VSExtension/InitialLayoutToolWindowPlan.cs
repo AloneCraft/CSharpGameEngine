@@ -7,7 +7,6 @@ namespace CSharpGameEngine.VSExtension;
 internal enum InitialLayoutToolWindowKind {
     Hierarchy,
     SceneDesigner,
-    ShapePalette,
 }
 
 /// <summary>Presentation policy that must not take the Visual Studio keyboard focus.</summary>
@@ -43,10 +42,6 @@ internal static class InitialLayoutToolWindowPlan {
             new InitialLayoutToolWindowSpec(
                 InitialLayoutToolWindowKind.Hierarchy,
                 Width:300,
-                ToolWindowPresentation.NonActivating),
-            new InitialLayoutToolWindowSpec(
-                InitialLayoutToolWindowKind.ShapePalette,
-                Width:260,
                 ToolWindowPresentation.NonActivating),
         });
 

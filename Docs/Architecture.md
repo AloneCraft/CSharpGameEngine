@@ -86,10 +86,12 @@ Roslynにロードされない。
   `GameSystemGenerator`が実行時生成(`Instantiate`)に、VSIXがライブRoslyn解析(`SceneModel`)に
   使い、Scene デザイナー/ヒエラルキーは解析結果を250msデバウンスで表示する(ADR-0040、
   [[M0019-CSharp-Scene-DSL]])。JSON方式の旧`src/CSharpGameEngine.Scene`はADR-0034で削除済み。
-  VSIX内の`*.scene`パーサ残骸(`SceneFile.cs`/`SceneNodeAdder.cs`)は書き込み経路を失った
-  デッドコードで、M0020 Phase 0で削除予定。
+  VSIX内の`*.scene`パーサ残骸(`SceneFile.cs`/`SceneNodeAdder.cs`/`PrimitiveSpawner.cs`)と
+  シェイプパレット一式は、M0020 Phase 0で**削除した**。読み取りも書き込みもライブRoslynの
+  `SceneModel`系(ADR-0040/0041)へ一本化されている。
 - シーンエディタのインタラクション(ナビゲーション・ピッキング・ギズモ・編集トランザクション)は
-  計画済み・未実装である。要求仕様は`Docs/シーンエディタの仕様.md`、意思決定は
+  Phase 0(前提修正: Transform型認識の`SceneComponentBindings`化・階層Transform合成・カメラ外部注入)
+  のみ実装済みで、Phase 1以降は計画済み・未実装である。要求仕様は`Docs/シーンエディタの仕様.md`、意思決定は
   [[ADR-0041-Scene-Editor-Interaction-Architecture]]、詳細設計は
   [[Scene-Editor-Design]](`Docs/Specifications/Scene-Editor-Design.md`)、フェーズ計画は
   [[M0020-Scene-Editor-Interaction]]を参照。

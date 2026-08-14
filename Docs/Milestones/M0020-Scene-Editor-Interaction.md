@@ -16,23 +16,45 @@ ADR-0040基盤の上に実現する。設計判断は[[ADR-0041-Scene-Editor-Int
 
 ### Phase 0 — 前提修正とデッドコード削除
 
-ギズモ・カメラ以前に、ワールド行列と描画基盤の前提を直す。
+ギズモ・カメラ以前に、ワールド行列と描画基盤の前提を直す。**実装済み(2026-08)**。
 
 1. `SceneModelRenderObjectBuilder`のTransform型ハードコード(`global::UserEcsProject.Transform`)を
-   `SceneComponentBinding`表へ置換(設計§9)。実シーン
+   新規`SceneComponentBinding`/`SceneComponentBindings`表へ置換(設計§9)。実シーン
    (`global::CSharpGameEngine.Runtime.Windows.Transform`)が全ノードIdentity・原点固まりで
-   描画される実バグの修正。
-2. 階層Transform合成: DFSで`TransformMath.ToWorld(Local, ParentWorld)`を畳み込む
-   (現状は各ノードのローカルTRSをワールドとして使用)。
+   描画される実バグの修正。`ExtractWorldTransform`は`ExtractLocalTransform`へ改名した
+   (旧名が「ローカルTRSをワールドと呼ぶ」このバグの共犯だったため)。
+2. 階層Transform合成: `Model.EnumerateNodes()`のフラット列挙を`ParentWorld`を運ぶpre-order再帰へ
+   置き換え、`world = local * parentWorld`を畳み込む。**式のみ複製**(型は参照しない — net472から
+   net10.0の`TransformMath`は参照不可。ADR-0041 代替案節)。
 3. `SceneRenderer`の空オブジェクトリスト例外を撤廃(グリッド/ギズモのみのフレームを許容)。
-4. `.scene`残骸コードの削除: `SceneFile.cs`/`SceneNodeAdder.cs`/`SceneEditorHub.ActiveScene`・
-   `RequestReload`残滓と`SceneFileTests.cs`(Phase 9受け入れ済み退行の清算。台帳F-L8-003/007を
-   Removed系記録へ更新)。
-5. カメラ行列の外部注入化: `SceneRenderer.SetCamera(in Matrix4x4 View,in Matrix4x4 Projection)`+
-   毎フレーム定数更新(値は当面`CreateBoundsFit`相当の現行固定値)。
+   実際には3箇所を直す必要があった: ctorの`throw`、定数バッファ幅の`Math.Max(1,Count)`クランプ
+   (D3D12は0バイトbufferを許可しない)、`UpdateAllConstantBuffers`の0件早期return。
+   `SceneHwndHost`側の`Count==0`ガードも撤去した。
+4. `.scene`残骸コードとシェイプパレットの全面削除: `SceneFile.cs`/`SceneNodeAdder.cs`/
+   `PrimitiveSpawner.cs`/`ShapePaletteControl.xaml(.cs)`/`ShapePaletteToolWindowPane.cs`/
+   `ShowShapePaletteToolWindowCommand.cs`/`SceneFileTests.cs`の8ファイルを削除し、
+   `SceneEditorHub`の旧`.scene`チャンネル(`ActiveScene`/`RequestReload`/`ReloadRequested`)と
+   購読者を持たなかった`AllSceneModels`系も撤去。ヒエラルキーのドラッグ&ドロップは`.xaml`の
+   `AllowDrop`/`Drag*`/`Drop`束縛と`.xaml.cs`のハンドラを対で削除。vsct 0x0107は既存
+   `0x0101`/`0x0108`の作法どおりIDSymbolを消して退役コメントのみ残した(IDは再利用しない)。
+   台帳F-L8-006/007をRemovedへ。
+5. カメラ行列の外部注入化: `SceneRenderer.SetCamera(in Matrix4x4 View,in Matrix4x4 Projection)`と
+   `ConstantsDirty`フラグを追加し、`ComputeViewMatrix`/`ComputeProjectionMatrix`/
+   `ComputeSceneBounds`/`BoundsCenter`/`BoundsRadius`を削除。視点ポリシーは新規
+   `SceneCameraFraming`(純粋static)へ移設し、バウンズ計算が初めてGPU無しでテスト可能になった。
+   定数バッファの更新経路は`RenderFrame`冒頭の1本に統一(旧ctor/`SetSelectedNode`/`Resize`の
+   3箇所の明示呼び出しを廃止)。値はバウンズ由来の固定フレーミング(方向`normalize(1,0.75,1)`、
+   距離`Radius/sin(FovY/2)*1.1`、near/far = `0.05`/`Radius*20`)。`Camera.CreateBoundsFit`とは
+   Radiusの定義(境界球 vs AABB半対角)とnear/farが異なる。`SceneHwndHost`は新規`ApplyCamera()`を
+   毎フレーム・リサイズ時・レンダラー再生成時に呼ぶ(Phase 1で`SceneViewState`へ差し替わる継ぎ目)。
+   副次的に`new SceneRenderer(...,800,600,...)`のハードコードが消え、初回フレームのアスペクト歪みも
+   解消した。
 
-**完了基準**: `FirstPersonStageScene`(実シーン)が正しいワールド変換で描画される(親子合成を含む
-`SceneModelRenderObjectBuilderTests`拡張がグリーン)。既存テスト全件グリーン。台帳更新。
+なお項目3は**観測可能なバグの修正ではなく Phase 3(グリッド/ギズモ)の前提整備**である。`Build`は
+`Root`が非nullなら必ず1件以上返し(認識できないノードは`GizmoMeshFactory`フォールバック)、
+`Root==null`は`Rebuild()`が先に弾くため、`Count==0`はPhase 0の本番経路では到達不能。
+
+**完了基準**: 既存テスト全件グリーン+新規21件。実機Experimental Instanceでの目視確認(下記検証節)。
 
 ### Phase 1 — ナビゲーション
 
@@ -100,7 +122,61 @@ dotnet test CSharpGameEngine.slnx -c Debug --no-build
   → 全8テストプロジェクト 610件成功・失敗0(実装フェーズ開始前の基準値、内訳はM0019参照)
 ```
 
-実装フェーズの検証結果は、各Phase完了時に本節へ追記する。
+### Phase 0(2026-08)
+
+```
+dotnet build CSharpGameEngine.slnx -c Debug → 成功、警告0/エラー0
+dotnet test  CSharpGameEngine.slnx -c Debug --no-build → 622件成功・失敗0
+  (610 − SceneFileTests 9 + 階層合成7 + SceneComponentBindingTests 5 + SceneCameraFramingTests 9。
+   VSExtension.Tests 単体は 118 → 130)
+
+削除の取りこぼし確認(SceneFile/SceneNodeAdder/PrimitiveSpawner/ShapePalette/ActiveScene/
+RequestReload/ReloadRequested/ActiveAllSceneModels/UserEcsProject.Transform の全 grep)→ 0件
+(既知の偽陽性 SceneWorkspaceService.IsGeneratedSceneFile と
+SceneDesignerContextMenuPolicyTests のテスト名を除く)
+```
+
+`SceneCameraFramingTests.FrameBounds_DegenerateBoundsAndAspect_ProduceFiniteMatrices`が実装バグを
+1件検出した: 退化半径では`far`(0.02)が`near`(0.05)を下回り
+`Matrix4x4.CreatePerspectiveFieldOfView`が`ArgumentOutOfRangeException`を投げていた。`far`に
+下限ガード(`Math.Max(Radius*20, near*2)`)を追加して修正した。実経路では`ComputeBounds`が半径を
+1fで床打ちするため到達しないが、退化入力テストがその境界を踏んだ。
+
+**ユニットテストでカバーできていないもの(正直な記録)**: `SceneRenderer`の空オブジェクト対応3箇所
+(throw撤去・定数バッファ幅クランプ・Map早期return)はHWNDとD3D12デバイスを要求するので
+ユニットテスト不能。証跡は`Build_ModelWithoutRoot_ReturnsEmptyList`(空リストが作れること)、
+コードレビュー、実機での既存シーン非回帰の3点に限られる。
+
+**階層Transform合成の実シーン証跡は存在しない**: 入れ子`Children`を持つシーンがリポジトリに1つも
+無い(`FirstPersonStageScene`はRoot直下フラット、`MainScene`/`PrimitiveShowcase*`は単一ノード)。
+したがって項目2の証跡は`SceneModelRenderObjectBuilderTests`の階層合成テスト4件のみである
+(実シーンへ入れ子ノードを追加するのは、`FirstPersonStageScene`がUE取り込みの正本であるため
+スコープ外)。
+
+**実機VS Experimental Instance での目視確認(未実施 — ユーザー側で実施)**:
+`devenv.exe /rootsuffix Exp UserEcsProject.slnx`で`FirstPersonStageScene.cs`を開き、コードエディタ
+右クリック→「シーン デザイナーで開く」。スクリーンショットはUIA `NativeWindowHandle`+`PrintWindow`
+(`SetForegroundWindow`は使わない)。修正前は全メッシュが原点に重なった1つの塊だったので、
+次の順で確認する。
+
+| # | 確認対象 | 何が証明されるか |
+|---|---|---|
+| 1 | 床が広がる(`Scale=(4,1,4)`) | スケールが効いている |
+| 2 | 矩形の壁が囲む(±18〜20に配置) | 平行移動が効いている |
+| 3 | 中央に薄い円盤がY=2に浮く(`SM_Cylinder`=`Position(0,2,0)`,`Scale(7,0.1,7)`) | Y方向移動と非等方スケールの同時証明。一目で分かるランドマーク |
+| 4 | 四隅のQuarterCylinderが各々別の向きを向く(`RotationY=±0.7071`/180°) | **回転抽出の唯一の視覚的証明**(落ちていれば四隅が全部同じ向きになる) |
+| 5 | SkySphereが巨大ドームとして包む一方、カメラはステージを収めたまま | `IncludeInBounds=false`が生きている |
+| 6 | `SM_Cylinder`選択でその物体だけがオレンジに染まる | DFS書き換え後も`NodePath`同一性が保たれた |
+| 7 | `PositionY=2f`→`6f`の編集で250ms後に円盤が上がる | ライブ更新の非回帰 |
+| 8 | 壁/床/Sky domeの境界にZ-fightingが無い | 下記残課題R1 |
+| 9 | 「シェイプ パネルを表示」がツールバー/メニューに無い | 撤去できている |
+| 10 | コードエディタのTab/Backspace/Deleteが効く | `RenderSurfaceFocusPolicy`非回帰 |
+
+⚠️ Experimental hiveは`[ProvideToolWindow]`とvsctを消してもレイアウトキャッシュに「シェイプ」ペインを
+復元しうる(`CSharpGameEngine\InitialLayoutApplied`設定により初回レイアウトは二度と走らない)。
+消えて見えない場合は`devenv /rootsuffix Exp /updateconfiguration`とウィンドウレイアウトのリセットを試す。
+
+Phase 1以降の検証結果は、各Phase完了時に本節へ追記する。
 
 ## 意図的に除外したこと(将来マイルストーン候補)
 
@@ -120,6 +196,14 @@ dotnet test CSharpGameEngine.slnx -c Debug --no-build
 - **Inspectorツールウィンドウ本体**(旧EditorSpec Phase 2の残り): 純粋モデル層
   (`SceneInspectorModelBuilder`/`SceneValue.IsEditable`)は実装済み。数値編集UIは
   `SetComponentMember`配線(Phase 3)後に小さく足せる状態になるが、本マイルストーンには含めない。
+- **ドラッグ&ドロップによるアセット配置**(旧ADR-0022 / 台帳F-L8-007): Phase 0 で`.scene`書き込み
+  経路ごと削除した(Phase 9以降は恒久エラーで機能的損失はゼロ)。`SceneEditOperation`ベースでの
+  再実装はヒエラルキー編集マイルストーンへ。`SceneNodeAdder.GetRelativePath`(net472用
+  `Path.GetRelativePath`ポリフィル)も他の消費者が無いため一緒に落とした — 必要になったら書き直す。
+- **シェイプパレット(プリミティブのクリック配置)**(旧ADR-0021 / 台帳F-L8-006): 同じ理由で
+  Phase 0 で全面削除。プリミティブ生成そのものは`tools/CSharpGameEngine.Primitive.Cli`として存続し、
+  Scene デザイナーの`PrimitiveMesh`描画(`SceneModelRenderObjectBuilder.ResolveViaBridge`)が
+  利用している。
 
 本マイルストーン自体のスコープ外(仕様・設計由来):
 
@@ -132,9 +216,23 @@ dotnet test CSharpGameEngine.slnx -c Debug --no-build
 
 ## 残課題
 
+- **R1: 深度精度**。Phase 0 でTransformが正しく合成された結果、`BoundsRadius`が数単位から実ステージ
+  規模へ跳ね上がり、`far = Radius*20`も比例して伸びる。near 0.05 のままだとnear/far比が悪化し、
+  `Camera.CreateFirstPerson`のコメントが「M0004で壁一面のZ-fightingを起こした」と記録している領域に
+  入る。Sky domeは`CullNone`の巨大シェルなので特に出やすい。実機で出た場合の対処は
+  `SceneCameraFraming.NearPlane`定数を0.5〜1.0へ上げること(視点は数十単位先なので視覚的損失ゼロ、
+  ユニットテスト済みヘルパー内の定数1つ)。**Phase 0 は「直ったが汚い」をTransform修正のせいだと
+  誤診しないため、この確認を検証項目8として明示している。**
+- アスペクト比 < 1(縦長ウィンドウ)では水平FOVが縦より狭くなり境界球が横にはみ出す。これはPhase 0
+  以前と同じ挙動なので踏襲した既知の逸脱。Phase 1で`min(FovY, 2*atan(tan(FovY/2)*aspect))`を検討する。
 - ライトComponentの所在(エンジン標準 vs L9)の決定はPhase 6着手時の小ADRへ先送りしている。
-- 実機VS Experimental Instanceでの目視確認は各Phase完了条件に含めたが、M0019から引き継いだ
-  「Phase 9時点の表示系の実機確認」自体も未消化のまま残っている(Phase 0完了基準に統合して消化する)。
+- 実機VS Experimental Instanceでの目視確認(M0019から引き継いだPhase 9表示系の確認を含む)は
+  Phase 0 完了基準に統合したが、**まだ未実施**(上記検証節の10項目)。
+- **台帳F-L8-009のStatus誤り**(Phase 0 のスコープ外): 挙げている5ファイルとテスト3件はM0019
+  Phase 5の`[SceneDefinition]`廃止で全て削除済みなのに`Status: Implemented`のまま。削除済みコードを
+  実装済みと記述している状態であり、今回清算した種類の誤りと同種。別タスクで`Removed`へ直す。
+- **vsctの死んだGroup宣言(0x1023)**(同スコープ外): `SceneDefinitionContextMenuGroup`は退役
+  コメントがあるのにGroup宣言とIDSymbolが両方生きている(親付けされたButtonはゼロ)。挙動不変。
 
 関連: [[ADR-0041-Scene-Editor-Interaction-Architecture]]、
 [[ADR-0040-CSharp-Scene-DSL-and-Bidirectional-Editor]]、[[M0019-CSharp-Scene-DSL]]、

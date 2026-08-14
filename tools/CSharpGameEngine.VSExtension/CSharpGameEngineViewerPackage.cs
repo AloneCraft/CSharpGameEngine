@@ -20,8 +20,6 @@ namespace CSharpGameEngine.VSExtension;
 [ProvideToolWindow(typeof(HierarchyToolWindowPane),
     Style=VsDockStyle.Linked,Window=ToolWindowGuids80.SolutionExplorer,
     Orientation=ToolWindowOrientation.Left,DockedWidth=300)]
-[ProvideToolWindow(typeof(ShapePaletteToolWindowPane),
-    Style=VsDockStyle.Tabbed,Window=ToolWindowGuids80.SolutionExplorer)]
 [ProvideToolWindow(typeof(SceneDesignerToolWindowPane),
     Style=VsDockStyle.Tabbed,Window=ToolWindowGuids80.SolutionExplorer)]
 // Direct .slnx launch is preferred, but a VS debug launch can still arrive at Start Window.
@@ -55,7 +53,6 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
         await OpenFabCommand.InitializeAsync(this);
         await OpenGameCommand.InitializeAsync(this);
         await ShowHierarchyToolWindowCommand.InitializeAsync(this);
-        await ShowShapePaletteToolWindowCommand.InitializeAsync(this);
         await ApplyGameEngineLayoutCommand.InitializeAsync(this);
 
         RegisterEditorFactory(new GlbFbxPreviewEditorFactory());
@@ -70,7 +67,6 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             SceneDesignerToolWindowPane.ConfigureSessionProvider(()=>this.SceneSession);
             SceneEditorHub.SelectedNodePathChanged+=this.OnLegacyHierarchySelectionChanged;
             SceneWorkspace.ModelChanged+=SceneEditorHub.PublishSceneModel;
-            SceneWorkspace.AllModelsChanged+=SceneEditorHub.PublishAllSceneModels;
             DocumentTracker=ActiveDocumentTracker.Start(SceneWorkspace);
             if(DocumentTracker is not null){
                 await OpenSceneDesignerCommand.InitializeAsync(this,SceneSession,DocumentTracker);
@@ -205,7 +201,6 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
 
             if(SceneWorkspace is not null){
                 SceneWorkspace.ModelChanged-=SceneEditorHub.PublishSceneModel;
-                SceneWorkspace.AllModelsChanged-=SceneEditorHub.PublishAllSceneModels;
                 SceneWorkspace.Dispose();
             }
         }

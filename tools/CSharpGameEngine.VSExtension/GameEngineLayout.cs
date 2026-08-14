@@ -12,8 +12,9 @@ namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
 /// Builds the "GameEngine" default panel arrangement (ADR-0021): the "C# Game Engine" toolbar made
-/// visible, Hierarchy docked left / ShapePalette docked right of Solution Explorer without
-/// activating either pane. Two call sites: once automatically on a genuinely first launch
+/// visible and Hierarchy docked left of Solution Explorer without activating the pane. The Shape
+/// Palette that used to dock right was removed in M0020 Phase 0 along with the rest of the dead
+/// <c>.scene</c> write path. Two call sites: once automatically on a genuinely first launch
 /// (<see cref="CSharpGameEngineViewerPackage"/>, gated by <see cref="WasInitialLayoutAppliedAsync"/>
 /// so it never re-fights a user's own later layout changes - VS's own window-profile persistence
 /// handles "restore what was open last time" from then on), and on demand via
@@ -53,9 +54,9 @@ internal static class GameEngineLayout {
     }
 
     /// <summary>
-    /// Shows the toolbar and docks the auxiliary Hierarchy / ShapePalette panes around Solution
-    /// Explorer without taking keyboard focus. Scene Designer is deliberately excluded: it needs a
-    /// concrete IScene target and is opened only through <see cref="OpenSceneDesignerCommand"/>.
+    /// Shows the toolbar and docks the auxiliary Hierarchy pane beside Solution Explorer without
+    /// taking keyboard focus. Scene Designer is deliberately excluded: it needs a concrete IScene
+    /// target and is opened only through <see cref="OpenSceneDesignerCommand"/>.
     /// </summary>
     public static async Task ApplyAsync(AsyncPackage Package,DTE Dte){
         await Package.JoinableTaskFactory.SwitchToMainThreadAsync(Package.DisposalToken);
@@ -79,13 +80,11 @@ internal static class GameEngineLayout {
 
     private static System.Type GetToolWindowType(InitialLayoutToolWindowKind Kind)=>Kind switch {
         InitialLayoutToolWindowKind.Hierarchy=>typeof(HierarchyToolWindowPane),
-        InitialLayoutToolWindowKind.ShapePalette=>typeof(ShapePaletteToolWindowPane),
         _=>throw new System.ArgumentOutOfRangeException(nameof(Kind),Kind,"初期レイアウトに含められないToolWindowです。"),
     };
 
     private static VSSETFRAMEPOS GetFramePosition(InitialLayoutToolWindowKind Kind)=>Kind switch {
         InitialLayoutToolWindowKind.Hierarchy=>VSSETFRAMEPOS.SFP_fDock|VSSETFRAMEPOS.SFP_fDockLeft,
-        InitialLayoutToolWindowKind.ShapePalette=>VSSETFRAMEPOS.SFP_fDock|VSSETFRAMEPOS.SFP_fDockRight,
         _=>throw new System.ArgumentOutOfRangeException(nameof(Kind),Kind,"初期レイアウトに含められないToolWindowです。"),
     };
 

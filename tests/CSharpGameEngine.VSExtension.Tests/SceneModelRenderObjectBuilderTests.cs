@@ -13,21 +13,25 @@ namespace CSharpGameEngine.VSExtension.Tests;
 /// </summary>
 public sealed class SceneModelRenderObjectBuilderTests {
     /// <summary>
-    /// Declares components under the exact fully-qualified names <see cref="SceneModelRenderObjectBuilder"/>
-    /// hardcodes (<c>UserEcsProject.Transform</c>, <c>CSharpGameEngine.Runtime.Windows.PrimitiveMesh</c>)
-    /// - the shared <c>SceneAnalysisTestHelper.CommonComponents</c> fixture declares its own
-    /// same-shaped types under a different namespace (<c>Sample</c>), which would not match.
+    /// Declares components under the exact fully-qualified names <see cref="SceneComponentBindings"/>
+    /// binds (all of <c>CSharpGameEngine.Runtime.Windows.*</c>, matching the real engine vocabulary) -
+    /// the shared <c>SceneAnalysisTestHelper.CommonComponents</c> fixture declares its own same-shaped
+    /// types under a different namespace (<c>Sample</c>), which would not match.
+    ///
+    /// <para>
+    /// Until M0020 Phase 0 the builder hardcoded <c>UserEcsProject.Transform</c> and this fixture
+    /// declared Transform under that namespace to match, so the tests stayed green while every real
+    /// scene rendered with an identity world. The fixture must therefore track the binding table, not
+    /// the other way round.
+    /// </para>
     /// </summary>
     private const string Components="""
-        namespace UserEcsProject {
+        namespace CSharpGameEngine.Runtime.Windows {
             public struct Transform {
                 public float PositionX; public float PositionY; public float PositionZ;
                 public float RotationX; public float RotationY; public float RotationZ; public float RotationW;
                 public float ScaleX; public float ScaleY; public float ScaleZ;
             }
-        }
-
-        namespace CSharpGameEngine.Runtime.Windows {
             public struct PrimitiveMesh { public PrimitiveType Type; }
             public struct StaticMesh { public string AssetPath; }
             public enum PrimitiveType { Plane, Box, Sphere, Cylinder, Cone, Torus, Disk, Capsule }
@@ -49,7 +53,7 @@ public sealed class SceneModelRenderObjectBuilderTests {
     public void Build_NodeWithTransform_ExtractsPositionAndScaleIntoWorldMatrix(){
         SceneModel Model=Analyze("""
             using CSharpGameEngine.Entities;
-            using UserEcsProject;
+            using CSharpGameEngine.Runtime.Windows;
             namespace Game;
             public partial class MainScene:IScene {
                 public Node Root=>new() { Components=[
@@ -87,7 +91,7 @@ public sealed class SceneModelRenderObjectBuilderTests {
         // rotation. CreateFromQuaternion on it would poison the whole matrix with NaN.
         SceneModel Model=Analyze("""
             using CSharpGameEngine.Entities;
-            using UserEcsProject;
+            using CSharpGameEngine.Runtime.Windows;
             namespace Game;
             public partial class MainScene:IScene {
                 public Node Root=>new() { Components=[new Transform { PositionX=1f }] };
@@ -191,5 +195,155 @@ public sealed class SceneModelRenderObjectBuilderTests {
         Assert.Equal(2,Result.Count);
         Assert.Equal(NodePath.Root,Result[0].NodeId);
         Assert.Equal(NodePath.Root.Append(0),Result[1].NodeId);
+    }
+
+    [Fact]
+    public void Build_ChildNode_ComposesLocalTransformWithParentWorld(){
+        SceneModel Model=Analyze("""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Runtime.Windows;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() {
+                    Components=[new Transform { PositionX=10f,RotationW=1f }],
+                    Children=[new Node { Components=[new Transform { PositionY=3f,RotationW=1f }] }],
+                };
+            }
+            """);
+
+        var Result=SceneModelRenderObjectBuilder.Build(Model,static _=>null);
+
+        Assert.Equal(new Vector3(10f,0f,0f),Result[0].World.Translation);
+        Assert.Equal(new Vector3(10f,3f,0f),Result[1].World.Translation);
+    }
+
+    [Fact]
+    public void Build_GrandchildNode_FoldsTheWholeAncestorChain(){
+        SceneModel Model=Analyze("""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Runtime.Windows;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() {
+                    Components=[new Transform { PositionX=1f,RotationW=1f }],
+                    Children=[new Node {
+                        Components=[new Transform { PositionX=2f,RotationW=1f }],
+                        Children=[new Node { Components=[new Transform { PositionX=4f,RotationW=1f }] }],
+                    }],
+                };
+            }
+            """);
+
+        var Result=SceneModelRenderObjectBuilder.Build(Model,static _=>null);
+
+        Assert.Equal(3,Result.Count);
+        Assert.Equal(7f,Result[2].World.Translation.X,3);
+    }
+
+    [Fact]
+    public void Build_ChildWithoutTransform_InheritsTheParentWorld(){
+        SceneModel Model=Analyze("""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Runtime.Windows;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() {
+                    Components=[new Transform { PositionZ=5f,RotationW=1f }],
+                    Children=[new Node { Name="NoTransform" }],
+                };
+            }
+            """);
+
+        var Result=SceneModelRenderObjectBuilder.Build(Model,static _=>null);
+
+        Assert.Equal(Result[0].World,Result[1].World);
+        Assert.Equal(new Vector3(0f,0f,5f),Result[1].World.Translation);
+    }
+
+    [Fact]
+    public void Build_RotatedParentWithTranslatedChild_PlacesTheChildInTheParentsRotatedFrame(){
+        // 親をY軸+90°(RotationY=RotationW=sin/cos 45°)回した下で子を+Xへ1動かすと、子は親の回転後の
+        // 座標系に乗るので world translation は概ね (0,0,-1) になる。乗算順を ParentWorld*Local に
+        // 取り違えるとここが (1,0,0) のままになるため、順序を固定する唯一のテスト。
+        SceneModel Model=Analyze("""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Runtime.Windows;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() {
+                    Components=[new Transform { RotationY=0.7071068f,RotationW=0.7071068f }],
+                    Children=[new Node { Components=[new Transform { PositionX=1f,RotationW=1f }] }],
+                };
+            }
+            """);
+
+        var Result=SceneModelRenderObjectBuilder.Build(Model,static _=>null);
+
+        Vector3 Child=Result[1].World.Translation;
+        Assert.Equal(0f,Child.X,3);
+        Assert.Equal(0f,Child.Y,3);
+        Assert.Equal(-1f,Child.Z,3);
+    }
+
+    [Fact]
+    public void Build_DeepChildren_PreservesPreOrderNodePathOrdering(){
+        SceneModel Model=Analyze("""
+            using CSharpGameEngine.Entities;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() {
+                    Name="Root",
+                    Children=[
+                        new Node { Name="A",Children=[new Node { Name="A0" }] },
+                        new Node { Name="B" },
+                    ],
+                };
+            }
+            """);
+
+        var Result=SceneModelRenderObjectBuilder.Build(Model,static _=>null);
+
+        Assert.Collection(Result,
+            Object=>Assert.Equal(NodePath.Root,Object.NodeId),
+            Object=>Assert.Equal(NodePath.Root.Append(0),Object.NodeId),
+            Object=>Assert.Equal(NodePath.Root.Append(0).Append(0),Object.NodeId),
+            Object=>Assert.Equal(NodePath.Root.Append(1),Object.NodeId));
+    }
+
+    [Fact]
+    public void Build_SkySphereStaticMesh_IsExcludedFromAutomaticFraming(){
+        SceneModel Model=Analyze("""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Runtime.Windows;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() {
+                    Children=[
+                        new Node { Components=[new StaticMesh { AssetPath="Assets/Stage/SM_SkySphere.glb" }] },
+                        new Node { Components=[new StaticMesh { AssetPath="Assets/Stage/SM_Floor.glb" }] },
+                    ],
+                };
+            }
+            """);
+
+        var Result=SceneModelRenderObjectBuilder.Build(Model,static _=>null,static _=>null);
+
+        Assert.False(Result[1].IncludeInBounds);
+        Assert.True(Result[2].IncludeInBounds);
+    }
+
+    [Fact]
+    public void Build_ModelWithoutRoot_ReturnsEmptyList(){
+        // Root を解析できないシーンでは空リストを返す。SceneRenderer/SceneHwndHost が0件を
+        // 例外にしなくなった(M0020 Phase 0)ことの、GPU 非依存な唯一の証跡。
+        SceneModel Model=Analyze("""
+            using CSharpGameEngine.Entities;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>default;
+            }
+            """);
+
+        Assert.Empty(SceneModelRenderObjectBuilder.Build(Model,static _=>null));
     }
 }
