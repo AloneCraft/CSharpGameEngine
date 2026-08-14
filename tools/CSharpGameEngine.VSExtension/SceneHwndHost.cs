@@ -49,9 +49,20 @@ internal sealed class SceneHwndHost:HwndHost {
     private Vector3 SceneBoundsCenter;
     private float SceneBoundsRadius=1f;
 
+    // M0020 Phase 1: ナビゲーション状態機械とカメラ/永続ツール状態(ADR-0041 決定事項1)。
+    private SceneViewState?ViewState;
+    private SceneInputStateMachine?InputMachine;
+    private bool PendingCameraReset=true;
+    private float PendingLookDeltaX;
+    private float PendingLookDeltaY;
+    private TimeSpan?LastFlyTickTime;
+
     private float AspectRatio=>SurfaceWidth/(float)SurfaceHeight;
 
     internal event Action<string>?StatusChanged;
+
+    /// <summary>Pointerの<c>Down</c>で発火。WPF側は購読して<c>Keyboard.Focus</c>をここでだけ呼ぶ(ADR-0041 決定事項2)。</summary>
+    internal event Action?ViewportActivated;
 
     public SceneHwndHost(){
         // Surfaceは描画先でありキーボード入力を持つコントロールではない。HwndHostの既定
@@ -65,9 +76,14 @@ internal sealed class SceneHwndHost:HwndHost {
         =>RenderSurfaceFocusPolicy.AllowTabInto;
 
     protected override HandleRef BuildWindowCore(HandleRef HwndParent){
+        ThreadHelper.ThrowIfNotOnUIThread();
+
         // Rendererが最初のPresentを行えるまで子HWNDを隠す。NOREDIRECTIONBITMAPの空Surfaceを
         // 表示すると、ドッキング前に同じ領域にいたSolution Explorerが残像のように露出する。
         Surface=new RenderSurfaceWindow(HwndParent.Handle,800,600,InitiallyVisible:false);
+        ViewState=SceneViewState.CreateFromSettings();
+        InputMachine=new SceneInputStateMachine();
+        Surface.PointerInput+=OnPointerInput;
         SynchronizationContext UiContext=SynchronizationContext.Current
             ??new DispatcherSynchronizationContext(this.Dispatcher);
 #pragma warning disable VSTHRD001 // 生workerの完了を非同期Postするだけで、同期wait/message pumpは行わない。
@@ -81,10 +97,22 @@ internal sealed class SceneHwndHost:HwndHost {
     }
 
     protected override void DestroyWindowCore(HandleRef Hwnd){
+        ThreadHelper.ThrowIfNotOnUIThread();
+
         BuildWorker?.Dispose();
         BuildWorker=null;
         DetachSubscriptions();
         DisposeRenderer();
+
+        if(Surface is not null){
+            Surface.PointerInput-=OnPointerInput;
+        }
+
+        // 保険の書き込み(通常はActiveTool等を変更した時点で即時書き込み済み)。
+        InputMachine?.Reset();
+        ViewState?.SaveToSettings();
+        InputMachine=null;
+        ViewState=null;
 
         Surface?.Dispose();
         Surface=null;
@@ -95,6 +123,13 @@ internal sealed class SceneHwndHost:HwndHost {
     /// projection を保持するので、ここでrendererを空へ戻しません。
     /// </summary>
     internal void SetTarget(SceneDocumentSnapshot Snapshot){
+        // コンボボックスでのシーン切替はSceneHwndHostを再生成せず(EnsureHostが既存インスタンスを
+        // 返すだけ)、このSetTargetの呼び直しだけが届く。TargetKeyが変わったことをここで検知し、
+        // 次のOnBuildCompletedで新シーンへ再フレーミングする(ADR-0041、事前調査事実3)。
+        if(this.TargetKey is not { } PreviousKey||!PreviousKey.Equals(Snapshot.Key)){
+            PendingCameraReset=true;
+        }
+
         this.TargetKey=Snapshot.Key;
         this.TargetSnapshot=Snapshot;
         SceneModel?Model=Snapshot.LastKnownGoodModel??Snapshot.CurrentModel;
@@ -128,7 +163,8 @@ internal sealed class SceneHwndHost:HwndHost {
         }
 
         if(RenderingHandler is null){
-            RenderingHandler=(_,_)=>{
+            RenderingHandler=(_,Args)=>{
+                TickFlyIfNeeded(Args);
                 ApplyCamera();
                 Renderer?.RenderFrame();
             };
@@ -151,20 +187,122 @@ internal sealed class SceneHwndHost:HwndHost {
     }
 
     /// <summary>
-    /// 現在のカメラを <see cref="Renderer"/> へ注入する。Phase 0 の値はバウンズ由来の固定フレーミング
-    /// だが、M0020 Phase 1 でここが <c>SceneViewState</c> 由来へ差し替わる(<see cref="SceneRenderer"/>
-    /// 側は無改変で済む唯一の継ぎ目)。値が変わらなければ <see cref="SceneRenderer.SetCamera"/> は
-    /// 何もしないので毎フレーム呼んで構わない。
+    /// 現在の<see cref="ViewState"/>を<see cref="Renderer"/>へ注入する(ADR-0041 決定事項1、
+    /// M0020 Phase 1)。値が変わらなければ<see cref="SceneRenderer.SetCamera"/>は何もしないので
+    /// 毎フレーム呼んで構わない。
     /// </summary>
     private void ApplyCamera(){
-        if(Renderer is not { } Active){
+        if(Renderer is not { } Active||ViewState is not { } State){
             return;
         }
 
-        (Matrix4x4 View,Matrix4x4 Projection)=SceneCameraFraming.FrameBounds(
-            this.SceneBoundsCenter,this.SceneBoundsRadius,SceneCameraFraming.DefaultFovYRadians,this.AspectRatio);
-        Active.SetCamera(View,Projection);
+        Active.SetCamera(State.GetView(),State.GetProjection(this.AspectRatio));
     }
+
+    /// <summary>
+    /// Fly(RMB+WASDQE)は押しっぱなしのキーでマウスの実移動が無いフレームも前進し続ける必要があるため、
+    /// マウスのLook量は<see cref="OnPointerInput"/>が<see cref="PendingLookDeltaX"/>/
+    /// <see cref="PendingLookDeltaY"/>へ蓄積するだけに留め、Renderingティックごとにここで1回だけ
+    /// <see cref="SceneViewState.TickFly"/>へまとめて渡す。Orbit/PanはMoveイベントごとに即時適用で
+    /// 十分(時間積分の要素が無いため、<see cref="OnPointerInput"/>参照)。
+    /// </summary>
+    private void TickFlyIfNeeded(EventArgs Args){
+        if(InputMachine is not { } Machine||ViewState is not { } State||Machine.State!=SceneNavState.Flying){
+            LastFlyTickTime=null; // Fly再突入時に古い時刻からの巨大なDeltaTimeが出ないようにする。
+            return;
+        }
+
+        double DeltaSeconds=0;
+        if(Args is RenderingEventArgs RenderArgs){
+            if(LastFlyTickTime is { } Previous){
+                DeltaSeconds=(RenderArgs.RenderingTime-Previous).TotalSeconds;
+            }
+
+            LastFlyTickTime=RenderArgs.RenderingTime;
+        }
+
+        bool Shift=(NativeMethods.GetKeyState(NativeMethods.VK_SHIFT)&0x8000)!=0;
+        bool Ctrl=(NativeMethods.GetKeyState(NativeMethods.VK_CONTROL)&0x8000)!=0;
+        State.TickFly(Machine.FlyHeldKeys,PendingLookDeltaX,PendingLookDeltaY,(float)DeltaSeconds,Shift,Ctrl);
+        PendingLookDeltaX=0f;
+        PendingLookDeltaY=0f;
+    }
+
+    /// <summary>
+    /// <see cref="RenderSurfaceWindow.PointerInput"/>の購読先。キャプチャの実行
+    /// (<see cref="RenderSurfaceWindow.SetPointerCapture"/>/
+    /// <see cref="RenderSurfaceWindow.ReleasePointerCapture"/>)はここが担う —
+    /// <see cref="SceneInputStateMachine"/>は純粋でWin32を知らないため、キャプチャすべきかどうかの
+    /// 判断だけを<see cref="SceneCaptureAction"/>として返す。
+    /// </summary>
+    private void OnPointerInput(PointerEvent Event){
+        if(InputMachine is not { } Machine){
+            return;
+        }
+
+        if(Event.Kind==PointerEventKind.Down){
+            ViewportActivated?.Invoke();
+        }
+
+        SceneInputStepResult Result=Machine.Handle(Event);
+        switch(Result.Capture){
+            case SceneCaptureAction.Begin:
+                Surface?.SetPointerCapture();
+                break;
+            case SceneCaptureAction.End:
+                Surface?.ReleasePointerCapture();
+                break;
+        }
+
+        if(Result.DeltaX==0f&&Result.DeltaY==0f){
+            return;
+        }
+
+        switch(Result.State){
+            case SceneNavState.Flying:
+                PendingLookDeltaX+=Result.DeltaX;
+                PendingLookDeltaY+=Result.DeltaY;
+                break;
+            case SceneNavState.Orbiting:
+                ViewState?.ApplyOrbit(Result.DeltaX,Result.DeltaY);
+                break;
+            case SceneNavState.Panning:
+                ViewState?.ApplyPan(Result.DeltaX,Result.DeltaY);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// WPFの<c>PreviewMouseWheel</c>から呼ぶ(M0020 Phase 1 Step 8)。Deltaは
+    /// <c>MouseWheelEventArgs.Delta</c>そのもの(<c>WHEEL_DELTA</c>=120単位)。Fly中(RMB押下中)は
+    /// AdjustNavigationSpeed、それ以外はDolly(Perspective)/Zoom(Orthographic)。
+    /// </summary>
+    internal void HandleWheel(int Delta){
+        if(InputMachine is not { } Machine||ViewState is not { } State){
+            return;
+        }
+
+        int Notches=Delta/120;
+        if(Notches==0){
+            return;
+        }
+
+        if(Machine.HandleWheel()==SceneWheelAction.AdjustSpeed){
+            State.ApplyNavigationSpeedAdjust(Notches);
+        } else if(State.ProjectionMode==SceneProjectionMode.Orthographic){
+            State.ApplyZoom(Notches);
+        } else {
+            State.ApplyDolly(Notches);
+        }
+    }
+
+    /// <summary>WPFの<c>KeyDown</c>から呼ぶ。Fly中(RMB押下中)以外は<see cref="SceneInputStateMachine"/>が無視する。</summary>
+    internal void HandleKeyDown(NavigationKey Key)=>InputMachine?.HandleKeyDown(Key);
+
+    internal void HandleKeyUp(NavigationKey Key)=>InputMachine?.HandleKeyUp(Key);
+
+    /// <summary>WPFの<c>LostKeyboardFocus</c>から呼ぶ。RMBは離されていないので状態遷移はしない。</summary>
+    internal void ClearHeldFlyKeys()=>InputMachine?.HandleLostKeyboardFocus();
 
     /// <summary>(Re)builds <see cref="Renderer"/> from the pin 済み <see cref="SceneDocumentSnapshot"/>.</summary>
     private void Rebuild(){
@@ -249,8 +387,28 @@ internal sealed class SceneHwndHost:HwndHost {
         try {
             DisposeRenderer();
             (this.SceneBoundsCenter,this.SceneBoundsRadius)=SceneCameraFraming.ComputeBounds(Result.RenderObjects);
-            (Matrix4x4 View,Matrix4x4 Projection)=SceneCameraFraming.FrameBounds(
-                this.SceneBoundsCenter,this.SceneBoundsRadius,SceneCameraFraming.DefaultFovYRadians,this.AspectRatio);
+
+            Matrix4x4 View;
+            Matrix4x4 Projection;
+            if(ViewState is { } State){
+                // Far平面はライブ編集での規模変化に追従させるため、リビルドのたびに無条件で更新する。
+                State.LastKnownBoundsRadius=this.SceneBoundsRadius;
+                if(PendingCameraReset){
+                    // 初回ビルド成功時、またはコンボボックスでシーンが切り替わった直後
+                    // (SetTargetがPendingCameraReset=trueを立てる、事前調査事実3)。
+                    State.ResetToBounds(
+                        this.SceneBoundsCenter,this.SceneBoundsRadius,
+                        SceneCameraFraming.ViewDirection,SceneCameraFraming.DefaultFovYRadians);
+                    PendingCameraReset=false;
+                }
+
+                View=State.GetView();
+                Projection=State.GetProjection(this.AspectRatio);
+            } else {
+                (View,Projection)=SceneCameraFraming.FrameBounds(
+                    this.SceneBoundsCenter,this.SceneBoundsRadius,SceneCameraFraming.DefaultFovYRadians,this.AspectRatio);
+            }
+
             // 実サイズは Surface.Resized で既に届いているので、800x600 のハードコードは使わない。
             Renderer=new SceneRenderer(Surface.Handle,SurfaceWidth,SurfaceHeight,Result.RenderObjects,View,Projection);
             Renderer.SetSelectedNode(this.SelectedNodePath);

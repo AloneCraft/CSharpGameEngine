@@ -25,6 +25,9 @@ internal sealed class RenderSurfaceWindow:IDisposable {
 
     public event Action<int,int>?Resized;
 
+    /// <summary>マウスのボタン・移動・キャプチャ喪失(M0020 Phase 1、ADR-0041 決定事項2)。座標は物理ピクセル。</summary>
+    public event Action<PointerEvent>?PointerInput;
+
     public RenderSurfaceWindow(IntPtr ParentHwnd,int Width,int Height,bool InitiallyVisible=true){
         EnsureClassRegistered();
         this.ParentHwnd=ParentHwnd;
@@ -62,6 +65,20 @@ internal sealed class RenderSurfaceWindow:IDisposable {
     public void SetVisible(bool Visible){
         if(!Disposed&&Hwnd!=IntPtr.Zero){
             _=ShowWindow(Hwnd,Visible?SW_SHOWNA:SW_HIDE);
+        }
+    }
+
+    /// <summary>ドラッグ操作(Look/Fly/Pan/Orbit)開始時にSceneInputStateMachineの指示で呼ぶ。</summary>
+    public void SetPointerCapture(){
+        if(!Disposed&&Hwnd!=IntPtr.Zero){
+            _=SetCapture(Hwnd);
+        }
+    }
+
+    /// <summary>自分がキャプチャを保持している場合のみ解放する(既に奪われている場合は何もしない)。</summary>
+    public void ReleasePointerCapture(){
+        if(!Disposed&&Hwnd!=IntPtr.Zero&&GetCapture()==Hwnd){
+            _=ReleaseCapture();
         }
     }
 
@@ -146,6 +163,25 @@ internal sealed class RenderSurfaceWindow:IDisposable {
                 Instance.Resized?.Invoke(Width,Height);
             }
 
+            return IntPtr.Zero;
+        }
+
+        // M0020 Phase 1(ADR-0041 決定事項2)。MA_NOACTIVATEでもマウスメッセージ自体は
+        // ヒットテストで届くため、ここでSceneInputStateMachine向けに翻訳して転送する。
+        // GetKeyStateで修飾キーを読むのは、マウスwParamのMKフラグにAltが存在しないため
+        // (Ctrl/Shiftも経路を1本に揃える目的で同じくGetKeyStateへ統一する)。
+        RawInputModifiers Modifiers=new(
+            Shift:(GetKeyState(VK_SHIFT)&0x8000)!=0,
+            Ctrl:(GetKeyState(VK_CONTROL)&0x8000)!=0,
+            Alt:(GetKeyState(VK_MENU)&0x8000)!=0);
+
+        if(RenderSurfaceMouseMessageTranslator.Translate(Msg,LParam,Modifiers)is{ }PointerEvent){
+            RenderSurfaceWindow?PointerInstance;
+            lock(Instances){
+                Instances.TryGetValue(HWnd,out PointerInstance);
+            }
+
+            PointerInstance?.PointerInput?.Invoke(PointerEvent);
             return IntPtr.Zero;
         }
 
