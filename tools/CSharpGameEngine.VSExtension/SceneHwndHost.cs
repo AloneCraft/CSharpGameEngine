@@ -269,9 +269,11 @@ internal sealed class SceneHwndHost:HwndHost {
             ViewportActivated?.Invoke();
         }
 
-        // ヒットテストはLMB Down・Alt無し(Orbit開始と競合しない)の時だけ行う(M0020 Phase 2)。
-        // 状態機械自身はScenePicker/SceneRenderObjectを知らないため、結果だけを渡す。
-        NodePath?HitNodePath=Event.Kind==PointerEventKind.Down&&Event.Button==PointerButton.Left&&!Event.Modifiers.Alt
+        // ヒットテストはLMB Down・Alt無し・Idle中(Orbit開始やナビゲーション中の無駄な走査を避ける)の
+        // 時だけ行う(M0020 Phase 2)。状態機械自身はScenePicker/SceneRenderObjectを知らないため、
+        // 結果だけを渡す。
+        NodePath?HitNodePath=Event.Kind==PointerEventKind.Down&&Event.Button==PointerButton.Left
+            &&!Event.Modifiers.Alt&&Machine.State==SceneNavState.Idle
             ?TryPickAt(Event.X,Event.Y)
             :null;
 
