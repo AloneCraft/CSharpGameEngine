@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -118,6 +119,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         SceneHwndHost Host=new();
         Host.StatusChanged+=this.OnStatusChanged;
         Host.ViewportActivated+=this.OnViewportActivated;
+        Host.ObjectPicked+=this.OnObjectPicked;
         this.Host=Host;
         EmptyStateText.Visibility=Visibility.Collapsed;
         RenderHostGrid.Children.Add(Host);
@@ -141,6 +143,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         RenderHostGrid.Children.Remove(Host);
         Host.StatusChanged-=this.OnStatusChanged;
         Host.ViewportActivated-=this.OnViewportActivated;
+        Host.ObjectPicked-=this.OnObjectPicked;
         // Dispose triggers DestroyWindowCore, which cancels the latest-wins worker and disposes the
         // native child HWND. Its stale callback is additionally rejected by SceneHwndHost's surface
         // and generation checks, so it cannot repaint this WPF-only empty state.
@@ -285,9 +288,55 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         }
     }
 
+    /// <summary>
+    /// <see cref="SceneHwndHost.ObjectPicked"/>の購読先(M0020 Phase 2)。ヒットNodePathを
+    /// <see cref="EditorNodeId"/>へ解決し、<see cref="SceneSelectionService.Select"/>へ発行する
+    /// (Origin=Viewport)。空クリックは<c>Clear</c>ではなく空リストの<c>Select</c>で表す —
+    /// 唯一の既存前例<c>CSharpGameEngineViewerPackage.OnLegacyHierarchySelectionChanged</c>に倣う。
+    /// </summary>
+    private void OnObjectPicked(NodePath?HitPath,bool CtrlHeld){
+        if(this.Session is not { } Session||Session.PinnedSnapshot is not { } Snapshot){
+            return;
+        }
+
+        EditorNodeId?HitId=HitPath is { } Path&&Snapshot.Projection?.TryGetId(Path,out EditorNodeId Id)==true
+            ?Id
+            :null;
+
+        if(!CtrlHeld){
+            Session.Selection.Select(
+                Snapshot.Key,HitId is { } Single?[Single]:[],HitId,
+                ComponentType:null,MemberName:null,SceneSelectionOrigin.Viewport,Guid.NewGuid());
+            return;
+        }
+
+        if(HitId is not { } ToggledId){
+            return; // Ctrl+空クリックは現状維持(仕様に明記無し)。
+        }
+
+        IReadOnlyList<EditorNodeId>Current=Session.Selection.CurrentSelection is { } Existing
+            &&Existing.Key.Equals(Snapshot.Key)
+            ?Existing.NodeIds
+            :[];
+        List<EditorNodeId>Updated=[..Current];
+        bool Removed=Updated.Remove(ToggledId);
+        if(!Removed){
+            Updated.Add(ToggledId);
+        }
+
+        EditorNodeId?NewPrimary=Removed?(Updated.Count>0?Updated[^1]:null):ToggledId;
+        Session.Selection.Select(
+            Snapshot.Key,Updated,NewPrimary,ComponentType:null,MemberName:null,SceneSelectionOrigin.Viewport,Guid.NewGuid());
+    }
+
     private void OnViewportKeyDown(object Sender,KeyEventArgs Args){
         if(TryMapNavigationKey(Args.Key,out NavigationKey NavKey)){
             this.Host?.HandleKeyDown(NavKey);
+            return;
+        }
+
+        if(Args.Key==Key.F){
+            this.Host?.RequestFocusSelection();
         }
     }
 

@@ -61,7 +61,7 @@ ADR-0040基盤の上に実現する。設計判断は[[ADR-0041-Scene-Editor-Int
 `SceneViewState`+`SceneViewCamera`(net472複製)+`SceneInputStateMachine`(設計§2〜4)。
 RMB Look/Fly(WASDQE)、MMB Pan、Alt+LMB Orbit、Wheel Dolly/Zoom、RMB+Wheel速度、Shift/Ctrl速度修飾、
 `InvertLookX/Y`、`WritableSettingsStore`永続化(設計§10)。キーボードはVS標準ツールウィンドウ
-フォーカスモデル(ADR-0041決定事項2、`RenderSurfaceFocusPolicy`無改変)。
+フォーカスモデル(ADR-0041決定事項2、`RenderSurfaceFocusPolicy`無改変)。**実装済み(2026-08)**。
 
 **完了基準**: 状態機械・カメラ数学のユニットテスト(設計§11の該当行)グリーン。実機Experimental
 Instanceでナビゲーション操作と「コードエディタのTab/BS/Del非回帰」を目視確認。
@@ -70,6 +70,7 @@ Instanceでナビゲーション操作と「コードエディタのTab/BS/Del�
 
 `ScenePicker`(CPUレイキャスト、設計§5)。LMB選択/Ctrl+LMB複数選択、
 `SceneSelectionOrigin.Viewport`の発行(ヒエラルキーが追従=双方向化)、F(FocusSelection)。
+**実装済み(2026-08)**。
 
 **完了基準**: 交差クエリのユニットテスト。実機でビューポートクリック→ヒエラルキー選択同期を確認。
 
@@ -176,7 +177,59 @@ SceneDesignerContextMenuPolicyTests のテスト名を除く)
 復元しうる(`CSharpGameEngine\InitialLayoutApplied`設定により初回レイアウトは二度と走らない)。
 消えて見えない場合は`devenv /rootsuffix Exp /updateconfiguration`とウィンドウレイアウトのリセットを試す。
 
-Phase 1以降の検証結果は、各Phase完了時に本節へ追記する。
+### Phase 1(2026-08)
+
+```
+dotnet build CSharpGameEngine.slnx -c Debug → 成功、警告0/エラー0
+dotnet test  CSharpGameEngine.slnx -c Debug --no-build → 688件成功・失敗0(622 + 66)
+```
+
+実機Experimental Instanceでの検証で、コードエディタのTab/Backspace/Delete非回帰(最優先項目)は
+問題なかったが、以下3件が仕様と異なる挙動を示し、その場で修正した(詳細はConformance.md
+「2026-08 M0020 Phase 1: 実機検証で判明した3件の不具合」参照):
+
+1. **設計時の事実誤り**: ADR-0041決定事項2は「`WM_MOUSEWHEEL`はフォーカスを持つHWND宛」という
+   理解のもとホイールをWPF側`RenderHostGrid.PreviewMouseWheel`で受ける設計にしていたが、実機で
+   一度も発火しなかった。他のマウスメッセージと同様`RenderSurfaceWindow.WndProc`で直接受ける
+   実装へ戻し、機能しないWPF側購読は削除した。ADR-0041を訂正済み。
+2. **実装バグ**: `SceneViewState.TickFly`のPitch(上下Look)が既定で仕様と逆方向。共有関数
+   `SceneViewCamera.ApplyLookDelta`自体は変えず(Orbitは正しかったため)、Fly/Look呼び出し側で
+   `DeltaY`を反転して修正。
+3. **実装バグ**: `SceneViewState.ApplyPan`の左右(X)移動が既定で仕様と逆方向(上下Yは正しい)。
+   符号を反転して修正。
+
+ADR-0041決定事項8(「仕様§3の5項目のみ永続化」)もScene-Editor-Design.md §10と食い違っていたため
+「7項目(InvertLookX/Y含む)」へ訂正した。
+
+### Phase 2(2026-08)
+
+```
+dotnet build CSharpGameEngine.slnx -c Debug → 成功、警告0/エラー0
+dotnet test  CSharpGameEngine.slnx -c Debug --no-build → 707件成功・失敗0(688 + 19)
+```
+
+`ScenePicker`(Möller–Trumbore、CPUレイキャスト)・`SceneViewCamera.ScreenPointToRay`(unproject)・
+`SceneCameraFraming.ComputeSelectionBounds`・`SceneViewState.FocusOnBounds`・
+`SceneInputStateMachine`の`PendingSelect`状態はすべてユニットテストで固定した。
+`SceneHwndHost`/WPF側の配線(クリック→Pick→選択発行、ヒエラルキーとの双方向同期、Fキー)は
+Phase 1と同じ理由でユニットテスト対象外(VS SDK型への依存が深い)。
+
+**実機VS Experimental Instance での目視確認(未実施 — ユーザー側で実施)**:
+
+| # | 確認対象 | 何が証明されるか |
+|---|---|---|
+| 1 | ビューポートでオブジェクトをLMBクリック→そのオブジェクトがハイライトされる | Pick+単一選択 |
+| 2 | 空間(何もない場所)をLMBクリック→ハイライトが消える | 選択解除 |
+| 3 | 手順1の直後、ヒエラルキーツールウィンドウの該当ツリーアイテムがハイライトされる | 双方向化(Viewport→Hierarchy) |
+| 4 | ヒエラルキーで別ノードをクリック→ビューポートのハイライトが移る(既存の一方向、非回帰) | 既存経路の非回帰 |
+| 5 | オブジェクトをCtrl+LMBクリック→複数選択に追加。もう一度Ctrl+LMBクリック→選択から外れる | トグル |
+| 6 | オブジェクトを選択してF→カメラがそのオブジェクトを中心に再センタリングされる(視線方向は変わらない) | FocusSelection |
+| 7 | 何も選択していない状態でF→何も起きない | FocusSelectionの無選択ガード |
+| 8 | RMBでNavigation中(Flying)はLMBクリックが選択を開始しない | 仕様§12優先順位(Navigation>Selection) |
+| 9 | LMBを押したまま(PendingSelect中)にRMBを押す→Flyingへ切り替わる | 優先順位によるプリエンプト |
+| 10 | コードエディタのTab/Backspace/Deleteが引き続き効く | `RenderSurfaceFocusPolicy`非回帰 |
+
+Phase 3以降の検証結果は、各Phase完了時に本節へ追記する。
 
 ## 意図的に除外したこと(将来マイルストーン候補)
 

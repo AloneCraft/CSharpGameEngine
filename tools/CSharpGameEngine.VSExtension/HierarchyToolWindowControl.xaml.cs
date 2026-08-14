@@ -34,12 +34,36 @@ public partial class HierarchyToolWindowControl:UserControl {
         InitializeComponent();
 
         SceneEditorHub.SceneModelChanged+=this.OnSceneModelChanged;
+        SceneEditorHub.SelectedNodePathChanged+=this.OnSelectedNodePathChanged;
         this.Populate(SceneEditorHub.ActiveSceneModel);
     }
 
     // SceneWorkspaceService marshals to the UI thread before raising this, so no further marshaling
     // is needed here.
     private void OnSceneModelChanged(SceneModel?Model)=>this.Populate(Model);
+
+    /// <summary>
+    /// M0020 Phase 2: ビューポートでの選択(や将来の他origin)がここへ届く。<see cref="Populate"/>と
+    /// 違いツリーは再構築せず、既存の<see cref="SceneNodeViewModel"/>群の<c>IsSelected</c>だけを
+    /// 更新する(再解析のたびの木の再構築を待たずに即座に反映するため)。<c>IsSelected</c>は
+    /// <c>TreeViewItem.IsSelected</c>へTwoWayバインドされているので<see cref="Tree_SelectedItemChanged"/>
+    /// も発火するが、既存の<see cref="SuppressSelectionPublish"/>ガードで再Publishを止める
+    /// (元々「再構築後の選択復元」用に存在するガードをそのまま流用する)。
+    /// </summary>
+    private void OnSelectedNodePathChanged(NodePath?Path){
+        if(this.Tree.ItemsSource is not IReadOnlyList<SceneNodeViewModel>Roots){
+            return;
+        }
+
+        this.SuppressSelectionPublish=true;
+        try {
+            foreach(SceneNodeViewModel Node in Roots.SelectMany(static Root=>Root.SelfAndDescendants())){
+                Node.IsSelected=Path is { } Selected&&Selected.Equals(Node.Path);
+            }
+        } finally {
+            this.SuppressSelectionPublish=false;
+        }
+    }
 
     private void Populate(SceneModel?Model){
         this.CaptureCollapsedPaths();

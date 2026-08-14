@@ -70,6 +70,7 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             SceneSession=new SceneEditorSessionService(SceneWorkspace);
             SceneDesignerToolWindowPane.ConfigureSessionProvider(()=>this.SceneSession);
             SceneEditorHub.SelectedNodePathChanged+=this.OnLegacyHierarchySelectionChanged;
+            SceneSession.Selection.SelectionChanged+=this.OnSelectionChangedForHierarchy;
             SceneWorkspace.ModelChanged+=SceneEditorHub.PublishSceneModel;
             DocumentTracker=ActiveDocumentTracker.Start(SceneWorkspace);
             if(DocumentTracker is not null){
@@ -144,6 +145,26 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             Guid.NewGuid());
     }
 
+    /// <summary>
+    /// M0020 Phase 2: ヒエラルキーは静的<see cref="SceneEditorHub.SelectedNodePath"/>を読む段階移行中
+    /// (<see cref="HierarchyToolWindowControl"/>参照)のため、共通Selectionからの変更をここで橋渡しする。
+    /// Origin=Hierarchy自身の変更はTreeViewの見た目と既に一致しているので素通りする(往復回避)。
+    /// </summary>
+    private void OnSelectionChangedForHierarchy(SceneSelection Selection){
+        if(Selection.Origin==SceneSelectionOrigin.Hierarchy){
+            return;
+        }
+
+        if(this.SceneSession?.PinnedSnapshot is not { } Snapshot||!Snapshot.Key.Equals(Selection.Key)){
+            return;
+        }
+
+        NodePath?Path=Selection.PrimaryNodeId is { } Id&&Snapshot.Projection?.TryGetNode(Id,out SceneProjectionNode Node)==true
+            ?Node.Path
+            :null;
+        SceneEditorHub.PublishSelectedNodePath(Path);
+    }
+
     private async Task TryApplyInitialLayoutAsync(){
         try {
             if(await GameEngineLayout.WasInitialLayoutAppliedAsync(this)){
@@ -199,6 +220,10 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             DocumentTracker?.Dispose();
 
             SceneEditorHub.SelectedNodePathChanged-=this.OnLegacyHierarchySelectionChanged;
+            if(SceneSession is not null){
+                SceneSession.Selection.SelectionChanged-=this.OnSelectionChangedForHierarchy;
+            }
+
             SceneSession?.Dispose();
             SceneSession=null;
             SceneDesignerToolWindowPane.ConfigureSessionProvider(null);

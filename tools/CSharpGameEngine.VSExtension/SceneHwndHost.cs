@@ -49,6 +49,11 @@ internal sealed class SceneHwndHost:HwndHost {
     private Vector3 SceneBoundsCenter;
     private float SceneBoundsRadius=1f;
 
+    // M0020 Phase 2: ピッキング用。RenderObjectsはOnBuildCompletedのローカル変数だったが、
+    // クリックのたびに参照する必要があるためフィールドへ格納する(事前調査事実2)。
+    private IReadOnlyList<SceneRenderObject>CurrentRenderObjects=[];
+    private IReadOnlyList<NodePath>SelectedNodePaths=[];
+
     // M0020 Phase 1: ナビゲーション状態機械とカメラ/永続ツール状態(ADR-0041 決定事項1)。
     private SceneViewState?ViewState;
     private SceneInputStateMachine?InputMachine;
@@ -63,6 +68,13 @@ internal sealed class SceneHwndHost:HwndHost {
 
     /// <summary>Pointerの<c>Down</c>で発火。WPF側は購読して<c>Keyboard.Focus</c>をここでだけ呼ぶ(ADR-0041 決定事項2)。</summary>
     internal event Action?ViewportActivated;
+
+    /// <summary>
+    /// LMBクリックでの選択確定(M0020 Phase 2)。ヒットNodePath(空間クリックならnull)とCtrl押下を運ぶ。
+    /// <see cref="SceneEditorSessionService.Selection"/>への変換・発行はWPF側(<see cref="SceneHwndHost"/>は
+    /// セッションを知らない)。
+    /// </summary>
+    internal event Action<NodePath?,bool>?ObjectPicked;
 
     public SceneHwndHost(){
         // Surfaceは描画先でありキーボード入力を持つコントロールではない。HwndHostの既定
@@ -157,6 +169,17 @@ internal sealed class SceneHwndHost:HwndHost {
             ?Node.Path
             :null;
         Renderer?.SetSelectedNode(this.SelectedNodePath);
+
+        // FocusSelection(F)の境界球用(M0020 Phase 2)。ハイライトは単一(SetSelectedNode)のままだが、
+        // 複数選択時のFはdesign doc §3「選択ノード群の境界球」どおり全選択オブジェクトを収める。
+        List<NodePath>ResolvedPaths=[];
+        foreach(EditorNodeId NodeId in Selection.NodeIds){
+            if(Snapshot.Projection?.TryGetNode(NodeId,out SceneProjectionNode ResolvedNode)==true){
+                ResolvedPaths.Add(ResolvedNode.Path);
+            }
+        }
+
+        this.SelectedNodePaths=ResolvedPaths;
     }
 
     private void LoadIntoSurface(){
@@ -246,7 +269,13 @@ internal sealed class SceneHwndHost:HwndHost {
             ViewportActivated?.Invoke();
         }
 
-        SceneInputStepResult Result=Machine.Handle(Event);
+        // ヒットテストはLMB Down・Alt無し(Orbit開始と競合しない)の時だけ行う(M0020 Phase 2)。
+        // 状態機械自身はScenePicker/SceneRenderObjectを知らないため、結果だけを渡す。
+        NodePath?HitNodePath=Event.Kind==PointerEventKind.Down&&Event.Button==PointerButton.Left&&!Event.Modifiers.Alt
+            ?TryPickAt(Event.X,Event.Y)
+            :null;
+
+        SceneInputStepResult Result=Machine.Handle(Event,HitNodePath);
         switch(Result.Capture){
             case SceneCaptureAction.Begin:
                 Surface?.SetPointerCapture();
@@ -254,6 +283,10 @@ internal sealed class SceneHwndHost:HwndHost {
             case SceneCaptureAction.End:
                 Surface?.ReleasePointerCapture();
                 break;
+        }
+
+        if(Result.SelectionConfirmed){
+            ObjectPicked?.Invoke(Result.ConfirmedNodePath,Result.ConfirmedCtrl);
         }
 
         if(Result.DeltaX==0f&&Result.DeltaY==0f){
@@ -272,6 +305,16 @@ internal sealed class SceneHwndHost:HwndHost {
                 ViewState?.ApplyPan(Result.DeltaX,Result.DeltaY);
                 break;
         }
+    }
+
+    private NodePath?TryPickAt(int X,int Y){
+        if(ViewState is not { } State||CurrentRenderObjects.Count==0){
+            return null;
+        }
+
+        (Vector3 Origin,Vector3 Direction)=SceneViewCamera.ScreenPointToRay(
+            State.GetView(),State.GetProjection(this.AspectRatio),X,Y,SurfaceWidth,SurfaceHeight);
+        return ScenePicker.TryPick(CurrentRenderObjects,Origin,Direction,out NodePath Hit)?Hit:(NodePath?)null;
     }
 
     /// <summary>
@@ -307,6 +350,29 @@ internal sealed class SceneHwndHost:HwndHost {
 
     /// <summary>WPFの<c>LostKeyboardFocus</c>から呼ぶ。RMBは離されていないので状態遷移はしない。</summary>
     internal void ClearHeldFlyKeys()=>InputMachine?.HandleLostKeyboardFocus();
+
+    /// <summary>
+    /// WPFのFキーから呼ぶ(M0020 Phase 2)。design doc §4.2「ツール切替キーはIdle時のみ有効」に
+    /// 従いIdle以外では無視する。視線方向は変えず、選択ノード群の境界球へ再センタリングのみ行う
+    /// (<see cref="SceneViewState.FocusOnBounds"/>)。
+    /// </summary>
+    internal void RequestFocusSelection(){
+        if(InputMachine is not { } Machine||Machine.State!=SceneNavState.Idle){
+            return;
+        }
+
+        if(ViewState is not { } State||SelectedNodePaths.Count==0){
+            return;
+        }
+
+        List<SceneRenderObject>Selected=[..CurrentRenderObjects.Where(Object=>SelectedNodePaths.Contains(Object.NodeId))];
+        if(Selected.Count==0){
+            return;
+        }
+
+        (Vector3 Center,float Radius)=SceneCameraFraming.ComputeSelectionBounds(Selected);
+        State.FocusOnBounds(Center,Radius);
+    }
 
     /// <summary>(Re)builds <see cref="Renderer"/> from the pin 済み <see cref="SceneDocumentSnapshot"/>.</summary>
     private void Rebuild(){
@@ -391,6 +457,7 @@ internal sealed class SceneHwndHost:HwndHost {
         try {
             DisposeRenderer();
             (this.SceneBoundsCenter,this.SceneBoundsRadius)=SceneCameraFraming.ComputeBounds(Result.RenderObjects);
+            this.CurrentRenderObjects=Result.RenderObjects;
 
             Matrix4x4 View;
             Matrix4x4 Projection;
