@@ -10,12 +10,12 @@ namespace UserEcsProject.Scenes;
 [StartupScene(Order=1)]
 internal partial class FirstPersonStageScene:IScene {
     public Node Root=>new(){
-        Name="Lvl_FirstPerson",
+        Name="Lvl_FirstPerson", 
         Components=[
             new AmbientLight {
                 ColorR=1f,
                 ColorG=1f,
-                ColorB=1f,
+                ColorB=1f,  
                 Intensity=1f,
             },
             new HeightFog {
