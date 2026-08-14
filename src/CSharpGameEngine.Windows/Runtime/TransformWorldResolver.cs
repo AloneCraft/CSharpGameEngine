@@ -4,7 +4,7 @@ using System.Numerics;
 
 namespace CSharpGameEngine.Runtime.Windows;
 
-/// <summary>??Transform????????cycle?????????????????????????</summary>
+/// <summary>親Transform解決の結果。cycleや親の欠落を呼び出し側が区別して扱えるようにする。</summary>
 public enum TransformResolveStatus {
     Success,
     MissingTransform,
@@ -12,13 +12,13 @@ public enum TransformResolveStatus {
     Cycle,
 }
 
-/// <summary>World????Component?????????reflection?????delegate?????</summary>
+/// <summary>WorldからComponentを引くためのアクセサ。reflectionを使わずdelegateで注入する。</summary>
 public delegate bool TryGetLocalTransform(int EntityId,out Transform Transform);
 public delegate bool TryGetParentEntity(int EntityId,out int ParentEntityId);
 
 /// <summary>
-/// Local Transform???????????????????cache???world = local * parentWorld ???
-/// ????Entity.Id????stack???????????frame?????<see cref="BeginFrame"/>??????
+/// Local Transformを親へ遡って合成し、結果をcacheしながら world = local * parentWorld を解決する。
+/// 再帰はEntity.Idの訪問集合でcycleを検出し、frameごとに<see cref="BeginFrame"/>でcacheを破棄する。
 /// </summary>
 public sealed class TransformWorldResolver {
     private readonly Dictionary<int,Matrix4x4>WorldByEntity=[];

@@ -5,8 +5,8 @@ using CSharpGameEngine.SceneAnalysis;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// AsyncPackage ???????? Scene Editor session ???static global state ??????? Scene ?
-/// <see cref="SceneKey"/> ? pin ??Roslyn ????? immutable snapshot ??????????????
+/// AsyncPackage が保持する Scene Editor session。static global state を廃し、対象 Scene を
+/// <see cref="SceneKey"/> で pin して、Roslyn 解析結果を immutable snapshot として購読側へ発行する。
 /// </summary>
 internal sealed class SceneEditorSessionService : IDisposable {
     private readonly SceneWorkspaceService Workspace;
@@ -27,15 +27,15 @@ internal sealed class SceneEditorSessionService : IDisposable {
 
     internal SceneDocumentSnapshot?PinnedSnapshot { get;private set;}
 
-    /// <summary>pin ?? Scene ????? snapshot ????????????????Viewport?retarget?????</summary>
+    /// <summary>pin 中の Scene の最新 snapshot が差し替わったときに発火する。Viewport の retarget も購読する。</summary>
     internal event Action<SceneDocumentSnapshot?>?PinnedSnapshotChanged;
 
-    /// <summary>Hierarchy?????????????Document??????????????UI?????????</summary>
+    /// <summary>Hierarchyなど、アクティブDocument内の全Sceneモデルを表示するUIが購読するイベント。</summary>
     internal event Action<IReadOnlyList<SceneModel>>?ActiveDocumentModelsChanged;
 
     internal SceneDocumentSnapshot Pin(SceneModel Model){
         SceneKey Key=this.Workspace.TryCreateSceneKey(Model)
-            ??throw new InvalidOperationException("Scene Designer ????????????? C# Document ???????");
+            ??throw new InvalidOperationException("Scene Designer の対象にできるのはソリューション内の C# Document だけです。");
         SceneDocumentSnapshot Snapshot=this.Publish(Model,Key);
         this.PinnedSceneKey=Key;
         this.PinnedSnapshot=Snapshot;

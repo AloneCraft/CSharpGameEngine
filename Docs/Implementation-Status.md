@@ -23,6 +23,9 @@ F-L9-003・F-L9-004を更新の上でF-L3系4件・F-L7系3件・F-L9系1件を�
 ADR-0030(C#コードをSceneの唯一の正本とするScene Authoring Phase A、M0010)でF-L3系1件・
 F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラスのコンテキストメニュー
 3Dプレビュー、M0011)でF-L8-003を更新の上でF-L7系1件・F-L8系1件・F-L9系1件を新規追加しています。
+2026-08のシーンエディタ設計文書整備(ADR-0040全面改稿・ADR-0041/M0019/M0020/
+Scene-Editor-Design.md新規)でF-L8-011をPlannedで追加し、F-L4-002/F-L8-010の「ADR-0040自体の
+文書化はPhase 11で行う」注記を解消、旧`Docs/EditorSpec.md`の削除に伴う参照注記を行いました。
 
 ---
 
@@ -725,7 +728,8 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
 - Status: **Removed**(ADR-0034 / M0014)
 - Verification: N/A
 - Intended specification: Docs/Decisions/ADR-0020-Scene-Preview-And-Hierarchy-Selection-Sync.md、
-  Docs/EditorSpec.md §3(データモデル)
+  Docs/EditorSpec.md §3(データモデル。旧仕様書、2026-08削除。後継:
+  `Docs/シーンエディタの仕様.md` / [[ADR-0041-Scene-Editor-Interaction-Architecture]])
 - Removal rationale: Scene Authoringが[[ADR-0030-Scene-Authoring-CSharp-Source-Of-Truth]]/
   [[ADR-0031-Scene-Definition-3D-Preview]]でC#正本方式(`[SceneDefinition]`+`GameSystemGenerator`)へ
   移った後、このJSON方式実装には**生きた利用者が1つも残らなかった**(参照は自分自身のテストのみ)。
@@ -757,8 +761,9 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
 - Known deviations: `UserGameProject.csproj`への`CSharpGameEngine.Scene`への`ProjectReference`は
   ついに追加されなかった。ランタイム統合はEditorSpec Phase 4のスコープだったが、その前に
   Scene AuthoringがC#正本方式へ移ったため、このJSON実装は一度も本番経路に載らずに終わった。
-- Next action: 無し。EditorSpec Phase 2/Phase 4のランタイム統合は、C#正本方式
-  (`[SceneDefinition]` / `CreateRuntime(ref World)`)の上で設計する。
+- Next action: 無し。(2026-08追記)旧EditorSpec Phase 2/Phase 4相当のランタイム統合は、その後
+  `IScene`/`[StartupScene]`方式(ADR-0038/0040)として実装済み。EditorSpec.md自体も2026-08に削除し、
+  生き残り項目は[[M0020-Scene-Editor-Interaction]]へ移設した。
 
 ## F-L8-003 — シーンダブルクリックプレビューとヒエラルキー選択連動
 
@@ -932,7 +937,8 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
 - Reverse-engineered behavior:
   - 8ボタン(ボックス・球形・シリンダー・カプセル・コーン・トーラス・矩形・ディスク)のみ
     `Click`ハンドラを持ち、残り10ボタンは`IsEnabled="False"`のプレースホルダー
-    (対話的ギズモ操作が前提でEditorSpec §6のスコープ外)。
+    (対話的ギズモ操作が前提でEditorSpec §6のスコープ外。EditorSpec.mdは2026-08に削除され、
+    ギズモ操作は[[ADR-0041-Scene-Editor-Interaction-Architecture]] / M0020のスコープになった)。
   - `PrimitiveSpawner.SpawnAsync`: `UserGameProject/Assets/Primitives/<Name>.glb`が無ければ
     `tools/CSharpGameEngine.Primitive.Cli`をアウトオブプロセスで起動して生成(2回目以降は
     キャッシュされたファイルを再利用)、`SceneEditorHub.ActiveScene`が無ければ案内メッセージを
@@ -954,7 +960,8 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
 ## F-L8-007 — ヒエラルキーへのドラッグ&ドロップ配置(`SceneNodeAdder`)
 
 - Layer: L8 — Visual Studio Authoring Environment
-- Parent capability: ヒエラルキーへのドラッグ&ドロップ配置(EditorSpec Phase 2前半)
+- Parent capability: ヒエラルキーへのドラッグ&ドロップ配置(旧EditorSpec Phase 2前半。
+  EditorSpec.mdは2026-08削除、生き残り項目は[[M0020-Scene-Editor-Interaction]]へ移設)
 - Status: Implemented
 - Verification: TestVerified(ビルドのみ。ソリューションエクスプローラーからの実ドラッグ操作は
   実機未確認)
@@ -981,8 +988,10 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
 - Known deviations: ソリューションエクスプローラーからの実ドラッグで`DataFormats.FileDrop`が
   実際に得られるかは実機未確認。得られない場合はVS固有形式(`CF_VSSTGPROJECTITEMS`)への
   切り替えが必要になる可能性がある。
-- Next action: VS実験用インスタンスで実際にファイルをドラッグしてヒエラルキーにドロップし、
-  ノードが追加されることを実機確認する。
+- Next action: (2026-08更新)この機能はPhase 9以降、`SceneEditorHub.ActiveScene`の発行元が
+  無くなり恒久エラーになる受け入れ済み退行状態(F-L8-010参照)。`SceneNodeAdder`/`SceneFile`は
+  M0020 Phase 0で削除し、Roslynベースのソース書き込み(`SceneEditOperation`)へ移行する予定
+  ([[ADR-0041-Scene-Editor-Interaction-Architecture]])。実機ドラッグ確認は移行後に実施する。
 
 ## F-L8-008 — ブリッジプロセスの常駐化(`CSharpGameEngine.Bridge.Hosting`/`ResidentBridgeClient`)
 
@@ -2356,7 +2365,8 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
 - Status: Implemented
 - Verification: TestVerified、RuntimeVerified
 - Intended specification: なし(新規ADRは書かず、既存フェーズと同じく`ADR-0040 / M0019 Phase 6`として
-  コミット。ADR-0040自体の文書化はPhase 11で行う)
+  コミット。ADR-0040自体の文書化はPhase 11で行う → 2026-08に完了、
+  [[ADR-0040-CSharp-Scene-DSL-and-Bidirectional-Editor]]改稿・[[M0019-CSharp-Scene-DSL]]参照)
 - Implementation evidence:
   - src/CSharpGameEngine.Windows/Runtime/PrimitiveType.cs
   - src/CSharpGameEngine.Windows/Runtime/PrimitiveMesh.cs
@@ -2406,7 +2416,8 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
 - Status: Implemented
 - Verification: TestVerified(実機VS Experimental Instanceでの目視確認はユーザー側で実施予定)
 - Intended specification: なし(新規ADRは書かず、既存フェーズと同じく`ADR-0040 / M0019 Phase 9`として
-  コミット。ADR-0040自体の文書化はPhase 11で行う)
+  コミット。ADR-0040自体の文書化はPhase 11で行う → 2026-08に完了、
+  [[ADR-0040-CSharp-Scene-DSL-and-Bidirectional-Editor]]改稿・[[M0019-CSharp-Scene-DSL]]参照)
 - Implementation evidence:
   - tools/CSharpGameEngine.VSExtension/SceneModelRenderObjectBuilder.cs(新規)
   - tools/CSharpGameEngine.VSExtension/SceneHwndHost.cs(`.scene`読み込みをSceneModel解決へ全面改修)
@@ -2466,11 +2477,33 @@ F-L7系2件・F-L9系1件を新規追加、ADR-0031(`[SceneDefinition]`クラス
   完了時点で一時的に機能しなくなる(`SceneEditorHub.ActiveScene`を発行する経路が無くなったため、
   常に「シーンファイルを開いてください」エラーになる) — Phase 10でRoslynベースのソース書き込みへ
   移行するまでの既知の受け入れ済み退行。
-- Next action: 実機VS Experimental Instanceでの目視確認(ユーザー側): (1) `PrimitiveShowcaseScene.cs`
-  (2クラス)を開きコードエディタ右クリック→「シーン デザイナーで開く」→ピッカー表示、
-  (2) `MainScene.cs`(1クラス)で同操作→ピッカー無しで直接表示、(3) Box/Sphereプリミティブの
-  描画確認、(4) Transform値編集後250ms程度での反映確認、(5) Tab/Backspace/Delete等の既存VS入力の
-  回帰確認。
+- Next action: (2026-08更新)実機VS Experimental Instanceでの目視確認は未消化のまま
+  [[M0020-Scene-Editor-Interaction]] Phase 0の完了基準へ統合した。あわせてPhase 0では
+  `SceneModelRenderObjectBuilder`のTransform型ハードコード(`global::UserEcsProject.Transform`)に
+  起因する「実シーンが全ノードIdentityで原点に固まって描画される」バグの修正と、階層Transform
+  合成を行う([[ADR-0041-Scene-Editor-Interaction-Architecture]])。なお本エントリのImplementation
+  evidenceにある`ScenePickerDialog.xaml(.cs)`は、その後のコミット(`eeaae1b`/`40f08e4`)で
+  `SceneDesignerToolWindowControl`内の`SceneSelector`コンボボックスへ置き換えられて削除済み
+  (歴史的記録として残す)。
+
+## F-L8-011 — シーンエディタ インタラクション基盤(ナビゲーション・ピッキング・ギズモ・編集トランザクション)
+
+- Layer: L8 — Visual Studio Authoring Environment
+- Parent capability: Scene DSL双方向エディタ(ADR-0040)の操作系
+- Status: Planned
+- Verification: N/A(未実装)
+- Intended specification: `Docs/シーンエディタの仕様.md`(要求仕様)、
+  Docs/Decisions/ADR-0041-Scene-Editor-Interaction-Architecture.md(意思決定)、
+  Docs/Specifications/Scene-Editor-Design.md(詳細設計)
+- Implementation evidence: なし(計画のみ。フェーズ計画と完了基準は
+  [[M0020-Scene-Editor-Interaction]])
+- Tests: 計画(Scene-Editor-Design.md §11のテスト戦略: 入力状態機械・カメラ数学・レイキャスト・
+  ギズモ拘束ソルバ・編集トランザクションの純粋層ユニットテスト)
+- Reverse-engineered behavior: N/A
+- Conformance: N/A
+- Known deviations: N/A
+- Next action: M0020 Phase 0(前提バグ修正とデッドコード削除)から着手する。
+
 # 2026-08 UE FirstPerson宣言型Scene移行
 
 - `UserGameProject`と一体型`Lvl_FirstPerson.glb`ランタイムを廃止し、`UserEcsProject`へ統合した。

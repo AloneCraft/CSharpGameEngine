@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis.CSharp;
 
 namespace CSharpGameEngine.VSExtension.Tests;
 
-/// <summary>Designer??????Syntax??????????comment/trivia??????????????</summary>
+/// <summary>Designerからの編集がSyntaxの対象箇所だけを置換し、comment/triviaを保持することを固定する。</summary>
 public sealed class SceneSourceEditorTests {
     private const string Source="""
         using CSharpGameEngine.Entities;
@@ -15,7 +15,7 @@ public sealed class SceneSourceEditorTests {
             public Node Root=>new() {
                 Children=[
                     new Node {
-                        Name="Cube", // ?????????
+                        Name="Cube", // 手書きの大事なコメント
                         Components=[new DirectionalLight { Intensity=3f }],
                     },
                 ],
@@ -36,7 +36,7 @@ public sealed class SceneSourceEditorTests {
         Assert.True(Result.Succeeded,Result.ErrorMessage);
         string Changed=Result.Root!.ToFullString();
         Assert.Contains("Intensity=4f",Changed);
-        Assert.Contains("// ?????????",Changed);
+        Assert.Contains("// 手書きの大事なコメント",Changed);
         Assert.Contains("Name=\"Cube\"",Changed);
     }
 
@@ -52,7 +52,7 @@ public sealed class SceneSourceEditorTests {
         string Changed=Result.Root!.ToFullString();
         Assert.Contains("Name=\"Renamed\"",Changed);
         Assert.Contains("Intensity=3f",Changed);
-        Assert.Contains("// ?????????",Changed);
+        Assert.Contains("// 手書きの大事なコメント",Changed);
     }
 
     [Fact]

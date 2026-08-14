@@ -653,3 +653,29 @@ RE-L3-011・RE-L7-012〜013・RE-L9-006を追加した。ADR-0031(`[SceneDefinit
   drives the actual generated `RunFrame` chain with two `[StartupScene]` classes and asserts both
   produce an entity (previously only one did); full `CSharpGameEngine.CodeAnalysis.Tests` suite
   (100/100); live `UserEcsProject.exe` re-verified with both a Box and a Sphere primitive visible.
+
+## 2026-08 シーンエディタ設計文書整備(ADR-0040改稿・ADR-0041/M0019/M0020新規・EditorSpec削除・文字化け修復)
+
+- Mismatch → now Matches: `Docs/Decisions/ADR-0040-...md`(初版41行)とVSIX/Runtime/テストの
+  計12コードファイルは、日本語コメント・エラーメッセージ文字列が全て literal `?` に化けた状態で
+  コミットされていた(`394ff04`のblob時点で破損。`git show 394ff04:<file>`で確認、履歴からの
+  復元は不能)。ADR-0040は日本語で全面改稿し(当初「Phase 11で文書化」と先送りしていた正式文書化)、
+  12ファイルのコメント・メッセージ文字列はコード理解に基づいて書き直した(ロジック行は無変更)。
+- ObsoleteSpecification removed: `Docs/EditorSpec.md`(`.scene` JSON前提の目標仕様書。ギズモ・
+  Undo/Redo・複数選択をスコープ外と宣言)は`Docs/シーンエディタの仕様.md`と正面矛盾するため削除した。
+  生き残り項目(C#スクリプトアタッチ / Play WYSIWYG / Inspector本体)は
+  `Docs/Milestones/M0020-Scene-Editor-Interaction.md`の「意図的に除外したこと」へ移設して保全。
+  歴史的ADR(0015/0020/0021/0022/0030)内のEditorSpec参照は当時の記録として温存し、
+  living docs(Implementation-Status/Architecture)側の参照には削除注記を付けた。
+- 新規文書: `ADR-0041-Scene-Editor-Interaction-Architecture.md`(インタラクション基盤の意思決定、
+  全項目Planned)、`Docs/Specifications/Scene-Editor-Design.md`(クラスレベル詳細設計)、
+  `Docs/Milestones/M0019-CSharp-Scene-DSL.md`(Phase 1〜9回顧録)、
+  `Docs/Milestones/M0020-Scene-Editor-Interaction.md`(Phase 0〜7前方計画)。台帳へF-L8-011
+  (Planned)を追加。
+- 既知の実装バグの文書化(修正はM0020 Phase 0): `SceneModelRenderObjectBuilder.cs`のTransform型
+  ハードコード(`global::UserEcsProject.Transform`)により、実シーン
+  (`global::CSharpGameEngine.Runtime.Windows.Transform`)が全ノードIdentityで原点に固まって
+  描画される。単体テストは`namespace UserEcsProject`のフィクスチャを自前宣言しているため
+  グリーンのまま実バグを検出しない。あわせて階層Transform合成の未実装も記録した。
+- Evidence: `grep -rE '\?{4,}'`が対象拡張子で0件、`dotnet build CSharpGameEngine.slnx -c Debug`
+  成功・`dotnet test`全件成功(文書整備・コメント修復の前後で不変)。

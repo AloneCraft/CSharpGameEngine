@@ -1,0 +1,274 @@
+# ADR-0041: Scene Editorインタラクション基盤(ナビゲーション・ピッキング・ギズモ・編集トランザクション)
+
+## ステータス
+
+承認済み(全決定事項は**未実装・計画済み**)。実装は[[M0020-Scene-Editor-Interaction]]のPhase 0〜7で
+段階的に行い、各Phase完了時に本文書の「検証結果」へ実行結果を追記する。要求仕様は
+`Docs/シーンエディタの仕様.md`(§1〜23)、既存基盤は
+[[ADR-0040-CSharp-Scene-DSL-and-Bidirectional-Editor]]を前提とする。
+
+## 背景
+
+`Docs/シーンエディタの仕様.md`は、Unityの操作体系を基本にUE/Blender/Mayaの操作を選択採用した
+シーンエディタの要求仕様であり、次を要求する: RMBフライ/Orbit/Pan/Dollyのナビゲーション(§4)、
+W/E/RのTransformツールとLMB選択(§5)、Shift=FollowView/Alt=Duplicate/Ctrl=Snapの修飾(§6)、
+V/Nホールドの頂点・面スナップ(§7)、`CompoundGizmo = TransformGizmo + PropertyGizmo`の合成(§8〜11)、
+入力優先順位(§12)、宣言コードとの双方向同期・編集トランザクション・共通Undo(§13〜19)、
+SceneView状態を宣言へ保存しない原則(§20)。
+
+現状(ADR-0040 Phase 9完了時点)とのギャップ:
+
+- Code→Editor方向のライブ表示は動くが、ビューポート入力は皆無。`RenderSurfaceWindow.WndProc`は
+  `WM_SIZE`/`WM_MOUSEACTIVATE`(`MA_NOACTIVATE`を返しマウスメッセージ自体は届く)/`WM_SETFOCUS`
+  (直前の所有者へ即時返却)しか処理しない。
+- この振る舞いは`RenderSurfaceFocusPolicy`として意図的に設計されたもの。ネイティブ子HWNDが
+  Win32フォーカスを保持するとWPFの`Keyboard.FocusedElement`と脱同期し、**VS全体の**Tab/Backspace/
+  Deleteがセッション終了まで壊れる実バグ(コミット`a162478`)への対策であり、無効化できない。
+- Editor→Code配管(`SceneSourceEditor`/`SceneTextBufferWriter`)は完成済みだが呼び出し元ゼロ。
+  `SceneEditOperationKind`11種のうち実装は2種。
+- カメラは`SceneRenderer`内の固定計算(bounds中心+`normalize(1,0.75,1)*radius*3`、FOV 45°)で、
+  `SceneRenderer`自体が再解析のたびに破棄・再生成されるため編集状態を持てない。
+- ピッキング・レイキャスト・ギズモ描画・ライン描画は一切存在しない(リポジトリ全域でヒット0件を
+  確認済み)。
+- `SceneModelRenderObjectBuilder`のTransform型ハードコードバグ(ADR-0040既知の制約)により、
+  実シーンが原点固まりで描画される。ワールド行列が正しくない限りギズモの配置は成立しない。
+
+ユーザーの指定(2026-08確認): キーボード入力は「エディタ(コードエディタ)から**フォーカスを
+奪わない**。対象ツールウィンドウのコントロールにフォーカスがあるときだけ効く」方式とする。
+旧仕様`Docs/EditorSpec.md`(ギズモ・Undo・複数選択をスコープ外と宣言した`.scene` JSON前提の設計)は
+本仕様と正面から矛盾するため削除する(生き残り項目はM0020「意図的に除外したこと」へ移設)。
+
+## 決定事項
+
+### 1. `SceneViewState`: 編集ビュー状態はRendererの外で生存させる
+
+新規クラス`SceneViewState`(VSIX内、純C#・依存なし)に仕様§2/§3の状態を集約する。
+
+| 分類 | 内容 |
+|---|---|
+| 視点 | 位置・Yaw/Pitch、`FocusPosition`、`FocusDistance` |
+| 投影 | `ProjectionMode`(Perspective/Orthographic)、FovY、OrthographicSize |
+| 永続ツール状態 | `ActiveTool`(Select/Move/Rotate/Scale)、`TransformSpace`(World/Local)、`NavigationPreset`、`NavigationSpeedMultiplier` |
+
+所有者は`SceneHwndHost`。`SceneRenderer`は再解析のたびに破棄・再生成される(当面は現行仕様のまま、
+決定事項11参照)ため、**`SceneRenderer`には一切の編集状態を置かない**。`SceneRenderer`は
+`ComputeViewMatrix`の固定計算をやめ、view/proj行列を毎フレーム外部から受け取る
+(`SetCamera(in Matrix4x4 View,in Matrix4x4 Projection)`+毎フレームの定数バッファ更新)。
+
+カメラ数学はnet10.0側の実績実装`src/CSharpGameEngine.Windows/Graphics/Camera.cs`(orbit、
+`ApplyMouseDelta`、`CreateBoundsFit`、純`System.Numerics`、テスト済み)を**net472へ複製**する。
+TFM境界の共有は`GizmoMeshFactory.cs`冒頭コメントの前例(小さな断片は複製し、ランタイムAPIを
+エディタ都合で汚さない)に従う。初期フレーミングは`CreateBoundsFit`相当を用い、現行の見た目
+(`normalize(1,0.75,1)`方向からのバウンズフィット)を維持する。座標系は
+[[ADR-0026-Camera-Geometry-Ruf-Integration]]のエンジン規約(左手系、+Y up、+Z forward)。
+
+### 2. 入力ルーティング: マウスはWndProc→純粋状態機械、キーボードはVS標準フォーカスモデル
+
+**マウス**: `RenderSurfaceWindow.WndProc`に`WM_LBUTTONDOWN/UP`・`WM_RBUTTONDOWN/UP`・
+`WM_MBUTTONDOWN/UP`・`WM_MOUSEMOVE`・`WM_MOUSEWHEEL`を追加する。`WM_MOUSEACTIVATE`が
+`MA_NOACTIVATE`でもマウスメッセージは子HWNDへ届く(現行コメントが「将来のPicking入力のために
+維持」と明記している経路)。メッセージはイベントへ変換して新規の**純粋・ユニットテスト可能**な
+`SceneInputStateMachine`へ転送する。
+
+- 状態機械は仕様§12の優先順位(1. Modal操作 2. ナビゲーション 3. ギズモ操作 4. 選択
+  5. コンテキストメニュー)を状態遷移として実装する。RMBドラッグ中は選択・ギズモ操作を開始しない。
+  ドラッグ開始で`SetCapture`、終了・`Esc`キャンセルで解放。
+- WPF/Win32型に依存しない入力イベント型(ボタン・座標・修飾キー・ホイール量)を定義し、
+  状態機械・カメラ数学・ギズモ判定は`RenderSurfaceFocusPolicyTests`と同様にVS無しでテストする。
+
+**キーボード(ユーザー指定の方式)**: VS標準のツールウィンドウフォーカスモデルに従う。
+
+- ビューポートをクリックしたら、WPF側のフォーカス可能要素(`SceneDesignerToolWindowControl`内の
+  ホストGrid)へ`Keyboard.Focus`する。これは「ユーザーがそのツールウィンドウを操作した」通常の
+  アクティブ化であり、他のVSツールウィンドウと同じ振る舞い。
+- **ネイティブ子HWNDは引き続きWin32フォーカスを一切取らない**。`RenderSurfaceFocusPolicy`
+  (`MA_NOACTIVATE`・`WM_SETFOCUS`即時返却・`AllowTabInto=false`)は無改変。
+- W/E/R/F/V/N/Q/A/S/D/Esc等の単発・ホールドキーは、そのWPF要素の`KeyDown`/`KeyUp`で処理する。
+  **フォーカスを持たないときは一切反応しない**(コードエディタでWを打ってもツールは切り替わらない)。
+- コードエディタからフォーカスを奪う自動アクティブ化・`SetForegroundWindow`・`Activate()`は行わない
+  (F5起動フォーカス問題の再発防止と同じ原則)。
+- 修飾キー(Shift/Ctrl/Alt)はイベント時点の`Keyboard.Modifiers`(必要ならWin32 `GetKeyState`)で
+  読む押下状態参照のみで、フォーカスに依存しない。
+- RMBフライ中のWASDQEは、RMB押下(=クリックでフォーカス取得済み)後のWPF `KeyDown`/`KeyUp`で
+  押下集合を管理し、描画ティックで移動へ積分する。`WM_KILLFOCUS`相当(WPF `LostKeyboardFocus`)で
+  押下集合をクリアし、キーの取りこぼしによる走り続けを防ぐ。
+
+### 3. ピッキングはCPUレイキャスト(選択・頂点スナップ・面スナップを同一クエリ層で)
+
+`SceneRenderObject`はCPU側に`SimpleMesh`(positions/indices)とワールド行列を既に保持しているため、
+GPUピッキングは使わず、新規の純粋クラス`ScenePicker`でCPUレイキャストを行う。
+
+- レイ生成: スクリーン座標→NDC→view/proj逆変換(unproject)。Orthographic時は平行レイ。
+- 三角形交差: Möller–Trumbore。全オブジェクトの全三角形を線形走査し最近ヒットを採用する
+  (現行のシーン規模では加速構造は不要。必要になったら後続ADRで導入を判断する)。
+- 同一クエリ層に仕様§7のスナップクエリを実装する:
+  頂点スナップ=スクリーン半径内の最近頂点(Position のみ変更)、
+  面スナップ=最近ヒットの交点+面法線(Position+Rotation整列、`AlignRotationToNormal`設定で
+  Rotation整列のみ無効化可)。
+- ギズモハンドルは三角形メッシュではなく解析形状(円柱・トーラス断片・クアッド)で先行判定し、
+  仕様§12の優先順位(ギズモ操作 > 選択)を実現する。
+
+### 4. ギズモ描画: 深度無効オーバーレイの第2 PSOと`CompoundGizmo`合成
+
+`SceneRenderer`に第2のパイプラインステート(オーバーレイパス)を追加する: 深度テスト無効
+(常に手前)、ラインとソリッドの両トポロジ、ホバー/アクティブ状態の色は既存`Selected`フラグと
+同様のper-object定数で切り替える。ハンドル形状(矢印・リング・クアッド・円錐等)は
+`GizmoMeshFactory`を拡張した手続き生成。ギズモのスクリーン一定サイズは
+`FocusDistance * tan(FovY/2) * 定数`のスケーリングで実現する。
+
+クラス構造は仕様§8の合成モデルをそのまま採用する(置き換えではなく合成):
+
+```text
+CompoundGizmo
+├─ TransformGizmo(Move/Rotate/Scaleハンドル。全対象共通)
+└─ PropertyGizmo(Component固有: FrustumGizmo、RangeGizmo等。対象Componentがあるときだけ合成)
+```
+
+修飾キーの適用可否は仕様§11の表に従う(Snapは両方、FollowViewはTransformのみ既定、Duplicateは
+PropertyGizmoに原則不適用)。
+
+### 5. 編集トランザクション: ドラッグ=プレビュー、MouseUp=1コミット(仕様§16〜19)
+
+ADR-0040決定事項9を具体化する。新規`EditTransactionController`が1ユーザー操作を1トランザクション
+として管理する。
+
+```text
+MouseDown(ハンドル確定)
+  → BeginTransaction: 対象EditorNodeId・元値・snapshot.DocumentVersionを捕捉(in-flightロック)
+Drag
+  → プレビュー: SceneRenderer.UpdateObjectTransform(NodePath, Matrix4x4)で表示だけ更新
+  → トランザクション中に届いた新snapshotは適用せず保留キューへ(SetTarget保留)
+MouseUp
+  → SceneEditOperationバッチ生成 → SceneSourceEditor.ApplyLatest(EditorNodeIdで1回リベース)
+  → SceneTextBufferWriter.TryApply(1 ITextUndoTransaction)
+  → 保留snapshotを解放し、通常の再解析ループが表示を確定
+Esc
+  → プレビュー破棄・元値へ復帰・保留snapshot解放(テキスト無変更なのでUndo履歴も汚れない)
+```
+
+- `SceneRenderer`へ追加するプレビューAPIは`UpdateObjectTransform`(既存の定数バッファ書き換えの
+  範囲で実装可能)のみ。メッシュ・ロースターの変更はプレビューしない。
+- 競合(仕様§18〜19): 操作中はロック(上記の保留)、コミット時に`DocumentVersion`が進んでいれば
+  `ApplyLatest`が1回リベース、リベース不能(ノード消失等)なら**プレビューを破棄して通知**する
+  (自動上書きしない)。ドラッグ中に外部編集が同一ノードを消した場合もMouseUp時にこの経路へ落ちる。
+- Undo/Redo(仕様§17)は追加実装なし: テキストUndoが戻ればADR-0040決定事項1のループが表示も戻す。
+
+### 6. `SceneEditOperationKind`のフェーズ割当
+
+| 操作 | 実装Phase | 備考 |
+|---|---|---|
+| SetComponentMember / RenameNode | 実装済み(ADR-0040) | 配線のみM0020 |
+| SetTransform | Phase 3 | 内部的に`PositionX/Y/Z`等のフラットfloatへの`SetComponentMember`束として実装(メンバー欠落時は追記が必要になるため専用opとして扱う) |
+| DuplicateNode | Phase 5 | 対象Nodeの`ObjectCreationExpression`を丸ごと複製し兄弟末尾へ挿入(`ChildrenListLocation`アンカー使用) |
+| AddComponent / RemoveComponent | Phase 6 | Camera/Lightギズモが必要とする範囲のみ |
+| AddNode / RemoveNode / ReparentNode / ReorderNode / AssignAsset | M0020スコープ外 | ヒエラルキー編集マイルストーン(将来)で実装 |
+
+### 7. `NavigationPreset`: 物理入力と操作概念の分離(仕様§1/§3)
+
+「物理入力(ボタン+キー+修飾)→概念操作(`Look`/`Fly`/`Pan`/`Orbit`/`Dolly`/`Zoom`/
+`AdjustNavigationSpeed`/`FocusSelection`/…)」のバインディングテーブルをデータとして定義し、
+状態機械は概念操作だけを見る。M0020では`Default`(仕様§4/§21の表そのもの)と`Custom`の器のみを
+実装し、Unity/Unreal/Blender/Mayaプリセットの具体値充填は保留する(プリセット差分はテーブルの
+データ差分に閉じるため、後から追加してもアーキテクチャに影響しない)。`InvertLookX`/`InvertLookY`は
+独立した設定項目(仕様§4.1)。
+
+### 8. 永続状態の保存先はVS `WritableSettingsStore`(仕様§3/§20)
+
+`GameEngineLayout.cs`の既存前例(`ShellSettingsManager`→`SettingsScope.UserSettings`、コレクション
+`CSharpGameEngine`)に倣い、コレクション`CSharpGameEngine\SceneEditor`へ仕様§3の5項目
+(`ActiveTool`/`TransformSpace`/`ProjectionMode`/`NavigationPreset`/`NavigationSpeedMultiplier`)
+のみを保存する。カメラ姿勢・`FocusPosition`・選択・ギズモ表示状態はセッション内のみ
+(`SceneKey`別の永続化は将来判断)。**`SceneDeclaration`(C#ソース)へはSceneView状態を一切
+書き込まない**(仕様§20)。`FollowView`/`Duplicate`/`VertexSnap`/`SurfaceSnap`/`FastNavigation`/
+`PrecisionNavigation`はキー押下中のみ有効の一時状態であり、永続モード化しない(仕様§3)。
+
+### 9. Component認識の一般化と語彙ギャップ
+
+`SceneModelRenderObjectBuilder`の完全修飾名ハードコード(`global::UserEcsProject.Transform`)を、
+「Component型完全修飾名→エディタ上の意味(Transform/メッシュ/カメラ/ライト)」を宣言する
+`SceneComponentBinding`表へ置き換える(M0020 Phase 0。実シーンの
+`global::CSharpGameEngine.Runtime.Windows.Transform`が認識されないバグの修正を兼ねる)。
+
+語彙の現状: エンジン標準(`CSharpGameEngine.Runtime.Windows`)にあるのは`Transform`/`Camera`/
+`PrimitiveMesh`/`StaticMesh`のみ。**ライト(DirectionalLight/PointLight/SpotLight/AmbientLight/
+HeightFog)はすべて`UserEcsProject/Components.cs`(L9)にしか存在せず、RectLightは皆無**。したがって:
+
+- PropertyGizmoの第一対象はエンジン標準の`Camera`(FrustumGizmo)とする。
+- ライトギズモ(仕様§10)は「ライトComponentのエンジン標準化」か「L9型のBinding登録で済ませる」かを
+  Phase 6着手時の小ADRで決める(本ADRでは決めない)。
+- 仕様§10.4のRect/Area Lightは語彙ギャップとして記録し、M0020スコープ外とする。
+
+### 10. 選択の双方向化: `SceneSelectionOrigin.Viewport`の有効化
+
+ビューポートのLMBピック結果を`SceneSelectionService.Select(..., Origin: Viewport, ...)`で発行し、
+ヒエラルキーが選択を購読して追従する(現状のHierarchy→Viewport片方向が双方向になる)。
+Ctrl+LMBは既存契約の複数選択(`NodeIds`+`PrimaryNodeId`)をそのまま使う。エコー抑制は既存の
+`CorrelationId`方式。`F`(FocusSelection)は選択ノードのワールド境界へ`FocusPosition`/
+`FocusDistance`を合わせる。
+
+### 11. レンダラー増分更新への段階戦略
+
+Phase 0〜6は「`SceneRenderer`全再構築+状態外出し(決定事項1)」の現行方式のまま成立させ、
+**Phase 7で初めて`SceneDiff`を消費**してTransform/Member変更のみの場合にレンダラーを再生成しない
+増分更新へ移行する(メッシュ再取得・PSO再構築の回避)。毎フレーム`WaitForGpuIdle`の除去
+(フレームインフライト化)も同Phaseで扱う。ドラッグ中のプレビュー(決定事項5)は増分更新の
+先行形であり、Phase 7はそれをコミット後の通常経路へ一般化するものと位置づける。
+
+## 代替案として検討したもの
+
+- **全キーを`GetAsyncKeyState`ポーリングで処理**(フォーカス完全不要): `RenderSurfaceFocusPolicy`に
+  一切触れない点は最も安全だが、「コードエディタにフォーカスがあってもマウスがビューポート上に
+  あればWが効いてしまう」誤爆があり、ユーザー指定(フォーカスを持つときだけ効く)と矛盾するため
+  不採用。修飾キーの押下状態参照(イベント時点の`Keyboard.Modifiers`)に限って残す。
+- **VSコマンド+キーバインディング(.vsct)でW/E/R等を定義**: VS流儀でカスタマイズ性は高いが、
+  修飾なし単键のグローバルキーバインドはコードエディタのタイピングと衝突しやすく、スコープ制御も
+  ツールウィンドウ単位では効かない。ツールウィンドウ内WPFの`KeyDown`で足りるため不採用。
+- **ネイティブ子HWNDにWin32フォーカスを持たせて`WM_KEYDOWN`を直接受ける**: コミット`a162478`で
+  実証済みのVS全体フォーカス破壊バグを再発させる。`RenderSurfaceFocusPolicy`の存在理由そのもので
+  あり不採用。
+- **カメラ数学の共有ソース化**(`SceneModel`と同じ`<Compile Include>`方式): `Graphics/Camera.cs`は
+  依存ゼロで技術的には可能だが、エディタカメラはfly/pan/焦点距離など編集専用の拡張が必要で、
+  ランタイムAPIをエディタ都合で変化させたくない。`GizmoMeshFactory`の複製前例に従い複製を選択。
+- **GPUピッキング**(IDバッファ読み戻し): 現行レンダラーは`Present(1)`+`WaitForGpuIdle`の最小構成で
+  読み戻しパスが無く、CPU側に全メッシュが既にあるため、CPUレイキャストの方が実装・テストともに
+  小さい。頂点・面スナップにも同一の幾何クエリを流用できる。
+- **ドラッグ中の逐次テキスト書き込み**: 1ドラッグでUndo履歴が数百件に汚染される
+  (ADR-0040決定事項9で棄却済み。本ADRはプレビュー/コミット分離の具体化)。
+- **編集用に`SceneModel`を直接書き換える正本化**: ADR-0040決定事項1(C#テキスト単一正本)への
+  違反。棄却済み。
+
+## 帰結
+
+### 得られるもの
+
+- 仕様§3の原則どおり永続モードが5項目に限定され、その他はすべて「押している間だけ」の直交修飾に
+  なる。状態機械・カメラ・ピッキング・ギズモ判定が純粋層に分離され、VS無しでユニットテストできる。
+- 既存の未配線部品(`SceneEditOperation`/`ApplyLatest`/`SceneTextBufferWriter`/
+  `SceneSelectionOrigin.Viewport`/`SceneNode`の書き込みアンカー)がすべて設計どおりの位置に収まり、
+  新規発明はビューポート入力・ギズモ・プレビューAPIに限定される。
+- `RenderSurfaceFocusPolicy`は無改変のまま、キーボード操作はVS標準のツールウィンドウ
+  フォーカスモデルで成立する(過去の実バグを踏み直さない)。
+
+### 失うもの
+
+- キー操作の前に「ビューポートを一度クリックしてフォーカスを与える」1アクションが必要になる
+  (Unityも同じ挙動であり、仕様§1の設計原則と矛盾しない)。
+- Phase 6まで再解析のたびのレンダラー全再構築が残る(コミット直後の1回はメッシュキャッシュ済みでも
+  再構築コストを払う)。Phase 7で解消する段階戦略を受け入れる。
+- CPUレイキャストは巨大シーンでは線形走査コストが顕在化しうる(加速構造は必要になってから)。
+
+## 検証結果(実際に実行して確認)
+
+本ADRは設計文書のみ(実装なし)。文書整備自体の検証は[[M0020-Scene-Editor-Interaction]]冒頭の
+検証記録を参照(文字化けゼロ確認・`dotnet build`/`dotnet test`が文書整備前後で不変であること)。
+実装の検証結果はM0020の各Phase完了時に本節へ追記する。
+
+## 関連機能
+
+- F-L8-011 — シーンエディタ インタラクション基盤(Status: Planned、本ADRが意図仕様)
+- F-L8-010 — Scene デザイナー: SceneModel(ライブRoslyn)描画(前提基盤)
+
+関連: [[ADR-0040-CSharp-Scene-DSL-and-Bidirectional-Editor]]、
+[[ADR-0026-Camera-Geometry-Ruf-Integration]]、[[ADR-0008-VSIX-InProcess-Vortice-Renderer]]、
+[[M0019-CSharp-Scene-DSL]]、[[M0020-Scene-Editor-Interaction]]、`Docs/シーンエディタの仕様.md`、
+`Docs/Specifications/Scene-Editor-Design.md`

@@ -9,7 +9,7 @@ using Microsoft.CodeAnalysis.Text;
 
 namespace CSharpGameEngine.VSExtension;
 
-/// <summary>Designer?Source Editor?????????????UI?Roslyn API?????????</summary>
+/// <summary>DesignerからSource Editorへ渡す編集操作の基底。UI層がRoslyn APIへ直接触れないための語彙。</summary>
 internal abstract record SceneEditOperation(SceneKey SceneKey,EditorNodeId NodeId,long DocumentVersion);
 
 internal sealed record SetComponentMemberOperation(
@@ -26,7 +26,7 @@ internal sealed record RenameNodeOperation(
     long DocumentVersion,
     string NewName) : SceneEditOperation(SceneKey,NodeId,DocumentVersion);
 
-/// <summary>??????????????ViewModel?Roslyn?????????????????</summary>
+/// <summary>編集操作の全語彙。ViewModelとRoslyn書き込み層が同じ列挙を共有する(未実装の種類も先に確定させる)。</summary>
 internal enum SceneEditOperationKind {
     SetComponentMember,
     SetTransform,
@@ -63,28 +63,28 @@ internal sealed class SceneSourceEditResult {
 }
 
 /// <summary>
-/// SceneProjection???Node ID????Syntax????????Expression???Roslyn????????
-/// ???????????TextBuffer???????VS Undo transaction?live buffer????TextChange
-/// ????????????VS?????????????
+/// SceneProjectionのNode IDから対象Syntaxを特定し、該当Expressionだけを置換したRoslyn Rootを返す
+/// 純粋層。TextBufferへの反映は<see cref="SceneTextBufferWriter"/>がVS Undo transactionとしてlive
+/// bufferへTextChangeを適用する(本クラス自体はVSサービスへ依存しない)。
 /// </summary>
 internal static class SceneSourceEditor {
     internal static SceneSourceEditResult Apply(SyntaxNode Root,SceneProjection Projection,SceneEditOperation Operation){
         if(!Projection.Key.Equals(Operation.SceneKey)){
-            return SceneSourceEditResult.Failure("????Scene??????SceneKey????????");
+            return SceneSourceEditResult.Failure("対象のSceneと操作のSceneKeyが一致しません。");
         }
 
         if(!Projection.TryGetNode(Operation.NodeId,out SceneProjectionNode Node)){
-            return SceneSourceEditResult.Failure("????Node????Scene????????");
+            return SceneSourceEditResult.Failure("対象のNodeが現在のSceneに見つかりません。");
         }
 
         if(IsGenerated(Node.Node.Location.FilePath)){
-            return SceneSourceEditResult.Failure("???? .g.cs ?Scene Designer??????????");
+            return SceneSourceEditResult.Failure("生成された .g.cs はScene Designerから編集できません。");
         }
 
         return Operation switch {
             SetComponentMemberOperation SetMember=>ApplySetComponentMember(Root,Node,SetMember),
             RenameNodeOperation Rename=>ApplyRename(Root,Node,Rename),
-            _=>SceneSourceEditResult.Failure("??Scene???????Source Editor???????????"),
+            _=>SceneSourceEditResult.Failure("このScene編集操作はSource Editorで未実装です。"),
         };
     }
 
@@ -109,13 +109,13 @@ internal static class SceneSourceEditor {
         SceneComponent?Component=Node.Node.FindComponent(Operation.ComponentTypeFullyQualifiedName);
         SceneComponentMember?Member=Component?.FindMember(Operation.MemberName);
         if(Member is null){
-            return SceneSourceEditResult.Failure("????Component???Member????Scene????????");
+            return SceneSourceEditResult.Failure("対象のComponentまたはMemberが現在のSceneに見つかりません。");
         }
 
         ExpressionSyntax?OldExpression=FindExpression(Root,Member.Value.Location.Span);
         ExpressionSyntax NewExpression=SyntaxFactory.ParseExpression(Operation.ValueExpression);
         if(OldExpression is null||NewExpression.ContainsDiagnostics){
-            return SceneSourceEditResult.Failure("???????C#????????????");
+            return SceneSourceEditResult.Failure("新しい値が妥当なC#式ではありません。");
         }
 
         return SceneSourceEditResult.Success(Root.ReplaceNode(OldExpression,NewExpression.WithTriviaFrom(OldExpression)));
@@ -123,7 +123,7 @@ internal static class SceneSourceEditor {
 
     private static SceneSourceEditResult ApplyRename(SyntaxNode Root,SceneProjectionNode Node,RenameNodeOperation Operation){
         if(Node.Node.NameValueLocation is not { } Location){
-            return SceneSourceEditResult.Failure("Name?????Node??????????????????");
+            return SceneSourceEditResult.Failure("NameリテラルのないNodeはリネームできません。");
         }
 
         ExpressionSyntax?OldExpression=FindExpression(Root,Location.Span);
@@ -131,7 +131,7 @@ internal static class SceneSourceEditor {
             SyntaxKind.StringLiteralExpression,
             SyntaxFactory.Literal(Operation.NewName));
         if(OldExpression is null){
-            return SceneSourceEditResult.Failure("??????Name????Source????????");
+            return SceneSourceEditResult.Failure("対象のNameリテラルがSourceに見つかりません。");
         }
 
         return SceneSourceEditResult.Success(Root.ReplaceNode(OldExpression,NewExpression.WithTriviaFrom(OldExpression)));

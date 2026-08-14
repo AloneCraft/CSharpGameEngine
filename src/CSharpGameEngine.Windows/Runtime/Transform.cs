@@ -3,8 +3,8 @@ using System.Numerics;
 namespace CSharpGameEngine.Runtime.Windows;
 
 /// <summary>
-/// Scene DSL?Runtime ECS???????????Transform?
-/// Node.Children??????Parent???????????????<see cref="TransformMath"/>??????
+/// Scene DSLとRuntime ECSの両方で使うローカルTransform。
+/// Node.Childrenで宣言した子は自動付与のParentで親を参照し、親子の合成は<see cref="TransformMath"/>で行う。
 /// </summary>
 public struct Transform {
     public float PositionX;
@@ -20,7 +20,7 @@ public struct Transform {
     public float ScaleY;
     public float ScaleZ;
 
-    /// <summary>Scene DSL?<c>new Transform()</c>?Unity???identity transform???????</summary>
+    /// <summary>Scene DSLの<c>new Transform()</c>がUnityと同じidentity transformになるための既定値。</summary>
     public Transform(){
         this.RotationW=1f;
         this.ScaleX=1f;
@@ -30,8 +30,8 @@ public struct Transform {
 }
 
 /// <summary>
-/// Transform????????????????????
-/// Editor?Runtime?????????Reparent??world pose????????????
+/// Transformの行列合成・分解ユーティリティ。
+/// EditorとRuntimeが同じ式を共有し、Reparent時のworld pose維持にも同じ計算を使う。
 /// </summary>
 public static class TransformMath {
     public static Matrix4x4 ToMatrix(in Transform Transform)=>
@@ -39,12 +39,12 @@ public static class TransformMath {
         *Matrix4x4.CreateFromQuaternion(new Quaternion(Transform.RotationX,Transform.RotationY,Transform.RotationZ,Transform.RotationW))
         *Matrix4x4.CreateTranslation(Transform.PositionX,Transform.PositionY,Transform.PositionZ);
 
-    /// <summary>System.Numerics?row-vector??????Local * ParentWorld??????</summary>
+    /// <summary>System.Numericsのrow-vector規約に合わせ、Local * ParentWorldの順で合成する。</summary>
     public static Matrix4x4 ToWorld(in Transform Local,in Matrix4x4 ParentWorld)=>ToMatrix(Local)*ParentWorld;
 
     /// <summary>
-    /// world pose?????????????????<c>World * Inverse(NewParentWorld)</c>?????TRS??????
-    /// ??????TRS???????????false??????????Source???????????
+    /// world poseを維持したまま親を差し替えるための新しいlocalを、<c>World * Inverse(NewParentWorld)</c>の分解でTRSへ戻す。
+    /// せん断等でTRSに分解できない場合はfalseを返し、呼び出し側はSourceを書き換えないこと。
     /// </summary>
     public static bool TryCalculateLocal(in Matrix4x4 World,in Matrix4x4 NewParentWorld,out Transform Local){
         if(!Matrix4x4.Invert(NewParentWorld,out Matrix4x4 InverseParent)

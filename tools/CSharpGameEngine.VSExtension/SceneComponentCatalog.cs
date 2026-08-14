@@ -6,7 +6,7 @@ using Microsoft.CodeAnalysis;
 
 namespace CSharpGameEngine.VSExtension;
 
-/// <summary>Shape Palette/Inspector???????????Scene Component???</summary>
+/// <summary>Shape PaletteやInspectorの「Componentを追加」候補に出すScene Component型の1件。</summary>
 internal sealed class SceneComponentCatalogEntry {
     internal SceneComponentCatalogEntry(string FullyQualifiedName,string DisplayName,INamedTypeSymbol Symbol){
         this.FullyQualifiedName=FullyQualifiedName;
@@ -22,8 +22,8 @@ internal sealed class SceneComponentCatalogEntry {
 }
 
 /// <summary>
-/// ???Compilation??Scene DSL??????value-type Component??????reflection????
-/// Source Generator???Roslyn???????Parent/SceneNodeTag/generic/ref struct???????
+/// 現在のCompilationからScene DSLに追加可能なvalue-type Component型を列挙する。reflectionではなく
+/// Source Generatorと同じRoslynシンボル判定を使い、Parent/SceneNodeTag等の予約型・generic・ref structを除外する。
 /// </summary>
 internal static class SceneComponentCatalog {
     internal static IReadOnlyList<SceneComponentCatalogEntry>Build(Compilation Compilation){
@@ -49,8 +49,8 @@ internal static class SceneComponentCatalog {
             return false;
         }
 
-        // ????default???????????C# required member???object initializer?????
-        // ??????????required???????AddComponent operation????????????????
+        // 引数なしのdefault構築で追加できる型だけを許可する。C# required memberはobject initializerでの
+        // 明示指定を強制するため、requiredを持つ型はAddComponent operationの対象から除外する。
         foreach(ISymbol Member in Type.GetMembers()){
             if(Member is IPropertySymbol { IsRequired:true }||Member is IFieldSymbol { IsRequired:true }){
                 return false;

@@ -7,7 +7,7 @@ using Microsoft.VisualStudio.Text.Operations;
 
 namespace CSharpGameEngine.VSExtension;
 
-/// <summary>SourceText???live TextBuffer???????????????????????</summary>
+/// <summary>SourceText差分をlive TextBufferへ適用できる順序(開始位置の降順)に整列する計画層。</summary>
 internal static class SceneTextChangePlanner {
     internal static IReadOnlyList<TextChange>Plan(SourceText Before,SourceText After)=>
         After.GetTextChanges(Before)
@@ -16,9 +16,9 @@ internal static class SceneTextChangePlanner {
 }
 
 /// <summary>
-/// Designer????Roslyn???Visual Studio?live TextBuffer?????????Undo???????
-/// ?????????ITextUndoTransaction???????TextBuffer???I/O?Roslyn??????
-/// ???????UI thread?bridge process?????Task??????????
+/// Designerが編集したRoslyn結果をVisual Studioのlive TextBufferへ反映し、Undo単位を成立させる。
+/// 1ユーザー操作を1つのITextUndoTransactionで括る。TextBufferへの適用はI/OやRoslyn解析を伴わない
+/// UI thread上の同期処理であり、bridge processや別Taskへは逃がさない。
 /// </summary>
 internal sealed class SceneTextBufferWriter {
     private readonly ITextUndoHistoryRegistry UndoHistoryRegistry;

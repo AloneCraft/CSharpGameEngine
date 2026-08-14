@@ -5,7 +5,7 @@ using CSharpGameEngine.SceneAnalysis;
 
 namespace CSharpGameEngine.VSExtension;
 
-/// <summary>Inspector????????Component member????????????C#?read-only???????</summary>
+/// <summary>Inspectorに表示する1つのComponent memberの行。編集不能なC#式はread-onlyとして表示する。</summary>
 internal sealed class SceneInspectorMember {
     internal SceneInspectorMember(EditorNodeId NodeId,string ComponentType,string MemberName,string SourceExpression,bool IsEditable){
         this.NodeId=NodeId;
@@ -26,7 +26,7 @@ internal sealed class SceneInspectorMember {
     internal bool IsEditable { get; }
 }
 
-/// <summary>????Node/Component?SceneModel????????UI???Inspector??????</summary>
+/// <summary>選択中のNode/ComponentをSceneModelから読み出し、UI非依存のInspector行モデルを組み立てる。</summary>
 internal static class SceneInspectorModelBuilder {
     internal static IReadOnlyList<SceneInspectorMember>Build(SceneDocumentSnapshot Snapshot,SceneSelection?Selection){
         if(Selection is null
