@@ -23,15 +23,10 @@
       <Group guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarGroup" priority="0x0000">
         <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbar" />
       </Group>
-      <!-- Code-editor context menu only (ADR-0031) - deliberately not also placed on the Tools menu
-           / toolbar like every other command here, since it only makes sense for the file currently
-           being edited. -->
-      <Group guid="guidOpenViewerCommandPackageCmdSet" id="SceneDefinitionContextMenuGroup" priority="0x0600">
-        <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_CODEWIN" />
-      </Group>
-      <!-- ADR-0040 Phase 9: code-editor context menu only, same rationale as
-           SceneDefinitionContextMenuGroup above (which it does not reuse - that group/id pair is
-           retired, see the Symbols section). -->
+      <!-- ADR-0040 Phase 9: code-editor context menu only - deliberately not also placed on the
+           Tools menu / toolbar like every other command here, since it only makes sense for the file
+           currently being edited. Does not reuse the retired ADR-0031 group (see the Symbols
+           section). -->
       <Group guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" priority="0x0600">
         <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_CODEWIN" />
       </Group>
@@ -466,8 +461,10 @@
            directly, which needs no command of its own. -->
       <IDSymbol name="CSharpGameEngineToolbar" value="0x1021" />
       <IDSymbol name="CSharpGameEngineToolbarGroup" value="0x1022" />
-      <!-- 0x1023 (SceneDefinitionContextMenuGroup) retired together with 0x0108. -->
-      <IDSymbol name="SceneDefinitionContextMenuGroup" value="0x1023" />
+      <!-- 0x1023 (SceneDefinitionContextMenuGroup) retired together with 0x0108. Group 宣言と
+           IDSymbol は「退役」と書きながら両方生きたまま残っていた (親付けされた Button はゼロで
+           挙動には影響していなかった) ため、2026-08 に宣言そのものを削除した。他の退役 ID と同様
+           再利用しないこと。 -->
       <!-- ADR-0040 Phase 9. -->
       <IDSymbol name="OpenSceneDesignerCommandId" value="0x0109" />
       <IDSymbol name="SceneDesignerContextMenuGroup" value="0x1024" />

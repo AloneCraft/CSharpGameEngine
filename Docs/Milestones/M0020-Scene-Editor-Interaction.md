@@ -301,11 +301,18 @@ Phase 3以降の検証結果は、各Phase完了時に本節へ追記する。
 - ライトComponentの所在(エンジン標準 vs L9)の決定はPhase 6着手時の小ADRへ先送りしている。
 - 実機VS Experimental Instanceでの目視確認(M0019から引き継いだPhase 9表示系の確認を含む)は
   Phase 0 完了基準に統合したが、**まだ未実施**(上記検証節の10項目)。
-- **台帳F-L8-009のStatus誤り**(Phase 0 のスコープ外): 挙げている5ファイルとテスト3件はM0019
-  Phase 5の`[SceneDefinition]`廃止で全て削除済みなのに`Status: Implemented`のまま。削除済みコードを
-  実装済みと記述している状態であり、今回清算した種類の誤りと同種。別タスクで`Removed`へ直す。
-- **vsctの死んだGroup宣言(0x1023)**(同スコープ外): `SceneDefinitionContextMenuGroup`は退役
-  コメントがあるのにGroup宣言とIDSymbolが両方生きている(親付けされたButtonはゼロ)。挙動不変。
+- **(2026-08 解消)** 台帳F-L8-009のStatus誤り: `Removed`へ修正した。併せて同じADR-0031系列で
+  同様に`Implemented`のまま残っていたF-L9-007(`UserGameProject/Scene1.cs`)とF-L7-014
+  (`CSharpGameEngine.SceneAuthoring.Cli`)も`Removed`へ修正した。修正時にファイルの有無を実際に
+  確認したところ、**この残課題の記述「5ファイルとテスト3件は全て削除済み」は不正確**で、
+  `GizmoMeshFactory.cs`とそのテストは存続しており現行の`SceneModelRenderObjectBuilder`
+  (ライブRoslyn描画経路)のフォールバックとして使われていた。台帳側にその旨を明記した。
+- **(2026-08 解消)** vsctの死んだGroup宣言(0x1023): `SceneDefinitionContextMenuGroup`のGroup宣言と
+  IDSymbolを削除し、退役コメントだけを残した(挙動不変、`VSCTCompile`成功を確認)。
+- **新規に判明した別タスク規模の負債**: `Docs/Implementation-Status.md`に`UserGameProject`への参照が
+  62箇所ある。`UserGameProject`はM0019 Phase 5(`81c462e`)で撤去され現行は`UserEcsProject`なので、
+  上記3件と同種の陳腐化が広範に残っている可能性が高い。台帳全体の棚卸しは本マイルストーンの
+  スコープ外とし、別タスクとして起こす。
 
 関連: [[ADR-0041-Scene-Editor-Interaction-Architecture]]、
 [[ADR-0040-CSharp-Scene-DSL-and-Bidirectional-Editor]]、[[M0019-CSharp-Scene-DSL]]、

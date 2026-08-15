@@ -1950,10 +1950,14 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: `[SceneDefinition]`クラスのコンテキストメニュー3Dプレビュー
-- Status: Implemented
-- Verification: TestVerified
+- Status: Removed(2026-08)
+- Verification: NotApplicable
 - Intended specification: Docs/Decisions/ADR-0031-Scene-Definition-3D-Preview.md
-- Implementation evidence:
+  (機構ごと退役。ライブRoslynの`SceneModel`直接描画へ移行したためブリッジ実行自体が不要になった)
+- Removal evidence(2026-08時点で実際にディレクトリの有無を確認):
+  **`tools/CSharpGameEngine.SceneAuthoring.Cli`ディレクトリ自体が存在しない**。検証に使っていた
+  `samples/SceneAuthoringDemo`も削除済み。F-L8-009 / F-L9-007と同じADR-0031系列の退役。
+- Implementation evidence(歴史的記録。以下は削除済みのファイル):
   - tools/CSharpGameEngine.SceneAuthoring.Cli/Program.cs
   - tools/CSharpGameEngine.SceneAuthoring.Cli/SceneDefinitionSourceParser.cs
   - tools/CSharpGameEngine.SceneAuthoring.Cli/SceneRuntimeInvoker.cs(ADR-0033で完全リフレクション化)
@@ -1986,36 +1990,36 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   - 共有ブリッジ基盤(`ExternalBridgeProcess`/`BridgeServerHost`)が「入力パス1つ+出力パス1つ」
     固定のため、2つの入力(ソース.csパス、対象アセンブリパス)を`ScenePreviewRequest`として
     一時JSONへ書き、そのファイルパス自体を入力パスとして渡す間接化を行っている。
-- Conformance: Matches
+- Conformance: NotApplicable(機構が存在しない)
 - Known deviations: None
-- Next action: Collectible `AssemblyLoadContext.Unload()`の常駐ブリッジサーバー環境での繰り返し
-  安定性の専用ストレステストは未実施(ADR-0031の残課題)。
+- Next action: なし。以前挙げていた「Collectible `AssemblyLoadContext.Unload()`の常駐ブリッジ
+  サーバー環境での繰り返し安定性の専用ストレステスト」(ADR-0031の残課題)は、ブリッジ実行方式ごと
+  退役したため不要になった。
+- **(2026-08、Status修正)** F-L8-009 / F-L9-007と同じく、削除済みのプロジェクトを
+  `Status: Implemented`のまま記述していたため`Removed`へ修正した。
 
 ## F-L8-009 — Scene Definition 3Dプレビュー(コンテキストメニューコマンド、ギズモフォールバック)
 
 - Layer: L8 — Visual Studio Authoring Environment
 - Parent capability: `[SceneDefinition]`クラスのコンテキストメニュー3Dプレビュー
-- Status: Implemented
-- Verification: TestVerified
+- Status: Removed(2026-08)
+- Verification: NotApplicable
 - Intended specification: Docs/Decisions/ADR-0031-Scene-Definition-3D-Preview.md
-- Implementation evidence:
-  - tools/CSharpGameEngine.VSExtension/PreviewSceneDefinitionCommand.cs
-  - tools/CSharpGameEngine.VSExtension/SceneDefinitionTextDetector.cs
-  - tools/CSharpGameEngine.VSExtension/ProjectOutputAssemblyResolver.cs
-  - tools/CSharpGameEngine.VSExtension/ExternalScenePreviewLoader.cs
-  - tools/CSharpGameEngine.VSExtension/ScenePreviewSceneFileAdapter.cs
-  - tools/CSharpGameEngine.VSExtension/GizmoMeshFactory.cs
-  - tools/CSharpGameEngine.VSExtension/ScenePreviewRequest.cs、ScenePreviewBridgeDocument.cs
-  - tools/CSharpGameEngine.VSExtension/SceneHwndHost.cs(ギズモフォールバック拡張、F-L8-003参照)
-  - tools/CSharpGameEngine.VSExtension/OpenViewerCommandPackage.vsct
-  - tools/CSharpGameEngine.VSExtension/CSharpGameEngineViewerPackage.cs
-- Tests:
-  - tests/CSharpGameEngine.VSExtension.Tests/GizmoMeshFactoryTests.cs
-  - tests/CSharpGameEngine.VSExtension.Tests/ScenePreviewSceneFileAdapterTests.cs
-  - tests/CSharpGameEngine.VSExtension.Tests/ProjectOutputAssemblyResolverTests.cs
-  - tests/CSharpGameEngine.VSExtension.Tests/ExternalScenePreviewLoaderTests.cs
-    (実ブリッジサブプロセスを起動する、VS非依存の統合テスト)
-- Reverse-engineered behavior:
+  (機構ごと退役。後継はADR-0040 / F-L8-010)
+- Removal evidence(2026-08時点で実際にファイルの有無を確認):
+  - 削除済み: `PreviewSceneDefinitionCommand.cs`、`SceneDefinitionTextDetector.cs`、
+    `ProjectOutputAssemblyResolver.cs`、`ExternalScenePreviewLoader.cs`、
+    `ScenePreviewSceneFileAdapter.cs`、`ScenePreviewRequest.cs`/`ScenePreviewBridgeDocument.cs`
+  - 削除済みテスト: `ScenePreviewSceneFileAdapterTests.cs`、`ProjectOutputAssemblyResolverTests.cs`、
+    `ExternalScenePreviewLoaderTests.cs`
+  - `.vsct`のコマンド/グループも退役: `0x0108`(PreviewSceneDefinitionCommandId)、
+    `0x1023`(SceneDefinitionContextMenuGroup。宣言は2026-08に削除、IDは再利用しない)
+  - **存続している部分**: `tools/CSharpGameEngine.VSExtension/GizmoMeshFactory.cs` と
+    `tests/CSharpGameEngine.VSExtension.Tests/GizmoMeshFactoryTests.cs` は削除されておらず、
+    現在は`SceneModelRenderObjectBuilder`(ライブRoslynの`SceneModel`描画経路、F-L8-010)が
+    メッシュ解決に失敗したときのフォールバックとして使っている。**本エントリを`Removed`にしても
+    このファイルは生きている**ため、掃除対象と誤認しないこと。
+- Reverse-engineered behavior(歴史的記録。以下は退役した実装の説明):
   - 新しいWindowPane/EditorFactoryは作らず、既存の「シーン」プレビュー基盤
     (`SceneFileEditorFactory`/`SceneWindowPane`/`SceneHwndHost`/`SceneEditorHub`、F-L8-003)を
     そのまま流用する。ブリッジ応答を`ScenePreviewSceneFileAdapter`で一時的な合成`.scene`
@@ -2034,26 +2038,28 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
     同じ頂点/法線構成をプレーンな`System.Numerics.Vector3`で独立に再実装している
     (`ProceduralMeshFactory`はRUF空間抽象化を経由し、net10.0専用でVSIXから参照できないため)。
   - `.vsct`のビルドは`IDM_VS_CTXT_CODEWIN`/`DynamicVisibility`とも初回で正常にコンパイルされた。
-- Conformance: Matches
+- Conformance: NotApplicable(機構が存在しない)
 - Known deviations: None
 - Next action: なし。
-- **(気づいた既存ドキュメント欠落、今回のタスク範囲外につき記録のみ)** このエントリが挙げる実装
-  ファイル(`PreviewSceneDefinitionCommand.cs`等)はすべて既にリポジトリから削除済み
-  (`.vsct`のコメントいわく ADR-0040 で退役、実行ベースのプレビューを`SceneModel`直接描画へ
-  移行したため)。エントリ自体を「削除済み」へ更新する作業は本タスク(Phase 9)の対象に含めない。
+- **(2026-08、Status修正)** 以前このエントリは`Status: Implemented` / `Verification: TestVerified`の
+  まま、既に削除済みの実装ファイルを列挙していた(「削除済みコードを実装済みと記述している」状態)。
+  M0020の残課題として記録されていたものを`Removed`へ修正した。修正時にファイルの有無を実際に確認し、
+  `GizmoMeshFactory`だけは存続して現行の描画経路で使われていることが判明したため上記に明記した
+  (残課題の記述は「5ファイルとテスト3件は全て削除済み」としており、この点が不正確だった)。
 
 ## F-L9-007 — `UserGameProject/Scene1.cs`
 
 - Layer: L9 — Game / Application
 - Parent capability: `[SceneDefinition]`クラスのコンテキストメニュー3Dプレビュー
-- Status: Implemented
-- Verification: TestVerified
+- Status: Removed(2026-08)
+- Verification: NotApplicable
 - Intended specification: Docs/Decisions/ADR-0031-Scene-Definition-3D-Preview.md
-- Implementation evidence:
-  - UserGameProject/Scene1.cs
-- Tests: なし専用(ブリッジCLIを`dotnet run`で直接実行し応答JSONを確認する運用、F-L7-014の
-  検証と同じ位置づけ)。実機VSでのコンテキストメニュー起動確認はユーザー側。
-- Reverse-engineered behavior:
+  (機構ごと退役。後継はADR-0040 / M0019)
+- Removal evidence(2026-08時点で実際にファイルの有無を確認): `UserGameProject/Scene1.cs`は削除済み。
+  **`UserGameProject`ディレクトリ自体が存在しない**(M0019 Phase 5「Scene定義をISceneへ一本化し旧機構を
+  削除」`81c462e`で撤去)。現行のユーザープロジェクトは`UserEcsProject`。
+- Tests: なし(退役)。
+- Reverse-engineered behavior(歴史的記録。以下は退役した実装の説明):
   - `Root`→`MainCamera`(Position/Rotation/Scale/CameraRig)/`Player`(Position/Rotation/Scale/
     PlayerTag/Health)/`Lighting`(Positionのみ、Sun/Ambientのグルーピングアンカー)、
     `Lighting`→`Sun`(Position/DirectionalLightData)/`Ambient`(Position/AmbientLightData)という
@@ -2067,9 +2073,11 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
     `Scene1.SceneRuntime.g.cs`を目視確認し、6ノード全ての階層・Component型引数・GetRef代入が
     Define本体のとおりであることを確認した。ブリッジCLIを実際のビルド済み(TFM/RID付き)dllに
     対して実行し、応答JSONが同じ6ノードの階層・値と完全一致することも確認した(F-L7-014参照)。
-- Conformance: Matches
+- Conformance: NotApplicable(機構が存在しない)
 - Known deviations: None
 - Next action: なし。
+- **(2026-08、Status修正)** F-L8-009と同じく、削除済みのファイルを`Status: Implemented`のまま
+  記述していたため`Removed`へ修正した。
 
 ## F-L3-012 — `CSharpGameEngine.Entities`(`Runtime.cs`、閉集合Archetypeランタイム)
 
