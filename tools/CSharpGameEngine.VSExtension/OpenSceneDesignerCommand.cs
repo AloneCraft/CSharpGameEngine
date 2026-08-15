@@ -162,6 +162,14 @@ internal sealed class OpenSceneDesignerCommand {
     private SceneDesignerCommandPresentation RefreshPresentation(){
         ThreadHelper.ThrowIfNotOnUIThread();
 
+        // ソリューションエクスプローラーの右クリックはキャレットの概念が無いため常に位置0を渡す。
+        // SceneDocumentMenuSnapshot.GetTargetStateは位置0がどの型宣言にも属さない前提で自然に
+        // OutsideTypeへ落ち、ファイル内の全Sceneを一覧表示する(コードエディタ側と同じロジックを
+        // 無改造で再利用できる)。
+        if(this.DocumentTracker.TryGetSolutionExplorerInvocationFilePath(out string?SolutionExplorerFilePath)){
+            return this.BuildPresentation(SolutionExplorerFilePath,CaretPosition:0,EditorView:null);
+        }
+
         string?FilePath=this.DocumentTracker.CurrentFilePath;
         if(FilePath is null){
             this.CurrentInvocation=null;
@@ -171,6 +179,17 @@ internal sealed class OpenSceneDesignerCommand {
         if(!this.DocumentTracker.TryCaptureActiveCaretPosition(FilePath,out int CaretPosition)){
             this.CurrentInvocation=null;
             return SceneDesignerContextMenuPolicy.Create(FilePath,SceneDesignerTargetState.Unavailable,[]);
+        }
+
+        return this.BuildPresentation(FilePath,CaretPosition,this.DocumentTracker.CaptureActiveTextView(FilePath));
+    }
+
+    private SceneDesignerCommandPresentation BuildPresentation(string?FilePath,int CaretPosition,IVsTextView?EditorView){
+        ThreadHelper.ThrowIfNotOnUIThread();
+
+        if(FilePath is null){
+            this.CurrentInvocation=null;
+            return SceneDesignerContextMenuPolicy.Create(null,SceneDesignerTargetState.Unavailable,[]);
         }
 
         SceneDocumentMenuSnapshot Snapshot=this.Session.GetMenuSnapshot(FilePath);
@@ -185,7 +204,7 @@ internal sealed class OpenSceneDesignerCommand {
                 FilePath,
                 Presentation.Items,
                 TargetSceneFullyQualifiedName,
-                this.DocumentTracker.CaptureActiveTextView(FilePath))
+                EditorView)
             :null;
         return Presentation;
     }

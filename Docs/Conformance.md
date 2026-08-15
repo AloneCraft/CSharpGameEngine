@@ -848,15 +848,104 @@ Phase 2の実機確認10項目のうち#5/#8/#9で問題が報告され、3件�
   M0020の残課題へ明記した。矩形選択(LMBドラッグでの範囲選択)は現行仕様に無く
   (`シーンエディタの仕様.md`はCtrl+LMBのみ)、`Scene-Editor-Design.md`§154の
   「LMB Down→PendingSelect→Up確定」の変更を伴うため、仕様追記から始める別タスクとした。
-- **未解決の仕様矛盾(要判断)**: `シーンエディタの仕様.md`§4.1は「マウス上→上を見る」と書いているが、
+- **(2026-08 解消)** 以下の「未解決の仕様矛盾」は、ユーザーの決定によりRMB Look(X/Y)を両方
+  既定で反転する形で解消した。詳細は本節末尾の追記を参照。
+- ~~**未解決の仕様矛盾(要判断)**: `シーンエディタの仕様.md`§4.1は「マウス上→上を見る」と書いているが、
   実装は「マウス上→下を見る」(オブジェクトが画面上方向へ動く)になっている。これはM0020 Phase 1で
   `Scene-Editor-Design.md`§3の式`Pitch += Δy * 感度`に合わせた結果で、**2つの文書が縦方向の既定で
   矛盾している**。実機検証ではユーザーが現在の挙動を「OK」と判断したため変更していない。
-  `InvertLookY`設定が既に存在するので、既定値をどちらにするかの判断が残っている。
+  `InvertLookY`設定が既に存在するので、既定値をどちらにするかの判断が残っている。~~
 - Evidence: `dotnet build CSharpGameEngine.slnx -c Debug` 成功・警告0/エラー0、`dotnet test`
   728件成功・失敗0(717 + 描画規約2件 + 濃淡5件 + キャプチャ3件、うち左手系化を証明していた3件は
   右手系維持を固定する2件へ書き換え)。実機での確認(A/Dの向き・複数選択の濃淡・プリエンプト・
   ゲームと同じ見た目に戻っていること)はユーザー側。
+
+### 追記(2026-08): RMB Look(X/Y)の既定を反転側へ一時変更 → 実機確認後に反転しない側へ確定
+
+A/D・複数選択・キャプチャの3件の実機確認が取れた後、ユーザーから「RMBドラッグの左右・上下どちらの
+視点角度移動も反転してほしい、それを既定値にしたい」との指示があり、`SceneEditorSettings`の
+未保存時の既定値(`ReadBoolean`のフォールバック)を`false`→`true`に変更した。`InvertLookX`/
+`InvertLookY`は既に`SceneViewState.TickFly`→`SceneViewCamera.ApplyLookDelta`まで配線済みだった
+ため、既定値の変更だけで両軸の反転が有効になった(配線自体の変更は無し)。いずれオプション画面
+から選ばせる前提で、既定値を`SceneEditorSettings`に`DefaultInvertLookX`/`DefaultInvertLookY`
+という名前付き定数として定義した(現時点ではオプションUIは無く、この定数が唯一の設定箇所)。
+
+その後ユーザーが実機で試した結果、**反転しない側(`false`)を最終的な既定として維持する**ことに
+決め、この定数を手作業で`false`へ戻した(詳細と、それを私が誤ってバグと判断した経緯は本節末尾の
+追記を参照)。上記の「未解決の仕様矛盾」(縦方向の既定)は、既定値をどちらにするかという判断が
+明示的に下された時点で解消済みとみなす(挙動は元の`false`のままだが、意図的な選択の結果である
+ことが明確になった)。
+
+Evidence: `dotnet build CSharpGameEngine.slnx -c Debug` 成功・警告0/エラー0、`dotnet test`
+737件成功・失敗0。既定値の変更→差し戻しに伴い、`ReadInvertLookX/Y_NoStoredValue_...`は
+`false`を期待するテストへ、`WriteThenReadInvertLookX/Y_RoundTrips`は非既定値`true`の往復
+テストへ、それぞれ最終的に戻した。
+
+### 追記(2026-08): ソリューションエクスプローラーの右クリックにも「シーン デザイナーで開く」を追加
+
+ユーザー要望「ソリューションエクスプローラの右クリックもシーンメニュー入れて」。従来はコード
+エディタの右クリック(`IDM_VS_CTXT_CODEWIN`)にしか出ていなかった。
+
+- 単に既存の`SceneDesignerContextMenuGroup`(34個のボタン: Direct/32スロット/Overflow)を
+  `IDM_VS_CTXT_ITEMNODE`(ソリューションエクスプローラーの単一項目右クリック)にも
+  `<CommandPlacement>`で配置するだけでは動かないことが判明した:
+  `OpenSceneDesignerCommand.RefreshPresentation`は`ActiveDocumentTracker.CurrentFilePath`
+  (=アクティブなコードエディタ文書)を起点にしており、ソリューションエクスプローラーで
+  右クリックしたファイルはそれと一致しない(今開いていないファイルを右クリックするのがこの機能の
+  本来の使い方)。加えて、各シーン名を列挙するには`SceneWorkspaceService`がそのファイルの
+  解析済みスナップショットを持っている必要があるが、同サービスは**アクティブ文書1つ分**しか
+  継続解析しておらず、`BeforeQueryStatus`はRoslyn待機禁止という既存ルールのためその場での解析も
+  できない。
+- ユーザーには「クリック時に解決する軽量案」と「事前解析してコードエディタと完全に同じ体験に
+  する案(フル一致)」を提示し、**フル一致**を選択された。そのため`SceneWorkspaceService`に、
+  アクティブ文書とは完全に独立した第2の解析スロット(`SolutionExplorerDocumentPath`/
+  `SolutionExplorerMenuSnapshot`/専用の`SceneAnalysisGenerationGate`/専用のデバウンスタイマー)を
+  追加した。`SetSolutionExplorerSelection`は`CurrentModel`/`AllModels`やそのイベントには一切
+  触れない — これらはHierarchy専用であり、Hierarchy/Scene Designerはこれまで何度も壊れてきた
+  箇所([[project_vsix_joinabletask_deadlock]]等)のため、既存のアクティブ文書側のコードは
+  1行も変更せず新スロットを完全並行させることでリグレッションリスクを避けた。
+- `ActiveDocumentTracker`はこれまで`OnSelectionChanged`(`IVsSelectionEvents`)を実装しておらず
+  no-opだった。ここへ、階層選択(ソリューションエクスプローラー等)が変わるたびに選択ファイルパスを
+  解決し`SceneWorkspaceService.SetSolutionExplorerSelection`へ転送する処理を実装した(単一選択のみ
+  対応、`.cs`以外はnullを渡す)。
+- 「今回の右クリックがソリューションエクスプローラー起点かコードエディタ起点か」は、ファイルパスの
+  一致だけでは判定できない(コードエディタで別ファイルを編集中でも、SE側が以前選んでいたファイルの
+  残骸が残りうるため)。`IVsMonitorSelection.GetCurrentElementValue(SEID_WindowFrame)`で取得した
+  フォーカス中フレームの`VSFPROPID_GuidPersistenceSlot`が`ToolWindowGuids80.SolutionExplorer`
+  (`GameEngineLayout.cs`等で既に実績のある比較方法)と一致するかで判定する
+  (`ActiveDocumentTracker.TryGetSolutionExplorerInvocationFilePath`)。
+- ソリューションエクスプローラー起点の呼び出しはキャレット位置の概念が無いため常に位置0を渡す。
+  `SceneDocumentMenuSnapshot.GetTargetState`は位置0がどの型宣言にも属さない前提で自然に
+  `OutsideType`へ落ち、ファイル内の全シーンを一覧表示する(既存ロジックの無改造での再利用)。
+  ✓(開いているシーン)は従来通り`Session.PinnedSceneKey`基準のまま動作するが、
+  「（カーソル位置）」表記は付かない(キャレットが存在しないため)。
+- 開いた後にフォーカスを元へ戻す処理(`RestoreEditorFocus`)は、SE起点では対象の`IVsTextView`が
+  そもそも存在しないため自然にスキップされ、フォーカスはソリューションエクスプローラーに残る
+  (「フォーカスを奪わない」方針と一致、[[project_editor_spec_roadmap]])。
+- **誤診の記録**: `SceneEditorSettings.DefaultInvertLookX`/`DefaultInvertLookY`が`false`
+  (未コミットの作業ツリー)になっているのを見て「前段の追記で混入したバグ」と誤判定し、`true`へ
+  上書きした。実際には**ユーザーが実機確認の結果を踏まえて手作業で`false`へ戻した意図的な値**
+  だった([[feedback_live_file_editing]]が警告する「並行編集を誤ってバグと判断する」ケース)。
+  ユーザーの指摘で`false`へ差し戻し、合わせてテスト(`ReadInvertLookX_NoStoredValue_ReturnsTheConfiguredDefault`
+  等)と上の「RMB Look(X/Y)の既定を反転側へ変更」の記述も実態(最終的には反転しない側を維持)に
+  合わせて訂正した。**変更前に必ず`git diff`で作業ツリーの現状を確認してから「バグ」と判断すべき
+  だった。**
+- ソリューションエクスプローラー右クリックの実機確認では、Scene実装クラスを2つ持つファイル
+  (`PrimitiveShowcaseScene.cs`)で常に汎用的な単一項目しか出ない不具合も見つかった。原因は
+  `SetSolutionExplorerSelection`がアクティブ文書側の`ScheduleAnalysis`と同じ250msデバウンスを
+  流用していたため: ソリューションエクスプローラーの右クリックは「選択変更→即座に右クリックで
+  メニュー表示」であり、`BeforeQueryStatus`が呼ばれる時点ではほぼ確実にデバウンス中の解析が
+  終わっていなかった。デバウンスはタイピングの連打吸収が目的でありSE選択には無関係だったため、
+  `SetSolutionExplorerSelection`から`System.Threading.Timer`を取り除き、選択変更を検知した
+  直後に解析を開始するよう変更した(連打耐性は既存の`SceneAnalysisGenerationGate`+
+  `CancellationTokenSource`のキャンセル機構がそのまま担保する)。
+- Evidence: `dotnet build CSharpGameEngine.slnx -c Debug` 成功・警告0/エラー0、
+  `dotnet test CSharpGameEngine.slnx -c Debug` 737件成功・失敗0。`SceneWorkspaceService`/
+  `ActiveDocumentTracker`は実COM型(`VisualStudioWorkspace`/`IVsMonitorSelection`)に直結しており
+  このテストプロジェクトはそれらをモックしていないため、今回追加した新スロット/選択判定ロジックの
+  単体テストは無し(既存の設計判断を踏襲)。実機でのF5確認(アクティブでない`.cs`ファイルを
+  ソリューションエクスプローラーで右クリックしてシーン名一覧が正しく出ること、複数シーンを持つ
+  ファイルからの選択、フォルダ/非`.cs`項目では出ないこと)はユーザー側。
 
 ## 2026-08 M0020: F5起動時にslnxが二重に読み込まれる(最終原因: このセッション自身が汚したExpハイブの永続化状態)
 
@@ -916,6 +1005,40 @@ Phase 2の実機確認10項目のうち#5/#8/#9で問題が報告され、3件�
   736件成功・失敗0(診断コード除去後も無改変で成功)。原因の特定は憶測ではなく、実機の
   `IVsSolutionEvents`診断ログによる実時系列の記録と、複数段階の切り分け実験(最小ソリューション→
   ジェネレータ追加→依存関係複製→`.vs`キャッシュ削除)によって行った。
+
+### 追記(2026-08): 再発 → 「DTBキャッシュ陳腐化」説は反証され、未解決に戻った
+
+上記の`.vs/UserEcsProject.slnx/`削除で解消したはずだったが、別セッションで**再発**した
+(「またソリューションの解除が発生した。根本解決して」)。発生タイミングは前回と同じく
+「F5起動直後、何も操作していない段階」。
+
+**誤って「確定」と書いてしまった仮説とその反証**: 再発直後、`.dtbcache.v2`(16:01:52作成)が
+このチャットの`dotnet build`によるCore/Import/Windows再ビルド(16:18:19-23、キャッシュ取得より
+後)より古いという1点のタイムスタンプ一致だけを根拠に、「コマンドラインbuildが参照先を
+Expハイブのキャッシュより新しくすること」を機序として**確定と書いた**。これは誤りだった。
+`DesignTimeBuild/`だけを削除して再度F5させたところ、VSは新しい(参照DLLより後の、陳腐化していない)
+`.dtbcache.v2`を19:39:17に生成したにもかかわらず、**その直後のF5でも再読み込みが再発した**。
+陳腐化していないキャッシュでも起きた以上、「DTBキャッシュの陳腐化」は少なくとも唯一の原因ではない。
+**1回の相関だけで「確定」と書いたのが失敗**であり、[[feedback_vsix_deploy_automation]]が既に
+記録している教訓(「反証実験なしに仮説を確定扱いしない」)を今回も守れていなかった。
+
+**今回実際に行った対処**: 前回本当に効いたのは`DesignTimeBuild/`だけでなく
+`.vs/UserEcsProject.slnx/`**フォルダ全体**(`v18/.suo`・`DocumentLayout.json`・
+`DocumentLayout.backup.json`・`FileContentIndex/`を含む)の削除だったと確認し、
+`DesignTimeBuild/`と`v18/`を削除した(`FileContentIndex/`はExpハイブのdevenv.exeプロセスが
+実行中でロックしており削除できなかったが、両方の調査で原因候補に挙がったことは無いため対象外とした)。
+ユーザーの元々の仮説(前回セッション末の「永続化が悪影響を？」)、すなわち`v18/`配下の
+ドキュメント/ツールウィンドウ復元状態が実際の原因(または少なくとも`DesignTimeBuild/`単体の
+削除では不十分な理由)である可能性が、今回の反証で再び有力になった。
+
+- **現状**: 根本原因(なぜ`v18/`の削除が必要なのか、正確な機序)はまだ**未確定**。
+  「`.vs/UserEcsProject.slnx/`全体を削除すると直る」という経験則のみが2回とも再現している。
+  次に再発した場合は、`DesignTimeBuild/`のみ・`v18/`のみを個別に削除する切り分け実験を行い、
+  どちらが実際に効くかを1回の相関ではなく反復可能な形で確認すること(前回の
+  `IVsSolutionEvents`診断ログ+切り分けラダーの手法が再利用できる)。
+- Evidence: `dotnet build`/`dotnet test`成功・警告0/エラー0・737件成功(コード変更は(C)のSE
+  デバウンス修正のみで、この節の対処はキャッシュ削除という運用操作)。実機での次回F5確認
+  (二重読み込みが起きないこと)はユーザー側。
 
 ## 2026-08 M0020: シーンデザイナーのコンボボックス未同期とコンテキストメニューの重複表示
 

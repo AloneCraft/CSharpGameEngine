@@ -13,7 +13,7 @@ namespace UserEcsProject.Scenes;
 // 各プリミティブを Root 直下の Children ではなく、それぞれ専用の Root(単一ノード、Components のみ)
 // として宣言している点に注意: Children にすると自動付与される Parent コンポーネントにより
 // {Transform, PrimitiveMesh, Parent} という別の Archetype になり、Scene DSL 由来の Archetype は
-// System 由来の全 Archetype より後ろに登録される(ADR-0038)ため、LevelLoad の
+// System 由来の全 Arch etype より後ろに登録される(ADR-0038)ため、LevelLoad の
 // {AppHost, Level} オーバーロードがロースターを確定させた後に処理されてしまい、
 // 描画から漏れる(実際に一度この形でハマって確認した)。Root を単一ノードにすることで
 // {Transform, PrimitiveMesh} という LevelLoad の1つ目のオーバーロードと完全に同じ Archetype

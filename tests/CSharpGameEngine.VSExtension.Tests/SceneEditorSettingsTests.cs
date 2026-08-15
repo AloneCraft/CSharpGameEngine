@@ -101,9 +101,22 @@ public sealed class SceneEditorSettingsTests {
         Assert.Equal(1.0f,SceneEditorSettings.ReadNavigationSpeedMultiplier());
     });
 
+    /// <summary>
+    /// 実機確認(2026-08): 一時的にRMBドラッグ(Look)の既定を反転側(true)へ変更したが、実機で
+    /// 試した結果、反転しない側(false)を既定として維持することにした
+    /// (SceneEditorSettings.DefaultInvertLookX/Y参照)。
+    /// </summary>
     [Fact]
-    public void ReadInvertLookX_NoStoredValue_ReturnsFalse()=>
+    public void ReadInvertLookX_NoStoredValue_ReturnsTheConfiguredDefault(){
+        Assert.False(SceneEditorSettings.DefaultInvertLookX);
         RunOnUiThread(()=>Assert.False(SceneEditorSettings.ReadInvertLookX()));
+    }
+
+    [Fact]
+    public void ReadInvertLookY_NoStoredValue_ReturnsTheConfiguredDefault(){
+        Assert.False(SceneEditorSettings.DefaultInvertLookY);
+        RunOnUiThread(()=>Assert.False(SceneEditorSettings.ReadInvertLookY()));
+    }
 
     [Fact]
     public void WriteThenReadInvertLookX_RoundTrips()=>RunOnUiThread(()=>{

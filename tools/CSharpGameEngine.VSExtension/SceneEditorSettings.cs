@@ -24,6 +24,13 @@ namespace CSharpGameEngine.VSExtension;
 internal static class SceneEditorSettings {
     private const string CollectionPath=@"CSharpGameEngine\SceneEditor";
 
+    // 実機確認(2026-08): 一時的にX/Yとも既定を反転側(true)へ変更したが、実機で試した結果
+    // 反転しない側(false)を既定として維持することにした。オプション画面から選ばせたいという
+    // 要望はまだ実装していないため、いったん定数として定義しておく — 将来オプションUIを
+    // 追加するときはここを読み替えるか、UIの初期選択値として使う。
+    internal const bool DefaultInvertLookX=false;
+    internal const bool DefaultInvertLookY=false;
+
     private static Func<WritableSettingsStore?>?StoreProvider;
 
     internal static void ConfigureStoreProvider(Func<WritableSettingsStore?>?Provider)=>StoreProvider=Provider;
@@ -80,7 +87,7 @@ internal static class SceneEditorSettings {
 
     internal static bool ReadInvertLookX(){
         ThreadHelper.ThrowIfNotOnUIThread();
-        return ReadBoolean("InvertLookX",false);
+        return ReadBoolean("InvertLookX",DefaultInvertLookX);
     }
 
     internal static void WriteInvertLookX(bool Value){
@@ -90,7 +97,7 @@ internal static class SceneEditorSettings {
 
     internal static bool ReadInvertLookY(){
         ThreadHelper.ThrowIfNotOnUIThread();
-        return ReadBoolean("InvertLookY",false);
+        return ReadBoolean("InvertLookY",DefaultInvertLookY);
     }
 
     internal static void WriteInvertLookY(bool Value){

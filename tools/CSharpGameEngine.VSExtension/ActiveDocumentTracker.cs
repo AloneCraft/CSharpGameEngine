@@ -61,6 +61,13 @@ internal sealed class ActiveDocumentTracker : IVsSelectionEvents,IDisposable {
         return VSConstants.S_OK;
     }
 
+    /// <summary>
+    /// ソリューションエクスプローラー等、階層ベースの選択が変わるたびに発火する。単一選択のみ
+    /// 対応(<paramref name="NewMultiItemSelect"/>があれば無視、今回のスコープ外)。ここで解決した
+    /// パスは<see cref="CurrentFilePath"/>(アクティブなコードエディタ文書)とは別に保持し、
+    /// <see cref="SceneWorkspaceService.SetSolutionExplorerSelection"/>へ転送するだけで、
+    /// コードエディタ側の状態には一切触れない。
+    /// </summary>
     public int OnSelectionChanged(
         IVsHierarchy OldHierarchy,
         uint OldItemId,
@@ -69,7 +76,21 @@ internal sealed class ActiveDocumentTracker : IVsSelectionEvents,IDisposable {
         IVsHierarchy NewHierarchy,
         uint NewItemId,
         IVsMultiItemSelect NewMultiItemSelect,
-        ISelectionContainer NewSelectionContainer)=>VSConstants.S_OK;
+        ISelectionContainer NewSelectionContainer){
+        ThreadHelper.ThrowIfNotOnUIThread();
+
+        if(NewMultiItemSelect is not null){
+            return VSConstants.S_OK;
+        }
+
+        this.SolutionExplorerFilePath=NewHierarchy is not null
+            &&NewHierarchy.GetCanonicalName(NewItemId,out string CanonicalName)==VSConstants.S_OK
+            &&CanonicalName.EndsWith(".cs",StringComparison.OrdinalIgnoreCase)
+            ?CanonicalName
+            :null;
+        this.Service.SetSolutionExplorerSelection(this.SolutionExplorerFilePath);
+        return VSConstants.S_OK;
+    }
 
     public int OnCmdUIContextChanged(uint CmdUICookie,int Active)=>VSConstants.S_OK;
 
@@ -168,6 +189,33 @@ internal sealed class ActiveDocumentTracker : IVsSelectionEvents,IDisposable {
     }
 
     internal string?CurrentFilePath { get;private set;}
+
+    /// <summary>直近の<see cref="OnSelectionChanged"/>が解決した、ソリューションエクスプローラー等の
+    /// 階層選択上のファイルパス(.cs以外やハンドル不能な選択はnull)。</summary>
+    internal string?SolutionExplorerFilePath { get;private set;}
+
+    /// <summary>
+    /// 現在フォーカスしているウィンドウフレームがソリューションエクスプローラーかどうかで、今回の
+    /// メニュー要求がSE起点かを判定する。パスの一致だけで判定すると、コードエディタで別ファイルを
+    /// 編集中でもSEが以前選んでいたファイルの残骸を誤って使ってしまう恐れがあるため、フォーカス先で
+    /// 判定する。真を返すときの<paramref name="FilePath"/>は.cs以外や未解決ならnull
+    /// (呼び出し元はnullを「このファイルは対象外」として扱う)。
+    /// </summary>
+    internal bool TryGetSolutionExplorerInvocationFilePath(out string?FilePath){
+        ThreadHelper.ThrowIfNotOnUIThread();
+
+        FilePath=null;
+        if(this.Selection.GetCurrentElementValue((uint)VSConstants.VSSELELEMID.SEID_WindowFrame,out object FrameObj)!=VSConstants.S_OK
+            ||FrameObj is not IVsWindowFrame Frame
+            ||Frame.GetProperty((int)__VSFPROPID.VSFPROPID_GuidPersistenceSlot,out object GuidObj)!=VSConstants.S_OK
+            ||GuidObj is not Guid PersistenceGuid
+            ||PersistenceGuid!=new Guid(ToolWindowGuids80.SolutionExplorer)){
+            return false;
+        }
+
+        FilePath=this.SolutionExplorerFilePath;
+        return true;
+    }
 
     public void Dispose(){
         if(this.Disposed){
