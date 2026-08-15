@@ -28,7 +28,7 @@ Scene-Editor-Design.md新規)でF-L8-011をPlannedで追加し、F-L4-002/F-L8-0
 文書化はPhase 11で行う」注記を解消、旧`Docs/EditorSpec.md`の削除に伴う参照注記を行いました。
 続くM0020 Phase 0(前提修正とデッドコード削除)でF-L8-006/F-L8-007をRemovedへ更新し、
 F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存記述と
-`UserGameProject/Assets/Primitives/`のパス記述を現状へ訂正しています。
+旧プリミティブ資産パスの記述を現状へ訂正しています。
 
 ---
 
@@ -172,15 +172,14 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   - src/CSharpGameEngine.CodeAnalysis/EcsArchetypeAnalyzer.cs
   - src/CSharpGameEngine.CodeAnalysis/EcsArchetypeEmitter.cs
   - src/CSharpGameEngine.CodeAnalysis/EcsArchetypeModel.cs
-  - UserGameProject/Components.cs
-  - UserGameProject/Archetypes.cs
+  - 削除済みの旧L9アプリケーション`Components.cs`/`Archetypes.cs`(履歴は`40f08e4`以前)
 - Tests:
   - tests/CSharpGameEngine.CodeAnalysis.Tests/EcsArchetypeGeneratorEmissionTests.cs
   - tests/CSharpGameEngine.CodeAnalysis.Tests/EcsArchetypeGeneratorEndToEndTests.cs
 - Reverse-engineered behavior:
   - `ForAttributeWithMetadataName("CSharpGameEngine.Ecs.EcsArchetypeAttribute", ...)`でアーキタイプ
     構造体を検出し、コンポーネントプロパティを完全修飾名のOrdinal文字列でソートして正規化する。
-    `UserGameProject`を実際にビルドし、`Player`の生成コード(`ComponentTypes`配列・列インデックス)が
+    旧L9アプリケーションを実際にビルドし、`Player`の生成コード(`ComponentTypes`配列・列インデックス)が
     宣言順ではなく正規化順(`Health,PlayerTag,Position,Rotation,Velocity`)になっていることを
     目視確認済み。
   - 名前付き引数版ファクトリ(`{StructName}EcsFactory.Create<T>`)は、アーキタイプごとに生成される
@@ -300,23 +299,23 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
 - Known deviations: sRGB/ガンマ補正非対応(意図的、ADR-0018参照)。
 - Next action: なし。
 
-## F-L3-014 — UserGameProject runtime component/system/resource stage
+## F-L3-014 — 旧L9 runtime component/system/resource stage(削除済み)
 
 - Layer: L3 — ECS / runtime resources
-- Status: Implemented
-- Verification: TestVerified / RuntimeVerified (renderer integration)
-- Implementation evidence:
-  - UserGameProject/Components.cs (`MeshHandle`, `MaterialHandle`, `MeshRenderer`, motion, parent/world, light and audio data)
-  - UserGameProject/SceneLoader.cs (`SceneAssetResources`, per-spawn shared handles)
-  - UserGameProject/TransformHierarchyRuntime.cs
-  - UserGameProject/Systems/Systems.cs (`SceneSpawn`, `LocalToWorld`, `ParentToWorld`, motion, listener/source playback)
-  - UserGameProject/AudioRuntime.cs (`AudioClipResource`, shared clip registry, XAudio2 voice lifetime)
-- Tests:
-  - tests/UserGameProject.Tests/SceneLoaderTests.cs
-  - tests/UserGameProject.Tests/PlayerControlTests.cs (motion and parent/world composition)
-  - tests/CSharpGameEngine.Core.Tests/Audio/AudioSpatializationTests.cs
-- Result: Shared mesh/material and audio resources are referenced by lightweight handles; the GLB metadata drives 55 static mesh actors and the sample additionally creates point/spot lights, moving props, parent/child transforms, a listener and three 3D sources.
-- Known deviations: Audio backend remains Windows/XAudio2-specific in this sample facade; the data/components and distance attenuation function are platform-independent.
+- Status: Removed(2026-08、`40f08e4`)
+- Verification: NotApplicable(削除前はTestVerified / RuntimeVerified)
+- Removal evidence: 旧L9アプリケーションの`Components.cs`、`SceneLoader.cs`、
+  `TransformHierarchyRuntime.cs`、`Systems/Systems.cs`、`AudioRuntime.cs`と専用テストプロジェクトは
+  `40f08e4`で削除済み。
+- Successor: 現行のアプリケーション側構成は`UserEcsProject/Components.cs`、
+  `UserEcsProject/StaticMeshSceneData.cs`、`UserEcsProject/Systems/RuntimeSystem.cs`、
+  `UserEcsProject/Scenes/FirstPersonStageScene.cs`。旧機能のうち手書きの階層同期・移動・距離減衰付き
+  複数音源は同等移植されていないため、旧FeatureをImplementedとは扱わない。
+- Tests: 現行後継は`tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslGeneratorEndToEndTests.cs`と
+  `tests/CSharpGameEngine.Windows.Tests/Runtime/RenderServerTests.cs`で検証する。
+- Conformance: NotApplicable(旧実装は存在しない)
+- Known deviations: 旧機能と現行Scene DSLランタイムの機能集合は一致しない。
+- Next action: 必要なゲームプレイ機能は現行`IScene`/`ISystem`契約上で別Featureとして再設計する。
 
 ## F-L0-007 — StageRenderer directional shadow, HDR, ACES and spatial bloom
 
@@ -401,45 +400,42 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   再現・特定できていない状態での防御的な修正であり、より厳密な原因特定が必要になった場合は
   再検討する。
 
-## F-L9-001 — `UserGameProject`ゲームループ
+## F-L9-001 — 旧L9手書きゲームループ(削除済み)
 
 - Layer: L9 — Game / Application
 - Parent capability: ECS駆動ステージ
-- Status: Implemented
-- Verification: RuntimeVerified
+- Status: Removed(2026-08、`40f08e4`)
+- Verification: NotApplicable(削除前はRuntimeVerified)
 - Intended specification: Docs/Decisions/ADR-0016-Ecs-Driven-Stage-And-ThirdPerson-Controller.md
-- Implementation evidence:
-  - UserGameProject/Program.cs
-  - UserGameProject/UserGameProject.csproj
-- Tests: なし(統合的なゲームループ自体は`tools/CSharpGameEngine.Extension`と同様、実機確認に
-  委ねている)。
-- Reverse-engineered behavior:
+- Removal evidence: 旧L9アプリケーションの`Program.cs`とプロジェクトは`40f08e4`で削除済み。
+- Successor: `UserEcsProject/UserEcsProject.csproj`は手書き`Main`を持たず、
+  `src/CSharpGameEngine.CodeAnalysis/GameSystemEntryPointEmitter.cs`が
+  `GeneratedEntryPoint.Main`と`GeneratedGameLoop.Run`を生成する(F-L7-015)。
+- Historical behavior:
   - `Stopwatch`ベースのdelta time計測(スパイク対策で0.1秒にクランプ)、`World.Create<Player>()`/
     `world.Create<StaticProp>()`で作成したエンティティをローカル変数として直接操作する。
-  - 実際に`UserGameProject.exe`を起動し4秒間クラッシュしないこと、スクリーンショットで
+  - 削除前の旧実行ファイルを4秒間起動し、スクリーンショットで
     空・地面・キャラクターが意図通り描画されることを確認済み。
-- Conformance: Matches
-- Known deviations: None
-- Next action: なし。
+- Conformance: NotApplicable(旧実装は存在しない)
+- Known deviations: 現行ループは生成コードであり、旧手書きループと同一ではない。
+- Next action: なし。後継はF-L7-015で管理する。
 
 ## F-L9-002 — ThirdPersonキャラクターコントローラー(`CharacterMotion`)
 
 - Layer: L9 — Game / Application
 - Parent capability: ECS駆動ステージ
-- Status: Implemented
-- Verification: TestVerified
+- Status: Removed(2026-08、`40f08e4`)
+- Verification: NotApplicable(削除前はTestVerified)
 - Intended specification: Docs/Decisions/ADR-0016-Ecs-Driven-Stage-And-ThirdPerson-Controller.md
-- Implementation evidence:
-  - UserGameProject/PlayerController.cs
-- Tests:
-  - tests/UserGameProject.Tests/CharacterMotionTests.cs
-- Reverse-engineered behavior:
+- Removal evidence: 旧L9アプリケーションの`PlayerController.cs`と`CharacterMotionTests.cs`は
+  `40f08e4`で削除済み。現行ツリーに同等の移動・重力・Jump処理は無い。
+- Historical behavior:
   - `CharacterMotion.Compute`はWorld/Window/GPUに一切依存しない純粋関数。カメラ基準の
     WASD移動、重力減算、Y<=0での接地クランプ、接地時のみJump可、を行う。`LerpAngle`は
     最短経路で角度を補間する。
-- Conformance: Matches
+- Conformance: NotApplicable(旧実装は存在しない)
 - Known deviations: 衝突判定・本格物理エンジンは無し(Y<=0の簡易接地クランプのみ)。
-- Next action: なし。
+- Next action: キャラクター操作が必要になった時点で現行`ISystem`上へ新規実装する。
 
 ## F-L8-001 — `OpenGameCommand`
 
@@ -456,7 +452,7 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   配線コードのため専用テストは無い)。
 - Reverse-engineered behavior:
   - `OpenViewerCommand`(ADR-0006)と同一パターンで、Toolsメニューから
-    `dotnet run --project UserGameProject`を別プロセス・別トップレベルウィンドウとして
+    `dotnet run --project UserEcsProject`を別プロセス・別トップレベルウィンドウとして
     起動する。VS本体への埋め込みは行わない。
 - Conformance: Matches
 - Known deviations: 「ゲームドッキングウィンドウ」という当初の要望に対しては、埋め込みではなく
@@ -532,7 +528,7 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
 - Next action: 削除済み(ADR-0029、M0009)。後継はF-L3-009(`EntityQuery`、複数アーキタイプに
   またがる差分スキャン方式のQuery基盤で、当時の「再検討する」次アクションに対応)。
 
-## F-L7-005 — UEレベルエクスポートパイプライン
+## F-L7-005 — UEレベル取り込みパイプライン
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: UE5.8 FirstPersonステージ移植
@@ -542,42 +538,43 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
 - Implementation evidence:
   - tools/UnrealExport/export_lvl_firstperson.py
   - tools/UnrealExport/run_export.cmd
-  - UserGameProject/Assets/Stage/Lvl_FirstPerson/Lvl_FirstPerson.glb
-  - UserGameProject/Assets/Stage/Lvl_FirstPerson/scene_meta.json
+  - tools/UnrealExport/README.md
+  - UserEcsProject/Assets/Stage/Lvl_FirstPerson/Meshes/*.glb
+  - UserEcsProject/Scenes/FirstPersonStageAssets.cs
+  - UserEcsProject/Scenes/FirstPersonStageScene.cs
 - Tests: なし(UEエディタが無い環境では実行できない開発時専用ツールのため、C#テストスイートの
-  対象外。出力物(GLB/JSON)の消費側は`GltfImporterSceneTests`/`SceneLoaderTests`で検証している)。
+  対象外。現行のScene DSL生成・描画側は`SceneDslGeneratorEndToEndTests`/
+  `RenderServerTests`で検証している)。
 - Reverse-engineered behavior:
-  - `UGLTFExporter::ExportToGLTF`にUWorldを渡しレベル全体を1GLBとしてエクスポートすることで、
-    UE自身に座標変換・マテリアルオーバーライドのベイク・ライト変換を行わせる。Pythonが
-    自前で行うのはSkyLight/Fog/PlayerStart/Mobilityタグの4つのみ。
+  - UEレベルを読み取り、StaticMeshActorごとの共有メッシュGLBと、配置・Light・SkyLight・Fog・
+    PlayerStartを表すC# Scene DSLを一度だけ生成する。ランタイムは一体型レベルGLBや
+    `scene_meta.json`を読まず、生成後はC#を正本としてUEとの同期を行わない。
   - `unreal.GLTFExporter.export_to_gltf`のPythonバインディングは実際には4引数までしか
     受け付けず、戻り値は`GLTFExportMessages`単体になる(ADR-0017参照、実行時エラーから逆算)。
-  - 実行結果、レベルは55 StaticMeshActor+1 DirectionalLightで構成され(バイナリ文字列頻度からの
-    事前概算とは内訳が異なっていた)、マテリアルの大半(21/23)は実テクスチャにベイクされ、
-    残り2件はフラットカラーファクターだった。
+  - 現行受け入れ基準はStaticMeshActor 55体、DirectionalLight 1体、SkyLight/Fog/PlayerStart各1体。
+    座標照合用の一体型GLBとmanifestは`.artifacts/UnrealExport/Lvl_FirstPerson/`だけに置き、
+    Gitおよびランタイム対象外とする。
 - Conformance: Matches
 - Known deviations: `ExponentialHeightFogComponent`の色プロパティの厳密な特定は未実施
   (固定のニュートラルグレーで代替、ADR-0017参照)。
 - Next action: より大規模なUEレベルを移植する際、World Partitionのセル強制ロード
   (`WorldPartitionEditorSubsystem`)が必要になる可能性がある。
 
-## F-L9-003 — `SceneLoader`とステージスポーン
+## F-L9-003 — 旧`SceneLoader`とステージスポーン(削除済み)
 
 - Layer: L9 — Game / Application
 - Parent capability: UE5.8 FirstPersonステージ移植
-- Status: Implemented
-- Verification: TestVerified、RuntimeVerified
+- Status: Removed(2026-08、`40f08e4`)
+- Verification: NotApplicable(削除前はTestVerified、RuntimeVerified)
 - Intended specification: Docs/Decisions/ADR-0017-UE-Level-Export-Pipeline.md、
   Docs/Decisions/ADR-0018-Textured-Stage-And-Ecs-Systems.md、
   Docs/Decisions/ADR-0027-Gltf-Fbx-Import-Axis-Conversion.md(PlayerStart軸変換)
-- Implementation evidence:
-  - UserGameProject/SceneDocument.cs
-  - UserGameProject/SceneLoader.cs
-  - UserGameProject/Program.cs
-- Tests:
-  - tests/UserGameProject.Tests/SceneDocumentTests.cs
-  - tests/UserGameProject.Tests/SceneLoaderTests.cs
-- Reverse-engineered behavior:
+- Removal evidence: 旧L9アプリケーションの`SceneDocument.cs`、`SceneLoader.cs`、`Program.cs`と
+  専用テストは`40f08e4`で削除済み。
+- Successor: `UserEcsProject/Scenes/FirstPersonStageScene.cs`の宣言を
+  `SceneInstantiateEmitter`がECS生成コードへ変換し、`UserEcsProject/Systems/RuntimeSystem.cs`の
+  `LevelLoad`が`StaticMeshSceneData`と`RenderServer`へ接続する。旧JSON loaderとは異なるFeatureである。
+- Historical behavior:
   - `GltfImporter.ImportScene`の結果と`scene_meta.json`を合成し、`StageRenderer`入力
     (`StageMeshCreateInfo[]`/`StageMaterialCreateInfo[]`/`StageObjectCreateInfo[]`)と
     ECSスポーン情報(位置/回転/スケール/mobility)を1回の`Load`呼び出しで返す。
@@ -587,7 +584,7 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
     `MovableStageProp`をスポーン→`SunLight`/`AmbientLight`/`FogVolume`をスポーン→
     `World.CollectViews`で1回だけビューリストを収集し、以後は毎フレームそのリストを
     再利用する(`CollectViews`を毎フレーム呼び直さない)。
-  - `dotnet run --project UserGameProject`を実際に起動し、プロセスが`Responding=True`のまま
+  - 削除前の旧L9アプリケーションを実際に起動し、プロセスが`Responding=True`のまま
     10秒以上生存しCPU時間が蓄積すること(=シーンロード・レンダラー初期化・メインループが
     クラッシュせず実際に動作していること)を確認した。
   - (ADR-0027追記)`TryImportDirectionalLight`の独自`-Vector3.UnitZ`変換を削除し
@@ -596,7 +593,7 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
     UE→glTF変換を適用した値であることをスクリプトのコメントで確認済み)にも
     `GltfAxisConversion.ConvertWorldTransform`と同じ経路を適用し、位置Z成分と純Y軸回転である
     Yaw角の両方を変換する(Yaw角は共役変換の結果、符号が反転することを導出・実測確認した)。
-    `dotnet run --project UserGameProject`を再実行し15秒以上クラッシュしないこと、
+    旧L9アプリケーションを再実行し15秒以上クラッシュしないこと、
     スクリーンショット(BitBlt直接キャプチャ)で空・床・チェッカーグリッド壁が破綻なく
     描画されることを確認した(変更前との比較用スクリーンショットは無いため、鏡像になっていない
     か等の完全な視覚的確証はユーザー自身の実機確認が必要)。
@@ -606,29 +603,23 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
     `world.CreateArchetype<...>()`で都度組み立てる。`SunLight`/`AmbientLight`/`FogVolume`という
     シングルトン用のアーキタイプ型宣言も同様に無くなった。挙動は等価(実機描画確認は
     F-L9-004のADR-0029追記を参照)。
-- Conformance: Matches
-- Known deviations: UserGameProjectの見た目が変更前と完全に一致するかは未確認(上記参照)。
-- Next action: ユーザーによる実機での見た目確認。
+- Conformance: NotApplicable(旧実装は存在しない)
+- Known deviations: 現行宣言型Sceneへの視覚的同等性は本Featureでは保証しない。
+- Next action: 現行の取り込み経路はF-L7-005、Scene DSL経路はF-L7-012/F-L7-015で管理する。
 
-## F-L9-004 — ECS入力抽象化とゲームプレイSystems群
+## F-L9-004 — 旧ECS入力抽象化とゲームプレイSystems群(削除済み)
 
 - Layer: L9 — Game / Application
 - Parent capability: UE5.8 FirstPersonステージ移植
-- Status: Implemented
-- Verification: TestVerified、RuntimeVerified
+- Status: Removed(2026-08、`40f08e4`)
+- Verification: NotApplicable(削除前はTestVerified、RuntimeVerified)
 - Intended specification: Docs/Decisions/ADR-0018-Textured-Stage-And-Ecs-Systems.md、
   Docs/Decisions/ADR-0028-Ecs-Gameplay-Ruf-Boundary.md(RUF境界配置)
-- Implementation evidence:
-  - UserGameProject/Components.cs(`InputState`/`CameraRig`/`VerticalMotion`/`SceneSpawnRequest`)
-  - UserGameProject/Systems/Systems.cs(ADR-0033で5ファイルから1ファイルへ集約。記述順=実行順。
-    起動時のスポーンを担う`SceneSpawnSystem`と、Archetype形状の宣言専用の`PlayerSpawn`/
-    `MovableStagePropSpawn`もここに含まれる)
-  - UserGameProject/Systems/CameraSystem.cs
-  - UserGameProject/Systems/MovingPropSystem.cs
-  - UserGameProject/Systems/RenderSyncSystem.cs
-- Tests:
-  - tests/UserGameProject.Tests/PlayerControlSystemTests.cs
-- Reverse-engineered behavior:
+- Removal evidence: 旧L9アプリケーションの`Components.cs`、`Systems/Systems.cs`、旧分割System群と
+  専用`PlayerControlSystemTests.cs`は`40f08e4`までに削除済み。
+- Successor: `UserEcsProject/Systems/RuntimeSystem.cs`はWindow、LevelLoad、Transform/Light/Audio同期を
+  現行`ISystem`契約で実装するが、旧`InputState`/`CharacterMotion`/Jump/PlayerControlは移植していない。
+- Historical behavior:
   - `InputState`は独立したシングルトンアーキタイプ(`InputHub`)ではなく`Player`
     アーキタイプに直接持たせた(要件「入力抽象化はプレイヤーに結び付ける」に合わせた設計)。
     `InputSystem.Update`のみが`Win32Window`に触れ、以降の全システムは`InputState`という
@@ -662,15 +653,15 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
     2つ必要だった`SyncProps`/`SyncMovableProps`は1メソッドに統合された。`wasJumpKeyDown`は
     Program.cs側のループ変数から`InputState.WasJumpKeyDown`フィールドへ移した(各`[Update]`
     メソッドは独立した実行単位で、フレームをまたぐ状態を保持する場所がComponentしか無いため)。
-    `dotnet run --project UserGameProject`を実行し、W前進キー(`keybd_event`で模擬入力)で
+    削除前の旧L9アプリケーションを実行し、W前進キー(`keybd_event`で模擬入力)で
     プレイヤーが移動した後のスクリーンショットで空・タイル張りの床・PBRシェーディングされた
     影付きプロップが破綻なく描画されることを実機確認した(検証手順の詳細はM0009参照。
     マウスルック自体は別途発見した`Win32Window`の未修正の既知の問題によりこの確認では
     無効化して検証、詳細はM0009「未解決事項」参照)。
-- Conformance: Matches
+- Conformance: NotApplicable(旧実装は存在しない)
 - Known deviations: 一人称でのマウス/キーボード操作感そのものは自動検証していない
   (ADR-0016から引き継いだ制約)。
-- Next action: なし。
+- Next action: 入力・キャラクター制御が再び必要になった時点で現行`ISystem`向けFeatureを起票する。
 
 ## F-L8-002 — VSIX glTFアウトオブプロセスブリッジ(`ExternalGltfLoader`/`ExternalBridgeProcess`)
 
@@ -744,11 +735,11 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   エディタ機能そのものは失われていない。
 - Implementation evidence(削除済み。履歴はgitの`f17fbd5`以前を参照):
   - ~~src/CSharpGameEngine.Scene/{Transform,SceneNode,SceneGraph,SceneNodeTree,SceneJson}.cs~~
-  - UserGameProject/DefaultScene.scene(存続、VSIXが読む)
-  - UserGameProject/Assets/DefaultScene/Box.glb(存続)
+  - ~~旧L9アプリケーションの`DefaultScene.scene`~~(`40f08e4`で削除)
+  - ~~旧L9アプリケーションの`Assets/DefaultScene/Box.glb`~~(`40f08e4`で削除)
 - Tests: 8件のうち7件は削除対象そのもののテストなのでカバレッジ損失なし。残る1件
-  (出荷される`UserGameProject/DefaultScene.scene`を実際に読む唯一のテスト)は削除に先立って移植した:
-  - tests/CSharpGameEngine.VSExtension.Tests/DefaultSceneFileTests.cs
+  (出荷されていた旧`DefaultScene.scene`を読む唯一のテスト)も`40f08e4`で削除済み:
+  - ~~tests/CSharpGameEngine.VSExtension.Tests/DefaultSceneFileTests.cs~~
 - Reverse-engineered behavior(削除時点の記録として保持):
   - EditorSpec §3のJSONスキーマ(`schemaVersion`/`nodes[].{id,name,parentId,transform,
     meshAssetPath,components}`)と完全一致する往復シリアライズを、`StableId`/`Vector3`/
@@ -758,11 +749,11 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   - `SceneNodeTree.Build`は「到達済みノード数 != 全ノード数」を循環参照/解決不能参照の検出条件に
     使う - 各ノードの親は高々1つなので、真の循環を構成するノード群はルートとして拾われず
     構造的に到達不能になるという性質を利用している。
-  - `UserGameProject/DefaultScene.scene.json`はRoot+`Cube_A`/`Cube_B`(いずれも
+  - 旧`DefaultScene.scene.json`はRoot+`Cube_A`/`Cube_B`(いずれも
     `Assets/DefaultScene/Box.glb`を参照、X軸上で左右に配置)の最小3ノードシーン。
     `assets/TestFixtures/Gltf/Box.glb`のコピーを新規アセットとして追加。
 - Conformance: N/A(削除済み)
-- Known deviations: `UserGameProject.csproj`への`CSharpGameEngine.Scene`への`ProjectReference`は
+- Known deviations: 旧L9アプリケーションから`CSharpGameEngine.Scene`への`ProjectReference`は
   ついに追加されなかった。ランタイム統合はEditorSpec Phase 4のスコープだったが、その前に
   Scene AuthoringがC#正本方式へ移ったため、このJSON実装は一度も本番経路に載らずに終わった。
 - Next action: 無し。(2026-08追記)旧EditorSpec Phase 2/Phase 4相当のランタイム統合は、その後
@@ -773,14 +764,13 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
 
 - Layer: L8 — Visual Studio Authoring Environment
 - Parent capability: シーンダブルクリックプレビューとヒエラルキー選択連動
-- Status: Implemented
-- Verification: TestVerified
+- Status: Removed(ADR-0040 Phase 9 / M0020 Phase 0)
+- Verification: NotApplicable(削除前はTestVerified / RuntimeVerified)
 - Intended specification: Docs/Decisions/ADR-0020-Scene-Preview-And-Hierarchy-Selection-Sync.md
-- Implementation evidence:
-  - tools/CSharpGameEngine.VSExtension/SceneFile.cs
-  - tools/CSharpGameEngine.VSExtension/SceneFileEditorFactory.cs
-  - tools/CSharpGameEngine.VSExtension/SceneWindowPane.cs
-  - tools/CSharpGameEngine.VSExtension/SceneWindowControl.xaml(.cs)
+- Removal evidence:
+  - 削除済み: `SceneFile.cs`、`SceneFileEditorFactory.cs`、`SceneWindowPane.cs`、
+    `SceneWindowControl.xaml(.cs)`、`SceneFileTests.cs`
+  - 後継F-L8-010/F-L8-011で存続・再利用:
   - tools/CSharpGameEngine.VSExtension/SceneHwndHost.cs
   - tools/CSharpGameEngine.VSExtension/SceneRenderer.cs
   - tools/CSharpGameEngine.VSExtension/SceneEditorHub.cs
@@ -789,9 +779,7 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   - tools/CSharpGameEngine.VSExtension/ShowHierarchyToolWindowCommand.cs
   - tools/CSharpGameEngine.VSExtension/CSharpGameEngineViewerPackage.cs
   - tools/CSharpGameEngine.VSExtension/OpenViewerCommandPackage.vsct
-- Tests:
-  - tests/CSharpGameEngine.VSExtension.Tests/SceneFileTests.cs
-- Reverse-engineered behavior:
+- Historical behavior:
   - `SceneFileEditorFactory`/`SceneWindowPane`/`SceneHwndHost`は`GlbFbxPreviewEditorFactory`/
     `AssetPreviewWindowPane`/`AssetPreviewHwndHost`(ADR-0013)と構造的に同一のDocView==DocData
     パターン。VSIXはnet10.0の`CSharpGameEngine.Scene`を参照できないため(TFM非互換)、
@@ -817,13 +805,12 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
     `MeshLoader.Load`/メッシュ無し→`GizmoMeshFactory.Create()`(F-L8-009)という分岐へ拡張した。
     メッシュを持つノードの挙動は完全に不変。副作用として、メッシュ0件のシーンが従来の
     `ArgumentException`即エラーではなくギズモ表示になる(退行ではなく改善)。
-- Conformance: Matches(ユーザーの実機確認により、`.scene`ダブルクリック起動・ヒエラルキー
-  ツリー表示・選択ハイライト(オレンジ系タイント)がすべて実際に動作することを確認済み)。
+- Conformance: NotApplicable(`.scene`ダブルクリック経路は存在しない。現行経路はF-L8-010/F-L8-011)
 - Known deviations: **ADR-0021で判明・修正済み**: `.scene.json`という複合拡張子は
   `ProvideEditorExtension`で単一の拡張子として認識されず、ダブルクリックしても何も開かない
   不具合だった(実機検証で確認)。拡張子を単一の`.scene`に変更して解決した(スキーマ自体は
   無変更)。
-- Next action: なし。
+- Next action: なし。ライブRoslyn SceneModel経路へ移行済み。
 - **(2026-08、ADR-0040 Phase 9で置き換え)** `.scene`ダブルクリックによるドキュメントタブ方式の
   プレビューは廃止した。`SceneFileEditorFactory`/`SceneWindowPane`/`SceneWindowControl`は削除、
   `SceneHwndHost`/`SceneRenderer`は流用しつつデータソースを`.scene`ファイルからライブRoslynの
@@ -832,9 +819,10 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   `SceneNodeAdder`の書き込み側でPhase 10まで存続」と記録していたが、Phase 10を待たず
   `SceneFile.cs`/`SceneNodeAdder.cs`/`SceneFileTests.cs`ごと削除した(シェイプパレットと
   ヒエラルキーのドラッグ&ドロップも同時に撤去、F-L8-006/F-L8-007参照)。したがってこのエントリの
-  Implementation evidenceに挙がっているVSIX側ファイルはすべて現存しない
+  旧`.scene`専用ファイルは現存しない
   (`SceneFileEditorFactory.cs`/`SceneWindowPane.cs`/`SceneWindowControl.xaml(.cs)`はPhase 9時点で、
-  `SceneFile.cs`はPhase 0時点で削除)。リポジトリ内に`*.scene`ファイルは1つも残っていない。
+  `SceneFile.cs`はPhase 0時点で削除)。`SceneHwndHost`/`SceneRenderer`/`SceneEditorHub`/
+  Hierarchy関連ファイルはライブRoslyn経路へ転用され、現存する。リポジトリ内に`*.scene`ファイルは無い。
 
 ## F-L2-002 — `CSharpGameEngine.Geometry`(`ProceduralMeshFactory`・6プリミティブ追加)
 
@@ -908,7 +896,7 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
     (コレクション`CSharpGameEngine`、プロパティ`InitialLayoutApplied`)で判定する。2回目以降は
     何もせず、VS標準の「前回開いていた状態を復元」に委ねる。
   - **ADR-0021追記で修正**: 当初`GameEngineLayout.ApplyAsync`(`ShowToolWindowAsync`でのツール
-    ウィンドウ初回生成を含む)を`TryAutoOpenUserGameProjectAsync`からインライン`await`で
+    ウィンドウ初回生成を含む)を`TryAutoOpenUserEcsProjectAsync`からインライン`await`で
     呼んでおり、`InitializeAsync`自身の非同期チェーンにネストされたまま実行されていたため、
     ユーザーの実機F5デバッグで実際にデッドロックした(`WindowManagerService.CreateContentPane`の
     内部同期待機が`InitializeAsync`自身の完了待ちで自己参照)。修正として
@@ -1168,7 +1156,7 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   - src/CSharpGameEngine.CodeAnalysis/GenerateEntityAosEmitter.cs
   - src/CSharpGameEngine.CodeAnalysis/GenerateEntitySoaEmitter.cs
   - src/CSharpGameEngine.CodeAnalysis/GenerateEntityEmitterSupport.cs
-  - 消費側: samples/AosSoaGeneratedExpansion/(独立、参照なし)、UserGameProject.csproj
+  - 消費側(いずれも削除済み): samples/AosSoaGeneratedExpansion/、旧L9アプリケーションのプロジェクト
     (`CSharpGameEngine.Generation.Abstractions`への通常参照を追加、`[GenerateEntity]`の
     実利用は未追加)
 - Tests:
@@ -1201,9 +1189,9 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
     唯一の単体アクセス経路になることによる。
 - Conformance: Matches
 - Known deviations: None(見本との差異はF-L3-006/M0005/M0006に記載の設計上の意図的な違いのみ)
-- Next action: なし(`UserGameProject`実利用はM0006で追加済み)。
+- Next action: なし(旧L9アプリケーションでの実利用はM0006で追加後、M0009で削除済み)。
 
-## F-L9-001(重複ID、旧台帳の既知の不整合) — Particle Entityベンチマーク(UserGameProject、削除済み)
+## F-L9-001(重複ID、旧台帳の既知の不整合) — Particle Entityベンチマーク(旧L9、削除済み)
 
 - Layer: L9 — Game / Application
 - Parent capability: Generated Entity Storage
@@ -1211,14 +1199,9 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
 - Verification: TestVerified、RuntimeVerified(Releaseビルドで実測)
 - Intended specification: Docs/Decisions/ADR-0024-Generated-Entity-AoS-SoA.md、
   Docs/Milestones/M0006-Generated-Entity-Benchmark.md
-- Implementation evidence:
-  - UserGameProject/Entities/Particle.cs(ユーザーが書く唯一の宣言、両フラグ指定)
-  - UserGameProject/Entities/ParticleComponents.cs、ParticleMotion.cs、ParticleSystems.cs
-  - UserGameProject/Entities/BenchmarkHarness.cs、ParticleStorageBenchmark.cs
-  - UserGameProject/Program.cs(`benchmark`サブコマンド分岐)
-- Tests:
-  - tests/UserGameProject.Tests/ParticleStorageTests.cs
-  - tests/UserGameProject.Tests/BenchmarkHarnessTests.cs
+- Removal evidence: 旧L9アプリケーションの`Entities/Particle.cs`、`ParticleComponents.cs`、
+  `ParticleMotion.cs`、`ParticleSystems.cs`、`BenchmarkHarness.cs`、`ParticleStorageBenchmark.cs`、
+  `Program.cs`の`benchmark`分岐と専用テストはM0009までに削除済み。
 - Reverse-engineered behavior:
   - 1つの`[GenerateEntity(Aos | EcsSoa)] partial struct Particle`宣言から
     `ParticleAosStore`と`ParticleSoaStore`が生成され、同一プロセスで比較計測できる。
@@ -1232,7 +1215,7 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
 - Conformance: Matches
 - Known deviations: 自前Stopwatchハーネスのため統計的な外れ値検出は行っていない
   (試行回数が少ないと中央値が揺れる。M0006に明記)。このエントリはF-L9-001
-  (`UserGameProject`ゲームループ、L327行)とID重複した既存の台帳不整合であり、ID自体は
+  (旧L9ゲームループのエントリ)とID重複した既存の台帳不整合であり、ID自体は
   再割当てせずそのまま記録する。
 - Next action: 削除済み(ADR-0029、M0009)。AoS/SoA両バックエンドの選択肢自体がSoA一本化で
   無くなったため、再実行可能な比較ベンチマークは失われた(ユーザー確認済みの許容されたトレードオフ、
@@ -1537,23 +1520,23 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
 - Known deviations: None
 - Next action: なし。
 
-## F-L3-008 — 構造変更(Component追加・削除、Archetype間Entity移動)
+## F-L3-008 — 構造変更(Component追加・削除、Archetype間Entity移動、削除済み)
 
 - Layer: L3 — ECS / Job Runtime
 - Parent capability: SoA一本化ECSへの全面移行(`[GameSystem]`/`[Update]`)
-- Status: Implemented
-- Verification: TestVerified
+- Status: Removed(ADR-0033/M0013。後継はF-L3-012)
+- Verification: NotApplicable(削除前はTestVerified)
 - Intended specification: Docs/Decisions/ADR-0029-Dynamic-Archetype-Soa-Ecs.md、
   Docs/Specifications/Ecs-Soa-Systems.md
-- Implementation evidence:
+- Removal evidence(旧動的Archetype実装、削除済み):
   - src/CSharpGameEngine.Entities/World.cs(`AddComponentDefault`/`AddComponentValue`/
     `RemoveComponent`/`GetArchetypeWithAdded`/`GetArchetypeWithRemoved`/`MoveEntity`/
     `CopySharedColumns`、すべて`internal`)
   - src/CSharpGameEngine.Entities/Archetype.cs(`TryGetAddEdge`/`SetAddEdge`/
     `TryGetRemoveEdge`/`SetRemoveEdge`)
-- Tests:
+- Historical tests(削除済み):
   - tests/CSharpGameEngine.Entities.Tests/StructuralChangeSpec.cs
-- Reverse-engineered behavior:
+- Historical behavior:
   - 旧`CSharpGameEngine.Ecs`(ADR-0015、F-L3-001、削除済み)には実行時のComponent追加・削除は
     無かった(ADR-0015で明示的に非目標と記録されていた)。この機能は新規追加。
   - 移動先の行を`AddRow`で先に確保 → 両Archetypeに存在する列だけを2つの昇順`int[]`の
@@ -1568,27 +1551,27 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   - Component追加・削除の即時APIは`internal`であり、システムコード(`[Update]`メソッド)からは
     F-L3-010の`EntityCommandBuffer`経由でしか触れない(Query一致後の行ループ中に列配列が
     `Array.Resize`されて`Span<T>`が無効化される事故を設計で防ぐ)。
-- Conformance: Matches
+- Conformance: NotApplicable(動的なComponent追加・削除は現行閉集合ECSに存在しない)
 - Known deviations: None
-- Next action: なし。
+- Next action: 現行のEntity破棄/Scene unloadはF-L3-012で管理する。
 
-## F-L3-009 — `EntityQuery` / `QueryMatches`(複数Archetype横断・差分スキャン)
+## F-L3-009 — `EntityQuery` / `QueryMatches`(複数Archetype横断・差分スキャン、削除済み)
 
 - Layer: L3 — ECS / Job Runtime
 - Parent capability: SoA一本化ECSへの全面移行(`[GameSystem]`/`[Update]`)
-- Status: Implemented
-- Verification: TestVerified
+- Status: Removed(ADR-0033/M0013。後継はF-L7-015の生成ループ)
+- Verification: NotApplicable(削除前はTestVerified)
 - Intended specification: Docs/Decisions/ADR-0029-Dynamic-Archetype-Soa-Ecs.md、
   Docs/Specifications/Ecs-Soa-Systems.md
-- Implementation evidence:
+- Removal evidence(削除済み):
   - src/CSharpGameEngine.Entities/EntityQuery.cs
   - src/CSharpGameEngine.Entities/QueryMatches.cs
-- Tests:
+- Historical tests(専用テストは削除済み):
   - tests/CSharpGameEngine.Entities.Tests/EntityQuerySpec.cs
   - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorEndToEndTests.cs
     (`Move_ProcessesEntitiesAcrossMultipleArchetypes_UsingSoaSpans`ほか、生成されたExecutor経由の
     実行時検証)
-- Reverse-engineered behavior:
+- Historical behavior:
   - `EntityQuery.Update(World)`は`world.ArchetypeCount`(append-onlyなArchetypeリストの件数)を
     前回スキャン時の件数と比較するだけの差分スキャンで、新しいArchetypeが1件も生まれていない
     フレームは`int`比較1回で完了する。新Archetypeを発見した場合のみ、その1回だけ列インデックスを
@@ -1600,27 +1583,27 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
     frame1とframe2の間に新規生成されたArchetype(既存Queryが要求するComponent集合の
     スーパーセット)を、frame2で正しく検出することを実測確認済み(Query Cacheが
     「新しいArchetypeが生成されたときだけ」更新されるという要件の直接的な証拠)。
-- Conformance: Matches
+- Conformance: NotApplicable(動的Queryキャッシュは現行閉集合ECSに存在しない)
 - Known deviations: None
-- Next action: なし。
+- Next action: なし。現行はコンパイル時に確定したArchetypeへ直接ディスパッチする。
 
-## F-L3-010 — `EntityCommandBuffer`(構造変更の遅延適用)
+## F-L3-010 — `EntityCommandBuffer`(構造変更の遅延適用、削除済み)
 
 - Layer: L3 — ECS / Job Runtime
 - Parent capability: SoA一本化ECSへの全面移行(`[GameSystem]`/`[Update]`)
-- Status: Implemented
-- Verification: TestVerified
+- Status: Removed(ADR-0033/M0013。限定的後継はF-L3-012の`DestroyDeferred`/`UnloadSceneDeferred`)
+- Verification: NotApplicable(削除前はTestVerified)
 - Intended specification: Docs/Decisions/ADR-0029-Dynamic-Archetype-Soa-Ecs.md、
   Docs/Specifications/Ecs-Soa-Systems.md
-- Implementation evidence:
+- Removal evidence(削除済み):
   - src/CSharpGameEngine.Entities/EntityCommandBuffer.cs
   - src/CSharpGameEngine.Entities/ComponentValueStore.cs
   - src/CSharpGameEngine.Entities/Entity.cs(`Temporary`/`IsTemporary`/`TemporaryIndex`)
-- Tests:
+- Historical tests(専用テストは削除済み):
   - tests/CSharpGameEngine.Entities.Tests/EntityCommandBufferSpec.cs
   - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorEndToEndTests.cs
     (`Commands_StructuralChangesApplyOnlyAfterPlaybackAtEndOfGeneratedLoop`)
-- Reverse-engineered behavior:
+- Historical behavior:
   - `Add<T>(Entity)`/`Add<T>(Entity, in T)`/`Remove<T>`/`Destroy`/`CreateEntity`をFIFOの
     `List<Command>`(byte構造体、種別+Entity+ComponentTypeId+Payload)に記録する。値の型消去は
     `typeof(T)==typeof(X)`分岐ではなく`ComponentValueStore<T>`(`ComponentColumn<T>`と同じ
@@ -1635,9 +1618,9 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
     積んでも即座にArchetypeが変わらないこと(=Query一致中の配列を壊さない)、
     `GeneratedGameLoop.Update`の最後で`world.Commands.Playback(world)`が呼ばれた後にのみ
     実際に構造変更が反映されることを実測確認済み。
-- Conformance: Matches
+- Conformance: NotApplicable(汎用Add/Remove/Create command bufferは現行に存在しない)
 - Known deviations: None
-- Next action: なし。
+- Next action: なし。現行の遅延破棄は`Runtime.cs`と`EntityDestroySpec.cs`で管理する。
 
 ## F-L7-009 — `GameSystemGenerator`(Analyzer / ExecutorEmitter、引数からのQuery/Read-Write推論)
 
@@ -1715,7 +1698,7 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
     (既存2ジェネレータの「診断が1件でもあれば出力しない」ゲートからの意図的な逸脱 -
     ループを丸ごと省くと呼び出し側で無関係な「型が見つからない」二次エラーが大量発生するため)。
   - `GeneratedGameLoop.Update`のContext引数名は、当初`context0`/`context1`のような不透明な
-    連番だったが、UserGameProject移行で3つのContext型(`StageRenderer`/`Win32Window`/
+    連番だったが、旧L9アプリケーション移行で3つのContext型(`StageRenderer`/`Win32Window`/
     `FrameContext`)を同時に使う実例に当たった際、呼び出し側がFQNの辞書順という非直感的な
     規則を暗記しないと正しい引数順序で呼べないという実用上の欠陥に気付き、単純型名の
     先頭を小文字化した名前(衝突時は連番、C#予約語なら`@`エスケープ)へ変更した。これにより
@@ -1812,128 +1795,101 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
 - Known deviations: None
 - Next action: なし。
 
-## F-L3-011 — Scene Authoring基盤型(`Parent`/`SceneNodeTag`/`SceneNodeSymbol`系)
+## F-L3-011 — Scene DSL基盤型(`IScene`/`Node`/`Parent`/`SceneInstance`)
 
 - Layer: L3 — ECS / Job Runtime
 - Parent capability: Scene Authoring(C#コードをSceneの正本にする、Phase A)
 - Status: Implemented
 - Verification: TestVerified
-- Intended specification: Docs/Decisions/ADR-0030-Scene-Authoring-CSharp-Source-Of-Truth.md
+- Intended specification: Docs/Decisions/ADR-0040-CSharp-Scene-DSL-and-Bidirectional-Editor.md
 - Implementation evidence:
-  - src/CSharpGameEngine.Entities/SceneDefinitionAttribute.cs
-  - src/CSharpGameEngine.Entities/SceneNodeId.cs
-  - src/CSharpGameEngine.Entities/SceneNodeSymbol.cs
-  - src/CSharpGameEngine.Entities/SceneBuilder.cs
-  - src/CSharpGameEngine.Entities/SceneNodeBuilder.cs
+  - src/CSharpGameEngine.Entities/IScene.cs
+  - src/CSharpGameEngine.Entities/Node.cs
+  - src/CSharpGameEngine.Entities/ISceneDefinition.cs
   - src/CSharpGameEngine.Entities/Parent.cs
   - src/CSharpGameEngine.Entities/SceneNodeTag.cs
+  - src/CSharpGameEngine.Entities/SceneInstance.cs
+  - src/CSharpGameEngine.Entities/SceneInstanceTable.cs
 - Tests:
-  - tests/CSharpGameEngine.Entities.Tests/SceneAuthoringSpec.cs
+  - tests/CSharpGameEngine.Entities.Tests/SceneDslTypeSpec.cs
+  - tests/CSharpGameEngine.Entities.Tests/SceneInstanceSpec.cs
+  - tests/CSharpGameEngine.Entities.Tests/SceneInstanceStressSpec.cs
 - Reverse-engineered behavior:
   - `Parent`はUnity DOTSの`Unity.Transforms.Parent`と同じ形の汎用Component(`Entity Value`のみ)。
-    このECS自体はHierarchy概念を持たないため、親子関係は`SceneDefinitionGenerator`が`Define`の
-    入れ子構造から自動導出してのみ付与する(ユーザーが直接`Set`することは想定しない)。
-  - `SceneNodeTag`は0フィールドのタグComponentで、`World.CreateArchetype`に0型引数版が無いため、
-    `Set`呼び出しを1つも持たないノード(見本の`Root`自身がこのケース)を成立させるためだけに存在する。
-  - `SceneBuilder`/`SceneNodeBuilder`の`Create`/`Set`メソッド本体はほぼ空実装(`Set`は何もしない)。
-    `SceneDefinitionGenerator`は`Define`メソッドの構文木を静的解析するだけで、これらのメソッド本体は
-    通常のRuntime Buildでは一切実行されない(将来のEditor Preview用途向けの余地として存在するのみ)。
-  - `SceneNodeId`は`ulong`1個のラッパーで、`SceneDefinitionAnalyzer`がノードを表すpartial
-    プロパティの完全修飾シンボル名からFNV-1a 64bitハッシュとして決定論的に導出する。Rename後は
-    再計算されるだけで値が変わること自体は無害という設計(Phase Aの判断、ADR-0030参照)。
+    現行では`Node.Children`の入れ子からSource Generatorが自動付与する。
+  - `IScene.Root`のC#式は宣言専用で実行しない。`Node`コンストラクターは誤実行を即座に検出する
+    tripwireで、Runtime生成は`World.InstantiateScene<TScene>()`から生成済み`ISceneDefinition`を呼ぶ。
+  - `SceneInstance`/`SceneInstanceTable`が同じScene定義の複数instantiate、所有Entityの追跡、
+    unloadと世代検証を担う。安定Node IDはRuntime型ではなくSceneModel側の`NodePath`で管理する。
 - Conformance: Matches
 - Known deviations: None
-- Next action: Phase B(VSIX側Roslyn WorkspaceによるHierarchy Docking Window編集)でSceneNodeIdの
-  Rename間安定化が必要になった場合、別途hidden annotationまたは`.scene.meta`方式を検討する。
+- Next action: なし。編集時の安定Node IDはF-L8-010/F-L8-011で管理する。
 
-## F-L7-012 — `SceneDefinitionGenerator`(Analyzer/Model/SceneNodeSymbolEmitter/SceneRuntimeEmitter)
+## F-L7-012 — Scene DSL解析・Runtime生成(`SceneDslAnalyzer`/`SceneInstantiateEmitter`)
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Scene Authoring(C#コードをSceneの正本にする、Phase A)
 - Status: Implemented
 - Verification: TestVerified
-- Intended specification: Docs/Decisions/ADR-0030-Scene-Authoring-CSharp-Source-Of-Truth.md
+- Intended specification: Docs/Decisions/ADR-0040-CSharp-Scene-DSL-and-Bidirectional-Editor.md
 - Implementation evidence:
-  - src/CSharpGameEngine.CodeAnalysis/SceneDefinitionGenerator.cs
-  - src/CSharpGameEngine.CodeAnalysis/SceneDefinitionAnalyzer.cs
-  - src/CSharpGameEngine.CodeAnalysis/SceneDefinitionModel.cs
-  - src/CSharpGameEngine.CodeAnalysis/SceneNodeSymbolEmitter.cs
-  - src/CSharpGameEngine.CodeAnalysis/SceneRuntimeEmitter.cs
+  - src/CSharpGameEngine.CodeAnalysis/SceneDslAnalyzer.cs
+  - src/CSharpGameEngine.CodeAnalysis/SceneEmitModel.cs
+  - src/CSharpGameEngine.CodeAnalysis/SceneModelBridge.cs
+  - src/CSharpGameEngine.CodeAnalysis/SceneComponentSetCollector.cs
+  - src/CSharpGameEngine.CodeAnalysis/SceneInstantiateEmitter.cs
+  - src/CSharpGameEngine.CodeAnalysis/GameSystemGenerator.cs
 - Tests:
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDefinitionGeneratorTestHelper.cs
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDefinitionGeneratorEmissionTests.cs
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDefinitionGeneratorEndToEndTests.cs
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslAnalyzerTests.cs
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslGeneratorEmissionTests.cs
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslGeneratorEndToEndTests.cs
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneArchetypeIntegrationTests.cs
 - Reverse-engineered behavior:
-  - `[SceneDefinition]`クラスの`Define`メソッドは実行しない。構文木を歩いて`Create`(親子関係)/
-    `Set`(Component)呼び出しのネストを`SceneNodeModel`木へ変換し、そこから直接
-    `World.CreateArchetype`/`CreateEntity`/`GetRef`呼び出しコードを生成する(Reflection・
-    動的解釈は一切行わない)。
-  - `Create`/`Set`呼び出しの「レシーバー名」は意味解析ではなく、現在のスコープ名(1つ外側の
-    Createラムダの引数名、最上位ではDefineのSceneBuilderパラメータ名)とのテキスト一致だけで
-    検証する。これにより、あるノードのラムダ本体からクロージャ経由で外側ノードのBuilderを
-    誤って参照する(構文上は子に見えて実際は別ノードの子になる)ケースも正しく検出する。
-  - 非Rootノードには`Parent`を、`Set`呼び出しが0個のノードには`SceneNodeTag`を、それぞれ
-    ユーザーコードに書かせず自動的にArchetypeの型引数へ追加する。`Set`の引数式
-    (`new Camera { FieldOfView = 60f }`等)は構文木からテキストとしてそのまま生成コードへ
-    貼り付け、元ファイルのusingディレクティブも生成ファイル先頭へ複製することで、
-    `Vector3.One`のような非完全修飾参照も解決できるようにしている(意味解析による完全修飾化は
-    行わない、Phase Aの簡略化方針)。
-  - `.Collect()`は使わない(生成物はクラスごとに独立しており、`GameSystemGenerator`の
-    `GeneratedGameLoop`のようなsolution横断の結合出力が不要なため)。
-  - 実際に`samples/SceneAuthoringDemo`で`dotnet run`を実行し、生成された`CreateRuntime`が
-    実`World`上にRoot(SceneNodeTagのみ)→MainCamera/Player(いずれも`Parent`付き)という
-    Entity階層と、Define本体に書いたとおりのComponent値を構築することを確認した。
+  - `IScene.Root => new Node { ... }`の構文を実行せず解析し、Node名、Component初期化子、Childrenを
+    `SceneEmitModel`へ変換する。`SceneInstantiateEmitter`は閉集合Archetypeの直接`Create`呼び出しを生成し、
+    非Rootへ`Parent`を、Component無しノードへ`SceneNodeTag`を自動付与する。
+  - Scene由来Component集合は`SceneComponentSetCollector`からGameSystemのArchetypeレジストリへ統合し、
+    `ISystem`由来集合と同じ連番Archetype空間を使う。ReflectionやRuntime DSL解釈は行わない。
+  - 生成partialは`ISceneDefinition`を明示実装し、`World.InstantiateScene<TScene>()`から同じSceneを
+    複数回独立して生成できる。
 - Conformance: Matches
-- Known deviations: 見本(シーン構築見本.cs)の単一`LocalTransform`ではなく、ユーザー確定により
-  既存の`Position`/`Rotation`/`Scale`の3コンポーネント構成を採用している(意図的な差分、
-  ADR-0030参照)。
-- Next action: Phase B(VSIX Hierarchy Docking WindowによるAdd/Delete/Rename/Reparent、
-  Roslyn Workspace編集)は別タスク。
+- Known deviations: DSL宣言はC#としてコンパイルされるが、`Node`をRuntime実行すると意図的に例外になる。
+- Next action: 編集操作はF-L8-011の後続Phaseで管理する。
 
-## F-L7-013 — `SceneDefinitionGenerator`診断(SCENE001〜009)
+## F-L7-013 — Scene DSL診断(SCENE100〜118)
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Scene Authoring(C#コードをSceneの正本にする、Phase A)
 - Status: Implemented
 - Verification: TestVerified
-- Intended specification: Docs/Decisions/ADR-0030-Scene-Authoring-CSharp-Source-Of-Truth.md
+- Intended specification: Docs/Decisions/ADR-0040-CSharp-Scene-DSL-and-Bidirectional-Editor.md
 - Implementation evidence:
-  - src/CSharpGameEngine.CodeAnalysis/SceneDefinitionDiagnostics.cs
+  - src/CSharpGameEngine.CodeAnalysis/SceneDslAnalyzer.cs
+  - src/CSharpGameEngine.CodeAnalysis/SceneEmitModel.cs
   - src/CSharpGameEngine.CodeAnalysis/AnalyzerReleases.Unshipped.md
 - Tests:
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDefinitionGeneratorDiagnosticsTests.cs
-    (SCENE001〜009すべてに1件ずつのテストケース+正常系1件)
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslAnalyzerTests.cs
 - Reverse-engineered behavior:
-  - `SCENE001`〜`009`(カテゴリ`CSharpGameEngine.Entities.CodeGen`、すべて`Error`)。
-    見本(シーン構築見本.cs)が仕様コメントとして提示したSCENE001〜006・008・009にほぼ対応するが、
-    見本のSCENE007「循環検出」は、`Create`呼び出しが構文的なネストでしか親子関係を表現できない
-    本方式では真の循環がSCENE005(同一ノードの複数回生成)に構造的に包含されるため独立の診断
-    としては実装せず、見本のSCENE010「削除時の被参照チェック」はIDE操作時のガードでPhase B以降の
-    対象のため実装していない。Phase A固有の`SCENE009`(8型引数上限超過)は見本には無い追加診断。
-  - 診断が1件でもあるクラスは、`SceneNodeSymbolEmitter`/`SceneRuntimeEmitter`がそのクラス分の
-    生成を完全にスキップする(`GameSystemGenerator`と同じ診断ゲート規約)。
+  - `SCENE100`〜`118`は`IScene`実装、Root式、Node/Component/Children構文、禁止されたRuntime参照、
+    `[StartupScene]`適用先とOrder重複を検証する。カテゴリは`CSharpGameEngine.Entities.CodeGen`で全てError。
+  - 解析エラーを持つSceneは`SceneInstantiateEmitter`とStartup合成Systemの生成対象から除外する。
 - Conformance: Matches
-- Known deviations: 見本の10診断からSCENE007/010を除外し、Phase A固有のSCENE009を追加
-  (ADR-0030に理由を記録済み)。
-- Next action: なし(Phase Aスコープでは完結)。
+- Known deviations: 旧SCENE001〜009はADR-0040移行時に廃止し、IDをSCENE100以降へ振り直した。
+- Next action: なし。
 
-## F-L9-006 — `samples/SceneAuthoringDemo`
+## F-L9-006 — `samples/SceneAuthoringDemo`(削除済み)
 
 - Layer: L9 — Game / Application
 - Parent capability: Scene Authoring(C#コードをSceneの正本にする、Phase A)
-- Status: Implemented
-- Verification: RuntimeVerified
+- Status: Removed(ADR-0040移行時)
+- Verification: NotApplicable(削除前はRuntimeVerified)
 - Intended specification: Docs/Decisions/ADR-0030-Scene-Authoring-CSharp-Source-Of-Truth.md
-- Implementation evidence:
-  - samples/SceneAuthoringDemo/SceneAuthoringDemo.csproj
-  - samples/SceneAuthoringDemo/Components.cs
-  - samples/SceneAuthoringDemo/MainScene.cs
-  - samples/SceneAuthoringDemo/DemoScenario.cs
-  - samples/SceneAuthoringDemo/Program.cs
-- Tests: なし専用(`DemoScenario.Run()`自身が"OK"/"FAIL:<理由>"という決定的な文字列を返す
+- Removal evidence: `samples/SceneAuthoringDemo/`は削除済み。後継の実利用例は
+  `UserEcsProject/Scenes/MainScene.cs`と`UserEcsProject/Scenes/FirstPersonStageScene.cs`。
+- Historical tests: なし専用(`DemoScenario.Run()`自身が"OK"/"FAIL:<理由>"という決定的な文字列を返す
   自己検証シナリオで、`dotnet run`で実行して確認する。`samples/SoaSystemsDemo`と同じ「サンプルは
   dotnet runで動かす、xUnitプロジェクトは持たない」規約に合わせた)。
-- Reverse-engineered behavior:
+- Historical behavior:
   - ユーザーが貼り付けた見本(シーン構築見本.cs)のRoot/MainCamera/Player構成を、
     `LocalTransform`ではなく`Position`/`Rotation`/`Scale`の3分割`Set`呼び出しへ書き換えた上で
     実際の`SceneDefinitionGenerator`で動くコードとして再現している。
@@ -1942,9 +1898,9 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
     Define本体に書いた各Component値が実際にWorldへ反映されていることを、`EntityQuery`で
     該当Entityを検索した上で検証する(`CreateRuntime`はRootのEntityしか返さないため)。
     `dotnet run --project samples/SceneAuthoringDemo`で実行し"OK"を確認済み。
-- Conformance: Matches
+- Conformance: NotApplicable(旧サンプルは存在しない)
 - Known deviations: None
-- Next action: なし。
+- Next action: なし。現行Scene DSLはF-L7-012と`UserEcsProject`で検証する。
 
 ## F-L7-014 — `CSharpGameEngine.SceneAuthoring.Cli`(実行ベースの汎用Worldブリッジ)
 
@@ -2030,10 +1986,10 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
     可視性判定は`EnvDTE.TextDocument`のライブバッファテキストを`SceneDefinitionTextDetector`
     (正規表現)で判定するだけで、Roslyn/Workspaceは一切使わない。
   - `ProjectOutputAssemblyResolver`は`EnvDTE.Project.FullName`+`OutputPath`/`OutputFileName`
-    プロパティから実ビルド出力を解決する(TFM/RID非依存)。`UserGameProject`のような
+    プロパティから実ビルド出力を解決する(TFM/RID非依存)。旧L9アプリケーションのような
     `net10.0-windows10.0.19041.0`+`win-x64`という非標準TFMでも、フォルダ名を決め打ちする
     `BridgeExecutableLocator`方式とは異なりそのまま解決できることを、実際に
-    `UserGameProject/Scene1.cs`向けのブリッジ実行(F-L9-007参照)で確認した。
+    旧`Scene1.cs`向けのブリッジ実行(F-L9-007参照)で確認した。
   - `GizmoMeshFactory`は`CSharpGameEngine.Geometry.ProceduralMeshFactory.CreateBox`を経由せず、
     同じ頂点/法線構成をプレーンな`System.Numerics.Vector3`で独立に再実装している
     (`ProceduralMeshFactory`はRUF空間抽象化を経由し、net10.0専用でVSIXから参照できないため)。
@@ -2047,7 +2003,7 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   `GizmoMeshFactory`だけは存続して現行の描画経路で使われていることが判明したため上記に明記した
   (残課題の記述は「5ファイルとテスト3件は全て削除済み」としており、この点が不正確だった)。
 
-## F-L9-007 — `UserGameProject/Scene1.cs`
+## F-L9-007 — 旧L9アプリケーションの`Scene1.cs`(削除済み)
 
 - Layer: L9 — Game / Application
 - Parent capability: `[SceneDefinition]`クラスのコンテキストメニュー3Dプレビュー
@@ -2055,21 +2011,20 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
 - Verification: NotApplicable
 - Intended specification: Docs/Decisions/ADR-0031-Scene-Definition-3D-Preview.md
   (機構ごと退役。後継はADR-0040 / M0019)
-- Removal evidence(2026-08時点で実際にファイルの有無を確認): `UserGameProject/Scene1.cs`は削除済み。
-  **`UserGameProject`ディレクトリ自体が存在しない**(M0019 Phase 5「Scene定義をISceneへ一本化し旧機構を
-  削除」`81c462e`で撤去)。現行のユーザープロジェクトは`UserEcsProject`。
+- Removal evidence(2026-08時点で実際にファイルの有無を確認): 旧`Scene1.cs`は`81c462e`で、
+  旧L9アプリケーションの残りは`40f08e4`で削除済み。現行のユーザープロジェクトは`UserEcsProject`。
 - Tests: なし(退役)。
 - Reverse-engineered behavior(歴史的記録。以下は退役した実装の説明):
   - `Root`→`MainCamera`(Position/Rotation/Scale/CameraRig)/`Player`(Position/Rotation/Scale/
     PlayerTag/Health)/`Lighting`(Positionのみ、Sun/Ambientのグルーピングアンカー)、
     `Lighting`→`Sun`(Position/DirectionalLightData)/`Ambient`(Position/AmbientLightData)という
-    3階層6ノード構成。`UserGameProject/Components.cs`の既存型のみを使い、新規Component型は
+    3階層6ノード構成。旧`Components.cs`の既存型のみを使い、新規Component型は
     追加していない。`Camera`(D3D12)ではなく`CameraRig`を採用したのは、`Camera`のフィールド
     (ピッチクランプ範囲・軌道半径等)が実行時に更新され続けるライブ状態向けであり、静的な
     初期値としての意味を持たないため。
   - `Program.cs`の実際のゲームループには一切組み込まれていない(`samples/SceneAuthoringDemo/
     MainScene.cs`と同じ、単独のプレビュー確認用フィクスチャという位置づけ)。
-  - `dotnet build UserGameProject`で生成される`Generated/.../Scene1.SceneNodes.g.cs`/
+  - 旧L9アプリケーションのビルドで生成される`Generated/.../Scene1.SceneNodes.g.cs`/
     `Scene1.SceneRuntime.g.cs`を目視確認し、6ノード全ての階層・Component型引数・GetRef代入が
     Define本体のとおりであることを確認した。ブリッジCLIを実際のビルド済み(TFM/RID付き)dllに
     対して実行し、応答JSONが同じ6ノードの階層・値と完全一致することも確認した(F-L7-014参照)。
@@ -2102,18 +2057,18 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
 - Reverse-engineered behavior:
   - `ISystem`/`IArchetype`は空のマーカーinterface。`Entity`は`record struct Entity(int Id)`で
     Generation無し(`Create`が`EntityArchetypeIndices.Count`をそのまま割り当てる単調増加ID)。
-  - `World`/`State`は`partial struct`で、`Runtime.cs`が持つのは`EntityArchetypeIndices`だけ。
-    Archetypeごとのリスト・`Create`/`MoveArchetype`/`Detach`/`PlaybackMoveArchetypes`は
-    GameSystemGeneratorが同じ`partial struct World`へ生成する(ADR-0033決定事項1)。
+  - `World`/`State`は`partial struct`。`Runtime.cs`はEntity位置表、Scene instance表、遅延Destroy/
+    Scene unloadキューを持つ。Archetypeごとのリスト・`Create`/`MoveArchetype`/`Detach`/`Destroy`/
+    `PlaybackMoveArchetypes`はGameSystemGeneratorが同じ`partial struct World`へ生成する。
   - このプロジェクトは`<ProjectReference>`されない**ソース正本**。partial型がアセンブリ境界を
     またげないため、消費側は`<Compile Include Link>`で取り込む。単体`dotnet build`は
     「System 0件でも空の`Archetype` enumと空の`partial struct World`が生成されコンパイルできる」
     ことのスモークテストとして機能する。
   - M0012の`src/CSharpGameEngine.StaticArchetype/Runtime.cs`を、グローバル名前空間から
     `CSharpGameEngine.Entities`名前空間へ移して統合したもの(旧プロジェクトは削除済み)。
-  - `Bootstrap`(M0015)は生成されたエントリポイントが作る唯一のシードEntityのComponent。
-    `Parent`/`SceneNodeTag`と同じ「エンジンが持つComponent」で、`Done`フラグを持つのは閉集合方式に
-    `Destroy`が無くArchetypeループが毎フレーム回り続けるため(ADR-0035決定事項3)。
+  - `Bootstrap`(M0015)は生成されたエントリポイントが作るシードEntityのComponent。`Done`は
+    旧一回初期化契約の互換フィールドとして残るが、複数`[StartupScene]`の一回性は共有値ではなく
+    各`SceneStartupSystemEmitter`生成Systemのprivate `Done`が担う(F-L7-017)。
   - `SystemOrderAttribute`(M0016)は「属性を一切使わない構造的推論」(ADR-0033決定事項2)からの
     唯一の例外。`ISystem`実装struct自身に直接(そのSystem1つだけの順序)、または`file`スコープの
     マーカークラスに(ファイル既定値)、どちらにも付けられる(ADR-0036)。
@@ -2121,7 +2076,7 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
 - Known deviations: None
 - Next action: なし。
 
-## F-L7-015 — `GameSystemGenerator`(Analyzer/Model/IndexAssigner/Types・World・Snapshot・Loop・EntryPoint各Emitter)
+## F-L7-015 — `GameSystemGenerator`(Analyzer/Model/IndexAssigner/Types・World・Loop・EntryPoint・Scene各Emitter)
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: 静的(閉集合)Archetype ECS
@@ -2132,18 +2087,18 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   Docs/Decisions/ADR-0036-System-Order-Attribute.md、
   Docs/Specifications/Ecs-Soa-Systems.md
 - Implementation evidence:
-  - src/CSharpGameEngine.CodeAnalysis/GameSystemGenerator.cs(ISystem+[SceneDefinition]の統合エントリポイント)
+  - src/CSharpGameEngine.CodeAnalysis/GameSystemGenerator.cs(`ISystem`+`IScene`の統合エントリポイント)
   - src/CSharpGameEngine.CodeAnalysis/GameSystemAnalyzer.cs
   - src/CSharpGameEngine.CodeAnalysis/GameSystemModel.cs
   - src/CSharpGameEngine.CodeAnalysis/GameSystemIndexAssigner.cs
   - src/CSharpGameEngine.CodeAnalysis/GameSystemTypesEmitter.cs
   - src/CSharpGameEngine.CodeAnalysis/GameSystemWorldEmitter.cs
-  - src/CSharpGameEngine.CodeAnalysis/GameSystemSnapshotEmitter.cs
   - src/CSharpGameEngine.CodeAnalysis/GameSystemLoopEmitter.cs
   - src/CSharpGameEngine.CodeAnalysis/GameSystemEntryPointEmitter.cs(M0015)
   - src/CSharpGameEngine.CodeAnalysis/GameSystemOrderAnalyzer.cs(M0016)
   - src/CSharpGameEngine.CodeAnalysis/GameSystemExecutionOrder.cs(M0016)
-  - src/CSharpGameEngine.CodeAnalysis/SceneRuntimeEmitter.cs(Createファクトリ呼び出しへ書き換え)
+  - src/CSharpGameEngine.CodeAnalysis/SceneComponentSetCollector.cs
+  - src/CSharpGameEngine.CodeAnalysis/SceneInstantiateEmitter.cs
 - Tests:
   - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemEntryPointTests.cs(出力条件4種、SYSGEN021、
     Bootstrap Archetypeの注入が生成時のみであること、生成された`Main`の実行)
@@ -2155,7 +2110,9 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
     Contextのスレッディング、WorldSnapshot、決定性)
   - tests/CSharpGameEngine.CodeAnalysis.Tests/GameSystemGeneratorEndToEndTests.cs(部分集合ディスパッチの
     発火回数、フレーム末尾のMoveArchetype適用、Context到達、Spawn宣言Archetypeの生成、WorldSnapshot)
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDefinitionGenerator*Tests.cs(統合後のScene生成)
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslGeneratorEmissionTests.cs
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslGeneratorEndToEndTests.cs
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneArchetypeIntegrationTests.cs
 - Reverse-engineered behavior:
   - 属性を一切使わない構造的推論: 先頭値渡し`Entity`=Entityスロット、末尾`ref State`=Stateスロット、
     それ以外の`ref`=Component、それ以外(ref以外)=Context。ref-kindだけで曖昧性なく判別できる。
@@ -2168,7 +2125,7 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
     付けたファイル既定値(いずれもADR-0036、既定0、①が優先)、そのうえで③`FilePath` Ordinal
     (既存タイブレーク) ④`SourceSpan.Start`の順。旧`GameSystemScheduler`のWrite→Read自動順序決定は、
     Component引数が全て`ref`になったことで原理的に成立しなくなり削除された。
-  - `[SceneDefinition]`のノード形状も同じArchetype空間へ入れるため、SceneDefinitionGeneratorは
+  - `IScene.Root`のノード形状も同じArchetype空間へ入れるため、Scene DSL生成は
     独立したGeneratorではなくこのパイプラインの一部になっている(ADR-0033決定事項7)。
   - 出力は`CSharpGameEngine.Entities.ISystem`型がコンパイル内に実在する場合のみ(無関係なプロジェクトの
     汚染防止、ADR-0032実装時に確認済みの回帰への対策)。
@@ -2218,7 +2175,7 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
 - Known deviations: None
 - Next action: なし。
 
-## F-L3-013 — `CSharpGameEngine.Entities`(`StartupSceneAttribute`/`SceneEntityAttribute`)
+## F-L3-013 — `CSharpGameEngine.Entities`(`StartupSceneAttribute`/`IScene`起動契約)
 
 - Layer: L3 — ECS / Job Runtime
 - Parent capability: 静的(閉集合)Archetype ECS
@@ -2228,22 +2185,23 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   Docs/Specifications/Ecs-Soa-Systems.md#startupscenesceneentity宣言合成system
 - Implementation evidence:
   - src/CSharpGameEngine.Entities/StartupSceneAttribute.cs
-  - src/CSharpGameEngine.Entities/SceneEntityAttribute.cs
+  - src/CSharpGameEngine.Entities/IScene.cs
 - Tests:
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/StartupSceneGeneratorDiagnosticsTests.cs(正常系2件が
-    両Attributeの実使用形を兼ねる)
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslAnalyzerTests.cs
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslGeneratorEndToEndTests.cs
 - Reverse-engineered behavior:
   - `StartupSceneAttribute`は`AttributeTargets.Class`、`Order`は`int`の`init`プロパティ(コンストラクタ
     引数ではなく名前付き引数`[StartupScene(Order = 0)]`で渡す設計、`SystemOrderAttribute`の
     コンストラクタ引数方式とは意図的に異なる)。
-  - `SceneEntityAttribute`は`AttributeTargets.Property`(マーカー、プロパティ無し)。
-  - いずれも`SystemOrderAttribute`/`Bootstrap`/`Parent`と同じく`src/CSharpGameEngine.Entities/`に
-    手書きで置かれ、消費側csprojのワイルドカード(`*.cs`)経由で伝播する。
+  - `StartupSceneAttribute`を付けられる現行対象は`IScene`実装classだけ。旧`[SceneEntity]`プロパティ列挙は
+    ADR-0040で削除され、起動Entityは`IScene.Root`以下の`Node`宣言から導出する。
+  - `StartupSceneAttribute`/`IScene`はいずれも`src/CSharpGameEngine.Entities/`に手書きで置かれ、
+    消費側csprojのワイルドカード(`*.cs`)経由で伝播する。
 - Conformance: Matches
 - Known deviations: None
 - Next action: なし。
 
-## F-L7-017 — `GameSystemGenerator`(`StartupSceneAnalyzer`/`StartupSceneSystemEmitter`、合成System統合)
+## F-L7-017 — `GameSystemGenerator`(`SceneStartupSystemEmitter`、`IScene`合成System統合)
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: 静的(閉集合)Archetype ECS
@@ -2252,28 +2210,24 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
 - Intended specification: Docs/Decisions/ADR-0038-Startup-Scene-Declarative-Api.md、
   Docs/Specifications/Ecs-Soa-Systems.md#startupscenesceneentity宣言合成system
 - Implementation evidence:
-  - src/CSharpGameEngine.CodeAnalysis/StartupSceneModel.cs
-  - src/CSharpGameEngine.CodeAnalysis/StartupSceneAnalyzer.cs
-  - src/CSharpGameEngine.CodeAnalysis/StartupSceneSystemEmitter.cs
-  - src/CSharpGameEngine.CodeAnalysis/GameSystemGenerator.cs(4本目の`ForAttributeWithMetadataName`
-    プロバイダ、合成`GameSystemResult`のマージ、`SystemOrderByFqn`への追加登録)
-  - src/CSharpGameEngine.CodeAnalysis/GameSystemAnalyzer.cs(`IsNonNullableStruct`を`internal`化して共有)
-  - src/CSharpGameEngine.CodeAnalysis/GameSystemLoopEmitter.cs(`BuildLocalName`を`internal`化して共有)
+  - src/CSharpGameEngine.CodeAnalysis/SceneStartupSystemEmitter.cs
+  - src/CSharpGameEngine.CodeAnalysis/SceneDslAnalyzer.cs
+  - src/CSharpGameEngine.CodeAnalysis/SceneEmitModel.cs
+  - src/CSharpGameEngine.CodeAnalysis/GameSystemGenerator.cs(合成`GameSystemResult`のマージと
+    `SystemOrderByFqn`への追加登録)
 - Tests:
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/StartupSceneGeneratorEmissionTests.cs(隠しstruct生成、
-    Bootstrap.Doneガードの位置、単一/Tuple Entityの評価回数、複数Entityの宣言順出力、
-    `GameSystem.Loop.g.cs`からのディスパッチ、Archetype出現順の非破壊、エントリポイント単独生成、決定性)
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/StartupSceneGeneratorEndToEndTests.cs(単一/Tuple Entityの
-    実生成・2フレーム目の非重複、後続Systemによる同一フレーム内の読み取り、Scene propertyの評価回数)
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslGeneratorEmissionTests.cs
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslGeneratorEndToEndTests.cs(複数Startup Sceneの
+    独立instantiate、2フレーム目の非重複、生成`RunFrame`連鎖)
 - Reverse-engineered behavior:
   - Roslynの1つのGeneratorは自分自身が生成した構文木を同じ実行内で再検出できないため、
     `[StartupScene]`から`ISystem`実装structのソースだけを生成して既存`GameSystemAnalyzer`による
-    再検出に期待する設計は取れない。`StartupSceneSystemEmitter.BuildSyntheticSystemResult`が
+    再検出に期待する設計は取れない。`SceneStartupSystemEmitter.BuildSyntheticSystemResult`が
     `GameSystemResult`を直接構築し、実際に検出されたSystemと同じ`List`へ合流させてから
     `GameSystemIndexAssigner.Assign`/`GameSystemLoopEmitter.Emit`/`GameSystemEntryPointEmitter`へ
     渡す(いずれも合成か実際に検出されたものかを区別しない)。
   - 合成Systemの実体(`{ClassName}__StartupSystem`、元クラスと同じ名前空間)は
-    `StartupSceneSystemEmitter.EmitHiddenSystem`が同じGenerator実行内で生成する。
+    `SceneStartupSystemEmitter.EmitHiddenSystem`が同じGenerator実行内で生成する。
   - `[StartupScene(Order = N)]`は、実際に検出されたSystemの`SystemOrderByFqn`マップへ合成Systemの
     完全修飾名を追加登録することで、`[SystemOrder]`をSystem自身へ直接付けた場合と同じ優先度として
     扱われる(`GameSystemExecutionOrder`自体は無変更)。
@@ -2281,8 +2235,8 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
     引数集合が先に登録されるため、同じ集合を既存Systemが宣言済みならArchetypeの出現順は変わらない
     (`UserEcsProject`の`{AppHost, Level}`はLevelLoadが登録済みのため、`MainScene`の同集合出力は
     新しいArchetypeを作らない — 生成コードで実際に確認済み)。
-  - `[SceneDefinition]`(F-L7-012/013)とは責務が異なると判断し、統合ではなく独立したAttribute/
-    Analyzer/Emitterとして追加した(ADR-0038参照)。
+  - Scene構文解析/instantiate生成(F-L7-012/013)と起動タイミングを分離し、後者だけを
+    `SceneStartupSystemEmitter`が合成Systemとして既存GameSystemループへ統合する。
 - Conformance: Matches
 - Known deviations: None
 - Next action: なし。
@@ -2290,36 +2244,33 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   `{ClassName}__StartupSystem`は全員が唯一共有される`Bootstrap`Entityの`Bootstrap.Done`フィールドを
   直接読み書きしていたため、同一フレーム内で先に実行された1つが`Done=true`にした時点で残り全員が
   「実行済み」と誤認し、自分の`InstantiateScene`を一度も呼ばずに終わっていた(宣言順が2番目以降の
-  `StartupScene`が実機で常に無視されるという形で発覚)。`StartupSceneSystemEmitter.EmitHiddenSystem`
-  (現ファイル名`SceneStartupSystemEmitter.cs`)を、共有`Bootstrap.Done`ではなく各Systemインスタンス
+  `StartupScene`が実機で常に無視されるという形で発覚)。`SceneStartupSystemEmitter.EmitHiddenSystem`を、
+  共有`Bootstrap.Done`ではなく各Systemインスタンス
   固有のprivate instance field(`Done`)を1回きりの判定に使うよう修正(System構造体インスタンスは
   `Run()`内で1つだけ生成され全フレームを通して同一インスタンスがrefで渡され続けることを利用)。
   `tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslGeneratorEndToEndTests.cs`に、2つの
   `[StartupScene]`が生成された実際の`RunFrame`連鎖を通してどちらも独立にインスタンス化されることを
   固定する回帰テストを追加。
 
-## F-L7-018 — `GameSystemGenerator`診断(STARTUP001〜010)
+## F-L7-018 — `GameSystemGenerator`診断(旧STARTUP001〜010、削除済み)
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: 静的(閉集合)Archetype ECS
-- Status: Implemented
-- Verification: TestVerified
+- Status: Removed(ADR-0040移行。後継はF-L7-013のSCENE117/118)
+- Verification: NotApplicable(削除前はTestVerified)
 - Intended specification: Docs/Decisions/ADR-0038-Startup-Scene-Declarative-Api.md
-- Implementation evidence:
-  - src/CSharpGameEngine.CodeAnalysis/StartupSceneDiagnostics.cs
-  - src/CSharpGameEngine.CodeAnalysis/AnalyzerReleases.Unshipped.md
-- Tests:
-  - tests/CSharpGameEngine.CodeAnalysis.Tests/StartupSceneGeneratorDiagnosticsTests.cs(STARTUP001〜010の
-    各1件+正常系2件)
-- Reverse-engineered behavior:
+- Removal evidence: 旧`StartupSceneDiagnostics.cs`と旧StartupScene専用テストは削除済み。
+  現行の診断登録は`src/CSharpGameEngine.CodeAnalysis/AnalyzerReleases.Unshipped.md`、
+  実装とテストはF-L7-013を参照。
+- Historical behavior:
   - カテゴリ`CSharpGameEngine.Entities.CodeGen`、すべて`Error`(既存SYSGEN/SCENE系と同じ規約)。
   - `[SceneEntity]`がプロパティ以外に付く場合(`AttributeTargets.Property`が言語レベルで拒否)、
     同一クラス内でEntity論理名(プロパティ名)が衝突する場合(C#の重複宣言禁止)、生成型名/Hint Nameが
     衝突する場合(元クラスのFQNから1:1に導出するため構造的に起こり得ない)は、専用診断を設けていない
     (SYSGEN009と同じ「欠番の理由をコードコメントに残す」方針)。
-- Conformance: Matches
+- Conformance: NotApplicable(STARTUP診断IDは存在しない)
 - Known deviations: None
-- Next action: なし。
+- Next action: なし。現行`[StartupScene]`誤用はSCENE117/118で報告する。
 
 ## F-L1-007 — `CSharpGameEngine.Audio.Abstractions`(`IAudioBackend`/`AudioBackend<TBackend,...>`/`ProceduralAudioClip`)
 
@@ -2389,8 +2340,8 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
     エイリアス2行 + `GameAudio`Facade)。`UserEcsProject/Components.cs`/`Systems/RuntimeSystem.cs`/
     `Scenes/MainScene.cs`はいずれも`CSharpGameEngine.Audio.XAudio2`を直接参照しない。
 - Conformance: Matches
-- Known deviations: `UserEcsProject`の旧サンプルはADR-0039の単一Entity制約を維持する。一方、今回の
-  `UserGameProject/AudioRuntime`はEntityごとの音源、Listener位置、距離減衰を実装済み。
+- Known deviations: `UserEcsProject`はADR-0039の単一Entity制約を維持する。旧L9ランタイムにあった
+  Entityごとの音源、Listener位置、距離減衰は現行へ移植していない。
 - Next action: なし。
 
 ## F-L4-002 — `CSharpGameEngine.Runtime.Windows`(`PrimitiveMesh`/`PrimitiveType`/`RenderServer`)
@@ -2439,8 +2390,8 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
     宣言順が2番目以降の`StartupScene`が常に無視されていた。
 - Conformance: Matches
 - Known deviations: プリミティブごとの色/マテリアル指定は無し。起動後の動的な追加・削除は不可
-  (全レンダラー共通の「Create時にロースター確定」という制約を踏襲)。`UserGameProject`側の並行
-  コンポーネント体系(`MeshRenderer`/`RenderSync`)への配線は未実施。
+  (全レンダラー共通の「Create時にロースター確定」という制約を踏襲)。削除済み旧L9側の並行
+  コンポーネント体系(`MeshRenderer`/`RenderSync`)とは統合せず、現行Scene DSLへ一本化した。
 - Next action: なし。Phase 9(VSIX Scene ViewをSceneModel描画へ)がこの`PrimitiveMesh`語彙を前提として
   実装済み(F-L8-010参照)。
 
@@ -2467,8 +2418,8 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
     SceneDesignerToolWindowControl.xaml(.cs)(新規、`HierarchyToolWindowPane`と同型のToolWindowPane)
   - tools/CSharpGameEngine.VSExtension/OpenSceneDesignerCommand.cs(新規、コードエディタコンテキスト
     メニューコマンド)
-  - tools/CSharpGameEngine.VSExtension/ScenePickerDialog.xaml(.cs)(新規、複数`IScene`クラスが
-    あるファイル用のピッカーダイアログ)
+  - tools/CSharpGameEngine.VSExtension/SceneDesignerPresentationContracts.cs(複数`IScene`は
+    `SceneSelector`コンボボックスから選択)
   - tools/CSharpGameEngine.VSExtension/OpenViewerCommandPackage.vsct(`OpenSceneDesignerCommandId`/
     `SceneDesignerContextMenuGroup`を追加、`0x0108`/`0x1023`は退役のため再利用せず)
   - tools/CSharpGameEngine.VSExtension/CSharpGameEngineViewerPackage.cs(`SceneFileEditorFactory`の
@@ -2480,7 +2431,7 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   - tests/CSharpGameEngine.VSExtension.Tests/SceneModelRenderObjectBuilderTests.cs(新規、Transform/
     PrimitiveMesh値抽出・回転未指定時のIdentityフォールバック・Gizmoフォールバック・NodePath同一性の
     7件、実解析済み`SceneModel`に対して検証)
-  - 既存のtests/CSharpGameEngine.VSExtension.Tests/配下(SceneFileTests.cs等)は無改修のまま54/54成功
+  - tests/CSharpGameEngine.VSExtension.Tests/SceneDesignerPresentationContractsTests.cs
 - Reverse-engineered behavior:
   - **トリガー方式の決定**: 当初案(`.cs`ファイル用の2つ目の`IVsEditorFactory`+`LOGVIEWID_Designer`)は
     実機での「開く方法」挙動が未検証のまま採用するリスクがあったため、このリポジトリに実績のある
@@ -2516,7 +2467,7 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
     Phase 0でpre-order DFSによる`world = local * parentWorld`の畳み込みを実装した。
     `Level`コンポーネント(.glbステージ全体参照)は引き続き描画しない。
 - Conformance: Matches(自動テストの範囲。実機VS Experimental Instanceでのコンテキストメニュー
-  表示・ピッカーダイアログ・3D描画・ライブ更新の目視確認はユーザー側で実施予定)。
+  表示・`SceneSelector`・3D描画・ライブ更新の目視確認はユーザー側で実施予定)。
 - Known deviations: ドラッグ&ドロップでの配置(`SceneNodeAdder`、`.scene`書き込み)はこのフェーズ
   完了時点で一時的に機能しなくなった(`SceneEditorHub.ActiveScene`を発行する経路が無くなったため、
   常に「シーンファイルを開いてください」エラーになる) — 既知の受け入れ済み退行だった。
@@ -2525,8 +2476,8 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   [[M0020-Scene-Editor-Interaction]] Phase 0の完了基準へ統合した。あわせてPhase 0では
   `SceneModelRenderObjectBuilder`のTransform型ハードコード(`global::UserEcsProject.Transform`)に
   起因する「実シーンが全ノードIdentityで原点に固まって描画される」バグの修正と、階層Transform
-  合成を行う([[ADR-0041-Scene-Editor-Interaction-Architecture]])。なお本エントリのImplementation
-  evidenceにある`ScenePickerDialog.xaml(.cs)`は、その後のコミット(`eeaae1b`/`40f08e4`)で
+  合成を行う([[ADR-0041-Scene-Editor-Interaction-Architecture]])。旧`ScenePickerDialog.xaml(.cs)`は
+  その後のコミット(`eeaae1b`/`40f08e4`)で
   `SceneDesignerToolWindowControl`内の`SceneSelector`コンボボックスへ置き換えられて削除済み
   (歴史的記録として残す)。
 
@@ -2606,6 +2557,6 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
 
 # 2026-08 UE FirstPerson宣言型Scene移行
 
-- `UserGameProject`と一体型`Lvl_FirstPerson.glb`ランタイムを廃止し、`UserEcsProject`へ統合した。
+- 旧L9アプリケーションと一体型`Lvl_FirstPerson.glb`ランタイムを廃止し、`UserEcsProject`へ統合した。
 - UE 5.8の55 StaticMeshActorを9個の共有描画資産へ分解し、配置・Mobility・DirectionalLight・SkyLight・Fog・PlayerStartを`FirstPersonStageScene.cs`で宣言する。
 - 実行時とScene Designerは同じ`StaticMesh.AssetPath`を解決し、C# Sceneを配置の正本とする。

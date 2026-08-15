@@ -1397,3 +1397,31 @@ Expハイブのキャッシュより新しくすること」を機序として**
   - `dotnet test CSharpGameEngine.slnx -c Debug`は全8テストプロジェクト808件成功・失敗0
     (Entities 40 / Core 122 / Bridge.Hosting 8 / Import 30 / Windows 87 / CodeAnalysis 101 /
     SceneModel 104 / VSExtension 316)。
+
+## 2026-08-16 実装台帳69件の全件監査(タスクB)
+
+- **監査母数**: `Docs/Implementation-Status.md`のFeature見出し69件を1件ずつ確認した。
+  Status 69件、Verification 69件を再集計し、監査後の内訳はImplemented 33件、Removed 35件、
+  PartiallyImplemented 1件。
+- **旧L9アプリケーション参照63行**: 17 Featureエントリと導入/移行要約2行に分布していた。
+  5 Feature(F-L8-001/F-L7-005/F-L8-005/F-L4-001/F-L4-002)は現行`UserEcsProject`または現行ツールへ
+  証跡を付け替え、5 Feature(F-L3-014/F-L9-001手書きループ/F-L9-002/F-L9-003/F-L9-004)は
+  実装消滅を確認してRemovedへ変更、7 Feature(F-L7-003/F-L2-001/F-L7-007/F-L9-001重複ID/
+  F-L7-010/F-L8-009/F-L9-007)は既にRemovedだったため削除履歴として書き直した。監査後、旧プロジェクトの
+  固有名リテラルは0件。
+- **残る69件の横断監査**: 開始時はImplemented/PartiallyImplementedエントリのImplementation evidence/
+  Testsに、存在しないパス候補56件(17 Feature)があった。旧動的ECS 3件(F-L3-008〜010)、旧`.scene`
+  プレビュー(F-L8-003)、旧SceneAuthoringサンプル(F-L9-006)、旧STARTUP診断(F-L7-018)をRemovedへ変更。
+  現行Scene DSL/StartupScene/GameSystem 6件(F-L3-011/F-L3-013/F-L7-012/F-L7-013/F-L7-015/F-L7-017)と
+  Scene Designer(F-L8-010)は現存ファイル/テストへ証跡を更新した。
+- **監査後のパス整合**: evidence/testパス候補372件のうち、現行Featureの欠落は0件。
+  Removed Featureの欠落108件は削除前ファイルを指す意図的な履歴証跡として維持した。また現行Feature本文に
+  残る欠落パス4件(`SpatialPresetDemo`、旧Geometry配置2件、旧StaticArchetype配置1件)は、いずれも
+  「移設前」「削除済み」と明記された来歴説明であり、現行Implementation evidenceではない。
+- **Conformance判断**: 削除済み実装をImplementedと扱う不一致は解消した。旧機能と現行後継の機能集合が
+  同一でない箇所(キャラクター操作、汎用構造変更、複数音源/距離減衰など)は、後継へ同一視せずRemovedの
+  Known deviationsとして保持した。
+- **Evidence**: `dotnet build CSharpGameEngine.slnx -c Debug`は警告0/エラー0。
+  `dotnet test CSharpGameEngine.slnx -c Debug --no-build`は全8テストプロジェクト808件成功・失敗0
+  (Entities 40 / Core 122 / Bridge.Hosting 8 / Import 30 / Windows 87 / CodeAnalysis 101 /
+  SceneModel 104 / VSExtension 316)。
