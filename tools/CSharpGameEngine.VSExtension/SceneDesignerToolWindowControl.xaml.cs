@@ -61,6 +61,15 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     internal void SetTarget(SceneEditorSessionService Session,SceneDocumentSnapshot Snapshot){
         this.SetSession(Session);
         this.ShowSnapshot(Snapshot);
+
+        // SetSessionは同一セッションだと早期returnするため、Designerが既に開いている状態で
+        // コンテキストメニュー(OpenSceneDesignerCommand)から開くとカタログ再取得が走らず、
+        // SceneSelectorが表示中のシーンと食い違ったままになる(空欄のまま、あるいは直前に
+        // 選んだ別シーンのまま)。Pinは呼び出し側で既に済んでいるのでここで選択を合わせ、
+        // カタログが未取得のときだけ取得し直して完了時に反映させる。
+        if(!this.TrySyncSelectorToPinnedScene()){
+            this.RefreshSceneCatalog();
+        }
     }
 
     private void OnLoaded(object Sender,RoutedEventArgs Args){
@@ -76,6 +85,10 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             } else {
                 this.ShowSnapshot(Snapshot);
             }
+
+            // Pinはコンテキストメニュー経由やClearPinからも変わる。ComboBoxの選択はPinの変化に
+            // 追従させ、「ビューポートが表示しているシーン＝選択されている項目」を常に保つ。
+            this.TrySyncSelectorToPinnedScene();
         });
     }
 
@@ -182,19 +195,17 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
                 try {
                     SceneSelector.ItemsSource=Catalog?.Entries;
                     SceneSelector.IsEnabled=Catalog is { Entries.Count:>0 };
-                    SceneKey?Pinned=Session.PinnedSceneKey;
-                    SceneSelector.SelectedItem=Catalog?.Entries.FirstOrDefault(Entry=>
-                        Pinned is { } Key&&Entry.Key.Equals(Key));
-
-                    if(Catalog is null){
-                        this.ShowEmpty("シーンを選択してください。");
-                    } else if(Pinned is { } Key
-                        &&string.Equals(Key.ProjectId,Catalog.ProjectId,StringComparison.Ordinal)
-                        &&SceneSelector.SelectedItem is null){
-                        Session.ClearPin();
-                    }
                 } finally {
                     this.UpdatingSelector=false;
+                }
+
+                bool Selected=this.TrySyncSelectorToPinnedScene();
+                if(Catalog is null){
+                    this.ShowEmpty("シーンを選択してください。");
+                } else if(Session.PinnedSceneKey is { } Key
+                    &&string.Equals(Key.ProjectId,Catalog.ProjectId,StringComparison.Ordinal)
+                    &&!Selected){
+                    Session.ClearPin();
                 }
             });
         } catch(OperationCanceledException){
@@ -210,6 +221,34 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     }
 
 #pragma warning restore VSTHRD001
+
+    /// <summary>
+    /// ComboBoxの選択を、現在Pinされているシーンへ合わせる。<c>SelectedItem</c>を書き換える唯一の
+    /// 経路にすることで、カタログ再取得経路とPin変化経路で選択の決め方がずれないようにしている。
+    /// 一致するEntryを選択できたかを返す(カタログ未取得、または別プロジェクトのシーンがPinされて
+    /// いる場合はfalse)。
+    /// </summary>
+    private bool TrySyncSelectorToPinnedScene(){
+        if(this.Disposed
+            ||this.Session is not { } Session
+            ||SceneSelector.ItemsSource is not IEnumerable<ProjectSceneCatalogEntry>Entries){
+            return false;
+        }
+
+        ProjectSceneCatalogEntry?Match=Session.PinnedSceneKey is { } Key
+            ?Entries.FirstOrDefault(Entry=>Entry.Key.Equals(Key))
+            :null;
+
+        // 自分で入れた選択でOnSceneSelectionChangedが発火すると、Pin→選択→Pinと往復してしまう。
+        this.UpdatingSelector=true;
+        try {
+            SceneSelector.SelectedItem=Match;
+        } finally {
+            this.UpdatingSelector=false;
+        }
+
+        return Match is not null;
+    }
 
     private void OnSceneSelectionChanged(object Sender,SelectionChangedEventArgs Args){
         if(this.UpdatingSelector||this.Disposed||this.Session is not { } Session

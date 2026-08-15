@@ -791,3 +791,106 @@ Deleteの非回帰(最優先項目)は問題なかったが、以下3件が仕�
   「シーンデザイナーは描画できているのにヒエラルキーだけ空白」「`IScene`未実装時のメッセージ
   (`EmptyMessage`、バインドを使わず`VsBrushes`を直接指定した`TextBlock`)は正しく出る」という
   症状の差分と、XAML内の全バインド5件のアクセシビリティ照合によって行った。
+
+## 2026-08 M0020: シーンデザイナーのコンボボックス未同期とコンテキストメニューの重複表示
+
+上記の修正でヒエラルキーが表示できるようになった後、実機確認で続けて2件見つかった。どちらも
+「表示されている状態」と「UIが示している状態」が食い違うという同じ性質の不具合。
+
+- **Mismatch → now Matches(コンボボックスがPinに追従しない)**: コンテキストメニューから
+  「シーン デザイナーで開く」で開いたとき、ビューポートは対象シーンを描画するのに
+  `SceneSelector`(ComboBox)が空欄のまま、あるいは直前に選んだ別シーンのまま残っていた。
+  `SelectedItem`を代入している箇所が`RefreshSceneCatalogAsync`の中の1箇所だけで、
+  コンテキストメニュー経由の経路がそこを通らないことが原因。`SetTarget`は
+  `SetSession`→`ShowSnapshot`と進むが、`SetSession`は`ReferenceEquals`で同一セッションだと
+  早期returnするため(デザイナーが既に開いている場合が該当)カタログ再取得が走らず、
+  `ShowSnapshot`はビューポートしか触らない。`Pin`が発火する`PinnedSnapshotChanged`の購読先
+  `OnPinnedSnapshotChanged`もセレクタを更新していなかった。「ComboBoxの選択=Pinされている
+  シーン」という不変条件を`TrySyncSelectorToPinnedScene`という単一の経路へ集約し、
+  `OnPinnedSnapshotChanged`(Pinの全変化に追従)・`SetTarget`(カタログ未取得時のみ
+  `RefreshSceneCatalog`へフォールバック)・`RefreshSceneCatalogAsync`の3箇所から呼ぶようにした。
+  自分で入れた選択で`OnSceneSelectionChanged`が再発火してPin→選択→Pinと往復しないよう、既存の
+  `UpdatingSelector`ガードをヘルパー内で使う。
+- **Mismatch → now Matches(「シーン デザイナーで開く」が2つ並ぶ)**: コードエディタの右クリック
+  メニューに同名項目が2つ表示され、2つ目は矢印付きでグレーアウトしていた。2つ目は複数Scene用の
+  入れ子サブメニュー`OpenSceneDesignerSubmenuCommandId`(0x010A)で、`.vsct`で
+  `DynamicVisibility`を宣言していたにもかかわらず**このIDへ`OleMenuCommand`を登録している
+  コードが1行も存在しなかった**(リポジトリ全体を検索して0件)。このフラグは「パッケージが
+  QueryStatusで可視/不可視を答える」ことを前提とした宣言にすぎないため、答える側がいないVSは
+  常に表示し続ける。Scene1件のファイルでは`Direct`モードで直接ボタンが出る上に、子項目0件の
+  サブメニューがグレーで居座っていた。サブメニュー自体を廃止し、動的項目
+  (`OpenSceneDesignerDynamicItemStart`)をコンテキストメニュー直下へ平らに置くことで、重複が
+  構造的に起こり得ないようにした。0x010A・0x1026・0x1025(宣言のみで未使用だった)は退役IDとして
+  記録し再利用しない。サブメニューが無くなったことで`SceneDesignerMenuMode.Submenu`が実態と
+  合わなくなるため`SceneList`へ改名し、平らに並ぶ項目が単体で読めるよう表示テキストを
+  クラス名のみ(「BoxScene」)から「BoxScene をシーン デザイナーで開く」へ変更した
+  (`SceneDesignerContextMenuPolicy.ItemText`)。
+- **Mismatch → now Matches(開いていないシーンに✓が付く)**: 上記の平坦化後、実機で
+  `PrimitiveShowcaseScene.cs`の`PrimitiveShowcaseBoxScene`上で右クリックすると同項目に✓が付いたが、
+  シーンデザイナーが実際に表示していたのは別ファイルの`FirstPersonStageScene`だった。✓
+  (`OLECMDF_LATCHED`)の判定基準が「右クリックしたキャレット位置のシーン」
+  (`SceneDocumentMenuSnapshot.GetTargetSceneFullyQualifiedName`)であり、開いているかどうかと
+  無関係だったため。VSのメニューで✓は「今その状態にある」ことを表す慣習なので誤読を招く。
+  基準を`SceneEditorSessionService.PinnedSceneKey.ClassFullyQualifiedName`へ変更した。一覧の項目は
+  右クリックしたファイル内のシーンだけなので、別ファイルのシーンを開いている場合はどの項目にも
+  ✓が付かない(それが正しい挙動)。キャレット位置は項目テキストへ「（カーソル位置）」を付記して
+  示す(`SceneDesignerContextMenuPolicy.ItemText`)。`SceneDesignerMenuSelectionPolicy`は
+  `IsLatched`(Pin基準)と`IsAtCaret`(キャレット基準)へ明示的に分離し、2つの状態が再び混ざらない
+  ようにした。
+- **ObsoleteSpecification removed(太字はVSのメニューで表現できない)**: 当初の要望は「キャレット位置を
+  太字で示す」だったが、**VSのメニュー項目に任意のFontWeightを与える手段は公式APIに存在しない**。
+  `OleMenuCommand`が公開するのは`Checked`/`Enabled`/`Visible`/`Text`のみで、`OLECMDF`に太字を表す
+  ビットは無く(`SUPPORTED`/`ENABLED`/`LATCHED`/`NINCHED`/`INVISIBLE`/`DEFHIDEONCTXTMENU`)、
+  `.vsct`の`CommandFlag`にもフォント関連の指定は無い。`SceneDesignerMenuSelectionPolicy`の旧コメントも
+  同じ結論に達しており、元々✓が太字の代用だった。今回✓を「開いているシーン」へ譲ったため、
+  キャレット位置は文字列付記で代替している。**将来「太字にする」提案が出た場合、この制約により
+  実装不能である**ことをここに記録する(独自のWPFポップアップでメニューを自作する以外に手段が無く、
+  得られるものに対して不相応)。
+- **Mismatch → now Matches(1番目を押すと2番目のシーンが開く)**: 平坦化後の実機確認で、
+  `PrimitiveShowcaseScene.cs`の**1番目**の項目(`PrimitiveShowcaseBoxScene`)をクリックしたのに
+  `PrimitiveShowcaseSphereScene`が開いた。**これは平坦化で入った不具合ではなく、動的項目のinvoke経路に
+  以前から存在していた**(サブメニュー時代も同じ構造で、複数Sceneの経路が実機で試されたのが初だった
+  ため露出した)。原因は`DynamicSceneMenuItemMatcher.GetItemIndex`がindex 0(先頭)を
+  `MatchedCommandId==0`で表しており、**この0が「新しい情報が無い」状態と同じ値**だったこと。
+  `OleMenuCommandService.FindCommand`はroot ID(`0x0110`)を辞書の完全一致で解決するため
+  **先頭項目のクリックでは`DynamicItemMatch`が呼ばれず**(非rootの`0x0111`以降だけがフォールバックで
+  それを通る)、`MatchedCommandId`は直前のクエリが残した値のままになる。VSがメニュー操作中に2番目の
+  `QueryStatus`を呼んだ後に1番目をクリックすると、残っていた`0x0111`でindex 1が解決された。
+  修正は**`DynamicItemStart`(可変長)そのものを捨て、シーン項目を固有CommandIDを持つスロットとして
+  `.vsct`に固定で並べる**こと(`0x0110`〜`0x012F`の32スロット + 溢れ表示`0x0130`)。index は
+  コマンド登録時のクロージャで固定され、共有される可変状態から導出しないため、誘導ミスが原理的に
+  起こり得ない。`DynamicSceneMenuCommand`/`DynamicSceneMenuItemMatcher`は`DynamicItemStart`契約に
+  固有の型なので削除した。
+- **先に試して実機で不成立だった案(再試行を防ぐため記録)**: 「rootを実項目から外して常に非表示の
+  アンカーにし、シーンを`root+1`以降へ置く」— 表示される全項目が非rootになりクリック時に必ず
+  `DynamicItemMatch`を通るため、上限なしで曖昧さも消えるはずだった。**しかし実機では
+  シーン項目が1つも表示されなくなった**: VSはroot(先頭)の`QueryStatus`が不可視を返した時点で
+  動的リストの列挙を打ち切る。したがって`DynamicItemStart`ではrootを実項目に使わざるを得ず、
+  root が `DynamicItemMatch` を通らない以上この経路の曖昧さは解消できない。
+- **検討して却下した案(再提案を防ぐため記録)**: 「クエリ末尾で`MatchedCommandId`を0へリセットする」
+  (Microsoft の Dynamic Menu サンプル準拠)は、`FindCommand`→`Invoke`の間に`QueryStatus`が
+  入らないというVSの内部挙動への依存が残り、破れた場合は症状が「先頭以外を押すと先頭が開く」へ
+  **反転するだけ**になるため採らなかった。
+- **32件上限とその扱い**: 固定ID方式の代償は表示件数の上限である。**この上限はサブメニューでは
+  回避できない** — リーフ1項目につきCommandIDが1つ必要で、入れ子は見た目のグルーピングにすぎない。
+  同じリーフIDを複数のサブメニューで使い回せばIDは節約できるが、「今どのチャンクか」を共有可変状態で
+  持つことになり今回と同種の曖昧さが戻る。そのため上限は残し、**33件目以降が存在する場合は
+  溢れ表示(`0x0130`、押せない情報行)が「他 N 件はシーン デザイナーのコンボボックスから選択して
+  ください」と出る**ようにして、「存在するのに表示されない」状態が不可視にならないようにした。
+  コンボボックスはプロジェクト内の全シーンを列挙する完全な経路なので機能的な行き止まりにはならない。
+- Evidence: `dotnet build CSharpGameEngine.slnx -c Debug` 成功・警告0/エラー0、`dotnet test`
+  717件成功・失敗0(712 + `ItemText`2件 + ✓/キャレット分離3件 + スロット可視/溢れ4件 + ID整合2件、
+  旧`IsLatched`1件を書き換え、旧DynamicItemStart 4件を削除)。`.vsct`のスロット32個は手書きの
+  typoを避けるためスクリプトで生成し、`VSCTCompile`がビルドに含まれるためID定義の不整合はビルド
+  失敗として検出される。C#側の定数と`.vsct`のID範囲がずれる事故(スロット数だけ変えて溢れ表示のIDが
+  スロットと衝突する等)は`SceneDesignerCommandIdsTests`で固定した。
+  なお`MatchedCommandId`の**ライフサイクル**が壊れていた点は重要で、`DynamicSceneMenuItemMatcher`
+  自体は純粋関数として旧契約どおり正しく既存4テストも全て通っていた — 共有フィールドの寿命は
+  matcher単体のテストでは原理的に捉えられない層にある(ヒエラルキーの`internal`バインドと同じ
+  「テストが構造的に見られない層」の事例)。
+  `.vsct`は`VSCTCompile`がビルドに含まれるため、存在しないIDSymbolを参照していればビルドが失敗する
+  形で検証されている。ComboBox同期・メニュー構造・✓の実描画はいずれもVS SDK/WPFへの依存が深く
+  ユニットテスト対象外(Phase 1/2と同じ理由)なので、純粋な表示ポリシー
+  (`SceneDesignerContextMenuPolicy`/`SceneDesignerMenuSelectionPolicy`)側をテストで固定している。
+  特に「開いているシーンとキャレット位置のシーンが別なら✓と付記は別々の項目に付く」という今回の
+  不具合そのものは`OpenSceneAndCaretScene_AreTrackedIndependently`で固定した。
