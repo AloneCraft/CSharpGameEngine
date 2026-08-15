@@ -753,3 +753,41 @@ Deleteの非回帰(最優先項目)は問題なかったが、以下3件が仕�
   目視確認により発見された(ユニットテストでは検出不能な種類の不具合 — ホイール未発火は実HWND間の
   メッセージルーティングの問題、符号反転2件は「値は変化するが向きが逆」という閉形式の数式だけでは
   仕様適合を保証できないクラスのバグ)。
+
+## 2026-08 M0020: ヒエラルキーが常に空白だった不具合(internalプロパティへのWPFバインドの暗黙的失敗)
+
+ヒエラルキーパネルが、`IScene`を実装した`.cs`ファイル(`FirstPersonStageScene.cs`)を開いても
+ツリーを一切表示せず、完全な空白のままだった。同じ`SceneModel`を読むシーンデザイナー側は3D
+プレビューを正常に描画できていたため、シーン解析・モデル構築は成功していた。
+
+- **Mismatch → now Matches(実装バグ)**: `SceneNodeViewModel`の`DisplayName`・`ComponentSummary`・
+  `Children`が`internal`で宣言されていた。**WPFのデータバインディングはpublicプロパティしか
+  解決できず、`internal`へのバインドは例外も警告も出さず黙って失敗する。**
+  `HierarchyToolWindowControl.xaml`のバインドは全5件で、成否がアクセシビリティと完全に一致して
+  いた — `IsExpanded`/`IsSelected`は`public`だったため機能し(展開・選択の同期は動いていた)、
+  残る3件は解決されなかった。結果、`HierarchicalDataTemplate`の2つの`TextBlock`が両方空文字に
+  なって行の中身が消え、`ItemsSource={Binding Children}`も失敗して子ノードが1件も生成されず
+  (展開用の三角も出ず)、パネル全体が空白に見えていた。3プロパティを`public`にして修正した。
+  `Path`はXAMLからバインドせずコードからのみ使うため`internal`で据え置いた(型自体が`internal`
+  であることは問題にならない — 匿名型がまさに「`internal`な型の`public`プロパティ」でバインドが
+  成立する実例)。
+- **なぜユニットテストで検出できなかったか**: `CSharpGameEngine.VSExtension.Tests`には
+  `InternalsVisibleTo`が効いているため、テストコードからは`internal`プロパティが普通に読める。
+  既存の`SceneNodeViewModelTests`は`DisplayName`/`ComponentSummary`/`Children`を網羅的に検証して
+  全件成功しており(実Roslyn解析を使った66兄弟のフラットなシーンでの検証も含む)、「データ層は
+  正常」という結論自体は正しかった。壊れていたのはリフレクション経由でアクセシビリティを尊重する
+  WPFバインディング層であり、これは`InternalsVisibleTo`を持つ単体テストからは構造的に観測できない。
+  再発防止として、バインド対象5件が`BindingFlags.Public|BindingFlags.Instance`で取得できることを
+  固定する`PropertiesBoundFromXamlArePublicSoWpfCanResolveThem`を追加した(バグを再導入すると
+  実際に失敗することを確認済み)。
+- **撤回した誤診**: 調査中、`Populate`内で`ItemsSource`設定直後に**同期的に**読んだ
+  `Tree.ActualHeight=0`/`ActualWidth=0`を根拠に、`GameEngineLayout.SetFramePos`の`cy`に0を
+  渡していることがペインの高さを0にしていると誤診し、`cy=600`へ変更していた。WPFのレイアウト
+  パスは遅延実行されるため、この同期読み出しは「前回のレイアウト時点の値」(ペインが未表示の
+  時点の値)を見ていたにすぎない。ドッキング動作を根拠なく変える変更だったため、この修正は
+  コミットせず`cy=0`へ戻した。
+- Evidence: `dotnet build CSharpGameEngine.slnx -c Debug` 成功・警告0/エラー0、`dotnet test`
+  712件成功・失敗0(707 + アクセシビリティ固定5件)。原因特定は実機ログではなく、
+  「シーンデザイナーは描画できているのにヒエラルキーだけ空白」「`IScene`未実装時のメッセージ
+  (`EmptyMessage`、バインドを使わず`VsBrushes`を直接指定した`TextBlock`)は正しく出る」という
+  症状の差分と、XAML内の全バインド5件のアクセシビリティ照合によって行った。

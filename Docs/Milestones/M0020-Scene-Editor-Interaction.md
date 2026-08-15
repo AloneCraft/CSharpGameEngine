@@ -229,6 +229,26 @@ Phase 1と同じ理由でユニットテスト対象外(VS SDK型への依存が
 | 9 | LMBを押したまま(PendingSelect中)にRMBを押す→Flyingへ切り替わる | 優先順位によるプリエンプト |
 | 10 | コードエディタのTab/Backspace/Deleteが引き続き効く | `RenderSurfaceFocusPolicy`非回帰 |
 
+### ヒエラルキーが常に空白だった不具合(2026-08、Phase 2の実機確認中に発見)
+
+```
+dotnet build CSharpGameEngine.slnx -c Debug → 成功、警告0/エラー0
+dotnet test  CSharpGameEngine.slnx -c Debug --no-build → 712件成功・失敗0(707 + 5)
+```
+
+上表#3(Viewport→Hierarchy)を確認しようとした際、ヒエラルキーパネルが`IScene`実装ファイルを
+開いても常に空白であることが判明した。原因はPhase 2の変更ではなく、ADR-0040 Phase 9で
+`SceneNodeViewModel`(このVSIX初のMVVM型)を導入した時点から存在していたバグで、
+`DisplayName`・`ComponentSummary`・`Children`が`internal`だったためWPFのバインドが**黙って失敗**
+していた(WPFはpublicプロパティしか解決しない)。3件を`public`にして修正した。詳細はConformance.md
+「2026-08 M0020: ヒエラルキーが常に空白だった不具合」参照。
+
+このバグは`InternalsVisibleTo`が効くユニットテストからは構造的に検出できない(テストからは
+`internal`でも読めるため既存テストは全件成功していた)。再発防止として、XAMLがバインドする5件が
+`BindingFlags.Public|BindingFlags.Instance`で取得できることを固定するテストを追加した。
+**今後このVSIXにデータバインド用のViewModelを追加する場合、バインド対象のプロパティは必ず
+`public`にすること。**
+
 Phase 3以降の検証結果は、各Phase完了時に本節へ追記する。
 
 ## 意図的に除外したこと(将来マイルストーン候補)

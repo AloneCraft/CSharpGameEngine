@@ -34,13 +34,21 @@ internal sealed class SceneNodeViewModel : INotifyPropertyChanged {
 
     internal NodePath Path { get;}
 
+    // DisplayName/ComponentSummary/ChildrenはHierarchyToolWindowControl.xamlからデータバインド
+    // されるため必ずpublicにする。WPFのバインディングはpublicプロパティしか解決できず、internalだと
+    // 例外も警告もなく黙って失敗する(＝ツリーが空白になる)。テストプロジェクトには
+    // InternalsVisibleToが効いているのでinternalでも読めてしまい、この種の不具合は通常の単体
+    // テストでは検出できない。SceneNodeViewModelTestsの
+    // PropertiesBoundFromXamlArePublicSoWpfCanResolveThemでアクセシビリティを固定している。
+    // Pathはコードからのみ使いXAMLからはバインドしないのでinternalで足りる。
+
     /// <summary>Name if the scene declared one, otherwise the node path - a node is always addressable.</summary>
-    internal string DisplayName { get;}
+    public string DisplayName { get;}
 
     /// <summary>Simple component type names, e.g. "Transform, PrimitiveMesh". Empty for a bare node.</summary>
-    internal string ComponentSummary { get;}
+    public string ComponentSummary { get;}
 
-    internal IReadOnlyList<SceneNodeViewModel>Children { get;}
+    public IReadOnlyList<SceneNodeViewModel>Children { get;}
 
     public bool IsExpanded {
         get=>this.IsExpandedField;

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using CSharpGameEngine.SceneAnalysis;
 using CSharpGameEngine.SceneAnalysis.Tests;
 
@@ -160,5 +161,28 @@ public sealed class SceneNodeViewModelTests {
         Root.IsSelected=true;
 
         Assert.Equal(["IsExpanded","IsSelected"],Changed);
+    }
+
+    /// <summary>
+    /// Every property HierarchyToolWindowControl.xaml binds to must be public: WPF's binding engine
+    /// resolves public properties only, and a binding to an internal one fails <b>silently</b> - no
+    /// exception, no build warning, just an empty row. That is exactly what made the Hierarchy render
+    /// as a blank panel while DisplayName/ComponentSummary/Children were internal.
+    ///
+    /// <para>
+    /// Nothing else in this file can catch that regression. This test project has InternalsVisibleTo,
+    /// so every other test here reads those same properties happily and passes whether they are public
+    /// or internal - the accessibility itself has to be asserted explicitly.
+    /// </para>
+    /// </summary>
+    [Theory]
+    [InlineData(nameof(SceneNodeViewModel.DisplayName))]
+    [InlineData(nameof(SceneNodeViewModel.ComponentSummary))]
+    [InlineData(nameof(SceneNodeViewModel.Children))]
+    [InlineData(nameof(SceneNodeViewModel.IsExpanded))]
+    [InlineData(nameof(SceneNodeViewModel.IsSelected))]
+    public void PropertiesBoundFromXamlArePublicSoWpfCanResolveThem(string PropertyName){
+        Assert.NotNull(typeof(SceneNodeViewModel)
+            .GetProperty(PropertyName,BindingFlags.Public|BindingFlags.Instance));
     }
 }
