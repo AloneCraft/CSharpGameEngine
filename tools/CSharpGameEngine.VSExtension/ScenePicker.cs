@@ -44,15 +44,38 @@ internal readonly struct ScreenRectangle:IEquatable<ScreenRectangle> {
     public static bool operator !=(ScreenRectangle Left,ScreenRectangle Right)=>!Left.Equals(Right);
 }
 
+internal readonly struct VertexSnapHit {
+    internal VertexSnapHit(NodePath NodePath,Vector3 Position,float ScreenDistance){
+        this.NodePath=NodePath;
+        this.Position=Position;
+        this.ScreenDistance=ScreenDistance;
+    }
+
+    internal NodePath NodePath { get; }
+    internal Vector3 Position { get; }
+    internal float ScreenDistance { get; }
+}
+
+internal readonly struct SurfaceSnapHit {
+    internal SurfaceSnapHit(NodePath NodePath,Vector3 Position,Vector3 Normal,float RayDistance){
+        this.NodePath=NodePath;
+        this.Position=Position;
+        this.Normal=Normal;
+        this.RayDistance=RayDistance;
+    }
+
+    internal NodePath NodePath { get; }
+    internal Vector3 Position { get; }
+    internal Vector3 Normal { get; }
+    internal float RayDistance { get; }
+}
+
 /// <summary>
 /// M0020 Phase 2 選択用のCPUレイキャスト(ADR-0041 決定事項3)。<see cref="SceneRenderObject"/>は
 /// CPU側に<see cref="SimpleMesh"/>(positions/indices)とワールド行列を既に保持しているため、
 /// GPUピッキングは使わず全三角形を線形走査する(現行のシーン規模では加速構造は不要 — ADR-0041)。
 ///
-/// <para>
-/// VertexSnapQuery/SurfaceSnapQuery(design doc §5の他2クエリ)はM0020 Phase 5(V/Nホールド)の
-/// スコープであり、ここにはまだ存在しない。
-/// </para>
+/// VertexSnapQuery/SurfaceSnapQueryも同じCPUデータを走査し、ドラッグ対象rootと子孫を除外する。
 /// </summary>
 internal static class ScenePicker {
     /// <summary>最近ヒットの<see cref="SceneRenderObject.NodeId"/>を返す。表裏どちらの面もヒットする
@@ -84,6 +107,83 @@ internal static class ScenePicker {
 
         HitNodePath=BestPath;
         HitDistance=BestDistance;
+        return Found;
+    }
+
+    /// <summary>物理ピクセル半径8px以内に投影された最近頂点を返す。距離同値では手前を優先する。</summary>
+    internal static bool TryVertexSnapQuery(
+        IReadOnlyList<SceneRenderObject>RenderObjects,Matrix4x4 View,Matrix4x4 Projection,
+        float CursorX,float CursorY,int ViewportWidth,int ViewportHeight,
+        IReadOnlyCollection<NodePath>ExcludedRoots,out VertexSnapHit Hit){
+        const float RadiusPixels=8f;
+        const float Epsilon=1e-6f;
+        Hit=default;
+        if(ViewportWidth<=0||ViewportHeight<=0){ return false; }
+
+        bool Found=false;
+        float BestScreenDistanceSquared=RadiusPixels*RadiusPixels;
+        float BestDepth=float.PositiveInfinity;
+        Matrix4x4 ViewProjection=View*Projection;
+        foreach(SceneRenderObject Object in RenderObjects){
+            if(IsExcluded(Object.NodeId,ExcludedRoots)){ continue; }
+            Matrix4x4 WorldViewProjection=Object.World*ViewProjection;
+            foreach(Vector3 LocalPosition in Object.Mesh.Positions){
+                Vector4 Clip=Vector4.Transform(new Vector4(LocalPosition,1f),WorldViewProjection);
+                if(Clip.W<=Epsilon||Clip.Z<0f||Clip.Z>Clip.W
+                    ||!IsFinite(Clip.X)||!IsFinite(Clip.Y)||!IsFinite(Clip.Z)||!IsFinite(Clip.W)){
+                    continue;
+                }
+
+                float ScreenX=((Clip.X/Clip.W)+1f)*0.5f*ViewportWidth;
+                float ScreenY=(1f-(Clip.Y/Clip.W))*0.5f*ViewportHeight;
+                float DeltaX=ScreenX-CursorX;
+                float DeltaY=ScreenY-CursorY;
+                float ScreenDistanceSquared=(DeltaX*DeltaX)+(DeltaY*DeltaY);
+                float Depth=Clip.Z/Clip.W;
+                if(ScreenDistanceSquared>BestScreenDistanceSquared
+                    ||(Found&&ScreenDistanceSquared==BestScreenDistanceSquared&&Depth>=BestDepth)){
+                    continue;
+                }
+
+                Found=true;
+                BestScreenDistanceSquared=ScreenDistanceSquared;
+                BestDepth=Depth;
+                Hit=new VertexSnapHit(
+                    Object.NodeId,Vector3.Transform(LocalPosition,Object.World),(float)Math.Sqrt(ScreenDistanceSquared));
+            }
+        }
+        return Found;
+    }
+
+    /// <summary>ドラッグ対象を除外し、レイに最も近い三角形の交点とworld幾何法線を返す。</summary>
+    internal static bool TrySurfaceSnapQuery(
+        IReadOnlyList<SceneRenderObject>RenderObjects,Vector3 RayOrigin,Vector3 RayDirection,
+        IReadOnlyCollection<NodePath>ExcludedRoots,out SurfaceSnapHit Hit){
+        Hit=default;
+        if(RayDirection.LengthSquared()<=1e-10f){ return false; }
+        RayDirection=Vector3.Normalize(RayDirection);
+        bool Found=false;
+        float BestDistance=float.PositiveInfinity;
+        foreach(SceneRenderObject Object in RenderObjects){
+            if(IsExcluded(Object.NodeId,ExcludedRoots)){ continue; }
+            SimpleMesh Mesh=Object.Mesh;
+            for(int I=0;I+2<Mesh.Indices.Length;I+=3){
+                Vector3 A=Vector3.Transform(Mesh.Positions[(int)Mesh.Indices[I]],Object.World);
+                Vector3 B=Vector3.Transform(Mesh.Positions[(int)Mesh.Indices[I+1]],Object.World);
+                Vector3 C=Vector3.Transform(Mesh.Positions[(int)Mesh.Indices[I+2]],Object.World);
+                Vector3 Cross=Vector3.Cross(B-A,C-A);
+                if(Cross.LengthSquared()<=1e-10f
+                    ||!TryIntersectTriangle(RayOrigin,RayDirection,A,B,C,out float Distance)
+                    ||Distance>=BestDistance){
+                    continue;
+                }
+
+                Found=true;
+                BestDistance=Distance;
+                Hit=new SurfaceSnapHit(
+                    Object.NodeId,RayOrigin+(RayDirection*Distance),Vector3.Normalize(Cross),Distance);
+            }
+        }
         return Found;
     }
 
@@ -150,6 +250,13 @@ internal static class ScenePicker {
     }
 
     private static bool IsFinite(float Value)=>!float.IsNaN(Value)&&!float.IsInfinity(Value);
+
+    private static bool IsExcluded(NodePath Path,IReadOnlyCollection<NodePath>ExcludedRoots){
+        foreach(NodePath Root in ExcludedRoots){
+            if(Path.Equals(Root)||Path.IsDescendantOf(Root)){ return true; }
+        }
+        return false;
+    }
 
     private static bool TryIntersectMesh(
         SimpleMesh Mesh,Matrix4x4 World,Vector3 Origin,Vector3 Direction,out float Distance){

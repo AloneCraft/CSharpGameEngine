@@ -1485,3 +1485,35 @@ Expハイブのキャッシュより新しくすること」を機序として**
   - `dotnet test CSharpGameEngine.slnx -c Debug --no-build --no-restore`は全8テストプロジェクト
     838件成功・失敗0(Entities 40 / Core 122 / Bridge.Hosting 8 / Import 30 / Windows 87 /
     CodeAnalysis 101 / SceneModel 104 / VSExtension 346)。
+
+## 2026-08-16 M0020 Phase 5: Duplicate、Follow View、Vertex/Surface Snap
+
+- **Matches(Duplicate入力・preview)**: IdleのAlt+LMBはTransform handle hitをOrbitより先に判定する。
+  hit時は選択rootとrender descendantを予測NodePathの一時renderer objectとして追加し、元objectを
+  動かさず整数handle経由で複製側だけをpreviewする。非hit時は従来のOrbitを開始する。
+  Scene Rootは親Childrenがないため開始拒否する。
+- **Matches(Duplicate source/Undo/Selection)**: DuplicateNodeOperationは対象object creationのtriviaを
+  含めてcloneし、NameをX (n)形式で一意化し、最終local Transformをclone内へ適用して兄弟末尾へ挿入する。
+  複数選択も1 operation列・1 live text Undoで確定し、再解析で予測pathが全て解決した後だけ複製rootへ
+  Selectionを移す。Cancel/失敗では一時GPU objectを破棄し、元選択・元Transform・ソースを維持する。
+- **Matches(Follow View)**: drag開始時のFocusPosition/FocusDistance/Yaw/Pitchに対するtotal deltaで
+  Moveは視点とFocusを平行移動し、Rotateは共有Pivot周りで視点/forwardを回す。Scaleは追従しない。
+  Shift再押下は現在のtotal deltaへ追いつき、Esc/capture loss/commit失敗は開始cameraへ戻す。
+- **Matches(Vertex/Surface Snap)**: Move中のVは物理8px内で最近の投影頂点へPositionだけを合わせる。
+  Nは最近三角形交点へPositionを合わせ、primaryのworld回転後ローカル+Yを幾何法線へ整列する。
+  selection rootと全子孫を両queryから除外し、成功優先順位はN→V→Ctrl。SurfaceSnap法線整列は
+  Phase 5製品経路ではtrue固定で、無効化設定UIは将来拡張として残した。
+- **MatchesWithDocumentedExtension(テストで検出したbatch順序不具合)**: 一般source batchの
+  node位置降順をそのままduplicateへ使うと、同じ親の複数選択が選択順と逆にChildren末尾へ追加され、
+  事前予測したNodePathと実体が入れ替わった。duplicateのsort keyを親Children位置にし、
+  親collection間は後方順、同一親内は要求順へ変更した。これによりRoslyn span安全性とpath予測を両立する。
+- **Unknown(実機Observed)**: HWND modifier/capture、D3D12一時object、WPF duplicate Selection、
+  live buffer、Visual Studio 1 Undo、Follow Viewの操作感は実COM/HWND/GPUを要するため未実施。
+  M0020 Phase 5の目視表8項目をユーザー側確認として残した。新しい依存方向・所有権・公開永続契約の
+  判断はなく、新規ADRは不要。
+- Evidence:
+  - Phase 5で16件追加。VSExtension.Tests 362件成功・失敗0。
+  - dotnet build CSharpGameEngine.slnx -c Debug --no-restore成功、警告0/エラー0。
+  - dotnet test CSharpGameEngine.slnx -c Debug --no-build --no-restoreは全8テストプロジェクト
+    854件成功・失敗0(Entities 40 / Core 122 / Bridge.Hosting 8 / Import 30 / Windows 87 /
+    CodeAnalysis 101 / SceneModel 104 / VSExtension 362)。

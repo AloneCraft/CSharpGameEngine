@@ -44,6 +44,20 @@ public sealed class SceneInputStateMachineTests {
     }
 
     [Fact]
+    public void Idle_AltLeftButtonOnGizmo_BeginsDuplicateGizmoInsteadOfOrbit(){
+        SceneInputStateMachine Machine=new();
+
+        SceneInputStepResult Result=Machine.Handle(
+            new PointerEvent(PointerEventKind.Down,PointerButton.Left,10,20,AltModifiers),
+            HitGizmoHandle:GizmoHandleId.AxisX);
+
+        Assert.Equal(SceneNavState.GizmoDragging,Result.State);
+        Assert.True(Result.GizmoDragBegan);
+        Assert.True(Result.GizmoDuplicate);
+        Assert.Equal(GizmoHandleId.AxisX,Result.GizmoHandle);
+    }
+
+    [Fact]
     public void Idle_LeftButtonDown_TransitionsToPendingSelectAndBeginsCapture(){
         SceneInputStateMachine Machine=new();
 

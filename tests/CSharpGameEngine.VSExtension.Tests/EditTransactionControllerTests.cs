@@ -107,6 +107,46 @@ public sealed class EditTransactionControllerTests {
         Assert.Equal(2f,Assert.Single(Preview).World.Translation.Y,4);
     }
 
+    [Fact]
+    public void PreviewSurfaceSnap_MovesPivotAndAlignsPrimaryUpToSurfaceNormal(){
+        SceneDocumentSnapshot Snapshot=CreateSnapshot(DocumentVersion:11);
+        SceneTransformTarget Target=new(new EditorNodeId(2),NodePath.Root.Append(0),
+            Matrix4x4.Identity,Matrix4x4.Identity);
+        EditTransactionController Controller=new();
+        Controller.Begin(Snapshot,[Target]);
+
+        IReadOnlyList<SceneTransformPreview>Preview=Controller.PreviewSurfaceSnap(
+            Pivot:Vector3.Zero,TargetPosition:new Vector3(3f,4f,5f),
+            PrimaryRotation:Quaternion.Identity,SurfaceNormal:Vector3.UnitZ);
+
+        SceneTransformPreview Value=Assert.Single(Preview);
+        Assert.Equal(new Vector3(3f,4f,5f),Value.World.Translation);
+        Vector3 AlignedUp=Vector3.Normalize(Vector3.TransformNormal(Vector3.UnitY,Value.World));
+        Assert.Equal(0f,AlignedUp.X,5);
+        Assert.Equal(0f,AlignedUp.Y,5);
+        Assert.Equal(1f,AlignedUp.Z,5);
+    }
+
+    [Fact]
+    public void CreateDuplicateCommit_CarriesPredictedResultPathsInTargetOrder(){
+        SceneDocumentSnapshot Snapshot=CreateSnapshot(DocumentVersion:12);
+        EditTransactionController Controller=new();
+        Controller.Begin(Snapshot,[new SceneTransformTarget(
+            new EditorNodeId(2),NodePath.Root.Append(0),Matrix4x4.Identity,Matrix4x4.Identity)]);
+        Controller.PreviewTranslation(Vector3.UnitX);
+        NodePath ResultPath=NodePath.Root.Append(1);
+
+        Assert.True(Controller.TryCreateDuplicateCommit(
+            "Duplicate Cube",SceneTransformMemberMask.Position,[ResultPath],out SceneEditCommitRequest?Request));
+
+        Assert.True(Request!.IsDuplicate);
+        Assert.Equal([ResultPath],Request.DuplicateResultPaths);
+        DuplicateNodeOperation Operation=Assert.IsType<DuplicateNodeOperation>(
+            Assert.Single(SceneEditorSessionService.CreateOperations(Request)));
+        Assert.Equal(new EditorNodeId(2),Operation.NodeId);
+        Assert.Equal(SceneTransformMemberMask.Position,Operation.Members);
+    }
+
     private static SceneDocumentSnapshot CreateSnapshot(long DocumentVersion){
         SceneModel Model=SceneAnalysisTestHelper.Analyze("""
             using CSharpGameEngine.Entities;

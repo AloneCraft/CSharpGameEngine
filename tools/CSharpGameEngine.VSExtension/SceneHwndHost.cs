@@ -82,6 +82,16 @@ internal sealed class SceneHwndHost:HwndHost {
     private SceneActiveTool?ActiveTransformTool;
     private ICollection<GizmoHandleId>DisabledMoveHandles=Array.Empty<GizmoHandleId>();
     private IReadOnlyList<SceneTransformPreview>PreviewDescendantOriginals=[];
+    private IReadOnlyList<NodePath>ActiveDraggedRootPaths=[];
+    private IReadOnlyList<DuplicateNodePlanItem>ActiveDuplicatePlan=[];
+    private IReadOnlyList<DuplicateRenderPreview>DuplicateRenderPreviews=[];
+    private MoveGizmoFrame?ActiveGizmoStartFrame;
+    private Quaternion ActivePrimaryRotation=Quaternion.Identity;
+    private SceneTransformMemberMask ActiveCommitMembers;
+    private bool CanSurfaceSnapSelection;
+    private SceneViewFollowSnapshot ActiveFollowViewSnapshot;
+    private bool HasActiveFollowViewSnapshot;
+    private bool FollowViewApplied;
 
     // M0020後続Task C: 空間から開始したLMBドラッグだけが保持するスクリーン矩形。
     private ScreenRectangle?ActiveMarqueeRectangle;
@@ -337,7 +347,7 @@ internal sealed class SceneHwndHost:HwndHost {
         // 時だけ行う(M0020 Phase 2)。状態機械自身はScenePicker/SceneRenderObjectを知らないため、
         // 結果だけを渡す。
         GizmoHandleId?HitGizmoHandle=Event.Kind==PointerEventKind.Down&&Event.Button==PointerButton.Left
-            &&!Event.Modifiers.Alt&&Machine.State==SceneNavState.Idle
+            &&Machine.State==SceneNavState.Idle
             ?TryHitTransformGizmoAt(Event.X,Event.Y)
             :null;
         NodePath?HitNodePath=HitGizmoHandle is null
@@ -349,7 +359,7 @@ internal sealed class SceneHwndHost:HwndHost {
         SceneInputStepResult Result=Machine.Handle(Event,HitNodePath,HitGizmoHandle);
 
         if(Result.GizmoDragBegan&&Result.GizmoHandle is { }BeganHandle
-            &&!BeginTransformGizmoDrag(BeganHandle,Event.X,Event.Y)){
+            &&!BeginTransformGizmoDrag(BeganHandle,Event.X,Event.Y,Result.GizmoDuplicate)){
             SceneInputStepResult Canceled=Machine.CancelCurrent();
             if(Canceled.Capture==SceneCaptureAction.End){
                 Surface?.ReleasePointerCapture();
@@ -398,7 +408,7 @@ internal sealed class SceneHwndHost:HwndHost {
             return;
         }
         if(Result.State==SceneNavState.GizmoDragging&&Event.Kind==PointerEventKind.Move){
-            UpdateTransformGizmoDrag(Event.X,Event.Y,Event.Modifiers.Ctrl);
+            UpdateTransformGizmoDrag(Event.X,Event.Y,Event.Modifiers.Ctrl,Event.Modifiers.Shift);
             return;
         }
 
@@ -576,7 +586,7 @@ internal sealed class SceneHwndHost:HwndHost {
         ObjectsMarqueePicked?.Invoke(Hits,CtrlHeld);
     }
 
-    private bool BeginTransformGizmoDrag(GizmoHandleId Handle,int X,int Y){
+    private bool BeginTransformGizmoDrag(GizmoHandleId Handle,int X,int Y,bool Duplicate){
         if(CurrentMoveGizmo is not { }Frame||ViewState is not { }State
             ||TargetSnapshot is not { }Snapshot||Snapshot.Projection is not { }Projection
             ||CurrentSelection is not { }Selection||Selection.PrimaryNodeId is not { }PrimaryId
@@ -585,6 +595,11 @@ internal sealed class SceneHwndHost:HwndHost {
         }
 
         List<SceneProjectionNode>Roots=GetSelectedMoveRoots(Projection);
+        IReadOnlyList<DuplicateNodePlanItem>DuplicatePlan=Array.Empty<DuplicateNodePlanItem>();
+        if(Duplicate&&!DuplicateNodePlanner.TryCreate(Roots,Projection,out DuplicatePlan)){
+            SetStatus("Scene Rootまたは親Childrenを解決できないNodeは複製できません。");
+            return false;
+        }
         if(Roots.Any(Node=>!SceneTransformBinding.CanEditTransform(Node.Node,State.ActiveTool,Handle))){
             return false;
         }
@@ -624,10 +639,34 @@ internal sealed class SceneHwndHost:HwndHost {
         }
 
         EditTransaction.Begin(Snapshot,Targets);
-        PreviewDescendantOriginals=CurrentRenderObjects
-            .Where(Object=>Targets.Any(Target=>Object.NodeId.IsDescendantOf(Target.NodePath)))
-            .Select(Object=>new SceneTransformPreview(default,Object.NodeId,Object.World))
-            .ToArray();
+        ActiveDraggedRootPaths=Targets.Select(static Target=>Target.NodePath).ToArray();
+        CanSurfaceSnapSelection=Roots.All(Node=>SceneTransformBinding.CanEditTransform(
+            Node.Node,SceneActiveTool.Rotate,GizmoHandleId.RotateX));
+        if(Duplicate){
+            if(!TryStartDuplicatePreview(DuplicatePlan)){
+                EditTransaction.Cancel();
+                ActiveDraggedRootPaths=[];
+                CanSurfaceSnapSelection=false;
+                SetStatus("複製preview用の描画リソースを確保できませんでした。");
+                return false;
+            }
+            PreviewDescendantOriginals=[];
+        } else {
+            PreviewDescendantOriginals=CurrentRenderObjects
+                .Where(Object=>Targets.Any(Target=>Object.NodeId.IsDescendantOf(Target.NodePath)))
+                .Select(Object=>new SceneTransformPreview(default,Object.NodeId,Object.World))
+                .ToArray();
+        }
+        SceneRenderObject?PrimaryObject=CurrentRenderObjects.FirstOrDefault(Item=>Item.NodeId.Equals(PrimaryNode.Path));
+        ActivePrimaryRotation=PrimaryObject is not null
+            &&SceneTransformMath.TryDecompose(PrimaryObject.World,out SceneTransformValue PrimaryWorld)
+            ?PrimaryWorld.Rotation
+            :Quaternion.Identity;
+        ActiveGizmoStartFrame=Frame;
+        ActiveCommitMembers=GetTransformMembers(State.ActiveTool);
+        ActiveFollowViewSnapshot=SceneViewFollowSnapshot.Capture(State);
+        HasActiveFollowViewSnapshot=true;
+        FollowViewApplied=false;
         ActiveTransformTool=State.ActiveTool;
         ActiveGizmoHandle=Handle;
         HoveredGizmoHandle=Handle;
@@ -636,38 +675,135 @@ internal sealed class SceneHwndHost:HwndHost {
         return true;
     }
 
-    private void UpdateTransformGizmoDrag(int X,int Y,bool Snap){
-        if(ActiveTransformTool is not { }Tool||ViewState is not { }State||CurrentMoveGizmo is not { }Frame){
+    private bool TryStartDuplicatePreview(IReadOnlyList<DuplicateNodePlanItem>Plan){
+        if(Renderer is not { }Active){ return false; }
+
+        List<SceneRenderObject>RenderObjects=[];
+        List<(NodePath SourcePath,Matrix4x4 OriginalWorld)>Sources=[];
+        foreach(SceneRenderObject Object in CurrentRenderObjects){
+            foreach(DuplicateNodePlanItem Item in Plan){
+                if(!Object.NodeId.Equals(Item.SourcePath)&&!Object.NodeId.IsDescendantOf(Item.SourcePath)){
+                    continue;
+                }
+
+                NodePath ResultPath=DuplicateNodePlanner.RemapPath(Object.NodeId,Item.SourcePath,Item.ResultPath);
+                RenderObjects.Add(new SceneRenderObject {
+                    Mesh=Object.Mesh,
+                    World=Object.World,
+                    NodeId=ResultPath,
+                    IncludeInBounds=Object.IncludeInBounds,
+                });
+                Sources.Add((Object.NodeId,Object.World));
+                break;
+            }
+        }
+
+        if(RenderObjects.Count==0||!Active.TryAddPreviewObjects(RenderObjects,out IReadOnlyList<int>Handles)){
+            return false;
+        }
+
+        DuplicateRenderPreviews=Sources.Select((Source,Index)=>new DuplicateRenderPreview(
+            Source.SourcePath,Source.OriginalWorld,Handles[Index])).ToArray();
+        ActiveDuplicatePlan=Plan.ToArray();
+        DuplicateNodePlanItem PrimaryItem=Plan.FirstOrDefault(Item=>
+            SelectedNodePath is { }Selected&&Item.SourcePath.Equals(Selected));
+        NodePath PrimaryResult=PrimaryItem.ResultPath.Equals(default(NodePath))
+            ?Plan[^1].ResultPath
+            :PrimaryItem.ResultPath;
+        Active.SetSelectedNode(PrimaryResult,Plan.Select(static Item=>Item.ResultPath).ToArray());
+        return true;
+    }
+
+    private void RemoveDuplicatePreview(bool RestoreOriginalSelection){
+        if(DuplicateRenderPreviews.Count>0&&Renderer is { }Active){
+            Active.RemovePreviewObjects(DuplicateRenderPreviews.Select(static Item=>Item.Handle).ToArray());
+            if(RestoreOriginalSelection){
+                Active.SetSelectedNode(SelectedNodePath,SelectedNodePaths);
+            }
+        }
+        DuplicateRenderPreviews=[];
+        ActiveDuplicatePlan=[];
+    }
+
+    private void UpdateTransformGizmoDrag(int X,int Y,bool Snap,bool FollowView){
+        if(ActiveTransformTool is not { }Tool||ViewState is not { }State
+            ||CurrentMoveGizmo is null||ActiveGizmoStartFrame is not { }StartFrame){
             return;
         }
         (Vector3 Origin,Vector3 Direction)=SceneViewCamera.ScreenPointToRay(
             State.GetView(),State.GetProjection(this.AspectRatio),X,Y,SurfaceWidth,SurfaceHeight);
         IReadOnlyList<SceneTransformPreview>Previews;
+        Quaternion RotationDelta=Quaternion.Identity;
+        Vector3 FollowMoveDelta=Vector3.Zero;
+        ActiveCommitMembers=GetTransformMembers(Tool);
         switch(Tool){
             case SceneActiveTool.Move when ActiveMoveDrag is { }MoveDrag
                 &&MoveDrag.TryUpdate(Origin,Direction,out Vector3 Delta):
-                if(Snap){ Delta=TransformSnap.SnapTranslation(Delta,Frame,ActiveGizmoHandle!.Value); }
-                Previews=EditTransaction.PreviewTranslation(Delta);
+                bool SurfaceSnap=(NativeMethods.GetKeyState(NativeMethods.VK_N)&0x8000)!=0;
+                bool VertexSnap=(NativeMethods.GetKeyState(NativeMethods.VK_V)&0x8000)!=0;
+                if(SurfaceSnap&&CanSurfaceSnapSelection&&ScenePicker.TrySurfaceSnapQuery(
+                    CurrentRenderObjects,Origin,Direction,ActiveDraggedRootPaths,out SurfaceSnapHit SurfaceHit)){
+                    FollowMoveDelta=SurfaceHit.Position-StartFrame.Pivot;
+                    Previews=EditTransaction.PreviewSurfaceSnap(
+                        StartFrame.Pivot,SurfaceHit.Position,ActivePrimaryRotation,SurfaceHit.Normal);
+                    ActiveCommitMembers=SceneTransformMemberMask.Position|SceneTransformMemberMask.Rotation;
+                } else if(VertexSnap&&ScenePicker.TryVertexSnapQuery(
+                    CurrentRenderObjects,State.GetView(),State.GetProjection(this.AspectRatio),
+                    X,Y,SurfaceWidth,SurfaceHeight,ActiveDraggedRootPaths,out VertexSnapHit VertexHit)){
+                    FollowMoveDelta=VertexHit.Position-StartFrame.Pivot;
+                    Previews=EditTransaction.PreviewTranslation(FollowMoveDelta);
+                } else {
+                    if(Snap){ Delta=TransformSnap.SnapTranslation(Delta,StartFrame,ActiveGizmoHandle!.Value); }
+                    FollowMoveDelta=Delta;
+                    Previews=EditTransaction.PreviewTranslation(Delta);
+                }
                 break;
             case SceneActiveTool.Rotate when ActiveRotateDrag is { }RotateDrag
                 &&RotateDrag.TryUpdate(Origin,Direction,out float Radians,out _):
                 if(Snap){ Radians=TransformSnap.SnapRotationRadians(Radians); }
-                Previews=EditTransaction.PreviewRotation(Frame.Pivot,RotateDrag.CreateDelta(Radians));
+                RotationDelta=RotateDrag.CreateDelta(Radians);
+                Previews=EditTransaction.PreviewRotation(StartFrame.Pivot,RotationDelta);
                 break;
             case SceneActiveTool.Scale when ActiveScaleDrag is { }ScaleDrag
                 &&ScaleDrag.TryUpdate(Origin,Direction,out Vector3 Factors):
                 if(Snap){ Factors=TransformSnap.SnapScaleFactors(Factors,ActiveGizmoHandle!.Value); }
-                Previews=EditTransaction.PreviewScale(Frame.Pivot,Frame.BasisRotation,Factors);
+                Previews=EditTransaction.PreviewScale(StartFrame.Pivot,StartFrame.BasisRotation,Factors);
                 break;
             default:
                 return;
         }
 
-        foreach(SceneTransformPreview Preview in Previews){
-            Renderer?.UpdateObjectTransform(Preview.NodePath,Preview.World);
+        if(DuplicateRenderPreviews.Count>0){
+            foreach(DuplicateRenderPreview DuplicatePreview in DuplicateRenderPreviews){
+                SceneTransformPreview?RootPreview=null;
+                foreach(SceneTransformPreview Preview in Previews){
+                    if(Preview.NodePath.Equals(DuplicatePreview.SourcePath)){
+                        RootPreview=Preview;
+                        break;
+                    }
+                }
+                Matrix4x4 World=RootPreview is { }Matched
+                    ?Matched.World
+                    :DuplicatePreview.OriginalWorld*EditTransaction.CurrentWorldDelta;
+                Renderer?.UpdatePreviewObjectTransform(DuplicatePreview.Handle,World);
+            }
+        } else {
+            foreach(SceneTransformPreview Preview in Previews){
+                Renderer?.UpdateObjectTransform(Preview.NodePath,Preview.World);
+            }
+            foreach(SceneTransformPreview Descendant in PreviewDescendantOriginals){
+                Renderer?.UpdateObjectTransform(Descendant.NodePath,Descendant.World*EditTransaction.CurrentWorldDelta);
+            }
         }
-        foreach(SceneTransformPreview Descendant in PreviewDescendantOriginals){
-            Renderer?.UpdateObjectTransform(Descendant.NodePath,Descendant.World*EditTransaction.CurrentWorldDelta);
+
+        if(FollowView&&HasActiveFollowViewSnapshot&&Tool!=SceneActiveTool.Scale){
+            if(Tool==SceneActiveTool.Move){
+                ActiveFollowViewSnapshot.ApplyMove(State,FollowMoveDelta);
+            } else {
+                ActiveFollowViewSnapshot.ApplyRotation(State,StartFrame.Pivot,RotationDelta);
+            }
+            FollowViewApplied=true;
+            Renderer?.SetCamera(State.GetView(),State.GetProjection(this.AspectRatio));
         }
         SceneTransformPreview?Primary=null;
         foreach(SceneTransformPreview Preview in Previews){
@@ -714,13 +850,15 @@ internal sealed class SceneHwndHost:HwndHost {
         ActiveScaleDrag=null;
         ActiveTransformTool=null;
         ActiveGizmoHandle=null;
-        SceneTransformMemberMask Members=Tool switch {
-            SceneActiveTool.Move=>SceneTransformMemberMask.Position,
-            SceneActiveTool.Rotate=>SceneTransformMemberMask.Position|SceneTransformMemberMask.Rotation,
-            SceneActiveTool.Scale=>SceneTransformMemberMask.All,
-            _=>SceneTransformMemberMask.None,
-        };
-        if(!EditTransaction.TryCreateCommit($"{GetToolDisplayName(Tool)} Scene Selection",Members,out SceneEditCommitRequest?Request)
+        SceneTransformMemberMask Members=ActiveCommitMembers;
+        SceneEditCommitRequest?Request;
+        bool Created=ActiveDuplicatePlan.Count>0
+            ?EditTransaction.TryCreateDuplicateCommit(
+                $"Duplicate and {GetToolDisplayName(Tool)} Scene Selection",Members,
+                ActiveDuplicatePlan.Select(static Item=>Item.ResultPath).ToArray(),out Request)
+            :EditTransaction.TryCreateCommit(
+                $"{GetToolDisplayName(Tool)} Scene Selection",Members,out Request);
+        if(!Created
             ||Request is null||EditCommitRequested is null){
             CancelEditTransaction();
             SetStatus($"{GetToolDisplayName(Tool)}を確定できなかったため変更を破棄しました。");
@@ -735,14 +873,29 @@ internal sealed class SceneHwndHost:HwndHost {
         if(EditTransaction.State==EditTransactionState.Idle){
             return;
         }
+        bool WasDuplicate=ActiveDuplicatePlan.Count>0;
         SceneEditCancellation Cancellation=EditTransaction.Cancel();
-        foreach(SceneTransformPreview Original in Cancellation.RestoredTransforms){
-            Renderer?.UpdateObjectTransform(Original.NodePath,Original.World);
+        if(WasDuplicate){
+            RemoveDuplicatePreview(RestoreOriginalSelection:true);
+        } else {
+            foreach(SceneTransformPreview Original in Cancellation.RestoredTransforms){
+                Renderer?.UpdateObjectTransform(Original.NodePath,Original.World);
+            }
+            foreach(SceneTransformPreview Descendant in PreviewDescendantOriginals){
+                Renderer?.UpdateObjectTransform(Descendant.NodePath,Descendant.World);
+            }
         }
-        foreach(SceneTransformPreview Descendant in PreviewDescendantOriginals){
-            Renderer?.UpdateObjectTransform(Descendant.NodePath,Descendant.World);
+        if(FollowViewApplied&&HasActiveFollowViewSnapshot&&ViewState is { }State){
+            ActiveFollowViewSnapshot.Restore(State);
+            Renderer?.SetCamera(State.GetView(),State.GetProjection(this.AspectRatio));
         }
         PreviewDescendantOriginals=[];
+        ActiveDraggedRootPaths=[];
+        ActiveGizmoStartFrame=null;
+        HasActiveFollowViewSnapshot=false;
+        FollowViewApplied=false;
+        ActiveCommitMembers=SceneTransformMemberMask.None;
+        CanSurfaceSnapSelection=false;
         ActiveMoveDrag=null;
         ActiveRotateDrag=null;
         ActiveScaleDrag=null;
@@ -768,7 +921,14 @@ internal sealed class SceneHwndHost:HwndHost {
         }
 
         SceneDocumentSnapshot?Pending=EditTransaction.Complete();
+        RemoveDuplicatePreview(RestoreOriginalSelection:false);
         PreviewDescendantOriginals=[];
+        ActiveDraggedRootPaths=[];
+        ActiveGizmoStartFrame=null;
+        HasActiveFollowViewSnapshot=false;
+        FollowViewApplied=false;
+        ActiveCommitMembers=SceneTransformMemberMask.None;
+        CanSurfaceSnapSelection=false;
         ActiveMoveDrag=null;
         ActiveRotateDrag=null;
         ActiveScaleDrag=null;
@@ -859,6 +1019,13 @@ internal sealed class SceneHwndHost:HwndHost {
         SceneActiveTool.Rotate=>[GizmoHandleId.RotateX,GizmoHandleId.RotateY,GizmoHandleId.RotateZ,GizmoHandleId.RotateView],
         SceneActiveTool.Scale=>[GizmoHandleId.ScaleX,GizmoHandleId.ScaleY,GizmoHandleId.ScaleZ,GizmoHandleId.ScaleUniform],
         _=>Array.Empty<GizmoHandleId>(),
+    };
+
+    private static SceneTransformMemberMask GetTransformMembers(SceneActiveTool Tool)=>Tool switch {
+        SceneActiveTool.Move=>SceneTransformMemberMask.Position,
+        SceneActiveTool.Rotate=>SceneTransformMemberMask.Position|SceneTransformMemberMask.Rotation,
+        SceneActiveTool.Scale=>SceneTransformMemberMask.All,
+        _=>SceneTransformMemberMask.None,
     };
 
     private static string GetToolDisplayName(SceneActiveTool Tool)=>Tool switch {

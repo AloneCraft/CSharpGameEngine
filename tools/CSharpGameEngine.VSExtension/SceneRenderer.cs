@@ -67,6 +67,7 @@ internal sealed class SceneRenderer:IDisposable {
 
     private readonly ID3D12Resource ConstantBuffer;
     private readonly int AlignedSlotSize;
+    private readonly int ObjectCapacity;
     private const int MaxOverlayVertices=4096;
     private readonly ID3D12Resource OverlayVertexBuffer;
     private readonly ID3D12Resource OverlayConstantBuffer;
@@ -320,12 +321,13 @@ internal sealed class SceneRenderer:IDisposable {
         OverlayLinePipelineState=Device.CreateGraphicsPipelineState(OverlayPsoDescription);
 
         AlignedSlotSize=(Marshal.SizeOf<TransformConstants>()+255)&~255;
+        ObjectCapacity=Math.Max(1,RenderObjects.Count*2);
         ConstantBuffer=Device.CreateCommittedResource(
             HeapType.Upload,
             new ResourceDescription {
                 Dimension=ResourceDimension.Buffer,
                 // D3D12 は 0 バイトの buffer を許可しないので、0件でも1スロット分は確保する。
-                Width=(ulong)(AlignedSlotSize*Math.Max(1,RenderObjects.Count)),
+                Width=(ulong)(AlignedSlotSize*ObjectCapacity),
                 Height=1,
                 DepthOrArraySize=1,
                 MipLevels=1,
@@ -382,6 +384,64 @@ internal sealed class SceneRenderer:IDisposable {
         Object.World=World;
         ConstantsDirty=true;
         return true;
+    }
+
+    /// <summary>Alt+dragの複製previewを、再解析を待たず一時描画オブジェクトとして末尾へ追加する。</summary>
+    public bool TryAddPreviewObjects(
+        IReadOnlyList<SceneRenderObject>RenderObjects,out IReadOnlyList<int>Handles){
+        if(RenderObjects.Count==0){
+            Handles=Array.Empty<int>();
+            return true;
+        }
+        if(RenderObjects.Count>ObjectCapacity-Objects.Count){
+            Handles=Array.Empty<int>();
+            return false;
+        }
+
+        int Start=Objects.Count;
+        try {
+            foreach(SceneRenderObject RenderObject in RenderObjects){
+                Objects.Add(CreateObjectResources(RenderObject));
+            }
+        } catch {
+            while(Objects.Count>Start){
+                DisposeObjectResources(Objects[^1]);
+                Objects.RemoveAt(Objects.Count-1);
+            }
+            throw;
+        }
+
+        Handles=Enumerable.Range(Start,RenderObjects.Count).ToArray();
+        ConstantsDirty=true;
+        return true;
+    }
+
+    /// <summary>NodePathが同じ元オブジェクトと区別して、一時previewだけを更新する。</summary>
+    public bool UpdatePreviewObjectTransform(int Handle,in Matrix4x4 World){
+        if(Handle<0||Handle>=Objects.Count){
+            return false;
+        }
+        Objects[Handle].World=World;
+        ConstantsDirty=true;
+        return true;
+    }
+
+    /// <summary>一時previewとして末尾へ追加した連続オブジェクトをGPU同期後に破棄する。</summary>
+    public void RemovePreviewObjects(IReadOnlyList<int>Handles){
+        if(Handles.Count==0){ return; }
+        int Start=Objects.Count-Handles.Count;
+        for(var I=0;I<Handles.Count;I++){
+            if(Handles[I]!=Start+I){
+                throw new ArgumentException(nameof(Handles));
+            }
+        }
+
+        WaitForGpuIdle();
+        for(var I=Objects.Count-1;I>=Start;I--){
+            DisposeObjectResources(Objects[I]);
+            Objects.RemoveAt(I);
+        }
+        ConstantsDirty=true;
     }
 
     /// <summary>ギズモoverlayを固定容量upload bufferへ置き換える。GPU resource自体は再生成しない。</summary>
@@ -473,6 +533,11 @@ internal sealed class SceneRenderer:IDisposable {
         }
         Resource.Unmap(0,null);
         return Resource;
+    }
+
+    private static void DisposeObjectResources(ObjectResources Object){
+        Object.IndexBuffer.Dispose();
+        Object.VertexBuffer.Dispose();
     }
 
     private ID3D12Resource CreateDepthBuffer(int W,int H){
@@ -636,8 +701,7 @@ internal sealed class SceneRenderer:IDisposable {
         OverlayConstantBuffer.Dispose();
         OverlayVertexBuffer.Dispose();
         foreach(ObjectResources Obj in Objects){
-            Obj.IndexBuffer.Dispose();
-            Obj.VertexBuffer.Dispose();
+            DisposeObjectResources(Obj);
         }
         PipelineState.Dispose();
         OverlayLinePipelineState.Dispose();

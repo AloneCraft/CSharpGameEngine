@@ -265,6 +265,92 @@ public sealed class SceneSourceEditorTests {
     }
 
     [Fact]
+    public void DuplicateNode_ClonesTrivia_AppendsUniqueName_AndTransformsCloneOnly(){
+        const string DuplicateSource="""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Runtime.Windows;
+            namespace Game;
+            public partial class MainScene:IScene { public Node Root=>new() { Children=[
+                // duplicate-comment
+                new Node { Name="Cube",Components=[new Transform { PositionX=1f }] },
+                new Node { Name="Cube (1)",Components=[new Transform()] },
+            ]}; }
+            """;
+        SceneModel Model=SceneAnalysisTestHelper.Analyze([TransformTypes,DuplicateSource]);
+        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        EditorNodeId Cube=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Cube").Id;
+        SceneTransformValue Transform=new(new System.Numerics.Vector3(5f,0f,0f),
+            System.Numerics.Quaternion.Identity,System.Numerics.Vector3.One);
+        DuplicateNodeOperation Operation=new(Key,Cube,1,Transform,SceneTransformMemberMask.Position);
+
+        SceneSourceEditResult Result=SceneSourceEditor.Apply(
+            CSharpSyntaxTree.ParseText(DuplicateSource).GetRoot(),Projection,Operation);
+
+        Assert.True(Result.Succeeded,Result.ErrorMessage);
+        string Changed=Result.Root!.ToFullString();
+        Assert.Equal(2,System.Text.RegularExpressions.Regex.Matches(Changed,"duplicate-comment").Count);
+        Assert.Contains("Cube (2)",Changed);
+        Assert.Contains("PositionX=1f",Changed);
+        Assert.Contains("PositionX=5f",Changed);
+    }
+
+    [Fact]
+    public void DuplicateNode_RootWithoutSiblingCollection_FailsWithoutMutation(){
+        const string RootSource="""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Runtime.Windows;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() { Name="Root",Components=[new Transform()] };
+            }
+            """;
+        SceneModel Model=SceneAnalysisTestHelper.Analyze([TransformTypes,RootSource]);
+        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        DuplicateNodeOperation Operation=new(
+            Key,Projection.Root!.Id,1,SceneTransformValue.Identity,SceneTransformMemberMask.Position);
+
+        SceneSourceEditResult Result=SceneSourceEditor.Apply(
+            CSharpSyntaxTree.ParseText(RootSource).GetRoot(),Projection,Operation);
+
+        Assert.False(Result.Succeeded);
+        Assert.Null(Result.Root);
+    }
+
+    [Fact]
+    public void DuplicateNodeBatch_AppendsSameParentClonesInRequestedPathOrder(){
+        const string BatchSource="""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Runtime.Windows;
+            namespace Game;
+            public partial class MainScene:IScene { public Node Root=>new() { Children=[
+                new Node { Name="A",Components=[new Transform()] },
+                new Node { Name="A (1)",Components=[new Transform()] },
+                new Node { Name="B",Components=[new Transform()] },
+            ]}; }
+            """;
+        SceneModel Model=SceneAnalysisTestHelper.Analyze([TransformTypes,BatchSource]);
+        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        EditorNodeId A=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="A").Id;
+        EditorNodeId B=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="B").Id;
+
+        SceneSourceEditResult Result=SceneSourceEditor.ApplyBatch(
+            CSharpSyntaxTree.ParseText(BatchSource).GetRoot(),Projection,
+            [
+                new DuplicateNodeOperation(
+                    Key,A,1,SceneTransformValue.Identity,SceneTransformMemberMask.Position),
+                new DuplicateNodeOperation(
+                    Key,B,1,SceneTransformValue.Identity,SceneTransformMemberMask.Position),
+            ]);
+
+        Assert.True(Result.Succeeded,Result.ErrorMessage);
+        string Changed=Result.Root!.ToFullString();
+        int AClone=Changed.IndexOf("A (2)",System.StringComparison.Ordinal);
+        int BClone=Changed.IndexOf("B (1)",System.StringComparison.Ordinal);
+        Assert.True(AClone>=0);
+        Assert.True(BClone>AClone);
+    }
+
+    [Fact]
     public void ApplyBatch_WhenALaterOperationFails_ReturnsNoMutatedRoot(){
         (SceneProjection Projection,EditorNodeId Cube)=CreateProjection();
         SceneSourceEditResult Result=SceneSourceEditor.ApplyBatch(

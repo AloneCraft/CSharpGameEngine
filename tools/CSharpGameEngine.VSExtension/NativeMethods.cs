@@ -49,6 +49,8 @@ internal static class NativeMethods {
     public const int VK_SHIFT=0x10;
     public const int VK_CONTROL=0x11;
     public const int VK_MENU=0x12;
+    public const int VK_N=0x4E;
+    public const int VK_V=0x56;
 
     // WNDCLASSEX.HCursorへ渡す標準矢印カーソル。MAKEINTRESOURCE(32512)であり実ポインタではない。
     public static readonly IntPtr IDC_ARROW=new(32512);

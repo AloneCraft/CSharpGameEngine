@@ -93,9 +93,7 @@ internal sealed class SceneEditorSessionService : IDisposable {
             }
 
             SceneDocumentSnapshot Snapshot=this.Publish(Context.Model,Request.SceneKey);
-            SceneEditOperation[]Operations=Request.Changes.Select(Change=>(SceneEditOperation)new SetTransformOperation(
-                Request.SceneKey,Change.NodeId,Request.DocumentVersion,Change.Local,
-                Request.Members)).ToArray();
+            SceneEditOperation[]Operations=CreateOperations(Request);
             SceneSourceEditResult Edited=SceneSourceEditor.ApplyLatestBatch(Context.Root,Snapshot,Operations);
             if(!Edited.Succeeded||Edited.Root is null){
                 return new SceneEditCommitResult(
@@ -117,6 +115,14 @@ internal sealed class SceneEditorSessionService : IDisposable {
     }
 
     /// <summary>UIコマンドの表示判定用。Roslyn解析を開始したり待機したりしない。</summary>
+    internal static SceneEditOperation[]CreateOperations(SceneEditCommitRequest Request)=>Request.IsDuplicate
+        ?Request.Changes.Select(Change=>(SceneEditOperation)new DuplicateNodeOperation(
+            Request.SceneKey,Change.NodeId,Request.DocumentVersion,Change.Local,
+            Request.Members)).ToArray()
+        :Request.Changes.Select(Change=>(SceneEditOperation)new SetTransformOperation(
+            Request.SceneKey,Change.NodeId,Request.DocumentVersion,Change.Local,
+            Request.Members)).ToArray();
+
     internal SceneDocumentMenuSnapshot GetMenuSnapshot(string FilePath){
         Microsoft.VisualStudio.Shell.ThreadHelper.ThrowIfNotOnUIThread();
         return this.Workspace.GetMenuSnapshot(FilePath);

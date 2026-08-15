@@ -24,6 +24,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     private long CatalogGeneration;
     private bool UpdatingSelector;
     private bool UpdatingTransformSpace;
+    private PendingDuplicateSelection?PendingDuplicateSelectionRestore;
     private bool Disposed;
 
     public SceneDesignerToolWindowControl(){
@@ -88,6 +89,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
                 this.ShowEmpty("選択中のシーンは解決できなくなりました。");
             } else {
                 this.ShowSnapshot(Snapshot);
+                this.TryRestoreDuplicateSelection(Snapshot);
             }
 
             // Pinはコンテキストメニュー経由やClearPinからも変わる。ComboBoxの選択はPinの変化に
@@ -317,6 +319,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     }
 
     private void DetachSession(){
+        this.PendingDuplicateSelectionRestore=null;
         if(this.Session is null){
             return;
         }
@@ -449,6 +452,10 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
 
     private async Task CommitEditAsync(
         SceneEditorSessionService Session,SceneHwndHost Host,SceneEditCommitRequest Request){
+        if(Request.IsDuplicate){
+            this.PendingDuplicateSelectionRestore=new PendingDuplicateSelection(
+                Request.SceneKey,Request.DuplicateResultPaths.ToArray());
+        }
         SceneEditCommitResult Result;
         try {
             Result=await Session.CommitAsync(Request,CancellationToken.None).ConfigureAwait(false);
@@ -459,6 +466,9 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
 
         this.DispatchToUi(()=>{
             ThreadHelper.ThrowIfNotOnUIThread();
+            if(!Result.Succeeded){
+                this.PendingDuplicateSelectionRestore=null;
+            }
             if(!this.Disposed&&ReferenceEquals(this.Session,Session)&&ReferenceEquals(this.Host,Host)){
                 Host.CompleteEditCommit(Result.Succeeded,Result.ErrorMessage);
                 if(!Result.Succeeded
@@ -467,6 +477,23 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
                 }
             }
         });
+    }
+
+    private void TryRestoreDuplicateSelection(SceneDocumentSnapshot Snapshot){
+        if(this.PendingDuplicateSelectionRestore is not { }Pending
+            ||this.Session is not { }Session||!Pending.Key.Equals(Snapshot.Key)
+            ||Snapshot.Projection is not { }Projection){
+            return;
+        }
+
+        if(!DuplicateNodePlanner.TryResolveResultSelection(Projection,Pending.Paths,out IReadOnlyList<EditorNodeId>Ids)){
+            return;
+        }
+
+        this.PendingDuplicateSelectionRestore=null;
+        Session.Selection.Select(
+            Snapshot.Key,Ids,Ids[^1],ComponentType:null,MemberName:null,
+            SceneSelectionOrigin.Viewport,Guid.NewGuid());
     }
 
     private void OnViewportKeyDown(object Sender,KeyEventArgs Args){
@@ -528,4 +555,5 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         }
     }
 #pragma warning restore VSTHRD001
+    private sealed record PendingDuplicateSelection(SceneKey Key,IReadOnlyList<NodePath>Paths);
 }

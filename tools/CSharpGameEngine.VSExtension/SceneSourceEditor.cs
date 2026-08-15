@@ -43,6 +43,13 @@ internal sealed record SetTransformOperation(
     SceneTransformValue Transform,
     SceneTransformMemberMask Members=SceneTransformMemberMask.All) : SceneEditOperation(SceneKey,NodeId,DocumentVersion);
 
+internal sealed record DuplicateNodeOperation(
+    SceneKey SceneKey,
+    EditorNodeId NodeId,
+    long DocumentVersion,
+    SceneTransformValue Transform,
+    SceneTransformMemberMask Members) : SceneEditOperation(SceneKey,NodeId,DocumentVersion);
+
 /// <summary>編集操作の全語彙。ViewModelとRoslyn書き込み層が同じ列挙を共有する(未実装の種類も先に確定させる)。</summary>
 internal enum SceneEditOperationKind {
     SetComponentMember,
@@ -101,6 +108,7 @@ internal static class SceneSourceEditor {
         return Operation switch {
             SetComponentMemberOperation SetMember=>ApplySetComponentMember(Root,Node,SetMember),
             SetTransformOperation SetTransform=>ApplySetTransform(Root,Node,SetTransform),
+            DuplicateNodeOperation Duplicate=>ApplyDuplicateNode(Root,Projection,Node,Duplicate),
             RenameNodeOperation Rename=>ApplyRename(Root,Node,Rename),
             _=>SceneSourceEditResult.Failure("このScene編集操作はSource Editorで未実装です。"),
         };
@@ -116,17 +124,27 @@ internal static class SceneSourceEditor {
             return SceneSourceEditResult.Success(Root);
         }
 
-        List<(SceneEditOperation Operation,int Start)>Ordered=[];
+        List<(SceneEditOperation Operation,int Start,int Sequence)>Ordered=[];
+        var Sequence=0;
         foreach(SceneEditOperation Operation in Operations){
             if(!Projection.Key.Equals(Operation.SceneKey)
                 ||!Projection.TryGetNode(Operation.NodeId,out SceneProjectionNode Node)){
                 return SceneSourceEditResult.Failure("対象のSceneまたはNodeが現在の投影に見つかりません。");
             }
-            Ordered.Add((Operation,Node.Node.Location.Span.Start));
+            int Start=Node.Node.Location.Span.Start;
+            if(Operation is DuplicateNodeOperation&&Node.Path.Parent is { }ParentPath
+                &&Projection.TryGetId(ParentPath,out EditorNodeId ParentId)
+                &&Projection.TryGetNode(ParentId,out SceneProjectionNode Parent)
+                &&Parent.Node.ChildrenListLocation is { }ChildrenLocation){
+                Start=ChildrenLocation.Span.Start;
+            }
+            Ordered.Add((Operation,Start,Sequence++));
         }
 
         SyntaxNode Current=Root;
-        foreach((SceneEditOperation Operation,_)in Ordered.OrderByDescending(static Item=>Item.Start)){
+        foreach((SceneEditOperation Operation,_,_)in Ordered
+            .OrderByDescending(static Item=>Item.Start)
+            .ThenBy(static Item=>Item.Sequence)){
             SceneSourceEditResult Applied=Apply(Current,Projection,Operation);
             if(!Applied.Succeeded){
                 return SceneSourceEditResult.Failure(Applied.ErrorMessage??"Scene編集操作に失敗しました。");
@@ -201,6 +219,63 @@ internal static class SceneSourceEditor {
             return SceneSourceEditResult.Failure("Transformのobject creationがSourceに見つかりません。");
         }
 
+        if(!TryUpdateTransformCreation(
+            Creation,Transform,Operation.Transform,Operation.Members,
+            out BaseObjectCreationExpressionSyntax UpdatedCreation,out string?ErrorMessage)){
+            return SceneSourceEditResult.Failure(ErrorMessage??"Transformを更新できません。");
+        }
+        return SceneSourceEditResult.Success(Root.ReplaceNode(Creation,UpdatedCreation));
+    }
+
+    private static SceneSourceEditResult ApplyDuplicateNode(
+        SyntaxNode Root,SceneProjection Projection,SceneProjectionNode Node,DuplicateNodeOperation Operation){
+        if(Node.Path.Parent is not { }ParentPath
+            ||!Projection.TryGetId(ParentPath,out EditorNodeId ParentId)
+            ||!Projection.TryGetNode(ParentId,out SceneProjectionNode Parent)
+            ||Parent.Node.ChildrenListLocation is not { }ChildrenLocation){
+            return SceneSourceEditResult.Failure("Scene RootまたはChildrenリスト外のNodeは複製できません。");
+        }
+
+        BaseObjectCreationExpressionSyntax?SourceCreation=Root.DescendantNodesAndSelf()
+            .OfType<BaseObjectCreationExpressionSyntax>()
+            .SingleOrDefault(Candidate=>Candidate.Span==Node.Node.Location.Span);
+        if(SourceCreation is null){
+            return SceneSourceEditResult.Failure("複製対象Nodeのobject creationがSourceに見つかりません。");
+        }
+        ExpressionSyntax?ChildrenExpression=SourceCreation.Ancestors()
+            .OfType<ExpressionSyntax>()
+            .FirstOrDefault(Candidate=>Candidate.SpanStart==ChildrenLocation.Span.Start);
+        if(ChildrenExpression is null){
+            return SceneSourceEditResult.Failure("親NodeのChildrenリストがSourceに見つかりません。");
+        }
+
+        SceneComponent?Transform=SceneComponentBindings.FindComponent(Node.Node,SceneComponentRole.LocalTransform);
+        BaseObjectCreationExpressionSyntax?TransformCreation=Transform is null?null:SourceCreation.DescendantNodes()
+            .OfType<BaseObjectCreationExpressionSyntax>()
+            .SingleOrDefault(Candidate=>Candidate.Span==Transform.Location.Span);
+        if(Transform is null||TransformCreation is null){
+            return SceneSourceEditResult.Failure("複製対象Nodeに編集可能なTransformがありません。");
+        }
+        if(!TryUpdateTransformCreation(
+            TransformCreation,Transform,Operation.Transform,Operation.Members,
+            out BaseObjectCreationExpressionSyntax UpdatedTransform,out string?ErrorMessage)){
+            return SceneSourceEditResult.Failure(ErrorMessage??"複製先Transformを更新できません。");
+        }
+
+        BaseObjectCreationExpressionSyntax Clone=(BaseObjectCreationExpressionSyntax)
+            SourceCreation.ReplaceNode(TransformCreation,UpdatedTransform);
+        if(Node.Node.Name is { Length:>0 }BaseName){
+            Clone=ReplaceNodeName(Clone,CreateUniqueSiblingName(BaseName,Parent.Node,ChildrenExpression));
+        }
+        if(!TryAppendChild(ChildrenExpression,Clone,out ExpressionSyntax UpdatedChildren)){
+            return SceneSourceEditResult.Failure("親NodeのChildren構文へ複製を追加できません。");
+        }
+        return SceneSourceEditResult.Success(Root.ReplaceNode(ChildrenExpression,UpdatedChildren));
+    }
+
+    private static bool TryUpdateTransformCreation(
+        BaseObjectCreationExpressionSyntax Creation,SceneComponent Transform,SceneTransformValue Value,
+        SceneTransformMemberMask Members,out BaseObjectCreationExpressionSyntax Updated,out string?ErrorMessage){
         InitializerExpressionSyntax Initializer=Creation.Initializer
             ??SyntaxFactory.InitializerExpression(SyntaxKind.ObjectInitializerExpression);
         SeparatedSyntaxList<ExpressionSyntax>Expressions=Initializer.Expressions;
@@ -212,19 +287,23 @@ internal static class SceneSourceEditor {
             }
         }
 
-        foreach((string Name,float Value,float Default)in EnumerateTransformMembers(Operation.Transform,Operation.Members)){
+        foreach((string Name,float MemberValue,float Default)in EnumerateTransformMembers(Value,Members)){
             SceneComponentMember?Member=Transform.FindMember(Name);
             float Current=Member is null?Default:ReadFloat(Member.Value.ConstantValue,Default);
-            if(SceneTransformMath.NearlyEqual(Current,Value)){
+            if(SceneTransformMath.NearlyEqual(Current,MemberValue)){
                 continue;
             }
             if(Member is not null&&!Member.Value.IsEditable){
-                return SceneSourceEditResult.Failure($"Transform.{Name}は式を保持するためギズモから編集できません。");
+                Updated=Creation;
+                ErrorMessage=$"Transform.{Name}は式を保持するためギズモから編集できません。";
+                return false;
             }
 
-            ExpressionSyntax NewValue=SyntaxFactory.ParseExpression(FormatFloat(Value));
+            ExpressionSyntax NewValue=SyntaxFactory.ParseExpression(FormatFloat(MemberValue));
             if(NewValue.ContainsDiagnostics){
-                return SceneSourceEditResult.Failure($"Transform.{Name}の値をC#式へ変換できません。");
+                Updated=Creation;
+                ErrorMessage=$"Transform.{Name}の値をC#式へ変換できません。";
+                return false;
             }
 
             if(AssignmentIndices.TryGetValue(Name,out int AssignmentIndex)){
@@ -240,12 +319,74 @@ internal static class SceneSourceEditor {
         }
 
         InitializerExpressionSyntax UpdatedInitializer=Initializer.WithExpressions(Expressions);
-        SyntaxNode UpdatedCreation=Creation switch {
+        Updated=Creation switch {
             ObjectCreationExpressionSyntax Explicit=>Explicit.WithInitializer(UpdatedInitializer),
             ImplicitObjectCreationExpressionSyntax Implicit=>Implicit.WithInitializer(UpdatedInitializer),
             _=>Creation,
         };
-        return SceneSourceEditResult.Success(Root.ReplaceNode(Creation,UpdatedCreation));
+        ErrorMessage=null;
+        return true;
+    }
+
+    private static BaseObjectCreationExpressionSyntax ReplaceNodeName(
+        BaseObjectCreationExpressionSyntax Creation,string Name){
+        AssignmentExpressionSyntax?Assignment=Creation.Initializer?.Expressions
+            .OfType<AssignmentExpressionSyntax>()
+            .FirstOrDefault(static Candidate=>Candidate.Left is IdentifierNameSyntax Identifier
+                &&Identifier.Identifier.ValueText=="Name");
+        if(Assignment is null){ return Creation; }
+        ExpressionSyntax Value=SyntaxFactory.LiteralExpression(
+            SyntaxKind.StringLiteralExpression,SyntaxFactory.Literal(Name)).WithTriviaFrom(Assignment.Right);
+        return(BaseObjectCreationExpressionSyntax)Creation.ReplaceNode(Assignment,Assignment.WithRight(Value));
+    }
+
+    private static string CreateUniqueSiblingName(
+        string BaseName,SceneNode Parent,ExpressionSyntax ChildrenExpression){
+        HashSet<string>Names=new(StringComparer.Ordinal);
+        foreach(SceneNode Child in Parent.Children){
+            if(Child.Name is { }Name){ Names.Add(Name); }
+        }
+        foreach(BaseObjectCreationExpressionSyntax Creation in EnumerateChildCreations(ChildrenExpression)){
+            AssignmentExpressionSyntax?Assignment=Creation.Initializer?.Expressions
+                .OfType<AssignmentExpressionSyntax>()
+                .FirstOrDefault(static Candidate=>Candidate.Left is IdentifierNameSyntax Identifier
+                    &&Identifier.Identifier.ValueText=="Name");
+            if(Assignment?.Right is LiteralExpressionSyntax { Token.ValueText:var Name }){ Names.Add(Name); }
+        }
+
+        for(int Suffix=1;;Suffix++){
+            string Candidate=$"{BaseName} ({Suffix})";
+            if(!Names.Contains(Candidate)){ return Candidate; }
+        }
+    }
+
+    private static IEnumerable<BaseObjectCreationExpressionSyntax>EnumerateChildCreations(ExpressionSyntax Expression){
+        IEnumerable<ExpressionSyntax>Elements=Expression switch {
+            CollectionExpressionSyntax Collection=>Collection.Elements
+                .OfType<ExpressionElementSyntax>().Select(static Element=>Element.Expression),
+            ArrayCreationExpressionSyntax { Initializer:{ }Initializer }=>Initializer.Expressions,
+            ImplicitArrayCreationExpressionSyntax { Initializer:{ }Initializer }=>Initializer.Expressions,
+            _=>Array.Empty<ExpressionSyntax>(),
+        };
+        return Elements.OfType<BaseObjectCreationExpressionSyntax>();
+    }
+
+    private static bool TryAppendChild(
+        ExpressionSyntax ChildrenExpression,BaseObjectCreationExpressionSyntax Clone,out ExpressionSyntax Updated){
+        switch(ChildrenExpression){
+            case CollectionExpressionSyntax Collection:
+                Updated=Collection.WithElements(Collection.Elements.Add(SyntaxFactory.ExpressionElement(Clone)));
+                return true;
+            case ArrayCreationExpressionSyntax { Initializer:{ }Initializer }Array:
+                Updated=Array.WithInitializer(Initializer.WithExpressions(Initializer.Expressions.Add(Clone)));
+                return true;
+            case ImplicitArrayCreationExpressionSyntax { Initializer:{ }Initializer }Implicit:
+                Updated=Implicit.WithInitializer(Initializer.WithExpressions(Initializer.Expressions.Add(Clone)));
+                return true;
+            default:
+                Updated=ChildrenExpression;
+                return false;
+        }
     }
 
     private static SceneSourceEditResult ApplyRename(SyntaxNode Root,SceneProjectionNode Node,RenameNodeOperation Operation){

@@ -189,6 +189,48 @@ public sealed class SceneViewStateTests {
     }
 
     [Fact]
+    public void FollowViewMove_AppliesTotalObjectDeltaFromCapturedViewAndCanRestore(){
+        SceneViewState State=new(){ FocusPosition=new Vector3(1f,2f,3f),FocusDistance=4f,Yaw=0.3f,Pitch=0.2f };
+        SceneViewFollowSnapshot Snapshot=SceneViewFollowSnapshot.Capture(State);
+        Vector3 EyeBefore=State.GetEyePosition();
+
+        Snapshot.ApplyMove(State,new Vector3(5f,-2f,1f));
+
+        Assert.Equal(new Vector3(6f,0f,4f),State.FocusPosition);
+        Vector3 MovedEye=State.GetEyePosition();
+        Vector3 ExpectedMovedEye=EyeBefore+new Vector3(5f,-2f,1f);
+        Assert.Equal(ExpectedMovedEye.X,MovedEye.X,5);
+        Assert.Equal(ExpectedMovedEye.Y,MovedEye.Y,5);
+        Assert.Equal(ExpectedMovedEye.Z,MovedEye.Z,5);
+        Snapshot.Restore(State);
+        Assert.Equal(new Vector3(1f,2f,3f),State.FocusPosition);
+        Vector3 RestoredEye=State.GetEyePosition();
+        Assert.Equal(EyeBefore.X,RestoredEye.X,5);
+        Assert.Equal(EyeBefore.Y,RestoredEye.Y,5);
+        Assert.Equal(EyeBefore.Z,RestoredEye.Z,5);
+    }
+
+    [Fact]
+    public void FollowViewRotate_RotatesEyeAndForwardAroundSharedPivot(){
+        SceneViewState State=new(){ FocusPosition=Vector3.Zero,FocusDistance=2f,Yaw=0f,Pitch=0f };
+        SceneViewFollowSnapshot Snapshot=SceneViewFollowSnapshot.Capture(State);
+        Vector3 EyeBefore=State.GetEyePosition();
+        Quaternion Delta=Quaternion.CreateFromAxisAngle(Vector3.UnitY,(float)(Math.PI/2d));
+
+        Snapshot.ApplyRotation(State,Vector3.Zero,Delta);
+
+        Vector3 ExpectedEye=Vector3.Transform(EyeBefore,Delta);
+        Assert.Equal(ExpectedEye.X,State.GetEyePosition().X,3);
+        Assert.Equal(ExpectedEye.Y,State.GetEyePosition().Y,3);
+        Assert.Equal(ExpectedEye.Z,State.GetEyePosition().Z,3);
+        Vector3 ExpectedForward=Vector3.Transform(Vector3.UnitZ,Delta);
+        Vector3 ActualForward=SceneViewCamera.GetForward(State.Yaw,State.Pitch);
+        Assert.Equal(ExpectedForward.X,ActualForward.X,3);
+        Assert.Equal(ExpectedForward.Y,ActualForward.Y,3);
+        Assert.Equal(ExpectedForward.Z,ActualForward.Z,3);
+    }
+
+    [Fact]
     public void Dolly_MultipliesFocusDistanceByPointNineToThePowerOfNotches(){
         SceneViewState State=new(){ FocusDistance=10f };
 

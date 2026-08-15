@@ -108,6 +108,10 @@ E/Rツール、RotateHandle(リング)/ScaleHandle、Ctrl増分スナップ(移�
 Alt+ドラッグ複製(`DuplicateNode`op、trivia込み複製+Name一意化)、Shift=FollowView
 (仕様§6.1の視点追従式)、V/Nホールドの頂点・面スナップ(`ScenePicker`クエリ2・3)。
 
+**実装済み(2026-08-16)**。Alt+handle優先、元を動かさない一時複製描画、複製+最終Transformの
+単一Undo、再解析後の複製Selection、Move/Rotateのtotal-delta Follow View、V/Nの自己除外snapを
+既存state machine/renderer/transaction/source batchへ統合した。実機未確認項目は本書の検証節を参照。
+
 ### Phase 6 — Camera/LightプロパティギズモとCompoundGizmo合成
 
 `CompoundGizmo`合成(設計§6.1)、`FrustumGizmo`(FOV/Near/Far/OrthographicSize)、
@@ -308,7 +312,7 @@ Position以外のQuaternion/Scaleリテラルは、値が正規化可能でもMo
 | 9 | 複数選択をMove→各選択rootへ同じworld差分が1 Undoで反映される | batch atomicity・複数選択 |
 | 10 | コードエディタのTab/Backspace/Deleteが引き続き効き、RMB Navigation中のWはMove切替でなく前進になる | フォーカス/入力優先順位の非回帰 |
 
-Phase 5以降の検証結果は、各作業完了時に本節へ追記する。
+Phase 6以降の検証結果は、各作業完了時に本節へ追記する。
 
 ### 後続Task C(2026-08-16)
 
@@ -377,6 +381,45 @@ HWND/D3D12/WPF/Visual Studio UndoのObservedは次表の実機確認まで**Unkn
 | 6 | Rotate/Scale中にEscまたはpointer capture喪失→previewが戻り、コード/Undo履歴が変わらない | 全Transform操作のcancel安全性 |
 | 7 | 式で保持した必要TRSメンバーを持つ対象では該当ハンドルが淡色・非hitになる | 編集可能境界とソース保護 |
 | 8 | コードエディタのTab/Backspace/Deleteが効き、RMB Fly中のEはRotate切替でなく上昇になる | フォーカス/入力優先順位の非回帰 |
+
+### Phase 5(2026-08-16)
+
+    dotnet build CSharpGameEngine.slnx -c Debug --no-restore
+      → 成功、警告0/エラー0
+    dotnet test tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj --no-restore
+      → 362件成功・失敗0
+    dotnet test CSharpGameEngine.slnx -c Debug --no-build --no-restore
+      → 全8テストプロジェクト854件成功・失敗0
+        (Phase 4前838 + 新規16。VSExtension.Testsは362件)
+
+Alt+LMBはhandle hit時だけDuplicateをOrbitより優先する。選択rootとrender descendantは
+予測した兄弟末尾NodePathを持つ一時renderer objectとして追加し、元objectは動かさない。
+MouseUpではDuplicateNodeOperationがclone trivia、X (n)形式の一意Name、最終local Transformを
+まとめてChildren末尾へ挿入する。複数選択は同一親内の要求順を保ち、全予測pathが再解析で解決して
+から複製rootへSelectionを移すため、複製とtransformは1回のlive text Undoになる。
+
+Shift Follow Viewはdrag開始cameraに対するtotal deltaでMove/Rotateを再計算し、Scaleは追従しない。
+Vは物理8px内の最近投影頂点へPositionだけを、Nは最近三角形交点へPositionを合わせprimaryの
+ローカル+Yを幾何法線へ整列する。両queryはdrag対象rootと全子孫を除外し、成功優先順位はN→V→Ctrl。
+Esc/capture loss/commit失敗では一時object、transform、cameraを開始状態へ戻す。
+
+テスト追加16件はAlt優先状態遷移、頂点/面query、自己除外、Follow View復元、surface法線整列、
+duplicate commit/operation変換、path予測/descendant再マップ/選択解決待ち、trivia/一意Name/
+root拒否/同一親batch順を固定した。純粋層とRoslyn変換は**MatchesWithDocumentedExtension**。
+HWND/D3D12/WPF/live buffer/Visual Studio UndoのObservedは次表の実機確認まで**Unknown**。
+
+**実機VS Experimental Instanceでの目視確認(未実施 — ユーザー側で実施)**:
+
+| # | 確認対象 | 何が証明されるか |
+|---|---|---|
+| 1 | Move handleをAlt+dragし、元が静止したまま複製previewだけが動き、非handle Alt+LMBはOrbitする | 入力優先順位・一時renderer object |
+| 2 | Alt+Rotate/Scaleを確定し、コメント/書式を保ったX (n)名の兄弟が末尾へ増え、複製側が選択される | clone trivia・全Transform・path選択復元 |
+| 3 | 複数選択Alt+drag後にCtrl+Zを1回実行し、全複製とTransformが同時に戻る | batch atomicity・1 text Undo |
+| 4 | Duplicate/Follow View中にEscまたはcapture喪失し、複製表示・元Transform・cameraが全て戻る | cancel安全性 |
+| 5 | Shift+Move/Rotateでcameraが対象に追従し、Shift再押下で追いつく一方、Shift+Scaleでは追従しない | total-delta Follow View |
+| 6 | Move中Vで8px内の他object頂点へ吸着し、drag対象自身/子孫には吸着しない | VertexSnap query・自己除外 |
+| 7 | Move中Nで他object面へ吸着し、primaryのローカル+Yが幾何法線へ揃い、自身/子孫を無視する | SurfaceSnap・Position+Rotation mask |
+| 8 | N/V/Ctrlを併用してN→V→Ctrlの順にfallbackし、コードエディタのTab/Backspace/Deleteも効く | modifier優先順位・フォーカス非回帰 |
 
 ## 意図的に除外したこと(将来マイルストーン候補)
 

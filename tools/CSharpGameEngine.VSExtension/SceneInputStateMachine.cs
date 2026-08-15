@@ -23,7 +23,7 @@ internal readonly struct SceneInputStepResult {
         bool MarqueeUpdated=false,bool MarqueeSelectionConfirmed=false,bool MarqueeCanceled=false,
         ScreenRectangle MarqueeRectangle=default,
         bool GizmoDragBegan=false,bool GizmoCommitRequested=false,bool GizmoCanceled=false,
-        GizmoHandleId?GizmoHandle=null){
+        GizmoHandleId?GizmoHandle=null,bool GizmoDuplicate=false){
         this.State=State;
         this.Capture=Capture;
         this.DeltaX=DeltaX;
@@ -39,6 +39,7 @@ internal readonly struct SceneInputStepResult {
         this.GizmoCommitRequested=GizmoCommitRequested;
         this.GizmoCanceled=GizmoCanceled;
         this.GizmoHandle=GizmoHandle;
+        this.GizmoDuplicate=GizmoDuplicate;
     }
 
     internal SceneNavState State { get; }
@@ -72,6 +73,8 @@ internal readonly struct SceneInputStepResult {
     internal bool GizmoCanceled { get; }
 
     internal GizmoHandleId?GizmoHandle { get; }
+
+    internal bool GizmoDuplicate { get; }
 }
 
 /// <summary>
@@ -117,8 +120,8 @@ internal sealed class SceneInputStateMachine {
             case SceneNavState.Idle:
                 if(IsButtonDown(Event,PointerButton.Right)){ return Begin(SceneNavState.Flying,Event);}
                 if(IsButtonDown(Event,PointerButton.Middle)){ return Begin(SceneNavState.Panning,Event);}
-                if(IsButtonDown(Event,PointerButton.Left)&&Event.Modifiers.Alt){ return Begin(SceneNavState.Orbiting,Event);}
                 if(IsButtonDown(Event,PointerButton.Left)&&HitGizmoHandle is { }Handle){ return BeginGizmo(Event,Handle);}
+                if(IsButtonDown(Event,PointerButton.Left)&&Event.Modifiers.Alt){ return Begin(SceneNavState.Orbiting,Event);}
                 if(IsButtonDown(Event,PointerButton.Left)){ return BeginSelect(Event,HitNodePath);}
                 return Stay();
 
@@ -291,7 +294,8 @@ internal sealed class SceneInputStateMachine {
         LastX=Event.X;
         LastY=Event.Y;
         ActiveGizmoHandle=Handle;
-        return new(State,SceneCaptureAction.Begin,0f,0f,GizmoDragBegan:true,GizmoHandle:Handle);
+        return new(State,SceneCaptureAction.Begin,0f,0f,GizmoDragBegan:true,GizmoHandle:Handle,
+            GizmoDuplicate:Event.Modifiers.Alt);
     }
 
     private SceneInputStepResult CommitGizmo(){

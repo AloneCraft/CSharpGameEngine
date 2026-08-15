@@ -54,12 +54,13 @@ internal readonly struct SceneTransformChange {
 internal sealed class SceneEditCommitRequest {
     internal SceneEditCommitRequest(
         SceneKey SceneKey,long DocumentVersion,string UndoDescription,IReadOnlyList<SceneTransformChange>Changes,
-        SceneTransformMemberMask Members){
+        SceneTransformMemberMask Members,IReadOnlyList<NodePath>?DuplicateResultPaths=null){
         this.SceneKey=SceneKey;
         this.DocumentVersion=DocumentVersion;
         this.UndoDescription=UndoDescription;
         this.Changes=Changes;
         this.Members=Members;
+        this.DuplicateResultPaths=DuplicateResultPaths??Array.Empty<NodePath>();
     }
 
     internal SceneKey SceneKey { get; }
@@ -71,6 +72,10 @@ internal sealed class SceneEditCommitRequest {
     internal IReadOnlyList<SceneTransformChange>Changes { get; }
 
     internal SceneTransformMemberMask Members { get; }
+
+    internal IReadOnlyList<NodePath>DuplicateResultPaths { get; }
+
+    internal bool IsDuplicate=>this.DuplicateResultPaths.Count>0;
 }
 
 internal readonly struct SceneEditCommitResult {
@@ -152,6 +157,16 @@ internal sealed class EditTransactionController {
         return PreviewWorldDelta(Delta);
     }
 
+    internal IReadOnlyList<SceneTransformPreview>PreviewSurfaceSnap(
+        Vector3 Pivot,Vector3 TargetPosition,Quaternion PrimaryRotation,Vector3 SurfaceNormal){
+        Quaternion Alignment=CreateFromToRotation(
+            Vector3.Transform(Vector3.UnitY,SceneTransformMath.NormalizeRotation(PrimaryRotation)),SurfaceNormal);
+        Matrix4x4 Delta=Matrix4x4.CreateTranslation(-Pivot)
+            *Matrix4x4.CreateFromQuaternion(Alignment)
+            *Matrix4x4.CreateTranslation(TargetPosition);
+        return PreviewWorldDelta(Delta);
+    }
+
     internal Matrix4x4 CurrentWorldDelta=>this.WorldDelta;
 
     private IReadOnlyList<SceneTransformPreview>PreviewWorldDelta(Matrix4x4 Delta){
@@ -179,6 +194,23 @@ internal sealed class EditTransactionController {
 
     internal bool TryCreateCommit(
         string UndoDescription,SceneTransformMemberMask Members,out SceneEditCommitRequest?Request){
+        return TryCreateCommitCore(
+            UndoDescription,Members,Array.Empty<NodePath>(),out Request);
+    }
+
+    internal bool TryCreateDuplicateCommit(
+        string UndoDescription,SceneTransformMemberMask Members,IReadOnlyList<NodePath>DuplicateResultPaths,
+        out SceneEditCommitRequest?Request){
+        if(DuplicateResultPaths.Count!=this.Targets.Length){
+            Request=null;
+            return false;
+        }
+        return TryCreateCommitCore(UndoDescription,Members,DuplicateResultPaths,out Request);
+    }
+
+    private bool TryCreateCommitCore(
+        string UndoDescription,SceneTransformMemberMask Members,IReadOnlyList<NodePath>DuplicateResultPaths,
+        out SceneEditCommitRequest?Request){
         EnsureState(EditTransactionState.Dragging);
         if(this.StartedSnapshot is not { } Started){
             Request=null;
@@ -196,8 +228,23 @@ internal sealed class EditTransactionController {
         }
 
         State=EditTransactionState.Committing;
-        Request=new SceneEditCommitRequest(Started.Key,Started.DocumentVersion,UndoDescription,Changes,Members);
+        Request=new SceneEditCommitRequest(
+            Started.Key,Started.DocumentVersion,UndoDescription,Changes,Members,DuplicateResultPaths);
         return true;
+    }
+
+    private static Quaternion CreateFromToRotation(Vector3 From,Vector3 To){
+        if(From.LengthSquared()<=1e-10f||To.LengthSquared()<=1e-10f){ return Quaternion.Identity; }
+        From=Vector3.Normalize(From);
+        To=Vector3.Normalize(To);
+        float Dot=Math.Max(-1f,Math.Min(1f,Vector3.Dot(From,To)));
+        if(Dot>=1f-1e-6f){ return Quaternion.Identity; }
+        if(Dot<=-1f+1e-6f){
+            Vector3 Reference=Math.Abs(Vector3.Dot(From,Vector3.UnitX))<0.9f?Vector3.UnitX:Vector3.UnitZ;
+            return Quaternion.CreateFromAxisAngle(Vector3.Normalize(Vector3.Cross(From,Reference)),(float)Math.PI);
+        }
+        Vector3 Axis=Vector3.Normalize(Vector3.Cross(From,To));
+        return Quaternion.CreateFromAxisAngle(Axis,(float)Math.Acos(Dot));
     }
 
     internal SceneEditCancellation Cancel(){

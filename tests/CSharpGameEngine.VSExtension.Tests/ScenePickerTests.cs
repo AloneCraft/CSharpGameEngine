@@ -5,7 +5,7 @@ namespace CSharpGameEngine.VSExtension.Tests;
 
 /// <summary>
 /// <see cref="ScenePicker"/>のMöller–Trumbore三角形交差(design doc §5)。GPU/HWND無しで固定する。
-/// VertexSnap/SurfaceSnapクエリ(design doc §5の他2クエリ)はM0020 Phase 5スコープでありここには無い。
+/// VertexSnap/SurfaceSnapクエリも同じCPU mesh/worldデータだけを使用する。
 /// </summary>
 public sealed class ScenePickerTests {
     [Fact]
@@ -156,6 +156,63 @@ public sealed class ScenePickerTests {
             ScreenRectangle.FromPoints(0,0,60,60),ViewportWidth:100,ViewportHeight:100);
 
         Assert.Equal([Path],Hits);
+    }
+
+    [Fact]
+    public void TryVertexSnapQuery_ReturnsClosestProjectedWorldVertexWithinEightPixels(){
+        NodePath Path=NodePath.Root.Append(1);
+        SceneRenderObject Object=CreateScreenTriangle(-0.5f,0.5f,Path);
+
+        bool Found=ScenePicker.TryVertexSnapQuery(
+            [Object],Matrix4x4.Identity,Matrix4x4.Identity,
+            CursorX:27f,CursorY:26f,ViewportWidth:100,ViewportHeight:100,
+            ExcludedRoots:[],out VertexSnapHit Hit);
+
+        Assert.True(Found);
+        Assert.Equal(Path,Hit.NodePath);
+        Assert.Equal(new Vector3(-0.5f,0.5f,0f),Hit.Position);
+    }
+
+    [Fact]
+    public void TryVertexSnapQuery_VertexOutsideEightPixels_ReturnsFalse(){
+        SceneRenderObject Object=CreateScreenTriangle(-0.5f,0.5f,NodePath.Root.Append(1));
+
+        bool Found=ScenePicker.TryVertexSnapQuery(
+            [Object],Matrix4x4.Identity,Matrix4x4.Identity,
+            CursorX:50f,CursorY:50f,ViewportWidth:100,ViewportHeight:100,
+            ExcludedRoots:[],out _);
+
+        Assert.False(Found);
+    }
+
+    [Fact]
+    public void TryVertexSnapQuery_ExcludesDraggedRootAndItsDescendants(){
+        NodePath Root=NodePath.Root.Append(1);
+        SceneRenderObject Child=CreateScreenTriangle(-0.5f,0.5f,Root.Append(0));
+
+        bool Found=ScenePicker.TryVertexSnapQuery(
+            [Child],Matrix4x4.Identity,Matrix4x4.Identity,
+            CursorX:25f,CursorY:25f,ViewportWidth:100,ViewportHeight:100,
+            ExcludedRoots:[Root],out _);
+
+        Assert.False(Found);
+    }
+
+    [Fact]
+    public void TrySurfaceSnapQuery_ReturnsNearestPointAndGeometricNormalWhileExcludingDraggedRoot(){
+        NodePath Dragged=NodePath.Root.Append(0);
+        NodePath SurfacePath=NodePath.Root.Append(1);
+        SceneRenderObject OwnSurface=CreateTriangleAtZ(2f,Dragged.Append(0));
+        SceneRenderObject TargetSurface=CreateTriangleAtZ(5f,SurfacePath);
+
+        bool Found=ScenePicker.TrySurfaceSnapQuery(
+            [OwnSurface,TargetSurface],new Vector3(0.5f,0.5f,0f),Vector3.UnitZ,
+            ExcludedRoots:[Dragged],out SurfaceSnapHit Hit);
+
+        Assert.True(Found);
+        Assert.Equal(SurfacePath,Hit.NodePath);
+        Assert.Equal(new Vector3(0.5f,0.5f,5f),Hit.Position);
+        Assert.Equal(Vector3.UnitZ,Hit.Normal);
     }
 
     /// <summary>直角三角形 (0,0)-(2,0)-(0,2) を Z=<paramref name="Z"/> 平面に置く。(0.5,0.5) は内部の点。</summary>

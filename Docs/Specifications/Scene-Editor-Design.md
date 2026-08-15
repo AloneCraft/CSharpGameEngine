@@ -206,6 +206,11 @@ GizmoDragging
 | Alt | (Orbit開始の判定のみ) | Duplicate(ドラッグ開始時に複製) | 適用しない |
 | V / N ホールド | ― | 頂点スナップ / 面スナップ | ― |
 
+IdleのAlt+LMB Downでは、現在のTransformギズモhandle hitをOrbit判定より先に行う。
+handle hitならDuplicate drag、非hitならOrbitとなり、既存のAltナビゲーションを失わない。
+Moveドラッグ中の同時修飾は、成功したクエリについてN(Surface) → V(Vertex) → Ctrl(Increment)の
+順で解決する。
+
 ## 5. ピッキング(§仕様7)
 
 `ScenePicker`(純粋クラス)は`SceneRenderObject`列(CPU側`SimpleMesh`+ワールド行列)に対して
@@ -224,6 +229,13 @@ GizmoDragging
 4. **SurfaceSnapQuery**: Pickと同じ交差で、ドラッグ中オブジェクト自身を除外した最近ヒットの
    交点+面法線を返す。Positionを交点へ、Rotationを法線整列へ
    (`SurfaceSnap.AlignRotationToNormal=false`で整列のみ無効化可、仕様§7.2)。
+
+VertexSnapQueryとSurfaceSnapQueryは、現在のselection rootだけでなくその全子孫も候補から除外する。
+Vertexは物理8px半径内のスクリーン距離を優先し、同距離ならdepthが手前の点を選ぶ。
+Surfaceは最近三角形の幾何法線を返し、primaryのworld回転後ローカル+Yを法線へ合わせる。
+Phase 5では法線整列を常時有効とし、無効化設定UIは追加しない。
+全selection rootのPosition+Rotationが編集可能な場合だけSurface queryを適用し、そうでなければ
+V/ Ctrlへfallbackして式を保持するRotationを保護する。
 
 ギズモハンドルの判定はメッシュ交差ではなく解析形状で先に行う(§7.3)。ヒット優先順位:
 アクティブドラッグ > ギズモハンドル > シーンオブジェクト(仕様§12)。
@@ -284,6 +296,17 @@ CompoundGizmo(選択ノードごとに構成を決定)
 - Alt=Duplicate(仕様§6.2): ドラッグ開始時に`DuplicateNode`をプレビュー用の複製表示で開始し、
   MouseUpで「複製+Transform設定」を1トランザクションとしてコミットする。元ノードは無変更。
 
+Phase 5のDuplicate previewは、SceneRendererのobject定数バッファを初期描画件数の2倍まで確保し、
+選択rootと全render descendantを末尾の一時GPU objectとして追加する。元objectと同じNodePathを
+更新してしまわないよう整数handleで一時objectだけを更新し、Cancel/Commit時はGPU idle後に末尾から
+破棄する。各親の既存Children数と選択順から結果NodePathを先に計算し、そのpathで一時表示を選択色にする。
+MouseUp後は再解析されたprojectionで予測pathが全件解決してからduplicate rootへSelectionを移す。
+Scene Rootのduplicateは親Childrenがないため開始しない。
+
+FollowViewはdrag開始時のFocusPosition/FocusDistance/Yaw/Pitchを捕捉し、各Moveイベントのtotal deltaから
+再計算する。Moveは視点とFocusを平行移動、Rotateは共有Pivot周りに視点とforwardを回転、Scaleは無視する。
+Esc/capture loss/commit失敗では捕捉値へ戻し、成功時は追従後のcameraを維持する。
+
 ## 7. 編集トランザクション(§仕様16〜19)
 
 `EditTransactionController`が1ユーザー操作=1トランザクションを管理する。
@@ -340,6 +363,10 @@ Undo/Redo(仕様§17): 追加実装なし。1コミット=1テキストUndo単�
 - 編集可否は既存`SceneValue.IsEditable`(Literal/EnumMember/Defaultのみtrue)に従う。式・
   `[SceneAssets]`参照が書かれたメンバーはギズモから書き換えない(該当軸のドラッグを無効化し、
   ハンドルを淡色表示する)。
+
+Phase 5製品実装では最終TransformをDuplicateNodeOperation自身に持たせ、clone内Transformを
+書き換えてから兄弟末尾へ1回だけ挿入する。複数親のbatchはChildren位置の後方順、同一親内は
+選択順で適用し、Roslyn span安全性と予測NodePath順を両立する。
 
 ## 9. Component認識(SceneComponentBinding)と語彙ギャップ
 
