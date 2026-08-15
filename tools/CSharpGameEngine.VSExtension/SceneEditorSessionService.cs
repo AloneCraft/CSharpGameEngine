@@ -93,8 +93,12 @@ internal sealed class SceneEditorSessionService : IDisposable {
             }
 
             SceneDocumentSnapshot Snapshot=this.Publish(Context.Model,Request.SceneKey);
-            SceneEditOperation[]Operations=CreateOperations(Request);
-            SceneSourceEditResult Edited=SceneSourceEditor.ApplyLatestBatch(Context.Root,Snapshot,Operations);
+            SceneEditConflictMergeResult Merge=SceneEditConflictMerger.Merge(Request,Snapshot);
+            if(!Merge.Succeeded){
+                return new SceneEditCommitResult(false,Merge.ErrorMessage,WasRebased:true);
+            }
+            SceneSourceEditResult Edited=SceneSourceEditor.ApplyLatestBatch(
+                Context.Root,Snapshot,Merge.Operations);
             if(!Edited.Succeeded||Edited.Root is null){
                 return new SceneEditCommitResult(
                     false,Edited.ErrorMessage??"SceneのTransform更新に失敗しました。",Edited.WasRebased);

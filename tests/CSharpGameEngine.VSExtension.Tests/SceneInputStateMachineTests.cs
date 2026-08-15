@@ -409,6 +409,52 @@ public sealed class SceneInputStateMachineTests {
         Assert.Empty(Machine.FlyHeldKeys);
     }
 
+    [Fact]
+    public void CancelCurrent_IsTerminalForEveryInputState(){
+        foreach(SceneNavState Target in Enum.GetValues(typeof(SceneNavState)).Cast<SceneNavState>()){
+            SceneInputStateMachine Machine=new();
+            switch(Target){
+                case SceneNavState.Idle:
+                    break;
+                case SceneNavState.Flying:
+                    Machine.Handle(Down(PointerButton.Right,0,0));
+                    Machine.HandleKeyDown(NavigationKey.W);
+                    break;
+                case SceneNavState.Panning:
+                    Machine.Handle(Down(PointerButton.Middle,0,0));
+                    break;
+                case SceneNavState.Orbiting:
+                    Machine.Handle(new PointerEvent(
+                        PointerEventKind.Down,PointerButton.Left,0,0,AltModifiers));
+                    break;
+                case SceneNavState.PendingSelect:
+                    Machine.Handle(Down(PointerButton.Left,0,0),HitNodePath:NodePath.Root);
+                    break;
+                case SceneNavState.MarqueeSelecting:
+                    Machine.Handle(Down(PointerButton.Left,0,0),HitNodePath:null);
+                    Machine.Handle(Move(10,10));
+                    break;
+                case SceneNavState.GizmoDragging:
+                    Machine.Handle(
+                        Down(PointerButton.Left,0,0),HitGizmoHandle:GizmoHandleId.AxisX);
+                    break;
+            }
+            Assert.Equal(Target,Machine.State);
+
+            SceneInputStepResult Result=Machine.CancelCurrent();
+
+            Assert.Equal(SceneNavState.Idle,Machine.State);
+            Assert.Empty(Machine.FlyHeldKeys);
+            Assert.Equal(
+                Target==SceneNavState.Idle?SceneCaptureAction.None:SceneCaptureAction.End,
+                Result.Capture);
+            Assert.Equal(Target==SceneNavState.MarqueeSelecting,Result.MarqueeCanceled);
+            Assert.Equal(Target==SceneNavState.GizmoDragging,Result.GizmoCanceled);
+            Assert.False(Result.SelectionConfirmed);
+            Assert.False(Result.GizmoCommitRequested);
+        }
+    }
+
     private static PointerEvent Down(PointerButton Button,int X,int Y)=>
         new(PointerEventKind.Down,Button,X,Y,NoModifiers);
 

@@ -106,8 +106,9 @@ static global stateでの購読(旧`SceneEditorHub`のGuidチャンネル)はPha
   アセットエラーはblockingにせず、Renderer側のノード単位フォールバックで処理する。
 - `SceneDiffEngine`が旧Projectionとの意味差分(`NodeAdded`/`NodeRemoved`/`NodeReparented`/
   `NodeReordered`/`ComponentAdded`/`ComponentRemoved`/`ComponentChanged`/`MemberChanged`)を毎回
-  算出する。**現時点でこのSceneDiffを消費する側は存在せず**、ビューポートは全再構築している。
-  Transform変更だけでmesh再取得を走らせない増分更新はADR-0041決定事項11(M0020 Phase 7)で行う。
+  算出する。**M0020 Phase 7で`SceneHwndHost`が初めて消費**し、Transform/非mesh Member変更は
+  既存mesh/Rendererを再利用して全階層world/boundsだけを更新する。mesh・Node構造・Component追加削除、
+  表示世代の飛びはlatest-only全再構築へ戻す(ADR-0041決定事項11)。
 
 ### 5. Editor→Code配管: `SceneEditOperation`とtrivia保持・1 Undoトランザクション
 

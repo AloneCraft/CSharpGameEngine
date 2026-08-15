@@ -2485,7 +2485,7 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
 
 - Layer: L8 — Visual Studio Authoring Environment
 - Parent capability: Scene DSL双方向エディタ(ADR-0040)の操作系
-- Status: **PartiallyImplemented**(M0020 Phase 0〜6+後続Task C実装済み。Phase 7は計画済み)
+- Status: **Implemented**(M0020 Phase 0〜7+後続Task C実装済み)
 - Verification: **TestVerified**(純粋なカメラ数学・入力状態機械・CPU pick・ギズモ形状/ヒット/
   拘束ソルバ・Transform数学・編集トランザクション・Roslyn最小差分・live text世代guard)。
   `SceneHwndHost`/D3D12/Visual Studio live buffer/Undoの製品配線は**CodeVerified**止まりで、
@@ -2493,7 +2493,7 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
 - Intended specification: `Docs/シーンエディタの仕様.md`(要求仕様)、
   Docs/Decisions/ADR-0041-Scene-Editor-Interaction-Architecture.md(意思決定)、
   Docs/Specifications/Scene-Editor-Design.md(詳細設計)
-- Implementation evidence(Phase 0〜6+後続Task C):
+- Implementation evidence(Phase 0〜7+後続Task C):
   - tools/CSharpGameEngine.VSExtension/SceneComponentBinding.cs(新規。`SceneComponentRole`/
     `SceneComponentBinding`/`SceneComponentBindings`。FQNハードコードを宣言的な表へ置換)
   - tools/CSharpGameEngine.VSExtension/SceneCameraFraming.cs(新規。視点ポリシーと境界球計算を
@@ -2542,7 +2542,13 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   - Phase 6: EditTransactionController.cs(direct operation transaction)、
     SceneSourceEditor.cs(省略Member追記、AddComponentOperation/RemoveComponentOperation)、
     SceneEditorSessionService.cs(direct operation列を既存live text 1 Undoへ変換)。
-- Tests(Phase 0〜6+後続Task C):
+  - Phase 7: SceneIncrementalUpdate.cs(SceneDiff分類、mesh再利用、全階層world/bounds再計算)、
+    SceneHwndHost.cs(表示世代guard、incremental/rebuild分岐)、FrameResourceTracker.cs/
+    SceneRenderer.cs(2 slot allocator・object/overlay upload領域・fence、slot再利用待機)。
+  - Phase 7: SceneTransformChange.OriginalLocal、SetComponentMemberOperation.OriginalValueExpression、
+    SceneEditConflictMerger.cs(開始値差分を最新値へ合成)、SceneEditorSessionService.cs(commit配線)、
+    SceneInputStateMachineTests.cs(Esc全7状態終端)。
+- Tests(Phase 0〜7+後続Task C):
   - tests/CSharpGameEngine.VSExtension.Tests/SceneComponentBindingTests.cs(5件。実FQNの認識、
     退役FQNを認識しないこと、Role照合、`Enum.GetValues`による「消費者のないRole宣言」の機械的検出)
   - tests/CSharpGameEngine.VSExtension.Tests/SceneCameraFramingTests.cs(9件。境界球計算4件、
@@ -2567,6 +2573,9 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   - Phase 6で19件追加: SceneComponentBindingTests(+5)、PropertyGizmoTests(11)、
     EditTransactionControllerTests(+1)、SceneSourceEditorTests(+2)のうちTheory caseを含む実行件数19。
     最終全体は873件成功・失敗0(VSExtension.Tests 381件)。
+  - Phase 7で8件追加: ScenePhase7Tests(7)、SceneInputStateMachineTests(+1)。
+    SceneDiff増分/rebuild、mesh再利用と全階層world、frame slot fence、Transform/Property競合差分、
+    Esc全状態を固定した。最終全体は881件成功・失敗0(VSExtension.Tests 389件)。
 - Reverse-engineered behavior:
   - 階層合成・preview・source write-backはVSIX純粋層`SceneTransformMath`のrow-vector式へ統一した。
     net472からnet10.0 Runtime型は参照せず、`world * inverse(parentWorld)`をTRSへ分解してローカル値へ戻す。
@@ -2594,6 +2603,14 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   - Property編集はdirect operation列としてTransformと同じsnapshot保留・cancel・live text 1 Undo経路を
     通る。宣言済みでinitializerから省略されたMemberはassignmentを追記し、Add/RemoveComponentは
     ComponentsListLocationとSceneComponent.Locationに限定して他triviaを保持する。
+  - 通常snapshot更新はSceneDiffをNone/Incremental/Rebuildへ分類する。Transform/非mesh Memberだけなら
+    既存SimpleMesh/SceneRendererを再利用して全階層worldとboundsを再計算し、mesh/構造変更または表示世代の
+    飛びはlatest-only全再構築へ戻す。
+  - SceneRendererは2 frames-in-flightで、allocator・object定数・overlay定数/頂点領域・fence値を
+    slot別に持つ。RenderFrame末尾の全GPU待機はなく、slot再利用時だけ待つ。resize/資源破棄/disposeは
+    全体待機を維持する。
+  - Transform/Property dragは開始値をoperationへ運び、Position/Property加算、Rotation Quaternion差分、
+    Scale倍率をcommit時点の最新値へ合成する。対象/Component消失、非editable式、非有限値では破棄+通知する。
   - `SceneNode.Children`は構文木の入れ子から構築されるツリーなのでサイクルガードは不要
     (深さは解析器が`MaxRecursionDepth`=64で打ち切る)。
   - 初期フレーミングは`Distance = Radius/sin(FovY/2)*1.1`(真の境界球半径)。旧固定値`3.0*Radius`と
@@ -2601,18 +2618,17 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
     `IncludeInBounds=false`で除外しているSky domeがクリップされるため。
   - 退化半径では`far`が`near`を下回り`CreatePerspectiveFieldOfView`が例外を投げるバグを退化入力
     テストが検出し、`far`に下限ガードを追加した。
-- Conformance: **MatchesWithDocumentedExtension**(Phase 0〜6+後続Task Cの純粋層とコードレビュー範囲。
+- Conformance: **MatchesWithDocumentedExtension**(Phase 0〜7+後続Task Cの純粋層とコードレビュー範囲。
   Phase 4のRoslyn複数メンバー置換例外、Phase 5の同一親duplicate追加順逆転、
-  Phase 6の省略Member source追記もテストで検出・固定)。
+  Phase 6の省略Member source追記、Phase 7の表示世代飛びguardもテスト/コードレビューで固定)。
   VS/D3D12/WPF/UndoのObservedは
   Experimental Instance未実施のため**Unknown**。
 - Known deviations: 入れ子`Children`を持つシーンがリポジトリに1つも無いため、**階層Transform合成の
-  実シーン証跡が存在しない**(ユニットテスト4件のみが証跡)。Phase 4〜6の実HWND/D3D12/WPF/
+  実シーン証跡が存在しない**(ユニットテストが証跡)。Phase 4〜7の実HWND/D3D12/WPF/
   live buffer/VS UndoはExperimental Instance未確認。SurfaceSnapの法線整列はPhase 5でtrue固定であり、
   falseへ切り替える設定UIは将来拡張として未実装。Camera Aspect、ライトSourceRadius/SourceSize、
   RectLightもPhase 6の明示的対象外。
-- Next action: Phase 0〜6+後続Task CのExperimental Instance確認表をユーザー側で実施。実装作業は
-  M0020 Phase 7(SceneDiff増分更新、frames-in-flight、競合仕上げ、Esc全状態確認)へ進む。
+- Next action: Phase 0〜7+後続Task CのExperimental Instance確認表をユーザー側で実施。
 
 # 2026-08 UE FirstPerson宣言型Scene移行
 

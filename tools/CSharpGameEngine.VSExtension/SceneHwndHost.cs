@@ -24,7 +24,7 @@ namespace CSharpGameEngine.VSExtension;
 ///
 /// <para>
 /// This host owns the editing view state that must survive renderer re-creation: the
-/// <see cref="SceneRenderer"/> is disposed and rebuilt on every re-analysis, so the camera lives here
+/// <see cref="SceneRenderer"/> is disposed and rebuilt for mesh/structural changes, so the camera lives here
 /// and is pushed in through <see cref="SceneRenderer.SetCamera"/> (ADR-0041 decision 1). It is also
 /// the only place that learns the real surface size, via <c>Surface.Resized</c>.
 /// </para>
@@ -36,6 +36,7 @@ internal sealed class SceneHwndHost:HwndHost {
     private SceneModel?TargetModel;
     private SceneKey?TargetKey;
     private SceneDocumentSnapshot?TargetSnapshot;
+    private long RenderedAnalysisGeneration=-1;
     private NodePath?SelectedNodePath;
     private RenderSurfaceWindow?Surface;
     private SceneRenderer?Renderer;
@@ -199,7 +200,9 @@ internal sealed class SceneHwndHost:HwndHost {
         // コンボボックスでのシーン切替はSceneHwndHostを再生成せず(EnsureHostが既存インスタンスを
         // 返すだけ)、このSetTargetの呼び直しだけが届く。TargetKeyが変わったことをここで検知し、
         // 次のOnBuildCompletedで新シーンへ再フレーミングする(ADR-0041、事前調査事実3)。
-        if(this.TargetKey is not { } PreviousKey||!PreviousKey.Equals(Snapshot.Key)){
+        SceneDocumentSnapshot?PreviousSnapshot=this.TargetSnapshot;
+        bool SameScene=this.TargetKey is { }PreviousKey&&PreviousKey.Equals(Snapshot.Key);
+        if(!SameScene){
             PendingCameraReset=true;
         }
 
@@ -212,9 +215,47 @@ internal sealed class SceneHwndHost:HwndHost {
             this.TargetModel=Model;
         }
 
+        if(Surface is not null
+            &&SameScene
+            &&PreviousSnapshot is not null
+            &&Renderer is not null
+            &&RenderedAnalysisGeneration==PreviousSnapshot.AnalysisGeneration
+            &&TryApplyIncrementalSnapshot(Snapshot,Model)){
+            return;
+        }
+
         if(Surface is not null){
             Rebuild();
         }
+    }
+
+    private bool TryApplyIncrementalSnapshot(SceneDocumentSnapshot Snapshot,SceneModel? Model){
+        SceneRenderUpdateKind UpdateKind=SceneIncrementalUpdatePolicy.Classify(Snapshot.Diff);
+        if(UpdateKind==SceneRenderUpdateKind.Rebuild){ return false; }
+        if(UpdateKind==SceneRenderUpdateKind.None){
+            RenderedAnalysisGeneration=Snapshot.AnalysisGeneration;
+            UpdateMoveGizmo();
+            return true;
+        }
+        if(Model is null||Renderer is not { }Active
+            ||!SceneRenderIncrementalUpdater.TryUpdateTransforms(
+                Model,CurrentRenderObjects,out IReadOnlyList<SceneRenderObject>Updated)){
+            return false;
+        }
+
+        foreach(SceneRenderObject Object in Updated){
+            if(!Active.UpdateObjectTransform(Object.NodeId,Object.World)){ return false; }
+        }
+        CurrentRenderObjects=Updated;
+        (this.SceneBoundsCenter,this.SceneBoundsRadius)=SceneCameraFraming.ComputeBounds(Updated);
+        if(ViewState is { }State){
+            State.LastKnownBoundsRadius=this.SceneBoundsRadius;
+        }
+        RenderedAnalysisGeneration=Snapshot.AnalysisGeneration;
+        UpdateMoveGizmo();
+        Surface?.SetVisible(true);
+        SetStatus($"表示中: {Model.ClassName}");
+        return true;
     }
 
     /// <summary>EditorNodeIdを現在snapshotのNodePathへ解決して既存Rendererへ渡します。</summary>
@@ -921,8 +962,10 @@ internal sealed class SceneHwndHost:HwndHost {
             &&TargetSnapshot is { }Snapshot&&Snapshot.Projection is { }Projection
             &&CurrentSelection?.PrimaryNodeId is { }PrimaryId
             &&Projection.TryGetNode(PrimaryId,out _)){
+            PropertyGizmoFrame OriginalFrame=ActivePropertyDrag.StartFrame;
             SceneEditOperation[]Operations=PropertyGizmo.CreateOperations(
-                PropertyFrame,PropertyHandle,Snapshot.Key,PrimaryId,Snapshot.DocumentVersion);
+                PropertyFrame,PropertyHandle,Snapshot.Key,PrimaryId,Snapshot.DocumentVersion,
+                OriginalFrame);
             ActivePropertyDrag=null;
             ActiveGizmoHandle=null;
             PropertyCommitInProgress=true;
@@ -1169,7 +1212,7 @@ internal sealed class SceneHwndHost:HwndHost {
         if(Result.Capture==SceneCaptureAction.End){
             Surface?.ReleasePointerCapture();
         }
-        if(Result.GizmoCanceled||EditTransaction.State!=EditTransactionState.Idle){
+        if(Result.GizmoCanceled||EditTransaction.State==EditTransactionState.Dragging){
             CancelEditTransaction();
         }
         if(Result.MarqueeCanceled){
@@ -1313,6 +1356,7 @@ internal sealed class SceneHwndHost:HwndHost {
 
             // 実サイズは Surface.Resized で既に届いているので、800x600 のハードコードは使わない。
             Renderer=new SceneRenderer(Surface.Handle,SurfaceWidth,SurfaceHeight,Result.RenderObjects,View,Projection);
+            RenderedAnalysisGeneration=Request.AnalysisGeneration;
             // 再解析でRendererを作り直しても選択の見た目を保つ。複数選択(SelectedNodePaths)も
             // 一緒に渡さないと、primary以外のハイライトだけが再ビルドで消える。
             Renderer.SetSelectedNode(this.SelectedNodePath,this.SelectedNodePaths);
@@ -1329,6 +1373,8 @@ internal sealed class SceneHwndHost:HwndHost {
     private void DisposeRenderer(){
         Renderer?.Dispose();
         Renderer=null;
+        RenderedAnalysisGeneration=-1;
+        CurrentRenderObjects=[];
         Surface?.SetVisible(false);
     }
 

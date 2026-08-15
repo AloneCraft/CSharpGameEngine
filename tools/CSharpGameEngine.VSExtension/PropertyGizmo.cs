@@ -474,9 +474,21 @@ internal static class PropertyGizmo {
 
     internal static SceneEditOperation[]CreateOperations(
         in PropertyGizmoFrame Frame,GizmoHandleId Handle,SceneKey SceneKey,
-        EditorNodeId NodeId,long DocumentVersion){
+        EditorNodeId NodeId,long DocumentVersion,PropertyGizmoFrame? OriginalFrame=null){
         string ComponentTypeFullyQualifiedName=Frame.ComponentTypeFullyQualifiedName;
-        List<(string Name,float Value)>Members=Handle switch {
+        List<(string Name,float Value)>Members=GetMembers(Frame,Handle);
+        Dictionary<string,float>?OriginalMembers=OriginalFrame is { }Original
+            ?GetMembers(Original,Handle).ToDictionary(static Member=>Member.Name,static Member=>Member.Value)
+            :null;
+        return Members.Select(Member=>(SceneEditOperation)new SetComponentMemberOperation(
+            SceneKey,NodeId,DocumentVersion,ComponentTypeFullyQualifiedName,
+            Member.Name,FormatFloat(Member.Value),
+            OriginalMembers is not null&&OriginalMembers.TryGetValue(Member.Name,out float OriginalValue)
+                ?FormatFloat(OriginalValue):null)).ToArray();
+    }
+
+    private static List<(string Name,float Value)>GetMembers(
+        in PropertyGizmoFrame Frame,GizmoHandleId Handle)=>Handle switch {
             GizmoHandleId.CameraFov=>[("FovYRadians",Frame.FovYRadians)],
             GizmoHandleId.CameraNear=>[("NearZ",Frame.NearZ)],
             GizmoHandleId.CameraFar=>[("FarZ",Frame.FarZ)],
@@ -488,10 +500,6 @@ internal static class PropertyGizmo {
             GizmoHandleId.SpotDirection=>DirectionMembers("Direction",Frame.Forward),
             _=>[],
         };
-        return Members.Select(Member=>(SceneEditOperation)new SetComponentMemberOperation(
-            SceneKey,NodeId,DocumentVersion,ComponentTypeFullyQualifiedName,
-            Member.Name,FormatFloat(Member.Value))).ToArray();
-    }
 
     internal static void AddHandleMarkers(
         List<GizmoOverlayPrimitive>Primitives,in PropertyGizmoFrame Frame,
@@ -520,7 +528,7 @@ internal static class PropertyGizmo {
 }
 
 internal sealed class PropertyGizmoDrag {
-    private readonly PropertyGizmoFrame StartFrame;
+    private readonly PropertyGizmoFrame OriginalFrame;
     private readonly GizmoHandleId Handle;
     private readonly int StartX;
     private readonly int StartY;
@@ -530,14 +538,16 @@ internal sealed class PropertyGizmoDrag {
         if(!PropertyGizmo.IsPropertyHandle(Handle)||!Frame.Handles.Contains(Handle)||!Frame.CanEdit(Handle)){
             throw new ArgumentOutOfRangeException(nameof(Handle));
         }
-        this.StartFrame=Frame;
+        this.OriginalFrame=Frame;
         this.Handle=Handle;
         this.StartX=StartX;
         this.StartY=StartY;
     }
 
+    internal PropertyGizmoFrame StartFrame=>this.OriginalFrame;
+
     internal PropertyGizmoFrame Update(int X,int Y,bool Snap)=>
-        this.StartFrame.ApplyPointerDelta(this.Handle,X-this.StartX,Y-this.StartY,Snap);
+        this.OriginalFrame.ApplyPointerDelta(this.Handle,X-this.StartX,Y-this.StartY,Snap);
 }
 
 /// <summary>TransformGizmoとPropertyGizmoを同一overlayへ順序付きで合成する。</summary>

@@ -1391,6 +1391,7 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - **Known deviation(後続Phaseへ明示的に残す)**: MouseUp後の通常解析ではPhase 6まで
   `SceneRenderer`全再構築が残り、毎フレーム`WaitForGpuIdle`もPhase 7まで残る。これは
   ADR-0041の段階戦略どおりで、Phase 3のpreviewだけが先行して増分定数更新を使う。
+  **この歴史的制約はPhase 7で解消済み**。
 - Evidence:
   - 対象54件(`SceneTransformMathTests`/`TransformGizmoTests`/`EditTransactionControllerTests`/
     `SceneSourceEditorTests`/`SceneInputStateMachineTests`/`SceneTextChangePlannerTests`)成功・失敗0。
@@ -1544,3 +1545,31 @@ Expハイブのキャッシュより新しくすること」を機序として**
   - dotnet test CSharpGameEngine.slnx -c Debug --no-build --no-restoreは全8テストプロジェクト
     873件成功・失敗0(Entities 40 / Core 122 / Bridge.Hosting 8 / Import 30 / Windows 87 /
     CodeAnalysis 101 / SceneModel 104 / VSExtension 381)。
+
+## 2026-08-16 M0020 Phase 7: SceneDiff増分更新、frames-in-flight、競合/Esc仕上げ
+
+- **Matches(SceneDiff初消費)**: `SceneIncrementalUpdatePolicy`はTransform/非mesh
+  `ComponentChanged`/`MemberChanged`をIncremental、mesh・Node構造・Component追加削除を
+  Rebuildへ分類する。同一Sceneの直前表示世代だけを増分対象とし、世代が飛んだ場合はlatest-only
+  rebuildへ戻す。`SceneRenderIncrementalUpdater`は既存meshを再利用し、親から子へ
+  `world = local * parentWorld`を全件再計算してboundsも更新する。
+- **Matches(frames-in-flight)**: `SceneRenderer`は2 frame slotごとにcommand allocator、
+  object定数、overlay定数/頂点領域、fence値を所有する。`RenderFrame`末尾の
+  `WaitForGpuIdle`を除去し、back-buffer slot再利用時だけそのslotのfenceを待つ。
+  resize、一時object resource破棄、disposeは資源寿命のため全体待機を維持する。
+- **Matches(競合差分)**: Transform/Property operationへdrag開始値を保持し、
+  `SceneEditConflictMerger`がPosition/数値Propertyの加算差分、RotationのQuaternion差分、
+  Scaleの倍率差分をcommit時点の最新値へ合成する。対象/Component消失、外部変更後の非editable式、
+  非有限結果では自動上書きせず失敗通知へ戻す。
+- **Matches(Esc終端)**: `SceneNavState`全7状態を列挙し、EscでIdle、capture解放、
+  Fly key消去、選択/commit非発火を固定した。MouseUp後のCommittingはEscでcancelせず、
+  source writeの完了/失敗を終端として扱う。
+- **Unknown(実機Observed)**: Renderer再利用、実GPU queue/fence、連続drag時のフレーム挙動、
+  live buffer/Visual Studio Undo、同一Member外部編集の製品配線は実COM/HWND/GPUを要するため未実施。
+  M0020 Phase 7の目視表6項目をユーザー側確認として残した。
+- Evidence:
+  - Phase 7で8件追加。VSExtension.Tests 389件成功・失敗0。
+  - dotnet build CSharpGameEngine.slnx -c Debug --no-restore成功、警告0/エラー0。
+  - dotnet test CSharpGameEngine.slnx -c Debug --no-build --no-restoreは全8テストプロジェクト
+    881件成功・失敗0(Entities 40 / Core 122 / Bridge.Hosting 8 / Import 30 / Windows 87 /
+    CodeAnalysis 101 / SceneModel 104 / VSExtension 389)。

@@ -2,7 +2,7 @@
 
 ## ステータス
 
-承認済み(M0020 Phase 0〜6+後続Task Cは**実装済み**、Phase 7は計画済み)。実装は
+承認済み(M0020 Phase 0〜7+後続Task Cは**実装済み**)。実装は
 [[M0020-Scene-Editor-Interaction]]で段階的に行い、各Phase完了時に同文書の「検証結果」と
 `Docs/Conformance.md`へ実行結果を追記する。要求仕様は
 `Docs/シーンエディタの仕様.md`(§1〜23)、既存基盤は
@@ -198,8 +198,9 @@ Esc
 - `SceneRenderer`へ追加するプレビューAPIは`UpdateObjectTransform`(既存の定数バッファ書き換えの
   範囲で実装可能)のみ。メッシュ・ロースターの変更はプレビューしない。
 - 競合(仕様§18〜19): 操作中はロック(上記の保留)、コミット時に`DocumentVersion`が進んでいれば
-  `ApplyLatest`が1回リベース、リベース不能(ノード消失等)なら**プレビューを破棄して通知**する
-  (自動上書きしない)。ドラッグ中に外部編集が同一ノードを消した場合もMouseUp時にこの経路へ落ちる。
+  `SceneEditConflictMerger`が開始値→終了値の差分を最新値へ合成する。TransformはPosition加算/
+  Rotation Quaternion差分/Scale倍率、Propertyは数値加算差分とする。ノード・Component消失、
+  外部変更後の非editable式、非有限結果では**プレビューを破棄して通知**し、自動上書きしない。
 - Undo/Redo(仕様§17)は追加実装なし: テキストUndoが戻ればADR-0040決定事項1のループが表示も戻す。
 
 ### 6. `SceneEditOperationKind`のフェーズ割当
@@ -258,11 +259,12 @@ Ctrl+LMBは既存契約の複数選択(`NodeIds`+`PrimaryNodeId`)をそのまま
 
 ### 11. レンダラー増分更新への段階戦略
 
-Phase 0〜6は「`SceneRenderer`全再構築+状態外出し(決定事項1)」の現行方式のまま成立させ、
-**Phase 7で初めて`SceneDiff`を消費**してTransform/Member変更のみの場合にレンダラーを再生成しない
-増分更新へ移行する(メッシュ再取得・PSO再構築の回避)。毎フレーム`WaitForGpuIdle`の除去
-(フレームインフライト化)も同Phaseで扱う。ドラッグ中のプレビュー(決定事項5)は増分更新の
-先行形であり、Phase 7はそれをコミット後の通常経路へ一般化するものと位置づける。
+Phase 0〜6は「`SceneRenderer`全再構築+状態外出し(決定事項1)」で成立させた。
+Phase 7では`SceneDiff`を初めて消費し、Transform/非mesh Member変更だけなら既存meshと
+Rendererを再利用して全階層world/boundsを更新する。mesh・Node構造・Component追加削除・表示世代の
+飛びは全再構築へ戻す。`SceneRenderer`は2 frames-in-flightとし、allocator・object定数・
+overlay定数/頂点・fence値をslot別に持つ。毎フレーム末尾の`WaitForGpuIdle`は廃止し、
+slot再利用時だけ待つ。resize・資源破棄・disposeの全体待機は資源寿命契約として維持する。
 
 ## 代替案として検討したもの
 
@@ -290,9 +292,9 @@ Phase 0〜6は「`SceneRenderer`全再構築+状態外出し(決定事項1)」�
   **Phase 3で再検討し、共有ソース化は採らず、VSIX内の純粋層`SceneTransformMath`へ同じrow-vector式と
   `TryCalculateLocal`相当を実装してテストで固定する判断へ確定した**
   ([[ADR-0042-Scene-Editor-Gizmo-Axis-Handedness]])。
-- **GPUピッキング**(IDバッファ読み戻し): 現行レンダラーは`Present(1)`+`WaitForGpuIdle`の最小構成で
-  読み戻しパスが無く、CPU側に全メッシュが既にあるため、CPUレイキャストの方が実装・テストともに
-  小さい。頂点・面スナップにも同一の幾何クエリを流用できる。
+- **GPUピッキング**(IDバッファ読み戻し): Phase 7の現行レンダラーは2 frames-in-flightだが
+  ID buffer/readback pathを持たず、CPU側に全メッシュが既にあるため、CPUレイキャストの方が
+  実装・テストともに小さい。頂点・面スナップにも同一の幾何クエリを流用できる。
 - **ドラッグ中の逐次テキスト書き込み**: 1ドラッグでUndo履歴が数百件に汚染される
   (ADR-0040決定事項9で棄却済み。本ADRはプレビュー/コミット分離の具体化)。
 - **編集用に`SceneModel`を直接書き換える正本化**: ADR-0040決定事項1(C#テキスト単一正本)への
@@ -314,8 +316,7 @@ Phase 0〜6は「`SceneRenderer`全再構築+状態外出し(決定事項1)」�
 
 - キー操作の前に「ビューポートを一度クリックしてフォーカスを与える」1アクションが必要になる
   (Unityも同じ挙動であり、仕様§1の設計原則と矛盾しない)。
-- Phase 6まで再解析のたびのレンダラー全再構築が残る(コミット直後の1回はメッシュキャッシュ済みでも
-  再構築コストを払う)。Phase 7で解消する段階戦略を受け入れる。
+- meshまたはScene構造が変わる再解析では安全側に倒してレンダラーを全再構築する。
 - CPUレイキャストは巨大シーンでは線形走査コストが顕在化しうる(加速構造は必要になってから)。
 
 ## 検証結果(実際に実行して確認)
@@ -353,9 +354,17 @@ Positionメンバーだけを`ITextUndoTransaction` 1件でlive bufferへ反映�
 HWND/D3D12/VS live buffer/Undo配線はユニットテスト不能であり、Experimental Instance確認は
 [[M0020-Scene-Editor-Interaction]]のPhase 3表に未実施として残す。
 
+### Phase 7(2026-08-16、決定事項5・11と競合契約を完了)
+
+`SceneDiff`増分分類、mesh再利用と親子world再計算、2 slot fence、Transform/Propertyの
+開始値ベース差分マージ、Esc全7入力状態を新規8テストで固定した。VSExtension.Tests 389件、
+全8テストプロジェクト881件が成功し、Debug buildは警告0/エラー0。
+HWND/D3D12/live buffer/Visual Studio UndoのObservedはExperimental Instance未実施のため
+**Unknown**であり、[[M0020-Scene-Editor-Interaction]]のPhase 7表へ残す。
+
 ## 関連機能
 
-- F-L8-011 — シーンエディタ インタラクション基盤(Status: PartiallyImplemented、Phase 0〜3実装済み)
+- F-L8-011 — シーンエディタ インタラクション基盤(Status: Implemented、Phase 0〜7+後続Task C実装済み)
 - F-L8-010 — Scene デザイナー: SceneModel(ライブRoslyn)描画(前提基盤)
 
 関連: [[ADR-0040-CSharp-Scene-DSL-and-Bidirectional-Editor]]、

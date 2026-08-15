@@ -41,12 +41,20 @@ internal readonly struct SceneTransformPreview {
 }
 
 internal readonly struct SceneTransformChange {
-    internal SceneTransformChange(EditorNodeId NodeId,SceneTransformValue Local){
+    internal SceneTransformChange(EditorNodeId NodeId,SceneTransformValue Local)
+        :this(NodeId,Local,Local){
+    }
+
+    internal SceneTransformChange(
+        EditorNodeId NodeId,SceneTransformValue OriginalLocal,SceneTransformValue Local){
         this.NodeId=NodeId;
+        this.OriginalLocal=OriginalLocal;
         this.Local=Local;
     }
 
     internal EditorNodeId NodeId { get; }
+
+    internal SceneTransformValue OriginalLocal { get; }
 
     internal SceneTransformValue Local { get; }
 }
@@ -251,11 +259,14 @@ internal sealed class EditTransactionController {
         List<SceneTransformChange>Changes=[];
         for(var I=0;I<this.Targets.Length;I++){
             SceneTransformTarget Target=this.Targets[I];
-            if(!SceneTransformMath.TryCalculateLocal(this.Previews[I].World,Target.ParentWorld,out SceneTransformValue Local)){
+            if(!SceneTransformMath.TryCalculateLocal(
+                Target.OriginalWorld,Target.ParentWorld,out SceneTransformValue OriginalLocal)
+                ||!SceneTransformMath.TryCalculateLocal(
+                    this.Previews[I].World,Target.ParentWorld,out SceneTransformValue Local)){
                 Request=null;
                 return false;
             }
-            Changes.Add(new SceneTransformChange(Target.NodeId,Local));
+            Changes.Add(new SceneTransformChange(Target.NodeId,OriginalLocal,Local));
         }
 
         State=EditTransactionState.Committing;

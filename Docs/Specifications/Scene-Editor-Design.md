@@ -39,8 +39,8 @@ M0020                           … 実装フェーズ計画と完了条件
               │  │        オーバーレイPSO。編集状態は持たない)                     │  │
               │  └───────────────────────────────────────┘  │
               └───────────────────────────────────────────┘
-   コミット経路(§8): EditTransactionController
-     → [既存] SceneSourceEditor.ApplyLatest → [既存] SceneTextBufferWriter(1 Undo)
+    コミット経路(§8): EditTransactionController
+      → SceneEditConflictMerger → [既存] SceneSourceEditor.ApplyLatest → [既存] SceneTextBufferWriter(1 Undo)
      → VS TextBuffer → 上記の既存ループが表示を確定
    選択経路(§6): ScenePicker → [既存] SceneSelectionService(Origin=Viewport) ⇄ Hierarchy
 ```
@@ -51,7 +51,7 @@ M0020                           … 実装フェーズ計画と完了条件
 
 ## 2. SceneViewState(§仕様2・3・20)
 
-`SceneHwndHost`が所有し、`SceneRenderer`の破棄・再生成(再解析ごと)を跨いで生存する。
+`SceneHwndHost`が所有し、mesh/構造変更時の`SceneRenderer`破棄・再生成を跨いで生存する。
 依存はSystem.Numericsのみ(ユニットテスト可能)。
 
 | フィールド | 型 | 意味 | 永続化 |
@@ -322,9 +322,10 @@ Preview(Drag)
   SceneRenderer.UpdateObjectTransform(NodePath, Matrix4x4) … 定数バッファのみ更新
 Commit(MouseUp)
   1. SceneEditOperation列を生成(§8)
-  2. SceneSourceEditor.ApplyLatest(現Root, 最新snapshot, op) … Versionずれは1回リベース
-  3. SceneTextBufferWriter.TryApply(buffer, before, after, "Move Cube" 等) … 1 ITextUndoTransaction
-  4. PendingSnapshotを解放 → 通常ループが確定表示
+  2. SceneEditConflictMerger.Merge(開始値, 終了値, 最新snapshot) … Versionずれは差分統合
+  3. SceneSourceEditor.ApplyLatest(現Root, 最新snapshot, merged op)
+  4. SceneTextBufferWriter.TryApply(buffer, before, after, "Move Cube" 等) … 1 ITextUndoTransaction
+  5. PendingSnapshotを解放 → 通常ループが確定表示
 Cancel(Esc / リベース失敗)
   プレビュー値を元値へ戻し、PendingSnapshotを解放。テキスト無変更(Undo履歴も無傷)。
   リベース失敗時はVSステータスバー/InfoBarで通知(自動上書きしない、仕様§19)
@@ -336,11 +337,18 @@ Cancel(Esc / リベース失敗)
 |---|---|
 | ドラッグ中に外部編集(別値・別ノード) | 保留。MouseUpのリベースで統合される(EditorNodeIdはセッション安定) |
 | ドラッグ中に外部編集(対象ノード消滅) | Commit時に`ApplyLatest`が失敗 → プレビュー破棄+通知 |
-| ドラッグ中に同一メンバーが外部変更 | Commitはエディタ操作の値で上書き(最後の操作が勝つ。ドラッグ開始時点の値比較による差分統合はPhase 7の拡張候補) |
+| ドラッグ中に同一Transform/Propertyが外部変更 | 開始→終了差分を最新値へ合成。Position/Propertyは加算、RotationはQuaternion差分、Scaleは倍率(開始scaleが0近傍なら加算fallback) |
+| 外部変更で対象/Componentが消失、または対象Memberが非editable式化 | Commit失敗 → プレビュー破棄+通知。外部式を上書きしない |
 | 非ドラッグ時の外部編集 | 既存どおり即時反映(250msデバウンス) |
 
 Undo/Redo(仕様§17): 追加実装なし。1コミット=1テキストUndo単位であり、Ctrl+Zでテキストが戻ると
 既存の解析ループが表示・ヒエラルキー・選択根拠をすべて戻す。
+
+通常snapshot更新は`SceneIncrementalUpdatePolicy`が`SceneDiff`を分類する。
+Transform/非mesh Memberのみなら`SceneRenderIncrementalUpdater`が既存meshを保持して全nodeの
+`world = local * parentWorld`とboundsを再計算する。mesh/構造変更または表示世代が連続しない場合は
+latest-only全再構築へ戻す。`SceneRenderer`は2 frame slotごとのallocator・object/overlay upload領域・
+fence値を持ち、`RenderFrame`ではslot再利用時だけ待機する。resize・資源破棄・disposeは全体待機する。
 
 ## 8. SceneEditOperation拡張仕様
 
@@ -443,6 +451,8 @@ VS非依存の純粋層を最大化し、既存`RenderSurfaceFocusPolicyTests`�
 | 統合(既存パターン) | `SceneSourceEditorTests`系にDuplicateNode/AddComponentのtrivia保持テストを追加 |
 | Phase 6 Property | Camera投影別handle、3ライト構成、Compound合成、modifier適用表、値clamp/snap、direct transaction |
 | Phase 6 source | 省略Member追記、AddComponent/RemoveComponentの対象collection限定編集、他trivia保持 |
+| Phase 7 incremental | SceneDiff分類、mesh再利用、親子world chain/bounds再計算、構造/mesh変更のrebuild |
+| Phase 7 frame/競合/Esc | frame slot fence、Transform/Property開始値差分マージ、全7入力状態のEsc終端 |
 
 実機VS Experimental Instanceの目視確認はM0020各Phaseの完了条件として定義する(スクリーンショットは
 UIA `NativeWindowHandle`+`PrintWindow`方式、`SetForegroundWindow`不使用)。

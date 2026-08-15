@@ -19,7 +19,8 @@ internal sealed record SetComponentMemberOperation(
     long DocumentVersion,
     string ComponentTypeFullyQualifiedName,
     string MemberName,
-    string ValueExpression) : SceneEditOperation(SceneKey,NodeId,DocumentVersion);
+    string ValueExpression,
+    string?OriginalValueExpression=null) : SceneEditOperation(SceneKey,NodeId,DocumentVersion);
 
 internal sealed record AddComponentOperation(
     SceneKey SceneKey,

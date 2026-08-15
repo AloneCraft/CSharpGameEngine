@@ -39,7 +39,7 @@ internal sealed class SceneRenderObject {
 /// <para>
 /// This type holds no editing view state: the camera is injected through <see cref="SetCamera"/> by
 /// <see cref="SceneHwndHost"/> and framing/bounds policy lives in <see cref="SceneCameraFraming"/>
-/// (ADR-0041 decision 1), because the renderer itself is disposed and rebuilt on every re-analysis.
+/// (ADR-0041 decision 1), because mesh/structural changes can dispose and rebuild the renderer.
 /// </para>
 /// </summary>
 internal sealed class SceneRenderer:IDisposable {
@@ -55,14 +55,14 @@ internal sealed class SceneRenderer:IDisposable {
     private readonly ID3D12Resource[]RenderTargets=new ID3D12Resource[FrameCount];
     private readonly ID3D12DescriptorHeap DsvHeap;
     private ID3D12Resource DepthBuffer;
-    private readonly ID3D12CommandAllocator CommandAllocator;
+    private readonly ID3D12CommandAllocator[]CommandAllocators=new ID3D12CommandAllocator[FrameCount];
     private readonly ID3D12GraphicsCommandList CommandList;
     private readonly ID3D12RootSignature RootSignature;
     private readonly ID3D12PipelineState PipelineState;
     private readonly ID3D12PipelineState OverlayTrianglePipelineState;
     private readonly ID3D12PipelineState OverlayLinePipelineState;
     private readonly ID3D12Fence Fence;
-    private ulong FenceValue;
+    private readonly FrameResourceTracker FrameResources=new(FrameCount);
     private readonly IntPtr FenceEvent;
 
     private readonly ID3D12Resource ConstantBuffer;
@@ -71,11 +71,14 @@ internal sealed class SceneRenderer:IDisposable {
     private const int MaxOverlayVertices=4096;
     private readonly ID3D12Resource OverlayVertexBuffer;
     private readonly ID3D12Resource OverlayConstantBuffer;
-    private VertexBufferView OverlayTriangleVertexView;
-    private VertexBufferView OverlayLineVertexView;
+    private readonly VertexBufferView[]OverlayTriangleVertexViews=new VertexBufferView[FrameCount];
+    private readonly VertexBufferView[]OverlayLineVertexViews=new VertexBufferView[FrameCount];
+    private OverlayVertex[]OverlayTriangles=[];
+    private OverlayVertex[]OverlayLines=[];
     private int OverlayTriangleVertexCount;
     private int OverlayLineVertexCount;
-    private bool OverlayConstantsDirty;
+    private readonly bool[]OverlayGeometryDirty=new bool[FrameCount];
+    private readonly bool[]OverlayConstantsDirty=new bool[FrameCount];
 
     private sealed class ObjectResources {
         public required NodePath NodeId;
@@ -96,7 +99,7 @@ internal sealed class SceneRenderer:IDisposable {
     private Matrix4x4 CurrentProjection;
 
     /// <summary>定数バッファの唯一の更新トリガ。ctor/<see cref="SetCamera"/>/<see cref="SetSelectedNode"/>が立て、<see cref="RenderFrame"/>が消費する。</summary>
-    private bool ConstantsDirty;
+    private readonly bool[]ConstantsDirty=new bool[FrameCount];
 
     private int Width;
     private int Height;
@@ -234,8 +237,11 @@ internal sealed class SceneRenderer:IDisposable {
         DsvHeap=Device.CreateDescriptorHeap(new DescriptorHeapDescription(DescriptorHeapType.DepthStencilView,1));
         DepthBuffer=CreateDepthBuffer(this.Width,this.Height);
 
-        CommandAllocator=Device.CreateCommandAllocator(CommandListType.Direct);
-        CommandList=Device.CreateCommandList<ID3D12GraphicsCommandList>(CommandListType.Direct,CommandAllocator);
+        for(var FrameIndex=0;FrameIndex<FrameCount;FrameIndex++){
+            CommandAllocators[FrameIndex]=Device.CreateCommandAllocator(CommandListType.Direct);
+        }
+        CommandList=Device.CreateCommandList<ID3D12GraphicsCommandList>(
+            CommandListType.Direct,CommandAllocators[0]);
         CommandList.Close();
 
         RootParameter1 TransformParameter=new(RootParameterType.ConstantBufferView,new RootDescriptor1(0,0),ShaderVisibility.All);
@@ -327,7 +333,7 @@ internal sealed class SceneRenderer:IDisposable {
             new ResourceDescription {
                 Dimension=ResourceDimension.Buffer,
                 // D3D12 は 0 バイトの buffer を許可しないので、0件でも1スロット分は確保する。
-                Width=(ulong)(AlignedSlotSize*ObjectCapacity),
+                Width=(ulong)(AlignedSlotSize*ObjectCapacity*FrameCount),
                 Height=1,
                 DepthOrArraySize=1,
                 MipLevels=1,
@@ -340,11 +346,11 @@ internal sealed class SceneRenderer:IDisposable {
         int OverlayVertexSize=Marshal.SizeOf<OverlayVertex>();
         OverlayVertexBuffer=Device.CreateCommittedResource(
             HeapType.Upload,
-            ResourceDescription.Buffer((ulong)(OverlayVertexSize*MaxOverlayVertices)),
+            ResourceDescription.Buffer((ulong)(OverlayVertexSize*MaxOverlayVertices*FrameCount)),
             ResourceStates.GenericRead);
         OverlayConstantBuffer=Device.CreateCommittedResource(
             HeapType.Upload,
-            ResourceDescription.Buffer(256),
+            ResourceDescription.Buffer(256*FrameCount),
             ResourceStates.GenericRead);
 
         foreach(SceneRenderObject RenderObject in RenderObjects){
@@ -352,11 +358,11 @@ internal sealed class SceneRenderer:IDisposable {
         }
 
         Fence=Device.CreateFence(0);
-        FenceValue=1;
         FenceEvent=NativeEvent.CreateAutoResetEvent();
 
-        ConstantsDirty=true;
-        OverlayConstantsDirty=true;
+        MarkAllDirty(ConstantsDirty);
+        MarkAllDirty(OverlayGeometryDirty);
+        MarkAllDirty(OverlayConstantsDirty);
     }
 
     /// <summary>
@@ -371,8 +377,8 @@ internal sealed class SceneRenderer:IDisposable {
 
         CurrentView=View;
         CurrentProjection=Projection;
-        ConstantsDirty=true;
-        OverlayConstantsDirty=true;
+        MarkAllDirty(ConstantsDirty);
+        MarkAllDirty(OverlayConstantsDirty);
     }
 
     /// <summary>ドラッグpreviewではGPU meshを再構築せず、既存objectのworld定数だけを更新する。</summary>
@@ -382,7 +388,7 @@ internal sealed class SceneRenderer:IDisposable {
             return false;
         }
         Object.World=World;
-        ConstantsDirty=true;
+        MarkAllDirty(ConstantsDirty);
         return true;
     }
 
@@ -412,7 +418,7 @@ internal sealed class SceneRenderer:IDisposable {
         }
 
         Handles=Enumerable.Range(Start,RenderObjects.Count).ToArray();
-        ConstantsDirty=true;
+        MarkAllDirty(ConstantsDirty);
         return true;
     }
 
@@ -422,7 +428,7 @@ internal sealed class SceneRenderer:IDisposable {
             return false;
         }
         Objects[Handle].World=World;
-        ConstantsDirty=true;
+        MarkAllDirty(ConstantsDirty);
         return true;
     }
 
@@ -441,7 +447,7 @@ internal sealed class SceneRenderer:IDisposable {
             DisposeObjectResources(Objects[I]);
             Objects.RemoveAt(I);
         }
-        ConstantsDirty=true;
+        MarkAllDirty(ConstantsDirty);
     }
 
     /// <summary>ギズモoverlayを固定容量upload bufferへ置き換える。GPU resource自体は再生成しない。</summary>
@@ -462,29 +468,11 @@ internal sealed class SceneRenderer:IDisposable {
             throw new ArgumentOutOfRangeException(nameof(Primitives),$"overlay頂点数{TotalCount}が上限{MaxOverlayVertices}を超えています。");
         }
 
-        int VertexSize=Marshal.SizeOf<OverlayVertex>();
-        if(TotalCount>0){
-            Span<byte>Mapped=OverlayVertexBuffer.Map<byte>(0,VertexSize*TotalCount);
-            var Offset=0;
-            foreach(OverlayVertex Vertex in Triangles){
-                OverlayVertex Value=Vertex;
-                MemoryMarshal.Write(Mapped.Slice(Offset,VertexSize),ref Value);
-                Offset+=VertexSize;
-            }
-            foreach(OverlayVertex Vertex in Lines){
-                OverlayVertex Value=Vertex;
-                MemoryMarshal.Write(Mapped.Slice(Offset,VertexSize),ref Value);
-                Offset+=VertexSize;
-            }
-            OverlayVertexBuffer.Unmap(0,null);
-        }
-
+        OverlayTriangles=Triangles.ToArray();
+        OverlayLines=Lines.ToArray();
         OverlayTriangleVertexCount=Triangles.Count;
         OverlayLineVertexCount=Lines.Count;
-        OverlayTriangleVertexView=new VertexBufferView(
-            OverlayVertexBuffer.GPUVirtualAddress,Triangles.Count*VertexSize,VertexSize);
-        OverlayLineVertexView=new VertexBufferView(
-            OverlayVertexBuffer.GPUVirtualAddress+(ulong)(Triangles.Count*VertexSize),Lines.Count*VertexSize,VertexSize);
+        MarkAllDirty(OverlayGeometryDirty);
     }
 
     private ObjectResources CreateObjectResources(SceneRenderObject RenderObject){
@@ -563,29 +551,64 @@ internal sealed class SceneRenderer:IDisposable {
         }
     }
 
-    private void UpdateAllConstantBuffers(){
+    private void UpdateAllConstantBuffers(int FrameIndex){
         if(Objects.Count==0){
             // 0件では Map/Unmap 自体を行わない(TotalSize=0 の Map は不正)。
             return;
         }
 
-        var TotalSize=AlignedSlotSize*Objects.Count;
-        Span<byte>Mapped=ConstantBuffer.Map<byte>(0,TotalSize);
+        int FrameOffset=FrameIndex*ObjectCapacity*AlignedSlotSize;
+        int TotalSize=AlignedSlotSize*Objects.Count;
+        Span<byte>Mapped=ConstantBuffer.Map<byte>(0,FrameOffset+TotalSize);
         for(var I=0;I<Objects.Count;I++){
             ObjectResources Obj=Objects[I];
             Matrix4x4 Mvp=Obj.World*CurrentView*CurrentProjection;
             float Selected=SceneSelectionTint.GetWeight(Obj.NodeId,SelectedNodeId,SelectedNodeIds);
             TransformConstants Constants=new(){ Mvp=Mvp,BaseColorFactor=Obj.BaseColorFactor,Selected=Selected };
-            MemoryMarshal.Write(Mapped.Slice(I*AlignedSlotSize,Marshal.SizeOf<TransformConstants>()),ref Constants);
+            MemoryMarshal.Write(
+                Mapped.Slice(FrameOffset+(I*AlignedSlotSize),Marshal.SizeOf<TransformConstants>()),
+                ref Constants);
         }
         ConstantBuffer.Unmap(0,null);
     }
 
-    private void UpdateOverlayConstantBuffer(){
+    private void UpdateOverlayConstantBuffer(int FrameIndex){
         OverlayConstants Constants=new(){ ViewProjection=CurrentView*CurrentProjection };
-        Span<byte>Mapped=OverlayConstantBuffer.Map<byte>(0,Marshal.SizeOf<OverlayConstants>());
-        MemoryMarshal.Write(Mapped,ref Constants);
+        int FrameOffset=FrameIndex*256;
+        Span<byte>Mapped=OverlayConstantBuffer.Map<byte>(
+            0,FrameOffset+Marshal.SizeOf<OverlayConstants>());
+        MemoryMarshal.Write(
+            Mapped.Slice(FrameOffset,Marshal.SizeOf<OverlayConstants>()),ref Constants);
         OverlayConstantBuffer.Unmap(0,null);
+    }
+
+    private void UpdateOverlayVertexBuffer(int FrameIndex){
+        int VertexSize=Marshal.SizeOf<OverlayVertex>();
+        int FrameOffset=FrameIndex*MaxOverlayVertices*VertexSize;
+        int TotalCount=OverlayTriangleVertexCount+OverlayLineVertexCount;
+        if(TotalCount>0){
+            Span<byte>Mapped=OverlayVertexBuffer.Map<byte>(
+                0,FrameOffset+(VertexSize*TotalCount));
+            int Offset=FrameOffset;
+            foreach(OverlayVertex Vertex in OverlayTriangles){
+                OverlayVertex Value=Vertex;
+                MemoryMarshal.Write(Mapped.Slice(Offset,VertexSize),ref Value);
+                Offset+=VertexSize;
+            }
+            foreach(OverlayVertex Vertex in OverlayLines){
+                OverlayVertex Value=Vertex;
+                MemoryMarshal.Write(Mapped.Slice(Offset,VertexSize),ref Value);
+                Offset+=VertexSize;
+            }
+            OverlayVertexBuffer.Unmap(0,null);
+        }
+
+        ulong FrameAddress=OverlayVertexBuffer.GPUVirtualAddress+(ulong)FrameOffset;
+        OverlayTriangleVertexViews[FrameIndex]=new VertexBufferView(
+            FrameAddress,OverlayTriangleVertexCount*VertexSize,VertexSize);
+        OverlayLineVertexViews[FrameIndex]=new VertexBufferView(
+            FrameAddress+(ulong)(OverlayTriangleVertexCount*VertexSize),
+            OverlayLineVertexCount*VertexSize,VertexSize);
     }
 
     /// <summary>
@@ -596,7 +619,7 @@ internal sealed class SceneRenderer:IDisposable {
     public void SetSelectedNode(NodePath?NodeId,IReadOnlyCollection<NodePath>?NodeIds=null){
         SelectedNodeId=NodeId;
         SelectedNodeIds=NodeIds;
-        ConstantsDirty=true;
+        MarkAllDirty(ConstantsDirty);
     }
 
     public void Resize(int NewWidth,int NewHeight){
@@ -623,22 +646,24 @@ internal sealed class SceneRenderer:IDisposable {
     }
 
     public void RenderFrame(){
-        if(ConstantsDirty){
-            // 現状は RenderFrame 末尾の WaitForGpuIdle により、ここでの上書きが前フレームの GPU 読み取りと
-            // 競合しない。M0020 Phase 7 で WaitForGpuIdle を外してフレームインフライト化する際は、
-            // 定数バッファを FrameCount 分に多重化してからこの書き込みを行う必要がある。
-            UpdateAllConstantBuffers();
-            ConstantsDirty=false;
+        int FrameIndex=(int)SwapChain.CurrentBackBufferIndex;
+        WaitForFrameSlot(FrameIndex);
+        if(ConstantsDirty[FrameIndex]){
+            UpdateAllConstantBuffers(FrameIndex);
+            ConstantsDirty[FrameIndex]=false;
         }
-        if(OverlayConstantsDirty){
-            UpdateOverlayConstantBuffer();
-            OverlayConstantsDirty=false;
+        if(OverlayConstantsDirty[FrameIndex]){
+            UpdateOverlayConstantBuffer(FrameIndex);
+            OverlayConstantsDirty[FrameIndex]=false;
+        }
+        if(OverlayGeometryDirty[FrameIndex]){
+            UpdateOverlayVertexBuffer(FrameIndex);
+            OverlayGeometryDirty[FrameIndex]=false;
         }
 
+        ID3D12CommandAllocator CommandAllocator=CommandAllocators[FrameIndex];
         CommandAllocator.Reset();
         CommandList.Reset(CommandAllocator,PipelineState);
-
-        var FrameIndex=SwapChain.CurrentBackBufferIndex;
 
         CommandList.ResourceBarrierTransition(RenderTargets[FrameIndex],ResourceStates.Present,ResourceStates.RenderTarget);
 
@@ -655,7 +680,9 @@ internal sealed class SceneRenderer:IDisposable {
 
         for(var I=0;I<Objects.Count;I++){
             ObjectResources Obj=Objects[I];
-            CommandList.SetGraphicsRootConstantBufferView(0,ConstantBuffer.GPUVirtualAddress+(ulong)(I*AlignedSlotSize));
+            int ConstantOffset=((FrameIndex*ObjectCapacity)+I)*AlignedSlotSize;
+            CommandList.SetGraphicsRootConstantBufferView(
+                0,ConstantBuffer.GPUVirtualAddress+(ulong)ConstantOffset);
             CommandList.IASetVertexBuffers(0,Obj.VertexBufferView);
             CommandList.IASetIndexBuffer(Obj.IndexBufferView);
             CommandList.DrawIndexedInstanced(Obj.IndexCount,1,0,0,0);
@@ -663,16 +690,18 @@ internal sealed class SceneRenderer:IDisposable {
 
         if(OverlayTriangleVertexCount>0){
             CommandList.SetPipelineState(OverlayTrianglePipelineState);
-            CommandList.SetGraphicsRootConstantBufferView(0,OverlayConstantBuffer.GPUVirtualAddress);
+            CommandList.SetGraphicsRootConstantBufferView(
+                0,OverlayConstantBuffer.GPUVirtualAddress+(ulong)(FrameIndex*256));
             CommandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
-            CommandList.IASetVertexBuffers(0,OverlayTriangleVertexView);
+            CommandList.IASetVertexBuffers(0,OverlayTriangleVertexViews[FrameIndex]);
             CommandList.DrawInstanced(OverlayTriangleVertexCount,1,0,0);
         }
         if(OverlayLineVertexCount>0){
             CommandList.SetPipelineState(OverlayLinePipelineState);
-            CommandList.SetGraphicsRootConstantBufferView(0,OverlayConstantBuffer.GPUVirtualAddress);
+            CommandList.SetGraphicsRootConstantBufferView(
+                0,OverlayConstantBuffer.GPUVirtualAddress+(ulong)(FrameIndex*256));
             CommandList.IASetPrimitiveTopology(PrimitiveTopology.LineList);
-            CommandList.IASetVertexBuffers(0,OverlayLineVertexView);
+            CommandList.IASetVertexBuffers(0,OverlayLineVertexViews[FrameIndex]);
             CommandList.DrawInstanced(OverlayLineVertexCount,1,0,0);
         }
 
@@ -682,11 +711,23 @@ internal sealed class SceneRenderer:IDisposable {
         CommandQueue.ExecuteCommandList(CommandList);
         SwapChain.Present(1,PresentFlags.None);
 
-        WaitForGpuIdle();
+        SignalFrameSlot(FrameIndex);
+    }
+
+    private void WaitForFrameSlot(int FrameIndex){
+        ulong RequiredValue=FrameResources.GetRequiredFenceValue(FrameIndex);
+        if(RequiredValue==0||Fence.CompletedValue>=RequiredValue){ return; }
+        Fence.SetEventOnCompletion(RequiredValue,FenceEvent);
+        NativeEvent.Wait(FenceEvent);
+    }
+
+    private void SignalFrameSlot(int FrameIndex){
+        ulong ValueToSignal=FrameResources.MarkSubmitted(FrameIndex);
+        CommandQueue.Signal(Fence,ValueToSignal);
     }
 
     private void WaitForGpuIdle(){
-        var ValueToSignal=FenceValue++;
+        ulong ValueToSignal=FrameResources.MarkGpuIdle();
         CommandQueue.Signal(Fence,ValueToSignal);
         if(Fence.CompletedValue<ValueToSignal){
             Fence.SetEventOnCompletion(ValueToSignal,FenceEvent);
@@ -708,7 +749,9 @@ internal sealed class SceneRenderer:IDisposable {
         OverlayTrianglePipelineState.Dispose();
         RootSignature.Dispose();
         CommandList.Dispose();
-        CommandAllocator.Dispose();
+        foreach(ID3D12CommandAllocator CommandAllocator in CommandAllocators){
+            CommandAllocator.Dispose();
+        }
         DepthBuffer.Dispose();
         DsvHeap.Dispose();
         for(var I=0;I<FrameCount;I++){
@@ -720,5 +763,11 @@ internal sealed class SceneRenderer:IDisposable {
         Fence.Dispose();
         NativeEvent.Close(FenceEvent);
         Device.Dispose();
+    }
+
+    private static void MarkAllDirty(bool[]Dirty){
+        for(var FrameIndex=0;FrameIndex<Dirty.Length;FrameIndex++){
+            Dirty[FrameIndex]=true;
+        }
     }
 }

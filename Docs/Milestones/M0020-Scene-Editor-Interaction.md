@@ -7,12 +7,10 @@ Transformツール・修飾操作・スナップ・ギズモ合成・双方向�
 ADR-0040基盤の上に実現する。設計判断は[[ADR-0041-Scene-Editor-Interaction-Architecture]]、
 クラスレベル詳細は`Docs/Specifications/Scene-Editor-Design.md`に記録した。
 
-**本書は通常のマイルストーン文書(実装後の回顧録)と異なり、前方視の計画書である。**
-全フェーズのStatusは**計画済み**。各Phase完了時に「実装したこと」「検証結果(実際に実行して確認)」を
-本書へ追記し、完了までPlanned→Implementedの遷移を台帳(F-L8-011)と同期させる。
-未実装の項目を実装済みと記述してはならない。
+本書は前方視の計画書として開始し、各Phase完了時に「実装したこと」「検証結果」を追記してきた。
+2026-08-16にPhase 0〜7と後続Task Cを実装し、台帳F-L8-011をImplementedへ同期した。
 
-## 計画フェーズ(未実装)
+## 実装フェーズ
 
 ### Phase 0 — 前提修正とデッドコード削除
 
@@ -129,6 +127,11 @@ TransformGizmoと同じoverlayへ合成した。PropertyはCtrl単位スナッ�
 `SceneDiff`の初消費: Transform/Member変更のみの場合にレンダラーを再生成しない増分更新、
 毎フレーム`WaitForGpuIdle`の除去(フレームインフライト化)、ドラッグ開始値比較による差分統合
 (設計§7競合マトリクスの拡張)、Escキャンセルの全状態網羅確認。
+**実装済み(2026-08-16)**。`SceneIncrementalUpdatePolicy`がmesh/構造変更だけをrebuildへ分類し、
+Transform/非mesh Member変更はmeshを再利用して全階層world行列とboundsを更新する。
+`SceneRenderer`はallocator・定数/overlay buffer・fence値を2 frame slotへ分離し、slot再利用時だけ
+待機する。Transform/Propertyの競合はドラッグ開始→終了差分を最新値へ合成し、Escは全7入力状態から
+Idleへ終端する。実機未確認項目は本書の検証節を参照。
 
 ## 検証結果(実際に実行して確認)
 
@@ -317,7 +320,7 @@ Position以外のQuaternion/Scaleリテラルは、値が正規化可能でもMo
 | 9 | 複数選択をMove→各選択rootへ同じworld差分が1 Undoで反映される | batch atomicity・複数選択 |
 | 10 | コードエディタのTab/Backspace/Deleteが引き続き効き、RMB Navigation中のWはMove切替でなく前進になる | フォーカス/入力優先順位の非回帰 |
 
-Phase 7の検証結果は、作業完了時に本節へ追記する。
+Phase 7の検証結果は本書末尾のPhase 7節へ記録した。
 
 ### 後続Task C(2026-08-16)
 
@@ -465,6 +468,49 @@ Visual Studio UndoのObservedは次表の実機確認まで**Unknown**。
 | 6 | Property dragをMouseUp後Ctrl+Z 1回で戻し、Esc/capture lossではsource/Undoを変更しない | direct transaction・1 Undo・cancel |
 | 7 | 式で保持したPropertyは淡色・非hitで、RectLight型を宣言してもPropertyGizmoが出ない | 編集可能境界・Rect除外 |
 | 8 | コードエディタのTab/Backspace/DeleteとPhase 5のAlt+Transform Duplicateが引き続き機能する | 入力優先順位の非回帰 |
+
+### Phase 7(2026-08-16)
+
+    dotnet build CSharpGameEngine.slnx -c Debug --no-restore
+      → 成功、警告0/エラー0
+    dotnet test tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj --no-restore
+      → 389件成功・失敗0
+    dotnet test CSharpGameEngine.slnx -c Debug --no-build --no-restore
+      → 全8テストプロジェクト881件成功・失敗0
+        (Phase 6後873 + 新規8。VSExtension.Testsは389件)
+
+`SceneIncrementalUpdatePolicy`は`SceneDiff`を`None/Incremental/Rebuild`へ分類する。
+同一Sceneかつ直前表示世代と連続するTransform/非mesh Member変更では
+`SceneRenderIncrementalUpdater`が全親子world chainを再計算し、既存`SimpleMesh`と
+`SceneRenderer`を再利用する。mesh、Component追加/削除、Node構造変更、表示世代の飛びは
+従来のlatest-only非同期rebuildへフォールバックする。
+
+`FrameResourceTracker`と`SceneRenderer`はcommand allocator、object定数、overlay定数/
+頂点領域を2 slot化した。`RenderFrame`末尾の全体`WaitForGpuIdle`は除去し、現在の
+back-buffer slotに記録されたfenceが未完了の場合だけ待機する。resize、一時object資源破棄、disposeは
+資源寿命を守るため全体待機を維持する。
+
+`SceneTransformChange.OriginalLocal`と
+`SetComponentMemberOperation.OriginalValueExpression`を開始値として保持し、
+`SceneEditConflictMerger`がPositionの加算差分、RotationのQuaternion差分、Scaleの倍率差分、
+Propertyの数値差分をcommit時点の最新値へ合成する。対象消失、Component消失、外部変更後の非editable式、
+非有限結果は自動上書きせず失敗通知へ戻す。Escは`SceneNavState`の全7状態について
+Idle終端、capture解放、Fly key消去、選択/commit非発火をテストで固定した。
+
+追加8テストは増分/rebuild分類、mesh再利用と全階層world再計算、frame slot fence、Transform/Property
+競合差分、Esc全状態を固定した。純粋層とRoslyn変換は**Matches**。HWND/D3D12/live buffer/
+Visual Studio UndoのObservedは次表の実機確認まで**Unknown**。
+
+**実機VS Experimental Instanceでの目視確認(未実施 — ユーザー側で実施)**:
+
+| # | 確認対象 | 何が証明されるか |
+|---|---|---|
+| 1 | TransformまたはCamera/Light Memberを外部編集し、視点・選択を維持したまま表示が更新される | SceneDiff増分更新・Renderer再利用 |
+| 2 | Primitive/StaticMeshまたはNode構造を変更し、最新形状・階層で再表示される | rebuild分類・latest-only fallback |
+| 3 | 親Transformを変更し、子孫が新しいworld位置へ追従する | 全階層world chain再計算 |
+| 4 | 連続Navigation/drag中にD3D12警告やフレームごとのGPU完全待機由来の停止が発生しない | frames-in-flight・slot fence |
+| 5 | drag中に同じTransform/Propertyをコード側で変更してMouseUpし、外部値へdrag差分だけが合成される | 開始値ベース競合マージ |
+| 6 | Fly/Pan/Orbit/選択待ち/矩形/Gizmo/Propertyの各一時操作をEscで中止し、source/Undoを変更しない | Esc全状態終端・commit中非取消 |
 
 ## 意図的に除外したこと(将来マイルストーン候補)
 
