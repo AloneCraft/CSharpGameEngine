@@ -95,7 +95,7 @@ internal sealed class SceneEditorSessionService : IDisposable {
             SceneDocumentSnapshot Snapshot=this.Publish(Context.Model,Request.SceneKey);
             SceneEditOperation[]Operations=Request.Changes.Select(Change=>(SceneEditOperation)new SetTransformOperation(
                 Request.SceneKey,Change.NodeId,Request.DocumentVersion,Change.Local,
-                SceneTransformMemberMask.Position)).ToArray();
+                Request.Members)).ToArray();
             SceneSourceEditResult Edited=SceneSourceEditor.ApplyLatestBatch(Context.Root,Snapshot,Operations);
             if(!Edited.Succeeded||Edited.Root is null){
                 return new SceneEditCommitResult(

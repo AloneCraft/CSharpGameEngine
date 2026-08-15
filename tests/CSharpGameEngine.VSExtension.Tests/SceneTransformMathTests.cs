@@ -1,8 +1,19 @@
 using System.Numerics;
+using CSharpGameEngine.SceneAnalysis;
+using CSharpGameEngine.SceneAnalysis.Tests;
 
 namespace CSharpGameEngine.VSExtension.Tests;
 
 public sealed class SceneTransformMathTests {
+    private const string TransformTypes="""
+        namespace CSharpGameEngine.Runtime.Windows {
+            public struct Transform {
+                public float PositionX; public float PositionY; public float PositionZ;
+                public float RotationX; public float RotationY; public float RotationZ; public float RotationW;
+                public float ScaleX; public float ScaleY; public float ScaleZ;
+            }
+        }
+        """;
     [Fact]
     public void ToWorld_ComposesLocalBeforeParentWorld(){
         SceneTransformValue Parent=new(new Vector3(10f,0f,0f),Quaternion.CreateFromAxisAngle(Vector3.UnitY,(float)Math.PI/2f),Vector3.One);
@@ -37,6 +48,47 @@ public sealed class SceneTransformMathTests {
         Matrix4x4 Parent=Matrix4x4.CreateScale(0f,1f,1f);
 
         Assert.False(SceneTransformMath.TryCalculateLocal(Matrix4x4.Identity,Parent,out _));
+    }
+
+    [Fact]
+    public void CanEditTransform_RotateRequiresEveryPositionAndRotationMember(){
+        SceneNode Node=AnalyzeRoot("""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Runtime.Windows;
+            public partial class MainScene:IScene {
+                private static float Read()=>1f;
+                public Node Root=>new() { Components=[new Transform {
+                    PositionX=Read(),RotationW=1f,
+                }]};
+            }
+            """);
+
+        Assert.False(SceneTransformBinding.CanEditTransform(
+            Node,SceneActiveTool.Rotate,GizmoHandleId.RotateZ));
+    }
+
+    [Fact]
+    public void CanEditTransform_ScaleRequiresEveryScaleMember(){
+        SceneNode Node=AnalyzeRoot("""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Runtime.Windows;
+            public partial class MainScene:IScene {
+                private static float Read()=>1f;
+                public Node Root=>new() { Components=[new Transform {
+                    RotationW=1f,ScaleX=1f,ScaleY=Read(),ScaleZ=1f,
+                }]};
+            }
+            """);
+
+        Assert.False(SceneTransformBinding.CanEditTransform(
+            Node,SceneActiveTool.Scale,GizmoHandleId.ScaleX));
+        Assert.False(SceneTransformBinding.CanEditTransform(
+            Node,SceneActiveTool.Scale,GizmoHandleId.ScaleUniform));
+    }
+
+    private static SceneNode AnalyzeRoot(string SceneSource){
+        SceneModel Model=SceneAnalysisTestHelper.Analyze([TransformTypes,SceneSource]);
+        return Assert.IsType<SceneNode>(Model.Root);
     }
 
     private static void AssertVector(Vector3 Expected,Vector3 Actual){

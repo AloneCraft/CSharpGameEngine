@@ -124,6 +124,32 @@ internal static class SceneTransformBinding {
         SceneComponentBindings.FindComponent(Node,SceneComponentRole.LocalTransform)is{ }Component
         &&CanEdit(Component,"PositionX")&&CanEdit(Component,"PositionY")&&CanEdit(Component,"PositionZ");
 
+    internal static bool CanEditTransform(SceneNode Node,SceneActiveTool Tool,GizmoHandleId Handle)=>Tool switch {
+        SceneActiveTool.Move=>CanEditMove(Node,Handle),
+        SceneActiveTool.Rotate=>CanEditRotation(Node),
+        SceneActiveTool.Scale=>CanEditScale(Node,Handle),
+        _=>false,
+    };
+
+    private static bool CanEditRotation(SceneNode Node)=>
+        SceneComponentBindings.FindComponent(Node,SceneComponentRole.LocalTransform)is{ }Component
+        &&CanEditAllPosition(Node)
+        &&CanEdit(Component,"RotationX")&&CanEdit(Component,"RotationY")
+        &&CanEdit(Component,"RotationZ")&&CanEdit(Component,"RotationW");
+
+    private static bool CanEditScale(SceneNode Node,GizmoHandleId Handle){
+        SceneComponent?Component=SceneComponentBindings.FindComponent(Node,SceneComponentRole.LocalTransform);
+        if(Component is null||!CanEditAllPosition(Node)
+            ||!CanEdit(Component,"RotationX")||!CanEdit(Component,"RotationY")
+            ||!CanEdit(Component,"RotationZ")||!CanEdit(Component,"RotationW")){
+            return false;
+        }
+
+        return(Handle is GizmoHandleId.ScaleX or GizmoHandleId.ScaleY
+            or GizmoHandleId.ScaleZ or GizmoHandleId.ScaleUniform)
+            &&CanEdit(Component,"ScaleX")&&CanEdit(Component,"ScaleY")&&CanEdit(Component,"ScaleZ");
+    }
+
     private static bool CanEdit(SceneComponent Component,string Name)=>
         Component.FindMember(Name)?.Value.IsEditable??true;
 

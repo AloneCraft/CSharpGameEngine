@@ -136,4 +136,103 @@ public sealed class TransformGizmoTests {
         Assert.Equal(0.6f,Outline.Vertices[1].Position.X,4);
         Assert.Equal(0.6f,Outline.Vertices[1].Position.Y,4);
     }
+
+    [Fact]
+    public void TryHitRotate_RayTouchesZRing_ReturnsRotateZ(){
+        MoveGizmoFrame Frame=MoveGizmoFrame.Create(
+            Vector3.Zero,Quaternion.Identity,SceneTransformSpace.World,WorldScale:1f);
+
+        GizmoHandleId?Hit=TransformGizmo.TryHitRotate(
+            Frame,new Vector3(0.9f,0f,-10f),Vector3.UnitZ,CameraForward:Vector3.UnitZ);
+
+        Assert.Equal(GizmoHandleId.RotateZ,Hit);
+    }
+
+    [Fact]
+    public void RotateDrag_QuarterTurnAroundZ_ReturnsPositiveNinetyDegrees(){
+        MoveGizmoFrame Frame=MoveGizmoFrame.Create(
+            Vector3.Zero,Quaternion.Identity,SceneTransformSpace.World,WorldScale:1f);
+        Assert.True(RotateGizmoDrag.TryBegin(
+            Frame,GizmoHandleId.RotateZ,
+            new Vector3(1f,0f,-10f),Vector3.UnitZ,Vector3.UnitZ,out RotateGizmoDrag?Drag));
+
+        Assert.True(Drag!.TryUpdate(
+            new Vector3(0f,1f,-10f),Vector3.UnitZ,out float Radians,out Quaternion Delta));
+
+        Assert.Equal((float)(Math.PI/2d),Radians,4);
+        Vector3 Rotated=Vector3.Transform(Vector3.UnitX,Delta);
+        Assert.Equal(0f,Rotated.X,4);
+        Assert.Equal(1f,Rotated.Y,4);
+    }
+
+    [Fact]
+    public void BuildRotateOverlay_GeneratesThreeAxisRingsAndViewRing(){
+        MoveGizmoFrame Frame=MoveGizmoFrame.Create(
+            Vector3.Zero,Quaternion.Identity,SceneTransformSpace.World,WorldScale:1f);
+
+        IReadOnlyList<GizmoOverlayPrimitive>Overlay=TransformGizmo.BuildRotateOverlay(
+            Frame,CameraForward:Vector3.UnitZ,Hovered:null,Active:null);
+
+        Assert.Equal(4,Overlay.Count);
+        Assert.All(Overlay,Primitive=>Assert.Equal(GizmoPrimitiveKind.Line,Primitive.Kind));
+        Assert.All(Overlay,Primitive=>Assert.True(Primitive.Vertices.Count>=48));
+    }
+
+    [Fact]
+    public void TryHitScale_RayAtCenterAndXAxis_ReturnsExpectedHandles(){
+        MoveGizmoFrame Frame=MoveGizmoFrame.Create(
+            Vector3.Zero,Quaternion.Identity,SceneTransformSpace.World,WorldScale:1f);
+
+        GizmoHandleId?Center=TransformGizmo.TryHitScale(
+            Frame,new Vector3(0f,0f,-10f),Vector3.UnitZ);
+        GizmoHandleId?Axis=TransformGizmo.TryHitScale(
+            Frame,new Vector3(0.7f,0f,-10f),Vector3.UnitZ);
+
+        Assert.Equal(GizmoHandleId.ScaleUniform,Center);
+        Assert.Equal(GizmoHandleId.ScaleX,Axis);
+    }
+
+    [Fact]
+    public void ScaleDrag_XAxisDoublesOnlyXFactor(){
+        MoveGizmoFrame Frame=MoveGizmoFrame.Create(
+            Vector3.Zero,Quaternion.Identity,SceneTransformSpace.World,WorldScale:1f);
+        Assert.True(ScaleGizmoDrag.TryBegin(
+            Frame,GizmoHandleId.ScaleX,
+            new Vector3(0.7f,0f,-10f),Vector3.UnitZ,Vector3.UnitZ,out ScaleGizmoDrag?Drag));
+
+        Assert.True(Drag!.TryUpdate(
+            new Vector3(1.4f,0f,-10f),Vector3.UnitZ,out Vector3 Factors));
+
+        Assert.Equal(2f,Factors.X,4);
+        Assert.Equal(1f,Factors.Y,4);
+        Assert.Equal(1f,Factors.Z,4);
+    }
+
+    [Fact]
+    public void BuildScaleOverlay_GeneratesSolidAxisShaftsAndCubes(){
+        MoveGizmoFrame Frame=MoveGizmoFrame.Create(
+            Vector3.Zero,Quaternion.Identity,SceneTransformSpace.World,WorldScale:1f);
+
+        IReadOnlyList<GizmoOverlayPrimitive>Overlay=TransformGizmo.BuildScaleOverlay(
+            Frame,Hovered:null,Active:null);
+
+        Assert.True(Overlay.Count(Primitive=>Primitive.Kind==GizmoPrimitiveKind.Line)>=3);
+        Assert.True(Overlay.Count(Primitive=>Primitive.Kind==GizmoPrimitiveKind.Triangle)>=7);
+    }
+
+    [Fact]
+    public void TransformSnap_UsesMoveAngleAndScaleIncrements(){
+        MoveGizmoFrame Frame=MoveGizmoFrame.Create(
+            Vector3.Zero,Quaternion.Identity,SceneTransformSpace.World,WorldScale:1f);
+
+        Vector3 Move=TransformSnap.SnapTranslation(
+            new Vector3(1.4f,2.6f,0f),Frame,GizmoHandleId.PlaneXY);
+        float Rotation=TransformSnap.SnapRotationRadians((float)(20d*Math.PI/180d));
+        Vector3 Scale=TransformSnap.SnapScaleFactors(
+            new Vector3(1.16f,1f,1f),GizmoHandleId.ScaleX);
+
+        Assert.Equal(new Vector3(1f,3f,0f),Move);
+        Assert.Equal((float)(15d*Math.PI/180d),Rotation,5);
+        Assert.Equal(new Vector3(1.2f,1f,1f),Scale);
+    }
 }

@@ -257,6 +257,9 @@ CompoundGizmo(選択ノードごとに構成を決定)
 - スクリーン一定サイズ: ギズモのワールドスケール = `ハンドル位置とカメラの距離 * tan(FovY/2) * 定数`
   (Orthographicでは`OrthographicSize * 定数`)。
 - 座標空間: `TransformSpace=World`では軸をワールド軸に、`Local`では対象ノードの回転を適用。
+- Phase 4の実装はPhase 3の`MoveGizmoFrame`、`GizmoOverlayPrimitive`、line/triangle overlay PSOを
+  そのまま合成モデルとして拡張する。Rotateは軸リング3本+viewリングを各48線分、Scaleは軸線+
+  8分割solid円柱3本+軸端立方体3個+中心立方体1個として同じ固定upload bufferへ投入する。
 
 ### 6.3 ハンドルヒット判定
 
@@ -270,7 +273,12 @@ CompoundGizmo(選択ノードごとに構成を決定)
 - 平面移動: レイと拘束平面の交点差分。
 - 回転: レイとリング平面の交点を中心角へ変換し、開始角との差分ΔR。
 - スケール: 軸射影距離の比。中心ハンドルはスクリーン距離比で均一スケール。
-- Ctrlスナップ: ΔP→グリッド刻み(既定1.0/0.1)、ΔR→角度刻み(既定15°)、スケール→0.1刻み。
+- Ctrlスナップ: ΔP→1.0単位、ΔR→15°、スケール倍率→0.1単位(最小0.1)。Ctrl状態はドラッグ中の
+  各Moveイベントで評価するため、ドラッグ途中の押下/解放にも追従する。
+- 複数選択: primaryの位置を共有Pivot、primaryの回転をLocal基底とする。選択済み祖先を持たない
+  selection rootへ同じワールド差分を適用し、子孫のpreviewにも同じ差分を伝播する。
+- 書き戻しmask: MoveはPosition、RotateはPosition+Rotation、ScaleはPosition+Rotation+Scale。
+  Pivot操作後の行列分解で変化しうる全メンバーがliteral/defaultで編集可能な場合だけハンドルを有効にする。
 - Shift=FollowView(仕様§6.1): Moveでは`ΔP`を`SceneViewState.FocusPosition`と視点位置へも加算。
   Rotateでは同一Pivot周りで視点位置・Yaw/Pitchへ`ΔR`を合成。Scaleでは追従しない(既定)。
 - Alt=Duplicate(仕様§6.2): ドラッグ開始時に`DuplicateNode`をプレビュー用の複製表示で開始し、

@@ -204,12 +204,13 @@ internal static class SceneSourceEditor {
         InitializerExpressionSyntax Initializer=Creation.Initializer
             ??SyntaxFactory.InitializerExpression(SyntaxKind.ObjectInitializerExpression);
         SeparatedSyntaxList<ExpressionSyntax>Expressions=Initializer.Expressions;
-        Dictionary<string,AssignmentExpressionSyntax>Assignments=Expressions
-            .OfType<AssignmentExpressionSyntax>()
-            .Where(static Assignment=>Assignment.Left is IdentifierNameSyntax)
-            .ToDictionary(
-                static Assignment=>((IdentifierNameSyntax)Assignment.Left).Identifier.ValueText,
-                StringComparer.Ordinal);
+        Dictionary<string,int>AssignmentIndices=new(StringComparer.Ordinal);
+        for(int Index=0;Index<Expressions.Count;Index++){
+            if(Expressions[Index]is AssignmentExpressionSyntax Assignment
+                &&Assignment.Left is IdentifierNameSyntax Identifier){
+                AssignmentIndices[Identifier.Identifier.ValueText]=Index;
+            }
+        }
 
         foreach((string Name,float Value,float Default)in EnumerateTransformMembers(Operation.Transform,Operation.Members)){
             SceneComponentMember?Member=Transform.FindMember(Name);
@@ -226,15 +227,15 @@ internal static class SceneSourceEditor {
                 return SceneSourceEditResult.Failure($"Transform.{Name}の値をC#式へ変換できません。");
             }
 
-            if(Assignments.TryGetValue(Name,out AssignmentExpressionSyntax?Assignment)){
+            if(AssignmentIndices.TryGetValue(Name,out int AssignmentIndex)){
+                AssignmentExpressionSyntax Assignment=(AssignmentExpressionSyntax)Expressions[AssignmentIndex];
                 AssignmentExpressionSyntax Replaced=Assignment.WithRight(NewValue.WithTriviaFrom(Assignment.Right));
                 Expressions=Expressions.Replace(Assignment,Replaced);
-                Assignments[Name]=Replaced;
             } else {
                 AssignmentExpressionSyntax Added=SyntaxFactory.AssignmentExpression(
                     SyntaxKind.SimpleAssignmentExpression,SyntaxFactory.IdentifierName(Name),NewValue);
                 Expressions=Expressions.Add(Added);
-                Assignments.Add(Name,Added);
+                AssignmentIndices.Add(Name,Expressions.Count-1);
             }
         }
 

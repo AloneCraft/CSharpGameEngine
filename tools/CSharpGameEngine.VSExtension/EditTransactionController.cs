@@ -53,11 +53,13 @@ internal readonly struct SceneTransformChange {
 
 internal sealed class SceneEditCommitRequest {
     internal SceneEditCommitRequest(
-        SceneKey SceneKey,long DocumentVersion,string UndoDescription,IReadOnlyList<SceneTransformChange>Changes){
+        SceneKey SceneKey,long DocumentVersion,string UndoDescription,IReadOnlyList<SceneTransformChange>Changes,
+        SceneTransformMemberMask Members){
         this.SceneKey=SceneKey;
         this.DocumentVersion=DocumentVersion;
         this.UndoDescription=UndoDescription;
         this.Changes=Changes;
+        this.Members=Members;
     }
 
     internal SceneKey SceneKey { get; }
@@ -67,6 +69,8 @@ internal sealed class SceneEditCommitRequest {
     internal string UndoDescription { get; }
 
     internal IReadOnlyList<SceneTransformChange>Changes { get; }
+
+    internal SceneTransformMemberMask Members { get; }
 }
 
 internal readonly struct SceneEditCommitResult {
@@ -104,6 +108,7 @@ internal sealed class EditTransactionController {
     private SceneDocumentSnapshot?PendingSnapshot;
     private SceneTransformTarget[]Targets=[];
     private SceneTransformPreview[]Previews=[];
+    private Matrix4x4 WorldDelta=Matrix4x4.Identity;
 
     internal EditTransactionState State { get;private set;}=EditTransactionState.Idle;
 
@@ -124,8 +129,34 @@ internal sealed class EditTransactionController {
     }
 
     internal IReadOnlyList<SceneTransformPreview>PreviewTranslation(Vector3 WorldDelta){
-        EnsureState(EditTransactionState.Dragging);
         Matrix4x4 Delta=Matrix4x4.CreateTranslation(WorldDelta);
+        return PreviewWorldDelta(Delta);
+    }
+
+    internal IReadOnlyList<SceneTransformPreview>PreviewRotation(Vector3 Pivot,Quaternion Rotation){
+        Matrix4x4 Delta=Matrix4x4.CreateTranslation(-Pivot)
+            *Matrix4x4.CreateFromQuaternion(SceneTransformMath.NormalizeRotation(Rotation))
+            *Matrix4x4.CreateTranslation(Pivot);
+        return PreviewWorldDelta(Delta);
+    }
+
+    internal IReadOnlyList<SceneTransformPreview>PreviewScale(
+        Vector3 Pivot,Quaternion BasisRotation,Vector3 Factors){
+        Matrix4x4 Basis=Matrix4x4.CreateFromQuaternion(SceneTransformMath.NormalizeRotation(BasisRotation));
+        Matrix4x4.Invert(Basis,out Matrix4x4 InverseBasis);
+        Matrix4x4 Delta=Matrix4x4.CreateTranslation(-Pivot)
+            *InverseBasis
+            *Matrix4x4.CreateScale(Factors)
+            *Basis
+            *Matrix4x4.CreateTranslation(Pivot);
+        return PreviewWorldDelta(Delta);
+    }
+
+    internal Matrix4x4 CurrentWorldDelta=>this.WorldDelta;
+
+    private IReadOnlyList<SceneTransformPreview>PreviewWorldDelta(Matrix4x4 Delta){
+        EnsureState(EditTransactionState.Dragging);
+        this.WorldDelta=Delta;
         this.Previews=this.Targets.Select(Target=>
             new SceneTransformPreview(Target.NodeId,Target.NodePath,Target.OriginalWorld*Delta)).ToArray();
         return this.Previews;
@@ -143,6 +174,11 @@ internal sealed class EditTransactionController {
     }
 
     internal bool TryCreateCommit(string UndoDescription,out SceneEditCommitRequest?Request){
+        return TryCreateCommit(UndoDescription,SceneTransformMemberMask.Position,out Request);
+    }
+
+    internal bool TryCreateCommit(
+        string UndoDescription,SceneTransformMemberMask Members,out SceneEditCommitRequest?Request){
         EnsureState(EditTransactionState.Dragging);
         if(this.StartedSnapshot is not { } Started){
             Request=null;
@@ -160,7 +196,7 @@ internal sealed class EditTransactionController {
         }
 
         State=EditTransactionState.Committing;
-        Request=new SceneEditCommitRequest(Started.Key,Started.DocumentVersion,UndoDescription,Changes);
+        Request=new SceneEditCommitRequest(Started.Key,Started.DocumentVersion,UndoDescription,Changes,Members);
         return true;
     }
 
@@ -188,6 +224,7 @@ internal sealed class EditTransactionController {
         this.PendingSnapshot=null;
         this.Targets=[];
         this.Previews=[];
+        this.WorldDelta=Matrix4x4.Identity;
         State=EditTransactionState.Idle;
     }
 

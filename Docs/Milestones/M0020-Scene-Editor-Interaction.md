@@ -100,6 +100,8 @@ overlay PSOへ`MarqueeOverlay`を合成する。**実装済み(2026-08-16)**。
 
 E/Rツール、RotateHandle(リング)/ScaleHandle、Ctrl増分スナップ(移動/角度/スケール刻み)、
 `TransformSpace`(World/Local)切替。
+**実装済み(2026-08-16)**。Phase 3のframe/overlay/解析hit/編集トランザクションを拡張し、
+専用の別描画経路や別commit方式は追加していない。実装値と実機未確認項目は本書の検証節を参照。
 
 ### Phase 5 — Duplicate・FollowView・頂点/面スナップ
 
@@ -306,7 +308,7 @@ Position以外のQuaternion/Scaleリテラルは、値が正規化可能でもMo
 | 9 | 複数選択をMove→各選択rootへ同じworld差分が1 Undoで反映される | batch atomicity・複数選択 |
 | 10 | コードエディタのTab/Backspace/Deleteが引き続き効き、RMB Navigation中のWはMove切替でなく前進になる | フォーカス/入力優先順位の非回帰 |
 
-Phase 4以降と後続タスクの検証結果は、各作業完了時に本節へ追記する。
+Phase 5以降の検証結果は、各作業完了時に本節へ追記する。
 
 ### 後続Task C(2026-08-16)
 
@@ -333,6 +335,48 @@ Observedは次表の実機確認まで**Unknown**。
 | 2 | 既存選択後、Ctrl+空間ドラッグで別オブジェクトを囲む→既存を解除せず追加される | Ctrl加算・Down時修飾固定 |
 | 3 | オブジェクト上からLMB Downして大きくドラッグ→矩形へ切り替わらず、UpでDown時対象だけが選択される | `PendingSelect`既存経路と途中切替禁止 |
 | 4 | Task C操作後もコードエディタのTab/Backspace/Deleteが効く | HWND/WPFフォーカスの非回帰 |
+
+### Phase 4(2026-08-16)
+
+```text
+dotnet build CSharpGameEngine.slnx -c Debug
+  → 成功、警告0/エラー0
+dotnet test CSharpGameEngine.slnx -c Debug --no-build --no-restore
+  → 全8テストプロジェクト838件成功・失敗0
+    (Phase 4前824 + 新規14。VSExtension.Testsは346件)
+dotnet test tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj \
+  --filter "FullyQualifiedName~TransformGizmoTests|FullyQualifiedName~EditTransactionControllerTests|FullyQualifiedName~SceneSourceEditorTests|FullyQualifiedName~SceneTransformMathTests" --no-restore
+  → 39件成功・失敗0
+```
+
+`TransformGizmo`をpartial拡張し、Phase 3の`MoveGizmoFrame`とline/triangle overlayを共有したまま、
+軸リング3+viewリングのRotate、軸3+軸端/中心立方体のScale、解析hit、リング面角度/軸距離比の
+拘束ソルバを追加した。W/E/RはIdle時だけMove/Rotate/Scaleを選び、RMB Fly中のW/Eは従来どおり
+Navigationへ渡す。上部ComboBoxのWorld/Localは`SceneViewState`経由で既存設定へ永続化する。
+
+CtrlスナップはMove=1.0単位、Rotate=15°、Scale=0.1倍率(最小0.1)。複数選択はprimary位置を共有Pivot、
+primary回転をLocal基底とし、selection rootと子孫へ同じworld deltaをpreviewする。commit maskはMove=
+Position、Rotate=Position+Rotation、Scale=全TRSで、行列分解により更新しうるメンバーが式の場合は
+該当Transform操作をdisabled表示かつ非hitにする。
+
+追加テストは、複数の既存initializer assignmentを順に書き換えると、最初の置換後に保持していた古い
+Roslyn node参照が次の`SeparatedSyntaxList.Replace`に存在せず例外になる既存不具合を検出した。
+assignment名からindexを保持し、置換直前に現在のlistからnodeを取り直す方式へ修正した。
+純粋層とRoslyn変換は**MatchesWithDocumentedExtension**(仕様一致+既存複数メンバー置換不具合の修正)。
+HWND/D3D12/WPF/Visual Studio UndoのObservedは次表の実機確認まで**Unknown**。
+
+**実機VS Experimental Instanceでの目視確認(未実施 — ユーザー側で実施)**:
+
+| # | 確認対象 | 何が証明されるか |
+|---|---|---|
+| 1 | 選択後E→軸リング3本+白いviewリングを表示し、各リングのドラッグで対象がpreview/commitされる | Rotate overlay・hit・拘束・書き戻し |
+| 2 | 選択後R→軸3本+軸端立方体+中心立方体を表示し、軸/均一Scaleをpreview/commitできる | Scale overlay・hit・拘束・書き戻し |
+| 3 | 各ドラッグ中にCtrlを押下/解放し、Move=1.0、Rotate=15°、Scale=0.1へ吸着/解除する | 増分スナップの実入力配線 |
+| 4 | World/Localセレクターで回転済みprimaryの軸が切り替わり、ツールウィンドウを開き直しても値が残る | 座標基底・設定永続化・ComboBox同期 |
+| 5 | 複数選択をRotate/Scaleし、primary Pivot基準で全selection rootが動き、1操作がCtrl+Z 1回で戻る | shared Pivot・batch atomicity・Undo |
+| 6 | Rotate/Scale中にEscまたはpointer capture喪失→previewが戻り、コード/Undo履歴が変わらない | 全Transform操作のcancel安全性 |
+| 7 | 式で保持した必要TRSメンバーを持つ対象では該当ハンドルが淡色・非hitになる | 編集可能境界とソース保護 |
+| 8 | コードエディタのTab/Backspace/Deleteが効き、RMB Fly中のEはRotate切替でなく上昇になる | フォーカス/入力優先順位の非回帰 |
 
 ## 意図的に除外したこと(将来マイルストーン候補)
 

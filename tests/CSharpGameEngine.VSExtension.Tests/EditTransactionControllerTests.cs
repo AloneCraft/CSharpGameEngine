@@ -57,6 +57,56 @@ public sealed class EditTransactionControllerTests {
         Assert.Equal(EditTransactionState.Committing,Controller.State);
     }
 
+    [Fact]
+    public void PreviewRotation_RotatesWorldAroundSharedPivotAndCarriesCommitMask(){
+        SceneDocumentSnapshot Snapshot=CreateSnapshot(DocumentVersion:8);
+        SceneTransformTarget Target=new(new EditorNodeId(2),NodePath.Root.Append(0),
+            Matrix4x4.CreateTranslation(2f,0f,0f),Matrix4x4.Identity);
+        EditTransactionController Controller=new();
+        Controller.Begin(Snapshot,[Target]);
+
+        IReadOnlyList<SceneTransformPreview>Preview=Controller.PreviewRotation(
+            Vector3.Zero,Quaternion.CreateFromAxisAngle(Vector3.UnitZ,(float)(Math.PI/2d)));
+        Assert.True(Controller.TryCreateCommit(
+            "Rotate Cube",SceneTransformMemberMask.Position|SceneTransformMemberMask.Rotation,
+            out SceneEditCommitRequest?Request));
+
+        Assert.Equal(0f,Assert.Single(Preview).World.Translation.X,4);
+        Assert.Equal(2f,Assert.Single(Preview).World.Translation.Y,4);
+        Assert.Equal(SceneTransformMemberMask.Position|SceneTransformMemberMask.Rotation,Request!.Members);
+    }
+
+    [Fact]
+    public void PreviewScale_ScalesWorldAroundSharedPivot(){
+        SceneDocumentSnapshot Snapshot=CreateSnapshot(DocumentVersion:9);
+        SceneTransformTarget Target=new(new EditorNodeId(2),NodePath.Root.Append(0),
+            Matrix4x4.CreateTranslation(2f,0f,0f),Matrix4x4.Identity);
+        EditTransactionController Controller=new();
+        Controller.Begin(Snapshot,[Target]);
+
+        IReadOnlyList<SceneTransformPreview>Preview=Controller.PreviewScale(
+            Vector3.Zero,Quaternion.Identity,new Vector3(2f,1f,1f));
+
+        Assert.Equal(4f,Assert.Single(Preview).World.Translation.X,4);
+        Assert.Equal(2f,Assert.Single(Preview).World.M11,4);
+    }
+
+    [Fact]
+    public void PreviewScale_LocalBasisScalesAlongTheRotatedPrimaryAxis(){
+        SceneDocumentSnapshot Snapshot=CreateSnapshot(DocumentVersion:10);
+        SceneTransformTarget Target=new(new EditorNodeId(2),NodePath.Root.Append(0),
+            Matrix4x4.CreateTranslation(0f,1f,0f),Matrix4x4.Identity);
+        EditTransactionController Controller=new();
+        Controller.Begin(Snapshot,[Target]);
+
+        IReadOnlyList<SceneTransformPreview>Preview=Controller.PreviewScale(
+            Vector3.Zero,Quaternion.CreateFromAxisAngle(Vector3.UnitZ,(float)(Math.PI/2d)),
+            new Vector3(2f,1f,1f));
+
+        Assert.Equal(0f,Assert.Single(Preview).World.Translation.X,4);
+        Assert.Equal(2f,Assert.Single(Preview).World.Translation.Y,4);
+    }
+
     private static SceneDocumentSnapshot CreateSnapshot(long DocumentVersion){
         SceneModel Model=SceneAnalysisTestHelper.Analyze("""
             using CSharpGameEngine.Entities;

@@ -1452,3 +1452,36 @@ Expハイブのキャッシュより新しくすること」を機序として**
   - `dotnet test CSharpGameEngine.slnx -c Debug --no-build --no-restore`は全8テストプロジェクト
     824件成功・失敗0(Entities 40 / Core 122 / Bridge.Hosting 8 / Import 30 / Windows 87 /
     CodeAnalysis 101 / SceneModel 104 / VSExtension 332)。
+
+## 2026-08-16 M0020 Phase 4: Rotate/Scale、増分スナップ、World/Local
+
+- **Matches(Phase 3合成モデルの拡張)**: `TransformGizmo`をpartial拡張し、Moveと同じ
+  `MoveGizmoFrame`、解析hit、`GizmoOverlayPrimitive`、深度無効line/triangle PSO、固定upload bufferを
+  Rotate/Scaleにも使う。Rotateは軸リング3+viewリング、Scaleは軸3+軸端立方体3+中心均一立方体を持ち、
+  通常/hover/active/disabled色も既存経路で解決する。別の描画方式やcommit経路は追加していない。
+- **Matches(拘束・修飾・座標空間)**: Rotateはリング平面上の開始/現在方向から符号付き角度を求め、
+  Scaleは軸距離比またはview平面上の中心距離比を0.01〜100へ制限する。CtrlはMove=1.0単位、
+  Rotate=15°、Scale=0.1単位(最小0.1)へ丸める。Worldは単位軸、Localはprimary回転から得た基底を使い、
+  上部ComboBoxの値を既存`SceneEditorSettings`へ永続化する。
+- **Matches(入力優先順位とトランザクション)**: Idle時のW/E/RだけがMove/Rotate/Scaleを選ぶ。RMB Fly中の
+  W/EはNavigationへ渡す。複数選択ではprimary位置を共有Pivot、primary回転をLocal基底とし、選択済み
+  祖先を持たないrootとその子孫へ同じworld deltaをpreviewする。MouseUpでは既存batch/1 Undo経路を使い、
+  RotateはPosition+Rotation、ScaleはPosition+Rotation+Scaleだけを書き戻す。
+- **Matches(編集可能境界)**: Pivot回転や非等方world scaleをTRS分解すると複数メンバーが変化しうる。
+  このためRotateはPosition+Rotation、Scaleは全TRSがliteral/defaultで編集可能な場合だけ有効にし、
+  式を保持する必要メンバーを暗黙に上書きしない。純粋テストでdisabled判定を固定した。
+- **MatchesWithDocumentedExtension(テストで検出した既存Roslyn不具合)**: 複数の既存Transform assignmentを
+  1操作で置換すると、最初の`SeparatedSyntaxList.Replace`後も辞書が元listのsyntax nodeを保持していたため、
+  2項目目の置換で`ArgumentOutOfRangeException(nodeInList)`になった。名前→indexを保持し、置換直前に
+  現在のlistからnodeを取り直す方式へ修正した。Rotation/Scale maskが対象外メンバーを保持するテストと、
+  ScaleX/Y/Zの複数既存メンバーを連続置換するテストが回帰を固定する。
+- **Unknown(実機Observed)**: HWND入力/capture、D3D12リング/立方体、WPF ComboBox、live buffer、VS Undoは
+  実COM/HWND/GPUを要するため未実施。M0020 Phase 4の目視表8項目を**未実施 — ユーザー側で実施**として
+  残した。依存方向・所有権・永続化形式・公開契約の新しい判断はなく、新規ADRは不要。
+- Evidence:
+  - Task D対象39件(`TransformGizmoTests`/`EditTransactionControllerTests`/
+    `SceneSourceEditorTests`/`SceneTransformMathTests`)成功・失敗0。
+  - `dotnet build CSharpGameEngine.slnx -c Debug`成功、警告0/エラー0。
+  - `dotnet test CSharpGameEngine.slnx -c Debug --no-build --no-restore`は全8テストプロジェクト
+    838件成功・失敗0(Entities 40 / Core 122 / Bridge.Hosting 8 / Import 30 / Windows 87 /
+    CodeAnalysis 101 / SceneModel 104 / VSExtension 346)。

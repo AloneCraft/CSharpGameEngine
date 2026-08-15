@@ -2485,7 +2485,7 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
 
 - Layer: L8 — Visual Studio Authoring Environment
 - Parent capability: Scene DSL双方向エディタ(ADR-0040)の操作系
-- Status: **PartiallyImplemented**(M0020 Phase 0〜3+後続Task C実装済み。Phase 4〜7は計画済み)
+- Status: **PartiallyImplemented**(M0020 Phase 0〜4+後続Task C実装済み。Phase 5〜7は計画済み)
 - Verification: **TestVerified**(純粋なカメラ数学・入力状態機械・CPU pick・ギズモ形状/ヒット/
   拘束ソルバ・Transform数学・編集トランザクション・Roslyn最小差分・live text世代guard)。
   `SceneHwndHost`/D3D12/Visual Studio live buffer/Undoの製品配線は**CodeVerified**止まりで、
@@ -2493,7 +2493,7 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
 - Intended specification: `Docs/シーンエディタの仕様.md`(要求仕様)、
   Docs/Decisions/ADR-0041-Scene-Editor-Interaction-Architecture.md(意思決定)、
   Docs/Specifications/Scene-Editor-Design.md(詳細設計)
-- Implementation evidence(Phase 0〜3+後続Task C):
+- Implementation evidence(Phase 0〜4+後続Task C):
   - tools/CSharpGameEngine.VSExtension/SceneComponentBinding.cs(新規。`SceneComponentRole`/
     `SceneComponentBinding`/`SceneComponentBindings`。FQNハードコードを宣言的な表へ置換)
   - tools/CSharpGameEngine.VSExtension/SceneCameraFraming.cs(新規。視点ポリシーと境界球計算を
@@ -2521,7 +2521,12 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   - 後続Task C: SceneInputStateMachine.cs(`MarqueeSelecting`)、ScenePicker.cs(`PickMarquee`)、
     MarqueeOverlay.cs(Phase 3 overlay PSO再利用)、MarqueeSelectionPolicy.cs、SceneHwndHost.cs/
     SceneDesignerToolWindowControl.xaml.cs(`SceneSelectionOrigin.Viewport`での複数選択発行)。
-- Tests(Phase 0〜3+後続Task C):
+  - Phase 4: TransformGizmoPhase4.cs(Rotate/Scale overlay・解析hit・拘束ソルバ・増分スナップ)、
+    EditTransactionController.cs(shared Pivotのworld回転/Local基底scale previewとmember mask)、
+    SceneHwndHost.cs(W/E/R、Ctrl、World/Local、既存transaction/overlayへの配線)。
+  - Phase 4: SceneDesignerToolWindowControl.xaml(.cs)(World/Localセレクター)、SceneSourceEditor.cs
+    (複数既存assignment置換時に現在nodeをindexから再取得)、SceneEditorSessionService.cs(mask伝播)。
+- Tests(Phase 0〜4+後続Task C):
   - tests/CSharpGameEngine.VSExtension.Tests/SceneComponentBindingTests.cs(5件。実FQNの認識、
     退役FQNを認識しないこと、Role照合、`Enum.GetValues`による「消費者のないRole宣言」の機械的検出)
   - tests/CSharpGameEngine.VSExtension.Tests/SceneCameraFramingTests.cs(9件。境界球計算4件、
@@ -2536,7 +2541,10 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
     EditTransactionControllerTests(3)、SceneSourceEditorTests(+4)、SceneInputStateMachineTests(+3)、
     SceneTextChangePlannerTests(+2)。Phase 3時点は808件成功・失敗0。
   - 後続Task Cで16件追加: SceneInputStateMachineTests(+7)、ScenePickerTests(+4)、
-    MarqueeSelectionPolicyTests(4)、TransformGizmoTests(+1)。最終全体は824件成功・失敗0。
+    MarqueeSelectionPolicyTests(4)、TransformGizmoTests(+1)。Task C時点は824件成功・失敗0。
+  - Phase 4で14件追加: TransformGizmoTests(+7)、EditTransactionControllerTests(+3)、
+    SceneSourceEditorTests(+2)、SceneTransformMathTests(+2)。最終全体は838件成功・失敗0
+    (VSExtension.Tests 346件)。
 - Reverse-engineered behavior:
   - 階層合成・preview・source write-backはVSIX純粋層`SceneTransformMath`のrow-vector式へ統一した。
     net472からnet10.0 Runtime型は参照せず、`world * inverse(parentWorld)`をTRSへ分解してローカル値へ戻す。
@@ -2547,6 +2555,11 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   - ギズモ軸は実際のワールド軸で、既定視点の`+X`はゲーム本体と同じく画面左へ投影される(ADR-0042)。
   - 矩形選択は空間から4px以上ドラッグした場合だけ開始する。通常は置換、Ctrlは加算。
     Viewportは複数NodeIdsを保持し、単一選択WPF TreeViewへはprimary(描画順の最終ヒット)だけを橋渡しする。
+  - Rotate/ScaleはMoveと同じframe/overlay/transaction経路を使う。Rotateは3軸+viewリング、Scaleは
+    3軸+中心均一ハンドル。CtrlはMove=1.0、Rotate=15°、Scale=0.1へ丸める。
+  - World/Localは上部セレクターと既存設定で同期する。複数選択はprimaryの位置/回転をPivot/Local基底とし、
+    selection rootへ同じworld deltaを適用する。RotateはPosition+Rotation、Scaleは全TRSを書き戻すため、
+    行列分解で変化しうる全メンバーが編集可能な場合だけ操作できる。
   - `SceneNode.Children`は構文木の入れ子から構築されるツリーなのでサイクルガードは不要
     (深さは解析器が`MaxRecursionDepth`=64で打ち切る)。
   - 初期フレーミングは`Distance = Radius/sin(FovY/2)*1.1`(真の境界球半径)。旧固定値`3.0*Radius`と
@@ -2554,13 +2567,14 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
     `IncludeInBounds=false`で除外しているSky domeがクリップされるため。
   - 退化半径では`far`が`near`を下回り`CreatePerspectiveFieldOfView`が例外を投げるバグを退化入力
     テストが検出し、`far`に下限ガードを追加した。
-- Conformance: **Matches**(Phase 0〜3+後続Task Cの純粋層とコードレビュー範囲)。VS/D3D12/UndoのObservedは
+- Conformance: **MatchesWithDocumentedExtension**(Phase 0〜4+後続Task Cの純粋層とコードレビュー範囲。
+  Phase 4テストで検出したRoslyn複数メンバー置換の既存例外も修正)。VS/D3D12/WPF/UndoのObservedは
   Experimental Instance未実施のため**Unknown**。
 - Known deviations: 入れ子`Children`を持つシーンがリポジトリに1つも無いため、**階層Transform合成の
-  実シーン証跡が存在しない**(ユニットテスト4件のみが証跡)。アスペクト比<1では水平FOVが狭くなり
-  境界球が横にはみ出す(Phase 0以前と同じ挙動として踏襲)。
-- Next action: Phase 0〜3+後続Task CのExperimental Instance確認表をユーザー側で実施。その後M0020 Phase 4
-  (Rotate/Scaleと増分スナップ)へ進む。
+  実シーン証跡が存在しない**(ユニットテスト4件のみが証跡)。Phase 4の実HWND/D3D12/WPF/VS Undoは
+  Experimental Instance未確認。
+- Next action: Phase 0〜4+後続Task CのExperimental Instance確認表をユーザー側で実施。実装作業は
+  M0020 Phase 5(Duplicate・FollowView・頂点/面スナップ)へ進む。
 
 # 2026-08 UE FirstPerson宣言型Scene移行
 

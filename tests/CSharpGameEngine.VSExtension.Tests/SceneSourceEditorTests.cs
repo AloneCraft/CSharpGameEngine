@@ -201,6 +201,70 @@ public sealed class SceneSourceEditorTests {
     }
 
     [Fact]
+    public void SetTransform_RotationMask_DoesNotRewriteScale(){
+        const string TransformSource="""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Runtime.Windows;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() { Children=[new Node {
+                    Name="Cube",Components=[new Transform { RotationW=1f,ScaleX=3f,ScaleY=3f,ScaleZ=3f }],
+                }] };
+            }
+            """;
+        SceneModel Model=SceneAnalysisTestHelper.Analyze([TransformTypes,TransformSource]);
+        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        EditorNodeId Cube=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Cube").Id;
+        SceneTransformValue Value=new(
+            System.Numerics.Vector3.Zero,
+            System.Numerics.Quaternion.CreateFromAxisAngle(System.Numerics.Vector3.UnitZ,(float)(System.Math.PI/2d)),
+            System.Numerics.Vector3.One);
+
+        SceneSourceEditResult Result=SceneSourceEditor.Apply(
+            CSharpSyntaxTree.ParseText(TransformSource).GetRoot(),Projection,
+            new SetTransformOperation(
+                Key,Cube,DocumentVersion:1,Value,Members:SceneTransformMemberMask.Rotation));
+
+        Assert.True(Result.Succeeded,Result.ErrorMessage);
+        string Changed=Result.Root!.ToFullString();
+        Assert.Contains("RotationZ=",Changed);
+        Assert.Contains("ScaleX=3f",Changed);
+        Assert.DoesNotContain("ScaleX=1f",Changed);
+    }
+
+    [Fact]
+    public void SetTransform_ScaleMask_DoesNotRewriteRotation(){
+        const string TransformSource="""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Runtime.Windows;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() { Children=[new Node {
+                    Name="Cube",Components=[new Transform { RotationW=2f,ScaleX=1f,ScaleY=1f,ScaleZ=1f }],
+                }] };
+            }
+            """;
+        SceneModel Model=SceneAnalysisTestHelper.Analyze([TransformTypes,TransformSource]);
+        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        EditorNodeId Cube=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Cube").Id;
+        SceneTransformValue Value=new(
+            System.Numerics.Vector3.Zero,System.Numerics.Quaternion.Identity,new System.Numerics.Vector3(2f,3f,4f));
+
+        SceneSourceEditResult Result=SceneSourceEditor.Apply(
+            CSharpSyntaxTree.ParseText(TransformSource).GetRoot(),Projection,
+            new SetTransformOperation(
+                Key,Cube,DocumentVersion:1,Value,Members:SceneTransformMemberMask.Scale));
+
+        Assert.True(Result.Succeeded,Result.ErrorMessage);
+        string Changed=Result.Root!.ToFullString();
+        Assert.Contains("ScaleX=2f",Changed);
+        Assert.Contains("ScaleY=3f",Changed);
+        Assert.Contains("ScaleZ=4f",Changed);
+        Assert.Contains("RotationW=2f",Changed);
+        Assert.DoesNotContain("RotationW=1f",Changed);
+    }
+
+    [Fact]
     public void ApplyBatch_WhenALaterOperationFails_ReturnsNoMutatedRoot(){
         (SceneProjection Projection,EditorNodeId Cube)=CreateProjection();
         SceneSourceEditResult Result=SceneSourceEditor.ApplyBatch(

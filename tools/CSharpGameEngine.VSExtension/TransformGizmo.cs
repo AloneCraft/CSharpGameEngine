@@ -4,7 +4,11 @@ using System.Numerics;
 
 namespace CSharpGameEngine.VSExtension;
 
-internal enum GizmoHandleId { AxisX, AxisY, AxisZ, PlaneXY, PlaneYZ, PlaneZX }
+internal enum GizmoHandleId {
+    AxisX, AxisY, AxisZ, PlaneXY, PlaneYZ, PlaneZX,
+    RotateX, RotateY, RotateZ, RotateView,
+    ScaleX, ScaleY, ScaleZ, ScaleUniform,
+}
 
 internal enum GizmoPrimitiveKind { Line, Triangle }
 
@@ -31,11 +35,13 @@ internal sealed class GizmoOverlayPrimitive {
 }
 
 internal readonly struct MoveGizmoFrame {
-    private MoveGizmoFrame(Vector3 Pivot,Vector3 AxisX,Vector3 AxisY,Vector3 AxisZ,float WorldScale){
+    private MoveGizmoFrame(
+        Vector3 Pivot,Vector3 AxisX,Vector3 AxisY,Vector3 AxisZ,Quaternion BasisRotation,float WorldScale){
         this.Pivot=Pivot;
         this.AxisX=AxisX;
         this.AxisY=AxisY;
         this.AxisZ=AxisZ;
+        this.BasisRotation=BasisRotation;
         this.WorldScale=WorldScale;
     }
 
@@ -46,6 +52,8 @@ internal readonly struct MoveGizmoFrame {
     internal Vector3 AxisY { get; }
 
     internal Vector3 AxisZ { get; }
+
+    internal Quaternion BasisRotation { get; }
 
     internal float WorldScale { get; }
 
@@ -59,6 +67,7 @@ internal readonly struct MoveGizmoFrame {
             Vector3.Normalize(Vector3.Transform(Vector3.UnitX,Basis)),
             Vector3.Normalize(Vector3.Transform(Vector3.UnitY,Basis)),
             Vector3.Normalize(Vector3.Transform(Vector3.UnitZ,Basis)),
+            Basis,
             Math.Max(WorldScale,1e-5f));
     }
 
@@ -78,7 +87,7 @@ internal readonly struct MoveGizmoFrame {
 }
 
 /// <summary>Moveギズモの表示形状、スクリーン一定サイズ、解析的ヒット判定。</summary>
-internal static class TransformGizmo {
+internal static partial class TransformGizmo {
     private const float ScreenFraction=0.16f;
     private const float AxisStart=0.12f;
     private const float AxisLength=1f;
