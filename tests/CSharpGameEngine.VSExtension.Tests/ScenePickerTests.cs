@@ -74,6 +74,40 @@ public sealed class ScenePickerTests {
         Assert.Equal(NodePath.Root,HitPath);
     }
 
+    /// <summary>
+    /// M0020追加(Orbitのピクセル完全一致ドラッグ用)。既存の交差判定は距離を内部で計算済みだが
+    /// 呼び出し元へ返していなかった — 多重定義で公開しただけで既存の判定ロジックは無改造。
+    /// <c>RayDirection</c>は正規化されている前提なので、世界座標のヒット点は
+    /// <c>RayOrigin+RayDirection*HitDistance</c>で得られるはず。
+    /// </summary>
+    [Fact]
+    public void TryPick_WithDistanceOverload_ReturnsDistanceAlongRay(){
+        SceneRenderObject Object=CreateTriangleAtZ(5f,NodePath.Root);
+        Vector3 RayOrigin=new(0.5f,0.5f,0f);
+        Vector3 RayDirection=Vector3.UnitZ;
+
+        bool Hit=ScenePicker.TryPick(
+            [Object],RayOrigin,RayDirection,out NodePath HitPath,out float HitDistance);
+
+        Assert.True(Hit);
+        Assert.Equal(NodePath.Root,HitPath);
+        Assert.Equal(5f,HitDistance,3);
+        Vector3 HitPoint=RayOrigin+(RayDirection*HitDistance);
+        Assert.Equal(new Vector3(0.5f,0.5f,5f),HitPoint);
+    }
+
+    /// <summary>従来の3引数版は新しい5引数版へ転送しているだけであることの回帰防止。</summary>
+    [Fact]
+    public void TryPick_ThreeArgumentOverload_StillWorksIdenticallyToFiveArgumentOverload(){
+        SceneRenderObject Object=CreateTriangleAtZ(5f,NodePath.Root);
+
+        bool Hit=ScenePicker.TryPick(
+            [Object],RayOrigin:new Vector3(0.5f,0.5f,0f),RayDirection:Vector3.UnitZ,out NodePath HitPath);
+
+        Assert.True(Hit);
+        Assert.Equal(NodePath.Root,HitPath);
+    }
+
     /// <summary>直角三角形 (0,0)-(2,0)-(0,2) を Z=<paramref name="Z"/> 平面に置く。(0.5,0.5) は内部の点。</summary>
     private static SceneRenderObject CreateTriangleAtZ(float Z,NodePath NodeId)=>
         new(){

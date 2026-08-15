@@ -19,7 +19,18 @@ internal static class ScenePicker {
     /// <summary>最近ヒットの<see cref="SceneRenderObject.NodeId"/>を返す。表裏どちらの面もヒットする
     /// (design doc §5「三角形交差: Möller–Trumbore」)。</summary>
     internal static bool TryPick(
-        IReadOnlyList<SceneRenderObject>RenderObjects,Vector3 RayOrigin,Vector3 RayDirection,out NodePath HitNodePath){
+        IReadOnlyList<SceneRenderObject>RenderObjects,Vector3 RayOrigin,Vector3 RayDirection,out NodePath HitNodePath)=>
+        TryPick(RenderObjects,RayOrigin,RayDirection,out HitNodePath,out _);
+
+    /// <summary>
+    /// <paramref name="HitDistance"/>付きの多重定義(M0020追加、Orbitのピクセル完全一致ドラッグ用)。
+    /// <c>RayDirection</c>は正規化されている前提なので、世界座標のヒット点は
+    /// <c>RayOrigin+RayDirection*HitDistance</c>で得られる。既存の交差判定ロジックは無改造 —
+    /// 各三角形の交差判定が既に計算していた距離を、これまで捨てていただけである。
+    /// </summary>
+    internal static bool TryPick(
+        IReadOnlyList<SceneRenderObject>RenderObjects,Vector3 RayOrigin,Vector3 RayDirection,
+        out NodePath HitNodePath,out float HitDistance){
         float BestDistance=float.PositiveInfinity;
         NodePath BestPath=default;
         bool Found=false;
@@ -33,6 +44,7 @@ internal static class ScenePicker {
         }
 
         HitNodePath=BestPath;
+        HitDistance=BestDistance;
         return Found;
     }
 

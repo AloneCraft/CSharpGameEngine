@@ -26,6 +26,8 @@ public sealed class SceneEditorOptionsModelTests {
         Assert.Equal(SceneEditorSettings.DefaultNavigationSpeedMultiplier,Model.NavigationSpeedMultiplier);
         Assert.Equal(SceneEditorSettings.DefaultInvertLookX,Model.InvertLookX);
         Assert.Equal(SceneEditorSettings.DefaultInvertLookY,Model.InvertLookY);
+        Assert.Equal(SceneEditorSettings.DefaultInvertOrbitX,Model.InvertOrbitX);
+        Assert.Equal(SceneEditorSettings.DefaultInvertOrbitY,Model.InvertOrbitY);
     }
 
     [Fact]
@@ -111,6 +113,8 @@ public sealed class SceneEditorOptionsModelTests {
             NavigationSpeedMultiplier=7f,
             InvertLookX=!SceneEditorSettings.DefaultInvertLookX,
             InvertLookY=!SceneEditorSettings.DefaultInvertLookY,
+            InvertOrbitX=!SceneEditorSettings.DefaultInvertOrbitX,
+            InvertOrbitY=!SceneEditorSettings.DefaultInvertOrbitY,
         };
 
         Model.ResetToDefaults();
@@ -118,14 +122,18 @@ public sealed class SceneEditorOptionsModelTests {
         Assert.Equal(SceneEditorSettings.DefaultNavigationSpeedMultiplier,Model.NavigationSpeedMultiplier);
         Assert.Equal(SceneEditorSettings.DefaultInvertLookX,Model.InvertLookX);
         Assert.Equal(SceneEditorSettings.DefaultInvertLookY,Model.InvertLookY);
+        Assert.Equal(SceneEditorSettings.DefaultInvertOrbitX,Model.InvertOrbitX);
+        Assert.Equal(SceneEditorSettings.DefaultInvertOrbitY,Model.InvertOrbitY);
     }
 
     [Fact]
-    public void SaveToSettings_ThenLoadFromSettings_RoundTripsAllThreeValues()=>RunOnUiThread(()=>{
+    public void SaveToSettings_ThenLoadFromSettings_RoundTripsAllFiveValues()=>RunOnUiThread(()=>{
         SceneEditorOptionsModel Saved=new(){
             NavigationSpeedMultiplier=4.5f,
             InvertLookX=!SceneEditorSettings.DefaultInvertLookX,
             InvertLookY=!SceneEditorSettings.DefaultInvertLookY,
+            InvertOrbitX=!SceneEditorSettings.DefaultInvertOrbitX,
+            InvertOrbitY=!SceneEditorSettings.DefaultInvertOrbitY,
         };
         Saved.SaveToSettings();
 
@@ -135,6 +143,8 @@ public sealed class SceneEditorOptionsModelTests {
         Assert.Equal(4.5f,Loaded.NavigationSpeedMultiplier);
         Assert.Equal(!SceneEditorSettings.DefaultInvertLookX,Loaded.InvertLookX);
         Assert.Equal(!SceneEditorSettings.DefaultInvertLookY,Loaded.InvertLookY);
+        Assert.Equal(!SceneEditorSettings.DefaultInvertOrbitX,Loaded.InvertOrbitX);
+        Assert.Equal(!SceneEditorSettings.DefaultInvertOrbitY,Loaded.InvertOrbitY);
     });
 
     /// <summary>範囲外の値はストアへ書く前にクランプされる(壊れた値を永続化しない)。</summary>
@@ -185,6 +195,26 @@ public sealed class SceneEditorOptionsModelTests {
         Inverted.SaveToSettings();
         SceneViewState InvertedState=SceneViewState.CreateFromSettings();
         InvertedState.TickFly([],DeltaX:10f,DeltaY:0f,DeltaTime:0f,Shift:false,Ctrl:false);
+
+        Assert.NotEqual(0f,NormalState.Yaw);
+        Assert.Equal(-NormalState.Yaw,InvertedState.Yaw,4);
+    });
+
+    /// <summary>
+    /// Orbit版。<c>SceneViewState.ApplyOrbit</c>はM0020まで反転設定が存在せず常にfalse,false固定
+    /// だった — オプション画面からLookと独立して反転できることを固定する。
+    /// </summary>
+    [Fact]
+    public void InvertOrbitX_LoadedFromSettings_ReversesTheYawDirection()=>RunOnUiThread(()=>{
+        SceneEditorOptionsModel Normal=new(){ InvertOrbitX=false };
+        Normal.SaveToSettings();
+        SceneViewState NormalState=SceneViewState.CreateFromSettings();
+        NormalState.ApplyOrbit(DeltaX:10f,DeltaY:0f);
+
+        SceneEditorOptionsModel Inverted=new(){ InvertOrbitX=true };
+        Inverted.SaveToSettings();
+        SceneViewState InvertedState=SceneViewState.CreateFromSettings();
+        InvertedState.ApplyOrbit(DeltaX:10f,DeltaY:0f);
 
         Assert.NotEqual(0f,NormalState.Yaw);
         Assert.Equal(-NormalState.Yaw,InvertedState.Yaw,4);

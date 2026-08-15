@@ -15,7 +15,7 @@ namespace CSharpGameEngine.VSExtension;
 /// </para>
 ///
 /// <para>
-/// 公開するのは<see cref="SceneEditorSettings"/>の7項目のうち恒久的な「設定」に相当する3項目だけ。
+/// 公開するのは<see cref="SceneEditorSettings"/>の9項目のうち恒久的な「設定」に相当する5項目だけ。
 /// <c>ActiveTool</c>/<c>TransformSpace</c>/<c>ProjectionMode</c>は「今どのツールを選んでいるか」という
 /// 一時的な現在状態なのでツールバー側の責務であり、<c>NavigationPreset</c>はenumが
 /// <c>Default</c>/<c>Custom</c>の2値しか無くプリセット値の充填がM0020スコープ外(ADR-0041
@@ -27,6 +27,8 @@ internal sealed class SceneEditorOptionsModel {
         this.NavigationSpeedMultiplier=SceneEditorSettings.DefaultNavigationSpeedMultiplier;
         this.InvertLookX=SceneEditorSettings.DefaultInvertLookX;
         this.InvertLookY=SceneEditorSettings.DefaultInvertLookY;
+        this.InvertOrbitX=SceneEditorSettings.DefaultInvertOrbitX;
+        this.InvertOrbitY=SceneEditorSettings.DefaultInvertOrbitY;
     }
 
     /// <summary>
@@ -38,6 +40,10 @@ internal sealed class SceneEditorOptionsModel {
     internal bool InvertLookX { get;set;}
 
     internal bool InvertLookY { get;set;}
+
+    internal bool InvertOrbitX { get;set;}
+
+    internal bool InvertOrbitY { get;set;}
 
     /// <summary>
     /// 速度倍率をクランプする。NaN/無限は「入力が壊れている」ケースなので既定値へ倒す
@@ -80,17 +86,20 @@ internal sealed class SceneEditorOptionsModel {
             SceneEditorSettings.ReadNavigationSpeedMultiplier());
         this.InvertLookX=SceneEditorSettings.ReadInvertLookX();
         this.InvertLookY=SceneEditorSettings.ReadInvertLookY();
+        this.InvertOrbitX=SceneEditorSettings.ReadInvertOrbitX();
+        this.InvertOrbitY=SceneEditorSettings.ReadInvertOrbitY();
     }
 
     /// <summary>
-    /// 3項目をまとめて書き戻す。<see cref="SceneEditorSettings.WriteNavigationSettings"/>が
+    /// 5項目をまとめて書き戻す。<see cref="SceneEditorSettings.WriteNavigationSettings"/>が
     /// 最後に<c>SettingsChanged</c>を1回だけ発火し、開いているScene Viewへ反映される。
     /// </summary>
     internal void SaveToSettings(){
         ThreadHelper.ThrowIfNotOnUIThread();
         this.NavigationSpeedMultiplier=ClampNavigationSpeedMultiplier(this.NavigationSpeedMultiplier);
         SceneEditorSettings.WriteNavigationSettings(
-            this.NavigationSpeedMultiplier,this.InvertLookX,this.InvertLookY);
+            this.NavigationSpeedMultiplier,this.InvertLookX,this.InvertLookY,
+            this.InvertOrbitX,this.InvertOrbitY);
     }
 
     /// <summary>「既定へ戻す」。書き込みはしない(OKまで確定させない)。</summary>
@@ -98,5 +107,7 @@ internal sealed class SceneEditorOptionsModel {
         this.NavigationSpeedMultiplier=SceneEditorSettings.DefaultNavigationSpeedMultiplier;
         this.InvertLookX=SceneEditorSettings.DefaultInvertLookX;
         this.InvertLookY=SceneEditorSettings.DefaultInvertLookY;
+        this.InvertOrbitX=SceneEditorSettings.DefaultInvertOrbitX;
+        this.InvertOrbitY=SceneEditorSettings.DefaultInvertOrbitY;
     }
 }

@@ -66,7 +66,8 @@ M0020                           … 実装フェーズ計画と完了条件
 | `TransformSpace` | enum | World/Local | する |
 | `NavigationPreset` | enum | Default/Custom(将来: Unity/Unreal/Blender/Maya) | する |
 | `NavigationSpeedMultiplier` | float | Fly速度倍率(RMB+Wheelで変更) | する |
-| `InvertLookX`/`InvertLookY` | bool | Look反転(仕様§4.1) | する |
+| `InvertLookX`/`InvertLookY` | bool | Look(RMB)反転(仕様§4.1) | する |
+| `InvertOrbitX`/`InvertOrbitY` | bool | Orbit(Alt+LMB)反転(2026-08追加、Lookと独立) | する |
 
 不変条件: 視点位置は`FocusPosition - Forward(Yaw,Pitch) * FocusDistance`から導出する
 (Orbit・Dollyが自然に成立する)。Fly(RMB)中は視点位置を直接動かし、終了時に
@@ -106,10 +107,21 @@ aspect≥1では実効FOV=FovYとなり、横長・正方形の距離はPhase 0�
 
 | 概念操作 | 計算 |
 |---|---|
-| `Look`(RMB+Mouse) | `Yaw += Δx * 感度 * (InvertLookX ? -1 : 1)`、`Pitch += Δy * 感度 * (InvertLookY ? -1 : 1)`。位置固定 |
+| `Look`(RMB+Mouse) | 既定: `Yaw += Δx * 感度 * (InvertLookX ? -1 : 1)`、`Pitch += Δy * 感度 * (InvertLookY ? -1 : 1)`。位置固定。**反転がOFFの間はピクセル完全一致(下記)を使い、この式は反転ON時のみ使う** |
 | `Fly`(RMB+WASDQE) | `位置 += (前後A/D左右Q/E上下の合成方向) * 速度 * Δt`。速度 = 基準 × `NavigationSpeedMultiplier` × (Shift: ×4 / Ctrl: ×0.25) |
 | `Pan`(MMB Drag) | 視線を変えずカメラの右・上ベクトル方向へ`FocusPosition`と視点を平行移動。移動量はNavigationScale比例 |
-| `Orbit`(Alt+LMB) | `Yaw`/`Pitch`を回し、視点位置を導出式で再計算(`FocusPosition`固定) |
+| `Orbit`(Alt+LMB) | 既定: `Yaw`/`Pitch`を回し、視点位置を導出式で再計算(`FocusPosition`固定)。反転は`InvertOrbitX`/`InvertOrbitY`(Lookとは独立)。**反転がOFFの間はピクセル完全一致(下記)を使う** |
+
+**ピクセル完全一致ドラッグ**(2026-08追加): RMB/Alt+LMBでクリックした点(方向)が、反転設定OFFの
+間はドラッグ中カーソル先端に一致し続ける。
+- Look: Eyeが回転中固定なので、クリック時の方向だけから`atan2`/`acos`のみで厳密な閉形式が
+  導ける(`SceneViewCamera.SolveLookOrientation`)。
+- Orbit: Eye自体が球面上を動くため閉形式が存在せず、減衰付きNewton法(Levenberg–Marquardt、
+  `SceneViewCamera.TrySolveOrbitYawPitch`)によるベストエフォート解を使う。解の枝が折り返す
+  区間では一時的に完全一致を維持できないことがある(バグではなく2自由度・注視点固定という
+  束縛条件の構造的な性質、ユーザー承認済み)。
+- 反転がONの間はどちらも上表の`delta*sensitivity`式のまま(反転しながらの完全一致は定義上
+  不可能)。
 | `Dolly`(Wheel、透視) | `FocusDistance *= pow(0.9, ホイールノッチ)`(下限クランプ) |
 | `Zoom`(Wheel、平行) | `OrthographicSize *= pow(0.9, ホイールノッチ)` |
 | `AdjustNavigationSpeed`(RMB+Wheel) | `NavigationSpeedMultiplier *= pow(1.2, ノッチ)`(上下限クランプ) |
@@ -343,6 +355,12 @@ enumメンバー名は`Transform`ではなく`LocalTransform`にしてある(`Tr
 | `NavigationPreset` | string | `Default` |
 | `NavigationSpeedMultiplier` | float(文字列格納) | `1.0` |
 | `InvertLookX` / `InvertLookY` | bool | `false` |
+| `InvertOrbitX` / `InvertOrbitY` | bool | `false`(2026-08追加、Lookと独立) |
+
+`InvertLookX`/`InvertLookY`/`InvertOrbitX`/`InvertOrbitY`/`NavigationSpeedMultiplier`の5項目は
+Tools>Options > C# Game Engine > Scene Editor から編集できる(2026-08追加、
+`SceneEditorOptionsPage`)。残る4項目は現在状態(ツールバー相当)またはプリセット未実装のため
+非公開。
 
 保存はツールウィンドウ非表示時と値変更時(デバウンス)。カメラ姿勢・`FocusPosition`・選択・
 ギズモ表示はセッション内のみ。**`SceneDeclaration`へSceneView状態を書くことは構造的に不可能**

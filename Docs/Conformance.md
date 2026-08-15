@@ -939,13 +939,65 @@ Evidence: `dotnet build CSharpGameEngine.slnx -c Debug` 成功・警告0/エラ�
   `SetSolutionExplorerSelection`から`System.Threading.Timer`を取り除き、選択変更を検知した
   直後に解析を開始するよう変更した(連打耐性は既存の`SceneAnalysisGenerationGate`+
   `CancellationTokenSource`のキャンセル機構がそのまま担保する)。
+- **実機不具合(2026-08)**: 別ファイル(`FirstPersonStageScene.cs`)を右クリックしたのに、
+  以前右クリックした`PrimitiveShowcaseScene.cs`のシーン一覧が表示され続けるバグが見つかった。
+  原因は`ActiveDocumentTracker.OnSelectionChanged`が`IVsMultiItemSelect`を「非nullなら複数選択」と
+  誤判定していたこと: `IVsMultiItemSelect`は複数選択に対応する階層(ソリューションエクスプローラー
+  等)では**単一選択時にも非nullで渡されることがある**というVS SDKの既知の仕様があり、非null判定で
+  弾いてしまうと`SolutionExplorerFilePath`が新しいファイルへ更新されないまま、直前に成功した
+  単一選択の値に取り残される。`PrimitiveShowcaseScene.cs`単体のテストで正常に見えたのは、その時
+  たまたま条件に該当しなかっただけで、バグ自体は実装当初から存在していた。参照のnullチェックでは
+  なく`IVsMultiItemSelect.GetSelectionInfo`の実際の選択件数(`>1`)で判定するよう修正した。
 - Evidence: `dotnet build CSharpGameEngine.slnx -c Debug` 成功・警告0/エラー0、
-  `dotnet test CSharpGameEngine.slnx -c Debug` 737件成功・失敗0。`SceneWorkspaceService`/
+  `dotnet test CSharpGameEngine.slnx -c Debug` **784件成功・失敗0**(直前のピクセル完全一致
+  ドラッグ追加分を含む)。`ActiveDocumentTracker`は実COM型に直結しユニットテスト不能なため、
+  今回の修正も実機でのF5確認(`FirstPersonStageScene.cs`右クリックで正しい項目が出ること、
+  別ファイルへの切り替えに追従すること)が必要。`SceneWorkspaceService`/
   `ActiveDocumentTracker`は実COM型(`VisualStudioWorkspace`/`IVsMonitorSelection`)に直結しており
   このテストプロジェクトはそれらをモックしていないため、今回追加した新スロット/選択判定ロジックの
   単体テストは無し(既存の設計判断を踏襲)。実機でのF5確認(アクティブでない`.cs`ファイルを
   ソリューションエクスプローラーで右クリックしてシーン名一覧が正しく出ること、複数シーンを持つ
   ファイルからの選択、フォルダ/非`.cs`項目では出ないこと)はユーザー側。
+
+### 追記(2026-08): SE経路修正の最終記録 — `VSFPROPID_GuidPersistenceSlot`は常に失敗していた
+
+上記`IVsMultiItemSelect`修正の後も、実機で新しい壊れ方が見つかった:
+`FirstPersonStageScene.cs`自身がアクティブタブのときにその項目を右クリックすると正しいが、
+**`PrimitiveShowcaseScene.cs`がアクティブタブの状態で`FirstPersonStageScene.cs`のファイル
+ノードを右クリックすると、間違って(アクティブタブ側の)`PrimitiveShowcaseScene`のシーン一覧が
+出た**。「右クリックしたノード自身のシーンが出るべき」という当然の期待に反する。
+
+- 診断ログ(`System.IO.File.AppendAllText`、`ActivityLog`はクリーンシャットダウン時にしか
+  flushされないため不使用)を`TryGetSolutionExplorerInvocationFilePath`に仕込んで実機再現した
+  ところ、**このセッションで記録された全呼び出しで一度の例外もなく**
+  `Frame.GetProperty((int)__VSFPROPID.VSFPROPID_GuidPersistenceSlot, out object GuidObj)`が
+  `Hr=0x80020003`(`DISP_E_MEMBERNOTFOUND`)を返していた。つまりこの関数は**一度も`true`を
+  返したことがなく**、`OpenSceneDesignerCommand.RefreshPresentation`はSE経路を一度も通らず
+  常にコードエディタのアクティブ文書経路へフォールバックしていた。直前の追記で「実機確認済み」と
+  書いた複数シーンファイルのテストも、実際にはSE経路ではなく**たまたまアクティブタブ自身を
+  右クリックしていたためコードエディタ経路の結果が偶然正しく見えていただけ**だったと判明した。
+- `VSFPROPID_GuidPersistenceSlot`によるフレーム識別は、少なくともこの環境の
+  `IVsMonitorSelection.GetCurrentElementValue(SEID_WindowFrame)`が返すフレームに対しては
+  機能しないAPIと判断し、別方式に置き換えた: `IVsUIShell.FindToolWindow(0, ref
+  SolutionExplorerGuid, out Frame)`(`ToolWindowGuids80.SolutionExplorer`、組み込み・独自を
+  問わずGUIDでツールウィンドウの`IVsWindowFrame`を取得できる標準API)でソリューション
+  エクスプローラー自身のフレームを一度だけ取得してキャッシュし、`SEID_WindowFrame`で得た
+  「現在アクティブなフレーム」との`ReferenceEquals`(in-process拡張機能では同一COMオブジェクトに
+  対して同一RCWインスタンスが解決されるため確実に機能する)で判定する
+  (`ActiveDocumentTracker.TryGetSolutionExplorerFrame`/`TryGetSolutionExplorerInvocationFilePath`)。
+  プロパティ照会を経由しないため、今回失敗した経路とは無関係な、より単純で壊れにくい方式になった。
+- 置き換え後も同じ診断ログを残したまま実機で再現してもらったところ、`FirstPersonStageScene.cs`
+  ノードを`PrimitiveShowcaseScene.cs`アクティブタブ中に右クリックした際のログに
+  `TryGetSolutionExplorerInvocationFilePath: MATCH,
+  SolutionExplorerFilePath=...\firstpersonstagescene.cs`および`RefreshPresentation:
+  SE経路を採用 FilePath=...\firstpersonstagescene.cs`が記録され、SE経路が正しく選択され
+  意図通りのファイルへ解決されることを確認できた。確認後、診断ログ(`DiagLog`呼び出しおよび
+  メソッド本体、`ActiveDocumentTracker.cs`/`OpenSceneDesignerCommand.cs`の両方)は削除した。
+- Evidence: `dotnet build CSharpGameEngine.slnx -c Debug` 成功・警告0/エラー0、
+  `dotnet test CSharpGameEngine.slnx -c Debug` **784件成功・失敗0**(診断コード削除のみで
+  ロジック自体は無変更のためテスト件数・内容に変化なし)。`IVsUIShell.FindToolWindow`/
+  `ReferenceEquals`ベースの判定も実COM型に直結するためユニットテスト不能であり、今回の確認は
+  実機診断ログのみによる(上記の通り確定済み)。
 
 ### 追記(2026-08): 縦長ウィンドウのFOV補正と Tools>Options ページの新設
 
@@ -1015,6 +1067,78 @@ M0020の残作業のうち「設計判断が要らないもの」をまとめて
   のみで`src/CSharpGameEngine.Windows/`に一切触れていない(`git status`で確認)ため、
   Scene Designerが生きたD3D12デバイスを持つExpハイブ2つと並行実行したことによるGPU競合の
   一時的な失敗と判断した(この種の並行実行時の揺れは記録に残す)。
+
+### 追記(2026-08): オプション画面のコントロール寿命バグ修正、Orbit反転設定、ピクセル完全一致ドラッグ
+
+**1. 実機バグ修正: 「チェックしても反転しない」**
+
+上記オプション画面の実機確認で、チェックを入れてOKを押しても反転しないと報告された。
+`SceneEditorSettings`に一時診断(`IsStoreAvailable`/`SettingsChangedSubscriberCount`)、
+`SceneEditorOptionsPage`/`SceneHwndHost`に`File.AppendAllText`即時追記のプレーンテキストログを
+仕込んで実機ログを取得したところ、書き込み・読み戻し・購読(`LiveViewSubscribers=1`)はすべて
+正常で、コントロールも生存していた。原因はコントロール寿命だった: `SceneEditorOptionsPage`が
+`OnClosed`で`Control`を`null`にしていたため、`OnApply`が`Child`経由で**既定値の新しいコントロール
+を作り直して読む**経路が存在し、他のページを見てから戻ると未チェック状態で保存されていた。
+
+- コントロールを一度作ったら使い回すよう修正(`OnClosed`でのnull化を撤去)。
+- ユーザー編集を`SceneEditorOptionsControl.ValueEdited`イベントで**即座にモデルへ取り込む**方式へ
+  変更し、`OnApply`がコントロールの状態に依存しなくても正しい値を書けるようにした(コントロール
+  再生成が起きても取りこぼさない、二重の保険)。
+- 併せて、`VsBrushes.WindowTextKey`をUserControlへ指定していたことでTextBlockだけが淡色になり
+  見出しが読みにくかった表示不具合も修正(CheckBoxは自前のForegroundを持つため濃いままで、
+  TextBlockとの濃淡差が生じていた)。ホストのダイアログ既定色を継承させるよう撤去した。
+- 原因確認後、診断コード(`IsStoreAvailable`/`SettingsChangedSubscriberCount`/`DiagLog`一式)は
+  すべて削除した。
+
+**2. Orbit(Alt+LMB)の反転設定**
+
+「Orbitもチェックボックスで設定できるようにして」。これまで`SceneViewState.ApplyOrbit`は
+`InvertX:false,InvertY:false`を固定で渡しており反転設定が存在しなかった。既存の
+`InvertLookX`/`InvertLookY`とまったく同じ配線パターンで`InvertOrbitX`/`InvertOrbitY`を追加し、
+オプション画面にチェックボックスを2つ追加した(既定`false`、挙動不変)。永続項目は7→9項目、
+オプション画面が公開する項目は3→5項目になった。
+
+**3. RMB Look / Alt+LMB Orbit のピクセル完全一致ドラッグ(ベストエフォート)**
+
+「RMBのクリックした部分をレイキャストで固定してドラッグしたときにそのピクセルとマウスカーソルの
+先が完全一致するようにしてほしい。反転の時はむりだけど。それはOrbitも同様に」。
+
+調査の結果、LookとOrbitで数学的な性質が大きく異なることが判明した:
+
+- **Look(RMB)**: カメラ位置(Eye)は回転中固定なので、クリック時の「方向」だけを覚えておけば
+  純粋なベクトル代数で**厳密な閉形式**が導ける。`SceneViewCamera.DecomposeDirection`が
+  ワールド方向を`FlatRight`/`Up`/`Forward`基底へ射影した係数(Yaw/Pitchの値によらず不変)を求め、
+  `SolveLookOrientation`がそれを目標方向へ一致させるYaw/Pitchを`atan2`/`acos`だけで厳密に解く。
+  `CreateLookAt`/`CreatePerspectiveFieldOfView`の左右手系規約には一切踏み込まない設計にした
+  (このセッションで一度、その規約を誤って「修正」してゲーム本体と不整合を起こした前例があるため、
+  既存の`GetForward`/`GetFlatRight`/`GetUp`/`ScreenPointToRay`をブラックボックスとしてのみ使う)。
+- **Orbit(Alt+LMB)**: カメラ位置(Eye)自体が球面上を動くため、固定した世界座標の点をスクリーン
+  上の目標位置へ投影する連立方程式が非線形になり、**閉形式が存在しない**。減衰付きNewton法
+  (Levenberg–Marquardt、`TrySolveOrbitYawPitch`)で常にベストエフォートの解を返す設計にした
+  ——**この解には解の枝が折り返す(fold)構造的な限界があり、クリック位置とドラッグ量によっては
+  一時的に完全一致を維持できない区間が生じる**(バグではなく2自由度・注視点固定という束縛条件が
+  持つ性質。テスト設計時にも実際に踏んだ: アンカーが`FocusPosition`にほぼ一致する退化に近い設定で
+  Pitchが可動域の端(-80°)まで暴走する現象を実際に観測し、テスト側のアンカー選定を直して解決した
+  — 実装のバグではなく数値的な感度の問題だったことをその場で切り分けた)。折り返し区間では
+  「その時点で最も近づける位置」に留まり、抜ければ自動的に完全一致へ復帰する(ユーザー承認済みの
+  仕様、反転時に完全一致を諦めるのと同じ精神)。
+- 反転設定(`InvertLookX/Y`・`InvertOrbitX/Y`)がONの間は、ピクセル完全一致を使わず既存の
+  `delta*sensitivity`経路のまま(反転しながらの完全一致は定義上不可能なため — ユーザーの
+  明示的な了承事項)。
+- `ScenePicker.TryPick`は交差判定で距離を内部計算していたのに呼び出し元へ返していなかった
+  ため、`out float HitDistance`付きの多重定義を追加してOrbitのアンカー捕捉に使えるようにした
+  (既存の3引数版は5引数版への転送に変更、判定ロジック自体は無改造)。
+- `SceneInputStateMachine`は無改造(Vector3/世界座標を持ち込まない)。アンカー捕捉・保持は
+  すべて`SceneHwndHost`に閉じた。
+
+- **ユニットテストできなかったもの(正直な記録)**: `SceneHwndHost`の配線(RMB/Alt+LMB Down時の
+  アンカー捕捉、Moveイベントでのピクセル完全一致呼び出し)はVS SDK型に深く依存しユニットテスト
+  不能(既存の他機能と同じ理由)。数学の正しさは`SceneViewCamera`側の純粋関数テストで
+  端から端まで固定したが、「実機でカーソルとオブジェクトが完全に一致して見える」ことと
+  「Orbitの折り返しが実運用でどの程度の頻度で起こるか」はユーザー側のF5確認が必要。
+- Evidence: `dotnet build CSharpGameEngine.slnx -c Debug` 成功・**警告0/エラー0**、
+  `dotnet test CSharpGameEngine.slnx -c Debug` **784件成功・失敗0**。VSExtension.Testsは
+  268→292件(Orbit反転14件+ピクセル完全一致10件)。
 
 ## 2026-08 M0020: F5起動時にslnxが二重に読み込まれる(最終原因: このセッション自身が汚したExpハイブの永続化状態)
 
@@ -1108,6 +1232,26 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - Evidence: `dotnet build`/`dotnet test`成功・警告0/エラー0・737件成功(コード変更は(C)のSE
   デバウンス修正のみで、この節の対処はキャッシュ削除という運用操作)。実機での次回F5確認
   (二重読み込みが起きないこと)はユーザー側。
+
+### 追記(2026-08): 三度目の再発 — **保留中の未解決問題として記録する**
+
+上記の「`.vs/UserEcsProject.slnx/`全体を削除すると直る」という経験則も、その後の別セッションで
+**再度破られた**: `DesignTimeBuild/`と`v18/`の両方を削除した直後のF5でも、ユーザーから
+「そしてソリューション介助(解除)がまたおきた」と報告があった。
+
+これで根本原因についての仮説(DTBキャッシュ陳腐化・`v18/`永続化状態)は両方とも実質的に反証された
+形になり、**現時点で信頼できる恒久対策は無い**。この問題は一旦保留とし、以下を記録するに留める:
+
+- 発生条件・機序ともに未確定(誤診の経緯は上記2つの追記を参照)。
+- `.vs/<slnx>/`削除という運用は、少なくとも一貫して再現を防げる対策ではないと判明した
+  (2回は効いたように見えたが3回目で破れた — 効いたように見えた2回も、実際には無関係な別要因
+  ―たとえばVSやOSの再起動、あるいは単なるタイミング―による偶然だった可能性がある)。
+- 次にこの問題へ再着手する場合は、前回・前々回のような「キャッシュ削除で対症療法する」方針を
+  一旦離れ、`IVsSolutionEvents`診断ログ(このセッションで最初に確立した手法)を**もう一度**
+  最初から仕込み、`.vs`キャッシュの状態を変えずに複数回のF5を比較するなど、より厳密な再現実験から
+  やり直す必要がある。
+- 実害の重さ(F5後に毎回ではないが時々ソリューションが自動で再読み込みされる、程度)を踏まえ、
+  他の作業を優先し、この問題への再着手はユーザーの判断を待つ。
 
 ## 2026-08 M0020: シーンデザイナーのコンボボックス未同期とコンテキストメニューの重複表示
 

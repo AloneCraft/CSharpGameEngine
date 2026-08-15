@@ -1,4 +1,3 @@
-using System;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -61,32 +60,9 @@ public sealed class SceneEditorOptionsPage:UIElementDialogPage {
             this.Model.SaveToSettings();
             // クランプ後の値を表示へ戻す(範囲外を入力したまま画面に残さない)。
             this.Control?.LoadFrom(this.Model);
-            DiagLog($"OnApply: Control={(this.Control is null?"null":"alive")} "
-                +$"InvertX={this.Model.InvertLookX} InvertY={this.Model.InvertLookY} "
-                +$"Speed={this.Model.NavigationSpeedMultiplier} "
-                +$"ReadBack(InvertX)={SceneEditorSettings.ReadInvertLookX()} "
-                +$"StoreAvailable={SceneEditorSettings.IsStoreAvailable} "
-                +$"LiveViewSubscribers={SceneEditorSettings.SettingsChangedSubscriberCount}");
-        } else {
-            DiagLog($"OnApply: skipped (ApplyBehavior={Args.ApplyBehavior})");
         }
 
         base.OnApply(Args);
-    }
-
-    /// <summary>
-    /// 一時診断(実機で「チェックしても反転しない」と報告されたため)。原因を確認できたら
-    /// この呼び出しと<see cref="SceneEditorSettings.IsStoreAvailable"/>等の診断用APIごと削除する。
-    /// <c>ActivityLog</c>はVSを正常終了しないとフラッシュされないのでプレーンテキストへ即時追記する。
-    /// </summary>
-    private static void DiagLog(string Message){
-        try {
-            string Path=System.IO.Path.Combine(
-                Environment.GetEnvironmentVariable("TEMP")??".","CSharpGameEngine-OptionsDiag.txt");
-            System.IO.File.AppendAllText(Path,$"{DateTime.Now:HH:mm:ss.fff} {Message}{Environment.NewLine}");
-        } catch {
-            // 診断が起動やダイアログを壊してはならない。
-        }
     }
 
     /// <summary>

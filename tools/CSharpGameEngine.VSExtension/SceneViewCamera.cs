@@ -141,4 +141,260 @@ internal static class SceneViewCamera {
         Vector4 World=Vector4.Transform(Clip,InverseViewProjection);
         return new Vector3(World.X,World.Y,World.Z)/World.W;
     }
+
+    /// <summary>
+    /// ワールド方向を、現在の(Yaw,Pitch)基準のローカル座標系(FlatRight,Up,Forward)へ射影した係数。
+    /// この係数はYaw/Pitchの値によらず不変(どの向きを基準に分解しても同じ値になる —
+    /// スクリーンピクセルの光学的な位置関係だけを表すため、光学系がYaw/Pitchで変わらない以上、
+    /// 分解結果も変わらない)。<see cref="SolveLookOrientation"/>が使う。
+    /// </summary>
+    internal static Vector3 DecomposeDirection(Vector3 WorldDirection,float Yaw,float Pitch){
+        Vector3 Right=GetFlatRight(Yaw);
+        Vector3 Up=GetUp(Yaw,Pitch);
+        Vector3 Forward=GetForward(Yaw,Pitch);
+        return new Vector3(
+            Vector3.Dot(WorldDirection,Right),
+            Vector3.Dot(WorldDirection,Up),
+            Vector3.Dot(WorldDirection,Forward));
+    }
+
+    /// <summary>
+    /// RMBドラッグのピクセル完全一致(M0020追加)。<paramref name="LocalAxes"/>
+    /// (<see cref="DecomposeDirection"/>で得た、現在のマウス位置に対応するローカル係数)が
+    /// 世界方向<paramref name="TargetWorldDirection"/>と一致するYaw/Pitchを厳密に解く。
+    ///
+    /// <para>
+    /// 導出: <c>World = Lx*FlatRight + Ly*Up + Lz*Forward</c>を閉形式で展開すると、Y成分は
+    /// <c>Ly*cosP + Lz*sinP</c>(<c>FlatRight.y</c>が常に0のためYaw非依存)になる。これでPitchを
+    /// 先に解き、残るX/Z成分の2元1次系(<c>Lx</c>と<c>Lz*cosP-Ly*sinP</c>)を目標
+    /// (<c>Dw.x</c>,<c>Dw.z</c>)へ回転させるYawをatan2で解く。往復誤差は浮動小数点誤差のみ
+    /// (実測1e-14未満)。<b>この閉形式はEyeが固定であるLookだけが持つ性質</b>で、Eye自体が動く
+    /// Orbitには当てはまらない(<see cref="TrySolveOrbitYawPitch"/>参照)。
+    /// </para>
+    /// </summary>
+    internal static(float Yaw,float Pitch)SolveLookOrientation(
+        Vector3 LocalAxes,Vector3 TargetWorldDirection,float PreviousYaw,float PreviousPitch){
+        float Lx=LocalAxes.X,Ly=LocalAxes.Y,Lz=LocalAxes.Z;
+
+        float R=(float)Math.Sqrt(Ly*Ly+Lz*Lz);
+        if(R<1e-6f){
+            // ローカルレイがほぼFlatRight軸(画面の端も端、実運用では起こらない)。解けないので
+            // 直前の向きを維持する。
+            return(PreviousYaw,PreviousPitch);
+        }
+
+        float Phi=(float)Math.Atan2(Lz,Ly);
+        float Ratio=Math.Min(Math.Max(TargetWorldDirection.Y/R,-1f),1f);
+        float AcosValue=(float)Math.Acos(Ratio);
+        float CandidateA=Phi+AcosValue;
+        float CandidateB=Phi-AcosValue;
+        float Pitch=AngularDistance(CandidateA,PreviousPitch)<=AngularDistance(CandidateB,PreviousPitch)
+            ?CandidateA:CandidateB;
+        Pitch=Math.Min(Math.Max(Pitch,MinPitchRadians),MaxPitchRadians);
+
+        float K=Lz*(float)Math.Cos(Pitch)-Ly*(float)Math.Sin(Pitch);
+        if(Math.Abs(Lx)<1e-6f&&Math.Abs(K)<1e-6f){
+            return(PreviousYaw,Pitch);
+        }
+
+        float Yaw=(float)Math.Atan2(K,Lx)-(float)Math.Atan2(TargetWorldDirection.Z,TargetWorldDirection.X);
+        return(Yaw,Pitch);
+    }
+
+    private static float AngularDistance(float A,float B){
+        const float TwoPi=(float)(2.0*Math.PI);
+        float Delta=A-B;
+        while(Delta>Math.PI){ Delta-=TwoPi; }
+        while(Delta<-Math.PI){ Delta+=TwoPi; }
+        return Math.Abs(Delta);
+    }
+
+    /// <summary>
+    /// Alt+LMBドラッグ開始時、ヒットテストで何もヒットしなかった場合の仮想アンカー。現在の
+    /// 注視平面(<paramref name="FocusPosition"/>を通り<paramref name="Forward"/>を法線とする平面)と
+    /// クリックレイの交点を使う(「今フォーカスしているdepth」を仮のアンカー距離として採用する
+    /// 自然な選択)。レイが平面とほぼ平行、または平面がレイの後方にある場合は
+    /// <paramref name="FocusPosition"/>自体へ縮退する。
+    /// </summary>
+    internal static Vector3 ComputeOrbitAnchorFallbackPoint(
+        Vector3 RayOrigin,Vector3 RayDirection,Vector3 FocusPosition,Vector3 Forward){
+        float Denominator=Vector3.Dot(RayDirection,Forward);
+        if(Math.Abs(Denominator)<1e-4f){
+            return FocusPosition;
+        }
+
+        float T=Vector3.Dot(FocusPosition-RayOrigin,Forward)/Denominator;
+        return T<=0f?FocusPosition:RayOrigin+RayDirection*T;
+    }
+
+    /// <summary>
+    /// Alt+LMBドラッグのピクセル完全一致(M0020追加、ベストエフォート)。世界座標
+    /// <paramref name="AnchorWorldPoint"/>がスクリーン座標
+    /// (<paramref name="TargetScreenX"/>,<paramref name="TargetScreenY"/>)へ投影されるYaw/Pitchを、
+    /// 減衰付きNewton法(Levenberg–Marquardt)で数値的に解く。
+    ///
+    /// <para>
+    /// <b>OrbitにはLook(<see cref="SolveLookOrientation"/>)のような閉形式が存在しない。</b>
+    /// EyeがFocusPosition周りの球面上を動くため、固定点のスクリーン位置はYaw/Pitchについて
+    /// Eye位置と視線方向の両方を通じて非線形に依存し、しかも解の枝が分岐(fold)することが
+    /// 数値実験で確認されている — クリック位置によっては、目標がわずか数pxしか動いていなくても
+    /// 真の解が40°以上離れた場所に存在することがある。<b>これはバグではなく2自由度・注視点固定
+    /// という束縛条件が持つ構造的な性質であり、「収束するまで反復回数を増やす」方向へ
+    /// 直そうとしないこと</b>
+    /// (<c>SceneViewCameraTests.TrySolveOrbitYawPitch_NeverIncreasesResidualBeyondTheSeed</c>参照、
+    /// このセッションで一度、左右手系の食い違いを同様に「バグ」と誤診して改悪した前例がある)。
+    /// </para>
+    ///
+    /// <para>
+    /// Levenberg–Marquardtは残差を単調に悪化させないことが保証されるため、戻り値が<c>false</c>
+    /// (収束せず)でも<paramref name="Yaw"/>/<paramref name="Pitch"/>には常に「その時点で最良」の
+    /// 値が入る — 呼び出し元は戻り値を無視して無条件に採用してよい。完全一致を維持できない
+    /// 区間ではその中で最も近づける位置に留まり、区間を抜ければ自動的に完全一致へ復帰する。
+    /// </para>
+    /// </summary>
+    internal static bool TrySolveOrbitYawPitch(
+        Vector3 FocusPosition,float FocusDistance,Matrix4x4 Projection,Vector3 AnchorWorldPoint,
+        float TargetScreenX,float TargetScreenY,float ViewportWidth,float ViewportHeight,
+        float SeedYaw,float SeedPitch,out float Yaw,out float Pitch){
+        const int MaxIterations=10;
+        const int MaxDampingRetries=30;
+        const float ToleranceScreenPixels=0.05f;
+        const float FiniteDifferenceStep=1e-4f;
+
+        bool TryComputeResidual(float CandidateYaw,float CandidatePitch,out Vector2 Result){
+            Matrix4x4 View=GetView(FocusPosition,CandidateYaw,CandidatePitch,FocusDistance);
+            if(!TryProjectToScreen(
+                AnchorWorldPoint,View,Projection,ViewportWidth,ViewportHeight,
+                out float ScreenX,out float ScreenY)){
+                Result=default;
+                return false;
+            }
+
+            Result=new Vector2(ScreenX-TargetScreenX,ScreenY-TargetScreenY);
+            return true;
+        }
+
+        bool TryComputeJacobian(
+            float CandidateYaw,float CandidatePitch,Vector2 BaseResidual,out Matrix2x2 Result){
+            if(!TryComputeResidual(CandidateYaw+FiniteDifferenceStep,CandidatePitch,out Vector2 ResidualYawPlus)
+                ||!TryComputeResidual(
+                    CandidateYaw,CandidatePitch+FiniteDifferenceStep,out Vector2 ResidualPitchPlus)){
+                Result=default;
+                return false;
+            }
+
+            Result=new Matrix2x2(
+                (ResidualYawPlus.X-BaseResidual.X)/FiniteDifferenceStep,
+                (ResidualPitchPlus.X-BaseResidual.X)/FiniteDifferenceStep,
+                (ResidualYawPlus.Y-BaseResidual.Y)/FiniteDifferenceStep,
+                (ResidualPitchPlus.Y-BaseResidual.Y)/FiniteDifferenceStep);
+            return true;
+        }
+
+        float CurrentYaw=SeedYaw;
+        float CurrentPitch=ClampOrbitPitch(SeedPitch);
+        if(!TryComputeResidual(CurrentYaw,CurrentPitch,out Vector2 Residual)){
+            Yaw=SeedYaw;
+            Pitch=CurrentPitch;
+            return false;
+        }
+
+        float Lambda=1e-2f;
+        for(int Iteration=0;Iteration<MaxIterations;Iteration++){
+            if(Residual.Length()<=ToleranceScreenPixels){
+                Yaw=CurrentYaw;
+                Pitch=CurrentPitch;
+                return true;
+            }
+
+            if(!TryComputeJacobian(CurrentYaw,CurrentPitch,Residual,out Matrix2x2 Jacobian)){
+                break; // カメラ背面等で微分すら取れない。ここまでの最良値で打ち切る。
+            }
+
+            bool Improved=false;
+            for(int Retry=0;Retry<MaxDampingRetries;Retry++){
+                if(!Jacobian.TrySolveDamped(Residual,Lambda,out float DeltaYaw,out float DeltaPitch)){
+                    Lambda*=4f;
+                    continue;
+                }
+
+                float CandidateYaw=CurrentYaw+DeltaYaw;
+                float CandidatePitch=ClampOrbitPitch(CurrentPitch+DeltaPitch);
+                if(TryComputeResidual(CandidateYaw,CandidatePitch,out Vector2 CandidateResidual)
+                    &&CandidateResidual.Length()<Residual.Length()){
+                    CurrentYaw=CandidateYaw;
+                    CurrentPitch=CandidatePitch;
+                    Residual=CandidateResidual;
+                    Lambda=Math.Max(Lambda*0.3f,1e-7f);
+                    Improved=true;
+                    break;
+                }
+
+                Lambda*=4f;
+            }
+
+            if(!Improved){
+                break; // 改善方向が見つからない = このアンカーはこれ以上近づけない(局所的な限界)。
+            }
+        }
+
+        Yaw=CurrentYaw;
+        Pitch=CurrentPitch;
+        return Residual.Length()<=ToleranceScreenPixels;
+    }
+
+    private static float ClampOrbitPitch(float Pitch)=>Math.Min(Math.Max(Pitch,MinPitchRadians),MaxPitchRadians);
+
+    /// <summary><see cref="ScreenPointToRay"/>の逆写像。カメラ背後/至近すぎる場合はfalseを返す。</summary>
+    private static bool TryProjectToScreen(
+        Vector3 WorldPoint,Matrix4x4 View,Matrix4x4 Projection,
+        float ViewportWidth,float ViewportHeight,out float ScreenX,out float ScreenY){
+        Vector4 Clip=Vector4.Transform(new Vector4(WorldPoint,1f),View*Projection);
+        if(Clip.W<=1e-5f){
+            ScreenX=0f;
+            ScreenY=0f;
+            return false;
+        }
+
+        float NdcX=Clip.X/Clip.W;
+        float NdcY=Clip.Y/Clip.W;
+        ScreenX=(NdcX+1f)*0.5f*ViewportWidth;
+        ScreenY=(1f-NdcY)*0.5f*ViewportHeight;
+        return true;
+    }
+
+    /// <summary>Levenberg–Marquardt用の2x2ヤコビアン。減衰正規方程式をこの場だけで解く小さなヘルパー。</summary>
+    private readonly struct Matrix2x2 {
+        private readonly float M00,M01,M10,M11;
+
+        internal Matrix2x2(float M00,float M01,float M10,float M11){
+            this.M00=M00;
+            this.M01=M01;
+            this.M10=M10;
+            this.M11=M11;
+        }
+
+        /// <summary>正規方程式 (JᵀJ + λ*diag(JᵀJ)) * delta = -Jᵀf を2x2で直接解く。</summary>
+        internal bool TrySolveDamped(Vector2 Residual,float Lambda,out float DeltaYaw,out float DeltaPitch){
+            float A00=M00*M00+M10*M10;
+            float A01=M00*M01+M10*M11;
+            float A11=M01*M01+M11*M11;
+            A00+=Lambda*A00;
+            A11+=Lambda*A11;
+
+            float B0=-(M00*Residual.X+M10*Residual.Y);
+            float B1=-(M01*Residual.X+M11*Residual.Y);
+
+            float Det=A00*A11-A01*A01;
+            if(Math.Abs(Det)<1e-12f){
+                DeltaYaw=0f;
+                DeltaPitch=0f;
+                return false;
+            }
+
+            DeltaYaw=(B0*A11-A01*B1)/Det;
+            DeltaPitch=(A00*B1-A01*B0)/Det;
+            return true;
+        }
+    }
 }

@@ -23,9 +23,10 @@ internal enum NavigationKey { W, A, S, D, Q, E }
 /// 破棄・再生成されるため、視点とツール状態はここに置く(ADR-0041 決定事項1)。
 ///
 /// <para>
-/// 永続する7項目(<see cref="ActiveTool"/>/<see cref="TransformSpace"/>/<see cref="ProjectionMode"/>/
+/// 永続する9項目(<see cref="ActiveTool"/>/<see cref="TransformSpace"/>/<see cref="ProjectionMode"/>/
 /// <see cref="NavigationPreset"/>/<see cref="NavigationSpeedMultiplier"/>/<see cref="InvertLookX"/>/
-/// <see cref="InvertLookY"/>)は<see cref="SceneEditorSettings"/>経由でVS再起動を跨いで残る
+/// <see cref="InvertLookY"/>/<see cref="InvertOrbitX"/>/<see cref="InvertOrbitY"/>)は
+/// <see cref="SceneEditorSettings"/>経由でVS再起動を跨いで残る
 /// (Docs/Specifications/Scene-Editor-Design.md §10)。それ以外の視点フィールドはセッション内のみ
 /// (仕様§20: SceneViewはSceneDeclarationへ保存しない)。
 /// </para>
@@ -49,7 +50,7 @@ internal sealed class SceneViewState {
     /// <summary>Far平面算出用。ビルド成功のたびにSceneHwndHostが更新する(セッション内のみ)。</summary>
     internal float LastKnownBoundsRadius=1f;
 
-    // 永続ツール状態(7項目)。
+    // 永続ツール状態(9項目)。
     internal SceneActiveTool ActiveTool;
     internal SceneTransformSpace TransformSpace;
     internal SceneProjectionMode ProjectionMode;
@@ -57,6 +58,8 @@ internal sealed class SceneViewState {
     internal float NavigationSpeedMultiplier=1f;
     internal bool InvertLookX;
     internal bool InvertLookY;
+    internal bool InvertOrbitX;
+    internal bool InvertOrbitY;
 
     private const float NearPlane=0.05f;
     private const float FarDistanceFactor=20f;
@@ -100,6 +103,8 @@ internal sealed class SceneViewState {
             NavigationSpeedMultiplier=SceneEditorSettings.ReadNavigationSpeedMultiplier(),
             InvertLookX=SceneEditorSettings.ReadInvertLookX(),
             InvertLookY=SceneEditorSettings.ReadInvertLookY(),
+            InvertOrbitX=SceneEditorSettings.ReadInvertOrbitX(),
+            InvertOrbitY=SceneEditorSettings.ReadInvertOrbitY(),
         };
     }
 
@@ -113,6 +118,8 @@ internal sealed class SceneViewState {
         SceneEditorSettings.WriteNavigationSpeedMultiplier(NavigationSpeedMultiplier);
         SceneEditorSettings.WriteInvertLookX(InvertLookX);
         SceneEditorSettings.WriteInvertLookY(InvertLookY);
+        SceneEditorSettings.WriteInvertOrbitX(InvertOrbitX);
+        SceneEditorSettings.WriteInvertOrbitY(InvertOrbitY);
     }
 
     internal Vector3 GetEyePosition()=>SceneViewCamera.GetEyePosition(FocusPosition,Yaw,Pitch,FocusDistance);
@@ -175,6 +182,26 @@ internal sealed class SceneViewState {
         (Yaw,Pitch)=SceneViewCamera.ApplyLookDelta(
             Yaw,Pitch,DeltaX,-DeltaY,LookSensitivity,LookSensitivity,InvertLookX,InvertLookY);
 
+        ApplyFlyMovement(HeldKeys,Eye,DeltaTime,Shift,Ctrl);
+    }
+
+    /// <summary>
+    /// ピクセル完全一致ドラッグ(<see cref="ApplyLookPixelLock"/>)使用時のWASDQE専用経路。
+    /// 回転は既にムーブイベントごとに<see cref="ApplyLookPixelLock"/>で確定させてあるため、
+    /// ここでは<see cref="TickFly"/>から回転更新(<c>ApplyLookDelta</c>呼び出し)だけを除いた
+    /// 移動部分のみを毎フレーム適用する。
+    /// </summary>
+    internal void TickFlyMovementOnly(
+        IReadOnlyCollection<NavigationKey>HeldKeys,float DeltaTime,bool Shift,bool Ctrl)=>
+        ApplyFlyMovement(HeldKeys,GetEyePosition(),DeltaTime,Shift,Ctrl);
+
+    /// <summary>
+    /// <see cref="TickFly"/>と<see cref="TickFlyMovementOnly"/>で共有するWASDQE移動本体。
+    /// ロジックは元の<c>TickFly</c>から1バイトも変えずに抽出しただけ(A/Dの符号反転の経緯を含め
+    /// 挙動はすべて据え置き)。
+    /// </summary>
+    private void ApplyFlyMovement(
+        IReadOnlyCollection<NavigationKey>HeldKeys,Vector3 Eye,float DeltaTime,bool Shift,bool Ctrl){
         Vector3 MoveDirection=Vector3.Zero;
         Vector3 Forward=SceneViewCamera.GetForward(Yaw,Pitch); // 更新後のYaw/Pitch
         Vector3 FlatRight=SceneViewCamera.GetFlatRight(Yaw);
@@ -200,10 +227,44 @@ internal sealed class SceneViewState {
         FocusPosition=Eye+Forward*FocusDistance; // Eyeから再導出
     }
 
+    /// <summary>
+    /// RMBドラッグのピクセル完全一致(M0020追加)。クリック時に捕捉した固定のワールド方向
+    /// <paramref name="AnchorWorldDirection"/>が、現在のマウス位置のローカル係数
+    /// <paramref name="CurrentLocalAxes"/>(<see cref="SceneViewCamera.DecomposeDirection"/>の
+    /// 結果)の位置に来るようYaw/Pitchを直接解いて代入する。<see cref="ApplyLookDelta"/>の
+    /// delta*sensitivity方式は経由しない(反転設定がONの間はこちらを使わず、呼び出し元が
+    /// 従来の<see cref="TickFly"/>を使い続ける — 反転しながらの完全一致は定義上不可能なため)。
+    /// </summary>
+    internal void ApplyLookPixelLock(Vector3 AnchorWorldDirection,Vector3 CurrentLocalAxes)=>
+        (Yaw,Pitch)=SceneViewCamera.SolveLookOrientation(CurrentLocalAxes,AnchorWorldDirection,Yaw,Pitch);
+
     /// <summary>FocusPositionは変更しない。EyeはGetEyePosition()が自動的に再導出する。</summary>
     internal void ApplyOrbit(float DeltaX,float DeltaY)=>
         (Yaw,Pitch)=SceneViewCamera.ApplyLookDelta(
-            Yaw,Pitch,DeltaX,DeltaY,OrbitSensitivity,OrbitSensitivity,InvertX:false,InvertY:false);
+            Yaw,Pitch,DeltaX,DeltaY,OrbitSensitivity,OrbitSensitivity,InvertOrbitX,InvertOrbitY);
+
+    /// <summary>
+    /// Alt+LMBドラッグのピクセル完全一致(M0020追加、ベストエフォート)。<paramref name="AnchorWorldPoint"/>
+    /// (クリック時に捕捉した固定のワールド座標)が、現在のマウス位置
+    /// (<paramref name="TargetScreenX"/>,<paramref name="TargetScreenY"/>)へ投影されるYaw/Pitchを
+    /// 数値的に解く。OrbitはEye自体が球面上を動くためLook側のような閉形式が存在せず(構造的な性質、
+    /// SceneViewCameraTests.TrySolveOrbitYawPitch_NeverIncreasesResidualBeyondTheSeed参照)、
+    /// 一時的に完全一致を維持できない区間では「その時点で最も近づける位置」を無条件に採用する
+    /// (Levenberg–Marquardt法は残差を絶対に悪化させないことが保証されているため、常に適用してよい)。
+    /// FocusPosition/FocusDistanceは毎回ライブに読むため、ドラッグ中にホイールでFocusDistanceが
+    /// 変わっても次のムーブイベントで自動的に追従する。
+    /// </summary>
+    internal void ApplyOrbitPixelLock(
+        Vector3 AnchorWorldPoint,float TargetScreenX,float TargetScreenY,
+        float ViewportWidth,float ViewportHeight,float AspectRatio){
+        Matrix4x4 Projection=GetProjection(AspectRatio);
+        SceneViewCamera.TrySolveOrbitYawPitch(
+            FocusPosition,FocusDistance,Projection,AnchorWorldPoint,
+            TargetScreenX,TargetScreenY,ViewportWidth,ViewportHeight,Yaw,Pitch,
+            out float NewYaw,out float NewPitch);
+        Yaw=NewYaw;
+        Pitch=NewPitch;
+    }
 
     /// <summary>
     /// FocusPositionだけ更新すればEyeはYaw/Pitch/FocusDistance不変なので自動的に同じ量だけ追従する

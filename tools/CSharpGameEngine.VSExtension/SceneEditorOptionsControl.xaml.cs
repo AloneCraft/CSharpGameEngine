@@ -50,6 +50,8 @@ public partial class SceneEditorOptionsControl:UserControl {
         try {
             this.InvertLookXCheckBox.IsChecked=Model.InvertLookX;
             this.InvertLookYCheckBox.IsChecked=Model.InvertLookY;
+            this.InvertOrbitXCheckBox.IsChecked=Model.InvertOrbitX;
+            this.InvertOrbitYCheckBox.IsChecked=Model.InvertOrbitY;
             this.NavigationSpeedMultiplierTextBox.Text=
                 SceneEditorOptionsModel.FormatNavigationSpeedMultiplier(Model.NavigationSpeedMultiplier);
         } finally {
@@ -61,6 +63,8 @@ public partial class SceneEditorOptionsControl:UserControl {
     internal void StoreTo(SceneEditorOptionsModel Model){
         Model.InvertLookX=this.InvertLookXCheckBox.IsChecked==true;
         Model.InvertLookY=this.InvertLookYCheckBox.IsChecked==true;
+        Model.InvertOrbitX=this.InvertOrbitXCheckBox.IsChecked==true;
+        Model.InvertOrbitY=this.InvertOrbitYCheckBox.IsChecked==true;
         Model.NavigationSpeedMultiplier=SceneEditorOptionsModel.ParseNavigationSpeedMultiplier(
             this.NavigationSpeedMultiplierTextBox.Text);
     }

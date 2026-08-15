@@ -132,24 +132,55 @@ public sealed class SceneEditorSettingsTests {
         Assert.True(SceneEditorSettings.ReadInvertLookY());
     });
 
+    /// <summary>Orbit(Alt+LMB)にはこれまで反転設定が存在せず、常にfalse,false固定だった。</summary>
+    [Fact]
+    public void ReadInvertOrbitX_NoStoredValue_ReturnsTheConfiguredDefault(){
+        Assert.False(SceneEditorSettings.DefaultInvertOrbitX);
+        RunOnUiThread(()=>Assert.False(SceneEditorSettings.ReadInvertOrbitX()));
+    }
+
+    [Fact]
+    public void ReadInvertOrbitY_NoStoredValue_ReturnsTheConfiguredDefault(){
+        Assert.False(SceneEditorSettings.DefaultInvertOrbitY);
+        RunOnUiThread(()=>Assert.False(SceneEditorSettings.ReadInvertOrbitY()));
+    }
+
+    [Fact]
+    public void WriteThenReadInvertOrbitX_RoundTrips()=>RunOnUiThread(()=>{
+        SceneEditorSettings.WriteInvertOrbitX(true);
+
+        Assert.True(SceneEditorSettings.ReadInvertOrbitX());
+    });
+
+    [Fact]
+    public void WriteThenReadInvertOrbitY_RoundTrips()=>RunOnUiThread(()=>{
+        SceneEditorSettings.WriteInvertOrbitY(true);
+
+        Assert.True(SceneEditorSettings.ReadInvertOrbitY());
+    });
+
     /// <summary>
-    /// Tools&gt;Options のページが使う一括書き込み。3項目が実際に永続化されることを確認する。
+    /// Tools&gt;Options のページが使う一括書き込み。5項目が実際に永続化されることを確認する。
     /// </summary>
     [Fact]
-    public void WriteNavigationSettings_PersistsAllThreeExposedValues()=>RunOnUiThread(()=>{
+    public void WriteNavigationSettings_PersistsAllFiveExposedValues()=>RunOnUiThread(()=>{
         SceneEditorSettings.WriteNavigationSettings(
             NavigationSpeedMultiplier:3.25f,
             InvertLookX:!SceneEditorSettings.DefaultInvertLookX,
-            InvertLookY:!SceneEditorSettings.DefaultInvertLookY);
+            InvertLookY:!SceneEditorSettings.DefaultInvertLookY,
+            InvertOrbitX:!SceneEditorSettings.DefaultInvertOrbitX,
+            InvertOrbitY:!SceneEditorSettings.DefaultInvertOrbitY);
 
         Assert.Equal(3.25f,SceneEditorSettings.ReadNavigationSpeedMultiplier());
         Assert.Equal(!SceneEditorSettings.DefaultInvertLookX,SceneEditorSettings.ReadInvertLookX());
         Assert.Equal(!SceneEditorSettings.DefaultInvertLookY,SceneEditorSettings.ReadInvertLookY());
+        Assert.Equal(!SceneEditorSettings.DefaultInvertOrbitX,SceneEditorSettings.ReadInvertOrbitX());
+        Assert.Equal(!SceneEditorSettings.DefaultInvertOrbitY,SceneEditorSettings.ReadInvertOrbitY());
     });
 
     /// <summary>
-    /// 3項目を書いても<c>SettingsChanged</c>は**1回だけ**発火する。項目ごとに発火すると、
-    /// 購読している生きたScene Viewを1回の[OK]で3回叩くことになる。
+    /// 5項目を書いても<c>SettingsChanged</c>は**1回だけ**発火する。項目ごとに発火すると、
+    /// 購読している生きたScene Viewを1回の[OK]で何度も叩くことになる。
     /// </summary>
     [Fact]
     public void WriteNavigationSettings_RaisesSettingsChangedExactlyOnce()=>RunOnUiThread(()=>{
@@ -158,7 +189,7 @@ public sealed class SceneEditorSettingsTests {
 
         SceneEditorSettings.SettingsChanged+=Handler;
         try {
-            SceneEditorSettings.WriteNavigationSettings(2f,InvertLookX:true,InvertLookY:true);
+            SceneEditorSettings.WriteNavigationSettings(2f,true,true,true,true);
         } finally {
             SceneEditorSettings.SettingsChanged-=Handler;
         }
@@ -174,7 +205,7 @@ public sealed class SceneEditorSettingsTests {
 
         SceneEditorSettings.SettingsChanged+=Handler;
         SceneEditorSettings.SettingsChanged-=Handler;
-        SceneEditorSettings.WriteNavigationSettings(2f,InvertLookX:true,InvertLookY:true);
+        SceneEditorSettings.WriteNavigationSettings(2f,true,true,true,true);
 
         Assert.Equal(0,RaisedCount);
     });

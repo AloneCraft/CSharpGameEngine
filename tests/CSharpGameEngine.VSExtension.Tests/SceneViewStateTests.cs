@@ -149,6 +149,29 @@ public sealed class SceneViewStateTests {
         Assert.NotEqual(0.1f,State.Yaw);
     }
 
+    /// <summary>OrbitはこれまでInvertX:false,InvertY:false固定だった。M0020でLookと同じく独立して反転可能にした。</summary>
+    [Fact]
+    public void Orbit_InvertOrbitX_NegatesYawDelta(){
+        SceneViewState Normal=new(){ InvertOrbitX=false };
+        Normal.ApplyOrbit(10f,0f);
+
+        SceneViewState Inverted=new(){ InvertOrbitX=true };
+        Inverted.ApplyOrbit(10f,0f);
+
+        Assert.Equal(-Normal.Yaw,Inverted.Yaw,Precision);
+    }
+
+    [Fact]
+    public void Orbit_InvertOrbitY_NegatesPitchDelta(){
+        SceneViewState Normal=new(){ InvertOrbitY=false };
+        Normal.ApplyOrbit(0f,10f);
+
+        SceneViewState Inverted=new(){ InvertOrbitY=true };
+        Inverted.ApplyOrbit(0f,10f);
+
+        Assert.Equal(-Normal.Pitch,Inverted.Pitch,Precision);
+    }
+
     [Fact]
     public void Pan_TranslatesFocusAndEyeBySameDelta_ViewDirectionUnchanged(){
         SceneViewState State=new(){ FocusPosition=new Vector3(1f,2f,3f),FocusDistance=4f,Yaw=0.3f,Pitch=0.2f };
@@ -257,12 +280,76 @@ public sealed class SceneViewStateTests {
     public void SaveToSettings_ThenCreateFromSettings_RoundTrips()=>
         ThreadHelper.JoinableTaskFactory.Run(async()=>{
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-            SceneViewState Original=new(){ ActiveTool=SceneActiveTool.Rotate,InvertLookY=true };
+            SceneViewState Original=new(){
+                ActiveTool=SceneActiveTool.Rotate,InvertLookY=true,InvertOrbitX=true,InvertOrbitY=true,
+            };
 
             Original.SaveToSettings();
             SceneViewState Restored=SceneViewState.CreateFromSettings();
 
             Assert.Equal(SceneActiveTool.Rotate,Restored.ActiveTool);
             Assert.True(Restored.InvertLookY);
+            Assert.True(Restored.InvertOrbitX);
+            Assert.True(Restored.InvertOrbitY);
         });
+
+    // ----- M0020追加: RMB Look / Alt+LMB Orbit のピクセル完全一致ドラッグ -----
+
+    [Fact]
+    public void ApplyLookPixelLock_SetsYawPitchToSolvedValue(){
+        // 画面中央(ローカルaxes=(0,0,1))を注視方向Dwへ厳密に合わせる、最も単純な形。
+        Vector3 AnchorWorldDirection=SceneViewCamera.GetForward(Yaw:0.5f,Pitch:0.2f);
+        SceneViewState State=new(){ Yaw=0f,Pitch=0f };
+
+        State.ApplyLookPixelLock(AnchorWorldDirection,CurrentLocalAxes:new Vector3(0f,0f,1f));
+
+        Assert.Equal(0.5f,State.Yaw,Precision);
+        Assert.Equal(0.2f,State.Pitch,Precision);
+    }
+
+    [Fact]
+    public void ApplyOrbitPixelLock_MovesTowardTarget_WithoutTouchingFocusPosition(){
+        SceneViewState State=new(){
+            FocusPosition=new Vector3(1f,2f,3f),FocusDistance=10f,Yaw=0.2f,Pitch=0.1f,
+        };
+        Vector3 FocusBefore=State.FocusPosition;
+        Vector3 AnchorWorldPoint=State.FocusPosition+new Vector3(3f,1.5f,0f);
+
+        // シードそのままの位置(=アンカーが既に映っている画面座標)を目標にする — Orbitの
+        // 不変条件(FocusPositionは変更しない)だけを確認したいので、解自体が難しいケースを
+        // 選ぶ必要はない。
+        Matrix4x4 SeedView=State.GetView();
+        Matrix4x4 Projection=State.GetProjection(AspectRatio:800f/600f);
+        Vector4 Clip=Vector4.Transform(new Vector4(AnchorWorldPoint,1f),SeedView*Projection);
+        float TargetScreenX=(Clip.X/Clip.W+1f)*0.5f*800f;
+        float TargetScreenY=(1f-Clip.Y/Clip.W)*0.5f*600f;
+
+        State.ApplyOrbitPixelLock(AnchorWorldPoint,TargetScreenX,TargetScreenY,800f,600f,AspectRatio:800f/600f);
+
+        Assert.Equal(FocusBefore,State.FocusPosition);
+        Assert.Equal(0.2f,State.Yaw,Precision);
+        Assert.Equal(0.1f,State.Pitch,Precision);
+    }
+
+    /// <summary>
+    /// ピクセル完全一致中は回転が既にムーブイベントごとに確定済みなので、
+    /// <see cref="SceneViewState.TickFlyMovementOnly"/>はWASDQEの移動だけを適用する。
+    /// 同じYaw/Pitch/HeldKeysであれば<see cref="SceneViewState.TickFly"/>の移動結果(DeltaX/DeltaY=0で
+    /// 呼んだ場合、つまり回転を伴わない場合)と一致するはずで、抽出リファクタが挙動を変えていないことを
+    /// 固定する。
+    /// </summary>
+    [Fact]
+    public void TickFlyMovementOnly_MovesEyeIdenticallyToTickFlyWasdqe_GivenSameYawPitch(){
+        SceneViewState ViaTickFly=new(){ FocusPosition=Vector3.Zero,FocusDistance=1f,Yaw=0.3f,Pitch=0.2f };
+        ViaTickFly.TickFly([NavigationKey.W,NavigationKey.D],DeltaX:0f,DeltaY:0f,DeltaTime:1f,Shift:false,Ctrl:false);
+
+        SceneViewState ViaMovementOnly=new(){ FocusPosition=Vector3.Zero,FocusDistance=1f,Yaw=0.3f,Pitch=0.2f };
+        ViaMovementOnly.TickFlyMovementOnly([NavigationKey.W,NavigationKey.D],DeltaTime:1f,Shift:false,Ctrl:false);
+
+        Assert.Equal(ViaTickFly.FocusPosition.X,ViaMovementOnly.FocusPosition.X,Precision);
+        Assert.Equal(ViaTickFly.FocusPosition.Y,ViaMovementOnly.FocusPosition.Y,Precision);
+        Assert.Equal(ViaTickFly.FocusPosition.Z,ViaMovementOnly.FocusPosition.Z,Precision);
+        Assert.Equal(ViaTickFly.Yaw,ViaMovementOnly.Yaw,Precision);
+        Assert.Equal(ViaTickFly.Pitch,ViaMovementOnly.Pitch,Precision);
+    }
 }

@@ -6,7 +6,7 @@ using Microsoft.VisualStudio.Shell;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Scene View のナビゲーション設定7項目(仕様§3の5項目+InvertLookX/Y、
+/// Scene View のナビゲーション設定9項目(仕様§3の5項目+InvertLookX/Y+InvertOrbitX/Y、
 /// Docs/Specifications/Scene-Editor-Design.md §10)をVSのユーザー設定ストアへ永続化する。
 ///
 /// <para>
@@ -29,6 +29,13 @@ internal static class SceneEditorSettings {
     // これらは Tools>Options ページ(SceneEditorOptionsPage)の初期値/「既定へ戻す」の基準でもある。
     internal const bool DefaultInvertLookX=false;
     internal const bool DefaultInvertLookY=false;
+
+    // Orbit(Alt+LMBドラッグ)にはこれまで反転設定が存在せず、SceneViewState.ApplyOrbitが
+    // false,falseを固定で渡していた。Look/Orbitで別々に反転できるよう独立した設定にする
+    // (Phase 1実機検証でOrbitの向きは正しいと確認済みだったのに対し、Lookは上下が逆だった
+    // という経緯があり、両者の「自然な向き」の感覚は必ずしも一致しないため)。
+    internal const bool DefaultInvertOrbitX=false;
+    internal const bool DefaultInvertOrbitY=false;
 
     // 残り5項目の既定値も、オプション画面が基準として参照できるよう名前付き定数へ引き上げる
     // (以前は各Readのインラインリテラルだった)。
@@ -62,24 +69,17 @@ internal static class SceneEditorSettings {
     internal static void ConfigureStoreProvider(Func<WritableSettingsStore?>?Provider)=>StoreProvider=Provider;
 
     /// <summary>
-    /// 一時診断用: 設定ストアが実際に取得できるか。Providerはパッケージ初期化時に登録されるため、
-    /// これがfalseなら書き込みは黙って無視されている(<see cref="WriteBoolean"/>参照)。
-    /// 原因確認後に<see cref="SceneEditorOptionsPage"/>の診断ログごと削除する。
+    /// オプション画面が公開する5項目をまとめて書き、最後に<see cref="SettingsChanged"/>を
+    /// **1回だけ**発火する(項目ごとに発火して生きたビューを何度も叩かないため)。
     /// </summary>
-    internal static bool IsStoreAvailable=>StoreProvider?.Invoke() is not null;
-
-    /// <summary>一時診断用: 生きたScene Viewが購読しているか(0なら即時反映先が無い)。</summary>
-    internal static int SettingsChangedSubscriberCount=>SettingsChanged?.GetInvocationList().Length??0;
-
-    /// <summary>
-    /// オプション画面が公開する3項目をまとめて書き、最後に<see cref="SettingsChanged"/>を
-    /// **1回だけ**発火する(項目ごとに発火して生きたビューを3回叩かないため)。
-    /// </summary>
-    internal static void WriteNavigationSettings(float NavigationSpeedMultiplier,bool InvertLookX,bool InvertLookY){
+    internal static void WriteNavigationSettings(
+        float NavigationSpeedMultiplier,bool InvertLookX,bool InvertLookY,bool InvertOrbitX,bool InvertOrbitY){
         ThreadHelper.ThrowIfNotOnUIThread();
         WriteFloat("NavigationSpeedMultiplier",NavigationSpeedMultiplier);
         WriteBoolean("InvertLookX",InvertLookX);
         WriteBoolean("InvertLookY",InvertLookY);
+        WriteBoolean("InvertOrbitX",InvertOrbitX);
+        WriteBoolean("InvertOrbitY",InvertOrbitY);
         SettingsChanged?.Invoke();
     }
 
@@ -151,6 +151,26 @@ internal static class SceneEditorSettings {
     internal static void WriteInvertLookY(bool Value){
         ThreadHelper.ThrowIfNotOnUIThread();
         WriteBoolean("InvertLookY",Value);
+    }
+
+    internal static bool ReadInvertOrbitX(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        return ReadBoolean("InvertOrbitX",DefaultInvertOrbitX);
+    }
+
+    internal static void WriteInvertOrbitX(bool Value){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        WriteBoolean("InvertOrbitX",Value);
+    }
+
+    internal static bool ReadInvertOrbitY(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        return ReadBoolean("InvertOrbitY",DefaultInvertOrbitY);
+    }
+
+    internal static void WriteInvertOrbitY(bool Value){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        WriteBoolean("InvertOrbitY",Value);
     }
 
     private static T ReadEnum<T>(string Name,T Default)where T:struct,Enum{

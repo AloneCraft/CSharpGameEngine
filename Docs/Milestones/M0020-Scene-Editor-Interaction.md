@@ -333,11 +333,22 @@ Phase 3以降の検証結果は、各Phase完了時に本節へ追記する。
   実機確認後に反転しない側へ確定」参照)。
 - **(2026-08 解消)** 上記のオプション画面(「Phase 3以降でオプションUIを作る際の実装対象として
   残す」としていたもの)を実装した。Tools>Options > C# Game Engine > Scene Editor に
-  `InvertLookX`/`InvertLookY`/`NavigationSpeedMultiplier`の3項目を公開する
-  (`SceneEditorOptionsPage`、このVSIX初の`DialogPage`系ページ)。残る4項目を公開しない理由と、
-  「Scene Viewを開いたまま変更すると破棄時に上書き消滅する」問題への対処は
+  `InvertLookX`/`InvertLookY`/`InvertOrbitX`/`InvertOrbitY`/`NavigationSpeedMultiplier`の
+  5項目を公開する(`SceneEditorOptionsPage`、このVSIX初の`DialogPage`系ページ)。残る4項目を
+  公開しない理由と、「Scene Viewを開いたまま変更すると破棄時に上書き消滅する」問題への対処は
   Conformance.mdの同追記を参照。`NavigationPreset`はプリセット値の充填(このマイルストーンの
-  スコープ外)が済んでから公開する。
+  スコープ外)が済んでから公開する。実機確認でコントロール寿命バグ(チェックしても保存されない
+  経路)が見つかり修正済み(詳細はConformance.md「追記(2026-08): オプション画面のコントロール
+  寿命バグ修正、Orbit反転設定、ピクセル完全一致ドラッグ」参照)。
+- **(2026-08 追加)** Orbit(Alt+LMB)の反転設定(`InvertOrbitX`/`InvertOrbitY`)を追加した。
+  これまで`ApplyOrbit`は反転設定を持たずfalse,false固定だった。Look/Orbitで独立して反転できる
+  (前段の追記に同じ)。
+- **(2026-08 追加)** RMB Look / Alt+LMB Orbit の「クリックした点(方向)がドラッグ中カーソル先端に
+  完全一致し続ける」ピクセル完全一致ドラッグを追加した。Lookは厳密な閉形式、Orbitはカメラ位置
+  自体が動くため閉形式が存在せず減衰付きNewton法(Levenberg–Marquardt)によるベストエフォート解
+  (解の枝が折り返す区間では一時的に完全一致を維持できない、ユーザー承認済みの構造的な制約)。
+  反転設定がONの間は従来のdelta*sensitivity経路のまま(反転しながらの完全一致は定義上不可能)。
+  詳細はConformance.mdの同追記を参照。
 - **(2026-08 追加)** ソリューションエクスプローラーの単一項目右クリックにも「シーン デザイナーで
   開く」を追加した(従来はコードエディタの右クリックのみ)。`SceneWorkspaceService`にアクティブ
   文書とは独立した第2解析スロットを追加し、コードエディタと同じくシーン名を列挙する体験にした
