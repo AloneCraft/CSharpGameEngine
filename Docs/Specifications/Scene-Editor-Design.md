@@ -330,10 +330,12 @@ Undo/Redo(仕様§17): 追加実装なし。1コミット=1テキストUndo単�
 | `global::CSharpGameEngine.Runtime.Windows.Camera` | (Phase 6 で追加) | FrustumGizmo対象 |
 
 合成式はランタイムの`TransformMath.ToWorld`(`TransformWorldResolverTests`が固定している規約)と
-**同一だが、型は参照しない** — net472からnet10.0の型は参照できないため、式1つだけを写している
-(`GizmoMeshFactory`と同じ複製方針、ADR-0041 代替案節)。Phase 3 の`SetTransform`が
-`TryCalculateLocal`を要求した時点で共有方式を再検討する。`SceneNode.Children`は構文木由来の
-ツリーなのでサイクルガードは不要(深さは解析器が`MaxRecursionDepth`で打ち切る)。
+**同一だが、型は参照しない** — net472からnet10.0の型は参照できない。Phase 3で再検討した結果、
+VSIX内の純粋層`SceneTransformMath`へ同じrow-vector式(`local * parentWorld`、
+`world * inverse(parentWorld)`、TRS分解)を実装し、読み取り・preview・source write-backで共有する
+([[ADR-0042-Scene-Editor-Gizmo-Axis-Handedness]])。ランタイムComponent型の共有コンパイルは行わない。
+`SceneNode.Children`は構文木由来のツリーなのでサイクルガードは不要
+(深さは解析器が`MaxRecursionDepth`で打ち切る)。
 
 enumメンバー名は`Transform`ではなく`LocalTransform`にしてある(`Transform` struct型名との混同を避け、
 「これはローカル、worldは合成結果」という区別を型名で表す)。**退役した`global::UserEcsProject.Transform`は

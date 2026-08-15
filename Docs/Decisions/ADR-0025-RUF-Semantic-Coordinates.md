@@ -184,3 +184,14 @@ RUF意味座標系の設計・型・変換規則・Golden Values はすべて無
 **失われたのは「コンパイル時に1つだけリンクする」機構だけ**である。Convention型そのものは
 `CSharpGameEngine.Core`内に名前空間ごと残っているため、実行時に選択して使うことは引き続きできる。
 本ADRの検証結果に転記済みの実測値も証跡として残っている。
+
+## ADR-0042による適用範囲の明確化(Camera行列とギズモ軸)
+
+[[ADR-0042-Scene-Editor-Gizmo-Axis-Handedness]]の実測により、`UnityCoordinateConvention.Handedness`
+の`LeftHanded`は`Spatial<TConvention>.RightFromUpForward`の符号選択へ実際に使われるRUF意味契約であり、
+ゲーム本体/Scene DesignerのCamera行列を選ぶ設定ではないことを明確化した。Cameraは両者とも既存の
+`Matrix4x4.CreateLookAt`/`CreatePerspectiveFieldOfView`規約を維持し、既定視点ではワールド`+X`が
+画面左へ投影される。Moveギズモも軸を画面方向へ再マップせず、この実際のワールド軸を表示する。
+
+本追記は本ADRのRUF Golden Valuesや`LeftHanded`宣言をSupersedeしない。両契約を統合する場合は、
+Camera/Importer/既存Scene資産への波及を扱う別ADRを必須とする。

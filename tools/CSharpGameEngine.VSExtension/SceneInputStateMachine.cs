@@ -4,9 +4,9 @@ using CSharpGameEngine.SceneAnalysis;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// ナビゲーション状態。<c>GizmoDragging</c>はPhase 3で追加、今回(Phase 2)は実装しない。
+/// ナビゲーションと編集操作の排他的状態。<c>GizmoDragging</c>はM0020 Phase 3で追加。
 /// </summary>
-internal enum SceneNavState { Idle, Flying, Panning, Orbiting, PendingSelect }
+internal enum SceneNavState { Idle, Flying, Panning, Orbiting, PendingSelect, GizmoDragging }
 
 internal enum SceneCaptureAction { None, Begin, End }
 
@@ -18,7 +18,9 @@ internal enum SceneCaptureAction { None, Begin, End }
 internal readonly struct SceneInputStepResult {
     internal SceneInputStepResult(
         SceneNavState State,SceneCaptureAction Capture,float DeltaX,float DeltaY,
-        bool SelectionConfirmed=false,NodePath?ConfirmedNodePath=null,bool ConfirmedCtrl=false){
+        bool SelectionConfirmed=false,NodePath?ConfirmedNodePath=null,bool ConfirmedCtrl=false,
+        bool GizmoDragBegan=false,bool GizmoCommitRequested=false,bool GizmoCanceled=false,
+        GizmoHandleId?GizmoHandle=null){
         this.State=State;
         this.Capture=Capture;
         this.DeltaX=DeltaX;
@@ -26,6 +28,10 @@ internal readonly struct SceneInputStepResult {
         this.SelectionConfirmed=SelectionConfirmed;
         this.ConfirmedNodePath=ConfirmedNodePath;
         this.ConfirmedCtrl=ConfirmedCtrl;
+        this.GizmoDragBegan=GizmoDragBegan;
+        this.GizmoCommitRequested=GizmoCommitRequested;
+        this.GizmoCanceled=GizmoCanceled;
+        this.GizmoHandle=GizmoHandle;
     }
 
     internal SceneNavState State { get; }
@@ -43,6 +49,14 @@ internal readonly struct SceneInputStepResult {
 
     /// <summary>Down時のCtrl押下状態(複数選択トグル)。</summary>
     internal bool ConfirmedCtrl { get; }
+
+    internal bool GizmoDragBegan { get; }
+
+    internal bool GizmoCommitRequested { get; }
+
+    internal bool GizmoCanceled { get; }
+
+    internal GizmoHandleId?GizmoHandle { get; }
 }
 
 /// <summary>
@@ -67,6 +81,7 @@ internal sealed class SceneInputStateMachine {
     private readonly HashSet<NavigationKey>HeldKeys=[];
     private NodePath?PendingSelectNodePath;
     private bool PendingSelectCtrl;
+    private GizmoHandleId?ActiveGizmoHandle;
 
     internal SceneNavState State { get;private set;}=SceneNavState.Idle;
 
@@ -78,12 +93,14 @@ internal sealed class SceneInputStateMachine {
     /// 結果だけを渡す(状態機械はScenePicker/SceneRenderObjectを一切知らない、既存の純粋性方針
     /// を維持するため)。LMB Down以外のイベントでは無視される。
     /// </summary>
-    internal SceneInputStepResult Handle(PointerEvent Event,NodePath?HitNodePath=null){
+    internal SceneInputStepResult Handle(
+        PointerEvent Event,NodePath?HitNodePath=null,GizmoHandleId?HitGizmoHandle=null){
         switch(State){
             case SceneNavState.Idle:
                 if(IsButtonDown(Event,PointerButton.Right)){ return Begin(SceneNavState.Flying,Event);}
                 if(IsButtonDown(Event,PointerButton.Middle)){ return Begin(SceneNavState.Panning,Event);}
                 if(IsButtonDown(Event,PointerButton.Left)&&Event.Modifiers.Alt){ return Begin(SceneNavState.Orbiting,Event);}
+                if(IsButtonDown(Event,PointerButton.Left)&&HitGizmoHandle is { }Handle){ return BeginGizmo(Event,Handle);}
                 if(IsButtonDown(Event,PointerButton.Left)){ return BeginSelect(Event,HitNodePath);}
                 return Stay();
 
@@ -114,6 +131,12 @@ internal sealed class SceneInputStateMachine {
                 if(Event.Kind==PointerEventKind.CaptureLost){ return LoseCapture();}
                 return Stay();
 
+            case SceneNavState.GizmoDragging:
+                if(IsButtonUp(Event,PointerButton.Left)){ return CommitGizmo();}
+                if(Event.Kind==PointerEventKind.CaptureLost){ return LoseGizmoCapture();}
+                if(Event.Kind==PointerEventKind.Move){ return Move(Event);}
+                return Stay();
+
             default:
                 return Stay();
         }
@@ -135,11 +158,28 @@ internal sealed class SceneInputStateMachine {
     /// <summary>WPFの<c>LostKeyboardFocus</c>から呼ぶ。状態遷移はしない(RMBは離されていない)。</summary>
     internal void HandleLostKeyboardFocus()=>HeldKeys.Clear();
 
+    internal SceneInputStepResult CancelCurrent(){
+        if(State==SceneNavState.Idle){
+            return Stay();
+        }
+
+        bool WasGizmo=State==SceneNavState.GizmoDragging;
+        GizmoHandleId?Handle=ActiveGizmoHandle;
+        State=SceneNavState.Idle;
+        HeldKeys.Clear();
+        PendingSelectNodePath=null;
+        PendingSelectCtrl=false;
+        ActiveGizmoHandle=null;
+        return new(State,SceneCaptureAction.End,0f,0f,
+            GizmoCanceled:WasGizmo,GizmoHandle:Handle);
+    }
+
     /// <summary><c>SceneHwndHost.DestroyWindowCore</c>から呼ぶ。</summary>
     internal void Reset(){
         HeldKeys.Clear();
         PendingSelectNodePath=null;
         PendingSelectCtrl=false;
+        ActiveGizmoHandle=null;
         State=SceneNavState.Idle;
     }
 
@@ -175,6 +215,28 @@ internal sealed class SceneInputStateMachine {
         PendingSelectNodePath=HitNodePath;
         PendingSelectCtrl=Event.Modifiers.Ctrl;
         return new(State,SceneCaptureAction.Begin,0f,0f);
+    }
+
+    private SceneInputStepResult BeginGizmo(PointerEvent Event,GizmoHandleId Handle){
+        State=SceneNavState.GizmoDragging;
+        LastX=Event.X;
+        LastY=Event.Y;
+        ActiveGizmoHandle=Handle;
+        return new(State,SceneCaptureAction.Begin,0f,0f,GizmoDragBegan:true,GizmoHandle:Handle);
+    }
+
+    private SceneInputStepResult CommitGizmo(){
+        GizmoHandleId?Handle=ActiveGizmoHandle;
+        ActiveGizmoHandle=null;
+        State=SceneNavState.Idle;
+        return new(State,SceneCaptureAction.End,0f,0f,GizmoCommitRequested:true,GizmoHandle:Handle);
+    }
+
+    private SceneInputStepResult LoseGizmoCapture(){
+        GizmoHandleId?Handle=ActiveGizmoHandle;
+        ActiveGizmoHandle=null;
+        State=SceneNavState.Idle;
+        return new(State,SceneCaptureAction.None,0f,0f,GizmoCanceled:true,GizmoHandle:Handle);
     }
 
     private SceneInputStepResult ConfirmSelect(){

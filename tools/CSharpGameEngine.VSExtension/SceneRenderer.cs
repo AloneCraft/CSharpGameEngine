@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using CSharpGameEngine.SceneAnalysis;
@@ -58,12 +59,22 @@ internal sealed class SceneRenderer:IDisposable {
     private readonly ID3D12GraphicsCommandList CommandList;
     private readonly ID3D12RootSignature RootSignature;
     private readonly ID3D12PipelineState PipelineState;
+    private readonly ID3D12PipelineState OverlayTrianglePipelineState;
+    private readonly ID3D12PipelineState OverlayLinePipelineState;
     private readonly ID3D12Fence Fence;
     private ulong FenceValue;
     private readonly IntPtr FenceEvent;
 
     private readonly ID3D12Resource ConstantBuffer;
     private readonly int AlignedSlotSize;
+    private const int MaxOverlayVertices=4096;
+    private readonly ID3D12Resource OverlayVertexBuffer;
+    private readonly ID3D12Resource OverlayConstantBuffer;
+    private VertexBufferView OverlayTriangleVertexView;
+    private VertexBufferView OverlayLineVertexView;
+    private int OverlayTriangleVertexCount;
+    private int OverlayLineVertexCount;
+    private bool OverlayConstantsDirty;
 
     private sealed class ObjectResources {
         public required NodePath NodeId;
@@ -102,6 +113,17 @@ internal sealed class SceneRenderer:IDisposable {
         public float Selected;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct OverlayVertex {
+        public Vector3 Position;
+        public Vector4 Color;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct OverlayConstants {
+        public Matrix4x4 ViewProjection;
+    }
+
     private const string ShaderSource="""
         cbuffer TransformCB : register(b0)
         {
@@ -132,6 +154,29 @@ internal sealed class SceneRenderer:IDisposable {
             float ndotl = max(dot(n, lightDirection), 0.0);
             float3 shaded = AmbientColor + BaseColorFactor.rgb * ndotl;
             return float4(saturate(shaded + Selected * SelectionTint), 1.0);
+        }
+        """;
+
+    private const string OverlayShaderSource="""
+        cbuffer OverlayCB : register(b0)
+        {
+            row_major float4x4 ViewProjection;
+        };
+
+        struct VertexInput { float3 Position : POSITION; float4 Color : COLOR; };
+        struct VertexOutput { float4 Position : SV_Position; float4 Color : COLOR; };
+
+        VertexOutput VSMain(VertexInput input)
+        {
+            VertexOutput output;
+            output.Position = mul(float4(input.Position, 1.0), ViewProjection);
+            output.Color = input.Color;
+            return output;
+        }
+
+        float4 PSMain(VertexOutput input) : SV_Target
+        {
+            return input.Color;
         }
         """;
 
@@ -234,6 +279,46 @@ internal sealed class SceneRenderer:IDisposable {
         };
         PipelineState=Device.CreateGraphicsPipelineState(PsoDescription);
 
+        Result OverlayVsResult=Compiler.Compile(
+            OverlayShaderSource,"VSMain","SceneRendererOverlay","vs_5_0",
+            out Blob?OverlayVertexShaderBlob,out Blob?OverlayVsErrorBlob);
+        if(OverlayVsResult.Failure||OverlayVertexShaderBlob is null){
+            throw new InvalidOperationException($"Overlay vertex shader compilation failed: {OverlayVsErrorBlob?.AsString()}");
+        }
+        Result OverlayPsResult=Compiler.Compile(
+            OverlayShaderSource,"PSMain","SceneRendererOverlay","ps_5_0",
+            out Blob?OverlayPixelShaderBlob,out Blob?OverlayPsErrorBlob);
+        if(OverlayPsResult.Failure||OverlayPixelShaderBlob is null){
+            OverlayVertexShaderBlob.Dispose();
+            throw new InvalidOperationException($"Overlay pixel shader compilation failed: {OverlayPsErrorBlob?.AsString()}");
+        }
+
+        using Blob OverlayVertexShaderBlobOwned=OverlayVertexShaderBlob;
+        using Blob OverlayPixelShaderBlobOwned=OverlayPixelShaderBlob;
+        OverlayVsErrorBlob?.Dispose();
+        OverlayPsErrorBlob?.Dispose();
+        InputElementDescription[]OverlayInputElements=[
+            new InputElementDescription("POSITION",0,Format.R32G32B32_Float,0,0),
+            new InputElementDescription("COLOR",0,Format.R32G32B32A32_Float,12,0),
+        ];
+        GraphicsPipelineStateDescription OverlayPsoDescription=new(){
+            RootSignature=RootSignature,
+            VertexShader=OverlayVertexShaderBlobOwned.AsBytes(),
+            PixelShader=OverlayPixelShaderBlobOwned.AsBytes(),
+            InputLayout=new InputLayoutDescription(OverlayInputElements),
+            SampleMask=uint.MaxValue,
+            PrimitiveTopologyType=PrimitiveTopologyType.Triangle,
+            RasterizerState=RasterizerDescription.CullNone,
+            BlendState=BlendDescription.AlphaBlend,
+            DepthStencilState=DepthStencilDescription.None,
+            DepthStencilFormat=DepthBufferFormat,
+            RenderTargetFormats=[BackBufferFormat],
+            SampleDescription=new SampleDescription(1,0),
+        };
+        OverlayTrianglePipelineState=Device.CreateGraphicsPipelineState(OverlayPsoDescription);
+        OverlayPsoDescription.PrimitiveTopologyType=PrimitiveTopologyType.Line;
+        OverlayLinePipelineState=Device.CreateGraphicsPipelineState(OverlayPsoDescription);
+
         AlignedSlotSize=(Marshal.SizeOf<TransformConstants>()+255)&~255;
         ConstantBuffer=Device.CreateCommittedResource(
             HeapType.Upload,
@@ -250,6 +335,16 @@ internal sealed class SceneRenderer:IDisposable {
             },
             ResourceStates.GenericRead);
 
+        int OverlayVertexSize=Marshal.SizeOf<OverlayVertex>();
+        OverlayVertexBuffer=Device.CreateCommittedResource(
+            HeapType.Upload,
+            ResourceDescription.Buffer((ulong)(OverlayVertexSize*MaxOverlayVertices)),
+            ResourceStates.GenericRead);
+        OverlayConstantBuffer=Device.CreateCommittedResource(
+            HeapType.Upload,
+            ResourceDescription.Buffer(256),
+            ResourceStates.GenericRead);
+
         foreach(SceneRenderObject RenderObject in RenderObjects){
             Objects.Add(CreateObjectResources(RenderObject));
         }
@@ -259,6 +354,7 @@ internal sealed class SceneRenderer:IDisposable {
         FenceEvent=NativeEvent.CreateAutoResetEvent();
 
         ConstantsDirty=true;
+        OverlayConstantsDirty=true;
     }
 
     /// <summary>
@@ -274,6 +370,61 @@ internal sealed class SceneRenderer:IDisposable {
         CurrentView=View;
         CurrentProjection=Projection;
         ConstantsDirty=true;
+        OverlayConstantsDirty=true;
+    }
+
+    /// <summary>ドラッグpreviewではGPU meshを再構築せず、既存objectのworld定数だけを更新する。</summary>
+    public bool UpdateObjectTransform(NodePath NodeId,in Matrix4x4 World){
+        ObjectResources?Object=Objects.FirstOrDefault(Candidate=>Candidate.NodeId.Equals(NodeId));
+        if(Object is null){
+            return false;
+        }
+        Object.World=World;
+        ConstantsDirty=true;
+        return true;
+    }
+
+    /// <summary>ギズモoverlayを固定容量upload bufferへ置き換える。GPU resource自体は再生成しない。</summary>
+    public void SetOverlay(IReadOnlyList<GizmoOverlayPrimitive>?Primitives){
+        List<OverlayVertex>Triangles=[];
+        List<OverlayVertex>Lines=[];
+        if(Primitives is not null){
+            foreach(GizmoOverlayPrimitive Primitive in Primitives){
+                List<OverlayVertex>Target=Primitive.Kind==GizmoPrimitiveKind.Triangle?Triangles:Lines;
+                foreach(GizmoOverlayVertex Vertex in Primitive.Vertices){
+                    Target.Add(new OverlayVertex { Position=Vertex.Position,Color=Vertex.Color });
+                }
+            }
+        }
+
+        int TotalCount=Triangles.Count+Lines.Count;
+        if(TotalCount>MaxOverlayVertices){
+            throw new ArgumentOutOfRangeException(nameof(Primitives),$"overlay頂点数{TotalCount}が上限{MaxOverlayVertices}を超えています。");
+        }
+
+        int VertexSize=Marshal.SizeOf<OverlayVertex>();
+        if(TotalCount>0){
+            Span<byte>Mapped=OverlayVertexBuffer.Map<byte>(0,VertexSize*TotalCount);
+            var Offset=0;
+            foreach(OverlayVertex Vertex in Triangles){
+                OverlayVertex Value=Vertex;
+                MemoryMarshal.Write(Mapped.Slice(Offset,VertexSize),ref Value);
+                Offset+=VertexSize;
+            }
+            foreach(OverlayVertex Vertex in Lines){
+                OverlayVertex Value=Vertex;
+                MemoryMarshal.Write(Mapped.Slice(Offset,VertexSize),ref Value);
+                Offset+=VertexSize;
+            }
+            OverlayVertexBuffer.Unmap(0,null);
+        }
+
+        OverlayTriangleVertexCount=Triangles.Count;
+        OverlayLineVertexCount=Lines.Count;
+        OverlayTriangleVertexView=new VertexBufferView(
+            OverlayVertexBuffer.GPUVirtualAddress,Triangles.Count*VertexSize,VertexSize);
+        OverlayLineVertexView=new VertexBufferView(
+            OverlayVertexBuffer.GPUVirtualAddress+(ulong)(Triangles.Count*VertexSize),Lines.Count*VertexSize,VertexSize);
     }
 
     private ObjectResources CreateObjectResources(SceneRenderObject RenderObject){
@@ -365,6 +516,13 @@ internal sealed class SceneRenderer:IDisposable {
         ConstantBuffer.Unmap(0,null);
     }
 
+    private void UpdateOverlayConstantBuffer(){
+        OverlayConstants Constants=new(){ ViewProjection=CurrentView*CurrentProjection };
+        Span<byte>Mapped=OverlayConstantBuffer.Map<byte>(0,Marshal.SizeOf<OverlayConstants>());
+        MemoryMarshal.Write(Mapped,ref Constants);
+        OverlayConstantBuffer.Unmap(0,null);
+    }
+
     /// <summary>
     /// ヒエラルキー/ビューポートの選択が変わったときに呼ばれる(<see cref="SceneHwndHost.SetSelection"/>経由)。
     /// <paramref name="NodeId"/>が primary、<paramref name="NodeIds"/>が複数選択の全体
@@ -407,6 +565,10 @@ internal sealed class SceneRenderer:IDisposable {
             UpdateAllConstantBuffers();
             ConstantsDirty=false;
         }
+        if(OverlayConstantsDirty){
+            UpdateOverlayConstantBuffer();
+            OverlayConstantsDirty=false;
+        }
 
         CommandAllocator.Reset();
         CommandList.Reset(CommandAllocator,PipelineState);
@@ -434,6 +596,21 @@ internal sealed class SceneRenderer:IDisposable {
             CommandList.DrawIndexedInstanced(Obj.IndexCount,1,0,0,0);
         }
 
+        if(OverlayTriangleVertexCount>0){
+            CommandList.SetPipelineState(OverlayTrianglePipelineState);
+            CommandList.SetGraphicsRootConstantBufferView(0,OverlayConstantBuffer.GPUVirtualAddress);
+            CommandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
+            CommandList.IASetVertexBuffers(0,OverlayTriangleVertexView);
+            CommandList.DrawInstanced(OverlayTriangleVertexCount,1,0,0);
+        }
+        if(OverlayLineVertexCount>0){
+            CommandList.SetPipelineState(OverlayLinePipelineState);
+            CommandList.SetGraphicsRootConstantBufferView(0,OverlayConstantBuffer.GPUVirtualAddress);
+            CommandList.IASetPrimitiveTopology(PrimitiveTopology.LineList);
+            CommandList.IASetVertexBuffers(0,OverlayLineVertexView);
+            CommandList.DrawInstanced(OverlayLineVertexCount,1,0,0);
+        }
+
         CommandList.ResourceBarrierTransition(RenderTargets[FrameIndex],ResourceStates.RenderTarget,ResourceStates.Present);
         CommandList.Close();
 
@@ -456,11 +633,15 @@ internal sealed class SceneRenderer:IDisposable {
         WaitForGpuIdle();
 
         ConstantBuffer.Dispose();
+        OverlayConstantBuffer.Dispose();
+        OverlayVertexBuffer.Dispose();
         foreach(ObjectResources Obj in Objects){
             Obj.IndexBuffer.Dispose();
             Obj.VertexBuffer.Dispose();
         }
         PipelineState.Dispose();
+        OverlayLinePipelineState.Dispose();
+        OverlayTrianglePipelineState.Dispose();
         RootSignature.Dispose();
         CommandList.Dispose();
         CommandAllocator.Dispose();

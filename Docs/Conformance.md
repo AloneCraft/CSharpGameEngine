@@ -1355,3 +1355,45 @@ Expハイブのキャッシュより新しくすること」を機序として**
   (`SceneDesignerContextMenuPolicy`/`SceneDesignerMenuSelectionPolicy`)側をテストで固定している。
   特に「開いているシーンとキャレット位置のシーンが別なら✓と付記は別々の項目に付く」という今回の
   不具合そのものは`OpenSceneAndCaretScene_AreTrackedIndependently`で固定した。
+
+## 2026-08-16 M0020 Phase 3: Moveギズモ、編集トランザクション、live C#書き戻し
+
+- **Matches(軸/Camera規約)**: `CoordinateHandedness`の参照を全検索した結果、実装分岐は
+  `Spatial<TConvention>.RightFromUpForward`に存在する一方、ゲーム本体/Scene Designerの
+  View/Projection行列は参照していなかった。既知点の投影テストでは、両Cameraが同じ
+  `Matrix4x4.CreateLookAt`/`CreatePerspectiveFieldOfView`を使い、既定視点のワールド`+X`は
+  NDC X<0(画面左)になった。Moveギズモは実ワールド軸を反転せず表示する。
+  `UnityCoordinateConvention.Handedness=LeftHanded`はRUF意味契約として使われているため変更していない。
+  判断と将来の変更制約は[[ADR-0042-Scene-Editor-Gizmo-Axis-Handedness]]へ記録した。
+- **Matches(Moveギズモ純粋層)**: 軸3+平面3、Perspective/Orthographicのスクリーン一定スケール、
+  円柱+円錐+クアッドoverlay、通常/hover/active/disabled色、解析形状hit、軸/平面拘束を実装した。
+  入力優先順位はNavigation > Gizmo > Selectionで、WはIdle時だけMoveへ切り替わり、Esc/capture lossは
+  previewを破棄する。式を保持するPositionに対応するハンドルは淡色かつ非ヒットになる。
+- **Matches(編集トランザクション/競合)**: MouseDownで開始snapshotと選択rootの元world/parent worldを
+  捕捉し、ドラッグ中はRendererのworld定数だけを更新する。同一Sceneの再解析は最新1件を保留する。
+  MouseUpでは最新CompilationからModel/Root/SourceTextを同じ世代で取得し直し、安定Node IDへ
+  `SetTransform(Position)`を適用する。解決後にlive textが変化したときだけ1回再試行し、対象消滅、
+  C#解析エラー、2回目の競合は自動上書きせず元previewへ戻し、ツール内とVSステータスバーへ通知する。
+- **テストで検出して修正した最小差分不具合**: 当初の`SetTransform`はTRS全10メンバーを比較していた。
+  Move後の行列分解ではQuaternion正規化やScaleの表現差まで「変更」と判定しうるため、Positionだけを
+  動かしたドラッグがRotation/Scaleリテラルを巻き込む可能性があった。`SceneTransformMemberMask`を追加し、
+  Move製品経路をPosition限定にした。`SetTransform_PositionMask_DoesNotRewriteRotationOrScale`が
+  非正規化`RotationW=2f`と`ScaleX=3f`を保持することを固定する。
+- **Matches(Undo契約のコード構造)**: `SceneTextBufferWriter`はRoslynのTextChangeを後方から適用し、
+  1コミット全体を1つの`ITextUndoTransaction`で完了する。ディスクへ直接書かず、閉じていたDocumentも
+  backgroundでVisualStudioWorkspaceのlive bufferとして開く。Undo後は既存WorkspaceChanged解析が
+  Scene表示を復元する。
+- **Unknown(実機Observed)**: `SceneHwndHost`/D3D12 overlay/RDT/managed `ITextBuffer`/VS Undoは
+  実COM・HWND・GPUを要求し、既存方針どおりモック化していない。Experimental Instanceでのドラッグ、
+  Ctrl+Z、1 Undo単位、ステータス通知、Tab/Backspace/Delete非回帰は**未実施 — ユーザー側で実施**。
+  手順は[[M0020-Scene-Editor-Interaction]] Phase 3の10項目表に記録した。
+- **Known deviation(後続Phaseへ明示的に残す)**: MouseUp後の通常解析ではPhase 6まで
+  `SceneRenderer`全再構築が残り、毎フレーム`WaitForGpuIdle`もPhase 7まで残る。これは
+  ADR-0041の段階戦略どおりで、Phase 3のpreviewだけが先行して増分定数更新を使う。
+- Evidence:
+  - 対象54件(`SceneTransformMathTests`/`TransformGizmoTests`/`EditTransactionControllerTests`/
+    `SceneSourceEditorTests`/`SceneInputStateMachineTests`/`SceneTextChangePlannerTests`)成功・失敗0。
+  - `dotnet build CSharpGameEngine.slnx -c Debug`成功、警告0/エラー0。
+  - `dotnet test CSharpGameEngine.slnx -c Debug`は全8テストプロジェクト808件成功・失敗0
+    (Entities 40 / Core 122 / Bridge.Hosting 8 / Import 30 / Windows 87 / CodeAnalysis 101 /
+    SceneModel 104 / VSExtension 316)。

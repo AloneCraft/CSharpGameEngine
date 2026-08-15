@@ -21,4 +21,16 @@ public sealed class SceneTextChangePlannerTests {
 
         Assert.Empty(SceneTextChangePlanner.Plan(Source,Source));
     }
+
+    [Fact]
+    public void ApplyGuard_ExactLiveText_AllowsAtomicWrite(){
+        Assert.True(SceneTextBufferApplyGuard.Matches(
+            SourceText.From("before"),LiveText:"before"));
+    }
+
+    [Fact]
+    public void ApplyGuard_LiveTextChangedAfterRoslynRead_RejectsWrite(){
+        Assert.False(SceneTextBufferApplyGuard.Matches(
+            SourceText.From("before"),LiveText:"externally changed"));
+    }
 }

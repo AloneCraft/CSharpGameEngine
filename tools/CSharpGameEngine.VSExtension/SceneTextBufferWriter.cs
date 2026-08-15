@@ -15,6 +15,11 @@ internal static class SceneTextChangePlanner {
             .ToArray();
 }
 
+internal static class SceneTextBufferApplyGuard {
+    internal static bool Matches(SourceText Before,string LiveText)=>
+        string.Equals(Before.ToString(),LiveText,StringComparison.Ordinal);
+}
+
 /// <summary>
 /// Designerが編集したRoslyn結果をVisual Studioのlive TextBufferへ反映し、Undo単位を成立させる。
 /// 1ユーザー操作を1つのITextUndoTransactionで括る。TextBufferへの適用はI/OやRoslyn解析を伴わない
@@ -27,6 +32,9 @@ internal sealed class SceneTextBufferWriter {
         this.UndoHistoryRegistry=UndoHistoryRegistry??throw new ArgumentNullException(nameof(UndoHistoryRegistry));
 
     internal bool TryApply(ITextBuffer Buffer,SourceText Before,SourceText After,string UndoDescription){
+        if(!SceneTextBufferApplyGuard.Matches(Before,Buffer.CurrentSnapshot.GetText())){
+            return false;
+        }
         IReadOnlyList<TextChange>Changes=SceneTextChangePlanner.Plan(Before,After);
         if(Changes.Count==0){
             return true;

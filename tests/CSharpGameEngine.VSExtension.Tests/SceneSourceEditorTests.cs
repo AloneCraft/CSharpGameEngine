@@ -7,6 +7,15 @@ namespace CSharpGameEngine.VSExtension.Tests;
 
 /// <summary>Designerからの編集がSyntaxの対象箇所だけを置換し、comment/triviaを保持することを固定する。</summary>
 public sealed class SceneSourceEditorTests {
+    private const string TransformTypes="""
+        namespace CSharpGameEngine.Runtime.Windows {
+            public struct Transform {
+                public float PositionX; public float PositionY; public float PositionZ;
+                public float RotationX; public float RotationY; public float RotationZ; public float RotationW;
+                public float ScaleX; public float ScaleY; public float ScaleZ;
+            }
+        }
+        """;
     private const string Source="""
         using CSharpGameEngine.Entities;
         using Sample;
@@ -96,6 +105,110 @@ public sealed class SceneSourceEditorTests {
             CSharpSyntaxTree.ParseText(Source).GetRoot(),
             Projection,
             new RenameNodeOperation(new SceneKey("project-b","global::Game.MainScene"),Cube,DocumentVersion:1,"Renamed"));
+
+        Assert.False(Result.Succeeded);
+        Assert.Null(Result.Root);
+    }
+
+    [Fact]
+    public void SetTransform_ReplacesOnlyChangedMembersAndPreservesComments(){
+        const string TransformSource="""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Runtime.Windows;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() { Children=[new Node {
+                    Name="Cube", // keep
+                    Components=[new Transform { PositionX=1f,PositionY=2f,RotationW=1f,ScaleX=1f,ScaleY=1f,ScaleZ=1f }],
+                }] };
+            }
+            """;
+        SceneModel Model=SceneAnalysisTestHelper.Analyze([TransformTypes,TransformSource]);
+        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        EditorNodeId Cube=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Cube").Id;
+        SceneTransformValue Value=new(new System.Numerics.Vector3(3f,2f,0f),System.Numerics.Quaternion.Identity,System.Numerics.Vector3.One);
+
+        SceneSourceEditResult Result=SceneSourceEditor.Apply(
+            CSharpSyntaxTree.ParseText(TransformSource).GetRoot(),Projection,
+            new SetTransformOperation(Key,Cube,DocumentVersion:1,Value));
+
+        Assert.True(Result.Succeeded,Result.ErrorMessage);
+        string Changed=Result.Root!.ToFullString();
+        Assert.Contains("PositionX=3f",Changed);
+        Assert.Contains("PositionY=2f",Changed);
+        Assert.Contains("// keep",Changed);
+    }
+
+    [Fact]
+    public void SetTransform_MissingMember_AppendsItToTheTransformInitializer(){
+        const string TransformSource="""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Runtime.Windows;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() { Children=[new Node {
+                    Name="Cube",Components=[new Transform { PositionX=1f }],
+                }] };
+            }
+            """;
+        SceneModel Model=SceneAnalysisTestHelper.Analyze([TransformTypes,TransformSource]);
+        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        EditorNodeId Cube=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Cube").Id;
+        SceneTransformValue Value=new(new System.Numerics.Vector3(1f,4f,0f),System.Numerics.Quaternion.Identity,System.Numerics.Vector3.One);
+
+        SceneSourceEditResult Result=SceneSourceEditor.Apply(
+            CSharpSyntaxTree.ParseText(TransformSource).GetRoot(),Projection,
+            new SetTransformOperation(Key,Cube,DocumentVersion:1,Value));
+
+        Assert.True(Result.Succeeded,Result.ErrorMessage);
+        Assert.Contains("PositionY=4f",Result.Root!.ToFullString());
+    }
+
+    [Fact]
+    public void SetTransform_PositionMask_DoesNotRewriteRotationOrScale(){
+        const string TransformSource="""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Runtime.Windows;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() { Children=[new Node {
+                    Name="Cube",Components=[new Transform {
+                        PositionX=1f,RotationW=2f,ScaleX=3f,ScaleY=3f,ScaleZ=3f,
+                    }],
+                }] };
+            }
+            """;
+        SceneModel Model=SceneAnalysisTestHelper.Analyze([TransformTypes,TransformSource]);
+        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        EditorNodeId Cube=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Cube").Id;
+        SceneTransformValue Value=new(
+            new System.Numerics.Vector3(4f,0f,0f),
+            System.Numerics.Quaternion.Identity,
+            System.Numerics.Vector3.One);
+
+        SceneSourceEditResult Result=SceneSourceEditor.Apply(
+            CSharpSyntaxTree.ParseText(TransformSource).GetRoot(),Projection,
+            new SetTransformOperation(
+                Key,Cube,DocumentVersion:1,Value,Members:SceneTransformMemberMask.Position));
+
+        Assert.True(Result.Succeeded,Result.ErrorMessage);
+        string Changed=Result.Root!.ToFullString();
+        Assert.Contains("PositionX=4f",Changed);
+        Assert.Contains("RotationW=2f",Changed);
+        Assert.Contains("ScaleX=3f",Changed);
+        Assert.DoesNotContain("RotationW=1f",Changed);
+        Assert.DoesNotContain("ScaleX=1f",Changed);
+    }
+
+    [Fact]
+    public void ApplyBatch_WhenALaterOperationFails_ReturnsNoMutatedRoot(){
+        (SceneProjection Projection,EditorNodeId Cube)=CreateProjection();
+        SceneSourceEditResult Result=SceneSourceEditor.ApplyBatch(
+            CSharpSyntaxTree.ParseText(Source).GetRoot(),Projection,
+            [
+                new RenameNodeOperation(Key,Cube,DocumentVersion:1,"Renamed"),
+                new SetComponentMemberOperation(Key,Cube,DocumentVersion:1,"global::Sample.DirectionalLight","Missing","4f"),
+            ]);
 
         Assert.False(Result.Succeeded);
         Assert.Null(Result.Root);

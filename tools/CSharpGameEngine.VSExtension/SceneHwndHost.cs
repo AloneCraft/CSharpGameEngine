@@ -53,6 +53,7 @@ internal sealed class SceneHwndHost:HwndHost {
     // クリックのたびに参照する必要があるためフィールドへ格納する(事前調査事実2)。
     private IReadOnlyList<SceneRenderObject>CurrentRenderObjects=[];
     private IReadOnlyList<NodePath>SelectedNodePaths=[];
+    private SceneSelection?CurrentSelection;
 
     // M0020 Phase 1: ナビゲーション状態機械とカメラ/永続ツール状態(ADR-0041 決定事項1)。
     private SceneViewState?ViewState;
@@ -70,6 +71,15 @@ internal sealed class SceneHwndHost:HwndHost {
     private bool OrbitUsesPixelLock;
     private Vector3 OrbitAnchorWorldPoint;
 
+    // M0020 Phase 3: Moveギズモと1操作=1編集トランザクション。
+    private readonly EditTransactionController EditTransaction=new();
+    private MoveGizmoFrame?CurrentMoveGizmo;
+    private GizmoHandleId?HoveredGizmoHandle;
+    private GizmoHandleId?ActiveGizmoHandle;
+    private MoveGizmoDrag?ActiveMoveDrag;
+    private ICollection<GizmoHandleId>DisabledMoveHandles=Array.Empty<GizmoHandleId>();
+    private IReadOnlyList<SceneTransformPreview>PreviewDescendantOriginals=[];
+
     private float AspectRatio=>SurfaceWidth/(float)SurfaceHeight;
 
     internal event Action<string>?StatusChanged;
@@ -83,6 +93,9 @@ internal sealed class SceneHwndHost:HwndHost {
     /// セッションを知らない)。
     /// </summary>
     internal event Action<NodePath?,bool>?ObjectPicked;
+
+    /// <summary>MouseUpで確定したsource編集要求。WPF/session境界がlive bufferへ1 Undoで反映する。</summary>
+    internal event Action<SceneEditCommitRequest>?EditCommitRequested;
 
     public SceneHwndHost(){
         // Surfaceは描画先でありキーボード入力を持つコントロールではない。HwndHostの既定
@@ -123,6 +136,7 @@ internal sealed class SceneHwndHost:HwndHost {
 
         BuildWorker?.Dispose();
         BuildWorker=null;
+        CancelEditTransaction();
         SceneEditorSettings.SettingsChanged-=this.OnSettingsChanged;
         DetachSubscriptions();
         DisposeRenderer();
@@ -149,6 +163,14 @@ internal sealed class SceneHwndHost:HwndHost {
     /// projection を保持するので、ここでrendererを空へ戻しません。
     /// </summary>
     internal void SetTarget(SceneDocumentSnapshot Snapshot){
+        if(EditTransaction.State!=EditTransactionState.Idle){
+            if(this.TargetKey is { }EditingKey&&EditingKey.Equals(Snapshot.Key)){
+                EditTransaction.QueueSnapshot(Snapshot);
+                return;
+            }
+            CancelEditTransaction();
+        }
+
         // コンボボックスでのシーン切替はSceneHwndHostを再生成せず(EnsureHostが既存インスタンスを
         // 返すだけ)、このSetTargetの呼び直しだけが届く。TargetKeyが変わったことをここで検知し、
         // 次のOnBuildCompletedで新シーンへ再フレーミングする(ADR-0041、事前調査事実3)。
@@ -176,6 +198,7 @@ internal sealed class SceneHwndHost:HwndHost {
             return;
         }
 
+        this.CurrentSelection=Selection;
         this.SelectedNodePath=Selection.PrimaryNodeId is { } Id
             &&Snapshot.Projection?.TryGetNode(Id,out SceneProjectionNode Node)==true
             ?Node.Path
@@ -194,6 +217,7 @@ internal sealed class SceneHwndHost:HwndHost {
 
         this.SelectedNodePaths=ResolvedPaths;
         Renderer?.SetSelectedNode(this.SelectedNodePath,ResolvedPaths);
+        UpdateMoveGizmo();
     }
 
     private void LoadIntoSurface(){
@@ -236,6 +260,7 @@ internal sealed class SceneHwndHost:HwndHost {
         }
 
         Active.SetCamera(State.GetView(),State.GetProjection(this.AspectRatio));
+        UpdateMoveGizmo();
     }
 
     /// <summary>
@@ -291,15 +316,33 @@ internal sealed class SceneHwndHost:HwndHost {
             ViewportActivated?.Invoke();
         }
 
+        if(Event.Kind==PointerEventKind.Move&&Machine.State==SceneNavState.Idle){
+            TryHitMoveGizmoAt(Event.X,Event.Y);
+        }
+
         // ヒットテストはLMB Down・Alt無し・Idle中(Orbit開始やナビゲーション中の無駄な走査を避ける)の
         // 時だけ行う(M0020 Phase 2)。状態機械自身はScenePicker/SceneRenderObjectを知らないため、
         // 結果だけを渡す。
-        NodePath?HitNodePath=Event.Kind==PointerEventKind.Down&&Event.Button==PointerButton.Left
+        GizmoHandleId?HitGizmoHandle=Event.Kind==PointerEventKind.Down&&Event.Button==PointerButton.Left
+            &&!Event.Modifiers.Alt&&Machine.State==SceneNavState.Idle
+            ?TryHitMoveGizmoAt(Event.X,Event.Y)
+            :null;
+        NodePath?HitNodePath=HitGizmoHandle is null
+            &&Event.Kind==PointerEventKind.Down&&Event.Button==PointerButton.Left
             &&!Event.Modifiers.Alt&&Machine.State==SceneNavState.Idle
             ?TryPickAt(Event.X,Event.Y)
             :null;
 
-        SceneInputStepResult Result=Machine.Handle(Event,HitNodePath);
+        SceneInputStepResult Result=Machine.Handle(Event,HitNodePath,HitGizmoHandle);
+
+        if(Result.GizmoDragBegan&&Result.GizmoHandle is { }BeganHandle
+            &&!BeginMoveGizmoDrag(BeganHandle,Event.X,Event.Y)){
+            SceneInputStepResult Canceled=Machine.CancelCurrent();
+            if(Canceled.Capture==SceneCaptureAction.End){
+                Surface?.ReleasePointerCapture();
+            }
+            return;
+        }
 
         // M0020追加: RMB/Alt+LMBでFlying/Orbitingへ入った瞬間だけアンカーを捕捉する
         // (反転設定がONならピクセル完全一致は使わず、以降は既存のdelta*sensitivity経路のまま)。
@@ -319,6 +362,19 @@ internal sealed class SceneHwndHost:HwndHost {
 
         if(Result.SelectionConfirmed){
             ObjectPicked?.Invoke(Result.ConfirmedNodePath,Result.ConfirmedCtrl);
+        }
+
+        if(Result.GizmoCanceled){
+            CancelEditTransaction();
+            return;
+        }
+        if(Result.GizmoCommitRequested){
+            CommitEditTransaction();
+            return;
+        }
+        if(Result.State==SceneNavState.GizmoDragging&&Event.Kind==PointerEventKind.Move){
+            UpdateMoveGizmoDrag(Event.X,Event.Y);
+            return;
         }
 
         if(Result.DeltaX==0f&&Result.DeltaY==0f){
@@ -395,6 +451,230 @@ internal sealed class SceneHwndHost:HwndHost {
         return ScenePicker.TryPick(CurrentRenderObjects,Origin,Direction,out NodePath Hit)?Hit:(NodePath?)null;
     }
 
+    private GizmoHandleId?TryHitMoveGizmoAt(int X,int Y){
+        if(CurrentMoveGizmo is not { }Frame||ViewState is not { }State
+            ||State.ActiveTool!=SceneActiveTool.Move){
+            return null;
+        }
+
+        (Vector3 Origin,Vector3 Direction)=SceneViewCamera.ScreenPointToRay(
+            State.GetView(),State.GetProjection(this.AspectRatio),X,Y,SurfaceWidth,SurfaceHeight);
+        GizmoHandleId?Hit=TransformGizmo.TryHitMove(Frame,Origin,Direction,DisabledMoveHandles);
+        if(Hit!=HoveredGizmoHandle){
+            HoveredGizmoHandle=Hit;
+            Renderer?.SetOverlay(TransformGizmo.BuildMoveOverlay(
+                Frame,HoveredGizmoHandle,ActiveGizmoHandle,DisabledMoveHandles));
+        }
+        return Hit;
+    }
+
+    private void UpdateMoveGizmo(){
+        if(Renderer is not { }Active||ViewState is not { }State
+            ||State.ActiveTool!=SceneActiveTool.Move||SelectedNodePath is not { }PrimaryPath
+            ||TargetSnapshot?.Projection is not { }Projection
+            ||!Projection.TryGetId(PrimaryPath,out EditorNodeId PrimaryId)
+            ||!Projection.TryGetNode(PrimaryId,out SceneProjectionNode PrimaryNode)
+            ||!SceneTransformBinding.TryRead(PrimaryNode.Node,out _)){
+            CurrentMoveGizmo=null;
+            HoveredGizmoHandle=null;
+            DisabledMoveHandles=Array.Empty<GizmoHandleId>();
+            Renderer?.SetOverlay(null);
+            return;
+        }
+        if(EditTransaction.State!=EditTransactionState.Idle&&CurrentMoveGizmo is { }Existing){
+            Active.SetOverlay(TransformGizmo.BuildMoveOverlay(
+                Existing,HoveredGizmoHandle,ActiveGizmoHandle,DisabledMoveHandles));
+            return;
+        }
+
+        SceneRenderObject?PrimaryObject=CurrentRenderObjects.FirstOrDefault(Object=>Object.NodeId.Equals(PrimaryPath));
+        if(PrimaryObject is null||!SceneTransformMath.TryDecompose(PrimaryObject.World,out SceneTransformValue WorldTransform)){
+            CurrentMoveGizmo=null;
+            Active.SetOverlay(null);
+            return;
+        }
+
+        float Scale=TransformGizmo.ComputeWorldScale(
+            State.ProjectionMode,
+            Vector3.Distance(WorldTransform.Position,State.GetEyePosition()),
+            State.FovYRadians,
+            State.OrthographicSize);
+        CurrentMoveGizmo=MoveGizmoFrame.Create(
+            WorldTransform.Position,WorldTransform.Rotation,State.TransformSpace,Scale);
+        List<SceneProjectionNode>Roots=GetSelectedMoveRoots(Projection);
+        DisabledMoveHandles=Enum.GetValues(typeof(GizmoHandleId)).Cast<GizmoHandleId>()
+            .Where(Handle=>Roots.Count==0||Roots.Any(Node=>!SceneTransformBinding.CanEditMove(Node.Node,Handle)))
+            .ToArray();
+        Active.SetOverlay(TransformGizmo.BuildMoveOverlay(
+            CurrentMoveGizmo.Value,HoveredGizmoHandle,ActiveGizmoHandle,DisabledMoveHandles));
+    }
+
+    private bool BeginMoveGizmoDrag(GizmoHandleId Handle,int X,int Y){
+        if(CurrentMoveGizmo is not { }Frame||ViewState is not { }State
+            ||TargetSnapshot is not { }Snapshot||Snapshot.Projection is not { }Projection
+            ||CurrentSelection is not { }Selection||Selection.PrimaryNodeId is not { }PrimaryId
+            ||!Projection.TryGetNode(PrimaryId,out SceneProjectionNode PrimaryNode)){
+            return false;
+        }
+
+        List<SceneProjectionNode>Roots=GetSelectedMoveRoots(Projection);
+        if(Roots.Any(Node=>!SceneTransformBinding.CanEditMove(Node.Node,Handle))){
+            return false;
+        }
+
+        List<SceneTransformTarget>Targets=[];
+        foreach(SceneProjectionNode Node in Roots){
+            SceneRenderObject?Object=CurrentRenderObjects.FirstOrDefault(Item=>Item.NodeId.Equals(Node.Path));
+            if(Object is null){
+                continue;
+            }
+            Matrix4x4 ParentWorld=Node.Path.Parent is { }ParentPath
+                ?CurrentRenderObjects.FirstOrDefault(Item=>Item.NodeId.Equals(ParentPath))?.World??Matrix4x4.Identity
+                :Matrix4x4.Identity;
+            Targets.Add(new SceneTransformTarget(Node.Id,Node.Path,Object.World,ParentWorld));
+        }
+        if(Targets.Count==0){
+            return false;
+        }
+
+        (Vector3 Origin,Vector3 Direction)=SceneViewCamera.ScreenPointToRay(
+            State.GetView(),State.GetProjection(this.AspectRatio),X,Y,SurfaceWidth,SurfaceHeight);
+        if(!MoveGizmoDrag.TryBegin(
+            Frame,Handle,Origin,Direction,SceneViewCamera.GetForward(State.Yaw,State.Pitch),out MoveGizmoDrag?Drag)){
+            return false;
+        }
+
+        EditTransaction.Begin(Snapshot,Targets);
+        PreviewDescendantOriginals=CurrentRenderObjects
+            .Where(Object=>Targets.Any(Target=>Object.NodeId.IsDescendantOf(Target.NodePath)))
+            .Select(Object=>new SceneTransformPreview(default,Object.NodeId,Object.World))
+            .ToArray();
+        ActiveMoveDrag=Drag;
+        ActiveGizmoHandle=Handle;
+        HoveredGizmoHandle=Handle;
+        Renderer?.SetOverlay(TransformGizmo.BuildMoveOverlay(Frame,Handle,Handle,DisabledMoveHandles));
+        SetStatus($"移動中: {PrimaryNode.Node.DisplayName}");
+        return true;
+    }
+
+    private void UpdateMoveGizmoDrag(int X,int Y){
+        if(ActiveMoveDrag is not { }Drag||ViewState is not { }State){
+            return;
+        }
+        (Vector3 Origin,Vector3 Direction)=SceneViewCamera.ScreenPointToRay(
+            State.GetView(),State.GetProjection(this.AspectRatio),X,Y,SurfaceWidth,SurfaceHeight);
+        if(!Drag.TryUpdate(Origin,Direction,out Vector3 Delta)){
+            return;
+        }
+
+        IReadOnlyList<SceneTransformPreview>Previews=EditTransaction.PreviewTranslation(Delta);
+        Matrix4x4 Translation=Matrix4x4.CreateTranslation(Delta);
+        foreach(SceneTransformPreview Preview in Previews){
+            Renderer?.UpdateObjectTransform(Preview.NodePath,Preview.World);
+        }
+        foreach(SceneTransformPreview Descendant in PreviewDescendantOriginals){
+            Renderer?.UpdateObjectTransform(Descendant.NodePath,Descendant.World*Translation);
+        }
+        SceneTransformPreview?Primary=null;
+        foreach(SceneTransformPreview Preview in Previews){
+            if(SelectedNodePath is { }Path&&Preview.NodePath.Equals(Path)){
+                Primary=Preview;
+                break;
+            }
+        }
+        if(Primary is { }PrimaryPreview
+            &&SceneTransformMath.TryDecompose(PrimaryPreview.World,out SceneTransformValue WorldTransform)
+            &&CurrentMoveGizmo is { }Frame){
+            CurrentMoveGizmo=MoveGizmoFrame.Create(
+                WorldTransform.Position,WorldTransform.Rotation,State.TransformSpace,Frame.WorldScale);
+        }
+        if(CurrentMoveGizmo is { }Updated){
+            Renderer?.SetOverlay(TransformGizmo.BuildMoveOverlay(
+                Updated,ActiveGizmoHandle,ActiveGizmoHandle,DisabledMoveHandles));
+        }
+    }
+
+    private List<SceneProjectionNode>GetSelectedMoveRoots(SceneProjection Projection){
+        if(CurrentSelection is not { }Selection){
+            return [];
+        }
+
+        List<SceneProjectionNode>Ordered=Selection.NodeIds
+            .Select(Id=>Projection.TryGetNode(Id,out SceneProjectionNode Node)?Node:null)
+            .Where(static Node=>Node is not null)
+            .Cast<SceneProjectionNode>()
+            .OrderBy(static Node=>Node.Path.Depth)
+            .ToList();
+        List<SceneProjectionNode>Roots=[];
+        foreach(SceneProjectionNode Node in Ordered){
+            if(!Roots.Any(Root=>Node.Path.IsDescendantOf(Root.Path))){
+                Roots.Add(Node);
+            }
+        }
+        return Roots;
+    }
+
+    private void CommitEditTransaction(){
+        ActiveMoveDrag=null;
+        ActiveGizmoHandle=null;
+        if(!EditTransaction.TryCreateCommit("Move Scene Selection",out SceneEditCommitRequest?Request)
+            ||Request is null||EditCommitRequested is null){
+            CancelEditTransaction();
+            SetStatus("移動を確定できなかったため変更を破棄しました。");
+            return;
+        }
+
+        EditCommitRequested.Invoke(Request);
+        SetStatus("C#ソースへ移動を反映しています...");
+    }
+
+    private void CancelEditTransaction(){
+        if(EditTransaction.State==EditTransactionState.Idle){
+            return;
+        }
+        SceneEditCancellation Cancellation=EditTransaction.Cancel();
+        foreach(SceneTransformPreview Original in Cancellation.RestoredTransforms){
+            Renderer?.UpdateObjectTransform(Original.NodePath,Original.World);
+        }
+        foreach(SceneTransformPreview Descendant in PreviewDescendantOriginals){
+            Renderer?.UpdateObjectTransform(Descendant.NodePath,Descendant.World);
+        }
+        PreviewDescendantOriginals=[];
+        ActiveMoveDrag=null;
+        ActiveGizmoHandle=null;
+        HoveredGizmoHandle=null;
+        CurrentMoveGizmo=null;
+        if(Cancellation.PendingSnapshot is { }Pending){
+            SetTarget(Pending);
+        } else {
+            UpdateMoveGizmo();
+        }
+    }
+
+    internal void CompleteEditCommit(bool Succeeded,string?ErrorMessage){
+        if(EditTransaction.State!=EditTransactionState.Committing){
+            return;
+        }
+        if(!Succeeded){
+            CancelEditTransaction();
+            SetStatus(ErrorMessage??"C#ソースへの反映に失敗しました。");
+            return;
+        }
+
+        SceneDocumentSnapshot?Pending=EditTransaction.Complete();
+        PreviewDescendantOriginals=[];
+        ActiveMoveDrag=null;
+        ActiveGizmoHandle=null;
+        HoveredGizmoHandle=null;
+        CurrentMoveGizmo=null;
+        if(Pending is not null){
+            SetTarget(Pending);
+        } else {
+            UpdateMoveGizmo();
+        }
+        SetStatus("移動をC#ソースへ反映しました。Ctrl+Zで元に戻せます。");
+    }
+
     /// <summary>
     /// <see cref="RenderSurfaceWindow.WheelInput"/>の購読先。設計時はWPFの<c>PreviewMouseWheel</c>で
     /// 受ける計画だったが、実機検証で発火しないことが判明したため、他のマウス入力と同じく
@@ -422,12 +702,38 @@ internal sealed class SceneHwndHost:HwndHost {
     }
 
     /// <summary>WPFの<c>KeyDown</c>から呼ぶ。Fly中(RMB押下中)以外は<see cref="SceneInputStateMachine"/>が無視する。</summary>
-    internal void HandleKeyDown(NavigationKey Key)=>InputMachine?.HandleKeyDown(Key);
+    internal void HandleKeyDown(NavigationKey Key){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(InputMachine is { State:SceneNavState.Idle }&&ViewState is { }State&&Key==NavigationKey.W){
+            State.ActiveTool=SceneActiveTool.Move;
+            State.SaveToSettings();
+            UpdateMoveGizmo();
+            return;
+        }
+        InputMachine?.HandleKeyDown(Key);
+    }
 
     internal void HandleKeyUp(NavigationKey Key)=>InputMachine?.HandleKeyUp(Key);
 
     /// <summary>WPFの<c>LostKeyboardFocus</c>から呼ぶ。RMBは離されていないので状態遷移はしない。</summary>
     internal void ClearHeldFlyKeys()=>InputMachine?.HandleLostKeyboardFocus();
+
+    internal void CancelCurrentOperation(){
+        if(InputMachine is not { }Machine){
+            return;
+        }
+        SceneInputStepResult Result=Machine.CancelCurrent();
+        if(Result.Capture==SceneCaptureAction.End){
+            Surface?.ReleasePointerCapture();
+        }
+        if(Result.GizmoCanceled||EditTransaction.State!=EditTransactionState.Idle){
+            CancelEditTransaction();
+        }
+        PendingLookDeltaX=0f;
+        PendingLookDeltaY=0f;
+        LookUsesPixelLock=false;
+        OrbitUsesPixelLock=false;
+    }
 
     /// <summary>
     /// WPFのFキーから呼ぶ(M0020 Phase 2)。design doc §4.2「ツール切替キーはIdle時のみ有効」に
@@ -563,6 +869,7 @@ internal sealed class SceneHwndHost:HwndHost {
             // 再解析でRendererを作り直しても選択の見た目を保つ。複数選択(SelectedNodePaths)も
             // 一緒に渡さないと、primary以外のハイライトだけが再ビルドで消える。
             Renderer.SetSelectedNode(this.SelectedNodePath,this.SelectedNodePaths);
+            UpdateMoveGizmo();
             Surface.SetVisible(true);
             SetStatus($"表示中: {Result.Request.ClassName}");
         } catch(Exception Ex){

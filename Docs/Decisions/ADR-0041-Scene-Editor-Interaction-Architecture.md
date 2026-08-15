@@ -285,8 +285,10 @@ Phase 0〜6は「`SceneRenderer`全再構築+状態外出し(決定事項1)」�
   linkしている共有ソースは`SceneModel/**`一本で、その存在理由は「SGとエディタが同じ**解析コード**を
   走らせる」ことにある。ここにランタイムのComponent型を足すと、アナライザーが文字列としてしか見ない
   型名の第二定義が生まれ、VSIXがエンジンランタイム型をホストしていると主張することになる。Phase 0 の
-  階層合成は`Local * ParentWorld`の乗算1個であり型を必要としないため、式だけを写した。**Phase 3 の
-  `SetTransform`が`TryCalculateLocal`(非自明なTRS分解)を要求した時点で再検討する。**
+  階層合成は`Local * ParentWorld`の乗算1個であり型を必要としないため、式だけを写した。
+  **Phase 3で再検討し、共有ソース化は採らず、VSIX内の純粋層`SceneTransformMath`へ同じrow-vector式と
+  `TryCalculateLocal`相当を実装してテストで固定する判断へ確定した**
+  ([[ADR-0042-Scene-Editor-Gizmo-Axis-Handedness]])。
 - **GPUピッキング**(IDバッファ読み戻し): 現行レンダラーは`Present(1)`+`WaitForGpuIdle`の最小構成で
   読み戻しパスが無く、CPU側に全メッシュが既にあるため、CPUレイキャストの方が実装・テストともに
   小さい。頂点・面スナップにも同一の幾何クエリを流用できる。
@@ -337,9 +339,22 @@ dotnet test  CSharpGameEngine.slnx -c Debug --no-build
 実機VS Experimental Instanceでの目視確認は[[M0020-Scene-Editor-Interaction]]の検証節に記録する。
 Phase 1以降の検証結果も同様に本節へ追記する。
 
+### Phase 3(2026-08-16、決定事項3・4・5・7・11の一部を実装)
+
+Moveギズモ(軸3+平面3)、スクリーン一定スケール、解析形状ヒット、軸/平面拘束ソルバ、深度無効の
+line/solid overlay PSOを実装した。`EditTransactionController`は開始snapshot・対象・元world値を捕捉し、
+ドラッグ中のRenderer定数だけを更新する。MouseUpでは最新Roslyn世代へNode IDを1回だけリベースし、
+Positionメンバーだけを`ITextUndoTransaction` 1件でlive bufferへ反映する。対象消滅、解析エラー、
+適用直前の連続text変更ではプレビューを破棄してツールウィンドウとVSステータスバーへ通知する。
+
+ハンドネス判断とTransform数学境界は[[ADR-0042-Scene-Editor-Gizmo-Axis-Handedness]]で確定した。
+最終の全体検証はDebug build警告0/エラー0、全8テストプロジェクト808件成功・失敗0。
+HWND/D3D12/VS live buffer/Undo配線はユニットテスト不能であり、Experimental Instance確認は
+[[M0020-Scene-Editor-Interaction]]のPhase 3表に未実施として残す。
+
 ## 関連機能
 
-- F-L8-011 — シーンエディタ インタラクション基盤(Status: Planned、本ADRが意図仕様)
+- F-L8-011 — シーンエディタ インタラクション基盤(Status: PartiallyImplemented、Phase 0〜3実装済み)
 - F-L8-010 — Scene デザイナー: SceneModel(ライブRoslyn)描画(前提基盤)
 
 関連: [[ADR-0040-CSharp-Scene-DSL-and-Bidirectional-Editor]]、

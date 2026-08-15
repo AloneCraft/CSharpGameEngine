@@ -80,6 +80,8 @@ TransformGizmo(Move: 軸+平面ハンドル)、オーバーレイPSO、スクリ
 `EditTransactionController`(設計§7)、`SceneRenderer.UpdateObjectTransform`プレビューAPI、
 `SetTransform`操作(設計§8)、**`SceneSourceEditor`/`SceneTextBufferWriter`の初の製品配線**、
 最小競合処理(リベース失敗=破棄+通知)、W/Escキー。
+**実装済み(2026-08-16)**。ハンドネス判断は
+[[ADR-0042-Scene-Editor-Gizmo-Axis-Handedness]]、実測結果と未実施の実機確認は本書の検証節を参照。
 
 **完了基準**: 実機でドラッグ移動→C#ソースの該当リテラルのみが差分→Ctrl+Zでシーンとコードの両方が
 復元。1ドラッグ=1 Undo単位をテキストUndo履歴で確認。トランザクション系ユニットテストグリーン。
@@ -249,7 +251,52 @@ dotnet test  CSharpGameEngine.slnx -c Debug --no-build → 712件成功・失敗
 **今後このVSIXにデータバインド用のViewModelを追加する場合、バインド対象のプロパティは必ず
 `public`にすること。**
 
-Phase 3以降の検証結果は、各Phase完了時に本節へ追記する。
+### Phase 3(2026-08-16)
+
+```text
+dotnet build CSharpGameEngine.slnx -c Debug
+  → 成功、警告0/エラー0
+dotnet test CSharpGameEngine.slnx -c Debug
+  → 全8テストプロジェクト808件成功・失敗0
+    (Phase 3前784 + 新規24。VSExtension.Testsは316件)
+
+dotnet test tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj \
+  -c Debug --filter "FullyQualifiedName~SceneTransformMathTests|FullyQualifiedName~TransformGizmoTests|FullyQualifiedName~EditTransactionControllerTests|FullyQualifiedName~SceneSourceEditorTests|FullyQualifiedName~SceneInputStateMachineTests|FullyQualifiedName~SceneTextChangePlannerTests"
+  → 54件成功・失敗0
+```
+
+`SceneTransformMath`/`TransformGizmo`/`MoveGizmoDrag`/`EditTransactionController`を純粋層として追加し、
+軸3+平面3の解析ヒット、スクリーン一定スケール、円柱+円錐+クアッドのline/solid overlay、
+world/local軸、軸/平面拘束をテストで固定した。World `+X`はスクリーン方向へ再マップせず、
+ゲーム本体と同じ実行時行列では既定視点の画面左へ写る。調査・決定は
+[[ADR-0042-Scene-Editor-Gizmo-Axis-Handedness]]に記録した。
+
+ドラッグは`SceneRenderer.UpdateObjectTransform`で定数だけをpreviewし、同一Sceneの再解析snapshotは
+最新1件だけ保留する。MouseUpでは最新CompilationからModel/Root/SourceTextを同一世代で再取得し、
+安定`EditorNodeId`で`SetTransform(Position)`を適用する。live textが解決直後に変わった場合だけ
+最新世代で1回再試行し、対象消滅・解析エラー・2回目競合は自動上書きせず元previewへ戻す。
+成功時は`SceneTextBufferWriter`が全TextChangeを1つの`ITextUndoTransaction`へまとめる。
+Position以外のQuaternion/Scaleリテラルは、値が正規化可能でもMoveでは書き換えない。
+
+純粋層とRoslyn変換は**Matches**。`SceneHwndHost`、D3D12 overlay、RDT/live buffer、Visual Studio Undoの
+製品配線は実COM/HWND/GPUを要求してユニットテスト対象外なので、Observedは実機確認まで**Unknown**。
+
+**実機VS Experimental Instanceでの目視確認(未実施 — ユーザー側で実施)**:
+
+| # | 確認対象 | 何が証明されるか |
+|---|---|---|
+| 1 | オブジェクトを選択してW→X/Y/Z軸とXY/YZ/ZX平面ハンドルが常に手前へ表示され、hover/active色が変わる | overlay PSO、深度無効、ツール切替 |
+| 2 | 既定視点でワールド+X(赤)が画面左へ伸び、正方向へドラッグすると`PositionX`相当が増える | ADR-0042の軸/Camera規約 |
+| 3 | 軸ハンドルは1軸、平面ハンドルは2軸だけ移動し、Perspective/Orthographicで見かけサイズが一定 | hit、拘束ソルバ、screen scale |
+| 4 | ドラッグ中は滑らかにpreviewし、C#ソースはMouseUpまで変わらない | preview/commit分離 |
+| 5 | MouseUp後、対象Positionの変更されたリテラルだけに差分が出て、コメント・書式・Rotation/Scaleは変わらない | Roslyn最小差分+Position mask |
+| 6 | 1回のドラッグ後にCtrl+Zを1回→コードとScene表示が同時に元へ戻る | 1ドラッグ=1 text Undo+解析ループ |
+| 7 | ドラッグ中にEsc、またはpointer captureを失う→previewが元へ戻り、コード/Undo履歴は変わらない | Cancel/競合安全性 |
+| 8 | ドラッグ中に対象ノードを外部編集で削除→MouseUpで上書きせず破棄され、ツール内とVSステータスバーに理由が出る | リベース失敗通知 |
+| 9 | 複数選択をMove→各選択rootへ同じworld差分が1 Undoで反映される | batch atomicity・複数選択 |
+| 10 | コードエディタのTab/Backspace/Deleteが引き続き効き、RMB Navigation中のWはMove切替でなく前進になる | フォーカス/入力優先順位の非回帰 |
+
+Phase 4以降の検証結果は、各Phase完了時に本節へ追記する。
 
 ## 意図的に除外したこと(将来マイルストーン候補)
 

@@ -8,6 +8,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using CSharpGameEngine.SceneAnalysis;
 using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Shell.Interop;
 
 namespace CSharpGameEngine.VSExtension;
 
@@ -133,6 +134,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         Host.StatusChanged+=this.OnStatusChanged;
         Host.ViewportActivated+=this.OnViewportActivated;
         Host.ObjectPicked+=this.OnObjectPicked;
+        Host.EditCommitRequested+=this.OnEditCommitRequested;
         this.Host=Host;
         EmptyStateText.Visibility=Visibility.Collapsed;
         RenderHostGrid.Children.Add(Host);
@@ -157,6 +159,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         Host.StatusChanged-=this.OnStatusChanged;
         Host.ViewportActivated-=this.OnViewportActivated;
         Host.ObjectPicked-=this.OnObjectPicked;
+        Host.EditCommitRequested-=this.OnEditCommitRequested;
         // Dispose triggers DestroyWindowCore, which cancels the latest-wins worker and disposes the
         // native child HWND. Its stale callback is additionally rejected by SceneHwndHost's surface
         // and generation checks, so it cannot repaint this WPF-only empty state.
@@ -374,14 +377,55 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             Snapshot.Key,Updated,NewPrimary,ComponentType:null,MemberName:null,SceneSelectionOrigin.Viewport,Guid.NewGuid());
     }
 
+    private void OnEditCommitRequested(SceneEditCommitRequest Request){
+        SceneEditorSessionService?Session=this.Session;
+        SceneHwndHost?Host=this.Host;
+        if(Session is null||Host is null){
+            Host?.CompleteEditCommit(false,"Scene Editorセッションが利用できません。");
+            return;
+        }
+
+        _=this.CommitEditAsync(Session,Host,Request);
+    }
+
+    private async Task CommitEditAsync(
+        SceneEditorSessionService Session,SceneHwndHost Host,SceneEditCommitRequest Request){
+        SceneEditCommitResult Result;
+        try {
+            Result=await Session.CommitAsync(Request,CancellationToken.None).ConfigureAwait(false);
+        } catch(Exception Ex){
+            ActivityLog.LogError(nameof(SceneDesignerToolWindowControl),Ex.ToString());
+            Result=new SceneEditCommitResult(false,"C#ソースへの反映中にエラーが発生しました。",WasRebased:false);
+        }
+
+        this.DispatchToUi(()=>{
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if(!this.Disposed&&ReferenceEquals(this.Session,Session)&&ReferenceEquals(this.Host,Host)){
+                Host.CompleteEditCommit(Result.Succeeded,Result.ErrorMessage);
+                if(!Result.Succeeded
+                    &&Package.GetGlobalService(typeof(SVsStatusbar))is IVsStatusbar StatusBar){
+                    StatusBar.SetText(Result.ErrorMessage??"Scene Designerの編集を反映できませんでした。");
+                }
+            }
+        });
+    }
+
     private void OnViewportKeyDown(object Sender,KeyEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(Args.Key==Key.Escape){
+            this.Host?.CancelCurrentOperation();
+            Args.Handled=true;
+            return;
+        }
         if(TryMapNavigationKey(Args.Key,out NavigationKey NavKey)){
             this.Host?.HandleKeyDown(NavKey);
+            Args.Handled=true;
             return;
         }
 
         if(Args.Key==Key.F){
             this.Host?.RequestFocusSelection();
+            Args.Handled=true;
         }
     }
 

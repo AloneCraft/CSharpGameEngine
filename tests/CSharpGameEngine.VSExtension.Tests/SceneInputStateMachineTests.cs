@@ -204,6 +204,46 @@ public sealed class SceneInputStateMachineTests {
     }
 
     [Fact]
+    public void Idle_LeftButtonOnGizmo_BeginsExclusiveGizmoDrag(){
+        SceneInputStateMachine Machine=new();
+
+        SceneInputStepResult Result=Machine.Handle(
+            Down(PointerButton.Left,10,20),HitNodePath:NodePath.Root,HitGizmoHandle:GizmoHandleId.AxisX);
+
+        Assert.Equal(SceneNavState.GizmoDragging,Result.State);
+        Assert.Equal(SceneCaptureAction.Begin,Result.Capture);
+        Assert.True(Result.GizmoDragBegan);
+        Assert.Equal(GizmoHandleId.AxisX,Result.GizmoHandle);
+        Assert.False(Result.SelectionConfirmed);
+    }
+
+    [Fact]
+    public void GizmoDragging_LeftButtonUp_RequestsCommitAndEndsCapture(){
+        SceneInputStateMachine Machine=new();
+        Machine.Handle(Down(PointerButton.Left,0,0),HitGizmoHandle:GizmoHandleId.PlaneXY);
+
+        SceneInputStepResult Result=Machine.Handle(Up(PointerButton.Left,5,5));
+
+        Assert.Equal(SceneNavState.Idle,Result.State);
+        Assert.Equal(SceneCaptureAction.End,Result.Capture);
+        Assert.True(Result.GizmoCommitRequested);
+        Assert.Equal(GizmoHandleId.PlaneXY,Result.GizmoHandle);
+    }
+
+    [Fact]
+    public void GizmoDragging_CancelCurrent_CancelsWithoutCommit(){
+        SceneInputStateMachine Machine=new();
+        Machine.Handle(Down(PointerButton.Left,0,0),HitGizmoHandle:GizmoHandleId.AxisY);
+
+        SceneInputStepResult Result=Machine.CancelCurrent();
+
+        Assert.Equal(SceneNavState.Idle,Result.State);
+        Assert.True(Result.GizmoCanceled);
+        Assert.False(Result.GizmoCommitRequested);
+        Assert.Equal(SceneCaptureAction.End,Result.Capture);
+    }
+
+    [Fact]
     public void Wheel_WhileFlying_ReportsAdjustSpeedNotNavigationDistance(){
         SceneInputStateMachine Machine=new();
         Machine.Handle(Down(PointerButton.Right,0,0));

@@ -1,6 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using CSharpGameEngine.SceneAnalysis;
+using Microsoft.CodeAnalysis.Text;
 
 namespace CSharpGameEngine.VSExtension;
 
@@ -69,6 +73,48 @@ internal sealed class SceneEditorSessionService : IDisposable {
     internal System.Threading.Tasks.Task<SceneModel?>ResolveSceneAsync(
         SceneKey Key,System.Threading.CancellationToken CancellationToken)=>
         this.Workspace.ResolveSceneAsync(Key,CancellationToken);
+
+    /// <summary>
+    /// 1回のギズモ操作を、commit直前に取得したRoslyn世代へ再解決し、live bufferの単一Undoとして反映する。
+    /// 解決後から適用直前までにtextが変化した場合だけ、最新世代で1回再試行する。
+    /// </summary>
+    internal async Task<SceneEditCommitResult>CommitAsync(
+        SceneEditCommitRequest Request,CancellationToken CancellationToken){
+        for(var Attempt=0;Attempt<2;Attempt++){
+            SceneWorkspaceEditContext?Context=await this.Workspace
+                .ResolveSceneEditContextAsync(Request.SceneKey,CancellationToken)
+                .ConfigureAwait(false);
+            if(Context is null){
+                return new SceneEditCommitResult(false,"対象Sceneの最新C#ソースを解決できません。",WasRebased:false);
+            }
+            if(Context.Model.HasErrors||Context.Model.Root is null){
+                return new SceneEditCommitResult(
+                    false,"対象SceneにC#解析エラーがあるため、ギズモ編集を反映できません。",WasRebased:false);
+            }
+
+            SceneDocumentSnapshot Snapshot=this.Publish(Context.Model,Request.SceneKey);
+            SceneEditOperation[]Operations=Request.Changes.Select(Change=>(SceneEditOperation)new SetTransformOperation(
+                Request.SceneKey,Change.NodeId,Request.DocumentVersion,Change.Local,
+                SceneTransformMemberMask.Position)).ToArray();
+            SceneSourceEditResult Edited=SceneSourceEditor.ApplyLatestBatch(Context.Root,Snapshot,Operations);
+            if(!Edited.Succeeded||Edited.Root is null){
+                return new SceneEditCommitResult(
+                    false,Edited.ErrorMessage??"SceneのTransform更新に失敗しました。",Edited.WasRebased);
+            }
+
+            SourceText After=SourceText.From(Edited.Root.ToFullString(),Context.Text.Encoding);
+            SceneLiveBufferWriteResult Written=await this.Workspace.ApplyTextAsync(
+                Context,After,Request.UndoDescription,CancellationToken).ConfigureAwait(false);
+            if(Written.Succeeded){
+                return new SceneEditCommitResult(true,ErrorMessage:null,Edited.WasRebased||Attempt>0);
+            }
+            if(!Written.LiveTextChanged||Attempt>0){
+                return new SceneEditCommitResult(false,Written.ErrorMessage,Edited.WasRebased||Attempt>0);
+            }
+        }
+
+        return new SceneEditCommitResult(false,"C#ソースが連続して変化したため上書きを中止しました。",WasRebased:true);
+    }
 
     /// <summary>UIコマンドの表示判定用。Roslyn解析を開始したり待機したりしない。</summary>
     internal SceneDocumentMenuSnapshot GetMenuSnapshot(string FilePath){

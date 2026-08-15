@@ -90,8 +90,12 @@ Roslynにロードされない。
   シェイプパレット一式は、M0020 Phase 0で**削除した**。読み取りも書き込みもライブRoslynの
   `SceneModel`系(ADR-0040/0041)へ一本化されている。
 - シーンエディタのインタラクション(ナビゲーション・ピッキング・ギズモ・編集トランザクション)は
-  Phase 0(前提修正: Transform型認識の`SceneComponentBindings`化・階層Transform合成・カメラ外部注入)
-  のみ実装済みで、Phase 1以降は計画済み・未実装である。要求仕様は`Docs/シーンエディタの仕様.md`、意思決定は
+  Phase 0〜3まで実装済みである。カメラ外部注入・階層Transform合成に加え、ナビゲーション、
+  CPUピッキングと双方向選択、Moveギズモ、Renderer定数だけのドラッグpreview、最新Roslyn世代への
+  `SetTransform(Position)`リベース、live text bufferへの1操作=1 Undo書き戻しを持つ。
+  Phase 4〜7(Rotate/Scale、修飾操作、Propertyギズモ、増分描画)は計画済み・未実装。
+  ギズモ軸はゲーム本体の実行時Camera行列規約を維持し、既定視点のワールド`+X`は画面左へ写る
+  ([[ADR-0042-Scene-Editor-Gizmo-Axis-Handedness]])。要求仕様は`Docs/シーンエディタの仕様.md`、意思決定は
   [[ADR-0041-Scene-Editor-Interaction-Architecture]]、詳細設計は
   [[Scene-Editor-Design]](`Docs/Specifications/Scene-Editor-Design.md`)、フェーズ計画は
   [[M0020-Scene-Editor-Interaction]]を参照。

@@ -27,11 +27,11 @@ internal static class SceneModelRenderObjectBuilder {
         // ParentId のような任意参照が存在しないのでサイクルガードは不要。深さも解析器が
         // SceneDslWellKnownNames.MaxRecursionDepth で打ち切っている。
         void Append(SceneNode Node,Matrix4x4 ParentWorld){
-            // world = local * parentWorld。式はランタイムの TransformMath.ToWorld と同一
-            // (TransformWorldResolverTests が固定している規約)。net472 から net10.0 の型は参照
-            // できないため、型ではなく式1つだけをここへ写している(GizmoMeshFactory と同じ複製方針)。
-            // M0020 Phase 3 の SetTransform が TryCalculateLocal を要求した時点で共有方式を再検討する。
-            Matrix4x4 World=ExtractLocalTransform(Node)*ParentWorld;
+            // world = local * parentWorld。SceneTransformMathはこのランタイム規約をEditor側の
+            // 読み取り・preview・source write-backで一貫して使う純粋層である。
+            Matrix4x4 World=(SceneTransformBinding.TryRead(Node,out SceneTransformValue Local)
+                ?SceneTransformMath.ToMatrix(Local)
+                :Matrix4x4.Identity)*ParentWorld;
 
             string?AssetPath=ExtractStaticMeshAssetPath(Node);
             SimpleMesh Mesh;
@@ -82,21 +82,6 @@ internal static class SceneModelRenderObjectBuilder {
         "Plane"=>"Rectangle","Box"=>"Box","Sphere"=>"Sphere","Cylinder"=>"Cylinder",
         "Cone"=>"Cone","Torus"=>"Torus","Disk"=>"Disk","Capsule"=>"Capsule",_=>null,
     };
-
-    private static Matrix4x4 ExtractLocalTransform(SceneNode Node){
-        SceneComponent?Transform=SceneComponentBindings.FindComponent(Node,SceneComponentRole.LocalTransform);
-        if(Transform is null)return Matrix4x4.Identity;
-        Vector3 Position=new(ReadFloat(Transform,"PositionX"),ReadFloat(Transform,"PositionY"),ReadFloat(Transform,"PositionZ"));
-        Quaternion Rotation=new(ReadFloat(Transform,"RotationX"),ReadFloat(Transform,"RotationY"),ReadFloat(Transform,"RotationZ"),ReadFloat(Transform,"RotationW"));
-        if(Rotation==default)Rotation=Quaternion.Identity;
-        Vector3 Scale=new(ReadFloat(Transform,"ScaleX",1f),ReadFloat(Transform,"ScaleY",1f),ReadFloat(Transform,"ScaleZ",1f));
-        return Matrix4x4.CreateScale(Scale)*Matrix4x4.CreateFromQuaternion(Rotation)*Matrix4x4.CreateTranslation(Position);
-    }
-
-    private static float ReadFloat(SceneComponent Component,string MemberName,float Default=0f)=>
-        Component.FindMember(MemberName)?.Value.ConstantValue switch {
-            float F=>F,double D=>(float)D,int I=>I,_=>Default,
-        };
 
     private static string?ExtractPrimitiveMeshEnumMemberName(SceneNode Node)=>
         SceneComponentBindings.FindComponent(Node,SceneComponentRole.PrimitiveMesh)

@@ -1,17 +1,60 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using CSharpGameEngine.SceneAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Text;
+using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.ComponentModelHost;
+using Microsoft.VisualStudio.Editor;
 using Microsoft.VisualStudio.LanguageServices;
 using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Shell.Interop;
+using Microsoft.VisualStudio.Text;
+using Microsoft.VisualStudio.Text.Operations;
+using Microsoft.VisualStudio.TextManager.Interop;
 using Microsoft.VisualStudio.Threading;
 
 namespace CSharpGameEngine.VSExtension;
+
+internal sealed class SceneWorkspaceEditContext {
+    internal SceneWorkspaceEditContext(
+        DocumentId DocumentId,string FilePath,SceneModel Model,SyntaxNode Root,SourceText Text){
+        this.DocumentId=DocumentId;
+        this.FilePath=FilePath;
+        this.Model=Model;
+        this.Root=Root;
+        this.Text=Text;
+    }
+
+    internal DocumentId DocumentId { get; }
+
+    internal string FilePath { get; }
+
+    internal SceneModel Model { get; }
+
+    internal SyntaxNode Root { get; }
+
+    internal SourceText Text { get; }
+}
+
+internal readonly struct SceneLiveBufferWriteResult {
+    internal SceneLiveBufferWriteResult(bool Succeeded,string?ErrorMessage,bool LiveTextChanged=false){
+        this.Succeeded=Succeeded;
+        this.ErrorMessage=ErrorMessage;
+        this.LiveTextChanged=LiveTextChanged;
+    }
+
+    internal bool Succeeded { get; }
+
+    internal string?ErrorMessage { get; }
+
+    internal bool LiveTextChanged { get; }
+}
 
 /// <summary>
 /// Supplies the editor with a <see cref="SceneModel"/> built from <b>live Roslyn</b> (ADR-0040).
@@ -41,6 +84,8 @@ internal sealed class SceneWorkspaceService : IDisposable {
 
     private readonly JoinableTaskFactory TaskFactory;
     private readonly VisualStudioWorkspace Workspace;
+    private readonly IVsEditorAdaptersFactoryService?EditorAdapters;
+    private readonly SceneTextBufferWriter?TextBufferWriter;
     private readonly object Gate=new();
     private readonly SceneAnalysisGenerationGate<DocumentId>AnalysisGeneration=new();
     private System.Threading.Timer?DebounceTimer;
@@ -70,9 +115,13 @@ internal sealed class SceneWorkspaceService : IDisposable {
 
     private bool Disposed;
 
-    private SceneWorkspaceService(VisualStudioWorkspace Workspace,JoinableTaskFactory TaskFactory){
+    private SceneWorkspaceService(
+        VisualStudioWorkspace Workspace,JoinableTaskFactory TaskFactory,
+        IVsEditorAdaptersFactoryService?EditorAdapters,ITextUndoHistoryRegistry?UndoHistoryRegistry){
         this.Workspace=Workspace;
         this.TaskFactory=TaskFactory;
+        this.EditorAdapters=EditorAdapters;
+        this.TextBufferWriter=UndoHistoryRegistry is null?null:new SceneTextBufferWriter(UndoHistoryRegistry);
         this.Workspace.WorkspaceChanged+=this.OnWorkspaceChanged;
     }
 
@@ -211,7 +260,11 @@ internal sealed class SceneWorkspaceService : IDisposable {
             return null;
         }
 
-        Instance=new SceneWorkspaceService(Workspace,ThreadHelper.JoinableTaskFactory);
+        Instance=new SceneWorkspaceService(
+            Workspace,
+            ThreadHelper.JoinableTaskFactory,
+            ComponentModel.GetService<IVsEditorAdaptersFactoryService>(),
+            ComponentModel.GetService<ITextUndoHistoryRegistry>());
         return Instance;
     }
 
@@ -364,6 +417,103 @@ internal sealed class SceneWorkspaceService : IDisposable {
         return Type is null||!SceneTypePredicates.ImplementsSceneInterface(Type)
             ?null
             :SceneDeclarationAnalyzer.Analyze(Type,Compilation,CancellationToken);
+    }
+
+    /// <summary>commit直前のCompilationからModel・Root・SourceTextを同じ世代で取得する。</summary>
+    internal async Task<SceneWorkspaceEditContext?>ResolveSceneEditContextAsync(
+        SceneKey Key,CancellationToken CancellationToken){
+        Project?Project=this.Workspace.CurrentSolution.Projects.FirstOrDefault(Candidate=>
+            string.Equals(Candidate.Id.Id.ToString("N"),Key.ProjectId,StringComparison.Ordinal));
+        if(Project is null){
+            return null;
+        }
+
+        Compilation?Compilation=await Project.GetCompilationAsync(CancellationToken).ConfigureAwait(false);
+        if(Compilation is null){
+            return null;
+        }
+        INamedTypeSymbol?Type=EnumerateTypes(Compilation.Assembly.GlobalNamespace).FirstOrDefault(Candidate=>
+            string.Equals(
+                SceneDeclarationAnalyzer.ComputeClassFullyQualifiedName(Candidate),
+                Key.ClassFullyQualifiedName,
+                StringComparison.Ordinal));
+        if(Type is null||!SceneTypePredicates.ImplementsSceneInterface(Type)){
+            return null;
+        }
+
+        TypeDeclarationSyntax?Declaration=Type.DeclaringSyntaxReferences
+            .Select(Reference=>Reference.GetSyntax(CancellationToken)as TypeDeclarationSyntax)
+            .Where(static Candidate=>Candidate is not null)
+            .Cast<TypeDeclarationSyntax>()
+            .Where(Candidate=>!IsGeneratedSceneFile(Candidate.SyntaxTree,CancellationToken))
+            .OrderBy(Candidate=>Candidate.SyntaxTree.FilePath,StringComparer.OrdinalIgnoreCase)
+            .ThenBy(static Candidate=>Candidate.SpanStart)
+            .FirstOrDefault();
+        if(Declaration is null||string.IsNullOrWhiteSpace(Declaration.SyntaxTree.FilePath)){
+            return null;
+        }
+
+        Document?Document=this.Workspace.CurrentSolution.GetDocument(Declaration.SyntaxTree);
+        if(Document is null){
+            return null;
+        }
+        SyntaxNode Root=await Declaration.SyntaxTree.GetRootAsync(CancellationToken).ConfigureAwait(false);
+        SourceText Text=await Declaration.SyntaxTree.GetTextAsync(CancellationToken).ConfigureAwait(false);
+        SceneModel Model=SceneDeclarationAnalyzer.Analyze(Type,Compilation,CancellationToken);
+        return new SceneWorkspaceEditContext(Document.Id,Declaration.SyntaxTree.FilePath,Model,Root,Text);
+    }
+
+    /// <summary>対象文書をbackgroundでopenし、RDTのlive bufferへ1 Undoで反映する。</summary>
+    internal async Task<SceneLiveBufferWriteResult>ApplyTextAsync(
+        SceneWorkspaceEditContext Context,SourceText After,string UndoDescription,
+        CancellationToken CancellationToken){
+        await this.TaskFactory.SwitchToMainThreadAsync(CancellationToken);
+        if(this.EditorAdapters is null||this.TextBufferWriter is null){
+            return new SceneLiveBufferWriteResult(false,"Visual StudioのEditor/Undoサービスを取得できません。");
+        }
+        if(!this.Workspace.IsDocumentOpen(Context.DocumentId)){
+            if(!this.Workspace.CanOpenDocuments){
+                return new SceneLiveBufferWriteResult(false,"対象SceneのC#文書をlive bufferとして開けません。");
+            }
+            this.Workspace.OpenDocument(Context.DocumentId,activate:false);
+        }
+        if(Package.GetGlobalService(typeof(SVsRunningDocumentTable))is not IVsRunningDocumentTable Rdt){
+            return new SceneLiveBufferWriteResult(false,"Visual StudioのRunning Document Tableを取得できません。");
+        }
+
+        IntPtr DocDataPointer=IntPtr.Zero;
+        try {
+            int HResult=Rdt.FindAndLockDocument(
+                (uint)_VSRDTFLAGS.RDT_NoLock,Context.FilePath,
+                out _,out _,out DocDataPointer,out _);
+            if(ErrorHandler.Failed(HResult)||DocDataPointer==IntPtr.Zero){
+                return new SceneLiveBufferWriteResult(false,"対象Sceneのlive documentを取得できません。");
+            }
+
+            object DocData=Marshal.GetObjectForIUnknown(DocDataPointer);
+            Microsoft.VisualStudio.TextManager.Interop.IVsTextBuffer?VsBuffer=
+                DocData as Microsoft.VisualStudio.TextManager.Interop.IVsTextBuffer;
+            if(VsBuffer is null&&DocData is IVsTextBufferProvider Provider
+                &&ErrorHandler.Succeeded(Provider.GetTextBuffer(out Microsoft.VisualStudio.TextManager.Interop.IVsTextLines Lines))){
+                VsBuffer=Lines as Microsoft.VisualStudio.TextManager.Interop.IVsTextBuffer;
+            }
+            if(VsBuffer is null){
+                return new SceneLiveBufferWriteResult(false,"対象SceneのVisual Studio text bufferを取得できません。");
+            }
+
+            ITextBuffer?Buffer=this.EditorAdapters.GetDocumentBuffer(VsBuffer);
+            if(Buffer is null){
+                return new SceneLiveBufferWriteResult(false,"対象Sceneのmanaged text bufferを取得できません。");
+            }
+            return this.TextBufferWriter.TryApply(Buffer,Context.Text,After,UndoDescription)
+                ?new SceneLiveBufferWriteResult(true,ErrorMessage:null)
+                :new SceneLiveBufferWriteResult(
+                    false,"編集中にC#ソースが変化したため上書きを中止しました。",LiveTextChanged:true);
+        } finally {
+            if(DocDataPointer!=IntPtr.Zero){
+                Marshal.Release(DocDataPointer);
+            }
+        }
     }
 
     private void OnWorkspaceChanged(object Sender,WorkspaceChangeEventArgs Args){

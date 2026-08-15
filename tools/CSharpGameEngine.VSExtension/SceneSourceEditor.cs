@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using CSharpGameEngine.SceneAnalysis;
 using Microsoft.CodeAnalysis;
@@ -25,6 +26,22 @@ internal sealed record RenameNodeOperation(
     EditorNodeId NodeId,
     long DocumentVersion,
     string NewName) : SceneEditOperation(SceneKey,NodeId,DocumentVersion);
+
+[Flags]
+internal enum SceneTransformMemberMask {
+    None=0,
+    Position=1,
+    Rotation=2,
+    Scale=4,
+    All=Position|Rotation|Scale,
+}
+
+internal sealed record SetTransformOperation(
+    SceneKey SceneKey,
+    EditorNodeId NodeId,
+    long DocumentVersion,
+    SceneTransformValue Transform,
+    SceneTransformMemberMask Members=SceneTransformMemberMask.All) : SceneEditOperation(SceneKey,NodeId,DocumentVersion);
 
 /// <summary>編集操作の全語彙。ViewModelとRoslyn書き込み層が同じ列挙を共有する(未実装の種類も先に確定させる)。</summary>
 internal enum SceneEditOperationKind {
@@ -83,9 +100,40 @@ internal static class SceneSourceEditor {
 
         return Operation switch {
             SetComponentMemberOperation SetMember=>ApplySetComponentMember(Root,Node,SetMember),
+            SetTransformOperation SetTransform=>ApplySetTransform(Root,Node,SetTransform),
             RenameNodeOperation Rename=>ApplyRename(Root,Node,Rename),
             _=>SceneSourceEditResult.Failure("このScene編集操作はSource Editorで未実装です。"),
         };
+    }
+
+    /// <summary>
+    /// 1ユーザー操作の複数Node編集を1つのRootへ原子的に適用する。後方のsyntaxから処理するため、
+    /// 先に行った置換で未処理Nodeのsource spanがずれない。
+    /// </summary>
+    internal static SceneSourceEditResult ApplyBatch(
+        SyntaxNode Root,SceneProjection Projection,IReadOnlyList<SceneEditOperation>Operations){
+        if(Operations.Count==0){
+            return SceneSourceEditResult.Success(Root);
+        }
+
+        List<(SceneEditOperation Operation,int Start)>Ordered=[];
+        foreach(SceneEditOperation Operation in Operations){
+            if(!Projection.Key.Equals(Operation.SceneKey)
+                ||!Projection.TryGetNode(Operation.NodeId,out SceneProjectionNode Node)){
+                return SceneSourceEditResult.Failure("対象のSceneまたはNodeが現在の投影に見つかりません。");
+            }
+            Ordered.Add((Operation,Node.Node.Location.Span.Start));
+        }
+
+        SyntaxNode Current=Root;
+        foreach((SceneEditOperation Operation,_)in Ordered.OrderByDescending(static Item=>Item.Start)){
+            SceneSourceEditResult Applied=Apply(Current,Projection,Operation);
+            if(!Applied.Succeeded){
+                return SceneSourceEditResult.Failure(Applied.ErrorMessage??"Scene編集操作に失敗しました。");
+            }
+            Current=Applied.Root!;
+        }
+        return SceneSourceEditResult.Success(Current);
     }
 
     /// <summary>
@@ -104,6 +152,21 @@ internal static class SceneSourceEditor {
 
         return SceneSourceEditResult.Success(Result.Root!,WasRebased:true);
     }
+
+    internal static SceneSourceEditResult ApplyLatestBatch(
+        SyntaxNode Root,SceneDocumentSnapshot Snapshot,IReadOnlyList<SceneEditOperation>Operations){
+        if(Snapshot.Projection is null){
+            return SceneSourceEditResult.Failure("現在のSceneには編集可能なLast Known Good投影がありません。");
+        }
+
+        SceneSourceEditResult Result=ApplyBatch(Root,Snapshot.Projection,Operations);
+        if(!Result.Succeeded){
+            return Result;
+        }
+
+        bool WasRebased=Operations.Any(Operation=>Operation.DocumentVersion!=Snapshot.DocumentVersion);
+        return SceneSourceEditResult.Success(Result.Root!,WasRebased);
+    }
     private static SceneSourceEditResult ApplySetComponentMember(
         SyntaxNode Root,SceneProjectionNode Node,SetComponentMemberOperation Operation){
         SceneComponent?Component=Node.Node.FindComponent(Operation.ComponentTypeFullyQualifiedName);
@@ -119,6 +182,69 @@ internal static class SceneSourceEditor {
         }
 
         return SceneSourceEditResult.Success(Root.ReplaceNode(OldExpression,NewExpression.WithTriviaFrom(OldExpression)));
+    }
+
+    private static SceneSourceEditResult ApplySetTransform(
+        SyntaxNode Root,SceneProjectionNode Node,SetTransformOperation Operation){
+        SceneComponent?Transform=SceneComponentBindings.FindComponent(Node.Node,SceneComponentRole.LocalTransform);
+        if(Transform is null){
+            return SceneSourceEditResult.Failure("対象Nodeに編集可能なTransform Componentがありません。");
+        }
+        if(IsGenerated(Transform.Location.FilePath)){
+            return SceneSourceEditResult.Failure("生成された .g.cs のTransformは編集できません。");
+        }
+
+        BaseObjectCreationExpressionSyntax?Creation=Root.DescendantNodesAndSelf()
+            .OfType<BaseObjectCreationExpressionSyntax>()
+            .SingleOrDefault(Candidate=>Candidate.Span==Transform.Location.Span);
+        if(Creation is null){
+            return SceneSourceEditResult.Failure("Transformのobject creationがSourceに見つかりません。");
+        }
+
+        InitializerExpressionSyntax Initializer=Creation.Initializer
+            ??SyntaxFactory.InitializerExpression(SyntaxKind.ObjectInitializerExpression);
+        SeparatedSyntaxList<ExpressionSyntax>Expressions=Initializer.Expressions;
+        Dictionary<string,AssignmentExpressionSyntax>Assignments=Expressions
+            .OfType<AssignmentExpressionSyntax>()
+            .Where(static Assignment=>Assignment.Left is IdentifierNameSyntax)
+            .ToDictionary(
+                static Assignment=>((IdentifierNameSyntax)Assignment.Left).Identifier.ValueText,
+                StringComparer.Ordinal);
+
+        foreach((string Name,float Value,float Default)in EnumerateTransformMembers(Operation.Transform,Operation.Members)){
+            SceneComponentMember?Member=Transform.FindMember(Name);
+            float Current=Member is null?Default:ReadFloat(Member.Value.ConstantValue,Default);
+            if(SceneTransformMath.NearlyEqual(Current,Value)){
+                continue;
+            }
+            if(Member is not null&&!Member.Value.IsEditable){
+                return SceneSourceEditResult.Failure($"Transform.{Name}は式を保持するためギズモから編集できません。");
+            }
+
+            ExpressionSyntax NewValue=SyntaxFactory.ParseExpression(FormatFloat(Value));
+            if(NewValue.ContainsDiagnostics){
+                return SceneSourceEditResult.Failure($"Transform.{Name}の値をC#式へ変換できません。");
+            }
+
+            if(Assignments.TryGetValue(Name,out AssignmentExpressionSyntax?Assignment)){
+                AssignmentExpressionSyntax Replaced=Assignment.WithRight(NewValue.WithTriviaFrom(Assignment.Right));
+                Expressions=Expressions.Replace(Assignment,Replaced);
+                Assignments[Name]=Replaced;
+            } else {
+                AssignmentExpressionSyntax Added=SyntaxFactory.AssignmentExpression(
+                    SyntaxKind.SimpleAssignmentExpression,SyntaxFactory.IdentifierName(Name),NewValue);
+                Expressions=Expressions.Add(Added);
+                Assignments.Add(Name,Added);
+            }
+        }
+
+        InitializerExpressionSyntax UpdatedInitializer=Initializer.WithExpressions(Expressions);
+        SyntaxNode UpdatedCreation=Creation switch {
+            ObjectCreationExpressionSyntax Explicit=>Explicit.WithInitializer(UpdatedInitializer),
+            ImplicitObjectCreationExpressionSyntax Implicit=>Implicit.WithInitializer(UpdatedInitializer),
+            _=>Creation,
+        };
+        return SceneSourceEditResult.Success(Root.ReplaceNode(Creation,UpdatedCreation));
     }
 
     private static SceneSourceEditResult ApplyRename(SyntaxNode Root,SceneProjectionNode Node,RenameNodeOperation Operation){
@@ -139,6 +265,42 @@ internal static class SceneSourceEditor {
 
     private static ExpressionSyntax?FindExpression(SyntaxNode Root,TextSpan Span)=>
         Root.DescendantNodesAndSelf().OfType<ExpressionSyntax>().SingleOrDefault(Node=>Node.Span==Span);
+
+    private static IEnumerable<(string Name,float Value,float Default)>EnumerateTransformMembers(
+        SceneTransformValue Transform,SceneTransformMemberMask Members){
+        if((Members&SceneTransformMemberMask.Position)!=0){
+            yield return("PositionX",Transform.Position.X,0f);
+            yield return("PositionY",Transform.Position.Y,0f);
+            yield return("PositionZ",Transform.Position.Z,0f);
+        }
+        if((Members&SceneTransformMemberMask.Rotation)!=0){
+            yield return("RotationX",Transform.Rotation.X,0f);
+            yield return("RotationY",Transform.Rotation.Y,0f);
+            yield return("RotationZ",Transform.Rotation.Z,0f);
+            yield return("RotationW",Transform.Rotation.W,1f);
+        }
+        if((Members&SceneTransformMemberMask.Scale)!=0){
+            yield return("ScaleX",Transform.Scale.X,1f);
+            yield return("ScaleY",Transform.Scale.Y,1f);
+            yield return("ScaleZ",Transform.Scale.Z,1f);
+        }
+    }
+
+    private static float ReadFloat(object?Value,float Default)=>Value switch {
+        float Float=>Float,
+        double Double=>(float)Double,
+        decimal Decimal=>(float)Decimal,
+        int Integer=>Integer,
+        long Long=>Long,
+        _=>Default,
+    };
+
+    private static string FormatFloat(float Value){
+        if(float.IsNaN(Value)||float.IsInfinity(Value)){
+            throw new ArgumentOutOfRangeException(nameof(Value),"Transformへ非有限値は書き込めません。");
+        }
+        return Value.ToString("R",CultureInfo.InvariantCulture)+"f";
+    }
 
     private static bool IsGenerated(string?FilePath)=>
         FilePath is { Length:>0 }&&FilePath.EndsWith(".g.cs",StringComparison.OrdinalIgnoreCase);
