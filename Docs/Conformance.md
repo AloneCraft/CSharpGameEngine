@@ -947,6 +947,75 @@ Evidence: `dotnet build CSharpGameEngine.slnx -c Debug` 成功・警告0/エラ�
   ソリューションエクスプローラーで右クリックしてシーン名一覧が正しく出ること、複数シーンを持つ
   ファイルからの選択、フォルダ/非`.cs`項目では出ないこと)はユーザー側。
 
+### 追記(2026-08): 縦長ウィンドウのFOV補正と Tools>Options ページの新設
+
+M0020の残作業のうち「設計判断が要らないもの」をまとめて実装した(判断が必要な件は別途1件ずつ確認)。
+
+**1. アスペクト比 < 1(縦長ウィンドウ)のFOV補正**
+
+- 残課題として記録されていた既知の逸脱を解消した。`SceneCameraFraming.ComputeDistance`は
+  境界球が収まる接距離を**縦FOVだけ**から出していたため、水平FOV
+  (`2*atan(tan(FovY/2)*aspect)`)が縦より狭くなる縦長ウィンドウで境界球が左右にはみ出していた。
+- 新設した`ComputeEffectiveFovRadians(FovYRadians,AspectRatio)`が
+  `min(FovY, 2*atan(tan(FovY/2)*aspect))`(縦と水平の狭い方)を返し、距離計算はこれを使う。
+  **投影行列には従来どおり縦FOVを渡す**(実効FOVは距離決定にのみ使う)。
+  aspect≥1では実効FOV=FovYなので、横長・正方形の距離はPhase 0以来1ビットも変わらない。
+- `ComputeDistance`/`CreateView`/`SceneViewState.ResetToBounds`/`FocusOnBounds`に`AspectRatio`
+  引数を追加した。呼び出し元の`SceneHwndHost`は既に`AspectRatio`プロパティを単一の供給源として
+  持っていたため新しい配管は不要。Fキーのフォーカスも同じ問題を持っていたので併せて直った。
+- **既存テストの盲点を実測で確認してから直した(赤→緑)**:
+  `FrameBounds_KeepsTheWholeBoundingSphereInsideTheVerticalFieldOfView`は`±UnitX`もループして
+  いるのに**NDCのYだけ**を検証しており、この破綻を素通りさせていた。縦横両方+複数アスペクト
+  (4 / 16:9 / 1 / 0.75 / 0.5 / 0.25)を回す
+  `FrameBounds_KeepsTheWholeBoundingSphereInsideBothFieldsOfView`へ拡張したところ、
+  **aspect 0.75 という緩い縦長でも`NDC x=1.011734`と溢れて失敗**した(極端な縦長だけの問題では
+  なかった)。同時に`ComputeDistance`が距離を一切変えていないこと(縦長・正方形とも14.37219)も
+  確認できた。修正後は35件すべて成功。
+- `ComputeDistance_WideAspect_MatchesTheSquareCaseExactly`でaspect≥1の完全一致を固定し、
+  既存の`ComputeDistance`/`CreateView`テストには`AspectRatio:1f`を明示して「既存の期待値が
+  変わっていない」ことを読み取れるようにした。
+
+**2. Tools>Options の「C# Game Engine / Scene Editor」ページ(このVSIX初のオプションページ)**
+
+- ADR-0006が将来の方向性として挙げ、ユーザーからも要望のあったオプション画面を追加した。
+  `DialogPage`/`ProvideOptionPage`はこのリポジトリに1件も存在しなかったため新規の仕組みになる。
+- **公開するのは7項目のうち3項目だけ**: `InvertLookX`/`InvertLookY`/`NavigationSpeedMultiplier`。
+  `ActiveTool`/`TransformSpace`/`ProjectionMode`は「今どのツールを選んでいるか」という一時的な
+  現在状態でありツールバー側の責務、`NavigationPreset`はenumが`Default`/`Custom`の2値しか無く
+  プリセット値の充填がM0020スコープ外(ADR-0041「器のみ用意する」)で、**今公開すると何も
+  起きないダミーUIになる**ため除外した。
+- **設計上の必須要件だった上書き問題**: 7項目は`SceneViewState.CreateFromSettings`が
+  `SceneHwndHost.BuildWindowCore`で1回だけ読み、さらに`DestroyWindowCore`が`SaveToSettings`で
+  7項目すべてを書き戻す。そのためScene Viewを開いたままオプション画面で変更すると、ビュー破棄時に
+  メモリ上の古い`ViewState`で**上書き消滅する**。`SceneEditorSettings.SettingsChanged`(staticイベント、
+  `SceneEditorHub`の方式に倣う)を`SceneHwndHost`が購読して生きた`ViewState`を更新することで、
+  即時反映と上書き解消を同時に達成した。`WriteNavigationSettings`は3項目を書いてから
+  **イベントを1回だけ**発火する(1回の[OK]で購読側を3回叩かないため)。
+- WPFで描くため`UIElementDialogPage`を使った。素の`DialogPage`はWinFormsの`PropertyGrid`描画に
+  なり、`UseWPF=true`/`UseWindowsForms=false`のこのプロジェクトの方針と既存のWPF+XAML
+  ツールウィンドウ群から外れる。`DialogPage`標準の永続化(`ApplicationPrivateSettings`)は
+  `CSharpGameEngine\SceneEditor`とは別の場所なので、`LoadSettingsFromStorage`/
+  `SaveSettingsToStorage`を上書きして`SceneEditorSettings`へ委譲し二重永続化を避けた。
+- 速度倍率のクランプ範囲は`SceneViewState.MinNavigationSpeedMultiplier`/`Max...`(0.05〜20)を
+  `internal`化して再利用した。オプション画面だけ別範囲を許すと、設定した値がRMB+Wheel操作の
+  直後に勝手に変わることになるため。値の二重定義は作っていない。
+- **ユニットテストできなかったもの(正直な記録)**: `SceneEditorOptionsPage`(`UIElementDialogPage`)と
+  `SceneEditorOptionsControl.xaml`は実VSホストを要するためテスト不能
+  (テストプロジェクトは`Package`/`DialogPage`系の型を読み込めない)。そのため検証・クランプ・
+  書式は純粋クラス`SceneEditorOptionsModel`へ切り出し、そこを自動証跡にした。ページ本体は
+  コントロールとモデルの詰め替えだけを行う薄い殻にしてある。実機での「Tools>Optionsに実際に
+  ページが出て、値を変えると開いているScene Viewへ反映される」確認はユーザー側。
+
+- Evidence: `dotnet build CSharpGameEngine.slnx -c Debug` 成功・**警告0/エラー0**、
+  `dotnet test CSharpGameEngine.slnx -c Debug` **760件成功・失敗0**(737 + FOV補正6件 +
+  オプション画面17件)。VSExtension.Testsは245→268件。
+  なお全体テストの1回目で`TriangleGpuIntegrationTests.Triangle_Warp_DebugLayer_Verify_RendersAndPasses`が
+  `CreateDXGIFactory2`の`HRESULT=0x887A0001`で1件失敗したが、**単体で再実行すると成功**し、
+  全体を再実行しても成功した。変更範囲は`tools/CSharpGameEngine.VSExtension/`とテスト・ドキュメント
+  のみで`src/CSharpGameEngine.Windows/`に一切触れていない(`git status`で確認)ため、
+  Scene Designerが生きたD3D12デバイスを持つExpハイブ2つと並行実行したことによるGPU競合の
+  一時的な失敗と判断した(この種の並行実行時の揺れは記録に残す)。
+
 ## 2026-08 M0020: F5起動時にslnxが二重に読み込まれる(最終原因: このセッション自身が汚したExpハイブの永続化状態)
 
 実機報告: `UserEcsProject.slnx`をF5起動すると、一度開いてシーンの画像が出た**後にもう一度読み込み

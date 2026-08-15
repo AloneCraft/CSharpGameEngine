@@ -116,12 +116,15 @@ public sealed class SceneViewStateTests {
     public void FocusOnBounds_ChangesFocusPositionAndDistance_PreservesYawPitch(){
         SceneViewState State=new(){ FocusPosition=Vector3.Zero,FocusDistance=1f,Yaw=0.5f,Pitch=0.3f };
 
-        State.FocusOnBounds(new Vector3(5f,6f,7f),BoundsRadius:2f);
+        State.FocusOnBounds(new Vector3(5f,6f,7f),BoundsRadius:2f,AspectRatio:1f);
 
         Assert.Equal(new Vector3(5f,6f,7f),State.FocusPosition);
         // ComputeDistance本体(初期シーンフレーミング用、1.1倍余白)に加えて、単一オブジェクトへの
         // FocusSelectionが窮屈になりすぎないよう追加の余白(1.7倍)がかかる(実機検証で発見)。
-        Assert.Equal(SceneCameraFraming.ComputeDistance(2f,State.FovYRadians)*1.7f,State.FocusDistance,Precision);
+        Assert.Equal(
+            SceneCameraFraming.ComputeDistance(2f,State.FovYRadians,AspectRatio:1f)*1.7f,
+            State.FocusDistance,
+            Precision);
         Assert.Equal(0.5f,State.Yaw,Precision);
         Assert.Equal(0.3f,State.Pitch,Precision);
     }
@@ -130,7 +133,7 @@ public sealed class SceneViewStateTests {
     public void FocusOnBounds_DoesNotChangeLastKnownBoundsRadius(){
         SceneViewState State=new(){ LastKnownBoundsRadius=50f };
 
-        State.FocusOnBounds(Vector3.One,BoundsRadius:2f);
+        State.FocusOnBounds(Vector3.One,BoundsRadius:2f,AspectRatio:1f);
 
         Assert.Equal(50f,State.LastKnownBoundsRadius);
     }
@@ -215,7 +218,8 @@ public sealed class SceneViewStateTests {
         Vector3 Center=new(2f,3f,4f);
         const float Radius=8f;
 
-        State.ResetToBounds(Center,Radius,SceneCameraFraming.ViewDirection,SceneCameraFraming.DefaultFovYRadians);
+        State.ResetToBounds(
+            Center,Radius,SceneCameraFraming.ViewDirection,SceneCameraFraming.DefaultFovYRadians,AspectRatio:1f);
 
         Assert.Equal(Center,State.FocusPosition);
         Vector3 Forward=SceneViewCamera.GetForward(State.Yaw,State.Pitch);

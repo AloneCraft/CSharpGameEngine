@@ -34,6 +34,10 @@ namespace CSharpGameEngine.VSExtension;
 [ProvideEditorExtension(typeof(GlbFbxPreviewEditorFactory),".glb",50)]
 [ProvideEditorExtension(typeof(GlbFbxPreviewEditorFactory),".gltf",50)]
 [ProvideEditorExtension(typeof(GlbFbxPreviewEditorFactory),".fbx",50)]
+// Tools>Options > C# Game Engine > Scene Editor。120/121 は VSPackage.resx のカテゴリ名/ページ名。
+// GeneratePkgDefFile=true なので .pkgdef へ自動登録される(マニフェストの手編集は不要)。
+[ProvideOptionPage(typeof(SceneEditorOptionsPage),"C# Game Engine","Scene Editor",120,121,
+    supportsAutomation:true)]
 public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
     public const string PackageGuidString="aec17804-e2e4-46e7-b373-de11af816203";
 

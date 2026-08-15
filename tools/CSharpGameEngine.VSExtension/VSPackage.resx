@@ -38,4 +38,12 @@
   <data name="111" xml:space="preserve">
     <value>C# Game Engine Scene</value>
   </data>
+  <!-- Tools>Options のカテゴリ名/ページ名(SceneEditorOptionsPage の ProvideOptionPage が参照する
+       リソースID)。 -->
+  <data name="120" xml:space="preserve">
+    <value>C# Game Engine</value>
+  </data>
+  <data name="121" xml:space="preserve">
+    <value>Scene Editor</value>
+  </data>
 </root>

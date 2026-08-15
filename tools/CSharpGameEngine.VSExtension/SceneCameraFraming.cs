@@ -99,14 +99,34 @@ internal static class SceneCameraFraming {
     /// M0020 Phase 0 まで使っていた固定値 3.0*Radius と 4% しか違わない(見た目維持の根拠)。
     /// 魔法数 3.0 ではなく FOV から導出する形にしてあるので、Phase 1 で FOV を可変にしても壊れない。
     /// </summary>
-    internal static float ComputeDistance(float BoundsRadius,float FovYRadians){
+    internal static float ComputeDistance(float BoundsRadius,float FovYRadians,float AspectRatio){
         var Radius=Math.Max(BoundsRadius,MinimumRadius);
-        var HalfFov=Math.Max(FovYRadians,MinimumRadius)/2f;
+        // 縦FOVではなく「実際に境界球を制約する側」のFOVで接距離を出す。縦長ウィンドウでは水平FOVの
+        // 方が狭いため、縦FOVだけで決めると左右にはみ出す(aspect 0.75 という緩い縦長でも実測で
+        // NDC x=1.012 と溢れた)。aspect≥1 では実効FOV=縦FOVなので既存の距離は変わらない。
+        var HalfFov=ComputeEffectiveFovRadians(FovYRadians,AspectRatio)/2f;
         return Radius/(float)Math.Sin(HalfFov)*FramingSafetyMargin;
     }
 
-    internal static Matrix4x4 CreateView(Vector3 BoundsCenter,float BoundsRadius,float FovYRadians){
-        Vector3 Eye=BoundsCenter+ViewDirection*ComputeDistance(BoundsRadius,FovYRadians);
+    /// <summary>
+    /// 境界球を実際に制約する側のFOV。水平FOVは <c>2*atan(tan(FovY/2)*aspect)</c> なので、
+    /// 縦長ウィンドウ(<paramref name="AspectRatio"/>&lt;1)では縦より狭くなる。
+    /// <c>min</c> を取ることで aspect≥1 では縦FOVがそのまま返り、横長・正方形の既存の距離計算が
+    /// 1ビットも変わらない(<c>ComputeDistance_WideAspect_MatchesTheSquareCaseExactly</c>が固定)。
+    /// </summary>
+    internal static float ComputeEffectiveFovRadians(float FovYRadians,float AspectRatio){
+        var SafeFovY=Math.Max(FovYRadians,MinimumRadius);
+        var SafeAspect=Math.Max(AspectRatio,MinimumRadius);
+        if(SafeAspect>=1f){
+            return SafeFovY;
+        }
+
+        var HorizontalFov=2f*(float)Math.Atan(Math.Tan(SafeFovY/2f)*SafeAspect);
+        return Math.Min(SafeFovY,HorizontalFov);
+    }
+
+    internal static Matrix4x4 CreateView(Vector3 BoundsCenter,float BoundsRadius,float FovYRadians,float AspectRatio){
+        Vector3 Eye=BoundsCenter+ViewDirection*ComputeDistance(BoundsRadius,FovYRadians,AspectRatio);
         return Matrix4x4.CreateLookAt(Eye,BoundsCenter,Vector3.UnitY);
     }
 
@@ -130,6 +150,6 @@ internal static class SceneCameraFraming {
 
     internal static(Matrix4x4 View,Matrix4x4 Projection)FrameBounds(
         Vector3 BoundsCenter,float BoundsRadius,float FovYRadians,float AspectRatio)=>(
-        CreateView(BoundsCenter,BoundsRadius,FovYRadians),
+        CreateView(BoundsCenter,BoundsRadius,FovYRadians,AspectRatio),
         CreateProjection(BoundsRadius,FovYRadians,AspectRatio));
 }

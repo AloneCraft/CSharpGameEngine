@@ -132,6 +132,75 @@ public sealed class SceneEditorSettingsTests {
         Assert.True(SceneEditorSettings.ReadInvertLookY());
     });
 
+    /// <summary>
+    /// Tools&gt;Options のページが使う一括書き込み。3項目が実際に永続化されることを確認する。
+    /// </summary>
+    [Fact]
+    public void WriteNavigationSettings_PersistsAllThreeExposedValues()=>RunOnUiThread(()=>{
+        SceneEditorSettings.WriteNavigationSettings(
+            NavigationSpeedMultiplier:3.25f,
+            InvertLookX:!SceneEditorSettings.DefaultInvertLookX,
+            InvertLookY:!SceneEditorSettings.DefaultInvertLookY);
+
+        Assert.Equal(3.25f,SceneEditorSettings.ReadNavigationSpeedMultiplier());
+        Assert.Equal(!SceneEditorSettings.DefaultInvertLookX,SceneEditorSettings.ReadInvertLookX());
+        Assert.Equal(!SceneEditorSettings.DefaultInvertLookY,SceneEditorSettings.ReadInvertLookY());
+    });
+
+    /// <summary>
+    /// 3項目を書いても<c>SettingsChanged</c>は**1回だけ**発火する。項目ごとに発火すると、
+    /// 購読している生きたScene Viewを1回の[OK]で3回叩くことになる。
+    /// </summary>
+    [Fact]
+    public void WriteNavigationSettings_RaisesSettingsChangedExactlyOnce()=>RunOnUiThread(()=>{
+        var RaisedCount=0;
+        void Handler()=>RaisedCount++;
+
+        SceneEditorSettings.SettingsChanged+=Handler;
+        try {
+            SceneEditorSettings.WriteNavigationSettings(2f,InvertLookX:true,InvertLookY:true);
+        } finally {
+            SceneEditorSettings.SettingsChanged-=Handler;
+        }
+
+        Assert.Equal(1,RaisedCount);
+    });
+
+    /// <summary>解除した購読者は二度と呼ばれない(ビュー破棄後に死んだViewStateを触らないため)。</summary>
+    [Fact]
+    public void SettingsChanged_AfterUnsubscribe_IsNotRaised()=>RunOnUiThread(()=>{
+        var RaisedCount=0;
+        void Handler()=>RaisedCount++;
+
+        SceneEditorSettings.SettingsChanged+=Handler;
+        SceneEditorSettings.SettingsChanged-=Handler;
+        SceneEditorSettings.WriteNavigationSettings(2f,InvertLookX:true,InvertLookY:true);
+
+        Assert.Equal(0,RaisedCount);
+    });
+
+    /// <summary>
+    /// 個別のWrite系(<c>WriteActiveTool</c>等)は<c>SettingsChanged</c>を発火しない。
+    /// これらはScene View自身が自分の状態を書き戻す経路であり、通知すると自分の変更で
+    /// 自分を再読み込みする循環になる。
+    /// </summary>
+    [Fact]
+    public void IndividualWrites_DoNotRaiseSettingsChanged()=>RunOnUiThread(()=>{
+        var RaisedCount=0;
+        void Handler()=>RaisedCount++;
+
+        SceneEditorSettings.SettingsChanged+=Handler;
+        try {
+            SceneEditorSettings.WriteInvertLookX(true);
+            SceneEditorSettings.WriteNavigationSpeedMultiplier(2f);
+            SceneEditorSettings.WriteActiveTool(SceneActiveTool.Move);
+        } finally {
+            SceneEditorSettings.SettingsChanged-=Handler;
+        }
+
+        Assert.Equal(0,RaisedCount);
+    });
+
     [Fact]
     public void ConfigureStoreProvider_Null_AllReadsReturnDefaults()=>RunOnUiThread(()=>{
         SceneEditorSettings.ConfigureStoreProvider(null);

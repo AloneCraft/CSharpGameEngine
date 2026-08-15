@@ -64,8 +64,10 @@ internal sealed class SceneViewState {
     // SceneCameraFramingと同値のフロア(Sky dome保護、Phase 0踏襲)。
     private const float FarPlaneRadiusFactor=20f;
     private const float MinFocusDistance=0.01f;
-    private const float MinNavigationSpeedMultiplier=0.05f;
-    private const float MaxNavigationSpeedMultiplier=20f;
+    // RMB+Wheelでの実行時調整(ApplyNavigationSpeedAdjust)と Tools>Options ページの入力検証で
+    // 同じ範囲を使う(値の二重定義を作らないためinternal公開している)。
+    internal const float MinNavigationSpeedMultiplier=0.05f;
+    internal const float MaxNavigationSpeedMultiplier=20f;
 
     // 仕様§3どおり pow(0.9, notch) / pow(1.2, notch)。
     private const float DollyNotchFactor=0.9f;
@@ -131,9 +133,10 @@ internal sealed class SceneViewState {
     /// <c>ComputeDistance</c>/<c>ViewDirection</c>/<c>DefaultFovYRadians</c>を使うため、
     /// 新規シーンを開いた最初のフレームはPhase 0までの固定フレーミングと同じ見た目になる。
     /// </summary>
-    internal void ResetToBounds(Vector3 BoundsCenter,float BoundsRadius,Vector3 ViewDirection,float FovYRadians){
+    internal void ResetToBounds(
+        Vector3 BoundsCenter,float BoundsRadius,Vector3 ViewDirection,float FovYRadians,float AspectRatio){
         FocusPosition=BoundsCenter;
-        FocusDistance=SceneCameraFraming.ComputeDistance(BoundsRadius,FovYRadians);
+        FocusDistance=SceneCameraFraming.ComputeDistance(BoundsRadius,FovYRadians,AspectRatio);
         this.FovYRadians=FovYRadians;
         OrthographicSize=BoundsRadius;
         LastKnownBoundsRadius=BoundsRadius;
@@ -151,9 +154,10 @@ internal sealed class SceneViewState {
     /// <see cref="FocusSelectionExtraMargin"/>で<see cref="SceneCameraFraming.ComputeDistance"/>の
     /// 窮屈な余白を緩める(実機検証で発見 — 詳細は同定数のコメント参照)。
     /// </summary>
-    internal void FocusOnBounds(Vector3 BoundsCenter,float BoundsRadius){
+    internal void FocusOnBounds(Vector3 BoundsCenter,float BoundsRadius,float AspectRatio){
         FocusPosition=BoundsCenter;
-        FocusDistance=SceneCameraFraming.ComputeDistance(BoundsRadius,FovYRadians)*FocusSelectionExtraMargin;
+        FocusDistance=
+            SceneCameraFraming.ComputeDistance(BoundsRadius,FovYRadians,AspectRatio)*FocusSelectionExtraMargin;
         OrthographicSize=BoundsRadius;
     }
 

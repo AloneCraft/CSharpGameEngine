@@ -25,19 +25,67 @@ internal static class SceneEditorSettings {
     private const string CollectionPath=@"CSharpGameEngine\SceneEditor";
 
     // 実機確認(2026-08): 一時的にX/Yとも既定を反転側(true)へ変更したが、実機で試した結果
-    // 反転しない側(false)を既定として維持することにした。オプション画面から選ばせたいという
-    // 要望はまだ実装していないため、いったん定数として定義しておく — 将来オプションUIを
-    // 追加するときはここを読み替えるか、UIの初期選択値として使う。
+    // 反転しない側(false)を既定として維持することにした。
+    // これらは Tools>Options ページ(SceneEditorOptionsPage)の初期値/「既定へ戻す」の基準でもある。
     internal const bool DefaultInvertLookX=false;
     internal const bool DefaultInvertLookY=false;
 
+    // 残り5項目の既定値も、オプション画面が基準として参照できるよう名前付き定数へ引き上げる
+    // (以前は各Readのインラインリテラルだった)。
+    internal const SceneActiveTool DefaultActiveTool=SceneActiveTool.Select;
+    internal const SceneTransformSpace DefaultTransformSpace=SceneTransformSpace.World;
+    internal const SceneProjectionMode DefaultProjectionMode=SceneProjectionMode.Perspective;
+    internal const SceneNavigationPreset DefaultNavigationPreset=SceneNavigationPreset.Default;
+    internal const float DefaultNavigationSpeedMultiplier=1.0f;
+
     private static Func<WritableSettingsStore?>?StoreProvider;
+
+    /// <summary>
+    /// 設定がこのクラス経由で書き換えられたことの通知。Tools&gt;Options ページで値を変えたとき、
+    /// **既に開いている** Scene View へ反映するために使う。
+    ///
+    /// <para>
+    /// これが無いと壊れる理由(設計上の必須要件): 7項目は<c>SceneViewState.CreateFromSettings</c>が
+    /// <c>SceneHwndHost.BuildWindowCore</c>で1回だけ読む。さらに
+    /// <c>SceneHwndHost.DestroyWindowCore</c>が<c>SaveToSettings</c>で7項目すべてを書き戻すため、
+    /// Scene Viewを開いたままオプション画面で変更すると、ビュー破棄時にメモリ上の古い
+    /// <c>ViewState</c>の値で**上書き消滅する**。購読側が生きた<c>ViewState</c>を更新することで、
+    /// 書き戻される値が新しい値になり、この上書きも同時に解消される。
+    /// </para>
+    ///
+    /// <para>
+    /// <c>SceneEditorHub</c>のstaticイベント方式に倣う(購読・解除は購読側のライフサイクルで行う)。
+    /// </para>
+    /// </summary>
+    internal static event Action?SettingsChanged;
 
     internal static void ConfigureStoreProvider(Func<WritableSettingsStore?>?Provider)=>StoreProvider=Provider;
 
+    /// <summary>
+    /// 一時診断用: 設定ストアが実際に取得できるか。Providerはパッケージ初期化時に登録されるため、
+    /// これがfalseなら書き込みは黙って無視されている(<see cref="WriteBoolean"/>参照)。
+    /// 原因確認後に<see cref="SceneEditorOptionsPage"/>の診断ログごと削除する。
+    /// </summary>
+    internal static bool IsStoreAvailable=>StoreProvider?.Invoke() is not null;
+
+    /// <summary>一時診断用: 生きたScene Viewが購読しているか(0なら即時反映先が無い)。</summary>
+    internal static int SettingsChangedSubscriberCount=>SettingsChanged?.GetInvocationList().Length??0;
+
+    /// <summary>
+    /// オプション画面が公開する3項目をまとめて書き、最後に<see cref="SettingsChanged"/>を
+    /// **1回だけ**発火する(項目ごとに発火して生きたビューを3回叩かないため)。
+    /// </summary>
+    internal static void WriteNavigationSettings(float NavigationSpeedMultiplier,bool InvertLookX,bool InvertLookY){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        WriteFloat("NavigationSpeedMultiplier",NavigationSpeedMultiplier);
+        WriteBoolean("InvertLookX",InvertLookX);
+        WriteBoolean("InvertLookY",InvertLookY);
+        SettingsChanged?.Invoke();
+    }
+
     internal static SceneActiveTool ReadActiveTool(){
         ThreadHelper.ThrowIfNotOnUIThread();
-        return ReadEnum("ActiveTool",SceneActiveTool.Select);
+        return ReadEnum("ActiveTool",DefaultActiveTool);
     }
 
     internal static void WriteActiveTool(SceneActiveTool Value){
@@ -47,7 +95,7 @@ internal static class SceneEditorSettings {
 
     internal static SceneTransformSpace ReadTransformSpace(){
         ThreadHelper.ThrowIfNotOnUIThread();
-        return ReadEnum("TransformSpace",SceneTransformSpace.World);
+        return ReadEnum("TransformSpace",DefaultTransformSpace);
     }
 
     internal static void WriteTransformSpace(SceneTransformSpace Value){
@@ -57,7 +105,7 @@ internal static class SceneEditorSettings {
 
     internal static SceneProjectionMode ReadProjectionMode(){
         ThreadHelper.ThrowIfNotOnUIThread();
-        return ReadEnum("ProjectionMode",SceneProjectionMode.Perspective);
+        return ReadEnum("ProjectionMode",DefaultProjectionMode);
     }
 
     internal static void WriteProjectionMode(SceneProjectionMode Value){
@@ -67,7 +115,7 @@ internal static class SceneEditorSettings {
 
     internal static SceneNavigationPreset ReadNavigationPreset(){
         ThreadHelper.ThrowIfNotOnUIThread();
-        return ReadEnum("NavigationPreset",SceneNavigationPreset.Default);
+        return ReadEnum("NavigationPreset",DefaultNavigationPreset);
     }
 
     internal static void WriteNavigationPreset(SceneNavigationPreset Value){
@@ -77,7 +125,7 @@ internal static class SceneEditorSettings {
 
     internal static float ReadNavigationSpeedMultiplier(){
         ThreadHelper.ThrowIfNotOnUIThread();
-        return ReadFloat("NavigationSpeedMultiplier",1.0f);
+        return ReadFloat("NavigationSpeedMultiplier",DefaultNavigationSpeedMultiplier);
     }
 
     internal static void WriteNavigationSpeedMultiplier(float Value){

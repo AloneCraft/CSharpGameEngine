@@ -94,8 +94,15 @@ MVP = `World * View * Projection`)。エンジン座標系との対応は
 しない**ので`(float)Math.*`を使う(Phase 0 の`SceneCameraFraming`が既にこの規約で書かれている)。
 
 初期フレーミング(Phase 0 で`SceneCameraFraming`として実装済み): 方向`normalize(1,0.75,1)`、距離
-`Radius / sin(FovY/2) * 1.1`(`Radius`は真の境界球半径=中心から最遠頂点までの距離)、near `0.05`、
+`Radius / sin(実効FOV/2) * 1.1`(`Radius`は真の境界球半径=中心から最遠頂点までの距離)、near `0.05`、
 far `Radius*20`。`Camera.CreateBoundsFit`とはRadiusの定義(AABB半対角)とnear/farが異なる。
+
+**実効FOV**(2026-08 追加)は`min(FovY, 2*atan(tan(FovY/2) * aspect))`、すなわち縦FOVと水平FOVの
+狭い方。縦長ウィンドウ(aspect<1)では水平FOVが縦より狭くなるため、距離を縦FOVだけで決めると
+境界球が左右にはみ出す(aspect 0.75 という緩い縦長でも実測でNDC x=1.012と溢れた)。
+aspect≥1では実効FOV=FovYとなり、横長・正方形の距離はPhase 0以来まったく変わらない
+(`ComputeDistance_WideAspect_MatchesTheSquareCaseExactly`が完全一致を固定)。
+なお投影行列そのものには**縦FOV**を渡す(実効FOVは距離決定にのみ使う)。
 
 | 概念操作 | 計算 |
 |---|---|

@@ -296,8 +296,13 @@ Phase 3以降の検証結果は、各Phase完了時に本節へ追記する。
   `SceneCameraFraming.NearPlane`定数を0.5〜1.0へ上げること(視点は数十単位先なので視覚的損失ゼロ、
   ユニットテスト済みヘルパー内の定数1つ)。**Phase 0 は「直ったが汚い」をTransform修正のせいだと
   誤診しないため、この確認を検証項目8として明示している。**
-- アスペクト比 < 1(縦長ウィンドウ)では水平FOVが縦より狭くなり境界球が横にはみ出す。これはPhase 0
-  以前と同じ挙動なので踏襲した既知の逸脱。Phase 1で`min(FovY, 2*atan(tan(FovY/2)*aspect))`を検討する。
+- **(2026-08 解消)** アスペクト比 < 1(縦長ウィンドウ)では水平FOVが縦より狭くなり境界球が横に
+  はみ出す既知の逸脱。`SceneCameraFraming.ComputeEffectiveFovRadians`として
+  `min(FovY, 2*atan(tan(FovY/2)*aspect))`を実装し、距離計算にこれを使うようにした(投影行列には
+  従来どおり縦FOVを渡す)。既存の behavioral テストが`±UnitX`をループしているのにNDCのYだけを
+  見ていて破綻を素通りさせていたため、縦横両方+複数アスペクトを回す形に拡張してから直した
+  (aspect 0.75 でも`NDC x=1.011734`と溢れていた)。詳細はConformance.md
+  「追記(2026-08): 縦長ウィンドウのFOV補正と Tools>Options ページの新設」参照。
 - ライトComponentの所在(エンジン標準 vs L9)の決定はPhase 6着手時の小ADRへ先送りしている。
 - 実機VS Experimental Instanceでの目視確認(M0019から引き継いだPhase 9表示系の確認を含む)は
   Phase 0 完了基準に統合したが、**まだ未実施**(上記検証節の10項目)。
@@ -325,8 +330,14 @@ Phase 3以降の検証結果は、各Phase完了時に本節へ追記する。
   変更した後、実機確認を経てユーザーが反転しない側(`false`)を最終的な既定として維持することに
   決め、解消した。`SceneEditorSettings.DefaultInvertLookX`/`DefaultInvertLookY`は最終的に
   `false`のまま(詳細はConformance.md「追記(2026-08): RMB Look(X/Y)の既定を反転側へ一時変更 →
-  実機確認後に反転しない側へ確定」参照)。オプション画面からの選択はまだ無く、今は定数定義のみ —
-  Phase 3以降でオプションUIを作る際の実装対象として残す。
+  実機確認後に反転しない側へ確定」参照)。
+- **(2026-08 解消)** 上記のオプション画面(「Phase 3以降でオプションUIを作る際の実装対象として
+  残す」としていたもの)を実装した。Tools>Options > C# Game Engine > Scene Editor に
+  `InvertLookX`/`InvertLookY`/`NavigationSpeedMultiplier`の3項目を公開する
+  (`SceneEditorOptionsPage`、このVSIX初の`DialogPage`系ページ)。残る4項目を公開しない理由と、
+  「Scene Viewを開いたまま変更すると破棄時に上書き消滅する」問題への対処は
+  Conformance.mdの同追記を参照。`NavigationPreset`はプリセット値の充填(このマイルストーンの
+  スコープ外)が済んでから公開する。
 - **(2026-08 追加)** ソリューションエクスプローラーの単一項目右クリックにも「シーン デザイナーで
   開く」を追加した(従来はコードエディタの右クリックのみ)。`SceneWorkspaceService`にアクティブ
   文書とは独立した第2解析スロットを追加し、コードエディタと同じくシーン名を列挙する体験にした

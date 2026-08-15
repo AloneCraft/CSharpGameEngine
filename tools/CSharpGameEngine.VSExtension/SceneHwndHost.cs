@@ -62,6 +62,11 @@ internal sealed class SceneHwndHost:HwndHost {
     private float PendingLookDeltaY;
     private TimeSpan?LastFlyTickTime;
 
+    // 一時診断用(原因確認後に削除)。
+    private int DiagFlyTickCount;
+    private float DiagAccumulatedDeltaX;
+    private float DiagYawAtDragStart;
+
     private float AspectRatio=>SurfaceWidth/(float)SurfaceHeight;
 
     internal event Action<string>?StatusChanged;
@@ -95,6 +100,7 @@ internal sealed class SceneHwndHost:HwndHost {
         Surface=new RenderSurfaceWindow(HwndParent.Handle,800,600,InitiallyVisible:false);
         ViewState=SceneViewState.CreateFromSettings();
         InputMachine=new SceneInputStateMachine();
+        SceneEditorSettings.SettingsChanged+=this.OnSettingsChanged;
         Surface.PointerInput+=OnPointerInput;
         Surface.WheelInput+=HandleWheel;
         SynchronizationContext UiContext=SynchronizationContext.Current
@@ -114,6 +120,7 @@ internal sealed class SceneHwndHost:HwndHost {
 
         BuildWorker?.Dispose();
         BuildWorker=null;
+        SceneEditorSettings.SettingsChanged-=this.OnSettingsChanged;
         DetachSubscriptions();
         DisposeRenderer();
 
@@ -123,6 +130,8 @@ internal sealed class SceneHwndHost:HwndHost {
         }
 
         // 保険の書き込み(通常はActiveTool等を変更した時点で即時書き込み済み)。
+        // ここは7項目すべてを書き戻すため、Tools>Optionsでの変更をViewStateへ反映していないと
+        // 古い値で上書き消滅させてしまう。OnSettingsChangedがその同期を担っている。
         InputMachine?.Reset();
         ViewState?.SaveToSettings();
         InputMachine=null;
@@ -250,6 +259,12 @@ internal sealed class SceneHwndHost:HwndHost {
 
         bool Shift=(NativeMethods.GetKeyState(NativeMethods.VK_SHIFT)&0x8000)!=0;
         bool Ctrl=(NativeMethods.GetKeyState(NativeMethods.VK_CONTROL)&0x8000)!=0;
+        // 一時診断: ドラッグ中の実測を集計する(1ドラッグ=1行にまとめてログを溢れさせない)。
+        if(PendingLookDeltaX!=0f||PendingLookDeltaY!=0f){
+            DiagFlyTickCount++;
+            DiagAccumulatedDeltaX+=PendingLookDeltaX;
+        }
+
         State.TickFly(Machine.FlyHeldKeys,PendingLookDeltaX,PendingLookDeltaY,(float)DeltaSeconds,Shift,Ctrl);
         PendingLookDeltaX=0f;
         PendingLookDeltaY=0f;
@@ -279,7 +294,23 @@ internal sealed class SceneHwndHost:HwndHost {
             ?TryPickAt(Event.X,Event.Y)
             :null;
 
+        SceneNavState DiagStateBefore=Machine.State;
         SceneInputStepResult Result=Machine.Handle(Event,HitNodePath);
+
+        // 一時診断: ドラッグ開始/終了だけを記録し、Look が実際にどの状態で処理されたかを見る。
+        if(Event.Kind==PointerEventKind.Down){
+            DiagFlyTickCount=0;
+            DiagAccumulatedDeltaX=0f;
+            DiagYawAtDragStart=ViewState?.Yaw??0f;
+            DiagLog($"PointerDown: Button={Event.Button} Alt={Event.Modifiers.Alt} "
+                +$"State {DiagStateBefore}->{Result.State}");
+        } else if(Event.Kind==PointerEventKind.Up||Event.Kind==PointerEventKind.CaptureLost){
+            DiagLog($"Pointer{Event.Kind}: Button={Event.Button} State {DiagStateBefore}->{Result.State} "
+                +$"FlyTicks={DiagFlyTickCount} SumDeltaX={DiagAccumulatedDeltaX} "
+                +$"Yaw {DiagYawAtDragStart:F4}->{ViewState?.Yaw??0f:F4} "
+                +$"InvertX={ViewState?.InvertLookX} InvertY={ViewState?.InvertLookY} "
+                +$"StateHash={ViewState?.GetHashCode()}");
+        }
         switch(Result.Capture){
             case SceneCaptureAction.Begin:
                 Surface?.SetPointerCapture();
@@ -375,7 +406,7 @@ internal sealed class SceneHwndHost:HwndHost {
         }
 
         (Vector3 Center,float Radius)=SceneCameraFraming.ComputeSelectionBounds(Selected);
-        State.FocusOnBounds(Center,Radius);
+        State.FocusOnBounds(Center,Radius,this.AspectRatio);
     }
 
     /// <summary>(Re)builds <see cref="Renderer"/> from the pin 済み <see cref="SceneDocumentSnapshot"/>.</summary>
@@ -473,7 +504,7 @@ internal sealed class SceneHwndHost:HwndHost {
                     // (SetTargetがPendingCameraReset=trueを立てる、事前調査事実3)。
                     State.ResetToBounds(
                         this.SceneBoundsCenter,this.SceneBoundsRadius,
-                        SceneCameraFraming.ViewDirection,SceneCameraFraming.DefaultFovYRadians);
+                        SceneCameraFraming.ViewDirection,SceneCameraFraming.DefaultFovYRadians,this.AspectRatio);
                     PendingCameraReset=false;
                 }
 
@@ -502,6 +533,49 @@ internal sealed class SceneHwndHost:HwndHost {
         Renderer?.Dispose();
         Renderer=null;
         Surface?.SetVisible(false);
+    }
+
+    /// <summary>
+    /// Tools&gt;Options(<see cref="SceneEditorOptionsPage"/>)で設定が変わったときに、**既に開いている**
+    /// Scene View の生きた<see cref="SceneViewState"/>へ反映する。
+    ///
+    /// <para>
+    /// 反映するのはオプション画面が公開している3項目だけ。カメラ姿勢や<c>ActiveTool</c>等の
+    /// セッション内状態は触らない(ユーザーの現在の視点を設定変更で吹き飛ばさない)。
+    /// </para>
+    ///
+    /// <para>
+    /// これは見た目の即時反映のためだけでなく<b>正しさのために必須</b>である:
+    /// <see cref="DestroyWindowCore"/>が<c>SaveToSettings</c>で7項目すべてを書き戻すので、
+    /// ここで同期しておかないとビュー破棄時に古い値でオプション画面の変更を上書き消滅させてしまう。
+    /// </para>
+    /// </summary>
+    private void OnSettingsChanged(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(ViewState is not { } State){
+            DiagLog("OnSettingsChanged: ViewState=null (反映先が無い)");
+            return;
+        }
+
+        State.NavigationSpeedMultiplier=SceneEditorSettings.ReadNavigationSpeedMultiplier();
+        State.InvertLookX=SceneEditorSettings.ReadInvertLookX();
+        State.InvertLookY=SceneEditorSettings.ReadInvertLookY();
+        DiagLog($"OnSettingsChanged: applied InvertX={State.InvertLookX} InvertY={State.InvertLookY} "
+            +$"Speed={State.NavigationSpeedMultiplier} StateHash={State.GetHashCode()}");
+    }
+
+    /// <summary>
+    /// 一時診断(実機で「オプションでチェックしても反転しない」)。原因確認後に削除する。
+    /// <c>ActivityLog</c>はVS正常終了時しかフラッシュされないためプレーンテキストへ即時追記する。
+    /// </summary>
+    private static void DiagLog(string Message){
+        try {
+            string Path=System.IO.Path.Combine(
+                Environment.GetEnvironmentVariable("TEMP")??".","CSharpGameEngine-OptionsDiag.txt");
+            System.IO.File.AppendAllText(Path,$"{DateTime.Now:HH:mm:ss.fff} {Message}{Environment.NewLine}");
+        } catch {
+            // 診断が描画やナビゲーションを壊してはならない。
+        }
     }
 
     private void DetachSubscriptions(){
