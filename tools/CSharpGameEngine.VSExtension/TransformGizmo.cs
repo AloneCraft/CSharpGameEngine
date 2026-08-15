@@ -8,6 +8,9 @@ internal enum GizmoHandleId {
     AxisX, AxisY, AxisZ, PlaneXY, PlaneYZ, PlaneZX,
     RotateX, RotateY, RotateZ, RotateView,
     ScaleX, ScaleY, ScaleZ, ScaleUniform,
+    CameraFov, CameraNear, CameraFar, CameraOrthographicSize,
+    DirectionalDirection, PointRange,
+    SpotDirection, SpotInnerCone, SpotOuterCone, SpotRange,
 }
 
 internal enum GizmoPrimitiveKind { Line, Triangle }

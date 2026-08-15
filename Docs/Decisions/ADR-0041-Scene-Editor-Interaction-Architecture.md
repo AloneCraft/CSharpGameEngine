@@ -2,8 +2,9 @@
 
 ## ステータス
 
-承認済み(全決定事項は**未実装・計画済み**)。実装は[[M0020-Scene-Editor-Interaction]]のPhase 0〜7で
-段階的に行い、各Phase完了時に本文書の「検証結果」へ実行結果を追記する。要求仕様は
+承認済み(M0020 Phase 0〜6+後続Task Cは**実装済み**、Phase 7は計画済み)。実装は
+[[M0020-Scene-Editor-Interaction]]で段階的に行い、各Phase完了時に同文書の「検証結果」と
+`Docs/Conformance.md`へ実行結果を追記する。要求仕様は
 `Docs/シーンエディタの仕様.md`(§1〜23)、既存基盤は
 [[ADR-0040-CSharp-Scene-DSL-and-Bidirectional-Editor]]を前提とする。
 
@@ -243,8 +244,8 @@ Esc
 HeightFog)はすべて`UserEcsProject/Components.cs`(L9)にしか存在せず、RectLightは皆無**。したがって:
 
 - PropertyGizmoの第一対象はエンジン標準の`Camera`(FrustumGizmo)とする。
-- ライトギズモ(仕様§10)は「ライトComponentのエンジン標準化」か「L9型のBinding登録で済ませる」かを
-  Phase 6着手時の小ADRで決める(本ADRでは決めない)。
+- **(Phase 6で決定済み)** ライトギズモ(仕様§10)はADR-0043によりL9型の完全修飾名Bindingを
+  登録する。エンジン標準化はRendererハンドル所有を再設計する別ADRへ送る。
 - 仕様§10.4のRect/Area Lightは語彙ギャップとして記録し、M0020スコープ外とする。
 
 ### 10. 選択の双方向化: `SceneSelectionOrigin.Viewport`の有効化

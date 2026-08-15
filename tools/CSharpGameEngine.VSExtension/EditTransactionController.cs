@@ -54,13 +54,15 @@ internal readonly struct SceneTransformChange {
 internal sealed class SceneEditCommitRequest {
     internal SceneEditCommitRequest(
         SceneKey SceneKey,long DocumentVersion,string UndoDescription,IReadOnlyList<SceneTransformChange>Changes,
-        SceneTransformMemberMask Members,IReadOnlyList<NodePath>?DuplicateResultPaths=null){
+        SceneTransformMemberMask Members,IReadOnlyList<NodePath>?DuplicateResultPaths=null,
+        IReadOnlyList<SceneEditOperation>?DirectOperations=null){
         this.SceneKey=SceneKey;
         this.DocumentVersion=DocumentVersion;
         this.UndoDescription=UndoDescription;
         this.Changes=Changes;
         this.Members=Members;
         this.DuplicateResultPaths=DuplicateResultPaths??Array.Empty<NodePath>();
+        this.DirectOperations=DirectOperations??Array.Empty<SceneEditOperation>();
     }
 
     internal SceneKey SceneKey { get; }
@@ -74,6 +76,8 @@ internal sealed class SceneEditCommitRequest {
     internal SceneTransformMemberMask Members { get; }
 
     internal IReadOnlyList<NodePath>DuplicateResultPaths { get; }
+
+    internal IReadOnlyList<SceneEditOperation>DirectOperations { get; }
 
     internal bool IsDuplicate=>this.DuplicateResultPaths.Count>0;
 }
@@ -129,6 +133,17 @@ internal sealed class EditTransactionController {
         this.Targets=Targets.ToArray();
         this.Previews=this.Targets.Select(static Target=>
             new SceneTransformPreview(Target.NodeId,Target.NodePath,Target.OriginalWorld)).ToArray();
+        this.PendingSnapshot=null;
+        State=EditTransactionState.Dragging;
+    }
+
+    internal void BeginDirect(SceneDocumentSnapshot Snapshot){
+        if(State!=EditTransactionState.Idle){
+            throw new InvalidOperationException("編集トランザクションは既に進行中です。");
+        }
+        this.StartedSnapshot=Snapshot??throw new ArgumentNullException(nameof(Snapshot));
+        this.Targets=[];
+        this.Previews=[];
         this.PendingSnapshot=null;
         State=EditTransactionState.Dragging;
     }
@@ -206,6 +221,22 @@ internal sealed class EditTransactionController {
             return false;
         }
         return TryCreateCommitCore(UndoDescription,Members,DuplicateResultPaths,out Request);
+    }
+
+    internal bool TryCreateDirectCommit(
+        string UndoDescription,IReadOnlyList<SceneEditOperation>Operations,out SceneEditCommitRequest?Request){
+        EnsureState(EditTransactionState.Dragging);
+        if(this.StartedSnapshot is not { }Started||Operations.Count==0
+            ||Operations.Any(Operation=>!Operation.SceneKey.Equals(Started.Key))){
+            Request=null;
+            return false;
+        }
+
+        State=EditTransactionState.Committing;
+        Request=new SceneEditCommitRequest(
+            Started.Key,Started.DocumentVersion,UndoDescription,Array.Empty<SceneTransformChange>(),
+            SceneTransformMemberMask.None,DirectOperations:Operations);
+        return true;
     }
 
     private bool TryCreateCommitCore(

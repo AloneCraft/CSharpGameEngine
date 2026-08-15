@@ -147,6 +147,23 @@ public sealed class EditTransactionControllerTests {
         Assert.Equal(SceneTransformMemberMask.Position,Operation.Members);
     }
 
+    [Fact]
+    public void DirectPropertyCommit_CarriesSourceOperationsThroughTheSameTransaction(){
+        SceneDocumentSnapshot Snapshot=CreateSnapshot(DocumentVersion:13);
+        EditorNodeId Cube=Assert.Single(Snapshot.Projection!.Nodes,static Node=>Node.Node.Name=="Cube").Id;
+        SetComponentMemberOperation Operation=new(
+            Key,Cube,13,"global::CSharpGameEngine.Runtime.Windows.Camera","NearZ","0.5f");
+        EditTransactionController Controller=new();
+        Controller.BeginDirect(Snapshot);
+
+        Assert.True(Controller.TryCreateDirectCommit(
+            "Edit Camera Near",[Operation],out SceneEditCommitRequest?Request));
+
+        Assert.Same(Operation,Assert.Single(Request!.DirectOperations));
+        Assert.Same(Operation,Assert.Single(SceneEditorSessionService.CreateOperations(Request)));
+        Assert.Equal(EditTransactionState.Committing,Controller.State);
+    }
+
     private static SceneDocumentSnapshot CreateSnapshot(long DocumentVersion){
         SceneModel Model=SceneAnalysisTestHelper.Analyze("""
             using CSharpGameEngine.Entities;

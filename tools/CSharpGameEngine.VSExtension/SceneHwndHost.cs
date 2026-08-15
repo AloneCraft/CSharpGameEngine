@@ -79,6 +79,9 @@ internal sealed class SceneHwndHost:HwndHost {
     private MoveGizmoDrag?ActiveMoveDrag;
     private RotateGizmoDrag?ActiveRotateDrag;
     private ScaleGizmoDrag?ActiveScaleDrag;
+    private PropertyGizmoFrame?CurrentPropertyGizmo;
+    private PropertyGizmoDrag?ActivePropertyDrag;
+    private bool PropertyCommitInProgress;
     private SceneActiveTool?ActiveTransformTool;
     private ICollection<GizmoHandleId>DisabledMoveHandles=Array.Empty<GizmoHandleId>();
     private IReadOnlyList<SceneTransformPreview>PreviewDescendantOriginals=[];
@@ -340,7 +343,7 @@ internal sealed class SceneHwndHost:HwndHost {
         }
 
         if(Event.Kind==PointerEventKind.Move&&Machine.State==SceneNavState.Idle){
-            TryHitTransformGizmoAt(Event.X,Event.Y);
+            TryHitTransformGizmoAt(Event.X,Event.Y,IncludeProperty:!Event.Modifiers.Alt);
         }
 
         // ヒットテストはLMB Down・Alt無し・Idle中(Orbit開始やナビゲーション中の無駄な走査を避ける)の
@@ -348,7 +351,7 @@ internal sealed class SceneHwndHost:HwndHost {
         // 結果だけを渡す。
         GizmoHandleId?HitGizmoHandle=Event.Kind==PointerEventKind.Down&&Event.Button==PointerButton.Left
             &&Machine.State==SceneNavState.Idle
-            ?TryHitTransformGizmoAt(Event.X,Event.Y)
+            ?TryHitTransformGizmoAt(Event.X,Event.Y,IncludeProperty:!Event.Modifiers.Alt)
             :null;
         NodePath?HitNodePath=HitGizmoHandle is null
             &&Event.Kind==PointerEventKind.Down&&Event.Button==PointerButton.Left
@@ -359,7 +362,7 @@ internal sealed class SceneHwndHost:HwndHost {
         SceneInputStepResult Result=Machine.Handle(Event,HitNodePath,HitGizmoHandle);
 
         if(Result.GizmoDragBegan&&Result.GizmoHandle is { }BeganHandle
-            &&!BeginTransformGizmoDrag(BeganHandle,Event.X,Event.Y,Result.GizmoDuplicate)){
+            &&!BeginGizmoDrag(BeganHandle,Event.X,Event.Y,Result.GizmoDuplicate)){
             SceneInputStepResult Canceled=Machine.CancelCurrent();
             if(Canceled.Capture==SceneCaptureAction.End){
                 Surface?.ReleasePointerCapture();
@@ -408,7 +411,11 @@ internal sealed class SceneHwndHost:HwndHost {
             return;
         }
         if(Result.State==SceneNavState.GizmoDragging&&Event.Kind==PointerEventKind.Move){
-            UpdateTransformGizmoDrag(Event.X,Event.Y,Event.Modifiers.Ctrl,Event.Modifiers.Shift);
+            if(ActivePropertyDrag is not null){
+                UpdatePropertyGizmoDrag(Event.X,Event.Y,Event.Modifiers.Ctrl);
+            } else {
+                UpdateTransformGizmoDrag(Event.X,Event.Y,Event.Modifiers.Ctrl,Event.Modifiers.Shift);
+            }
             return;
         }
 
@@ -486,21 +493,26 @@ internal sealed class SceneHwndHost:HwndHost {
         return ScenePicker.TryPick(CurrentRenderObjects,Origin,Direction,out NodePath Hit)?Hit:(NodePath?)null;
     }
 
-    private GizmoHandleId?TryHitTransformGizmoAt(int X,int Y){
-        if(CurrentMoveGizmo is not { }Frame||ViewState is not { }State
-            ||State.ActiveTool==SceneActiveTool.Select){
+    private GizmoHandleId?TryHitTransformGizmoAt(int X,int Y,bool IncludeProperty=true){
+        if(ViewState is not { }State||State.ActiveTool==SceneActiveTool.Select
+            ||(CurrentMoveGizmo is null&&CurrentPropertyGizmo is null)){
             return null;
         }
 
         (Vector3 Origin,Vector3 Direction)=SceneViewCamera.ScreenPointToRay(
             State.GetView(),State.GetProjection(this.AspectRatio),X,Y,SurfaceWidth,SurfaceHeight);
         Vector3 CameraForward=SceneViewCamera.GetForward(State.Yaw,State.Pitch);
-        GizmoHandleId?Hit=State.ActiveTool switch {
-            SceneActiveTool.Move=>TransformGizmo.TryHitMove(Frame,Origin,Direction,DisabledMoveHandles),
-            SceneActiveTool.Rotate=>TransformGizmo.TryHitRotate(Frame,Origin,Direction,CameraForward,DisabledMoveHandles),
-            SceneActiveTool.Scale=>TransformGizmo.TryHitScale(Frame,Origin,Direction,DisabledMoveHandles),
-            _=>null,
-        };
+        GizmoHandleId?Hit=IncludeProperty&&CurrentPropertyGizmo is { }PropertyFrame
+            ?PropertyGizmo.TryHit(PropertyFrame,Origin,Direction)
+            :null;
+        if(Hit is null&&CurrentMoveGizmo is { }Frame){
+            Hit=State.ActiveTool switch {
+                SceneActiveTool.Move=>TransformGizmo.TryHitMove(Frame,Origin,Direction,DisabledMoveHandles),
+                SceneActiveTool.Rotate=>TransformGizmo.TryHitRotate(Frame,Origin,Direction,CameraForward,DisabledMoveHandles),
+                SceneActiveTool.Scale=>TransformGizmo.TryHitScale(Frame,Origin,Direction,DisabledMoveHandles),
+                _=>null,
+            };
+        }
         if(Hit!=HoveredGizmoHandle){
             HoveredGizmoHandle=Hit;
             RefreshOverlay();
@@ -513,22 +525,25 @@ internal sealed class SceneHwndHost:HwndHost {
             ||State.ActiveTool==SceneActiveTool.Select||SelectedNodePath is not { }PrimaryPath
             ||TargetSnapshot?.Projection is not { }Projection
             ||!Projection.TryGetId(PrimaryPath,out EditorNodeId PrimaryId)
-            ||!Projection.TryGetNode(PrimaryId,out SceneProjectionNode PrimaryNode)
-            ||!SceneTransformBinding.TryRead(PrimaryNode.Node,out _)){
+            ||!Projection.TryGetNode(PrimaryId,out SceneProjectionNode PrimaryNode)){
             CurrentMoveGizmo=null;
+            CurrentPropertyGizmo=null;
             HoveredGizmoHandle=null;
             DisabledMoveHandles=Array.Empty<GizmoHandleId>();
             RefreshOverlay();
             return;
         }
-        if(EditTransaction.State!=EditTransactionState.Idle&&CurrentMoveGizmo is not null){
+        if(EditTransaction.State!=EditTransactionState.Idle
+            &&(CurrentMoveGizmo is not null||CurrentPropertyGizmo is not null)){
             RefreshOverlay();
             return;
         }
 
         SceneRenderObject?PrimaryObject=CurrentRenderObjects.FirstOrDefault(Object=>Object.NodeId.Equals(PrimaryPath));
-        if(PrimaryObject is null||!SceneTransformMath.TryDecompose(PrimaryObject.World,out SceneTransformValue WorldTransform)){
+        Matrix4x4 PrimaryWorld=PrimaryObject?.World??Matrix4x4.Identity;
+        if(!SceneTransformMath.TryDecompose(PrimaryWorld,out SceneTransformValue WorldTransform)){
             CurrentMoveGizmo=null;
+            CurrentPropertyGizmo=null;
             RefreshOverlay();
             return;
         }
@@ -538,6 +553,16 @@ internal sealed class SceneHwndHost:HwndHost {
             Vector3.Distance(WorldTransform.Position,State.GetEyePosition()),
             State.FovYRadians,
             State.OrthographicSize);
+        CurrentPropertyGizmo=PropertyGizmoBinding.TryCreate(
+            PrimaryNode.Node,PrimaryWorld,Scale,out PropertyGizmoFrame PropertyFrame)
+            ?PropertyFrame
+            :null;
+        if(!SceneTransformBinding.TryRead(PrimaryNode.Node,out _)){
+            CurrentMoveGizmo=null;
+            DisabledMoveHandles=Array.Empty<GizmoHandleId>();
+            RefreshOverlay();
+            return;
+        }
         CurrentMoveGizmo=MoveGizmoFrame.Create(
             WorldTransform.Position,WorldTransform.Rotation,State.TransformSpace,Scale);
         List<SceneProjectionNode>Roots=GetSelectedMoveRoots(Projection);
@@ -554,9 +579,11 @@ internal sealed class SceneHwndHost:HwndHost {
         }
 
         List<GizmoOverlayPrimitive>Primitives=[];
+        IReadOnlyList<GizmoOverlayPrimitive>TransformPrimitives=Array.Empty<GizmoOverlayPrimitive>();
+        IReadOnlyList<GizmoOverlayPrimitive>PropertyPrimitives=Array.Empty<GizmoOverlayPrimitive>();
         if(CurrentMoveGizmo is { }Frame&&ViewState is { }GizmoState){
             Vector3 CameraForward=SceneViewCamera.GetForward(GizmoState.Yaw,GizmoState.Pitch);
-            IReadOnlyList<GizmoOverlayPrimitive>GizmoPrimitives=GizmoState.ActiveTool switch {
+            TransformPrimitives=GizmoState.ActiveTool switch {
                 SceneActiveTool.Move=>TransformGizmo.BuildMoveOverlay(
                     Frame,HoveredGizmoHandle,ActiveGizmoHandle,DisabledMoveHandles),
                 SceneActiveTool.Rotate=>TransformGizmo.BuildRotateOverlay(
@@ -565,8 +592,12 @@ internal sealed class SceneHwndHost:HwndHost {
                     Frame,HoveredGizmoHandle,ActiveGizmoHandle,DisabledMoveHandles),
                 _=>Array.Empty<GizmoOverlayPrimitive>(),
             };
-            Primitives.AddRange(GizmoPrimitives);
         }
+        if(CurrentPropertyGizmo is { }PropertyFrame){
+            PropertyPrimitives=PropertyGizmo.BuildOverlay(
+                PropertyFrame,HoveredGizmoHandle,ActiveGizmoHandle);
+        }
+        Primitives.AddRange(CompoundGizmo.Compose(TransformPrimitives,PropertyPrimitives));
         if(ActiveMarqueeRectangle is { }Rectangle&&ViewState is { }State){
             Primitives.AddRange(MarqueeOverlay.Build(
                 Rectangle,State.GetView(),State.GetProjection(this.AspectRatio),SurfaceWidth,SurfaceHeight));
@@ -584,6 +615,30 @@ internal sealed class SceneHwndHost:HwndHost {
         ActiveMarqueeRectangle=null;
         RefreshOverlay();
         ObjectsMarqueePicked?.Invoke(Hits,CtrlHeld);
+    }
+
+    private bool BeginGizmoDrag(GizmoHandleId Handle,int X,int Y,bool Duplicate)=>
+        PropertyGizmo.IsPropertyHandle(Handle)
+            ?BeginPropertyGizmoDrag(Handle,X,Y,Duplicate)
+            :BeginTransformGizmoDrag(Handle,X,Y,Duplicate);
+
+    private bool BeginPropertyGizmoDrag(GizmoHandleId Handle,int X,int Y,bool Duplicate){
+        if(Duplicate||CurrentPropertyGizmo is not { }Frame
+            ||TargetSnapshot is not { }Snapshot||Snapshot.Projection is not { }Projection
+            ||CurrentSelection?.PrimaryNodeId is not { }PrimaryId
+            ||!Projection.TryGetNode(PrimaryId,out SceneProjectionNode PrimaryNode)
+            ||!Frame.Handles.Contains(Handle)||!Frame.CanEdit(Handle)){
+            return false;
+        }
+
+        ActivePropertyDrag=new PropertyGizmoDrag(Frame,Handle,X,Y);
+        PropertyCommitInProgress=false;
+        EditTransaction.BeginDirect(Snapshot);
+        ActiveGizmoHandle=Handle;
+        HoveredGizmoHandle=Handle;
+        RefreshOverlay();
+        SetStatus($"プロパティ編集中: {PrimaryNode.Node.DisplayName}");
+        return true;
     }
 
     private bool BeginTransformGizmoDrag(GizmoHandleId Handle,int X,int Y,bool Duplicate){
@@ -817,10 +872,27 @@ internal sealed class SceneHwndHost:HwndHost {
             &&CurrentMoveGizmo is { }CurrentFrame){
             CurrentMoveGizmo=MoveGizmoFrame.Create(
                 WorldTransform.Position,WorldTransform.Rotation,State.TransformSpace,CurrentFrame.WorldScale);
+            if(TargetSnapshot?.Projection is { }Projection
+                &&CurrentSelection?.PrimaryNodeId is { }PrimaryId
+                &&Projection.TryGetNode(PrimaryId,out SceneProjectionNode PrimaryNode)
+                &&CurrentPropertyGizmo is { }PropertyFrame
+                &&PropertyGizmoBinding.TryCreate(
+                    PrimaryNode.Node,PrimaryPreview.World,PropertyFrame.WorldScale,
+                    out PropertyGizmoFrame UpdatedPropertyFrame)){
+                CurrentPropertyGizmo=UpdatedPropertyFrame;
+            }
         }
         if(CurrentMoveGizmo is not null){
             RefreshOverlay();
         }
+    }
+
+    private void UpdatePropertyGizmoDrag(int X,int Y,bool Snap){
+        if(ActivePropertyDrag is null){
+            return;
+        }
+        CurrentPropertyGizmo=ActivePropertyDrag.Update(X,Y,Snap);
+        RefreshOverlay();
     }
 
     private List<SceneProjectionNode>GetSelectedMoveRoots(SceneProjection Projection){
@@ -844,6 +916,28 @@ internal sealed class SceneHwndHost:HwndHost {
     }
 
     private void CommitEditTransaction(){
+        if(ActivePropertyDrag is not null&&CurrentPropertyGizmo is { }PropertyFrame
+            &&ActiveGizmoHandle is { }PropertyHandle
+            &&TargetSnapshot is { }Snapshot&&Snapshot.Projection is { }Projection
+            &&CurrentSelection?.PrimaryNodeId is { }PrimaryId
+            &&Projection.TryGetNode(PrimaryId,out _)){
+            SceneEditOperation[]Operations=PropertyGizmo.CreateOperations(
+                PropertyFrame,PropertyHandle,Snapshot.Key,PrimaryId,Snapshot.DocumentVersion);
+            ActivePropertyDrag=null;
+            ActiveGizmoHandle=null;
+            PropertyCommitInProgress=true;
+            bool PropertyCreated=EditTransaction.TryCreateDirectCommit(
+                "Edit Scene Property",Operations,out SceneEditCommitRequest?PropertyRequest);
+            if(!PropertyCreated||PropertyRequest is null||EditCommitRequested is null){
+                CancelEditTransaction();
+                SetStatus("プロパティ編集を確定できなかったため変更を破棄しました。");
+                return;
+            }
+            EditCommitRequested.Invoke(PropertyRequest);
+            SetStatus("C#ソースへプロパティ編集を反映しています...");
+            return;
+        }
+
         SceneActiveTool Tool=ActiveTransformTool??SceneActiveTool.Move;
         ActiveMoveDrag=null;
         ActiveRotateDrag=null;
@@ -873,8 +967,22 @@ internal sealed class SceneHwndHost:HwndHost {
         if(EditTransaction.State==EditTransactionState.Idle){
             return;
         }
+        bool WasProperty=ActivePropertyDrag is not null||PropertyCommitInProgress;
         bool WasDuplicate=ActiveDuplicatePlan.Count>0;
         SceneEditCancellation Cancellation=EditTransaction.Cancel();
+        if(WasProperty){
+            ActivePropertyDrag=null;
+            PropertyCommitInProgress=false;
+            ActiveGizmoHandle=null;
+            HoveredGizmoHandle=null;
+            CurrentPropertyGizmo=null;
+            if(Cancellation.PendingSnapshot is { }PropertyPending){
+                SetTarget(PropertyPending);
+            } else {
+                UpdateMoveGizmo();
+            }
+            return;
+        }
         if(WasDuplicate){
             RemoveDuplicatePreview(RestoreOriginalSelection:true);
         } else {
@@ -920,7 +1028,22 @@ internal sealed class SceneHwndHost:HwndHost {
             return;
         }
 
+        bool WasProperty=PropertyCommitInProgress;
         SceneDocumentSnapshot?Pending=EditTransaction.Complete();
+        if(WasProperty){
+            ActivePropertyDrag=null;
+            PropertyCommitInProgress=false;
+            ActiveGizmoHandle=null;
+            HoveredGizmoHandle=null;
+            CurrentPropertyGizmo=null;
+            if(Pending is not null){
+                SetTarget(Pending);
+            } else {
+                UpdateMoveGizmo();
+            }
+            SetStatus("プロパティをC#ソースへ反映しました。Ctrl+Zで元に戻せます。");
+            return;
+        }
         RemoveDuplicatePreview(RestoreOriginalSelection:false);
         PreviewDescendantOriginals=[];
         ActiveDraggedRootPaths=[];

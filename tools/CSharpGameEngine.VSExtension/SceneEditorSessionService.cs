@@ -115,13 +115,18 @@ internal sealed class SceneEditorSessionService : IDisposable {
     }
 
     /// <summary>UIコマンドの表示判定用。Roslyn解析を開始したり待機したりしない。</summary>
-    internal static SceneEditOperation[]CreateOperations(SceneEditCommitRequest Request)=>Request.IsDuplicate
-        ?Request.Changes.Select(Change=>(SceneEditOperation)new DuplicateNodeOperation(
-            Request.SceneKey,Change.NodeId,Request.DocumentVersion,Change.Local,
-            Request.Members)).ToArray()
-        :Request.Changes.Select(Change=>(SceneEditOperation)new SetTransformOperation(
-            Request.SceneKey,Change.NodeId,Request.DocumentVersion,Change.Local,
-            Request.Members)).ToArray();
+    internal static SceneEditOperation[]CreateOperations(SceneEditCommitRequest Request){
+        if(Request.DirectOperations.Count>0){
+            return Request.DirectOperations.ToArray();
+        }
+        return Request.IsDuplicate
+            ?Request.Changes.Select(Change=>(SceneEditOperation)new DuplicateNodeOperation(
+                Request.SceneKey,Change.NodeId,Request.DocumentVersion,Change.Local,
+                Request.Members)).ToArray()
+            :Request.Changes.Select(Change=>(SceneEditOperation)new SetTransformOperation(
+                Request.SceneKey,Change.NodeId,Request.DocumentVersion,Change.Local,
+                Request.Members)).ToArray();
+    }
 
     internal SceneDocumentMenuSnapshot GetMenuSnapshot(string FilePath){
         Microsoft.VisualStudio.Shell.ThreadHelper.ThrowIfNotOnUIThread();

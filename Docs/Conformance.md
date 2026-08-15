@@ -1517,3 +1517,30 @@ Expハイブのキャッシュより新しくすること」を機序として**
   - dotnet test CSharpGameEngine.slnx -c Debug --no-build --no-restoreは全8テストプロジェクト
     854件成功・失敗0(Entities 40 / Core 122 / Bridge.Hosting 8 / Import 30 / Windows 87 /
     CodeAnalysis 101 / SceneModel 104 / VSExtension 362)。
+
+## 2026-08-16 M0020 Phase 6: Compound/FrustumとCamera/Light PropertyGizmo
+
+- **MatchesWithDocumentedExtension(ライト語彙)**: ADR-0041で未決定だったライトComponent所在を
+  ADR-0043で現行L9型の完全修飾名Binding登録と決定した。VSIXは文字列照合だけを行い、
+  UserEcsProjectへのバイナリ参照を追加しない。Directional/Point/Spotを登録し、RectLightは未登録。
+- **Matches(Compound/Camera)**: active TransformGizmoとPropertyGizmoをCompoundGizmo.Composeで
+  同一overlayへ合成する。Perspective CameraはFOV/Near/Far、Orthographic Cameraは
+  OrthographicSize/Near/Farを構成し、解析的handle hitからdrag previewへ接続した。
+- **MatchesWithDocumentedExtension(Light Property)**: DirectionalはDirection、PointはRange、
+  SpotはDirection/InnerCone/OuterCone/Rangeを構成する。SourceRadius/SourceSizeは現行L9型に
+  Memberが存在せず、RectLightは型・描画契約も存在しないため明示的対象外。
+- **Matches(modifier)**: PropertyはCtrl単位snapを許可し、Shift/Altを無効化する。Alt押下中は
+  Property hitを除外し、Transform handleならPhase 5 Duplicate、それ以外ならOrbitへ戻す。
+- **Matches(source/transaction)**: Property operation列はEditTransactionControllerのdirect経路で
+  snapshot保留・Esc/capture loss cancel・live text 1 Undoを再利用する。SetComponentMemberは型に
+  宣言済みだがinitializerで省略されたMemberを追記する。Add/RemoveComponentは
+  ComponentsListLocation/SceneComponent.Locationだけを変更し、同型重複・未宣言Member・不正式を拒否する。
+- **Unknown(実機Observed)**: Frustum/Light overlay、実pointer hit/capture、D3D12描画、
+  live buffer、Visual Studio Undo、既存Alt Duplicateの非回帰は実COM/HWND/GPUを要するため未実施。
+  M0020 Phase 6の目視表8項目をユーザー側確認として残した。
+- Evidence:
+  - Phase 6で19件追加。VSExtension.Tests 381件成功・失敗0。
+  - dotnet build CSharpGameEngine.slnx -c Debug --no-restore成功、警告0/エラー0。
+  - dotnet test CSharpGameEngine.slnx -c Debug --no-build --no-restoreは全8テストプロジェクト
+    873件成功・失敗0(Entities 40 / Core 122 / Bridge.Hosting 8 / Import 30 / Windows 87 /
+    CodeAnalysis 101 / SceneModel 104 / VSExtension 381)。

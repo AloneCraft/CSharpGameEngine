@@ -21,6 +21,19 @@ internal sealed record SetComponentMemberOperation(
     string MemberName,
     string ValueExpression) : SceneEditOperation(SceneKey,NodeId,DocumentVersion);
 
+internal sealed record AddComponentOperation(
+    SceneKey SceneKey,
+    EditorNodeId NodeId,
+    long DocumentVersion,
+    string ComponentTypeFullyQualifiedName,
+    string ComponentExpression) : SceneEditOperation(SceneKey,NodeId,DocumentVersion);
+
+internal sealed record RemoveComponentOperation(
+    SceneKey SceneKey,
+    EditorNodeId NodeId,
+    long DocumentVersion,
+    string ComponentTypeFullyQualifiedName) : SceneEditOperation(SceneKey,NodeId,DocumentVersion);
+
 internal sealed record RenameNodeOperation(
     SceneKey SceneKey,
     EditorNodeId NodeId,
@@ -107,6 +120,8 @@ internal static class SceneSourceEditor {
 
         return Operation switch {
             SetComponentMemberOperation SetMember=>ApplySetComponentMember(Root,Node,SetMember),
+            AddComponentOperation AddComponent=>ApplyAddComponent(Root,Node,AddComponent),
+            RemoveComponentOperation RemoveComponent=>ApplyRemoveComponent(Root,Node,RemoveComponent),
             SetTransformOperation SetTransform=>ApplySetTransform(Root,Node,SetTransform),
             DuplicateNodeOperation Duplicate=>ApplyDuplicateNode(Root,Projection,Node,Duplicate),
             RenameNodeOperation Rename=>ApplyRename(Root,Node,Rename),
@@ -189,17 +204,106 @@ internal static class SceneSourceEditor {
         SyntaxNode Root,SceneProjectionNode Node,SetComponentMemberOperation Operation){
         SceneComponent?Component=Node.Node.FindComponent(Operation.ComponentTypeFullyQualifiedName);
         SceneComponentMember?Member=Component?.FindMember(Operation.MemberName);
-        if(Member is null){
+        if(Component is null){
             return SceneSourceEditResult.Failure("対象のComponentまたはMemberが現在のSceneに見つかりません。");
         }
 
-        ExpressionSyntax?OldExpression=FindExpression(Root,Member.Value.Location.Span);
         ExpressionSyntax NewExpression=SyntaxFactory.ParseExpression(Operation.ValueExpression);
-        if(OldExpression is null||NewExpression.ContainsDiagnostics){
+        if(NewExpression.ContainsDiagnostics){
             return SceneSourceEditResult.Failure("新しい値が妥当なC#式ではありません。");
+        }
+        if(Member is null){
+            bool MemberExists=Component.TypeSymbol?.GetMembers(Operation.MemberName).Length>0;
+            if(!MemberExists){
+                return SceneSourceEditResult.Failure("対象のMemberがComponent型に宣言されていません。");
+            }
+            return ApplyInsertComponentMember(Root,Component,Operation.MemberName,NewExpression);
+        }
+
+        ExpressionSyntax?OldExpression=FindExpression(Root,Member.Value.Location.Span);
+        if(OldExpression is null){
+            return SceneSourceEditResult.Failure("対象のMember値がC#ソースに見つかりません。");
         }
 
         return SceneSourceEditResult.Success(Root.ReplaceNode(OldExpression,NewExpression.WithTriviaFrom(OldExpression)));
+    }
+
+    private static SceneSourceEditResult ApplyInsertComponentMember(
+        SyntaxNode Root,SceneComponent Component,string MemberName,ExpressionSyntax NewExpression){
+        BaseObjectCreationExpressionSyntax?Creation=Root.DescendantNodesAndSelf()
+            .OfType<BaseObjectCreationExpressionSyntax>()
+            .SingleOrDefault(Candidate=>Candidate.Span==Component.Location.Span);
+        if(Creation is null){
+            return SceneSourceEditResult.Failure("対象のComponent生成式がC#ソースに見つかりません。");
+        }
+
+        AssignmentExpressionSyntax Assignment=SyntaxFactory.AssignmentExpression(
+            SyntaxKind.SimpleAssignmentExpression,SyntaxFactory.IdentifierName(MemberName),NewExpression);
+        InitializerExpressionSyntax Initializer=Creation.Initializer
+            ??SyntaxFactory.InitializerExpression(SyntaxKind.ObjectInitializerExpression);
+        InitializerExpressionSyntax UpdatedInitializer=Initializer.WithExpressions(
+            Initializer.Expressions.Add(Assignment));
+        BaseObjectCreationExpressionSyntax Updated=Creation switch {
+            ObjectCreationExpressionSyntax ObjectCreation=>ObjectCreation.WithInitializer(UpdatedInitializer),
+            ImplicitObjectCreationExpressionSyntax ImplicitCreation=>ImplicitCreation.WithInitializer(UpdatedInitializer),
+            _=>Creation,
+        };
+        return SceneSourceEditResult.Success(Root.ReplaceNode(Creation,Updated));
+    }
+
+    private static SceneSourceEditResult ApplyAddComponent(
+        SyntaxNode Root,SceneProjectionNode Node,AddComponentOperation Operation){
+        if(Node.Node.FindComponent(Operation.ComponentTypeFullyQualifiedName)is not null){
+            return SceneSourceEditResult.Failure("同じ型のComponentは既にNodeへ追加されています。");
+        }
+        if(Node.Node.ComponentsListLocation is not { }Location){
+            return SceneSourceEditResult.Failure("Nodeに編集可能なComponentsコレクションがありません。");
+        }
+
+        ExpressionSyntax NewExpression=SyntaxFactory.ParseExpression(Operation.ComponentExpression);
+        if(NewExpression.ContainsDiagnostics||NewExpression is not BaseObjectCreationExpressionSyntax){
+            return SceneSourceEditResult.Failure("追加するComponentが妥当なobject creation式ではありません。");
+        }
+        ExpressionSyntax?Collection=Root.DescendantNodesAndSelf().OfType<ExpressionSyntax>()
+            .FirstOrDefault(Candidate=>Candidate.Span==Location.Span);
+        ExpressionSyntax?Updated=Collection switch {
+            CollectionExpressionSyntax Values=>Values.WithElements(
+                Values.Elements.Add(SyntaxFactory.ExpressionElement(NewExpression))),
+            ArrayCreationExpressionSyntax Array when Array.Initializer is { }Initializer=>
+                Array.WithInitializer(Initializer.WithExpressions(Initializer.Expressions.Add(NewExpression))),
+            ImplicitArrayCreationExpressionSyntax Array when Array.Initializer is { }Initializer=>
+                Array.WithInitializer(Initializer.WithExpressions(Initializer.Expressions.Add(NewExpression))),
+            _=>null,
+        };
+        return Collection is null||Updated is null
+            ?SceneSourceEditResult.Failure("Componentsコレクションの構文を編集できません。")
+            :SceneSourceEditResult.Success(Root.ReplaceNode(Collection,Updated.WithTriviaFrom(Collection)));
+    }
+
+    private static SceneSourceEditResult ApplyRemoveComponent(
+        SyntaxNode Root,SceneProjectionNode Node,RemoveComponentOperation Operation){
+        SceneComponent?Component=Node.Node.FindComponent(Operation.ComponentTypeFullyQualifiedName);
+        if(Component is null){
+            return SceneSourceEditResult.Failure("削除するComponentが現在のNodeに見つかりません。");
+        }
+        BaseObjectCreationExpressionSyntax?Creation=Root.DescendantNodesAndSelf()
+            .OfType<BaseObjectCreationExpressionSyntax>()
+            .SingleOrDefault(Candidate=>Candidate.Span==Component.Location.Span);
+        if(Creation is null){
+            return SceneSourceEditResult.Failure("削除するComponent生成式がC#ソースに見つかりません。");
+        }
+
+        if(Creation.Parent is ExpressionElementSyntax Element
+            &&Element.Parent is CollectionExpressionSyntax Collection){
+            CollectionExpressionSyntax Updated=Collection.WithElements(Collection.Elements.Remove(Element));
+            return SceneSourceEditResult.Success(Root.ReplaceNode(Collection,Updated));
+        }
+        if(Creation.Parent is InitializerExpressionSyntax Initializer){
+            InitializerExpressionSyntax Updated=Initializer.WithExpressions(
+                Initializer.Expressions.Remove(Creation));
+            return SceneSourceEditResult.Success(Root.ReplaceNode(Initializer,Updated));
+        }
+        return SceneSourceEditResult.Failure("ComponentsコレクションからComponentを削除できません。");
     }
 
     private static SceneSourceEditResult ApplySetTransform(

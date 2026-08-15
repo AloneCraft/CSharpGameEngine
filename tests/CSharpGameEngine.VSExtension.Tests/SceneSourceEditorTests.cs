@@ -364,6 +364,62 @@ public sealed class SceneSourceEditorTests {
         Assert.Null(Result.Root);
     }
 
+    [Fact]
+    public void SetComponentMember_InsertsAnOmittedMemberIntoTheExistingInitializer(){
+        string OmittedSource=Source.Replace("Intensity=3f",string.Empty);
+        SceneModel Model=SceneAnalysisTestHelper.Analyze(OmittedSource);
+        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        EditorNodeId Cube=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Cube").Id;
+        SceneSourceEditResult Result=SceneSourceEditor.Apply(
+            CSharpSyntaxTree.ParseText(OmittedSource).GetRoot(),Projection,
+            new SetComponentMemberOperation(
+                Key,Cube,1,"global::Sample.DirectionalLight","Intensity","12f"));
+
+        Assert.True(Result.Succeeded,Result.ErrorMessage);
+        Assert.Contains("Intensity=12f",Result.Root!.ToFullString());
+        Assert.Contains("// 手書きの大事なコメント",Result.Root.ToFullString());
+    }
+
+    [Fact]
+    public void AddAndRemoveComponent_EditOnlyTheComponentsCollection(){
+        (SceneProjection Projection,EditorNodeId Cube)=CreateProjection();
+        var Root=CSharpSyntaxTree.ParseText(Source).GetRoot();
+        AddComponentOperation Add=new(
+            Key,Cube,1,"global::Sample.Camera","new global::Sample.Camera { NearZ=0.1f }");
+
+        SceneSourceEditResult Added=SceneSourceEditor.Apply(Root,Projection,Add);
+
+        Assert.True(Added.Succeeded,Added.ErrorMessage);
+        Assert.Contains("global::Sample.Camera",Added.Root!.ToFullString());
+
+        const string WithCamera="""
+            using CSharpGameEngine.Entities;
+            using Sample;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() { Children=[new Node {
+                    Name="Cube", Components=[
+                        new DirectionalLight { Intensity=3f },
+                        new Camera { NearZ=0.1f },
+                    ],
+                }] };
+            }
+            """;
+        SceneModel Model=SceneAnalysisTestHelper.Analyze([
+            "namespace Sample { public struct Camera { public float NearZ; } }",
+            WithCamera,
+        ]);
+        SceneProjection Current=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        EditorNodeId CurrentCube=Assert.Single(Current.Nodes,static Node=>Node.Node.Name=="Cube").Id;
+        SceneSourceEditResult Removed=SceneSourceEditor.Apply(
+            CSharpSyntaxTree.ParseText(WithCamera).GetRoot(),Current,
+            new RemoveComponentOperation(Key,CurrentCube,1,"global::Sample.Camera"));
+
+        Assert.True(Removed.Succeeded,Removed.ErrorMessage);
+        Assert.DoesNotContain("new Camera",Removed.Root!.ToFullString());
+        Assert.Contains("DirectionalLight",Removed.Root.ToFullString());
+    }
+
     private static (SceneProjection Projection,EditorNodeId Cube)CreateProjection(){
         SceneModel Model=SceneAnalysisTestHelper.Analyze(Source);
         SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);

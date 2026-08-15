@@ -12,6 +12,10 @@ internal enum SceneComponentRole {
     PrimitiveMesh,
     /// <summary>アセット(.glb等)参照の描画。</summary>
     StaticMesh,
+    Camera,
+    DirectionalLight,
+    PointLight,
+    SpotLight,
 }
 
 /// <summary>Component型完全修飾名1件と、それがエディタ上で持つ意味の対応。</summary>
@@ -50,6 +54,10 @@ internal static class SceneComponentBindings {
     internal const string TransformTypeFullyQualifiedName="global::CSharpGameEngine.Runtime.Windows.Transform";
     internal const string PrimitiveMeshTypeFullyQualifiedName="global::CSharpGameEngine.Runtime.Windows.PrimitiveMesh";
     internal const string StaticMeshTypeFullyQualifiedName="global::CSharpGameEngine.Runtime.Windows.StaticMesh";
+    internal const string CameraTypeFullyQualifiedName="global::CSharpGameEngine.Runtime.Windows.Camera";
+    internal const string DirectionalLightTypeFullyQualifiedName="global::UserEcsProject.DirectionalLight";
+    internal const string PointLightTypeFullyQualifiedName="global::UserEcsProject.PointLight";
+    internal const string SpotLightTypeFullyQualifiedName="global::UserEcsProject.SpotLight";
 
     // 退役した global::UserEcsProject.Transform は登録しない。互換のため両方登録すると、実シーンが
     // 原点に固まって描画されていたバグ(M0020 Phase 0 で修正)を静かに塗り潰し、直ったかどうかが
@@ -58,6 +66,10 @@ internal static class SceneComponentBindings {
         new SceneComponentBinding(TransformTypeFullyQualifiedName,SceneComponentRole.LocalTransform),
         new SceneComponentBinding(PrimitiveMeshTypeFullyQualifiedName,SceneComponentRole.PrimitiveMesh),
         new SceneComponentBinding(StaticMeshTypeFullyQualifiedName,SceneComponentRole.StaticMesh),
+        new SceneComponentBinding(CameraTypeFullyQualifiedName,SceneComponentRole.Camera),
+        new SceneComponentBinding(DirectionalLightTypeFullyQualifiedName,SceneComponentRole.DirectionalLight),
+        new SceneComponentBinding(PointLightTypeFullyQualifiedName,SceneComponentRole.PointLight),
+        new SceneComponentBinding(SpotLightTypeFullyQualifiedName,SceneComponentRole.SpotLight),
     ];
 
     private static readonly IReadOnlyList<SceneComponentBinding>AllValue=Array.AsReadOnly(Table);

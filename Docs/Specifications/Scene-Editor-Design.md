@@ -253,11 +253,14 @@ CompoundGizmo(選択ノードごとに構成を決定)
 └─ PropertyGizmo(SceneComponentBinding(§9)が対象Component存在時のみ合成)
     └─ FrustumGizmo(Camera) … FrustumAngleHandle(FOV)/NearPlaneHandle/FarPlaneHandle/
                                 OrthographicBoundsHandle(投影モードで切替)
+    ├─ DirectionGizmo(DirectionalLight)
+    ├─ RangeGizmo(PointLight)
+    └─ Direction/Cone/RangeGizmo(SpotLight)
 ```
 
 表示するTransformGizmoは`ActiveTool`に対応する1種。PropertyGizmoは置き換えではなく**同時表示**
-(仕様§8)。ライトギズモ(Range/Cone/Direction等)は語彙決定後にPropertyGizmo実装を追加する
-(ADR-0041決定事項9、M0020 Phase 6)。
+(仕様§8)。Phase 6でCameraとDirectional/Point/Spot Lightを実装済み。ライト語彙はADR-0043により
+現行L9型の完全修飾名Bindingとした。RectLightはBindingを持たず対象外。
 
 ### 6.2 描画
 
@@ -358,8 +361,10 @@ Undo/Redo(仕様§17): 追加実装なし。1コミット=1テキストUndo単�
 - **DuplicateNode**(Phase 5): 対象ノードの`ObjectCreationExpression`全文(trivia込み)を
   `ChildrenListLocation`の末尾へ複製挿入し、`Name`があれば`"X (1)"`形式で一意化する。複製直後に
   SetTransformを同一トランザクション内で適用する。
-- **AddComponent/RemoveComponent**(Phase 6): `ComponentsListLocation`への挿入/`SceneComponent.
-  Location`の削除。追加可能型は既存`SceneComponentCatalog.Build(Compilation)`で列挙する。
+- **AddComponent/RemoveComponent**(Phase 6実装済み): `ComponentsListLocation`への挿入/
+  `SceneComponent.Location`の削除。source opはcollection式と配列initializerを扱い、
+  同型重複・未解決対象・不正object creationを拒否する。Inspector/Add Component UIは本マイルストーン
+  対象外のため、`SceneComponentCatalog`からの列挙UI配線は行わない。
 - 編集可否は既存`SceneValue.IsEditable`(Literal/EnumMember/Defaultのみtrue)に従う。式・
   `[SceneAssets]`参照が書かれたメンバーはギズモから書き換えない(該当軸のドラッグを無効化し、
   ハンドルを淡色表示する)。
@@ -378,7 +383,10 @@ Phase 5製品実装では最終TransformをDuplicateNodeOperation自身に持た
 | `global::CSharpGameEngine.Runtime.Windows.Transform` | `LocalTransform` | ローカルTRS。**親子合成**: pre-order DFSで`world = local * parentWorld`を畳み込む(Phase 0 で「各ノードのローカル=ワールド」を廃止済み) |
 | `global::CSharpGameEngine.Runtime.Windows.PrimitiveMesh` | `PrimitiveMesh` | プリミティブ描画 |
 | `global::CSharpGameEngine.Runtime.Windows.StaticMesh` | `StaticMesh` | アセット描画 |
-| `global::CSharpGameEngine.Runtime.Windows.Camera` | (Phase 6 で追加) | FrustumGizmo対象 |
+| `global::CSharpGameEngine.Runtime.Windows.Camera` | `Camera` | FrustumGizmo対象 |
+| `global::UserEcsProject.DirectionalLight` | `DirectionalLight` | Direction対象 |
+| `global::UserEcsProject.PointLight` | `PointLight` | Range対象 |
+| `global::UserEcsProject.SpotLight` | `SpotLight` | Direction/InnerCone/OuterCone/Range対象 |
 
 合成式はランタイムの`TransformMath.ToWorld`(`TransformWorldResolverTests`が固定している規約)と
 **同一だが、型は参照しない** — net472からnet10.0の型は参照できない。Phase 3で再検討した結果、
@@ -392,9 +400,9 @@ enumメンバー名は`Transform`ではなく`LocalTransform`にしてある(`Tr
 「これはローカル、worldは合成結果」という区別を型名で表す)。**退役した`global::UserEcsProject.Transform`は
 登録しない** — 互換のため両方登録するとバグを静かに塗り潰し、直ったかどうかが判定不能になる。
 
-語彙ギャップ(ADR-0041決定事項9): ライト各種は`UserEcsProject`(L9)にのみ存在し、RectLightは
-存在しない。ライトギズモはPhase 6着手時の小ADRで「エンジン標準化」か「L9型のBinding登録」かを
-決定する。RectLightはスコープ外として記録のみ。
+語彙ギャップ(ADR-0041決定事項9)はADR-0043で解消した。ライト各種は`UserEcsProject`(L9)の
+完全修飾名を文字列表へ登録し、VSIXからL9へのバイナリ参照は追加しない。Rendererハンドル所有を含む
+エンジン標準化は別ADRへ送る。RectLightは型・描画契約とも存在せず、スコープ外として未登録。
 
 ## 10. 永続化スキーマ(§仕様3・20)
 
@@ -433,6 +441,8 @@ VS非依存の純粋層を最大化し、既存`RenderSurfaceFocusPolicyTests`�
 | SetTransform操作生成 | メンバー既存時の値置換列、欠落時の追記、`TryCalculateLocal`経由のローカル化、`IsEditable=false`軸の除外 |
 | 親子Transform合成 | `SceneModelRenderObjectBuilder`のDFS畳み込み(実解析済みSceneModelに対して) |
 | 統合(既存パターン) | `SceneSourceEditorTests`系にDuplicateNode/AddComponentのtrivia保持テストを追加 |
+| Phase 6 Property | Camera投影別handle、3ライト構成、Compound合成、modifier適用表、値clamp/snap、direct transaction |
+| Phase 6 source | 省略Member追記、AddComponent/RemoveComponentの対象collection限定編集、他trivia保持 |
 
 実機VS Experimental Instanceの目視確認はM0020各Phaseの完了条件として定義する(スクリーンショットは
 UIA `NativeWindowHandle`+`PrintWindow`方式、`SetForegroundWindow`不使用)。
@@ -452,7 +462,7 @@ UIA `NativeWindowHandle`+`PrintWindow`方式、`SetForegroundWindow`不使用)�
 | `Gizmo` / `TransformGizmo` / `PropertyGizmo` / `CompoundGizmo` | §6のクラス構造(同名) |
 | `MoveHandle`〜`PlaneHandle` | §6.1のハンドル群(同名) |
 | `CameraGizmoComposition` / `FrustumGizmo` | `CompoundGizmo(TransformGizmo + FrustumGizmo)` |
-| `PointLight/SpotLight/DirectionalLight/RectLightGizmoComposition` | Phase 6以降(語彙決定後)。RectLightはスコープ外 |
+| `PointLight/SpotLight/DirectionalLight/RectLightGizmoComposition` | Phase 6で前3種をPropertyGizmoとして実装。RectLightはスコープ外 |
 | `SceneDeclaration` | `IScene`実装クラスのC#ソース(ADR-0038/0040) |
 | `SceneModel` | 既存`CSharpGameEngine.SceneAnalysis.SceneModel`(同名) |
 | `SceneSync` | 既存パイプライン(ADR-0040決定事項1)+§7コミット経路の総称。専用クラスは作らない |

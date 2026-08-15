@@ -19,11 +19,16 @@ public sealed class SceneComponentBindingTests {
                 public float ScaleX; public float ScaleY; public float ScaleZ;
             }
             public struct PrimitiveMesh { public PrimitiveType Type; }
+            public struct Camera { public bool Active; }
             public enum PrimitiveType { Plane, Box, Sphere }
         }
 
         namespace UserEcsProject {
             public struct Transform { public float PositionX; }
+            public struct DirectionalLight { public float DirectionTowardLightX; }
+            public struct PointLight { public float Range; }
+            public struct SpotLight { public float Range; }
+            public struct RectLight { public float Width; }
         }
         """;
 
@@ -38,6 +43,22 @@ public sealed class SceneComponentBindingTests {
     public void Bindings_DoNotRecognizeTheRetiredUserEcsProjectTransform(){
         // 互換のため両方登録すると、原点固まりバグが直ったかどうかを判定できなくなる。
         Assert.False(SceneComponentBindings.TryGetRole("global::UserEcsProject.Transform",out _));
+    }
+
+    [Theory]
+    [InlineData("global::CSharpGameEngine.Runtime.Windows.Camera",(int)SceneComponentRole.Camera)]
+    [InlineData("global::UserEcsProject.DirectionalLight",(int)SceneComponentRole.DirectionalLight)]
+    [InlineData("global::UserEcsProject.PointLight",(int)SceneComponentRole.PointLight)]
+    [InlineData("global::UserEcsProject.SpotLight",(int)SceneComponentRole.SpotLight)]
+    public void Phase6Bindings_RecognizeCameraAndCurrentLightVocabulary(
+        string TypeFullyQualifiedName,int ExpectedValue){
+        Assert.True(SceneComponentBindings.TryGetRole(TypeFullyQualifiedName,out SceneComponentRole Actual));
+        Assert.Equal((SceneComponentRole)ExpectedValue,Actual);
+    }
+
+    [Fact]
+    public void Phase6Bindings_KeepRectLightOutOfScope(){
+        Assert.False(SceneComponentBindings.TryGetRole("global::UserEcsProject.RectLight",out _));
     }
 
     [Fact]

@@ -119,6 +119,11 @@ Alt+ドラッグ複製(`DuplicateNode`op、trivia込み複製+Name一意化)、S
 **着手時にライト語彙の小ADRを起こす**(エンジン標準化 vs L9型Binding登録、ADR-0041決定事項9)。
 RectLightはスコープ外のまま。
 
+**実装済み(2026-08-16)**。ADR-0043でL9完全修飾名Bindingを採用し、Cameraの
+FOV/Near/Far/OrthographicSize、Directional/Point/Spot LightのDirection/Range/Coneを
+TransformGizmoと同じoverlayへ合成した。PropertyはCtrl単位スナップのみ有効でShift/Altは無効。
+省略Member追記とAddComponent/RemoveComponent source opも既存live text 1 Undo経路へ統合した。
+
 ### Phase 7 — 増分更新と競合仕上げ
 
 `SceneDiff`の初消費: Transform/Member変更のみの場合にレンダラーを再生成しない増分更新、
@@ -312,7 +317,7 @@ Position以外のQuaternion/Scaleリテラルは、値が正規化可能でもMo
 | 9 | 複数選択をMove→各選択rootへ同じworld差分が1 Undoで反映される | batch atomicity・複数選択 |
 | 10 | コードエディタのTab/Backspace/Deleteが引き続き効き、RMB Navigation中のWはMove切替でなく前進になる | フォーカス/入力優先順位の非回帰 |
 
-Phase 6以降の検証結果は、各作業完了時に本節へ追記する。
+Phase 7の検証結果は、作業完了時に本節へ追記する。
 
 ### 後続Task C(2026-08-16)
 
@@ -421,6 +426,46 @@ HWND/D3D12/WPF/live buffer/Visual Studio UndoのObservedは次表の実機確認
 | 7 | Move中Nで他object面へ吸着し、primaryのローカル+Yが幾何法線へ揃い、自身/子孫を無視する | SurfaceSnap・Position+Rotation mask |
 | 8 | N/V/Ctrlを併用してN→V→Ctrlの順にfallbackし、コードエディタのTab/Backspace/Deleteも効く | modifier優先順位・フォーカス非回帰 |
 
+### Phase 6(2026-08-16)
+
+    dotnet build CSharpGameEngine.slnx -c Debug --no-restore
+      → 成功、警告0/エラー0
+    dotnet test tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj --no-restore
+      → 381件成功・失敗0
+    dotnet test CSharpGameEngine.slnx -c Debug --no-build --no-restore
+      → 全8テストプロジェクト873件成功・失敗0
+        (Phase 5後854 + 新規19。VSExtension.Testsは381件)
+
+CompoundGizmo.Composeはactive Transform overlayと対象ComponentのProperty overlayを同時表示する。
+CameraはPerspectiveでFOV/Near/Far、OrthographicでOrthographicSize/Near/Farを切り替える。
+現行L9のDirectional/Point/Spot LightはADR-0043のFQN BindingでDirection/Range/InnerCone/
+OuterConeを構成し、RectLightは未登録のまま。Alt押下中はProperty hitを除外するため非handleと同様に
+Orbitし、Transform handleのAlt DuplicateはPhase 5どおり維持する。Ctrlは角度5°、方向15°、
+距離1.0(Nearは0.1)へsnapし、ShiftはPropertyへ作用しない。
+
+EditTransactionController.BeginDirectはProperty operation列にもsnapshot保留・cancel・1 Undoの
+既存経路を再利用する。SetComponentMemberOperationは型に宣言済みだがinitializerで省略された
+Memberを追記できる。AddComponentOperation/RemoveComponentOperationは
+ComponentsListLocation/SceneComponent.Locationだけを編集し、既存triviaと他Componentを保持する。
+
+追加19テストは4種Binding+Rect除外、Perspective/Orthographic Frustum、Compound合成、3ライト構成、
+modifier表、FOV snap、direct transaction、省略Member追記、Component追加/削除を固定した。
+純粋層とRoslyn変換は**MatchesWithDocumentedExtension**。HWND/D3D12/WPF/live buffer/
+Visual Studio UndoのObservedは次表の実機確認まで**Unknown**。
+
+**実機VS Experimental Instanceでの目視確認(未実施 — ユーザー側で実施)**:
+
+| # | 確認対象 | 何が証明されるか |
+|---|---|---|
+| 1 | Camera選択時、active TransformとFrustumが同時表示され、PerspectiveでFOV/Near/Farをdragできる | Compound合成・Frustum overlay/hit |
+| 2 | Orthographic CameraでFOV handleが消え、OrthographicSize/Near/Farへ切り替わる | 投影別構成 |
+| 3 | Directional/Point/Spot LightでDirection/Range/Cone handleをdragし、C#の対応Memberだけが変わる | ADR-0043 Binding・Property source commit |
+| 4 | 省略されたCamera既定Memberをdragし、initializerへ新しいassignmentが追加される | 省略Member追記 |
+| 5 | Property drag中Ctrlを押下/解放して単位snapが切り替わり、Shiftは視点追従せず、Alt+PropertyはOrbitする | 仕様§11 modifier表 |
+| 6 | Property dragをMouseUp後Ctrl+Z 1回で戻し、Esc/capture lossではsource/Undoを変更しない | direct transaction・1 Undo・cancel |
+| 7 | 式で保持したPropertyは淡色・非hitで、RectLight型を宣言してもPropertyGizmoが出ない | 編集可能境界・Rect除外 |
+| 8 | コードエディタのTab/Backspace/DeleteとPhase 5のAlt+Transform Duplicateが引き続き機能する | 入力優先順位の非回帰 |
+
 ## 意図的に除外したこと(将来マイルストーン候補)
 
 旧`Docs/EditorSpec.md`(`.scene` JSON前提の目標仕様書。ギズモ・Undo/Redo・複数選択をスコープ外と
@@ -473,7 +518,8 @@ HWND/D3D12/WPF/live buffer/Visual Studio UndoのObservedは次表の実機確認
   見ていて破綻を素通りさせていたため、縦横両方+複数アスペクトを回す形に拡張してから直した
   (aspect 0.75 でも`NDC x=1.011734`と溢れていた)。詳細はConformance.md
   「追記(2026-08): 縦長ウィンドウのFOV補正と Tools>Options ページの新設」参照。
-- ライトComponentの所在(エンジン標準 vs L9)の決定はPhase 6着手時の小ADRへ先送りしている。
+- **(2026-08-16 解消)** ライトComponentの所在はADR-0043で現行L9型の完全修飾名Binding登録を
+  採用した。エンジン標準化はRendererハンドル所有の再設計を伴う別ADRへ送り、RectLightは対象外。
 - 実機VS Experimental Instanceでの目視確認(M0019から引き継いだPhase 9表示系の確認を含む)は
   Phase 0 完了基準に統合したが、**まだ未実施**(上記検証節の10項目)。
 - **(2026-08 解消)** 台帳F-L8-009のStatus誤り: `Removed`へ修正した。併せて同じADR-0031系列で
