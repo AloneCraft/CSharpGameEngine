@@ -108,6 +108,56 @@ public sealed class ScenePickerTests {
         Assert.Equal(NodePath.Root,HitPath);
     }
 
+    [Fact]
+    public void PickMarquee_RectangleIntersectsObjectScreenBounds_ReturnsEveryIntersectingNode(){
+        NodePath FirstPath=NodePath.Root;
+        NodePath SecondPath=NodePath.Root.Append(1);
+        SceneRenderObject First=CreateScreenTriangle(-0.5f,0.5f,FirstPath);
+        SceneRenderObject Second=CreateScreenTriangle(0.5f,-0.5f,SecondPath);
+
+        IReadOnlyList<NodePath>Hits=ScenePicker.PickMarquee(
+            [First,Second],Matrix4x4.Identity,Matrix4x4.Identity,
+            ScreenRectangle.FromPoints(20,20,80,80),ViewportWidth:100,ViewportHeight:100);
+
+        Assert.Equal([FirstPath,SecondPath],Hits);
+    }
+
+    [Fact]
+    public void PickMarquee_RectangleTouchesObjectBoundsEdge_CountsAsIntersection(){
+        NodePath Path=NodePath.Root;
+        SceneRenderObject Object=CreateScreenTriangle(-0.5f,0.5f,Path);
+
+        IReadOnlyList<NodePath>Hits=ScenePicker.PickMarquee(
+            [Object],Matrix4x4.Identity,Matrix4x4.Identity,
+            ScreenRectangle.FromPoints(0,0,25,25),ViewportWidth:100,ViewportHeight:100);
+
+        Assert.Equal([Path],Hits);
+    }
+
+    [Fact]
+    public void PickMarquee_ObjectOutsideRectangle_IsExcluded(){
+        SceneRenderObject Object=CreateScreenTriangle(-0.5f,0.5f,NodePath.Root);
+
+        IReadOnlyList<NodePath>Hits=ScenePicker.PickMarquee(
+            [Object],Matrix4x4.Identity,Matrix4x4.Identity,
+            ScreenRectangle.FromPoints(70,70,90,90),ViewportWidth:100,ViewportHeight:100);
+
+        Assert.Empty(Hits);
+    }
+
+    [Fact]
+    public void PickMarquee_DuplicateRenderObjectsForSameNode_ReturnsNodeOnce(){
+        NodePath Path=NodePath.Root;
+        SceneRenderObject First=CreateScreenTriangle(-0.5f,0.5f,Path);
+        SceneRenderObject Second=CreateScreenTriangle(-0.4f,0.4f,Path);
+
+        IReadOnlyList<NodePath>Hits=ScenePicker.PickMarquee(
+            [First,Second],Matrix4x4.Identity,Matrix4x4.Identity,
+            ScreenRectangle.FromPoints(0,0,60,60),ViewportWidth:100,ViewportHeight:100);
+
+        Assert.Equal([Path],Hits);
+    }
+
     /// <summary>直角三角形 (0,0)-(2,0)-(0,2) を Z=<paramref name="Z"/> 平面に置く。(0.5,0.5) は内部の点。</summary>
     private static SceneRenderObject CreateTriangleAtZ(float Z,NodePath NodeId)=>
         new(){
@@ -124,5 +174,23 @@ public sealed class ScenePickerTests {
             BaseColorFactor=Vector4.One,
             BoundsCenter=Vector3.Zero,
             BoundsRadius=2f,
+        };
+
+    private static SceneRenderObject CreateScreenTriangle(float NdcX,float NdcY,NodePath NodeId)=>
+        new(){
+            Mesh=new SimpleMesh{
+                Positions=[
+                    new Vector3(NdcX,NdcY,0f),
+                    new Vector3(NdcX+0.25f,NdcY,0f),
+                    new Vector3(NdcX,NdcY-0.25f,0f),
+                ],
+                Normals=[Vector3.UnitZ,Vector3.UnitZ,Vector3.UnitZ],
+                Indices=[0,1,2],
+                BaseColorFactor=Vector4.One,
+                BoundsCenter=new Vector3(NdcX,NdcY,0f),
+                BoundsRadius=0.25f,
+            },
+            World=Matrix4x4.Identity,
+            NodeId=NodeId,
         };
 }

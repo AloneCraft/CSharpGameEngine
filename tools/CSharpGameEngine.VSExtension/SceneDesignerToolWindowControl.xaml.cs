@@ -134,6 +134,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         Host.StatusChanged+=this.OnStatusChanged;
         Host.ViewportActivated+=this.OnViewportActivated;
         Host.ObjectPicked+=this.OnObjectPicked;
+        Host.ObjectsMarqueePicked+=this.OnObjectsMarqueePicked;
         Host.EditCommitRequested+=this.OnEditCommitRequested;
         this.Host=Host;
         EmptyStateText.Visibility=Visibility.Collapsed;
@@ -159,6 +160,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         Host.StatusChanged-=this.OnStatusChanged;
         Host.ViewportActivated-=this.OnViewportActivated;
         Host.ObjectPicked-=this.OnObjectPicked;
+        Host.ObjectsMarqueePicked-=this.OnObjectsMarqueePicked;
         Host.EditCommitRequested-=this.OnEditCommitRequested;
         // Dispose triggers DestroyWindowCore, which cancels the latest-wins worker and disposes the
         // native child HWND. Its stale callback is additionally rejected by SceneHwndHost's surface
@@ -375,6 +377,37 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         EditorNodeId?NewPrimary=Removed?(Updated.Count>0?Updated[^1]:null):ToggledId;
         Session.Selection.Select(
             Snapshot.Key,Updated,NewPrimary,ComponentType:null,MemberName:null,SceneSelectionOrigin.Viewport,Guid.NewGuid());
+    }
+
+    /// <summary>
+    /// Task Cの矩形選択を共通selectionへ発行する。通常は置換、Ctrlはトグルではなく加算。
+    /// Viewportは複数NodeIdsを保持する一方、現行WPF TreeViewはprimary 1件だけを表示する。
+    /// この非対称性は意図的で、Hierarchyを複数選択UIへ変更するまではprimaryを最終ヒットに固定する。
+    /// </summary>
+    private void OnObjectsMarqueePicked(IReadOnlyList<NodePath>HitPaths,bool CtrlHeld){
+        if(this.Session is not { }Session||Session.PinnedSnapshot is not { }Snapshot
+            ||Snapshot.Projection is not { }Projection){
+            return;
+        }
+
+        List<EditorNodeId>HitIds=[];
+        foreach(NodePath Path in HitPaths){
+            if(Projection.TryGetId(Path,out EditorNodeId Id)){
+                HitIds.Add(Id);
+            }
+        }
+
+        SceneSelection?Existing=Session.Selection.CurrentSelection is { }Current&&Current.Key.Equals(Snapshot.Key)
+            ?Current
+            :null;
+        MarqueeSelectionUpdate Update=MarqueeSelectionPolicy.Combine(
+            Existing?.NodeIds??[],HitIds,CtrlHeld,Existing?.PrimaryNodeId);
+        StatusText.Text=Update.NodeIds.Count==0
+            ?"選択解除"
+            :$"矩形選択: {Update.NodeIds.Count}件";
+        Session.Selection.Select(
+            Snapshot.Key,Update.NodeIds,Update.PrimaryNodeId,
+            ComponentType:null,MemberName:null,SceneSelectionOrigin.Viewport,Guid.NewGuid());
     }
 
     private void OnEditCommitRequested(SceneEditCommitRequest Request){

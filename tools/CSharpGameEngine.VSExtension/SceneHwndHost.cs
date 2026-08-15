@@ -80,6 +80,9 @@ internal sealed class SceneHwndHost:HwndHost {
     private ICollection<GizmoHandleId>DisabledMoveHandles=Array.Empty<GizmoHandleId>();
     private IReadOnlyList<SceneTransformPreview>PreviewDescendantOriginals=[];
 
+    // M0020後続Task C: 空間から開始したLMBドラッグだけが保持するスクリーン矩形。
+    private ScreenRectangle?ActiveMarqueeRectangle;
+
     private float AspectRatio=>SurfaceWidth/(float)SurfaceHeight;
 
     internal event Action<string>?StatusChanged;
@@ -93,6 +96,12 @@ internal sealed class SceneHwndHost:HwndHost {
     /// セッションを知らない)。
     /// </summary>
     internal event Action<NodePath?,bool>?ObjectPicked;
+
+    /// <summary>
+    /// 空間ドラッグで確定した複数NodePathとDown時のCtrl状態。セッション選択への変換は
+    /// 単体クリックと同じくWPF境界が担う。
+    /// </summary>
+    internal event Action<IReadOnlyList<NodePath>,bool>?ObjectsMarqueePicked;
 
     /// <summary>MouseUpで確定したsource編集要求。WPF/session境界がlive bufferへ1 Undoで反映する。</summary>
     internal event Action<SceneEditCommitRequest>?EditCommitRequested;
@@ -242,6 +251,7 @@ internal sealed class SceneHwndHost:HwndHost {
                 this.SurfaceHeight=Math.Max(1,H);
                 Renderer?.Resize(W,H);
                 ApplyCamera();
+                RefreshOverlay();
             };
             Surface.Resized+=ResizeHandler;
         }
@@ -364,6 +374,18 @@ internal sealed class SceneHwndHost:HwndHost {
             ObjectPicked?.Invoke(Result.ConfirmedNodePath,Result.ConfirmedCtrl);
         }
 
+        if(Result.MarqueeUpdated){
+            ActiveMarqueeRectangle=Result.MarqueeRectangle;
+            RefreshOverlay();
+        }
+        if(Result.MarqueeCanceled){
+            ActiveMarqueeRectangle=null;
+            RefreshOverlay();
+        }
+        if(Result.MarqueeSelectionConfirmed){
+            PublishMarqueeSelection(Result.MarqueeRectangle,Result.ConfirmedCtrl);
+        }
+
         if(Result.GizmoCanceled){
             CancelEditTransaction();
             return;
@@ -462,14 +484,13 @@ internal sealed class SceneHwndHost:HwndHost {
         GizmoHandleId?Hit=TransformGizmo.TryHitMove(Frame,Origin,Direction,DisabledMoveHandles);
         if(Hit!=HoveredGizmoHandle){
             HoveredGizmoHandle=Hit;
-            Renderer?.SetOverlay(TransformGizmo.BuildMoveOverlay(
-                Frame,HoveredGizmoHandle,ActiveGizmoHandle,DisabledMoveHandles));
+            RefreshOverlay();
         }
         return Hit;
     }
 
     private void UpdateMoveGizmo(){
-        if(Renderer is not { }Active||ViewState is not { }State
+        if(Renderer is null||ViewState is not { }State
             ||State.ActiveTool!=SceneActiveTool.Move||SelectedNodePath is not { }PrimaryPath
             ||TargetSnapshot?.Projection is not { }Projection
             ||!Projection.TryGetId(PrimaryPath,out EditorNodeId PrimaryId)
@@ -478,19 +499,18 @@ internal sealed class SceneHwndHost:HwndHost {
             CurrentMoveGizmo=null;
             HoveredGizmoHandle=null;
             DisabledMoveHandles=Array.Empty<GizmoHandleId>();
-            Renderer?.SetOverlay(null);
+            RefreshOverlay();
             return;
         }
-        if(EditTransaction.State!=EditTransactionState.Idle&&CurrentMoveGizmo is { }Existing){
-            Active.SetOverlay(TransformGizmo.BuildMoveOverlay(
-                Existing,HoveredGizmoHandle,ActiveGizmoHandle,DisabledMoveHandles));
+        if(EditTransaction.State!=EditTransactionState.Idle&&CurrentMoveGizmo is not null){
+            RefreshOverlay();
             return;
         }
 
         SceneRenderObject?PrimaryObject=CurrentRenderObjects.FirstOrDefault(Object=>Object.NodeId.Equals(PrimaryPath));
         if(PrimaryObject is null||!SceneTransformMath.TryDecompose(PrimaryObject.World,out SceneTransformValue WorldTransform)){
             CurrentMoveGizmo=null;
-            Active.SetOverlay(null);
+            RefreshOverlay();
             return;
         }
 
@@ -505,8 +525,37 @@ internal sealed class SceneHwndHost:HwndHost {
         DisabledMoveHandles=Enum.GetValues(typeof(GizmoHandleId)).Cast<GizmoHandleId>()
             .Where(Handle=>Roots.Count==0||Roots.Any(Node=>!SceneTransformBinding.CanEditMove(Node.Node,Handle)))
             .ToArray();
-        Active.SetOverlay(TransformGizmo.BuildMoveOverlay(
-            CurrentMoveGizmo.Value,HoveredGizmoHandle,ActiveGizmoHandle,DisabledMoveHandles));
+        RefreshOverlay();
+    }
+
+    /// <summary>Moveギズモと矩形選択をPhase Aの同じoverlay PSO入力へ合成する。</summary>
+    private void RefreshOverlay(){
+        if(Renderer is not { }Active){
+            return;
+        }
+
+        List<GizmoOverlayPrimitive>Primitives=[];
+        if(CurrentMoveGizmo is { }Frame&&ViewState is { ActiveTool:SceneActiveTool.Move }){
+            Primitives.AddRange(TransformGizmo.BuildMoveOverlay(
+                Frame,HoveredGizmoHandle,ActiveGizmoHandle,DisabledMoveHandles));
+        }
+        if(ActiveMarqueeRectangle is { }Rectangle&&ViewState is { }State){
+            Primitives.AddRange(MarqueeOverlay.Build(
+                Rectangle,State.GetView(),State.GetProjection(this.AspectRatio),SurfaceWidth,SurfaceHeight));
+        }
+
+        Active.SetOverlay(Primitives.Count==0?null:Primitives);
+    }
+
+    private void PublishMarqueeSelection(ScreenRectangle Rectangle,bool CtrlHeld){
+        IReadOnlyList<NodePath>Hits=ViewState is { }State
+            ?ScenePicker.PickMarquee(
+                CurrentRenderObjects,State.GetView(),State.GetProjection(this.AspectRatio),
+                Rectangle,SurfaceWidth,SurfaceHeight)
+            :Array.Empty<NodePath>();
+        ActiveMarqueeRectangle=null;
+        RefreshOverlay();
+        ObjectsMarqueePicked?.Invoke(Hits,CtrlHeld);
     }
 
     private bool BeginMoveGizmoDrag(GizmoHandleId Handle,int X,int Y){
@@ -552,7 +601,7 @@ internal sealed class SceneHwndHost:HwndHost {
         ActiveMoveDrag=Drag;
         ActiveGizmoHandle=Handle;
         HoveredGizmoHandle=Handle;
-        Renderer?.SetOverlay(TransformGizmo.BuildMoveOverlay(Frame,Handle,Handle,DisabledMoveHandles));
+        RefreshOverlay();
         SetStatus($"移動中: {PrimaryNode.Node.DisplayName}");
         return true;
     }
@@ -588,9 +637,8 @@ internal sealed class SceneHwndHost:HwndHost {
             CurrentMoveGizmo=MoveGizmoFrame.Create(
                 WorldTransform.Position,WorldTransform.Rotation,State.TransformSpace,Frame.WorldScale);
         }
-        if(CurrentMoveGizmo is { }Updated){
-            Renderer?.SetOverlay(TransformGizmo.BuildMoveOverlay(
-                Updated,ActiveGizmoHandle,ActiveGizmoHandle,DisabledMoveHandles));
+        if(CurrentMoveGizmo is not null){
+            RefreshOverlay();
         }
     }
 
@@ -728,6 +776,10 @@ internal sealed class SceneHwndHost:HwndHost {
         }
         if(Result.GizmoCanceled||EditTransaction.State!=EditTransactionState.Idle){
             CancelEditTransaction();
+        }
+        if(Result.MarqueeCanceled){
+            ActiveMarqueeRectangle=null;
+            RefreshOverlay();
         }
         PendingLookDeltaX=0f;
         PendingLookDeltaY=0f;

@@ -183,6 +183,8 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             return;
         }
 
+        // Task Cの意図的非対称性: Viewportの矩形選択は複数NodeIdsを保持するが、現行WPF
+        // TreeViewは単一選択なのでprimaryだけを橋渡しする。複数選択情報自体は失われずsessionに残る。
         NodePath?Path=Selection.PrimaryNodeId is { } Id&&Snapshot.Projection?.TryGetNode(Id,out SceneProjectionNode Node)==true
             ?Node.Path
             :null;

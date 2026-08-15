@@ -120,4 +120,20 @@ public sealed class TransformGizmoTests {
         Assert.Null(Hit);
         Assert.True(Overlay[0].Vertices[0].Color.W<1f);
     }
+
+    [Fact]
+    public void BuildMarqueeOverlay_ReusesTriangleAndLinePrimitivesAtScreenRectangleCorners(){
+        IReadOnlyList<GizmoOverlayPrimitive>Overlay=MarqueeOverlay.Build(
+            ScreenRectangle.FromPoints(20,20,80,80),
+            Matrix4x4.Identity,Matrix4x4.Identity,ViewportWidth:100,ViewportHeight:100);
+
+        GizmoOverlayPrimitive Fill=Assert.Single(Overlay,Primitive=>Primitive.Kind==GizmoPrimitiveKind.Triangle);
+        GizmoOverlayPrimitive Outline=Assert.Single(Overlay,Primitive=>Primitive.Kind==GizmoPrimitiveKind.Line);
+        Assert.Equal(6,Fill.Vertices.Count);
+        Assert.Equal(8,Outline.Vertices.Count);
+        Assert.Equal(-0.6f,Outline.Vertices[0].Position.X,4);
+        Assert.Equal(0.6f,Outline.Vertices[0].Position.Y,4);
+        Assert.Equal(0.6f,Outline.Vertices[1].Position.X,4);
+        Assert.Equal(0.6f,Outline.Vertices[1].Position.Y,4);
+    }
 }

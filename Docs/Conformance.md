@@ -845,9 +845,10 @@ Phase 2の実機確認10項目のうち#5/#8/#9で問題が報告され、3件�
 - **意図的に残した制約**: ヒエラルキーは primary のみ表示のまま。WPFの`TreeView`は単一選択で、
   `SceneEditorHub.PublishSelectedNodePath`も単一`NodePath`契約のため、複数選択表示には`TreeView`の
   置き換えが必要。**ビューポートは複数選択を表示するがヒエラルキーは primary のみ**という非対称を
-  M0020の残課題へ明記した。矩形選択(LMBドラッグでの範囲選択)は現行仕様に無く
+  M0020の残課題へ明記した。当時、矩形選択(LMBドラッグでの範囲選択)は仕様に無く
   (`シーンエディタの仕様.md`はCtrl+LMBのみ)、`Scene-Editor-Design.md`§154の
   「LMB Down→PendingSelect→Up確定」の変更を伴うため、仕様追記から始める別タスクとした。
+  この別タスクは2026-08-16の後続Task Cで解消済み(本書末尾の同名節参照)。
 - **(2026-08 解消)** 以下の「未解決の仕様矛盾」は、ユーザーの決定によりRMB Look(X/Y)を両方
   既定で反転する形で解消した。詳細は本節末尾の追記を参照。
 - ~~**未解決の仕様矛盾(要判断)**: `シーンエディタの仕様.md`§4.1は「マウス上→上を見る」と書いているが、
@@ -1425,3 +1426,29 @@ Expハイブのキャッシュより新しくすること」を機序として**
   `dotnet test CSharpGameEngine.slnx -c Debug --no-build`は全8テストプロジェクト808件成功・失敗0
   (Entities 40 / Core 122 / Bridge.Hosting 8 / Import 30 / Windows 87 / CodeAnalysis 101 /
   SceneModel 104 / VSExtension 316)。
+
+## 2026-08-16 M0020後続Task C: 空間ドラッグ矩形選択
+
+- **Matches(入力状態機械)**: `PendingSelect`のLMB Up確定を維持したまま、Down時にヒットが無く
+  開始点から物理ピクセル4px以上移動した場合だけ`MarqueeSelecting`へ進む。オブジェクト開始は
+  大きく移動しても切り替えず、marquee開始後はLMB Up/capture loss/Escまで操作を固定する。
+- **Matches(矩形pick)**: `ScenePicker.PickMarquee`は各render objectのメッシュ頂点を
+  `World * View * Projection`でスクリーンへ投影し、正規化済み選択矩形と境界を含めて交差判定する。
+  描画順を保ち、同一NodePathは1件へまとめ、カメラ後方/depth外だけの対象は除外する。
+- **Matches(選択発行)**: 通常ドラッグは矩形内NodeIdsで置換し、Ctrlドラッグは既存選択へ加算する。
+  どちらも`SceneSelectionOrigin.Viewport`で発行する。最後の新規ヒットをprimaryとし、Viewportは全件を
+  ハイライトする。WPF TreeView/`SceneEditorHub`は単一NodePath契約のためHierarchy表示はprimaryだけ。
+  この非対称性は意図的であり、複数選択情報はsession内に保持される。
+- **Matches(overlay再利用)**: `MarqueeOverlay`は矩形を半透明triangle 2枚+line 4辺へ変換し、
+  Phase 3の深度無効overlay PSO/固定upload bufferへMoveギズモと合成する。専用PSO/GPU resourceは
+  追加していない。
+- **Unknown(実機Observed)**: HWND capture、D3D12での矩形表示、WPF選択反映、コードエディタの
+  Tab/Backspace/Delete非回帰は実COM/HWND/GPUを要するため未実施。M0020のTask C目視表4項目を
+  ユーザー側確認として残した。
+- Evidence:
+  - Task C対象50件(`SceneInputStateMachineTests`/`ScenePickerTests`/
+    `MarqueeSelectionPolicyTests`/`BuildMarqueeOverlay`)成功・失敗0。
+  - `dotnet build CSharpGameEngine.slnx -c Debug --no-restore`成功、警告0/エラー0。
+  - `dotnet test CSharpGameEngine.slnx -c Debug --no-build --no-restore`は全8テストプロジェクト
+    824件成功・失敗0(Entities 40 / Core 122 / Bridge.Hosting 8 / Import 30 / Windows 87 /
+    CodeAnalysis 101 / SceneModel 104 / VSExtension 332)。

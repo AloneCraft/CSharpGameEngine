@@ -86,6 +86,16 @@ TransformGizmo(Move: 軸+平面ハンドル)、オーバーレイPSO、スクリ
 **完了基準**: 実機でドラッグ移動→C#ソースの該当リテラルのみが差分→Ctrl+Zでシーンとコードの両方が
 復元。1ドラッグ=1 Undo単位をテキストUndo履歴で確認。トランザクション系ユニットテストグリーン。
 
+### 後続Task C — 矩形選択
+
+空間からのLMBドラッグを`MarqueeSelecting`として追加し、通常は置換、Ctrlは加算で複数選択を
+`SceneSelectionOrigin.Viewport`へ発行する。オブジェクト開始時は距離にかかわらず`PendingSelect`から
+切り替えない。投影済みメッシュ境界と矩形の交差は`ScenePicker.PickMarquee`、表示はPhase 3で導入した
+overlay PSOへ`MarqueeOverlay`を合成する。**実装済み(2026-08-16)**。
+
+**完了基準**: 状態機械、矩形×投影境界、置換/加算ポリシー、overlay形状のユニットテストがグリーン。
+実機で空間矩形、Ctrl加算、オブジェクト開始固定、コードエディタ制御キーの非回帰を目視確認。
+
 ### Phase 4 — Rotate/Scaleと増分スナップ
 
 E/Rツール、RotateHandle(リング)/ScaleHandle、Ctrl増分スナップ(移動/角度/スケール刻み)、
@@ -296,7 +306,33 @@ Position以外のQuaternion/Scaleリテラルは、値が正規化可能でもMo
 | 9 | 複数選択をMove→各選択rootへ同じworld差分が1 Undoで反映される | batch atomicity・複数選択 |
 | 10 | コードエディタのTab/Backspace/Deleteが引き続き効き、RMB Navigation中のWはMove切替でなく前進になる | フォーカス/入力優先順位の非回帰 |
 
-Phase 4以降の検証結果は、各Phase完了時に本節へ追記する。
+Phase 4以降と後続タスクの検証結果は、各作業完了時に本節へ追記する。
+
+### 後続Task C(2026-08-16)
+
+```text
+dotnet build CSharpGameEngine.slnx -c Debug --no-restore
+  → 成功、警告0/エラー0
+dotnet test CSharpGameEngine.slnx -c Debug --no-build --no-restore
+  → 全8テストプロジェクト824件成功・失敗0
+    (Task C前808 + 新規16。VSExtension.Testsは332件)
+```
+
+`SceneInputStateMachine`へ`MarqueeSelecting`を追加し、空間開始・4px閾値・Down時Ctrl固定・
+オブジェクト開始からの途中切替禁止・capture loss/Escキャンセルを純粋テストで固定した。
+`ScenePicker.PickMarquee`は投影済みメッシュ境界との包含的交差を描画順・NodePath重複なしで返す。
+`MarqueeSelectionPolicy`は通常置換とCtrl加算をWPFから分離し、`MarqueeOverlay`は既存の
+triangle/line PSOへMoveギズモと同時投入する。純粋層は**Matches**、HWND/D3D12/WPF配線の
+Observedは次表の実機確認まで**Unknown**。
+
+**実機VS Experimental Instanceでの目視確認(未実施 — ユーザー側で実施)**:
+
+| # | 確認対象 | 何が証明されるか |
+|---|---|---|
+| 1 | 空間から複数オブジェクトを囲むLMBドラッグ→矩形が表示され、交差した全対象だけが選択される | marquee遷移・overlay・矩形pick・置換発行 |
+| 2 | 既存選択後、Ctrl+空間ドラッグで別オブジェクトを囲む→既存を解除せず追加される | Ctrl加算・Down時修飾固定 |
+| 3 | オブジェクト上からLMB Downして大きくドラッグ→矩形へ切り替わらず、UpでDown時対象だけが選択される | `PendingSelect`既存経路と途中切替禁止 |
+| 4 | Task C操作後もコードエディタのTab/Backspace/Deleteが効く | HWND/WPFフォーカスの非回帰 |
 
 ## 意図的に除外したこと(将来マイルストーン候補)
 
@@ -405,10 +441,9 @@ Phase 4以降の検証結果は、各Phase完了時に本節へ追記する。
   副選択を薄く)が、ヒエラルキーは primary のみ**。WPFの`TreeView`が単一選択で、
   `SceneEditorHub.PublishSelectedNodePath`も単一`NodePath`契約のため。ヒエラルキー側の複数選択表示は
   `TreeView`の置き換えかスタイル拡張を要するので別タスク。
-- **次の作業として切り出した機能**: 矩形選択(LMBドラッグでの範囲選択)。現行仕様
-  (`Docs/シーンエディタの仕様.md`はCtrl+LMBのみ)に無く、`Docs/20260803-1.txt`に`MarqueeSelect`の
-  検討が残るだけの未仕様機能。`Scene-Editor-Design.md`§154の「LMB Down→PendingSelect→Up確定」の
-  変更を伴うため、仕様追記から始める必要がある。複数選択の可視化が土台なので順序としても後。
+- **(2026-08-16 解消)** 矩形選択(LMBドラッグでの範囲選択)を後続Task Cとして仕様化・実装した。
+  `PendingSelect→Up`の既存経路を維持し、空間開始だけが4px閾値で`MarqueeSelecting`へ進む。
+  ビューポート複数選択/Hierarchy primaryのみの非対称性は上項のとおり意図的に維持する。
 - **新規に判明した別タスク規模の負債**: `Docs/Implementation-Status.md`に`UserGameProject`への参照が
   62箇所ある。`UserGameProject`はM0019 Phase 5(`81c462e`)で撤去され現行は`UserEcsProject`なので、
   上記3件と同種の陳腐化が広範に残っている可能性が高い。台帳全体の棚卸しは本マイルストーンの

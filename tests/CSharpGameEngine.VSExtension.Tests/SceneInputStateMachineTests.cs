@@ -204,6 +204,101 @@ public sealed class SceneInputStateMachineTests {
     }
 
     [Fact]
+    public void PendingSelect_EmptySpaceDraggedPastThreshold_BeginsMarqueeSelection(){
+        SceneInputStateMachine Machine=new();
+        Machine.Handle(Down(PointerButton.Left,10,20),HitNodePath:null);
+
+        SceneInputStepResult Result=Machine.Handle(Move(15,23));
+
+        Assert.Equal(SceneNavState.MarqueeSelecting,Result.State);
+        Assert.True(Result.MarqueeUpdated);
+        Assert.Equal(ScreenRectangle.FromPoints(10,20,15,23),Result.MarqueeRectangle);
+        Assert.False(Result.MarqueeSelectionConfirmed);
+    }
+
+    [Fact]
+    public void PendingSelect_EmptySpaceDraggedBelowThreshold_RemainsPendingSelect(){
+        SceneInputStateMachine Machine=new();
+        Machine.Handle(Down(PointerButton.Left,10,20),HitNodePath:null);
+
+        SceneInputStepResult Result=Machine.Handle(Move(12,22));
+
+        Assert.Equal(SceneNavState.PendingSelect,Result.State);
+        Assert.False(Result.MarqueeUpdated);
+    }
+
+    [Fact]
+    public void PendingSelect_ObjectStartNeverTransitionsToMarquee(){
+        SceneInputStateMachine Machine=new();
+        NodePath Hit=NodePath.Root.Append(3);
+        Machine.Handle(Down(PointerButton.Left,10,20),Hit);
+
+        SceneInputStepResult MoveResult=Machine.Handle(Move(100,200));
+        SceneInputStepResult UpResult=Machine.Handle(Up(PointerButton.Left,100,200));
+
+        Assert.Equal(SceneNavState.PendingSelect,MoveResult.State);
+        Assert.False(MoveResult.MarqueeUpdated);
+        Assert.True(UpResult.SelectionConfirmed);
+        Assert.Equal(Hit,UpResult.ConfirmedNodePath);
+    }
+
+    [Fact]
+    public void MarqueeSelecting_LeftButtonUp_ConfirmsNormalizedRectangleAndCtrlFromDown(){
+        SceneInputStateMachine Machine=new();
+        RawInputModifiers CtrlModifiers=new(Shift:false,Ctrl:true,Alt:false);
+        Machine.Handle(new PointerEvent(PointerEventKind.Down,PointerButton.Left,80,70,CtrlModifiers),HitNodePath:null);
+        Machine.Handle(Move(60,40));
+
+        SceneInputStepResult Result=Machine.Handle(Up(PointerButton.Left,30,20));
+
+        Assert.Equal(SceneNavState.Idle,Result.State);
+        Assert.Equal(SceneCaptureAction.End,Result.Capture);
+        Assert.True(Result.MarqueeSelectionConfirmed);
+        Assert.Equal(ScreenRectangle.FromPoints(80,70,30,20),Result.MarqueeRectangle);
+        Assert.True(Result.ConfirmedCtrl);
+        Assert.False(Result.SelectionConfirmed);
+    }
+
+    [Fact]
+    public void MarqueeSelecting_CaptureLost_CancelsWithoutConfirming(){
+        SceneInputStateMachine Machine=new();
+        Machine.Handle(Down(PointerButton.Left,10,20),HitNodePath:null);
+        Machine.Handle(Move(30,40));
+
+        SceneInputStepResult Result=Machine.Handle(CaptureLost());
+
+        Assert.Equal(SceneNavState.Idle,Result.State);
+        Assert.True(Result.MarqueeCanceled);
+        Assert.False(Result.MarqueeSelectionConfirmed);
+    }
+
+    [Fact]
+    public void MarqueeSelecting_CancelCurrent_CancelsAndEndsCapture(){
+        SceneInputStateMachine Machine=new();
+        Machine.Handle(Down(PointerButton.Left,10,20),HitNodePath:null);
+        Machine.Handle(Move(30,40));
+
+        SceneInputStepResult Result=Machine.CancelCurrent();
+
+        Assert.Equal(SceneNavState.Idle,Result.State);
+        Assert.Equal(SceneCaptureAction.End,Result.Capture);
+        Assert.True(Result.MarqueeCanceled);
+        Assert.False(Result.MarqueeSelectionConfirmed);
+    }
+
+    [Fact]
+    public void MarqueeSelecting_RightButtonDown_DoesNotChangeOperation(){
+        SceneInputStateMachine Machine=new();
+        Machine.Handle(Down(PointerButton.Left,10,20),HitNodePath:null);
+        Machine.Handle(Move(30,40));
+
+        SceneInputStepResult Result=Machine.Handle(Down(PointerButton.Right,30,40));
+
+        Assert.Equal(SceneNavState.MarqueeSelecting,Result.State);
+        Assert.Equal(SceneCaptureAction.None,Result.Capture);
+    }
+
+    [Fact]
     public void Idle_LeftButtonOnGizmo_BeginsExclusiveGizmoDrag(){
         SceneInputStateMachine Machine=new();
 

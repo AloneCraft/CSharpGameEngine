@@ -6,6 +6,45 @@ using CSharpGameEngine.SceneAnalysis;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
+/// ビューポートのクライアント座標で表す正規化済み矩形。ドラッグ方向に関係なく
+/// <see cref="Left"/>≦<see cref="Right"/>、<see cref="Top"/>≦<see cref="Bottom"/>となる。
+/// </summary>
+internal readonly struct ScreenRectangle:IEquatable<ScreenRectangle> {
+    private ScreenRectangle(float Left,float Top,float Right,float Bottom){
+        this.Left=Left;
+        this.Top=Top;
+        this.Right=Right;
+        this.Bottom=Bottom;
+    }
+
+    internal float Left { get; }
+
+    internal float Top { get; }
+
+    internal float Right { get; }
+
+    internal float Bottom { get; }
+
+    internal static ScreenRectangle FromPoints(float StartX,float StartY,float EndX,float EndY)=>
+        new(Math.Min(StartX,EndX),Math.Min(StartY,EndY),Math.Max(StartX,EndX),Math.Max(StartY,EndY));
+
+    internal bool Intersects(float OtherLeft,float OtherTop,float OtherRight,float OtherBottom)=>
+        this.Left<=OtherRight&&this.Right>=OtherLeft&&this.Top<=OtherBottom&&this.Bottom>=OtherTop;
+
+    public bool Equals(ScreenRectangle Other)=>
+        this.Left.Equals(Other.Left)&&this.Top.Equals(Other.Top)
+        &&this.Right.Equals(Other.Right)&&this.Bottom.Equals(Other.Bottom);
+
+    public override bool Equals(object?Obj)=>Obj is ScreenRectangle Other&&Equals(Other);
+
+    public override int GetHashCode()=>HashCode.Combine(this.Left,this.Top,this.Right,this.Bottom);
+
+    public static bool operator ==(ScreenRectangle Left,ScreenRectangle Right)=>Left.Equals(Right);
+
+    public static bool operator !=(ScreenRectangle Left,ScreenRectangle Right)=>!Left.Equals(Right);
+}
+
+/// <summary>
 /// M0020 Phase 2 選択用のCPUレイキャスト(ADR-0041 決定事項3)。<see cref="SceneRenderObject"/>は
 /// CPU側に<see cref="SimpleMesh"/>(positions/indices)とワールド行列を既に保持しているため、
 /// GPUピッキングは使わず全三角形を線形走査する(現行のシーン規模では加速構造は不要 — ADR-0041)。
@@ -47,6 +86,70 @@ internal static class ScenePicker {
         HitDistance=BestDistance;
         return Found;
     }
+
+    /// <summary>
+    /// 各オブジェクトの投影済みメッシュ境界と選択矩形が交差するNodePathを描画順で返す。
+    /// 同じNodePathを複数のrender objectが構成する場合も一度だけ返す。
+    /// </summary>
+    internal static IReadOnlyList<NodePath>PickMarquee(
+        IReadOnlyList<SceneRenderObject>RenderObjects,Matrix4x4 View,Matrix4x4 Projection,
+        ScreenRectangle SelectionRectangle,int ViewportWidth,int ViewportHeight){
+        if(ViewportWidth<=0||ViewportHeight<=0){
+            return Array.Empty<NodePath>();
+        }
+
+        List<NodePath>Hits=[];
+        HashSet<NodePath>Seen=[];
+        Matrix4x4 ViewProjection=View*Projection;
+        foreach(SceneRenderObject Object in RenderObjects){
+            if(Seen.Contains(Object.NodeId)
+                ||!TryProjectBounds(Object,ViewProjection,ViewportWidth,ViewportHeight,
+                    out float Left,out float Top,out float Right,out float Bottom)
+                ||!SelectionRectangle.Intersects(Left,Top,Right,Bottom)){
+                continue;
+            }
+
+            Seen.Add(Object.NodeId);
+            Hits.Add(Object.NodeId);
+        }
+
+        return Hits;
+    }
+
+    private static bool TryProjectBounds(
+        SceneRenderObject Object,Matrix4x4 ViewProjection,int ViewportWidth,int ViewportHeight,
+        out float Left,out float Top,out float Right,out float Bottom){
+        const float Epsilon=1e-6f;
+        Left=float.PositiveInfinity;
+        Top=float.PositiveInfinity;
+        Right=float.NegativeInfinity;
+        Bottom=float.NegativeInfinity;
+        bool ProjectedAny=false;
+        bool DepthVisible=false;
+        Matrix4x4 WorldViewProjection=Object.World*ViewProjection;
+
+        foreach(Vector3 Position in Object.Mesh.Positions){
+            Vector4 Clip=Vector4.Transform(new Vector4(Position,1f),WorldViewProjection);
+            if(Clip.W<=Epsilon||!IsFinite(Clip.X)||!IsFinite(Clip.Y)||!IsFinite(Clip.Z)||!IsFinite(Clip.W)){
+                continue;
+            }
+
+            float NdcX=Clip.X/Clip.W;
+            float NdcY=Clip.Y/Clip.W;
+            float ScreenX=(NdcX+1f)*0.5f*ViewportWidth;
+            float ScreenY=(1f-NdcY)*0.5f*ViewportHeight;
+            Left=Math.Min(Left,ScreenX);
+            Top=Math.Min(Top,ScreenY);
+            Right=Math.Max(Right,ScreenX);
+            Bottom=Math.Max(Bottom,ScreenY);
+            ProjectedAny=true;
+            DepthVisible|=Clip.Z>=0f&&Clip.Z<=Clip.W;
+        }
+
+        return ProjectedAny&&DepthVisible;
+    }
+
+    private static bool IsFinite(float Value)=>!float.IsNaN(Value)&&!float.IsInfinity(Value);
 
     private static bool TryIntersectMesh(
         SimpleMesh Mesh,Matrix4x4 World,Vector3 Origin,Vector3 Direction,out float Distance){

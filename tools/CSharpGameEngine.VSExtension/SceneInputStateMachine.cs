@@ -4,9 +4,10 @@ using CSharpGameEngine.SceneAnalysis;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// ナビゲーションと編集操作の排他的状態。<c>GizmoDragging</c>はM0020 Phase 3で追加。
+/// ナビゲーションと編集操作の排他的状態。<c>GizmoDragging</c>はM0020 Phase 3、
+/// <c>MarqueeSelecting</c>はM0020後続Task Cで追加。
 /// </summary>
-internal enum SceneNavState { Idle, Flying, Panning, Orbiting, PendingSelect, GizmoDragging }
+internal enum SceneNavState { Idle, Flying, Panning, Orbiting, PendingSelect, MarqueeSelecting, GizmoDragging }
 
 internal enum SceneCaptureAction { None, Begin, End }
 
@@ -19,6 +20,8 @@ internal readonly struct SceneInputStepResult {
     internal SceneInputStepResult(
         SceneNavState State,SceneCaptureAction Capture,float DeltaX,float DeltaY,
         bool SelectionConfirmed=false,NodePath?ConfirmedNodePath=null,bool ConfirmedCtrl=false,
+        bool MarqueeUpdated=false,bool MarqueeSelectionConfirmed=false,bool MarqueeCanceled=false,
+        ScreenRectangle MarqueeRectangle=default,
         bool GizmoDragBegan=false,bool GizmoCommitRequested=false,bool GizmoCanceled=false,
         GizmoHandleId?GizmoHandle=null){
         this.State=State;
@@ -28,6 +31,10 @@ internal readonly struct SceneInputStepResult {
         this.SelectionConfirmed=SelectionConfirmed;
         this.ConfirmedNodePath=ConfirmedNodePath;
         this.ConfirmedCtrl=ConfirmedCtrl;
+        this.MarqueeUpdated=MarqueeUpdated;
+        this.MarqueeSelectionConfirmed=MarqueeSelectionConfirmed;
+        this.MarqueeCanceled=MarqueeCanceled;
+        this.MarqueeRectangle=MarqueeRectangle;
         this.GizmoDragBegan=GizmoDragBegan;
         this.GizmoCommitRequested=GizmoCommitRequested;
         this.GizmoCanceled=GizmoCanceled;
@@ -49,6 +56,14 @@ internal readonly struct SceneInputStepResult {
 
     /// <summary>Down時のCtrl押下状態(複数選択トグル)。</summary>
     internal bool ConfirmedCtrl { get; }
+
+    internal bool MarqueeUpdated { get; }
+
+    internal bool MarqueeSelectionConfirmed { get; }
+
+    internal bool MarqueeCanceled { get; }
+
+    internal ScreenRectangle MarqueeRectangle { get; }
 
     internal bool GizmoDragBegan { get; }
 
@@ -76,11 +91,14 @@ internal readonly struct SceneInputStepResult {
 /// </para>
 /// </summary>
 internal sealed class SceneInputStateMachine {
+    private const int MarqueeDragThresholdPixels=4;
     private int LastX;
     private int LastY;
     private readonly HashSet<NavigationKey>HeldKeys=[];
     private NodePath?PendingSelectNodePath;
     private bool PendingSelectCtrl;
+    private int SelectionStartX;
+    private int SelectionStartY;
     private GizmoHandleId?ActiveGizmoHandle;
 
     internal SceneNavState State { get;private set;}=SceneNavState.Idle;
@@ -129,6 +147,14 @@ internal sealed class SceneInputStateMachine {
                 if(IsButtonDown(Event,PointerButton.Middle)){ return Begin(SceneNavState.Panning,Event);}
                 if(IsButtonUp(Event,PointerButton.Left)){ return ConfirmSelect();}
                 if(Event.Kind==PointerEventKind.CaptureLost){ return LoseCapture();}
+                if(Event.Kind==PointerEventKind.Move){ return TryBeginMarquee(Event);}
+                return Stay();
+
+            case SceneNavState.MarqueeSelecting:
+                // ドラッグ開始後は操作を固定し、LMB UpまたはCaptureLostまでNavigationへ切り替えない。
+                if(IsButtonUp(Event,PointerButton.Left)){ return ConfirmMarquee(Event);}
+                if(Event.Kind==PointerEventKind.CaptureLost){ return LoseMarqueeCapture();}
+                if(Event.Kind==PointerEventKind.Move){ return UpdateMarquee(Event);}
                 return Stay();
 
             case SceneNavState.GizmoDragging:
@@ -164,6 +190,7 @@ internal sealed class SceneInputStateMachine {
         }
 
         bool WasGizmo=State==SceneNavState.GizmoDragging;
+        bool WasMarquee=State==SceneNavState.MarqueeSelecting;
         GizmoHandleId?Handle=ActiveGizmoHandle;
         State=SceneNavState.Idle;
         HeldKeys.Clear();
@@ -171,6 +198,7 @@ internal sealed class SceneInputStateMachine {
         PendingSelectCtrl=false;
         ActiveGizmoHandle=null;
         return new(State,SceneCaptureAction.End,0f,0f,
+            MarqueeCanceled:WasMarquee,
             GizmoCanceled:WasGizmo,GizmoHandle:Handle);
     }
 
@@ -214,7 +242,48 @@ internal sealed class SceneInputStateMachine {
         State=SceneNavState.PendingSelect;
         PendingSelectNodePath=HitNodePath;
         PendingSelectCtrl=Event.Modifiers.Ctrl;
+        SelectionStartX=Event.X;
+        SelectionStartY=Event.Y;
         return new(State,SceneCaptureAction.Begin,0f,0f);
+    }
+
+    private SceneInputStepResult TryBeginMarquee(PointerEvent Event){
+        if(PendingSelectNodePath is not null){
+            return Stay();
+        }
+
+        int DeltaX=Event.X-SelectionStartX;
+        int DeltaY=Event.Y-SelectionStartY;
+        if((DeltaX*DeltaX)+(DeltaY*DeltaY)<MarqueeDragThresholdPixels*MarqueeDragThresholdPixels){
+            return Stay();
+        }
+
+        State=SceneNavState.MarqueeSelecting;
+        return new(State,SceneCaptureAction.None,0f,0f,
+            MarqueeUpdated:true,
+            MarqueeRectangle:ScreenRectangle.FromPoints(SelectionStartX,SelectionStartY,Event.X,Event.Y));
+    }
+
+    private SceneInputStepResult UpdateMarquee(PointerEvent Event)=>
+        new(State,SceneCaptureAction.None,0f,0f,
+            MarqueeUpdated:true,
+            MarqueeRectangle:ScreenRectangle.FromPoints(SelectionStartX,SelectionStartY,Event.X,Event.Y));
+
+    private SceneInputStepResult ConfirmMarquee(PointerEvent Event){
+        ScreenRectangle Rectangle=ScreenRectangle.FromPoints(SelectionStartX,SelectionStartY,Event.X,Event.Y);
+        bool ConfirmedCtrl=PendingSelectCtrl;
+        State=SceneNavState.Idle;
+        PendingSelectCtrl=false;
+        return new(State,SceneCaptureAction.End,0f,0f,
+            ConfirmedCtrl:ConfirmedCtrl,
+            MarqueeSelectionConfirmed:true,
+            MarqueeRectangle:Rectangle);
+    }
+
+    private SceneInputStepResult LoseMarqueeCapture(){
+        State=SceneNavState.Idle;
+        PendingSelectCtrl=false;
+        return new(State,SceneCaptureAction.None,0f,0f,MarqueeCanceled:true);
     }
 
     private SceneInputStepResult BeginGizmo(PointerEvent Event,GizmoHandleId Handle){

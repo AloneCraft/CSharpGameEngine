@@ -170,10 +170,18 @@ Idle
  ├─ MMB Down                    → Panning
  ├─ Alt + LMB Down              → Orbiting
  ├─ LMB Down(ギズモにヒット)   → GizmoDragging(優先度3。§8のBeginTransaction)
- ├─ LMB Down(ヒットなし/対象) → PendingSelect(Up時に選択確定。Ctrl併用で複数選択トグル)
+ ├─ LMB Down(ヒットなし/対象) → PendingSelect
  └─ Wheel                       → Dolly/Zoom(状態遷移なし)
 Flying / Panning / Orbiting
  └─ 該当ボタンUp                → Idle
+PendingSelect
+ ├─ LMB Up                      → Down時の対象を選択確定 → Idle(既存経路を維持)
+ ├─ MouseMove(空間開始かつ開始点から4px以上) → MarqueeSelecting
+ └─ MouseMove(対象開始)         → PendingSelectのまま(途中切替禁止)
+MarqueeSelecting
+ ├─ MouseMove                   → 正規化矩形を更新
+ ├─ LMB Up                      → 矩形内NodePath群を選択確定 → Idle
+ └─ Esc / CaptureLost           → 確定せず矩形を破棄 → Idle
 GizmoDragging
  ├─ MouseMove                   → プレビュー更新(V/Nホールドでスナップクエリ切替、§6)
  ├─ LMB Up                      → CommitTransaction → Idle
@@ -181,6 +189,8 @@ GizmoDragging
 ```
 
 - ドラッグ系状態への遷移で`SetCapture`、離脱で解放。
+- `PendingSelect`はLMB Down時点で対象/空間とCtrl状態を固定する。空間開始だけが4pxのユークリッド距離
+  閾値を越えた時点で`MarqueeSelecting`へ進み、進んだ後はRMB/MMBでも操作種別を変えない。
 - `Esc`は現在の一時操作のキャンセル(仕様§12)。Idle時は何もしない。
 - RMB保持中はW/E/Q/A/S/DをFly入力が占有する(仕様§5)。ツール切替キーはIdle時のみ有効:
   W=Move、E=Rotate、R=Scale、F=FocusSelection。
@@ -199,15 +209,19 @@ GizmoDragging
 ## 5. ピッキング(§仕様7)
 
 `ScenePicker`(純粋クラス)は`SceneRenderObject`列(CPU側`SimpleMesh`+ワールド行列)に対して
-次の3クエリを提供する。
+次の4クエリを提供する。
 
 1. **Pick(選択・ギズモ用)**: スクリーン座標→レイ(§3のunproject)→ 各オブジェクトの全三角形へ
    Möller–Trumbore交差 → 最近ヒットの`NodePath`と交点・法線を返す。加速構造なしの線形走査
    (現行シーン規模で十分。必要になったら別ADRで導入判断)。
-2. **VertexSnapQuery**: レイ近傍のオブジェクトについて、頂点をスクリーン空間へ投影し、カーソルから
+2. **PickMarquee**: 各`SceneRenderObject`の全頂点を`World * View * Projection`で物理ピクセルへ
+   投影し、その最小/最大から得るスクリーン境界矩形と選択矩形の交差を判定する。境界接触を含み、
+   同じ`NodePath`を構成するrender objectが複数あっても描画順で1回だけ返す。全頂点が視錐台の
+   depth外またはカメラ後方なら対象外。
+3. **VertexSnapQuery**: レイ近傍のオブジェクトについて、頂点をスクリーン空間へ投影し、カーソルから
    スクリーン半径R(既定8px)以内の最近頂点のワールド座標を返す。Positionのみに作用し
    Rotationは変更しない(仕様§7.1)。
-3. **SurfaceSnapQuery**: Pickと同じ交差で、ドラッグ中オブジェクト自身を除外した最近ヒットの
+4. **SurfaceSnapQuery**: Pickと同じ交差で、ドラッグ中オブジェクト自身を除外した最近ヒットの
    交点+面法線を返す。Positionを交点へ、Rotationを法線整列へ
    (`SurfaceSnap.AlignRotationToNormal=false`で整列のみ無効化可、仕様§7.2)。
 
@@ -237,6 +251,8 @@ CompoundGizmo(選択ノードごとに構成を決定)
 
 - `SceneRenderer`に**オーバーレイPSO**を追加: 深度テスト無効・ライン+ソリッド両トポロジ・
   per-objectハンドル色(通常/ホバー/アクティブ)。既存`Selected`フラグと同じ定数バッファ方式。
+- `MarqueeOverlay`は矩形4角をnear面から同一スクリーンレイ上へ僅かに進めたworld座標へ変換し、
+  半透明triangle 2枚+line 4辺として同じオーバーレイPSO/固定upload bufferへMoveギズモと合成する。
 - ハンドルメッシュは`GizmoMeshFactory`拡張の手続き生成(矢印・リング・クアッド・円錐・立方体)。
 - スクリーン一定サイズ: ギズモのワールドスケール = `ハンドル位置とカメラの距離 * tan(FovY/2) * 定数`
   (Orthographicでは`OrthographicSize * 定数`)。
