@@ -176,8 +176,14 @@ internal sealed class SceneViewState {
         Vector3 FlatRight=SceneViewCamera.GetFlatRight(Yaw);
         if(HeldKeys.Contains(NavigationKey.W)){ MoveDirection+=Forward; }
         if(HeldKeys.Contains(NavigationKey.S)){ MoveDirection-=Forward; }
-        if(HeldKeys.Contains(NavigationKey.D)){ MoveDirection+=FlatRight; }
-        if(HeldKeys.Contains(NavigationKey.A)){ MoveDirection-=FlatRight; }
+        // 実機検証(M0020 Phase 2): A/Dの左右が逆だったため符号を訂正。
+        //
+        // GetFlatRightは名前に反して画面の「左」へ写るため、画面上で右へ動かすDは-FlatRightを使う
+        // (描画が右手系でゲーム本体と一致させているから。SceneViewCamera.GetView参照)。
+        // ApplyPanのXが同じ理由で反転しているのと同じ話であり、両方が「符号を反転させている」のは
+        // 偶然ではなく同一の規約から来ている。
+        if(HeldKeys.Contains(NavigationKey.D)){ MoveDirection-=FlatRight; }
+        if(HeldKeys.Contains(NavigationKey.A)){ MoveDirection+=FlatRight; }
         if(HeldKeys.Contains(NavigationKey.E)){ MoveDirection+=Vector3.UnitY; }
         if(HeldKeys.Contains(NavigationKey.Q)){ MoveDirection-=Vector3.UnitY; }
 
@@ -204,6 +210,12 @@ internal sealed class SceneViewState {
         Vector3 Up=SceneViewCamera.GetUp(Yaw,Pitch);
         float Scale=FocusDistance*PanSensitivityPerFocusDistance;
         // 実機検証(M0020 Phase 1): 左右(X)の既定挙動が仕様と逆だったため符号を訂正(上下Yは確認済み)。
+        //
+        // Xに反転が必要な理由(2026-08、Phase 2の実機検証で確定): 描画は右手系の行列を使うため
+        // GetFlatRightは名前に反して画面の「左」へ写る(SceneViewCamera.GetView参照)。
+        // 「行列を左手系に直せばこの反転は不要になる」と考えて一度実際にやったが、ゲーム本体も
+        // 同じ右手系なのでシーンデザイナーだけがゲームと左右反転してしまい差し戻した。
+        // つまりこの反転は対症療法ではなく、エンジンの規約に対する正しい変換である。
         FocusPosition+=((DeltaX*Right)+(DeltaY*Up))*Scale;
     }
 

@@ -62,7 +62,23 @@ internal readonly struct PointerEvent:IEquatable<PointerEvent> {
 /// (ユニットテストで固定できるようにするための分離)。
 /// </summary>
 internal static class RenderSurfaceMouseMessageTranslator {
-    internal static PointerEvent?Translate(uint Message,IntPtr LParam,RawInputModifiers Modifiers)=>Message switch {
+    /// <summary>
+    /// <paramref name="SelfHwnd"/>は<c>WM_CAPTURECHANGED</c>の自己再取得を見分けるためだけに使う。
+    /// このメッセージのLParamは「キャプチャを取得する側」のハンドルなので、それが自分自身なら
+    /// 奪われたのではなく自分で取り直しただけであり<see cref="PointerEventKind.CaptureLost"/>を
+    /// 発生させてはならない(発生させるとSceneInputStateMachineがIdleへ戻り、
+    /// PendingSelectからのナビゲーションへのプリエンプトが不発になる —
+    /// <see cref="RenderSurfaceWindow.SetPointerCapture"/>参照)。
+    ///
+    /// <para>
+    /// 既定の<c>IntPtr.Zero</c>はこの判定を無効化する(自己ハンドルが不明な呼び出し向け)。
+    /// LParamが<c>IntPtr.Zero</c>の場合は「どのウィンドウもキャプチャを取得しない」= 完全な解放を
+    /// 意味するので、<paramref name="SelfHwnd"/>が有効なときも<c>CaptureLost</c>として扱う必要が
+    /// ある。そのため一致判定は<paramref name="SelfHwnd"/>が非ゼロの場合のみ行う。
+    /// </para>
+    /// </summary>
+    internal static PointerEvent?Translate(
+        uint Message,IntPtr LParam,RawInputModifiers Modifiers,IntPtr SelfHwnd=default)=>Message switch {
         NativeMethods.WM_LBUTTONDOWN=>Down(PointerButton.Left,LParam,Modifiers),
         NativeMethods.WM_LBUTTONUP=>Up(PointerButton.Left,LParam,Modifiers),
         NativeMethods.WM_RBUTTONDOWN=>Down(PointerButton.Right,LParam,Modifiers),
@@ -71,8 +87,9 @@ internal static class RenderSurfaceMouseMessageTranslator {
         NativeMethods.WM_MBUTTONUP=>Up(PointerButton.Middle,LParam,Modifiers),
         NativeMethods.WM_MOUSEMOVE=>new PointerEvent(
             PointerEventKind.Move,PointerButton.None,DecodeX(LParam),DecodeY(LParam),Modifiers),
-        NativeMethods.WM_CAPTURECHANGED=>new PointerEvent(
-            PointerEventKind.CaptureLost,PointerButton.None,0,0,default),
+        NativeMethods.WM_CAPTURECHANGED=>SelfHwnd!=IntPtr.Zero&&LParam==SelfHwnd
+            ?null
+            :new PointerEvent(PointerEventKind.CaptureLost,PointerButton.None,0,0,default),
         _=>null,
     };
 

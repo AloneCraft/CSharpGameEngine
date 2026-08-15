@@ -78,6 +78,7 @@ internal sealed class SceneRenderer:IDisposable {
 
     private readonly List<ObjectResources>Objects=[];
     private NodePath?SelectedNodeId;
+    private IReadOnlyCollection<NodePath>?SelectedNodeIds;
 
     private Matrix4x4 CurrentView;
     private Matrix4x4 CurrentProjection;
@@ -357,16 +358,21 @@ internal sealed class SceneRenderer:IDisposable {
         for(var I=0;I<Objects.Count;I++){
             ObjectResources Obj=Objects[I];
             Matrix4x4 Mvp=Obj.World*CurrentView*CurrentProjection;
-            var Selected=SelectedNodeId is { } Selection&&Obj.NodeId.Equals(Selection)?1f:0f;
+            float Selected=SceneSelectionTint.GetWeight(Obj.NodeId,SelectedNodeId,SelectedNodeIds);
             TransformConstants Constants=new(){ Mvp=Mvp,BaseColorFactor=Obj.BaseColorFactor,Selected=Selected };
             MemoryMarshal.Write(Mapped.Slice(I*AlignedSlotSize,Marshal.SizeOf<TransformConstants>()),ref Constants);
         }
         ConstantBuffer.Unmap(0,null);
     }
 
-    /// <summary>ヒエラルキー/ビューポートの選択が変わったときに呼ばれる(<see cref="SceneHwndHost.SetSelection"/>経由)。</summary>
-    public void SetSelectedNode(NodePath?NodeId){
+    /// <summary>
+    /// ヒエラルキー/ビューポートの選択が変わったときに呼ばれる(<see cref="SceneHwndHost.SetSelection"/>経由)。
+    /// <paramref name="NodeId"/>が primary、<paramref name="NodeIds"/>が複数選択の全体
+    /// (primaryを含む)。強さの決定は<see cref="SceneSelectionTint"/>。
+    /// </summary>
+    public void SetSelectedNode(NodePath?NodeId,IReadOnlyCollection<NodePath>?NodeIds=null){
         SelectedNodeId=NodeId;
+        SelectedNodeIds=NodeIds;
         ConstantsDirty=true;
     }
 

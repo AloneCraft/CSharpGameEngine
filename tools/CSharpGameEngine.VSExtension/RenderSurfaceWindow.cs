@@ -72,9 +72,20 @@ internal sealed class RenderSurfaceWindow:IDisposable {
         }
     }
 
-    /// <summary>ドラッグ操作(Look/Fly/Pan/Orbit)開始時にSceneInputStateMachineの指示で呼ぶ。</summary>
+    /// <summary>
+    /// ドラッグ操作(Look/Fly/Pan/Orbit)開始時にSceneInputStateMachineの指示で呼ぶ。
+    ///
+    /// <para>
+    /// <b>既に自分が保持している場合は再取得しない。</b>Win32のSetCaptureはキャプチャを失う側へ
+    /// WM_CAPTURECHANGEDを送るため、自分がキャプチャ中に再度呼ぶとそれが自分自身へ届き、
+    /// WndProcがCaptureLostへ翻訳してSceneInputStateMachineが「奪われた」と解釈してIdleへ戻って
+    /// しまう。実機で「LMB押下中(PendingSelect)にRMBを押してもナビゲーションに切り替わらない」
+    /// (仕様§12の優先順位によるプリエンプトが不発)として観測された。PendingSelectで既に
+    /// キャプチャしている状態からFlying/Panningへ遷移する経路が該当する。
+    /// </para>
+    /// </summary>
     public void SetPointerCapture(){
-        if(!Disposed&&Hwnd!=IntPtr.Zero){
+        if(!Disposed&&Hwnd!=IntPtr.Zero&&GetCapture()!=Hwnd){
             _=SetCapture(Hwnd);
         }
     }
@@ -194,7 +205,7 @@ internal sealed class RenderSurfaceWindow:IDisposable {
             Ctrl:(GetKeyState(VK_CONTROL)&0x8000)!=0,
             Alt:(GetKeyState(VK_MENU)&0x8000)!=0);
 
-        if(RenderSurfaceMouseMessageTranslator.Translate(Msg,LParam,Modifiers)is{ }PointerEvent){
+        if(RenderSurfaceMouseMessageTranslator.Translate(Msg,LParam,Modifiers,HWnd)is{ }PointerEvent){
             RenderSurfaceWindow?PointerInstance;
             lock(Instances){
                 Instances.TryGetValue(HWnd,out PointerInstance);

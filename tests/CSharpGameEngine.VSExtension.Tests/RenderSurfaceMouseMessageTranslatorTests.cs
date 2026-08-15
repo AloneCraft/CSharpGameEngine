@@ -67,6 +67,43 @@ public sealed class RenderSurfaceMouseMessageTranslatorTests {
         Assert.Equal(PointerEventKind.CaptureLost,Result!.Value.Kind);
     }
 
+    /// <summary>
+    /// 自分がキャプチャを取り直しただけのWM_CAPTURECHANGEDは無視する。これをCaptureLostにすると
+    /// SceneInputStateMachineがIdleへ戻り、「LMB押下中にRMBでナビゲーションへプリエンプト」が
+    /// 不発になる(実機で観測。RenderSurfaceWindow.SetPointerCapture参照)。
+    /// </summary>
+    [Fact]
+    public void Translate_CaptureChangedToSelf_IsIgnored(){
+        IntPtr SelfHwnd=new(0x1234);
+
+        PointerEvent?Result=RenderSurfaceMouseMessageTranslator.Translate(
+            NativeMethods.WM_CAPTURECHANGED,SelfHwnd,NoModifiers,SelfHwnd);
+
+        Assert.Null(Result);
+    }
+
+    [Fact]
+    public void Translate_CaptureChangedToAnotherWindow_StillReportsCaptureLost(){
+        PointerEvent?Result=RenderSurfaceMouseMessageTranslator.Translate(
+            NativeMethods.WM_CAPTURECHANGED,new IntPtr(0x9999),NoModifiers,new IntPtr(0x1234));
+
+        Assert.NotNull(Result);
+        Assert.Equal(PointerEventKind.CaptureLost,Result!.Value.Kind);
+    }
+
+    /// <summary>
+    /// LParamがゼロは「どのウィンドウもキャプチャを取得しない」= 完全な解放なので、自己ハンドルが
+    /// 有効でもCaptureLostとして扱わなければならない(自己一致判定に巻き込まれてはいけない)。
+    /// </summary>
+    [Fact]
+    public void Translate_CaptureFullyReleased_StillReportsCaptureLost(){
+        PointerEvent?Result=RenderSurfaceMouseMessageTranslator.Translate(
+            NativeMethods.WM_CAPTURECHANGED,IntPtr.Zero,NoModifiers,new IntPtr(0x1234));
+
+        Assert.NotNull(Result);
+        Assert.Equal(PointerEventKind.CaptureLost,Result!.Value.Kind);
+    }
+
     [Fact]
     public void Translate_UnrelatedMessage_ReturnsNull(){
         PointerEvent?Result=RenderSurfaceMouseMessageTranslator.Translate(

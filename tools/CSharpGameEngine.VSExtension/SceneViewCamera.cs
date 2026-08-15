@@ -66,12 +66,43 @@ internal static class SceneViewCamera {
     internal static Vector3 GetEyePosition(Vector3 FocusPosition,float Yaw,float Pitch,float FocusDistance)=>
         FocusPosition-GetForward(Yaw,Pitch)*FocusDistance;
 
+    /// <summary>
+    /// ビュー行列。<c>Matrix4x4.CreateLookAt</c>(右手系)を使う — <b>ゲーム側の描画と一致させるため
+    /// であり、意図的である</b>。
+    ///
+    /// <para>
+    /// <b>ここを「左手系へ直す」誘惑への警告(2026-08に一度実際にやって差し戻した):</b>
+    /// この座標系の基底は左手系(<c>GetFlatForward=(sinY,0,cosY)</c>、<c>GetFlatRight=Cross(UnitY,Forward)</c>、
+    /// ADR-0025のUnity規約=LeftHanded)なのに、行列は右手系である。右手系の<c>CreateLookAt</c>は
+    /// <c>xaxis=Cross(Up,normalize(Eye-Target))=-GetFlatRight</c>を作るため、
+    /// <b><see cref="GetFlatRight"/>は名前に反して画面の「左」へ写る</b>
+    /// (<c>SceneViewCameraTests.GetFlatRight_ProjectsToScreenLeft_BecauseTheEngineUsesRightHandedMatrices</c>
+    /// がこれを固定している)。一見バグに見えるが、<b>ゲーム本体も同じ右手系を使っている</b>
+    /// (<c>src/CSharpGameEngine.Windows/Graphics/Camera.cs</c>の<c>BuildViewMatrix</c>/<c>BuildProjection</c>、
+    /// <c>StageRenderer</c>、<c>ModelRenderer</c>)。シーンデザイナーはゲームの見た目を再現するものなので、
+    /// ここだけ左手系にするとデザイナーだけがゲームと左右反転する(実際にそうなった)。
+    /// </para>
+    ///
+    /// <para>
+    /// 帰結として、画面上で「右」に見える方向は<c>-GetFlatRight</c>である。だから
+    /// Fly の A/D と <c>SceneViewState.ApplyPan</c> の横方向はどちらも符号を反転させてある
+    /// (それぞれの箇所のコメント参照)。「行列を直せば反転が要らなくなる」は誤り —
+    /// ゲームとの一致が壊れる。
+    /// </para>
+    ///
+    /// <para>
+    /// 「ADR-0025がUnity=左手系と宣言しているのに行列は右手系」というエンジン全体の矛盾は実在するが、
+    /// ゲームの描画にも等しく効いているためシーンエディタ単独で決着できない。Phase 3のギズモは
+    /// +Xハンドルが画面左を指すことになるので影響を受ける — その時点で別ADRとして扱う。
+    /// </para>
+    /// </summary>
     internal static Matrix4x4 GetView(Vector3 FocusPosition,float Yaw,float Pitch,float FocusDistance){
         Vector3 Eye=GetEyePosition(FocusPosition,Yaw,Pitch,FocusDistance);
         Vector3 LookAtPoint=FocusDistance>1e-4f?FocusPosition:Eye+GetForward(Yaw,Pitch);
         return Matrix4x4.CreateLookAt(Eye,LookAtPoint,Vector3.UnitY);
     }
 
+    /// <summary>透視投影。ゲーム側(<c>Camera.BuildProjection</c>)と同じ右手系(<see cref="GetView"/>参照)。</summary>
     internal static Matrix4x4 GetProjection(float FovYRadians,float AspectRatio,float NearZ,float FarZ)=>
         Matrix4x4.CreatePerspectiveFieldOfView(FovYRadians,AspectRatio,NearZ,FarZ);
 

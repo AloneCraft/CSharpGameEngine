@@ -88,7 +88,17 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
     /// Tab などのキーボードフォーカスをコードエディタから奪うため、ここでは絶対に呼びません。
     /// </summary>
     private async Task TryAutoOpenUserEcsProjectAsync(){
-        if(!StartupAutoOpenPolicy.ShouldOpenUserEcsProject(await IsSolutionOpenAsync())){
+        // devenv自身のコマンドラインが既にソリューションを指定している場合(このリポジトリのF5設定が
+        // 常にそう)、ネイティブな起動シーケンスが確実に処理する。この判定はプロセス起動時点の
+        // 事実だけを見るためタイミングに一切依存せず、下のポーリング系の判定(IsSolutionOpenAsync等)
+        // が抱える「確認するタイミング自体がネイティブ読み込みの完了より早いと同じ結果を返し続ける」
+        // というレースを構造的に回避できる(StartupAutoOpenPolicy.CommandLineAlreadySpecifiesASolution
+        // のコメント参照)。
+        if(StartupAutoOpenPolicy.CommandLineAlreadySpecifiesASolution(Environment.GetCommandLineArgs())){
+            return;
+        }
+
+        if(!StartupAutoOpenPolicy.ShouldOpenUserEcsProject(await IsSolutionOpenAsync(),await GetSolutionPathAsync())){
             return;
         }
 
@@ -106,14 +116,24 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             // Start Window の初期化と競合しないよう少し待つ。待機後にもう一度確認することで、
             // ユーザーがその間に別のソリューションを開いた場合は何もしない。
             await Task.Delay(TimeSpan.FromSeconds(2),DisposalToken);
-            if(!StartupAutoOpenPolicy.ShouldOpenUserEcsProject(await IsSolutionOpenAsync())){
+            if(!StartupAutoOpenPolicy.ShouldOpenUserEcsProject(await IsSolutionOpenAsync(),await GetSolutionPathAsync())){
                 return;
             }
 
             await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
-            if(await GetServiceAsync(typeof(SDTE))is DTE Dte){
-                Dte.ExecuteCommand("File.OpenProject",$"\"{SolutionPath}\"");
+            if(await GetServiceAsync(typeof(SDTE))is not DTE Dte){
+                return;
             }
+
+            // UIスレッドを取れるまで待っている間にソリューションが開き終わっていることがある
+            // (UIスレッドはコマンドラインで渡されたソリューションの読み込みで塞がっているため、
+            // コールドスタートではこれが通常)。上の判定は最大でも2秒前の情報なので、実行の直前に
+            // もう一度見ないと「開いたばかりのソリューションを閉じて開き直す」ことになる。
+            if(!StartupAutoOpenPolicy.ShouldOpenUserEcsProject(await IsSolutionOpenAsync(),Dte.Solution?.FullName)){
+                return;
+            }
+
+            Dte.ExecuteCommand("File.OpenProject",$"\"{SolutionPath}\"");
         } catch(COMException){
             // VS startup must remain usable even if the shell rejects the early open request.
         } catch(OperationCanceledException){
@@ -213,6 +233,24 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
         Solution.GetProperty((int)__VSPROPID.VSPROPID_IsSolutionOpen,out object IsOpen);
         return IsOpen is bool Value&&Value;
     }
+
+    /// <summary>
+    /// 開いている(または開きかけの)ソリューションファイルのパス。無ければnull。
+    /// <see cref="__VSPROPID.VSPROPID_IsSolutionOpen"/>が立つ前でもパスは判ることがあるため、
+    /// 自動オープンの判定では<see cref="IsSolutionOpenAsync"/>と併用する
+    /// (<see cref="StartupAutoOpenPolicy.ShouldOpenUserEcsProject"/>参照)。
+    /// </summary>
+    private async Task<string?>GetSolutionPathAsync(){
+        await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
+        if(await GetServiceAsync(typeof(SVsSolution))is not IVsSolution Solution){
+            return null;
+        }
+
+        return ErrorHandler.Succeeded(Solution.GetSolutionInfo(out _,out string?SolutionFile,out _))
+            ?SolutionFile
+            :null;
+    }
+
     protected override void Dispose(bool Disposing){
         if(Disposing){
             FabWatchCommand?.Dispose();

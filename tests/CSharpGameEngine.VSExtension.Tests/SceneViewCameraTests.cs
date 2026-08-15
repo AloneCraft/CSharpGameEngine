@@ -155,6 +155,99 @@ public sealed class SceneViewCameraTests {
         AssertApprox(DirectionA,DirectionB);
     }
 
+    /// <summary>
+    /// <b><see cref="SceneViewCamera.GetFlatRight"/>は名前に反して画面の「左」(NDC X が負)へ写る。
+    /// これは意図的であり、直してはいけない。</b>
+    ///
+    /// <para>
+    /// 基底は左手系(<c>GetFlatForward=(sinY,0,cosY)</c>、ADR-0025のUnity規約)なのに行列は右手系
+    /// (<c>Matrix4x4.CreateLookAt</c>は<c>xaxis=Cross(Up,normalize(Eye-Target))=-GetFlatRight</c>を作る)
+    /// という食い違いがあるため。2026-08にこれを「バグ」と判断して左手系へ組み替えたが、
+    /// <b>ゲーム本体も同じ右手系</b>(<c>src/CSharpGameEngine.Windows/Graphics/Camera.cs</c>の
+    /// <c>BuildViewMatrix</c>/<c>BuildProjection</c>、<c>StageRenderer</c>、<c>ModelRenderer</c>)なので、
+    /// シーンデザイナーだけがゲームと左右反転してしまい差し戻した。シーンデザイナーはゲームの見た目を
+    /// 再現するものなので、ゲームとの一致が判断基準になる。
+    /// </para>
+    ///
+    /// <para>
+    /// このテストは「左右が反転しているように見える」ことを不変条件として固定し、同じ誤診を
+    /// 繰り返さないためにある。上下(<see cref="SceneViewCamera.GetUp"/>)は反転しておらず素直に
+    /// 画面の上へ写る(右手系の<c>yaxis=Cross(zaxis,xaxis)</c>が<c>GetUp</c>と一致するため)。
+    /// Fly の A/D と <c>SceneViewState.ApplyPan</c> の横方向が符号を反転させているのはこの帰結。
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void GetFlatRight_ProjectsToScreenLeft_BecauseTheEngineUsesRightHandedMatrices(){
+        foreach(float Yaw in Yaws){
+            foreach(float Pitch in Pitches){
+                Vector3 Focus=new(3f,-2f,5f);
+                Matrix4x4 ViewProjection=
+                    SceneViewCamera.GetView(Focus,Yaw,Pitch,FocusDistance:10f)
+                    *SceneViewCamera.GetProjection(FovYRadians:1f,AspectRatio:1.5f,NearZ:0.1f,FarZ:100f);
+
+                Vector3 RightNdc=ProjectToNdc(Focus+(SceneViewCamera.GetFlatRight(Yaw)*2f),ViewProjection);
+                Vector3 UpNdc=ProjectToNdc(Focus+(SceneViewCamera.GetUp(Yaw,Pitch)*2f),ViewProjection);
+
+                Assert.True(
+                    RightNdc.X<0f,
+                    $"Yaw={Yaw} Pitch={Pitch}: GetFlatRightがNDC X={RightNdc.X}。"
+                    +"正になったなら行列を左手系へ変えた可能性がある — ゲーム本体と一致しなくなる(要約はGetViewのコメント)。");
+                Assert.True(UpNdc.Y>0f,$"Yaw={Yaw} Pitch={Pitch}: 上方向がNDC Y={UpNdc.Y}(上下は反転しないはず)");
+            }
+        }
+    }
+
+    /// <summary>
+    /// ゲーム本体(<c>Camera.BuildViewMatrix</c>/<c>BuildProjection</c>)と同じ行列構成であること。
+    /// シーンデザイナーの見た目がゲームと一致することの根拠なので、どちらかを変えるときは
+    /// 両方を一緒に変えなければならない。
+    /// </summary>
+    [Fact]
+    public void ViewAndProjection_MatchTheRuntimeGameConstruction(){
+        Vector3 Focus=new(1f,2f,3f);
+        const float Yaw=0.6f;
+        const float Pitch=0.3f;
+        const float Distance=12f;
+
+        Vector3 Eye=SceneViewCamera.GetEyePosition(Focus,Yaw,Pitch,Distance);
+
+        Assert.Equal(
+            Matrix4x4.CreateLookAt(Eye,Focus,Vector3.UnitY),
+            SceneViewCamera.GetView(Focus,Yaw,Pitch,Distance));
+        Assert.Equal(
+            Matrix4x4.CreatePerspectiveFieldOfView(1f,1.5f,0.1f,100f),
+            SceneViewCamera.GetProjection(1f,1.5f,0.1f,100f));
+    }
+
+    /// <summary>
+    /// 深度の向き: 近い点のNDC Zが遠い点より小さいこと。左手系へ組み替えるときに
+    /// 深度を壊していないことを固定する(D3D12は0..1のZを前提)。
+    /// </summary>
+    [Fact]
+    public void NearerPointsGetSmallerNdcDepth(){
+        Vector3 Focus=Vector3.Zero;
+        const float Yaw=0.4f;
+        const float Pitch=0.2f;
+        Matrix4x4 ViewProjection=
+            SceneViewCamera.GetView(Focus,Yaw,Pitch,FocusDistance:10f)
+            *SceneViewCamera.GetProjection(FovYRadians:1f,AspectRatio:1.5f,NearZ:0.1f,FarZ:100f);
+
+        Vector3 Forward=SceneViewCamera.GetForward(Yaw,Pitch);
+        Vector3 Eye=SceneViewCamera.GetEyePosition(Focus,Yaw,Pitch,FocusDistance:10f);
+
+        float NearDepth=ProjectToNdc(Eye+(Forward*1f),ViewProjection).Z;
+        float FarDepth=ProjectToNdc(Eye+(Forward*50f),ViewProjection).Z;
+
+        Assert.True(NearDepth<FarDepth,$"近{NearDepth} 遠{FarDepth}: 深度の向きが逆");
+        Assert.True(NearDepth is >=0f and <=1f,$"近点のNDC Z={NearDepth}が0..1の外");
+        Assert.True(FarDepth is >=0f and <=1f,$"遠点のNDC Z={FarDepth}が0..1の外");
+    }
+
+    private static Vector3 ProjectToNdc(Vector3 World,Matrix4x4 ViewProjection){
+        Vector4 Clip=Vector4.Transform(new Vector4(World,1f),ViewProjection);
+        return new Vector3(Clip.X,Clip.Y,Clip.Z)/Clip.W;
+    }
+
     private static void AssertApprox(Vector3 Expected,Vector3 Actual){
         Assert.Equal(Expected.X,Actual.X,Precision);
         Assert.Equal(Expected.Y,Actual.Y,Precision);

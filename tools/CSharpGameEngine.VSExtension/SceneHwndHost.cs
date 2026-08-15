@@ -168,10 +168,11 @@ internal sealed class SceneHwndHost:HwndHost {
             &&Snapshot.Projection?.TryGetNode(Id,out SceneProjectionNode Node)==true
             ?Node.Path
             :null;
-        Renderer?.SetSelectedNode(this.SelectedNodePath);
 
-        // FocusSelection(F)の境界球用(M0020 Phase 2)。ハイライトは単一(SetSelectedNode)のままだが、
-        // 複数選択時のFはdesign doc §3「選択ノード群の境界球」どおり全選択オブジェクトを収める。
+        // 複数選択の全体。FocusSelection(F)の境界球(design doc §3「選択ノード群の境界球」)と、
+        // ハイライト(primaryを濃く、副選択を薄く — SceneSelectionTint)の両方がこれを使う。
+        // M0020 Phase 2までハイライトはprimary1件のみで、Ctrl+LMBで複数選択しても見た目が変わらず
+        // 「複数選択ができない」と観測されていた(実機検証#5)。
         List<NodePath>ResolvedPaths=[];
         foreach(EditorNodeId NodeId in Selection.NodeIds){
             if(Snapshot.Projection?.TryGetNode(NodeId,out SceneProjectionNode ResolvedNode)==true){
@@ -180,6 +181,7 @@ internal sealed class SceneHwndHost:HwndHost {
         }
 
         this.SelectedNodePaths=ResolvedPaths;
+        Renderer?.SetSelectedNode(this.SelectedNodePath,ResolvedPaths);
     }
 
     private void LoadIntoSurface(){
@@ -484,7 +486,9 @@ internal sealed class SceneHwndHost:HwndHost {
 
             // 実サイズは Surface.Resized で既に届いているので、800x600 のハードコードは使わない。
             Renderer=new SceneRenderer(Surface.Handle,SurfaceWidth,SurfaceHeight,Result.RenderObjects,View,Projection);
-            Renderer.SetSelectedNode(this.SelectedNodePath);
+            // 再解析でRendererを作り直しても選択の見た目を保つ。複数選択(SelectedNodePaths)も
+            // 一緒に渡さないと、primary以外のハイライトだけが再ビルドで消える。
+            Renderer.SetSelectedNode(this.SelectedNodePath,this.SelectedNodePaths);
             Surface.SetVisible(true);
             SetStatus($"表示中: {Result.Request.ClassName}");
         } catch(Exception Ex){
