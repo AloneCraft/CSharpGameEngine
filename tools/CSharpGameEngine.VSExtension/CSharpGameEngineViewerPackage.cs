@@ -306,20 +306,30 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             return;
         }
 
-        // Source decoration is exclusively a Hierarchy-origin action. An external selection must
-        // remove a previous decoration rather than make that selection look source-originated.
-        this.SourceMarkerService?.Update(Model:null,Paths:[]);
-
         if(this.SceneSession?.PinnedSnapshot is not { } Snapshot||!Snapshot.Key.Equals(Selection.Key)){
+            this.SourceMarkerService?.Update(Model:null,Paths:[]);
             return;
         }
 
         // Viewport/Inspector起点はHierarchyへprimaryだけを表示する。Hierarchy自身が発行する
         // 複数選択集合はOnHierarchySelectionChangedでそのままSceneSelectionServiceへ渡す。
-        NodePath?Path=Selection.PrimaryNodeId is { } Id&&Snapshot.Projection?.TryGetNode(Id,out SceneProjectionNode Node)==true
-            ?Node.Path
-            :null;
-        SceneEditorHub.PublishSelectedNodePath(Path);
+        List<NodePath>Paths=[];
+        NodePath?PrimaryPath=null;
+        foreach(EditorNodeId Id in Selection.NodeIds){
+            if(Snapshot.Projection?.TryGetNode(Id,out SceneProjectionNode Node)!=true){
+                continue;
+            }
+            Paths.Add(Node.Path);
+            if(Nullable.Equals(Selection.PrimaryNodeId,Id)){
+                PrimaryPath=Node.Path;
+            }
+        }
+
+        // M0032: Viewport(将来的にはInspectorも)起点の選択もHierarchyと同様にソースをマーク・
+        // スクロールする。以前はHierarchy起点以外は明示的にマークを消していたが、実機フィードバック
+        // で非対称と指摘され撤廃した。
+        this.SourceMarkerService?.Update(SceneEditorHub.ActiveSceneModel,Paths);
+        SceneEditorHub.PublishSelectedNodePath(PrimaryPath);
     }
 
     private async Task TryApplyInitialLayoutAsync(){

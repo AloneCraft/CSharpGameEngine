@@ -2497,8 +2497,12 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   ギズモが一瞬旧位置へ戻る不具合を`EditTransactionController.CurrentPreviews`経由の即時パッチで
   解消、③Hierarchy選択時に`IVsTextManager.EnumViews`(非アクティブ化)経由でマーク行を
   エディタ最上部へスクロール、④ソース反映前後でcaret/スクロール位置をsave/restore(対症療法、
-  根本原因未特定)。②③④は実機での修正確認が未実施。実機目視が残っているため`Verified`へは
-  上げていない。
+  根本原因未特定)。②③④は実機での修正確認が未実施。続けて実機フィードバックで、Hierarchy選択
+  ではソースがマーク・スクロールされるがシーンビュー(ビューポート)選択では反映されない非対称
+  が報告され、`CSharpGameEngineViewerPackage.OnSelectionChangedForHierarchy`がHierarchy起点以外
+  ではマークを明示的に消すだけだった実装(M0020設計時点の意図的制限)を、Viewport起点でも
+  `SourceMarkerService.Update`へ実際の選択集合を渡すよう修正(⑤)。実機目視が残っているため
+  `Verified`へは上げていない。
 - Intended specification: `Docs/シーンエディタの仕様.md`(要求仕様)、
   Docs/Decisions/ADR-0041-Scene-Editor-Interaction-Architecture.md(意思決定)、
   Docs/Specifications/Scene-Editor-Design.md(詳細設計)

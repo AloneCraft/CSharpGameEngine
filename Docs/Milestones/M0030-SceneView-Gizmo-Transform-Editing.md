@@ -216,3 +216,35 @@ caret位置とビューポート先頭行を`ITrackingPoint`として退避し�
 | 10 | ドラッグでオブジェクトを移動して確定した瞬間、ギズモが元の位置へ一瞬戻らず即座に新位置へ移る |
 | 11 | Hierarchyでノードを選択すると、マークされた行の先頭がコードエディタの最上部までスクロールする。この際コードエディタのフォーカス/アクティブタブが変わらない |
 | 12 | ギズモ/インスペクター編集でC#ソースへ反映されたあと、コードエディタのcaret位置とスクロール位置が変わらない |
+
+## 追記(2026-08-17 続き): シーンビュー選択でもC#ソースをマーク・スクロール(M0032)
+
+Hierarchyでノードを選択するとC#ソースがマーク＋スクロールされる(上記3.)一方、シーンビュー
+(ビューポート)でオブジェクトをクリック選択したときはHierarchyツリーのハイライトだけが追従し、
+C#ソース側は何も起きないという非対称がユーザーから報告された。
+
+原因は`CSharpGameEngineViewerPackage.OnSelectionChangedForHierarchy`にあった。この関数は発生源を
+問わず全選択変更を受け取るが、`Origin==Hierarchy`以外(実質Viewportのみ、`SceneDesignerToolWindowControl`
+の`OnObjectPicked`/`OnObjectsMarqueePicked`等がすべて`SceneSelectionOrigin.Viewport`で発行する)では
+明示的に`SourceMarkerService.Update(Model:null,Paths:[])`を呼びマークを消すだけで、マーク・スクロール
+を一切行わない実装になっていた(M0020設計時点での意図的な制限、「ソース装飾はHierarchy起点の操作に
+限る」というコメントがあった)。
+
+`SourceMarkerService.Update(Model,Paths)`自体は発生源に依存しない汎用APIで、フォーカスを奪わない
+スクロール(3.で実装した`EnumViews`経由の経路)や、選択が実際に変わった時だけスクロールする重複防止
+ロジックも既に備えている。呼び出し側の`OnSelectionChangedForHierarchy`を、Hierarchy以外の発生源でも
+選択中の`NodeIds`を`NodePath`へ解決して`SourceMarkerService.Update`へ渡すよう書き換えるだけで対応
+できた([CSharpGameEngineViewerPackage.cs](tools/CSharpGameEngine.VSExtension/CSharpGameEngineViewerPackage.cs)、
+`OnSelectionChangedForHierarchy`)。Hierarchyツリーへのprimary選択publish(既存動作)はそのまま維持。
+
+マーキー(矩形)選択は完了時1回のみ選択発行され、ギズモドラッグ中は選択集合が変化しないため
+`SceneSelectionService.Select`の重複排除で`SelectionChanged`自体が発火しない。よって連続スクロール等
+の副作用は理論上発生しない。
+
+このメソッドはライブVSサービス(`IVsRunningDocumentTable`等)に依存するPackage内グルーコードで、
+姉妹メソッド`OnHierarchySelectionChanged`同様に既存のユニットテストは存在せず、今回も追加していない。
+実機での動作確認は下表#13を参照。
+
+| # | 確認対象 |
+|---|---|
+| 13 | シーンビューでオブジェクトをクリック選択すると、対応するC#コードがマークされ先頭行がエディタ最上部までスクロールする(Hierarchy選択時と同じ挙動)。フォーカス/アクティブタブは変わらない。矩形選択で複数選択した場合も複数箇所がマークされる |

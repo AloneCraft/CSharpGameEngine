@@ -1705,3 +1705,20 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - Evidence: `EditTransactionControllerTests`(+1件、`CurrentPreviews`)、`SceneEditorSettingsTests`
   (2件更新)。②③④はHWND/D3D12/VS COMサービスに深く依存するためユニットテスト不可、実機確認が
   必須。ソリューション全体969/969(既存968+1)。
+
+## 2026-08-17 M0032: シーンビュー選択でもC#ソースをマーク・スクロール
+
+- **Mismatch → 解消(実機Observed)**: Hierarchyでノードを選択するとC#ソースがマーク・スクロール
+  される一方、シーンビュー(ビューポート)でオブジェクトをクリック選択したときはHierarchyツリーの
+  ハイライトだけが追従しソース側は無反応という非対称があった。原因は
+  `CSharpGameEngineViewerPackage.OnSelectionChangedForHierarchy`が`Origin==Hierarchy`以外
+  (実質Viewportのみ)では`SourceMarkerService.Update(Model:null,Paths:[])`でマークを明示的に消す
+  だけの実装だったこと(M0020設計時点で「ソース装飾はHierarchy起点に限る」という意図的な制限
+  だった)。Viewport起点でも選択中の`NodeIds`を`NodePath`へ解決し`SourceMarkerService.Update`へ
+  渡すよう書き換え、Hierarchyと同じマーク・スクロール(フォーカス非奪取の既存経路を再利用)を
+  適用した。
+- Evidence: `SourceMarkerService`本体は無変更(既存の`EnumViews`スクロール経路・重複スクロール
+  防止をそのまま再利用)。呼び出し元はライブVSサービスに依存するPackage内グルーコードで姉妹
+  メソッド`OnHierarchySelectionChanged`同様ユニットテスト対象外のため新規テストは追加していない。
+  ソリューション全体969/969(既存969、ロジック変更のみでテスト数増減なし)。実機での動作・
+  フォーカス非奪取確認は未実施。
