@@ -80,11 +80,13 @@ internal static class GameEngineLayout {
 
     private static System.Type GetToolWindowType(InitialLayoutToolWindowKind Kind)=>Kind switch {
         InitialLayoutToolWindowKind.Hierarchy=>typeof(HierarchyToolWindowPane),
+        InitialLayoutToolWindowKind.Inspector=>typeof(InspectorToolWindowPane),
         _=>throw new System.ArgumentOutOfRangeException(nameof(Kind),Kind,"初期レイアウトに含められないToolWindowです。"),
     };
 
     private static VSSETFRAMEPOS GetFramePosition(InitialLayoutToolWindowKind Kind)=>Kind switch {
         InitialLayoutToolWindowKind.Hierarchy=>VSSETFRAMEPOS.SFP_fDock|VSSETFRAMEPOS.SFP_fDockLeft,
+        InitialLayoutToolWindowKind.Inspector=>VSSETFRAMEPOS.SFP_fDock|VSSETFRAMEPOS.SFP_fDockRight,
         _=>throw new System.ArgumentOutOfRangeException(nameof(Kind),Kind,"初期レイアウトに含められないToolWindowです。"),
     };
 

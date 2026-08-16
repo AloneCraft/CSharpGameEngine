@@ -85,6 +85,7 @@
     <File Path="Docs/Milestones/M0019-CSharp-Scene-DSL.md" />
     <File Path="Docs/Milestones/M0020-Scene-Editor-Interaction.md" />
     <File Path="Docs/Milestones/M0030-SceneView-Gizmo-Transform-Editing.md" />
+    <File Path="Docs/Milestones/M0031-Inspector-Member-Editing.md" />
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />

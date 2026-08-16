@@ -25,6 +25,9 @@ namespace CSharpGameEngine.VSExtension;
     Orientation=ToolWindowOrientation.Left,DockedWidth=300)]
 [ProvideToolWindow(typeof(SceneDesignerToolWindowPane),
     Style=VsDockStyle.Tabbed,Window=ToolWindowGuids80.SolutionExplorer)]
+[ProvideToolWindow(typeof(InspectorToolWindowPane),
+    Style=VsDockStyle.Linked,Window=ToolWindowGuids80.SolutionExplorer,
+    Orientation=ToolWindowOrientation.Right,DockedWidth=300)]
 // Direct .slnx launch is preferred, but a VS debug launch can still arrive at Start Window.
 // Keep NoSolution as a fallback so that route opens UserEcsProject without taking editor focus.
 [ProvideAutoLoad(VSConstants.UICONTEXT.ShellInitialized_string,PackageAutoLoadFlags.BackgroundLoad)]
@@ -62,6 +65,7 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
         await OpenGameCommand.InitializeAsync(this);
         await ShowHierarchyToolWindowCommand.InitializeAsync(this);
         await ApplyGameEngineLayoutCommand.InitializeAsync(this);
+        await ShowInspectorToolWindowCommand.InitializeAsync(this);
 
         RegisterEditorFactory(new GlbFbxPreviewEditorFactory());
 
@@ -75,6 +79,7 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
         if(SceneWorkspace is not null){
             SceneSession=new SceneEditorSessionService(SceneWorkspace);
             SceneDesignerToolWindowPane.ConfigureSessionProvider(()=>this.SceneSession);
+            InspectorToolWindowPane.ConfigureSessionProvider(()=>this.SceneSession);
             SourceMarkerService=SceneSourceMarkerService.Start();
             SceneEditorHub.HierarchySelectionChanged+=this.OnHierarchySelectionChanged;
             SceneEditorHub.HierarchyNavigationRequested+=this.OnHierarchyNavigationRequested;
@@ -402,6 +407,7 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             SceneSession?.Dispose();
             SceneSession=null;
             SceneDesignerToolWindowPane.ConfigureSessionProvider(null);
+            InspectorToolWindowPane.ConfigureSessionProvider(null);
             SceneEditorSettings.ConfigureStoreProvider(null);
 
             if(SceneWorkspace is not null){

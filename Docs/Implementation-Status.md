@@ -2673,6 +2673,48 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
     ADR-0041の編集トランザクション設計と衝突する。
   - VS拡張テストは431件→448件、ソリューション全体942件が成功。実機目視は未実施。
 
+## F-L8-012 — シーンエディタ インスペクター(選択ノードのComponent member数値編集)
+
+- Layer: L8 — Visual Studio Authoring Environment
+- Parent capability: Scene DSL双方向エディタ(ADR-0040)の操作系。F-L8-011の編集トランザクション経路
+  (`EditTransactionController`ではなく`SetComponentMemberOperation`の直接commit)を再利用する。
+- Status: **Implemented**([[M0031-Inspector-Member-Editing]])
+- Verification: **TestVerified**(値種別判定・数値/真偽値/Enum/文字列の書式化とパース・範囲外数値の
+  拒否・commit要求の組み立て・WPFバインド対象プロパティのpublicアクセシビリティ)。実運用配線
+  (`InspectorToolWindowPane`/`InspectorToolWindowControl`/`CSharpGameEngineViewerPackage`の
+  ProvideToolWindow登録)は**CodeVerified**止まりで、Experimental Instance目視は未実施。
+- Intended specification: M0020が「意図的に除外したこと」として残した項目
+  ([[M0020-Scene-Editor-Interaction]])。「数値編集UIは`SetComponentMember`配線(Phase 3)後に
+  小さく足せる状態になるが、本マイルストーンには含めない」の実装。
+- Implementation evidence:
+  - tools/CSharpGameEngine.VSExtension/SceneInspectorModel.cs(既存の`SceneInspectorModelBuilder`を
+    拡張。`InspectorEditorKind`判定、Enum候補列挙、`SceneInspectorValueFormat`(型別の数値パース/
+    書式化)、`SceneInspectorCommitPlanner`(`OriginalValueExpression`を常にnullで渡す — 絶対値指定の
+    タイプ入力にドラッグ用の差分リベースを適用しないため))
+  - tools/CSharpGameEngine.VSExtension/InspectorMemberViewModel.cs(新規。WPF行ViewModel、
+    バインド対象プロパティは全てpublic)
+  - tools/CSharpGameEngine.VSExtension/InspectorToolWindowPane.cs、InspectorToolWindowControl.xaml(.cs)
+    (新規。`SceneDesignerToolWindowPane`のSessionProviderパターンを踏襲)
+  - tools/CSharpGameEngine.VSExtension/InspectorVisualConverters.cs(新規。EditorKind→Visibility変換)
+  - tools/CSharpGameEngine.VSExtension/ShowInspectorToolWindowCommand.cs、OpenViewerCommandPackage.vsct
+    (コマンドID 0x010A — 0x0109はOpenSceneDesignerCommandIdが既に使用)、
+    CSharpGameEngineViewerPackage.cs(ProvideToolWindow登録・SessionProvider配線)、
+    InitialLayoutToolWindowPlan.cs/GameEngineLayout.cs(HierarchyのSFP_fDockLeftに対し
+    SFP_fDockRightで初回レイアウトへ追加)
+- Known deviations:
+  - 入れ子`ObjectCreation`(`new Vector3(...)`等)の分解編集は対象外。読み取り専用として表示する。
+  - `EnumMember`候補の選択照合は`ConstantValue`ではなく`SourceExpression`の末尾識別子(名前)で行う
+    — flags enumの値重複による取り違えを避けるため。`Default`種別のEnum(`default`のまま)は
+    初期選択が付かない。
+  - CheckBox/ComboBoxはOneWayバインド+`Click`/`DropDownClosed`でcommitする(`Checked`/
+    `SelectionChanged`は初期のデータバインド代入自体で発火するため、それらを起点にすると
+    「確定→再構築→再バインド→再確定」の無限ループになる)。
+  - ソース未記載メンバー(型のデフォルトのまま)を新規に書き込む「Add Member」的なUIは対象外。
+    `Component.Members`は初期化子に実際に書かれたメンバーだけを列挙するため、Inspectorは
+    既に値を持つメンバーだけを表示・編集する。
+- Next action: Experimental Instanceでの目視確認(ノード選択→行表示、Enter/フォーカス喪失での確定と
+  Undo、Enum/CheckBoxの単発commit、編集中の他ウィンドウ由来の再解析で入力が消えないこと)。
+
 # 2026-08 UE FirstPerson宣言型Scene移行
 
 - 旧L9アプリケーションと一体型`Lvl_FirstPerson.glb`ランタイムを廃止し、`UserEcsProject`へ統合した。

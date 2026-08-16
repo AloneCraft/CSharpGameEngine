@@ -1649,3 +1649,30 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - Evidence: `SceneEditConflictMergerTests` 6/6、`SceneCameraFramingTests`/`SceneViewStateTests` 50/50、
   VS extension tests 448/448(M0020完了時431から+17)、ソリューション全体 942/942。
   変異テストで各追加テストが本体の破壊を検出することを確認済み(詳細はMilestone文書)。
+
+## 2026-08-17 M0031: Inspector 数値編集UI
+
+- **Matches(依頼仕様との適合)**: M0020が将来送りにした「数値編集UI」を実装した。既存の
+  `SetComponentMemberOperation`/`SceneEditConflictMerger`/`SceneEditorSessionService.CommitAsync`
+  経路をそのまま再利用し、新しい編集パイプラインは作っていない。
+- **Matches(code review + test)**: `InspectorEditorKind`判定はCLR型(`SpecialType`/`TypeKind.Enum`)
+  から機械的に決まり、読み取り専用種別(`ConstantExpression`/`ObjectCreation`/`Collection`/
+  `StaticMemberRef`/`FactoryCall`/`Unsupported`)は`SceneValue.IsEditable`で先に弾かれる。
+  `SceneInspectorModelTests`で全種別を固定した。
+- **Mismatch → 解消(実装中に発見)**: 数値パースを一度`int`へ丸めてから対象型へ振り分ける素朴な
+  実装は、`short`/`byte`等の狭い型で範囲外の値がオーバーフローしたまま素通りし、生成ソースが
+  コンパイルエラーになる欠陥を持っていた。各型の`TryParse`へ直接投げる実装へ変更し、
+  変異テストで検出できることを確認した。
+- **Mismatch → 解消(実装中に発見)**: `CheckBox.IsChecked`/`ComboBox.SelectedItem`を`TwoWay`
+  バインドし`Checked`/`SelectionChanged`をcommitの起点にする素朴な実装は、初期のデータバインド
+  代入自体がそれらのイベントを発火させるため「確定→再構築→再バインド→再確定」の無限ループになる
+  欠陥を持っていた。`OneWay`バインド+`Click`/`DropDownClosed`(ユーザー操作でしか発火しない
+  イベント)へ変更した。コミット前に設計変更したため、欠陥のあるコードは履歴に残っていない。
+- **Matches(code review)**: `SetComponentMemberOperation.OriginalValueExpression`は常に`null`で
+  渡す。渡すと`SceneEditConflictMerger`が差分リベースを行い、絶対値指定のタイプ入力が
+  相対ジェスチャとして扱われてしまうため。
+- **Unknown(実機Observed)**: ノード選択→行表示、Enter/フォーカス喪失での確定とUndo、
+  Enum/CheckBoxの単発commit、編集中の再解析での入力保持のExperimental Instance目視は**未実施**。
+- Evidence: `SceneInspectorModelTests` 19/19、`InspectorMemberViewModelTests` 11/11、
+  `InitialLayoutToolWindowPlanTests`更新済み、VS extension tests 474/474(M0030完了時448から+26)、
+  ソリューション全体 968/968。

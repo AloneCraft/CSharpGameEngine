@@ -7,10 +7,16 @@ public sealed class InitialLayoutToolWindowPlanTests {
     public void ToolWindows_UsesTheExactNonActivatingInitialLayout(){
         IReadOnlyList<InitialLayoutToolWindowSpec> ToolWindows=InitialLayoutToolWindowPlan.ToolWindows;
 
-        // シェイプ パレットは M0020 Phase 0 で撤去したので、初回レイアウトはヒエラルキー1件だけ。
+        // シェイプ パレットは M0020 Phase 0 で撤去した。M0031でInspectorをHierarchyの隣へ追加した
+        // (どちらもD3D12/HWNDコストが無く、空選択状態を安全に見せられるため)。
         Assert.Collection(ToolWindows,
             Spec=>{
                 Assert.Equal(InitialLayoutToolWindowKind.Hierarchy,Spec.Kind);
+                Assert.Equal(300,Spec.Width);
+                Assert.Equal(ToolWindowPresentation.NonActivating,Spec.Presentation);
+            },
+            Spec=>{
+                Assert.Equal(InitialLayoutToolWindowKind.Inspector,Spec.Kind);
                 Assert.Equal(300,Spec.Width);
                 Assert.Equal(ToolWindowPresentation.NonActivating,Spec.Presentation);
             });
