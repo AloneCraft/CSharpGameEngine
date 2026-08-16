@@ -435,6 +435,59 @@ Tools>Options > C# Game Engine > Scene Editor から編集できる(2026-08追�
 ギズモ表示はセッション内のみ。**`SceneDeclaration`へSceneView状態を書くことは構造的に不可能**
 (書き込み経路が`SceneEditOperation`列挙に限定されており、そこにSceneView状態を運ぶopが無い)。
 
+## 10.1 ヒエラルキー起点のソース同期
+
+`HierarchyToolWindowControl`は独自の複数選択状態(`NodePath`集合、primary、範囲アンカー)を保持する。通常クリックは置換、Ctrl+クリックはトグル、Shift+クリックは深さ優先の表示順でアンカーからの連続範囲を選択する。再解析によるTreeView再構築時も、展開状態と同様に`NodePath`で復元する。
+
+ソース同期の起点は**ヒエラルキー操作だけ**である。Viewport/Inspector起点の`SceneSelectionService`同期はヒエラルキー表示を更新するが、エディタのマークまたはキャレット移動を発行しない。
+
+通常クリックでは、対象のScene C#文書が既に開かれている場合に限り、Roslyn `SceneNode.Location.Span`（`new Node { ... }`全体）を薄い`TextMarkerTag`背景でマークする。親のSpanは子の構文を含む。親子の重複Spanは併合し、独立した複数Spanは同時に保持する。対象文書を開く・アクティブ化する・テキスト選択を変更することはない。選択解除、Scene切替、解析失敗、再解析では古いマーカーを解除または再計算する。
+
+ダブルクリックまたはEnterだけがprimaryの明示移動要求を発行する。Running Document Tableで対象文書が既に開いていることを確認できた場合に限り、そのテキストビューを前面化し、`SceneNode.Location.Span.Start`（通常は`new`の先頭）へキャレットを置く。未表示文書、消滅ノード、テキストビュー取得失敗では何もしない。
+
+## 10.2 ソリューションエクスプローラー起点の表示
+
+ソリューションエクスプローラーの`シーン デザイナーで開く`は、右クリック対象の`IScene`を即時解析してPinする。対象C#文書を開いたりアクティブ化したりしない。SceneSelectorのカタログは、アクティブ文書ではなくPin済み`SceneKey.ProjectId`を優先して取得する。
+
+カタログは補助UIであるため、取得不能・失敗時に表示済みのPin/`SceneHwndHost`を空状態へ戻してはならない。Sceneの再解析でRootが消失または解析エラーになった場合だけ、既存の空状態遷移を行う。
+
+## 10.3 Visual Studio テーマのヒエラルキー、Component アイコン、標準マーカー
+
+Hierarchy の TreeView は Visual Studio 公開テーマ資源
+`ThemedDialogTreeViewStyleKey` / `ThemedDialogTreeViewItemStyleKey` を基礎とする。TreeView 内に
+キーボードフォーカスがある間は VS の active selection、他ツールウィンドウへ移った後は inactive
+selection を用いる。複数選択行はすべて表示し、primary だけに VS ブラシの左アクセントを表示する。
+通常クリックは Hierarchy 自身へフォーカスを置くが、C# エディタへは移さない。
+
+子を持つ行だけは `CrispImage` の `ExpandRight` / `ExpandDown` を使う展開ボタンを表示する。展開
+ボタンのクリックは展開状態だけを変え、選択集合・primary・選択通知・ソース同期を発行しない。葉には
+展開ボタンを表示しない。
+
+`CSharpGameEngine.Entities.SceneComponentIconAttribute(string projectRelativePath)` は `struct` 専用、
+複数指定不可の公開属性である。値はプロジェクト相対の `.svg` / `.png` に正規化し、絶対パス・`..`・
+不正拡張子を拒否する。解決不能な属性、参照アセンブリまたはメタデータ由来の component は安全に
+既定 `Component` アイコンへ戻し、編集 UI は表示しない。Scene root は `ThreeDScene`、通常 Node は
+`AbstractCube`、属性未指定 component は `Component` の `KnownMonikers` を使う。component アイコンは
+宣言順に 16px で全件表示する。`SceneVisualIcon` は既定 moniker、プロジェクト画像、将来の lock
+overlay を共通に記述する。lock overlay は予約だけで、今回の UI には表示しない。SVG は
+`SharpVectors.Wpf`、PNG は WPF `BitmapImage` で読み込み、パスと更新時刻をキーにキャッシュする。
+
+C# glyph margin は、現在の Roslyn Project の書込み可能なソースにある追加可能 component `struct` の
+宣言行だけに表示する。glyph の明示クリックで、その位置にアンカーした選択メニューを開く。先頭の
+「既定アイコン」と、プロジェクト配下を再帰列挙した SVG / PNG だけを候補にする。`bin`、`obj` 等の
+生成物とパストラバーサルは候補にしない。選択は完全修飾した属性を Roslyn 構文更新で追加・置換し、
+既定アイコンはその属性だけを削除する。partial `struct` は既存属性の所有宣言だけを更新し、未指定なら
+クリックした宣言を所有箇所にする。書込みは既存バッファの 1 Undo 操作で行い、他の文書を開かず、
+フォーカスも移さない。
+
+ソースマーカーは独自 `ITaggerProvider` を持たず、Visual Studio 標準の
+`ITextMarkerProviderFactory.GetTextMarkerTagger(ITextBuffer)` が返す
+`SimpleTagger<TextMarkerTag>` に、この拡張が所有する `TrackingTagSpan` だけを登録する。書式名は
+`MarkerFormatDefinition/CSharpGameEngine.SceneHierarchySource`、背景は半透明青紫、前景色は未指定と
+して C# 構文色を変えない。RDT、対象 buffer、tagger 取得、登録数および失敗は ActivityLog に記録する。
+選択解除、Scene 切替、解析失敗、文書／buffer 消失、ソース更新、破棄では当拡張所有の古い tag だけを
+除去または最新位置へ置換する。
+
 ## 11. テスト戦略
 
 VS非依存の純粋層を最大化し、既存`RenderSurfaceFocusPolicyTests`と同じ形で固定する。

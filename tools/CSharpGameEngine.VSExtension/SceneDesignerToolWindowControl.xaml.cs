@@ -187,14 +187,16 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         CancellationTokenSource Cancellation=new();
         this.CatalogCancellation=Cancellation;
         long Generation=++this.CatalogGeneration;
+        SceneKey?CatalogSceneKey=Session.PinnedSceneKey;
         SceneSelector.IsEnabled=false;
-        _=this.RefreshSceneCatalogAsync(Session,Generation,Cancellation.Token);
+        _=this.RefreshSceneCatalogAsync(Session,CatalogSceneKey,Generation,Cancellation.Token);
     }
 
 #pragma warning disable VSTHRD001 // WPF Dispatcher is the owning UI dispatcher of this control; no AsyncPackage/JTF chain is available here.
-    private async Task RefreshSceneCatalogAsync(SceneEditorSessionService Session,long Generation,CancellationToken CancellationToken){
+    private async Task RefreshSceneCatalogAsync(
+        SceneEditorSessionService Session,SceneKey?CatalogSceneKey,long Generation,CancellationToken CancellationToken){
         try {
-            ProjectSceneCatalog?Catalog=await Session.GetActiveProjectSceneCatalogAsync(CancellationToken).ConfigureAwait(false);
+            ProjectSceneCatalog?Catalog=await Session.GetProjectSceneCatalogAsync(CatalogSceneKey,CancellationToken).ConfigureAwait(false);
             if(CancellationToken.IsCancellationRequested){
                 return;
             }
@@ -213,9 +215,10 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
                 }
 
                 bool Selected=this.TrySyncSelectorToPinnedScene();
-                if(Catalog is null){
+                if(!SceneCatalogTargetPolicy.KeepsPresentedScene(
+                    Session.PinnedSnapshot is not null,Catalog is not null)){
                     this.ShowEmpty("シーンを選択してください。");
-                } else if(Session.PinnedSceneKey is { } Key
+                } else if(Catalog is not null&&Session.PinnedSceneKey is { } Key
                     &&string.Equals(Key.ProjectId,Catalog.ProjectId,StringComparison.Ordinal)
                     &&!Selected){
                     Session.ClearPin();
@@ -227,7 +230,12 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             ActivityLog.LogError(nameof(SceneDesignerToolWindowControl),Ex.ToString());
             this.DispatchToUi(()=>{
                 if(!this.Disposed&&Generation==this.CatalogGeneration){
-                    this.ShowEmpty("シーン一覧の取得に失敗しました。ActivityLog.xml を確認してください。");
+                    SceneSelector.ItemsSource=null;
+                    SceneSelector.IsEnabled=false;
+                    if(!SceneCatalogTargetPolicy.KeepsPresentedScene(
+                        Session.PinnedSnapshot is not null,HasCatalog:false)){
+                        this.ShowEmpty("シーン一覧の取得に失敗しました。ActivityLog.xml を確認してください。");
+                    }
                 }
             });
         }

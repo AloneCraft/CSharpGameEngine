@@ -1,0 +1,294 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.Composition;
+using System.IO;
+using System.Runtime.InteropServices;
+using CSharpGameEngine.SceneAnalysis;
+using EnvDTE;
+using Microsoft.VisualStudio;
+using Microsoft.VisualStudio.ComponentModelHost;
+using Microsoft.VisualStudio.Editor;
+using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Shell.Interop;
+using Microsoft.VisualStudio.Text;
+using Microsoft.VisualStudio.Text.Adornments;
+using Microsoft.VisualStudio.Text.Classification;
+using Microsoft.VisualStudio.Text.Tagging;
+using Microsoft.VisualStudio.TextManager.Interop;
+using Microsoft.VisualStudio.Utilities;
+using VsTextBuffer=Microsoft.VisualStudio.TextManager.Interop.IVsTextBuffer;
+
+namespace CSharpGameEngine.VSExtension;
+
+/// <summary>
+/// Applies source markers through Visual Studio's built-in text-marker tagger. It intentionally
+/// never opens or activates a document while updating: Hierarchy must remain usable for
+/// consecutive selection changes.
+/// </summary>
+internal sealed class SceneSourceMarkerService : IDisposable {
+    private readonly IVsRunningDocumentTable RunningDocumentTable;
+    private readonly IVsEditorAdaptersFactoryService EditorAdapters;
+    private readonly IVsTextManager TextManager;
+    private readonly ITextMarkerProviderFactory TextMarkerProviderFactory;
+    private ITextBuffer? MarkedBuffer;
+    private SimpleTagger<TextMarkerTag>?MarkerTagger;
+    private List<TrackingTagSpan<TextMarkerTag>>OwnedTagSpans=[];
+    private bool Disposed;
+
+    private SceneSourceMarkerService(
+        IVsRunningDocumentTable RunningDocumentTable,IVsEditorAdaptersFactoryService EditorAdapters,
+        IVsTextManager TextManager,ITextMarkerProviderFactory TextMarkerProviderFactory){
+        this.RunningDocumentTable=RunningDocumentTable;
+        this.EditorAdapters=EditorAdapters;
+        this.TextManager=TextManager;
+        this.TextMarkerProviderFactory=TextMarkerProviderFactory;
+    }
+
+    internal static SceneSourceMarkerService?Start(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(Package.GetGlobalService(typeof(SVsRunningDocumentTable))is not IVsRunningDocumentTable RunningDocumentTable
+            ||Package.GetGlobalService(typeof(SVsTextManager))is not IVsTextManager TextManager
+            ||Package.GetGlobalService(typeof(SComponentModel))is not IComponentModel ComponentModel){
+            LogWarning("Visual Studio services required for hierarchy source markers are unavailable.");
+            return null;
+        }
+
+        IVsEditorAdaptersFactoryService?EditorAdapters=ComponentModel.GetService<IVsEditorAdaptersFactoryService>();
+        ITextMarkerProviderFactory?TextMarkerProviderFactory=ComponentModel.GetService<ITextMarkerProviderFactory>();
+        if(EditorAdapters is null||TextMarkerProviderFactory is null){
+            LogWarning("Visual Studio text marker service is unavailable; hierarchy source markers are disabled.");
+            return null;
+        }
+
+        LogInformation("Visual Studio text marker service acquired.");
+        return new SceneSourceMarkerService(
+            RunningDocumentTable,EditorAdapters,TextManager,TextMarkerProviderFactory);
+    }
+
+    internal void Update(SceneModel? Model,IReadOnlyList<NodePath> Paths){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(this.Disposed){
+            return;
+        }
+
+        if(Model?.Root is null||Model.HasErrors){
+            LogInformation("Cleared hierarchy source markers because the scene model is unavailable or invalid.");
+            this.Clear();
+            return;
+        }
+
+        if(!this.TryGetOpenBuffer(Model.FilePath,out ITextBuffer? FoundBuffer)||FoundBuffer is null){
+            LogInformation($"Skipped hierarchy source markers because '{Model.FilePath}' is not an open text document.");
+            this.Clear();
+            return;
+        }
+
+        ITextBuffer Buffer=FoundBuffer;
+        if(!ReferenceEquals(this.MarkedBuffer,Buffer)){
+            this.Clear();
+            this.MarkedBuffer=Buffer;
+        }
+
+        IReadOnlyList<SceneSourceMarkerRange>Ranges=SceneSourceMarkerPlanner.Create(Model,Paths);
+        this.ReplaceOwnedTagSpans(Buffer,Ranges);
+    }
+
+    internal void Navigate(SceneModel? Model,NodePath Path){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(this.Disposed||Model is null||!this.TryGetOpenBuffer(Model.FilePath,out ITextBuffer? FoundBuffer)
+            ||FoundBuffer is null
+            ||!SceneSourceMarkerPlanner.TryCreateNavigation(Model,Path,IsDocumentOpen:true,out string FilePath,out int Position)
+            ||Package.GetGlobalService(typeof(SDTE))is not DTE Dte){
+            LogInformation("Skipped hierarchy source navigation because the target document is not already open.");
+            return;
+        }
+
+        Dte.ItemOperations.OpenFile(FilePath);
+        if(this.TextManager.GetActiveView(1,null,out IVsTextView View)!=VSConstants.S_OK){
+            return;
+        }
+
+        ITextSnapshot Snapshot=FoundBuffer.CurrentSnapshot;
+        if(Position<0||Position>Snapshot.Length){
+            return;
+        }
+
+        ITextSnapshotLine Line=Snapshot.GetLineFromPosition(Position);
+        int Column=Position-Line.Start.Position;
+        if(ErrorHandler.Succeeded(View.SetCaretPos(Line.LineNumber,Column))){
+            View.EnsureSpanVisible(new Microsoft.VisualStudio.TextManager.Interop.TextSpan {
+                iStartLine=Line.LineNumber,
+                iStartIndex=Column,
+                iEndLine=Line.LineNumber,
+                iEndIndex=Column,
+            });
+            LogInformation($"Moved the caret to hierarchy source position {Position} in '{FilePath}'.");
+        }
+    }
+
+    private bool TryGetOpenBuffer(string FilePath,out ITextBuffer?Buffer){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        Buffer=null;
+        if(String.IsNullOrWhiteSpace(FilePath)){
+            return false;
+        }
+
+        string CanonicalFilePath;
+        try {
+            CanonicalFilePath=Path.GetFullPath(FilePath);
+        } catch(Exception Ex)when(Ex is ArgumentException||Ex is NotSupportedException||Ex is PathTooLongException){
+            LogWarning($"Could not normalize hierarchy source path '{FilePath}': {Ex.Message}");
+            return false;
+        }
+
+        IntPtr DocDataPointer=IntPtr.Zero;
+        try {
+            int HResult=this.RunningDocumentTable.FindAndLockDocument(
+                (uint)_VSRDTFLAGS.RDT_NoLock,CanonicalFilePath,out _,out _,out DocDataPointer,out _);
+            if(ErrorHandler.Failed(HResult)||DocDataPointer==IntPtr.Zero){
+                return false;
+            }
+
+            object DocData=Marshal.GetObjectForIUnknown(DocDataPointer);
+            VsTextBuffer?VsBuffer=DocData as VsTextBuffer;
+            if(VsBuffer is null&&DocData is IVsTextBufferProvider Provider
+                &&ErrorHandler.Succeeded(Provider.GetTextBuffer(out IVsTextLines Lines))){
+                VsBuffer=Lines as VsTextBuffer;
+            }
+
+            Buffer=VsBuffer is null?null:this.EditorAdapters.GetDocumentBuffer(VsBuffer);
+            return Buffer is not null;
+        } catch(COMException Ex){
+            LogWarning($"Could not obtain the open text buffer for '{CanonicalFilePath}': {Ex.Message}");
+            return false;
+        } finally {
+            if(DocDataPointer!=IntPtr.Zero){
+                Marshal.Release(DocDataPointer);
+            }
+        }
+    }
+
+    private void Clear(){
+        SimpleTagger<TextMarkerTag>?Tagger=this.MarkerTagger;
+        List<TrackingTagSpan<TextMarkerTag>>OldTagSpans=this.OwnedTagSpans;
+        this.MarkedBuffer=null;
+        this.MarkerTagger=null;
+        this.OwnedTagSpans=[];
+        if(Tagger is null||OldTagSpans.Count==0){
+            return;
+        }
+
+        try {
+            using(Tagger.Update()){
+                foreach(TrackingTagSpan<TextMarkerTag> TagSpan in OldTagSpans){
+                    Tagger.RemoveTagSpan(TagSpan);
+                }
+            }
+
+            LogInformation($"Removed {OldTagSpans.Count} hierarchy source marker tag(s).");
+        } catch(Exception Ex){
+            // A document can be disposed by VS between RDT lookup and this call. Markers are
+            // best-effort decoration and must never destabilize the package during shutdown.
+            LogWarning($"Could not clear hierarchy source marker tags: {Ex.Message}");
+        }
+    }
+
+    private void ReplaceOwnedTagSpans(ITextBuffer Buffer,IReadOnlyList<SceneSourceMarkerRange>Ranges){
+        ITextSnapshot Snapshot=Buffer.CurrentSnapshot;
+        List<ITrackingSpan>TrackingSpans=[];
+        foreach(SceneSourceMarkerRange Range in Ranges){
+            Microsoft.CodeAnalysis.Text.TextSpan Span=Range.Span;
+            if(Span.Start<0||Span.End>Snapshot.Length){
+                LogWarning($"Skipped an out-of-date hierarchy source marker range ({Span.Start}, {Span.Length}).");
+                continue;
+            }
+
+            TrackingSpans.Add(Snapshot.CreateTrackingSpan(
+                Span.Start,Span.Length,SpanTrackingMode.EdgeExclusive));
+        }
+
+        SimpleTagger<TextMarkerTag>?Tagger=null;
+        List<TrackingTagSpan<TextMarkerTag>>NewTagSpans=[];
+        try {
+            Tagger=this.TextMarkerProviderFactory.GetTextMarkerTagger(Buffer);
+            if(Tagger is null){
+                LogWarning("Visual Studio returned no standard text marker tagger for the open source buffer.");
+                this.Clear();
+                return;
+            }
+
+            using(Tagger.Update()){
+                foreach(TrackingTagSpan<TextMarkerTag> OldTagSpan in this.OwnedTagSpans){
+                    Tagger.RemoveTagSpan(OldTagSpan);
+                }
+
+                foreach(ITrackingSpan TrackingSpan in TrackingSpans){
+                    NewTagSpans.Add(Tagger.CreateTagSpan(TrackingSpan,SceneSourceMarkerFormatDefinition.MarkerTag));
+                }
+            }
+
+            this.MarkerTagger=Tagger;
+            this.OwnedTagSpans=NewTagSpans;
+            LogInformation($"Applied {NewTagSpans.Count} hierarchy source marker tag(s) to the already-open buffer.");
+        } catch(Exception Ex){
+            // Do not leave tags from a partial update behind. This can occur if VS disposes the
+            // text buffer while a scene re-analysis notification is being processed.
+            if(Tagger is not null&&NewTagSpans.Count>0){
+                try {
+                    using(Tagger.Update()){
+                        foreach(TrackingTagSpan<TextMarkerTag> TagSpan in NewTagSpans){
+                            Tagger.RemoveTagSpan(TagSpan);
+                        }
+                    }
+                } catch(Exception CleanupEx){
+                    LogWarning($"Could not roll back partial hierarchy source marker tags: {CleanupEx.Message}");
+                }
+            }
+
+            this.MarkerTagger=null;
+            this.OwnedTagSpans=[];
+            LogWarning($"Could not apply hierarchy source marker tags: {Ex.Message}");
+        }
+    }
+
+    private static void LogInformation(string Message){
+        try {
+            ActivityLog.LogInformation(nameof(SceneSourceMarkerService),Message);
+        } catch {
+            // ActivityLog itself is unavailable during some shell teardown paths.
+        }
+    }
+
+    private static void LogWarning(string Message){
+        try {
+            ActivityLog.LogWarning(nameof(SceneSourceMarkerService),Message);
+        } catch {
+            // ActivityLog itself is unavailable during some shell teardown paths.
+        }
+    }
+
+    public void Dispose(){
+        if(this.Disposed){
+            return;
+        }
+
+        this.Disposed=true;
+        this.Clear();
+    }
+}
+
+[Export(typeof(EditorFormatDefinition))]
+[Name(SceneSourceMarkerFormatDefinition.MarkerTypeName)]
+[UserVisible(true)]
+internal sealed class SceneSourceMarkerFormatDefinition : MarkerFormatDefinition {
+    internal const string MarkerTypeName="MarkerFormatDefinition/CSharpGameEngine.SceneHierarchySource";
+    internal static readonly TextMarkerTag MarkerTag=new(MarkerTypeName);
+
+    // Visual Studio instantiates exported format definitions through MEF. Unlike the provider,
+    // this constructor must be public; otherwise TextMarkerTag has no display format.
+    public SceneSourceMarkerFormatDefinition(){
+        this.DisplayName="C# Game Engine Scene Hierarchy Source";
+        this.BackgroundColor=System.Windows.Media.Color.FromArgb(0x50,0x6A,0x3D,0xC9);
+        this.ZOrder=5;
+    }
+}

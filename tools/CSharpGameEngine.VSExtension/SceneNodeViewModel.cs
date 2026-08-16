@@ -1,9 +1,13 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using CSharpGameEngine.SceneAnalysis;
+using Microsoft.VisualStudio.Imaging;
+using Microsoft.VisualStudio.Imaging.Interop;
 
 namespace CSharpGameEngine.VSExtension;
 
@@ -22,11 +26,16 @@ namespace CSharpGameEngine.VSExtension;
 internal sealed class SceneNodeViewModel : INotifyPropertyChanged {
     private bool IsExpandedField;
     private bool IsSelectedField;
+    private bool IsMultiSelectedField;
 
-    private SceneNodeViewModel(NodePath Path,string DisplayName,string ComponentSummary,IReadOnlyList<SceneNodeViewModel>Children){
+    private SceneNodeViewModel(
+        NodePath Path,string DisplayName,string ComponentSummary,ImageMoniker NodeMoniker,
+        IReadOnlyList<SceneVisualIcon> ComponentIcons,IReadOnlyList<SceneNodeViewModel>Children){
         this.Path=Path;
         this.DisplayName=DisplayName;
         this.ComponentSummary=ComponentSummary;
+        this.NodeMoniker=NodeMoniker;
+        this.ComponentIcons=ComponentIcons;
         this.Children=Children;
     }
 
@@ -48,7 +57,15 @@ internal sealed class SceneNodeViewModel : INotifyPropertyChanged {
     /// <summary>Simple component type names, e.g. "Transform, PrimitiveMesh". Empty for a bare node.</summary>
     public string ComponentSummary { get;}
 
+    /// <summary>Semantic node glyph: Scene root or ordinary node. Rendered by CrispImage.</summary>
+    public ImageMoniker NodeMoniker { get;}
+
+    /// <summary>Every declared component's icon, in declaration order. No icon is omitted.</summary>
+    public IReadOnlyList<SceneVisualIcon> ComponentIcons { get;}
+
     public IReadOnlyList<SceneNodeViewModel>Children { get;}
+
+    public bool HasChildren=>this.Children.Count>0;
 
     public bool IsExpanded {
         get=>this.IsExpandedField;
@@ -58,6 +75,11 @@ internal sealed class SceneNodeViewModel : INotifyPropertyChanged {
     public bool IsSelected {
         get=>this.IsSelectedField;
         set=>this.Set(ref this.IsSelectedField,value);
+    }
+
+    public bool IsMultiSelected {
+        get=>this.IsMultiSelectedField;
+        set=>this.Set(ref this.IsMultiSelectedField,value);
     }
 
     /// <summary>
@@ -72,30 +94,45 @@ internal sealed class SceneNodeViewModel : INotifyPropertyChanged {
     /// </para>
     /// </summary>
     internal static IReadOnlyList<SceneNodeViewModel>Build(SceneModel?Model,ISet<NodePath>CollapsedPaths,NodePath?SelectedPath){
+        IReadOnlyList<SceneNodeViewModel>Roots=BuildWithSelection(Model,CollapsedPaths,SelectedPath is { } SelectedPathValue?[SelectedPathValue]:[]);
+        if(SelectedPath is { } TargetPath){
+            Roots.SelectMany(static Root=>Root.SelfAndDescendants()).FirstOrDefault(Node=>Node.Path.Equals(TargetPath))?.IsSelected=true;
+        }
+
+        return Roots;
+    }
+
+    internal static IReadOnlyList<SceneNodeViewModel>BuildWithSelection(
+        SceneModel?Model,ISet<NodePath>CollapsedPaths,IReadOnlyCollection<NodePath>SelectedPaths){
         if(Model?.Root is not { } Root){
             return [];
         }
 
-        return [BuildNode(Root,CollapsedPaths,SelectedPath)];
+        string?ProjectDirectory=FindProjectDirectory(Model.FilePath);
+        return [BuildNode(Root,CollapsedPaths,SelectedPaths,ProjectDirectory,IsRoot:true)];
     }
 
-    private static SceneNodeViewModel BuildNode(SceneNode Node,ISet<NodePath>CollapsedPaths,NodePath?SelectedPath){
+    private static SceneNodeViewModel BuildNode(
+        SceneNode Node,ISet<NodePath>CollapsedPaths,IReadOnlyCollection<NodePath>SelectedPaths,
+        string?ProjectDirectory,bool IsRoot){
         List<SceneNodeViewModel>Children=[];
 
         foreach(SceneNode Child in Node.Children){
-            Children.Add(BuildNode(Child,CollapsedPaths,SelectedPath));
+            Children.Add(BuildNode(Child,CollapsedPaths,SelectedPaths,ProjectDirectory,IsRoot:false));
         }
 
         return new SceneNodeViewModel(
             Node.Path,
             Node.DisplayName,
             SummarizeComponents(Node.Components),
+            IsRoot?KnownMonikers.ThreeDScene:KnownMonikers.AbstractCube,
+            ResolveComponentIcons(Node.Components,ProjectDirectory),
             Children){
             IsExpandedField=!CollapsedPaths.Contains(Node.Path),
-            IsSelectedField=SelectedPath is { } Selected&&Selected.Equals(Node.Path),
+            IsSelectedField=false,
+            IsMultiSelectedField=SelectedPaths.Contains(Node.Path),
         };
     }
-
     private static string SummarizeComponents(ImmutableArray<SceneComponent>Components){
         if(Components.Length==0){
             return string.Empty;
@@ -107,6 +144,48 @@ internal sealed class SceneNodeViewModel : INotifyPropertyChanged {
     private static string SimpleName(string TypeFullyQualifiedName){
         var LastDot=TypeFullyQualifiedName.LastIndexOf('.');
         return LastDot>=0?TypeFullyQualifiedName.Substring(LastDot+1):TypeFullyQualifiedName;
+    }
+
+    private static IReadOnlyList<SceneVisualIcon> ResolveComponentIcons(
+        ImmutableArray<SceneComponent> Components,string?ProjectDirectory){
+        if(Components.Length==0){
+            return [];
+        }
+
+        List<SceneVisualIcon>Icons=[];
+        foreach(SceneComponent Component in Components){
+            Icons.Add(Component.TypeSymbol is { } Type
+                ?SceneComponentIconResolver.Resolve(Type,ProjectDirectory)
+                :SceneVisualIcon.ComponentDefault());
+        }
+
+        return Icons;
+    }
+
+    private static string? FindProjectDirectory(string FilePath){
+        try {
+            string?DirectoryPath=System.IO.Path.GetDirectoryName(FilePath);
+            while(!string.IsNullOrWhiteSpace(DirectoryPath)){
+                if(Directory.EnumerateFiles(DirectoryPath,"*.csproj",SearchOption.TopDirectoryOnly).Any()){
+                    return DirectoryPath;
+                }
+
+                DirectoryInfo?Parent=Directory.GetParent(DirectoryPath);
+                if(Parent is null||string.Equals(Parent.FullName,DirectoryPath,StringComparison.OrdinalIgnoreCase)){
+                    break;
+                }
+
+                DirectoryPath=Parent.FullName;
+            }
+        } catch(ArgumentException){
+            // A transient or generated source path simply uses the VS default component icon.
+        } catch(IOException){
+            // Project reloads may race a live hierarchy rebuild.
+        } catch(UnauthorizedAccessException){
+            // The UI must remain usable when an ancestor is inaccessible.
+        }
+
+        return null;
     }
 
     /// <summary>Depth-first, declaration order - the same order the generated Instantiate creates entities in.</summary>

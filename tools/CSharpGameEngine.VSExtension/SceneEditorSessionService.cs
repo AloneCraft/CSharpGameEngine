@@ -70,6 +70,10 @@ internal sealed class SceneEditorSessionService : IDisposable {
         System.Threading.CancellationToken CancellationToken)=>
         this.Workspace.GetActiveProjectSceneCatalogAsync(CancellationToken);
 
+    internal System.Threading.Tasks.Task<ProjectSceneCatalog?>GetProjectSceneCatalogAsync(
+        SceneKey?PreferredSceneKey,System.Threading.CancellationToken CancellationToken)=>
+        this.Workspace.GetProjectSceneCatalogAsync(PreferredSceneKey,CancellationToken);
+
     internal System.Threading.Tasks.Task<SceneModel?>ResolveSceneAsync(
         SceneKey Key,System.Threading.CancellationToken CancellationToken)=>
         this.Workspace.ResolveSceneAsync(Key,CancellationToken);

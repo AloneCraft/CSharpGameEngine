@@ -1573,3 +1573,44 @@ Expハイブのキャッシュより新しくすること」を機序として**
   - dotnet test CSharpGameEngine.slnx -c Debug --no-build --no-restoreは全8テストプロジェクト
     881件成功・失敗0(Entities 40 / Core 122 / Bridge.Hosting 8 / Import 30 / Windows 87 /
     CodeAnalysis 101 / SceneModel 104 / VSExtension 389)。
+
+
+## 2026-08-16 M0020 follow-up: ヒエラルキー選択からソースをマーク／移動
+
+- **Matches(選択規則)**: Hierarchyは通常クリックで置換、Ctrl+クリックで追加/解除、Shift+クリックで深さ優先表示順の範囲選択を行う。選択集合・primary・アンカーは`HierarchyNodeSelection`で保持し、再構築後は`NodePath`で復元する。単一`NodePath` Hub通知は互換経路として維持する。
+- **Matches(非フォーカス・マーク寿命)**: Hierarchy起点だけが、既に開いている対象C# bufferへ`SceneNode.Location.Span`全体を背景マークする。親子重複は併合し、複数の独立範囲は併記する。通常クリックは文書を開かず、フォーカスもキャレットも変更しない。選択解除、Scene切替、解析失敗、再解析でマーカーを消去または再計算する。
+- **Matches(明示移動)**: ダブルクリックまたはEnterだけがprimaryの`Span.Start`へ移動を要求する。RDTで既に開いた文書を確認できない場合、または再解析でNode/TextViewを得られない場合は何もしない。
+- **Unknown(実機Observed)**: VS Experimental Instanceでの連続複数選択、複数マーク、親子Span、Enter/double-click移動、未表示文書を開かないことは未実施。
+- Evidence: `HierarchySourceSyncTests`を含む`dotnet test tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj --no-restore`は395件成功・失敗0。
+
+
+## 2026-08-16 M0020 follow-up: 未表示ソースからの Scene Designer 起動
+
+- **Matches**: ソリューションエクスプローラーで右クリックした`.cs`のSceneは、対象文書を開かずに即時解析・Pinする。SceneSelectorはPinの`ProjectId`を優先してカタログを取得するため、アクティブなコード文書が無い状態でも3D表示を維持する。
+- **Matches**: カタログ取得失敗はSelectorを無効化する補助UIの失敗であり、Pin済みSnapshotや`SceneHwndHost`を破棄しない。Scene自体の解析失敗・消失だけが空状態へ遷移する。
+- Evidence: `SceneCatalogTargetPolicyTests`を追加。`dotnet test tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj --no-restore`はDebug/Releaseとも399件成功・失敗0。
+
+## 2026-08-16 M0020 follow-up: VS テーマ Hierarchy、Component icon、標準 source marker
+
+- **Matches(code review: Hierarchy presentation)**: 公開 VS TreeView テーマを基礎に、Hierarchy 内の
+  keyboard focus は active selection、他ウィンドウへの移動後は inactive selection となる。複数選択行を
+  すべて表示し、primary のみ left accent を持つ。`ExpandRight` / `ExpandDown` の展開操作は selection
+  event を発行しない。
+- **Matches(code review: Component visual contract)**: `SceneComponentIconAttribute` は struct 専用・
+  単一指定で、プロジェクト相対 SVG / PNG だけを許可する。root / node / component の既定 moniker、
+  project image、将来の lock overlay を `SceneVisualIcon` に集約した。無効 path・欠落 file・参照 metadata は
+  既定 component icon へ安全に戻る。SharpVectors の実行時依存は VSIX payload に含める。
+- **Matches(code review: glyph authoring)**: 書込み可能なソース component struct の glyph だけがアンカー
+  picker を開く。候補は既定 icon とプロジェクト配下の SVG / PNG に限定し、選択/解除は Roslyn 更新を
+  現在の text buffer へ 1 Undo で適用する。partial 型の既存属性はその所有宣言を更新し、未指定時は
+  クリックした宣言を所有箇所にする。他文書を開かず、コードエディタの focus を移さない。
+- **Matches(code review: marker implementation)**: `SceneSourceMarkerService` は Visual Studio 標準
+  `SimpleTagger<TextMarkerTag>` を使い、拡張所有 `TrackingTagSpan` だけを追加・除去する。書式は
+  `MarkerFormatDefinition/CSharpGameEngine.SceneHierarchySource` の半透明青紫背景で、C# 構文前景色を
+  上書きしない。通常 Hierarchy 選択は既に開いた文書のみを非選択 marker で装飾し、double-click / Enter
+  だけが primary へ移動する。RDT/buffer/tagger/tag 数の成否は ActivityLog へ記録する。
+- **Unknown(実機Observed)**: VS Experimental Instance での active/inactive 見た目、展開ボタン、
+  project SVG/PNG の描画・picker・Undo、実 marker の表示/解除、未表示文書非オープン、および
+  Enter/double-click の明示移動は未確認である。
+- Evidence: `ComponentIconAuthoringTests`、`SceneHierarchyIconTests`、
+  `SceneSourceMarkerTaggerTests` と既存 `HierarchySourceSyncTests` が純粋層/MEF 契約を固定する。

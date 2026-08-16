@@ -2576,6 +2576,9 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   - Phase 7で8件追加: ScenePhase7Tests(7)、SceneInputStateMachineTests(+1)。
     SceneDiff増分/rebuild、mesh再利用と全階層world、frame slot fence、Transform/Property競合差分、
     Esc全状態を固定した。最終全体は881件成功・失敗0(VSExtension.Tests 389件)。
+- Follow-up(2026-08-16): `HierarchySourceSync.cs`がCtrl/Shift範囲選択・primary・アンカー、選択Nodeの`SceneNode.Location.Span`併合、明示移動要求を純粋層で扱う。`SceneSourceMarkerService.cs`はRDTで既に開いたC# bufferだけを取得し、`TextMarkerTag`で非選択マークする。通常クリックは非フォーカス、double-click/Enterだけがprimaryの`Span.Start`へ移動する。Viewport/Inspector起点はHierarchy表示だけを更新し、ソース同期を起動しない。
+- Follow-up tests: `HierarchySourceSyncTests.cs`(5件)と`SceneNodeViewModelTests.cs`のXAML公開プロパティ回帰を追加。`dotnet test tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj --no-restore`は395件成功・失敗0。
+- Follow-up(2026-08-16): ソリューションエクスプローラー起点の起動では、Pin済み`SceneKey.ProjectId`からSceneSelectorカタログを解決する。アクティブなコード文書が無くても対象Sceneを表示し、カタログ未取得・失敗は既存`SceneHwndHost`を空状態へ戻さない。
 - Reverse-engineered behavior:
   - 階層合成・preview・source write-backはVSIX純粋層`SceneTransformMath`のrow-vector式へ統一した。
     net472からnet10.0 Runtime型は参照せず、`world * inverse(parentWorld)`をTRSへ分解してローカル値へ戻す。
@@ -2585,7 +2588,7 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
     live textが直前に変わった場合だけ1回再試行する。対象消滅/解析エラー/2回目競合では破棄+通知する。
   - ギズモ軸は実際のワールド軸で、既定視点の`+X`はゲーム本体と同じく画面左へ投影される(ADR-0042)。
   - 矩形選択は空間から4px以上ドラッグした場合だけ開始する。通常は置換、Ctrlは加算。
-    Viewportは複数NodeIdsを保持し、単一選択WPF TreeViewへはprimary(描画順の最終ヒット)だけを橋渡しする。
+    Viewport/Inspector起点はHierarchyのprimary表示だけを更新する。一方Hierarchy操作は選択集合・primary・アンカーを保持し、選択集合をSceneSelectionServiceへ発行する。
   - Rotate/ScaleはMoveと同じframe/overlay/transaction経路を使う。Rotateは3軸+viewリング、Scaleは
     3軸+中心均一ハンドル。CtrlはMove=1.0、Rotate=15°、Scale=0.1へ丸める。
   - World/Localは上部セレクターと既存設定で同期する。複数選択はprimaryの位置/回転をPivot/Local基底とし、
@@ -2630,6 +2633,23 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   RectLightもPhase 6の明示的対象外。
 - Next action: Phase 0〜7+後続Task CのExperimental Instance確認表をユーザー側で実施。
 
+- Follow-up(2026-08-16, VS テーマ Hierarchy / Component icon): `HierarchyToolWindowControl`は公開
+  `ThemedDialogTreeViewStyleKey` / `ThemedDialogTreeViewItemStyleKey` と `CrispImage` 展開アイコンを使い、
+  active/inactive selection、全複数選択、primary 左アクセントを表示する。展開操作は選択やソース同期を
+  発行しない。
+- Follow-up(2026-08-16, Component icon authoring): 公開
+  `SceneComponentIconAttribute(string projectRelativePath)`、共通 `SceneVisualIcon`、SVG/PNG のプロジェクト
+  相対パス検証、SharpVectors/BitmapImage renderer、C# glyph margin のアンカー選択メニューを追加した。
+  属性更新は `SceneTextBufferWriter` 経由の既存 buffer 1 Undo で行い、他文書を開かない。lock overlay は
+  将来用予約であり、編集 lock 機能は追加していない。
+- Follow-up(2026-08-16, standard hierarchy source marker): 独自 tagger を廃止し、
+  `ITextMarkerProviderFactory` の共有 `SimpleTagger<TextMarkerTag>` へ拡張所有の
+  `TrackingTagSpan` だけを登録する方式へ変更した。書式は
+  `MarkerFormatDefinition/CSharpGameEngine.SceneHierarchySource`、半透明青紫背景・前景未指定である。
+  RDT/buffer/tagger/tag 数と失敗は ActivityLog に記録し、寿命終端では所有 tag だけを解除する。
+- Follow-up tests: `ComponentIconAuthoringTests.cs` はパス正規化・候補列挙・属性の追加/置換/削除・partial
+  宣言を、`SceneHierarchyIconTests.cs` は Hierarchy の moniker/公開 binding を、
+  `SceneSourceMarkerTaggerTests.cs` は標準 marker format/provider 契約を固定する。
 # 2026-08 UE FirstPerson宣言型Scene移行
 
 - 旧L9アプリケーションと一体型`Lvl_FirstPerson.glb`ランタイムを廃止し、`UserEcsProject`へ統合した。

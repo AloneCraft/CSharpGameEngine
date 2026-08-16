@@ -616,13 +616,11 @@ Visual Studio UndoのObservedは次表の実機確認まで**Unknown**。
   文書とは独立した第2解析スロットを追加し、コードエディタと同じくシーン名を列挙する体験にした
   (詳細はConformance.md「追記(2026-08): ソリューションエクスプローラーの右クリックにも
   『シーン デザイナーで開く』を追加」参照)。
-- **意図的に残した非対称(要記録)**: **ビューポートは複数選択をハイライトする(primaryを濃く、
-  副選択を薄く)が、ヒエラルキーは primary のみ**。WPFの`TreeView`が単一選択で、
-  `SceneEditorHub.PublishSelectedNodePath`も単一`NodePath`契約のため。ヒエラルキー側の複数選択表示は
-  `TreeView`の置き換えかスタイル拡張を要するので別タスク。
-- **(2026-08-16 解消)** 矩形選択(LMBドラッグでの範囲選択)を後続Task Cとして仕様化・実装した。
-  `PendingSelect→Up`の既存経路を維持し、空間開始だけが4px閾値で`MarqueeSelecting`へ進む。
-  ビューポート複数選択/Hierarchy primaryのみの非対称性は上項のとおり意図的に維持する。
+  **(2026-08-16 修正)** 未表示ソースからの起動でもPin済みSceneのProjectカタログを使い、
+  カタログ未取得で3D表示を空状態へ戻さない。
+- **(2026-08-16 解消)** Hierarchyはスタイル拡張で複数選択を表示し、Ctrlトグル・Shift表示順範囲選択・primary/アンカーを`NodePath`基準で復元する。単一`NodePath`通知は互換経路として残すが、Hierarchy起点の集合は追加ペイロードで保持する。
+- **(2026-08-16 追加)** Hierarchy起点だけが、既に開いているC#文書の`new Node { ... }` Spanを非選択背景マークする。通常操作はコードエディタを開かずフォーカスも奪わない。ダブルクリック/Enterだけがprimaryの`new`先頭へ移動する。Experimental Instanceの確認項目として、連続選択・親子/複数マーク・未表示文書非オープンを残す。
+
 - **新規に判明した別タスク規模の負債**: `Docs/Implementation-Status.md`に`UserGameProject`への参照が
   62箇所ある。`UserGameProject`はM0019 Phase 5(`81c462e`)で撤去され現行は`UserEcsProject`なので、
   上記3件と同種の陳腐化が広範に残っている可能性が高い。台帳全体の棚卸しは本マイルストーンの
@@ -631,3 +629,23 @@ Visual Studio UndoのObservedは次表の実機確認まで**Unknown**。
 関連: [[ADR-0041-Scene-Editor-Interaction-Architecture]]、
 [[ADR-0040-CSharp-Scene-DSL-and-Bidirectional-Editor]]、[[M0019-CSharp-Scene-DSL]]、
 `Docs/シーンエディタの仕様.md`、`Docs/Specifications/Scene-Editor-Design.md`
+
+## 2026-08-16 後続実装: VS らしい Hierarchy と Component アイコン
+
+- **実装済み（コード検証、実機目視は未実施）**: Hierarchy は Visual Studio の公開 TreeView テーマを使い、
+  キーボードフォーカスの有無で active / inactive selection を切り替える。複数選択は全行を表示し、
+  primary だけに左アクセントを表示する。子がある Node には `ExpandRight` / `ExpandDown` の展開アイコンを
+  表示し、そのクリックは選択・primary・ソース同期を変更しない。
+- **実装済み（コード検証、実機目視は未実施）**: `SceneComponentIconAttribute` は struct にプロジェクト相対
+  SVG / PNG を関連付ける。Hierarchy と C# glyph margin は同じ `SceneVisualIcon` renderer を使い、無効・
+  欠落・メタデータ由来の component は既定 icon にフォールバックする。候補 picker は既定 icon と
+  プロジェクト配下の SVG / PNG だけを表示し、絶対パス・`..`・生成出力は受け付けない。lock overlay は
+  将来の編集 lock 用予約で、今回は描画しない。
+- **実装済み（コード検証、実機目視は未実施）**: Hierarchy 選択のソース背景は VS 標準
+  `ITextMarkerProviderFactory` の `SimpleTagger<TextMarkerTag>` で描画する。通常クリックは既に開いた
+  文書だけをマークし、コードエディタのフォーカス・キャレット・選択を変えない。double-click / Enter
+  だけが primary の `new Node` 先頭へ移動する。選択解除、Scene 切替、解析失敗、buffer 破棄では拡張が
+  所有する marker だけを解除する。
+- **実機確認項目**: Hierarchy と Solution Explorer の focus 表示、展開 icon のクリック、SVG / PNG icon の
+  属性編集と Undo、複数/親子 marker、通常選択時の非フォーカス、Enter / double-click 時だけの移動、
+  未表示ソースを開かないことを Experimental Instance で確認する。

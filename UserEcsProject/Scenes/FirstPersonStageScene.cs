@@ -85,7 +85,7 @@ internal partial class FirstPersonStageScene:IScene {
                 Name="SM_Cube11",
                 Components=[
                     new Transform {
-                        PositionX=-12f,
+                        PositionX=-120f,
                         PositionY=0f,
                         PositionZ=-15f,
                         RotationX=0f,

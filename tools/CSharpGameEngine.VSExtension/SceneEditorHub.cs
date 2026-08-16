@@ -26,10 +26,13 @@ internal static class SceneEditorHub {
 
     /// <summary>Selection is keyed by <see cref="NodePath"/>: names are optional and not unique, and text spans move on every edit.</summary>
     public static event Action<NodePath?>?SelectedNodePathChanged;
+    public static event Action<HierarchyNodeSelection>?HierarchySelectionChanged;
+    public static event Action<NodePath>?HierarchyNavigationRequested;
 
     public static SceneModel?ActiveSceneModel { get;private set;}
 
     public static NodePath?SelectedNodePath { get;private set;}
+    public static HierarchyNodeSelection HierarchySelection { get;private set;}=HierarchyNodeSelection.Empty;
 
     public static void PublishSceneModel(SceneModel?Model){
         ActiveSceneModel=Model;
@@ -40,4 +43,13 @@ internal static class SceneEditorHub {
         SelectedNodePath=Path;
         SelectedNodePathChanged?.Invoke(Path);
     }
+
+    public static void PublishHierarchySelection(HierarchyNodeSelection Selection){
+        HierarchySelection=Selection;
+        PublishSelectedNodePath(Selection.PrimaryPath);
+        HierarchySelectionChanged?.Invoke(Selection);
+    }
+
+    public static void RequestHierarchyNavigation(NodePath Path)=>
+        HierarchyNavigationRequested?.Invoke(Path);
 }

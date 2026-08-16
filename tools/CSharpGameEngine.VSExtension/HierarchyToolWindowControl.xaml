@@ -5,37 +5,174 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:vsshell="clr-namespace:Microsoft.VisualStudio.Shell;assembly=Microsoft.VisualStudio.Shell.15.0"
+             xmlns:imaging="clr-namespace:Microsoft.VisualStudio.Imaging;assembly=Microsoft.VisualStudio.Imaging"
+             xmlns:imageCatalog="clr-namespace:Microsoft.VisualStudio.Imaging;assembly=Microsoft.VisualStudio.ImageCatalog"
+             xmlns:local="clr-namespace:CSharpGameEngine.VSExtension"
              Background="{DynamicResource {x:Static vsshell:VsBrushes.WindowKey}}"
              Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
              d:DesignHeight="400" d:DesignWidth="300">
+    <UserControl.Resources>
+        <!--
+            Start from the public Visual Studio themed TreeView styles so that the hierarchy keeps
+            the shell's fonts, contrast, and high-contrast/DPI behavior. The template below only
+            supplies the additional multi-selection and primary-row semantics that WPF TreeView
+            does not provide on its own.
+        -->
+        <Style x:Key="HierarchyTreeViewItemStyle"
+               TargetType="{x:Type TreeViewItem}"
+               BasedOn="{StaticResource {x:Static vsshell:VsResourceKeys.ThemedDialogTreeViewItemStyleKey}}">
+            <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+            <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type TreeViewItem}">
+                        <Grid SnapsToDevicePixels="True">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <Border x:Name="HeaderBackground" Grid.Row="0" Background="Transparent">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="2" />
+                                        <ColumnDefinition Width="18" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- The primary node is the destination of Enter/double-click. -->
+                                    <Border x:Name="PrimaryAccent" Grid.Column="0"
+                                            Background="{DynamicResource {x:Static vsshell:VsBrushes.HighlightKey}}"
+                                            Visibility="Collapsed" />
+
+                                    <!-- This is deliberately a ToggleButton, not part of the row body. The
+                                         preview mouse handler lets this control handle its own click so
+                                         expanding a node cannot alter the hierarchy selection. -->
+                                    <ToggleButton x:Name="ExpanderToggle" Grid.Column="1"
+                                                  Width="16" Height="16" Margin="1,0,1,0"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                  Focusable="False" Background="Transparent" BorderThickness="0"
+                                                  IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                                                  ToolTip="Expand or collapse">
+                                        <ToggleButton.Template>
+                                            <ControlTemplate TargetType="{x:Type ToggleButton}">
+                                                <Grid Background="Transparent">
+                                                    <imaging:CrispImage x:Name="CollapsedGlyph" Width="16" Height="16"
+                                                                        Moniker="{x:Static imageCatalog:KnownMonikers.ExpandRight}" />
+                                                    <imaging:CrispImage x:Name="ExpandedGlyph" Width="16" Height="16"
+                                                                        Visibility="Collapsed"
+                                                                        Moniker="{x:Static imageCatalog:KnownMonikers.ExpandDown}" />
+                                                </Grid>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsChecked" Value="True">
+                                                        <Setter TargetName="CollapsedGlyph" Property="Visibility" Value="Collapsed" />
+                                                        <Setter TargetName="ExpandedGlyph" Property="Visibility" Value="Visible" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </ToggleButton.Template>
+                                    </ToggleButton>
+
+                                    <ContentPresenter Grid.Column="2" ContentSource="Header"
+                                                      VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
+
+                            <!-- Each nested item contributes this same indentation, matching a standard
+                                 TreeView while retaining our explicit Visual Studio image expander. -->
+                            <ItemsPresenter x:Name="ItemsHost" Grid.Row="1" Margin="18,0,0,0" />
+                        </Grid>
+
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="HasItems" Value="False">
+                                <Setter TargetName="ExpanderToggle" Property="Visibility" Value="Collapsed" />
+                                <Setter TargetName="ItemsHost" Property="Visibility" Value="Collapsed" />
+                            </Trigger>
+                            <Trigger Property="IsExpanded" Value="False">
+                                <Setter TargetName="ItemsHost" Property="Visibility" Value="Collapsed" />
+                            </Trigger>
+
+                            <!-- Active selection mirrors Solution Explorer while the hierarchy owns
+                                 keyboard focus. -->
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsMultiSelected}" Value="True" />
+                                    <Condition Binding="{Binding IsKeyboardFocusWithin, RelativeSource={RelativeSource AncestorType={x:Type TreeView}}}" Value="True" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter TargetName="HeaderBackground" Property="Background"
+                                        Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarSelectedKey}}" />
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarTextSelectedKey}}" />
+                            </MultiDataTrigger>
+
+                            <!-- Keep selected rows visibly selected, but passive, when another VS tool
+                                 window such as Solution Explorer owns the keyboard focus. -->
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsMultiSelected}" Value="True" />
+                                    <Condition Binding="{Binding IsKeyboardFocusWithin, RelativeSource={RelativeSource AncestorType={x:Type TreeView}}}" Value="False" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter TargetName="HeaderBackground" Property="Background"
+                                        Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarHoverOverSelectedKey}}" />
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" />
+                            </MultiDataTrigger>
+
+                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                <Setter TargetName="PrimaryAccent" Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Shown when the active document declares no IScene, so an empty tree is never ambiguous
-             between "no scene here" and "the scene failed to load". -->
         <TextBlock x:Name="EmptyMessage" Grid.Row="0" Margin="8"
                    TextWrapping="Wrap"
                    Foreground="{DynamicResource {x:Static vsshell:VsBrushes.GrayTextKey}}"
-                   Text="IScene を実装したクラスを含む .cs ファイルを開いてください。" />
+                   Text="IScene を宣言する C# ファイルを開いてください。" />
 
         <TreeView x:Name="Tree" Grid.Row="1" SelectedItemChanged="Tree_SelectedItemChanged"
+                  PreviewMouseLeftButtonDown="Tree_PreviewMouseLeftButtonDown"
+                  PreviewKeyDown="Tree_PreviewKeyDown"
+                  Style="{StaticResource {x:Static vsshell:VsResourceKeys.ThemedDialogTreeViewStyleKey}}"
                   Background="Transparent" BorderThickness="0">
             <TreeView.ItemContainerStyle>
-                <!-- Two-way so the user's own expand/collapse and the code-driven selection restore
-                     stay in sync across the rebuild that follows every keystroke. -->
-                <Style TargetType="TreeViewItem">
-                    <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
-                    <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
-                </Style>
+                <StaticResource ResourceKey="HierarchyTreeViewItemStyle" />
             </TreeView.ItemContainerStyle>
             <TreeView.ItemTemplate>
                 <HierarchicalDataTemplate ItemsSource="{Binding Children}">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="{Binding DisplayName}" />
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <imaging:CrispImage Width="16" Height="16" Margin="0,0,4,0"
+                                            Moniker="{Binding NodeMoniker}" />
+                        <!-- All component icons remain visible in declaration order. Project SVG/PNG
+                             assets use the same cached renderer as the source glyph margin; other
+                             components use the VS Component moniker. -->
+                        <ItemsControl ItemsSource="{Binding ComponentIcons}" Margin="0,0,4,0">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <local:SceneVisualIconPresenter Icon="{Binding}" IconSize="16"
+                                                                     Margin="0,0,2,0" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" />
                         <TextBlock Text="{Binding ComponentSummary}" Margin="8,0,0,0"
+                                   VerticalAlignment="Center"
                                    Foreground="{DynamicResource {x:Static vsshell:VsBrushes.GrayTextKey}}" />
                     </StackPanel>
                 </HierarchicalDataTemplate>

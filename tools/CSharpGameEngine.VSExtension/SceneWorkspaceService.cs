@@ -338,18 +338,27 @@ internal sealed class SceneWorkspaceService : IDisposable {
     /// Scene を集めます。ここは Roslyn のみを背景で読むため、ComboBox の展開が UI thread を
     /// ブロックしたり、描画用 bridge process を起動したりしません。
     /// </summary>
-    internal async Task<ProjectSceneCatalog?>GetActiveProjectSceneCatalogAsync(CancellationToken CancellationToken){
+    internal Task<ProjectSceneCatalog?>GetActiveProjectSceneCatalogAsync(CancellationToken CancellationToken)=>
+        this.GetProjectSceneCatalogAsync(PreferredSceneKey:null,CancellationToken);
+
+    /// <summary>Pin済みSceneを優先し、そのSceneを所有するProjectの選択肢を取得します。</summary>
+    internal async Task<ProjectSceneCatalog?>GetProjectSceneCatalogAsync(
+        SceneKey?PreferredSceneKey,CancellationToken CancellationToken){
         DocumentId?ActiveId;
         lock(this.Gate){
             ActiveId=this.ActiveDocumentId;
         }
 
-        Document?Document=ActiveId is { } Id?this.Workspace.CurrentSolution.GetDocument(Id):null;
-        if(Document is null){
+        string?ActiveProjectId=ActiveId is { } Id
+            ?this.Workspace.CurrentSolution.GetDocument(Id)?.Project.Id.Id.ToString("N")
+            :null;
+        string?ProjectId=SceneCatalogTargetPolicy.SelectProjectId(PreferredSceneKey,ActiveProjectId);
+        Project?Project=ProjectId is null?null:this.Workspace.CurrentSolution.Projects.FirstOrDefault(Candidate=>
+            string.Equals(Candidate.Id.Id.ToString("N"),ProjectId,StringComparison.Ordinal));
+        if(Project is null){
             return null;
         }
 
-        Project Project=Document.Project;
         lock(this.Gate){
             if(this.ProjectSceneCatalogs.TryGetValue(Project.Id,out ProjectSceneCatalogCache?Cached)
                 &&Cached.Version.Equals(Project.Version)){

@@ -181,6 +181,7 @@ public sealed class SceneNodeViewModelTests {
     [InlineData(nameof(SceneNodeViewModel.Children))]
     [InlineData(nameof(SceneNodeViewModel.IsExpanded))]
     [InlineData(nameof(SceneNodeViewModel.IsSelected))]
+    [InlineData(nameof(SceneNodeViewModel.IsMultiSelected))]
     public void PropertiesBoundFromXamlArePublicSoWpfCanResolveThem(string PropertyName){
         Assert.NotNull(typeof(SceneNodeViewModel)
             .GetProperty(PropertyName,BindingFlags.Public|BindingFlags.Instance));

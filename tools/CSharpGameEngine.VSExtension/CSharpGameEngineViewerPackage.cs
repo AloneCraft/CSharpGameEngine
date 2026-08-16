@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -46,6 +47,7 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
     private SceneWorkspaceService?SceneWorkspace;
     private SceneEditorSessionService?SceneSession;
     private ActiveDocumentTracker?DocumentTracker;
+    private SceneSourceMarkerService?SourceMarkerService;
 
     protected override async Task InitializeAsync(CancellationToken CancellationToken,IProgress<ServiceProgressData>Progress){
         await this.JoinableTaskFactory.SwitchToMainThreadAsync(CancellationToken);
@@ -73,7 +75,10 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
         if(SceneWorkspace is not null){
             SceneSession=new SceneEditorSessionService(SceneWorkspace);
             SceneDesignerToolWindowPane.ConfigureSessionProvider(()=>this.SceneSession);
-            SceneEditorHub.SelectedNodePathChanged+=this.OnLegacyHierarchySelectionChanged;
+            SourceMarkerService=SceneSourceMarkerService.Start();
+            SceneEditorHub.HierarchySelectionChanged+=this.OnHierarchySelectionChanged;
+            SceneEditorHub.HierarchyNavigationRequested+=this.OnHierarchyNavigationRequested;
+            SceneEditorHub.SceneModelChanged+=this.OnSceneModelChangedForSourceMarkers;
             SceneSession.Selection.SelectionChanged+=this.OnSelectionChangedForHierarchy;
             SceneWorkspace.ModelChanged+=SceneEditorHub.PublishSceneModel;
             DocumentTracker=ActiveDocumentTracker.Start(SceneWorkspace);
@@ -151,22 +156,37 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
     /// Hierarchy は段階移行中のため NodePath を発行しているので、Package境界で一度だけ session ID に
     /// 解決します。Viewport/Inspectorはこの後の共通Selectionだけを購読し、static Hubを読みません。
     /// </summary>
-    private void OnLegacyHierarchySelectionChanged(NodePath?Path){
+    private void OnHierarchySelectionChanged(HierarchyNodeSelection Selection){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        this.SourceMarkerService?.Update(SceneEditorHub.ActiveSceneModel,Selection.Paths);
         if(this.SceneSession?.PinnedSnapshot is not { } Snapshot){
             return;
         }
 
-        EditorNodeId?Id=Path is { } Selected&&Snapshot.Projection?.TryGetId(Selected,out EditorNodeId Value)==true
-            ?Value
+        List<EditorNodeId>Ids=[];
+        foreach(NodePath Path in Selection.Paths){
+            if(Snapshot.Projection?.TryGetId(Path,out EditorNodeId Id)==true){
+                Ids.Add(Id);
+            }
+        }
+
+        EditorNodeId?Primary=Selection.PrimaryPath is { } PrimaryPath
+            &&Snapshot.Projection?.TryGetId(PrimaryPath,out EditorNodeId PrimaryId)==true
+            ?PrimaryId
             :null;
         this.SceneSession.Selection.Select(
-            Snapshot.Key,
-            Id is { } NodeId?[NodeId]:[],
-            Id,
-            ComponentType:null,
-            MemberName:null,
-            SceneSelectionOrigin.Hierarchy,
-            Guid.NewGuid());
+            Snapshot.Key,Ids,Primary,ComponentType:null,MemberName:null,
+            SceneSelectionOrigin.Hierarchy,Guid.NewGuid());
+    }
+
+    private void OnHierarchyNavigationRequested(NodePath Path){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        this.SourceMarkerService?.Navigate(SceneEditorHub.ActiveSceneModel,Path);
+    }
+
+    private void OnSceneModelChangedForSourceMarkers(SceneModel?Model){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        this.SourceMarkerService?.Update(Model,SceneEditorHub.HierarchySelection.Paths);
     }
 
     /// <summary>
@@ -175,16 +195,21 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
     /// Origin=Hierarchy自身の変更はTreeViewの見た目と既に一致しているので素通りする(往復回避)。
     /// </summary>
     private void OnSelectionChangedForHierarchy(SceneSelection Selection){
+        ThreadHelper.ThrowIfNotOnUIThread();
         if(Selection.Origin==SceneSelectionOrigin.Hierarchy){
             return;
         }
+
+        // Source decoration is exclusively a Hierarchy-origin action. An external selection must
+        // remove a previous decoration rather than make that selection look source-originated.
+        this.SourceMarkerService?.Update(Model:null,Paths:[]);
 
         if(this.SceneSession?.PinnedSnapshot is not { } Snapshot||!Snapshot.Key.Equals(Selection.Key)){
             return;
         }
 
-        // Task Cの意図的非対称性: Viewportの矩形選択は複数NodeIdsを保持するが、現行WPF
-        // TreeViewは単一選択なのでprimaryだけを橋渡しする。複数選択情報自体は失われずsessionに残る。
+        // Viewport/Inspector起点はHierarchyへprimaryだけを表示する。Hierarchy自身が発行する
+        // 複数選択集合はOnHierarchySelectionChangedでそのままSceneSelectionServiceへ渡す。
         NodePath?Path=Selection.PrimaryNodeId is { } Id&&Snapshot.Projection?.TryGetNode(Id,out SceneProjectionNode Node)==true
             ?Node.Path
             :null;
@@ -263,7 +288,11 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             AssetMetaWatcher?.Dispose();
             DocumentTracker?.Dispose();
 
-            SceneEditorHub.SelectedNodePathChanged-=this.OnLegacyHierarchySelectionChanged;
+            SceneEditorHub.HierarchySelectionChanged-=this.OnHierarchySelectionChanged;
+            SceneEditorHub.HierarchyNavigationRequested-=this.OnHierarchyNavigationRequested;
+            SceneEditorHub.SceneModelChanged-=this.OnSceneModelChangedForSourceMarkers;
+            SourceMarkerService?.Dispose();
+            SourceMarkerService=null;
             if(SceneSession is not null){
                 SceneSession.Selection.SelectionChanged-=this.OnSelectionChangedForHierarchy;
             }

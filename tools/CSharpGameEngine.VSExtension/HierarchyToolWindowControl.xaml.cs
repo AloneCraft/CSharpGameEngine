@@ -2,6 +2,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
+using System.Windows.Media;
 using CSharpGameEngine.SceneAnalysis;
 
 namespace CSharpGameEngine.VSExtension;
@@ -29,6 +32,8 @@ namespace CSharpGameEngine.VSExtension;
 public partial class HierarchyToolWindowControl:UserControl {
     private readonly HashSet<NodePath>CollapsedPaths=[];
     private bool SuppressSelectionPublish;
+    private bool PublishingHierarchySelection;
+    private HierarchyNodeSelection CurrentSelection=HierarchyNodeSelection.Empty;
 
     public HierarchyToolWindowControl(){
         InitializeComponent();
@@ -51,24 +56,20 @@ public partial class HierarchyToolWindowControl:UserControl {
     /// (元々「再構築後の選択復元」用に存在するガードをそのまま流用する)。
     /// </summary>
     private void OnSelectedNodePathChanged(NodePath?Path){
-        if(this.Tree.ItemsSource is not IReadOnlyList<SceneNodeViewModel>Roots){
+        if(this.PublishingHierarchySelection){
             return;
         }
 
-        this.SuppressSelectionPublish=true;
-        try {
-            foreach(SceneNodeViewModel Node in Roots.SelectMany(static Root=>Root.SelfAndDescendants())){
-                Node.IsSelected=Path is { } Selected&&Selected.Equals(Node.Path);
-            }
-        } finally {
-            this.SuppressSelectionPublish=false;
-        }
+        this.CurrentSelection=Path is { } Selected
+            ?new HierarchyNodeSelection([Selected],Selected,Selected)
+            :HierarchyNodeSelection.Empty;
+        this.ApplySelectionToTree();
     }
 
     private void Populate(SceneModel?Model){
         this.CaptureCollapsedPaths();
 
-        IReadOnlyList<SceneNodeViewModel>Roots=SceneNodeViewModel.Build(Model,this.CollapsedPaths,SceneEditorHub.SelectedNodePath);
+        IReadOnlyList<SceneNodeViewModel>Roots=SceneNodeViewModel.BuildWithSelection(Model,this.CollapsedPaths,this.CurrentSelection.Paths);
 
         // Rebinding raises SelectedItemChanged for the restored selection; republishing it would
         // bounce a redundant selection change back through the hub on every keystroke.
@@ -76,6 +77,7 @@ public partial class HierarchyToolWindowControl:UserControl {
 
         try {
             this.Tree.ItemsSource=Roots;
+            this.ApplySelectionToTree();
         } finally {
             this.SuppressSelectionPublish=false;
         }
@@ -102,12 +104,101 @@ public partial class HierarchyToolWindowControl:UserControl {
         }
     }
 
-    private void Tree_SelectedItemChanged(object Sender,RoutedPropertyChangedEventArgs<object>E){
-        if(this.SuppressSelectionPublish){
+    private void Tree_SelectedItemChanged(object Sender,RoutedPropertyChangedEventArgs<object>Args){
+        if(this.SuppressSelectionPublish||Args.NewValue is not SceneNodeViewModel Item){
             return;
         }
 
-        NodePath?Path=E.NewValue is SceneNodeViewModel Item?Item.Path:null;
-        SceneEditorHub.PublishSelectedNodePath(Path);
+        this.Tree.Focus();
+        this.CurrentSelection=HierarchySelectionPlanner.Select(
+            this.CurrentSelection,this.OrderedPaths(),Item.Path,ControlPressed:false,ShiftPressed:false);
+        this.PublishCurrentSelection();
+    }
+
+    private void Tree_PreviewMouseLeftButtonDown(object Sender,MouseButtonEventArgs Args){
+        // The explicit expand/collapse ToggleButton is not a row selection gesture. In
+        // particular, leave this preview event unhandled so WPF can toggle IsExpanded without
+        // replacing a Ctrl/Shift multi-selection or publishing a source-sync selection.
+        if(IsExpanderClick(Args.OriginalSource as DependencyObject)){
+            return;
+        }
+
+        if(this.FindNode(Args.OriginalSource as DependencyObject) is not SceneNodeViewModel Item){
+            return;
+        }
+
+        this.Tree.Focus();
+        this.CurrentSelection=HierarchySelectionPlanner.Select(
+            this.CurrentSelection,this.OrderedPaths(),Item.Path,
+            (Keyboard.Modifiers&ModifierKeys.Control)!=0,(Keyboard.Modifiers&ModifierKeys.Shift)!=0);
+        this.PublishCurrentSelection();
+        Args.Handled=true;
+        if(Args.ClickCount==2){
+            SceneEditorHub.RequestHierarchyNavigation(Item.Path);
+        }
+    }
+
+    private void Tree_PreviewKeyDown(object Sender,KeyEventArgs Args){
+        if(Args.Key!=Key.Enter||this.CurrentSelection.PrimaryPath is not { } Primary){
+            return;
+        }
+
+        SceneEditorHub.RequestHierarchyNavigation(Primary);
+        Args.Handled=true;
+    }
+
+    private void PublishCurrentSelection(){
+        this.ApplySelectionToTree();
+        this.PublishingHierarchySelection=true;
+        try {
+            SceneEditorHub.PublishHierarchySelection(this.CurrentSelection);
+        } finally {
+            this.PublishingHierarchySelection=false;
+        }
+    }
+
+    private void ApplySelectionToTree(){
+        if(this.Tree.ItemsSource is not IReadOnlyList<SceneNodeViewModel>Roots){
+            return;
+        }
+
+        this.SuppressSelectionPublish=true;
+        try {
+            foreach(SceneNodeViewModel Node in Roots.SelectMany(static Root=>Root.SelfAndDescendants())){
+                Node.IsMultiSelected=this.CurrentSelection.Paths.Contains(Node.Path);
+                Node.IsSelected=this.CurrentSelection.PrimaryPath is { } Primary&&Primary.Equals(Node.Path);
+            }
+        } finally {
+            this.SuppressSelectionPublish=false;
+        }
+    }
+
+    private IReadOnlyList<NodePath> OrderedPaths(){
+        return this.Tree.ItemsSource is not IReadOnlyList<SceneNodeViewModel>Roots
+            ?[]
+            :Roots.SelectMany(static Root=>Root.SelfAndDescendants()).Select(static Node=>Node.Path).ToArray();
+    }
+
+    private static bool IsExpanderClick(DependencyObject?Element){
+        for(DependencyObject?Current=Element;Current is not null;Current=VisualTreeHelper.GetParent(Current)){
+            if(Current is ToggleButton { Name:"ExpanderToggle" }){
+                return true;
+            }
+
+            if(Current is TreeView){
+                break;
+            }
+        }
+
+        return false;
+    }
+    private SceneNodeViewModel?FindNode(DependencyObject?Element){
+        for(DependencyObject?Current=Element;Current is not null;Current=VisualTreeHelper.GetParent(Current)){
+            if(Current is TreeViewItem { DataContext:SceneNodeViewModel Node }){
+                return Node;
+            }
+        }
+
+        return null;
     }
 }

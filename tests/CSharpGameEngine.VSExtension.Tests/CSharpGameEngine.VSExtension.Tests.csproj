@@ -41,6 +41,12 @@
              Link="Shared\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 
+  <!-- Keep the source manifest beside the tests so VSIX asset registration is covered without
+       requiring a running Visual Studio instance. -->
+  <ItemGroup>
+    <None Include="..\..\tools\CSharpGameEngine.VSExtension\source.extension.vsixmanifest" Link="TestAssets\source.extension.vsixmanifest" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <!-- The Scene DSL declaration surface, read as text by the shared helper so both hosts compile
        against exactly what ships. -->
   <ItemGroup>
