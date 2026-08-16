@@ -2490,6 +2490,9 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   拘束ソルバ・Transform数学・編集トランザクション・Roslyn最小差分・live text世代guard)。
   `SceneHwndHost`/D3D12/Visual Studio live buffer/Undoの製品配線は**CodeVerified**止まりで、
   Experimental Instance目視は未実施([[M0020-Scene-Editor-Interaction]]のPhase別表を参照)。
+  [[M0030-SceneView-Gizmo-Transform-Editing]]で受け入れ基準の監査を行い、失敗経路(対象ノード消失・
+  外部編集による式化・親world退化・ドラッグイベント重畳)のテストを9件追加して契約を固定した。
+  実機目視が残っているため`Verified`へは上げていない。
 - Intended specification: `Docs/シーンエディタの仕様.md`(要求仕様)、
   Docs/Decisions/ADR-0041-Scene-Editor-Interaction-Architecture.md(意思決定)、
   Docs/Specifications/Scene-Editor-Design.md(詳細設計)
@@ -2655,6 +2658,20 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   Enter/double-click移動、未表示ソースを開かないことを確認した。
 - Follow-up(2026-08-16, Hierarchy structural editing, TestVerified): SceneSourceEditorにAddChild/Rename/Remove/Reparent/Reorderを追加し、HierarchyのContextMenu・F2/Delete・DragDropから1つのVisual Studio Undo単位で適用する。親子を含む削除だけ確認し、Root・生成ソース・自己/子孫への移動は安全に拒否する。`FirstPersonStageScene.cs`は変更していない。`SceneSourceEditorTests`を含むVS拡張Debug/Releaseテスト431件が成功。
 - Follow-up(2026-08-16, Runtime/User component icons, TestVerified): RuntimeのTransform/StaticMesh/PrimitiveMesh/CameraとUserEcsProjectのScene-addable structへ`SceneComponentIconAttribute`を付与し、宣言プロジェクト配下のSVGを主形式、PNGを互換形式として解決する。Hierarchy/glyph marginはVS TreeViewフォントサイズへ連動し、無効・欠落・metadataは既定iconへフォールバックする。
+- Follow-up(2026-08-16, ギズモ編集の受け入れ監査と深度精度, TestVerified —
+  [[M0030-SceneView-Gizmo-Transform-Editing]]): ギズモTransform編集の新規実装依頼を受けたが、
+  該当機能はM0020 Phase 3〜7で実装済みだったため、依頼仕様の受け入れ基準に対する監査へ切り替えた。
+  未達だったのは失敗経路のテストと残課題R1の2点。
+  - `SceneEditConflictMergerTests.cs`(新規6件)/`EditTransactionControllerTests`(+2件)/
+    `SceneInputStateMachineTests`(+1件)で、対象ノード消失・外部編集による式化・SceneKey不一致・
+    親world退化・ドラッグイベント重畳の各失敗経路を固定した。
+  - 残課題R1(深度精度)を解消。`SceneCameraFraming.ComputeNearPlane`で
+    `Near = max(0.05, Far/10000)`のfar連動式にし、`SceneViewState`側の`NearPlane`二重定義を削除した。
+    正射投影は深度が線形なので対象外。深度バッファは`D32_Float`。回帰テスト8件。
+  - 依頼仕様が提案した`HierarchyEditKind.TranslateNode`/`SceneTransformEdit`は**採用しない**。
+    構造編集(`HierarchyEditKind`)と値編集(`EditTransactionController`経路)を2系統化するため、
+    ADR-0041の編集トランザクション設計と衝突する。
+  - VS拡張テストは431件→448件、ソリューション全体942件が成功。実機目視は未実施。
 
 # 2026-08 UE FirstPerson宣言型Scene移行
 

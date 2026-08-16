@@ -11,6 +11,44 @@ namespace CSharpGameEngine.VSExtension.Tests;
 public sealed class SceneCameraFramingTests {
     private const float Tolerance=1e-3f;
 
+    /// <summary>
+    /// M0030 / M0020残課題R1。near を 0.05 固定にしていた頃、実ステージ半径では far が数百まで伸びて
+    /// near:far が 20000:1 に達し、壁・床・Sky dome の境界が Z-fighting していた。比率で頭打ちにする。
+    /// </summary>
+    [Theory]
+    [InlineData(1f)]
+    [InlineData(50f)]
+    [InlineData(400f)]
+    public void CreateProjection_KeepsTheDepthRatioWithinTheBudget(float BoundsRadius){
+        Matrix4x4 Projection=SceneCameraFraming.CreateProjection(
+            BoundsRadius,SceneCameraFraming.DefaultFovYRadians,AspectRatio:1.6f);
+
+        (float Near,float Far)=ReadPerspectiveDepthRange(Projection);
+        Assert.True(Near>0f,$"near {Near} must be positive");
+        Assert.True(Near<Far,$"near {Near} must stay in front of far {Far}");
+        Assert.True(
+            Far/Near<=SceneCameraFraming.MaxDepthRatio*1.01f,
+            $"depth ratio {Far/Near} exceeded the {SceneCameraFraming.MaxDepthRatio} budget");
+    }
+
+    [Fact]
+    public void ComputeNearPlane_SmallScenes_KeepTheBaseNearPlaneSoCloseGeometryIsNotClipped(){
+        // far が小さいうちは比率が効かず、従来どおり 0.05 のまま手前を残す。
+        Assert.Equal(SceneCameraFraming.BaseNearPlane,SceneCameraFraming.ComputeNearPlane(20f),Tolerance);
+        Assert.Equal(SceneCameraFraming.BaseNearPlane,SceneCameraFraming.ComputeNearPlane(400f),Tolerance);
+        // far が伸びた分だけ near も比例して離れる。実ステージ規模で M0020 R1 の推奨 0.5〜1.0 に入る。
+        Assert.Equal(0.8f,SceneCameraFraming.ComputeNearPlane(8000f),Tolerance);
+        Assert.Equal(1f,SceneCameraFraming.ComputeNearPlane(10000f),Tolerance);
+    }
+
+    /// <summary>
+    /// <c>Matrix4x4.CreatePerspectiveFieldOfView</c>(right-handed)の M33/M43 から near/far を復元する。
+    /// M33=far/(near-far)、M43=near*far/(near-far)。
+    /// </summary>
+    internal static(float Near,float Far)ReadPerspectiveDepthRange(in Matrix4x4 Projection)=>(
+        Projection.M43/Projection.M33,
+        Projection.M43/(1f+Projection.M33));
+
     [Fact]
     public void ComputeBounds_NoObjects_ReturnsOriginAndUnitRadius(){
         (Vector3 Center,float Radius)=SceneCameraFraming.ComputeBounds([]);

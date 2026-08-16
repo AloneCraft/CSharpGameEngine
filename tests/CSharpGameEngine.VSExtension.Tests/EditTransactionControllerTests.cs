@@ -164,6 +164,54 @@ public sealed class EditTransactionControllerTests {
         Assert.Equal(EditTransactionState.Committing,Controller.State);
     }
 
+    /// <summary>
+    /// M0030 監査 §8「解析失敗時は変更を確定しない」の純粋層。親のworld行列が退化していると
+    /// local へ戻せないので、commit要求を作らずDragging のまま留まり、呼び出し元(<c>SceneHwndHost</c>
+    /// の<c>CommitEditTransaction</c>)が Cancel へ倒せる状態を保つ。
+    /// </summary>
+    [Fact]
+    public void TryCreateCommit_WhenParentWorldIsNotInvertible_ReturnsFalseAndStaysDragging(){
+        SceneDocumentSnapshot Snapshot=CreateSnapshot(DocumentVersion:3);
+        SceneTransformTarget Target=new(new EditorNodeId(2),NodePath.Root.Append(0),
+            Matrix4x4.CreateTranslation(1f,0f,0f),ParentWorld:default);
+        EditTransactionController Controller=new();
+        Controller.Begin(Snapshot,[Target]);
+        Controller.PreviewTranslation(new Vector3(4f,0f,0f));
+
+        Assert.False(Controller.TryCreateCommit("Move Cube",out SceneEditCommitRequest?Request));
+
+        Assert.Null(Request);
+        Assert.Equal(EditTransactionState.Dragging,Controller.State);
+        Assert.Equal(1f,Assert.Single(Controller.Cancel().RestoredTransforms).World.Translation.X);
+    }
+
+    /// <summary>
+    /// M0030 監査 §4-6 / §8 ロールバック。source 反映が失敗すると<c>CompleteEditCommit(false,…)</c>が
+    /// Committing 状態のまま Cancel する。そこで開始時のworldが返らないと、プレビューだけ動いた
+    /// ビューポートが確定値と食い違ったまま残る。
+    /// </summary>
+    [Fact]
+    public void Cancel_DuringCommitting_RestoresOriginalWorldsAndReturnsPendingSnapshot(){
+        SceneDocumentSnapshot Started=CreateSnapshot(DocumentVersion:1);
+        SceneDocumentSnapshot Reparsed=CreateSnapshot(DocumentVersion:2);
+        SceneTransformTarget Target=new(new EditorNodeId(2),NodePath.Root.Append(0),
+            Matrix4x4.CreateTranslation(1f,2f,3f),Matrix4x4.Identity);
+        EditTransactionController Controller=new();
+        Controller.Begin(Started,[Target]);
+        Controller.PreviewTranslation(new Vector3(40f,0f,0f));
+        Controller.QueueSnapshot(Reparsed);
+        Assert.True(Controller.TryCreateCommit("Move Cube",out _));
+        Assert.Equal(EditTransactionState.Committing,Controller.State);
+
+        SceneEditCancellation Cancellation=Controller.Cancel();
+
+        SceneTransformPreview Restored=Assert.Single(Cancellation.RestoredTransforms);
+        Assert.Equal(1f,Restored.World.Translation.X);
+        Assert.Equal(Target.NodePath,Restored.NodePath);
+        Assert.Same(Reparsed,Cancellation.PendingSnapshot);
+        Assert.Equal(EditTransactionState.Idle,Controller.State);
+    }
+
     private static SceneDocumentSnapshot CreateSnapshot(long DocumentVersion){
         SceneModel Model=SceneAnalysisTestHelper.Analyze("""
             using CSharpGameEngine.Entities;

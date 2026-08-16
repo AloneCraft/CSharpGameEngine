@@ -19,6 +19,43 @@ public sealed class SceneViewStateTests {
     public SceneViewStateTests(MockedVsFixture Fixture)=>
         SceneEditorSettings.ConfigureStoreProvider(()=>Store);
 
+    /// <summary>
+    /// M0030 / M0020残課題R1。ドラッグ操作中に実際に使われるのは<see cref="SceneCameraFraming"/>ではなく
+    /// こちらの投影なので、far が <c>FocusDistance*20</c> まで伸びる実運用値で比率を固定する。
+    /// </summary>
+    [Theory]
+    [InlineData(5f,1f)]
+    [InlineData(60f,50f)]
+    [InlineData(500f,400f)]
+    public void GetProjection_Perspective_KeepsTheDepthRatioWithinTheBudget(
+        float FocusDistance,float BoundsRadius){
+        SceneViewState State=new(){
+            FocusDistance=FocusDistance,LastKnownBoundsRadius=BoundsRadius,
+            ProjectionMode=SceneProjectionMode.Perspective };
+
+        (float Near,float Far)=SceneCameraFramingTests.ReadPerspectiveDepthRange(State.GetProjection(1.6f));
+
+        Assert.True(Near>0f,$"near {Near} must be positive");
+        Assert.True(Near<Far,$"near {Near} must stay in front of far {Far}");
+        Assert.True(
+            Far/Near<=SceneCameraFraming.MaxDepthRatio*1.01f,
+            $"depth ratio {Far/Near} exceeded the {SceneCameraFraming.MaxDepthRatio} budget");
+    }
+
+    /// <summary>正射投影の深度は線形なので near を遠ざける理由がない。手前を切らないことを固定する。</summary>
+    [Fact]
+    public void GetProjection_Orthographic_KeepsTheBaseNearPlane(){
+        SceneViewState State=new(){
+            FocusDistance=500f,LastKnownBoundsRadius=400f,OrthographicSize=20f,
+            ProjectionMode=SceneProjectionMode.Orthographic };
+
+        Matrix4x4 Projection=State.GetProjection(1.6f);
+
+        // CreateOrthographic: M33=1/(near-far)、M43=near/(near-far)。
+        float Near=Projection.M43/Projection.M33;
+        Assert.Equal(SceneCameraFraming.BaseNearPlane,Near,Precision);
+    }
+
     [Fact]
     public void Fly_LookOnly_KeepsEyeFixed_WhileYawPitchChange(){
         SceneViewState State=new(){ FocusPosition=new Vector3(1f,2f,3f),FocusDistance=5f,Yaw=0.2f,Pitch=0.1f };

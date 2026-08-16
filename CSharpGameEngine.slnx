@@ -8,6 +8,7 @@
     <File Path="Docs/Implementation-Status.md" />
     <File Path="Docs/Conformance.md" />
     <File Path="Docs/Implement-AoS-SoA-Entity-SourceGenerator-Prompt.md" />
+    <File Path="Docs/シーンエディタの仕様.md" />
   </Folder>
   <Folder Name="/Docs/Architecture/">
     <File Path="Docs/Architecture.md" />
@@ -16,6 +17,7 @@
     <File Path="Docs/Specifications/Generated-Entity-Storage.md" />
     <File Path="Docs/Specifications/Spatial-RUF.md" />
     <File Path="Docs/Specifications/Ecs-Soa-Systems.md" />
+    <File Path="Docs/Specifications/Scene-Editor-Design.md" />
   </Folder>
   <Folder Name="/Docs/Decisions/">
     <File Path="Docs/Decisions/ADR-0001-Layered-Architecture.md" />
@@ -54,6 +56,12 @@
     <File Path="Docs/Decisions/ADR-0034-Project-Consolidation.md" />
     <File Path="Docs/Decisions/ADR-0035-Generated-Entry-Point-And-Engine-Objects-As-Components.md" />
     <File Path="Docs/Decisions/ADR-0036-System-Order-Attribute.md" />
+    <File Path="Docs/Decisions/ADR-0038-Startup-Scene-Declarative-Api.md" />
+    <File Path="Docs/Decisions/ADR-0039-Audio-Backend-Abstraction.md" />
+    <File Path="Docs/Decisions/ADR-0040-CSharp-Scene-DSL-and-Bidirectional-Editor.md" />
+    <File Path="Docs/Decisions/ADR-0041-Scene-Editor-Interaction-Architecture.md" />
+    <File Path="Docs/Decisions/ADR-0042-Scene-Editor-Gizmo-Axis-Handedness.md" />
+    <File Path="Docs/Decisions/ADR-0043-Scene-Editor-Light-Component-Vocabulary.md" />
   </Folder>
   <Folder Name="/Docs/Milestones/">
     <File Path="Docs/Milestones/M0001-CodeAnalysis-Foundation.md" />
@@ -72,6 +80,11 @@
     <File Path="Docs/Milestones/M0014-Project-Consolidation.md" />
     <File Path="Docs/Milestones/M0015-Generated-Entry-Point.md" />
     <File Path="Docs/Milestones/M0016-System-Order-Attribute.md" />
+    <File Path="Docs/Milestones/M0017-Startup-Scene-Declarative-Api.md" />
+    <File Path="Docs/Milestones/M0018-Audio-Backend-Abstraction.md" />
+    <File Path="Docs/Milestones/M0019-CSharp-Scene-DSL.md" />
+    <File Path="Docs/Milestones/M0020-Scene-Editor-Interaction.md" />
+    <File Path="Docs/Milestones/M0030-SceneView-Gizmo-Transform-Editing.md" />
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />

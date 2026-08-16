@@ -1621,3 +1621,31 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - **Matches(code review)**: RuntimeのTransform/StaticMesh/PrimitiveMesh/CameraおよびUserEcsProjectのScene-addable structは`SceneComponentIconAttribute`で宣言プロジェクトのSVGを参照する。PNGも同じ検証済み相対パスで利用でき、無効/欠落/metadataは既定アイコンへ戻る。
 - **Matches(code review)**: HierarchyとC# glyph marginの画像は`SceneVisualIcon`へ集約し、TreeViewのFontSizeからアイコン/インデントを算出するため、Solution Explorerの文字サイズ変更に追従する。
 - Evidence: `SceneSourceEditorTests` 22/22、component icon関連テスト20/20、VS extension Debug/Release tests 431/431、Entities Debug/Release tests 42/42。構造編集のExperimental Instance目視は未再確認。
+
+## 2026-08-16 M0030: ギズモTransform編集の受け入れ監査と深度精度(残課題R1)
+
+- **ObsoleteSpecification(依頼仕様 §1〜§7)**: 「シーンビューにギズモを表示し、ドラッグで位置変更し、
+  C#ソースへ1 Undoで反映する」という新規実装依頼を受けたが、最終コードを調査した結果、当該機能は
+  M0020 Phase 3〜7で実装済みだった(`TransformGizmo`/`TransformGizmoPhase4`/`EditTransactionController`/
+  `SceneEditConflictMerger`/`SceneSourceEditor`/`SceneTextBufferWriter`)。依頼仕様の§4 Must 6項目と
+  §5 Should 4項目は既存実装で充足しており、再実装は行っていない。対応表は
+  [[M0030-SceneView-Gizmo-Transform-Editing]]の「監査結果」節。
+- **Mismatch → 解消(依頼仕様 §6 データモデル)**: 依頼仕様は`HierarchyEditKind.TranslateNode`と
+  `SceneTransformEdit`の新設を求めていたが、`HierarchyEditKind`は構造編集専用であり、Transform値編集は
+  `EditTransactionController`→`SceneTransformChange`→`SetTransformOperation`の別経路が正である。
+  提案どおり実装すると「値の書き戻し」が2系統になりADR-0041と衝突するため、**仕様側を現行実装へ
+  合わせる**判断を行い、その理由をMilestone文書へ記録した。
+- **Matches(code review + test)**: 依頼仕様§8の失敗時ハンドリング5項目(対象ノード消失/解析失敗/
+  バッファ不在/例外のActivityLog記録/ドラッグイベント重畳)は既存実装で満たされていた。ただし
+  失敗経路を固定するテストが存在しなかったため、`SceneEditConflictMergerTests`(新規6件)、
+  `EditTransactionControllerTests`(+2件)、`SceneInputStateMachineTests`(+1件)を追加した。
+- **Mismatch → 解消(M0020残課題R1: 深度精度)**: near 0.05固定と`far = max(FocusDistance*20,
+  BoundsRadius*20)`の組み合わせで、実ステージ規模のnear:far比が20000:1を超えていた。
+  `SceneCameraFraming.ComputeNearPlane`で`Near = max(0.05, Far/10000)`のfar連動式へ変更し、
+  `SceneViewState`側の`NearPlane`二重定義を削除した。正射投影は深度が線形なので比率調整の対象外。
+  深度バッファは`D32_Float`。実ステージ規模でnearは0.8〜1.0となり、M0020が挙げた推奨レンジに入る。
+- **Unknown(実機Observed)**: Z-fightingの消失、および near を上げたことで手前が不自然にクリップ
+  されないことのExperimental Instance目視は**未実施**。M0020 Phase 0〜7の目視も未実施のまま引き継ぐ。
+- Evidence: `SceneEditConflictMergerTests` 6/6、`SceneCameraFramingTests`/`SceneViewStateTests` 50/50、
+  VS extension tests 448/448(M0020完了時431から+17)、ソリューション全体 942/942。
+  変異テストで各追加テストが本体の破壊を検出することを確認済み(詳細はMilestone文書)。

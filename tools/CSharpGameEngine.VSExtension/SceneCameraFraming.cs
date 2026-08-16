@@ -32,9 +32,30 @@ internal static class SceneCameraFraming {
     /// <summary>境界球が視野の縁に触れない余裕。</summary>
     private const float FramingSafetyMargin=1.1f;
 
-    private const float NearPlane=0.05f;
+    /// <summary>
+    /// near 平面の下限。M0020 Phase 0 までは 0.05 の固定値だったが、実ステージ半径では far が
+    /// 数百〜千まで伸びるため near:far が 20000:1 に達し、壁/床/Sky dome の境界が Z-fighting した
+    /// (M0020 残課題 R1)。以後は <see cref="ComputeNearPlane"/> で far に対する比率として決める。
+    /// </summary>
+    internal const float BaseNearPlane=0.05f;
+
+    /// <summary>
+    /// 透視投影で許容する far/near 比の上限。深度バッファは <c>D32_Float</c>(<see cref="SceneRenderer"/>)
+    /// なので 24bit UNORM より余裕があり、10000:1 で 1/z 分布は破綻しない。この値だと実ステージ規模
+    /// (far 8000〜10000)で near が 0.8〜1.0 になり、M0020 残課題 R1 が挙げた推奨値 0.5〜1.0 に収まる。
+    /// 小さいシーンでは <see cref="BaseNearPlane"/> が優先されるので、near が不要に遠のいて
+    /// 手前が切れることはない。
+    /// </summary>
+    internal const float MaxDepthRatio=10000f;
 
     private const float FarPlaneRadiusFactor=20f;
+
+    /// <summary>
+    /// 透視投影専用。正射投影の深度は線形なので比率調整は不要(かつ手前を無駄に切るので有害)であり、
+    /// <see cref="BaseNearPlane"/> をそのまま使う。
+    /// </summary>
+    internal static float ComputeNearPlane(float FarPlane)=>
+        Math.Max(BaseNearPlane,FarPlane/MaxDepthRatio);
 
     private const float MinimumRadius=0.001f;
 
@@ -131,20 +152,21 @@ internal static class SceneCameraFraming {
     }
 
     /// <summary>
-    /// near/far は M0020 Phase 0 までの値(0.05 / Radius*20)を維持する。<c>Camera.CreateBoundsFit</c> の
+    /// far は M0020 Phase 0 までの値(Radius*20)を維持する。<c>Camera.CreateBoundsFit</c> の
     /// <c>far = Distance + 4*Radius</c> では、自動フレーミング半径から意図的に除外している Sky dome
     /// (<c>IncludeInBounds=false</c>、Scale=400)がクリップされてしまう。far を FocusDistance から
-    /// 再計算するのは Phase 1 の仕事。
+    /// 再計算するのは Phase 1 の仕事。near は M0030 で <see cref="ComputeNearPlane"/> による
+    /// far 連動へ変えた(残課題 R1)。
     /// </summary>
     internal static Matrix4x4 CreateProjection(float BoundsRadius,float FovYRadians,float AspectRatio){
         var Radius=Math.Max(BoundsRadius,MinimumRadius);
         // ComputeBounds は半径を 1f で床打ちするので実経路では far=20 以上になるが、退化した半径を
         // 直接渡された場合に far が near を下回ると CreatePerspectiveFieldOfView が例外を投げる。
-        var FarPlane=Math.Max(Radius*FarPlaneRadiusFactor,NearPlane*2f);
+        var FarPlane=Math.Max(Radius*FarPlaneRadiusFactor,BaseNearPlane*2f);
         return Matrix4x4.CreatePerspectiveFieldOfView(
             Math.Max(FovYRadians,MinimumRadius),
             Math.Max(AspectRatio,MinimumRadius),
-            NearPlane,
+            ComputeNearPlane(FarPlane),
             FarPlane);
     }
 

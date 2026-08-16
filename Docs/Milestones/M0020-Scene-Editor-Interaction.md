@@ -557,6 +557,13 @@ Visual Studio UndoのObservedは次表の実機確認まで**Unknown**。
   `SceneCameraFraming.NearPlane`定数を0.5〜1.0へ上げること(視点は数十単位先なので視覚的損失ゼロ、
   ユニットテスト済みヘルパー内の定数1つ)。**Phase 0 は「直ったが汚い」をTransform修正のせいだと
   誤診しないため、この確認を検証項目8として明示している。**
+  **(2026-08-16 解消 — [[M0030-SceneView-Gizmo-Transform-Editing]] T2)** 定数を上げる代わりに
+  `Near = max(0.05, Far/10000)`のfar連動式(`SceneCameraFraming.ComputeNearPlane`)へ変更した。
+  実ステージ規模では near が 0.8〜1.0 になり上記の推奨レンジに一致し、小さいシーンでは 0.05 の
+  ままなので手前が切れない。併せて`SceneViewState`側にあった`NearPlane=0.05f`の**二重定義を削除**した
+  (ドラッグ中に実際に使われるのは`SceneViewState.GetProjection`のほうで、定数を分けたままだと
+  片方だけ直る事故になる)。正射投影は深度が線形なので比率調整の対象外。回帰テストは
+  `SceneCameraFramingTests`/`SceneViewStateTests`に8件。**実機での目視確認は未実施のまま。**
 - **(2026-08 解消)** アスペクト比 < 1(縦長ウィンドウ)では水平FOVが縦より狭くなり境界球が横に
   はみ出す既知の逸脱。`SceneCameraFraming.ComputeEffectiveFovRadians`として
   `min(FovY, 2*atan(tan(FovY/2)*aspect))`を実装し、距離計算にこれを使うようにした(投影行列には

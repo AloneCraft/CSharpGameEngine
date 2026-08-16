@@ -352,6 +352,33 @@ public sealed class SceneInputStateMachineTests {
         Assert.Equal(SceneCaptureAction.End,Result.Capture);
     }
 
+    /// <summary>
+    /// M0030 監査 §8「複数ドラッグイベント重畳: 最後の確定イベントのみ採用」。ドラッグ中の追加 Down は
+    /// 掴み直しにならず、Up で確定した後の重複 Up も2度目の commit を出さない。これが崩れると
+    /// <c>EditTransactionController</c>が Committing 状態で再 Begin され例外になる。
+    /// </summary>
+    [Fact]
+    public void GizmoDragging_RedundantDownAndUpEvents_CommitExactlyOnce(){
+        SceneInputStateMachine Machine=new();
+        Machine.Handle(Down(PointerButton.Left,0,0),HitGizmoHandle:GizmoHandleId.AxisX);
+
+        SceneInputStepResult SecondDown=Machine.Handle(
+            Down(PointerButton.Left,3,3),HitGizmoHandle:GizmoHandleId.AxisY);
+
+        Assert.Equal(SceneNavState.GizmoDragging,SecondDown.State);
+        Assert.False(SecondDown.GizmoDragBegan);
+        Assert.Equal(SceneCaptureAction.None,SecondDown.Capture);
+
+        SceneInputStepResult FirstUp=Machine.Handle(Up(PointerButton.Left,9,9));
+        SceneInputStepResult SecondUp=Machine.Handle(Up(PointerButton.Left,9,9));
+
+        Assert.True(FirstUp.GizmoCommitRequested);
+        Assert.Equal(GizmoHandleId.AxisX,FirstUp.GizmoHandle);
+        Assert.Equal(SceneNavState.Idle,SecondUp.State);
+        Assert.False(SecondUp.GizmoCommitRequested);
+        Assert.False(SecondUp.GizmoDragBegan);
+    }
+
     [Fact]
     public void Wheel_WhileFlying_ReportsAdjustSpeedNotNavigationDistance(){
         SceneInputStateMachine Machine=new();

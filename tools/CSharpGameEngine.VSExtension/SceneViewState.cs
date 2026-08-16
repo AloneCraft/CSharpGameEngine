@@ -61,7 +61,8 @@ internal sealed class SceneViewState {
     internal bool InvertOrbitX;
     internal bool InvertOrbitY;
 
-    private const float NearPlane=0.05f;
+    // near は SceneCameraFraming と同じ式を使う(M0030 で R1 対策として far 連動へ変更。
+    // 定数を二重定義すると片方だけ直る事故になるため、値も式も向こうを唯一の出所にする)。
     private const float FarDistanceFactor=20f;
 
     // SceneCameraFramingと同値のフロア(Sky dome保護、Phase 0踏襲)。
@@ -128,10 +129,15 @@ internal sealed class SceneViewState {
 
     internal Matrix4x4 GetProjection(float AspectRatio){
         float SafeAspect=Math.Max(AspectRatio,0.001f);
-        float Far=Math.Max(FocusDistance*FarDistanceFactor,LastKnownBoundsRadius*FarPlaneRadiusFactor);
+        float Far=Math.Max(
+            Math.Max(FocusDistance*FarDistanceFactor,LastKnownBoundsRadius*FarPlaneRadiusFactor),
+            SceneCameraFraming.BaseNearPlane*2f);
+        // 正射投影の深度は線形なので比率調整は要らない。透視だけ far 連動の near にする。
         return ProjectionMode==SceneProjectionMode.Orthographic
-            ?Matrix4x4.CreateOrthographic(OrthographicSize*2f*SafeAspect,OrthographicSize*2f,NearPlane,Far)
-            :SceneViewCamera.GetProjection(FovYRadians,SafeAspect,NearPlane,Far);
+            ?Matrix4x4.CreateOrthographic(
+                OrthographicSize*2f*SafeAspect,OrthographicSize*2f,SceneCameraFraming.BaseNearPlane,Far)
+            :SceneViewCamera.GetProjection(
+                FovYRadians,SafeAspect,SceneCameraFraming.ComputeNearPlane(Far),Far);
     }
 
     /// <summary>
