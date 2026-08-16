@@ -32,4 +32,8 @@
     <None Include="..\assets\Shaders\Stage.hlsl" Link="Shaders\Stage.hlsl" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+
+  <ItemGroup>
+    <Compile Remove="../src/CSharpGameEngine.Entities/SceneComponentIconAttribute.cs" />
+  </ItemGroup>
 </Project>

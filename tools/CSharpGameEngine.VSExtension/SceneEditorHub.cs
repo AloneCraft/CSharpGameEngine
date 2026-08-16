@@ -20,6 +20,20 @@ namespace CSharpGameEngine.VSExtension;
 /// <see cref="SceneEditorSessionService"/> の <see cref="SceneDocumentSnapshot"/> から対象を解決する。
 /// </para>
 /// </summary>
+internal enum HierarchyEditKind {
+    AddChild,
+    Rename,
+    Remove,
+    Reparent,
+    Reorder,
+}
+
+internal sealed record HierarchyEditRequest(
+    HierarchyEditKind Kind,
+    IReadOnlyList<NodePath> Paths,
+    NodePath?TargetPath=null,
+    int TargetIndex=-1,
+    string?NewName=null);
 internal static class SceneEditorHub {
     /// <summary>Raised whenever the analysed scene changes - including to null, when the active document declares none.</summary>
     public static event Action<SceneModel?>?SceneModelChanged;
@@ -28,6 +42,10 @@ internal static class SceneEditorHub {
     public static event Action<NodePath?>?SelectedNodePathChanged;
     public static event Action<HierarchyNodeSelection>?HierarchySelectionChanged;
     public static event Action<NodePath>?HierarchyNavigationRequested;
+    public static event Action<HierarchyEditRequest>?HierarchyEditRequested;
+
+    internal static void RequestHierarchyEdit(HierarchyEditRequest Request)=>
+        HierarchyEditRequested?.Invoke(Request);
 
     public static SceneModel?ActiveSceneModel { get;private set;}
 

@@ -47,6 +47,21 @@ internal sealed class SceneEditorSessionService : IDisposable {
         return Snapshot;
     }
 
+    internal SceneDocumentSnapshot? GetSnapshotForModel(SceneModel Model){
+        SceneKey?Key=this.Workspace.TryCreateSceneKey(Model);
+        return Key is { } Value?this.Publish(Model,Value):null;
+    }
+
+    internal bool TryCreateSceneKey(SceneModel Model,out SceneKey Key){
+        SceneKey?Candidate=this.Workspace.TryCreateSceneKey(Model);
+        if(Candidate is { } Value){
+            Key=Value;
+            return true;
+        }
+
+        Key=default;
+        return false;
+    }
     internal bool TryGetSnapshot(SceneKey Key,out SceneDocumentSnapshot Snapshot)=>
         this.Snapshots.TryGetValue(Key,out Snapshot!);
 

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using CSharpGameEngine.SceneAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.VisualStudio.Imaging;
@@ -229,18 +230,115 @@ internal static class ProjectIconAssetCatalog {
 /// <summary>Builds a validated visual description for a component, falling back without throwing.</summary>
 internal static class SceneComponentIconResolver {
     internal static SceneVisualIcon Resolve(INamedTypeSymbol Type,string?ProjectDirectory){
-        // Referenced assemblies and metadata do not have an editable project declaration in this
-        // workspace. Even if they happen to contain an attribute whose text matches a local image
-        // path, never let that turn into a project-authored visual: they retain the stable Visual
-        // Studio Component moniker and have no authoring UI.
-        if(!Type.Locations.Any(static Location=>Location.IsInSource)){
+        string?DeclaredPath=SceneComponentIconMetadata.TryGetDeclaredProjectRelativePath(Type);
+        if(DeclaredPath is null){
             return SceneVisualIcon.ComponentDefault();
         }
 
-        string?DeclaredPath=SceneComponentIconMetadata.TryGetDeclaredProjectRelativePath(Type);
-        return ProjectDirectory is not null
-            &&ProjectIconPath.TryResolve(ProjectDirectory,DeclaredPath,out string RelativePath,out string AbsolutePath)
+        string?DeclaringProjectDirectory=SceneComponentProjectLocator.Resolve(Type,ProjectDirectory);
+        return DeclaringProjectDirectory is not null
+            &&ProjectIconPath.TryResolve(DeclaringProjectDirectory,DeclaredPath,out string RelativePath,out string AbsolutePath)
             ?SceneVisualIcon.ProjectAsset(RelativePath,AbsolutePath)
             :SceneVisualIcon.ComponentDefault();
+    }
+}
+
+internal static class SceneComponentProjectLocator {
+    private static readonly Dictionary<string,string?>Cache=new(StringComparer.OrdinalIgnoreCase);
+
+    internal static string? Resolve(INamedTypeSymbol Type,string?FallbackProjectDirectory){
+        Location?SourceLocation=Type.Locations.FirstOrDefault(static Location=>Location.IsInSource);
+        string?SourcePath=SourceLocation?.SourceTree?.FilePath;
+        if(!string.IsNullOrWhiteSpace(SourcePath)){
+            return FindProjectDirectory(SourcePath!);
+        }
+
+        if(SourceLocation is not null){
+            return FallbackProjectDirectory;
+        }
+
+        string AssemblyName=Type.ContainingAssembly?.Name??string.Empty;
+        if(AssemblyName.Length==0||FallbackProjectDirectory is null){
+            return null;
+        }
+
+        string?Root=FindSolutionRoot(FallbackProjectDirectory);
+        string CacheKey=AssemblyName+"|"+(Root??FallbackProjectDirectory);
+        lock(Cache){
+            if(Cache.TryGetValue(CacheKey,out string?Cached)){
+                return Cached;
+            }
+        }
+
+        string?Resolved=Root is null?null:FindProjectByAssemblyName(Root,AssemblyName);
+        lock(Cache){
+            Cache[CacheKey]=Resolved;
+        }
+
+        return Resolved;
+    }
+
+    private static string? FindProjectDirectory(string FilePath){
+        try {
+            DirectoryInfo?Current=Directory.GetParent(FilePath);
+            while(Current is not null){
+                if(Current.EnumerateFiles("*.csproj",SearchOption.TopDirectoryOnly).Any()){
+                    return Current.FullName;
+                }
+
+                Current=Current.Parent;
+            }
+        } catch(IOException){
+        } catch(UnauthorizedAccessException){
+        }
+
+        return null;
+    }
+
+    private static string? FindSolutionRoot(string ProjectDirectory){
+        try {
+            DirectoryInfo?Current=Directory.Exists(ProjectDirectory)
+                ?new DirectoryInfo(ProjectDirectory)
+                :Directory.GetParent(ProjectDirectory);
+            while(Current is not null){
+                if(Current.EnumerateFiles("*.slnx",SearchOption.TopDirectoryOnly).Any()
+                    ||Current.EnumerateFiles("*.sln",SearchOption.TopDirectoryOnly).Any()){
+                    return Current.FullName;
+                }
+
+                Current=Current.Parent;
+            }
+        } catch(IOException){
+        } catch(UnauthorizedAccessException){
+        }
+
+        return null;
+    }
+
+    private static string? FindProjectByAssemblyName(string Root,string AssemblyName){
+        try {
+            foreach(string ProjectFile in Directory.EnumerateFiles(Root,"*.csproj",SearchOption.AllDirectories)){
+                if(ProjectFile.Split(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar)
+                    .Any(static Segment=>string.Equals(Segment,"bin",StringComparison.OrdinalIgnoreCase)
+                        ||string.Equals(Segment,"obj",StringComparison.OrdinalIgnoreCase))){
+                    continue;
+                }
+
+                if(string.Equals(Path.GetFileNameWithoutExtension(ProjectFile),AssemblyName,StringComparison.OrdinalIgnoreCase)){
+                    return Path.GetDirectoryName(ProjectFile);
+                }
+
+                string ProjectText=File.ReadAllText(ProjectFile);
+                Match Match=Regex.Match(ProjectText,@"<AssemblyName>\s*(?<Name>[^<]+?)\s*</AssemblyName>",
+                    RegexOptions.IgnoreCase);
+                if(Match.Success&&string.Equals(Match.Groups["Name"].Value.Trim(),AssemblyName,StringComparison.OrdinalIgnoreCase)){
+                    return Path.GetDirectoryName(ProjectFile);
+                }
+            }
+        } catch(IOException){
+        } catch(UnauthorizedAccessException){
+        }
+
+        return null;
     }
 }

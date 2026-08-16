@@ -28,6 +28,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\CSharpGameEngine.Core\CSharpGameEngine.Core.csproj" />
+    <Compile Include="..\CSharpGameEngine.Entities\SceneComponentIconAttribute.cs" Link="Entities\SceneComponentIconAttribute.cs" />
   </ItemGroup>
 
   <!--

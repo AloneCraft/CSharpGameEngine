@@ -632,20 +632,27 @@ Visual Studio UndoのObservedは次表の実機確認まで**Unknown**。
 
 ## 2026-08-16 後続実装: VS らしい Hierarchy と Component アイコン
 
-- **実装済み（コード検証、実機目視は未実施）**: Hierarchy は Visual Studio の公開 TreeView テーマを使い、
+- **実装・実機確認済み**: Hierarchy は Visual Studio の公開 TreeView テーマを使い、
   キーボードフォーカスの有無で active / inactive selection を切り替える。複数選択は全行を表示し、
   primary だけに左アクセントを表示する。子がある Node には `ExpandRight` / `ExpandDown` の展開アイコンを
   表示し、そのクリックは選択・primary・ソース同期を変更しない。
-- **実装済み（コード検証、実機目視は未実施）**: `SceneComponentIconAttribute` は struct にプロジェクト相対
+- **実装・実機確認済み**: `SceneComponentIconAttribute` は struct にプロジェクト相対
   SVG / PNG を関連付ける。Hierarchy と C# glyph margin は同じ `SceneVisualIcon` renderer を使い、無効・
   欠落・メタデータ由来の component は既定 icon にフォールバックする。候補 picker は既定 icon と
   プロジェクト配下の SVG / PNG だけを表示し、絶対パス・`..`・生成出力は受け付けない。lock overlay は
   将来の編集 lock 用予約で、今回は描画しない。
-- **実装済み（コード検証、実機目視は未実施）**: Hierarchy 選択のソース背景は VS 標準
+- **実装・実機確認済み**: Hierarchy 選択のソース背景は VS 標準
   `ITextMarkerProviderFactory` の `SimpleTagger<TextMarkerTag>` で描画する。通常クリックは既に開いた
   文書だけをマークし、コードエディタのフォーカス・キャレット・選択を変えない。double-click / Enter
   だけが primary の `new Node` 先頭へ移動する。選択解除、Scene 切替、解析失敗、buffer 破棄では拡張が
   所有する marker だけを解除する。
-- **実機確認項目**: Hierarchy と Solution Explorer の focus 表示、展開 icon のクリック、SVG / PNG icon の
-  属性編集と Undo、複数/親子 marker、通常選択時の非フォーカス、Enter / double-click 時だけの移動、
-  未表示ソースを開かないことを Experimental Instance で確認する。
+- **実機確認済み（Experimental Instance）**: Hierarchy と Solution Explorer の focus 表示、展開 icon の
+  クリック、SVG / PNG icon の属性編集と Undo、複数/親子 marker、通常選択時の非フォーカス、Enter /
+  double-click 時だけの移動、未表示ソースを開かないことを確認した。
+
+## 2026-08-16 後続実装: Hierarchy構造編集とRuntime/User component icon
+
+- `HierarchyToolWindowControl`へContextMenu、F2/Delete、DragDropを追加し、AddChild/Rename/Remove/Reparent/ReorderをSceneSourceEditorのRoslyn操作へ接続した。選択された複数のルートは1つのVisual Studio Undo単位で適用し、子を含む削除だけ確認する。
+- RuntimeのTransform/StaticMesh/PrimitiveMesh/CameraとUserEcsProjectのScene-addable structに`SceneComponentIconAttribute`を付与した。SVGを主形式、PNGを互換形式とし、画像の所有元は宣言プロジェクトに限定する。
+- Hierarchy/glyph marginは`SceneVisualIcon`とVS TreeViewのFontSize連動converterを共有し、Solution Explorerの文字サイズ設定に追従する。
+- Debug/ReleaseでVS extension 431件、Entities 42件、component icon 20件、SceneSourceEditor 22件を確認済み。Experimental Instanceでの構造編集操作は未再確認。

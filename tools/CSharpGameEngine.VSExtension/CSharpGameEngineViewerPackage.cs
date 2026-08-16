@@ -78,6 +78,7 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             SourceMarkerService=SceneSourceMarkerService.Start();
             SceneEditorHub.HierarchySelectionChanged+=this.OnHierarchySelectionChanged;
             SceneEditorHub.HierarchyNavigationRequested+=this.OnHierarchyNavigationRequested;
+            SceneEditorHub.HierarchyEditRequested+=this.OnHierarchyEditRequested;
             SceneEditorHub.SceneModelChanged+=this.OnSceneModelChangedForSourceMarkers;
             SceneSession.Selection.SelectionChanged+=this.OnSelectionChangedForHierarchy;
             SceneWorkspace.ModelChanged+=SceneEditorHub.PublishSceneModel;
@@ -156,6 +157,106 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
     /// Hierarchy は段階移行中のため NodePath を発行しているので、Package境界で一度だけ session ID に
     /// 解決します。Viewport/Inspectorはこの後の共通Selectionだけを購読し、static Hubを読みません。
     /// </summary>
+    private void OnHierarchyEditRequested(HierarchyEditRequest Request)=>
+        _=this.JoinableTaskFactory.RunAsync(()=>this.HandleHierarchyEditAsync(Request));
+
+    private async Task HandleHierarchyEditAsync(HierarchyEditRequest Request){
+        await this.JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
+        if(this.SceneSession is not { } Session||SceneEditorHub.ActiveSceneModel is not { } Model){
+            return;
+        }
+
+        SceneDocumentSnapshot?Snapshot=Session.GetSnapshotForModel(Model);
+        if(Snapshot is null||Snapshot.Projection is not { } Projection){
+            return;
+        }
+
+        IReadOnlyList<NodePath>Roots=SelectHierarchyRoots(Request.Paths);
+        List<SceneEditOperation>Operations=[];
+        switch(Request.Kind){
+            case HierarchyEditKind.AddChild:
+                foreach(NodePath Path in Roots){
+                    if(Projection.TryGetId(Path,out EditorNodeId ParentId)){
+                        Operations.Add(new AddNodeOperation(
+                            Snapshot.Key,ParentId,Snapshot.DocumentVersion,"Node"));
+                    }
+                }
+                break;
+            case HierarchyEditKind.Rename:
+                string?RequestedName=Request.NewName;
+                if(Request.Paths.FirstOrDefault() is { } RenamePath
+                    &&Projection.TryGetId(RenamePath,out EditorNodeId RenameId)
+                    &&!string.IsNullOrWhiteSpace(RequestedName)){
+                    Operations.Add(new RenameNodeOperation(
+                        Snapshot.Key,RenameId,Snapshot.DocumentVersion,RequestedName!.Trim()));
+                }
+                break;
+            case HierarchyEditKind.Remove:
+                foreach(NodePath Path in Roots){
+                    if(Projection.TryGetId(Path,out EditorNodeId RemoveId)){
+                        Operations.Add(new RemoveNodeOperation(
+                            Snapshot.Key,RemoveId,Snapshot.DocumentVersion));
+                    }
+                }
+                break;
+            case HierarchyEditKind.Reparent:
+                if(Request.TargetPath is not { } TargetPath
+                    ||!Projection.TryGetId(TargetPath,out EditorNodeId TargetId)
+                    ||Roots.Any(Path=>Path.Equals(TargetPath)||TargetPath.IsDescendantOf(Path))){
+                    return;
+                }
+
+                var ReparentIndex=Math.Max(0,Request.TargetIndex);
+                foreach(NodePath Path in Roots.OrderBy(static Path=>Path.ToDisplayString(),StringComparer.Ordinal)){
+                    if(Projection.TryGetId(Path,out EditorNodeId MoveId)){
+                        Operations.Add(new ReparentNodeOperation(
+                            Snapshot.Key,MoveId,Snapshot.DocumentVersion,TargetId,ReparentIndex++));
+                    }
+                }
+                break;
+            case HierarchyEditKind.Reorder:
+                if(Request.Paths.FirstOrDefault() is { } ReorderPath
+                    &&Projection.TryGetId(ReorderPath,out EditorNodeId ReorderId)){
+                    Operations.Add(new ReorderNodeOperation(
+                        Snapshot.Key,ReorderId,Snapshot.DocumentVersion,Math.Max(0,Request.TargetIndex)));
+                }
+                break;
+        }
+
+        if(Operations.Count==0){
+            return;
+        }
+
+        SceneEditCommitRequest CommitRequest=new(
+            Snapshot.Key,Snapshot.DocumentVersion,
+            Request.Kind switch {
+                HierarchyEditKind.AddChild=>"Add child",
+                HierarchyEditKind.Rename=>"Rename node",
+                HierarchyEditKind.Remove=>"Remove node",
+                HierarchyEditKind.Reparent=>"Reparent node",
+                HierarchyEditKind.Reorder=>"Reorder node",
+                _=>"Edit scene hierarchy",
+            },
+            Array.Empty<SceneTransformChange>(),SceneTransformMemberMask.None,
+            DirectOperations:Operations);
+        SceneEditCommitResult Result=await Session.CommitAsync(CommitRequest,DisposalToken);
+        if(!Result.Succeeded){
+            ActivityLog.LogError(nameof(CSharpGameEngineViewerPackage),Result.ErrorMessage??"Scene hierarchy edit failed.");
+        }
+    }
+
+    private static IReadOnlyList<NodePath> SelectHierarchyRoots(IReadOnlyList<NodePath>Paths){
+        List<NodePath>Roots=[];
+        foreach(NodePath Path in Paths.OrderBy(static Value=>Value.Depth)){
+            if(Roots.Any(Root=>Path.Equals(Root)||Path.IsDescendantOf(Root))){
+                continue;
+            }
+
+            Roots.Add(Path);
+        }
+
+        return Roots;
+    }
     private void OnHierarchySelectionChanged(HierarchyNodeSelection Selection){
         ThreadHelper.ThrowIfNotOnUIThread();
         this.SourceMarkerService?.Update(SceneEditorHub.ActiveSceneModel,Selection.Paths);
@@ -290,6 +391,7 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
 
             SceneEditorHub.HierarchySelectionChanged-=this.OnHierarchySelectionChanged;
             SceneEditorHub.HierarchyNavigationRequested-=this.OnHierarchyNavigationRequested;
+            SceneEditorHub.HierarchyEditRequested-=this.OnHierarchyEditRequested;
             SceneEditorHub.SceneModelChanged-=this.OnSceneModelChangedForSourceMarkers;
             SourceMarkerService?.Dispose();
             SourceMarkerService=null;

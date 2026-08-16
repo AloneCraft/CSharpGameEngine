@@ -18,6 +18,11 @@
             supplies the additional multi-selection and primary-row semantics that WPF TreeView
             does not provide on its own.
         -->
+        <local:HierarchyIconSizeConverter x:Key="HierarchyIconSizeConverter" />
+        <local:HierarchyIndentSizeConverter x:Key="HierarchyIndentSizeConverter" />
+        <local:HierarchyIndentThicknessConverter x:Key="HierarchyIndentThicknessConverter" />
+        <local:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" />
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <Style x:Key="HierarchyTreeViewItemStyle"
                TargetType="{x:Type TreeViewItem}"
                BasedOn="{StaticResource {x:Static vsshell:VsResourceKeys.ThemedDialogTreeViewItemStyleKey}}">
@@ -39,7 +44,7 @@
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="2" />
-                                        <ColumnDefinition Width="18" />
+                                        <ColumnDefinition Width="{Binding FontSize, RelativeSource={RelativeSource AncestorType={x:Type TreeView}}, Converter={StaticResource HierarchyIndentSizeConverter}}" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
 
@@ -52,7 +57,7 @@
                                          preview mouse handler lets this control handle its own click so
                                          expanding a node cannot alter the hierarchy selection. -->
                                     <ToggleButton x:Name="ExpanderToggle" Grid.Column="1"
-                                                  Width="16" Height="16" Margin="1,0,1,0"
+                                                  Width="{Binding FontSize, RelativeSource={RelativeSource AncestorType={x:Type TreeView}}, Converter={StaticResource HierarchyIconSizeConverter}}" Height="{Binding FontSize, RelativeSource={RelativeSource AncestorType={x:Type TreeView}}, Converter={StaticResource HierarchyIconSizeConverter}}" Margin="1,0,1,0"
                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
                                                   Focusable="False" Background="Transparent" BorderThickness="0"
                                                   IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
@@ -60,9 +65,9 @@
                                         <ToggleButton.Template>
                                             <ControlTemplate TargetType="{x:Type ToggleButton}">
                                                 <Grid Background="Transparent">
-                                                    <imaging:CrispImage x:Name="CollapsedGlyph" Width="16" Height="16"
+                                                    <imaging:CrispImage x:Name="CollapsedGlyph" Width="{Binding FontSize, RelativeSource={RelativeSource AncestorType={x:Type TreeView}}, Converter={StaticResource HierarchyIconSizeConverter}}" Height="{Binding FontSize, RelativeSource={RelativeSource AncestorType={x:Type TreeView}}, Converter={StaticResource HierarchyIconSizeConverter}}"
                                                                         Moniker="{x:Static imageCatalog:KnownMonikers.ExpandRight}" />
-                                                    <imaging:CrispImage x:Name="ExpandedGlyph" Width="16" Height="16"
+                                                    <imaging:CrispImage x:Name="ExpandedGlyph" Width="{Binding FontSize, RelativeSource={RelativeSource AncestorType={x:Type TreeView}}, Converter={StaticResource HierarchyIconSizeConverter}}" Height="{Binding FontSize, RelativeSource={RelativeSource AncestorType={x:Type TreeView}}, Converter={StaticResource HierarchyIconSizeConverter}}"
                                                                         Visibility="Collapsed"
                                                                         Moniker="{x:Static imageCatalog:KnownMonikers.ExpandDown}" />
                                                 </Grid>
@@ -83,7 +88,8 @@
 
                             <!-- Each nested item contributes this same indentation, matching a standard
                                  TreeView while retaining our explicit Visual Studio image expander. -->
-                            <ItemsPresenter x:Name="ItemsHost" Grid.Row="1" Margin="18,0,0,0" />
+                            <ItemsPresenter x:Name="ItemsHost" Grid.Row="1"
+                                          Margin="{Binding FontSize, RelativeSource={RelativeSource AncestorType={x:Type TreeView}}, Converter={StaticResource HierarchyIndentThicknessConverter}}" />
                         </Grid>
 
                         <ControlTemplate.Triggers>
@@ -144,6 +150,9 @@
         <TreeView x:Name="Tree" Grid.Row="1" SelectedItemChanged="Tree_SelectedItemChanged"
                   PreviewMouseLeftButtonDown="Tree_PreviewMouseLeftButtonDown"
                   PreviewKeyDown="Tree_PreviewKeyDown"
+                  PreviewMouseRightButtonDown="Tree_PreviewMouseRightButtonDown"
+                  PreviewMouseMove="Tree_PreviewMouseMove"
+                  AllowDrop="True" DragOver="Tree_DragOver" Drop="Tree_Drop"
                   Style="{StaticResource {x:Static vsshell:VsResourceKeys.ThemedDialogTreeViewStyleKey}}"
                   Background="Transparent" BorderThickness="0">
             <TreeView.ItemContainerStyle>
@@ -151,30 +160,36 @@
             </TreeView.ItemContainerStyle>
             <TreeView.ItemTemplate>
                 <HierarchicalDataTemplate ItemsSource="{Binding Children}">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <imaging:CrispImage Width="16" Height="16" Margin="0,0,4,0"
-                                            Moniker="{Binding NodeMoniker}" />
-                        <!-- All component icons remain visible in declaration order. Project SVG/PNG
-                             assets use the same cached renderer as the source glyph margin; other
-                             components use the VS Component moniker. -->
-                        <ItemsControl ItemsSource="{Binding ComponentIcons}" Margin="0,0,4,0">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <StackPanel Orientation="Horizontal" />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <local:SceneVisualIconPresenter Icon="{Binding}" IconSize="16"
-                                                                     Margin="0,0,2,0" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                        <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding ComponentSummary}" Margin="8,0,0,0"
-                                   VerticalAlignment="Center"
-                                   Foreground="{DynamicResource {x:Static vsshell:VsBrushes.GrayTextKey}}" />
-                    </StackPanel>
+                                        <Grid VerticalAlignment="Center">
+                        <StackPanel x:Name="DisplayPanel" Orientation="Horizontal" VerticalAlignment="Center"
+                                    Visibility="{Binding IsRenaming, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                            <imaging:CrispImage Width="{Binding FontSize, RelativeSource={RelativeSource AncestorType={x:Type TreeView}}, Converter={StaticResource HierarchyIconSizeConverter}}"
+                                                Height="{Binding FontSize, RelativeSource={RelativeSource AncestorType={x:Type TreeView}}, Converter={StaticResource HierarchyIconSizeConverter}}"
+                                                Margin="0,0,4,0" Moniker="{Binding NodeMoniker}" />
+                            <ItemsControl ItemsSource="{Binding ComponentIcons}" Margin="0,0,4,0">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <local:SceneVisualIconPresenter Icon="{Binding}"
+                                            IconSize="{Binding FontSize, RelativeSource={RelativeSource AncestorType={x:Type TreeView}}, Converter={StaticResource HierarchyIconSizeConverter}}"
+                                            Margin="0,0,2,0" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding ComponentSummary}" Margin="8,0,0,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource {x:Static vsshell:VsBrushes.GrayTextKey}}" />
+                        </StackPanel>
+                        <TextBox x:Name="RenameBox" MinWidth="120" Padding="2,0"
+                                 Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}"
+                                 Visibility="{Binding IsRenaming, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                 KeyDown="RenameBox_KeyDown" LostFocus="RenameBox_LostFocus" />
+                    </Grid>
                 </HierarchicalDataTemplate>
             </TreeView.ItemTemplate>
         </TreeView>

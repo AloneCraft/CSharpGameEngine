@@ -1,3 +1,4 @@
+using CSharpGameEngine.Entities;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Platform.Windows;
 using RenderCamera=CSharpGameEngine.Graphics.D3D12.Camera;
@@ -25,6 +26,7 @@ namespace UserEcsProject;
 /// <summary>
 /// アプリケーション本体。ウィンドウの設定値と、WindowSystemが遅延生成したウィンドウ実体を持つ。
 /// </summary>
+[SceneComponentIcon("Assets/Editor/ComponentIcons/AppHost.svg")]
 public struct AppHost {
     public string Title;
     public int Width;
@@ -44,6 +46,7 @@ public struct AppHost {
 /// 入っているものを読むだけで、リテラルを1つも持たない。
 /// </para>
 /// </summary>
+[SceneComponentIcon("Assets/Editor/ComponentIcons/Level.svg")]
 public struct Level {
     /// <summary>FBXのパス。アプリのベースディレクトリ(<c>AppContext.BaseDirectory</c>)からの相対。</summary>
     public string Path;
@@ -87,6 +90,7 @@ public struct Level {
 }
 
 /// <summary>SkyLightをStageRendererの単純な環境光へ写像した宣言Component。</summary>
+[SceneComponentIcon("Assets/Editor/ComponentIcons/AmbientLight.svg")]
 public struct AmbientLight {
     public float ColorR;
     public float ColorG;
@@ -96,6 +100,7 @@ public struct AmbientLight {
 }
 
 /// <summary>UEのExponentialHeightFogから取り込む単純な指数高さFog。</summary>
+[SceneComponentIcon("Assets/Editor/ComponentIcons/HeightFog.svg")]
 public struct HeightFog {
     public float Density;
     public float HeightFalloff;
@@ -106,6 +111,7 @@ public struct HeightFog {
 }
 
 /// <summary>実行時の初期一人称カメラ位置と向きを宣言する。</summary>
+[SceneComponentIcon("Assets/Editor/ComponentIcons/PlayerStart.svg")]
 public struct PlayerStart {
     public float YawRadians;
     public float PitchRadians;
@@ -118,6 +124,7 @@ public struct PlayerStart {
 /// 距離減衰を実装する場合は、両者を同一Entityにまとめるか、値を毎フレームコピーする別の仕組みが要る
 /// (ADR-0039「既知の制約」参照)。
 /// </summary>
+[SceneComponentIcon("Assets/Editor/ComponentIcons/AudioListener.svg")]
 public struct AudioListener {
     public float PositionX;
     public float PositionY;
@@ -131,6 +138,7 @@ public struct AudioListener {
 /// であり、<see cref="Win32Window"/>等の参照型null許容フィールドと意味は同じ(未生成はnull)だが、
 /// ハンドル自体はネイティブポインタを持たない安全な値型(<c>AudioBackend.cs</c>参照)。
 /// </summary>
+[SceneComponentIcon("Assets/Editor/ComponentIcons/AudioSource.svg")]
 public struct AudioSource {
     public float PositionX;
     public float PositionY;
@@ -149,6 +157,7 @@ public struct AudioSource {
 /// </summary>
 
 /// <summary>このEntityの変換を書き込む先のStageRendererオブジェクト。</summary>
+[SceneComponentIcon("Assets/Editor/ComponentIcons/Renderable.svg")]
 public struct Renderable {
     public StageRenderer?Renderer;
     public int ObjectIndex;
@@ -159,6 +168,7 @@ public struct Renderable {
 /// <see cref="Renderer"/>へ書き込む。<see cref="DirectionTowardLightX"/>等は光源へ向かうベクトルで、
 /// 呼び出し側が正規化しておく必要はない(<c>StageRenderer</c>側で正規化される)。
 /// </summary>
+[SceneComponentIcon("Assets/Editor/ComponentIcons/DirectionalLight.svg")]
 public struct DirectionalLight {
     public StageRenderer?Renderer;
 
@@ -180,6 +190,7 @@ public struct DirectionalLight {
 /// Archetypeが分かれるため、切り替え不要でSystemはそのライト種の処理だけ書けばよい)。
 /// PointLightSystemが毎フレーム<see cref="Renderer"/>へ書き込む。
 /// </summary>
+[SceneComponentIcon("Assets/Editor/ComponentIcons/PointLight.svg")]
 public struct PointLight {
     public StageRenderer?Renderer;
 
@@ -203,6 +214,7 @@ public struct PointLight {
 /// <see cref="OuterConeAngleRadians"/>を超えるとゼロで、その間は滑らかに減衰する。
 /// SpotLightSystemが毎フレーム<see cref="Renderer"/>へ書き込む。
 /// </summary>
+[SceneComponentIcon("Assets/Editor/ComponentIcons/SpotLight.svg")]
 public struct SpotLight {
     public StageRenderer?Renderer;
 
@@ -236,6 +248,7 @@ public struct SpotLight {
 /// 最後に出現するようにしないと、描画同期より前にPresentしてしまう(Systems/RuntimeSystem.csの
 /// 冒頭コメント参照)。
 /// </summary>
+[SceneComponentIcon("Assets/Editor/ComponentIcons/FramePresent.svg")]
 public struct FramePresent {
     public Win32Window?Window;
     public StageRenderer?Renderer;

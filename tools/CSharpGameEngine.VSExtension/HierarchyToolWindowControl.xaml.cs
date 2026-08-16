@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
@@ -10,7 +11,7 @@ using CSharpGameEngine.SceneAnalysis;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// WPF content for <see cref="HierarchyToolWindowPane"/>: a read-only TreeView of the scene declared
+/// WPF content for <see cref="HierarchyToolWindowPane"/>: a themed TreeView of the scene declared
 /// by the active C# document, refreshed from live Roslyn via
 /// <see cref="SceneEditorHub.SceneModelChanged"/> (ADR-0040).
 ///
@@ -24,9 +25,9 @@ namespace CSharpGameEngine.VSExtension;
 /// <para>
 /// Selecting a node publishes <see cref="SceneEditorHub.PublishSelectedNodePath"/>, which the Scene
 /// Designer turns into a viewport highlight. Both sides now read the same live-Roslyn
-/// <see cref="SceneModel"/> (ADR-0040 Phase 9). Drag-and-drop asset placement used to write to a
-/// <c>.scene</c> file and was removed in M0020 Phase 0 together with that dead write path; it returns
-/// as a C# source insertion (<c>SceneEditOperation</c>) in a later milestone.
+/// <see cref="SceneModel"/> (ADR-0040 Phase 9). ContextMenu/F2/Delete and drag-and-drop request
+/// structural C# source edits through <c>SceneEditOperation</c>; source focus is never changed by
+/// those requests.
 /// </para>
 /// </summary>
 public partial class HierarchyToolWindowControl:UserControl {
@@ -34,6 +35,8 @@ public partial class HierarchyToolWindowControl:UserControl {
     private bool SuppressSelectionPublish;
     private bool PublishingHierarchySelection;
     private HierarchyNodeSelection CurrentSelection=HierarchyNodeSelection.Empty;
+    private SceneNodeViewModel? DragNode;
+    private Point DragStart;
 
     public HierarchyToolWindowControl(){
         InitializeComponent();
@@ -131,6 +134,8 @@ public partial class HierarchyToolWindowControl:UserControl {
         this.CurrentSelection=HierarchySelectionPlanner.Select(
             this.CurrentSelection,this.OrderedPaths(),Item.Path,
             (Keyboard.Modifiers&ModifierKeys.Control)!=0,(Keyboard.Modifiers&ModifierKeys.Shift)!=0);
+        this.DragNode=Item;
+        this.DragStart=Args.GetPosition(this.Tree);
         this.PublishCurrentSelection();
         Args.Handled=true;
         if(Args.ClickCount==2){
@@ -139,6 +144,25 @@ public partial class HierarchyToolWindowControl:UserControl {
     }
 
     private void Tree_PreviewKeyDown(object Sender,KeyEventArgs Args){
+        if(Args.OriginalSource is TextBox){
+            return;
+        }
+
+        if(Args.Key==Key.F2&&this.CurrentSelection.PrimaryPath is { } RenamePath
+            &&this.FindViewModel(RenamePath) is { } RenameNode){
+            RenameNode.BeginRename();
+            Args.Handled=true;
+            this.UpdateLayout();
+            this.FocusRenameBox(RenameNode);
+            return;
+        }
+
+        if(Args.Key==Key.Delete&&this.CurrentSelection.Paths.Count>0){
+            this.RequestRemove();
+            Args.Handled=true;
+            return;
+        }
+
         if(Args.Key!=Key.Enter||this.CurrentSelection.PrimaryPath is not { } Primary){
             return;
         }
@@ -146,6 +170,191 @@ public partial class HierarchyToolWindowControl:UserControl {
         SceneEditorHub.RequestHierarchyNavigation(Primary);
         Args.Handled=true;
     }
+
+    private void Tree_PreviewMouseRightButtonDown(object Sender,MouseButtonEventArgs Args){
+        if(this.FindNode(Args.OriginalSource as DependencyObject) is not { } Item){
+            return;
+        }
+
+        if(!this.CurrentSelection.Paths.Contains(Item.Path)){
+            this.Tree.Focus();
+            this.CurrentSelection=new HierarchyNodeSelection([Item.Path],Item.Path,Item.Path);
+            this.PublishCurrentSelection();
+        }
+
+        ContextMenu Menu=new();
+        Menu.Items.Add(this.CreateMenuItem("子ノードを追加",(_,_)=>SceneEditorHub.RequestHierarchyEdit(
+            new HierarchyEditRequest(HierarchyEditKind.AddChild,this.CurrentSelection.Paths))));
+        Menu.Items.Add(this.CreateMenuItem("名前を変更",(_,_)=>{
+            Item.BeginRename();
+            this.UpdateLayout();
+            this.FocusRenameBox(Item);
+        }));
+        Menu.Items.Add(new Separator());
+        Menu.Items.Add(this.CreateMenuItem("削除",(_,_)=>this.RequestRemove()));
+        Menu.PlacementTarget=this.Tree;
+        Menu.IsOpen=true;
+        Args.Handled=true;
+    }
+
+    private MenuItem CreateMenuItem(string Header,RoutedEventHandler Handler){
+        MenuItem Item=new(){Header=Header};
+        Item.Click+=Handler;
+        return Item;
+    }
+
+    private void RequestRemove(){
+        IReadOnlyList<NodePath>Paths=this.CurrentSelection.Paths.Where(static Path=>!Path.IsRoot).ToArray();
+        if(Paths.Count==0){
+            return;
+        }
+
+        bool HasChildren=Paths.Select(this.FindViewModel).Any(Node=>Node is { HasChildren:true });
+        if(HasChildren
+            &&MessageBox.Show("子ノードを含む選択を削除します。よろしいですか？",
+                "シーン階層の削除",MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes){
+            return;
+        }
+
+        SceneEditorHub.RequestHierarchyEdit(new HierarchyEditRequest(HierarchyEditKind.Remove,Paths));
+    }
+
+    private void RenameBox_KeyDown(object Sender,KeyEventArgs Args){
+        if(this.FindNode(Args.OriginalSource as DependencyObject) is not { } Node){
+            return;
+        }
+
+        if(Args.Key==Key.Enter){
+            this.CommitRename(Node);
+            Args.Handled=true;
+        } else if(Args.Key==Key.Escape){
+            Node.CancelRename();
+            Args.Handled=true;
+        }
+    }
+
+    private void RenameBox_LostFocus(object Sender,RoutedEventArgs Args){
+        if(this.FindNode(Args.OriginalSource as DependencyObject) is { IsRenaming:true } Node){
+            this.CommitRename(Node);
+        }
+    }
+
+    private void CommitRename(SceneNodeViewModel Node){
+        string Name=Node.EditName.Trim();
+        Node.CancelRename();
+        if(Name.Length==0||Name.Equals(Node.DisplayName,StringComparison.Ordinal)){
+            return;
+        }
+
+        SceneEditorHub.RequestHierarchyEdit(
+            new HierarchyEditRequest(HierarchyEditKind.Rename,[Node.Path],NewName:Name));
+    }
+
+    private void FocusRenameBox(SceneNodeViewModel Node){
+        if(this.FindContainer(Node) is not { } Container){
+            return;
+        }
+
+        TextBox?Box=FindVisualChild<TextBox>(Container);
+        Box?.Focus();
+        Box?.SelectAll();
+    }
+
+    private TreeViewItem? FindContainer(SceneNodeViewModel Node)=>
+        FindContainer(this.Tree,Node);
+
+    private static TreeViewItem? FindContainer(ItemsControl Parent,SceneNodeViewModel Node){
+        if(Parent.ItemContainerGenerator.ContainerFromItem(Node) is TreeViewItem Item){
+            return Item;
+        }
+
+        foreach(object Child in Parent.Items){
+            if(Parent.ItemContainerGenerator.ContainerFromItem(Child) is TreeViewItem ChildItem
+                &&FindContainer(ChildItem,Node) is { } Found){
+                return Found;
+            }
+        }
+
+        return null;
+    }
+
+    private static T? FindVisualChild<T>(DependencyObject Root) where T:DependencyObject{
+        for(var Index=0;Index<VisualTreeHelper.GetChildrenCount(Root);Index++){
+            DependencyObject Child=VisualTreeHelper.GetChild(Root,Index);
+            if(Child is T Match){
+                return Match;
+            }
+
+            if(FindVisualChild<T>(Child) is { } Nested){
+                return Nested;
+            }
+        }
+
+        return null;
+    }
+
+    private void Tree_PreviewMouseMove(object Sender,MouseEventArgs Args){
+        if(this.DragNode is not { } Node||Args.LeftButton!=MouseButtonState.Pressed){
+            return;
+        }
+
+        Point Current=Args.GetPosition(this.Tree);
+        if(Math.Abs(Current.X-this.DragStart.X)<SystemParameters.MinimumHorizontalDragDistance
+            &&Math.Abs(Current.Y-this.DragStart.Y)<SystemParameters.MinimumVerticalDragDistance){
+            return;
+        }
+
+        this.DragNode=null;
+        IReadOnlyList<NodePath>DraggedPaths=this.CurrentSelection.Paths.Contains(Node.Path)
+            ?this.CurrentSelection.Paths
+            :new[]{Node.Path};
+        DragDrop.DoDragDrop(this.Tree,new HierarchyDragPayload(DraggedPaths),DragDropEffects.Move);
+    }
+
+    private void Tree_DragOver(object Sender,DragEventArgs Args){
+        if(!Args.Data.GetDataPresent(typeof(HierarchyDragPayload))
+            ||this.FindNode(Args.OriginalSource as DependencyObject) is not { } Target){
+            Args.Effects=DragDropEffects.None;
+            Args.Handled=true;
+            return;
+        }
+
+        Args.Effects=DragDropEffects.Move;
+        Args.Handled=true;
+    }
+
+    private void Tree_Drop(object Sender,DragEventArgs Args){
+        if(Args.Data.GetData(typeof(HierarchyDragPayload)) is not HierarchyDragPayload Payload
+            ||Payload.Paths.Count==0
+            ||this.FindNode(Args.OriginalSource as DependencyObject) is not { } Target){
+            return;
+        }
+
+        Point Position=Args.GetPosition((IInputElement)Args.OriginalSource);
+        double Height=(Args.OriginalSource as FrameworkElement)?.ActualHeight??0d;
+        if(Height>0d&&Position.Y<Height*.25d&&Target.Path.Parent is { } Parent){
+            SceneEditorHub.RequestHierarchyEdit(new HierarchyEditRequest(
+                HierarchyEditKind.Reparent,Payload.Paths,TargetPath:Parent,
+                TargetIndex:Target.Path.Indices.Last()));
+        } else if(Height>0d&&Position.Y>Height*.75d&&Target.Path.Parent is { } ParentAfter){
+            SceneEditorHub.RequestHierarchyEdit(new HierarchyEditRequest(
+                HierarchyEditKind.Reparent,Payload.Paths,TargetPath:ParentAfter,
+                TargetIndex:Target.Path.Indices.Last()+1));
+        } else {
+            SceneEditorHub.RequestHierarchyEdit(new HierarchyEditRequest(
+                HierarchyEditKind.Reparent,Payload.Paths,TargetPath:Target.Path,
+                TargetIndex:Target.Children.Count));
+        }
+
+        Args.Handled=true;
+    }
+
+    private SceneNodeViewModel? FindViewModel(NodePath Path)=>
+        this.Tree.ItemsSource is IReadOnlyList<SceneNodeViewModel>Roots
+            ?Roots.SelectMany(static Root=>Root.SelfAndDescendants()).FirstOrDefault(Node=>Node.Path.Equals(Path))
+            :null;
+
+    private sealed record HierarchyDragPayload(IReadOnlyList<NodePath> Paths);
 
     private void PublishCurrentSelection(){
         this.ApplySelectionToTree();

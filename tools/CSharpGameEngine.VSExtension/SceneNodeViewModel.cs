@@ -27,6 +27,8 @@ internal sealed class SceneNodeViewModel : INotifyPropertyChanged {
     private bool IsExpandedField;
     private bool IsSelectedField;
     private bool IsMultiSelectedField;
+    private bool IsRenamingField;
+    private string EditNameField=string.Empty;
 
     private SceneNodeViewModel(
         NodePath Path,string DisplayName,string ComponentSummary,ImageMoniker NodeMoniker,
@@ -81,6 +83,29 @@ internal sealed class SceneNodeViewModel : INotifyPropertyChanged {
         get=>this.IsMultiSelectedField;
         set=>this.Set(ref this.IsMultiSelectedField,value);
     }
+    public bool IsRenaming {
+        get=>this.IsRenamingField;
+        set=>this.Set(ref this.IsRenamingField,value);
+    }
+
+    public string EditName {
+        get=>this.EditNameField;
+        set{
+            if(string.Equals(this.EditNameField,value,StringComparison.Ordinal)){
+                return;
+            }
+
+            this.EditNameField=value;
+            this.PropertyChanged?.Invoke(this,new PropertyChangedEventArgs(nameof(EditName)));
+        }
+    }
+
+    internal void BeginRename(){
+        this.EditName=this.DisplayName;
+        this.IsRenaming=true;
+    }
+
+    internal void CancelRename()=>this.IsRenaming=false;
 
     /// <summary>
     /// Builds the tree for a model, carrying expansion and selection over from the previous tree by

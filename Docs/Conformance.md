@@ -1580,8 +1580,8 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - **Matches(選択規則)**: Hierarchyは通常クリックで置換、Ctrl+クリックで追加/解除、Shift+クリックで深さ優先表示順の範囲選択を行う。選択集合・primary・アンカーは`HierarchyNodeSelection`で保持し、再構築後は`NodePath`で復元する。単一`NodePath` Hub通知は互換経路として維持する。
 - **Matches(非フォーカス・マーク寿命)**: Hierarchy起点だけが、既に開いている対象C# bufferへ`SceneNode.Location.Span`全体を背景マークする。親子重複は併合し、複数の独立範囲は併記する。通常クリックは文書を開かず、フォーカスもキャレットも変更しない。選択解除、Scene切替、解析失敗、再解析でマーカーを消去または再計算する。
 - **Matches(明示移動)**: ダブルクリックまたはEnterだけがprimaryの`Span.Start`へ移動を要求する。RDTで既に開いた文書を確認できない場合、または再解析でNode/TextViewを得られない場合は何もしない。
-- **Unknown(実機Observed)**: VS Experimental Instanceでの連続複数選択、複数マーク、親子Span、Enter/double-click移動、未表示文書を開かないことは未実施。
-- Evidence: `HierarchySourceSyncTests`を含む`dotnet test tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj --no-restore`は395件成功・失敗0。
+- **Matches(実機Observed)**: VS Experimental Instanceで、連続Ctrl/Shift複数選択、複数マーク、親子Span、Enter/double-click移動、および未表示文書を開かないことを確認した。
+- Evidence: `HierarchySourceSyncTests`を含む`dotnet test tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj --no-restore`はDebug/Releaseとも425件成功・失敗0。
 
 
 ## 2026-08-16 M0020 follow-up: 未表示ソースからの Scene Designer 起動
@@ -1609,8 +1609,15 @@ Expハイブのキャッシュより新しくすること」を機序として**
   `MarkerFormatDefinition/CSharpGameEngine.SceneHierarchySource` の半透明青紫背景で、C# 構文前景色を
   上書きしない。通常 Hierarchy 選択は既に開いた文書のみを非選択 marker で装飾し、double-click / Enter
   だけが primary へ移動する。RDT/buffer/tagger/tag 数の成否は ActivityLog へ記録する。
-- **Unknown(実機Observed)**: VS Experimental Instance での active/inactive 見た目、展開ボタン、
+- **Matches(実機Observed)**: VS Experimental Instanceで active/inactive 見た目、展開ボタン、
   project SVG/PNG の描画・picker・Undo、実 marker の表示/解除、未表示文書非オープン、および
-  Enter/double-click の明示移動は未確認である。
+  Enter/double-click の明示移動を確認した。
 - Evidence: `ComponentIconAuthoringTests`、`SceneHierarchyIconTests`、
   `SceneSourceMarkerTaggerTests` と既存 `HierarchySourceSyncTests` が純粋層/MEF 契約を固定する。
+
+## 2026-08-16 M0020 follow-up: Hierarchy構造編集とRuntime/User component icon
+
+- **Matches(code review)**: HierarchyのContextMenu・F2/Delete・DragDropはAddChild/Rename/Remove/Reparent/Reorderを選択ルート単位で1 Undoにまとめる。子を含む削除だけ確認し、Root削除・生成ソース・自己/子孫へのReparentを拒否する。
+- **Matches(code review)**: RuntimeのTransform/StaticMesh/PrimitiveMesh/CameraおよびUserEcsProjectのScene-addable structは`SceneComponentIconAttribute`で宣言プロジェクトのSVGを参照する。PNGも同じ検証済み相対パスで利用でき、無効/欠落/metadataは既定アイコンへ戻る。
+- **Matches(code review)**: HierarchyとC# glyph marginの画像は`SceneVisualIcon`へ集約し、TreeViewのFontSizeからアイコン/インデントを算出するため、Solution Explorerの文字サイズ変更に追従する。
+- Evidence: `SceneSourceEditorTests` 22/22、component icon関連テスト20/20、VS extension Debug/Release tests 431/431、Entities Debug/Release tests 42/42。構造編集のExperimental Instance目視は未再確認。

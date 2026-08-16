@@ -420,6 +420,145 @@ public sealed class SceneSourceEditorTests {
         Assert.Contains("DirectionalLight",Removed.Root.ToFullString());
     }
 
+    [Fact]
+    public void AddNode_AppendsAUniqueMinimalNode(){
+        const string EmptySource="""
+            using CSharpGameEngine.Entities;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() { Name="Root", Children=[] };
+            }
+            """;
+        SceneModel Model=SceneAnalysisTestHelper.Analyze(EmptySource);
+        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        SceneProjectionNode RootNode=Projection.Root!;
+        SceneSourceEditResult Result=SceneSourceEditor.Apply(
+            CSharpSyntaxTree.ParseText(EmptySource).GetRoot(),Projection,
+            new AddNodeOperation(Key,RootNode.Id,1,"Node"));
+
+        Assert.True(Result.Succeeded,Result.ErrorMessage);
+        Assert.Contains("Name=\"Node\"",Result.Root!.ToFullString());
+    }
+
+    [Fact]
+    public void AddNode_CreatesChildrenCollectionWhenItIsOmitted(){
+        const string EmptySource="""
+            using CSharpGameEngine.Entities;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() { Name="Root" };
+            }
+            """;
+        SceneModel Model=SceneAnalysisTestHelper.Analyze(EmptySource);
+        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        SceneProjectionNode RootNode=Projection.Root!;
+        SceneSourceEditResult Result=SceneSourceEditor.Apply(
+            CSharpSyntaxTree.ParseText(EmptySource).GetRoot(),Projection,
+            new AddNodeOperation(Key,RootNode.Id,1,"Node"));
+
+        Assert.True(Result.Succeeded,Result.ErrorMessage);
+        Assert.Contains("Children",Result.Root!.ToFullString());
+        Assert.Contains("Name=\"Node\"",Result.Root.ToFullString());
+    }
+
+    [Fact]
+    public void RemoveNode_RemovesOnlyTheSelectedChild(){
+        const string RemoveSource="""
+            using CSharpGameEngine.Entities;
+            namespace Game;
+            public partial class MainScene:IScene { public Node Root=>new() { Children=[
+                new Node { Name="A" },
+                new Node { Name="B" },
+            ]}; }
+            """;
+        SceneModel Model=SceneAnalysisTestHelper.Analyze(RemoveSource);
+        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        EditorNodeId B=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="B").Id;
+        SceneSourceEditResult Result=SceneSourceEditor.Apply(
+            CSharpSyntaxTree.ParseText(RemoveSource).GetRoot(),Projection,
+            new RemoveNodeOperation(Key,B,1));
+
+        Assert.True(Result.Succeeded,Result.ErrorMessage);
+        Assert.Contains("Name=\"A\"",Result.Root!.ToFullString());
+        Assert.DoesNotContain("Name=\"B\"",Result.Root.ToFullString());
+    }
+
+    [Fact]
+    public void ReorderNode_MovesTheChildToTheRequestedIndex(){
+        const string ReorderSource="""
+            using CSharpGameEngine.Entities;
+            namespace Game;
+            public partial class MainScene:IScene { public Node Root=>new() { Children=[
+                new Node { Name="A" },
+                new Node { Name="B" },
+                new Node { Name="C" },
+            ]}; }
+            """;
+        SceneModel Model=SceneAnalysisTestHelper.Analyze(ReorderSource);
+        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        EditorNodeId B=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="B").Id;
+        SceneSourceEditResult Result=SceneSourceEditor.Apply(
+            CSharpSyntaxTree.ParseText(ReorderSource).GetRoot(),Projection,
+            new ReorderNodeOperation(Key,B,1,0));
+
+        Assert.True(Result.Succeeded,Result.ErrorMessage);
+        string Changed=Result.Root!.ToFullString();
+        Assert.True(Changed.IndexOf("Name=\"B\"",StringComparison.Ordinal)
+            <Changed.IndexOf("Name=\"A\"",StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ReparentNode_MovesAChildIntoAnotherParent(){
+        const string ReparentSource="""
+            using CSharpGameEngine.Entities;
+            namespace Game;
+            public partial class MainScene:IScene { public Node Root=>new() { Children=[
+                new Node { Name="A" },
+                new Node { Name="B", Children=[] },
+            ]}; }
+            """;
+        SceneModel Model=SceneAnalysisTestHelper.Analyze(ReparentSource);
+        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        EditorNodeId A=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="A").Id;
+        EditorNodeId B=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="B").Id;
+        SceneSourceEditResult Result=SceneSourceEditor.Apply(
+            CSharpSyntaxTree.ParseText(ReparentSource).GetRoot(),Projection,
+            new ReparentNodeOperation(Key,A,1,B,0));
+
+        Assert.True(Result.Succeeded,Result.ErrorMessage);
+        string Changed=Result.Root!.ToFullString();
+        Assert.Contains("Name=\"B\", Children=[",Changed);
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(Changed,"Name=\"A\""));
+    }
+    [Fact]
+    public void ApplyBatch_ReparentsMultipleSiblingsWithoutSpanDrift(){
+        const string Source="""
+            using CSharpGameEngine.Entities;
+            namespace Game;
+            public partial class MainScene:IScene { public Node Root=>new() { Children=[
+                new Node { Name="Target", Children=[] },
+                new Node { Name="A" },
+                new Node { Name="B" },
+            ]}; }
+            """;
+        SceneModel Model=SceneAnalysisTestHelper.Analyze(Source);
+        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        EditorNodeId Target=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Target").Id;
+        EditorNodeId A=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="A").Id;
+        EditorNodeId B=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="B").Id;
+        SceneSourceEditResult Result=SceneSourceEditor.ApplyBatch(
+            CSharpSyntaxTree.ParseText(Source).GetRoot(),Projection,
+            [
+                new ReparentNodeOperation(Key,A,1,Target,0),
+                new ReparentNodeOperation(Key,B,1,Target,1),
+            ]);
+        Assert.True(Result.Succeeded,Result.ErrorMessage);
+        string Changed=Result.Root!.ToFullString();
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(Changed,"Name=\"A\""));
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(Changed,"Name=\"B\""));
+        Assert.True(Changed.IndexOf("Name=\"Target\", Children=[",StringComparison.Ordinal)<Changed.IndexOf("Name=\"A\"",StringComparison.Ordinal));
+    }
+
     private static (SceneProjection Projection,EditorNodeId Cube)CreateProjection(){
         SceneModel Model=SceneAnalysisTestHelper.Analyze(Source);
         SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);

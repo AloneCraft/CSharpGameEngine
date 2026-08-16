@@ -1,3 +1,4 @@
+using CSharpGameEngine.Entities;
 namespace CSharpGameEngine.Runtime.Windows;
 
 /// <summary>
@@ -7,6 +8,7 @@ namespace CSharpGameEngine.Runtime.Windows;
 /// fields (Box's Vector3 size vs. Sphere's single radius vs. Cylinder's radius+height, etc.). See
 /// RenderServer.UnitSizeFor for the concrete unit dimensions each PrimitiveType maps to.
 /// </summary>
+[SceneComponentIcon("Assets/Editor/ComponentIcons/PrimitiveMesh.svg")]
 public struct PrimitiveMesh {
     public PrimitiveType Type;
 }

@@ -2633,16 +2633,16 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   RectLightもPhase 6の明示的対象外。
 - Next action: Phase 0〜7+後続Task CのExperimental Instance確認表をユーザー側で実施。
 
-- Follow-up(2026-08-16, VS テーマ Hierarchy / Component icon): `HierarchyToolWindowControl`は公開
+- Follow-up(2026-08-16, VS テーマ Hierarchy / Component icon, RuntimeVerified): `HierarchyToolWindowControl`は公開
   `ThemedDialogTreeViewStyleKey` / `ThemedDialogTreeViewItemStyleKey` と `CrispImage` 展開アイコンを使い、
   active/inactive selection、全複数選択、primary 左アクセントを表示する。展開操作は選択やソース同期を
   発行しない。
-- Follow-up(2026-08-16, Component icon authoring): 公開
+- Follow-up(2026-08-16, Component icon authoring, RuntimeVerified): 公開
   `SceneComponentIconAttribute(string projectRelativePath)`、共通 `SceneVisualIcon`、SVG/PNG のプロジェクト
   相対パス検証、SharpVectors/BitmapImage renderer、C# glyph margin のアンカー選択メニューを追加した。
   属性更新は `SceneTextBufferWriter` 経由の既存 buffer 1 Undo で行い、他文書を開かない。lock overlay は
   将来用予約であり、編集 lock 機能は追加していない。
-- Follow-up(2026-08-16, standard hierarchy source marker): 独自 tagger を廃止し、
+- Follow-up(2026-08-16, standard hierarchy source marker, RuntimeVerified): 独自 tagger を廃止し、
   `ITextMarkerProviderFactory` の共有 `SimpleTagger<TextMarkerTag>` へ拡張所有の
   `TrackingTagSpan` だけを登録する方式へ変更した。書式は
   `MarkerFormatDefinition/CSharpGameEngine.SceneHierarchySource`、半透明青紫背景・前景未指定である。
@@ -2650,6 +2650,12 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
 - Follow-up tests: `ComponentIconAuthoringTests.cs` はパス正規化・候補列挙・属性の追加/置換/削除・partial
   宣言を、`SceneHierarchyIconTests.cs` は Hierarchy の moniker/公開 binding を、
   `SceneSourceMarkerTaggerTests.cs` は標準 marker format/provider 契約を固定する。
+- Runtime verification(2026-08-16): Experimental Instanceで、Hierarchyのactive/inactive表示・展開・
+  Ctrl/Shift複数選択、SVG/PNG pickerと1 Undo、青紫source markerの表示/解除、通常選択時の非フォーカス、
+  Enter/double-click移動、未表示ソースを開かないことを確認した。
+- Follow-up(2026-08-16, Hierarchy structural editing, TestVerified): SceneSourceEditorにAddChild/Rename/Remove/Reparent/Reorderを追加し、HierarchyのContextMenu・F2/Delete・DragDropから1つのVisual Studio Undo単位で適用する。親子を含む削除だけ確認し、Root・生成ソース・自己/子孫への移動は安全に拒否する。`FirstPersonStageScene.cs`は変更していない。`SceneSourceEditorTests`を含むVS拡張Debug/Releaseテスト431件が成功。
+- Follow-up(2026-08-16, Runtime/User component icons, TestVerified): RuntimeのTransform/StaticMesh/PrimitiveMesh/CameraとUserEcsProjectのScene-addable structへ`SceneComponentIconAttribute`を付与し、宣言プロジェクト配下のSVGを主形式、PNGを互換形式として解決する。Hierarchy/glyph marginはVS TreeViewフォントサイズへ連動し、無効・欠落・metadataは既定iconへフォールバックする。
+
 # 2026-08 UE FirstPerson宣言型Scene移行
 
 - 旧L9アプリケーションと一体型`Lvl_FirstPerson.glb`ランタイムを廃止し、`UserEcsProject`へ統合した。

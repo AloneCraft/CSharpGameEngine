@@ -211,7 +211,12 @@ Esc
 | SetTransform | Phase 3 | 内部的に`PositionX/Y/Z`等のフラットfloatへの`SetComponentMember`束として実装(メンバー欠落時は追記が必要になるため専用opとして扱う) |
 | DuplicateNode | Phase 5 | 対象Nodeの`ObjectCreationExpression`を丸ごと複製し兄弟末尾へ挿入(`ChildrenListLocation`アンカー使用) |
 | AddComponent / RemoveComponent | Phase 6 | Camera/Lightギズモが必要とする範囲のみ |
-| AddNode / RemoveNode / ReparentNode / ReorderNode / AssignAsset | M0020スコープ外 | ヒエラルキー編集マイルストーン(将来)で実装 |
+| AddNode / RemoveNode / ReparentNode / ReorderNode | M0020後続実装済み | HierarchyのContextMenu・F2/Delete・DragDropから1 UndoのRoslyn編集として実装。Root削除、自己/子孫への移動、生成ソースは拒否 |
+| AssignAsset | 将来 | アセット割り当てUIを伴う別マイルストーンで実装 |
+
+### 6.1 Hierarchy構造編集とComponent icon（M0020後続）
+
+HierarchyのAddChild/Rename/Remove/Reparent/Reorderは、開いているSceneのRoslyn構文を`SceneTextBufferWriter`経由で更新し、1ユーザー操作を1 Undo単位にする。子を含む削除だけ確認を表示し、Root削除・生成ファイル・自己/子孫へのReparentは拒否する。Componentは宣言プロジェクト相対の`SceneComponentIconAttribute`でSVGを主形式、PNGを互換形式として指定し、Visual StudioのTreeViewフォントサイズに連動する16px基準のglyphへ縮尺する。`SceneVisualIcon`がHierarchyとglyph marginの既定moniker/画像を統一する。
 
 ### 7. `NavigationPreset`: 物理入力と操作概念の分離(仕様§1/§3)
 

@@ -1,3 +1,4 @@
+using CSharpGameEngine.Entities;
 using System.Numerics;
 
 namespace CSharpGameEngine.Runtime.Windows;
@@ -6,6 +7,7 @@ namespace CSharpGameEngine.Runtime.Windows;
 /// Scene DSLとRuntime ECSの両方で使うローカルTransform。
 /// Node.Childrenで宣言した子は自動付与のParentで親を参照し、親子の合成は<see cref="TransformMath"/>で行う。
 /// </summary>
+[SceneComponentIcon("Assets/Editor/ComponentIcons/Transform.svg")]
 public struct Transform {
     public float PositionX;
     public float PositionY;
