@@ -1676,3 +1676,32 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - Evidence: `SceneInspectorModelTests` 19/19、`InspectorMemberViewModelTests` 11/11、
   `InitialLayoutToolWindowPlanTests`更新済み、VS extension tests 474/474(M0030完了時448から+26)、
   ソリューション全体 968/968。
+
+## 2026-08-17 M0030追記: 実機フィードバック4件
+
+- **Mismatch → 解消(実機Observed起因)**: `SceneEditorSettings.DefaultActiveTool`が`Select`のため、
+  選択しただけではギズモが出ずWキーが必要という体験がユーザーには分かりにくいと判明した。
+  既定を`Move`へ変更した(永続設定がある場合はそちらが優先されるため既存ユーザーには無影響)。
+- **Mismatch → 解消(実機Observed、原因特定)**: `SceneHwndHost.CompleteEditCommit`はコミット
+  成功直後に`UpdateMoveGizmo()`を呼ぶが、この関数がpivot算出に使う`CurrentRenderObjects`は
+  非同期Roslyn再解析が終わるまで更新されないため、ドラッグ確定直後にギズモが一瞬旧位置へ戻り、
+  再解析完了後に正しい位置へ「追いつく」視覚的ズレがあった。`EditTransactionController`に
+  `CurrentPreviews`アクセサを追加し、コミット成功時に`CurrentRenderObjects`該当ノードを最終
+  Transformへ即時パッチしてから`UpdateMoveGizmo()`を呼ぶよう変更した。`UpdateMoveGizmo()`自体は
+  無変更。
+- **Unknown → 対応(実機Observed、フォーカス非奪取は未検証)**: `SceneSourceMarkerService.Update()`
+  はHierarchy選択時にマークするだけでスクロールしていなかった。`IVsTextManager.EnumViews`
+  (対象文書をアクティブ化せず既存ビューを列挙)+`ITextView.DisplayTextLineContainingBufferPosition`
+  (caretを動かさない)でマーク行をエディタ最上部へスクロールするようにした。再解析のたびに
+  同一選択で再スクロールしないようLastScrolledPathsで直近選択と比較している。この経路の
+  正確なC# out/ref判定はildasmで`Microsoft.VisualStudio.Interop.dll`を逆アセンブルして実シグネチャ
+  を確認した(`Microsoft.VisualStudio.TextManager.Interop.dll`は型フォワーダのみで検証に使えない)。
+  フォーカス非奪取が実機で保たれるかは未検証。
+- **Unknown → 対症療法(実機Observed、根本原因未特定)**: ソース反映後にコードエディタのcaret/
+  スクロール位置が変わるという報告に対し、`SceneTextBufferWriter.TryApply`は既に最小差分適用の
+  ため明確な単一原因を特定できなかった。`SceneWorkspaceService.ApplyTextAsync`で編集前後に
+  対象バッファの全ビューのcaret/ビューポート先頭行を`ITrackingPoint`でsave/restoreする対症療法を
+  追加した。実機での効果検証は未実施。
+- Evidence: `EditTransactionControllerTests`(+1件、`CurrentPreviews`)、`SceneEditorSettingsTests`
+  (2件更新)。②③④はHWND/D3D12/VS COMサービスに深く依存するためユニットテスト不可、実機確認が
+  必須。ソリューション全体969/969(既存968+1)。

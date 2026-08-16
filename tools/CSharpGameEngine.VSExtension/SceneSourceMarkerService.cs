@@ -12,6 +12,7 @@ using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Adornments;
+using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Text.Classification;
 using Microsoft.VisualStudio.Text.Tagging;
 using Microsoft.VisualStudio.TextManager.Interop;
@@ -33,6 +34,7 @@ internal sealed class SceneSourceMarkerService : IDisposable {
     private ITextBuffer? MarkedBuffer;
     private SimpleTagger<TextMarkerTag>?MarkerTagger;
     private List<TrackingTagSpan<TextMarkerTag>>OwnedTagSpans=[];
+    private IReadOnlyList<NodePath>LastScrolledPaths=[];
     private bool Disposed;
 
     private SceneSourceMarkerService(
@@ -77,25 +79,63 @@ internal sealed class SceneSourceMarkerService : IDisposable {
             return;
         }
 
-        if(!this.TryGetOpenBuffer(Model.FilePath,out ITextBuffer? FoundBuffer)||FoundBuffer is null){
+        if(!this.TryGetOpenBuffer(Model.FilePath,out ITextBuffer? FoundBuffer,out VsTextBuffer?NativeBuffer)
+            ||FoundBuffer is null){
             LogInformation($"Skipped hierarchy source markers because '{Model.FilePath}' is not an open text document.");
             this.Clear();
             return;
         }
 
         ITextBuffer Buffer=FoundBuffer;
-        if(!ReferenceEquals(this.MarkedBuffer,Buffer)){
+        bool BufferChanged=!ReferenceEquals(this.MarkedBuffer,Buffer);
+        if(BufferChanged){
             this.Clear();
             this.MarkedBuffer=Buffer;
         }
 
         IReadOnlyList<SceneSourceMarkerRange>Ranges=SceneSourceMarkerPlanner.Create(Model,Paths);
         this.ReplaceOwnedTagSpans(Buffer,Ranges);
+
+        // 選択が実際に変わったときだけ先頭行へスクロールする。SceneModelChangedは再解析のたびに
+        // 同じ選択で呼ぶため、無条件にスクロールするとタイプ中に毎回ビューが飛んでしまう。
+        bool SelectionChanged=BufferChanged||!this.LastScrolledPaths.SequenceEqual(Paths);
+        this.LastScrolledPaths=Paths.ToArray();
+        if(SelectionChanged&&Ranges.Count>0&&NativeBuffer is not null){
+            this.ScrollToTop(NativeBuffer,Ranges[0].Span.Start);
+        }
+    }
+
+    /// <summary>
+    /// マーク範囲の先頭行をエディタ最上部へ、フォーカスを奪わずスクロールする。<c>IVsTextManager.
+    /// EnumViews</c>は既存ビューの列挙だけで済み、対象文書をアクティブ化しない(<see cref="Navigate"/>の
+    /// <c>GetActiveView</c>+<c>SetCaretPos</c>とは異なりcaretも動かさない)。
+    /// </summary>
+    private void ScrollToTop(VsTextBuffer NativeBuffer,int Position){
+        if(this.TextManager.EnumViews(NativeBuffer,out IVsEnumTextViews?ViewEnum)!=VSConstants.S_OK
+            ||ViewEnum is null){
+            return;
+        }
+
+        IVsTextView[]Fetched=new IVsTextView[1];
+        uint FetchedCount=0;
+        while(ViewEnum.Next(1,Fetched,ref FetchedCount)==VSConstants.S_OK&&FetchedCount==1){
+            if(this.EditorAdapters.GetWpfTextView(Fetched[0])is not { }WpfView){
+                continue;
+            }
+
+            ITextSnapshot Snapshot=WpfView.TextBuffer.CurrentSnapshot;
+            if(Position<0||Position>Snapshot.Length){
+                continue;
+            }
+
+            WpfView.DisplayTextLineContainingBufferPosition(
+                new SnapshotPoint(Snapshot,Position),0.0,ViewRelativePosition.Top);
+        }
     }
 
     internal void Navigate(SceneModel? Model,NodePath Path){
         ThreadHelper.ThrowIfNotOnUIThread();
-        if(this.Disposed||Model is null||!this.TryGetOpenBuffer(Model.FilePath,out ITextBuffer? FoundBuffer)
+        if(this.Disposed||Model is null||!this.TryGetOpenBuffer(Model.FilePath,out ITextBuffer? FoundBuffer,out _)
             ||FoundBuffer is null
             ||!SceneSourceMarkerPlanner.TryCreateNavigation(Model,Path,IsDocumentOpen:true,out string FilePath,out int Position)
             ||Package.GetGlobalService(typeof(SDTE))is not DTE Dte){
@@ -126,9 +166,10 @@ internal sealed class SceneSourceMarkerService : IDisposable {
         }
     }
 
-    private bool TryGetOpenBuffer(string FilePath,out ITextBuffer?Buffer){
+    private bool TryGetOpenBuffer(string FilePath,out ITextBuffer?Buffer,out VsTextBuffer?NativeBuffer){
         ThreadHelper.ThrowIfNotOnUIThread();
         Buffer=null;
+        NativeBuffer=null;
         if(String.IsNullOrWhiteSpace(FilePath)){
             return false;
         }
@@ -156,6 +197,7 @@ internal sealed class SceneSourceMarkerService : IDisposable {
                 VsBuffer=Lines as VsTextBuffer;
             }
 
+            NativeBuffer=VsBuffer;
             Buffer=VsBuffer is null?null:this.EditorAdapters.GetDocumentBuffer(VsBuffer);
             return Buffer is not null;
         } catch(COMException Ex){

@@ -2492,7 +2492,13 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   Experimental Instance目視は未実施([[M0020-Scene-Editor-Interaction]]のPhase別表を参照)。
   [[M0030-SceneView-Gizmo-Transform-Editing]]で受け入れ基準の監査を行い、失敗経路(対象ノード消失・
   外部編集による式化・親world退化・ドラッグイベント重畳)のテストを9件追加して契約を固定した。
-  実機目視が残っているため`Verified`へは上げていない。
+  実機確認(2026-08-17)で以下4件のフィードバックを受け修正した: ①既定ActiveToolを
+  `Select`→`Move`へ変更(選択即ギズモ)、②コミット直後`CurrentRenderObjects`が再解析待ちで
+  ギズモが一瞬旧位置へ戻る不具合を`EditTransactionController.CurrentPreviews`経由の即時パッチで
+  解消、③Hierarchy選択時に`IVsTextManager.EnumViews`(非アクティブ化)経由でマーク行を
+  エディタ最上部へスクロール、④ソース反映前後でcaret/スクロール位置をsave/restore(対症療法、
+  根本原因未特定)。②③④は実機での修正確認が未実施。実機目視が残っているため`Verified`へは
+  上げていない。
 - Intended specification: `Docs/シーンエディタの仕様.md`(要求仕様)、
   Docs/Decisions/ADR-0041-Scene-Editor-Interaction-Architecture.md(意思決定)、
   Docs/Specifications/Scene-Editor-Design.md(詳細設計)

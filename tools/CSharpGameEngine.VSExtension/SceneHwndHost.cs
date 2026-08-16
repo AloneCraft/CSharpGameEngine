@@ -1072,6 +1072,15 @@ internal sealed class SceneHwndHost:HwndHost {
         }
 
         bool WasProperty=PropertyCommitInProgress;
+        bool WasDuplicate=ActiveDuplicatePlan.Count>0;
+        // Complete()がPreviews/WorldDeltaをクリアする前に、コミットされた最終Transformを退避する。
+        // Move/Rotate/Scaleのときだけ使う(プロパティ編集はPrimaryObjectの位置を動かさない。複製は
+        // 新規Nodeが対象でCurrentRenderObjectsにまだ存在しないため、既存のTryRestoreDuplicateSelection
+        // 経路が別途扱う)。
+        IReadOnlyList<SceneTransformPreview>FinalPreviews=
+            !WasProperty&&!WasDuplicate?EditTransaction.CurrentPreviews:Array.Empty<SceneTransformPreview>();
+        IReadOnlyList<SceneTransformPreview>FinalDescendants=PreviewDescendantOriginals;
+        Matrix4x4 FinalWorldDelta=EditTransaction.CurrentWorldDelta;
         SceneDocumentSnapshot?Pending=EditTransaction.Complete();
         if(WasProperty){
             ActivePropertyDrag=null;
@@ -1101,6 +1110,10 @@ internal sealed class SceneHwndHost:HwndHost {
         ActiveTransformTool=null;
         ActiveGizmoHandle=null;
         HoveredGizmoHandle=null;
+        // UpdateMoveGizmoはCurrentRenderObjectsからpivotを再計算するが、再解析(PinnedSnapshotChanged)
+        // が終わるまでCurrentRenderObjectsはまだドラッグ前の位置のまま。ここで先にコミット済みの
+        // 最終Transformへパッチしておくことで、ギズモが一瞬元の位置へ戻ってから追いつく見た目のズレを防ぐ。
+        ApplyFinalTransformsToRenderObjects(FinalPreviews,FinalDescendants,FinalWorldDelta);
         CurrentMoveGizmo=null;
         if(Pending is not null){
             SetTarget(Pending);
@@ -1108,6 +1121,33 @@ internal sealed class SceneHwndHost:HwndHost {
             UpdateMoveGizmo();
         }
         SetStatus("TransformをC#ソースへ反映しました。Ctrl+Zで元に戻せます。");
+    }
+
+    /// <summary>
+    /// <see cref="CompleteEditCommit"/>専用。指定したNodePathのRenderObjectだけを、コミット直後に
+    /// 判明している最終World行列へ差し替える(<see cref="SceneRenderObject"/>はinitプロパティのみの
+    /// クラスのため複製が必要)。対象が無ければ何もしない。
+    /// </summary>
+    private void ApplyFinalTransformsToRenderObjects(
+        IReadOnlyList<SceneTransformPreview>FinalPreviews,IReadOnlyList<SceneTransformPreview>FinalDescendants,
+        Matrix4x4 FinalWorldDelta){
+        if(FinalPreviews.Count==0&&FinalDescendants.Count==0){
+            return;
+        }
+
+        Dictionary<NodePath,Matrix4x4>FinalWorlds=[];
+        foreach(SceneTransformPreview Preview in FinalPreviews){
+            FinalWorlds[Preview.NodePath]=Preview.World;
+        }
+        foreach(SceneTransformPreview Descendant in FinalDescendants){
+            FinalWorlds[Descendant.NodePath]=Descendant.World*FinalWorldDelta;
+        }
+
+        CurrentRenderObjects=CurrentRenderObjects.Select(Object=>
+            FinalWorlds.TryGetValue(Object.NodeId,out Matrix4x4 FinalWorld)
+                ?new SceneRenderObject {
+                    Mesh=Object.Mesh,World=FinalWorld,NodeId=Object.NodeId,IncludeInBounds=Object.IncludeInBounds }
+                :Object).ToArray();
     }
 
     /// <summary>

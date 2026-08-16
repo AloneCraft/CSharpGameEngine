@@ -39,7 +39,12 @@ internal static class SceneEditorSettings {
 
     // 残り5項目の既定値も、オプション画面が基準として参照できるよう名前付き定数へ引き上げる
     // (以前は各Readのインラインリテラルだった)。
-    internal const SceneActiveTool DefaultActiveTool=SceneActiveTool.Select;
+    // 実機確認(2026-08-17): 既定をSelectのままにすると、選択しただけではギズモが出ず
+    // (UpdateMoveGizmoがActiveTool==Selectのとき明示的にギズモを隠す)、Wキーを押すまでの
+    // 一手間が実機で分かりにくいと判明した。Unity/Blender寄りの「選択したら即Move」という
+    // 既定へ変更した。永続化済みの値がある場合はそちらが優先されるため、既にSelect/Moveを
+    // 選んでいるユーザーには影響しない。
+    internal const SceneActiveTool DefaultActiveTool=SceneActiveTool.Move;
     internal const SceneTransformSpace DefaultTransformSpace=SceneTransformSpace.World;
     internal const SceneProjectionMode DefaultProjectionMode=SceneProjectionMode.Perspective;
     internal const SceneNavigationPreset DefaultNavigationPreset=SceneNavigationPreset.Default;

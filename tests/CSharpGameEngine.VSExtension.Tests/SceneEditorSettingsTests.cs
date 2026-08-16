@@ -49,8 +49,8 @@ public sealed class SceneEditorSettingsTests {
         SceneEditorSettings.ConfigureStoreProvider(()=>Store);
 
     [Fact]
-    public void ReadActiveTool_NoStoredValue_ReturnsSelectDefault()=>
-        RunOnUiThread(()=>Assert.Equal(SceneActiveTool.Select,SceneEditorSettings.ReadActiveTool()));
+    public void ReadActiveTool_NoStoredValue_ReturnsMoveDefault()=>
+        RunOnUiThread(()=>Assert.Equal(SceneActiveTool.Move,SceneEditorSettings.ReadActiveTool()));
 
     [Fact]
     public void WriteThenReadActiveTool_RoundTrips()=>RunOnUiThread(()=>{
@@ -236,7 +236,7 @@ public sealed class SceneEditorSettingsTests {
     public void ConfigureStoreProvider_Null_AllReadsReturnDefaults()=>RunOnUiThread(()=>{
         SceneEditorSettings.ConfigureStoreProvider(null);
 
-        Assert.Equal(SceneActiveTool.Select,SceneEditorSettings.ReadActiveTool());
+        Assert.Equal(SceneActiveTool.Move,SceneEditorSettings.ReadActiveTool());
         Assert.Equal(1.0f,SceneEditorSettings.ReadNavigationSpeedMultiplier());
         Assert.False(SceneEditorSettings.ReadInvertLookX());
     });

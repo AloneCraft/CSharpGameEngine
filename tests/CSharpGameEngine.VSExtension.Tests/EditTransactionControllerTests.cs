@@ -23,6 +23,29 @@ public sealed class EditTransactionControllerTests {
         Assert.Equal(EditTransactionState.Idle,Controller.State);
     }
 
+    /// <summary>
+    /// コミット直後にギズモが一瞬元の位置へ戻る不具合の対策(SceneHwndHost.CompleteEditCommitが
+    /// CurrentRenderObjectsをこの値でパッチしてからUpdateMoveGizmoを呼ぶ)。TryCreateCommitで
+    /// Committing状態に入った後もCompleteが呼ばれるまでは最終ドラッグ値を読み続けられることを
+    /// 固定する — Completeを呼ぶ前にこの値を退避する設計が成立する前提。
+    /// </summary>
+    [Fact]
+    public void CurrentPreviews_AfterTryCreateCommit_StillReflectsTheFinalDraggedValueUntilComplete(){
+        SceneDocumentSnapshot Snapshot=CreateSnapshot(DocumentVersion:1);
+        SceneTransformTarget Target=new(new EditorNodeId(2),NodePath.Root.Append(0),
+            Matrix4x4.CreateTranslation(1f,0f,0f),Matrix4x4.Identity);
+        EditTransactionController Controller=new();
+        Controller.Begin(Snapshot,[Target]);
+        Controller.PreviewTranslation(new Vector3(9f,0f,0f));
+
+        Assert.True(Controller.TryCreateCommit("Move Cube",out _));
+        SceneTransformPreview PreviewBeforeComplete=Assert.Single(Controller.CurrentPreviews);
+        Controller.Complete();
+
+        Assert.Equal(10f,PreviewBeforeComplete.World.Translation.X,3);
+        Assert.Empty(Controller.CurrentPreviews);
+    }
+
     [Fact]
     public void QueueSnapshot_DuringDrag_KeepsOnlyTheLatestSnapshot(){
         SceneDocumentSnapshot First=CreateSnapshot(DocumentVersion:1);

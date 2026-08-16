@@ -152,3 +152,67 @@ VSExtension.Tests は M0020 完了時点の431件から **448件**(+17)へ増え
   フォーカスを奪い偽の入力を生むため使わない)。
 - 上記の実機確認が完了するまで、台帳`F-L8-011`のVerificationは`TestVerified`のままとし、
   `Verified`へ上げない。
+
+## 追記(2026-08-17): 実機フィードバック4件と対応
+
+上記の実機確認をユーザーが開始し、4件のフィードバックを受けた。うち1件は確認手順の説明不足
+(既に解決済み、ビューポートクリック→Wキーでギズモが出る仕様どおりの挙動だった)。残り4件は
+コードの修正で対応した。
+
+### 1. Wキー無しで即ギズモ表示(UX変更)
+
+`SceneEditorSettings.DefaultActiveTool`を`Select`から`Move`へ変更した
+([SceneEditorSettings.cs:42](tools/CSharpGameEngine.VSExtension/SceneEditorSettings.cs#L42))。
+`UpdateMoveGizmo()`は`ActiveTool==Select`のとき明示的にギズモを隠す仕様のため、既定が`Select`だと
+選択しただけではギズモが出ずWキーを押す一手間が必要だった。永続設定に既存の値がある場合はそちらが
+優先されるため、初回起動時のみ影響する。
+
+### 2. コミット直後のギズモ位置ズレ(バグ、原因特定)
+
+`SceneHwndHost.CompleteEditCommit`はコミット成功直後に`UpdateMoveGizmo()`を呼ぶが、この関数は
+`CurrentRenderObjects`(CPU側キャッシュ)からpivotを計算する。`CurrentRenderObjects`はコミット後の
+非同期Roslyn再解析が完了するまで更新されないため、ドラッグで移動した直後は**一瞬だけ元の位置で
+ギズモが再描画され、再解析完了後に正しい位置へ「追いつく」**という視覚的なズレが実機で確認された。
+
+`EditTransactionController`に`CurrentPreviews`アクセサを追加し、`Complete()`が状態をクリアする前に
+ドラッグ最終値を取得できるようにした。`CompleteEditCommit`は`CurrentRenderObjects`の該当ノード
+(primaryと子孫)を最終Transformへ即時パッチしてから`UpdateMoveGizmo()`を呼ぶよう変更し、
+`UpdateMoveGizmo()`自体は変更していない。回帰テスト:
+`EditTransactionControllerTests.CurrentPreviews_AfterTryCreateCommit_StillReflectsTheFinalDraggedValueUntilComplete`。
+実機での見た目の修正確認(HWND/D3D12を要するためユニットテストでは検証不可)は未実施。
+
+### 3. Hierarchy選択時、マーク行を最上部へスクロール
+
+`SceneSourceMarkerService.Update()`は選択ノードの`new Node{...}`をハイライトするだけでスクロールは
+行っていなかった(M0020の非フォーカス方針どおり)。`IVsTextManager.EnumViews`(対象文書をアクティブ化
+せず既存ビューを列挙できるAPI)経由でビューを取得し、`ITextView.DisplayTextLineContainingBufferPosition`
+でcaretを動かさずにスクロールだけ行うようにした。再解析のたびに同じ選択で`Update()`が呼ばれても
+毎回スクロールし直さないよう、直近にスクロールした選択集合を記録して比較している
+(`LastScrolledPaths`)。
+
+`IVsTextManager.EnumViews`/`IVsEnumTextViews.Next`のC# out/ref判定はildasmで
+`Microsoft.VisualStudio.Interop.dll`を逆アセンブルして実シグネチャを確認した
+(`Microsoft.VisualStudio.TextManager.Interop.dll`は型フォワーダのみの空アセンブリで、
+素朴なreflectionでは検証できない)。`EnumViews(IVsTextBuffer,out IVsEnumTextViews)`、
+`Next(uint,IVsTextView[],ref uint)` — `Next`の第3引数はIL上`[out]`属性が無い素の`uint32&`のため
+`ref`が必要(`EnumViews`の`ppEnum`は`[out]`属性ありで`out`)。
+
+**フォーカスを奪わないことが未検証。** `EnumViews`はAPIの性質上アクティブ化を伴わないはずだが、
+実機で確認するまでは確証できない。
+
+### 4. ソース反映後のコードエディタcaret/スクロール位置維持
+
+`SceneWorkspaceService.ApplyTextAsync`で、`Buffer.Replace`を呼ぶ前に対象バッファを表示中の全ビューの
+caret位置とビューポート先頭行を`ITrackingPoint`として退避し、適用直後に復元するようにした
+(`CaptureViewPositions`/`RestoreViewPositions`)。`SceneTextBufferWriter.TryApply`自体は既に最小差分
+(`GetTextChanges`)で適用しており全文置換ではないため、**何が具体的にcaret/スクロールを動かしていたのか
+根本原因は特定できていない。** 対症療法としてsave/restoreを追加した。実機で直っているか未検証。
+
+### 実機再確認が必要な項目(上記8項目に追加)
+
+| # | 確認対象 |
+|---|---|
+| 9 | ノードを選択しただけ(Wキー不要)でMoveギズモが出る |
+| 10 | ドラッグでオブジェクトを移動して確定した瞬間、ギズモが元の位置へ一瞬戻らず即座に新位置へ移る |
+| 11 | Hierarchyでノードを選択すると、マークされた行の先頭がコードエディタの最上部までスクロールする。この際コードエディタのフォーカス/アクティブタブが変わらない |
+| 12 | ギズモ/インスペクター編集でC#ソースへ反映されたあと、コードエディタのcaret位置とスクロール位置が変わらない |

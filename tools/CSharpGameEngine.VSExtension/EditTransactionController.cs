@@ -129,6 +129,13 @@ internal sealed class EditTransactionController {
 
     internal EditTransactionState State { get;private set;}=EditTransactionState.Idle;
 
+    /// <summary>
+    /// ドラッグ最終値のプレビュー一覧。<see cref="Complete"/>が状態をクリアする前に呼び出し側が
+    /// commit直後のRenderObjectキャッシュをこの値へ揃えるために公開している(コミット直後の
+    /// UpdateMoveGizmoが再解析待ちの古いRenderObjectを読んでギズモが一瞬元の位置へ戻る不具合の対策)。
+    /// </summary>
+    internal IReadOnlyList<SceneTransformPreview>CurrentPreviews=>this.Previews;
+
     internal void Begin(SceneDocumentSnapshot Snapshot,IReadOnlyList<SceneTransformTarget>Targets){
         if(State!=EditTransactionState.Idle){
             throw new InvalidOperationException("編集トランザクションは既に進行中です。");

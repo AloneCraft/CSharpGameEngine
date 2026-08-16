@@ -15,6 +15,7 @@ using Microsoft.VisualStudio.LanguageServices;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Text;
+using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Text.Operations;
 using Microsoft.VisualStudio.TextManager.Interop;
 using Microsoft.VisualStudio.Threading;
@@ -514,7 +515,18 @@ internal sealed class SceneWorkspaceService : IDisposable {
             if(Buffer is null){
                 return new SceneLiveBufferWriteResult(false,"対象Sceneのmanaged text bufferを取得できません。");
             }
-            return this.TextBufferWriter.TryApply(Buffer,Context.Text,After,UndoDescription)
+
+            // ギズモ/インスペクター編集はユーザーがコードエディタで別の箇所を読んでいる間にも起こる。
+            // Buffer.Replaceは最小差分なのでcaretは通常tracking経由で追従するはずだが、対象文書が
+            // 開いていてもアクティブでない場合や、離れた位置の差分が紛れ込んだ場合に備え、編集前後で
+            // caret位置とビューポート先頭行を明示的に保存・復元する。
+            List<ViewPositionSnapshot>Restorations=CaptureViewPositions(Buffer,VsBuffer);
+            bool Applied=this.TextBufferWriter.TryApply(Buffer,Context.Text,After,UndoDescription);
+            if(Applied){
+                RestoreViewPositions(Restorations);
+            }
+
+            return Applied
                 ?new SceneLiveBufferWriteResult(true,ErrorMessage:null)
                 :new SceneLiveBufferWriteResult(
                     false,"編集中にC#ソースが変化したため上書きを中止しました。",LiveTextChanged:true);
@@ -522,6 +534,55 @@ internal sealed class SceneWorkspaceService : IDisposable {
             if(DocDataPointer!=IntPtr.Zero){
                 Marshal.Release(DocDataPointer);
             }
+        }
+    }
+
+    private readonly struct ViewPositionSnapshot(ITextView View,ITrackingPoint Caret,ITrackingPoint Top){
+        internal ITextView View { get; }=View;
+
+        internal ITrackingPoint Caret { get; }=Caret;
+
+        internal ITrackingPoint Top { get; }=Top;
+    }
+
+    /// <summary>
+    /// <paramref name="VsBuffer"/>を表示中の全ビュー(分割ウィンドウ含む)のcaret位置とビューポート
+    /// 先頭行を、編集前スナップショット基準の<see cref="ITrackingPoint"/>として退避する。ドキュメントを
+    /// アクティブ化しない(<c>IVsTextManager.EnumViews</c>は既存ビューの列挙だけで済む)。
+    /// </summary>
+    private List<ViewPositionSnapshot>CaptureViewPositions(ITextBuffer Buffer,IVsTextBuffer VsBuffer){
+        List<ViewPositionSnapshot>Result=[];
+        if(this.EditorAdapters is null
+            ||Package.GetGlobalService(typeof(SVsTextManager))is not IVsTextManager TextManager
+            ||TextManager.EnumViews(VsBuffer,out IVsEnumTextViews?ViewEnum)!=VSConstants.S_OK||ViewEnum is null){
+            return Result;
+        }
+
+        IVsTextView[]Fetched=new IVsTextView[1];
+        uint FetchedCount=0;
+        while(ViewEnum.Next(1,Fetched,ref FetchedCount)==VSConstants.S_OK&&FetchedCount==1){
+            if(this.EditorAdapters.GetWpfTextView(Fetched[0])is not { }WpfView){
+                continue;
+            }
+
+            ITextSnapshot Snapshot=Buffer.CurrentSnapshot;
+            SnapshotPoint CaretPoint=WpfView.Caret.Position.BufferPosition;
+            SnapshotPoint TopPoint=WpfView.TextViewLines.FirstVisibleLine.Start;
+            Result.Add(new ViewPositionSnapshot(
+                WpfView,
+                Snapshot.CreateTrackingPoint(CaretPoint.Position,PointTrackingMode.Positive),
+                Snapshot.CreateTrackingPoint(TopPoint.Position,PointTrackingMode.Positive)));
+        }
+
+        return Result;
+    }
+
+    private static void RestoreViewPositions(List<ViewPositionSnapshot>Restorations){
+        foreach(ViewPositionSnapshot Restoration in Restorations){
+            ITextSnapshot Snapshot=Restoration.View.TextBuffer.CurrentSnapshot;
+            Restoration.View.Caret.MoveTo(Restoration.Caret.GetPoint(Snapshot));
+            Restoration.View.DisplayTextLineContainingBufferPosition(
+                Restoration.Top.GetPoint(Snapshot),0.0,ViewRelativePosition.Top);
         }
     }
 
