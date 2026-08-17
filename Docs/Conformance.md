@@ -1780,3 +1780,24 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - Evidence: `SurfaceSnapGizmoTests.cs`(新規7件)、`SceneTransformMathTests.cs`に2件追加。
   ソリューション全体983/983(既存974+9)。掴みやすさ・武装の反応速度・吸着の操作感は
   HWND/D3D12/`GetKeyState`依存のためユニットテスト不可、実機確認が必須。
+
+## 2026-08-17 M0035: ギズモの視認性改善(ScaleUniformのhover、Move矢印の間隔、Rotateリングの面積)
+
+- **Mismatch → 解消(実機Observed、真のバグ)**: `BuildScaleOverlay`の`AddCube(ScaleUniform,...)`が
+  基準色へ既に`Vector4.One`(純白)を渡しており、hoverロジック`Lerp(Base,Vector4.One,0.55f)`が
+  `Lerp(白,白,x)=白`となり**hoverしても常に白のまま**だった。基準色を濃いグレーへ変更するだけで
+  既存のhoverロジックがそのまま機能するようにした。あわせてhover/Active時だけ白→黒の二重
+  ワイヤーフレーム輪郭(`AddOutlineCube`)を重ねるようにし、どんな背景色でも視認できるようにした。
+- **Mismatch → 解消(実機Observed)**: `TransformGizmo.AxisStart=0.12f`が`ScaleUniformHalfExtent
+  =0.11f`(対角では≈0.19まで届く)とほぼ同じ距離で、Move矢印がキューブへめり込んで見え誤選択の
+  原因になっていた。M0033の半径帯再設計は外側だけを対象にしておりピボット直近のこの重なりを
+  見落としていた。`AxisStart`を`0.26f`へ変更しキューブの対角到達距離より確実に外側にした。
+- **Unknown → 対応(実機Observed)**: Rotateリング(`AddRing`)が細い線ループのみで実装上面積が
+  無かった。内外半径を持つ平帯(annulus)の`Triangle`プリミティブを追加し、半幅は既存の当たり
+  判定許容量`RotateRingThickness=0.07`をそのまま流用した(見えている太さと掴める太さを一致させる)。
+  立体的なトーラス形状はunlitパイプラインと頂点予算(`MaxOverlayVertices=4096`)の制約で採用せず、
+  平帯を選択した。
+- Evidence: `TransformGizmoTests.cs`に新規5件追加、既存の
+  `BuildRotateOverlay_GeneratesThreeAxisRingsAndViewRing`をTriangle帯追加に合わせて更新。
+  ソリューション全体988/988(既存983+5)。実際の見え方(明暗の区別・輪郭の視認性・間隔感・
+  リングの面積感)はHWND/D3D12依存のためユニットテスト不可、実機確認が必須。

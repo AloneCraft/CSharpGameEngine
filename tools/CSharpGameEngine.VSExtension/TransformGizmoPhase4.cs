@@ -66,20 +66,38 @@ internal static partial class TransformGizmo {
                 ?new Vector4(Base.X*0.35f,Base.Y*0.35f,Base.Z*0.35f,0.2f)
                 :Active==Handle?Vector4.One:Hovered==Handle?Vector4.Lerp(Base,Vector4.One,0.55f):Base;
 
+        // M0035: 細い線ループだけでなく、内外半径を持つ平帯(annulus)のTriangleも生成し「面積」を
+        // 持たせる。帯の半幅は当たり判定の許容量RotateRingThicknessをそのまま流用し、見えている
+        // 太さと実際に掴める太さを一致させる。
         void AddRing(GizmoHandleId Handle,Vector3 Normal,float Radius,Vector4 Base){
             const int Segments=48;
             (Vector3 First,Vector3 Second)=CreatePlaneBasis(Normal);
             Vector4 Color=ResolveColor(Handle,Base);
-            List<GizmoOverlayVertex>Vertices=[];
+            float InnerRadius=(Radius-RotateRingThickness)*Value.WorldScale;
+            float OuterRadius=(Radius+RotateRingThickness)*Value.WorldScale;
+            List<GizmoOverlayVertex>Outline=[];
+            List<GizmoOverlayVertex>Band=[];
             for(var Segment=0;Segment<Segments;Segment++){
                 float AngleA=(float)(Segment*Math.PI*2d/Segments);
                 float AngleB=(float)((Segment+1)*Math.PI*2d/Segments);
-                Vertices.Add(new GizmoOverlayVertex(
-                    Value.Pivot+(((First*(float)Math.Cos(AngleA))+(Second*(float)Math.Sin(AngleA)))*Radius*Value.WorldScale),Color));
-                Vertices.Add(new GizmoOverlayVertex(
-                    Value.Pivot+(((First*(float)Math.Cos(AngleB))+(Second*(float)Math.Sin(AngleB)))*Radius*Value.WorldScale),Color));
+                Vector3 DirA=(First*(float)Math.Cos(AngleA))+(Second*(float)Math.Sin(AngleA));
+                Vector3 DirB=(First*(float)Math.Cos(AngleB))+(Second*(float)Math.Sin(AngleB));
+                Outline.Add(new GizmoOverlayVertex(Value.Pivot+(DirA*Radius*Value.WorldScale),Color));
+                Outline.Add(new GizmoOverlayVertex(Value.Pivot+(DirB*Radius*Value.WorldScale),Color));
+
+                Vector3 InnerA=Value.Pivot+(DirA*InnerRadius);
+                Vector3 OuterA=Value.Pivot+(DirA*OuterRadius);
+                Vector3 InnerB=Value.Pivot+(DirB*InnerRadius);
+                Vector3 OuterB=Value.Pivot+(DirB*OuterRadius);
+                Band.Add(new GizmoOverlayVertex(InnerA,Color));
+                Band.Add(new GizmoOverlayVertex(OuterA,Color));
+                Band.Add(new GizmoOverlayVertex(OuterB,Color));
+                Band.Add(new GizmoOverlayVertex(InnerA,Color));
+                Band.Add(new GizmoOverlayVertex(OuterB,Color));
+                Band.Add(new GizmoOverlayVertex(InnerB,Color));
             }
-            Primitives.Add(new GizmoOverlayPrimitive(GizmoPrimitiveKind.Line,Vertices));
+            Primitives.Add(new GizmoOverlayPrimitive(GizmoPrimitiveKind.Line,Outline));
+            Primitives.Add(new GizmoOverlayPrimitive(GizmoPrimitiveKind.Triangle,Band));
         }
     }
 
@@ -126,7 +144,12 @@ internal static partial class TransformGizmo {
         AddAxis(GizmoHandleId.ScaleX,Value.AxisX,new Vector4(1f,0.15f,0.1f,1f));
         AddAxis(GizmoHandleId.ScaleY,Value.AxisY,new Vector4(0.2f,1f,0.2f,1f));
         AddAxis(GizmoHandleId.ScaleZ,Value.AxisZ,new Vector4(0.2f,0.45f,1f,1f));
-        AddCube(GizmoHandleId.ScaleUniform,Value.Pivot,ScaleUniformHalfExtent,Vector4.One);
+        // M0035: 基準色を濃いグレーにする。ResolveColorのhover lerpは白へ向かうため、これだけで
+        // 「既定=濃いグレー、hover=明るいグレー」になる(以前はBase自体が白でlerpが無効化されていた)。
+        AddCube(GizmoHandleId.ScaleUniform,Value.Pivot,ScaleUniformHalfExtent,new Vector4(0.35f,0.35f,0.35f,1f));
+        if(Hovered==GizmoHandleId.ScaleUniform||Active==GizmoHandleId.ScaleUniform){
+            AddOutlineCube(Value.Pivot,ScaleUniformHalfExtent);
+        }
         return Primitives;
 
         Vector4 ResolveColor(GizmoHandleId Handle,Vector4 Base)=>
@@ -189,6 +212,28 @@ internal static partial class TransformGizmo {
             List<GizmoOverlayVertex>Vertices=[];
             foreach(int Index in Indices){ Vertices.Add(new GizmoOverlayVertex(Corners[Index],Color)); }
             Primitives.Add(new GizmoOverlayPrimitive(GizmoPrimitiveKind.Triangle,Vertices));
+        }
+
+        // M0035: hover中のScaleUniformキューブへ、白→黒の二重ワイヤーフレーム輪郭を重ねる。
+        // 明るい背景では黒線が、暗い背景では白線が効くため、どんな背景色でも視認できる。
+        void AddOutlineCube(Vector3 Center,float HalfExtent){
+            AddWireCube(Center,HalfExtent*1.12f,new Vector4(1f,1f,1f,1f));
+            AddWireCube(Center,HalfExtent*1.28f,new Vector4(0f,0f,0f,1f));
+        }
+
+        void AddWireCube(Vector3 Center,float HalfExtent,Vector4 Color){
+            float Size=HalfExtent*Value.WorldScale;
+            Vector3 X=Value.AxisX*Size;
+            Vector3 Y=Value.AxisY*Size;
+            Vector3 Z=Value.AxisZ*Size;
+            Vector3[]Corners=[
+                Center-X-Y-Z,Center+X-Y-Z,Center+X+Y-Z,Center-X+Y-Z,
+                Center-X-Y+Z,Center+X-Y+Z,Center+X+Y+Z,Center-X+Y+Z,
+            ];
+            int[]Edges=[0,1,1,2,2,3,3,0,4,5,5,6,6,7,7,4,0,4,1,5,2,6,3,7];
+            List<GizmoOverlayVertex>Vertices=[];
+            foreach(int Index in Edges){ Vertices.Add(new GizmoOverlayVertex(Corners[Index],Color)); }
+            Primitives.Add(new GizmoOverlayPrimitive(GizmoPrimitiveKind.Line,Vertices));
         }
     }
 

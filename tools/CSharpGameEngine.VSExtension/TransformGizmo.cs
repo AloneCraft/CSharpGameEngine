@@ -94,7 +94,10 @@ internal readonly struct MoveGizmoFrame {
 /// <summary>Moveギズモの表示形状、スクリーン一定サイズ、解析的ヒット判定。</summary>
 internal static partial class TransformGizmo {
     private const float ScreenFraction=0.16f;
-    private const float AxisStart=0.12f;
+    // M0035: 旧0.12fはScaleUniformキューブ(半径0.11、対角では≈0.19まで届く)とほぼ同じ距離で
+    // 矢印がキューブへめり込んで見え、誤選択の原因になっていた。キューブの対角到達距離より
+    // 確実に外側、かつMove平面ハンドルのPlaneMin(0.22)より少し外側にして新たな重なりを避ける。
+    private const float AxisStart=0.26f;
     // M0033: Rotate/Scaleが常時同時表示になったため、Scaleキューブ帯(≈0.93-1.08)より外側へ
     // 押し出した(TransformGizmoPhase4.csのコメント参照)。
     private const float AxisLength=1.35f;

@@ -173,10 +173,13 @@ public sealed class TransformGizmoTests {
 
         IReadOnlyList<GizmoOverlayPrimitive>Overlay=TransformGizmo.BuildRotateOverlay(
             Frame,CameraForward:Vector3.UnitZ,Hovered:null,Active:null);
+        IReadOnlyList<GizmoOverlayPrimitive>Outlines=Overlay
+            .Where(static Primitive=>Primitive.Kind==GizmoPrimitiveKind.Line).ToArray();
 
-        Assert.Equal(4,Overlay.Count);
-        Assert.All(Overlay,Primitive=>Assert.Equal(GizmoPrimitiveKind.Line,Primitive.Kind));
-        Assert.All(Overlay,Primitive=>Assert.True(Primitive.Vertices.Count>=48));
+        // M0035: 線の輪郭(4本、既存の検証)に加えて、面積を持つ帯(Triangle、4本)も生成する。
+        Assert.Equal(4,Outlines.Count);
+        Assert.All(Outlines,Primitive=>Assert.True(Primitive.Vertices.Count>=48));
+        Assert.Equal(4,Overlay.Count(static Primitive=>Primitive.Kind==GizmoPrimitiveKind.Triangle));
     }
 
     [Fact]
@@ -328,5 +331,85 @@ public sealed class TransformGizmoTests {
         Assert.NotEqual(
             LocalOverlay.Sum(static Primitive=>Primitive.Vertices.Count),
             WorldOverlay.Sum(static Primitive=>Primitive.Vertices.Count));
+    }
+
+    // ----- M0035: ギズモの視認性改善 -----
+
+    [Fact]
+    public void BuildScaleOverlay_ScaleUniformDefaultColor_IsDarkGrayNotWhite(){
+        MoveGizmoFrame Frame=MoveGizmoFrame.Create(
+            Vector3.Zero,Quaternion.Identity,SceneTransformSpace.World,WorldScale:1f);
+
+        IReadOnlyList<GizmoOverlayPrimitive>Overlay=TransformGizmo.BuildScaleOverlay(
+            Frame,Hovered:null,Active:null);
+        GizmoOverlayPrimitive UniformCube=Overlay.Last(static Primitive=>Primitive.Kind==GizmoPrimitiveKind.Triangle);
+
+        Assert.True(UniformCube.Vertices[0].Color.X<0.9f,"既定色は白ではなく濃いグレーであるべき");
+    }
+
+    [Fact]
+    public void BuildScaleOverlay_ScaleUniformHovered_IsBrighterThanDefault(){
+        MoveGizmoFrame Frame=MoveGizmoFrame.Create(
+            Vector3.Zero,Quaternion.Identity,SceneTransformSpace.World,WorldScale:1f);
+
+        IReadOnlyList<GizmoOverlayPrimitive>Default=TransformGizmo.BuildScaleOverlay(Frame,Hovered:null,Active:null);
+        IReadOnlyList<GizmoOverlayPrimitive>Hovered=TransformGizmo.BuildScaleOverlay(
+            Frame,Hovered:GizmoHandleId.ScaleUniform,Active:null);
+        float DefaultBrightness=Default.Last(static Primitive=>Primitive.Kind==GizmoPrimitiveKind.Triangle).Vertices[0].Color.X;
+        float HoveredBrightness=Hovered.Last(static Primitive=>Primitive.Kind==GizmoPrimitiveKind.Triangle).Vertices[0].Color.X;
+
+        Assert.True(HoveredBrightness>DefaultBrightness);
+    }
+
+    [Fact]
+    public void BuildScaleOverlay_ScaleUniformHovered_AddsWhiteAndBlackOutlineLines(){
+        MoveGizmoFrame Frame=MoveGizmoFrame.Create(
+            Vector3.Zero,Quaternion.Identity,SceneTransformSpace.World,WorldScale:1f);
+
+        IReadOnlyList<GizmoOverlayPrimitive>Default=TransformGizmo.BuildScaleOverlay(Frame,Hovered:null,Active:null);
+        IReadOnlyList<GizmoOverlayPrimitive>Hovered=TransformGizmo.BuildScaleOverlay(
+            Frame,Hovered:GizmoHandleId.ScaleUniform,Active:null);
+
+        bool DefaultHasOutline=Default.Any(static Primitive=>
+            Primitive.Kind==GizmoPrimitiveKind.Line&&Primitive.Vertices.Count==24);
+        GizmoOverlayPrimitive[]OutlineLines=Hovered
+            .Where(static Primitive=>Primitive.Kind==GizmoPrimitiveKind.Line&&Primitive.Vertices.Count==24)
+            .ToArray();
+
+        Assert.False(DefaultHasOutline,"hoverしていない既定状態には輪郭線を追加しない");
+        Assert.Equal(2,OutlineLines.Length);
+        Assert.Contains(OutlineLines,Primitive=>
+            Primitive.Vertices[0].Color==new Vector4(1f,1f,1f,1f));
+        Assert.Contains(OutlineLines,Primitive=>
+            Primitive.Vertices[0].Color==new Vector4(0f,0f,0f,1f));
+    }
+
+    [Fact]
+    public void TryHitMove_RayInsideOldAxisStart_NoLongerHitsAxisX(){
+        MoveGizmoFrame Frame=MoveGizmoFrame.Create(
+            Vector3.Zero,Quaternion.Identity,SceneTransformSpace.World,WorldScale:1f);
+
+        // M0035: AxisStartは0.12→0.26。旧値の内側(0.15)はScaleUniformキューブに近すぎるため、
+        // もうAxisXへヒットしないはず。
+        GizmoHandleId?Hit=TransformGizmo.TryHitMove(Frame,new Vector3(0.15f,0f,-10f),Vector3.UnitZ,out _);
+
+        Assert.NotEqual(GizmoHandleId.AxisX,Hit);
+    }
+
+    [Fact]
+    public void BuildRotateOverlay_GeneratesFilledBandInAdditionToOutlineRings(){
+        MoveGizmoFrame Frame=MoveGizmoFrame.Create(
+            Vector3.Zero,Quaternion.Identity,SceneTransformSpace.World,WorldScale:1f);
+
+        IReadOnlyList<GizmoOverlayPrimitive>Overlay=TransformGizmo.BuildRotateOverlay(
+            Frame,CameraForward:Vector3.UnitZ,Hovered:null,Active:null);
+
+        int LineCount=Overlay.Count(static Primitive=>Primitive.Kind==GizmoPrimitiveKind.Line);
+        int TriangleVertices=Overlay
+            .Where(static Primitive=>Primitive.Kind==GizmoPrimitiveKind.Triangle)
+            .Sum(static Primitive=>Primitive.Vertices.Count);
+
+        Assert.Equal(4,LineCount);
+        Assert.True(TriangleVertices>0,"リングは細い線だけでなく面積を持つ帯も持つべき");
     }
 }

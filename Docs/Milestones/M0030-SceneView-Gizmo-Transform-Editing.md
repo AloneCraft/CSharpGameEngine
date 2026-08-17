@@ -362,3 +362,43 @@ Evidence: `SurfaceSnapGizmoTests.cs`(新規、7件: 武装配置・ヒット判�
 | 25 | マウスを離すとC#ソースのPositionとRotationが1 Undoで更新される |
 | 26 | Rotationが式(メソッド呼び出し等)のノードでは四角が褪色して掴めない |
 | 27 | Nキーではもうサーフェススナップが起きない/Vキーの頂点スナップは従来どおり動く |
+
+## 追記(2026-08-17 続き): ギズモの視認性改善(M0035)
+
+M0033/M0034の実機確認で、ギズモの視認性に関する3件のフィードバックを受けた。
+
+**ScaleUniformキューブが常に白い**: `BuildScaleOverlay`の`AddCube(ScaleUniform,...)`が基準色
+(`Base`)へ既に`Vector4.One`(純白)を渡しており、hoverロジック`Lerp(Base,Vector4.One,0.55f)`が
+`Lerp(白,白,x)=白`で無効化されていた**実バグ**だった。基準色を濃いグレー
+(`new Vector4(0.35f,0.35f,0.35f,1f)`)へ変更するだけで、既存のhoverロジックがそのまま
+「既定=濃いグレー、hover=明るいグレー」を実現する。加えて、hover(またはActive)中だけ
+`AddOutlineCube`で白(`HalfExtent*1.12`)→黒(`HalfExtent*1.28`)の二重ワイヤーフレーム立方体を
+重ねて描くようにした(`TransformSpaceToggleGizmo`のLocal状態で使っていたエッジインデックス
+配列を再利用)。どんな背景色でも輪郭が見えるようにする狙い。
+
+**Move矢印がScaleUniformキューブに近すぎる**: `TransformGizmo.AxisStart`(矢印の見た目・
+当たり判定共通のシャフト開始位置)が`0.12f`で、`ScaleUniformHalfExtent=0.11f`(対角では≈0.19まで
+届く)とほぼ同じ距離だったため、矢印がキューブへめり込んで見え誤選択の原因になっていた。M0033の
+半径帯再設計は外側(Rotate/Scale/Move先端)だけを対象にしており、ピボット直近のこの重なりを見落と
+していた。`AxisStart`を`0.26f`へ変更(キューブの対角到達距離より確実に外側、かつMove平面ハンドルの
+`PlaneMin=0.22`より少し外側にして新たな重なりを避けた)。
+
+**Rotateリングに面積が無い**: `AddRing`が`GizmoPrimitiveKind.Line`(細い線ループ)しか生成して
+おらず実装上面積ゼロだった。既存の線ループはそのまま残しつつ、内外半径を持つ平帯(annulus)の
+`Triangle`プリミティブを追加した。帯の半幅は既存の当たり判定許容量`RotateRingThickness=0.07`を
+そのまま流用し、「見えている太さ」と「実際に掴める太さ」を一致させた。参考画像のような立体的な
+トーラス形状(奥行き方向の厚み)はoverlayパイプラインがunlitで頂点予算(`MaxOverlayVertices=4096`)
+も限られるため採用せず、平帯を選んだ(実機で細く見える場合は帯の半幅を調整する前提)。
+
+Evidence: `TransformGizmoTests.cs`に新規5件追加、既存の`BuildRotateOverlay_GeneratesThreeAxisRingsAndViewRing`
+をTriangle帯の追加に合わせて更新。ソリューション全体988/988(既存983+5)。グレーの明暗の見え方・
+輪郭線の視認性・矢印とキューブの間隔感・リングの面積感はHWND/D3D12依存のためユニットテスト不可、
+実機確認が必須。
+
+| # | 確認対象 |
+|---|---|
+| 28 | `ScaleUniform`キューブがhover無しで濃いグレー、hoverで明るいグレーになる |
+| 29 | hover時にキューブへ白黒の二重線輪郭が付き、どの背景色でも見分けられる |
+| 30 | Move矢印の起点がキューブから視覚的に離れ、誤選択しにくくなっている |
+| 31 | Rotateリングが線だけでなく面積のある帯として見える |
+| 32 | 頂点予算超過によるoverlay消失や例外が発生しない |

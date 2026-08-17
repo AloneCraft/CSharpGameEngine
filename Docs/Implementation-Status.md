@@ -2514,8 +2514,12 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   マウス静止中でも1フレーム以内に武装表示が反映されるようRenderingティックで`GetKeyState`を
   ポーリングする方式(既存のFly Fast/Precisionポーリングと同型)を新設し、新規WndProc/WPFキー
   配線は追加していない。`CanEditTransform`にHandle優先分岐を追加したことで、ドラッグ開始時に
-  同じ条件を別途チェックしていた`CanSurfaceSnapSelection`は不要になり削除した。実機目視が
-  残っているため`Verified`へは上げていない。
+  同じ条件を別途チェックしていた`CanSurfaceSnapSelection`は不要になり削除した。続けて視認性
+  改善3件(⑧): `ScaleUniform`キューブの基準色が既に純白でhover時のlerpが無効化されていた
+  実バグを修正(濃いグレー既定+hoverで明転)、hover/Active時に白黒二重ワイヤーフレーム輪郭を
+  追加、`AxisStart`(0.12→0.26)でMove矢印を`ScaleUniform`キューブから引き離し、`AddRing`へ
+  内外半径を持つ平帯Triangleを追加してRotateリングに面積を持たせた(半幅は既存の当たり判定
+  許容量`RotateRingThickness`を流用)。実機目視が残っているため`Verified`へは上げていない。
 - Intended specification: `Docs/シーンエディタの仕様.md`(要求仕様)、
   Docs/Decisions/ADR-0041-Scene-Editor-Interaction-Architecture.md(意思決定)、
   Docs/Specifications/Scene-Editor-Design.md(詳細設計)
