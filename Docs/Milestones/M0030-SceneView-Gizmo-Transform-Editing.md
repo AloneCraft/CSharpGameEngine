@@ -309,3 +309,56 @@ Evidence: `TransformGizmoTests.cs`に7件追加(`TryHitTransform`の系統横断
 | 17 | ギズモ上のLocal/Globalアイコンをクリックすると座標空間が切り替わり、ギズモの向きが即座に変わる(ドラッグは発生しない) |
 | 18 | W/E/Rキーは何も起こさない(以前のツール切替は発生しない) |
 | 19 | 全体的な視覚的な煩雑さ(重なり・見づらさ)がないか — 半径定数は実機フィードバックで再調整する前提 |
+
+## 追記(2026-08-17 続き): Shift+Ctrlのサーフェススナップを中心の平面四角ハンドル化(M0034)
+
+M0033の実機確認と並行して、Unity同様の操作性でサーフェススナップ(位置+法線への回転整列)を
+使いたいという要望を受けた。**サーフェススナップ自体の数学は既にM0020 Phase 5で実装済み**
+(`ScenePicker.TrySurfaceSnapQuery`、`EditTransactionController.PreviewSurfaceSnap`が位置と
+面法線への回転整列まで行う)で、従来は`N`キーを押しながらMoveハンドルをドラッグする方式
+(`SceneHwndHost.cs`の`GetKeyState(VK_N)`ポーリング)だった。今回変えたのは**起動方法と
+可視化だけ**: `N`キーホールドを廃止し、Shift+Ctrl押下中にギズモ中心へ現れる専用ハンドル
+`GizmoHandleId.SurfaceSnapPlane`(平面四角、輪郭はfill色のRGB反転)をドラッグする方式へ変更した。
+頂点スナップ(`V`キー)はUnity標準に合わせてそのまま残した。
+
+**新規`SurfaceSnapGizmo.cs`**: 武装中(未ドラッグ)はピボット・カメラ正対で表示・ヒットテストする
+(`GetArmedPlacement`)。`TransformGizmoPhase4.CreatePlaneBasis`を`internal`へ上げて基底計算を
+再利用した。`TransformGizmo.TryHitTransform`へ`bool SurfaceSnapArmed`引数を追加し、武装中かつ
+ハンドルが編集可能なら四角だけを最優先でヒットテストする(Propertyギズモが先に短絡する既存の
+前例と同じ形)。無効(Rotationが式等で編集不可)なら通常の統合ヒットテストへフォールバックし、
+修飾キーを押しっぱなしでも他ハンドルを掴めなくなることを避けた。
+
+**編集可否**: `SceneTransformBinding.CanEditTransform`に`SurfaceSnapPlane`のHandle優先分岐を追加し
+(Toolに依らず`CanEditRotation`と同じ「全Position+全Rotationが編集可能」要件)、既存の
+`CanSurfaceSnapSelection`フィールド(ドラッグ開始時に同じ条件を別途チェックしていた)は完全に
+不要になったため削除した。
+
+**修飾キーの武装判定**: マウス静止中でも1フレーム以内に四角の表示・非表示を切り替えるため、
+`CompositionTarget.Rendering`ティックで`GetKeyState`をポーリングする新規`UpdateSurfaceSnapArmed`
+を追加した(既存のFly Fast/Precisionポーリングと同じ方式、新規のWndProc/WPFキー配線は無し —
+ネイティブサーフェスは意図的にキーボードフォーカスを持たない設計のため、その経路は行き止まり
+だったことを確認済み)。
+
+**ドラッグ系統**: `SurfaceSnapPlane`は`MoveGizmoDrag`(軸/平面の拘束)と噛み合わないため、
+`BeginTransformGizmoDrag`で`MoveGizmoDrag.TryBegin`の評価自体を`||`短絡で回避する専用分岐を
+追加した。M0033で確立した「ドラッグ系統はambientな状態ではなくヒットしたHandleが決める」方針を
+踏襲し、一度ドラッグが始まれば修飾キーを離してもmouse-upまでSurfaceSnapドラッグのまま継続する。
+ドラッグ中はFollowView(Shift)を明示的に抑止する(カメラが動くとヒット面が動くフィードバック
+ループになるため)。
+
+Evidence: `SurfaceSnapGizmoTests.cs`(新規、7件: 武装配置・ヒット判定・`TryHitTransform`の武装/
+非武装/無効時フォールバック・輪郭色反転・褪色)、`SceneTransformMathTests.cs`に2件追加
+(`CanEditTransform`のSurfaceSnapPlane分岐)。ソリューション全体983/983(既存974+9)。実際の
+掴みやすさ・武装の反応速度・吸着の操作感はHWND/D3D12/`GetKeyState`依存のためユニットテスト
+不可、実機確認が必須。
+
+| # | 確認対象 |
+|---|---|
+| 20 | ノードを選択しShift+Ctrlを押すと、マウスを動かさなくてもギズモ中心に四角が出る(離すと消える) |
+| 21 | 四角の輪郭がfillの反転色で視認しやすい |
+| 22 | 四角をドラッグすると別オブジェクトの表面へオブジェクトがぴったり吸着する |
+| 23 | 吸着時にオブジェクトの向きが接触面と揃い、四角もその面の角度で描かれる |
+| 24 | ドラッグ中にカメラが勝手に動かない(FollowView抑止の確認) |
+| 25 | マウスを離すとC#ソースのPositionとRotationが1 Undoで更新される |
+| 26 | Rotationが式(メソッド呼び出し等)のノードでは四角が褪色して掴めない |
+| 27 | Nキーではもうサーフェススナップが起きない/Vキーの頂点スナップは従来どおり動く |

@@ -192,7 +192,8 @@ internal static partial class TransformGizmo {
         }
     }
 
-    private static(Vector3 First,Vector3 Second)CreatePlaneBasis(Vector3 Normal){
+    /// <summary>M0034: <c>SurfaceSnapGizmo</c>が武装表示・ヒットテストで再利用するため公開。</summary>
+    internal static(Vector3 First,Vector3 Second)CreatePlaneBasis(Vector3 Normal){
         Normal=NormalizeOr(Normal,Vector3.UnitZ);
         Vector3 Reference=Math.Abs(Vector3.Dot(Normal,Vector3.UnitY))<0.9f?Vector3.UnitY:Vector3.UnitX;
         Vector3 First=Vector3.Normalize(Vector3.Cross(Normal,Reference));

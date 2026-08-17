@@ -1754,3 +1754,29 @@ Expハイブのキャッシュより新しくすること」を機序として**
   (969からActiveTool関連2件削除+9件追加)。半径帯が実機で視覚的に重ならないか・アイコンの
   位置/クリック操作感・ドラッグ系統解決の実際の配線はHWND/D3D12依存のためユニットテスト不可、
   実機確認が必須。
+
+## 2026-08-17 M0034: Shift+Ctrlのサーフェススナップを中心の平面四角ハンドル化
+
+- **Unknown → 対応(実機Observed起因、Unity準拠への操作性変更)**: サーフェススナップ自体
+  (位置+面法線への回転整列)は既にM0020 Phase 5で実装済みだったが、起動が`N`キーホールドで
+  Unityと異なっていた。Shift+Ctrl押下中にギズモ中心へ現れる専用ハンドル
+  `GizmoHandleId.SurfaceSnapPlane`(平面四角、輪郭はfill色のRGB反転)をドラッグする方式へ変更。
+  数学(`ScenePicker.TrySurfaceSnapQuery`/`EditTransactionController.PreviewSurfaceSnap`)は
+  無変更。頂点スナップ(`V`キー)はUnity標準に合わせそのまま残した。
+- **Mismatch → 解消(設計上の簡素化)**: `SceneTransformBinding.CanEditTransform`へ
+  `SurfaceSnapPlane`のHandle優先分岐(Toolに依らず`CanEditRotation`と同じ要件)を追加したことで、
+  ドラッグ開始時に同じ条件を別途チェックしていた`CanSurfaceSnapSelection`フィールドが完全に
+  重複になったため削除した。
+- **Unknown → 対応(実機Observed)**: マウス静止中でも1フレーム以内に武装表示(四角の出現/消滅)を
+  反映する必要があった。既存のFly Fast/Precisionポーリング(`GetKeyState`、Renderingティック)と
+  同じ方式で新規`SceneHwndHost.UpdateSurfaceSnapArmed`を追加し、新規のWndProc/WPFキー配線は
+  一切追加していない(ネイティブサーフェスは意図的にキーボードフォーカスを持たない設計のため
+  その経路は行き止まりと確認済み)。
+- W/E/Rキー撤廃(M0033)で確立した「ドラッグ系統はambientな状態ではなくヒットしたHandleが決める」
+  方針を踏襲し、`SurfaceSnapPlane`ドラッグ中は`MoveGizmoDrag.TryBegin`の評価自体を`||`短絡で
+  回避する専用分岐を追加。一度ドラッグが始まれば修飾キーを離してもmouse-upまでSurfaceSnap
+  ドラッグのまま継続し、ドラッグ中はFollowView(Shift)を明示的に抑止する(カメラが動くと
+  ヒット面が動くフィードバックループになるため)。
+- Evidence: `SurfaceSnapGizmoTests.cs`(新規7件)、`SceneTransformMathTests.cs`に2件追加。
+  ソリューション全体983/983(既存974+9)。掴みやすさ・武装の反応速度・吸着の操作感は
+  HWND/D3D12/`GetKeyState`依存のためユニットテスト不可、実機確認が必須。

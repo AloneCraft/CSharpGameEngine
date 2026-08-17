@@ -199,17 +199,25 @@ GizmoDragging
 
 ### 4.3 修飾キーの意味(仕様§6・11)
 
-| 修飾 | ナビゲーション中 | TransformGizmoドラッグ中 | PropertyGizmoドラッグ中 |
-|---|---|---|---|
-| Shift | FastNavigation(×4) | FollowView(§7.4) | 原則なし |
-| Ctrl | PrecisionNavigation(×0.25) | Grid/Incrementスナップ | 単位スナップ(角度・距離) |
-| Alt | (Orbit開始の判定のみ) | Duplicate(ドラッグ開始時に複製) | 適用しない |
-| V / N ホールド | ― | 頂点スナップ / 面スナップ | ― |
+| 修飾 | Idle中 | ナビゲーション中 | TransformGizmoドラッグ中 | PropertyGizmoドラッグ中 |
+|---|---|---|---|---|
+| Shift | ― | FastNavigation(×4) | FollowView(§7.4)。SurfaceSnapドラッグ中は抑止(M0034) | 原則なし |
+| Ctrl | ― | PrecisionNavigation(×0.25) | Grid/Incrementスナップ | 単位スナップ(角度・距離) |
+| Shift+Ctrl | SurfaceSnap武装(§7.2、M0034)。中心に平面四角ハンドルが出る | ― | ― | ― |
+| Alt | (Orbit開始の判定のみ) | (Orbit開始の判定のみ) | Duplicate(ドラッグ開始時に複製) | 適用しない |
+| V ホールド | ― | ― | 頂点スナップ | ― |
 
 IdleのAlt+LMB Downでは、現在のTransformギズモhandle hitをOrbit判定より先に行う。
 handle hitならDuplicate drag、非hitならOrbitとなり、既存のAltナビゲーションを失わない。
-Moveドラッグ中の同時修飾は、成功したクエリについてN(Surface) → V(Vertex) → Ctrl(Increment)の
-順で解決する。
+
+M0034: SurfaceSnapは`N`キーホールド方式から、Shift+Ctrl押下中に現れる専用ハンドル
+(`GizmoHandleId.SurfaceSnapPlane`)のドラッグへ変更した。武装判定はIdle中かつギズモ表示中のみ
+(`SceneHwndHost.UpdateSurfaceSnapArmed`、Renderingティックで`GetKeyState`をポーリング、
+マウス静止中でも1フレーム以内に反映される)。一度ドラッグが始まれば、掴んだハンドルの系統
+(`GetHandleFamily`)がドラッグ内容を決めるため、途中でShift/Ctrlを離してもmouse-upまで
+SurfaceSnapドラッグのまま継続する(M0033で確立した「ドラッグ系統はambientな状態ではなく
+ヒットしたHandleが決める」方針と一貫させた)。専用ハンドルになったことで、V(Vertex)との
+同時押し優先順位という概念自体が不要になった。
 
 ## 5. ピッキング(§仕様7)
 

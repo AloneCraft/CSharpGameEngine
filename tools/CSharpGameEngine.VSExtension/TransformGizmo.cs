@@ -12,6 +12,7 @@ internal enum GizmoHandleId {
     DirectionalDirection, PointRange,
     SpotDirection, SpotInnerCone, SpotOuterCone, SpotRange,
     TransformSpaceToggle,
+    SurfaceSnapPlane,
 }
 
 internal enum GizmoPrimitiveKind { Line, Triangle }
@@ -154,11 +155,24 @@ internal static partial class TransformGizmo {
     /// Move・Rotate・Scale・Local/GlobalトグルアイコンをまとめてヒットテストしRay距離最小を採用する
     /// (M0033: 3系統の常時同時表示化)。各`TryHit*`は自系統内で独立して最近傍を選ぶだけなので、
     /// 系統をまたいだ優先順位はここで解決する。
+    ///
+    /// <para>
+    /// M0034: <paramref name="SurfaceSnapArmed"/>(Shift+Ctrl押下中)がtrueかつ
+    /// <see cref="GizmoHandleId.SurfaceSnapPlane"/>が編集可能な場合、中心の平面四角だけを
+    /// ヒットテストし他系統は一切試さない(短絡)。ピボットで<c>ScaleUniform</c>と同座標になり
+    /// レイ距離比較では決まらないため、Propertyギズモが先に短絡する既存の前例と同じ形にした。
+    /// 四角が無効(Rotationが式等で編集不可)なら通常の統合ヒットテストへフォールバックする —
+    /// 修飾キーを押しっぱなしでも他ハンドルを掴めなくなることを避けるため。
+    /// </para>
     /// </summary>
     internal static GizmoHandleId?TryHitTransform(
         in MoveGizmoFrame Frame,Vector3 RayOrigin,Vector3 RayDirection,
         Vector3 CameraForward,Vector3 CameraRight,Vector3 CameraUp,
-        ICollection<GizmoHandleId>?Disabled=null){
+        bool SurfaceSnapArmed=false,ICollection<GizmoHandleId>?Disabled=null){
+        if(SurfaceSnapArmed&&Disabled?.Contains(GizmoHandleId.SurfaceSnapPlane)!=true){
+            return SurfaceSnapGizmo.TryHit(Frame,CameraForward,RayOrigin,RayDirection,out _);
+        }
+
         GizmoHandleId?Best=null;
         float BestRayDistance=float.PositiveInfinity;
         Consider(TryHitMove(Frame,RayOrigin,RayDirection,out float MoveDistance,Disabled),MoveDistance);

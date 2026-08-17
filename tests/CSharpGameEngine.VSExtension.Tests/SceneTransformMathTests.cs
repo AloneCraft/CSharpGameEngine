@@ -86,6 +86,39 @@ public sealed class SceneTransformMathTests {
             Node,SceneActiveTool.Scale,GizmoHandleId.ScaleUniform));
     }
 
+    [Fact]
+    public void CanEditTransform_SurfaceSnapPlane_RequiresEveryPositionAndRotationMember(){
+        // M0034: SurfaceSnapPlaneはPosition+Rotationの両方を書き換えるため、Toolに依らず
+        // CanEditRotationと同じ要件(全Position+全Rotationが編集可能)をHandle優先で判定する。
+        SceneNode Node=AnalyzeRoot("""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Runtime.Windows;
+            public partial class MainScene:IScene {
+                private static float Read()=>1f;
+                public Node Root=>new() { Components=[new Transform {
+                    PositionX=Read(),RotationW=1f,
+                }]};
+            }
+            """);
+
+        Assert.False(SceneTransformBinding.CanEditTransform(
+            Node,SceneActiveTool.Move,GizmoHandleId.SurfaceSnapPlane));
+    }
+
+    [Fact]
+    public void CanEditTransform_SurfaceSnapPlane_TrueWhenPositionAndRotationAreEditable(){
+        SceneNode Node=AnalyzeRoot("""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Runtime.Windows;
+            public partial class MainScene:IScene {
+                public Node Root=>new() { Components=[new Transform()]};
+            }
+            """);
+
+        Assert.True(SceneTransformBinding.CanEditTransform(
+            Node,SceneActiveTool.Move,GizmoHandleId.SurfaceSnapPlane));
+    }
+
     private static SceneNode AnalyzeRoot(string SceneSource){
         SceneModel Model=SceneAnalysisTestHelper.Analyze([TransformTypes,SceneSource]);
         return Assert.IsType<SceneNode>(Model.Root);

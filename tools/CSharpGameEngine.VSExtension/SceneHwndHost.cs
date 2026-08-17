@@ -92,10 +92,15 @@ internal sealed class SceneHwndHost:HwndHost {
     private MoveGizmoFrame?ActiveGizmoStartFrame;
     private Quaternion ActivePrimaryRotation=Quaternion.Identity;
     private SceneTransformMemberMask ActiveCommitMembers;
-    private bool CanSurfaceSnapSelection;
     private SceneViewFollowSnapshot ActiveFollowViewSnapshot;
     private bool HasActiveFollowViewSnapshot;
     private bool FollowViewApplied;
+
+    // M0034: Shift+Ctrl押下中(マウス静止中でも1フレーム以内に四角を出すため、Renderingティックで
+    // GetKeyStateポーリングする。既存のFly Fast/Precisionポーリングと同じ方式)。
+    private bool SurfaceSnapArmed;
+    private bool ActiveSurfaceSnapDrag;
+    private(Vector3 Position,Vector3 Normal)?CurrentSurfaceSnapHit;
 
     // M0020後続Task C: 空間から開始したLMBドラッグだけが保持するスクリーン矩形。
     private ScreenRectangle?ActiveMarqueeRectangle;
@@ -294,6 +299,7 @@ internal sealed class SceneHwndHost:HwndHost {
         if(RenderingHandler is null){
             RenderingHandler=(_,Args)=>{
                 TickFlyIfNeeded(Args);
+                UpdateSurfaceSnapArmed();
                 ApplyCamera();
                 Renderer?.RenderFrame();
             };
@@ -365,6 +371,18 @@ internal sealed class SceneHwndHost:HwndHost {
         State.TickFly(Machine.FlyHeldKeys,PendingLookDeltaX,PendingLookDeltaY,(float)DeltaSeconds,Shift,Ctrl);
         PendingLookDeltaX=0f;
         PendingLookDeltaY=0f;
+    }
+
+    /// <summary>
+    /// M0034: マウス静止中でも1フレーム以内にSurfaceSnap四角の武装状態を反映するため、
+    /// <see cref="TickFlyIfNeeded"/>のFast/Precisionポーリングと同じ方式でRenderingティックごとに
+    /// <c>GetKeyState</c>を読む。Idle以外(ドラッグ・Fly・Orbit等)やギズモが無い(未選択)時は武装しない。
+    /// </summary>
+    private void UpdateSurfaceSnapArmed(){
+        SurfaceSnapArmed=InputMachine is { State:SceneNavState.Idle }
+            &&CurrentMoveGizmo is not null
+            &&(NativeMethods.GetKeyState(NativeMethods.VK_SHIFT)&0x8000)!=0
+            &&(NativeMethods.GetKeyState(NativeMethods.VK_CONTROL)&0x8000)!=0;
     }
 
     /// <summary>
@@ -550,7 +568,7 @@ internal sealed class SceneHwndHost:HwndHost {
             Vector3 CameraRight=SceneViewCamera.GetFlatRight(State.Yaw);
             Vector3 CameraUp=SceneViewCamera.GetUp(State.Yaw,State.Pitch);
             Hit=TransformGizmo.TryHitTransform(
-                Frame,Origin,Direction,CameraForward,CameraRight,CameraUp,DisabledTransformHandles);
+                Frame,Origin,Direction,CameraForward,CameraRight,CameraUp,SurfaceSnapArmed,DisabledTransformHandles);
         }
         if(Hit!=HoveredGizmoHandle){
             HoveredGizmoHandle=Hit;
@@ -632,6 +650,13 @@ internal sealed class SceneHwndHost:HwndHost {
                 ..TransformGizmo.BuildScaleOverlay(Frame,HoveredGizmoHandle,ActiveGizmoHandle,DisabledTransformHandles),
                 ..TransformSpaceToggleGizmo.BuildOverlay(Frame,CameraRight,CameraUp,GizmoState.TransformSpace,HoveredGizmoHandle),
             ];
+            if(SurfaceSnapArmed||ActiveSurfaceSnapDrag){
+                (Vector3 SnapPosition,Vector3 SnapNormal)=ActiveSurfaceSnapDrag&&CurrentSurfaceSnapHit is { }Hit
+                    ?Hit
+                    :SurfaceSnapGizmo.GetArmedPlacement(Frame,CameraForward);
+                bool SnapDisabled=DisabledTransformHandles.Contains(GizmoHandleId.SurfaceSnapPlane);
+                Combined.AddRange(SurfaceSnapGizmo.BuildOverlay(Frame,SnapPosition,SnapNormal,SnapDisabled));
+            }
             TransformPrimitives=Combined;
         }
         if(CurrentPropertyGizmo is { }PropertyFrame){
@@ -738,7 +763,13 @@ internal sealed class SceneHwndHost:HwndHost {
         ActiveMoveDrag=null;
         ActiveRotateDrag=null;
         ActiveScaleDrag=null;
-        bool Began=Family switch {
+        // M0034: SurfaceSnapPlaneはMove/Rotate/ScaleGizmoDragのどれとも噛み合わない専用ハンドル
+        // (Frame.GetAxis/GetPlaneAxesが未知Handleで例外を投げるため、Family switchの評価自体を
+        // ||短絡で回避する)。編集可否は既に上のCanEditTransform(Family,Handle)チェックで
+        // 保証済みなので、ここは無条件でtrueにしてよい。
+        ActiveSurfaceSnapDrag=Handle==GizmoHandleId.SurfaceSnapPlane;
+        CurrentSurfaceSnapHit=null;
+        bool Began=ActiveSurfaceSnapDrag||Family switch {
             SceneActiveTool.Move=>MoveGizmoDrag.TryBegin(
                 Frame,Handle,Origin,Direction,CameraForward,out ActiveMoveDrag),
             SceneActiveTool.Rotate=>RotateGizmoDrag.TryBegin(
@@ -753,13 +784,10 @@ internal sealed class SceneHwndHost:HwndHost {
 
         EditTransaction.Begin(Snapshot,Targets);
         ActiveDraggedRootPaths=Targets.Select(static Target=>Target.NodePath).ToArray();
-        CanSurfaceSnapSelection=Roots.All(Node=>SceneTransformBinding.CanEditTransform(
-            Node.Node,SceneActiveTool.Rotate,GizmoHandleId.RotateX));
         if(Duplicate){
             if(!TryStartDuplicatePreview(DuplicatePlan)){
                 EditTransaction.Cancel();
                 ActiveDraggedRootPaths=[];
-                CanSurfaceSnapSelection=false;
                 SetStatus("複製preview用の描画リソースを確保できませんでした。");
                 return false;
             }
@@ -850,17 +878,25 @@ internal sealed class SceneHwndHost:HwndHost {
         Vector3 FollowMoveDelta=Vector3.Zero;
         ActiveCommitMembers=GetTransformMembers(Tool);
         switch(Tool){
-            case SceneActiveTool.Move when ActiveMoveDrag is { }MoveDrag
-                &&MoveDrag.TryUpdate(Origin,Direction,out Vector3 Delta):
-                bool SurfaceSnap=(NativeMethods.GetKeyState(NativeMethods.VK_N)&0x8000)!=0;
-                bool VertexSnap=(NativeMethods.GetKeyState(NativeMethods.VK_V)&0x8000)!=0;
-                if(SurfaceSnap&&CanSurfaceSnapSelection&&ScenePicker.TrySurfaceSnapQuery(
+            // M0034: Shift+Ctrlで武装した中心の平面四角をドラッグ中。カーソル直下の別オブジェクト
+            // 表面へPosition+Rotationを吸着させる(旧Nキー方式と同じ数学、起動方法だけ変更)。
+            case SceneActiveTool.Move when ActiveSurfaceSnapDrag:
+                if(ScenePicker.TrySurfaceSnapQuery(
                     CurrentRenderObjects,Origin,Direction,ActiveDraggedRootPaths,out SurfaceSnapHit SurfaceHit)){
+                    CurrentSurfaceSnapHit=(SurfaceHit.Position,SurfaceHit.Normal);
                     FollowMoveDelta=SurfaceHit.Position-StartFrame.Pivot;
                     Previews=EditTransaction.PreviewSurfaceSnap(
                         StartFrame.Pivot,SurfaceHit.Position,ActivePrimaryRotation,SurfaceHit.Normal);
                     ActiveCommitMembers=SceneTransformMemberMask.Position|SceneTransformMemberMask.Rotation;
-                } else if(VertexSnap&&ScenePicker.TryVertexSnapQuery(
+                } else {
+                    // 面が見つからないティックは直前のプレビュー(初回なら空、つまり未移動)を維持する。
+                    Previews=EditTransaction.CurrentPreviews;
+                }
+                break;
+            case SceneActiveTool.Move when ActiveMoveDrag is { }MoveDrag
+                &&MoveDrag.TryUpdate(Origin,Direction,out Vector3 Delta):
+                bool VertexSnap=(NativeMethods.GetKeyState(NativeMethods.VK_V)&0x8000)!=0;
+                if(VertexSnap&&ScenePicker.TryVertexSnapQuery(
                     CurrentRenderObjects,State.GetView(),State.GetProjection(this.AspectRatio),
                     X,Y,SurfaceWidth,SurfaceHeight,ActiveDraggedRootPaths,out VertexSnapHit VertexHit)){
                     FollowMoveDelta=VertexHit.Position-StartFrame.Pivot;
@@ -909,7 +945,9 @@ internal sealed class SceneHwndHost:HwndHost {
             }
         }
 
-        if(FollowView&&HasActiveFollowViewSnapshot&&Tool!=SceneActiveTool.Scale){
+        // M0034: サーフェススナップ中はカーソルレイでヒット面を探すため、FollowViewでカメラが
+        // 動くとレイが変わり吸着先が動くフィードバックループになる。明示的に抑止する。
+        if(FollowView&&HasActiveFollowViewSnapshot&&Tool!=SceneActiveTool.Scale&&!ActiveSurfaceSnapDrag){
             if(Tool==SceneActiveTool.Move){
                 ActiveFollowViewSnapshot.ApplyMove(State,FollowMoveDelta);
             } else {
@@ -1063,7 +1101,8 @@ internal sealed class SceneHwndHost:HwndHost {
         HasActiveFollowViewSnapshot=false;
         FollowViewApplied=false;
         ActiveCommitMembers=SceneTransformMemberMask.None;
-        CanSurfaceSnapSelection=false;
+        ActiveSurfaceSnapDrag=false;
+        CurrentSurfaceSnapHit=null;
         ActiveMoveDrag=null;
         ActiveRotateDrag=null;
         ActiveScaleDrag=null;
@@ -1120,7 +1159,8 @@ internal sealed class SceneHwndHost:HwndHost {
         HasActiveFollowViewSnapshot=false;
         FollowViewApplied=false;
         ActiveCommitMembers=SceneTransformMemberMask.None;
-        CanSurfaceSnapSelection=false;
+        ActiveSurfaceSnapDrag=false;
+        CurrentSurfaceSnapHit=null;
         ActiveMoveDrag=null;
         ActiveRotateDrag=null;
         ActiveScaleDrag=null;
@@ -1217,14 +1257,22 @@ internal sealed class SceneHwndHost:HwndHost {
         UpdateMoveGizmo();
     }
 
+    // M0034: SurfaceSnapPlaneはGetToolHandles(Tool)のどの系統表にも属さない専用ハンドルなので、
+    // disabled-handle集合の和集合(UpdateMoveGizmo参照)へ入れるためここへ直接追加する。
     private static readonly IReadOnlyList<GizmoHandleId>AllTransformHandles=[
         ..GetToolHandles(SceneActiveTool.Move),..GetToolHandles(SceneActiveTool.Rotate),..GetToolHandles(SceneActiveTool.Scale),
+        GizmoHandleId.SurfaceSnapPlane,
     ];
 
-    /// <summary>M0033: ヒットしたHandleからMove/Rotate/Scaleのうちどの系統かを逆引きする。</summary>
+    /// <summary>
+    /// M0033: ヒットしたHandleからMove/Rotate/Scaleのうちどの系統かを逆引きする。M0034:
+    /// SurfaceSnapPlaneは本質的に移動操作なのでMoveへ寄せる(MemberMask/ドラッグ経路はどのみち
+    /// 専用分岐で扱うため、ここでのMove判定は主にCanEditTransformの既定フォールバック用)。
+    /// </summary>
     private static SceneActiveTool GetHandleFamily(GizmoHandleId Handle)=>Handle switch {
         GizmoHandleId.AxisX or GizmoHandleId.AxisY or GizmoHandleId.AxisZ
-            or GizmoHandleId.PlaneXY or GizmoHandleId.PlaneYZ or GizmoHandleId.PlaneZX=>SceneActiveTool.Move,
+            or GizmoHandleId.PlaneXY or GizmoHandleId.PlaneYZ or GizmoHandleId.PlaneZX
+            or GizmoHandleId.SurfaceSnapPlane=>SceneActiveTool.Move,
         GizmoHandleId.RotateX or GizmoHandleId.RotateY or GizmoHandleId.RotateZ or GizmoHandleId.RotateView=>SceneActiveTool.Rotate,
         GizmoHandleId.ScaleX or GizmoHandleId.ScaleY or GizmoHandleId.ScaleZ or GizmoHandleId.ScaleUniform=>SceneActiveTool.Scale,
         _=>SceneActiveTool.Select,

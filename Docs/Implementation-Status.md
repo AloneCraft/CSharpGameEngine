@@ -2508,7 +2508,14 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   最近傍で統合ヒットテストするようにした。ドラッグ系統は従来ambientな`ActiveTool`ではなく
   ヒットした`GizmoHandleId`から`GetHandleFamily`で導出するよう修正(3系統同時ヒット化で表面化する
   「Handleと系統の食い違い」を解消)。W/E/Rキーと`SceneViewState.ActiveTool`永続状態は不要になり
-  削除した。実機目視が残っているため`Verified`へは上げていない。
+  削除した。続けてサーフェススナップ(既にM0020 Phase 5で実装済みの位置+法線回転整列)の起動方法を
+  `N`キーホールドからShift+Ctrl押下中に現れる専用ハンドル`GizmoHandleId.SurfaceSnapPlane`
+  (中心の平面四角、輪郭はfill色のRGB反転)のドラッグへ変更(⑦、頂点スナップ`V`キーはそのまま)。
+  マウス静止中でも1フレーム以内に武装表示が反映されるようRenderingティックで`GetKeyState`を
+  ポーリングする方式(既存のFly Fast/Precisionポーリングと同型)を新設し、新規WndProc/WPFキー
+  配線は追加していない。`CanEditTransform`にHandle優先分岐を追加したことで、ドラッグ開始時に
+  同じ条件を別途チェックしていた`CanSurfaceSnapSelection`は不要になり削除した。実機目視が
+  残っているため`Verified`へは上げていない。
 - Intended specification: `Docs/シーンエディタの仕様.md`(要求仕様)、
   Docs/Decisions/ADR-0041-Scene-Editor-Interaction-Architecture.md(意思決定)、
   Docs/Specifications/Scene-Editor-Design.md(詳細設計)

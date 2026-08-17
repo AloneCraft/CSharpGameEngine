@@ -124,12 +124,17 @@ internal static class SceneTransformBinding {
         SceneComponentBindings.FindComponent(Node,SceneComponentRole.LocalTransform)is{ }Component
         &&CanEdit(Component,"PositionX")&&CanEdit(Component,"PositionY")&&CanEdit(Component,"PositionZ");
 
-    internal static bool CanEditTransform(SceneNode Node,SceneActiveTool Tool,GizmoHandleId Handle)=>Tool switch {
-        SceneActiveTool.Move=>CanEditMove(Node,Handle),
-        SceneActiveTool.Rotate=>CanEditRotation(Node),
-        SceneActiveTool.Scale=>CanEditScale(Node,Handle),
-        _=>false,
-    };
+    // M0034: SurfaceSnapPlaneはPosition+Rotationの両方を書き換えるため、Toolに依らずCanEditRotation
+    // (全Position+全Rotationが編集可能)と同じ要件をHandle優先で判定する。
+    internal static bool CanEditTransform(SceneNode Node,SceneActiveTool Tool,GizmoHandleId Handle)=>
+        Handle==GizmoHandleId.SurfaceSnapPlane
+            ?CanEditRotation(Node)
+            :Tool switch {
+                SceneActiveTool.Move=>CanEditMove(Node,Handle),
+                SceneActiveTool.Rotate=>CanEditRotation(Node),
+                SceneActiveTool.Scale=>CanEditScale(Node,Handle),
+                _=>false,
+            };
 
     private static bool CanEditRotation(SceneNode Node)=>
         SceneComponentBindings.FindComponent(Node,SceneComponentRole.LocalTransform)is{ }Component
