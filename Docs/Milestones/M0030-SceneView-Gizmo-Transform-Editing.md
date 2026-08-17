@@ -402,3 +402,54 @@ Evidence: `TransformGizmoTests.cs`に新規5件追加、既存の`BuildRotateOve
 | 30 | Move矢印の起点がキューブから視覚的に離れ、誤選択しにくくなっている |
 | 31 | Rotateリングが線だけでなく面積のある帯として見える |
 | 32 | 頂点予算超過によるoverlay消失や例外が発生しない |
+
+## 追記(2026-08-17 続き): シーンビューでCtrl+Z/YのUndo/Redoを高速化(M0036)
+
+「シーンビューにフォーカスがあるとCtrl+Zが効かない」「ソースでのUndoは反映が遅い」という報告を
+受けた。調査の結果、現在のUndoモデルはADR-0040に明記された意図的な設計で、C#ソースの
+`ITextUndoTransaction`だけが唯一の編集履歴であり(`SceneModel`自体は編集履歴を持たない)、
+Ctrl+Zでソースが戻れば既存の解析ループが自動でシーン表示も戻す、という構造になっている。
+ユーザーに確認し、この「ソースを唯一の履歴とする」設計は維持したまま、**体感速度だけを高速化する**
+方針で合意した。
+
+**フォーカス問題の解消**: `SceneDesignerToolWindowPane`(`ToolWindowPane`)は`IOleCommandTarget`を
+一切実装しておらず、描画サーフェス自体も意図的に`Focusable=false`(ADR-0041決定事項2)なため、
+Ctrl+Zがシェルコマンドとして解決されても行き先が無く無反応になっていた。既存のWASDQE/Escape/F
+キー配線が使っている`RenderHostGrid`(ビューポートクリック後に実際のWPFキーボードフォーカスを
+持つ)へ`PreviewKeyDown`ハンドラ`OnViewportUndoRedoKeyDown`を新設し、Ctrl+Z/Ctrl+Y/Ctrl+Shift+Zを
+横取りして`Args.Handled=true`にした上で、対象.csファイルの`ITextUndoHistory`を直接呼ぶ
+(VSのシェルコマンド解決やペインへの`IOleCommandTarget`実装には頼らない)。
+
+**反映速度の高速化**: M0030で実装済みの「コミット直後に最終Transformを`CurrentRenderObjects`へ
+即時パッチしてギズモの遅延を消す」手法(`SceneHwndHost.ApplyFinalTransformsToRenderObjects`)を
+Undo/Redoにも転用した。`BeginTransformGizmoDrag`でコミット前のRoot World(`ActiveDragOriginalRoots`)
+を退避しておき、成功したTransformコミットごとに`RecentTransformCommits`(Stack)へ
+before/after/子孫/WorldDeltaを記録する。Ctrl+Zで実際のテキストUndoが成功したら
+`TryFastUndo`がスタックをpopしてRoslyn再解析を待たずに3Dビューを即座に巻き戻し、Ctrl+Yの
+`TryFastRedo`は元のコミットと全く同じ引数で`ApplyFinalTransformsToRenderObjects`を再生するだけ。
+この関数自体は無変更。
+
+**このキャッシュはどこにも書き込みを行わない表示専用の先読み**であり、外れても実害は無い
+(その場合は今日と同じ、Roslyn再解析待ちの速度でそのまま反映される)。対象はMove/Rotate/Scale/
+SurfaceSnapのTransformコミットのみ(`CompleteEditCommit`の既存の`!WasProperty&&!WasDuplicate`
+絞り込みと同じ)。Property編集・複製コミット・別Sceneへの切替時はキャッシュを丸ごと破棄し、
+古い記録が誤って使われることを防ぐ。Hierarchy編集(追加・削除・Reparent等)はこのキャッシュを
+経由しない別経路のため、Hierarchy編集を挟んだ直後のUndoだけがこの保護の外側にあり、理論上は
+一瞬古い状態を見せた後Roslyn再解析で自己修復する(データそのものが壊れることはない)。
+
+Evidence: `SceneTextBufferWriter.TryUndo`/`TryRedo`はVS SDKの`ITextUndoHistory`/
+`ITextUndoHistoryRegistry`への薄いラッパーで、この既存クラスの`TryApply`同様ユニットテスト対象外
+(このテストプロジェクトに`ITextBuffer`系のモック基盤が無く、新設するほどのロジックでもない)。
+`SceneHwndHost.TryFastUndo`/`TryFastRedo`もHWND依存の前例([SceneHwndHost.cs])を踏襲しユニット
+テストなし。ソリューション全体988/988(既存988、テスト数増減なし)。フォーカス問題の解消・
+体感速度・Hierarchy編集を挟んだ場合の自己修復挙動はHWND/D3D12/VS Undoサービス依存のため
+実機確認が必須。
+
+| # | 確認対象 |
+|---|---|
+| 33 | シーンビューをクリックしてフォーカスがある状態でCtrl+Zを押すと、直前のギズモ編集が即座に元に戻る |
+| 34 | Ctrl+Y(またはCtrl+Shift+Z)でRedoも即座に効く |
+| 35 | Undo/Redoを繰り返した後、コードエディタで実際にC#ソースも正しく変化している |
+| 36 | Hierarchy編集を挟んだ直後にCtrl+Zしても致命的な不整合は起きない(自己修復する) |
+| 37 | Property編集後のCtrl+Zはこれまでどおりの速度で反映される(即時パッチの対象外) |
+| 38 | コードエディタにフォーカスがある通常のCtrl+Zは今までどおり動作する(回帰なし) |

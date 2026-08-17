@@ -39,6 +39,9 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         RenderHostGrid.KeyDown+=this.OnViewportKeyDown;
         RenderHostGrid.KeyUp+=this.OnViewportKeyUp;
         RenderHostGrid.LostKeyboardFocus+=this.OnViewportLostKeyboardFocus;
+        // M0036: Ctrl+Z/YはPreviewKeyDown(トンネリング、既存のKeyDownより先に発火)で横取りする。
+        // VS側のキーバインド解決がWPFのバブリングより先に割り込む余地を残さないための保険。
+        RenderHostGrid.PreviewKeyDown+=this.OnViewportUndoRedoKeyDown;
     }
 
     internal void SetSession(SceneEditorSessionService Session){
@@ -477,6 +480,33 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         Session.Selection.Select(
             Snapshot.Key,Ids,Ids[^1],ComponentType:null,MemberName:null,
             SceneSelectionOrigin.Viewport,Guid.NewGuid());
+    }
+
+    /// <summary>
+    /// M0036: シーンビューにフォーカスがあってもCtrl+Z/Yで実際のC#ソースUndo/Redo(唯一の編集履歴、
+    /// ADR-0040)を実行できるようにする。<see cref="SceneEditorSessionService.TryUndo"/>/
+    /// <see cref="SceneEditorSessionService.TryRedo"/>が実際のテキストUndo/Redoの成否を返し、
+    /// 成功したときだけ<see cref="SceneHwndHost.TryFastUndo"/>/<see cref="SceneHwndHost.TryFastRedo"/>
+    /// (Roslyn再解析を待たない表示の先読みパッチ)を呼ぶ。Redoのキーは Ctrl+Y(Windows/VS既定)と
+    /// Ctrl+Shift+Z(Unity等の慣習)の両方を受け付ける。
+    /// </summary>
+    private void OnViewportUndoRedoKeyDown(object Sender,KeyEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(this.Session is not { }Session||Session.PinnedSnapshot is null){
+            return;
+        }
+
+        bool CtrlOnly=Keyboard.Modifiers==ModifierKeys.Control;
+        bool CtrlShift=Keyboard.Modifiers==(ModifierKeys.Control|ModifierKeys.Shift);
+        if(Args.Key==Key.Z&&CtrlOnly){
+            Args.Handled=true;
+            if(Session.TryUndo()){ this.Host?.TryFastUndo(); }
+            return;
+        }
+        if((Args.Key==Key.Y&&CtrlOnly)||(Args.Key==Key.Z&&CtrlShift)){
+            Args.Handled=true;
+            if(Session.TryRedo()){ this.Host?.TryFastRedo(); }
+        }
     }
 
     private void OnViewportKeyDown(object Sender,KeyEventArgs Args){

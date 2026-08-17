@@ -487,17 +487,73 @@ internal sealed class SceneWorkspaceService : IDisposable {
             }
             this.Workspace.OpenDocument(Context.DocumentId,activate:false);
         }
-        if(Package.GetGlobalService(typeof(SVsRunningDocumentTable))is not IVsRunningDocumentTable Rdt){
-            return new SceneLiveBufferWriteResult(false,"Visual StudioのRunning Document Tableを取得できません。");
+        if(!TryGetLiveBuffer(
+            Context.FilePath,out ITextBuffer?Buffer,
+            out Microsoft.VisualStudio.TextManager.Interop.IVsTextBuffer?VsBuffer)
+            ||Buffer is null||VsBuffer is null){
+            return new SceneLiveBufferWriteResult(false,"対象SceneのVisual Studio text bufferを取得できません。");
+        }
+
+        // ギズモ/インスペクター編集はユーザーがコードエディタで別の箇所を読んでいる間にも起こる。
+        // Buffer.Replaceは最小差分なのでcaretは通常tracking経由で追従するはずだが、対象文書が
+        // 開いていてもアクティブでない場合や、離れた位置の差分が紛れ込んだ場合に備え、編集前後で
+        // caret位置とビューポート先頭行を明示的に保存・復元する。
+        List<ViewPositionSnapshot>Restorations=CaptureViewPositions(Buffer,VsBuffer);
+        bool Applied=this.TextBufferWriter.TryApply(Buffer,Context.Text,After,UndoDescription);
+        if(Applied){
+            RestoreViewPositions(Restorations);
+        }
+
+        return Applied
+            ?new SceneLiveBufferWriteResult(true,ErrorMessage:null)
+            :new SceneLiveBufferWriteResult(
+                false,"編集中にC#ソースが変化したため上書きを中止しました。",LiveTextChanged:true);
+    }
+
+    /// <summary>
+    /// M0036: シーンビューのCtrl+Z/Yから、対象.csファイルの実際のVS Undo/Redoを1回実行する。
+    /// Undo/Redoの唯一の実体は引き続きVSのテキストUndoであり(ADR-0040)、ここは
+    /// <see cref="TryGetLiveBuffer"/>でバッファを解決して<see cref="SceneTextBufferWriter"/>へ
+    /// 委譲するだけの薄いラッパー。
+    /// </summary>
+    internal bool TryUndo(string FilePath){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        return this.TextBufferWriter is not null
+            &&TryGetLiveBuffer(FilePath,out ITextBuffer?Buffer,out _)&&Buffer is not null
+            &&this.TextBufferWriter.TryUndo(Buffer);
+    }
+
+    internal bool TryRedo(string FilePath){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        return this.TextBufferWriter is not null
+            &&TryGetLiveBuffer(FilePath,out ITextBuffer?Buffer,out _)&&Buffer is not null
+            &&this.TextBufferWriter.TryRedo(Buffer);
+    }
+
+    /// <summary>
+    /// RDT経由でファイルパスからmanaged/nativeのlive text bufferを解決する
+    /// (<see cref="ApplyTextAsync"/>と<see cref="TryUndo"/>/<see cref="TryRedo"/>で共有)。
+    /// 対象文書が開いていない場合はfalseを返す(呼び出し元でopenは行わない — Undo/Redoは
+    /// 既に開いている文書に対してのみ意味を持つため)。
+    /// </summary>
+    private bool TryGetLiveBuffer(
+        string FilePath,out ITextBuffer?Buffer,
+        out Microsoft.VisualStudio.TextManager.Interop.IVsTextBuffer?NativeBuffer){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        Buffer=null;
+        NativeBuffer=null;
+        if(this.EditorAdapters is null
+            ||Package.GetGlobalService(typeof(SVsRunningDocumentTable))is not IVsRunningDocumentTable Rdt){
+            return false;
         }
 
         IntPtr DocDataPointer=IntPtr.Zero;
         try {
             int HResult=Rdt.FindAndLockDocument(
-                (uint)_VSRDTFLAGS.RDT_NoLock,Context.FilePath,
+                (uint)_VSRDTFLAGS.RDT_NoLock,FilePath,
                 out _,out _,out DocDataPointer,out _);
             if(ErrorHandler.Failed(HResult)||DocDataPointer==IntPtr.Zero){
-                return new SceneLiveBufferWriteResult(false,"対象Sceneのlive documentを取得できません。");
+                return false;
             }
 
             object DocData=Marshal.GetObjectForIUnknown(DocDataPointer);
@@ -508,28 +564,12 @@ internal sealed class SceneWorkspaceService : IDisposable {
                 VsBuffer=Lines as Microsoft.VisualStudio.TextManager.Interop.IVsTextBuffer;
             }
             if(VsBuffer is null){
-                return new SceneLiveBufferWriteResult(false,"対象SceneのVisual Studio text bufferを取得できません。");
+                return false;
             }
 
-            ITextBuffer?Buffer=this.EditorAdapters.GetDocumentBuffer(VsBuffer);
-            if(Buffer is null){
-                return new SceneLiveBufferWriteResult(false,"対象Sceneのmanaged text bufferを取得できません。");
-            }
-
-            // ギズモ/インスペクター編集はユーザーがコードエディタで別の箇所を読んでいる間にも起こる。
-            // Buffer.Replaceは最小差分なのでcaretは通常tracking経由で追従するはずだが、対象文書が
-            // 開いていてもアクティブでない場合や、離れた位置の差分が紛れ込んだ場合に備え、編集前後で
-            // caret位置とビューポート先頭行を明示的に保存・復元する。
-            List<ViewPositionSnapshot>Restorations=CaptureViewPositions(Buffer,VsBuffer);
-            bool Applied=this.TextBufferWriter.TryApply(Buffer,Context.Text,After,UndoDescription);
-            if(Applied){
-                RestoreViewPositions(Restorations);
-            }
-
-            return Applied
-                ?new SceneLiveBufferWriteResult(true,ErrorMessage:null)
-                :new SceneLiveBufferWriteResult(
-                    false,"編集中にC#ソースが変化したため上書きを中止しました。",LiveTextChanged:true);
+            NativeBuffer=VsBuffer;
+            Buffer=this.EditorAdapters.GetDocumentBuffer(VsBuffer);
+            return Buffer is not null;
         } finally {
             if(DocDataPointer!=IntPtr.Zero){
                 Marshal.Release(DocDataPointer);

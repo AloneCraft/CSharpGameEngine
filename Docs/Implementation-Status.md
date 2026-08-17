@@ -2519,7 +2519,15 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   実バグを修正(濃いグレー既定+hoverで明転)、hover/Active時に白黒二重ワイヤーフレーム輪郭を
   追加、`AxisStart`(0.12→0.26)でMove矢印を`ScaleUniform`キューブから引き離し、`AddRing`へ
   内外半径を持つ平帯Triangleを追加してRotateリングに面積を持たせた(半幅は既存の当たり判定
-  許容量`RotateRingThickness`を流用)。実機目視が残っているため`Verified`へは上げていない。
+  許容量`RotateRingThickness`を流用)。続けてシーンビューのCtrl+Z/Y高速化(⑨): ADR-0040の
+  「C#ソースの`ITextUndoTransaction`だけが唯一の編集履歴」という設計は維持したまま、
+  ①`RenderHostGrid.PreviewKeyDown`でCtrl+Z/Y/Ctrl+Shift+Zを横取りし対象.csファイルの
+  `ITextUndoHistory`を直接呼ぶことでフォーカス起因の無反応を解消、②M0030の即時パッチ手法
+  (`ApplyFinalTransformsToRenderObjects`)をUndo/Redoにも転用し、直近のTransformコミット
+  (Move/Rotate/Scale/SurfaceSnap限定)のbefore/afterを`RecentTransformCommits`/
+  `RecentTransformUndone`スタックへ記録してRoslyn再解析を待たず3Dビューを即時に巻き戻す/
+  やり直す。どこにも書き込みを行わない表示専用の先読みキャッシュで、Property編集・複製・
+  別Scene切替時は破棄する。実機目視が残っているため`Verified`へは上げていない。
 - Intended specification: `Docs/シーンエディタの仕様.md`(要求仕様)、
   Docs/Decisions/ADR-0041-Scene-Editor-Interaction-Architecture.md(意思決定)、
   Docs/Specifications/Scene-Editor-Design.md(詳細設計)

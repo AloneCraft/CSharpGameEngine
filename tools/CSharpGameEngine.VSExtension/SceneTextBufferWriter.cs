@@ -53,4 +53,28 @@ internal sealed class SceneTextBufferWriter {
 
         return true;
     }
+
+    // M0036: シーンビューのCtrl+Z/Yから呼ばれる。Undo/Redoの唯一の実体は引き続きVSの
+    // ITextUndoHistoryであり(ADR-0040、SceneModel自体は編集履歴を持たない)、ここは対象バッファの
+    // 履歴を直接叩くだけの薄いラッパー。呼び出し元(SceneHwndHost)は成功時だけ表示の先読みパッチを
+    // 行う。
+    internal bool TryUndo(ITextBuffer Buffer){
+        ITextUndoHistory History=this.UndoHistoryRegistry.RegisterHistory(Buffer);
+        if(!History.CanUndo){
+            return false;
+        }
+
+        History.Undo(1);
+        return true;
+    }
+
+    internal bool TryRedo(ITextBuffer Buffer){
+        ITextUndoHistory History=this.UndoHistoryRegistry.RegisterHistory(Buffer);
+        if(!History.CanRedo){
+            return false;
+        }
+
+        History.Redo(1);
+        return true;
+    }
 }

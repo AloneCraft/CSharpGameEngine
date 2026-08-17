@@ -1801,3 +1801,31 @@ Expハイブのキャッシュより新しくすること」を機序として**
   `BuildRotateOverlay_GeneratesThreeAxisRingsAndViewRing`をTriangle帯追加に合わせて更新。
   ソリューション全体988/988(既存983+5)。実際の見え方(明暗の区別・輪郭の視認性・間隔感・
   リングの面積感)はHWND/D3D12依存のためユニットテスト不可、実機確認が必須。
+
+## 2026-08-17 M0036: シーンビューでCtrl+Z/YのUndo/Redoを高速化
+
+- **Mismatch → 設計を維持した上で高速化(実機Observed)**: 「シーンビューにフォーカスがあると
+  Ctrl+Zが効かない」「ソースでのUndoは反映が遅い」という報告に対し、ADR-0040が明記する
+  「C#ソースの`ITextUndoTransaction`だけが唯一の編集履歴」という前提はユーザーと確認の上で
+  維持した。フォーカス問題は`SceneDesignerToolWindowPane`が`IOleCommandTarget`を持たず描画
+  サーフェスも意図的に`Focusable=false`(ADR-0041)なため、Ctrl+Zがシェルコマンドとして解決
+  されても行き先が無く無反応だったことが原因。既存のWASDQE配線が使う`RenderHostGrid`(実際に
+  WPFキーボードフォーカスを持てる)へ`PreviewKeyDown`ハンドラを新設し、Ctrl+Z/Y/Ctrl+Shift+Zを
+  横取りして対象.csファイルの`ITextUndoHistory`を直接呼ぶ(シェルコマンド解決やペインへの
+  `IOleCommandTarget`実装には頼らない)。
+- **Unknown → 高速化(実機Observed)**: 反映速度そのもの(Roslyn再解析の250msデバウンス+解析時間)
+  は変えられないが、M0030で実装済みの即時パッチ手法(`ApplyFinalTransformsToRenderObjects`、
+  無変更で再利用)をUndo/Redoにも転用した。`BeginTransformGizmoDrag`でコミット前のRoot Worldを
+  退避し、成功したTransformコミットごとに`RecentTransformCommits`スタックへbefore/after/子孫/
+  WorldDeltaを記録。実際のテキストUndo/Redoが成功したときだけ、記録をpopして3Dビューを
+  Roslyn再解析を待たず即座に巻き戻す/やり直す。**どこにも書き込みを行わない表示専用の先読み
+  キャッシュ**で、外れても実害は無い(その場合は従来どおりの速度で反映される)。対象はMove/
+  Rotate/Scale/SurfaceSnapのTransformコミットのみ、Property編集・複製・別Scene切替時はキャッシュ
+  を丸ごと破棄する。Hierarchy編集はこのキャッシュを経由しない別経路のため、直後のUndoだけが
+  この保護の外側にあり理論上は一瞬古い状態を見せた後Roslyn再解析で自己修復する(データが壊れる
+  ことはない、既知の限定的なギャップとして明記)。
+- Evidence: `SceneTextBufferWriter.TryUndo`/`TryRedo`はVS SDKの`ITextUndoHistory`への薄い
+  ラッパーで、この既存クラスの`TryApply`同様ユニットテスト対象外(このテストプロジェクトに
+  `ITextBuffer`系のモック基盤が無い)。`SceneHwndHost.TryFastUndo`/`TryFastRedo`もHWND依存の
+  前例を踏襲しユニットテストなし。ソリューション全体988/988(既存988、テスト数増減なし)。
+  フォーカス問題の解消・体感速度・Hierarchy編集を挟んだ場合の自己修復挙動は実機確認が必須。

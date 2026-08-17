@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using CSharpGameEngine.SceneAnalysis;
 using Microsoft.CodeAnalysis.Text;
+using Microsoft.VisualStudio.Shell;
 
 namespace CSharpGameEngine.VSExtension;
 
@@ -135,6 +136,24 @@ internal sealed class SceneEditorSessionService : IDisposable {
         }
 
         return new SceneEditCommitResult(false,"C#ソースが連続して変化したため上書きを中止しました。",WasRebased:true);
+    }
+
+    /// <summary>
+    /// M0036: シーンビューのCtrl+Z/Yから呼ばれる。ピン留め中のSceneを裏付けるC#ファイルへ、実際の
+    /// VS Undo/Redoを1回実行する(唯一の編集履歴は引き続きVSのテキストUndo、ADR-0040)。
+    /// </summary>
+    internal bool TryUndo(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        return this.PinnedSnapshot is { }Snapshot
+            &&(Snapshot.LastKnownGoodModel??Snapshot.CurrentModel)is { }Model
+            &&this.Workspace.TryUndo(Model.FilePath);
+    }
+
+    internal bool TryRedo(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        return this.PinnedSnapshot is { }Snapshot
+            &&(Snapshot.LastKnownGoodModel??Snapshot.CurrentModel)is { }Model
+            &&this.Workspace.TryRedo(Model.FilePath);
     }
 
     /// <summary>UIコマンドの表示判定用。Roslyn解析を開始したり待機したりしない。</summary>
