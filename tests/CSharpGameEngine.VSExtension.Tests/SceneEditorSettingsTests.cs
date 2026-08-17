@@ -49,17 +49,6 @@ public sealed class SceneEditorSettingsTests {
         SceneEditorSettings.ConfigureStoreProvider(()=>Store);
 
     [Fact]
-    public void ReadActiveTool_NoStoredValue_ReturnsMoveDefault()=>
-        RunOnUiThread(()=>Assert.Equal(SceneActiveTool.Move,SceneEditorSettings.ReadActiveTool()));
-
-    [Fact]
-    public void WriteThenReadActiveTool_RoundTrips()=>RunOnUiThread(()=>{
-        SceneEditorSettings.WriteActiveTool(SceneActiveTool.Rotate);
-
-        Assert.Equal(SceneActiveTool.Rotate,SceneEditorSettings.ReadActiveTool());
-    });
-
-    [Fact]
     public void WriteThenReadTransformSpace_RoundTrips()=>RunOnUiThread(()=>{
         SceneEditorSettings.WriteTransformSpace(SceneTransformSpace.Local);
 
@@ -211,7 +200,7 @@ public sealed class SceneEditorSettingsTests {
     });
 
     /// <summary>
-    /// 個別のWrite系(<c>WriteActiveTool</c>等)は<c>SettingsChanged</c>を発火しない。
+    /// 個別のWrite系(<c>WriteTransformSpace</c>等)は<c>SettingsChanged</c>を発火しない。
     /// これらはScene View自身が自分の状態を書き戻す経路であり、通知すると自分の変更で
     /// 自分を再読み込みする循環になる。
     /// </summary>
@@ -224,7 +213,7 @@ public sealed class SceneEditorSettingsTests {
         try {
             SceneEditorSettings.WriteInvertLookX(true);
             SceneEditorSettings.WriteNavigationSpeedMultiplier(2f);
-            SceneEditorSettings.WriteActiveTool(SceneActiveTool.Move);
+            SceneEditorSettings.WriteTransformSpace(SceneTransformSpace.World);
         } finally {
             SceneEditorSettings.SettingsChanged-=Handler;
         }
@@ -236,7 +225,6 @@ public sealed class SceneEditorSettingsTests {
     public void ConfigureStoreProvider_Null_AllReadsReturnDefaults()=>RunOnUiThread(()=>{
         SceneEditorSettings.ConfigureStoreProvider(null);
 
-        Assert.Equal(SceneActiveTool.Move,SceneEditorSettings.ReadActiveTool());
         Assert.Equal(1.0f,SceneEditorSettings.ReadNavigationSpeedMultiplier());
         Assert.False(SceneEditorSettings.ReadInvertLookX());
     });
@@ -245,7 +233,7 @@ public sealed class SceneEditorSettingsTests {
     public void ConfigureStoreProvider_Null_WritesDoNotThrow()=>RunOnUiThread(()=>{
         SceneEditorSettings.ConfigureStoreProvider(null);
 
-        SceneEditorSettings.WriteActiveTool(SceneActiveTool.Move);
+        SceneEditorSettings.WriteTransformSpace(SceneTransformSpace.World);
         SceneEditorSettings.WriteNavigationSpeedMultiplier(3f);
     });
 

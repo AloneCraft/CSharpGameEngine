@@ -5,7 +5,13 @@ using Microsoft.VisualStudio.Shell;
 
 namespace CSharpGameEngine.VSExtension;
 
-/// <summary>仕様書§3の永続ツール状態。ギズモは未実装(M0020 Phase 3)だが値は先に確定させる。</summary>
+/// <summary>
+/// ギズモのハンドル系統を表す(旧仕様§3では排他的な「現在のツール」永続状態だったが、M0033で
+/// Move/Rotate/Scaleを常時同時表示にしたためその役目は終わった。値そのものは
+/// <c>SceneHwndHost.GetHandleFamily</c>/<c>CanEditTransform</c>/<c>GetTransformMembers</c>/
+/// <c>GetToolDisplayName</c>が「系統識別子」として引き続き使う)。<c>Select</c>は現在どのハンドルにも
+/// 対応しない既定値としてのみ残っている。
+/// </summary>
 internal enum SceneActiveTool { Select, Move, Rotate, Scale }
 
 internal enum SceneTransformSpace { World, Local }
@@ -23,12 +29,13 @@ internal enum NavigationKey { W, A, S, D, Q, E }
 /// 破棄・再生成されるため、視点とツール状態はここに置く(ADR-0041 決定事項1)。
 ///
 /// <para>
-/// 永続する9項目(<see cref="ActiveTool"/>/<see cref="TransformSpace"/>/<see cref="ProjectionMode"/>/
+/// 永続する8項目(<see cref="TransformSpace"/>/<see cref="ProjectionMode"/>/
 /// <see cref="NavigationPreset"/>/<see cref="NavigationSpeedMultiplier"/>/<see cref="InvertLookX"/>/
 /// <see cref="InvertLookY"/>/<see cref="InvertOrbitX"/>/<see cref="InvertOrbitY"/>)は
 /// <see cref="SceneEditorSettings"/>経由でVS再起動を跨いで残る
 /// (Docs/Specifications/Scene-Editor-Design.md §10)。それ以外の視点フィールドはセッション内のみ
-/// (仕様§20: SceneViewはSceneDeclarationへ保存しない)。
+/// (仕様§20: SceneViewはSceneDeclarationへ保存しない)。M0033で「現在のツール」永続状態
+/// (ActiveTool)は廃止した(Move/Rotate/Scaleが常時同時表示になったため)。
 /// </para>
 ///
 /// <para>
@@ -50,8 +57,7 @@ internal sealed class SceneViewState {
     /// <summary>Far平面算出用。ビルド成功のたびにSceneHwndHostが更新する(セッション内のみ)。</summary>
     internal float LastKnownBoundsRadius=1f;
 
-    // 永続ツール状態(9項目)。
-    internal SceneActiveTool ActiveTool;
+    // 永続ツール状態(8項目)。
     internal SceneTransformSpace TransformSpace;
     internal SceneProjectionMode ProjectionMode;
     internal SceneNavigationPreset NavigationPreset;
@@ -97,7 +103,6 @@ internal sealed class SceneViewState {
     internal static SceneViewState CreateFromSettings(){
         ThreadHelper.ThrowIfNotOnUIThread();
         return new(){
-            ActiveTool=SceneEditorSettings.ReadActiveTool(),
             TransformSpace=SceneEditorSettings.ReadTransformSpace(),
             ProjectionMode=SceneEditorSettings.ReadProjectionMode(),
             NavigationPreset=SceneEditorSettings.ReadNavigationPreset(),
@@ -112,7 +117,6 @@ internal sealed class SceneViewState {
     /// <summary>呼び出しはHwndHostのライフサイクルコールバック内、つまり構造的にUIスレッド保証がある。</summary>
     internal void SaveToSettings(){
         ThreadHelper.ThrowIfNotOnUIThread();
-        SceneEditorSettings.WriteActiveTool(ActiveTool);
         SceneEditorSettings.WriteTransformSpace(TransformSpace);
         SceneEditorSettings.WriteProjectionMode(ProjectionMode);
         SceneEditorSettings.WriteNavigationPreset(NavigationPreset);

@@ -346,12 +346,12 @@ public sealed class SceneViewStateTests {
     public void CreateFromSettings_ReadsAllSevenPersistedFields()=>
         ThreadHelper.JoinableTaskFactory.Run(async()=>{
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-            SceneEditorSettings.WriteActiveTool(SceneActiveTool.Scale);
+            SceneEditorSettings.WriteTransformSpace(SceneTransformSpace.Local);
             SceneEditorSettings.WriteNavigationSpeedMultiplier(3f);
 
             SceneViewState State=SceneViewState.CreateFromSettings();
 
-            Assert.Equal(SceneActiveTool.Scale,State.ActiveTool);
+            Assert.Equal(SceneTransformSpace.Local,State.TransformSpace);
             Assert.Equal(3f,State.NavigationSpeedMultiplier);
         });
 
@@ -360,13 +360,13 @@ public sealed class SceneViewStateTests {
         ThreadHelper.JoinableTaskFactory.Run(async()=>{
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
             SceneViewState Original=new(){
-                ActiveTool=SceneActiveTool.Rotate,InvertLookY=true,InvertOrbitX=true,InvertOrbitY=true,
+                TransformSpace=SceneTransformSpace.Local,InvertLookY=true,InvertOrbitX=true,InvertOrbitY=true,
             };
 
             Original.SaveToSettings();
             SceneViewState Restored=SceneViewState.CreateFromSettings();
 
-            Assert.Equal(SceneActiveTool.Rotate,Restored.ActiveTool);
+            Assert.Equal(SceneTransformSpace.Local,Restored.TransformSpace);
             Assert.True(Restored.InvertLookY);
             Assert.True(Restored.InvertOrbitX);
             Assert.True(Restored.InvertOrbitY);

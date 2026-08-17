@@ -84,7 +84,7 @@ internal sealed class SceneHwndHost:HwndHost {
     private PropertyGizmoDrag?ActivePropertyDrag;
     private bool PropertyCommitInProgress;
     private SceneActiveTool?ActiveTransformTool;
-    private ICollection<GizmoHandleId>DisabledMoveHandles=Array.Empty<GizmoHandleId>();
+    private ICollection<GizmoHandleId>DisabledTransformHandles=Array.Empty<GizmoHandleId>();
     private IReadOnlyList<SceneTransformPreview>PreviewDescendantOriginals=[];
     private IReadOnlyList<NodePath>ActiveDraggedRootPaths=[];
     private IReadOnlyList<DuplicateNodePlanItem>ActiveDuplicatePlan=[];
@@ -375,6 +375,7 @@ internal sealed class SceneHwndHost:HwndHost {
     /// 判断だけを<see cref="SceneCaptureAction"/>として返す。
     /// </summary>
     private void OnPointerInput(PointerEvent Event){
+        ThreadHelper.ThrowIfNotOnUIThread();
         if(InputMachine is not { } Machine){
             return;
         }
@@ -535,8 +536,7 @@ internal sealed class SceneHwndHost:HwndHost {
     }
 
     private GizmoHandleId?TryHitTransformGizmoAt(int X,int Y,bool IncludeProperty=true){
-        if(ViewState is not { }State||State.ActiveTool==SceneActiveTool.Select
-            ||(CurrentMoveGizmo is null&&CurrentPropertyGizmo is null)){
+        if(ViewState is not { }State||(CurrentMoveGizmo is null&&CurrentPropertyGizmo is null)){
             return null;
         }
 
@@ -547,12 +547,10 @@ internal sealed class SceneHwndHost:HwndHost {
             ?PropertyGizmo.TryHit(PropertyFrame,Origin,Direction)
             :null;
         if(Hit is null&&CurrentMoveGizmo is { }Frame){
-            Hit=State.ActiveTool switch {
-                SceneActiveTool.Move=>TransformGizmo.TryHitMove(Frame,Origin,Direction,DisabledMoveHandles),
-                SceneActiveTool.Rotate=>TransformGizmo.TryHitRotate(Frame,Origin,Direction,CameraForward,DisabledMoveHandles),
-                SceneActiveTool.Scale=>TransformGizmo.TryHitScale(Frame,Origin,Direction,DisabledMoveHandles),
-                _=>null,
-            };
+            Vector3 CameraRight=SceneViewCamera.GetFlatRight(State.Yaw);
+            Vector3 CameraUp=SceneViewCamera.GetUp(State.Yaw,State.Pitch);
+            Hit=TransformGizmo.TryHitTransform(
+                Frame,Origin,Direction,CameraForward,CameraRight,CameraUp,DisabledTransformHandles);
         }
         if(Hit!=HoveredGizmoHandle){
             HoveredGizmoHandle=Hit;
@@ -563,14 +561,14 @@ internal sealed class SceneHwndHost:HwndHost {
 
     private void UpdateMoveGizmo(){
         if(Renderer is null||ViewState is not { }State
-            ||State.ActiveTool==SceneActiveTool.Select||SelectedNodePath is not { }PrimaryPath
+            ||SelectedNodePath is not { }PrimaryPath
             ||TargetSnapshot?.Projection is not { }Projection
             ||!Projection.TryGetId(PrimaryPath,out EditorNodeId PrimaryId)
             ||!Projection.TryGetNode(PrimaryId,out SceneProjectionNode PrimaryNode)){
             CurrentMoveGizmo=null;
             CurrentPropertyGizmo=null;
             HoveredGizmoHandle=null;
-            DisabledMoveHandles=Array.Empty<GizmoHandleId>();
+            DisabledTransformHandles=Array.Empty<GizmoHandleId>();
             RefreshOverlay();
             return;
         }
@@ -600,15 +598,16 @@ internal sealed class SceneHwndHost:HwndHost {
             :null;
         if(!SceneTransformBinding.TryRead(PrimaryNode.Node,out _)){
             CurrentMoveGizmo=null;
-            DisabledMoveHandles=Array.Empty<GizmoHandleId>();
+            DisabledTransformHandles=Array.Empty<GizmoHandleId>();
             RefreshOverlay();
             return;
         }
         CurrentMoveGizmo=MoveGizmoFrame.Create(
             WorldTransform.Position,WorldTransform.Rotation,State.TransformSpace,Scale);
         List<SceneProjectionNode>Roots=GetSelectedMoveRoots(Projection);
-        DisabledMoveHandles=GetToolHandles(State.ActiveTool)
-            .Where(Handle=>Roots.Count==0||Roots.Any(Node=>!SceneTransformBinding.CanEditTransform(Node.Node,State.ActiveTool,Handle)))
+        DisabledTransformHandles=AllTransformHandles
+            .Where(Handle=>Roots.Count==0
+                ||Roots.Any(Node=>!SceneTransformBinding.CanEditTransform(Node.Node,GetHandleFamily(Handle),Handle)))
             .ToArray();
         RefreshOverlay();
     }
@@ -624,15 +623,16 @@ internal sealed class SceneHwndHost:HwndHost {
         IReadOnlyList<GizmoOverlayPrimitive>PropertyPrimitives=Array.Empty<GizmoOverlayPrimitive>();
         if(CurrentMoveGizmo is { }Frame&&ViewState is { }GizmoState){
             Vector3 CameraForward=SceneViewCamera.GetForward(GizmoState.Yaw,GizmoState.Pitch);
-            TransformPrimitives=GizmoState.ActiveTool switch {
-                SceneActiveTool.Move=>TransformGizmo.BuildMoveOverlay(
-                    Frame,HoveredGizmoHandle,ActiveGizmoHandle,DisabledMoveHandles),
-                SceneActiveTool.Rotate=>TransformGizmo.BuildRotateOverlay(
-                    Frame,CameraForward,HoveredGizmoHandle,ActiveGizmoHandle,DisabledMoveHandles),
-                SceneActiveTool.Scale=>TransformGizmo.BuildScaleOverlay(
-                    Frame,HoveredGizmoHandle,ActiveGizmoHandle,DisabledMoveHandles),
-                _=>Array.Empty<GizmoOverlayPrimitive>(),
-            };
+            Vector3 CameraRight=SceneViewCamera.GetFlatRight(GizmoState.Yaw);
+            Vector3 CameraUp=SceneViewCamera.GetUp(GizmoState.Yaw,GizmoState.Pitch);
+            List<GizmoOverlayPrimitive>Combined=[
+                ..TransformGizmo.BuildMoveOverlay(Frame,HoveredGizmoHandle,ActiveGizmoHandle,DisabledTransformHandles),
+                ..TransformGizmo.BuildRotateOverlay(
+                    Frame,CameraForward,HoveredGizmoHandle,ActiveGizmoHandle,DisabledTransformHandles),
+                ..TransformGizmo.BuildScaleOverlay(Frame,HoveredGizmoHandle,ActiveGizmoHandle,DisabledTransformHandles),
+                ..TransformSpaceToggleGizmo.BuildOverlay(Frame,CameraRight,CameraUp,GizmoState.TransformSpace,HoveredGizmoHandle),
+            ];
+            TransformPrimitives=Combined;
         }
         if(CurrentPropertyGizmo is { }PropertyFrame){
             PropertyPrimitives=PropertyGizmo.BuildOverlay(
@@ -658,10 +658,26 @@ internal sealed class SceneHwndHost:HwndHost {
         ObjectsMarqueePicked?.Invoke(Hits,CtrlHeld);
     }
 
-    private bool BeginGizmoDrag(GizmoHandleId Handle,int X,int Y,bool Duplicate)=>
-        PropertyGizmo.IsPropertyHandle(Handle)
-            ?BeginPropertyGizmoDrag(Handle,X,Y,Duplicate)
-            :BeginTransformGizmoDrag(Handle,X,Y,Duplicate);
+    private bool BeginGizmoDrag(GizmoHandleId Handle,int X,int Y,bool Duplicate){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        return Handle==GizmoHandleId.TransformSpaceToggle
+            ?ToggleTransformSpaceHandle()
+            :PropertyGizmo.IsPropertyHandle(Handle)
+                ?BeginPropertyGizmoDrag(Handle,X,Y,Duplicate)
+                :BeginTransformGizmoDrag(Handle,X,Y,Duplicate);
+    }
+
+    /// <summary>
+    /// M0033: ギズモ上のLocal/Globalアイコン。ドラッグを開始せず即座に空間を切り替える。
+    /// falseを返すことで<see cref="OnPointerInput"/>の既存経路(<c>Machine.CancelCurrent()</c>)が
+    /// そのままIdleへ戻す — SceneInputStateMachine側の変更は不要。
+    /// </summary>
+    private bool ToggleTransformSpaceHandle(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        SetTransformSpace(CurrentTransformSpace==SceneTransformSpace.World
+            ?SceneTransformSpace.Local:SceneTransformSpace.World);
+        return false;
+    }
 
     private bool BeginPropertyGizmoDrag(GizmoHandleId Handle,int X,int Y,bool Duplicate){
         if(Duplicate||CurrentPropertyGizmo is not { }Frame
@@ -690,13 +706,14 @@ internal sealed class SceneHwndHost:HwndHost {
             return false;
         }
 
+        SceneActiveTool Family=GetHandleFamily(Handle);
         List<SceneProjectionNode>Roots=GetSelectedMoveRoots(Projection);
         IReadOnlyList<DuplicateNodePlanItem>DuplicatePlan=Array.Empty<DuplicateNodePlanItem>();
         if(Duplicate&&!DuplicateNodePlanner.TryCreate(Roots,Projection,out DuplicatePlan)){
             SetStatus("Scene Rootまたは親Childrenを解決できないNodeは複製できません。");
             return false;
         }
-        if(Roots.Any(Node=>!SceneTransformBinding.CanEditTransform(Node.Node,State.ActiveTool,Handle))){
+        if(Roots.Any(Node=>!SceneTransformBinding.CanEditTransform(Node.Node,Family,Handle))){
             return false;
         }
 
@@ -721,7 +738,7 @@ internal sealed class SceneHwndHost:HwndHost {
         ActiveMoveDrag=null;
         ActiveRotateDrag=null;
         ActiveScaleDrag=null;
-        bool Began=State.ActiveTool switch {
+        bool Began=Family switch {
             SceneActiveTool.Move=>MoveGizmoDrag.TryBegin(
                 Frame,Handle,Origin,Direction,CameraForward,out ActiveMoveDrag),
             SceneActiveTool.Rotate=>RotateGizmoDrag.TryBegin(
@@ -759,15 +776,15 @@ internal sealed class SceneHwndHost:HwndHost {
             ?PrimaryWorld.Rotation
             :Quaternion.Identity;
         ActiveGizmoStartFrame=Frame;
-        ActiveCommitMembers=GetTransformMembers(State.ActiveTool);
+        ActiveCommitMembers=GetTransformMembers(Family);
         ActiveFollowViewSnapshot=SceneViewFollowSnapshot.Capture(State);
         HasActiveFollowViewSnapshot=true;
         FollowViewApplied=false;
-        ActiveTransformTool=State.ActiveTool;
+        ActiveTransformTool=Family;
         ActiveGizmoHandle=Handle;
         HoveredGizmoHandle=Handle;
         RefreshOverlay();
-        SetStatus($"{GetToolDisplayName(State.ActiveTool)}中: {PrimaryNode.Node.DisplayName}");
+        SetStatus($"{GetToolDisplayName(Family)}中: {PrimaryNode.Node.DisplayName}");
         return true;
     }
 
@@ -1176,24 +1193,15 @@ internal sealed class SceneHwndHost:HwndHost {
         }
     }
 
-    /// <summary>WPFの<c>KeyDown</c>から呼ぶ。Fly中(RMB押下中)以外は<see cref="SceneInputStateMachine"/>が無視する。</summary>
-    internal void HandleKeyDown(NavigationKey Key){
-        ThreadHelper.ThrowIfNotOnUIThread();
-        if(InputMachine is { State:SceneNavState.Idle }&&Key is NavigationKey.W or NavigationKey.E){
-            SetActiveTool(Key==NavigationKey.W?SceneActiveTool.Move:SceneActiveTool.Rotate);
-            return;
-        }
-        InputMachine?.HandleKeyDown(Key);
-    }
+    /// <summary>
+    /// WPFの<c>KeyDown</c>から呼ぶ。Fly中(RMB押下中)以外は<see cref="SceneInputStateMachine"/>が
+    /// 無視する。M0033でMove/Rotate/Scaleを常時同時表示にしたため、以前ここでIdle中のW/Eを
+    /// ツール切替に横取りしていた分岐は撤廃した(W/E/Rはもう何もしない。Idle中のW/Eは元々
+    /// Fly移動にも使われていなかったため観測できる退行は無い)。
+    /// </summary>
+    internal void HandleKeyDown(NavigationKey Key)=>InputMachine?.HandleKeyDown(Key);
 
     internal void HandleKeyUp(NavigationKey Key)=>InputMachine?.HandleKeyUp(Key);
-
-    internal void ActivateScaleTool(){
-        ThreadHelper.ThrowIfNotOnUIThread();
-        if(InputMachine is { State:SceneNavState.Idle }){
-            SetActiveTool(SceneActiveTool.Scale);
-        }
-    }
 
     internal SceneTransformSpace CurrentTransformSpace {
         get=>ViewState?.TransformSpace??SceneEditorSettings.DefaultTransformSpace;
@@ -1209,15 +1217,18 @@ internal sealed class SceneHwndHost:HwndHost {
         UpdateMoveGizmo();
     }
 
-    private void SetActiveTool(SceneActiveTool Tool){
-        ThreadHelper.ThrowIfNotOnUIThread();
-        if(ViewState is not { }State){
-            return;
-        }
-        State.ActiveTool=Tool;
-        State.SaveToSettings();
-        UpdateMoveGizmo();
-    }
+    private static readonly IReadOnlyList<GizmoHandleId>AllTransformHandles=[
+        ..GetToolHandles(SceneActiveTool.Move),..GetToolHandles(SceneActiveTool.Rotate),..GetToolHandles(SceneActiveTool.Scale),
+    ];
+
+    /// <summary>M0033: ヒットしたHandleからMove/Rotate/Scaleのうちどの系統かを逆引きする。</summary>
+    private static SceneActiveTool GetHandleFamily(GizmoHandleId Handle)=>Handle switch {
+        GizmoHandleId.AxisX or GizmoHandleId.AxisY or GizmoHandleId.AxisZ
+            or GizmoHandleId.PlaneXY or GizmoHandleId.PlaneYZ or GizmoHandleId.PlaneZX=>SceneActiveTool.Move,
+        GizmoHandleId.RotateX or GizmoHandleId.RotateY or GizmoHandleId.RotateZ or GizmoHandleId.RotateView=>SceneActiveTool.Rotate,
+        GizmoHandleId.ScaleX or GizmoHandleId.ScaleY or GizmoHandleId.ScaleZ or GizmoHandleId.ScaleUniform=>SceneActiveTool.Scale,
+        _=>SceneActiveTool.Select,
+    };
 
     private static IReadOnlyList<GizmoHandleId>GetToolHandles(SceneActiveTool Tool)=>Tool switch {
         SceneActiveTool.Move=>[GizmoHandleId.AxisX,GizmoHandleId.AxisY,GizmoHandleId.AxisZ,

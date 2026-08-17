@@ -6,27 +6,34 @@ namespace CSharpGameEngine.VSExtension;
 
 /// <summary>Phase 4のRotate/Scaleハンドル。Moveと同じframe・overlay・解析hit経路を使う。</summary>
 internal static partial class TransformGizmo {
-    private const float RotateRingRadius=0.9f;
-    private const float RotateViewRingRadius=1.12f;
+    // M0033: Move/Rotate/Scaleを常時同時表示にするにあたり、半径帯を重ならないよう再設計した
+    // (旧RotateRingRadius=0.9はScaleAxisLength=0.9と完全一致しキューブとリングが同座標に重なり、
+    // またMove平面ハンドルと同一平面上にあるため対角最大到達距離0.68より内側だと平面ハンドルの
+    // 当たり判定を貫通していた)。詳細はDocs/Milestones/M0030-SceneView-Gizmo-Transform-Editing.md
+    // のM0033追記を参照。TransformGizmo.csのAxisLength/ShaftEnd(Move矢印)も同じ理由で合わせて
+    // 外側へ再配置してある。
+    private const float RotateRingRadius=0.78f;
+    private const float RotateViewRingRadius=1.5f;
     private const float RotateRingThickness=0.07f;
     private const float ScaleAxisStart=0.16f;
-    private const float ScaleAxisLength=0.9f;
+    private const float ScaleAxisLength=1.0f;
     private const float ScaleAxisRadius=0.075f;
     private const float ScaleCubeHalfExtent=0.075f;
     private const float ScaleUniformHalfExtent=0.11f;
 
     internal static GizmoHandleId?TryHitRotate(
         in MoveGizmoFrame Frame,Vector3 RayOrigin,Vector3 RayDirection,Vector3 CameraForward,
-        ICollection<GizmoHandleId>?Disabled=null){
+        out float BestRayDistance,ICollection<GizmoHandleId>?Disabled=null){
         MoveGizmoFrame Value=Frame;
         RayDirection=Vector3.Normalize(RayDirection);
         CameraForward=NormalizeOr(CameraForward,Vector3.UnitZ);
         GizmoHandleId?Best=null;
-        float BestRayDistance=float.PositiveInfinity;
+        float NearestRayDistance=float.PositiveInfinity;
         TryRing(GizmoHandleId.RotateX,Value.AxisX,RotateRingRadius);
         TryRing(GizmoHandleId.RotateY,Value.AxisY,RotateRingRadius);
         TryRing(GizmoHandleId.RotateZ,Value.AxisZ,RotateRingRadius);
         TryRing(GizmoHandleId.RotateView,CameraForward,RotateViewRingRadius);
+        BestRayDistance=NearestRayDistance;
         return Best;
 
         void TryRing(GizmoHandleId Handle,Vector3 Normal,float Radius){
@@ -36,9 +43,9 @@ internal static partial class TransformGizmo {
             }
 
             float RingDistance=Math.Abs(Vector3.Distance(Point,Value.Pivot)-(Radius*Value.WorldScale));
-            if(RingDistance<=RotateRingThickness*Value.WorldScale&&RayDistance<BestRayDistance){
+            if(RingDistance<=RotateRingThickness*Value.WorldScale&&RayDistance<NearestRayDistance){
                 Best=Handle;
-                BestRayDistance=RayDistance;
+                NearestRayDistance=RayDistance;
             }
         }
     }
@@ -78,21 +85,23 @@ internal static partial class TransformGizmo {
 
     internal static GizmoHandleId?TryHitScale(
         in MoveGizmoFrame Frame,Vector3 RayOrigin,Vector3 RayDirection,
-        ICollection<GizmoHandleId>?Disabled=null){
+        out float BestRayDistance,ICollection<GizmoHandleId>?Disabled=null){
         MoveGizmoFrame Value=Frame;
         RayDirection=Vector3.Normalize(RayDirection);
         float PivotRayDistance=Math.Max(0f,Vector3.Dot(Frame.Pivot-RayOrigin,RayDirection));
         float PivotDistance=Vector3.Distance(RayOrigin+(RayDirection*PivotRayDistance),Frame.Pivot);
         if(Disabled?.Contains(GizmoHandleId.ScaleUniform)!=true
             &&PivotDistance<=ScaleUniformHalfExtent*Frame.WorldScale){
+            BestRayDistance=PivotRayDistance;
             return GizmoHandleId.ScaleUniform;
         }
 
         GizmoHandleId?Best=null;
-        float BestRayDistance=float.PositiveInfinity;
+        float NearestRayDistance=float.PositiveInfinity;
         TryAxis(GizmoHandleId.ScaleX,Value.AxisX);
         TryAxis(GizmoHandleId.ScaleY,Value.AxisY);
         TryAxis(GizmoHandleId.ScaleZ,Value.AxisZ);
+        BestRayDistance=NearestRayDistance;
         return Best;
 
         void TryAxis(GizmoHandleId Handle,Vector3 Axis){
@@ -102,9 +111,9 @@ internal static partial class TransformGizmo {
             Vector3 Start=Value.Pivot+(Axis*(ScaleAxisStart*Value.WorldScale));
             Vector3 End=Value.Pivot+(Axis*(ScaleAxisLength*Value.WorldScale));
             ClosestRaySegment(RayOrigin,RayDirection,Start,End,out float RayDistance,out float Distance);
-            if(Distance<=ScaleAxisRadius*Value.WorldScale&&RayDistance>=0f&&RayDistance<BestRayDistance){
+            if(Distance<=ScaleAxisRadius*Value.WorldScale&&RayDistance>=0f&&RayDistance<NearestRayDistance){
                 Best=Handle;
-                BestRayDistance=RayDistance;
+                NearestRayDistance=RayDistance;
             }
         }
     }
@@ -348,4 +357,71 @@ internal static class TransformSnap {
     };
 
     private static float Snap(float Value,float Increment)=>(float)Math.Round(Value/Increment,MidpointRounding.AwayFromZero)*Increment;
+}
+
+/// <summary>
+/// M0033: ギズモ上のLocal/Global(World)切り替えアイコン。ピボットには既にScaleUniformの
+/// キューブがあるため、カメラのRight/Up方向へ固定オフセットした場所(全ハンドルの外側)に置く
+/// (RotateViewリングのカメラ相対法線と同じ考え方)。ドラッグは生成せず、クリックで即座に
+/// 空間を切り替えるトグルとして扱われる(呼び出し側は<c>SceneHwndHost.BeginGizmoDrag</c>参照)。
+/// </summary>
+internal static class TransformSpaceToggleGizmo {
+    private const float BadgeDistance=1.65f;
+    private const float BadgeHalfExtent=0.09f;
+    private const float BadgeHitRadius=0.18f;
+
+    internal static Vector3 ComputePosition(in MoveGizmoFrame Frame,Vector3 CameraRight,Vector3 CameraUp){
+        Vector3 Direction=Vector3.Normalize(CameraRight-CameraUp);
+        return Frame.Pivot+(Direction*(BadgeDistance*Frame.WorldScale));
+    }
+
+    internal static GizmoHandleId?TryHit(
+        in MoveGizmoFrame Frame,Vector3 CameraRight,Vector3 CameraUp,
+        Vector3 RayOrigin,Vector3 RayDirection,out float RayDistance){
+        Vector3 Position=ComputePosition(Frame,CameraRight,CameraUp);
+        RayDirection=Vector3.Normalize(RayDirection);
+        float ForwardDistance=Math.Max(0f,Vector3.Dot(Position-RayOrigin,RayDirection));
+        Vector3 Closest=RayOrigin+(RayDirection*ForwardDistance);
+        if(Vector3.Distance(Closest,Position)<=BadgeHitRadius*Frame.WorldScale){
+            RayDistance=ForwardDistance;
+            return GizmoHandleId.TransformSpaceToggle;
+        }
+
+        RayDistance=float.PositiveInfinity;
+        return null;
+    }
+
+    internal static IReadOnlyList<GizmoOverlayPrimitive>BuildOverlay(
+        in MoveGizmoFrame Frame,Vector3 CameraRight,Vector3 CameraUp,
+        SceneTransformSpace Space,GizmoHandleId?Hovered){
+        Vector3 Position=ComputePosition(Frame,CameraRight,CameraUp);
+        Vector4 Color=Hovered==GizmoHandleId.TransformSpaceToggle
+            ?Vector4.One
+            :new Vector4(0.85f,0.85f,0.9f,1f);
+        float Size=BadgeHalfExtent*Frame.WorldScale;
+        List<GizmoOverlayVertex>Vertices=[];
+        if(Space==SceneTransformSpace.Local){
+            Vector3 X=Frame.AxisX*Size;
+            Vector3 Y=Frame.AxisY*Size;
+            Vector3 Z=Frame.AxisZ*Size;
+            Vector3[]Corners=[
+                Position-X-Y-Z,Position+X-Y-Z,Position+X+Y-Z,Position-X+Y-Z,
+                Position-X-Y+Z,Position+X-Y+Z,Position+X+Y+Z,Position-X+Y+Z,
+            ];
+            int[]Edges=[0,1,1,2,2,3,3,0,4,5,5,6,6,7,7,4,0,4,1,5,2,6,3,7];
+            foreach(int Index in Edges){ Vertices.Add(new GizmoOverlayVertex(Corners[Index],Color)); }
+        } else {
+            const int Segments=16;
+            for(var Segment=0;Segment<Segments;Segment++){
+                float AngleA=(float)(Segment*Math.PI*2d/Segments);
+                float AngleB=(float)((Segment+1)*Math.PI*2d/Segments);
+                Vertices.Add(new GizmoOverlayVertex(
+                    Position+(((CameraRight*(float)Math.Cos(AngleA))+(CameraUp*(float)Math.Sin(AngleA)))*Size),Color));
+                Vertices.Add(new GizmoOverlayVertex(
+                    Position+(((CameraRight*(float)Math.Cos(AngleB))+(CameraUp*(float)Math.Sin(AngleB)))*Size),Color));
+            }
+        }
+
+        return [new GizmoOverlayPrimitive(GizmoPrimitiveKind.Line,Vertices)];
+    }
 }

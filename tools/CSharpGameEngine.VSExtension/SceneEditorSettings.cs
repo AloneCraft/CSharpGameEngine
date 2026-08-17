@@ -6,8 +6,9 @@ using Microsoft.VisualStudio.Shell;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Scene View のナビゲーション設定9項目(仕様§3の5項目+InvertLookX/Y+InvertOrbitX/Y、
+/// Scene View のナビゲーション設定8項目(仕様§3の4項目+InvertLookX/Y+InvertOrbitX/Y、
 /// Docs/Specifications/Scene-Editor-Design.md §10)をVSのユーザー設定ストアへ永続化する。
+/// M0033でActiveTool(旧5項目のうちの1つ)を廃止したため4項目になった。
 ///
 /// <para>
 /// 唯一の消費者は<c>SceneHwndHost</c>/<c>SceneViewState</c>で、呼び出しは常にHwndHostの
@@ -37,14 +38,10 @@ internal static class SceneEditorSettings {
     internal const bool DefaultInvertOrbitX=false;
     internal const bool DefaultInvertOrbitY=false;
 
-    // 残り5項目の既定値も、オプション画面が基準として参照できるよう名前付き定数へ引き上げる
+    // 残り4項目の既定値も、オプション画面が基準として参照できるよう名前付き定数へ引き上げる
     // (以前は各Readのインラインリテラルだった)。
-    // 実機確認(2026-08-17): 既定をSelectのままにすると、選択しただけではギズモが出ず
-    // (UpdateMoveGizmoがActiveTool==Selectのとき明示的にギズモを隠す)、Wキーを押すまでの
-    // 一手間が実機で分かりにくいと判明した。Unity/Blender寄りの「選択したら即Move」という
-    // 既定へ変更した。永続化済みの値がある場合はそちらが優先されるため、既にSelect/Moveを
-    // 選んでいるユーザーには影響しない。
-    internal const SceneActiveTool DefaultActiveTool=SceneActiveTool.Move;
+    // M0033: 以前あったDefaultActiveTool/ReadActiveTool/WriteActiveToolは、Move/Rotate/Scale
+    // ギズモを常時同時表示にしたことで「現在のツール」という排他状態自体が不要になったため削除した。
     internal const SceneTransformSpace DefaultTransformSpace=SceneTransformSpace.World;
     internal const SceneProjectionMode DefaultProjectionMode=SceneProjectionMode.Perspective;
     internal const SceneNavigationPreset DefaultNavigationPreset=SceneNavigationPreset.Default;
@@ -86,16 +83,6 @@ internal static class SceneEditorSettings {
         WriteBoolean("InvertOrbitX",InvertOrbitX);
         WriteBoolean("InvertOrbitY",InvertOrbitY);
         SettingsChanged?.Invoke();
-    }
-
-    internal static SceneActiveTool ReadActiveTool(){
-        ThreadHelper.ThrowIfNotOnUIThread();
-        return ReadEnum("ActiveTool",DefaultActiveTool);
-    }
-
-    internal static void WriteActiveTool(SceneActiveTool Value){
-        ThreadHelper.ThrowIfNotOnUIThread();
-        WriteEnum("ActiveTool",Value);
     }
 
     internal static SceneTransformSpace ReadTransformSpace(){

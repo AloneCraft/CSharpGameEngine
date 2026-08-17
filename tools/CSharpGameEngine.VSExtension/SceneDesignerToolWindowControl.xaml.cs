@@ -23,14 +23,12 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     private CancellationTokenSource?CatalogCancellation;
     private long CatalogGeneration;
     private bool UpdatingSelector;
-    private bool UpdatingTransformSpace;
     private PendingDuplicateSelection?PendingDuplicateSelectionRestore;
     private bool Disposed;
 
     public SceneDesignerToolWindowControl(){
         InitializeComponent();
-        TransformSpaceSelector.ItemsSource=Enum.GetValues(typeof(SceneTransformSpace));
-        TransformSpaceSelector.SelectedItem=SceneTransformSpace.World;
+        // M0033: World/Local切り替えはギズモ上のアイコン(TransformSpaceToggleGizmo)へ移った。
         // M0020 Phase 1(ADR-0041 決定事項2): ナビゲーション(WASDQE)を受けるにはWPFの
         // キーボードフォーカスが要る(Wheelはネイティブ側で受けるためフォーカス不要、
         // SceneHwndHost.HandleWheel参照)。IsTabStopは変えない — Tab巡回でここへ止まらせず、
@@ -144,8 +142,6 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         this.Host=Host;
         EmptyStateText.Visibility=Visibility.Collapsed;
         RenderHostGrid.Children.Add(Host);
-        TransformSpaceSelector.IsEnabled=true;
-        this.SyncTransformSpaceSelector(Host);
         return Host;
     }
 
@@ -163,7 +159,6 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         }
 
         this.Host=null;
-        TransformSpaceSelector.IsEnabled=false;
         RenderHostGrid.Children.Remove(Host);
         Host.StatusChanged-=this.OnStatusChanged;
         Host.ViewportActivated-=this.OnViewportActivated;
@@ -278,26 +273,6 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         }
 
         _=this.SelectSceneAsync(Session,Entry.Key);
-    }
-
-    private void OnTransformSpaceSelectionChanged(object Sender,SelectionChangedEventArgs Args){
-        ThreadHelper.ThrowIfNotOnUIThread();
-        if(this.UpdatingTransformSpace||this.Host is not { }Host
-            ||TransformSpaceSelector.SelectedItem is not SceneTransformSpace Space){
-            return;
-        }
-
-        Host.SetTransformSpace(Space);
-        this.SyncTransformSpaceSelector(Host);
-    }
-
-    private void SyncTransformSpaceSelector(SceneHwndHost Host){
-        this.UpdatingTransformSpace=true;
-        try {
-            TransformSpaceSelector.SelectedItem=Host.CurrentTransformSpace;
-        } finally {
-            this.UpdatingTransformSpace=false;
-        }
     }
 
     private async Task SelectSceneAsync(SceneEditorSessionService Session,SceneKey Key){
@@ -508,11 +483,6 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         ThreadHelper.ThrowIfNotOnUIThread();
         if(Args.Key==Key.Escape){
             this.Host?.CancelCurrentOperation();
-            Args.Handled=true;
-            return;
-        }
-        if(Args.Key==Key.R){
-            this.Host?.ActivateScaleTool();
             Args.Handled=true;
             return;
         }

@@ -11,6 +11,7 @@ internal enum GizmoHandleId {
     CameraFov, CameraNear, CameraFar, CameraOrthographicSize,
     DirectionalDirection, PointRange,
     SpotDirection, SpotInnerCone, SpotOuterCone, SpotRange,
+    TransformSpaceToggle,
 }
 
 internal enum GizmoPrimitiveKind { Line, Triangle }
@@ -93,7 +94,9 @@ internal readonly struct MoveGizmoFrame {
 internal static partial class TransformGizmo {
     private const float ScreenFraction=0.16f;
     private const float AxisStart=0.12f;
-    private const float AxisLength=1f;
+    // M0033: Rotate/Scaleが常時同時表示になったため、Scaleキューブ帯(≈0.93-1.08)より外側へ
+    // 押し出した(TransformGizmoPhase4.csのコメント参照)。
+    private const float AxisLength=1.35f;
     private const float AxisRadius=0.08f;
     private const float PlaneMin=0.22f;
     private const float PlaneMax=0.48f;
@@ -105,11 +108,11 @@ internal static partial class TransformGizmo {
             :Math.Max(DistanceToCamera,0.01f)*(float)Math.Tan(Math.Max(FovYRadians,0.01f)*0.5f)*ScreenFraction;
 
     internal static GizmoHandleId?TryHitMove(
-        in MoveGizmoFrame Frame,Vector3 RayOrigin,Vector3 RayDirection,
+        in MoveGizmoFrame Frame,Vector3 RayOrigin,Vector3 RayDirection,out float BestRayDistance,
         ICollection<GizmoHandleId>?Disabled=null){
         RayDirection=Vector3.Normalize(RayDirection);
         GizmoHandleId?Best=null;
-        float BestRayDistance=float.PositiveInfinity;
+        BestRayDistance=float.PositiveInfinity;
 
         foreach(GizmoHandleId Handle in new[]{GizmoHandleId.PlaneXY,GizmoHandleId.PlaneYZ,GizmoHandleId.PlaneZX}){
             if(Disabled?.Contains(Handle)==true){
@@ -147,6 +150,32 @@ internal static partial class TransformGizmo {
         return Best;
     }
 
+    /// <summary>
+    /// Move・Rotate・Scale・Local/GlobalトグルアイコンをまとめてヒットテストしRay距離最小を採用する
+    /// (M0033: 3系統の常時同時表示化)。各`TryHit*`は自系統内で独立して最近傍を選ぶだけなので、
+    /// 系統をまたいだ優先順位はここで解決する。
+    /// </summary>
+    internal static GizmoHandleId?TryHitTransform(
+        in MoveGizmoFrame Frame,Vector3 RayOrigin,Vector3 RayDirection,
+        Vector3 CameraForward,Vector3 CameraRight,Vector3 CameraUp,
+        ICollection<GizmoHandleId>?Disabled=null){
+        GizmoHandleId?Best=null;
+        float BestRayDistance=float.PositiveInfinity;
+        Consider(TryHitMove(Frame,RayOrigin,RayDirection,out float MoveDistance,Disabled),MoveDistance);
+        Consider(TryHitRotate(Frame,RayOrigin,RayDirection,CameraForward,out float RotateDistance,Disabled),RotateDistance);
+        Consider(TryHitScale(Frame,RayOrigin,RayDirection,out float ScaleDistance,Disabled),ScaleDistance);
+        Consider(TransformSpaceToggleGizmo.TryHit(
+            Frame,CameraRight,CameraUp,RayOrigin,RayDirection,out float ToggleDistance),ToggleDistance);
+        return Best;
+
+        void Consider(GizmoHandleId?Hit,float RayDistance){
+            if(Hit is { }Handle&&RayDistance<BestRayDistance){
+                Best=Handle;
+                BestRayDistance=RayDistance;
+            }
+        }
+    }
+
     internal static IReadOnlyList<GizmoOverlayPrimitive>BuildMoveOverlay(
         in MoveGizmoFrame Frame,GizmoHandleId?Hovered,GizmoHandleId?Active,
         ICollection<GizmoHandleId>?Disabled=null){
@@ -173,7 +202,7 @@ internal static partial class TransformGizmo {
             ]));
 
             const int Segments=8;
-            const float ShaftEnd=0.76f;
+            const float ShaftEnd=1.15f;
             const float ShaftRadius=0.025f;
             const float ArrowRadius=0.085f;
             Vector3 Reference=Math.Abs(Vector3.Dot(Axis,Vector3.UnitY))<0.9f

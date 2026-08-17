@@ -1722,3 +1722,35 @@ Expハイブのキャッシュより新しくすること」を機序として**
   メソッド`OnHierarchySelectionChanged`同様ユニットテスト対象外のため新規テストは追加していない。
   ソリューション全体969/969(既存969、ロジック変更のみでテスト数増減なし)。実機での動作・
   フォーカス非奪取確認は未実施。
+
+## 2026-08-17 M0033: ギズモをMove+Rotate+Scale同時表示化、Local/Globalアイコン追加
+
+- **Mismatch → 解消(実機Observed起因のUX変更)**: Move/Rotate/Scaleが`SceneActiveTool`により
+  排他的にどれか1系統だけ表示・操作可能で、W/E/Rキーで切り替える方式だった。ユーザーから
+  Blender/Unity寄りの「3系統を常に同時表示・操作できるように」という要望を受け、
+  `TransformGizmo.TryHitTransform`(Move/Rotate/Scale/新設Local-Globalトグルアイコンをレイ距離
+  最近傍でまとめてヒットテスト)を新設し、`SceneHwndHost`の該当箇所(`TryHitTransformGizmoAt`/
+  `UpdateMoveGizmo`のdisabled-handle計算/`RefreshOverlay`)をすべて系統横断へ書き換えた。
+- **Mismatch → 解消(実機Observed起因、真のバグ)**: 旧`RotateRingRadius=0.9`と
+  `ScaleAxisLength=0.9`が完全一致しており、Scale軸キューブとRotateリングが座標として重なって
+  いた。加えてRotateリングはMove平面ハンドルと同一平面上にあり対角最大到達距離(≈0.68)より
+  内側だと平面ハンドルの当たり判定を貫通する。半径帯をRotate(0.78)→Scale(1.0)→Move円錐
+  (1.15〜1.35)の順に重ならないよう再配置した。
+- **Mismatch → 解消(設計上の潜在バグ、3系統同時ヒット化で表面化)**: `BeginTransformGizmoDrag`は
+  ヒットした`GizmoHandleId`ではなくambientな`State.ActiveTool`でMove/Rotate/ScaleGizmoDragのどれを
+  開始するか決めていたため、3系統同時ヒットテストにより両者が食い違い得る状態になっていた。
+  新設`GetHandleFamily(GizmoHandleId)`でHandle自身から系統を逆引きするよう修正した。
+- **Unknown → 対応(実機Observed)**: Local/Global切替はWPF ComboBoxのみでギズモ上には無かった。
+  ピボットは既にScaleUniformのキューブが占有しているため、カメラRight/Up方向へ固定オフセットした
+  位置に新設`TransformSpaceToggleGizmo`(Local=立方体ワイヤーフレーム、World=リンググリフ)を配置。
+  クリックはドラッグを生成せず即座に`SetTransformSpace`をトグルし、既存の
+  `Machine.CancelCurrent()`経路(`SceneInputStateMachine`側の変更ゼロ)でIdleへ戻る。旧ComboBoxは
+  二重UIになるため削除した。
+- W/E/Rキーと`SceneViewState.ActiveTool`永続状態(3系統が常時全部有効になり不要)を削除した。
+  `SceneActiveTool`列挙自体は「ハンドル系統識別子」として存続する。
+- Evidence: `TransformGizmoTests.cs`に7件追加(系統横断最近傍解決・Move平面ハンドルの生存確認・
+  `TransformSpaceToggleGizmo`のヒット/オーバーレイ)。`SceneEditorSettingsTests`/
+  `SceneViewStateTests`のActiveTool関連テストを削除・置換。ソリューション全体974/974
+  (969からActiveTool関連2件削除+9件追加)。半径帯が実機で視覚的に重ならないか・アイコンの
+  位置/クリック操作感・ドラッグ系統解決の実際の配線はHWND/D3D12依存のためユニットテスト不可、
+  実機確認が必須。

@@ -71,9 +71,9 @@ public sealed class TransformGizmoTests {
             Vector3.Zero,Quaternion.Identity,SceneTransformSpace.World,WorldScale:1f);
 
         GizmoHandleId?Axis=TransformGizmo.TryHitMove(
-            Frame,new Vector3(0.7f,0f,-10f),Vector3.UnitZ);
+            Frame,new Vector3(0.7f,0f,-10f),Vector3.UnitZ,out _);
         GizmoHandleId?Plane=TransformGizmo.TryHitMove(
-            Frame,new Vector3(0.3f,0.3f,-10f),Vector3.UnitZ);
+            Frame,new Vector3(0.3f,0.3f,-10f),Vector3.UnitZ,out _);
 
         Assert.Equal(GizmoHandleId.AxisX,Axis);
         Assert.Equal(GizmoHandleId.PlaneXY,Plane);
@@ -113,7 +113,7 @@ public sealed class TransformGizmoTests {
         HashSet<GizmoHandleId>Disabled=[GizmoHandleId.AxisX];
 
         GizmoHandleId?Hit=TransformGizmo.TryHitMove(
-            Frame,new Vector3(0.7f,0f,-10f),Vector3.UnitZ,Disabled);
+            Frame,new Vector3(0.7f,0f,-10f),Vector3.UnitZ,out _,Disabled);
         IReadOnlyList<GizmoOverlayPrimitive>Overlay=TransformGizmo.BuildMoveOverlay(
             Frame,Hovered:null,Active:null,Disabled);
 
@@ -142,8 +142,9 @@ public sealed class TransformGizmoTests {
         MoveGizmoFrame Frame=MoveGizmoFrame.Create(
             Vector3.Zero,Quaternion.Identity,SceneTransformSpace.World,WorldScale:1f);
 
+        // M0033: RotateRingRadiusは0.9→0.78(Move/Scaleと重ならないよう再配置)。
         GizmoHandleId?Hit=TransformGizmo.TryHitRotate(
-            Frame,new Vector3(0.9f,0f,-10f),Vector3.UnitZ,CameraForward:Vector3.UnitZ);
+            Frame,new Vector3(0.78f,0f,-10f),Vector3.UnitZ,CameraForward:Vector3.UnitZ,out _);
 
         Assert.Equal(GizmoHandleId.RotateZ,Hit);
     }
@@ -184,9 +185,9 @@ public sealed class TransformGizmoTests {
             Vector3.Zero,Quaternion.Identity,SceneTransformSpace.World,WorldScale:1f);
 
         GizmoHandleId?Center=TransformGizmo.TryHitScale(
-            Frame,new Vector3(0f,0f,-10f),Vector3.UnitZ);
+            Frame,new Vector3(0f,0f,-10f),Vector3.UnitZ,out _);
         GizmoHandleId?Axis=TransformGizmo.TryHitScale(
-            Frame,new Vector3(0.7f,0f,-10f),Vector3.UnitZ);
+            Frame,new Vector3(0.7f,0f,-10f),Vector3.UnitZ,out _);
 
         Assert.Equal(GizmoHandleId.ScaleUniform,Center);
         Assert.Equal(GizmoHandleId.ScaleX,Axis);
@@ -234,5 +235,98 @@ public sealed class TransformGizmoTests {
         Assert.Equal(new Vector3(1f,3f,0f),Move);
         Assert.Equal((float)(15d*Math.PI/180d),Rotation,5);
         Assert.Equal(new Vector3(1.2f,1f,1f),Scale);
+    }
+
+    // ----- M0033: Move/Rotate/Scale常時同時表示 -----
+
+    [Fact]
+    public void TryHitTransform_RayOffAxisAtRotateRingRadius_ReturnsRotateZNotAxisHandles(){
+        MoveGizmoFrame Frame=MoveGizmoFrame.Create(
+            Vector3.Zero,Quaternion.Identity,SceneTransformSpace.World,WorldScale:1f);
+        // 軸線から外れた45°の点はRotateZリング(半径0.78)の円周上だがMoveのAxisX/AxisY
+        // セグメント(Y=0またはX=0)にもMoveのPlaneXY当たり判定(u,v<=0.48)にも触れない。
+        float Offset=0.78f/(float)Math.Sqrt(2d);
+
+        GizmoHandleId?Hit=TransformGizmo.TryHitTransform(
+            Frame,new Vector3(Offset,Offset,-10f),Vector3.UnitZ,
+            CameraForward:Vector3.UnitZ,CameraRight:Vector3.UnitX,CameraUp:Vector3.UnitY);
+
+        Assert.Equal(GizmoHandleId.RotateZ,Hit);
+    }
+
+    [Fact]
+    public void TryHitTransform_RayAtPivot_ReturnsScaleUniform(){
+        MoveGizmoFrame Frame=MoveGizmoFrame.Create(
+            Vector3.Zero,Quaternion.Identity,SceneTransformSpace.World,WorldScale:1f);
+
+        GizmoHandleId?Hit=TransformGizmo.TryHitTransform(
+            Frame,new Vector3(0f,0f,-10f),Vector3.UnitZ,
+            CameraForward:Vector3.UnitZ,CameraRight:Vector3.UnitX,CameraUp:Vector3.UnitY);
+
+        Assert.Equal(GizmoHandleId.ScaleUniform,Hit);
+    }
+
+    [Fact]
+    public void TryHitTransform_MovePlaneHandleStillReachableAfterRadiusRedesign(){
+        MoveGizmoFrame Frame=MoveGizmoFrame.Create(
+            Vector3.Zero,Quaternion.Identity,SceneTransformSpace.World,WorldScale:1f);
+
+        GizmoHandleId?Hit=TransformGizmo.TryHitTransform(
+            Frame,new Vector3(0.3f,0.3f,-10f),Vector3.UnitZ,
+            CameraForward:Vector3.UnitZ,CameraRight:Vector3.UnitX,CameraUp:Vector3.UnitY);
+
+        Assert.Equal(GizmoHandleId.PlaneXY,Hit);
+    }
+
+    [Fact]
+    public void TryHitTransform_RayNearMoveArrowTip_ReturnsAxisX(){
+        MoveGizmoFrame Frame=MoveGizmoFrame.Create(
+            Vector3.Zero,Quaternion.Identity,SceneTransformSpace.World,WorldScale:1f);
+        // M0033のMove矢印先端(AxisLength=1.35)付近。ScaleAxisLength=1.0/RotateRingRadius=0.78
+        // の帯より外側にあるため、Moveだけが応答するはずの領域。
+        GizmoHandleId?Hit=TransformGizmo.TryHitTransform(
+            Frame,new Vector3(1.3f,0f,-10f),Vector3.UnitZ,
+            CameraForward:Vector3.UnitZ,CameraRight:Vector3.UnitX,CameraUp:Vector3.UnitY);
+
+        Assert.Equal(GizmoHandleId.AxisX,Hit);
+    }
+
+    [Fact]
+    public void TransformSpaceToggleGizmo_TryHit_DetectsRayAtBadgePosition(){
+        MoveGizmoFrame Frame=MoveGizmoFrame.Create(
+            Vector3.Zero,Quaternion.Identity,SceneTransformSpace.World,WorldScale:1f);
+        Vector3 Position=TransformSpaceToggleGizmo.ComputePosition(Frame,Vector3.UnitX,Vector3.UnitY);
+
+        GizmoHandleId?Hit=TransformSpaceToggleGizmo.TryHit(
+            Frame,Vector3.UnitX,Vector3.UnitY,Position+new Vector3(0f,0f,-10f),Vector3.UnitZ,out float RayDistance);
+
+        Assert.Equal(GizmoHandleId.TransformSpaceToggle,Hit);
+        Assert.Equal(10f,RayDistance,4);
+    }
+
+    [Fact]
+    public void TransformSpaceToggleGizmo_TryHit_MissesFarAwayRay(){
+        MoveGizmoFrame Frame=MoveGizmoFrame.Create(
+            Vector3.Zero,Quaternion.Identity,SceneTransformSpace.World,WorldScale:1f);
+
+        GizmoHandleId?Hit=TransformSpaceToggleGizmo.TryHit(
+            Frame,Vector3.UnitX,Vector3.UnitY,new Vector3(0f,0f,-10f),Vector3.UnitZ,out _);
+
+        Assert.Null(Hit);
+    }
+
+    [Fact]
+    public void TransformSpaceToggleGizmo_BuildOverlay_LocalAndWorldProduceDifferentVertexCounts(){
+        MoveGizmoFrame Frame=MoveGizmoFrame.Create(
+            Vector3.Zero,Quaternion.Identity,SceneTransformSpace.World,WorldScale:1f);
+
+        IReadOnlyList<GizmoOverlayPrimitive>LocalOverlay=TransformSpaceToggleGizmo.BuildOverlay(
+            Frame,Vector3.UnitX,Vector3.UnitY,SceneTransformSpace.Local,Hovered:null);
+        IReadOnlyList<GizmoOverlayPrimitive>WorldOverlay=TransformSpaceToggleGizmo.BuildOverlay(
+            Frame,Vector3.UnitX,Vector3.UnitY,SceneTransformSpace.World,Hovered:null);
+
+        Assert.NotEqual(
+            LocalOverlay.Sum(static Primitive=>Primitive.Vertices.Count),
+            WorldOverlay.Sum(static Primitive=>Primitive.Vertices.Count));
     }
 }

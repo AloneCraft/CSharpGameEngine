@@ -20,12 +20,6 @@
                           IsEnabled="False"
                           SelectionChanged="OnSceneSelectionChanged"
                           ToolTip="現在の C# 文書と同じプロジェクトの Scene を選択します。" />
-                <ComboBox x:Name="TransformSpaceSelector"
-                          Width="78"
-                          Margin="0,0,10,0"
-                          IsEnabled="False"
-                          SelectionChanged="OnTransformSpaceSelectionChanged"
-                          ToolTip="TransformギズモのWorld/Local座標空間を切り替えます。" />
                 <TextBlock x:Name="StatusText"
                            VerticalAlignment="Center"
                            Foreground="#D8D8D8"

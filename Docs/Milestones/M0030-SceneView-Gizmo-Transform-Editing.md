@@ -248,3 +248,64 @@ C#ソース側は何も起きないという非対称がユーザーから報告
 | # | 確認対象 |
 |---|---|
 | 13 | シーンビューでオブジェクトをクリック選択すると、対応するC#コードがマークされ先頭行がエディタ最上部までスクロールする(Hierarchy選択時と同じ挙動)。フォーカス/アクティブタブは変わらない。矩形選択で複数選択した場合も複数箇所がマークされる |
+
+## 追記(2026-08-17 続き): ギズモをMove+Rotate+Scale同時表示化、Local/Globalアイコン追加(M0033)
+
+以前はMove/Rotate/Scaleが`SceneActiveTool`により排他的にどれか1系統だけ表示・操作可能で、
+W/E/Rキーで切り替える方式だった。ユーザーからBlender/Unity寄りの「3系統を常に同時表示・操作
+できるように」という要望を受け、以下を実装した。
+
+**半径帯の再設計**: 旧`RotateRingRadius=0.9`と`ScaleAxisLength=0.9`が完全一致しており、Scale軸
+キューブとRotateリングが同じ座標に重なる実バグがあった。加えてRotateリングはMove平面ハンドルと
+同一平面上にあり、対角最大到達距離(≈0.68)より内側だと平面ハンドルの当たり判定を貫通する。
+`TransformGizmo.cs`/`TransformGizmoPhase4.cs`の関連定数を、Rotateリング(0.78)→Scale軸キューブ
+(1.0)→Move矢印の円錐(1.15〜1.35)の順に重ならない帯へ再配置した(詳細と根拠は
+[TransformGizmoPhase4.cs](tools/CSharpGameEngine.VSExtension/TransformGizmoPhase4.cs)の該当コメント
+参照)。半径は実機での見た目確認前提の出発値。
+
+**ヒットテストの統合**: `TransformGizmo.TryHitTransform`を新設し、Move/Rotate/Scale/Local-Global
+トグルアイコンを毎回まとめてヒットテストしレイ距離最小を採用するようにした
+(`TryHitMove`/`TryHitRotate`/`TryHitScale`に`out float RayDistance`を追加)。呼び出し元
+`SceneHwndHost.TryHitTransformGizmoAt`は`State.ActiveTool`による単一系統分岐をやめてこれを呼ぶ。
+
+**ドラッグ系統をHandleから導出**: `BeginTransformGizmoDrag`は従来ambientな`State.ActiveTool`で
+Move/Rotate/ScaleGizmoDragのどれを開始するか決めていたため、3系統同時ヒットテストにより
+「`State.ActiveTool`と実際にヒットしたHandleの系統が食い違う」状況が起こり得た(潜在バグ)。
+新設した`GetHandleFamily(GizmoHandleId)`でヒットした`Handle`自身から系統を逆引きし、
+`CanEditTransform`/`MoveGizmoDrag.TryBegin`等のswitch/`ActiveCommitMembers`/`ActiveTransformTool`
+すべてをこの値で駆動するよう修正した。`UpdateTransformGizmoDrag`/コミット処理はドラッグ開始時に
+キャプチャした`ActiveTransformTool`を読むだけなので変更不要だった。
+
+**Local/Globalアイコン**: ピボット中心は既にScaleUniformのキューブが占有しているため、
+カメラのRight/Up方向へ固定オフセットした位置(全ハンドルの外側)に新設の`TransformSpaceToggleGizmo`
+を配置した(`RotateView`リングのカメラ相対法線と同じ考え方)。Local時は立方体ワイヤーフレーム、
+World時はリンググリフを表示し分ける(overlayパイプラインがunlit線/三角形のみのため、テクスチャ・
+テキストは使えない)。クリックはドラッグを生成せず`SetTransformSpace`の反対値を呼んで即座に
+トグルし、`false`を返すことで既存の`Machine.CancelCurrent()`経路(`SceneInputStateMachine`側の
+変更ゼロ)でIdleへ戻す。従来の`TransformSpaceSelector`(WPF ComboBox)は同じ状態を表示する二重UIに
+なるため削除した。
+
+**W/E/Rキーとツール永続状態の廃止**: 3系統が常時全部有効になったため「現在のツール」という
+排他状態自体が不要になった。`HandleKeyDown`のW/E特殊分岐・`ActivateScaleTool`(R)・
+`SetActiveTool`を削除し、`SceneViewState.ActiveTool`フィールドと`SceneEditorSettings`の
+`DefaultActiveTool`/`ReadActiveTool`/`WriteActiveTool`(未使用になった永続設定)も削除した。
+`SceneActiveTool`列挙自体は「ハンドル系統識別子」として`GetHandleFamily`/`CanEditTransform`/
+`GetTransformMembers`/`GetToolDisplayName`に残る。`UpdateMoveGizmo`/`TryHitTransformGizmoAt`の
+`ActiveTool==Select`ゲート(元々W/E/R以外に書き換え経路が無く常時到達不能だった)も削除し、
+ギズモの可視性は「ノードが選択されているか」だけで決めるようにした。
+
+Evidence: `TransformGizmoTests.cs`に7件追加(`TryHitTransform`の系統横断最近傍解決・Move平面
+ハンドルの生存確認・`TransformSpaceToggleGizmo`のヒット/オーバーレイ)。`SceneEditorSettingsTests.cs`/
+`SceneViewStateTests.cs`のActiveTool関連テストを削除・置換。ソリューション全体974/974(既存969件
+のうち2件削除+9件追加)。`SceneHwndHost`の実際の配線(`GetHandleFamily`によるドラッグ系統解決・
+半径帯が実機で視覚的に重ならないか・アイコンの位置/クリック操作感)はHWND/D3D12依存のため
+ユニットテスト不可、実機確認が必須。
+
+| # | 確認対象 |
+|---|---|
+| 14 | ノードを選択すると、Move矢印・Rotateリング・Scaleハンドルが同時に表示される |
+| 15 | それぞれを個別にドラッグでき、意図しない系統が反応しない(特に各半径帯の境界付近) |
+| 16 | Move平面ハンドル(黄/シアン/マゼンタ)は半径帯変更後も引き続き機能する |
+| 17 | ギズモ上のLocal/Globalアイコンをクリックすると座標空間が切り替わり、ギズモの向きが即座に変わる(ドラッグは発生しない) |
+| 18 | W/E/Rキーは何も起こさない(以前のツール切替は発生しない) |
+| 19 | 全体的な視覚的な煩雑さ(重なり・見づらさ)がないか — 半径定数は実機フィードバックで再調整する前提 |

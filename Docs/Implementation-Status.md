@@ -2501,8 +2501,14 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   ではソースがマーク・スクロールされるがシーンビュー(ビューポート)選択では反映されない非対称
   が報告され、`CSharpGameEngineViewerPackage.OnSelectionChangedForHierarchy`がHierarchy起点以外
   ではマークを明示的に消すだけだった実装(M0020設計時点の意図的制限)を、Viewport起点でも
-  `SourceMarkerService.Update`へ実際の選択集合を渡すよう修正(⑤)。実機目視が残っているため
-  `Verified`へは上げていない。
+  `SourceMarkerService.Update`へ実際の選択集合を渡すよう修正(⑤)。続けてMove/Rotate/Scaleを
+  排他的な`SceneActiveTool`切替(W/E/R)からBlender/Unity寄りの常時同時表示・操作へ変更(⑥)。
+  旧`RotateRingRadius`と`ScaleAxisLength`が完全一致し実際に座標が重なっていた不具合を含め半径帯を
+  再設計し、`TransformGizmo.TryHitTransform`で3系統+新設Local/Globalトグルアイコンをレイ距離
+  最近傍で統合ヒットテストするようにした。ドラッグ系統は従来ambientな`ActiveTool`ではなく
+  ヒットした`GizmoHandleId`から`GetHandleFamily`で導出するよう修正(3系統同時ヒット化で表面化する
+  「Handleと系統の食い違い」を解消)。W/E/Rキーと`SceneViewState.ActiveTool`永続状態は不要になり
+  削除した。実機目視が残っているため`Verified`へは上げていない。
 - Intended specification: `Docs/シーンエディタの仕様.md`(要求仕様)、
   Docs/Decisions/ADR-0041-Scene-Editor-Interaction-Architecture.md(意思決定)、
   Docs/Specifications/Scene-Editor-Design.md(詳細設計)
