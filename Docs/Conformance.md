@@ -1947,3 +1947,32 @@ Expハイブのキャッシュより新しくすること」を機序として**
   `SceneDesignerToolWindowControl`のチェーン中断伝播もUIコントロール内のprivate配線で対象外。
   ソリューション全体1037/1037(既存1037、テスト数増減なし、リグレッションなし)。編集回数分だけ
   正しくUndoを遡れるか、連続編集後も画面とソースが一致するかは実機確認が必須。
+
+## 2026-08-19 M0040: ソースマーカーが再解析着地のたびに無関係な位置へ再スクロールする不具合の修正
+
+- **Mismatch → M0020/M0032時点からの既存不具合と判明(実機Observed)**: 「選択直後はソースが
+  正しくマークされるが、編集を確定すると無関係な位置(1053行のファイルで行1055付近、ほぼ末尾)へ
+  再スクロールしてしまう。選択・編集するたびに毎回」と報告された(100%決定論的に再現)。
+  `CSharpGameEngineViewerPackage.OnSceneModelChangedForSourceMarkers`(編集確定後のRoslyn再解析が
+  着地するたびに毎回発火)だけが、Hierarchyパネル専用の`SceneEditorHub.HierarchySelection`
+  (Hierarchy起点のクリックでしか更新されない静的フィールド)を参照していた。Viewport起点で
+  選択・編集してもこのフィールドは一切更新されないため、実機検証セッション中どこかで最後に
+  Hierarchyパネルをクリックしたときの(今の選択とは無関係な)古い位置で再解析のたびにマーカーが
+  上書きされていた——「毎回」(再解析は編集のたびに必ず走る)と「無関係な位置」(セッション中
+  最後にHierarchyでクリックしたノードの位置)の両方を過不足なく説明する。M0038/M0039とは無関係の
+  既存不具合(Hierarchy起点とViewport起点の再マークが異なる「今の選択」の参照元を使っていた
+  非対称性)。
+- **Unknown → 統一選択サービスから都度解決する方式へ修正(実機Observed)**:
+  `OnSceneModelChangedForSourceMarkers`を、`SceneEditorSessionService.Selection.
+  CurrentSelection`(Hierarchy/Viewport/Inspectorを問わない統一選択サービス)から今の選択を
+  都度解決するよう修正した。解決ロジック(`NodeIds`→pin中snapshotの`Projection`→`NodePath`)は
+  `OnSelectionChangedForHierarchy`が既に持っていたのと同じ形だったため、`SceneSelectionPathResolver`
+  (新設、VS SDK非依存の純粋関数、`HierarchySourceSync.cs`)へ切り出して両方の呼び出し元から
+  使うようにし、将来また非対称にならないようにした。
+- Evidence: `SceneSelectionPathResolver`は`SceneSelection`/`SceneProjection`/`EditorNodeId`/
+  `NodePath`というVS SDK非依存の型だけで完結する純粋関数のため、新規
+  `SceneSelectionPathResolverTests.cs`(6件)でユニットテストした(選択なし・Projectionなし・
+  SceneKey不一致は空リスト、解決可能なNodeIdだけ変換、複数選択で入力順を保持)。ソリューション
+  全体1043/1043(既存1037+新規6、リグレッションなし)。`CSharpGameEngineViewerPackage`内の
+  実際のイベント配線はVS SDK依存のため既存方針どおりユニットテスト対象外。マーク位置が編集確定後も
+  動かないままであることは実機確認が必須。

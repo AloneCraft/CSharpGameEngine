@@ -131,3 +131,29 @@ internal static class SceneSourceMarkerPlanner {
         return true;
     }
 }
+
+/// <summary>
+/// M0040: 「今の選択」からソースマーカー用の<see cref="NodePath"/>集合を解決する。VS SDKへ
+/// 一切触れない純粋関数なのでユニットテスト可能 — <see cref="CSharpGameEngineViewerPackage"/>の
+/// 複数の呼び出し元(Viewport/Inspector起点の選択変更、Roslyn再解析着地の両方)がここへ委譲する
+/// ことで、「どの経路が『今の選択』をどこから読むか」がずれて再解析のたびに無関係な位置へ
+/// 再スクロールしてしまう不具合(Hierarchyパネル専用の<c>SceneEditorHub.HierarchySelection</c>を
+/// 参照していた箇所が、Viewport起点の選択更新では一切更新されない静的フィールドを読んでいたために
+/// 発生していた)を作らないようにする。
+/// </summary>
+internal static class SceneSelectionPathResolver {
+    internal static IReadOnlyList<NodePath>Resolve(
+        SceneSelection?Selection,SceneKey PinnedKey,SceneProjection?Projection){
+        if(Selection is not { }Current||Projection is null||!Current.Key.Equals(PinnedKey)){
+            return [];
+        }
+
+        List<NodePath>Paths=[];
+        foreach(EditorNodeId Id in Current.NodeIds){
+            if(Projection.TryGetNode(Id,out SceneProjectionNode Node)){
+                Paths.Add(Node.Path);
+            }
+        }
+        return Paths;
+    }
+}

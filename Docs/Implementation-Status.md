@@ -2575,8 +2575,17 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   最初に不健全化した箇所だけ`SceneEditorSessionService.RefreshPinnedSnapshotFromSourceAsync`
   (新設、Roslynへ直接再解決してpin中snapshotを真実で強制上書き)と
   `SceneHwndHost.ResyncAfterCommitFailure`(新設、先読みUndo/Redoスタックを丸ごと破棄 —
-  既存のProperty編集/複製/別Scene切替時のClearと同じidiom)を呼ぶことで修正した。実機目視が
-  残っているため`Verified`へは上げていない。
+  既存のProperty編集/複製/別Scene切替時のClearと同じidiom)を呼ぶことで修正した。続けて実機で
+  「選択直後はソースが正しくマークされるが、編集を確定すると無関係な行(ファイル末尾付近等)へ
+  再スクロールしてしまう」と報告され(M0040)、M0020/M0032時点からの既存不具合が判明した:
+  編集確定後の再解析着地イベント(`SceneEditorHub.SceneModelChanged`)の購読先だけが、
+  Hierarchyパネル専用の`SceneEditorHub.HierarchySelection`(Hierarchy起点のクリックでしか
+  更新されない静的フィールド)を参照しており、Viewport起点の選択・編集ではこれが一切更新
+  されないため、セッション中最後にHierarchyパネルでクリックした無関係な位置へ再解析のたびに
+  再スクロールしていた。統一選択サービス(`SceneEditorSessionService.Selection.
+  CurrentSelection`)から今の選択を都度解決するよう修正し、解決ロジックを
+  `SceneSelectionPathResolver`(新設、VS SDK非依存の純粋関数)へ切り出してViewport/Hierarchy
+  両経路で共有した。実機目視が残っているため`Verified`へは上げていない。
 - Intended specification: `Docs/シーンエディタの仕様.md`(要求仕様)、
   Docs/Decisions/ADR-0041-Scene-Editor-Interaction-Architecture.md(意思決定)、
   Docs/Specifications/Scene-Editor-Design.md(詳細設計)

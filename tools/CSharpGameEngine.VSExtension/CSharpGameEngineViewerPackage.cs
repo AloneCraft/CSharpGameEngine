@@ -290,9 +290,22 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
         this.SourceMarkerService?.Navigate(SceneEditorHub.ActiveSceneModel,Path);
     }
 
+    /// <summary>
+    /// M0040: 対象Sceneの再解析が着地するたびに発火する。以前はHierarchyパネル専用の
+    /// <see cref="SceneEditorHub.HierarchySelection"/>を参照していたが、これはHierarchyパネルでの
+    /// クリックでしか更新されない静的フィールドで、Viewport起点で選択・編集した場合は一切
+    /// 更新されない。そのため編集を確定して再解析が着地するたびに、セッション中どこかで最後に
+    /// Hierarchyパネルをクリックしたときの(今の選択とは無関係な)古い位置へ再スクロールして
+    /// しまっていた(実機報告: 選択直後は正しい位置がマークされるが、編集確定後に無関係な行へ
+    /// 飛ぶ)。統一選択サービス(<see cref="SceneEditorSessionService.Selection"/>)から今の選択を
+    /// 都度解決することで、選択の起点(Hierarchy/Viewport/Inspector)によらず一貫させる。
+    /// </summary>
     private void OnSceneModelChangedForSourceMarkers(SceneModel?Model){
         ThreadHelper.ThrowIfNotOnUIThread();
-        this.SourceMarkerService?.Update(Model,SceneEditorHub.HierarchySelection.Paths);
+        IReadOnlyList<NodePath>Paths=this.SceneSession is { }Session&&Session.PinnedSnapshot is { }Snapshot
+            ?SceneSelectionPathResolver.Resolve(Session.Selection.CurrentSelection,Snapshot.Key,Snapshot.Projection)
+            :[];
+        this.SourceMarkerService?.Update(Model,Paths);
     }
 
     /// <summary>
@@ -313,17 +326,11 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
 
         // Viewport/Inspector起点はHierarchyへprimaryだけを表示する。Hierarchy自身が発行する
         // 複数選択集合はOnHierarchySelectionChangedでそのままSceneSelectionServiceへ渡す。
-        List<NodePath>Paths=[];
-        NodePath?PrimaryPath=null;
-        foreach(EditorNodeId Id in Selection.NodeIds){
-            if(Snapshot.Projection?.TryGetNode(Id,out SceneProjectionNode Node)!=true){
-                continue;
-            }
-            Paths.Add(Node.Path);
-            if(Nullable.Equals(Selection.PrimaryNodeId,Id)){
-                PrimaryPath=Node.Path;
-            }
-        }
+        IReadOnlyList<NodePath>Paths=SceneSelectionPathResolver.Resolve(Selection,Snapshot.Key,Snapshot.Projection);
+        NodePath?PrimaryPath=Selection.PrimaryNodeId is { }PrimaryId
+            &&Snapshot.Projection?.TryGetNode(PrimaryId,out SceneProjectionNode PrimaryNode)==true
+            ?PrimaryNode.Path
+            :null;
 
         // M0032: Viewport(将来的にはInspectorも)起点の選択もHierarchyと同様にソースをマーク・
         // スクロールする。以前はHierarchy起点以外は明示的にマークを消していたが、実機フィードバック
