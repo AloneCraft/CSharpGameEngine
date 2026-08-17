@@ -514,10 +514,13 @@ internal sealed class SceneWorkspaceService : IDisposable {
     /// M0036: シーンビューのCtrl+Z/Yから、対象.csファイルの実際のVS Undo/Redoを1回実行する。
     /// Undo/Redoの唯一の実体は引き続きVSのテキストUndoであり(ADR-0040)、ここは
     /// <see cref="TryGetLiveBuffer"/>でバッファを解決して<see cref="SceneTextBufferWriter"/>へ
-    /// 委譲するだけの薄いラッパー。
+    /// 委譲するだけの薄いラッパー。M0037: 対象.csファイルがまだ一度もlive bufferとして開かれて
+    /// いない(RDTに無い)場合、以前は無言で失敗していた — <see cref="EnsureDocumentOpen"/>で
+    /// <see cref="ApplyTextAsync"/>と同じopen手順を先に踏む。
     /// </summary>
     internal bool TryUndo(string FilePath){
         ThreadHelper.ThrowIfNotOnUIThread();
+        EnsureDocumentOpen(FilePath);
         return this.TextBufferWriter is not null
             &&TryGetLiveBuffer(FilePath,out ITextBuffer?Buffer,out _)&&Buffer is not null
             &&this.TextBufferWriter.TryUndo(Buffer);
@@ -525,9 +528,26 @@ internal sealed class SceneWorkspaceService : IDisposable {
 
     internal bool TryRedo(string FilePath){
         ThreadHelper.ThrowIfNotOnUIThread();
+        EnsureDocumentOpen(FilePath);
         return this.TextBufferWriter is not null
             &&TryGetLiveBuffer(FilePath,out ITextBuffer?Buffer,out _)&&Buffer is not null
             &&this.TextBufferWriter.TryRedo(Buffer);
+    }
+
+    /// <summary>
+    /// <see cref="ApplyTextAsync"/>(477-489行)の開く手順を<see cref="TryUndo"/>/<see cref="TryRedo"/>
+    /// から再利用するための切り出し。対象がRoslynの解に見つからない、または既に開いている場合は
+    /// 何もしない(ベストエフォート — 開けなくても後続の<see cref="TryGetLiveBuffer"/>が素直に
+    /// falseを返す)。
+    /// </summary>
+    private void EnsureDocumentOpen(string FilePath){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        DocumentId?DocumentId=this.Workspace.CurrentSolution.GetDocumentIdsWithFilePath(FilePath).FirstOrDefault();
+        if(DocumentId is null||this.Workspace.IsDocumentOpen(DocumentId)||!this.Workspace.CanOpenDocuments){
+            return;
+        }
+
+        this.Workspace.OpenDocument(DocumentId,activate:false);
     }
 
     /// <summary>

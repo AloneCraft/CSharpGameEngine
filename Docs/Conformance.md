@@ -1829,3 +1829,51 @@ Expハイブのキャッシュより新しくすること」を機序として**
   `ITextBuffer`系のモック基盤が無い)。`SceneHwndHost.TryFastUndo`/`TryFastRedo`もHWND依存の
   前例を踏襲しユニットテストなし。ソリューション全体988/988(既存988、テスト数増減なし)。
   フォーカス問題の解消・体感速度・Hierarchy編集を挟んだ場合の自己修復挙動は実機確認が必須。
+
+## 2026-08-17 M0037: Ctrl+Zの真の修正とUE5風ドラッグHUD
+
+- **Mismatch → シェルコマンドルーティングでの正攻法修正(実機Observed)**: M0036の
+  `PreviewKeyDown`横取りは実機で効かないと報告された。真因はWPFの入力系にすら到達しないこと
+  だった — VSシェルのキーバインド解決がCtrl+Zを`Edit.Undo`(`guidVSStd97`/`cmdidUndo`)コマンドと
+  してGlobalスコープで消費し、キーストロークがWPFのルーテッドイベントになる前に処理してしまう
+  (WASDQE/Escape/Fが動くのはVSキーマップに割り当てが無く素通しされるためで、この非対称性が
+  決め手)。`WindowPane`の`IOleCommandTarget`はexplicit+sealedでoverride不可だが、内部でペインの
+  `IMenuCommandService`へ委譲するため、`SceneDesignerToolWindowPane.OnToolWindowCreated`で
+  `VSStd97CmdID.Undo/Redo/MultiLevelUndo/MultiLevelRedo`を`OleMenuCommandService`へ登録し、
+  `BeforeQueryStatus`でビューポートのキーボードフォーカス+ピン留めシーン有無を判定して
+  `Supported`を切り替える方式へ置換した(コードエディタ等、VS内の他の場所のCtrl+Zには
+  一切影響しない)。M0036の`PreviewKeyDown`配線は削除。
+- **Unknown → RDT未登録ファイルでの無言失敗を解消(自己発見・実機未報告)**: 調査中に
+  `SceneWorkspaceService.TryUndo/TryRedo`が`ApplyTextAsync`と同じ`IsDocumentOpen`→
+  `OpenDocument(activate:false)`手順を踏んでいないことを発見した。`FindAndLockDocument`は
+  RDTに無いモニカに対しても成功HRESULT+null`DocDataPointer`を返すため、`ErrorHandler.Failed`
+  では捕まらず無言で失敗する(.csタブを閉じた後のCtrl+Zがこれに該当)。`EnsureDocumentOpen`を
+  追加して解消。
+- **Mismatch → Move矢印を立方体からさらに離す(実機Observed)**: `AxisStart 0.26→0.40`、
+  `ShaftEnd(円錐開始) 1.15→1.38`、`AxisLength 1.35→1.60`、視点リング`RotateViewRingRadius
+  1.5→1.85`(半径帯の内外順序は維持)。
+  
+- **Unknown → UE5風ドラッグ中HUDの追加(実機Observed)**: Move/Rotate/Scaleのドラッグ中に
+  UE5風の数値・角度フィードバックが欲しいという要望に対し、`SceneRenderer`のD3D12パイプラインには
+  テクスチャ/サンプラ/文字描画能力が一切無く(単一CBVルートシグネチャのみ)、ネイティブHWND子は
+  `WS_EX_NOREDIRECTIONBITMAP`でWPFテキストの重畳描画も不可能(既存の`EmptyStateText`/
+  `SceneHwndHost`相互排他パターンで確認済み)という制約の中、`GizmoDragHud.cs`を新設し数字を
+  手書きベクターフォント(7segスタイルの線分ストローク、`0-9.+-°xcm`をカバー)としてオーバーレイの
+  Line/Triangleプリミティブへ直接焼き込む方式で実装した(ユーザー確認済み・推奨案)。
+  既存の`MarqueeOverlay.ToWorld`と同じ手法(near面へ逆投影し0.01だけ押し出す)を
+  `SceneViewCamera.ScreenPointToRay`の新オーバーロード(事前計算した逆行列を受け取る)で再利用し、
+  Perspective/Orthographic問わずスクリーン上で一定ピクセルサイズのHUDを実現。Move中は開始点の
+  黄色マーカーと現在位置までの黄色破線+移動量数値、Rotate中は開始角の黄色マーカー・半透明の扇+
+  輪郭線・マウス方向の黄色破線・角度数値、Scale中はハンドルに応じて1軸なら1値/Uniformなら3値の
+  倍率数値を表示する(面(2軸)スケールハンドルは未実装のため今回はスコープ外・ユーザー確認済み)。
+  `RotateGizmoDrag.TryUpdate`の`Radians`は`Atan2`由来で(-π,π]に折り返るため、`GizmoDragHud.
+  AccumulateAngle`で連続的な累積角度を保持し扇と数値readoutの破綻を防ぐ。`SceneRenderer.
+  SetOverlay`は頂点上限(`MaxOverlayVertices=4096`)超過で例外を投げるため、`RefreshOverlay`で
+  HUD追加前に合計頂点数を数え、超過するならHUDのみ落としギズモ本体を守る防御を追加した。
+- Evidence: `SceneDesignerUndoCommandPolicy.ShouldHandle`・`GizmoDragHud`のベクターフォント/
+  `AccumulateAngle`/Move・Rotate・ScaleのHUDビルダーは全て純粋staticとしてユニットテスト対象
+  (新規`SceneDesignerUndoCommandPolicyTests.cs`4件、`GizmoDragHudTests.cs`28件)。
+  `OleMenuCommandService`登録・RDT操作・HWNDオーバーレイ合成はVS SDK/HWND依存の前例を踏襲し
+  ユニットテスト対象外。ソリューション全体1020/1020(既存988+新規32件、リグレッションなし)。
+  Ctrl+Z/Yが実際に効くか、コードエディタの通常のCtrl+Zに回帰が無いか、HUDの実際の見た目
+  (線幅・文字サイズの可読性・扇の色/濃度・破線の間隔)は実機確認が必須。

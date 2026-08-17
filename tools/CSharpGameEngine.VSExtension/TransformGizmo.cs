@@ -94,13 +94,13 @@ internal readonly struct MoveGizmoFrame {
 /// <summary>Moveギズモの表示形状、スクリーン一定サイズ、解析的ヒット判定。</summary>
 internal static partial class TransformGizmo {
     private const float ScreenFraction=0.16f;
-    // M0035: 旧0.12fはScaleUniformキューブ(半径0.11、対角では≈0.19まで届く)とほぼ同じ距離で
-    // 矢印がキューブへめり込んで見え、誤選択の原因になっていた。キューブの対角到達距離より
-    // 確実に外側、かつMove平面ハンドルのPlaneMin(0.22)より少し外側にして新たな重なりを避ける。
-    private const float AxisStart=0.26f;
-    // M0033: Rotate/Scaleが常時同時表示になったため、Scaleキューブ帯(≈0.93-1.08)より外側へ
-    // 押し出した(TransformGizmoPhase4.csのコメント参照)。
-    private const float AxisLength=1.35f;
+    // M0037: 実機フィードバックでM0035の0.26fでもまだ短く感じるとのことでさらに離した
+    // (ScaleUniformキューブの対角到達距離0.19より確実に外側、Move平面ハンドルのPlaneMin(0.22)
+    // より少し外側という制約自体は変わらない)。
+    private const float AxisStart=0.40f;
+    // M0033/M0037: Rotate/Scaleが常時同時表示になったため、Scaleキューブ帯(≈0.93-1.08)より
+    // 外側へ押し出し(TransformGizmoPhase4.csのコメント参照)、M0037で矢印全体をさらに伸ばした。
+    private const float AxisLength=1.60f;
     private const float AxisRadius=0.08f;
     private const float PlaneMin=0.22f;
     private const float PlaneMax=0.48f;
@@ -219,7 +219,7 @@ internal static partial class TransformGizmo {
             ]));
 
             const int Segments=8;
-            const float ShaftEnd=1.15f;
+            const float ShaftEnd=1.38f;
             const float ShaftRadius=0.025f;
             const float ArrowRadius=0.085f;
             Vector3 Reference=Math.Abs(Vector3.Dot(Axis,Vector3.UnitY))<0.9f

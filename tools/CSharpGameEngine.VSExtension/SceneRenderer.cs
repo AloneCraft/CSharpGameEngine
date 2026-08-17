@@ -68,7 +68,8 @@ internal sealed class SceneRenderer:IDisposable {
     private readonly ID3D12Resource ConstantBuffer;
     private readonly int AlignedSlotSize;
     private readonly int ObjectCapacity;
-    private const int MaxOverlayVertices=4096;
+    // M0037: internal化してSceneHwndHost.RefreshOverlayがHUD追加前に予算超過を防げるようにする。
+    internal const int MaxOverlayVertices=4096;
     private readonly ID3D12Resource OverlayVertexBuffer;
     private readonly ID3D12Resource OverlayConstantBuffer;
     private readonly VertexBufferView[]OverlayTriangleVertexViews=new VertexBufferView[FrameCount];

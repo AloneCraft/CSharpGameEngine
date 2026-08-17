@@ -12,8 +12,10 @@ internal static partial class TransformGizmo {
     // 当たり判定を貫通していた)。詳細はDocs/Milestones/M0030-SceneView-Gizmo-Transform-Editing.md
     // のM0033追記を参照。TransformGizmo.csのAxisLength/ShaftEnd(Move矢印)も同じ理由で合わせて
     // 外側へ再配置してある。
-    private const float RotateRingRadius=0.78f;
-    private const float RotateViewRingRadius=1.5f;
+    // M0037: internal化して<see cref="GizmoDragHud"/>から扇の半径として再利用する。
+    internal const float RotateRingRadius=0.78f;
+    // M0037: Move矢印の全長をAxisLength=1.60fへ伸ばしたため、最外周であり続けるようこちらも押し出した。
+    internal const float RotateViewRingRadius=1.85f;
     private const float RotateRingThickness=0.07f;
     private const float ScaleAxisStart=0.16f;
     private const float ScaleAxisLength=1.0f;
@@ -259,6 +261,11 @@ internal sealed class RotateGizmoDrag {
         this.Normal=Normal;
         this.StartDirection=StartDirection;
     }
+
+    /// <summary>M0037: <see cref="GizmoDragHud"/>が扇形プレビューを描くために公開。</summary>
+    internal Vector3 RingNormal=>this.Normal;
+
+    internal Vector3 StartDirectionVector=>this.StartDirection;
 
     internal static bool TryBegin(
         in MoveGizmoFrame Frame,GizmoHandleId Handle,Vector3 RayOrigin,Vector3 RayDirection,

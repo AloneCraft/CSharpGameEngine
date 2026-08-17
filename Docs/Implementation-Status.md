@@ -2527,7 +2527,28 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   (Move/Rotate/Scale/SurfaceSnap限定)のbefore/afterを`RecentTransformCommits`/
   `RecentTransformUndone`スタックへ記録してRoslyn再解析を待たず3Dビューを即時に巻き戻す/
   やり直す。どこにも書き込みを行わない表示専用の先読みキャッシュで、Property編集・複製・
-  別Scene切替時は破棄する。実機目視が残っているため`Verified`へは上げていない。
+  別Scene切替時は破棄する。実機目視が残っているため`Verified`へは上げていない。続けて実機で
+  ⑨のCtrl+Z修正が効かないと報告され(M0037)、真因を再調査した: VSシェルのキーバインド解決が
+  Ctrl+Zを`Edit.Undo`(`guidVSStd97`/`cmdidUndo`)コマンドとして消費し、そもそもWPFの
+  `PreviewKeyDown`まで到達していなかった(⑨の対症療法は前提が誤りだった)。
+  `WindowPane`(`ToolWindowPane`の基底)の`IOleCommandTarget`はexplicit+sealedでoverride不可だが
+  内部でペインの`IMenuCommandService`へ委譲するため、`SceneDesignerToolWindowPane.OnToolWindowCreated`
+  で`VSStd97CmdID.Undo/Redo/MultiLevelUndo/MultiLevelRedo`を`OleMenuCommandService`へ登録し、
+  `BeforeQueryStatus`でビューポートのキーボードフォーカス+ピン留め有無を見て`Supported`を切り替える
+  方式(⑩)へ置き換えた。WPFの`PreviewKeyDown`配線は削除。副次的に、`SceneWorkspaceService.TryUndo/
+  TryRedo`がRDT未登録ファイル(.csタブを閉じた後)で無言失敗する潜在バグ(`FindAndLockDocument`は
+  RDT_NoLockで未登録でも成功HRESULTを返す)も`EnsureDocumentOpen`で解消。併せて実機フィードバックで
+  Move矢印を`AxisStart 0.26→0.40`/`AxisLength 1.35→1.60`/`RotateViewRingRadius 1.5→1.85`へ拡大し(⑪)、
+  UE5風のドラッグ中HUD(⑫)を追加した: D3D12パイプラインにテクスチャ/文字描画能力が皆無で
+  ネイティブHWNDのairspace制約でWPFテキストも重ねられないため、`GizmoDragHud.cs`で数字を
+  ベクターフォント(線分ストローク)としてオーバーレイに直接焼き込む。Move中は開始点の黄色マーカーと
+  現在位置までの黄色破線+移動量数値、Rotate中は開始角の黄色マーカー・半透明の扇+輪郭線・
+  マウス方向の黄色破線・角度数値(`Atan2`の(-π,π]折り返しをまたいでも破綻しないよう独自の
+  角度累積関数で連続値を保持)、Scale中はハンドルに応じて1軸なら1値/Uniformなら3値の倍率数値を表示する
+  (面(2軸)スケールは今回スコープ外)。既存の`MarqueeOverlay.ToWorld`と同じ手法でスクリーン座標を
+  ピクセル一定サイズのワールド座標へ逆投影し、`SceneRenderer.SetOverlay`の頂点上限(4096)超過時は
+  ギズモ本体を守るためHUDのみを落とす防御を追加。実機目視が残っているため`Verified`へは
+  上げていない。
 - Intended specification: `Docs/シーンエディタの仕様.md`(要求仕様)、
   Docs/Decisions/ADR-0041-Scene-Editor-Interaction-Architecture.md(意思決定)、
   Docs/Specifications/Scene-Editor-Design.md(詳細設計)

@@ -453,3 +453,81 @@ Evidence: `SceneTextBufferWriter.TryUndo`/`TryRedo`はVS SDKの`ITextUndoHistory
 | 36 | Hierarchy編集を挟んだ直後にCtrl+Zしても致命的な不整合は起きない(自己修復する) |
 | 37 | Property編集後のCtrl+Zはこれまでどおりの速度で反映される(即時パッチの対象外) |
 | 38 | コードエディタにフォーカスがある通常のCtrl+Zは今までどおり動作する(回帰なし) |
+
+## 追記(2026-08-17 続き): Ctrl+Zの真の修正とUE5風ドラッグHUD(M0037)
+
+実機フィードバックで、M0036の`PreviewKeyDown`によるCtrl+Z修正が**効いていない**と報告された。
+調査(`Microsoft.VisualStudio.Shell.WindowPane`のreflection確認)の結果、真因はWPFの入力系にすら
+到達しないことだった: VSシェルのキーバインド解決がCtrl+Zを`Edit.Undo`(`guidVSStd97`/
+`cmdidUndo`)コマンドとしてGlobalスコープで消費し、キーストロークがWPFのルーテッドイベントに
+なる前にディスパッチしてしまう。既存のWASDQE/Escape/Fキーが動くのはVSキーマップに割り当てが無く
+素通しされるためで、この非対称性が決め手になった。M0036で「VSの割り込みより先に」
+`PreviewKeyDown`を選んだ判断は、トンネリング/バブリングの順序がWPF内部の話でしかないという
+前提の誤りだった。
+
+**正しい修正**: `WindowPane`(`ToolWindowPane`の基底)の`IOleCommandTarget`はexplicit+sealedで
+override不可だが、内部でペインの`IMenuCommandService`へ委譲する。`SceneDesignerToolWindowPane.
+OnToolWindowCreated()`(コンストラクタではサービスサイト未設定のため不可)で`VSStd97CmdID.
+Undo/Redo/MultiLevelUndo/MultiLevelRedo`を`OleMenuCommandService.AddCommand`で登録し、
+`BeforeQueryStatus`でビューポートのキーボードフォーカス+ピン留めシーン有無
+(`SceneDesignerUndoCommandPolicy.ShouldHandle`、純粋static)を見て`Supported`/`Enabled`を
+切り替える。これによりコードエディタ等、VS内の他の場所のCtrl+Zには一切影響しない。M0036の
+`OnViewportUndoRedoKeyDown`/`PreviewKeyDown`配線は削除した。
+
+**併せて塞いだ潜在バグ**: 調査中に`SceneWorkspaceService.TryUndo/TryRedo`が`ApplyTextAsync`と
+同じ`IsDocumentOpen`→`OpenDocument(activate:false)`手順を踏んでいないことを発見した。
+`FindAndLockDocument`はRDTに無いモニカに対しても成功HRESULT+null`DocDataPointer`を返すため、
+`ErrorHandler.Failed`では捕まらず無言で失敗する(.csタブを閉じた後のCtrl+Zが該当)。
+`EnsureDocumentOpen`(`Workspace.CurrentSolution.GetDocumentIdsWithFilePath`経由)を追加して解消。
+
+**Move矢印をさらに立方体から離す**: `AxisStart 0.26→0.40`、`ShaftEnd(円錐開始) 1.15→1.38`、
+`AxisLength 1.35→1.60`、視点リング`RotateViewRingRadius 1.5→1.85`(半径帯の内外順序は維持)。
+
+**UE5風ドラッグ中HUDの追加**: Move/Rotate/Scaleのドラッグ中に数値・角度フィードバックが欲しいと
+いう要望に対し、`SceneRenderer`のD3D12パイプラインはテクスチャ/サンプラ/文字描画能力が皆無
+(単一CBVルートシグネチャのみ)、ネイティブHWND子は`WS_EX_NOREDIRECTIONBITMAP`でWPFテキストの
+重畳も不可能という制約下、`GizmoDragHud.cs`を新設し数字を手書きベクターフォント(7segスタイルの
+線分ストローク、`0-9.+-°xcm`をカバー)としてオーバーレイのLine/Triangleプリミティブへ直接
+焼き込む方式で実装した(ユーザーへ`AskUserQuestion`で確認し、推奨案として選択された)。
+既存の`MarqueeOverlay.ToWorld`と同じ手法(near面へ逆投影し0.01だけ押し出す)を
+`SceneViewCamera.ScreenPointToRay`の新オーバーロード(事前計算した逆行列を受け取り、既存の
+View/Projectionを渡すオーバーロードはこちらへ委譲)で再利用し、Perspective/Orthographic問わず
+スクリーン上で一定ピクセルサイズのHUDを実現した。`SceneViewCamera.TryProjectToScreen`
+(逆方向: world→screen)は`private`から`internal`へ変更し、黄色マーカーの画面位置解決に使う。
+
+- **Move**: 開始ピボットに黄色マーカー、そこから現在ピボットまで黄色破線、カーソル近傍に
+  移動量数値。
+- **Rotate**: 開始方向に黄色マーカー、開始方向から現在方向までの半透明の扇(輪郭線つき)、
+  ピボットからマウス方向へ伸びる黄色破線、角度数値(度、小数1桁)。`RotateGizmoDrag.TryUpdate`の
+  `Radians`は`Atan2`由来で(-π,π]に折り返るため、`GizmoDragHud.AccumulateAngle`(前ティックとの
+  差分を(-π,π]へ正規化して累積する純粋関数)で連続的な累積角度を保持し、180°を跨いでも扇と
+  数値readoutが破綻しないようにした(扇の描画は±360°で頭打ち)。
+- **Scale**: ハンドルに応じて1軸なら値1つ、`ScaleUniform`なら X/Y/Z の値3つを表示する。
+  面(2軸)スケールハンドルは現状`GizmoHandleId`に存在せず新規実装が必要なため、今回はスコープ外
+  (ユーザー確認済み)。
+
+`SceneRenderer.SetOverlay`は頂点上限(`MaxOverlayVertices=4096`、`internal`へ変更)超過で例外を
+投げ、これはマウス移動ハンドラの中から呼ばれるためポインタ処理ごと落ちうる。`RefreshOverlay`で
+HUD追加前に既存プリミティブ+HUDプリミティブの合計頂点数を数え、超過するならHUDのみを落として
+ギズモ本体の描画を守る防御を追加した。
+
+Evidence: `SceneDesignerUndoCommandPolicy.ShouldHandle`・`GizmoDragHud`のベクターフォント/
+`AccumulateAngle`/Move・Rotate・ScaleのHUDビルダーは全て純粋staticとしてユニットテスト対象
+(新規`SceneDesignerUndoCommandPolicyTests.cs`4件、`GizmoDragHudTests.cs`28件、計32件追加)。
+`OleMenuCommandService`登録・RDT操作・HWNDオーバーレイ合成はVS SDK/HWND依存の前例を踏襲し
+ユニットテストなし。ソリューション全体1020/1020(既存988、リグレッションなし)。Ctrl+Zが
+実際に効くか、コードエディタの通常のCtrl+Zに回帰が無いか、HUDの実際の見た目(線幅・文字サイズの
+可読性・扇の色/濃度・破線の間隔)は実機確認が必須。
+
+| # | 確認対象 |
+|---|---|
+| 39 | シーンビューをクリックしてフォーカスがある状態でCtrl+Zを押すと、直前のギズモ編集が今度こそ元に戻る |
+| 40 | Ctrl+Y(またはCtrl+Shift+Z)でRedoも効く |
+| 41 | **コードエディタにフォーカスがある通常のCtrl+Zが今までどおり動く**(最重要の回帰確認) |
+| 42 | Move矢印が中心の立方体からさらに離れ、誤選択しなくなった |
+| 43 | Move中: 開始点の黄色マーカー、そこから現在位置までの黄色破線、移動量の数値が表示される |
+| 44 | Rotate中: 開始点の黄色マーカー、半透明の扇+輪郭線、角度の数値、マウス方向の黄色破線が表示される |
+| 45 | Rotateで180°を超えて回しても扇と数値が破綻しない |
+| 46 | Scale中: 1軸なら1値、中心キューブ(Uniform)なら3値の倍率が表示される |
+| 47 | HUDの数字が実機の画面で読める大きさ・濃さになっている |
+| 48 | HUDが表示されてもoverlay消失や例外が起きない |

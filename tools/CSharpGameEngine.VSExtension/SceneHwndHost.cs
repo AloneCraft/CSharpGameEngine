@@ -96,6 +96,12 @@ internal sealed class SceneHwndHost:HwndHost {
     private bool HasActiveFollowViewSnapshot;
     private bool FollowViewApplied;
 
+    // M0037: ドラッグ中HUD(開始点マーカー・破線・角度の扇・数値読み取り)。RotateはAtan2由来の
+    // (-π,π]角度が180°を跨ぐと符号反転するため、生の角度(Previous)と折り返し無しの累積値を別々に持つ。
+    private GizmoDragHudState?ActiveDragHud;
+    private float ActiveRotateAccumulatedRadians;
+    private float ActiveRotatePreviousRadians;
+
     // M0036: シーンビューのCtrl+Z/Yで、実際のC#ソースUndo/Redo(唯一の編集履歴、ADR-0040)を待たず
     // 3Dビューを即座にパッチするための軽量キャッシュ。どこにも書き込みを行わない表示の先読みで、
     // 外れても実害は無い(Roslyn再解析が終われば必ず正しい状態へ収束する)。対象はMove/Rotate/Scale/
@@ -680,6 +686,17 @@ internal sealed class SceneHwndHost:HwndHost {
             Primitives.AddRange(MarqueeOverlay.Build(
                 Rectangle,State.GetView(),State.GetProjection(this.AspectRatio),SurfaceWidth,SurfaceHeight));
         }
+        if(ActiveDragHud is { }HudState&&ViewState is { }HudViewState){
+            IReadOnlyList<GizmoOverlayPrimitive>Hud=GizmoDragHud.Build(
+                HudState,HudViewState.GetView(),HudViewState.GetProjection(this.AspectRatio),SurfaceWidth,SurfaceHeight);
+            int ExistingVertices=Primitives.Sum(static Primitive=>Primitive.Vertices.Count);
+            int HudVertices=Hud.Sum(static Primitive=>Primitive.Vertices.Count);
+            // M0037: SceneRenderer.SetOverlayは頂点予算超過で例外を投げる。HUDは表示専用の付加情報
+            // なので、超過するくらいならギズモ本体を守るためHUDだけを落とす。
+            if(ExistingVertices+HudVertices<=SceneRenderer.MaxOverlayVertices){
+                Primitives.AddRange(Hud);
+            }
+        }
 
         Active.SetOverlay(Primitives.Count==0?null:Primitives);
     }
@@ -774,6 +791,9 @@ internal sealed class SceneHwndHost:HwndHost {
         ActiveDragOriginalRoots=Targets
             .Select(static Target=>new SceneTransformPreview(default,Target.NodePath,Target.OriginalWorld))
             .ToArray();
+        // M0037: 角度累積をドラッグ開始時にリセットする(Rotate以外では未使用のまま無害)。
+        ActiveRotateAccumulatedRadians=0f;
+        ActiveRotatePreviousRadians=0f;
 
         (Vector3 Origin,Vector3 Direction)=SceneViewCamera.ScreenPointToRay(
             State.GetView(),State.GetProjection(this.AspectRatio),X,Y,SurfaceWidth,SurfaceHeight);
@@ -894,6 +914,10 @@ internal sealed class SceneHwndHost:HwndHost {
         IReadOnlyList<SceneTransformPreview>Previews;
         Quaternion RotationDelta=Quaternion.Identity;
         Vector3 FollowMoveDelta=Vector3.Zero;
+        // M0037: HUD(GizmoDragHud)がswitchの外から読めるよう、caseセクション内のout変数だった
+        // Radians/Factorsをメソッド先頭のローカルへ引き上げる(RotationDeltaと同じ扱い)。
+        float RotateRadians=0f;
+        Vector3 ScaleFactors=Vector3.One;
         ActiveCommitMembers=GetTransformMembers(Tool);
         switch(Tool){
             // M0034: Shift+Ctrlで武装した中心の平面四角をドラッグ中。カーソル直下の別オブジェクト
@@ -926,15 +950,18 @@ internal sealed class SceneHwndHost:HwndHost {
                 }
                 break;
             case SceneActiveTool.Rotate when ActiveRotateDrag is { }RotateDrag
-                &&RotateDrag.TryUpdate(Origin,Direction,out float Radians,out _):
-                if(Snap){ Radians=TransformSnap.SnapRotationRadians(Radians); }
-                RotationDelta=RotateDrag.CreateDelta(Radians);
+                &&RotateDrag.TryUpdate(Origin,Direction,out RotateRadians,out _):
+                if(Snap){ RotateRadians=TransformSnap.SnapRotationRadians(RotateRadians); }
+                RotationDelta=RotateDrag.CreateDelta(RotateRadians);
                 Previews=EditTransaction.PreviewRotation(StartFrame.Pivot,RotationDelta);
+                ActiveRotateAccumulatedRadians=GizmoDragHud.AccumulateAngle(
+                    ActiveRotateAccumulatedRadians,ActiveRotatePreviousRadians,RotateRadians);
+                ActiveRotatePreviousRadians=RotateRadians;
                 break;
             case SceneActiveTool.Scale when ActiveScaleDrag is { }ScaleDrag
-                &&ScaleDrag.TryUpdate(Origin,Direction,out Vector3 Factors):
-                if(Snap){ Factors=TransformSnap.SnapScaleFactors(Factors,ActiveGizmoHandle!.Value); }
-                Previews=EditTransaction.PreviewScale(StartFrame.Pivot,StartFrame.BasisRotation,Factors);
+                &&ScaleDrag.TryUpdate(Origin,Direction,out ScaleFactors):
+                if(Snap){ ScaleFactors=TransformSnap.SnapScaleFactors(ScaleFactors,ActiveGizmoHandle!.Value); }
+                Previews=EditTransaction.PreviewScale(StartFrame.Pivot,StartFrame.BasisRotation,ScaleFactors);
                 break;
             default:
                 return;
@@ -996,6 +1023,15 @@ internal sealed class SceneHwndHost:HwndHost {
                 CurrentPropertyGizmo=UpdatedPropertyFrame;
             }
         }
+        // M0037: ドラッグ中HUD(開始点マーカー・破線・角度の扇・数値読み取り)用の状態。
+        ActiveDragHud=ActiveGizmoHandle is { }DragHandle
+            ?new GizmoDragHudState(
+                Tool,DragHandle,StartFrame.Pivot,StartFrame.Pivot,StartFrame.Pivot+FollowMoveDelta,
+                ActiveRotateDrag?.RingNormal??Vector3.UnitY,ActiveRotateDrag?.StartDirectionVector??Vector3.UnitX,
+                ActiveRotateAccumulatedRadians,
+                DragHandle==GizmoHandleId.RotateView?TransformGizmo.RotateViewRingRadius:TransformGizmo.RotateRingRadius,
+                ScaleFactors,StartFrame.WorldScale,X,Y)
+            :null;
         if(CurrentMoveGizmo is not null){
             RefreshOverlay();
         }
@@ -1122,6 +1158,7 @@ internal sealed class SceneHwndHost:HwndHost {
         ActiveCommitMembers=SceneTransformMemberMask.None;
         ActiveSurfaceSnapDrag=false;
         CurrentSurfaceSnapHit=null;
+        ActiveDragHud=null;
         ActiveMoveDrag=null;
         ActiveRotateDrag=null;
         ActiveScaleDrag=null;
@@ -1199,6 +1236,7 @@ internal sealed class SceneHwndHost:HwndHost {
         ActiveCommitMembers=SceneTransformMemberMask.None;
         ActiveSurfaceSnapDrag=false;
         CurrentSurfaceSnapHit=null;
+        ActiveDragHud=null;
         ActiveMoveDrag=null;
         ActiveRotateDrag=null;
         ActiveScaleDrag=null;

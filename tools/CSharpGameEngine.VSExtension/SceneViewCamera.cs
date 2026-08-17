@@ -128,9 +128,18 @@ internal static class SceneViewCamera {
     /// </summary>
     internal static(Vector3 Origin,Vector3 Direction)ScreenPointToRay(
         Matrix4x4 View,Matrix4x4 Projection,float ScreenX,float ScreenY,float ViewportWidth,float ViewportHeight){
+        Matrix4x4.Invert(View*Projection,out Matrix4x4 InverseViewProjection);
+        return ScreenPointToRay(InverseViewProjection,ScreenX,ScreenY,ViewportWidth,ViewportHeight);
+    }
+
+    /// <summary>
+    /// M0037: <see cref="GizmoDragHud"/>のように1フレームで多数の画面点を世界座標へ変換する呼び出し元
+    /// 向けに、逆行列を毎回計算し直さずに済むオーバーロード。数学は上のオーバーロードと同一。
+    /// </summary>
+    internal static(Vector3 Origin,Vector3 Direction)ScreenPointToRay(
+        Matrix4x4 InverseViewProjection,float ScreenX,float ScreenY,float ViewportWidth,float ViewportHeight){
         float NdcX=(2f*ScreenX/ViewportWidth)-1f;
         float NdcY=1f-(2f*ScreenY/ViewportHeight); // スクリーンYは下向き、NDC Yは上向き。
-        Matrix4x4.Invert(View*Projection,out Matrix4x4 InverseViewProjection);
         Vector3 NearWorld=UnprojectNdc(NdcX,NdcY,0f,InverseViewProjection);
         Vector3 FarWorld=UnprojectNdc(NdcX,NdcY,1f,InverseViewProjection);
         return(NearWorld,Vector3.Normalize(FarWorld-NearWorld));
@@ -345,8 +354,11 @@ internal static class SceneViewCamera {
 
     private static float ClampOrbitPitch(float Pitch)=>Math.Min(Math.Max(Pitch,MinPitchRadians),MaxPitchRadians);
 
-    /// <summary><see cref="ScreenPointToRay"/>の逆写像。カメラ背後/至近すぎる場合はfalseを返す。</summary>
-    private static bool TryProjectToScreen(
+    /// <summary>
+    /// <see cref="ScreenPointToRay"/>の逆写像。カメラ背後/至近すぎる場合はfalseを返す。M0037:
+    /// <see cref="GizmoDragHud"/>がHUDの基準点(ピボット等)をピクセル位置へ変換するため公開。
+    /// </summary>
+    internal static bool TryProjectToScreen(
         Vector3 WorldPoint,Matrix4x4 View,Matrix4x4 Projection,
         float ViewportWidth,float ViewportHeight,out float ScreenX,out float ScreenY){
         Vector4 Clip=Vector4.Transform(new Vector4(WorldPoint,1f),View*Projection);
