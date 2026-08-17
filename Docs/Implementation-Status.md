@@ -2564,6 +2564,19 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   書き戻し中のCtrl+Zによる「テキストUndoと先読みUndoの食い違い」を
   `SceneDesignerUndoCommandPolicy.CanExecute`(`Supported`は落とさず`Enabled`のみ落とす — 落とすと
   Ctrl+Zが別ドキュメントへ流れるため)で抑止。実機目視が残っているため`Verified`へは上げていない。
+  出荷直後に実機で「Undoが直前の1回しかできない」と報告され(M0039)、⑬の予測配信が2つの構造欠陥を
+  持ち込んでいたことが判明した: (a)予測が実解析の`DocumentVersion`連番を消費し、
+  `SceneEditConflictMerger`のfast path判定を機能不全にしていた、(b)ローカル完了とソース書き戻し
+  成功の対応関係が保証されておらず、直列書き戻しチェーンの途中で1件でも失敗すると、それより後ろの
+  書き込みが「実際には起きていない編集」の上に積み上がり、`RecentTransformCommits`(先読みUndo
+  スタック)と実際の`ITextUndoHistory`が分岐していた。(a)は予測snapshotの`DocumentVersion`を
+  元のまま据え置く(`AnalysisGeneration`のみ新値を払い出す)ことで修正、(b)は書き戻しチェーンを
+  `Task<bool>`(健全性フラグ)化して前段が不健全なら以降を中断・失敗として伝播し、チェーンで
+  最初に不健全化した箇所だけ`SceneEditorSessionService.RefreshPinnedSnapshotFromSourceAsync`
+  (新設、Roslynへ直接再解決してpin中snapshotを真実で強制上書き)と
+  `SceneHwndHost.ResyncAfterCommitFailure`(新設、先読みUndo/Redoスタックを丸ごと破棄 —
+  既存のProperty編集/複製/別Scene切替時のClearと同じidiom)を呼ぶことで修正した。実機目視が
+  残っているため`Verified`へは上げていない。
 - Intended specification: `Docs/シーンエディタの仕様.md`(要求仕様)、
   Docs/Decisions/ADR-0041-Scene-Editor-Interaction-Architecture.md(意思決定)、
   Docs/Specifications/Scene-Editor-Design.md(詳細設計)

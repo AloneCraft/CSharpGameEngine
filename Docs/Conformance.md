@@ -1911,3 +1911,39 @@ Expハイブのキャッシュより新しくすること」を機序として**
   `EmitExpressionText`だけは解析層のemit規則の再実装になるため`ComponentChanged`のみ許容)。
   `PredictedDiff_StaysOnTheIncrementalRenderPath`は、予測がD3D12デバイス全再生成へ落ちないことを守る。
   配線・書き戻しの直列化はVS SDK/HWND依存のためユニットテスト対象外。**体感速度は実機でしか測れない。**
+
+## 2026-08-18 M0039: 予測コミット失敗時にUndo履歴が分岐する不具合の修正
+
+- **Mismatch → 出荷直後に実機で回帰(実機Observed)**: M0038出荷直後、「Undoが直前の1回しか
+  できない」と報告された。M0038の予測配信が2つの構造欠陥を持ち込んでいたことが判明した。
+  ①`TryPublishPrediction`が予測snapshotの`DocumentVersion`を実解析と同じ共有カウンタから
+  払い出しており、`SceneEditConflictMerger.Merge`のfast path判定(「ドラッグ開始時から実際の
+  ソースが変化したか」)を機能不全にし、1回でも予測が発行された後はほぼ必ずrebase経路に
+  落ちるようになっていた。②ローカル完了(予測配信)とソース書き戻し成功の対応関係が保証されて
+  おらず、直列書き戻しチェーンの途中で1件でも失敗すると、それより後ろの書き込みが「実際には
+  起きていない編集」の上に積み上がった。`RecentTransformCommits`(先読みUndoスタック)は無条件で
+  pushされるため、実際に`ITextUndoHistory`へ積まれるトランザクション数より多い件数を持つ状態に
+  なり、実Undoが尽きた後は`Applied=false`となって`TryFastUndo`にすら到達しなくなっていた
+  (数式でも検証: `Merged = Current(前段の失敗地点まで) + (Final − Original(予測基準))`で
+  失敗した編集の差分がそのまま失われる)。
+- **Unknown → 版数の意味を分離し、失敗を検知即中断・強制同期する方式で修正(実機Observed)**:
+  `DocumentVersion`(実解析のみが進める楽観的並行性制御の版数)と`AnalysisGeneration`
+  (レンダラの増分更新判定用、予測でも進めてよい)を分離し、予測は前者を据え置くよう修正した。
+  併せて`SceneDesignerToolWindowControl.PendingCommitWrite`を`Task<bool>`(健全性フラグ)化し、
+  前段が不健全なら自分の書き込みを試みず失敗として連鎖伝播するようにした。チェーンで最初に
+  不健全化した箇所だけ、新設`SceneEditorSessionService.RefreshPinnedSnapshotFromSourceAsync`で
+  Roslynへ直接再解決した真実へpin中snapshotを強制上書きし、新設
+  `SceneHwndHost.ResyncAfterCommitFailure`で先読みUndo/Redoスタックを丸ごと破棄する — 既存の
+  「Property編集・複製・別Scene切替時は先読みUndoキャッシュを丸ごと破棄する」という確立済みの
+  idiomを再利用しただけで、新しい概念は持ち込んでいない。
+- **既知の残存する軽微なケース(Unknown)**: 不健全化したチェーンの後ろに予測非対応の編集
+  (Inspectorの複雑な式、構造編集など)がたまたま連なっていた場合、そのローカルキャンセル処理が
+  自身のドラッグ開始時点の古い基準値を、直前に強制同期した真実の上へ一時的に上書きしうる。
+  表示のみの一時的なズレで、次のRoslyn再解析(既存の250msデバウンス経由)で自己修復する
+  (M0036で既に文書化されている「Hierarchy編集を挟んだ直後のUndoの自己修復」と同種の限界として
+  許容する)。
+- Evidence: `SceneEditorSessionService`は`SceneWorkspaceService`(VS Workspace/RDT/Editor Adapters
+  依存)を必須とするため実インスタンスでのユニットテストは既存方針どおり対象外。
+  `SceneDesignerToolWindowControl`のチェーン中断伝播もUIコントロール内のprivate配線で対象外。
+  ソリューション全体1037/1037(既存1037、テスト数増減なし、リグレッションなし)。編集回数分だけ
+  正しくUndoを遡れるか、連続編集後も画面とソースが一致するかは実機確認が必須。

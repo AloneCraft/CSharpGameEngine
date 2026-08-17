@@ -24,8 +24,13 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     private long CatalogGeneration;
     private bool UpdatingSelector;
     private PendingDuplicateSelection?PendingDuplicateSelectionRestore;
-    /// <summary>M0038: ソース書き戻しを直列に保つためのチェーン(<see cref="OnEditCommitRequested"/>参照)。</summary>
-    private Task PendingCommitWrite=Task.CompletedTask;
+    /// <summary>
+    /// M0038: ソース書き戻しを直列に保つためのチェーン(<see cref="OnEditCommitRequested"/>参照)。
+    /// M0039: 値は「この編集を含め、これまでの書き戻しが全て成功したか」を運ぶ。前段が不健全な
+    /// (=既に失敗している)ときは、後続の予測がもう信用できない基準の上に積み上がっているため、
+    /// 書き込みを試みず失敗として連鎖伝播する(<see cref="CommitEditAsync"/>参照)。
+    /// </summary>
+    private Task<bool>PendingCommitWrite=Task.FromResult(true);
     private bool Disposed;
 
     public SceneDesignerToolWindowControl(){
@@ -492,23 +497,58 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             Host.CompleteEditCommit(true,null);
         }
         // 書き戻しは直列に保つ。並行させると、後続コミットが前のコミットを含まない古いソースを
-        // 基準にリベースしてしまい、直前の編集を打ち消しかねない。
+        // 基準にリベースしてしまい、直前の編集を打ち消しかねない。Task<bool>はチェーンの健全性
+        // (直前までの書き戻しが全て成功したか)を運ぶ(M0039、詳細はCommitEditAsync参照)。
         this.PendingCommitWrite=this.CommitEditAsync(
             Session,Host,Request,this.PendingCommitWrite,Predicted);
     }
 
+    /// <summary>
+    /// M0039: 戻り値は「この編集を含め、これまでの書き戻しが全て成功したか」。
+    ///
+    /// <para>
+    /// 前段(<paramref name="PreviousWrite"/>)が既に不健全なら、この編集の予測はもう信用できない
+    /// 基準(=本当は反映されていない前段の編集)の上に積み上がっている — 実際に書き込むとその欠落分
+    /// だけ内容がずれた誤ったソースを生成しうるため、書き込みを試みず失敗として扱い連鎖的に
+    /// 後段へ伝播する。<c>SceneHwndHost.RecentTransformCommits</c>(先読みUndoスタック)と実際の
+    /// <c>ITextUndoHistory</c>が食い違って「Undoが直前の1回しかできない」状態になっていたのが
+    /// M0038出荷直後に見つかった不具合で、この中断伝播がその修正の中心。
+    /// </para>
+    ///
+    /// <para>
+    /// このチェーンで<b>最初に</b>不健全化した箇所だけ、Roslynへ直接再解決した真実を
+    /// pin中snapshotへ強制配信し(<see cref="SceneEditorSessionService.RefreshPinnedSnapshotFromSourceAsync"/>)、
+    /// 先読みUndo/Redoスタックを丸ごと破棄する(<see cref="SceneHwndHost.ResyncAfterCommitFailure"/>)。
+    /// 既に不健全なチェーンを渡ってきた後続の呼び出しは、再同期を二重に行わない。
+    /// </para>
+    /// </summary>
 #pragma warning disable VSTHRD003 // 先行する書き戻しは同じControlがこのメソッドで開始したTaskであり、UIスレッドをブロックせずConfigureAwait(false)で待つだけなのでデッドロックしない。順序保証のためチェーンは外せない。
-    private async Task CommitEditAsync(
+    private async Task<bool>CommitEditAsync(
         SceneEditorSessionService Session,SceneHwndHost Host,SceneEditCommitRequest Request,
-        Task PreviousWrite,bool AlreadyCompletedLocally){
-        await PreviousWrite.ConfigureAwait(false);
+        Task<bool>PreviousWrite,bool AlreadyCompletedLocally){
+        bool ChainHealthy=await PreviousWrite.ConfigureAwait(false);
 #pragma warning restore VSTHRD003
         SceneEditCommitResult Result;
-        try {
-            Result=await Session.CommitAsync(Request,CancellationToken.None).ConfigureAwait(false);
-        } catch(Exception Ex){
-            ActivityLog.LogError(nameof(SceneDesignerToolWindowControl),Ex.ToString());
-            Result=new SceneEditCommitResult(false,"C#ソースへの反映中にエラーが発生しました。",WasRebased:false);
+        if(!ChainHealthy){
+            Result=new SceneEditCommitResult(
+                false,"直前の編集の反映に失敗したため、この編集も反映されませんでした。",WasRebased:false);
+        } else {
+            try {
+                Result=await Session.CommitAsync(Request,CancellationToken.None).ConfigureAwait(false);
+            } catch(Exception Ex){
+                ActivityLog.LogError(nameof(SceneDesignerToolWindowControl),Ex.ToString());
+                Result=new SceneEditCommitResult(false,"C#ソースへの反映中にエラーが発生しました。",WasRebased:false);
+            }
+        }
+
+        // このチェーンで最初に不健全化した箇所だけ、画面をソースの真実へ強制同期する。
+        bool IsFaultOrigin=ChainHealthy&&!Result.Succeeded;
+        if(IsFaultOrigin){
+            try {
+                await Session.RefreshPinnedSnapshotFromSourceAsync(CancellationToken.None).ConfigureAwait(false);
+            } catch(Exception Ex){
+                ActivityLog.LogError(nameof(SceneDesignerToolWindowControl),Ex.ToString());
+            }
         }
 
         this.DispatchToUi(()=>{
@@ -520,11 +560,11 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
                 return;
             }
             // 予測で既にトランザクションを閉じている場合、CompleteEditCommitはStateがIdleなので
-            // 何もしない(意図的)。書き戻しが失敗していてもソースは変わっていないため、次の再解析が
-            // 真実を配信して予測を自動的に打ち消す。ユーザーへの通知だけは必ず行う。
+            // 何もしない(意図的)。
             if(!AlreadyCompletedLocally){
                 Host.CompleteEditCommit(Result.Succeeded,Result.ErrorMessage);
             } else if(!Result.Succeeded){
+                if(IsFaultOrigin){ Host.ResyncAfterCommitFailure(); }
                 Host.ReportCommitFailure(Result.ErrorMessage);
             }
             if(!Result.Succeeded
@@ -532,6 +572,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
                 StatusBar.SetText(Result.ErrorMessage??"Scene Designerの編集を反映できませんでした。");
             }
         });
+        return Result.Succeeded;
     }
 
     private void TryRestoreDuplicateSelection(SceneDocumentSnapshot Snapshot){

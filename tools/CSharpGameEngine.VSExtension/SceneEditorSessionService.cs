@@ -95,6 +95,31 @@ internal sealed class SceneEditorSessionService : IDisposable {
         this.Workspace.ResolveSceneAsync(Key,CancellationToken);
 
     /// <summary>
+    /// M0039: ソース書き戻しチェーンの一部が失敗したとき、以降の予測はもう信用できない基準の上に
+    /// 積み上がっている(<see cref="SceneModelEditApplier"/>自体は無罪 — 失敗より後の予測が
+    /// 「本当は起きていない前段の編集」を前提に計算されてしまうのが問題)。予測を経由せず
+    /// Roslynへ直接再解決し、そこで得られた実際のソース内容を pin中snapshotとして強制的に
+    /// 配信し直すことで、画面をソースの真実へ同期し直す。呼び出し側(<see cref="SceneHwndHost"/>)は
+    /// これと合わせて先読みUndo/Redoスタックを丸ごと破棄する — 既存の「Property編集・複製・
+    /// 別Scene切替」でのClearと同じ確立済みのidiom。
+    /// </summary>
+    internal async Task RefreshPinnedSnapshotFromSourceAsync(CancellationToken CancellationToken){
+        if(this.Disposed||this.PinnedSceneKey is not { }Key){
+            return;
+        }
+
+        SceneModel?Model=await this.Workspace.ResolveSceneAsync(Key,CancellationToken).ConfigureAwait(false);
+        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(CancellationToken);
+        if(this.Disposed||Model is null||!Key.Equals(this.PinnedSceneKey)){
+            return;
+        }
+
+        SceneDocumentSnapshot Snapshot=this.Publish(Model,Key);
+        this.PinnedSnapshot=Snapshot;
+        this.PinnedSnapshotChanged?.Invoke(Snapshot);
+    }
+
+    /// <summary>
     /// 1回のギズモ操作を、commit直前に取得したRoslyn世代へ再解決し、live bufferの単一Undoとして反映する。
     /// 解決後から適用直前までにtextが変化した場合だけ、最新世代で1回再試行する。
     /// </summary>
@@ -170,6 +195,17 @@ internal sealed class SceneEditorSessionService : IDisposable {
     /// 予測できなければ<c>false</c>を返すだけで、呼び出し側は従来どおりの往復にフォールバックする
     /// (画面は再解析が landしたときに更新される = 今日と同じ速度)。
     /// </para>
+    ///
+    /// <para>
+    /// M0039: <see cref="SceneDocumentSnapshot.DocumentVersion"/>は<b>元のsnapshotから引き継ぎ、
+    /// 進めない</b>。これは<see cref="SceneEditConflictMerger"/>が「ドラッグ開始時から実際の
+    /// ソースが変化したか」を判定する楽観的並行性制御の版数であり、まだソースへ書き込まれていない
+    /// 予測がこれを進めると、実際には何も割り込んでいないのに毎回rebase経路へ落ちてしまう
+    /// (rebase経路自体は正しく合成できるが、書き戻し失敗時の巻き戻りと組み合わさると壊れる —
+    /// 詳細はM0039のCommit記録を参照)。<see cref="SceneDocumentSnapshot.AnalysisGeneration"/>は
+    /// レンダラの増分更新判定(<c>SceneHwndHost.SetTarget</c>)が新旧を区別するために引き続き
+    /// 新しい値を払い出す。
+    /// </para>
     /// </summary>
     internal bool TryPublishPrediction(SceneEditCommitRequest Request){
         ThreadHelper.ThrowIfNotOnUIThread();
@@ -189,7 +225,7 @@ internal sealed class SceneEditorSessionService : IDisposable {
         }
         SceneProjection PredictedProjection=Reconciler.Reconcile(Key,Predicted,Projection);
         var Snapshot=new SceneDocumentSnapshot(
-            Key,Current.DocumentId,++this.Generation,this.Generation,
+            Key,Current.DocumentId,Current.DocumentVersion,++this.Generation,
             Predicted,Predicted,PredictedProjection,
             SceneDiffEngine.Compare(Projection,PredictedProjection),HasBlockingErrors:false);
         this.PinnedSnapshot=Snapshot;

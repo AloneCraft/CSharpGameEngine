@@ -1175,12 +1175,26 @@ internal sealed class SceneHwndHost:HwndHost {
 
     /// <summary>
     /// M0038: 予測でトランザクションを閉じた後にソース書き戻しが失敗したときの通知専用。
-    /// この時点でソースは変更されていないので、次のRoslyn再解析が真実(＝編集前の状態)を配信して
-    /// 予測を自動的に打ち消す。ここでは表示を触らず、状態だけ知らせる。
+    /// 表示の同期自体は<see cref="ResyncAfterCommitFailure"/>が別途行う(呼び出し側が両方呼ぶ)。
     /// </summary>
     internal void ReportCommitFailure(string?ErrorMessage){
         ThreadHelper.ThrowIfNotOnUIThread();
         SetStatus(ErrorMessage??"C#ソースへの反映に失敗しました。編集は取り消されます。");
+    }
+
+    /// <summary>
+    /// M0039: 直列の書き戻しチェーンのどこかが失敗したとき、呼び出し側
+    /// (<see cref="SceneDesignerToolWindowControl"/>)が
+    /// <c>Session.RefreshPinnedSnapshotFromSourceAsync</c>で画面をソースの真実へ強制同期した直後に
+    /// 呼ぶ。失敗より後の編集は「本当は起きていない前段の編集」を前提に予測されていた可能性があり
+    /// 信用できないため、先読みUndo/Redoスタックを丸ごと破棄する — 既存のProperty編集・複製・
+    /// 別Scene切替時のClearと同じ確立済みのidiom(このメソッド自体は表示の再構築は行わない。
+    /// それは<c>SetTarget</c>経由で<c>PinnedSnapshotChanged</c>が届いたときに起きる)。
+    /// </summary>
+    internal void ResyncAfterCommitFailure(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        RecentTransformCommits.Clear();
+        RecentTransformUndone.Clear();
     }
 
     internal void CompleteEditCommit(bool Succeeded,string?ErrorMessage){
