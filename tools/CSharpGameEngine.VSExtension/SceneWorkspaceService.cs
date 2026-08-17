@@ -496,8 +496,9 @@ internal sealed class SceneWorkspaceService : IDisposable {
 
         // ギズモ/インスペクター編集はユーザーがコードエディタで別の箇所を読んでいる間にも起こる。
         // Buffer.Replaceは最小差分なのでcaretは通常tracking経由で追従するはずだが、対象文書が
-        // 開いていてもアクティブでない場合や、離れた位置の差分が紛れ込んだ場合に備え、編集前後で
-        // caret位置とビューポート先頭行を明示的に保存・復元する。
+        // 開いていてもアクティブでない場合に備え、編集前後でcaret位置を明示的に保存・復元する
+        // (M0041: ビューポート先頭行の保存・復元はSceneSourceMarkerServiceと競合するため撤去した。
+        // CaptureViewPositions参照)。
         List<ViewPositionSnapshot>Restorations=CaptureViewPositions(Buffer,VsBuffer);
         bool Applied=this.TextBufferWriter.TryApply(Buffer,Context.Text,After,UndoDescription);
         if(Applied){
@@ -597,18 +598,28 @@ internal sealed class SceneWorkspaceService : IDisposable {
         }
     }
 
-    private readonly struct ViewPositionSnapshot(ITextView View,ITrackingPoint Caret,ITrackingPoint Top){
+    private readonly struct ViewPositionSnapshot(ITextView View,ITrackingPoint Caret){
         internal ITextView View { get; }=View;
 
         internal ITrackingPoint Caret { get; }=Caret;
-
-        internal ITrackingPoint Top { get; }=Top;
     }
 
     /// <summary>
-    /// <paramref name="VsBuffer"/>を表示中の全ビュー(分割ウィンドウ含む)のcaret位置とビューポート
-    /// 先頭行を、編集前スナップショット基準の<see cref="ITrackingPoint"/>として退避する。ドキュメントを
-    /// アクティブ化しない(<c>IVsTextManager.EnumViews</c>は既存ビューの列挙だけで済む)。
+    /// <paramref name="VsBuffer"/>を表示中の全ビュー(分割ウィンドウ含む)のcaret位置を、編集前
+    /// スナップショット基準の<see cref="ITrackingPoint"/>として退避する。ドキュメントをアクティブ
+    /// 化しない(<c>IVsTextManager.EnumViews</c>は既存ビューの列挙だけで済む)。
+    ///
+    /// <para>
+    /// M0041: 以前はビューポート先頭行(Top)も同様に保存・復元していたが、これは
+    /// <see cref="SceneSourceMarkerService"/>(選択が実際に変わったときだけスクロールする)と
+    /// スクロール位置の決定権を奪い合っていた。M0038でこの書き戻しを非同期化・背後直列化した
+    /// ことで、Topの捕獲(<see cref="CaptureViewPositions"/>)がコミットした瞬間ではなく
+    /// 「書き戻しチェーンが自分の番に到達した瞬間」まで遅れるようになり、捕獲時点のスクロール位置が
+    /// 選択直後の正しい位置からズレていた場合にそのズレをそのまま復元してしまい、ギズモ編集を
+    /// 確定するたびに無関係な位置へ再スクロールする不具合として実機観測された。スクロール位置は
+    /// <see cref="SceneSourceMarkerService"/>だけに一本化し、ここではタイピング中のcaret位置
+    /// (無関係なバックグラウンド書き込みで動いてはならない)だけを保護する。
+    /// </para>
     /// </summary>
     private List<ViewPositionSnapshot>CaptureViewPositions(ITextBuffer Buffer,IVsTextBuffer VsBuffer){
         List<ViewPositionSnapshot>Result=[];
@@ -627,11 +638,8 @@ internal sealed class SceneWorkspaceService : IDisposable {
 
             ITextSnapshot Snapshot=Buffer.CurrentSnapshot;
             SnapshotPoint CaretPoint=WpfView.Caret.Position.BufferPosition;
-            SnapshotPoint TopPoint=WpfView.TextViewLines.FirstVisibleLine.Start;
             Result.Add(new ViewPositionSnapshot(
-                WpfView,
-                Snapshot.CreateTrackingPoint(CaretPoint.Position,PointTrackingMode.Positive),
-                Snapshot.CreateTrackingPoint(TopPoint.Position,PointTrackingMode.Positive)));
+                WpfView,Snapshot.CreateTrackingPoint(CaretPoint.Position,PointTrackingMode.Positive)));
         }
 
         return Result;
@@ -641,8 +649,6 @@ internal sealed class SceneWorkspaceService : IDisposable {
         foreach(ViewPositionSnapshot Restoration in Restorations){
             ITextSnapshot Snapshot=Restoration.View.TextBuffer.CurrentSnapshot;
             Restoration.View.Caret.MoveTo(Restoration.Caret.GetPoint(Snapshot));
-            Restoration.View.DisplayTextLineContainingBufferPosition(
-                Restoration.Top.GetPoint(Snapshot),0.0,ViewRelativePosition.Top);
         }
     }
 

@@ -2585,7 +2585,16 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   再スクロールしていた。統一選択サービス(`SceneEditorSessionService.Selection.
   CurrentSelection`)から今の選択を都度解決するよう修正し、解決ロジックを
   `SceneSelectionPathResolver`(新設、VS SDK非依存の純粋関数)へ切り出してViewport/Hierarchy
-  両経路で共有した。実機目視が残っているため`Verified`へは上げていない。
+  両経路で共有した。実機で「直ってない」と再報告され(M0041)、M0040とは別の真因が判明した:
+  `SourceMarkerService`は選択が実際に変わらない限りスクロールしないため(消去法で確認)、
+  単純なTransform編集ではM0040の修正経路も含めソース側は一切スクロールを起こさないはずだった。
+  実際にスクロール位置を触っていたのは`SceneWorkspaceService.ApplyTextAsync`内の
+  `CaptureViewPositions`/`RestoreViewPositions`(ビューポート先頭行の保存・復元、M0036由来)
+  だけで、M0038が書き戻しを非同期化・背後直列化したことで捕獲タイミングが「コミットした瞬間」
+  から「書き戻しチェーンが自分の番に到達した瞬間」まで遅れ、捕獲時点でズレていたスクロール
+  位置をそのまま書き戻し後に復元してしまっていた。ビューポート先頭行の保存・復元を撤去し、
+  caret位置の保護だけを残してスクロール位置の決定権を`SourceMarkerService`へ一本化した。
+  実機目視が残っているため`Verified`へは上げていない。
 - Intended specification: `Docs/シーンエディタの仕様.md`(要求仕様)、
   Docs/Decisions/ADR-0041-Scene-Editor-Interaction-Architecture.md(意思決定)、
   Docs/Specifications/Scene-Editor-Design.md(詳細設計)
