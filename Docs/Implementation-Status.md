@@ -2594,7 +2594,17 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   から「書き戻しチェーンが自分の番に到達した瞬間」まで遅れ、捕獲時点でズレていたスクロール
   位置をそのまま書き戻し後に復元してしまっていた。ビューポート先頭行の保存・復元を撤去し、
   caret位置の保護だけを残してスクロール位置の決定権を`SourceMarkerService`へ一本化した。
-  実機目視が残っているため`Verified`へは上げていない。
+  さらにM0041の実機検証で「移動するとソースの先頭(Root宣言位置)が表示される」と報告され、
+  M0042で調査したところマーカー機構自体は無罪で、実際には`StaticMesh`/`PrimitiveMesh`を
+  持たないノード(Root自身・整理用の空グループノード)が`GizmoMeshFactory`のプレースホルダー
+  立方体(ワールド原点付近に描画)としてピッキング対象へ紛れ込み、誤選択・誤ドラッグされて
+  いたことが判明した。以前保留にしていた「SkySphereが空クリック判定に紛れ込む」問題も同種の
+  穴だったため、`SceneRenderObject`へ`IsPickable`フラグ(既存の`IncludeInBounds`と同じ
+  パターン)を新設し、メッシュ未宣言ノードとSky domeの両方を`ScenePicker`の
+  `TryPick`/`PickMarquee`/`TryVertexSnapQuery`/`TrySurfaceSnapQuery`から除外して両方まとめて
+  解消した。Hierarchyパネル経由の選択は`ScenePicker`を経由しないため無影響(メッシュ無し
+  ノードも引き続きHierarchyからは選択・編集できる)。実機目視が残っているため`Verified`へは
+  上げていない。
 - Intended specification: `Docs/シーンエディタの仕様.md`(要求仕様)、
   Docs/Decisions/ADR-0041-Scene-Editor-Interaction-Architecture.md(意思決定)、
   Docs/Specifications/Scene-Editor-Design.md(詳細設計)

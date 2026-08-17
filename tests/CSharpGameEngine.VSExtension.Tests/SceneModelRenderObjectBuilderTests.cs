@@ -330,6 +330,37 @@ public sealed class SceneModelRenderObjectBuilderTests {
 
         Assert.False(Result[1].IncludeInBounds);
         Assert.True(Result[2].IncludeInBounds);
+        // M0042: Sky domeはピッキング対象外(「何もない空間」のクリックが背景に当たって
+        // 選択解除にならない不具合の原因だった)。Result[0]はRoot自身(メッシュ未宣言)で
+        // これも対象外 — 次のテストで別途固定する。
+        Assert.False(Result[1].IsPickable);
+        Assert.True(Result[2].IsPickable);
+    }
+
+    [Fact]
+    public void Build_NodeWithoutDeclaredMesh_IsExcludedFromPicking(){
+        // M0042: StaticMesh/PrimitiveMeshを持たないノード(Root自身や整理用の空グループノード)は
+        // GizmoMeshFactoryのプレースホルダー立方体で代替描画されるが、ワールド原点付近に描画され
+        // ステージの実オブジェクトへ紛れ込みやすいため、クリック・ドラッグの対象から外す。
+        SceneModel Model=Analyze("""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Runtime.Windows;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() {
+                    Children=[
+                        new Node { Name="EmptyGroup" },
+                        new Node { Components=[new StaticMesh { AssetPath="Assets/Stage/SM_Floor.glb" }] },
+                    ],
+                };
+            }
+            """);
+
+        var Result=SceneModelRenderObjectBuilder.Build(Model,static _=>null,static _=>null);
+
+        Assert.False(Result[0].IsPickable); // Root自身。
+        Assert.False(Result[1].IsPickable); // EmptyGroup(メッシュ未宣言)。
+        Assert.True(Result[2].IsPickable); // 通常のStaticMeshノード。
     }
 
     [Fact]

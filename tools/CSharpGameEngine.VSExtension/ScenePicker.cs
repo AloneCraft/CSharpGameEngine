@@ -98,6 +98,7 @@ internal static class ScenePicker {
         bool Found=false;
 
         foreach(SceneRenderObject Object in RenderObjects){
+            if(!Object.IsPickable){ continue; }
             if(TryIntersectMesh(Object.Mesh,Object.World,RayOrigin,RayDirection,out float Distance)&&Distance<BestDistance){
                 BestDistance=Distance;
                 BestPath=Object.NodeId;
@@ -125,7 +126,7 @@ internal static class ScenePicker {
         float BestDepth=float.PositiveInfinity;
         Matrix4x4 ViewProjection=View*Projection;
         foreach(SceneRenderObject Object in RenderObjects){
-            if(IsExcluded(Object.NodeId,ExcludedRoots)){ continue; }
+            if(IsExcluded(Object.NodeId,ExcludedRoots)||!Object.IsPickable){ continue; }
             Matrix4x4 WorldViewProjection=Object.World*ViewProjection;
             foreach(Vector3 LocalPosition in Object.Mesh.Positions){
                 Vector4 Clip=Vector4.Transform(new Vector4(LocalPosition,1f),WorldViewProjection);
@@ -165,7 +166,7 @@ internal static class ScenePicker {
         bool Found=false;
         float BestDistance=float.PositiveInfinity;
         foreach(SceneRenderObject Object in RenderObjects){
-            if(IsExcluded(Object.NodeId,ExcludedRoots)){ continue; }
+            if(IsExcluded(Object.NodeId,ExcludedRoots)||!Object.IsPickable){ continue; }
             SimpleMesh Mesh=Object.Mesh;
             for(int I=0;I+2<Mesh.Indices.Length;I+=3){
                 Vector3 A=Vector3.Transform(Mesh.Positions[(int)Mesh.Indices[I]],Object.World);
@@ -202,7 +203,7 @@ internal static class ScenePicker {
         HashSet<NodePath>Seen=[];
         Matrix4x4 ViewProjection=View*Projection;
         foreach(SceneRenderObject Object in RenderObjects){
-            if(Seen.Contains(Object.NodeId)
+            if(!Object.IsPickable||Seen.Contains(Object.NodeId)
                 ||!TryProjectBounds(Object,ViewProjection,ViewportWidth,ViewportHeight,
                     out float Left,out float Top,out float Right,out float Bottom)
                 ||!SelectionRectangle.Intersects(Left,Top,Right,Bottom)){

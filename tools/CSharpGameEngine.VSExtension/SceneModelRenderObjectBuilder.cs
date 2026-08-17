@@ -34,20 +34,27 @@ internal static class SceneModelRenderObjectBuilder {
                 :Matrix4x4.Identity)*ParentWorld;
 
             string?AssetPath=ExtractStaticMeshAssetPath(Node);
+            string?PrimitiveMeshEnumMemberName=ExtractPrimitiveMeshEnumMemberName(Node);
             SimpleMesh Mesh;
             if(AssetPath is not null&&ResolveStaticMesh is not null){
                 Mesh=ResolveStaticMesh(AssetPath)??GizmoMeshFactory.Create();
-            } else if(ExtractPrimitiveMeshEnumMemberName(Node)is{ }EnumMemberName){
-                Mesh=ResolvePrimitiveMesh(EnumMemberName)??GizmoMeshFactory.Create();
+            } else if(PrimitiveMeshEnumMemberName is not null){
+                Mesh=ResolvePrimitiveMesh(PrimitiveMeshEnumMemberName)??GizmoMeshFactory.Create();
             } else {
                 Mesh=GizmoMeshFactory.Create();
             }
 
+            // M0042: メッシュ未宣言のノード(Root・整理用の空グループノード)はプレースホルダー
+            // 立方体で代替描画されるが、通常のステージコンテンツと同列にピッキング対象へ含めると
+            // ワールド原点付近で誤選択・誤ドラッグしやすい。Sky domeも同じ理由で対象外にする
+            // (「何もない空間」のクリックが背景に当たって選択解除にならない不具合の原因だった)。
+            bool HasDeclaredMesh=AssetPath is not null||PrimitiveMeshEnumMemberName is not null;
             Result.Add(new SceneRenderObject {
                 Mesh=Mesh,
                 World=World,
                 NodeId=Node.Path,
                 IncludeInBounds=!IsSkyDomeAsset(AssetPath),
+                IsPickable=HasDeclaredMesh&&!IsSkyDomeAsset(AssetPath),
             });
 
             foreach(SceneNode Child in Node.Children){

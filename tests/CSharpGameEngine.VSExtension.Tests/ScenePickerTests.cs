@@ -98,6 +98,20 @@ public sealed class ScenePickerTests {
 
     /// <summary>従来の3引数版は新しい5引数版へ転送しているだけであることの回帰防止。</summary>
     [Fact]
+    public void TryPick_NonPickableObject_IsIgnoredEvenWhenClosest(){
+        NodePath NearPath=NodePath.Root;
+        NodePath FarPath=NodePath.Root.Append(1);
+        SceneRenderObject Near=CreateTriangleAtZ(5f,NearPath,IsPickable:false);
+        SceneRenderObject Far=CreateTriangleAtZ(8f,FarPath);
+
+        bool Hit=ScenePicker.TryPick(
+            [Near,Far],RayOrigin:new Vector3(0.5f,0.5f,0f),RayDirection:Vector3.UnitZ,out NodePath HitPath);
+
+        Assert.True(Hit);
+        Assert.Equal(FarPath,HitPath);
+    }
+
+    [Fact]
     public void TryPick_ThreeArgumentOverload_StillWorksIdenticallyToFiveArgumentOverload(){
         SceneRenderObject Object=CreateTriangleAtZ(5f,NodePath.Root);
 
@@ -159,6 +173,17 @@ public sealed class ScenePickerTests {
     }
 
     [Fact]
+    public void PickMarquee_NonPickableObject_IsExcludedFromResults(){
+        SceneRenderObject Object=CreateScreenTriangle(-0.5f,0.5f,NodePath.Root,IsPickable:false);
+
+        IReadOnlyList<NodePath>Hits=ScenePicker.PickMarquee(
+            [Object],Matrix4x4.Identity,Matrix4x4.Identity,
+            ScreenRectangle.FromPoints(0,0,60,60),ViewportWidth:100,ViewportHeight:100);
+
+        Assert.Empty(Hits);
+    }
+
+    [Fact]
     public void TryVertexSnapQuery_ReturnsClosestProjectedWorldVertexWithinEightPixels(){
         NodePath Path=NodePath.Root.Append(1);
         SceneRenderObject Object=CreateScreenTriangle(-0.5f,0.5f,Path);
@@ -199,6 +224,28 @@ public sealed class ScenePickerTests {
     }
 
     [Fact]
+    public void TryVertexSnapQuery_NonPickableObject_IsExcluded(){
+        SceneRenderObject Object=CreateScreenTriangle(-0.5f,0.5f,NodePath.Root.Append(1),IsPickable:false);
+
+        bool Found=ScenePicker.TryVertexSnapQuery(
+            [Object],Matrix4x4.Identity,Matrix4x4.Identity,
+            CursorX:27f,CursorY:26f,ViewportWidth:100,ViewportHeight:100,
+            ExcludedRoots:[],out _);
+
+        Assert.False(Found);
+    }
+
+    [Fact]
+    public void TrySurfaceSnapQuery_NonPickableObject_IsExcluded(){
+        SceneRenderObject Object=CreateTriangleAtZ(5f,NodePath.Root.Append(1),IsPickable:false);
+
+        bool Found=ScenePicker.TrySurfaceSnapQuery(
+            [Object],new Vector3(0.5f,0.5f,0f),Vector3.UnitZ,ExcludedRoots:[],out _);
+
+        Assert.False(Found);
+    }
+
+    [Fact]
     public void TrySurfaceSnapQuery_ReturnsNearestPointAndGeometricNormalWhileExcludingDraggedRoot(){
         NodePath Dragged=NodePath.Root.Append(0);
         NodePath SurfacePath=NodePath.Root.Append(1);
@@ -216,11 +263,12 @@ public sealed class ScenePickerTests {
     }
 
     /// <summary>直角三角形 (0,0)-(2,0)-(0,2) を Z=<paramref name="Z"/> 平面に置く。(0.5,0.5) は内部の点。</summary>
-    private static SceneRenderObject CreateTriangleAtZ(float Z,NodePath NodeId)=>
+    private static SceneRenderObject CreateTriangleAtZ(float Z,NodePath NodeId,bool IsPickable=true)=>
         new(){
             Mesh=CreateRightTriangleMesh(),
             World=Matrix4x4.CreateTranslation(0f,0f,Z),
             NodeId=NodeId,
+            IsPickable=IsPickable,
         };
 
     private static SimpleMesh CreateRightTriangleMesh()=>
@@ -233,7 +281,7 @@ public sealed class ScenePickerTests {
             BoundsRadius=2f,
         };
 
-    private static SceneRenderObject CreateScreenTriangle(float NdcX,float NdcY,NodePath NodeId)=>
+    private static SceneRenderObject CreateScreenTriangle(float NdcX,float NdcY,NodePath NodeId,bool IsPickable=true)=>
         new(){
             Mesh=new SimpleMesh{
                 Positions=[
@@ -249,5 +297,6 @@ public sealed class ScenePickerTests {
             },
             World=Matrix4x4.Identity,
             NodeId=NodeId,
+            IsPickable=IsPickable,
         };
 }

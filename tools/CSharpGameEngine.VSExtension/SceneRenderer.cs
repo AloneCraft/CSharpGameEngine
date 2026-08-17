@@ -27,6 +27,16 @@ internal sealed class SceneRenderObject {
 
     /// <summary>Sky domeなど、描画するが編集対象ステージの自動フレーミングには含めない場合はfalse。</summary>
     public bool IncludeInBounds { get; init;}=true;
+
+    /// <summary>
+    /// M0042: 描画はするがクリック・矩形選択・頂点/面スナップの対象から外す場合はfalse。
+    /// メッシュ未宣言ノード(Root・整理用の空グループノード、<see cref="GizmoMeshFactory"/>の
+    /// プレースホルダー立方体で代替描画される)とSky domeがこれに当たる——前者はワールド原点付近に
+    /// 描画されがちでステージの実オブジェクトへ紛れ込み誤選択しやすく、後者は「何もない空間」の
+    /// クリックが背景に当たって選択解除にならない不具合の原因だった。Hierarchyパネル経由の選択は
+    /// <see cref="ScenePicker"/>を経由しないためこのフラグの影響を受けない(意図的)。
+    /// </summary>
+    public bool IsPickable { get; init;}=true;
 }
 
 /// <summary>

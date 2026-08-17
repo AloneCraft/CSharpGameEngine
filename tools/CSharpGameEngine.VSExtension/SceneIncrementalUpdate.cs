@@ -56,6 +56,7 @@ internal static class SceneRenderIncrementalUpdater {
             World=WorldByPath[Object.NodeId],
             NodeId=Object.NodeId,
             IncludeInBounds=Object.IncludeInBounds,
+            IsPickable=Object.IsPickable,
         }).ToArray();
         return true;
 

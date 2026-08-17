@@ -871,6 +871,7 @@ internal sealed class SceneHwndHost:HwndHost {
                     World=Object.World,
                     NodeId=ResultPath,
                     IncludeInBounds=Object.IncludeInBounds,
+                    IsPickable=Object.IsPickable,
                 });
                 Sources.Add((Object.NodeId,Object.World));
                 break;
@@ -1303,7 +1304,8 @@ internal sealed class SceneHwndHost:HwndHost {
         CurrentRenderObjects=CurrentRenderObjects.Select(Object=>
             FinalWorlds.TryGetValue(Object.NodeId,out Matrix4x4 FinalWorld)
                 ?new SceneRenderObject {
-                    Mesh=Object.Mesh,World=FinalWorld,NodeId=Object.NodeId,IncludeInBounds=Object.IncludeInBounds }
+                    Mesh=Object.Mesh,World=FinalWorld,NodeId=Object.NodeId,
+                    IncludeInBounds=Object.IncludeInBounds,IsPickable=Object.IsPickable }
                 :Object).ToArray();
     }
 

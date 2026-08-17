@@ -2008,3 +2008,39 @@ Expハイブのキャッシュより新しくすること」を機序として**
   ユニットテスト対象外。純粋ロジックの変更を伴わないため新規テストなし。ソリューション全体
   1043/1043(既存1043、テスト数増減なし、リグレッションなし)。編集確定後もスクロール位置が
   動かないままであることは実機確認が必須。
+
+## 2026-08-19 M0042: メッシュ無しノード/SkySphereをピッキング対象から除外
+
+- **Mismatch → M0041の症状が実は選択対象そのものの誤りだったと判明(実機Observed)**: M0041の
+  実機検証で「移動するとソースの先頭(Root宣言位置)が表示される」と再報告された。調査の結果、
+  `SceneModelRenderObjectBuilder.Build`は`StaticMesh`/`PrimitiveMesh`を持たないノード(Root
+  自身や整理用の空グループノード)にも無条件で`SceneRenderObject`を作り、
+  `GizmoMeshFactory.Create()`が生成する0.3ユニットの小さな立方体で代替描画していた——これは
+  今回に限らず、この一連の実機検証セッション全体でスクリーンショットに写り続けていた
+  「ギズモの中の小さなキューブ」そのものだった。このプレースホルダーは`ScenePicker.TryPick`/
+  `PickMarquee`の走査対象に無条件で含まれており、Transform無しならワールド原点付近に描画される
+  ためステージの実オブジェクトへ紛れ込み誤選択・誤ドラッグしやすい。誤って選択されたノードの
+  `Location.Span`はソース中のその宣言位置(Rootなら`Root=>new(){...}`の開始、ファイル先頭付近)
+  を指すため、ソースマーカー(M0040/M0041で修正済み)は「正しく」その位置へスクロールして
+  いた——マーカー機構自体は無罪で、選択されているノードそのものが意図しないものだった。
+- **Mismatch → 以前保留していたSkySphereの問題も同種の穴と確認(ユーザー確認済み)**: M0038計画時に
+  保留していた「何もない空間をクリックしても選択解除されない(背景のSM_SkySphereに当たっていた)」
+  問題も、「本来ユーザーが直接操作すべきでないオブジェクトが、通常のシーンコンテンツと同列に
+  ピッキング対象へ混ざっている」という同じ種類の穴だと確認し、まとめて修正する方針でユーザーへ
+  確認・合意した。
+- **Unknown → SceneRenderObjectへIsPickableフラグを新設して両方を解消**: 既存の`IncludeInBounds`
+  (自動フレーミング用の除外フラグ)と全く同じパターンで`IsPickable{ get; init;}=true`を新設。
+  `HasDeclaredMesh(AssetPathまたはPrimitiveMeshEnumMemberNameの非null)&&!IsSkyDomeAsset`を
+  算出条件とし、メッシュ未宣言ノードとSky domeの両方を除外する。`IncludeInBounds`がたどる
+  複製箇所と全く同じ4箇所(`SceneModelRenderObjectBuilder.cs`生成、`SceneIncrementalUpdate.cs`
+  増分更新、`SceneHwndHost.cs`の複製プレビュー・コミット直後パッチ)で複製し、
+  `ScenePicker.cs`の`TryPick`/`PickMarquee`/`TryVertexSnapQuery`/`TrySurfaceSnapQuery`全てで
+  除外した。Hierarchyパネル経由の選択は`ScenePicker`を経由しないため無影響(メッシュ無し
+  ノードも引き続きHierarchyからは選択・編集できる、意図的)。
+- Evidence: `ScenePicker`/`SceneModelRenderObjectBuilder`はGPU/HWND非依存の純粋関数のため新規
+  5件でユニットテストした(`ScenePickerTests.cs`に`TryPick`/`PickMarquee`/`TryVertexSnapQuery`/
+  `TrySurfaceSnapQuery`それぞれの非ピッキング対象除外4件、
+  `SceneModelRenderObjectBuilderTests.cs`にメッシュ未宣言ノードの除外1件、既存の
+  `Build_SkySphereStaticMesh_IsExcludedFromAutomaticFraming`も拡張)。ソリューション全体
+  1048/1048(既存1043+新規5、リグレッションなし)。実際の3Dビューでのクリック・ドラッグ体験は
+  実機確認が必須。
