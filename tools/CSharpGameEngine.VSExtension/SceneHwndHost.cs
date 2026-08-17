@@ -1173,6 +1173,16 @@ internal sealed class SceneHwndHost:HwndHost {
         }
     }
 
+    /// <summary>
+    /// M0038: 予測でトランザクションを閉じた後にソース書き戻しが失敗したときの通知専用。
+    /// この時点でソースは変更されていないので、次のRoslyn再解析が真実(＝編集前の状態)を配信して
+    /// 予測を自動的に打ち消す。ここでは表示を触らず、状態だけ知らせる。
+    /// </summary>
+    internal void ReportCommitFailure(string?ErrorMessage){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        SetStatus(ErrorMessage??"C#ソースへの反映に失敗しました。編集は取り消されます。");
+    }
+
     internal void CompleteEditCommit(bool Succeeded,string?ErrorMessage){
         if(EditTransaction.State!=EditTransactionState.Committing){
             return;

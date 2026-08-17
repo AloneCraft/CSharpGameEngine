@@ -2548,7 +2548,22 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   (面(2軸)スケールは今回スコープ外)。既存の`MarqueeOverlay.ToWorld`と同じ手法でスクリーン座標を
   ピクセル一定サイズのワールド座標へ逆投影し、`SceneRenderer.SetOverlay`の頂点上限(4096)超過時は
   ギズモ本体を守るためHUDのみを落とす防御を追加。実機目視が残っているため`Verified`へは
-  上げていない。
+  上げていない。続けて実機で「まだ編集の速度が遅い」と報告され(M0038)、⑨⑩を含むこれまでの
+  高速化が**いずれも見た目の巻き戻りを隠していただけ**で待ち時間自体を短縮していなかったことが
+  判明した。実測の主因は(a)コミット完了まで次の操作がブロックされること、(b)1操作あたり
+  プロジェクト全体のコンパイル取得が2回、(c)250msデバウンス。対策として`SceneModelEditApplier`
+  (⑬)を新設し、編集後の`SceneModel`をメモリ上で関数的に予測して
+  `SceneEditorSessionService.TryPublishPrediction`で pin中snapshotとして即時配信する。
+  `SceneDocumentSnapshot`がRenderer/Hierarchy/Inspector/ソースマーカーの唯一の配信点なので、
+  1回のpublishでUI全体が下流無改造で更新される。予測が配信できた時点でトランザクションを`Idle`へ
+  戻し、ソース書き戻しは背後で直列に継続する(ADR-0040のC#テキスト単一正本は維持、予測は
+  M0030/M0036と同じ表示専用の先読みで、再解析が真実で上書きするため外れても自己修復する)。
+  対応操作は`SetTransformOperation`と`SetComponentMemberOperation`(リテラル式のみ)で、構造編集は
+  今回対象外(扱えない操作が混ざれば丸ごと諦めて従来経路へ落とす)。副次的に生じた危険2件も同時に
+  塞いだ: 書き戻しの並行実行による「直前の編集の打ち消し」を`PendingCommitWrite`チェーンの直列化で、
+  書き戻し中のCtrl+Zによる「テキストUndoと先読みUndoの食い違い」を
+  `SceneDesignerUndoCommandPolicy.CanExecute`(`Supported`は落とさず`Enabled`のみ落とす — 落とすと
+  Ctrl+Zが別ドキュメントへ流れるため)で抑止。実機目視が残っているため`Verified`へは上げていない。
 - Intended specification: `Docs/シーンエディタの仕様.md`(要求仕様)、
   Docs/Decisions/ADR-0041-Scene-Editor-Interaction-Architecture.md(意思決定)、
   Docs/Specifications/Scene-Editor-Design.md(詳細設計)

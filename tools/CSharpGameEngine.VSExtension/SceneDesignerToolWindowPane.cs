@@ -71,10 +71,13 @@ public sealed class SceneDesignerToolWindowPane:ToolWindowPane {
             },
             Id);
         Command.BeforeQueryStatus+=(Sender,Args)=>{
+            // M0038: Supportedは書き戻し中でも落とさない(落とすとCtrl+Zがシェルへ戻り、別ドキュメントの
+            // Undoが走る)。飛行中はEnabledだけ落として無効化する。
             bool Handle=SceneDesignerUndoCommandPolicy.ShouldHandle(Control.IsViewportFocused,Control.HasPinnedSnapshot);
             OleMenuCommand Self=(OleMenuCommand)Sender!;
             Self.Supported=Handle;
-            Self.Enabled=Handle;
+            Self.Enabled=SceneDesignerUndoCommandPolicy.CanExecute(
+                Control.IsViewportFocused,Control.HasPinnedSnapshot,Control.HasPendingSourceWrite);
         };
         Commands.AddCommand(Command);
     }

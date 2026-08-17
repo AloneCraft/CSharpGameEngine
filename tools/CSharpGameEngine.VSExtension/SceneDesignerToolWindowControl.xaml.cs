@@ -24,6 +24,8 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     private long CatalogGeneration;
     private bool UpdatingSelector;
     private PendingDuplicateSelection?PendingDuplicateSelectionRestore;
+    /// <summary>M0038: ソース書き戻しを直列に保つためのチェーン(<see cref="OnEditCommitRequested"/>参照)。</summary>
+    private Task PendingCommitWrite=Task.CompletedTask;
     private bool Disposed;
 
     public SceneDesignerToolWindowControl(){
@@ -52,11 +54,14 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
 
     internal bool HasPinnedSnapshot=>this.Session?.PinnedSnapshot is not null;
 
+    /// <summary>M0038: 背後のC#ソース書き戻しがまだ飛行中か(<see cref="SceneDesignerUndoCommandPolicy.CanExecute"/>参照)。</summary>
+    internal bool HasPendingSourceWrite=>!this.PendingCommitWrite.IsCompleted;
+
     /// <summary>実際のC#ソースUndoが成功した後に呼び出し側(ペイン)が呼ぶ想定。</summary>
     internal bool TryUndoFromCommand(){
         ThreadHelper.ThrowIfNotOnUIThread();
-        if(this.Session is not { }Session||!SceneDesignerUndoCommandPolicy.ShouldHandle(
-            this.IsViewportFocused,Session.PinnedSnapshot is not null)){
+        if(this.Session is not { }Session||!SceneDesignerUndoCommandPolicy.CanExecute(
+            this.IsViewportFocused,Session.PinnedSnapshot is not null,this.HasPendingSourceWrite)){
             return false;
         }
 
@@ -67,8 +72,8 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
 
     internal bool TryRedoFromCommand(){
         ThreadHelper.ThrowIfNotOnUIThread();
-        if(this.Session is not { }Session||!SceneDesignerUndoCommandPolicy.ShouldHandle(
-            this.IsViewportFocused,Session.PinnedSnapshot is not null)){
+        if(this.Session is not { }Session||!SceneDesignerUndoCommandPolicy.CanExecute(
+            this.IsViewportFocused,Session.PinnedSnapshot is not null,this.HasPendingSourceWrite)){
             return false;
         }
 
@@ -458,7 +463,19 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             ComponentType:null,MemberName:null,SceneSelectionOrigin.Viewport,Guid.NewGuid());
     }
 
+    /// <summary>
+    /// M0038: 編集後モデルを<b>先に予測して配信し、ローカルのトランザクションを即座に閉じる</b>。
+    /// これにより「手を離してからC#書き戻し(プロジェクト全体のコンパイル取得を含む)が終わるまで
+    /// 次の操作を受け付けない」という最大の待ちが消える。ソース書き戻しは背後で直列に継続し、
+    /// ADR-0040どおりC#ソースが唯一の正本であり続ける。
+    ///
+    /// <para>
+    /// 予測できなかった場合(構造編集など対応外の操作)は<c>Predicted=false</c>となり、
+    /// 書き戻し完了で<c>CompleteEditCommit</c>を呼ぶ従来どおりの挙動に落ちる。
+    /// </para>
+    /// </summary>
     private void OnEditCommitRequested(SceneEditCommitRequest Request){
+        ThreadHelper.ThrowIfNotOnUIThread();
         SceneEditorSessionService?Session=this.Session;
         SceneHwndHost?Host=this.Host;
         if(Session is null||Host is null){
@@ -466,15 +483,26 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             return;
         }
 
-        _=this.CommitEditAsync(Session,Host,Request);
-    }
-
-    private async Task CommitEditAsync(
-        SceneEditorSessionService Session,SceneHwndHost Host,SceneEditCommitRequest Request){
         if(Request.IsDuplicate){
             this.PendingDuplicateSelectionRestore=new PendingDuplicateSelection(
                 Request.SceneKey,Request.DuplicateResultPaths.ToArray());
         }
+        bool Predicted=Session.TryPublishPrediction(Request);
+        if(Predicted){
+            Host.CompleteEditCommit(true,null);
+        }
+        // 書き戻しは直列に保つ。並行させると、後続コミットが前のコミットを含まない古いソースを
+        // 基準にリベースしてしまい、直前の編集を打ち消しかねない。
+        this.PendingCommitWrite=this.CommitEditAsync(
+            Session,Host,Request,this.PendingCommitWrite,Predicted);
+    }
+
+#pragma warning disable VSTHRD003 // 先行する書き戻しは同じControlがこのメソッドで開始したTaskであり、UIスレッドをブロックせずConfigureAwait(false)で待つだけなのでデッドロックしない。順序保証のためチェーンは外せない。
+    private async Task CommitEditAsync(
+        SceneEditorSessionService Session,SceneHwndHost Host,SceneEditCommitRequest Request,
+        Task PreviousWrite,bool AlreadyCompletedLocally){
+        await PreviousWrite.ConfigureAwait(false);
+#pragma warning restore VSTHRD003
         SceneEditCommitResult Result;
         try {
             Result=await Session.CommitAsync(Request,CancellationToken.None).ConfigureAwait(false);
@@ -488,12 +516,20 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             if(!Result.Succeeded){
                 this.PendingDuplicateSelectionRestore=null;
             }
-            if(!this.Disposed&&ReferenceEquals(this.Session,Session)&&ReferenceEquals(this.Host,Host)){
+            if(this.Disposed||!ReferenceEquals(this.Session,Session)||!ReferenceEquals(this.Host,Host)){
+                return;
+            }
+            // 予測で既にトランザクションを閉じている場合、CompleteEditCommitはStateがIdleなので
+            // 何もしない(意図的)。書き戻しが失敗していてもソースは変わっていないため、次の再解析が
+            // 真実を配信して予測を自動的に打ち消す。ユーザーへの通知だけは必ず行う。
+            if(!AlreadyCompletedLocally){
                 Host.CompleteEditCommit(Result.Succeeded,Result.ErrorMessage);
-                if(!Result.Succeeded
-                    &&Package.GetGlobalService(typeof(SVsStatusbar))is IVsStatusbar StatusBar){
-                    StatusBar.SetText(Result.ErrorMessage??"Scene Designerの編集を反映できませんでした。");
-                }
+            } else if(!Result.Succeeded){
+                Host.ReportCommitFailure(Result.ErrorMessage);
+            }
+            if(!Result.Succeeded
+                &&Package.GetGlobalService(typeof(SVsStatusbar))is IVsStatusbar StatusBar){
+                StatusBar.SetText(Result.ErrorMessage??"Scene Designerの編集を反映できませんでした。");
             }
         });
     }

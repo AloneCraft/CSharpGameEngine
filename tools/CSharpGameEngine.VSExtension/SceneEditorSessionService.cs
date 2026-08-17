@@ -156,6 +156,47 @@ internal sealed class SceneEditorSessionService : IDisposable {
             &&this.Workspace.TryRedo(Model.FilePath);
     }
 
+    /// <summary>
+    /// M0038: コミット要求を受けた瞬間に同期で呼ぶ。編集後のモデルを予測して pin 中 snapshot として
+    /// 配信し、Renderer/Hierarchy/Inspector を Roslyn 再解析を待たずに更新する。
+    ///
+    /// <para>
+    /// <b>予測は解析結果の履歴(<see cref="Snapshots"/>)には入れない。</b>あれは
+    /// <see cref="SceneEditConflictMerger"/> と次回 diff の基準になる「実際に解析された事実」の列で
+    /// あり、予測を混ぜると書き戻しの競合解決が壊れる。ここが配るのは購読者向けの表示用 snapshot だけ。
+    /// </para>
+    ///
+    /// <para>
+    /// 予測できなければ<c>false</c>を返すだけで、呼び出し側は従来どおりの往復にフォールバックする
+    /// (画面は再解析が landしたときに更新される = 今日と同じ速度)。
+    /// </para>
+    /// </summary>
+    internal bool TryPublishPrediction(SceneEditCommitRequest Request){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(this.Disposed
+            ||this.PinnedSceneKey is not { }Key||!Key.Equals(Request.SceneKey)
+            ||this.PinnedSnapshot is not { }Current
+            ||Current.CurrentModel is not { }Model||Current.Projection is not { }Projection
+            ||!SceneModelEditApplier.TryApply(
+                Model,Projection,CreateOperations(Request),out SceneModel Predicted)){
+            return false;
+        }
+
+        // ID空間は実解析と共有する(別インスタンスにすると同じNodeへ別IDが振られうる)。値のみの
+        // 変更ではNameもComponent構成も変わらないため、ここで新しいIDが払い出されることはない。
+        if(!this.Reconcilers.TryGetValue(Key,out SceneProjectionReconciler?Reconciler)){
+            return false;
+        }
+        SceneProjection PredictedProjection=Reconciler.Reconcile(Key,Predicted,Projection);
+        var Snapshot=new SceneDocumentSnapshot(
+            Key,Current.DocumentId,++this.Generation,this.Generation,
+            Predicted,Predicted,PredictedProjection,
+            SceneDiffEngine.Compare(Projection,PredictedProjection),HasBlockingErrors:false);
+        this.PinnedSnapshot=Snapshot;
+        this.PinnedSnapshotChanged?.Invoke(Snapshot);
+        return true;
+    }
+
     /// <summary>UIコマンドの表示判定用。Roslyn解析を開始したり待機したりしない。</summary>
     internal static SceneEditOperation[]CreateOperations(SceneEditCommitRequest Request){
         if(Request.DirectOperations.Count>0){

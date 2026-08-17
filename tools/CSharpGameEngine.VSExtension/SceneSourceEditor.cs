@@ -832,7 +832,11 @@ internal static class SceneSourceEditor {
     private static ExpressionSyntax?FindExpression(SyntaxNode Root,TextSpan Span)=>
         Root.DescendantNodesAndSelf().OfType<ExpressionSyntax>().SingleOrDefault(Node=>Node.Span==Span);
 
-    private static IEnumerable<(string Name,float Value,float Default)>EnumerateTransformMembers(
+    /// <summary>
+    /// M0038: 予測モデル層(<see cref="SceneModelEditApplier"/>)と共有する。Transformの
+    /// メンバー語彙・既定値・数値フォーマットをソース層とモデル層で二重定義しないための共有点。
+    /// </summary>
+    internal static IEnumerable<(string Name,float Value,float Default)>EnumerateTransformMembers(
         SceneTransformValue Transform,SceneTransformMemberMask Members){
         if((Members&SceneTransformMemberMask.Position)!=0){
             yield return("PositionX",Transform.Position.X,0f);
@@ -852,7 +856,8 @@ internal static class SceneSourceEditor {
         }
     }
 
-    private static float ReadFloat(object?Value,float Default)=>Value switch {
+    /// <summary>M0038: <see cref="SceneModelEditApplier"/>と共有(<see cref="EnumerateTransformMembers"/>参照)。</summary>
+    internal static float ReadFloat(object?Value,float Default)=>Value switch {
         float Float=>Float,
         double Double=>(float)Double,
         decimal Decimal=>(float)Decimal,
@@ -861,13 +866,15 @@ internal static class SceneSourceEditor {
         _=>Default,
     };
 
-    private static string FormatFloat(float Value){
+    /// <summary>M0038: <see cref="SceneModelEditApplier"/>と共有(<see cref="EnumerateTransformMembers"/>参照)。</summary>
+    internal static string FormatFloat(float Value){
         if(float.IsNaN(Value)||float.IsInfinity(Value)){
             throw new ArgumentOutOfRangeException(nameof(Value),"Transformへ非有限値は書き込めません。");
         }
         return Value.ToString("R",CultureInfo.InvariantCulture)+"f";
     }
 
-    private static bool IsGenerated(string?FilePath)=>
+    /// <summary>M0038: <see cref="SceneModelEditApplier"/>と共有(<see cref="EnumerateTransformMembers"/>参照)。</summary>
+    internal static bool IsGenerated(string?FilePath)=>
         FilePath is { Length:>0 }&&FilePath.EndsWith(".g.cs",StringComparison.OrdinalIgnoreCase);
 }
