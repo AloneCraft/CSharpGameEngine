@@ -12,13 +12,31 @@ namespace CSharpGameEngine.VSExtension;
 /// <summary>
 /// AsyncPackage が保持する Scene Editor session。static global state を廃し、対象 Scene を
 /// <see cref="SceneKey"/> で pin して、Roslyn 解析結果を immutable snapshot として購読側へ発行する。
+///
+/// <para>
+/// M0047: 編集の正本を<see cref="SceneEditDocument"/>(メモリ内、即時・無制限Undo)へ移した。
+/// <see cref="Apply"/>は同期で完結し、C#ソースへは<see cref="SaveAsync"/>を呼んだときだけ
+/// まとめて書き戻す。M0038〜M0046の非同期コミットチェーン・楽観的並行性マージ
+/// (<see cref="SceneEditConflictMerger"/>)・予測配信はここでは使わない
+/// (Documentが常にセッションの唯一の正本であり、競合する書き込み元が無いため)。
+/// </para>
 /// </summary>
 internal sealed class SceneEditorSessionService : IDisposable {
     private readonly SceneWorkspaceService Workspace;
     private readonly Dictionary<SceneKey,SceneDocumentSnapshot>Snapshots=[];
     private readonly Dictionary<SceneKey,SceneProjectionReconciler>Reconcilers=[];
+    private readonly Dictionary<SceneKey,SceneEditDocument>Documents=[];
+    private readonly Dictionary<SceneKey,SceneProjection>LastPublishedProjections=[];
+    private readonly HashSet<SceneKey>SavesInFlight=[];
     private long Generation;
     private bool Disposed;
+
+    /// <summary>
+    /// 保存が書き戻した直後の再解析だけは「自分自身の反映」として扱い、外部変更確認を出さずに
+    /// Documentのベースラインを黙って更新する。保存を開始した瞬間にtrueへ、その後最初に届いた
+    /// 再解析(対象は問わない — 1セッションで同時に複数Sceneを保存することは無いため十分)でfalseへ戻す。
+    /// </summary>
+    private bool AwaitingOwnSaveReanalysis;
 
     internal SceneEditorSessionService(SceneWorkspaceService Workspace){
         this.Workspace=Workspace??throw new ArgumentNullException(nameof(Workspace));
@@ -38,14 +56,20 @@ internal sealed class SceneEditorSessionService : IDisposable {
     /// <summary>Hierarchyなど、アクティブDocument内の全Sceneモデルを表示するUIが購読するイベント。</summary>
     internal event Action<IReadOnlyList<SceneModel>>?ActiveDocumentModelsChanged;
 
+    /// <summary>
+    /// 未保存の編集がある状態で対象C#ファイルが外部(コードエディタでの直接編集等)で変化したときに発火する。
+    /// 呼び出し側は確認ダイアログを出し、破棄して良ければ<see cref="DiscardUnsavedChanges"/>を呼ぶ。
+    /// </summary>
+    internal event Action<SceneKey>?ExternalChangeDetected;
+
     internal SceneDocumentSnapshot Pin(SceneModel Model){
         SceneKey Key=this.Workspace.TryCreateSceneKey(Model)
             ??throw new InvalidOperationException("Scene Designer の対象にできるのはソリューション内の C# Document だけです。");
-        SceneDocumentSnapshot Snapshot=this.Publish(Model,Key);
+        SceneDocumentSnapshot RealSnapshot=this.Publish(Model,Key);
         this.PinnedSceneKey=Key;
-        this.PinnedSnapshot=Snapshot;
-        this.PinnedSnapshotChanged?.Invoke(Snapshot);
-        return Snapshot;
+        SceneDocumentSnapshot Published=this.EnsureDocumentAndPublish(Key,RealSnapshot);
+        this.PinnedSnapshotChanged?.Invoke(Published);
+        return Published;
     }
 
     internal SceneDocumentSnapshot? GetSnapshotForModel(SceneModel Model){
@@ -94,153 +118,148 @@ internal sealed class SceneEditorSessionService : IDisposable {
         SceneKey Key,System.Threading.CancellationToken CancellationToken)=>
         this.Workspace.ResolveSceneAsync(Key,CancellationToken);
 
+    internal bool IsDirty(SceneKey Key)=>
+        this.Documents.TryGetValue(Key,out SceneEditDocument?Document)&&Document.IsDirty;
+
     /// <summary>
-    /// M0039: ソース書き戻しチェーンの一部が失敗したとき、以降の予測はもう信用できない基準の上に
-    /// 積み上がっている(<see cref="SceneModelEditApplier"/>自体は無罪 — 失敗より後の予測が
-    /// 「本当は起きていない前段の編集」を前提に計算されてしまうのが問題)。予測を経由せず
-    /// Roslynへ直接再解決し、そこで得られた実際のソース内容を pin中snapshotとして強制的に
-    /// 配信し直すことで、画面をソースの真実へ同期し直す。呼び出し側(<see cref="SceneHwndHost"/>)は
-    /// これと合わせて先読みUndo/Redoスタックを丸ごと破棄する — 既存の「Property編集・複製・
-    /// 別Scene切替」でのClearと同じ確立済みのidiom。
+    /// 保存の書き戻し(<see cref="SaveAsync"/>)が同じSceneのDocumentへ非同期でアクセスしている間、
+    /// <see cref="Apply"/>/<see cref="TryUndo"/>/<see cref="TryRedo"/>を止める。保存は
+    /// <c>Document.History</c>のスナップショットを取ってから非同期でC#へ書き出すため、その間に
+    /// さらに編集/Undoされると「実際に書いた内容」と「MarkSavedが指すCurrent.Model」がずれる。
     /// </summary>
-    internal async Task RefreshPinnedSnapshotFromSourceAsync(CancellationToken CancellationToken){
-        if(this.Disposed||this.PinnedSceneKey is not { }Key){
-            return;
+    internal bool IsSaving(SceneKey Key)=>this.SavesInFlight.Contains(Key);
+
+    internal bool CanUndo(SceneKey Key)=>
+        this.Documents.TryGetValue(Key,out SceneEditDocument?Document)&&Document.CanUndo;
+
+    internal bool CanRedo(SceneKey Key)=>
+        this.Documents.TryGetValue(Key,out SceneEditDocument?Document)&&Document.CanRedo;
+
+    /// <summary>
+    /// M0047: 編集要求を即時・同期でDocumentへ適用する。Roslyn再解析もC#書き戻しも待たない — これが
+    /// 「きびきび動く」の実体。対応できない操作(未実装のOperation種別)であれば素直にfalseを返す。
+    /// </summary>
+    internal bool Apply(SceneEditCommitRequest Request){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(this.Disposed||this.SavesInFlight.Contains(Request.SceneKey)
+            ||!this.Documents.TryGetValue(Request.SceneKey,out SceneEditDocument?Document)
+            ||!Document.TryApply(CreateOperations(Request),Request.UndoDescription)){
+            return false;
         }
 
-        SceneModel?Model=await this.Workspace.ResolveSceneAsync(Key,CancellationToken).ConfigureAwait(false);
-        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(CancellationToken);
-        if(this.Disposed||Model is null||!Key.Equals(this.PinnedSceneKey)){
-            return;
-        }
-
-        SceneDocumentSnapshot Snapshot=this.Publish(Model,Key);
-        this.PinnedSnapshot=Snapshot;
-        this.PinnedSnapshotChanged?.Invoke(Snapshot);
+        this.PublishDocument(Request.SceneKey,Document);
+        return true;
     }
 
     /// <summary>
-    /// 1回のギズモ操作を、commit直前に取得したRoslyn世代へ再解決し、live bufferの単一Undoとして反映する。
-    /// 解決後から適用直前までにtextが変化した場合だけ、最新世代で1回再試行する。
-    /// </summary>
-    internal async Task<SceneEditCommitResult>CommitAsync(
-        SceneEditCommitRequest Request,CancellationToken CancellationToken){
-        for(var Attempt=0;Attempt<2;Attempt++){
-            SceneWorkspaceEditContext?Context=await this.Workspace
-                .ResolveSceneEditContextAsync(Request.SceneKey,CancellationToken)
-                .ConfigureAwait(false);
-            if(Context is null){
-                return new SceneEditCommitResult(false,"対象Sceneの最新C#ソースを解決できません。",WasRebased:false);
-            }
-            if(Context.Model.HasErrors||Context.Model.Root is null){
-                return new SceneEditCommitResult(
-                    false,"対象SceneにC#解析エラーがあるため、ギズモ編集を反映できません。",WasRebased:false);
-            }
-
-            SceneDocumentSnapshot Snapshot=this.Publish(Context.Model,Request.SceneKey);
-            SceneEditConflictMergeResult Merge=SceneEditConflictMerger.Merge(Request,Snapshot);
-            if(!Merge.Succeeded){
-                return new SceneEditCommitResult(false,Merge.ErrorMessage,WasRebased:true);
-            }
-            SceneSourceEditResult Edited=SceneSourceEditor.ApplyLatestBatch(
-                Context.Root,Snapshot,Merge.Operations);
-            if(!Edited.Succeeded||Edited.Root is null){
-                return new SceneEditCommitResult(
-                    false,Edited.ErrorMessage??"SceneのTransform更新に失敗しました。",Edited.WasRebased);
-            }
-
-            // M0044: 全文を文字列化して無関係なSourceText同士で差分を取ると、1文字の変更でも
-            // ファイル全体を覆う1個のTextChangeになり(実測)、エディタが全再レイアウトを起こす。
-            // Edited.RootはContext.Rootへ ReplaceNode した結果でツリーを共有しているため、
-            // 構文ツリー同士の差分なら実際に変わった領域だけを取り出せる。
-            //
-            // ただし差分の出所を変えることはソースを壊しうるので、毎回「適用したら編集後ツリーと
-            // 一致するか」を検算し、一致しなければ従来の全文差分へ落とす。書き込みが無言で
-            // 消えるより、遅くても確実に反映される方を優先する。
-            string ExpectedText=Edited.Root.ToFullString();
-            IReadOnlyList<TextChange>Changes=SceneTextChangePlanner.Plan(
-                Context.Root.SyntaxTree,Edited.Root.SyntaxTree);
-            if(!string.Equals(Context.Text.WithChanges(Changes).ToString(),ExpectedText,StringComparison.Ordinal)){
-                Changes=SceneTextChangePlanner.Plan(
-                    Context.Text,SourceText.From(ExpectedText,Context.Text.Encoding));
-            }
-            SceneLiveBufferWriteResult Written=await this.Workspace.ApplyTextAsync(
-                Context,Changes,Request.UndoDescription,CancellationToken).ConfigureAwait(false);
-            if(Written.Succeeded){
-                return new SceneEditCommitResult(true,ErrorMessage:null,Edited.WasRebased||Attempt>0);
-            }
-            if(!Written.LiveTextChanged||Attempt>0){
-                return new SceneEditCommitResult(false,Written.ErrorMessage,Edited.WasRebased||Attempt>0);
-            }
-        }
-
-        return new SceneEditCommitResult(false,"C#ソースが連続して変化したため上書きを中止しました。",WasRebased:true);
-    }
-
-    /// <summary>
-    /// M0036: シーンビューのCtrl+Z/Yから呼ばれる。ピン留め中のSceneを裏付けるC#ファイルへ、実際の
-    /// VS Undo/Redoを1回実行する(唯一の編集履歴は引き続きVSのテキストUndo、ADR-0040)。
+    /// M0036由来: シーンビューのCtrl+Z/Yから呼ばれる。M0047でDocumentの即時Undo/Redoへ差し替えた
+    /// (以前はここが対象.csファイルへ実際のVS Undoを1回実行していたが、C#への書き込みは保存操作でしか
+    /// 起きなくなったため、その経路はもう意味を持たない)。
     /// </summary>
     internal bool TryUndo(){
         ThreadHelper.ThrowIfNotOnUIThread();
-        return this.PinnedSnapshot is { }Snapshot
-            &&(Snapshot.LastKnownGoodModel??Snapshot.CurrentModel)is { }Model
-            &&this.Workspace.TryUndo(Model.FilePath);
+        if(this.PinnedSceneKey is not { }Key||this.SavesInFlight.Contains(Key)
+            ||!this.Documents.TryGetValue(Key,out SceneEditDocument?Document)||!Document.TryUndo()){
+            return false;
+        }
+
+        this.PublishDocument(Key,Document);
+        return true;
     }
 
     internal bool TryRedo(){
         ThreadHelper.ThrowIfNotOnUIThread();
-        return this.PinnedSnapshot is { }Snapshot
-            &&(Snapshot.LastKnownGoodModel??Snapshot.CurrentModel)is { }Model
-            &&this.Workspace.TryRedo(Model.FilePath);
-    }
-
-    /// <summary>
-    /// M0038: コミット要求を受けた瞬間に同期で呼ぶ。編集後のモデルを予測して pin 中 snapshot として
-    /// 配信し、Renderer/Hierarchy/Inspector を Roslyn 再解析を待たずに更新する。
-    ///
-    /// <para>
-    /// <b>予測は解析結果の履歴(<see cref="Snapshots"/>)には入れない。</b>あれは
-    /// <see cref="SceneEditConflictMerger"/> と次回 diff の基準になる「実際に解析された事実」の列で
-    /// あり、予測を混ぜると書き戻しの競合解決が壊れる。ここが配るのは購読者向けの表示用 snapshot だけ。
-    /// </para>
-    ///
-    /// <para>
-    /// 予測できなければ<c>false</c>を返すだけで、呼び出し側は従来どおりの往復にフォールバックする
-    /// (画面は再解析が landしたときに更新される = 今日と同じ速度)。
-    /// </para>
-    ///
-    /// <para>
-    /// M0039: <see cref="SceneDocumentSnapshot.DocumentVersion"/>は<b>元のsnapshotから引き継ぎ、
-    /// 進めない</b>。これは<see cref="SceneEditConflictMerger"/>が「ドラッグ開始時から実際の
-    /// ソースが変化したか」を判定する楽観的並行性制御の版数であり、まだソースへ書き込まれていない
-    /// 予測がこれを進めると、実際には何も割り込んでいないのに毎回rebase経路へ落ちてしまう
-    /// (rebase経路自体は正しく合成できるが、書き戻し失敗時の巻き戻りと組み合わさると壊れる —
-    /// 詳細はM0039のCommit記録を参照)。<see cref="SceneDocumentSnapshot.AnalysisGeneration"/>は
-    /// レンダラの増分更新判定(<c>SceneHwndHost.SetTarget</c>)が新旧を区別するために引き続き
-    /// 新しい値を払い出す。
-    /// </para>
-    /// </summary>
-    internal bool TryPublishPrediction(SceneEditCommitRequest Request){
-        ThreadHelper.ThrowIfNotOnUIThread();
-        if(this.Disposed
-            ||this.PinnedSceneKey is not { }Key||!Key.Equals(Request.SceneKey)
-            ||this.PinnedSnapshot is not { }Current
-            ||Current.CurrentModel is not { }Model||Current.Projection is not { }Projection
-            ||!this.Reconcilers.TryGetValue(Key,out SceneProjectionReconciler?Reconciler)
-            ||!SceneModelEditApplier.TryApply(
-                Model,Projection,Reconciler,Key,CreateOperations(Request),
-                out SceneModel Predicted,out SceneProjection PredictedProjection)){
+        if(this.PinnedSceneKey is not { }Key||this.SavesInFlight.Contains(Key)
+            ||!this.Documents.TryGetValue(Key,out SceneEditDocument?Document)||!Document.TryRedo()){
             return false;
         }
 
-        var Snapshot=new SceneDocumentSnapshot(
-            Key,Current.DocumentId,Current.DocumentVersion,++this.Generation,
-            Predicted,Predicted,PredictedProjection,
-            SceneDiffEngine.Compare(Projection,PredictedProjection),HasBlockingErrors:false);
-        this.PinnedSnapshot=Snapshot;
-        this.PinnedSnapshotChanged?.Invoke(Snapshot);
+        this.PublishDocument(Key,Document);
         return true;
+    }
+
+    /// <summary>
+    /// M0047: セッション中に積み上げたDocumentの全履歴を、最新の実C#構文へ一度だけ再生してlive
+    /// bufferへ書き戻す(<see cref="SceneSourceEditor.ApplyForSave"/>)。書き戻しは1つの
+    /// <c>ITextChange</c>列・1つのVS Undoトランザクションにまとまる。
+    /// </summary>
+    internal async Task<SceneEditCommitResult>SaveAsync(SceneKey Key,CancellationToken CancellationToken){
+        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(CancellationToken);
+        if(!this.Documents.TryGetValue(Key,out SceneEditDocument?Document)){
+            return new SceneEditCommitResult(false,"保存対象のSceneが開かれていません。",WasRebased:false);
+        }
+        if(!Document.IsDirty){
+            return new SceneEditCommitResult(true,ErrorMessage:null,WasRebased:false);
+        }
+        if(!this.SavesInFlight.Add(Key)){
+            return new SceneEditCommitResult(false,"既にこのSceneの保存が進行中です。",WasRebased:false);
+        }
+
+        try {
+            SceneWorkspaceEditContext?Context=await this.Workspace
+                .ResolveSceneEditContextAsync(Key,CancellationToken).ConfigureAwait(false);
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(CancellationToken);
+            if(this.Disposed){
+                return new SceneEditCommitResult(false,"セッションが終了しました。",WasRebased:false);
+            }
+            if(Context is null){
+                return new SceneEditCommitResult(false,"対象Sceneの最新C#ソースを解決できません。",WasRebased:false);
+            }
+            if(Context.Model.HasErrors||Context.Model.Root is null){
+                return new SceneEditCommitResult(false,"対象SceneにC#解析エラーがあるため保存できません。",WasRebased:false);
+            }
+            if(!this.Reconcilers.TryGetValue(Key,out SceneProjectionReconciler?Reconciler)){
+                return new SceneEditCommitResult(false,"対象SceneのID対応表が見つかりません。",WasRebased:false);
+            }
+
+            // 保存前の最後に実解析されたsnapshot(Publish済み)を基準にIDを引き継ぐ。実ソースが
+            // pin以降に一切変化していなければ、これはpin時のProjectionと同じ形になる。
+            this.Snapshots.TryGetValue(Key,out SceneDocumentSnapshot?LastReal);
+            SceneProjection RealProjection=Reconciler.Reconcile(Key,Context.Model,LastReal?.Projection);
+
+            SceneSourceEditResult Edited=SceneSourceEditor.ApplyForSave(
+                Context.Root,Key,RealProjection,Document.History);
+            if(!Edited.Succeeded||Edited.Root is null){
+                return new SceneEditCommitResult(false,Edited.ErrorMessage??"保存に失敗しました。",WasRebased:false);
+            }
+
+            // M0044と同じ安全網: 構文ツリー差分の出所を変えることはソースを壊しうるため、適用結果が
+            // 再生結果の全文と一致するか毎回検算し、一致しなければ全文差分へ落とす。
+            string ExpectedText=Edited.Root.ToFullString();
+            IReadOnlyList<TextChange>Changes=SceneTextChangePlanner.Plan(Context.Root.SyntaxTree,Edited.Root.SyntaxTree);
+            if(!string.Equals(Context.Text.WithChanges(Changes).ToString(),ExpectedText,StringComparison.Ordinal)){
+                Changes=SceneTextChangePlanner.Plan(Context.Text,SourceText.From(ExpectedText,Context.Text.Encoding));
+            }
+
+            this.AwaitingOwnSaveReanalysis=true;
+            SceneLiveBufferWriteResult Written=await this.Workspace
+                .ApplyTextAsync(Context,Changes,"Scene の保存",CancellationToken).ConfigureAwait(false);
+            if(!Written.Succeeded){
+                this.AwaitingOwnSaveReanalysis=false;
+                return new SceneEditCommitResult(false,Written.ErrorMessage,WasRebased:false);
+            }
+
+            Document.MarkSaved();
+            return new SceneEditCommitResult(true,ErrorMessage:null,WasRebased:false);
+        } finally {
+            this.SavesInFlight.Remove(Key);
+        }
+    }
+
+    /// <summary>
+    /// <see cref="ExternalChangeDetected"/>のダイアログで「破棄して読み込み直す」が選ばれたときに呼ぶ。
+    /// 直近の実解析(<see cref="Snapshots"/>)へDocumentを丸ごと差し替える。
+    /// </summary>
+    internal void DiscardUnsavedChanges(SceneKey Key){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(!this.Documents.TryGetValue(Key,out SceneEditDocument?Document)
+            ||!this.Snapshots.TryGetValue(Key,out SceneDocumentSnapshot?Real)
+            ||Real.CurrentModel is not { }Model||Real.Projection is not { }Projection){
+            return;
+        }
+
+        Document.ResetTo(new SceneEditSnapshot(Model,Projection));
+        this.PublishDocument(Key,Document);
     }
 
     /// <summary>UIコマンドの表示判定用。Roslyn解析を開始したり待機したりしない。</summary>
@@ -262,22 +281,79 @@ internal sealed class SceneEditorSessionService : IDisposable {
         return this.Workspace.GetMenuSnapshot(FilePath);
     }
 
+    private SceneDocumentSnapshot EnsureDocumentAndPublish(SceneKey Key,SceneDocumentSnapshot RealSnapshot){
+        if(this.Documents.TryGetValue(Key,out SceneEditDocument?Existing)){
+            // 既にセッションが持つ未保存の編集を、再pinしただけで失わない。
+            var ExistingSnapshot=this.BuildSnapshot(Key,Existing);
+            this.PinnedSnapshot=ExistingSnapshot;
+            return ExistingSnapshot;
+        }
+
+        if(RealSnapshot.CurrentModel is { }Model&&RealSnapshot.Projection is { }Projection
+            &&this.Reconcilers.TryGetValue(Key,out SceneProjectionReconciler?Reconciler)){
+            var NewDocument=new SceneEditDocument(Key,new SceneEditSnapshot(Model,Projection),Reconciler);
+            this.Documents[Key]=NewDocument;
+            var Snapshot=this.BuildSnapshot(Key,NewDocument);
+            this.PinnedSnapshot=Snapshot;
+            return Snapshot;
+        }
+
+        // 解析エラー等でDocumentを起こせない間は、実解析snapshotをそのまま見せる。
+        this.PinnedSnapshot=RealSnapshot;
+        return RealSnapshot;
+    }
+
+    private void PublishDocument(SceneKey Key,SceneEditDocument Document){
+        SceneDocumentSnapshot Snapshot=this.BuildSnapshot(Key,Document);
+        if(this.PinnedSceneKey is { }Pinned&&Pinned.Equals(Key)){
+            this.PinnedSnapshot=Snapshot;
+            this.PinnedSnapshotChanged?.Invoke(Snapshot);
+        }
+    }
+
+    private SceneDocumentSnapshot BuildSnapshot(SceneKey Key,SceneEditDocument Document){
+        this.LastPublishedProjections.TryGetValue(Key,out SceneProjection?Previous);
+        this.LastPublishedProjections[Key]=Document.Projection;
+        return new SceneDocumentSnapshot(
+            Key,Document.Model.FilePath,DocumentVersion:++this.Generation,AnalysisGeneration:this.Generation,
+            Document.Model,Document.Model,Document.Projection,
+            SceneDiffEngine.Compare(Previous,Document.Projection),HasBlockingErrors:false);
+    }
+
     private void OnWorkspaceModelsChanged(IReadOnlyList<SceneModel>Models){
         if(this.Disposed){
             return;
         }
 
         this.ActiveDocumentModelsChanged?.Invoke(Models);
+        bool IsOwnSaveLanding=this.AwaitingOwnSaveReanalysis;
+        this.AwaitingOwnSaveReanalysis=false;
+
         foreach(SceneModel Model in Models){
             SceneKey?Key=this.Workspace.TryCreateSceneKey(Model);
             if(Key is not { } Value){
                 continue;
             }
 
-            SceneDocumentSnapshot Snapshot=this.Publish(Model,Value);
-            if(this.PinnedSceneKey is { } Pinned&&Pinned.Equals(Value)){
-                this.PinnedSnapshot=Snapshot;
-                this.PinnedSnapshotChanged?.Invoke(Snapshot);
+            SceneDocumentSnapshot RealSnapshot=this.Publish(Model,Value);
+            if(!this.Documents.TryGetValue(Value,out SceneEditDocument?Document)){
+                if(this.PinnedSceneKey is { } Pinned&&Pinned.Equals(Value)){
+                    this.PinnedSnapshot=RealSnapshot;
+                    this.PinnedSnapshotChanged?.Invoke(RealSnapshot);
+                }
+                continue;
+            }
+
+            if(IsOwnSaveLanding||!Document.IsDirty){
+                // 自分の保存が着地した、または未保存編集が無い(=失うものが無い) → 黙って実解析へ追従する。
+                if(RealSnapshot.CurrentModel is { }NewModel&&RealSnapshot.Projection is { }NewProjection){
+                    Document.ResetTo(new SceneEditSnapshot(NewModel,NewProjection));
+                }
+                this.PublishDocument(Value,Document);
+            } else {
+                // 未保存の編集があるのに外部でソースが変わった → 呼び出し側の確認に委ねる。
+                // ここではpin中snapshotを差し替えない(在庫中の編集を守る)。
+                this.ExternalChangeDetected?.Invoke(Value);
             }
         }
     }
@@ -309,5 +385,7 @@ internal sealed class SceneEditorSessionService : IDisposable {
         this.Workspace.AllModelsChanged-=this.OnWorkspaceModelsChanged;
         this.Snapshots.Clear();
         this.Reconcilers.Clear();
+        this.Documents.Clear();
+        this.LastPublishedProjections.Clear();
     }
 }

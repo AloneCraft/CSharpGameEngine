@@ -21,7 +21,6 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
     private SceneEditorSessionService?Session;
     private SceneDocumentSnapshot?CurrentSnapshot;
     private SceneSelection?CurrentSelection;
-    private bool CommitInProgress;
     private bool SuppressNextLostFocusCommit;
     private bool Disposed;
 
@@ -151,6 +150,7 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
     }
 
     private void BooleanField_Click(object Sender,RoutedEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
         if(Sender is not CheckBox Box||Box.DataContext is not InspectorMemberViewModel ViewModel){
             return;
         }
@@ -159,6 +159,7 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
     }
 
     private void EnumField_DropDownClosed(object Sender,EventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
         if(Sender is not ComboBox Box||Box.DataContext is not InspectorMemberViewModel ViewModel
             ||Box.SelectedItem is not string SelectedName){
             return;
@@ -179,37 +180,20 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
         this.SubmitCommit(ViewModel.Member,EmitExpression);
     }
 
+    /// <summary>M0047: Documentへの同期適用なので、非同期の多重発行防止(<c>CommitInProgress</c>)はもう不要。</summary>
     private void SubmitCommit(SceneInspectorMember Member,string NewExpression){
-        if(this.CommitInProgress||this.Session is not { }Session||this.CurrentSnapshot is not { }Snapshot){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(this.Session is not { }Session||this.CurrentSnapshot is not { }Snapshot){
             return;
         }
 
-        this.CommitInProgress=true;
         SceneEditCommitRequest Request=SceneInspectorCommitPlanner.CreateCommit(
             Snapshot.Key,Snapshot.DocumentVersion,Member,NewExpression);
-        _=this.CommitAsync(Session,Request);
-    }
-
-    private async Task CommitAsync(SceneEditorSessionService Session,SceneEditCommitRequest Request){
-        SceneEditCommitResult Result;
-        try {
-            Result=await Session.CommitAsync(Request,CancellationToken.None).ConfigureAwait(false);
-        } catch(Exception Ex){
-            ActivityLog.LogError(nameof(InspectorToolWindowControl),Ex.ToString());
-            Result=new SceneEditCommitResult(false,"C#ソースへの反映中にエラーが発生しました。",WasRebased:false);
+        if(!Session.Apply(Request)){
+            SetStatus("インスペクターの編集を反映できませんでした。");
         }
 
-        this.DispatchToUi(()=>{
-            ThreadHelper.ThrowIfNotOnUIThread();
-            this.CommitInProgress=false;
-            if(!this.Disposed&&ReferenceEquals(this.Session,Session)){
-                if(!Result.Succeeded){
-                    SetStatus(Result.ErrorMessage??"インスペクターの編集を反映できませんでした。");
-                }
-
-                this.TryRefresh(Force:true);
-            }
-        });
+        this.TryRefresh(Force:true);
     }
 
     private static void SetStatus(string Text){

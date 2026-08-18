@@ -165,13 +165,22 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
     private void OnHierarchyEditRequested(HierarchyEditRequest Request)=>
         _=this.JoinableTaskFactory.RunAsync(()=>this.HandleHierarchyEditAsync(Request));
 
+    /// <summary>
+    /// M0047: NodeIdの解決とM0047までのC#書き戻しは、pin中のSceneがあれば
+    /// <see cref="SceneEditorSessionService.PinnedSnapshot"/>(=Documentの現在の投影、未保存の
+    /// 追加・改名・移動を含む)を基準にする。実解析だけを基準にすると、この一連のセッション内で
+    /// 既に追加/改名済みのNodeをHierarchyから続けて操作できなくなる。
+    /// </summary>
     private async Task HandleHierarchyEditAsync(HierarchyEditRequest Request){
         await this.JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
         if(this.SceneSession is not { } Session||SceneEditorHub.ActiveSceneModel is not { } Model){
             return;
         }
 
-        SceneDocumentSnapshot?Snapshot=Session.GetSnapshotForModel(Model);
+        SceneDocumentSnapshot?Snapshot=Session.TryCreateSceneKey(Model,out SceneKey Key)
+            &&Session.PinnedSceneKey is { }Pinned&&Pinned.Equals(Key)
+            ?Session.PinnedSnapshot
+            :Session.GetSnapshotForModel(Model);
         if(Snapshot is null||Snapshot.Projection is not { } Projection){
             return;
         }
@@ -244,9 +253,8 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             },
             Array.Empty<SceneTransformChange>(),SceneTransformMemberMask.None,
             DirectOperations:Operations);
-        SceneEditCommitResult Result=await Session.CommitAsync(CommitRequest,DisposalToken);
-        if(!Result.Succeeded){
-            ActivityLog.LogError(nameof(CSharpGameEngineViewerPackage),Result.ErrorMessage??"Scene hierarchy edit failed.");
+        if(!Session.Apply(CommitRequest)){
+            ActivityLog.LogError(nameof(CSharpGameEngineViewerPackage),"Scene hierarchy edit failed.");
         }
     }
 

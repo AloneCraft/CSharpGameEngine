@@ -102,7 +102,7 @@ internal static class SceneModelEditApplier {
     private static bool IsSupported(SceneEditOperation Operation)=>
         Operation is SetTransformOperation or SetComponentMemberOperation
             or RenameNodeOperation or AddNodeOperation or RemoveNodeOperation
-            or ReparentNodeOperation or ReorderNodeOperation;
+            or ReparentNodeOperation or ReorderNodeOperation or DuplicateNodeOperation;
 
     private static bool TryApplyOne(
         SceneNode Root,SceneProjection Projection,SceneProjectionNode TargetNode,SceneEditOperation Operation,
@@ -153,10 +153,51 @@ internal static class SceneModelEditApplier {
                 return TryReorderChild(Root,ReorderParentPath,TargetPath.Indices[^1],Reorder.NewIndex,out Updated);
             case ReparentNodeOperation Reparent:
                 return TryReparent(Root,Projection,TargetNode,Reparent,out Updated,out MovedToPath);
+            case DuplicateNodeOperation Duplicate:
+                return TryDuplicate(Root,TargetNode,Duplicate,out Updated);
             default:
                 Updated=Root;
                 return false;
         }
+    }
+
+    /// <summary>
+    /// M0036/M0038由来の複製(Alt+ドラッグ)。<see cref="SceneSourceEditor.ApplyDuplicateNode"/>と同じ方針:
+    /// 元Nodeの構成をそのまま複製し、Transformだけ指定値へ差し替える。新しい兄弟として末尾に追記する
+    /// (<see cref="TryAddNode"/>と同じ挿入位置)。
+    /// </summary>
+    private static bool TryDuplicate(
+        SceneNode Root,SceneProjectionNode TargetNode,DuplicateNodeOperation Operation,out SceneNode Updated){
+        Updated=Root;
+        NodePath TargetPath=TargetNode.Path;
+        if(TargetPath.IsRoot||TargetPath.Parent is not { }ParentPath){
+            return false;
+        }
+
+        SceneNode Source=GetAtPath(Root,TargetPath);
+        SceneComponent?Transform=SceneComponentBindings.FindComponent(Source,SceneComponentRole.LocalTransform);
+        if(Transform is null||SceneSourceEditor.IsGenerated(Transform.Location.FilePath)){
+            return false;
+        }
+
+        ImmutableArray<SceneComponentMember>Members=Transform.Members;
+        foreach((string Name,float Value,float _)in
+            SceneSourceEditor.EnumerateTransformMembers(Operation.Transform,Operation.Members)){
+            SceneComponentMember?Existing=FindMember(Members,Name);
+            if(Existing is not null&&!Existing.Value.IsEditable){
+                return false;
+            }
+            Members=SetFloatMember(Members,Existing,Name,Value,Transform.Location);
+        }
+
+        SceneNode Clone=ReplaceComponent(Source,Transform,WithMembers(Transform,Members));
+        SceneNode Parent=GetAtPath(Root,ParentPath);
+        if(Source.Name is { Length:>0 }BaseName){
+            Clone=WithName(Clone,CreateUniqueNodeName(Parent,BaseName));
+        }
+
+        Updated=ReplaceAtPath(Root,ParentPath,P=>WithChildrenList(P,P.Children.Add(Clone)));
+        return true;
     }
 
     private static bool TryReparent(

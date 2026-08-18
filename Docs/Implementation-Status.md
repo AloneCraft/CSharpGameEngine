@@ -2686,6 +2686,35 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   M0045の標準コマンド登録の全廃自体は維持する(`OLECMDTEXT`未実装は実在の欠陥であり、
   ツールウィンドウのペインへ標準コマンドIDを登録する設計も筋が悪い)が、**M0045は真因では
   なかった**。実機目視が残っているため`Verified`へは上げていない。
+  M0046対応後も実機で「3,成功したが遅い」「7,構造編集がCtrl+Zで取り消せない」と報告され、
+  ユーザーからアーキテクチャの再考(「UE5/Unity/Blenderのようにきびきび動かして。C#ソースを正と
+  する考え方も辞めてよい」)を求められた。M0038(予測レイヤー)は編集ループにRoslyn往復
+  (250msデバウンス+全解析+全UI再構築)が残ったままの中途半端な対処だったと判断し、M0047
+  ([[M0047-Inmemory-Edit-Model]])でセッション中の正本をメモリ内`SceneModel`へ移した
+  (C#ソースへは保存操作でのみ書き込む。将来のJSON保存化は次段、優先順位はユーザー指定で
+  「エディタの即応性を先に出す」)。`SceneModelEditApplier`(M0038時点は値編集のみ予測)へ
+  構造操作6種(Add/Rename/Remove/Reparent/Reorder/Duplicate)を追加し、新設の`SceneEditDocument`
+  (immutableな`SceneModel`のスナップショット列だけで無制限Undo/Redoが成立し、`IsDirty`は
+  保存時点モデルとの参照比較で判定)をセッションの正本にした。実装中、`SceneProjectionReconciler`
+  が同じ親の兄弟間でしか同一性を追跡しない設計(既存、ドキュメント記載どおり)のため、親を跨ぐ
+  Reparentで移動したNodeへ新しいIDが振られてしまう不具合を発見し、移動前後のPathを並走させて
+  IDを差し戻す専用の補正パスで解消した。保存は新設`SceneSourceEditor.ApplyForSave`が
+  Documentの全履歴を実C#構文へ一度だけ再生する — 既存の`ApplyBatch`は全操作対象が呼び出し時点の
+  投影に既に存在することを要求するため、セッション中に追加したNodeを後続の操作(Add→Rename等)が
+  参照する一般的な流れに対応できない制約があり、Annotation登録をNode作成時点まで遅延させ、
+  実在Nodeは最初の構造編集でSpanがずれる前に全て事前Annotateすることで解決した。この過程で
+  `CreateNodeCreation`が"new"と"Node"の間にtriviaを持たない構文を生成し、再解析すると
+  "newNode"という1トークンに読めて追加したNodeが消える既存の潜在バグを発見・修正した
+  (`NormalizeWhitespace()`追加。既存の`AddNode`テストは再解析までは確認しておらず気付けなかった)。
+  `SceneEditorSessionService`の非同期直列コミットチェーン(`CommitAsync`/`TryPublishPrediction`/
+  `RefreshPinnedSnapshotFromSourceAsync`、M0038〜M0046)と`SceneDesignerToolWindowControl`の
+  `PendingCommitWrite`直列化を撤去し、`Apply`(同期)・`SaveAsync`(明示保存)・Document経由の
+  `TryUndo`/`TryRedo`へ置き換えた。保存トリガーはビューポートフォーカス時のCtrl+S
+  (M0045と同じ`GetKeyState`ポーリング、VS標準コマンドテーブルには触れない)のみで、コードエディタ
+  側Ctrl+Sでの自動フラッシュ(`IVsRunningDocTableEvents`)は実装せずリスクを避けた
+  (既知の制限として明記)。外部でC#が変化した場合、未保存編集が無ければDocumentを黙って
+  実解析へ追従させ、未保存編集があれば確認ダイアログを出す。VSExtension.Tests 596/596
+  (既存568+新規28、リグレッションなし)。実機検証は未実施。
 - Intended specification: `Docs/シーンエディタの仕様.md`(要求仕様)、
   Docs/Decisions/ADR-0041-Scene-Editor-Interaction-Architecture.md(意思決定)、
   Docs/Specifications/Scene-Editor-Design.md(詳細設計)

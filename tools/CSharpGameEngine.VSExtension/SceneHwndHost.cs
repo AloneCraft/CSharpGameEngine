@@ -366,11 +366,14 @@ internal sealed class SceneHwndHost:HwndHost {
     internal event Action?UndoRequested;
     /// <summary>M0045: 前項の逆。</summary>
     internal event Action?RedoRequested;
+    /// <summary>M0047: ビューポートにフォーカスがある間のCtrl+Sで発火する(<see cref="TickUndoRedoIfNeeded"/>と同じGetKeyState経路)。</summary>
+    internal event Action?SaveRequested;
     /// <summary>M0045: ビューポートのWPFキーボードフォーカス有無。実体は<c>RenderHostGrid.IsKeyboardFocusWithin</c>で、Controlが設定する。</summary>
     internal Func<bool>?IsViewportFocusedProvider{ get; set; }
 
     private bool PreviousUndoKeyDown;
     private bool PreviousRedoKeyDown;
+    private bool PreviousSaveKeyDown;
 
     /// <summary>
     /// M0045: Ctrl+ZはVS標準キーバインド(Edit.Undo)のため、VSシェルのアクセラレータテーブルが
@@ -390,13 +393,18 @@ internal sealed class SceneHwndHost:HwndHost {
         bool Ctrl=(NativeMethods.GetKeyState(NativeMethods.VK_CONTROL)&0x8000)!=0;
         bool ZDown=Ctrl&&(NativeMethods.GetKeyState(NativeMethods.VK_Z)&0x8000)!=0;
         bool YDown=Ctrl&&(NativeMethods.GetKeyState(NativeMethods.VK_Y)&0x8000)!=0;
+        // M0047: Ctrl+SもEdit.SaveSelectedItems等の標準キーバインドに割り当て済みのため、Ctrl+Z/Yと
+        // 同じ理由でWPFのKeyDownには届かない。同じGetKeyStateポーリングで検知する。
+        bool SDown=Ctrl&&(NativeMethods.GetKeyState(NativeMethods.VK_S)&0x8000)!=0;
         bool Focused=IsViewportFocusedProvider?.Invoke()==true;
 
         if(Focused&&SceneUndoRedoKeyPolicy.IsRisingEdge(ZDown,PreviousUndoKeyDown)){ UndoRequested?.Invoke(); }
         if(Focused&&SceneUndoRedoKeyPolicy.IsRisingEdge(YDown,PreviousRedoKeyDown)){ RedoRequested?.Invoke(); }
+        if(Focused&&SceneUndoRedoKeyPolicy.IsRisingEdge(SDown,PreviousSaveKeyDown)){ SaveRequested?.Invoke(); }
 
         PreviousUndoKeyDown=ZDown;
         PreviousRedoKeyDown=YDown;
+        PreviousSaveKeyDown=SDown;
     }
 
     private void TickFlyIfNeeded(EventArgs Args){

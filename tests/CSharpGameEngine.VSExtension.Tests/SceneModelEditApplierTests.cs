@@ -386,6 +386,23 @@ public sealed class SceneModelEditApplierTests {
             [new ReparentNodeOperation(Key,Parent,DocumentVersion:1,Child,NewIndex:0)],out _,out _));
     }
 
+    [Fact]
+    public void TryApply_Duplicate_ClonesComponentsAndAppliesGivenTransform(){
+        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=Analyze(Source);
+        EditorNodeId Cube=FindId(Projection,"Cube");
+        SceneTransformValue NewTransform=new(new Vector3(10f,10f,10f),Quaternion.Identity,Vector3.One);
+
+        Assert.True(SceneModelEditApplier.TryApply(
+            Base,Projection,Reconciler,Key,
+            [new DuplicateNodeOperation(Key,Cube,DocumentVersion:1,NewTransform,SceneTransformMemberMask.All)],
+            out SceneModel Predicted,out SceneProjection PredictedProjection));
+
+        Assert.Single(PredictedProjection.Nodes,static N=>N.Node.Name=="Cube (1)");
+        Assert.Equal(10f,ReadPosition(Predicted,"Cube (1)").X);
+        // 元Nodeは変化しない。
+        Assert.Equal(1f,ReadPosition(Predicted,"Cube").X);
+    }
+
     private static void AssertTransformEqual(SceneModel Expected,SceneModel Actual,string NodeName){
         Assert.True(SceneTransformBinding.TryRead(FindNode(Expected,NodeName),out SceneTransformValue Left));
         Assert.True(SceneTransformBinding.TryRead(FindNode(Actual,NodeName),out SceneTransformValue Right));

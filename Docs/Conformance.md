@@ -2210,3 +2210,41 @@ Expハイブのキャッシュより新しくすること」を機序として**
   **M0045は今回の真因ではなかった**。
 - Evidence: VSExtension.Tests 572/572(既存568+新規4、リグレッションなし)。実機で入力放置時の
   フォーカス保持・ツールバー履歴・多段Undo・矢印キー選択の回帰確認が必須。
+
+## 2026-08-19 M0047: メモリ内編集モデルの正本化(アーキテクチャ再考)
+
+- **要請 → 「きびきび動かして。C#ソースを正とする考え方も辞めてよい」**: M0045/M0046対応後も
+  「3,成功したが遅い」「7,構造編集がCtrl+Zで取り消せない」と報告され、ユーザーからUE5/Unity/
+  Blender水準の即応性を求めてアーキテクチャの再考を依頼された。M0038(予測レイヤー)は編集
+  ループにRoslyn往復(250msデバウンス+全解析+全UI再構築)が残ったままの中途半端な対処だった
+  と判断し、セッション中の正本をC#ソースからメモリ内`SceneModel`へ移す第1段を実装した
+  (詳細は[[M0047-Inmemory-Edit-Model]])。
+- **決定事項(ユーザー承認)**: 保存形式のJSON化は次段、今回はC#ソースへの保存を維持。優先順位は
+  「エディタの即応性を先に出す」。外部編集は未保存が無ければ自動再読み込み、あれば確認。
+- **中核**: 新設`SceneEditDocument`が(Model,Projection)スナップショット列だけで無制限Undo/Redoを
+  実現(`SceneModel`がimmutableなことを利用、差分やインバース操作は持たない)。
+  `SceneModelEditApplier`へ構造操作6種(Add/Rename/Remove/Reparent/Reorder/Duplicate)を追加。
+- **発見した不具合1(Reparentの同一性喪失)**: `SceneProjectionReconciler`は同じ親の兄弟間でしか
+  一致を探さない設計のため、親を跨ぐReparentで移動したNodeへ新IDが振られていた。移動前後の
+  Pathを並走させてIDを差し戻す補正パス(`PreserveIdentityAfterMove`)で解消。
+- **発見した不具合2(既存の潜在バグ、`CreateNodeCreation`)**: 保存時にDocumentの全履歴を実C#
+  構文へ再生する新設`SceneSourceEditor.ApplyForSave`のテストで、既存の`CreateNodeCreation`が
+  "new"と"Node"の間にtriviaを持たない構文を生成し、再解析すると"newNode"という1トークンに
+  読めて追加したNodeが消えることを発見した。既存の`AddNode`テストは`Contains`だけで再解析まで
+  確認しておらず、これまで気付かれていなかった。`NormalizeWhitespace()`追加で修正し、既存テスト
+  も再解析まで確認するよう強化した。
+- **`ApplyForSave`の設計課題**: 既存の`ApplyBatch`は全操作対象が呼び出し時点の投影に存在すること
+  を要求するため、セッション中に追加したNode(実C#にはまだ存在しない)を後続の操作(Add→Rename等)
+  が参照する一般的な流れに対応できない。Annotation登録をNode作成時点まで遅延させ、実在Nodeは
+  最初の構造編集でSpanがずれる前に全て事前Annotateする(`ApplyBatch`自身の事前Annotateパスと
+  同じ理由・同じ対策)ことで解決した。
+- **撤去**: `SceneEditorSessionService`の非同期直列コミットチェーン(`CommitAsync`/
+  `TryPublishPrediction`/`RefreshPinnedSnapshotFromSourceAsync`、M0038〜M0046)、
+  `SceneDesignerToolWindowControl`の`PendingCommitWrite`直列化、M0036由来の先読みUndoプレビュー
+  (`Host.TryFastUndo`/`TryFastRedo`の呼び出し — Document.TryUndo/Redoが同期即時配信するため不要)。
+- **保存トリガー**: ビューポートフォーカス時のCtrl+S(M0045と同じ`GetKeyState`ポーリング、VS標準
+  コマンドテーブルに触れない)のみ実装。コードエディタ側Ctrl+Sでの自動フラッシュ
+  (`IVsRunningDocTableEvents`のOnBeforeSaveフック)は、これまでのVS SDK統合層での実機回帰の
+  多さを踏まえリスクを避けて今回は見送った(既知の制限として明記)。
+- Evidence: VSExtension.Tests 596/596(既存568+新規28、リグレッションなし)。ソリューション全体で
+  リグレッション無し。実機検証は未実施 — 実機確認項目はM0047ドキュメント参照。
