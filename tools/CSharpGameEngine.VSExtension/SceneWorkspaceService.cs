@@ -475,7 +475,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
 
     /// <summary>対象文書をbackgroundでopenし、RDTのlive bufferへ1 Undoで反映する。</summary>
     internal async Task<SceneLiveBufferWriteResult>ApplyTextAsync(
-        SceneWorkspaceEditContext Context,SourceText After,string UndoDescription,
+        SceneWorkspaceEditContext Context,IReadOnlyList<TextChange>Changes,string UndoDescription,
         CancellationToken CancellationToken){
         await this.TaskFactory.SwitchToMainThreadAsync(CancellationToken);
         if(this.EditorAdapters is null||this.TextBufferWriter is null){
@@ -500,7 +500,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
         // (M0041: ビューポート先頭行の保存・復元はSceneSourceMarkerServiceと競合するため撤去した。
         // CaptureViewPositions参照)。
         List<ViewPositionSnapshot>Restorations=CaptureViewPositions(Buffer,VsBuffer);
-        bool Applied=this.TextBufferWriter.TryApply(Buffer,Context.Text,After,UndoDescription);
+        bool Applied=this.TextBufferWriter.TryApply(Buffer,Context.Text,Changes,UndoDescription);
         if(Applied){
             RestoreViewPositions(Restorations);
         }

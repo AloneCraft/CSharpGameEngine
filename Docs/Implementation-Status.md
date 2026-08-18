@@ -2614,7 +2614,19 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   推測から**呼び出し側が明示する`SceneSourceMarkerScrollBehavior`**へ移し、判定を
   `SceneSourceMarkerScrollPolicy.ShouldScroll`(新設、純粋static)へ委譲した。再解析の着地
   (`OnSceneModelChangedForSourceMarkers`)は必ず`PreserveScroll`を通るため、過渡状態が何で
-  あってもスクロールが起きえなくなった。実機目視が残っているため`Verified`へは上げていない。
+  あってもスクロールが起きえなくなった。それでも「一瞬最上部へ飛んでから戻る」ちらつきが残った
+  ため、M0044では推測をやめて先に実測した: `SceneTextChangePlanner.Plan(SourceText,SourceText)`は
+  1リテラルの変更でも**ファイル全体(18,531文字)を覆う1個のTextChange**を返していた
+  (`SourceText.GetTextChanges`は`WithChanges`由来でない無関係なテキスト同士では接頭辞・接尾辞を
+  切り詰めない。`CommitAsync`が毎回`SourceText.From(Edited.Root.ToFullString(),…)`でまっさらな
+  SourceTextを作っていたため常にこの経路だった)。つまりバッファ全体が削除・再挿入され、ビューの
+  レイアウト基準点ごと作り直されていた。`Edited.Root`は`Context.Root`へReplaceNodeした結果で
+  green nodeを共有しているため、`SyntaxTree.GetChanges`による構文ツリー差分へ切り替えた
+  (実測で10文字/離れた2箇所でも独立2変更・計11文字)。併せて変更ごとの`Buffer.Replace`を
+  `ITextEdit`の一括`Apply`へまとめ、バッファ変更・TextChangedイベント・レイアウトを1回にした
+  (VSに描画抑制の公開APIは無く、これが等価な手段)。副次的に`ToFullString()`による全文文字列化も
+  消え、M0038の遅さ調査で挙げた項目の1つが解消した。実機目視が残っているため`Verified`へは
+  上げていない。
 - Intended specification: `Docs/シーンエディタの仕様.md`(要求仕様)、
   Docs/Decisions/ADR-0041-Scene-Editor-Interaction-Architecture.md(意思決定)、
   Docs/Specifications/Scene-Editor-Design.md(詳細設計)

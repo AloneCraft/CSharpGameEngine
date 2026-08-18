@@ -2087,3 +2087,38 @@ Expハイブのキャッシュより新しくすること」を機序として**
   `CSharpGameEngineViewerPackage`の配線はVS SDK依存のため既存方針どおりユニットテスト対象外。
   ソリューション全体1054/1054(既存1048+新規6、リグレッションなし)。編集時にスクロール位置が
   維持されることは実機確認が必須。
+
+## 2026-08-19 M0044: 書き戻しを全文置換から最小差分へ(実測で原因を確定)
+
+- **Mismatch → 実測でユーザーの見立てが正しかったと確定(実機Observed)**: M0043でスクロール位置は
+  直ったが「一瞬一番上までスクロールしてから、その場所に戻る」ちらつきが残り、ユーザーから
+  「全体書き換えだからか」「部分書き換えは無理か」「描画を抑制できないか」と問われた。
+  M0040〜M0043で4回推測を外しているため、今回は**一時的な計測テストで先に事実を取った**。
+  結果、`SceneTextChangePlanner.Plan(SourceText,SourceText)`は1リテラルの変更でも
+  **span=(0,18531)=ファイル全体を覆う1個のTextChange**を返していた(離れた2箇所の変更でも同じ)。
+  `SourceText.GetTextChanges`は比較対象が`WithChanges`由来でない無関係な`SourceText`のとき
+  共通接頭辞・接尾辞の切り詰めを行わない。`CommitAsync`が毎回
+  `SourceText.From(Edited.Root.ToFullString(),…)`でまっさらな`SourceText`を作っていたため常に
+  この経路に落ちていた。**バッファ全体が削除・再挿入されるのでビューのレイアウト基準点ごと
+  作り直され、表示が一度最上部へ飛んでいた**——ユーザーの見立てどおりだった。
+- **Unknown → 構文ツリー差分へ切り替え(Q2の回答)**: `Edited.Root`は`Context.Root`へ
+  `ReplaceNode`した結果でgreen nodeを共有しているため、`SyntaxTree.GetChanges`なら実際に変わった
+  領域だけを取り出せる。`SceneTextChangePlanner`へ`Plan(SyntaxTree,SyntaxTree)`を追加し
+  `CommitAsync`をこちらへ切り替えた(実測: 単一プロパティ編集で10文字、離れた2箇所で独立2変更・
+  計11文字)。`SourceText`版は血縁を作れない`ComponentIconGlyphMargin`のために残し、粗さを
+  XMLコメントで明記した。副次効果として`ToFullString()`による全文文字列化が消え、M0038の遅さ
+  調査で挙げた項目の1つが解消した。
+- **Unknown → ITextEditのバッチ適用(Q3の回答)**: VSには描画を止める公開APIが無いが、等価な仕組みが
+  `ITextBuffer.CreateEdit()`によるバッチ適用。以前は変更ごとに`Buffer.Replace`を個別に呼び、
+  1回ごとに独立したバッファ変更・`TextChanged`イベント・ビューのレイアウトが走っていた。
+  全変更を1つの`ITextEdit`へまとめて`Apply`する形に変え、これらを1回にした。併せて
+  `Edit.Replace`の戻り値と`Edit.Canceled`を確認するようにした——以前のループは適用失敗を一切
+  検知していなかった。
+- Evidence: `SceneTextChangePlannerTests.cs`へ実測値を固定するテストを追加(計8件)。
+  `Plan_SourceTextOverload_RewritesTheWholeFileEvenForOneLiteral`はSourceText版の粗さを
+  「span開始0・長さ=ファイル全長」として明示的に固定し、この特性が将来変わったら気付けるように
+  した。最重要は`Plan_SyntaxTreeOverload_AppliedChangesReproduceTheEditedTreeExactly`——差分の
+  出所を変える以上、適用結果が編集後ツリーの全文と完全一致することがソースを壊さないための契約。
+  `SceneTextBufferWriter.TryApply`本体(`ITextBuffer`/`ITextUndoHistory`/`ITextEdit`)はVS SDK依存の
+  ため既存方針どおりユニットテスト対象外。ソリューション全体1058/1058(既存1054+新規4、
+  リグレッションなし)。ちらつきが消えたことは実機確認が必須。

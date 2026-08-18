@@ -149,9 +149,14 @@ internal sealed class SceneEditorSessionService : IDisposable {
                     false,Edited.ErrorMessage??"SceneのTransform更新に失敗しました。",Edited.WasRebased);
             }
 
-            SourceText After=SourceText.From(Edited.Root.ToFullString(),Context.Text.Encoding);
+            // M0044: 全文を文字列化して無関係なSourceText同士で差分を取ると、1文字の変更でも
+            // ファイル全体を覆う1個のTextChangeになり(実測)、エディタが全再レイアウトを起こす。
+            // Edited.RootはContext.Rootへ ReplaceNode した結果でツリーを共有しているため、
+            // 構文ツリー同士の差分なら実際に変わった領域だけを取り出せる。
+            IReadOnlyList<TextChange>Changes=SceneTextChangePlanner.Plan(
+                Context.Root.SyntaxTree,Edited.Root.SyntaxTree);
             SceneLiveBufferWriteResult Written=await this.Workspace.ApplyTextAsync(
-                Context,After,Request.UndoDescription,CancellationToken).ConfigureAwait(false);
+                Context,Changes,Request.UndoDescription,CancellationToken).ConfigureAwait(false);
             if(Written.Succeeded){
                 return new SceneEditCommitResult(true,ErrorMessage:null,Edited.WasRebased||Attempt>0);
             }
