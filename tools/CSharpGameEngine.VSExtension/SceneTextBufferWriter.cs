@@ -59,12 +59,16 @@ internal sealed class SceneTextBufferWriter {
         this.TryApply(Buffer,Before,SceneTextChangePlanner.Plan(Before,After),UndoDescription);
 
     /// <summary>
-    /// M0044: 全変更を1つの<see cref="ITextEdit"/>へまとめて<see cref="ITextEdit.Apply"/>する。
-    /// 以前は変更ごとに<c>Buffer.Replace</c>を個別に呼んでおり、1回ごとに独立したバッファ変更・
-    /// <c>TextChanged</c>イベント・ビューのレイアウトが走っていた。VSには描画を止める公開APIが
-    /// 無く、まとめて反映する手段がこの<see cref="ITextEdit"/>のバッチ適用にあたる。
-    /// spanは全て編集前スナップショットの座標で解釈されるため降順整列は不要になるが、
-    /// <see cref="SceneTextChangePlanner"/>の整列は無害なのでそのまま受け取る。
+    /// 変更を開始位置の降順(<see cref="SceneTextChangePlanner"/>が整列済み)で適用する。
+    ///
+    /// <para>
+    /// M0044で一度<see cref="ITextEdit"/>による一括適用へ変えたが、実機でギズモ編集が
+    /// <b>成功扱いのまま何も書き込まれなくなった</b>ため元の<c>Buffer.Replace</c>へ戻した。
+    /// ツリー差分側(<see cref="SceneTextChangePlanner.Plan(SyntaxTree,SyntaxTree)"/>)は本番と同じ
+    /// 経路(注釈付きApplyBatch・同型兄弟20件)をユニットテストで再現して健全性を確認できているが、
+    /// この適用部はVS SDK依存でテストできず、実績のある形を保つ方を優先する。差分が最小化された
+    /// 結果、通常の編集では変更が1個なので一括適用の利点はもともとほとんど無い。
+    /// </para>
     /// </summary>
     internal bool TryApply(
         ITextBuffer Buffer,SourceText Before,IReadOnlyList<TextChange>Changes,string UndoDescription){
@@ -77,21 +81,10 @@ internal sealed class SceneTextBufferWriter {
 
         ITextUndoHistory History=this.UndoHistoryRegistry.RegisterHistory(Buffer);
         using(ITextUndoTransaction Transaction=History.CreateTransaction(UndoDescription)){
-            using(ITextEdit Edit=Buffer.CreateEdit()){
-                foreach(TextChange Change in Changes){
-                    if(!Edit.Replace(
-                        new Microsoft.VisualStudio.Text.Span(Change.Span.Start,Change.Span.Length),
-                        Change.NewText)){
-                        // 以前のループは適用失敗を一切検知していなかった。ここで抜ければ
-                        // using が Edit を破棄し、部分適用のまま抜けることはない。
-                        return false;
-                    }
-                }
-
-                Edit.Apply();
-                if(Edit.Canceled){
-                    return false;
-                }
+            foreach(TextChange Change in Changes){
+                Buffer.Replace(
+                    new Microsoft.VisualStudio.Text.Span(Change.Span.Start,Change.Span.Length),
+                    Change.NewText);
             }
 
             Transaction.Complete();

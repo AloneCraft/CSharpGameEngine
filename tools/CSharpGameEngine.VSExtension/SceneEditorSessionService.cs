@@ -153,8 +153,17 @@ internal sealed class SceneEditorSessionService : IDisposable {
             // ファイル全体を覆う1個のTextChangeになり(実測)、エディタが全再レイアウトを起こす。
             // Edited.RootはContext.Rootへ ReplaceNode した結果でツリーを共有しているため、
             // 構文ツリー同士の差分なら実際に変わった領域だけを取り出せる。
+            //
+            // ただし差分の出所を変えることはソースを壊しうるので、毎回「適用したら編集後ツリーと
+            // 一致するか」を検算し、一致しなければ従来の全文差分へ落とす。書き込みが無言で
+            // 消えるより、遅くても確実に反映される方を優先する。
+            string ExpectedText=Edited.Root.ToFullString();
             IReadOnlyList<TextChange>Changes=SceneTextChangePlanner.Plan(
                 Context.Root.SyntaxTree,Edited.Root.SyntaxTree);
+            if(!string.Equals(Context.Text.WithChanges(Changes).ToString(),ExpectedText,StringComparison.Ordinal)){
+                Changes=SceneTextChangePlanner.Plan(
+                    Context.Text,SourceText.From(ExpectedText,Context.Text.Encoding));
+            }
             SceneLiveBufferWriteResult Written=await this.Workspace.ApplyTextAsync(
                 Context,Changes,Request.UndoDescription,CancellationToken).ConfigureAwait(false);
             if(Written.Succeeded){
