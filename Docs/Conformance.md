@@ -2374,3 +2374,36 @@ Expハイブのキャッシュより新しくすること」を機序として**
   (既存612+新規4、リグレッションなし)。**「JSON で表示」は確実に表示される見込みだが、
   「シーン デザイナーで開く」は`SceneWorkspaceService`のAdditionalDocument解決経路が実機で
   正しく機能するかにまだ懸かっており実機確認が必要**。
+
+## 2026-08-19 M0050修正2件目: 「シーン デザイナーで開く」が「シーンの解析またはデザイナー表示に失敗しました」で落ちる
+
+- **報告 → 実機Observed**: 1件目の修正後、`.scene.json`右クリックでメニュー自体は出るように
+  なったが、「シーン デザイナーで開く」をクリックすると「シーンの解析またはデザイナー表示に
+  失敗しました。詳細は ActivityLog.xml を確認してください。」という汎用エラーが出た。
+- **ActivityLog.xml調査の顛末**: ユーザーが実際にテストしていたVisual Studioインスタンスを
+  `Get-CimInstance`/`Get-Process`で調べたところ、VSIXプロジェクトのF5デバッグ(Experimental
+  Instance、`/RootSuffix Exp`)ではなく、`devenv.exe "UserEcsProject.slnx"`という通常起動の
+  メインhiveだった。メインhiveの`ActivityLog.xml`は起動時刻より前から更新が止まっており、
+  このセッション中に一度も書き込まれていなかった —— **Visual StudioはActivityLog.xmlを
+  `/Log`スイッチ付きで起動しない限り実質書き込まない**ため、`ActivityLog.LogError`呼び出し自体は
+  実行されていても、詳細を確認する手段が無かった。
+- **静的解析による原因推定**: ログが読めないため、`OpenSceneDesignerCommand.OpenScene`→
+  `SceneEditorSessionService.AnalyzeFileNowAsync`→`SceneWorkspaceService.AnalyzeAllAsync`の
+  呼び出し連鎖をコード上で精査した。`AnalyzeAllAsync`は`Solution.GetDocument(DocumentId)`が
+  `null`を返すことを「AdditionalDocumentである印」として使っていたが、`.scene.json`の
+  DocumentIdに対して`GetDocument`が本当に`null`を返す(例外を投げない)という前提はRoslynの
+  内部実装に依存した未検証の仮定だった。
+- **修正(防御的)**:
+  1. `AnalyzeAllAsync`を`Solution.ContainsAdditionalDocument(DocumentId)`で種別を先に確定
+     させてから分岐するよう並べ替え、`GetDocument`のnull/例外の挙動に依存しない設計にした。
+  2. `AnalyzeJsonAsync`内の`SceneJsonModelBuilder.Build`呼び出しを`try/catch`で囲み、万一の
+     未処理例外を`SceneModel.Failed`(診断メッセージに例外種別+メッセージを含む)へ変換する
+     ようにした(ツールウィンドウ全体を落とさず解析失敗として扱う)。
+  3. `OpenSceneDesignerCommand.OpenScene`のcatchブロックで、ステータスバーのメッセージに
+     `Ex.GetType().Name`と`Ex.Message`を直接含めるようにした —— ActivityLogが機能しない環境
+     でも次回以降は具体的な原因がその場で分かるようにするため。
+- Evidence: `dotnet build`/`dotnet test CSharpGameEngine.slnx --no-build`で全8プロジェクト
+  成功、リグレッションなし。**この修正で問題が解消するかは未確認** —— 根本原因を確証を
+  持って特定できていないため(ActivityLogが読めなかった)、複数の防御的改善を積み重ねる形に
+  なった。改善後のステータスバーメッセージにより、もし再発した場合は具体的な例外情報が
+  その場で得られる見込み。

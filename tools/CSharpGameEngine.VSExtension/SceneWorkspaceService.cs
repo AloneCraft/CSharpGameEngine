@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -839,16 +840,23 @@ internal sealed class SceneWorkspaceService : IDisposable {
             return new([],new SceneDocumentMenuSnapshot(SceneDesignerTargetState.Unavailable,[],[]));
         }
 
-        Document?Document=this.Workspace.CurrentSolution.GetDocument(DocumentId);
-        if(Document is null){
-            // M0050: *.scene.jsonはcsprojの<AdditionalFiles>登録によりRoslyn上ではAdditionalDocument
-            // 扱いになる(通常のDocumentではない)。GetDocumentが null を返すのはその印。
+        // M0050: *.scene.jsonはcsprojの<AdditionalFiles>登録によりRoslyn上ではAdditionalDocument
+        // 扱いになる(通常のDocumentではない)。`Solution.GetDocument`がAdditionalDocumentのIDに対して
+        // nullを返すかどうかはRoslynのバージョン間で確証が持てないため、`ContainsAdditionalDocument`で
+        // 種別を先に確定させてから分岐する(実機で「シーンの解析またはデザイナー表示に失敗しました」と
+        // なった不具合の対策 — GetDocumentが例外を投げていた場合、この順序変更で回避できる)。
+        if(this.Workspace.CurrentSolution.ContainsAdditionalDocument(DocumentId)){
             TextDocument?AdditionalDocument=this.Workspace.CurrentSolution.GetAdditionalDocument(DocumentId);
             if(AdditionalDocument is { FilePath:{ } JsonPath }
                 &&JsonPath.EndsWith(".scene.json",StringComparison.OrdinalIgnoreCase)){
                 return await AnalyzeJsonAsync(AdditionalDocument,JsonPath,CancellationToken).ConfigureAwait(false);
             }
 
+            throw new InvalidOperationException($"Roslyn workspace のAdditionalDocumentが.scene.jsonではありません: {DocumentId}");
+        }
+
+        Document?Document=this.Workspace.CurrentSolution.GetDocument(DocumentId);
+        if(Document is null){
             throw new InvalidOperationException($"Roslyn workspace に対象Documentがありません: {DocumentId}");
         }
 
@@ -900,7 +908,21 @@ internal sealed class SceneWorkspaceService : IDisposable {
             throw new InvalidOperationException($"Roslyn解析に必要な情報を取得できませんでした: {FilePath}");
         }
 
-        SceneModel Model=SceneJsonModelBuilder.Build(FilePath,Text,Compilation,CancellationToken);
+        SceneModel Model;
+        try {
+            Model=SceneJsonModelBuilder.Build(FilePath,Text,Compilation,CancellationToken);
+        } catch(Exception Ex) when(Ex is not OperationCanceledException){
+            // SceneJsonModelBuilderは「例外を投げてはならない」規約(SceneDeclarationAnalyzerと同じ、
+            // ADR-0040 F-6)だが、実機不具合の再発防止として万一の場合もツールウィンドウを壊さず
+            // 解析失敗として扱う(ActivityLogへ詳細を残す)。
+            ActivityLog.LogError(
+                nameof(SceneWorkspaceService),$"SceneJsonModelBuilder.Build failed for '{FilePath}': {Ex}");
+            ImmutableArray<Diagnostic>FailureDiagnostics=[Diagnostic.Create(
+                SceneDslDiagnostics.InvalidSceneJson,Location.Create(FilePath,default,default),
+                $"{Ex.GetType().Name}: {Ex.Message}")];
+            Model=SceneModel.Failed(null,string.Empty,string.Empty,null,FailureDiagnostics,FilePath,0);
+        }
+
         List<SceneModel>Models=[Model];
         List<SceneDesignerMenuItem>Items=[new(Model.ClassName,Model.ClassFullyQualifiedName)];
         List<SceneDocumentTypeRange>TypeRanges=[new(0,Text.Length,true,Model.ClassFullyQualifiedName)];
