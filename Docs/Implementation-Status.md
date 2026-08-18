@@ -2714,7 +2714,26 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   側Ctrl+Sでの自動フラッシュ(`IVsRunningDocTableEvents`)は実装せずリスクを避けた
   (既知の制限として明記)。外部でC#が変化した場合、未保存編集が無ければDocumentを黙って
   実解析へ追従させ、未保存編集があれば確認ダイアログを出す。VSExtension.Tests 596/596
-  (既存568+新規28、リグレッションなし)。実機検証は未実施。
+  (既存568+新規28、リグレッションなし)。実機検証で「ヒエラルキーの改名・削除・親変更・
+  並べ替えができない」「Undo後にRedoできない」「Ctrl+Sで保存されずC#ソースから再読み込み
+  される」と報告され、M0048([[M0048-Hub-Sync-And-Spurious-Reanalysis-Fix]])で2件の根本原因を
+  特定・修正した。(a)`HierarchyToolWindowControl`は`SceneEditorHub.SceneModelChanged`
+  (実Roslyn再解析だけで更新される静的Hub)を表示に使い続けていた——M0047でDesignerビューポートは
+  `Session.PinnedSnapshotChanged`(Document更新)を直接購読するよう切り替えたが、Hierarchyは
+  この配線から取り残されており、編集のたびにビューポートだけ更新されヒエラルキーの表示が
+  固まっていた(「シーンビューは消えるがノードは消えない」と一致)。`CSharpGameEngineViewer
+  Package`が`Session.PinnedSnapshotChanged`を購読し`SceneEditorHub.PublishSceneModel`へ
+  橋渡しすることで解消した。(b)`OnWorkspaceModelsChanged`は`!Document.IsDirty`を「失うものが
+  無い」の代理指標として`Document.ResetTo`(Undo/RedoスタックをClear)の可否判定に使っていたが、
+  `IsDirty`は「保存時点との差分の有無」であって「Redo履歴の有無」ではない——ギズモ移動→Undoで
+  保存時点まで戻ると`IsDirty=false`になる一方RedoStackにはまだ履歴が残っており、そこへVSの
+  背景解析(実際のテキスト変更とは無関係に発火しうる)が来ると無条件にResetToが呼ばれRedo履歴が
+  消えていた。同じ設計の裏返しで、無関係な再解析が未保存編集中に来ると誤って外部変更確認
+  ダイアログを出してしまい、これが「Ctrl+Sで再読み込みされる」の実体だったと考えられる。
+  再解析イベントの発火自体ではなく、直前直後の実Projectionを`SceneDiffEngine.Compare`で比較して
+  「本当に内容が変わったか」を判定するよう`SceneExternalChangePolicy.Evaluate`(新設、純粋関数)へ
+  切り出し、変化が無ければDocumentへ一切触れないようにした。VSExtension.Tests 601/601
+  (既存596+新規5、リグレッションなし)。実機検証は未実施。
 - Intended specification: `Docs/シーンエディタの仕様.md`(要求仕様)、
   Docs/Decisions/ADR-0041-Scene-Editor-Interaction-Architecture.md(意思決定)、
   Docs/Specifications/Scene-Editor-Design.md(詳細設計)

@@ -86,6 +86,7 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             SceneEditorHub.HierarchyEditRequested+=this.OnHierarchyEditRequested;
             SceneEditorHub.SceneModelChanged+=this.OnSceneModelChangedForSourceMarkers;
             SceneSession.Selection.SelectionChanged+=this.OnSelectionChangedForHierarchy;
+            SceneSession.PinnedSnapshotChanged+=this.OnPinnedSnapshotChangedForHub;
             SceneWorkspace.ModelChanged+=SceneEditorHub.PublishSceneModel;
             DocumentTracker=ActiveDocumentTracker.Start(SceneWorkspace);
             if(DocumentTracker is not null){
@@ -301,6 +302,22 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
     }
 
     /// <summary>
+    /// M0048: <see cref="SceneEditorHub.SceneModelChanged"/>/<see cref="SceneEditorHub.ActiveSceneModel"/>は
+    /// 元々<see cref="SceneWorkspaceService.ModelChanged"/>(実Roslyn再解析)だけで更新されていた。
+    /// M0047でSceneDesignerが<see cref="SceneEditorSessionService.PinnedSnapshotChanged"/>
+    /// (Documentの即時編集)を直接購読するよう切り替えた際、Hierarchy(と<c>OnSceneModelChangedFor
+    /// SourceMarkers</c>)がこのHub経由のままだったため、編集のたびにDesignerのビューポートだけ
+    /// 更新されHierarchyの表示が固まる実機回帰を起こした(M0048)。DocumentのPublishもHubへ
+    /// 橋渡しし、Hierarchyがpin中Sceneの最新状態を常に見られるようにする。
+    /// </summary>
+    private void OnPinnedSnapshotChangedForHub(SceneDocumentSnapshot?Snapshot){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(Snapshot?.CurrentModel is { }Model){
+            SceneEditorHub.PublishSceneModel(Model);
+        }
+    }
+
+    /// <summary>
     /// M0040: 対象Sceneの再解析が着地するたびに発火する。以前はHierarchyパネル専用の
     /// <see cref="SceneEditorHub.HierarchySelection"/>を参照していたが、これはHierarchyパネルでの
     /// クリックでしか更新されない静的フィールドで、Viewport起点で選択・編集した場合は一切
@@ -438,6 +455,7 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             SourceMarkerService=null;
             if(SceneSession is not null){
                 SceneSession.Selection.SelectionChanged-=this.OnSelectionChangedForHierarchy;
+                SceneSession.PinnedSnapshotChanged-=this.OnPinnedSnapshotChangedForHub;
             }
 
             SceneSession?.Dispose();

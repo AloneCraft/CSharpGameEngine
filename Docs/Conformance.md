@@ -2248,3 +2248,33 @@ Expハイブのキャッシュより新しくすること」を機序として**
   多さを踏まえリスクを避けて今回は見送った(既知の制限として明記)。
 - Evidence: VSExtension.Tests 596/596(既存568+新規28、リグレッションなし)。ソリューション全体で
   リグレッション無し。実機検証は未実施 — 実機確認項目はM0047ドキュメント参照。
+
+## 2026-08-19 M0048: M0047配線の実機退行2件(Hierarchy同期漏れ・無関係な再解析によるRedo消失)を修正
+
+- **報告 → 実機Observed**: M0047配線投入後、「ヒエラルキーの改名・削除・親変更・並べ替えが
+  できない(シーンビューは消えるがノードは消えない)」「ギズモ移動→Undo→Ctrl+YでRedoできない」
+  「ビューポートでCtrl+SしてもC#ソースから再読み込みされる(編集が消える)」と報告された。
+  ユーザーからは「C#への反映を直すよりJSON保存へ進むほうがよい」との示唆もあったが、
+  この2件はいずれも保存形式と無関係な編集ループ自体の不具合と判断し、JSON化に先立って修正した。
+- **根本原因1(Hierarchy未同期)**: `HierarchyToolWindowControl`は`SceneEditorHub.
+  SceneModelChanged`(実Roslyn再解析だけで更新される静的Hub)を表示に使い続けていた。M0047で
+  Designerビューポートは`Session.PinnedSnapshotChanged`(Document更新)を直接購読するよう
+  切り替えたが、Hierarchyはこの配線から取り残されており、編集のたびにビューポートだけ更新され
+  ヒエラルキーの表示が固まっていた。`CSharpGameEngineViewerPackage`が`Session.
+  PinnedSnapshotChanged`を購読し`SceneEditorHub.PublishSceneModel`へ橋渡しして解消。
+- **根本原因2(無関係な再解析によるRedo消失)**: `OnWorkspaceModelsChanged`は`!Document.IsDirty`
+  を「失うものが無い」の代理指標として`Document.ResetTo`(Undo/RedoスタックをClear)の可否判定に
+  使っていた。`IsDirty`は「保存時点との差分の有無」であって「Redo履歴の有無」ではない——ギズモ
+  移動→Undoで保存時点まで戻ると`IsDirty=false`になる一方RedoStackにはまだ履歴が残っており、
+  そこへVSの背景解析(実際のテキスト変更とは無関係に発火しうる)が来ると無条件にResetToが呼ばれ
+  Redo履歴が消えていた。「Ctrl+Sで再読み込みされる」も同じ設計の裏返し(無関係な再解析が未保存
+  編集中に来て誤った外部変更確認ダイアログを誘発した可能性)と考えられる。
+- **修正**: 再解析イベントの発火自体ではなく、直前直後の実Projectionを`SceneDiffEngine.Compare`
+  で比較して「本当に内容が変わったか」を判定するよう`SceneExternalChangePolicy.Evaluate`
+  (新設、純粋関数)へ切り出した。`IsOwnSaveLanding`→常に信頼、`!RealContentActuallyChanged`
+  →常にIgnore(Documentへ一切触れない)、内容変化+未保存無し→黙って追従、内容変化+未保存有り→
+  確認ダイアログ、の4分岐。
+- Evidence: `SceneExternalChangePolicyTests.cs`(新規5件)。VSExtension.Tests 601/601
+  (既存596+新規5、リグレッションなし)。ソリューション全体でリグレッション無し。
+  `OnWorkspaceModelsChanged`本体・Hierarchy⇔Hub配線はVS SDK依存のためユニットテスト対象外、
+  実機確認が必須。

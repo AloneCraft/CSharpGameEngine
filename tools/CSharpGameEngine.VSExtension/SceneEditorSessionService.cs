@@ -335,6 +335,10 @@ internal sealed class SceneEditorSessionService : IDisposable {
                 continue;
             }
 
+            // M0048: VSの背景解析は対象Sceneの内容と無関係な理由でも頻繁に発火しうる。再解析イベントが
+            // 来たという事実だけでDocumentを触ってよい根拠にはならない — 直前の実投影と比較して
+            // 本当に変わったかを必ず経由する(SceneExternalChangePolicy参照)。
+            this.Snapshots.TryGetValue(Value,out SceneDocumentSnapshot?PreviousReal);
             SceneDocumentSnapshot RealSnapshot=this.Publish(Model,Value);
             if(!this.Documents.TryGetValue(Value,out SceneEditDocument?Document)){
                 if(this.PinnedSceneKey is { } Pinned&&Pinned.Equals(Value)){
@@ -344,16 +348,30 @@ internal sealed class SceneEditorSessionService : IDisposable {
                 continue;
             }
 
-            if(IsOwnSaveLanding||!Document.IsDirty){
-                // 自分の保存が着地した、または未保存編集が無い(=失うものが無い) → 黙って実解析へ追従する。
-                if(RealSnapshot.CurrentModel is { }NewModel&&RealSnapshot.Projection is { }NewProjection){
-                    Document.ResetTo(new SceneEditSnapshot(NewModel,NewProjection));
-                }
-                this.PublishDocument(Value,Document);
-            } else {
-                // 未保存の編集があるのに外部でソースが変わった → 呼び出し側の確認に委ねる。
-                // ここではpin中snapshotを差し替えない(在庫中の編集を守る)。
-                this.ExternalChangeDetected?.Invoke(Value);
+            bool RealContentActuallyChanged=PreviousReal?.Projection is not { }OldProjection
+                ||RealSnapshot.Projection is not { }NewProjectionForDiff
+                ||!SceneDiffEngine.Compare(OldProjection,NewProjectionForDiff).IsEmpty;
+            SceneExternalChangeAction Action=SceneExternalChangePolicy.Evaluate(
+                IsOwnSaveLanding,RealContentActuallyChanged,Document.IsDirty);
+
+            switch(Action){
+                case SceneExternalChangeAction.Ignore:
+                    // 実際には何も変わっていない再解析。Document/Undo/Redo履歴に一切触れない
+                    // (ここで触ると、保存直後などIsDirty==falseのタイミングで無関係な再解析が
+                    // Redoスタックを黙って消してしまう — 実機で確認された退行)。
+                    break;
+                case SceneExternalChangeAction.TrustOwnSave:
+                case SceneExternalChangeAction.FollowSilently:
+                    if(RealSnapshot.CurrentModel is { }NewModel&&RealSnapshot.Projection is { }NewProjection){
+                        Document.ResetTo(new SceneEditSnapshot(NewModel,NewProjection));
+                    }
+                    this.PublishDocument(Value,Document);
+                    break;
+                case SceneExternalChangeAction.AskUser:
+                    // 未保存の編集があるのに実際に外部でソースが変わった → 呼び出し側の確認に委ねる。
+                    // ここではpin中snapshotを差し替えない(在庫中の編集を守る)。
+                    this.ExternalChangeDetected?.Invoke(Value);
+                    break;
             }
         }
     }
