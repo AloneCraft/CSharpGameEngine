@@ -27,6 +27,25 @@ internal sealed class HierarchyNodeSelection {
     internal NodePath? RangeAnchor { get; }
 }
 
+/// <summary>
+/// M0046: <c>TreeView.SelectedItemChanged</c>は、再解析による<c>ItemsSource</c>差し替えの後に
+/// WPFが<b>遅延生成</b>した<c>TreeViewItem</c>へスタイルSetter経由で<c>IsSelected</c>が入った
+/// タイミングでも発火する。これは<c>Populate</c>の同期ブロックが終わった後のレイアウトパスなので、
+/// 同期スコープのフラグでは覆えない。そのため「ツリーが<b>既に</b>キーボードフォーカスを
+/// 持っているか」を選択発行の必要条件にする。
+///
+/// <para>
+/// これにより、ユーザーがコードエディタで入力している最中に再解析が着地しても、Hierarchyが
+/// フォーカスを奪わない(ADR-0041のツールウィンドウ フォーカスモデル)。矢印キーでのツリー内
+/// 移動は、その時点でツリーがフォーカスを持っているので従来どおり発行される。
+/// </para>
+/// </summary>
+internal static class HierarchyFocusPolicy {
+    internal static bool ShouldPublishSelectionChange(
+        bool SuppressSelectionPublish,bool TreeHasKeyboardFocus)=>
+        !SuppressSelectionPublish&&TreeHasKeyboardFocus;
+}
+
 /// <summary>Pure selection policy for the Hierarchy's declaration-order rows.</summary>
 internal static class HierarchySelectionPlanner {
     internal static HierarchyNodeSelection Select(

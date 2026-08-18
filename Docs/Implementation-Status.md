@@ -2659,8 +2659,33 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   フォーカスと独立させてフォーカスは発火可否にのみ使う(ビューポート外で押しっぱなしのまま
   フォーカスが戻ったときの誤発火防止)。実際のUndo/Redo実行経路(`Session.TryUndo()`/
   `Session.TryRedo()`/`Host.TryFastUndo()`/`Host.TryFastRedo()`/
-  `SceneDesignerUndoCommandPolicy`)は無改造のまま流用した。実機目視が残っているため
-  `Verified`へは上げていない。
+  `SceneDesignerUndoCommandPolicy`)は無改造のまま流用した。しかしM0045投入後も実機で
+  「Undo履歴が全く残らない」ままであり、加えて「ソースエディタで素早く入力している間はいいが、
+  1秒ほど入力を止めるとフォーカスがソースエディタからヒエラルキーへ移る」と報告された(M0046、
+  [[M0046-Hierarchy-Focus-Steal-Fix]])。この新症状が決定的な手がかりであり、**Undo症状の
+  原因でもあった**: `HierarchyToolWindowControl.Tree_SelectedItemChanged`が無条件に
+  `this.Tree.Focus()`を呼んでおり、このハンドラは矢印キーでのツリー内移動の受け口である一方、
+  再解析による`ItemsSource`差し替えの後にWPFが**遅延生成**した`TreeViewItem`へスタイルSetter
+  (`IsSelected`のTwoWayバインド)経由で選択が入ったタイミングでも発火する。
+  `ItemContainerGenerator`はコンテナを遅延生成するため、これは`Populate`の同期ブロックが
+  終わった後の測定・配置パスで起きる——つまり`SuppressSelectionPublish`ガードは同期スコープで
+  しか張られていないのに守るべきイベントは非同期で来るため、構造的にすり抜けていた(副次的欠陥
+  として`ApplySelectionToTree`の`finally`が`SuppressSelectionPublish=false`を無条件代入し、
+  呼び出し元`Populate`のガードを黙って解除してもいた)。再解析は入力の250msデバウンス後に走る
+  ため「1秒ほど止める」とちょうど着地し、そのたびにフォーカスがヒエラルキーへ移ることで、
+  報告されていた4症状すべて——ツールバー▼履歴が空(アクティブなVSウィンドウがUndo管理を持たない
+  ツールウィンドウになる)、コードエディタでCtrl+Zが効かない(押した時点でフォーカスが抜けている)、
+  ギズモ移動直後に履歴ボタンが0.5秒で消える、Undoが1段階しか効かない(最初の1回だけ強奪前に
+  間に合う)——が説明できた。クラスのdocコメント自身が「source focus is never changed by those
+  requests」と書いており、ADR-0041の「ツールウィンドウはフォーカスを奪わない」原則にも反する、
+  実装が自分の文書化した契約に違反していた事例だった。M0046ではフォーカスを「奪う」のをやめ
+  「既に持っていること」を選択発行の条件へ反転させ(`HierarchyFocusPolicy.
+  ShouldPublishSelectionChange`、新設・純粋関数)、`Tree_SelectedItemChanged`から`Tree.Focus()`を
+  削除した。マウス左/右クリックの2箇所はユーザーがツリーを直接クリックした本物のジェスチャー
+  なので`Tree.Focus()`を残し、`ApplySelectionToTree`のガードは保存・復元へ変更した。
+  M0045の標準コマンド登録の全廃自体は維持する(`OLECMDTEXT`未実装は実在の欠陥であり、
+  ツールウィンドウのペインへ標準コマンドIDを登録する設計も筋が悪い)が、**M0045は真因では
+  なかった**。実機目視が残っているため`Verified`へは上げていない。
 - Intended specification: `Docs/シーンエディタの仕様.md`(要求仕様)、
   Docs/Decisions/ADR-0041-Scene-Editor-Interaction-Architecture.md(意思決定)、
   Docs/Specifications/Scene-Editor-Design.md(詳細設計)

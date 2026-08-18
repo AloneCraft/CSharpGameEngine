@@ -2174,5 +2174,39 @@ Expハイブのキャッシュより新しくすること」を機序として**
   判定は`SceneUndoRedoKeyPolicy.IsRisingEdge`(新設、純粋関数)へ切り出した。実際のUndo/Redo実行
   経路(`Session.TryUndo()`/`Session.TryRedo()`/`Host.TryFastUndo()`/`Host.TryFastRedo()`/
   `SceneDesignerUndoCommandPolicy`)は無改造のまま流用した。
-- Evidence: ソリューション全体564/564(VSExtension.Tests、既存560+新規4、リグレッションなし)。
+- Evidence: VSExtension.Tests 568/568(既存564+新規4、リグレッションなし)。
   実機で3段階以上のUndo/Redoとツールバー履歴表示、コードエディタ側Ctrl+Zの回帰確認が必須。
+  **訂正(M0046で判明)**: 当初報告した「564/564」は誤り。`dotnet test --no-build`をテストファイル
+  作成後に実行したため新規4件がDLLに含まれておらず、実際には既存564件だけが走っていた。
+
+## 2026-08-19 M0046: Hierarchyが再解析のたびにフォーカスを奪う不具合の修正
+
+- **Mismatch → ツールウィンドウがフォーカスを奪う(実機Observed、ADR-0041違反)**: M0045投入後も
+  「Undo履歴が全く残らない」ままで、加えて「ソースエディタで"abc"と素早く入力している間はいいが、
+  1秒ほど入力を止めるとフォーカスがソースエディタからヒエラルキーへ移る」と報告された。
+  後者が決定的な手がかりであり、前者の原因でもあった。
+- **真因**: `HierarchyToolWindowControl.Tree_SelectedItemChanged`が無条件に`this.Tree.Focus()`を
+  呼んでいた。このハンドラは矢印キーでのツリー内移動の受け口だが、再解析による`ItemsSource`
+  差し替えの後にWPFが**遅延生成**した`TreeViewItem`へスタイルSetter
+  (`IsSelected` TwoWayバインド)経由で選択が入ったタイミングでも発火する。`ItemContainerGenerator`は
+  コンテナを遅延生成するため、これは`Populate`の同期ブロックが終わった後の測定・配置パスで起きる。
+  つまり`SuppressSelectionPublish`ガードは同期スコープでしか張られていないのに、守るべきイベントは
+  非同期で来るため構造的にすり抜けていた。副次的欠陥として`ApplySelectionToTree`の`finally`が
+  `SuppressSelectionPublish=false`を無条件代入し、呼び出し元(`Populate`)のガードを黙って解除して
+  いた。クラスのdocコメント自身が「source focus is never changed」と書いており、
+  **実装が自分の文書化した契約に違反していた**。
+- **これがUndo症状のすべてを説明する**: 再解析は入力の250msデバウンス後に走るため「1秒ほど止める」と
+  ちょうど着地し、そのたびにフォーカスがヒエラルキーへ移る。→ ツールバーの▼履歴が空(アクティブな
+  VSウィンドウがUndo管理を持たないツールウィンドウになる)、コードエディタでCtrl+Zが効かない
+  (押した時点でフォーカスが抜けている)、ギズモ移動直後に履歴ボタンが0.5秒で消える(編集直後は
+  エディタ文脈→再解析着地→強奪)、Undoが1段階しか効かない(最初の1回だけ強奪前に間に合う)。
+- **修正**: フォーカスを「奪う」のをやめ「持っていること」を発行条件にした。判定は
+  `HierarchyFocusPolicy.ShouldPublishSelectionChange`(新設、純粋関数)へ切り出し、
+  `Tree_SelectedItemChanged`から`Tree.Focus()`を削除。マウス左/右クリックの2箇所は
+  ユーザー起点の本物のジェスチャーなので`Tree.Focus()`を残した。`ApplySelectionToTree`の
+  ガードは保存・復元へ変更した。
+- **M0045の扱い**: 標準コマンド登録の全廃は維持する(`OLECMDTEXT`未実装は実在の欠陥であり、
+  ツールウィンドウのペインへ標準コマンドIDを登録する設計自体も筋が悪い)。ただし
+  **M0045は今回の真因ではなかった**。
+- Evidence: VSExtension.Tests 572/572(既存568+新規4、リグレッションなし)。実機で入力放置時の
+  フォーカス保持・ツールバー履歴・多段Undo・矢印キー選択の回帰確認が必須。

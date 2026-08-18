@@ -66,7 +66,11 @@ Edit.Undoとして消費されたかどうかに関わらず物理的な押下�
 `SceneUndoRedoKeyPolicyTests.cs`(新規、4件): 押下→押下(継続、false)・非押下→押下(true)・
 押下→非押下(false)・非押下→非押下(false)の4パターンを固定。
 
-ソリューション全体564/564(VSExtension.Tests、既存560+新規4、リグレッションなし)。
+VSExtension.Tests 568/568(既存564+新規4、リグレッションなし)。
+
+> **訂正(M0046で判明)**: M0045時点で報告した「564/564」は誤り。`dotnet test --no-build`を
+> テストファイル作成**後**に実行したため、ビルド済みDLLに新規4件が含まれておらず、実際には
+> 既存564件だけが走っていた。新規4件が実際に実行・合格したことはM0046のビルド後に確認した。
 `SceneHwndHost.TickUndoRedoIfNeeded`本体・`OleMenuCommandService`関連の削除自体はVS SDK依存/
 UI配線のため既存方針どおりユニットテスト対象外。
 

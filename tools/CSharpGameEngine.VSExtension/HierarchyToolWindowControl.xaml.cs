@@ -107,12 +107,20 @@ public partial class HierarchyToolWindowControl:UserControl {
         }
     }
 
+    /// <summary>
+    /// M0046: ここは矢印キーでのツリー内移動の受け口だが、再解析で<c>ItemsSource</c>を差し替えた
+    /// 後のコンテナ遅延生成でも発火する。かつては無条件に<c>Tree.Focus()</c>を呼んでいたため、
+    /// ユーザーがコードエディタで入力を止めて再解析が着地するたびにHierarchyがフォーカスを奪い、
+    /// エディタのUndo履歴・Ctrl+Zが実質使えなくなっていた。フォーカスは奪わず、
+    /// <b>既に持っていること</b>を発行の条件にする(<see cref="HierarchyFocusPolicy"/>)。
+    /// </summary>
     private void Tree_SelectedItemChanged(object Sender,RoutedPropertyChangedEventArgs<object>Args){
-        if(this.SuppressSelectionPublish||Args.NewValue is not SceneNodeViewModel Item){
+        if(Args.NewValue is not SceneNodeViewModel Item
+            ||!HierarchyFocusPolicy.ShouldPublishSelectionChange(
+                this.SuppressSelectionPublish,this.Tree.IsKeyboardFocusWithin)){
             return;
         }
 
-        this.Tree.Focus();
         this.CurrentSelection=HierarchySelectionPlanner.Select(
             this.CurrentSelection,this.OrderedPaths(),Item.Path,ControlPressed:false,ShiftPressed:false);
         this.PublishCurrentSelection();
@@ -371,6 +379,8 @@ public partial class HierarchyToolWindowControl:UserControl {
             return;
         }
 
+        // M0046: 呼び出し元(Populate)が張ったガードを黙って解除しないよう、元の値へ戻す。
+        bool Previous=this.SuppressSelectionPublish;
         this.SuppressSelectionPublish=true;
         try {
             foreach(SceneNodeViewModel Node in Roots.SelectMany(static Root=>Root.SelfAndDescendants())){
@@ -378,7 +388,7 @@ public partial class HierarchyToolWindowControl:UserControl {
                 Node.IsSelected=this.CurrentSelection.PrimaryPath is { } Primary&&Primary.Equals(Node.Path);
             }
         } finally {
-            this.SuppressSelectionPublish=false;
+            this.SuppressSelectionPublish=Previous;
         }
     }
 
