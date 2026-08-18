@@ -22,13 +22,27 @@ using Microsoft.VisualStudio.Threading;
 
 namespace CSharpGameEngine.VSExtension;
 
+/// <summary>M0050: 保存対象Sceneの正本がC#構文かJSONかを表す。<see cref="SceneWorkspaceEditContext.Root"/>はCSharpのときだけ非null。</summary>
+internal enum SceneSourceKind { CSharp, Json }
+
 internal sealed class SceneWorkspaceEditContext {
     internal SceneWorkspaceEditContext(
         DocumentId DocumentId,string FilePath,SceneModel Model,SyntaxNode Root,SourceText Text){
         this.DocumentId=DocumentId;
         this.FilePath=FilePath;
         this.Model=Model;
+        this.Kind=SceneSourceKind.CSharp;
         this.Root=Root;
+        this.Text=Text;
+    }
+
+    internal SceneWorkspaceEditContext(
+        DocumentId DocumentId,string FilePath,SceneModel Model,SourceText Text){
+        this.DocumentId=DocumentId;
+        this.FilePath=FilePath;
+        this.Model=Model;
+        this.Kind=SceneSourceKind.Json;
+        this.Root=null;
         this.Text=Text;
     }
 
@@ -38,7 +52,10 @@ internal sealed class SceneWorkspaceEditContext {
 
     internal SceneModel Model { get; }
 
-    internal SyntaxNode Root { get; }
+    internal SceneSourceKind Kind { get; }
+
+    /// <summary><see cref="SceneSourceKind.CSharp"/>のときだけ非null。</summary>
+    internal SyntaxNode?Root { get; }
 
     internal SourceText Text { get; }
 }
@@ -399,6 +416,23 @@ internal sealed class SceneWorkspaceService : IDisposable {
                 Declaration.SpanStart));
         }
 
+        // M0050: *.scene.jsonはAdditionalDocumentなのでCompilationのシンボル列挙には現れない。
+        foreach(TextDocument AdditionalDocument in Project.AdditionalDocuments){
+            CancellationToken.ThrowIfCancellationRequested();
+            if(AdditionalDocument.FilePath is not { } JsonPath
+                ||!JsonPath.EndsWith(".scene.json",StringComparison.OrdinalIgnoreCase)){
+                continue;
+            }
+
+            SourceText JsonText=await AdditionalDocument.GetTextAsync(CancellationToken).ConfigureAwait(false);
+            SceneModel JsonModel=SceneJsonModelBuilder.Build(JsonPath,JsonText,Compilation,CancellationToken);
+            Entries.Add(new ProjectSceneCatalogEntry(
+                new SceneKey(ProjectKey,JsonModel.ClassFullyQualifiedName),
+                JsonModel.ClassName,
+                JsonPath,
+                DeclarationPosition:0));
+        }
+
         ProjectSceneCatalog Catalog=new(ProjectKey,ProjectSceneCatalogPresentation.Create(ProjectKey,Entries));
         lock(this.Gate){
             if(!this.Disposed){
@@ -424,9 +458,40 @@ internal sealed class SceneWorkspaceService : IDisposable {
 
         INamedTypeSymbol?Type=EnumerateTypes(Compilation.Assembly.GlobalNamespace).FirstOrDefault(Candidate=>
             string.Equals(SceneDeclarationAnalyzer.ComputeClassFullyQualifiedName(Candidate),Key.ClassFullyQualifiedName,StringComparison.Ordinal));
-        return Type is null||!SceneTypePredicates.ImplementsSceneInterface(Type)
-            ?null
-            :SceneDeclarationAnalyzer.Analyze(Type,Compilation,CancellationToken);
+        if(Type is not null&&SceneTypePredicates.ImplementsSceneInterface(Type)){
+            return SceneDeclarationAnalyzer.Analyze(Type,Compilation,CancellationToken);
+        }
+
+        // M0050: C#側で見つからなければ*.scene.jsonを試す(1ファイル=1シーン)。
+        JsonSceneMatch?Match=await FindJsonSceneAsync(Project,Compilation,Key.ClassFullyQualifiedName,CancellationToken)
+            .ConfigureAwait(false);
+        return Match?.Model;
+    }
+
+    private readonly record struct JsonSceneMatch(TextDocument Document,string FilePath,SceneModel Model,SourceText Text);
+
+    /// <summary>
+    /// <paramref name="Project"/>の<c>*.scene.json</c>を順に解析し、完全修飾名が一致する最初の1件を返す。
+    /// JSON1ファイル=1シーンのため線形探索で十分。<see cref="ResolveSceneAsync"/>と
+    /// <see cref="ResolveSceneEditContextAsync"/>の両方が使う共通経路。
+    /// </summary>
+    private static async Task<JsonSceneMatch?>FindJsonSceneAsync(
+        Project Project,Compilation Compilation,string ClassFullyQualifiedName,CancellationToken CancellationToken){
+        foreach(TextDocument AdditionalDocument in Project.AdditionalDocuments){
+            CancellationToken.ThrowIfCancellationRequested();
+            if(AdditionalDocument.FilePath is not { } JsonPath
+                ||!JsonPath.EndsWith(".scene.json",StringComparison.OrdinalIgnoreCase)){
+                continue;
+            }
+
+            SourceText JsonText=await AdditionalDocument.GetTextAsync(CancellationToken).ConfigureAwait(false);
+            SceneModel JsonModel=SceneJsonModelBuilder.Build(JsonPath,JsonText,Compilation,CancellationToken);
+            if(string.Equals(JsonModel.ClassFullyQualifiedName,ClassFullyQualifiedName,StringComparison.Ordinal)){
+                return new JsonSceneMatch(AdditionalDocument,JsonPath,JsonModel,JsonText);
+            }
+        }
+
+        return null;
     }
 
     /// <summary>commit直前のCompilationからModel・Root・SourceTextを同じ世代で取得する。</summary>
@@ -448,7 +513,12 @@ internal sealed class SceneWorkspaceService : IDisposable {
                 Key.ClassFullyQualifiedName,
                 StringComparison.Ordinal));
         if(Type is null||!SceneTypePredicates.ImplementsSceneInterface(Type)){
-            return null;
+            // M0050: C#側で見つからなければ*.scene.jsonを試す。
+            JsonSceneMatch?Match=await FindJsonSceneAsync(Project,Compilation,Key.ClassFullyQualifiedName,CancellationToken)
+                .ConfigureAwait(false);
+            return Match is { } Found
+                ?new SceneWorkspaceEditContext(Found.Document.Id,Found.FilePath,Found.Model,Found.Text)
+                :null;
         }
 
         TypeDeclarationSyntax?Declaration=Type.DeclaringSyntaxReferences
@@ -483,9 +553,15 @@ internal sealed class SceneWorkspaceService : IDisposable {
         }
         if(!this.Workspace.IsDocumentOpen(Context.DocumentId)){
             if(!this.Workspace.CanOpenDocuments){
-                return new SceneLiveBufferWriteResult(false,"対象SceneのC#文書をlive bufferとして開けません。");
+                return new SceneLiveBufferWriteResult(false,"対象Sceneの文書をlive bufferとして開けません。");
             }
-            this.Workspace.OpenDocument(Context.DocumentId,activate:false);
+            // IsDocumentOpen/GetOpenDocumentIdsはDocument/AdditionalDocumentを区別しない汎用APIだが、
+            // Openそのものは種別ごとに別メソッドへ分かれている(M0050)。
+            if(Context.Kind==SceneSourceKind.Json){
+                this.Workspace.OpenAdditionalDocument(Context.DocumentId,activate:false);
+            } else {
+                this.Workspace.OpenDocument(Context.DocumentId,activate:false);
+            }
         }
         if(!TryGetLiveBuffer(
             Context.FilePath,out ITextBuffer?Buffer,
@@ -660,6 +736,12 @@ internal sealed class SceneWorkspaceService : IDisposable {
             case WorkspaceChangeKind.DocumentAdded:
             case WorkspaceChangeKind.DocumentRemoved:
             case WorkspaceChangeKind.DocumentReloaded:
+            // M0050: *.scene.jsonはAdditionalDocumentとして変化するため、通常のDocument系イベントでは
+            // 拾えない。JSON編集後の再解析にはこの4件が必須。
+            case WorkspaceChangeKind.AdditionalDocumentChanged:
+            case WorkspaceChangeKind.AdditionalDocumentAdded:
+            case WorkspaceChangeKind.AdditionalDocumentRemoved:
+            case WorkspaceChangeKind.AdditionalDocumentReloaded:
             case WorkspaceChangeKind.ProjectChanged:
             case WorkspaceChangeKind.ProjectReloaded:
             case WorkspaceChangeKind.SolutionReloaded:
@@ -759,6 +841,14 @@ internal sealed class SceneWorkspaceService : IDisposable {
 
         Document?Document=this.Workspace.CurrentSolution.GetDocument(DocumentId);
         if(Document is null){
+            // M0050: *.scene.jsonはcsprojの<AdditionalFiles>登録によりRoslyn上ではAdditionalDocument
+            // 扱いになる(通常のDocumentではない)。GetDocumentが null を返すのはその印。
+            TextDocument?AdditionalDocument=this.Workspace.CurrentSolution.GetAdditionalDocument(DocumentId);
+            if(AdditionalDocument is { FilePath:{ } JsonPath }
+                &&JsonPath.EndsWith(".scene.json",StringComparison.OrdinalIgnoreCase)){
+                return await AnalyzeJsonAsync(AdditionalDocument,JsonPath,CancellationToken).ConfigureAwait(false);
+            }
+
             throw new InvalidOperationException($"Roslyn workspace に対象Documentがありません: {DocumentId}");
         }
 
@@ -792,6 +882,28 @@ internal sealed class SceneWorkspaceService : IDisposable {
                 IsScene,
                 FullyQualifiedName));
         }
+
+        return new(
+            Models,
+            new SceneDocumentMenuSnapshot(SceneDesignerTargetState.SceneType,TypeRanges,Items));
+    }
+
+    /// <summary>
+    /// M0050: <c>*.scene.json</c>用の解析経路。1ファイル=1Sceneなので、C#側のような複数型宣言の走査は
+    /// 不要で、ファイル全体を単一のScene範囲として扱う(<see cref="SceneDocumentTypeRange"/>1件)。
+    /// </summary>
+    private static async Task<SceneDocumentAnalysisResult>AnalyzeJsonAsync(
+        TextDocument AdditionalDocument,string FilePath,CancellationToken CancellationToken){
+        Compilation?Compilation=await AdditionalDocument.Project.GetCompilationAsync(CancellationToken).ConfigureAwait(false);
+        SourceText Text=await AdditionalDocument.GetTextAsync(CancellationToken).ConfigureAwait(false);
+        if(Compilation is null){
+            throw new InvalidOperationException($"Roslyn解析に必要な情報を取得できませんでした: {FilePath}");
+        }
+
+        SceneModel Model=SceneJsonModelBuilder.Build(FilePath,Text,Compilation,CancellationToken);
+        List<SceneModel>Models=[Model];
+        List<SceneDesignerMenuItem>Items=[new(Model.ClassName,Model.ClassFullyQualifiedName)];
+        List<SceneDocumentTypeRange>TypeRanges=[new(0,Text.Length,true,Model.ClassFullyQualifiedName)];
 
         return new(
             Models,

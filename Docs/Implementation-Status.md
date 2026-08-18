@@ -2303,7 +2303,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   描画確認は未実施)。
 - Intended specification: [[M0049-Scene-Json-Persistence]]
 - Implementation evidence:
-  - src/CSharpGameEngine.CodeAnalysis/SceneJsonModel.cs(`System.Text.Json`用POCO)
+  - src/CSharpGameEngine.SceneModel/SceneJsonModel.cs(`System.Text.Json`用POCO。M0050で
+    `src/CSharpGameEngine.CodeAnalysis/`から移設し、VSIX側`SceneJsonModelBuilder`とも共有)
   - src/CSharpGameEngine.CodeAnalysis/SceneJsonAnalyzer.cs(`AdditionalText`+`Compilation`→
     `SceneEmitModel`。値の解釈は宣言型で決める)
   - src/CSharpGameEngine.CodeAnalysis/GameSystemGenerator.cs(`Context.AdditionalTextsProvider`で
@@ -2345,11 +2346,12 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
     依存を発見し、削除しない判断へ変更した(F-L3-011のKnown deviations参照)。
   - ネスト構造体・コンストラクタ引数・`[SceneFactory]`は今回のJSON形式では非対応
     (SCENE201/204で拒否)。
-  - VSIXのScene Designer(ギズモ・Hierarchy・Inspector)はこのJSON経路を認識せず、Scene自体を
-    検出できないため使用不能(既知の受け入れ事項、M0050で対応)。
-- Next action: M0050でVSIXのScene DesignerをJSON対応させる(Compilation/SemanticModel前提の現行
-  実装をAdditionalText/JSON前提へ作り替える必要がある)。実機でのゲーム起動・描画確認
-  (FirstPersonStageのステージ・カメラ・ライト等)もユーザー確認待ち。
+  - **(2026-08-19、M0050で解消)** VSIXのScene DesignerはM0050でJSON対応した(F-L8-011参照、
+    [[M0050-VSIX-Scene-Json-Phase1-2]])。検出・表示・Hierarchy/ギズモ編集・保存まで実装済みだが
+    実機確認は未実施。JSON内の正確なテキスト位置追跡(ダブルクリック時の精密ジャンプ)は
+    次マイルストーンへ持ち越し。
+- Next action: 実機でのゲーム起動・描画確認(FirstPersonStageのステージ・カメラ・ライト等)と
+  M0050で実装したVSIX側JSON対応の実機確認(F-L8-011のFollow-up参照)がユーザー確認待ち。
 
 ## F-L1-007 — `CSharpGameEngine.Audio.Abstractions`(`IAudioBackend`/`AudioBackend<TBackend,...>`/`ProceduralAudioClip`)
 
@@ -2992,6 +2994,26 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
     構造編集(`HierarchyEditKind`)と値編集(`EditTransactionController`経路)を2系統化するため、
     ADR-0041の編集トランザクション設計と衝突する。
   - VS拡張テストは431件→448件、ソリューション全体942件が成功。実機目視は未実施。
+- Follow-up(2026-08-19, M0050 Phase 1-2: `.scene.json`検出・表示・編集・保存、TestVerified —
+  [[M0050-VSIX-Scene-Json-Phase1-2]]): M0049でRuntimeパイプラインがJSON専用になった結果、
+  この一式が対象Sceneを一切検出できず使用不能になっていた(`SceneWorkspaceService.
+  AnalyzeAllAsync`が`AdditionalDocument`扱いの`.scene.json`で`GetDocument`から`null`を受け取り
+  例外落ちしていた点、`GetProjectSceneCatalogAsync`の生成コード除外フィルタがJSON由来の生成
+  クラスを構造的に締め出していた点の2つが直接原因)。`SceneJsonModelBuilder`(新規、VSIX側)が
+  Runtime側`SceneJsonAnalyzer`と同じ値解釈ロジックで既存の`SceneModel`系型(シンボル系プロパティ
+  は元々nullable)を直接構築するようにし、`AnalyzeAllAsync`/`GetProjectSceneCatalogAsync`/
+  `OnWorkspaceChanged`にAdditionalDocument分岐を追加した。編集モデル
+  (`SceneEditDocument`/`SceneModelEditApplier`/`EditTransactionController`)はNodePathベースで
+  Roslyn非依存だったため無改造で動作。保存は`SceneSourceEditor.ApplyForSave`のC#構文木部分差分
+  書き換えとは別に`SceneJsonSourceWriter`(新規)を作り、`Document.Model`から`*.scene.json`を
+  丸ごと再構築してから既存の粗い全文diff経路で書き戻す方式にした。コンテキストメニューへ
+  「JSON で表示」(新規`OpenSceneJsonCommand`)を追加し、「シーン デザイナーで開く」の拡張子判定
+  も`.scene.json`対応させた。JSON内の正確なテキスト位置追跡(ダブルクリックでの精密ジャンプ)は
+  次マイルストーンへ送った(現状は`SceneSourceLocation.FromJsonFile`でファイルパスのみ保持、
+  ジャンプはファイル先頭に留まるがクラッシュはしない)。新規テスト11件。ソリューション全体
+  1117件が成功。**実機確認は未実施**——特に`WorkspaceChangeKind.AdditionalDocument*`が実際に
+  発火するか、`GetDocumentIdsWithFilePath`がAdditionalDocumentのIDを返すかは、リフレクションで
+  API自体の存在を確認しただけで、実機のVS Workspaceでの挙動は未検証。
 
 ## F-L8-012 — シーンエディタ インスペクター(選択ノードのComponent member数値編集)
 

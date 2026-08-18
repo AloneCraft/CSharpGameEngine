@@ -101,6 +101,15 @@
           <ButtonText>シーン デザイナーで開く</ButtonText>
         </Strings>
       </Button>
+      <!-- M0050: *.scene.jsonを標準テキスト/JSONエディタで開く。BeforeQueryStatusは拡張子の文字列比較
+           のみ(Roslyn解析不要)。 -->
+      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneJsonCommandId" priority="0x0101" type="Button">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
+        <CommandFlag>DynamicVisibility</CommandFlag>
+        <Strings>
+          <ButtonText>JSON で表示</ButtonText>
+        </Strings>
+      </Button>
       <!-- 同じファイルに複数の Scene がある場合の一覧 (0x0110〜0x012F の32スロット + 溢れ表示
            0x0130)。以前は「シーン デザイナーで開く」という入れ子のサブメニュー (0x010A) の中に
            置いていたが、サブメニュー本体の可視性を制御する手段がなく、Scene が1件だけのときも空の
@@ -490,6 +499,8 @@
            再利用しないこと。 -->
       <!-- ADR-0040 Phase 9. -->
       <IDSymbol name="OpenSceneDesignerCommandId" value="0x0109" />
+      <!-- M0050: 空きIDから採番(0x010B〜0x010Fが空き)。 -->
+      <IDSymbol name="OpenSceneJsonCommandId" value="0x010B" />
       <IDSymbol name="SceneDesignerContextMenuGroup" value="0x1024" />
       <IDSymbol name="OpenSceneDesignerSceneItem00" value="0x0110" />
       <IDSymbol name="OpenSceneDesignerSceneItem01" value="0x0111" />

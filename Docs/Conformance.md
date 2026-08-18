@@ -2317,3 +2317,43 @@ Expハイブのキャッシュより新しくすること」を機序として**
   で全8プロジェクト成功、1106件中失敗0(CodeAnalysis.Tests 112件、うち新規11件)。
   `UserEcsProject`クリーンビルド成功、生成物確認済み。実機でのゲーム起動・描画確認は未実施
   (ユーザー確認が必要)。既知の受け入れ事項: この時点でScene Designerは使用不能。
+
+## 2026-08-19 M0050: VSIX Scene DesignerのJSON対応(第1段: 検出・表示・編集・保存)([[M0050-VSIX-Scene-Json-Phase1-2]])
+
+- **方針**: M0049でRuntimeパイプラインがJSON専用になった結果、Scene Designer(ギズモ・Hierarchy・
+  Inspector)は対象Sceneを一切検出できず使用不能になっていた。ユーザーから「`.scene.json`右クリック
+  に『デザイナーで表示』『JSONで表示』の2項目を出してほしい」との要望を受け、「デザイナーで表示」
+  の挙動を確認したところ、プレースホルダーではなく実際に動く状態まで作ることを選択した。
+- **直接原因の特定**: `SceneWorkspaceService.AnalyzeAllAsync`が`Workspace.CurrentSolution.
+  GetDocument(DocumentId)`(通常のC# `Document`専用API)のみを呼んでおり、`*.scene.json`は
+  csprojの`<AdditionalFiles>`登録によりRoslyn上`AdditionalDocument`扱いになるため`null`を受け取り
+  例外落ちしていた。加えて`GetProjectSceneCatalogAsync`の生成コード除外フィルタ
+  (`.g.cs`ヘッダー判定)が、JSON由来のSceneの実体クラス(Source Generatorが生成した`.g.cs`そのもの)
+  を意図とは無関係に構造的に締め出していた。
+- **朗報だった前提**(実装前調査で確認、当初想定より単純な設計に収まった): `SceneModel`系型の
+  シンボル系プロパティは元々全てnullableだったため型を1本化でき、JSON専用の並行モデルは不要
+  だった。M0047の編集モデル(`SceneEditDocument`/`SceneModelEditApplier`/
+  `EditTransactionController`)はNodePathベースでRoslyn非依存だったため無改造で動作した。
+  保存経路の最終段(`SceneTextBufferWriter`/`ApplyTextAsync`)もC#/JSONに依存しない汎用層だった。
+- **実装**: `SceneJsonModelBuilder`(新規、VSIX側)がRuntime側`SceneJsonAnalyzer`と同じ値解釈
+  ロジックで既存の`SceneModel`系型を直接構築する。`AnalyzeAllAsync`/`GetProjectSceneCatalogAsync`/
+  `OnWorkspaceChanged`にAdditionalDocument分岐を追加。保存は`SceneJsonSourceWriter`(新規)が
+  `Document.Model`(編集セッションの最終結果)から`*.scene.json`を丸ごと再構築し、既存の粗い
+  全文diff経路で書き戻す(C#版の`SyntaxAnnotation`部分差分書き換えほどの複雑さは不要と判断)。
+  コンテキストメニューへ「JSON で表示」(新規`OpenSceneJsonCommand`、標準テキストエディタで開く
+  だけ)を追加し、「シーン デザイナーで開く」の拡張子判定も`.scene.json`対応させた。
+- **副次的な移設**: `SceneJsonModel.cs`(POCO)を`CSharpGameEngine.CodeAnalysis`から共有ソース
+  プロジェクト`CSharpGameEngine.SceneModel`へ移設し、VSIX側とRuntime側の両方から使えるようにした。
+  この移設に伴い、単独ビルド検証用の`CSharpGameEngine.SceneModel.csproj`(バイナリ参照されない
+  共有ソース束)に`System.Text.Json`参照が新たに必要になり追加した。
+- **次マイルストーンへ送ったもの**: JSON内の正確なテキスト位置追跡(`Utf8JsonReader`ベース、
+  Hierarchyのダブルクリックでの精密ジャンプ)。現状は`SceneSourceLocation.FromJsonFile`で
+  ファイルパスのみ保持し、ジャンプはファイル先頭に留まる(クラッシュはしない)。SCENE200番台
+  診断のVSIXエラーリスト連携、大規模Scene(58ノード)でのパフォーマンス計測も持ち越し。
+- Evidence: 新規テスト11件(`SceneJsonModelBuilderTests.cs`6件、`SceneJsonSourceWriterTests.cs`
+  3件、`SceneDesignerContextMenuPolicyTests.cs`+2件)。`dotnet test CSharpGameEngine.slnx
+  --no-build`で全8プロジェクト成功、1117件中失敗0。**実機確認は未実施** — 特に
+  `WorkspaceChangeKind.AdditionalDocument*`が実際に発火するか、`GetDocumentIdsWithFilePath`が
+  AdditionalDocumentのIDを返すかは、リフレクションでAPIの型シグネチャを確認しただけで、実際の
+  Visual Studio Workspaceでの挙動(発火経路)は未検証。もし実機で発火しないことが判明した場合は
+  `FileSystemWatcher`ベースのフォールバックへの切り替えが必要になる。

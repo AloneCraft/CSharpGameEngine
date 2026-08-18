@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
-namespace CSharpGameEngine.CodeAnalysis;
+namespace CSharpGameEngine.SceneAnalysis;
 
 /// <summary>
 /// M0049: `*.scene.json`のデシリアライズ先POCO。<see cref="System.Text.Json"/>専用 — Roslynの

@@ -91,6 +91,7 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             DocumentTracker=ActiveDocumentTracker.Start(SceneWorkspace);
             if(DocumentTracker is not null){
                 await OpenSceneDesignerCommand.InitializeAsync(this,SceneSession,DocumentTracker);
+                await OpenSceneJsonCommand.InitializeAsync(this,DocumentTracker);
             }
         }
 
