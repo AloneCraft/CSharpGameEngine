@@ -176,3 +176,57 @@ VSIXのScene Designer(ギズモ・Hierarchy・Inspector)はC# `IScene`実装ク�
 この修正により「JSON で表示」は確実に表示されるようになる見込みだが、「シーン デザイナーで
 開く」はさらに先の`SceneWorkspaceService`のAdditionalDocument解決経路(`FindDocument`→
 `AnalyzeAllAsync`)が実機で正しく機能するかにまだ懸かっており、これも実機確認が必要。
+
+## 実機フィードバック2件目とその対応
+
+「シーン デザイナーで開く」をクリックすると「シーンの解析またはデザイナー表示に失敗しました。
+詳細は ActivityLog.xml を確認してください。」という汎用エラーが出た。実際にユーザーの
+Visual Studioプロセスを調べたところ、テスト対象は`devenv.exe /RootSuffix Exp`(F5デバッグの
+Experimental Instance)ではなく通常起動のメインhiveで、かつ**Visual Studioは`/Log`スイッチ
+付き起動でない限りActivityLog.xmlへ実質書き込まない**ため、`ActivityLog.LogError`は呼ばれて
+いたはずでも詳細を確認する手段が無かった。
+
+ログが読めない状態での対応として、以下の防御的改善を行った(コミット`847ea3b`):
+
+1. `SceneWorkspaceService.AnalyzeAllAsync`を`Solution.ContainsAdditionalDocument(DocumentId)`
+   で種別を先に確定させてから分岐する順序に変更し、`Solution.GetDocument`がAdditionalDocument
+   のIDに対して本当にnullを返す(例外を投げない)という未検証の前提への依存を除去した。
+2. `AnalyzeJsonAsync`内の`SceneJsonModelBuilder.Build`呼び出しを`try/catch`で囲み、万一の
+   未処理例外を`SceneModel.Failed`(診断に例外種別+メッセージを含む)へ変換するようにした。
+3. `OpenSceneDesignerCommand.OpenScene`のステータスバーメッセージに`Ex.GetType().Name`と
+   `Ex.Message`を直接含めるようにした。ActivityLogが機能しない環境でも次回は具体的な原因が
+   その場で分かる。
+
+根本原因を確証を持って特定できていないため、複数の防御的改善を積み重ねる形になった。
+
+## Phase 4の実施(診断のエラーリスト連携・パフォーマンス計測)
+
+上記の調査を踏まえ、「ActivityLog.xmlに頼らず原因を確認できるようにする」ことの延長として、
+当初Phase 4に位置づけていた項目を本マイルストーン内で前倒し実施した:
+
+- `tools/CSharpGameEngine.VSExtension/SceneDiagnosticsErrorListSync.cs`(新規):
+  `Microsoft.VisualStudio.Shell.ErrorListProvider`/`ErrorTask`を使い、Scene Designerが実際に
+  Pinしている(開いている)Sceneの解析診断(SCENE1xx/2xx、Error severityのみ)をVisual Studioの
+  エラー一覧ウィンドウへ反映する。`SceneEditorSessionService.PinnedSnapshotChanged`を購読し、
+  Pinが変わるたびにタスクを再構築する。タスクのNavigateで`Dte.ItemOperations.OpenFile`により
+  対象ファイルを開く。`CSharpGameEngineViewerPackage`のライフサイクルに組み込み、他の
+  サービス(`SourceMarkerService`等)と同じ`Start`/`Dispose`パターンに従う。
+- `SceneJsonModelBuilderPerformanceTests.cs`(新規): 実際に出荷されている最大規模のScene
+  (`FirstPersonStageScene.scene.json`、58ノード)を実ファイルから読み込み、
+  `SceneJsonModelBuilder.Build`が例外なく完走し1秒未満で終わることを固定した。テスト用
+  Compilationには実際の`UserEcsProject`のComponent型が無いため型解決は全滅するが、これは
+  本テストの対象外(処理が例外なく完走し、診断が実際に生成されることだけを検証する)。
+
+Evidence: VSExtension.Tests 617/617(既存616+新規1、リグレッションなし)。
+`SceneDiagnosticsErrorListSync`はVS SDK型(`ErrorListProvider`)に強く依存するためCodeVerified
+止まりで、実機での表示・ダブルクリック挙動は未確認。
+
+## Phase 3(次マイルストーンへ持ち越し、判断根拠を記録)
+
+`Utf8JsonReader`ベースの正確なJSON内テキスト位置追跡は、`SceneJsonModelBuilder`の現在の
+`JsonSerializer.Deserialize<SceneJsonDocument>`ベースの実装(位置情報を一切保持しないDOM
+デシリアライズ)を、自前の`Utf8JsonReader`再帰下降パーサー(各トークンのUTF8バイトオフセットを
+追跡し、UTF16文字インデックスへの変換ロジックも自前で書く必要がある)へ全面的に置き換える
+大規模な書き換えを要する。M0050の基盤機能(Scene Designerでの検出・表示)自体がまだ実機で
+確証を得られていない状態でこの規模のリスクを追加するのは優先順位として見合わないと判断し、
+今回は着手を見送った。次マイルストーンで、M0050基盤の実機確認が取れた後に着手する。

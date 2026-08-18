@@ -2375,6 +2375,29 @@ Expハイブのキャッシュより新しくすること」を機序として**
   「シーン デザイナーで開く」は`SceneWorkspaceService`のAdditionalDocument解決経路が実機で
   正しく機能するかにまだ懸かっており実機確認が必要**。
 
+## 2026-08-19 M0050フォローアップ: 診断ログ調査とPhase 4前倒し実施
+
+- **ActivityLog.xml調査**: ユーザーの実機Visual Studioプロセスを`Get-CimInstance`/`Get-Process`
+  で調査し、`devenv.exe /RootSuffix Exp`(F5デバッグのExperimental Instance)ではなく通常起動の
+  メインhiveでテストされていたこと、**Visual Studioは`/Log`スイッチ付き起動でない限り
+  ActivityLog.xmlへ実質書き込まない**ためログから詳細を確認できないことを特定した。
+- **防御的修正**(前項の続き、コミット`847ea3b`): `AnalyzeAllAsync`を`ContainsAdditionalDocument`
+  で種別確定してから分岐する順序に変更、`AnalyzeJsonAsync`のBuild呼び出しをtry/catchで囲み
+  `SceneModel.Failed`へ変換、ステータスバーに`Ex.GetType().Name`/`Ex.Message`を直接表示。
+- **Phase 4前倒し実施**: 「ログに頼らず原因を確認できるようにする」の延長として、
+  `SceneDiagnosticsErrorListSync`(新規)でScene DesignerがPinしているSceneの診断
+  (SCENE1xx/2xx)をVisual Studioのエラー一覧ウィンドウへ反映するようにした
+  (`ErrorListProvider`/`ErrorTask`、`PinnedSnapshotChanged`購読、ダブルクリックでファイルを
+  開く)。`FirstPersonStageScene.scene.json`(58ノード、実際に出荷されている最大規模)を使う
+  パフォーマンステストも追加し、型解決が全滅する条件下でも例外なく1秒未満で完走することを固定。
+- **Phase 3(次マイルストーンへ持ち越し)**: `Utf8JsonReader`ベースの正確な位置追跡は、
+  `SceneJsonModelBuilder`の`JsonSerializer.Deserialize`ベースの実装を自前の再帰下降パーサーへ
+  全面的に置き換える大規模な書き換えを要する。M0050の基盤機能自体が実機で未確認の状態でこの
+  リスクを追加するのは優先順位として見合わないと判断し、着手を見送った。
+- Evidence: `dotnet test CSharpGameEngine.slnx --no-build`で全8プロジェクト成功、
+  VSExtension.Tests 617/617。`SceneDiagnosticsErrorListSync`はVS SDK型に依存するため
+  CodeVerified止まり、実機での表示・ダブルクリック挙動は未確認。
+
 ## 2026-08-19 M0050修正2件目: 「シーン デザイナーで開く」が「シーンの解析またはデザイナー表示に失敗しました」で落ちる
 
 - **報告 → 実機Observed**: 1件目の修正後、`.scene.json`右クリックでメニュー自体は出るように
