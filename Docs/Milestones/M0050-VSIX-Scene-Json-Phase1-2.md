@@ -199,6 +199,31 @@ Experimental Instance)ではなく通常起動のメインhiveで、かつ**Visu
 
 根本原因を確証を持って特定できていないため、複数の防御的改善を積み重ねる形になった。
 
+## 実機フィードバック3件目とその修正(真の根本原因)
+
+上記の防御的改善により、ステータスバーへ具体的な例外情報が表示されるようになった結果、
+実際のエラーが判明した:「InvalidOperationException: Scene Designer の対象にできるのは
+ソリューション内の C# Document だけです。」
+
+**根本原因**: `SceneEditorSessionService.Pin(SceneModel Model)`が呼ぶ
+`SceneWorkspaceService.TryCreateSceneKey(SceneModel Model)`が、`AnalyzeAllAsync`とは**別の
+独立したメソッド**として`Solution.GetDocument(Id)`(C#専用API)だけを使っており、
+`AnalyzeAllAsync`のときに行った`ContainsAdditionalDocument`優先化の修正が及んでいなかった。
+`.scene.json`に対しては常に`null`を返すため、`AnalyzeFileNowAsync`でSceneModelの取得自体は
+成功していても、その後の`Pin`呼び出しで確実に例外になっていた。
+
+**修正**: `TryCreateSceneKey`と、同じ脆弱性を持っていた`GetProjectSceneCatalogAsync`内の
+`ActiveProjectId`解決を、共通ヘルパー`ResolveProjectIdString(DocumentId)`
+(`ContainsAdditionalDocument`優先)へ統合した。`SceneWorkspaceService.cs`/
+`SceneEditorSessionService.cs`全体を`grep`で再点検し、他に`.cs`専用のまま残っている
+`Solution.GetDocument`呼び出しが無いことを確認した(C#分岐内で既にJSON分岐と別れている
+箇所を除く)。
+
+**教訓**: `.scene.json`対応は「検出経路」(`AnalyzeAllAsync`)を直せば済むわけではなく、
+Pin・保存・ComboBox表示など、後続の各経路が個別に同種のC#専用ロジックを持っていた。
+1箇所の修正では終わらず、`Solution.GetDocument`/`.EndsWith(".cs")`のような判定パターンを
+リポジトリ全体で横断的に洗い出す必要があった。
+
 ## Phase 4の実施(診断のエラーリスト連携・パフォーマンス計測)
 
 上記の調査を踏まえ、「ActivityLog.xmlに頼らず原因を確認できるようにする」ことの延長として、

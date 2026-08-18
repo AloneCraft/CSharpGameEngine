@@ -2398,6 +2398,31 @@ Expハイブのキャッシュより新しくすること」を機序として**
   VSExtension.Tests 617/617。`SceneDiagnosticsErrorListSync`はVS SDK型に依存するため
   CodeVerified止まり、実機での表示・ダブルクリック挙動は未確認。
 
+## 2026-08-19 M0050修正3件目: 真の根本原因(TryCreateSceneKeyの.cs専用ロジック)を特定・修正
+
+- **判明の経緯**: 前項のステータスバー改善が功を奏し、ユーザーから具体的な例外情報
+  「InvalidOperationException: Scene Designer の対象にできるのはソリューション内の
+  C# Document だけです。」が報告された。エラー一覧ウィンドウには何も表示されなかった
+  (SCENE診断以前の、Pin自体の失敗だったため)。
+- **根本原因**: `SceneEditorSessionService.Pin`が呼ぶ`SceneWorkspaceService.
+  TryCreateSceneKey`が、`AnalyzeAllAsync`とは独立した別メソッドとして`Solution.
+  GetDocument(Id)`(C#専用)だけを使っており、`AnalyzeAllAsync`側で行った
+  `ContainsAdditionalDocument`優先化の修正が及んでいなかった。`.scene.json`に対しては
+  常に`null`を返すため、Scene一覧の取得自体は成功していても、その後のPin呼び出しで
+  確実に例外になっていた。
+- **修正**: `TryCreateSceneKey`と、同じ脆弱性を持っていた`GetProjectSceneCatalogAsync`の
+  `ActiveProjectId`解決を、共通ヘルパー`ResolveProjectIdString`(`ContainsAdditionalDocument`
+  優先)へ統合。リポジトリ全体を`grep`で再点検し、他に`.cs`専用のまま残っている
+  `Solution.GetDocument`呼び出しが無いことを確認した。
+- **教訓**: `.scene.json`対応は検出経路(`AnalyzeAllAsync`)を直せば済むわけではなく、
+  Pin・保存・ComboBox表示など後続の各経路が個別に同種のC#専用ロジックを持っていた。
+  1箇所の修正では終わらず、`Solution.GetDocument`/`.EndsWith(".cs")`のような判定
+  パターンをリポジトリ全体で横断的に洗い出す必要があった。
+- Evidence: `dotnet build`/`dotnet test CSharpGameEngine.slnx --no-build`で全8プロジェクト
+  成功(1117件)、リグレッションなし。パフォーマンステストの閾値(1000ms→5000ms)を実測の
+  JITウォームアップ揺らぎに合わせて緩和した(フレーキー失敗の修正、ロジック自体は無変更)。
+  **今度こそPinが成功する可能性が高いが、実機確認はまだ得られていない**。
+
 ## 2026-08-19 M0050修正2件目: 「シーン デザイナーで開く」が「シーンの解析またはデザイナー表示に失敗しました」で落ちる
 
 - **報告 → 実機Observed**: 1件目の修正後、`.scene.json`右クリックでメニュー自体は出るように

@@ -327,14 +327,26 @@ internal sealed class SceneWorkspaceService : IDisposable {
     /// </summary>
     internal SceneKey?TryCreateSceneKey(SceneModel Model){
         DocumentId?DocumentId=this.FindDocument(Model.FilePath);
-        Document?Document=DocumentId is { } Id
-            ?this.Workspace.CurrentSolution.GetDocument(Id)
-            :null;
-        if(Document is null){
+        if(DocumentId is not { } Id){
             return null;
         }
 
-        return new SceneKey(Document.Project.Id.Id.ToString("N"),Model.ClassFullyQualifiedName);
+        string?ProjectIdString=this.ResolveProjectIdString(Id);
+        return ProjectIdString is null?null:new SceneKey(ProjectIdString,Model.ClassFullyQualifiedName);
+    }
+
+    /// <summary>
+    /// M0050: *.scene.jsonはAdditionalDocumentなので、Solution.GetDocument(C#専用)だけでは
+    /// 常にnullになる(実機不具合: "Scene Designer の対象にできるのはソリューション内の C# Document
+    /// だけです"というInvalidOperationExceptionの直接原因だった)。AnalyzeAllAsyncと同じく
+    /// ContainsAdditionalDocumentで種別を先に確定させてから解決する。
+    /// </summary>
+    private string?ResolveProjectIdString(DocumentId Id){
+        Solution Solution=this.Workspace.CurrentSolution;
+        ProjectId?ProjectId=Solution.ContainsAdditionalDocument(Id)
+            ?Solution.GetAdditionalDocument(Id)?.Project.Id
+            :Solution.GetDocument(Id)?.Project.Id;
+        return ProjectId?.Id.ToString("N");
     }
 
     /// <summary>
@@ -369,7 +381,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
         }
 
         string?ActiveProjectId=ActiveId is { } Id
-            ?this.Workspace.CurrentSolution.GetDocument(Id)?.Project.Id.Id.ToString("N")
+            ?this.ResolveProjectIdString(Id)
             :null;
         string?ProjectId=SceneCatalogTargetPolicy.SelectProjectId(PreferredSceneKey,ActiveProjectId);
         Project?Project=ProjectId is null?null:this.Workspace.CurrentSolution.Projects.FirstOrDefault(Candidate=>
