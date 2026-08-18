@@ -2357,3 +2357,20 @@ Expハイブのキャッシュより新しくすること」を機序として**
   AdditionalDocumentのIDを返すかは、リフレクションでAPIの型シグネチャを確認しただけで、実際の
   Visual Studio Workspaceでの挙動(発火経路)は未検証。もし実機で発火しないことが判明した場合は
   `FileSystemWatcher`ベースのフォールバックへの切り替えが必要になる。
+
+## 2026-08-19 M0050修正: `.scene.json`右クリックでコンテキストメニューが一切出ない不具合
+
+- **報告 → 実機Observed**: M0050コミット後、ユーザーが`.scene.json`を右クリックしたところ
+  「シーン デザイナーで開く」「JSON で表示」のどちらも一切表示されないと報告された。
+- **根本原因**: `ActiveDocumentTracker.cs`の`OnSelectionChanged`(ソリューションエクスプローラー
+  選択判定)と`SetDocumentPath`(アクティブなコードエディタ文書判定)の2箇所に、`SceneWorkspaceService`
+  のRoslyn解析よりさらに手前の入り口で`.cs`拡張子だけをハードコードで許可するフィルタが既に
+  存在しており、M0050実装時にこの見落としを発見できていなかった。`SceneDesignerContextMenuPolicy.
+  Create`自体は`.scene.json`対応済みだったが、そこへ渡る`FilePath`がこの手前の層で`null`にされて
+  いたため、Roslyn解析に一切依存しない`OpenSceneJsonCommand`まで巻き込まれて表示されなかった。
+- **修正**: 両箇所を共通の`internal static bool IsSceneCandidatePath(string Path)`
+  (`.cs`または`.scene.json`を許可)へ置き換えた。
+- Evidence: `ActiveDocumentTrackerTests.cs`(新規4件)。VSExtension.Tests 616/616
+  (既存612+新規4、リグレッションなし)。**「JSON で表示」は確実に表示される見込みだが、
+  「シーン デザイナーで開く」は`SceneWorkspaceService`のAdditionalDocument解決経路が実機で
+  正しく機能するかにまだ懸かっており実機確認が必要**。

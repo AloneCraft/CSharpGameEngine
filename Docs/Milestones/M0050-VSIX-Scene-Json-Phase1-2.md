@@ -155,3 +155,24 @@ VSIXのScene Designer(ギズモ・Hierarchy・Inspector)はC# `IScene`実装ク�
   VS ワークスペースでの挙動(特にAdditionalDocumentの変更検知の伝播経路)は未確認。もし実機で
   発火しないことが判明した場合は、`AssetMetaWatcher.cs`/`FabDownloadWatcher.cs`と同じ
   `FileSystemWatcher`ベースのフォールバックへ切り替える設計変更が必要。
+
+## 実機フィードバック1件目とその修正(コミット後)
+
+ユーザーが`FirstPersonStageScene.scene.json`を右クリックしたところ、「シーン デザイナーで開く」
+「JSON で表示」のどちらも一切表示されないと報告(スクリーンショット添付)。
+
+**根本原因**: `tools/CSharpGameEngine.VSExtension/ActiveDocumentTracker.cs`に、`SceneWorkspaceService`
+のRoslyn解析よりさらに手前の入り口で`.cs`拡張子だけをハードコードで許可しているフィルタが
+2箇所(`OnSelectionChanged`のソリューションエクスプローラー選択判定、`SetDocumentPath`の
+アクティブなコードエディタ文書判定)あり、この見落としを本マイルストーンの実装時に発見できて
+いなかった。`SceneDesignerContextMenuPolicy.Create`自体は`.scene.json`対応済みだったが、
+そこへ渡る`FilePath`自体がこの手前の層で`null`にされていたため、Roslyn解析に一切依存しない
+`OpenSceneJsonCommand`まで巻き込まれて表示されていなかった。
+
+**修正**: 両箇所を共通の`internal static bool IsSceneCandidatePath(string Path)`
+(`.cs`または`.scene.json`)へ置き換えた。回帰テスト`ActiveDocumentTrackerTests.cs`(新規4件)を
+追加。VSExtension.Tests 616/616(既存612+新規4、リグレッションなし)。
+
+この修正により「JSON で表示」は確実に表示されるようになる見込みだが、「シーン デザイナーで
+開く」はさらに先の`SceneWorkspaceService`のAdditionalDocument解決経路(`FindDocument`→
+`AnalyzeAllAsync`)が実機で正しく機能するかにまだ懸かっており、これも実機確認が必要。

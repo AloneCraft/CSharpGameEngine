@@ -101,7 +101,7 @@ internal sealed class ActiveDocumentTracker : IVsSelectionEvents,IDisposable {
 
         this.SolutionExplorerFilePath=NewHierarchy is not null
             &&NewHierarchy.GetCanonicalName(NewItemId,out string CanonicalName)==VSConstants.S_OK
-            &&CanonicalName.EndsWith(".cs",StringComparison.OrdinalIgnoreCase)
+            &&IsSceneCandidatePath(CanonicalName)
             ?CanonicalName
             :null;
         this.Service.SetSolutionExplorerSelection(this.SolutionExplorerFilePath);
@@ -130,11 +130,21 @@ internal sealed class ActiveDocumentTracker : IVsSelectionEvents,IDisposable {
     private void SetDocumentPath(string DocumentPath){
         ThreadHelper.ThrowIfNotOnUIThread();
 
-        CurrentFilePath=DocumentPath.EndsWith(".cs",StringComparison.OrdinalIgnoreCase)
+        CurrentFilePath=IsSceneCandidatePath(DocumentPath)
             ?DocumentPath
             :null;
         this.Service.SetActiveDocument(CurrentFilePath);
     }
+
+    /// <summary>
+    /// M0050: Scene候補として扱うファイル拡張子。C# `IScene`実装(`.cs`)と`*.scene.json`の両方を
+    /// 対象にする。M0050実装時にこの判定を`.cs`限定のままにしていたため、`.scene.json`が
+    /// この時点で握りつぶされ、Roslyn解析に依存しない<see cref="OpenSceneJsonCommand"/>すら
+    /// コンテキストメニューに一切表示されない不具合があった(実機報告により発覚)。
+    /// </summary>
+    internal static bool IsSceneCandidatePath(string Path)=>
+        Path.EndsWith(".cs",StringComparison.OrdinalIgnoreCase)
+        ||Path.EndsWith(".scene.json",StringComparison.OrdinalIgnoreCase);
 
     private static bool TryGetFrameDocumentPath(IVsWindowFrame?Frame,out string DocumentPath){
         ThreadHelper.ThrowIfNotOnUIThread();
