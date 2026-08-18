@@ -29,6 +29,9 @@ Scene-Editor-Design.md新規)でF-L8-011をPlannedで追加し、F-L4-002/F-L8-0
 続くM0020 Phase 0(前提修正とデッドコード削除)でF-L8-006/F-L8-007をRemovedへ更新し、
 F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存記述と
 旧プリミティブ資産パスの記述を現状へ訂正しています。
+M0049(Sceneの保存形式をJSON化、第1段: Runtimeパイプライン)でF-L7-019を新規追加し、
+F-L3-011・F-L3-013・F-L7-012・F-L7-013・F-L7-017のKnown deviationsを更新して、実運用のScene検知が
+C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録しています。
 
 ---
 
@@ -1822,7 +1825,11 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   - `SceneInstance`/`SceneInstanceTable`が同じScene定義の複数instantiate、所有Entityの追跡、
     unloadと世代検証を担う。安定Node IDはRuntime型ではなくSceneModel側の`NodePath`で管理する。
 - Conformance: Matches
-- Known deviations: None
+- Known deviations: **(2026-08、M0049)** `IScene`/`Node`はファイル自体は削除していないが、
+  実際のScene(`UserEcsProject/Scenes/*.scene.json`)はどれもこの型を実装しなくなった
+  ([[M0049-Scene-Json-Persistence]])。Scene検知は`*.scene.json`ファイルの存在のみで行う
+  (F-L7-019)。ファイルを残した理由は3テストプロジェクトの`.csproj`が直接リンクしていることと、
+  VSIX側の解析器(F-L7-012)がM0050までこの型名を前提にしているため。
 - Next action: なし。編集時の安定Node IDはF-L8-010/F-L8-011で管理する。
 
 ## F-L7-012 — Scene DSL解析・Runtime生成(`SceneDslAnalyzer`/`SceneInstantiateEmitter`)
@@ -1854,6 +1861,11 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
     複数回独立して生成できる。
 - Conformance: Matches
 - Known deviations: DSL宣言はC#としてコンパイルされるが、`Node`をRuntime実行すると意図的に例外になる。
+  **(2026-08、M0049)** `GameSystemGenerator`はこの経路(C#構文からの`SceneEmitModel`生成)を
+  実際のScene検出には使わなくなった。実運用の経路はF-L7-019(`*.scene.json` → `SceneJsonAnalyzer`)
+  に置き換わっている。`SceneDslAnalyzer`/`SceneModelBridge`自体はVSIX側(F-L8-010/F-L8-011)が
+  M0050まで使い続けるため削除していないが、Runtimeコンパイルパイプラインからは呼ばれない
+  ([[M0049-Scene-Json-Persistence]])。
 - Next action: 編集操作はF-L8-011の後続Phaseで管理する。
 
 ## F-L7-013 — Scene DSL診断(SCENE100〜118)
@@ -1875,6 +1887,8 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   - 解析エラーを持つSceneは`SceneInstantiateEmitter`とStartup合成Systemの生成対象から除外する。
 - Conformance: Matches
 - Known deviations: 旧SCENE001〜009はADR-0040移行時に廃止し、IDをSCENE100以降へ振り直した。
+  **(2026-08、M0049)** SCENE100〜118はC#構文解析(`SceneDslAnalyzer`、VSIX専用に縮退)にのみ残る。
+  実運用のJSON経路は別番台のSCENE200〜204(F-L7-019)を使う。
 - Next action: なし。
 
 ## F-L9-006 — `samples/SceneAuthoringDemo`(削除済み)
@@ -2198,7 +2212,10 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   - `StartupSceneAttribute`/`IScene`はいずれも`src/CSharpGameEngine.Entities/`に手書きで置かれ、
     消費側csprojのワイルドカード(`*.cs`)経由で伝播する。
 - Conformance: Matches
-- Known deviations: None
+- Known deviations: **(2026-08、M0049)** `[StartupScene(Order=N)]`属性は実際のScene定義では
+  もう使われない。JSONの`"startupOrder"`フィールドが同じ役割を果たす(F-L7-019)。属性自体は
+  ファイルとして削除していないが、新規Startup Sceneの起動順はJSON側で宣言する
+  ([[M0049-Scene-Json-Persistence]])。
 - Next action: なし。
 
 ## F-L7-017 — `GameSystemGenerator`(`SceneStartupSystemEmitter`、`IScene`合成System統合)
@@ -2251,6 +2268,11 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   `tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslGeneratorEndToEndTests.cs`に、2つの
   `[StartupScene]`が生成された実際の`RunFrame`連鎖を通してどちらも独立にインスタンス化されることを
   固定する回帰テストを追加。
+- **(2026-08、M0049)** `SceneStartupSystemEmitter`自体は無改造で流用しているが、入力の
+  `SceneEmitModel.IsStartupScene`/`StartupOrder`は今はJSONの`"startupOrder"`フィールドから
+  導出される(`[StartupScene]`属性からではない)。回帰テスト
+  (`MultipleStartupScenes_BothInstantiateIndependently_...`)はJSON入力へ書き換えて存続
+  ([[M0049-Scene-Json-Persistence]])。
 
 ## F-L7-018 — `GameSystemGenerator`診断(旧STARTUP001〜010、削除済み)
 
@@ -2271,6 +2293,63 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
 - Conformance: NotApplicable(STARTUP診断IDは存在しない)
 - Known deviations: None
 - Next action: なし。現行`[StartupScene]`誤用はSCENE117/118で報告する。
+
+## F-L7-019 — Scene JSON永続化(`SceneJsonAnalyzer`、`*.scene.json` → `SceneEmitModel`)
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Scene Authoring(JSONをSceneの正本にする、第1段)
+- Status: Implemented
+- Verification: TestVerified。RuntimeVerified止まり(生成物の新旧比較を実測、実機でのゲーム起動・
+  描画確認は未実施)。
+- Intended specification: [[M0049-Scene-Json-Persistence]]
+- Implementation evidence:
+  - src/CSharpGameEngine.CodeAnalysis/SceneJsonModel.cs(`System.Text.Json`用POCO)
+  - src/CSharpGameEngine.CodeAnalysis/SceneJsonAnalyzer.cs(`AdditionalText`+`Compilation`→
+    `SceneEmitModel`。値の解釈は宣言型で決める)
+  - src/CSharpGameEngine.CodeAnalysis/GameSystemGenerator.cs(`Context.AdditionalTextsProvider`で
+    `*.scene.json`を拾う`SceneJsonResults`プロバイダー。旧`SceneDeclarations`(C#構文由来)は削除)
+  - src/CSharpGameEngine.SceneModel/SceneDslDiagnostics.cs(SCENE200〜204)
+  - src/CSharpGameEngine.Entities/Runtime.cs(`InstantiateScene<TScene>`の制約を
+    `where TScene:IScene,ISceneDefinition`から`where TScene:ISceneDefinition`へ緩和)
+  - UserEcsProject/UserEcsProject.csproj(`<AdditionalFiles Include="Scenes/*.scene.json" />`)
+  - UserEcsProject/Scenes/MainScene.scene.json、FirstPersonStageScene.scene.json、
+    PrimitiveShowcaseBoxScene.scene.json、PrimitiveShowcaseSphereScene.scene.json
+- Tests:
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneJsonAnalyzerTests.cs(新規11件。リテラル値の
+    宣言型別解決、enumメンバー名解決、複数子ノードの再帰的走査、SCENE200/201/202/203の各診断)
+  - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneDslGeneratorEmissionTests.cs、
+    SceneDslGeneratorEndToEndTests.cs、SceneArchetypeIntegrationTests.cs、
+    GameSystemGeneratorEndToEndTests.cs(JSON入力へ書き換えて存続。`InMemoryAdditionalText`/
+    `GameSystemGeneratorTestHelper.RunGeneratorWithSceneJson`/`CompileAndLoadWithSceneJson`を新設)
+- Reverse-engineered behavior:
+  - Sceneは`*.scene.json`ファイルの**存在だけ**で検知される。手書きC#クラスの宣言は一切不要
+    (`IScene`実装は廃止)。`className`/`namespace`はJSON側で初めて決まる。
+  - `type`はComponent構造体の完全修飾名(`Compilation.GetTypeByMetadataName`で解決)。旧C# DSLと
+    異なり`using`や囲む名前空間経由の解決は行わない — 常に完全修飾名を要求する。
+  - 値の解釈は対象フィールド/プロパティの**宣言型**で決める。`enum`は文字列をメンバー名として
+    `GetMembers(name)`から`IFieldSymbol{IsConst:true}`を解決、それ以外は`string`/`bool`/
+    `float`/`double`/`int`/`long`のJSONネイティブ型をそのまま使う。フィールド解決は
+    `public`かつ`const`でも`readonly`でもないものに限る(readonly除外はM0049実装中に発見した
+    バグ修正 — 修正前はreadonlyフィールドを誤って受理し、生成コードがCS0191でコンパイル不能に
+    なる潜在バグがあった)。
+  - `[SceneAssets]`定数は解決せず、参照箇所へ解決済みの文字列を直書きする(インライン化)。
+  - `SceneInstantiateEmitter`/`SceneStartupSystemEmitter`/`SceneComponentSetCollector`/
+    `SceneEmitModel`はADR-0040で既にシンボルから式を再構築する設計だったため無改造で流用。
+  - 生成コードの新旧比較(旧C#構文パイプライン↔新JSONパイプライン)を`git stash`で実機的に
+    切り替えて実測: 差分は浮動小数点の書式(float32ビット列は完全一致)と資産定数のインライン化
+    (設計通り)のみで、構造・Archetype番号・引数順序に差分は無いことを確認した。
+- Conformance: Matches(承認済み計画通り)
+- Known deviations:
+  - 承認済み計画は`IScene.cs`/`Node.cs`/`StartupSceneAttribute.cs`の削除を指示していたが、
+    実装中にテストプロジェクトの直接ファイルリンクとVSIX側解析器(F-L7-012、M0050まで温存)の
+    依存を発見し、削除しない判断へ変更した(F-L3-011のKnown deviations参照)。
+  - ネスト構造体・コンストラクタ引数・`[SceneFactory]`は今回のJSON形式では非対応
+    (SCENE201/204で拒否)。
+  - VSIXのScene Designer(ギズモ・Hierarchy・Inspector)はこのJSON経路を認識せず、Scene自体を
+    検出できないため使用不能(既知の受け入れ事項、M0050で対応)。
+- Next action: M0050でVSIXのScene DesignerをJSON対応させる(Compilation/SemanticModel前提の現行
+  実装をAdditionalText/JSON前提へ作り替える必要がある)。実機でのゲーム起動・描画確認
+  (FirstPersonStageのステージ・カメラ・ライト等)もユーザー確認待ち。
 
 ## F-L1-007 — `CSharpGameEngine.Audio.Abstractions`(`IAudioBackend`/`AudioBackend<TBackend,...>`/`ProceduralAudioClip`)
 

@@ -3,8 +3,8 @@ using System.Reflection;
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 
 /// <summary>
-/// Scene DSLを実際にコンパイル・実行して、<c>world.InstantiateScene&lt;TScene&gt;()</c>がEntityを作ることを
-/// 確かめる(ADR-0040)。ここが通って初めて「C# Scene DSL → Roslyn → SceneModel → SG → Runtime ECS」の
+/// Scene JSON(M0049)を実際にコンパイル・実行して、<c>world.InstantiateScene&lt;TScene&gt;()</c>がEntityを作ることを
+/// 確かめる(ADR-0040)。ここが通って初めて「*.scene.json → Compilation → SceneJsonAnalyzer → SG → Runtime ECS」の
 /// 経路が繋がったことになる。
 /// </summary>
 public sealed class SceneDslGeneratorEndToEndTests {
@@ -70,9 +70,9 @@ public sealed class SceneDslGeneratorEndToEndTests {
         }
         """;
 
-    private static Assembly CompileScene(string SceneSource)=>
-        GameSystemGeneratorTestHelper.CompileAndLoad(
-            [.. GameSystemGeneratorTestHelper.SceneDslSources,Components,SceneSource,Driver]);
+    private static Assembly CompileScene(string SceneJson)=>
+        GameSystemGeneratorTestHelper.CompileAndLoadWithSceneJson(
+            [Components,Driver],[("Scenes/MainScene.scene.json",SceneJson)]);
 
     private static object?Invoke(Assembly Assembly,string MethodName)=>
         GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.Driver",MethodName);
@@ -80,18 +80,17 @@ public sealed class SceneDslGeneratorEndToEndTests {
     [Fact]
     public void InstantiateScene_CreatesOneEntityPerNode(){
         Assembly Assembly=CompileScene("""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Name="Root",
-                    Components=[new Transform { X=1f }],
-                    Children=[
-                        new Node { Name="A",Components=[new Light { Intensity=3f }] },
-                        new Node { Name="B",Components=[new Transform { X=2f }] },
-                    ],
-                };
+            {
+              "namespace": "Game",
+              "className": "MainScene",
+              "root": {
+                "name": "Root",
+                "components": [ { "type": "Sample.Transform", "members": { "X": 1.0 } } ],
+                "children": [
+                  { "name": "A", "components": [ { "type": "Sample.Light", "members": { "Intensity": 3.0 } } ] },
+                  { "name": "B", "components": [ { "type": "Sample.Transform", "members": { "X": 2.0 } } ] }
+                ]
+              }
             }
             """);
 
@@ -101,14 +100,13 @@ public sealed class SceneDslGeneratorEndToEndTests {
     [Fact]
     public void InstantiateScene_TwiceProducesIndependentSceneInstances(){
         Assembly Assembly=CompileScene("""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Components=[new Transform { X=1f }],
-                    Children=[new Node { Components=[new Light()] }],
-                };
+            {
+              "namespace": "Game",
+              "className": "MainScene",
+              "root": {
+                "components": [ { "type": "Sample.Transform", "members": { "X": 1.0 } } ],
+                "children": [ { "components": [ { "type": "Sample.Light", "members": {} } ] } ]
+              }
             }
             """);
 
@@ -120,14 +118,13 @@ public sealed class SceneDslGeneratorEndToEndTests {
         // Sceneのノード形状はSystemのUpdate/Spawn形状と同じArchetype空間へ入る。Systemが宣言していない
         // 構成({Light, Parent})でもArchetypeが作られ、Createが解決できなければコンパイルが通らない。
         Assembly Assembly=CompileScene("""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Components=[new Transform()],
-                    Children=[new Node { Components=[new Light { Intensity=7f }] }],
-                };
+            {
+              "namespace": "Game",
+              "className": "MainScene",
+              "root": {
+                "components": [ { "type": "Sample.Transform", "members": {} } ],
+                "children": [ { "components": [ { "type": "Sample.Light", "members": { "Intensity": 7.0 } } ] } ]
+              }
             }
             """);
 
@@ -137,14 +134,13 @@ public sealed class SceneDslGeneratorEndToEndTests {
     [Fact]
     public void InstantiateScene_ProvidesTypedComponentLookupForSceneEntities(){
         Assembly Assembly=CompileScene("""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Components=[new Transform { X=1f }],
-                    Children=[new Node { Components=[new Light { Intensity=7f }] }],
-                };
+            {
+              "namespace": "Game",
+              "className": "MainScene",
+              "root": {
+                "components": [ { "type": "Sample.Transform", "members": { "X": 1.0 } } ],
+                "children": [ { "components": [ { "type": "Sample.Light", "members": { "Intensity": 7.0 } } ] } ]
+              }
             }
             """);
 
@@ -152,33 +148,23 @@ public sealed class SceneDslGeneratorEndToEndTests {
     }
 
     /// <summary>
-    /// 実バグの回帰テスト(ADR-0040 Phase 6): <c>[StartupScene]</c>は複数のシーンが共存できる
+    /// 実バグの回帰テスト(ADR-0040 Phase 6): <c>startupOrder</c>は複数のシーンが共存できる
     /// (<c>GameSystemGenerator</c>が対象シーンをループしてそれぞれ合成Systemを1つずつ作る)。
     /// 各合成Systemが唯一共有される<c>Bootstrap</c>Entityの<c>Bootstrap.Done</c>フィールドを直接
     /// 読み書きしていた頃は、同一フレーム内で先に実行されたSystemが<c>Done=true</c>にした時点で
     /// 残り全員が「もう実行済み」と誤認し、自分の<c>InstantiateScene</c>を一度も呼ばずに終わっていた
-    /// (宣言順が2番目以降の<c>StartupScene</c>が実機で常に無視されるという形で発覚)。生成された
+    /// (宣言順が2番目以降のStartup Sceneが実機で常に無視されるという形で発覚)。生成された
     /// 実際の<c>RunFrame</c>連鎖を通して、2番目のSceneも実際にインスタンス化されることを固定する。
     /// </summary>
     [Fact]
     public void MultipleStartupScenes_BothInstantiateIndependently_ThroughTheGeneratedRunFrameChain(){
-        Assembly Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(
-            [.. GameSystemGeneratorTestHelper.SceneDslSources,Components,"""
+        Assembly Assembly=GameSystemGeneratorTestHelper.CompileAndLoadWithSceneJson(
+            [Components,"""
                 using CSharpGameEngine.Entities;
                 using CSharpGameEngine.Generated;
                 using Sample;
 
                 namespace Game;
-
-                [StartupScene(Order = 0)]
-                public partial class SceneA : IScene {
-                    public Node Root => new() { Components = [new Light { Intensity = 1f }] };
-                }
-
-                [StartupScene(Order = 1)]
-                public partial class SceneB : IScene {
-                    public Node Root => new() { Components = [new Light { Intensity = 2f }] };
-                }
 
                 internal static class TestEntry
                 {
@@ -191,7 +177,7 @@ public sealed class SceneDslGeneratorEndToEndTests {
                         var SceneAStartup = new SceneA__StartupSystem();
                         var SceneBStartup = new SceneB__StartupSystem();
                         var KeepAlive = new KeepGeneratorAlive();
-                        GeneratedGameLoop.RunFrame(ref State, ref SceneAStartup, ref KeepAlive, ref SceneBStartup);
+                        GeneratedGameLoop.RunFrame(ref State, ref KeepAlive, ref SceneAStartup, ref SceneBStartup);
 
                         var Count = 0;
                         for (var Index = 0; Index < World.EntityArchetypeIndices.Count; Index++)
@@ -200,13 +186,31 @@ public sealed class SceneDslGeneratorEndToEndTests {
                         }
 
                         // Bootstrapエンティティ自身(1) + SceneA/SceneBそれぞれ1エンティティずつ(2) = 3。
-                        // 2番目のStartupSceneが無視されるバグがあれば2のままになる。
+                        // 2番目のStartup Sceneが無視されるバグがあれば2のままになる。
                         if (Count != 3) return "FAIL:count=" + Count;
 
                         return "OK";
                     }
                 }
-                """]);
+                """],
+            [
+                ("Scenes/SceneA.scene.json","""
+                    {
+                      "namespace": "Game",
+                      "className": "SceneA",
+                      "startupOrder": 0,
+                      "root": { "components": [ { "type": "Sample.Light", "members": { "Intensity": 1.0 } } ] }
+                    }
+                    """),
+                ("Scenes/SceneB.scene.json","""
+                    {
+                      "namespace": "Game",
+                      "className": "SceneB",
+                      "startupOrder": 1,
+                      "root": { "components": [ { "type": "Sample.Light", "members": { "Intensity": 2.0 } } ] }
+                    }
+                    """),
+            ]);
 
         var Result=GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.TestEntry","RunScenario");
         Assert.Equal("OK",Result);
@@ -215,10 +219,10 @@ public sealed class SceneDslGeneratorEndToEndTests {
     [Fact]
     public void ComponentlessSceneStillInstantiates(){
         Assembly Assembly=CompileScene("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Name="Empty",Children=[new Node()] };
+            {
+              "namespace": "Game",
+              "className": "MainScene",
+              "root": { "name": "Empty", "children": [ {} ] }
             }
             """);
 

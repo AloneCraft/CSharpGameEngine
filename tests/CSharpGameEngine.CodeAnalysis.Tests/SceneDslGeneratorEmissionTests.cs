@@ -4,10 +4,10 @@ using Microsoft.CodeAnalysis;
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 
 /// <summary>
-/// Scene DSLから生成される<c>Instantiate</c>の形(ADR-0040 H-1)。
+/// Scene JSON(M0049)から生成される<c>Instantiate</c>の形(ADR-0040 H-1)。
 ///
 /// <para>
-/// 最重要の検証は<b>「Scene authoringの抽象が生成コードに現れないこと」</b>である。<c>Node</c>や
+/// 最重要の検証は<b>「Scene authoringの抽象が生成コードに現れないこと」</b>である。JSONの構造や
 /// <c>object[]</c>がRuntimeへ漏れていたら、この設計の中核が破れている。
 /// </para>
 /// </summary>
@@ -26,24 +26,25 @@ public sealed class SceneDslGeneratorEmissionTests {
         }
         """;
 
-    private static string Generate(string SceneSource,string HintName="Game.MainScene.Scene.g.cs"){
-        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
-            [.. GameSystemGeneratorTestHelper.SceneDslSources,Components,SceneSource]);
+    private static string Generate(string SceneJson,string HintName="Game.MainScene.Scene.g.cs"){
+        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGeneratorWithSceneJson(
+            [Components],[("Scenes/MainScene.scene.json",SceneJson)]);
         return GameSystemGeneratorTestHelper.GeneratedText(Result,HintName);
     }
 
     [Fact]
     public void SceneDslAbstractionsNeverReachTheGeneratedCode(){
         var Text=Generate("""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Name="Root",
-                    Components=[new Transform { X=1f }],
-                    Children=[new Node { Name="Child",Components=[new Light { Intensity=3f }] }],
-                };
+            {
+              "namespace": "Game",
+              "className": "MainScene",
+              "root": {
+                "name": "Root",
+                "components": [ { "type": "Sample.Transform", "members": { "X": 1.0 } } ],
+                "children": [
+                  { "name": "Child", "components": [ { "type": "Sample.Light", "members": { "Intensity": 3.0 } } ] }
+                ]
+              }
             }
             """);
 
@@ -59,11 +60,13 @@ public sealed class SceneDslGeneratorEmissionTests {
     [Fact]
     public void GeneratesAnInstantiateThatCallsArchetypeCreateDirectly(){
         var Text=Generate("""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Name="Root",Components=[new Transform { X=1f }] };
+            {
+              "namespace": "Game",
+              "className": "MainScene",
+              "root": {
+                "name": "Root",
+                "components": [ { "type": "Sample.Transform", "members": { "X": 1.0 } } ]
+              }
             }
             """);
 
@@ -78,11 +81,7 @@ public sealed class SceneDslGeneratorEmissionTests {
     [Fact]
     public void EmitsAPrivateConstructorSoTheSceneCannotBeInstantiated(){
         var Text=Generate("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Name="Root" };
-            }
+            { "namespace": "Game", "className": "MainScene", "root": { "name": "Root" } }
             """);
 
         Assert.Contains("private MainScene() {",Text);
@@ -91,11 +90,7 @@ public sealed class SceneDslGeneratorEmissionTests {
     [Fact]
     public void ImplementsISceneDefinitionExplicitlySoInstantiateSceneCanDispatchWithoutReflection(){
         var Text=Generate("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Name="Root" };
-            }
+            { "namespace": "Game", "className": "MainScene", "root": { "name": "Root" } }
             """);
 
         Assert.Contains("partial class MainScene : global::CSharpGameEngine.Entities.ISceneDefinition {",Text);
@@ -105,14 +100,13 @@ public sealed class SceneDslGeneratorEmissionTests {
     [Fact]
     public void ChildNodesGetParentAppendedAutomatically(){
         var Text=Generate("""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Components=[new Transform()],
-                    Children=[new Node { Components=[new Light()] }],
-                };
+            {
+              "namespace": "Game",
+              "className": "MainScene",
+              "root": {
+                "components": [ { "type": "Sample.Transform", "members": {} } ],
+                "children": [ { "components": [ { "type": "Sample.Light", "members": {} } ] } ]
+              }
             }
             """);
 
@@ -123,11 +117,7 @@ public sealed class SceneDslGeneratorEmissionTests {
     public void ComponentlessNodeGetsSceneNodeTag(){
         // Archetypeは最低1つのComponentを要求するため、空ノードにはタグが入る。
         var Text=Generate("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Name="Empty" };
-            }
+            { "namespace": "Game", "className": "MainScene", "root": { "name": "Empty" } }
             """);
 
         Assert.Contains(".Create(ref World, default)",Text);
@@ -137,13 +127,13 @@ public sealed class SceneDslGeneratorEmissionTests {
     public void LocalNamesComeFromTheNodePathNotTheName(){
         // Nameは識別子である保証がまったく無い(省略可能で、空白も日本語も入る)。
         var Text=Generate("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Name="ルート ノード",
-                    Children=[new Node { Name="子 1" },new Node { Name="子 2" }],
-                };
+            {
+              "namespace": "Game",
+              "className": "MainScene",
+              "root": {
+                "name": "ルート ノード",
+                "children": [ { "name": "子 1" }, { "name": "子 2" } ]
+              }
             }
             """);
 
@@ -156,15 +146,15 @@ public sealed class SceneDslGeneratorEmissionTests {
     [Fact]
     public void SceneEntityCountMatchesTheNodeTotal(){
         var Text=Generate("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Children=[
-                        new Node { Children=[new Node()] },
-                        new Node(),
-                    ],
-                };
+            {
+              "namespace": "Game",
+              "className": "MainScene",
+              "root": {
+                "children": [
+                  { "children": [ {} ] },
+                  {}
+                ]
+              }
             }
             """);
 
@@ -174,11 +164,10 @@ public sealed class SceneDslGeneratorEmissionTests {
     [Fact]
     public void ValuesAreFullyQualifiedSoNoUsingsAreNeededInGeneratedCode(){
         var Text=Generate("""
-            using CSharpGameEngine.Entities;
-            using Xf=Sample.Transform;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Components=[new Xf { X=1.5f }] };
+            {
+              "namespace": "Game",
+              "className": "MainScene",
+              "root": { "components": [ { "type": "Sample.Transform", "members": { "X": 1.5 } } ] }
             }
             """);
 
@@ -187,34 +176,27 @@ public sealed class SceneDslGeneratorEmissionTests {
     }
 
     [Fact]
-    public void SceneWithDiagnosticsEmitsNothing(){
-        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
-            [.. GameSystemGeneratorTestHelper.SceneDslSources,Components,
-            """
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public class MainScene:IScene {
-                public Node Root=>new() { Name="Root" };
-            }
-            """]);
+    public void InvalidSceneJsonEmitsNothing(){
+        // 'className'が無いJSONはSCENE200(InvalidSceneJson)として拒否され、Scene.g.csは一切生成されない。
+        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGeneratorWithSceneJson(
+            [Components],[("Scenes/MainScene.scene.json","""{ "root": { "name": "Root" } }""")]);
 
         Assert.DoesNotContain(Result.Results[0].GeneratedSources,static S=>S.HintName=="Game.MainScene.Scene.g.cs");
     }
 
     [Fact]
     public void GeneratorIsDeterministicAcrossTwoIndependentRuns(){
-        const string Scene="""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Components=[new Transform { X=1f }],
-                    Children=[new Node { Components=[new Light { Intensity=2f }] }],
-                };
+        const string SceneJson="""
+            {
+              "namespace": "Game",
+              "className": "MainScene",
+              "root": {
+                "components": [ { "type": "Sample.Transform", "members": { "X": 1.0 } } ],
+                "children": [ { "components": [ { "type": "Sample.Light", "members": { "Intensity": 2.0 } } ] } ]
+              }
             }
             """;
 
-        Assert.Equal(Generate(Scene),Generate(Scene));
+        Assert.Equal(Generate(SceneJson),Generate(SceneJson));
     }
 }

@@ -2278,3 +2278,42 @@ Expハイブのキャッシュより新しくすること」を機序として**
   (既存596+新規5、リグレッションなし)。ソリューション全体でリグレッション無し。
   `OnWorkspaceModelsChanged`本体・Hierarchy⇔Hub配線はVS SDK依存のためユニットテスト対象外、
   実機確認が必須。
+
+## 2026-08-19 M0049: Sceneの保存形式をJSON化する(第1段: Runtimeパイプライン)([[M0049-Scene-Json-Persistence]])
+
+- **方針**: M0048の実機報告でユーザーから「C#への書き戻しを直すよりJSON保存へ進むほうがよい」との
+  明確な指示。ADR-0040(現行のC# `IScene`/`Node`宣言的API採用)がJSON併用を不採用とした理由の中核
+  「VSネイティブのテキストUndo」は、M0047でライブ編集がテキストバッファから既に切り離された
+  時点で説得力を失っていることを明示した上で、ユーザーはJSON化続行を選択。`IScene`廃止、
+  `*.scene.json`ファイルの**存在だけ**でSceneを検知する方式へ変更し、既存4ファイル
+  (`MainScene.cs`・`FirstPersonStageScene.cs`・`FirstPersonStageAssets.cs`・
+  `PrimitiveShowcaseScene.cs`)を全てJSONへ移行した。Runtimeコンパイルパイプラインを先に完成させ、
+  VSIXのScene DesignerはM0050まで一時的に使用不能になることをユーザーは承認済み。
+- **実装**: `SceneJsonAnalyzer`(新規)が`Context.AdditionalTextsProvider`経由で`*.scene.json`を
+  `Compilation`と組み合わせて解析し`SceneEmitModel`を作る。値の解釈は対象フィールド/プロパティの
+  宣言型で決める(enumはメンバー名文字列、それ以外はJSONネイティブ型)。`SceneInstantiateEmitter`
+  等の生成層はADR-0040で既にシンボルから式を再構築する設計だったため無改造で流用できた。
+  `World.InstantiateScene<TScene>()`の`where TScene:IScene,ISceneDefinition`制約は
+  `where TScene:ISceneDefinition`へ緩和(JSON由来の生成クラスは`IScene`を実装しないため必須の変更)。
+- **計画からの逸脱**: 承認済み計画は`IScene.cs`/`Node.cs`/`StartupSceneAttribute.cs`の削除を
+  指示していたが、実装中に(1)3つのテストプロジェクトの`.csproj`がこれらのファイルへ直接リンクして
+  いること、(2)同じ計画がVSIX側の解析器(これらの型名を前提にする)をM0050まで温存すると明記して
+  いたこととの矛盾を発見し、削除しない判断へ変更した。計画の上位意図(VSIX/解析器パイプラインを
+  コンパイル可能なまま残す)を優先した。
+- **生成コードの意味的同一性を実測**: `git stash`で新旧パイプラインを行き来し、4 Scene全てと
+  共有インフラの生成物を新旧で`diff`。3 Sceneと共有インフラは完全一致、`FirstPersonStageScene`
+  (58ノード)は浮動小数点の書式差(float32のビット列は完全一致を確認)と資産定数のインライン化
+  (設計通り)のみで、構造・Archetype番号・引数順序の差分は無いことをトークン単位で検証した。
+- **移行中に発見した実装バグ**: `SceneJsonAnalyzer.TryResolveMember`のフィールド解決条件が
+  `IsReadOnly`を見ておらず、readonlyフィールドを誤って「代入可能」と判定していた
+  (`new T { X = ... }`がCS0191でコンパイル不能になる潜在バグ)。C#構文ベースの旧パイプラインでは
+  Roslyn自身がユーザーソースの構文検証で同種の誤りを構造的に弾けていたため存在し得なかったバグ
+  種別。プロパティ側の`IsReadOnly:false`条件と揃えて修正し、回帰テストを追加した。
+- **既存テストの追従**: `GameSystemGenerator`のC#構文プロバイダー削除に伴い、C#の`IScene`宣言で
+  生成器を駆動していた既存テスト(`SceneDslGeneratorEmissionTests`/`SceneDslGeneratorEndToEndTests`/
+  `SceneArchetypeIntegrationTests`のScene関連分/`GameSystemGeneratorEndToEndTests`の1件)をJSON入力へ
+  書き換えて追従させた。`GameSystemGeneratorTestHelper`に`AdditionalText`注入経路を新設。
+- Evidence: `SceneJsonAnalyzerTests.cs`(新規11件)。`dotnet test CSharpGameEngine.slnx --no-build`
+  で全8プロジェクト成功、1106件中失敗0(CodeAnalysis.Tests 112件、うち新規11件)。
+  `UserEcsProject`クリーンビルド成功、生成物確認済み。実機でのゲーム起動・描画確認は未実施
+  (ユーザー確認が必要)。既知の受け入れ事項: この時点でScene Designerは使用不能。

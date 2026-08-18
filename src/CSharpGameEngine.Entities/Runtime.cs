@@ -135,7 +135,7 @@ public partial struct World {
     /// Scene DSL自体も実行されない — 生成された<c>Instantiate</c>が
     /// <c>ArchetypeNN.Create</c>を直接呼ぶだけである。
     /// </summary>
-    public SceneInstance InstantiateScene<TScene>()where TScene:IScene,ISceneDefinition{
+    public SceneInstance InstantiateScene<TScene>()where TScene:ISceneDefinition{
         return TScene.Instantiate(ref this);
     }
 

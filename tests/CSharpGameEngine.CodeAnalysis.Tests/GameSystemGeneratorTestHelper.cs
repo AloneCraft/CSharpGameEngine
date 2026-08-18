@@ -139,12 +139,39 @@ internal static class GameSystemGeneratorTestHelper {
     internal static GeneratorDriverRunResult RunGenerator(IEnumerable<(string?Path,string Source)>ExtraSources)=>
         RunGenerator(CreateCompilation(ExtraSources));
 
+    /// <summary>
+    /// M0049: <c>*.scene.json</c>を<see cref="Context.AdditionalTextsProvider"/>経由で流し込むオーバーロード。
+    /// <paramref name="SceneJsonFiles"/>のPathは<c>.scene.json</c>で終わる必要がある(<see cref="GameSystemGenerator"/>のフィルター条件)。
+    /// </summary>
+    internal static GeneratorDriverRunResult RunGeneratorWithSceneJson(
+        IEnumerable<string>ExtraSources,IEnumerable<(string Path,string Json)>SceneJsonFiles){
+        GeneratorDriver Driver=CSharpGeneratorDriver.Create(
+            generators:[new GameSystemGenerator().AsSourceGenerator()],
+            additionalTexts:[.. SceneJsonFiles.Select(static F=>(AdditionalText)new InMemoryAdditionalText(F.Path,F.Json))],
+            parseOptions:ParseOptions);
+        Driver=Driver.RunGenerators(CreateCompilation([.. ExtraSources]));
+        return Driver.GetRunResult();
+    }
+
     /// <summary>生成コードを合流させた最終コンパイルを実際にEmitしてメモリ上に読み込む。E2Eテストがリフレクションで実行結果を検証するために使う。</summary>
     internal static Assembly CompileAndLoad(params string[]ExtraSources)=>
         CompileAndLoad(CreateCompilation(ExtraSources));
 
-    internal static Assembly CompileAndLoad(CSharpCompilation Compilation){
-        GeneratorDriver Driver=CSharpGeneratorDriver.Create(new GameSystemGenerator());
+    internal static Assembly CompileAndLoad(CSharpCompilation Compilation)=>
+        CompileAndLoad(Compilation,AdditionalTexts:[]);
+
+    /// <summary>M0049: <c>*.scene.json</c>込みでコンパイル・生成・Emit・ロードする。</summary>
+    internal static Assembly CompileAndLoadWithSceneJson(
+        IEnumerable<string>ExtraSources,IEnumerable<(string Path,string Json)>SceneJsonFiles)=>
+        CompileAndLoad(
+            CreateCompilation([.. ExtraSources]),
+            SceneJsonFiles.Select(static F=>(AdditionalText)new InMemoryAdditionalText(F.Path,F.Json)));
+
+    internal static Assembly CompileAndLoad(CSharpCompilation Compilation,IEnumerable<AdditionalText>AdditionalTexts){
+        GeneratorDriver Driver=CSharpGeneratorDriver.Create(
+            generators:[new GameSystemGenerator().AsSourceGenerator()],
+            additionalTexts:[.. AdditionalTexts],
+            parseOptions:ParseOptions);
         Driver=Driver.RunGeneratorsAndUpdateCompilation(Compilation,out Compilation OutputCompilation,out ImmutableArray<Diagnostic>GeneratorDiagnostics);
 
         if(!GeneratorDiagnostics.IsEmpty){

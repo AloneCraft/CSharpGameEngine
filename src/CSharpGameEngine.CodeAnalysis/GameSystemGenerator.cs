@@ -49,14 +49,13 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
             .Where(static Result=>Result.HasValue)
             .Select(static(Result,_)=>Result!.Value);
 
-        // ADR-0040のScene DSL。`IScene`には属性が無いためForAttributeWithMetadataNameが使えず、
-        // ISystemと同じく安価な構文プレディケートで絞ってから意味解析で確認する。
-        // 流れるのはシンボルを持たないSceneEmitModelだけ(SceneModelBridgeのXMLコメント参照)。
-        IncrementalValuesProvider<SceneEmitModel>SceneDeclarations=Context.SyntaxProvider.CreateSyntaxProvider(
-                static(Node,_)=>SceneModelBridge.IsSceneCandidate(Node),
-                static(Ctx,Ct)=>SceneModelBridge.TryAnalyze(Ctx,Ct))
-            .Where(static Result=>Result.HasValue)
-            .Select(static(Result,_)=>Result!.Value);
+        // M0049: SceneはIScene実装C#クラスではなく*.scene.jsonファイルの存在だけで検知する(IScene廃止)。
+        // 型・enum・値の解決にCompilationが要るため、Context.CompilationProviderと組み合わせる
+        // (SceneJsonAnalyzerのXMLコメント参照)。
+        IncrementalValuesProvider<SceneJsonAnalysisResult>SceneJsonResults=Context.AdditionalTextsProvider
+            .Where(static File=>File.Path.EndsWith(".scene.json",StringComparison.OrdinalIgnoreCase))
+            .Combine(Context.CompilationProvider)
+            .Select(static(Pair,Ct)=>SceneJsonAnalyzer.Analyze(Pair.Left,Pair.Right,Ct));
 
         // ADR-0036: ファイル横断・System横断の実行順序を宣言する唯一の属性。ISystem実装struct自身に
         // 直接付けるか、`file`スコープのマーカークラスへ付けてファイル既定値にするかのいずれか
@@ -73,10 +72,10 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
         IncrementalValueProvider<GenerationGate>Gate=Context.CompilationProvider.Select(
             static(Compilation,Ct)=>GenerationGate.FromCompilation(Compilation,Ct));
 
-        IncrementalValueProvider<((ImmutableArray<GameSystemResult>Systems,ImmutableArray<GameSystemOrderResult>SystemOrders,ImmutableArray<SceneEmitModel>SceneDeclarations)Sources,GenerationGate Gate)>Combined=
+        IncrementalValueProvider<((ImmutableArray<GameSystemResult>Systems,ImmutableArray<GameSystemOrderResult>SystemOrders,ImmutableArray<SceneJsonAnalysisResult>SceneJsonResults)Sources,GenerationGate Gate)>Combined=
             Systems.Collect()
                 .Combine(SystemOrders.Collect())
-                .Combine(SceneDeclarations.Collect())
+                .Combine(SceneJsonResults.Collect())
                 .Select(static(Data,_)=>(Data.Left.Left,Data.Left.Right,Data.Right))
                 .Combine(Gate);
 
@@ -94,9 +93,20 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
                 Spc.ReportDiagnostic(SystemOrderDiagnostic);
             }
 
+            // M0049: *.scene.jsonの診断はSceneDslAnalyzer(C#構文専用)を経由しないため、ここで直接報告する
+            // (JSONにはIDEのライブ構文解析対象が無く、二重報告の心配が無い)。
+            foreach(SceneJsonAnalysisResult JsonResult in Source.Sources.SceneJsonResults){
+                foreach(Diagnostic JsonDiagnostic in JsonResult.Diagnostics){
+                    Spc.ReportDiagnostic(JsonDiagnostic);
+                }
+            }
+
             // ADR-0040のScene DSL。Collect()の順序に依存しないよう必ず整列してから使う
             // (決定論性テストが両方の実行で同じ出力になることを要求している)。
-            List<SceneEmitModel>ValidSceneDeclarations=[.. Source.Sources.SceneDeclarations.Where(static S=>S.CanEmit)];
+            List<SceneEmitModel>ValidSceneDeclarations=[.. Source.Sources.SceneJsonResults
+                .Select(static R=>R.Model)
+                .Where(static M=>M is { CanEmit:true })
+                .Select(static M=>M!.Value)];
             ValidSceneDeclarations.Sort(static(A,B)=>{
                 var ByFile=string.CompareOrdinal(A.FilePath,B.FilePath);
                 return ByFile!=0?ByFile:A.DeclarationPosition.CompareTo(B.DeclarationPosition);

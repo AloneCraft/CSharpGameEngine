@@ -35,20 +35,25 @@ public sealed class SceneArchetypeIntegrationTests {
 
     private static string TypesText(params string[]ExtraSources)=>
         GameSystemGeneratorTestHelper.GeneratedText(
-            GameSystemGeneratorTestHelper.RunGenerator([.. GameSystemGeneratorTestHelper.SceneDslSources,.. ExtraSources]),
+            GameSystemGeneratorTestHelper.RunGenerator([.. ExtraSources]),
+            "GameSystem.Types.g.cs");
+
+    private static string TypesTextWithSceneJson(string SceneJson,params string[]ExtraSources)=>
+        GameSystemGeneratorTestHelper.GeneratedText(
+            GameSystemGeneratorTestHelper.RunGeneratorWithSceneJson(
+                [.. ExtraSources],[("Scenes/MainScene.scene.json",SceneJson)]),
             "GameSystem.Types.g.cs");
 
     [Fact]
     public void SceneShapeMatchingASystemShape_SharesTheSameArchetype(){
         var WithoutScene=TypesText(Components,Systems);
-        var WithScene=TypesText(Components,Systems,"""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Components=[new Transform { X=1f }] };
+        var WithScene=TypesTextWithSceneJson("""
+            {
+              "namespace": "Game",
+              "className": "MainScene",
+              "root": { "components": [ { "type": "Sample.Transform", "members": { "X": 1.0 } } ] }
             }
-            """);
+            """,Components,Systems);
 
         // {Transform} は MoveSystem が既に宣言しているので、Archetype は増えない。
         Assert.Equal(CountArchetypes(WithoutScene),CountArchetypes(WithScene));
@@ -57,17 +62,16 @@ public sealed class SceneArchetypeIntegrationTests {
     [Fact]
     public void AddingASceneDoesNotRenumberSystemDerivedArchetypes(){
         var WithoutScene=TypesText(Components,Systems);
-        var WithScene=TypesText(Components,Systems,"""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Components=[new Mesh { Id=1 }],
-                    Children=[new Node { Components=[new Light()] }],
-                };
+        var WithScene=TypesTextWithSceneJson("""
+            {
+              "namespace": "Game",
+              "className": "MainScene",
+              "root": {
+                "components": [ { "type": "Sample.Mesh", "members": { "Id": 1 } } ],
+                "children": [ { "components": [ { "type": "Sample.Light", "members": {} } ] } ]
+              }
             }
-            """);
+            """,Components,Systems);
 
         // Scene由来の集合は実Systemの後に登録されるため、System由来のArchetype番号は動かない。
         Assert.Contains("public sealed class Archetype0 : IArchetype",WithoutScene);
@@ -77,17 +81,16 @@ public sealed class SceneArchetypeIntegrationTests {
 
     [Fact]
     public void SceneOnlyShapesProduceNewArchetypes(){
-        var Text=TypesText(Components,Systems,"""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Components=[new Transform()],
-                    Children=[new Node { Components=[new Mesh { Id=2 }] }],
-                };
+        var Text=TypesTextWithSceneJson("""
+            {
+              "namespace": "Game",
+              "className": "MainScene",
+              "root": {
+                "components": [ { "type": "Sample.Transform", "members": {} } ],
+                "children": [ { "components": [ { "type": "Sample.Mesh", "members": { "Id": 2 } } ] } ]
+              }
             }
-            """);
+            """,Components,Systems);
 
         // {Mesh, Parent} はどのSystemも宣言していないScene固有の構成。
         Assert.Contains("global::CSharpGameEngine.Entities.Parent",Text);

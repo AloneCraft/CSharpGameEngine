@@ -1,0 +1,27 @@
+{
+  "namespace": "UserEcsProject.Scenes",
+  "className": "PrimitiveShowcaseBoxScene",
+  "root": {
+    "name": "ShowcaseBox",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.Transform",
+        "members": {
+          "PositionX": 3.0,
+          "PositionY": 0.5,
+          "PositionZ": 0.0,
+          "RotationW": 1.0,
+          "ScaleX": 1.0,
+          "ScaleY": 1.0,
+          "ScaleZ": 1.0
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+        "members": {
+          "Type": "Box"
+        }
+      }
+    ]
+  }
+}

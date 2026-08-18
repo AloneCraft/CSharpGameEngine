@@ -183,8 +183,57 @@ internal static class SceneDslDiagnostics {
         WellKnownDiagnosticTags.CompilationEnd);
 
     /// <summary>
+    /// M0049: <c>*.scene.json</c>用の診断。<c>200</c>番台から始めるのは意図的 —
+    /// C#構文由来のSCENE1xxと出所(JSON vs C#)を番号だけで見分けられるようにする。
+    /// これらは<see cref="SceneDslAnalyzer"/>ではなく<c>GameSystemGenerator</c>が
+    /// <c>SourceProductionContext.ReportDiagnostic</c>で直接報告する(JSONにはIDEのライブ構文解析対象が
+    /// 無く、二重報告の心配が無いため)。
+    /// </summary>
+    internal static readonly DiagnosticDescriptor InvalidSceneJson=new(
+        id:"SCENE200",
+        title:"A *.scene.json file is malformed",
+        messageFormat:"'{0}'",
+        category:Category,
+        defaultSeverity:DiagnosticSeverity.Error,
+        isEnabledByDefault:true);
+
+    internal static readonly DiagnosticDescriptor UnknownJsonMember=new(
+        id:"SCENE201",
+        title:"A scene.json component member does not exist on the target type",
+        messageFormat:"'{0}' is not a public field or property of '{1}'",
+        category:Category,
+        defaultSeverity:DiagnosticSeverity.Error,
+        isEnabledByDefault:true);
+
+    internal static readonly DiagnosticDescriptor JsonValueTypeMismatch=new(
+        id:"SCENE202",
+        title:"A scene.json value does not match the target member's type",
+        messageFormat:"A value of type '{0}' expects a JSON {1}",
+        category:Category,
+        defaultSeverity:DiagnosticSeverity.Error,
+        isEnabledByDefault:true);
+
+    internal static readonly DiagnosticDescriptor UnknownEnumMember=new(
+        id:"SCENE203",
+        title:"A scene.json enum member name does not exist",
+        messageFormat:"'{0}' is not a member of enum '{1}'",
+        category:Category,
+        defaultSeverity:DiagnosticSeverity.Error,
+        isEnabledByDefault:true);
+
+    internal static readonly DiagnosticDescriptor UnsupportedJsonMemberType=new(
+        id:"SCENE204",
+        title:"A scene.json component member has an unsupported type",
+        messageFormat:"'{0}' cannot be assigned from scene.json; only string, bool, numeric and enum members are supported",
+        category:Category,
+        defaultSeverity:DiagnosticSeverity.Error,
+        isEnabledByDefault:true);
+
+    /// <summary>
     /// <c>SceneDslAnalyzer.SupportedDiagnostics</c>が返す全ルール。ここに追加し忘れると
     /// 「報告したのにIDEへ出ない」という追跡困難な状態になるため、descriptorの定義と同じファイルに置く。
+    /// SCENE2xx(scene.json)は<c>SceneDslAnalyzer</c>ではなくGameSystemGeneratorが報告するため、
+    /// あえてこの配列には含めない(含めるとIDEのライブ構文解析対象に無い診断IDがRS1038等で警告される)。
     /// </summary>
     internal static readonly DiagnosticDescriptor[]All=[
         SceneMustBeNonGenericPartialClass,
