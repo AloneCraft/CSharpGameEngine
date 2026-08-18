@@ -2632,7 +2632,35 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   差分を適用した結果が編集後ツリーの全文と一致するかをCommitAsyncで毎回検算し、一致しなければ
   従来の全文差分へ落とすフォールバックを入れた。副次的に`ToFullString()`による全文文字列化も
   消え、M0038の遅さ調査で挙げた項目の1つが解消した。実機目視が残っているため`Verified`へは
-  上げていない。
+  上げていない。続けて実機で「1,2,3(スクロール位置・ちらつき・ソース反映)はOKだが、Ctrl+Zで
+  戻るのは1段階だけ。ツールバーの「元に戻す」▼履歴も登録されない」と報告され(M0045、
+  [[M0045-Undo-Multi-Step-Native-Key-Detection]])、M0037で追加した標準コマンド登録自体が
+  真因と判明した。AskUserQuestionでの切り分けにより、C#ソースへの書き込みは3回連続で正しく
+  反映される(書き込み自体は健全)一方、コードエディタへフォーカスを移してCtrl+Zを連打しても
+  1段階も戻らないことが確定した——`SceneDesignerUndoCommandPolicy.ShouldHandle`はビューポートの
+  WPFフォーカスが無ければ`Supported=false`を返すはずで、ペインが無関係なはずのコードエディタ
+  側でも症状が出ることは、`VSStd97CmdID.Undo`/`Redo`/`MultiLevelUndo`/`MultiLevelRedo`を
+  `GUID_VSStandardCommandSet97`としてツールウィンドウの`OleMenuCommandService`へ登録すること
+  自体が、ペインの表示・フォーカス状態に関わらずVS全体のUndo管理(ツールバー・ドロップダウン・
+  コードエディタのCtrl+Z)の接続を壊していることを示す決定的な証拠だった(加えて
+  `MultiLevelUndo`の`BeforeQueryStatus`は`Supported`/`Enabled`の真偽値しか設定せず、
+  ドロップダウンが要求する`OLECMDTEXT`を一切埋めていなかった——空履歴の直接原因)。
+  `SceneTextBufferWriter.TryApply`は標準的な`ITextUndoHistoryRegistry`経由の
+  `CreateTransaction`/`Buffer.Replace`/`Transaction.Complete`というVSエディタの正規のUndo機構を
+  使っており、そちら自体には問題が無かった。M0045では4つの標準コマンド登録を全廃し、代わりに
+  WASDQE Fly移動やShift/Ctrl修飾検出が既に使っている`CompositionTarget.Rendering`ティックごとの
+  `NativeMethods.GetKeyState`ポーリング(`SceneHwndHost.TickFlyIfNeeded`と同じ経路)でCtrl+Z/
+  Ctrl+Yを検知する`TickUndoRedoIfNeeded`(新設)へ置き換えた。`GetKeyState`はメッセージの
+  到達自体を必要とするが、VSのアクセラレータテーブルによる「コマンドとしての消費」は
+  メッセージを破棄するわけではなく届いた後の扱いを分岐させるだけなので、Ctrl+ZがEdit.Undoとして
+  消費されたかに関わらず物理的な押下状態を正しく反映する——これにより標準コマンドテーブルへ
+  一切触れずにシーンビューでのCtrl+Z/Ctrl+Yを実現した。押しっぱなし連射を防ぐ立ち上がりエッジ
+  判定は`SceneUndoRedoKeyPolicy.IsRisingEdge`(新設、純粋関数)へ切り出し、エッジ追跡自体は
+  フォーカスと独立させてフォーカスは発火可否にのみ使う(ビューポート外で押しっぱなしのまま
+  フォーカスが戻ったときの誤発火防止)。実際のUndo/Redo実行経路(`Session.TryUndo()`/
+  `Session.TryRedo()`/`Host.TryFastUndo()`/`Host.TryFastRedo()`/
+  `SceneDesignerUndoCommandPolicy`)は無改造のまま流用した。実機目視が残っているため
+  `Verified`へは上げていない。
 - Intended specification: `Docs/シーンエディタの仕様.md`(要求仕様)、
   Docs/Decisions/ADR-0041-Scene-Editor-Interaction-Architecture.md(意思決定)、
   Docs/Specifications/Scene-Editor-Design.md(詳細設計)

@@ -49,11 +49,14 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     }
 
     /// <summary>
-    /// M0037: <see cref="SceneDesignerToolWindowPane"/>がEdit.Undoの<c>QueryStatus</c>で使う。
+    /// M0037/M0045: <see cref="TryUndoFromCommand"/>/<see cref="TryRedoFromCommand"/>と
+    /// <see cref="SceneHwndHost.IsViewportFocusedProvider"/>が使う。
     /// M0036はCtrl+ZをWPFの<c>PreviewKeyDown</c>で横取りしようとしたが、Ctrl+ZはGlobalスコープで
     /// Edit.Undoに割り当て済みのためVSシェルがコマンドとして先に消費してしまい、WPFの入力系には
-    /// 一切届かなかった(実機で無反応だった根本原因)。正しい経路はペイン自身がシェルコマンドとして
-    /// Undo/Redoを引き受けること — 判定にはWPFフォーカスの有無だけを使う。
+    /// 一切届かなかった(実機で無反応だった根本原因)。M0037はペイン自身をシェルコマンドとして
+    /// 登録したが、それがVS全体のUndo管理を壊す実機回帰を招いたためM0045で撤回し、
+    /// <see cref="SceneHwndHost"/>の<c>GetKeyState</c>ポーリングへ切り替えた
+    /// (判定にはWPFフォーカスの有無だけを使う点は変わらない)。
     /// </summary>
     internal bool IsViewportFocused=>RenderHostGrid.IsKeyboardFocusWithin;
 
@@ -85,6 +88,18 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         bool Applied=Session.TryRedo();
         if(Applied){ this.Host?.TryFastRedo(); }
         return Applied;
+    }
+
+    /// <summary>M0045: <see cref="SceneHwndHost.UndoRequested"/>の購読先。</summary>
+    private void OnUndoKeyRequested(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        this.TryUndoFromCommand();
+    }
+
+    /// <summary>M0045: <see cref="SceneHwndHost.RedoRequested"/>の購読先。</summary>
+    private void OnRedoKeyRequested(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        this.TryRedoFromCommand();
     }
 
     internal void SetSession(SceneEditorSessionService Session){
@@ -185,6 +200,9 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         Host.ObjectPicked+=this.OnObjectPicked;
         Host.ObjectsMarqueePicked+=this.OnObjectsMarqueePicked;
         Host.EditCommitRequested+=this.OnEditCommitRequested;
+        Host.IsViewportFocusedProvider=()=>RenderHostGrid.IsKeyboardFocusWithin;
+        Host.UndoRequested+=this.OnUndoKeyRequested;
+        Host.RedoRequested+=this.OnRedoKeyRequested;
         this.Host=Host;
         EmptyStateText.Visibility=Visibility.Collapsed;
         RenderHostGrid.Children.Add(Host);
@@ -211,6 +229,8 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         Host.ObjectPicked-=this.OnObjectPicked;
         Host.ObjectsMarqueePicked-=this.OnObjectsMarqueePicked;
         Host.EditCommitRequested-=this.OnEditCommitRequested;
+        Host.UndoRequested-=this.OnUndoKeyRequested;
+        Host.RedoRequested-=this.OnRedoKeyRequested;
         // Dispose triggers DestroyWindowCore, which cancels the latest-wins worker and disposes the
         // native child HWND. Its stale callback is additionally rejected by SceneHwndHost's surface
         // and generation checks, so it cannot repaint this WPF-only empty state.

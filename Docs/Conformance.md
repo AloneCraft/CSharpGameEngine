@@ -2143,3 +2143,36 @@ Expハイブのキャッシュより新しくすること」を機序として**
   消えるより、遅くても確実に反映される方を優先する。
 - Evidence: ソリューション全体1060/1060(既存1054+新規6、リグレッションなし)。実機で
   Y座標が書き換わること・ちらつきが再発しないことの確認が必須。
+
+## 2026-08-19 M0045: Ctrl+Zの複数段階Undoを直す(標準コマンド登録の全廃)
+
+- **Mismatch → 複数段階Undoが機能しない・ツールバー履歴が空(実機Observed)**: M0044の一連の修正後、
+  「1,2,3(スクロール位置・ちらつき・ソース反映)はOKだが、Ctrl+Zで戻るのは1段階だけ。ツールバーの
+  「元に戻す」▼履歴も登録されない」と報告された。AskUserQuestionで2ラウンド切り分け:
+  (1)C#ソースへの書き込みは3回連続で正しく反映される、(2)ツールバー▼ドロップダウンの履歴が常に空、
+  (3)コードエディタへフォーカスを移してCtrl+Zを連打しても1段階も戻らない、(4)ギズモ移動直後、
+  履歴ボタンが一瞬(0.5秒ほど)出てすぐ消える。
+- **切り分け**: 証拠(3)が決定的だった。`SceneDesignerUndoCommandPolicy.ShouldHandle`はビューポートの
+  WPFフォーカスが無ければ`Supported=false`を返すはずで、コードエディタにフォーカスがある間は
+  M0037で登録したペインのコマンドは本来無関係になるはず。それでも症状が出るのは、標準コマンドID
+  (`GUID_VSStandardCommandSet97`の`VSStd97CmdID.Undo`/`Redo`/`MultiLevelUndo`/`MultiLevelRedo`)を
+  ツールウィンドウの`OleMenuCommandService`へ登録すること自体が、ペインの表示・フォーカス状態に
+  関わらずVS全体のUndo管理(ツールバー・ドロップダウン・コードエディタのCtrl+Z)の接続を壊している
+  ことを示す。加えて`MultiLevelUndo`の`BeforeQueryStatus`は`Supported`/`Enabled`の真偽値しか
+  設定しておらず、ドロップダウンが要求する`OLECMDTEXT`を一切埋めていなかった——(2)の直接原因。
+  一方`SceneTextBufferWriter.TryApply`は標準的な`ITextUndoHistoryRegistry`経由の
+  `CreateTransaction`/`Buffer.Replace`/`Transaction.Complete`というVSエディタの正規のUndo機構を
+  使っており、そちら自体は無実(証拠1と整合)。
+- **修正**: 4つの標準コマンド登録を`SceneDesignerToolWindowPane`から全廃した。代わりに、WASDQE Fly
+  移動やShift/Ctrl修飾検出が既に使っている`CompositionTarget.Rendering`ティックごとの
+  `NativeMethods.GetKeyState`ポーリング(`SceneHwndHost.TickFlyIfNeeded`と同じ経路)でCtrl+Z/Ctrl+Yを
+  検知する`TickUndoRedoIfNeeded`(新設)へ置き換えた。`GetKeyState`はメッセージの到達自体を必要と
+  するが、VSのアクセラレータテーブルによる「コマンドとしての消費」はメッセージを破棄するわけでは
+  なく届いた後の扱い(コマンド実行 or 通常ディスパッチ)を分岐させるだけなので、Ctrl+Zが
+  Edit.Undoとして消費されたかに関わらず物理的な押下状態を正しく反映する——標準コマンドテーブルへ
+  一切触れずにシーンビューでのCtrl+Z/Ctrl+Yを実現できる。押しっぱなし連射を防ぐ立ち上がりエッジ
+  判定は`SceneUndoRedoKeyPolicy.IsRisingEdge`(新設、純粋関数)へ切り出した。実際のUndo/Redo実行
+  経路(`Session.TryUndo()`/`Session.TryRedo()`/`Host.TryFastUndo()`/`Host.TryFastRedo()`/
+  `SceneDesignerUndoCommandPolicy`)は無改造のまま流用した。
+- Evidence: ソリューション全体564/564(VSExtension.Tests、既存560+新規4、リグレッションなし)。
+  実機で3段階以上のUndo/Redoとツールバー履歴表示、コードエディタ側Ctrl+Zの回帰確認が必須。

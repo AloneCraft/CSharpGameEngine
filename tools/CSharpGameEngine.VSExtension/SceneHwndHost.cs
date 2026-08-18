@@ -317,6 +317,7 @@ internal sealed class SceneHwndHost:HwndHost {
         if(RenderingHandler is null){
             RenderingHandler=(_,Args)=>{
                 TickFlyIfNeeded(Args);
+                TickUndoRedoIfNeeded();
                 UpdateSurfaceSnapArmed();
                 ApplyCamera();
                 Renderer?.RenderFrame();
@@ -361,6 +362,43 @@ internal sealed class SceneHwndHost:HwndHost {
     /// <see cref="SceneViewState.TickFly"/>へまとめて渡す。Orbit/PanはMoveイベントごとに即時適用で
     /// 十分(時間積分の要素が無いため、<see cref="OnPointerInput"/>参照)。
     /// </summary>
+    /// <summary>M0045: <see cref="SceneDesignerToolWindowControl"/>が購読し、Ctrl+Z/Ctrl+Yを検知した時点で発火する。</summary>
+    internal event Action?UndoRequested;
+    /// <summary>M0045: 前項の逆。</summary>
+    internal event Action?RedoRequested;
+    /// <summary>M0045: ビューポートのWPFキーボードフォーカス有無。実体は<c>RenderHostGrid.IsKeyboardFocusWithin</c>で、Controlが設定する。</summary>
+    internal Func<bool>?IsViewportFocusedProvider{ get; set; }
+
+    private bool PreviousUndoKeyDown;
+    private bool PreviousRedoKeyDown;
+
+    /// <summary>
+    /// M0045: Ctrl+ZはVS標準キーバインド(Edit.Undo)のため、VSシェルのアクセラレータテーブルが
+    /// コマンドとして先に消費してしまい、WPFの<c>KeyDown</c>には一切届かない(M0036で実機確認済み)。
+    /// M0037では標準コマンドID(<c>VSStd97CmdID.Undo</c>等)をペインへ登録して対処したが、ペインの
+    /// 表示・フォーカス状態に関わらずVS全体のUndo管理を壊す実機回帰を招いた(M0045)。
+    ///
+    /// <para>
+    /// <see cref="TickFlyIfNeeded"/>のShift/Ctrl修飾検出と同じ<c>GetKeyState</c>ポーリングは
+    /// メッセージのコマンド消費経路と無関係に物理押下状態を反映するため、標準コマンドテーブルに
+    /// 一切触れずにCtrl+Z/Ctrl+Yを検知できる。エッジ追跡自体はフォーカスと独立させ、フォーカスは
+    /// 発火の可否にのみ使う — ビューポート外で押しっぱなしのままフォーカスが戻ったときに、
+    /// 継続押下を新規押下として誤検知しないため。
+    /// </para>
+    /// </summary>
+    private void TickUndoRedoIfNeeded(){
+        bool Ctrl=(NativeMethods.GetKeyState(NativeMethods.VK_CONTROL)&0x8000)!=0;
+        bool ZDown=Ctrl&&(NativeMethods.GetKeyState(NativeMethods.VK_Z)&0x8000)!=0;
+        bool YDown=Ctrl&&(NativeMethods.GetKeyState(NativeMethods.VK_Y)&0x8000)!=0;
+        bool Focused=IsViewportFocusedProvider?.Invoke()==true;
+
+        if(Focused&&SceneUndoRedoKeyPolicy.IsRisingEdge(ZDown,PreviousUndoKeyDown)){ UndoRequested?.Invoke(); }
+        if(Focused&&SceneUndoRedoKeyPolicy.IsRisingEdge(YDown,PreviousRedoKeyDown)){ RedoRequested?.Invoke(); }
+
+        PreviousUndoKeyDown=ZDown;
+        PreviousRedoKeyDown=YDown;
+    }
+
     private void TickFlyIfNeeded(EventArgs Args){
         if(InputMachine is not { } Machine||ViewState is not { } State||Machine.State!=SceneNavState.Flying){
             LastFlyTickTime=null; // Fly再突入時に古い時刻からの巨大なDeltaTimeが出ないようにする。
