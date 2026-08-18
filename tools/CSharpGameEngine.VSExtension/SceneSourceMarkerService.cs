@@ -34,7 +34,6 @@ internal sealed class SceneSourceMarkerService : IDisposable {
     private ITextBuffer? MarkedBuffer;
     private SimpleTagger<TextMarkerTag>?MarkerTagger;
     private List<TrackingTagSpan<TextMarkerTag>>OwnedTagSpans=[];
-    private IReadOnlyList<NodePath>LastScrolledPaths=[];
     private bool Disposed;
 
     private SceneSourceMarkerService(
@@ -67,7 +66,14 @@ internal sealed class SceneSourceMarkerService : IDisposable {
             RunningDocumentTable,EditorAdapters,TextManager,TextMarkerProviderFactory);
     }
 
-    internal void Update(SceneModel? Model,IReadOnlyList<NodePath> Paths){
+    /// <summary>
+    /// M0043: スクロールするかどうかは<paramref name="ScrollBehavior"/>で<b>呼び出し側が明示する</b>。
+    /// 以前はここで「選択が変わったか」を推測していたが、その判定は選択の変化とは無関係な条件
+    /// (<c>Clear()</c>後の<c>MarkedBuffer==null</c>)でもtrueになり、編集のたびに無関係な位置へ
+    /// 飛んでいた(<see cref="SceneSourceMarkerScrollPolicy"/>参照)。
+    /// </summary>
+    internal void Update(
+        SceneModel? Model,IReadOnlyList<NodePath> Paths,SceneSourceMarkerScrollBehavior ScrollBehavior){
         ThreadHelper.ThrowIfNotOnUIThread();
         if(this.Disposed){
             return;
@@ -87,8 +93,9 @@ internal sealed class SceneSourceMarkerService : IDisposable {
         }
 
         ITextBuffer Buffer=FoundBuffer;
-        bool BufferChanged=!ReferenceEquals(this.MarkedBuffer,Buffer);
-        if(BufferChanged){
+        // バッファが差し替わったら、前のバッファへ貼ったタグは追跡できないので作り直す
+        // (タグ再構築のための判定であって、スクロールするかどうかとは無関係)。
+        if(!ReferenceEquals(this.MarkedBuffer,Buffer)){
             this.Clear();
             this.MarkedBuffer=Buffer;
         }
@@ -96,11 +103,7 @@ internal sealed class SceneSourceMarkerService : IDisposable {
         IReadOnlyList<SceneSourceMarkerRange>Ranges=SceneSourceMarkerPlanner.Create(Model,Paths);
         this.ReplaceOwnedTagSpans(Buffer,Ranges);
 
-        // 選択が実際に変わったときだけ先頭行へスクロールする。SceneModelChangedは再解析のたびに
-        // 同じ選択で呼ぶため、無条件にスクロールするとタイプ中に毎回ビューが飛んでしまう。
-        bool SelectionChanged=BufferChanged||!this.LastScrolledPaths.SequenceEqual(Paths);
-        this.LastScrolledPaths=Paths.ToArray();
-        if(SelectionChanged&&Ranges.Count>0&&NativeBuffer is not null){
+        if(SceneSourceMarkerScrollPolicy.ShouldScroll(ScrollBehavior,Ranges.Count)&&NativeBuffer is not null){
             this.ScrollToTop(NativeBuffer,Ranges[0].Span.Start);
         }
     }

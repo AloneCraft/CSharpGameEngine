@@ -264,7 +264,9 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
     }
     private void OnHierarchySelectionChanged(HierarchyNodeSelection Selection){
         ThreadHelper.ThrowIfNotOnUIThread();
-        this.SourceMarkerService?.Update(SceneEditorHub.ActiveSceneModel,Selection.Paths);
+        this.SourceMarkerService?.Update(
+            SceneEditorHub.ActiveSceneModel,Selection.Paths,
+            SceneSourceMarkerScrollBehavior.ScrollToSelection);
         if(this.SceneSession?.PinnedSnapshot is not { } Snapshot){
             return;
         }
@@ -299,13 +301,20 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
     /// しまっていた(実機報告: 選択直後は正しい位置がマークされるが、編集確定後に無関係な行へ
     /// 飛ぶ)。統一選択サービス(<see cref="SceneEditorSessionService.Selection"/>)から今の選択を
     /// 都度解決することで、選択の起点(Hierarchy/Viewport/Inspector)によらず一貫させる。
+    ///
+    /// <para>
+    /// M0043: この経路は<b>絶対にスクロールしない</b>(<see cref="SceneSourceMarkerScrollBehavior.PreserveScroll"/>)。
+    /// ここはユーザーが選択を変えたのではなく、編集の書き戻し後にRoslynが再解析し終えただけなので、
+    /// コードエディタの表示位置を動かす理由が無い。ギズモ編集のたびに無関係な位置へ飛んでいた
+    /// 実機不具合の直接の修正点。
+    /// </para>
     /// </summary>
     private void OnSceneModelChangedForSourceMarkers(SceneModel?Model){
         ThreadHelper.ThrowIfNotOnUIThread();
         IReadOnlyList<NodePath>Paths=this.SceneSession is { }Session&&Session.PinnedSnapshot is { }Snapshot
             ?SceneSelectionPathResolver.Resolve(Session.Selection.CurrentSelection,Snapshot.Key,Snapshot.Projection)
             :[];
-        this.SourceMarkerService?.Update(Model,Paths);
+        this.SourceMarkerService?.Update(Model,Paths,SceneSourceMarkerScrollBehavior.PreserveScroll);
     }
 
     /// <summary>
@@ -320,7 +329,8 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
         }
 
         if(this.SceneSession?.PinnedSnapshot is not { } Snapshot||!Snapshot.Key.Equals(Selection.Key)){
-            this.SourceMarkerService?.Update(Model:null,Paths:[]);
+            this.SourceMarkerService?.Update(
+                Model:null,Paths:[],SceneSourceMarkerScrollBehavior.PreserveScroll);
             return;
         }
 
@@ -335,7 +345,8 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
         // M0032: Viewport(将来的にはInspectorも)起点の選択もHierarchyと同様にソースをマーク・
         // スクロールする。以前はHierarchy起点以外は明示的にマークを消していたが、実機フィードバック
         // で非対称と指摘され撤廃した。
-        this.SourceMarkerService?.Update(SceneEditorHub.ActiveSceneModel,Paths);
+        this.SourceMarkerService?.Update(
+            SceneEditorHub.ActiveSceneModel,Paths,SceneSourceMarkerScrollBehavior.ScrollToSelection);
         SceneEditorHub.PublishSelectedNodePath(PrimaryPath);
     }
 

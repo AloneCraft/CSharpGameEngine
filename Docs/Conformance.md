@@ -2044,3 +2044,46 @@ Expハイブのキャッシュより新しくすること」を機序として**
   `Build_SkySphereStaticMesh_IsExcludedFromAutomaticFraming`も拡張)。ソリューション全体
   1048/1048(既存1043+新規5、リグレッションなし)。実際の3Dビューでのクリック・ドラッグ体験は
   実機確認が必須。
+
+## 2026-08-19 M0043: 再解析ではソースマーカーを絶対にスクロールさせない(原因特定から要件保証へ方針転換)
+
+- **Mismatch → 3回の修正でも症状が残り、方針を転換(実機Observed)**: M0042で選択自体は正しく
+  なった(実機で`選択: SM_Cylinder6(26)`、マーク範囲も正しく498-515行)にもかかわらず、
+  「ギズモでドラッグしてY座標を変えるとマーク部位がスクロールで見えなくなる」症状が残った。
+  飛び先はM0042前が「末尾行」、M0042後が「1行目」。M0040/M0041/M0042はいずれも実在するバグの
+  修正だったが**この症状の決定打ではなく**、飛び先が毎回変わることからも複数要因が絡んでいた。
+  今回も「なぜ飛び先が1行目なのか」を静的解析だけで断定できなかったため、**原因を1つに特定して
+  潰す方針をやめ、ユーザーの要件(編集してもスクロール位置を維持する)をコードの構造として
+  保証する方針へ切り替えた**。
+- **確認済みの構造的欠陥**: 修正前の`SceneSourceMarkerService.Update`は
+  `bool SelectionChanged=BufferChanged||!this.LastScrolledPaths.SequenceEqual(Paths);`で
+  「選択が変わったか」を推測していた。コメントの意図は正しかったが実装が保証していない——
+  `BufferChanged=!ReferenceEquals(MarkedBuffer,Buffer)`は`MarkedBuffer==null`のときも必ず
+  trueになり、`Clear()`が`MarkedBuffer=null`にする。そして`Clear()`は編集サイクル中の過渡状態
+  (`Model?.Root is null||Model.HasErrors`=書き戻し直後の一瞬Roslynが解析エラーを見る、
+  文書未オープン、`OnSelectionChangedForHierarchy`のpin不一致経路が呼ぶ`Update(null,[])`)で
+  普通に走る。つまり**過渡状態を一度でも経由すると次の正常な再解析が選択変更と誤認してスクロール
+  する**構造で、飛び先はそのときの`Ranges[0].Span.Start`次第——実機で飛び先が毎回違った事実とも
+  整合する。
+- **Unknown → スクロール可否を呼び出し側の明示に変更**: `SceneSourceMarkerScrollBehavior`
+  (`ScrollToSelection`/`PreserveScroll`)を新設し、`Update`の引数として受け取る形にした。判定は
+  `SceneSourceMarkerScrollPolicy.ShouldScroll(Behavior,MarkerRangeCount)`(新設、純粋static、
+  既存の`SceneDesignerUndoCommandPolicy`/`MarqueeSelectionPolicy`/`SceneSelectionPathResolver`と
+  同じ流儀)へ委譲。`LastScrolledPaths`フィールドは削除し、`BufferChanged`相当の判定はタグ再構築
+  にのみ残してスクロール判定から完全に切り離した。呼び出し側は
+  `OnHierarchySelectionChanged`/`OnSelectionChangedForHierarchy`(選択変更)=`ScrollToSelection`、
+  **`OnSceneModelChangedForSourceMarkers`(再解析の着地)=`PreserveScroll`**、pin不一致の
+  マーカー消去=`PreserveScroll`。編集→書き戻し→再解析の経路は`PreserveScroll`しか通らないため、
+  過渡状態が何であってもスクロールが起きえない。
+- **受け入れる挙動変更**: 「Hierarchyで選択した状態で対象文書を後から開く」ケースは、従来
+  `BufferChanged=true`で自動スクロールしていたが、今後はマークされるだけでスクロールしない。
+  ファイルを開いた瞬間にビューが飛ばなくなるので望ましい方向であり、意図的な「その場所へ飛ぶ」
+  操作はHierarchyのダブルクリック(`Navigate`、caretを明示的に動かす別経路)が引き続き担う。
+  選択変更経路は`SceneSelectionService.Select`の`SameSemanticSelection`が意味的に同一な選択を
+  既に弾いているため、`LastScrolledPaths`の重複抑制を失っても同じ選択で繰り返しスクロールしない。
+- Evidence: 新規`SceneSourceMarkerScrollPolicyTests.cs`6件。中心は
+  `ShouldScroll_PreserveScroll_IsAlwaysFalse`——マーク範囲の有無にかかわらず再解析経路からは
+  スクロールが起きないことを固定する。`SceneSourceMarkerService`本体・
+  `CSharpGameEngineViewerPackage`の配線はVS SDK依存のため既存方針どおりユニットテスト対象外。
+  ソリューション全体1054/1054(既存1048+新規6、リグレッションなし)。編集時にスクロール位置が
+  維持されることは実機確認が必須。

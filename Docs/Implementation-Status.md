@@ -2603,8 +2603,18 @@ F-L8-011をPartiallyImplementedへ、F-L8-002/F-L8-003/F-L8-010の`.scene`残存
   パターン)を新設し、メッシュ未宣言ノードとSky domeの両方を`ScenePicker`の
   `TryPick`/`PickMarquee`/`TryVertexSnapQuery`/`TrySurfaceSnapQuery`から除外して両方まとめて
   解消した。Hierarchyパネル経由の選択は`ScenePicker`を経由しないため無影響(メッシュ無し
-  ノードも引き続きHierarchyからは選択・編集できる)。実機目視が残っているため`Verified`へは
-  上げていない。
+  ノードも引き続きHierarchyからは選択・編集できる)。それでもなお「編集するとマーク位置が
+  スクロールで見えなくなる」症状が残ったため、M0043で**原因特定を諦めて要件を構造で保証する
+  方針へ切り替えた**: M0040/M0041/M0042はいずれも実在するバグだったが決定打ではなく、飛び先も
+  毎回変わっていた。修正前の`SceneSourceMarkerService.Update`は「選択が変わったか」を
+  `BufferChanged||!LastScrolledPaths.SequenceEqual(Paths)`から推測していたが、`BufferChanged`は
+  `MarkedBuffer==null`(=`Clear()`後)でも必ずtrueになり、`Clear()`は編集サイクル中の過渡状態
+  (解析エラー・文書未オープン・pin不一致)で普通に走る——つまり過渡状態を一度経由すると次の
+  正常な再解析が選択変更と誤認してスクロールする構造だった。スクロール可否を`Update`内部の
+  推測から**呼び出し側が明示する`SceneSourceMarkerScrollBehavior`**へ移し、判定を
+  `SceneSourceMarkerScrollPolicy.ShouldScroll`(新設、純粋static)へ委譲した。再解析の着地
+  (`OnSceneModelChangedForSourceMarkers`)は必ず`PreserveScroll`を通るため、過渡状態が何で
+  あってもスクロールが起きえなくなった。実機目視が残っているため`Verified`へは上げていない。
 - Intended specification: `Docs/シーンエディタの仕様.md`(要求仕様)、
   Docs/Decisions/ADR-0041-Scene-Editor-Interaction-Architecture.md(意思決定)、
   Docs/Specifications/Scene-Editor-Design.md(詳細設計)
