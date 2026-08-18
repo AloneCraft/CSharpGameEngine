@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Globalization;
 using System.Linq;
 using CSharpGameEngine.SceneAnalysis;
@@ -258,6 +259,146 @@ internal static class SceneSourceEditor {
         bool WasRebased=Operations.Any(Operation=>Operation.DocumentVersion!=Snapshot.DocumentVersion);
         return SceneSourceEditResult.Success(Result.Root!,WasRebased);
     }
+
+    /// <summary>
+    /// M0047: <see cref="SceneEditDocument"/>のセッション全履歴を、保存時に一度だけ実C#構文へ
+    /// まとめて再生する。<see cref="ApplyBatch"/>と違い、履歴は<b>セッション中に新規追加された
+    /// Node</b>を後続の操作(Rename/Reparent/Reorder/Remove)が参照しうる — そのNodeは保存対象の
+    /// 実構文木にはまだ存在しないため、<paramref name="RealProjection"/>にも入っていない。
+    ///
+    /// <para>
+    /// <see cref="SceneUndoEntry.After"/>スナップショットは、そのEntryが実際にどのID(Documentの
+    /// Reconcilerが払い出した本物のID)を新規Nodeへ割り当てたかを知っている。保存時はこのIDを
+    /// そのまま実側の投影へ登録することで、後続の操作(同じIDを参照している)を正しく解決できる。
+    /// </para>
+    /// </summary>
+    internal static SceneSourceEditResult ApplyForSave(
+        SyntaxNode Root,SceneKey Key,SceneProjection RealProjection,IReadOnlyList<SceneUndoEntry>History){
+        if(History.Count==0){
+            return SceneSourceEditResult.Success(Root);
+        }
+
+        SyntaxNode Current=Root;
+        Dictionary<EditorNodeId,SyntaxAnnotation>Annotations=[];
+        List<SceneProjectionNode>WorkingNodes=RealProjection.Nodes.ToList();
+        SceneProjection WorkingProjection=RealProjection;
+
+        bool TryEnsureAnnotated(EditorNodeId Id){
+            if(Annotations.ContainsKey(Id)){
+                return true;
+            }
+            if(!WorkingProjection.TryGetNode(Id,out SceneProjectionNode Candidate)){
+                return false;
+            }
+            if(FindNodeCreation(Current,Candidate.Node)is not { }Creation){
+                return false;
+            }
+            SyntaxAnnotation Annotation=new($"SceneSaveNode_{Annotations.Count}");
+            Current=Current.ReplaceNode(Creation,Creation.WithAdditionalAnnotations(Annotation));
+            Annotations[Id]=Annotation;
+            return true;
+        }
+
+        // 実在するNode(セッション中に新規追加された分は除く)は、最初の構造編集がテキストを
+        // ずらす前に前もって全てAnnotateしておく — さもないと、後続のEntryで初めて参照される
+        // 実Nodeの、Location.Spanベースの遅延解決が、既に適用済みの前段の編集でずれたSpanを
+        // 掴んで失敗する(ApplyBatchの事前Annotateパスと同じ理由、同じ対策)。
+        foreach(SceneUndoEntry Entry in History){
+            foreach(SceneEditOperation Operation in Entry.Operations){
+                TryEnsureAnnotated(Operation.NodeId);
+                if(Operation is ReparentNodeOperation ReparentUpfront){
+                    TryEnsureAnnotated(ReparentUpfront.NewParentNodeId);
+                }
+            }
+        }
+
+        foreach(SceneUndoEntry Entry in History){
+            foreach(SceneEditOperation Operation in Entry.Operations){
+                if(!TryEnsureAnnotated(Operation.NodeId)){
+                    return SceneSourceEditResult.Failure("保存時に対象Nodeの構文を特定できません。");
+                }
+                if(Operation is ReparentNodeOperation Reparent&&!TryEnsureAnnotated(Reparent.NewParentNodeId)){
+                    return SceneSourceEditResult.Failure("保存時に移動先Nodeの構文を特定できません。");
+                }
+
+                SceneSourceEditResult Result=Apply(Current,WorkingProjection,Operation,Annotations);
+                if(!Result.Succeeded||Result.Root is not { }NewRoot){
+                    return SceneSourceEditResult.Failure(Result.ErrorMessage??"保存時の再適用に失敗しました。");
+                }
+                Current=NewRoot;
+
+                if(Operation is AddNodeOperation Add
+                    &&!TryRegisterNewNode(
+                        Key,Add,Entry,ref Current,WorkingProjection,Annotations,ref WorkingNodes,out WorkingProjection)){
+                    return SceneSourceEditResult.Failure("保存時に追加したNodeの構文を再特定できません。");
+                }
+            }
+        }
+
+        return SceneSourceEditResult.Success(Current);
+    }
+
+    /// <summary>
+    /// <see cref="ApplyForSave"/>から呼ぶ。追加したばかりのNodeを親の子リストの末尾(常に追記)から
+    /// 見つけ出し、Documentのセッション内IDのままAnnotation+投影へ登録して以降の操作から
+    /// 解決可能にする。
+    /// </summary>
+    private static bool TryRegisterNewNode(
+        SceneKey Key,AddNodeOperation Add,SceneUndoEntry Entry,ref SyntaxNode Current,SceneProjection ProjectionBeforeAdd,
+        Dictionary<EditorNodeId,SyntaxAnnotation>Annotations,ref List<SceneProjectionNode>WorkingNodes,
+        out SceneProjection UpdatedProjection){
+        UpdatedProjection=ProjectionBeforeAdd;
+        if(!ProjectionBeforeAdd.TryGetNode(Add.NodeId,out SceneProjectionNode Parent)
+            ||AnnotationFor(Annotations,Parent.Id)is not { }ParentAnnotation){
+            return false;
+        }
+
+        BaseObjectCreationExpressionSyntax?ParentCreation=Current.GetAnnotatedNodes(ParentAnnotation)
+            .OfType<BaseObjectCreationExpressionSyntax>().SingleOrDefault();
+        ExpressionSyntax?Children=ParentCreation is null?null:FindChildrenExpression(ParentCreation);
+        BaseObjectCreationExpressionSyntax?NewChild=Children is null
+            ?null
+            :EnumerateChildCreations(Children).LastOrDefault();
+        if(NewChild is null){
+            return false;
+        }
+
+        // このEntryが実際に払い出した新規IDを、Before/Afterの投影の集合差から特定する。
+        // 同じEntryで複数のAddNodeOperation(複数選択への一括AddChild)がありうるため、
+        // 対応する親IDで絞り込む。
+        HashSet<EditorNodeId>BeforeIds=Entry.Before.Projection.Nodes.Select(static Node=>Node.Id).ToHashSet();
+        EditorNodeId?NewId=Entry.After.Projection.Nodes
+            .Where(Node=>!BeforeIds.Contains(Node.Id)&&Node.ParentId is { }NodeParentId&&NodeParentId.Equals(Parent.Id))
+            .Select(static Node=>(EditorNodeId?)Node.Id)
+            .FirstOrDefault();
+        if(NewId is not { }ResolvedId){
+            return false;
+        }
+
+        SyntaxAnnotation NewAnnotation=new($"SceneSaveNode_{Annotations.Count}");
+        Current=Current.ReplaceNode(NewChild,NewChild.WithAdditionalAnnotations(NewAnnotation));
+        Annotations[ResolvedId]=NewAnnotation;
+
+        // SceneProjectionはIdだけでなくPathでも索引する(IdsByPath)。Rootと同じdefault Pathを
+        // 渡すと索引が衝突する。追加は常に末尾へ追記されるため、現時点で同じ親を持つ既存子の数を
+        // そのままローカルIndexとして使える。
+        int LocalIndex=WorkingNodes.Count(N=>N.ParentId is { }P&&P.Equals(Parent.Id));
+        // NameValueLocationをnullのままにすると、後続のRenameがCreateNodeCreationが書いた
+        // Name="…"へ追記でなく"挿入"してしまい、Name代入が重複する。既存のName式を指す。
+        SceneSourceLocation?NameValueLocation=NewChild.Initializer?.Expressions
+            .OfType<AssignmentExpressionSyntax>()
+            .FirstOrDefault(static Candidate=>Candidate.Left is IdentifierNameSyntax Identifier
+                &&Identifier.Identifier.ValueText=="Name")
+            is { Right:{ }NameValue }?SceneSourceLocation.FromNode(NameValue):null;
+        SceneNode SyntheticContent=new(
+            Parent.Node.Path.Append(LocalIndex),Add.NodeName,
+            ImmutableArray<SceneComponent>.Empty,ImmutableArray<SceneNode>.Empty,
+            SceneSourceLocation.FromNode(NewChild),null,NameValueLocation,null,null);
+        WorkingNodes=[..WorkingNodes,new SceneProjectionNode(ResolvedId,Parent.Id,SyntheticContent)];
+        UpdatedProjection=new SceneProjection(Key,WorkingNodes);
+        return true;
+    }
+
     private static SceneSourceEditResult ApplySetComponentMember(
         SyntaxNode Root,SceneProjectionNode Node,SetComponentMemberOperation Operation){
         SceneComponent?Component=Node.Node.FindComponent(Operation.ComponentTypeFullyQualifiedName);
@@ -707,8 +848,11 @@ internal static class SceneSourceEditor {
                     SyntaxFactory.IdentifierName("Name"),
                     SyntaxFactory.LiteralExpression(
                         SyntaxKind.StringLiteralExpression,SyntaxFactory.Literal(Name)))));
-        return SyntaxFactory.ObjectCreationExpression(SyntaxFactory.IdentifierName("Node"))
-            .WithInitializer(Initializer);
+        // NormalizeWhitespaceが無いと"new"と"Node"の間にトリビアが入らず"newNode"という
+        // 1トークンに読めてしまう(実機ではCollection要素の直後に連結され、再解析すると壊れる)。
+        return(BaseObjectCreationExpressionSyntax)SyntaxFactory.ObjectCreationExpression(SyntaxFactory.IdentifierName("Node"))
+            .WithInitializer(Initializer)
+            .NormalizeWhitespace();
     }
 
     private static BaseObjectCreationExpressionSyntax AddChildrenMember(

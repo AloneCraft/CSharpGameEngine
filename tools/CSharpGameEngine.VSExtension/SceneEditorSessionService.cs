@@ -227,17 +227,13 @@ internal sealed class SceneEditorSessionService : IDisposable {
             ||this.PinnedSceneKey is not { }Key||!Key.Equals(Request.SceneKey)
             ||this.PinnedSnapshot is not { }Current
             ||Current.CurrentModel is not { }Model||Current.Projection is not { }Projection
+            ||!this.Reconcilers.TryGetValue(Key,out SceneProjectionReconciler?Reconciler)
             ||!SceneModelEditApplier.TryApply(
-                Model,Projection,CreateOperations(Request),out SceneModel Predicted)){
+                Model,Projection,Reconciler,Key,CreateOperations(Request),
+                out SceneModel Predicted,out SceneProjection PredictedProjection)){
             return false;
         }
 
-        // ID空間は実解析と共有する(別インスタンスにすると同じNodeへ別IDが振られうる)。値のみの
-        // 変更ではNameもComponent構成も変わらないため、ここで新しいIDが払い出されることはない。
-        if(!this.Reconcilers.TryGetValue(Key,out SceneProjectionReconciler?Reconciler)){
-            return false;
-        }
-        SceneProjection PredictedProjection=Reconciler.Reconcile(Key,Predicted,Projection);
         var Snapshot=new SceneDocumentSnapshot(
             Key,Current.DocumentId,Current.DocumentVersion,++this.Generation,
             Predicted,Predicted,PredictedProjection,

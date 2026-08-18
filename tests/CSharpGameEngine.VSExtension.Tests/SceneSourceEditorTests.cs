@@ -437,7 +437,12 @@ public sealed class SceneSourceEditorTests {
             new AddNodeOperation(Key,RootNode.Id,1,"Node"));
 
         Assert.True(Result.Succeeded,Result.ErrorMessage);
-        Assert.Contains("Name=\"Node\"",Result.Root!.ToFullString());
+        string Text=Result.Root!.ToFullString();
+        Assert.Contains("Node",Text);
+        // "new"と"Node"の間にトリビアが無いと"newNode"という1トークンに読めてしまい、
+        // 再解析すると追加したNodeが消える(過去に実際に踏んだ回帰)。再解析で復元できることまで確認する。
+        SceneModel Reanalyzed=SceneAnalysisTestHelper.Analyze(Text);
+        Assert.Contains(Reanalyzed.EnumerateNodes(),static Node=>Node.Name=="Node");
     }
 
     [Fact]
@@ -457,8 +462,11 @@ public sealed class SceneSourceEditorTests {
             new AddNodeOperation(Key,RootNode.Id,1,"Node"));
 
         Assert.True(Result.Succeeded,Result.ErrorMessage);
-        Assert.Contains("Children",Result.Root!.ToFullString());
-        Assert.Contains("Name=\"Node\"",Result.Root.ToFullString());
+        string Text=Result.Root!.ToFullString();
+        Assert.Contains("Children",Text);
+        Assert.Contains("Node",Text);
+        SceneModel Reanalyzed=SceneAnalysisTestHelper.Analyze(Text);
+        Assert.Contains(Reanalyzed.EnumerateNodes(),static Node=>Node.Name=="Node");
     }
 
     [Fact]
