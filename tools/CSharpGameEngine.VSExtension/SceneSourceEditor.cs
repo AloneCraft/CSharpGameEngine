@@ -125,6 +125,47 @@ internal sealed class SceneSourceEditResult {
 }
 
 /// <summary>
+/// M0051: <see cref="SceneSourceEditor.ApplyForSaveSteps"/>の結果。履歴エントリ1件ごとの
+/// 中間構文木を、適用順に保持する。
+///
+/// <para>
+/// <b>なぜ中間木を返すのか</b>: 呼び出し側はこれを1件ずつ別々のVS Undoトランザクションとして
+/// 書き戻す。こうするとデザイナーの操作履歴とテキストのUndo履歴が1対1で対応し、どちらのタブで
+/// Ctrl+Zしても同じ粒度で巻き戻る。差分は<c>Steps[i-1]</c>→<c>Steps[i]</c>で直接計算できるため、
+/// 書き戻しのたびにバッファを再パースする必要が無い(各書き込み後のバッファ内容は
+/// <c>Steps[i].ToFullString()</c>に一致する)。
+/// </para>
+/// </summary>
+internal sealed class SceneSourceEditStepsResult {
+    private SceneSourceEditStepsResult(
+        bool Succeeded,IReadOnlyList<SyntaxNode>Steps,IReadOnlyList<string>Labels,string?ErrorMessage){
+        this.Succeeded=Succeeded;
+        this.Steps=Steps;
+        this.Labels=Labels;
+        this.ErrorMessage=ErrorMessage;
+    }
+
+    internal bool Succeeded { get; }
+
+    /// <summary>履歴エントリ1件を適用したあとの構文木。<see cref="Labels"/>と同じ長さ・同じ順序。</summary>
+    internal IReadOnlyList<SyntaxNode>Steps { get; }
+
+    /// <summary>各ステップのUndo表示名(<see cref="SceneUndoEntry.Label"/>)。</summary>
+    internal IReadOnlyList<string>Labels { get; }
+
+    internal string?ErrorMessage { get; }
+
+    /// <summary>最終的な構文木。1件も適用していなければ<see langword="null"/>。</summary>
+    internal SyntaxNode?FinalRoot=>this.Steps.Count>0?this.Steps[this.Steps.Count-1]:null;
+
+    internal static SceneSourceEditStepsResult Success(IReadOnlyList<SyntaxNode>Steps,IReadOnlyList<string>Labels)=>
+        new(true,Steps,Labels,ErrorMessage:null);
+
+    internal static SceneSourceEditStepsResult Failure(string ErrorMessage)=>
+        new(false,[],[],ErrorMessage);
+}
+
+/// <summary>
 /// SceneProjectionのNode IDから対象Syntaxを特定し、該当Expressionだけを置換したRoslyn Rootを返す
 /// 純粋層。TextBufferへの反映は<see cref="SceneTextBufferWriter"/>がVS Undo transactionとしてlive
 /// bufferへTextChangeを適用する(本クラス自体はVSサービスへ依存しない)。
@@ -147,7 +188,7 @@ internal static class SceneSourceEditor {
             SetComponentMemberOperation SetMember=>ApplySetComponentMember(Root,Node,SetMember),
             AddComponentOperation AddComponent=>ApplyAddComponent(Root,Node,AddComponent),
             RemoveComponentOperation RemoveComponent=>ApplyRemoveComponent(Root,Node,RemoveComponent),
-            SetTransformOperation SetTransform=>ApplySetTransform(Root,Node,SetTransform),
+            SetTransformOperation SetTransform=>ApplySetTransform(Root,Node,SetTransform,Annotations),
             DuplicateNodeOperation Duplicate=>ApplyDuplicateNode(Root,Projection,Node,Duplicate),
             RenameNodeOperation Rename=>ApplyRename(Root,Node,Rename,Annotations),
             AddNodeOperation Add=>ApplyAddNode(Root,Projection,Node,Add,Annotations),
@@ -274,10 +315,28 @@ internal static class SceneSourceEditor {
     /// </summary>
     internal static SceneSourceEditResult ApplyForSave(
         SyntaxNode Root,SceneKey Key,SceneProjection RealProjection,IReadOnlyList<SceneUndoEntry>History){
-        if(History.Count==0){
-            return SceneSourceEditResult.Success(Root);
+        SceneSourceEditStepsResult Steps=ApplyForSaveSteps(Root,Key,RealProjection,History);
+        if(!Steps.Succeeded){
+            return SceneSourceEditResult.Failure(Steps.ErrorMessage??"保存時の再適用に失敗しました。");
         }
 
+        return SceneSourceEditResult.Success(Steps.FinalRoot??Root);
+    }
+
+    /// <summary>
+    /// M0051: <see cref="ApplyForSave"/>と同じ再生を行うが、<b>履歴エントリ1件ごとの中間構文木</b>を
+    /// 順に返す(<see cref="SceneSourceEditStepsResult"/>のXMLコメント参照)。呼び出し側がこれを
+    /// 1件ずつ別々のVS Undoトランザクションとして書き戻すことで、デザイナーの操作履歴と
+    /// テキストのUndo履歴が1対1で対応する。
+    /// </summary>
+    internal static SceneSourceEditStepsResult ApplyForSaveSteps(
+        SyntaxNode Root,SceneKey Key,SceneProjection RealProjection,IReadOnlyList<SceneUndoEntry>History){
+        if(History.Count==0){
+            return SceneSourceEditStepsResult.Success([],[]);
+        }
+
+        List<SyntaxNode>Steps=[];
+        List<string>Labels=[];
         SyntaxNode Current=Root;
         Dictionary<EditorNodeId,SyntaxAnnotation>Annotations=[];
         List<SceneProjectionNode>WorkingNodes=RealProjection.Nodes.ToList();
@@ -315,27 +374,32 @@ internal static class SceneSourceEditor {
         foreach(SceneUndoEntry Entry in History){
             foreach(SceneEditOperation Operation in Entry.Operations){
                 if(!TryEnsureAnnotated(Operation.NodeId)){
-                    return SceneSourceEditResult.Failure("保存時に対象Nodeの構文を特定できません。");
+                    return SceneSourceEditStepsResult.Failure("保存時に対象Nodeの構文を特定できません。");
                 }
                 if(Operation is ReparentNodeOperation Reparent&&!TryEnsureAnnotated(Reparent.NewParentNodeId)){
-                    return SceneSourceEditResult.Failure("保存時に移動先Nodeの構文を特定できません。");
+                    return SceneSourceEditStepsResult.Failure("保存時に移動先Nodeの構文を特定できません。");
                 }
 
                 SceneSourceEditResult Result=Apply(Current,WorkingProjection,Operation,Annotations);
                 if(!Result.Succeeded||Result.Root is not { }NewRoot){
-                    return SceneSourceEditResult.Failure(Result.ErrorMessage??"保存時の再適用に失敗しました。");
+                    return SceneSourceEditStepsResult.Failure(Result.ErrorMessage??"保存時の再適用に失敗しました。");
                 }
                 Current=NewRoot;
 
                 if(Operation is AddNodeOperation Add
                     &&!TryRegisterNewNode(
                         Key,Add,Entry,ref Current,WorkingProjection,Annotations,ref WorkingNodes,out WorkingProjection)){
-                    return SceneSourceEditResult.Failure("保存時に追加したNodeの構文を再特定できません。");
+                    return SceneSourceEditStepsResult.Failure("保存時に追加したNodeの構文を再特定できません。");
                 }
             }
+
+            // Entry内の全Operationを適用し終えた時点を1つのUndo単位として記録する
+            // (Entryは Document.TryApply の1回=ユーザーの1操作に対応する)。
+            Steps.Add(Current);
+            Labels.Add(Entry.Label);
         }
 
-        return SceneSourceEditResult.Success(Current);
+        return SceneSourceEditStepsResult.Success(Steps,Labels);
     }
 
     /// <summary>
@@ -505,8 +569,19 @@ internal static class SceneSourceEditor {
         return SceneSourceEditResult.Failure("ComponentsコレクションからComponentを削除できません。");
     }
 
+    /// <summary>
+    /// M0051(既存バグの修正): 以前はTransformの構文を<c>Transform.Location.Span</c>との一致だけで
+    /// 探していたため、<b>同一Nodeに対して先にRename等の構造編集が適用されるとSpanがずれて
+    /// 「Transformのobject creationがSourceに見つかりません」で保存が失敗していた</b>
+    /// (「リネーム→移動」は失敗、「移動→リネーム」「移動→移動」は成功、という非対称な壊れ方をしていた)。
+    /// 他の操作は既に<see cref="SyntaxAnnotation"/>で追跡していたのに、ここだけSpan一致のままだったのが原因。
+    /// 保存経路では対象Nodeが必ず事前Annotateされている(<see cref="ApplyForSaveSteps"/>)ので、
+    /// まずAnnotationでNodeのobject creationを特定し、<b>その内側から</b>Transformを探す。
+    /// Annotationが無い経路(単発Apply)では従来どおりSpan一致にフォールバックする。
+    /// </summary>
     private static SceneSourceEditResult ApplySetTransform(
-        SyntaxNode Root,SceneProjectionNode Node,SetTransformOperation Operation){
+        SyntaxNode Root,SceneProjectionNode Node,SetTransformOperation Operation,
+        IReadOnlyDictionary<EditorNodeId,SyntaxAnnotation>? Annotations){
         SceneComponent?Transform=SceneComponentBindings.FindComponent(Node.Node,SceneComponentRole.LocalTransform);
         if(Transform is null){
             return SceneSourceEditResult.Failure("対象Nodeに編集可能なTransform Componentがありません。");
@@ -515,7 +590,11 @@ internal static class SceneSourceEditor {
             return SceneSourceEditResult.Failure("生成された .g.cs のTransformは編集できません。");
         }
 
-        BaseObjectCreationExpressionSyntax?Creation=Root.DescendantNodesAndSelf()
+        BaseObjectCreationExpressionSyntax?Creation=
+            FindNodeCreation(Root,Node.Node,AnnotationFor(Annotations,Node.Id))is { }NodeCreation
+                ?FindComponentCreationWithin(NodeCreation,Transform)
+                :null;
+        Creation??=Root.DescendantNodesAndSelf()
             .OfType<BaseObjectCreationExpressionSyntax>()
             .SingleOrDefault(Candidate=>Candidate.Span==Transform.Location.Span);
         if(Creation is null){
@@ -833,6 +912,29 @@ internal static class SceneSourceEditor {
             ?Root.GetAnnotatedNodes(Annotation).OfType<BaseObjectCreationExpressionSyntax>().SingleOrDefault()
             :Root.DescendantNodesAndSelf().OfType<BaseObjectCreationExpressionSyntax>()
                 .SingleOrDefault(Candidate=>Candidate.Span==Node.Location.Span);
+    /// <summary>
+    /// Nodeの<c>Components = [ … ]</c>の中から、対象Componentのobject creationを型名で特定する。
+    /// Spanは前段の編集でずれうるが、1つのNodeが同じComponent型を2つ持つことは
+    /// <c>SceneDeclarationAnalyzer</c>がSCENE108(重複)で禁じているため、型名だけで一意に決まる。
+    /// </summary>
+    private static ObjectCreationExpressionSyntax? FindComponentCreationWithin(
+        BaseObjectCreationExpressionSyntax NodeCreation,SceneComponent Component){
+        string SimpleName=SimpleTypeNameOf(Component.TypeFullyQualifiedName);
+        return NodeCreation.Initializer?.Expressions
+            .OfType<AssignmentExpressionSyntax>()
+            .FirstOrDefault(static Assignment=>Assignment.Left is IdentifierNameSyntax Identifier
+                &&Identifier.Identifier.ValueText=="Components")?.Right
+            ?.DescendantNodesAndSelf()
+            .OfType<ObjectCreationExpressionSyntax>()
+            .FirstOrDefault(Candidate=>SimpleTypeNameOf(Candidate.Type.ToString())==SimpleName);
+    }
+
+    /// <summary>完全修飾名・エイリアス・単純名のいずれで書かれていても比較できるよう、末尾の識別子だけを取る。</summary>
+    private static string SimpleTypeNameOf(string TypeName){
+        var LastDot=TypeName.LastIndexOf('.');
+        return LastDot>=0?TypeName.Substring(LastDot+1):TypeName;
+    }
+
     private static ExpressionSyntax? FindChildrenExpression(BaseObjectCreationExpressionSyntax Creation)=>
         Creation.Initializer?.Expressions
             .OfType<AssignmentExpressionSyntax>()
@@ -949,12 +1051,14 @@ internal static class SceneSourceEditor {
             return SceneSourceEditResult.Failure("Rename 対象の構文が見つかりません。");
         }
 
-        if(Node.Node.NameValueLocation is { } Location){
-            ExpressionSyntax?OldExpression=FindExpression(Root,Location.Span);
-            if(OldExpression is null){
-                return SceneSourceEditResult.Failure("Name リテラルがソースに見つかりません。");
-            }
-
+        // M0051(既存バグの修正): 以前はNameの右辺を`NameValueLocation.Span`との一致だけで探していたため、
+        // 同一Nodeを2回目にRenameすると(1回目でテキスト長が変わり)Spanがずれて
+        // 「Name リテラルがソースに見つかりません」で失敗していた。Creation自体はAnnotationで
+        // 正しく追跡できているので、その初期化子の中から`Name = …`を直接引く。
+        // Spanでの検索は、Annotationが無い経路(単発Apply)のフォールバックとしてだけ残す。
+        ExpressionSyntax?OldExpression=FindMemberValue(Creation,"Name")
+            ??(Node.Node.NameValueLocation is { } Location?FindExpression(Root,Location.Span):null);
+        if(OldExpression is not null){
             ExpressionSyntax NewExpression=SyntaxFactory.LiteralExpression(
                 SyntaxKind.StringLiteralExpression,
                 SyntaxFactory.Literal(Operation.NewName));
@@ -972,6 +1076,15 @@ internal static class SceneSourceEditor {
             Creation,Initializer.WithExpressions(Initializer.Expressions.Insert(0,Assignment)));
         return SceneSourceEditResult.Success(Root.ReplaceNode(Creation,Updated));
     }
+
+    /// <summary>
+    /// object初期化子から<c>MemberName = 値</c>の右辺を引く。Spanと違い前段の編集でずれない。
+    /// </summary>
+    private static ExpressionSyntax?FindMemberValue(BaseObjectCreationExpressionSyntax Creation,string MemberName)=>
+        Creation.Initializer?.Expressions
+            .OfType<AssignmentExpressionSyntax>()
+            .FirstOrDefault(Assignment=>Assignment.Left is IdentifierNameSyntax Identifier
+                &&Identifier.Identifier.ValueText==MemberName)?.Right;
 
     private static ExpressionSyntax?FindExpression(SyntaxNode Root,TextSpan Span)=>
         Root.DescendantNodesAndSelf().OfType<ExpressionSyntax>().SingleOrDefault(Node=>Node.Span==Span);

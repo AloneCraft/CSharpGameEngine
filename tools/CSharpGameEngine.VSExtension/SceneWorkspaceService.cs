@@ -24,12 +24,14 @@ namespace CSharpGameEngine.VSExtension;
 
 internal sealed class SceneWorkspaceEditContext {
     internal SceneWorkspaceEditContext(
-        DocumentId DocumentId,string FilePath,SceneModel Model,SyntaxNode Root,SourceText Text){
+        DocumentId DocumentId,string FilePath,SceneModel Model,SyntaxNode Root,SourceText Text,
+        Compilation Compilation){
         this.DocumentId=DocumentId;
         this.FilePath=FilePath;
         this.Model=Model;
         this.Root=Root;
         this.Text=Text;
+        this.Compilation=Compilation;
     }
 
     internal DocumentId DocumentId { get; }
@@ -41,6 +43,12 @@ internal sealed class SceneWorkspaceEditContext {
     internal SyntaxNode Root { get; }
 
     internal SourceText Text { get; }
+
+    /// <summary>
+    /// M0051: 書き戻し結果の往復検証(<see cref="SceneSaveVerification"/>)が、編集後の構文木を
+    /// 差し替えて再解析するために使う。解決時点と同じ世代のCompilationであることが重要。
+    /// </summary>
+    internal Compilation Compilation { get; }
 }
 
 internal readonly struct SceneLiveBufferWriteResult {
@@ -470,7 +478,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
         SyntaxNode Root=await Declaration.SyntaxTree.GetRootAsync(CancellationToken).ConfigureAwait(false);
         SourceText Text=await Declaration.SyntaxTree.GetTextAsync(CancellationToken).ConfigureAwait(false);
         SceneModel Model=SceneDeclarationAnalyzer.Analyze(Type,Compilation,CancellationToken);
-        return new SceneWorkspaceEditContext(Document.Id,Declaration.SyntaxTree.FilePath,Model,Root,Text);
+        return new SceneWorkspaceEditContext(Document.Id,Declaration.SyntaxTree.FilePath,Model,Root,Text,Compilation);
     }
 
     /// <summary>対象文書をbackgroundでopenし、RDTのlive bufferへ1 Undoで反映する。</summary>

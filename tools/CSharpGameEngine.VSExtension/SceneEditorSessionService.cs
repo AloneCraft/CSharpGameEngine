@@ -223,6 +223,16 @@ internal sealed class SceneEditorSessionService : IDisposable {
                 return new SceneEditCommitResult(false,Edited.ErrorMessage??"保存に失敗しました。",WasRebased:false);
             }
 
+            // M0051: 書き戻した構文木を読み直し、Documentの編集内容と意味的に一致するか検算する。
+            // M0049(JSON移行)の動機だった「C#に反映されていない」を、黙って起こさせないための関門。
+            // 一致しない場合はテキストへ一切書き込まずに中止する(壊れた結果を保存するより、
+            // 保存できないほうがユーザーの作業を守れる)。
+            if(!SceneSaveVerification.Verify(
+                Edited.Root,Context.Root,Context.Compilation,Document.Model,
+                Key.ClassFullyQualifiedName,CancellationToken,out string?VerificationError)){
+                return new SceneEditCommitResult(false,VerificationError,WasRebased:false);
+            }
+
             // M0044と同じ安全網: 構文ツリー差分の出所を変えることはソースを壊しうるため、適用結果が
             // 再生結果の全文と一致するか毎回検算し、一致しなければ全文差分へ落とす。
             string ExpectedText=Edited.Root.ToFullString();
