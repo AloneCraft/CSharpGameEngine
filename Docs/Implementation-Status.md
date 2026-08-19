@@ -2298,7 +2298,11 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Scene Authoring(JSONをSceneの正本にする、第1段)
-- Status: Implemented
+- Status: **Removed(2026-08-19、M0051第1段で撤回)** — [[M0051-CSharp-Source-Of-Truth-Restoration]]。
+  ユーザーの「C#の型機能・Roslyn警告・コンポーネント補完を使いたい」という要望により、Sceneの正本を
+  C#宣言型(ADR-0040)へ戻しJSONは完全撤廃した。撤回の追加根拠として、JSON全文再生成により
+  ギズモで1ノードを動かしただけで565行が書き換わる(浮動小数点の表記ノイズ)ことが実測された。
+  本エントリ以下の記述は撤回前の歴史的記録である。
 - Verification: TestVerified。RuntimeVerified止まり(生成物の新旧比較を実測、実機でのゲーム起動・
   描画確認は未実施)。
 - Intended specification: [[M0049-Scene-Json-Persistence]]
@@ -3014,6 +3018,24 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   1117件が成功。**実機確認は未実施**——特に`WorkspaceChangeKind.AdditionalDocument*`が実際に
   発火するか、`GetDocumentIdsWithFilePath`がAdditionalDocumentのIDを返すかは、リフレクションで
   API自体の存在を確認しただけで、実機のVS Workspaceでの挙動は未検証。
+
+- Follow-up(2026-08-19, M0051第1段: C#正本復帰と書き戻しの往復検証, TestVerified —
+  [[M0051-CSharp-Source-Of-Truth-Restoration]]): M0049/M0050で導入したJSON形式を撤回し、Sceneの
+  正本をC#宣言型(ADR-0040)へ戻した。VSIX側のJSON対応(`SceneJsonModelBuilder`/
+  `SceneJsonSourceWriter`/`OpenSceneJsonCommand`/`SceneDiagnosticsErrorListSync`)は全て削除し、
+  C#経路(`SceneSourceEditor.ApplyForSave`)が再び唯一の書き戻し経路になった。
+  **あわせて書き戻しの往復検証を新設**した: 書き戻した構文木を`SceneDeclarationAnalyzer`で読み直し、
+  `SceneModelStructuralSignature`(ID・ソース位置に依存しない正規化署名、新規)で編集内容と比較し、
+  不一致ならテキストへ一切書き込まずに中止する。M0049の動機だった「C#に反映されていない」を
+  「壊れたら必ず判る」へ変えるための関門である。
+  **この検証を入れた過程でM0047から存在していた既存バグ2件を実際に発見・修正した**:
+  (1) `ApplySetTransform`が`Transform.Location.Span`でのみ構文を探しており、同一Nodeへ
+  先にRenameしてから移動するとSpanがずれて保存が失敗していた(「移動→Rename」は成功するという
+  非対称な壊れ方)。(2) `ApplyRename`がNameの右辺をSpanで探しており、同一Nodeを2回Renameすると
+  同じ理由で失敗していた。どちらもAnnotation経由でNodeを特定してから内側を引く方式へ変更し、
+  操作順序4パターンの回帰テストを追加した。さらに第2段(タブ切替同期)の土台として
+  `ApplyForSaveSteps`(履歴エントリごとの中間構文木を返す)を追加した。新規テスト17件、全1112件成功。
+  **実機確認は未実施**。
 
 ## F-L8-012 — シーンエディタ インスペクター(選択ノードのComponent member数値編集)
 
