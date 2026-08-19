@@ -22,6 +22,17 @@ using Microsoft.VisualStudio.Threading;
 
 namespace CSharpGameEngine.VSExtension;
 
+/// <summary>
+/// M0051 Step 1-5: <see cref="SceneWorkspaceService.ApplyTextStepsAsync"/>が積む1つのVS Undo単位。
+/// <paramref name="Before"/>は<b>そのステップを適用する直前</b>のテキスト
+/// (<c>SceneTextBufferApplyGuard</c>がバッファ内容と一致するか確認する基準)であり、
+/// 保存全体の開始時点のテキストではない — ステップごとに繰り上がる。
+/// <paramref name="UndoDescription"/>は<see cref="SceneUndoTransactionNaming.Format"/>で
+/// 接頭辞を付けた形にしておくこと。委譲Undoの所有判定がこれを見る。
+/// </summary>
+internal sealed record SceneTextWriteStep(
+    SourceText Before,IReadOnlyList<TextChange>Changes,string UndoDescription);
+
 internal sealed class SceneWorkspaceEditContext {
     internal SceneWorkspaceEditContext(
         DocumentId DocumentId,string FilePath,SceneModel Model,SyntaxNode Root,SourceText Text,
@@ -482,8 +493,38 @@ internal sealed class SceneWorkspaceService : IDisposable {
     }
 
     /// <summary>対象文書をbackgroundでopenし、RDTのlive bufferへ1 Undoで反映する。</summary>
-    internal async Task<SceneLiveBufferWriteResult>ApplyTextAsync(
+    internal Task<SceneLiveBufferWriteResult>ApplyTextAsync(
         SceneWorkspaceEditContext Context,IReadOnlyList<TextChange>Changes,string UndoDescription,
+        CancellationToken CancellationToken)=>
+        this.ApplyTextStepsAsync(
+            Context,[new SceneTextWriteStep(Context.Text,Changes,UndoDescription)],CancellationToken);
+
+    /// <summary>
+    /// M0051 Step 1-5: 書き戻しを<b>ステップごとに独立したVS Undoトランザクション</b>として適用する。
+    ///
+    /// <para>
+    /// <b>なぜ必要か</b>: 以前は保存1回=Undo1単位だったため、3回ギズモを動かしてから保存すると
+    /// 保存後のCtrl+Zが3回分まとめて戻ってしまった。ユーザーの確定仕様は「1操作=1 Undo単位」。
+    /// <see cref="SceneSourceEditor.ApplyForSaveSteps"/>が履歴エントリごとの中間構文木を返すので、
+    /// その隣接差分を1ステップとして順に積む。
+    /// </para>
+    ///
+    /// <para>
+    /// 既存の<see cref="ApplyTextAsync"/>を単純にループで呼べないのは、あちらが
+    /// <see cref="SceneWorkspaceEditContext.Text"/>を常に「適用前テキスト」として使うため。
+    /// 2回目以降はバッファが既に変わっており、<c>SceneTextBufferApplyGuard</c>が必ず不一致を返して
+    /// 「編集中にC#ソースが変化したため上書きを中止しました」で失敗する。ステップごとに
+    /// <see cref="SceneTextWriteStep.Before"/>を繰り上げる必要がある。
+    /// </para>
+    ///
+    /// <para>
+    /// 全ステップはUIスレッド上で同期的に連続適用されるため、途中に外部編集が割り込む余地は無い。
+    /// 呼び出し側(<see cref="SceneEditorSessionService.SaveAsync"/>)が各ステップの差分を
+    /// <b>書き込み前に</b>オフラインで検算しており、ここで途中失敗するのは想定外の状態のみ。
+    /// </para>
+    /// </summary>
+    internal async Task<SceneLiveBufferWriteResult>ApplyTextStepsAsync(
+        SceneWorkspaceEditContext Context,IReadOnlyList<SceneTextWriteStep>Steps,
         CancellationToken CancellationToken){
         await this.TaskFactory.SwitchToMainThreadAsync(CancellationToken);
         if(this.EditorAdapters is null||this.TextBufferWriter is null){
@@ -507,16 +548,53 @@ internal sealed class SceneWorkspaceService : IDisposable {
         // 開いていてもアクティブでない場合に備え、編集前後でcaret位置を明示的に保存・復元する
         // (M0041: ビューポート先頭行の保存・復元はSceneSourceMarkerServiceと競合するため撤去した。
         // CaptureViewPositions参照)。
+        // caretの保存・復元は全ステップを1回で囲む(ステップ間で復元すると、まだ途中の状態へ
+        // caretを戻したうえで次のステップがまた動かすことになり、無駄なうえに揺れる)。
         List<ViewPositionSnapshot>Restorations=CaptureViewPositions(Buffer,VsBuffer);
-        bool Applied=this.TextBufferWriter.TryApply(Buffer,Context.Text,Changes,UndoDescription);
-        if(Applied){
-            RestoreViewPositions(Restorations);
+        for(int Index=0;Index<Steps.Count;Index++){
+            SceneTextWriteStep Step=Steps[Index];
+            if(this.TextBufferWriter.TryApply(Buffer,Step.Before,Step.Changes,Step.UndoDescription)){
+                continue;
+            }
+
+            // Index==0は通常の競合(ユーザーが編集中にC#を触った)。Index>0はオフライン検算を
+            // 通ったはずの中間ステップが実バッファと食い違ったということで、想定外の状態。
+            // 既に前段までが書き込まれているため、その事実を明示する。
+            return Index==0
+                ?new SceneLiveBufferWriteResult(
+                    false,"編集中にC#ソースが変化したため上書きを中止しました。",LiveTextChanged:true)
+                :new SceneLiveBufferWriteResult(
+                    false,
+                    $"保存の途中({Index+1}/{Steps.Count}段目)でC#ソースの状態が想定と食い違ったため中断しました。"
+                    +"直前までの変更は適用済みです。Ctrl+Zで戻せます。",
+                    LiveTextChanged:true);
         }
 
-        return Applied
-            ?new SceneLiveBufferWriteResult(true,ErrorMessage:null)
-            :new SceneLiveBufferWriteResult(
-                false,"編集中にC#ソースが変化したため上書きを中止しました。",LiveTextChanged:true);
+        RestoreViewPositions(Restorations);
+        return new SceneLiveBufferWriteResult(true,ErrorMessage:null);
+    }
+
+    /// <summary>
+    /// M0051 Step 1-5: 次にUndo/Redoされるテキストトランザクションの説明文(履歴が空ならnull)。
+    /// <see cref="SceneTextUndoDelegationPolicy.ShouldDelegate"/>がこれを見て、Scene Designerが
+    /// 積んだトランザクションのときだけ委譲する。
+    /// </summary>
+    internal string?GetLastUndoDescription(string FilePath){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        EnsureDocumentOpen(FilePath);
+        return this.TextBufferWriter is not null
+            &&TryGetLiveBuffer(FilePath,out ITextBuffer?Buffer,out _)&&Buffer is not null
+            ?this.TextBufferWriter.GetLastUndoDescription(Buffer)
+            :null;
+    }
+
+    internal string?GetLastRedoDescription(string FilePath){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        EnsureDocumentOpen(FilePath);
+        return this.TextBufferWriter is not null
+            &&TryGetLiveBuffer(FilePath,out ITextBuffer?Buffer,out _)&&Buffer is not null
+            ?this.TextBufferWriter.GetLastRedoDescription(Buffer)
+            :null;
     }
 
     /// <summary>

@@ -152,6 +152,67 @@ public sealed class SceneEditDocumentTests {
         Assert.False(Document.CanUndo);
     }
 
+
+    /// <summary>
+    /// M0051 Step 1-5: 保存が着地するとResetToがスタックを消す。その後に積んだN件の編集は
+    /// N回のUndoでちょうど消化し切り、以降はメモリ内に戻す先が無い状態
+    /// (=SceneTextUndoDelegationPolicyがテキスト委譲へ落ちる境界)になる。
+    /// この境界が崩れると、保存後のCtrl+Zが無反応になるか、逆に戻り過ぎる。
+    /// </summary>
+    [Fact]
+    public void AfterResetTo_UndoingEveryEditReachesTheDelegationBoundary(){
+        SceneEditDocument Document=CreateDocument();
+        Document.ResetTo(new SceneEditSnapshot(Document.Model,Document.Projection));
+        Assert.False(Document.CanUndo);
+
+        Assert.True(Document.TryApply([Move(Document,2f)],"Move 1"));
+        Assert.True(Document.TryApply([Move(Document,3f)],"Move 2"));
+        Assert.True(Document.TryApply([Move(Document,4f)],"Move 3"));
+        Assert.True(Document.IsDirty);
+
+        for(int Index=0;Index<3;Index++){
+            Assert.True(Document.CanUndo);
+            Assert.True(Document.TryUndo());
+        }
+
+        Assert.False(Document.CanUndo);
+        Assert.False(Document.IsDirty);
+        Assert.False(Document.TryUndo());
+    }
+
+    /// <summary>
+    /// ResetTo は「実C#へ完全に追随した」ことを表すので、Redo側も残してはいけない
+    /// (残すと、保存後のRedoがもう存在しない編集を復活させてしまう)。
+    /// </summary>
+    [Fact]
+    public void ResetTo_ClearsBothStacks(){
+        SceneEditDocument Document=CreateDocument();
+        Assert.True(Document.TryApply([Move(Document,2f)],"Move"));
+        Assert.True(Document.TryUndo());
+        Assert.True(Document.CanRedo);
+
+        Document.ResetTo(new SceneEditSnapshot(Document.Model,Document.Projection));
+
+        Assert.False(Document.CanUndo);
+        Assert.False(Document.CanRedo);
+        Assert.False(Document.IsDirty);
+    }
+
+    /// <summary>
+    /// MarkSaved は履歴を消さない。保存の書き戻しが完了してから再解析が着地するまでの窓では
+    /// メモリ内Undoがそのまま効き、着地後にResetToで委譲へ切り替わる。
+    /// </summary>
+    [Fact]
+    public void MarkSaved_KeepsTheUndoHistory(){
+        SceneEditDocument Document=CreateDocument();
+        Assert.True(Document.TryApply([Move(Document,2f)],"Move"));
+
+        Document.MarkSaved();
+
+        Assert.False(Document.IsDirty);
+        Assert.True(Document.CanUndo);
+    }
+
     private static SceneEditDocument CreateDocument(){
         SceneModel Model=SceneAnalysisTestHelper.Analyze([TransformTypes,Source]);
         SceneProjectionReconciler Reconciler=new();

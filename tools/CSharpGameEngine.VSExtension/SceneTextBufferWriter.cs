@@ -116,4 +116,22 @@ internal sealed class SceneTextBufferWriter {
         History.Redo(1);
         return true;
     }
+
+    /// <summary>
+    /// M0051 Step 1-5: 次にUndoされるトランザクションの説明文(履歴が空ならnull)。
+    /// 保存後のCtrl+Zをテキストへ委譲してよいかを
+    /// <see cref="SceneTextUndoDelegationPolicy.ShouldDelegate"/>が判定するために使う —
+    /// 同じ履歴にはユーザーがコードエディタで手打ちした編集も積まれており、
+    /// 区別せず委譲するとデザイナー由来でない編集まで巻き戻してしまう。
+    /// </summary>
+    internal string?GetLastUndoDescription(ITextBuffer Buffer){
+        ITextUndoHistory History=this.UndoHistoryRegistry.RegisterHistory(Buffer);
+        return History.CanUndo?History.LastUndoTransaction?.Description:null;
+    }
+
+    /// <summary>次にRedoされるトランザクションの説明文(履歴が空ならnull)。</summary>
+    internal string?GetLastRedoDescription(ITextBuffer Buffer){
+        ITextUndoHistory History=this.UndoHistoryRegistry.RegisterHistory(Buffer);
+        return History.CanRedo?History.LastRedoTransaction?.Description:null;
+    }
 }

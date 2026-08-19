@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using CSharpGameEngine.SceneAnalysis;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.VisualStudio.Shell;
 
@@ -33,10 +34,18 @@ internal sealed class SceneEditorSessionService : IDisposable {
 
     /// <summary>
     /// 保存が書き戻した直後の再解析だけは「自分自身の反映」として扱い、外部変更確認を出さずに
-    /// Documentのベースラインを黙って更新する。保存を開始した瞬間にtrueへ、その後最初に届いた
-    /// 再解析(対象は問わない — 1セッションで同時に複数Sceneを保存することは無いため十分)でfalseへ戻す。
+    /// Documentのベースラインを黙って更新する。保存を開始した瞬間に対象Sceneのキーを入れ、
+    /// その後最初に届いた再解析でnullへ戻す。
+    ///
+    /// <para>
+    /// M0051 Step 1-5でboolから<see cref="SceneKey"/>へ変えた。boolだと「対象は問わない」判定に
+    /// なるが、再解析イベントは<b>1回で複数のSceneModel</b>を運ぶため、保存した1つと同じイベントに
+    /// 乗った<b>無関係なScene</b>まで<c>TrustOwnSave</c>と誤判定され、
+    /// <see cref="SceneEditDocument.ResetTo"/>で未保存の編集とUndo履歴が消えていた
+    /// (<see cref="SceneOwnSaveLandingPolicy"/>参照)。
+    /// </para>
     /// </summary>
-    private bool AwaitingOwnSaveReanalysis;
+    private SceneKey?AwaitingOwnSaveKey;
 
     internal SceneEditorSessionService(SceneWorkspaceService Workspace){
         this.Workspace=Workspace??throw new ArgumentNullException(nameof(Workspace));
@@ -152,29 +161,119 @@ internal sealed class SceneEditorSessionService : IDisposable {
     }
 
     /// <summary>
-    /// M0036由来: シーンビューのCtrl+Z/Yから呼ばれる。M0047でDocumentの即時Undo/Redoへ差し替えた
-    /// (以前はここが対象.csファイルへ実際のVS Undoを1回実行していたが、C#への書き込みは保存操作でしか
-    /// 起きなくなったため、その経路はもう意味を持たない)。
+    /// シーンビュー・Hierarchy・InspectorのCtrl+Z/Yから呼ばれる。行き先は
+    /// <see cref="SceneTextUndoDelegationPolicy"/>が決める2択:
+    /// 未反映の編集が残っていればメモリ内スタックを1件戻し、無ければC#テキストのUndoへ委譲する。
+    ///
+    /// <para>
+    /// M0036はここで常に対象<c>.cs</c>のテキストUndoを実行していた。M0047でメモリ内Documentへ
+    /// 全面的に移し、テキスト経路は一度使われなくなったが、M0051 Step 1-5で
+    /// <b>保存後の取り消し</b>のために復活させた(保存点より前へ戻せるのはテキスト履歴だけ)。
+    /// 両者は排他ではなく、未反映分をメモリ内で消化してからテキストへ降りる直列の関係にある。
+    /// </para>
     /// </summary>
     internal bool TryUndo(){
         ThreadHelper.ThrowIfNotOnUIThread();
-        if(this.PinnedSceneKey is not { }Key||this.SavesInFlight.Contains(Key)
-            ||!this.Documents.TryGetValue(Key,out SceneEditDocument?Document)||!Document.TryUndo()){
+        if(this.PinnedSceneKey is not { }Key
+            ||!this.Documents.TryGetValue(Key,out SceneEditDocument?Document)){
             return false;
         }
 
-        this.PublishDocument(Key,Document);
-        return true;
+        switch(SceneTextUndoDelegationPolicy.Decide(
+            Document.CanUndo,this.SavesInFlight.Contains(Key),HasPinnedSnapshot:true)){
+            case SceneUndoRoute.InMemory:
+                if(!Document.TryUndo()){
+                    return false;
+                }
+
+                this.PublishDocument(Key,Document);
+                return true;
+            case SceneUndoRoute.DelegateToText:
+                return this.TryDelegateToText(Key,Redo:false);
+            default:
+                return false;
+        }
     }
 
     internal bool TryRedo(){
         ThreadHelper.ThrowIfNotOnUIThread();
-        if(this.PinnedSceneKey is not { }Key||this.SavesInFlight.Contains(Key)
-            ||!this.Documents.TryGetValue(Key,out SceneEditDocument?Document)||!Document.TryRedo()){
+        if(this.PinnedSceneKey is not { }Key
+            ||!this.Documents.TryGetValue(Key,out SceneEditDocument?Document)){
             return false;
         }
 
-        this.PublishDocument(Key,Document);
+        switch(SceneTextUndoDelegationPolicy.Decide(
+            Document.CanRedo,this.SavesInFlight.Contains(Key),HasPinnedSnapshot:true)){
+            case SceneUndoRoute.InMemory:
+                if(!Document.TryRedo()){
+                    return false;
+                }
+
+                this.PublishDocument(Key,Document);
+                return true;
+            case SceneUndoRoute.DelegateToText:
+                return this.TryDelegateToText(Key,Redo:true);
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// M0051 Step 1-5: メモリ内スタックが空のときのCtrl+Z / Ctrl+YをC#テキストのUndo履歴へ委譲する
+    /// (実機報告「保存した後も取り消しできるようにして」への対応)。
+    ///
+    /// <para>
+    /// 保存が着地すると<see cref="SceneEditDocument.ResetTo"/>がスタックを消すため、保存後の
+    /// Ctrl+Zにはメモリ内に戻す先が無い。履歴を残しても解決しない —
+    /// <see cref="SceneEditDocument"/>は逆操作を持たず、保存の書き戻しは履歴を<b>前方向に再生</b>する
+    /// 設計だからで、保存点より前へ戻せるのはテキスト履歴だけ(<see cref="SceneTextUndoDelegationPolicy"/>)。
+    /// </para>
+    ///
+    /// <para>
+    /// <b>自分が積んだトランザクションのときだけ委譲する。</b> 同じテキスト履歴にはユーザーが
+    /// コードエディタで手打ちした編集も積まれており、区別せず委譲するとデザイナー由来でない編集まで
+    /// 巻き戻してしまう。判定は説明文の接頭辞(<see cref="SceneUndoTransactionNaming"/>)で行う。
+    /// </para>
+    ///
+    /// <para>
+    /// 委譲が成功するとテキストが変わり、通常の再解析が届く。そのとき未保存の編集は無い
+    /// (<c>IsDirty==false</c>)ので<see cref="SceneExternalChangePolicy"/>は<c>FollowSilently</c>を返し、
+    /// デザイナー表示は確認ダイアログ無しで自動追従する。ここで表示を触る必要は無い。
+    /// </para>
+    /// </summary>
+    private bool TryDelegateToText(SceneKey Key,bool Redo){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(!this.TryGetSceneFilePath(Key,out string FilePath)){
+            return false;
+        }
+
+        string?Description=Redo
+            ?this.Workspace.GetLastRedoDescription(FilePath)
+            :this.Workspace.GetLastUndoDescription(FilePath);
+        if(!SceneTextUndoDelegationPolicy.ShouldDelegate(Description)){
+            return false;
+        }
+
+        return Redo?this.Workspace.TryRedo(FilePath):this.Workspace.TryUndo(FilePath);
+    }
+
+    /// <summary>
+    /// 対象Sceneを宣言している<c>.cs</c>のパス。直近の実解析snapshotが持つ
+    /// <see cref="SceneModel.FilePath"/>から同期で取れる(<see cref="SceneWorkspaceService.ResolveSceneEditContextAsync"/>は
+    /// 非同期なのでCtrl+Zの経路からは使えない)。
+    /// </summary>
+    private bool TryGetSceneFilePath(SceneKey Key,out string FilePath){
+        FilePath="";
+        if(!this.Snapshots.TryGetValue(Key,out SceneDocumentSnapshot?Snapshot)){
+            return false;
+        }
+
+        string?Resolved=(Snapshot.CurrentModel??Snapshot.LastKnownGoodModel)?.FilePath;
+        if(string.IsNullOrEmpty(Resolved)){
+            return false;
+        }
+
+        FilePath=Resolved!;
         return true;
     }
 
@@ -217,46 +316,44 @@ internal sealed class SceneEditorSessionService : IDisposable {
             this.Snapshots.TryGetValue(Key,out SceneDocumentSnapshot?LastReal);
             SceneProjection RealProjection=Reconciler.Reconcile(Key,Context.Model,LastReal?.Projection);
 
-            SceneSourceEditResult Edited=SceneSourceEditor.ApplyForSave(
+            // M0051 Step 1-5: 履歴エントリごとの中間構文木を受け取り、1操作=1 VS Undo単位で
+            // 書き戻す。以前はApplyForSave(最終木だけ)を使っていたため、3回編集してから保存すると
+            // 保存後のCtrl+Zが3回分まとめて戻ってしまった(確定仕様は「1操作=1 Undo単位」)。
+            SceneSourceEditStepsResult Edited=SceneSourceEditor.ApplyForSaveSteps(
                 Context.Root,Key,RealProjection,Document.History);
-            if(!Edited.Succeeded||Edited.Root is null){
+            if(!Edited.Succeeded||Edited.FinalRoot is null){
                 return new SceneEditCommitResult(false,Edited.ErrorMessage??"保存に失敗しました。",WasRebased:false);
             }
 
             // M0051: 書き戻した構文木を読み直し、Documentの編集内容と意味的に一致するか検算する。
             // M0049(JSON移行)の動機だった「C#に反映されていない」を、黙って起こさせないための関門。
             // 一致しない場合はテキストへ一切書き込まずに中止する(壊れた結果を保存するより、
-            // 保存できないほうがユーザーの作業を守れる)。
+            // 保存できないほうがユーザーの作業を守れる)。検算対象は最終形だけでよい —
+            // 中間ステップはUndo単位を分けるためだけのもので、保存の成果物は最終形。
             if(!SceneSaveVerification.Verify(
-                Edited.Root,Context.Root,Context.Compilation,Document.Model,
+                Edited.FinalRoot,Context.Root,Context.Compilation,Document.Model,
                 Key.ClassFullyQualifiedName,CancellationToken,out string?VerificationError)){
                 return new SceneEditCommitResult(false,VerificationError,WasRebased:false);
             }
 
-            // M0044と同じ安全網: 構文ツリー差分の出所を変えることはソースを壊しうるため、適用結果が
-            // 再生結果の全文と一致するか毎回検算し、一致しなければ全文差分へ落とす。
-            string ExpectedText=Edited.Root.ToFullString();
-            IReadOnlyList<TextChange>Changes=SceneTextChangePlanner.Plan(Context.Root.SyntaxTree,Edited.Root.SyntaxTree);
-            if(!string.Equals(Context.Text.WithChanges(Changes).ToString(),ExpectedText,StringComparison.Ordinal)){
-                Changes=SceneTextChangePlanner.Plan(Context.Text,SourceText.From(ExpectedText,Context.Text.Encoding));
-            }
+            IReadOnlyList<SceneTextWriteStep>WriteSteps=BuildWriteSteps(Context,Edited);
 
-            this.AwaitingOwnSaveReanalysis=true;
+            this.AwaitingOwnSaveKey=Key;
             SceneLiveBufferWriteResult Written;
             try {
                 Written=await this.Workspace
-                    .ApplyTextAsync(Context,Changes,"Scene の保存",CancellationToken).ConfigureAwait(false);
+                    .ApplyTextStepsAsync(Context,WriteSteps,CancellationToken).ConfigureAwait(false);
             } catch {
                 // M0051 Step 1-4(バグ修正): 以前はfinallyがSavesInFlightしか戻さず、書き戻しが
-                // 例外で終わるとAwaitingOwnSaveReanalysisがtrueのまま残っていた。すると次に来た
+                // 例外で終わるとAwaitingOwnSaveKeyが残っていた。すると次に来た
                 // 無関係な再解析がTrustOwnSaveと誤判定され、Document.ResetToで未保存の編集が
                 // 全て消える。書き戻しが完了しなかった経路では必ずフラグを戻す。
-                this.AwaitingOwnSaveReanalysis=false;
+                this.AwaitingOwnSaveKey=null;
                 throw;
             }
 
             if(!Written.Succeeded){
-                this.AwaitingOwnSaveReanalysis=false;
+                this.AwaitingOwnSaveKey=null;
                 return new SceneEditCommitResult(false,Written.ErrorMessage,WasRebased:false);
             }
 
@@ -274,6 +371,40 @@ internal sealed class SceneEditorSessionService : IDisposable {
         } finally {
             this.SavesInFlight.Remove(Key);
         }
+    }
+
+    /// <summary>
+    /// M0051 Step 1-5: 中間構文木の列を、テキストバッファへ順に適用できる書き込みステップへ変換する。
+    ///
+    /// <para>
+    /// M0044と同じ安全網を<b>各ステップに</b>掛ける: 構文ツリー差分は最小化されている代わりに
+    /// 出所を誤るとソースを壊しうるため、適用結果が期待する全文と一致するか毎回検算し、
+    /// 一致しなければそのステップだけ全文差分へ落とす。ここで全ステップ分を先に組み立てて
+    /// 検算し切るので、実際の書き込み(<see cref="SceneWorkspaceService.ApplyTextStepsAsync"/>)は
+    /// UIスレッド上で連続適用するだけになり、途中で破綻する余地が無い。
+    /// </para>
+    /// </summary>
+    private static IReadOnlyList<SceneTextWriteStep>BuildWriteSteps(
+        SceneWorkspaceEditContext Context,SceneSourceEditStepsResult Edited){
+        List<SceneTextWriteStep>Steps=[];
+        SourceText Running=Context.Text;
+        SyntaxTree PreviousTree=Context.Root.SyntaxTree;
+
+        for(int Index=0;Index<Edited.Steps.Count;Index++){
+            SyntaxNode StepRoot=Edited.Steps[Index];
+            string ExpectedText=StepRoot.ToFullString();
+            IReadOnlyList<TextChange>Changes=SceneTextChangePlanner.Plan(PreviousTree,StepRoot.SyntaxTree);
+            if(!string.Equals(Running.WithChanges(Changes).ToString(),ExpectedText,StringComparison.Ordinal)){
+                Changes=SceneTextChangePlanner.Plan(Running,SourceText.From(ExpectedText,Running.Encoding));
+            }
+
+            Steps.Add(new SceneTextWriteStep(
+                Running,Changes,SceneUndoTransactionNaming.Format(Edited.Labels[Index])));
+            Running=Running.WithChanges(Changes);
+            PreviousTree=StepRoot.SyntaxTree;
+        }
+
+        return Steps;
     }
 
     /// <summary>
@@ -356,8 +487,8 @@ internal sealed class SceneEditorSessionService : IDisposable {
         }
 
         this.ActiveDocumentModelsChanged?.Invoke(Models);
-        bool IsOwnSaveLanding=this.AwaitingOwnSaveReanalysis;
-        this.AwaitingOwnSaveReanalysis=false;
+        SceneKey?AwaitingOwnSave=this.AwaitingOwnSaveKey;
+        this.AwaitingOwnSaveKey=null;
 
         foreach(SceneModel Model in Models){
             SceneKey?Key=this.Workspace.TryCreateSceneKey(Model);
@@ -382,7 +513,8 @@ internal sealed class SceneEditorSessionService : IDisposable {
                 ||RealSnapshot.Projection is not { }NewProjectionForDiff
                 ||!SceneDiffEngine.Compare(OldProjection,NewProjectionForDiff).IsEmpty;
             SceneExternalChangeAction Action=SceneExternalChangePolicy.Evaluate(
-                IsOwnSaveLanding,RealContentActuallyChanged,Document.IsDirty);
+                SceneOwnSaveLandingPolicy.IsOwnSaveLanding(AwaitingOwnSave,Value),
+                RealContentActuallyChanged,Document.IsDirty);
 
             switch(Action){
                 case SceneExternalChangeAction.Ignore:

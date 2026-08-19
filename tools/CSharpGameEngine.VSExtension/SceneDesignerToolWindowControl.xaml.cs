@@ -53,6 +53,16 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     /// </summary>
     internal bool IsViewportFocused=>RenderHostGrid.IsKeyboardFocusWithin;
 
+    /// <summary>
+    /// M0051 Step 1-5: Undo / Redo / Save のいずれもこの範囲で引き受ける。ビューポートだけでなく
+    /// Hierarchy / Inspector にフォーカスがある場合も含む — Hierarchyで編集した直後はフォーカスが
+    /// そちらにあり、ビューポート限定だと編集した本人がその場で取り消せなかった。
+    /// テキスト入力中(インラインリネーム等)の除外は
+    /// <see cref="SceneDesignerInputRoutingPolicy"/>が一段目で済ませている。
+    /// </summary>
+    internal bool AnyDesignerSurfaceHasFocus=>
+        this.IsViewportFocused||SceneEditorHub.AnyAuxiliarySurfaceHasFocus;
+
     internal bool HasPinnedSnapshot=>this.Session?.PinnedSnapshot is not null;
 
     /// <summary>
@@ -72,7 +82,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     internal bool TryUndoFromCommand(){
         ThreadHelper.ThrowIfNotOnUIThread();
         if(this.Session is not { }Session||!SceneDesignerUndoCommandPolicy.CanExecute(
-            this.IsViewportFocused,Session.PinnedSnapshot is not null,this.HasPendingSourceWrite)){
+            this.AnyDesignerSurfaceHasFocus,Session.PinnedSnapshot is not null,this.HasPendingSourceWrite)){
             return false;
         }
 
@@ -82,7 +92,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     internal bool TryRedoFromCommand(){
         ThreadHelper.ThrowIfNotOnUIThread();
         if(this.Session is not { }Session||!SceneDesignerUndoCommandPolicy.CanExecute(
-            this.IsViewportFocused,Session.PinnedSnapshot is not null,this.HasPendingSourceWrite)){
+            this.AnyDesignerSurfaceHasFocus,Session.PinnedSnapshot is not null,this.HasPendingSourceWrite)){
             return false;
         }
 
@@ -108,6 +118,15 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     private void OnSaveKeyRequested(){
         ThreadHelper.ThrowIfNotOnUIThread();
         if(this.Session is not { }Session||Session.PinnedSceneKey is not { }Key){
+            return;
+        }
+
+        // M0051 Step 1-5: Step 1-4はSceneSaveTriggerPolicyを純粋関数として切り出しながら、
+        // ここから呼ばずにSceneHwndHost側の生の論理和だけで済ませていた(テストは通るが製品コードは
+        // ポリシーを経由しない配線漏れ)。Undo/Redo(SceneDesignerUndoCommandPolicy)と同じく、
+        // Session側の状態を含む最終判定は必ずポリシーを通す。
+        if(!SceneSaveTriggerPolicy.ShouldSave(
+            this.AnyDesignerSurfaceHasFocus,HasPinnedSnapshot:true,Session.IsSaving(Key))){
             return;
         }
 

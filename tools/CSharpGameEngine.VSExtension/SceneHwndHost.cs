@@ -396,17 +396,23 @@ internal sealed class SceneHwndHost:HwndHost {
         // M0047: Ctrl+SもEdit.SaveSelectedItems等の標準キーバインドに割り当て済みのため、Ctrl+Z/Yと
         // 同じ理由でWPFのKeyDownには届かない。同じGetKeyStateポーリングで検知する。
         bool SDown=Ctrl&&(NativeMethods.GetKeyState(NativeMethods.VK_S)&0x8000)!=0;
-        bool Focused=IsViewportFocusedProvider?.Invoke()==true;
+        // M0051 Step 1-5: Undo / Redo / Save の3つとも同じ門番を通す。Step 1-4ではSaveだけを
+        // Hierarchy/Inspectorまで広げ、Undo/Redoはビューポート限定のまま残したため
+        // 「ヒエラルキーは取り消しできない」という実機報告になった。範囲判定は
+        // SceneDesignerInputRoutingPolicyへ集約する — Step 1-4はここで生の論理和を書いてしまい、
+        // 純粋関数として切り出したSceneSaveTriggerPolicyが製品コードから呼ばれない配線漏れを作った。
+        bool ViewportFocused=IsViewportFocusedProvider?.Invoke()==true;
+        bool AuxiliaryFocused=SceneEditorHub.AnyAuxiliarySurfaceHasFocus;
+        bool RouteSave=SceneDesignerInputRoutingPolicy.ShouldRouteSaveToDesigner(
+            ViewportFocused,AuxiliaryFocused);
+        // Ctrl+Z/YだけはTextBox入力中に降りる(インラインリネーム中の文字取り消しを奪わないため)。
+        bool RouteUndoRedo=SceneDesignerInputRoutingPolicy.ShouldRouteUndoRedoToDesigner(
+            ViewportFocused,AuxiliaryFocused,
+            Keyboard.FocusedElement is System.Windows.Controls.Primitives.TextBoxBase);
 
-        // M0051 Step 1-4: 保存だけはビューポート以外(Hierarchy/Inspector)にフォーカスがあっても
-        // 引き受ける。以前はビューポート限定だったため、Hierarchyで編集した直後のCtrl+Sが保存へ
-        // 届かず、VS標準の保存が未変更の.csをそのまま保存していた(実機報告の直接原因)。
-        // Undo/RedoはM0037の回帰(標準コマンド登録でVS全体のUndoが壊れた)を踏まえ範囲を広げない。
-        bool SaveSurfaceFocused=Focused||SceneEditorHub.AnyAuxiliarySurfaceHasFocus;
-
-        if(Focused&&SceneUndoRedoKeyPolicy.IsRisingEdge(ZDown,PreviousUndoKeyDown)){ UndoRequested?.Invoke(); }
-        if(Focused&&SceneUndoRedoKeyPolicy.IsRisingEdge(YDown,PreviousRedoKeyDown)){ RedoRequested?.Invoke(); }
-        if(SaveSurfaceFocused&&SceneUndoRedoKeyPolicy.IsRisingEdge(SDown,PreviousSaveKeyDown)){ SaveRequested?.Invoke(); }
+        if(RouteUndoRedo&&SceneUndoRedoKeyPolicy.IsRisingEdge(ZDown,PreviousUndoKeyDown)){ UndoRequested?.Invoke(); }
+        if(RouteUndoRedo&&SceneUndoRedoKeyPolicy.IsRisingEdge(YDown,PreviousRedoKeyDown)){ RedoRequested?.Invoke(); }
+        if(RouteSave&&SceneUndoRedoKeyPolicy.IsRisingEdge(SDown,PreviousSaveKeyDown)){ SaveRequested?.Invoke(); }
 
         PreviousUndoKeyDown=ZDown;
         PreviousRedoKeyDown=YDown;

@@ -2,9 +2,10 @@ namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
 /// M0051 Step 1-4: Ctrl+SをScene Designerが引き受けてよいかの純粋な判定。
+/// <see cref="SceneDesignerInputRoutingPolicy"/>がフォーカスだけで決める一段目を通したあと、
+/// <b>Session側の状態</b>を加えるのがここ(<see cref="SceneDesignerUndoCommandPolicy"/>と同じ二段構成)。
 ///
 /// <para>
-/// <b>Undo/Redo(<see cref="SceneDesignerUndoCommandPolicy"/>)より対象範囲が広い</b>のが要点。
 /// 実機報告「ヒエラルキーで編集してもctrl+sでc#ソースを正本として再構築されて取り消される」の
 /// 直接原因は、Ctrl+Sの検知が<b>3Dビューポートのキーボードフォーカス</b>だけを条件にしていたこと
 /// だった。Hierarchyツリーで編集した直後はフォーカスがHierarchy側にあるため、Ctrl+Sは
@@ -14,10 +15,12 @@ namespace CSharpGameEngine.VSExtension;
 /// </para>
 ///
 /// <para>
-/// <b>Undo/Redoの門番は意図的に広げない。</b> Ctrl+Z/YはM0037で「ペインを標準コマンドとして
-/// 登録したらVS全体のUndo管理が壊れた」実機回帰を起こし、M0045で<c>GetKeyState</c>ポーリングへ
-/// 撤退した経緯がある。誤って別ドキュメントのUndoを走らせる危険があるため、範囲を広げるのは
-/// 保存だけに限定する。
+/// <b>M0051 Step 1-5での訂正</b>: Step 1-4はここに「Undo/Redoの門番は意図的に広げない。M0037で
+/// VS全体のUndo管理が壊れた回帰があるため」と書いたが、その根拠は誤りだった。M0037の回帰の原因は
+/// 一貫して<b>標準コマンドIDを<c>OleMenuCommandService</c>へ登録したこと</b>という手段に帰属しており、
+/// <c>GetKeyState</c>ポーリングの門番範囲が原因だったという記述はどこにも無い
+/// (<c>Docs/Conformance.md</c>はむしろ「M0045は今回の真因ではなかった」と記している)。
+/// Step 1-5でUndo/Redoも同じ範囲へ揃えた。<b>3つのキーの範囲は今後も揃えて扱うこと。</b>
 /// </para>
 /// </summary>
 internal static class SceneSaveTriggerPolicy {
