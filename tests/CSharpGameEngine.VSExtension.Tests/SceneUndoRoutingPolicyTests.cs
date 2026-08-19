@@ -60,153 +60,174 @@ public sealed class SceneUndoRoutingPolicyTests {
             ViewportFocused:false,AuxiliarySurfaceFocused:false));
     }
 
-    // ---- メモリ内Undoかテキスト委譲か ----
-
-    /// <summary>未反映の編集が残っている間は、メモリ内スタックを1件ずつ消化する(即時・再解析待ち無し)。</summary>
-    [Fact]
-    public void Route_IsInMemoryWhileUnsavedEditsRemain(){
-        Assert.Equal(SceneUndoRoute.InMemory,SceneTextUndoDelegationPolicy.Decide(
-            CanUndoInMemory:true,HasPendingSourceWrite:false,HasPinnedSnapshot:true));
-    }
-
-    /// <summary>
-    /// 「保存した後も取り消しできるようにして」の実体。保存が着地するとResetToがスタックを消すため、
-    /// メモリ内には戻す先が無い。ここでテキストUndoへ降りられないと完全に無反応になる。
-    /// </summary>
-    [Fact]
-    public void Route_DelegatesToTextWhenTheInMemoryStackIsEmpty(){
-        Assert.Equal(SceneUndoRoute.DelegateToText,SceneTextUndoDelegationPolicy.Decide(
-            CanUndoInMemory:false,HasPendingSourceWrite:false,HasPinnedSnapshot:true));
-    }
-
-    [Fact]
-    public void Route_IsNoneWithoutAPinnedScene(){
-        Assert.Equal(SceneUndoRoute.None,SceneTextUndoDelegationPolicy.Decide(
-            CanUndoInMemory:true,HasPendingSourceWrite:false,HasPinnedSnapshot:false));
-    }
-
-    /// <summary>
-    /// 書き戻し飛行中はメモリ内スタックとテキスト履歴が食い違う窓。どちらにも落とさない
-    /// (完了後の押し直しで正しく動く)。
-    /// </summary>
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void Route_IsNoneWhileASourceWriteIsInFlight(bool CanUndoInMemory){
-        Assert.Equal(SceneUndoRoute.None,SceneTextUndoDelegationPolicy.Decide(
-            CanUndoInMemory,HasPendingSourceWrite:true,HasPinnedSnapshot:true));
-    }
-
-    // ---- 委譲先が自分のトランザクションか(台帳判定) ----
+    // ---- Ctrl+Z / Ctrl+Y の行き先(ウォーターマーク) ----
     //
-    // 当初は ITextUndoHistory.LastUndoTransaction.Description の接頭辞で判定していたが、VSの実装
-    // (VsUndoHistory)はスタックを覗く系のメンバーを実装しておらず NotSupportedException を投げる。
-    // 実機ではCtrl+Zのたびに CompositionTarget.Rendering のハンドラごと落ちた。
-    // 代わりに「自分が積んだ単位数」と「自分が最後に触った直後のバッファ版番号」で判定する。
+    // 不変条件: 0 <= TextWatermark <= HistoryCount かつ
+    // 「C#テキスト == History[0..TextWatermark) を再生した状態」。
 
-    /// <summary>保存で積んだ直後は、積んだ数だけ委譲できる。</summary>
+    /// <summary>まだテキストへ書いていない編集を戻すだけなら、テキストは無関係で即時に完結する。</summary>
     [Fact]
-    public void Ledger_AllowsDelegationForTheUnitsWeJustWrote(){
-        SceneTextUndoLedgerEntry Entry=SceneTextUndoLedgerPolicy.AfterWrite(
-            SceneTextUndoLedgerPolicy.Empty,VersionBeforeWrite:5,VersionAfterWrite:8,UnitsWritten:3);
+    public void Undo_IsInMemoryOnlyForUnsavedEdits(){
+        Assert.Equal(SceneUndoAction.InMemoryOnly,SceneTextWatermarkPolicy.DecideUndo(
+            HistoryCount:3,TextWatermark:1,CanSyncText:false,IsSaving:false));
+    }
 
-        Assert.Equal(3,Entry.UndoableUnits);
-        Assert.Equal(0,Entry.RedoableUnits);
-        Assert.True(SceneTextUndoLedgerPolicy.CanDelegateUndo(Entry,CurrentBufferVersion:8));
+    /// <summary>
+    /// 実機報告「保存すると遅くなる」への対応の中心。保存済みの編集を戻すときも、
+    /// メモリ内スタックが表示を即座に戻し、テキストUndoはその副作用として同期実行する。
+    /// </summary>
+    [Fact]
+    public void Undo_SyncsTextWhenSteppingBelowTheWatermark(){
+        Assert.Equal(SceneUndoAction.InMemoryWithText,SceneTextWatermarkPolicy.DecideUndo(
+            HistoryCount:3,TextWatermark:3,CanSyncText:true,IsSaving:false));
+    }
+
+    /// <summary>
+    /// ユーザーがコードエディタで直接C#を編集していたらテキストUndoは触れない。かといって
+    /// メモリ内だけ戻すと「テキストがメモリより先に進んだ状態」になり不変条件が壊れる
+    /// (ウォーターマークでは表現できない)ので、何もしないのが正しい。
+    /// </summary>
+    [Fact]
+    public void Undo_DoesNothingWhenTextCannotFollow(){
+        Assert.Equal(SceneUndoAction.None,SceneTextWatermarkPolicy.DecideUndo(
+            HistoryCount:3,TextWatermark:3,CanSyncText:false,IsSaving:false));
+    }
+
+    [Fact]
+    public void Undo_DoesNothingWithAnEmptyHistory(){
+        Assert.Equal(SceneUndoAction.None,SceneTextWatermarkPolicy.DecideUndo(
+            HistoryCount:0,TextWatermark:0,CanSyncText:true,IsSaving:false));
+    }
+
+    /// <summary>書き戻し飛行中はメモリ内とテキストが食い違う窓。完了後の押し直しで正しく動く。</summary>
+    [Fact]
+    public void Undo_DoesNothingWhileASaveIsInFlight(){
+        Assert.Equal(SceneUndoAction.None,SceneTextWatermarkPolicy.DecideUndo(
+            HistoryCount:3,TextWatermark:1,CanSyncText:true,IsSaving:true));
+    }
+
+    [Fact]
+    public void Redo_IsInMemoryOnlyWhileAheadOfTheWatermark(){
+        Assert.Equal(SceneUndoAction.InMemoryOnly,SceneTextWatermarkPolicy.DecideRedo(
+            RedoCount:1,HistoryCount:3,TextWatermark:1,CanSyncText:false,IsSaving:false));
+    }
+
+    [Fact]
+    public void Redo_SyncsTextWhenTheTextHasOurUnitToRestore(){
+        Assert.Equal(SceneUndoAction.InMemoryWithText,SceneTextWatermarkPolicy.DecideRedo(
+            RedoCount:1,HistoryCount:2,TextWatermark:2,CanSyncText:true,IsSaving:false));
+    }
+
+    /// <summary>
+    /// Undoと非対称に、テキストが追随できなくてもRedoは進める。メモリがテキストより<b>先</b>へ出る
+    /// 状態は「まだ保存していない編集がある」そのものでウォーターマークが表現できる。
+    /// この非対称が無いと、メモリ内だけ戻した編集をRedoできなくなる。
+    /// </summary>
+    [Fact]
+    public void Redo_ProceedsInMemoryWhenTextCannotFollow(){
+        Assert.Equal(SceneUndoAction.InMemoryOnly,SceneTextWatermarkPolicy.DecideRedo(
+            RedoCount:1,HistoryCount:2,TextWatermark:2,CanSyncText:false,IsSaving:false));
+    }
+
+    [Fact]
+    public void Redo_DoesNothingWithAnEmptyRedoStack(){
+        Assert.Equal(SceneUndoAction.None,SceneTextWatermarkPolicy.DecideRedo(
+            RedoCount:0,HistoryCount:2,TextWatermark:2,CanSyncText:true,IsSaving:false));
+    }
+
+    // ---- 保存が書き出す範囲 ----
+
+    [Fact]
+    public void Save_WritesTheSuffixAboveTheWatermark(){
+        Assert.Equal(
+            SceneSaveSuffixKind.WriteSuffix,SceneSaveSuffixPolicy.Decide(HistoryCount:5,TextWatermark:2));
+    }
+
+    /// <summary>
+    /// これが無いと保存が壊れる。ウォーターマークより下へ潜った状態でCtrl+Sすると部分列が空になり、
+    /// ApplyForSaveSteps が FinalRoot=null を返して「保存に失敗しました」と出る。
+    /// 潜った直後はテキストも一緒に戻っているので、実際には既に同期済みで何もしないのが正しい。
+    /// </summary>
+    [Fact]
+    public void Save_DoesNothingWhenTheTextIsAlreadyAtTheSamePosition(){
+        Assert.Equal(
+            SceneSaveSuffixKind.AlreadyInSync,SceneSaveSuffixPolicy.Decide(HistoryCount:2,TextWatermark:2));
+    }
+
+    // ---- テキスト同期の所有判定 ----
+    //
+    // Step 1-5 は ITextUndoHistory.LastUndoTransaction.Description の接頭辞で判定していたが、
+    // VSの実装(VsUndoHistory)はスタックを覗く系のメンバーを実装しておらず NotSupportedException を
+    // 投げる。バッファ版番号(単調増加)の一致で「以降だれも触っていない」ことを確かめる。
+
+    [Fact]
+    public void TextSync_IsAllowedRightAfterOurOwnWrite(){
+        SceneTextSyncState State=SceneTextSyncPolicy.AfterWrite(VersionAfterWrite:8);
+
+        Assert.True(SceneTextSyncPolicy.CanUndoText(State,CurrentBufferVersion:8));
     }
 
     /// <summary>
     /// 所有判定の核心。保存のあとユーザーがコードエディタで手打ちすると版番号が進む。
-    /// このとき委譲するとスタックの一番上にあるユーザーの編集を巻き戻してしまう。
+    /// このままUndo(1)するとスタックの一番上にあるユーザーの編集を巻き戻してしまう。
     /// </summary>
     [Fact]
-    public void Ledger_RefusesDelegationAfterSomeoneElseTouchedTheBuffer(){
-        SceneTextUndoLedgerEntry Entry=SceneTextUndoLedgerPolicy.AfterWrite(
-            SceneTextUndoLedgerPolicy.Empty,VersionBeforeWrite:5,VersionAfterWrite:8,UnitsWritten:3);
+    public void TextSync_IsRefusedAfterSomeoneElseTouchedTheBuffer(){
+        SceneTextSyncState State=SceneTextSyncPolicy.AfterWrite(VersionAfterWrite:8);
 
-        Assert.False(SceneTextUndoLedgerPolicy.CanDelegateUndo(Entry,CurrentBufferVersion:9));
+        Assert.False(SceneTextSyncPolicy.CanUndoText(State,CurrentBufferVersion:9));
     }
 
-    /// <summary>自分の単位を使い切ったら、その下にあるユーザーの編集へは降りない。</summary>
+    /// <summary>一度も書き出していなければ、テキスト側に自分のものは無い。</summary>
     [Fact]
-    public void Ledger_StopsOnceOurOwnUnitsAreExhausted(){
-        SceneTextUndoLedgerEntry Entry=SceneTextUndoLedgerPolicy.AfterWrite(
-            SceneTextUndoLedgerPolicy.Empty,VersionBeforeWrite:5,VersionAfterWrite:6,UnitsWritten:2);
-
-        Entry=SceneTextUndoLedgerPolicy.AfterUndo(Entry,VersionAfterUndo:7);
-        Assert.True(SceneTextUndoLedgerPolicy.CanDelegateUndo(Entry,CurrentBufferVersion:7));
-
-        Entry=SceneTextUndoLedgerPolicy.AfterUndo(Entry,VersionAfterUndo:8);
-        Assert.Equal(0,Entry.UndoableUnits);
-        Assert.False(SceneTextUndoLedgerPolicy.CanDelegateUndo(Entry,CurrentBufferVersion:8));
+    public void TextSync_IsRefusedBeforeAnyWrite(){
+        Assert.False(SceneTextSyncPolicy.CanUndoText(SceneTextSyncPolicy.Empty,CurrentBufferVersion:1));
+        Assert.False(SceneTextSyncPolicy.CanRedoText(SceneTextSyncPolicy.Empty,CurrentBufferVersion:1));
     }
 
-    /// <summary>Undoした分はRedoで戻せる(委譲Undo後のCtrl+Yが片手落ちにならないこと)。</summary>
+    /// <summary>Undoした分だけテキスト側のRedoが可能になり、Redoで戻る。</summary>
     [Fact]
-    public void Ledger_MovesUnitsBetweenUndoAndRedo(){
-        SceneTextUndoLedgerEntry Entry=SceneTextUndoLedgerPolicy.AfterWrite(
-            SceneTextUndoLedgerPolicy.Empty,VersionBeforeWrite:5,VersionAfterWrite:6,UnitsWritten:2);
-        Assert.False(SceneTextUndoLedgerPolicy.CanDelegateRedo(Entry,CurrentBufferVersion:6));
+    public void TextSync_MovesUnitsBetweenUndoAndRedo(){
+        SceneTextSyncState State=SceneTextSyncPolicy.AfterWrite(VersionAfterWrite:6);
+        Assert.False(SceneTextSyncPolicy.CanRedoText(State,CurrentBufferVersion:6));
 
-        Entry=SceneTextUndoLedgerPolicy.AfterUndo(Entry,VersionAfterUndo:7);
+        State=SceneTextSyncPolicy.AfterUndo(State,VersionAfterUndo:7);
+        Assert.Equal(1,State.RedoableUnits);
+        Assert.True(SceneTextSyncPolicy.CanRedoText(State,CurrentBufferVersion:7));
 
-        Assert.True(SceneTextUndoLedgerPolicy.CanDelegateRedo(Entry,CurrentBufferVersion:7));
-        Assert.Equal(1,Entry.RedoableUnits);
-
-        Entry=SceneTextUndoLedgerPolicy.AfterRedo(Entry,VersionAfterRedo:8);
-
-        Assert.Equal(2,Entry.UndoableUnits);
-        Assert.Equal(0,Entry.RedoableUnits);
+        State=SceneTextSyncPolicy.AfterRedo(State,VersionAfterRedo:8);
+        Assert.Equal(0,State.RedoableUnits);
+        Assert.False(SceneTextSyncPolicy.CanRedoText(State,CurrentBufferVersion:8));
     }
 
     /// <summary>
-    /// 保存を2回続けたら単位は累積する(1回目の保存分まで遡って取り消せる)。
+    /// これを忘れると乖離する。テキストに触れない新しい編集が積まれるとDocumentのRedoStackは
+    /// 捨てられるので、テキスト側に残っている自分のRedo単位はもう対応物が無い。
+    /// 無効化しないと、メモリ内だけ戻した編集をRedoしたときに無関係な古いテキストRedoが走る。
     /// </summary>
     [Fact]
-    public void Ledger_AccumulatesAcrossConsecutiveSaves(){
-        SceneTextUndoLedgerEntry Entry=SceneTextUndoLedgerPolicy.AfterWrite(
-            SceneTextUndoLedgerPolicy.Empty,VersionBeforeWrite:5,VersionAfterWrite:6,UnitsWritten:2);
-        Entry=SceneTextUndoLedgerPolicy.AfterWrite(
-            Entry,VersionBeforeWrite:6,VersionAfterWrite:9,UnitsWritten:3);
+    public void TextSync_DropsStaleRedoUnitsOnANewInMemoryEdit(){
+        SceneTextSyncState State=SceneTextSyncPolicy.AfterWrite(VersionAfterWrite:6);
+        State=SceneTextSyncPolicy.AfterUndo(State,VersionAfterUndo:7);
+        Assert.Equal(1,State.RedoableUnits);
 
-        Assert.Equal(5,Entry.UndoableUnits);
+        State=SceneTextSyncPolicy.AfterInMemoryEdit(State);
+
+        Assert.Equal(0,State.RedoableUnits);
+        Assert.False(SceneTextSyncPolicy.CanRedoText(State,CurrentBufferVersion:7));
+        // 自分はバッファを触っていないので、Undo側の所有判定は保つ。
+        Assert.True(SceneTextSyncPolicy.CanUndoText(State,CurrentBufferVersion:7));
     }
 
-    /// <summary>
-    /// ただし保存と保存の間にユーザーが手打ちしていたら累積しない。古い単位はユーザーの編集の
-    /// 下に埋まっており、通り抜けて到達してはならない。
-    /// </summary>
+    /// <summary>新しい書き込みはテキスト側のRedoスタックを捨てる(通常のUndoスタックの規則)。</summary>
     [Fact]
-    public void Ledger_DoesNotAccumulateAcrossAForeignEdit(){
-        SceneTextUndoLedgerEntry Entry=SceneTextUndoLedgerPolicy.AfterWrite(
-            SceneTextUndoLedgerPolicy.Empty,VersionBeforeWrite:5,VersionAfterWrite:6,UnitsWritten:2);
-        Entry=SceneTextUndoLedgerPolicy.AfterWrite(
-            Entry,VersionBeforeWrite:11,VersionAfterWrite:13,UnitsWritten:3);
+    public void TextSync_ClearsRedoOnANewWrite(){
+        SceneTextSyncState State=SceneTextSyncPolicy.AfterWrite(VersionAfterWrite:6);
+        State=SceneTextSyncPolicy.AfterUndo(State,VersionAfterUndo:7);
 
-        Assert.Equal(3,Entry.UndoableUnits);
-    }
+        State=SceneTextSyncPolicy.AfterWrite(VersionAfterWrite:8);
 
-    /// <summary>新しい編集を積めばRedoスタックは消える(通常のUndoスタックの規則)。</summary>
-    [Fact]
-    public void Ledger_ClearsRedoOnANewWrite(){
-        SceneTextUndoLedgerEntry Entry=SceneTextUndoLedgerPolicy.AfterWrite(
-            SceneTextUndoLedgerPolicy.Empty,VersionBeforeWrite:5,VersionAfterWrite:6,UnitsWritten:1);
-        Entry=SceneTextUndoLedgerPolicy.AfterUndo(Entry,VersionAfterUndo:7);
-        Assert.Equal(1,Entry.RedoableUnits);
-
-        Entry=SceneTextUndoLedgerPolicy.AfterWrite(
-            Entry,VersionBeforeWrite:7,VersionAfterWrite:8,UnitsWritten:1);
-
-        Assert.Equal(0,Entry.RedoableUnits);
-    }
-
-    /// <summary>保存を一度もしていなければ委譲しない(台帳が空のまま)。</summary>
-    [Fact]
-    public void Ledger_RefusesDelegationBeforeAnySave(){
-        Assert.False(SceneTextUndoLedgerPolicy.CanDelegateUndo(
-            SceneTextUndoLedgerPolicy.Empty,CurrentBufferVersion:1));
-        Assert.False(SceneTextUndoLedgerPolicy.CanDelegateRedo(
-            SceneTextUndoLedgerPolicy.Empty,CurrentBufferVersion:1));
+        Assert.Equal(0,State.RedoableUnits);
     }
 
     [Fact]

@@ -86,7 +86,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             return false;
         }
 
-        return Session.TryUndo();
+        return this.RunUndoStep(Session,Redo:false);
     }
 
     internal bool TryRedoFromCommand(){
@@ -96,7 +96,22 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             return false;
         }
 
-        return Session.TryRedo();
+        return this.RunUndoStep(Session,Redo:true);
+    }
+
+    /// <summary>
+    /// M0051 Step 1-6: Undo/Redoが「戻せるはずなのに戻せない」で止まったときだけステータスバーへ理由を出す。
+    /// 戻すものが無いだけなら普通のことなので黙っている。
+    /// </summary>
+    private bool RunUndoStep(SceneEditorSessionService Session,bool Redo){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        bool Stepped=Redo?Session.TryRedo(out string?BlockedReason):Session.TryUndo(out BlockedReason);
+        if(!Stepped&&BlockedReason is { }Reason
+            &&Package.GetGlobalService(typeof(SVsStatusbar))is IVsStatusbar StatusBar){
+            StatusBar.SetText(Reason);
+        }
+
+        return Stepped;
     }
 
     /// <summary>M0045: <see cref="SceneHwndHost.UndoRequested"/>の購読先。</summary>

@@ -102,30 +102,110 @@ public sealed class SceneEditDocumentTests {
         Assert.Equal(9f,ReadX(Document));
     }
 
+    /// <summary>
+    /// M0051 Step 1-6: IsDirty は参照比較ではなくウォーターマークとの距離で決まる。
+    /// 「ちょうど書き出し済みの位置に居るときはdirtyでない」というM0047の設計意図はそのまま。
+    /// </summary>
     [Fact]
-    public void IsDirty_ByReferenceComparison_BecomesFalseWhenUndoneBackToTheSavedModel(){
+    public void IsDirty_BecomesFalseWhenUndoneBackToTheWatermark(){
         SceneEditDocument Document=CreateDocument();
         Document.TryApply([Move(Document,1f)],"Move1");
         Assert.True(Document.IsDirty);
-        Document.MarkSaved();
+        Document.MarkWritten();
         Assert.False(Document.IsDirty);
 
         Document.TryApply([Move(Document,2f)],"Move2");
         Assert.True(Document.IsDirty);
 
-        Assert.True(Document.TryUndo()); // ちょうど保存時点まで戻る
+        Assert.True(Document.TryUndo()); // ちょうど書き出し済みの位置まで戻る
         Assert.False(Document.IsDirty);
     }
 
+    /// <summary>
+    /// 書き出し済みの位置より下へ潜ったらdirty。ただしこのときテキストも一緒に戻すので
+    /// (SceneUndoAction.InMemoryWithText)、実運用ではウォーターマークも同時に下がり
+    /// dirtyにはならない — RollbackWatermark を呼ばない場合の素の挙動を固定する。
+    /// </summary>
     [Fact]
-    public void IsDirty_StaysTrueWhenUndoingPastTheSavedPoint(){
+    public void IsDirty_StaysTrueWhenUndoingPastTheWatermarkWithoutRollingItBack(){
         SceneEditDocument Document=CreateDocument();
         Document.TryApply([Move(Document,1f)],"Move1");
         Document.TryApply([Move(Document,2f)],"Move2");
-        Document.MarkSaved(); // 2f時点で保存
+        Document.MarkWritten();
 
-        Document.TryUndo(); // 1fまで戻る = 保存時点より前 = ディスク(2f)と食い違う
+        Document.TryUndo();
+
         Assert.True(Document.IsDirty);
+    }
+
+    /// <summary>
+    /// 実運用の形。テキストごと戻すときはウォーターマークも一緒に下げるので、
+    /// テキストとDocumentは同じ位置に居続ける = dirtyでない。
+    /// </summary>
+    [Fact]
+    public void RollbackWatermark_KeepsDocumentAndTextAtTheSamePosition(){
+        SceneEditDocument Document=CreateDocument();
+        Document.TryApply([Move(Document,1f)],"Move1");
+        Document.TryApply([Move(Document,2f)],"Move2");
+        Document.MarkWritten();
+        Assert.Equal(2,Document.TextWatermark);
+
+        Document.TryUndo();
+        Document.RollbackWatermark();
+
+        Assert.Equal(1,Document.TextWatermark);
+        Assert.False(Document.IsDirty);
+        Assert.Empty(Document.UnwrittenHistory);
+    }
+
+    /// <summary>Redoで進めた分もウォーターマークが追いつき、保存時点へ戻れば dirty が消える。</summary>
+    [Fact]
+    public void AdvanceWatermark_RestoresTheSavedPosition(){
+        SceneEditDocument Document=CreateDocument();
+        Document.TryApply([Move(Document,1f)],"Move1");
+        Document.MarkWritten();
+        Document.TryUndo();
+        Document.RollbackWatermark();
+
+        Assert.True(Document.TryRedo());
+        Document.AdvanceWatermark();
+
+        Assert.Equal(1,Document.TextWatermark);
+        Assert.False(Document.IsDirty);
+    }
+
+    /// <summary>
+    /// 保存が二重適用にならないための本命。書き出し済みの分は再生対象から外れる。
+    /// これが崩れると、2回目の保存が1回目の編集をもう一度C#へ適用してしまう。
+    /// </summary>
+    [Fact]
+    public void UnwrittenHistory_ExcludesEntriesAlreadyWrittenToText(){
+        SceneEditDocument Document=CreateDocument();
+        Document.TryApply([Move(Document,1f)],"Move1");
+        Document.TryApply([Move(Document,2f)],"Move2");
+        Document.MarkWritten();
+        Document.TryApply([Move(Document,3f)],"Move3");
+
+        Assert.Equal(3,Document.History.Count);
+        Assert.Single(Document.UnwrittenHistory);
+        Assert.Equal("Move3",Document.UnwrittenHistory[0].Label);
+    }
+
+    /// <summary>
+    /// M0051 Step 1-6の中心。保存してもUndo履歴は残る — これが「保存後もCtrl+Zが即時」の土台。
+    /// Step 1-5まではここで履歴が捨てられ、保存後のCtrl+Zがテキスト履歴への委譲(再解析待ち)に
+    /// なっていた。
+    /// </summary>
+    [Fact]
+    public void MarkWritten_KeepsTheUndoHistoryForTheWholeSession(){
+        SceneEditDocument Document=CreateDocument();
+        Assert.True(Document.TryApply([Move(Document,2f)],"Move"));
+
+        Document.MarkWritten();
+
+        Assert.False(Document.IsDirty);
+        Assert.True(Document.CanUndo);
+        Assert.Single(Document.History);
     }
 
     [Fact]
@@ -152,42 +232,17 @@ public sealed class SceneEditDocumentTests {
         Assert.False(Document.CanUndo);
     }
 
-
     /// <summary>
-    /// M0051 Step 1-5: 保存が着地するとResetToがスタックを消す。その後に積んだN件の編集は
-    /// N回のUndoでちょうど消化し切り、以降はメモリ内に戻す先が無い状態
-    /// (=SceneTextUndoDelegationPolicyがテキスト委譲へ落ちる境界)になる。
-    /// この境界が崩れると、保存後のCtrl+Zが無反応になるか、逆に戻り過ぎる。
+    /// ResetTo は「実C#へ完全に追随した」ことを表すので、Redo側もウォーターマークも残してはいけない
+    /// (残すと、次の保存が古い部分列を再生する)。M0051 Step 1-6では、リネージが食い違ったときの
+    /// 縮退経路としてだけ通る。
     /// </summary>
     [Fact]
-    public void AfterResetTo_UndoingEveryEditReachesTheDelegationBoundary(){
-        SceneEditDocument Document=CreateDocument();
-        Document.ResetTo(new SceneEditSnapshot(Document.Model,Document.Projection));
-        Assert.False(Document.CanUndo);
-
-        Assert.True(Document.TryApply([Move(Document,2f)],"Move 1"));
-        Assert.True(Document.TryApply([Move(Document,3f)],"Move 2"));
-        Assert.True(Document.TryApply([Move(Document,4f)],"Move 3"));
-        Assert.True(Document.IsDirty);
-
-        for(int Index=0;Index<3;Index++){
-            Assert.True(Document.CanUndo);
-            Assert.True(Document.TryUndo());
-        }
-
-        Assert.False(Document.CanUndo);
-        Assert.False(Document.IsDirty);
-        Assert.False(Document.TryUndo());
-    }
-
-    /// <summary>
-    /// ResetTo は「実C#へ完全に追随した」ことを表すので、Redo側も残してはいけない
-    /// (残すと、保存後のRedoがもう存在しない編集を復活させてしまう)。
-    /// </summary>
-    [Fact]
-    public void ResetTo_ClearsBothStacks(){
+    public void ResetTo_ClearsBothStacksAndTheWatermark(){
         SceneEditDocument Document=CreateDocument();
         Assert.True(Document.TryApply([Move(Document,2f)],"Move"));
+        Document.MarkWritten();
+        Assert.True(Document.TryApply([Move(Document,3f)],"Move2"));
         Assert.True(Document.TryUndo());
         Assert.True(Document.CanRedo);
 
@@ -195,22 +250,31 @@ public sealed class SceneEditDocumentTests {
 
         Assert.False(Document.CanUndo);
         Assert.False(Document.CanRedo);
+        Assert.Equal(0,Document.TextWatermark);
         Assert.False(Document.IsDirty);
+        Assert.Empty(Document.UnwrittenHistory);
     }
 
     /// <summary>
-    /// MarkSaved は履歴を消さない。保存の書き戻しが完了してから再解析が着地するまでの窓では
-    /// メモリ内Undoがそのまま効き、着地後にResetToで委譲へ切り替わる。
+    /// 潜ってから新しい編集をすると、Redoスタックは捨てられ、未書き出しが1件になる。
+    /// ウォーターマークの不変条件(0 <= W <= Count)がここで崩れないことを固定する。
     /// </summary>
     [Fact]
-    public void MarkSaved_KeepsTheUndoHistory(){
+    public void NewEditAfterSteppingBelowTheWatermark_KeepsTheInvariant(){
         SceneEditDocument Document=CreateDocument();
-        Assert.True(Document.TryApply([Move(Document,2f)],"Move"));
+        Document.TryApply([Move(Document,1f)],"Move1");
+        Document.TryApply([Move(Document,2f)],"Move2");
+        Document.MarkWritten();
+        Document.TryUndo();
+        Document.RollbackWatermark();
 
-        Document.MarkSaved();
+        Assert.True(Document.TryApply([Move(Document,5f)],"Move3"));
 
-        Assert.False(Document.IsDirty);
-        Assert.True(Document.CanUndo);
+        Assert.Equal(2,Document.History.Count);
+        Assert.Equal(1,Document.TextWatermark);
+        Assert.False(Document.CanRedo);
+        Assert.Single(Document.UnwrittenHistory);
+        Assert.True(Document.IsDirty);
     }
 
     private static SceneEditDocument CreateDocument(){

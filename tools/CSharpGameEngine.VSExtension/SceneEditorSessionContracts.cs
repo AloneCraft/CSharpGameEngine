@@ -57,9 +57,14 @@ internal sealed class SceneDocumentSnapshot {
         SceneModel?Model,
         bool HasBlockingErrors,
         SceneDocumentSnapshot?Previous,
-        SceneProjectionReconciler Reconciler){
+        SceneProjectionReconciler Reconciler,
+        SceneProjection?IdentityBasis=null){
         if(!HasBlockingErrors&&Model?.Root is not null){
-            SceneProjection Projection=Reconciler.Reconcile(Key,Model,Previous?.Projection);
+            // M0051 Step 1-6: 通常はひとつ前の実解析投影からIDを引き継ぐ。ただし自分の書き込みの
+            // 着地だけは IdentityBasis に Document の投影を渡す — セッション中に追加したノードは
+            // 旧実投影に存在しないので新IDが払い直され、Document側のIDを参照している未書き出しの
+            // 履歴が次の保存で解決できなくなるため(SceneDocumentLineagePolicy 参照)。
+            SceneProjection Projection=Reconciler.Reconcile(Key,Model,IdentityBasis??Previous?.Projection);
             return new SceneDocumentSnapshot(
                 Key,DocumentId,DocumentVersion,AnalysisGeneration,Model,Model,Projection,
                 SceneDiffEngine.Compare(Previous?.Projection,Projection),HasBlockingErrors:false);

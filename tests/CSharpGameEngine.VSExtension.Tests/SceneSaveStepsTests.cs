@@ -69,6 +69,64 @@ public sealed class SceneSaveStepsTests {
         Assert.Null(Result.FinalRoot);
     }
 
+    /// <summary>
+    /// M0051 Step 1-6の本命。保存は履歴全体ではなく<b>まだテキストへ書き出していない部分列</b>だけを
+    /// 再生する。ここが崩れると2回目の保存が1回目の編集をもう一度C#へ適用してしまう。
+    ///
+    /// <para>
+    /// さらに厳しいのは、部分列が<b>先に書き出したエントリで追加されたノード</b>を参照する場合。
+    /// そのノードのIDはDocumentのReconcilerが払い出したもので、実C#の投影がそれを引き継いで
+    /// いなければ解決できず「保存時に対象Nodeの構文を特定できません」になる。
+    /// (実運用ではSceneDocumentLineagePolicyがこの引き継ぎを保証し、失敗したらResetToへ縮退する。)
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void Suffix_ResolvesNodesAddedByAlreadyWrittenEntries(){
+        Fixture F=Fixture.Create();
+        F.Apply([new AddNodeOperation(Key,F.Id("Gamma"),1,"Added")],"Add node");
+        EditorNodeId Added=F.Id("Added");
+
+        // 1件目まで書き出した、という状態を作る。
+        SceneSourceEditStepsResult First=F.BuildSteps();
+        Assert.True(First.Succeeded,First.ErrorMessage);
+        Assert.Single(First.Steps);
+        F.MarkWritten();
+        Assert.Empty(F.Document.UnwrittenHistory);
+
+        // 2件目は「1件目で追加したノード」を対象にする。
+        F.Apply([new RenameNodeOperation(Key,Added,2,"AddedRenamed")],"Rename node");
+
+        Assert.Single(F.Document.UnwrittenHistory);
+        Assert.Equal("Rename node",F.Document.UnwrittenHistory[0].Label);
+
+        // 本番の着地を再現する: 書き出したテキストを解析し直し、DocumentのProjectionを
+        // 引き継ぎ元(IdentityBasis)としてReconcileする。これで実ソース由来の位置情報を持ちつつ
+        // EditorNodeIdはDocument側と一致する投影ができる。これがStage Bの前提そのもの。
+        SceneProjection RealProjection=F.ReanalyzeWith(First.FinalRoot!,F.Document.Projection);
+
+        SceneSourceEditStepsResult Second=SceneSourceEditor.ApplyForSaveSteps(
+            First.FinalRoot!,Key,RealProjection,F.Document.UnwrittenHistory);
+
+        Assert.True(Second.Succeeded,Second.ErrorMessage);
+        Assert.Single(Second.Steps);
+        string Text=Second.FinalRoot!.ToFullString();
+        Assert.Contains("\"AddedRenamed\"",Text);
+
+        // 1件目の追加が二重適用されていないこと。元は4ノード(Alpha/Beta/Gamma/GammaChild)で、
+        // AddNodeが1件だけ効いているなら5ノード。部分列を渡さず全履歴を再生すると6になる。
+        Assert.Equal(5,CountOccurrences(Text,"new Node"));
+    }
+
+    private static int CountOccurrences(string Text,string Value){
+        int Count=0;
+        for(int Index=Text.IndexOf(Value,System.StringComparison.Ordinal);Index>=0;
+            Index=Text.IndexOf(Value,Index+Value.Length,System.StringComparison.Ordinal)){
+            Count++;
+        }
+
+        return Count;
+    }
+
     /// <summary>履歴1件につき中間構文木が1つ、ラベルはDocumentへ積んだものがそのまま並ぶ。</summary>
     [Fact]
     public void Steps_AreOnePerHistoryEntryAndCarryTheirLabels(){
@@ -145,11 +203,19 @@ public sealed class SceneSaveStepsTests {
     }
 
     private sealed class Fixture {
-        private Fixture(SyntaxNode Root,SceneProjection Projection,SceneEditDocument Document){
+        private Fixture(
+            CSharpCompilation Compilation,SyntaxNode Root,SceneProjection Projection,
+            SceneEditDocument Document,SceneProjectionReconciler Reconciler){
+            this.Compilation=Compilation;
             this.Root=Root;
             this.Projection=Projection;
             this.Document=Document;
+            this.Reconciler=Reconciler;
         }
+
+        private CSharpCompilation Compilation { get; }
+
+        private SceneProjectionReconciler Reconciler { get; }
 
         internal SyntaxNode Root { get; }
 
@@ -167,7 +233,20 @@ public sealed class SceneSaveStepsTests {
             SceneProjectionReconciler Reconciler=new();
             SceneProjection Projection=Reconciler.Reconcile(Key,Model,Previous:null);
             return new Fixture(
-                Root,Projection,new SceneEditDocument(Key,new SceneEditSnapshot(Model,Projection),Reconciler));
+                Compilation,Root,Projection,
+                new SceneEditDocument(Key,new SceneEditSnapshot(Model,Projection),Reconciler),Reconciler);
+        }
+
+        /// <summary>
+        /// 書き出した構文木を解析し直し、<paramref name="IdentityBasis"/>からIDを引き継いだ実投影を返す
+        /// (本番では<c>SceneEditorSessionService.Publish</c>が着地時に行っていること)。
+        /// </summary>
+        internal SceneProjection ReanalyzeWith(SyntaxNode WrittenRoot,SceneProjection IdentityBasis){
+            CSharpCompilation Updated=this.Compilation.ReplaceSyntaxTree(
+                this.Root.SyntaxTree,WrittenRoot.SyntaxTree);
+            INamedTypeSymbol SceneClass=SceneAnalysisTestHelper.FindSceneClass(Updated,"MainScene")!;
+            SceneModel RealModel=SceneDeclarationAnalyzer.Analyze(SceneClass,Updated,CancellationToken.None);
+            return this.Reconciler.Reconcile(Key,RealModel,IdentityBasis);
         }
 
         internal EditorNodeId Id(string NodeName)=>
@@ -177,6 +256,9 @@ public sealed class SceneSaveStepsTests {
             Assert.True(this.Document.TryApply(Operations,Label),$"Documentへの適用に失敗: {Label}");
 
         internal SceneSourceEditStepsResult BuildSteps()=>
-            SceneSourceEditor.ApplyForSaveSteps(this.Root,Key,this.Projection,this.Document.History);
+            SceneSourceEditor.ApplyForSaveSteps(
+                this.Root,Key,this.Projection,this.Document.UnwrittenHistory);
+
+        internal void MarkWritten()=>this.Document.MarkWritten();
     }
 }
