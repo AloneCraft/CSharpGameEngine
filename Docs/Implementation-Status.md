@@ -3053,6 +3053,25 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   `AwaitingOwnSaveReanalysis`が無関係なSceneの履歴まで消していた潜在バグを`SceneKey`照合へ修正した
   (`SceneOwnSaveLandingPolicy`)。新規テスト29件、全1161件成功。
   **実機確認は未実施 — 特にVS標準`Edit.Undo`との二重発火の有無は未確認のまま残っている。**
+- Follow-up(2026-08-19, M0051 Step 1-6: 保存後のUndo/Redoを保存前と同じ体感にする, TestVerified —
+  [[M0051-CSharp-Source-Of-Truth-Restoration]]): 実機報告「メモリ上のctrl+z,ctrl+yは早い。保存すると
+  遅くなる」への対応。Step 1-5のテキスト委譲は表示を更新せず追従をRoslyn再解析に任せていたため、
+  保存の前後で体感が変わっていた。
+  **Stage A**: `AnalyzeAllAsync`の対象がアクティブ文書ひとつだけで、pin中Sceneの`.cs`がアクティブで
+  ないと**再解析が一切来ない**(表示が永久に追いつかない)不具合を`SceneAnalysisTargetPolicy`で是正。
+  `ScheduleAnalysis`が張り直しのたびに待ち時間をリセットしてデバウンスが際限なく延びる問題も
+  `SceneAnalysisDebouncePolicy`(上限750ms)で頭打ちにした。
+  **Stage B**: `SceneEditDocument.TextWatermark`を導入し、メモリ内スタックをセッション全体で保持する。
+  Undo/Redoは常にメモリ内が駆動し、テキストへの反映は副作用へ格下げ。保存は部分列だけを書き出す。
+  `IsDirty`は参照比較からウォーターマークとの距離へ置き換え(`SceneSaveSuffixPolicy`)。
+  保存の着地では`ResetTo`を呼ばずDocumentを維持するが、`SceneDocumentLineagePolicy`が投影を比較して
+  食い違えば従来どおり縮退する — **検証が無いと、区別できない兄弟がいるSceneで後続の保存が
+  「対象Nodeの構文を特定できません」で失敗する**(追加したテストが実際に再現した)。
+  `SceneExternalChangePolicy`から`IsOwnSaveLanding`/`TrustOwnSave`を分離し、台帳は
+  `SceneTextSyncPolicy`へ縮小した。全1191件成功。
+  **効果範囲**: 消えるのは「保存の前後で体感が変わること」であって「全部が即時になること」ではない。
+  構造編集(ノード追加/削除、親変更、Mesh系)は保存前のメモリ内Undoでもbridgeプロセス往復が入るため、
+  即時にはならない — その高速化は別課題。**実機確認は未実施。**
 
 ## F-L8-012 — シーンエディタ インスペクター(選択ノードのComponent member数値編集)
 
