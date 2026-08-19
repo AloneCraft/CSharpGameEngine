@@ -132,3 +132,86 @@ M0049の動機はユーザーの「c#に反映されていない」という報�
 - **未実施(実機確認が必要)**: `.cs`のScene編集でIntelliSense・SCENE1xx赤線が出ること。
   既存ToolWindowのScene Designerでギズモ編集→Ctrl+S→`.cs`へ正しく反映されること。
   ビルド・F5でゲームが従来どおり起動・描画されること。
+
+---
+
+# Step 1-4(追補): Hierarchy保存の不具合修正とディスク保存
+
+第1段をコミット後の実機確認で2件の報告を受けた。
+
+> 1. ヒエラルキーで編集してもctrl+sでc#ソースを正本として再構築されて取り消される
+> 2. シーンビューで編集→ctrl+s→csにメモリ上で反映して`*`になるが、**そうではなくさらにそれを保存して**
+
+## 報告1の原因は3つ重なっていた
+
+### 原因A: Ctrl+Sが3Dビューポートのフォーカスで門番されていた
+
+`SceneEditorSessionService.SaveAsync`へ到達する経路は`SceneHwndHost.TickUndoRedoIfNeeded`の
+`GetKeyState`ポーリング**1本だけ**で、条件が`IsViewportFocusedProvider`
+(=`RenderHostGrid.IsKeyboardFocusWithin`)だった。Hierarchyツリーで編集した直後はフォーカスが
+Hierarchy側にあるため**Ctrl+Sは保存へ一切届かず**、VS標準の保存が未変更の`.cs`をそのまま保存して
+いた。ギズモ編集だけが動いていたのは操作直後にビューポートへフォーカスが残るためで、報告された
+非対称性と完全に一致する。
+
+**修正**: 新規`SceneSaveTriggerPolicy`(純粋クラス)と、`SceneEditorHub`への補助サーフェス
+(Hierarchy/Inspector)のフォーカス登録を追加し、**保存だけ**引き受け範囲を広げた。
+Undo/Redoは範囲を広げていない — M0037で「ペインを標準コマンドとして登録したらVS全体のUndo管理が
+壊れた」実機回帰を起こしM0045で撤退した経緯があり、誤って別ドキュメントのUndoを走らせる危険が
+あるため。
+
+### 原因B: 再解析がHierarchyの表示を未編集モデルで上書きしていた(「取り消される」の実体)
+
+`CSharpGameEngineViewerPackage`が`SceneWorkspace.ModelChanged`を`SceneEditorHub.PublishSceneModel`へ
+**直結**していた。保存起因の再解析が発火するとHierarchyはC#由来の未編集モデルから木を再構築する。
+一方`SceneExternalChangePolicy`はテキストが実際には変わっていないため`Ignore`を返し
+`PublishDocument`を呼ばないので、Hubには未編集モデルが残り続ける。M0048でDocument→Hubの橋渡しを
+追加した際、この古い直結を残したことによる競合。
+
+**修正**: 新規`SceneHubPublicationPolicy`(純粋クラス)で選別してから発行する。未保存編集を持つ
+pin中Sceneと同じ対象、および解析対象が無くなった(null)通知は流さない。別Sceneや未pinのときは
+従来どおり流す(Hierarchyはpinしていない文書のSceneも表示するため)。
+
+### 原因C-F: 構造編集の保存自体が壊れていた(テストで発見)
+
+**構造編集を履歴再生経路(`ApplyForSave`)で通すテストが1本も無かった**ことが判明したため、
+新規テスト10件で穴を埋めたところ、4件の不具合が再現した。
+
+1. **`SceneModelEditApplier.TryFindByIdentity`が`ReferenceEquals`で探していた**。直前の
+   `TryRemoveChildAt`が木を関数的に作り直すため新親は必ず別インスタンスになり、この関数は常に
+   falseを返していた。結果、**親を跨ぐReparentは`Document.TryApply`の時点で必ず失敗**し、
+   Hierarchyのドラッグ&ドロップでの親子変更が一切効かなかった。XMLコメントが記していた本来の意図
+   (Name+Component構成での照合)どおりに実装し直した。
+2. **`ApplyForSaveSteps`の事前Annotateが操作対象の親を注釈していなかった**(`ApplyBatch`は元から
+   注釈している)。Remove/Reorder/Reparentの親がSpan一致フォールバックへ落ち、履歴2件目以降
+   (兄弟をRenameしてからDelete等)で親のSpanがずれて保存が中止されていた。
+3. **`ApplyAddNode`の一意名採番が投影(保存開始時点の実C#)の子を見ていた**。1セッションで同じ親へ
+   2回AddChildすると`SceneModelEditApplier`側は`Node`/`Node (1)`、ソース側は`Node`/`Node`となり
+   往復検証が必ず不一致になっていた。書き戻し中の構文木から集めて採番規則を一致させた。
+4. 3に伴い子要素の列挙を追加。`TryAppendChild`と同じ3形態(コレクション式/明示配列/暗黙配列)に対応。
+
+### 原因D: 例外時にフラグが立ったまま残る
+
+`SaveAsync`の`finally`が`SavesInFlight`しか戻さないため、`ApplyTextAsync`が例外を投げると
+`AwaitingOwnSaveReanalysis`がtrueのまま残り、次の**無関係な**再解析が`TrustOwnSave`と誤判定されて
+`Document.ResetTo`で未保存の編集が全消去されうる。例外経路でも必ず戻すようにした。
+
+## 報告2: ディスク保存の実装
+
+`SaveAsync`は`ApplyTextAsync`→`SceneTextBufferWriter.TryApply`→`Buffer.Replace`で終わっており、
+**リポジトリ全体にファイル保存の呼び出しが1件も無かった**(M0047が「保存トリガーはビューポートの
+Ctrl+Sのみ」と明記した既知の設計)。
+
+`SceneWorkspaceService.TrySaveDocumentToDisk`を追加し、`IVsRunningDocumentTable.SaveDocuments`
+(`RDTSAVEOPT_SaveIfDirty`)で**対象Sceneの1ファイルだけ**を保存する(Save All相当にはしない)。
+docCookieは既存の`FindAndLockDocument`が破棄していた最後のoutから取る。保存はバッファ内容を
+変えないため`RealContentActuallyChanged==false`となり、追加の再解析が来ても`Ignore`に落ちる
+(M0048の不変条件をそのまま利用)。書き戻しが成功していれば編集は失われないので、ファイル保存の
+失敗は警告に留める。
+
+## テスト
+
+新規20件(`SceneSourceEditorStructuralSaveTests` 10件、`SceneSavePolicyTests` 10件)。
+特に**構造編集を履歴再生経路で通すテスト**は今回が初めてで、原因C-Fはすべてこれで再現・固定した。
+全1132件成功。
+
+VS SDK依存部分(フォーカス配線・`SaveDocuments`・Hub発行の実配線)はCodeVerified止まりで実機確認が必須。

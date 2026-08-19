@@ -2498,3 +2498,43 @@ Expハイブのキャッシュより新しくすること」を機序として**
   ギズモ編集→Ctrl+S→`.cs`への反映、ビルド・F5での起動・描画がユーザー確認待ち。
 - **第2段(未着手)**: ドキュメントエディタ化・タブ切替同期・履歴のテキスト側一本化。
   着手前にVS SDKのスパイク(`IVsCodeWindow`のホスティング可否、`SetDocDataDirty`の実挙動)が必要。
+
+## 2026-08-19 M0051 Step 1-4: Hierarchy編集がCtrl+Sで保存されない不具合とディスク保存の欠落
+
+- **報告 → 実機Observed**: 第1段コミット後、「ヒエラルキーで編集してもctrl+sでc#ソースを正本として
+  再構築されて取り消される」「シーンビューで編集→ctrl+s→csにメモリ上で反映して`*`になるが、
+  そうではなくさらにそれを保存して」と報告された。ユーザーが試したのはリネーム・削除・ドラッグでの
+  親子変更の3種。コードエディタ等にフォーカスがある場合のCtrl+Sは現状のままとする方針をユーザーが
+  選択(`OnBeforeSave`フックはM0047が実機回帰の多さを理由に見送った領域でリスクが見合わないため)。
+- **原因A(報告1の直接原因)**: `SaveAsync`へ到達する経路は`SceneHwndHost`の`GetKeyState`ポーリング
+  1本だけで、3Dビューポートのキーボードフォーカスで門番されていた。Hierarchyで編集した直後は
+  フォーカスがHierarchy側にあるためCtrl+Sが保存へ一切届かず、VS標準の保存が未変更の`.cs`を
+  そのまま保存していた。**ギズモ編集だけが動いていたのは操作直後にビューポートへフォーカスが残る
+  ためで、報告された非対称性と完全に一致する**。新規`SceneSaveTriggerPolicy`と`SceneEditorHub`への
+  補助サーフェス(Hierarchy/Inspector)のフォーカス登録で、保存だけ引き受け範囲を広げた。
+  Undo/Redoは広げていない(M0037の回帰→M0045の撤退という経緯があるため)。
+- **原因B(「取り消される」の実体)**: `SceneWorkspace.ModelChanged`が`SceneEditorHub.PublishSceneModel`へ
+  直結しており、保存起因の再解析がHierarchyの表示を未編集のC#由来モデルで上書きしていた。
+  M0048でDocument→Hubの橋渡しを追加した際にこの古い直結を残したことによる競合。新規
+  `SceneHubPublicationPolicy`で選別してから発行するようにした(未保存編集を持つpin中Sceneと同じ
+  対象、およびnull通知は流さない)。
+- **原因C-F(構造編集の保存自体が壊れていた)**: **構造編集を履歴再生経路で通すテストが1本も
+  無かった**ことが判明。新規テスト10件で穴を埋めたところ4件の不具合が再現した。
+  (1) `SceneModelEditApplier.TryFindByIdentity`が`ReferenceEquals`で探しており、直前の
+  `TryRemoveChildAt`が木を作り直すため必ずfalseになっていた → **親を跨ぐReparentは
+  `Document.TryApply`の時点で必ず失敗し、ドラッグ&ドロップでの親子変更が一切効かなかった**。
+  (2) `ApplyForSaveSteps`の事前Annotateが操作対象の親を注釈しておらず(`ApplyBatch`は元から注釈)、
+  履歴2件目以降で親のSpanがずれて保存が中止されていた。
+  (3) `ApplyAddNode`の一意名採番が保存開始時点の投影を見ており、同じ親へ2回AddChildすると
+  往復検証が必ず不一致になっていた。(4) 3に伴い子要素の列挙を3形態対応で追加。
+- **原因D**: `ApplyTextAsync`が例外を投げると`AwaitingOwnSaveReanalysis`がtrueのまま残り、次の
+  無関係な再解析が`TrustOwnSave`と誤判定されて`ResetTo`で編集が全消去されうる。例外経路でも戻すようにした。
+- **報告2(ディスク保存)**: `SaveAsync`はlive bufferへの反映で終わっており、リポジトリ全体に
+  ファイル保存の呼び出しが1件も無かった(M0047が明記した既知の設計)。
+  `SceneWorkspaceService.TrySaveDocumentToDisk`を追加し、`IVsRunningDocumentTable.SaveDocuments`
+  (`RDTSAVEOPT_SaveIfDirty`)で**対象Sceneの1ファイルだけ**を保存する。docCookieは既存の
+  `FindAndLockDocument`が破棄していた最後のoutから取る。保存はバッファ内容を変えないため
+  追加の再解析が来ても`Ignore`に落ちる(M0048の不変条件をそのまま利用)。
+- Evidence: 新規テスト20件(`SceneSourceEditorStructuralSaveTests` 10件、`SceneSavePolicyTests` 10件)。
+  全1132件成功。VS SDK依存部分(フォーカス配線・`SaveDocuments`・Hub発行の実配線)は
+  CodeVerified止まりで**実機確認が必須**。
