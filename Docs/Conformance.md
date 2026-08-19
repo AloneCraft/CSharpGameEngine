@@ -2731,3 +2731,55 @@ Expハイブのキャッシュより新しくすること」を機序として**
   **`Compare`自体は禁止しない** — Renderer差分と実投影同士の比較は本来の用途。
 - Evidence: 全1216件成功(VSExtension 714件、新規・書き換え28件)。
   VS SDK依存部分はCodeVerified止まりで**実機確認が必須**。
+
+## 2026-08-19 M0051 Step 1-8: 解析が「解析中」に張り付いてSceneを開けなくなる不具合
+
+- **報告 → 実機Observed**: 「シーンが開けなくなった」。右クリックメニューの
+  「シーン デザイナーで開く(シーンを解析中)」がグレーアウトしたまま、Hierarchyも空。
+  **VS再起動で直る**。原因はStep 1-6 Stage Aで入れたデバウンス上限のバグで、蓄積して壊れる型。
+- **主因(ライブロック)**: `FirstPendingAnalysisAt`を`null`へ戻すのは`StartAnalysis`の
+  **成功経路の中だけ**で、その手前に3つのガード(`Disposed`/トークン取消/
+  `AnalysisGeneration.IsCurrent`不一致)がある。`CancelPendingAnalysisNoLock`も`catch`節も触れない。
+  `AnalysisGeneration`は`ScheduleAnalysis`が毎回インクリメントするので追い越された解析は必ず落ちる。
+  したがって**解析が一度も完走しないまま上限(750ms)を超えると以後ずっと待ち時間が0**になり、
+  「即発火 → 次の変更で即キャンセル」を繰り返して**デバウンスが消滅**した。
+  **引き金は`ScheduleAnalysisNow`自身** — `Immediate:true`でも保留窓をセットする(クリアしない)。
+  呼び出し元(Ctrl+Z/Yのテキスト同期、保存の書き戻し)はどちらも直前にlive bufferを書き換えて
+  いるため`DocumentChanged`が確実に後続し、その即時解析はキャンセルされやすい。
+  Hierarchyを更新する`ModelChanged`も成功経路末尾でしか発火しないため、
+  **メニューとHierarchyが同時に死ぬ**のは構造的に必然。
+- **主因の修正**: 状態遷移を`SceneAnalysisDebouncePolicy.OnScheduled`/`OnStarted`として
+  純粋関数にし、**窓を閉じるのを「完走」から「開始」へ変えた**。上限が守る区間は
+  「最初のスケジュール → タイマ発火」だけで、追い越しは新しい窓の開始。これで
+  「上限ごとに1回は必ず解析が始まる」が繰り返し成立する。`OnStarted`は`RunAsync`のラムダ内では
+  なく同期部分で呼ぶ(遅れると`ScheduleAnalysis`が誤って「保留中」と判断する)。
+  時刻源を`DateTime.UtcNow`から**`Stopwatch.Elapsed`(単調)**へ変更(NTP/DST補正で経過が負になると
+  上限判定が壊れる)。
+- **副因**: `AppendPinnedSceneModelsAsync`がキャンセル判定・UIスレッド遷移・lockの**すべて手前**に
+  置かれ、フル解析1回分を挿入して**キャンセル可能区間をほぼ倍**にしていた。
+  しかも**その結果はメニューに一切使われない**のにメニュー更新の直列ブロッカーになっていた。
+  「待ち時間0 × 解析長2倍」の積が「どの解析も完走しない」を作った。
+- **副因の修正(Stage A撤回)**: メニュー更新の後ろへ動かす案ではなく撤回を選んだ。
+  追加解析の第2フェーズは`AnalysisGeneration.IsCurrent`に守られるが`ScheduleAnalysis`は毎回
+  generationを進めるので、**この拡張が最も必要な状況(背景ビルドで`ProjectChanged`が多発している間)
+  でほぼ届かなくなる**。撤回はキャンセル可能区間を無条件に半減させ、コードを減らすrevert形になる。
+  **撤回で失うのはpin中Sceneの`.cs`がアクティブでない間のリネージ検証と外部変更検知の遅延だけ** —
+  表示・履歴・ウォーターマークはStep 1-6/1-7のメモリ内スタックが即時更新するので失わない。
+  **保存の正しさも失わない**(`SceneSaveVerification.Verify`は書き込み前に完了している)。
+  Step 1-7の`ShouldConsumeAwaitingKey`は着地待ちキーの残留を想定済み。
+- あわせて`ScheduleAnalysis`が`Unavailable`を代入した直後に無条件で`Analyzing`を再代入して
+  潰していた箇所を`PendingMenuState`へ切り出して直した。
+- **再発防止**: 直近4回の不具合はすべて「純粋関数は正しいが、それへ渡す状態の管理側が誤っている」型で、
+  `ResolveDelay`のユニットテストは当時すべて通っていた。**判定だけでなく状態遷移も純粋関数にし、
+  遷移列をシミュレートするテスト**を追加した。
+  `Debounce_DoesNotDegenerateToZeroWhenEveryAnalysisIsSuperseded`が本命で、100ms間隔・10秒の
+  変更列に対し即発火が上限ごとに最大1回(14回以下)に収まることを表明する。
+  **旧意味論では100回中92回が即発火することを使い捨てのプローブで実測して確認した。**
+  アーキテクチャテストで「状態をその場で組み立てない」「`OnStarted`が残っている」ことも固定した。
+- Evidence: 全1220件成功(VSExtension 718件)。VS SDK依存部分はCodeVerified止まりで**実機確認が必須**。
+- **再発時の観測点**: ライブロック筋書きなら**ActivityLogは空**になる
+  (`OperationCanceledException`はログされない)。`SceneWorkspaceService`のエラーが出ていれば別原因。
+- **意図的にやらなかったこと**: pin中Scene専用の独立解析スロット(新しい状態・generation gate・CTSの
+  追加は直近4回の回帰を生んだ形なので、実害が観測されてから)、`OnWorkspaceChanged`の対象フィルタ
+  (参照プロジェクト経由の意味変化を取りこぼす判断に独立した検証が要る)、
+  メニューの安全網(`Analyzing`中は`Snapshot.Items`が空なので選択UIの設計変更が要る)。
