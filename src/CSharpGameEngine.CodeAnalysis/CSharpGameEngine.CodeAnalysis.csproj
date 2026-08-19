@@ -19,10 +19,6 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="4.14.0" PrivateAssets="all" />
-    <!-- M0049: *.scene.jsonの解析用。GeneratePathPropertyでDLLパスを取得し、下のItemGroupで
-         analyzers/dotnet/csへ手動で同梱する — OutputItemType="Analyzer"は推移的な
-         PackageReference DLLを確実には流さないため(このファイル冒頭のコメント参照)。 -->
-    <PackageReference Include="System.Text.Json" Version="9.0.0" PrivateAssets="all" GeneratePathProperty="true" />
   </ItemGroup>
 
   <!--

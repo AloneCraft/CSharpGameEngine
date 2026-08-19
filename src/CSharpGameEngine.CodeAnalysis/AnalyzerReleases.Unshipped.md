@@ -49,8 +49,3 @@ SCENE115 | CSharpGameEngine.Entities.CodeGen | Error | SceneDslDiagnostics
 SCENE116 | CSharpGameEngine.Entities.CodeGen | Error | SceneDslDiagnostics
 SCENE117 | CSharpGameEngine.Entities.CodeGen | Error | SceneDslDiagnostics
 SCENE118 | CSharpGameEngine.Entities.CodeGen | Error | SceneDslDiagnostics
-SCENE200 | CSharpGameEngine.Entities.CodeGen | Error | SceneDslDiagnostics
-SCENE201 | CSharpGameEngine.Entities.CodeGen | Error | SceneDslDiagnostics
-SCENE202 | CSharpGameEngine.Entities.CodeGen | Error | SceneDslDiagnostics
-SCENE203 | CSharpGameEngine.Entities.CodeGen | Error | SceneDslDiagnostics
-SCENE204 | CSharpGameEngine.Entities.CodeGen | Error | SceneDslDiagnostics

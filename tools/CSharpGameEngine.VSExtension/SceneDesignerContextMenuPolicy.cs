@@ -60,12 +60,7 @@ internal static class SceneDesignerContextMenuPolicy {
         string? FilePath,
         SceneDesignerTargetState TargetState,
         IReadOnlyList<SceneDesignerMenuItem> Items){
-        // M0050: *.scene.jsonは1ファイル=1シーンなので、拡張子だけ対応させればJSON経路にも
-        // TargetState/Itemsの分岐(下のswitch)がそのまま使える(AnalyzeJsonAsyncが
-        // 常にSceneType+Items.Count==1を返すため、Directモードへ自然に収束する)。
-        if(FilePath is null
-            ||(!FilePath.EndsWith(".cs",StringComparison.OrdinalIgnoreCase)
-                &&!FilePath.EndsWith(".scene.json",StringComparison.OrdinalIgnoreCase))
+        if(FilePath is null||!FilePath.EndsWith(".cs",StringComparison.OrdinalIgnoreCase)
             ||TargetState==SceneDesignerTargetState.Unavailable){
             return new(SceneDesignerMenuMode.Hidden,OpenText,[]);
         }

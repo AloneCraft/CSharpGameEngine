@@ -32,13 +32,6 @@ internal readonly struct SceneSourceLocation : IEquatable<SceneSourceLocation> {
         return new SceneSourceLocation(Mapped.Path,Token.Span,Mapped.Span);
     }
 
-    /// <summary>
-    /// JSON Scene(<c>*.scene.json</c>)用。正確なテキスト位置はまだ追跡していない(将来Phase)ため、
-    /// ファイルパスだけを持つ — <see cref="SceneSourceMarkerService"/>はこれでもファイルを開く
-    /// ところまでは劣化なく動く(<see cref="Span"/>が空なら先頭位置へフォールバックする)。
-    /// </summary>
-    internal static SceneSourceLocation FromJsonFile(string FilePath)=>new(FilePath,default,default);
-
     public bool Equals(SceneSourceLocation Other){
         return string.Equals(this.FilePath,Other.FilePath,StringComparison.Ordinal)
             &&this.Span==Other.Span;

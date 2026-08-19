@@ -203,46 +203,32 @@ internal sealed class SceneEditorSessionService : IDisposable {
                 return new SceneEditCommitResult(false,"セッションが終了しました。",WasRebased:false);
             }
             if(Context is null){
-                return new SceneEditCommitResult(false,"対象Sceneの最新ソースを解決できません。",WasRebased:false);
+                return new SceneEditCommitResult(false,"対象Sceneの最新C#ソースを解決できません。",WasRebased:false);
+            }
+            if(Context.Model.HasErrors||Context.Model.Root is null){
+                return new SceneEditCommitResult(false,"対象SceneにC#解析エラーがあるため保存できません。",WasRebased:false);
+            }
+            if(!this.Reconcilers.TryGetValue(Key,out SceneProjectionReconciler?Reconciler)){
+                return new SceneEditCommitResult(false,"対象SceneのID対応表が見つかりません。",WasRebased:false);
             }
 
-            IReadOnlyList<TextChange>Changes;
-            if(Context.Kind==SceneSourceKind.Json){
-                // M0050: JSONはSyntaxAnnotationによる部分差分書き換えではなく、Document(編集セッションの
-                // 最終結果)を丸ごとシリアライズし直す。C#版と違い「最新の実ファイルへHistoryを再生する」
-                // 手順は不要 — Document.Modelは既にpinから今までの全編集を適用した最終状態そのもの。
-                if(Document.Model.HasErrors||Document.Model.Root is null){
-                    return new SceneEditCommitResult(false,"対象SceneにJSON解析エラーがあるため保存できません。",WasRebased:false);
-                }
+            // 保存前の最後に実解析されたsnapshot(Publish済み)を基準にIDを引き継ぐ。実ソースが
+            // pin以降に一切変化していなければ、これはpin時のProjectionと同じ形になる。
+            this.Snapshots.TryGetValue(Key,out SceneDocumentSnapshot?LastReal);
+            SceneProjection RealProjection=Reconciler.Reconcile(Key,Context.Model,LastReal?.Projection);
 
-                string NewJsonText=SceneJsonSourceWriter.Serialize(Document.Model);
-                Changes=SceneTextChangePlanner.Plan(Context.Text,SourceText.From(NewJsonText,Context.Text.Encoding));
-            } else {
-                if(Context.Model.HasErrors||Context.Model.Root is null){
-                    return new SceneEditCommitResult(false,"対象SceneにC#解析エラーがあるため保存できません。",WasRebased:false);
-                }
-                if(!this.Reconcilers.TryGetValue(Key,out SceneProjectionReconciler?Reconciler)){
-                    return new SceneEditCommitResult(false,"対象SceneのID対応表が見つかりません。",WasRebased:false);
-                }
+            SceneSourceEditResult Edited=SceneSourceEditor.ApplyForSave(
+                Context.Root,Key,RealProjection,Document.History);
+            if(!Edited.Succeeded||Edited.Root is null){
+                return new SceneEditCommitResult(false,Edited.ErrorMessage??"保存に失敗しました。",WasRebased:false);
+            }
 
-                // 保存前の最後に実解析されたsnapshot(Publish済み)を基準にIDを引き継ぐ。実ソースが
-                // pin以降に一切変化していなければ、これはpin時のProjectionと同じ形になる。
-                this.Snapshots.TryGetValue(Key,out SceneDocumentSnapshot?LastReal);
-                SceneProjection RealProjection=Reconciler.Reconcile(Key,Context.Model,LastReal?.Projection);
-
-                SceneSourceEditResult Edited=SceneSourceEditor.ApplyForSave(
-                    Context.Root!,Key,RealProjection,Document.History);
-                if(!Edited.Succeeded||Edited.Root is null){
-                    return new SceneEditCommitResult(false,Edited.ErrorMessage??"保存に失敗しました。",WasRebased:false);
-                }
-
-                // M0044と同じ安全網: 構文ツリー差分の出所を変えることはソースを壊しうるため、適用結果が
-                // 再生結果の全文と一致するか毎回検算し、一致しなければ全文差分へ落とす。
-                string ExpectedText=Edited.Root.ToFullString();
-                Changes=SceneTextChangePlanner.Plan(Context.Root!.SyntaxTree,Edited.Root.SyntaxTree);
-                if(!string.Equals(Context.Text.WithChanges(Changes).ToString(),ExpectedText,StringComparison.Ordinal)){
-                    Changes=SceneTextChangePlanner.Plan(Context.Text,SourceText.From(ExpectedText,Context.Text.Encoding));
-                }
+            // M0044と同じ安全網: 構文ツリー差分の出所を変えることはソースを壊しうるため、適用結果が
+            // 再生結果の全文と一致するか毎回検算し、一致しなければ全文差分へ落とす。
+            string ExpectedText=Edited.Root.ToFullString();
+            IReadOnlyList<TextChange>Changes=SceneTextChangePlanner.Plan(Context.Root.SyntaxTree,Edited.Root.SyntaxTree);
+            if(!string.Equals(Context.Text.WithChanges(Changes).ToString(),ExpectedText,StringComparison.Ordinal)){
+                Changes=SceneTextChangePlanner.Plan(Context.Text,SourceText.From(ExpectedText,Context.Text.Encoding));
             }
 
             this.AwaitingOwnSaveReanalysis=true;

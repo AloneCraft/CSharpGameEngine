@@ -20,12 +20,6 @@
     <None Include="Assets\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
-  <!-- M0049: Sceneの正本。*.scene.jsonの存在だけでSceneとして検知される(IScene廃止)。 -->
-  <ItemGroup>
-    <AdditionalFiles Include="Scenes\*.scene.json" />
-    <None Include="Scenes\*.scene.json" />
-  </ItemGroup>
-
   <ItemGroup>
     <Compile Include="..\src\CSharpGameEngine.Entities\*.cs" Link="Entities\%(Filename)%(Extension)" />
     <ProjectReference Include="..\src\CSharpGameEngine.CodeAnalysis\CSharpGameEngine.CodeAnalysis.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />

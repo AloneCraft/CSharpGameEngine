@@ -279,10 +279,7 @@ internal sealed class OpenSceneDesignerCommand {
             } catch(Exception Ex){
                 await this.Package.JoinableTaskFactory.SwitchToMainThreadAsync();
                 ActivityLog.LogError(nameof(OpenSceneDesignerCommand),Ex.ToString());
-                // 実機不具合(2026-08): ActivityLogは`/Log`起動でないと書かれないVS環境があり、
-                // 「詳細はActivityLog.xmlを確認」だけでは調査不能になる。原因の要旨を
-                // ステータスバーへ直接出す(スタックトレース全体はActivityLogへ、要旨はここへ)。
-                SetStatusBarText($"シーンの解析またはデザイナー表示に失敗しました: {Ex.GetType().Name}: {Ex.Message}");
+                SetStatusBarText("シーンの解析またはデザイナー表示に失敗しました。詳細は ActivityLog.xml を確認してください。");
             }
         });
     }

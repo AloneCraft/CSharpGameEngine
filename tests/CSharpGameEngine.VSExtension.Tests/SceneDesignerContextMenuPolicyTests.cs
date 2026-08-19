@@ -98,36 +98,6 @@ public sealed class SceneDesignerContextMenuPolicyTests {
         Assert.Equal(SceneDesignerMenuMode.Hidden,Presentation.Mode);
     }
 
-    /// <summary>M0050: <c>*.scene.json</c>も<c>.cs</c>と同じくDirectモードへ収束する(1ファイル=1シーン)。</summary>
-    [Fact]
-    public void SceneJsonDocument_UsesTheDirectCommand(){
-        SceneDesignerCommandPresentation Presentation=SceneDesignerContextMenuPolicy.Create(
-            @"G:\Project\Scenes\MainScene.scene.json",
-            SceneDesignerTargetState.SceneType,
-            [new SceneDesignerMenuItem("MainScene","Project.MainScene")]);
-
-        Assert.True(Presentation.Visible);
-        Assert.True(Presentation.Enabled);
-        Assert.Equal(SceneDesignerMenuMode.Direct,Presentation.Mode);
-        Assert.Equal("シーン デザイナーで開く",Presentation.Text);
-    }
-
-    /// <summary>
-    /// <c>.scene.json</c>は複合(二重ドット)拡張子。単純な<c>EndsWith(".json")</c>にしてしまうと
-    /// 無関係な<c>.json</c>ファイルまでメニューが出てしまうため、末尾一致は必ず<c>.scene.json</c>
-    /// 全体で判定する。
-    /// </summary>
-    [Fact]
-    public void PlainJsonDocument_IsHidden(){
-        SceneDesignerCommandPresentation Presentation=SceneDesignerContextMenuPolicy.Create(
-            @"G:\Project\appsettings.json",
-            SceneDesignerTargetState.SceneType,
-            [new SceneDesignerMenuItem("MainScene","Project.MainScene")]);
-
-        Assert.False(Presentation.Visible);
-        Assert.Equal(SceneDesignerMenuMode.Hidden,Presentation.Mode);
-    }
-
     [Fact]
     public void OneScene_UsesTheDirectCommand(){
         SceneDesignerCommandPresentation Presentation=SceneDesignerContextMenuPolicy.Create(

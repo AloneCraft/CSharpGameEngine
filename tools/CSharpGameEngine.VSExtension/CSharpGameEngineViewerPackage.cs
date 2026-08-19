@@ -51,7 +51,6 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
     private SceneEditorSessionService?SceneSession;
     private ActiveDocumentTracker?DocumentTracker;
     private SceneSourceMarkerService?SourceMarkerService;
-    private SceneDiagnosticsErrorListSync?DiagnosticsErrorListSync;
 
     protected override async Task InitializeAsync(CancellationToken CancellationToken,IProgress<ServiceProgressData>Progress){
         await this.JoinableTaskFactory.SwitchToMainThreadAsync(CancellationToken);
@@ -82,7 +81,6 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             SceneDesignerToolWindowPane.ConfigureSessionProvider(()=>this.SceneSession);
             InspectorToolWindowPane.ConfigureSessionProvider(()=>this.SceneSession);
             SourceMarkerService=SceneSourceMarkerService.Start();
-            DiagnosticsErrorListSync=SceneDiagnosticsErrorListSync.Start(this,SceneSession);
             SceneEditorHub.HierarchySelectionChanged+=this.OnHierarchySelectionChanged;
             SceneEditorHub.HierarchyNavigationRequested+=this.OnHierarchyNavigationRequested;
             SceneEditorHub.HierarchyEditRequested+=this.OnHierarchyEditRequested;
@@ -93,7 +91,6 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             DocumentTracker=ActiveDocumentTracker.Start(SceneWorkspace);
             if(DocumentTracker is not null){
                 await OpenSceneDesignerCommand.InitializeAsync(this,SceneSession,DocumentTracker);
-                await OpenSceneJsonCommand.InitializeAsync(this,DocumentTracker);
             }
         }
 
@@ -456,8 +453,6 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             SceneEditorHub.SceneModelChanged-=this.OnSceneModelChangedForSourceMarkers;
             SourceMarkerService?.Dispose();
             SourceMarkerService=null;
-            DiagnosticsErrorListSync?.Dispose();
-            DiagnosticsErrorListSync=null;
             if(SceneSession is not null){
                 SceneSession.Selection.SelectionChanged-=this.OnSelectionChangedForHierarchy;
                 SceneSession.PinnedSnapshotChanged-=this.OnPinnedSnapshotChangedForHub;

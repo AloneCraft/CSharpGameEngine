@@ -32,10 +32,6 @@
   -->
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
-    <!-- M0050: SceneJsonModel.cs(*.scene.jsonのPOCO)がSystem.Text.Json.Serializationに依存する。
-         このプロジェクト自体はバイナリ参照されず単独ビルド検証専用のため、バージョンは消費側
-         (CSharpGameEngine.CodeAnalysis/CSharpGameEngine.VSExtension)と揃える必要はない。 -->
-    <PackageReference Include="System.Text.Json" Version="9.0.0" PrivateAssets="all" />
   </ItemGroup>
 
 </Project>

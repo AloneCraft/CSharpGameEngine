@@ -187,6 +187,15 @@ public sealed class GameSystemGeneratorEndToEndTests {
                 }
             }
 
+            public partial class MainScene : IScene
+            {
+                public Node Root => new() {
+                    Components = [new Trigger()],
+                    // ここがChildrenなので子ノードには自動でParentが付与される -> {Position,Foo,Parent}。
+                    Children = [new Node { Components = [new Position(), new Foo()] }],
+                };
+            }
+
             internal static class TestEntry
             {
                 internal static string RunScenario()
@@ -207,26 +216,8 @@ public sealed class GameSystemGeneratorEndToEndTests {
             }
             """;
 
-        const string SceneJson="""
-            {
-              "namespace": "Game",
-              "className": "MainScene",
-              "root": {
-                "components": [ { "type": "Sample.Trigger", "members": {} } ],
-                "children": [
-                  {
-                    "components": [
-                      { "type": "Sample.Position", "members": {} },
-                      { "type": "Sample.Foo", "members": {} }
-                    ]
-                  }
-                ]
-              }
-            }
-            """;
-
-        Assembly Assembly=GameSystemGeneratorTestHelper.CompileAndLoadWithSceneJson(
-            [Components,ComponentsAndSystem,Source],[("Scenes/MainScene.scene.json",SceneJson)]);
+        Assembly Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(
+            [.. GameSystemGeneratorTestHelper.SceneDslSources,Components,ComponentsAndSystem,Source]);
         var Result=GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.TestEntry","RunScenario");
 
         Assert.Equal("OK",Result);
