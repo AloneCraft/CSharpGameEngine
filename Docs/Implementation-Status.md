@@ -3036,6 +3036,23 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   操作順序4パターンの回帰テストを追加した。さらに第2段(タブ切替同期)の土台として
   `ApplyForSaveSteps`(履歴エントリごとの中間構文木を返す)を追加した。新規テスト17件、全1112件成功。
   **実機確認は未実施**。
+- Follow-up(2026-08-19, M0051 Step 1-5: 保存後のUndoとHierarchyのUndo, TestVerified —
+  [[M0051-CSharp-Source-Of-Truth-Restoration]]): 実機報告2件に対応した。
+  (1) **HierarchyでUndoできない**: Ctrl+Z/Yの門番が`SceneHwndHost`と
+  `SceneDesignerUndoCommandPolicy`の2箇所ともビューポート限定だった(編集履歴自体はラベル付きで
+  正しく積まれており、欠けていたのは入力経路だけ)。新規`SceneDesignerInputRoutingPolicy`へ
+  Undo/Redo/Saveの範囲判定を集約し3つとも揃えた。Step 1-4の「M0037の回帰があるため広げない」は
+  誤った判断だったと確定(回帰の原因は`OleMenuCommandService`への標準コマンド登録という手段であり、
+  その全廃は維持したまま門番だけ広げた)。`TextBox`入力中はCtrl+Z/Yのみ除外する。
+  (2) **保存後にUndoできない**: 保存の着地で`SceneEditDocument.ResetTo`が履歴を消していた。
+  `SceneEditDocument`は逆操作を持たず`ApplyForSaveSteps`は前方向再生なので、保存点より前へ戻せるのは
+  C#テキストの履歴だけ — メモリ内スタックが空のときテキストUndoへ委譲する
+  (`SceneTextUndoDelegationPolicy`、承認済み第2段の履歴設計の前倒し)。委譲先を誤らないよう
+  `SceneUndoTransactionNaming`の接頭辞で自分が積んだトランザクションだけを対象にする。
+  あわせて保存を**1操作=1 VS Undo単位**にし(`ApplyTextStepsAsync`/`SceneTextWriteStep`)、
+  `AwaitingOwnSaveReanalysis`が無関係なSceneの履歴まで消していた潜在バグを`SceneKey`照合へ修正した
+  (`SceneOwnSaveLandingPolicy`)。新規テスト29件、全1161件成功。
+  **実機確認は未実施 — 特にVS標準`Edit.Undo`との二重発火の有無は未確認のまま残っている。**
 
 ## F-L8-012 — シーンエディタ インスペクター(選択ノードのComponent member数値編集)
 

@@ -2513,6 +2513,9 @@ Expハイブのキャッシュより新しくすること」を機序として**
   ためで、報告された非対称性と完全に一致する**。新規`SceneSaveTriggerPolicy`と`SceneEditorHub`への
   補助サーフェス(Hierarchy/Inspector)のフォーカス登録で、保存だけ引き受け範囲を広げた。
   Undo/Redoは広げていない(M0037の回帰→M0045の撤退という経緯があるため)。
+  **【Step 1-5で訂正】この判断は誤り。M0037の回帰は`OleMenuCommandService`への標準コマンド登録
+  という手段に帰属しており、ポーリングの門番範囲が原因という記述は存在しない。この据え置きが
+  そのまま「ヒエラルキーは取り消しできない」という次の報告になった。**
 - **原因B(「取り消される」の実体)**: `SceneWorkspace.ModelChanged`が`SceneEditorHub.PublishSceneModel`へ
   直結しており、保存起因の再解析がHierarchyの表示を未編集のC#由来モデルで上書きしていた。
   M0048でDocument→Hubの橋渡しを追加した際にこの古い直結を残したことによる競合。新規
@@ -2538,3 +2541,57 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - Evidence: 新規テスト20件(`SceneSourceEditorStructuralSaveTests` 10件、`SceneSavePolicyTests` 10件)。
   全1132件成功。VS SDK依存部分(フォーカス配線・`SaveDocuments`・Hub発行の実配線)は
   CodeVerified止まりで**実機確認が必須**。
+
+## 2026-08-19 M0051 Step 1-5: 保存後のUndoとHierarchyのUndo
+
+- **報告 → 実機Observed**: Step 1-4コミット後、「シーンビューの編集は取り消しも保存もできるが
+  保存した後も取り消しできるようにして」「ヒエラルキーは取り消しできないのでできるようにして」と
+  報告された。
+- **報告2の原因(HierarchyでUndoできない)**: 門番が**2箇所**ともビューポート限定だった —
+  `SceneHwndHost.TickUndoRedoIfNeeded`の`Focused`と、`SceneDesignerUndoCommandPolicy.CanExecute`が
+  受け取る`IsViewportFocused`。**Hierarchy側の編集履歴はラベル付きで正しく積まれており**
+  ("Rename node"/"Remove node"/"Reparent node")、欠けていたのは入力経路だけだった。
+  新規`SceneDesignerInputRoutingPolicy`へUndo/Redo/Saveの範囲判定を集約し3つとも同じ範囲にした。
+  **Step 1-4の「M0037の回帰があるため広げない」という判断は誤りだったと確定**:
+  M0037の原因は`OleMenuCommandService`への標準コマンド登録という手段に一貫して帰属しており
+  (`M0045-…:18-21`、`SceneDesignerToolWindowPane.cs:14-19`)、本ファイルのM0046項も
+  「M0045は今回の真因ではなかった」と記している。`GetKeyState`ポーリングの門番範囲が原因という
+  記述はどこにも無い。標準コマンド登録の全廃という原則自体は維持している。
+- **配線漏れの是正**: `SceneSaveTriggerPolicy.ShouldSave`が**製品コードから呼ばれていなかった**
+  (`SceneHwndHost`が生の論理和で同等判定をしていた)。テストは通るのに製品コードはポリシーを
+  経由しない状態だった。Step 1-5で`OnSaveKeyRequested`から実際に呼ぶようにした。
+- **TextBox入力中の扱いをキーで分けた**: Hierarchyのインラインリネームも Inspectorの数値編集も
+  `TextBox`で、`IsKeyboardFocusWithin`は入力中もtrueになる。Ctrl+Z/Yは**除外**(`TextBox`自身が
+  文字単位のUndoを持ち、除外しないとリネーム途中のCtrl+Zがシーン全体のUndoになる)、Ctrl+Sは
+  **除外しない**(`TextBox`に保存の意味は無く、降りるとStep 1-4で直した不具合へ戻る)。
+- **報告1の原因(保存後にUndoできない)**: 保存の着地(`TrustOwnSave`)で`SceneEditDocument.ResetTo`が
+  `UndoStack`/`RedoStack`を消していた。`MarkSaved`は履歴を消さないため、保存完了から再解析着地までの
+  約250ms+解析時間だけは効いていた。**履歴を保持し続けても解決しない** — `SceneEditDocument`は
+  逆操作を持たず`ApplyForSaveSteps`は履歴を前方向に再生する設計で、保存点より前へ戻せるのは
+  C#テキストの履歴だけ(ADR-0040の「C#が唯一の正本」とも一致)。よってテキストUndoへの委譲は
+  選択肢ではなく必然であり、承認済み第2段の履歴設計を前倒しで実装した
+  (`SceneTextUndoDelegationPolicy`)。委譲後の表示追従は既存の`FollowSilently`経路がそのまま処理する。
+  **Undo後はタブに`*`が付く**(ユーザー確認済み。自動で保存し直さず、通常のテキスト編集のUndoと
+  同じ挙動にする)。
+- **委譲先の所有判定**: テキストUndo履歴にはユーザーが手打ちした編集も同じスタックに積まれている。
+  `SceneUndoTransactionNaming`で説明文へ接頭辞を付け、自分が積んだものだけ委譲する。
+  これはVS標準`Edit.Undo`との二重発火が起きた場合に被害を1段へ留める安全弁も兼ねる。
+  **`ITextUndoHistory`の深さをフレーム跨ぎで監視する補償方式は採らなかった** — M0046の実機記録
+  (ツールウィンドウがフォーカスを持つとツールバーの履歴ドロップダウンが空になりコードエディタの
+  Ctrl+Zが効かなくなる)がデザイナー面フォーカス中は`Edit.Undo`が不活性であることを示しており、
+  補償方式は「起きるか不明のバグ」を「タイミング依存で再現しないバグ」に変換するだけのため。
+- **保存を1操作=1 Undo単位にした**: 従来は保存1回=テキストUndo1単位で、3回編集してから保存すると
+  Ctrl+Zが3回分まとめて戻った。`ApplyForSaveSteps`の中間構文木を新規`ApplyTextStepsAsync`が
+  ステップごとの独立トランザクションとして書き出す。既存`ApplyTextAsync`をループで呼べないのは
+  `Context.Text`を常に適用前テキストとして使うため(2回目以降は`SceneTextBufferApplyGuard`が必ず弾く)。
+  各ステップの差分は`BuildWriteSteps`が書き込み前にオフラインで検算する。
+- **潜在バグの修正**: `AwaitingOwnSaveReanalysis`は**bool**だったが、再解析イベントは1回で複数の
+  `SceneModel`を運ぶため、保存した1つと同じイベントに乗った**無関係なScene**まで`TrustOwnSave`と
+  誤判定され`ResetTo`で編集とUndo履歴が消えていた。`SceneKey`で照合する
+  (`SceneOwnSaveLandingPolicy`)。保存後Undoを入れるとこの害が確実に顕在化するため今回に含めた。
+- Evidence: 新規テスト29件。全1161件成功。`ITextUndoHistory`操作・フォーカス配線は
+  CodeVerified止まりで**実機確認が必須**。
+- **未確認のまま残っている項目**: 「デザイナー面にフォーカスがある状態のCtrl+ZでVS標準の
+  `Edit.Undo`が二重発火しないこと」。M0046の確認項目8・M0047の項目9として挙げられたまま結果が
+  記録されておらず、Step 1-5でも解消していない。**次の実機確認で必ず数値(委譲前後の
+  `ITextUndoHistory.UndoStack`の深さ)とともに記録すること。**
