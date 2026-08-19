@@ -219,13 +219,24 @@ public sealed class SceneEditDocumentTests {
         Assert.Equal("Move1",Document.History[0].Label);
     }
 
+    /// <summary>
+    /// M0051: AddComponentOperationは対応済みになったが、同じ型を既に持つNodeへの追加は
+    /// ドメイン上の理由で失敗する(SceneModelEditApplierTests参照)。TryApplyが失敗したときに
+    /// Documentが一切変化しないことは、失敗理由が「型として未対応」でも「ドメイン上失敗」でも
+    /// 変わらず保たれるべき不変条件。
+    /// </summary>
     [Fact]
-    public void TryApply_UnsupportedOperation_LeavesDocumentUnchanged(){
+    public void TryApply_FailingOperation_LeavesDocumentUnchanged(){
         SceneEditDocument Document=CreateDocument();
         EditorNodeId Cube=FindId(Document,"Cube");
 
+        // Cubeは既にTransformを持つので、同じ型を追加しようとすると失敗する。
         bool Applied=Document.TryApply(
-            [new AddComponentOperation(Key,Cube,DocumentVersion:1,"global::Game.Foo","new Foo()")],"Bad");
+            [new AddComponentOperation(
+                Key,Cube,DocumentVersion:1,
+                "global::CSharpGameEngine.Runtime.Windows.Transform",
+                "new global::CSharpGameEngine.Runtime.Windows.Transform()")],
+            "Bad");
 
         Assert.False(Applied);
         Assert.False(Document.IsDirty);

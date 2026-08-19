@@ -102,7 +102,8 @@ internal static class SceneModelEditApplier {
     private static bool IsSupported(SceneEditOperation Operation)=>
         Operation is SetTransformOperation or SetComponentMemberOperation
             or RenameNodeOperation or AddNodeOperation or RemoveNodeOperation
-            or ReparentNodeOperation or ReorderNodeOperation or DuplicateNodeOperation;
+            or ReparentNodeOperation or ReorderNodeOperation or DuplicateNodeOperation
+            or AddComponentOperation or RemoveComponentOperation;
 
     private static bool TryApplyOne(
         SceneNode Root,SceneProjection Projection,SceneProjectionNode TargetNode,SceneEditOperation Operation,
@@ -122,6 +123,24 @@ internal static class SceneModelEditApplier {
             case SetComponentMemberOperation SetMember: {
                 SceneNode Live=GetAtPath(Root,TargetPath);
                 if(!TryApplySetMember(Live,SetMember,out SceneNode NewLive)){
+                    Updated=Root;
+                    return false;
+                }
+                Updated=ReplaceAtPath(Root,TargetPath,_=>NewLive);
+                return true;
+            }
+            case AddComponentOperation AddComponent: {
+                SceneNode Live=GetAtPath(Root,TargetPath);
+                if(!TryApplyAddComponent(Live,AddComponent,out SceneNode NewLive)){
+                    Updated=Root;
+                    return false;
+                }
+                Updated=ReplaceAtPath(Root,TargetPath,_=>NewLive);
+                return true;
+            }
+            case RemoveComponentOperation RemoveComponent: {
+                SceneNode Live=GetAtPath(Root,TargetPath);
+                if(!TryApplyRemoveComponent(Live,RemoveComponent,out SceneNode NewLive)){
                     Updated=Root;
                     return false;
                 }
@@ -475,6 +494,64 @@ internal static class SceneModelEditApplier {
         ImmutableArray<SceneComponentMember>Members=SetMember(
             Component.Members,Existing,Operation.MemberName,Value,Component.Location);
         Updated=ReplaceComponent(Node,Component,WithMembers(Component,Members));
+        return true;
+    }
+
+    /// <summary>
+    /// M0051: <c>SceneComponentCatalog</c>由来のComponent追加。<see cref="SceneSourceEditor.ApplyAddComponent"/>
+    /// と同じ2つの前提を、書き戻し(保存)より前のこの層で確かめる — ここで弾いておけば、
+    /// 保存時になって初めて失敗するという体験を避けられる。
+    ///
+    /// <para>
+    /// 追加するComponentは<see cref="SceneSourceLocation.None"/>で構築する。<see cref="TryAddNode"/>が
+    /// 新規Nodeに対して行っているのと同じ扱いで、ソースへまだ存在しない要素はLocationを持たない。
+    /// <c>Members</c>/<c>ConstructorArguments</c>は空 — <c>SceneComponentCatalog</c>が候補として出す型は
+    /// すべて<c>required</c>メンバーを持たない(=<c>new Foo()</c>だけで妥当)ことを前提にしているため、
+    /// パレット側は常に引数なしのobject creation式を渡す契約になる。
+    /// </para>
+    /// </summary>
+    private static bool TryApplyAddComponent(
+        SceneNode Node,AddComponentOperation Operation,out SceneNode Updated){
+        Updated=Node;
+        if(Node.FindComponent(Operation.ComponentTypeFullyQualifiedName)is not null){
+            // SceneSourceEditor.ApplyAddComponentの「同じ型のComponentは既にNodeへ追加されています。」と
+            // 同じ判定。保存時になって初めて失敗させず、その場で弾く。
+            return false;
+        }
+        if(Node.ComponentsListLocation is null||SceneSourceEditor.IsGenerated(Node.Location.FilePath)){
+            // ComponentsListLocationが無い(Components=[…]が未記述の)Nodeへの追加は、
+            // SceneSourceEditor.ApplyAddComponent側がまだ対応していない(「Nodeに編集可能な
+            // Componentsコレクションがありません。」)。保存時に必ず失敗するので、ここで揃えて弾く。
+            return false;
+        }
+
+        SceneComponent NewComponent=new(
+            TypeSymbol:null,
+            Operation.ComponentTypeFullyQualifiedName,
+            ImmutableArray<SceneValue>.Empty,
+            ImmutableArray<SceneComponentMember>.Empty,
+            EmitExpressionText:Operation.ComponentExpression,
+            SceneSourceLocation.None);
+        Updated=new SceneNode(
+            Node.Path,Node.Name,Node.Components.Add(NewComponent),Node.Children,
+            Node.Location,Node.InitializerLocation,Node.NameValueLocation,
+            Node.ComponentsListLocation,Node.ChildrenListLocation);
+        return true;
+    }
+
+    /// <summary>M0051: <see cref="SceneSourceEditor.ApplyRemoveComponent"/>と対になる、予測モデル側のComponent削除。</summary>
+    private static bool TryApplyRemoveComponent(
+        SceneNode Node,RemoveComponentOperation Operation,out SceneNode Updated){
+        Updated=Node;
+        SceneComponent?Component=Node.FindComponent(Operation.ComponentTypeFullyQualifiedName);
+        if(Component is null||SceneSourceEditor.IsGenerated(Component.Location.FilePath)){
+            return false;
+        }
+
+        Updated=new SceneNode(
+            Node.Path,Node.Name,Node.Components.Remove(Component),Node.Children,
+            Node.Location,Node.InitializerLocation,Node.NameValueLocation,
+            Node.ComponentsListLocation,Node.ChildrenListLocation);
         return true;
     }
 

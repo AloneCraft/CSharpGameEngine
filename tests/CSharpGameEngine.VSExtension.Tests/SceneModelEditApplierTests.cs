@@ -104,17 +104,28 @@ public sealed class SceneModelEditApplierTests {
         Assert.Equal(4f,ReadPosition(Predicted,"Sphere").Y);
     }
 
+    /// <summary>
+    /// M0051: バッチ内の1操作が(型としては対応済みでも)ドメイン上失敗すると、丸ごと諦める
+    /// (部分適用の禁止)。AddComponentOperationは既に同じ型を持つNodeへ追加しようとすると失敗するので、
+    /// これを失敗トリガーに使う — かつてはAddComponentOperation自体が唯一の「型として未対応」の
+    /// 操作であり、それをそのまま失敗トリガーに流用していたが、M0051でAddComponentOperationも
+    /// 対応済みになったため、既存の失敗理由(重複追加の拒否)を使う形へ差し替えた。
+    /// </summary>
     [Fact]
-    public void TryApply_UnsupportedOperation_ReturnsFalseWithoutPartialApplication(){
+    public void TryApply_OneOperationFailingWithinABatch_ReturnsFalseWithoutPartialApplication(){
         (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=Analyze(Source);
         EditorNodeId Cube=FindId(Projection,"Cube");
         SceneTransformValue Value=new(new Vector3(9f,0f,0f),Quaternion.Identity,Vector3.One);
 
-        // 対応済みの操作と非対応の操作(AddComponent)が混ざっていたら、丸ごと諦めなければならない(部分適用の禁止)。
+        // CubeはすでにTransformを持つので、2件目のAddComponentは「同じ型のComponentは既にNodeへ
+        // 追加されています」で失敗する。1件目のSetTransformだけが適用された状態が残ってはいけない。
         bool Applied=SceneModelEditApplier.TryApply(
             Base,Projection,Reconciler,Key,
             [new SetTransformOperation(Key,Cube,DocumentVersion:1,Value),
-             new AddComponentOperation(Key,Cube,DocumentVersion:1,"global::Game.Foo","new Foo()")],
+             new AddComponentOperation(
+                 Key,Cube,DocumentVersion:1,
+                 "global::CSharpGameEngine.Runtime.Windows.Transform",
+                 "new global::CSharpGameEngine.Runtime.Windows.Transform()")],
             out SceneModel Predicted,out _);
 
         Assert.False(Applied);
@@ -174,6 +185,171 @@ public sealed class SceneModelEditApplierTests {
                 Key,FindId(Projection,"Cube"),DocumentVersion:1,
                 "global::CSharpGameEngine.Runtime.Windows.Transform","PositionX","12f*MathF.PI/180f")],
             out _,out _));
+    }
+
+    // ---- AddComponent / RemoveComponent(M0051: SceneComponentCatalog由来のComponentパレット向け) ----
+
+    [Fact]
+    public void TryApply_AddComponent_AppendsNewComponentWithoutSourceLocation(){
+        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=Analyze(Source);
+
+        bool Applied=SceneModelEditApplier.TryApply(
+            Base,Projection,Reconciler,Key,
+            [new AddComponentOperation(
+                Key,FindId(Projection,"Cube"),DocumentVersion:1,
+                "global::Sample.DirectionalLight","new global::Sample.DirectionalLight()")],
+            out SceneModel Predicted,out _);
+
+        Assert.True(Applied);
+        SceneComponent?Added=FindNode(Predicted,"Cube").FindComponent("global::Sample.DirectionalLight");
+        Assert.NotNull(Added);
+        // TryAddNodeが新規Nodeに対して行っているのと同じ扱い: ソースにまだ存在しない要素は
+        // Locationを持たない(SceneSourceLocation.None、FilePath=="")。
+        Assert.Equal("",Added!.Location.FilePath);
+        Assert.Equal("new global::Sample.DirectionalLight()",Added.EmitExpressionText);
+    }
+
+    /// <summary>
+    /// SceneSourceEditor.ApplyAddComponentの「同じ型のComponentは既にNodeへ追加されています。」と
+    /// 同じ判定をモデル層でも行う。保存時になって初めて失敗させないため。
+    /// </summary>
+    [Fact]
+    public void TryApply_AddComponent_RejectsDuplicateComponentType(){
+        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=Analyze(Source);
+
+        Assert.False(SceneModelEditApplier.TryApply(
+            Base,Projection,Reconciler,Key,
+            [new AddComponentOperation(
+                Key,FindId(Projection,"Cube"),DocumentVersion:1,
+                "global::CSharpGameEngine.Runtime.Windows.Transform",
+                "new global::CSharpGameEngine.Runtime.Windows.Transform()")],
+            out _,out _));
+    }
+
+    /// <summary>
+    /// Components=[…]が未記述のNode(ComponentsListLocationがnull)への追加は、ソース層
+    /// (SceneSourceEditor.ApplyAddComponent)がまだ対応していない。保存時に必ず失敗するので、
+    /// モデル層でも揃えて弾く — ここを通してしまうと、Undo可能な編集としてセッションへ積まれた後、
+    /// 保存操作で初めて失敗が判明することになる。
+    /// </summary>
+    [Fact]
+    public void TryApply_AddComponent_RejectsWhenComponentsListLocationIsMissing(){
+        const string SourceWithoutComponentsList="""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Runtime.Windows;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() { Children=[new Node { Name="Empty" }] };
+            }
+            """;
+        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=
+            Analyze(SourceWithoutComponentsList);
+
+        Assert.False(SceneModelEditApplier.TryApply(
+            Base,Projection,Reconciler,Key,
+            [new AddComponentOperation(
+                Key,FindId(Projection,"Empty"),DocumentVersion:1,
+                "global::CSharpGameEngine.Runtime.Windows.Transform",
+                "new global::CSharpGameEngine.Runtime.Windows.Transform()")],
+            out _,out _));
+    }
+
+    [Fact]
+    public void TryApply_RemoveComponent_DropsMatchingComponentType(){
+        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=Analyze(Source);
+
+        bool Applied=SceneModelEditApplier.TryApply(
+            Base,Projection,Reconciler,Key,
+            [new RemoveComponentOperation(
+                Key,FindId(Projection,"Cube"),DocumentVersion:1,
+                "global::CSharpGameEngine.Runtime.Windows.Transform")],
+            out SceneModel Predicted,out _);
+
+        Assert.True(Applied);
+        Assert.Null(FindNode(Predicted,"Cube").FindComponent("global::CSharpGameEngine.Runtime.Windows.Transform"));
+    }
+
+    [Fact]
+    public void TryApply_RemoveComponent_RejectsWhenComponentTypeIsNotPresent(){
+        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=Analyze(Source);
+
+        Assert.False(SceneModelEditApplier.TryApply(
+            Base,Projection,Reconciler,Key,
+            [new RemoveComponentOperation(Key,FindId(Projection,"Cube"),DocumentVersion:1,"global::Sample.DirectionalLight")],
+            out _,out _));
+    }
+
+    /// <summary>
+    /// 契約テスト。AddComponentの予測結果が、ソース層で書き換えて再解析した真実と
+    /// (Componentの型構成として)一致することを固定する。<c>ModelApply_MatchesSourceApplyThenReanalyze</c>と
+    /// 同様、<c>EmitExpressionText</c>の完全一致はモデル層の予測に求めない —
+    /// <see cref="SceneModelStructuralSignature"/>と同じ理由で、値そのもの
+    /// (ここではComponentの型が存在すること)の一致だけを見る。
+    ///
+    /// <para>
+    /// 追加するComponent型(<c>DirectionalLight</c>)は<see cref="Source"/>/<see cref="TransformTypes"/>には
+    /// 無いので、この場だけ実在の型として宣言したコンパイルを組む — 未解決型のままだと、再解析後の
+    /// 「真実」側でComponentがどう扱われるか(型解決の有無で挙動が変わりうる)が不確定になるため。
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void ModelApply_AddComponent_MatchesSourceApplyThenReanalyze(){
+        const string DirectionalLightType="""
+            namespace Sample {
+                public struct DirectionalLight { public float Intensity; }
+            }
+            """;
+        const string SceneSource="""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Runtime.Windows;
+            using Sample;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() { Children=[
+                    new Node { Name="Cube", Components=[new Transform { PositionX=1f,RotationW=1f,ScaleX=1f,ScaleY=1f,ScaleZ=1f }] },
+                ] };
+            }
+            """;
+        SceneModel Base=SceneAnalysisTestHelper.Analyze([TransformTypes,DirectionalLightType,SceneSource]);
+        SceneProjectionReconciler Reconciler=new();
+        SceneProjection BaseProjection=Reconciler.Reconcile(Key,Base,Previous:null);
+        EditorNodeId Cube=FindId(BaseProjection,"Cube");
+        AddComponentOperation Operation=new(
+            Key,Cube,DocumentVersion:1,"global::Sample.DirectionalLight","new global::Sample.DirectionalLight()");
+
+        Assert.True(SceneModelEditApplier.TryApply(
+            Base,BaseProjection,Reconciler,Key,[Operation],out SceneModel Predicted,out _));
+        Assert.NotNull(FindNode(Predicted,"Cube").FindComponent("global::Sample.DirectionalLight"));
+
+        SceneSourceEditResult Edited=SceneSourceEditor.Apply(
+            CSharpSyntaxTree.ParseText(SceneSource).GetRoot(),BaseProjection,Operation);
+        Assert.True(Edited.Succeeded,Edited.ErrorMessage);
+        SceneModel Truth=SceneAnalysisTestHelper.Analyze(
+            [TransformTypes,DirectionalLightType,Edited.Root!.ToFullString()]);
+
+        Assert.NotNull(FindNode(Truth,"Cube").FindComponent("global::Sample.DirectionalLight"));
+    }
+
+    /// <summary>
+    /// 契約テスト。RemoveComponentの予測結果が、ソース層で書き換えて再解析した真実と一致することを固定する。
+    /// </summary>
+    [Fact]
+    public void ModelApply_RemoveComponent_MatchesSourceApplyThenReanalyze(){
+        (SceneModel Base,SceneProjection BaseProjection,SceneProjectionReconciler Reconciler)=Analyze(Source);
+        EditorNodeId Cube=FindId(BaseProjection,"Cube");
+        RemoveComponentOperation Operation=new(
+            Key,Cube,DocumentVersion:1,"global::CSharpGameEngine.Runtime.Windows.Transform");
+
+        Assert.True(SceneModelEditApplier.TryApply(
+            Base,BaseProjection,Reconciler,Key,[Operation],out SceneModel Predicted,out _));
+        Assert.Null(FindNode(Predicted,"Cube").FindComponent("global::CSharpGameEngine.Runtime.Windows.Transform"));
+
+        SceneSourceEditResult Edited=SceneSourceEditor.Apply(
+            CSharpSyntaxTree.ParseText(Source).GetRoot(),BaseProjection,Operation);
+        Assert.True(Edited.Succeeded,Edited.ErrorMessage);
+        SceneModel Truth=SceneAnalysisTestHelper.Analyze([TransformTypes,Edited.Root!.ToFullString()]);
+
+        Assert.Null(FindNode(Truth,"Cube").FindComponent("global::CSharpGameEngine.Runtime.Windows.Transform"));
     }
 
     /// <summary>
