@@ -59,4 +59,141 @@ public sealed class SceneComponentCatalogTests {
         Assert.Contains("global::Local.SourceComponent",Names);
         Assert.DoesNotContain("global::Referenced.MetadataComponent",Names);
     }
+
+    // ---- generic Component型(型引数を制約から機械的に埋められる場合だけ許可する) ----
+
+    /// <summary>
+    /// 本命。<c>where T : System.Enum</c>は「全enum型」という具体的な候補集合を持つので、
+    /// Compilation内のenumそれぞれについて閉じたinstantiationを1件ずつ生成する。
+    /// </summary>
+    [Fact]
+    public void Build_ExpandsEnumConstrainedGenericIntoOneEntryPerEnumType(){
+        CSharpCompilation Compilation=SceneAnalysisTestHelper.CreateCompilation(
+            SceneAnalysisTestHelper.CommonComponents,
+            """
+            namespace Sample;
+            public struct StatusEffect<TKind> where TKind : System.Enum {
+                public TKind Kind;
+                public float Duration;
+            }
+            public enum PoisonKind { Weak, Strong }
+            public enum BurnKind { Slow, Fast }
+            """);
+
+        var Entries=SceneComponentCatalog.Build(Compilation);
+        string[]Names=Entries.Select(static Entry=>Entry.FullyQualifiedName).ToArray();
+        string[]DisplayNames=Entries.Select(static Entry=>Entry.DisplayName).ToArray();
+
+        Assert.Contains("global::Sample.StatusEffect<global::Sample.PoisonKind>",Names);
+        Assert.Contains("global::Sample.StatusEffect<global::Sample.BurnKind>",Names);
+        Assert.Contains("StatusEffect<PoisonKind>",DisplayNames);
+        Assert.Contains("StatusEffect<BurnKind>",DisplayNames);
+        // CommonComponentsが宣言しているPrimitiveTypeもenumなので、StatusEffect<PrimitiveType>も
+        // 候補に出る。件数は数えず「意図した2件が両方出ていること」だけを見る。
+    }
+
+    /// <summary>インターフェース制約も同じ仕組みで解決できる(実装している具体型だけを候補にする)。</summary>
+    [Fact]
+    public void Build_ExpandsInterfaceConstrainedGenericIntoImplementingTypesOnly(){
+        CSharpCompilation Compilation=SceneAnalysisTestHelper.CreateCompilation(
+            SceneAnalysisTestHelper.CommonComponents,
+            """
+            namespace Sample;
+            public interface IEffectKind { }
+            public struct StatusEffect<TKind> where TKind : IEffectKind {
+                public TKind Kind;
+            }
+            public struct PoisonKind : IEffectKind { }
+            public struct UnrelatedStruct { public int Value; }
+            """);
+
+        string[]Names=SceneComponentCatalog.Build(Compilation)
+            .Select(static Entry=>Entry.FullyQualifiedName).ToArray();
+
+        Assert.Contains("global::Sample.StatusEffect<global::Sample.PoisonKind>",Names);
+        Assert.DoesNotContain("global::Sample.StatusEffect<global::Sample.UnrelatedStruct>",Names);
+    }
+
+    /// <summary>制約が無い(または struct/class/new() のような広すぎる制約)generic型は、以前と同じく除外する。</summary>
+    [Fact]
+    public void Build_StillExcludesUnconstrainedGenerics(){
+        CSharpCompilation Compilation=SceneAnalysisTestHelper.CreateCompilation(
+            SceneAnalysisTestHelper.CommonComponents,
+            """
+            namespace Sample;
+            public struct UnconstrainedGeneric<T> { public T Value; }
+            public struct StructConstrainedGeneric<T> where T : struct { public T Value; }
+            public enum SomeEnum { A, B }
+            """);
+
+        string[]Names=SceneComponentCatalog.Build(Compilation)
+            .Select(static Entry=>Entry.FullyQualifiedName).ToArray();
+
+        Assert.DoesNotContain(Names,Name=>Name.StartsWith("global::Sample.UnconstrainedGeneric<",StringComparison.Ordinal));
+        Assert.DoesNotContain(Names,Name=>Name.StartsWith("global::Sample.StructConstrainedGeneric<",StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// 複数の型引数はcartesian積で展開する。
+    /// </summary>
+    [Fact]
+    public void Build_ExpandsMultipleTypeParametersAsACartesianProduct(){
+        CSharpCompilation Compilation=SceneAnalysisTestHelper.CreateCompilation(
+            SceneAnalysisTestHelper.CommonComponents,
+            """
+            namespace Sample;
+            public struct Pair<TFirst,TSecond> where TFirst : System.Enum where TSecond : System.Enum {
+                public TFirst First;
+                public TSecond Second;
+            }
+            public enum Kind1 { A }
+            public enum Kind2 { B }
+            """);
+
+        string[]Names=SceneComponentCatalog.Build(Compilation)
+            .Select(static Entry=>Entry.FullyQualifiedName).ToArray();
+
+        Assert.Contains("global::Sample.Pair<global::Sample.Kind1, global::Sample.Kind1>",Names);
+        Assert.Contains("global::Sample.Pair<global::Sample.Kind1, global::Sample.Kind2>",Names);
+        Assert.Contains("global::Sample.Pair<global::Sample.Kind2, global::Sample.Kind1>",Names);
+        Assert.Contains("global::Sample.Pair<global::Sample.Kind2, global::Sample.Kind2>",Names);
+    }
+
+    /// <summary>requiredメンバーを持つgeneric Componentは、閉じたinstantiationであっても除外する。</summary>
+    [Fact]
+    public void Build_ExcludesGenericWithRequiredMembersEvenWhenConstraintIsResolvable(){
+        CSharpCompilation Compilation=SceneAnalysisTestHelper.CreateCompilation(
+            SceneAnalysisTestHelper.CommonComponents,
+            """
+            namespace Sample;
+            public struct StatusEffect<TKind> where TKind : System.Enum {
+                public required TKind Kind { get; init; }
+            }
+            public enum PoisonKind { Weak }
+            """);
+
+        string[]Names=SceneComponentCatalog.Build(Compilation)
+            .Select(static Entry=>Entry.FullyQualifiedName).ToArray();
+
+        Assert.DoesNotContain(Names,Name=>Name.StartsWith("global::Sample.StatusEffect<",StringComparison.Ordinal));
+    }
+
+    /// <summary>候補が1件も無ければ(制約を満たす型が誰も存在しない)、その型は一切現れない。</summary>
+    [Fact]
+    public void Build_ProducesNoEntriesWhenNoCandidateSatisfiesTheConstraint(){
+        CSharpCompilation Compilation=SceneAnalysisTestHelper.CreateCompilation(
+            SceneAnalysisTestHelper.CommonComponents,
+            """
+            namespace Sample;
+            public interface IUnimplementedMarker { }
+            public struct StatusEffect<TKind> where TKind : IUnimplementedMarker {
+                public TKind Kind;
+            }
+            """);
+
+        string[]Names=SceneComponentCatalog.Build(Compilation)
+            .Select(static Entry=>Entry.FullyQualifiedName).ToArray();
+
+        Assert.DoesNotContain(Names,Name=>Name.StartsWith("global::Sample.StatusEffect<",StringComparison.Ordinal));
+    }
 }

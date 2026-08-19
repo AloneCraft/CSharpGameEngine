@@ -380,6 +380,29 @@ public sealed class SceneSourceEditorTests {
         Assert.Contains("// 手書きの大事なコメント",Result.Root.ToFullString());
     }
 
+    /// <summary>
+    /// M0051: <see cref="SceneComponentCatalog"/>がgeneric Component型を「閉じたinstantiation」として
+    /// 出す設計の、最終消費者側での裏取り。カタログが返す完全修飾名(`Foo&lt;Bar&gt;`形式)が、
+    /// 実際に<c>ApplyAddComponent</c>が受け付ける妥当なobject creation式になることを確認する —
+    /// カタログ側のテストだけでは「文字列としてそれらしい」ことしか分からず、構文として本当に
+    /// 通るかはここで初めて確認できる。
+    /// </summary>
+    [Fact]
+    public void AddComponent_AcceptsAClosedGenericInstantiationFromTheCatalog(){
+        (SceneProjection Projection,EditorNodeId Cube)=CreateProjection();
+        var Root=CSharpSyntaxTree.ParseText(Source).GetRoot();
+        AddComponentOperation Add=new(
+            Key,Cube,1,
+            "global::Sample.StatusEffect<global::Sample.PoisonKind>",
+            "new global::Sample.StatusEffect<global::Sample.PoisonKind>()");
+
+        SceneSourceEditResult Added=SceneSourceEditor.Apply(Root,Projection,Add);
+
+        Assert.True(Added.Succeeded,Added.ErrorMessage);
+        Assert.Contains(
+            "new global::Sample.StatusEffect<global::Sample.PoisonKind>()",Added.Root!.ToFullString());
+    }
+
     [Fact]
     public void AddAndRemoveComponent_EditOnlyTheComponentsCollection(){
         (SceneProjection Projection,EditorNodeId Cube)=CreateProjection();
