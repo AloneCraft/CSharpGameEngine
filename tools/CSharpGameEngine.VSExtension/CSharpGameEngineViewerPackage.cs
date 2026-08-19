@@ -87,7 +87,7 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             SceneEditorHub.SceneModelChanged+=this.OnSceneModelChangedForSourceMarkers;
             SceneSession.Selection.SelectionChanged+=this.OnSelectionChangedForHierarchy;
             SceneSession.PinnedSnapshotChanged+=this.OnPinnedSnapshotChangedForHub;
-            SceneWorkspace.ModelChanged+=SceneEditorHub.PublishSceneModel;
+            SceneWorkspace.ModelChanged+=this.OnWorkspaceModelChangedForHub;
             DocumentTracker=ActiveDocumentTracker.Start(SceneWorkspace);
             if(DocumentTracker is not null){
                 await OpenSceneDesignerCommand.InitializeAsync(this,SceneSession,DocumentTracker);
@@ -310,6 +310,32 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
     /// 更新されHierarchyの表示が固まる実機回帰を起こした(M0048)。DocumentのPublishもHubへ
     /// 橋渡しし、Hierarchyがpin中Sceneの最新状態を常に見られるようにする。
     /// </summary>
+    /// <summary>
+    /// M0051 Step 1-4: 再解析(実C#由来)のモデルをHubへ流す前に選別する。
+    ///
+    /// <para>
+    /// 以前は<c>SceneWorkspace.ModelChanged</c>を<see cref="SceneEditorHub.PublishSceneModel"/>へ
+    /// 直結していたため、Hierarchyで編集した直後に保存等で再解析が走ると<b>未編集のC#由来モデル</b>で
+    /// Hubが上書きされ、Hierarchyの木が古い内容から再構築されて編集が消えたように見えていた
+    /// (実機報告の実体)。M0048でDocument→Hubの橋渡し
+    /// (<see cref="OnPinnedSnapshotChangedForHub"/>)を足した際、この直結を残したことによる競合。
+    /// </para>
+    /// </summary>
+    private void OnWorkspaceModelChangedForHub(SceneModel?Model){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        SceneEditorSessionService?Session=this.SceneSession;
+        bool HasUnsavedEdits=Session?.PinnedSceneKey is { }Key&&Session.IsDirty(Key);
+
+        if(!SceneHubPublicationPolicy.ShouldPublishAnalyzedModel(
+            Model?.ClassFullyQualifiedName,
+            Session?.PinnedSceneKey?.ClassFullyQualifiedName,
+            HasUnsavedEdits)){
+            return;
+        }
+
+        SceneEditorHub.PublishSceneModel(Model);
+    }
+
     private void OnPinnedSnapshotChangedForHub(SceneDocumentSnapshot?Snapshot){
         ThreadHelper.ThrowIfNotOnUIThread();
         if(Snapshot?.CurrentModel is { }Model){
@@ -465,7 +491,7 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             SceneEditorSettings.ConfigureStoreProvider(null);
 
             if(SceneWorkspace is not null){
-                SceneWorkspace.ModelChanged-=SceneEditorHub.PublishSceneModel;
+                SceneWorkspace.ModelChanged-=this.OnWorkspaceModelChangedForHub;
                 SceneWorkspace.Dispose();
             }
         }

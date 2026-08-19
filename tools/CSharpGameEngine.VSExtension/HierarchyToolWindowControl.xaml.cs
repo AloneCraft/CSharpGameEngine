@@ -43,8 +43,23 @@ public partial class HierarchyToolWindowControl:UserControl {
 
         SceneEditorHub.SceneModelChanged+=this.OnSceneModelChanged;
         SceneEditorHub.SelectedNodePathChanged+=this.OnSelectedNodePathChanged;
+
+        // M0051 Step 1-4: Ctrl+Sの検知はSceneHwndHostのポーリング1本しか無く、以前はビューポートの
+        // フォーカスだけを見ていたため、Hierarchyで編集した直後のCtrl+Sが保存へ届かなかった。
+        // 自分のフォーカス状態をHubへ報告して、保存の門番(SceneSaveTriggerPolicy)から見えるようにする。
+        this.IsKeyboardFocusWithinChanged+=this.OnKeyboardFocusWithinChanged;
+        this.Unloaded+=this.OnUnloadedForFocus;
+
         this.Populate(SceneEditorHub.ActiveSceneModel);
     }
+
+    private const string FocusSurfaceName="Hierarchy";
+
+    private void OnKeyboardFocusWithinChanged(object Sender,DependencyPropertyChangedEventArgs Args)=>
+        SceneEditorHub.SetSurfaceFocus(FocusSurfaceName,this.IsKeyboardFocusWithin);
+
+    private void OnUnloadedForFocus(object Sender,RoutedEventArgs Args)=>
+        SceneEditorHub.SetSurfaceFocus(FocusSurfaceName,false);
 
     // SceneWorkspaceService marshals to the UI thread before raising this, so no further marshaling
     // is needed here.

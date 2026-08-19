@@ -242,14 +242,34 @@ internal sealed class SceneEditorSessionService : IDisposable {
             }
 
             this.AwaitingOwnSaveReanalysis=true;
-            SceneLiveBufferWriteResult Written=await this.Workspace
-                .ApplyTextAsync(Context,Changes,"Scene の保存",CancellationToken).ConfigureAwait(false);
+            SceneLiveBufferWriteResult Written;
+            try {
+                Written=await this.Workspace
+                    .ApplyTextAsync(Context,Changes,"Scene の保存",CancellationToken).ConfigureAwait(false);
+            } catch {
+                // M0051 Step 1-4(バグ修正): 以前はfinallyがSavesInFlightしか戻さず、書き戻しが
+                // 例外で終わるとAwaitingOwnSaveReanalysisがtrueのまま残っていた。すると次に来た
+                // 無関係な再解析がTrustOwnSaveと誤判定され、Document.ResetToで未保存の編集が
+                // 全て消える。書き戻しが完了しなかった経路では必ずフラグを戻す。
+                this.AwaitingOwnSaveReanalysis=false;
+                throw;
+            }
+
             if(!Written.Succeeded){
                 this.AwaitingOwnSaveReanalysis=false;
                 return new SceneEditCommitResult(false,Written.ErrorMessage,WasRebased:false);
             }
 
             Document.MarkSaved();
+
+            // M0051 Step 1-4: ここまではlive bufferへの反映(タブに*が付く)だけで、ファイルは
+            // 保存されていなかった。Ctrl+S一回でディスクまで完了させる(実機報告への対応)。
+            // 保存自体に失敗しても書き戻しは成功しているので、編集は失われない — 警告に留める。
+            if(!this.Workspace.TrySaveDocumentToDisk(Context.FilePath,out string?SaveError)){
+                return new SceneEditCommitResult(
+                    true,$"C#ソースへ反映しましたが、ファイル保存に失敗しました: {SaveError}",WasRebased:false);
+            }
+
             return new SceneEditCommitResult(true,ErrorMessage:null,WasRebased:false);
         } finally {
             this.SavesInFlight.Remove(Key);

@@ -70,4 +70,35 @@ internal static class SceneEditorHub {
 
     public static void RequestHierarchyNavigation(NodePath Path)=>
         HierarchyNavigationRequested?.Invoke(Path);
+
+    /// <summary>
+    /// M0051 Step 1-4: Scene Designer本体(3Dビューポート)以外の編集面 — Hierarchy / Inspector —
+    /// が今キーボードフォーカスを持っているか。Ctrl+Sの検知は<see cref="SceneHwndHost"/>の
+    /// <c>GetKeyState</c>ポーリング1本しか無く、以前はビューポートのフォーカスだけを条件にしていた
+    /// ため、<b>Hierarchyで編集した直後のCtrl+Sが保存へ届かなかった</b>(実機報告の直接原因)。
+    ///
+    /// <para>
+    /// 各サーフェスが自分のフォーカス状態を名前付きで登録し、ここで論理和を取る。ウィンドウが
+    /// 閉じられたら<see cref="SetSurfaceFocus"/>にfalseを渡すか登録ごと消えるため、閉じた
+    /// ウィンドウのフォーカスが残り続けることはない。
+    /// </para>
+    /// </summary>
+    private static readonly System.Collections.Generic.Dictionary<string,bool>SurfaceFocus=
+        new(System.StringComparer.Ordinal);
+
+    internal static void SetSurfaceFocus(string SurfaceName,bool HasFocus){
+        SurfaceFocus[SurfaceName]=HasFocus;
+    }
+
+    internal static bool AnyAuxiliarySurfaceHasFocus{
+        get{
+            foreach(System.Collections.Generic.KeyValuePair<string,bool>Entry in SurfaceFocus){
+                if(Entry.Value){
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
 }

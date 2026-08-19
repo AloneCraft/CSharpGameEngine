@@ -398,9 +398,15 @@ internal sealed class SceneHwndHost:HwndHost {
         bool SDown=Ctrl&&(NativeMethods.GetKeyState(NativeMethods.VK_S)&0x8000)!=0;
         bool Focused=IsViewportFocusedProvider?.Invoke()==true;
 
+        // M0051 Step 1-4: 保存だけはビューポート以外(Hierarchy/Inspector)にフォーカスがあっても
+        // 引き受ける。以前はビューポート限定だったため、Hierarchyで編集した直後のCtrl+Sが保存へ
+        // 届かず、VS標準の保存が未変更の.csをそのまま保存していた(実機報告の直接原因)。
+        // Undo/RedoはM0037の回帰(標準コマンド登録でVS全体のUndoが壊れた)を踏まえ範囲を広げない。
+        bool SaveSurfaceFocused=Focused||SceneEditorHub.AnyAuxiliarySurfaceHasFocus;
+
         if(Focused&&SceneUndoRedoKeyPolicy.IsRisingEdge(ZDown,PreviousUndoKeyDown)){ UndoRequested?.Invoke(); }
         if(Focused&&SceneUndoRedoKeyPolicy.IsRisingEdge(YDown,PreviousRedoKeyDown)){ RedoRequested?.Invoke(); }
-        if(Focused&&SceneUndoRedoKeyPolicy.IsRisingEdge(SDown,PreviousSaveKeyDown)){ SaveRequested?.Invoke(); }
+        if(SaveSurfaceFocused&&SceneUndoRedoKeyPolicy.IsRisingEdge(SDown,PreviousSaveKeyDown)){ SaveRequested?.Invoke(); }
 
         PreviousUndoKeyDown=ZDown;
         PreviousRedoKeyDown=YDown;

@@ -26,7 +26,20 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
 
     public InspectorToolWindowControl(){
         InitializeComponent();
+
+        // M0051 Step 1-4: Hierarchyと同じ理由で、自分のフォーカス状態をHubへ報告する
+        // (Inspectorで数値を編集した直後のCtrl+Sも保存へ届くようにするため)。
+        this.IsKeyboardFocusWithinChanged+=this.OnKeyboardFocusWithinChanged;
+        this.Unloaded+=this.OnUnloadedForFocus;
     }
+
+    private const string FocusSurfaceName="Inspector";
+
+    private void OnKeyboardFocusWithinChanged(object Sender,DependencyPropertyChangedEventArgs Args)=>
+        SceneEditorHub.SetSurfaceFocus(FocusSurfaceName,this.IsKeyboardFocusWithin);
+
+    private void OnUnloadedForFocus(object Sender,RoutedEventArgs Args)=>
+        SceneEditorHub.SetSurfaceFocus(FocusSurfaceName,false);
 
     internal void SetSession(SceneEditorSessionService Session){
         if(this.Disposed||ReferenceEquals(this.Session,Session)){

@@ -565,6 +565,58 @@ internal sealed class SceneWorkspaceService : IDisposable {
     /// 対象文書が開いていない場合はfalseを返す(呼び出し元でopenは行わない — Undo/Redoは
     /// 既に開いている文書に対してのみ意味を持つため)。
     /// </summary>
+    /// <summary>
+    /// M0051 Step 1-4: 対象Sceneの<c>.cs</c>を<b>ディスクまで保存する</b>。
+    ///
+    /// <para>
+    /// M0047は「保存トリガーはビューポートのCtrl+Sのみ」と決め、書き戻しは
+    /// <see cref="ApplyTextAsync"/>によるlive bufferへの反映で終わっていた。そのためCtrl+Sを押しても
+    /// タブに<c>*</c>が残るだけでファイルは保存されず、ユーザーからもう一度VSのCtrl+Sを押す必要が
+    /// あった(実機報告「メモリ上で反映して*になるがそうではなくさらにそれを保存して」)。
+    /// </para>
+    ///
+    /// <para>
+    /// 保存するのは<b>対象Sceneの1ファイルだけ</b>で、Save All相当のことはしない
+    /// (ユーザーが意図していない他のドキュメントまで保存してしまわないため)。
+    /// <c>RDTSAVEOPT_SaveIfDirty</c>なので、既に保存済みなら何も起きない。
+    /// バッファ内容は変わらないため、これによる再解析が来ても
+    /// <see cref="SceneExternalChangePolicy"/>は<c>RealContentActuallyChanged==false</c>で
+    /// <c>Ignore</c>を返す(M0048の不変条件をそのまま利用する)。
+    /// </para>
+    /// </summary>
+    internal bool TrySaveDocumentToDisk(string FilePath,out string?ErrorMessage){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        ErrorMessage=null;
+        if(Package.GetGlobalService(typeof(SVsRunningDocumentTable))is not IVsRunningDocumentTable Rdt){
+            ErrorMessage="Visual StudioのRunning Document Tableを取得できません。";
+            return false;
+        }
+
+        IntPtr DocDataPointer=IntPtr.Zero;
+        try {
+            int FindResult=Rdt.FindAndLockDocument(
+                (uint)_VSRDTFLAGS.RDT_NoLock,FilePath,
+                out IVsHierarchy?Hierarchy,out uint ItemId,out DocDataPointer,out uint DocCookie);
+            if(ErrorHandler.Failed(FindResult)||DocCookie==0){
+                ErrorMessage="対象Sceneのドキュメントが開かれていないため保存できません。";
+                return false;
+            }
+
+            int SaveResult=Rdt.SaveDocuments(
+                (uint)__VSRDTSAVEOPTIONS.RDTSAVEOPT_SaveIfDirty,Hierarchy,ItemId,DocCookie);
+            if(ErrorHandler.Failed(SaveResult)){
+                ErrorMessage=$"対象Sceneのファイル保存に失敗しました(HRESULT 0x{SaveResult:X8})。";
+                return false;
+            }
+
+            return true;
+        } finally {
+            if(DocDataPointer!=IntPtr.Zero){
+                Marshal.Release(DocDataPointer);
+            }
+        }
+    }
+
     private bool TryGetLiveBuffer(
         string FilePath,out ITextBuffer?Buffer,
         out Microsoft.VisualStudio.TextManager.Interop.IVsTextBuffer?NativeBuffer){
