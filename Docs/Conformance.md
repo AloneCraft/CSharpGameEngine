@@ -2682,3 +2682,52 @@ Expハイブのキャッシュより新しくすること」を機序として**
   二重発火しないこと」。Step 1-6ではCtrl+Zがメモリとテキストの2箇所を同時に動かすため、二重発火すると
   テキストだけ2段戻る。リネージ検証が次の着地で拾ってRebaseするので自己修復するが1段の乖離は出る。
   M0046項目8・M0047項目9として挙げられたまま結果が記録されていない。
+
+## 2026-08-19 M0051 Step 1-7: Step 1-6が持ち込んだ回帰2件
+
+- **報告 → 実機Observed**: Step 1-6の確認結果は「項目1 OK / 項目2 ×(C#ソースが戻らない) / 項目3 OK」。
+  加えて**Hierarchyのインラインリネームが確定しない**(F2 → 入力 → Enter で名前が変わらない。
+  ユーザーは「以前は確定できていた」と明言)。
+- **不具合1の原因**: リネージ一致判定に`SceneDiffEngine.Compare(Document.Projection,RealProjection).IsEmpty`を
+  使ったが、`SceneDiffEngine`は**Rendererの増分更新分類**が目的でComponentの`EmitExpressionText`を
+  Ordinal比較する。一方`SceneModelEditApplier.WithMembers`は**この式テキストを古いまま引き継ぐ**
+  (同クラスのテストが「`ComponentChanged`のみ許容」として明文化)。ギズモ編集の着地では差分が必ず
+  1件出るため、**`KeepDocument`は実機で一度も返らず、Stage Bの高速経路そのものが死んでいた**。
+  項目1がOKに見えたのはリベース後に積み直した未書き出しの編集を`InMemoryOnly`で戻していたためで、
+  保存済みの編集を戻していたわけではない。
+  **これはStep 1-3で一度踏んで回避した罠と同じ**で、`SceneModelStructuralSignature`のdocコメントに
+  理由まで書いてあったのに再発させた。目的の違う判定へ相乗りしたことが原因。
+- **不具合1の修正**: 判定を`SceneLandingDecision`(VS SDK非依存)へ独立させ、
+  (1)`SceneProjectionIdentityComparer`によるID対応の**全単射**(片方向だと片側にしか無いPathを取りこぼす)、
+  (2)`SceneModelStructuralSignature`による内容一致(`EmitExpressionText`を見ない)、の論理積にした。
+  ID対応だけでは着地までの窓でユーザーが値を手打ちしたケースを検知できず、その編集が表示から
+  永久に落ちる。解析エラー中は第3の結果**`Defer`**(何もしない)にした —
+  `LastKnownGoodModel`へフォールバックして比較すると前回の良い結果と一致して誤判定する。
+- **付随する脆さの是正**: `AwaitingOwnWriteKey`は対象Sceneが載っているイベントでだけ消費する
+  (以前は無条件消費で、本当の着地が外部変更扱いになりウォーターマークが飛んだ)。
+  `RebaseDocument`を全か無かにした(`ResetTo`をスキップしつつ`TextSyncStates.Remove`だけ実行する
+  半端な縮退で、次のCtrl+Zが誤って案内を出していた)。`TextSyncStates`の未登録既定を
+  `SceneTextSyncPolicy.Empty`にした(`TryGetValue`のout既定`BufferVersion=0`は実在の版番号と偶然一致しうる)。
+- **不具合2の原因**: `Populate`は`SceneNodeViewModel.BuildWithSelection`でビューモデルを新規生成して
+  `ItemsSource`を差し替えるため、リネーム中のノードごと破棄されEnterを受けるTextBoxが消える。
+  門番の`SceneHubPublicationPolicy`はDocumentがdirtyのときしか止めないが、
+  **リネーム確定前はまだ編集していないのでdirtyではなく素通りする**。
+  回帰の理由はStep 1-6 Stage A — **以前は「解析が来ない/いつまでも遅延する」欠陥が偶然リネームを
+  守っていた**。Stage Aは実バグの修正なので取り消さない。
+- **不具合2の修正**: `HierarchyPopulatePolicy`で2段構え。**Skip(冪等化)**は内容署名
+  (`HierarchyContentSignature`)が同じなら差し替えず、リネームに限らず全ての一時状態
+  (ドラッグ中の掴み・選択・展開)を守る(M0046のフォーカス強奪の温床も断てる)。
+  **Defer(保留)**はリネーム中のみ。ドラッグ中には掛けない(`DoDragDrop`はモーダルループで
+  いつ終わるか読めない)。**解除で流し込むのは保留時のModelではなくHubが持つ最新** —
+  保留時のModelを流すとリネーム確定で作られた新しいDocumentモデルを上書きする(Step 1-4の症状の再来)。
+  解除は`CommitRename`の最後、`RequestHierarchyEdit`のあと。
+- **再発防止**: 2件とも「純粋関数のテストは通るが引数の作り方が誤っている」型で、判定側の
+  ユニットテストでは永久に捕まらない。`SceneLandingDecisionTests`は実Compilationから
+  解析→編集→書き戻し→再解析まで通して**判定材料の生成ごと**検証する。
+  旧実装が`GizmoMove_LandsAsKeepDocument`のケースで`ComponentChanged`(Transform)を1件返して
+  `Rebase`に落ちることは**使い捨てのプローブで実測して確認した**(テストに歯があることの裏取り)。
+  `SceneLineageArchitectureTests`は逆戻りを止める(`SceneLandingDecision`が`SceneDiffEngine`に
+  依存しない/セッション層で予測投影を第1引数にした`Compare`を使わない)。
+  **`Compare`自体は禁止しない** — Renderer差分と実投影同士の比較は本来の用途。
+- Evidence: 全1216件成功(VSExtension 714件、新規・書き換え28件)。
+  VS SDK依存部分はCodeVerified止まりで**実機確認が必須**。

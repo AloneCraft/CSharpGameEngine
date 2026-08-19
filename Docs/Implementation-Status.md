@@ -3072,6 +3072,22 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   **効果範囲**: 消えるのは「保存の前後で体感が変わること」であって「全部が即時になること」ではない。
   構造編集(ノード追加/削除、親変更、Mesh系)は保存前のメモリ内Undoでもbridgeプロセス往復が入るため、
   即時にはならない — その高速化は別課題。**実機確認は未実施。**
+- Follow-up(2026-08-19, M0051 Step 1-7: Step 1-6が持ち込んだ回帰2件の修正, TestVerified —
+  [[M0051-CSharp-Source-Of-Truth-Restoration]]): Step 1-6の実機確認で2件出た。
+  (1) **保存後のCtrl+ZでC#が戻らない**: リネージ一致判定に`SceneDiffEngine.Compare(...).IsEmpty`を
+  使っていたが、`SceneDiffEngine`はComponentの`EmitExpressionText`を比較する一方
+  `SceneModelEditApplier`の予測モデルはそれを古いまま引き継ぐため、**`KeepDocument`は実機で
+  一度も返らずStage Bの高速経路そのものが死んでいた**(Step 1-3で一度踏んで
+  `SceneModelStructuralSignature`で回避した罠の再発)。判定を`SceneLandingDecision`へ独立させ、
+  ID対応の全単射(`SceneProjectionIdentityComparer`)と構造署名の論理積にした。解析エラー中は
+  第3の結果`Defer`で触らない。
+  (2) **Hierarchyのインラインリネームが確定しない**: `Populate`がビューモデルを作り直すため
+  リネーム中のTextBoxごと消える。門番はDocumentがdirtyのときしか止めないが、確定前はdirtyでない。
+  Stage Aで再解析が確実に届くようになるまでは「解析が来ない」欠陥が偶然守っていた。
+  `HierarchyPopulatePolicy`でSkip(内容署名による冪等化)とDefer(リネーム中の保留)の2段構えにした。
+  再発防止として、判定材料の生成ごと検証する結合テスト(`SceneLandingDecisionTests`)と、
+  実装の逆戻りを止めるアーキテクチャテスト(`SceneLineageArchitectureTests`)を追加。
+  全1216件成功。**実機確認は未実施。**
 
 ## F-L8-012 — シーンエディタ インスペクター(選択ノードのComponent member数値編集)
 

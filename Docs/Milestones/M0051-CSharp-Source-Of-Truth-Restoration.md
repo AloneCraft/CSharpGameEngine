@@ -527,3 +527,115 @@ Redoで**先**へ出る状態は「まだ保存していない編集がある」
    二重発火するとテキストだけ2段戻る。リネージ検証が次の着地で拾って縮退するので自己修復するが
    1段の乖離は出る。M0046項目8・M0047項目9として未記録のまま残っている項目でもある
 8. Scene 2つを開いて片方を保存 → もう片方の履歴とウォーターマークが壊れないこと
+
+---
+
+# Step 1-7(追補): Step 1-6が持ち込んだ回帰2件の修正
+
+Step 1-6の実機確認結果は「項目1 OK / 項目2 ×(C#ソースが戻らない) / 項目3 OK」で、
+加えて**Hierarchyのインラインリネームが確定しない**という報告を受けた
+(`SM_Cube8`をF2 → `8`と入力 → Enter → 名前が変わらない。以前は確定できていた)。
+
+## 不具合1: リネージ一致判定が構造的に必ず失敗していた
+
+リネージ判定に`SceneDiffEngine.Compare(Document.Projection,RealProjection).IsEmpty`を使ったが、
+`SceneDiffEngine`は**Rendererの増分更新分類**が目的でComponentの`EmitExpressionText`をOrdinal比較する。
+一方`SceneModelEditApplier.WithMembers`は**この式テキストを古いまま引き継ぐ**
+(同クラスのテストが「`ComponentChanged`のみ許容」として明文化している)。
+そのためギズモ編集の着地では差分が必ず1件出て、**`KeepDocument`は実機で一度も返らなかった**。
+毎回`Rebase`→`ResetTo`でウォーターマークも履歴もテキスト同期状態も消えており、
+**Stage Bの高速経路そのものが死んでいた**。項目1がOKに見えたのは、リベース後に積み直した
+未書き出しの編集を`InMemoryOnly`で戻していたためで、保存済みの編集を戻していたわけではない。
+
+**Step 1-3で一度踏んで回避した罠と同じ**。そのとき新設した`SceneModelStructuralSignature`の
+docコメントには「解析由来のModelと編集由来のModelのどちらでも同じ署名が得られるよう
+`EmitExpressionText`を使わない」と理由まで書いてあったのに、再発させた。
+
+### 判定を独立させ、2つの検査の論理積にした
+
+新規`SceneLandingDecision`(VS SDK非依存):
+
+| 条件 | 結果 |
+|---|---|
+| 自分の着地でない | `Rebase` |
+| 実解析がnull / `HasErrors` / `Root`なし | **`Defer`**(何もしない) |
+| ID対応の全単射が崩れている | `Rebase` |
+| 構造署名が違う | `Rebase` |
+| すべて通過 | `KeepDocument` |
+
+- **ID対応**(新規`SceneProjectionIdentityComparer`)は「次の保存で部分列の`Operation.NodeId`が
+  実投影上で解決できる」という本来の必要条件そのもの。**全単射で見る** — 片方向だと
+  Document側にしか無いPathとReal側にしか無いPathの一方を取りこぼす。
+- **構造署名**(`SceneModelStructuralSignature`)は`EmitExpressionText`を見ないのでギズモ編集でも一致する。
+  ID対応だけでは、着地までの窓でユーザーが値を手打ちしたケースを検知できず
+  その編集が表示から永久に落ちる。
+- **`Defer`が要る理由**: 解析エラー時に`LastKnownGoodModel`へフォールバックして比較すると、
+  前回の良い結果と一致して「問題なし」と誤判定し、届いたエラー状態を見逃す。
+
+### 付随する脆さの是正
+
+- `AwaitingOwnWriteKey`は**対象Sceneが載っているイベントでだけ**消費する。以前は無条件に消費しており、
+  本当の着地が外部変更として扱われて`FollowSilently`→`ResetTo`でウォーターマークが飛んだ。
+- `RebaseDocument`を**全か無か**にした。`ResetTo`をスキップしつつ`TextSyncStates.Remove`だけ実行する
+  半端な縮退で、履歴は残るのに同期状態だけ消え、次のCtrl+Zが誤って案内を出していた。
+- `TextSyncStates`の未登録既定を`SceneTextSyncPolicy.Empty`にした
+  (`TryGetValue`のout既定`BufferVersion=0`は実在の版番号と偶然一致しうる)。
+
+## 不具合2: リネーム中にツリーが作り直されていた
+
+`Populate`は`SceneNodeViewModel.BuildWithSelection`でビューモデルを新規生成して`ItemsSource`を
+差し替えるため、リネーム中のノードごと破棄され、Enterを受けるTextBoxが消える。
+門番の`SceneHubPublicationPolicy`はDocumentがdirtyのときしか止めないが、
+**リネーム確定前はまだ編集していないのでdirtyではなく素通りする**。
+
+回帰の理由はStep 1-6 Stage A。**以前は「解析が来ない/いつまでも遅延する」欠陥が偶然
+リネームを守っていた**。Stage Aは実バグの修正なので取り消さない —
+「再解析は頻繁に来る」が正しい前提であり、Hierarchy側が耐えるべき。
+
+新規`HierarchyPopulatePolicy`で2段構えにした:
+
+- **Skip(冪等化)**: 内容署名(新規`HierarchyContentSignature`)が同じなら差し替えない。
+  これでリネームに限らず**全ての一時状態**(ドラッグ中の掴み・選択・展開)が守られ、
+  M0046のフォーカス強奪の温床も断てる。署名は「Scene未選択(null)」と「Rootが無い」を区別し、
+  アイコン解決に効く`TypeSymbol is null`の有無も混ぜる。
+- **Defer(保留)**: リネーム中は内容が変わっていても差し替えない。
+  **ドラッグ中には掛けない** — `DoDragDrop`はモーダルループを回していつ終わるか読めない。
+  ドラッグはSkip側で守れる。
+
+保留の解除で流し込むのは**保留時のModelではなく、そのときHubが持つ最新**。保留時のModelを流すと
+リネーム確定で作られた新しいDocumentモデルを上書きする(Step 1-4で直した症状の再来)。
+解除は`CommitRename`の最後、`RequestHierarchyEdit`のあとに行う(`CommitRename`は先頭で
+`CancelRename`を呼ぶため、順序を誤ると編集要求より前に解除が走る)。
+保留中に対象ノードが消えていたら、確定しても`TryGetId`が失敗するので先に取り消して反映する。
+
+## 再発防止
+
+**2件とも「純粋関数のテストは通るが、引数の作り方が誤っている」型**だった。不具合1は
+`Decide(true,false)→Rebase`という判定自体は正しく、第2引数を実機でどう作るかがテストの外に
+あったため、ポリシーのユニットテストでは永久に捕まらない。
+
+- `SceneLandingDecisionTests`は実Compilationから解析→Documentで編集→書き戻し→再解析まで通し、
+  **判定材料の生成ごと**検証する。`GizmoMove_LandsAsKeepDocument`が本命。
+  旧実装がこのケースで`ComponentChanged`(Transform)を1件返して`Rebase`に落ちることは、
+  使い捨てのプローブで**実測して確認した**(テストに歯があることの裏取り)。
+- `SceneLineageArchitectureTests`は実装が元の形へ逆戻りしないことを固定する
+  (`SceneLandingDecision`が`SceneDiffEngine`に依存しない、セッション層で予測投影を第1引数にした
+  `Compare`を使わない)。**`Compare`自体は禁止しない** — Renderer差分と実投影同士の比較は本来の用途。
+- 不具合2は`Populate`にテストが1本も無く、判定がUIコードに埋まっていた
+  (規約「判定は純粋関数の`*Policy`へ」の未適用箇所)。加えてStage Aの変更時に
+  「解析が届く頻度が上がる」副作用として**UIの一時状態が破壊される**ことを影響範囲に挙げていなかった。
+
+## テスト
+
+全1216件成功(VSExtension 714件、Step 1-7で新規・書き換え28件)。
+
+## 実機確認
+
+1. ギズモ移動 → Ctrl+S → Ctrl+Z で**C#ソースも戻りタブに`*`が付く**こと(不具合1の本体)
+2. さらにCtrl+Zを連打して、保存前の複数操作まで1回ずつ戻れること
+3. Ctrl+Yで戻した分が進み、`*`が消えること
+4. Hierarchyでリネーム → Enter で**確定する**こと(不具合2)
+5. **F2 → 入力 → 1秒待つ → Enter** でも確定すること(再解析を挟んでも生き残る)
+6. Hierarchyの削除・親子変更・ドラッグが従来どおり動くこと(Skip/Deferの副作用確認)
+7. C#に構文エラーを入れた状態でCtrl+Z → 履歴と同期状態が壊れないこと(`Defer`の確認)
+8. 同名同構成の兄弟を持つSceneで、保存 → 編集 → 保存が失敗しないこと(`Rebase`縮退の確認)
