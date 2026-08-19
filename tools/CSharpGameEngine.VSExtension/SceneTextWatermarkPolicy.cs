@@ -114,43 +114,18 @@ internal static class SceneSaveSuffixPolicy {
         HistoryCount<=TextWatermark?SceneSaveSuffixKind.AlreadyInSync:SceneSaveSuffixKind.WriteSuffix;
 }
 
-/// <summary>着地した再解析をどう扱うか。<see cref="SceneDocumentLineagePolicy"/>の結果。</summary>
+/// <summary>着地した再解析をどう扱うか。<see cref="SceneLandingDecision"/>の結果。</summary>
 internal enum SceneLandingAction {
     /// <summary>Documentをそのまま維持する(高速経路)。履歴もウォーターマークも保つ。</summary>
     KeepDocument,
 
     /// <summary>Documentを実解析結果へ差し替える。履歴とウォーターマークは失われる。</summary>
     Rebase,
-}
 
-/// <summary>
-/// M0051 Step 1-6: 自分の書き込みが着地したとき、Documentを維持してよいかの純粋な判定。
-///
-/// <para>
-/// 履歴をセッション全体で保持するには、保存の着地で<see cref="SceneEditDocument.ResetTo"/>を
-/// 呼ばずにDocumentを維持する必要がある。往復検証(<see cref="SceneSaveVerification"/>)が
-/// 構造同値を保証しているので普通はそれで正しい。
-/// </para>
-///
-/// <para>
-/// <b>ただし無条件に維持してはいけない。</b> Documentの投影と実解析の投影で<c>EditorNodeId</c>が
-/// 食い違うと、次の保存が部分列の<c>Operation.NodeId</c>を実投影上で解決できず
-/// <b>保存不能</b>になる。食い違いは実際に起こりうる:
-/// <list type="number">
-/// <item><b>Name+Component構成が同一の兄弟</b>は<see cref="SceneProjectionReconciler"/>の
-/// 候補が1件に絞れず、両方に新しいIDが払われる。</item>
-/// <item>書き込みから着地までの窓で<b>ユーザーがバッファを直接編集</b>した場合、
-/// Documentを維持するとその編集が表示から永久に落ちる。</item>
-/// </list>
-/// どちらも投影の差分として現れるので、差分が空でなければ従来どおり<see cref="SceneLandingAction.Rebase"/>
-/// へ落とす。速度は落ちるが壊れない、という安全側の縮退。
-/// </para>
-/// </summary>
-internal static class SceneDocumentLineagePolicy {
     /// <summary>
-    /// <paramref name="IsOwnLanding"/>は自分の書き込み(保存 / Undo/Redoの同期)の着地であること。
-    /// <paramref name="ProjectionsMatch"/>は<c>SceneDiffEngine.Compare(Document.Projection, RealProjection).IsEmpty</c>。
+    /// M0051 Step 1-7: 判断材料が揃っていない(解析エラー中)。<b>何もしない</b>。
+    /// ここで直前の良い解析結果へフォールバックして比較すると「一致」と誤判定し、
+    /// いま届いたエラー状態を見逃す。次の正常な解析を待つのが正しい。
     /// </summary>
-    internal static SceneLandingAction Decide(bool IsOwnLanding,bool ProjectionsMatch)=>
-        IsOwnLanding&&ProjectionsMatch?SceneLandingAction.KeepDocument:SceneLandingAction.Rebase;
+    Defer,
 }

@@ -38,6 +38,21 @@ public partial class HierarchyToolWindowControl:UserControl {
     private SceneNodeViewModel? DragNode;
     private Point DragStart;
 
+    /// <summary>
+    /// M0051 Step 1-7: 直前に<see cref="Populate"/>した内容の署名。一致するなら
+    /// <c>ItemsSource</c>を差し替えない(<see cref="HierarchyPopulatePolicy"/>)。
+    /// </summary>
+    private string LastPopulatedSignature=HierarchyContentSignature.Compute(null);
+
+    /// <summary>
+    /// M0051 Step 1-7: インラインリネーム中に届いたModel。<b>保留した内容そのものは使わない</b> —
+    /// 解除時に<see cref="SceneEditorHub.ActiveSceneModel"/>の最新を取り直す。保留したModelを流すと、
+    /// リネーム確定で作られた新しいDocumentモデルを古い内容で上書きしてしまう
+    /// (Step 1-4で直した「編集が消えたように見える」症状の再来)。
+    /// ここではあくまで「保留が起きた」ことだけを覚える。
+    /// </summary>
+    private bool HasDeferredPopulate;
+
     public HierarchyToolWindowControl(){
         InitializeComponent();
 
@@ -85,6 +100,28 @@ public partial class HierarchyToolWindowControl:UserControl {
     }
 
     private void Populate(SceneModel?Model){
+        string Signature=HierarchyContentSignature.Compute(Model);
+        SceneNodeViewModel?RenamingNode=this.TryFindRenamingNode();
+        switch(HierarchyPopulatePolicy.Decide(
+            IsInlineRenaming:RenamingNode is not null,
+            ContentUnchanged:Signature==this.LastPopulatedSignature)){
+            case HierarchyPopulateAction.Skip:
+                return;
+            case HierarchyPopulateAction.Defer:
+                // 木を作り直すとリネーム中のViewModelごと破棄され、Enterを受けるTextBoxが消える
+                // (実機報告「リネームが確定しない」の実体)。対象ノードがもう無いなら確定しても
+                // TryGetIdが失敗するので、その場で取り消してから反映する。
+                if(!HierarchyPopulatePolicy.ShouldCancelRenameOnRelease(
+                    RenamedPathStillExists:ContainsPath(Model,RenamingNode!.Path))){
+                    this.HasDeferredPopulate=true;
+                    return;
+                }
+
+                RenamingNode!.CancelRename();
+                break;
+        }
+
+        this.LastPopulatedSignature=Signature;
         this.CaptureCollapsedPaths();
 
         IReadOnlyList<SceneNodeViewModel>Roots=SceneNodeViewModel.BuildWithSelection(Model,this.CollapsedPaths,this.CurrentSelection.Paths);
@@ -252,6 +289,7 @@ public partial class HierarchyToolWindowControl:UserControl {
             Args.Handled=true;
         } else if(Args.Key==Key.Escape){
             Node.CancelRename();
+            this.ReleaseDeferredPopulate();
             Args.Handled=true;
         }
     }
@@ -265,12 +303,57 @@ public partial class HierarchyToolWindowControl:UserControl {
     private void CommitRename(SceneNodeViewModel Node){
         string Name=Node.EditName.Trim();
         Node.CancelRename();
-        if(Name.Length==0||Name.Equals(Node.DisplayName,StringComparison.Ordinal)){
+        if(Name.Length!=0&&!Name.Equals(Node.DisplayName,StringComparison.Ordinal)){
+            SceneEditorHub.RequestHierarchyEdit(
+                new HierarchyEditRequest(HierarchyEditKind.Rename,[Node.Path],NewName:Name));
+        }
+
+        // M0051 Step 1-7: 保留の解除は必ずここで、RequestHierarchyEditの<b>あと</b>に行う。
+        // CommitRenameは先頭でCancelRenameを呼ぶので、順序を誤ると編集要求より前に解除が走り、
+        // 古いモデルでツリーを作り直してしまう。
+        this.ReleaseDeferredPopulate();
+    }
+
+    /// <summary>
+    /// M0051 Step 1-7: 保留していたツリー再構築を解除する。流し込むのは保留時のModelではなく
+    /// <b>そのとき<see cref="SceneEditorHub.ActiveSceneModel"/>が持つ最新</b> —
+    /// 保留時のModelを使うと、直前のリネーム確定で作られた新しいDocumentモデルを上書きする。
+    /// </summary>
+    private void ReleaseDeferredPopulate(){
+        if(!this.HasDeferredPopulate){
             return;
         }
 
-        SceneEditorHub.RequestHierarchyEdit(
-            new HierarchyEditRequest(HierarchyEditKind.Rename,[Node.Path],NewName:Name));
+        this.HasDeferredPopulate=false;
+        this.Populate(SceneEditorHub.ActiveSceneModel);
+    }
+
+    private SceneNodeViewModel?TryFindRenamingNode(){
+        if(this.Tree.ItemsSource is not IReadOnlyList<SceneNodeViewModel>Existing){
+            return null;
+        }
+
+        foreach(SceneNodeViewModel Node in Existing.SelectMany(static Root=>Root.SelfAndDescendants())){
+            if(Node.IsRenaming){
+                return Node;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool ContainsPath(SceneModel?Model,NodePath Path){
+        if(Model?.Root is null){
+            return false;
+        }
+
+        foreach(SceneNode Node in Model.EnumerateNodes()){
+            if(Node.Path.Equals(Path)){
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void FocusRenameBox(SceneNodeViewModel Node){

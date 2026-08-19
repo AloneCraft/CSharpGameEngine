@@ -45,6 +45,11 @@
        requiring a running Visual Studio instance. -->
   <ItemGroup>
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\source.extension.vsixmanifest" Link="TestAssets\source.extension.vsixmanifest" CopyToOutputDirectory="PreserveNewest" />
+
+    <!-- M0051 Step 1-7: リネージ判定が SceneDiffEngine へ逆戻りしないことを検査するためのソース
+         (SceneLineageArchitectureTests)。Step 1-6 はその形で実機の高速経路を丸ごと殺した。 -->
+    <None Include="..\..\tools\CSharpGameEngine.VSExtension\SceneLandingDecision.cs" Link="TestAssets\Source\SceneLandingDecision.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\CSharpGameEngine.VSExtension\SceneEditorSessionService.cs" Link="TestAssets\Source\SceneEditorSessionService.cs" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- The Scene DSL declaration surface, read as text by the shared helper so both hosts compile

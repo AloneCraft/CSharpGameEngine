@@ -185,6 +185,39 @@ public sealed class SceneUndoRoutingPolicyTests {
         Assert.False(SceneTextSyncPolicy.CanRedoText(SceneTextSyncPolicy.Empty,CurrentBufferVersion:1));
     }
 
+    /// <summary>
+    /// M0051 Step 1-7: 既定値の回帰。<c>Dictionary.TryGetValue</c>のout既定は
+    /// <c>BufferVersion=0</c>で、版番号0のバッファと偶然一致しうる。
+    /// <see cref="SceneTextSyncPolicy.Empty"/>は必ず-1で、どの実在の版番号とも一致しないこと。
+    /// </summary>
+    [Fact]
+    public void TextSync_EmptyNeverMatchesARealBufferVersion(){
+        Assert.Equal(-1,SceneTextSyncPolicy.Empty.BufferVersion);
+        Assert.False(SceneTextSyncPolicy.CanUndoText(SceneTextSyncPolicy.Empty,CurrentBufferVersion:0));
+        Assert.False(SceneTextSyncPolicy.CanUndoText(default,CurrentBufferVersion:1));
+    }
+
+    // ---- 着地待ちフラグの消費 ----
+
+    /// <summary>
+    /// M0051 Step 1-7: 以前は再解析イベントの先頭で無条件に消費していたため、対象Sceneのモデルが
+    /// 載っていないイベントでもフラグが消えた。消費されると本当の着地が外部変更として扱われ、
+    /// 保存直後は<c>IsDirty==false</c>なので<c>FollowSilently</c>→<c>ResetTo</c>で
+    /// ウォーターマークと履歴が飛ぶ。
+    /// </summary>
+    [Fact]
+    public void AwaitingKey_IsNotConsumedByAnUnrelatedEvent(){
+        SceneKey Key=new("project-a","Game.MainScene");
+
+        Assert.False(SceneOwnSaveLandingPolicy.ShouldConsumeAwaitingKey(Key,EventContainsTargetScene:false));
+        Assert.True(SceneOwnSaveLandingPolicy.ShouldConsumeAwaitingKey(Key,EventContainsTargetScene:true));
+    }
+
+    [Fact]
+    public void AwaitingKey_IsNotConsumedWhenNothingIsAwaited(){
+        Assert.False(SceneOwnSaveLandingPolicy.ShouldConsumeAwaitingKey(null,EventContainsTargetScene:true));
+    }
+
     /// <summary>Undoした分だけテキスト側のRedoが可能になり、Redoで戻る。</summary>
     [Fact]
     public void TextSync_MovesUnitsBetweenUndoAndRedo(){

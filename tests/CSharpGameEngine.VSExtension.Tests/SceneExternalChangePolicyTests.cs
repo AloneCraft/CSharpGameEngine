@@ -11,7 +11,7 @@ namespace CSharpGameEngine.VSExtension.Tests;
 /// M0051 Step 1-6: <b>自分の書き込みの着地はここでは扱わない</b>。保存の書き戻しや
 /// Undo/Redoのテキスト同期が着地したときの判断は「外部変更かどうか」ではなく
 /// 「Documentと実解析のリネージが一致しているか」なので、
-/// <see cref="SceneDocumentLineagePolicy"/>へ分離した。
+/// <see cref="SceneLandingDecision"/>へ分離した(テストは<c>SceneLandingDecisionTests</c>)。
 /// </para>
 /// </summary>
 public sealed class SceneExternalChangePolicyTests {
@@ -36,40 +36,5 @@ public sealed class SceneExternalChangePolicyTests {
         Assert.Equal(
             SceneExternalChangeAction.AskUser,
             SceneExternalChangePolicy.Evaluate(RealContentActuallyChanged:true,HasUnsavedChanges:true));
-    }
-
-    // ---- 自分の書き込みの着地(M0051 Step 1-6) ----
-
-    /// <summary>
-    /// 高速経路。Documentは既に正しい内容を持っているので、リネージが一致していれば何もしない。
-    /// ここでResetToを呼ぶと履歴とウォーターマークが消え、保存後のUndoが再び遅い経路へ落ちる。
-    /// </summary>
-    [Fact]
-    public void Lineage_KeepsTheDocumentWhenProjectionsMatch(){
-        Assert.Equal(
-            SceneLandingAction.KeepDocument,
-            SceneDocumentLineagePolicy.Decide(IsOwnLanding:true,ProjectionsMatch:true));
-    }
-
-    /// <summary>
-    /// 安全側の縮退。Name+Component構成が同一の兄弟はIDが払い直され、Documentの履歴が参照する
-    /// EditorNodeIdを実投影上で解決できなくなる。そのまま進むと次の保存が
-    /// 「対象Nodeの構文を特定できません」で失敗するので、実解析結果へ戻す。
-    /// </summary>
-    [Fact]
-    public void Lineage_RebasesWhenProjectionsDiverge(){
-        Assert.Equal(
-            SceneLandingAction.Rebase,
-            SceneDocumentLineagePolicy.Decide(IsOwnLanding:true,ProjectionsMatch:false));
-    }
-
-    /// <summary>自分の書き込みでない着地は、一致していてもDocumentを維持する根拠にならない。</summary>
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void Lineage_AlwaysRebasesForForeignLandings(bool ProjectionsMatch){
-        Assert.Equal(
-            SceneLandingAction.Rebase,
-            SceneDocumentLineagePolicy.Decide(IsOwnLanding:false,ProjectionsMatch));
     }
 }

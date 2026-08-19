@@ -179,8 +179,12 @@ internal sealed class SceneEditorSessionService : IDisposable {
         // M0051 Step 1-6: テキストに触れない新しい編集が積まれるとDocumentのRedoStackが捨てられる。
         // テキスト側に残っている自分のRedo単位はもう対応物が無いので無効化する — これを忘れると、
         // メモリ内だけ戻した編集をRedoしたときに無関係な古いテキストRedoが走って乖離する。
-        this.TextSyncStates.TryGetValue(Request.SceneKey,out SceneTextSyncState SyncState);
-        this.TextSyncStates[Request.SceneKey]=SceneTextSyncPolicy.AfterInMemoryEdit(SyncState);
+        this.TextSyncStates[Request.SceneKey]=
+            SceneTextSyncPolicy.AfterInMemoryEdit(this.GetSyncState(Request.SceneKey));
+
+        // M0051 Step 1-7: Deferで消費されなかった着地待ちフラグが古いまま残っていると、
+        // 無関係な解析を自分の着地と誤判定する。新しい編集を始めた時点で必ず捨てる。
+        this.AwaitingOwnWriteKey=null;
 
         this.PublishDocument(Request.SceneKey,Document);
         return true;
@@ -270,7 +274,7 @@ internal sealed class SceneEditorSessionService : IDisposable {
             return false;
         }
 
-        this.TextSyncStates.TryGetValue(Key,out SceneTextSyncState State);
+        SceneTextSyncState State=this.GetSyncState(Key);
         return Redo
             ?SceneTextSyncPolicy.CanRedoText(State,CurrentVersion)
             :SceneTextSyncPolicy.CanUndoText(State,CurrentVersion);
@@ -283,7 +287,7 @@ internal sealed class SceneEditorSessionService : IDisposable {
     /// </summary>
     private bool TrySyncText(SceneKey Key,string FilePath,bool Redo){
         ThreadHelper.ThrowIfNotOnUIThread();
-        this.TextSyncStates.TryGetValue(Key,out SceneTextSyncState State);
+        SceneTextSyncState State=this.GetSyncState(Key);
         if(!(Redo?this.Workspace.TryRedo(FilePath):this.Workspace.TryUndo(FilePath))){
             return false;
         }
@@ -547,8 +551,16 @@ internal sealed class SceneEditorSessionService : IDisposable {
         }
 
         this.ActiveDocumentModelsChanged?.Invoke(Models);
+
+        // M0051 Step 1-7: 以前はここで無条件にnull化していたため、対象Sceneのモデルが載っていない
+        // イベントでもフラグが消費されていた。消費されると本当の着地が外部変更として扱われ、
+        // MarkSaved後はIsDirty==falseなのでFollowSilently→RebaseDocumentでウォーターマークが飛ぶ。
+        // そのイベントに対象Sceneが実際に載っているときだけ消費する。
         SceneKey?AwaitingOwnWrite=this.AwaitingOwnWriteKey;
-        this.AwaitingOwnWriteKey=null;
+        if(SceneOwnSaveLandingPolicy.ShouldConsumeAwaitingKey(
+            AwaitingOwnWrite,this.EventContainsScene(Models,AwaitingOwnWrite))){
+            this.AwaitingOwnWriteKey=null;
+        }
 
         foreach(SceneModel Model in Models){
             SceneKey?Key=this.Workspace.TryCreateSceneKey(Model);
@@ -580,23 +592,30 @@ internal sealed class SceneEditorSessionService : IDisposable {
                 continue;
             }
 
-            // M0051 Step 1-6: 自分の書き込みの着地は SceneExternalChangePolicy ではなく
-            // SceneDocumentLineagePolicy が扱う。Documentは既に正しい内容を持っているので、
+            // M0051 Step 1-7: 自分の書き込みの着地は SceneExternalChangePolicy ではなく
+            // SceneLandingDecision が扱う。Documentは既に正しい内容を持っているので、
             // リネージが一致していれば<b>何もしない</b>のが正解 — ResetToを呼ぶと履歴と
             // ウォーターマークが消え、保存後のUndoが再び遅い経路へ落ちる。
+            //
+            // 判定材料の作り方まで SceneLandingDecision の中に閉じてあるのが要点。Step 1-6は
+            // ここで SceneDiffEngine.Compare(...).IsEmpty を使っており、EmitExpressionText の
+            // 比較のせいで実機では一度も KeepDocument にならなかった(ポリシー自体は正しいのに
+            // 引数の作り方が誤っていたため、ユニットテストでは捕まらなかった)。
             if(IsOwnLanding){
-                bool ProjectionsMatch=RealSnapshot.Projection is { }OwnProjection
-                    &&SceneDiffEngine.Compare(Document.Projection,OwnProjection).IsEmpty;
-                if(SceneDocumentLineagePolicy.Decide(IsOwnLanding:true,ProjectionsMatch)
-                    ==SceneLandingAction.KeepDocument){
-                    continue;
+                switch(SceneLandingDecision.Evaluate(
+                    RealSnapshot.CurrentModel,RealSnapshot.Projection,
+                    Document.Model,Document.Projection,IsOwnLanding:true)){
+                    case SceneLandingAction.KeepDocument:
+                    case SceneLandingAction.Defer:
+                        // Defer: 解析エラー中で判断材料が無い。触らずに次の正常な解析を待つ。
+                        continue;
+                    default:
+                        // リネージが食い違った(区別できない兄弟でIDが払い直された、書き込みから
+                        // 着地までの窓でユーザーがバッファを直接編集した等)。壊れた状態で進むより、
+                        // 実解析結果へ戻して従来の遅い経路へ縮退させる。
+                        this.RebaseDocument(Value,Document,RealSnapshot);
+                        continue;
                 }
-
-                // リネージが食い違った(区別できない兄弟でIDが払い直された、書き込みから着地までの
-                // 窓でユーザーがバッファを直接編集した等)。壊れた状態で進むより、実解析結果へ
-                // 戻して従来の遅い経路へ縮退させる。
-                this.RebaseDocument(Value,Document,RealSnapshot);
-                continue;
             }
 
             bool RealContentActuallyChanged=PreviousReal?.Projection is not { }OldProjection
@@ -654,12 +673,38 @@ internal sealed class SceneEditorSessionService : IDisposable {
     /// まとめて捨てるので、必ず3つ一緒に行うこと(どれか1つでも残すと次の保存が古い部分列を再生する)。
     /// </summary>
     private void RebaseDocument(SceneKey Key,SceneEditDocument Document,SceneDocumentSnapshot RealSnapshot){
-        if(RealSnapshot.CurrentModel is { }NewModel&&RealSnapshot.Projection is { }NewProjection){
-            Document.ResetTo(new SceneEditSnapshot(NewModel,NewProjection));
+        // M0051 Step 1-7: 全か無か。以前は ResetTo を条件付きでスキップしつつ TextSyncStates.Remove は
+        // 無条件に実行していたため、解析エラー中に「履歴は残るのに同期状態だけ消える」半端な縮退が
+        // 起き、次のCtrl+Zが誤って「C#ソースが直接編集されたため…」を出していた。
+        if(RealSnapshot.CurrentModel is not { }NewModel||RealSnapshot.Projection is not { }NewProjection){
+            return;
         }
 
+        Document.ResetTo(new SceneEditSnapshot(NewModel,NewProjection));
         this.TextSyncStates.Remove(Key);
         this.PublishDocument(Key,Document);
+    }
+
+    /// <summary>
+    /// M0051 Step 1-7: 未登録キーの既定を<see cref="SceneTextSyncPolicy.Empty"/>にする。
+    /// <c>TryGetValue</c>のout既定は<c>BufferVersion=0</c>で、版番号0のバッファと偶然一致しうる。
+    /// </summary>
+    private SceneTextSyncState GetSyncState(SceneKey Key)=>
+        this.TextSyncStates.TryGetValue(Key,out SceneTextSyncState State)?State:SceneTextSyncPolicy.Empty;
+
+    /// <summary>この再解析イベントに対象Sceneのモデルが載っているか。</summary>
+    private bool EventContainsScene(IReadOnlyList<SceneModel>Models,SceneKey?Key){
+        if(Key is not { }Target){
+            return false;
+        }
+
+        foreach(SceneModel Model in Models){
+            if(this.Workspace.TryCreateSceneKey(Model)is { }Candidate&&Candidate.Equals(Target)){
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public void Dispose(){

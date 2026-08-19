@@ -23,4 +23,17 @@ internal static class SceneOwnSaveLandingPolicy {
     /// </summary>
     internal static bool IsOwnSaveLanding(SceneKey?AwaitingKey,SceneKey CandidateKey)=>
         AwaitingKey is { }Awaiting&&Awaiting.Equals(CandidateKey);
+
+    /// <summary>
+    /// M0051 Step 1-7: 着地待ちフラグを<b>このイベントで消費してよいか</b>。
+    ///
+    /// <para>
+    /// 以前は再解析イベントの先頭で無条件にnull化していたため、対象Sceneのモデルが載っていない
+    /// イベントでも消費されていた。消費されると本当の着地が外部変更として扱われ、
+    /// 保存直後は<c>IsDirty==false</c>なので<c>FollowSilently</c>→<c>ResetTo</c>で
+    /// <b>ウォーターマークと履歴が消える</b>。そのイベントに対象Sceneが実際に載っているときだけ消費する。
+    /// </para>
+    /// </summary>
+    internal static bool ShouldConsumeAwaitingKey(SceneKey?AwaitingKey,bool EventContainsTargetScene)=>
+        AwaitingKey is not null&&EventContainsTargetScene;
 }
