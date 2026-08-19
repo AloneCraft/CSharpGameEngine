@@ -365,6 +365,19 @@ internal static class SceneSourceEditor {
         foreach(SceneUndoEntry Entry in History){
             foreach(SceneEditOperation Operation in Entry.Operations){
                 TryEnsureAnnotated(Operation.NodeId);
+
+                // M0051 Step 1-4(バグ修正): 操作対象の「親」も必ず注釈する。
+                // Remove/Reorder/Reparent(旧親)は親の構文を書き換えるため親の解決が要るが、
+                // ここが漏れていたため親はFindNodeCreationのSpan一致フォールバックへ落ち、
+                // 履歴2件目以降(例: 兄弟をRenameしてからDelete)で前段の編集により親のSpanが
+                // ずれて解決できず「削除対象が Children の静的な要素ではありません」で保存が
+                // 中止されていた。ApplyBatchの事前Annotateパスは元から親を注釈しており、
+                // 保存経路だけが取り残されていた。
+                if(WorkingProjection.TryGetNode(Operation.NodeId,out SceneProjectionNode OperationNode)
+                    &&OperationNode.ParentId is { }OperationParentId){
+                    TryEnsureAnnotated(OperationParentId);
+                }
+
                 if(Operation is ReparentNodeOperation ReparentUpfront){
                     TryEnsureAnnotated(ReparentUpfront.NewParentNodeId);
                 }
@@ -783,7 +796,12 @@ internal static class SceneSourceEditor {
             return SceneSourceEditResult.Failure("追加先 Node の構文が見つかりません。");
         }
 
-        string Name=CreateUniqueNodeName(Parent.Node,Operation.NodeName);
+        // M0051 Step 1-4(バグ修正): 以前は投影(Parent.Node)の子から採番していたが、これは
+        // 「保存を開始した時点の実C#」であって書き戻し中の最新状態ではない。1セッションで同じ親へ
+        // 2回AddChildすると、SceneModelEditApplier側は最新モデルから採番して Node / Node (1) に
+        // なるのに、こちらは毎回 Node を採番してしまい、往復検証が必ず不一致になっていた。
+        // 書き戻し中の構文木(Creation)の実際の子から集めることで両者の採番規則が一致する。
+        string Name=CreateUniqueNodeName(EnumerateChildNodeNames(Creation),Operation.NodeName);
         BaseObjectCreationExpressionSyntax NewNode=CreateNodeCreation(Name);
         ExpressionSyntax?Children=FindChildrenExpression(Creation);
         if(Children is not null){
@@ -1026,17 +1044,40 @@ internal static class SceneSourceEditor {
         }
     }
 
-    private static string CreateUniqueNodeName(SceneNode Parent,string RequestedName){
+    private static string CreateUniqueNodeName(IEnumerable<string>ExistingNames,string RequestedName){
         string BaseName=string.IsNullOrWhiteSpace(RequestedName)?"Node":RequestedName.Trim();
-        HashSet<string>Names=Parent.Children
-            .Where(static Child=>Child.Name is not null)
-            .Select(static Child=>Child.Name!)
-            .ToHashSet(StringComparer.Ordinal);
+        HashSet<string>Names=ExistingNames.ToHashSet(StringComparer.Ordinal);
         if(!Names.Contains(BaseName)){ return BaseName; }
 
         for(int Suffix=1;;Suffix++){
             string Candidate=$"{BaseName} ({Suffix})";
             if(!Names.Contains(Candidate)){ return Candidate; }
+        }
+    }
+
+    /// <summary>
+    /// 親の<c>Children = [ … ]</c>に実際に書かれている子の<c>Name</c>を、書き戻し中の構文木から集める。
+    /// 名前が省略された子は採番の衝突対象にならないので飛ばす。
+    /// </summary>
+    private static IEnumerable<string>EnumerateChildNodeNames(BaseObjectCreationExpressionSyntax ParentCreation){
+        if(FindChildrenExpression(ParentCreation)is not { }Children){
+            yield break;
+        }
+
+        // 子リストは TryAppendChild と同じ3形態を取りうる(コレクション式 / 明示配列 / 暗黙配列)。
+        IEnumerable<ExpressionSyntax>Elements=Children switch {
+            CollectionExpressionSyntax Collection=>Collection.Elements
+                .OfType<ExpressionElementSyntax>().Select(static Element=>Element.Expression),
+            ArrayCreationExpressionSyntax { Initializer:{ }ArrayInitializer }=>ArrayInitializer.Expressions,
+            ImplicitArrayCreationExpressionSyntax { Initializer:{ }ImplicitInitializer }=>ImplicitInitializer.Expressions,
+            _=>[],
+        };
+
+        foreach(ExpressionSyntax Element in Elements){
+            if(Element is BaseObjectCreationExpressionSyntax Child
+                &&FindMemberValue(Child,"Name")is LiteralExpressionSyntax { Token.Value:string Name }){
+                yield return Name;
+            }
         }
     }
     private static SceneSourceEditResult ApplyRename(

@@ -247,9 +247,18 @@ internal static class SceneModelEditApplier {
     /// <summary>
     /// 削除操作の直後に、削除前のNode参照(Name+Component構成で一意なはず)から現在のPathを
     /// 再特定する。Reparent専用の軽量フォールバック — Reconcilerのように新規IDを払い出さない。
+    ///
+    /// <para>
+    /// M0051 Step 1-4(バグ修正): 以前は<c>ReferenceEquals</c>で探していたが、直前の
+    /// <see cref="TryRemoveChildAt"/>が木を関数的に作り直すため新親は**必ず別インスタンス**になり、
+    /// この関数は常にfalseを返していた。結果、<b>親を跨ぐReparentは
+    /// <see cref="SceneEditDocument.TryApply"/>の時点で必ず失敗し、Hierarchyのドラッグ&amp;ドロップでの
+    /// 親子変更が一切効かなかった</b>(実機報告「ヒエラルキーで編集しても取り消される」の一因)。
+    /// XMLコメントが記していた本来の意図(Name+Component構成での照合)どおりに実装し直した。
+    /// </para>
     /// </summary>
     private static bool TryFindByIdentity(SceneNode Root,SceneNode Target,out NodePath Found){
-        if(ReferenceEquals(Root,Target)){
+        if(HasSameIdentity(Root,Target)){
             Found=Root.Path;
             return true;
         }
@@ -260,6 +269,29 @@ internal static class SceneModelEditApplier {
         }
         Found=default;
         return false;
+    }
+
+    /// <summary>
+    /// Name+Component型構成での同一性。<see cref="SceneProjectionReconciler"/>の
+    /// <c>ExactKey</c>と同じ考え方(Nameだけでは一意にならないためComponent構成も併せて見る)。
+    /// </summary>
+    private static bool HasSameIdentity(SceneNode Left,SceneNode Right){
+        if(ReferenceEquals(Left,Right)){
+            return true;
+        }
+        if(!string.Equals(Left.Name,Right.Name,System.StringComparison.Ordinal)
+            ||Left.Components.Length!=Right.Components.Length){
+            return false;
+        }
+        for(var Index=0;Index<Left.Components.Length;Index++){
+            if(!string.Equals(
+                Left.Components[Index].TypeFullyQualifiedName,
+                Right.Components[Index].TypeFullyQualifiedName,
+                System.StringComparison.Ordinal)){
+                return false;
+            }
+        }
+        return true;
     }
 
     private static SceneNode GetAtPath(SceneNode Root,NodePath Path){
