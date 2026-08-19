@@ -2595,3 +2595,37 @@ Expハイブのキャッシュより新しくすること」を機序として**
   `Edit.Undo`が二重発火しないこと」。M0046の確認項目8・M0047の項目9として挙げられたまま結果が
   記録されておらず、Step 1-5でも解消していない。**次の実機確認で必ず数値(委譲前後の
   `ITextUndoHistory.UndoStack`の深さ)とともに記録すること。**
+
+## 2026-08-19 M0051 実機修正: Ctrl+ZがNotSupportedExceptionで落ちる
+
+- **報告 → 実機Observed**: Step 1-5コミット後、「シーンビューで編集してctrl+zすると」
+  `System.NotSupportedException` が
+  `Microsoft.VisualStudio.Editor.Implementation.Undo.VsUndoHistory.get_LastUndoTransaction()` から
+  投げられ、`CompositionTarget.Rendering`のハンドラごと落ちると報告された(完全なスタックトレース付き)。
+- **原因**: VSの`ITextUndoHistory`実装(`VsUndoHistory`、OLE undo managerのシム)は
+  **スタックを覗く系のメンバーを実装していない**。使えるのは
+  `CanUndo`/`CanRedo`/`Undo(n)`/`Redo(n)`/`CreateTransaction`だけで、
+  `LastUndoTransaction`/`LastRedoTransaction`/`UndoStack`/`RedoStack`は`NotSupportedException`を投げる。
+  Step 1-5の「委譲先が自分のトランザクションかを説明文で判定する」設計が成立しなかった。
+  `Document.CanUndo`が偽になった瞬間に必ず踏むため、**戻すものが無い状態でCtrl+Zを押しただけでも
+  落ちる**極めて到達しやすい経路だった。
+- **副次的な確認**: Step 1-5で「タイミング依存のバグに変換するだけ」として見送った
+  「`UndoStack`の深さをフレーム跨ぎで監視して二重Undoを補償する」案は、`UndoStack`が同じく未実装で
+  あるため**そもそも実現不可能だった**。採らない判断は結果的に正しかったが、記録していた理由は
+  正確ではなかった。
+- **修正**: 所有判定を`SceneTextUndoLedgerPolicy`へ置き換えた。使うのは(1)保存が実際に積んだ
+  トランザクション数、(2)自分が最後にバッファを触った直後の`ITextSnapshot.Version.VersionNumber`の
+  2つだけで、いずれも実績のあるAPI。版番号は単調増加するので記録値との一致が「以降だれも触っていない」
+  ことの証明になり、食い違えば委譲しない(スタックの一番上はユーザーの編集)。自分の単位を使い切ったら
+  その下へは降りない。**テキストバッファへ書き込むのは`SceneTextBufferWriter.TryApply`の1箇所だけ**
+  なので、版番号判定が他経路に汚されることはない。
+- **あわせて修正**: `SceneHwndHost.TickUndoRedoIfNeeded`のイベント発火を`try`/`catch`で囲んだ。
+  ここは`CompositionTarget.Rendering`の中で毎フレーム回るため、例外を逃がすと1回の失敗が
+  WPFの描画ごと止める。VS SDKの想定外は`ActivityLog`へ残し「そのキーが何もしなかった」扱いに留める。
+  今回の報告はこの防御が無かったために描画まで巻き込まれていた。
+- Evidence: 新規テスト9件(台帳の状態遷移)。VSExtension 663件成功。
+  `Import.Gltf.Cli`が実行中でDLLがロックされていたためソリューション全体のビルドは通せていないが、
+  変更範囲はVSExtensionのみで他プロジェクトのテストは既存バイナリで全て成功。
+- **残る未確認**: `VsUndoHistory.CanUndo`/`Undo(1)`自体が実機で動くこと。M0036で実装した経路だが
+  M0047以降は使われておらず、実機で成功したという記録は無い。上記の`try`/`catch`により、
+  仮にこれらも未対応でも描画は止まらず「Ctrl+Zが効かない」に留まる。

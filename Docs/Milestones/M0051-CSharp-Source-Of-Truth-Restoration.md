@@ -277,12 +277,15 @@ Step 1-4をコミット後の実機確認で、Undoについて2件の報告を�
 **Undo後はタブに`*`が付く**(ユーザー確認済みの仕様)。自動で保存し直さない — 通常のテキスト編集を
 Undoしたときとまったく同じ挙動にする。ディスクへ反映するにはもう一度Ctrl+S。
 
-### 委譲先を誤らないための説明文判定
+### 委譲先を誤らないための所有判定
 
 テキストUndo履歴には**ユーザーがコードエディタで手打ちした編集**も同じスタックに積まれている。
 無条件に委譲すると、Ctrl+Zを押し続けたときデザイナー由来でない編集まで巻き戻す。
-`SceneUndoTransactionNaming`でトランザクションの説明文へ接頭辞(`Scene デザイナー: `)を付け、
-**自分が積んだものだけ**委譲する。
+
+> **【実機修正】当初は`ITextUndoHistory.LastUndoTransaction.Description`に接頭辞を付けて判定する
+> 設計だったが、これは成立しなかった。** 下の「実機で判明したVS SDKの制約」を参照。
+> 現在は`SceneTextUndoLedgerPolicy`が「自分が積んだ単位数」と「自分が最後に触った直後のバッファ
+> 版番号」で判定する。
 
 これはVS標準`Edit.Undo`との二重発火に対する安全弁も兼ねる。`GetKeyState`ポーリングはキー入力を
 消費しないため理屈の上ではVS側も同時に走りうるが、M0046の実機記録(ツールウィンドウがフォーカスを
@@ -334,3 +337,54 @@ Undoしたときとまったく同じ挙動にする。ディスクへ反映す�
 VS SDK依存部分(`ITextUndoHistory`操作・フォーカス配線)はCodeVerified止まり。**特に
 「デザイナー面フォーカス中にVS標準のEdit.Undoが二重発火しないこと」は実機確認が必須**で、
 M0046の確認項目8・M0047の項目9として挙げられたまま結果が記録されていない項目でもある。
+
+## 実機で判明したVS SDKの制約: `VsUndoHistory`はスタックを覗けない
+
+Step 1-5をコミット後の実機確認で、シーンビューのCtrl+Zが例外で落ちると報告された。
+
+```
+System.NotSupportedException: 指定されたメソッドはサポートされていません。
+  Microsoft.VisualStudio.Editor.Implementation.Undo.VsUndoHistory.get_LastUndoTransaction()
+  → SceneTextBufferWriter.GetLastUndoDescription
+  → SceneEditorSessionService.TryDelegateToText → TryUndo
+  → SceneHwndHost.TickUndoRedoIfNeeded
+  → System.Windows.Media.MediaContext.AnimatedRenderMessageHandler
+```
+
+VSの`ITextUndoHistory`実装(`VsUndoHistory`、VSのOLE undo managerのシム)は
+**スタックを覗く系のメンバーを実装していない**。使えるのは`CanUndo`/`CanRedo`/`Undo(n)`/`Redo(n)`/
+`CreateTransaction`だけで、`LastUndoTransaction`/`LastRedoTransaction`/`UndoStack`/`RedoStack`は
+`NotSupportedException`を投げる。**説明文で所有を判定する設計そのものが成立しなかった。**
+
+これは`Document.CanUndo`が偽になった瞬間に必ず踏む — 保存後だけでなく、**戻すものが無い状態で
+Ctrl+Zを押しただけ**でも落ちる、非常に到達しやすい経路だった。
+
+> 副次的な確認: 検討して見送った「`UndoStack`の深さをフレーム跨ぎで監視して二重Undoを補償する」案は、
+> `UndoStack`が同じく未実装であるため**そもそも実現不可能だった**。採らない判断は結果的に正しかったが、
+> 理由は当時挙げた「タイミング依存のバグに変換するだけ」ではなく、単に不可能だったからである。
+
+### 所有判定を台帳方式へ置き換えた
+
+`SceneTextUndoLedgerPolicy`が使うのは実績のある2つだけ:
+
+1. **保存が実際に積んだトランザクションの数**(`SceneLiveBufferWriteResult.AppliedUnitCount`。
+   差分が空のステップはトランザクションを作らないので`Steps.Count`とは一致しないことがある)
+2. **自分が最後にバッファを触った直後の`ITextSnapshot.Version.VersionNumber`**
+
+版番号は単調増加するので、記録値と現在値の一致が「以降だれもバッファを触っていない」ことの証明に
+なる。食い違えばユーザーがコードエディタで手打ちしたということで、スタックの一番上はユーザーの編集
+だから委譲しない。自分の単位を使い切ったら、その下にあるユーザーの編集へは降りない。
+保存を続けたときは累積するが、間に手打ちが挟まっていれば累積せず数え直す。
+
+テキストバッファへ書き込むのは`SceneTextBufferWriter.TryApply`の**1箇所だけ**なので、版番号による
+判定が他経路に汚されることはない。
+
+`SceneUndoTransactionNaming`の接頭辞は残した。所有判定には使えないが、VSのUndoドロップダウンに
+`Scene デザイナー: Rename node`と並んで人が判別できる利点はそのまま。
+
+### レンダリングループを巻き込まないようにした
+
+例外が`CompositionTarget.Rendering`のハンドラを貫通してWPFの描画ごと落としていた。
+`TickUndoRedoIfNeeded`のイベント発火を`try`/`catch`で囲み、VS SDKの想定外は`ActivityLog`へ残して
+**そのキーが何もしなかった**扱いに留める。ポーリングは毎フレーム回る場所なので、ここで例外を
+逃がすと1回の失敗がツールウィンドウ全体の停止になる。
