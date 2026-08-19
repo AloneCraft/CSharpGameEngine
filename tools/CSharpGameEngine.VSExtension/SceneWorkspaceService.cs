@@ -114,12 +114,6 @@ internal readonly struct SceneLiveBufferWriteResult {
 /// </para>
 /// </summary>
 internal sealed class SceneWorkspaceService : IDisposable {
-    /// <summary>
-    /// Long enough that a burst of keystrokes collapses into one analysis, short enough that the
-    /// tree still feels attached to the code being typed.
-    /// </summary>
-    private static readonly TimeSpan DebounceDelay=TimeSpan.FromMilliseconds(250);
-
     private readonly JoinableTaskFactory TaskFactory;
     private readonly VisualStudioWorkspace Workspace;
     private readonly IVsEditorAdaptersFactoryService?EditorAdapters;
@@ -128,6 +122,21 @@ internal sealed class SceneWorkspaceService : IDisposable {
     private readonly SceneAnalysisGenerationGate<DocumentId>AnalysisGeneration=new();
     private System.Threading.Timer?DebounceTimer;
     private CancellationTokenSource?PendingAnalysis;
+
+    /// <summary>
+    /// M0051 Step 1-6: 最初に解析が保留になった時刻。張り直しのたびにリセットしないので、
+    /// ここからの経過で<see cref="SceneAnalysisDebouncePolicy"/>が待ち時間を頭打ちにできる
+    /// (以前は無関係なworkspace変更が続く間デバウンスが際限なく延びていた)。解析を開始したらnullへ戻す。
+    /// </summary>
+    private DateTime?FirstPendingAnalysisAt;
+
+    /// <summary>
+    /// M0051 Step 1-6: pin中Sceneの<c>.cs</c>のパス。アクティブ文書と別でも解析対象に含めるために
+    /// <see cref="SceneEditorSessionService"/>が設定する(<see cref="SceneAnalysisTargetPolicy"/>)。
+    /// <see cref="Gate"/>の下でだけ読み書きする — <c>ScheduleAnalysis</c>はRoslynのイベントから
+    /// 背景スレッドでも呼ばれるため、Session側のDictionaryを直接引かせない。
+    /// </summary>
+    private string?PinnedSceneFilePath;
     private readonly Dictionary<ProjectId,ProjectSceneCatalogCache>ProjectSceneCatalogs=[];
 
     /// <summary>
@@ -828,11 +837,41 @@ internal sealed class SceneWorkspaceService : IDisposable {
         }
     }
 
-    private void ScheduleAnalysis(){
+    /// <summary>
+    /// M0051 Step 1-6: Scene Designer自身がテキストを書き換えた直後(保存の書き戻し、Undo/Redoの同期)に
+    /// 呼ぶ。デバウンスを挟まず解析を始めるので、リネージ検証と表示の追従が最短で届く。
+    /// </summary>
+    internal void ScheduleAnalysisNow()=>this.ScheduleAnalysis(Immediate:true);
+
+    /// <summary>
+    /// M0051 Step 1-6: pin対象が変わったときに<see cref="SceneEditorSessionService"/>が呼ぶ。
+    /// これを設定しないと、pin中Sceneの<c>.cs</c>がアクティブなコードエディタ文書でない間は
+    /// 再解析が一切来ず、Scene Designerが自分で書き換えたテキストにすら表示が追いつかない。
+    /// </summary>
+    internal void SetPinnedSceneFilePath(string?FilePath){
+        lock(this.Gate){
+            this.PinnedSceneFilePath=FilePath;
+        }
+    }
+
+    private void ScheduleAnalysis(bool Immediate=false){
         lock(this.Gate){
             if(this.Disposed){
                 return;
             }
+
+            // M0051 Step 1-6: 張り直しのたびに待ち時間が丸ごとリセットされると、無関係な
+            // workspace変更が続く間いつまでも解析が始まらない。最初に保留になった時刻を保持し、
+            // そこからの上限で頭打ちにする(SceneAnalysisDebouncePolicy)。
+            bool AlreadyPending=this.PendingAnalysis is not null&&this.FirstPendingAnalysisAt is not null;
+            if(!AlreadyPending){
+                this.FirstPendingAnalysisAt=DateTime.UtcNow;
+            }
+
+            TimeSpan Elapsed=AlreadyPending
+                ?DateTime.UtcNow-this.FirstPendingAnalysisAt!.Value
+                :TimeSpan.Zero;
+            TimeSpan Delay=SceneAnalysisDebouncePolicy.ResolveDelay(Elapsed,Immediate);
 
             this.CancelPendingAnalysisNoLock();
             this.ActiveMenuSnapshot=new(this.ActiveDocumentPath is null?SceneDesignerTargetState.Unavailable:SceneDesignerTargetState.Analyzing,[],[]);
@@ -854,8 +893,8 @@ internal sealed class SceneWorkspaceService : IDisposable {
             this.PendingAnalysis=Source;
             this.DebounceTimer=new System.Threading.Timer(
                 static State=>((ScheduledAnalysis)State).Service.StartAnalysis((ScheduledAnalysis)State),
-                new ScheduledAnalysis(this,Request,Source),
-                DebounceDelay,
+                new ScheduledAnalysis(this,Request,Source,this.PinnedSceneFilePath),
+                Delay,
                 Timeout.InfiniteTimeSpan);
         }
     }
@@ -868,6 +907,13 @@ internal sealed class SceneWorkspaceService : IDisposable {
                 SceneDocumentAnalysisResult Result=await this.AnalyzeAllAsync(
                     Scheduled.Request.Document,
                     Scheduled.Token).ConfigureAwait(false);
+
+                // M0051 Step 1-6: pin中Sceneの.csがアクティブ文書でない場合も解析する。これが無いと
+                // Scene Designerが自分で書き換えたテキスト(保存の書き戻し・Undo/Redoの同期)にすら
+                // 再解析が来ず、表示が永久に追いつかない。メニュー用スナップショットは
+                // アクティブ文書のものだけを使い、pin側は モデル一覧へ足すだけにする。
+                IReadOnlyList<SceneModel>Models=await this.AppendPinnedSceneModelsAsync(
+                    Result.Models,Scheduled.PinnedSceneFilePath,Scheduled.Token).ConfigureAwait(false);
 
                 // A cancelled analysis must not overwrite the newer one that cancelled it.
                 if(Scheduled.Token.IsCancellationRequested){
@@ -884,12 +930,13 @@ internal sealed class SceneWorkspaceService : IDisposable {
                     }
 
                     this.CurrentModel=First;
-                    this.AllModels=Result.Models;
+                    this.AllModels=Models;
                     this.ActiveMenuSnapshot=Result.MenuSnapshot;
+                    this.FirstPendingAnalysisAt=null;
                 }
 
                 this.ModelChanged?.Invoke(First);
-                this.AllModelsChanged?.Invoke(Result.Models);
+                this.AllModelsChanged?.Invoke(Models);
             } catch(OperationCanceledException){
                 // Superseded by a newer analysis.
             } catch(Exception Ex){
@@ -904,6 +951,48 @@ internal sealed class SceneWorkspaceService : IDisposable {
                 }
             }
         });
+    }
+
+    /// <summary>
+    /// M0051 Step 1-6: pin中Sceneの<c>.cs</c>がアクティブ文書と別ファイルなら、その解析結果を
+    /// <paramref name="ActiveModels"/>へ追記して返す。同じファイルなら二重解析しない
+    /// (<see cref="SceneAnalysisTargetPolicy.ShouldAlsoAnalyzePinnedScene"/>)。
+    ///
+    /// <para>
+    /// 追加解析の失敗はアクティブ文書の解析結果まで捨てる理由にならないので、ログに残して
+    /// アクティブ分だけを返す(pin対象が削除された・ソリューションから外れた等が普通に起こりうる)。
+    /// </para>
+    /// </summary>
+    private async Task<IReadOnlyList<SceneModel>>AppendPinnedSceneModelsAsync(
+        IReadOnlyList<SceneModel>ActiveModels,string?PinnedSceneFilePath,CancellationToken CancellationToken){
+        string?ActivePath;
+        lock(this.Gate){
+            ActivePath=this.ActiveDocumentPath;
+        }
+
+        if(!SceneAnalysisTargetPolicy.ShouldAlsoAnalyzePinnedScene(ActivePath,PinnedSceneFilePath)){
+            return ActiveModels;
+        }
+
+        try {
+            if(this.FindDocument(PinnedSceneFilePath!)is not { }PinnedDocumentId){
+                return ActiveModels;
+            }
+
+            SceneDocumentAnalysisResult Pinned=await this
+                .AnalyzeAllAsync(PinnedDocumentId,CancellationToken).ConfigureAwait(false);
+            if(Pinned.Models.Count==0){
+                return ActiveModels;
+            }
+
+            List<SceneModel>Merged=[..ActiveModels,..Pinned.Models];
+            return Merged;
+        } catch(OperationCanceledException){
+            throw;
+        } catch(Exception Ex){
+            ActivityLog.LogError(nameof(SceneWorkspaceService),Ex.ToString());
+            return ActiveModels;
+        }
     }
 
     /// <summary>
@@ -1054,13 +1143,21 @@ internal sealed class SceneWorkspaceService : IDisposable {
         internal ScheduledAnalysis(
             SceneWorkspaceService Service,
             SceneAnalysisRequest<DocumentId>Request,
-            CancellationTokenSource Source){
+            CancellationTokenSource Source,
+            string?PinnedSceneFilePath){
             this.Service=Service;
             this.Request=Request;
             this.Token=Source.Token;
+            this.PinnedSceneFilePath=PinnedSceneFilePath;
         }
 
         internal SceneWorkspaceService Service { get;}
+
+        /// <summary>
+        /// M0051 Step 1-6: スケジュール時点のpin対象。タイマーコールバックからは<see cref="Gate"/>を
+        /// 取らずに読めるよう、値を運ぶ。
+        /// </summary>
+        internal string?PinnedSceneFilePath { get;}
 
         internal SceneAnalysisRequest<DocumentId>Request { get;}
 

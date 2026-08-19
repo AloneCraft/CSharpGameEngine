@@ -83,9 +83,20 @@ internal sealed class SceneEditorSessionService : IDisposable {
             ??throw new InvalidOperationException("Scene Designer の対象にできるのはソリューション内の C# Document だけです。");
         SceneDocumentSnapshot RealSnapshot=this.Publish(Model,Key);
         this.PinnedSceneKey=Key;
+        this.PublishPinnedFilePathToWorkspace();
         SceneDocumentSnapshot Published=this.EnsureDocumentAndPublish(Key,RealSnapshot);
         this.PinnedSnapshotChanged?.Invoke(Published);
         return Published;
+    }
+
+    /// <summary>
+    /// M0051 Step 1-6: pin対象の<c>.cs</c>を<see cref="SceneWorkspaceService"/>へ伝える。
+    /// これが無いと、その<c>.cs</c>がアクティブなコードエディタ文書でない間は再解析が来ず、
+    /// Scene Designerが自分で書き換えたテキストにすら表示が追いつかない。
+    /// </summary>
+    private void PublishPinnedFilePathToWorkspace(){
+        this.Workspace.SetPinnedSceneFilePath(
+            this.PinnedSceneKey is { }Key&&this.TryGetSceneFilePath(Key,out string FilePath)?FilePath:null);
     }
 
     internal SceneDocumentSnapshot? GetSnapshotForModel(SceneModel Model){
@@ -114,6 +125,7 @@ internal sealed class SceneEditorSessionService : IDisposable {
 
         this.PinnedSceneKey=null;
         this.PinnedSnapshot=null;
+        this.PublishPinnedFilePathToWorkspace();
         this.PinnedSnapshotChanged?.Invoke(null);
     }
 
@@ -272,6 +284,9 @@ internal sealed class SceneEditorSessionService : IDisposable {
         this.TextUndoLedger[Key]=Redo
             ?SceneTextUndoLedgerPolicy.AfterRedo(Entry,VersionAfter)
             :SceneTextUndoLedgerPolicy.AfterUndo(Entry,VersionAfter);
+
+        // M0051 Step 1-6: 表示の追従はこの再解析待ちなので、デバウンスを挟まない。
+        this.Workspace.ScheduleAnalysisNow();
         return true;
     }
 
@@ -383,6 +398,10 @@ internal sealed class SceneEditorSessionService : IDisposable {
             this.TextUndoLedger.TryGetValue(Key,out SceneTextUndoLedgerEntry PreviousLedger);
             this.TextUndoLedger[Key]=SceneTextUndoLedgerPolicy.AfterWrite(
                 PreviousLedger,Written.VersionBeforeWrite,Written.VersionAfterWrite,Written.AppliedUnitCount);
+
+            // M0051 Step 1-6: 自分の書き込みの着地はデバウンスを待たせない。着地しないと
+            // 外部変更検知のベースラインが更新されないまま次の編集へ進んでしまう。
+            this.Workspace.ScheduleAnalysisNow();
 
             // M0051 Step 1-4: ここまではlive bufferへの反映(タブに*が付く)だけで、ファイルは
             // 保存されていなかった。Ctrl+S一回でディスクまで完了させる(実機報告への対応)。
