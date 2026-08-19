@@ -1,113 +1,226 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using CSharpGameEngine.SceneAnalysis;
 
 namespace CSharpGameEngine.VSExtension.Tests;
 
 /// <summary>
-/// M0051 Step 1-6 Stage A: 再解析のスケジューリングを純粋関数として固定する。
+/// M0051 Step 1-8: 再解析デバウンスの<b>状態遷移</b>を固定する。
 ///
 /// <para>
-/// 実機報告「保存すると(Ctrl+Z/Yが)遅くなる」の調査で、遅いだけでなく
-/// <b>pin中Sceneの<c>.cs</c>がアクティブなコードエディタ文書でないと再解析が一切来ない</b>
-/// (=表示が永久に追いつかない)ことと、<b>デバウンスが際限なく延び続ける</b>ことが判明した。
+/// <b>なぜ遷移列のテストなのか</b>: Step 1-6は待ち時間の計算(<c>ResolveDelay</c>)だけを
+/// 純粋関数にし、状態(保留窓がいつ始まったか)の管理を呼び出し側へ残した。その呼び出し側が
+/// 窓を<b>解析の完走時にしかクリアしていなかった</b>ため、解析が一度も完走しないまま上限を超えると
+/// 以後ずっと待ち時間0になり、「即発火 → 次の変更で即キャンセル」を繰り返して
+/// デバウンスが完全に無効化された。実機では右クリックメニューが「シーンを解析中」で
+/// グレーアウトしたまま・Hierarchyも空になり、<b>VSを再起動するまで直らなかった</b>。
+/// </para>
+///
+/// <para>
+/// <c>ResolveDelay</c>の単発の入出力テストは当時すべて通っていた。この型の不具合は
+/// <b>遷移列をシミュレートしないと捕まらない</b>。それが
+/// <see cref="Debounce_DoesNotDegenerateToZeroWhenEveryAnalysisIsSuperseded"/>。
 /// </para>
 /// </summary>
 public sealed class SceneAnalysisSchedulingPolicyTests {
-    // ---- 解析対象 ----
+    // ---- 状態遷移 ----
 
-    /// <summary>
-    /// 不具合の中心。Scene Designerで作業している間、アクティブなコードエディタ文書は
-    /// 別ファイルであることが普通にある。そのとき再解析対象に含めないと、Scene Designer自身が
-    /// 書き換えたテキストにすら表示が追いつかない。
-    /// </summary>
     [Fact]
-    public void PinnedScene_IsAnalyzedWhenItIsNotTheActiveDocument(){
-        Assert.True(SceneAnalysisTargetPolicy.ShouldAlsoAnalyzePinnedScene(
-            ActiveDocumentPath:@"C:\Game\Other.cs",PinnedSceneFilePath:@"C:\Game\MainScene.cs"));
-    }
+    public void OnScheduled_StartsANewWindowWhenNothingIsPending(){
+        TimeSpan Now=TimeSpan.FromSeconds(5);
 
-    /// <summary>同じファイルなら二重解析しない(Compilation再バインドが支配的なので無駄が大きい)。</summary>
-    [Fact]
-    public void PinnedScene_IsNotAnalyzedTwiceWhenItIsTheActiveDocument(){
-        Assert.False(SceneAnalysisTargetPolicy.ShouldAlsoAnalyzePinnedScene(
-            ActiveDocumentPath:@"C:\Game\MainScene.cs",PinnedSceneFilePath:@"C:\Game\MainScene.cs"));
-    }
+        SceneAnalysisScheduleOutcome Outcome=SceneAnalysisDebouncePolicy.OnScheduled(
+            SceneAnalysisDebouncePolicy.Idle,Now);
 
-    /// <summary>Windowsのファイルシステムに合わせて大文字小文字は無視する。</summary>
-    [Fact]
-    public void PinnedScene_PathComparisonIgnoresCase(){
-        Assert.False(SceneAnalysisTargetPolicy.ShouldAlsoAnalyzePinnedScene(
-            ActiveDocumentPath:@"C:\Game\MainScene.cs",PinnedSceneFilePath:@"c:\game\mainscene.cs"));
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    public void PinnedScene_IsSkippedWhenNothingIsPinned(string?PinnedSceneFilePath){
-        Assert.False(SceneAnalysisTargetPolicy.ShouldAlsoAnalyzePinnedScene(
-            ActiveDocumentPath:@"C:\Game\Other.cs",PinnedSceneFilePath));
-    }
-
-    /// <summary>アクティブ文書が無くてもpin中Sceneは解析する(Designerだけ開いている状態)。</summary>
-    [Fact]
-    public void PinnedScene_IsAnalyzedWithoutAnActiveDocument(){
-        Assert.True(SceneAnalysisTargetPolicy.ShouldAlsoAnalyzePinnedScene(
-            ActiveDocumentPath:null,PinnedSceneFilePath:@"C:\Game\MainScene.cs"));
-    }
-
-    // ---- デバウンス ----
-
-    /// <summary>保留が無い状態からの新規スケジュールは通常の待ち時間。</summary>
-    [Fact]
-    public void Debounce_UsesTheNormalDelayForAFreshSchedule(){
-        Assert.Equal(
-            SceneAnalysisDebouncePolicy.Delay,
-            SceneAnalysisDebouncePolicy.ResolveDelay(TimeSpan.Zero));
+        Assert.Equal(Now,Outcome.State.PendingSince);
+        Assert.Equal(SceneAnalysisDebouncePolicy.Delay,Outcome.Delay);
     }
 
     /// <summary>
-    /// 不具合の中心。VSの背景処理は対象Sceneと無関係な理由でも頻繁にworkspace変更を起こす。
-    /// 張り直しのたびに待ち時間が丸ごとリセットされると、いつまでも解析が始まらない。
+    /// 張り直しても窓の開始時刻は保つ。ここを更新すると上限が永久に効かず、
+    /// 無関係なworkspace変更が続く間いつまでも解析が始まらない(Step 1-6が直した元の不具合)。
     /// </summary>
     [Fact]
-    public void Debounce_FiresImmediatelyOnceTheCapIsReached(){
-        Assert.Equal(
-            TimeSpan.Zero,
-            SceneAnalysisDebouncePolicy.ResolveDelay(SceneAnalysisDebouncePolicy.MaxDelay));
+    public void OnScheduled_KeepsTheOriginalWindowWhileRearming(){
+        TimeSpan Start=TimeSpan.FromSeconds(5);
+        SceneAnalysisDebounceState State=
+            SceneAnalysisDebouncePolicy.OnScheduled(SceneAnalysisDebouncePolicy.Idle,Start).State;
+
+        SceneAnalysisScheduleOutcome Outcome=SceneAnalysisDebouncePolicy.OnScheduled(
+            State,Start+TimeSpan.FromMilliseconds(100));
+
+        Assert.Equal(Start,Outcome.State.PendingSince);
     }
 
-    /// <summary>上限を跨がないよう、残り時間が通常の待ち時間より短ければ残りだけ待つ。</summary>
+    /// <summary>上限に達したら即発火する。ただし窓はまだ閉じない(タイマは武装中)。</summary>
     [Fact]
-    public void Debounce_NeverWaitsPastTheCap(){
-        TimeSpan Elapsed=SceneAnalysisDebouncePolicy.MaxDelay-TimeSpan.FromMilliseconds(100);
+    public void OnScheduled_FiresImmediatelyAtTheCapButKeepsTheWindowArmed(){
+        TimeSpan Start=TimeSpan.FromSeconds(5);
+        SceneAnalysisDebounceState State=
+            SceneAnalysisDebouncePolicy.OnScheduled(SceneAnalysisDebouncePolicy.Idle,Start).State;
 
-        TimeSpan Resolved=SceneAnalysisDebouncePolicy.ResolveDelay(Elapsed);
+        SceneAnalysisScheduleOutcome Outcome=SceneAnalysisDebouncePolicy.OnScheduled(
+            State,Start+SceneAnalysisDebouncePolicy.MaxDelay);
 
-        Assert.Equal(TimeSpan.FromMilliseconds(100),Resolved);
-        Assert.True(Elapsed+Resolved<=SceneAnalysisDebouncePolicy.MaxDelay);
+        Assert.Equal(TimeSpan.Zero,Outcome.Delay);
+        Assert.NotNull(Outcome.State.PendingSince);
     }
 
-    /// <summary>上限内なら通常の待ち時間のまま(まとめる効果を捨てない)。</summary>
     [Fact]
-    public void Debounce_KeepsTheNormalDelayWellInsideTheCap(){
-        Assert.Equal(
-            SceneAnalysisDebouncePolicy.Delay,
-            SceneAnalysisDebouncePolicy.ResolveDelay(TimeSpan.FromMilliseconds(50)));
+    public void OnScheduled_NeverWaitsPastTheCap(){
+        TimeSpan Start=TimeSpan.FromSeconds(5);
+        SceneAnalysisDebounceState State=
+            SceneAnalysisDebouncePolicy.OnScheduled(SceneAnalysisDebouncePolicy.Idle,Start).State;
+        TimeSpan Now=Start+SceneAnalysisDebouncePolicy.MaxDelay-TimeSpan.FromMilliseconds(100);
+
+        SceneAnalysisScheduleOutcome Outcome=SceneAnalysisDebouncePolicy.OnScheduled(State,Now);
+
+        Assert.Equal(TimeSpan.FromMilliseconds(100),Outcome.Delay);
+        Assert.True(Now-Start+Outcome.Delay<=SceneAnalysisDebouncePolicy.MaxDelay);
+    }
+
+    /// <summary>Scene Designer自身の書き込み直後はまとめる理由が無いので待たない。</summary>
+    [Fact]
+    public void OnScheduled_ImmediateReturnsZeroAndStillArmsTheWindow(){
+        TimeSpan Now=TimeSpan.FromSeconds(5);
+
+        SceneAnalysisScheduleOutcome Outcome=SceneAnalysisDebouncePolicy.OnScheduled(
+            SceneAnalysisDebouncePolicy.Idle,Now,Immediate:true);
+
+        Assert.Equal(TimeSpan.Zero,Outcome.Delay);
+        Assert.Equal(Now,Outcome.State.PendingSince);
+    }
+
+    [Fact]
+    public void OnScheduled_ImmediateDoesNotResetAnExistingWindow(){
+        TimeSpan Start=TimeSpan.FromSeconds(5);
+        SceneAnalysisDebounceState State=
+            SceneAnalysisDebouncePolicy.OnScheduled(SceneAnalysisDebouncePolicy.Idle,Start).State;
+
+        SceneAnalysisScheduleOutcome Outcome=SceneAnalysisDebouncePolicy.OnScheduled(
+            State,Start+TimeSpan.FromMilliseconds(100),Immediate:true);
+
+        Assert.Equal(Start,Outcome.State.PendingSince);
+    }
+
+    /// <summary>窓を閉じるのは解析の<b>開始</b>だけ(完走ではない)。</summary>
+    [Fact]
+    public void OnStarted_ClosesTheWindow(){
+        SceneAnalysisDebounceState State=SceneAnalysisDebouncePolicy
+            .OnScheduled(SceneAnalysisDebouncePolicy.Idle,TimeSpan.FromSeconds(5)).State;
+
+        Assert.Null(SceneAnalysisDebouncePolicy.OnStarted(State).PendingSince);
+    }
+
+    [Fact]
+    public void OnStarted_IsIdempotent(){
+        SceneAnalysisDebounceState Once=SceneAnalysisDebouncePolicy.OnStarted(
+            SceneAnalysisDebouncePolicy.Idle);
+
+        Assert.Null(SceneAnalysisDebouncePolicy.OnStarted(Once).PendingSince);
+    }
+
+    /// <summary>単調でない時計(経過が負)でも上限判定が壊れないこと。</summary>
+    [Fact]
+    public void OnScheduled_ClampsANonMonotonicClockToZeroElapsed(){
+        SceneAnalysisDebounceState State=SceneAnalysisDebouncePolicy
+            .OnScheduled(SceneAnalysisDebouncePolicy.Idle,TimeSpan.FromSeconds(10)).State;
+
+        SceneAnalysisScheduleOutcome Outcome=SceneAnalysisDebouncePolicy.OnScheduled(
+            State,TimeSpan.FromSeconds(1));
+
+        Assert.Equal(SceneAnalysisDebouncePolicy.Delay,Outcome.Delay);
+    }
+
+    // ---- 本命: ライブロックの否定 ----
+
+    /// <summary>
+    /// <b>今回の実機不具合を確実に落とす1本。</b>
+    ///
+    /// <para>
+    /// 100ms間隔のworkspace変更が10秒続き、待ち時間0が返るたびにタイマが即発火する
+    /// (=<c>OnStarted</c>が適用される)が、解析は毎回次の変更に追い越されて完走しない、
+    /// という状況をシミュレートする。
+    /// </para>
+    ///
+    /// <para>
+    /// 正しい意味論では「即発火は<b>上限ごとに最大1回</b>」なので、10秒なら
+    /// <c>10秒 / 750ms + 1 = 14回</c>以下に収まる。
+    /// 壊れた意味論(完走時にしか窓を閉じない)では窓が永久に開いたままになり、
+    /// <b>ほぼ毎回</b>0が返る = デバウンスの消滅。その差をここで固定する。
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void Debounce_DoesNotDegenerateToZeroWhenEveryAnalysisIsSuperseded(){
+        TimeSpan Interval=TimeSpan.FromMilliseconds(100);
+        TimeSpan Total=TimeSpan.FromSeconds(10);
+        SceneAnalysisDebounceState State=SceneAnalysisDebouncePolicy.Idle;
+        int ImmediateFireCount=0;
+        int Steps=0;
+
+        for(TimeSpan Now=TimeSpan.Zero;Now<Total;Now+=Interval){
+            Steps++;
+            SceneAnalysisScheduleOutcome Outcome=SceneAnalysisDebouncePolicy.OnScheduled(State,Now);
+            State=Outcome.State;
+            if(Outcome.Delay!=TimeSpan.Zero){
+                continue;
+            }
+
+            // 待ち時間0 = タイマが即発火し、解析が始まる。完走はしない(次の変更が追い越す)。
+            ImmediateFireCount++;
+            State=SceneAnalysisDebouncePolicy.OnStarted(State);
+        }
+
+        int Allowed=(int)(Total.TotalMilliseconds/SceneAnalysisDebouncePolicy.MaxDelay.TotalMilliseconds)+1;
+        Assert.Equal(100,Steps);
+        Assert.True(
+            ImmediateFireCount<=Allowed,
+            $"即発火が{ImmediateFireCount}回/{Steps}回。上限ごとに1回({Allowed}回以下)に収まっていない "
+            +"= デバウンスが消滅している(実機で「シーンが開けなくなる」状態)。");
     }
 
     /// <summary>
-    /// Scene Designer自身の書き込み直後は、まとめる理由が無いので待たない
-    /// (表示の追従とリネージ検証がこの解析待ちのため)。
+    /// 逆向きの担保。解析が始まりさえすれば窓は閉じるので、静穏区間では通常の待ち時間へ戻る。
     /// </summary>
     [Fact]
-    public void Debounce_IsSkippedForOurOwnWrites(){
-        Assert.Equal(
-            TimeSpan.Zero,
-            SceneAnalysisDebouncePolicy.ResolveDelay(TimeSpan.Zero,Immediate:true));
+    public void Debounce_ReturnsToTheNormalDelayAfterAnAnalysisStarts(){
+        TimeSpan Start=TimeSpan.FromSeconds(5);
+        SceneAnalysisDebounceState State=
+            SceneAnalysisDebouncePolicy.OnScheduled(SceneAnalysisDebouncePolicy.Idle,Start).State;
+        State=SceneAnalysisDebouncePolicy.OnScheduled(
+            State,Start+SceneAnalysisDebouncePolicy.MaxDelay).State;
+        State=SceneAnalysisDebouncePolicy.OnStarted(State);
+
+        SceneAnalysisScheduleOutcome Outcome=SceneAnalysisDebouncePolicy.OnScheduled(
+            State,Start+SceneAnalysisDebouncePolicy.MaxDelay+TimeSpan.FromMilliseconds(10));
+
+        Assert.Equal(SceneAnalysisDebouncePolicy.Delay,Outcome.Delay);
     }
 
-    /// <summary>上限は通常の待ち時間より長いこと(そうでないとデバウンスが機能しない)。</summary>
+    // ---- 保留中のメニュー状態 ----
+
     [Fact]
-    public void Debounce_CapIsLongerThanTheNormalDelay(){
+    public void PendingMenuState_IsUnavailableWithoutAnActiveDocument(){
+        Assert.Equal(
+            SceneDesignerTargetState.Unavailable,SceneAnalysisDebouncePolicy.PendingMenuState(null));
+    }
+
+    [Fact]
+    public void PendingMenuState_IsAnalyzingWithAnActiveDocument(){
+        Assert.Equal(
+            SceneDesignerTargetState.Analyzing,
+            SceneAnalysisDebouncePolicy.PendingMenuState(@"C:\Game\MainScene.cs"));
+    }
+
+    // ---- ResolveDelay の意味が変わっていないこと(Step 1-6からの非退行) ----
+
+    [Fact]
+    public void ResolveDelay_KeepsItsOriginalMeaning(){
+        Assert.Equal(SceneAnalysisDebouncePolicy.Delay,SceneAnalysisDebouncePolicy.ResolveDelay(TimeSpan.Zero));
+        Assert.Equal(
+            TimeSpan.Zero,SceneAnalysisDebouncePolicy.ResolveDelay(SceneAnalysisDebouncePolicy.MaxDelay));
+        Assert.Equal(TimeSpan.Zero,SceneAnalysisDebouncePolicy.ResolveDelay(TimeSpan.Zero,Immediate:true));
         Assert.True(SceneAnalysisDebouncePolicy.MaxDelay>SceneAnalysisDebouncePolicy.Delay);
     }
 }

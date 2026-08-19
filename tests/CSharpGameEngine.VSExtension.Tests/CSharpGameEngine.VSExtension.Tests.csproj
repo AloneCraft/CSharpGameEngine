@@ -50,6 +50,10 @@
          (SceneLineageArchitectureTests)。Step 1-6 はその形で実機の高速経路を丸ごと殺した。 -->
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\SceneLandingDecision.cs" Link="TestAssets\Source\SceneLandingDecision.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\SceneEditorSessionService.cs" Link="TestAssets\Source\SceneEditorSessionService.cs" CopyToOutputDirectory="PreserveNewest" />
+
+    <!-- M0051 Step 1-8: デバウンス状態がポリシー経由でのみ遷移することを検査するためのソース。
+         直接代入へ戻すと「シーンが開けなくなる」ライブロックが再発する。 -->
+    <None Include="..\..\tools\CSharpGameEngine.VSExtension\SceneWorkspaceService.cs" Link="TestAssets\Source\SceneWorkspaceService.cs" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- The Scene DSL declaration surface, read as text by the shared helper so both hosts compile

@@ -124,19 +124,17 @@ internal sealed class SceneWorkspaceService : IDisposable {
     private CancellationTokenSource?PendingAnalysis;
 
     /// <summary>
-    /// M0051 Step 1-6: 最初に解析が保留になった時刻。張り直しのたびにリセットしないので、
-    /// ここからの経過で<see cref="SceneAnalysisDebouncePolicy"/>が待ち時間を頭打ちにできる
-    /// (以前は無関係なworkspace変更が続く間デバウンスが際限なく延びていた)。解析を開始したらnullへ戻す。
+    /// M0051 Step 1-8: デバウンスの保留窓(<see cref="SceneAnalysisDebouncePolicy"/>)。
+    /// 状態遷移は必ずポリシー経由で行うこと — 直接いじると
+    /// 「タイマが武装中 ⟺ PendingSince が非null」の不変条件が壊れ、実機で
+    /// 「シーンが開けなくなる」ライブロックへ直結する。
     /// </summary>
-    private DateTime?FirstPendingAnalysisAt;
+    private SceneAnalysisDebounceState DebounceState=SceneAnalysisDebouncePolicy.Idle;
 
     /// <summary>
-    /// M0051 Step 1-6: pin中Sceneの<c>.cs</c>のパス。アクティブ文書と別でも解析対象に含めるために
-    /// <see cref="SceneEditorSessionService"/>が設定する(<see cref="SceneAnalysisTargetPolicy"/>)。
-    /// <see cref="Gate"/>の下でだけ読み書きする — <c>ScheduleAnalysis</c>はRoslynのイベントから
-    /// 背景スレッドでも呼ばれるため、Session側のDictionaryを直接引かせない。
+    /// 壁時計ではなく単調時計を使う。NTP/DST補正で経過が負になると上限判定が壊れるため。
     /// </summary>
-    private string?PinnedSceneFilePath;
+    private readonly System.Diagnostics.Stopwatch AnalysisClock=System.Diagnostics.Stopwatch.StartNew();
     private readonly Dictionary<ProjectId,ProjectSceneCatalogCache>ProjectSceneCatalogs=[];
 
     /// <summary>
@@ -843,38 +841,23 @@ internal sealed class SceneWorkspaceService : IDisposable {
     /// </summary>
     internal void ScheduleAnalysisNow()=>this.ScheduleAnalysis(Immediate:true);
 
-    /// <summary>
-    /// M0051 Step 1-6: pin対象が変わったときに<see cref="SceneEditorSessionService"/>が呼ぶ。
-    /// これを設定しないと、pin中Sceneの<c>.cs</c>がアクティブなコードエディタ文書でない間は
-    /// 再解析が一切来ず、Scene Designerが自分で書き換えたテキストにすら表示が追いつかない。
-    /// </summary>
-    internal void SetPinnedSceneFilePath(string?FilePath){
-        lock(this.Gate){
-            this.PinnedSceneFilePath=FilePath;
-        }
-    }
-
     private void ScheduleAnalysis(bool Immediate=false){
         lock(this.Gate){
             if(this.Disposed){
                 return;
             }
 
-            // M0051 Step 1-6: 張り直しのたびに待ち時間が丸ごとリセットされると、無関係な
-            // workspace変更が続く間いつまでも解析が始まらない。最初に保留になった時刻を保持し、
-            // そこからの上限で頭打ちにする(SceneAnalysisDebouncePolicy)。
-            bool AlreadyPending=this.PendingAnalysis is not null&&this.FirstPendingAnalysisAt is not null;
-            if(!AlreadyPending){
-                this.FirstPendingAnalysisAt=DateTime.UtcNow;
-            }
-
-            TimeSpan Elapsed=AlreadyPending
-                ?DateTime.UtcNow-this.FirstPendingAnalysisAt!.Value
-                :TimeSpan.Zero;
-            TimeSpan Delay=SceneAnalysisDebouncePolicy.ResolveDelay(Elapsed,Immediate);
+            // M0051 Step 1-8: 張り直しのたびに待ち時間が丸ごとリセットされると、無関係な
+            // workspace変更が続く間いつまでも解析が始まらない。保留窓の開始時刻を保ち、
+            // そこからの上限で頭打ちにする。窓を閉じるのは StartAnalysis の OnStarted だけ。
+            SceneAnalysisScheduleOutcome Outcome=SceneAnalysisDebouncePolicy.OnScheduled(
+                this.DebounceState,this.AnalysisClock.Elapsed,Immediate);
+            this.DebounceState=Outcome.State;
+            TimeSpan Delay=Outcome.Delay;
 
             this.CancelPendingAnalysisNoLock();
-            this.ActiveMenuSnapshot=new(this.ActiveDocumentPath is null?SceneDesignerTargetState.Unavailable:SceneDesignerTargetState.Analyzing,[],[]);
+            this.ActiveMenuSnapshot=new(
+                SceneAnalysisDebouncePolicy.PendingMenuState(this.ActiveDocumentPath),[],[]);
             DocumentId?ResolvedDocumentId=this.ActiveDocumentPath is null
                 ?null
                 :this.FindDocument(this.ActiveDocumentPath);
@@ -888,18 +871,32 @@ internal sealed class SceneWorkspaceService : IDisposable {
 
             // 古い型Spanで別クラスを有効化しない。BeforeQueryStatusはこの状態を見るだけで、
             // ここからRoslynを待機しない。
-            this.ActiveMenuSnapshot=new(SceneDesignerTargetState.Analyzing,[],[]);
+            // (M0051 Step 1-8: ここにあった無条件の Analyzing 再代入は、上で決めた Unavailable を
+            //  潰していたため削除した。)
             CancellationTokenSource Source=new();
             this.PendingAnalysis=Source;
             this.DebounceTimer=new System.Threading.Timer(
                 static State=>((ScheduledAnalysis)State).Service.StartAnalysis((ScheduledAnalysis)State),
-                new ScheduledAnalysis(this,Request,Source,this.PinnedSceneFilePath),
+                new ScheduledAnalysis(this,Request,Source),
                 Delay,
                 Timeout.InfiniteTimeSpan);
         }
     }
 
     private void StartAnalysis(ScheduledAnalysis Scheduled){
+        // M0051 Step 1-8: 保留窓を閉じるのはここ。<b>解析の完走ではなく開始</b>が条件であることが要点で、
+        // 完走を条件にすると追い越され続けたときに窓が永久に閉じず、以後ずっと待ち時間0になって
+        // 「即発火 → 即キャンセル」を繰り返す(実機で「シーンが開けなくなる」に直結した)。
+        // RunAsyncのラムダ内ではなく同期部分で行う — ラムダに入れるとスケジューリング遅延の分だけ
+        // クリアが遅れ、その間のScheduleAnalysisが誤って「保留中」と判断する。
+        lock(this.Gate){
+            if(this.Disposed){
+                return;
+            }
+
+            this.DebounceState=SceneAnalysisDebouncePolicy.OnStarted(this.DebounceState);
+        }
+
         // Started from a timer callback, so there is nothing to await it here. RunAsync keeps the
         // work joinable, and the handle is stored so VS can still block on it during shutdown.
         this.RunningAnalysis=this.TaskFactory.RunAsync(async ()=>{
@@ -907,13 +904,6 @@ internal sealed class SceneWorkspaceService : IDisposable {
                 SceneDocumentAnalysisResult Result=await this.AnalyzeAllAsync(
                     Scheduled.Request.Document,
                     Scheduled.Token).ConfigureAwait(false);
-
-                // M0051 Step 1-6: pin中Sceneの.csがアクティブ文書でない場合も解析する。これが無いと
-                // Scene Designerが自分で書き換えたテキスト(保存の書き戻し・Undo/Redoの同期)にすら
-                // 再解析が来ず、表示が永久に追いつかない。メニュー用スナップショットは
-                // アクティブ文書のものだけを使い、pin側は モデル一覧へ足すだけにする。
-                IReadOnlyList<SceneModel>Models=await this.AppendPinnedSceneModelsAsync(
-                    Result.Models,Scheduled.PinnedSceneFilePath,Scheduled.Token).ConfigureAwait(false);
 
                 // A cancelled analysis must not overwrite the newer one that cancelled it.
                 if(Scheduled.Token.IsCancellationRequested){
@@ -930,13 +920,12 @@ internal sealed class SceneWorkspaceService : IDisposable {
                     }
 
                     this.CurrentModel=First;
-                    this.AllModels=Models;
+                    this.AllModels=Result.Models;
                     this.ActiveMenuSnapshot=Result.MenuSnapshot;
-                    this.FirstPendingAnalysisAt=null;
                 }
 
                 this.ModelChanged?.Invoke(First);
-                this.AllModelsChanged?.Invoke(Models);
+                this.AllModelsChanged?.Invoke(Result.Models);
             } catch(OperationCanceledException){
                 // Superseded by a newer analysis.
             } catch(Exception Ex){
@@ -951,48 +940,6 @@ internal sealed class SceneWorkspaceService : IDisposable {
                 }
             }
         });
-    }
-
-    /// <summary>
-    /// M0051 Step 1-6: pin中Sceneの<c>.cs</c>がアクティブ文書と別ファイルなら、その解析結果を
-    /// <paramref name="ActiveModels"/>へ追記して返す。同じファイルなら二重解析しない
-    /// (<see cref="SceneAnalysisTargetPolicy.ShouldAlsoAnalyzePinnedScene"/>)。
-    ///
-    /// <para>
-    /// 追加解析の失敗はアクティブ文書の解析結果まで捨てる理由にならないので、ログに残して
-    /// アクティブ分だけを返す(pin対象が削除された・ソリューションから外れた等が普通に起こりうる)。
-    /// </para>
-    /// </summary>
-    private async Task<IReadOnlyList<SceneModel>>AppendPinnedSceneModelsAsync(
-        IReadOnlyList<SceneModel>ActiveModels,string?PinnedSceneFilePath,CancellationToken CancellationToken){
-        string?ActivePath;
-        lock(this.Gate){
-            ActivePath=this.ActiveDocumentPath;
-        }
-
-        if(!SceneAnalysisTargetPolicy.ShouldAlsoAnalyzePinnedScene(ActivePath,PinnedSceneFilePath)){
-            return ActiveModels;
-        }
-
-        try {
-            if(this.FindDocument(PinnedSceneFilePath!)is not { }PinnedDocumentId){
-                return ActiveModels;
-            }
-
-            SceneDocumentAnalysisResult Pinned=await this
-                .AnalyzeAllAsync(PinnedDocumentId,CancellationToken).ConfigureAwait(false);
-            if(Pinned.Models.Count==0){
-                return ActiveModels;
-            }
-
-            List<SceneModel>Merged=[..ActiveModels,..Pinned.Models];
-            return Merged;
-        } catch(OperationCanceledException){
-            throw;
-        } catch(Exception Ex){
-            ActivityLog.LogError(nameof(SceneWorkspaceService),Ex.ToString());
-            return ActiveModels;
-        }
     }
 
     /// <summary>
@@ -1143,21 +1090,13 @@ internal sealed class SceneWorkspaceService : IDisposable {
         internal ScheduledAnalysis(
             SceneWorkspaceService Service,
             SceneAnalysisRequest<DocumentId>Request,
-            CancellationTokenSource Source,
-            string?PinnedSceneFilePath){
+            CancellationTokenSource Source){
             this.Service=Service;
             this.Request=Request;
             this.Token=Source.Token;
-            this.PinnedSceneFilePath=PinnedSceneFilePath;
         }
 
         internal SceneWorkspaceService Service { get;}
-
-        /// <summary>
-        /// M0051 Step 1-6: スケジュール時点のpin対象。タイマーコールバックからは<see cref="Gate"/>を
-        /// 取らずに読めるよう、値を運ぶ。
-        /// </summary>
-        internal string?PinnedSceneFilePath { get;}
 
         internal SceneAnalysisRequest<DocumentId>Request { get;}
 

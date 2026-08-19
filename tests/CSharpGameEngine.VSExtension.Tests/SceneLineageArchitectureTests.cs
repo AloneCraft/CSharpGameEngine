@@ -59,6 +59,40 @@ public sealed class SceneLineageArchitectureTests {
         Assert.Contains("SceneLandingDecision.Evaluate(",Source,StringComparison.Ordinal);
     }
 
+    // ---- M0051 Step 1-8: デバウンス状態の管理 ----
+
+    /// <summary>
+    /// デバウンスの保留窓は<b>必ずポリシー経由で</b>遷移させる。
+    ///
+    /// <para>
+    /// Step 1-6は待ち時間の計算だけを純粋関数にし、状態の管理を呼び出し側へ残した。その結果
+    /// 窓を「解析の完走時にしか閉じない」という誤りが入り、解析が追い越され続けると
+    /// 待ち時間が恒久的に0へ縮退して<b>どの解析も完走しなくなった</b>
+    /// (実機で右クリックメニューが「シーンを解析中」でグレーアウトし、VS再起動まで直らなかった)。
+    /// 直接代入へ戻すと同じ穴が開く。
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void WorkspaceService_MutatesDebounceStateOnlyThroughThePolicy(){
+        string Source=ReadSource("SceneWorkspaceService.cs");
+
+        // 状態を直接組み立てるのが唯一の抜け道。ポリシーの戻り値を代入するのは正しい形なので、
+        // 代入の右辺そのものではなく「その場で状態を作っていないか」を見る。
+        Assert.DoesNotContain("new SceneAnalysisDebounceState(",Source,StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 窓を閉じるのは<b>解析の開始</b>であって完走ではない。<c>StartAnalysis</c>から
+    /// <c>OnStarted</c>が消えると、この不具合がそのまま戻る。
+    /// </summary>
+    [Fact]
+    public void WorkspaceService_ClosesTheDebounceWindowWhenAnalysisStarts(){
+        string Source=ReadSource("SceneWorkspaceService.cs");
+
+        Assert.Contains("SceneAnalysisDebouncePolicy.OnStarted(",Source,StringComparison.Ordinal);
+        Assert.Contains("SceneAnalysisDebouncePolicy.OnScheduled(",Source,StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// コメントを落として<b>実際のコードだけ</b>を返す。これらのファイルのdocコメントは
     /// 「なぜ<c>SceneDiffEngine</c>を使わないか」を説明しているので、素の文字列検索だと
