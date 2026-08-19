@@ -97,43 +97,123 @@ public sealed class SceneUndoRoutingPolicyTests {
             CanUndoInMemory,HasPendingSourceWrite:true,HasPinnedSnapshot:true));
     }
 
-    // ---- 委譲先が自分のトランザクションか ----
+    // ---- 委譲先が自分のトランザクションか(台帳判定) ----
+    //
+    // 当初は ITextUndoHistory.LastUndoTransaction.Description の接頭辞で判定していたが、VSの実装
+    // (VsUndoHistory)はスタックを覗く系のメンバーを実装しておらず NotSupportedException を投げる。
+    // 実機ではCtrl+Zのたびに CompositionTarget.Rendering のハンドラごと落ちた。
+    // 代わりに「自分が積んだ単位数」と「自分が最後に触った直後のバッファ版番号」で判定する。
 
+    /// <summary>保存で積んだ直後は、積んだ数だけ委譲できる。</summary>
     [Fact]
-    public void Delegation_IsAllowedForOurOwnTransaction(){
-        Assert.True(SceneTextUndoDelegationPolicy.ShouldDelegate(
-            SceneUndoTransactionNaming.Format("Rename node")));
+    public void Ledger_AllowsDelegationForTheUnitsWeJustWrote(){
+        SceneTextUndoLedgerEntry Entry=SceneTextUndoLedgerPolicy.AfterWrite(
+            SceneTextUndoLedgerPolicy.Empty,VersionBeforeWrite:5,VersionAfterWrite:8,UnitsWritten:3);
+
+        Assert.Equal(3,Entry.UndoableUnits);
+        Assert.Equal(0,Entry.RedoableUnits);
+        Assert.True(SceneTextUndoLedgerPolicy.CanDelegateUndo(Entry,CurrentBufferVersion:8));
     }
 
     /// <summary>
-    /// テキスト履歴にはユーザーがコードエディタで手打ちした編集も積まれている。区別せず委譲すると
-    /// Ctrl+Zを押し続けたときデザイナー由来でない編集まで巻き戻してしまう。
+    /// 所有判定の核心。保存のあとユーザーがコードエディタで手打ちすると版番号が進む。
+    /// このとき委譲するとスタックの一番上にあるユーザーの編集を巻き戻してしまう。
     /// </summary>
     [Fact]
-    public void Delegation_IsRefusedForSomeoneElsesTransaction(){
-        Assert.False(SceneTextUndoDelegationPolicy.ShouldDelegate("Typing"));
+    public void Ledger_RefusesDelegationAfterSomeoneElseTouchedTheBuffer(){
+        SceneTextUndoLedgerEntry Entry=SceneTextUndoLedgerPolicy.AfterWrite(
+            SceneTextUndoLedgerPolicy.Empty,VersionBeforeWrite:5,VersionAfterWrite:8,UnitsWritten:3);
+
+        Assert.False(SceneTextUndoLedgerPolicy.CanDelegateUndo(Entry,CurrentBufferVersion:9));
     }
 
-    /// <summary>履歴が空(次にUndoするものが無い)ならnullが渡る。</summary>
+    /// <summary>自分の単位を使い切ったら、その下にあるユーザーの編集へは降りない。</summary>
     [Fact]
-    public void Delegation_IsRefusedWhenTheTextHistoryIsEmpty(){
-        Assert.False(SceneTextUndoDelegationPolicy.ShouldDelegate(null));
+    public void Ledger_StopsOnceOurOwnUnitsAreExhausted(){
+        SceneTextUndoLedgerEntry Entry=SceneTextUndoLedgerPolicy.AfterWrite(
+            SceneTextUndoLedgerPolicy.Empty,VersionBeforeWrite:5,VersionAfterWrite:6,UnitsWritten:2);
+
+        Entry=SceneTextUndoLedgerPolicy.AfterUndo(Entry,VersionAfterUndo:7);
+        Assert.True(SceneTextUndoLedgerPolicy.CanDelegateUndo(Entry,CurrentBufferVersion:7));
+
+        Entry=SceneTextUndoLedgerPolicy.AfterUndo(Entry,VersionAfterUndo:8);
+        Assert.Equal(0,Entry.UndoableUnits);
+        Assert.False(SceneTextUndoLedgerPolicy.CanDelegateUndo(Entry,CurrentBufferVersion:8));
+    }
+
+    /// <summary>Undoした分はRedoで戻せる(委譲Undo後のCtrl+Yが片手落ちにならないこと)。</summary>
+    [Fact]
+    public void Ledger_MovesUnitsBetweenUndoAndRedo(){
+        SceneTextUndoLedgerEntry Entry=SceneTextUndoLedgerPolicy.AfterWrite(
+            SceneTextUndoLedgerPolicy.Empty,VersionBeforeWrite:5,VersionAfterWrite:6,UnitsWritten:2);
+        Assert.False(SceneTextUndoLedgerPolicy.CanDelegateRedo(Entry,CurrentBufferVersion:6));
+
+        Entry=SceneTextUndoLedgerPolicy.AfterUndo(Entry,VersionAfterUndo:7);
+
+        Assert.True(SceneTextUndoLedgerPolicy.CanDelegateRedo(Entry,CurrentBufferVersion:7));
+        Assert.Equal(1,Entry.RedoableUnits);
+
+        Entry=SceneTextUndoLedgerPolicy.AfterRedo(Entry,VersionAfterRedo:8);
+
+        Assert.Equal(2,Entry.UndoableUnits);
+        Assert.Equal(0,Entry.RedoableUnits);
+    }
+
+    /// <summary>
+    /// 保存を2回続けたら単位は累積する(1回目の保存分まで遡って取り消せる)。
+    /// </summary>
+    [Fact]
+    public void Ledger_AccumulatesAcrossConsecutiveSaves(){
+        SceneTextUndoLedgerEntry Entry=SceneTextUndoLedgerPolicy.AfterWrite(
+            SceneTextUndoLedgerPolicy.Empty,VersionBeforeWrite:5,VersionAfterWrite:6,UnitsWritten:2);
+        Entry=SceneTextUndoLedgerPolicy.AfterWrite(
+            Entry,VersionBeforeWrite:6,VersionAfterWrite:9,UnitsWritten:3);
+
+        Assert.Equal(5,Entry.UndoableUnits);
+    }
+
+    /// <summary>
+    /// ただし保存と保存の間にユーザーが手打ちしていたら累積しない。古い単位はユーザーの編集の
+    /// 下に埋まっており、通り抜けて到達してはならない。
+    /// </summary>
+    [Fact]
+    public void Ledger_DoesNotAccumulateAcrossAForeignEdit(){
+        SceneTextUndoLedgerEntry Entry=SceneTextUndoLedgerPolicy.AfterWrite(
+            SceneTextUndoLedgerPolicy.Empty,VersionBeforeWrite:5,VersionAfterWrite:6,UnitsWritten:2);
+        Entry=SceneTextUndoLedgerPolicy.AfterWrite(
+            Entry,VersionBeforeWrite:11,VersionAfterWrite:13,UnitsWritten:3);
+
+        Assert.Equal(3,Entry.UndoableUnits);
+    }
+
+    /// <summary>新しい編集を積めばRedoスタックは消える(通常のUndoスタックの規則)。</summary>
+    [Fact]
+    public void Ledger_ClearsRedoOnANewWrite(){
+        SceneTextUndoLedgerEntry Entry=SceneTextUndoLedgerPolicy.AfterWrite(
+            SceneTextUndoLedgerPolicy.Empty,VersionBeforeWrite:5,VersionAfterWrite:6,UnitsWritten:1);
+        Entry=SceneTextUndoLedgerPolicy.AfterUndo(Entry,VersionAfterUndo:7);
+        Assert.Equal(1,Entry.RedoableUnits);
+
+        Entry=SceneTextUndoLedgerPolicy.AfterWrite(
+            Entry,VersionBeforeWrite:7,VersionAfterWrite:8,UnitsWritten:1);
+
+        Assert.Equal(0,Entry.RedoableUnits);
+    }
+
+    /// <summary>保存を一度もしていなければ委譲しない(台帳が空のまま)。</summary>
+    [Fact]
+    public void Ledger_RefusesDelegationBeforeAnySave(){
+        Assert.False(SceneTextUndoLedgerPolicy.CanDelegateUndo(
+            SceneTextUndoLedgerPolicy.Empty,CurrentBufferVersion:1));
+        Assert.False(SceneTextUndoLedgerPolicy.CanDelegateRedo(
+            SceneTextUndoLedgerPolicy.Empty,CurrentBufferVersion:1));
     }
 
     [Fact]
-    public void TransactionName_RoundTrips(){
+    public void TransactionName_CarriesTheOperationLabel(){
         string Formatted=SceneUndoTransactionNaming.Format("Remove node");
 
-        Assert.True(SceneUndoTransactionNaming.IsSceneTransaction(Formatted));
+        Assert.StartsWith(SceneUndoTransactionNaming.Prefix,Formatted,System.StringComparison.Ordinal);
         Assert.EndsWith("Remove node",Formatted,System.StringComparison.Ordinal);
-    }
-
-    /// <summary>接頭辞の一部だけ一致する説明文を誤って自分のものと判定しないこと。</summary>
-    [Theory]
-    [InlineData("Scene")]
-    [InlineData("Scene の保存")]
-    [InlineData("デザイナー: Rename node")]
-    public void TransactionName_DoesNotMatchNearMisses(string Description){
-        Assert.False(SceneUndoTransactionNaming.IsSceneTransaction(Description));
     }
 }

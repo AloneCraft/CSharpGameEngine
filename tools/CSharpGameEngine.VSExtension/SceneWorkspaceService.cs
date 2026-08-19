@@ -63,10 +63,15 @@ internal sealed class SceneWorkspaceEditContext {
 }
 
 internal readonly struct SceneLiveBufferWriteResult {
-    internal SceneLiveBufferWriteResult(bool Succeeded,string?ErrorMessage,bool LiveTextChanged=false){
+    internal SceneLiveBufferWriteResult(
+        bool Succeeded,string?ErrorMessage,bool LiveTextChanged=false,
+        int AppliedUnitCount=0,int VersionBeforeWrite=-1,int VersionAfterWrite=-1){
         this.Succeeded=Succeeded;
         this.ErrorMessage=ErrorMessage;
         this.LiveTextChanged=LiveTextChanged;
+        this.AppliedUnitCount=AppliedUnitCount;
+        this.VersionBeforeWrite=VersionBeforeWrite;
+        this.VersionAfterWrite=VersionAfterWrite;
     }
 
     internal bool Succeeded { get; }
@@ -74,6 +79,19 @@ internal readonly struct SceneLiveBufferWriteResult {
     internal string?ErrorMessage { get; }
 
     internal bool LiveTextChanged { get; }
+
+    /// <summary>
+    /// M0051 Step 1-5: 実際にテキストUndo履歴へ積まれたトランザクションの数。差分が空のステップは
+    /// トランザクションを作らないため、<c>Steps.Count</c>とは一致しないことがある。
+    /// <see cref="SceneTextUndoLedgerPolicy"/>がこの数だけ委譲を許す。
+    /// </summary>
+    internal int AppliedUnitCount { get; }
+
+    /// <summary>書き込み開始直前のバッファ版番号(前回記録との照合に使う)。</summary>
+    internal int VersionBeforeWrite { get; }
+
+    /// <summary>全ステップ書き込み後のバッファ版番号。</summary>
+    internal int VersionAfterWrite { get; }
 }
 
 /// <summary>
@@ -551,9 +569,16 @@ internal sealed class SceneWorkspaceService : IDisposable {
         // caretの保存・復元は全ステップを1回で囲む(ステップ間で復元すると、まだ途中の状態へ
         // caretを戻したうえで次のステップがまた動かすことになり、無駄なうえに揺れる)。
         List<ViewPositionSnapshot>Restorations=CaptureViewPositions(Buffer,VsBuffer);
+        int VersionBeforeWrite=SceneTextBufferWriter.GetVersionNumber(Buffer);
+        int AppliedUnits=0;
         for(int Index=0;Index<Steps.Count;Index++){
             SceneTextWriteStep Step=Steps[Index];
             if(this.TextBufferWriter.TryApply(Buffer,Step.Before,Step.Changes,Step.UndoDescription)){
+                // 差分が空のステップはトランザクションを作らないので、Undo単位としては数えない。
+                if(Step.Changes.Count>0){
+                    AppliedUnits++;
+                }
+
                 continue;
             }
 
@@ -571,30 +596,26 @@ internal sealed class SceneWorkspaceService : IDisposable {
         }
 
         RestoreViewPositions(Restorations);
-        return new SceneLiveBufferWriteResult(true,ErrorMessage:null);
+        return new SceneLiveBufferWriteResult(
+            true,ErrorMessage:null,LiveTextChanged:false,
+            AppliedUnits,VersionBeforeWrite,SceneTextBufferWriter.GetVersionNumber(Buffer));
     }
 
     /// <summary>
-    /// M0051 Step 1-5: 次にUndo/Redoされるテキストトランザクションの説明文(履歴が空ならnull)。
-    /// <see cref="SceneTextUndoDelegationPolicy.ShouldDelegate"/>がこれを見て、Scene Designerが
-    /// 積んだトランザクションのときだけ委譲する。
+    /// M0051 Step 1-5(実機修正): 対象<c>.cs</c>のlive bufferの版番号。
+    /// <see cref="SceneTextUndoLedgerPolicy"/>が「自分の最後の操作以降だれもバッファを触っていないか」を
+    /// これで確かめる。バッファが解決できない場合はfalse(=委譲しない)。
     /// </summary>
-    internal string?GetLastUndoDescription(string FilePath){
+    internal bool TryGetBufferVersion(string FilePath,out int Version){
         ThreadHelper.ThrowIfNotOnUIThread();
         EnsureDocumentOpen(FilePath);
-        return this.TextBufferWriter is not null
-            &&TryGetLiveBuffer(FilePath,out ITextBuffer?Buffer,out _)&&Buffer is not null
-            ?this.TextBufferWriter.GetLastUndoDescription(Buffer)
-            :null;
-    }
+        if(TryGetLiveBuffer(FilePath,out ITextBuffer?Buffer,out _)&&Buffer is not null){
+            Version=SceneTextBufferWriter.GetVersionNumber(Buffer);
+            return true;
+        }
 
-    internal string?GetLastRedoDescription(string FilePath){
-        ThreadHelper.ThrowIfNotOnUIThread();
-        EnsureDocumentOpen(FilePath);
-        return this.TextBufferWriter is not null
-            &&TryGetLiveBuffer(FilePath,out ITextBuffer?Buffer,out _)&&Buffer is not null
-            ?this.TextBufferWriter.GetLastRedoDescription(Buffer)
-            :null;
+        Version=-1;
+        return false;
     }
 
     /// <summary>

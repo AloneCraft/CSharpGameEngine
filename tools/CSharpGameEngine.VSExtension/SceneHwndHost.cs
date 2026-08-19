@@ -410,13 +410,28 @@ internal sealed class SceneHwndHost:HwndHost {
             ViewportFocused,AuxiliaryFocused,
             Keyboard.FocusedElement is System.Windows.Controls.Primitives.TextBoxBase);
 
-        if(RouteUndoRedo&&SceneUndoRedoKeyPolicy.IsRisingEdge(ZDown,PreviousUndoKeyDown)){ UndoRequested?.Invoke(); }
-        if(RouteUndoRedo&&SceneUndoRedoKeyPolicy.IsRisingEdge(YDown,PreviousRedoKeyDown)){ RedoRequested?.Invoke(); }
-        if(RouteSave&&SceneUndoRedoKeyPolicy.IsRisingEdge(SDown,PreviousSaveKeyDown)){ SaveRequested?.Invoke(); }
+        if(RouteUndoRedo&&SceneUndoRedoKeyPolicy.IsRisingEdge(ZDown,PreviousUndoKeyDown)){ Raise(UndoRequested); }
+        if(RouteUndoRedo&&SceneUndoRedoKeyPolicy.IsRisingEdge(YDown,PreviousRedoKeyDown)){ Raise(RedoRequested); }
+        if(RouteSave&&SceneUndoRedoKeyPolicy.IsRisingEdge(SDown,PreviousSaveKeyDown)){ Raise(SaveRequested); }
 
         PreviousUndoKeyDown=ZDown;
         PreviousRedoKeyDown=YDown;
         PreviousSaveKeyDown=SDown;
+    }
+
+    /// <summary>
+    /// M0051 Step 1-5(実機修正): ここは<c>CompositionTarget.Rendering</c>のハンドラの中なので、
+    /// 例外を逃がすとWPFのレンダリングループごと落ちる。実際に
+    /// <c>ITextUndoHistory.LastUndoTransaction</c>が<see cref="NotSupportedException"/>を投げて
+    /// Ctrl+Zのたびにその形で落ちた。VS SDKの想定外はログに残して<b>そのキーが何もしなかった</b>
+    /// 扱いに留め、描画とナビゲーションは生かし続ける。
+    /// </summary>
+    private static void Raise(Action?Handler){
+        try {
+            Handler?.Invoke();
+        } catch(Exception Ex){
+            ActivityLog.LogError(nameof(SceneHwndHost),Ex.ToString());
+        }
     }
 
     private void TickFlyIfNeeded(EventArgs Args){

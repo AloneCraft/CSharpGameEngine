@@ -118,20 +118,16 @@ internal sealed class SceneTextBufferWriter {
     }
 
     /// <summary>
-    /// M0051 Step 1-5: 次にUndoされるトランザクションの説明文(履歴が空ならnull)。
-    /// 保存後のCtrl+Zをテキストへ委譲してよいかを
-    /// <see cref="SceneTextUndoDelegationPolicy.ShouldDelegate"/>が判定するために使う —
-    /// 同じ履歴にはユーザーがコードエディタで手打ちした編集も積まれており、
-    /// 区別せず委譲するとデザイナー由来でない編集まで巻き戻してしまう。
+    /// M0051 Step 1-5(実機修正): バッファの版番号。単調増加するので、自分の書き込み直後に記録した値と
+    /// 現在値が一致することが「以降だれもバッファを触っていない」ことの証明になる
+    /// (<see cref="SceneTextUndoLedgerPolicy"/>)。
+    ///
+    /// <para>
+    /// 当初はここで<c>ITextUndoHistory.LastUndoTransaction.Description</c>を読んで所有を判定して
+    /// いたが、VSの実装(<c>VsUndoHistory</c>)は<c>LastUndoTransaction</c>/<c>UndoStack</c>等を
+    /// 実装しておらず<see cref="System.NotSupportedException"/>を投げる。このシムで使えるのは
+    /// <c>CanUndo</c>/<c>CanRedo</c>/<c>Undo(n)</c>/<c>Redo(n)</c>/<c>CreateTransaction</c>だけ。
+    /// </para>
     /// </summary>
-    internal string?GetLastUndoDescription(ITextBuffer Buffer){
-        ITextUndoHistory History=this.UndoHistoryRegistry.RegisterHistory(Buffer);
-        return History.CanUndo?History.LastUndoTransaction?.Description:null;
-    }
-
-    /// <summary>次にRedoされるトランザクションの説明文(履歴が空ならnull)。</summary>
-    internal string?GetLastRedoDescription(ITextBuffer Buffer){
-        ITextUndoHistory History=this.UndoHistoryRegistry.RegisterHistory(Buffer);
-        return History.CanRedo?History.LastRedoTransaction?.Description:null;
-    }
+    internal static int GetVersionNumber(ITextBuffer Buffer)=>Buffer.CurrentSnapshot.Version.VersionNumber;
 }

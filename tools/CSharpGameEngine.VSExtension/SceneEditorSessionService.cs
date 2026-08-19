@@ -29,6 +29,13 @@ internal sealed class SceneEditorSessionService : IDisposable {
     private readonly Dictionary<SceneKey,SceneEditDocument>Documents=[];
     private readonly Dictionary<SceneKey,SceneProjection>LastPublishedProjections=[];
     private readonly HashSet<SceneKey>SavesInFlight=[];
+
+    /// <summary>
+    /// M0051 Step 1-5: 保存がテキストUndo履歴へ積んだトランザクションの残数と、自分が最後に触った
+    /// 直後のバッファ版番号(<see cref="SceneTextUndoLedgerPolicy"/>)。委譲Undoが
+    /// ユーザーの手打ち編集まで巻き戻さないための所有判定に使う。
+    /// </summary>
+    private readonly Dictionary<SceneKey,SceneTextUndoLedgerEntry>TextUndoLedger=[];
     private long Generation;
     private bool Disposed;
 
@@ -247,14 +254,25 @@ internal sealed class SceneEditorSessionService : IDisposable {
             return false;
         }
 
-        string?Description=Redo
-            ?this.Workspace.GetLastRedoDescription(FilePath)
-            :this.Workspace.GetLastUndoDescription(FilePath);
-        if(!SceneTextUndoDelegationPolicy.ShouldDelegate(Description)){
+        if(!this.Workspace.TryGetBufferVersion(FilePath,out int CurrentVersion)){
             return false;
         }
 
-        return Redo?this.Workspace.TryRedo(FilePath):this.Workspace.TryUndo(FilePath);
+        this.TextUndoLedger.TryGetValue(Key,out SceneTextUndoLedgerEntry Entry);
+        bool Allowed=Redo
+            ?SceneTextUndoLedgerPolicy.CanDelegateRedo(Entry,CurrentVersion)
+            :SceneTextUndoLedgerPolicy.CanDelegateUndo(Entry,CurrentVersion);
+        if(!Allowed||!(Redo?this.Workspace.TryRedo(FilePath):this.Workspace.TryUndo(FilePath))){
+            return false;
+        }
+
+        // Undo/Redoでバッファが変わるので版番号を取り直して台帳を進める。取り直せなければ
+        // 以降の委譲を止める(版が合わなくなるので自然にCanDelegate*がfalseになる)。
+        this.Workspace.TryGetBufferVersion(FilePath,out int VersionAfter);
+        this.TextUndoLedger[Key]=Redo
+            ?SceneTextUndoLedgerPolicy.AfterRedo(Entry,VersionAfter)
+            :SceneTextUndoLedgerPolicy.AfterUndo(Entry,VersionAfter);
+        return true;
     }
 
     /// <summary>
@@ -358,6 +376,13 @@ internal sealed class SceneEditorSessionService : IDisposable {
             }
 
             Document.MarkSaved();
+
+            // M0051 Step 1-5: 保存後のCtrl+Zはここで積んだトランザクションへ委譲する。何件積んだかと
+            // 積んだ直後のバッファ版番号を控えておき、以降ユーザーがコードエディタで手打ちしたら
+            // (版番号が進むので)委譲を止める。
+            this.TextUndoLedger.TryGetValue(Key,out SceneTextUndoLedgerEntry PreviousLedger);
+            this.TextUndoLedger[Key]=SceneTextUndoLedgerPolicy.AfterWrite(
+                PreviousLedger,Written.VersionBeforeWrite,Written.VersionAfterWrite,Written.AppliedUnitCount);
 
             // M0051 Step 1-4: ここまではlive bufferへの反映(タブに*が付く)だけで、ファイルは
             // 保存されていなかった。Ctrl+S一回でディスクまで完了させる(実機報告への対応)。

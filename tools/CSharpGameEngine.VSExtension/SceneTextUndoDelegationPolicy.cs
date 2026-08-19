@@ -26,10 +26,20 @@ internal enum SceneUndoRoute {
 /// </para>
 ///
 /// <para>
-/// <b>委譲先を誤らないための説明文判定</b>: テキストUndo履歴には<b>ユーザーがコードエディタで手打ちした
+/// <b>委譲先を誤らないための所有判定</b>: テキストUndo履歴には<b>ユーザーがコードエディタで手打ちした
 /// 編集</b>も同じスタックに積まれている。無条件に委譲すると、Ctrl+Zを押し続けたときデザイナー由来でない
-/// 編集まで巻き戻す。<see cref="SceneUndoTransactionNaming.IsSceneTransaction"/>で
-/// 自分が積んだトランザクションであることを確かめてからだけ委譲する。
+/// 編集まで巻き戻す。ここ(<see cref="Decide"/>)が決めるのは<b>行き先だけ</b>で、実際に降りてよいかは
+/// <see cref="SceneTextUndoLedgerPolicy"/>が「自分が積んだ単位がまだ残っているか」と
+/// 「自分の最後の操作以降だれもバッファを触っていないか」で判定する。
+/// </para>
+///
+/// <para>
+/// <b>当初は説明文で判定していたが実機で不可能と判明した。</b>
+/// <c>ITextUndoHistory.LastUndoTransaction.Description</c>を読む設計だったが、VSの実装
+/// (<c>Microsoft.VisualStudio.Editor.Implementation.Undo.VsUndoHistory</c>)は
+/// <c>LastUndoTransaction</c>/<c>LastRedoTransaction</c>/<c>UndoStack</c>/<c>RedoStack</c>を
+/// 実装しておらず<see cref="System.NotSupportedException"/>を投げ、Ctrl+Zのたびに
+/// <c>CompositionTarget.Rendering</c>のハンドラごと落ちていた。
 /// </para>
 ///
 /// <para>
@@ -38,9 +48,9 @@ internal enum SceneUndoRoute {
 /// (<c>Docs/Conformance.md</c>: ツールウィンドウがフォーカスを持つとツールバーの履歴ドロップダウンが空になり、
 /// コードエディタのCtrl+Zが効かなくなる)は、<b>デザイナー面にフォーカスがある間はVSのEdit.Undoが不活性</b>で
 /// あることを示している。委譲はデザイナー面にフォーカスがあるときにしか起きないので、二重発火の条件が揃わない。
-/// 仮に実機で二重発火が観測されても、上記の説明文判定により2回目は「自分のものでない」として止まるため
-/// 被害は1段に留まる。ここで<c>ITextUndoHistory</c>の深さをフレーム跨ぎで監視して補償する案は、
-/// 「起きるか不明のバグ」を「タイミング依存で再現しないバグ」に変換するだけなので採らない。
+/// 仮に実機で二重発火が観測されても、上記の台帳判定(2回目は版番号が食い違う)により止まるため
+/// 被害は1段に留まる。なお検討して見送った「<c>UndoStack</c>の深さをフレーム跨ぎで監視して補償する」
+/// 案は、<c>VsUndoHistory</c>が<c>UndoStack</c>を実装していないため<b>そもそも実現不可能だった</b>。
 /// </para>
 /// </summary>
 internal static class SceneTextUndoDelegationPolicy {
@@ -58,12 +68,4 @@ internal static class SceneTextUndoDelegationPolicy {
 
         return CanUndoInMemory?SceneUndoRoute.InMemory:SceneUndoRoute.DelegateToText;
     }
-
-    /// <summary>
-    /// <paramref name="LastTransactionDescription"/>は委譲先バッファの
-    /// <c>ITextUndoHistory.LastUndoTransaction?.Description</c>(Redo側なら<c>LastRedoTransaction</c>)。
-    /// 履歴が空ならnullが渡り、その場合は委譲しない。
-    /// </summary>
-    internal static bool ShouldDelegate(string?LastTransactionDescription)=>
-        SceneUndoTransactionNaming.IsSceneTransaction(LastTransactionDescription);
 }
