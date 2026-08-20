@@ -289,13 +289,23 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             return;
         }
 
-        bool Navigated=await DefinitionNavigationService.NavigateAsync(
+        DefinitionNavigationTarget? Target=await DefinitionNavigationService.ResolveAsync(
             Result.Symbol,Result.Compilation,Request.MemberName,this.DisposalToken);
-        if(!Navigated){
+        if(Target is null){
             ActivityLog.LogWarning(nameof(CSharpGameEngineViewerPackage),
                 "Definition source was not found: "+Request.ComponentTypeFullyQualifiedName
                 +(Request.MemberName is { Length:>0 }Member?"."+Member:string.Empty));
             await this.JoinableTaskFactory.SwitchToMainThreadAsync(this.DisposalToken);
+            SetStatusBarText("定義のソースを開けません: "+Request.ComponentTypeFullyQualifiedName);
+            return;
+        }
+
+        await this.JoinableTaskFactory.SwitchToMainThreadAsync(this.DisposalToken);
+        bool Navigated=this.SourceMarkerService?.NavigateAndMark(Target)==true;
+        if(!Navigated){
+            ActivityLog.LogWarning(nameof(CSharpGameEngineViewerPackage),
+                "Definition source was not found: "+Request.ComponentTypeFullyQualifiedName
+                +(Request.MemberName is { Length:>0 }Member?"."+Member:string.Empty));
             SetStatusBarText("定義のソースを開けません: "+Request.ComponentTypeFullyQualifiedName);
         }
     }

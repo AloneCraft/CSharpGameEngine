@@ -4,6 +4,7 @@ using System.ComponentModel.Composition;
 using System.IO;
 using System.Runtime.InteropServices;
 using CSharpGameEngine.SceneAnalysis;
+using Microsoft.CodeAnalysis.Text;
 using EnvDTE;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.ComponentModelHost;
@@ -22,9 +23,9 @@ using VsTextBuffer=Microsoft.VisualStudio.TextManager.Interop.IVsTextBuffer;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Applies source markers through Visual Studio's built-in text-marker tagger. It intentionally
-/// never opens or activates a document while updating: Hierarchy must remain usable for
-/// consecutive selection changes.
+/// Applies source markers through Visual Studio's built-in text-marker tagger. Hierarchy updates
+/// decorate already-open scene documents without activating them; explicit definition navigation
+/// opens its target document and decorates the requested declaration without selecting its text.
 /// </summary>
 internal sealed class SceneSourceMarkerService : IDisposable {
     private readonly IVsRunningDocumentTable RunningDocumentTable;
@@ -136,6 +137,47 @@ internal sealed class SceneSourceMarkerService : IDisposable {
         }
     }
 
+    /// <summary>
+    /// Opens a Component definition and decorates its complete declaration without changing the
+    /// editor selection. Member definitions receive their member declaration; types receive the
+    /// whole type declaration.
+    /// </summary>
+    internal bool NavigateAndMark(DefinitionNavigationTarget Target){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(this.Disposed
+            ||Package.GetGlobalService(typeof(SDTE))is not DTE Dte){
+            return false;
+        }
+
+        try {
+            Dte.ItemOperations.OpenFile(Target.FilePath);
+        } catch(COMException) {
+            return false;
+        } catch(InvalidOperationException) {
+            return false;
+        }
+
+        if(!this.TryGetOpenBuffer(Target.FilePath,out var Buffer,out var NativeBuffer)
+            ||Buffer is null){
+            return false;
+        }
+        if(!ReferenceEquals(this.MarkedBuffer,Buffer)){
+            this.Clear();
+            this.MarkedBuffer=Buffer;
+        }
+
+        var Span=Target.Span;
+        if(Span.Start<0||Span.End>Buffer.CurrentSnapshot.Length){
+            LogWarning($"Skipped an out-of-date Component definition marker range ({Span.Start}, {Span.Length}).");
+            return false;
+        }
+
+        this.ReplaceOwnedTagSpans(Buffer,[new SceneSourceMarkerRange(Span)]);
+        if(NativeBuffer is not null){
+            this.ScrollToTop(NativeBuffer,Span.Start);
+        }
+        return this.OwnedTagSpans.Count>0;
+    }
     internal void Navigate(SceneModel? Model,NodePath Path){
         ThreadHelper.ThrowIfNotOnUIThread();
         if(this.Disposed||Model is null||!this.TryGetOpenBuffer(Model.FilePath,out var FoundBuffer,out _)
