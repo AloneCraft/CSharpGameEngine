@@ -34,6 +34,28 @@ internal sealed record HierarchyEditRequest(
     NodePath?TargetPath=null,
     int TargetIndex=-1,
     string?NewName=null);
+
+/// <summary>
+/// M0052: Componentの追加要求。<see cref="HierarchyEditRequest"/>へ相乗りさせないのは、あれが
+/// <see cref="NodePath"/>の列しか運べず、追加する<b>Component型</b>を伝えられないため。
+///
+/// <para>
+/// 対象の指し方が発生源で違う(Hierarchyは<see cref="NodePath"/>、Inspectorとパレットは
+/// <see cref="EditorNodeId"/>)ので両方を受け取り、Package境界の1か所で解決する。
+/// どちらもnullなら現在の選択が対象になる。
+/// </para>
+/// </summary>
+internal sealed record ComponentAddRequest(
+    string ComponentTypeFullyQualifiedName,
+    string ComponentExpression,
+    NodePath?TargetPath=null,
+    EditorNodeId?TargetNodeId=null);
+
+/// <summary>
+/// M0052: 追加が成功したComponentをInspectorで展開して見せる要求。追加を適用したPackage境界が
+/// 発行し、Inspectorが受け取る(<see cref="InspectorRevealPolicy"/>)。
+/// </summary>
+internal sealed record ComponentRevealRequest(EditorNodeId NodeId,string ComponentTypeFullyQualifiedName);
 internal static class SceneEditorHub {
     /// <summary>Raised whenever the analysed scene changes - including to null, when the active document declares none.</summary>
     public static event Action<SceneModel?>?SceneModelChanged;
@@ -43,9 +65,17 @@ internal static class SceneEditorHub {
     public static event Action<HierarchyNodeSelection>?HierarchySelectionChanged;
     public static event Action<NodePath>?HierarchyNavigationRequested;
     public static event Action<HierarchyEditRequest>?HierarchyEditRequested;
+    public static event Action<ComponentAddRequest>?ComponentAddRequested;
+    public static event Action<ComponentRevealRequest>?ComponentRevealRequested;
 
     internal static void RequestHierarchyEdit(HierarchyEditRequest Request)=>
         HierarchyEditRequested?.Invoke(Request);
+
+    internal static void RequestComponentAdd(ComponentAddRequest Request)=>
+        ComponentAddRequested?.Invoke(Request);
+
+    internal static void RequestComponentReveal(ComponentRevealRequest Request)=>
+        ComponentRevealRequested?.Invoke(Request);
 
     public static SceneModel?ActiveSceneModel { get;private set;}
 
@@ -92,7 +122,7 @@ internal static class SceneEditorHub {
 
     internal static bool AnyAuxiliarySurfaceHasFocus{
         get{
-            foreach(System.Collections.Generic.KeyValuePair<string,bool>Entry in SurfaceFocus){
+            foreach(var Entry in SurfaceFocus){
                 if(Entry.Value){
                     return true;
                 }

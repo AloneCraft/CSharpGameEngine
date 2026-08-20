@@ -21,9 +21,9 @@ public readonly struct XyzVector:IEquatable<XyzVector>{
 
     public static readonly XyzVector Zero=new(0f,0f,0f);
 
-    public float LengthSquared=>(X*X)+(Y*Y)+(Z*Z);
+    public float LengthSquared=>(this.X* this.X)+(this.Y* this.Y)+(this.Z* this.Z);
 
-    public float Length=>MathF.Sqrt(LengthSquared);
+    public float Length=>MathF.Sqrt(this.LengthSquared);
 
     public static XyzVector operator+(XyzVector Left,XyzVector Right)=>new(Left.X+Right.X,Left.Y+Right.Y,Left.Z+Right.Z);
 
@@ -66,15 +66,15 @@ public readonly struct XyzVector:IEquatable<XyzVector>{
 
     public static explicit operator XyzVector(Vector3 Value)=>new(Value.X,Value.Y,Value.Z);
 
-    public bool Equals(XyzVector Other)=>X.Equals(Other.X)&&Y.Equals(Other.Y)&&Z.Equals(Other.Z);
+    public bool Equals(XyzVector Other)=> this.X.Equals(Other.X)&& this.Y.Equals(Other.Y)&& this.Z.Equals(Other.Z);
 
-    public override bool Equals(object?Obj)=>Obj is XyzVector Other&&Equals(Other);
+    public override bool Equals(object?Obj)=>Obj is XyzVector Other&& this.Equals(Other);
 
-    public override int GetHashCode()=>HashCode.Combine(X,Y,Z);
+    public override int GetHashCode()=>HashCode.Combine(this.X, this.Y, this.Z);
 
     public static bool operator==(XyzVector Left,XyzVector Right)=>Left.Equals(Right);
 
     public static bool operator!=(XyzVector Left,XyzVector Right)=>!Left.Equals(Right);
 
-    public override string ToString()=>FormattableString.Invariant($"Xyz({X}, {Y}, {Z})");
+    public override string ToString()=>FormattableString.Invariant($"Xyz({this.X}, {this.Y}, {this.Z})");
 }

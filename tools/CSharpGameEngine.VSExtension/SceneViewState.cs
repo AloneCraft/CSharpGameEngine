@@ -117,31 +117,29 @@ internal sealed class SceneViewState {
     /// <summary>呼び出しはHwndHostのライフサイクルコールバック内、つまり構造的にUIスレッド保証がある。</summary>
     internal void SaveToSettings(){
         ThreadHelper.ThrowIfNotOnUIThread();
-        SceneEditorSettings.WriteTransformSpace(TransformSpace);
-        SceneEditorSettings.WriteProjectionMode(ProjectionMode);
-        SceneEditorSettings.WriteNavigationPreset(NavigationPreset);
-        SceneEditorSettings.WriteNavigationSpeedMultiplier(NavigationSpeedMultiplier);
-        SceneEditorSettings.WriteInvertLookX(InvertLookX);
-        SceneEditorSettings.WriteInvertLookY(InvertLookY);
-        SceneEditorSettings.WriteInvertOrbitX(InvertOrbitX);
-        SceneEditorSettings.WriteInvertOrbitY(InvertOrbitY);
+        SceneEditorSettings.WriteTransformSpace(this.TransformSpace);
+        SceneEditorSettings.WriteProjectionMode(this.ProjectionMode);
+        SceneEditorSettings.WriteNavigationPreset(this.NavigationPreset);
+        SceneEditorSettings.WriteNavigationSpeedMultiplier(this.NavigationSpeedMultiplier);
+        SceneEditorSettings.WriteInvertLookX(this.InvertLookX);
+        SceneEditorSettings.WriteInvertLookY(this.InvertLookY);
+        SceneEditorSettings.WriteInvertOrbitX(this.InvertOrbitX);
+        SceneEditorSettings.WriteInvertOrbitY(this.InvertOrbitY);
     }
 
-    internal Vector3 GetEyePosition()=>SceneViewCamera.GetEyePosition(FocusPosition,Yaw,Pitch,FocusDistance);
+    internal Vector3 GetEyePosition()=>SceneViewCamera.GetEyePosition(this.FocusPosition, this.Yaw, this.Pitch, this.FocusDistance);
 
-    internal Matrix4x4 GetView()=>SceneViewCamera.GetView(FocusPosition,Yaw,Pitch,FocusDistance);
+    internal Matrix4x4 GetView()=>SceneViewCamera.GetView(this.FocusPosition, this.Yaw, this.Pitch, this.FocusDistance);
 
     internal Matrix4x4 GetProjection(float AspectRatio){
-        float SafeAspect=Math.Max(AspectRatio,0.001f);
-        float Far=Math.Max(
-            Math.Max(FocusDistance*FarDistanceFactor,LastKnownBoundsRadius*FarPlaneRadiusFactor),
-            SceneCameraFraming.BaseNearPlane*2f);
+        var SafeAspect=Math.Max(AspectRatio,0.001f);
+        var Far=Math.Max(
+                         Math.Max(this.FocusDistance*FarDistanceFactor, this.LastKnownBoundsRadius*FarPlaneRadiusFactor),
+                         SceneCameraFraming.BaseNearPlane*2f);
         // 正射投影の深度は線形なので比率調整は要らない。透視だけ far 連動の near にする。
-        return ProjectionMode==SceneProjectionMode.Orthographic
-            ?Matrix4x4.CreateOrthographic(
-                OrthographicSize*2f*SafeAspect,OrthographicSize*2f,SceneCameraFraming.BaseNearPlane,Far)
-            :SceneViewCamera.GetProjection(
-                FovYRadians,SafeAspect,SceneCameraFraming.ComputeNearPlane(Far),Far);
+        return this.ProjectionMode==SceneProjectionMode.Orthographic
+            ?Matrix4x4.CreateOrthographic(this.OrthographicSize*2f*SafeAspect, this.OrthographicSize*2f,SceneCameraFraming.BaseNearPlane,Far)
+            :SceneViewCamera.GetProjection(this.FovYRadians,SafeAspect,SceneCameraFraming.ComputeNearPlane(Far),Far);
     }
 
     /// <summary>
@@ -152,16 +150,16 @@ internal sealed class SceneViewState {
     /// </summary>
     internal void ResetToBounds(
         Vector3 BoundsCenter,float BoundsRadius,Vector3 ViewDirection,float FovYRadians,float AspectRatio){
-        FocusPosition=BoundsCenter;
-        FocusDistance=SceneCameraFraming.ComputeDistance(BoundsRadius,FovYRadians,AspectRatio);
+        this.FocusPosition=BoundsCenter;
+        this.FocusDistance=SceneCameraFraming.ComputeDistance(BoundsRadius,FovYRadians,AspectRatio);
         this.FovYRadians=FovYRadians;
-        OrthographicSize=BoundsRadius;
-        LastKnownBoundsRadius=BoundsRadius;
+        this.OrthographicSize=BoundsRadius;
+        this.LastKnownBoundsRadius=BoundsRadius;
 
         // Camera.CreateBoundsFitと同じ符号関係(Forward = -ViewDirection)。
-        Vector3 Forward=-ViewDirection;
-        Yaw=(float)Math.Atan2(Forward.X,Forward.Z);
-        Pitch=(float)Math.Asin(Clamp(Forward.Y,-1f,1f));
+        var Forward=-ViewDirection;
+        this.Yaw=(float)Math.Atan2(Forward.X,Forward.Z);
+        this.Pitch=(float)Math.Asin(Clamp(Forward.Y,-1f,1f));
     }
 
     /// <summary>
@@ -172,10 +170,10 @@ internal sealed class SceneViewState {
     /// 窮屈な余白を緩める(実機検証で発見 — 詳細は同定数のコメント参照)。
     /// </summary>
     internal void FocusOnBounds(Vector3 BoundsCenter,float BoundsRadius,float AspectRatio){
-        FocusPosition=BoundsCenter;
-        FocusDistance=
-            SceneCameraFraming.ComputeDistance(BoundsRadius,FovYRadians,AspectRatio)*FocusSelectionExtraMargin;
-        OrthographicSize=BoundsRadius;
+        this.FocusPosition=BoundsCenter;
+        this.FocusDistance=
+            SceneCameraFraming.ComputeDistance(BoundsRadius, this.FovYRadians,AspectRatio)*FocusSelectionExtraMargin;
+        this.OrthographicSize=BoundsRadius;
     }
 
     /// <summary>
@@ -184,15 +182,14 @@ internal sealed class SceneViewState {
     /// </summary>
     internal void TickFly(
         IReadOnlyCollection<NavigationKey>HeldKeys,float DeltaX,float DeltaY,float DeltaTime,bool Shift,bool Ctrl){
-        Vector3 Eye=GetEyePosition(); // 更新前のYaw/Pitch/FocusPosition/FocusDistanceから導出
+        var Eye= this.GetEyePosition(); // 更新前のYaw/Pitch/FocusPosition/FocusDistanceから導出
 
         // 実機検証(M0020 Phase 1): Pitch(上下)の既定挙動が仕様と逆だったため、Orbit(ApplyOrbit、
         // こちらは実機確認済みで正しい)と共有する ApplyLookDelta 自体は変えず、Fly/Look側の
         // DeltaYだけ符号反転して渡す。InvertLookYはこの訂正後の既定に対する追加反転として機能する。
-        (Yaw,Pitch)=SceneViewCamera.ApplyLookDelta(
-            Yaw,Pitch,DeltaX,-DeltaY,LookSensitivity,LookSensitivity,InvertLookX,InvertLookY);
+        (this.Yaw, this.Pitch)=SceneViewCamera.ApplyLookDelta(this.Yaw, this.Pitch,DeltaX,-DeltaY,LookSensitivity,LookSensitivity, this.InvertLookX, this.InvertLookY);
 
-        ApplyFlyMovement(HeldKeys,Eye,DeltaTime,Shift,Ctrl);
+        this.ApplyFlyMovement(HeldKeys,Eye,DeltaTime,Shift,Ctrl);
     }
 
     /// <summary>
@@ -203,7 +200,7 @@ internal sealed class SceneViewState {
     /// </summary>
     internal void TickFlyMovementOnly(
         IReadOnlyCollection<NavigationKey>HeldKeys,float DeltaTime,bool Shift,bool Ctrl)=>
-        ApplyFlyMovement(HeldKeys,GetEyePosition(),DeltaTime,Shift,Ctrl);
+        this.ApplyFlyMovement(HeldKeys, this.GetEyePosition(),DeltaTime,Shift,Ctrl);
 
     /// <summary>
     /// <see cref="TickFly"/>と<see cref="TickFlyMovementOnly"/>で共有するWASDQE移動本体。
@@ -212,9 +209,9 @@ internal sealed class SceneViewState {
     /// </summary>
     private void ApplyFlyMovement(
         IReadOnlyCollection<NavigationKey>HeldKeys,Vector3 Eye,float DeltaTime,bool Shift,bool Ctrl){
-        Vector3 MoveDirection=Vector3.Zero;
-        Vector3 Forward=SceneViewCamera.GetForward(Yaw,Pitch); // 更新後のYaw/Pitch
-        Vector3 FlatRight=SceneViewCamera.GetFlatRight(Yaw);
+        var MoveDirection=Vector3.Zero;
+        var Forward=SceneViewCamera.GetForward(this.Yaw, this.Pitch); // 更新後のYaw/Pitch
+        var FlatRight=SceneViewCamera.GetFlatRight(this.Yaw);
         if(HeldKeys.Contains(NavigationKey.W)){ MoveDirection+=Forward; }
         if(HeldKeys.Contains(NavigationKey.S)){ MoveDirection-=Forward; }
         // 実機検証(M0020 Phase 2): A/Dの左右が逆だったため符号を訂正。
@@ -229,12 +226,12 @@ internal sealed class SceneViewState {
         if(HeldKeys.Contains(NavigationKey.Q)){ MoveDirection-=Vector3.UnitY; }
 
         if(MoveDirection!=Vector3.Zero){
-            float Speed=FocusDistance*FlySpeedPerFocusDistance*NavigationSpeedMultiplier
-                *(Shift?FastNavigationMultiplier:1f)*(Ctrl?PrecisionNavigationMultiplier:1f);
+            var Speed= this.FocusDistance*FlySpeedPerFocusDistance* this.NavigationSpeedMultiplier
+                     *(Shift?FastNavigationMultiplier:1f)*(Ctrl?PrecisionNavigationMultiplier:1f);
             Eye+=Vector3.Normalize(MoveDirection)*Speed*DeltaTime;
         }
 
-        FocusPosition=Eye+Forward*FocusDistance; // Eyeから再導出
+        this.FocusPosition=Eye+Forward* this.FocusDistance; // Eyeから再導出
     }
 
     /// <summary>
@@ -246,12 +243,11 @@ internal sealed class SceneViewState {
     /// 従来の<see cref="TickFly"/>を使い続ける — 反転しながらの完全一致は定義上不可能なため)。
     /// </summary>
     internal void ApplyLookPixelLock(Vector3 AnchorWorldDirection,Vector3 CurrentLocalAxes)=>
-        (Yaw,Pitch)=SceneViewCamera.SolveLookOrientation(CurrentLocalAxes,AnchorWorldDirection,Yaw,Pitch);
+        (this.Yaw, this.Pitch)=SceneViewCamera.SolveLookOrientation(CurrentLocalAxes,AnchorWorldDirection, this.Yaw, this.Pitch);
 
     /// <summary>FocusPositionは変更しない。EyeはGetEyePosition()が自動的に再導出する。</summary>
     internal void ApplyOrbit(float DeltaX,float DeltaY)=>
-        (Yaw,Pitch)=SceneViewCamera.ApplyLookDelta(
-            Yaw,Pitch,DeltaX,DeltaY,OrbitSensitivity,OrbitSensitivity,InvertOrbitX,InvertOrbitY);
+        (this.Yaw, this.Pitch)=SceneViewCamera.ApplyLookDelta(this.Yaw, this.Pitch,DeltaX,DeltaY,OrbitSensitivity,OrbitSensitivity, this.InvertOrbitX, this.InvertOrbitY);
 
     /// <summary>
     /// Alt+LMBドラッグのピクセル完全一致(M0020追加、ベストエフォート)。<paramref name="AnchorWorldPoint"/>
@@ -267,13 +263,12 @@ internal sealed class SceneViewState {
     internal void ApplyOrbitPixelLock(
         Vector3 AnchorWorldPoint,float TargetScreenX,float TargetScreenY,
         float ViewportWidth,float ViewportHeight,float AspectRatio){
-        Matrix4x4 Projection=GetProjection(AspectRatio);
-        SceneViewCamera.TrySolveOrbitYawPitch(
-            FocusPosition,FocusDistance,Projection,AnchorWorldPoint,
-            TargetScreenX,TargetScreenY,ViewportWidth,ViewportHeight,Yaw,Pitch,
-            out float NewYaw,out float NewPitch);
-        Yaw=NewYaw;
-        Pitch=NewPitch;
+        var Projection= this.GetProjection(AspectRatio);
+        SceneViewCamera.TrySolveOrbitYawPitch(this.FocusPosition, this.FocusDistance,Projection,AnchorWorldPoint,
+            TargetScreenX,TargetScreenY,ViewportWidth,ViewportHeight, this.Yaw, this.Pitch,
+            out var NewYaw,out var NewPitch);
+        this.Yaw=NewYaw;
+        this.Pitch=NewPitch;
     }
 
     /// <summary>
@@ -281,9 +276,9 @@ internal sealed class SceneViewState {
     /// (design doc §2「視線方向を変えず画面平面上を移動」)。
     /// </summary>
     internal void ApplyPan(float DeltaX,float DeltaY){
-        Vector3 Right=SceneViewCamera.GetFlatRight(Yaw);
-        Vector3 Up=SceneViewCamera.GetUp(Yaw,Pitch);
-        float Scale=FocusDistance*PanSensitivityPerFocusDistance;
+        var Right=SceneViewCamera.GetFlatRight(this.Yaw);
+        var Up=SceneViewCamera.GetUp(this.Yaw, this.Pitch);
+        var Scale= this.FocusDistance*PanSensitivityPerFocusDistance;
         // 実機検証(M0020 Phase 1): 左右(X)の既定挙動が仕様と逆だったため符号を訂正(上下Yは確認済み)。
         //
         // Xに反転が必要な理由(2026-08、Phase 2の実機検証で確定): 描画は右手系の行列を使うため
@@ -291,19 +286,16 @@ internal sealed class SceneViewState {
         // 「行列を左手系に直せばこの反転は不要になる」と考えて一度実際にやったが、ゲーム本体も
         // 同じ右手系なのでシーンデザイナーだけがゲームと左右反転してしまい差し戻した。
         // つまりこの反転は対症療法ではなく、エンジンの規約に対する正しい変換である。
-        FocusPosition+=((DeltaX*Right)+(DeltaY*Up))*Scale;
+        this.FocusPosition+=((DeltaX*Right)+(DeltaY*Up))*Scale;
     }
 
-    internal void ApplyDolly(int WheelNotches)=>
-        FocusDistance=Math.Max(FocusDistance*(float)Math.Pow(DollyNotchFactor,WheelNotches),MinFocusDistance);
+    internal void ApplyDolly(int WheelNotches)=> this.FocusDistance=Math.Max(this.FocusDistance*(float)Math.Pow(DollyNotchFactor,WheelNotches),MinFocusDistance);
 
-    internal void ApplyZoom(int WheelNotches)=>
-        OrthographicSize=Math.Max(OrthographicSize*(float)Math.Pow(DollyNotchFactor,WheelNotches),MinFocusDistance);
+    internal void ApplyZoom(int WheelNotches)=> this.OrthographicSize=Math.Max(this.OrthographicSize*(float)Math.Pow(DollyNotchFactor,WheelNotches),MinFocusDistance);
 
     internal void ApplyNavigationSpeedAdjust(int WheelNotches)=>
-        NavigationSpeedMultiplier=Clamp(
-            NavigationSpeedMultiplier*(float)Math.Pow(SpeedAdjustNotchFactor,WheelNotches),
-            MinNavigationSpeedMultiplier,MaxNavigationSpeedMultiplier);
+        this.NavigationSpeedMultiplier=Clamp(this.NavigationSpeedMultiplier*(float)Math.Pow(SpeedAdjustNotchFactor,WheelNotches),
+                                             MinNavigationSpeedMultiplier,MaxNavigationSpeedMultiplier);
 
     // net472にMath.Clampが無いための自前実装(Camera.cs移植時の定番の落とし穴)。
     private static float Clamp(float Value,float Min,float Max)=>Math.Min(Math.Max(Value,Min),Max);

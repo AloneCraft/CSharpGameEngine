@@ -47,7 +47,7 @@ internal sealed class SceneComponent {
     internal SceneSourceLocation Location { get;}
 
     internal SceneComponentMember?FindMember(string MemberName){
-        foreach(SceneComponentMember Member in this.Members){
+        foreach(var Member in this.Members){
             if(string.Equals(Member.MemberName,MemberName,StringComparison.Ordinal)){
                 return Member;
             }

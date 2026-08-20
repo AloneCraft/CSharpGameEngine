@@ -186,6 +186,21 @@ internal static class SceneDslDiagnostics {
     /// <c>SceneDslAnalyzer.SupportedDiagnostics</c>が返す全ルール。ここに追加し忘れると
     /// 「報告したのにIDEへ出ない」という追跡困難な状態になるため、descriptorの定義と同じファイルに置く。
     /// </summary>
+    /// <summary>
+    /// <c>IRuntimeComponent</c>を実装するComponentは、エンジンが実行時に値を埋めるためのもので、
+    /// 随伴先の作者Componentを宣言すればSource Generatorが自動的に付与する
+    /// (<c>SceneInstantiateEmitter.BuildEffectiveComponents</c>)。作者が明示すると重複するため弾く。
+    /// <see cref="ReservedComponentType"/>(SCENE115)と趣旨は同じだが、あちらは
+    /// <c>Parent</c>/<c>SceneNodeTag</c>の閉じた2件専用で、随伴先を名指しできない。
+    /// </summary>
+    internal static readonly DiagnosticDescriptor RuntimeComponentType=new(
+        id:"SCENE119",
+        title:"Runtime component types must not be declared explicitly",
+        messageFormat:"'{0}' is filled in by the engine at run time and is attached automatically; declare '{1}' instead",
+        category:Category,
+        defaultSeverity:DiagnosticSeverity.Error,
+        isEnabledByDefault:true);
+
     internal static readonly DiagnosticDescriptor[]All=[
         SceneMustBeNonGenericPartialClass,
         RootPropertyMustBeExpressionBodied,
@@ -206,5 +221,6 @@ internal static class SceneDslDiagnostics {
         SceneMustNotBeNested,
         StartupSceneMustImplementIScene,
         DuplicateStartupSceneOrder,
+        RuntimeComponentType,
     ];
 }

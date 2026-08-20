@@ -42,28 +42,28 @@ public sealed class SceneProjectionIdentityTests {
     [Fact]
     public void DocumentBasis_PreservesIdsForNodesAddedDuringTheSession(){
         SceneProjectionReconciler Reconciler=new();
-        SceneProjection Before=Reconciler.Reconcile(Key,Analyze("""
-            new Node { Name="Alpha" },
-            new Node { Name="Beta" },
-            """),Previous:null);
+        var Before=Reconciler.Reconcile(Key,Analyze("""
+                                                    new Node { Name="Alpha" },
+                                                    new Node { Name="Beta" },
+                                                    """),Previous:null);
 
         // 「Gamma を追加して保存した」あとの実解析に相当する。
-        SceneProjection After=Reconciler.Reconcile(Key,Analyze("""
-            new Node { Name="Alpha" },
-            new Node { Name="Beta" },
-            new Node { Name="Gamma" },
-            """),Previous:Before);
+        var After=Reconciler.Reconcile(Key,Analyze("""
+                                                   new Node { Name="Alpha" },
+                                                   new Node { Name="Beta" },
+                                                   new Node { Name="Gamma" },
+                                                   """),Previous:Before);
 
         Assert.Equal(IdOf(Before,"Alpha"),IdOf(After,"Alpha"));
         Assert.Equal(IdOf(Before,"Beta"),IdOf(After,"Beta"));
 
         // 追加ノードは引き継ぎ元に居ないので新IDになる。だからこそ、着地時の引き継ぎ元を
         // Document の投影にする必要がある(SceneEditorSessionService.Publish の IdentityBasis)。
-        SceneProjection Again=Reconciler.Reconcile(Key,Analyze("""
-            new Node { Name="Alpha" },
-            new Node { Name="Beta" },
-            new Node { Name="Gamma" },
-            """),Previous:After);
+        var Again=Reconciler.Reconcile(Key,Analyze("""
+                                                   new Node { Name="Alpha" },
+                                                   new Node { Name="Beta" },
+                                                   new Node { Name="Gamma" },
+                                                   """),Previous:After);
         Assert.Equal(IdOf(After,"Gamma"),IdOf(Again,"Gamma"));
     }
 
@@ -71,15 +71,15 @@ public sealed class SceneProjectionIdentityTests {
     [Fact]
     public void Rename_KeepsTheIdWhenTheComponentShapeIsUnique(){
         SceneProjectionReconciler Reconciler=new();
-        SceneProjection Before=Reconciler.Reconcile(Key,Analyze("""
-            new Node { Name="Alpha", Components=[new Transform { PositionX=1f }] },
-            new Node { Name="Beta" },
-            """),Previous:null);
+        var Before=Reconciler.Reconcile(Key,Analyze("""
+                                                    new Node { Name="Alpha", Components=[new Transform { PositionX=1f }] },
+                                                    new Node { Name="Beta" },
+                                                    """),Previous:null);
 
-        SceneProjection After=Reconciler.Reconcile(Key,Analyze("""
-            new Node { Name="AlphaRenamed", Components=[new Transform { PositionX=1f }] },
-            new Node { Name="Beta" },
-            """),Previous:Before);
+        var After=Reconciler.Reconcile(Key,Analyze("""
+                                                   new Node { Name="AlphaRenamed", Components=[new Transform { PositionX=1f }] },
+                                                   new Node { Name="Beta" },
+                                                   """),Previous:Before);
 
         Assert.Equal(IdOf(Before,"Alpha"),IdOf(After,"AlphaRenamed"));
     }
@@ -97,8 +97,8 @@ public sealed class SceneProjectionIdentityTests {
             new Node { Name="Same" },
             new Node { Name="Same" },
             """;
-        SceneProjection Before=Reconciler.Reconcile(Key,Analyze(Shape),Previous:null);
-        SceneProjection After=Reconciler.Reconcile(Key,Analyze(Shape),Previous:Before);
+        var Before=Reconciler.Reconcile(Key,Analyze(Shape),Previous:null);
+        var After=Reconciler.Reconcile(Key,Analyze(Shape),Previous:Before);
 
         EditorNodeId[]BeforeIds=[..Before.Nodes.Where(N=>N.Node.Name=="Same").Select(N=>N.Id)];
         EditorNodeId[]AfterIds=[..After.Nodes.Where(N=>N.Node.Name=="Same").Select(N=>N.Id)];
@@ -109,18 +109,18 @@ public sealed class SceneProjectionIdentityTests {
     }
 
     private static SceneModel Analyze(string Children){
-        string Source=$$"""
-            using CSharpGameEngine.Entities;
-            using CSharpGameEngine.Runtime.Windows;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Children=[
-                    {{Children}}
-                ] };
-            }
-            """;
-        CSharpCompilation Compilation=SceneAnalysisTestHelper.CreateCompilation(TransformTypes,Source);
-        INamedTypeSymbol SceneClass=SceneAnalysisTestHelper.FindSceneClass(Compilation,"MainScene")!;
+        var Source=$$"""
+                     using CSharpGameEngine.Entities;
+                     using CSharpGameEngine.Runtime.Windows;
+                     namespace Game;
+                     public partial class MainScene:IScene {
+                         public Node Root=>new() { Children=[
+                             {{Children}}
+                         ] };
+                     }
+                     """;
+        var Compilation=SceneAnalysisTestHelper.CreateCompilation(TransformTypes,Source);
+        var SceneClass=SceneAnalysisTestHelper.FindSceneClass(Compilation,"MainScene")!;
         return SceneDeclarationAnalyzer.Analyze(SceneClass,Compilation,CancellationToken.None);
     }
 

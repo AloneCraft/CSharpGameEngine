@@ -28,7 +28,7 @@ internal sealed class OpenViewerCommand {
         }
 
         CommandID MenuCommandId=new(CommandSet,CommandId);
-        MenuCommand MenuItem=new(Execute,MenuCommandId);
+        MenuCommand MenuItem=new(this.Execute,MenuCommandId);
         CommandService.AddCommand(MenuItem);
     }
 
@@ -45,10 +45,10 @@ internal sealed class OpenViewerCommand {
     private void Execute(object Sender,EventArgs E){
         var RepoRoot=RepoLocator.ResolveRepoRoot();
         if(RepoRoot is null){
-            ShowMessage(
-                $"リポジトリルート({RepoLocator.RepoMarkerFileName})が見つかりませんでした。このVSIXは開発中のスケルトンであり、" +
-                "ビルド時に埋め込んだパスでのみ動作します。詳細はADR-0006を参照してください。",
-                OLEMSGICON.OLEMSGICON_WARNING);
+            this.ShowMessage(
+                             $"リポジトリルート({RepoLocator.RepoMarkerFileName})が見つかりませんでした。このVSIXは開発中のスケルトンであり、" +
+                             "ビルド時に埋め込んだパスでのみ動作します。詳細はADR-0006を参照してください。",
+                             OLEMSGICON.OLEMSGICON_WARNING);
             return;
         }
 
@@ -60,13 +60,12 @@ internal sealed class OpenViewerCommand {
         try {
             Process.Start(StartInfo);
         } catch(Exception Ex){
-            ShowMessage($"ビューアの起動に失敗しました: {Ex.Message}",OLEMSGICON.OLEMSGICON_CRITICAL);
+            this.ShowMessage($"ビューアの起動に失敗しました: {Ex.Message}",OLEMSGICON.OLEMSGICON_CRITICAL);
         }
     }
 
     private void ShowMessage(string Message,OLEMSGICON Icon){
-        VsShellUtilities.ShowMessageBox(
-            Package,
+        VsShellUtilities.ShowMessageBox(this.Package,
             Message,
             "C# Game Engine Viewer",
             Icon,

@@ -90,8 +90,8 @@ internal static class GameSystemEntryPointEmitter {
         List<GameSystemResult>Ordered=[.. Systems.Where(static S=>S.Diagnostics.Length==0)];
         Ordered.Sort((A,B)=>GameSystemExecutionOrder.Compare(A,B,OrderContext));
 
-        foreach(GameSystemResult System in Ordered){
-            foreach(GameSystemMethodModel Method in System.Methods){
+        foreach(var System in Ordered){
+            foreach(var Method in System.Methods){
                 if(Method.Role!=GameSystemMethodRole.Dispatch||Method.Contexts.Length==0){
                     continue;
                 }
@@ -106,7 +106,7 @@ internal static class GameSystemEntryPointEmitter {
     internal static void Emit(SourceProductionContext Context,GameSystemRegistry Registry){
         var BootstrapComponentIndex=-1;
 
-        foreach(GameSystemComponentInfo Component in Registry.ComponentsByIndex){
+        foreach(var Component in Registry.ComponentsByIndex){
             if(Component.TypeFullyQualifiedName==BootstrapComponentFullyQualifiedName){
                 BootstrapComponentIndex=Component.Index;
                 break;

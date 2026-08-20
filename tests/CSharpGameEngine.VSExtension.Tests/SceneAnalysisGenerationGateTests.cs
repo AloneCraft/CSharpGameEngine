@@ -17,7 +17,7 @@ public sealed class SceneAnalysisGenerationGateTests {
         SceneAnalysisGenerationGate<string>Gate=new();
 
         SceneAnalysisRequest<string>Previous=Gate.ActivateDocument(nameof(Previous));
-        SceneAnalysisRequest<string>Current=Gate.Refresh();
+        var Current=Gate.Refresh();
 
         Assert.False(Gate.IsCurrent(Previous));
         Assert.True(Gate.IsCurrent(Current));

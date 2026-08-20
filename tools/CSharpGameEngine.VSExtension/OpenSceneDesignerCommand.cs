@@ -59,9 +59,9 @@ internal sealed class OpenSceneDesignerCommand {
         this.DirectCommand.BeforeQueryStatus+=this.UpdateMenuCommands;
         CommandService.AddCommand(this.DirectCommand);
 
-        for(int Slot=0;Slot<SceneItemCommandCount;Slot++){
+        for(var Slot=0;Slot<SceneItemCommandCount;Slot++){
             // ループ変数をそのままクロージャへ取り込むと全スロットが最後のindexを指す。必ずコピーする。
-            int ItemIndex=Slot;
+            var ItemIndex=Slot;
 
             // ラムダの中はVSTHRD010の解析対象外(UIスレッドで呼ばれることを解析器が追えない)ため、
             // 他のハンドラと同じく明示的にアサートする。
@@ -100,7 +100,7 @@ internal sealed class OpenSceneDesignerCommand {
     private void UpdateMenuCommands(object Sender,EventArgs E){
         ThreadHelper.ThrowIfNotOnUIThread();
 
-        SceneDesignerCommandPresentation Presentation=this.RefreshPresentation();
+        var Presentation=this.RefreshPresentation();
         this.DirectCommand.Visible=Presentation.Mode is SceneDesignerMenuMode.Direct or SceneDesignerMenuMode.Disabled;
         this.DirectCommand.Enabled=Presentation.Mode==SceneDesignerMenuMode.Direct;
         this.DirectCommand.Text=Presentation.Text;
@@ -116,9 +116,9 @@ internal sealed class OpenSceneDesignerCommand {
     private void UpdateSceneItem(int ItemIndex,OleMenuCommand Command){
         ThreadHelper.ThrowIfNotOnUIThread();
 
-        SceneDesignerCommandPresentation Presentation=this.RefreshPresentation();
-        bool IsVisible=SceneDesignerContextMenuPolicy.IsItemSlotVisible(
-            Presentation.Mode,ItemIndex,Presentation.Items.Count);
+        var Presentation=this.RefreshPresentation();
+        var IsVisible=SceneDesignerContextMenuPolicy.IsItemSlotVisible(
+                                                                       Presentation.Mode,ItemIndex,Presentation.Items.Count);
         Command.Visible=IsVisible;
         Command.Enabled=IsVisible;
         if(!IsVisible){
@@ -128,7 +128,7 @@ internal sealed class OpenSceneDesignerCommand {
             return;
         }
 
-        SceneDesignerMenuItem Item=Presentation.Items[ItemIndex];
+        var Item=Presentation.Items[ItemIndex];
 
         // ✓はシーン デザイナーが今開いているシーン基準。以前はキャレット位置基準だったため、
         // デザイナーが別ファイルのシーンを表示しているのに手元のシーンへ✓が付いていた。
@@ -148,10 +148,10 @@ internal sealed class OpenSceneDesignerCommand {
     private void UpdateOverflowItem(object Sender,EventArgs E){
         ThreadHelper.ThrowIfNotOnUIThread();
 
-        SceneDesignerCommandPresentation Presentation=this.RefreshPresentation();
-        int HiddenCount=Presentation.Mode==SceneDesignerMenuMode.SceneList
-            ?SceneDesignerContextMenuPolicy.HiddenItemCount(Presentation.Items.Count,SceneItemCommandCount)
-            :0;
+        var Presentation=this.RefreshPresentation();
+        var HiddenCount=Presentation.Mode==SceneDesignerMenuMode.SceneList
+                            ?SceneDesignerContextMenuPolicy.HiddenItemCount(Presentation.Items.Count,SceneItemCommandCount)
+                            :0;
         this.OverflowCommand.Visible=HiddenCount>0;
         this.OverflowCommand.Enabled=false;
         this.OverflowCommand.Text=HiddenCount>0
@@ -166,17 +166,17 @@ internal sealed class OpenSceneDesignerCommand {
         // SceneDocumentMenuSnapshot.GetTargetStateは位置0がどの型宣言にも属さない前提で自然に
         // OutsideTypeへ落ち、ファイル内の全Sceneを一覧表示する(コードエディタ側と同じロジックを
         // 無改造で再利用できる)。
-        if(this.DocumentTracker.TryGetSolutionExplorerInvocationFilePath(out string?SolutionExplorerFilePath)){
+        if(this.DocumentTracker.TryGetSolutionExplorerInvocationFilePath(out var SolutionExplorerFilePath)){
             return this.BuildPresentation(SolutionExplorerFilePath,CaretPosition:0,EditorView:null);
         }
 
-        string?FilePath=this.DocumentTracker.CurrentFilePath;
+        var FilePath=this.DocumentTracker.CurrentFilePath;
         if(FilePath is null){
             this.CurrentInvocation=null;
             return SceneDesignerContextMenuPolicy.Create(null,SceneDesignerTargetState.Unavailable,[]);
         }
 
-        if(!this.DocumentTracker.TryCaptureActiveCaretPosition(FilePath,out int CaretPosition)){
+        if(!this.DocumentTracker.TryCaptureActiveCaretPosition(FilePath,out var CaretPosition)){
             this.CurrentInvocation=null;
             return SceneDesignerContextMenuPolicy.Create(FilePath,SceneDesignerTargetState.Unavailable,[]);
         }
@@ -192,13 +192,13 @@ internal sealed class OpenSceneDesignerCommand {
             return SceneDesignerContextMenuPolicy.Create(null,SceneDesignerTargetState.Unavailable,[]);
         }
 
-        SceneDocumentMenuSnapshot Snapshot=this.Session.GetMenuSnapshot(FilePath);
-        SceneDesignerTargetState TargetState=Snapshot.GetTargetState(CaretPosition);
-        string?TargetSceneFullyQualifiedName=Snapshot.GetTargetSceneFullyQualifiedName(CaretPosition);
-        SceneDesignerCommandPresentation Presentation=SceneDesignerContextMenuPolicy.Create(
-            FilePath,
-            TargetState,
-            Snapshot.Items);
+        var Snapshot=this.Session.GetMenuSnapshot(FilePath);
+        var TargetState=Snapshot.GetTargetState(CaretPosition);
+        var TargetSceneFullyQualifiedName=Snapshot.GetTargetSceneFullyQualifiedName(CaretPosition);
+        var Presentation=SceneDesignerContextMenuPolicy.Create(
+                                                               FilePath,
+                                                               TargetState,
+                                                               Snapshot.Items);
         this.CurrentInvocation=Presentation.Enabled
             ?new SceneMenuInvocation(
                 FilePath,
@@ -212,7 +212,7 @@ internal sealed class OpenSceneDesignerCommand {
     private void ExecuteDirect(object Sender,EventArgs E){
         ThreadHelper.ThrowIfNotOnUIThread();
 
-        SceneDesignerCommandPresentation Presentation=this.RefreshPresentation();
+        var Presentation=this.RefreshPresentation();
         if(Presentation.Mode!=SceneDesignerMenuMode.Direct
             ||this.CurrentInvocation is not { } Invocation
             ||Invocation.Items.Count!=1){
@@ -242,44 +242,44 @@ internal sealed class OpenSceneDesignerCommand {
 
     private void OpenScene(SceneMenuInvocation Invocation,string FullyQualifiedName){
         ThreadHelper.ThrowIfNotOnUIThread();
-        SetStatusBarText("シーンを解析しています...");
+        this.SetStatusBarText("シーンを解析しています...");
 
         _=this.Package.JoinableTaskFactory.RunAsync(async delegate {
             try {
-                IReadOnlyList<SceneModel>Models=await this.Session.AnalyzeFileNowAsync(
-                    Invocation.FilePath,
-                    this.Package.DisposalToken).ConfigureAwait(false);
+                var Models=await this.Session.AnalyzeFileNowAsync(
+                                                                 Invocation.FilePath,
+                                                                 this.Package.DisposalToken).ConfigureAwait(false);
                 await this.Package.JoinableTaskFactory.SwitchToMainThreadAsync(this.Package.DisposalToken);
 
-                SceneModel?Chosen=Models.SingleOrDefault(Model=>
-                    string.Equals(Model.ClassFullyQualifiedName,FullyQualifiedName,StringComparison.Ordinal));
+                var Chosen=Models.SingleOrDefault(Model=>
+                                                     string.Equals(Model.ClassFullyQualifiedName,FullyQualifiedName,StringComparison.Ordinal));
                 if(Chosen is null){
-                    SetStatusBarText("選択した IScene 実装クラスは編集後に見つからなくなりました。");
+                    this.SetStatusBarText("選択した IScene 実装クラスは編集後に見つからなくなりました。");
                     return;
                 }
 
-                ToolWindowPane Window=await this.Package.FindToolWindowAsync(
-                    typeof(SceneDesignerToolWindowPane),
-                    0,
-                    true,
-                    this.Package.DisposalToken);
+                var Window=await this.Package.FindToolWindowAsync(
+                                                                  typeof(SceneDesignerToolWindowPane),
+                                                                  0,
+                                                                  true,
+                                                                  this.Package.DisposalToken);
                 if(Window is not SceneDesignerToolWindowPane Pane
                     ||Pane.Frame is not IVsWindowFrame Frame){
                     throw new NotSupportedException("Cannot create the Scene Designer tool window.");
                 }
 
-                SceneDocumentSnapshot Snapshot=this.Session.Pin(Chosen);
+                var Snapshot=this.Session.Pin(Chosen);
                 Pane.SetTarget(this.Session,Snapshot);
                 ToolWindowFramePresenter.ShowWithoutActivation(
                     ()=>ShowFrameWithoutActivation(Frame),
                     Invocation.EditorView is null?null:()=>RestoreEditorFocus(Invocation.EditorView));
-                SetStatusBarText("シーン デザイナーを開きました。");
+                this.SetStatusBarText("シーン デザイナーを開きました。");
             } catch(OperationCanceledException) when(this.Package.DisposalToken.IsCancellationRequested){
                 // Package shutdown.
             } catch(Exception Ex){
                 await this.Package.JoinableTaskFactory.SwitchToMainThreadAsync();
                 ActivityLog.LogError(nameof(OpenSceneDesignerCommand),Ex.ToString());
-                SetStatusBarText("シーンの解析またはデザイナー表示に失敗しました。詳細は ActivityLog.xml を確認してください。");
+                this.SetStatusBarText("シーンの解析またはデザイナー表示に失敗しました。詳細は ActivityLog.xml を確認してください。");
             }
         });
     }

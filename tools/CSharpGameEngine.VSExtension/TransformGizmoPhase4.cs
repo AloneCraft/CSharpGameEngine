@@ -293,22 +293,22 @@ internal sealed class RotateGizmoDrag {
     internal bool TryUpdate(
         Vector3 RayOrigin,Vector3 RayDirection,out float Radians,out Quaternion Delta){
         if(!TransformGizmo.TryIntersectPlane(
-            RayOrigin,Vector3.Normalize(RayDirection),Frame.Pivot,Normal,out Vector3 Point,out _)
-            ||(Point-Frame.Pivot).LengthSquared()<=1e-10f){
+            RayOrigin,Vector3.Normalize(RayDirection), this.Frame.Pivot, this.Normal,out Vector3 Point,out _)
+            ||(Point- this.Frame.Pivot).LengthSquared()<=1e-10f){
             Radians=0f;
             Delta=Quaternion.Identity;
             return false;
         }
 
-        Vector3 Current=Vector3.Normalize(Point-Frame.Pivot);
+        Vector3 Current=Vector3.Normalize(Point- this.Frame.Pivot);
         Radians=(float)Math.Atan2(
-            Vector3.Dot(Normal,Vector3.Cross(StartDirection,Current)),
-            Math.Max(-1f,Math.Min(1f,Vector3.Dot(StartDirection,Current))));
-        Delta=Quaternion.CreateFromAxisAngle(Normal,Radians);
+            Vector3.Dot(this.Normal,Vector3.Cross(this.StartDirection,Current)),
+            Math.Max(-1f,Math.Min(1f,Vector3.Dot(this.StartDirection,Current))));
+        Delta=Quaternion.CreateFromAxisAngle(this.Normal,Radians);
         return true;
     }
 
-    internal Quaternion CreateDelta(float Radians)=>Quaternion.CreateFromAxisAngle(Normal,Radians);
+    internal Quaternion CreateDelta(float Radians)=>Quaternion.CreateFromAxisAngle(this.Normal,Radians);
 }
 
 internal sealed class ScaleGizmoDrag {
@@ -351,16 +351,16 @@ internal sealed class ScaleGizmoDrag {
 
     internal bool TryUpdate(Vector3 RayOrigin,Vector3 RayDirection,out Vector3 Factors){
         if(!TransformGizmo.TryIntersectPlane(
-            RayOrigin,Vector3.Normalize(RayDirection),Frame.Pivot,ConstraintNormal,out Vector3 Point,out _)){
+            RayOrigin,Vector3.Normalize(RayDirection), this.Frame.Pivot, this.ConstraintNormal,out Vector3 Point,out _)){
             Factors=Vector3.One;
             return false;
         }
 
-        bool Uniform=Handle==GizmoHandleId.ScaleUniform;
-        Vector3 Axis=GetAxis(Frame,Handle);
-        float Current=Uniform?(Point-Frame.Pivot).Length():Vector3.Dot(Point-Frame.Pivot,Axis);
-        float Factor=Math.Max(0.01f,Math.Min(100f,Current/StartMeasure));
-        Factors=Handle switch {
+        bool Uniform= this.Handle==GizmoHandleId.ScaleUniform;
+        Vector3 Axis=GetAxis(this.Frame, this.Handle);
+        float Current=Uniform?(Point- this.Frame.Pivot).Length():Vector3.Dot(Point- this.Frame.Pivot,Axis);
+        float Factor=Math.Max(0.01f,Math.Min(100f,Current/ this.StartMeasure));
+        Factors= this.Handle switch {
             GizmoHandleId.ScaleX=>new Vector3(Factor,1f,1f),
             GizmoHandleId.ScaleY=>new Vector3(1f,Factor,1f),
             GizmoHandleId.ScaleZ=>new Vector3(1f,1f,Factor),

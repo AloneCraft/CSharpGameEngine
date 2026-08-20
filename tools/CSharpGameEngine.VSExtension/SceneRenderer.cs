@@ -208,10 +208,10 @@ internal sealed class SceneRenderer:IDisposable {
         this.CurrentView=InitialView;
         this.CurrentProjection=InitialProjection;
 
-        using IDXGIFactory4 Factory=DXGI.CreateDXGIFactory1<IDXGIFactory4>();
+        using var Factory=DXGI.CreateDXGIFactory1<IDXGIFactory4>();
 
         IDXGIAdapter1?ChosenAdapter=null;
-        for(var I=0;Factory.EnumAdapters1(I,out IDXGIAdapter1 Adapter).Success;I++){
+        for(var I=0;Factory.EnumAdapters1(I,out var Adapter).Success;I++){
             if((Adapter.Description1.Flags&AdapterFlags.Software)!=0){
                 Adapter.Dispose();
                 continue;
@@ -221,12 +221,12 @@ internal sealed class SceneRenderer:IDisposable {
             break;
         }
 
-        Device=ChosenAdapter is not null
-            ?D3D12.D3D12CreateDevice<ID3D12Device>(ChosenAdapter,FeatureLevel.Level_11_0)
-            :D3D12.D3D12CreateDevice<ID3D12Device>(null,FeatureLevel.Level_11_0);
+        this.Device=ChosenAdapter is not null
+                        ?D3D12.D3D12CreateDevice<ID3D12Device>(ChosenAdapter,FeatureLevel.Level_11_0)
+                        :D3D12.D3D12CreateDevice<ID3D12Device>(null,FeatureLevel.Level_11_0);
         ChosenAdapter?.Dispose();
 
-        CommandQueue=Device.CreateCommandQueue(CommandListType.Direct);
+        this.CommandQueue= this.Device.CreateCommandQueue(CommandListType.Direct);
 
         SwapChainDescription1 SwapChainDescription=new(){
             Width=this.Width,
@@ -238,41 +238,42 @@ internal sealed class SceneRenderer:IDisposable {
             SwapEffect=SwapEffect.FlipDiscard,
         };
 
-        using IDXGISwapChain1 TempSwapChain=Factory.CreateSwapChainForHwnd(CommandQueue,Hwnd,SwapChainDescription);
-        SwapChain=TempSwapChain.QueryInterface<IDXGISwapChain3>();
+        using var TempSwapChain=Factory.CreateSwapChainForHwnd(this.CommandQueue,Hwnd,SwapChainDescription);
+        this.SwapChain=TempSwapChain.QueryInterface<IDXGISwapChain3>();
 
-        RtvHeap=Device.CreateDescriptorHeap(new DescriptorHeapDescription(DescriptorHeapType.RenderTargetView,FrameCount));
-        RtvDescriptorSize=Device.GetDescriptorHandleIncrementSize(DescriptorHeapType.RenderTargetView);
-        CreateRenderTargetViews();
+        this.RtvHeap= this.Device.CreateDescriptorHeap(new DescriptorHeapDescription(DescriptorHeapType.RenderTargetView,FrameCount));
+        this.RtvDescriptorSize= this.Device.GetDescriptorHandleIncrementSize(DescriptorHeapType.RenderTargetView);
+        this.CreateRenderTargetViews();
 
-        DsvHeap=Device.CreateDescriptorHeap(new DescriptorHeapDescription(DescriptorHeapType.DepthStencilView,1));
-        DepthBuffer=CreateDepthBuffer(this.Width,this.Height);
+        this.DsvHeap= this.Device.CreateDescriptorHeap(new DescriptorHeapDescription(DescriptorHeapType.DepthStencilView,1));
+        this.DepthBuffer= this.CreateDepthBuffer(this.Width,this.Height);
 
         for(var FrameIndex=0;FrameIndex<FrameCount;FrameIndex++){
-            CommandAllocators[FrameIndex]=Device.CreateCommandAllocator(CommandListType.Direct);
+            this.CommandAllocators[FrameIndex]= this.Device.CreateCommandAllocator(CommandListType.Direct);
         }
-        CommandList=Device.CreateCommandList<ID3D12GraphicsCommandList>(
-            CommandListType.Direct,CommandAllocators[0]);
-        CommandList.Close();
+
+        this.CommandList= this.Device.CreateCommandList<ID3D12GraphicsCommandList>(
+                                                                                CommandListType.Direct, this.CommandAllocators[0]);
+        this.CommandList.Close();
 
         RootParameter1 TransformParameter=new(RootParameterType.ConstantBufferView,new RootDescriptor1(0,0),ShaderVisibility.All);
         RootSignatureDescription1 RootSignatureDescription=new(
             RootSignatureFlags.AllowInputAssemblerInputLayout,
             [TransformParameter]);
-        RootSignature=Device.CreateRootSignature(0,new VersionedRootSignatureDescription(RootSignatureDescription));
+        this.RootSignature= this.Device.CreateRootSignature(0,new VersionedRootSignatureDescription(RootSignatureDescription));
 
-        Result VsCompileResult=Compiler.Compile(ShaderSource,"VSMain","SceneRenderer","vs_5_0",out Blob?VertexShaderBlob,out Blob?VsErrorBlob);
+        var VsCompileResult=Compiler.Compile(ShaderSource,"VSMain","SceneRenderer","vs_5_0",out var VertexShaderBlob,out var VsErrorBlob);
         if(VsCompileResult.Failure||VertexShaderBlob is null){
             throw new InvalidOperationException($"Vertex shader compilation failed: {VsErrorBlob?.AsString()}");
         }
 
-        Result PsCompileResult=Compiler.Compile(ShaderSource,"PSMain","SceneRenderer","ps_5_0",out Blob?PixelShaderBlob,out Blob?PsErrorBlob);
+        var PsCompileResult=Compiler.Compile(ShaderSource,"PSMain","SceneRenderer","ps_5_0",out var PixelShaderBlob,out var PsErrorBlob);
         if(PsCompileResult.Failure||PixelShaderBlob is null){
             throw new InvalidOperationException($"Pixel shader compilation failed: {PsErrorBlob?.AsString()}");
         }
 
-        using Blob VertexShaderBlobOwned=VertexShaderBlob;
-        using Blob PixelShaderBlobOwned=PixelShaderBlob;
+        using var VertexShaderBlobOwned=VertexShaderBlob;
+        using var PixelShaderBlobOwned=PixelShaderBlob;
         VsErrorBlob?.Dispose();
         PsErrorBlob?.Dispose();
 
@@ -282,7 +283,7 @@ internal sealed class SceneRenderer:IDisposable {
         ];
 
         GraphicsPipelineStateDescription PsoDescription=new(){
-            RootSignature=RootSignature,
+            RootSignature= this.RootSignature,
             VertexShader=VertexShaderBlobOwned.AsBytes(),
             PixelShader=PixelShaderBlobOwned.AsBytes(),
             InputLayout=new InputLayoutDescription(InputElements),
@@ -295,24 +296,24 @@ internal sealed class SceneRenderer:IDisposable {
             RenderTargetFormats=[BackBufferFormat],
             SampleDescription=new SampleDescription(1,0),
         };
-        PipelineState=Device.CreateGraphicsPipelineState(PsoDescription);
+        this.PipelineState= this.Device.CreateGraphicsPipelineState(PsoDescription);
 
-        Result OverlayVsResult=Compiler.Compile(
-            OverlayShaderSource,"VSMain","SceneRendererOverlay","vs_5_0",
-            out Blob?OverlayVertexShaderBlob,out Blob?OverlayVsErrorBlob);
+        var OverlayVsResult=Compiler.Compile(
+                                             OverlayShaderSource,"VSMain","SceneRendererOverlay","vs_5_0",
+                                             out var OverlayVertexShaderBlob,out var OverlayVsErrorBlob);
         if(OverlayVsResult.Failure||OverlayVertexShaderBlob is null){
             throw new InvalidOperationException($"Overlay vertex shader compilation failed: {OverlayVsErrorBlob?.AsString()}");
         }
-        Result OverlayPsResult=Compiler.Compile(
-            OverlayShaderSource,"PSMain","SceneRendererOverlay","ps_5_0",
-            out Blob?OverlayPixelShaderBlob,out Blob?OverlayPsErrorBlob);
+        var OverlayPsResult=Compiler.Compile(
+                                             OverlayShaderSource,"PSMain","SceneRendererOverlay","ps_5_0",
+                                             out var OverlayPixelShaderBlob,out var OverlayPsErrorBlob);
         if(OverlayPsResult.Failure||OverlayPixelShaderBlob is null){
             OverlayVertexShaderBlob.Dispose();
             throw new InvalidOperationException($"Overlay pixel shader compilation failed: {OverlayPsErrorBlob?.AsString()}");
         }
 
-        using Blob OverlayVertexShaderBlobOwned=OverlayVertexShaderBlob;
-        using Blob OverlayPixelShaderBlobOwned=OverlayPixelShaderBlob;
+        using var OverlayVertexShaderBlobOwned=OverlayVertexShaderBlob;
+        using var OverlayPixelShaderBlobOwned=OverlayPixelShaderBlob;
         OverlayVsErrorBlob?.Dispose();
         OverlayPsErrorBlob?.Dispose();
         InputElementDescription[]OverlayInputElements=[
@@ -320,7 +321,7 @@ internal sealed class SceneRenderer:IDisposable {
             new InputElementDescription("COLOR",0,Format.R32G32B32A32_Float,12,0),
         ];
         GraphicsPipelineStateDescription OverlayPsoDescription=new(){
-            RootSignature=RootSignature,
+            RootSignature= this.RootSignature,
             VertexShader=OverlayVertexShaderBlobOwned.AsBytes(),
             PixelShader=OverlayPixelShaderBlobOwned.AsBytes(),
             InputLayout=new InputLayoutDescription(OverlayInputElements),
@@ -333,47 +334,47 @@ internal sealed class SceneRenderer:IDisposable {
             RenderTargetFormats=[BackBufferFormat],
             SampleDescription=new SampleDescription(1,0),
         };
-        OverlayTrianglePipelineState=Device.CreateGraphicsPipelineState(OverlayPsoDescription);
+        this.OverlayTrianglePipelineState= this.Device.CreateGraphicsPipelineState(OverlayPsoDescription);
         OverlayPsoDescription.PrimitiveTopologyType=PrimitiveTopologyType.Line;
-        OverlayLinePipelineState=Device.CreateGraphicsPipelineState(OverlayPsoDescription);
+        this.OverlayLinePipelineState= this.Device.CreateGraphicsPipelineState(OverlayPsoDescription);
 
-        AlignedSlotSize=(Marshal.SizeOf<TransformConstants>()+255)&~255;
-        ObjectCapacity=Math.Max(1,RenderObjects.Count*2);
-        ConstantBuffer=Device.CreateCommittedResource(
-            HeapType.Upload,
-            new ResourceDescription {
-                Dimension=ResourceDimension.Buffer,
-                // D3D12 は 0 バイトの buffer を許可しないので、0件でも1スロット分は確保する。
-                Width=(ulong)(AlignedSlotSize*ObjectCapacity*FrameCount),
-                Height=1,
-                DepthOrArraySize=1,
-                MipLevels=1,
-                SampleDescription=new SampleDescription(1,0),
-                Layout=TextureLayout.RowMajor,
-                Format=Format.Unknown,
-            },
-            ResourceStates.GenericRead);
+        this.AlignedSlotSize=(Marshal.SizeOf<TransformConstants>()+255)&~255;
+        this.ObjectCapacity=Math.Max(1,RenderObjects.Count*2);
+        this.ConstantBuffer= this.Device.CreateCommittedResource(
+                                                                 HeapType.Upload,
+                                                                 new ResourceDescription {
+                                                                     Dimension=ResourceDimension.Buffer,
+                                                                     // D3D12 は 0 バイトの buffer を許可しないので、0件でも1スロット分は確保する。
+                                                                     Width=(ulong)(this.AlignedSlotSize* this.ObjectCapacity*FrameCount),
+                                                                     Height=1,
+                                                                     DepthOrArraySize=1,
+                                                                     MipLevels=1,
+                                                                     SampleDescription=new SampleDescription(1,0),
+                                                                     Layout=TextureLayout.RowMajor,
+                                                                     Format=Format.Unknown,
+                                                                 },
+                                                                 ResourceStates.GenericRead);
 
-        int OverlayVertexSize=Marshal.SizeOf<OverlayVertex>();
-        OverlayVertexBuffer=Device.CreateCommittedResource(
-            HeapType.Upload,
-            ResourceDescription.Buffer((ulong)(OverlayVertexSize*MaxOverlayVertices*FrameCount)),
-            ResourceStates.GenericRead);
-        OverlayConstantBuffer=Device.CreateCommittedResource(
-            HeapType.Upload,
-            ResourceDescription.Buffer(256*FrameCount),
-            ResourceStates.GenericRead);
+        var OverlayVertexSize=Marshal.SizeOf<OverlayVertex>();
+        this.OverlayVertexBuffer= this.Device.CreateCommittedResource(
+                                                                      HeapType.Upload,
+                                                                      ResourceDescription.Buffer((ulong)(OverlayVertexSize*MaxOverlayVertices*FrameCount)),
+                                                                      ResourceStates.GenericRead);
+        this.OverlayConstantBuffer= this.Device.CreateCommittedResource(
+                                                                        HeapType.Upload,
+                                                                        ResourceDescription.Buffer(256*FrameCount),
+                                                                        ResourceStates.GenericRead);
 
-        foreach(SceneRenderObject RenderObject in RenderObjects){
-            Objects.Add(CreateObjectResources(RenderObject));
+        foreach(var RenderObject in RenderObjects){
+            this.Objects.Add(this.CreateObjectResources(RenderObject));
         }
 
-        Fence=Device.CreateFence(0);
-        FenceEvent=NativeEvent.CreateAutoResetEvent();
+        this.Fence= this.Device.CreateFence(0);
+        this.FenceEvent=NativeEvent.CreateAutoResetEvent();
 
-        MarkAllDirty(ConstantsDirty);
-        MarkAllDirty(OverlayGeometryDirty);
-        MarkAllDirty(OverlayConstantsDirty);
+        MarkAllDirty(this.ConstantsDirty);
+        MarkAllDirty(this.OverlayGeometryDirty);
+        MarkAllDirty(this.OverlayConstantsDirty);
     }
 
     /// <summary>
@@ -382,24 +383,24 @@ internal sealed class SceneRenderer:IDisposable {
     /// 何もしないので、毎フレーム呼んでも静止時のコストは行列比較2回だけ。
     /// </summary>
     public void SetCamera(in Matrix4x4 View,in Matrix4x4 Projection){
-        if(CurrentView.Equals(View)&&CurrentProjection.Equals(Projection)){
+        if(this.CurrentView.Equals(View)&& this.CurrentProjection.Equals(Projection)){
             return;
         }
 
-        CurrentView=View;
-        CurrentProjection=Projection;
-        MarkAllDirty(ConstantsDirty);
-        MarkAllDirty(OverlayConstantsDirty);
+        this.CurrentView=View;
+        this.CurrentProjection=Projection;
+        MarkAllDirty(this.ConstantsDirty);
+        MarkAllDirty(this.OverlayConstantsDirty);
     }
 
     /// <summary>ドラッグpreviewではGPU meshを再構築せず、既存objectのworld定数だけを更新する。</summary>
     public bool UpdateObjectTransform(NodePath NodeId,in Matrix4x4 World){
-        ObjectResources?Object=Objects.FirstOrDefault(Candidate=>Candidate.NodeId.Equals(NodeId));
+        var Object= this.Objects.FirstOrDefault(Candidate=>Candidate.NodeId.Equals(NodeId));
         if(Object is null){
             return false;
         }
         Object.World=World;
-        MarkAllDirty(ConstantsDirty);
+        MarkAllDirty(this.ConstantsDirty);
         return true;
     }
 
@@ -410,55 +411,56 @@ internal sealed class SceneRenderer:IDisposable {
             Handles=Array.Empty<int>();
             return true;
         }
-        if(RenderObjects.Count>ObjectCapacity-Objects.Count){
+        if(RenderObjects.Count> this.ObjectCapacity- this.Objects.Count){
             Handles=Array.Empty<int>();
             return false;
         }
 
-        int Start=Objects.Count;
+        var Start= this.Objects.Count;
         try {
-            foreach(SceneRenderObject RenderObject in RenderObjects){
-                Objects.Add(CreateObjectResources(RenderObject));
+            foreach(var RenderObject in RenderObjects){
+                this.Objects.Add(this.CreateObjectResources(RenderObject));
             }
         } catch {
-            while(Objects.Count>Start){
-                DisposeObjectResources(Objects[^1]);
-                Objects.RemoveAt(Objects.Count-1);
+            while(this.Objects.Count>Start){
+                DisposeObjectResources(this.Objects[^1]);
+                this.Objects.RemoveAt(this.Objects.Count-1);
             }
             throw;
         }
 
         Handles=Enumerable.Range(Start,RenderObjects.Count).ToArray();
-        MarkAllDirty(ConstantsDirty);
+        MarkAllDirty(this.ConstantsDirty);
         return true;
     }
 
     /// <summary>NodePathが同じ元オブジェクトと区別して、一時previewだけを更新する。</summary>
     public bool UpdatePreviewObjectTransform(int Handle,in Matrix4x4 World){
-        if(Handle<0||Handle>=Objects.Count){
+        if(Handle<0||Handle>= this.Objects.Count){
             return false;
         }
-        Objects[Handle].World=World;
-        MarkAllDirty(ConstantsDirty);
+
+        this.Objects[Handle].World=World;
+        MarkAllDirty(this.ConstantsDirty);
         return true;
     }
 
     /// <summary>一時previewとして末尾へ追加した連続オブジェクトをGPU同期後に破棄する。</summary>
     public void RemovePreviewObjects(IReadOnlyList<int>Handles){
         if(Handles.Count==0){ return; }
-        int Start=Objects.Count-Handles.Count;
+        var Start= this.Objects.Count-Handles.Count;
         for(var I=0;I<Handles.Count;I++){
             if(Handles[I]!=Start+I){
                 throw new ArgumentException(nameof(Handles));
             }
         }
 
-        WaitForGpuIdle();
-        for(var I=Objects.Count-1;I>=Start;I--){
-            DisposeObjectResources(Objects[I]);
-            Objects.RemoveAt(I);
+        this.WaitForGpuIdle();
+        for(var I= this.Objects.Count-1;I>=Start;I--){
+            DisposeObjectResources(this.Objects[I]);
+            this.Objects.RemoveAt(I);
         }
-        MarkAllDirty(ConstantsDirty);
+        MarkAllDirty(this.ConstantsDirty);
     }
 
     /// <summary>ギズモoverlayを固定容量upload bufferへ置き換える。GPU resource自体は再生成しない。</summary>
@@ -466,41 +468,41 @@ internal sealed class SceneRenderer:IDisposable {
         List<OverlayVertex>Triangles=[];
         List<OverlayVertex>Lines=[];
         if(Primitives is not null){
-            foreach(GizmoOverlayPrimitive Primitive in Primitives){
-                List<OverlayVertex>Target=Primitive.Kind==GizmoPrimitiveKind.Triangle?Triangles:Lines;
-                foreach(GizmoOverlayVertex Vertex in Primitive.Vertices){
+            foreach(var Primitive in Primitives){
+                var Target=Primitive.Kind==GizmoPrimitiveKind.Triangle?Triangles:Lines;
+                foreach(var Vertex in Primitive.Vertices){
                     Target.Add(new OverlayVertex { Position=Vertex.Position,Color=Vertex.Color });
                 }
             }
         }
 
-        int TotalCount=Triangles.Count+Lines.Count;
+        var TotalCount=Triangles.Count+Lines.Count;
         if(TotalCount>MaxOverlayVertices){
             throw new ArgumentOutOfRangeException(nameof(Primitives),$"overlay頂点数{TotalCount}が上限{MaxOverlayVertices}を超えています。");
         }
 
-        OverlayTriangles=Triangles.ToArray();
-        OverlayLines=Lines.ToArray();
-        OverlayTriangleVertexCount=Triangles.Count;
-        OverlayLineVertexCount=Lines.Count;
-        MarkAllDirty(OverlayGeometryDirty);
+        this.OverlayTriangles=Triangles.ToArray();
+        this.OverlayLines=Lines.ToArray();
+        this.OverlayTriangleVertexCount=Triangles.Count;
+        this.OverlayLineVertexCount=Lines.Count;
+        MarkAllDirty(this.OverlayGeometryDirty);
     }
 
     private ObjectResources CreateObjectResources(SceneRenderObject RenderObject){
-        SimpleMesh Mesh=RenderObject.Mesh;
+        var Mesh=RenderObject.Mesh;
 
-        Vertex[]Vertices=new Vertex[Mesh.Positions.Length];
+        var Vertices=new Vertex[Mesh.Positions.Length];
         for(var I=0;I<Vertices.Length;I++){
             Vertices[I]=new Vertex { Position=Mesh.Positions[I],Normal=Mesh.Normals[I]};
         }
 
         var VertexBufferSize=Vertices.Length*Marshal.SizeOf<Vertex>();
-        ID3D12Resource VertexBuffer=CreateUploadBuffer(VertexBufferSize,Vertices);
+        var VertexBuffer= this.CreateUploadBuffer(VertexBufferSize,Vertices);
         VertexBufferView VertexBufferView=new(VertexBuffer.GPUVirtualAddress,VertexBufferSize,Marshal.SizeOf<Vertex>());
 
         var IndexCount=Mesh.Indices.Length;
         var IndexBufferSize=IndexCount*sizeof(uint);
-        ID3D12Resource IndexBuffer=CreateUploadBuffer(IndexBufferSize,Mesh.Indices);
+        var IndexBuffer= this.CreateUploadBuffer(IndexBufferSize,Mesh.Indices);
         // is32Bit: true - mesh.Indices is uint[] (32-bit); see VorticeRenderer.cs for the empirical
         // "bowtie geometry" pitfall this avoids.
         IndexBufferView IndexBufferView=new(IndexBuffer.GPUVirtualAddress,IndexBufferSize,true);
@@ -518,14 +520,14 @@ internal sealed class SceneRenderer:IDisposable {
     }
 
     private ID3D12Resource CreateUploadBuffer<T>(int SizeInBytes,T[]Data) where T:struct {
-        ID3D12Resource Resource=Device.CreateCommittedResource(
-            HeapType.Upload,
-            ResourceDescription.Buffer((ulong)SizeInBytes),
-            ResourceStates.GenericRead);
+        var Resource= this.Device.CreateCommittedResource(
+                                                          HeapType.Upload,
+                                                          ResourceDescription.Buffer((ulong)SizeInBytes),
+                                                          ResourceStates.GenericRead);
 
         // Avoid unsafe/fixed raw pointers - the WPF XAML markup-compile pass builds this project
         // through a generated temporary csproj that does not inherit AllowUnsafeBlocks (ADR-0008).
-        Span<byte>Mapped=Resource.Map<byte>(0,SizeInBytes);
+        var Mapped=Resource.Map<byte>(0,SizeInBytes);
         var ElementSize=Marshal.SizeOf<T>();
         for(var I=0;I<Data.Length;I++){
             MemoryMarshal.Write(Mapped.Slice(I*ElementSize,ElementSize),ref Data[I]);
@@ -540,86 +542,87 @@ internal sealed class SceneRenderer:IDisposable {
     }
 
     private ID3D12Resource CreateDepthBuffer(int W,int H){
-        ResourceDescription Description=ResourceDescription.Texture2D(DepthBufferFormat,(uint)W,(uint)H,1,1);
+        var Description=ResourceDescription.Texture2D(DepthBufferFormat,(uint)W,(uint)H,1,1);
         Description.Flags=ResourceFlags.AllowDepthStencil;
 
-        ID3D12Resource Buffer=Device.CreateCommittedResource(
-            HeapType.Default,
-            Description,
-            ResourceStates.DepthWrite,
-            new ClearValue(DepthBufferFormat,1.0f,0));
+        var Buffer= this.Device.CreateCommittedResource(
+                                                        HeapType.Default,
+                                                        Description,
+                                                        ResourceStates.DepthWrite,
+                                                        new ClearValue(DepthBufferFormat,1.0f,0));
 
-        Device.CreateDepthStencilView(Buffer,null,DsvHeap.GetCPUDescriptorHandleForHeapStart());
+        this.Device.CreateDepthStencilView(Buffer,null, this.DsvHeap.GetCPUDescriptorHandleForHeapStart());
         return Buffer;
     }
 
     private void CreateRenderTargetViews(){
-        CpuDescriptorHandle Handle=RtvHeap.GetCPUDescriptorHandleForHeapStart();
+        var Handle= this.RtvHeap.GetCPUDescriptorHandleForHeapStart();
         for(var I=0;I<FrameCount;I++){
-            RenderTargets[I]=SwapChain.GetBuffer<ID3D12Resource>(I);
-            Device.CreateRenderTargetView(RenderTargets[I],null,Handle);
-            Handle+=RtvDescriptorSize;
+            this.RenderTargets[I]= this.SwapChain.GetBuffer<ID3D12Resource>(I);
+            this.Device.CreateRenderTargetView(this.RenderTargets[I],null,Handle);
+            Handle+= this.RtvDescriptorSize;
         }
     }
 
     private void UpdateAllConstantBuffers(int FrameIndex){
-        if(Objects.Count==0){
+        if(this.Objects.Count==0){
             // 0件では Map/Unmap 自体を行わない(TotalSize=0 の Map は不正)。
             return;
         }
 
-        int FrameOffset=FrameIndex*ObjectCapacity*AlignedSlotSize;
-        int TotalSize=AlignedSlotSize*Objects.Count;
-        Span<byte>Mapped=ConstantBuffer.Map<byte>(0,FrameOffset+TotalSize);
-        for(var I=0;I<Objects.Count;I++){
-            ObjectResources Obj=Objects[I];
-            Matrix4x4 Mvp=Obj.World*CurrentView*CurrentProjection;
-            float Selected=SceneSelectionTint.GetWeight(Obj.NodeId,SelectedNodeId,SelectedNodeIds);
+        var FrameOffset=FrameIndex* this.ObjectCapacity* this.AlignedSlotSize;
+        var TotalSize= this.AlignedSlotSize* this.Objects.Count;
+        var Mapped= this.ConstantBuffer.Map<byte>(0,FrameOffset+TotalSize);
+        for(var I=0;I< this.Objects.Count;I++){
+            var Obj= this.Objects[I];
+            var Mvp=Obj.World* this.CurrentView* this.CurrentProjection;
+            var Selected=SceneSelectionTint.GetWeight(Obj.NodeId, this.SelectedNodeId, this.SelectedNodeIds);
             TransformConstants Constants=new(){ Mvp=Mvp,BaseColorFactor=Obj.BaseColorFactor,Selected=Selected };
             MemoryMarshal.Write(
-                Mapped.Slice(FrameOffset+(I*AlignedSlotSize),Marshal.SizeOf<TransformConstants>()),
+                Mapped.Slice(FrameOffset+(I* this.AlignedSlotSize),Marshal.SizeOf<TransformConstants>()),
                 ref Constants);
         }
-        ConstantBuffer.Unmap(0,null);
+
+        this.ConstantBuffer.Unmap(0,null);
     }
 
     private void UpdateOverlayConstantBuffer(int FrameIndex){
-        OverlayConstants Constants=new(){ ViewProjection=CurrentView*CurrentProjection };
-        int FrameOffset=FrameIndex*256;
-        Span<byte>Mapped=OverlayConstantBuffer.Map<byte>(
-            0,FrameOffset+Marshal.SizeOf<OverlayConstants>());
+        OverlayConstants Constants=new(){ ViewProjection= this.CurrentView* this.CurrentProjection };
+        var FrameOffset=FrameIndex*256;
+        var Mapped= this.OverlayConstantBuffer.Map<byte>(
+                                                         0,FrameOffset+Marshal.SizeOf<OverlayConstants>());
         MemoryMarshal.Write(
             Mapped.Slice(FrameOffset,Marshal.SizeOf<OverlayConstants>()),ref Constants);
-        OverlayConstantBuffer.Unmap(0,null);
+        this.OverlayConstantBuffer.Unmap(0,null);
     }
 
     private void UpdateOverlayVertexBuffer(int FrameIndex){
-        int VertexSize=Marshal.SizeOf<OverlayVertex>();
-        int FrameOffset=FrameIndex*MaxOverlayVertices*VertexSize;
-        int TotalCount=OverlayTriangleVertexCount+OverlayLineVertexCount;
+        var VertexSize=Marshal.SizeOf<OverlayVertex>();
+        var FrameOffset=FrameIndex*MaxOverlayVertices*VertexSize;
+        var TotalCount= this.OverlayTriangleVertexCount+ this.OverlayLineVertexCount;
         if(TotalCount>0){
-            Span<byte>Mapped=OverlayVertexBuffer.Map<byte>(
-                0,FrameOffset+(VertexSize*TotalCount));
-            int Offset=FrameOffset;
-            foreach(OverlayVertex Vertex in OverlayTriangles){
-                OverlayVertex Value=Vertex;
+            var Mapped= this.OverlayVertexBuffer.Map<byte>(
+                                                           0,FrameOffset+(VertexSize*TotalCount));
+            var Offset=FrameOffset;
+            foreach(var Vertex in this.OverlayTriangles){
+                var Value=Vertex;
                 MemoryMarshal.Write(Mapped.Slice(Offset,VertexSize),ref Value);
                 Offset+=VertexSize;
             }
-            foreach(OverlayVertex Vertex in OverlayLines){
-                OverlayVertex Value=Vertex;
+            foreach(var Vertex in this.OverlayLines){
+                var Value=Vertex;
                 MemoryMarshal.Write(Mapped.Slice(Offset,VertexSize),ref Value);
                 Offset+=VertexSize;
             }
-            OverlayVertexBuffer.Unmap(0,null);
+
+            this.OverlayVertexBuffer.Unmap(0,null);
         }
 
-        ulong FrameAddress=OverlayVertexBuffer.GPUVirtualAddress+(ulong)FrameOffset;
-        OverlayTriangleVertexViews[FrameIndex]=new VertexBufferView(
-            FrameAddress,OverlayTriangleVertexCount*VertexSize,VertexSize);
-        OverlayLineVertexViews[FrameIndex]=new VertexBufferView(
-            FrameAddress+(ulong)(OverlayTriangleVertexCount*VertexSize),
-            OverlayLineVertexCount*VertexSize,VertexSize);
+        var FrameAddress= this.OverlayVertexBuffer.GPUVirtualAddress+(ulong)FrameOffset;
+        this.OverlayTriangleVertexViews[FrameIndex]=new VertexBufferView(
+                                                                         FrameAddress, this.OverlayTriangleVertexCount*VertexSize,VertexSize);
+        this.OverlayLineVertexViews[FrameIndex]=new VertexBufferView(
+                                                                     FrameAddress+(ulong)(this.OverlayTriangleVertexCount*VertexSize), this.OverlayLineVertexCount*VertexSize,VertexSize);
     }
 
     /// <summary>
@@ -628,152 +631,157 @@ internal sealed class SceneRenderer:IDisposable {
     /// (primaryを含む)。強さの決定は<see cref="SceneSelectionTint"/>。
     /// </summary>
     public void SetSelectedNode(NodePath?NodeId,IReadOnlyCollection<NodePath>?NodeIds=null){
-        SelectedNodeId=NodeId;
-        SelectedNodeIds=NodeIds;
-        MarkAllDirty(ConstantsDirty);
+        this.SelectedNodeId=NodeId;
+        this.SelectedNodeIds=NodeIds;
+        MarkAllDirty(this.ConstantsDirty);
     }
 
     public void Resize(int NewWidth,int NewHeight){
         NewWidth=Math.Max(1,NewWidth);
         NewHeight=Math.Max(1,NewHeight);
-        if(NewWidth==Width&&NewHeight==Height){
+        if(NewWidth== this.Width&&NewHeight== this.Height){
             return;
         }
 
-        WaitForGpuIdle();
+        this.WaitForGpuIdle();
 
         for(var I=0;I<FrameCount;I++){
-            RenderTargets[I].Dispose();
+            this.RenderTargets[I].Dispose();
         }
-        DepthBuffer.Dispose();
 
-        Width=NewWidth;
-        Height=NewHeight;
-        SwapChain.ResizeBuffers(FrameCount,Width,Height,BackBufferFormat,SwapChainFlags.None);
-        CreateRenderTargetViews();
-        DepthBuffer=CreateDepthBuffer(Width,Height);
+        this.DepthBuffer.Dispose();
+
+        this.Width=NewWidth;
+        this.Height=NewHeight;
+        this.SwapChain.ResizeBuffers(FrameCount, this.Width, this.Height,BackBufferFormat,SwapChainFlags.None);
+        this.CreateRenderTargetViews();
+        this.DepthBuffer= this.CreateDepthBuffer(this.Width, this.Height);
 
         // アスペクト比に追従した projection は所有者(SceneHwndHost)が SetCamera で入れ直す。
     }
 
     public void RenderFrame(){
-        int FrameIndex=(int)SwapChain.CurrentBackBufferIndex;
-        WaitForFrameSlot(FrameIndex);
-        if(ConstantsDirty[FrameIndex]){
-            UpdateAllConstantBuffers(FrameIndex);
-            ConstantsDirty[FrameIndex]=false;
+        var FrameIndex=(int)this.SwapChain.CurrentBackBufferIndex;
+        this.WaitForFrameSlot(FrameIndex);
+        if(this.ConstantsDirty[FrameIndex]){
+            this.UpdateAllConstantBuffers(FrameIndex);
+            this.ConstantsDirty[FrameIndex]=false;
         }
-        if(OverlayConstantsDirty[FrameIndex]){
-            UpdateOverlayConstantBuffer(FrameIndex);
-            OverlayConstantsDirty[FrameIndex]=false;
+        if(this.OverlayConstantsDirty[FrameIndex]){
+            this.UpdateOverlayConstantBuffer(FrameIndex);
+            this.OverlayConstantsDirty[FrameIndex]=false;
         }
-        if(OverlayGeometryDirty[FrameIndex]){
-            UpdateOverlayVertexBuffer(FrameIndex);
-            OverlayGeometryDirty[FrameIndex]=false;
+        if(this.OverlayGeometryDirty[FrameIndex]){
+            this.UpdateOverlayVertexBuffer(FrameIndex);
+            this.OverlayGeometryDirty[FrameIndex]=false;
         }
 
-        ID3D12CommandAllocator CommandAllocator=CommandAllocators[FrameIndex];
+        var CommandAllocator= this.CommandAllocators[FrameIndex];
         CommandAllocator.Reset();
-        CommandList.Reset(CommandAllocator,PipelineState);
+        this.CommandList.Reset(CommandAllocator, this.PipelineState);
 
-        CommandList.ResourceBarrierTransition(RenderTargets[FrameIndex],ResourceStates.Present,ResourceStates.RenderTarget);
+        this.CommandList.ResourceBarrierTransition(this.RenderTargets[FrameIndex],ResourceStates.Present,ResourceStates.RenderTarget);
 
-        CpuDescriptorHandle RtvHandle=RtvHeap.GetCPUDescriptorHandleForHeapStart()+(FrameIndex*RtvDescriptorSize);
-        CpuDescriptorHandle DsvHandle=DsvHeap.GetCPUDescriptorHandleForHeapStart();
-        CommandList.OMSetRenderTargets(RtvHandle,DsvHandle);
-        CommandList.ClearRenderTargetView(RtvHandle,new Vortice.Mathematics.Color4(5/255f,5/255f,20/255f,1f));
-        CommandList.ClearDepthStencilView(DsvHandle,ClearFlags.Depth,1.0f,0);
+        var RtvHandle= this.RtvHeap.GetCPUDescriptorHandleForHeapStart()+(FrameIndex* this.RtvDescriptorSize);
+        var DsvHandle= this.DsvHeap.GetCPUDescriptorHandleForHeapStart();
+        this.CommandList.OMSetRenderTargets(RtvHandle,DsvHandle);
+        this.CommandList.ClearRenderTargetView(RtvHandle,new Vortice.Mathematics.Color4(5/255f,5/255f,20/255f,1f));
+        this.CommandList.ClearDepthStencilView(DsvHandle,ClearFlags.Depth,1.0f,0);
 
-        CommandList.SetGraphicsRootSignature(RootSignature);
-        CommandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
-        CommandList.RSSetViewport(0,0,Width,Height);
-        CommandList.RSSetScissorRect(Width,Height);
+        this.CommandList.SetGraphicsRootSignature(this.RootSignature);
+        this.CommandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
+        this.CommandList.RSSetViewport(0,0, this.Width, this.Height);
+        this.CommandList.RSSetScissorRect(this.Width, this.Height);
 
-        for(var I=0;I<Objects.Count;I++){
-            ObjectResources Obj=Objects[I];
-            int ConstantOffset=((FrameIndex*ObjectCapacity)+I)*AlignedSlotSize;
-            CommandList.SetGraphicsRootConstantBufferView(
-                0,ConstantBuffer.GPUVirtualAddress+(ulong)ConstantOffset);
-            CommandList.IASetVertexBuffers(0,Obj.VertexBufferView);
-            CommandList.IASetIndexBuffer(Obj.IndexBufferView);
-            CommandList.DrawIndexedInstanced(Obj.IndexCount,1,0,0,0);
+        for(var I=0;I< this.Objects.Count;I++){
+            var Obj= this.Objects[I];
+            var ConstantOffset=((FrameIndex* this.ObjectCapacity)+I)* this.AlignedSlotSize;
+            this.CommandList.SetGraphicsRootConstantBufferView(
+                                                               0, this.ConstantBuffer.GPUVirtualAddress+(ulong)ConstantOffset);
+            this.CommandList.IASetVertexBuffers(0,Obj.VertexBufferView);
+            this.CommandList.IASetIndexBuffer(Obj.IndexBufferView);
+            this.CommandList.DrawIndexedInstanced(Obj.IndexCount,1,0,0,0);
         }
 
-        if(OverlayTriangleVertexCount>0){
-            CommandList.SetPipelineState(OverlayTrianglePipelineState);
-            CommandList.SetGraphicsRootConstantBufferView(
-                0,OverlayConstantBuffer.GPUVirtualAddress+(ulong)(FrameIndex*256));
-            CommandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
-            CommandList.IASetVertexBuffers(0,OverlayTriangleVertexViews[FrameIndex]);
-            CommandList.DrawInstanced(OverlayTriangleVertexCount,1,0,0);
+        if(this.OverlayTriangleVertexCount>0){
+            this.CommandList.SetPipelineState(this.OverlayTrianglePipelineState);
+            this.CommandList.SetGraphicsRootConstantBufferView(
+                                                               0, this.OverlayConstantBuffer.GPUVirtualAddress+(ulong)(FrameIndex*256));
+            this.CommandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
+            this.CommandList.IASetVertexBuffers(0, this.OverlayTriangleVertexViews[FrameIndex]);
+            this.CommandList.DrawInstanced(this.OverlayTriangleVertexCount,1,0,0);
         }
-        if(OverlayLineVertexCount>0){
-            CommandList.SetPipelineState(OverlayLinePipelineState);
-            CommandList.SetGraphicsRootConstantBufferView(
-                0,OverlayConstantBuffer.GPUVirtualAddress+(ulong)(FrameIndex*256));
-            CommandList.IASetPrimitiveTopology(PrimitiveTopology.LineList);
-            CommandList.IASetVertexBuffers(0,OverlayLineVertexViews[FrameIndex]);
-            CommandList.DrawInstanced(OverlayLineVertexCount,1,0,0);
+        if(this.OverlayLineVertexCount>0){
+            this.CommandList.SetPipelineState(this.OverlayLinePipelineState);
+            this.CommandList.SetGraphicsRootConstantBufferView(
+                                                               0, this.OverlayConstantBuffer.GPUVirtualAddress+(ulong)(FrameIndex*256));
+            this.CommandList.IASetPrimitiveTopology(PrimitiveTopology.LineList);
+            this.CommandList.IASetVertexBuffers(0, this.OverlayLineVertexViews[FrameIndex]);
+            this.CommandList.DrawInstanced(this.OverlayLineVertexCount,1,0,0);
         }
 
-        CommandList.ResourceBarrierTransition(RenderTargets[FrameIndex],ResourceStates.RenderTarget,ResourceStates.Present);
-        CommandList.Close();
+        this.CommandList.ResourceBarrierTransition(this.RenderTargets[FrameIndex],ResourceStates.RenderTarget,ResourceStates.Present);
+        this.CommandList.Close();
 
-        CommandQueue.ExecuteCommandList(CommandList);
-        SwapChain.Present(1,PresentFlags.None);
+        this.CommandQueue.ExecuteCommandList(this.CommandList);
+        this.SwapChain.Present(1,PresentFlags.None);
 
-        SignalFrameSlot(FrameIndex);
+        this.SignalFrameSlot(FrameIndex);
     }
 
     private void WaitForFrameSlot(int FrameIndex){
-        ulong RequiredValue=FrameResources.GetRequiredFenceValue(FrameIndex);
-        if(RequiredValue==0||Fence.CompletedValue>=RequiredValue){ return; }
-        Fence.SetEventOnCompletion(RequiredValue,FenceEvent);
-        NativeEvent.Wait(FenceEvent);
+        var RequiredValue= this.FrameResources.GetRequiredFenceValue(FrameIndex);
+        if(RequiredValue==0|| this.Fence.CompletedValue>=RequiredValue){ return; }
+
+        this.Fence.SetEventOnCompletion(RequiredValue, this.FenceEvent);
+        NativeEvent.Wait(this.FenceEvent);
     }
 
     private void SignalFrameSlot(int FrameIndex){
-        ulong ValueToSignal=FrameResources.MarkSubmitted(FrameIndex);
-        CommandQueue.Signal(Fence,ValueToSignal);
+        var ValueToSignal= this.FrameResources.MarkSubmitted(FrameIndex);
+        this.CommandQueue.Signal(this.Fence,ValueToSignal);
     }
 
     private void WaitForGpuIdle(){
-        ulong ValueToSignal=FrameResources.MarkGpuIdle();
-        CommandQueue.Signal(Fence,ValueToSignal);
-        if(Fence.CompletedValue<ValueToSignal){
-            Fence.SetEventOnCompletion(ValueToSignal,FenceEvent);
-            NativeEvent.Wait(FenceEvent);
+        var ValueToSignal= this.FrameResources.MarkGpuIdle();
+        this.CommandQueue.Signal(this.Fence,ValueToSignal);
+        if(this.Fence.CompletedValue<ValueToSignal){
+            this.Fence.SetEventOnCompletion(ValueToSignal, this.FenceEvent);
+            NativeEvent.Wait(this.FenceEvent);
         }
     }
 
     public void Dispose(){
-        WaitForGpuIdle();
+        this.WaitForGpuIdle();
 
-        ConstantBuffer.Dispose();
-        OverlayConstantBuffer.Dispose();
-        OverlayVertexBuffer.Dispose();
-        foreach(ObjectResources Obj in Objects){
+        this.ConstantBuffer.Dispose();
+        this.OverlayConstantBuffer.Dispose();
+        this.OverlayVertexBuffer.Dispose();
+        foreach(var Obj in this.Objects){
             DisposeObjectResources(Obj);
         }
-        PipelineState.Dispose();
-        OverlayLinePipelineState.Dispose();
-        OverlayTrianglePipelineState.Dispose();
-        RootSignature.Dispose();
-        CommandList.Dispose();
-        foreach(ID3D12CommandAllocator CommandAllocator in CommandAllocators){
+
+        this.PipelineState.Dispose();
+        this.OverlayLinePipelineState.Dispose();
+        this.OverlayTrianglePipelineState.Dispose();
+        this.RootSignature.Dispose();
+        this.CommandList.Dispose();
+        foreach(var CommandAllocator in this.CommandAllocators){
             CommandAllocator.Dispose();
         }
-        DepthBuffer.Dispose();
-        DsvHeap.Dispose();
+
+        this.DepthBuffer.Dispose();
+        this.DsvHeap.Dispose();
         for(var I=0;I<FrameCount;I++){
-            RenderTargets[I].Dispose();
+            this.RenderTargets[I].Dispose();
         }
-        RtvHeap.Dispose();
-        SwapChain.Dispose();
-        CommandQueue.Dispose();
-        Fence.Dispose();
-        NativeEvent.Close(FenceEvent);
-        Device.Dispose();
+
+        this.RtvHeap.Dispose();
+        this.SwapChain.Dispose();
+        this.CommandQueue.Dispose();
+        this.Fence.Dispose();
+        NativeEvent.Close(this.FenceEvent);
+        this.Device.Dispose();
     }
 
     private static void MarkAllDirty(bool[]Dirty){

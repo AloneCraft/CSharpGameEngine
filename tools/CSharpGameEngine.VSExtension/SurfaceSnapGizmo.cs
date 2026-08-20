@@ -21,16 +21,16 @@ internal static class SurfaceSnapGizmo {
 
     internal static GizmoHandleId?TryHit(
         in MoveGizmoFrame Frame,Vector3 CameraForward,Vector3 RayOrigin,Vector3 RayDirection,out float RayDistance){
-        (Vector3 Position,Vector3 Normal)=GetArmedPlacement(Frame,CameraForward);
+        (var Position,var Normal)=GetArmedPlacement(Frame,CameraForward);
         RayDirection=Vector3.Normalize(RayDirection);
-        if(!TransformGizmo.TryIntersectPlane(RayOrigin,RayDirection,Position,Normal,out Vector3 Point,out RayDistance)){
+        if(!TransformGizmo.TryIntersectPlane(RayOrigin,RayDirection,Position,Normal,out var Point,out RayDistance)){
             return null;
         }
 
-        (Vector3 First,Vector3 Second)=TransformGizmo.CreatePlaneBasis(Normal);
-        Vector3 Relative=(Point-Position)/Frame.WorldScale;
-        float U=Vector3.Dot(Relative,First);
-        float V=Vector3.Dot(Relative,Second);
+        (var First,var Second)=TransformGizmo.CreatePlaneBasis(Normal);
+        var Relative=(Point-Position)/Frame.WorldScale;
+        var U=Vector3.Dot(Relative,First);
+        var V=Vector3.Dot(Relative,Second);
         if(System.Math.Abs(U)<=HitHalfExtent&&System.Math.Abs(V)<=HitHalfExtent){
             return GizmoHandleId.SurfaceSnapPlane;
         }
@@ -47,14 +47,14 @@ internal static class SurfaceSnapGizmo {
     /// </summary>
     internal static IReadOnlyList<GizmoOverlayPrimitive>BuildOverlay(
         in MoveGizmoFrame Frame,Vector3 Position,Vector3 Normal,bool Disabled){
-        (Vector3 First,Vector3 Second)=TransformGizmo.CreatePlaneBasis(NormalizeOrFallback(Normal));
-        float Size=QuadHalfExtent*Frame.WorldScale;
-        Vector3 A=Position-(First*Size)-(Second*Size);
-        Vector3 B=Position+(First*Size)-(Second*Size);
-        Vector3 C=Position+(First*Size)+(Second*Size);
-        Vector3 D=Position-(First*Size)+(Second*Size);
+        (var First,var Second)=TransformGizmo.CreatePlaneBasis(NormalizeOrFallback(Normal));
+        var Size=QuadHalfExtent*Frame.WorldScale;
+        var A=Position-(First*Size)-(Second*Size);
+        var B=Position+(First*Size)-(Second*Size);
+        var C=Position+(First*Size)+(Second*Size);
+        var D=Position-(First*Size)+(Second*Size);
 
-        Vector4 Fill=Disabled?new Vector4(0.5f,0.35f,0.05f,0.18f):new Vector4(1f,0.62f,0.1f,0.35f);
+        var Fill=Disabled?new Vector4(0.5f,0.35f,0.05f,0.18f):new Vector4(1f,0.62f,0.1f,0.35f);
         Vector4 Outline=new(1f-Fill.X,1f-Fill.Y,1f-Fill.Z,Disabled?0.3f:0.95f);
 
         return [

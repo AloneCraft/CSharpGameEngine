@@ -23,22 +23,22 @@ internal sealed class BridgeDocument {
     public float[]BaseColorFactor { get; set;}=[];
 
     public SimpleMesh ToSimpleMesh(){
-        Vector3[]PositionValues=ToVector3Array(Positions);
-        Vector3[]NormalValues=ToVector3Array(Normals);
-        Vector4 BaseColorValues=BaseColorFactor.Length==4
-            ?new Vector4(BaseColorFactor[0],BaseColorFactor[1],BaseColorFactor[2],BaseColorFactor[3])
-            :new Vector4(1f,1f,1f,1f);
+        var PositionValues=ToVector3Array(this.Positions);
+        var NormalValues=ToVector3Array(this.Normals);
+        var BaseColorValues= this.BaseColorFactor.Length==4
+                                ?new Vector4(this.BaseColorFactor[0], this.BaseColorFactor[1], this.BaseColorFactor[2], this.BaseColorFactor[3])
+                                :new Vector4(1f,1f,1f,1f);
 
         if(PositionValues.Length==0){
             throw new InvalidOperationException("インポートされたメッシュに頂点がありません。");
         }
 
-        (Vector3 Center,var Radius)=SimpleMesh.ComputeBoundingSphere(PositionValues);
+        (var Center,var Radius)=SimpleMesh.ComputeBoundingSphere(PositionValues);
 
         return new SimpleMesh {
             Positions=PositionValues,
             Normals=NormalValues,
-            Indices=Indices,
+            Indices= this.Indices,
             BaseColorFactor=BaseColorValues,
             BoundsCenter=Center,
             BoundsRadius=Radius,
@@ -46,7 +46,7 @@ internal sealed class BridgeDocument {
     }
 
     private static Vector3[]ToVector3Array(float[]Flat){
-        Vector3[]Result=new Vector3[Flat.Length/3];
+        var Result=new Vector3[Flat.Length/3];
         for(var I=0;I<Result.Length;I++){
             Result[I]=new Vector3(Flat[(I*3)+0],Flat[(I*3)+1],Flat[(I*3)+2]);
         }

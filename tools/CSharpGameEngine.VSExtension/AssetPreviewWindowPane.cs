@@ -20,13 +20,13 @@ internal sealed class AssetPreviewWindowPane:WindowPane,IVsPersistDocData,IPersi
 
     public AssetPreviewWindowPane(string FilePath){
         this.FilePath=FilePath;
-        Control=new AssetPreviewControl(FilePath);
-        Content=Control;
+        this.Control=new AssetPreviewControl(FilePath);
+        this.Content= this.Control;
     }
 
     private int LoadFromPath(string Path){
-        FilePath=Path;
-        Control.SetModelPath(Path);
+        this.FilePath=Path;
+        this.Control.SetModelPath(Path);
         return VSConstants.S_OK;
     }
 
@@ -55,14 +55,14 @@ internal sealed class AssetPreviewWindowPane:WindowPane,IVsPersistDocData,IPersi
 
     int IPersistFileFormat.InitNew(uint NFormatIndex)=>VSConstants.E_NOTIMPL;
 
-    int IPersistFileFormat.Load(string PszFilename,uint GrfMode,int FReadOnly)=>LoadFromPath(PszFilename);
+    int IPersistFileFormat.Load(string PszFilename,uint GrfMode,int FReadOnly)=> this.LoadFromPath(PszFilename);
 
     int IPersistFileFormat.Save(string PszFilename,int FRemember,uint NFormatIndex)=>VSConstants.E_NOTIMPL;
 
     int IPersistFileFormat.SaveCompleted(string PszFilename)=>VSConstants.S_OK;
 
     int IPersistFileFormat.GetCurFile(out string PpszFilename,out uint PnFormatIndex){
-        PpszFilename=FilePath;
+        PpszFilename= this.FilePath;
         PnFormatIndex=0;
         return VSConstants.S_OK;
     }
@@ -80,7 +80,7 @@ internal sealed class AssetPreviewWindowPane:WindowPane,IVsPersistDocData,IPersi
 
     int IVsPersistDocData.SetUntitledDocPath(string PszDocDataPath)=>VSConstants.E_NOTIMPL;
 
-    int IVsPersistDocData.LoadDocData(string PszMkDocument)=>LoadFromPath(PszMkDocument);
+    int IVsPersistDocData.LoadDocData(string PszMkDocument)=> this.LoadFromPath(PszMkDocument);
 
     int IVsPersistDocData.SaveDocData(VSSAVEFLAGS DwSave,out string PbstrMkDocumentNew,out int PfSaveCanceled){
         PbstrMkDocumentNew=null!;
@@ -92,13 +92,12 @@ internal sealed class AssetPreviewWindowPane:WindowPane,IVsPersistDocData,IPersi
 
     int IVsPersistDocData.OnRegisterDocData(uint DocCookie,IVsHierarchy PHierNew,uint ItemidNew)=>VSConstants.S_OK;
 
-    int IVsPersistDocData.RenameDocData(uint GrfAttribs,IVsHierarchy PHierNew,uint ItemidNew,string PszMkDocumentNew)=>
-        LoadFromPath(PszMkDocumentNew);
+    int IVsPersistDocData.RenameDocData(uint GrfAttribs,IVsHierarchy PHierNew,uint ItemidNew,string PszMkDocumentNew)=> this.LoadFromPath(PszMkDocumentNew);
 
     int IVsPersistDocData.IsDocDataReloadable(out int PfReloadable){
         PfReloadable=1;
         return VSConstants.S_OK;
     }
 
-    int IVsPersistDocData.ReloadDocData(uint GrfFlags)=>LoadFromPath(FilePath);
+    int IVsPersistDocData.ReloadDocData(uint GrfFlags)=> this.LoadFromPath(this.FilePath);
 }

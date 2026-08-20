@@ -12,11 +12,11 @@ public class HlslCompilerTests {
 
     [Fact]
     public void Compile_ValidVertexShader_Succeeds(){
-        HlslCompileResult Result=HlslCompiler.Compile(new HlslCompileRequest {
-            FilePath=TriangleShaderPath,
-            EntryPoint="VSMain",
-            TargetProfile="vs_6_0",
-        });
+        var Result=HlslCompiler.Compile(new HlslCompileRequest {
+                                                                   FilePath=TriangleShaderPath,
+                                                                   EntryPoint="VSMain",
+                                                                   TargetProfile="vs_6_0",
+                                                               });
 
         Assert.True(Result.Success,string.Join(Environment.NewLine,Result.Diagnostics));
         Assert.NotEmpty(Result.Bytecode);
@@ -24,11 +24,11 @@ public class HlslCompilerTests {
 
     [Fact]
     public void Compile_ValidPixelShader_Succeeds(){
-        HlslCompileResult Result=HlslCompiler.Compile(new HlslCompileRequest {
-            FilePath=TriangleShaderPath,
-            EntryPoint="PSMain",
-            TargetProfile="ps_6_0",
-        });
+        var Result=HlslCompiler.Compile(new HlslCompileRequest {
+                                                                   FilePath=TriangleShaderPath,
+                                                                   EntryPoint="PSMain",
+                                                                   TargetProfile="ps_6_0",
+                                                               });
 
         Assert.True(Result.Success,string.Join(Environment.NewLine,Result.Diagnostics));
         Assert.NotEmpty(Result.Bytecode);
@@ -36,11 +36,11 @@ public class HlslCompilerTests {
 
     [Fact]
     public void Compile_MissingEntryPoint_Fails(){
-        HlslCompileResult Result=HlslCompiler.Compile(new HlslCompileRequest {
-            FilePath=TriangleShaderPath,
-            EntryPoint="DoesNotExist",
-            TargetProfile="vs_6_0",
-        });
+        var Result=HlslCompiler.Compile(new HlslCompileRequest {
+                                                                   FilePath=TriangleShaderPath,
+                                                                   EntryPoint="DoesNotExist",
+                                                                   TargetProfile="vs_6_0",
+                                                               });
 
         Assert.False(Result.Success);
         Assert.Empty(Result.Bytecode);
@@ -49,11 +49,11 @@ public class HlslCompilerTests {
 
     [Fact]
     public void Compile_SyntaxError_ReportsDiagnostics(){
-        HlslCompileResult Result=HlslCompiler.Compile(new HlslCompileRequest {
-            FilePath=SyntaxErrorShaderPath,
-            EntryPoint="VSMain",
-            TargetProfile="vs_6_0",
-        });
+        var Result=HlslCompiler.Compile(new HlslCompileRequest {
+                                                                   FilePath=SyntaxErrorShaderPath,
+                                                                   EntryPoint="VSMain",
+                                                                   TargetProfile="vs_6_0",
+                                                               });
 
         Assert.False(Result.Success);
         Assert.Empty(Result.Bytecode);
@@ -62,12 +62,12 @@ public class HlslCompilerTests {
 
     [Fact]
     public void Compile_WithDebugInfo_StillSucceeds(){
-        HlslCompileResult Result=HlslCompiler.Compile(new HlslCompileRequest {
-            FilePath=TriangleShaderPath,
-            EntryPoint="PSMain",
-            TargetProfile="ps_6_0",
-            EnableDebugInfo=true,
-        });
+        var Result=HlslCompiler.Compile(new HlslCompileRequest {
+                                                                   FilePath=TriangleShaderPath,
+                                                                   EntryPoint="PSMain",
+                                                                   TargetProfile="ps_6_0",
+                                                                   EnableDebugInfo=true,
+                                                               });
 
         Assert.True(Result.Success,string.Join(Environment.NewLine,Result.Diagnostics));
         Assert.NotEmpty(Result.Bytecode);
@@ -75,11 +75,11 @@ public class HlslCompilerTests {
 
     [Fact]
     public void Compile_ModelVertexShader_Succeeds(){
-        HlslCompileResult Result=HlslCompiler.Compile(new HlslCompileRequest {
-            FilePath=ModelShaderPath,
-            EntryPoint="VSMain",
-            TargetProfile="vs_6_0",
-        });
+        var Result=HlslCompiler.Compile(new HlslCompileRequest {
+                                                                   FilePath=ModelShaderPath,
+                                                                   EntryPoint="VSMain",
+                                                                   TargetProfile="vs_6_0",
+                                                               });
 
         Assert.True(Result.Success,string.Join(Environment.NewLine,Result.Diagnostics));
         Assert.NotEmpty(Result.Bytecode);
@@ -87,11 +87,11 @@ public class HlslCompilerTests {
 
     [Fact]
     public void Compile_ModelPixelShader_Succeeds(){
-        HlslCompileResult Result=HlslCompiler.Compile(new HlslCompileRequest {
-            FilePath=ModelShaderPath,
-            EntryPoint="PSMain",
-            TargetProfile="ps_6_0",
-        });
+        var Result=HlslCompiler.Compile(new HlslCompileRequest {
+                                                                   FilePath=ModelShaderPath,
+                                                                   EntryPoint="PSMain",
+                                                                   TargetProfile="ps_6_0",
+                                                               });
 
         Assert.True(Result.Success,string.Join(Environment.NewLine,Result.Diagnostics));
         Assert.NotEmpty(Result.Bytecode);
@@ -99,16 +99,16 @@ public class HlslCompilerTests {
 
     [Fact]
     public void Compile_StagePostProcessShaders_Succeeds(){
-        HlslCompileResult Vertex=HlslCompiler.Compile(new HlslCompileRequest {
-            FilePath=StageShaderPath,
-            EntryPoint="FullscreenVS",
-            TargetProfile="vs_6_0",
-        });
-        HlslCompileResult Pixel=HlslCompiler.Compile(new HlslCompileRequest {
-            FilePath=StageShaderPath,
-            EntryPoint="PostProcessPS",
-            TargetProfile="ps_6_0",
-        });
+        var Vertex=HlslCompiler.Compile(new HlslCompileRequest {
+                                                                   FilePath=StageShaderPath,
+                                                                   EntryPoint="FullscreenVS",
+                                                                   TargetProfile="vs_6_0",
+                                                               });
+        var Pixel=HlslCompiler.Compile(new HlslCompileRequest {
+                                                                  FilePath=StageShaderPath,
+                                                                  EntryPoint="PostProcessPS",
+                                                                  TargetProfile="ps_6_0",
+                                                              });
 
         Assert.True(Vertex.Success,string.Join(Environment.NewLine,Vertex.Diagnostics));
         Assert.True(Pixel.Success,string.Join(Environment.NewLine,Pixel.Diagnostics));

@@ -38,15 +38,15 @@ public sealed unsafe class GraphicsDevice:IDisposable {
 
     public string AdapterDescription { get;private set;}=string.Empty;
 
-    public IReadOnlyList<D3D12DebugMessage>CollectedMessages=>CollectedMessagesValue;
+    public IReadOnlyList<D3D12DebugMessage>CollectedMessages=> this.CollectedMessagesValue;
 
     public int ErrorOrWorseMessageCount { get;private set;}
 
-    public IDXGIFactory4*Factory=>FactoryHandle;
+    public IDXGIFactory4*Factory=> this.FactoryHandle;
 
-    public ID3D12Device*Device=>DeviceHandle;
+    public ID3D12Device*Device=> this.DeviceHandle;
 
-    public ID3D12CommandQueue*CommandQueue=>CommandQueueHandle;
+    public ID3D12CommandQueue*CommandQueue=> this.CommandQueueHandle;
 
     public static GraphicsDevice Create(GraphicsDeviceOptions Options){
         ArgumentNullException.ThrowIfNull(Options);
@@ -101,14 +101,14 @@ public sealed unsafe class GraphicsDevice:IDisposable {
 
     /// <summary>Pulls any newly-recorded debug-layer messages into <see cref="CollectedMessages"/>. Cheap no-op when the info queue is unavailable or empty.</summary>
     public void PollDebugMessages(){
-        if(InfoQueue==null){
+        if(this.InfoQueue==null){
             return;
         }
 
-        var Stored=InfoQueue->GetNumStoredMessages();
+        var Stored= this.InfoQueue->GetNumStoredMessages();
         for(ulong I=0;I<Stored;I++){
             nuint MessageLength;
-            HRESULT Hr=InfoQueue->GetMessage(I,null,&MessageLength);
+            HRESULT Hr= this.InfoQueue->GetMessage(I,null,&MessageLength);
             if(Hr.FAILED||MessageLength==0){
                 continue;
             }
@@ -116,7 +116,7 @@ public sealed unsafe class GraphicsDevice:IDisposable {
             var Buffer=(byte*)NativeMemory.Alloc(MessageLength);
             try {
                 D3D12_MESSAGE*Message=(D3D12_MESSAGE*)Buffer;
-                Hr=InfoQueue->GetMessage(I,Message,&MessageLength);
+                Hr= this.InfoQueue->GetMessage(I,Message,&MessageLength);
                 if(Hr.FAILED){
                     continue;
                 }
@@ -126,16 +126,16 @@ public sealed unsafe class GraphicsDevice:IDisposable {
                     :string.Empty;
 
                 D3D12DebugMessage Record=new(Message->Severity,Message->Category,Message->ID,Description);
-                CollectedMessagesValue.Add(Record);
+                this.CollectedMessagesValue.Add(Record);
                 if(Record.IsErrorOrWorse){
-                    ErrorOrWorseMessageCount++;
+                    this.ErrorOrWorseMessageCount++;
                 }
             } finally {
                 NativeMemory.Free(Buffer);
             }
         }
 
-        InfoQueue->ClearStoredMessages();
+        this.InfoQueue->ClearStoredMessages();
     }
 
     private void EnableDebugLayer(bool EnableGpuBasedValidation){
@@ -147,11 +147,11 @@ public sealed unsafe class GraphicsDevice:IDisposable {
         }
 
         DebugController->EnableDebugLayer();
-        DebugLayerEnabled=true;
+        this.DebugLayerEnabled=true;
 
         if(EnableGpuBasedValidation){
             DebugController->SetEnableGPUBasedValidation(TRUE);
-            GpuBasedValidationEnabled=true;
+            this.GpuBasedValidationEnabled=true;
         }
 
         _=DebugController->Release();
@@ -159,7 +159,7 @@ public sealed unsafe class GraphicsDevice:IDisposable {
 
     private void TryCreateInfoQueue(){
         ID3D12InfoQueue*InfoQueue;
-        HRESULT Hr=Device->QueryInterface(__uuidof<ID3D12InfoQueue>(),(void**)&InfoQueue);
+        HRESULT Hr= this.Device->QueryInterface(__uuidof<ID3D12InfoQueue>(),(void**)&InfoQueue);
         if(Hr.SUCCEEDED){
             this.InfoQueue=InfoQueue;
         }
@@ -217,35 +217,35 @@ public sealed unsafe class GraphicsDevice:IDisposable {
     }
 
     public void Dispose(){
-        if(Disposed){
+        if(this.Disposed){
             return;
         }
 
-        Disposed=true;
+        this.Disposed=true;
 
-        if(CommandQueueHandle!=null){
-            _=CommandQueueHandle->Release();
-            CommandQueueHandle=null;
+        if(this.CommandQueueHandle!=null){
+            _= this.CommandQueueHandle->Release();
+            this.CommandQueueHandle=null;
         }
 
-        if(InfoQueue!=null){
-            _=InfoQueue->Release();
-            InfoQueue=null;
+        if(this.InfoQueue!=null){
+            _= this.InfoQueue->Release();
+            this.InfoQueue=null;
         }
 
-        if(DeviceHandle!=null){
-            _=DeviceHandle->Release();
-            DeviceHandle=null;
+        if(this.DeviceHandle!=null){
+            _= this.DeviceHandle->Release();
+            this.DeviceHandle=null;
         }
 
-        if(Adapter!=null){
-            _=Adapter->Release();
-            Adapter=null;
+        if(this.Adapter!=null){
+            _= this.Adapter->Release();
+            this.Adapter=null;
         }
 
-        if(FactoryHandle!=null){
-            _=FactoryHandle->Release();
-            FactoryHandle=null;
+        if(this.FactoryHandle!=null){
+            _= this.FactoryHandle->Release();
+            this.FactoryHandle=null;
         }
     }
 }

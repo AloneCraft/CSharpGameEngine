@@ -12,7 +12,7 @@ RunAos(Entities,Frames);
 RunSoa(Entities,Frames);
 
 static void RunAos(int Entities,int Frames){
-    AosRow[]Rows=new AosRow[Entities];
+    var Rows=new AosRow[Entities];
     for(var Index=0;Index<Rows.Length;Index++){
         Rows[Index].Velocity.X=1f;
         Rows[Index].ColdA=Index;

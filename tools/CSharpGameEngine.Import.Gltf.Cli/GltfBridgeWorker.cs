@@ -11,16 +11,16 @@ namespace CSharpGameEngine.Import.Gltf.Cli;
 /// </summary>
 internal static class GltfBridgeWorker {
     public static(int ExitCode,string Output)Run(string InputPath,string OutputPath){
-        GltfImportResult Result=GltfImporter.Import(InputPath);
+        var Result=GltfImporter.Import(InputPath);
 
         List<string>Lines=[];
-        foreach(GltfImportDiagnostic Diagnostic in Result.Diagnostics){
+        foreach(var Diagnostic in Result.Diagnostics){
             Lines.Add(Diagnostic.ToString()??string.Empty);
         }
 
-        GltfBridgeDocument Document=Result.Success
-            ?GltfBridgeDocument.ForMesh(Result.Mesh!)
-            :GltfBridgeDocument.ForFailure();
+        var Document=Result.Success
+                         ?GltfBridgeDocument.ForMesh(Result.Mesh!)
+                         :GltfBridgeDocument.ForFailure();
 
         var Json=JsonSerializer.Serialize(Document);
         File.WriteAllText(OutputPath,Json);

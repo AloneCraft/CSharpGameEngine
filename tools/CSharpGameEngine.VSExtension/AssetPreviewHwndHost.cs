@@ -24,45 +24,45 @@ internal sealed class AssetPreviewHwndHost:HwndHost {
     }
 
     protected override HandleRef BuildWindowCore(HandleRef HwndParent){
-        Surface=new RenderSurfaceWindow(HwndParent.Handle,800,600);
-        LoadIntoSurface();
-        return new HandleRef(this,Surface.Handle);
+        this.Surface=new RenderSurfaceWindow(HwndParent.Handle,800,600);
+        this.LoadIntoSurface();
+        return new HandleRef(this, this.Surface.Handle);
     }
 
     protected override void DestroyWindowCore(HandleRef Hwnd){
-        TearDownRenderer();
+        this.TearDownRenderer();
 
-        Surface?.Dispose();
-        Surface=null;
+        this.Surface?.Dispose();
+        this.Surface=null;
     }
 
     /// <summary>Reloads the preview with a different file - used if VS reuses this pane's doc data for a renamed/reloaded document.</summary>
     public void SetModelPath(string ModelPath){
         this.ModelPath=ModelPath;
-        if(Surface is not null){
-            TearDownRenderer();
-            LoadIntoSurface();
+        if(this.Surface is not null){
+            this.TearDownRenderer();
+            this.LoadIntoSurface();
         }
     }
 
     private void LoadIntoSurface(){
-        if(Surface is null){
+        if(this.Surface is null){
             return;
         }
 
         try {
-            RepoRoot??=RepoLocator.ResolveRepoRoot();
-            if(RepoRoot is null){
+            this.RepoRoot??=RepoLocator.ResolveRepoRoot();
+            if(this.RepoRoot is null){
                 throw new InvalidOperationException($"リポジトリルート({RepoLocator.RepoMarkerFileName})が見つかりませんでした。");
             }
 
-            SimpleMesh Mesh=MeshLoader.Load(ModelPath,RepoRoot);
-            Renderer=new VorticeRenderer(Surface.Handle,800,600,Mesh);
+            var Mesh=MeshLoader.Load(this.ModelPath, this.RepoRoot);
+            this.Renderer=new VorticeRenderer(this.Surface.Handle,800,600,Mesh);
 
-            Surface.Resized+=(W,H)=>Renderer?.Resize(W,H);
+            this.Surface.Resized+=(W,H)=> this.Renderer?.Resize(W,H);
 
-            RenderingHandler=(_,_)=>Renderer?.RenderFrame();
-            CompositionTarget.Rendering+=RenderingHandler;
+            this.RenderingHandler=(_,_)=> this.Renderer?.RenderFrame();
+            CompositionTarget.Rendering+= this.RenderingHandler;
         } catch(Exception Ex){
             System.Windows.MessageBox.Show(
                 $"アセットのプレビューに失敗しました: {Ex}",
@@ -73,12 +73,12 @@ internal sealed class AssetPreviewHwndHost:HwndHost {
     }
 
     private void TearDownRenderer(){
-        if(RenderingHandler is not null){
-            CompositionTarget.Rendering-=RenderingHandler;
-            RenderingHandler=null;
+        if(this.RenderingHandler is not null){
+            CompositionTarget.Rendering-= this.RenderingHandler;
+            this.RenderingHandler=null;
         }
 
-        Renderer?.Dispose();
-        Renderer=null;
+        this.Renderer?.Dispose();
+        this.Renderer=null;
     }
 }

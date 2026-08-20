@@ -23,12 +23,12 @@ internal readonly struct SceneSourceLocation : IEquatable<SceneSourceLocation> {
     internal static SceneSourceLocation None=>new(string.Empty,default,default);
 
     internal static SceneSourceLocation FromNode(SyntaxNode Node){
-        FileLinePositionSpan Mapped=Node.GetLocation().GetLineSpan();
+        var Mapped=Node.GetLocation().GetLineSpan();
         return new SceneSourceLocation(Mapped.Path,Node.Span,Mapped.Span);
     }
 
     internal static SceneSourceLocation FromToken(SyntaxToken Token){
-        FileLinePositionSpan Mapped=Token.GetLocation().GetLineSpan();
+        var Mapped=Token.GetLocation().GetLineSpan();
         return new SceneSourceLocation(Mapped.Path,Token.Span,Mapped.Span);
     }
 

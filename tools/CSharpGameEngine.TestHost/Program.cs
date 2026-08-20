@@ -38,7 +38,7 @@ static int RunSelfTest(){
         Bag.Add(new Diagnostic("TH0001",DiagnosticSeverity.Info,"Self-test diagnostic emitted.",SourceLocation.Unknown));
 
         Console.WriteLine($"StableId: {StableId}");
-        foreach(Diagnostic Diagnostic in Bag){
+        foreach(var Diagnostic in Bag){
             Console.WriteLine(Diagnostic.ToString());
         }
 
@@ -51,13 +51,13 @@ static int RunSelfTest(){
 }
 
 static int RunTriangle(string[]TriangleArgs){
-    TriangleOptionsParseResult ParseResult=TriangleOptionsParser.Parse(TriangleArgs);
+    var ParseResult=TriangleOptionsParser.Parse(TriangleArgs);
     if(!ParseResult.Success){
         Console.WriteLine($"FAILED: {ParseResult.Error}");
         return 2;
     }
 
-    TriangleRunOptions Options=ParseResult.Options!;
+    var Options=ParseResult.Options!;
     var ShaderPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Triangle.hlsl");
 
     Console.WriteLine($"Product: {ProductDisplayName} ({InternalName})");
@@ -91,7 +91,7 @@ static int RunTriangle(string[]TriangleArgs){
     Console.WriteLine($"Back buffer format: {TriangleRenderer.BackBufferFormat}, {Options.Width}x{Options.Height}");
     Console.WriteLine($"Debug layer: {(Renderer.DebugLayerEnabled?"enabled":"disabled")}{(Renderer.GpuBasedValidationEnabled?" (+GPU-based validation)":string.Empty)}");
     Console.WriteLine($"Shader compilation: {(Renderer.ShaderCompilationSucceeded?"OK":"FAILED")} ({Renderer.ShaderDiagnostics.Count} diagnostic(s))");
-    foreach(HlslDiagnostic Diagnostic in Renderer.ShaderDiagnostics){
+    foreach(var Diagnostic in Renderer.ShaderDiagnostics){
         Console.WriteLine($"  {Diagnostic}");
     }
 
@@ -123,7 +123,7 @@ static int RunTriangle(string[]TriangleArgs){
                 Console.WriteLine("Verification: FAILED (no frame was captured for readback).");
                 ExitCode=1;
             } else {
-                TriangleVerificationResult Verification=TrianglePixelVerifier.Verify(Renderer.LastCapturedFrame,TriangleRenderer.ClearColor);
+                var Verification=TrianglePixelVerifier.Verify(Renderer.LastCapturedFrame,TriangleRenderer.ClearColor);
                 Console.WriteLine($"Verification: {(Verification.Success?"PASSED":"FAILED")} - {Verification.Details}");
                 if(!Verification.Success){
                     ExitCode=1;
@@ -134,7 +134,7 @@ static int RunTriangle(string[]TriangleArgs){
         var ErrorMessageCount=Renderer.ErrorOrWorseMessageCount;
         Console.WriteLine($"D3D12 validation errors: {ErrorMessageCount}");
         if(ErrorMessageCount>0){
-            foreach(D3D12DebugMessage Message in Renderer.DebugMessages){
+            foreach(var Message in Renderer.DebugMessages){
                 if(Message.IsErrorOrWorse){
                     Console.WriteLine($"  {Message}");
                 }

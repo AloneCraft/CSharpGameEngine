@@ -99,9 +99,9 @@ public struct Camera {
     /// </summary>
     [SceneFactory]
     public static Camera CreateBoundsFit(Vector3 BoundsMin,Vector3 BoundsMax){
-        Vector3 Target=(BoundsMin+BoundsMax)/2f;
-        float Radius=MathF.Max(Vector3.Distance(BoundsMin,BoundsMax)/2f,0.001f);
-        float FovY=MathF.PI/4f;
+        var Target=(BoundsMin+BoundsMax)/2f;
+        var Radius=MathF.Max(Vector3.Distance(BoundsMin,BoundsMax)/2f,0.001f);
+        var FovY=MathF.PI/4f;
         // Distance=Radius/sin(FovY/2) is the exact tangent distance at which the enclosing sphere
         // (radius=half the AABB diagonal, so it bounds the box from every direction, not just this
         // one) fills the vertical FOV edge-to-edge - true regardless of view direction, since a
@@ -109,9 +109,9 @@ public struct Camera {
         // margin over that exact value, unlike ModelRenderer/VorticeRenderer's *1.5f/*3.0f (tuned for
         // arbitrary-rotation thumbnail previews); a fixed demo angle can sit close to the tangent
         // distance and still keep every corner of the level in frame.
-        float Distance=Radius/MathF.Sin(FovY/2f)*1.1f;
+        var Distance=Radius/MathF.Sin(FovY/2f)*1.1f;
 
-        Vector3 Forward=-Vector3.Normalize(new Vector3(1f,0.75f,1f));
+        var Forward=-Vector3.Normalize(new Vector3(1f,0.75f,1f));
 
         return new Camera {
             Target=Target,
@@ -134,14 +134,14 @@ public struct Camera {
         // type's documented "pitch tilts toward +Y" (verified by hand via the standard axis-angle
         // rotation formula, and pinned down permanently by
         // CameraTests.GetForward_MatchesLegacyTrigFormula_AcrossYawPitchSweep).
-        RufQuaternion Facing=RufQuaternion.FromAxisAngle(RufVector.Up,Yaw)*RufQuaternion.FromAxisAngle(RufVector.Left,Pitch);
-        RufVector Forward=RufQuaternion.RotateVector(Facing,RufVector.Forward).Normalize();
+        var Facing=RufQuaternion.FromAxisAngle(RufVector.Up, this.Yaw)*RufQuaternion.FromAxisAngle(RufVector.Left, this.Pitch);
+        var Forward=RufQuaternion.RotateVector(Facing,RufVector.Forward).Normalize();
         return(Vector3)Spatial<UnityCoordinateConvention>.ToXyz(Forward);
     }
 
     /// <summary>Forward direction projected onto the XZ plane (pitch removed) - the basis for WASD movement.</summary>
     public readonly Vector3 GetFlatForward(){
-        return(Vector3)Spatial<UnityCoordinateConvention>.ToXyz(GetFlatForwardRuf());
+        return(Vector3)Spatial<UnityCoordinateConvention>.ToXyz(this.GetFlatForwardRuf());
     }
 
     /// <summary>
@@ -155,17 +155,17 @@ public struct Camera {
     /// matches human intuition at the keyboard.
     /// </summary>
     public readonly Vector3 GetFlatRight(){
-        RufVector Right=Spatial<UnityCoordinateConvention>.RightFromUpForward(RufVector.Up,GetFlatForwardRuf());
+        var Right=Spatial<UnityCoordinateConvention>.RightFromUpForward(RufVector.Up, this.GetFlatForwardRuf());
         return(Vector3)Spatial<UnityCoordinateConvention>.ToXyz(Right);
     }
 
     private readonly RufVector GetFlatForwardRuf(){
-        RufQuaternion YawOnly=RufQuaternion.FromAxisAngle(RufVector.Up,Yaw);
+        var YawOnly=RufQuaternion.FromAxisAngle(RufVector.Up, this.Yaw);
         return RufQuaternion.RotateVector(YawOnly,RufVector.Forward).Normalize();
     }
 
     public readonly Vector3 GetEyePosition(){
-        return Target-(GetForward()*Distance);
+        return this.Target-(this.GetForward()* this.Distance);
     }
 
     /// <summary>
@@ -175,13 +175,13 @@ public struct Camera {
     /// - instead it looks from the eye along <see cref="GetForward"/>.
     /// </summary>
     public readonly Matrix4x4 GetView(){
-        Vector3 Eye=GetEyePosition();
-        Vector3 LookAtPoint=Distance>1e-4f?Target:Eye+GetForward();
+        var Eye= this.GetEyePosition();
+        var LookAtPoint= this.Distance>1e-4f? this.Target:Eye+ this.GetForward();
         return BuildViewMatrix(Eye,LookAtPoint,Vector3.UnitY);
     }
 
     public readonly Matrix4x4 GetProjection(float AspectRatio){
-        return Matrix4x4.CreatePerspectiveFieldOfView(FovYRadians,AspectRatio,NearZ,FarZ);
+        return Matrix4x4.CreatePerspectiveFieldOfView(this.FovYRadians,AspectRatio, this.NearZ, this.FarZ);
     }
 
     /// <summary>
@@ -194,7 +194,7 @@ public struct Camera {
 
     /// <summary>Applies raw mouse-delta input to yaw/pitch, clamping pitch to avoid gimbal flip.</summary>
     public void ApplyMouseDelta(float DeltaX,float DeltaY,float YawSensitivity,float PitchSensitivity){
-        Yaw+=DeltaX*YawSensitivity;
-        Pitch=Math.Clamp(Pitch-(DeltaY*PitchSensitivity),PitchClampMinRadians,PitchClampMaxRadians);
+        this.Yaw+=DeltaX*YawSensitivity;
+        this.Pitch=Math.Clamp(this.Pitch-(DeltaY*PitchSensitivity), this.PitchClampMinRadians, this.PitchClampMaxRadians);
     }
 }

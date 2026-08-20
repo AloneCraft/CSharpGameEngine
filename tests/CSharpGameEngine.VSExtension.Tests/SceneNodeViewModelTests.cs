@@ -35,15 +35,15 @@ public sealed class SceneNodeViewModelTests {
         """;
 
     private static IReadOnlyList<SceneNodeViewModel>Build(string Source,ISet<NodePath>?Collapsed=null,NodePath?Selected=null){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze(Source);
+        var Model=SceneAnalysisTestHelper.Analyze(Source);
         return SceneNodeViewModel.Build(Model,Collapsed??new HashSet<NodePath>(),Selected);
     }
 
     [Fact]
     public void BuildsOneRootMatchingTheDeclaration(){
-        IReadOnlyList<SceneNodeViewModel>Roots=Build(NestedScene);
+        var Roots=Build(NestedScene);
 
-        SceneNodeViewModel Root=Assert.Single(Roots);
+        var Root=Assert.Single(Roots);
         Assert.Equal("Root",Root.DisplayName);
         Assert.Equal(2,Root.Children.Count);
         Assert.Equal("A",Root.Children[0].DisplayName);
@@ -52,7 +52,7 @@ public sealed class SceneNodeViewModelTests {
 
     [Fact]
     public void ComponentSummaryShowsSimpleTypeNames(){
-        IReadOnlyList<SceneNodeViewModel>Roots=Build(NestedScene);
+        var Roots=Build(NestedScene);
 
         Assert.Equal("Transform",Roots[0].ComponentSummary);
         Assert.Equal("DirectionalLight",Roots[0].Children[1].ComponentSummary);
@@ -61,13 +61,13 @@ public sealed class SceneNodeViewModelTests {
 
     [Fact]
     public void UnnamedNodeFallsBackToItsPathSoItIsStillAddressable(){
-        IReadOnlyList<SceneNodeViewModel>Roots=Build("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Children=[new Node()] };
-            }
-            """);
+        var Roots=Build("""
+                       using CSharpGameEngine.Entities;
+                       namespace Game;
+                       public partial class MainScene:IScene {
+                           public Node Root=>new() { Children=[new Node()] };
+                       }
+                       """);
 
         Assert.Equal("(root)",Roots[0].DisplayName);
         Assert.Equal("0",Roots[0].Children[0].DisplayName);
@@ -77,17 +77,17 @@ public sealed class SceneNodeViewModelTests {
     public void NodesAreExpandedByDefault(){
         // Defaulting to collapsed would hide the whole scene behind one disclosure triangle on
         // every rebuild, and rebuilds happen while the user types.
-        IReadOnlyList<SceneNodeViewModel>Roots=Build(NestedScene);
+        var Roots=Build(NestedScene);
 
         Assert.All(Roots[0].SelfAndDescendants(),static Node=>Assert.True(Node.IsExpanded));
     }
 
     [Fact]
     public void CollapsedPathsSurviveARebuild(){
-        NodePath CollapsedChild=NodePath.Root.Append(0);
+        var CollapsedChild=NodePath.Root.Append(0);
         HashSet<NodePath>Collapsed=[CollapsedChild];
 
-        IReadOnlyList<SceneNodeViewModel>Roots=Build(NestedScene,Collapsed);
+        var Roots=Build(NestedScene,Collapsed);
 
         Assert.True(Roots[0].IsExpanded);
         Assert.False(Roots[0].Children[0].IsExpanded);
@@ -96,9 +96,9 @@ public sealed class SceneNodeViewModelTests {
 
     [Fact]
     public void SelectionSurvivesARebuild(){
-        NodePath Selected=NodePath.Root.Append(0).Append(0);
+        var Selected=NodePath.Root.Append(0).Append(0);
 
-        IReadOnlyList<SceneNodeViewModel>Roots=Build(NestedScene,Collapsed:null,Selected);
+        var Roots=Build(NestedScene,Collapsed:null,Selected);
 
         Assert.True(Roots[0].Children[0].Children[0].IsSelected);
         Assert.False(Roots[0].IsSelected);
@@ -108,9 +108,9 @@ public sealed class SceneNodeViewModelTests {
     [Fact]
     public void SelectionOfARemovedNodeSimplySelectsNothing(){
         // The user may delete the selected node from the source; that must not throw.
-        NodePath Vanished=NodePath.Root.Append(9).Append(9);
+        var Vanished=NodePath.Root.Append(9).Append(9);
 
-        IReadOnlyList<SceneNodeViewModel>Roots=Build(NestedScene,Collapsed:null,Vanished);
+        var Roots=Build(NestedScene,Collapsed:null,Vanished);
 
         Assert.All(Roots[0].SelfAndDescendants(),static Node=>Assert.False(Node.IsSelected));
     }
@@ -124,17 +124,17 @@ public sealed class SceneNodeViewModelTests {
     public void SceneWithDiagnosticsStillRendersWhatCouldBeParsed(){
         // A half-typed scene must still show something; blanking the tree on every transient error
         // would make the Hierarchy flicker constantly while editing.
-        IReadOnlyList<SceneNodeViewModel>Roots=Build("""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Name="Root",
-                    Components=[new Transform(),new NotYetTyped()],
-                };
-            }
-            """);
+        var Roots=Build("""
+                       using CSharpGameEngine.Entities;
+                       using Sample;
+                       namespace Game;
+                       public partial class MainScene:IScene {
+                           public Node Root=>new() {
+                               Name="Root",
+                               Components=[new Transform(),new NotYetTyped()],
+                           };
+                       }
+                       """);
 
         Assert.Equal("Root",Assert.Single(Roots).DisplayName);
     }
@@ -143,7 +143,7 @@ public sealed class SceneNodeViewModelTests {
     public void SelfAndDescendantsWalksDepthFirstInDeclarationOrder(){
         // Same order the generated Instantiate creates entities in, so a future index-based mapping
         // between tree rows and entities lines up.
-        IReadOnlyList<SceneNodeViewModel>Roots=Build(NestedScene);
+        var Roots=Build(NestedScene);
 
         Assert.Equal(
             ["Root","A","A0","B"],
@@ -152,7 +152,7 @@ public sealed class SceneNodeViewModelTests {
 
     [Fact]
     public void ExpansionIsObservableSoTheTreeViewCanBindTwoWay(){
-        SceneNodeViewModel Root=Build(NestedScene)[0];
+        var Root=Build(NestedScene)[0];
         List<string?>Changed=[];
         Root.PropertyChanged+=(_,Args)=>Changed.Add(Args.PropertyName);
 

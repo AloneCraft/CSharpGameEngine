@@ -43,10 +43,10 @@ internal static class SceneEditConflictMerger {
 
         if(Request.DirectOperations.Count>0){
             List<SceneEditOperation>Operations=[];
-            foreach(SceneEditOperation Operation in Request.DirectOperations){
+            foreach(var Operation in Request.DirectOperations){
                 if(Operation is SetComponentMemberOperation Member
                     &&Member.OriginalValueExpression is not null){
-                    SceneEditConflictMergeResult Merged=MergeMember(Member,Projection);
+                    var Merged=MergeMember(Member,Projection);
                     if(!Merged.Succeeded){ return Merged; }
                     Operations.Add(Merged.Operations[0]);
                 } else {
@@ -57,18 +57,18 @@ internal static class SceneEditConflictMerger {
         }
 
         List<SceneEditOperation>Transforms=[];
-        foreach(SceneTransformChange Change in Request.Changes){
-            if(!Projection.TryGetNode(Change.NodeId,out SceneProjectionNode Node)
-                ||!SceneTransformBinding.TryRead(Node.Node,out SceneTransformValue Current)){
+        foreach(var Change in Request.Changes){
+            if(!Projection.TryGetNode(Change.NodeId,out var Node)
+                ||!SceneTransformBinding.TryRead(Node.Node,out var Current)){
                 return SceneEditConflictMergeResult.Failure(
                     $"Node {Change.NodeId} の最新 Transform を解決できません。");
             }
-            if(!CanEditTransformMembers(Node.Node,Request.Members,out string?ErrorMessage)){
+            if(!CanEditTransformMembers(Node.Node,Request.Members,out var ErrorMessage)){
                 return SceneEditConflictMergeResult.Failure(ErrorMessage!);
             }
 
-            SceneTransformValue Merged=MergeTransform(
-                Change.OriginalLocal,Change.Local,Current,Request.Members);
+            var Merged=MergeTransform(
+                                      Change.OriginalLocal,Change.Local,Current,Request.Members);
             SceneEditOperation Operation=Request.IsDuplicate
                 ?new DuplicateNodeOperation(
                     Request.SceneKey,Change.NodeId,Request.DocumentVersion,Merged,Request.Members)
@@ -81,54 +81,54 @@ internal static class SceneEditConflictMerger {
 
     private static SceneEditConflictMergeResult MergeMember(
         SetComponentMemberOperation Operation,SceneProjection Projection){
-        if(!Projection.TryGetNode(Operation.NodeId,out SceneProjectionNode Node)){
+        if(!Projection.TryGetNode(Operation.NodeId,out var Node)){
             return SceneEditConflictMergeResult.Failure($"Node {Operation.NodeId} の最新値を解決できません。");
         }
-        SceneComponent?Component=Node.Node.FindComponent(Operation.ComponentTypeFullyQualifiedName);
+        var Component=Node.Node.FindComponent(Operation.ComponentTypeFullyQualifiedName);
         if(Component is null){
             return SceneEditConflictMergeResult.Failure(
                 $"{Operation.ComponentTypeFullyQualifiedName} が最新 Scene にありません。");
         }
-        SceneComponentMember?Member=Component.FindMember(Operation.MemberName);
+        var Member=Component.FindMember(Operation.MemberName);
         if(Member is not null&&!Member.Value.IsEditable){
             return SceneEditConflictMergeResult.Failure(
                 $"{Operation.MemberName} は外部変更後の式を保持するため編集できません。");
         }
-        if(!TryParseFloat(Operation.OriginalValueExpression!,out float Original)
-            ||!TryParseFloat(Operation.ValueExpression,out float Final)){
+        if(!TryParseFloat(Operation.OriginalValueExpression!,out var Original)
+            ||!TryParseFloat(Operation.ValueExpression,out var Final)){
             return SceneEditConflictMergeResult.Failure(
                 $"{Operation.MemberName} のドラッグ差分を数値として解決できません。");
         }
 
-        float Current=Member is null?Original:ReadFloat(Member.Value.ConstantValue,Original);
-        float Merged=Current+(Final-Original);
+        var Current=Member is null?Original:ReadFloat(Member.Value.ConstantValue,Original);
+        var Merged=Current+(Final-Original);
         if(float.IsNaN(Merged)||float.IsInfinity(Merged)){
             return SceneEditConflictMergeResult.Failure(
                 $"{Operation.MemberName} の競合マージ結果が有限値ではありません。");
         }
-        SetComponentMemberOperation Result=Operation with { ValueExpression=FormatFloat(Merged) };
+        var Result=Operation with { ValueExpression=FormatFloat(Merged) };
         return SceneEditConflictMergeResult.Success([Result]);
     }
 
     private static SceneTransformValue MergeTransform(
         in SceneTransformValue Original,in SceneTransformValue Final,in SceneTransformValue Current,
         SceneTransformMemberMask Members){
-        Vector3 Position=Members.HasFlag(SceneTransformMemberMask.Position)
-            ?Current.Position+(Final.Position-Original.Position)
-            :Current.Position;
-        Quaternion Rotation=Current.Rotation;
+        var Position=Members.HasFlag(SceneTransformMemberMask.Position)
+                         ?Current.Position+(Final.Position-Original.Position)
+                         :Current.Position;
+        var Rotation=Current.Rotation;
         if(Members.HasFlag(SceneTransformMemberMask.Rotation)){
-            Quaternion Delta=Quaternion.Concatenate(
-                Quaternion.Inverse(Original.Rotation),Final.Rotation);
+            var Delta=Quaternion.Concatenate(
+                                             Quaternion.Inverse(Original.Rotation),Final.Rotation);
             Rotation=SceneTransformMath.NormalizeRotation(
                 Quaternion.Concatenate(Current.Rotation,Delta));
         }
-        Vector3 Scale=Members.HasFlag(SceneTransformMemberMask.Scale)
-            ?new Vector3(
-                MergeScale(Original.Scale.X,Final.Scale.X,Current.Scale.X),
-                MergeScale(Original.Scale.Y,Final.Scale.Y,Current.Scale.Y),
-                MergeScale(Original.Scale.Z,Final.Scale.Z,Current.Scale.Z))
-            :Current.Scale;
+        var Scale=Members.HasFlag(SceneTransformMemberMask.Scale)
+                      ?new Vector3(
+                                   MergeScale(Original.Scale.X,Final.Scale.X,Current.Scale.X),
+                                   MergeScale(Original.Scale.Y,Final.Scale.Y,Current.Scale.Y),
+                                   MergeScale(Original.Scale.Z,Final.Scale.Z,Current.Scale.Z))
+                      :Current.Scale;
         return new SceneTransformValue(Position,Rotation,Scale);
     }
 
@@ -137,15 +137,15 @@ internal static class SceneEditConflictMerger {
 
     private static bool CanEditTransformMembers(
         SceneNode Node,SceneTransformMemberMask Members,out string?ErrorMessage){
-        SceneComponent?Transform=SceneComponentBindings.FindComponent(Node,SceneComponentRole.LocalTransform);
+        var Transform=SceneComponentBindings.FindComponent(Node,SceneComponentRole.LocalTransform);
         if(Transform is null){
             ErrorMessage="最新 Scene に Transform がありません。";
             return false;
         }
 
-        IEnumerable<string>Names=EnumerateTransformMemberNames(Members);
-        foreach(string Name in Names){
-            SceneComponentMember?Member=Transform.FindMember(Name);
+        var Names=EnumerateTransformMemberNames(Members);
+        foreach(var Name in Names){
+            var Member=Transform.FindMember(Name);
             if(Member is not null&&!Member.Value.IsEditable){
                 ErrorMessage=$"Transform.{Name} は外部変更後の式を保持するため編集できません。";
                 return false;
@@ -177,7 +177,7 @@ internal static class SceneEditConflictMerger {
     };
 
     private static bool TryParseFloat(string Expression,out float Value){
-        string Text=Expression.Trim();
+        var Text=Expression.Trim();
         if(Text.EndsWith("f",StringComparison.OrdinalIgnoreCase)){
             Text=Text.Substring(0,Text.Length-1);
         }

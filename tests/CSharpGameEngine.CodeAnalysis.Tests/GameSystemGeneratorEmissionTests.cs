@@ -23,8 +23,8 @@ public sealed class GameSystemGeneratorEmissionTests {
 
     [Fact]
     public void ArchetypesAreNamedByDiscoveryOrder_NotByComponentIndexConcatenation(){
-        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
-            GameSystemGeneratorTestHelper.CommonComponents,TwoSystems);
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(
+                                                              GameSystemGeneratorTestHelper.CommonComponents,TwoSystems);
 
         Assert.Empty(Result.Diagnostics);
 
@@ -40,8 +40,8 @@ public sealed class GameSystemGeneratorEmissionTests {
 
     [Fact]
     public void CreateFactory_ReturnsTheCreatedEntity(){
-        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
-            GameSystemGeneratorTestHelper.CommonComponents,TwoSystems);
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(
+                                                              GameSystemGeneratorTestHelper.CommonComponents,TwoSystems);
 
         var Text=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.Types.g.cs");
 
@@ -51,8 +51,8 @@ public sealed class GameSystemGeneratorEmissionTests {
 
     [Fact]
     public void WorldGetsCreateOverloads_SoCallersNeverNameAnArchetype(){
-        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
-            GameSystemGeneratorTestHelper.CommonComponents,TwoSystems);
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(
+                                                              GameSystemGeneratorTestHelper.CommonComponents,TwoSystems);
 
         var Text=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.World.g.cs");
 
@@ -67,8 +67,8 @@ public sealed class GameSystemGeneratorEmissionTests {
     public void ArchetypeMove_PreservesSceneOwnership(){
         // タプルごと代入するとSceneSlotが消え、Archetype移動しただけでEntityがSceneから外れてしまう
         // (ADR-0040)。必ずフィールド単位で更新すること。
-        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
-            GameSystemGeneratorTestHelper.CommonComponents,TwoSystems);
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(
+                                                              GameSystemGeneratorTestHelper.CommonComponents,TwoSystems);
 
         var Text=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.World.g.cs");
 
@@ -81,8 +81,8 @@ public sealed class GameSystemGeneratorEmissionTests {
     public void DispatchOrderFollowsSourceDeclarationOrder(){
         // FirstSystem/SecondSystem は宣言順どおりに呼ばれなければならない(ADR-0033決定事項1:
         // Component引数が全てrefになった結果、Write→Readの自動順序決定は原理的に不可能)。
-        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
-            GameSystemGeneratorTestHelper.CommonComponents,TwoSystems);
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(
+                                                              GameSystemGeneratorTestHelper.CommonComponents,TwoSystems);
 
         var Text=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.Loop.g.cs");
 
@@ -95,8 +95,8 @@ public sealed class GameSystemGeneratorEmissionTests {
 
     [Fact]
     public void SubsetDispatch_RunsASmallerOverloadAgainstASupersetArchetype(){
-        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
-            GameSystemGeneratorTestHelper.CommonComponents,TwoSystems);
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(
+                                                              GameSystemGeneratorTestHelper.CommonComponents,TwoSystems);
 
         var Text=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.Loop.g.cs");
 
@@ -110,24 +110,24 @@ public sealed class GameSystemGeneratorEmissionTests {
 
     [Fact]
     public void SpawnMethod_RegistersAnArchetypeButIsNeverDispatched(){
-        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
-            GameSystemGeneratorTestHelper.CommonComponents,
-            """
-            using CSharpGameEngine.Entities;
-            using Sample;
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(
+                                                              GameSystemGeneratorTestHelper.CommonComponents,
+                                                              """
+                                                              using CSharpGameEngine.Entities;
+                                                              using Sample;
 
-            namespace Game;
+                                                              namespace Game;
 
-            internal struct OnlySystem : ISystem
-            {
-                public bool Update(ref Position position, ref State state) => true;
-            }
+                                                              internal struct OnlySystem : ISystem
+                                                              {
+                                                                  public bool Update(ref Position position, ref State state) => true;
+                                                              }
 
-            internal struct HealthSpawn : ISystem
-            {
-                public void Spawn(ref Position position, ref Health health) { }
-            }
-            """);
+                                                              internal struct HealthSpawn : ISystem
+                                                              {
+                                                                  public void Spawn(ref Position position, ref Health health) { }
+                                                              }
+                                                              """);
 
         Assert.Empty(Result.Diagnostics);
 
@@ -144,19 +144,19 @@ public sealed class GameSystemGeneratorEmissionTests {
 
     [Fact]
     public void ContextParameters_AreThreadedThroughRunFrame(){
-        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
-            GameSystemGeneratorTestHelper.CommonComponents,
-            """
-            using CSharpGameEngine.Entities;
-            using Sample;
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(
+                                                              GameSystemGeneratorTestHelper.CommonComponents,
+                                                              """
+                                                              using CSharpGameEngine.Entities;
+                                                              using Sample;
 
-            namespace Game;
+                                                              namespace Game;
 
-            internal struct ContextSystem : ISystem
-            {
-                public bool Update(ref Position position, in FrameContext frame, Log log, ref State state) => true;
-            }
-            """);
+                                                              internal struct ContextSystem : ISystem
+                                                              {
+                                                                  public bool Update(ref Position position, in FrameContext frame, Log log, ref State state) => true;
+                                                              }
+                                                              """);
 
         Assert.Empty(Result.Diagnostics);
 
@@ -170,18 +170,18 @@ public sealed class GameSystemGeneratorEmissionTests {
 
     [Fact]
     public void PromotedSample_Compiles(){
-        Assembly Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(
-            GameSystemGeneratorTestHelper.CommonComponents,TwoSystems);
+        var Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(
+                                                                  GameSystemGeneratorTestHelper.CommonComponents,TwoSystems);
 
         Assert.NotNull(Assembly.GetType("CSharpGameEngine.Generated.GeneratedGameLoop"));
     }
 
     [Fact]
     public void GeneratorIsDeterministic_AcrossTwoIndependentRuns(){
-        GeneratorDriverRunResult First=GameSystemGeneratorTestHelper.RunGenerator(
-            GameSystemGeneratorTestHelper.CommonComponents,TwoSystems);
-        GeneratorDriverRunResult Second=GameSystemGeneratorTestHelper.RunGenerator(
-            GameSystemGeneratorTestHelper.CommonComponents,TwoSystems);
+        var First=GameSystemGeneratorTestHelper.RunGenerator(
+                                                             GameSystemGeneratorTestHelper.CommonComponents,TwoSystems);
+        var Second=GameSystemGeneratorTestHelper.RunGenerator(
+                                                              GameSystemGeneratorTestHelper.CommonComponents,TwoSystems);
 
         string[]FirstTexts=[.. First.Results[0].GeneratedSources.OrderBy(S=>S.HintName,StringComparer.Ordinal).Select(S=>S.HintName+"\n"+S.SourceText)];
         string[]SecondTexts=[.. Second.Results[0].GeneratedSources.OrderBy(S=>S.HintName,StringComparer.Ordinal).Select(S=>S.HintName+"\n"+S.SourceText)];
@@ -191,24 +191,24 @@ public sealed class GameSystemGeneratorEmissionTests {
 
     [Fact]
     public void SystemWithDiagnostics_IsExcluded_ButValidSystemsStillGenerate(){
-        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
-            GameSystemGeneratorTestHelper.CommonComponents,
-            """
-            using CSharpGameEngine.Entities;
-            using Sample;
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(
+                                                              GameSystemGeneratorTestHelper.CommonComponents,
+                                                              """
+                                                              using CSharpGameEngine.Entities;
+                                                              using Sample;
 
-            namespace Game;
+                                                              namespace Game;
 
-            internal struct ValidSystem : ISystem
-            {
-                public bool Update(ref Position position, ref State state) => true;
-            }
+                                                              internal struct ValidSystem : ISystem
+                                                              {
+                                                                  public bool Update(ref Position position, ref State state) => true;
+                                                              }
 
-            internal struct BrokenSystem : ISystem
-            {
-                public bool Update(ref Velocity velocity) => true;
-            }
-            """);
+                                                              internal struct BrokenSystem : ISystem
+                                                              {
+                                                                  public bool Update(ref Velocity velocity) => true;
+                                                              }
+                                                              """);
 
         Assert.Contains(Result.Diagnostics,D=>D.Id=="SYSGEN013");
 

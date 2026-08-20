@@ -34,30 +34,37 @@ internal static class SceneModelEditApplier {
             return false;
         }
 
-        SceneNode CurrentRoot=Root;
-        SceneProjection CurrentProjection=Projection;
+        var CurrentRoot=Root;
+        var CurrentProjection=Projection;
 
-        foreach(SceneEditOperation Operation in Operations){
-            if(!IsSupported(Operation)||!CurrentProjection.TryGetNode(Operation.NodeId,out SceneProjectionNode TargetNode)){
+        foreach(var Operation in Operations){
+            if(!IsSupported(Operation)||!CurrentProjection.TryGetNode(Operation.NodeId,out var TargetNode)){
                 return false;
             }
 
-            SceneProjection ProjectionBeforeOp=CurrentProjection;
-            if(!TryApplyOne(CurrentRoot,CurrentProjection,TargetNode,Operation,out CurrentRoot,out NodePath?MovedToPath)){
+            var ProjectionBeforeOp=CurrentProjection;
+            if(!TryApplyOne(CurrentRoot,CurrentProjection,TargetNode,Operation,out CurrentRoot,out var MovedToPath)){
                 return false;
             }
 
             // 値編集はPath/同一性を変えないが、常に再投影しても安価(シーンは小規模)であり、
             // 個別に安全判定を分岐させるより単純で確実。
-            SceneProjection Naive=Reconciler.Reconcile(Key,RebuildModel(Base,CurrentRoot),CurrentProjection);
+            var Naive=Reconciler.Reconcile(Key,RebuildModel(Base,CurrentRoot),CurrentProjection);
 
-            // SceneProjectionReconcilerの同一性判定は「同じ親の子」の範囲でしか一致を探さない
-            // (ドキュメント参照)。親を跨ぐReparentでは移動先の親の下に旧兄弟が無いため、素直に
-            // 再投影すると移動したNode(と、あれば配下)へ新しいIDが振られてしまう。ここだけは
-            // 「元のID」を明示的に引き継ぐ特別扱いをする。
-            CurrentProjection=Operation is ReparentNodeOperation&&MovedToPath is { }NewPath
-                ?PreserveIdentityAfterMove(Key,ProjectionBeforeOp,Naive,TargetNode.Node,NewPath)
-                :Naive;
+            // SceneProjectionReconcilerの同一性判定は「同じ親の子」の範囲でしか一致を探さず、
+            // 照合キーは「ノード名 + Component型名の連結」である(ドキュメント参照)。そのため
+            // 素直に再投影すると次の2つでNode(と配下)へ新しいIDが振られてしまう:
+            //   - Reparent: 移動先の親の下に旧兄弟が無いのでキーを突き合わせる相手が居ない。
+            //   - Component増減: Pathは変わらないが照合キー自体が変わるので一致しない。
+            // どちらも選択・Reveal・未書き出し履歴が持つEditorNodeIdを宙に浮かせる(実機報告:
+            // パレットからドロップするとノードの選択が外れる)ので、元のIDを明示的に引き継ぐ。
+            CurrentProjection=Operation switch {
+                ReparentNodeOperation when MovedToPath is { }NewPath=>
+                    PreserveNodeIdentity(Key,ProjectionBeforeOp,Naive,TargetNode.Node,NewPath),
+                AddComponentOperation or RemoveComponentOperation=>
+                    PreserveNodeIdentity(Key,ProjectionBeforeOp,Naive,TargetNode.Node,TargetNode.Node.Path),
+                _=>Naive,
+            };
         }
 
         Predicted=RebuildModel(Base,CurrentRoot);
@@ -66,17 +73,18 @@ internal static class SceneModelEditApplier {
     }
 
     /// <summary>
-    /// Reparent直後の再投影で、移動した部分木(と配下)が新しいIDを振られてしまった分だけ、
-    /// 元のIDへ差し戻す。<paramref name="OldShape"/>(移動前のNode、Pathは移動前の絶対Path)と
-    /// <paramref name="NewPath"/>(移動後の絶対Path)を同じ相対構造で並走させ、
+    /// 再投影で新しいIDを振られてしまった部分木を、元のIDへ差し戻す。
+    /// <paramref name="OldShape"/>(操作前のNode、Pathは操作前の絶対Path)と
+    /// <paramref name="NewPath"/>(操作後の絶対Path。Component増減のようにPathが変わらない操作では
+    /// <c>OldShape.Path</c>と同じ)を同じ相対構造で並走させ、
     /// 「Naiveでのミント済みID → Beforeでの元ID」の対応表を作ってから貼り替える。
     /// </summary>
-    private static SceneProjection PreserveIdentityAfterMove(
+    private static SceneProjection PreserveNodeIdentity(
         SceneKey Key,SceneProjection Before,SceneProjection Naive,SceneNode OldShape,NodePath NewPath){
         Dictionary<EditorNodeId,EditorNodeId>NaiveToOld=[];
         void Walk(SceneNode Shape,NodePath AtNewPath){
-            if(Before.TryGetId(Shape.Path,out EditorNodeId OldId)&&Naive.TryGetId(AtNewPath,out EditorNodeId NaiveId)
-                &&!NaiveId.Equals(OldId)){
+            if(Before.TryGetId(Shape.Path,out var OldId)&&Naive.TryGetId(AtNewPath,out var NaiveId)
+                                                        &&!NaiveId.Equals(OldId)){
                 NaiveToOld[NaiveId]=OldId;
             }
             for(var Index=0;Index<Shape.Children.Length;Index++){
@@ -89,10 +97,10 @@ internal static class SceneModelEditApplier {
         }
 
         List<SceneProjectionNode>Corrected=[];
-        foreach(SceneProjectionNode Node in Naive.Nodes){
-            EditorNodeId FinalId=NaiveToOld.TryGetValue(Node.Id,out EditorNodeId OldId)?OldId:Node.Id;
+        foreach(var Node in Naive.Nodes){
+            var FinalId=NaiveToOld.TryGetValue(Node.Id,out var OldId)?OldId:Node.Id;
             EditorNodeId?FinalParentId=Node.ParentId is { }ParentId
-                ?(NaiveToOld.TryGetValue(ParentId,out EditorNodeId OldParentId)?OldParentId:ParentId)
+                ?(NaiveToOld.TryGetValue(ParentId,out var OldParentId)?OldParentId:ParentId)
                 :null;
             Corrected.Add(new SceneProjectionNode(FinalId,FinalParentId,Node.Node));
         }
@@ -109,11 +117,11 @@ internal static class SceneModelEditApplier {
         SceneNode Root,SceneProjection Projection,SceneProjectionNode TargetNode,SceneEditOperation Operation,
         out SceneNode Updated,out NodePath?MovedToPath){
         MovedToPath=null;
-        NodePath TargetPath=TargetNode.Path;
+        var TargetPath=TargetNode.Path;
         switch(Operation){
             case SetTransformOperation SetTransform: {
-                SceneNode Live=GetAtPath(Root,TargetPath);
-                if(!TryApplySetTransform(Live,SetTransform,out SceneNode NewLive)){
+                var Live=GetAtPath(Root,TargetPath);
+                if(!TryApplySetTransform(Live,SetTransform,out var NewLive)){
                     Updated=Root;
                     return false;
                 }
@@ -121,8 +129,8 @@ internal static class SceneModelEditApplier {
                 return true;
             }
             case SetComponentMemberOperation SetMember: {
-                SceneNode Live=GetAtPath(Root,TargetPath);
-                if(!TryApplySetMember(Live,SetMember,out SceneNode NewLive)){
+                var Live=GetAtPath(Root,TargetPath);
+                if(!TryApplySetMember(Live,SetMember,out var NewLive)){
                     Updated=Root;
                     return false;
                 }
@@ -130,8 +138,8 @@ internal static class SceneModelEditApplier {
                 return true;
             }
             case AddComponentOperation AddComponent: {
-                SceneNode Live=GetAtPath(Root,TargetPath);
-                if(!TryApplyAddComponent(Live,AddComponent,out SceneNode NewLive)){
+                var Live=GetAtPath(Root,TargetPath);
+                if(!TryApplyAddComponent(Live,AddComponent,out var NewLive)){
                     Updated=Root;
                     return false;
                 }
@@ -139,8 +147,8 @@ internal static class SceneModelEditApplier {
                 return true;
             }
             case RemoveComponentOperation RemoveComponent: {
-                SceneNode Live=GetAtPath(Root,TargetPath);
-                if(!TryApplyRemoveComponent(Live,RemoveComponent,out SceneNode NewLive)){
+                var Live=GetAtPath(Root,TargetPath);
+                if(!TryApplyRemoveComponent(Live,RemoveComponent,out var NewLive)){
                     Updated=Root;
                     return false;
                 }
@@ -148,7 +156,7 @@ internal static class SceneModelEditApplier {
                 return true;
             }
             case RenameNodeOperation Rename: {
-                string NewName=Rename.NewName?.Trim()??"";
+                var NewName=Rename.NewName?.Trim()??"";
                 if(NewName.Length==0){
                     Updated=Root;
                     return false;
@@ -188,29 +196,29 @@ internal static class SceneModelEditApplier {
     private static bool TryDuplicate(
         SceneNode Root,SceneProjectionNode TargetNode,DuplicateNodeOperation Operation,out SceneNode Updated){
         Updated=Root;
-        NodePath TargetPath=TargetNode.Path;
+        var TargetPath=TargetNode.Path;
         if(TargetPath.IsRoot||TargetPath.Parent is not { }ParentPath){
             return false;
         }
 
-        SceneNode Source=GetAtPath(Root,TargetPath);
-        SceneComponent?Transform=SceneComponentBindings.FindComponent(Source,SceneComponentRole.LocalTransform);
+        var Source=GetAtPath(Root,TargetPath);
+        var Transform=SceneComponentBindings.FindComponent(Source,SceneComponentRole.LocalTransform);
         if(Transform is null||SceneSourceEditor.IsGenerated(Transform.Location.FilePath)){
             return false;
         }
 
-        ImmutableArray<SceneComponentMember>Members=Transform.Members;
-        foreach((string Name,float Value,float _)in
+        var Members=Transform.Members;
+        foreach((var Name,var Value,var _)in
             SceneSourceEditor.EnumerateTransformMembers(Operation.Transform,Operation.Members)){
-            SceneComponentMember?Existing=FindMember(Members,Name);
+            var Existing=FindMember(Members,Name);
             if(Existing is not null&&!Existing.Value.IsEditable){
                 return false;
             }
             Members=SetFloatMember(Members,Existing,Name,Value,Transform.Location);
         }
 
-        SceneNode Clone=ReplaceComponent(Source,Transform,WithMembers(Transform,Members));
-        SceneNode Parent=GetAtPath(Root,ParentPath);
+        var Clone=ReplaceComponent(Source,Transform,WithMembers(Transform,Members));
+        var Parent=GetAtPath(Root,ParentPath);
         if(Source.Name is { Length:>0 }BaseName){
             Clone=WithName(Clone,CreateUniqueNodeName(Parent,BaseName));
         }
@@ -224,12 +232,12 @@ internal static class SceneModelEditApplier {
         out SceneNode Updated,out NodePath?NewPath){
         Updated=Root;
         NewPath=null;
-        if(!Projection.TryGetNode(Operation.NewParentNodeId,out SceneProjectionNode NewParentNode)){
+        if(!Projection.TryGetNode(Operation.NewParentNodeId,out var NewParentNode)){
             return false;
         }
 
-        NodePath TargetPath=TargetNode.Path;
-        NodePath NewParentPath=NewParentNode.Path;
+        var TargetPath=TargetNode.Path;
+        var NewParentPath=NewParentNode.Path;
         if(TargetPath.Equals(NewParentPath)||NewParentPath.IsDescendantOf(TargetPath)){
             return false;
         }
@@ -238,14 +246,14 @@ internal static class SceneModelEditApplier {
         }
 
         if(OldParentPath.Equals(NewParentPath)){
-            int SameParentClamped=Math.Max(0,Math.Min(
-                Operation.NewIndex,GetAtPath(Root,OldParentPath).Children.Length-1));
+            var SameParentClamped=Math.Max(0,Math.Min(
+                                                      Operation.NewIndex,GetAtPath(Root,OldParentPath).Children.Length-1));
             NewPath=OldParentPath.Append(SameParentClamped);
             return TryReorderChild(Root,OldParentPath,TargetPath.Indices[^1],Operation.NewIndex,out Updated);
         }
 
-        SceneNode MovedContent=GetAtPath(Root,TargetPath);
-        if(!TryRemoveChildAt(Root,OldParentPath,TargetPath.Indices[^1],out SceneNode AfterRemoval)){
+        var MovedContent=GetAtPath(Root,TargetPath);
+        if(!TryRemoveChildAt(Root,OldParentPath,TargetPath.Indices[^1],out var AfterRemoval)){
             return false;
         }
 
@@ -253,12 +261,12 @@ internal static class SceneModelEditApplier {
         // 同じEditorNodeIdを引き直す。IDの割り当ては呼び出し元(TryApply)のReconcilerと共有する
         // 必要があるため、ここでは新規Reconcilerを使わず、単純な名前+Component構成の再帰探索で
         // 対象を再特定する(削除操作はID空間を消費しないため、この場に限り軽量な再探索で足りる)。
-        if(!TryFindByIdentity(AfterRemoval,NewParentNode.Node,out NodePath ResolvedNewParentPath)){
+        if(!TryFindByIdentity(AfterRemoval,NewParentNode.Node,out var ResolvedNewParentPath)){
             return false;
         }
 
-        SceneNode ResolvedNewParent=GetAtPath(AfterRemoval,ResolvedNewParentPath);
-        int ClampedIndex=Math.Max(0,Math.Min(Operation.NewIndex,ResolvedNewParent.Children.Length));
+        var ResolvedNewParent=GetAtPath(AfterRemoval,ResolvedNewParentPath);
+        var ClampedIndex=Math.Max(0,Math.Min(Operation.NewIndex,ResolvedNewParent.Children.Length));
         NewPath=ResolvedNewParentPath.Append(ClampedIndex);
         return TryInsertChildAt(AfterRemoval,ResolvedNewParentPath,ClampedIndex,MovedContent,out Updated);
     }
@@ -314,8 +322,8 @@ internal static class SceneModelEditApplier {
     }
 
     private static SceneNode GetAtPath(SceneNode Root,NodePath Path){
-        SceneNode Current=Root;
-        foreach(int Index in Path.Indices){
+        var Current=Root;
+        foreach(var Index in Path.Indices){
             Current=Current.Children[Index];
         }
         return Current;
@@ -329,8 +337,8 @@ internal static class SceneModelEditApplier {
         if(Depth==Indices.Length){
             return Transform(Node);
         }
-        int ChildIndex=Indices[Depth];
-        SceneNode UpdatedChild=ReplaceAtPathCore(Node.Children[ChildIndex],Indices,Depth+1,Transform);
+        var ChildIndex=Indices[Depth];
+        var UpdatedChild=ReplaceAtPathCore(Node.Children[ChildIndex],Indices,Depth+1,Transform);
         return ReferenceEquals(UpdatedChild,Node.Children[ChildIndex])
             ?Node
             :WithChildren(Node,Node.Children.SetItem(ChildIndex,UpdatedChild));
@@ -341,7 +349,7 @@ internal static class SceneModelEditApplier {
     /// 影響を受けた要素以降の兄弟インデックスがずれるため、変更点だけでなく全要素を再計算する。
     /// </summary>
     private static SceneNode WithChildrenList(SceneNode Parent,ImmutableArray<SceneNode>NewChildrenContent){
-        ImmutableArray<SceneNode>.Builder Rebased=ImmutableArray.CreateBuilder<SceneNode>(NewChildrenContent.Length);
+        var Rebased=ImmutableArray.CreateBuilder<SceneNode>(NewChildrenContent.Length);
         for(var Index=0;Index<NewChildrenContent.Length;Index++){
             Rebased.Add(RebasePath(NewChildrenContent[Index],Parent.Path.Append(Index)));
         }
@@ -349,11 +357,11 @@ internal static class SceneModelEditApplier {
     }
 
     private static SceneNode RebasePath(SceneNode Node,NodePath NewPath){
-        ImmutableArray<SceneNode>Children=Node.Children;
-        bool Changed=!Node.Path.Equals(NewPath);
+        var Children=Node.Children;
+        var Changed=!Node.Path.Equals(NewPath);
         ImmutableArray<SceneNode>.Builder?NewChildren=null;
         for(var Index=0;Index<Children.Length;Index++){
-            SceneNode Rebased=RebasePath(Children[Index],NewPath.Append(Index));
+            var Rebased=RebasePath(Children[Index],NewPath.Append(Index));
             if(!ReferenceEquals(Rebased,Children[Index])){
                 Changed=true;
                 NewChildren??=Children.ToBuilder();
@@ -371,12 +379,12 @@ internal static class SceneModelEditApplier {
 
     private static bool TryAddNode(SceneNode Root,NodePath ParentPath,string RequestedName,out SceneNode NewRoot){
         NewRoot=Root;
-        SceneNode Parent=GetAtPath(Root,ParentPath);
+        var Parent=GetAtPath(Root,ParentPath);
         if(SceneSourceEditor.IsGenerated(Parent.Location.FilePath)){
             return false;
         }
 
-        string Name=CreateUniqueNodeName(Parent,RequestedName);
+        var Name=CreateUniqueNodeName(Parent,RequestedName);
         SceneNode NewChild=new(
             NodePath.Root,Name,ImmutableArray<SceneComponent>.Empty,ImmutableArray<SceneNode>.Empty,
             SceneSourceLocation.None,null,null,null,null);
@@ -386,7 +394,7 @@ internal static class SceneModelEditApplier {
 
     private static bool TryRemoveChildAt(SceneNode Root,NodePath ParentPath,int LocalIndex,out SceneNode NewRoot){
         NewRoot=Root;
-        SceneNode Parent=GetAtPath(Root,ParentPath);
+        var Parent=GetAtPath(Root,ParentPath);
         if(LocalIndex<0||LocalIndex>=Parent.Children.Length
             ||SceneSourceEditor.IsGenerated(Parent.Children[LocalIndex].Location.FilePath)){
             return false;
@@ -399,14 +407,14 @@ internal static class SceneModelEditApplier {
     private static bool TryReorderChild(
         SceneNode Root,NodePath ParentPath,int LocalIndex,int RequestedNewIndex,out SceneNode NewRoot){
         NewRoot=Root;
-        SceneNode Parent=GetAtPath(Root,ParentPath);
+        var Parent=GetAtPath(Root,ParentPath);
         if(LocalIndex<0||LocalIndex>=Parent.Children.Length){
             return false;
         }
 
-        SceneNode Moved=Parent.Children[LocalIndex];
-        ImmutableArray<SceneNode>Without=Parent.Children.RemoveAt(LocalIndex);
-        int Clamped=Math.Max(0,Math.Min(RequestedNewIndex,Without.Length));
+        var Moved=Parent.Children[LocalIndex];
+        var Without=Parent.Children.RemoveAt(LocalIndex);
+        var Clamped=Math.Max(0,Math.Min(RequestedNewIndex,Without.Length));
         NewRoot=ReplaceAtPath(Root,ParentPath,P=>WithChildrenList(P,Without.Insert(Clamped,Moved)));
         return true;
     }
@@ -414,24 +422,24 @@ internal static class SceneModelEditApplier {
     private static bool TryInsertChildAt(
         SceneNode Root,NodePath ParentPath,int Index,SceneNode Content,out SceneNode NewRoot){
         NewRoot=Root;
-        SceneNode Parent=GetAtPath(Root,ParentPath);
-        int Clamped=Math.Max(0,Math.Min(Index,Parent.Children.Length));
+        var Parent=GetAtPath(Root,ParentPath);
+        var Clamped=Math.Max(0,Math.Min(Index,Parent.Children.Length));
         NewRoot=ReplaceAtPath(Root,ParentPath,P=>WithChildrenList(P,P.Children.Insert(Clamped,Content)));
         return true;
     }
 
     /// <summary><see cref="SceneSourceEditor"/>の<c>CreateUniqueNodeName</c>と同じ規則(重複時は " (N)" を付与)。</summary>
     private static string CreateUniqueNodeName(SceneNode Parent,string RequestedName){
-        string BaseName=string.IsNullOrWhiteSpace(RequestedName)?"Node":RequestedName.Trim();
-        HashSet<string>Names=Parent.Children
-            .Where(static Child=>Child.Name is not null)
-            .Select(static Child=>Child.Name!)
-            .ToHashSet(StringComparer.Ordinal);
+        var BaseName=string.IsNullOrWhiteSpace(RequestedName)?"Node":RequestedName.Trim();
+        var Names=Parent.Children
+                       .Where(static Child=>Child.Name is not null)
+                       .Select(static Child=>Child.Name!)
+                       .ToHashSet(StringComparer.Ordinal);
         if(!Names.Contains(BaseName)){
             return BaseName;
         }
         for(var Suffix=1;;Suffix++){
-            string Candidate=$"{BaseName} ({Suffix})";
+            var Candidate=$"{BaseName} ({Suffix})";
             if(!Names.Contains(Candidate)){
                 return Candidate;
             }
@@ -445,16 +453,16 @@ internal static class SceneModelEditApplier {
     private static bool TryApplySetTransform(
         SceneNode Node,SetTransformOperation Operation,out SceneNode Updated){
         Updated=Node;
-        SceneComponent?Transform=SceneComponentBindings.FindComponent(Node,SceneComponentRole.LocalTransform);
+        var Transform=SceneComponentBindings.FindComponent(Node,SceneComponentRole.LocalTransform);
         if(Transform is null||SceneSourceEditor.IsGenerated(Transform.Location.FilePath)){
             return false;
         }
 
-        ImmutableArray<SceneComponentMember>Members=Transform.Members;
-        foreach((string Name,float Value,float Default)in
+        var Members=Transform.Members;
+        foreach((var Name,var Value,var Default)in
             SceneSourceEditor.EnumerateTransformMembers(Operation.Transform,Operation.Members)){
-            SceneComponentMember?Existing=FindMember(Members,Name);
-            float Current=Existing is null?Default:SceneSourceEditor.ReadFloat(Existing.Value.ConstantValue,Default);
+            var Existing=FindMember(Members,Name);
+            var Current=Existing is null?Default:SceneSourceEditor.ReadFloat(Existing.Value.ConstantValue,Default);
             // ソース層(SceneSourceEditor.TryUpdateTransformCreation)と同じ判定にする。
             // 値が変わらないメンバーは書かないため、予測モデルにも書いてはならない。
             if(SceneTransformMath.NearlyEqual(Current,Value)){
@@ -476,23 +484,23 @@ internal static class SceneModelEditApplier {
     private static bool TryApplySetMember(
         SceneNode Node,SetComponentMemberOperation Operation,out SceneNode Updated){
         Updated=Node;
-        SceneComponent?Component=Node.FindComponent(Operation.ComponentTypeFullyQualifiedName);
+        var Component=Node.FindComponent(Operation.ComponentTypeFullyQualifiedName);
         if(Component is null||SceneSourceEditor.IsGenerated(Component.Location.FilePath)){
             return false;
         }
 
-        SceneComponentMember?Existing=FindMember(Component.Members,Operation.MemberName);
+        var Existing=FindMember(Component.Members,Operation.MemberName);
         if(Existing is not null&&!Existing.Value.IsEditable){
             return false;
         }
-        if(!TryParseLiteral(Operation.ValueExpression,Existing,out object?ConstantValue)){
+        if(!TryParseLiteral(Operation.ValueExpression,Existing,out var ConstantValue)){
             return false;
         }
 
-        SceneValue Value=CreateLiteral(
-            ConstantValue,Operation.ValueExpression.Trim(),Existing,Component.Location);
-        ImmutableArray<SceneComponentMember>Members=SetMember(
-            Component.Members,Existing,Operation.MemberName,Value,Component.Location);
+        var Value=CreateLiteral(
+                                ConstantValue,Operation.ValueExpression.Trim(),Existing,Component.Location);
+        var Members=SetMember(
+                             Component.Members,Existing,Operation.MemberName,Value,Component.Location);
         Updated=ReplaceComponent(Node,Component,WithMembers(Component,Members));
         return true;
     }
@@ -525,11 +533,14 @@ internal static class SceneModelEditApplier {
             return false;
         }
 
+        // Operation.Membersは追加要求を組み立てた側(Package境界)が型シンボルから作ったもの。
+        // 空にすると再解析が着地するまでInspectorが「解析待ち…」のまま何も編集できないので、
+        // 呼び出し側が型を解決できた場合は必ず載せる(解決できなければ従来どおり空へ縮退する)。
         SceneComponent NewComponent=new(
             TypeSymbol:null,
             Operation.ComponentTypeFullyQualifiedName,
             ImmutableArray<SceneValue>.Empty,
-            ImmutableArray<SceneComponentMember>.Empty,
+            Operation.Members.IsDefault?ImmutableArray<SceneComponentMember>.Empty:Operation.Members,
             EmitExpressionText:Operation.ComponentExpression,
             SceneSourceLocation.None);
         Updated=new SceneNode(
@@ -543,7 +554,7 @@ internal static class SceneModelEditApplier {
     private static bool TryApplyRemoveComponent(
         SceneNode Node,RemoveComponentOperation Operation,out SceneNode Updated){
         Updated=Node;
-        SceneComponent?Component=Node.FindComponent(Operation.ComponentTypeFullyQualifiedName);
+        var Component=Node.FindComponent(Operation.ComponentTypeFullyQualifiedName);
         if(Component is null||SceneSourceEditor.IsGenerated(Component.Location.FilePath)){
             return false;
         }
@@ -562,18 +573,18 @@ internal static class SceneModelEditApplier {
     private static bool TryParseLiteral(
         string Expression,SceneComponentMember?Existing,out object?ConstantValue){
         ConstantValue=null;
-        string Text=Expression.Trim();
+        var Text=Expression.Trim();
         if(Text.Length==0){
             return false;
         }
-        if(bool.TryParse(Text,out bool Boolean)){
+        if(bool.TryParse(Text,out var Boolean)){
             ConstantValue=Boolean;
             return true;
         }
 
-        bool HasFloatSuffix=Text.EndsWith("f",System.StringComparison.OrdinalIgnoreCase);
-        string Numeric=HasFloatSuffix?Text.Substring(0,Text.Length-1):Text;
-        if(!float.TryParse(Numeric,NumberStyles.Float,CultureInfo.InvariantCulture,out float Number)
+        var HasFloatSuffix=Text.EndsWith("f",System.StringComparison.OrdinalIgnoreCase);
+        var Numeric=HasFloatSuffix?Text.Substring(0,Text.Length-1):Text;
+        if(!float.TryParse(Numeric,NumberStyles.Float,CultureInfo.InvariantCulture,out var Number)
             ||float.IsNaN(Number)||float.IsInfinity(Number)){
             return false;
         }
@@ -595,8 +606,8 @@ internal static class SceneModelEditApplier {
     private static ImmutableArray<SceneComponentMember>SetFloatMember(
         ImmutableArray<SceneComponentMember>Members,SceneComponentMember?Existing,
         string Name,float Value,SceneSourceLocation Fallback){
-        string Text=SceneSourceEditor.FormatFloat(Value);
-        SceneValue NewValue=CreateLiteral(Value,Text,Existing,Fallback);
+        var Text=SceneSourceEditor.FormatFloat(Value);
+        var NewValue=CreateLiteral(Value,Text,Existing,Fallback);
         return SetMember(Members,Existing,Name,NewValue,Fallback);
     }
 
@@ -624,7 +635,7 @@ internal static class SceneModelEditApplier {
             Existing?.Value.Location??Fallback);
 
     private static SceneComponentMember?FindMember(ImmutableArray<SceneComponentMember>Members,string Name){
-        foreach(SceneComponentMember Member in Members){
+        foreach(var Member in Members){
             if(string.Equals(Member.MemberName,Name,System.StringComparison.Ordinal)){
                 return Member;
             }

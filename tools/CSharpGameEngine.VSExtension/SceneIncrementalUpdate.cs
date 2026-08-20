@@ -23,7 +23,7 @@ internal static class SceneIncrementalUpdatePolicy {
                 return SceneRenderUpdateKind.Rebuild;
             }
             if(Entry.ComponentType is null){ return SceneRenderUpdateKind.Rebuild; }
-            if(SceneComponentBindings.TryGetRole(Entry.ComponentType,out SceneComponentRole Role)
+            if(SceneComponentBindings.TryGetRole(Entry.ComponentType,out var Role)
                 &&Role is SceneComponentRole.PrimitiveMesh or SceneComponentRole.StaticMesh){
                 return SceneRenderUpdateKind.Rebuild;
             }
@@ -61,11 +61,11 @@ internal static class SceneRenderIncrementalUpdater {
         return true;
 
         void Append(SceneNode Node,Matrix4x4 ParentWorld){
-            Matrix4x4 World=(SceneTransformBinding.TryRead(Node,out SceneTransformValue Local)
-                ?SceneTransformMath.ToMatrix(Local)
-                :Matrix4x4.Identity)*ParentWorld;
+            var World=(SceneTransformBinding.TryRead(Node,out var Local)
+                           ?SceneTransformMath.ToMatrix(Local)
+                           :Matrix4x4.Identity)*ParentWorld;
             WorldByPath.Add(Node.Path,World);
-            foreach(SceneNode Child in Node.Children){ Append(Child,World); }
+            foreach(var Child in Node.Children){ Append(Child,World); }
         }
     }
 }

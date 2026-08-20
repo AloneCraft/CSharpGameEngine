@@ -66,7 +66,7 @@ public sealed class SceneDslAnalyzer:DiagnosticAnalyzer {
     /// その属性は<c>Instantiate</c>を持たない型に対しては何の意味も持たず、静かに無視されるため。
     /// </summary>
     private static void AnalyzeNamedType(SymbolAnalysisContext Context,SceneDslAnalysisState State){
-        INamedTypeSymbol Type=(INamedTypeSymbol)Context.Symbol;
+        var Type=(INamedTypeSymbol)Context.Symbol;
         var ImplementsScene=SceneTypePredicates.ImplementsSceneInterface(Type);
         (var IsStartupScene,var Order)=SceneDeclarationAnalyzer.ReadStartupScene(Type);
 
@@ -82,9 +82,9 @@ public sealed class SceneDslAnalyzer:DiagnosticAnalyzer {
             return;
         }
 
-        SceneModel Model=SceneDeclarationAnalyzer.Analyze(Type,Context.Compilation,Context.CancellationToken);
+        var Model=SceneDeclarationAnalyzer.Analyze(Type,Context.Compilation,Context.CancellationToken);
 
-        foreach(Diagnostic Diagnostic in Model.Diagnostics){
+        foreach(var Diagnostic in Model.Diagnostics){
             Context.ReportDiagnostic(Diagnostic);
         }
 
@@ -104,7 +104,7 @@ public sealed class SceneDslAnalyzer:DiagnosticAnalyzer {
     /// </para>
     /// </summary>
     private static void AnalyzeObjectCreation(OperationAnalysisContext Context){
-        IObjectCreationOperation Operation=(IObjectCreationOperation)Context.Operation;
+        var Operation=(IObjectCreationOperation)Context.Operation;
 
         if(Operation.Type is not { } Type
             ||SceneTypePredicates.ToFullyQualifiedName(Type)!=SceneDslWellKnownNames.NodeFullyQualifiedName){
@@ -123,8 +123,8 @@ public sealed class SceneDslAnalyzer:DiagnosticAnalyzer {
 
     /// <summary>SCENE114: <c>scene.Root</c>を読む(= Scene DSLを実行する)コードを禁止する。</summary>
     private static void AnalyzePropertyReference(OperationAnalysisContext Context){
-        IPropertyReferenceOperation Operation=(IPropertyReferenceOperation)Context.Operation;
-        IPropertySymbol Property=Operation.Property;
+        var Operation=(IPropertyReferenceOperation)Context.Operation;
+        var Property=Operation.Property;
 
         if(Property.Type is not { } PropertyType
             ||SceneTypePredicates.ToFullyQualifiedName(PropertyType)!=SceneDslWellKnownNames.NodeFullyQualifiedName
@@ -175,14 +175,14 @@ public sealed class SceneDslAnalyzer:DiagnosticAnalyzer {
                 return;
             }
 
-            if(this.StartupScenesByOrder.TryGetValue(Order,out (string ClassFullyQualifiedName,Location?Location)Existing)
+            if(this.StartupScenesByOrder.TryGetValue(Order,out var Existing)
                 &&Existing.ClassFullyQualifiedName!=ClassFullyQualifiedName){
                 this.Conflicts.Add((Order,ClassFullyQualifiedName,Existing.ClassFullyQualifiedName,Location));
             }
         }
 
         internal void ReportStartupSceneOrderConflicts(CompilationAnalysisContext Context){
-            foreach((var Order,var ClassFullyQualifiedName,var ExistingClassFullyQualifiedName,Location?Location)in this.Conflicts){
+            foreach((var Order,var ClassFullyQualifiedName,var ExistingClassFullyQualifiedName,var Location)in this.Conflicts){
                 Context.ReportDiagnostic(Diagnostic.Create(
                     SceneDslDiagnostics.DuplicateStartupSceneOrder,
                     Location,

@@ -13,7 +13,7 @@ public sealed record HlslDiagnostic(
     HlslDiagnosticSeverity Severity,
     string Message){
     public override string ToString()=>
-        Line>0
-            ? $"{FileName}({Line},{Column}): {Severity}: {Message}"
-            : $"{FileName}: {Severity}: {Message}";
+        this.Line>0
+            ? $"{this.FileName}({this.Line},{this.Column}): {this.Severity}: {this.Message}"
+            : $"{this.FileName}: {this.Severity}: {this.Message}";
 }

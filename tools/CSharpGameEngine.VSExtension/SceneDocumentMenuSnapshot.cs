@@ -26,7 +26,7 @@ internal sealed class SceneDocumentMenuSnapshot {
             return this.State;
         }
 
-        SceneDocumentTypeRange?Innermost=this.FindInnermostTypeRange(CaretPosition);
+        var Innermost=this.FindInnermostTypeRange(CaretPosition);
         return Innermost is not { } Type
             ?SceneDesignerTargetState.OutsideType
             :Type.IsScene?SceneDesignerTargetState.SceneType:SceneDesignerTargetState.NonSceneType;
@@ -41,13 +41,13 @@ internal sealed class SceneDocumentMenuSnapshot {
             return null;
         }
 
-        SceneDocumentTypeRange?Innermost=this.FindInnermostTypeRange(CaretPosition);
+        var Innermost=this.FindInnermostTypeRange(CaretPosition);
         return Innermost is { IsScene:true } Type?Type.FullyQualifiedName:null;
     }
 
     private SceneDocumentTypeRange?FindInnermostTypeRange(int CaretPosition){
         SceneDocumentTypeRange?Innermost=null;
-        foreach(SceneDocumentTypeRange Range in this.TypeRanges){
+        foreach(var Range in this.TypeRanges){
             if(!Range.Contains(CaretPosition)
                 ||Innermost is { } Current&&Current.Length<=Range.Length){
                 continue;
@@ -66,9 +66,9 @@ internal readonly record struct SceneDocumentTypeRange(
     int End,
     bool IsScene,
     string?FullyQualifiedName=null) {
-    internal int Length=>End-Start;
+    internal int Length=> this.End- this.Start;
 
-    internal bool Contains(int Position)=>Position>=Start&&Position<End;
+    internal bool Contains(int Position)=>Position>= this.Start&&Position< this.End;
 }
 
 /// <summary>Roslyn解析1回分のSceneModelと、右クリック表示に必要な文書内範囲の組。</summary>

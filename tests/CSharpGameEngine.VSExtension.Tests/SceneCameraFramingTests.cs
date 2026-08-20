@@ -20,10 +20,10 @@ public sealed class SceneCameraFramingTests {
     [InlineData(50f)]
     [InlineData(400f)]
     public void CreateProjection_KeepsTheDepthRatioWithinTheBudget(float BoundsRadius){
-        Matrix4x4 Projection=SceneCameraFraming.CreateProjection(
-            BoundsRadius,SceneCameraFraming.DefaultFovYRadians,AspectRatio:1.6f);
+        var Projection=SceneCameraFraming.CreateProjection(
+                                                           BoundsRadius,SceneCameraFraming.DefaultFovYRadians,AspectRatio:1.6f);
 
-        (float Near,float Far)=ReadPerspectiveDepthRange(Projection);
+        (var Near,var Far)=ReadPerspectiveDepthRange(Projection);
         Assert.True(Near>0f,$"near {Near} must be positive");
         Assert.True(Near<Far,$"near {Near} must stay in front of far {Far}");
         Assert.True(
@@ -51,7 +51,7 @@ public sealed class SceneCameraFramingTests {
 
     [Fact]
     public void ComputeBounds_NoObjects_ReturnsOriginAndUnitRadius(){
-        (Vector3 Center,float Radius)=SceneCameraFraming.ComputeBounds([]);
+        (var Center,var Radius)=SceneCameraFraming.ComputeBounds([]);
 
         Assert.Equal(Vector3.Zero,Center);
         Assert.Equal(1f,Radius);
@@ -60,11 +60,11 @@ public sealed class SceneCameraFramingTests {
     [Fact]
     public void ComputeBounds_TransformsVerticesByWorldBeforeMeasuring(){
         // ローカル頂点は原点±1だが、World で +10 動かしてあるので中心は 10 になる。
-        SceneRenderObject Object=CreateObject(
-            Matrix4x4.CreateTranslation(10f,0f,0f),
-            new Vector3(-1f,0f,0f),new Vector3(1f,0f,0f));
+        var Object=CreateObject(
+                                Matrix4x4.CreateTranslation(10f,0f,0f),
+                                new Vector3(-1f,0f,0f),new Vector3(1f,0f,0f));
 
-        (Vector3 Center,float Radius)=SceneCameraFraming.ComputeBounds([Object]);
+        (var Center,var Radius)=SceneCameraFraming.ComputeBounds([Object]);
 
         Assert.Equal(10f,Center.X,3);
         Assert.Equal(1f,Radius,3);
@@ -72,13 +72,13 @@ public sealed class SceneCameraFramingTests {
 
     [Fact]
     public void ComputeBounds_IgnoresObjectsExcludedFromBounds(){
-        SceneRenderObject Stage=CreateObject(Matrix4x4.Identity,new Vector3(-1f,0f,0f),new Vector3(1f,0f,0f));
-        SceneRenderObject SkyDome=CreateObject(
-            Matrix4x4.CreateScale(400f),
-            new Vector3(-1f,0f,0f),new Vector3(1f,0f,0f),
-            IncludeInBounds:false);
+        var Stage=CreateObject(Matrix4x4.Identity,new Vector3(-1f,0f,0f),new Vector3(1f,0f,0f));
+        var SkyDome=CreateObject(
+                                 Matrix4x4.CreateScale(400f),
+                                 new Vector3(-1f,0f,0f),new Vector3(1f,0f,0f),
+                                 IncludeInBounds:false);
 
-        (Vector3 Center,float Radius)=SceneCameraFraming.ComputeBounds([Stage,SkyDome]);
+        (var Center,var Radius)=SceneCameraFraming.ComputeBounds([Stage,SkyDome]);
 
         Assert.Equal(Vector3.Zero,Center);
         Assert.Equal(1f,Radius,3);
@@ -87,11 +87,11 @@ public sealed class SceneCameraFramingTests {
     [Fact]
     public void ComputeBounds_RadiusIsTheMaxCenterToVertexDistance(){
         // AABB は (0,0,0)-(4,0,0) なので中心は (2,0,0)、半径は 2(AABB 半対角ではなく実距離)。
-        SceneRenderObject Object=CreateObject(
-            Matrix4x4.Identity,
-            Vector3.Zero,new Vector3(4f,0f,0f));
+        var Object=CreateObject(
+                                Matrix4x4.Identity,
+                                Vector3.Zero,new Vector3(4f,0f,0f));
 
-        (Vector3 Center,float Radius)=SceneCameraFraming.ComputeBounds([Object]);
+        (var Center,var Radius)=SceneCameraFraming.ComputeBounds([Object]);
 
         Assert.Equal(2f,Center.X,3);
         Assert.Equal(2f,Radius,3);
@@ -99,13 +99,13 @@ public sealed class SceneCameraFramingTests {
 
     [Fact]
     public void ComputeSelectionBounds_IncludesSkyDomeFlaggedObject_UnlikeComputeBounds(){
-        SceneRenderObject SkyDome=CreateObject(
-            Matrix4x4.CreateScale(400f),
-            new Vector3(-1f,0f,0f),new Vector3(1f,0f,0f),
-            IncludeInBounds:false);
+        var SkyDome=CreateObject(
+                                 Matrix4x4.CreateScale(400f),
+                                 new Vector3(-1f,0f,0f),new Vector3(1f,0f,0f),
+                                 IncludeInBounds:false);
 
-        (Vector3 ComputeBoundsCenter,float ComputeBoundsRadius)=SceneCameraFraming.ComputeBounds([SkyDome]);
-        (Vector3 SelectionCenter,float SelectionRadius)=SceneCameraFraming.ComputeSelectionBounds([SkyDome]);
+        (var ComputeBoundsCenter,var ComputeBoundsRadius)=SceneCameraFraming.ComputeBounds([SkyDome]);
+        (var SelectionCenter,var SelectionRadius)=SceneCameraFraming.ComputeSelectionBounds([SkyDome]);
 
         // ComputeBounds は IncludeInBounds=false を除外するので縮退フォールバックへ落ちる。
         Assert.Equal(Vector3.Zero,ComputeBoundsCenter);
@@ -118,10 +118,10 @@ public sealed class SceneCameraFramingTests {
 
     [Fact]
     public void ComputeSelectionBounds_AllObjectsIncluded_MatchesComputeBounds(){
-        SceneRenderObject Object=CreateObject(Matrix4x4.Identity,Vector3.Zero,new Vector3(4f,0f,0f));
+        var Object=CreateObject(Matrix4x4.Identity,Vector3.Zero,new Vector3(4f,0f,0f));
 
-        (Vector3 ComputeBoundsCenter,float ComputeBoundsRadius)=SceneCameraFraming.ComputeBounds([Object]);
-        (Vector3 SelectionCenter,float SelectionRadius)=SceneCameraFraming.ComputeSelectionBounds([Object]);
+        (var ComputeBoundsCenter,var ComputeBoundsRadius)=SceneCameraFraming.ComputeBounds([Object]);
+        (var SelectionCenter,var SelectionRadius)=SceneCameraFraming.ComputeSelectionBounds([Object]);
 
         Assert.Equal(ComputeBoundsCenter,SelectionCenter);
         Assert.Equal(ComputeBoundsRadius,SelectionRadius,3);
@@ -155,16 +155,16 @@ public sealed class SceneCameraFramingTests {
         Vector3 Center=new(1f,2f,3f);
         const float Radius=4f;
 
-        Matrix4x4 View=SceneCameraFraming.CreateView(Center,Radius,SceneCameraFraming.DefaultFovYRadians,AspectRatio:1f);
+        var View=SceneCameraFraming.CreateView(Center,Radius,SceneCameraFraming.DefaultFovYRadians,AspectRatio:1f);
 
-        Assert.True(Matrix4x4.Invert(View,out Matrix4x4 InverseView));
-        Vector3 Eye=InverseView.Translation;
-        Vector3 Offset=Eye-Center;
+        Assert.True(Matrix4x4.Invert(View,out var InverseView));
+        var Eye=InverseView.Translation;
+        var Offset=Eye-Center;
         Assert.Equal(
             SceneCameraFraming.ComputeDistance(Radius,SceneCameraFraming.DefaultFovYRadians,AspectRatio:1f),
             Offset.Length(),
             2);
-        Vector3 Direction=Vector3.Normalize(Offset);
+        var Direction=Vector3.Normalize(Offset);
         Assert.Equal(SceneCameraFraming.ViewDirection.X,Direction.X,3);
         Assert.Equal(SceneCameraFraming.ViewDirection.Y,Direction.Y,3);
         Assert.Equal(SceneCameraFraming.ViewDirection.Z,Direction.Z,3);
@@ -189,13 +189,13 @@ public sealed class SceneCameraFramingTests {
         const float Radius=6f;
 
         foreach(var AspectRatio in new[]{ 4f,16f/9f,1f,0.75f,0.5f,0.25f }){
-            (Matrix4x4 View,Matrix4x4 Projection)=SceneCameraFraming.FrameBounds(
-                Center,Radius,SceneCameraFraming.DefaultFovYRadians,AspectRatio);
-            Matrix4x4 ViewProjection=View*Projection;
+            (var View,var Projection)=SceneCameraFraming.FrameBounds(
+                                                                     Center,Radius,SceneCameraFraming.DefaultFovYRadians,AspectRatio);
+            var ViewProjection=View*Projection;
 
-            foreach(Vector3 Direction in new[]{
-                Vector3.UnitY,-Vector3.UnitY,Vector3.UnitX,-Vector3.UnitX,Vector3.UnitZ,-Vector3.UnitZ }){
-                Vector4 Clip=Vector4.Transform(new Vector4(Center+(Direction*Radius),1f),ViewProjection);
+            foreach(var Direction in new[]{
+                                              Vector3.UnitY,-Vector3.UnitY,Vector3.UnitX,-Vector3.UnitX,Vector3.UnitZ,-Vector3.UnitZ }){
+                var Clip=Vector4.Transform(new Vector4(Center+(Direction*Radius),1f),ViewProjection);
                 Assert.True(Clip.W>0f,$"aspect {AspectRatio}: bounding sphere extent fell behind the near plane");
                 var NdcX=Clip.X/Clip.W;
                 var NdcY=Clip.Y/Clip.W;
@@ -257,8 +257,8 @@ public sealed class SceneCameraFramingTests {
 
     [Fact]
     public void FrameBounds_DegenerateBoundsAndAspect_ProduceFiniteMatrices(){
-        (Matrix4x4 View,Matrix4x4 Projection)=SceneCameraFraming.FrameBounds(
-            Vector3.Zero,BoundsRadius:0f,FovYRadians:0f,AspectRatio:0f);
+        (var View,var Projection)=SceneCameraFraming.FrameBounds(
+                                                                 Vector3.Zero,BoundsRadius:0f,FovYRadians:0f,AspectRatio:0f);
 
         Assert.False(float.IsNaN(View.M11)||float.IsInfinity(View.M11));
         Assert.False(float.IsNaN(Projection.M11)||float.IsInfinity(Projection.M11));

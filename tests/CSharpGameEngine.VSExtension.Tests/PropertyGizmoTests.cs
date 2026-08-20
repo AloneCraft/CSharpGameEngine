@@ -30,7 +30,7 @@ public sealed class PropertyGizmoTests {
 
     [Fact]
     public void CameraPerspective_BuildsFovNearAndFarFrustumHandles(){
-        SceneNode Node=AnalyzeNode("new Camera { FovYRadians=1f,NearZ=0.2f,FarZ=20f,OrthographicSize=5f }");
+        var Node=AnalyzeNode("new Camera { FovYRadians=1f,NearZ=0.2f,FarZ=20f,OrthographicSize=5f }");
 
         Assert.True(PropertyGizmoBinding.TryCreate(Node,Matrix4x4.Identity,WorldScale:2f,out PropertyGizmoFrame Frame));
 
@@ -43,8 +43,8 @@ public sealed class PropertyGizmoTests {
 
     [Fact]
     public void CameraOrthographic_UsesOrthographicSizeInsteadOfFovHandle(){
-        SceneNode Node=AnalyzeNode(
-            "new Camera { Projection=CameraProjection.Orthographic,NearZ=0.1f,FarZ=50f,OrthographicSize=8f }");
+        var Node=AnalyzeNode(
+                             "new Camera { Projection=CameraProjection.Orthographic,NearZ=0.1f,FarZ=50f,OrthographicSize=8f }");
 
         Assert.True(PropertyGizmoBinding.TryCreate(Node,Matrix4x4.Identity,WorldScale:1f,out PropertyGizmoFrame Frame));
 
@@ -55,9 +55,9 @@ public sealed class PropertyGizmoTests {
 
     [Fact]
     public void CompoundGizmo_ComposesActiveTransformAndPropertyPrimitives(){
-        MoveGizmoFrame TransformFrame=MoveGizmoFrame.Create(
-            Vector3.Zero,Quaternion.Identity,SceneTransformSpace.World,WorldScale:1f);
-        SceneNode Node=AnalyzeNode("new PointLight { PositionX=2f,Range=4f }");
+        var TransformFrame=MoveGizmoFrame.Create(
+                                                 Vector3.Zero,Quaternion.Identity,SceneTransformSpace.World,WorldScale:1f);
+        var Node=AnalyzeNode("new PointLight { PositionX=2f,Range=4f }");
         Assert.True(PropertyGizmoBinding.TryCreate(Node,Matrix4x4.Identity,WorldScale:1f,out PropertyGizmoFrame PropertyFrame));
 
         IReadOnlyList<GizmoOverlayPrimitive> Combined=CompoundGizmo.Compose(
@@ -74,8 +74,8 @@ public sealed class PropertyGizmoTests {
     [InlineData((int)GizmoHandleId.PointRange)]
     [InlineData((int)GizmoHandleId.SpotOuterCone)]
     public void PropertyModifierTable_AllowsCtrlButNotShiftOrAlt(int HandleValue){
-        GizmoHandleId Handle=(GizmoHandleId)HandleValue;
-        PropertyGizmoModifierApplicability Applicability=PropertyGizmoModifierPolicy.Get(Handle);
+        var Handle=(GizmoHandleId)HandleValue;
+        var Applicability=PropertyGizmoModifierPolicy.Get(Handle);
 
         Assert.True(Applicability.Ctrl);
         Assert.False(Applicability.Shift);
@@ -84,12 +84,12 @@ public sealed class PropertyGizmoTests {
 
     [Fact]
     public void FovDrag_WithCtrl_SnapsToFiveDegreeStepsAndClamps(){
-        SceneNode Node=AnalyzeNode("new Camera { FovYRadians=1f,NearZ=0.1f,FarZ=100f }");
+        var Node=AnalyzeNode("new Camera { FovYRadians=1f,NearZ=0.1f,FarZ=100f }");
         Assert.True(PropertyGizmoBinding.TryCreate(Node,Matrix4x4.Identity,WorldScale:1f,out PropertyGizmoFrame Frame));
         PropertyGizmoDrag Drag=new(Frame,GizmoHandleId.CameraFov,StartX:100,StartY:100);
 
         PropertyGizmoFrame Updated=Drag.Update(X:100,Y:70,Snap:true);
-        float Degrees=Updated.FovYRadians*180f/(float)Math.PI;
+        var Degrees=Updated.FovYRadians*180f/(float)Math.PI;
 
         Assert.Equal(0f,Degrees%5f,3);
         Assert.InRange(Degrees,1f,179f);
@@ -101,7 +101,7 @@ public sealed class PropertyGizmoTests {
     [InlineData("new SpotLight { DirectionZ=1f,Range=5f,InnerConeAngleRadians=0.2f,OuterConeAngleRadians=0.4f }",(int)PropertyGizmoKind.SpotLight,(int)GizmoHandleId.SpotOuterCone)]
     public void CurrentLightVocabulary_BuildsItsPropertyHandles(
         string ComponentExpression,int ExpectedKindValue,int ExpectedHandleValue){
-        SceneNode Node=AnalyzeNode(ComponentExpression);
+        var Node=AnalyzeNode(ComponentExpression);
 
         Assert.True(PropertyGizmoBinding.TryCreate(Node,Matrix4x4.Identity,WorldScale:1f,out PropertyGizmoFrame Frame));
         Assert.Equal((PropertyGizmoKind)ExpectedKindValue,Frame.Kind);
@@ -109,16 +109,16 @@ public sealed class PropertyGizmoTests {
     }
 
     private static SceneNode AnalyzeNode(string ComponentExpression){
-        string SceneSource=$$"""
-            using CSharpGameEngine.Entities;
-            using CSharpGameEngine.Runtime.Windows;
-            using UserEcsProject;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Components=[{{ComponentExpression}}] };
-            }
-            """;
-        SceneModel Model=SceneAnalysisTestHelper.Analyze([Components,SceneSource]);
+        var SceneSource=$$"""
+                          using CSharpGameEngine.Entities;
+                          using CSharpGameEngine.Runtime.Windows;
+                          using UserEcsProject;
+                          namespace Game;
+                          public partial class MainScene:IScene {
+                              public Node Root=>new() { Components=[{{ComponentExpression}}] };
+                          }
+                          """;
+        var Model=SceneAnalysisTestHelper.Analyze([Components,SceneSource]);
         Assert.NotNull(Model.Root);
         return Model.Root!;
     }

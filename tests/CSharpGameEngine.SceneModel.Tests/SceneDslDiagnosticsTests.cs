@@ -13,13 +13,13 @@ namespace CSharpGameEngine.SceneAnalysis.Tests;
 public sealed class SceneDslDiagnosticsTests {
     [Fact]
     public void Scene100_NonPartialClass(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public class MainScene:IScene {
-                public Node Root=>new() { Name="Root" };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  namespace Game;
+                                                  public class MainScene:IScene {
+                                                      public Node Root=>new() { Name="Root" };
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertSingleDiagnostic(Model,"SCENE100");
         Assert.Null(Model.Root);
@@ -27,97 +27,97 @@ public sealed class SceneDslDiagnosticsTests {
 
     [Fact]
     public void Scene100_GenericClass(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene<T>:IScene {
-                public Node Root=>new() { Name="Root" };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  namespace Game;
+                                                  public partial class MainScene<T>:IScene {
+                                                      public Node Root=>new() { Name="Root" };
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertSingleDiagnostic(Model,"SCENE100");
     }
 
     [Fact]
     public void Scene100_Struct(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial struct MainScene:IScene {
-                public Node Root=>new() { Name="Root" };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  namespace Game;
+                                                  public partial struct MainScene:IScene {
+                                                      public Node Root=>new() { Name="Root" };
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertSingleDiagnostic(Model,"SCENE100");
     }
 
     [Fact]
     public void Scene101_MultiStatementGetter(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root {
-                    get {
-                        Node Built=new Node { Name="Root" };
-                        return Built;
-                    }
-                }
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene {
+                                                      public Node Root {
+                                                          get {
+                                                              Node Built=new Node { Name="Root" };
+                                                              return Built;
+                                                          }
+                                                      }
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertSingleDiagnostic(Model,"SCENE101");
     }
 
     [Fact]
     public void Scene101_MissingRootProperty(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Other=>new Node { Name="Root" };
-                Node IScene.Root=>throw new System.NotImplementedException();
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene {
+                                                      public Node Other=>new Node { Name="Root" };
+                                                      Node IScene.Root=>throw new System.NotImplementedException();
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertContainsDiagnostic(Model,"SCENE103");
     }
 
     [Fact]
     public void Scene102_DeclaredConstructor(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public MainScene(){
-                }
-                public Node Root=>new() { Name="Root" };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene {
+                                                      public MainScene(){
+                                                      }
+                                                      public Node Root=>new() { Name="Root" };
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertSingleDiagnostic(Model,"SCENE102");
     }
 
     [Fact]
     public void Scene102_GeneratorEmittedConstructorIsIgnoredByLiveCompilation(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze([
-            SceneAnalysisTestHelper.CommonComponents,
-            """
-            // <auto-generated/>
-            namespace Game;
-            public partial class MainScene {
-                private MainScene(){
-                }
-            }
-            """,
-            """
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Name="Root" };
-            }
-            """,
-        ]);
+        var Model=SceneAnalysisTestHelper.Analyze([
+                                                      SceneAnalysisTestHelper.CommonComponents,
+                                                      """
+                                                      // <auto-generated/>
+                                                      namespace Game;
+                                                      public partial class MainScene {
+                                                          private MainScene(){
+                                                          }
+                                                      }
+                                                      """,
+                                                      """
+                                                      using CSharpGameEngine.Entities;
+                                                      namespace Game;
+                                                      public partial class MainScene:IScene {
+                                                          public Node Root=>new() { Name="Root" };
+                                                      }
+                                                      """,
+                                                  ]);
 
         SceneAnalysisTestHelper.AssertNoDiagnostics(Model);
         Assert.Equal("Root",Model.Root!.Name);
@@ -125,68 +125,68 @@ public sealed class SceneDslDiagnosticsTests {
 
     [Fact]
     public void Scene103_RootIsNotANodeCreation(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                private readonly Node Backing=null!;
-                public Node Root=>this.Backing;
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene {
+                                                      private readonly Node Backing=null!;
+                                                      public Node Root=>this.Backing;
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertSingleDiagnostic(Model,"SCENE103");
     }
 
     [Fact]
     public void Scene104_UnknownNodeMember(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Tag="x" };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene {
+                                                      public Node Root=>new() { Tag="x" };
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertSingleDiagnostic(Model,"SCENE104");
     }
 
     [Fact]
     public void Scene105_NonConstantName(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Name=System.DateTime.Now.ToString() };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene {
+                                                      public Node Root=>new() { Name=System.DateTime.Now.ToString() };
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertSingleDiagnostic(Model,"SCENE105");
     }
 
     [Fact]
     public void Scene106_ComponentsIsNotACollectionExpression(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                private static readonly object[]Empty=[];
-                public Node Root=>new() { Components=Empty };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene {
+                                                      private static readonly object[]Empty=[];
+                                                      public Node Root=>new() { Components=Empty };
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertSingleDiagnostic(Model,"SCENE106");
     }
 
     [Fact]
     public void Scene106_ChildrenIsNotACollectionExpression(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                private static readonly Node[]None=[];
-                public Node Root=>new() { Children=None };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene {
+                                                      private static readonly Node[]None=[];
+                                                      public Node Root=>new() { Children=None };
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertSingleDiagnostic(Model,"SCENE106");
     }
@@ -198,34 +198,34 @@ public sealed class SceneDslDiagnosticsTests {
     [InlineData("new NotAComponent()")]
     [InlineData("new Node()")]
     public void Scene107_ComponentElementIsNotAComponentStruct(string Element){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze($$"""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Components=[{{Element}}] };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze($$"""
+                                                    using CSharpGameEngine.Entities;
+                                                    using Sample;
+                                                    namespace Game;
+                                                    public partial class MainScene:IScene {
+                                                        public Node Root=>new() { Components=[{{Element}}] };
+                                                    }
+                                                    """);
 
         SceneAnalysisTestHelper.AssertSingleDiagnostic(Model,"SCENE107");
     }
 
     [Fact]
     public void Scene108_DuplicateComponentTypeInOneNode(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Name="Sun",
-                    Components=[
-                        new DirectionalLight { Intensity=1f },
-                        new DirectionalLight { Intensity=2f },
-                    ],
-                };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  using Sample;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene {
+                                                      public Node Root=>new() {
+                                                          Name="Sun",
+                                                          Components=[
+                                                              new DirectionalLight { Intensity=1f },
+                                                              new DirectionalLight { Intensity=2f },
+                                                          ],
+                                                      };
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertSingleDiagnostic(Model,"SCENE108");
         Assert.Single(Model.Root!.Components);
@@ -233,53 +233,53 @@ public sealed class SceneDslDiagnosticsTests {
 
     [Fact]
     public void Scene109_ChildElementIsNotANode(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Children=[new DirectionalLight()] };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  using Sample;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene {
+                                                      public Node Root=>new() { Children=[new DirectionalLight()] };
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertSingleDiagnostic(Model,"SCENE109");
     }
 
     [Fact]
     public void Scene110_CastInsideAComponentInitializer(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Components=[new Label { Text=(string)(object)"x" }] };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  using Sample;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene {
+                                                      public Node Root=>new() { Components=[new Label { Text=(string)(object)"x" }] };
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertSingleDiagnostic(Model,"SCENE110");
     }
 
     [Fact]
     public void Scene113_SceneFactoryOnAnInstanceMethod(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze([
-            SceneAnalysisTestHelper.CommonComponents,
-            """
-            namespace Sample;
-            using CSharpGameEngine.Authoring;
-            public sealed class Holder {
-                [SceneFactory]
-                public System.Numerics.Vector3 Make()=>default;
-            }
-            """,
-            """
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Components=[new Transform { Position=new Holder().Make() }] };
-            }
-            """,
-        ]);
+        var Model=SceneAnalysisTestHelper.Analyze([
+                                                      SceneAnalysisTestHelper.CommonComponents,
+                                                      """
+                                                      namespace Sample;
+                                                      using CSharpGameEngine.Authoring;
+                                                      public sealed class Holder {
+                                                          [SceneFactory]
+                                                          public System.Numerics.Vector3 Make()=>default;
+                                                      }
+                                                      """,
+                                                      """
+                                                      using CSharpGameEngine.Entities;
+                                                      using Sample;
+                                                      namespace Game;
+                                                      public partial class MainScene:IScene {
+                                                          public Node Root=>new() { Components=[new Transform { Position=new Holder().Make() }] };
+                                                      }
+                                                      """,
+                                                  ]);
 
         SceneAnalysisTestHelper.AssertSingleDiagnostic(Model,"SCENE113");
     }
@@ -288,28 +288,74 @@ public sealed class SceneDslDiagnosticsTests {
     [InlineData("new Parent()")]
     [InlineData("new SceneNodeTag()")]
     public void Scene115_ReservedComponentTypes(string Element){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze($$"""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Components=[{{Element}}] };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze($$"""
+                                                    using CSharpGameEngine.Entities;
+                                                    namespace Game;
+                                                    public partial class MainScene:IScene {
+                                                        public Node Root=>new() { Components=[{{Element}}] };
+                                                    }
+                                                    """);
 
         SceneAnalysisTestHelper.AssertSingleDiagnostic(Model,"SCENE115");
     }
 
+    /// <summary>
+    /// M0053: <c>IRuntimeComponent</c>を実装するComponentはエンジンが実行時に埋めるためのもので、
+    /// 随伴先の作者Componentを宣言すればSGが自動付与する。明示すると重複するので弾く。
+    /// </summary>
+    [Fact]
+    public void Scene119_RuntimeComponentDeclaredExplicitly(){
+        var Model=SceneAnalysisTestHelper.Analyze([
+                                                      """
+                                                      namespace Sample;
+                                                      public struct Light { public float Intensity; }
+                                                      public struct LightRuntime:CSharpGameEngine.Entities.IRuntimeComponent<Light> { public int Handle; }
+                                                      """,
+                                                      """
+                                                      using CSharpGameEngine.Entities;
+                                                      using Sample;
+                                                      namespace Game;
+                                                      public partial class MainScene:IScene {
+                                                          public Node Root=>new() { Components=[new LightRuntime()] };
+                                                      }
+                                                      """,
+                                                  ]);
+
+        SceneAnalysisTestHelper.AssertSingleDiagnostic(Model,"SCENE119");
+    }
+
+    /// <summary>随伴先を持たない(単独で生成される)実行時Componentも同じく書けない。</summary>
+    [Fact]
+    public void Scene119_StandaloneRuntimeComponentDeclaredExplicitly(){
+        var Model=SceneAnalysisTestHelper.Analyze([
+                                                      """
+                                                      namespace Sample;
+                                                      public struct Standalone:CSharpGameEngine.Entities.IRuntimeComponent { public int Handle; }
+                                                      """,
+                                                      """
+                                                      using CSharpGameEngine.Entities;
+                                                      using Sample;
+                                                      namespace Game;
+                                                      public partial class MainScene:IScene {
+                                                          public Node Root=>new() { Components=[new Standalone()] };
+                                                      }
+                                                      """,
+                                                  ]);
+
+        SceneAnalysisTestHelper.AssertSingleDiagnostic(Model,"SCENE119");
+    }
+
     [Fact]
     public void Scene116_NestedSceneClass(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class Outer {
-                public partial class MainScene:IScene {
-                    public Node Root=>new() { Name="Root" };
-                }
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  namespace Game;
+                                                  public partial class Outer {
+                                                      public partial class MainScene:IScene {
+                                                          public Node Root=>new() { Name="Root" };
+                                                      }
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertSingleDiagnostic(Model,"SCENE116");
     }

@@ -388,14 +388,14 @@ internal static class SceneViewCamera {
 
         /// <summary>正規方程式 (JᵀJ + λ*diag(JᵀJ)) * delta = -Jᵀf を2x2で直接解く。</summary>
         internal bool TrySolveDamped(Vector2 Residual,float Lambda,out float DeltaYaw,out float DeltaPitch){
-            float A00=M00*M00+M10*M10;
-            float A01=M00*M01+M10*M11;
-            float A11=M01*M01+M11*M11;
+            float A00= this.M00* this.M00+ this.M10* this.M10;
+            float A01= this.M00* this.M01+ this.M10* this.M11;
+            float A11= this.M01* this.M01+ this.M11* this.M11;
             A00+=Lambda*A00;
             A11+=Lambda*A11;
 
-            float B0=-(M00*Residual.X+M10*Residual.Y);
-            float B1=-(M01*Residual.X+M11*Residual.Y);
+            float B0=-(this.M00*Residual.X+ this.M10*Residual.Y);
+            float B1=-(this.M01*Residual.X+ this.M11*Residual.Y);
 
             float Det=A00*A11-A01*A01;
             if(Math.Abs(Det)<1e-12f){

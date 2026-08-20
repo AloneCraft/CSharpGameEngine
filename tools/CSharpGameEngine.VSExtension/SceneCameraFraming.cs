@@ -81,13 +81,13 @@ internal static class SceneCameraFraming {
         Vector3 Maximum=new(float.MinValue);
         var Any=false;
 
-        foreach(SceneRenderObject RenderObject in RenderObjects){
+        foreach(var RenderObject in RenderObjects){
             if(RespectIncludeInBoundsFlag&&!RenderObject.IncludeInBounds){
                 continue;
             }
 
-            foreach(Vector3 LocalPosition in RenderObject.Mesh.Positions){
-                Vector3 WorldPosition=Vector3.Transform(LocalPosition,RenderObject.World);
+            foreach(var LocalPosition in RenderObject.Mesh.Positions){
+                var WorldPosition=Vector3.Transform(LocalPosition,RenderObject.World);
                 Minimum=Vector3.Min(Minimum,WorldPosition);
                 Maximum=Vector3.Max(Maximum,WorldPosition);
                 Any=true;
@@ -98,15 +98,15 @@ internal static class SceneCameraFraming {
             return(Vector3.Zero,1f);
         }
 
-        Vector3 Center=(Minimum+Maximum)*0.5f;
+        var Center=(Minimum+Maximum)*0.5f;
         var Radius=0f;
-        foreach(SceneRenderObject RenderObject in RenderObjects){
+        foreach(var RenderObject in RenderObjects){
             if(RespectIncludeInBoundsFlag&&!RenderObject.IncludeInBounds){
                 continue;
             }
 
-            foreach(Vector3 LocalPosition in RenderObject.Mesh.Positions){
-                Vector3 WorldPosition=Vector3.Transform(LocalPosition,RenderObject.World);
+            foreach(var LocalPosition in RenderObject.Mesh.Positions){
+                var WorldPosition=Vector3.Transform(LocalPosition,RenderObject.World);
                 Radius=Math.Max(Radius,Vector3.Distance(Center,WorldPosition));
             }
         }
@@ -147,7 +147,7 @@ internal static class SceneCameraFraming {
     }
 
     internal static Matrix4x4 CreateView(Vector3 BoundsCenter,float BoundsRadius,float FovYRadians,float AspectRatio){
-        Vector3 Eye=BoundsCenter+ViewDirection*ComputeDistance(BoundsRadius,FovYRadians,AspectRatio);
+        var Eye=BoundsCenter+ViewDirection*ComputeDistance(BoundsRadius,FovYRadians,AspectRatio);
         return Matrix4x4.CreateLookAt(Eye,BoundsCenter,Vector3.UnitY);
     }
 

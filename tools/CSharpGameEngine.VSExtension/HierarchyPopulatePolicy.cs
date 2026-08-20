@@ -100,7 +100,7 @@ internal static class HierarchyContentSignature {
         Builder.Append(Node.Name??"(unnamed)").Append('\u001f');
 
         Builder.Append("C{");
-        foreach(SceneComponent Component in Node.Components){
+        foreach(var Component in Node.Components){
             Builder.Append(Component.TypeFullyQualifiedName);
             // アイコン解決に効く。型シンボルが後から解決されたら署名も変わる。
             Builder.Append(Component.TypeSymbol is null?"?":"!").Append(',');
@@ -108,7 +108,7 @@ internal static class HierarchyContentSignature {
 
         Builder.Append('}').Append('\u001e');
 
-        foreach(SceneNode Child in Node.Children){
+        foreach(var Child in Node.Children){
             AppendNode(Builder,Child);
         }
 

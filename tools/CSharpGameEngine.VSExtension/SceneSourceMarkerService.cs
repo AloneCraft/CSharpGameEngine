@@ -54,8 +54,8 @@ internal sealed class SceneSourceMarkerService : IDisposable {
             return null;
         }
 
-        IVsEditorAdaptersFactoryService?EditorAdapters=ComponentModel.GetService<IVsEditorAdaptersFactoryService>();
-        ITextMarkerProviderFactory?TextMarkerProviderFactory=ComponentModel.GetService<ITextMarkerProviderFactory>();
+        var EditorAdapters=ComponentModel.GetService<IVsEditorAdaptersFactoryService>();
+        var TextMarkerProviderFactory=ComponentModel.GetService<ITextMarkerProviderFactory>();
         if(EditorAdapters is null||TextMarkerProviderFactory is null){
             LogWarning("Visual Studio text marker service is unavailable; hierarchy source markers are disabled.");
             return null;
@@ -85,14 +85,14 @@ internal sealed class SceneSourceMarkerService : IDisposable {
             return;
         }
 
-        if(!this.TryGetOpenBuffer(Model.FilePath,out ITextBuffer? FoundBuffer,out VsTextBuffer?NativeBuffer)
+        if(!this.TryGetOpenBuffer(Model.FilePath,out var FoundBuffer,out var NativeBuffer)
             ||FoundBuffer is null){
             LogInformation($"Skipped hierarchy source markers because '{Model.FilePath}' is not an open text document.");
             this.Clear();
             return;
         }
 
-        ITextBuffer Buffer=FoundBuffer;
+        var Buffer=FoundBuffer;
         // バッファが差し替わったら、前のバッファへ貼ったタグは追跡できないので作り直す
         // (タグ再構築のための判定であって、スクロールするかどうかとは無関係)。
         if(!ReferenceEquals(this.MarkedBuffer,Buffer)){
@@ -100,7 +100,7 @@ internal sealed class SceneSourceMarkerService : IDisposable {
             this.MarkedBuffer=Buffer;
         }
 
-        IReadOnlyList<SceneSourceMarkerRange>Ranges=SceneSourceMarkerPlanner.Create(Model,Paths);
+        var Ranges=SceneSourceMarkerPlanner.Create(Model,Paths);
         this.ReplaceOwnedTagSpans(Buffer,Ranges);
 
         if(SceneSourceMarkerScrollPolicy.ShouldScroll(ScrollBehavior,Ranges.Count)&&NativeBuffer is not null){
@@ -114,19 +114,19 @@ internal sealed class SceneSourceMarkerService : IDisposable {
     /// <c>GetActiveView</c>+<c>SetCaretPos</c>とは異なりcaretも動かさない)。
     /// </summary>
     private void ScrollToTop(VsTextBuffer NativeBuffer,int Position){
-        if(this.TextManager.EnumViews(NativeBuffer,out IVsEnumTextViews?ViewEnum)!=VSConstants.S_OK
+        if(this.TextManager.EnumViews(NativeBuffer,out var ViewEnum)!=VSConstants.S_OK
             ||ViewEnum is null){
             return;
         }
 
-        IVsTextView[]Fetched=new IVsTextView[1];
+        var Fetched=new IVsTextView[1];
         uint FetchedCount=0;
         while(ViewEnum.Next(1,Fetched,ref FetchedCount)==VSConstants.S_OK&&FetchedCount==1){
             if(this.EditorAdapters.GetWpfTextView(Fetched[0])is not { }WpfView){
                 continue;
             }
 
-            ITextSnapshot Snapshot=WpfView.TextBuffer.CurrentSnapshot;
+            var Snapshot=WpfView.TextBuffer.CurrentSnapshot;
             if(Position<0||Position>Snapshot.Length){
                 continue;
             }
@@ -138,26 +138,26 @@ internal sealed class SceneSourceMarkerService : IDisposable {
 
     internal void Navigate(SceneModel? Model,NodePath Path){
         ThreadHelper.ThrowIfNotOnUIThread();
-        if(this.Disposed||Model is null||!this.TryGetOpenBuffer(Model.FilePath,out ITextBuffer? FoundBuffer,out _)
+        if(this.Disposed||Model is null||!this.TryGetOpenBuffer(Model.FilePath,out var FoundBuffer,out _)
             ||FoundBuffer is null
-            ||!SceneSourceMarkerPlanner.TryCreateNavigation(Model,Path,IsDocumentOpen:true,out string FilePath,out int Position)
+            ||!SceneSourceMarkerPlanner.TryCreateNavigation(Model,Path,IsDocumentOpen:true,out var FilePath,out var Position)
             ||Package.GetGlobalService(typeof(SDTE))is not DTE Dte){
             LogInformation("Skipped hierarchy source navigation because the target document is not already open.");
             return;
         }
 
         Dte.ItemOperations.OpenFile(FilePath);
-        if(this.TextManager.GetActiveView(1,null,out IVsTextView View)!=VSConstants.S_OK){
+        if(this.TextManager.GetActiveView(1,null,out var View)!=VSConstants.S_OK){
             return;
         }
 
-        ITextSnapshot Snapshot=FoundBuffer.CurrentSnapshot;
+        var Snapshot=FoundBuffer.CurrentSnapshot;
         if(Position<0||Position>Snapshot.Length){
             return;
         }
 
-        ITextSnapshotLine Line=Snapshot.GetLineFromPosition(Position);
-        int Column=Position-Line.Start.Position;
+        var Line=Snapshot.GetLineFromPosition(Position);
+        var Column=Position-Line.Start.Position;
         if(ErrorHandler.Succeeded(View.SetCaretPos(Line.LineNumber,Column))){
             View.EnsureSpanVisible(new Microsoft.VisualStudio.TextManager.Interop.TextSpan {
                 iStartLine=Line.LineNumber,
@@ -185,18 +185,18 @@ internal sealed class SceneSourceMarkerService : IDisposable {
             return false;
         }
 
-        IntPtr DocDataPointer=IntPtr.Zero;
+        var DocDataPointer=IntPtr.Zero;
         try {
-            int HResult=this.RunningDocumentTable.FindAndLockDocument(
-                (uint)_VSRDTFLAGS.RDT_NoLock,CanonicalFilePath,out _,out _,out DocDataPointer,out _);
+            var HResult=this.RunningDocumentTable.FindAndLockDocument(
+                                                                      (uint)_VSRDTFLAGS.RDT_NoLock,CanonicalFilePath,out _,out _,out DocDataPointer,out _);
             if(ErrorHandler.Failed(HResult)||DocDataPointer==IntPtr.Zero){
                 return false;
             }
 
-            object DocData=Marshal.GetObjectForIUnknown(DocDataPointer);
-            VsTextBuffer?VsBuffer=DocData as VsTextBuffer;
+            var DocData=Marshal.GetObjectForIUnknown(DocDataPointer);
+            var VsBuffer=DocData as VsTextBuffer;
             if(VsBuffer is null&&DocData is IVsTextBufferProvider Provider
-                &&ErrorHandler.Succeeded(Provider.GetTextBuffer(out IVsTextLines Lines))){
+                &&ErrorHandler.Succeeded(Provider.GetTextBuffer(out var Lines))){
                 VsBuffer=Lines as VsTextBuffer;
             }
 
@@ -214,8 +214,8 @@ internal sealed class SceneSourceMarkerService : IDisposable {
     }
 
     private void Clear(){
-        SimpleTagger<TextMarkerTag>?Tagger=this.MarkerTagger;
-        List<TrackingTagSpan<TextMarkerTag>>OldTagSpans=this.OwnedTagSpans;
+        var Tagger=this.MarkerTagger;
+        var OldTagSpans=this.OwnedTagSpans;
         this.MarkedBuffer=null;
         this.MarkerTagger=null;
         this.OwnedTagSpans=[];
@@ -225,7 +225,7 @@ internal sealed class SceneSourceMarkerService : IDisposable {
 
         try {
             using(Tagger.Update()){
-                foreach(TrackingTagSpan<TextMarkerTag> TagSpan in OldTagSpans){
+                foreach(var TagSpan in OldTagSpans){
                     Tagger.RemoveTagSpan(TagSpan);
                 }
             }
@@ -239,10 +239,10 @@ internal sealed class SceneSourceMarkerService : IDisposable {
     }
 
     private void ReplaceOwnedTagSpans(ITextBuffer Buffer,IReadOnlyList<SceneSourceMarkerRange>Ranges){
-        ITextSnapshot Snapshot=Buffer.CurrentSnapshot;
+        var Snapshot=Buffer.CurrentSnapshot;
         List<ITrackingSpan>TrackingSpans=[];
-        foreach(SceneSourceMarkerRange Range in Ranges){
-            Microsoft.CodeAnalysis.Text.TextSpan Span=Range.Span;
+        foreach(var Range in Ranges){
+            var Span=Range.Span;
             if(Span.Start<0||Span.End>Snapshot.Length){
                 LogWarning($"Skipped an out-of-date hierarchy source marker range ({Span.Start}, {Span.Length}).");
                 continue;
@@ -263,11 +263,11 @@ internal sealed class SceneSourceMarkerService : IDisposable {
             }
 
             using(Tagger.Update()){
-                foreach(TrackingTagSpan<TextMarkerTag> OldTagSpan in this.OwnedTagSpans){
+                foreach(var OldTagSpan in this.OwnedTagSpans){
                     Tagger.RemoveTagSpan(OldTagSpan);
                 }
 
-                foreach(ITrackingSpan TrackingSpan in TrackingSpans){
+                foreach(var TrackingSpan in TrackingSpans){
                     NewTagSpans.Add(Tagger.CreateTagSpan(TrackingSpan,SceneSourceMarkerFormatDefinition.MarkerTag));
                 }
             }
@@ -281,7 +281,7 @@ internal sealed class SceneSourceMarkerService : IDisposable {
             if(Tagger is not null&&NewTagSpans.Count>0){
                 try {
                     using(Tagger.Update()){
-                        foreach(TrackingTagSpan<TextMarkerTag> TagSpan in NewTagSpans){
+                        foreach(var TagSpan in NewTagSpans){
                             Tagger.RemoveTagSpan(TagSpan);
                         }
                     }

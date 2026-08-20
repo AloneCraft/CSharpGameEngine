@@ -20,7 +20,7 @@ public class ChunkListSpec {
         ChunkList<Position>List=new();
         List.EnsureCapacity(1);
         List.GetRefUnchecked(0)=new Position { X=1f };
-        ref Position Slot=ref List.GetRefUnchecked(0);
+        ref var Slot=ref List.GetRefUnchecked(0);
         Slot.X=42f;
         Assert.Equal(42f,List.GetRefUnchecked(0).X);
     }

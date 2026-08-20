@@ -11,26 +11,26 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// </para>
 /// </summary>
 internal static class SceneComponentSetCollector {
-    internal static List<IReadOnlyList<string>>Collect(SceneEmitModel Scene){
+    internal static List<IReadOnlyList<string>>Collect(SceneEmitModel Scene,SceneRuntimeComponentMap RuntimeComponents){
         List<IReadOnlyList<string>>Sets=[];
 
         if(!Scene.CanEmit||Scene.Root is not { } Root){
             return Sets;
         }
 
-        Walk(Root,IsRoot:true,Sets);
+        Walk(Root,IsRoot:true,Sets,RuntimeComponents);
         return Sets;
     }
 
-    private static void Walk(SceneEmitNode Node,bool IsRoot,List<IReadOnlyList<string>>Sets){
+    private static void Walk(SceneEmitNode Node,bool IsRoot,List<IReadOnlyList<string>>Sets,SceneRuntimeComponentMap RuntimeComponents){
         // 実効構成の導出はSceneInstantiateEmitterと同じ1箇所を必ず共有する。ここがズレると
         // 「登録されていないArchetypeをCreateしようとする」という診断困難なビルド破壊になる。
         Sets.Add([.. SceneInstantiateEmitter
-            .BuildEffectiveComponents(Node,IsRoot?null:"Parent")
+            .BuildEffectiveComponents(Node,IsRoot?null:"Parent",RuntimeComponents)
             .Select(static C=>C.TypeFullyQualifiedName)]);
 
         foreach(SceneEmitNode Child in Node.Children){
-            Walk(Child,IsRoot:false,Sets);
+            Walk(Child,IsRoot:false,Sets,RuntimeComponents);
         }
     }
 }

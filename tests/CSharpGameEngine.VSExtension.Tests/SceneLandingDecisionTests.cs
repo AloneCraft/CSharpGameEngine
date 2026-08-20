@@ -187,9 +187,9 @@ public sealed class SceneLandingDecisionTests {
     [Fact]
     public void Identity_DoesNotMatchWhenIdsAreReallocated(){
         SceneProjectionReconciler Reconciler=new();
-        SceneModel Model=Analyze();
-        SceneProjection Left=Reconciler.Reconcile(Key,Model,Previous:null);
-        SceneProjection Right=Reconciler.Reconcile(Key,Model,Previous:null);
+        var Model=Analyze();
+        var Left=Reconciler.Reconcile(Key,Model,Previous:null);
+        var Right=Reconciler.Reconcile(Key,Model,Previous:null);
 
         Assert.False(SceneProjectionIdentityComparer.Matches(Left,Right));
         Assert.NotNull(SceneProjectionIdentityComparer.FindFirstMismatch(Left,Right));
@@ -207,7 +207,7 @@ public sealed class SceneLandingDecisionTests {
     }
 
     private static SceneModel Analyze(string?ExtraNodeName=null,float?TamperPositionX=null){
-        string Body=Source;
+        var Body=Source;
         if(TamperPositionX is { }X){
             Body=Body.Replace("PositionX=1f",$"PositionX={X}f");
         }
@@ -215,8 +215,8 @@ public sealed class SceneLandingDecisionTests {
             Body=Body.Replace("new Node { Name=\"Beta\" },",$"new Node {{ Name=\"Beta\" }},new Node {{ Name=\"{Extra}\" }},");
         }
 
-        CSharpCompilation Compilation=SceneAnalysisTestHelper.CreateCompilation(TransformTypes,Body);
-        INamedTypeSymbol SceneClass=SceneAnalysisTestHelper.FindSceneClass(Compilation,"MainScene")!;
+        var Compilation=SceneAnalysisTestHelper.CreateCompilation(TransformTypes,Body);
+        var SceneClass=SceneAnalysisTestHelper.FindSceneClass(Compilation,"MainScene")!;
         return SceneDeclarationAnalyzer.Analyze(SceneClass,Compilation,CancellationToken.None);
     }
 
@@ -246,14 +246,14 @@ public sealed class SceneLandingDecisionTests {
         internal SceneEditDocument Document { get; }
 
         internal static Fixture Create(){
-            CSharpCompilation Compilation=SceneAnalysisTestHelper.CreateCompilation(TransformTypes,Source);
-            SyntaxNode Root=Compilation.SyntaxTrees
-                .Single(Tree=>Tree.GetRoot().ToFullString().Contains("class MainScene"))
-                .GetRoot();
-            INamedTypeSymbol SceneClass=SceneAnalysisTestHelper.FindSceneClass(Compilation,"MainScene")!;
-            SceneModel Model=SceneDeclarationAnalyzer.Analyze(SceneClass,Compilation,CancellationToken.None);
+            var Compilation=SceneAnalysisTestHelper.CreateCompilation(TransformTypes,Source);
+            var Root=Compilation.SyntaxTrees
+                                .Single(Tree=>Tree.GetRoot().ToFullString().Contains("class MainScene"))
+                                .GetRoot();
+            var SceneClass=SceneAnalysisTestHelper.FindSceneClass(Compilation,"MainScene")!;
+            var Model=SceneDeclarationAnalyzer.Analyze(SceneClass,Compilation,CancellationToken.None);
             SceneProjectionReconciler Reconciler=new();
-            SceneProjection Projection=Reconciler.Reconcile(Key,Model,Previous:null);
+            var Projection=Reconciler.Reconcile(Key,Model,Previous:null);
             return new Fixture(
                 Compilation,Root,Projection,
                 new SceneEditDocument(Key,new SceneEditSnapshot(Model,Projection),Reconciler),Reconciler);
@@ -273,16 +273,16 @@ public sealed class SceneLandingDecisionTests {
 
         /// <summary>解析は通るがRootが取れないModel(構文エラー中の形)。</summary>
         internal SceneModel BrokenModel(){
-            CSharpCompilation Broken=SceneAnalysisTestHelper.CreateCompilation(
-                TransformTypes,
-                """
-                using CSharpGameEngine.Entities;
-                namespace Game;
-                public partial class MainScene:IScene {
-                    public Node Root=>null!;
-                }
-                """);
-            INamedTypeSymbol SceneClass=SceneAnalysisTestHelper.FindSceneClass(Broken,"MainScene")!;
+            var Broken=SceneAnalysisTestHelper.CreateCompilation(
+                                                                 TransformTypes,
+                                                                 """
+                                                                 using CSharpGameEngine.Entities;
+                                                                 namespace Game;
+                                                                 public partial class MainScene:IScene {
+                                                                     public Node Root=>null!;
+                                                                 }
+                                                                 """);
+            var SceneClass=SceneAnalysisTestHelper.FindSceneClass(Broken,"MainScene")!;
             return SceneDeclarationAnalyzer.Analyze(SceneClass,Broken,CancellationToken.None);
         }
 
@@ -292,12 +292,12 @@ public sealed class SceneLandingDecisionTests {
         /// 窓でユーザーがC#を直接編集したケースを模す。
         /// </summary>
         internal SceneLandingAction SaveAndLand(float?TamperPositionX=null,string?ExtraNodeName=null){
-            SceneSourceEditStepsResult Written=SceneSourceEditor.ApplyForSaveSteps(
-                this.Root,Key,this.Projection,this.Document.UnwrittenHistory);
+            var Written=SceneSourceEditor.ApplyForSaveSteps(
+                                                            this.Root,Key,this.Projection,this.Document.UnwrittenHistory);
             Assert.True(Written.Succeeded,Written.ErrorMessage);
             this.Document.MarkWritten();
 
-            SyntaxNode LandedRoot=Written.FinalRoot??this.Root;
+            var LandedRoot=Written.FinalRoot??this.Root;
             if(TamperPositionX is { }X){
                 LandedRoot=CSharpSyntaxTree
                     .ParseText(LandedRoot.ToFullString().Replace("PositionX=9f",$"PositionX={X}f")).GetRoot();
@@ -310,8 +310,8 @@ public sealed class SceneLandingDecisionTests {
 
             CSharpCompilation Landed=this.Compilation.ReplaceSyntaxTree(
                 this.Root.SyntaxTree,LandedRoot.SyntaxTree);
-            INamedTypeSymbol SceneClass=SceneAnalysisTestHelper.FindSceneClass(Landed,"MainScene")!;
-            SceneModel RealModel=SceneDeclarationAnalyzer.Analyze(SceneClass,Landed,CancellationToken.None);
+            var SceneClass=SceneAnalysisTestHelper.FindSceneClass(Landed,"MainScene")!;
+            var RealModel=SceneDeclarationAnalyzer.Analyze(SceneClass,Landed,CancellationToken.None);
 
             // 本番の Publish と同じく、自分の着地では Document の投影を引き継ぎ元にする。
             SceneProjection RealProjection=this.Reconciler.Reconcile(Key,RealModel,this.Document.Projection);

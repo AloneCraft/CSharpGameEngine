@@ -25,14 +25,14 @@ public readonly unsafe struct XAudio2Backend:IAudioBackend<XAudio2EngineHandle,X
             "XAudio2Create","creating the XAudio2 engine");
 
         IXAudio2MasteringVoice*MasteringVoice;
-        HRESULT Hr=Engine->CreateMasteringVoice(
-            &MasteringVoice,
-            (uint)XAUDIO2_DEFAULT_CHANNELS,
-            (uint)XAUDIO2_DEFAULT_SAMPLERATE,
-            0,
-            null,
-            null,
-            AudioCategory_GameEffects);
+        var Hr=Engine->CreateMasteringVoice(
+                                            &MasteringVoice,
+                                            (uint)XAUDIO2_DEFAULT_CHANNELS,
+                                            (uint)XAUDIO2_DEFAULT_SAMPLERATE,
+                                            0,
+                                            null,
+                                            null,
+                                            AudioCategory_GameEffects);
 
         if(Hr.FAILED){
             _=Engine->Release();

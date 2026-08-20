@@ -162,7 +162,7 @@ public sealed class SceneUndoRoutingPolicyTests {
 
     [Fact]
     public void TextSync_IsAllowedRightAfterOurOwnWrite(){
-        SceneTextSyncState State=SceneTextSyncPolicy.AfterWrite(VersionAfterWrite:8);
+        var State=SceneTextSyncPolicy.AfterWrite(VersionAfterWrite:8);
 
         Assert.True(SceneTextSyncPolicy.CanUndoText(State,CurrentBufferVersion:8));
     }
@@ -173,7 +173,7 @@ public sealed class SceneUndoRoutingPolicyTests {
     /// </summary>
     [Fact]
     public void TextSync_IsRefusedAfterSomeoneElseTouchedTheBuffer(){
-        SceneTextSyncState State=SceneTextSyncPolicy.AfterWrite(VersionAfterWrite:8);
+        var State=SceneTextSyncPolicy.AfterWrite(VersionAfterWrite:8);
 
         Assert.False(SceneTextSyncPolicy.CanUndoText(State,CurrentBufferVersion:9));
     }
@@ -221,7 +221,7 @@ public sealed class SceneUndoRoutingPolicyTests {
     /// <summary>Undoした分だけテキスト側のRedoが可能になり、Redoで戻る。</summary>
     [Fact]
     public void TextSync_MovesUnitsBetweenUndoAndRedo(){
-        SceneTextSyncState State=SceneTextSyncPolicy.AfterWrite(VersionAfterWrite:6);
+        var State=SceneTextSyncPolicy.AfterWrite(VersionAfterWrite:6);
         Assert.False(SceneTextSyncPolicy.CanRedoText(State,CurrentBufferVersion:6));
 
         State=SceneTextSyncPolicy.AfterUndo(State,VersionAfterUndo:7);
@@ -240,7 +240,7 @@ public sealed class SceneUndoRoutingPolicyTests {
     /// </summary>
     [Fact]
     public void TextSync_DropsStaleRedoUnitsOnANewInMemoryEdit(){
-        SceneTextSyncState State=SceneTextSyncPolicy.AfterWrite(VersionAfterWrite:6);
+        var State=SceneTextSyncPolicy.AfterWrite(VersionAfterWrite:6);
         State=SceneTextSyncPolicy.AfterUndo(State,VersionAfterUndo:7);
         Assert.Equal(1,State.RedoableUnits);
 
@@ -255,7 +255,7 @@ public sealed class SceneUndoRoutingPolicyTests {
     /// <summary>新しい書き込みはテキスト側のRedoスタックを捨てる(通常のUndoスタックの規則)。</summary>
     [Fact]
     public void TextSync_ClearsRedoOnANewWrite(){
-        SceneTextSyncState State=SceneTextSyncPolicy.AfterWrite(VersionAfterWrite:6);
+        var State=SceneTextSyncPolicy.AfterWrite(VersionAfterWrite:6);
         State=SceneTextSyncPolicy.AfterUndo(State,VersionAfterUndo:7);
 
         State=SceneTextSyncPolicy.AfterWrite(VersionAfterWrite:8);
@@ -265,7 +265,7 @@ public sealed class SceneUndoRoutingPolicyTests {
 
     [Fact]
     public void TransactionName_CarriesTheOperationLabel(){
-        string Formatted=SceneUndoTransactionNaming.Format("Remove node");
+        var Formatted=SceneUndoTransactionNaming.Format("Remove node");
 
         Assert.StartsWith(SceneUndoTransactionNaming.Prefix,Formatted,System.StringComparison.Ordinal);
         Assert.EndsWith("Remove node",Formatted,System.StringComparison.Ordinal);

@@ -39,13 +39,13 @@ public class ImportAxisConversionTests {
         XyzVector RawCentimeters=new(300f,-150f,75f);
         var MetersPerCentimeter=UnitConversion.MetersFromCentimeters(1f);
 
-        RufVector AxisFirstThenUnit=TConvention.FromXyz(RawCentimeters)*MetersPerCentimeter;
+        var AxisFirstThenUnit=TConvention.FromXyz(RawCentimeters)*MetersPerCentimeter;
 
         XyzVector UnitFirst=new(
             UnitConversion.MetersFromCentimeters(RawCentimeters.X),
             UnitConversion.MetersFromCentimeters(RawCentimeters.Y),
             UnitConversion.MetersFromCentimeters(RawCentimeters.Z));
-        RufVector UnitFirstThenAxis=TConvention.FromXyz(UnitFirst);
+        var UnitFirstThenAxis=TConvention.FromXyz(UnitFirst);
 
         Assert.Equal(AxisFirstThenUnit.R,UnitFirstThenAxis.R,precision:4);
         Assert.Equal(AxisFirstThenUnit.U,UnitFirstThenAxis.U,precision:4);

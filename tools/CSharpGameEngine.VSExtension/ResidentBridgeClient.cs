@@ -36,7 +36,7 @@ internal static class ResidentBridgeClient {
     /// </summary>
     internal static string ComputePipeName(string RepoRoot,string BridgeProjectRelativePath){
         var Seed= $"{Path.GetFullPath(RepoRoot)}|{BridgeProjectRelativePath}";
-        using SHA256 Sha256=SHA256.Create();
+        using var Sha256=SHA256.Create();
         var Hash=Sha256.ComputeHash(Encoding.UTF8.GetBytes(Seed));
         var Hex=BitConverter.ToString(Hash).Replace("-","");
         return $"CSharpGameEngine.Bridge.{Hex}";
@@ -53,7 +53,7 @@ internal static class ResidentBridgeClient {
             return false;
         }
 
-        DateTime Deadline=DateTime.UtcNow+SpawnRetryTimeout;
+        var Deadline=DateTime.UtcNow+SpawnRetryTimeout;
         while(DateTime.UtcNow<Deadline){
             if(TryConnectAndRun(PipeName,FirstArg,OutputPath,RequestTimeout,out ExitCode,out Output)){
                 return true;
@@ -74,7 +74,7 @@ internal static class ResidentBridgeClient {
             Pipe.Connect((int)ConnectTimeout.TotalMilliseconds);
 
             WriteMessage(Pipe,new ResidentBridgeRequest { Args=[FirstArg,OutputPath]});
-            ResidentBridgeResponse Response=ReadMessage<ResidentBridgeResponse>(Pipe,RequestTimeout);
+            var Response=ReadMessage<ResidentBridgeResponse>(Pipe,RequestTimeout);
 
             ExitCode=Response.ExitCode;
             Output=Response.Output;

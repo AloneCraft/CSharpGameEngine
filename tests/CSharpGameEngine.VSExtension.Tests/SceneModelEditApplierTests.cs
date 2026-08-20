@@ -44,13 +44,13 @@ public sealed class SceneModelEditApplierTests {
 
     [Fact]
     public void TryApply_SetTransform_UpdatesOnlyTheTargetNode(){
-        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=Analyze(Source);
-        EditorNodeId Cube=FindId(Projection,"Cube");
+        (var Base,var Projection,var Reconciler)=Analyze(Source);
+        var Cube=FindId(Projection,"Cube");
         SceneTransformValue Value=new(new Vector3(9f,2f,0f),Quaternion.Identity,Vector3.One);
 
-        bool Applied=SceneModelEditApplier.TryApply(
-            Base,Projection,Reconciler,Key,[new SetTransformOperation(Key,Cube,DocumentVersion:1,Value)],
-            out SceneModel Predicted,out _);
+        var Applied=SceneModelEditApplier.TryApply(
+                                                   Base,Projection,Reconciler,Key,[new SetTransformOperation(Key,Cube,DocumentVersion:1,Value)],
+                                                   out var Predicted,out _);
 
         Assert.True(Applied);
         Assert.Equal(9f,ReadPosition(Predicted,"Cube").X);
@@ -60,8 +60,8 @@ public sealed class SceneModelEditApplierTests {
 
     [Fact]
     public void TryApply_DoesNotMutateTheBaseModel(){
-        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=Analyze(Source);
-        EditorNodeId Cube=FindId(Projection,"Cube");
+        (var Base,var Projection,var Reconciler)=Analyze(Source);
+        var Cube=FindId(Projection,"Cube");
         SceneTransformValue Value=new(new Vector3(9f,9f,9f),Quaternion.Identity,Vector3.One);
 
         Assert.True(SceneModelEditApplier.TryApply(
@@ -75,15 +75,15 @@ public sealed class SceneModelEditApplierTests {
 
     [Fact]
     public void TryApply_MultipleNodes_UpdatesEveryTarget(){
-        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=Analyze(Source);
+        (var Base,var Projection,var Reconciler)=Analyze(Source);
         SceneTransformValue CubeValue=new(new Vector3(7f,0f,0f),Quaternion.Identity,Vector3.One);
         SceneTransformValue SphereValue=new(new Vector3(8f,0f,0f),Quaternion.Identity,Vector3.One);
 
-        bool Applied=SceneModelEditApplier.TryApply(
-            Base,Projection,Reconciler,Key,
-            [new SetTransformOperation(Key,FindId(Projection,"Cube"),DocumentVersion:1,CubeValue),
-             new SetTransformOperation(Key,FindId(Projection,"Sphere"),DocumentVersion:1,SphereValue)],
-            out SceneModel Predicted,out _);
+        var Applied=SceneModelEditApplier.TryApply(
+                                                   Base,Projection,Reconciler,Key,
+                                                   [new SetTransformOperation(Key,FindId(Projection,"Cube"),DocumentVersion:1,CubeValue),
+                                                       new SetTransformOperation(Key,FindId(Projection,"Sphere"),DocumentVersion:1,SphereValue)],
+                                                   out var Predicted,out _);
 
         Assert.True(Applied);
         Assert.Equal(7f,ReadPosition(Predicted,"Cube").X);
@@ -92,14 +92,14 @@ public sealed class SceneModelEditApplierTests {
 
     [Fact]
     public void TryApply_MissingMember_IsAddedToThePredictedModel(){
-        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=Analyze(Source);
+        (var Base,var Projection,var Reconciler)=Analyze(Source);
         // SphereにはPositionYが書かれていない。ソース層は初期化子へ追記するので、モデル層も同じ結果になるべき。
         SceneTransformValue Value=new(new Vector3(5f,4f,0f),Quaternion.Identity,Vector3.One);
 
         Assert.True(SceneModelEditApplier.TryApply(
             Base,Projection,Reconciler,Key,
             [new SetTransformOperation(Key,FindId(Projection,"Sphere"),DocumentVersion:1,Value)],
-            out SceneModel Predicted,out _));
+            out var Predicted,out _));
 
         Assert.Equal(4f,ReadPosition(Predicted,"Sphere").Y);
     }
@@ -113,20 +113,20 @@ public sealed class SceneModelEditApplierTests {
     /// </summary>
     [Fact]
     public void TryApply_OneOperationFailingWithinABatch_ReturnsFalseWithoutPartialApplication(){
-        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=Analyze(Source);
-        EditorNodeId Cube=FindId(Projection,"Cube");
+        (var Base,var Projection,var Reconciler)=Analyze(Source);
+        var Cube=FindId(Projection,"Cube");
         SceneTransformValue Value=new(new Vector3(9f,0f,0f),Quaternion.Identity,Vector3.One);
 
         // CubeはすでにTransformを持つので、2件目のAddComponentは「同じ型のComponentは既にNodeへ
         // 追加されています」で失敗する。1件目のSetTransformだけが適用された状態が残ってはいけない。
-        bool Applied=SceneModelEditApplier.TryApply(
-            Base,Projection,Reconciler,Key,
-            [new SetTransformOperation(Key,Cube,DocumentVersion:1,Value),
-             new AddComponentOperation(
-                 Key,Cube,DocumentVersion:1,
-                 "global::CSharpGameEngine.Runtime.Windows.Transform",
-                 "new global::CSharpGameEngine.Runtime.Windows.Transform()")],
-            out SceneModel Predicted,out _);
+        var Applied=SceneModelEditApplier.TryApply(
+                                                   Base,Projection,Reconciler,Key,
+                                                   [new SetTransformOperation(Key,Cube,DocumentVersion:1,Value),
+                                                       new AddComponentOperation(
+                                                        Key,Cube,DocumentVersion:1,
+                                                        "global::CSharpGameEngine.Runtime.Windows.Transform",
+                                                        "new global::CSharpGameEngine.Runtime.Windows.Transform()")],
+                                                   out var Predicted,out _);
 
         Assert.False(Applied);
         Assert.Same(Base,Predicted);
@@ -134,9 +134,9 @@ public sealed class SceneModelEditApplierTests {
 
     [Fact]
     public void TryApply_EmptyOperations_ReturnsFalse(){
-        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=Analyze(Source);
+        (var Base,var Projection,var Reconciler)=Analyze(Source);
 
-        Assert.False(SceneModelEditApplier.TryApply(Base,Projection,Reconciler,Key,[],out SceneModel Predicted,out _));
+        Assert.False(SceneModelEditApplier.TryApply(Base,Projection,Reconciler,Key,[],out var Predicted,out _));
         Assert.Same(Base,Predicted);
     }
 
@@ -149,7 +149,7 @@ public sealed class SceneModelEditApplierTests {
                 public Node Root=>new() { Children=[new Node { Name="Empty" }] };
             }
             """;
-        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=
+        (var Base,var Projection,var Reconciler)=
             Analyze(NoTransform,IncludeTransformTypes:false);
         SceneTransformValue Value=new(new Vector3(1f,0f,0f),Quaternion.Identity,Vector3.One);
 
@@ -161,14 +161,14 @@ public sealed class SceneModelEditApplierTests {
 
     [Fact]
     public void TryApply_SetComponentMember_AcceptsLiteralExpressions(){
-        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=Analyze(Source);
+        (var Base,var Projection,var Reconciler)=Analyze(Source);
 
-        bool Applied=SceneModelEditApplier.TryApply(
-            Base,Projection,Reconciler,Key,
-            [new SetComponentMemberOperation(
-                Key,FindId(Projection,"Cube"),DocumentVersion:1,
-                "global::CSharpGameEngine.Runtime.Windows.Transform","PositionX","6f")],
-            out SceneModel Predicted,out _);
+        var Applied=SceneModelEditApplier.TryApply(
+                                                   Base,Projection,Reconciler,Key,
+                                                   [new SetComponentMemberOperation(
+                                                    Key,FindId(Projection,"Cube"),DocumentVersion:1,
+                                                    "global::CSharpGameEngine.Runtime.Windows.Transform","PositionX","6f")],
+                                                   out var Predicted,out _);
 
         Assert.True(Applied);
         Assert.Equal(6f,ReadPosition(Predicted,"Cube").X);
@@ -176,7 +176,7 @@ public sealed class SceneModelEditApplierTests {
 
     [Fact]
     public void TryApply_SetComponentMember_DeclinesNonLiteralExpressions(){
-        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=Analyze(Source);
+        (var Base,var Projection,var Reconciler)=Analyze(Source);
 
         // 定数式はセマンティックモデル無しでは畳めないので、素直に諦めて従来経路へ落とす。
         Assert.False(SceneModelEditApplier.TryApply(
@@ -191,17 +191,17 @@ public sealed class SceneModelEditApplierTests {
 
     [Fact]
     public void TryApply_AddComponent_AppendsNewComponentWithoutSourceLocation(){
-        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=Analyze(Source);
+        (var Base,var Projection,var Reconciler)=Analyze(Source);
 
-        bool Applied=SceneModelEditApplier.TryApply(
-            Base,Projection,Reconciler,Key,
-            [new AddComponentOperation(
-                Key,FindId(Projection,"Cube"),DocumentVersion:1,
-                "global::Sample.DirectionalLight","new global::Sample.DirectionalLight()")],
-            out SceneModel Predicted,out _);
+        var Applied=SceneModelEditApplier.TryApply(
+                                                   Base,Projection,Reconciler,Key,
+                                                   [new AddComponentOperation(
+                                                                              Key,FindId(Projection,"Cube"),DocumentVersion:1,
+                                                                              "global::Sample.DirectionalLight","new global::Sample.DirectionalLight()")],
+                                                   out var Predicted,out _);
 
         Assert.True(Applied);
-        SceneComponent?Added=FindNode(Predicted,"Cube").FindComponent("global::Sample.DirectionalLight");
+        var Added=FindNode(Predicted,"Cube").FindComponent("global::Sample.DirectionalLight");
         Assert.NotNull(Added);
         // TryAddNodeが新規Nodeに対して行っているのと同じ扱い: ソースにまだ存在しない要素は
         // Locationを持たない(SceneSourceLocation.None、FilePath=="")。
@@ -210,12 +210,56 @@ public sealed class SceneModelEditApplierTests {
     }
 
     /// <summary>
+    /// 実機報告: パレットからComponentをドロップするとノードの選択が外れていた。
+    ///
+    /// <para>
+    /// <see cref="SceneProjectionReconciler"/>の照合キーは「ノード名 + Component型名の連結」なので、
+    /// Componentが1つ増えただけでキーが変わり、対象Node(と配下)へ新しい<see cref="EditorNodeId"/>が
+    /// 振られてしまう。選択・Reveal・未書き出し履歴が持つIDが宙に浮き、Inspectorが空表示へ落ちる。
+    /// Pathが変わらない操作ではIDを明示的に引き継ぐ。
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void TryApply_AddComponent_KeepsTheNodeIdentitySoTheSelectionSurvives(){
+        (var Base,var Projection,var Reconciler)=Analyze(Source);
+        var CubeId=FindId(Projection,"Cube");
+
+        var Applied=SceneModelEditApplier.TryApply(
+                                                   Base,Projection,Reconciler,Key,
+                                                   [new AddComponentOperation(
+                                                                              Key,CubeId,DocumentVersion:1,
+                                                                              "global::Sample.DirectionalLight","new global::Sample.DirectionalLight()")],
+                                                   out _,out var PredictedProjection);
+
+        Assert.True(Applied);
+        Assert.True(PredictedProjection.TryGetNode(CubeId,out var Node));
+        Assert.Equal("Cube",Node.Node.Name);
+    }
+
+    /// <summary>削除も同じ理由でIDを振り直させない。</summary>
+    [Fact]
+    public void TryApply_RemoveComponent_KeepsTheNodeIdentitySoTheSelectionSurvives(){
+        (var Base,var Projection,var Reconciler)=Analyze(Source);
+        var CubeId=FindId(Projection,"Cube");
+
+        var Applied=SceneModelEditApplier.TryApply(
+                                                   Base,Projection,Reconciler,Key,
+                                                   [new RemoveComponentOperation(
+                                                                                 Key,CubeId,DocumentVersion:1,"global::CSharpGameEngine.Runtime.Windows.Transform")],
+                                                   out _,out var PredictedProjection);
+
+        Assert.True(Applied);
+        Assert.True(PredictedProjection.TryGetNode(CubeId,out var Node));
+        Assert.Equal("Cube",Node.Node.Name);
+    }
+
+    /// <summary>
     /// SceneSourceEditor.ApplyAddComponentの「同じ型のComponentは既にNodeへ追加されています。」と
     /// 同じ判定をモデル層でも行う。保存時になって初めて失敗させないため。
     /// </summary>
     [Fact]
     public void TryApply_AddComponent_RejectsDuplicateComponentType(){
-        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=Analyze(Source);
+        (var Base,var Projection,var Reconciler)=Analyze(Source);
 
         Assert.False(SceneModelEditApplier.TryApply(
             Base,Projection,Reconciler,Key,
@@ -242,7 +286,7 @@ public sealed class SceneModelEditApplierTests {
                 public Node Root=>new() { Children=[new Node { Name="Empty" }] };
             }
             """;
-        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=
+        (var Base,var Projection,var Reconciler)=
             Analyze(SourceWithoutComponentsList);
 
         Assert.False(SceneModelEditApplier.TryApply(
@@ -256,14 +300,14 @@ public sealed class SceneModelEditApplierTests {
 
     [Fact]
     public void TryApply_RemoveComponent_DropsMatchingComponentType(){
-        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=Analyze(Source);
+        (var Base,var Projection,var Reconciler)=Analyze(Source);
 
-        bool Applied=SceneModelEditApplier.TryApply(
-            Base,Projection,Reconciler,Key,
-            [new RemoveComponentOperation(
-                Key,FindId(Projection,"Cube"),DocumentVersion:1,
-                "global::CSharpGameEngine.Runtime.Windows.Transform")],
-            out SceneModel Predicted,out _);
+        var Applied=SceneModelEditApplier.TryApply(
+                                                   Base,Projection,Reconciler,Key,
+                                                   [new RemoveComponentOperation(
+                                                    Key,FindId(Projection,"Cube"),DocumentVersion:1,
+                                                    "global::CSharpGameEngine.Runtime.Windows.Transform")],
+                                                   out var Predicted,out _);
 
         Assert.True(Applied);
         Assert.Null(FindNode(Predicted,"Cube").FindComponent("global::CSharpGameEngine.Runtime.Windows.Transform"));
@@ -271,7 +315,7 @@ public sealed class SceneModelEditApplierTests {
 
     [Fact]
     public void TryApply_RemoveComponent_RejectsWhenComponentTypeIsNotPresent(){
-        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=Analyze(Source);
+        (var Base,var Projection,var Reconciler)=Analyze(Source);
 
         Assert.False(SceneModelEditApplier.TryApply(
             Base,Projection,Reconciler,Key,
@@ -310,24 +354,95 @@ public sealed class SceneModelEditApplierTests {
                 ] };
             }
             """;
-        SceneModel Base=SceneAnalysisTestHelper.Analyze([TransformTypes,DirectionalLightType,SceneSource]);
+        var Base=SceneAnalysisTestHelper.Analyze([TransformTypes,DirectionalLightType,SceneSource]);
         SceneProjectionReconciler Reconciler=new();
-        SceneProjection BaseProjection=Reconciler.Reconcile(Key,Base,Previous:null);
-        EditorNodeId Cube=FindId(BaseProjection,"Cube");
+        var BaseProjection=Reconciler.Reconcile(Key,Base,Previous:null);
+        var Cube=FindId(BaseProjection,"Cube");
         AddComponentOperation Operation=new(
             Key,Cube,DocumentVersion:1,"global::Sample.DirectionalLight","new global::Sample.DirectionalLight()");
 
         Assert.True(SceneModelEditApplier.TryApply(
-            Base,BaseProjection,Reconciler,Key,[Operation],out SceneModel Predicted,out _));
+            Base,BaseProjection,Reconciler,Key,[Operation],out var Predicted,out _));
         Assert.NotNull(FindNode(Predicted,"Cube").FindComponent("global::Sample.DirectionalLight"));
 
-        SceneSourceEditResult Edited=SceneSourceEditor.Apply(
-            CSharpSyntaxTree.ParseText(SceneSource).GetRoot(),BaseProjection,Operation);
+        var Edited=SceneSourceEditor.Apply(
+                                           CSharpSyntaxTree.ParseText(SceneSource).GetRoot(),BaseProjection,Operation);
         Assert.True(Edited.Succeeded,Edited.ErrorMessage);
-        SceneModel Truth=SceneAnalysisTestHelper.Analyze(
-            [TransformTypes,DirectionalLightType,Edited.Root!.ToFullString()]);
+        var Truth=SceneAnalysisTestHelper.Analyze(
+                                                  [TransformTypes,DirectionalLightType,Edited.Root!.ToFullString()]);
 
         Assert.NotNull(FindNode(Truth,"Cube").FindComponent("global::Sample.DirectionalLight"));
+    }
+
+    /// <summary>
+    /// M0053の要。<c>SceneComponentInitializerPolicy.CreatePlan</c>が作る「書き込む式」と
+    /// 「メモリ内へ載せるメンバー」が、<b>保存して再解析した真実と一致する</b>ことを固定する。
+    ///
+    /// <para>
+    /// メモリ内メンバーを空にしていた頃は、追加直後のInspectorが「解析待ち…」のまま1項目も
+    /// 編集できなかった(実機報告)。先回りして載せる以上、ズレていないことの保証がいる —
+    /// ここがズレると「編集したのに保存すると値が違う」という最悪の壊れ方をする。
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void ModelApply_AddComponent_PredictedMembersMatchTheReanalyzedTruth(){
+        const string LightType="""
+            namespace Sample {
+                public struct Lamp {
+                    public float Intensity;
+                    public bool Enabled;
+                    public Lamp(){ this.Intensity=2f; }
+                }
+            }
+            """;
+        const string SceneSource="""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Runtime.Windows;
+            using Sample;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() { Children=[
+                    new Node { Name="Cube", Components=[new Transform { PositionX=1f,RotationW=1f,ScaleX=1f,ScaleY=1f,ScaleZ=1f }] },
+                ] };
+            }
+            """;
+        var Compilation=SceneAnalysisTestHelper.CreateCompilation(TransformTypes,LightType,SceneSource);
+        var LampType=Compilation.GetTypeByMetadataName("Sample.Lamp");
+        Assert.NotNull(LampType);
+        var Plan=SceneComponentInitializerPolicy.CreatePlan(LampType!,"global::Sample.Lamp",Compilation);
+
+        var Base=SceneAnalysisTestHelper.Analyze([TransformTypes,LightType,SceneSource]);
+        SceneProjectionReconciler Reconciler=new();
+        var BaseProjection=Reconciler.Reconcile(Key,Base,Previous:null);
+        AddComponentOperation Operation=new(
+            Key,FindId(BaseProjection,"Cube"),DocumentVersion:1,
+            "global::Sample.Lamp",Plan.Expression,Plan.Members);
+
+        Assert.True(SceneModelEditApplier.TryApply(
+            Base,BaseProjection,Reconciler,Key,[Operation],out var Predicted,out _));
+
+        var Edited=SceneSourceEditor.Apply(
+                                           CSharpSyntaxTree.ParseText(SceneSource).GetRoot(),BaseProjection,Operation);
+        Assert.True(Edited.Succeeded,Edited.ErrorMessage);
+        var Truth=SceneAnalysisTestHelper.Analyze([TransformTypes,LightType,Edited.Root!.ToFullString()]);
+
+        var PredictedLamp=FindNode(Predicted,"Cube").FindComponent("global::Sample.Lamp");
+        var TruthLamp=FindNode(Truth,"Cube").FindComponent("global::Sample.Lamp");
+        Assert.NotNull(PredictedLamp);
+        Assert.NotNull(TruthLamp);
+
+        // メンバー名・並び・ソース式・編集可否がすべて一致すること。
+        Assert.Equal(
+            TruthLamp!.Members.Select(static Member=>(Member.MemberName,Member.Value.SourceExpressionText,Member.Value.IsEditable)),
+            PredictedLamp!.Members.Select(static Member=>(Member.MemberName,Member.Value.SourceExpressionText,Member.Value.IsEditable)));
+
+        // コンストラクタ既定値が保たれ、指定の無いメンバーはdefaultになる。
+        Assert.Equal(["Intensity","Enabled"],PredictedLamp.Members.Select(static Member=>Member.MemberName));
+        Assert.Equal("2f",PredictedLamp.Members[0].Value.SourceExpressionText);
+        Assert.Equal("default",PredictedLamp.Members[1].Value.SourceExpressionText);
+
+        // 追加直後から編集できること(=Inspectorが「解析待ち…」にならないこと)。
+        Assert.All(PredictedLamp.Members,static Member=>Assert.True(Member.Value.IsEditable));
     }
 
     /// <summary>
@@ -335,19 +450,19 @@ public sealed class SceneModelEditApplierTests {
     /// </summary>
     [Fact]
     public void ModelApply_RemoveComponent_MatchesSourceApplyThenReanalyze(){
-        (SceneModel Base,SceneProjection BaseProjection,SceneProjectionReconciler Reconciler)=Analyze(Source);
-        EditorNodeId Cube=FindId(BaseProjection,"Cube");
+        (var Base,var BaseProjection,var Reconciler)=Analyze(Source);
+        var Cube=FindId(BaseProjection,"Cube");
         RemoveComponentOperation Operation=new(
             Key,Cube,DocumentVersion:1,"global::CSharpGameEngine.Runtime.Windows.Transform");
 
         Assert.True(SceneModelEditApplier.TryApply(
-            Base,BaseProjection,Reconciler,Key,[Operation],out SceneModel Predicted,out _));
+            Base,BaseProjection,Reconciler,Key,[Operation],out var Predicted,out _));
         Assert.Null(FindNode(Predicted,"Cube").FindComponent("global::CSharpGameEngine.Runtime.Windows.Transform"));
 
-        SceneSourceEditResult Edited=SceneSourceEditor.Apply(
-            CSharpSyntaxTree.ParseText(Source).GetRoot(),BaseProjection,Operation);
+        var Edited=SceneSourceEditor.Apply(
+                                           CSharpSyntaxTree.ParseText(Source).GetRoot(),BaseProjection,Operation);
         Assert.True(Edited.Succeeded,Edited.ErrorMessage);
-        SceneModel Truth=SceneAnalysisTestHelper.Analyze([TransformTypes,Edited.Root!.ToFullString()]);
+        var Truth=SceneAnalysisTestHelper.Analyze([TransformTypes,Edited.Root!.ToFullString()]);
 
         Assert.Null(FindNode(Truth,"Cube").FindComponent("global::CSharpGameEngine.Runtime.Windows.Transform"));
     }
@@ -360,8 +475,8 @@ public sealed class SceneModelEditApplierTests {
     /// </summary>
     [Fact]
     public void ModelApply_MatchesSourceApplyThenReanalyze(){
-        (SceneModel Base,SceneProjection BaseProjection,SceneProjectionReconciler Reconciler)=Analyze(Source);
-        EditorNodeId Cube=FindId(BaseProjection,"Cube");
+        (var Base,var BaseProjection,var Reconciler)=Analyze(Source);
+        var Cube=FindId(BaseProjection,"Cube");
         SceneTransformValue Value=new(
             new Vector3(3.5f,-2f,0.25f),
             Quaternion.CreateFromAxisAngle(Vector3.UnitY,1.1f),
@@ -369,16 +484,16 @@ public sealed class SceneModelEditApplierTests {
         SetTransformOperation Operation=new(Key,Cube,DocumentVersion:1,Value);
 
         Assert.True(SceneModelEditApplier.TryApply(
-            Base,BaseProjection,Reconciler,Key,[Operation],out SceneModel Predicted,out SceneProjection PredictedProjection));
+            Base,BaseProjection,Reconciler,Key,[Operation],out var Predicted,out var PredictedProjection));
 
-        SceneSourceEditResult Edited=SceneSourceEditor.Apply(
-            CSharpSyntaxTree.ParseText(Source).GetRoot(),BaseProjection,Operation);
+        var Edited=SceneSourceEditor.Apply(
+                                           CSharpSyntaxTree.ParseText(Source).GetRoot(),BaseProjection,Operation);
         Assert.True(Edited.Succeeded,Edited.ErrorMessage);
-        SceneModel Truth=SceneAnalysisTestHelper.Analyze([TransformTypes,Edited.Root!.ToFullString()]);
+        var Truth=SceneAnalysisTestHelper.Analyze([TransformTypes,Edited.Root!.ToFullString()]);
 
-        SceneProjection TruthProjection=Reconciler.Reconcile(Key,Truth,BaseProjection);
+        var TruthProjection=Reconciler.Reconcile(Key,Truth,BaseProjection);
 
-        SceneDiff Diff=SceneDiffEngine.Compare(PredictedProjection,TruthProjection);
+        var Diff=SceneDiffEngine.Compare(PredictedProjection,TruthProjection);
         Assert.All(Diff.Entries,static Entry=>Assert.Equal(SceneDiffKind.ComponentChanged,Entry.Kind));
 
         // 実際に描画・Inspectorが読む値そのものが一致していることを直接確かめる。
@@ -393,15 +508,15 @@ public sealed class SceneModelEditApplierTests {
     /// </summary>
     [Fact]
     public void PredictedDiff_StaysOnTheIncrementalRenderPath(){
-        (SceneModel Base,SceneProjection BaseProjection,SceneProjectionReconciler Reconciler)=Analyze(Source);
+        (var Base,var BaseProjection,var Reconciler)=Analyze(Source);
         SceneTransformValue Value=new(new Vector3(3f,1f,2f),Quaternion.Identity,Vector3.One);
 
         Assert.True(SceneModelEditApplier.TryApply(
             Base,BaseProjection,Reconciler,Key,
             [new SetTransformOperation(Key,FindId(BaseProjection,"Cube"),DocumentVersion:1,Value)],
-            out _,out SceneProjection PredictedProjection));
+            out _,out var PredictedProjection));
 
-        SceneDiff Diff=SceneDiffEngine.Compare(BaseProjection,PredictedProjection);
+        var Diff=SceneDiffEngine.Compare(BaseProjection,PredictedProjection);
 
         Assert.NotEmpty(Diff.Entries);
         Assert.Equal(SceneRenderUpdateKind.Incremental,SceneIncrementalUpdatePolicy.Classify(Diff));
@@ -413,13 +528,13 @@ public sealed class SceneModelEditApplierTests {
     /// </summary>
     [Fact]
     public void PredictedProjection_KeepsStableNodeIds(){
-        (SceneModel Base,SceneProjection BaseProjection,SceneProjectionReconciler Reconciler)=Analyze(Source);
-        EditorNodeId Cube=FindId(BaseProjection,"Cube");
+        (var Base,var BaseProjection,var Reconciler)=Analyze(Source);
+        var Cube=FindId(BaseProjection,"Cube");
         SceneTransformValue Value=new(new Vector3(3f,1f,2f),Quaternion.Identity,Vector3.One);
 
         Assert.True(SceneModelEditApplier.TryApply(
             Base,BaseProjection,Reconciler,Key,[new SetTransformOperation(Key,Cube,DocumentVersion:1,Value)],
-            out _,out SceneProjection PredictedProjection));
+            out _,out var PredictedProjection));
 
         Assert.Equal(Cube,FindId(PredictedProjection,"Cube"));
         Assert.Equal(FindId(BaseProjection,"Sphere"),FindId(PredictedProjection,"Sphere"));
@@ -427,14 +542,14 @@ public sealed class SceneModelEditApplierTests {
 
     [Fact]
     public void TryApply_AddNode_AppendsBareChildWithUniqueName(){
-        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=Analyze(Source);
-        EditorNodeId Root=FindId(Projection,null);
+        (var Base,var Projection,var Reconciler)=Analyze(Source);
+        var Root=FindId(Projection,null);
 
         Assert.True(SceneModelEditApplier.TryApply(
             Base,Projection,Reconciler,Key,[new AddNodeOperation(Key,Root,DocumentVersion:1,"Node")],
-            out SceneModel Predicted,out SceneProjection PredictedProjection));
+            out var Predicted,out var PredictedProjection));
 
-        SceneNode NewNode=Assert.Single(PredictedProjection.Nodes,static N=>N.Node.Name=="Node").Node;
+        var NewNode=Assert.Single(PredictedProjection.Nodes,static N=>N.Node.Name=="Node").Node;
         Assert.Equal(2,NewNode.Path.Indices[0]); // Cube=0, Sphere=1 の後ろに追記される
         Assert.Empty(NewNode.Components);
         Assert.Equal(3,Predicted.Root!.Children.Length);
@@ -442,24 +557,24 @@ public sealed class SceneModelEditApplierTests {
 
     [Fact]
     public void TryApply_AddNode_DedupesNameAgainstSiblings(){
-        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=Analyze(Source);
-        EditorNodeId Root=FindId(Projection,null);
+        (var Base,var Projection,var Reconciler)=Analyze(Source);
+        var Root=FindId(Projection,null);
 
         Assert.True(SceneModelEditApplier.TryApply(
             Base,Projection,Reconciler,Key,[new AddNodeOperation(Key,Root,DocumentVersion:1,"Cube")],
-            out _,out SceneProjection PredictedProjection));
+            out _,out var PredictedProjection));
 
         Assert.Single(PredictedProjection.Nodes,static N=>N.Node.Name=="Cube (1)");
     }
 
     [Fact]
     public void TryApply_RenameNode_ChangesNameOnly(){
-        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=Analyze(Source);
-        EditorNodeId Cube=FindId(Projection,"Cube");
+        (var Base,var Projection,var Reconciler)=Analyze(Source);
+        var Cube=FindId(Projection,"Cube");
 
         Assert.True(SceneModelEditApplier.TryApply(
             Base,Projection,Reconciler,Key,[new RenameNodeOperation(Key,Cube,DocumentVersion:1,"Box")],
-            out SceneModel Predicted,out SceneProjection PredictedProjection));
+            out var Predicted,out var PredictedProjection));
 
         Assert.Equal("Box",PredictedProjection.Nodes.Single(N=>N.Id.Equals(Cube)).Node.Name);
         Assert.Equal(1f,ReadPosition(Predicted,"Box").X);
@@ -467,8 +582,8 @@ public sealed class SceneModelEditApplierTests {
 
     [Fact]
     public void TryApply_RenameNode_RejectsEmptyName(){
-        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=Analyze(Source);
-        EditorNodeId Cube=FindId(Projection,"Cube");
+        (var Base,var Projection,var Reconciler)=Analyze(Source);
+        var Cube=FindId(Projection,"Cube");
 
         Assert.False(SceneModelEditApplier.TryApply(
             Base,Projection,Reconciler,Key,[new RenameNodeOperation(Key,Cube,DocumentVersion:1,"   ")],out _,out _));
@@ -476,23 +591,23 @@ public sealed class SceneModelEditApplierTests {
 
     [Fact]
     public void TryApply_RemoveNode_DropsTargetAndRenumbersSiblings(){
-        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=Analyze(Source);
-        EditorNodeId Cube=FindId(Projection,"Cube");
+        (var Base,var Projection,var Reconciler)=Analyze(Source);
+        var Cube=FindId(Projection,"Cube");
 
         Assert.True(SceneModelEditApplier.TryApply(
             Base,Projection,Reconciler,Key,[new RemoveNodeOperation(Key,Cube,DocumentVersion:1)],
-            out SceneModel Predicted,out SceneProjection PredictedProjection));
+            out var Predicted,out var PredictedProjection));
 
         Assert.DoesNotContain(PredictedProjection.Nodes,N=>N.Node.Name=="Cube");
-        SceneNode Sphere=Assert.Single(PredictedProjection.Nodes,static N=>N.Node.Name=="Sphere").Node;
+        var Sphere=Assert.Single(PredictedProjection.Nodes,static N=>N.Node.Name=="Sphere").Node;
         Assert.Equal(0,Sphere.Path.Indices[0]);
         Assert.Equal(5f,ReadPosition(Predicted,"Sphere").X);
     }
 
     [Fact]
     public void TryApply_RemoveNode_RejectsRoot(){
-        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=Analyze(Source);
-        EditorNodeId Root=FindId(Projection,null);
+        (var Base,var Projection,var Reconciler)=Analyze(Source);
+        var Root=FindId(Projection,null);
 
         Assert.False(SceneModelEditApplier.TryApply(
             Base,Projection,Reconciler,Key,[new RemoveNodeOperation(Key,Root,DocumentVersion:1)],out _,out _));
@@ -500,12 +615,12 @@ public sealed class SceneModelEditApplierTests {
 
     [Fact]
     public void TryApply_ReorderNode_MovesWithinSameParent(){
-        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=Analyze(Source);
-        EditorNodeId Cube=FindId(Projection,"Cube");
+        (var Base,var Projection,var Reconciler)=Analyze(Source);
+        var Cube=FindId(Projection,"Cube");
 
         Assert.True(SceneModelEditApplier.TryApply(
             Base,Projection,Reconciler,Key,[new ReorderNodeOperation(Key,Cube,DocumentVersion:1,NewIndex:1)],
-            out _,out SceneProjection PredictedProjection));
+            out _,out var PredictedProjection));
 
         Assert.Equal(0,PredictedProjection.Nodes.Single(N=>N.Node.Name=="Sphere").Node.Path.Indices[0]);
         Assert.Equal(1,PredictedProjection.Nodes.Single(N=>N.Node.Name=="Cube").Node.Path.Indices[0]);
@@ -526,17 +641,17 @@ public sealed class SceneModelEditApplierTests {
                 ] };
             }
             """;
-        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=
+        (var Base,var Projection,var Reconciler)=
             Analyze(Nested,IncludeTransformTypes:true);
-        EditorNodeId Child=FindId(Projection,"Child");
-        EditorNodeId GroupB=FindId(Projection,"GroupB");
+        var Child=FindId(Projection,"Child");
+        var GroupB=FindId(Projection,"GroupB");
 
         Assert.True(SceneModelEditApplier.TryApply(
             Base,Projection,Reconciler,Key,
             [new ReparentNodeOperation(Key,Child,DocumentVersion:1,GroupB,NewIndex:0)],
-            out SceneModel Predicted,out SceneProjection PredictedProjection));
+            out var Predicted,out var PredictedProjection));
 
-        SceneProjectionNode MovedChild=PredictedProjection.Nodes.Single(N=>N.Id.Equals(Child));
+        var MovedChild=PredictedProjection.Nodes.Single(N=>N.Id.Equals(Child));
         Assert.Equal(GroupB,MovedChild.ParentId);
         Assert.Equal(1f,ReadPosition(Predicted,"Child").X);
     }
@@ -552,10 +667,10 @@ public sealed class SceneModelEditApplierTests {
                 ] };
             }
             """;
-        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=
+        (var Base,var Projection,var Reconciler)=
             Analyze(Nested,IncludeTransformTypes:false);
-        EditorNodeId Parent=FindId(Projection,"Parent");
-        EditorNodeId Child=FindId(Projection,"Child");
+        var Parent=FindId(Projection,"Parent");
+        var Child=FindId(Projection,"Child");
 
         Assert.False(SceneModelEditApplier.TryApply(
             Base,Projection,Reconciler,Key,
@@ -564,14 +679,14 @@ public sealed class SceneModelEditApplierTests {
 
     [Fact]
     public void TryApply_Duplicate_ClonesComponentsAndAppliesGivenTransform(){
-        (SceneModel Base,SceneProjection Projection,SceneProjectionReconciler Reconciler)=Analyze(Source);
-        EditorNodeId Cube=FindId(Projection,"Cube");
+        (var Base,var Projection,var Reconciler)=Analyze(Source);
+        var Cube=FindId(Projection,"Cube");
         SceneTransformValue NewTransform=new(new Vector3(10f,10f,10f),Quaternion.Identity,Vector3.One);
 
         Assert.True(SceneModelEditApplier.TryApply(
             Base,Projection,Reconciler,Key,
             [new DuplicateNodeOperation(Key,Cube,DocumentVersion:1,NewTransform,SceneTransformMemberMask.All)],
-            out SceneModel Predicted,out SceneProjection PredictedProjection));
+            out var Predicted,out var PredictedProjection));
 
         Assert.Single(PredictedProjection.Nodes,static N=>N.Node.Name=="Cube (1)");
         Assert.Equal(10f,ReadPosition(Predicted,"Cube (1)").X);
@@ -580,8 +695,8 @@ public sealed class SceneModelEditApplierTests {
     }
 
     private static void AssertTransformEqual(SceneModel Expected,SceneModel Actual,string NodeName){
-        Assert.True(SceneTransformBinding.TryRead(FindNode(Expected,NodeName),out SceneTransformValue Left));
-        Assert.True(SceneTransformBinding.TryRead(FindNode(Actual,NodeName),out SceneTransformValue Right));
+        Assert.True(SceneTransformBinding.TryRead(FindNode(Expected,NodeName),out var Left));
+        Assert.True(SceneTransformBinding.TryRead(FindNode(Actual,NodeName),out var Right));
         Assert.True((Left.Position-Right.Position).Length()<1e-5f,$"{NodeName} Position {Left.Position} != {Right.Position}");
         Assert.True((Left.Scale-Right.Scale).Length()<1e-5f,$"{NodeName} Scale {Left.Scale} != {Right.Scale}");
         Assert.True(
@@ -591,9 +706,9 @@ public sealed class SceneModelEditApplierTests {
 
     private static (SceneModel Model,SceneProjection Projection,SceneProjectionReconciler Reconciler)Analyze(
         string SceneSource,bool IncludeTransformTypes=true){
-        SceneModel Model=IncludeTransformTypes
-            ?SceneAnalysisTestHelper.Analyze([TransformTypes,SceneSource])
-            :SceneAnalysisTestHelper.Analyze(SceneSource);
+        var Model=IncludeTransformTypes
+                      ?SceneAnalysisTestHelper.Analyze([TransformTypes,SceneSource])
+                      :SceneAnalysisTestHelper.Analyze(SceneSource);
         SceneProjectionReconciler Reconciler=new();
         return(Model,Reconciler.Reconcile(Key,Model,Previous:null),Reconciler);
     }
@@ -605,7 +720,7 @@ public sealed class SceneModelEditApplierTests {
         Assert.Single(Model.EnumerateNodes(),Node=>Node.Name==NodeName);
 
     private static Vector3 ReadPosition(SceneModel Model,string NodeName){
-        Assert.True(SceneTransformBinding.TryRead(FindNode(Model,NodeName),out SceneTransformValue Value));
+        Assert.True(SceneTransformBinding.TryRead(FindNode(Model,NodeName),out var Value));
         return Value.Position;
     }
 }

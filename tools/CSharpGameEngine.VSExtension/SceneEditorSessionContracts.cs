@@ -64,7 +64,7 @@ internal sealed class SceneDocumentSnapshot {
             // 着地だけは IdentityBasis に Document の投影を渡す — セッション中に追加したノードは
             // 旧実投影に存在しないので新IDが払い直され、Document側のIDを参照している未書き出しの
             // 履歴が次の保存で解決できなくなるため(SceneDocumentLineagePolicy 参照)。
-            SceneProjection Projection=Reconciler.Reconcile(Key,Model,IdentityBasis??Previous?.Projection);
+            var Projection=Reconciler.Reconcile(Key,Model,IdentityBasis??Previous?.Projection);
             return new SceneDocumentSnapshot(
                 Key,DocumentId,DocumentVersion,AnalysisGeneration,Model,Model,Projection,
                 SceneDiffEngine.Compare(Previous?.Projection,Projection),HasBlockingErrors:false);

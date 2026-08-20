@@ -52,15 +52,15 @@ internal sealed class ProjectSceneCatalog {
 /// <summary>Project Scene 一覧の安定順と重複時の表示名を、WPF/Roslyn から切り離して固定します。</summary>
 internal static class ProjectSceneCatalogPresentation {
     internal static IReadOnlyList<ProjectSceneCatalogEntry> Create(string ProjectId,IEnumerable<ProjectSceneCatalogEntry> Entries){
-        ProjectSceneCatalogEntry[] Ordered=Entries
-            .Where(Entry=>string.Equals(Entry.Key.ProjectId,ProjectId,StringComparison.Ordinal))
-            .OrderBy(Entry=>Entry.FilePath,StringComparer.OrdinalIgnoreCase)
-            .ThenBy(Entry=>Entry.DeclarationPosition)
-            .ToArray();
+        var Ordered=Entries
+                   .Where(Entry=>string.Equals(Entry.Key.ProjectId,ProjectId,StringComparison.Ordinal))
+                   .OrderBy(Entry=>Entry.FilePath,StringComparer.OrdinalIgnoreCase)
+                   .ThenBy(Entry=>Entry.DeclarationPosition)
+                   .ToArray();
 
-        foreach(IGrouping<string,ProjectSceneCatalogEntry> Group in Ordered.GroupBy(Entry=>Entry.ClassName,StringComparer.Ordinal)){
-            bool Duplicate=Group.Skip(1).Any();
-            foreach(ProjectSceneCatalogEntry Entry in Group){
+        foreach(var Group in Ordered.GroupBy(Entry=>Entry.ClassName,StringComparer.Ordinal)){
+            var Duplicate=Group.Skip(1).Any();
+            foreach(var Entry in Group){
                 Entry.SetDisplayName(Duplicate
                     ?Entry.Key.ClassFullyQualifiedName.Replace("global::",string.Empty)
                     :Entry.ClassName);

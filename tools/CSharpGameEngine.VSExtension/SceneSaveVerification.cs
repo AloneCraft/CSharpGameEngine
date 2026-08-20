@@ -42,11 +42,11 @@ internal static class SceneSaveVerification {
         out string?ErrorMessage){
         ErrorMessage=null;
 
-        SyntaxTree EditedTree=CSharpSyntaxTree.Create(
-            (CSharpSyntaxNode)EditedRoot,
-            (CSharpParseOptions?)OriginalRoot.SyntaxTree.Options,
-            OriginalRoot.SyntaxTree.FilePath,
-            OriginalRoot.SyntaxTree.Encoding);
+        var EditedTree=CSharpSyntaxTree.Create(
+                                               (CSharpSyntaxNode)EditedRoot,
+                                               (CSharpParseOptions?)OriginalRoot.SyntaxTree.Options,
+                                               OriginalRoot.SyntaxTree.FilePath,
+                                               OriginalRoot.SyntaxTree.Encoding);
 
         Compilation Reanalyzed;
         try {
@@ -56,20 +56,20 @@ internal static class SceneSaveVerification {
             return false;
         }
 
-        INamedTypeSymbol?Type=Reanalyzed.GetTypeByMetadataName(ClassFullyQualifiedName);
+        var Type=Reanalyzed.GetTypeByMetadataName(ClassFullyQualifiedName);
         if(Type is null||!SceneTypePredicates.ImplementsSceneInterface(Type)){
             ErrorMessage="書き戻し結果からScene宣言を再発見できませんでした。";
             return false;
         }
 
-        SceneModel Actual=SceneDeclarationAnalyzer.Analyze(Type,Reanalyzed,CancellationToken);
+        var Actual=SceneDeclarationAnalyzer.Analyze(Type,Reanalyzed,CancellationToken);
         if(Actual.HasErrors||Actual.Root is null){
             ErrorMessage="書き戻し結果に解析エラーが生じました。";
             return false;
         }
 
-        string ExpectedSignature=SceneModelStructuralSignature.Compute(Expected);
-        string ActualSignature=SceneModelStructuralSignature.Compute(Actual);
+        var ExpectedSignature=SceneModelStructuralSignature.Compute(Expected);
+        var ActualSignature=SceneModelStructuralSignature.Compute(Actual);
         if(!string.Equals(ExpectedSignature,ActualSignature,StringComparison.Ordinal)){
             ErrorMessage="書き戻し結果が編集内容と一致しません(往復検証に失敗)。";
             return false;

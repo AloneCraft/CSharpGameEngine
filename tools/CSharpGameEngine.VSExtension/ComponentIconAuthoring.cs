@@ -20,7 +20,7 @@ internal static class SceneComponentIconMetadata {
     /// current project root.
     /// </summary>
     internal static string?TryGetDeclaredProjectRelativePath(INamedTypeSymbol Type){
-        foreach(AttributeData Attribute in Type.GetAttributes()){
+        foreach(var Attribute in Type.GetAttributes()){
             if(!string.Equals(
                 Attribute.AttributeClass?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                 AttributeFullyQualifiedName,StringComparison.Ordinal)){
@@ -80,12 +80,12 @@ internal static class ProjectIconPath {
             return false;
         }
 
-        string Candidate=Value!.Trim().Replace('\\','/');
+        var Candidate=Value!.Trim().Replace('\\','/');
         if(Path.IsPathRooted(Candidate)||Candidate.IndexOf(':')>=0){
             return false;
         }
 
-        string[]Segments=Candidate.Split(new[]{'/'},StringSplitOptions.RemoveEmptyEntries);
+        var Segments=Candidate.Split(new[]{'/'},StringSplitOptions.RemoveEmptyEntries);
         if(Segments.Length==0
             ||Segments.Any(static Segment=>string.Equals(Segment,".",StringComparison.Ordinal)
                 ||string.Equals(Segment,"..",StringComparison.Ordinal)
@@ -93,7 +93,7 @@ internal static class ProjectIconPath {
             return false;
         }
 
-        string Extension=Path.GetExtension(Segments[Segments.Length-1]);
+        var Extension=Path.GetExtension(Segments[Segments.Length-1]);
         if(!string.Equals(Extension,".svg",StringComparison.OrdinalIgnoreCase)
             &&!string.Equals(Extension,".png",StringComparison.OrdinalIgnoreCase)){
             return false;
@@ -208,8 +208,8 @@ internal static class ProjectIconAssetCatalog {
     }
 
     private static void EnumerateDirectory(string Root,string DirectoryPath,List<ProjectIconAsset>Assets){
-        foreach(string ChildDirectory in Directory.EnumerateDirectories(DirectoryPath)){
-            string Name=Path.GetFileName(ChildDirectory);
+        foreach(var ChildDirectory in Directory.EnumerateDirectories(DirectoryPath)){
+            var Name=Path.GetFileName(ChildDirectory);
             if(ExcludedDirectories.Contains(Name)){
                 continue;
             }
@@ -217,7 +217,7 @@ internal static class ProjectIconAssetCatalog {
             EnumerateDirectory(Root,ChildDirectory,Assets);
         }
 
-        foreach(string FilePath in Directory.EnumerateFiles(DirectoryPath)){
+        foreach(var FilePath in Directory.EnumerateFiles(DirectoryPath)){
             if(!ProjectIconPath.TryCreateRelative(Root,FilePath,out string RelativePath)){
                 continue;
             }
@@ -230,7 +230,7 @@ internal static class ProjectIconAssetCatalog {
 /// <summary>Builds a validated visual description for a component, falling back without throwing.</summary>
 internal static class SceneComponentIconResolver {
     internal static SceneVisualIcon Resolve(INamedTypeSymbol Type,string?ProjectDirectory){
-        string?DeclaredPath=SceneComponentIconMetadata.TryGetDeclaredProjectRelativePath(Type);
+        var DeclaredPath=SceneComponentIconMetadata.TryGetDeclaredProjectRelativePath(Type);
         if(DeclaredPath is null){
             return SceneVisualIcon.ComponentDefault();
         }
@@ -247,8 +247,8 @@ internal static class SceneComponentProjectLocator {
     private static readonly Dictionary<string,string?>Cache=new(StringComparer.OrdinalIgnoreCase);
 
     internal static string? Resolve(INamedTypeSymbol Type,string?FallbackProjectDirectory){
-        Location?SourceLocation=Type.Locations.FirstOrDefault(static Location=>Location.IsInSource);
-        string?SourcePath=SourceLocation?.SourceTree?.FilePath;
+        var SourceLocation=Type.Locations.FirstOrDefault(static Location=>Location.IsInSource);
+        var SourcePath=SourceLocation?.SourceTree?.FilePath;
         if(!string.IsNullOrWhiteSpace(SourcePath)){
             return FindProjectDirectory(SourcePath!);
         }
@@ -257,13 +257,13 @@ internal static class SceneComponentProjectLocator {
             return FallbackProjectDirectory;
         }
 
-        string AssemblyName=Type.ContainingAssembly?.Name??string.Empty;
+        var AssemblyName=Type.ContainingAssembly?.Name??string.Empty;
         if(AssemblyName.Length==0||FallbackProjectDirectory is null){
             return null;
         }
 
         string?Root=FindSolutionRoot(FallbackProjectDirectory);
-        string CacheKey=AssemblyName+"|"+(Root??FallbackProjectDirectory);
+        var CacheKey=AssemblyName+"|"+(Root??FallbackProjectDirectory);
         lock(Cache){
             if(Cache.TryGetValue(CacheKey,out string?Cached)){
                 return Cached;
@@ -280,7 +280,7 @@ internal static class SceneComponentProjectLocator {
 
     private static string? FindProjectDirectory(string FilePath){
         try {
-            DirectoryInfo?Current=Directory.GetParent(FilePath);
+            var Current=Directory.GetParent(FilePath);
             while(Current is not null){
                 if(Current.EnumerateFiles("*.csproj",SearchOption.TopDirectoryOnly).Any()){
                     return Current.FullName;
@@ -297,9 +297,9 @@ internal static class SceneComponentProjectLocator {
 
     private static string? FindSolutionRoot(string ProjectDirectory){
         try {
-            DirectoryInfo?Current=Directory.Exists(ProjectDirectory)
-                ?new DirectoryInfo(ProjectDirectory)
-                :Directory.GetParent(ProjectDirectory);
+            var Current=Directory.Exists(ProjectDirectory)
+                           ?new DirectoryInfo(ProjectDirectory)
+                           :Directory.GetParent(ProjectDirectory);
             while(Current is not null){
                 if(Current.EnumerateFiles("*.slnx",SearchOption.TopDirectoryOnly).Any()
                     ||Current.EnumerateFiles("*.sln",SearchOption.TopDirectoryOnly).Any()){
@@ -317,7 +317,7 @@ internal static class SceneComponentProjectLocator {
 
     private static string? FindProjectByAssemblyName(string Root,string AssemblyName){
         try {
-            foreach(string ProjectFile in Directory.EnumerateFiles(Root,"*.csproj",SearchOption.AllDirectories)){
+            foreach(var ProjectFile in Directory.EnumerateFiles(Root,"*.csproj",SearchOption.AllDirectories)){
                 if(ProjectFile.Split(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar)
                     .Any(static Segment=>string.Equals(Segment,"bin",StringComparison.OrdinalIgnoreCase)
                         ||string.Equals(Segment,"obj",StringComparison.OrdinalIgnoreCase))){
@@ -328,9 +328,9 @@ internal static class SceneComponentProjectLocator {
                     return Path.GetDirectoryName(ProjectFile);
                 }
 
-                string ProjectText=File.ReadAllText(ProjectFile);
-                Match Match=Regex.Match(ProjectText,@"<AssemblyName>\s*(?<Name>[^<]+?)\s*</AssemblyName>",
-                    RegexOptions.IgnoreCase);
+                var ProjectText=File.ReadAllText(ProjectFile);
+                var Match=Regex.Match(ProjectText,@"<AssemblyName>\s*(?<Name>[^<]+?)\s*</AssemblyName>",
+                                      RegexOptions.IgnoreCase);
                 if(Match.Success&&string.Equals(Match.Groups["Name"].Value.Trim(),AssemblyName,StringComparison.OrdinalIgnoreCase)){
                     return Path.GetDirectoryName(ProjectFile);
                 }

@@ -51,7 +51,7 @@ public static class FbxImporter {
             return Failed("FBX file contains no meshes.",Diagnostics);
         }
 
-        Assimp.Mesh Mesh=Scene.Meshes[0];
+        var Mesh=Scene.Meshes[0];
         if(Mesh.VertexCount==0){
             return Failed("FBX mesh has no vertices.",Diagnostics);
         }
@@ -61,9 +61,9 @@ public static class FbxImporter {
         // UnityCoordinateConvention (left-handed) per ADR-0027 - positions/normals convert
         // per-vertex (FbxAxisConversion.ConvertVector), and triangle winding is flipped below to
         // keep front-facing orientation consistent with the mirrored positions.
-        Vector3[]Positions=new Vector3[Mesh.VertexCount];
+        var Positions=new Vector3[Mesh.VertexCount];
         for(var I=0;I<Mesh.VertexCount;I++){
-            Vector3D V=Mesh.Vertices[I];
+            var V=Mesh.Vertices[I];
             Positions[I]=FbxAxisConversion.ConvertVector(new Vector3(V.X,V.Y,V.Z));
         }
 
@@ -71,7 +71,7 @@ public static class FbxImporter {
         if(Mesh.HasNormals){
             Normals=new Vector3[Mesh.VertexCount];
             for(var I=0;I<Mesh.VertexCount;I++){
-                Vector3D N=Mesh.Normals[I];
+                var N=Mesh.Normals[I];
                 Normals[I]=FbxAxisConversion.ConvertVector(new Vector3(N.X,N.Y,N.Z));
             }
         } else {
@@ -84,9 +84,9 @@ public static class FbxImporter {
         Vector2[]Uvs;
         if(Mesh.HasTextureCoords(0)){
             Uvs=new Vector2[Mesh.VertexCount];
-            List<Vector3D>Channel=Mesh.TextureCoordinateChannels[0];
+            var Channel=Mesh.TextureCoordinateChannels[0];
             for(var I=0;I<Mesh.VertexCount;I++){
-                Vector3D Uv=Channel[I];
+                var Uv=Channel[I];
                 Uvs[I]=new Vector2(Uv.X,Uv.Y);
             }
         } else {
@@ -96,7 +96,7 @@ public static class FbxImporter {
         }
 
         List<uint>Indices=[];
-        foreach(Face Face in Mesh.Faces){
+        foreach(var Face in Mesh.Faces){
             if(Face.IndexCount!=3){
                 // Triangulate should guarantee this; skip any degenerate leftovers defensively.
                 continue;
@@ -115,9 +115,9 @@ public static class FbxImporter {
 
         Vector4 BaseColorFactor=new(1f,1f,1f,1f);
         if(Mesh.MaterialIndex>=0&&Mesh.MaterialIndex<Scene.MaterialCount){
-            Assimp.Material Material=Scene.Materials[Mesh.MaterialIndex];
+            var Material=Scene.Materials[Mesh.MaterialIndex];
             if(Material.HasColorDiffuse){
-                Color4D C=Material.ColorDiffuse;
+                var C=Material.ColorDiffuse;
                 BaseColorFactor=new Vector4(C.R,C.G,C.B,C.A);
             }
         }

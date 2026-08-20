@@ -93,19 +93,19 @@ public readonly struct RufQuaternion:IEquatable<RufQuaternion>{
         return ForwardParallelToCanonicalUp?RufVector.Right:RufVector.Up;
     }
 
-    private Quaternion ToSystemQuaternion()=>new(R,U,F,W);
+    private Quaternion ToSystemQuaternion()=>new(this.R, this.U, this.F, this.W);
 
     private static RufQuaternion FromSystemQuaternion(Quaternion Q)=>new(Q.X,Q.Y,Q.Z,Q.W);
 
-    public bool Equals(RufQuaternion Other)=>R.Equals(Other.R)&&U.Equals(Other.U)&&F.Equals(Other.F)&&W.Equals(Other.W);
+    public bool Equals(RufQuaternion Other)=> this.R.Equals(Other.R)&& this.U.Equals(Other.U)&& this.F.Equals(Other.F)&& this.W.Equals(Other.W);
 
-    public override bool Equals(object?Obj)=>Obj is RufQuaternion Other&&Equals(Other);
+    public override bool Equals(object?Obj)=>Obj is RufQuaternion Other&& this.Equals(Other);
 
-    public override int GetHashCode()=>HashCode.Combine(R,U,F,W);
+    public override int GetHashCode()=>HashCode.Combine(this.R, this.U, this.F, this.W);
 
     public static bool operator==(RufQuaternion Left,RufQuaternion Right)=>Left.Equals(Right);
 
     public static bool operator!=(RufQuaternion Left,RufQuaternion Right)=>!Left.Equals(Right);
 
-    public override string ToString()=>FormattableString.Invariant($"RufQuaternion({R}, {U}, {F}, {W})");
+    public override string ToString()=>FormattableString.Invariant($"RufQuaternion({this.R}, {this.U}, {this.F}, {this.W})");
 }

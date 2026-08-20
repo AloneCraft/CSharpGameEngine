@@ -24,13 +24,13 @@ internal sealed class AssetMetaWatcher:IDisposable {
             GenerateMetaIfMissing(ExistingAsset);
         }
 
-        Watcher=new FileSystemWatcher(AssetsRoot){
-            NotifyFilter=NotifyFilters.FileName|NotifyFilters.LastWrite,
-            IncludeSubdirectories=true,
-        };
-        Watcher.Created+=(_,E)=>HandleCandidate(E.FullPath);
-        Watcher.Renamed+=(_,E)=>HandleCandidate(E.FullPath);
-        Watcher.EnableRaisingEvents=true;
+        this.Watcher=new FileSystemWatcher(AssetsRoot){
+                                                          NotifyFilter=NotifyFilters.FileName|NotifyFilters.LastWrite,
+                                                          IncludeSubdirectories=true,
+                                                      };
+        this.Watcher.Created+=(_,E)=> this.HandleCandidate(E.FullPath);
+        this.Watcher.Renamed+=(_,E)=> this.HandleCandidate(E.FullPath);
+        this.Watcher.EnableRaisingEvents=true;
     }
 
     /// <summary>
@@ -83,14 +83,14 @@ internal sealed class AssetMetaWatcher:IDisposable {
     }
 
     private static bool WaitUntilReadable(string Path,TimeSpan Timeout){
-        DateTime Deadline=DateTime.UtcNow+Timeout;
+        var Deadline=DateTime.UtcNow+Timeout;
         while(DateTime.UtcNow<Deadline){
             if(!File.Exists(Path)){
                 return false;
             }
 
             try {
-                using FileStream Stream=File.Open(Path,FileMode.Open,FileAccess.Read,FileShare.Read);
+                using var Stream=File.Open(Path,FileMode.Open,FileAccess.Read,FileShare.Read);
                 return true;
             } catch(IOException){
                 Thread.Sleep(500);
@@ -100,5 +100,5 @@ internal sealed class AssetMetaWatcher:IDisposable {
         return false;
     }
 
-    public void Dispose()=>Watcher.Dispose();
+    public void Dispose()=> this.Watcher.Dispose();
 }

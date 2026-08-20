@@ -79,38 +79,38 @@ public sealed class SceneDslGeneratorEndToEndTests {
 
     [Fact]
     public void InstantiateScene_CreatesOneEntityPerNode(){
-        Assembly Assembly=CompileScene("""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Name="Root",
-                    Components=[new Transform { X=1f }],
-                    Children=[
-                        new Node { Name="A",Components=[new Light { Intensity=3f }] },
-                        new Node { Name="B",Components=[new Transform { X=2f }] },
-                    ],
-                };
-            }
-            """);
+        var Assembly=CompileScene("""
+                                  using CSharpGameEngine.Entities;
+                                  using Sample;
+                                  namespace Game;
+                                  public partial class MainScene:IScene {
+                                      public Node Root=>new() {
+                                          Name="Root",
+                                          Components=[new Transform { X=1f }],
+                                          Children=[
+                                              new Node { Name="A",Components=[new Light { Intensity=3f }] },
+                                              new Node { Name="B",Components=[new Transform { X=2f }] },
+                                          ],
+                                      };
+                                  }
+                                  """);
 
         Assert.Equal(3,Invoke(Assembly,"InstantiateAndCountEntities"));
     }
 
     [Fact]
     public void InstantiateScene_TwiceProducesIndependentSceneInstances(){
-        Assembly Assembly=CompileScene("""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Components=[new Transform { X=1f }],
-                    Children=[new Node { Components=[new Light()] }],
-                };
-            }
-            """);
+        var Assembly=CompileScene("""
+                                  using CSharpGameEngine.Entities;
+                                  using Sample;
+                                  namespace Game;
+                                  public partial class MainScene:IScene {
+                                      public Node Root=>new() {
+                                          Components=[new Transform { X=1f }],
+                                          Children=[new Node { Components=[new Light()] }],
+                                      };
+                                  }
+                                  """);
 
         Assert.True((bool)Invoke(Assembly,"RoundTripsOwnershipAndUnload")!);
     }
@@ -119,34 +119,34 @@ public sealed class SceneDslGeneratorEndToEndTests {
     public void SceneOnlyShapesBecomeRealArchetypes(){
         // Sceneのノード形状はSystemのUpdate/Spawn形状と同じArchetype空間へ入る。Systemが宣言していない
         // 構成({Light, Parent})でもArchetypeが作られ、Createが解決できなければコンパイルが通らない。
-        Assembly Assembly=CompileScene("""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Components=[new Transform()],
-                    Children=[new Node { Components=[new Light { Intensity=7f }] }],
-                };
-            }
-            """);
+        var Assembly=CompileScene("""
+                                  using CSharpGameEngine.Entities;
+                                  using Sample;
+                                  namespace Game;
+                                  public partial class MainScene:IScene {
+                                      public Node Root=>new() {
+                                          Components=[new Transform()],
+                                          Children=[new Node { Components=[new Light { Intensity=7f }] }],
+                                      };
+                                  }
+                                  """);
 
         Assert.Equal(2,Invoke(Assembly,"InstantiateAndCountEntities"));
     }
 
     [Fact]
     public void InstantiateScene_ProvidesTypedComponentLookupForSceneEntities(){
-        Assembly Assembly=CompileScene("""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Components=[new Transform { X=1f }],
-                    Children=[new Node { Components=[new Light { Intensity=7f }] }],
-                };
-            }
-            """);
+        var Assembly=CompileScene("""
+                                  using CSharpGameEngine.Entities;
+                                  using Sample;
+                                  namespace Game;
+                                  public partial class MainScene:IScene {
+                                      public Node Root=>new() {
+                                          Components=[new Transform { X=1f }],
+                                          Children=[new Node { Components=[new Light { Intensity=7f }] }],
+                                      };
+                                  }
+                                  """);
 
         Assert.True((bool)Invoke(Assembly,"LooksUpComponentsWithoutReflection")!);
     }
@@ -162,51 +162,51 @@ public sealed class SceneDslGeneratorEndToEndTests {
     /// </summary>
     [Fact]
     public void MultipleStartupScenes_BothInstantiateIndependently_ThroughTheGeneratedRunFrameChain(){
-        Assembly Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(
-            [.. GameSystemGeneratorTestHelper.SceneDslSources,Components,"""
-                using CSharpGameEngine.Entities;
-                using CSharpGameEngine.Generated;
-                using Sample;
+        var Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(
+                                                                  [.. GameSystemGeneratorTestHelper.SceneDslSources,Components,"""
+                                                                      using CSharpGameEngine.Entities;
+                                                                      using CSharpGameEngine.Generated;
+                                                                      using Sample;
 
-                namespace Game;
+                                                                      namespace Game;
 
-                [StartupScene(Order = 0)]
-                public partial class SceneA : IScene {
-                    public Node Root => new() { Components = [new Light { Intensity = 1f }] };
-                }
+                                                                      [StartupScene(Order = 0)]
+                                                                      public partial class SceneA : IScene {
+                                                                          public Node Root => new() { Components = [new Light { Intensity = 1f }] };
+                                                                      }
 
-                [StartupScene(Order = 1)]
-                public partial class SceneB : IScene {
-                    public Node Root => new() { Components = [new Light { Intensity = 2f }] };
-                }
+                                                                      [StartupScene(Order = 1)]
+                                                                      public partial class SceneB : IScene {
+                                                                          public Node Root => new() { Components = [new Light { Intensity = 2f }] };
+                                                                      }
 
-                internal static class TestEntry
-                {
-                    internal static string RunScenario()
-                    {
-                        World World = new();
-                        World.Create(new Bootstrap());
-                        State State = new(World) { Enabled = true };
+                                                                      internal static class TestEntry
+                                                                      {
+                                                                          internal static string RunScenario()
+                                                                          {
+                                                                              World World = new();
+                                                                              World.Create(new Bootstrap());
+                                                                              State State = new(World) { Enabled = true };
 
-                        var SceneAStartup = new SceneA__StartupSystem();
-                        var SceneBStartup = new SceneB__StartupSystem();
-                        var KeepAlive = new KeepGeneratorAlive();
-                        GeneratedGameLoop.RunFrame(ref State, ref SceneAStartup, ref KeepAlive, ref SceneBStartup);
+                                                                              var SceneAStartup = new SceneA__StartupSystem();
+                                                                              var SceneBStartup = new SceneB__StartupSystem();
+                                                                              var KeepAlive = new KeepGeneratorAlive();
+                                                                              GeneratedGameLoop.RunFrame(ref State, ref SceneAStartup, ref KeepAlive, ref SceneBStartup);
 
-                        var Count = 0;
-                        for (var Index = 0; Index < World.EntityArchetypeIndices.Count; Index++)
-                        {
-                            if (World.IsAlive(new Entity(Index))) Count++;
-                        }
+                                                                              var Count = 0;
+                                                                              for (var Index = 0; Index < World.EntityArchetypeIndices.Count; Index++)
+                                                                              {
+                                                                                  if (World.IsAlive(new Entity(Index))) Count++;
+                                                                              }
 
-                        // Bootstrapエンティティ自身(1) + SceneA/SceneBそれぞれ1エンティティずつ(2) = 3。
-                        // 2番目のStartupSceneが無視されるバグがあれば2のままになる。
-                        if (Count != 3) return "FAIL:count=" + Count;
+                                                                              // Bootstrapエンティティ自身(1) + SceneA/SceneBそれぞれ1エンティティずつ(2) = 3。
+                                                                              // 2番目のStartupSceneが無視されるバグがあれば2のままになる。
+                                                                              if (Count != 3) return "FAIL:count=" + Count;
 
-                        return "OK";
-                    }
-                }
-                """]);
+                                                                              return "OK";
+                                                                          }
+                                                                      }
+                                                                      """]);
 
         var Result=GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.TestEntry","RunScenario");
         Assert.Equal("OK",Result);
@@ -214,13 +214,13 @@ public sealed class SceneDslGeneratorEndToEndTests {
 
     [Fact]
     public void ComponentlessSceneStillInstantiates(){
-        Assembly Assembly=CompileScene("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Name="Empty",Children=[new Node()] };
-            }
-            """);
+        var Assembly=CompileScene("""
+                                  using CSharpGameEngine.Entities;
+                                  namespace Game;
+                                  public partial class MainScene:IScene {
+                                      public Node Root=>new() { Name="Empty",Children=[new Node()] };
+                                  }
+                                  """);
 
         Assert.Equal(2,Invoke(Assembly,"InstantiateAndCountEntities"));
     }

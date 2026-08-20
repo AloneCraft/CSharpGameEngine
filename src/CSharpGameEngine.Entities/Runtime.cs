@@ -111,7 +111,7 @@ public partial struct World {
         }
 
         for(var Index=Slot.Entities.Count-1;Index>=0;Index--){
-            Entity Owned=Slot.Entities.GetRefUnchecked(Index);
+            var Owned=Slot.Entities.GetRefUnchecked(Index);
 
             // 所有権は位置表のSceneSlotが正であり、この一覧は追記のみの記録にすぎない。別のSceneへ
             // 付け替えられたEntityは古い側の一覧にも残るため、現在の所有者が自分であることを確認してから

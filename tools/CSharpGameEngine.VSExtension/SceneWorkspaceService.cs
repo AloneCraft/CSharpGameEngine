@@ -136,6 +136,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
     /// </summary>
     private readonly System.Diagnostics.Stopwatch AnalysisClock=System.Diagnostics.Stopwatch.StartNew();
     private readonly Dictionary<ProjectId,ProjectSceneCatalogCache>ProjectSceneCatalogs=[];
+    private readonly Dictionary<ProjectId,ProjectComponentCatalogCache>ProjectComponentCatalogs=[];
 
     /// <summary>
     /// The in-flight analysis. Held rather than discarded so the fire-and-forget stays observable
@@ -453,6 +454,118 @@ internal sealed class SceneWorkspaceService : IDisposable {
         return Catalog;
     }
 
+    /// <summary>
+    /// M0052: Componentパレットに並べる候補を、対象Projectの<see cref="Compilation"/>から組み立てます。
+    /// 対象Projectの決め方と<see cref="Project.Version"/>によるキャッシュは
+    /// <see cref="GetProjectSceneCatalogAsync"/>と同じ流儀に揃えています。
+    ///
+    /// <para>
+    /// キャッシュするのは<see cref="SceneComponentCatalogEntry"/>ではなく
+    /// <see cref="ComponentPaletteEntry"/>です。前者は<c>INamedTypeSymbol</c>を保持するため、
+    /// UI側が持ち続けると<see cref="Compilation"/>全体をピン留めしてしまいます。
+    /// </para>
+    /// </summary>
+    internal async Task<IReadOnlyList<ComponentPaletteEntry>>GetProjectComponentCatalogAsync(
+        SceneKey?PreferredSceneKey,CancellationToken CancellationToken){
+        DocumentId?ActiveId;
+        lock(this.Gate){
+            ActiveId=this.ActiveDocumentId;
+        }
+
+        string?ActiveProjectId=ActiveId is { } Id
+            ?this.Workspace.CurrentSolution.GetDocument(Id)?.Project.Id.Id.ToString("N")
+            :null;
+        string?ProjectId=SceneCatalogTargetPolicy.SelectProjectId(PreferredSceneKey,ActiveProjectId);
+        Project?Project=ProjectId is null?null:this.Workspace.CurrentSolution.Projects.FirstOrDefault(Candidate=>
+            string.Equals(Candidate.Id.Id.ToString("N"),ProjectId,StringComparison.Ordinal));
+        if(Project is null){
+            return [];
+        }
+
+        lock(this.Gate){
+            if(this.ProjectComponentCatalogs.TryGetValue(Project.Id,out ProjectComponentCatalogCache?Cached)
+                &&Cached.Version.Equals(Project.Version)){
+                return Cached.Entries;
+            }
+        }
+
+        Compilation?Compilation=await Project.GetCompilationAsync(CancellationToken).ConfigureAwait(false);
+        if(Compilation is null){
+            return [];
+        }
+
+        string?ProjectDirectory=string.IsNullOrWhiteSpace(Project.FilePath)
+            ?null
+            :System.IO.Path.GetDirectoryName(Project.FilePath);
+        List<ComponentPaletteEntry>Entries=[];
+        foreach(SceneComponentCatalogEntry Candidate in SceneComponentCatalog.Build(Compilation)){
+            CancellationToken.ThrowIfCancellationRequested();
+            Entries.Add(new ComponentPaletteEntry(
+                Candidate.FullyQualifiedName,
+                Candidate.DisplayName,
+                Candidate.Symbol.ContainingNamespace is { IsGlobalNamespace:false }Namespace
+                    ?Namespace.ToDisplayString()
+                    :string.Empty,
+                Candidate.CreationExpression,
+                SceneComponentIconResolver.Resolve(Candidate.Symbol,ProjectDirectory)));
+        }
+
+        lock(this.Gate){
+            if(!this.Disposed){
+                this.ProjectComponentCatalogs[Project.Id]=new(Project.Version,Entries);
+            }
+        }
+
+        return Entries;
+    }
+
+    /// <summary>
+    /// M0053: 追加するComponent型のシンボルを、対象Projectの現在のCompilationから引きます。
+    ///
+    /// <para>
+    /// メモリ内Componentへ<b>実体のメンバー</b>を載せるために要ります。型が分からないと
+    /// <see cref="SceneValue.Type"/>がnullになり、Inspectorは全項目を読み取り専用へ落として
+    /// しまうため(<c>SceneInspectorModelBuilder.DetermineEditorKind</c>)。
+    /// </para>
+    ///
+    /// <para>
+    /// 探索に<see cref="SceneComponentCatalog.Build"/>を使うのは、閉じたgeneric instantiation
+    /// (<c>StatusEffect&lt;PoisonKind&gt;</c>)がCompilationに型として存在せずカタログが
+    /// <c>Construct</c>で組み立てたものだからです。<c>GetTypeByMetadataName</c>では引けません。
+    /// </para>
+    /// </summary>
+    internal async Task<(INamedTypeSymbol Symbol,Compilation Compilation)?>ResolveComponentTypeAsync(
+        SceneKey?PreferredSceneKey,string FullyQualifiedName,CancellationToken CancellationToken){
+        DocumentId?ActiveId;
+        lock(this.Gate){
+            ActiveId=this.ActiveDocumentId;
+        }
+
+        string?ActiveProjectId=ActiveId is { } Id
+            ?this.Workspace.CurrentSolution.GetDocument(Id)?.Project.Id.Id.ToString("N")
+            :null;
+        string?ProjectId=SceneCatalogTargetPolicy.SelectProjectId(PreferredSceneKey,ActiveProjectId);
+        Project?Project=ProjectId is null?null:this.Workspace.CurrentSolution.Projects.FirstOrDefault(Candidate=>
+            string.Equals(Candidate.Id.Id.ToString("N"),ProjectId,StringComparison.Ordinal));
+        if(Project is null){
+            return null;
+        }
+
+        Compilation?Compilation=await Project.GetCompilationAsync(CancellationToken).ConfigureAwait(false);
+        if(Compilation is null){
+            return null;
+        }
+
+        foreach(SceneComponentCatalogEntry Candidate in SceneComponentCatalog.Build(Compilation)){
+            CancellationToken.ThrowIfCancellationRequested();
+            if(string.Equals(Candidate.FullyQualifiedName,FullyQualifiedName,StringComparison.Ordinal)){
+                return (Candidate.Symbol,Compilation);
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>ComboBox が保持する <see cref="SceneKey"/> を、現在の Project で再解決します。</summary>
     internal async Task<SceneModel?>ResolveSceneAsync(SceneKey Key,CancellationToken CancellationToken){
         Project?Project=this.Workspace.CurrentSolution.Projects.FirstOrDefault(Candidate=>
@@ -561,9 +674,9 @@ internal sealed class SceneWorkspaceService : IDisposable {
             }
             this.Workspace.OpenDocument(Context.DocumentId,activate:false);
         }
-        if(!TryGetLiveBuffer(
-            Context.FilePath,out ITextBuffer?Buffer,
-            out Microsoft.VisualStudio.TextManager.Interop.IVsTextBuffer?VsBuffer)
+        if(!this.TryGetLiveBuffer(
+                                  Context.FilePath,out ITextBuffer?Buffer,
+                                  out Microsoft.VisualStudio.TextManager.Interop.IVsTextBuffer?VsBuffer)
             ||Buffer is null||VsBuffer is null){
             return new SceneLiveBufferWriteResult(false,"対象SceneのVisual Studio text bufferを取得できません。");
         }
@@ -575,7 +688,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
         // CaptureViewPositions参照)。
         // caretの保存・復元は全ステップを1回で囲む(ステップ間で復元すると、まだ途中の状態へ
         // caretを戻したうえで次のステップがまた動かすことになり、無駄なうえに揺れる)。
-        List<ViewPositionSnapshot>Restorations=CaptureViewPositions(Buffer,VsBuffer);
+        List<ViewPositionSnapshot>Restorations= this.CaptureViewPositions(Buffer,VsBuffer);
         int VersionBeforeWrite=SceneTextBufferWriter.GetVersionNumber(Buffer);
         int AppliedUnits=0;
         for(int Index=0;Index<Steps.Count;Index++){
@@ -615,8 +728,8 @@ internal sealed class SceneWorkspaceService : IDisposable {
     /// </summary>
     internal bool TryGetBufferVersion(string FilePath,out int Version){
         ThreadHelper.ThrowIfNotOnUIThread();
-        EnsureDocumentOpen(FilePath);
-        if(TryGetLiveBuffer(FilePath,out ITextBuffer?Buffer,out _)&&Buffer is not null){
+        this.EnsureDocumentOpen(FilePath);
+        if(this.TryGetLiveBuffer(FilePath,out ITextBuffer?Buffer,out _)&&Buffer is not null){
             Version=SceneTextBufferWriter.GetVersionNumber(Buffer);
             return true;
         }
@@ -635,17 +748,17 @@ internal sealed class SceneWorkspaceService : IDisposable {
     /// </summary>
     internal bool TryUndo(string FilePath){
         ThreadHelper.ThrowIfNotOnUIThread();
-        EnsureDocumentOpen(FilePath);
+        this.EnsureDocumentOpen(FilePath);
         return this.TextBufferWriter is not null
-            &&TryGetLiveBuffer(FilePath,out ITextBuffer?Buffer,out _)&&Buffer is not null
+            && this.TryGetLiveBuffer(FilePath,out ITextBuffer?Buffer,out _)&&Buffer is not null
             &&this.TextBufferWriter.TryUndo(Buffer);
     }
 
     internal bool TryRedo(string FilePath){
         ThreadHelper.ThrowIfNotOnUIThread();
-        EnsureDocumentOpen(FilePath);
+        this.EnsureDocumentOpen(FilePath);
         return this.TextBufferWriter is not null
-            &&TryGetLiveBuffer(FilePath,out ITextBuffer?Buffer,out _)&&Buffer is not null
+            && this.TryGetLiveBuffer(FilePath,out ITextBuffer?Buffer,out _)&&Buffer is not null
             &&this.TextBufferWriter.TryRedo(Buffer);
     }
 
@@ -1005,6 +1118,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
 
         this.Workspace.WorkspaceChanged-=this.OnWorkspaceChanged;
         this.ProjectSceneCatalogs.Clear();
+        this.ProjectComponentCatalogs.Clear();
         Instance=null;
     }
 
@@ -1053,6 +1167,16 @@ internal sealed class SceneWorkspaceService : IDisposable {
 
         internal VersionStamp Version { get; }
         internal ProjectSceneCatalog Catalog { get; }
+    }
+
+    private sealed class ProjectComponentCatalogCache {
+        internal ProjectComponentCatalogCache(VersionStamp Version,IReadOnlyList<ComponentPaletteEntry>Entries){
+            this.Version=Version;
+            this.Entries=Entries;
+        }
+
+        internal VersionStamp Version { get; }
+        internal IReadOnlyList<ComponentPaletteEntry>Entries { get; }
     }
 
     private void CancelPendingAnalysisNoLock(){

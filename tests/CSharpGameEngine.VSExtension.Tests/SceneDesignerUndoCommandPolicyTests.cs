@@ -34,9 +34,9 @@ public sealed class SceneDesignerUndoCommandPolicyTests {
     [Fact]
     public void CanExecute_NeverWidensShouldHandle(){
         // Supportedを落とさない設計の裏返し: CanExecuteがtrueならShouldHandleも必ずtrueであること。
-        foreach(bool Focus in new[]{ true,false }){
-            foreach(bool Pinned in new[]{ true,false }){
-                foreach(bool Pending in new[]{ true,false }){
+        foreach(var Focus in new[]{ true,false }){
+            foreach(var Pinned in new[]{ true,false }){
+                foreach(var Pending in new[]{ true,false }){
                     if(SceneDesignerUndoCommandPolicy.CanExecute(Focus,Pinned,Pending)){
                         Assert.True(SceneDesignerUndoCommandPolicy.ShouldHandle(Focus,Pinned));
                     }

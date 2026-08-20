@@ -71,8 +71,8 @@ internal static class SceneAnalysisDebouncePolicy {
     /// </summary>
     internal static SceneAnalysisScheduleOutcome OnScheduled(
         SceneAnalysisDebounceState State,TimeSpan Now,bool Immediate=false){
-        TimeSpan Since=State.PendingSince??Now;
-        TimeSpan Elapsed=Now-Since;
+        var Since=State.PendingSince??Now;
+        var Elapsed=Now-Since;
         if(Elapsed<TimeSpan.Zero){
             Elapsed=TimeSpan.Zero;
         }
@@ -97,7 +97,7 @@ internal static class SceneAnalysisDebouncePolicy {
             return TimeSpan.Zero;
         }
 
-        TimeSpan Remaining=MaxDelay-ElapsedSinceFirstPending;
+        var Remaining=MaxDelay-ElapsedSinceFirstPending;
         return Remaining<Delay?Remaining:Delay;
     }
 

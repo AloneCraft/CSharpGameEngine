@@ -26,9 +26,9 @@ public readonly struct RufVector:IEquatable<RufVector>{
     public static readonly RufVector Forward=new(0f,0f,1f);
     public static readonly RufVector Backward=new(0f,0f,-1f);
 
-    public float LengthSquared=>(R*R)+(U*U)+(F*F);
+    public float LengthSquared=>(this.R* this.R)+(this.U* this.U)+(this.F* this.F);
 
-    public float Length=>MathF.Sqrt(LengthSquared);
+    public float Length=>MathF.Sqrt(this.LengthSquared);
 
     public static RufVector operator+(RufVector Left,RufVector Right)=>new(Left.R+Right.R,Left.U+Right.U,Left.F+Right.F);
 
@@ -67,15 +67,15 @@ public readonly struct RufVector:IEquatable<RufVector>{
         (Left.F*Right.R)-(Left.R*Right.F),
         (Left.R*Right.U)-(Left.U*Right.R));
 
-    public bool Equals(RufVector Other)=>R.Equals(Other.R)&&U.Equals(Other.U)&&F.Equals(Other.F);
+    public bool Equals(RufVector Other)=> this.R.Equals(Other.R)&& this.U.Equals(Other.U)&& this.F.Equals(Other.F);
 
-    public override bool Equals(object?Obj)=>Obj is RufVector Other&&Equals(Other);
+    public override bool Equals(object?Obj)=>Obj is RufVector Other&& this.Equals(Other);
 
-    public override int GetHashCode()=>HashCode.Combine(R,U,F);
+    public override int GetHashCode()=>HashCode.Combine(this.R, this.U, this.F);
 
     public static bool operator==(RufVector Left,RufVector Right)=>Left.Equals(Right);
 
     public static bool operator!=(RufVector Left,RufVector Right)=>!Left.Equals(Right);
 
-    public override string ToString()=>FormattableString.Invariant($"Ruf({R}, {U}, {F})");
+    public override string ToString()=>FormattableString.Invariant($"Ruf({this.R}, {this.U}, {this.F})");
 }

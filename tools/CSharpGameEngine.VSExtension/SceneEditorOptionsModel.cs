@@ -68,7 +68,7 @@ internal sealed class SceneEditorOptionsModel {
     /// </summary>
     internal static float ParseNavigationSpeedMultiplier(string?Text){
         if(string.IsNullOrWhiteSpace(Text)
-            ||!float.TryParse(Text,NumberStyles.Float,CultureInfo.InvariantCulture,out float Value)){
+            ||!float.TryParse(Text,NumberStyles.Float,CultureInfo.InvariantCulture,out var Value)){
             return SceneEditorSettings.DefaultNavigationSpeedMultiplier;
         }
 

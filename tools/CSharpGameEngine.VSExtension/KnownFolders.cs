@@ -17,7 +17,7 @@ internal static class KnownFolders {
         [MarshalAs(UnmanagedType.LPStruct)]Guid Rfid,uint DwFlags,IntPtr HToken,out IntPtr PszPath);
 
     public static string GetDownloadsFolder(){
-        var Hr=SHGetKnownFolderPath(DownloadsFolderId,0,IntPtr.Zero,out IntPtr PathPtr);
+        var Hr=SHGetKnownFolderPath(DownloadsFolderId,0,IntPtr.Zero,out var PathPtr);
         if(Hr!=0){
             throw new InvalidOperationException($"SHGetKnownFolderPath(FOLDERID_Downloads) failed (0x{Hr:X8}).");
         }

@@ -38,7 +38,7 @@ public sealed class SceneModelResilienceTests {
     public void TruncatedSourceAtEveryLength_NeverThrows(){
         for(var Length=CompleteScene.Length;Length>=0;Length-=3){
             var Truncated=CompleteScene.Substring(0,Length);
-            Exception?Failure=Record.Exception(()=>AnalyzeIfSceneFound(Truncated));
+            var Failure=Record.Exception(()=>AnalyzeIfSceneFound(Truncated));
             Assert.True(Failure is null, $"Analyzing a {Length}-character prefix threw {Failure?.GetType().Name}: {Failure?.Message}");
         }
     }
@@ -59,34 +59,34 @@ public sealed class SceneModelResilienceTests {
             }
             """;
 
-        Exception?Failure=Record.Exception(()=>AnalyzeIfSceneFound(Source));
+        var Failure=Record.Exception(()=>AnalyzeIfSceneFound(Source));
         Assert.Null(Failure);
     }
 
     [Fact]
     public void UnresolvedComponentType_ProducesNoSceneDiagnostic(){
         // ユーザーが型名を打っている途中。コンパイラがCS0246を出すので、Scene DSLは黙る。
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Components=[new NotYetTyped()] };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene {
+                                                      public Node Root=>new() { Components=[new NotYetTyped()] };
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertNoDiagnostics(Model);
     }
 
     [Fact]
     public void UnresolvedMemberValue_ProducesNoSceneDiagnostic(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Components=[new DirectionalLight { Intensity=NotYetDefined }] };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  using Sample;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene {
+                                                      public Node Root=>new() { Components=[new DirectionalLight { Intensity=NotYetDefined }] };
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertNoDiagnostics(Model);
     }
@@ -104,14 +104,14 @@ public sealed class SceneModelResilienceTests {
             }
             """;
 
-        SceneModel Model=SceneAnalysisTestHelper.Analyze(Source);
+        var Model=SceneAnalysisTestHelper.Analyze(Source);
 
         SceneAnalysisTestHelper.AssertContainsDiagnostic(Model,"SCENE110");
     }
 
     [Fact]
     public void EmptySource_FindsNoSceneAndDoesNotThrow(){
-        Exception?Failure=Record.Exception(()=>AnalyzeIfSceneFound(string.Empty));
+        var Failure=Record.Exception(()=>AnalyzeIfSceneFound(string.Empty));
         Assert.Null(Failure);
     }
 
@@ -120,9 +120,9 @@ public sealed class SceneModelResilienceTests {
     /// 失敗ではないので、見つかったときだけ解析する。
     /// </summary>
     private static void AnalyzeIfSceneFound(string Source){
-        Microsoft.CodeAnalysis.CSharp.CSharpCompilation Compilation=
+        var Compilation=
             SceneAnalysisTestHelper.CreateCompilation(SceneAnalysisTestHelper.CommonComponents,Source);
-        Microsoft.CodeAnalysis.INamedTypeSymbol?SceneClass=SceneAnalysisTestHelper.FindSceneClass(Compilation,SceneClassName:null);
+        var SceneClass=SceneAnalysisTestHelper.FindSceneClass(Compilation,SceneClassName:null);
 
         if(SceneClass is not null){
             SceneDeclarationAnalyzer.Analyze(SceneClass,Compilation,CancellationToken.None);

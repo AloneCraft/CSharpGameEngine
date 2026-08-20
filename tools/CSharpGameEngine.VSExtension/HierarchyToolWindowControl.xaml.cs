@@ -7,6 +7,8 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using CSharpGameEngine.SceneAnalysis;
+using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Shell.Interop;
 
 namespace CSharpGameEngine.VSExtension;
 
@@ -54,7 +56,7 @@ public partial class HierarchyToolWindowControl:UserControl {
     private bool HasDeferredPopulate;
 
     public HierarchyToolWindowControl(){
-        InitializeComponent();
+        this.InitializeComponent();
 
         SceneEditorHub.SceneModelChanged+=this.OnSceneModelChanged;
         SceneEditorHub.SelectedNodePathChanged+=this.OnSelectedNodePathChanged;
@@ -100,8 +102,8 @@ public partial class HierarchyToolWindowControl:UserControl {
     }
 
     private void Populate(SceneModel?Model){
-        string Signature=HierarchyContentSignature.Compute(Model);
-        SceneNodeViewModel?RenamingNode=this.TryFindRenamingNode();
+        var Signature=HierarchyContentSignature.Compute(Model);
+        var RenamingNode=this.TryFindRenamingNode();
         switch(HierarchyPopulatePolicy.Decide(
             IsInlineRenaming:RenamingNode is not null,
             ContentUnchanged:Signature==this.LastPopulatedSignature)){
@@ -124,7 +126,7 @@ public partial class HierarchyToolWindowControl:UserControl {
         this.LastPopulatedSignature=Signature;
         this.CaptureCollapsedPaths();
 
-        IReadOnlyList<SceneNodeViewModel>Roots=SceneNodeViewModel.BuildWithSelection(Model,this.CollapsedPaths,this.CurrentSelection.Paths);
+        var Roots=SceneNodeViewModel.BuildWithSelection(Model,this.CollapsedPaths,this.CurrentSelection.Paths);
 
         // Rebinding raises SelectedItemChanged for the restored selection; republishing it would
         // bounce a redundant selection change back through the hub on every keystroke.
@@ -152,7 +154,7 @@ public partial class HierarchyToolWindowControl:UserControl {
 
         this.CollapsedPaths.Clear();
 
-        foreach(SceneNodeViewModel Node in Existing.SelectMany(static Root=>Root.SelfAndDescendants())){
+        foreach(var Node in Existing.SelectMany(static Root=>Root.SelfAndDescendants())){
             if(!Node.IsExpanded){
                 this.CollapsedPaths.Add(Node.Path);
             }
@@ -269,7 +271,7 @@ public partial class HierarchyToolWindowControl:UserControl {
             return;
         }
 
-        bool HasChildren=Paths.Select(this.FindViewModel).Any(Node=>Node is { HasChildren:true });
+        var HasChildren=Paths.Select(this.FindViewModel).Any(Node=>Node is { HasChildren:true });
         if(HasChildren
             &&MessageBox.Show("子ノードを含む選択を削除します。よろしいですか？",
                 "シーン階層の削除",MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes){
@@ -301,7 +303,7 @@ public partial class HierarchyToolWindowControl:UserControl {
     }
 
     private void CommitRename(SceneNodeViewModel Node){
-        string Name=Node.EditName.Trim();
+        var Name=Node.EditName.Trim();
         Node.CancelRename();
         if(Name.Length!=0&&!Name.Equals(Node.DisplayName,StringComparison.Ordinal)){
             SceneEditorHub.RequestHierarchyEdit(
@@ -333,7 +335,7 @@ public partial class HierarchyToolWindowControl:UserControl {
             return null;
         }
 
-        foreach(SceneNodeViewModel Node in Existing.SelectMany(static Root=>Root.SelfAndDescendants())){
+        foreach(var Node in Existing.SelectMany(static Root=>Root.SelfAndDescendants())){
             if(Node.IsRenaming){
                 return Node;
             }
@@ -347,7 +349,7 @@ public partial class HierarchyToolWindowControl:UserControl {
             return false;
         }
 
-        foreach(SceneNode Node in Model.EnumerateNodes()){
+        foreach(var Node in Model.EnumerateNodes()){
             if(Node.Path.Equals(Path)){
                 return true;
             }
@@ -361,7 +363,7 @@ public partial class HierarchyToolWindowControl:UserControl {
             return;
         }
 
-        TextBox?Box=FindVisualChild<TextBox>(Container);
+        var Box=FindVisualChild<TextBox>(Container);
         Box?.Focus();
         Box?.SelectAll();
     }
@@ -374,7 +376,7 @@ public partial class HierarchyToolWindowControl:UserControl {
             return Item;
         }
 
-        foreach(object Child in Parent.Items){
+        foreach(var Child in Parent.Items){
             if(Parent.ItemContainerGenerator.ContainerFromItem(Child) is TreeViewItem ChildItem
                 &&FindContainer(ChildItem,Node) is { } Found){
                 return Found;
@@ -386,7 +388,7 @@ public partial class HierarchyToolWindowControl:UserControl {
 
     private static T? FindVisualChild<T>(DependencyObject Root) where T:DependencyObject{
         for(var Index=0;Index<VisualTreeHelper.GetChildrenCount(Root);Index++){
-            DependencyObject Child=VisualTreeHelper.GetChild(Root,Index);
+            var Child=VisualTreeHelper.GetChild(Root,Index);
             if(Child is T Match){
                 return Match;
             }
@@ -404,20 +406,28 @@ public partial class HierarchyToolWindowControl:UserControl {
             return;
         }
 
-        Point Current=Args.GetPosition(this.Tree);
+        var Current=Args.GetPosition(this.Tree);
         if(Math.Abs(Current.X-this.DragStart.X)<SystemParameters.MinimumHorizontalDragDistance
             &&Math.Abs(Current.Y-this.DragStart.Y)<SystemParameters.MinimumVerticalDragDistance){
             return;
         }
 
         this.DragNode=null;
-        IReadOnlyList<NodePath>DraggedPaths=this.CurrentSelection.Paths.Contains(Node.Path)
-            ?this.CurrentSelection.Paths
-            :new[]{Node.Path};
+        var DraggedPaths=this.CurrentSelection.Paths.Contains(Node.Path)
+                            ?this.CurrentSelection.Paths
+                            :new[]{Node.Path};
         DragDrop.DoDragDrop(this.Tree,new HierarchyDragPayload(DraggedPaths),DragDropEffects.Move);
     }
 
     private void Tree_DragOver(object Sender,DragEventArgs Args){
+        if(Args.Data.GetData(typeof(ComponentDragPayload)) is ComponentDragPayload ComponentPayload){
+            Args.Effects=ComponentDropPolicy.Accepts(this.EvaluateComponentDrop(Args,ComponentPayload))
+                ?DragDropEffects.Copy
+                :DragDropEffects.None;
+            Args.Handled=true;
+            return;
+        }
+
         if(!Args.Data.GetDataPresent(typeof(HierarchyDragPayload))
             ||this.FindNode(Args.OriginalSource as DependencyObject) is not { } Target){
             Args.Effects=DragDropEffects.None;
@@ -429,15 +439,56 @@ public partial class HierarchyToolWindowControl:UserControl {
         Args.Handled=true;
     }
 
+    /// <summary>
+    /// M0052: パレットからのドロップは<b>ドロップしたノード</b>が対象(Inspectorは選択中ノードが対象)。
+    /// 判定材料は<see cref="SceneEditorHub.ActiveSceneModel"/>から採るので、未保存の追加が絡む一瞬だけ
+    /// 甘くなることがある(<see cref="ComponentDropPolicy"/>参照)。最終判断は適用側が行う。
+    /// </summary>
+    private ComponentDropVerdict EvaluateComponentDrop(DragEventArgs Args,ComponentDragPayload Payload){
+        var Model=SceneEditorHub.ActiveSceneModel;
+        if(this.FindNode(Args.OriginalSource as DependencyObject) is not { } Target){
+            return ComponentDropPolicy.Evaluate(
+                Model is not null,TargetResolved:false,TargetHasComponentsList:false,TargetAlreadyHasType:false);
+        }
+
+        var Node=FindSceneNode(Model,Target.Path);
+        return ComponentDropPolicy.Evaluate(
+            Model is not null,
+            TargetResolved:Node is not null,
+            TargetHasComponentsList:Node?.ComponentsListLocation is not null,
+            TargetAlreadyHasType:Node?.FindComponent(Payload.ComponentTypeFullyQualifiedName) is not null);
+    }
+
+    private static SceneNode? FindSceneNode(SceneModel?Model,NodePath Path){
+        if(Model?.Root is null){
+            return null;
+        }
+
+        foreach(var Node in Model.EnumerateNodes()){
+            if(Node.Path.Equals(Path)){
+                return Node;
+            }
+        }
+
+        return null;
+    }
+
     private void Tree_Drop(object Sender,DragEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(Args.Data.GetData(typeof(ComponentDragPayload)) is ComponentDragPayload ComponentPayload){
+            this.DropComponent(Args,ComponentPayload);
+            Args.Handled=true;
+            return;
+        }
+
         if(Args.Data.GetData(typeof(HierarchyDragPayload)) is not HierarchyDragPayload Payload
             ||Payload.Paths.Count==0
             ||this.FindNode(Args.OriginalSource as DependencyObject) is not { } Target){
             return;
         }
 
-        Point Position=Args.GetPosition((IInputElement)Args.OriginalSource);
-        double Height=(Args.OriginalSource as FrameworkElement)?.ActualHeight??0d;
+        var Position=Args.GetPosition((IInputElement)Args.OriginalSource);
+        var Height=(Args.OriginalSource as FrameworkElement)?.ActualHeight??0d;
         if(Height>0d&&Position.Y<Height*.25d&&Target.Path.Parent is { } Parent){
             SceneEditorHub.RequestHierarchyEdit(new HierarchyEditRequest(
                 HierarchyEditKind.Reparent,Payload.Paths,TargetPath:Parent,
@@ -453,6 +504,30 @@ public partial class HierarchyToolWindowControl:UserControl {
         }
 
         Args.Handled=true;
+    }
+
+    private void DropComponent(DragEventArgs Args,ComponentDragPayload Payload){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        var Verdict=this.EvaluateComponentDrop(Args,Payload);
+        if(!ComponentDropPolicy.Accepts(Verdict)){
+            // DragOverの拒否カーソルと同じ関数から文言を作るので、プレビューと結果が食い違わない。
+            SetStatusBarText(ComponentDropPolicy.Describe(Verdict,Payload.DisplayName));
+            return;
+        }
+
+        if(this.FindNode(Args.OriginalSource as DependencyObject) is not { } Target){
+            return;
+        }
+
+        SceneEditorHub.RequestComponentAdd(new ComponentAddRequest(
+            Payload.ComponentTypeFullyQualifiedName,Payload.ComponentExpression,TargetPath:Target.Path));
+    }
+
+    private static void SetStatusBarText(string Text){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(Package.GetGlobalService(typeof(SVsStatusbar))is IVsStatusbar StatusBar){
+            StatusBar.SetText(Text);
+        }
     }
 
     private SceneNodeViewModel? FindViewModel(NodePath Path)=>
@@ -478,10 +553,10 @@ public partial class HierarchyToolWindowControl:UserControl {
         }
 
         // M0046: 呼び出し元(Populate)が張ったガードを黙って解除しないよう、元の値へ戻す。
-        bool Previous=this.SuppressSelectionPublish;
+        var Previous=this.SuppressSelectionPublish;
         this.SuppressSelectionPublish=true;
         try {
-            foreach(SceneNodeViewModel Node in Roots.SelectMany(static Root=>Root.SelfAndDescendants())){
+            foreach(var Node in Roots.SelectMany(static Root=>Root.SelfAndDescendants())){
                 Node.IsMultiSelected=this.CurrentSelection.Paths.Contains(Node.Path);
                 Node.IsSelected=this.CurrentSelection.PrimaryPath is { } Primary&&Primary.Equals(Node.Path);
             }
@@ -497,7 +572,7 @@ public partial class HierarchyToolWindowControl:UserControl {
     }
 
     private static bool IsExpanderClick(DependencyObject?Element){
-        for(DependencyObject?Current=Element;Current is not null;Current=VisualTreeHelper.GetParent(Current)){
+        for(var Current=Element;Current is not null;Current=VisualTreeHelper.GetParent(Current)){
             if(Current is ToggleButton { Name:"ExpanderToggle" }){
                 return true;
             }
@@ -510,7 +585,7 @@ public partial class HierarchyToolWindowControl:UserControl {
         return false;
     }
     private SceneNodeViewModel?FindNode(DependencyObject?Element){
-        for(DependencyObject?Current=Element;Current is not null;Current=VisualTreeHelper.GetParent(Current)){
+        for(var Current=Element;Current is not null;Current=VisualTreeHelper.GetParent(Current)){
             if(Current is TreeViewItem { DataContext:SceneNodeViewModel Node }){
                 return Node;
             }

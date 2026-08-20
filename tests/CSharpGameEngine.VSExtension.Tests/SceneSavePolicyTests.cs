@@ -63,15 +63,19 @@ public sealed class SceneSavePolicyTests {
     }
 
     /// <summary>
-    /// 別Sceneの再解析は塞がない。Hierarchyはpinしていない文書のSceneも表示するため、
-    /// ここまで止めると通常の表示が壊れる。
+    /// M0053: pin中は別Sceneの再解析も流さない。Hierarchyとシーン デザイナーが別のSceneを指す状態を
+    /// 作らないため(選択・Inspector・ギズモの整合が崩れる)。別Sceneへ移るのは明示的なpin切替だけ。
     /// </summary>
     [Fact]
-    public void AnalyzedModel_IsPublishedForADifferentScene(){
-        Assert.True(SceneHubPublicationPolicy.ShouldPublishAnalyzedModel(
+    public void AnalyzedModel_ForADifferentScene_DoesNotReplaceThePinnedOne(){
+        Assert.False(SceneHubPublicationPolicy.ShouldPublishAnalyzedModel(
             AnalyzedClassFullyQualifiedName:"Game.OtherScene",
             PinnedClassFullyQualifiedName:"Game.MainScene",
             PinnedDocumentHasUnsavedEdits:true));
+        Assert.False(SceneHubPublicationPolicy.ShouldPublishAnalyzedModel(
+            AnalyzedClassFullyQualifiedName:"Game.OtherScene",
+            PinnedClassFullyQualifiedName:"Game.MainScene",
+            PinnedDocumentHasUnsavedEdits:false));
     }
 
     [Fact]
@@ -94,12 +98,50 @@ public sealed class SceneSavePolicyTests {
             PinnedDocumentHasUnsavedEdits:true));
     }
 
-    /// <summary>未保存の編集が無ければ、nullの通知はそのまま流してよい(通常のクリア動作)。</summary>
+    /// <summary>
+    /// M0053の直接の回帰テスト。実機報告「シーン デザイナーで開いているのにヒエラルキーが表示できない」の実体。
+    ///
+    /// <para>
+    /// <c>SceneWorkspaceService</c>は文書切替のたびに無条件で<c>ModelChanged(null)</c>を発行する。
+    /// 以前は未編集ならこのnullを流していたため、Sceneを開いた直後にSceneを宣言しない.csタブへ
+    /// 切り替えるだけでHierarchyが空になっていた。<b>編集の有無は関係ない</b> — pin中である限り塞ぐ。
+    /// </para>
+    /// </summary>
     [Fact]
-    public void NullAnalyzedModel_IsPublishedWhenThereAreNoUnsavedEdits(){
-        Assert.True(SceneHubPublicationPolicy.ShouldPublishAnalyzedModel(
+    public void NullAnalyzedModel_NeverClearsAPinnedSceneEvenWithoutUnsavedEdits(){
+        Assert.False(SceneHubPublicationPolicy.ShouldPublishAnalyzedModel(
             AnalyzedClassFullyQualifiedName:null,
             PinnedClassFullyQualifiedName:"Game.MainScene",
+            PinnedDocumentHasUnsavedEdits:false));
+    }
+
+    /// <summary>未pinなら別Sceneの解析も従来どおり流す(アクティブ文書への追従は未pin時だけ残る)。</summary>
+    [Fact]
+    public void AnalyzedModel_OfADifferentSceneIsPublishedWhenNothingIsPinned(){
+        Assert.True(SceneHubPublicationPolicy.ShouldPublishAnalyzedModel(
+            AnalyzedClassFullyQualifiedName:"Game.OtherScene",
+            PinnedClassFullyQualifiedName:null,
+            PinnedDocumentHasUnsavedEdits:false));
+    }
+
+    /// <summary>
+    /// 実機報告そのものを名前で固定する: シーン デザイナーで開いた直後(未編集)に、
+    /// Sceneを宣言しない.csタブをアクティブにしてもHierarchyは消えない。
+    /// </summary>
+    [Fact]
+    public void ActivatingANonSceneDocument_KeepsThePinnedHierarchy(){
+        Assert.False(SceneHubPublicationPolicy.ShouldPublishAnalyzedModel(
+            AnalyzedClassFullyQualifiedName:null,
+            PinnedClassFullyQualifiedName:"UserEcsProject.Scenes.FirstPersonStageScene",
+            PinnedDocumentHasUnsavedEdits:false));
+    }
+
+    /// <summary>未pinならnullの通知はそのまま流す(通常のクリア動作が生きていること)。</summary>
+    [Fact]
+    public void NullAnalyzedModel_IsPublishedWhenNothingIsPinned(){
+        Assert.True(SceneHubPublicationPolicy.ShouldPublishAnalyzedModel(
+            AnalyzedClassFullyQualifiedName:null,
+            PinnedClassFullyQualifiedName:null,
             PinnedDocumentHasUnsavedEdits:false));
     }
 

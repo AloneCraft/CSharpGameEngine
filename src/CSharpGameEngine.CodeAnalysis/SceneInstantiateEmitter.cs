@@ -28,14 +28,14 @@ internal static class SceneInstantiateEmitter {
     internal const string ParentFullyQualifiedName="global::CSharpGameEngine.Entities.Parent";
     internal const string SceneNodeTagFullyQualifiedName="global::CSharpGameEngine.Entities.SceneNodeTag";
 
-    internal static void Emit(SourceProductionContext Context,SceneEmitModel Scene,GameSystemRegistry Registry){
+    internal static void Emit(SourceProductionContext Context,SceneEmitModel Scene,GameSystemRegistry Registry,SceneRuntimeComponentMap RuntimeComponents){
         if(!Scene.CanEmit||Scene.Root is not { } Root){
             return;
         }
 
         Dictionary<string,int>ComponentIndexByType=new(StringComparer.Ordinal);
 
-        foreach(GameSystemComponentInfo Component in Registry.ComponentsByIndex){
+        foreach(var Component in Registry.ComponentsByIndex){
             ComponentIndexByType[Component.TypeFullyQualifiedName]=Component.Index;
         }
 
@@ -54,7 +54,7 @@ internal static class SceneInstantiateEmitter {
         Lines.Add($"    public static {SceneInstanceFullyQualifiedName} Instantiate(ref {WorldFullyQualifiedName} World) {{");
         Lines.Add($"        {SceneInstanceFullyQualifiedName} Instance = World.BeginSceneInstance();");
 
-        EmitNode(Lines,Root,ParentLocalName:null,Registry,ComponentIndexByType);
+        EmitNode(Lines,Root,ParentLocalName:null,Registry,ComponentIndexByType,RuntimeComponents);
 
         Lines.Add($"        World.EndSceneInstance(Instance, {Root.LocalName});");
         Lines.Add("        return Instance;");
@@ -82,15 +82,24 @@ internal static class SceneInstantiateEmitter {
     /// という診断困難なビルド破壊になる。
     /// </para>
     /// </summary>
-    internal static List<(string TypeFullyQualifiedName,string?EmitExpressionText)>BuildEffectiveComponents(SceneEmitNode Node,string?ParentLocalName){
+    internal static List<(string TypeFullyQualifiedName,string?EmitExpressionText)>BuildEffectiveComponents(SceneEmitNode Node,string?ParentLocalName,SceneRuntimeComponentMap RuntimeComponents){
         List<(string,string?)>Components=[];
 
         if(Node.Components.Length==0){
             // Archetypeは最低1つのComponentを要求する。
             Components.Add((SceneNodeTagFullyQualifiedName,null));
         } else {
+            // 随伴する実行時Componentは作者Componentの直後に置く。重複排除するのは、複数の作者
+            // Componentが同じ実行時Componentを主張する構成(将来あり得る)でArchetypeが壊れないため。
+            HashSet<string>SeenRuntimeComponents=new(StringComparer.Ordinal);
             foreach(SceneEmitComponent Component in Node.Components){
                 Components.Add((Component.TypeFullyQualifiedName,Component.EmitExpressionText));
+                if(RuntimeComponents.TryGetRuntimeComponent(Component.TypeFullyQualifiedName)is { }RuntimeComponent
+                    &&SeenRuntimeComponents.Add(RuntimeComponent)){
+                    // SceneNodeTagはフィールドを持たない前提でnullを渡しているが、実行時Componentは
+                    // 将来コンストラクタで既定値を持ちうるので明示的に構築する。
+                    Components.Add((RuntimeComponent, $"new {RuntimeComponent}()"));
+                }
             }
         }
 
@@ -106,12 +115,13 @@ internal static class SceneInstantiateEmitter {
         SceneEmitNode Node,
         string?ParentLocalName,
         GameSystemRegistry Registry,
-        Dictionary<string,int>ComponentIndexByType){
-        List<(string TypeFullyQualifiedName,string?EmitExpressionText)>Components=BuildEffectiveComponents(Node,ParentLocalName);
+        Dictionary<string,int>ComponentIndexByType,
+        SceneRuntimeComponentMap RuntimeComponents){
+        var Components=BuildEffectiveComponents(Node,ParentLocalName,RuntimeComponents);
         var NameComment=Node.Name is null?"(unnamed)": $"\"{Node.Name}\"";
         Lines.Add($"        // [{Node.PathDisplay}] {NameComment}");
 
-        GameSystemArchetypeInfo?Archetype=Registry.FindArchetype([.. Components.Select(C=>ComponentIndexByType[C.TypeFullyQualifiedName])]);
+        var Archetype=Registry.FindArchetype([.. Components.Select(C=>ComponentIndexByType[C.TypeFullyQualifiedName])]);
 
         if(Archetype is not { } ArchetypeInfo){
             // SceneComponentSetCollectorがScene形状も登録しているため、通常ここには到達しない。
@@ -130,7 +140,7 @@ internal static class SceneInstantiateEmitter {
         Lines.Add($"        {EntityFullyQualifiedName} {Node.LocalName} = World.AttachToScene(Instance, global::CSharpGameEngine.Entities.{ArchetypeInfo.Name}.Create(ref World, {Arguments}));");
 
         foreach(SceneEmitNode Child in Node.Children){
-            EmitNode(Lines,Child,Node.LocalName,Registry,ComponentIndexByType);
+            EmitNode(Lines,Child,Node.LocalName,Registry,ComponentIndexByType,RuntimeComponents);
         }
     }
 }

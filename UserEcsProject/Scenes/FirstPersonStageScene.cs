@@ -7,15 +7,15 @@ namespace UserEcsProject.Scenes;
 /// /Game/FirstPerson/Lvl_FirstPersonから一度だけ取り込んだ宣言型ステージ。
 /// このC#を正本として編集する。再取り込みはrun_export.cmd --forceを明示した場合だけ行う。
 /// </summary>
-[StartupScene(Order=1)]
-internal partial class FirstPersonStageScene:IScene {
-    public Node Root=>new(){
-        Name="Lvl_FirstPerson", 
-        Components=[
+[StartupScene(Order = 1)]
+internal partial class FirstPersonStageScene : IScene {
+    public Node Root => new() {
+        Name = "Lvl_FirstPerson",
+        Components = [
             new AmbientLight {
                 ColorR=1f,
                 ColorG=1f,
-                ColorB=1f,  
+                ColorB=1f,
                 Intensity=1f,
             },
             new HeightFog {
@@ -26,7 +26,7 @@ internal partial class FirstPersonStageScene:IScene {
                 ColorB=0.7f,
             },
         ],
-        Children=[
+        Children = [
             new Node {
                 Name="Floor",
                 Components=[
@@ -190,6 +190,23 @@ internal partial class FirstPersonStageScene:IScene {
                 ],
             },
             new Node {
+                Name="SM_Cube18",
+                Components=[
+                    new Transform {
+                        PositionX=-19f,
+                        PositionY=2f,
+                        PositionZ=19f,
+                        RotationX=0f,
+                        RotationY=-0.7071067f,
+                        RotationZ=0f,
+                        RotationW=0.7071068f,
+                        ScaleX=1f,
+                        ScaleY=2f,
+                        ScaleZ=38f,
+                    },
+                    new StaticMesh { AssetPath=FirstPersonStageAssets.SM_Cube_bfe650e90f,Mobility=MeshMobility.Static },
+                ],
+            },            new Node {
                 Name="SM_Cube17",
                 Components=[
                     new Transform {
@@ -208,25 +225,7 @@ internal partial class FirstPersonStageScene:IScene {
                 ],
             },
             new Node {
-                Name="SM_Cube18",
-                Components=[
-                    new Transform {
-                        PositionX=-19f,
-                        PositionY=2f,
-                        PositionZ=19f,
-                        RotationX=0f,
-                        RotationY=-0.7071067f,
-                        RotationZ=0f,
-                        RotationW=0.7071068f,
-                        ScaleX=1f,
-                        ScaleY=2f,
-                        ScaleZ=38f,
-                    },
-                    new StaticMesh { AssetPath=FirstPersonStageAssets.SM_Cube_bfe650e90f,Mobility=MeshMobility.Static },
-                ],
-            },
-            new Node {
-                Name="SM_Cube19",
+                Name="19",
                 Components=[
                     new Transform {
                         PositionX=-19f,
@@ -244,7 +243,7 @@ internal partial class FirstPersonStageScene:IScene {
                 ],
             },
             new Node {
-                Name="SM_Cube2",
+                Name="2",
                 Components=[
                     new Transform {
                         PositionX=18f,
@@ -262,11 +261,11 @@ internal partial class FirstPersonStageScene:IScene {
                 ],
             },
             new Node {
-                Name="SM_Cube20",
+                Name="20",
                 Components=[
                     new Transform {
                         PositionX=-20f,
-                        PositionY=2f,
+                        PositionY=40.4545441f,
                         PositionZ=20f,
                         RotationX=0f,
                         RotationY=0f,
@@ -280,7 +279,7 @@ internal partial class FirstPersonStageScene:IScene {
                 ],
             },
             new Node {
-                Name="SM_Cube3",
+                Name="3",
                 Components=[
                     new Transform {
                         PositionX=-20f,
@@ -370,48 +369,12 @@ internal partial class FirstPersonStageScene:IScene {
                 ],
             },
             new Node {
-                Name="SM_Cube8",
-                Components=[
-                    new Transform {
-                        PositionX=15f,
-                        PositionY=0f,
-                        PositionZ=12f,
-                        RotationX=0f,
-                        RotationY=-0.7071067f,
-                        RotationZ=0f,
-                        RotationW=0.7071068f,
-                        ScaleX=6f,
-                        ScaleY=2f,
-                        ScaleZ=3f,
-                    },
-                    new StaticMesh { AssetPath=FirstPersonStageAssets.SM_Cube_7e024e0aa1,Mobility=MeshMobility.Static },
-                ],
-            },
-            new Node {
-                Name="SM_Cube9",
-                Components=[
-                    new Transform {
-                        PositionX=-15f,
-                        PositionY=0f,
-                        PositionZ=12f,
-                        RotationX=0f,
-                        RotationY=1f,
-                        RotationZ=0f,
-                        RotationW=-1.4810628E-08f,
-                        ScaleX=3f,
-                        ScaleY=2f,
-                        ScaleZ=3f,
-                    },
-                    new StaticMesh { AssetPath=FirstPersonStageAssets.SM_Cube_7e024e0aa1,Mobility=MeshMobility.Static },
-                ],
-            },
-            new Node {
                 Name="SM_Cylinder",
                 Components=[
                     new Transform {
-                        PositionX=0f,
-                        PositionY=2f,
-                        PositionZ=0f,
+                        PositionX=18.62638f,
+                        PositionY=24.8962975f,
+                        PositionZ=19.469429f,
                         RotationX=0f,
                         RotationY=0f,
                         RotationZ=0f,
@@ -422,12 +385,52 @@ internal partial class FirstPersonStageScene:IScene {
                     },
                     new StaticMesh { AssetPath=FirstPersonStageAssets.SM_Cylinder_2bf8575b55,Mobility=MeshMobility.Static },
                 ],
+                Children=[
+                    new Node {
+                        Name="SM_Cube9",
+                        Components=[
+                            new Transform {
+                                PositionX=-15f,
+                                PositionY=0f,
+                                PositionZ=12f,
+                                RotationX=0f,
+                                RotationY=1f,
+                                RotationZ=0f,
+                                RotationW=-1.4810628E-08f,
+                                ScaleX=3f,
+                                ScaleY=2f,
+                                ScaleZ=3f,
+                            },
+                            new StaticMesh { AssetPath=FirstPersonStageAssets.SM_Cube_7e024e0aa1,Mobility=MeshMobility.Static },
+                        ],
+                        Children=[
+                            new Node {
+                                Name="8",
+                                Components=[
+                                    new Transform {
+                                        PositionX=11.3372126f,
+                                        PositionY=-3.05175781E-05f,
+                                        PositionZ=12f,
+                                        RotationX=0f,
+                                        RotationY=-0.7071067f,
+                                        RotationZ=0f,
+                                        RotationW=0.7071068f,
+                                        ScaleX=6f,
+                                        ScaleY=2f,
+                                        ScaleZ=3f,
+                                    },
+                                    new StaticMesh { AssetPath=FirstPersonStageAssets.SM_Cube_7e024e0aa1,Mobility=MeshMobility.Static },
+                                ],
+                            }
+                        ]
+                    }
+                ]
             },
             new Node {
                 Name="SM_Cylinder2",
                 Components=[
                     new Transform {
-                        PositionX=0.099999994f,
+                        PositionX=1f,
                         PositionY=0f,
                         PositionZ=19f,
                         RotationX=0f,
@@ -500,8 +503,8 @@ internal partial class FirstPersonStageScene:IScene {
                 Components=[
                     new Transform {
                         PositionX=-19f,
-                        PositionY=0f,
-                        PositionZ=0.09999907f,
+                        PositionY=73.7637f,
+                        PositionZ=16.7747269f,
                         RotationX=0f,
                         RotationY=0f,
                         RotationZ=0f,

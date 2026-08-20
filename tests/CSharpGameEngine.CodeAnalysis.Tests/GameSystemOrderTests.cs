@@ -85,7 +85,7 @@ public sealed class GameSystemOrderTests {
     /// </summary>
     [Fact]
     public void CrossSourceExecutionOrder_FollowsSystemOrderValue_NotAlphabeticalFileName(){
-        CSharpCompilation Compilation=GameSystemGeneratorTestHelper.CreateApplicationCompilation(
+        var Compilation=GameSystemGeneratorTestHelper.CreateApplicationCompilation(
         [
             ((string?)"AFirst.cs",AFirstSource),
             ("Startup.cs",StartupSource),
@@ -93,7 +93,7 @@ public sealed class GameSystemOrderTests {
             (null,GameSystemGeneratorTestHelper.CommonComponents),
         ]);
 
-        Assembly Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Compilation);
+        var Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Compilation);
 
         GameSystemGeneratorTestHelper.Invoke(Assembly,"CSharpGameEngine.Generated.GeneratedEntryPoint","Main");
 
@@ -156,14 +156,14 @@ public sealed class GameSystemOrderTests {
             }
             """;
 
-        CSharpCompilation Compilation=GameSystemGeneratorTestHelper.CreateApplicationCompilation(
+        var Compilation=GameSystemGeneratorTestHelper.CreateApplicationCompilation(
         [
             ((string?)"AFirst.cs",FirstSource),
             ("BSecond.cs",SecondSourceWithTraceAndStartup),
             (null,GameSystemGeneratorTestHelper.CommonComponents),
         ]);
 
-        Assembly Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Compilation);
+        var Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Compilation);
 
         GameSystemGeneratorTestHelper.Invoke(Assembly,"CSharpGameEngine.Generated.GeneratedEntryPoint","Main");
 
@@ -179,7 +179,7 @@ public sealed class GameSystemOrderTests {
         // 要求する(CS9068)。ヘルパーの既定ソース群(Runtime/Bootstrap/SystemOrderAttribute等)は
         // すべてパス無し(空文字列)を共有しているため、file型を含むソースだけは必ずパス付きの
         // オーバーロードで実在するファイル名を与える。
-        CSharpCompilation Compilation=GameSystemGeneratorTestHelper.CreateApplicationCompilation(
+        var Compilation=GameSystemGeneratorTestHelper.CreateApplicationCompilation(
         [
             ((string?)"Combined.cs","""
             using CSharpGameEngine.Entities;
@@ -233,7 +233,7 @@ public sealed class GameSystemOrderTests {
             (null,GameSystemGeneratorTestHelper.CommonComponents),
         ]);
 
-        Assembly Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Compilation);
+        var Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Compilation);
 
         GameSystemGeneratorTestHelper.Invoke(Assembly,"CSharpGameEngine.Generated.GeneratedEntryPoint","Main");
 
@@ -242,41 +242,41 @@ public sealed class GameSystemOrderTests {
 
     [Fact]
     public void SystemOrderMarkerOnNonFileScopedClass_ReportsSysgen022(){
-        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
-            GameSystemGeneratorTestHelper.CommonComponents,
-            """
-            using CSharpGameEngine.Entities;
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(
+                                                              GameSystemGeneratorTestHelper.CommonComponents,
+                                                              """
+                                                              using CSharpGameEngine.Entities;
 
-            namespace Game;
+                                                              namespace Game;
 
-            [SystemOrder(0)]
-            internal sealed class NotFileScoped
-            {
-            }
-            """);
+                                                              [SystemOrder(0)]
+                                                              internal sealed class NotFileScoped
+                                                              {
+                                                              }
+                                                              """);
 
         Assert.Contains(Result.Diagnostics,D=>D.Id=="SYSGEN022");
     }
 
     [Fact]
     public void TwoSystemOrderMarkersInOneFile_ReportsSysgen023(){
-        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
-            GameSystemGeneratorTestHelper.CommonComponents,
-            """
-            using CSharpGameEngine.Entities;
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(
+                                                              GameSystemGeneratorTestHelper.CommonComponents,
+                                                              """
+                                                              using CSharpGameEngine.Entities;
 
-            namespace Game;
+                                                              namespace Game;
 
-            [SystemOrder(0)]
-            file sealed class FirstMarker
-            {
-            }
+                                                              [SystemOrder(0)]
+                                                              file sealed class FirstMarker
+                                                              {
+                                                              }
 
-            [SystemOrder(1)]
-            file sealed class SecondMarker
-            {
-            }
-            """);
+                                                              [SystemOrder(1)]
+                                                              file sealed class SecondMarker
+                                                              {
+                                                              }
+                                                              """);
 
         Assert.Contains(Result.Diagnostics,D=>D.Id=="SYSGEN023");
     }
@@ -294,12 +294,12 @@ public sealed class GameSystemOrderTests {
             }
             """;
 
-        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
-        [
-            ((string?)"First.cs",MarkerSource),
-            ("Second.cs",MarkerSource),
-            (null,GameSystemGeneratorTestHelper.CommonComponents),
-        ]);
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(
+                                                              [
+                                                                  ((string?)"First.cs",MarkerSource),
+                                                                  ("Second.cs",MarkerSource),
+                                                                  (null,GameSystemGeneratorTestHelper.CommonComponents),
+                                                              ]);
 
         Assert.Contains(Result.Diagnostics,D=>D.Id=="SYSGEN024");
     }
@@ -310,44 +310,44 @@ public sealed class GameSystemOrderTests {
     /// </summary>
     [Fact]
     public void TwoSystemsWithTheSameExplicitOrder_ReportsNothing(){
-        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
-            GameSystemGeneratorTestHelper.CommonComponents,
-            """
-            using CSharpGameEngine.Entities;
-            using Sample;
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(
+                                                              GameSystemGeneratorTestHelper.CommonComponents,
+                                                              """
+                                                              using CSharpGameEngine.Entities;
+                                                              using Sample;
 
-            namespace Game;
+                                                              namespace Game;
 
-            [SystemOrder(0)]
-            internal struct FirstSystem : ISystem
-            {
-                public bool Update(ref Position p, ref State s) => true;
-            }
+                                                              [SystemOrder(0)]
+                                                              internal struct FirstSystem : ISystem
+                                                              {
+                                                                  public bool Update(ref Position p, ref State s) => true;
+                                                              }
 
-            [SystemOrder(0)]
-            internal struct SecondSystem : ISystem
-            {
-                public bool Update(ref Position p, ref State s) => true;
-            }
-            """);
+                                                              [SystemOrder(0)]
+                                                              internal struct SecondSystem : ISystem
+                                                              {
+                                                                  public bool Update(ref Position p, ref State s) => true;
+                                                              }
+                                                              """);
 
         Assert.Empty(Result.Diagnostics);
     }
 
     [Fact]
     public void SystemOrderOnStructThatIsNotASystem_ReportsSysgen025(){
-        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
-            GameSystemGeneratorTestHelper.CommonComponents,
-            """
-            using CSharpGameEngine.Entities;
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(
+                                                              GameSystemGeneratorTestHelper.CommonComponents,
+                                                              """
+                                                              using CSharpGameEngine.Entities;
 
-            namespace Game;
+                                                              namespace Game;
 
-            [SystemOrder(0)]
-            internal struct NotASystem
-            {
-            }
-            """);
+                                                              [SystemOrder(0)]
+                                                              internal struct NotASystem
+                                                              {
+                                                              }
+                                                              """);
 
         Assert.Contains(Result.Diagnostics,D=>D.Id=="SYSGEN025");
     }
@@ -355,12 +355,12 @@ public sealed class GameSystemOrderTests {
     [Fact]
     public void UnattributedFilesSharingTheImplicitZero_ReportsNothing(){
         // 暗黙の0同士が衝突してもSYSGEN024の対象外(想定内の既定挙動)であることの回帰確認。
-        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
-        [
-            ((string?)"First.cs","using CSharpGameEngine.Entities;\nusing Sample;\nnamespace Game;\ninternal struct FirstSystem : ISystem { public bool Update(ref Position p, ref State s) => true; }\n"),
-            ("Second.cs","using CSharpGameEngine.Entities;\nusing Sample;\nnamespace Game;\ninternal struct SecondSystem : ISystem { public bool Update(ref Position p, ref State s) => true; }\n"),
-            (null,GameSystemGeneratorTestHelper.CommonComponents),
-        ]);
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(
+                                                              [
+                                                                  ((string?)"First.cs","using CSharpGameEngine.Entities;\nusing Sample;\nnamespace Game;\ninternal struct FirstSystem : ISystem { public bool Update(ref Position p, ref State s) => true; }\n"),
+                                                                  ("Second.cs","using CSharpGameEngine.Entities;\nusing Sample;\nnamespace Game;\ninternal struct SecondSystem : ISystem { public bool Update(ref Position p, ref State s) => true; }\n"),
+                                                                  (null,GameSystemGeneratorTestHelper.CommonComponents),
+                                                              ]);
 
         Assert.Empty(Result.Diagnostics);
     }

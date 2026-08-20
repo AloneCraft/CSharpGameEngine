@@ -16,79 +16,79 @@ public sealed class BridgeExecutableLocatorTests:IDisposable {
     private readonly string RepoRoot;
 
     public BridgeExecutableLocatorTests(){
-        RepoRoot=Path.Combine(Path.GetTempPath(),"csge-bridgelocator-tests-"+Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(RepoRoot);
+        this.RepoRoot=Path.Combine(Path.GetTempPath(),"csge-bridgelocator-tests-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(this.RepoRoot);
     }
 
     public void Dispose(){
         try {
-            Directory.Delete(RepoRoot,recursive:true);
+            Directory.Delete(this.RepoRoot,recursive:true);
         } catch(IOException){
         }
     }
 
     [Fact]
     public void NoBuiltExecutable_ReturnsNull(){
-        var Result=BridgeExecutableLocator.FindExecutable(RepoRoot,BridgeProjectRelativePath);
+        var Result=BridgeExecutableLocator.FindExecutable(this.RepoRoot,BridgeProjectRelativePath);
 
         Assert.Null(Result);
     }
 
     [Fact]
     public void AppHostWithoutRuntimeConfig_ReturnsNull(){
-        string DirectoryPath=Path.Combine(RepoRoot,BridgeProjectRelativePath,"bin","Debug","net10.0");
+        var DirectoryPath=Path.Combine(this.RepoRoot,BridgeProjectRelativePath,"bin","Debug","net10.0");
         Directory.CreateDirectory(DirectoryPath);
         File.WriteAllText(Path.Combine(DirectoryPath,"Sample.Bridge.Cli.exe"),"stale apphost");
 
-        var Result=BridgeExecutableLocator.FindExecutable(RepoRoot,BridgeProjectRelativePath);
+        var Result=BridgeExecutableLocator.FindExecutable(this.RepoRoot,BridgeProjectRelativePath);
 
         Assert.Null(Result);
     }
 
     [Fact]
     public void DebugBuildOnly_IsFound(){
-        var ExePath=CreateExe("Debug",RidSubfolder:null,DateTime.UtcNow);
+        var ExePath= this.CreateExe("Debug",RidSubfolder:null,DateTime.UtcNow);
 
-        var Result=BridgeExecutableLocator.FindExecutable(RepoRoot,BridgeProjectRelativePath);
+        var Result=BridgeExecutableLocator.FindExecutable(this.RepoRoot,BridgeProjectRelativePath);
 
         Assert.Equal(ExePath,Result);
     }
 
     [Fact]
     public void RuntimeIdentifierSubfolder_IsFound(){
-        var ExePath=CreateExe("Debug","win-x64",DateTime.UtcNow);
+        var ExePath= this.CreateExe("Debug","win-x64",DateTime.UtcNow);
 
-        var Result=BridgeExecutableLocator.FindExecutable(RepoRoot,BridgeProjectRelativePath);
+        var Result=BridgeExecutableLocator.FindExecutable(this.RepoRoot,BridgeProjectRelativePath);
 
         Assert.Equal(ExePath,Result);
     }
 
     [Fact]
     public void MultipleCandidates_PicksNewestByWriteTime_EvenWhenReleaseIsNewer(){
-        DateTime Now=DateTime.UtcNow;
-        CreateExe("Debug",RidSubfolder:null,Now);
-        var NewerReleaseExePath=CreateExe("Release",RidSubfolder:null,Now.AddMinutes(5));
+        var Now=DateTime.UtcNow;
+        this.CreateExe("Debug",RidSubfolder:null,Now);
+        var NewerReleaseExePath= this.CreateExe("Release",RidSubfolder:null,Now.AddMinutes(5));
 
-        var Result=BridgeExecutableLocator.FindExecutable(RepoRoot,BridgeProjectRelativePath);
+        var Result=BridgeExecutableLocator.FindExecutable(this.RepoRoot,BridgeProjectRelativePath);
 
         Assert.Equal(NewerReleaseExePath,Result);
     }
 
     [Fact]
     public void MultipleCandidates_PicksNewestByWriteTime_EvenWhenDebugIsNewer(){
-        DateTime Now=DateTime.UtcNow;
-        CreateExe("Release",RidSubfolder:null,Now);
-        var NewerDebugExePath=CreateExe("Debug",RidSubfolder:null,Now.AddMinutes(5));
+        var Now=DateTime.UtcNow;
+        this.CreateExe("Release",RidSubfolder:null,Now);
+        var NewerDebugExePath= this.CreateExe("Debug",RidSubfolder:null,Now.AddMinutes(5));
 
-        var Result=BridgeExecutableLocator.FindExecutable(RepoRoot,BridgeProjectRelativePath);
+        var Result=BridgeExecutableLocator.FindExecutable(this.RepoRoot,BridgeProjectRelativePath);
 
         Assert.Equal(NewerDebugExePath,Result);
     }
 
     private string CreateExe(string Configuration,string?RidSubfolder,DateTime WriteTimeUtc){
         var Directory=RidSubfolder is null
-            ?Path.Combine(RepoRoot,BridgeProjectRelativePath,"bin",Configuration,"net10.0")
-            :Path.Combine(RepoRoot,BridgeProjectRelativePath,"bin",Configuration,"net10.0",RidSubfolder);
+            ?Path.Combine(this.RepoRoot,BridgeProjectRelativePath,"bin",Configuration,"net10.0")
+            :Path.Combine(this.RepoRoot,BridgeProjectRelativePath,"bin",Configuration,"net10.0",RidSubfolder);
         System.IO.Directory.CreateDirectory(Directory);
 
         var ExePath=Path.Combine(Directory,"Sample.Bridge.Cli.exe");

@@ -96,7 +96,7 @@ internal sealed class SceneNodeViewModel : INotifyPropertyChanged {
             }
 
             this.EditNameField=value;
-            this.PropertyChanged?.Invoke(this,new PropertyChangedEventArgs(nameof(EditName)));
+            this.PropertyChanged?.Invoke(this,new PropertyChangedEventArgs(nameof(this.EditName)));
         }
     }
 
@@ -119,7 +119,7 @@ internal sealed class SceneNodeViewModel : INotifyPropertyChanged {
     /// </para>
     /// </summary>
     internal static IReadOnlyList<SceneNodeViewModel>Build(SceneModel?Model,ISet<NodePath>CollapsedPaths,NodePath?SelectedPath){
-        IReadOnlyList<SceneNodeViewModel>Roots=BuildWithSelection(Model,CollapsedPaths,SelectedPath is { } SelectedPathValue?[SelectedPathValue]:[]);
+        var Roots=BuildWithSelection(Model,CollapsedPaths,SelectedPath is { } SelectedPathValue?[SelectedPathValue]:[]);
         if(SelectedPath is { } TargetPath){
             Roots.SelectMany(static Root=>Root.SelfAndDescendants()).FirstOrDefault(Node=>Node.Path.Equals(TargetPath))?.IsSelected=true;
         }
@@ -133,7 +133,7 @@ internal sealed class SceneNodeViewModel : INotifyPropertyChanged {
             return [];
         }
 
-        string?ProjectDirectory=FindProjectDirectory(Model.FilePath);
+        var ProjectDirectory=FindProjectDirectory(Model.FilePath);
         return [BuildNode(Root,CollapsedPaths,SelectedPaths,ProjectDirectory,IsRoot:true)];
     }
 
@@ -142,7 +142,7 @@ internal sealed class SceneNodeViewModel : INotifyPropertyChanged {
         string?ProjectDirectory,bool IsRoot){
         List<SceneNodeViewModel>Children=[];
 
-        foreach(SceneNode Child in Node.Children){
+        foreach(var Child in Node.Children){
             Children.Add(BuildNode(Child,CollapsedPaths,SelectedPaths,ProjectDirectory,IsRoot:false));
         }
 
@@ -178,7 +178,7 @@ internal sealed class SceneNodeViewModel : INotifyPropertyChanged {
         }
 
         List<SceneVisualIcon>Icons=[];
-        foreach(SceneComponent Component in Components){
+        foreach(var Component in Components){
             Icons.Add(Component.TypeSymbol is { } Type
                 ?SceneComponentIconResolver.Resolve(Type,ProjectDirectory)
                 :SceneVisualIcon.ComponentDefault());
@@ -189,13 +189,13 @@ internal sealed class SceneNodeViewModel : INotifyPropertyChanged {
 
     private static string? FindProjectDirectory(string FilePath){
         try {
-            string?DirectoryPath=System.IO.Path.GetDirectoryName(FilePath);
+            var DirectoryPath=System.IO.Path.GetDirectoryName(FilePath);
             while(!string.IsNullOrWhiteSpace(DirectoryPath)){
                 if(Directory.EnumerateFiles(DirectoryPath,"*.csproj",SearchOption.TopDirectoryOnly).Any()){
                     return DirectoryPath;
                 }
 
-                DirectoryInfo?Parent=Directory.GetParent(DirectoryPath);
+                var Parent=Directory.GetParent(DirectoryPath);
                 if(Parent is null||string.Equals(Parent.FullName,DirectoryPath,StringComparison.OrdinalIgnoreCase)){
                     break;
                 }
@@ -217,8 +217,8 @@ internal sealed class SceneNodeViewModel : INotifyPropertyChanged {
     internal IEnumerable<SceneNodeViewModel>SelfAndDescendants(){
         yield return this;
 
-        foreach(SceneNodeViewModel Child in this.Children){
-            foreach(SceneNodeViewModel Descendant in Child.SelfAndDescendants()){
+        foreach(var Child in this.Children){
+            foreach(var Descendant in Child.SelfAndDescendants()){
                 yield return Descendant;
             }
         }

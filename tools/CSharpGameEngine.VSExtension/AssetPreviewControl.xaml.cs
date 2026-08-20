@@ -8,15 +8,15 @@ public partial class AssetPreviewControl:UserControl,IDisposable {
     private readonly AssetPreviewHwndHost Host;
 
     public AssetPreviewControl(string ModelPath){
-        InitializeComponent();
-        Host=new AssetPreviewHwndHost(ModelPath);
-        RootGrid.Children.Add(Host);
+        this.InitializeComponent();
+        this.Host=new AssetPreviewHwndHost(ModelPath);
+        this.RootGrid.Children.Add(this.Host);
     }
 
-    public void SetModelPath(string ModelPath)=>Host.SetModelPath(ModelPath);
+    public void SetModelPath(string ModelPath)=> this.Host.SetModelPath(ModelPath);
 
     // WindowPane only disposes Content when it implements IDisposable - without this, the native
     // window inside AssetPreviewHwndHost never runs DestroyWindowCore when the preview tab closes,
     // so the focus-release fix there (see RenderSurfaceWindow.Dispose) never fires either.
-    public void Dispose()=>Host.Dispose();
+    public void Dispose()=> this.Host.Dispose();
 }

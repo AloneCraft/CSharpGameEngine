@@ -12,16 +12,16 @@ internal sealed class FrameResourceTracker {
         this.FenceValues=new ulong[FrameCount];
     }
 
-    internal ulong GetRequiredFenceValue(int FrameIndex)=>this.FenceValues[Validate(FrameIndex)];
+    internal ulong GetRequiredFenceValue(int FrameIndex)=>this.FenceValues[this.Validate(FrameIndex)];
 
     internal ulong MarkSubmitted(int FrameIndex){
-        ulong Value=this.NextFenceValue++;
-        this.FenceValues[Validate(FrameIndex)]=Value;
+        var Value=this.NextFenceValue++;
+        this.FenceValues[this.Validate(FrameIndex)]=Value;
         return Value;
     }
 
     internal ulong MarkGpuIdle(){
-        ulong Value=this.NextFenceValue++;
+        var Value=this.NextFenceValue++;
         for(var FrameIndex=0;FrameIndex<this.FenceValues.Length;FrameIndex++){
             this.FenceValues[FrameIndex]=Value;
         }

@@ -12,9 +12,9 @@ namespace CSharpGameEngine.Entities.Tests;
 public sealed class SceneInstanceSpec {
     /// <summary>生成された<c>Instantiate</c>が行うことを手で書いたもの。Phase 4以降はSGがこれを出す。</summary>
     private static (SceneInstance Instance,Entity Root,Entity Child)Instantiate(ref World World,float Seed){
-        SceneInstance Instance=World.BeginSceneInstance();
-        Entity Root=World.AttachToScene(Instance,World.Create(new Position { X=Seed }));
-        Entity Child=World.AttachToScene(Instance,World.Create(new Position { X=Seed+1f },new Parent { Value=Root }));
+        var Instance=World.BeginSceneInstance();
+        var Root=World.AttachToScene(Instance,World.Create(new Position { X=Seed }));
+        var Child=World.AttachToScene(Instance,World.Create(new Position { X=Seed+1f },new Parent { Value=Root }));
         World.EndSceneInstance(Instance,Root);
         return (Instance,Root,Child);
     }
@@ -23,8 +23,8 @@ public sealed class SceneInstanceSpec {
     public void InstantiatingTheSameSceneTwiceProducesIndependentInstances(){
         World World=new();
 
-        (SceneInstance A,Entity RootA,_)=Instantiate(ref World,10f);
-        (SceneInstance B,Entity RootB,_)=Instantiate(ref World,20f);
+        (var A,var RootA,_)=Instantiate(ref World,10f);
+        (var B,var RootB,_)=Instantiate(ref World,20f);
 
         Assert.NotEqual(A,B);
         Assert.NotEqual(RootA,RootB);
@@ -37,8 +37,8 @@ public sealed class SceneInstanceSpec {
     [Fact]
     public void UnloadingOneSceneLeavesTheOtherUntouched(){
         World World=new();
-        (SceneInstance A,Entity RootA,Entity ChildA)=Instantiate(ref World,10f);
-        (SceneInstance B,Entity RootB,Entity ChildB)=Instantiate(ref World,20f);
+        (var A,var RootA,var ChildA)=Instantiate(ref World,10f);
+        (var B,var RootB,var ChildB)=Instantiate(ref World,20f);
 
         World.UnloadScene(A);
 
@@ -53,7 +53,7 @@ public sealed class SceneInstanceSpec {
     [Fact]
     public void EntitiesReportTheSceneThatCreatedThem(){
         World World=new();
-        (SceneInstance A,Entity RootA,Entity ChildA)=Instantiate(ref World,10f);
+        (var A,var RootA,var ChildA)=Instantiate(ref World,10f);
 
         Assert.Equal(A,World.GetOwningScene(RootA));
         Assert.Equal(A,World.GetOwningScene(ChildA));
@@ -64,7 +64,7 @@ public sealed class SceneInstanceSpec {
         // Sceneに属さないWorld直属Entityも許可する。World.Createはそのまま使える。
         World World=new();
 
-        Entity Loose=World.Create(new Position { X=1f });
+        var Loose=World.Create(new Position { X=1f });
 
         Assert.True(World.IsAlive(Loose));
         Assert.True(World.GetOwningScene(Loose).IsNone);
@@ -73,9 +73,9 @@ public sealed class SceneInstanceSpec {
     [Fact]
     public void GameplayCanAttachARuntimeEntityToAScene(){
         World World=new();
-        (SceneInstance A,_,_)=Instantiate(ref World,10f);
+        (var A,_,_)=Instantiate(ref World,10f);
 
-        Entity Spawned=World.AttachToScene(A,World.Create(new Position { X=99f }));
+        var Spawned=World.AttachToScene(A,World.Create(new Position { X=99f }));
 
         Assert.Equal(A,World.GetOwningScene(Spawned));
 
@@ -87,7 +87,7 @@ public sealed class SceneInstanceSpec {
     [Fact]
     public void HandlesToAnUnloadedSceneAreRejected(){
         World World=new();
-        (SceneInstance A,_,_)=Instantiate(ref World,10f);
+        (var A,_,_)=Instantiate(ref World,10f);
 
         World.UnloadScene(A);
 
@@ -102,10 +102,10 @@ public sealed class SceneInstanceSpec {
     public void ReusedSlotDoesNotResurrectAnOldHandle(){
         // SceneスロットはEntity Idと違って再利用する。だからこそ世代が要る(ABA問題)。
         World World=new();
-        (SceneInstance A,_,_)=Instantiate(ref World,10f);
+        (var A,_,_)=Instantiate(ref World,10f);
         World.UnloadScene(A);
 
-        (SceneInstance B,Entity RootB,_)=Instantiate(ref World,20f);
+        (var B,var RootB,_)=Instantiate(ref World,20f);
 
         Assert.Equal(A.Slot,B.Slot);
         Assert.NotEqual(A.Version,B.Version);
@@ -127,7 +127,7 @@ public sealed class SceneInstanceSpec {
     [Fact]
     public void EntityDestroyedByGameplayIsSkippedDuringUnload(){
         World World=new();
-        (SceneInstance A,Entity RootA,Entity ChildA)=Instantiate(ref World,10f);
+        (var A,var RootA,var ChildA)=Instantiate(ref World,10f);
 
         World.Destroy(ChildA);
         World.UnloadScene(A);
@@ -141,7 +141,7 @@ public sealed class SceneInstanceSpec {
     public void DeferredUnloadIsAppliedAtThePlaybackBarrier(){
         World World=new();
         State State=new(World){ Enabled=true };
-        (SceneInstance A,Entity RootA,_)=Instantiate(ref World,10f);
+        (var A,var RootA,_)=Instantiate(ref World,10f);
 
         World.UnloadSceneDeferred(A,ref State);
 
@@ -157,9 +157,9 @@ public sealed class SceneInstanceSpec {
     public void ThreeScenesCoexistInOneWorld(){
         World World=new();
 
-        (SceneInstance A,Entity RootA,_)=Instantiate(ref World,10f);
-        (SceneInstance B,Entity RootB,_)=Instantiate(ref World,20f);
-        (SceneInstance C,Entity RootC,_)=Instantiate(ref World,30f);
+        (var A,var RootA,_)=Instantiate(ref World,10f);
+        (var B,var RootB,_)=Instantiate(ref World,20f);
+        (var C,var RootC,_)=Instantiate(ref World,30f);
 
         Assert.True(World.IsSceneAlive(A));
         Assert.True(World.IsSceneAlive(B));
@@ -177,7 +177,7 @@ public sealed class SceneInstanceSpec {
         // 位置表をタプルごと代入するとSceneSlotが消え、Archetype移動しただけでSceneから外れてしまう。
         World World=new();
         State State=new(World){ Enabled=true };
-        (SceneInstance A,Entity RootA,_)=Instantiate(ref World,10f);
+        (var A,var RootA,_)=Instantiate(ref World,10f);
 
         World.MoveArchetype(RootA,new Position { X=5f },new Velocity { X=1f },ref State);
         World.PlaybackStructuralChanges(ref State);
@@ -194,9 +194,9 @@ public sealed class SceneInstanceSpec {
         // 所有権は位置表のSceneSlotが正で、SceneInstanceSlot.Entitiesは追記のみの記録である。
         // 付け替え元のUnloadが新しいSceneのEntityを巻き添えに壊してはならない。
         World World=new();
-        (SceneInstance A,_,_)=Instantiate(ref World,10f);
-        (SceneInstance B,_,_)=Instantiate(ref World,20f);
-        Entity Moved=World.AttachToScene(A,World.Create(new Position { X=99f }));
+        (var A,_,_)=Instantiate(ref World,10f);
+        (var B,_,_)=Instantiate(ref World,20f);
+        var Moved=World.AttachToScene(A,World.Create(new Position { X=99f }));
 
         World.AttachToScene(B,Moved);
 
@@ -217,8 +217,8 @@ public sealed class SceneInstanceSpec {
         // アンロードすると、他Scene/World直属の子が持つParent.Valueは死んだEntityを指す。
         // 親子を辿るSystemは必ずIsAliveでガードすること(ADR-0040 既知の制約)。
         World World=new();
-        (SceneInstance A,Entity RootA,_)=Instantiate(ref World,10f);
-        Entity Outsider=World.Create(new Position { X=1f },new Parent { Value=RootA });
+        (var A,var RootA,_)=Instantiate(ref World,10f);
+        var Outsider=World.Create(new Position { X=1f },new Parent { Value=RootA });
 
         World.UnloadScene(A);
 

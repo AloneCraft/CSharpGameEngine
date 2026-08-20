@@ -34,6 +34,25 @@ internal static class SceneDslWellKnownNames {
 
     internal const string StartupSceneAttributeMetadataName="CSharpGameEngine.Entities.StartupSceneAttribute";
 
+    /// <summary>
+    /// <c>SymbolDisplayFormat.FullyQualifiedFormat</c>の出力と比較する用。ECSの<c>[GameSystem]</c>構造体は
+    /// これを実装するので、構造的には非nullable structでComponentの形をしていても、Scene Componentとして
+    /// 追加できてはならない(<c>SceneComponentCatalog.IsAddable</c>が使う)。
+    /// </summary>
+    internal const string SystemInterfaceFullyQualifiedName="global::CSharpGameEngine.Entities.ISystem";
+
+    /// <summary>
+    /// <c>Compilation.GetTypeByMetadataName</c>用。エンジンが実行時に埋めるComponentの印で、
+    /// 作者がScene DSLへ書くことはできない(SCENE119)。
+    /// </summary>
+    internal const string RuntimeComponentInterfaceMetadataName="CSharpGameEngine.Entities.IRuntimeComponent";
+
+    /// <summary>
+    /// 随伴付与される実行時Componentの印。<c>GetTypeByMetadataName</c>のarity付き表記なので
+    /// バッククォート1が必要(<c>IRuntimeComponent&lt;TAuthored&gt;</c>)。
+    /// </summary>
+    internal const string RuntimeComponentOfInterfaceMetadataName="CSharpGameEngine.Entities.IRuntimeComponent`1";
+
     internal const string RootPropertyName="Root";
 
     internal const string NameMemberName="Name";

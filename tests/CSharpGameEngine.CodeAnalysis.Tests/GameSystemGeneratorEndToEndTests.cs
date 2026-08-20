@@ -72,7 +72,7 @@ public sealed class GameSystemGeneratorEndToEndTests {
             }
             """;
 
-        Assembly Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
+        var Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
         var Result=GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.TestEntry","RunScenario");
 
         Assert.Equal("OK",Result);
@@ -137,7 +137,7 @@ public sealed class GameSystemGeneratorEndToEndTests {
             }
             """;
 
-        Assembly Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
+        var Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
         var Result=GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.TestEntry","RunScenario");
 
         Assert.Equal("OK",Result);
@@ -216,8 +216,8 @@ public sealed class GameSystemGeneratorEndToEndTests {
             }
             """;
 
-        Assembly Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(
-            [.. GameSystemGeneratorTestHelper.SceneDslSources,Components,ComponentsAndSystem,Source]);
+        var Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(
+                                                                  [.. GameSystemGeneratorTestHelper.SceneDslSources,Components,ComponentsAndSystem,Source]);
         var Result=GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.TestEntry","RunScenario");
 
         Assert.Equal("OK",Result);
@@ -270,7 +270,7 @@ public sealed class GameSystemGeneratorEndToEndTests {
             }
             """;
 
-        Assembly Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
+        var Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
         var Result=GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.TestEntry","RunScenario");
 
         Assert.Equal("OK",Result);
@@ -314,7 +314,7 @@ public sealed class GameSystemGeneratorEndToEndTests {
             }
             """;
 
-        Assembly Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
+        var Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
         var Result=GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.TestEntry","RunScenario");
 
         Assert.Equal("OK",Result);
@@ -356,7 +356,7 @@ public sealed class GameSystemGeneratorEndToEndTests {
             }
             """;
 
-        Assembly Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
+        var Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
         var Result=GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.TestEntry","RunScenario");
 
         Assert.Equal("OK",Result);

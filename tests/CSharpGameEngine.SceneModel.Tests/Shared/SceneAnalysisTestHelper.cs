@@ -48,6 +48,8 @@ internal static class SceneAnalysisTestHelper {
 
     internal static readonly string SceneNodeTagSource=ReadTestAsset("Entities","SceneNodeTag.cs");
 
+    internal static readonly string RuntimeComponentSource=ReadTestAsset("Entities","IRuntimeComponent.cs");
+
     internal static readonly string StartupSceneAttributeSource=ReadTestAsset("Entities","StartupSceneAttribute.cs");
 
     internal static readonly string SceneFactoryAttributeSource=ReadTestAsset("Core","SceneFactoryAttribute.cs");
@@ -95,6 +97,7 @@ internal static class SceneAnalysisTestHelper {
             NodeSource,
             ParentSource,
             SceneNodeTagSource,
+            RuntimeComponentSource,
             StartupSceneAttributeSource,
             SceneFactoryAttributeSource,
             SceneAssetsAttributeSource,
@@ -102,11 +105,11 @@ internal static class SceneAnalysisTestHelper {
     ];
 
     internal static CSharpCompilation CreateCompilation(params string[]ExtraSources){
-        CSharpCompilation Compilation=CSharpCompilation.Create(
-            "SceneModelTestAssembly",
-            [.. FixtureTrees,.. ExtraSources.Select(static Source=>CSharpSyntaxTree.ParseText(Source,ParseOptions))],
-            References,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        var Compilation=CSharpCompilation.Create(
+                                                 "SceneModelTestAssembly",
+                                                 [.. FixtureTrees,.. ExtraSources.Select(static Source=>CSharpSyntaxTree.ParseText(Source,ParseOptions))],
+                                                 References,
+                                                 new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         // net472ホストではBCLがIsExternalInitを提供しないため、Node.csのinitアクセサーが解決できない。
         if(Compilation.GetTypeByMetadataName("System.Runtime.CompilerServices.IsExternalInit") is null){
@@ -122,8 +125,8 @@ internal static class SceneAnalysisTestHelper {
     }
 
     internal static SceneModel Analyze(string[]Sources,string?SceneClassName=null){
-        CSharpCompilation Compilation=CreateCompilation(Sources);
-        INamedTypeSymbol?SceneClass=FindSceneClass(Compilation,SceneClassName);
+        var Compilation=CreateCompilation(Sources);
+        var SceneClass=FindSceneClass(Compilation,SceneClassName);
 
         Assert.True(SceneClass is not null, $"No IScene implementation named '{SceneClassName??"(any)"}' was found in the test compilation.");
 
@@ -135,7 +138,7 @@ internal static class SceneAnalysisTestHelper {
     /// SCENE116(入れ子)の検証があるため、入れ子型も走査対象に含める。
     /// </summary>
     internal static INamedTypeSymbol?FindSceneClass(CSharpCompilation Compilation,string?SceneClassName){
-        foreach(INamedTypeSymbol Type in EnumerateTypes(Compilation.GlobalNamespace)){
+        foreach(var Type in EnumerateTypes(Compilation.GlobalNamespace)){
             if(SceneClassName is not null&&Type.Name!=SceneClassName){
                 continue;
             }
@@ -149,10 +152,10 @@ internal static class SceneAnalysisTestHelper {
     }
 
     private static IEnumerable<INamedTypeSymbol>EnumerateTypes(INamespaceOrTypeSymbol Container){
-        foreach(ISymbol Member in Container.GetMembers()){
+        foreach(var Member in Container.GetMembers()){
             switch(Member){
                 case INamespaceSymbol Namespace:
-                    foreach(INamedTypeSymbol Nested in EnumerateTypes(Namespace)){
+                    foreach(var Nested in EnumerateTypes(Namespace)){
                         yield return Nested;
                     }
 
@@ -160,7 +163,7 @@ internal static class SceneAnalysisTestHelper {
                 case INamedTypeSymbol Type:
                     yield return Type;
 
-                    foreach(INamedTypeSymbol Nested in EnumerateTypes(Type)){
+                    foreach(var Nested in EnumerateTypes(Type)){
                         yield return Nested;
                     }
 

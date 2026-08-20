@@ -207,14 +207,14 @@ public sealed class SceneSourceEditorStructuralSaveTests {
         private SceneEditDocument Document { get; }
 
         internal static Fixture Create(){
-            CSharpCompilation Compilation=SceneAnalysisTestHelper.CreateCompilation(TransformTypes,Source);
-            SyntaxNode Root=Compilation.SyntaxTrees
-                .Single(Tree=>Tree.GetRoot().ToFullString().Contains("class MainScene"))
-                .GetRoot();
-            INamedTypeSymbol SceneClass=SceneAnalysisTestHelper.FindSceneClass(Compilation,"MainScene")!;
-            SceneModel Model=SceneDeclarationAnalyzer.Analyze(SceneClass,Compilation,CancellationToken.None);
+            var Compilation=SceneAnalysisTestHelper.CreateCompilation(TransformTypes,Source);
+            var Root=Compilation.SyntaxTrees
+                                .Single(Tree=>Tree.GetRoot().ToFullString().Contains("class MainScene"))
+                                .GetRoot();
+            var SceneClass=SceneAnalysisTestHelper.FindSceneClass(Compilation,"MainScene")!;
+            var Model=SceneDeclarationAnalyzer.Analyze(SceneClass,Compilation,CancellationToken.None);
             SceneProjectionReconciler Reconciler=new();
-            SceneProjection Projection=Reconciler.Reconcile(Key,Model,Previous:null);
+            var Projection=Reconciler.Reconcile(Key,Model,Previous:null);
             return new Fixture(
                 Compilation,Root,Projection,new SceneEditDocument(Key,new SceneEditSnapshot(Model,Projection),Reconciler));
         }
@@ -227,13 +227,13 @@ public sealed class SceneSourceEditorStructuralSaveTests {
 
         /// <summary>保存経路を通し、往復検証も通ることを確認して結果テキストを返す。</summary>
         internal string SaveAndVerify(){
-            SceneSourceEditResult Result=SceneSourceEditor.ApplyForSave(
-                this.Root,Key,this.Projection,this.Document.History);
+            var Result=SceneSourceEditor.ApplyForSave(
+                                                      this.Root,Key,this.Projection,this.Document.History);
             Assert.True(Result.Succeeded,Result.ErrorMessage);
 
             Assert.True(SceneSaveVerification.Verify(
                 Result.Root!,this.Root,this.Compilation,this.Document.Model,Key.ClassFullyQualifiedName,
-                CancellationToken.None,out string?Error),Error);
+                CancellationToken.None,out var Error),Error);
 
             return Result.Root!.ToFullString();
         }

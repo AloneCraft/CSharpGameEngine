@@ -3,7 +3,7 @@ namespace CSharpGameEngine.Core.Tests;
 public sealed class SourceLocationSpec {
     [Fact]
     public void Unknown_CanBeRepresented(){
-        SourceLocation Unknown=SourceLocation.Unknown;
+        var Unknown=SourceLocation.Unknown;
 
         Assert.True(Unknown.IsUnknown);
         Assert.Equal("<unknown>",Unknown.ToString());

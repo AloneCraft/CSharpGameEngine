@@ -76,7 +76,7 @@ public sealed class SceneHierarchyPopulatePolicyTests {
     /// <summary>Scene未選択(null)とRootが無い状態は表示が違うので区別する。</summary>
     [Fact]
     public void Signature_DistinguishesNullModelFromMissingRoot(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze([SceneSource]);
+        var Model=SceneAnalysisTestHelper.Analyze([SceneSource]);
 
         Assert.NotEqual(HierarchyContentSignature.Compute(null),HierarchyContentSignature.Compute(Model));
     }
@@ -91,7 +91,7 @@ public sealed class SceneHierarchyPopulatePolicyTests {
     /// <summary>名前が変われば署名も変わる(リネーム確定後に必ず作り直されること)。</summary>
     [Fact]
     public void Signature_ChangesWhenANodeIsRenamed(){
-        SceneModel Renamed=SceneAnalysisTestHelper.Analyze([SceneSource.Replace("\"Beta\"","\"BetaRenamed\"")]);
+        var Renamed=SceneAnalysisTestHelper.Analyze([SceneSource.Replace("\"Beta\"","\"BetaRenamed\"")]);
 
         Assert.NotEqual(
             HierarchyContentSignature.Compute(SceneAnalysisTestHelper.Analyze([SceneSource])),
@@ -101,8 +101,8 @@ public sealed class SceneHierarchyPopulatePolicyTests {
     /// <summary>構造が変われば署名も変わる。</summary>
     [Fact]
     public void Signature_ChangesWhenANodeIsAdded(){
-        SceneModel WithExtra=SceneAnalysisTestHelper.Analyze([
-            SceneSource.Replace("new Node { Name=\"Beta\" },","new Node { Name=\"Beta\" },new Node { Name=\"Gamma\" },")]);
+        var WithExtra=SceneAnalysisTestHelper.Analyze([
+                                                          SceneSource.Replace("new Node { Name=\"Beta\" },","new Node { Name=\"Beta\" },new Node { Name=\"Gamma\" },")]);
 
         Assert.NotEqual(
             HierarchyContentSignature.Compute(SceneAnalysisTestHelper.Analyze([SceneSource])),

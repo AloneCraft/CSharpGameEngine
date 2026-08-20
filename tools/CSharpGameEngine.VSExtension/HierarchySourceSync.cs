@@ -55,14 +55,14 @@ internal static class HierarchySelectionPlanner {
             return Existing;
         }
 
-        List<NodePath> Ordered=OrderedPaths.ToList();
+        var Ordered=OrderedPaths.ToList();
 
         if(ShiftPressed){
-            NodePath Anchor=Existing.RangeAnchor is { } ExistingAnchor&&OrderedPaths.Contains(ExistingAnchor)
-                ?ExistingAnchor
-                :Clicked;
-            int First=Math.Min(Ordered.IndexOf(Anchor),Ordered.IndexOf(Clicked));
-            int Last=Math.Max(Ordered.IndexOf(Anchor),Ordered.IndexOf(Clicked));
+            var Anchor=Existing.RangeAnchor is { } ExistingAnchor&&OrderedPaths.Contains(ExistingAnchor)
+                           ?ExistingAnchor
+                           :Clicked;
+            var First=Math.Min(Ordered.IndexOf(Anchor),Ordered.IndexOf(Clicked));
+            var Last=Math.Max(Ordered.IndexOf(Anchor),Ordered.IndexOf(Clicked));
             return new HierarchyNodeSelection(OrderedPaths.Skip(First).Take(Last-First+1).ToArray(),Clicked,Anchor);
         }
 
@@ -70,7 +70,7 @@ internal static class HierarchySelectionPlanner {
             return new HierarchyNodeSelection([Clicked],Clicked,Clicked);
         }
 
-        List<NodePath> Updated=Existing.Paths.Where(Path=>OrderedPaths.Contains(Path)).ToList();
+        var Updated=Existing.Paths.Where(Path=>OrderedPaths.Contains(Path)).ToList();
         if(!Updated.Remove(Clicked)){
             Updated.Add(Clicked);
         }
@@ -107,22 +107,22 @@ internal static class SceneSourceMarkerPlanner {
             return [];
         }
 
-        List<TextSpan> Spans=Paths
-            .Select(Model.FindNode)
-            .Where(static Node=>Node is not null)
-            .Select(static Node=>Node!.Location.Span)
-            .Where(static Span=>Span.Length>0)
-            .OrderBy(static Span=>Span.Start)
-            .ThenByDescending(static Span=>Span.Length)
-            .ToList();
+        var Spans=Paths
+                 .Select(Model.FindNode)
+                 .Where(static Node=>Node is not null)
+                 .Select(static Node=>Node!.Location.Span)
+                 .Where(static Span=>Span.Length>0)
+                 .OrderBy(static Span=>Span.Start)
+                 .ThenByDescending(static Span=>Span.Length)
+                 .ToList();
         if(Spans.Count==0){
             return [];
         }
 
         List<SceneSourceMarkerRange> Result=[];
-        TextSpan Current=Spans[0];
-        for(int Index=1;Index<Spans.Count;Index++){
-            TextSpan Next=Spans[Index];
+        var Current=Spans[0];
+        for(var Index=1;Index<Spans.Count;Index++){
+            var Next=Spans[Index];
             if(Next.Start<=Current.End){
                 Current=TextSpan.FromBounds(Current.Start,Math.Max(Current.End,Next.End));
                 continue;
@@ -169,7 +169,7 @@ internal static class SceneSelectionPathResolver {
 
         List<NodePath>Paths=[];
         foreach(EditorNodeId Id in Current.NodeIds){
-            if(Projection.TryGetNode(Id,out SceneProjectionNode Node)){
+            if(Projection.TryGetNode(Id,out var Node)){
                 Paths.Add(Node.Path);
             }
         }

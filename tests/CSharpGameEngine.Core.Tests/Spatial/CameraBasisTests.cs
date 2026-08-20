@@ -14,7 +14,7 @@ public class CameraBasisTests {
 
     [Fact]
     public void Forward_IsTheViewDirection(){
-        RufVector LookDirection=new RufVector(1f,1f,1f).Normalize();
+        var LookDirection=new RufVector(1f,1f,1f).Normalize();
         CameraBasis Camera=new(LookDirection,RufVector.Up);
 
         Assert.Equal(LookDirection.R,Camera.Forward.R,precision:5);

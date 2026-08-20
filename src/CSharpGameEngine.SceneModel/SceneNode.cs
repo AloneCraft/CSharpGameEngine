@@ -63,7 +63,7 @@ internal sealed class SceneNode {
     internal string DisplayName=>this.Name is { Length:>0 } Value?Value:this.Path.ToDisplayString();
 
     internal SceneComponent?FindComponent(string TypeFullyQualifiedName){
-        foreach(SceneComponent Component in this.Components){
+        foreach(var Component in this.Components){
             if(string.Equals(Component.TypeFullyQualifiedName,TypeFullyQualifiedName,StringComparison.Ordinal)){
                 return Component;
             }

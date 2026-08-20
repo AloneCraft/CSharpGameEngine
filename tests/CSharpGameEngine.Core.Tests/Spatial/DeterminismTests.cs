@@ -8,7 +8,7 @@ namespace CSharpGameEngine.Spatial.Tests;
 public class DeterminismTests {
     [Fact]
     public void ToString_IsCultureInvariant(){
-        CultureInfo Original=CultureInfo.CurrentCulture;
+        var Original=CultureInfo.CurrentCulture;
 
         try {
             RufVector Vector=new(1.5f,2.5f,3.5f);
@@ -30,16 +30,16 @@ public class DeterminismTests {
 
     [Fact]
     public void ConventionConversion_IsCultureIndependent(){
-        CultureInfo Original=CultureInfo.CurrentCulture;
+        var Original=CultureInfo.CurrentCulture;
 
         try {
             RufVector Input=new(1.25f,-2.5f,3.75f);
 
             CultureInfo.CurrentCulture=CultureInfo.GetCultureInfo("de-DE");
-            XyzVector UnderGermanCulture=UnityCoordinateConvention.ToXyz(Input);
+            var UnderGermanCulture=UnityCoordinateConvention.ToXyz(Input);
 
             CultureInfo.CurrentCulture=CultureInfo.InvariantCulture;
-            XyzVector UnderInvariantCulture=UnityCoordinateConvention.ToXyz(Input);
+            var UnderInvariantCulture=UnityCoordinateConvention.ToXyz(Input);
 
             Assert.Equal(UnderInvariantCulture,UnderGermanCulture);
         } finally {

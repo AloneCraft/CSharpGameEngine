@@ -79,9 +79,9 @@ internal sealed class SceneTextBufferWriter {
             return true;
         }
 
-        ITextUndoHistory History=this.UndoHistoryRegistry.RegisterHistory(Buffer);
-        using(ITextUndoTransaction Transaction=History.CreateTransaction(UndoDescription)){
-            foreach(TextChange Change in Changes){
+        var History=this.UndoHistoryRegistry.RegisterHistory(Buffer);
+        using(var Transaction=History.CreateTransaction(UndoDescription)){
+            foreach(var Change in Changes){
                 Buffer.Replace(
                     new Microsoft.VisualStudio.Text.Span(Change.Span.Start,Change.Span.Length),
                     Change.NewText);
@@ -98,7 +98,7 @@ internal sealed class SceneTextBufferWriter {
     // 履歴を直接叩くだけの薄いラッパー。呼び出し元(SceneHwndHost)は成功時だけ表示の先読みパッチを
     // 行う。
     internal bool TryUndo(ITextBuffer Buffer){
-        ITextUndoHistory History=this.UndoHistoryRegistry.RegisterHistory(Buffer);
+        var History=this.UndoHistoryRegistry.RegisterHistory(Buffer);
         if(!History.CanUndo){
             return false;
         }
@@ -108,7 +108,7 @@ internal sealed class SceneTextBufferWriter {
     }
 
     internal bool TryRedo(ITextBuffer Buffer){
-        ITextUndoHistory History=this.UndoHistoryRegistry.RegisterHistory(Buffer);
+        var History=this.UndoHistoryRegistry.RegisterHistory(Buffer);
         if(!History.CanRedo){
             return false;
         }

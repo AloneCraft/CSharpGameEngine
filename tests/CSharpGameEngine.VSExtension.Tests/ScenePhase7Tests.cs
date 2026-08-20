@@ -48,12 +48,12 @@ public sealed class ScenePhase7Tests {
 
     [Fact]
     public void IncrementalUpdater_ReusesMeshesAndRecomputesTheWholeWorldChain(){
-        SceneModel Before=AnalyzeTransformScene(RootX:1f,ChildX:2f);
-        SceneModel After=AnalyzeTransformScene(RootX:5f,ChildX:3f);
-        IReadOnlyList<SceneRenderObject>Existing=SceneModelRenderObjectBuilder.Build(Before,static _=>null);
+        var Before=AnalyzeTransformScene(RootX:1f,ChildX:2f);
+        var After=AnalyzeTransformScene(RootX:5f,ChildX:3f);
+        var Existing=SceneModelRenderObjectBuilder.Build(Before,static _=>null);
 
         Assert.True(SceneRenderIncrementalUpdater.TryUpdateTransforms(
-            After,Existing,out IReadOnlyList<SceneRenderObject>Updated));
+            After,Existing,out var Updated));
 
         Assert.Equal(5f,Updated[0].World.Translation.X,3);
         Assert.Equal(8f,Updated[1].World.Translation.X,3);
@@ -66,9 +66,9 @@ public sealed class ScenePhase7Tests {
         FrameResourceTracker Tracker=new(FrameCount:2);
 
         Assert.Equal(0ul,Tracker.GetRequiredFenceValue(FrameIndex:0));
-        ulong First=Tracker.MarkSubmitted(FrameIndex:0);
+        var First=Tracker.MarkSubmitted(FrameIndex:0);
         Assert.Equal(0ul,Tracker.GetRequiredFenceValue(FrameIndex:1));
-        ulong Second=Tracker.MarkSubmitted(FrameIndex:1);
+        var Second=Tracker.MarkSubmitted(FrameIndex:1);
 
         Assert.Equal(First,Tracker.GetRequiredFenceValue(FrameIndex:0));
         Assert.Equal(Second,Tracker.GetRequiredFenceValue(FrameIndex:1));
@@ -81,7 +81,7 @@ public sealed class ScenePhase7Tests {
         Tracker.MarkSubmitted(0);
         Tracker.MarkSubmitted(1);
 
-        ulong IdleFence=Tracker.MarkGpuIdle();
+        var IdleFence=Tracker.MarkGpuIdle();
 
         Assert.Equal(IdleFence,Tracker.GetRequiredFenceValue(0));
         Assert.Equal(IdleFence,Tracker.GetRequiredFenceValue(1));
@@ -90,28 +90,28 @@ public sealed class ScenePhase7Tests {
     [Fact]
     public void ConflictMerger_AppliesTransformDragDeltaToTheLatestExternalValue(){
         SceneProjectionReconciler Reconciler=new();
-        SceneDocumentSnapshot Started=CreateTransformSnapshot(1,PositionX:1f,Previous:null,Reconciler);
-        SceneDocumentSnapshot Latest=CreateTransformSnapshot(2,PositionX:5f,Started,Reconciler);
-        EditorNodeId Cube=Assert.Single(Latest.Projection!.Nodes,static Node=>Node.Node.Name=="Cube").Id;
+        var Started=CreateTransformSnapshot(1,PositionX:1f,Previous:null,Reconciler);
+        var Latest=CreateTransformSnapshot(2,PositionX:5f,Started,Reconciler);
+        var Cube=Assert.Single(Latest.Projection!.Nodes,static Node=>Node.Node.Name=="Cube").Id;
         SceneTransformValue Original=new(new Vector3(1f,0f,0f),Quaternion.Identity,Vector3.One);
         SceneTransformValue Final=new(new Vector3(3f,0f,0f),Quaternion.Identity,Vector3.One);
         SceneEditCommitRequest Request=new(
             Key,Started.DocumentVersion,"Move Cube",
             [new SceneTransformChange(Cube,Original,Final)],SceneTransformMemberMask.Position);
 
-        SceneEditConflictMergeResult Result=SceneEditConflictMerger.Merge(Request,Latest);
+        var Result=SceneEditConflictMerger.Merge(Request,Latest);
 
         Assert.True(Result.Succeeded,Result.ErrorMessage);
-        SetTransformOperation Operation=Assert.IsType<SetTransformOperation>(Assert.Single(Result.Operations));
+        var Operation=Assert.IsType<SetTransformOperation>(Assert.Single(Result.Operations));
         Assert.Equal(7f,Operation.Transform.Position.X,3);
     }
 
     [Fact]
     public void ConflictMerger_AppliesPropertyDragDeltaToTheLatestExternalValue(){
         SceneProjectionReconciler Reconciler=new();
-        SceneDocumentSnapshot Started=CreatePropertySnapshot(1,Intensity:3f,Previous:null,Reconciler);
-        SceneDocumentSnapshot Latest=CreatePropertySnapshot(2,Intensity:10f,Started,Reconciler);
-        EditorNodeId Light=Assert.Single(Latest.Projection!.Nodes,static Node=>Node.Node.Name=="Light").Id;
+        var Started=CreatePropertySnapshot(1,Intensity:3f,Previous:null,Reconciler);
+        var Latest=CreatePropertySnapshot(2,Intensity:10f,Started,Reconciler);
+        var Light=Assert.Single(Latest.Projection!.Nodes,static Node=>Node.Node.Name=="Light").Id;
         SetComponentMemberOperation Edit=new(
             Key,Light,Started.DocumentVersion,"global::Sample.DirectionalLight","Intensity","4f",
             OriginalValueExpression:"3f");
@@ -119,10 +119,10 @@ public sealed class ScenePhase7Tests {
             Key,Started.DocumentVersion,"Edit Intensity",[],SceneTransformMemberMask.None,
             DirectOperations:[Edit]);
 
-        SceneEditConflictMergeResult Result=SceneEditConflictMerger.Merge(Request,Latest);
+        var Result=SceneEditConflictMerger.Merge(Request,Latest);
 
         Assert.True(Result.Succeeded,Result.ErrorMessage);
-        SetComponentMemberOperation Operation=Assert.IsType<SetComponentMemberOperation>(Assert.Single(Result.Operations));
+        var Operation=Assert.IsType<SetComponentMemberOperation>(Assert.Single(Result.Operations));
         Assert.Equal("11f",Operation.ValueExpression);
     }
 
@@ -144,33 +144,33 @@ public sealed class ScenePhase7Tests {
 
     private static SceneDocumentSnapshot CreateTransformSnapshot(
         long Version,float PositionX,SceneDocumentSnapshot?Previous,SceneProjectionReconciler Reconciler){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze([
-            TransformTypes,
-            $$"""
-            using CSharpGameEngine.Entities;
-            using CSharpGameEngine.Runtime.Windows;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Children=[new Node { Name="Cube",Components=[new Transform {
-                    PositionX={{PositionX}}f,RotationW=1f,ScaleX=1f,ScaleY=1f,ScaleZ=1f }] }] };
-            }
-            """,
-        ]);
+        var Model=SceneAnalysisTestHelper.Analyze([
+                                                      TransformTypes,
+                                                      $$"""
+                                                        using CSharpGameEngine.Entities;
+                                                        using CSharpGameEngine.Runtime.Windows;
+                                                        namespace Game;
+                                                        public partial class MainScene:IScene {
+                                                            public Node Root=>new() { Children=[new Node { Name="Cube",Components=[new Transform {
+                                                                PositionX={{PositionX}}f,RotationW=1f,ScaleX=1f,ScaleY=1f,ScaleZ=1f }] }] };
+                                                        }
+                                                        """,
+                                                  ]);
         return SceneDocumentSnapshot.Create(
             Key,"document-a",Version,Version,Model,HasBlockingErrors:false,Previous,Reconciler);
     }
 
     private static SceneDocumentSnapshot CreatePropertySnapshot(
         long Version,float Intensity,SceneDocumentSnapshot?Previous,SceneProjectionReconciler Reconciler){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze($$"""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Children=[new Node { Name="Light",Components=[
-                    new DirectionalLight { Intensity={{Intensity}}f }] }] };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze($$"""
+                                                    using CSharpGameEngine.Entities;
+                                                    using Sample;
+                                                    namespace Game;
+                                                    public partial class MainScene:IScene {
+                                                        public Node Root=>new() { Children=[new Node { Name="Light",Components=[
+                                                            new DirectionalLight { Intensity={{Intensity}}f }] }] };
+                                                    }
+                                                    """);
         return SceneDocumentSnapshot.Create(
             Key,"document-a",Version,Version,Model,HasBlockingErrors:false,Previous,Reconciler);
     }

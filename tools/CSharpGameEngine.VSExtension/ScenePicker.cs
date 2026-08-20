@@ -35,7 +35,7 @@ internal readonly struct ScreenRectangle:IEquatable<ScreenRectangle> {
         this.Left.Equals(Other.Left)&&this.Top.Equals(Other.Top)
         &&this.Right.Equals(Other.Right)&&this.Bottom.Equals(Other.Bottom);
 
-    public override bool Equals(object?Obj)=>Obj is ScreenRectangle Other&&Equals(Other);
+    public override bool Equals(object?Obj)=>Obj is ScreenRectangle Other&& this.Equals(Other);
 
     public override int GetHashCode()=>HashCode.Combine(this.Left,this.Top,this.Right,this.Bottom);
 
@@ -93,13 +93,13 @@ internal static class ScenePicker {
     internal static bool TryPick(
         IReadOnlyList<SceneRenderObject>RenderObjects,Vector3 RayOrigin,Vector3 RayDirection,
         out NodePath HitNodePath,out float HitDistance){
-        float BestDistance=float.PositiveInfinity;
+        var BestDistance=float.PositiveInfinity;
         NodePath BestPath=default;
-        bool Found=false;
+        var Found=false;
 
-        foreach(SceneRenderObject Object in RenderObjects){
+        foreach(var Object in RenderObjects){
             if(!Object.IsPickable){ continue; }
-            if(TryIntersectMesh(Object.Mesh,Object.World,RayOrigin,RayDirection,out float Distance)&&Distance<BestDistance){
+            if(TryIntersectMesh(Object.Mesh,Object.World,RayOrigin,RayDirection,out var Distance)&&Distance<BestDistance){
                 BestDistance=Distance;
                 BestPath=Object.NodeId;
                 Found=true;
@@ -121,26 +121,26 @@ internal static class ScenePicker {
         Hit=default;
         if(ViewportWidth<=0||ViewportHeight<=0){ return false; }
 
-        bool Found=false;
-        float BestScreenDistanceSquared=RadiusPixels*RadiusPixels;
-        float BestDepth=float.PositiveInfinity;
-        Matrix4x4 ViewProjection=View*Projection;
-        foreach(SceneRenderObject Object in RenderObjects){
+        var Found=false;
+        var BestScreenDistanceSquared=RadiusPixels*RadiusPixels;
+        var BestDepth=float.PositiveInfinity;
+        var ViewProjection=View*Projection;
+        foreach(var Object in RenderObjects){
             if(IsExcluded(Object.NodeId,ExcludedRoots)||!Object.IsPickable){ continue; }
-            Matrix4x4 WorldViewProjection=Object.World*ViewProjection;
-            foreach(Vector3 LocalPosition in Object.Mesh.Positions){
-                Vector4 Clip=Vector4.Transform(new Vector4(LocalPosition,1f),WorldViewProjection);
+            var WorldViewProjection=Object.World*ViewProjection;
+            foreach(var LocalPosition in Object.Mesh.Positions){
+                var Clip=Vector4.Transform(new Vector4(LocalPosition,1f),WorldViewProjection);
                 if(Clip.W<=Epsilon||Clip.Z<0f||Clip.Z>Clip.W
                     ||!IsFinite(Clip.X)||!IsFinite(Clip.Y)||!IsFinite(Clip.Z)||!IsFinite(Clip.W)){
                     continue;
                 }
 
-                float ScreenX=((Clip.X/Clip.W)+1f)*0.5f*ViewportWidth;
-                float ScreenY=(1f-(Clip.Y/Clip.W))*0.5f*ViewportHeight;
-                float DeltaX=ScreenX-CursorX;
-                float DeltaY=ScreenY-CursorY;
-                float ScreenDistanceSquared=(DeltaX*DeltaX)+(DeltaY*DeltaY);
-                float Depth=Clip.Z/Clip.W;
+                var ScreenX=((Clip.X/Clip.W)+1f)*0.5f*ViewportWidth;
+                var ScreenY=(1f-(Clip.Y/Clip.W))*0.5f*ViewportHeight;
+                var DeltaX=ScreenX-CursorX;
+                var DeltaY=ScreenY-CursorY;
+                var ScreenDistanceSquared=(DeltaX*DeltaX)+(DeltaY*DeltaY);
+                var Depth=Clip.Z/Clip.W;
                 if(ScreenDistanceSquared>BestScreenDistanceSquared
                     ||(Found&&ScreenDistanceSquared==BestScreenDistanceSquared&&Depth>=BestDepth)){
                     continue;
@@ -163,18 +163,18 @@ internal static class ScenePicker {
         Hit=default;
         if(RayDirection.LengthSquared()<=1e-10f){ return false; }
         RayDirection=Vector3.Normalize(RayDirection);
-        bool Found=false;
-        float BestDistance=float.PositiveInfinity;
-        foreach(SceneRenderObject Object in RenderObjects){
+        var Found=false;
+        var BestDistance=float.PositiveInfinity;
+        foreach(var Object in RenderObjects){
             if(IsExcluded(Object.NodeId,ExcludedRoots)||!Object.IsPickable){ continue; }
-            SimpleMesh Mesh=Object.Mesh;
-            for(int I=0;I+2<Mesh.Indices.Length;I+=3){
-                Vector3 A=Vector3.Transform(Mesh.Positions[(int)Mesh.Indices[I]],Object.World);
-                Vector3 B=Vector3.Transform(Mesh.Positions[(int)Mesh.Indices[I+1]],Object.World);
-                Vector3 C=Vector3.Transform(Mesh.Positions[(int)Mesh.Indices[I+2]],Object.World);
-                Vector3 Cross=Vector3.Cross(B-A,C-A);
+            var Mesh=Object.Mesh;
+            for(var I=0;I+2<Mesh.Indices.Length;I+=3){
+                var A=Vector3.Transform(Mesh.Positions[(int)Mesh.Indices[I]],Object.World);
+                var B=Vector3.Transform(Mesh.Positions[(int)Mesh.Indices[I+1]],Object.World);
+                var C=Vector3.Transform(Mesh.Positions[(int)Mesh.Indices[I+2]],Object.World);
+                var Cross=Vector3.Cross(B-A,C-A);
                 if(Cross.LengthSquared()<=1e-10f
-                    ||!TryIntersectTriangle(RayOrigin,RayDirection,A,B,C,out float Distance)
+                    ||!TryIntersectTriangle(RayOrigin,RayDirection,A,B,C,out var Distance)
                     ||Distance>=BestDistance){
                     continue;
                 }
@@ -201,11 +201,11 @@ internal static class ScenePicker {
 
         List<NodePath>Hits=[];
         HashSet<NodePath>Seen=[];
-        Matrix4x4 ViewProjection=View*Projection;
-        foreach(SceneRenderObject Object in RenderObjects){
+        var ViewProjection=View*Projection;
+        foreach(var Object in RenderObjects){
             if(!Object.IsPickable||Seen.Contains(Object.NodeId)
                 ||!TryProjectBounds(Object,ViewProjection,ViewportWidth,ViewportHeight,
-                    out float Left,out float Top,out float Right,out float Bottom)
+                    out var Left,out var Top,out var Right,out var Bottom)
                 ||!SelectionRectangle.Intersects(Left,Top,Right,Bottom)){
                 continue;
             }
@@ -225,20 +225,20 @@ internal static class ScenePicker {
         Top=float.PositiveInfinity;
         Right=float.NegativeInfinity;
         Bottom=float.NegativeInfinity;
-        bool ProjectedAny=false;
-        bool DepthVisible=false;
-        Matrix4x4 WorldViewProjection=Object.World*ViewProjection;
+        var ProjectedAny=false;
+        var DepthVisible=false;
+        var WorldViewProjection=Object.World*ViewProjection;
 
-        foreach(Vector3 Position in Object.Mesh.Positions){
-            Vector4 Clip=Vector4.Transform(new Vector4(Position,1f),WorldViewProjection);
+        foreach(var Position in Object.Mesh.Positions){
+            var Clip=Vector4.Transform(new Vector4(Position,1f),WorldViewProjection);
             if(Clip.W<=Epsilon||!IsFinite(Clip.X)||!IsFinite(Clip.Y)||!IsFinite(Clip.Z)||!IsFinite(Clip.W)){
                 continue;
             }
 
-            float NdcX=Clip.X/Clip.W;
-            float NdcY=Clip.Y/Clip.W;
-            float ScreenX=(NdcX+1f)*0.5f*ViewportWidth;
-            float ScreenY=(1f-NdcY)*0.5f*ViewportHeight;
+            var NdcX=Clip.X/Clip.W;
+            var NdcY=Clip.Y/Clip.W;
+            var ScreenX=(NdcX+1f)*0.5f*ViewportWidth;
+            var ScreenY=(1f-NdcY)*0.5f*ViewportHeight;
             Left=Math.Min(Left,ScreenX);
             Top=Math.Min(Top,ScreenY);
             Right=Math.Max(Right,ScreenX);
@@ -253,7 +253,7 @@ internal static class ScenePicker {
     private static bool IsFinite(float Value)=>!float.IsNaN(Value)&&!float.IsInfinity(Value);
 
     private static bool IsExcluded(NodePath Path,IReadOnlyCollection<NodePath>ExcludedRoots){
-        foreach(NodePath Root in ExcludedRoots){
+        foreach(var Root in ExcludedRoots){
             if(Path.Equals(Root)||Path.IsDescendantOf(Root)){ return true; }
         }
         return false;
@@ -262,14 +262,14 @@ internal static class ScenePicker {
     private static bool TryIntersectMesh(
         SimpleMesh Mesh,Matrix4x4 World,Vector3 Origin,Vector3 Direction,out float Distance){
         Distance=float.PositiveInfinity;
-        bool Found=false;
+        var Found=false;
 
-        for(int I=0;I+2<Mesh.Indices.Length;I+=3){
-            Vector3 A=Vector3.Transform(Mesh.Positions[(int)Mesh.Indices[I]],World);
-            Vector3 B=Vector3.Transform(Mesh.Positions[(int)Mesh.Indices[I+1]],World);
-            Vector3 C=Vector3.Transform(Mesh.Positions[(int)Mesh.Indices[I+2]],World);
+        for(var I=0;I+2<Mesh.Indices.Length;I+=3){
+            var A=Vector3.Transform(Mesh.Positions[(int)Mesh.Indices[I]],World);
+            var B=Vector3.Transform(Mesh.Positions[(int)Mesh.Indices[I+1]],World);
+            var C=Vector3.Transform(Mesh.Positions[(int)Mesh.Indices[I+2]],World);
 
-            if(TryIntersectTriangle(Origin,Direction,A,B,C,out float T)&&T<Distance){
+            if(TryIntersectTriangle(Origin,Direction,A,B,C,out var T)&&T<Distance){
                 Distance=T;
                 Found=true;
             }
@@ -284,28 +284,28 @@ internal static class ScenePicker {
         const float Epsilon=1e-6f;
         T=0f;
 
-        Vector3 EdgeAB=B-A;
-        Vector3 EdgeAC=C-A;
-        Vector3 PVec=Vector3.Cross(Direction,EdgeAC);
-        float Det=Vector3.Dot(EdgeAB,PVec);
+        var EdgeAB=B-A;
+        var EdgeAC=C-A;
+        var PVec=Vector3.Cross(Direction,EdgeAC);
+        var Det=Vector3.Dot(EdgeAB,PVec);
         if(Math.Abs(Det)<Epsilon){
             return false; // レイが三角形平面と平行。
         }
 
-        float InvDet=1f/Det;
-        Vector3 TVec=Origin-A;
-        float U=Vector3.Dot(TVec,PVec)*InvDet;
+        var InvDet=1f/Det;
+        var TVec=Origin-A;
+        var U=Vector3.Dot(TVec,PVec)*InvDet;
         if(U<0f||U>1f){
             return false;
         }
 
-        Vector3 QVec=Vector3.Cross(TVec,EdgeAB);
-        float V=Vector3.Dot(Direction,QVec)*InvDet;
+        var QVec=Vector3.Cross(TVec,EdgeAB);
+        var V=Vector3.Dot(Direction,QVec)*InvDet;
         if(V<0f||U+V>1f){
             return false;
         }
 
-        float CandidateT=Vector3.Dot(EdgeAC,QVec)*InvDet;
+        var CandidateT=Vector3.Dot(EdgeAC,QVec)*InvDet;
         if(CandidateT<Epsilon){
             return false; // 三角形は視点の後方。
         }

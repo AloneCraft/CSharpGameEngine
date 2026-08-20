@@ -13,8 +13,8 @@ public sealed class SceneComponentIconAttributeTests {
 
     [Fact]
     public void Usage_IsRestrictedToOneStructAttribute(){
-        AttributeUsageAttribute Usage=Assert.IsType<AttributeUsageAttribute>(
-            System.Attribute.GetCustomAttribute(typeof(SceneComponentIconAttribute),typeof(AttributeUsageAttribute)));
+        var Usage=Assert.IsType<AttributeUsageAttribute>(
+                                                         System.Attribute.GetCustomAttribute(typeof(SceneComponentIconAttribute),typeof(AttributeUsageAttribute)));
 
         Assert.Equal(AttributeTargets.Struct,Usage.ValidOn);
         Assert.False(Usage.AllowMultiple);

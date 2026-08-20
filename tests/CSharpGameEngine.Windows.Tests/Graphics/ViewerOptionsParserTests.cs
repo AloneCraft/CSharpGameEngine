@@ -3,7 +3,7 @@ namespace CSharpGameEngine.Graphics.D3D12.Tests;
 public class ViewerOptionsParserTests {
     [Fact]
     public void Parse_ModelOnly_UsesDefaults(){
-        ViewerOptionsParseResult Result=ViewerOptionsParser.Parse(["--model","Samples/Box.glb"]);
+        var Result=ViewerOptionsParser.Parse(["--model","Samples/Box.glb"]);
 
         Assert.True(Result.Success);
         Assert.NotNull(Result.Options);
@@ -20,11 +20,11 @@ public class ViewerOptionsParserTests {
 
     [Fact]
     public void Parse_FullCombination_ParsesAllFlags(){
-        ViewerOptionsParseResult Result=ViewerOptionsParser.Parse(
-            ["--model","Samples/Box.glb","--hidden","--frames","3","--warp","--debug-layer","--gpu-validation","--verify"]);
+        var Result=ViewerOptionsParser.Parse(
+                                             ["--model","Samples/Box.glb","--hidden","--frames","3","--warp","--debug-layer","--gpu-validation","--verify"]);
 
         Assert.True(Result.Success);
-        ViewerRunOptions Options=Result.Options!;
+        var Options=Result.Options!;
         Assert.Equal("Samples/Box.glb",Options.ModelPath);
         Assert.Equal(3,Options.Frames);
         Assert.True(Options.Hidden);
@@ -36,7 +36,7 @@ public class ViewerOptionsParserTests {
 
     [Fact]
     public void Parse_MissingModel_Fails(){
-        ViewerOptionsParseResult Result=ViewerOptionsParser.Parse(["--frames","3"]);
+        var Result=ViewerOptionsParser.Parse(["--frames","3"]);
 
         Assert.False(Result.Success);
         Assert.Null(Result.Options);
@@ -45,7 +45,7 @@ public class ViewerOptionsParserTests {
 
     [Fact]
     public void Parse_ModelMissingValue_Fails(){
-        ViewerOptionsParseResult Result=ViewerOptionsParser.Parse(["--model"]);
+        var Result=ViewerOptionsParser.Parse(["--model"]);
 
         Assert.False(Result.Success);
     }
@@ -55,7 +55,7 @@ public class ViewerOptionsParserTests {
     [InlineData("-1")]
     [InlineData("notanumber")]
     public void Parse_InvalidFrames_Fails(string Value){
-        ViewerOptionsParseResult Result=ViewerOptionsParser.Parse(["--model","Samples/Box.glb","--frames",Value]);
+        var Result=ViewerOptionsParser.Parse(["--model","Samples/Box.glb","--frames",Value]);
 
         Assert.False(Result.Success);
         Assert.Null(Result.Options);
@@ -67,7 +67,7 @@ public class ViewerOptionsParserTests {
     [InlineData("--height","0")]
     [InlineData("--height","-1")]
     public void Parse_InvalidWidthOrHeight_Rejected(string Flag,string Value){
-        ViewerOptionsParseResult Result=ViewerOptionsParser.Parse(["--model","Samples/Box.glb",Flag,Value]);
+        var Result=ViewerOptionsParser.Parse(["--model","Samples/Box.glb",Flag,Value]);
 
         Assert.False(Result.Success);
         Assert.Null(Result.Options);
@@ -75,7 +75,7 @@ public class ViewerOptionsParserTests {
 
     [Fact]
     public void Parse_UnknownOption_Fails(){
-        ViewerOptionsParseResult Result=ViewerOptionsParser.Parse(["--model","Samples/Box.glb","--not-a-real-option"]);
+        var Result=ViewerOptionsParser.Parse(["--model","Samples/Box.glb","--not-a-real-option"]);
 
         Assert.False(Result.Success);
         Assert.Contains("--not-a-real-option",Result.Error);

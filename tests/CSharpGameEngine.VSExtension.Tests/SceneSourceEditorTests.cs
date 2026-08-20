@@ -36,14 +36,14 @@ public sealed class SceneSourceEditorTests {
 
     [Fact]
     public void SetComponentMember_ReplacesOnlyTheValueExpressionAndPreservesTrivia(){
-        (SceneProjection Projection,EditorNodeId Cube)=CreateProjection();
-        SceneSourceEditResult Result=SceneSourceEditor.Apply(
-            CSharpSyntaxTree.ParseText(Source).GetRoot(),
-            Projection,
-            new SetComponentMemberOperation(Key,Cube,DocumentVersion:1,"global::Sample.DirectionalLight","Intensity","4f"));
+        (var Projection,var Cube)=CreateProjection();
+        var Result=SceneSourceEditor.Apply(
+                                           CSharpSyntaxTree.ParseText(Source).GetRoot(),
+                                           Projection,
+                                           new SetComponentMemberOperation(Key,Cube,DocumentVersion:1,"global::Sample.DirectionalLight","Intensity","4f"));
 
         Assert.True(Result.Succeeded,Result.ErrorMessage);
-        string Changed=Result.Root!.ToFullString();
+        var Changed=Result.Root!.ToFullString();
         Assert.Contains("Intensity=4f",Changed);
         Assert.Contains("// 手書きの大事なコメント",Changed);
         Assert.Contains("Name=\"Cube\"",Changed);
@@ -51,14 +51,14 @@ public sealed class SceneSourceEditorTests {
 
     [Fact]
     public void RenameNode_ChangesOnlyNameLiteral(){
-        (SceneProjection Projection,EditorNodeId Cube)=CreateProjection();
-        SceneSourceEditResult Result=SceneSourceEditor.Apply(
-            CSharpSyntaxTree.ParseText(Source).GetRoot(),
-            Projection,
-            new RenameNodeOperation(Key,Cube,DocumentVersion:1,"Renamed"));
+        (var Projection,var Cube)=CreateProjection();
+        var Result=SceneSourceEditor.Apply(
+                                           CSharpSyntaxTree.ParseText(Source).GetRoot(),
+                                           Projection,
+                                           new RenameNodeOperation(Key,Cube,DocumentVersion:1,"Renamed"));
 
         Assert.True(Result.Succeeded,Result.ErrorMessage);
-        string Changed=Result.Root!.ToFullString();
+        var Changed=Result.Root!.ToFullString();
         Assert.Contains("Name=\"Renamed\"",Changed);
         Assert.Contains("Intensity=3f",Changed);
         Assert.Contains("// 手書きの大事なコメント",Changed);
@@ -66,11 +66,11 @@ public sealed class SceneSourceEditorTests {
 
     [Fact]
     public void InvalidExpression_DoesNotReturnAMutatedRoot(){
-        (SceneProjection Projection,EditorNodeId Cube)=CreateProjection();
-        SceneSourceEditResult Result=SceneSourceEditor.Apply(
-            CSharpSyntaxTree.ParseText(Source).GetRoot(),
-            Projection,
-            new SetComponentMemberOperation(Key,Cube,DocumentVersion:1,"global::Sample.DirectionalLight","Intensity","not valid +"));
+        (var Projection,var Cube)=CreateProjection();
+        var Result=SceneSourceEditor.Apply(
+                                           CSharpSyntaxTree.ParseText(Source).GetRoot(),
+                                           Projection,
+                                           new SetComponentMemberOperation(Key,Cube,DocumentVersion:1,"global::Sample.DirectionalLight","Intensity","not valid +"));
 
         Assert.False(Result.Succeeded);
         Assert.Null(Result.Root);
@@ -79,19 +79,19 @@ public sealed class SceneSourceEditorTests {
     [Fact]
     public void ApplyLatest_RebasesOneStaleOperationUsingStableNodeId(){
         SceneProjectionReconciler Reconciler=new();
-        SceneModel FirstModel=SceneAnalysisTestHelper.Analyze(Source);
-        SceneDocumentSnapshot First=SceneDocumentSnapshot.Create(
-            Key,"document-a",DocumentVersion:1,AnalysisGeneration:1,FirstModel,HasBlockingErrors:false,Previous:null,Reconciler);
-        string LatestSource=Source.Replace("Intensity=3f","Intensity=4f");
-        SceneModel LatestModel=SceneAnalysisTestHelper.Analyze(LatestSource);
-        SceneDocumentSnapshot Latest=SceneDocumentSnapshot.Create(
-            Key,"document-a",DocumentVersion:2,AnalysisGeneration:2,LatestModel,HasBlockingErrors:false,Previous:First,Reconciler);
-        EditorNodeId Cube=Assert.Single(Latest.Projection!.Nodes,static Node=>Node.Node.Name=="Cube").Id;
+        var FirstModel=SceneAnalysisTestHelper.Analyze(Source);
+        var First=SceneDocumentSnapshot.Create(
+                                               Key,"document-a",DocumentVersion:1,AnalysisGeneration:1,FirstModel,HasBlockingErrors:false,Previous:null,Reconciler);
+        var LatestSource=Source.Replace("Intensity=3f","Intensity=4f");
+        var LatestModel=SceneAnalysisTestHelper.Analyze(LatestSource);
+        var Latest=SceneDocumentSnapshot.Create(
+                                                Key,"document-a",DocumentVersion:2,AnalysisGeneration:2,LatestModel,HasBlockingErrors:false,Previous:First,Reconciler);
+        var Cube=Assert.Single(Latest.Projection!.Nodes,static Node=>Node.Node.Name=="Cube").Id;
 
-        SceneSourceEditResult Result=SceneSourceEditor.ApplyLatest(
-            CSharpSyntaxTree.ParseText(LatestSource).GetRoot(),
-            Latest,
-            new SetComponentMemberOperation(Key,Cube,DocumentVersion:1,"global::Sample.DirectionalLight","Intensity","5f"));
+        var Result=SceneSourceEditor.ApplyLatest(
+                                                 CSharpSyntaxTree.ParseText(LatestSource).GetRoot(),
+                                                 Latest,
+                                                 new SetComponentMemberOperation(Key,Cube,DocumentVersion:1,"global::Sample.DirectionalLight","Intensity","5f"));
 
         Assert.True(Result.Succeeded,Result.ErrorMessage);
         Assert.True(Result.WasRebased);
@@ -100,11 +100,11 @@ public sealed class SceneSourceEditorTests {
 
     [Fact]
     public void OtherSceneKey_IsRejectedBeforeAnySourceChange(){
-        (SceneProjection Projection,EditorNodeId Cube)=CreateProjection();
-        SceneSourceEditResult Result=SceneSourceEditor.Apply(
-            CSharpSyntaxTree.ParseText(Source).GetRoot(),
-            Projection,
-            new RenameNodeOperation(new SceneKey("project-b","global::Game.MainScene"),Cube,DocumentVersion:1,"Renamed"));
+        (var Projection,var Cube)=CreateProjection();
+        var Result=SceneSourceEditor.Apply(
+                                           CSharpSyntaxTree.ParseText(Source).GetRoot(),
+                                           Projection,
+                                           new RenameNodeOperation(new SceneKey("project-b","global::Game.MainScene"),Cube,DocumentVersion:1,"Renamed"));
 
         Assert.False(Result.Succeeded);
         Assert.Null(Result.Root);
@@ -123,17 +123,17 @@ public sealed class SceneSourceEditorTests {
                 }] };
             }
             """;
-        SceneModel Model=SceneAnalysisTestHelper.Analyze([TransformTypes,TransformSource]);
-        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
-        EditorNodeId Cube=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Cube").Id;
+        var Model=SceneAnalysisTestHelper.Analyze([TransformTypes,TransformSource]);
+        var Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        var Cube=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Cube").Id;
         SceneTransformValue Value=new(new System.Numerics.Vector3(3f,2f,0f),System.Numerics.Quaternion.Identity,System.Numerics.Vector3.One);
 
-        SceneSourceEditResult Result=SceneSourceEditor.Apply(
-            CSharpSyntaxTree.ParseText(TransformSource).GetRoot(),Projection,
-            new SetTransformOperation(Key,Cube,DocumentVersion:1,Value));
+        var Result=SceneSourceEditor.Apply(
+                                           CSharpSyntaxTree.ParseText(TransformSource).GetRoot(),Projection,
+                                           new SetTransformOperation(Key,Cube,DocumentVersion:1,Value));
 
         Assert.True(Result.Succeeded,Result.ErrorMessage);
-        string Changed=Result.Root!.ToFullString();
+        var Changed=Result.Root!.ToFullString();
         Assert.Contains("PositionX=3f",Changed);
         Assert.Contains("PositionY=2f",Changed);
         Assert.Contains("// keep",Changed);
@@ -151,14 +151,14 @@ public sealed class SceneSourceEditorTests {
                 }] };
             }
             """;
-        SceneModel Model=SceneAnalysisTestHelper.Analyze([TransformTypes,TransformSource]);
-        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
-        EditorNodeId Cube=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Cube").Id;
+        var Model=SceneAnalysisTestHelper.Analyze([TransformTypes,TransformSource]);
+        var Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        var Cube=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Cube").Id;
         SceneTransformValue Value=new(new System.Numerics.Vector3(1f,4f,0f),System.Numerics.Quaternion.Identity,System.Numerics.Vector3.One);
 
-        SceneSourceEditResult Result=SceneSourceEditor.Apply(
-            CSharpSyntaxTree.ParseText(TransformSource).GetRoot(),Projection,
-            new SetTransformOperation(Key,Cube,DocumentVersion:1,Value));
+        var Result=SceneSourceEditor.Apply(
+                                           CSharpSyntaxTree.ParseText(TransformSource).GetRoot(),Projection,
+                                           new SetTransformOperation(Key,Cube,DocumentVersion:1,Value));
 
         Assert.True(Result.Succeeded,Result.ErrorMessage);
         Assert.Contains("PositionY=4f",Result.Root!.ToFullString());
@@ -178,21 +178,21 @@ public sealed class SceneSourceEditorTests {
                 }] };
             }
             """;
-        SceneModel Model=SceneAnalysisTestHelper.Analyze([TransformTypes,TransformSource]);
-        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
-        EditorNodeId Cube=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Cube").Id;
+        var Model=SceneAnalysisTestHelper.Analyze([TransformTypes,TransformSource]);
+        var Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        var Cube=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Cube").Id;
         SceneTransformValue Value=new(
             new System.Numerics.Vector3(4f,0f,0f),
             System.Numerics.Quaternion.Identity,
             System.Numerics.Vector3.One);
 
-        SceneSourceEditResult Result=SceneSourceEditor.Apply(
-            CSharpSyntaxTree.ParseText(TransformSource).GetRoot(),Projection,
-            new SetTransformOperation(
-                Key,Cube,DocumentVersion:1,Value,Members:SceneTransformMemberMask.Position));
+        var Result=SceneSourceEditor.Apply(
+                                           CSharpSyntaxTree.ParseText(TransformSource).GetRoot(),Projection,
+                                           new SetTransformOperation(
+                                                                     Key,Cube,DocumentVersion:1,Value,Members:SceneTransformMemberMask.Position));
 
         Assert.True(Result.Succeeded,Result.ErrorMessage);
-        string Changed=Result.Root!.ToFullString();
+        var Changed=Result.Root!.ToFullString();
         Assert.Contains("PositionX=4f",Changed);
         Assert.Contains("RotationW=2f",Changed);
         Assert.Contains("ScaleX=3f",Changed);
@@ -212,21 +212,21 @@ public sealed class SceneSourceEditorTests {
                 }] };
             }
             """;
-        SceneModel Model=SceneAnalysisTestHelper.Analyze([TransformTypes,TransformSource]);
-        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
-        EditorNodeId Cube=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Cube").Id;
+        var Model=SceneAnalysisTestHelper.Analyze([TransformTypes,TransformSource]);
+        var Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        var Cube=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Cube").Id;
         SceneTransformValue Value=new(
             System.Numerics.Vector3.Zero,
             System.Numerics.Quaternion.CreateFromAxisAngle(System.Numerics.Vector3.UnitZ,(float)(System.Math.PI/2d)),
             System.Numerics.Vector3.One);
 
-        SceneSourceEditResult Result=SceneSourceEditor.Apply(
-            CSharpSyntaxTree.ParseText(TransformSource).GetRoot(),Projection,
-            new SetTransformOperation(
-                Key,Cube,DocumentVersion:1,Value,Members:SceneTransformMemberMask.Rotation));
+        var Result=SceneSourceEditor.Apply(
+                                           CSharpSyntaxTree.ParseText(TransformSource).GetRoot(),Projection,
+                                           new SetTransformOperation(
+                                                                     Key,Cube,DocumentVersion:1,Value,Members:SceneTransformMemberMask.Rotation));
 
         Assert.True(Result.Succeeded,Result.ErrorMessage);
-        string Changed=Result.Root!.ToFullString();
+        var Changed=Result.Root!.ToFullString();
         Assert.Contains("RotationZ=",Changed);
         Assert.Contains("ScaleX=3f",Changed);
         Assert.DoesNotContain("ScaleX=1f",Changed);
@@ -244,19 +244,19 @@ public sealed class SceneSourceEditorTests {
                 }] };
             }
             """;
-        SceneModel Model=SceneAnalysisTestHelper.Analyze([TransformTypes,TransformSource]);
-        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
-        EditorNodeId Cube=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Cube").Id;
+        var Model=SceneAnalysisTestHelper.Analyze([TransformTypes,TransformSource]);
+        var Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        var Cube=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Cube").Id;
         SceneTransformValue Value=new(
             System.Numerics.Vector3.Zero,System.Numerics.Quaternion.Identity,new System.Numerics.Vector3(2f,3f,4f));
 
-        SceneSourceEditResult Result=SceneSourceEditor.Apply(
-            CSharpSyntaxTree.ParseText(TransformSource).GetRoot(),Projection,
-            new SetTransformOperation(
-                Key,Cube,DocumentVersion:1,Value,Members:SceneTransformMemberMask.Scale));
+        var Result=SceneSourceEditor.Apply(
+                                           CSharpSyntaxTree.ParseText(TransformSource).GetRoot(),Projection,
+                                           new SetTransformOperation(
+                                                                     Key,Cube,DocumentVersion:1,Value,Members:SceneTransformMemberMask.Scale));
 
         Assert.True(Result.Succeeded,Result.ErrorMessage);
-        string Changed=Result.Root!.ToFullString();
+        var Changed=Result.Root!.ToFullString();
         Assert.Contains("ScaleX=2f",Changed);
         Assert.Contains("ScaleY=3f",Changed);
         Assert.Contains("ScaleZ=4f",Changed);
@@ -276,18 +276,18 @@ public sealed class SceneSourceEditorTests {
                 new Node { Name="Cube (1)",Components=[new Transform()] },
             ]}; }
             """;
-        SceneModel Model=SceneAnalysisTestHelper.Analyze([TransformTypes,DuplicateSource]);
-        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
-        EditorNodeId Cube=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Cube").Id;
+        var Model=SceneAnalysisTestHelper.Analyze([TransformTypes,DuplicateSource]);
+        var Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        var Cube=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Cube").Id;
         SceneTransformValue Transform=new(new System.Numerics.Vector3(5f,0f,0f),
             System.Numerics.Quaternion.Identity,System.Numerics.Vector3.One);
         DuplicateNodeOperation Operation=new(Key,Cube,1,Transform,SceneTransformMemberMask.Position);
 
-        SceneSourceEditResult Result=SceneSourceEditor.Apply(
-            CSharpSyntaxTree.ParseText(DuplicateSource).GetRoot(),Projection,Operation);
+        var Result=SceneSourceEditor.Apply(
+                                           CSharpSyntaxTree.ParseText(DuplicateSource).GetRoot(),Projection,Operation);
 
         Assert.True(Result.Succeeded,Result.ErrorMessage);
-        string Changed=Result.Root!.ToFullString();
+        var Changed=Result.Root!.ToFullString();
         Assert.Equal(2,System.Text.RegularExpressions.Regex.Matches(Changed,"duplicate-comment").Count);
         Assert.Contains("Cube (2)",Changed);
         Assert.Contains("PositionX=1f",Changed);
@@ -304,13 +304,13 @@ public sealed class SceneSourceEditorTests {
                 public Node Root=>new() { Name="Root",Components=[new Transform()] };
             }
             """;
-        SceneModel Model=SceneAnalysisTestHelper.Analyze([TransformTypes,RootSource]);
-        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        var Model=SceneAnalysisTestHelper.Analyze([TransformTypes,RootSource]);
+        var Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
         DuplicateNodeOperation Operation=new(
             Key,Projection.Root!.Id,1,SceneTransformValue.Identity,SceneTransformMemberMask.Position);
 
-        SceneSourceEditResult Result=SceneSourceEditor.Apply(
-            CSharpSyntaxTree.ParseText(RootSource).GetRoot(),Projection,Operation);
+        var Result=SceneSourceEditor.Apply(
+                                           CSharpSyntaxTree.ParseText(RootSource).GetRoot(),Projection,Operation);
 
         Assert.False(Result.Succeeded);
         Assert.Null(Result.Root);
@@ -328,37 +328,37 @@ public sealed class SceneSourceEditorTests {
                 new Node { Name="B",Components=[new Transform()] },
             ]}; }
             """;
-        SceneModel Model=SceneAnalysisTestHelper.Analyze([TransformTypes,BatchSource]);
-        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
-        EditorNodeId A=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="A").Id;
-        EditorNodeId B=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="B").Id;
+        var Model=SceneAnalysisTestHelper.Analyze([TransformTypes,BatchSource]);
+        var Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        var A=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="A").Id;
+        var B=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="B").Id;
 
-        SceneSourceEditResult Result=SceneSourceEditor.ApplyBatch(
-            CSharpSyntaxTree.ParseText(BatchSource).GetRoot(),Projection,
-            [
-                new DuplicateNodeOperation(
-                    Key,A,1,SceneTransformValue.Identity,SceneTransformMemberMask.Position),
-                new DuplicateNodeOperation(
-                    Key,B,1,SceneTransformValue.Identity,SceneTransformMemberMask.Position),
-            ]);
+        var Result=SceneSourceEditor.ApplyBatch(
+                                                CSharpSyntaxTree.ParseText(BatchSource).GetRoot(),Projection,
+                                                [
+                                                    new DuplicateNodeOperation(
+                                                                               Key,A,1,SceneTransformValue.Identity,SceneTransformMemberMask.Position),
+                                                    new DuplicateNodeOperation(
+                                                                               Key,B,1,SceneTransformValue.Identity,SceneTransformMemberMask.Position),
+                                                ]);
 
         Assert.True(Result.Succeeded,Result.ErrorMessage);
-        string Changed=Result.Root!.ToFullString();
-        int AClone=Changed.IndexOf("A (2)",System.StringComparison.Ordinal);
-        int BClone=Changed.IndexOf("B (1)",System.StringComparison.Ordinal);
+        var Changed=Result.Root!.ToFullString();
+        var AClone=Changed.IndexOf("A (2)",System.StringComparison.Ordinal);
+        var BClone=Changed.IndexOf("B (1)",System.StringComparison.Ordinal);
         Assert.True(AClone>=0);
         Assert.True(BClone>AClone);
     }
 
     [Fact]
     public void ApplyBatch_WhenALaterOperationFails_ReturnsNoMutatedRoot(){
-        (SceneProjection Projection,EditorNodeId Cube)=CreateProjection();
-        SceneSourceEditResult Result=SceneSourceEditor.ApplyBatch(
-            CSharpSyntaxTree.ParseText(Source).GetRoot(),Projection,
-            [
-                new RenameNodeOperation(Key,Cube,DocumentVersion:1,"Renamed"),
-                new SetComponentMemberOperation(Key,Cube,DocumentVersion:1,"global::Sample.DirectionalLight","Missing","4f"),
-            ]);
+        (var Projection,var Cube)=CreateProjection();
+        var Result=SceneSourceEditor.ApplyBatch(
+                                                CSharpSyntaxTree.ParseText(Source).GetRoot(),Projection,
+                                                [
+                                                    new RenameNodeOperation(Key,Cube,DocumentVersion:1,"Renamed"),
+                                                    new SetComponentMemberOperation(Key,Cube,DocumentVersion:1,"global::Sample.DirectionalLight","Missing","4f"),
+                                                ]);
 
         Assert.False(Result.Succeeded);
         Assert.Null(Result.Root);
@@ -366,14 +366,14 @@ public sealed class SceneSourceEditorTests {
 
     [Fact]
     public void SetComponentMember_InsertsAnOmittedMemberIntoTheExistingInitializer(){
-        string OmittedSource=Source.Replace("Intensity=3f",string.Empty);
-        SceneModel Model=SceneAnalysisTestHelper.Analyze(OmittedSource);
-        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
-        EditorNodeId Cube=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Cube").Id;
-        SceneSourceEditResult Result=SceneSourceEditor.Apply(
-            CSharpSyntaxTree.ParseText(OmittedSource).GetRoot(),Projection,
-            new SetComponentMemberOperation(
-                Key,Cube,1,"global::Sample.DirectionalLight","Intensity","12f"));
+        var OmittedSource=Source.Replace("Intensity=3f",string.Empty);
+        var Model=SceneAnalysisTestHelper.Analyze(OmittedSource);
+        var Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        var Cube=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Cube").Id;
+        var Result=SceneSourceEditor.Apply(
+                                           CSharpSyntaxTree.ParseText(OmittedSource).GetRoot(),Projection,
+                                           new SetComponentMemberOperation(
+                                                                           Key,Cube,1,"global::Sample.DirectionalLight","Intensity","12f"));
 
         Assert.True(Result.Succeeded,Result.ErrorMessage);
         Assert.Contains("Intensity=12f",Result.Root!.ToFullString());
@@ -389,14 +389,14 @@ public sealed class SceneSourceEditorTests {
     /// </summary>
     [Fact]
     public void AddComponent_AcceptsAClosedGenericInstantiationFromTheCatalog(){
-        (SceneProjection Projection,EditorNodeId Cube)=CreateProjection();
+        (var Projection,var Cube)=CreateProjection();
         var Root=CSharpSyntaxTree.ParseText(Source).GetRoot();
         AddComponentOperation Add=new(
             Key,Cube,1,
             "global::Sample.StatusEffect<global::Sample.PoisonKind>",
             "new global::Sample.StatusEffect<global::Sample.PoisonKind>()");
 
-        SceneSourceEditResult Added=SceneSourceEditor.Apply(Root,Projection,Add);
+        var Added=SceneSourceEditor.Apply(Root,Projection,Add);
 
         Assert.True(Added.Succeeded,Added.ErrorMessage);
         Assert.Contains(
@@ -405,12 +405,12 @@ public sealed class SceneSourceEditorTests {
 
     [Fact]
     public void AddAndRemoveComponent_EditOnlyTheComponentsCollection(){
-        (SceneProjection Projection,EditorNodeId Cube)=CreateProjection();
+        (var Projection,var Cube)=CreateProjection();
         var Root=CSharpSyntaxTree.ParseText(Source).GetRoot();
         AddComponentOperation Add=new(
             Key,Cube,1,"global::Sample.Camera","new global::Sample.Camera { NearZ=0.1f }");
 
-        SceneSourceEditResult Added=SceneSourceEditor.Apply(Root,Projection,Add);
+        var Added=SceneSourceEditor.Apply(Root,Projection,Add);
 
         Assert.True(Added.Succeeded,Added.ErrorMessage);
         Assert.Contains("global::Sample.Camera",Added.Root!.ToFullString());
@@ -428,15 +428,15 @@ public sealed class SceneSourceEditorTests {
                 }] };
             }
             """;
-        SceneModel Model=SceneAnalysisTestHelper.Analyze([
-            "namespace Sample { public struct Camera { public float NearZ; } }",
-            WithCamera,
-        ]);
-        SceneProjection Current=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
-        EditorNodeId CurrentCube=Assert.Single(Current.Nodes,static Node=>Node.Node.Name=="Cube").Id;
-        SceneSourceEditResult Removed=SceneSourceEditor.Apply(
-            CSharpSyntaxTree.ParseText(WithCamera).GetRoot(),Current,
-            new RemoveComponentOperation(Key,CurrentCube,1,"global::Sample.Camera"));
+        var Model=SceneAnalysisTestHelper.Analyze([
+                                                      "namespace Sample { public struct Camera { public float NearZ; } }",
+                                                      WithCamera,
+                                                  ]);
+        var Current=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        var CurrentCube=Assert.Single(Current.Nodes,static Node=>Node.Node.Name=="Cube").Id;
+        var Removed=SceneSourceEditor.Apply(
+                                            CSharpSyntaxTree.ParseText(WithCamera).GetRoot(),Current,
+                                            new RemoveComponentOperation(Key,CurrentCube,1,"global::Sample.Camera"));
 
         Assert.True(Removed.Succeeded,Removed.ErrorMessage);
         Assert.DoesNotContain("new Camera",Removed.Root!.ToFullString());
@@ -452,19 +452,19 @@ public sealed class SceneSourceEditorTests {
                 public Node Root=>new() { Name="Root", Children=[] };
             }
             """;
-        SceneModel Model=SceneAnalysisTestHelper.Analyze(EmptySource);
-        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
-        SceneProjectionNode RootNode=Projection.Root!;
-        SceneSourceEditResult Result=SceneSourceEditor.Apply(
-            CSharpSyntaxTree.ParseText(EmptySource).GetRoot(),Projection,
-            new AddNodeOperation(Key,RootNode.Id,1,"Node"));
+        var Model=SceneAnalysisTestHelper.Analyze(EmptySource);
+        var Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        var RootNode=Projection.Root!;
+        var Result=SceneSourceEditor.Apply(
+                                           CSharpSyntaxTree.ParseText(EmptySource).GetRoot(),Projection,
+                                           new AddNodeOperation(Key,RootNode.Id,1,"Node"));
 
         Assert.True(Result.Succeeded,Result.ErrorMessage);
-        string Text=Result.Root!.ToFullString();
+        var Text=Result.Root!.ToFullString();
         Assert.Contains("Node",Text);
         // "new"と"Node"の間にトリビアが無いと"newNode"という1トークンに読めてしまい、
         // 再解析すると追加したNodeが消える(過去に実際に踏んだ回帰)。再解析で復元できることまで確認する。
-        SceneModel Reanalyzed=SceneAnalysisTestHelper.Analyze(Text);
+        var Reanalyzed=SceneAnalysisTestHelper.Analyze(Text);
         Assert.Contains(Reanalyzed.EnumerateNodes(),static Node=>Node.Name=="Node");
     }
 
@@ -477,18 +477,18 @@ public sealed class SceneSourceEditorTests {
                 public Node Root=>new() { Name="Root" };
             }
             """;
-        SceneModel Model=SceneAnalysisTestHelper.Analyze(EmptySource);
-        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
-        SceneProjectionNode RootNode=Projection.Root!;
-        SceneSourceEditResult Result=SceneSourceEditor.Apply(
-            CSharpSyntaxTree.ParseText(EmptySource).GetRoot(),Projection,
-            new AddNodeOperation(Key,RootNode.Id,1,"Node"));
+        var Model=SceneAnalysisTestHelper.Analyze(EmptySource);
+        var Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        var RootNode=Projection.Root!;
+        var Result=SceneSourceEditor.Apply(
+                                           CSharpSyntaxTree.ParseText(EmptySource).GetRoot(),Projection,
+                                           new AddNodeOperation(Key,RootNode.Id,1,"Node"));
 
         Assert.True(Result.Succeeded,Result.ErrorMessage);
-        string Text=Result.Root!.ToFullString();
+        var Text=Result.Root!.ToFullString();
         Assert.Contains("Children",Text);
         Assert.Contains("Node",Text);
-        SceneModel Reanalyzed=SceneAnalysisTestHelper.Analyze(Text);
+        var Reanalyzed=SceneAnalysisTestHelper.Analyze(Text);
         Assert.Contains(Reanalyzed.EnumerateNodes(),static Node=>Node.Name=="Node");
     }
 
@@ -502,12 +502,12 @@ public sealed class SceneSourceEditorTests {
                 new Node { Name="B" },
             ]}; }
             """;
-        SceneModel Model=SceneAnalysisTestHelper.Analyze(RemoveSource);
-        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
-        EditorNodeId B=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="B").Id;
-        SceneSourceEditResult Result=SceneSourceEditor.Apply(
-            CSharpSyntaxTree.ParseText(RemoveSource).GetRoot(),Projection,
-            new RemoveNodeOperation(Key,B,1));
+        var Model=SceneAnalysisTestHelper.Analyze(RemoveSource);
+        var Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        var B=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="B").Id;
+        var Result=SceneSourceEditor.Apply(
+                                           CSharpSyntaxTree.ParseText(RemoveSource).GetRoot(),Projection,
+                                           new RemoveNodeOperation(Key,B,1));
 
         Assert.True(Result.Succeeded,Result.ErrorMessage);
         Assert.Contains("Name=\"A\"",Result.Root!.ToFullString());
@@ -525,15 +525,15 @@ public sealed class SceneSourceEditorTests {
                 new Node { Name="C" },
             ]}; }
             """;
-        SceneModel Model=SceneAnalysisTestHelper.Analyze(ReorderSource);
-        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
-        EditorNodeId B=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="B").Id;
-        SceneSourceEditResult Result=SceneSourceEditor.Apply(
-            CSharpSyntaxTree.ParseText(ReorderSource).GetRoot(),Projection,
-            new ReorderNodeOperation(Key,B,1,0));
+        var Model=SceneAnalysisTestHelper.Analyze(ReorderSource);
+        var Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        var B=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="B").Id;
+        var Result=SceneSourceEditor.Apply(
+                                           CSharpSyntaxTree.ParseText(ReorderSource).GetRoot(),Projection,
+                                           new ReorderNodeOperation(Key,B,1,0));
 
         Assert.True(Result.Succeeded,Result.ErrorMessage);
-        string Changed=Result.Root!.ToFullString();
+        var Changed=Result.Root!.ToFullString();
         Assert.True(Changed.IndexOf("Name=\"B\"",StringComparison.Ordinal)
             <Changed.IndexOf("Name=\"A\"",StringComparison.Ordinal));
     }
@@ -548,16 +548,16 @@ public sealed class SceneSourceEditorTests {
                 new Node { Name="B", Children=[] },
             ]}; }
             """;
-        SceneModel Model=SceneAnalysisTestHelper.Analyze(ReparentSource);
-        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
-        EditorNodeId A=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="A").Id;
-        EditorNodeId B=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="B").Id;
-        SceneSourceEditResult Result=SceneSourceEditor.Apply(
-            CSharpSyntaxTree.ParseText(ReparentSource).GetRoot(),Projection,
-            new ReparentNodeOperation(Key,A,1,B,0));
+        var Model=SceneAnalysisTestHelper.Analyze(ReparentSource);
+        var Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        var A=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="A").Id;
+        var B=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="B").Id;
+        var Result=SceneSourceEditor.Apply(
+                                           CSharpSyntaxTree.ParseText(ReparentSource).GetRoot(),Projection,
+                                           new ReparentNodeOperation(Key,A,1,B,0));
 
         Assert.True(Result.Succeeded,Result.ErrorMessage);
-        string Changed=Result.Root!.ToFullString();
+        var Changed=Result.Root!.ToFullString();
         Assert.Contains("Name=\"B\", Children=[",Changed);
         Assert.Single(System.Text.RegularExpressions.Regex.Matches(Changed,"Name=\"A\""));
     }
@@ -572,28 +572,28 @@ public sealed class SceneSourceEditorTests {
                 new Node { Name="B" },
             ]}; }
             """;
-        SceneModel Model=SceneAnalysisTestHelper.Analyze(Source);
-        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
-        EditorNodeId Target=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Target").Id;
-        EditorNodeId A=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="A").Id;
-        EditorNodeId B=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="B").Id;
-        SceneSourceEditResult Result=SceneSourceEditor.ApplyBatch(
-            CSharpSyntaxTree.ParseText(Source).GetRoot(),Projection,
-            [
-                new ReparentNodeOperation(Key,A,1,Target,0),
-                new ReparentNodeOperation(Key,B,1,Target,1),
-            ]);
+        var Model=SceneAnalysisTestHelper.Analyze(Source);
+        var Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        var Target=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Target").Id;
+        var A=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="A").Id;
+        var B=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="B").Id;
+        var Result=SceneSourceEditor.ApplyBatch(
+                                                CSharpSyntaxTree.ParseText(Source).GetRoot(),Projection,
+                                                [
+                                                    new ReparentNodeOperation(Key,A,1,Target,0),
+                                                    new ReparentNodeOperation(Key,B,1,Target,1),
+                                                ]);
         Assert.True(Result.Succeeded,Result.ErrorMessage);
-        string Changed=Result.Root!.ToFullString();
+        var Changed=Result.Root!.ToFullString();
         Assert.Single(System.Text.RegularExpressions.Regex.Matches(Changed,"Name=\"A\""));
         Assert.Single(System.Text.RegularExpressions.Regex.Matches(Changed,"Name=\"B\""));
         Assert.True(Changed.IndexOf("Name=\"Target\", Children=[",StringComparison.Ordinal)<Changed.IndexOf("Name=\"A\"",StringComparison.Ordinal));
     }
 
     private static (SceneProjection Projection,EditorNodeId Cube)CreateProjection(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze(Source);
-        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
-        SceneProjectionNode Cube=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Cube");
+        var Model=SceneAnalysisTestHelper.Analyze(Source);
+        var Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        var Cube=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Cube");
         return (Projection,Cube.Id);
     }
 }

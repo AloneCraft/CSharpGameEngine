@@ -11,7 +11,7 @@ public class BridgeWireMessageTests {
 
         await BridgeWireMessage.WriteAsync(Stream,Original,CancellationToken.None);
         Stream.Position=0;
-        BridgeServerRequest RoundTripped= await BridgeWireMessage.ReadAsync<BridgeServerRequest>(Stream,CancellationToken.None);
+        var RoundTripped= await BridgeWireMessage.ReadAsync<BridgeServerRequest>(Stream,CancellationToken.None);
 
         Assert.Equal(Original.Args,RoundTripped.Args);
     }
@@ -23,7 +23,7 @@ public class BridgeWireMessageTests {
 
         await BridgeWireMessage.WriteAsync(Stream,Original,CancellationToken.None);
         Stream.Position=0;
-        BridgeServerResponse RoundTripped= await BridgeWireMessage.ReadAsync<BridgeServerResponse>(Stream,CancellationToken.None);
+        var RoundTripped= await BridgeWireMessage.ReadAsync<BridgeServerResponse>(Stream,CancellationToken.None);
 
         Assert.Equal(Original.ExitCode,RoundTripped.ExitCode);
         Assert.Equal(Original.Output,RoundTripped.Output);
@@ -36,8 +36,8 @@ public class BridgeWireMessageTests {
         await BridgeWireMessage.WriteAsync(Stream,new BridgeServerResponse { ExitCode=0,Output="second" },CancellationToken.None);
         Stream.Position=0;
 
-        BridgeServerResponse First= await BridgeWireMessage.ReadAsync<BridgeServerResponse>(Stream,CancellationToken.None);
-        BridgeServerResponse Second= await BridgeWireMessage.ReadAsync<BridgeServerResponse>(Stream,CancellationToken.None);
+        var First= await BridgeWireMessage.ReadAsync<BridgeServerResponse>(Stream,CancellationToken.None);
+        var Second= await BridgeWireMessage.ReadAsync<BridgeServerResponse>(Stream,CancellationToken.None);
 
         Assert.Equal("first",First.Output);
         Assert.Equal("second",Second.Output);

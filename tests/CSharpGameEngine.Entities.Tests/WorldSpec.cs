@@ -10,8 +10,8 @@ public class WorldSpec {
     public void Create_AssignsSequentialEntityIds_AndAppendsToTheMatchingList(){
         World World=new();
 
-        Entity First=World.Create(new Position { X=1f });
-        Entity Second=World.Create(new Position { X=2f });
+        var First=World.Create(new Position { X=1f });
+        var Second=World.Create(new Position { X=2f });
 
         Assert.Equal(0,First.Id);
         Assert.Equal(1,Second.Id);
@@ -37,7 +37,7 @@ public class WorldSpec {
         World World=new();
         State State=new(World);
 
-        Entity Entity=World.Create(new Position { X=1f });
+        var Entity=World.Create(new Position { X=1f });
 
         World.MoveArchetype(Entity,new Position { X=5f },new Velocity { X=7f },ref State);
 
@@ -59,9 +59,9 @@ public class WorldSpec {
         World World=new();
         State State=new(World);
 
-        Entity First=World.Create(new Position { X=1f });
-        Entity Second=World.Create(new Position { X=2f });
-        Entity Third=World.Create(new Position { X=3f });
+        var First=World.Create(new Position { X=1f });
+        var Second=World.Create(new Position { X=2f });
+        var Third=World.Create(new Position { X=3f });
 
         // 先頭を移動させると、swap-backで末尾のthirdが先頭へ詰められる。
         World.MoveArchetype(First,new Position { X=1f },new Velocity(),ref State);
@@ -85,7 +85,7 @@ public class WorldSpec {
         World World=new();
         State State=new(World);
 
-        Entity Entity=World.Create(new Position());
+        var Entity=World.Create(new Position());
         World.MoveArchetype(Entity,new Position(),new Velocity(),ref State);
         World.PlaybackStructuralChanges(ref State);
 

@@ -17,7 +17,7 @@ public sealed class SceneEditorOptionsModelTests {
     private readonly FakeWritableSettingsStore Store=new();
 
     public SceneEditorOptionsModelTests(MockedVsFixture Fixture)=>
-        SceneEditorSettings.ConfigureStoreProvider(()=>Store);
+        SceneEditorSettings.ConfigureStoreProvider(()=> this.Store);
 
     [Fact]
     public void NewModel_StartsAtTheSettingsDefaults(){
@@ -173,7 +173,7 @@ public sealed class SceneEditorOptionsModelTests {
         };
 
         Model.SaveToSettings();
-        SceneViewState State=SceneViewState.CreateFromSettings();
+        var State=SceneViewState.CreateFromSettings();
 
         Assert.True(State.InvertLookX);
         Assert.True(State.InvertLookY);
@@ -188,12 +188,12 @@ public sealed class SceneEditorOptionsModelTests {
     public void InvertLookX_LoadedFromSettings_ReversesTheYawDirection()=>RunOnUiThread(()=>{
         SceneEditorOptionsModel Normal=new(){ InvertLookX=false };
         Normal.SaveToSettings();
-        SceneViewState NormalState=SceneViewState.CreateFromSettings();
+        var NormalState=SceneViewState.CreateFromSettings();
         NormalState.TickFly([],DeltaX:10f,DeltaY:0f,DeltaTime:0f,Shift:false,Ctrl:false);
 
         SceneEditorOptionsModel Inverted=new(){ InvertLookX=true };
         Inverted.SaveToSettings();
-        SceneViewState InvertedState=SceneViewState.CreateFromSettings();
+        var InvertedState=SceneViewState.CreateFromSettings();
         InvertedState.TickFly([],DeltaX:10f,DeltaY:0f,DeltaTime:0f,Shift:false,Ctrl:false);
 
         Assert.NotEqual(0f,NormalState.Yaw);
@@ -208,12 +208,12 @@ public sealed class SceneEditorOptionsModelTests {
     public void InvertOrbitX_LoadedFromSettings_ReversesTheYawDirection()=>RunOnUiThread(()=>{
         SceneEditorOptionsModel Normal=new(){ InvertOrbitX=false };
         Normal.SaveToSettings();
-        SceneViewState NormalState=SceneViewState.CreateFromSettings();
+        var NormalState=SceneViewState.CreateFromSettings();
         NormalState.ApplyOrbit(DeltaX:10f,DeltaY:0f);
 
         SceneEditorOptionsModel Inverted=new(){ InvertOrbitX=true };
         Inverted.SaveToSettings();
-        SceneViewState InvertedState=SceneViewState.CreateFromSettings();
+        var InvertedState=SceneViewState.CreateFromSettings();
         InvertedState.ApplyOrbit(DeltaX:10f,DeltaY:0f);
 
         Assert.NotEqual(0f,NormalState.Yaw);

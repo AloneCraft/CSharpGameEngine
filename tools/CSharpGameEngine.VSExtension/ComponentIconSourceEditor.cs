@@ -33,22 +33,22 @@ internal sealed class ComponentIconSourceEditResult {
 internal static class ComponentIconSourceEditor {
     internal static ComponentIconSourceEditResult Apply(
         SyntaxNode Root,int DeclarationSpanStart,string?SelectedProjectRelativePath){
-        string NormalizedPath=string.Empty;
+        var NormalizedPath=string.Empty;
         if(SelectedProjectRelativePath is not null
             &&!ProjectIconPath.TryNormalize(SelectedProjectRelativePath,out NormalizedPath)){
             return ComponentIconSourceEditResult.Failure("コンポーネントアイコンはプロジェクト相対の SVG または PNG である必要があります。");
         }
 
-        StructDeclarationSyntax?Declaration=Root.DescendantNodes()
-            .OfType<StructDeclarationSyntax>()
-            .FirstOrDefault(Candidate=>Candidate.SpanStart==DeclarationSpanStart);
+        var Declaration=Root.DescendantNodes()
+                           .OfType<StructDeclarationSyntax>()
+                           .FirstOrDefault(Candidate=>Candidate.SpanStart==DeclarationSpanStart);
         if(Declaration is null){
             return ComponentIconSourceEditResult.Failure("アイコンを編集する Component struct が現在のソースに見つかりません。");
         }
 
-        AttributeSyntax?Existing=Declaration.AttributeLists
-            .SelectMany(static List=>List.Attributes)
-            .FirstOrDefault(IsSceneComponentIconAttribute);
+        var Existing=Declaration.AttributeLists
+                               .SelectMany(static List=>List.Attributes)
+                               .FirstOrDefault(IsSceneComponentIconAttribute);
         if(SelectedProjectRelativePath is null){
             return Existing is null
                 ?ComponentIconSourceEditResult.Success(Root)
@@ -62,46 +62,46 @@ internal static class ComponentIconSourceEditor {
 
     private static ComponentIconSourceEditResult Replace(
         SyntaxNode Root,AttributeSyntax Existing,string NormalizedPath){
-        AttributeSyntax Replacement=Existing.WithArgumentList(CreateArguments(NormalizedPath));
+        var Replacement=Existing.WithArgumentList(CreateArguments(NormalizedPath));
         return ComponentIconSourceEditResult.Success(Root.ReplaceNode(Existing,Replacement));
     }
 
     private static ComponentIconSourceEditResult Add(
         SyntaxNode Root,StructDeclarationSyntax Declaration,string NormalizedPath){
-        string LeadingText=Declaration.GetLeadingTrivia().ToFullString();
-        string NewLine=LeadingText.IndexOf("\r\n",StringComparison.Ordinal)>=0?"\r\n":"\n";
-        string Indentation=GetTrailingIndentation(LeadingText);
-        AttributeSyntax Attribute=SyntaxFactory.Attribute(
-            SyntaxFactory.ParseName(SceneComponentIconMetadata.AttributeFullyQualifiedName),
-            CreateArguments(NormalizedPath));
-        AttributeListSyntax List=SyntaxFactory.AttributeList(
-                SyntaxFactory.SingletonSeparatedList(Attribute))
-            .WithLeadingTrivia(Declaration.GetLeadingTrivia())
-            .WithTrailingTrivia(
-                SyntaxFactory.EndOfLine(NewLine),
-                SyntaxFactory.Whitespace(Indentation));
-        StructDeclarationSyntax Replacement=Declaration
-            .WithLeadingTrivia(default(SyntaxTriviaList))
-            .WithAttributeLists(Declaration.AttributeLists.Insert(0,List));
+        var LeadingText=Declaration.GetLeadingTrivia().ToFullString();
+        var NewLine=LeadingText.IndexOf("\r\n",StringComparison.Ordinal)>=0?"\r\n":"\n";
+        var Indentation=GetTrailingIndentation(LeadingText);
+        var Attribute=SyntaxFactory.Attribute(
+                                              SyntaxFactory.ParseName(SceneComponentIconMetadata.AttributeFullyQualifiedName),
+                                              CreateArguments(NormalizedPath));
+        var List=SyntaxFactory.AttributeList(
+                                             SyntaxFactory.SingletonSeparatedList(Attribute))
+                              .WithLeadingTrivia(Declaration.GetLeadingTrivia())
+                              .WithTrailingTrivia(
+                                                  SyntaxFactory.EndOfLine(NewLine),
+                                                  SyntaxFactory.Whitespace(Indentation));
+        var Replacement=Declaration
+                       .WithLeadingTrivia(default(SyntaxTriviaList))
+                       .WithAttributeLists(Declaration.AttributeLists.Insert(0,List));
         return ComponentIconSourceEditResult.Success(Root.ReplaceNode(Declaration,Replacement));
     }
 
     private static ComponentIconSourceEditResult Remove(
         SyntaxNode Root,StructDeclarationSyntax Declaration,AttributeSyntax Existing){
-        AttributeListSyntax?OwningList=Declaration.AttributeLists
-            .FirstOrDefault(List=>List.Attributes.Any(Attribute=>ReferenceEquals(Attribute,Existing)));
+        var OwningList=Declaration.AttributeLists
+                                 .FirstOrDefault(List=>List.Attributes.Any(Attribute=>ReferenceEquals(Attribute,Existing)));
         if(OwningList is null){
             return ComponentIconSourceEditResult.Failure("コンポーネントアイコン属性を現在の宣言から削除できませんでした。");
         }
 
         if(OwningList.Attributes.Count>1){
-            AttributeListSyntax Replacement=OwningList.WithAttributes(OwningList.Attributes.Remove(Existing));
+            var Replacement=OwningList.WithAttributes(OwningList.Attributes.Remove(Existing));
             return ComponentIconSourceEditResult.Success(Root.ReplaceNode(OwningList,Replacement));
         }
 
-        StructDeclarationSyntax DeclarationWithoutAttribute=Declaration
-            .WithAttributeLists(Declaration.AttributeLists.Remove(OwningList))
-            .WithLeadingTrivia(OwningList.GetLeadingTrivia());
+        var DeclarationWithoutAttribute=Declaration
+                                       .WithAttributeLists(Declaration.AttributeLists.Remove(OwningList))
+                                       .WithLeadingTrivia(OwningList.GetLeadingTrivia());
         return ComponentIconSourceEditResult.Success(Root.ReplaceNode(Declaration,DeclarationWithoutAttribute));
     }
 
@@ -113,7 +113,7 @@ internal static class ComponentIconSourceEditor {
                         SyntaxKind.StringLiteralExpression,SyntaxFactory.Literal(NormalizedPath)))));
 
     private static bool IsSceneComponentIconAttribute(AttributeSyntax Attribute){
-        string Name=Attribute.Name.ToString().Replace("global::",string.Empty);
+        var Name=Attribute.Name.ToString().Replace("global::",string.Empty);
         return string.Equals(Name,"SceneComponentIcon",StringComparison.Ordinal)
             ||string.Equals(Name,"SceneComponentIconAttribute",StringComparison.Ordinal)
             ||string.Equals(Name,"CSharpGameEngine.Entities.SceneComponentIcon",StringComparison.Ordinal)
@@ -121,8 +121,8 @@ internal static class ComponentIconSourceEditor {
     }
 
     private static string GetTrailingIndentation(string LeadingTrivia){
-        int LastLineBreak=Math.Max(LeadingTrivia.LastIndexOf('\n'),LeadingTrivia.LastIndexOf('\r'));
-        string Candidate=LastLineBreak<0?LeadingTrivia:LeadingTrivia.Substring(LastLineBreak+1);
+        var LastLineBreak=Math.Max(LeadingTrivia.LastIndexOf('\n'),LeadingTrivia.LastIndexOf('\r'));
+        var Candidate=LastLineBreak<0?LeadingTrivia:LeadingTrivia.Substring(LastLineBreak+1);
         return Candidate.All(char.IsWhiteSpace)?Candidate:string.Empty;
     }
 }

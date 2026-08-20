@@ -18,14 +18,14 @@ public sealed class FabDownloadWatcherTests:IDisposable {
 
     public FabDownloadWatcherTests(){
         var Root=Path.Combine(Path.GetTempPath(),"csge-fabwatch-tests-"+Guid.NewGuid().ToString("N"));
-        WatchedFolder=Path.Combine(Root,"Downloads");
-        DestinationFolder=Path.Combine(Root,"Assets","Fab");
-        Directory.CreateDirectory(WatchedFolder);
+        this.WatchedFolder=Path.Combine(Root,"Downloads");
+        this.DestinationFolder=Path.Combine(Root,"Assets","Fab");
+        Directory.CreateDirectory(this.WatchedFolder);
     }
 
     public void Dispose(){
         try {
-            Directory.Delete(Path.GetDirectoryName(WatchedFolder)!,recursive:true);
+            Directory.Delete(Path.GetDirectoryName(this.WatchedFolder)!,recursive:true);
         } catch(IOException){
         }
     }
@@ -33,16 +33,16 @@ public sealed class FabDownloadWatcherTests:IDisposable {
     [Fact]
     public void MatchingExtension_GetsCopiedToDestination(){
         List<string>Copied=[];
-        using FabDownloadWatcher Watcher=new(WatchedFolder,DestinationFolder,Copied.Add,_=>{ });
+        using FabDownloadWatcher Watcher=new(this.WatchedFolder, this.DestinationFolder,Copied.Add,_=>{ });
         Watcher.Start();
 
-        var SourcePath=Path.Combine(WatchedFolder,"RockProp.glb");
+        var SourcePath=Path.Combine(this.WatchedFolder,"RockProp.glb");
         File.WriteAllText(SourcePath,"fake glb bytes");
 
         var DestinationPath=WaitFor(()=>Copied.Count>0?Copied[0]:null,TimeSpan.FromSeconds(10));
 
         Assert.NotNull(DestinationPath);
-        Assert.Equal(Path.Combine(DestinationFolder,"RockProp.glb"),DestinationPath);
+        Assert.Equal(Path.Combine(this.DestinationFolder,"RockProp.glb"),DestinationPath);
         Assert.True(File.Exists(DestinationPath));
         Assert.Equal("fake glb bytes",File.ReadAllText(DestinationPath!));
     }
@@ -51,10 +51,10 @@ public sealed class FabDownloadWatcherTests:IDisposable {
     public void NonMatchingExtension_IsIgnored(){
         List<string>Copied=[];
         List<string>Errors=[];
-        using FabDownloadWatcher Watcher=new(WatchedFolder,DestinationFolder,Copied.Add,Errors.Add);
+        using FabDownloadWatcher Watcher=new(this.WatchedFolder, this.DestinationFolder,Copied.Add,Errors.Add);
         Watcher.Start();
 
-        File.WriteAllText(Path.Combine(WatchedFolder,"installer.exe"),"not a fab asset");
+        File.WriteAllText(Path.Combine(this.WatchedFolder,"installer.exe"),"not a fab asset");
 
         // Give the watcher a fair chance to (incorrectly) react before asserting nothing happened.
         Thread.Sleep(1000);
@@ -66,11 +66,11 @@ public sealed class FabDownloadWatcherTests:IDisposable {
     [Fact]
     public void Stop_PreventsFurtherCopies(){
         List<string>Copied=[];
-        using FabDownloadWatcher Watcher=new(WatchedFolder,DestinationFolder,Copied.Add,_=>{ });
+        using FabDownloadWatcher Watcher=new(this.WatchedFolder, this.DestinationFolder,Copied.Add,_=>{ });
         Watcher.Start();
         Watcher.Stop();
 
-        File.WriteAllText(Path.Combine(WatchedFolder,"AfterStop.glb"),"should not be copied");
+        File.WriteAllText(Path.Combine(this.WatchedFolder,"AfterStop.glb"),"should not be copied");
 
         Thread.Sleep(1000);
 
@@ -79,25 +79,25 @@ public sealed class FabDownloadWatcherTests:IDisposable {
 
     [Fact]
     public void DuplicateFileName_GetsUniqueSuffix(){
-        Directory.CreateDirectory(DestinationFolder);
-        File.WriteAllText(Path.Combine(DestinationFolder,"Prop.glb"),"existing file - must not be overwritten");
+        Directory.CreateDirectory(this.DestinationFolder);
+        File.WriteAllText(Path.Combine(this.DestinationFolder,"Prop.glb"),"existing file - must not be overwritten");
 
         List<string>Copied=[];
-        using FabDownloadWatcher Watcher=new(WatchedFolder,DestinationFolder,Copied.Add,_=>{ });
+        using FabDownloadWatcher Watcher=new(this.WatchedFolder, this.DestinationFolder,Copied.Add,_=>{ });
         Watcher.Start();
 
-        File.WriteAllText(Path.Combine(WatchedFolder,"Prop.glb"),"newly downloaded file");
+        File.WriteAllText(Path.Combine(this.WatchedFolder,"Prop.glb"),"newly downloaded file");
 
         var DestinationPath=WaitFor(()=>Copied.Count>0?Copied[0]:null,TimeSpan.FromSeconds(10));
 
         Assert.NotNull(DestinationPath);
-        Assert.NotEqual(Path.Combine(DestinationFolder,"Prop.glb"),DestinationPath);
-        Assert.Equal("existing file - must not be overwritten",File.ReadAllText(Path.Combine(DestinationFolder,"Prop.glb")));
+        Assert.NotEqual(Path.Combine(this.DestinationFolder,"Prop.glb"),DestinationPath);
+        Assert.Equal("existing file - must not be overwritten",File.ReadAllText(Path.Combine(this.DestinationFolder,"Prop.glb")));
         Assert.Equal("newly downloaded file",File.ReadAllText(DestinationPath!));
     }
 
     private static string?WaitFor(Func<string?>GetValue,TimeSpan Timeout){
-        DateTime Deadline=DateTime.UtcNow+Timeout;
+        var Deadline=DateTime.UtcNow+Timeout;
         while(DateTime.UtcNow<Deadline){
             var Value=GetValue();
             if(Value is not null){

@@ -3150,3 +3150,105 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - 旧L9アプリケーションと一体型`Lvl_FirstPerson.glb`ランタイムを廃止し、`UserEcsProject`へ統合した。
 - UE 5.8の55 StaticMeshActorを9個の共有描画資産へ分解し、配置・Mobility・DirectionalLight・SkyLight・Fog・PlayerStartを`FirstPersonStageScene.cs`で宣言する。
 - 実行時とScene Designerは同じ`StaticMesh.AssetPath`を解決し、C# Sceneを配置の正本とする。
+
+# M0052 Componentパレットと、Inspectorのグルーピング/展開
+
+- Status: CodeVerified(実機確認は未実施)
+- Scope: `SceneComponentCatalog`→`SceneModelEditApplier`→`SceneSourceEditor`の3層は先行実装済みで、
+  今回はそこへ繋がるUI(Inspectorのグルーピング/展開、Componentパレット、ドラッグ&ドロップ)。
+- Inspector: `SceneInspectorModelBuilder.BuildGroups`でComponent単位の階層を返し、既存の`Build`は
+  その平坦化として委譲する(既存テストは無改変)。XAMLは`ItemsControl`→`Expander`→`ItemsControl`の
+  入れ子で、`InspectorEditorKindVisibilityConverter`の4コントロール重ね配置は維持。
+- 再構築は`InspectorRefreshPolicy`+`InspectorContentSignature`のSkipを土台にした。従来の
+  `IsKeyboardFocusWithin`だけのガードでは、マウスだけで操作するExpanderの開閉を守れない。
+- 展開状態は`CollapsedKeys`(既定は展開、畳んだものだけ記憶)。キーはNode+Component完全修飾名。
+  `Expander.Expanded`/`Collapsed`は購読せず、`IsExpanded`のTwoWayバインドを再構築直前に読み戻す。
+- パレット: `ComponentPaletteToolWindowPane`(CommandId=0x010B、`Orientation=Bottom`で
+  Inspectorとタブ結合させない)。候補は`SceneWorkspaceService.GetProjectComponentCatalogAsync`が
+  `Project.Version`キャッシュ付きで返す。
+- 適用は`SceneEditorHub.RequestComponentAdd`→`HandleComponentAddAsync`の1経路に統一し、
+  Undoラベルと追加後のReveal発行をそこへ閉じ込めた。
+- Known deviations:
+  - **Hierarchyの`DragOver`プレビューはbest-effort**。Hierarchyは`ActiveSceneModel`(実解析)しか
+    持たず、Documentの予測モデルを見られないため、未保存の追加が絡む一瞬だけ重複判定が甘くなる。
+    Inspectorは予測投影を見るので適用側と必ず一致する。最終判断は常に`TryApplyAddComponent`で、
+    拒否理由はステータスバーに出る。
+  - 重複型をパレット候補から外さない(ドロップ先が事前に確定しないため)。`DragOver`の不可カーソルで伝える。
+  - Expanderヘッダからの削除(×)は未実装。`RemoveComponentOperation`自体は既に通る。
+  - 追加直後のComponentはmemberが空で、Roslyn再解析が着地するまで値を設定できない。その間は
+    「解析待ち…」を表示し、`PendingRevealKey`を保持し続ける。
+- **未検証の前提**: カスタムWPFツールウィンドウ間の`DragDrop.DoDragDrop`はこのリポジトリに前例も
+  検証記録も無い(ADR-0022は削除済みで、それ自身「実機確認は未実施」だった)。Step 2-3を独立させ、
+  Step 2-2でダブルクリック/Enter追加を先に出荷したのはこのため。
+- **実機報告で発覚し追加修正した3件**:
+  (1) `ComponentPaletteEntry`の`DisplayName`/`Namespace`/`Icon`が`internal`のままXAMLでバインドされ、
+  WPFが無言で失敗してアイコンだけ既定値・文字が空になっていた。`public`へ変更しテストで固定。
+  (2) `SceneEditorSessionService.Apply`はpin済み(=シーン デザイナーを開いた)Sceneにしか効かないため、
+  Hierarchyで選択してもシーン デザイナーを一度も開いていないとInspectorへ選択が届かず、
+  Hierarchyの構造編集・Component追加も無言失敗していた。共通ヘルパー`EnsurePinned`で、
+  Hierarchy選択・Hierarchy編集・Component追加の3経路すべてを「未pinなら暗黙にpinする」に統一した。
+  (3) Expanderヘッダ・行ラベルに明示`Foreground`が無くダークテーマで黒く判読できなかった。
+  `WindowTextKey`を明示して解決。同一原因が`ComponentPaletteToolWindowControl.xaml`の型名にも
+  残っていたため、続けて修正した。
+- **ネストしたObjectCreation値の展開表示**(実機フィードバックを受けた追加機能): `SceneInspectorRow`
+  (`SceneInspectorMemberRow`/`SceneInspectorNestedRow`)を新設し、`new Vector3(1,2,3)`のような
+  値をExpanderの子行として展開する。**表示専用** — `SceneModelEditApplier.TryApplySetMember`が
+  Componentのトップレベルでしか名前一致を探さず、見つからなければ黙って新規メンバーを生やすため、
+  ネストの葉は`SceneValue.IsEditable`によらず強制的に`ReadOnly`にする(安全装置、省略不可)。
+  位置引数のパラメータ名は`Value.Type`のコンストラクタをアリティ一致で探索して解決(1つに絞れなければ
+  `[0]`等の合成ラベル)。XAMLは`DataType`ベースの暗黙`DataTemplate`で再帰させ、展開状態キー・
+  内容署名もパス込みで再帰対応させた。編集対応は実データが出てから独立した段階として検討する。
+- Next action: Experimental Instanceでの目視確認(Docs/Milestones/M0052-Component-Palette.md の
+  「Next action」節に段階別のチェック項目)。
+
+# M0053 実行時状態のComponent分離と、パレット追加時の既定値埋め
+
+- Status: CodeVerified(実機確認は未実施)
+- Scope: Component構造体が混在させていた「作者が設定する値」と「エンジンが実行時に埋めるハンドル」を
+  型ごと分離し、パレット追加時に全作者フィールドを明示する式を書くようにした([[ADR-0044-Runtime-Component-Separation]])。
+- **既定値はコンストラクタで表現する。`required`は採用しない** — `Transform`が既に明示コンストラクタで
+  `RotationW=1f,ScaleX/Y/Z=1f`を設定しており、全required化するとこの設計意図が到達不能になるため。
+- `IRuntimeComponent`/`IRuntimeComponent<TAuthored>`(新規、`CSharpGameEngine.Entities`)。
+  generic版は随伴先を宣言し、非generic版は単独生成される実行時Componentを表す。
+  `ISystem`が構造的推論の入口である前例に倣い、**作者が書く型の定義を汚さない**。
+- 随伴付与は`SceneInstantiateEmitter.BuildEffectiveComponents`(`Parent`/`SceneNodeTag`と同じ1箇所)で行う。
+  対応表`SceneRuntimeComponentMap`は`Collect`と`EmitNode`の両方へ**引数で**渡すので、
+  渡し忘れがコンパイルエラーになり「登録と生成のズレ」が構造的に防がれる。
+- 分離した型: `AppHostRuntime`/`LevelRuntime`/`AmbientLightRuntime`/`HeightFogRuntime`/
+  `DirectionalLightRuntime`/`PointLightRuntime`/`SpotLightRuntime`/`AudioSourceRuntime`。
+  `Renderable`/`FramePresent`は作者が宣言しない型と判明したので分割せず非generic版を実装させ、
+  パレットから除外した。
+- `SceneComponentInitializerPolicy`(新規、純粋関数)がパレットの`new T { … }`を組み立てる。
+  **パラメータなしコンストラクタ本体の`this.X=<定数>;`を構文で読み、そのメンバーはコンストラクタの値を
+  写す** — 素朴に全フィールドへ`default`を撒くと`Transform`の回転・スケールが0になるため。
+  単純代入の並びとして読めないコンストラクタは`new T()`へ安全に縮退する。
+- 新診断: SCENE119(作者が実行時Componentを明示した)、SYSGEN027(同一作者型を2つの実行時Componentが主張)。
+- Known deviations:
+  - **`Renderer is null`の判別ロジックは消えていない。** 随伴付与により作者側Entityも`*Runtime`を
+    持つため、`LevelLoad`の判別が`Runtime.Renderer is null`へ移っただけ。得たのは編集面の正しさで
+    あって実行時ロジックの単純化ではない。
+  - 型シンボルを解決できないときだけ「解析待ち…」へ縮退する(Compilationが取れない等)。
+    通常は追加した直後から編集できる。
+  - `Level.Path`/`Sun`/`PointLight`/`SpotLight`/`Listener`/`Source`は宣言側・実装側とも未使用の
+    死んだフィールドだったので削除した。`Level`の作者面は`ShaderPath`のみになった。
+- **実機報告による追加修正4件**:
+  (1) **ドロップするとノードの選択が外れる** — `SceneProjectionReconciler`の照合キーが
+  「ノード名 + Component型名の連結」なので、Component増減でキーが変わり`EditorNodeId`が
+  振り直されていた。`PreserveIdentityAfterMove`を`PreserveNodeIdentity`へ改名し、
+  Pathが変わらない`AddComponent`/`RemoveComponent`でもIDを引き継ぐようにした。
+  (2) **追加直後は「解析待ち…」で編集できない** — `AddComponentOperation`が文字列2つしか
+  運ばず適用側に型シンボルが無かったため`Members`を空にしていた(設計上の必然ではなく実装の限界)。
+  `ResolveComponentTypeAsync`で型を解決し、`CreatePlan`が式とメンバーを同じ列挙から作って
+  `AddComponentOperation.Members`で運ぶ。予測と再解析後の真実が一致することを契約テストで固定した。
+  (3) **シーン デザイナーで開いているのにHierarchyが空** — `SceneWorkspaceService`が文書切替のたびに
+  発行する`ModelChanged(null)`を、pin中でも未編集なら素通りさせていた。`SceneHubPublicationPolicy`の
+  判定軸を「未保存の編集を守るか」から「pin中Sceneの表示を守るか」へ組み替え、pin中はnullも別Sceneも
+  流さないようにした(同一Scene+未保存編集ありを塞ぐM0051 Step 1-4の分岐は不変)。
+  (4) **既定値コンストラクタの整備** — `AppHost`/`AmbientLight`/`HeightFog`/`DirectionalLight`/
+  `PointLight`/`SpotLight`/`AudioSource`へ「追加した瞬間に見える/聞こえる」値を入れた
+  (`Transform`のパターンの横展開)。`Camera`は既に完備していた。
+- Evidence: 全1325件成功。ソリューション全体ビルドは0警告0エラー。生成コードで随伴付与を確認済み。
+  Component型は18→20種で`MaxComponentTypes=64`に余裕あり。`FirstPersonStageScene.cs`は無変更。
+- Next action: Experimental Instanceでの目視確認と、**`UserEcsProject`の起動確認**
+  (Archetype構成が変わったため描画・音響の全経路を見る)。詳細は
+  Docs/Milestones/M0053-Runtime-Component-Separation.md の「Next action」節。

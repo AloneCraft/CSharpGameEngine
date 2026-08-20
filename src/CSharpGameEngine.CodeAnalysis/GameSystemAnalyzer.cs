@@ -28,7 +28,7 @@ internal static class GameSystemAnalyzer {
     private const string SpawnMethodName="Spawn";
 
     internal static GameSystemResult Analyze(INamedTypeSymbol SystemSymbol){
-        ImmutableArray<Diagnostic>.Builder Diagnostics=ImmutableArray.CreateBuilder<Diagnostic>();
+        var Diagnostics=ImmutableArray.CreateBuilder<Diagnostic>();
 
         if(SystemSymbol.TypeKind!=TypeKind.Struct){
             Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.SystemMustBeStruct,SystemSymbol.Locations.FirstOrDefault(),SystemSymbol.Name));
@@ -44,7 +44,7 @@ internal static class GameSystemAnalyzer {
 
         List<IMethodSymbol>Methods=[];
 
-        foreach(ISymbol Member in SystemSymbol.GetMembers()){
+        foreach(var Member in SystemSymbol.GetMembers()){
             if(Member is IMethodSymbol { MethodKind:MethodKind.Ordinary } Method
                 &&(Method.Name==UpdateMethodName||Method.Name==SpawnMethodName)){
                 Methods.Add(Method);
@@ -61,15 +61,15 @@ internal static class GameSystemAnalyzer {
 
         List<GameSystemMethodModel>MethodModels=[];
 
-        foreach(IMethodSymbol Method in Methods){
-            GameSystemMethodModel?Model=AnalyzeMethod(Method,Diagnostics);
+        foreach(var Method in Methods){
+            var Model=AnalyzeMethod(Method,Diagnostics);
 
             if(Model is { } Value){
                 MethodModels.Add(Value);
             }
         }
 
-        Location TypeLocation=SystemSymbol.Locations.FirstOrDefault()??Location.None;
+        var TypeLocation=SystemSymbol.Locations.FirstOrDefault()??Location.None;
 
         return new GameSystemResult(
             SystemSymbol.ContainingNamespace.IsGlobalNamespace?null:SystemSymbol.ContainingNamespace.ToDisplayString(),
@@ -98,9 +98,9 @@ internal static class GameSystemAnalyzer {
 
     private static GameSystemMethodModel?AnalyzeMethod(IMethodSymbol Method,ImmutableArray<Diagnostic>.Builder Diagnostics){
         var IsSpawn=Method.Name==SpawnMethodName;
-        GameSystemMethodRole Role=IsSpawn?GameSystemMethodRole.SpawnOnly:GameSystemMethodRole.Dispatch;
+        var Role=IsSpawn?GameSystemMethodRole.SpawnOnly:GameSystemMethodRole.Dispatch;
         var IsValid=true;
-        Location MethodLocation=Method.Locations.FirstOrDefault()??Location.None;
+        var MethodLocation=Method.Locations.FirstOrDefault()??Location.None;
 
         if(Method.IsStatic){
             Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.MethodMustBeInstance,MethodLocation,Method.Name));
@@ -127,13 +127,13 @@ internal static class GameSystemAnalyzer {
             IsValid=false;
         }
 
-        ImmutableArray<IParameterSymbol>Parameters=Method.Parameters;
+        var Parameters=Method.Parameters;
         var HasLeadingEntity=false;
         var ScanStart=0;
         var ScanEndExclusive=Parameters.Length;
 
         if(Parameters.Length>0){
-            IParameterSymbol First=Parameters[0];
+            var First=Parameters[0];
 
             if(TypeFqn(First)==EntityFullyQualifiedName){
                 if(IsSpawn){
@@ -180,7 +180,7 @@ internal static class GameSystemAnalyzer {
         }
 
         for(var I=ScanStart;I<ScanEndExclusive;I++){
-            IParameterSymbol Parameter=Parameters[I];
+            var Parameter=Parameters[I];
             var ParameterTypeFqn=TypeFqn(Parameter);
 
             if(ParameterTypeFqn==EntityFullyQualifiedName||ParameterTypeFqn==StateFullyQualifiedName){

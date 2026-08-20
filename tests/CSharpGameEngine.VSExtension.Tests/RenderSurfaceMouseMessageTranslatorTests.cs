@@ -11,10 +11,10 @@ public sealed class RenderSurfaceMouseMessageTranslatorTests {
 
     [Fact]
     public void Translate_LButtonDown_ProducesLeftDownWithDecodedCoordinates(){
-        IntPtr LParam=MakeLParam(120,80);
+        var LParam=MakeLParam(120,80);
 
-        PointerEvent?Result=RenderSurfaceMouseMessageTranslator.Translate(
-            NativeMethods.WM_LBUTTONDOWN,LParam,NoModifiers);
+        var Result=RenderSurfaceMouseMessageTranslator.Translate(
+                                                                NativeMethods.WM_LBUTTONDOWN,LParam,NoModifiers);
 
         Assert.NotNull(Result);
         Assert.Equal(PointerEventKind.Down,Result!.Value.Kind);
@@ -25,8 +25,8 @@ public sealed class RenderSurfaceMouseMessageTranslatorTests {
 
     [Fact]
     public void Translate_RButtonUp_ProducesRightUp(){
-        PointerEvent?Result=RenderSurfaceMouseMessageTranslator.Translate(
-            NativeMethods.WM_RBUTTONUP,MakeLParam(1,2),NoModifiers);
+        var Result=RenderSurfaceMouseMessageTranslator.Translate(
+                                                                NativeMethods.WM_RBUTTONUP,MakeLParam(1,2),NoModifiers);
 
         Assert.NotNull(Result);
         Assert.Equal(PointerEventKind.Up,Result!.Value.Kind);
@@ -35,8 +35,8 @@ public sealed class RenderSurfaceMouseMessageTranslatorTests {
 
     [Fact]
     public void Translate_MButtonDown_ProducesMiddleDown(){
-        PointerEvent?Result=RenderSurfaceMouseMessageTranslator.Translate(
-            NativeMethods.WM_MBUTTONDOWN,MakeLParam(1,2),NoModifiers);
+        var Result=RenderSurfaceMouseMessageTranslator.Translate(
+                                                                NativeMethods.WM_MBUTTONDOWN,MakeLParam(1,2),NoModifiers);
 
         Assert.NotNull(Result);
         Assert.Equal(PointerEventKind.Down,Result!.Value.Kind);
@@ -47,8 +47,8 @@ public sealed class RenderSurfaceMouseMessageTranslatorTests {
     public void Translate_MouseMove_CarriesModifiers(){
         RawInputModifiers Modifiers=new(Shift:true,Ctrl:false,Alt:true);
 
-        PointerEvent?Result=RenderSurfaceMouseMessageTranslator.Translate(
-            NativeMethods.WM_MOUSEMOVE,MakeLParam(5,6),Modifiers);
+        var Result=RenderSurfaceMouseMessageTranslator.Translate(
+                                                                NativeMethods.WM_MOUSEMOVE,MakeLParam(5,6),Modifiers);
 
         Assert.NotNull(Result);
         Assert.Equal(PointerEventKind.Move,Result!.Value.Kind);
@@ -60,8 +60,8 @@ public sealed class RenderSurfaceMouseMessageTranslatorTests {
 
     [Fact]
     public void Translate_CaptureChanged_ProducesCaptureLostEvent(){
-        PointerEvent?Result=RenderSurfaceMouseMessageTranslator.Translate(
-            NativeMethods.WM_CAPTURECHANGED,IntPtr.Zero,NoModifiers);
+        var Result=RenderSurfaceMouseMessageTranslator.Translate(
+                                                                NativeMethods.WM_CAPTURECHANGED,IntPtr.Zero,NoModifiers);
 
         Assert.NotNull(Result);
         Assert.Equal(PointerEventKind.CaptureLost,Result!.Value.Kind);
@@ -76,16 +76,16 @@ public sealed class RenderSurfaceMouseMessageTranslatorTests {
     public void Translate_CaptureChangedToSelf_IsIgnored(){
         IntPtr SelfHwnd=new(0x1234);
 
-        PointerEvent?Result=RenderSurfaceMouseMessageTranslator.Translate(
-            NativeMethods.WM_CAPTURECHANGED,SelfHwnd,NoModifiers,SelfHwnd);
+        var Result=RenderSurfaceMouseMessageTranslator.Translate(
+                                                                NativeMethods.WM_CAPTURECHANGED,SelfHwnd,NoModifiers,SelfHwnd);
 
         Assert.Null(Result);
     }
 
     [Fact]
     public void Translate_CaptureChangedToAnotherWindow_StillReportsCaptureLost(){
-        PointerEvent?Result=RenderSurfaceMouseMessageTranslator.Translate(
-            NativeMethods.WM_CAPTURECHANGED,new IntPtr(0x9999),NoModifiers,new IntPtr(0x1234));
+        var Result=RenderSurfaceMouseMessageTranslator.Translate(
+                                                                NativeMethods.WM_CAPTURECHANGED,new IntPtr(0x9999),NoModifiers,new IntPtr(0x1234));
 
         Assert.NotNull(Result);
         Assert.Equal(PointerEventKind.CaptureLost,Result!.Value.Kind);
@@ -97,8 +97,8 @@ public sealed class RenderSurfaceMouseMessageTranslatorTests {
     /// </summary>
     [Fact]
     public void Translate_CaptureFullyReleased_StillReportsCaptureLost(){
-        PointerEvent?Result=RenderSurfaceMouseMessageTranslator.Translate(
-            NativeMethods.WM_CAPTURECHANGED,IntPtr.Zero,NoModifiers,new IntPtr(0x1234));
+        var Result=RenderSurfaceMouseMessageTranslator.Translate(
+                                                                NativeMethods.WM_CAPTURECHANGED,IntPtr.Zero,NoModifiers,new IntPtr(0x1234));
 
         Assert.NotNull(Result);
         Assert.Equal(PointerEventKind.CaptureLost,Result!.Value.Kind);
@@ -106,8 +106,8 @@ public sealed class RenderSurfaceMouseMessageTranslatorTests {
 
     [Fact]
     public void Translate_UnrelatedMessage_ReturnsNull(){
-        PointerEvent?Result=RenderSurfaceMouseMessageTranslator.Translate(
-            NativeMethods.WM_SETFOCUS,IntPtr.Zero,NoModifiers);
+        var Result=RenderSurfaceMouseMessageTranslator.Translate(
+                                                                NativeMethods.WM_SETFOCUS,IntPtr.Zero,NoModifiers);
 
         Assert.Null(Result);
     }
@@ -116,7 +116,7 @@ public sealed class RenderSurfaceMouseMessageTranslatorTests {
     public void DecodeXY_NegativeCoordinates_DecodeAsSignedNotUnsigned(){
         // WM_SIZEの幅・高さは非負なので無符号抽出で正しいが、マウス座標はキャプチャ中の
         // ウィンドウ外ドラッグで負になりうる。(short)キャストを省くと-5が65531として化ける。
-        IntPtr LParam=MakeLParam(-5,-10);
+        var LParam=MakeLParam(-5,-10);
 
         Assert.Equal(-5,RenderSurfaceMouseMessageTranslator.DecodeX(LParam));
         Assert.Equal(-10,RenderSurfaceMouseMessageTranslator.DecodeY(LParam));
@@ -124,7 +124,7 @@ public sealed class RenderSurfaceMouseMessageTranslatorTests {
 
     [Fact]
     public void DecodeXY_LargePositiveCoordinates_RoundTrip(){
-        IntPtr LParam=MakeLParam(1920,1080);
+        var LParam=MakeLParam(1920,1080);
 
         Assert.Equal(1920,RenderSurfaceMouseMessageTranslator.DecodeX(LParam));
         Assert.Equal(1080,RenderSurfaceMouseMessageTranslator.DecodeY(LParam));

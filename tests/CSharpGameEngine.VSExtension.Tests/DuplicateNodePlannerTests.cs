@@ -8,18 +8,18 @@ public sealed class DuplicateNodePlannerTests {
 
     [Fact]
     public void TryCreate_AppendsSelectedRootsAfterExistingSiblingsInSelectionOrder(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Children=[
-                    new Node { Name="A" },new Node { Name="B" },new Node { Name="C" },
-                ]};
-            }
-            """);
-        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
-        SceneProjectionNode A=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="A");
-        SceneProjectionNode C=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="C");
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene {
+                                                      public Node Root=>new() { Children=[
+                                                          new Node { Name="A" },new Node { Name="B" },new Node { Name="C" },
+                                                      ]};
+                                                  }
+                                                  """);
+        var Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        var A=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="A");
+        var C=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="C");
 
         Assert.True(DuplicateNodePlanner.TryCreate([A,C],Projection,out IReadOnlyList<DuplicateNodePlanItem>Plan));
 
@@ -31,20 +31,20 @@ public sealed class DuplicateNodePlannerTests {
 
     [Fact]
     public void TryCreate_RootSelection_ReturnsFalse(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene { public Node Root=>new(); }
-            """);
-        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene { public Node Root=>new(); }
+                                                  """);
+        var Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
 
         Assert.False(DuplicateNodePlanner.TryCreate([Projection.Root!],Projection,out _));
     }
 
     [Fact]
     public void RemapPath_PreservesDescendantSuffixUnderPredictedRoot(){
-        NodePath SourceRoot=NodePath.Root.Append(1).Append(2);
-        NodePath ResultRoot=NodePath.Root.Append(1).Append(5);
+        var SourceRoot=NodePath.Root.Append(1).Append(2);
+        var ResultRoot=NodePath.Root.Append(1).Append(5);
 
         NodePath Result=DuplicateNodePlanner.RemapPath(
             SourceRoot.Append(3).Append(4),SourceRoot,ResultRoot);
@@ -54,16 +54,16 @@ public sealed class DuplicateNodePlannerTests {
 
     [Fact]
     public void TryResolveResultSelection_WaitsUntilEveryPredictedPathExists(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Children=[new Node { Name="A" },new Node { Name="B" }]};
-            }
-            """);
-        SceneProjection Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
-        NodePath A=NodePath.Root.Append(0);
-        NodePath B=NodePath.Root.Append(1);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene {
+                                                      public Node Root=>new() { Children=[new Node { Name="A" },new Node { Name="B" }]};
+                                                  }
+                                                  """);
+        var Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        var A=NodePath.Root.Append(0);
+        var B=NodePath.Root.Append(1);
 
         Assert.True(DuplicateNodePlanner.TryResolveResultSelection(
             Projection,[A,B],out IReadOnlyList<EditorNodeId>Ids));

@@ -12,13 +12,13 @@ public sealed class SceneEditorSessionContractsTests {
     [Fact]
     public void BlockingAnalysis_KeepsLastKnownGoodProjection(){
         SceneProjectionReconciler Reconciler=new();
-        SceneModel Valid=Analyze("Cube");
-        SceneDocumentSnapshot First=SceneDocumentSnapshot.Create(
-            Key,"document-a",DocumentVersion:1,AnalysisGeneration:1,Valid,HasBlockingErrors:false,Previous:null,Reconciler);
-        EditorNodeId Cube=Assert.Single(First.Projection!.Nodes,static Node=>Node.Node.Name=="Cube").Id;
+        var Valid=Analyze("Cube");
+        var First=SceneDocumentSnapshot.Create(
+                                               Key,"document-a",DocumentVersion:1,AnalysisGeneration:1,Valid,HasBlockingErrors:false,Previous:null,Reconciler);
+        var Cube=Assert.Single(First.Projection!.Nodes,static Node=>Node.Node.Name=="Cube").Id;
 
-        SceneDocumentSnapshot Invalid=SceneDocumentSnapshot.Create(
-            Key,"document-a",DocumentVersion:2,AnalysisGeneration:2,Analyze("Incomplete"),HasBlockingErrors:true,Previous:First,Reconciler);
+        var Invalid=SceneDocumentSnapshot.Create(
+                                                 Key,"document-a",DocumentVersion:2,AnalysisGeneration:2,Analyze("Incomplete"),HasBlockingErrors:true,Previous:First,Reconciler);
 
         Assert.True(Invalid.HasBlockingErrors);
         Assert.Same(First.Projection,Invalid.Projection);
@@ -33,7 +33,7 @@ public sealed class SceneEditorSessionContractsTests {
         List<SceneSelection>Notifications=[];
         Service.SelectionChanged+=Notifications.Add;
         EditorNodeId Node=new(42);
-        Guid FirstCorrelation=Guid.NewGuid();
+        var FirstCorrelation=Guid.NewGuid();
 
         Assert.True(Service.Select(Key,[Node],Node,"global::Sample.Transform","X",SceneSelectionOrigin.Viewport,FirstCorrelation));
         Assert.False(Service.Select(Key,[Node],Node,"global::Sample.Transform","X",SceneSelectionOrigin.Source,Guid.NewGuid()));

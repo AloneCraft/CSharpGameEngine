@@ -24,7 +24,7 @@ internal sealed class ShowInspectorToolWindowCommand {
         }
 
         CommandID MenuCommandId=new(CommandSet,CommandId);
-        MenuCommand MenuItem=new(Execute,MenuCommandId);
+        MenuCommand MenuItem=new(this.Execute,MenuCommandId);
         CommandService.AddCommand(MenuItem);
     }
 
@@ -39,11 +39,11 @@ internal sealed class ShowInspectorToolWindowCommand {
     }
 
     private void Execute(object Sender,EventArgs E){
-        _=Package.JoinableTaskFactory.RunAsync(async delegate {
-            ToolWindowPane Window= await Package.ShowToolWindowAsync(typeof(InspectorToolWindowPane),0,true,Package.DisposalToken);
-            if(Window?.Frame is null){
-                throw new NotSupportedException("Cannot create the Inspector tool window.");
-            }
-        });
+        _= this.Package.JoinableTaskFactory.RunAsync(async delegate {
+                                                         var Window= await this.Package.ShowToolWindowAsync(typeof(InspectorToolWindowPane),0,true, this.Package.DisposalToken);
+                                                         if(Window?.Frame is null){
+                                                             throw new NotSupportedException("Cannot create the Inspector tool window.");
+                                                         }
+                                                     });
     }
 }

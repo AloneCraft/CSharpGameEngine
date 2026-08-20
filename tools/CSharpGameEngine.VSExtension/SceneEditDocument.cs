@@ -103,7 +103,7 @@ internal sealed class SceneEditDocument {
     internal bool TryApply(IReadOnlyList<SceneEditOperation>Operations,string Label){
         if(!SceneModelEditApplier.TryApply(
             this.Current.Model,this.Current.Projection,this.Reconciler,this.Key,Operations,
-            out SceneModel Predicted,out SceneProjection PredictedProjection)){
+            out var Predicted,out var PredictedProjection)){
             return false;
         }
 
@@ -119,7 +119,7 @@ internal sealed class SceneEditDocument {
             return false;
         }
 
-        SceneUndoEntry Entry=this.UndoStack[^1];
+        var Entry=this.UndoStack[^1];
         this.UndoStack.RemoveAt(this.UndoStack.Count-1);
         this.RedoStack.Add(Entry);
         this.Current=Entry.Before;
@@ -131,7 +131,7 @@ internal sealed class SceneEditDocument {
             return false;
         }
 
-        SceneUndoEntry Entry=this.RedoStack[^1];
+        var Entry=this.RedoStack[^1];
         this.RedoStack.RemoveAt(this.RedoStack.Count-1);
         this.UndoStack.Add(Entry);
         this.Current=Entry.After;

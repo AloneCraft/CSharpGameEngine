@@ -17,7 +17,7 @@ public class RenderServerTests {
 
     [WindowsOnlyFact]
     public void BuildPrimitiveRoster_SamePrimitiveTypeRepeated_DedupesToOneMeshEntry(){
-        (StageMeshCreateInfo[]Meshes,StageMaterialCreateInfo[]Materials,StageObjectCreateInfo[]Objects)=
+        (var Meshes,var Materials,var Objects)=
             RenderServer.BuildPrimitiveRoster([PrimitiveType.Box,PrimitiveType.Box,PrimitiveType.Box],MeshIndexOffset:0,MaterialIndexOffset:0);
 
         Assert.Single(Meshes);
@@ -29,7 +29,7 @@ public class RenderServerTests {
 
     [WindowsOnlyFact]
     public void BuildPrimitiveRoster_DistinctPrimitiveTypes_EachGetsItsOwnMeshIndexOffsetCorrectly(){
-        (StageMeshCreateInfo[]Meshes,StageMaterialCreateInfo[]Materials,StageObjectCreateInfo[]Objects)=
+        (var Meshes,var Materials,var Objects)=
             RenderServer.BuildPrimitiveRoster([PrimitiveType.Box,PrimitiveType.Sphere,PrimitiveType.Box],MeshIndexOffset:5,MaterialIndexOffset:2);
 
         Assert.Equal(2,Meshes.Length);
@@ -43,9 +43,9 @@ public class RenderServerTests {
 
     [WindowsOnlyFact]
     public void BuildPrimitiveRoster_EveryPrimitiveType_ProducesAStageRendererValidMesh(){
-        foreach(PrimitiveType Type in Enum.GetValues<PrimitiveType>()){
-            (StageMeshCreateInfo[]Meshes,_,_)=RenderServer.BuildPrimitiveRoster([Type],0,0);
-            StageMeshCreateInfo Mesh=Assert.Single(Meshes);
+        foreach(var Type in Enum.GetValues<PrimitiveType>()){
+            (var Meshes,_,_)=RenderServer.BuildPrimitiveRoster([Type],0,0);
+            var Mesh=Assert.Single(Meshes);
 
             Assert.NotEmpty(Mesh.Positions);
             Assert.Equal(Mesh.Positions.Count,Mesh.Normals.Count);
@@ -69,7 +69,7 @@ public class RenderServerTests {
     }
 
     private static void RunBoxRenderScenario(){
-        (StageMeshCreateInfo[]Meshes,StageMaterialCreateInfo[]Materials,StageObjectCreateInfo[]Objects)=
+        (var Meshes,var Materials,var Objects)=
             RenderServer.BuildPrimitiveRoster([PrimitiveType.Box],0,0);
 
         using Win32Window Window=new(new Win32WindowOptions {
@@ -81,13 +81,13 @@ public class RenderServerTests {
 
         GraphicsDeviceOptions DeviceOptions=new(){ UseWarp=true,EnableDebugLayer=true };
 
-        using StageRenderer Renderer=StageRenderer.Create(
-            Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
-            Meshes,Materials,Objects);
+        using var Renderer=StageRenderer.Create(
+                                                Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
+                                                Meshes,Materials,Objects);
 
         Assert.True(Renderer.ShaderCompilationSucceeded,string.Join(Environment.NewLine,Renderer.ShaderDiagnostics));
 
-        CSharpGameEngine.Graphics.D3D12.Camera Camera=CSharpGameEngine.Graphics.D3D12.Camera.CreateDefault(Vector3.Zero);
+        var Camera=CSharpGameEngine.Graphics.D3D12.Camera.CreateDefault(Vector3.Zero);
         Renderer.SetCamera(Camera);
         Renderer.SetAmbientLight(new Vector3(0.4f,0.4f,0.4f));
         Renderer.SetDirectionalLight(Vector3.UnitY,Vector3.One,2f);
@@ -98,7 +98,7 @@ public class RenderServerTests {
         }
 
         Assert.NotNull(Renderer.LastCapturedFrame);
-        ModelVerificationResult Verification=ModelPixelVerifier.Verify(Renderer.LastCapturedFrame!,StageRenderer.ClearColor);
+        var Verification=ModelPixelVerifier.Verify(Renderer.LastCapturedFrame!,StageRenderer.ClearColor);
         Assert.True(Verification.Success,Verification.Details);
 
         Assert.Equal(0,Renderer.ErrorOrWorseMessageCount);

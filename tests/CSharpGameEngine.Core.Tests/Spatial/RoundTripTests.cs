@@ -51,8 +51,8 @@ public class RoundTripTests {
         Random Random=new(Seed);
 
         for(var I=0;I<SampleCount;I++){
-            RufVector Original=NextRuf(Random);
-            RufVector RoundTripped=TConvention.FromXyz(TConvention.ToXyz(Original));
+            var Original=NextRuf(Random);
+            var RoundTripped=TConvention.FromXyz(TConvention.ToXyz(Original));
 
             Assert.Equal(Original.R,RoundTripped.R,precision:4);
             Assert.Equal(Original.U,RoundTripped.U,precision:4);
@@ -65,8 +65,8 @@ public class RoundTripTests {
         Random Random=new(Seed);
 
         for(var I=0;I<SampleCount;I++){
-            XyzVector Original=NextXyz(Random);
-            XyzVector RoundTripped=TConvention.ToXyz(TConvention.FromXyz(Original));
+            var Original=NextXyz(Random);
+            var RoundTripped=TConvention.ToXyz(TConvention.FromXyz(Original));
 
             Assert.Equal(Original.X,RoundTripped.X,precision:4);
             Assert.Equal(Original.Y,RoundTripped.Y,precision:4);

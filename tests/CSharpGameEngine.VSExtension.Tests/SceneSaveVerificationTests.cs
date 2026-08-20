@@ -48,21 +48,21 @@ public sealed class SceneSaveVerificationTests {
     /// <summary>正しい書き戻しは検証を通り、しかも手書きコメントが保たれる(最小差分である証拠)。</summary>
     [Fact]
     public void CorrectWriteBackPassesVerificationAndKeepsHandWrittenComments(){
-        (CSharpCompilation Compilation,SyntaxNode Root,SceneProjection Projection,SceneModel Model,
-            SceneProjectionReconciler Reconciler)=CreateSeed();
+        (var Compilation,var Root,var Projection,var Model,
+            var Reconciler)=CreateSeed();
         SceneEditDocument Document=new(Key,new SceneEditSnapshot(Model,Projection),Reconciler);
-        EditorNodeId Cube=FindId(Document,"Cube");
+        var Cube=FindId(Document,"Cube");
         Assert.True(Document.TryApply(
             [new SetTransformOperation(Key,Cube,DocumentVersion:1,
                 new SceneTransformValue(new Vector3(9f,0f,0f),Quaternion.Identity,Vector3.One))],
             "移動"));
 
-        SceneSourceEditResult Edited=SceneSourceEditor.ApplyForSave(Root,Key,Projection,Document.History);
+        var Edited=SceneSourceEditor.ApplyForSave(Root,Key,Projection,Document.History);
         Assert.True(Edited.Succeeded);
 
         Assert.True(SceneSaveVerification.Verify(
             Edited.Root!,Root,Compilation,Document.Model,Key.ClassFullyQualifiedName,
-            CancellationToken.None,out string?Error),Error);
+            CancellationToken.None,out var Error),Error);
 
         Assert.Contains("手書きの大事なコメント",Edited.Root!.ToFullString());
         Assert.Contains("PositionX=9f",Edited.Root.ToFullString());
@@ -74,10 +74,10 @@ public sealed class SceneSaveVerificationTests {
     /// </summary>
     [Fact]
     public void WriteBackThatDoesNotMatchTheDocumentFailsVerification(){
-        (CSharpCompilation Compilation,SyntaxNode Root,SceneProjection Projection,SceneModel Model,
-            SceneProjectionReconciler Reconciler)=CreateSeed();
+        (var Compilation,var Root,var Projection,var Model,
+            var Reconciler)=CreateSeed();
         SceneEditDocument Document=new(Key,new SceneEditSnapshot(Model,Projection),Reconciler);
-        EditorNodeId Cube=FindId(Document,"Cube");
+        var Cube=FindId(Document,"Cube");
         Assert.True(Document.TryApply(
             [new SetTransformOperation(Key,Cube,DocumentVersion:1,
                 new SceneTransformValue(new Vector3(9f,0f,0f),Quaternion.Identity,Vector3.One))],
@@ -86,7 +86,7 @@ public sealed class SceneSaveVerificationTests {
         // Documentは9fを期待しているのに、書き戻し結果は元のまま(1f)という「反映漏れ」を模す。
         Assert.False(SceneSaveVerification.Verify(
             Root,Root,Compilation,Document.Model,Key.ClassFullyQualifiedName,
-            CancellationToken.None,out string?Error));
+            CancellationToken.None,out var Error));
         Assert.Contains("一致しません",Error);
     }
 
@@ -96,10 +96,10 @@ public sealed class SceneSaveVerificationTests {
     /// </summary>
     [Fact]
     public void ApplyForSaveSteps_ReturnsOneTreePerHistoryEntry(){
-        (_,SyntaxNode Root,SceneProjection Projection,SceneModel Model,
-            SceneProjectionReconciler Reconciler)=CreateSeed();
+        (_,var Root,var Projection,var Model,
+            var Reconciler)=CreateSeed();
         SceneEditDocument Document=new(Key,new SceneEditSnapshot(Model,Projection),Reconciler);
-        EditorNodeId Cube=FindId(Document,"Cube");
+        var Cube=FindId(Document,"Cube");
 
         for(var Step=1;Step<=3;Step++){
             Assert.True(Document.TryApply(
@@ -108,7 +108,7 @@ public sealed class SceneSaveVerificationTests {
                 $"移動{Step}"));
         }
 
-        SceneSourceEditStepsResult Steps=SceneSourceEditor.ApplyForSaveSteps(Root,Key,Projection,Document.History);
+        var Steps=SceneSourceEditor.ApplyForSaveSteps(Root,Key,Projection,Document.History);
 
         Assert.True(Steps.Succeeded);
         Assert.Equal(3,Steps.Steps.Count);
@@ -123,18 +123,18 @@ public sealed class SceneSaveVerificationTests {
     /// <summary>ステップ列の最終木は、従来の<see cref="SceneSourceEditor.ApplyForSave"/>の結果と一致する。</summary>
     [Fact]
     public void ApplyForSaveSteps_FinalRootMatchesApplyForSave(){
-        (_,SyntaxNode Root,SceneProjection Projection,SceneModel Model,
-            SceneProjectionReconciler Reconciler)=CreateSeed();
+        (_,var Root,var Projection,var Model,
+            var Reconciler)=CreateSeed();
         SceneEditDocument Document=new(Key,new SceneEditSnapshot(Model,Projection),Reconciler);
-        EditorNodeId Cube=FindId(Document,"Cube");
+        var Cube=FindId(Document,"Cube");
         Assert.True(Document.TryApply([new RenameNodeOperation(Key,Cube,DocumentVersion:1,"Renamed")],"名前の変更"));
         Assert.True(Document.TryApply(
             [new SetTransformOperation(Key,Cube,DocumentVersion:2,
                 new SceneTransformValue(new Vector3(5f,0f,0f),Quaternion.Identity,Vector3.One))],
             "移動"));
 
-        SceneSourceEditResult Whole=SceneSourceEditor.ApplyForSave(Root,Key,Projection,Document.History);
-        SceneSourceEditStepsResult Steps=SceneSourceEditor.ApplyForSaveSteps(Root,Key,Projection,Document.History);
+        var Whole=SceneSourceEditor.ApplyForSave(Root,Key,Projection,Document.History);
+        var Steps=SceneSourceEditor.ApplyForSaveSteps(Root,Key,Projection,Document.History);
 
         Assert.True(Whole.Succeeded);
         Assert.True(Steps.Succeeded);
@@ -155,10 +155,10 @@ public sealed class SceneSaveVerificationTests {
     [InlineData("move-twice")]
     [InlineData("rename-move-rename")]
     public void ApplyForSave_SucceedsRegardlessOfOperationOrderOnTheSameNode(string Order){
-        (_,SyntaxNode Root,SceneProjection Projection,SceneModel Model,
-            SceneProjectionReconciler Reconciler)=CreateSeed();
+        (_,var Root,var Projection,var Model,
+            var Reconciler)=CreateSeed();
         SceneEditDocument Document=new(Key,new SceneEditSnapshot(Model,Projection),Reconciler);
-        EditorNodeId Cube=FindId(Document,"Cube");
+        var Cube=FindId(Document,"Cube");
 
         void Move(int Version,float X)=>Assert.True(Document.TryApply(
             [new SetTransformOperation(Key,Cube,Version,
@@ -173,7 +173,7 @@ public sealed class SceneSaveVerificationTests {
             case "rename-move-rename": Rename(1,"A"); Move(2,5f); Rename(3,"B"); break;
         }
 
-        SceneSourceEditResult Result=SceneSourceEditor.ApplyForSave(Root,Key,Projection,Document.History);
+        var Result=SceneSourceEditor.ApplyForSave(Root,Key,Projection,Document.History);
 
         Assert.True(Result.Succeeded,Result.ErrorMessage);
         Assert.Contains("PositionX",Result.Root!.ToFullString());
@@ -181,9 +181,9 @@ public sealed class SceneSaveVerificationTests {
 
     [Fact]
     public void ApplyForSaveSteps_NoHistory_ReturnsNoSteps(){
-        (_,SyntaxNode Root,SceneProjection Projection,_,_)=CreateSeed();
+        (_,var Root,var Projection,_,_)=CreateSeed();
 
-        SceneSourceEditStepsResult Steps=SceneSourceEditor.ApplyForSaveSteps(Root,Key,Projection,History:[]);
+        var Steps=SceneSourceEditor.ApplyForSaveSteps(Root,Key,Projection,History:[]);
 
         Assert.True(Steps.Succeeded);
         Assert.Empty(Steps.Steps);
@@ -192,12 +192,12 @@ public sealed class SceneSaveVerificationTests {
 
     private static (CSharpCompilation Compilation,SyntaxNode Root,SceneProjection Projection,
         SceneModel Model,SceneProjectionReconciler Reconciler)CreateSeed(){
-        CSharpCompilation Compilation=SceneAnalysisTestHelper.CreateCompilation(TransformTypes,Source);
-        SyntaxNode Root=Compilation.SyntaxTrees
-            .Single(Tree=>Tree.GetRoot().ToFullString().Contains("class MainScene"))
-            .GetRoot();
-        INamedTypeSymbol SceneClass=SceneAnalysisTestHelper.FindSceneClass(Compilation,"MainScene")!;
-        SceneModel Model=SceneDeclarationAnalyzer.Analyze(SceneClass,Compilation,CancellationToken.None);
+        var Compilation=SceneAnalysisTestHelper.CreateCompilation(TransformTypes,Source);
+        var Root=Compilation.SyntaxTrees
+                            .Single(Tree=>Tree.GetRoot().ToFullString().Contains("class MainScene"))
+                            .GetRoot();
+        var SceneClass=SceneAnalysisTestHelper.FindSceneClass(Compilation,"MainScene")!;
+        var Model=SceneDeclarationAnalyzer.Analyze(SceneClass,Compilation,CancellationToken.None);
         SceneProjectionReconciler Reconciler=new();
         return(Compilation,Root,Reconciler.Reconcile(Key,Model,Previous:null),Model,Reconciler);
     }

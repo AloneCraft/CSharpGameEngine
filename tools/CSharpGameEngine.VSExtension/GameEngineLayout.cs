@@ -32,7 +32,7 @@ internal static class GameEngineLayout {
 
     public static async Task<bool>WasInitialLayoutAppliedAsync(AsyncPackage Package){
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(Package.DisposalToken);
-        WritableSettingsStore Store=GetUserSettingsStore(Package);
+        var Store=GetUserSettingsStore(Package);
         return Store.CollectionExists(SettingsCollectionPath)
             &&Store.PropertyExists(SettingsCollectionPath,InitialLayoutAppliedPropertyName)
             &&Store.GetBoolean(SettingsCollectionPath,InitialLayoutAppliedPropertyName);
@@ -40,7 +40,7 @@ internal static class GameEngineLayout {
 
     public static async Task MarkInitialLayoutAppliedAsync(AsyncPackage Package){
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(Package.DisposalToken);
-        WritableSettingsStore Store=GetUserSettingsStore(Package);
+        var Store=GetUserSettingsStore(Package);
         if(!Store.CollectionExists(SettingsCollectionPath)){
             Store.CreateCollection(SettingsCollectionPath);
         }
@@ -64,12 +64,12 @@ internal static class GameEngineLayout {
         ShowToolbar(Dte);
 
         Guid SolutionExplorer=new(ToolWindowGuids80.SolutionExplorer);
-        foreach(InitialLayoutToolWindowSpec Specification in InitialLayoutToolWindowPlan.ToolWindows){
-            ToolWindowPane Pane=await Package.FindToolWindowAsync(
-                GetToolWindowType(Specification.Kind),
-                0,
-                true,
-                Package.DisposalToken);
+        foreach(var Specification in InitialLayoutToolWindowPlan.ToolWindows){
+            var Pane=await Package.FindToolWindowAsync(
+                                                       GetToolWindowType(Specification.Kind),
+                                                       0,
+                                                       true,
+                                                       Package.DisposalToken);
             SetFramePos(Pane,GetFramePosition(Specification.Kind),SolutionExplorer,Specification.Width);
 
             if(Specification.Presentation==ToolWindowPresentation.NonActivating){
@@ -81,12 +81,15 @@ internal static class GameEngineLayout {
     private static System.Type GetToolWindowType(InitialLayoutToolWindowKind Kind)=>Kind switch {
         InitialLayoutToolWindowKind.Hierarchy=>typeof(HierarchyToolWindowPane),
         InitialLayoutToolWindowKind.Inspector=>typeof(InspectorToolWindowPane),
+        InitialLayoutToolWindowKind.ComponentPalette=>typeof(ComponentPaletteToolWindowPane),
         _=>throw new System.ArgumentOutOfRangeException(nameof(Kind),Kind,"初期レイアウトに含められないToolWindowです。"),
     };
 
     private static VSSETFRAMEPOS GetFramePosition(InitialLayoutToolWindowKind Kind)=>Kind switch {
         InitialLayoutToolWindowKind.Hierarchy=>VSSETFRAMEPOS.SFP_fDock|VSSETFRAMEPOS.SFP_fDockLeft,
         InitialLayoutToolWindowKind.Inspector=>VSSETFRAMEPOS.SFP_fDock|VSSETFRAMEPOS.SFP_fDockRight,
+        // 右側の下段。Inspectorとタブ結合させないのは、ドラッグ中に隠れるドロップ先が成立しないため。
+        InitialLayoutToolWindowKind.ComponentPalette=>VSSETFRAMEPOS.SFP_fDock|VSSETFRAMEPOS.SFP_fDockBottom,
         _=>throw new System.ArgumentOutOfRangeException(nameof(Kind),Kind,"初期レイアウトに含められないToolWindowです。"),
     };
 
@@ -117,7 +120,7 @@ internal static class GameEngineLayout {
                 return;
             }
 
-            CommandBar Toolbar=CommandBars[ToolbarName];
+            var Toolbar=CommandBars[ToolbarName];
             Toolbar.Visible=true;
         } catch(Exception){
             // Best-effort: a missing/renamed toolbar or unexpected COM failure must never take

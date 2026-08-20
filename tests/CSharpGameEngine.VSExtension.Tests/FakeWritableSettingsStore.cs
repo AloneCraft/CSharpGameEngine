@@ -16,30 +16,25 @@ internal sealed class FakeWritableSettingsStore:WritableSettingsStore {
     private readonly HashSet<string>Collections=[];
     private readonly Dictionary<(string Collection,string Property),object>Values=[];
 
-    public override bool CollectionExists(string CollectionPath)=>Collections.Contains(CollectionPath);
+    public override bool CollectionExists(string CollectionPath)=> this.Collections.Contains(CollectionPath);
 
-    public override void CreateCollection(string CollectionPath)=>Collections.Add(CollectionPath);
+    public override void CreateCollection(string CollectionPath)=> this.Collections.Add(CollectionPath);
 
-    public override bool PropertyExists(string CollectionPath,string PropertyName)=>
-        Values.ContainsKey((CollectionPath,PropertyName));
+    public override bool PropertyExists(string CollectionPath,string PropertyName)=> this.Values.ContainsKey((CollectionPath,PropertyName));
 
-    public override void SetString(string CollectionPath,string PropertyName,string Value)=>
-        Values[(CollectionPath,PropertyName)]=Value;
+    public override void SetString(string CollectionPath,string PropertyName,string Value)=> this.Values[(CollectionPath,PropertyName)]=Value;
 
     public override string GetString(string CollectionPath,string PropertyName)=>
-        (string)Values[(CollectionPath,PropertyName)];
+        (string)this.Values[(CollectionPath,PropertyName)];
 
-    public override string GetString(string CollectionPath,string PropertyName,string DefaultValue)=>
-        Values.TryGetValue((CollectionPath,PropertyName),out object?Value)?(string)Value:DefaultValue;
+    public override string GetString(string CollectionPath,string PropertyName,string DefaultValue)=> this.Values.TryGetValue((CollectionPath,PropertyName),out var Value)?(string)Value:DefaultValue;
 
-    public override void SetBoolean(string CollectionPath,string PropertyName,bool Value)=>
-        Values[(CollectionPath,PropertyName)]=Value;
+    public override void SetBoolean(string CollectionPath,string PropertyName,bool Value)=> this.Values[(CollectionPath,PropertyName)]=Value;
 
     public override bool GetBoolean(string CollectionPath,string PropertyName)=>
-        (bool)Values[(CollectionPath,PropertyName)];
+        (bool)this.Values[(CollectionPath,PropertyName)];
 
-    public override bool GetBoolean(string CollectionPath,string PropertyName,bool DefaultValue)=>
-        Values.TryGetValue((CollectionPath,PropertyName),out object?Value)?(bool)Value:DefaultValue;
+    public override bool GetBoolean(string CollectionPath,string PropertyName,bool DefaultValue)=> this.Values.TryGetValue((CollectionPath,PropertyName),out var Value)?(bool)Value:DefaultValue;
 
     // ---- SceneEditorSettingsが使わないメンバー。呼ばれたらテストの前提が崩れているのでthrowする ----
 

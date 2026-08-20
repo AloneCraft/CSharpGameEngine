@@ -48,8 +48,8 @@ public sealed class SceneVisualIconPresenter : ContentControl {
     }
 
     private void RefreshContent(){
-        SceneVisualIcon Icon=this.Icon??SceneVisualIcon.ComponentDefault();
-        double Size=Math.Max(1d,this.IconSize);
+        var Icon=this.Icon??SceneVisualIcon.ComponentDefault();
+        var Size=Math.Max(1d,this.IconSize);
         this.Width=Size;
         this.Height=Size;
         this.ToolTip=Icon.ToolTip;
@@ -118,7 +118,7 @@ internal static class SceneProjectIconImageCache {
 
     private static ImageSource?Load(string AbsolutePath){
         try {
-            string Extension=Path.GetExtension(AbsolutePath);
+            var Extension=Path.GetExtension(AbsolutePath);
             if(string.Equals(Extension,".png",StringComparison.OrdinalIgnoreCase)){
                 BitmapImage Bitmap=new();
                 Bitmap.BeginInit();
@@ -134,7 +134,7 @@ internal static class SceneProjectIconImageCache {
             }
 
             using(FileSvgReader Reader=new(new WpfDrawingSettings(),isEmbedded:false)){
-                DrawingGroup?Drawing=Reader.Read(AbsolutePath);
+                var Drawing=Reader.Read(AbsolutePath);
                 if(Drawing is null){
                     return null;
                 }

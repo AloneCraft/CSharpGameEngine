@@ -272,19 +272,19 @@ public sealed class GameSystemGeneratorDiagnosticsTests {
 
     [Fact]
     public void ValidSystem_ReportsNothing(){
-        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
-            Preamble+"""
-            internal struct ValidSystem : ISystem
-            {
-                public bool Update(Entity entity, ref Position position, ref Velocity velocity, ref State state) => true;
-            }
-            """);
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(
+                                                              Preamble+"""
+                                                                       internal struct ValidSystem : ISystem
+                                                                       {
+                                                                           public bool Update(Entity entity, ref Position position, ref Velocity velocity, ref State state) => true;
+                                                                       }
+                                                                       """);
 
         Assert.Empty(Result.Diagnostics);
     }
 
     private static void AssertHasDiagnostic(string SystemSource,string DiagnosticId){
-        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(Preamble+SystemSource);
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(Preamble+SystemSource);
 
         Assert.Contains(Result.Diagnostics,D=>D.Id==DiagnosticId);
     }

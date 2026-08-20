@@ -17,9 +17,9 @@ public sealed class InspectorToolWindowPane:ToolWindowPane {
     private static Func<SceneEditorSessionService?>?SessionProvider;
 
     public InspectorToolWindowPane():base(null){
-        Caption="インスペクター";
-        Content=new InspectorToolWindowControl();
-        if(SessionProvider?.Invoke() is { } Session&&Content is InspectorToolWindowControl Control){
+        this.Caption="インスペクター";
+        this.Content=new InspectorToolWindowControl();
+        if(SessionProvider?.Invoke() is { } Session&& this.Content is InspectorToolWindowControl Control){
             Control.SetSession(Session);
         }
     }

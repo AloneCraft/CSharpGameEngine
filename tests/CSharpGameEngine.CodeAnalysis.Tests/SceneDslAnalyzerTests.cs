@@ -25,14 +25,14 @@ public sealed class SceneDslAnalyzerTests {
         """;
 
     private static ImmutableArray<Diagnostic>Analyze(params string[]ExtraSources){
-        CSharpCompilation Compilation=GameSystemGeneratorTestHelper.CreateCompilation(
-            [.. GameSystemGeneratorTestHelper.SceneDslSources,.. ExtraSources]);
+        var Compilation=GameSystemGeneratorTestHelper.CreateCompilation(
+                                                                        [.. GameSystemGeneratorTestHelper.SceneDslSources,.. ExtraSources]);
         return RunAnalyzer(Compilation);
     }
 
     private static ImmutableArray<Diagnostic>RunAnalyzer(CSharpCompilation Compilation){
-        CompilationWithAnalyzers WithAnalyzers=Compilation.WithAnalyzers(
-            ImmutableArray.Create<DiagnosticAnalyzer>(new SceneDslAnalyzer()));
+        var WithAnalyzers=Compilation.WithAnalyzers(
+                                                    ImmutableArray.Create<DiagnosticAnalyzer>(new SceneDslAnalyzer()));
         return WithAnalyzers.GetAnalyzerDiagnosticsAsync().GetAwaiter().GetResult();
     }
 
@@ -46,13 +46,13 @@ public sealed class SceneDslAnalyzerTests {
 
     [Fact]
     public void InvalidScene_IsReportedThroughTheAnalyzer(){
-        ImmutableArray<Diagnostic>Diagnostics=Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public class MainScene:IScene {
-                public Node Root=>new() { Name="Root" };
-            }
-            """);
+        var Diagnostics=Analyze("""
+                               using CSharpGameEngine.Entities;
+                               namespace Game;
+                               public class MainScene:IScene {
+                                   public Node Root=>new() { Name="Root" };
+                               }
+                               """);
 
         Assert.Equal(["SCENE100"],Ids(Diagnostics));
     }
@@ -60,15 +60,15 @@ public sealed class SceneDslAnalyzerTests {
     [Fact]
     public void Generator_DoesNotAlsoReportSceneDslDiagnostics(){
         // SCENE1xxを報告するのはアナライザーだけ。両方が報告すると同じ箇所に二重の赤線が出る。
-        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
-            [.. GameSystemGeneratorTestHelper.SceneDslSources,
-            """
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public class MainScene:IScene {
-                public Node Root=>new() { Name="Root" };
-            }
-            """]);
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(
+                                                              [.. GameSystemGeneratorTestHelper.SceneDslSources,
+                                                                  """
+                                                                  using CSharpGameEngine.Entities;
+                                                                  namespace Game;
+                                                                  public class MainScene:IScene {
+                                                                      public Node Root=>new() { Name="Root" };
+                                                                  }
+                                                                  """]);
 
         Assert.DoesNotContain(Result.Diagnostics,static D=>D.Id.StartsWith("SCENE1",StringComparison.Ordinal));
     }
@@ -77,37 +77,37 @@ public sealed class SceneDslAnalyzerTests {
     public void ProjectWithoutTheRuntimeTypes_IsNotAnalyzedAtAll(){
         // CSharpGameEngine.CodeAnalysisは1パッケージに複数機能を同居させるため、参照しただけの
         // 無関係なプロジェクトでもアナライザーは走る。ランタイム型の実在をゲートにしている。
-        CSharpCompilation Compilation=CSharpCompilation.Create(
-            "Unrelated",
-            [CSharpSyntaxTree.ParseText("public class Unrelated { }")],
-            [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)],
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        var Compilation=CSharpCompilation.Create(
+                                                 "Unrelated",
+                                                 [CSharpSyntaxTree.ParseText("public class Unrelated { }")],
+                                                 [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)],
+                                                 new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         Assert.Empty(RunAnalyzer(Compilation));
     }
 
     [Fact]
     public void Scene114_NodeConstructedOutsideASceneDeclaration(){
-        ImmutableArray<Diagnostic>Diagnostics=Analyze(ValidScene,"""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public static class Rogue {
-                public static Node Build()=>new Node { Name="not a scene" };
-            }
-            """);
+        var Diagnostics=Analyze(ValidScene,"""
+                                          using CSharpGameEngine.Entities;
+                                          namespace Game;
+                                          public static class Rogue {
+                                              public static Node Build()=>new Node { Name="not a scene" };
+                                          }
+                                          """);
 
         Assert.Equal(["SCENE114"],Ids(Diagnostics));
     }
 
     [Fact]
     public void Scene114_ReadingRootExecutesTheDslAndIsRejected(){
-        ImmutableArray<Diagnostic>Diagnostics=Analyze(ValidScene,"""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public static class Rogue {
-                public static string?Peek(MainScene Scene)=>Scene.Root.Name;
-            }
-            """);
+        var Diagnostics=Analyze(ValidScene,"""
+                                          using CSharpGameEngine.Entities;
+                                          namespace Game;
+                                          public static class Rogue {
+                                              public static string?Peek(MainScene Scene)=>Scene.Root.Name;
+                                          }
+                                          """);
 
         Assert.Equal(["SCENE114"],Ids(Diagnostics));
     }
@@ -140,13 +140,13 @@ public sealed class SceneDslAnalyzerTests {
     public void Scene117_StartupSceneOnATypeThatIsNotAScene(){
         // [StartupScene]はIScene実装にのみ意味がある。Instantiateを持たない型に付いていても
         // 何も起きず静かに無視されるため、付け間違いとして報告する。
-        ImmutableArray<Diagnostic>Diagnostics=Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            [StartupScene(Order=0)]
-            public partial class NotAScene {
-            }
-            """);
+        var Diagnostics=Analyze("""
+                               using CSharpGameEngine.Entities;
+                               namespace Game;
+                               [StartupScene(Order=0)]
+                               public partial class NotAScene {
+                               }
+                               """);
 
         Assert.Equal(["SCENE117"],Ids(Diagnostics));
     }
@@ -165,18 +165,18 @@ public sealed class SceneDslAnalyzerTests {
 
     [Fact]
     public void Scene118_TwoStartupScenesSharingAnOrder(){
-        ImmutableArray<Diagnostic>Diagnostics=Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            [StartupScene(Order=0)]
-            public partial class FirstScene:IScene {
-                public Node Root=>new() { Name="First" };
-            }
-            [StartupScene(Order=0)]
-            public partial class SecondScene:IScene {
-                public Node Root=>new() { Name="Second" };
-            }
-            """);
+        var Diagnostics=Analyze("""
+                               using CSharpGameEngine.Entities;
+                               namespace Game;
+                               [StartupScene(Order=0)]
+                               public partial class FirstScene:IScene {
+                                   public Node Root=>new() { Name="First" };
+                               }
+                               [StartupScene(Order=0)]
+                               public partial class SecondScene:IScene {
+                                   public Node Root=>new() { Name="Second" };
+                               }
+                               """);
 
         Assert.Equal(["SCENE118"],Ids(Diagnostics));
     }

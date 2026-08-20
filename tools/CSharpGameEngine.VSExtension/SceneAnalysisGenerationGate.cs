@@ -10,14 +10,14 @@ internal sealed class SceneAnalysisGenerationGate<TDocument> where TDocument:cla
     private TDocument?ActiveDocument;
 
     internal SceneAnalysisRequest<TDocument>ActivateDocument(TDocument?Document){
-        ActiveDocument=Document;
-        return new SceneAnalysisRequest<TDocument>(++Generation,Document);
+        this.ActiveDocument=Document;
+        return new SceneAnalysisRequest<TDocument>(++this.Generation,Document);
     }
 
-    internal SceneAnalysisRequest<TDocument>Refresh()=>new(++Generation,ActiveDocument);
+    internal SceneAnalysisRequest<TDocument>Refresh()=>new(++this.Generation, this.ActiveDocument);
 
     internal bool IsCurrent(SceneAnalysisRequest<TDocument>Request)=>
-        Request.Generation==Generation&&Equals(Request.Document,ActiveDocument);
+        Request.Generation== this.Generation&&Equals(Request.Document, this.ActiveDocument);
 }
 
 internal readonly record struct SceneAnalysisRequest<TDocument>(long Generation,TDocument?Document) where TDocument:class;

@@ -36,15 +36,15 @@ internal static class GizmoMeshFactory {
             (-Vector3.UnitY,Vector3.UnitX,Vector3.UnitZ),     // -Y
         ];
 
-        Vector3[]Positions=new Vector3[Faces.Length*4];
-        Vector3[]Normals=new Vector3[Faces.Length*4];
+        var Positions=new Vector3[Faces.Length*4];
+        var Normals=new Vector3[Faces.Length*4];
         var Indices=new uint[Faces.Length*6];
 
         for(var Face=0;Face<Faces.Length;Face++){
-            (Vector3 Normal,Vector3 U,Vector3 V)=Faces[Face];
-            Vector3 Center=Normal*Half;
-            Vector3 UHalf=U*Half;
-            Vector3 VHalf=V*Half;
+            (var Normal,var U,var V)=Faces[Face];
+            var Center=Normal*Half;
+            var UHalf=U*Half;
+            var VHalf=V*Half;
             var VertexBase=Face*4;
 
             Positions[VertexBase+0]=Center-UHalf-VHalf;
@@ -65,7 +65,7 @@ internal static class GizmoMeshFactory {
             Indices[IndexBase+5]=(uint)(VertexBase+3);
         }
 
-        (Vector3 BoundsCenter,var BoundsRadius)=SimpleMesh.ComputeBoundingSphere(Positions);
+        (var BoundsCenter,var BoundsRadius)=SimpleMesh.ComputeBoundingSphere(Positions);
 
         return new SimpleMesh {
             Positions=Positions,

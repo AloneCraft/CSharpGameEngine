@@ -11,7 +11,7 @@ public class BoundingBoxTests {
             new Vector3(0,0,0),
         ];
 
-        BoundingBox Box=BoundingBox.FromPoints(Points);
+        var Box=BoundingBox.FromPoints(Points);
 
         Assert.Equal(new Vector3(-1,-2,-3),Box.Min);
         Assert.Equal(new Vector3(1,2,3),Box.Max);

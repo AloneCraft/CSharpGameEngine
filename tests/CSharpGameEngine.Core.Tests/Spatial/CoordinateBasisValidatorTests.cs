@@ -40,7 +40,7 @@ public class CoordinateBasisValidatorTests {
     /// </summary>
     [Fact]
     public void DuplicateAxes_ThrowsViaOrthogonalityCheck(){
-        SpatialConfigurationException Exception=Assert.Throws<SpatialConfigurationException>(CoordinateBasisValidator.Validate<DuplicateAxisConvention>);
+        var Exception=Assert.Throws<SpatialConfigurationException>(CoordinateBasisValidator.Validate<DuplicateAxisConvention>);
 
         Assert.Contains("orthogonal",Exception.Message,StringComparison.OrdinalIgnoreCase);
     }

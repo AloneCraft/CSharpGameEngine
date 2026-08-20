@@ -10,5 +10,5 @@ public readonly struct SpotLightBasis {
     }
 
     /// <summary>The direction from a surface toward the light - always the opposite of <see cref="Forward"/>.</summary>
-    public RufVector DirectionToLight=>-Forward;
+    public RufVector DirectionToLight=>-this.Forward;
 }

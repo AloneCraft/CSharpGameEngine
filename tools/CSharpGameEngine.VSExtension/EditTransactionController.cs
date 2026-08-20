@@ -137,7 +137,7 @@ internal sealed class EditTransactionController {
     internal IReadOnlyList<SceneTransformPreview>CurrentPreviews=>this.Previews;
 
     internal void Begin(SceneDocumentSnapshot Snapshot,IReadOnlyList<SceneTransformTarget>Targets){
-        if(State!=EditTransactionState.Idle){
+        if(this.State!=EditTransactionState.Idle){
             throw new InvalidOperationException("編集トランザクションは既に進行中です。");
         }
         if(Targets.Count==0){
@@ -149,58 +149,58 @@ internal sealed class EditTransactionController {
         this.Previews=this.Targets.Select(static Target=>
             new SceneTransformPreview(Target.NodeId,Target.NodePath,Target.OriginalWorld)).ToArray();
         this.PendingSnapshot=null;
-        State=EditTransactionState.Dragging;
+        this.State=EditTransactionState.Dragging;
     }
 
     internal void BeginDirect(SceneDocumentSnapshot Snapshot){
-        if(State!=EditTransactionState.Idle){
+        if(this.State!=EditTransactionState.Idle){
             throw new InvalidOperationException("編集トランザクションは既に進行中です。");
         }
         this.StartedSnapshot=Snapshot??throw new ArgumentNullException(nameof(Snapshot));
         this.Targets=[];
         this.Previews=[];
         this.PendingSnapshot=null;
-        State=EditTransactionState.Dragging;
+        this.State=EditTransactionState.Dragging;
     }
 
     internal IReadOnlyList<SceneTransformPreview>PreviewTranslation(Vector3 WorldDelta){
-        Matrix4x4 Delta=Matrix4x4.CreateTranslation(WorldDelta);
-        return PreviewWorldDelta(Delta);
+        var Delta=Matrix4x4.CreateTranslation(WorldDelta);
+        return this.PreviewWorldDelta(Delta);
     }
 
     internal IReadOnlyList<SceneTransformPreview>PreviewRotation(Vector3 Pivot,Quaternion Rotation){
-        Matrix4x4 Delta=Matrix4x4.CreateTranslation(-Pivot)
-            *Matrix4x4.CreateFromQuaternion(SceneTransformMath.NormalizeRotation(Rotation))
-            *Matrix4x4.CreateTranslation(Pivot);
-        return PreviewWorldDelta(Delta);
+        var Delta=Matrix4x4.CreateTranslation(-Pivot)
+                 *Matrix4x4.CreateFromQuaternion(SceneTransformMath.NormalizeRotation(Rotation))
+                 *Matrix4x4.CreateTranslation(Pivot);
+        return this.PreviewWorldDelta(Delta);
     }
 
     internal IReadOnlyList<SceneTransformPreview>PreviewScale(
         Vector3 Pivot,Quaternion BasisRotation,Vector3 Factors){
-        Matrix4x4 Basis=Matrix4x4.CreateFromQuaternion(SceneTransformMath.NormalizeRotation(BasisRotation));
-        Matrix4x4.Invert(Basis,out Matrix4x4 InverseBasis);
-        Matrix4x4 Delta=Matrix4x4.CreateTranslation(-Pivot)
-            *InverseBasis
-            *Matrix4x4.CreateScale(Factors)
-            *Basis
-            *Matrix4x4.CreateTranslation(Pivot);
-        return PreviewWorldDelta(Delta);
+        var Basis=Matrix4x4.CreateFromQuaternion(SceneTransformMath.NormalizeRotation(BasisRotation));
+        Matrix4x4.Invert(Basis,out var InverseBasis);
+        var Delta=Matrix4x4.CreateTranslation(-Pivot)
+                 *InverseBasis
+                 *Matrix4x4.CreateScale(Factors)
+                 *Basis
+                 *Matrix4x4.CreateTranslation(Pivot);
+        return this.PreviewWorldDelta(Delta);
     }
 
     internal IReadOnlyList<SceneTransformPreview>PreviewSurfaceSnap(
         Vector3 Pivot,Vector3 TargetPosition,Quaternion PrimaryRotation,Vector3 SurfaceNormal){
-        Quaternion Alignment=CreateFromToRotation(
-            Vector3.Transform(Vector3.UnitY,SceneTransformMath.NormalizeRotation(PrimaryRotation)),SurfaceNormal);
-        Matrix4x4 Delta=Matrix4x4.CreateTranslation(-Pivot)
-            *Matrix4x4.CreateFromQuaternion(Alignment)
-            *Matrix4x4.CreateTranslation(TargetPosition);
-        return PreviewWorldDelta(Delta);
+        var Alignment=CreateFromToRotation(
+                                           Vector3.Transform(Vector3.UnitY,SceneTransformMath.NormalizeRotation(PrimaryRotation)),SurfaceNormal);
+        var Delta=Matrix4x4.CreateTranslation(-Pivot)
+                 *Matrix4x4.CreateFromQuaternion(Alignment)
+                 *Matrix4x4.CreateTranslation(TargetPosition);
+        return this.PreviewWorldDelta(Delta);
     }
 
     internal Matrix4x4 CurrentWorldDelta=>this.WorldDelta;
 
     private IReadOnlyList<SceneTransformPreview>PreviewWorldDelta(Matrix4x4 Delta){
-        EnsureState(EditTransactionState.Dragging);
+        this.EnsureState(EditTransactionState.Dragging);
         this.WorldDelta=Delta;
         this.Previews=this.Targets.Select(Target=>
             new SceneTransformPreview(Target.NodeId,Target.NodePath,Target.OriginalWorld*Delta)).ToArray();
@@ -208,7 +208,7 @@ internal sealed class EditTransactionController {
     }
 
     internal void QueueSnapshot(SceneDocumentSnapshot Snapshot){
-        if(State==EditTransactionState.Idle){
+        if(this.State==EditTransactionState.Idle){
             throw new InvalidOperationException("保留できる編集トランザクションがありません。");
         }
         if(this.StartedSnapshot is not { } Started||!Started.Key.Equals(Snapshot.Key)){
@@ -219,13 +219,13 @@ internal sealed class EditTransactionController {
     }
 
     internal bool TryCreateCommit(string UndoDescription,out SceneEditCommitRequest?Request){
-        return TryCreateCommit(UndoDescription,SceneTransformMemberMask.Position,out Request);
+        return this.TryCreateCommit(UndoDescription,SceneTransformMemberMask.Position,out Request);
     }
 
     internal bool TryCreateCommit(
         string UndoDescription,SceneTransformMemberMask Members,out SceneEditCommitRequest?Request){
-        return TryCreateCommitCore(
-            UndoDescription,Members,Array.Empty<NodePath>(),out Request);
+        return this.TryCreateCommitCore(
+                                        UndoDescription,Members,Array.Empty<NodePath>(),out Request);
     }
 
     internal bool TryCreateDuplicateCommit(
@@ -235,19 +235,19 @@ internal sealed class EditTransactionController {
             Request=null;
             return false;
         }
-        return TryCreateCommitCore(UndoDescription,Members,DuplicateResultPaths,out Request);
+        return this.TryCreateCommitCore(UndoDescription,Members,DuplicateResultPaths,out Request);
     }
 
     internal bool TryCreateDirectCommit(
         string UndoDescription,IReadOnlyList<SceneEditOperation>Operations,out SceneEditCommitRequest?Request){
-        EnsureState(EditTransactionState.Dragging);
+        this.EnsureState(EditTransactionState.Dragging);
         if(this.StartedSnapshot is not { }Started||Operations.Count==0
             ||Operations.Any(Operation=>!Operation.SceneKey.Equals(Started.Key))){
             Request=null;
             return false;
         }
 
-        State=EditTransactionState.Committing;
+        this.State=EditTransactionState.Committing;
         Request=new SceneEditCommitRequest(
             Started.Key,Started.DocumentVersion,UndoDescription,Array.Empty<SceneTransformChange>(),
             SceneTransformMemberMask.None,DirectOperations:Operations);
@@ -257,7 +257,7 @@ internal sealed class EditTransactionController {
     private bool TryCreateCommitCore(
         string UndoDescription,SceneTransformMemberMask Members,IReadOnlyList<NodePath>DuplicateResultPaths,
         out SceneEditCommitRequest?Request){
-        EnsureState(EditTransactionState.Dragging);
+        this.EnsureState(EditTransactionState.Dragging);
         if(this.StartedSnapshot is not { } Started){
             Request=null;
             return false;
@@ -265,18 +265,18 @@ internal sealed class EditTransactionController {
 
         List<SceneTransformChange>Changes=[];
         for(var I=0;I<this.Targets.Length;I++){
-            SceneTransformTarget Target=this.Targets[I];
+            var Target=this.Targets[I];
             if(!SceneTransformMath.TryCalculateLocal(
-                Target.OriginalWorld,Target.ParentWorld,out SceneTransformValue OriginalLocal)
+                Target.OriginalWorld,Target.ParentWorld,out var OriginalLocal)
                 ||!SceneTransformMath.TryCalculateLocal(
-                    this.Previews[I].World,Target.ParentWorld,out SceneTransformValue Local)){
+                    this.Previews[I].World,Target.ParentWorld,out var Local)){
                 Request=null;
                 return false;
             }
             Changes.Add(new SceneTransformChange(Target.NodeId,OriginalLocal,Local));
         }
 
-        State=EditTransactionState.Committing;
+        this.State=EditTransactionState.Committing;
         Request=new SceneEditCommitRequest(
             Started.Key,Started.DocumentVersion,UndoDescription,Changes,Members,DuplicateResultPaths);
         return true;
@@ -286,32 +286,32 @@ internal sealed class EditTransactionController {
         if(From.LengthSquared()<=1e-10f||To.LengthSquared()<=1e-10f){ return Quaternion.Identity; }
         From=Vector3.Normalize(From);
         To=Vector3.Normalize(To);
-        float Dot=Math.Max(-1f,Math.Min(1f,Vector3.Dot(From,To)));
+        var Dot=Math.Max(-1f,Math.Min(1f,Vector3.Dot(From,To)));
         if(Dot>=1f-1e-6f){ return Quaternion.Identity; }
         if(Dot<=-1f+1e-6f){
-            Vector3 Reference=Math.Abs(Vector3.Dot(From,Vector3.UnitX))<0.9f?Vector3.UnitX:Vector3.UnitZ;
+            var Reference=Math.Abs(Vector3.Dot(From,Vector3.UnitX))<0.9f?Vector3.UnitX:Vector3.UnitZ;
             return Quaternion.CreateFromAxisAngle(Vector3.Normalize(Vector3.Cross(From,Reference)),(float)Math.PI);
         }
-        Vector3 Axis=Vector3.Normalize(Vector3.Cross(From,To));
+        var Axis=Vector3.Normalize(Vector3.Cross(From,To));
         return Quaternion.CreateFromAxisAngle(Axis,(float)Math.Acos(Dot));
     }
 
     internal SceneEditCancellation Cancel(){
-        if(State==EditTransactionState.Idle){
+        if(this.State==EditTransactionState.Idle){
             return new SceneEditCancellation([],PendingSnapshot:null);
         }
 
-        SceneTransformPreview[]Restored=this.Targets.Select(static Target=>
-            new SceneTransformPreview(Target.NodeId,Target.NodePath,Target.OriginalWorld)).ToArray();
-        SceneDocumentSnapshot?Pending=this.PendingSnapshot;
-        Clear();
+        var Restored=this.Targets.Select(static Target=>
+                                            new SceneTransformPreview(Target.NodeId,Target.NodePath,Target.OriginalWorld)).ToArray();
+        var Pending=this.PendingSnapshot;
+        this.Clear();
         return new SceneEditCancellation(Restored,Pending);
     }
 
     internal SceneDocumentSnapshot?Complete(){
-        EnsureState(EditTransactionState.Committing);
-        SceneDocumentSnapshot?Pending=this.PendingSnapshot;
-        Clear();
+        this.EnsureState(EditTransactionState.Committing);
+        var Pending=this.PendingSnapshot;
+        this.Clear();
         return Pending;
     }
 
@@ -321,12 +321,12 @@ internal sealed class EditTransactionController {
         this.Targets=[];
         this.Previews=[];
         this.WorldDelta=Matrix4x4.Identity;
-        State=EditTransactionState.Idle;
+        this.State=EditTransactionState.Idle;
     }
 
     private void EnsureState(EditTransactionState Expected){
-        if(State!=Expected){
-            throw new InvalidOperationException($"編集トランザクション状態が不正です。expected={Expected}, actual={State}");
+        if(this.State!=Expected){
+            throw new InvalidOperationException($"編集トランザクション状態が不正です。expected={Expected}, actual={this.State}");
         }
     }
 }

@@ -35,7 +35,7 @@ public sealed class SceneComponentBindingTests {
     [Fact]
     public void Bindings_RecognizeTheEngineStandardTransform(){
         Assert.True(SceneComponentBindings.TryGetRole(
-            "global::CSharpGameEngine.Runtime.Windows.Transform",out SceneComponentRole Role));
+            "global::CSharpGameEngine.Runtime.Windows.Transform",out var Role));
         Assert.Equal(SceneComponentRole.LocalTransform,Role);
     }
 
@@ -52,7 +52,7 @@ public sealed class SceneComponentBindingTests {
     [InlineData("global::UserEcsProject.SpotLight",(int)SceneComponentRole.SpotLight)]
     public void Phase6Bindings_RecognizeCameraAndCurrentLightVocabulary(
         string TypeFullyQualifiedName,int ExpectedValue){
-        Assert.True(SceneComponentBindings.TryGetRole(TypeFullyQualifiedName,out SceneComponentRole Actual));
+        Assert.True(SceneComponentBindings.TryGetRole(TypeFullyQualifiedName,out var Actual));
         Assert.Equal((SceneComponentRole)ExpectedValue,Actual);
     }
 
@@ -63,19 +63,19 @@ public sealed class SceneComponentBindingTests {
 
     [Fact]
     public void FindComponent_ReturnsTheComponentBoundToTheRequestedRole(){
-        SceneNode Root=AnalyzeRoot("""
-            using CSharpGameEngine.Entities;
-            using CSharpGameEngine.Runtime.Windows;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Components=[
-                    new PrimitiveMesh { Type=PrimitiveType.Box },
-                    new Transform { PositionX=1f,RotationW=1f },
-                ]};
-            }
-            """);
+        var Root=AnalyzeRoot("""
+                             using CSharpGameEngine.Entities;
+                             using CSharpGameEngine.Runtime.Windows;
+                             namespace Game;
+                             public partial class MainScene:IScene {
+                                 public Node Root=>new() { Components=[
+                                     new PrimitiveMesh { Type=PrimitiveType.Box },
+                                     new Transform { PositionX=1f,RotationW=1f },
+                                 ]};
+                             }
+                             """);
 
-        SceneComponent?Transform=SceneComponentBindings.FindComponent(Root,SceneComponentRole.LocalTransform);
+        var Transform=SceneComponentBindings.FindComponent(Root,SceneComponentRole.LocalTransform);
 
         Assert.NotNull(Transform);
         Assert.Equal("global::CSharpGameEngine.Runtime.Windows.Transform",Transform!.TypeFullyQualifiedName);
@@ -83,14 +83,14 @@ public sealed class SceneComponentBindingTests {
 
     [Fact]
     public void FindComponent_NodeWithoutTheRole_ReturnsNull(){
-        SceneNode Root=AnalyzeRoot("""
-            using CSharpGameEngine.Entities;
-            using CSharpGameEngine.Runtime.Windows;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Components=[new PrimitiveMesh { Type=PrimitiveType.Box }]};
-            }
-            """);
+        var Root=AnalyzeRoot("""
+                             using CSharpGameEngine.Entities;
+                             using CSharpGameEngine.Runtime.Windows;
+                             namespace Game;
+                             public partial class MainScene:IScene {
+                                 public Node Root=>new() { Components=[new PrimitiveMesh { Type=PrimitiveType.Box }]};
+                             }
+                             """);
 
         Assert.Null(SceneComponentBindings.FindComponent(Root,SceneComponentRole.LocalTransform));
     }
@@ -99,13 +99,13 @@ public sealed class SceneComponentBindingTests {
     public void Bindings_MapEveryRoleToAtLeastOneFullyQualifiedName(){
         // 消費者のない Role を宣言した(= dead abstraction を作った)ことを機械的に検出する。
         // Phase 6 で Camera/ライトを足すときは、enum メンバーと表の行を同時に追加すること。
-        foreach(SceneComponentRole Role in Enum.GetValues(typeof(SceneComponentRole)).Cast<SceneComponentRole>()){
+        foreach(var Role in Enum.GetValues(typeof(SceneComponentRole)).Cast<SceneComponentRole>()){
             Assert.Contains(SceneComponentBindings.All,Binding=>Binding.Role==Role);
         }
     }
 
     private static SceneNode AnalyzeRoot(string SceneSource){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze([Components,SceneSource]);
+        var Model=SceneAnalysisTestHelper.Analyze([Components,SceneSource]);
         Assert.NotNull(Model.Root);
         return Model.Root!;
     }

@@ -10,7 +10,7 @@ namespace CSharpGameEngine.Spatial.Tests;
 public class RufQuaternionTests {
     [Fact]
     public void Identity_DoesNotRotateVector(){
-        RufVector Rotated=RufQuaternion.RotateVector(RufQuaternion.Identity,RufVector.Forward);
+        var Rotated=RufQuaternion.RotateVector(RufQuaternion.Identity,RufVector.Forward);
 
         Assert.Equal(RufVector.Forward.R,Rotated.R,precision:5);
         Assert.Equal(RufVector.Forward.U,Rotated.U,precision:5);
@@ -19,9 +19,9 @@ public class RufQuaternionTests {
 
     [Fact]
     public void FromAxisAngle_RotatesAroundAxisByRightHandRule(){
-        RufQuaternion Rotation=RufQuaternion.FromAxisAngle(RufVector.Forward,MathF.PI/2f);
+        var Rotation=RufQuaternion.FromAxisAngle(RufVector.Forward,MathF.PI/2f);
 
-        RufVector Rotated=RufQuaternion.RotateVector(Rotation,RufVector.Right);
+        var Rotated=RufQuaternion.RotateVector(Rotation,RufVector.Right);
 
         // Right-hand rule around F: R rotates toward U (matches Quaternion.CreateFromAxisAngle applied
         // directly to the (R, U, F) triple, treated as an internal right-handed basis).
@@ -32,12 +32,12 @@ public class RufQuaternionTests {
 
     [Fact]
     public void Multiply_AppliesChildThenParent(){
-        RufQuaternion Parent=RufQuaternion.FromAxisAngle(RufVector.Up,MathF.PI/2f);
-        RufQuaternion Child=RufQuaternion.FromAxisAngle(RufVector.Right,MathF.PI/4f);
+        var Parent=RufQuaternion.FromAxisAngle(RufVector.Up,MathF.PI/2f);
+        var Child=RufQuaternion.FromAxisAngle(RufVector.Right,MathF.PI/4f);
         RufVector V=new(0.3f,0.6f,0.8f);
 
-        RufVector Expected=RufQuaternion.RotateVector(Parent,RufQuaternion.RotateVector(Child,V));
-        RufVector Actual=RufQuaternion.RotateVector(Parent*Child,V);
+        var Expected=RufQuaternion.RotateVector(Parent,RufQuaternion.RotateVector(Child,V));
+        var Actual=RufQuaternion.RotateVector(Parent*Child,V);
 
         Assert.Equal(Expected.R,Actual.R,precision:4);
         Assert.Equal(Expected.U,Actual.U,precision:4);
@@ -46,10 +46,10 @@ public class RufQuaternionTests {
 
     [Fact]
     public void LookRotation_ForwardMapsToRequestedDirection(){
-        RufVector Forward=new RufVector(1f,1f,1f).Normalize();
-        RufQuaternion Rotation=RufQuaternion.LookRotation(Forward,RufVector.Up);
+        var Forward=new RufVector(1f,1f,1f).Normalize();
+        var Rotation=RufQuaternion.LookRotation(Forward,RufVector.Up);
 
-        RufVector RotatedForward=RufQuaternion.RotateVector(Rotation,RufVector.Forward);
+        var RotatedForward=RufQuaternion.RotateVector(Rotation,RufVector.Forward);
 
         Assert.Equal(Forward.R,RotatedForward.R,precision:4);
         Assert.Equal(Forward.U,RotatedForward.U,precision:4);
@@ -58,8 +58,8 @@ public class RufQuaternionTests {
 
     [Fact]
     public void LookRotation_ForwardParallelToUp_FallsBackDeterministically(){
-        RufQuaternion First=RufQuaternion.LookRotation(RufVector.Up,RufVector.Up);
-        RufQuaternion Second=RufQuaternion.LookRotation(RufVector.Up,RufVector.Up);
+        var First=RufQuaternion.LookRotation(RufVector.Up,RufVector.Up);
+        var Second=RufQuaternion.LookRotation(RufVector.Up,RufVector.Up);
 
         Assert.Equal(First.R,Second.R,precision:5);
         Assert.Equal(First.U,Second.U,precision:5);
@@ -71,7 +71,7 @@ public class RufQuaternionTests {
 
     [Fact]
     public void LookRotation_ForwardParallelToCanonicalUp_FallsBackToRightWithoutNaN(){
-        RufQuaternion Rotation=RufQuaternion.LookRotation(RufVector.Up,RufVector.Zero);
+        var Rotation=RufQuaternion.LookRotation(RufVector.Up,RufVector.Zero);
 
         Assert.True(float.IsFinite(Rotation.R)&&float.IsFinite(Rotation.U)&&float.IsFinite(Rotation.F)&&float.IsFinite(Rotation.W));
     }

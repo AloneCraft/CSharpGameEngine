@@ -7,5 +7,5 @@ public enum GltfImportDiagnosticSeverity {
 }
 
 public sealed record GltfImportDiagnostic(GltfImportDiagnosticSeverity Severity,string Message){
-    public override string ToString()=> $"{Severity}: {Message}";
+    public override string ToString()=> $"{this.Severity}: {this.Message}";
 }

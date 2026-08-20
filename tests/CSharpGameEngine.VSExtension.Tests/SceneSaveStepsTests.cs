@@ -104,12 +104,12 @@ public sealed class SceneSaveStepsTests {
         // EditorNodeIdはDocument側と一致する投影ができる。これがStage Bの前提そのもの。
         SceneProjection RealProjection=F.ReanalyzeWith(First.FinalRoot!,F.Document.Projection);
 
-        SceneSourceEditStepsResult Second=SceneSourceEditor.ApplyForSaveSteps(
-            First.FinalRoot!,Key,RealProjection,F.Document.UnwrittenHistory);
+        var Second=SceneSourceEditor.ApplyForSaveSteps(
+                                                       First.FinalRoot!,Key,RealProjection,F.Document.UnwrittenHistory);
 
         Assert.True(Second.Succeeded,Second.ErrorMessage);
         Assert.Single(Second.Steps);
-        string Text=Second.FinalRoot!.ToFullString();
+        var Text=Second.FinalRoot!.ToFullString();
         Assert.Contains("\"AddedRenamed\"",Text);
 
         // 1件目の追加が二重適用されていないこと。元は4ノード(Alpha/Beta/Gamma/GammaChild)で、
@@ -118,8 +118,8 @@ public sealed class SceneSaveStepsTests {
     }
 
     private static int CountOccurrences(string Text,string Value){
-        int Count=0;
-        for(int Index=Text.IndexOf(Value,System.StringComparison.Ordinal);Index>=0;
+        var Count=0;
+        for(var Index=Text.IndexOf(Value,System.StringComparison.Ordinal);Index>=0;
             Index=Text.IndexOf(Value,Index+Value.Length,System.StringComparison.Ordinal)){
             Count++;
         }
@@ -160,11 +160,11 @@ public sealed class SceneSaveStepsTests {
         SceneSourceEditStepsResult Result=F.BuildSteps();
         Assert.True(Result.Succeeded,Result.ErrorMessage);
 
-        SourceText Running=SourceText.From(Source);
+        var Running=SourceText.From(Source);
         SyntaxTree PreviousTree=F.Root.SyntaxTree;
         List<int>WidestSpans=[];
-        foreach(SyntaxNode StepRoot in Result.Steps){
-            IReadOnlyList<TextChange>Changes=SceneTextChangePlanner.Plan(PreviousTree,StepRoot.SyntaxTree);
+        foreach(var StepRoot in Result.Steps){
+            var Changes=SceneTextChangePlanner.Plan(PreviousTree,StepRoot.SyntaxTree);
             Assert.NotEmpty(Changes);
             WidestSpans.Add(Changes.Max(Change=>Change.Span.Length));
             Running=Running.WithChanges(Changes);
@@ -194,8 +194,8 @@ public sealed class SceneSaveStepsTests {
         F.Apply([new RemoveNodeOperation(Key,F.Id("Beta"),2)],"Remove node");
 
         SceneSourceEditStepsResult Steps=F.BuildSteps();
-        SceneSourceEditResult Whole=SceneSourceEditor.ApplyForSave(
-            F.Root,Key,F.Projection,F.Document.History);
+        var Whole=SceneSourceEditor.ApplyForSave(
+                                                 F.Root,Key,F.Projection,F.Document.History);
 
         Assert.True(Steps.Succeeded,Steps.ErrorMessage);
         Assert.True(Whole.Succeeded,Whole.ErrorMessage);
@@ -224,14 +224,14 @@ public sealed class SceneSaveStepsTests {
         internal SceneEditDocument Document { get; }
 
         internal static Fixture Create(){
-            CSharpCompilation Compilation=SceneAnalysisTestHelper.CreateCompilation(TransformTypes,Source);
-            SyntaxNode Root=Compilation.SyntaxTrees
-                .Single(Tree=>Tree.GetRoot().ToFullString().Contains("class MainScene"))
-                .GetRoot();
-            INamedTypeSymbol SceneClass=SceneAnalysisTestHelper.FindSceneClass(Compilation,"MainScene")!;
-            SceneModel Model=SceneDeclarationAnalyzer.Analyze(SceneClass,Compilation,CancellationToken.None);
+            var Compilation=SceneAnalysisTestHelper.CreateCompilation(TransformTypes,Source);
+            var Root=Compilation.SyntaxTrees
+                                .Single(Tree=>Tree.GetRoot().ToFullString().Contains("class MainScene"))
+                                .GetRoot();
+            var SceneClass=SceneAnalysisTestHelper.FindSceneClass(Compilation,"MainScene")!;
+            var Model=SceneDeclarationAnalyzer.Analyze(SceneClass,Compilation,CancellationToken.None);
             SceneProjectionReconciler Reconciler=new();
-            SceneProjection Projection=Reconciler.Reconcile(Key,Model,Previous:null);
+            var Projection=Reconciler.Reconcile(Key,Model,Previous:null);
             return new Fixture(
                 Compilation,Root,Projection,
                 new SceneEditDocument(Key,new SceneEditSnapshot(Model,Projection),Reconciler),Reconciler);
@@ -244,8 +244,8 @@ public sealed class SceneSaveStepsTests {
         internal SceneProjection ReanalyzeWith(SyntaxNode WrittenRoot,SceneProjection IdentityBasis){
             CSharpCompilation Updated=this.Compilation.ReplaceSyntaxTree(
                 this.Root.SyntaxTree,WrittenRoot.SyntaxTree);
-            INamedTypeSymbol SceneClass=SceneAnalysisTestHelper.FindSceneClass(Updated,"MainScene")!;
-            SceneModel RealModel=SceneDeclarationAnalyzer.Analyze(SceneClass,Updated,CancellationToken.None);
+            var SceneClass=SceneAnalysisTestHelper.FindSceneClass(Updated,"MainScene")!;
+            var RealModel=SceneDeclarationAnalyzer.Analyze(SceneClass,Updated,CancellationToken.None);
             return this.Reconciler.Reconcile(Key,RealModel,IdentityBasis);
         }
 

@@ -32,8 +32,13 @@ public struct AppHost {
     public int Width;
     public int Height;
 
-    /// <summary>WindowSystemが最初のフレームで生成する。それまではnull。</summary>
-    public Win32Window?Window;
+
+    /// <summary>パレットから追加した直後でも開けるウィンドウになるための既定値。</summary>
+    public AppHost(){
+        this.Title="C# Game Engine";
+        this.Width=1280;
+        this.Height=720;
+    }
 }
 
 /// <summary>
@@ -48,45 +53,8 @@ public struct AppHost {
 /// </summary>
 [SceneComponentIcon("Assets/Editor/ComponentIcons/Level.svg")]
 public struct Level {
-    /// <summary>FBXのパス。アプリのベースディレクトリ(<c>AppContext.BaseDirectory</c>)からの相対。</summary>
-    public string Path;
-
-    /// <summary>シェーダーのパス。同じくベースディレクトリからの相対。</summary>
+    /// <summary>シェーダーのパス。アプリのベースディレクトリ(<c>AppContext.BaseDirectory</c>)からの相対。</summary>
     public string ShaderPath;
-
-    /// <summary>レンダラー生成時に一度だけ適用する初期カメラ。</summary>
-    public RenderCamera RenderCamera;
-
-    /// <summary>
-    /// 太陽光の初期値。<see cref="DirectionalLight.Renderer"/>はまだ存在しないレンダラーを指せないため
-    /// 常に既定値(null)のまま置いておき、LevelLoadSystemがレンダラー生成と同時にここから値をコピーして
-    /// 実際のDirectionalLight Entityを作る(Renderer/Renderableと同じ「作成時にコピーする」パターン)。
-    /// </summary>
-    public DirectionalLight Sun;
-
-    /// <summary>点光源の初期値(<see cref="Sun"/>と同じ「値渡し→LevelLoadSystemがRendererを埋める」パターン)。</summary>
-    public PointLight PointLight;
-
-    /// <summary>スポットライトの初期値(<see cref="Sun"/>と同じパターン)。</summary>
-    public SpotLight SpotLight;
-
-    public bool Loaded;
-
-    /// <summary>LevelLoadSystemが生成する。StageRendererはメッシュ集合を確定させてからしか作れない。</summary>
-    public StageRenderer?Renderer;
-
-    /// <summary>
-    /// リスナーの初期値。<see cref="Sun"/>と同じ「値渡し→LevelLoadが実Entityを作る」パターン
-    /// (AudioListener自体はエンジンハンドルを持たないため、Rendererのような「確定後に埋める」対象は無い)。
-    /// </summary>
-    public AudioListener Listener;
-
-    /// <summary>音源の初期値。<see cref="Sun"/>と同じパターンで、<see cref="AudioSource.Voice"/>は
-    /// <see cref="AudioEngine"/>確定後にLevelLoadが埋める。</summary>
-    public AudioSource Source;
-
-    /// <summary>LevelLoadが生成する共有オーディオエンジン。StageRendererと同じく、確定前はnull。</summary>
-    public AudioEngineHandle?AudioEngine;
 }
 
 /// <summary>SkyLightをStageRendererの単純な環境光へ写像した宣言Component。</summary>
@@ -96,7 +64,14 @@ public struct AmbientLight {
     public float ColorG;
     public float ColorB;
     public float Intensity;
-    public StageRenderer?Renderer;
+
+    /// <summary>追加した直後から実際に照らす既定値(黒・強度0だと何も起きず不具合に見える)。</summary>
+    public AmbientLight(){
+        this.ColorR=1f;
+        this.ColorG=1f;
+        this.ColorB=1f;
+        this.Intensity=1f;
+    }
 }
 
 /// <summary>UEのExponentialHeightFogから取り込む単純な指数高さFog。</summary>
@@ -107,7 +82,15 @@ public struct HeightFog {
     public float ColorR;
     public float ColorG;
     public float ColorB;
-    public StageRenderer?Renderer;
+
+    /// <summary>追加した直後から視認できる薄い灰青のFog。</summary>
+    public HeightFog(){
+        this.Density=0.02f;
+        this.HeightFalloff=0.2f;
+        this.ColorR=0.6f;
+        this.ColorG=0.65f;
+        this.ColorB=0.7f;
+    }
 }
 
 /// <summary>実行時の初期一人称カメラ位置と向きを宣言する。</summary>
@@ -147,8 +130,11 @@ public struct AudioSource {
     public float Volume;
     public bool Loop;
 
-    /// <summary>LevelLoadが生成する。AudioEngine確定後にしか作れない。</summary>
-    public AudioVoiceHandle?Voice;
+
+    /// <summary>追加した直後から聞こえる音量。0だと無音で不具合に見える。</summary>
+    public AudioSource(){
+        this.Volume=1f;
+    }
 }
 
 /// <summary>
@@ -156,9 +142,8 @@ public struct AudioSource {
 /// ワールド行列へ変換して書き込む。
 /// </summary>
 
-/// <summary>このEntityの変換を書き込む先のStageRendererオブジェクト。</summary>
-[SceneComponentIcon("Assets/Editor/ComponentIcons/Renderable.svg")]
-public struct Renderable {
+public struct Renderable:IRuntimeComponent {
+    /// <summary>このEntityの変換を書き込む先のStageRendererオブジェクト。</summary>
     public StageRenderer?Renderer;
     public int ObjectIndex;
 }
@@ -170,7 +155,6 @@ public struct Renderable {
 /// </summary>
 [SceneComponentIcon("Assets/Editor/ComponentIcons/DirectionalLight.svg")]
 public struct DirectionalLight {
-    public StageRenderer?Renderer;
 
     public float DirectionTowardLightX;
     public float DirectionTowardLightY;
@@ -181,6 +165,15 @@ public struct DirectionalLight {
     public float ColorB;
 
     public float Intensity;
+
+    /// <summary>真上から白色で照らす既定値。方向が零ベクトルだと正規化できず何も照らさない。</summary>
+    public DirectionalLight(){
+        this.DirectionTowardLightY=1f;
+        this.ColorR=1f;
+        this.ColorG=1f;
+        this.ColorB=1f;
+        this.Intensity=1f;
+    }
 }
 
 /// <summary>
@@ -192,7 +185,6 @@ public struct DirectionalLight {
 /// </summary>
 [SceneComponentIcon("Assets/Editor/ComponentIcons/PointLight.svg")]
 public struct PointLight {
-    public StageRenderer?Renderer;
 
     public float PositionX;
     public float PositionY;
@@ -206,6 +198,15 @@ public struct PointLight {
 
     /// <summary>この距離で明るさがちょうどゼロになる。</summary>
     public float Range;
+
+    /// <summary>追加した直後から周囲を照らす既定値。Rangeが0だと即座に減衰して見えない。</summary>
+    public PointLight(){
+        this.ColorR=1f;
+        this.ColorG=1f;
+        this.ColorB=1f;
+        this.Intensity=1f;
+        this.Range=10f;
+    }
 }
 
 /// <summary>
@@ -216,8 +217,6 @@ public struct PointLight {
 /// </summary>
 [SceneComponentIcon("Assets/Editor/ComponentIcons/SpotLight.svg")]
 public struct SpotLight {
-    public StageRenderer?Renderer;
-
     public float PositionX;
     public float PositionY;
     public float PositionZ;
@@ -240,6 +239,18 @@ public struct SpotLight {
 
     /// <summary>この半頂角を超えるとゼロ。</summary>
     public float OuterConeAngleRadians;
+
+    /// <summary>真下へ向く円錐の既定値。方向・Range・円錐角が0だと何も照らさない。</summary>
+    public SpotLight(){
+        this.DirectionY=-1f;
+        this.ColorR=1f;
+        this.ColorG=1f;
+        this.ColorB=1f;
+        this.Intensity=1f;
+        this.Range=10f;
+        this.InnerConeAngleRadians=0.3f;
+        this.OuterConeAngleRadians=0.6f;
+    }
 }
 
 /// <summary>
@@ -248,11 +259,68 @@ public struct SpotLight {
 /// 最後に出現するようにしないと、描画同期より前にPresentしてしまう(Systems/RuntimeSystem.csの
 /// 冒頭コメント参照)。
 /// </summary>
-[SceneComponentIcon("Assets/Editor/ComponentIcons/FramePresent.svg")]
-public struct FramePresent {
+public struct FramePresent:IRuntimeComponent {
     public Win32Window?Window;
     public StageRenderer?Renderer;
 
     /// <summary>LevelLoadがコピーする。Presentが終了時にここから破棄する(Renderer/Windowと同じ経路)。</summary>
     public AudioEngineHandle?AudioEngine;
+}
+
+// ============================================================================
+// 実行時Component(IRuntimeComponent)。作者はSceneへ書かず、随伴先の作者Componentを宣言すれば
+// Source Generatorが自動的に付与する(Parent/SceneNodeTagと同じ仕組み)。明示するとSCENE119。
+//
+// エンジンが遅延生成するハンドル(StageRenderer / Win32Window / AudioEngineHandle)を作者データと
+// 同じstructに混ぜると、InspectorやComponentパレットへ「編集可能な値」として並んでしまう。
+// 型を分けることで、作者が設定すべき項目だけが編集面に出る。
+// ============================================================================
+
+/// <summary>WindowSystemが最初のフレームで生成するウィンドウ実体。それまではnull。</summary>
+public struct AppHostRuntime:IRuntimeComponent<AppHost> {
+    public Win32Window?Window;
+}
+
+/// <summary>LevelLoadが生成する描画・音響の実体。StageRendererはメッシュ集合を確定させてからしか作れない。</summary>
+public struct LevelRuntime:IRuntimeComponent<Level> {
+    public StageRenderer?Renderer;
+
+    /// <summary>LevelLoadが生成する共有オーディオエンジン。確定前はnull。</summary>
+    public AudioEngineHandle?AudioEngine;
+
+    /// <summary>レンダラー生成時に一度だけ適用し、以後LevelLoadが毎ロード上書きする初期カメラ。</summary>
+    public RenderCamera RenderCamera;
+
+    /// <summary>LevelLoadが一度だけ走ったことの印。</summary>
+    public bool Loaded;
+}
+
+/// <summary>AmbientLightSyncが毎フレーム書き込む先。</summary>
+public struct AmbientLightRuntime:IRuntimeComponent<AmbientLight> {
+    public StageRenderer?Renderer;
+}
+
+/// <summary>HeightFogSyncが毎フレーム書き込む先。</summary>
+public struct HeightFogRuntime:IRuntimeComponent<HeightFog> {
+    public StageRenderer?Renderer;
+}
+
+/// <summary>DirectionalLightSyncが毎フレーム書き込む先。LevelLoadがレンダラー生成時に埋める。</summary>
+public struct DirectionalLightRuntime:IRuntimeComponent<DirectionalLight> {
+    public StageRenderer?Renderer;
+}
+
+/// <summary>PointLightSyncが毎フレーム書き込む先。</summary>
+public struct PointLightRuntime:IRuntimeComponent<PointLight> {
+    public StageRenderer?Renderer;
+}
+
+/// <summary>SpotLightSyncが毎フレーム書き込む先。</summary>
+public struct SpotLightRuntime:IRuntimeComponent<SpotLight> {
+    public StageRenderer?Renderer;
+}
+
+/// <summary>AudioPlaybackが操作する音声。AudioEngine確定後にLevelLoadが埋める。</summary>
+public struct AudioSourceRuntime:IRuntimeComponent<AudioSource> {
+    public AudioVoiceHandle?Voice;
 }

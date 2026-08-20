@@ -16,7 +16,7 @@ public sealed class SceneInputStateMachineTests {
     public void Idle_RightButtonDown_TransitionsToFlyingAndBeginsCapture(){
         SceneInputStateMachine Machine=new();
 
-        SceneInputStepResult Result=Machine.Handle(Down(PointerButton.Right,0,0));
+        var Result=Machine.Handle(Down(PointerButton.Right,0,0));
 
         Assert.Equal(SceneNavState.Flying,Result.State);
         Assert.Equal(SceneCaptureAction.Begin,Result.Capture);
@@ -27,7 +27,7 @@ public sealed class SceneInputStateMachineTests {
     public void Idle_MiddleButtonDown_TransitionsToPanningAndBeginsCapture(){
         SceneInputStateMachine Machine=new();
 
-        SceneInputStepResult Result=Machine.Handle(Down(PointerButton.Middle,0,0));
+        var Result=Machine.Handle(Down(PointerButton.Middle,0,0));
 
         Assert.Equal(SceneNavState.Panning,Result.State);
         Assert.Equal(SceneCaptureAction.Begin,Result.Capture);
@@ -37,7 +37,7 @@ public sealed class SceneInputStateMachineTests {
     public void Idle_AltLeftButtonDown_TransitionsToOrbiting(){
         SceneInputStateMachine Machine=new();
 
-        SceneInputStepResult Result=Machine.Handle(new PointerEvent(PointerEventKind.Down,PointerButton.Left,0,0,AltModifiers));
+        var Result=Machine.Handle(new PointerEvent(PointerEventKind.Down,PointerButton.Left,0,0,AltModifiers));
 
         Assert.Equal(SceneNavState.Orbiting,Result.State);
         Assert.Equal(SceneCaptureAction.Begin,Result.Capture);
@@ -47,9 +47,9 @@ public sealed class SceneInputStateMachineTests {
     public void Idle_AltLeftButtonOnGizmo_BeginsDuplicateGizmoInsteadOfOrbit(){
         SceneInputStateMachine Machine=new();
 
-        SceneInputStepResult Result=Machine.Handle(
-            new PointerEvent(PointerEventKind.Down,PointerButton.Left,10,20,AltModifiers),
-            HitGizmoHandle:GizmoHandleId.AxisX);
+        var Result=Machine.Handle(
+                                  new PointerEvent(PointerEventKind.Down,PointerButton.Left,10,20,AltModifiers),
+                                  HitGizmoHandle:GizmoHandleId.AxisX);
 
         Assert.Equal(SceneNavState.GizmoDragging,Result.State);
         Assert.True(Result.GizmoDragBegan);
@@ -61,7 +61,7 @@ public sealed class SceneInputStateMachineTests {
     public void Idle_LeftButtonDown_TransitionsToPendingSelectAndBeginsCapture(){
         SceneInputStateMachine Machine=new();
 
-        SceneInputStepResult Result=Machine.Handle(Down(PointerButton.Left,0,0));
+        var Result=Machine.Handle(Down(PointerButton.Left,0,0));
 
         Assert.Equal(SceneNavState.PendingSelect,Result.State);
         Assert.Equal(SceneCaptureAction.Begin,Result.Capture);
@@ -84,7 +84,7 @@ public sealed class SceneInputStateMachineTests {
         SceneInputStateMachine Machine=new();
         Machine.Handle(Down(PointerButton.Right,100,100));
 
-        SceneInputStepResult Result=Machine.Handle(Move(115,92));
+        var Result=Machine.Handle(Move(115,92));
 
         Assert.Equal(15f,Result.DeltaX);
         Assert.Equal(-8f,Result.DeltaY);
@@ -97,7 +97,7 @@ public sealed class SceneInputStateMachineTests {
         Machine.Handle(Down(PointerButton.Right,0,0));
         Machine.Handle(Move(10,0));
 
-        SceneInputStepResult Result=Machine.Handle(Move(25,0));
+        var Result=Machine.Handle(Move(25,0));
 
         Assert.Equal(15f,Result.DeltaX);
     }
@@ -107,7 +107,7 @@ public sealed class SceneInputStateMachineTests {
         SceneInputStateMachine Machine=new();
         Machine.Handle(Down(PointerButton.Right,0,0));
 
-        SceneInputStepResult Result=Machine.Handle(Up(PointerButton.Right,0,0));
+        var Result=Machine.Handle(Up(PointerButton.Right,0,0));
 
         Assert.Equal(SceneNavState.Idle,Result.State);
         Assert.Equal(SceneCaptureAction.End,Result.Capture);
@@ -119,7 +119,7 @@ public sealed class SceneInputStateMachineTests {
         Machine.Handle(Down(PointerButton.Right,0,0));
         Machine.HandleKeyDown(NavigationKey.W);
 
-        SceneInputStepResult Result=Machine.Handle(CaptureLost());
+        var Result=Machine.Handle(CaptureLost());
 
         Assert.Equal(SceneNavState.Idle,Result.State);
         Assert.Equal(SceneCaptureAction.None,Result.Capture);
@@ -131,7 +131,7 @@ public sealed class SceneInputStateMachineTests {
         SceneInputStateMachine Machine=new();
         Machine.Handle(Down(PointerButton.Middle,0,0));
 
-        SceneInputStepResult Result=Machine.Handle(Up(PointerButton.Middle,0,0));
+        var Result=Machine.Handle(Up(PointerButton.Middle,0,0));
 
         Assert.Equal(SceneNavState.Idle,Result.State);
     }
@@ -141,7 +141,7 @@ public sealed class SceneInputStateMachineTests {
         SceneInputStateMachine Machine=new();
         Machine.Handle(new PointerEvent(PointerEventKind.Down,PointerButton.Left,0,0,AltModifiers));
 
-        SceneInputStepResult Result=Machine.Handle(Up(PointerButton.Left,0,0));
+        var Result=Machine.Handle(Up(PointerButton.Left,0,0));
 
         Assert.Equal(SceneNavState.Idle,Result.State);
     }
@@ -149,10 +149,10 @@ public sealed class SceneInputStateMachineTests {
     [Fact]
     public void PendingSelect_LeftButtonUp_ConfirmsStoredHitAndReturnsToIdle(){
         SceneInputStateMachine Machine=new();
-        NodePath Hit=NodePath.Root.Append(2);
+        var Hit=NodePath.Root.Append(2);
         Machine.Handle(Down(PointerButton.Left,0,0),Hit);
 
-        SceneInputStepResult Result=Machine.Handle(Up(PointerButton.Left,0,0));
+        var Result=Machine.Handle(Up(PointerButton.Left,0,0));
 
         Assert.Equal(SceneNavState.Idle,Result.State);
         Assert.Equal(SceneCaptureAction.End,Result.Capture);
@@ -166,7 +166,7 @@ public sealed class SceneInputStateMachineTests {
         SceneInputStateMachine Machine=new();
         Machine.Handle(Down(PointerButton.Left,0,0),HitNodePath:null);
 
-        SceneInputStepResult Result=Machine.Handle(Up(PointerButton.Left,0,0));
+        var Result=Machine.Handle(Up(PointerButton.Left,0,0));
 
         Assert.True(Result.SelectionConfirmed);
         Assert.Null(Result.ConfirmedNodePath);
@@ -178,7 +178,7 @@ public sealed class SceneInputStateMachineTests {
         RawInputModifiers CtrlModifiers=new(Shift:false,Ctrl:true,Alt:false);
         Machine.Handle(new PointerEvent(PointerEventKind.Down,PointerButton.Left,0,0,CtrlModifiers),NodePath.Root);
 
-        SceneInputStepResult Result=Machine.Handle(Up(PointerButton.Left,0,0));
+        var Result=Machine.Handle(Up(PointerButton.Left,0,0));
 
         Assert.True(Result.SelectionConfirmed);
         Assert.True(Result.ConfirmedCtrl);
@@ -189,7 +189,7 @@ public sealed class SceneInputStateMachineTests {
         SceneInputStateMachine Machine=new();
         Machine.Handle(Down(PointerButton.Left,0,0),NodePath.Root);
 
-        SceneInputStepResult Result=Machine.Handle(CaptureLost());
+        var Result=Machine.Handle(CaptureLost());
 
         Assert.Equal(SceneNavState.Idle,Result.State);
         Assert.False(Result.SelectionConfirmed);
@@ -200,7 +200,7 @@ public sealed class SceneInputStateMachineTests {
         SceneInputStateMachine Machine=new();
         Machine.Handle(Down(PointerButton.Left,0,0),NodePath.Root);
 
-        SceneInputStepResult Result=Machine.Handle(Down(PointerButton.Right,0,0));
+        var Result=Machine.Handle(Down(PointerButton.Right,0,0));
 
         Assert.Equal(SceneNavState.Flying,Result.State);
         Assert.Equal(SceneCaptureAction.Begin,Result.Capture);
@@ -211,7 +211,7 @@ public sealed class SceneInputStateMachineTests {
         SceneInputStateMachine Machine=new();
         Machine.Handle(Down(PointerButton.Left,0,0),NodePath.Root);
 
-        SceneInputStepResult Result=Machine.Handle(Down(PointerButton.Middle,0,0));
+        var Result=Machine.Handle(Down(PointerButton.Middle,0,0));
 
         Assert.Equal(SceneNavState.Panning,Result.State);
         Assert.Equal(SceneCaptureAction.Begin,Result.Capture);
@@ -222,7 +222,7 @@ public sealed class SceneInputStateMachineTests {
         SceneInputStateMachine Machine=new();
         Machine.Handle(Down(PointerButton.Left,10,20),HitNodePath:null);
 
-        SceneInputStepResult Result=Machine.Handle(Move(15,23));
+        var Result=Machine.Handle(Move(15,23));
 
         Assert.Equal(SceneNavState.MarqueeSelecting,Result.State);
         Assert.True(Result.MarqueeUpdated);
@@ -235,7 +235,7 @@ public sealed class SceneInputStateMachineTests {
         SceneInputStateMachine Machine=new();
         Machine.Handle(Down(PointerButton.Left,10,20),HitNodePath:null);
 
-        SceneInputStepResult Result=Machine.Handle(Move(12,22));
+        var Result=Machine.Handle(Move(12,22));
 
         Assert.Equal(SceneNavState.PendingSelect,Result.State);
         Assert.False(Result.MarqueeUpdated);
@@ -244,11 +244,11 @@ public sealed class SceneInputStateMachineTests {
     [Fact]
     public void PendingSelect_ObjectStartNeverTransitionsToMarquee(){
         SceneInputStateMachine Machine=new();
-        NodePath Hit=NodePath.Root.Append(3);
+        var Hit=NodePath.Root.Append(3);
         Machine.Handle(Down(PointerButton.Left,10,20),Hit);
 
-        SceneInputStepResult MoveResult=Machine.Handle(Move(100,200));
-        SceneInputStepResult UpResult=Machine.Handle(Up(PointerButton.Left,100,200));
+        var MoveResult=Machine.Handle(Move(100,200));
+        var UpResult=Machine.Handle(Up(PointerButton.Left,100,200));
 
         Assert.Equal(SceneNavState.PendingSelect,MoveResult.State);
         Assert.False(MoveResult.MarqueeUpdated);
@@ -263,7 +263,7 @@ public sealed class SceneInputStateMachineTests {
         Machine.Handle(new PointerEvent(PointerEventKind.Down,PointerButton.Left,80,70,CtrlModifiers),HitNodePath:null);
         Machine.Handle(Move(60,40));
 
-        SceneInputStepResult Result=Machine.Handle(Up(PointerButton.Left,30,20));
+        var Result=Machine.Handle(Up(PointerButton.Left,30,20));
 
         Assert.Equal(SceneNavState.Idle,Result.State);
         Assert.Equal(SceneCaptureAction.End,Result.Capture);
@@ -279,7 +279,7 @@ public sealed class SceneInputStateMachineTests {
         Machine.Handle(Down(PointerButton.Left,10,20),HitNodePath:null);
         Machine.Handle(Move(30,40));
 
-        SceneInputStepResult Result=Machine.Handle(CaptureLost());
+        var Result=Machine.Handle(CaptureLost());
 
         Assert.Equal(SceneNavState.Idle,Result.State);
         Assert.True(Result.MarqueeCanceled);
@@ -292,7 +292,7 @@ public sealed class SceneInputStateMachineTests {
         Machine.Handle(Down(PointerButton.Left,10,20),HitNodePath:null);
         Machine.Handle(Move(30,40));
 
-        SceneInputStepResult Result=Machine.CancelCurrent();
+        var Result=Machine.CancelCurrent();
 
         Assert.Equal(SceneNavState.Idle,Result.State);
         Assert.Equal(SceneCaptureAction.End,Result.Capture);
@@ -306,7 +306,7 @@ public sealed class SceneInputStateMachineTests {
         Machine.Handle(Down(PointerButton.Left,10,20),HitNodePath:null);
         Machine.Handle(Move(30,40));
 
-        SceneInputStepResult Result=Machine.Handle(Down(PointerButton.Right,30,40));
+        var Result=Machine.Handle(Down(PointerButton.Right,30,40));
 
         Assert.Equal(SceneNavState.MarqueeSelecting,Result.State);
         Assert.Equal(SceneCaptureAction.None,Result.Capture);
@@ -316,8 +316,8 @@ public sealed class SceneInputStateMachineTests {
     public void Idle_LeftButtonOnGizmo_BeginsExclusiveGizmoDrag(){
         SceneInputStateMachine Machine=new();
 
-        SceneInputStepResult Result=Machine.Handle(
-            Down(PointerButton.Left,10,20),HitNodePath:NodePath.Root,HitGizmoHandle:GizmoHandleId.AxisX);
+        var Result=Machine.Handle(
+                                  Down(PointerButton.Left,10,20),HitNodePath:NodePath.Root,HitGizmoHandle:GizmoHandleId.AxisX);
 
         Assert.Equal(SceneNavState.GizmoDragging,Result.State);
         Assert.Equal(SceneCaptureAction.Begin,Result.Capture);
@@ -331,7 +331,7 @@ public sealed class SceneInputStateMachineTests {
         SceneInputStateMachine Machine=new();
         Machine.Handle(Down(PointerButton.Left,0,0),HitGizmoHandle:GizmoHandleId.PlaneXY);
 
-        SceneInputStepResult Result=Machine.Handle(Up(PointerButton.Left,5,5));
+        var Result=Machine.Handle(Up(PointerButton.Left,5,5));
 
         Assert.Equal(SceneNavState.Idle,Result.State);
         Assert.Equal(SceneCaptureAction.End,Result.Capture);
@@ -344,7 +344,7 @@ public sealed class SceneInputStateMachineTests {
         SceneInputStateMachine Machine=new();
         Machine.Handle(Down(PointerButton.Left,0,0),HitGizmoHandle:GizmoHandleId.AxisY);
 
-        SceneInputStepResult Result=Machine.CancelCurrent();
+        var Result=Machine.CancelCurrent();
 
         Assert.Equal(SceneNavState.Idle,Result.State);
         Assert.True(Result.GizmoCanceled);
@@ -362,15 +362,15 @@ public sealed class SceneInputStateMachineTests {
         SceneInputStateMachine Machine=new();
         Machine.Handle(Down(PointerButton.Left,0,0),HitGizmoHandle:GizmoHandleId.AxisX);
 
-        SceneInputStepResult SecondDown=Machine.Handle(
-            Down(PointerButton.Left,3,3),HitGizmoHandle:GizmoHandleId.AxisY);
+        var SecondDown=Machine.Handle(
+                                      Down(PointerButton.Left,3,3),HitGizmoHandle:GizmoHandleId.AxisY);
 
         Assert.Equal(SceneNavState.GizmoDragging,SecondDown.State);
         Assert.False(SecondDown.GizmoDragBegan);
         Assert.Equal(SceneCaptureAction.None,SecondDown.Capture);
 
-        SceneInputStepResult FirstUp=Machine.Handle(Up(PointerButton.Left,9,9));
-        SceneInputStepResult SecondUp=Machine.Handle(Up(PointerButton.Left,9,9));
+        var FirstUp=Machine.Handle(Up(PointerButton.Left,9,9));
+        var SecondUp=Machine.Handle(Up(PointerButton.Left,9,9));
 
         Assert.True(FirstUp.GizmoCommitRequested);
         Assert.Equal(GizmoHandleId.AxisX,FirstUp.GizmoHandle);
@@ -438,7 +438,7 @@ public sealed class SceneInputStateMachineTests {
 
     [Fact]
     public void CancelCurrent_IsTerminalForEveryInputState(){
-        foreach(SceneNavState Target in Enum.GetValues(typeof(SceneNavState)).Cast<SceneNavState>()){
+        foreach(var Target in Enum.GetValues(typeof(SceneNavState)).Cast<SceneNavState>()){
             SceneInputStateMachine Machine=new();
             switch(Target){
                 case SceneNavState.Idle:
@@ -468,7 +468,7 @@ public sealed class SceneInputStateMachineTests {
             }
             Assert.Equal(Target,Machine.State);
 
-            SceneInputStepResult Result=Machine.CancelCurrent();
+            var Result=Machine.CancelCurrent();
 
             Assert.Equal(SceneNavState.Idle,Machine.State);
             Assert.Empty(Machine.FlyHeldKeys);

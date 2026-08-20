@@ -38,7 +38,7 @@ internal static class SceneTypePredicates {
 
     /// <summary>指定のメタデータ名の属性が付いているか(継承は辿らない)。</summary>
     internal static bool HasAttribute(ISymbol Symbol,string AttributeMetadataName){
-        foreach(AttributeData Attribute in Symbol.GetAttributes()){
+        foreach(var Attribute in Symbol.GetAttributes()){
             if(Attribute.AttributeClass is { } AttributeClass
                 &&AttributeClass.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)== $"global::{AttributeMetadataName}"){
                 return true;
@@ -58,8 +58,76 @@ internal static class SceneTypePredicates {
 
     /// <summary>この型が<c>IScene</c>を実装しているか。</summary>
     internal static bool ImplementsSceneInterface(INamedTypeSymbol Type){
-        foreach(INamedTypeSymbol Interface in Type.AllInterfaces){
+        foreach(var Interface in Type.AllInterfaces){
             if(Interface.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)==SceneDslWellKnownNames.SceneInterfaceFullyQualifiedName){
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// この型が<c>IRuntimeComponent</c>(generic版を含む)を実装しているか。エンジンが実行時に埋める
+    /// Componentなので、作者がScene DSLへ書くことはできず、Componentパレットの候補にも出さない。
+    ///
+    /// <para>
+    /// <paramref name="Compilation"/>から印のシンボルを引いて比較する。完全修飾名の<b>文字列比較は
+    /// 使えない</b> — generic版は実装側で型引数が埋まる(<c>IRuntimeComponent&lt;DirectionalLight&gt;</c>)ため、
+    /// 定義側の名前とは一致しない。<c>OriginalDefinition</c>を<c>SymbolEqualityComparer</c>で比較する。
+    /// </para>
+    /// </summary>
+    internal static bool ImplementsRuntimeComponentInterface(INamedTypeSymbol Type,Compilation Compilation){
+        INamedTypeSymbol?Marker=Compilation.GetTypeByMetadataName(
+            SceneDslWellKnownNames.RuntimeComponentInterfaceMetadataName);
+        if(Marker is null){
+            return false;
+        }
+
+        foreach(var Interface in Type.AllInterfaces){
+            if(SymbolEqualityComparer.Default.Equals(Interface.OriginalDefinition,Marker)){
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// この型が<c>IRuntimeComponent&lt;TAuthored&gt;</c>を実装しているなら、その<c>TAuthored</c>を返す。
+    /// 随伴付与(<c>SceneInstantiateEmitter.BuildEffectiveComponents</c>)の対応表を作るのに使う。
+    /// 非genericの<c>IRuntimeComponent</c>だけを実装している場合は<see langword="false"/>
+    /// (単独で生成されるだけで、随伴先を持たない実行時Component)。
+    /// </summary>
+    internal static bool TryGetAuthoredComponentType(
+        INamedTypeSymbol Type,Compilation Compilation,out INamedTypeSymbol AuthoredType){
+        AuthoredType=null!;
+        INamedTypeSymbol?Marker=Compilation.GetTypeByMetadataName(
+            SceneDslWellKnownNames.RuntimeComponentOfInterfaceMetadataName);
+        if(Marker is null){
+            return false;
+        }
+
+        foreach(var Interface in Type.AllInterfaces){
+            if(SymbolEqualityComparer.Default.Equals(Interface.OriginalDefinition,Marker)
+                &&Interface.TypeArguments.Length==1
+                &&Interface.TypeArguments[0]is INamedTypeSymbol Authored){
+                AuthoredType=Authored;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// この型が<c>ISystem</c>を実装しているか。ECSの<c>[GameSystem]</c>構造体は非nullable structという
+    /// 形の上では<see cref="IsNonNullableStruct"/>を満たしてしまうが、Scene Componentとしては無意味
+    /// (フィールドを持たず、per-Entityの状態ではない)なので、Componentパレット等の候補列挙から除く。
+    /// </summary>
+    internal static bool ImplementsSystemInterface(INamedTypeSymbol Type){
+        foreach(var Interface in Type.AllInterfaces){
+            if(Interface.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)==SceneDslWellKnownNames.SystemInterfaceFullyQualifiedName){
                 return true;
             }
         }

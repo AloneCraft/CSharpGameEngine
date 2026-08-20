@@ -10,9 +10,9 @@ namespace CSharpGameEngine.VSExtension.Tests;
 public sealed class ScenePickerTests {
     [Fact]
     public void TryPick_RayThroughTriangle_ReturnsHitWithNodePath(){
-        SceneRenderObject Object=CreateTriangleAtZ(5f,NodePath.Root);
+        var Object=CreateTriangleAtZ(5f,NodePath.Root);
 
-        bool Hit=ScenePicker.TryPick([Object],RayOrigin:new Vector3(0.5f,0.5f,0f),RayDirection:Vector3.UnitZ,out NodePath HitPath);
+        var Hit=ScenePicker.TryPick([Object],RayOrigin:new Vector3(0.5f,0.5f,0f),RayDirection:Vector3.UnitZ,out var HitPath);
 
         Assert.True(Hit);
         Assert.Equal(NodePath.Root,HitPath);
@@ -20,19 +20,19 @@ public sealed class ScenePickerTests {
 
     [Fact]
     public void TryPick_RayMissesTriangle_ReturnsFalse(){
-        SceneRenderObject Object=CreateTriangleAtZ(5f,NodePath.Root);
+        var Object=CreateTriangleAtZ(5f,NodePath.Root);
 
-        bool Hit=ScenePicker.TryPick([Object],RayOrigin:new Vector3(10f,10f,0f),RayDirection:Vector3.UnitZ,out _);
+        var Hit=ScenePicker.TryPick([Object],RayOrigin:new Vector3(10f,10f,0f),RayDirection:Vector3.UnitZ,out _);
 
         Assert.False(Hit);
     }
 
     [Fact]
     public void TryPick_HitsBackFace_StillReturnsHit(){
-        SceneRenderObject Object=CreateTriangleAtZ(5f,NodePath.Root);
+        var Object=CreateTriangleAtZ(5f,NodePath.Root);
 
-        bool Hit=ScenePicker.TryPick(
-            [Object],RayOrigin:new Vector3(0.5f,0.5f,10f),RayDirection:-Vector3.UnitZ,out NodePath HitPath);
+        var Hit=ScenePicker.TryPick(
+                                    [Object],RayOrigin:new Vector3(0.5f,0.5f,10f),RayDirection:-Vector3.UnitZ,out var HitPath);
 
         Assert.True(Hit);
         Assert.Equal(NodePath.Root,HitPath);
@@ -40,13 +40,13 @@ public sealed class ScenePickerTests {
 
     [Fact]
     public void TryPick_TwoObjectsAlongSameRay_ReturnsNearestOne(){
-        NodePath NearPath=NodePath.Root;
-        NodePath FarPath=NodePath.Root.Append(1);
-        SceneRenderObject Near=CreateTriangleAtZ(5f,NearPath);
-        SceneRenderObject Far=CreateTriangleAtZ(8f,FarPath);
+        var NearPath=NodePath.Root;
+        var FarPath=NodePath.Root.Append(1);
+        var Near=CreateTriangleAtZ(5f,NearPath);
+        var Far=CreateTriangleAtZ(8f,FarPath);
 
-        bool Hit=ScenePicker.TryPick(
-            [Far,Near],RayOrigin:new Vector3(0.5f,0.5f,0f),RayDirection:Vector3.UnitZ,out NodePath HitPath);
+        var Hit=ScenePicker.TryPick(
+                                    [Far,Near],RayOrigin:new Vector3(0.5f,0.5f,0f),RayDirection:Vector3.UnitZ,out var HitPath);
 
         Assert.True(Hit);
         Assert.Equal(NearPath,HitPath);
@@ -54,7 +54,7 @@ public sealed class ScenePickerTests {
 
     [Fact]
     public void TryPick_EmptyRenderObjectList_ReturnsFalse(){
-        bool Hit=ScenePicker.TryPick([],RayOrigin:Vector3.Zero,RayDirection:Vector3.UnitZ,out _);
+        var Hit=ScenePicker.TryPick([],RayOrigin:Vector3.Zero,RayDirection:Vector3.UnitZ,out _);
 
         Assert.False(Hit);
     }
@@ -68,7 +68,7 @@ public sealed class ScenePickerTests {
             NodeId=NodePath.Root,
         };
 
-        bool Hit=ScenePicker.TryPick([Object],RayOrigin:new Vector3(0.5f,0.5f,0f),RayDirection:Vector3.UnitZ,out NodePath HitPath);
+        var Hit=ScenePicker.TryPick([Object],RayOrigin:new Vector3(0.5f,0.5f,0f),RayDirection:Vector3.UnitZ,out var HitPath);
 
         Assert.True(Hit);
         Assert.Equal(NodePath.Root,HitPath);
@@ -82,30 +82,30 @@ public sealed class ScenePickerTests {
     /// </summary>
     [Fact]
     public void TryPick_WithDistanceOverload_ReturnsDistanceAlongRay(){
-        SceneRenderObject Object=CreateTriangleAtZ(5f,NodePath.Root);
+        var Object=CreateTriangleAtZ(5f,NodePath.Root);
         Vector3 RayOrigin=new(0.5f,0.5f,0f);
-        Vector3 RayDirection=Vector3.UnitZ;
+        var RayDirection=Vector3.UnitZ;
 
-        bool Hit=ScenePicker.TryPick(
-            [Object],RayOrigin,RayDirection,out NodePath HitPath,out float HitDistance);
+        var Hit=ScenePicker.TryPick(
+                                    [Object],RayOrigin,RayDirection,out var HitPath,out var HitDistance);
 
         Assert.True(Hit);
         Assert.Equal(NodePath.Root,HitPath);
         Assert.Equal(5f,HitDistance,3);
-        Vector3 HitPoint=RayOrigin+(RayDirection*HitDistance);
+        var HitPoint=RayOrigin+(RayDirection*HitDistance);
         Assert.Equal(new Vector3(0.5f,0.5f,5f),HitPoint);
     }
 
     /// <summary>従来の3引数版は新しい5引数版へ転送しているだけであることの回帰防止。</summary>
     [Fact]
     public void TryPick_NonPickableObject_IsIgnoredEvenWhenClosest(){
-        NodePath NearPath=NodePath.Root;
-        NodePath FarPath=NodePath.Root.Append(1);
-        SceneRenderObject Near=CreateTriangleAtZ(5f,NearPath,IsPickable:false);
-        SceneRenderObject Far=CreateTriangleAtZ(8f,FarPath);
+        var NearPath=NodePath.Root;
+        var FarPath=NodePath.Root.Append(1);
+        var Near=CreateTriangleAtZ(5f,NearPath,IsPickable:false);
+        var Far=CreateTriangleAtZ(8f,FarPath);
 
-        bool Hit=ScenePicker.TryPick(
-            [Near,Far],RayOrigin:new Vector3(0.5f,0.5f,0f),RayDirection:Vector3.UnitZ,out NodePath HitPath);
+        var Hit=ScenePicker.TryPick(
+                                    [Near,Far],RayOrigin:new Vector3(0.5f,0.5f,0f),RayDirection:Vector3.UnitZ,out var HitPath);
 
         Assert.True(Hit);
         Assert.Equal(FarPath,HitPath);
@@ -113,10 +113,10 @@ public sealed class ScenePickerTests {
 
     [Fact]
     public void TryPick_ThreeArgumentOverload_StillWorksIdenticallyToFiveArgumentOverload(){
-        SceneRenderObject Object=CreateTriangleAtZ(5f,NodePath.Root);
+        var Object=CreateTriangleAtZ(5f,NodePath.Root);
 
-        bool Hit=ScenePicker.TryPick(
-            [Object],RayOrigin:new Vector3(0.5f,0.5f,0f),RayDirection:Vector3.UnitZ,out NodePath HitPath);
+        var Hit=ScenePicker.TryPick(
+                                    [Object],RayOrigin:new Vector3(0.5f,0.5f,0f),RayDirection:Vector3.UnitZ,out var HitPath);
 
         Assert.True(Hit);
         Assert.Equal(NodePath.Root,HitPath);
@@ -124,74 +124,74 @@ public sealed class ScenePickerTests {
 
     [Fact]
     public void PickMarquee_RectangleIntersectsObjectScreenBounds_ReturnsEveryIntersectingNode(){
-        NodePath FirstPath=NodePath.Root;
-        NodePath SecondPath=NodePath.Root.Append(1);
-        SceneRenderObject First=CreateScreenTriangle(-0.5f,0.5f,FirstPath);
-        SceneRenderObject Second=CreateScreenTriangle(0.5f,-0.5f,SecondPath);
+        var FirstPath=NodePath.Root;
+        var SecondPath=NodePath.Root.Append(1);
+        var First=CreateScreenTriangle(-0.5f,0.5f,FirstPath);
+        var Second=CreateScreenTriangle(0.5f,-0.5f,SecondPath);
 
-        IReadOnlyList<NodePath>Hits=ScenePicker.PickMarquee(
-            [First,Second],Matrix4x4.Identity,Matrix4x4.Identity,
-            ScreenRectangle.FromPoints(20,20,80,80),ViewportWidth:100,ViewportHeight:100);
+        var Hits=ScenePicker.PickMarquee(
+                                        [First,Second],Matrix4x4.Identity,Matrix4x4.Identity,
+                                        ScreenRectangle.FromPoints(20,20,80,80),ViewportWidth:100,ViewportHeight:100);
 
         Assert.Equal([FirstPath,SecondPath],Hits);
     }
 
     [Fact]
     public void PickMarquee_RectangleTouchesObjectBoundsEdge_CountsAsIntersection(){
-        NodePath Path=NodePath.Root;
-        SceneRenderObject Object=CreateScreenTriangle(-0.5f,0.5f,Path);
+        var Path=NodePath.Root;
+        var Object=CreateScreenTriangle(-0.5f,0.5f,Path);
 
-        IReadOnlyList<NodePath>Hits=ScenePicker.PickMarquee(
-            [Object],Matrix4x4.Identity,Matrix4x4.Identity,
-            ScreenRectangle.FromPoints(0,0,25,25),ViewportWidth:100,ViewportHeight:100);
+        var Hits=ScenePicker.PickMarquee(
+                                        [Object],Matrix4x4.Identity,Matrix4x4.Identity,
+                                        ScreenRectangle.FromPoints(0,0,25,25),ViewportWidth:100,ViewportHeight:100);
 
         Assert.Equal([Path],Hits);
     }
 
     [Fact]
     public void PickMarquee_ObjectOutsideRectangle_IsExcluded(){
-        SceneRenderObject Object=CreateScreenTriangle(-0.5f,0.5f,NodePath.Root);
+        var Object=CreateScreenTriangle(-0.5f,0.5f,NodePath.Root);
 
-        IReadOnlyList<NodePath>Hits=ScenePicker.PickMarquee(
-            [Object],Matrix4x4.Identity,Matrix4x4.Identity,
-            ScreenRectangle.FromPoints(70,70,90,90),ViewportWidth:100,ViewportHeight:100);
+        var Hits=ScenePicker.PickMarquee(
+                                        [Object],Matrix4x4.Identity,Matrix4x4.Identity,
+                                        ScreenRectangle.FromPoints(70,70,90,90),ViewportWidth:100,ViewportHeight:100);
 
         Assert.Empty(Hits);
     }
 
     [Fact]
     public void PickMarquee_DuplicateRenderObjectsForSameNode_ReturnsNodeOnce(){
-        NodePath Path=NodePath.Root;
-        SceneRenderObject First=CreateScreenTriangle(-0.5f,0.5f,Path);
-        SceneRenderObject Second=CreateScreenTriangle(-0.4f,0.4f,Path);
+        var Path=NodePath.Root;
+        var First=CreateScreenTriangle(-0.5f,0.5f,Path);
+        var Second=CreateScreenTriangle(-0.4f,0.4f,Path);
 
-        IReadOnlyList<NodePath>Hits=ScenePicker.PickMarquee(
-            [First,Second],Matrix4x4.Identity,Matrix4x4.Identity,
-            ScreenRectangle.FromPoints(0,0,60,60),ViewportWidth:100,ViewportHeight:100);
+        var Hits=ScenePicker.PickMarquee(
+                                        [First,Second],Matrix4x4.Identity,Matrix4x4.Identity,
+                                        ScreenRectangle.FromPoints(0,0,60,60),ViewportWidth:100,ViewportHeight:100);
 
         Assert.Equal([Path],Hits);
     }
 
     [Fact]
     public void PickMarquee_NonPickableObject_IsExcludedFromResults(){
-        SceneRenderObject Object=CreateScreenTriangle(-0.5f,0.5f,NodePath.Root,IsPickable:false);
+        var Object=CreateScreenTriangle(-0.5f,0.5f,NodePath.Root,IsPickable:false);
 
-        IReadOnlyList<NodePath>Hits=ScenePicker.PickMarquee(
-            [Object],Matrix4x4.Identity,Matrix4x4.Identity,
-            ScreenRectangle.FromPoints(0,0,60,60),ViewportWidth:100,ViewportHeight:100);
+        var Hits=ScenePicker.PickMarquee(
+                                        [Object],Matrix4x4.Identity,Matrix4x4.Identity,
+                                        ScreenRectangle.FromPoints(0,0,60,60),ViewportWidth:100,ViewportHeight:100);
 
         Assert.Empty(Hits);
     }
 
     [Fact]
     public void TryVertexSnapQuery_ReturnsClosestProjectedWorldVertexWithinEightPixels(){
-        NodePath Path=NodePath.Root.Append(1);
-        SceneRenderObject Object=CreateScreenTriangle(-0.5f,0.5f,Path);
+        var Path=NodePath.Root.Append(1);
+        var Object=CreateScreenTriangle(-0.5f,0.5f,Path);
 
-        bool Found=ScenePicker.TryVertexSnapQuery(
-            [Object],Matrix4x4.Identity,Matrix4x4.Identity,
-            CursorX:27f,CursorY:26f,ViewportWidth:100,ViewportHeight:100,
-            ExcludedRoots:[],out VertexSnapHit Hit);
+        var Found=ScenePicker.TryVertexSnapQuery(
+                                                 [Object],Matrix4x4.Identity,Matrix4x4.Identity,
+                                                 CursorX:27f,CursorY:26f,ViewportWidth:100,ViewportHeight:100,
+                                                 ExcludedRoots:[],out var Hit);
 
         Assert.True(Found);
         Assert.Equal(Path,Hit.NodePath);
@@ -200,61 +200,61 @@ public sealed class ScenePickerTests {
 
     [Fact]
     public void TryVertexSnapQuery_VertexOutsideEightPixels_ReturnsFalse(){
-        SceneRenderObject Object=CreateScreenTriangle(-0.5f,0.5f,NodePath.Root.Append(1));
+        var Object=CreateScreenTriangle(-0.5f,0.5f,NodePath.Root.Append(1));
 
-        bool Found=ScenePicker.TryVertexSnapQuery(
-            [Object],Matrix4x4.Identity,Matrix4x4.Identity,
-            CursorX:50f,CursorY:50f,ViewportWidth:100,ViewportHeight:100,
-            ExcludedRoots:[],out _);
+        var Found=ScenePicker.TryVertexSnapQuery(
+                                                 [Object],Matrix4x4.Identity,Matrix4x4.Identity,
+                                                 CursorX:50f,CursorY:50f,ViewportWidth:100,ViewportHeight:100,
+                                                 ExcludedRoots:[],out _);
 
         Assert.False(Found);
     }
 
     [Fact]
     public void TryVertexSnapQuery_ExcludesDraggedRootAndItsDescendants(){
-        NodePath Root=NodePath.Root.Append(1);
-        SceneRenderObject Child=CreateScreenTriangle(-0.5f,0.5f,Root.Append(0));
+        var Root=NodePath.Root.Append(1);
+        var Child=CreateScreenTriangle(-0.5f,0.5f,Root.Append(0));
 
-        bool Found=ScenePicker.TryVertexSnapQuery(
-            [Child],Matrix4x4.Identity,Matrix4x4.Identity,
-            CursorX:25f,CursorY:25f,ViewportWidth:100,ViewportHeight:100,
-            ExcludedRoots:[Root],out _);
+        var Found=ScenePicker.TryVertexSnapQuery(
+                                                 [Child],Matrix4x4.Identity,Matrix4x4.Identity,
+                                                 CursorX:25f,CursorY:25f,ViewportWidth:100,ViewportHeight:100,
+                                                 ExcludedRoots:[Root],out _);
 
         Assert.False(Found);
     }
 
     [Fact]
     public void TryVertexSnapQuery_NonPickableObject_IsExcluded(){
-        SceneRenderObject Object=CreateScreenTriangle(-0.5f,0.5f,NodePath.Root.Append(1),IsPickable:false);
+        var Object=CreateScreenTriangle(-0.5f,0.5f,NodePath.Root.Append(1),IsPickable:false);
 
-        bool Found=ScenePicker.TryVertexSnapQuery(
-            [Object],Matrix4x4.Identity,Matrix4x4.Identity,
-            CursorX:27f,CursorY:26f,ViewportWidth:100,ViewportHeight:100,
-            ExcludedRoots:[],out _);
+        var Found=ScenePicker.TryVertexSnapQuery(
+                                                 [Object],Matrix4x4.Identity,Matrix4x4.Identity,
+                                                 CursorX:27f,CursorY:26f,ViewportWidth:100,ViewportHeight:100,
+                                                 ExcludedRoots:[],out _);
 
         Assert.False(Found);
     }
 
     [Fact]
     public void TrySurfaceSnapQuery_NonPickableObject_IsExcluded(){
-        SceneRenderObject Object=CreateTriangleAtZ(5f,NodePath.Root.Append(1),IsPickable:false);
+        var Object=CreateTriangleAtZ(5f,NodePath.Root.Append(1),IsPickable:false);
 
-        bool Found=ScenePicker.TrySurfaceSnapQuery(
-            [Object],new Vector3(0.5f,0.5f,0f),Vector3.UnitZ,ExcludedRoots:[],out _);
+        var Found=ScenePicker.TrySurfaceSnapQuery(
+                                                  [Object],new Vector3(0.5f,0.5f,0f),Vector3.UnitZ,ExcludedRoots:[],out _);
 
         Assert.False(Found);
     }
 
     [Fact]
     public void TrySurfaceSnapQuery_ReturnsNearestPointAndGeometricNormalWhileExcludingDraggedRoot(){
-        NodePath Dragged=NodePath.Root.Append(0);
-        NodePath SurfacePath=NodePath.Root.Append(1);
-        SceneRenderObject OwnSurface=CreateTriangleAtZ(2f,Dragged.Append(0));
-        SceneRenderObject TargetSurface=CreateTriangleAtZ(5f,SurfacePath);
+        var Dragged=NodePath.Root.Append(0);
+        var SurfacePath=NodePath.Root.Append(1);
+        var OwnSurface=CreateTriangleAtZ(2f,Dragged.Append(0));
+        var TargetSurface=CreateTriangleAtZ(5f,SurfacePath);
 
-        bool Found=ScenePicker.TrySurfaceSnapQuery(
-            [OwnSurface,TargetSurface],new Vector3(0.5f,0.5f,0f),Vector3.UnitZ,
-            ExcludedRoots:[Dragged],out SurfaceSnapHit Hit);
+        var Found=ScenePicker.TrySurfaceSnapQuery(
+                                                  [OwnSurface,TargetSurface],new Vector3(0.5f,0.5f,0f),Vector3.UnitZ,
+                                                  ExcludedRoots:[Dragged],out var Hit);
 
         Assert.True(Found);
         Assert.Equal(SurfacePath,Hit.NodePath);

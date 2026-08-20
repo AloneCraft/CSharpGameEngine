@@ -45,7 +45,7 @@ public static unsafe class WicImageDecoder {
             return WicDecodeResult.Failed("Encoded image byte array is empty.");
         }
 
-        HRESULT CoInitHr=CoInitializeEx(null,(uint)COINIT_APARTMENTTHREADED);
+        var CoInitHr=CoInitializeEx(null,(uint)COINIT_APARTMENTTHREADED);
         if(CoInitHr.FAILED&&CoInitHr.Value!=RPC_E_CHANGEDMODE){
             return WicDecodeResult.Failed($"CoInitializeEx failed. HRESULT=0x{CoInitHr.Value:X8}");
         }
@@ -58,8 +58,8 @@ public static unsafe class WicImageDecoder {
         IWICFormatConverter*Converter=null;
 
         try {
-            Guid FactoryClsid=CLSID.CLSID_WICImagingFactory;
-            HRESULT Hr=CoCreateInstance(&FactoryClsid,null,(uint)CLSCTX_INPROC_SERVER,__uuidof<IWICImagingFactory>(),(void**)&Factory);
+            var FactoryClsid=CLSID.CLSID_WICImagingFactory;
+            var Hr=CoCreateInstance(&FactoryClsid,null,(uint)CLSCTX_INPROC_SERVER,__uuidof<IWICImagingFactory>(),(void**)&Factory);
             if(Hr.FAILED){
                 return WicDecodeResult.Failed($"CoCreateInstance(CLSID_WICImagingFactory) failed. HRESULT=0x{Hr.Value:X8}");
             }
@@ -86,7 +86,7 @@ public static unsafe class WicImageDecoder {
                 return WicDecodeResult.Failed($"IWICImagingFactory::CreateFormatConverter failed. HRESULT=0x{Hr.Value:X8}");
             }
 
-            Guid RgbaFormat=GUID.GUID_WICPixelFormat32bppRGBA;
+            var RgbaFormat=GUID.GUID_WICPixelFormat32bppRGBA;
             Hr=Converter->Initialize((IWICBitmapSource*)Frame,&RgbaFormat,WICBitmapDitherTypeNone,null,0.0,WICBitmapPaletteTypeCustom);
             if(Hr.FAILED){
                 return WicDecodeResult.Failed($"IWICFormatConverter::Initialize failed. HRESULT=0x{Hr.Value:X8}");

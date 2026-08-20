@@ -3,11 +3,11 @@ using System.Numerics;
 namespace CSharpGameEngine.Import.Gltf;
 
 public readonly record struct BoundingBox(Vector3 Min,Vector3 Max){
-    public Vector3 Center=>(Min+Max)*0.5f;
+    public Vector3 Center=>(this.Min+ this.Max)*0.5f;
 
-    public Vector3 Extents=>(Max-Min)*0.5f;
+    public Vector3 Extents=>(this.Max- this.Min)*0.5f;
 
-    public float BoundingSphereRadius=>Extents.Length();
+    public float BoundingSphereRadius=> this.Extents.Length();
 
     public static BoundingBox FromPoints(IReadOnlyList<Vector3>Points){
         ArgumentNullException.ThrowIfNull(Points);

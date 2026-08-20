@@ -89,6 +89,14 @@
           <ButtonText>インスペクター パネルを表示</ButtonText>
         </Strings>
       </Button>
+      <Button guid="guidOpenViewerCommandPackageCmdSet" id="ShowComponentPaletteToolWindowCommandId" priority="0x0108" type="Button">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="OpenViewerMenuGroup" />
+        <Icon guid="ImageCatalogGuid" id="ToolWindow" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>コンポーネント パレットを表示</ButtonText>
+        </Strings>
+      </Button>
       <!-- 0x0108 (PreviewSceneDefinitionCommandId) は ADR-0040 で退役した。VSIX の Scene 表示は
            対象プロジェクトをビルドして別プロセスで CreateRuntime を実行する方式をやめ、SceneModel を
            直接描画する方式へ移行したため、このコマンド自体が不要になった。0x0101 と同様、この ID は
@@ -472,6 +480,9 @@
       <!-- 0x0107/0x0108は退役済みで再利用しない(下記コメント参照)。0x0109はOpenSceneDesignerCommandIdが
            既に使っているため、Inspectorには次の空きである0x010Aを割り当てる。 -->
       <IDSymbol name="ShowInspectorToolWindowCommandId" value="0x010A" />
+      <!-- M0052: 0x010B が次の空き。0x0110〜0x0130 は Scene 一覧スロットなので、
+           これ以降に新しいコマンドを足す場合は 0x0131 以降を使うこと。 -->
+      <IDSymbol name="ShowComponentPaletteToolWindowCommandId" value="0x010B" />
       <!-- 0x0107 (ShowShapePaletteToolWindowCommandId) は M0020 Phase 0 で退役した。シェイプ
            パレットの配置先は .scene ファイルであり、ADR-0040 Phase 9 で読み取り経路がライブ Roslyn の
            SceneModel へ移った時点で書き込み先が消え、押しても案内ダイアログを出すだけの UI に

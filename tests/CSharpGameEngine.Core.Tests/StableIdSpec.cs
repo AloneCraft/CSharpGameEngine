@@ -3,35 +3,35 @@ namespace CSharpGameEngine.Core.Tests;
 public sealed class StableIdSpec {
     [Fact]
     public void New_CreatesValidId(){
-        StableId Id=StableId.New();
+        var Id=StableId.New();
 
         Assert.True(Id.IsValid);
     }
 
     [Fact]
     public void New_CreatesUsuallyDifferentIds(){
-        StableId First=StableId.New();
-        StableId Second=StableId.New();
+        var First=StableId.New();
+        var Second=StableId.New();
 
         Assert.NotEqual(First,Second);
     }
 
     [Fact]
     public void ToStringAndParse_RoundTrip(){
-        StableId Original=StableId.New();
+        var Original=StableId.New();
         var Text=Original.ToString();
 
-        StableId Parsed=StableId.Parse(Text);
+        var Parsed=StableId.Parse(Text);
 
         Assert.Equal(Original,Parsed);
     }
 
     [Fact]
     public void TryParse_HandlesValidAndInvalidValues(){
-        StableId Original=StableId.New();
+        var Original=StableId.New();
 
-        var Success=StableId.TryParse(Original.ToString(),out StableId Valid);
-        var Failed=StableId.TryParse("not-a-stable-id",out StableId Invalid);
+        var Success=StableId.TryParse(Original.ToString(),out var Valid);
+        var Failed=StableId.TryParse("not-a-stable-id",out var Invalid);
 
         Assert.True(Success);
         Assert.Equal(Original,Valid);
@@ -48,8 +48,8 @@ public sealed class StableIdSpec {
 
     [Fact]
     public void EqualityAndHashCode_AreConsistent(){
-        StableId Original=StableId.New();
-        StableId Copy=StableId.Parse(Original.ToString());
+        var Original=StableId.New();
+        var Copy=StableId.Parse(Original.ToString());
 
         Assert.True(Original==Copy);
         Assert.Equal(Original.GetHashCode(),Copy.GetHashCode());

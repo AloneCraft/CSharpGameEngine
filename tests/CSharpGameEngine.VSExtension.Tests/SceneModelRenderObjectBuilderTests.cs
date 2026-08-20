@@ -51,34 +51,34 @@ public sealed class SceneModelRenderObjectBuilderTests {
 
     [Fact]
     public void Build_NodeWithTransform_ExtractsPositionAndScaleIntoWorldMatrix(){
-        SceneModel Model=Analyze("""
-            using CSharpGameEngine.Entities;
-            using CSharpGameEngine.Runtime.Windows;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Components=[
-                    new Transform { PositionX=3f,PositionY=4f,PositionZ=5f,RotationW=1f,ScaleX=2f,ScaleY=2f,ScaleZ=2f },
-                ]};
-            }
-            """);
+        var Model=Analyze("""
+                          using CSharpGameEngine.Entities;
+                          using CSharpGameEngine.Runtime.Windows;
+                          namespace Game;
+                          public partial class MainScene:IScene {
+                              public Node Root=>new() { Components=[
+                                  new Transform { PositionX=3f,PositionY=4f,PositionZ=5f,RotationW=1f,ScaleX=2f,ScaleY=2f,ScaleZ=2f },
+                              ]};
+                          }
+                          """);
 
         var Result=SceneModelRenderObjectBuilder.Build(Model,static _=>null);
 
-        SceneRenderObject Object=Assert.Single(Result);
-        Assert.True(Matrix4x4.Decompose(Object.World,out Vector3 Scale,out _,out Vector3 Translation));
+        var Object=Assert.Single(Result);
+        Assert.True(Matrix4x4.Decompose(Object.World,out var Scale,out _,out var Translation));
         Assert.Equal(new Vector3(3f,4f,5f),Translation);
         Assert.Equal(new Vector3(2f,2f,2f),Scale);
     }
 
     [Fact]
     public void Build_NodeWithoutTransform_UsesIdentityWorld(){
-        SceneModel Model=Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Name="Root" };
-            }
-            """);
+        var Model=Analyze("""
+                          using CSharpGameEngine.Entities;
+                          namespace Game;
+                          public partial class MainScene:IScene {
+                              public Node Root=>new() { Name="Root" };
+                          }
+                          """);
 
         var Result=SceneModelRenderObjectBuilder.Build(Model,static _=>null);
 
@@ -89,19 +89,19 @@ public sealed class SceneModelRenderObjectBuilderTests {
     public void Build_TransformWithUnsetRotation_FallsBackToIdentityRotationInsteadOfNaN(){
         // RotationX/Y/Z/W all default to 0f (never assigned) - a zero-length quaternion, not a valid
         // rotation. CreateFromQuaternion on it would poison the whole matrix with NaN.
-        SceneModel Model=Analyze("""
-            using CSharpGameEngine.Entities;
-            using CSharpGameEngine.Runtime.Windows;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Components=[new Transform { PositionX=1f }] };
-            }
-            """);
+        var Model=Analyze("""
+                          using CSharpGameEngine.Entities;
+                          using CSharpGameEngine.Runtime.Windows;
+                          namespace Game;
+                          public partial class MainScene:IScene {
+                              public Node Root=>new() { Components=[new Transform { PositionX=1f }] };
+                          }
+                          """);
 
         var Result=SceneModelRenderObjectBuilder.Build(Model,static _=>null);
 
-        Matrix4x4 World=Assert.Single(Result).World;
-        Assert.True(Matrix4x4.Decompose(World,out _,out Quaternion Rotation,out Vector3 Translation));
+        var World=Assert.Single(Result).World;
+        Assert.True(Matrix4x4.Decompose(World,out _,out var Rotation,out var Translation));
         Assert.False(float.IsNaN(World.M11));
         Assert.Equal(Quaternion.Identity,Rotation);
         Assert.Equal(1f,Translation.X);
@@ -109,14 +109,14 @@ public sealed class SceneModelRenderObjectBuilderTests {
 
     [Fact]
     public void Build_NodeWithPrimitiveMesh_ResolvesThroughTheInjectedResolverByEnumMemberName(){
-        SceneModel Model=Analyze("""
-            using CSharpGameEngine.Entities;
-            using CSharpGameEngine.Runtime.Windows;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Components=[new PrimitiveMesh { Type=PrimitiveType.Sphere }] };
-            }
-            """);
+        var Model=Analyze("""
+                          using CSharpGameEngine.Entities;
+                          using CSharpGameEngine.Runtime.Windows;
+                          namespace Game;
+                          public partial class MainScene:IScene {
+                              public Node Root=>new() { Components=[new PrimitiveMesh { Type=PrimitiveType.Sphere }] };
+                          }
+                          """);
 
         SimpleMesh Marker=new() { Positions=[Vector3.Zero],Normals=[Vector3.UnitY],Indices=[0,0,0],BaseColorFactor=new Vector4(1,0,0,1),BoundsCenter=Vector3.Zero,BoundsRadius=1f };
         string?RequestedName=null;
@@ -132,13 +132,13 @@ public sealed class SceneModelRenderObjectBuilderTests {
 
     [Fact]
     public void Build_NodeWithoutPrimitiveMesh_FallsBackToGizmoWithoutCallingTheResolver(){
-        SceneModel Model=Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Name="Root" };
-            }
-            """);
+        var Model=Analyze("""
+                          using CSharpGameEngine.Entities;
+                          namespace Game;
+                          public partial class MainScene:IScene {
+                              public Node Root=>new() { Name="Root" };
+                          }
+                          """);
 
         var Result=SceneModelRenderObjectBuilder.Build(Model,static _=>throw new Xunit.Sdk.XunitException("resolver should not be called for a node with no PrimitiveMesh component"));
 
@@ -147,14 +147,14 @@ public sealed class SceneModelRenderObjectBuilderTests {
 
     [Fact]
     public void Build_NodeWithStaticMesh_ResolvesSceneAssetsConstPath(){
-        SceneModel Model=Analyze("""
-            using CSharpGameEngine.Entities;
-            using CSharpGameEngine.Runtime.Windows;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Components=[new StaticMesh { AssetPath=Assets.Stage }] };
-            }
-            """);
+        var Model=Analyze("""
+                          using CSharpGameEngine.Entities;
+                          using CSharpGameEngine.Runtime.Windows;
+                          namespace Game;
+                          public partial class MainScene:IScene {
+                              public Node Root=>new() { Components=[new StaticMesh { AssetPath=Assets.Stage }] };
+                          }
+                          """);
         SimpleMesh Marker=new() { Positions=[Vector3.Zero],Normals=[Vector3.UnitY],Indices=[0,0,0],BaseColorFactor=Vector4.One,BoundsCenter=Vector3.Zero,BoundsRadius=1f };
         string?RequestedPath=null;
 
@@ -166,14 +166,14 @@ public sealed class SceneModelRenderObjectBuilderTests {
 
     [Fact]
     public void Build_ResolverReturnsNull_FallsBackToGizmo(){
-        SceneModel Model=Analyze("""
-            using CSharpGameEngine.Entities;
-            using CSharpGameEngine.Runtime.Windows;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Components=[new PrimitiveMesh { Type=PrimitiveType.Box }] };
-            }
-            """);
+        var Model=Analyze("""
+                          using CSharpGameEngine.Entities;
+                          using CSharpGameEngine.Runtime.Windows;
+                          namespace Game;
+                          public partial class MainScene:IScene {
+                              public Node Root=>new() { Components=[new PrimitiveMesh { Type=PrimitiveType.Box }] };
+                          }
+                          """);
 
         var Result=SceneModelRenderObjectBuilder.Build(Model,static _=>null);
 
@@ -182,13 +182,13 @@ public sealed class SceneModelRenderObjectBuilderTests {
 
     [Fact]
     public void Build_NodeIdentity_IsNodePath(){
-        SceneModel Model=Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Name="Root",Children=[new Node { Name="Child" }] };
-            }
-            """);
+        var Model=Analyze("""
+                          using CSharpGameEngine.Entities;
+                          namespace Game;
+                          public partial class MainScene:IScene {
+                              public Node Root=>new() { Name="Root",Children=[new Node { Name="Child" }] };
+                          }
+                          """);
 
         var Result=SceneModelRenderObjectBuilder.Build(Model,static _=>null);
 
@@ -199,17 +199,17 @@ public sealed class SceneModelRenderObjectBuilderTests {
 
     [Fact]
     public void Build_ChildNode_ComposesLocalTransformWithParentWorld(){
-        SceneModel Model=Analyze("""
-            using CSharpGameEngine.Entities;
-            using CSharpGameEngine.Runtime.Windows;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Components=[new Transform { PositionX=10f,RotationW=1f }],
-                    Children=[new Node { Components=[new Transform { PositionY=3f,RotationW=1f }] }],
-                };
-            }
-            """);
+        var Model=Analyze("""
+                          using CSharpGameEngine.Entities;
+                          using CSharpGameEngine.Runtime.Windows;
+                          namespace Game;
+                          public partial class MainScene:IScene {
+                              public Node Root=>new() {
+                                  Components=[new Transform { PositionX=10f,RotationW=1f }],
+                                  Children=[new Node { Components=[new Transform { PositionY=3f,RotationW=1f }] }],
+                              };
+                          }
+                          """);
 
         var Result=SceneModelRenderObjectBuilder.Build(Model,static _=>null);
 
@@ -219,20 +219,20 @@ public sealed class SceneModelRenderObjectBuilderTests {
 
     [Fact]
     public void Build_GrandchildNode_FoldsTheWholeAncestorChain(){
-        SceneModel Model=Analyze("""
-            using CSharpGameEngine.Entities;
-            using CSharpGameEngine.Runtime.Windows;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Components=[new Transform { PositionX=1f,RotationW=1f }],
-                    Children=[new Node {
-                        Components=[new Transform { PositionX=2f,RotationW=1f }],
-                        Children=[new Node { Components=[new Transform { PositionX=4f,RotationW=1f }] }],
-                    }],
-                };
-            }
-            """);
+        var Model=Analyze("""
+                          using CSharpGameEngine.Entities;
+                          using CSharpGameEngine.Runtime.Windows;
+                          namespace Game;
+                          public partial class MainScene:IScene {
+                              public Node Root=>new() {
+                                  Components=[new Transform { PositionX=1f,RotationW=1f }],
+                                  Children=[new Node {
+                                      Components=[new Transform { PositionX=2f,RotationW=1f }],
+                                      Children=[new Node { Components=[new Transform { PositionX=4f,RotationW=1f }] }],
+                                  }],
+                              };
+                          }
+                          """);
 
         var Result=SceneModelRenderObjectBuilder.Build(Model,static _=>null);
 
@@ -242,17 +242,17 @@ public sealed class SceneModelRenderObjectBuilderTests {
 
     [Fact]
     public void Build_ChildWithoutTransform_InheritsTheParentWorld(){
-        SceneModel Model=Analyze("""
-            using CSharpGameEngine.Entities;
-            using CSharpGameEngine.Runtime.Windows;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Components=[new Transform { PositionZ=5f,RotationW=1f }],
-                    Children=[new Node { Name="NoTransform" }],
-                };
-            }
-            """);
+        var Model=Analyze("""
+                          using CSharpGameEngine.Entities;
+                          using CSharpGameEngine.Runtime.Windows;
+                          namespace Game;
+                          public partial class MainScene:IScene {
+                              public Node Root=>new() {
+                                  Components=[new Transform { PositionZ=5f,RotationW=1f }],
+                                  Children=[new Node { Name="NoTransform" }],
+                              };
+                          }
+                          """);
 
         var Result=SceneModelRenderObjectBuilder.Build(Model,static _=>null);
 
@@ -265,21 +265,21 @@ public sealed class SceneModelRenderObjectBuilderTests {
         // 親をY軸+90°(RotationY=RotationW=sin/cos 45°)回した下で子を+Xへ1動かすと、子は親の回転後の
         // 座標系に乗るので world translation は概ね (0,0,-1) になる。乗算順を ParentWorld*Local に
         // 取り違えるとここが (1,0,0) のままになるため、順序を固定する唯一のテスト。
-        SceneModel Model=Analyze("""
-            using CSharpGameEngine.Entities;
-            using CSharpGameEngine.Runtime.Windows;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Components=[new Transform { RotationY=0.7071068f,RotationW=0.7071068f }],
-                    Children=[new Node { Components=[new Transform { PositionX=1f,RotationW=1f }] }],
-                };
-            }
-            """);
+        var Model=Analyze("""
+                          using CSharpGameEngine.Entities;
+                          using CSharpGameEngine.Runtime.Windows;
+                          namespace Game;
+                          public partial class MainScene:IScene {
+                              public Node Root=>new() {
+                                  Components=[new Transform { RotationY=0.7071068f,RotationW=0.7071068f }],
+                                  Children=[new Node { Components=[new Transform { PositionX=1f,RotationW=1f }] }],
+                              };
+                          }
+                          """);
 
         var Result=SceneModelRenderObjectBuilder.Build(Model,static _=>null);
 
-        Vector3 Child=Result[1].World.Translation;
+        var Child=Result[1].World.Translation;
         Assert.Equal(0f,Child.X,3);
         Assert.Equal(0f,Child.Y,3);
         Assert.Equal(-1f,Child.Z,3);
@@ -287,19 +287,19 @@ public sealed class SceneModelRenderObjectBuilderTests {
 
     [Fact]
     public void Build_DeepChildren_PreservesPreOrderNodePathOrdering(){
-        SceneModel Model=Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Name="Root",
-                    Children=[
-                        new Node { Name="A",Children=[new Node { Name="A0" }] },
-                        new Node { Name="B" },
-                    ],
-                };
-            }
-            """);
+        var Model=Analyze("""
+                          using CSharpGameEngine.Entities;
+                          namespace Game;
+                          public partial class MainScene:IScene {
+                              public Node Root=>new() {
+                                  Name="Root",
+                                  Children=[
+                                      new Node { Name="A",Children=[new Node { Name="A0" }] },
+                                      new Node { Name="B" },
+                                  ],
+                              };
+                          }
+                          """);
 
         var Result=SceneModelRenderObjectBuilder.Build(Model,static _=>null);
 
@@ -312,19 +312,19 @@ public sealed class SceneModelRenderObjectBuilderTests {
 
     [Fact]
     public void Build_SkySphereStaticMesh_IsExcludedFromAutomaticFraming(){
-        SceneModel Model=Analyze("""
-            using CSharpGameEngine.Entities;
-            using CSharpGameEngine.Runtime.Windows;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Children=[
-                        new Node { Components=[new StaticMesh { AssetPath="Assets/Stage/SM_SkySphere.glb" }] },
-                        new Node { Components=[new StaticMesh { AssetPath="Assets/Stage/SM_Floor.glb" }] },
-                    ],
-                };
-            }
-            """);
+        var Model=Analyze("""
+                          using CSharpGameEngine.Entities;
+                          using CSharpGameEngine.Runtime.Windows;
+                          namespace Game;
+                          public partial class MainScene:IScene {
+                              public Node Root=>new() {
+                                  Children=[
+                                      new Node { Components=[new StaticMesh { AssetPath="Assets/Stage/SM_SkySphere.glb" }] },
+                                      new Node { Components=[new StaticMesh { AssetPath="Assets/Stage/SM_Floor.glb" }] },
+                                  ],
+                              };
+                          }
+                          """);
 
         var Result=SceneModelRenderObjectBuilder.Build(Model,static _=>null,static _=>null);
 
@@ -342,19 +342,19 @@ public sealed class SceneModelRenderObjectBuilderTests {
         // M0042: StaticMesh/PrimitiveMeshを持たないノード(Root自身や整理用の空グループノード)は
         // GizmoMeshFactoryのプレースホルダー立方体で代替描画されるが、ワールド原点付近に描画され
         // ステージの実オブジェクトへ紛れ込みやすいため、クリック・ドラッグの対象から外す。
-        SceneModel Model=Analyze("""
-            using CSharpGameEngine.Entities;
-            using CSharpGameEngine.Runtime.Windows;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Children=[
-                        new Node { Name="EmptyGroup" },
-                        new Node { Components=[new StaticMesh { AssetPath="Assets/Stage/SM_Floor.glb" }] },
-                    ],
-                };
-            }
-            """);
+        var Model=Analyze("""
+                          using CSharpGameEngine.Entities;
+                          using CSharpGameEngine.Runtime.Windows;
+                          namespace Game;
+                          public partial class MainScene:IScene {
+                              public Node Root=>new() {
+                                  Children=[
+                                      new Node { Name="EmptyGroup" },
+                                      new Node { Components=[new StaticMesh { AssetPath="Assets/Stage/SM_Floor.glb" }] },
+                                  ],
+                              };
+                          }
+                          """);
 
         var Result=SceneModelRenderObjectBuilder.Build(Model,static _=>null,static _=>null);
 
@@ -367,13 +367,13 @@ public sealed class SceneModelRenderObjectBuilderTests {
     public void Build_ModelWithoutRoot_ReturnsEmptyList(){
         // Root を解析できないシーンでは空リストを返す。SceneRenderer/SceneHwndHost が0件を
         // 例外にしなくなった(M0020 Phase 0)ことの、GPU 非依存な唯一の証跡。
-        SceneModel Model=Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>default;
-            }
-            """);
+        var Model=Analyze("""
+                          using CSharpGameEngine.Entities;
+                          namespace Game;
+                          public partial class MainScene:IScene {
+                              public Node Root=>default;
+                          }
+                          """);
 
         Assert.Empty(SceneModelRenderObjectBuilder.Build(Model,static _=>null));
     }

@@ -26,7 +26,7 @@ public sealed class SceneSelectionPathResolverTests {
 
     [Fact]
     public void Resolve_NoSelection_ReturnsEmpty(){
-        SceneProjection Projection=Analyze();
+        var Projection=Analyze();
 
         Assert.Empty(SceneSelectionPathResolver.Resolve(Selection:null,Key,Projection));
     }
@@ -42,8 +42,8 @@ public sealed class SceneSelectionPathResolverTests {
 
     [Fact]
     public void Resolve_SceneKeyMismatch_ReturnsEmpty(){
-        SceneProjection Projection=Analyze();
-        EditorNodeId Cube=FindId(Projection,"Cube");
+        var Projection=Analyze();
+        var Cube=FindId(Projection,"Cube");
         // Selectionは別Sceneを切替後の残骸(SelectionのKeyとpin中のKeyが食い違う)を模す。
         SceneSelection Selection=new(
             OtherKey,[Cube],PrimaryNodeId:Cube,ComponentType:null,MemberName:null,
@@ -54,22 +54,22 @@ public sealed class SceneSelectionPathResolverTests {
 
     [Fact]
     public void Resolve_ResolvableNodeIds_ReturnsMatchingPaths(){
-        SceneProjection Projection=Analyze();
-        EditorNodeId Cube=FindId(Projection,"Cube");
+        var Projection=Analyze();
+        var Cube=FindId(Projection,"Cube");
         SceneSelection Selection=new(
             Key,[Cube],PrimaryNodeId:Cube,ComponentType:null,MemberName:null,
             SceneSelectionOrigin.Viewport,Revision:1,CorrelationId:Guid.NewGuid());
 
         IReadOnlyList<NodePath>Paths=SceneSelectionPathResolver.Resolve(Selection,Key,Projection);
 
-        NodePath Expected=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Cube").Path;
+        var Expected=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Cube").Path;
         Assert.Equal(Expected,Assert.Single(Paths));
     }
 
     [Fact]
     public void Resolve_UnresolvableNodeId_IsSkippedNotFailed(){
-        SceneProjection Projection=Analyze();
-        EditorNodeId Cube=FindId(Projection,"Cube");
+        var Projection=Analyze();
+        var Cube=FindId(Projection,"Cube");
         EditorNodeId Unknown=new(999);
         SceneSelection Selection=new(
             Key,[Cube,Unknown],PrimaryNodeId:Cube,ComponentType:null,MemberName:null,
@@ -82,9 +82,9 @@ public sealed class SceneSelectionPathResolverTests {
 
     [Fact]
     public void Resolve_MultipleSelection_PreservesDeclarationOrder(){
-        SceneProjection Projection=Analyze();
-        EditorNodeId Cube=FindId(Projection,"Cube");
-        EditorNodeId Sphere=FindId(Projection,"Sphere");
+        var Projection=Analyze();
+        var Cube=FindId(Projection,"Cube");
+        var Sphere=FindId(Projection,"Sphere");
         // NodeIdsの並びを宣言順とは逆にしても、Resolveは渡された順そのままを返す
         // (並べ替えはSceneSourceMarkerPlanner側の責務のため、ここでは入力順を尊重するだけでよい)。
         SceneSelection Selection=new(
@@ -99,7 +99,7 @@ public sealed class SceneSelectionPathResolverTests {
     }
 
     private static SceneProjection Analyze(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze(Source);
+        var Model=SceneAnalysisTestHelper.Analyze(Source);
         return new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
     }
 

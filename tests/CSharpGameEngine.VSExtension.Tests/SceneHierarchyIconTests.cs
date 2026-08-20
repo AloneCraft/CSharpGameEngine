@@ -22,11 +22,11 @@ public sealed class SceneHierarchyIconTests {
 
     [Fact]
     public void HierarchyUsesSceneAndNodeMonikersAndRetainsEveryComponentIcon(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze(Source);
-        IReadOnlyList<SceneNodeViewModel>Roots=SceneNodeViewModel.Build(Model,new HashSet<NodePath>(),null);
+        var Model=SceneAnalysisTestHelper.Analyze(Source);
+        var Roots=SceneNodeViewModel.Build(Model,new HashSet<NodePath>(),null);
 
-        SceneNodeViewModel Root=Assert.Single(Roots);
-        SceneNodeViewModel Child=Assert.Single(Root.Children);
+        var Root=Assert.Single(Roots);
+        var Child=Assert.Single(Root.Children);
         Assert.Equal(KnownMonikers.ThreeDScene,Root.NodeMoniker);
         Assert.Equal(KnownMonikers.AbstractCube,Child.NodeMoniker);
         Assert.Equal(2,Root.ComponentIcons.Count);

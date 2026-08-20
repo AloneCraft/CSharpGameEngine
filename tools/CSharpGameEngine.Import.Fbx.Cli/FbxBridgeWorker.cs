@@ -31,13 +31,13 @@ internal static class FbxBridgeWorker {
         }
 
         List<string>Lines=[];
-        foreach(FbxImportDiagnostic Diagnostic in Result.Diagnostics){
+        foreach(var Diagnostic in Result.Diagnostics){
             Lines.Add(Diagnostic.ToString()??string.Empty);
         }
 
-        FbxBridgeDocument Document=Result.Success
-            ?FbxBridgeDocument.ForMesh(Result.Mesh!)
-            :FbxBridgeDocument.ForFailure();
+        var Document=Result.Success
+                         ?FbxBridgeDocument.ForMesh(Result.Mesh!)
+                         :FbxBridgeDocument.ForFailure();
 
         var Json=JsonSerializer.Serialize(Document);
         File.WriteAllText(OutputPath,Json);

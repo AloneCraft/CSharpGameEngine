@@ -246,9 +246,22 @@ internal static class GameSystemDiagnostics {
         defaultSeverity:DiagnosticSeverity.Error,
         isEnabledByDefault:true);
 
+    /// <summary>
+    /// <c>IRuntimeComponent&lt;TAuthored&gt;</c>は1つの作者Component型につき1つでなければならない。
+    /// 2つ以上が同じ<c>TAuthored</c>を主張すると、Scene DSLがどちらを随伴付与するかが非決定になり、
+    /// Archetypeの構成がビルドごとに変わりうる。曖昧なまま片方を選ぶより明示的に止める。
+    /// </summary>
+    internal static readonly DiagnosticDescriptor DuplicateRuntimeComponent=new(
+        id:"SYSGEN027",
+        title:"An authored component must have at most one runtime companion component",
+        messageFormat:"'{0}' is claimed by more than one IRuntimeComponent<T> implementation ('{1}' and '{2}'); keep exactly one",
+        category:Category,
+        defaultSeverity:DiagnosticSeverity.Error,
+        isEnabledByDefault:true);
+
     /// <summary>1つのSystem解析結果が持つ全診断を報告する。生成には関与しない診断専用の出力段。</summary>
     internal static void ReportAll(SourceProductionContext Context,GameSystemResult Result){
-        foreach(Diagnostic Diagnostic in Result.Diagnostics){
+        foreach(var Diagnostic in Result.Diagnostics){
             Context.ReportDiagnostic(Diagnostic);
         }
     }

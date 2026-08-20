@@ -67,17 +67,17 @@ internal static class GameSystemIndexAssigner {
             }
         }
 
-        foreach(GameSystemResult System in ValidSystems){
-            foreach(GameSystemMethodModel Method in System.Methods){
+        foreach(var System in ValidSystems){
+            foreach(var Method in System.Methods){
                 RegisterSet([.. Method.Components.Select(static C=>C.TypeFullyQualifiedName)]);
             }
         }
 
-        foreach(IReadOnlyList<string>ComponentSet in AdditionalComponentSets){
+        foreach(var ComponentSet in AdditionalComponentSets){
             RegisterSet(ComponentSet);
         }
 
-        ImmutableArray<Diagnostic>.Builder Diagnostics=ImmutableArray.CreateBuilder<Diagnostic>();
+        var Diagnostics=ImmutableArray.CreateBuilder<Diagnostic>();
 
         // マスクは long なので65個目以降のビットが溢れ、部分集合判定が静かに誤り始める。
         if(ComponentTypesByIndex.Count>MaxComponentTypes){
@@ -88,13 +88,13 @@ internal static class GameSystemIndexAssigner {
                 MaxComponentTypes));
         }
 
-        ImmutableArray<GameSystemComponentInfo>ComponentsByIndex=BuildComponents(ComponentTypesByIndex,Diagnostics);
+        var ComponentsByIndex=BuildComponents(ComponentTypesByIndex,Diagnostics);
 
         // comboByKeyは挿入順を保つDictionaryではないため、出現順は別途記録したリストから取る。
         List<GameSystemArchetypeInfo>Archetypes=[];
 
         for(var ArchetypeIndex=0;ArchetypeIndex<CombosInDiscoveryOrder.Count;ArchetypeIndex++){
-            List<int>Combo=CombosInDiscoveryOrder[ArchetypeIndex];
+            var Combo=CombosInDiscoveryOrder[ArchetypeIndex];
             long Mask=0;
 
             foreach(var Index in Combo){
@@ -113,7 +113,7 @@ internal static class GameSystemIndexAssigner {
     /// </summary>
     private static ImmutableArray<GameSystemComponentInfo>BuildComponents(List<string>ComponentTypesByIndex,ImmutableArray<Diagnostic>.Builder Diagnostics){
         Dictionary<string,string>TypeBySimpleName=new(StringComparer.Ordinal);
-        ImmutableArray<GameSystemComponentInfo>.Builder Builder=ImmutableArray.CreateBuilder<GameSystemComponentInfo>(ComponentTypesByIndex.Count);
+        var Builder=ImmutableArray.CreateBuilder<GameSystemComponentInfo>(ComponentTypesByIndex.Count);
 
         for(var Index=0;Index<ComponentTypesByIndex.Count;Index++){
             var TypeFqn=ComponentTypesByIndex[Index];

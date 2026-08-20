@@ -80,8 +80,8 @@ public class StageGpuIntegrationTests {
     }
 
     private static void RunStageGpuScenario(){
-        ProceduralMeshData Ground=ProceduralMeshFactory.CreatePlane(Width:20f,Depth:20f);
-        ProceduralMeshData Character=ProceduralMeshFactory.CreateBox(new Vector3(1f,2f,1f));
+        var Ground=ProceduralMeshFactory.CreatePlane(Width:20f,Depth:20f);
+        var Character=ProceduralMeshFactory.CreateBox(new Vector3(1f,2f,1f));
 
         using Win32Window Window=new(new Win32WindowOptions {
             Title="CSharpGameEngine Stage GPU Test",
@@ -95,12 +95,12 @@ public class StageGpuIntegrationTests {
             EnableDebugLayer=true,
         };
 
-        using StageRenderer Renderer=StageRenderer.Create(
-            Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
-            [
-                new MeshCreateInfo { Positions=Ground.Positions,Normals=Ground.Normals,Indices=Ground.Indices,BaseColorFactor=new Vector4(0.3f,0.6f,0.3f,1f)},
-                new MeshCreateInfo { Positions=Character.Positions,Normals=Character.Normals,Indices=Character.Indices,BaseColorFactor=new Vector4(0.8f,0.2f,0.2f,1f)},
-            ]);
+        using var Renderer=StageRenderer.Create(
+                                                Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
+                                                [
+                                                    new MeshCreateInfo { Positions=Ground.Positions,Normals=Ground.Normals,Indices=Ground.Indices,BaseColorFactor=new Vector4(0.3f,0.6f,0.3f,1f)},
+                                                    new MeshCreateInfo { Positions=Character.Positions,Normals=Character.Normals,Indices=Character.Indices,BaseColorFactor=new Vector4(0.8f,0.2f,0.2f,1f)},
+                                                ]);
 
         Assert.True(Renderer.ShaderCompilationSucceeded,string.Join(Environment.NewLine,Renderer.ShaderDiagnostics));
         Assert.True(Renderer.IsWarp);
@@ -117,14 +117,14 @@ public class StageGpuIntegrationTests {
         Assert.Equal(3u,Renderer.FramesRendered);
         Assert.NotNull(Renderer.LastCapturedFrame);
 
-        ModelVerificationResult Verification=ModelPixelVerifier.Verify(Renderer.LastCapturedFrame!,StageRenderer.ClearColor);
+        var Verification=ModelPixelVerifier.Verify(Renderer.LastCapturedFrame!,StageRenderer.ClearColor);
         Assert.True(Verification.Success,Verification.Details);
 
         Assert.Equal(0,Renderer.ErrorOrWorseMessageCount);
     }
 
     private static void RunStageResizeScenario(){
-        ProceduralMeshData Ground=ProceduralMeshFactory.CreatePlane(Width:10f,Depth:10f);
+        var Ground=ProceduralMeshFactory.CreatePlane(Width:10f,Depth:10f);
 
         using Win32Window Window=new(new Win32WindowOptions {
             Title="CSharpGameEngine Stage Resize GPU Test",
@@ -138,9 +138,9 @@ public class StageGpuIntegrationTests {
             EnableDebugLayer=true,
         };
 
-        using StageRenderer Renderer=StageRenderer.Create(
-            Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
-            [new MeshCreateInfo { Positions=Ground.Positions,Normals=Ground.Normals,Indices=Ground.Indices,BaseColorFactor=Vector4.One }]);
+        using var Renderer=StageRenderer.Create(
+                                                Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
+                                                [new MeshCreateInfo { Positions=Ground.Positions,Normals=Ground.Normals,Indices=Ground.Indices,BaseColorFactor=Vector4.One }]);
 
         Camera Camera=Camera.CreateDefault(Vector3.Zero);
         Renderer.SetCamera(Camera);
@@ -159,7 +159,7 @@ public class StageGpuIntegrationTests {
     }
 
     private static void RunTwoMaterialsScenario(){
-        ProceduralMeshData Box=ProceduralMeshFactory.CreateBox(new Vector3(1.2f,1.2f,1.2f));
+        var Box=ProceduralMeshFactory.CreateBox(new Vector3(1.2f,1.2f,1.2f));
 
         using Win32Window Window=new(new Win32WindowOptions {
             Title="CSharpGameEngine Stage Multi-Material GPU Test",
@@ -180,14 +180,14 @@ public class StageGpuIntegrationTests {
         StageMaterialCreateInfo RedMaterial=new(){ BaseColorFactor=new Vector4(1,0,0,1),RoughnessFactor=1f,MetallicFactor=0f };
         StageMaterialCreateInfo BlueMaterial=new(){ BaseColorFactor=new Vector4(0,0,1,1),RoughnessFactor=1f,MetallicFactor=0f };
 
-        using StageRenderer Renderer=StageRenderer.Create(
-            Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
-            [Mesh],
-            [RedMaterial,BlueMaterial],
-            [
-                new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 },
-                new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=1 },
-            ]);
+        using var Renderer=StageRenderer.Create(
+                                                Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
+                                                [Mesh],
+                                                [RedMaterial,BlueMaterial],
+                                                [
+                                                    new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 },
+                                                    new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=1 },
+                                                ]);
 
         Assert.True(Renderer.ShaderCompilationSucceeded,string.Join(Environment.NewLine,Renderer.ShaderDiagnostics));
 
@@ -203,13 +203,13 @@ public class StageGpuIntegrationTests {
         }
 
         Assert.NotNull(Renderer.LastCapturedFrame);
-        PixelReadbackResult Frame=Renderer.LastCapturedFrame!;
+        var Frame=Renderer.LastCapturedFrame!;
 
         var FoundReddish=false;
         var FoundBluish=false;
         for(var Y=0;Y<Frame.Height&&!(FoundReddish&&FoundBluish);Y++){
             for(var X=0;X<Frame.Width;X++){
-                PixelColor Pixel=ReadPixel(Frame,X,Y);
+                var Pixel=ReadPixel(Frame,X,Y);
                 if(Pixel.R>Pixel.G+15&&Pixel.R>Pixel.B+15){
                     FoundReddish=true;
                 }
@@ -225,7 +225,7 @@ public class StageGpuIntegrationTests {
     }
 
     private static void RunLightingApiScenario(){
-        ProceduralMeshData Ground=ProceduralMeshFactory.CreatePlane(Width:20f,Depth:20f);
+        var Ground=ProceduralMeshFactory.CreatePlane(Width:20f,Depth:20f);
 
         using Win32Window Window=new(new Win32WindowOptions {
             Title="CSharpGameEngine Stage Lighting API GPU Test",
@@ -245,9 +245,9 @@ public class StageGpuIntegrationTests {
         StageMeshCreateInfo Mesh=new(){ Positions=Ground.Positions,Normals=Ground.Normals,Tangents=Tangents,Uvs=Uvs,Indices=Ground.Indices };
         StageMaterialCreateInfo Material=new(){ BaseColorFactor=Vector4.One,RoughnessFactor=1f,MetallicFactor=0f };
 
-        using StageRenderer Renderer=StageRenderer.Create(
-            Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
-            [Mesh],[Material],[new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 }]);
+        using var Renderer=StageRenderer.Create(
+                                                Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
+                                                [Mesh],[Material],[new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 }]);
 
         Camera Camera=Camera.CreateDefault(Vector3.Zero);
         Renderer.SetCamera(Camera);
@@ -258,7 +258,7 @@ public class StageGpuIntegrationTests {
         Renderer.RenderFrame();
         Renderer.RenderFrame();
         Renderer.RenderFrame(CaptureForVerification:true);
-        PixelColor DarkCenter=ReadPixel(Renderer.LastCapturedFrame!,Renderer.LastCapturedFrame!.Width/2,Renderer.LastCapturedFrame!.Height/2);
+        var DarkCenter=ReadPixel(Renderer.LastCapturedFrame!,Renderer.LastCapturedFrame!.Width/2,Renderer.LastCapturedFrame!.Height/2);
 
         Renderer.SetCamera(Camera);
         Renderer.SetAmbientLight(new Vector3(0.3f,0.3f,0.3f));
@@ -267,7 +267,7 @@ public class StageGpuIntegrationTests {
         Renderer.RenderFrame();
         Renderer.RenderFrame();
         Renderer.RenderFrame(CaptureForVerification:true);
-        PixelColor BrightCenter=ReadPixel(Renderer.LastCapturedFrame!,Renderer.LastCapturedFrame!.Width/2,Renderer.LastCapturedFrame!.Height/2);
+        var BrightCenter=ReadPixel(Renderer.LastCapturedFrame!,Renderer.LastCapturedFrame!.Width/2,Renderer.LastCapturedFrame!.Height/2);
 
         var DarkSum=DarkCenter.R+DarkCenter.G+DarkCenter.B;
         var BrightSum=BrightCenter.R+BrightCenter.G+BrightCenter.B;
@@ -277,7 +277,7 @@ public class StageGpuIntegrationTests {
     }
 
     private static void RunBothFrameSlotsIdenticalScenario(){
-        ProceduralMeshData Box=ProceduralMeshFactory.CreateBox(new Vector3(1.5f,1.5f,1.5f));
+        var Box=ProceduralMeshFactory.CreateBox(new Vector3(1.5f,1.5f,1.5f));
 
         using Win32Window Window=new(new Win32WindowOptions {
             Title="CSharpGameEngine Stage Frame-Slot Parity GPU Test",
@@ -297,14 +297,14 @@ public class StageGpuIntegrationTests {
         StageMeshCreateInfo Mesh=new(){ Positions=Box.Positions,Normals=Box.Normals,Tangents=Tangents,Uvs=Uvs,Indices=Box.Indices };
         StageMaterialCreateInfo Material=new(){ BaseColorFactor=new Vector4(0.8f,0.3f,0.2f,1f),RoughnessFactor=0.6f,MetallicFactor=0f };
 
-        using StageRenderer Renderer=StageRenderer.Create(
-            Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
-            [Mesh],[Material],[new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 }]);
+        using var Renderer=StageRenderer.Create(
+                                                Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
+                                                [Mesh],[Material],[new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 }]);
 
         Assert.True(Renderer.ShaderCompilationSucceeded,string.Join(Environment.NewLine,Renderer.ShaderDiagnostics));
 
         Camera Camera=Camera.CreateDefault(Vector3.Zero);
-        Vector3 LightDirection=Vector3.Normalize(new Vector3(0.3f,0.8f,0.4f));
+        var LightDirection=Vector3.Normalize(new Vector3(0.3f,0.8f,0.4f));
 
         // RuntimeSystem.cs's LevelLoad/DirectionalLight systems push this exact set every real
         // frame - the pattern the 4 tests above never reproduce, which is why none of them could
@@ -320,11 +320,11 @@ public class StageGpuIntegrationTests {
         // row exercise both double-buffered slots.
         PushPerFrameState();
         Renderer.RenderFrame(CaptureForVerification:true);
-        PixelReadbackResult FirstSlotFrame=Renderer.LastCapturedFrame!;
+        var FirstSlotFrame=Renderer.LastCapturedFrame!;
 
         PushPerFrameState();
         Renderer.RenderFrame(CaptureForVerification:true);
-        PixelReadbackResult SecondSlotFrame=Renderer.LastCapturedFrame!;
+        var SecondSlotFrame=Renderer.LastCapturedFrame!;
 
         Assert.Equal(FirstSlotFrame.Width,SecondSlotFrame.Width);
         Assert.Equal(FirstSlotFrame.Height,SecondSlotFrame.Height);
@@ -334,8 +334,8 @@ public class StageGpuIntegrationTests {
         const int Tolerance=2;
         for(var Y=0;Y<FirstSlotFrame.Height;Y++){
             for(var X=0;X<FirstSlotFrame.Width;X++){
-                PixelColor A=ReadPixel(FirstSlotFrame,X,Y);
-                PixelColor B=ReadPixel(SecondSlotFrame,X,Y);
+                var A=ReadPixel(FirstSlotFrame,X,Y);
+                var B=ReadPixel(SecondSlotFrame,X,Y);
                 if(Math.Abs(A.R-B.R)>Tolerance||Math.Abs(A.G-B.G)>Tolerance||Math.Abs(A.B-B.B)>Tolerance){
                     MismatchedPixels++;
                 }
@@ -351,8 +351,8 @@ public class StageGpuIntegrationTests {
     }
 
     private static void RunShadowCastingScenario(){
-        ProceduralMeshData Ground=ProceduralMeshFactory.CreatePlane(Width:16f,Depth:16f);
-        ProceduralMeshData Blocker=ProceduralMeshFactory.CreateBox(new Vector3(3f,3f,3f));
+        var Ground=ProceduralMeshFactory.CreatePlane(Width:16f,Depth:16f);
+        var Blocker=ProceduralMeshFactory.CreateBox(new Vector3(3f,3f,3f));
 
         using Win32Window Window=new(new Win32WindowOptions {
             Title="CSharpGameEngine Stage Shadow GPU Test",
@@ -379,13 +379,13 @@ public class StageGpuIntegrationTests {
         StageMeshCreateInfo BlockerMesh=new(){ Positions=Blocker.Positions,Normals=Blocker.Normals,Tangents=BlockerTangents,Uvs=BlockerUvs,Indices=Blocker.Indices };
         StageMaterialCreateInfo Material=new(){ BaseColorFactor=Vector4.One,RoughnessFactor=1f,MetallicFactor=0f };
 
-        using StageRenderer Renderer=StageRenderer.Create(
-            Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
-            [GroundMesh,BlockerMesh],[Material],
-            [
-                new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 }, // ground, object 0
-                new StageObjectCreateInfo { MeshIndex=1,MaterialIndex=0 }, // blocker, object 1
-            ]);
+        using var Renderer=StageRenderer.Create(
+                                                Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
+                                                [GroundMesh,BlockerMesh],[Material],
+                                                [
+                                                    new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 }, // ground, object 0
+                                                    new StageObjectCreateInfo { MeshIndex=1,MaterialIndex=0 }, // blocker, object 1
+                                                ]);
 
         Assert.True(Renderer.ShaderCompilationSucceeded,string.Join(Environment.NewLine,Renderer.ShaderDiagnostics));
 
@@ -397,7 +397,7 @@ public class StageGpuIntegrationTests {
         Camera.Distance=20f;
         Camera.FarZ=200f;
 
-        Vector3 LightDirection=Vector3.Normalize(new Vector3(0.05f,1f,0.05f));
+        var LightDirection=Vector3.Normalize(new Vector3(0.05f,1f,0.05f));
         Vector3 FarAway=new(500f,500f,500f);
         Vector3 AboveOrigin=new(0f,4f,0f);
 
@@ -415,8 +415,8 @@ public class StageGpuIntegrationTests {
             return ReadPixel(Renderer.LastCapturedFrame!,Renderer.LastCapturedFrame!.Width/2,Renderer.LastCapturedFrame!.Height/2);
         }
 
-        PixelColor Baseline=RenderCenterWithBlockerAt(FarAway);
-        PixelColor Shadowed=RenderCenterWithBlockerAt(AboveOrigin);
+        var Baseline=RenderCenterWithBlockerAt(FarAway);
+        var Shadowed=RenderCenterWithBlockerAt(AboveOrigin);
 
         var BaselineSum=Baseline.R+Baseline.G+Baseline.B;
         var ShadowedSum=Shadowed.R+Shadowed.G+Shadowed.B;

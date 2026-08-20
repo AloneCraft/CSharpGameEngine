@@ -61,7 +61,7 @@ public class HandednessTests {
 
     private static void AssertRightFromUpForward<TConvention>()
         where TConvention:struct,ICoordinateConvention {
-        RufVector Right=Spatial<TConvention>.RightFromUpForward(RufVector.Up,RufVector.Forward);
+        var Right=Spatial<TConvention>.RightFromUpForward(RufVector.Up,RufVector.Forward);
 
         Assert.Equal(RufVector.Right.R,Right.R,precision:4);
         Assert.Equal(RufVector.Right.U,Right.U,precision:4);

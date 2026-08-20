@@ -33,7 +33,7 @@ internal static class SceneModelBridge {
             return null;
         }
 
-        SceneModel Model=SceneDeclarationAnalyzer.Analyze(Symbol,Ctx.SemanticModel.Compilation,CancellationToken);
+        var Model=SceneDeclarationAnalyzer.Analyze(Symbol,Ctx.SemanticModel.Compilation,CancellationToken);
         return ToEmitModel(Model);
     }
 
@@ -52,15 +52,15 @@ internal static class SceneModelBridge {
     }
 
     private static SceneEmitNode ToEmitNode(SceneNode Node){
-        ImmutableArray<SceneEmitComponent>.Builder Components=ImmutableArray.CreateBuilder<SceneEmitComponent>(Node.Components.Length);
+        var Components=ImmutableArray.CreateBuilder<SceneEmitComponent>(Node.Components.Length);
 
-        foreach(SceneComponent Component in Node.Components){
+        foreach(var Component in Node.Components){
             Components.Add(new SceneEmitComponent(Component.TypeFullyQualifiedName,Component.EmitExpressionText));
         }
 
-        ImmutableArray<SceneEmitNode>.Builder Children=ImmutableArray.CreateBuilder<SceneEmitNode>(Node.Children.Length);
+        var Children=ImmutableArray.CreateBuilder<SceneEmitNode>(Node.Children.Length);
 
-        foreach(SceneNode Child in Node.Children){
+        foreach(var Child in Node.Children){
             Children.Add(ToEmitNode(Child));
         }
 

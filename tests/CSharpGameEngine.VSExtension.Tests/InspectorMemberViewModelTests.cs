@@ -12,6 +12,7 @@ namespace CSharpGameEngine.VSExtension.Tests;
 public sealed class InspectorMemberViewModelTests {
     [Theory]
     [InlineData(nameof(InspectorMemberViewModel.Label))]
+    [InlineData(nameof(InspectorMemberViewModel.MemberName))]
     [InlineData(nameof(InspectorMemberViewModel.EditorKind))]
     [InlineData(nameof(InspectorMemberViewModel.DisplayText))]
     [InlineData(nameof(InspectorMemberViewModel.BooleanValue))]
@@ -20,6 +21,74 @@ public sealed class InspectorMemberViewModelTests {
     public void PropertiesBoundFromXamlArePublicSoWpfCanResolveThem(string PropertyName){
         Assert.NotNull(typeof(InspectorMemberViewModel)
             .GetProperty(PropertyName,BindingFlags.Public|BindingFlags.Instance));
+    }
+
+    [Theory]
+    [InlineData(nameof(InspectorComponentGroupViewModel.Header))]
+    [InlineData(nameof(InspectorComponentGroupViewModel.FullTypeName))]
+    [InlineData(nameof(InspectorComponentGroupViewModel.Rows))]
+    [InlineData(nameof(InspectorComponentGroupViewModel.IsExpanded))]
+    [InlineData(nameof(InspectorComponentGroupViewModel.PendingMessageVisibility))]
+    public void GroupPropertiesBoundFromXamlArePublicSoWpfCanResolveThem(string PropertyName){
+        Assert.NotNull(typeof(InspectorComponentGroupViewModel)
+            .GetProperty(PropertyName,BindingFlags.Public|BindingFlags.Instance));
+    }
+
+    /// <summary>
+    /// <c>IsExpanded</c>はTwoWayバインドで、ユーザーの開閉をViewModelへ書き戻してもらう必要がある。
+    /// setterが無いとWPFはバインディングを一方向に落として黙って動かなくなる。
+    /// </summary>
+    [Fact]
+    public void GroupIsExpandedHasAPublicSetterSoTwoWayBindingCanWriteBack(){
+        var Property=typeof(InspectorComponentGroupViewModel)
+            .GetProperty(nameof(InspectorComponentGroupViewModel.IsExpanded),BindingFlags.Public|BindingFlags.Instance);
+
+        Assert.NotNull(Property!.GetSetMethod());
+    }
+
+    [Theory]
+    [InlineData(nameof(InspectorNestedRowViewModel.Header))]
+    [InlineData(nameof(InspectorNestedRowViewModel.TypeDisplayName))]
+    [InlineData(nameof(InspectorNestedRowViewModel.Rows))]
+    [InlineData(nameof(InspectorNestedRowViewModel.IsExpanded))]
+    public void NestedRowPropertiesBoundFromXamlArePublicSoWpfCanResolveThem(string PropertyName){
+        Assert.NotNull(typeof(InspectorNestedRowViewModel)
+            .GetProperty(PropertyName,BindingFlags.Public|BindingFlags.Instance));
+    }
+
+    [Fact]
+    public void NestedRowIsExpandedHasAPublicSetterSoTwoWayBindingCanWriteBack(){
+        var Property=typeof(InspectorNestedRowViewModel)
+            .GetProperty(nameof(InspectorNestedRowViewModel.IsExpanded),BindingFlags.Public|BindingFlags.Instance);
+
+        Assert.NotNull(Property!.GetSetMethod());
+    }
+
+    [Fact]
+    public void GroupWithoutRows_ShowsThePendingAnalysisMessage(){
+        // Componentを追加した直後の状態。memberが空でも「追加が消えた」ように見せてはいけない。
+        InspectorComponentGroupViewModel Empty=new(
+            new SceneInspectorComponentGroup(new EditorNodeId(1),"global::Sample.Label","Label",[]),
+            Rows:[],IsExpanded:true);
+
+        Assert.Equal(System.Windows.Visibility.Visible,Empty.PendingMessageVisibility);
+        Assert.Empty(Empty.Rows);
+    }
+
+    [Fact]
+    public void GroupWithRows_HidesThePendingAnalysisMessage(){
+        SceneInspectorMember Member=new(
+            new EditorNodeId(1),"global::Sample.Label","Text","\"Hi\"",IsEditable:true,
+            InspectorEditorKind.Text,ConstantValue:"Hi",NumericType:null,EnumCandidates:[]);
+        InspectorMemberViewModel RowViewModel=new(Member);
+        InspectorComponentGroupViewModel Group=new(
+            new SceneInspectorComponentGroup(new EditorNodeId(1),"global::Sample.Label","Label",[
+                new SceneInspectorMemberRow(Member),
+            ]),
+            Rows:[RowViewModel],IsExpanded:true);
+
+        Assert.Equal(System.Windows.Visibility.Collapsed,Group.PendingMessageVisibility);
+        Assert.Equal("Text",Assert.IsType<InspectorMemberViewModel>(Assert.Single(Group.Rows)).MemberName);
     }
 
     [Fact]

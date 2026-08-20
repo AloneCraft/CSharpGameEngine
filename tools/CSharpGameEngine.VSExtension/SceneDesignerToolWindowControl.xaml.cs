@@ -27,18 +27,18 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     private bool Disposed;
 
     public SceneDesignerToolWindowControl(){
-        InitializeComponent();
+        this.InitializeComponent();
         // M0033: World/Local切り替えはギズモ上のアイコン(TransformSpaceToggleGizmo)へ移った。
         // M0020 Phase 1(ADR-0041 決定事項2): ナビゲーション(WASDQE)を受けるにはWPFの
         // キーボードフォーカスが要る(Wheelはネイティブ側で受けるためフォーカス不要、
         // SceneHwndHost.HandleWheel参照)。IsTabStopは変えない — Tab巡回でここへ止まらせず、
         // ビューポート内をクリックしたときだけ(OnViewportActivated)フォーカスを与える。
-        RenderHostGrid.Focusable=true;
-        KeyboardNavigation.SetIsTabStop(RenderHostGrid,false);
+        this.RenderHostGrid.Focusable=true;
+        KeyboardNavigation.SetIsTabStop(this.RenderHostGrid,false);
         this.Loaded+=this.OnLoaded;
-        RenderHostGrid.KeyDown+=this.OnViewportKeyDown;
-        RenderHostGrid.KeyUp+=this.OnViewportKeyUp;
-        RenderHostGrid.LostKeyboardFocus+=this.OnViewportLostKeyboardFocus;
+        this.RenderHostGrid.KeyDown+=this.OnViewportKeyDown;
+        this.RenderHostGrid.KeyUp+=this.OnViewportKeyUp;
+        this.RenderHostGrid.LostKeyboardFocus+=this.OnViewportLostKeyboardFocus;
     }
 
     /// <summary>
@@ -51,7 +51,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     /// <see cref="SceneHwndHost"/>の<c>GetKeyState</c>ポーリングへ切り替えた
     /// (判定にはWPFフォーカスの有無だけを使う点は変わらない)。
     /// </summary>
-    internal bool IsViewportFocused=>RenderHostGrid.IsKeyboardFocusWithin;
+    internal bool IsViewportFocused=> this.RenderHostGrid.IsKeyboardFocusWithin;
 
     /// <summary>
     /// M0051 Step 1-5: Undo / Redo / Save のいずれもこの範囲で引き受ける。ビューポートだけでなく
@@ -269,21 +269,21 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         Host.ObjectPicked+=this.OnObjectPicked;
         Host.ObjectsMarqueePicked+=this.OnObjectsMarqueePicked;
         Host.EditCommitRequested+=this.OnEditCommitRequested;
-        Host.IsViewportFocusedProvider=()=>RenderHostGrid.IsKeyboardFocusWithin;
+        Host.IsViewportFocusedProvider=()=> this.RenderHostGrid.IsKeyboardFocusWithin;
         Host.UndoRequested+=this.OnUndoKeyRequested;
         Host.RedoRequested+=this.OnRedoKeyRequested;
         Host.SaveRequested+=this.OnSaveKeyRequested;
         this.Host=Host;
-        EmptyStateText.Visibility=Visibility.Collapsed;
-        RenderHostGrid.Children.Add(Host);
+        this.EmptyStateText.Visibility=Visibility.Collapsed;
+        this.RenderHostGrid.Children.Add(Host);
         return Host;
     }
 
     private void ShowEmpty(string Message){
         this.DetachHost();
-        StatusText.Text=Message;
-        EmptyStateText.Text=Message;
-        EmptyStateText.Visibility=Visibility.Visible;
+        this.StatusText.Text=Message;
+        this.EmptyStateText.Text=Message;
+        this.EmptyStateText.Visibility=Visibility.Visible;
     }
 
     private void DetachHost(){
@@ -293,7 +293,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         }
 
         this.Host=null;
-        RenderHostGrid.Children.Remove(Host);
+        this.RenderHostGrid.Children.Remove(Host);
         Host.StatusChanged-=this.OnStatusChanged;
         Host.ViewportActivated-=this.OnViewportActivated;
         Host.ObjectPicked-=this.OnObjectPicked;
@@ -320,7 +320,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         this.CatalogCancellation=Cancellation;
         long Generation=++this.CatalogGeneration;
         SceneKey?CatalogSceneKey=Session.PinnedSceneKey;
-        SceneSelector.IsEnabled=false;
+        this.SceneSelector.IsEnabled=false;
         _=this.RefreshSceneCatalogAsync(Session,CatalogSceneKey,Generation,Cancellation.Token);
     }
 
@@ -340,8 +340,8 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
 
                 this.UpdatingSelector=true;
                 try {
-                    SceneSelector.ItemsSource=Catalog?.Entries;
-                    SceneSelector.IsEnabled=Catalog is { Entries.Count:>0 };
+                    this.SceneSelector.ItemsSource=Catalog?.Entries;
+                    this.SceneSelector.IsEnabled=Catalog is { Entries.Count:>0 };
                 } finally {
                     this.UpdatingSelector=false;
                 }
@@ -362,8 +362,8 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             ActivityLog.LogError(nameof(SceneDesignerToolWindowControl),Ex.ToString());
             this.DispatchToUi(()=>{
                 if(!this.Disposed&&Generation==this.CatalogGeneration){
-                    SceneSelector.ItemsSource=null;
-                    SceneSelector.IsEnabled=false;
+                    this.SceneSelector.ItemsSource=null;
+                    this.SceneSelector.IsEnabled=false;
                     if(!SceneCatalogTargetPolicy.KeepsPresentedScene(
                         Session.PinnedSnapshot is not null,HasCatalog:false)){
                         this.ShowEmpty("シーン一覧の取得に失敗しました。ActivityLog.xml を確認してください。");
@@ -384,7 +384,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     private bool TrySyncSelectorToPinnedScene(){
         if(this.Disposed
             ||this.Session is not { } Session
-            ||SceneSelector.ItemsSource is not IEnumerable<ProjectSceneCatalogEntry>Entries){
+            || this.SceneSelector.ItemsSource is not IEnumerable<ProjectSceneCatalogEntry>Entries){
             return false;
         }
 
@@ -395,7 +395,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         // 自分で入れた選択でOnSceneSelectionChangedが発火すると、Pin→選択→Pinと往復してしまう。
         this.UpdatingSelector=true;
         try {
-            SceneSelector.SelectedItem=Match;
+            this.SceneSelector.SelectedItem=Match;
         } finally {
             this.UpdatingSelector=false;
         }
@@ -405,7 +405,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
 
     private void OnSceneSelectionChanged(object Sender,SelectionChangedEventArgs Args){
         if(this.UpdatingSelector||this.Disposed||this.Session is not { } Session
-            ||SceneSelector.SelectedItem is not ProjectSceneCatalogEntry Entry){
+            || this.SceneSelector.SelectedItem is not ProjectSceneCatalogEntry Entry){
             return;
         }
 
@@ -414,7 +414,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
 
     private async Task SelectSceneAsync(SceneEditorSessionService Session,SceneKey Key){
         try {
-            StatusText.Text="シーンを解析中...";
+            this.StatusText.Text="シーンを解析中...";
             SceneModel?Model=await Session.ResolveSceneAsync(Key,CancellationToken.None).ConfigureAwait(true);
             if(this.Disposed||!ReferenceEquals(this.Session,Session)){
                 return;
@@ -487,7 +487,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     }
 
     private void OnStatusChanged(string Status){
-        StatusText.Text=Status;
+        this.StatusText.Text=Status;
     }
 
     /// <summary>
@@ -498,8 +498,8 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     /// コードエディタからフォーカスを奪わない。
     /// </summary>
     private void OnViewportActivated(){
-        if(!RenderHostGrid.IsKeyboardFocusWithin){
-            Keyboard.Focus(RenderHostGrid);
+        if(!this.RenderHostGrid.IsKeyboardFocusWithin){
+            Keyboard.Focus(this.RenderHostGrid);
         }
     }
 
@@ -520,9 +520,9 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
 
         // どのノードが選択されたか実機で目視確認できるようにする(選択のハイライト以外に
         // フィードバックが無かったため)。
-        StatusText.Text=HitId is { } DisplayId&&Snapshot.Projection?.TryGetNode(DisplayId,out SceneProjectionNode DisplayNode)==true
-            ?$"選択: {DisplayNode.Node.DisplayName}({DisplayNode.Path.ToDisplayString()})"
-            :"選択解除";
+        this.StatusText.Text=HitId is { } DisplayId&&Snapshot.Projection?.TryGetNode(DisplayId,out SceneProjectionNode DisplayNode)==true
+                                 ?$"選択: {DisplayNode.Node.DisplayName}({DisplayNode.Path.ToDisplayString()})"
+                                 :"選択解除";
 
         if(!CtrlHeld){
             Session.Selection.Select(
@@ -573,9 +573,9 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             :null;
         MarqueeSelectionUpdate Update=MarqueeSelectionPolicy.Combine(
             Existing?.NodeIds??[],HitIds,CtrlHeld,Existing?.PrimaryNodeId);
-        StatusText.Text=Update.NodeIds.Count==0
-            ?"選択解除"
-            :$"矩形選択: {Update.NodeIds.Count}件";
+        this.StatusText.Text=Update.NodeIds.Count==0
+                                 ?"選択解除"
+                                 :$"矩形選択: {Update.NodeIds.Count}件";
         Session.Selection.Select(
             Snapshot.Key,Update.NodeIds,Update.PrimaryNodeId,
             ComponentType:null,MemberName:null,SceneSelectionOrigin.Viewport,Guid.NewGuid());

@@ -15,7 +15,7 @@ public sealed class EntityDestroySpec {
     public void CreatedEntityIsAlive(){
         World World=new();
 
-        Entity Entity=World.Create(new Position { X=1f });
+        var Entity=World.Create(new Position { X=1f });
 
         Assert.True(World.IsAlive(Entity));
     }
@@ -23,7 +23,7 @@ public sealed class EntityDestroySpec {
     [Fact]
     public void DestroyedEntityIsNoLongerAlive(){
         World World=new();
-        Entity Entity=World.Create(new Position { X=1f });
+        var Entity=World.Create(new Position { X=1f });
 
         World.Destroy(Entity);
 
@@ -33,7 +33,7 @@ public sealed class EntityDestroySpec {
     [Fact]
     public void DestroyIsIdempotent(){
         World World=new();
-        Entity Entity=World.Create(new Position());
+        var Entity=World.Create(new Position());
 
         World.Destroy(Entity);
         World.Destroy(Entity);
@@ -54,10 +54,10 @@ public sealed class EntityDestroySpec {
     public void DestroyedIdIsNeverHandedOutAgain(){
         // これが「世代を持たなくてもstale handleが別Entityに化けない」ことの根拠である。
         World World=new();
-        Entity First=World.Create(new Position { X=1f });
+        var First=World.Create(new Position { X=1f });
         World.Destroy(First);
 
-        Entity Second=World.Create(new Position { X=2f });
+        var Second=World.Create(new Position { X=2f });
 
         Assert.NotEqual(First.Id,Second.Id);
         Assert.False(World.IsAlive(First));
@@ -68,9 +68,9 @@ public sealed class EntityDestroySpec {
     public void SurvivingEntityKeepsItsIdentityAfterASwapBack(){
         // 末尾のEntityが消えた行へ座り直すが、Entity.Idは動かない。動くのはArchetype内の座席番号だけ。
         World World=new();
-        Entity A=World.Create(new Position { X=1f });
-        Entity B=World.Create(new Position { X=2f });
-        Entity C=World.Create(new Position { X=3f });
+        var A=World.Create(new Position { X=1f });
+        var B=World.Create(new Position { X=2f });
+        var C=World.Create(new Position { X=3f });
 
         World.Destroy(B);
 
@@ -84,8 +84,8 @@ public sealed class EntityDestroySpec {
     [Fact]
     public void DestroyingTheLastEntityDoesNotDisturbTheOthers(){
         World World=new();
-        Entity A=World.Create(new Position { X=1f });
-        Entity B=World.Create(new Position { X=2f });
+        var A=World.Create(new Position { X=1f });
+        var B=World.Create(new Position { X=2f });
 
         World.Destroy(B);
 
@@ -98,7 +98,7 @@ public sealed class EntityDestroySpec {
     public void DeferredDestroyIsAppliedAtThePlaybackBarrier(){
         World World=new();
         State State=new(World){ Enabled=true };
-        Entity Entity=World.Create(new Position());
+        var Entity=World.Create(new Position());
 
         World.DestroyDeferred(Entity,ref State);
 
@@ -113,7 +113,7 @@ public sealed class EntityDestroySpec {
     public void DeferredDestroyQueueIsDrained(){
         World World=new();
         State State=new(World){ Enabled=true };
-        Entity Entity=World.Create(new Position());
+        var Entity=World.Create(new Position());
 
         World.DestroyDeferred(Entity,ref State);
         World.PlaybackStructuralChanges(ref State);
@@ -128,7 +128,7 @@ public sealed class EntityDestroySpec {
         // 適用して生き返らせてしまう。
         World World=new();
         State State=new(World){ Enabled=true };
-        Entity Entity=World.Create(new Position { X=1f });
+        var Entity=World.Create(new Position { X=1f });
 
         World.MoveArchetype(Entity,new Position { X=9f },new Velocity { X=1f },ref State);
         World.DestroyDeferred(Entity,ref State);
@@ -142,7 +142,7 @@ public sealed class EntityDestroySpec {
     public void MoveAppliedToAnAlreadyDestroyedEntityIsIgnored(){
         World World=new();
         State State=new(World){ Enabled=true };
-        Entity Entity=World.Create(new Position { X=1f });
+        var Entity=World.Create(new Position { X=1f });
 
         World.MoveArchetype(Entity,new Position { X=9f },new Velocity { X=1f },ref State);
         World.Destroy(Entity);

@@ -39,8 +39,8 @@ internal static class StartupAutoOpenPolicy {
     /// </para>
     /// </summary>
     internal static bool CommandLineAlreadySpecifiesASolution(IReadOnlyList<string>Args){
-        for(int Index=1;Index<Args.Count;Index++){
-            string Arg=Args[Index];
+        for(var Index=1;Index<Args.Count;Index++){
+            var Arg=Args[Index];
             if(Arg.EndsWith(".sln",StringComparison.OrdinalIgnoreCase)
                 ||Arg.EndsWith(".slnx",StringComparison.OrdinalIgnoreCase)){
                 return true;

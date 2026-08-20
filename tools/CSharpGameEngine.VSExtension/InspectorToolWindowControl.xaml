@@ -11,8 +11,76 @@
              d:DesignHeight="400" d:DesignWidth="300">
     <UserControl.Resources>
         <local:InspectorEditorKindVisibilityConverter x:Key="EditorKindVisibilityConverter" />
+
+        <!-- 単純な値を持つ行(InspectorMemberViewModel)。DataTypeだけ付けて明示キーは付けない
+             ("暗黙" DataTemplate)ので、ItemTemplateを指定しないItemsControlは実行時型を見て
+             自動的にこれを選ぶ。これにより、下の入れ子テンプレートと合わせて自己参照的な
+             再帰表示が組める(HierarchicalDataTemplate/TreeViewは使わない — Step2-1の判断
+             どおり、独自の選択/フォーカス意味論がTextBoxのcommit経路と衝突するため)。 -->
+        <DataTemplate DataType="{x:Type local:InspectorMemberViewModel}">
+            <Border BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
+                    BorderThickness="0,0,0,1" Opacity="0.9" Padding="6,4">
+                <Grid Opacity="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="140" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" Text="{Binding MemberName}" VerticalAlignment="Center"
+                               Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
+                               ToolTip="{Binding Label}" TextTrimming="CharacterEllipsis" Margin="0,0,8,0" />
+
+                    <Grid Grid.Column="1">
+                        <TextBox Text="{Binding DisplayText, Mode=OneTime}"
+                                 Visibility="{Binding EditorKind, Converter={StaticResource EditorKindVisibilityConverter}, ConverterParameter='Number,Text'}"
+                                 KeyDown="EditableField_KeyDown" LostFocus="EditableField_LostFocus" />
+                        <!-- IsChecked/SelectedItemはOneWay。初期のデータバインド代入自体が
+                             Checked/SelectionChangedを発火させるため、それらをcommitの
+                             トリガーにすると「確定→再構築→再バインド→再確定」の無限
+                             ループになる。Click/DropDownClosedはユーザー操作でしか
+                             発火しないので、これらだけをcommitの起点にする。 -->
+                        <CheckBox VerticalAlignment="Center"
+                                  IsChecked="{Binding BooleanValue, Mode=OneWay}"
+                                  Visibility="{Binding EditorKind, Converter={StaticResource EditorKindVisibilityConverter}, ConverterParameter=Boolean}"
+                                  Click="BooleanField_Click" />
+                        <ComboBox ItemsSource="{Binding EnumCandidateNames}"
+                                  SelectedItem="{Binding SelectedEnumName, Mode=OneWay}"
+                                  Visibility="{Binding EditorKind, Converter={StaticResource EditorKindVisibilityConverter}, ConverterParameter=Enum}"
+                                  DropDownClosed="EnumField_DropDownClosed" />
+                        <TextBlock Text="{Binding DisplayText, Mode=OneTime}" VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"
+                                   Foreground="{DynamicResource {x:Static vsshell:VsBrushes.GrayTextKey}}"
+                                   Visibility="{Binding EditorKind, Converter={StaticResource EditorKindVisibilityConverter}, ConverterParameter=ReadOnly}" />
+                    </Grid>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <!-- ネストしたObjectCreation値(例: new Vector3(1,2,3))。Component 1件分と同じ
+             「Expander + 内側ItemsControl」構造をもう1段重ねる。内側ItemsControlは
+             ItemTemplateを指定しないので、子がさらにネストしていれば自分自身が
+             (このDataTemplate自体が)暗黙に選ばれて再帰する。子行は常に読み取り専用として
+             構築済み(SceneInspectorNestedRowのドキュメントコメント参照)。 -->
+        <DataTemplate DataType="{x:Type local:InspectorNestedRowViewModel}">
+            <Expander IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
+                      ToolTip="{Binding TypeDisplayName}" Margin="12,0,0,2">
+                <Expander.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding Header}" FontWeight="Bold"
+                                   Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding TypeDisplayName, StringFormat=' ({0})'}"
+                                   Foreground="{DynamicResource {x:Static vsshell:VsBrushes.GrayTextKey}}"
+                                   TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </Expander.Header>
+                <ItemsControl ItemsSource="{Binding Rows}" />
+            </Expander>
+        </DataTemplate>
     </UserControl.Resources>
-    <Grid>
+    <!-- パレットからのドロップはパネル全体で受ける。対象は「選択中のノード」なので、
+         パネル内のどこで離しても意味は変わらない。 -->
+    <Grid Background="Transparent" AllowDrop="True" DragOver="Panel_DragOver" Drop="Panel_Drop">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -27,41 +95,26 @@
             <ItemsControl x:Name="MemberList">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
-                                BorderThickness="0,0,0,1" Opacity="0.9" Padding="6,4">
-                            <Grid Opacity="1">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="140" />
-                                </Grid.ColumnDefinitions>
-
-                                <TextBlock Grid.Column="0" Text="{Binding Label}" VerticalAlignment="Center"
-                                           ToolTip="{Binding Label}" TextTrimming="CharacterEllipsis" Margin="0,0,8,0" />
-
-                                <Grid Grid.Column="1">
-                                    <TextBox Text="{Binding DisplayText, Mode=OneTime}"
-                                             Visibility="{Binding EditorKind, Converter={StaticResource EditorKindVisibilityConverter}, ConverterParameter='Number,Text'}"
-                                             KeyDown="EditableField_KeyDown" LostFocus="EditableField_LostFocus" />
-                                    <!-- IsChecked/SelectedItemはOneWay。初期のデータバインド代入自体が
-                                         Checked/SelectionChangedを発火させるため、それらをcommitの
-                                         トリガーにすると「確定→再構築→再バインド→再確定」の無限
-                                         ループになる。Click/DropDownClosedはユーザー操作でしか
-                                         発火しないので、これらだけをcommitの起点にする。 -->
-                                    <CheckBox VerticalAlignment="Center"
-                                              IsChecked="{Binding BooleanValue, Mode=OneWay}"
-                                              Visibility="{Binding EditorKind, Converter={StaticResource EditorKindVisibilityConverter}, ConverterParameter=Boolean}"
-                                              Click="BooleanField_Click" />
-                                    <ComboBox ItemsSource="{Binding EnumCandidateNames}"
-                                              SelectedItem="{Binding SelectedEnumName, Mode=OneWay}"
-                                              Visibility="{Binding EditorKind, Converter={StaticResource EditorKindVisibilityConverter}, ConverterParameter=Enum}"
-                                              DropDownClosed="EnumField_DropDownClosed" />
-                                    <TextBlock Text="{Binding DisplayText, Mode=OneTime}" VerticalAlignment="Center"
-                                               TextTrimming="CharacterEllipsis"
-                                               Foreground="{DynamicResource {x:Static vsshell:VsBrushes.GrayTextKey}}"
-                                               Visibility="{Binding EditorKind, Converter={StaticResource EditorKindVisibilityConverter}, ConverterParameter=ReadOnly}" />
-                                </Grid>
-                            </Grid>
-                        </Border>
+                        <!-- IsExpandedはTwoWay。ユーザーの開閉はViewModelへ書き戻り、再構築の直前に
+                             CaptureExpansionStateが生きたItemsSourceから読み戻す(Hierarchyの
+                             CollapsedPathsと同じ方式)。Expanded/Collapsedイベントは購読しない。 -->
+                        <Expander IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
+                                  ToolTip="{Binding FullTypeName}" Margin="0,0,0,2">
+                            <Expander.Header>
+                                <TextBlock Text="{Binding Header}" FontWeight="Bold"
+                                           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
+                                           TextTrimming="CharacterEllipsis" />
+                            </Expander.Header>
+                            <StackPanel>
+                                <TextBlock Text="解析待ち…" Margin="6,4" FontStyle="Italic"
+                                           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.GrayTextKey}}"
+                                           Visibility="{Binding PendingMessageVisibility}" />
+                                <!-- ItemTemplateを指定しない: 各行(InspectorMemberViewModel/
+                                     InspectorNestedRowViewModel)の実行時型で上の暗黙DataTemplateが
+                                     自動的に選ばれる。 -->
+                                <ItemsControl ItemsSource="{Binding Rows}" />
+                            </StackPanel>
+                        </Expander>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>

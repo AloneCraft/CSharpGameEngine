@@ -10,14 +10,14 @@ namespace CSharpGameEngine.Import.Fbx.Tests;
 public class FbxAxisConversionTests {
     [Fact]
     public void ConvertVector_NegatesZ(){
-        Vector3 Converted=FbxAxisConversion.ConvertVector(new Vector3(1f,2f,3f));
+        var Converted=FbxAxisConversion.ConvertVector(new Vector3(1f,2f,3f));
 
         Assert.Equal(new Vector3(1f,2f,-3f),Converted);
     }
 
     [Fact]
     public void ConvertVector_LeavesXAndYUnaffected_OnlyZChanges(){
-        Vector3 Converted=FbxAxisConversion.ConvertVector(Vector3.UnitX);
+        var Converted=FbxAxisConversion.ConvertVector(Vector3.UnitX);
         Assert.Equal(Vector3.UnitX,Converted);
 
         Converted=FbxAxisConversion.ConvertVector(Vector3.UnitY);

@@ -33,6 +33,7 @@
     <None Include="..\..\src\CSharpGameEngine.Entities\SystemOrderAttribute.cs" Link="TestAssets\Entities\SystemOrderAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Entities\Parent.cs" Link="TestAssets\Entities\Parent.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Entities\SceneNodeTag.cs" Link="TestAssets\Entities\SceneNodeTag.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\CSharpGameEngine.Entities\IRuntimeComponent.cs" Link="TestAssets\Entities\IRuntimeComponent.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Entities\StartupSceneAttribute.cs" Link="TestAssets\Entities\StartupSceneAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
     <!-- Scene DSL (ADR-0040). IScene/Node/SceneInstance/SceneInstanceTable/ISceneDefinition are
          referenced by Runtime.cs itself, so GameSystemGeneratorTestHelper includes them in *every*

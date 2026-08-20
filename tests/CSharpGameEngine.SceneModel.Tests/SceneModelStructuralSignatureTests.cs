@@ -34,53 +34,53 @@ public sealed class SceneModelStructuralSignatureTests {
     /// </summary>
     [Fact]
     public void FormattingAndCommentsDoNotChangeTheSignature(){
-        string Reformatted="""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            using System.Numerics;
-            namespace Game;
-            public partial class MainScene:IScene {
-                // このコメントは意味を変えない
-                public Node Root=>new() {
-                    Name="Root",
+        var Reformatted="""
+                        using CSharpGameEngine.Entities;
+                        using Sample;
+                        using System.Numerics;
+                        namespace Game;
+                        public partial class MainScene:IScene {
+                            // このコメントは意味を変えない
+                            public Node Root=>new() {
+                                Name="Root",
 
-                    Components=[
-                        new Transform {
-                            Position=new Vector3(1f,2f,3f)
+                                Components=[
+                                    new Transform {
+                                        Position=new Vector3(1f,2f,3f)
+                                    }
+                                ],
+                                Children=[
+                                    new Node { Name="Child",Components=[new PrimitiveMesh { Type=PrimitiveType.Cube }] },
+                                ],
+                            };
                         }
-                    ],
-                    Children=[
-                        new Node { Name="Child",Components=[new PrimitiveMesh { Type=PrimitiveType.Cube }] },
-                    ],
-                };
-            }
-            """;
+                        """;
 
         Assert.Equal(SignatureOf(BaseScene),SignatureOf(Reformatted));
     }
 
     [Fact]
     public void ChangedMemberValueChangesTheSignature(){
-        string Changed=BaseScene.Replace("new Vector3(1f,2f,3f)","new Vector3(1f,2f,9f)");
+        var Changed=BaseScene.Replace("new Vector3(1f,2f,3f)","new Vector3(1f,2f,9f)");
         Assert.NotEqual(SignatureOf(BaseScene),SignatureOf(Changed));
     }
 
     [Fact]
     public void ChangedEnumMemberChangesTheSignature(){
-        string Changed=BaseScene.Replace("PrimitiveType.Cube","PrimitiveType.Sphere");
+        var Changed=BaseScene.Replace("PrimitiveType.Cube","PrimitiveType.Sphere");
         Assert.NotEqual(SignatureOf(BaseScene),SignatureOf(Changed));
     }
 
     [Fact]
     public void RenamedNodeChangesTheSignature(){
-        string Changed=BaseScene.Replace("Name=\"Child\"","Name=\"Renamed\"");
+        var Changed=BaseScene.Replace("Name=\"Child\"","Name=\"Renamed\"");
         Assert.NotEqual(SignatureOf(BaseScene),SignatureOf(Changed));
     }
 
     [Fact]
     public void RemovedComponentChangesTheSignature(){
-        string Changed=BaseScene.Replace(
-            "Components=[new PrimitiveMesh { Type=PrimitiveType.Cube }]","Components=[]");
+        var Changed=BaseScene.Replace(
+                                      "Components=[new PrimitiveMesh { Type=PrimitiveType.Cube }]","Components=[]");
         Assert.NotEqual(SignatureOf(BaseScene),SignatureOf(Changed));
     }
 
@@ -89,19 +89,19 @@ public sealed class SceneModelStructuralSignatureTests {
     /// </summary>
     [Fact]
     public void MovedNodeChangesTheSignature(){
-        string TwoChildren="""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Children=[new Node { Name="A" },new Node { Name="B" }],
-                };
-            }
-            """;
-        string Swapped=TwoChildren.Replace(
-            "[new Node { Name=\"A\" },new Node { Name=\"B\" }]",
-            "[new Node { Name=\"B\" },new Node { Name=\"A\" }]");
+        var TwoChildren="""
+                        using CSharpGameEngine.Entities;
+                        using Sample;
+                        namespace Game;
+                        public partial class MainScene:IScene {
+                            public Node Root=>new() {
+                                Children=[new Node { Name="A" },new Node { Name="B" }],
+                            };
+                        }
+                        """;
+        var Swapped=TwoChildren.Replace(
+                                        "[new Node { Name=\"A\" },new Node { Name=\"B\" }]",
+                                        "[new Node { Name=\"B\" },new Node { Name=\"A\" }]");
 
         Assert.NotEqual(SignatureOf(TwoChildren),SignatureOf(Swapped));
     }
@@ -112,15 +112,15 @@ public sealed class SceneModelStructuralSignatureTests {
     /// </summary>
     [Fact]
     public void ConstantExpressionsWithTheSameFoldedValueAreEquivalent(){
-        string Literal="""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Components=[new DirectionalLight { Intensity=6f }] };
-            }
-            """;
-        string Expression=Literal.Replace("Intensity=6f","Intensity=2f*3f");
+        var Literal="""
+                    using CSharpGameEngine.Entities;
+                    using Sample;
+                    namespace Game;
+                    public partial class MainScene:IScene {
+                        public Node Root=>new() { Components=[new DirectionalLight { Intensity=6f }] };
+                    }
+                    """;
+        var Expression=Literal.Replace("Intensity=6f","Intensity=2f*3f");
 
         Assert.Equal(SignatureOf(Literal),SignatureOf(Expression));
     }

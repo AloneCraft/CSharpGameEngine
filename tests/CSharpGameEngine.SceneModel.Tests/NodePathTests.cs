@@ -21,7 +21,7 @@ public sealed class NodePathTests {
 
     [Fact]
     public void Append_BuildsTheChildPath(){
-        NodePath Path=NodePath.Root.Append(2).Append(0).Append(5);
+        var Path=NodePath.Root.Append(2).Append(0).Append(5);
 
         Assert.Equal(3,Path.Depth);
         Assert.Equal("2/0/5",Path.ToDisplayString());
@@ -33,7 +33,7 @@ public sealed class NodePathTests {
 
     [Fact]
     public void Parent_WalksBackUpAndIsNullAtTheRoot(){
-        NodePath Path=NodePath.Root.Append(1).Append(4);
+        var Path=NodePath.Root.Append(1).Append(4);
 
         Assert.Equal("1",Path.Parent?.ToDisplayString());
         Assert.Equal("(root)",Path.Parent?.Parent?.ToDisplayString());
@@ -42,7 +42,7 @@ public sealed class NodePathTests {
 
     [Fact]
     public void EqualityIsByValueNotByReference(){
-        NodePath Left=NodePath.Root.Append(1).Append(2);
+        var Left=NodePath.Root.Append(1).Append(2);
         NodePath Right=new(ImmutableArray.Create(1,2));
 
         Assert.Equal(Left,Right);
@@ -66,8 +66,8 @@ public sealed class NodePathTests {
 
     [Fact]
     public void IsDescendantOf_IsStrict(){
-        NodePath Ancestor=NodePath.Root.Append(1);
-        NodePath Child=Ancestor.Append(0);
+        var Ancestor=NodePath.Root.Append(1);
+        var Child=Ancestor.Append(0);
 
         Assert.True(Child.IsDescendantOf(Ancestor));
         Assert.True(Child.IsDescendantOf(NodePath.Root));
@@ -85,7 +85,7 @@ public sealed class NodePathTests {
     [InlineData("1//2",false,0)]
     [InlineData("-1",false,0)]
     public void TryParse_RoundTripsTheDisplayForm(string Text,bool ExpectedSuccess,int ExpectedDepth){
-        var Parsed=NodePath.TryParse(Text,out NodePath Path);
+        var Parsed=NodePath.TryParse(Text,out var Path);
 
         Assert.Equal(ExpectedSuccess,Parsed);
 

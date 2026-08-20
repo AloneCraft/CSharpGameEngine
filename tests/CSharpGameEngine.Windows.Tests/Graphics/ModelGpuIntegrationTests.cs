@@ -37,9 +37,9 @@ public class ModelGpuIntegrationTests {
     }
 
     private static void RunModelGpuScenario(string ModelPath,bool UseWarp){
-        GltfImportResult ImportResult=GltfImporter.Import(ModelPath);
+        var ImportResult=GltfImporter.Import(ModelPath);
         Assert.True(ImportResult.Success,string.Join(Environment.NewLine,ImportResult.Diagnostics));
-        ImportedMesh Mesh=ImportResult.Mesh!;
+        var Mesh=ImportResult.Mesh!;
 
         using Win32Window Window=new(new Win32WindowOptions {
             Title="CSharpGameEngine Model GPU Test",
@@ -53,10 +53,10 @@ public class ModelGpuIntegrationTests {
             EnableDebugLayer=true,
         };
 
-        using ModelRenderer Renderer=ModelRenderer.Create(
-            Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
-            Mesh.Positions,Mesh.Normals,Mesh.Uvs,Mesh.Indices,Mesh.BaseColorTextureBytes,Mesh.BaseColorFactor,
-            Mesh.Bounds.Center,Mesh.Bounds.BoundingSphereRadius);
+        using var Renderer=ModelRenderer.Create(
+                                                Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
+                                                Mesh.Positions,Mesh.Normals,Mesh.Uvs,Mesh.Indices,Mesh.BaseColorTextureBytes,Mesh.BaseColorFactor,
+                                                Mesh.Bounds.Center,Mesh.Bounds.BoundingSphereRadius);
 
         Assert.True(Renderer.ShaderCompilationSucceeded,string.Join(Environment.NewLine,Renderer.ShaderDiagnostics));
         Assert.Equal(UseWarp,Renderer.IsWarp);
@@ -71,7 +71,7 @@ public class ModelGpuIntegrationTests {
         Assert.Equal((uint)TotalFrames,Renderer.FramesRendered);
         Assert.NotNull(Renderer.LastCapturedFrame);
 
-        ModelVerificationResult Verification=ModelPixelVerifier.Verify(Renderer.LastCapturedFrame!,ModelRenderer.ClearColor);
+        var Verification=ModelPixelVerifier.Verify(Renderer.LastCapturedFrame!,ModelRenderer.ClearColor);
         Assert.True(Verification.Success,Verification.Details);
 
         Assert.Equal(0,Renderer.ErrorOrWorseMessageCount);
@@ -83,7 +83,7 @@ public class ModelGpuIntegrationTests {
 
         Assert.NotNull(Renderer.LastCapturedFrame);
         Assert.Equal(128,Renderer.LastCapturedFrame!.Width);
-        ModelVerificationResult ResizedVerification=ModelPixelVerifier.Verify(Renderer.LastCapturedFrame,ModelRenderer.ClearColor);
+        var ResizedVerification=ModelPixelVerifier.Verify(Renderer.LastCapturedFrame,ModelRenderer.ClearColor);
         Assert.True(ResizedVerification.Success,ResizedVerification.Details);
 
         Assert.Equal(0,Renderer.ErrorOrWorseMessageCount);

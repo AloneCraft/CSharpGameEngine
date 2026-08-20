@@ -24,12 +24,12 @@ public sealed class RenderSurfaceFocusPolicyTests {
         IntPtr PreviousEditor=new(20);
         IntPtr ToolWindowParent=new(30);
 
-        IntPtr Target=RenderSurfaceFocusPolicy.SelectReturnTarget(
-            PreviousEditor,
-            PreviousIsWindow:true,
-            Surface,
-            ToolWindowParent,
-            ParentIsWindow:true);
+        var Target=RenderSurfaceFocusPolicy.SelectReturnTarget(
+                                                               PreviousEditor,
+                                                               PreviousIsWindow:true,
+                                                               Surface,
+                                                               ToolWindowParent,
+                                                               ParentIsWindow:true);
 
         Assert.Equal(PreviousEditor,Target);
     }
@@ -39,12 +39,12 @@ public sealed class RenderSurfaceFocusPolicyTests {
         IntPtr Surface=new(10);
         IntPtr ToolWindowParent=new(30);
 
-        IntPtr Target=RenderSurfaceFocusPolicy.SelectReturnTarget(
-            PreviousFocus:IntPtr.Zero,
-            PreviousIsWindow:false,
-            Surface,
-            ToolWindowParent,
-            ParentIsWindow:true);
+        var Target=RenderSurfaceFocusPolicy.SelectReturnTarget(
+                                                               PreviousFocus:IntPtr.Zero,
+                                                               PreviousIsWindow:false,
+                                                               Surface,
+                                                               ToolWindowParent,
+                                                               ParentIsWindow:true);
 
         Assert.Equal(ToolWindowParent,Target);
     }
@@ -53,12 +53,12 @@ public sealed class RenderSurfaceFocusPolicyTests {
     public void SetFocus_NeverReturnsFocusToTheSurfaceItself(){
         IntPtr Surface=new(10);
 
-        IntPtr Target=RenderSurfaceFocusPolicy.SelectReturnTarget(
-            PreviousFocus:Surface,
-            PreviousIsWindow:true,
-            Surface,
-            ParentHandle:IntPtr.Zero,
-            ParentIsWindow:false);
+        var Target=RenderSurfaceFocusPolicy.SelectReturnTarget(
+                                                               PreviousFocus:Surface,
+                                                               PreviousIsWindow:true,
+                                                               Surface,
+                                                               ParentHandle:IntPtr.Zero,
+                                                               ParentIsWindow:false);
 
         Assert.Equal(IntPtr.Zero,Target);
     }

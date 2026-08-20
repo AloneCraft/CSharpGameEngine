@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -24,19 +25,90 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
     private bool SuppressNextLostFocusCommit;
     private bool Disposed;
 
+    /// <summary>
+    /// 畳まれているComponentグループのキー(<see cref="InspectorExpansionKey"/>)。既定は展開なので
+    /// 「畳んだものだけ」を覚える。Hierarchyの<c>CollapsedPaths</c>と違って<b>作り直しのたびに
+    /// クリアしない</b> — Inspectorは常に1ノード分しか描かないため、クリアすると選択を往復した
+    /// だけで畳んだ状態が消えてしまう。キーはSceneの(ノード×Component)数で頭打ちになるので、
+    /// 時間とともに際限なく増えることはない。
+    /// </summary>
+    private readonly HashSet<string>CollapsedKeys=[];
+
+    /// <summary>直前に描いた内容の署名。同じなら<c>ItemsSource</c>を差し替えない
+    /// (<see cref="InspectorRefreshPolicy"/>)。</summary>
+    private string LastRefreshSignature=InspectorContentSignature.Compute(null);
+
+    /// <summary>入力中でDeferした更新があるか。フォーカスが外れた時点で最新から作り直す。</summary>
+    private bool HasDeferredRefresh;
+
+    /// <summary>
+    /// 追加した直後で、memberが載るまで強制的に展開しておきたいComponentのキー。
+    /// <see cref="InspectorRevealPolicy"/>を参照。
+    /// </summary>
+    private string?PendingRevealKey;
+
     public InspectorToolWindowControl(){
-        InitializeComponent();
+        this.InitializeComponent();
 
         // M0051 Step 1-4: Hierarchyと同じ理由で、自分のフォーカス状態をHubへ報告する
         // (Inspectorで数値を編集した直後のCtrl+Sも保存へ届くようにするため)。
         this.IsKeyboardFocusWithinChanged+=this.OnKeyboardFocusWithinChanged;
         this.Unloaded+=this.OnUnloadedForFocus;
+        SceneEditorHub.ComponentRevealRequested+=this.OnComponentRevealRequested;
     }
+
+    /// <summary>
+    /// M0052: 追加が成功したComponentを展開して見せる。<b>差分検出ではなく明示的な要求</b>で駆動する —
+    /// 外部編集やUndoでComponentが復活した場合と、ユーザーが今追加した場合を区別できないため。
+    /// </summary>
+    private void OnComponentRevealRequested(ComponentRevealRequest Request)=>
+        this.DispatchToUi(()=>{
+            this.PendingRevealKey=InspectorExpansionKey.Compute(
+                Request.NodeId,Request.ComponentTypeFullyQualifiedName);
+            this.CollapsedKeys.Remove(this.PendingRevealKey);
+            this.TryRefresh(Force:true);
+            this.ScrollPendingRevealIntoView();
+        });
+
+    /// <summary>
+    /// コンテナは<c>ItemsSource</c>代入の直後にはまだ生成されていないので、レイアウト後に回して
+    /// から探す。見つからなくても何もしない — 表示位置の調整であって、機能の成否ではない。
+    /// </summary>
+#pragma warning disable VSTHRD001 // WPF Dispatcher is the owning UI dispatcher of this control; no AsyncPackage/JTF chain is available here.
+    private void ScrollPendingRevealIntoView(){
+        if(this.PendingRevealKey is null){
+            return;
+        }
+
+        _=this.Dispatcher.BeginInvoke(
+            new Action(()=>{
+                if(this.Disposed
+                    ||this.MemberList.ItemsSource is not IReadOnlyList<InspectorComponentGroupViewModel>Groups){
+                    return;
+                }
+
+                var Index=Groups.ToList().FindIndex(
+                    Group=>InspectorRevealPolicy.ShouldExpand(this.PendingRevealKey,Group.ExpansionKey));
+                if(Index>=0
+                    &&this.MemberList.ItemContainerGenerator.ContainerFromIndex(Index)is FrameworkElement Container){
+                    Container.BringIntoView();
+                }
+            }),
+            System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+#pragma warning restore VSTHRD001
 
     private const string FocusSurfaceName="Inspector";
 
-    private void OnKeyboardFocusWithinChanged(object Sender,DependencyPropertyChangedEventArgs Args)=>
+    private void OnKeyboardFocusWithinChanged(object Sender,DependencyPropertyChangedEventArgs Args){
         SceneEditorHub.SetSurfaceFocus(FocusSurfaceName,this.IsKeyboardFocusWithin);
+
+        // 入力中に来た更新は捨てずに保留してある。保留したモデルではなく「今の」スナップショットから
+        // 作り直す — 保留中にさらに解析が進んでいることがあるため(Hierarchyの保留解除と同じ判断)。
+        if(!this.IsKeyboardFocusWithin&&this.HasDeferredRefresh){
+            this.TryRefresh();
+        }
+    }
 
     private void OnUnloadedForFocus(object Sender,RoutedEventArgs Args)=>
         SceneEditorHub.SetSurfaceFocus(FocusSurfaceName,false);
@@ -80,35 +152,185 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
     }
 
     /// <summary>
-    /// <paramref name="Force"/>=falseのときは、このパネル内のどれかのコントロールがキーボード
-    /// フォーカスを持っている間は再構築しない — 選択中Sceneは再解析のたびに変化するため、素直に
-    /// 再構築するとタイプ中のTextBoxの入力が消える(Hierarchyの再構築対応と同じ問題)。
+    /// 再構築してよいかは<see cref="InspectorRefreshPolicy"/>が決める。土台は<b>内容署名による
+    /// Skip</b>で、これが無いと再解析のたびに<c>ItemsSource</c>が差し替わってExpanderの展開状態も
+    /// スクロール位置も飛ぶ(<c>IsKeyboardFocusWithin</c>だけのガードでは、マウスだけで操作する
+    /// 開閉を守れない)。<paramref name="Force"/>は編集確定直後など、署名が同じでも描き直したい場合。
     /// </summary>
     private void TryRefresh(bool Force=false){
-        if(this.Disposed||(!Force&&this.IsKeyboardFocusWithin)){
+        if(this.Disposed){
             return;
         }
 
-        if(this.Session is null||this.CurrentSnapshot is not { }Snapshot){
+        IReadOnlyList<SceneInspectorComponentGroup>?Groups=
+            this.Session is not null&&this.CurrentSnapshot is { }Snapshot
+                ?SceneInspectorModelBuilder.BuildGroups(Snapshot,this.CurrentSelection)
+                :null;
+
+        var Signature=InspectorContentSignature.Compute(Groups);
+        switch(InspectorRefreshPolicy.Decide(
+            HasKeyboardFocusWithin:this.IsKeyboardFocusWithin,
+            ContentUnchanged:Signature==this.LastRefreshSignature,
+            Force)){
+            case InspectorRefreshAction.Skip:
+                return;
+            case InspectorRefreshAction.Defer:
+                this.HasDeferredRefresh=true;
+                return;
+        }
+
+        this.HasDeferredRefresh=false;
+        this.LastRefreshSignature=Signature;
+
+        // 差し替える前に、生きたViewModelから今の開閉状態を読み戻す。
+        this.CaptureExpansionState();
+        this.UpdatePendingReveal(Groups);
+
+        if(Groups is null||Groups.Count==0){
             this.ShowEmpty();
             return;
         }
 
-        SceneInspectorMember[]Members=[.. SceneInspectorModelBuilder.Build(Snapshot,this.CurrentSelection)];
-        if(Members.Length==0){
-            this.ShowEmpty();
+        this.EmptyMessage.Visibility=Visibility.Collapsed;
+        this.MemberScroll.Visibility=Visibility.Visible;
+        this.MemberList.ItemsSource=Groups.Select(this.CreateGroupViewModel).ToArray();
+    }
+
+    private InspectorComponentGroupViewModel CreateGroupViewModel(SceneInspectorComponentGroup Group){
+        var Key=InspectorExpansionKey.Compute(Group.NodeId,Group.ComponentTypeFullyQualifiedName);
+        var Rows=Group.Rows.Select(this.BuildRowViewModel).ToArray();
+        return new InspectorComponentGroupViewModel(
+            Group,Rows,
+            IsExpanded:InspectorRevealPolicy.ShouldExpand(this.PendingRevealKey,Key)||!this.CollapsedKeys.Contains(Key));
+    }
+
+    /// <summary>
+    /// <see cref="SceneInspectorMemberRow"/>は素の<see cref="InspectorMemberViewModel"/>へ、
+    /// <see cref="SceneInspectorNestedRow"/>は自分自身を再帰的に呼んで
+    /// <see cref="InspectorNestedRowViewModel"/>へ変換する。
+    /// </summary>
+    private object BuildRowViewModel(SceneInspectorRow Row)=>Row switch {
+        SceneInspectorMemberRow Leaf=>new InspectorMemberViewModel(Leaf.Member),
+        SceneInspectorNestedRow Nested=>this.CreateNestedRowViewModel(Nested),
+        _=>throw new InvalidOperationException("未知のInspector行種別です。"),
+    };
+
+    private InspectorNestedRowViewModel CreateNestedRowViewModel(SceneInspectorNestedRow Row){
+        var Key=InspectorExpansionKey.Compute(Row.NodeId,Row.ComponentTypeFullyQualifiedName,Row.MemberPath);
+        var Rows=Row.Rows.Select(this.BuildRowViewModel).ToArray();
+        return new InspectorNestedRowViewModel(
+            Row,Rows,
+            IsExpanded:InspectorRevealPolicy.ShouldExpand(this.PendingRevealKey,Key)||!this.CollapsedKeys.Contains(Key));
+    }
+
+    /// <summary>
+    /// 作り直しで捨てられる直前のViewModelから、ユーザーの開閉状態を回収する。
+    /// <c>Expander.Expanded</c>/<c>Collapsed</c>を購読しないのはこのためで、それらは初期の
+    /// データバインド代入自体でも発火するため状態更新の起点にすると再入を招く。
+    /// ネストした<see cref="InspectorNestedRowViewModel"/>の開閉も同じ規律で回収する。
+    /// </summary>
+    private void CaptureExpansionState(){
+        if(this.MemberList.ItemsSource is not IReadOnlyList<InspectorComponentGroupViewModel>Existing){
             return;
         }
 
-        EmptyMessage.Visibility=Visibility.Collapsed;
-        MemberScroll.Visibility=Visibility.Visible;
-        MemberList.ItemsSource=Members.Select(static Member=>new InspectorMemberViewModel(Member)).ToArray();
+        foreach(var Group in Existing){
+            this.CaptureExpansionKey(Group.ExpansionKey,Group.IsExpanded);
+            foreach(var Row in Group.Rows){
+                this.CaptureRowExpansionState(Row);
+            }
+        }
+    }
+
+    private void CaptureRowExpansionState(object Row){
+        if(Row is not InspectorNestedRowViewModel Nested){
+            return;
+        }
+
+        this.CaptureExpansionKey(Nested.ExpansionKey,Nested.IsExpanded);
+        foreach(var Child in Nested.Rows){
+            this.CaptureRowExpansionState(Child);
+        }
+    }
+
+    private void CaptureExpansionKey(string Key,bool IsExpanded){
+        if(IsExpanded){
+            this.CollapsedKeys.Remove(Key);
+            return;
+        }
+
+        this.CollapsedKeys.Add(Key);
+
+        // 自分で畳んだのなら、追加直後の自動展開はもう邪魔でしかない。これを消さないと、
+        // memberが最後まで載らないComponent(設定可能な値を持たない型)を畳めなくなる。
+        if(InspectorRevealPolicy.ShouldExpand(this.PendingRevealKey,Key)){
+            this.PendingRevealKey=null;
+        }
+    }
+
+    private void UpdatePendingReveal(IReadOnlyList<SceneInspectorComponentGroup>?Groups){
+        if(this.PendingRevealKey is not { }Pending){
+            return;
+        }
+
+        var Target=Groups?.FirstOrDefault(Group=>string.Equals(
+            InspectorExpansionKey.Compute(Group.NodeId,Group.ComponentTypeFullyQualifiedName),
+            Pending,StringComparison.Ordinal));
+        if(InspectorRevealPolicy.ShouldClearPending(Target is not null,Target?.Rows.Count??0)){
+            this.PendingRevealKey=null;
+        }
+    }
+
+    private void Panel_DragOver(object Sender,DragEventArgs Args){
+        if(Args.Data.GetData(typeof(ComponentDragPayload)) is not ComponentDragPayload Payload){
+            return;
+        }
+
+        Args.Effects=ComponentDropPolicy.Accepts(this.EvaluateComponentDrop(Payload))
+            ?DragDropEffects.Copy
+            :DragDropEffects.None;
+        Args.Handled=true;
+    }
+
+    private void Panel_Drop(object Sender,DragEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(Args.Data.GetData(typeof(ComponentDragPayload)) is not ComponentDragPayload Payload){
+            return;
+        }
+
+        Args.Handled=true;
+        var Verdict=this.EvaluateComponentDrop(Payload);
+        if(!ComponentDropPolicy.Accepts(Verdict)){
+            SetStatus(ComponentDropPolicy.Describe(Verdict,Payload.DisplayName));
+            return;
+        }
+
+        SceneEditorHub.RequestComponentAdd(new ComponentAddRequest(
+            Payload.ComponentTypeFullyQualifiedName,Payload.ComponentExpression,
+            TargetNodeId:this.CurrentSelection?.PrimaryNodeId));
+    }
+
+    /// <summary>
+    /// M0052: Inspectorへのドロップは<b>選択中のノード</b>が対象(Hierarchyはドロップしたノード)。
+    /// 判定材料はDocumentの予測投影そのものなので、適用側の判断と必ず一致する。
+    /// </summary>
+    private ComponentDropVerdict EvaluateComponentDrop(ComponentDragPayload Payload){
+        SceneNode?Node=this.CurrentSnapshot is { }Snapshot
+                    &&this.CurrentSelection?.PrimaryNodeId is { }NodeId
+                    &&Snapshot.Projection?.TryGetNode(NodeId,out var Projected)==true
+                        ?Projected.Node
+                        :null;
+        return ComponentDropPolicy.Evaluate(
+            HasScene:this.CurrentSnapshot is not null,
+            TargetResolved:Node is not null,
+            TargetHasComponentsList:Node?.ComponentsListLocation is not null,
+            TargetAlreadyHasType:Node?.FindComponent(Payload.ComponentTypeFullyQualifiedName) is not null);
     }
 
     private void ShowEmpty(){
-        MemberList.ItemsSource=null;
-        MemberScroll.Visibility=Visibility.Collapsed;
-        EmptyMessage.Visibility=Visibility.Visible;
+        this.MemberList.ItemsSource=null;
+        this.MemberScroll.Visibility=Visibility.Collapsed;
+        this.EmptyMessage.Visibility=Visibility.Visible;
     }
 
     private void EditableField_KeyDown(object Sender,KeyEventArgs Args){
@@ -222,6 +444,7 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
         }
 
         this.Disposed=true;
+        SceneEditorHub.ComponentRevealRequested-=this.OnComponentRevealRequested;
         this.DetachSession();
     }
 

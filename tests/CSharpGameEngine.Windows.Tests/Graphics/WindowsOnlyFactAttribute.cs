@@ -7,7 +7,7 @@ namespace CSharpGameEngine.Graphics.D3D12.Tests;
 public sealed class WindowsOnlyFactAttribute:FactAttribute {
     public WindowsOnlyFactAttribute(){
         if(!OperatingSystem.IsWindows()){
-            Skip="Requires Windows (D3D12/DXGI).";
+            this.Skip="Requires Windows (D3D12/DXGI).";
         }
     }
 }

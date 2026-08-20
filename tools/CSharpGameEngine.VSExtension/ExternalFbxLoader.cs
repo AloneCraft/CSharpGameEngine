@@ -28,8 +28,8 @@ internal static class ExternalFbxLoader {
             // no other changes needed.
             var Json=ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath,FbxPath,TempJsonPath,RepoRoot,BridgeTimeout,UseResidentServer:true);
 
-            BridgeDocument?Document=JsonSerializer.Deserialize<BridgeDocument>(
-                Json,new JsonSerializerOptions { PropertyNameCaseInsensitive=true });
+            var Document=JsonSerializer.Deserialize<BridgeDocument>(
+                                                                   Json,new JsonSerializerOptions { PropertyNameCaseInsensitive=true });
 
             if(Document is null||!Document.Success){
                 throw new InvalidOperationException("FBXファイルのインポートに失敗しました(詳細はブリッジプロセスの出力を確認してください)。");

@@ -38,7 +38,7 @@ internal static class SceneTransformMath {
 
     internal static bool TryCalculateLocal(
         in Matrix4x4 World,in Matrix4x4 ParentWorld,out SceneTransformValue Local){
-        if(!Matrix4x4.Invert(ParentWorld,out Matrix4x4 InverseParent)){
+        if(!Matrix4x4.Invert(ParentWorld,out var InverseParent)){
             Local=default;
             return false;
         }
@@ -47,7 +47,7 @@ internal static class SceneTransformMath {
     }
 
     internal static bool TryDecompose(in Matrix4x4 Matrix,out SceneTransformValue Transform){
-        if(!Matrix4x4.Decompose(Matrix,out Vector3 Scale,out Quaternion Rotation,out Vector3 Position)
+        if(!Matrix4x4.Decompose(Matrix,out var Scale,out var Rotation,out var Position)
             ||!IsFinite(Position)||!IsFinite(Scale)||!IsFinite(Rotation)){
             Transform=default;
             return false;
@@ -80,7 +80,7 @@ internal static class SceneTransformMath {
 /// <summary>SceneModelのLocalTransform bindingをTRS値と編集可否へ変換する。</summary>
 internal static class SceneTransformBinding {
     internal static bool TryRead(SceneNode Node,out SceneTransformValue Transform){
-        SceneComponent?Component=SceneComponentBindings.FindComponent(Node,SceneComponentRole.LocalTransform);
+        var Component=SceneComponentBindings.FindComponent(Node,SceneComponentRole.LocalTransform);
         if(Component is null){
             Transform=default;
             return false;
@@ -104,7 +104,7 @@ internal static class SceneTransformBinding {
     }
 
     internal static bool CanEditMove(SceneNode Node,GizmoHandleId Handle){
-        SceneComponent?Component=SceneComponentBindings.FindComponent(Node,SceneComponentRole.LocalTransform);
+        var Component=SceneComponentBindings.FindComponent(Node,SceneComponentRole.LocalTransform);
         if(Component is null){
             return false;
         }
@@ -143,7 +143,7 @@ internal static class SceneTransformBinding {
         &&CanEdit(Component,"RotationZ")&&CanEdit(Component,"RotationW");
 
     private static bool CanEditScale(SceneNode Node,GizmoHandleId Handle){
-        SceneComponent?Component=SceneComponentBindings.FindComponent(Node,SceneComponentRole.LocalTransform);
+        var Component=SceneComponentBindings.FindComponent(Node,SceneComponentRole.LocalTransform);
         if(Component is null||!CanEditAllPosition(Node)
             ||!CanEdit(Component,"RotationX")||!CanEdit(Component,"RotationY")
             ||!CanEdit(Component,"RotationZ")||!CanEdit(Component,"RotationW")){

@@ -106,7 +106,7 @@ internal sealed class SceneInputStateMachine {
 
     internal SceneNavState State { get;private set;}=SceneNavState.Idle;
 
-    internal IReadOnlyCollection<NavigationKey>FlyHeldKeys=>HeldKeys;
+    internal IReadOnlyCollection<NavigationKey>FlyHeldKeys=> this.HeldKeys;
 
     /// <summary>
     /// <paramref name="HitNodePath"/>はM0020 Phase 2のピッキング結果 — ヒットテスト自体は
@@ -116,102 +116,101 @@ internal sealed class SceneInputStateMachine {
     /// </summary>
     internal SceneInputStepResult Handle(
         PointerEvent Event,NodePath?HitNodePath=null,GizmoHandleId?HitGizmoHandle=null){
-        switch(State){
+        switch(this.State){
             case SceneNavState.Idle:
-                if(IsButtonDown(Event,PointerButton.Right)){ return Begin(SceneNavState.Flying,Event);}
-                if(IsButtonDown(Event,PointerButton.Middle)){ return Begin(SceneNavState.Panning,Event);}
-                if(IsButtonDown(Event,PointerButton.Left)&&HitGizmoHandle is { }Handle){ return BeginGizmo(Event,Handle);}
-                if(IsButtonDown(Event,PointerButton.Left)&&Event.Modifiers.Alt){ return Begin(SceneNavState.Orbiting,Event);}
-                if(IsButtonDown(Event,PointerButton.Left)){ return BeginSelect(Event,HitNodePath);}
-                return Stay();
+                if(IsButtonDown(Event,PointerButton.Right)){ return this.Begin(SceneNavState.Flying,Event);}
+                if(IsButtonDown(Event,PointerButton.Middle)){ return this.Begin(SceneNavState.Panning,Event);}
+                if(IsButtonDown(Event,PointerButton.Left)&&HitGizmoHandle is { }Handle){ return this.BeginGizmo(Event,Handle);}
+                if(IsButtonDown(Event,PointerButton.Left)&&Event.Modifiers.Alt){ return this.Begin(SceneNavState.Orbiting,Event);}
+                if(IsButtonDown(Event,PointerButton.Left)){ return this.BeginSelect(Event,HitNodePath);}
+                return this.Stay();
 
             case SceneNavState.Flying:
-                if(IsButtonUp(Event,PointerButton.Right)){ return End();}
-                if(Event.Kind==PointerEventKind.CaptureLost){ return LoseCapture();}
-                if(Event.Kind==PointerEventKind.Move){ return Move(Event);}
-                return Stay();
+                if(IsButtonUp(Event,PointerButton.Right)){ return this.End();}
+                if(Event.Kind==PointerEventKind.CaptureLost){ return this.LoseCapture();}
+                if(Event.Kind==PointerEventKind.Move){ return this.Move(Event);}
+                return this.Stay();
 
             case SceneNavState.Panning:
-                if(IsButtonUp(Event,PointerButton.Middle)){ return End();}
-                if(Event.Kind==PointerEventKind.CaptureLost){ return LoseCapture();}
-                if(Event.Kind==PointerEventKind.Move){ return Move(Event);}
-                return Stay();
+                if(IsButtonUp(Event,PointerButton.Middle)){ return this.End();}
+                if(Event.Kind==PointerEventKind.CaptureLost){ return this.LoseCapture();}
+                if(Event.Kind==PointerEventKind.Move){ return this.Move(Event);}
+                return this.Stay();
 
             case SceneNavState.Orbiting:
-                if(IsButtonUp(Event,PointerButton.Left)){ return End();}
-                if(Event.Kind==PointerEventKind.CaptureLost){ return LoseCapture();}
-                if(Event.Kind==PointerEventKind.Move){ return Move(Event);}
-                return Stay();
+                if(IsButtonUp(Event,PointerButton.Left)){ return this.End();}
+                if(Event.Kind==PointerEventKind.CaptureLost){ return this.LoseCapture();}
+                if(Event.Kind==PointerEventKind.Move){ return this.Move(Event);}
+                return this.Stay();
 
             case SceneNavState.PendingSelect:
                 // 仕様§12優先順位: Navigation(2) > Selection(4)。選択待ち中にRMB/MMBが来たら
                 // 選択を中断してナビゲーションへ切り替えて良い(選択はまだ何も確定していない)。
-                if(IsButtonDown(Event,PointerButton.Right)){ return Begin(SceneNavState.Flying,Event);}
-                if(IsButtonDown(Event,PointerButton.Middle)){ return Begin(SceneNavState.Panning,Event);}
-                if(IsButtonUp(Event,PointerButton.Left)){ return ConfirmSelect();}
-                if(Event.Kind==PointerEventKind.CaptureLost){ return LoseCapture();}
-                if(Event.Kind==PointerEventKind.Move){ return TryBeginMarquee(Event);}
-                return Stay();
+                if(IsButtonDown(Event,PointerButton.Right)){ return this.Begin(SceneNavState.Flying,Event);}
+                if(IsButtonDown(Event,PointerButton.Middle)){ return this.Begin(SceneNavState.Panning,Event);}
+                if(IsButtonUp(Event,PointerButton.Left)){ return this.ConfirmSelect();}
+                if(Event.Kind==PointerEventKind.CaptureLost){ return this.LoseCapture();}
+                if(Event.Kind==PointerEventKind.Move){ return this.TryBeginMarquee(Event);}
+                return this.Stay();
 
             case SceneNavState.MarqueeSelecting:
                 // ドラッグ開始後は操作を固定し、LMB UpまたはCaptureLostまでNavigationへ切り替えない。
-                if(IsButtonUp(Event,PointerButton.Left)){ return ConfirmMarquee(Event);}
-                if(Event.Kind==PointerEventKind.CaptureLost){ return LoseMarqueeCapture();}
-                if(Event.Kind==PointerEventKind.Move){ return UpdateMarquee(Event);}
-                return Stay();
+                if(IsButtonUp(Event,PointerButton.Left)){ return this.ConfirmMarquee(Event);}
+                if(Event.Kind==PointerEventKind.CaptureLost){ return this.LoseMarqueeCapture();}
+                if(Event.Kind==PointerEventKind.Move){ return this.UpdateMarquee(Event);}
+                return this.Stay();
 
             case SceneNavState.GizmoDragging:
-                if(IsButtonUp(Event,PointerButton.Left)){ return CommitGizmo();}
-                if(Event.Kind==PointerEventKind.CaptureLost){ return LoseGizmoCapture();}
-                if(Event.Kind==PointerEventKind.Move){ return Move(Event);}
-                return Stay();
+                if(IsButtonUp(Event,PointerButton.Left)){ return this.CommitGizmo();}
+                if(Event.Kind==PointerEventKind.CaptureLost){ return this.LoseGizmoCapture();}
+                if(Event.Kind==PointerEventKind.Move){ return this.Move(Event);}
+                return this.Stay();
 
             default:
-                return Stay();
+                return this.Stay();
         }
     }
 
     /// <summary>Flying中はAdjustNavigationSpeed、それ以外(Idle含む)はDolly/Zoom(NavigationDistance)。</summary>
-    internal SceneWheelAction HandleWheel()=>
-        State==SceneNavState.Flying?SceneWheelAction.AdjustSpeed:SceneWheelAction.NavigationDistance;
+    internal SceneWheelAction HandleWheel()=> this.State==SceneNavState.Flying?SceneWheelAction.AdjustSpeed:SceneWheelAction.NavigationDistance;
 
     /// <summary>Flying中(RMB押下中)だけ押下集合へ追加する。仕様§5「RMB Navigation中はW/E/Q/A/S/Dを優先」。</summary>
     internal void HandleKeyDown(NavigationKey Key){
-        if(State==SceneNavState.Flying){
-            HeldKeys.Add(Key);
+        if(this.State==SceneNavState.Flying){
+            this.HeldKeys.Add(Key);
         }
     }
 
-    internal void HandleKeyUp(NavigationKey Key)=>HeldKeys.Remove(Key);
+    internal void HandleKeyUp(NavigationKey Key)=> this.HeldKeys.Remove(Key);
 
     /// <summary>WPFの<c>LostKeyboardFocus</c>から呼ぶ。状態遷移はしない(RMBは離されていない)。</summary>
-    internal void HandleLostKeyboardFocus()=>HeldKeys.Clear();
+    internal void HandleLostKeyboardFocus()=> this.HeldKeys.Clear();
 
     internal SceneInputStepResult CancelCurrent(){
-        if(State==SceneNavState.Idle){
-            return Stay();
+        if(this.State==SceneNavState.Idle){
+            return this.Stay();
         }
 
-        bool WasGizmo=State==SceneNavState.GizmoDragging;
-        bool WasMarquee=State==SceneNavState.MarqueeSelecting;
-        GizmoHandleId?Handle=ActiveGizmoHandle;
-        State=SceneNavState.Idle;
-        HeldKeys.Clear();
-        PendingSelectNodePath=null;
-        PendingSelectCtrl=false;
-        ActiveGizmoHandle=null;
-        return new(State,SceneCaptureAction.End,0f,0f,
+        var WasGizmo= this.State==SceneNavState.GizmoDragging;
+        var WasMarquee= this.State==SceneNavState.MarqueeSelecting;
+        var Handle= this.ActiveGizmoHandle;
+        this.State=SceneNavState.Idle;
+        this.HeldKeys.Clear();
+        this.PendingSelectNodePath=null;
+        this.PendingSelectCtrl=false;
+        this.ActiveGizmoHandle=null;
+        return new(this.State,SceneCaptureAction.End,0f,0f,
             MarqueeCanceled:WasMarquee,
             GizmoCanceled:WasGizmo,GizmoHandle:Handle);
     }
 
     /// <summary><c>SceneHwndHost.DestroyWindowCore</c>から呼ぶ。</summary>
     internal void Reset(){
-        HeldKeys.Clear();
-        PendingSelectNodePath=null;
-        PendingSelectCtrl=false;
-        ActiveGizmoHandle=null;
-        State=SceneNavState.Idle;
+        this.HeldKeys.Clear();
+        this.PendingSelectNodePath=null;
+        this.PendingSelectCtrl=false;
+        this.ActiveGizmoHandle=null;
+        this.State=SceneNavState.Idle;
     }
 
     private static bool IsButtonDown(PointerEvent Event,PointerButton Button)=>
@@ -221,116 +220,116 @@ internal sealed class SceneInputStateMachine {
         Event.Kind==PointerEventKind.Up&&Event.Button==Button;
 
     private SceneInputStepResult Begin(SceneNavState NewState,PointerEvent Event){
-        State=NewState;
-        LastX=Event.X;
-        LastY=Event.Y;
-        return new(State,SceneCaptureAction.Begin,0f,0f);
+        this.State=NewState;
+        this.LastX=Event.X;
+        this.LastY=Event.Y;
+        return new(this.State,SceneCaptureAction.Begin,0f,0f);
     }
 
     private SceneInputStepResult Move(PointerEvent Event){
-        float DeltaX=Event.X-LastX;
-        float DeltaY=Event.Y-LastY;
-        LastX=Event.X;
-        LastY=Event.Y;
-        return new(State,SceneCaptureAction.None,DeltaX,DeltaY);
+        float DeltaX=Event.X- this.LastX;
+        float DeltaY=Event.Y- this.LastY;
+        this.LastX=Event.X;
+        this.LastY=Event.Y;
+        return new(this.State,SceneCaptureAction.None,DeltaX,DeltaY);
     }
 
     private SceneInputStepResult End(){
-        State=SceneNavState.Idle;
-        HeldKeys.Clear();
-        return new(State,SceneCaptureAction.End,0f,0f);
+        this.State=SceneNavState.Idle;
+        this.HeldKeys.Clear();
+        return new(this.State,SceneCaptureAction.End,0f,0f);
     }
 
     private SceneInputStepResult BeginSelect(PointerEvent Event,NodePath?HitNodePath){
-        State=SceneNavState.PendingSelect;
-        PendingSelectNodePath=HitNodePath;
-        PendingSelectCtrl=Event.Modifiers.Ctrl;
-        SelectionStartX=Event.X;
-        SelectionStartY=Event.Y;
-        return new(State,SceneCaptureAction.Begin,0f,0f);
+        this.State=SceneNavState.PendingSelect;
+        this.PendingSelectNodePath=HitNodePath;
+        this.PendingSelectCtrl=Event.Modifiers.Ctrl;
+        this.SelectionStartX=Event.X;
+        this.SelectionStartY=Event.Y;
+        return new(this.State,SceneCaptureAction.Begin,0f,0f);
     }
 
     private SceneInputStepResult TryBeginMarquee(PointerEvent Event){
-        if(PendingSelectNodePath is not null){
-            return Stay();
+        if(this.PendingSelectNodePath is not null){
+            return this.Stay();
         }
 
-        int DeltaX=Event.X-SelectionStartX;
-        int DeltaY=Event.Y-SelectionStartY;
+        var DeltaX=Event.X- this.SelectionStartX;
+        var DeltaY=Event.Y- this.SelectionStartY;
         if((DeltaX*DeltaX)+(DeltaY*DeltaY)<MarqueeDragThresholdPixels*MarqueeDragThresholdPixels){
-            return Stay();
+            return this.Stay();
         }
 
-        State=SceneNavState.MarqueeSelecting;
-        return new(State,SceneCaptureAction.None,0f,0f,
+        this.State=SceneNavState.MarqueeSelecting;
+        return new(this.State,SceneCaptureAction.None,0f,0f,
             MarqueeUpdated:true,
-            MarqueeRectangle:ScreenRectangle.FromPoints(SelectionStartX,SelectionStartY,Event.X,Event.Y));
+            MarqueeRectangle:ScreenRectangle.FromPoints(this.SelectionStartX, this.SelectionStartY,Event.X,Event.Y));
     }
 
     private SceneInputStepResult UpdateMarquee(PointerEvent Event)=>
-        new(State,SceneCaptureAction.None,0f,0f,
+        new(this.State,SceneCaptureAction.None,0f,0f,
             MarqueeUpdated:true,
-            MarqueeRectangle:ScreenRectangle.FromPoints(SelectionStartX,SelectionStartY,Event.X,Event.Y));
+            MarqueeRectangle:ScreenRectangle.FromPoints(this.SelectionStartX, this.SelectionStartY,Event.X,Event.Y));
 
     private SceneInputStepResult ConfirmMarquee(PointerEvent Event){
-        ScreenRectangle Rectangle=ScreenRectangle.FromPoints(SelectionStartX,SelectionStartY,Event.X,Event.Y);
-        bool ConfirmedCtrl=PendingSelectCtrl;
-        State=SceneNavState.Idle;
-        PendingSelectCtrl=false;
-        return new(State,SceneCaptureAction.End,0f,0f,
+        var Rectangle=ScreenRectangle.FromPoints(this.SelectionStartX, this.SelectionStartY,Event.X,Event.Y);
+        var ConfirmedCtrl= this.PendingSelectCtrl;
+        this.State=SceneNavState.Idle;
+        this.PendingSelectCtrl=false;
+        return new(this.State,SceneCaptureAction.End,0f,0f,
             ConfirmedCtrl:ConfirmedCtrl,
             MarqueeSelectionConfirmed:true,
             MarqueeRectangle:Rectangle);
     }
 
     private SceneInputStepResult LoseMarqueeCapture(){
-        State=SceneNavState.Idle;
-        PendingSelectCtrl=false;
-        return new(State,SceneCaptureAction.None,0f,0f,MarqueeCanceled:true);
+        this.State=SceneNavState.Idle;
+        this.PendingSelectCtrl=false;
+        return new(this.State,SceneCaptureAction.None,0f,0f,MarqueeCanceled:true);
     }
 
     private SceneInputStepResult BeginGizmo(PointerEvent Event,GizmoHandleId Handle){
-        State=SceneNavState.GizmoDragging;
-        LastX=Event.X;
-        LastY=Event.Y;
-        ActiveGizmoHandle=Handle;
-        return new(State,SceneCaptureAction.Begin,0f,0f,GizmoDragBegan:true,GizmoHandle:Handle,
+        this.State=SceneNavState.GizmoDragging;
+        this.LastX=Event.X;
+        this.LastY=Event.Y;
+        this.ActiveGizmoHandle=Handle;
+        return new(this.State,SceneCaptureAction.Begin,0f,0f,GizmoDragBegan:true,GizmoHandle:Handle,
             GizmoDuplicate:Event.Modifiers.Alt);
     }
 
     private SceneInputStepResult CommitGizmo(){
-        GizmoHandleId?Handle=ActiveGizmoHandle;
-        ActiveGizmoHandle=null;
-        State=SceneNavState.Idle;
-        return new(State,SceneCaptureAction.End,0f,0f,GizmoCommitRequested:true,GizmoHandle:Handle);
+        var Handle= this.ActiveGizmoHandle;
+        this.ActiveGizmoHandle=null;
+        this.State=SceneNavState.Idle;
+        return new(this.State,SceneCaptureAction.End,0f,0f,GizmoCommitRequested:true,GizmoHandle:Handle);
     }
 
     private SceneInputStepResult LoseGizmoCapture(){
-        GizmoHandleId?Handle=ActiveGizmoHandle;
-        ActiveGizmoHandle=null;
-        State=SceneNavState.Idle;
-        return new(State,SceneCaptureAction.None,0f,0f,GizmoCanceled:true,GizmoHandle:Handle);
+        var Handle= this.ActiveGizmoHandle;
+        this.ActiveGizmoHandle=null;
+        this.State=SceneNavState.Idle;
+        return new(this.State,SceneCaptureAction.None,0f,0f,GizmoCanceled:true,GizmoHandle:Handle);
     }
 
     private SceneInputStepResult ConfirmSelect(){
-        State=SceneNavState.Idle;
-        NodePath?ConfirmedPath=PendingSelectNodePath;
-        bool ConfirmedCtrl=PendingSelectCtrl;
-        PendingSelectNodePath=null;
-        PendingSelectCtrl=false;
-        return new(State,SceneCaptureAction.End,0f,0f,SelectionConfirmed:true,ConfirmedPath,ConfirmedCtrl);
+        this.State=SceneNavState.Idle;
+        var ConfirmedPath= this.PendingSelectNodePath;
+        var ConfirmedCtrl= this.PendingSelectCtrl;
+        this.PendingSelectNodePath=null;
+        this.PendingSelectCtrl=false;
+        return new(this.State,SceneCaptureAction.End,0f,0f,SelectionConfirmed:true,ConfirmedPath,ConfirmedCtrl);
     }
 
     private SceneInputStepResult LoseCapture(){
         // 既にキャプチャは奪われているのでReleaseCaptureは呼ばない(Endとの違い)。
-        State=SceneNavState.Idle;
-        HeldKeys.Clear();
-        PendingSelectNodePath=null;
-        PendingSelectCtrl=false;
-        return new(State,SceneCaptureAction.None,0f,0f);
+        this.State=SceneNavState.Idle;
+        this.HeldKeys.Clear();
+        this.PendingSelectNodePath=null;
+        this.PendingSelectCtrl=false;
+        return new(this.State,SceneCaptureAction.None,0f,0f);
     }
 
-    private SceneInputStepResult Stay()=>new(State,SceneCaptureAction.None,0f,0f);
+    private SceneInputStepResult Stay()=>new(this.State,SceneCaptureAction.None,0f,0f);
 }
 
 /// <summary>Wheelイベントの意味づけ。<see cref="SceneViewState"/>側がProjectionModeでDolly/Zoomを選ぶ。</summary>

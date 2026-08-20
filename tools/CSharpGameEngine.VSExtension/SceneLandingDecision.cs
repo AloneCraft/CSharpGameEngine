@@ -75,8 +75,8 @@ internal static class SceneProjectionIdentityComparer {
             return false;
         }
 
-        foreach(SceneProjectionNode Node in Left.Nodes){
-            if(!Right.TryGetId(Node.Path,out EditorNodeId RightId)||!RightId.Equals(Node.Id)){
+        foreach(var Node in Left.Nodes){
+            if(!Right.TryGetId(Node.Path,out var RightId)||!RightId.Equals(Node.Id)){
                 return false;
             }
         }
@@ -92,8 +92,8 @@ internal static class SceneProjectionIdentityComparer {
             return $"ノード数が違います({Left.Nodes.Count} / {Right.Nodes.Count})";
         }
 
-        foreach(SceneProjectionNode Node in Left.Nodes){
-            if(!Right.TryGetId(Node.Path,out EditorNodeId RightId)){
+        foreach(var Node in Left.Nodes){
+            if(!Right.TryGetId(Node.Path,out var RightId)){
                 return $"右に存在しないPath: {Node.Path.ToDisplayString()}";
             }
             if(!RightId.Equals(Node.Id)){

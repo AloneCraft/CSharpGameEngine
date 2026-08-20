@@ -56,7 +56,7 @@ internal static class SceneModelStructuralSignature {
         Builder.Append(Node.Name??"(unnamed)").Append('\u001f');
 
         Builder.Append("C{");
-        foreach(SceneComponent Component in Node.Components){
+        foreach(var Component in Node.Components){
             Builder.Append(Component.TypeFullyQualifiedName).Append('=');
             AppendMembers(Builder,Component.Members);
             Builder.Append(';');
@@ -64,7 +64,7 @@ internal static class SceneModelStructuralSignature {
         Builder.Append('}');
 
         Builder.Append("K{");
-        foreach(SceneNode Child in Node.Children){
+        foreach(var Child in Node.Children){
             AppendNode(Builder,Child);
         }
         Builder.Append('}');
@@ -76,7 +76,7 @@ internal static class SceneModelStructuralSignature {
     /// </summary>
     private static void AppendMembers(StringBuilder Builder,ImmutableArray<SceneComponentMember>Members){
         Builder.Append('{');
-        foreach(SceneComponentMember Member in Members){
+        foreach(var Member in Members){
             Builder.Append(Member.MemberName).Append('=');
             Builder.Append(Member.Value.EmitExpressionText).Append(',');
         }

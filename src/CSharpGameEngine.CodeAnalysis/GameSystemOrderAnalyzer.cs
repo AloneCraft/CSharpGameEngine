@@ -17,14 +17,14 @@ internal static class GameSystemOrderAnalyzer {
     /// として扱う。structだが<c>ISystem</c>を実装していない場合はSYSGEN025(付けても効果が無い)。
     /// </summary>
     internal static GameSystemOrderResult Analyze(GeneratorAttributeSyntaxContext Ctx){
-        ImmutableArray<Diagnostic>.Builder Diagnostics=ImmutableArray.CreateBuilder<Diagnostic>();
+        var Diagnostics=ImmutableArray.CreateBuilder<Diagnostic>();
 
         var Symbol=(INamedTypeSymbol)Ctx.TargetSymbol;
         Location Location=Symbol.Locations.FirstOrDefault()??Location.None;
         var FilePath=Ctx.TargetNode.SyntaxTree.FilePath;
 
         var Order=0;
-        AttributeData Attribute=Ctx.Attributes[0];
+        var Attribute=Ctx.Attributes[0];
 
         if(Attribute.ConstructorArguments.Length==1&&Attribute.ConstructorArguments[0].Value is int Value){
             Order=Value;
@@ -68,15 +68,15 @@ internal static class GameSystemOrderAnalyzer {
     /// </summary>
     internal static(GameSystemOrderContext Context,ImmutableArray<Diagnostic>Diagnostics)BuildMap(
         ImmutableArray<GameSystemOrderResult>Results){
-        ImmutableArray<Diagnostic>.Builder Diagnostics=ImmutableArray.CreateBuilder<Diagnostic>();
+        var Diagnostics=ImmutableArray.CreateBuilder<Diagnostic>();
 
-        foreach(GameSystemOrderResult Result in Results){
+        foreach(var Result in Results){
             Diagnostics.AddRange(Result.Diagnostics);
         }
 
         Dictionary<string,int>SystemOrderByFqn=new(StringComparer.Ordinal);
 
-        foreach(GameSystemOrderResult Result in Results){
+        foreach(var Result in Results){
             if(Result.Kind==GameSystemOrderTargetKind.System&&Result.SystemFullyQualifiedName is { } Fqn){
                 // AllowMultiple=falseにより同一Systemへの複数付与はコンパイラ自身がCS0579で弾くため、
                 // ここでの重複は起こり得ない。System同士が同じ明示値を選ぶのは意図的な「同着」を
@@ -88,7 +88,7 @@ internal static class GameSystemOrderAnalyzer {
         List<GameSystemOrderResult>FileMarkers=[.. Results.Where(static R=>R.Kind==GameSystemOrderTargetKind.FileMarker)];
         Dictionary<string,int>FileOrderByPath=new(StringComparer.Ordinal);
 
-        foreach(IGrouping<string,GameSystemOrderResult>Group in FileMarkers.GroupBy(static R=>R.FilePath,StringComparer.Ordinal)){
+        foreach(var Group in FileMarkers.GroupBy(static R=>R.FilePath,StringComparer.Ordinal)){
             List<GameSystemOrderResult>Markers=[.. Group];
 
             if(Markers.Count>1){
@@ -113,7 +113,7 @@ internal static class GameSystemOrderAnalyzer {
         // ファイル既定値の衝突だけをエラーにする(ユーザー確認済み): あるファイル全体の実行順が
         // 未定義に戻ってしまうため。System単体の明示値同士が衝突しても「意図的な同着」でありうるため
         // 対象外(前段のsystemOrderByFqn側では重複チェックをしていない)。
-        foreach(IGrouping<int,KeyValuePair<string,int>>Group in FileOrderByPath.GroupBy(static Kv=>Kv.Value)){
+        foreach(var Group in FileOrderByPath.GroupBy(static Kv=>Kv.Value)){
             List<string>FilePaths=[.. Group.Select(static Kv=>Kv.Key)];
 
             if(FilePaths.Count<2){

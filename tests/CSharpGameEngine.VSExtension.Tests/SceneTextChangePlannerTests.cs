@@ -9,8 +9,8 @@ namespace CSharpGameEngine.VSExtension.Tests;
 public sealed class SceneTextChangePlannerTests {
     [Fact]
     public void Plan_OrdersIndependentChangesFromEndToStart(){
-        SourceText Before=SourceText.From("alpha beta gamma");
-        SourceText After=SourceText.From("ALPHA beta GAMMA!");
+        var Before=SourceText.From("alpha beta gamma");
+        var After=SourceText.From("ALPHA beta GAMMA!");
 
         var Changes=SceneTextChangePlanner.Plan(Before,After);
 
@@ -20,7 +20,7 @@ public sealed class SceneTextChangePlannerTests {
 
     [Fact]
     public void Plan_ReturnsNoChangeForIdenticalSource(){
-        SourceText Source=SourceText.From("unchanged");
+        var Source=SourceText.From("unchanged");
 
         Assert.Empty(SceneTextChangePlanner.Plan(Source,Source));
     }
@@ -45,12 +45,12 @@ public sealed class SceneTextChangePlannerTests {
     /// </summary>
     [Fact]
     public void Plan_SourceTextOverload_RewritesTheWholeFileEvenForOneLiteral(){
-        SourceText Before=SourceText.From(BuildSource("18.9862971f","1f"));
-        SourceText After=SourceText.From(BuildSource("30.98745f","1f"));
+        var Before=SourceText.From(BuildSource("18.9862971f","1f"));
+        var After=SourceText.From(BuildSource("30.98745f","1f"));
 
         var Changes=SceneTextChangePlanner.Plan(Before,After);
 
-        TextChange Single=Assert.Single(Changes);
+        var Single=Assert.Single(Changes);
         Assert.Equal(0,Single.Span.Start);
         Assert.Equal(Before.Length,Single.Span.Length);
     }
@@ -61,12 +61,12 @@ public sealed class SceneTextChangePlannerTests {
     /// </summary>
     [Fact]
     public void Plan_SyntaxTreeOverload_TouchesOnlyTheChangedLiteral(){
-        SyntaxTree Before=CSharpSyntaxTree.ParseText(BuildSource("18.9862971f","1f"));
-        SyntaxNode After=ReplaceLiterals(Before.GetRoot(),("18.9862971f","30.98745f"));
+        var Before=CSharpSyntaxTree.ParseText(BuildSource("18.9862971f","1f"));
+        var After=ReplaceLiterals(Before.GetRoot(),("18.9862971f","30.98745f"));
 
         var Changes=SceneTextChangePlanner.Plan(Before,After.SyntaxTree);
 
-        TextChange Single=Assert.Single(Changes);
+        var Single=Assert.Single(Changes);
         Assert.Equal("30.98745",Single.NewText);
         Assert.True(
             Single.Span.Length<50,
@@ -79,8 +79,8 @@ public sealed class SceneTextChangePlannerTests {
     /// </summary>
     [Fact]
     public void Plan_SyntaxTreeOverload_ReturnsSeparateChangesForDistantEdits(){
-        SyntaxTree Before=CSharpSyntaxTree.ParseText(BuildSource("18.9862971f","1f"));
-        SyntaxNode After=ReplaceLiterals(Before.GetRoot(),("18.9862971f","30.98745f"),("1f","2f"));
+        var Before=CSharpSyntaxTree.ParseText(BuildSource("18.9862971f","1f"));
+        var After=ReplaceLiterals(Before.GetRoot(),("18.9862971f","30.98745f"),("1f","2f"));
 
         var Changes=SceneTextChangePlanner.Plan(Before,After.SyntaxTree);
 
@@ -99,22 +99,22 @@ public sealed class SceneTextChangePlannerTests {
     /// </summary>
     [Fact]
     public void Plan_SyntaxTreeOverload_AppliedChangesReproduceTheEditedTreeExactly(){
-        SyntaxTree Before=CSharpSyntaxTree.ParseText(BuildSource("18.9862971f","1f"));
-        SyntaxNode After=ReplaceLiterals(Before.GetRoot(),("18.9862971f","30.98745f"),("1f","2f"));
+        var Before=CSharpSyntaxTree.ParseText(BuildSource("18.9862971f","1f"));
+        var After=ReplaceLiterals(Before.GetRoot(),("18.9862971f","30.98745f"),("1f","2f"));
 
         var Changes=SceneTextChangePlanner.Plan(Before,After.SyntaxTree);
-        SourceText Applied=Before.GetText().WithChanges(Changes);
+        var Applied=Before.GetText().WithChanges(Changes);
 
         Assert.Equal(After.ToFullString(),Applied.ToString());
     }
 
     /// <summary>SceneSourceEditorと同じく、元rootへ<c>ReplaceNode</c>して新rootを得る。</summary>
     private static SyntaxNode ReplaceLiterals(SyntaxNode Root,params (string Old,string New)[]Edits){
-        SyntaxNode Current=Root;
-        foreach((string Old,string New)Edit in Edits){
-            LiteralExpressionSyntax Target=Current.DescendantNodes()
-                .OfType<LiteralExpressionSyntax>()
-                .First(Node=>Node.ToString()==Edit.Old);
+        var Current=Root;
+        foreach(var Edit in Edits){
+            var Target=Current.DescendantNodes()
+                              .OfType<LiteralExpressionSyntax>()
+                              .First(Node=>Node.ToString()==Edit.Old);
             Current=Current.ReplaceNode(Target,SyntaxFactory.ParseExpression(Edit.New).WithTriviaFrom(Target));
         }
         return Current;

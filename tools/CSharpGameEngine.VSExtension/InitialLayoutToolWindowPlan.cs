@@ -8,6 +8,7 @@ internal enum InitialLayoutToolWindowKind {
     Hierarchy,
     SceneDesigner,
     Inspector,
+    ComponentPalette,
 }
 
 /// <summary>Presentation policy that must not take the Visual Studio keyboard focus.</summary>
@@ -48,6 +49,12 @@ internal static class InitialLayoutToolWindowPlan {
                 ToolWindowPresentation.NonActivating),
             new InitialLayoutToolWindowSpec(
                 InitialLayoutToolWindowKind.Inspector,
+                Width:300,
+                ToolWindowPresentation.NonActivating),
+            // M0052: パレットはInspectorと同じ右側だが、下段へ置いて<b>タブ結合させない</b>。
+            // ドラッグ中に隠れてしまうドロップ先は成立しないため、両方が同時に見えている必要がある。
+            new InitialLayoutToolWindowSpec(
+                InitialLayoutToolWindowKind.ComponentPalette,
                 Width:300,
                 ToolWindowPresentation.NonActivating),
         });

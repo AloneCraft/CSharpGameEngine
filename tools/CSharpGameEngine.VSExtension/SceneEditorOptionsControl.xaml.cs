@@ -32,7 +32,7 @@ public partial class SceneEditorOptionsControl:UserControl {
     private bool SuppressValueEdited;
 
     public SceneEditorOptionsControl(){
-        InitializeComponent();
+        this.InitializeComponent();
 
         this.NavigationSpeedRangeHint.Text=string.Format(
             CultureInfo.InvariantCulture,

@@ -80,12 +80,12 @@ internal sealed class ComponentIconGlyphTaggerProvider : ITaggerProvider {
     internal ITextDocumentFactoryService TextDocumentFactoryService { get;set;}=null!;
 
     public ITagger<T>?CreateTagger<T>(ITextBuffer Buffer)where T:ITag {
-        if(!this.TextDocumentFactoryService.TryGetTextDocument(Buffer,out ITextDocument?Document)
+        if(!this.TextDocumentFactoryService.TryGetTextDocument(Buffer,out var Document)
             ||!ComponentIconGlyphTagger.IsWritableSourceFile(Document.FilePath)){
             return null;
         }
 
-        VisualStudioWorkspace?Workspace=this.ComponentModel.GetService<VisualStudioWorkspace>();
+        var Workspace=this.ComponentModel.GetService<VisualStudioWorkspace>();
         if(Workspace is null){
             return null;
         }
@@ -120,13 +120,13 @@ internal sealed class ComponentIconGlyphTagger : ITagger<ComponentIconGlyphTag> 
             yield break;
         }
 
-        ITextSnapshot Snapshot=Spans[0].Snapshot;
+        var Snapshot=Spans[0].Snapshot;
         IReadOnlyList<TrackedGlyph>CurrentGlyphs;
         lock(this.Gate){
             CurrentGlyphs=this.Glyphs;
         }
 
-        foreach(TrackedGlyph Glyph in CurrentGlyphs){
+        foreach(var Glyph in CurrentGlyphs){
             SnapshotSpan Span;
             try {
                 Span=Glyph.Span.GetSpan(Snapshot);
@@ -145,7 +145,7 @@ internal sealed class ComponentIconGlyphTagger : ITagger<ComponentIconGlyphTag> 
             return false;
         }
 
-        string SourcePath=FilePath!;
+        var SourcePath=FilePath!;
         if(!SourcePath.EndsWith(".cs",StringComparison.OrdinalIgnoreCase)
             ||SourcePath.EndsWith(".g.cs",StringComparison.OrdinalIgnoreCase)){
             return false;
@@ -198,33 +198,33 @@ internal sealed class ComponentIconGlyphTagger : ITagger<ComponentIconGlyphTag> 
     }
 
     private async Task RefreshAsync(CancellationToken CancellationToken){
-        Document?Document=this.Workspace.CurrentSolution.GetDocumentIdsWithFilePath(this.FilePath)
-            .Select(this.Workspace.CurrentSolution.GetDocument)
-            .FirstOrDefault(static Candidate=>Candidate is not null);
+        var Document=this.Workspace.CurrentSolution.GetDocumentIdsWithFilePath(this.FilePath)
+                        .Select(this.Workspace.CurrentSolution.GetDocument)
+                        .FirstOrDefault(static Candidate=>Candidate is not null);
         if(Document is null||string.IsNullOrWhiteSpace(Document.Project.FilePath)){
             await this.PublishAsync([],CancellationToken).ConfigureAwait(false);
             return;
         }
 
-        SourceText Text=await Document.GetTextAsync(CancellationToken).ConfigureAwait(false);
-        ITextSnapshot Snapshot=this.Buffer.CurrentSnapshot;
+        var Text=await Document.GetTextAsync(CancellationToken).ConfigureAwait(false);
+        var Snapshot=this.Buffer.CurrentSnapshot;
         if(!string.Equals(Text.ToString(),Snapshot.GetText(),StringComparison.Ordinal)){
             // The next workspace or buffer event will retry against the matching live generation.
             return;
         }
 
-        SyntaxNode?Root=await Document.GetSyntaxRootAsync(CancellationToken).ConfigureAwait(false);
-        SemanticModel?SemanticModel=await Document.GetSemanticModelAsync(CancellationToken).ConfigureAwait(false);
-        Compilation?Compilation=await Document.Project.GetCompilationAsync(CancellationToken).ConfigureAwait(false);
+        var Root=await Document.GetSyntaxRootAsync(CancellationToken).ConfigureAwait(false);
+        var SemanticModel=await Document.GetSemanticModelAsync(CancellationToken).ConfigureAwait(false);
+        var Compilation=await Document.Project.GetCompilationAsync(CancellationToken).ConfigureAwait(false);
         if(Root is null||SemanticModel is null||Compilation is null){
             await this.PublishAsync([],CancellationToken).ConfigureAwait(false);
             return;
         }
 
-        IReadOnlyList<SceneComponentCatalogEntry>Catalog=SceneComponentCatalog.Build(Compilation);
-        string ProjectDirectory=Path.GetDirectoryName(Document.Project.FilePath)!;
+        var Catalog=SceneComponentCatalog.Build(Compilation);
+        var ProjectDirectory=Path.GetDirectoryName(Document.Project.FilePath)!;
         List<TrackedGlyph>Glyphs=[];
-        foreach(StructDeclarationSyntax Declaration in Root.DescendantNodes().OfType<StructDeclarationSyntax>()){
+        foreach(var Declaration in Root.DescendantNodes().OfType<StructDeclarationSyntax>()){
             CancellationToken.ThrowIfCancellationRequested();
             if(SemanticModel.GetDeclaredSymbol(Declaration,CancellationToken)is not INamedTypeSymbol Type
                 ||!Catalog.Any(Entry=>SymbolEqualityComparer.Default.Equals(Entry.Symbol,Type))
@@ -236,13 +236,13 @@ internal sealed class ComponentIconGlyphTagger : ITagger<ComponentIconGlyphTag> 
                 continue;
             }
 
-            SceneVisualIcon Icon=SceneComponentIconResolver.Resolve(Type,ProjectDirectory);
+            var Icon=SceneComponentIconResolver.Resolve(Type,ProjectDirectory);
             ComponentIconGlyphTarget Target=new(
                 this.Buffer,Document.Id,Document.Project.Id,this.FilePath,ProjectDirectory,
                 Declaration.SpanStart,SceneTypePredicates.ToFullyQualifiedName(Type),Icon);
-            ITrackingSpan Span=Snapshot.CreateTrackingSpan(
-                Declaration.Identifier.SpanStart,Math.Max(1,Declaration.Identifier.Span.Length),
-                SpanTrackingMode.EdgeExclusive);
+            var Span=Snapshot.CreateTrackingSpan(
+                                                 Declaration.Identifier.SpanStart,Math.Max(1,Declaration.Identifier.Span.Length),
+                                                 SpanTrackingMode.EdgeExclusive);
             Glyphs.Add(new TrackedGlyph(Span,new ComponentIconGlyphTag(Target)));
         }
 
@@ -251,9 +251,9 @@ internal sealed class ComponentIconGlyphTagger : ITagger<ComponentIconGlyphTag> 
 
     private static bool IsAuthoritativeDeclaration(
         INamedTypeSymbol Type,StructDeclarationSyntax Declaration,CancellationToken CancellationToken){
-        AttributeData?IconAttribute=Type.GetAttributes().FirstOrDefault(Attribute=>
-            string.Equals(Attribute.AttributeClass?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                SceneComponentIconMetadata.AttributeFullyQualifiedName,StringComparison.Ordinal));
+        var IconAttribute=Type.GetAttributes().FirstOrDefault(Attribute=>
+                                                                 string.Equals(Attribute.AttributeClass?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                                                                               SceneComponentIconMetadata.AttributeFullyQualifiedName,StringComparison.Ordinal));
         if(IconAttribute?.ApplicationSyntaxReference is null){
             // No icon yet: the clicked declaration becomes its owner.  This is intentional for a
             // partial component because writing another document would violate the one-buffer Undo
@@ -261,8 +261,8 @@ internal sealed class ComponentIconGlyphTagger : ITagger<ComponentIconGlyphTag> 
             return true;
         }
 
-        SyntaxNode AttributeSyntax=IconAttribute.ApplicationSyntaxReference.GetSyntax(CancellationToken);
-        StructDeclarationSyntax?Owner=AttributeSyntax.FirstAncestorOrSelf<StructDeclarationSyntax>();
+        var AttributeSyntax=IconAttribute.ApplicationSyntaxReference.GetSyntax(CancellationToken);
+        var Owner=AttributeSyntax.FirstAncestorOrSelf<StructDeclarationSyntax>();
         return Owner is not null
             &&string.Equals(Owner.SyntaxTree.FilePath,Declaration.SyntaxTree.FilePath,StringComparison.OrdinalIgnoreCase)
             &&Owner.SpanStart==Declaration.SpanStart;
@@ -274,7 +274,7 @@ internal sealed class ComponentIconGlyphTagger : ITagger<ComponentIconGlyphTag> 
             this.Glyphs=Glyphs;
         }
 
-        ITextSnapshot Snapshot=this.Buffer.CurrentSnapshot;
+        var Snapshot=this.Buffer.CurrentSnapshot;
         this.TagsChanged?.Invoke(this,new SnapshotSpanEventArgs(new SnapshotSpan(Snapshot,0,Snapshot.Length)));
     }
 
@@ -301,8 +301,8 @@ internal sealed class ComponentIconEditorService {
     }
 
     internal static ComponentIconEditorService?TryCreate(IComponentModel ComponentModel){
-        VisualStudioWorkspace?Workspace=ComponentModel.GetService<VisualStudioWorkspace>();
-        ITextUndoHistoryRegistry?UndoHistory=ComponentModel.GetService<ITextUndoHistoryRegistry>();
+        var Workspace=ComponentModel.GetService<VisualStudioWorkspace>();
+        var UndoHistory=ComponentModel.GetService<ITextUndoHistoryRegistry>();
         return Workspace is null||UndoHistory is null?null:new ComponentIconEditorService(Workspace,UndoHistory);
     }
 
@@ -311,32 +311,32 @@ internal sealed class ComponentIconEditorService {
         string?NormalizedPath=null;
         if(SelectedProjectRelativePath is not null){
             if(!ProjectIconPath.TryResolve(
-                Target.ProjectDirectory,SelectedProjectRelativePath,out string Normalized,out _)){
+                Target.ProjectDirectory,SelectedProjectRelativePath,out var Normalized,out _)){
                 return ComponentIconWriteResult.Failure("選択されたアイコンは現在のプロジェクトの SVG または PNG ではありません。");
             }
             NormalizedPath=Normalized;
         }
 
-        Document?Document=this.Workspace.CurrentSolution.GetDocument(Target.DocumentId);
+        var Document=this.Workspace.CurrentSolution.GetDocument(Target.DocumentId);
         if(Document is null
             ||!Document.Project.Id.Equals(Target.ProjectId)
             ||!string.Equals(Document.FilePath,Target.FilePath,StringComparison.OrdinalIgnoreCase)){
             return ComponentIconWriteResult.Failure("Component icon の対象ソースは現在のRoslyn Workspaceにありません。");
         }
 
-        SourceText Before=await Document.GetTextAsync(CancellationToken).ConfigureAwait(false);
-        SyntaxNode?Root=await Document.GetSyntaxRootAsync(CancellationToken).ConfigureAwait(false);
+        var Before=await Document.GetTextAsync(CancellationToken).ConfigureAwait(false);
+        var Root=await Document.GetSyntaxRootAsync(CancellationToken).ConfigureAwait(false);
         if(Root is null){
             return ComponentIconWriteResult.Failure("Component icon の対象ソースを解析できません。");
         }
 
-        ComponentIconSourceEditResult Edited=ComponentIconSourceEditor.Apply(
-            Root,Target.DeclarationSpanStart,NormalizedPath);
+        var Edited=ComponentIconSourceEditor.Apply(
+                                                   Root,Target.DeclarationSpanStart,NormalizedPath);
         if(!Edited.Succeeded){
             return ComponentIconWriteResult.Failure(Edited.ErrorMessage??"Component icon を編集できません。");
         }
 
-        SourceText After=SourceText.From(Edited.Root!.ToFullString(),Before.Encoding);
+        var After=SourceText.From(Edited.Root!.ToFullString(),Before.Encoding);
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(CancellationToken);
         return this.TextBufferWriter.TryApply(Target.Buffer,Before,After,"Set Component Icon")
             ?ComponentIconWriteResult.Success()
@@ -385,20 +385,20 @@ internal sealed class ComponentIconGlyphFactory : IGlyphFactory {
             return new Border();
         }
 
-        Button Button=new Button {
-            Width=16d,
-            Height=16d,
-            Padding=new Thickness(0d),
-            BorderThickness=new Thickness(0d),
-            Background=System.Windows.Media.Brushes.Transparent,
-            Focusable=false,
-            IsTabStop=false,
-            ToolTip=ComponentTag.Target.Icon.ToolTip,
-            Content=new SceneVisualIconPresenter {
-                Icon=ComponentTag.Target.Icon,
-                IconSize=16d,
-            },
-        };
+        var Button=new Button {
+                                  Width=16d,
+                                  Height=16d,
+                                  Padding=new Thickness(0d),
+                                  BorderThickness=new Thickness(0d),
+                                  Background=System.Windows.Media.Brushes.Transparent,
+                                  Focusable=false,
+                                  IsTabStop=false,
+                                  ToolTip=ComponentTag.Target.Icon.ToolTip,
+                                  Content=new SceneVisualIconPresenter {
+                                                                           Icon=ComponentTag.Target.Icon,
+                                                                           IconSize=16d,
+                                                                       },
+                              };
         Button.Click+=(Sender,Args)=>this.ShowPicker(Button,ComponentTag.Target);
         return Button;
     }
@@ -409,8 +409,8 @@ internal sealed class ComponentIconGlyphFactory : IGlyphFactory {
         }
 
         this.RunningPicker=ThreadHelper.JoinableTaskFactory.RunAsync(async ()=>{
-            IReadOnlyList<ProjectIconAsset>Assets=await Task.Run(
-                ()=>ProjectIconAssetCatalog.Enumerate(Target.ProjectDirectory)).ConfigureAwait(false);
+            var Assets=await Task.Run(
+                                     ()=>ProjectIconAssetCatalog.Enumerate(Target.ProjectDirectory)).ConfigureAwait(false);
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
             if(!Anchor.IsVisible){
                 return;
@@ -433,14 +433,14 @@ internal sealed class ComponentIconPickerPopup {
     private void ShowCore(
         FrameworkElement Anchor,ComponentIconGlyphTarget Target,IReadOnlyList<ProjectIconAsset>Assets,
         ComponentIconEditorService EditorService){
-        ContextMenu Menu=new ContextMenu {
-            PlacementTarget=Anchor,
-            Placement=PlacementMode.Bottom,
-            StaysOpen=false,
-        };
+        var Menu=new ContextMenu {
+                                     PlacementTarget=Anchor,
+                                     Placement=PlacementMode.Bottom,
+                                     StaysOpen=false,
+                                 };
         Menu.Items.Add(this.CreateItem("既定アイコン",SceneVisualIcon.ComponentDefault(),Target,ProjectRelativePath:null,Menu,EditorService));
-        foreach(ProjectIconAsset Asset in Assets){
-            SceneVisualIcon Icon=SceneVisualIcon.ProjectAsset(Asset.ProjectRelativePath,Asset.AbsolutePath);
+        foreach(var Asset in Assets){
+            var Icon=SceneVisualIcon.ProjectAsset(Asset.ProjectRelativePath,Asset.AbsolutePath);
             Menu.Items.Add(this.CreateItem(Asset.DisplayName,Icon,Target,Asset.ProjectRelativePath,Menu,EditorService));
         }
 
@@ -450,15 +450,15 @@ internal sealed class ComponentIconPickerPopup {
     private MenuItem CreateItem(
         string DisplayName,SceneVisualIcon Icon,ComponentIconGlyphTarget Target,string?ProjectRelativePath,
         ContextMenu Menu,ComponentIconEditorService EditorService){
-        StackPanel Content=new StackPanel { Orientation=Orientation.Horizontal };
+        var Content=new StackPanel { Orientation=Orientation.Horizontal };
         Content.Children.Add(new SceneVisualIconPresenter { Icon=Icon,IconSize=16d,Margin=new Thickness(0d,0d,6d,0d) });
         Content.Children.Add(new TextBlock { Text=DisplayName,VerticalAlignment=VerticalAlignment.Center });
-        MenuItem Item=new MenuItem { Header=Content,ToolTip=Icon.ToolTip };
+        var Item=new MenuItem { Header=Content,ToolTip=Icon.ToolTip };
         Item.Click+=(Sender,Args)=>{
             Menu.IsOpen=false;
             this.RunningWrite=ThreadHelper.JoinableTaskFactory.RunAsync(async ()=>{
-                ComponentIconWriteResult Result=await EditorService.ApplyAsync(
-                    Target,ProjectRelativePath,CancellationToken.None).ConfigureAwait(false);
+                var Result=await EditorService.ApplyAsync(
+                                                          Target,ProjectRelativePath,CancellationToken.None).ConfigureAwait(false);
                 if(!Result.Succeeded){
                     ActivityLog.LogError(nameof(ComponentIconPickerPopup),Result.ErrorMessage??"Component icon の更新に失敗しました。");
                 }

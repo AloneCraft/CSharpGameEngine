@@ -199,17 +199,17 @@ public sealed unsafe class StageRenderer:IDisposable {
     private D3D12_VIEWPORT Viewport;
     private RECT ScissorRect;
 
-    public string AdapterDescription=>Device?.AdapterDescription??string.Empty;
+    public string AdapterDescription=> this.Device?.AdapterDescription??string.Empty;
 
-    public bool IsWarp=>Device?.IsWarp??false;
+    public bool IsWarp=> this.Device?.IsWarp??false;
 
-    public bool DebugLayerEnabled=>Device?.DebugLayerEnabled??false;
+    public bool DebugLayerEnabled=> this.Device?.DebugLayerEnabled??false;
 
-    public bool GpuBasedValidationEnabled=>Device?.GpuBasedValidationEnabled??false;
+    public bool GpuBasedValidationEnabled=> this.Device?.GpuBasedValidationEnabled??false;
 
-    public IReadOnlyList<D3D12DebugMessage>DebugMessages=>Device?.CollectedMessages??[];
+    public IReadOnlyList<D3D12DebugMessage>DebugMessages=> this.Device?.CollectedMessages??[];
 
-    public int ErrorOrWorseMessageCount=>Device?.ErrorOrWorseMessageCount??0;
+    public int ErrorOrWorseMessageCount=> this.Device?.ErrorOrWorseMessageCount??0;
 
     public bool ShaderCompilationSucceeded { get;private set;}
 
@@ -313,59 +313,56 @@ public sealed unsafe class StageRenderer:IDisposable {
 
     private void Initialize(HWND Hwnd,int Width,int Height,GraphicsDeviceOptions DeviceOptions,string ShaderPath,
         IReadOnlyList<StageMeshCreateInfo>Meshes,IReadOnlyList<StageMaterialCreateInfo>Materials,IReadOnlyList<StageObjectCreateInfo>Objects){
-        Device=GraphicsDevice.Create(DeviceOptions);
+        this.Device=GraphicsDevice.Create(DeviceOptions);
 
-        CreateSwapChain(Hwnd,Width,Height);
-        CreateRtvHeap();
-        CreateRenderTargetViews();
-        CreateDsvHeap();
-        CreateDepthBuffer(Width,Height);
-        CreateHdrColorBuffer(Width,Height);
-        CreateShadowMap();
+        this.CreateSwapChain(Hwnd,Width,Height);
+        this.CreateRtvHeap();
+        this.CreateRenderTargetViews();
+        this.CreateDsvHeap();
+        this.CreateDepthBuffer(Width,Height);
+        this.CreateHdrColorBuffer(Width,Height);
+        this.CreateShadowMap();
 
         for(var I=0;I<FrameCount;I++){
             ID3D12CommandAllocator*Allocator;
-            D3D12Diagnostics.EnsureSuccess(
-                Device.Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,__uuidof<ID3D12CommandAllocator>(),(void**)&Allocator),
+            D3D12Diagnostics.EnsureSuccess(this.Device.Device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,__uuidof<ID3D12CommandAllocator>(),(void**)&Allocator),
                 "ID3D12Device::CreateCommandAllocator","creating a frame command allocator");
-            CommandAllocators[I]=Allocator;
+            this.CommandAllocators[I]=Allocator;
         }
 
         ID3D12GraphicsCommandList*CommandList;
-        D3D12Diagnostics.EnsureSuccess(
-            Device.Device->CreateCommandList(0,D3D12_COMMAND_LIST_TYPE_DIRECT,CommandAllocators[0],null,__uuidof<ID3D12GraphicsCommandList>(),(void**)&CommandList),
+        D3D12Diagnostics.EnsureSuccess(this.Device.Device->CreateCommandList(0,D3D12_COMMAND_LIST_TYPE_DIRECT, this.CommandAllocators[0],null,__uuidof<ID3D12GraphicsCommandList>(),(void**)&CommandList),
             "ID3D12Device::CreateCommandList","creating the graphics command list");
         this.CommandList=CommandList;
         D3D12Diagnostics.EnsureSuccess(CommandList->Close(),"ID3D12GraphicsCommandList::Close","closing the initial command list state");
 
         ID3D12Fence*Fence;
-        D3D12Diagnostics.EnsureSuccess(
-            Device.Device->CreateFence(0,D3D12_FENCE_FLAG_NONE,__uuidof<ID3D12Fence>(),(void**)&Fence),
+        D3D12Diagnostics.EnsureSuccess(this.Device.Device->CreateFence(0,D3D12_FENCE_FLAG_NONE,__uuidof<ID3D12Fence>(),(void**)&Fence),
             "ID3D12Device::CreateFence","creating the frame fence");
         this.Fence=Fence;
 
-        FenceEvent=CreateEventW(lpEventAttributes:null,bManualReset:FALSE,bInitialState:FALSE,lpName:null);
-        if(FenceEvent==HANDLE.NULL){
+        this.FenceEvent=CreateEventW(lpEventAttributes:null,bManualReset:FALSE,bInitialState:FALSE,lpName:null);
+        if(this.FenceEvent==HANDLE.NULL){
             throw new InvalidOperationException("CreateEventW failed while creating the frame fence event.");
         }
 
-        FrameIndex=SwapChain->GetCurrentBackBufferIndex();
-        FenceValues[FrameIndex]=1;
+        this.FrameIndex= this.SwapChain->GetCurrentBackBufferIndex();
+        this.FenceValues[this.FrameIndex]=1;
 
-        CompileShaders(ShaderPath);
-        CreateRootSignature();
-        CreateShadowRootSignature();
-        CreatePostProcessRootSignature();
-        CreatePipelineState();
-        CreateShadowPipelineState();
-        CreatePostProcessPipelineState();
-        CreateMeshBuffers(Meshes);
-        CreateMaterialResources(Materials);
-        CreateObjectMappings(Objects);
-        CreateConstantBuffers();
-        CreateShadowConstantsBuffer();
-        UpdateViewportAndScissor(Width,Height);
-        InitializeConstantsToDefaults();
+        this.CompileShaders(ShaderPath);
+        this.CreateRootSignature();
+        this.CreateShadowRootSignature();
+        this.CreatePostProcessRootSignature();
+        this.CreatePipelineState();
+        this.CreateShadowPipelineState();
+        this.CreatePostProcessPipelineState();
+        this.CreateMeshBuffers(Meshes);
+        this.CreateMaterialResources(Materials);
+        this.CreateObjectMappings(Objects);
+        this.CreateConstantBuffers();
+        this.CreateShadowConstantsBuffer();
+        this.UpdateViewportAndScissor(Width,Height);
+        this.InitializeConstantsToDefaults();
     }
 
     private void CreateSwapChain(HWND Hwnd,int Width,int Height){
@@ -380,14 +377,13 @@ public sealed unsafe class StageRenderer:IDisposable {
         };
 
         IDXGISwapChain1*SwapChain1;
-        D3D12Diagnostics.EnsureSuccess(
-            Device!.Factory->CreateSwapChainForHwnd(
-                (IUnknown*)Device.CommandQueue,
-                Hwnd,
-                &Desc,
-                pFullscreenDesc:null,
-                pRestrictToOutput:null,
-                &SwapChain1),
+        D3D12Diagnostics.EnsureSuccess(this.Device!.Factory->CreateSwapChainForHwnd(
+                                                                                 (IUnknown*)this.Device.CommandQueue,
+                                                                                 Hwnd,
+                                                                                 &Desc,
+                                                                                 pFullscreenDesc:null,
+                                                                                 pRestrictToOutput:null,
+                                                                                 &SwapChain1),
             "IDXGIFactory4::CreateSwapChainForHwnd","creating the swap chain");
 
         IDXGISwapChain3*SwapChain3;
@@ -395,7 +391,7 @@ public sealed unsafe class StageRenderer:IDisposable {
         _=SwapChain1->Release();
         D3D12Diagnostics.EnsureSuccess(Hr,"IDXGISwapChain1::QueryInterface(IDXGISwapChain3)","upgrading the swap chain interface");
 
-        SwapChain=SwapChain3;
+        this.SwapChain=SwapChain3;
     }
 
     private void CreateRtvHeap(){
@@ -405,27 +401,25 @@ public sealed unsafe class StageRenderer:IDisposable {
         };
 
         ID3D12DescriptorHeap*Heap;
-        D3D12Diagnostics.EnsureSuccess(
-            Device!.Device->CreateDescriptorHeap(&Desc,__uuidof<ID3D12DescriptorHeap>(),(void**)&Heap),
+        D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateDescriptorHeap(&Desc,__uuidof<ID3D12DescriptorHeap>(),(void**)&Heap),
             "ID3D12Device::CreateDescriptorHeap","creating the RTV descriptor heap");
 
-        RtvHeap=Heap;
-        RtvDescriptorSize=Device.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+        this.RtvHeap=Heap;
+        this.RtvDescriptorSize= this.Device.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
     }
 
     private void CreateRenderTargetViews(){
-        D3D12_CPU_DESCRIPTOR_HANDLE RtvBase=RtvHeap->GetCPUDescriptorHandleForHeapStart();
+        D3D12_CPU_DESCRIPTOR_HANDLE RtvBase= this.RtvHeap->GetCPUDescriptorHandleForHeapStart();
 
         for(uint I=0;I<FrameCount;I++){
             ID3D12Resource*BackBuffer;
-            D3D12Diagnostics.EnsureSuccess(
-                SwapChain->GetBuffer(I,__uuidof<ID3D12Resource>(),(void**)&BackBuffer),
+            D3D12Diagnostics.EnsureSuccess(this.SwapChain->GetBuffer(I,__uuidof<ID3D12Resource>(),(void**)&BackBuffer),
                 "IDXGISwapChain3::GetBuffer","retrieving a back buffer", $"buffer[{I}]");
 
-            D3D12_CPU_DESCRIPTOR_HANDLE RtvHandle=new(RtvBase,(int)I,RtvDescriptorSize);
-            Device!.Device->CreateRenderTargetView(BackBuffer,pDesc:null,RtvHandle);
+            D3D12_CPU_DESCRIPTOR_HANDLE RtvHandle=new(RtvBase,(int)I, this.RtvDescriptorSize);
+            this.Device!.Device->CreateRenderTargetView(BackBuffer,pDesc:null,RtvHandle);
 
-            BackBuffers[I]=BackBuffer;
+            this.BackBuffers[I]=BackBuffer;
         }
     }
 
@@ -436,12 +430,11 @@ public sealed unsafe class StageRenderer:IDisposable {
         };
 
         ID3D12DescriptorHeap*Heap;
-        D3D12Diagnostics.EnsureSuccess(
-            Device!.Device->CreateDescriptorHeap(&Desc,__uuidof<ID3D12DescriptorHeap>(),(void**)&Heap),
+        D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateDescriptorHeap(&Desc,__uuidof<ID3D12DescriptorHeap>(),(void**)&Heap),
             "ID3D12Device::CreateDescriptorHeap","creating the DSV descriptor heap");
 
-        DsvHeap=Heap;
-        DsvDescriptorSize=Device.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+        this.DsvHeap=Heap;
+        this.DsvDescriptorSize= this.Device.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
     }
 
     private void CreateDepthBuffer(int Width,int Height){
@@ -452,15 +445,14 @@ public sealed unsafe class StageRenderer:IDisposable {
         D3D12_CLEAR_VALUE ClearValue=new(DepthBufferFormat,1.0f,0);
 
         ID3D12Resource*DepthBuffer;
-        D3D12Diagnostics.EnsureSuccess(
-            Device!.Device->CreateCommittedResource(&HeapProps,D3D12_HEAP_FLAG_NONE,&ResourceDesc,D3D12_RESOURCE_STATE_DEPTH_WRITE,&ClearValue,__uuidof<ID3D12Resource>(),(void**)&DepthBuffer),
+        D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateCommittedResource(&HeapProps,D3D12_HEAP_FLAG_NONE,&ResourceDesc,D3D12_RESOURCE_STATE_DEPTH_WRITE,&ClearValue,__uuidof<ID3D12Resource>(),(void**)&DepthBuffer),
             "ID3D12Device::CreateCommittedResource","creating the depth buffer");
 
         D3D12_DEPTH_STENCIL_VIEW_DESC DsvDesc=new(){
             Format=DepthBufferFormat,
             ViewDimension=D3D12_DSV_DIMENSION.D3D12_DSV_DIMENSION_TEXTURE2D,
         };
-        Device.Device->CreateDepthStencilView(DepthBuffer,&DsvDesc,DsvHeap->GetCPUDescriptorHandleForHeapStart());
+        this.Device.Device->CreateDepthStencilView(DepthBuffer,&DsvDesc, this.DsvHeap->GetCPUDescriptorHandleForHeapStart());
 
         this.DepthBuffer=DepthBuffer;
     }
@@ -471,21 +463,19 @@ public sealed unsafe class StageRenderer:IDisposable {
         D3D12_HEAP_PROPERTIES HeapProps=new(D3D12_HEAP_TYPE_DEFAULT);
         D3D12_CLEAR_VALUE ClearValue=new(HdrColorFormat,0f,0);
         ID3D12Resource*Resource;
-        D3D12Diagnostics.EnsureSuccess(
-            Device!.Device->CreateCommittedResource(&HeapProps,D3D12_HEAP_FLAG_NONE,&ResourceDesc,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,&ClearValue,__uuidof<ID3D12Resource>(),(void**)&Resource),
-            nameof(CreateHdrColorBuffer),nameof(CreateHdrColorBuffer));
+        D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateCommittedResource(&HeapProps,D3D12_HEAP_FLAG_NONE,&ResourceDesc,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,&ClearValue,__uuidof<ID3D12Resource>(),(void**)&Resource),
+            nameof(this.CreateHdrColorBuffer),nameof(this.CreateHdrColorBuffer));
 
-        D3D12_CPU_DESCRIPTOR_HANDLE RtvHandle=new(RtvHeap->GetCPUDescriptorHandleForHeapStart(),FrameCount,RtvDescriptorSize);
-        Device.Device->CreateRenderTargetView(Resource,pDesc:null,RtvHandle);
-        HdrColorBuffer=Resource;
+        D3D12_CPU_DESCRIPTOR_HANDLE RtvHandle=new(this.RtvHeap->GetCPUDescriptorHandleForHeapStart(),FrameCount, this.RtvDescriptorSize);
+        this.Device.Device->CreateRenderTargetView(Resource,pDesc:null,RtvHandle);
+        this.HdrColorBuffer=Resource;
 
-        if(HdrSrvHeap==null){
+        if(this.HdrSrvHeap==null){
             D3D12_DESCRIPTOR_HEAP_DESC SrvHeapDesc=new(){ Type=D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,NumDescriptors=1,Flags=D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE };
             ID3D12DescriptorHeap*SrvHeap;
-            D3D12Diagnostics.EnsureSuccess(
-                Device.Device->CreateDescriptorHeap(&SrvHeapDesc,__uuidof<ID3D12DescriptorHeap>(),(void**)&SrvHeap),
-                nameof(CreateHdrColorBuffer),nameof(CreateHdrColorBuffer));
-            HdrSrvHeap=SrvHeap;
+            D3D12Diagnostics.EnsureSuccess(this.Device.Device->CreateDescriptorHeap(&SrvHeapDesc,__uuidof<ID3D12DescriptorHeap>(),(void**)&SrvHeap),
+                nameof(this.CreateHdrColorBuffer),nameof(this.CreateHdrColorBuffer));
+            this.HdrSrvHeap=SrvHeap;
         }
 
         D3D12_SHADER_RESOURCE_VIEW_DESC SrvDesc=new(){
@@ -494,7 +484,7 @@ public sealed unsafe class StageRenderer:IDisposable {
             Shader4ComponentMapping=(uint)TerraFX.Interop.DirectX.D3D12.D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
         };
         SrvDesc.Texture2D.MipLevels=1;
-        Device.Device->CreateShaderResourceView(Resource,&SrvDesc,HdrSrvHeap->GetCPUDescriptorHandleForHeapStart());
+        this.Device.Device->CreateShaderResourceView(Resource,&SrvDesc, this.HdrSrvHeap->GetCPUDescriptorHandleForHeapStart());
     }
 
     private void CreateShadowMap(){
@@ -504,14 +494,13 @@ public sealed unsafe class StageRenderer:IDisposable {
         D3D12_HEAP_PROPERTIES HeapProps=new(D3D12_HEAP_TYPE_DEFAULT);
         D3D12_CLEAR_VALUE ClearValue=new(ShadowMapDsvFormat,1.0f,0);
         ID3D12Resource*Resource;
-        D3D12Diagnostics.EnsureSuccess(
-            Device!.Device->CreateCommittedResource(&HeapProps,D3D12_HEAP_FLAG_NONE,&ResourceDesc,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,&ClearValue,__uuidof<ID3D12Resource>(),(void**)&Resource),
-            nameof(CreateShadowMap),nameof(CreateShadowMap));
+        D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateCommittedResource(&HeapProps,D3D12_HEAP_FLAG_NONE,&ResourceDesc,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,&ClearValue,__uuidof<ID3D12Resource>(),(void**)&Resource),
+            nameof(this.CreateShadowMap),nameof(this.CreateShadowMap));
 
         D3D12_DEPTH_STENCIL_VIEW_DESC DsvDesc=new(){ Format=ShadowMapDsvFormat,ViewDimension=D3D12_DSV_DIMENSION.D3D12_DSV_DIMENSION_TEXTURE2D };
-        D3D12_CPU_DESCRIPTOR_HANDLE ShadowDsv=new(DsvHeap->GetCPUDescriptorHandleForHeapStart(),1,DsvDescriptorSize);
-        Device.Device->CreateDepthStencilView(Resource,&DsvDesc,ShadowDsv);
-        ShadowMap=Resource;
+        D3D12_CPU_DESCRIPTOR_HANDLE ShadowDsv=new(this.DsvHeap->GetCPUDescriptorHandleForHeapStart(),1, this.DsvDescriptorSize);
+        this.Device.Device->CreateDepthStencilView(Resource,&DsvDesc,ShadowDsv);
+        this.ShadowMap=Resource;
     }
 
     private void CompileShaders(string ShaderPath){
@@ -555,19 +544,19 @@ public sealed unsafe class StageRenderer:IDisposable {
             EnableDebugInfo=DebugShaders,
         });
 
-        ShaderCompilationSucceeded=Vs.Success&&Ps.Success&&FullscreenVs.Success&&PostPs.Success&&ShadowVs.Success;
-        ShaderDiagnostics=[.. Vs.Diagnostics,.. Ps.Diagnostics,.. FullscreenVs.Diagnostics,.. PostPs.Diagnostics,.. ShadowVs.Diagnostics];
+        this.ShaderCompilationSucceeded=Vs.Success&&Ps.Success&&FullscreenVs.Success&&PostPs.Success&&ShadowVs.Success;
+        this.ShaderDiagnostics=[.. Vs.Diagnostics,.. Ps.Diagnostics,.. FullscreenVs.Diagnostics,.. PostPs.Diagnostics,.. ShadowVs.Diagnostics];
 
-        if(!ShaderCompilationSucceeded){
-            var Details=string.Join(Environment.NewLine,ShaderDiagnostics);
+        if(!this.ShaderCompilationSucceeded){
+            var Details=string.Join(Environment.NewLine, this.ShaderDiagnostics);
             throw new InvalidOperationException($"HLSL shader compilation failed for '{ShaderPath}':{Environment.NewLine}{Details}");
         }
 
-        VertexShaderBytecode=Vs.Bytecode;
-        PixelShaderBytecode=Ps.Bytecode;
-        FullscreenVertexShaderBytecode=FullscreenVs.Bytecode;
-        PostProcessPixelShaderBytecode=PostPs.Bytecode;
-        ShadowVertexShaderBytecode=ShadowVs.Bytecode;
+        this.VertexShaderBytecode=Vs.Bytecode;
+        this.PixelShaderBytecode=Ps.Bytecode;
+        this.FullscreenVertexShaderBytecode=FullscreenVs.Bytecode;
+        this.PostProcessPixelShaderBytecode=PostPs.Bytecode;
+        this.ShadowVertexShaderBytecode=ShadowVs.Bytecode;
     }
 
     private byte[]VertexShaderBytecode=[];
@@ -650,8 +639,7 @@ public sealed unsafe class StageRenderer:IDisposable {
             }
 
             ID3D12RootSignature*RootSignature;
-            D3D12Diagnostics.EnsureSuccess(
-                Device!.Device->CreateRootSignature(0,SignatureBlob->GetBufferPointer(),SignatureBlob->GetBufferSize(),__uuidof<ID3D12RootSignature>(),(void**)&RootSignature),
+            D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateRootSignature(0,SignatureBlob->GetBufferPointer(),SignatureBlob->GetBufferSize(),__uuidof<ID3D12RootSignature>(),(void**)&RootSignature),
                 "ID3D12Device::CreateRootSignature","creating the root signature");
             this.RootSignature=RootSignature;
         } finally {
@@ -677,10 +665,10 @@ public sealed unsafe class StageRenderer:IDisposable {
         ID3DBlob*SignatureBlob=null;
         ID3DBlob*ErrorBlob=null;
         try {
-            D3D12Diagnostics.EnsureSuccess(D3D12SerializeRootSignature(&RootSignatureDesc,D3D_ROOT_SIGNATURE_VERSION_1,&SignatureBlob,&ErrorBlob),nameof(CreateShadowRootSignature),nameof(CreateShadowRootSignature));
+            D3D12Diagnostics.EnsureSuccess(D3D12SerializeRootSignature(&RootSignatureDesc,D3D_ROOT_SIGNATURE_VERSION_1,&SignatureBlob,&ErrorBlob),nameof(this.CreateShadowRootSignature),nameof(this.CreateShadowRootSignature));
             ID3D12RootSignature*Signature;
-            D3D12Diagnostics.EnsureSuccess(Device!.Device->CreateRootSignature(0,SignatureBlob->GetBufferPointer(),SignatureBlob->GetBufferSize(),__uuidof<ID3D12RootSignature>(),(void**)&Signature),nameof(CreateShadowRootSignature),nameof(CreateShadowRootSignature));
-            ShadowRootSignature=Signature;
+            D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateRootSignature(0,SignatureBlob->GetBufferPointer(),SignatureBlob->GetBufferSize(),__uuidof<ID3D12RootSignature>(),(void**)&Signature),nameof(this.CreateShadowRootSignature),nameof(this.CreateShadowRootSignature));
+            this.ShadowRootSignature=Signature;
         } finally {
             if(SignatureBlob!=null){ _=SignatureBlob->Release(); }
             if(ErrorBlob!=null){ _=ErrorBlob->Release(); }
@@ -725,12 +713,11 @@ public sealed unsafe class StageRenderer:IDisposable {
         try {
             D3D12Diagnostics.EnsureSuccess(
                 D3D12SerializeRootSignature(&RootSignatureDesc,D3D_ROOT_SIGNATURE_VERSION_1,&SignatureBlob,&ErrorBlob),
-                nameof(CreatePostProcessRootSignature),nameof(CreatePostProcessRootSignature));
+                nameof(this.CreatePostProcessRootSignature),nameof(this.CreatePostProcessRootSignature));
             ID3D12RootSignature*Signature;
-            D3D12Diagnostics.EnsureSuccess(
-                Device!.Device->CreateRootSignature(0,SignatureBlob->GetBufferPointer(),SignatureBlob->GetBufferSize(),__uuidof<ID3D12RootSignature>(),(void**)&Signature),
-                nameof(CreatePostProcessRootSignature),nameof(CreatePostProcessRootSignature));
-            PostProcessRootSignature=Signature;
+            D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateRootSignature(0,SignatureBlob->GetBufferPointer(),SignatureBlob->GetBufferSize(),__uuidof<ID3D12RootSignature>(),(void**)&Signature),
+                nameof(this.CreatePostProcessRootSignature),nameof(this.CreatePostProcessRootSignature));
+            this.PostProcessRootSignature=Signature;
         } finally {
             if(SignatureBlob!=null){ _=SignatureBlob->Release(); }
             if(ErrorBlob!=null){ _=ErrorBlob->Release(); }
@@ -742,8 +729,8 @@ public sealed unsafe class StageRenderer:IDisposable {
         fixed(byte*PNormal="NORMAL\0"u8)
         fixed(byte*PTangent="TANGENT\0"u8)
         fixed(byte*PTexCoord="TEXCOORD\0"u8)
-        fixed(byte*PVertexShader=VertexShaderBytecode)
-        fixed(byte*PPixelShader=PixelShaderBytecode){
+        fixed(byte*PVertexShader= this.VertexShaderBytecode)
+        fixed(byte*PPixelShader= this.PixelShaderBytecode){
             D3D12_INPUT_ELEMENT_DESC*InputElements=stackalloc D3D12_INPUT_ELEMENT_DESC[4]{
                 new D3D12_INPUT_ELEMENT_DESC {
                     SemanticName=(sbyte*)PPosition,
@@ -775,9 +762,9 @@ public sealed unsafe class StageRenderer:IDisposable {
                     pInputElementDescs=InputElements,
                     NumElements=4,
                 },
-                pRootSignature=RootSignature,
-                VS=new D3D12_SHADER_BYTECODE { pShaderBytecode=PVertexShader,BytecodeLength=(nuint)VertexShaderBytecode.Length },
-                PS=new D3D12_SHADER_BYTECODE { pShaderBytecode=PPixelShader,BytecodeLength=(nuint)PixelShaderBytecode.Length },
+                pRootSignature= this.RootSignature,
+                VS=new D3D12_SHADER_BYTECODE { pShaderBytecode=PVertexShader,BytecodeLength=(nuint)this.VertexShaderBytecode.Length },
+                PS=new D3D12_SHADER_BYTECODE { pShaderBytecode=PPixelShader,BytecodeLength=(nuint)this.PixelShaderBytecode.Length },
                 RasterizerState=D3D12_RASTERIZER_DESC.DEFAULT,
                 BlendState=D3D12_BLEND_DESC.DEFAULT,
                 DepthStencilState=D3D12_DEPTH_STENCIL_DESC.DEFAULT,
@@ -792,8 +779,7 @@ public sealed unsafe class StageRenderer:IDisposable {
             PsoDesc.RTVFormats[0]=HdrColorFormat;
 
             ID3D12PipelineState*PipelineState;
-            D3D12Diagnostics.EnsureSuccess(
-                Device!.Device->CreateGraphicsPipelineState(&PsoDesc,__uuidof<ID3D12PipelineState>(),(void**)&PipelineState),
+            D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateGraphicsPipelineState(&PsoDesc,__uuidof<ID3D12PipelineState>(),(void**)&PipelineState),
                 "ID3D12Device::CreateGraphicsPipelineState","creating the stage pipeline state");
             this.PipelineState=PipelineState;
         }
@@ -804,7 +790,7 @@ public sealed unsafe class StageRenderer:IDisposable {
         fixed(byte*PNormal="NORMAL\0"u8)
         fixed(byte*PTangent="TANGENT\0"u8)
         fixed(byte*PTexCoord="TEXCOORD\0"u8)
-        fixed(byte*PVertexShader=ShadowVertexShaderBytecode){
+        fixed(byte*PVertexShader= this.ShadowVertexShaderBytecode){
             D3D12_INPUT_ELEMENT_DESC*InputElements=stackalloc D3D12_INPUT_ELEMENT_DESC[4]{
                 new D3D12_INPUT_ELEMENT_DESC { SemanticName=(sbyte*)PPosition,Format=DXGI_FORMAT_R32G32B32_FLOAT,InputSlotClass=D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA },
                 new D3D12_INPUT_ELEMENT_DESC { SemanticName=(sbyte*)PNormal,Format=DXGI_FORMAT_R32G32B32_FLOAT,AlignedByteOffset=12,InputSlotClass=D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA },
@@ -813,8 +799,8 @@ public sealed unsafe class StageRenderer:IDisposable {
             };
             D3D12_GRAPHICS_PIPELINE_STATE_DESC PsoDesc=new(){
                 InputLayout=new D3D12_INPUT_LAYOUT_DESC { pInputElementDescs=InputElements,NumElements=4 },
-                pRootSignature=ShadowRootSignature,
-                VS=new D3D12_SHADER_BYTECODE { pShaderBytecode=PVertexShader,BytecodeLength=(nuint)ShadowVertexShaderBytecode.Length },
+                pRootSignature= this.ShadowRootSignature,
+                VS=new D3D12_SHADER_BYTECODE { pShaderBytecode=PVertexShader,BytecodeLength=(nuint)this.ShadowVertexShaderBytecode.Length },
                 RasterizerState=D3D12_RASTERIZER_DESC.DEFAULT,
                 BlendState=D3D12_BLEND_DESC.DEFAULT,
                 DepthStencilState=D3D12_DEPTH_STENCIL_DESC.DEFAULT,
@@ -826,18 +812,18 @@ public sealed unsafe class StageRenderer:IDisposable {
             };
             PsoDesc.RasterizerState.CullMode=D3D12_CULL_MODE_NONE;
             ID3D12PipelineState*Pipeline;
-            D3D12Diagnostics.EnsureSuccess(Device!.Device->CreateGraphicsPipelineState(&PsoDesc,__uuidof<ID3D12PipelineState>(),(void**)&Pipeline),nameof(CreateShadowPipelineState),nameof(CreateShadowPipelineState));
-            ShadowPipelineState=Pipeline;
+            D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateGraphicsPipelineState(&PsoDesc,__uuidof<ID3D12PipelineState>(),(void**)&Pipeline),nameof(this.CreateShadowPipelineState),nameof(this.CreateShadowPipelineState));
+            this.ShadowPipelineState=Pipeline;
         }
     }
 
     private void CreatePostProcessPipelineState(){
-        fixed(byte*PVertexShader=FullscreenVertexShaderBytecode)
-        fixed(byte*PPixelShader=PostProcessPixelShaderBytecode){
+        fixed(byte*PVertexShader= this.FullscreenVertexShaderBytecode)
+        fixed(byte*PPixelShader= this.PostProcessPixelShaderBytecode){
             D3D12_GRAPHICS_PIPELINE_STATE_DESC PsoDesc=new(){
-                pRootSignature=PostProcessRootSignature,
-                VS=new D3D12_SHADER_BYTECODE { pShaderBytecode=PVertexShader,BytecodeLength=(nuint)FullscreenVertexShaderBytecode.Length },
-                PS=new D3D12_SHADER_BYTECODE { pShaderBytecode=PPixelShader,BytecodeLength=(nuint)PostProcessPixelShaderBytecode.Length },
+                pRootSignature= this.PostProcessRootSignature,
+                VS=new D3D12_SHADER_BYTECODE { pShaderBytecode=PVertexShader,BytecodeLength=(nuint)this.FullscreenVertexShaderBytecode.Length },
+                PS=new D3D12_SHADER_BYTECODE { pShaderBytecode=PPixelShader,BytecodeLength=(nuint)this.PostProcessPixelShaderBytecode.Length },
                 RasterizerState=D3D12_RASTERIZER_DESC.DEFAULT,
                 BlendState=D3D12_BLEND_DESC.DEFAULT,
                 DepthStencilState=D3D12_DEPTH_STENCIL_DESC.DEFAULT,
@@ -853,25 +839,24 @@ public sealed unsafe class StageRenderer:IDisposable {
             PsoDesc.RTVFormats[0]=BackBufferFormat;
 
             ID3D12PipelineState*Pipeline;
-            D3D12Diagnostics.EnsureSuccess(
-                Device!.Device->CreateGraphicsPipelineState(&PsoDesc,__uuidof<ID3D12PipelineState>(),(void**)&Pipeline),
-                nameof(CreatePostProcessPipelineState),nameof(CreatePostProcessPipelineState));
-            PostProcessPipelineState=Pipeline;
+            D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateGraphicsPipelineState(&PsoDesc,__uuidof<ID3D12PipelineState>(),(void**)&Pipeline),
+                nameof(this.CreatePostProcessPipelineState),nameof(this.CreatePostProcessPipelineState));
+            this.PostProcessPipelineState=Pipeline;
         }
     }
 
     private void CreateMeshBuffers(IReadOnlyList<StageMeshCreateInfo>Meshes){
-        MeshCount=Meshes.Count;
-        VertexBuffers=new ID3D12Resource*[MeshCount];
-        VertexBufferViews=new D3D12_VERTEX_BUFFER_VIEW[MeshCount];
-        IndexBuffers=new ID3D12Resource*[MeshCount];
-        IndexBufferViews=new D3D12_INDEX_BUFFER_VIEW[MeshCount];
-        IndexCounts=new uint[MeshCount];
+        this.MeshCount=Meshes.Count;
+        this.VertexBuffers=new ID3D12Resource*[this.MeshCount];
+        this.VertexBufferViews=new D3D12_VERTEX_BUFFER_VIEW[this.MeshCount];
+        this.IndexBuffers=new ID3D12Resource*[this.MeshCount];
+        this.IndexBufferViews=new D3D12_INDEX_BUFFER_VIEW[this.MeshCount];
+        this.IndexCounts=new uint[this.MeshCount];
 
-        for(var I=0;I<MeshCount;I++){
+        for(var I=0;I< this.MeshCount;I++){
             StageMeshCreateInfo Mesh=Meshes[I];
-            CreateVertexBuffer(I,Mesh.Positions,Mesh.Normals,Mesh.Tangents,Mesh.Uvs);
-            CreateIndexBuffer(I,Mesh.Indices);
+            this.CreateVertexBuffer(I,Mesh.Positions,Mesh.Normals,Mesh.Tangents,Mesh.Uvs);
+            this.CreateIndexBuffer(I,Mesh.Indices);
         }
     }
 
@@ -888,8 +873,7 @@ public sealed unsafe class StageRenderer:IDisposable {
         D3D12_RESOURCE_DESC BufferDesc=D3D12_RESOURCE_DESC.Buffer(BufferSize);
 
         ID3D12Resource*VertexBuffer;
-        D3D12Diagnostics.EnsureSuccess(
-            Device!.Device->CreateCommittedResource(&HeapProps,D3D12_HEAP_FLAG_NONE,&BufferDesc,D3D12_RESOURCE_STATE_GENERIC_READ,pOptimizedClearValue:null,__uuidof<ID3D12Resource>(),(void**)&VertexBuffer),
+        D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateCommittedResource(&HeapProps,D3D12_HEAP_FLAG_NONE,&BufferDesc,D3D12_RESOURCE_STATE_GENERIC_READ,pOptimizedClearValue:null,__uuidof<ID3D12Resource>(),(void**)&VertexBuffer),
             "ID3D12Device::CreateCommittedResource","creating a stage vertex buffer (upload heap)");
 
         D3D12_RANGE NoRead=new();
@@ -900,12 +884,12 @@ public sealed unsafe class StageRenderer:IDisposable {
         }
         VertexBuffer->Unmap(0,null);
 
-        VertexBuffers[MeshIndex]=VertexBuffer;
-        VertexBufferViews[MeshIndex]=new D3D12_VERTEX_BUFFER_VIEW {
-            BufferLocation=VertexBuffer->GetGPUVirtualAddress(),
-            StrideInBytes=(uint)sizeof(Vertex),
-            SizeInBytes=BufferSize,
-        };
+        this.VertexBuffers[MeshIndex]=VertexBuffer;
+        this.VertexBufferViews[MeshIndex]=new D3D12_VERTEX_BUFFER_VIEW {
+                                                                           BufferLocation=VertexBuffer->GetGPUVirtualAddress(),
+                                                                           StrideInBytes=(uint)sizeof(Vertex),
+                                                                           SizeInBytes=BufferSize,
+                                                                       };
     }
 
     private void CreateIndexBuffer(int MeshIndex,IReadOnlyList<uint>Indices){
@@ -917,8 +901,7 @@ public sealed unsafe class StageRenderer:IDisposable {
         D3D12_RESOURCE_DESC BufferDesc=D3D12_RESOURCE_DESC.Buffer(BufferSize);
 
         ID3D12Resource*IndexBuffer;
-        D3D12Diagnostics.EnsureSuccess(
-            Device!.Device->CreateCommittedResource(&HeapProps,D3D12_HEAP_FLAG_NONE,&BufferDesc,D3D12_RESOURCE_STATE_GENERIC_READ,pOptimizedClearValue:null,__uuidof<ID3D12Resource>(),(void**)&IndexBuffer),
+        D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateCommittedResource(&HeapProps,D3D12_HEAP_FLAG_NONE,&BufferDesc,D3D12_RESOURCE_STATE_GENERIC_READ,pOptimizedClearValue:null,__uuidof<ID3D12Resource>(),(void**)&IndexBuffer),
             "ID3D12Device::CreateCommittedResource","creating a stage index buffer (upload heap)");
 
         D3D12_RANGE NoRead=new();
@@ -929,46 +912,45 @@ public sealed unsafe class StageRenderer:IDisposable {
         }
         IndexBuffer->Unmap(0,null);
 
-        IndexBuffers[MeshIndex]=IndexBuffer;
-        IndexCounts[MeshIndex]=(uint)IndexCount;
-        IndexBufferViews[MeshIndex]=new D3D12_INDEX_BUFFER_VIEW {
-            BufferLocation=IndexBuffer->GetGPUVirtualAddress(),
-            SizeInBytes=BufferSize,
-            Format=DXGI_FORMAT_R32_UINT,
-        };
+        this.IndexBuffers[MeshIndex]=IndexBuffer;
+        this.IndexCounts[MeshIndex]=(uint)IndexCount;
+        this.IndexBufferViews[MeshIndex]=new D3D12_INDEX_BUFFER_VIEW {
+                                                                         BufferLocation=IndexBuffer->GetGPUVirtualAddress(),
+                                                                         SizeInBytes=BufferSize,
+                                                                         Format=DXGI_FORMAT_R32_UINT,
+                                                                     };
     }
 
     private void CreateMaterialResources(IReadOnlyList<StageMaterialCreateInfo>Materials){
-        MaterialCount=Materials.Count;
-        MaterialTextures=new ID3D12Resource*[MaterialCount*3];
-        MaterialBaseColorFactors=new Vector4[MaterialCount];
-        MaterialRoughnessFactors=new float[MaterialCount];
-        MaterialMetallicFactors=new float[MaterialCount];
-        MaterialEmissiveFactors=new Vector3[MaterialCount];
+        this.MaterialCount=Materials.Count;
+        this.MaterialTextures=new ID3D12Resource*[this.MaterialCount*3];
+        this.MaterialBaseColorFactors=new Vector4[this.MaterialCount];
+        this.MaterialRoughnessFactors=new float[this.MaterialCount];
+        this.MaterialMetallicFactors=new float[this.MaterialCount];
+        this.MaterialEmissiveFactors=new Vector3[this.MaterialCount];
 
-        for(var I=0;I<MaterialCount;I++){
+        for(var I=0;I< this.MaterialCount;I++){
             StageMaterialCreateInfo Material=Materials[I];
-            MaterialBaseColorFactors[I]=Material.BaseColorFactor;
-            MaterialRoughnessFactors[I]=Material.RoughnessFactor;
-            MaterialMetallicFactors[I]=Material.MetallicFactor;
-            MaterialEmissiveFactors[I]=Material.EmissiveFactor;
+            this.MaterialBaseColorFactors[I]=Material.BaseColorFactor;
+            this.MaterialRoughnessFactors[I]=Material.RoughnessFactor;
+            this.MaterialMetallicFactors[I]=Material.MetallicFactor;
+            this.MaterialEmissiveFactors[I]=Material.EmissiveFactor;
 
-            MaterialTextures[(I*3)+0]=CreateTextureResource(Material.BaseColorTextureBytes,WhiteFallback());
-            MaterialTextures[(I*3)+1]=CreateTextureResource(Material.NormalTextureBytes,FlatNormalFallback());
-            MaterialTextures[(I*3)+2]=CreateTextureResource(Material.MetallicRoughnessTextureBytes,WhiteFallback());
+            this.MaterialTextures[(I*3)+0]= this.CreateTextureResource(Material.BaseColorTextureBytes,WhiteFallback());
+            this.MaterialTextures[(I*3)+1]= this.CreateTextureResource(Material.NormalTextureBytes,FlatNormalFallback());
+            this.MaterialTextures[(I*3)+2]= this.CreateTextureResource(Material.MetallicRoughnessTextureBytes,WhiteFallback());
         }
 
         D3D12_DESCRIPTOR_HEAP_DESC SrvHeapDesc=new(){
             Type=D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-            NumDescriptors=(uint)(MaterialCount*4),
+            NumDescriptors=(uint)(this.MaterialCount*4),
             Flags=D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
         };
         ID3D12DescriptorHeap*SrvHeap;
-        D3D12Diagnostics.EnsureSuccess(
-            Device!.Device->CreateDescriptorHeap(&SrvHeapDesc,__uuidof<ID3D12DescriptorHeap>(),(void**)&SrvHeap),
+        D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateDescriptorHeap(&SrvHeapDesc,__uuidof<ID3D12DescriptorHeap>(),(void**)&SrvHeap),
             "ID3D12Device::CreateDescriptorHeap","creating the material SRV descriptor heap");
         this.SrvHeap=SrvHeap;
-        SrvDescriptorSize=Device.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+        this.SrvDescriptorSize= this.Device.Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
         D3D12_CPU_DESCRIPTOR_HANDLE SrvHeapStart=SrvHeap->GetCPUDescriptorHandleForHeapStart();
         D3D12_SHADER_RESOURCE_VIEW_DESC SrvDesc=new(){
@@ -978,9 +960,9 @@ public sealed unsafe class StageRenderer:IDisposable {
         };
         SrvDesc.Texture2D.MipLevels=1;
 
-        for(var I=0;I<MaterialTextures.Length;I++){
-            D3D12_CPU_DESCRIPTOR_HANDLE Handle=new(SrvHeapStart,(I/3)*4+(I%3),SrvDescriptorSize);
-            Device.Device->CreateShaderResourceView(MaterialTextures[I],&SrvDesc,Handle);
+        for(var I=0;I< this.MaterialTextures.Length;I++){
+            D3D12_CPU_DESCRIPTOR_HANDLE Handle=new(SrvHeapStart,(I/3)*4+(I%3), this.SrvDescriptorSize);
+            this.Device.Device->CreateShaderResourceView(this.MaterialTextures[I],&SrvDesc,Handle);
         }
 
         D3D12_SHADER_RESOURCE_VIEW_DESC ShadowSrvDesc=new(){
@@ -989,9 +971,9 @@ public sealed unsafe class StageRenderer:IDisposable {
             Shader4ComponentMapping=(uint)TerraFX.Interop.DirectX.D3D12.D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
         };
         ShadowSrvDesc.Texture2D.MipLevels=1;
-        for(var I=0;I<MaterialCount;I++){
-            D3D12_CPU_DESCRIPTOR_HANDLE Handle=new(SrvHeapStart,(I*4)+3,SrvDescriptorSize);
-            Device.Device->CreateShaderResourceView(ShadowMap,&ShadowSrvDesc,Handle);
+        for(var I=0;I< this.MaterialCount;I++){
+            D3D12_CPU_DESCRIPTOR_HANDLE Handle=new(SrvHeapStart,(I*4)+3, this.SrvDescriptorSize);
+            this.Device.Device->CreateShaderResourceView(this.ShadowMap,&ShadowSrvDesc,Handle);
         }
     }
 
@@ -1008,20 +990,18 @@ public sealed unsafe class StageRenderer:IDisposable {
 
         D3D12_HEAP_PROPERTIES DefaultHeapProps=new(D3D12_HEAP_TYPE_DEFAULT);
         ID3D12Resource*Texture;
-        D3D12Diagnostics.EnsureSuccess(
-            Device!.Device->CreateCommittedResource(&DefaultHeapProps,D3D12_HEAP_FLAG_NONE,&TextureDesc,D3D12_RESOURCE_STATE_COPY_DEST,pOptimizedClearValue:null,__uuidof<ID3D12Resource>(),(void**)&Texture),
+        D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateCommittedResource(&DefaultHeapProps,D3D12_HEAP_FLAG_NONE,&TextureDesc,D3D12_RESOURCE_STATE_COPY_DEST,pOptimizedClearValue:null,__uuidof<ID3D12Resource>(),(void**)&Texture),
             "ID3D12Device::CreateCommittedResource","creating a material texture");
 
         D3D12_PLACED_SUBRESOURCE_FOOTPRINT Footprint;
         ulong TotalBytes;
-        Device.Device->GetCopyableFootprints(&TextureDesc,0,1,0,&Footprint,null,null,&TotalBytes);
+        this.Device.Device->GetCopyableFootprints(&TextureDesc,0,1,0,&Footprint,null,null,&TotalBytes);
 
         D3D12_HEAP_PROPERTIES UploadHeapProps=new(D3D12_HEAP_TYPE_UPLOAD);
         D3D12_RESOURCE_DESC StagingDesc=D3D12_RESOURCE_DESC.Buffer(TotalBytes);
 
         ID3D12Resource*Staging;
-        D3D12Diagnostics.EnsureSuccess(
-            Device.Device->CreateCommittedResource(&UploadHeapProps,D3D12_HEAP_FLAG_NONE,&StagingDesc,D3D12_RESOURCE_STATE_GENERIC_READ,pOptimizedClearValue:null,__uuidof<ID3D12Resource>(),(void**)&Staging),
+        D3D12Diagnostics.EnsureSuccess(this.Device.Device->CreateCommittedResource(&UploadHeapProps,D3D12_HEAP_FLAG_NONE,&StagingDesc,D3D12_RESOURCE_STATE_GENERIC_READ,pOptimizedClearValue:null,__uuidof<ID3D12Resource>(),(void**)&Staging),
             "ID3D12Device::CreateCommittedResource","creating a material texture upload staging buffer");
 
         try {
@@ -1041,24 +1021,24 @@ public sealed unsafe class StageRenderer:IDisposable {
             }
             Staging->Unmap(0,null);
 
-            D3D12Diagnostics.EnsureSuccess(CommandAllocators[0]->Reset(),"ID3D12CommandAllocator::Reset","resetting the allocator for a material texture upload");
-            D3D12Diagnostics.EnsureSuccess(CommandList->Reset(CommandAllocators[0],null),"ID3D12GraphicsCommandList::Reset","resetting the command list for a material texture upload");
+            D3D12Diagnostics.EnsureSuccess(this.CommandAllocators[0]->Reset(),"ID3D12CommandAllocator::Reset","resetting the allocator for a material texture upload");
+            D3D12Diagnostics.EnsureSuccess(this.CommandList->Reset(this.CommandAllocators[0],null),"ID3D12GraphicsCommandList::Reset","resetting the command list for a material texture upload");
 
             D3D12_TEXTURE_COPY_LOCATION Dst=new(){ pResource=Texture,Type=D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX };
             Dst.SubresourceIndex=0;
             D3D12_TEXTURE_COPY_LOCATION Src=new(){ pResource=Staging,Type=D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT };
             Src.PlacedFootprint=Footprint;
-            CommandList->CopyTextureRegion(&Dst,0,0,0,&Src,null);
+            this.CommandList->CopyTextureRegion(&Dst,0,0,0,&Src,null);
 
             D3D12_RESOURCE_BARRIER ToShaderResource=D3D12_RESOURCE_BARRIER.InitTransition(Texture,D3D12_RESOURCE_STATE_COPY_DEST,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-            CommandList->ResourceBarrier(1,&ToShaderResource);
+            this.CommandList->ResourceBarrier(1,&ToShaderResource);
 
-            D3D12Diagnostics.EnsureSuccess(CommandList->Close(),"ID3D12GraphicsCommandList::Close","closing a material texture upload command list");
+            D3D12Diagnostics.EnsureSuccess(this.CommandList->Close(),"ID3D12GraphicsCommandList::Close","closing a material texture upload command list");
 
-            ID3D12CommandList*CommandListBase=(ID3D12CommandList*)CommandList;
-            Device.CommandQueue->ExecuteCommandLists(1,&CommandListBase);
+            ID3D12CommandList*CommandListBase=(ID3D12CommandList*)this.CommandList;
+            this.Device.CommandQueue->ExecuteCommandLists(1,&CommandListBase);
 
-            WaitForGpuIdle();
+            this.WaitForGpuIdle();
         } finally {
             _=Staging->Release();
         }
@@ -1076,29 +1056,29 @@ public sealed unsafe class StageRenderer:IDisposable {
     }
 
     private void CreateObjectMappings(IReadOnlyList<StageObjectCreateInfo>Objects){
-        ObjectCount=Objects.Count;
-        ObjectMeshIndices=new int[ObjectCount];
-        ObjectMaterialIndices=new int[ObjectCount];
-        ObjectTransforms=new Matrix4x4[ObjectCount];
+        this.ObjectCount=Objects.Count;
+        this.ObjectMeshIndices=new int[this.ObjectCount];
+        this.ObjectMaterialIndices=new int[this.ObjectCount];
+        this.ObjectTransforms=new Matrix4x4[this.ObjectCount];
 
-        for(var I=0;I<ObjectCount;I++){
-            ObjectMeshIndices[I]=Objects[I].MeshIndex;
-            ObjectMaterialIndices[I]=Objects[I].MaterialIndex;
-            ObjectTransforms[I]=Matrix4x4.Identity;
+        for(var I=0;I< this.ObjectCount;I++){
+            this.ObjectMeshIndices[I]=Objects[I].MeshIndex;
+            this.ObjectMaterialIndices[I]=Objects[I].MaterialIndex;
+            this.ObjectTransforms[I]=Matrix4x4.Identity;
         }
     }
 
     private void CreateConstantBuffers(){
         var FrameBufferSize=FrameConstantsStride*FrameCount;
-        CreateUploadBuffer(FrameBufferSize,out FrameConstantsBuffer,out FrameConstantsMapped,"creating the frame constant buffer");
+        this.CreateUploadBuffer(FrameBufferSize,out this.FrameConstantsBuffer,out this.FrameConstantsMapped,"creating the frame constant buffer");
 
-        var ObjectBufferSize=ConstantAlignment*(uint)ObjectCount*FrameCount;
-        CreateUploadBuffer(ObjectBufferSize,out ObjectConstantsBuffer,out ObjectConstantsMapped,"creating the object constant buffer");
+        var ObjectBufferSize=ConstantAlignment*(uint)this.ObjectCount*FrameCount;
+        this.CreateUploadBuffer(ObjectBufferSize,out this.ObjectConstantsBuffer,out this.ObjectConstantsMapped,"creating the object constant buffer");
     }
 
     private void CreateShadowConstantsBuffer(){
         var ShadowBufferSize=ConstantAlignment*FrameCount;
-        CreateUploadBuffer(ShadowBufferSize,out ShadowConstantsBuffer,out ShadowConstantsMapped,nameof(CreateShadowConstantsBuffer));
+        this.CreateUploadBuffer(ShadowBufferSize,out this.ShadowConstantsBuffer,out this.ShadowConstantsMapped,nameof(this.CreateShadowConstantsBuffer));
     }
 
     private void CreateUploadBuffer(uint Size,out ID3D12Resource*Buffer,out byte*Mapped,string Context){
@@ -1106,8 +1086,7 @@ public sealed unsafe class StageRenderer:IDisposable {
         D3D12_RESOURCE_DESC BufferDesc=D3D12_RESOURCE_DESC.Buffer(Size);
 
         ID3D12Resource*Resource;
-        D3D12Diagnostics.EnsureSuccess(
-            Device!.Device->CreateCommittedResource(&HeapProps,D3D12_HEAP_FLAG_NONE,&BufferDesc,D3D12_RESOURCE_STATE_GENERIC_READ,pOptimizedClearValue:null,__uuidof<ID3D12Resource>(),(void**)&Resource),
+        D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateCommittedResource(&HeapProps,D3D12_HEAP_FLAG_NONE,&BufferDesc,D3D12_RESOURCE_STATE_GENERIC_READ,pOptimizedClearValue:null,__uuidof<ID3D12Resource>(),(void**)&Resource),
             "ID3D12Device::CreateCommittedResource",Context);
 
         D3D12_RANGE NoRead=new();
@@ -1128,16 +1107,16 @@ public sealed unsafe class StageRenderer:IDisposable {
         Camera DefaultCamera=Camera.CreateDefault(Vector3.Zero);
 
         for(uint Frame=0;Frame<FrameCount;Frame++){
-            WriteViewProjection(Frame,DefaultCamera.GetView()*DefaultCamera.GetProjection((float)Width/Height));
-            WriteCameraPosition(Frame,DefaultCamera.GetEyePosition());
-            WriteDirectionalLight(Frame,DefaultLightDirectionTowardLight,DefaultLightColor);
-            WriteAmbientLight(Frame,DefaultAmbientColor);
-            WriteFog(Frame,FogParams.None);
-            WriteShadowViewProjection(Frame,BuildShadowViewProjection(DefaultLightDirectionTowardLight));
-            WriteLightCounts(Frame); // D3D12 does not guarantee zero-initialized upload-heap memory; without this the very first frame could loop over garbage PointLights/SpotLights entries.
+            this.WriteViewProjection(Frame,DefaultCamera.GetView()*DefaultCamera.GetProjection((float)this.Width/ this.Height));
+            this.WriteCameraPosition(Frame,DefaultCamera.GetEyePosition());
+            this.WriteDirectionalLight(Frame,DefaultLightDirectionTowardLight,DefaultLightColor);
+            this.WriteAmbientLight(Frame,DefaultAmbientColor);
+            this.WriteFog(Frame,FogParams.None);
+            this.WriteShadowViewProjection(Frame,BuildShadowViewProjection(DefaultLightDirectionTowardLight));
+            this.WriteLightCounts(Frame); // D3D12 does not guarantee zero-initialized upload-heap memory; without this the very first frame could loop over garbage PointLights/SpotLights entries.
 
-            for(var ObjectIndex=0;ObjectIndex<ObjectCount;ObjectIndex++){
-                WriteObjectConstants(Frame,ObjectIndex);
+            for(var ObjectIndex=0;ObjectIndex< this.ObjectCount;ObjectIndex++){
+                this.WriteObjectConstants(Frame,ObjectIndex);
             }
         }
     }
@@ -1148,25 +1127,25 @@ public sealed unsafe class StageRenderer:IDisposable {
     /// slot (<see cref="FrameCount"/>) and only the current slot is written here.
     /// </summary>
     public void SetCamera(in Camera Camera,float AspectRatioOverride=0f){
-        var AspectRatio=AspectRatioOverride>0f?AspectRatioOverride:(float)Width/Height;
-        WriteViewProjection(FrameIndex,Camera.GetView()*Camera.GetProjection(AspectRatio));
-        WriteCameraPosition(FrameIndex,Camera.GetEyePosition());
+        var AspectRatio=AspectRatioOverride>0f?AspectRatioOverride:(float)this.Width/ this.Height;
+        this.WriteViewProjection(this.FrameIndex,Camera.GetView()*Camera.GetProjection(AspectRatio));
+        this.WriteCameraPosition(this.FrameIndex,Camera.GetEyePosition());
     }
 
     /// <summary>Sets the single data-driven directional light (sun) for the frame currently being built. <paramref name="DirectionTowardLight"/> points from the scene toward the light (i.e. the direction surfaces should face to be lit), not the direction light travels.</summary>
     public void SetDirectionalLight(Vector3 DirectionTowardLight,Vector3 Color,float Intensity){
-        WriteDirectionalLight(FrameIndex,DirectionTowardLight,Color*Intensity);
-        WriteShadowViewProjection(FrameIndex,BuildShadowViewProjection(DirectionTowardLight));
+        this.WriteDirectionalLight(this.FrameIndex,DirectionTowardLight,Color*Intensity);
+        this.WriteShadowViewProjection(this.FrameIndex,BuildShadowViewProjection(DirectionTowardLight));
     }
 
     /// <summary>Sets the flat ambient term (a stand-in for sky/indirect lighting) for the frame currently being built.</summary>
     public void SetAmbientLight(Vector3 Color){
-        WriteAmbientLight(FrameIndex,Color);
+        this.WriteAmbientLight(this.FrameIndex,Color);
     }
 
     /// <summary>Sets the simplified exponential height fog for the frame currently being built. Pass <see cref="FogParams.None"/> to disable it (zero density).</summary>
     public void SetFog(FogParams Fog){
-        WriteFog(FrameIndex,Fog);
+        this.WriteFog(this.FrameIndex,Fog);
     }
 
     /// <summary>
@@ -1178,14 +1157,14 @@ public sealed unsafe class StageRenderer:IDisposable {
     /// the next frame (no stale state to clear).
     /// </summary>
     public void AddPointLight(Vector3 Position,Vector3 Color,float Intensity,float Range){
-        if(PointLightCount>=MaxPointLights){
+        if(this.PointLightCount>=MaxPointLights){
             Debug.Assert(false, $"CGE-STAGE-LIGHT-001: exceeded MaxPointLights ({MaxPointLights}); extra point lights are silently dropped this frame.");
             return;
         }
 
-        WritePointLight(FrameIndex,PointLightCount,Position,Range,Color*Intensity);
-        PointLightCount++;
-        WriteLightCounts(FrameIndex);
+        this.WritePointLight(this.FrameIndex, this.PointLightCount,Position,Range,Color*Intensity);
+        this.PointLightCount++;
+        this.WriteLightCounts(this.FrameIndex);
     }
 
     /// <summary>
@@ -1197,54 +1176,54 @@ public sealed unsafe class StageRenderer:IDisposable {
     /// <see cref="AddPointLight"/> for the accumulate/reset contract.
     /// </summary>
     public void AddSpotLight(Vector3 Position,Vector3 Direction,Vector3 Color,float Intensity,float Range,float InnerConeAngleRadians,float OuterConeAngleRadians){
-        if(SpotLightCount>=MaxSpotLights){
+        if(this.SpotLightCount>=MaxSpotLights){
             Debug.Assert(false, $"CGE-STAGE-LIGHT-002: exceeded MaxSpotLights ({MaxSpotLights}); extra spot lights are silently dropped this frame.");
             return;
         }
 
-        WriteSpotLight(FrameIndex,SpotLightCount,Position,Range,Vector3.Normalize(Direction),MathF.Cos(InnerConeAngleRadians),Color*Intensity,MathF.Cos(OuterConeAngleRadians));
-        SpotLightCount++;
-        WriteLightCounts(FrameIndex);
+        this.WriteSpotLight(this.FrameIndex, this.SpotLightCount,Position,Range,Vector3.Normalize(Direction),MathF.Cos(InnerConeAngleRadians),Color*Intensity,MathF.Cos(OuterConeAngleRadians));
+        this.SpotLightCount++;
+        this.WriteLightCounts(this.FrameIndex);
     }
 
     /// <summary>Sets the world transform for one object for the frame currently being built (see <see cref="SetCamera"/> for the per-frame-slot contract).</summary>
     public void SetObjectTransform(int ObjectIndex,Matrix4x4 World){
-        if(ObjectIndex<0||ObjectIndex>=ObjectCount){
+        if(ObjectIndex<0||ObjectIndex>= this.ObjectCount){
             throw new ArgumentOutOfRangeException(nameof(ObjectIndex));
         }
 
-        ObjectTransforms[ObjectIndex]=World;
-        WriteObjectConstants(FrameIndex,ObjectIndex);
+        this.ObjectTransforms[ObjectIndex]=World;
+        this.WriteObjectConstants(this.FrameIndex,ObjectIndex);
     }
 
-    private byte*FrameSlot(uint FrameIndex)=>FrameConstantsMapped+(FrameIndex*FrameConstantsStride);
+    private byte*FrameSlot(uint FrameIndex)=> this.FrameConstantsMapped+(FrameIndex*FrameConstantsStride);
 
     private void WriteViewProjection(uint FrameIndex,Matrix4x4 ViewProjection){
-        Unsafe.CopyBlock(FrameSlot(FrameIndex)+FrameViewProjectionOffset,&ViewProjection,(uint)sizeof(Matrix4x4));
+        Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameViewProjectionOffset,&ViewProjection,(uint)sizeof(Matrix4x4));
     }
 
     private void WriteCameraPosition(uint FrameIndex,Vector3 CameraPosition){
         Vector4 Packed=new(CameraPosition,0f);
-        Unsafe.CopyBlock(FrameSlot(FrameIndex)+FrameCameraPositionOffset,&Packed,(uint)sizeof(Vector4));
+        Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameCameraPositionOffset,&Packed,(uint)sizeof(Vector4));
     }
 
     private void WriteDirectionalLight(uint FrameIndex,Vector3 DirectionTowardLight,Vector3 ColorTimesIntensity){
         Vector4 Direction=new(Vector3.Normalize(DirectionTowardLight),0f);
         Vector4 Color=new(ColorTimesIntensity,0f);
-        Unsafe.CopyBlock(FrameSlot(FrameIndex)+FrameLightDirectionOffset,&Direction,(uint)sizeof(Vector4));
-        Unsafe.CopyBlock(FrameSlot(FrameIndex)+FrameLightColorOffset,&Color,(uint)sizeof(Vector4));
+        Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameLightDirectionOffset,&Direction,(uint)sizeof(Vector4));
+        Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameLightColorOffset,&Color,(uint)sizeof(Vector4));
     }
 
     private void WriteAmbientLight(uint FrameIndex,Vector3 Color){
         Vector4 Packed=new(Color,0f);
-        Unsafe.CopyBlock(FrameSlot(FrameIndex)+FrameAmbientColorOffset,&Packed,(uint)sizeof(Vector4));
+        Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameAmbientColorOffset,&Packed,(uint)sizeof(Vector4));
     }
 
     private void WriteFog(uint FrameIndex,FogParams Fog){
         Vector4 FogParams0=new(Fog.Density,Fog.HeightFalloff,0f,0f);
         Vector4 FogColor=new(Fog.Color,0f);
-        Unsafe.CopyBlock(FrameSlot(FrameIndex)+FrameFogParamsOffset,&FogParams0,(uint)sizeof(Vector4));
-        Unsafe.CopyBlock(FrameSlot(FrameIndex)+FrameFogColorOffset,&FogColor,(uint)sizeof(Vector4));
+        Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameFogParamsOffset,&FogParams0,(uint)sizeof(Vector4));
+        Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameFogColorOffset,&FogColor,(uint)sizeof(Vector4));
     }
 
     private static Matrix4x4 BuildShadowViewProjection(Vector3 DirectionTowardLight){
@@ -1254,13 +1233,13 @@ public sealed unsafe class StageRenderer:IDisposable {
     }
 
     private void WriteShadowViewProjection(uint FrameIndex,Matrix4x4 ShadowViewProjection){
-        Unsafe.CopyBlock(FrameSlot(FrameIndex)+FrameShadowViewProjectionOffset,&ShadowViewProjection,(uint)sizeof(Matrix4x4));
-        Unsafe.CopyBlock(ShadowConstantsMapped+(FrameIndex*ConstantAlignment),&ShadowViewProjection,(uint)sizeof(Matrix4x4));
+        Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameShadowViewProjectionOffset,&ShadowViewProjection,(uint)sizeof(Matrix4x4));
+        Unsafe.CopyBlock(this.ShadowConstantsMapped+(FrameIndex*ConstantAlignment),&ShadowViewProjection,(uint)sizeof(Matrix4x4));
     }
 
     /// <summary>Writes Stage.hlsl's PointLightData[index] (2 float4: position+range, color*intensity).</summary>
     private void WritePointLight(uint FrameIndex,int Index,Vector3 Position,float Range,Vector3 ColorTimesIntensity){
-        var Destination=FrameSlot(FrameIndex)+FramePointLightsOffset+((uint)Index*PointLightStride);
+        var Destination= this.FrameSlot(FrameIndex)+FramePointLightsOffset+((uint)Index*PointLightStride);
         Vector4 PositionAndRange=new(Position,Range);
         Vector4 ColorPacked=new(ColorTimesIntensity,0f);
         Unsafe.CopyBlock(Destination,&PositionAndRange,(uint)sizeof(Vector4));
@@ -1269,7 +1248,7 @@ public sealed unsafe class StageRenderer:IDisposable {
 
     /// <summary>Writes Stage.hlsl's SpotLightData[index] (3 float4: position+range, direction+innerCos, color*intensity+outerCos).</summary>
     private void WriteSpotLight(uint FrameIndex,int Index,Vector3 Position,float Range,Vector3 Direction,float InnerConeCos,Vector3 ColorTimesIntensity,float OuterConeCos){
-        var Destination=FrameSlot(FrameIndex)+FrameSpotLightsOffset+((uint)Index*SpotLightStride);
+        var Destination= this.FrameSlot(FrameIndex)+FrameSpotLightsOffset+((uint)Index*SpotLightStride);
         Vector4 PositionAndRange=new(Position,Range);
         Vector4 DirectionAndInnerCos=new(Direction,InnerConeCos);
         Vector4 ColorAndOuterCos=new(ColorTimesIntensity,OuterConeCos);
@@ -1280,249 +1259,248 @@ public sealed unsafe class StageRenderer:IDisposable {
 
     /// <summary>Writes Stage.hlsl's FrameCB.LightCounts (int4: x=active point lights, y=active spot lights).</summary>
     private void WriteLightCounts(uint FrameIndex){
-        var Counts=stackalloc int[4]{ PointLightCount,SpotLightCount,0,0 };
-        Unsafe.CopyBlock(FrameSlot(FrameIndex)+FrameLightCountsOffset,Counts,16);
+        var Counts=stackalloc int[4]{ this.PointLightCount, this.SpotLightCount,0,0 };
+        Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameLightCountsOffset,Counts,16);
     }
 
     private void WriteObjectConstants(uint FrameIndex,int ObjectIndex){
-        var Slot=((ulong)FrameIndex*(ulong)ObjectCount)+(ulong)ObjectIndex;
-        var Destination=ObjectConstantsMapped+(Slot*ConstantAlignment);
+        var Slot=((ulong)FrameIndex*(ulong)this.ObjectCount)+(ulong)ObjectIndex;
+        var Destination= this.ObjectConstantsMapped+(Slot*ConstantAlignment);
 
-        Matrix4x4 World=ObjectTransforms[ObjectIndex];
+        Matrix4x4 World= this.ObjectTransforms[ObjectIndex];
         Unsafe.CopyBlock(Destination+ObjectWorldOffset,&World,(uint)sizeof(Matrix4x4));
 
-        var MaterialIndex=ObjectMaterialIndices[ObjectIndex];
-        Vector4 BaseColorFactor=MaterialBaseColorFactors[MaterialIndex];
+        var MaterialIndex= this.ObjectMaterialIndices[ObjectIndex];
+        Vector4 BaseColorFactor= this.MaterialBaseColorFactors[MaterialIndex];
         Unsafe.CopyBlock(Destination+ObjectBaseColorFactorOffset,&BaseColorFactor,(uint)sizeof(Vector4));
 
-        Vector4 MaterialParams=new(MaterialRoughnessFactors[MaterialIndex],MaterialMetallicFactors[MaterialIndex],0f,0f);
+        Vector4 MaterialParams=new(this.MaterialRoughnessFactors[MaterialIndex], this.MaterialMetallicFactors[MaterialIndex],0f,0f);
         Unsafe.CopyBlock(Destination+ObjectMaterialParamsOffset,&MaterialParams,(uint)sizeof(Vector4));
 
-        Vector4 EmissiveFactor=new(MaterialEmissiveFactors[MaterialIndex],1f);
+        Vector4 EmissiveFactor=new(this.MaterialEmissiveFactors[MaterialIndex],1f);
         Unsafe.CopyBlock(Destination+ObjectEmissiveFactorOffset,&EmissiveFactor,(uint)sizeof(Vector4));
     }
 
     private ulong GetFrameConstantsAddress(uint FrameIndex){
-        return FrameConstantsBuffer->GetGPUVirtualAddress()+(FrameIndex*FrameConstantsStride);
+        return this.FrameConstantsBuffer->GetGPUVirtualAddress()+(FrameIndex*FrameConstantsStride);
     }
 
     private ulong GetObjectConstantsAddress(uint FrameIndex,int ObjectIndex){
-        var Slot=((ulong)FrameIndex*(ulong)ObjectCount)+(ulong)ObjectIndex;
-        return ObjectConstantsBuffer->GetGPUVirtualAddress()+(Slot*ConstantAlignment);
+        var Slot=((ulong)FrameIndex*(ulong)this.ObjectCount)+(ulong)ObjectIndex;
+        return this.ObjectConstantsBuffer->GetGPUVirtualAddress()+(Slot*ConstantAlignment);
     }
 
-    private ulong GetShadowConstantsAddress(uint FrameIndex)=>
-        ShadowConstantsBuffer->GetGPUVirtualAddress()+(FrameIndex*ConstantAlignment);
+    private ulong GetShadowConstantsAddress(uint FrameIndex)=> this.ShadowConstantsBuffer->GetGPUVirtualAddress()+(FrameIndex*ConstantAlignment);
 
     private D3D12_GPU_DESCRIPTOR_HANDLE GetMaterialDescriptorTable(int MaterialIndex){
-        return new D3D12_GPU_DESCRIPTOR_HANDLE(SrvHeap->GetGPUDescriptorHandleForHeapStart(),MaterialIndex*4,SrvDescriptorSize);
+        return new D3D12_GPU_DESCRIPTOR_HANDLE(this.SrvHeap->GetGPUDescriptorHandleForHeapStart(),MaterialIndex*4, this.SrvDescriptorSize);
     }
 
     private void UpdateViewportAndScissor(int Width,int Height){
-        Viewport=new D3D12_VIEWPORT {
-            TopLeftX=0,
-            TopLeftY=0,
-            Width=Width,
-            Height=Height,
-            MinDepth=0.0f,
-            MaxDepth=1.0f,
-        };
+        this.Viewport=new D3D12_VIEWPORT {
+                                             TopLeftX=0,
+                                             TopLeftY=0,
+                                             Width=Width,
+                                             Height=Height,
+                                             MinDepth=0.0f,
+                                             MaxDepth=1.0f,
+                                         };
 
-        ScissorRect=new RECT { left=0,top=0,right=Width,bottom=Height };
+        this.ScissorRect=new RECT { left=0,top=0,right=Width,bottom=Height };
         this.Width=Width;
         this.Height=Height;
     }
 
     public void Resize(int Width,int Height){
         if(Width<=0||Height<=0){
-            SizeIsZero=true;
+            this.SizeIsZero=true;
             return;
         }
 
-        SizeIsZero=false;
+        this.SizeIsZero=false;
 
         if(this.Width==Width&&this.Height==Height){
             return;
         }
 
-        WaitForGpuIdle();
+        this.WaitForGpuIdle();
 
         // See ModelRenderer.Resize / ADR-0003 §8: ResizeBuffers restarts the swap chain's
         // back-buffer index cycle, which would otherwise desynchronize the per-slot fence values.
-        var SyncedFenceValue=FenceValues[FrameIndex];
+        var SyncedFenceValue= this.FenceValues[this.FrameIndex];
         for(var I=0;I<FrameCount;I++){
-            FenceValues[I]=SyncedFenceValue;
+            this.FenceValues[I]=SyncedFenceValue;
         }
 
         for(var I=0;I<FrameCount;I++){
-            if(BackBuffers[I]!=null){
-                _=BackBuffers[I]->Release();
-                BackBuffers[I]=null;
+            if(this.BackBuffers[I]!=null){
+                _= this.BackBuffers[I]->Release();
+                this.BackBuffers[I]=null;
             }
         }
 
-        ReleaseReadbackBuffer();
+        this.ReleaseReadbackBuffer();
 
-        if(DepthBuffer!=null){
-            _=DepthBuffer->Release();
-            DepthBuffer=null;
+        if(this.DepthBuffer!=null){
+            _= this.DepthBuffer->Release();
+            this.DepthBuffer=null;
         }
 
-        if(HdrColorBuffer!=null){
-            _=HdrColorBuffer->Release();
-            HdrColorBuffer=null;
+        if(this.HdrColorBuffer!=null){
+            _= this.HdrColorBuffer->Release();
+            this.HdrColorBuffer=null;
         }
 
-        D3D12Diagnostics.EnsureSuccess(
-            SwapChain->ResizeBuffers(FrameCount,(uint)Width,(uint)Height,BackBufferFormat,0),
+        D3D12Diagnostics.EnsureSuccess(this.SwapChain->ResizeBuffers(FrameCount,(uint)Width,(uint)Height,BackBufferFormat,0),
             "IDXGISwapChain3::ResizeBuffers","resizing the swap chain");
 
-        CreateRenderTargetViews();
-        CreateDepthBuffer(Width,Height);
-        CreateHdrColorBuffer(Width,Height);
-        FrameIndex=SwapChain->GetCurrentBackBufferIndex();
-        UpdateViewportAndScissor(Width,Height);
+        this.CreateRenderTargetViews();
+        this.CreateDepthBuffer(Width,Height);
+        this.CreateHdrColorBuffer(Width,Height);
+        this.FrameIndex= this.SwapChain->GetCurrentBackBufferIndex();
+        this.UpdateViewportAndScissor(Width,Height);
     }
 
     private void RenderShadowPass(){
-        D3D12_RESOURCE_BARRIER ToDepth=D3D12_RESOURCE_BARRIER.InitTransition(ShadowMap,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_DEPTH_WRITE);
-        CommandList->ResourceBarrier(1,&ToDepth);
-        D3D12_CPU_DESCRIPTOR_HANDLE ShadowDsv=new(DsvHeap->GetCPUDescriptorHandleForHeapStart(),1,DsvDescriptorSize);
-        CommandList->OMSetRenderTargets(0,null,FALSE,&ShadowDsv);
-        CommandList->ClearDepthStencilView(ShadowDsv,D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH,1.0f,0,0,null);
-        CommandList->SetGraphicsRootSignature(ShadowRootSignature);
-        CommandList->SetPipelineState(ShadowPipelineState);
-        CommandList->SetGraphicsRootConstantBufferView(0,GetShadowConstantsAddress(FrameIndex));
+        D3D12_RESOURCE_BARRIER ToDepth=D3D12_RESOURCE_BARRIER.InitTransition(this.ShadowMap,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_DEPTH_WRITE);
+        this.CommandList->ResourceBarrier(1,&ToDepth);
+        D3D12_CPU_DESCRIPTOR_HANDLE ShadowDsv=new(this.DsvHeap->GetCPUDescriptorHandleForHeapStart(),1, this.DsvDescriptorSize);
+        this.CommandList->OMSetRenderTargets(0,null,FALSE,&ShadowDsv);
+        this.CommandList->ClearDepthStencilView(ShadowDsv,D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH,1.0f,0,0,null);
+        this.CommandList->SetGraphicsRootSignature(this.ShadowRootSignature);
+        this.CommandList->SetPipelineState(this.ShadowPipelineState);
+        this.CommandList->SetGraphicsRootConstantBufferView(0, this.GetShadowConstantsAddress(this.FrameIndex));
         D3D12_VIEWPORT ShadowViewport=new(){ Width=ShadowMapResolution,Height=ShadowMapResolution,MinDepth=0f,MaxDepth=1f };
         RECT ShadowScissor=new(){ left=0,top=0,right=ShadowMapResolution,bottom=ShadowMapResolution };
-        CommandList->RSSetViewports(1,&ShadowViewport);
-        CommandList->RSSetScissorRects(1,&ShadowScissor);
-        CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        for(var I=0;I<ObjectCount;I++){
-            var MeshIndex=ObjectMeshIndices[I];
-            CommandList->SetGraphicsRootConstantBufferView(1,GetObjectConstantsAddress(FrameIndex,I));
-            fixed(D3D12_VERTEX_BUFFER_VIEW*PVertexBufferView=&VertexBufferViews[MeshIndex])
-            fixed(D3D12_INDEX_BUFFER_VIEW*PIndexBufferView=&IndexBufferViews[MeshIndex]){
-                CommandList->IASetVertexBuffers(0,1,PVertexBufferView);
-                CommandList->IASetIndexBuffer(PIndexBufferView);
-                CommandList->DrawIndexedInstanced(IndexCounts[MeshIndex],1,0,0,0);
+        this.CommandList->RSSetViewports(1,&ShadowViewport);
+        this.CommandList->RSSetScissorRects(1,&ShadowScissor);
+        this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        for(var I=0;I< this.ObjectCount;I++){
+            var MeshIndex= this.ObjectMeshIndices[I];
+            this.CommandList->SetGraphicsRootConstantBufferView(1, this.GetObjectConstantsAddress(this.FrameIndex,I));
+            fixed(D3D12_VERTEX_BUFFER_VIEW*PVertexBufferView=&this.VertexBufferViews[MeshIndex])
+            fixed(D3D12_INDEX_BUFFER_VIEW*PIndexBufferView=&this.IndexBufferViews[MeshIndex]){
+                this.CommandList->IASetVertexBuffers(0,1,PVertexBufferView);
+                this.CommandList->IASetIndexBuffer(PIndexBufferView);
+                this.CommandList->DrawIndexedInstanced(this.IndexCounts[MeshIndex],1,0,0,0);
             }
         }
-        D3D12_RESOURCE_BARRIER ToShader=D3D12_RESOURCE_BARRIER.InitTransition(ShadowMap,D3D12_RESOURCE_STATE_DEPTH_WRITE,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-        CommandList->ResourceBarrier(1,&ToShader);
+        D3D12_RESOURCE_BARRIER ToShader=D3D12_RESOURCE_BARRIER.InitTransition(this.ShadowMap,D3D12_RESOURCE_STATE_DEPTH_WRITE,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+        this.CommandList->ResourceBarrier(1,&ToShader);
     }
 
     public void RenderFrame(bool CaptureForVerification=false){
-        if(SizeIsZero){
+        if(this.SizeIsZero){
             return;
         }
 
-        ID3D12CommandAllocator*Allocator=CommandAllocators[FrameIndex];
+        ID3D12CommandAllocator*Allocator= this.CommandAllocators[this.FrameIndex];
         D3D12Diagnostics.EnsureSuccess(Allocator->Reset(),"ID3D12CommandAllocator::Reset","resetting the frame command allocator");
-        D3D12Diagnostics.EnsureSuccess(CommandList->Reset(Allocator,PipelineState),"ID3D12GraphicsCommandList::Reset","resetting the graphics command list");
+        D3D12Diagnostics.EnsureSuccess(this.CommandList->Reset(Allocator, this.PipelineState),"ID3D12GraphicsCommandList::Reset","resetting the graphics command list");
 
-        RenderShadowPass();
+        this.RenderShadowPass();
 
-        ID3D12Resource*BackBuffer=BackBuffers[FrameIndex];
+        ID3D12Resource*BackBuffer= this.BackBuffers[this.FrameIndex];
 
-        D3D12_RESOURCE_BARRIER ToHdrRenderTarget=D3D12_RESOURCE_BARRIER.InitTransition(HdrColorBuffer,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_RENDER_TARGET);
-        CommandList->ResourceBarrier(1,&ToHdrRenderTarget);
+        D3D12_RESOURCE_BARRIER ToHdrRenderTarget=D3D12_RESOURCE_BARRIER.InitTransition(this.HdrColorBuffer,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_RENDER_TARGET);
+        this.CommandList->ResourceBarrier(1,&ToHdrRenderTarget);
 
-        D3D12_CPU_DESCRIPTOR_HANDLE HdrRtvHandle=new(RtvHeap->GetCPUDescriptorHandleForHeapStart(),FrameCount,RtvDescriptorSize);
-        D3D12_CPU_DESCRIPTOR_HANDLE DsvHandle=DsvHeap->GetCPUDescriptorHandleForHeapStart();
-        CommandList->OMSetRenderTargets(1,&HdrRtvHandle,FALSE,&DsvHandle);
+        D3D12_CPU_DESCRIPTOR_HANDLE HdrRtvHandle=new(this.RtvHeap->GetCPUDescriptorHandleForHeapStart(),FrameCount, this.RtvDescriptorSize);
+        D3D12_CPU_DESCRIPTOR_HANDLE DsvHandle= this.DsvHeap->GetCPUDescriptorHandleForHeapStart();
+        this.CommandList->OMSetRenderTargets(1,&HdrRtvHandle,FALSE,&DsvHandle);
 
         Vector4 ClearColor=ClearColorVector;
-        CommandList->ClearRenderTargetView(HdrRtvHandle,(float*)&ClearColor,0,null);
-        CommandList->ClearDepthStencilView(DsvHandle,D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH,1.0f,0,0,null);
+        this.CommandList->ClearRenderTargetView(HdrRtvHandle,(float*)&ClearColor,0,null);
+        this.CommandList->ClearDepthStencilView(DsvHandle,D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH,1.0f,0,0,null);
 
-        CommandList->SetGraphicsRootSignature(RootSignature);
-        CommandList->SetPipelineState(PipelineState);
+        this.CommandList->SetGraphicsRootSignature(this.RootSignature);
+        this.CommandList->SetPipelineState(this.PipelineState);
 
         ID3D12DescriptorHeap*SrvHeap=this.SrvHeap;
-        CommandList->SetDescriptorHeaps(1,&SrvHeap);
-        CommandList->SetGraphicsRootConstantBufferView(0,GetFrameConstantsAddress(FrameIndex));
+        this.CommandList->SetDescriptorHeaps(1,&SrvHeap);
+        this.CommandList->SetGraphicsRootConstantBufferView(0, this.GetFrameConstantsAddress(this.FrameIndex));
 
-        fixed(D3D12_VIEWPORT*PViewport=&Viewport)
-        fixed(RECT*PScissorRect=&ScissorRect){
-            CommandList->RSSetViewports(1,PViewport);
-            CommandList->RSSetScissorRects(1,PScissorRect);
+        fixed(D3D12_VIEWPORT*PViewport=&this.Viewport)
+        fixed(RECT*PScissorRect=&this.ScissorRect){
+            this.CommandList->RSSetViewports(1,PViewport);
+            this.CommandList->RSSetScissorRects(1,PScissorRect);
         }
 
-        CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-        for(var I=0;I<ObjectCount;I++){
-            var MeshIndex=ObjectMeshIndices[I];
-            CommandList->SetGraphicsRootConstantBufferView(1,GetObjectConstantsAddress(FrameIndex,I));
-            CommandList->SetGraphicsRootDescriptorTable(2,GetMaterialDescriptorTable(ObjectMaterialIndices[I]));
+        for(var I=0;I< this.ObjectCount;I++){
+            var MeshIndex= this.ObjectMeshIndices[I];
+            this.CommandList->SetGraphicsRootConstantBufferView(1, this.GetObjectConstantsAddress(this.FrameIndex,I));
+            this.CommandList->SetGraphicsRootDescriptorTable(2, this.GetMaterialDescriptorTable(this.ObjectMaterialIndices[I]));
 
-            fixed(D3D12_VERTEX_BUFFER_VIEW*PVertexBufferView=&VertexBufferViews[MeshIndex])
-            fixed(D3D12_INDEX_BUFFER_VIEW*PIndexBufferView=&IndexBufferViews[MeshIndex]){
-                CommandList->IASetVertexBuffers(0,1,PVertexBufferView);
-                CommandList->IASetIndexBuffer(PIndexBufferView);
-                CommandList->DrawIndexedInstanced(IndexCounts[MeshIndex],1,0,0,0);
+            fixed(D3D12_VERTEX_BUFFER_VIEW*PVertexBufferView=&this.VertexBufferViews[MeshIndex])
+            fixed(D3D12_INDEX_BUFFER_VIEW*PIndexBufferView=&this.IndexBufferViews[MeshIndex]){
+                this.CommandList->IASetVertexBuffers(0,1,PVertexBufferView);
+                this.CommandList->IASetIndexBuffer(PIndexBufferView);
+                this.CommandList->DrawIndexedInstanced(this.IndexCounts[MeshIndex],1,0,0,0);
             }
         }
 
-        D3D12_RESOURCE_BARRIER ToHdrShaderResource=D3D12_RESOURCE_BARRIER.InitTransition(HdrColorBuffer,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-        CommandList->ResourceBarrier(1,&ToHdrShaderResource);
+        D3D12_RESOURCE_BARRIER ToHdrShaderResource=D3D12_RESOURCE_BARRIER.InitTransition(this.HdrColorBuffer,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+        this.CommandList->ResourceBarrier(1,&ToHdrShaderResource);
 
         D3D12_RESOURCE_BARRIER ToBackBufferRenderTarget=D3D12_RESOURCE_BARRIER.InitTransition(BackBuffer,D3D12_RESOURCE_STATE_PRESENT,D3D12_RESOURCE_STATE_RENDER_TARGET);
-        CommandList->ResourceBarrier(1,&ToBackBufferRenderTarget);
-        D3D12_CPU_DESCRIPTOR_HANDLE RtvHandle=new(RtvHeap->GetCPUDescriptorHandleForHeapStart(),(int)FrameIndex,RtvDescriptorSize);
-        CommandList->OMSetRenderTargets(1,&RtvHandle,FALSE,null);
-        CommandList->SetGraphicsRootSignature(PostProcessRootSignature);
-        CommandList->SetPipelineState(PostProcessPipelineState);
-        ID3D12DescriptorHeap*PostSrvHeap=HdrSrvHeap;
-        CommandList->SetDescriptorHeaps(1,&PostSrvHeap);
-        CommandList->SetGraphicsRootDescriptorTable(0,HdrSrvHeap->GetGPUDescriptorHandleForHeapStart());
-        fixed(D3D12_VIEWPORT*PViewport=&Viewport)
-        fixed(RECT*PScissorRect=&ScissorRect){
-            CommandList->RSSetViewports(1,PViewport);
-            CommandList->RSSetScissorRects(1,PScissorRect);
+        this.CommandList->ResourceBarrier(1,&ToBackBufferRenderTarget);
+        D3D12_CPU_DESCRIPTOR_HANDLE RtvHandle=new(this.RtvHeap->GetCPUDescriptorHandleForHeapStart(),(int)this.FrameIndex, this.RtvDescriptorSize);
+        this.CommandList->OMSetRenderTargets(1,&RtvHandle,FALSE,null);
+        this.CommandList->SetGraphicsRootSignature(this.PostProcessRootSignature);
+        this.CommandList->SetPipelineState(this.PostProcessPipelineState);
+        ID3D12DescriptorHeap*PostSrvHeap= this.HdrSrvHeap;
+        this.CommandList->SetDescriptorHeaps(1,&PostSrvHeap);
+        this.CommandList->SetGraphicsRootDescriptorTable(0, this.HdrSrvHeap->GetGPUDescriptorHandleForHeapStart());
+        fixed(D3D12_VIEWPORT*PViewport=&this.Viewport)
+        fixed(RECT*PScissorRect=&this.ScissorRect){
+            this.CommandList->RSSetViewports(1,PViewport);
+            this.CommandList->RSSetScissorRects(1,PScissorRect);
         }
-        CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        CommandList->DrawInstanced(3,1,0,0);
+
+        this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        this.CommandList->DrawInstanced(3,1,0,0);
 
         if(CaptureForVerification){
-            EnsureReadbackBuffer();
+            this.EnsureReadbackBuffer();
 
             D3D12_RESOURCE_BARRIER ToCopySource=D3D12_RESOURCE_BARRIER.InitTransition(BackBuffer,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_COPY_SOURCE);
-            CommandList->ResourceBarrier(1,&ToCopySource);
+            this.CommandList->ResourceBarrier(1,&ToCopySource);
 
-            D3D12_TEXTURE_COPY_LOCATION Dst=new(){ pResource=ReadbackBuffer,Type=D3D12_TEXTURE_COPY_TYPE.D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT };
-            Dst.PlacedFootprint=ReadbackFootprint;
+            D3D12_TEXTURE_COPY_LOCATION Dst=new(){ pResource= this.ReadbackBuffer,Type=D3D12_TEXTURE_COPY_TYPE.D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT };
+            Dst.PlacedFootprint= this.ReadbackFootprint;
             D3D12_TEXTURE_COPY_LOCATION Src=new(){ pResource=BackBuffer,Type=D3D12_TEXTURE_COPY_TYPE.D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX };
             Src.SubresourceIndex=0;
-            CommandList->CopyTextureRegion(&Dst,0,0,0,&Src,null);
+            this.CommandList->CopyTextureRegion(&Dst,0,0,0,&Src,null);
 
             D3D12_RESOURCE_BARRIER ToPresent=D3D12_RESOURCE_BARRIER.InitTransition(BackBuffer,D3D12_RESOURCE_STATE_COPY_SOURCE,D3D12_RESOURCE_STATE_PRESENT);
-            CommandList->ResourceBarrier(1,&ToPresent);
+            this.CommandList->ResourceBarrier(1,&ToPresent);
         } else {
             D3D12_RESOURCE_BARRIER ToPresent=D3D12_RESOURCE_BARRIER.InitTransition(BackBuffer,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_PRESENT);
-            CommandList->ResourceBarrier(1,&ToPresent);
+            this.CommandList->ResourceBarrier(1,&ToPresent);
         }
 
-        D3D12Diagnostics.EnsureSuccess(CommandList->Close(),"ID3D12GraphicsCommandList::Close","closing the frame command list");
+        D3D12Diagnostics.EnsureSuccess(this.CommandList->Close(),"ID3D12GraphicsCommandList::Close","closing the frame command list");
 
-        ID3D12CommandList*CommandListBase=(ID3D12CommandList*)CommandList;
-        Device!.CommandQueue->ExecuteCommandLists(1,&CommandListBase);
+        ID3D12CommandList*CommandListBase=(ID3D12CommandList*)this.CommandList;
+        this.Device!.CommandQueue->ExecuteCommandLists(1,&CommandListBase);
 
-        D3D12Diagnostics.EnsureSuccess(SwapChain->Present(1,0),"IDXGISwapChain3::Present","presenting the frame");
+        D3D12Diagnostics.EnsureSuccess(this.SwapChain->Present(1,0),"IDXGISwapChain3::Present","presenting the frame");
 
-        MoveToNextFrame();
-        Device.PollDebugMessages();
-        FramesRendered++;
+        this.MoveToNextFrame();
+        this.Device.PollDebugMessages();
+        this.FramesRendered++;
 
         // The point/spot light counts (and the data they gate) have already been submitted to the
         // GPU above; reset so the next frame starts from zero and only reflects lights that call
         // AddPointLight/AddSpotLight again this frame (see the fields' doc comment).
-        PointLightCount=0;
-        SpotLightCount=0;
+        this.PointLightCount=0;
+        this.SpotLightCount=0;
 
         if(CaptureForVerification){
-            WaitForGpuIdle();
-            LastCapturedFrame=ReadBackCapturedFrame();
+            this.WaitForGpuIdle();
+            this.LastCapturedFrame= this.ReadBackCapturedFrame();
         }
     }
 
@@ -1531,233 +1509,232 @@ public sealed unsafe class StageRenderer:IDisposable {
             return;
         }
 
-        D3D12_RESOURCE_DESC TextureDesc=D3D12_RESOURCE_DESC.Tex2D(BackBufferFormat,(uint)Width,(uint)Height,mipLevels:1);
+        D3D12_RESOURCE_DESC TextureDesc=D3D12_RESOURCE_DESC.Tex2D(BackBufferFormat,(uint)this.Width,(uint)this.Height,mipLevels:1);
 
         D3D12_PLACED_SUBRESOURCE_FOOTPRINT Footprint;
         ulong TotalBytes;
-        Device!.Device->GetCopyableFootprints(&TextureDesc,0,1,0,&Footprint,null,null,&TotalBytes);
+        this.Device!.Device->GetCopyableFootprints(&TextureDesc,0,1,0,&Footprint,null,null,&TotalBytes);
 
         D3D12_HEAP_PROPERTIES HeapProps=new(D3D12_HEAP_TYPE_READBACK);
         D3D12_RESOURCE_DESC BufferDesc=D3D12_RESOURCE_DESC.Buffer(TotalBytes);
 
         ID3D12Resource*ReadbackBuffer;
-        D3D12Diagnostics.EnsureSuccess(
-            Device.Device->CreateCommittedResource(&HeapProps,D3D12_HEAP_FLAG_NONE,&BufferDesc,D3D12_RESOURCE_STATE_COPY_DEST,pOptimizedClearValue:null,__uuidof<ID3D12Resource>(),(void**)&ReadbackBuffer),
+        D3D12Diagnostics.EnsureSuccess(this.Device.Device->CreateCommittedResource(&HeapProps,D3D12_HEAP_FLAG_NONE,&BufferDesc,D3D12_RESOURCE_STATE_COPY_DEST,pOptimizedClearValue:null,__uuidof<ID3D12Resource>(),(void**)&ReadbackBuffer),
             "ID3D12Device::CreateCommittedResource","creating the pixel-verification readback buffer");
 
         this.ReadbackBuffer=ReadbackBuffer;
-        ReadbackBufferSize=TotalBytes;
-        ReadbackFootprint=Footprint;
+        this.ReadbackBufferSize=TotalBytes;
+        this.ReadbackFootprint=Footprint;
     }
 
     private void ReleaseReadbackBuffer(){
-        if(ReadbackBuffer!=null){
-            _=ReadbackBuffer->Release();
-            ReadbackBuffer=null;
-            ReadbackBufferSize=0;
+        if(this.ReadbackBuffer!=null){
+            _= this.ReadbackBuffer->Release();
+            this.ReadbackBuffer=null;
+            this.ReadbackBufferSize=0;
         }
     }
 
     private PixelReadbackResult ReadBackCapturedFrame(){
-        D3D12_RANGE ReadRange=new(){ Begin=0,End=(nuint)ReadbackBufferSize };
+        D3D12_RANGE ReadRange=new(){ Begin=0,End=(nuint)this.ReadbackBufferSize };
         void*Mapped;
-        D3D12Diagnostics.EnsureSuccess(ReadbackBuffer->Map(0,&ReadRange,&Mapped),"ID3D12Resource::Map","mapping the readback buffer");
+        D3D12Diagnostics.EnsureSuccess(this.ReadbackBuffer->Map(0,&ReadRange,&Mapped),"ID3D12Resource::Map","mapping the readback buffer");
 
-        var Data=new byte[ReadbackBufferSize];
+        var Data=new byte[this.ReadbackBufferSize];
         fixed(byte*PData=Data){
-            Unsafe.CopyBlock(PData,Mapped,(uint)ReadbackBufferSize);
+            Unsafe.CopyBlock(PData,Mapped,(uint)this.ReadbackBufferSize);
         }
 
         D3D12_RANGE WrittenRange=new();
-        ReadbackBuffer->Unmap(0,&WrittenRange);
+        this.ReadbackBuffer->Unmap(0,&WrittenRange);
 
         return new PixelReadbackResult {
-            Width=Width,
-            Height=Height,
-            RowPitch=ReadbackFootprint.Footprint.RowPitch,
+            Width= this.Width,
+            Height= this.Height,
+            RowPitch= this.ReadbackFootprint.Footprint.RowPitch,
             Format=BackBufferFormat,
             Pixels=Data,
         };
     }
 
     private void MoveToNextFrame(){
-        var CurrentFenceValue=FenceValues[FrameIndex];
-        D3D12Diagnostics.EnsureSuccess(Device!.CommandQueue->Signal(Fence,CurrentFenceValue),"ID3D12CommandQueue::Signal","signaling the frame fence");
+        var CurrentFenceValue= this.FenceValues[this.FrameIndex];
+        D3D12Diagnostics.EnsureSuccess(this.Device!.CommandQueue->Signal(this.Fence,CurrentFenceValue),"ID3D12CommandQueue::Signal","signaling the frame fence");
 
-        FrameIndex=SwapChain->GetCurrentBackBufferIndex();
+        this.FrameIndex= this.SwapChain->GetCurrentBackBufferIndex();
 
-        if(Fence->GetCompletedValue()<FenceValues[FrameIndex]){
-            D3D12Diagnostics.EnsureSuccess(Fence->SetEventOnCompletion(FenceValues[FrameIndex],FenceEvent),"ID3D12Fence::SetEventOnCompletion","waiting for the next frame slot");
-            _=WaitForSingleObjectEx(FenceEvent,INFINITE,FALSE);
+        if(this.Fence->GetCompletedValue()< this.FenceValues[this.FrameIndex]){
+            D3D12Diagnostics.EnsureSuccess(this.Fence->SetEventOnCompletion(this.FenceValues[this.FrameIndex], this.FenceEvent),"ID3D12Fence::SetEventOnCompletion","waiting for the next frame slot");
+            _=WaitForSingleObjectEx(this.FenceEvent,INFINITE,FALSE);
         }
 
-        FenceValues[FrameIndex]=CurrentFenceValue+1;
+        this.FenceValues[this.FrameIndex]=CurrentFenceValue+1;
     }
 
     private void WaitForGpuIdle(){
-        if(Device==null||Fence==null){
+        if(this.Device==null|| this.Fence==null){
             return;
         }
 
-        D3D12Diagnostics.EnsureSuccess(Device.CommandQueue->Signal(Fence,FenceValues[FrameIndex]),"ID3D12CommandQueue::Signal","signaling the GPU-idle fence");
-        D3D12Diagnostics.EnsureSuccess(Fence->SetEventOnCompletion(FenceValues[FrameIndex],FenceEvent),"ID3D12Fence::SetEventOnCompletion","waiting for the GPU to go idle");
-        _=WaitForSingleObjectEx(FenceEvent,INFINITE,FALSE);
-        FenceValues[FrameIndex]++;
+        D3D12Diagnostics.EnsureSuccess(this.Device.CommandQueue->Signal(this.Fence, this.FenceValues[this.FrameIndex]),"ID3D12CommandQueue::Signal","signaling the GPU-idle fence");
+        D3D12Diagnostics.EnsureSuccess(this.Fence->SetEventOnCompletion(this.FenceValues[this.FrameIndex], this.FenceEvent),"ID3D12Fence::SetEventOnCompletion","waiting for the GPU to go idle");
+        _=WaitForSingleObjectEx(this.FenceEvent,INFINITE,FALSE);
+        this.FenceValues[this.FrameIndex]++;
     }
 
     public void Dispose(){
-        if(Disposed){
+        if(this.Disposed){
             return;
         }
 
-        Disposed=true;
+        this.Disposed=true;
 
-        WaitForGpuIdle();
+        this.WaitForGpuIdle();
 
-        ReleaseReadbackBuffer();
+        this.ReleaseReadbackBuffer();
 
-        if(FrameConstantsBuffer!=null){
-            FrameConstantsBuffer->Unmap(0,null);
-            FrameConstantsMapped=null;
-            _=FrameConstantsBuffer->Release();
-            FrameConstantsBuffer=null;
+        if(this.FrameConstantsBuffer!=null){
+            this.FrameConstantsBuffer->Unmap(0,null);
+            this.FrameConstantsMapped=null;
+            _= this.FrameConstantsBuffer->Release();
+            this.FrameConstantsBuffer=null;
         }
 
-        if(ObjectConstantsBuffer!=null){
-            ObjectConstantsBuffer->Unmap(0,null);
-            ObjectConstantsMapped=null;
-            _=ObjectConstantsBuffer->Release();
-            ObjectConstantsBuffer=null;
+        if(this.ObjectConstantsBuffer!=null){
+            this.ObjectConstantsBuffer->Unmap(0,null);
+            this.ObjectConstantsMapped=null;
+            _= this.ObjectConstantsBuffer->Release();
+            this.ObjectConstantsBuffer=null;
         }
 
-        if(ShadowConstantsBuffer!=null){
-            ShadowConstantsBuffer->Unmap(0,null);
-            ShadowConstantsMapped=null;
-            _=ShadowConstantsBuffer->Release();
-            ShadowConstantsBuffer=null;
+        if(this.ShadowConstantsBuffer!=null){
+            this.ShadowConstantsBuffer->Unmap(0,null);
+            this.ShadowConstantsMapped=null;
+            _= this.ShadowConstantsBuffer->Release();
+            this.ShadowConstantsBuffer=null;
         }
 
-        if(HdrColorBuffer!=null){
-            _=HdrColorBuffer->Release();
-            HdrColorBuffer=null;
+        if(this.HdrColorBuffer!=null){
+            _= this.HdrColorBuffer->Release();
+            this.HdrColorBuffer=null;
         }
 
-        if(HdrSrvHeap!=null){
-            _=HdrSrvHeap->Release();
-            HdrSrvHeap=null;
+        if(this.HdrSrvHeap!=null){
+            _= this.HdrSrvHeap->Release();
+            this.HdrSrvHeap=null;
         }
 
-        if(SrvHeap!=null){
-            _=SrvHeap->Release();
-            SrvHeap=null;
+        if(this.SrvHeap!=null){
+            _= this.SrvHeap->Release();
+            this.SrvHeap=null;
         }
 
-        for(var I=0;I<MaterialTextures.Length;I++){
-            if(MaterialTextures[I]!=null){
-                _=MaterialTextures[I]->Release();
-                MaterialTextures[I]=null;
+        for(var I=0;I< this.MaterialTextures.Length;I++){
+            if(this.MaterialTextures[I]!=null){
+                _= this.MaterialTextures[I]->Release();
+                this.MaterialTextures[I]=null;
             }
         }
 
-        for(var I=0;I<IndexBuffers.Length;I++){
-            if(IndexBuffers[I]!=null){
-                _=IndexBuffers[I]->Release();
-                IndexBuffers[I]=null;
+        for(var I=0;I< this.IndexBuffers.Length;I++){
+            if(this.IndexBuffers[I]!=null){
+                _= this.IndexBuffers[I]->Release();
+                this.IndexBuffers[I]=null;
             }
         }
 
-        for(var I=0;I<VertexBuffers.Length;I++){
-            if(VertexBuffers[I]!=null){
-                _=VertexBuffers[I]->Release();
-                VertexBuffers[I]=null;
+        for(var I=0;I< this.VertexBuffers.Length;I++){
+            if(this.VertexBuffers[I]!=null){
+                _= this.VertexBuffers[I]->Release();
+                this.VertexBuffers[I]=null;
             }
         }
 
-        if(PipelineState!=null){
-            _=PipelineState->Release();
-            PipelineState=null;
+        if(this.PipelineState!=null){
+            _= this.PipelineState->Release();
+            this.PipelineState=null;
         }
 
-        if(ShadowPipelineState!=null){
-            _=ShadowPipelineState->Release();
-            ShadowPipelineState=null;
+        if(this.ShadowPipelineState!=null){
+            _= this.ShadowPipelineState->Release();
+            this.ShadowPipelineState=null;
         }
 
-        if(PostProcessPipelineState!=null){
-            _=PostProcessPipelineState->Release();
-            PostProcessPipelineState=null;
+        if(this.PostProcessPipelineState!=null){
+            _= this.PostProcessPipelineState->Release();
+            this.PostProcessPipelineState=null;
         }
 
-        if(RootSignature!=null){
-            _=RootSignature->Release();
-            RootSignature=null;
+        if(this.RootSignature!=null){
+            _= this.RootSignature->Release();
+            this.RootSignature=null;
         }
 
-        if(ShadowRootSignature!=null){
-            _=ShadowRootSignature->Release();
-            ShadowRootSignature=null;
+        if(this.ShadowRootSignature!=null){
+            _= this.ShadowRootSignature->Release();
+            this.ShadowRootSignature=null;
         }
 
-        if(PostProcessRootSignature!=null){
-            _=PostProcessRootSignature->Release();
-            PostProcessRootSignature=null;
+        if(this.PostProcessRootSignature!=null){
+            _= this.PostProcessRootSignature->Release();
+            this.PostProcessRootSignature=null;
         }
 
-        if(FenceEvent!=HANDLE.NULL){
-            _=CloseHandle(FenceEvent);
-            FenceEvent=HANDLE.NULL;
+        if(this.FenceEvent!=HANDLE.NULL){
+            _=CloseHandle(this.FenceEvent);
+            this.FenceEvent=HANDLE.NULL;
         }
 
-        if(Fence!=null){
-            _=Fence->Release();
-            Fence=null;
+        if(this.Fence!=null){
+            _= this.Fence->Release();
+            this.Fence=null;
         }
 
-        if(CommandList!=null){
-            _=CommandList->Release();
-            CommandList=null;
+        if(this.CommandList!=null){
+            _= this.CommandList->Release();
+            this.CommandList=null;
         }
 
         for(var I=0;I<FrameCount;I++){
-            if(CommandAllocators[I]!=null){
-                _=CommandAllocators[I]->Release();
-                CommandAllocators[I]=null;
+            if(this.CommandAllocators[I]!=null){
+                _= this.CommandAllocators[I]->Release();
+                this.CommandAllocators[I]=null;
             }
         }
 
-        if(DepthBuffer!=null){
-            _=DepthBuffer->Release();
-            DepthBuffer=null;
+        if(this.DepthBuffer!=null){
+            _= this.DepthBuffer->Release();
+            this.DepthBuffer=null;
         }
 
-        if(ShadowMap!=null){
-            _=ShadowMap->Release();
-            ShadowMap=null;
+        if(this.ShadowMap!=null){
+            _= this.ShadowMap->Release();
+            this.ShadowMap=null;
         }
 
-        if(DsvHeap!=null){
-            _=DsvHeap->Release();
-            DsvHeap=null;
+        if(this.DsvHeap!=null){
+            _= this.DsvHeap->Release();
+            this.DsvHeap=null;
         }
 
         for(var I=0;I<FrameCount;I++){
-            if(BackBuffers[I]!=null){
-                _=BackBuffers[I]->Release();
-                BackBuffers[I]=null;
+            if(this.BackBuffers[I]!=null){
+                _= this.BackBuffers[I]->Release();
+                this.BackBuffers[I]=null;
             }
         }
 
-        if(RtvHeap!=null){
-            _=RtvHeap->Release();
-            RtvHeap=null;
+        if(this.RtvHeap!=null){
+            _= this.RtvHeap->Release();
+            this.RtvHeap=null;
         }
 
-        if(SwapChain!=null){
-            _=SwapChain->Release();
-            SwapChain=null;
+        if(this.SwapChain!=null){
+            _= this.SwapChain->Release();
+            this.SwapChain=null;
         }
 
-        Device?.Dispose();
-        Device=null;
+        this.Device?.Dispose();
+        this.Device=null;
     }
 }

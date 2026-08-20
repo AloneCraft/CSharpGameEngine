@@ -27,15 +27,15 @@ public sealed class SceneDesignerToolWindowPane:ToolWindowPane {
     private readonly SceneDesignerToolWindowControl Control;
 
     public SceneDesignerToolWindowPane():base(null){
-        Caption="シーン デザイナー";
-        Control=new SceneDesignerToolWindowControl();
-        Content=Control;
+        this.Caption="シーン デザイナー";
+        this.Control=new SceneDesignerToolWindowControl();
+        this.Content= this.Control;
         if(SessionProvider?.Invoke() is { } Session){
-            Control.SetSession(Session);
+            this.Control.SetSession(Session);
         }
     }
 
     internal static void ConfigureSessionProvider(Func<SceneEditorSessionService?>?Provider)=>SessionProvider=Provider;
 
-    internal void SetTarget(SceneEditorSessionService Session,SceneDocumentSnapshot Snapshot)=>Control.SetTarget(Session,Snapshot);
+    internal void SetTarget(SceneEditorSessionService Session,SceneDocumentSnapshot Snapshot)=> this.Control.SetTarget(Session,Snapshot);
 }

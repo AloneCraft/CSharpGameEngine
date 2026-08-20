@@ -28,21 +28,21 @@ internal sealed class LatestOnlyThreadWorker<TRequest,TResult>:IDisposable where
     }
 
     internal void Request(TRequest Request){
-        lock(Gate){
-            if(Disposed){
+        lock(this.Gate){
+            if(this.Disposed){
                 throw new ObjectDisposedException(nameof(LatestOnlyThreadWorker<TRequest,TResult>));
             }
 
-            Pending=new WorkItem(++LatestVersion,Request);
-            if(Running){
+            this.Pending=new WorkItem(++this.LatestVersion,Request);
+            if(this.Running){
                 return;
             }
 
-            Running=true;
-            Thread WorkerThread=new(Run){
-                IsBackground=true,
-                Name=$"{nameof(LatestOnlyThreadWorker<TRequest,TResult>)}<{typeof(TRequest).Name}>"
-            };
+            this.Running=true;
+            Thread WorkerThread=new(this.Run){
+                                                 IsBackground=true,
+                                                 Name=$"{nameof(LatestOnlyThreadWorker<TRequest,TResult>)}<{typeof(TRequest).Name}>"
+                                             };
             WorkerThread.Start();
         }
     }
@@ -50,26 +50,26 @@ internal sealed class LatestOnlyThreadWorker<TRequest,TResult>:IDisposable where
     private void Run(){
         while(true){
             WorkItem Item;
-            lock(Gate){
-                if(Disposed||Pending is null){
-                    Running=false;
+            lock(this.Gate){
+                if(this.Disposed|| this.Pending is null){
+                    this.Running=false;
                     return;
                 }
 
-                Item=Pending.Value;
-                Pending=null;
+                Item= this.Pending.Value;
+                this.Pending=null;
             }
 
             TResult?Result=null;
             Exception?Error=null;
             try {
-                Result=Work(Item.Request);
+                Result= this.Work(Item.Request);
             } catch(Exception Ex){
                 Error=Ex;
             }
 
             try {
-                Dispatch(()=>Complete(Item,Result,Error));
+                this.Dispatch(()=> this.Complete(Item,Result,Error));
             } catch(InvalidOperationException){
                 // The WPF Dispatcher can reject a callback while Visual Studio is shutting down.
                 // There is no UI left to receive this result, so dropping it is the correct action.
@@ -78,24 +78,24 @@ internal sealed class LatestOnlyThreadWorker<TRequest,TResult>:IDisposable where
     }
 
     private void Complete(WorkItem Item,TResult?Result,Exception?Error){
-        lock(Gate){
-            if(Disposed||Item.Version!=LatestVersion){
+        lock(this.Gate){
+            if(this.Disposed||Item.Version!= this.LatestVersion){
                 return;
             }
         }
 
-        Completed(Item.Request,Result,Error);
+        this.Completed(Item.Request,Result,Error);
     }
 
     public void Dispose(){
-        lock(Gate){
-            if(Disposed){
+        lock(this.Gate){
+            if(this.Disposed){
                 return;
             }
 
-            Disposed=true;
-            Pending=null;
-            LatestVersion++;
+            this.Disposed=true;
+            this.Pending=null;
+            this.LatestVersion++;
         }
 
         // Deliberately do not Join: an in-flight bridge may take up to its timeout, and Dispose is

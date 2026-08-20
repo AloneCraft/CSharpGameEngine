@@ -28,6 +28,11 @@ namespace CSharpGameEngine.VSExtension;
 [ProvideToolWindow(typeof(InspectorToolWindowPane),
     Style=VsDockStyle.Linked,Window=ToolWindowGuids80.SolutionExplorer,
     Orientation=ToolWindowOrientation.Right,DockedWidth=300)]
+// M0052: パレットはInspectorへ Tabbed で結合しない。ドラッグしている間に隠れてしまう
+// ドロップ先は成立しないので、Linked で別枠として並べる。
+[ProvideToolWindow(typeof(ComponentPaletteToolWindowPane),
+    Style=VsDockStyle.Linked,Window=ToolWindowGuids80.SolutionExplorer,
+    Orientation=ToolWindowOrientation.Bottom,DockedWidth=300)]
 // Direct .slnx launch is preferred, but a VS debug launch can still arrive at Start Window.
 // Keep NoSolution as a fallback so that route opens UserEcsProject without taking editor focus.
 [ProvideAutoLoad(VSConstants.UICONTEXT.ShellInitialized_string,PackageAutoLoadFlags.BackgroundLoad)]
@@ -57,45 +62,48 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
 
         // ソリューションを開く処理はRoslyn/ToolWindow初期化より先に開始する。Start Windowでは
         // 後段のサービスが利用できないことがあり、末尾まで待つと自動起動自体が失われる。
-        _=JoinableTaskFactory.RunAsync(TryAutoOpenUserEcsProjectAsync);
+        _= this.JoinableTaskFactory.RunAsync(this.TryAutoOpenUserEcsProjectAsync);
 
         await OpenViewerCommand.InitializeAsync(this);
-        FabWatchCommand= await ToggleFabWatchCommand.InitializeAsync(this);
+        this.FabWatchCommand= await ToggleFabWatchCommand.InitializeAsync(this);
         await OpenFabCommand.InitializeAsync(this);
         await OpenGameCommand.InitializeAsync(this);
         await ShowHierarchyToolWindowCommand.InitializeAsync(this);
         await ApplyGameEngineLayoutCommand.InitializeAsync(this);
         await ShowInspectorToolWindowCommand.InitializeAsync(this);
+        await ShowComponentPaletteToolWindowCommand.InitializeAsync(this);
 
-        RegisterEditorFactory(new GlbFbxPreviewEditorFactory());
+        this.RegisterEditorFactory(new GlbFbxPreviewEditorFactory());
 
         // ADR-0040: the Scene editor reads scenes from live Roslyn. Both of these degrade to null
         // when the managed language service is unavailable, in which case the Hierarchy simply shows
         // its "open a scene file" message instead of failing package load.
-        SceneWorkspace=SceneWorkspaceService.Initialize();
+        this.SceneWorkspace=SceneWorkspaceService.Initialize();
         SceneEditorSettings.ConfigureStoreProvider(
             ()=>new ShellSettingsManager(this).GetWritableSettingsStore(SettingsScope.UserSettings));
 
-        if(SceneWorkspace is not null){
-            SceneSession=new SceneEditorSessionService(SceneWorkspace);
+        if(this.SceneWorkspace is not null){
+            this.SceneSession=new SceneEditorSessionService(this.SceneWorkspace);
             SceneDesignerToolWindowPane.ConfigureSessionProvider(()=>this.SceneSession);
             InspectorToolWindowPane.ConfigureSessionProvider(()=>this.SceneSession);
-            SourceMarkerService=SceneSourceMarkerService.Start();
+            ComponentPaletteToolWindowPane.ConfigureSessionProvider(()=>this.SceneSession);
+            this.SourceMarkerService=SceneSourceMarkerService.Start();
             SceneEditorHub.HierarchySelectionChanged+=this.OnHierarchySelectionChanged;
             SceneEditorHub.HierarchyNavigationRequested+=this.OnHierarchyNavigationRequested;
             SceneEditorHub.HierarchyEditRequested+=this.OnHierarchyEditRequested;
+            SceneEditorHub.ComponentAddRequested+=this.OnComponentAddRequested;
             SceneEditorHub.SceneModelChanged+=this.OnSceneModelChangedForSourceMarkers;
-            SceneSession.Selection.SelectionChanged+=this.OnSelectionChangedForHierarchy;
-            SceneSession.PinnedSnapshotChanged+=this.OnPinnedSnapshotChangedForHub;
-            SceneWorkspace.ModelChanged+=this.OnWorkspaceModelChangedForHub;
-            DocumentTracker=ActiveDocumentTracker.Start(SceneWorkspace);
-            if(DocumentTracker is not null){
-                await OpenSceneDesignerCommand.InitializeAsync(this,SceneSession,DocumentTracker);
+            this.SceneSession.Selection.SelectionChanged+=this.OnSelectionChangedForHierarchy;
+            this.SceneSession.PinnedSnapshotChanged+=this.OnPinnedSnapshotChangedForHub;
+            this.SceneWorkspace.ModelChanged+=this.OnWorkspaceModelChangedForHub;
+            this.DocumentTracker=ActiveDocumentTracker.Start(this.SceneWorkspace);
+            if(this.DocumentTracker is not null){
+                await OpenSceneDesignerCommand.InitializeAsync(this, this.SceneSession, this.DocumentTracker);
             }
         }
 
-        AssetMetaWatcher=AssetMetaWatcher.StartIfProjectExists();
-        _=JoinableTaskFactory.RunAsync(TryApplyInitialLayoutAsync);
+        this.AssetMetaWatcher=AssetMetaWatcher.StartIfProjectExists();
+        _= this.JoinableTaskFactory.RunAsync(this.TryApplyInitialLayoutAsync);
     }
 
     /// <summary>
@@ -114,16 +122,16 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             return;
         }
 
-        if(!StartupAutoOpenPolicy.ShouldOpenUserEcsProject(await IsSolutionOpenAsync(),await GetSolutionPathAsync())){
+        if(!StartupAutoOpenPolicy.ShouldOpenUserEcsProject(await this.IsSolutionOpenAsync(),await this.GetSolutionPathAsync())){
             return;
         }
 
-        string?RepoRoot=RepoLocator.ResolveRepoRoot();
+        var RepoRoot=RepoLocator.ResolveRepoRoot();
         if(RepoRoot is null){
             return;
         }
 
-        string SolutionPath=Path.Combine(RepoRoot,"UserEcsProject.slnx");
+        var SolutionPath=Path.Combine(RepoRoot,"UserEcsProject.slnx");
         if(!File.Exists(SolutionPath)){
             return;
         }
@@ -131,13 +139,13 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
         try {
             // Start Window の初期化と競合しないよう少し待つ。待機後にもう一度確認することで、
             // ユーザーがその間に別のソリューションを開いた場合は何もしない。
-            await Task.Delay(TimeSpan.FromSeconds(2),DisposalToken);
-            if(!StartupAutoOpenPolicy.ShouldOpenUserEcsProject(await IsSolutionOpenAsync(),await GetSolutionPathAsync())){
+            await Task.Delay(TimeSpan.FromSeconds(2), this.DisposalToken);
+            if(!StartupAutoOpenPolicy.ShouldOpenUserEcsProject(await this.IsSolutionOpenAsync(),await this.GetSolutionPathAsync())){
                 return;
             }
 
-            await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
-            if(await GetServiceAsync(typeof(SDTE))is not DTE Dte){
+            await this.JoinableTaskFactory.SwitchToMainThreadAsync(this.DisposalToken);
+            if(await this.GetServiceAsync(typeof(SDTE))is not DTE Dte){
                 return;
             }
 
@@ -145,7 +153,7 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             // (UIスレッドはコマンドラインで渡されたソリューションの読み込みで塞がっているため、
             // コールドスタートではこれが通常)。上の判定は最大でも2秒前の情報なので、実行の直前に
             // もう一度見ないと「開いたばかりのソリューションを閉じて開き直す」ことになる。
-            if(!StartupAutoOpenPolicy.ShouldOpenUserEcsProject(await IsSolutionOpenAsync(),Dte.Solution?.FullName)){
+            if(!StartupAutoOpenPolicy.ShouldOpenUserEcsProject(await this.IsSolutionOpenAsync(),Dte.Solution?.FullName)){
                 return;
             }
 
@@ -173,42 +181,39 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
     /// 既に追加/改名済みのNodeをHierarchyから続けて操作できなくなる。
     /// </summary>
     private async Task HandleHierarchyEditAsync(HierarchyEditRequest Request){
-        await this.JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
+        await this.JoinableTaskFactory.SwitchToMainThreadAsync(this.DisposalToken);
         if(this.SceneSession is not { } Session||SceneEditorHub.ActiveSceneModel is not { } Model){
             return;
         }
 
-        SceneDocumentSnapshot?Snapshot=Session.TryCreateSceneKey(Model,out SceneKey Key)
-            &&Session.PinnedSceneKey is { }Pinned&&Pinned.Equals(Key)
-            ?Session.PinnedSnapshot
-            :Session.GetSnapshotForModel(Model);
+        var Snapshot=this.EnsurePinned(Session,Model);
         if(Snapshot is null||Snapshot.Projection is not { } Projection){
             return;
         }
 
-        IReadOnlyList<NodePath>Roots=SelectHierarchyRoots(Request.Paths);
+        var Roots=SelectHierarchyRoots(Request.Paths);
         List<SceneEditOperation>Operations=[];
         switch(Request.Kind){
             case HierarchyEditKind.AddChild:
-                foreach(NodePath Path in Roots){
-                    if(Projection.TryGetId(Path,out EditorNodeId ParentId)){
+                foreach(var Path in Roots){
+                    if(Projection.TryGetId(Path,out var ParentId)){
                         Operations.Add(new AddNodeOperation(
                             Snapshot.Key,ParentId,Snapshot.DocumentVersion,"Node"));
                     }
                 }
                 break;
             case HierarchyEditKind.Rename:
-                string?RequestedName=Request.NewName;
+                var RequestedName=Request.NewName;
                 if(Request.Paths.FirstOrDefault() is { } RenamePath
-                    &&Projection.TryGetId(RenamePath,out EditorNodeId RenameId)
+                    &&Projection.TryGetId(RenamePath,out var RenameId)
                     &&!string.IsNullOrWhiteSpace(RequestedName)){
                     Operations.Add(new RenameNodeOperation(
                         Snapshot.Key,RenameId,Snapshot.DocumentVersion,RequestedName!.Trim()));
                 }
                 break;
             case HierarchyEditKind.Remove:
-                foreach(NodePath Path in Roots){
-                    if(Projection.TryGetId(Path,out EditorNodeId RemoveId)){
+                foreach(var Path in Roots){
+                    if(Projection.TryGetId(Path,out var RemoveId)){
                         Operations.Add(new RemoveNodeOperation(
                             Snapshot.Key,RemoveId,Snapshot.DocumentVersion));
                     }
@@ -216,14 +221,14 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
                 break;
             case HierarchyEditKind.Reparent:
                 if(Request.TargetPath is not { } TargetPath
-                    ||!Projection.TryGetId(TargetPath,out EditorNodeId TargetId)
+                    ||!Projection.TryGetId(TargetPath,out var TargetId)
                     ||Roots.Any(Path=>Path.Equals(TargetPath)||TargetPath.IsDescendantOf(Path))){
                     return;
                 }
 
                 var ReparentIndex=Math.Max(0,Request.TargetIndex);
-                foreach(NodePath Path in Roots.OrderBy(static Path=>Path.ToDisplayString(),StringComparer.Ordinal)){
-                    if(Projection.TryGetId(Path,out EditorNodeId MoveId)){
+                foreach(var Path in Roots.OrderBy(static Path=>Path.ToDisplayString(),StringComparer.Ordinal)){
+                    if(Projection.TryGetId(Path,out var MoveId)){
                         Operations.Add(new ReparentNodeOperation(
                             Snapshot.Key,MoveId,Snapshot.DocumentVersion,TargetId,ReparentIndex++));
                     }
@@ -231,7 +236,7 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
                 break;
             case HierarchyEditKind.Reorder:
                 if(Request.Paths.FirstOrDefault() is { } ReorderPath
-                    &&Projection.TryGetId(ReorderPath,out EditorNodeId ReorderId)){
+                    &&Projection.TryGetId(ReorderPath,out var ReorderId)){
                     Operations.Add(new ReorderNodeOperation(
                         Snapshot.Key,ReorderId,Snapshot.DocumentVersion,Math.Max(0,Request.TargetIndex)));
                 }
@@ -259,9 +264,114 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
         }
     }
 
+    private void OnComponentAddRequested(ComponentAddRequest Request)=>
+        _=this.JoinableTaskFactory.RunAsync(()=>this.HandleComponentAddAsync(Request));
+
+    /// <summary>
+    /// M0052: <paramref name="Model"/>が既にpin済みならそのSnapshotを、そうでなければ
+    /// <see cref="SceneEditorSessionService.Pin"/>でpinしてから返す。
+    ///
+    /// <para>
+    /// <b>解決する不具合</b>: 以前はpinされていない間、この判定の代わりに
+    /// <see cref="SceneEditorSessionService.GetSnapshotForModel"/>で読み取り専用のSnapshotを作って
+    /// いたが、それは<see cref="SceneEditorSessionService.Apply"/>が要求する
+    /// <c>SceneEditDocument</c>を作らない。そのため<b>Hierarchyの構造編集・Componentの追加は
+    /// シーン デザイナーを一度も開いていないと無言で失敗し続けていた</b>
+    /// (<see cref="SceneEditorSessionService.Apply"/>は<c>Documents</c>辞書に無いキーへは何もしない)。
+    /// Inspectorも同じ理由で選択が届かず、Hierarchyでは選べるのにInspectorだけ永久に空という
+    /// 体験になっていた(実機報告)。
+    /// </para>
+    ///
+    /// <para>
+    /// pinは<see cref="SceneEditDocument"/>を(無ければ)新規作成するだけで、Viewport/シーン
+    /// デザイナーのウィンドウを開いたり、Undo履歴やdirty状態を汚したりはしない
+    /// (<see cref="SceneEditorSessionService.Pin"/>のEnsureDocumentAndPublish参照)。
+    /// 既にそのSceneへpin済みの場合は再pinしない — 呼び出し頻度の高いHierarchy選択のたびに
+    /// 無駄な再publishを起こさないため。
+    /// </para>
+    /// </summary>
+    private SceneDocumentSnapshot? EnsurePinned(SceneEditorSessionService Session,SceneModel Model){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(!Session.TryCreateSceneKey(Model,out var Key)){
+            return null;
+        }
+
+        return Session.PinnedSceneKey is { } Pinned&&Pinned.Equals(Key)
+            ?Session.PinnedSnapshot
+            :Session.Pin(Model);
+    }
+
+    /// <summary>
+    /// M0052: Component追加の唯一の適用点。Hierarchy(<see cref="NodePath"/>)・Inspector・パレット
+    /// (<see cref="EditorNodeId"/>)で対象の指し方が違うのをここで吸収し、Undoラベルと
+    /// 追加後のReveal発行も1か所に閉じ込める。
+    /// </summary>
+    private async Task HandleComponentAddAsync(ComponentAddRequest Request){
+        await this.JoinableTaskFactory.SwitchToMainThreadAsync(this.DisposalToken);
+        if(this.SceneSession is not { } Session||SceneEditorHub.ActiveSceneModel is not { } Model){
+            return;
+        }
+
+        var Snapshot=this.EnsurePinned(Session,Model);
+        if(Snapshot is null||Snapshot.Projection is not { } Projection){
+            return;
+        }
+
+        EditorNodeId?NodeId=Request.TargetNodeId;
+        if(NodeId is null&&Request.TargetPath is { } Path&&Projection.TryGetId(Path,out var ResolvedId)){
+            NodeId=ResolvedId;
+        }
+
+        NodeId??=Session.Selection.CurrentSelection?.PrimaryNodeId;
+        if(NodeId is not { } TargetId){
+            SetStatusBarText("Componentを追加するノードを選択してください。");
+            return;
+        }
+
+        // 型シンボルを引いて、追加するComponentのメンバーを実体で組み立てる。これをやらないと
+        // メモリ内Componentのメンバーが空になり、Roslynの再解析が着地するまでInspectorが
+        // 「解析待ち…」のまま1項目も編集できない(実機報告)。解決できなければ従来どおり
+        // パレットが持っている式だけで縮退する。
+        var Resolved=await Session.ResolveComponentTypeAsync(
+            Request.ComponentTypeFullyQualifiedName,this.DisposalToken);
+        await this.JoinableTaskFactory.SwitchToMainThreadAsync(this.DisposalToken);
+        var Plan=Resolved is { } Symbol
+            ?SceneComponentInitializerPolicy.CreatePlan(
+                Symbol.Symbol,Request.ComponentTypeFullyQualifiedName,Symbol.Compilation)
+            :null;
+
+        AddComponentOperation Operation=new(
+            Snapshot.Key,TargetId,Snapshot.DocumentVersion,
+            Request.ComponentTypeFullyQualifiedName,
+            Plan?.Expression??Request.ComponentExpression,
+            Plan?.Members??default);
+        SceneEditCommitRequest CommitRequest=new(
+            Snapshot.Key,Snapshot.DocumentVersion,"Add component",
+            Array.Empty<SceneTransformChange>(),SceneTransformMemberMask.None,
+            DirectOperations:[Operation]);
+        if(Session.Apply(CommitRequest)){
+            SceneEditorHub.RequestComponentReveal(
+                new ComponentRevealRequest(TargetId,Request.ComponentTypeFullyQualifiedName));
+            return;
+        }
+
+        // TryApplyAddComponentが拒否する主因は「同じ型を既に持っている」と
+        // 「Components=[…]が書かれていないノード」。どちらもユーザーの操作で起きうるので、
+        // ログではなくステータスバーで返す。
+        SetStatusBarText(
+            $"{Request.ComponentTypeFullyQualifiedName} を追加できませんでした(既に持っているか、Components リストがありません)。");
+    }
+
+    private static void SetStatusBarText(string Text){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(GetGlobalService(typeof(SVsStatusbar))is IVsStatusbar StatusBar){
+            StatusBar.SetText(Text);
+        }
+    }
+
     private static IReadOnlyList<NodePath> SelectHierarchyRoots(IReadOnlyList<NodePath>Paths){
         List<NodePath>Roots=[];
-        foreach(NodePath Path in Paths.OrderBy(static Value=>Value.Depth)){
+        foreach(var Path in Paths.OrderBy(static Value=>Value.Depth)){
             if(Roots.Any(Root=>Path.Equals(Root)||Path.IsDescendantOf(Root))){
                 continue;
             }
@@ -276,19 +386,24 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
         this.SourceMarkerService?.Update(
             SceneEditorHub.ActiveSceneModel,Selection.Paths,
             SceneSourceMarkerScrollBehavior.ScrollToSelection);
-        if(this.SceneSession?.PinnedSnapshot is not { } Snapshot){
+        // M0052: HierarchyはPinに依存せずActiveSceneModelだけで表示できるため、シーン デザイナーを
+        // 一度も開かずにノードを選ぶ経路が普通に起きる。従来はここで素通りしていたため、
+        // Hierarchyでは選べるのにInspectorだけ永久に空という体験になっていた
+        // (実機報告で発覚。Hierarchyの構造編集も同じ理由で無言失敗していた — EnsurePinned参照)。
+        if(this.SceneSession is not { } Session||SceneEditorHub.ActiveSceneModel is not { } Model
+            ||this.EnsurePinned(Session,Model) is not { } Snapshot){
             return;
         }
 
         List<EditorNodeId>Ids=[];
-        foreach(NodePath Path in Selection.Paths){
-            if(Snapshot.Projection?.TryGetId(Path,out EditorNodeId Id)==true){
+        foreach(var Path in Selection.Paths){
+            if(Snapshot.Projection?.TryGetId(Path,out var Id)==true){
                 Ids.Add(Id);
             }
         }
 
         EditorNodeId?Primary=Selection.PrimaryPath is { } PrimaryPath
-            &&Snapshot.Projection?.TryGetId(PrimaryPath,out EditorNodeId PrimaryId)==true
+            &&Snapshot.Projection?.TryGetId(PrimaryPath,out var PrimaryId)==true
             ?PrimaryId
             :null;
         this.SceneSession.Selection.Select(
@@ -323,8 +438,8 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
     /// </summary>
     private void OnWorkspaceModelChangedForHub(SceneModel?Model){
         ThreadHelper.ThrowIfNotOnUIThread();
-        SceneEditorSessionService?Session=this.SceneSession;
-        bool HasUnsavedEdits=Session?.PinnedSceneKey is { }Key&&Session.IsDirty(Key);
+        var Session=this.SceneSession;
+        var HasUnsavedEdits=Session?.PinnedSceneKey is { }Key&&Session.IsDirty(Key);
 
         if(!SceneHubPublicationPolicy.ShouldPublishAnalyzedModel(
             Model?.ClassFullyQualifiedName,
@@ -340,7 +455,14 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
         ThreadHelper.ThrowIfNotOnUIThread();
         if(Snapshot?.CurrentModel is { }Model){
             SceneEditorHub.PublishSceneModel(Model);
+            return;
         }
+
+        // M0053: pinが外れた(ClearPin)。SceneHubPublicationPolicyはpin中の表示を守るため
+        // アクティブ文書由来のnull/別Sceneを塞いでいるので、ここで発行しないとHierarchyが
+        // 解除後も古い木を出し続ける。未pin時の表示元であるアクティブ文書のSceneへ明示的に戻す
+        // (対象が無ければnullで、そのまま空表示になる)。
+        SceneEditorHub.PublishSceneModel(this.SceneWorkspace?.CurrentModel);
     }
 
     /// <summary>
@@ -362,9 +484,9 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
     /// </summary>
     private void OnSceneModelChangedForSourceMarkers(SceneModel?Model){
         ThreadHelper.ThrowIfNotOnUIThread();
-        IReadOnlyList<NodePath>Paths=this.SceneSession is { }Session&&Session.PinnedSnapshot is { }Snapshot
-            ?SceneSelectionPathResolver.Resolve(Session.Selection.CurrentSelection,Snapshot.Key,Snapshot.Projection)
-            :[];
+        var Paths=this.SceneSession is { }Session&&Session.PinnedSnapshot is { }Snapshot
+                     ?SceneSelectionPathResolver.Resolve(Session.Selection.CurrentSelection,Snapshot.Key,Snapshot.Projection)
+                     :[];
         this.SourceMarkerService?.Update(Model,Paths,SceneSourceMarkerScrollBehavior.PreserveScroll);
     }
 
@@ -387,9 +509,9 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
 
         // Viewport/Inspector起点はHierarchyへprimaryだけを表示する。Hierarchy自身が発行する
         // 複数選択集合はOnHierarchySelectionChangedでそのままSceneSelectionServiceへ渡す。
-        IReadOnlyList<NodePath>Paths=SceneSelectionPathResolver.Resolve(Selection,Snapshot.Key,Snapshot.Projection);
+        var Paths=SceneSelectionPathResolver.Resolve(Selection,Snapshot.Key,Snapshot.Projection);
         NodePath?PrimaryPath=Selection.PrimaryNodeId is { }PrimaryId
-            &&Snapshot.Projection?.TryGetNode(PrimaryId,out SceneProjectionNode PrimaryNode)==true
+            &&Snapshot.Projection?.TryGetNode(PrimaryId,out var PrimaryNode)==true
             ?PrimaryNode.Path
             :null;
 
@@ -410,12 +532,12 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             // NoSolution fallback may have issued File.OpenProject only moments ago. Do not create
             // or show tool windows until a solution is actually open; the presentation itself uses
             // ShowNoActivate, so this wait is not a keyboard-focus workaround.
-            if(!await WaitForSolutionOpenAsync()){
+            if(!await this.WaitForSolutionOpenAsync()){
                 return;
             }
 
-            await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
-            if(await GetServiceAsync(typeof(SDTE))is not DTE Dte){
+            await this.JoinableTaskFactory.SwitchToMainThreadAsync(this.DisposalToken);
+            if(await this.GetServiceAsync(typeof(SDTE))is not DTE Dte){
                 return;
             }
 
@@ -429,24 +551,24 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
     }
 
     private async Task<bool> WaitForSolutionOpenAsync(){
-        for(int Attempt=0;Attempt<80;Attempt++){
-            if(await IsSolutionOpenAsync()){
+        for(var Attempt=0;Attempt<80;Attempt++){
+            if(await this.IsSolutionOpenAsync()){
                 return true;
             }
 
-            await Task.Delay(TimeSpan.FromMilliseconds(250),DisposalToken);
+            await Task.Delay(TimeSpan.FromMilliseconds(250), this.DisposalToken);
         }
 
         return false;
     }
 
     private async Task<bool> IsSolutionOpenAsync(){
-        await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
-        if(await GetServiceAsync(typeof(SVsSolution))is not IVsSolution Solution){
+        await this.JoinableTaskFactory.SwitchToMainThreadAsync(this.DisposalToken);
+        if(await this.GetServiceAsync(typeof(SVsSolution))is not IVsSolution Solution){
             return false;
         }
 
-        Solution.GetProperty((int)__VSPROPID.VSPROPID_IsSolutionOpen,out object IsOpen);
+        Solution.GetProperty((int)__VSPROPID.VSPROPID_IsSolutionOpen,out var IsOpen);
         return IsOpen is bool Value&&Value;
     }
 
@@ -457,42 +579,44 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
     /// (<see cref="StartupAutoOpenPolicy.ShouldOpenUserEcsProject"/>参照)。
     /// </summary>
     private async Task<string?>GetSolutionPathAsync(){
-        await JoinableTaskFactory.SwitchToMainThreadAsync(DisposalToken);
-        if(await GetServiceAsync(typeof(SVsSolution))is not IVsSolution Solution){
+        await this.JoinableTaskFactory.SwitchToMainThreadAsync(this.DisposalToken);
+        if(await this.GetServiceAsync(typeof(SVsSolution))is not IVsSolution Solution){
             return null;
         }
 
-        return ErrorHandler.Succeeded(Solution.GetSolutionInfo(out _,out string?SolutionFile,out _))
+        return ErrorHandler.Succeeded(Solution.GetSolutionInfo(out _,out var SolutionFile,out _))
             ?SolutionFile
             :null;
     }
 
     protected override void Dispose(bool Disposing){
         if(Disposing){
-            FabWatchCommand?.Dispose();
-            AssetMetaWatcher?.Dispose();
-            DocumentTracker?.Dispose();
+            this.FabWatchCommand?.Dispose();
+            this.AssetMetaWatcher?.Dispose();
+            this.DocumentTracker?.Dispose();
 
             SceneEditorHub.HierarchySelectionChanged-=this.OnHierarchySelectionChanged;
             SceneEditorHub.HierarchyNavigationRequested-=this.OnHierarchyNavigationRequested;
             SceneEditorHub.HierarchyEditRequested-=this.OnHierarchyEditRequested;
+            SceneEditorHub.ComponentAddRequested-=this.OnComponentAddRequested;
             SceneEditorHub.SceneModelChanged-=this.OnSceneModelChangedForSourceMarkers;
-            SourceMarkerService?.Dispose();
-            SourceMarkerService=null;
-            if(SceneSession is not null){
-                SceneSession.Selection.SelectionChanged-=this.OnSelectionChangedForHierarchy;
-                SceneSession.PinnedSnapshotChanged-=this.OnPinnedSnapshotChangedForHub;
+            this.SourceMarkerService?.Dispose();
+            this.SourceMarkerService=null;
+            if(this.SceneSession is not null){
+                this.SceneSession.Selection.SelectionChanged-=this.OnSelectionChangedForHierarchy;
+                this.SceneSession.PinnedSnapshotChanged-=this.OnPinnedSnapshotChangedForHub;
             }
 
-            SceneSession?.Dispose();
-            SceneSession=null;
+            this.SceneSession?.Dispose();
+            this.SceneSession=null;
             SceneDesignerToolWindowPane.ConfigureSessionProvider(null);
             InspectorToolWindowPane.ConfigureSessionProvider(null);
+            ComponentPaletteToolWindowPane.ConfigureSessionProvider(null);
             SceneEditorSettings.ConfigureStoreProvider(null);
 
-            if(SceneWorkspace is not null){
-                SceneWorkspace.ModelChanged-=this.OnWorkspaceModelChangedForHub;
-                SceneWorkspace.Dispose();
+            if(this.SceneWorkspace is not null){
+                this.SceneWorkspace.ModelChanged-=this.OnWorkspaceModelChangedForHub;
+                this.SceneWorkspace.Dispose();
             }
         }
 

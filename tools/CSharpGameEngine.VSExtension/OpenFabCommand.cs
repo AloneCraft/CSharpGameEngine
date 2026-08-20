@@ -28,7 +28,7 @@ internal sealed class OpenFabCommand {
         }
 
         CommandID MenuCommandId=new(CommandSet,CommandId);
-        MenuCommand MenuItem=new(Execute,MenuCommandId);
+        MenuCommand MenuItem=new(this.Execute,MenuCommandId);
         CommandService.AddCommand(MenuItem);
     }
 
@@ -46,8 +46,7 @@ internal sealed class OpenFabCommand {
         try {
             Process.Start(new ProcessStartInfo(FabUrl){ UseShellExecute=true });
         } catch(Exception Ex){
-            VsShellUtilities.ShowMessageBox(
-                Package,
+            VsShellUtilities.ShowMessageBox(this.Package,
                 $"ブラウザの起動に失敗しました: {Ex.Message}",
                 "C# Game Engine Viewer",
                 OLEMSGICON.OLEMSGICON_CRITICAL,

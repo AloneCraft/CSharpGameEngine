@@ -120,7 +120,7 @@ internal sealed class SceneHwndHost:HwndHost {
     // M0020後続Task C: 空間から開始したLMBドラッグだけが保持するスクリーン矩形。
     private ScreenRectangle?ActiveMarqueeRectangle;
 
-    private float AspectRatio=>SurfaceWidth/(float)SurfaceHeight;
+    private float AspectRatio=> this.SurfaceWidth/(float)this.SurfaceHeight;
 
     internal event Action<string>?StatusChanged;
 
@@ -147,7 +147,7 @@ internal sealed class SceneHwndHost:HwndHost {
         // Surfaceは描画先でありキーボード入力を持つコントロールではない。HwndHostの既定
         // TabInto経路を残すと、float/dockやマウスクリック後にVSのTab等がSurfaceへ入り、
         // WPFとWin32のフォーカスがずれてコードエディタの制御キーが効かなくなる。
-        Focusable=false;
+        this.Focusable=false;
         KeyboardNavigation.SetIsTabStop(this,RenderSurfaceFocusPolicy.AllowTabInto);
     }
 
@@ -159,49 +159,49 @@ internal sealed class SceneHwndHost:HwndHost {
 
         // Rendererが最初のPresentを行えるまで子HWNDを隠す。NOREDIRECTIONBITMAPの空Surfaceを
         // 表示すると、ドッキング前に同じ領域にいたSolution Explorerが残像のように露出する。
-        Surface=new RenderSurfaceWindow(HwndParent.Handle,800,600,InitiallyVisible:false);
-        ViewState=SceneViewState.CreateFromSettings();
-        InputMachine=new SceneInputStateMachine();
+        this.Surface=new RenderSurfaceWindow(HwndParent.Handle,800,600,InitiallyVisible:false);
+        this.ViewState=SceneViewState.CreateFromSettings();
+        this.InputMachine=new SceneInputStateMachine();
         SceneEditorSettings.SettingsChanged+=this.OnSettingsChanged;
-        Surface.PointerInput+=OnPointerInput;
-        Surface.WheelInput+=HandleWheel;
+        this.Surface.PointerInput+= this.OnPointerInput;
+        this.Surface.WheelInput+= this.HandleWheel;
         SynchronizationContext UiContext=SynchronizationContext.Current
             ??new DispatcherSynchronizationContext(this.Dispatcher);
 #pragma warning disable VSTHRD001 // 生workerの完了を非同期Postするだけで、同期wait/message pumpは行わない。
-        BuildWorker=new LatestOnlyThreadWorker<SceneRenderBuildRequest,SceneRenderBuildResult>(
-            Work:BuildRenderObjects,
-            Dispatch:Callback=>UiContext.Post(_=>Callback(),null),
-            Completed:this.OnBuildCompleted);
+        this.BuildWorker=new LatestOnlyThreadWorker<SceneRenderBuildRequest,SceneRenderBuildResult>(
+                                                                                                 Work: this.BuildRenderObjects,
+                                                                                                 Dispatch:Callback=>UiContext.Post(_=>Callback(),null),
+                                                                                                 Completed:this.OnBuildCompleted);
 #pragma warning restore VSTHRD001
-        LoadIntoSurface();
-        return new HandleRef(this,Surface.Handle);
+        this.LoadIntoSurface();
+        return new HandleRef(this, this.Surface.Handle);
     }
 
     protected override void DestroyWindowCore(HandleRef Hwnd){
         ThreadHelper.ThrowIfNotOnUIThread();
 
-        BuildWorker?.Dispose();
-        BuildWorker=null;
-        CancelEditTransaction();
+        this.BuildWorker?.Dispose();
+        this.BuildWorker=null;
+        this.CancelEditTransaction();
         SceneEditorSettings.SettingsChanged-=this.OnSettingsChanged;
-        DetachSubscriptions();
-        DisposeRenderer();
+        this.DetachSubscriptions();
+        this.DisposeRenderer();
 
-        if(Surface is not null){
-            Surface.PointerInput-=OnPointerInput;
-            Surface.WheelInput-=HandleWheel;
+        if(this.Surface is not null){
+            this.Surface.PointerInput-= this.OnPointerInput;
+            this.Surface.WheelInput-= this.HandleWheel;
         }
 
         // 保険の書き込み(通常はActiveTool等を変更した時点で即時書き込み済み)。
         // ここは7項目すべてを書き戻すため、Tools>Optionsでの変更をViewStateへ反映していないと
         // 古い値で上書き消滅させてしまう。OnSettingsChangedがその同期を担っている。
-        InputMachine?.Reset();
-        ViewState?.SaveToSettings();
-        InputMachine=null;
-        ViewState=null;
+        this.InputMachine?.Reset();
+        this.ViewState?.SaveToSettings();
+        this.InputMachine=null;
+        this.ViewState=null;
 
-        Surface?.Dispose();
-        Surface=null;
+        this.Surface?.Dispose();
+        this.Surface=null;
     }
 
     /// <summary>
@@ -209,12 +209,13 @@ internal sealed class SceneHwndHost:HwndHost {
     /// projection を保持するので、ここでrendererを空へ戻しません。
     /// </summary>
     internal void SetTarget(SceneDocumentSnapshot Snapshot){
-        if(EditTransaction.State!=EditTransactionState.Idle){
+        if(this.EditTransaction.State!=EditTransactionState.Idle){
             if(this.TargetKey is { }EditingKey&&EditingKey.Equals(Snapshot.Key)){
-                EditTransaction.QueueSnapshot(Snapshot);
+                this.EditTransaction.QueueSnapshot(Snapshot);
                 return;
             }
-            CancelEditTransaction();
+
+            this.CancelEditTransaction();
         }
 
         // コンボボックスでのシーン切替はSceneHwndHostを再生成せず(EnsureHostが既存インスタンスを
@@ -223,10 +224,10 @@ internal sealed class SceneHwndHost:HwndHost {
         SceneDocumentSnapshot?PreviousSnapshot=this.TargetSnapshot;
         bool SameScene=this.TargetKey is { }PreviousKey&&PreviousKey.Equals(Snapshot.Key);
         if(!SameScene){
-            PendingCameraReset=true;
+            this.PendingCameraReset=true;
             // M0036: 別Sceneへ切り替えたら、先読みUndoキャッシュ(NodePathが別ファイルのものになる)を破棄する。
-            RecentTransformCommits.Clear();
-            RecentTransformUndone.Clear();
+            this.RecentTransformCommits.Clear();
+            this.RecentTransformUndone.Clear();
         }
 
         this.TargetKey=Snapshot.Key;
@@ -238,17 +239,17 @@ internal sealed class SceneHwndHost:HwndHost {
             this.TargetModel=Model;
         }
 
-        if(Surface is not null
+        if(this.Surface is not null
             &&SameScene
             &&PreviousSnapshot is not null
-            &&Renderer is not null
-            &&RenderedAnalysisGeneration==PreviousSnapshot.AnalysisGeneration
-            &&TryApplyIncrementalSnapshot(Snapshot,Model)){
+            && this.Renderer is not null
+            && this.RenderedAnalysisGeneration==PreviousSnapshot.AnalysisGeneration
+            && this.TryApplyIncrementalSnapshot(Snapshot,Model)){
             return;
         }
 
-        if(Surface is not null){
-            Rebuild();
+        if(this.Surface is not null){
+            this.Rebuild();
         }
     }
 
@@ -256,28 +257,30 @@ internal sealed class SceneHwndHost:HwndHost {
         SceneRenderUpdateKind UpdateKind=SceneIncrementalUpdatePolicy.Classify(Snapshot.Diff);
         if(UpdateKind==SceneRenderUpdateKind.Rebuild){ return false; }
         if(UpdateKind==SceneRenderUpdateKind.None){
-            RenderedAnalysisGeneration=Snapshot.AnalysisGeneration;
-            UpdateMoveGizmo();
+            this.RenderedAnalysisGeneration=Snapshot.AnalysisGeneration;
+            this.UpdateMoveGizmo();
             return true;
         }
-        if(Model is null||Renderer is not { }Active
+        if(Model is null|| this.Renderer is not { }Active
             ||!SceneRenderIncrementalUpdater.TryUpdateTransforms(
-                Model,CurrentRenderObjects,out IReadOnlyList<SceneRenderObject>Updated)){
+                Model, this.CurrentRenderObjects,out IReadOnlyList<SceneRenderObject>Updated)){
             return false;
         }
 
         foreach(SceneRenderObject Object in Updated){
             if(!Active.UpdateObjectTransform(Object.NodeId,Object.World)){ return false; }
         }
-        CurrentRenderObjects=Updated;
+
+        this.CurrentRenderObjects=Updated;
         (this.SceneBoundsCenter,this.SceneBoundsRadius)=SceneCameraFraming.ComputeBounds(Updated);
-        if(ViewState is { }State){
+        if(this.ViewState is { }State){
             State.LastKnownBoundsRadius=this.SceneBoundsRadius;
         }
-        RenderedAnalysisGeneration=Snapshot.AnalysisGeneration;
-        UpdateMoveGizmo();
-        Surface?.SetVisible(true);
-        SetStatus($"表示中: {Model.ClassName}");
+
+        this.RenderedAnalysisGeneration=Snapshot.AnalysisGeneration;
+        this.UpdateMoveGizmo();
+        this.Surface?.SetVisible(true);
+        this.SetStatus($"表示中: {Model.ClassName}");
         return true;
     }
 
@@ -305,40 +308,40 @@ internal sealed class SceneHwndHost:HwndHost {
         }
 
         this.SelectedNodePaths=ResolvedPaths;
-        Renderer?.SetSelectedNode(this.SelectedNodePath,ResolvedPaths);
-        UpdateMoveGizmo();
+        this.Renderer?.SetSelectedNode(this.SelectedNodePath,ResolvedPaths);
+        this.UpdateMoveGizmo();
     }
 
     private void LoadIntoSurface(){
-        if(Surface is null){
+        if(this.Surface is null){
             return;
         }
 
-        if(RenderingHandler is null){
-            RenderingHandler=(_,Args)=>{
-                TickFlyIfNeeded(Args);
-                TickUndoRedoIfNeeded();
-                UpdateSurfaceSnapArmed();
-                ApplyCamera();
-                Renderer?.RenderFrame();
-            };
-            CompositionTarget.Rendering+=RenderingHandler;
+        if(this.RenderingHandler is null){
+            this.RenderingHandler=(_,Args)=>{
+                                      this.TickFlyIfNeeded(Args);
+                                      this.TickUndoRedoIfNeeded();
+                                      this.UpdateSurfaceSnapArmed();
+                                      this.ApplyCamera();
+                                      this.Renderer?.RenderFrame();
+                                  };
+            CompositionTarget.Rendering+= this.RenderingHandler;
 
             // Subscribed once here (not inside Rebuild, which runs on every re-analysis) - it always
             // resizes whatever Renderer currently holds via the field, so re-subscribing per rebuild
             // would just accumulate redundant duplicate calls per resize.
             // これはサーフェスの実サイズを知る唯一の場所でもあるので、アスペクト比の元もここで更新する。
-            ResizeHandler=(W,H)=>{
-                this.SurfaceWidth=Math.Max(1,W);
-                this.SurfaceHeight=Math.Max(1,H);
-                Renderer?.Resize(W,H);
-                ApplyCamera();
-                RefreshOverlay();
-            };
-            Surface.Resized+=ResizeHandler;
+            this.ResizeHandler=(W,H)=>{
+                                   this.SurfaceWidth=Math.Max(1,W);
+                                   this.SurfaceHeight=Math.Max(1,H);
+                                   this.Renderer?.Resize(W,H);
+                                   this.ApplyCamera();
+                                   this.RefreshOverlay();
+                               };
+            this.Surface.Resized+= this.ResizeHandler;
         }
 
-        Rebuild();
+        this.Rebuild();
     }
 
     /// <summary>
@@ -347,12 +350,12 @@ internal sealed class SceneHwndHost:HwndHost {
     /// 毎フレーム呼んで構わない。
     /// </summary>
     private void ApplyCamera(){
-        if(Renderer is not { } Active||ViewState is not { } State){
+        if(this.Renderer is not { } Active|| this.ViewState is not { } State){
             return;
         }
 
         Active.SetCamera(State.GetView(),State.GetProjection(this.AspectRatio));
-        UpdateMoveGizmo();
+        this.UpdateMoveGizmo();
     }
 
     /// <summary>
@@ -401,7 +404,7 @@ internal sealed class SceneHwndHost:HwndHost {
         // 「ヒエラルキーは取り消しできない」という実機報告になった。範囲判定は
         // SceneDesignerInputRoutingPolicyへ集約する — Step 1-4はここで生の論理和を書いてしまい、
         // 純粋関数として切り出したSceneSaveTriggerPolicyが製品コードから呼ばれない配線漏れを作った。
-        bool ViewportFocused=IsViewportFocusedProvider?.Invoke()==true;
+        bool ViewportFocused= this.IsViewportFocusedProvider?.Invoke()==true;
         bool AuxiliaryFocused=SceneEditorHub.AnyAuxiliarySurfaceHasFocus;
         bool RouteSave=SceneDesignerInputRoutingPolicy.ShouldRouteSaveToDesigner(
             ViewportFocused,AuxiliaryFocused);
@@ -410,13 +413,13 @@ internal sealed class SceneHwndHost:HwndHost {
             ViewportFocused,AuxiliaryFocused,
             Keyboard.FocusedElement is System.Windows.Controls.Primitives.TextBoxBase);
 
-        if(RouteUndoRedo&&SceneUndoRedoKeyPolicy.IsRisingEdge(ZDown,PreviousUndoKeyDown)){ Raise(UndoRequested); }
-        if(RouteUndoRedo&&SceneUndoRedoKeyPolicy.IsRisingEdge(YDown,PreviousRedoKeyDown)){ Raise(RedoRequested); }
-        if(RouteSave&&SceneUndoRedoKeyPolicy.IsRisingEdge(SDown,PreviousSaveKeyDown)){ Raise(SaveRequested); }
+        if(RouteUndoRedo&&SceneUndoRedoKeyPolicy.IsRisingEdge(ZDown, this.PreviousUndoKeyDown)){ Raise(this.UndoRequested); }
+        if(RouteUndoRedo&&SceneUndoRedoKeyPolicy.IsRisingEdge(YDown, this.PreviousRedoKeyDown)){ Raise(this.RedoRequested); }
+        if(RouteSave&&SceneUndoRedoKeyPolicy.IsRisingEdge(SDown, this.PreviousSaveKeyDown)){ Raise(this.SaveRequested); }
 
-        PreviousUndoKeyDown=ZDown;
-        PreviousRedoKeyDown=YDown;
-        PreviousSaveKeyDown=SDown;
+        this.PreviousUndoKeyDown=ZDown;
+        this.PreviousRedoKeyDown=YDown;
+        this.PreviousSaveKeyDown=SDown;
     }
 
     /// <summary>
@@ -435,18 +438,18 @@ internal sealed class SceneHwndHost:HwndHost {
     }
 
     private void TickFlyIfNeeded(EventArgs Args){
-        if(InputMachine is not { } Machine||ViewState is not { } State||Machine.State!=SceneNavState.Flying){
-            LastFlyTickTime=null; // Fly再突入時に古い時刻からの巨大なDeltaTimeが出ないようにする。
+        if(this.InputMachine is not { } Machine|| this.ViewState is not { } State||Machine.State!=SceneNavState.Flying){
+            this.LastFlyTickTime=null; // Fly再突入時に古い時刻からの巨大なDeltaTimeが出ないようにする。
             return;
         }
 
         double DeltaSeconds=0;
         if(Args is RenderingEventArgs RenderArgs){
-            if(LastFlyTickTime is { } Previous){
+            if(this.LastFlyTickTime is { } Previous){
                 DeltaSeconds=(RenderArgs.RenderingTime-Previous).TotalSeconds;
             }
 
-            LastFlyTickTime=RenderArgs.RenderingTime;
+            this.LastFlyTickTime=RenderArgs.RenderingTime;
         }
 
         bool Shift=(NativeMethods.GetKeyState(NativeMethods.VK_SHIFT)&0x8000)!=0;
@@ -454,14 +457,14 @@ internal sealed class SceneHwndHost:HwndHost {
 
         // ピクセル完全一致中は回転をムーブイベントごとに即時確定済み(OnPointerInput参照)なので、
         // ここではWASDQEの移動だけを現在のYaw/Pitchで適用する。
-        if(LookUsesPixelLock){
+        if(this.LookUsesPixelLock){
             State.TickFlyMovementOnly(Machine.FlyHeldKeys,(float)DeltaSeconds,Shift,Ctrl);
             return;
         }
 
-        State.TickFly(Machine.FlyHeldKeys,PendingLookDeltaX,PendingLookDeltaY,(float)DeltaSeconds,Shift,Ctrl);
-        PendingLookDeltaX=0f;
-        PendingLookDeltaY=0f;
+        State.TickFly(Machine.FlyHeldKeys, this.PendingLookDeltaX, this.PendingLookDeltaY,(float)DeltaSeconds,Shift,Ctrl);
+        this.PendingLookDeltaX=0f;
+        this.PendingLookDeltaY=0f;
     }
 
     /// <summary>
@@ -470,10 +473,10 @@ internal sealed class SceneHwndHost:HwndHost {
     /// <c>GetKeyState</c>を読む。Idle以外(ドラッグ・Fly・Orbit等)やギズモが無い(未選択)時は武装しない。
     /// </summary>
     private void UpdateSurfaceSnapArmed(){
-        SurfaceSnapArmed=InputMachine is { State:SceneNavState.Idle }
-            &&CurrentMoveGizmo is not null
-            &&(NativeMethods.GetKeyState(NativeMethods.VK_SHIFT)&0x8000)!=0
-            &&(NativeMethods.GetKeyState(NativeMethods.VK_CONTROL)&0x8000)!=0;
+        this.SurfaceSnapArmed= this.InputMachine is { State:SceneNavState.Idle }
+                            && this.CurrentMoveGizmo is not null
+                            &&(NativeMethods.GetKeyState(NativeMethods.VK_SHIFT)&0x8000)!=0
+                            &&(NativeMethods.GetKeyState(NativeMethods.VK_CONTROL)&0x8000)!=0;
     }
 
     /// <summary>
@@ -485,16 +488,16 @@ internal sealed class SceneHwndHost:HwndHost {
     /// </summary>
     private void OnPointerInput(PointerEvent Event){
         ThreadHelper.ThrowIfNotOnUIThread();
-        if(InputMachine is not { } Machine){
+        if(this.InputMachine is not { } Machine){
             return;
         }
 
         if(Event.Kind==PointerEventKind.Down){
-            ViewportActivated?.Invoke();
+            this.ViewportActivated?.Invoke();
         }
 
         if(Event.Kind==PointerEventKind.Move&&Machine.State==SceneNavState.Idle){
-            TryHitTransformGizmoAt(Event.X,Event.Y,IncludeProperty:!Event.Modifiers.Alt);
+            this.TryHitTransformGizmoAt(Event.X,Event.Y,IncludeProperty:!Event.Modifiers.Alt);
         }
 
         // ヒットテストはLMB Down・Alt無し・Idle中(Orbit開始やナビゲーション中の無駄な走査を避ける)の
@@ -502,21 +505,21 @@ internal sealed class SceneHwndHost:HwndHost {
         // 結果だけを渡す。
         GizmoHandleId?HitGizmoHandle=Event.Kind==PointerEventKind.Down&&Event.Button==PointerButton.Left
             &&Machine.State==SceneNavState.Idle
-            ?TryHitTransformGizmoAt(Event.X,Event.Y,IncludeProperty:!Event.Modifiers.Alt)
+            ? this.TryHitTransformGizmoAt(Event.X,Event.Y,IncludeProperty:!Event.Modifiers.Alt)
             :null;
         NodePath?HitNodePath=HitGizmoHandle is null
             &&Event.Kind==PointerEventKind.Down&&Event.Button==PointerButton.Left
             &&!Event.Modifiers.Alt&&Machine.State==SceneNavState.Idle
-            ?TryPickAt(Event.X,Event.Y)
+            ? this.TryPickAt(Event.X,Event.Y)
             :null;
 
         SceneInputStepResult Result=Machine.Handle(Event,HitNodePath,HitGizmoHandle);
 
         if(Result.GizmoDragBegan&&Result.GizmoHandle is { }BeganHandle
-            &&!BeginGizmoDrag(BeganHandle,Event.X,Event.Y,Result.GizmoDuplicate)){
+            &&!this.BeginGizmoDrag(BeganHandle,Event.X,Event.Y,Result.GizmoDuplicate)){
             SceneInputStepResult Canceled=Machine.CancelCurrent();
             if(Canceled.Capture==SceneCaptureAction.End){
-                Surface?.ReleasePointerCapture();
+                this.Surface?.ReleasePointerCapture();
             }
             return;
         }
@@ -524,48 +527,50 @@ internal sealed class SceneHwndHost:HwndHost {
         // M0020追加: RMB/Alt+LMBでFlying/Orbitingへ入った瞬間だけアンカーを捕捉する
         // (反転設定がONならピクセル完全一致は使わず、以降は既存のdelta*sensitivity経路のまま)。
         if(Result.Capture==SceneCaptureAction.Begin){
-            if(Result.State==SceneNavState.Flying){ CaptureLookAnchor(Event.X,Event.Y); }
-            else if(Result.State==SceneNavState.Orbiting){ CaptureOrbitAnchor(Event.X,Event.Y); }
+            if(Result.State==SceneNavState.Flying){
+                this.CaptureLookAnchor(Event.X,Event.Y); }
+            else if(Result.State==SceneNavState.Orbiting){
+                this.CaptureOrbitAnchor(Event.X,Event.Y); }
         }
 
         switch(Result.Capture){
             case SceneCaptureAction.Begin:
-                Surface?.SetPointerCapture();
+                this.Surface?.SetPointerCapture();
                 break;
             case SceneCaptureAction.End:
-                Surface?.ReleasePointerCapture();
+                this.Surface?.ReleasePointerCapture();
                 break;
         }
 
         if(Result.SelectionConfirmed){
-            ObjectPicked?.Invoke(Result.ConfirmedNodePath,Result.ConfirmedCtrl);
+            this.ObjectPicked?.Invoke(Result.ConfirmedNodePath,Result.ConfirmedCtrl);
         }
 
         if(Result.MarqueeUpdated){
-            ActiveMarqueeRectangle=Result.MarqueeRectangle;
-            RefreshOverlay();
+            this.ActiveMarqueeRectangle=Result.MarqueeRectangle;
+            this.RefreshOverlay();
         }
         if(Result.MarqueeCanceled){
-            ActiveMarqueeRectangle=null;
-            RefreshOverlay();
+            this.ActiveMarqueeRectangle=null;
+            this.RefreshOverlay();
         }
         if(Result.MarqueeSelectionConfirmed){
-            PublishMarqueeSelection(Result.MarqueeRectangle,Result.ConfirmedCtrl);
+            this.PublishMarqueeSelection(Result.MarqueeRectangle,Result.ConfirmedCtrl);
         }
 
         if(Result.GizmoCanceled){
-            CancelEditTransaction();
+            this.CancelEditTransaction();
             return;
         }
         if(Result.GizmoCommitRequested){
-            CommitEditTransaction();
+            this.CommitEditTransaction();
             return;
         }
         if(Result.State==SceneNavState.GizmoDragging&&Event.Kind==PointerEventKind.Move){
-            if(ActivePropertyDrag is not null){
-                UpdatePropertyGizmoDrag(Event.X,Event.Y,Event.Modifiers.Ctrl);
+            if(this.ActivePropertyDrag is not null){
+                this.UpdatePropertyGizmoDrag(Event.X,Event.Y,Event.Modifiers.Ctrl);
             } else {
-                UpdateTransformGizmoDrag(Event.X,Event.Y,Event.Modifiers.Ctrl,Event.Modifiers.Shift);
+                this.UpdateTransformGizmoDrag(Event.X,Event.Y,Event.Modifiers.Ctrl,Event.Modifiers.Shift);
             }
             return;
         }
@@ -576,27 +581,26 @@ internal sealed class SceneHwndHost:HwndHost {
 
         switch(Result.State){
             case SceneNavState.Flying:
-                if(LookUsesPixelLock&&ViewState is { } LookState){
+                if(this.LookUsesPixelLock&& this.ViewState is { } LookState){
                     (_,Vector3 Direction)=SceneViewCamera.ScreenPointToRay(
                         LookState.GetView(),LookState.GetProjection(this.AspectRatio),
-                        Event.X,Event.Y,SurfaceWidth,SurfaceHeight);
+                        Event.X,Event.Y, this.SurfaceWidth, this.SurfaceHeight);
                     Vector3 LocalAxes=SceneViewCamera.DecomposeDirection(Direction,LookState.Yaw,LookState.Pitch);
-                    LookState.ApplyLookPixelLock(LookAnchorWorldDirection,LocalAxes);
+                    LookState.ApplyLookPixelLock(this.LookAnchorWorldDirection,LocalAxes);
                 } else {
-                    PendingLookDeltaX+=Result.DeltaX;
-                    PendingLookDeltaY+=Result.DeltaY;
+                    this.PendingLookDeltaX+=Result.DeltaX;
+                    this.PendingLookDeltaY+=Result.DeltaY;
                 }
                 break;
             case SceneNavState.Orbiting:
-                if(OrbitUsesPixelLock&&ViewState is { } OrbitState){
-                    OrbitState.ApplyOrbitPixelLock(
-                        OrbitAnchorWorldPoint,Event.X,Event.Y,SurfaceWidth,SurfaceHeight,this.AspectRatio);
+                if(this.OrbitUsesPixelLock&& this.ViewState is { } OrbitState){
+                    OrbitState.ApplyOrbitPixelLock(this.OrbitAnchorWorldPoint,Event.X,Event.Y, this.SurfaceWidth, this.SurfaceHeight,this.AspectRatio);
                 } else {
-                    ViewState?.ApplyOrbit(Result.DeltaX,Result.DeltaY);
+                    this.ViewState?.ApplyOrbit(Result.DeltaX,Result.DeltaY);
                 }
                 break;
             case SceneNavState.Panning:
-                ViewState?.ApplyPan(Result.DeltaX,Result.DeltaY);
+                this.ViewState?.ApplyPan(Result.DeltaX,Result.DeltaY);
                 break;
         }
     }
@@ -606,13 +610,13 @@ internal sealed class SceneHwndHost:HwndHost {
     /// 十分(<see cref="SceneViewCamera.SolveLookOrientation"/>参照、ヒットテスト不要)。
     /// </summary>
     private void CaptureLookAnchor(int X,int Y){
-        LookUsesPixelLock=ViewState is { InvertLookX:false,InvertLookY:false };
-        if(!LookUsesPixelLock||ViewState is not { } State){
+        this.LookUsesPixelLock= this.ViewState is { InvertLookX:false,InvertLookY:false };
+        if(!this.LookUsesPixelLock|| this.ViewState is not { } State){
             return;
         }
 
-        (_,LookAnchorWorldDirection)=SceneViewCamera.ScreenPointToRay(
-            State.GetView(),State.GetProjection(this.AspectRatio),X,Y,SurfaceWidth,SurfaceHeight);
+        (_, this.LookAnchorWorldDirection)=SceneViewCamera.ScreenPointToRay(
+                                                                            State.GetView(),State.GetProjection(this.AspectRatio),X,Y, this.SurfaceWidth, this.SurfaceHeight);
     }
 
     /// <summary>
@@ -621,78 +625,78 @@ internal sealed class SceneHwndHost:HwndHost {
     /// 現在の注視平面との交点を仮のアンカーにする。
     /// </summary>
     private void CaptureOrbitAnchor(int X,int Y){
-        OrbitUsesPixelLock=ViewState is { InvertOrbitX:false,InvertOrbitY:false };
-        if(!OrbitUsesPixelLock||ViewState is not { } State){
+        this.OrbitUsesPixelLock= this.ViewState is { InvertOrbitX:false,InvertOrbitY:false };
+        if(!this.OrbitUsesPixelLock|| this.ViewState is not { } State){
             return;
         }
 
         (Vector3 Origin,Vector3 Direction)=SceneViewCamera.ScreenPointToRay(
-            State.GetView(),State.GetProjection(this.AspectRatio),X,Y,SurfaceWidth,SurfaceHeight);
-        OrbitAnchorWorldPoint=ScenePicker.TryPick(CurrentRenderObjects,Origin,Direction,out _,out float Distance)
-            ?Origin+Direction*Distance
-            :SceneViewCamera.ComputeOrbitAnchorFallbackPoint(
-                Origin,Direction,State.FocusPosition,SceneViewCamera.GetForward(State.Yaw,State.Pitch));
+            State.GetView(),State.GetProjection(this.AspectRatio),X,Y, this.SurfaceWidth, this.SurfaceHeight);
+        this.OrbitAnchorWorldPoint=ScenePicker.TryPick(this.CurrentRenderObjects,Origin,Direction,out _,out float Distance)
+                                       ?Origin+Direction*Distance
+                                       :SceneViewCamera.ComputeOrbitAnchorFallbackPoint(
+                                        Origin,Direction,State.FocusPosition,SceneViewCamera.GetForward(State.Yaw,State.Pitch));
     }
 
     private NodePath?TryPickAt(int X,int Y){
-        if(ViewState is not { } State||CurrentRenderObjects.Count==0){
+        if(this.ViewState is not { } State|| this.CurrentRenderObjects.Count==0){
             return null;
         }
 
         (Vector3 Origin,Vector3 Direction)=SceneViewCamera.ScreenPointToRay(
-            State.GetView(),State.GetProjection(this.AspectRatio),X,Y,SurfaceWidth,SurfaceHeight);
-        return ScenePicker.TryPick(CurrentRenderObjects,Origin,Direction,out NodePath Hit)?Hit:(NodePath?)null;
+            State.GetView(),State.GetProjection(this.AspectRatio),X,Y, this.SurfaceWidth, this.SurfaceHeight);
+        return ScenePicker.TryPick(this.CurrentRenderObjects,Origin,Direction,out NodePath Hit)?Hit:(NodePath?)null;
     }
 
     private GizmoHandleId?TryHitTransformGizmoAt(int X,int Y,bool IncludeProperty=true){
-        if(ViewState is not { }State||(CurrentMoveGizmo is null&&CurrentPropertyGizmo is null)){
+        if(this.ViewState is not { }State||(this.CurrentMoveGizmo is null&& this.CurrentPropertyGizmo is null)){
             return null;
         }
 
         (Vector3 Origin,Vector3 Direction)=SceneViewCamera.ScreenPointToRay(
-            State.GetView(),State.GetProjection(this.AspectRatio),X,Y,SurfaceWidth,SurfaceHeight);
+            State.GetView(),State.GetProjection(this.AspectRatio),X,Y, this.SurfaceWidth, this.SurfaceHeight);
         Vector3 CameraForward=SceneViewCamera.GetForward(State.Yaw,State.Pitch);
-        GizmoHandleId?Hit=IncludeProperty&&CurrentPropertyGizmo is { }PropertyFrame
+        GizmoHandleId?Hit=IncludeProperty&& this.CurrentPropertyGizmo is { }PropertyFrame
             ?PropertyGizmo.TryHit(PropertyFrame,Origin,Direction)
             :null;
-        if(Hit is null&&CurrentMoveGizmo is { }Frame){
+        if(Hit is null&& this.CurrentMoveGizmo is { }Frame){
             Vector3 CameraRight=SceneViewCamera.GetFlatRight(State.Yaw);
             Vector3 CameraUp=SceneViewCamera.GetUp(State.Yaw,State.Pitch);
             Hit=TransformGizmo.TryHitTransform(
-                Frame,Origin,Direction,CameraForward,CameraRight,CameraUp,SurfaceSnapArmed,DisabledTransformHandles);
+                Frame,Origin,Direction,CameraForward,CameraRight,CameraUp, this.SurfaceSnapArmed, this.DisabledTransformHandles);
         }
-        if(Hit!=HoveredGizmoHandle){
-            HoveredGizmoHandle=Hit;
-            RefreshOverlay();
+        if(Hit!= this.HoveredGizmoHandle){
+            this.HoveredGizmoHandle=Hit;
+            this.RefreshOverlay();
         }
         return Hit;
     }
 
     private void UpdateMoveGizmo(){
-        if(Renderer is null||ViewState is not { }State
-            ||SelectedNodePath is not { }PrimaryPath
-            ||TargetSnapshot?.Projection is not { }Projection
-            ||!Projection.TryGetId(PrimaryPath,out EditorNodeId PrimaryId)
-            ||!Projection.TryGetNode(PrimaryId,out SceneProjectionNode PrimaryNode)){
-            CurrentMoveGizmo=null;
-            CurrentPropertyGizmo=null;
-            HoveredGizmoHandle=null;
-            DisabledTransformHandles=Array.Empty<GizmoHandleId>();
-            RefreshOverlay();
+        if(this.Renderer is null|| this.ViewState is not { }State
+                                || this.SelectedNodePath is not { }PrimaryPath
+                                || this.TargetSnapshot?.Projection is not { }Projection
+                                ||!Projection.TryGetId(PrimaryPath,out EditorNodeId PrimaryId)
+                                ||!Projection.TryGetNode(PrimaryId,out SceneProjectionNode PrimaryNode)){
+            this.CurrentMoveGizmo=null;
+            this.CurrentPropertyGizmo=null;
+            this.HoveredGizmoHandle=null;
+            this.DisabledTransformHandles=Array.Empty<GizmoHandleId>();
+            this.RefreshOverlay();
             return;
         }
-        if(EditTransaction.State!=EditTransactionState.Idle
-            &&(CurrentMoveGizmo is not null||CurrentPropertyGizmo is not null)){
-            RefreshOverlay();
+        if(this.EditTransaction.State!=EditTransactionState.Idle
+            &&(this.CurrentMoveGizmo is not null|| this.CurrentPropertyGizmo is not null)){
+            this.RefreshOverlay();
             return;
         }
 
-        SceneRenderObject?PrimaryObject=CurrentRenderObjects.FirstOrDefault(Object=>Object.NodeId.Equals(PrimaryPath));
+        SceneRenderObject?PrimaryObject= this.CurrentRenderObjects.FirstOrDefault(Object=>Object.NodeId.Equals(PrimaryPath));
         Matrix4x4 PrimaryWorld=PrimaryObject?.World??Matrix4x4.Identity;
         if(!SceneTransformMath.TryDecompose(PrimaryWorld,out SceneTransformValue WorldTransform)){
-            CurrentMoveGizmo=null;
-            CurrentPropertyGizmo=null;
-            RefreshOverlay();
+            this.CurrentMoveGizmo=null;
+            this.CurrentPropertyGizmo=null;
+            this.RefreshOverlay();
             return;
         }
 
@@ -701,67 +705,68 @@ internal sealed class SceneHwndHost:HwndHost {
             Vector3.Distance(WorldTransform.Position,State.GetEyePosition()),
             State.FovYRadians,
             State.OrthographicSize);
-        CurrentPropertyGizmo=PropertyGizmoBinding.TryCreate(
-            PrimaryNode.Node,PrimaryWorld,Scale,out PropertyGizmoFrame PropertyFrame)
-            ?PropertyFrame
-            :null;
+        this.CurrentPropertyGizmo=PropertyGizmoBinding.TryCreate(
+                                                                 PrimaryNode.Node,PrimaryWorld,Scale,out PropertyGizmoFrame PropertyFrame)
+                                      ?PropertyFrame
+                                      :null;
         if(!SceneTransformBinding.TryRead(PrimaryNode.Node,out _)){
-            CurrentMoveGizmo=null;
-            DisabledTransformHandles=Array.Empty<GizmoHandleId>();
-            RefreshOverlay();
+            this.CurrentMoveGizmo=null;
+            this.DisabledTransformHandles=Array.Empty<GizmoHandleId>();
+            this.RefreshOverlay();
             return;
         }
-        CurrentMoveGizmo=MoveGizmoFrame.Create(
-            WorldTransform.Position,WorldTransform.Rotation,State.TransformSpace,Scale);
-        List<SceneProjectionNode>Roots=GetSelectedMoveRoots(Projection);
-        DisabledTransformHandles=AllTransformHandles
-            .Where(Handle=>Roots.Count==0
-                ||Roots.Any(Node=>!SceneTransformBinding.CanEditTransform(Node.Node,GetHandleFamily(Handle),Handle)))
-            .ToArray();
-        RefreshOverlay();
+
+        this.CurrentMoveGizmo=MoveGizmoFrame.Create(
+                                                    WorldTransform.Position,WorldTransform.Rotation,State.TransformSpace,Scale);
+        List<SceneProjectionNode>Roots= this.GetSelectedMoveRoots(Projection);
+        this.DisabledTransformHandles=AllTransformHandles
+                                     .Where(Handle=>Roots.Count==0
+                                                  ||Roots.Any(Node=>!SceneTransformBinding.CanEditTransform(Node.Node,GetHandleFamily(Handle),Handle)))
+                                     .ToArray();
+        this.RefreshOverlay();
     }
 
     /// <summary>Transformギズモと矩形選択をPhase Aの同じoverlay PSO入力へ合成する。</summary>
     private void RefreshOverlay(){
-        if(Renderer is not { }Active){
+        if(this.Renderer is not { }Active){
             return;
         }
 
         List<GizmoOverlayPrimitive>Primitives=[];
         IReadOnlyList<GizmoOverlayPrimitive>TransformPrimitives=Array.Empty<GizmoOverlayPrimitive>();
         IReadOnlyList<GizmoOverlayPrimitive>PropertyPrimitives=Array.Empty<GizmoOverlayPrimitive>();
-        if(CurrentMoveGizmo is { }Frame&&ViewState is { }GizmoState){
+        if(this.CurrentMoveGizmo is { }Frame&& this.ViewState is { }GizmoState){
             Vector3 CameraForward=SceneViewCamera.GetForward(GizmoState.Yaw,GizmoState.Pitch);
             Vector3 CameraRight=SceneViewCamera.GetFlatRight(GizmoState.Yaw);
             Vector3 CameraUp=SceneViewCamera.GetUp(GizmoState.Yaw,GizmoState.Pitch);
             List<GizmoOverlayPrimitive>Combined=[
-                ..TransformGizmo.BuildMoveOverlay(Frame,HoveredGizmoHandle,ActiveGizmoHandle,DisabledTransformHandles),
+                ..TransformGizmo.BuildMoveOverlay(Frame, this.HoveredGizmoHandle, this.ActiveGizmoHandle, this.DisabledTransformHandles),
                 ..TransformGizmo.BuildRotateOverlay(
-                    Frame,CameraForward,HoveredGizmoHandle,ActiveGizmoHandle,DisabledTransformHandles),
-                ..TransformGizmo.BuildScaleOverlay(Frame,HoveredGizmoHandle,ActiveGizmoHandle,DisabledTransformHandles),
-                ..TransformSpaceToggleGizmo.BuildOverlay(Frame,CameraRight,CameraUp,GizmoState.TransformSpace,HoveredGizmoHandle),
+                    Frame,CameraForward, this.HoveredGizmoHandle, this.ActiveGizmoHandle, this.DisabledTransformHandles),
+                ..TransformGizmo.BuildScaleOverlay(Frame, this.HoveredGizmoHandle, this.ActiveGizmoHandle, this.DisabledTransformHandles),
+                ..TransformSpaceToggleGizmo.BuildOverlay(Frame,CameraRight,CameraUp,GizmoState.TransformSpace, this.HoveredGizmoHandle),
             ];
-            if(SurfaceSnapArmed||ActiveSurfaceSnapDrag){
-                (Vector3 SnapPosition,Vector3 SnapNormal)=ActiveSurfaceSnapDrag&&CurrentSurfaceSnapHit is { }Hit
+            if(this.SurfaceSnapArmed|| this.ActiveSurfaceSnapDrag){
+                (Vector3 SnapPosition,Vector3 SnapNormal)= this.ActiveSurfaceSnapDrag&& this.CurrentSurfaceSnapHit is { }Hit
                     ?Hit
                     :SurfaceSnapGizmo.GetArmedPlacement(Frame,CameraForward);
-                bool SnapDisabled=DisabledTransformHandles.Contains(GizmoHandleId.SurfaceSnapPlane);
+                bool SnapDisabled= this.DisabledTransformHandles.Contains(GizmoHandleId.SurfaceSnapPlane);
                 Combined.AddRange(SurfaceSnapGizmo.BuildOverlay(Frame,SnapPosition,SnapNormal,SnapDisabled));
             }
             TransformPrimitives=Combined;
         }
-        if(CurrentPropertyGizmo is { }PropertyFrame){
+        if(this.CurrentPropertyGizmo is { }PropertyFrame){
             PropertyPrimitives=PropertyGizmo.BuildOverlay(
-                PropertyFrame,HoveredGizmoHandle,ActiveGizmoHandle);
+                PropertyFrame, this.HoveredGizmoHandle, this.ActiveGizmoHandle);
         }
         Primitives.AddRange(CompoundGizmo.Compose(TransformPrimitives,PropertyPrimitives));
-        if(ActiveMarqueeRectangle is { }Rectangle&&ViewState is { }State){
+        if(this.ActiveMarqueeRectangle is { }Rectangle&& this.ViewState is { }State){
             Primitives.AddRange(MarqueeOverlay.Build(
-                Rectangle,State.GetView(),State.GetProjection(this.AspectRatio),SurfaceWidth,SurfaceHeight));
+                Rectangle,State.GetView(),State.GetProjection(this.AspectRatio), this.SurfaceWidth, this.SurfaceHeight));
         }
-        if(ActiveDragHud is { }HudState&&ViewState is { }HudViewState){
+        if(this.ActiveDragHud is { }HudState&& this.ViewState is { }HudViewState){
             IReadOnlyList<GizmoOverlayPrimitive>Hud=GizmoDragHud.Build(
-                HudState,HudViewState.GetView(),HudViewState.GetProjection(this.AspectRatio),SurfaceWidth,SurfaceHeight);
+                HudState,HudViewState.GetView(),HudViewState.GetProjection(this.AspectRatio), this.SurfaceWidth, this.SurfaceHeight);
             int ExistingVertices=Primitives.Sum(static Primitive=>Primitive.Vertices.Count);
             int HudVertices=Hud.Sum(static Primitive=>Primitive.Vertices.Count);
             // M0037: SceneRenderer.SetOverlayは頂点予算超過で例外を投げる。HUDは表示専用の付加情報
@@ -775,23 +780,22 @@ internal sealed class SceneHwndHost:HwndHost {
     }
 
     private void PublishMarqueeSelection(ScreenRectangle Rectangle,bool CtrlHeld){
-        IReadOnlyList<NodePath>Hits=ViewState is { }State
-            ?ScenePicker.PickMarquee(
-                CurrentRenderObjects,State.GetView(),State.GetProjection(this.AspectRatio),
-                Rectangle,SurfaceWidth,SurfaceHeight)
+        IReadOnlyList<NodePath>Hits= this.ViewState is { }State
+            ?ScenePicker.PickMarquee(this.CurrentRenderObjects,State.GetView(),State.GetProjection(this.AspectRatio),
+                Rectangle, this.SurfaceWidth, this.SurfaceHeight)
             :Array.Empty<NodePath>();
-        ActiveMarqueeRectangle=null;
-        RefreshOverlay();
-        ObjectsMarqueePicked?.Invoke(Hits,CtrlHeld);
+        this.ActiveMarqueeRectangle=null;
+        this.RefreshOverlay();
+        this.ObjectsMarqueePicked?.Invoke(Hits,CtrlHeld);
     }
 
     private bool BeginGizmoDrag(GizmoHandleId Handle,int X,int Y,bool Duplicate){
         ThreadHelper.ThrowIfNotOnUIThread();
         return Handle==GizmoHandleId.TransformSpaceToggle
-            ?ToggleTransformSpaceHandle()
+            ? this.ToggleTransformSpaceHandle()
             :PropertyGizmo.IsPropertyHandle(Handle)
-                ?BeginPropertyGizmoDrag(Handle,X,Y,Duplicate)
-                :BeginTransformGizmoDrag(Handle,X,Y,Duplicate);
+                ? this.BeginPropertyGizmoDrag(Handle,X,Y,Duplicate)
+                : this.BeginTransformGizmoDrag(Handle,X,Y,Duplicate);
     }
 
     /// <summary>
@@ -801,43 +805,43 @@ internal sealed class SceneHwndHost:HwndHost {
     /// </summary>
     private bool ToggleTransformSpaceHandle(){
         ThreadHelper.ThrowIfNotOnUIThread();
-        SetTransformSpace(CurrentTransformSpace==SceneTransformSpace.World
-            ?SceneTransformSpace.Local:SceneTransformSpace.World);
+        this.SetTransformSpace(this.CurrentTransformSpace==SceneTransformSpace.World
+                                   ?SceneTransformSpace.Local:SceneTransformSpace.World);
         return false;
     }
 
     private bool BeginPropertyGizmoDrag(GizmoHandleId Handle,int X,int Y,bool Duplicate){
-        if(Duplicate||CurrentPropertyGizmo is not { }Frame
-            ||TargetSnapshot is not { }Snapshot||Snapshot.Projection is not { }Projection
-            ||CurrentSelection?.PrimaryNodeId is not { }PrimaryId
+        if(Duplicate|| this.CurrentPropertyGizmo is not { }Frame
+            || this.TargetSnapshot is not { }Snapshot||Snapshot.Projection is not { }Projection
+            || this.CurrentSelection?.PrimaryNodeId is not { }PrimaryId
             ||!Projection.TryGetNode(PrimaryId,out SceneProjectionNode PrimaryNode)
             ||!Frame.Handles.Contains(Handle)||!Frame.CanEdit(Handle)){
             return false;
         }
 
-        ActivePropertyDrag=new PropertyGizmoDrag(Frame,Handle,X,Y);
-        PropertyCommitInProgress=false;
-        EditTransaction.BeginDirect(Snapshot);
-        ActiveGizmoHandle=Handle;
-        HoveredGizmoHandle=Handle;
-        RefreshOverlay();
-        SetStatus($"プロパティ編集中: {PrimaryNode.Node.DisplayName}");
+        this.ActivePropertyDrag=new PropertyGizmoDrag(Frame,Handle,X,Y);
+        this.PropertyCommitInProgress=false;
+        this.EditTransaction.BeginDirect(Snapshot);
+        this.ActiveGizmoHandle=Handle;
+        this.HoveredGizmoHandle=Handle;
+        this.RefreshOverlay();
+        this.SetStatus($"プロパティ編集中: {PrimaryNode.Node.DisplayName}");
         return true;
     }
 
     private bool BeginTransformGizmoDrag(GizmoHandleId Handle,int X,int Y,bool Duplicate){
-        if(CurrentMoveGizmo is not { }Frame||ViewState is not { }State
-            ||TargetSnapshot is not { }Snapshot||Snapshot.Projection is not { }Projection
-            ||CurrentSelection is not { }Selection||Selection.PrimaryNodeId is not { }PrimaryId
-            ||!Projection.TryGetNode(PrimaryId,out SceneProjectionNode PrimaryNode)){
+        if(this.CurrentMoveGizmo is not { }Frame|| this.ViewState is not { }State
+                                                || this.TargetSnapshot is not { }Snapshot||Snapshot.Projection is not { }Projection
+                                                || this.CurrentSelection is not { }Selection||Selection.PrimaryNodeId is not { }PrimaryId
+                                                ||!Projection.TryGetNode(PrimaryId,out SceneProjectionNode PrimaryNode)){
             return false;
         }
 
         SceneActiveTool Family=GetHandleFamily(Handle);
-        List<SceneProjectionNode>Roots=GetSelectedMoveRoots(Projection);
+        List<SceneProjectionNode>Roots= this.GetSelectedMoveRoots(Projection);
         IReadOnlyList<DuplicateNodePlanItem>DuplicatePlan=Array.Empty<DuplicateNodePlanItem>();
         if(Duplicate&&!DuplicateNodePlanner.TryCreate(Roots,Projection,out DuplicatePlan)){
-            SetStatus("Scene Rootまたは親Childrenを解決できないNodeは複製できません。");
+            this.SetStatus("Scene Rootまたは親Childrenを解決できないNodeは複製できません。");
             return false;
         }
         if(Roots.Any(Node=>!SceneTransformBinding.CanEditTransform(Node.Node,Family,Handle))){
@@ -846,12 +850,12 @@ internal sealed class SceneHwndHost:HwndHost {
 
         List<SceneTransformTarget>Targets=[];
         foreach(SceneProjectionNode Node in Roots){
-            SceneRenderObject?Object=CurrentRenderObjects.FirstOrDefault(Item=>Item.NodeId.Equals(Node.Path));
+            SceneRenderObject?Object= this.CurrentRenderObjects.FirstOrDefault(Item=>Item.NodeId.Equals(Node.Path));
             if(Object is null){
                 continue;
             }
             Matrix4x4 ParentWorld=Node.Path.Parent is { }ParentPath
-                ?CurrentRenderObjects.FirstOrDefault(Item=>Item.NodeId.Equals(ParentPath))?.World??Matrix4x4.Identity
+                ? this.CurrentRenderObjects.FirstOrDefault(Item=>Item.NodeId.Equals(ParentPath))?.World??Matrix4x4.Identity
                 :Matrix4x4.Identity;
             Targets.Add(new SceneTransformTarget(Node.Id,Node.Path,Object.World,ParentWorld));
         }
@@ -861,78 +865,79 @@ internal sealed class SceneHwndHost:HwndHost {
 
         // M0036: コミット前のRoot Worldを退避しておく。Ctrl+Zの表示先読みパッチ(TryFastUndo)専用で、
         // EditTransactionController.Targets(private)には外部からアクセスできないためここで複製する。
-        ActiveDragOriginalRoots=Targets
-            .Select(static Target=>new SceneTransformPreview(default,Target.NodePath,Target.OriginalWorld))
-            .ToArray();
+        this.ActiveDragOriginalRoots=Targets
+                                    .Select(static Target=>new SceneTransformPreview(default,Target.NodePath,Target.OriginalWorld))
+                                    .ToArray();
         // M0037: 角度累積をドラッグ開始時にリセットする(Rotate以外では未使用のまま無害)。
-        ActiveRotateAccumulatedRadians=0f;
-        ActiveRotatePreviousRadians=0f;
+        this.ActiveRotateAccumulatedRadians=0f;
+        this.ActiveRotatePreviousRadians=0f;
 
         (Vector3 Origin,Vector3 Direction)=SceneViewCamera.ScreenPointToRay(
-            State.GetView(),State.GetProjection(this.AspectRatio),X,Y,SurfaceWidth,SurfaceHeight);
+            State.GetView(),State.GetProjection(this.AspectRatio),X,Y, this.SurfaceWidth, this.SurfaceHeight);
         Vector3 CameraForward=SceneViewCamera.GetForward(State.Yaw,State.Pitch);
-        ActiveMoveDrag=null;
-        ActiveRotateDrag=null;
-        ActiveScaleDrag=null;
+        this.ActiveMoveDrag=null;
+        this.ActiveRotateDrag=null;
+        this.ActiveScaleDrag=null;
         // M0034: SurfaceSnapPlaneはMove/Rotate/ScaleGizmoDragのどれとも噛み合わない専用ハンドル
         // (Frame.GetAxis/GetPlaneAxesが未知Handleで例外を投げるため、Family switchの評価自体を
         // ||短絡で回避する)。編集可否は既に上のCanEditTransform(Family,Handle)チェックで
         // 保証済みなので、ここは無条件でtrueにしてよい。
-        ActiveSurfaceSnapDrag=Handle==GizmoHandleId.SurfaceSnapPlane;
-        CurrentSurfaceSnapHit=null;
-        bool Began=ActiveSurfaceSnapDrag||Family switch {
-            SceneActiveTool.Move=>MoveGizmoDrag.TryBegin(
-                Frame,Handle,Origin,Direction,CameraForward,out ActiveMoveDrag),
-            SceneActiveTool.Rotate=>RotateGizmoDrag.TryBegin(
-                Frame,Handle,Origin,Direction,CameraForward,out ActiveRotateDrag),
-            SceneActiveTool.Scale=>ScaleGizmoDrag.TryBegin(
-                Frame,Handle,Origin,Direction,CameraForward,out ActiveScaleDrag),
-            _=>false,
-        };
+        this.ActiveSurfaceSnapDrag=Handle==GizmoHandleId.SurfaceSnapPlane;
+        this.CurrentSurfaceSnapHit=null;
+        bool Began= this.ActiveSurfaceSnapDrag||Family switch {
+                                                    SceneActiveTool.Move=>MoveGizmoDrag.TryBegin(
+                                                     Frame,Handle,Origin,Direction,CameraForward,out this.ActiveMoveDrag),
+                                                    SceneActiveTool.Rotate=>RotateGizmoDrag.TryBegin(
+                                                     Frame,Handle,Origin,Direction,CameraForward,out this.ActiveRotateDrag),
+                                                    SceneActiveTool.Scale=>ScaleGizmoDrag.TryBegin(
+                                                     Frame,Handle,Origin,Direction,CameraForward,out this.ActiveScaleDrag),
+                                                    _=>false,
+                                                };
         if(!Began){
             return false;
         }
 
-        EditTransaction.Begin(Snapshot,Targets);
-        ActiveDraggedRootPaths=Targets.Select(static Target=>Target.NodePath).ToArray();
+        this.EditTransaction.Begin(Snapshot,Targets);
+        this.ActiveDraggedRootPaths=Targets.Select(static Target=>Target.NodePath).ToArray();
         if(Duplicate){
-            if(!TryStartDuplicatePreview(DuplicatePlan)){
-                EditTransaction.Cancel();
-                ActiveDraggedRootPaths=[];
-                SetStatus("複製preview用の描画リソースを確保できませんでした。");
+            if(!this.TryStartDuplicatePreview(DuplicatePlan)){
+                this.EditTransaction.Cancel();
+                this.ActiveDraggedRootPaths=[];
+                this.SetStatus("複製preview用の描画リソースを確保できませんでした。");
                 return false;
             }
-            PreviewDescendantOriginals=[];
+
+            this.PreviewDescendantOriginals=[];
         } else {
-            PreviewDescendantOriginals=CurrentRenderObjects
-                .Where(Object=>Targets.Any(Target=>Object.NodeId.IsDescendantOf(Target.NodePath)))
-                .Select(Object=>new SceneTransformPreview(default,Object.NodeId,Object.World))
-                .ToArray();
+            this.PreviewDescendantOriginals= this.CurrentRenderObjects
+                                                 .Where(Object=>Targets.Any(Target=>Object.NodeId.IsDescendantOf(Target.NodePath)))
+                                                 .Select(Object=>new SceneTransformPreview(default,Object.NodeId,Object.World))
+                                                 .ToArray();
         }
-        SceneRenderObject?PrimaryObject=CurrentRenderObjects.FirstOrDefault(Item=>Item.NodeId.Equals(PrimaryNode.Path));
-        ActivePrimaryRotation=PrimaryObject is not null
-            &&SceneTransformMath.TryDecompose(PrimaryObject.World,out SceneTransformValue PrimaryWorld)
-            ?PrimaryWorld.Rotation
-            :Quaternion.Identity;
-        ActiveGizmoStartFrame=Frame;
-        ActiveCommitMembers=GetTransformMembers(Family);
-        ActiveFollowViewSnapshot=SceneViewFollowSnapshot.Capture(State);
-        HasActiveFollowViewSnapshot=true;
-        FollowViewApplied=false;
-        ActiveTransformTool=Family;
-        ActiveGizmoHandle=Handle;
-        HoveredGizmoHandle=Handle;
-        RefreshOverlay();
-        SetStatus($"{GetToolDisplayName(Family)}中: {PrimaryNode.Node.DisplayName}");
+        SceneRenderObject?PrimaryObject= this.CurrentRenderObjects.FirstOrDefault(Item=>Item.NodeId.Equals(PrimaryNode.Path));
+        this.ActivePrimaryRotation=PrimaryObject is not null
+                                 &&SceneTransformMath.TryDecompose(PrimaryObject.World,out SceneTransformValue PrimaryWorld)
+                                       ?PrimaryWorld.Rotation
+                                       :Quaternion.Identity;
+        this.ActiveGizmoStartFrame=Frame;
+        this.ActiveCommitMembers=GetTransformMembers(Family);
+        this.ActiveFollowViewSnapshot=SceneViewFollowSnapshot.Capture(State);
+        this.HasActiveFollowViewSnapshot=true;
+        this.FollowViewApplied=false;
+        this.ActiveTransformTool=Family;
+        this.ActiveGizmoHandle=Handle;
+        this.HoveredGizmoHandle=Handle;
+        this.RefreshOverlay();
+        this.SetStatus($"{GetToolDisplayName(Family)}中: {PrimaryNode.Node.DisplayName}");
         return true;
     }
 
     private bool TryStartDuplicatePreview(IReadOnlyList<DuplicateNodePlanItem>Plan){
-        if(Renderer is not { }Active){ return false; }
+        if(this.Renderer is not { }Active){ return false; }
 
         List<SceneRenderObject>RenderObjects=[];
         List<(NodePath SourcePath,Matrix4x4 OriginalWorld)>Sources=[];
-        foreach(SceneRenderObject Object in CurrentRenderObjects){
+        foreach(SceneRenderObject Object in this.CurrentRenderObjects){
             foreach(DuplicateNodePlanItem Item in Plan){
                 if(!Object.NodeId.Equals(Item.SourcePath)&&!Object.NodeId.IsDescendantOf(Item.SourcePath)){
                     continue;
@@ -955,11 +960,10 @@ internal sealed class SceneHwndHost:HwndHost {
             return false;
         }
 
-        DuplicateRenderPreviews=Sources.Select((Source,Index)=>new DuplicateRenderPreview(
-            Source.SourcePath,Source.OriginalWorld,Handles[Index])).ToArray();
-        ActiveDuplicatePlan=Plan.ToArray();
-        DuplicateNodePlanItem PrimaryItem=Plan.FirstOrDefault(Item=>
-            SelectedNodePath is { }Selected&&Item.SourcePath.Equals(Selected));
+        this.DuplicateRenderPreviews=Sources.Select((Source,Index)=>new DuplicateRenderPreview(
+                                                     Source.SourcePath,Source.OriginalWorld,Handles[Index])).ToArray();
+        this.ActiveDuplicatePlan=Plan.ToArray();
+        DuplicateNodePlanItem PrimaryItem=Plan.FirstOrDefault(Item=> this.SelectedNodePath is { }Selected&&Item.SourcePath.Equals(Selected));
         NodePath PrimaryResult=PrimaryItem.ResultPath.Equals(default(NodePath))
             ?Plan[^1].ResultPath
             :PrimaryItem.ResultPath;
@@ -968,23 +972,24 @@ internal sealed class SceneHwndHost:HwndHost {
     }
 
     private void RemoveDuplicatePreview(bool RestoreOriginalSelection){
-        if(DuplicateRenderPreviews.Count>0&&Renderer is { }Active){
-            Active.RemovePreviewObjects(DuplicateRenderPreviews.Select(static Item=>Item.Handle).ToArray());
+        if(this.DuplicateRenderPreviews.Count>0&& this.Renderer is { }Active){
+            Active.RemovePreviewObjects(this.DuplicateRenderPreviews.Select(static Item=>Item.Handle).ToArray());
             if(RestoreOriginalSelection){
-                Active.SetSelectedNode(SelectedNodePath,SelectedNodePaths);
+                Active.SetSelectedNode(this.SelectedNodePath, this.SelectedNodePaths);
             }
         }
-        DuplicateRenderPreviews=[];
-        ActiveDuplicatePlan=[];
+
+        this.DuplicateRenderPreviews=[];
+        this.ActiveDuplicatePlan=[];
     }
 
     private void UpdateTransformGizmoDrag(int X,int Y,bool Snap,bool FollowView){
-        if(ActiveTransformTool is not { }Tool||ViewState is not { }State
-            ||CurrentMoveGizmo is null||ActiveGizmoStartFrame is not { }StartFrame){
+        if(this.ActiveTransformTool is not { }Tool|| this.ViewState is not { }State
+                                                  || this.CurrentMoveGizmo is null|| this.ActiveGizmoStartFrame is not { }StartFrame){
             return;
         }
         (Vector3 Origin,Vector3 Direction)=SceneViewCamera.ScreenPointToRay(
-            State.GetView(),State.GetProjection(this.AspectRatio),X,Y,SurfaceWidth,SurfaceHeight);
+            State.GetView(),State.GetProjection(this.AspectRatio),X,Y, this.SurfaceWidth, this.SurfaceHeight);
         IReadOnlyList<SceneTransformPreview>Previews;
         Quaternion RotationDelta=Quaternion.Identity;
         Vector3 FollowMoveDelta=Vector3.Zero;
@@ -992,57 +997,54 @@ internal sealed class SceneHwndHost:HwndHost {
         // Radians/Factorsをメソッド先頭のローカルへ引き上げる(RotationDeltaと同じ扱い)。
         float RotateRadians=0f;
         Vector3 ScaleFactors=Vector3.One;
-        ActiveCommitMembers=GetTransformMembers(Tool);
+        this.ActiveCommitMembers=GetTransformMembers(Tool);
         switch(Tool){
             // M0034: Shift+Ctrlで武装した中心の平面四角をドラッグ中。カーソル直下の別オブジェクト
             // 表面へPosition+Rotationを吸着させる(旧Nキー方式と同じ数学、起動方法だけ変更)。
-            case SceneActiveTool.Move when ActiveSurfaceSnapDrag:
-                if(ScenePicker.TrySurfaceSnapQuery(
-                    CurrentRenderObjects,Origin,Direction,ActiveDraggedRootPaths,out SurfaceSnapHit SurfaceHit)){
-                    CurrentSurfaceSnapHit=(SurfaceHit.Position,SurfaceHit.Normal);
+            case SceneActiveTool.Move when this.ActiveSurfaceSnapDrag:
+                if(ScenePicker.TrySurfaceSnapQuery(this.CurrentRenderObjects,Origin,Direction, this.ActiveDraggedRootPaths,out SurfaceSnapHit SurfaceHit)){
+                    this.CurrentSurfaceSnapHit=(SurfaceHit.Position,SurfaceHit.Normal);
                     FollowMoveDelta=SurfaceHit.Position-StartFrame.Pivot;
-                    Previews=EditTransaction.PreviewSurfaceSnap(
-                        StartFrame.Pivot,SurfaceHit.Position,ActivePrimaryRotation,SurfaceHit.Normal);
-                    ActiveCommitMembers=SceneTransformMemberMask.Position|SceneTransformMemberMask.Rotation;
+                    Previews= this.EditTransaction.PreviewSurfaceSnap(
+                                                                      StartFrame.Pivot,SurfaceHit.Position, this.ActivePrimaryRotation,SurfaceHit.Normal);
+                    this.ActiveCommitMembers=SceneTransformMemberMask.Position|SceneTransformMemberMask.Rotation;
                 } else {
                     // 面が見つからないティックは直前のプレビュー(初回なら空、つまり未移動)を維持する。
-                    Previews=EditTransaction.CurrentPreviews;
+                    Previews= this.EditTransaction.CurrentPreviews;
                 }
                 break;
-            case SceneActiveTool.Move when ActiveMoveDrag is { }MoveDrag
+            case SceneActiveTool.Move when this.ActiveMoveDrag is { }MoveDrag
                 &&MoveDrag.TryUpdate(Origin,Direction,out Vector3 Delta):
                 bool VertexSnap=(NativeMethods.GetKeyState(NativeMethods.VK_V)&0x8000)!=0;
-                if(VertexSnap&&ScenePicker.TryVertexSnapQuery(
-                    CurrentRenderObjects,State.GetView(),State.GetProjection(this.AspectRatio),
-                    X,Y,SurfaceWidth,SurfaceHeight,ActiveDraggedRootPaths,out VertexSnapHit VertexHit)){
+                if(VertexSnap&&ScenePicker.TryVertexSnapQuery(this.CurrentRenderObjects,State.GetView(),State.GetProjection(this.AspectRatio),
+                    X,Y, this.SurfaceWidth, this.SurfaceHeight, this.ActiveDraggedRootPaths,out VertexSnapHit VertexHit)){
                     FollowMoveDelta=VertexHit.Position-StartFrame.Pivot;
-                    Previews=EditTransaction.PreviewTranslation(FollowMoveDelta);
+                    Previews= this.EditTransaction.PreviewTranslation(FollowMoveDelta);
                 } else {
-                    if(Snap){ Delta=TransformSnap.SnapTranslation(Delta,StartFrame,ActiveGizmoHandle!.Value); }
+                    if(Snap){ Delta=TransformSnap.SnapTranslation(Delta,StartFrame, this.ActiveGizmoHandle!.Value); }
                     FollowMoveDelta=Delta;
-                    Previews=EditTransaction.PreviewTranslation(Delta);
+                    Previews= this.EditTransaction.PreviewTranslation(Delta);
                 }
                 break;
-            case SceneActiveTool.Rotate when ActiveRotateDrag is { }RotateDrag
+            case SceneActiveTool.Rotate when this.ActiveRotateDrag is { }RotateDrag
                 &&RotateDrag.TryUpdate(Origin,Direction,out RotateRadians,out _):
                 if(Snap){ RotateRadians=TransformSnap.SnapRotationRadians(RotateRadians); }
                 RotationDelta=RotateDrag.CreateDelta(RotateRadians);
-                Previews=EditTransaction.PreviewRotation(StartFrame.Pivot,RotationDelta);
-                ActiveRotateAccumulatedRadians=GizmoDragHud.AccumulateAngle(
-                    ActiveRotateAccumulatedRadians,ActiveRotatePreviousRadians,RotateRadians);
-                ActiveRotatePreviousRadians=RotateRadians;
+                Previews= this.EditTransaction.PreviewRotation(StartFrame.Pivot,RotationDelta);
+                this.ActiveRotateAccumulatedRadians=GizmoDragHud.AccumulateAngle(this.ActiveRotateAccumulatedRadians, this.ActiveRotatePreviousRadians,RotateRadians);
+                this.ActiveRotatePreviousRadians=RotateRadians;
                 break;
-            case SceneActiveTool.Scale when ActiveScaleDrag is { }ScaleDrag
+            case SceneActiveTool.Scale when this.ActiveScaleDrag is { }ScaleDrag
                 &&ScaleDrag.TryUpdate(Origin,Direction,out ScaleFactors):
-                if(Snap){ ScaleFactors=TransformSnap.SnapScaleFactors(ScaleFactors,ActiveGizmoHandle!.Value); }
-                Previews=EditTransaction.PreviewScale(StartFrame.Pivot,StartFrame.BasisRotation,ScaleFactors);
+                if(Snap){ ScaleFactors=TransformSnap.SnapScaleFactors(ScaleFactors, this.ActiveGizmoHandle!.Value); }
+                Previews= this.EditTransaction.PreviewScale(StartFrame.Pivot,StartFrame.BasisRotation,ScaleFactors);
                 break;
             default:
                 return;
         }
 
-        if(DuplicateRenderPreviews.Count>0){
-            foreach(DuplicateRenderPreview DuplicatePreview in DuplicateRenderPreviews){
+        if(this.DuplicateRenderPreviews.Count>0){
+            foreach(DuplicateRenderPreview DuplicatePreview in this.DuplicateRenderPreviews){
                 SceneTransformPreview?RootPreview=null;
                 foreach(SceneTransformPreview Preview in Previews){
                     if(Preview.NodePath.Equals(DuplicatePreview.SourcePath)){
@@ -1052,75 +1054,75 @@ internal sealed class SceneHwndHost:HwndHost {
                 }
                 Matrix4x4 World=RootPreview is { }Matched
                     ?Matched.World
-                    :DuplicatePreview.OriginalWorld*EditTransaction.CurrentWorldDelta;
-                Renderer?.UpdatePreviewObjectTransform(DuplicatePreview.Handle,World);
+                    :DuplicatePreview.OriginalWorld* this.EditTransaction.CurrentWorldDelta;
+                this.Renderer?.UpdatePreviewObjectTransform(DuplicatePreview.Handle,World);
             }
         } else {
             foreach(SceneTransformPreview Preview in Previews){
-                Renderer?.UpdateObjectTransform(Preview.NodePath,Preview.World);
+                this.Renderer?.UpdateObjectTransform(Preview.NodePath,Preview.World);
             }
-            foreach(SceneTransformPreview Descendant in PreviewDescendantOriginals){
-                Renderer?.UpdateObjectTransform(Descendant.NodePath,Descendant.World*EditTransaction.CurrentWorldDelta);
+            foreach(SceneTransformPreview Descendant in this.PreviewDescendantOriginals){
+                this.Renderer?.UpdateObjectTransform(Descendant.NodePath,Descendant.World* this.EditTransaction.CurrentWorldDelta);
             }
         }
 
         // M0034: サーフェススナップ中はカーソルレイでヒット面を探すため、FollowViewでカメラが
         // 動くとレイが変わり吸着先が動くフィードバックループになる。明示的に抑止する。
-        if(FollowView&&HasActiveFollowViewSnapshot&&Tool!=SceneActiveTool.Scale&&!ActiveSurfaceSnapDrag){
+        if(FollowView&& this.HasActiveFollowViewSnapshot&&Tool!=SceneActiveTool.Scale&&!this.ActiveSurfaceSnapDrag){
             if(Tool==SceneActiveTool.Move){
-                ActiveFollowViewSnapshot.ApplyMove(State,FollowMoveDelta);
+                this.ActiveFollowViewSnapshot.ApplyMove(State,FollowMoveDelta);
             } else {
-                ActiveFollowViewSnapshot.ApplyRotation(State,StartFrame.Pivot,RotationDelta);
+                this.ActiveFollowViewSnapshot.ApplyRotation(State,StartFrame.Pivot,RotationDelta);
             }
-            FollowViewApplied=true;
-            Renderer?.SetCamera(State.GetView(),State.GetProjection(this.AspectRatio));
+
+            this.FollowViewApplied=true;
+            this.Renderer?.SetCamera(State.GetView(),State.GetProjection(this.AspectRatio));
         }
         SceneTransformPreview?Primary=null;
         foreach(SceneTransformPreview Preview in Previews){
-            if(SelectedNodePath is { }Path&&Preview.NodePath.Equals(Path)){
+            if(this.SelectedNodePath is { }Path&&Preview.NodePath.Equals(Path)){
                 Primary=Preview;
                 break;
             }
         }
         if(Primary is { }PrimaryPreview
             &&SceneTransformMath.TryDecompose(PrimaryPreview.World,out SceneTransformValue WorldTransform)
-            &&CurrentMoveGizmo is { }CurrentFrame){
-            CurrentMoveGizmo=MoveGizmoFrame.Create(
-                WorldTransform.Position,WorldTransform.Rotation,State.TransformSpace,CurrentFrame.WorldScale);
-            if(TargetSnapshot?.Projection is { }Projection
-                &&CurrentSelection?.PrimaryNodeId is { }PrimaryId
+            && this.CurrentMoveGizmo is { }CurrentFrame){
+            this.CurrentMoveGizmo=MoveGizmoFrame.Create(
+                                                        WorldTransform.Position,WorldTransform.Rotation,State.TransformSpace,CurrentFrame.WorldScale);
+            if(this.TargetSnapshot?.Projection is { }Projection
+                && this.CurrentSelection?.PrimaryNodeId is { }PrimaryId
                 &&Projection.TryGetNode(PrimaryId,out SceneProjectionNode PrimaryNode)
-                &&CurrentPropertyGizmo is { }PropertyFrame
+                && this.CurrentPropertyGizmo is { }PropertyFrame
                 &&PropertyGizmoBinding.TryCreate(
                     PrimaryNode.Node,PrimaryPreview.World,PropertyFrame.WorldScale,
                     out PropertyGizmoFrame UpdatedPropertyFrame)){
-                CurrentPropertyGizmo=UpdatedPropertyFrame;
+                this.CurrentPropertyGizmo=UpdatedPropertyFrame;
             }
         }
         // M0037: ドラッグ中HUD(開始点マーカー・破線・角度の扇・数値読み取り)用の状態。
-        ActiveDragHud=ActiveGizmoHandle is { }DragHandle
-            ?new GizmoDragHudState(
-                Tool,DragHandle,StartFrame.Pivot,StartFrame.Pivot,StartFrame.Pivot+FollowMoveDelta,
-                ActiveRotateDrag?.RingNormal??Vector3.UnitY,ActiveRotateDrag?.StartDirectionVector??Vector3.UnitX,
-                ActiveRotateAccumulatedRadians,
-                DragHandle==GizmoHandleId.RotateView?TransformGizmo.RotateViewRingRadius:TransformGizmo.RotateRingRadius,
-                ScaleFactors,StartFrame.WorldScale,X,Y)
-            :null;
-        if(CurrentMoveGizmo is not null){
-            RefreshOverlay();
+        this.ActiveDragHud= this.ActiveGizmoHandle is { }DragHandle
+                               ?new GizmoDragHudState(
+                                                      Tool,DragHandle,StartFrame.Pivot,StartFrame.Pivot,StartFrame.Pivot+FollowMoveDelta, this.ActiveRotateDrag?.RingNormal??Vector3.UnitY, this.ActiveRotateDrag?.StartDirectionVector??Vector3.UnitX, this.ActiveRotateAccumulatedRadians,
+                                                      DragHandle==GizmoHandleId.RotateView?TransformGizmo.RotateViewRingRadius:TransformGizmo.RotateRingRadius,
+                                                      ScaleFactors,StartFrame.WorldScale,X,Y)
+                               :null;
+        if(this.CurrentMoveGizmo is not null){
+            this.RefreshOverlay();
         }
     }
 
     private void UpdatePropertyGizmoDrag(int X,int Y,bool Snap){
-        if(ActivePropertyDrag is null){
+        if(this.ActivePropertyDrag is null){
             return;
         }
-        CurrentPropertyGizmo=ActivePropertyDrag.Update(X,Y,Snap);
-        RefreshOverlay();
+
+        this.CurrentPropertyGizmo= this.ActivePropertyDrag.Update(X,Y,Snap);
+        this.RefreshOverlay();
     }
 
     private List<SceneProjectionNode>GetSelectedMoveRoots(SceneProjection Projection){
-        if(CurrentSelection is not { }Selection){
+        if(this.CurrentSelection is not { }Selection){
             return [];
         }
 
@@ -1140,110 +1142,111 @@ internal sealed class SceneHwndHost:HwndHost {
     }
 
     private void CommitEditTransaction(){
-        if(ActivePropertyDrag is not null&&CurrentPropertyGizmo is { }PropertyFrame
-            &&ActiveGizmoHandle is { }PropertyHandle
-            &&TargetSnapshot is { }Snapshot&&Snapshot.Projection is { }Projection
-            &&CurrentSelection?.PrimaryNodeId is { }PrimaryId
-            &&Projection.TryGetNode(PrimaryId,out _)){
-            PropertyGizmoFrame OriginalFrame=ActivePropertyDrag.StartFrame;
+        if(this.ActivePropertyDrag is not null&& this.CurrentPropertyGizmo is { }PropertyFrame
+                                              && this.ActiveGizmoHandle is { }PropertyHandle
+                                              && this.TargetSnapshot is { }Snapshot&&Snapshot.Projection is { }Projection
+                                              && this.CurrentSelection?.PrimaryNodeId is { }PrimaryId
+                                              &&Projection.TryGetNode(PrimaryId,out _)){
+            PropertyGizmoFrame OriginalFrame= this.ActivePropertyDrag.StartFrame;
             SceneEditOperation[]Operations=PropertyGizmo.CreateOperations(
                 PropertyFrame,PropertyHandle,Snapshot.Key,PrimaryId,Snapshot.DocumentVersion,
                 OriginalFrame);
-            ActivePropertyDrag=null;
-            ActiveGizmoHandle=null;
-            PropertyCommitInProgress=true;
-            bool PropertyCreated=EditTransaction.TryCreateDirectCommit(
-                "Edit Scene Property",Operations,out SceneEditCommitRequest?PropertyRequest);
-            if(!PropertyCreated||PropertyRequest is null||EditCommitRequested is null){
-                CancelEditTransaction();
-                SetStatus("プロパティ編集を確定できなかったため変更を破棄しました。");
+            this.ActivePropertyDrag=null;
+            this.ActiveGizmoHandle=null;
+            this.PropertyCommitInProgress=true;
+            bool PropertyCreated= this.EditTransaction.TryCreateDirectCommit(
+                                                                             "Edit Scene Property",Operations,out SceneEditCommitRequest?PropertyRequest);
+            if(!PropertyCreated||PropertyRequest is null|| this.EditCommitRequested is null){
+                this.CancelEditTransaction();
+                this.SetStatus("プロパティ編集を確定できなかったため変更を破棄しました。");
                 return;
             }
-            EditCommitRequested.Invoke(PropertyRequest);
-            SetStatus("C#ソースへプロパティ編集を反映しています...");
+
+            this.EditCommitRequested.Invoke(PropertyRequest);
+            this.SetStatus("C#ソースへプロパティ編集を反映しています...");
             return;
         }
 
-        SceneActiveTool Tool=ActiveTransformTool??SceneActiveTool.Move;
-        ActiveMoveDrag=null;
-        ActiveRotateDrag=null;
-        ActiveScaleDrag=null;
-        ActiveTransformTool=null;
-        ActiveGizmoHandle=null;
-        SceneTransformMemberMask Members=ActiveCommitMembers;
+        SceneActiveTool Tool= this.ActiveTransformTool??SceneActiveTool.Move;
+        this.ActiveMoveDrag=null;
+        this.ActiveRotateDrag=null;
+        this.ActiveScaleDrag=null;
+        this.ActiveTransformTool=null;
+        this.ActiveGizmoHandle=null;
+        SceneTransformMemberMask Members= this.ActiveCommitMembers;
         SceneEditCommitRequest?Request;
-        bool Created=ActiveDuplicatePlan.Count>0
-            ?EditTransaction.TryCreateDuplicateCommit(
-                $"Duplicate and {GetToolDisplayName(Tool)} Scene Selection",Members,
-                ActiveDuplicatePlan.Select(static Item=>Item.ResultPath).ToArray(),out Request)
-            :EditTransaction.TryCreateCommit(
-                $"{GetToolDisplayName(Tool)} Scene Selection",Members,out Request);
+        bool Created= this.ActiveDuplicatePlan.Count>0
+            ? this.EditTransaction.TryCreateDuplicateCommit(
+                                                            $"Duplicate and {GetToolDisplayName(Tool)} Scene Selection",Members, this.ActiveDuplicatePlan.Select(static Item=>Item.ResultPath).ToArray(),out Request)
+            : this.EditTransaction.TryCreateCommit(
+                                                   $"{GetToolDisplayName(Tool)} Scene Selection",Members,out Request);
         if(!Created
-            ||Request is null||EditCommitRequested is null){
-            CancelEditTransaction();
-            SetStatus($"{GetToolDisplayName(Tool)}を確定できなかったため変更を破棄しました。");
+            ||Request is null|| this.EditCommitRequested is null){
+            this.CancelEditTransaction();
+            this.SetStatus($"{GetToolDisplayName(Tool)}を確定できなかったため変更を破棄しました。");
             return;
         }
 
-        EditCommitRequested.Invoke(Request);
-        SetStatus($"C#ソースへ{GetToolDisplayName(Tool)}を反映しています...");
+        this.EditCommitRequested.Invoke(Request);
+        this.SetStatus($"C#ソースへ{GetToolDisplayName(Tool)}を反映しています...");
     }
 
     private void CancelEditTransaction(){
-        if(EditTransaction.State==EditTransactionState.Idle){
+        if(this.EditTransaction.State==EditTransactionState.Idle){
             return;
         }
-        bool WasProperty=ActivePropertyDrag is not null||PropertyCommitInProgress;
-        bool WasDuplicate=ActiveDuplicatePlan.Count>0;
-        SceneEditCancellation Cancellation=EditTransaction.Cancel();
+        bool WasProperty= this.ActivePropertyDrag is not null|| this.PropertyCommitInProgress;
+        bool WasDuplicate= this.ActiveDuplicatePlan.Count>0;
+        SceneEditCancellation Cancellation= this.EditTransaction.Cancel();
         if(WasProperty){
-            ActivePropertyDrag=null;
-            PropertyCommitInProgress=false;
-            ActiveGizmoHandle=null;
-            HoveredGizmoHandle=null;
-            CurrentPropertyGizmo=null;
+            this.ActivePropertyDrag=null;
+            this.PropertyCommitInProgress=false;
+            this.ActiveGizmoHandle=null;
+            this.HoveredGizmoHandle=null;
+            this.CurrentPropertyGizmo=null;
             if(Cancellation.PendingSnapshot is { }PropertyPending){
-                SetTarget(PropertyPending);
+                this.SetTarget(PropertyPending);
             } else {
-                UpdateMoveGizmo();
+                this.UpdateMoveGizmo();
             }
             return;
         }
         if(WasDuplicate){
-            RemoveDuplicatePreview(RestoreOriginalSelection:true);
+            this.RemoveDuplicatePreview(RestoreOriginalSelection:true);
         } else {
             foreach(SceneTransformPreview Original in Cancellation.RestoredTransforms){
-                Renderer?.UpdateObjectTransform(Original.NodePath,Original.World);
+                this.Renderer?.UpdateObjectTransform(Original.NodePath,Original.World);
             }
-            foreach(SceneTransformPreview Descendant in PreviewDescendantOriginals){
-                Renderer?.UpdateObjectTransform(Descendant.NodePath,Descendant.World);
+            foreach(SceneTransformPreview Descendant in this.PreviewDescendantOriginals){
+                this.Renderer?.UpdateObjectTransform(Descendant.NodePath,Descendant.World);
             }
         }
-        if(FollowViewApplied&&HasActiveFollowViewSnapshot&&ViewState is { }State){
-            ActiveFollowViewSnapshot.Restore(State);
-            Renderer?.SetCamera(State.GetView(),State.GetProjection(this.AspectRatio));
+        if(this.FollowViewApplied&& this.HasActiveFollowViewSnapshot&& this.ViewState is { }State){
+            this.ActiveFollowViewSnapshot.Restore(State);
+            this.Renderer?.SetCamera(State.GetView(),State.GetProjection(this.AspectRatio));
         }
-        PreviewDescendantOriginals=[];
-        ActiveDraggedRootPaths=[];
-        ActiveDragOriginalRoots=[];
-        ActiveGizmoStartFrame=null;
-        HasActiveFollowViewSnapshot=false;
-        FollowViewApplied=false;
-        ActiveCommitMembers=SceneTransformMemberMask.None;
-        ActiveSurfaceSnapDrag=false;
-        CurrentSurfaceSnapHit=null;
-        ActiveDragHud=null;
-        ActiveMoveDrag=null;
-        ActiveRotateDrag=null;
-        ActiveScaleDrag=null;
-        ActiveTransformTool=null;
-        ActiveGizmoHandle=null;
-        HoveredGizmoHandle=null;
-        CurrentMoveGizmo=null;
+
+        this.PreviewDescendantOriginals=[];
+        this.ActiveDraggedRootPaths=[];
+        this.ActiveDragOriginalRoots=[];
+        this.ActiveGizmoStartFrame=null;
+        this.HasActiveFollowViewSnapshot=false;
+        this.FollowViewApplied=false;
+        this.ActiveCommitMembers=SceneTransformMemberMask.None;
+        this.ActiveSurfaceSnapDrag=false;
+        this.CurrentSurfaceSnapHit=null;
+        this.ActiveDragHud=null;
+        this.ActiveMoveDrag=null;
+        this.ActiveRotateDrag=null;
+        this.ActiveScaleDrag=null;
+        this.ActiveTransformTool=null;
+        this.ActiveGizmoHandle=null;
+        this.HoveredGizmoHandle=null;
+        this.CurrentMoveGizmo=null;
         if(Cancellation.PendingSnapshot is { }Pending){
-            SetTarget(Pending);
+            this.SetTarget(Pending);
         } else {
-            UpdateMoveGizmo();
+            this.UpdateMoveGizmo();
         }
     }
 
@@ -1253,7 +1256,7 @@ internal sealed class SceneHwndHost:HwndHost {
     /// </summary>
     internal void ReportCommitFailure(string?ErrorMessage){
         ThreadHelper.ThrowIfNotOnUIThread();
-        SetStatus(ErrorMessage??"C#ソースへの反映に失敗しました。編集は取り消されます。");
+        this.SetStatus(ErrorMessage??"C#ソースへの反映に失敗しました。編集は取り消されます。");
     }
 
     /// <summary>
@@ -1267,91 +1270,95 @@ internal sealed class SceneHwndHost:HwndHost {
     /// </summary>
     internal void ResyncAfterCommitFailure(){
         ThreadHelper.ThrowIfNotOnUIThread();
-        RecentTransformCommits.Clear();
-        RecentTransformUndone.Clear();
+        this.RecentTransformCommits.Clear();
+        this.RecentTransformUndone.Clear();
     }
 
     internal void CompleteEditCommit(bool Succeeded,string?ErrorMessage){
-        if(EditTransaction.State!=EditTransactionState.Committing){
+        if(this.EditTransaction.State!=EditTransactionState.Committing){
             return;
         }
         if(!Succeeded){
-            CancelEditTransaction();
-            SetStatus(ErrorMessage??"C#ソースへの反映に失敗しました。");
+            this.CancelEditTransaction();
+            this.SetStatus(ErrorMessage??"C#ソースへの反映に失敗しました。");
             return;
         }
 
-        bool WasProperty=PropertyCommitInProgress;
-        bool WasDuplicate=ActiveDuplicatePlan.Count>0;
+        bool WasProperty= this.PropertyCommitInProgress;
+        bool WasDuplicate= this.ActiveDuplicatePlan.Count>0;
         // Complete()がPreviews/WorldDeltaをクリアする前に、コミットされた最終Transformを退避する。
         // Move/Rotate/Scaleのときだけ使う(プロパティ編集はPrimaryObjectの位置を動かさない。複製は
         // 新規Nodeが対象でCurrentRenderObjectsにまだ存在しないため、既存のTryRestoreDuplicateSelection
         // 経路が別途扱う)。
         IReadOnlyList<SceneTransformPreview>FinalPreviews=
-            !WasProperty&&!WasDuplicate?EditTransaction.CurrentPreviews:Array.Empty<SceneTransformPreview>();
-        IReadOnlyList<SceneTransformPreview>FinalDescendants=PreviewDescendantOriginals;
-        Matrix4x4 FinalWorldDelta=EditTransaction.CurrentWorldDelta;
-        SceneDocumentSnapshot?Pending=EditTransaction.Complete();
+            !WasProperty&&!WasDuplicate? this.EditTransaction.CurrentPreviews:Array.Empty<SceneTransformPreview>();
+        IReadOnlyList<SceneTransformPreview>FinalDescendants= this.PreviewDescendantOriginals;
+        Matrix4x4 FinalWorldDelta= this.EditTransaction.CurrentWorldDelta;
+        SceneDocumentSnapshot?Pending= this.EditTransaction.Complete();
         if(WasProperty){
-            ActivePropertyDrag=null;
-            PropertyCommitInProgress=false;
-            ActiveGizmoHandle=null;
-            HoveredGizmoHandle=null;
-            CurrentPropertyGizmo=null;
+            this.ActivePropertyDrag=null;
+            this.PropertyCommitInProgress=false;
+            this.ActiveGizmoHandle=null;
+            this.HoveredGizmoHandle=null;
+            this.CurrentPropertyGizmo=null;
             // M0036: プロパティ編集はTransform用の先読みキャッシュの対象外。古い記録を残すと
             // 別コミット種別のUndoに誤って使われかねないので丸ごと破棄する。
-            RecentTransformCommits.Clear();
-            RecentTransformUndone.Clear();
+            this.RecentTransformCommits.Clear();
+            this.RecentTransformUndone.Clear();
             if(Pending is not null){
-                SetTarget(Pending);
+                this.SetTarget(Pending);
             } else {
-                UpdateMoveGizmo();
+                this.UpdateMoveGizmo();
             }
-            SetStatus("プロパティをC#ソースへ反映しました。Ctrl+Zで元に戻せます。");
+
+            this.SetStatus("プロパティをC#ソースへ反映しました。Ctrl+Zで元に戻せます。");
             return;
         }
-        RemoveDuplicatePreview(RestoreOriginalSelection:false);
+
+        this.RemoveDuplicatePreview(RestoreOriginalSelection:false);
         // M0036: 直近コミットを先読みUndo用に記録する(複製はNodePathが新規のため対象外、
         // Transform自体が変わらないケースはFinalPreviews.Count==0で自然に除外される)。新しい
         // コミットが起きたのでredo系列は破棄する(標準的なUndo/Redoの慣習)。
         if(WasDuplicate){
-            RecentTransformCommits.Clear();
-            RecentTransformUndone.Clear();
+            this.RecentTransformCommits.Clear();
+            this.RecentTransformUndone.Clear();
         } else if(FinalPreviews.Count>0){
-            RecentTransformCommits.Push(new TransformUndoRecord(
-                ActiveDragOriginalRoots,FinalPreviews,FinalDescendants,FinalWorldDelta));
-            while(RecentTransformCommits.Count>MaxRecentTransformCommits){
-                RecentTransformCommits=new Stack<TransformUndoRecord>(RecentTransformCommits.Reverse().Skip(1));
+            this.RecentTransformCommits.Push(new TransformUndoRecord(this.ActiveDragOriginalRoots,FinalPreviews,FinalDescendants,FinalWorldDelta));
+            while(this.RecentTransformCommits.Count>MaxRecentTransformCommits){
+                this.RecentTransformCommits=new Stack<TransformUndoRecord>(this.RecentTransformCommits.Reverse().Skip(1));
             }
-            RecentTransformUndone.Clear();
+
+            this.RecentTransformUndone.Clear();
         }
-        ActiveDragOriginalRoots=[];
-        PreviewDescendantOriginals=[];
-        ActiveDraggedRootPaths=[];
-        ActiveGizmoStartFrame=null;
-        HasActiveFollowViewSnapshot=false;
-        FollowViewApplied=false;
-        ActiveCommitMembers=SceneTransformMemberMask.None;
-        ActiveSurfaceSnapDrag=false;
-        CurrentSurfaceSnapHit=null;
-        ActiveDragHud=null;
-        ActiveMoveDrag=null;
-        ActiveRotateDrag=null;
-        ActiveScaleDrag=null;
-        ActiveTransformTool=null;
-        ActiveGizmoHandle=null;
-        HoveredGizmoHandle=null;
+
+        this.ActiveDragOriginalRoots=[];
+        this.PreviewDescendantOriginals=[];
+        this.ActiveDraggedRootPaths=[];
+        this.ActiveGizmoStartFrame=null;
+        this.HasActiveFollowViewSnapshot=false;
+        this.FollowViewApplied=false;
+        this.ActiveCommitMembers=SceneTransformMemberMask.None;
+        this.ActiveSurfaceSnapDrag=false;
+        this.CurrentSurfaceSnapHit=null;
+        this.ActiveDragHud=null;
+        this.ActiveMoveDrag=null;
+        this.ActiveRotateDrag=null;
+        this.ActiveScaleDrag=null;
+        this.ActiveTransformTool=null;
+        this.ActiveGizmoHandle=null;
+        this.HoveredGizmoHandle=null;
         // UpdateMoveGizmoはCurrentRenderObjectsからpivotを再計算するが、再解析(PinnedSnapshotChanged)
         // が終わるまでCurrentRenderObjectsはまだドラッグ前の位置のまま。ここで先にコミット済みの
         // 最終Transformへパッチしておくことで、ギズモが一瞬元の位置へ戻ってから追いつく見た目のズレを防ぐ。
-        ApplyFinalTransformsToRenderObjects(FinalPreviews,FinalDescendants,FinalWorldDelta);
-        CurrentMoveGizmo=null;
+        this.ApplyFinalTransformsToRenderObjects(FinalPreviews,FinalDescendants,FinalWorldDelta);
+        this.CurrentMoveGizmo=null;
         if(Pending is not null){
-            SetTarget(Pending);
+            this.SetTarget(Pending);
         } else {
-            UpdateMoveGizmo();
+            this.UpdateMoveGizmo();
         }
-        SetStatus("TransformをC#ソースへ反映しました。Ctrl+Zで元に戻せます。");
+
+        this.SetStatus("TransformをC#ソースへ反映しました。Ctrl+Zで元に戻せます。");
     }
 
     /// <summary>
@@ -1374,12 +1381,12 @@ internal sealed class SceneHwndHost:HwndHost {
             FinalWorlds[Descendant.NodePath]=Descendant.World*FinalWorldDelta;
         }
 
-        CurrentRenderObjects=CurrentRenderObjects.Select(Object=>
-            FinalWorlds.TryGetValue(Object.NodeId,out Matrix4x4 FinalWorld)
-                ?new SceneRenderObject {
-                    Mesh=Object.Mesh,World=FinalWorld,NodeId=Object.NodeId,
-                    IncludeInBounds=Object.IncludeInBounds,IsPickable=Object.IsPickable }
-                :Object).ToArray();
+        this.CurrentRenderObjects= this.CurrentRenderObjects.Select(Object=>
+                                                                        FinalWorlds.TryGetValue(Object.NodeId,out Matrix4x4 FinalWorld)
+                                                                            ?new SceneRenderObject {
+                                                                                 Mesh=Object.Mesh,World=FinalWorld,NodeId=Object.NodeId,
+                                                                                 IncludeInBounds=Object.IncludeInBounds,IsPickable=Object.IsPickable }
+                                                                            :Object).ToArray();
     }
 
     /// <summary>
@@ -1390,30 +1397,30 @@ internal sealed class SceneHwndHost:HwndHost {
     /// </summary>
     internal bool TryFastUndo(){
         ThreadHelper.ThrowIfNotOnUIThread();
-        if(InputMachine is not { State:SceneNavState.Idle}||RecentTransformCommits.Count==0){
+        if(this.InputMachine is not { State:SceneNavState.Idle}|| this.RecentTransformCommits.Count==0){
             return false;
         }
 
-        TransformUndoRecord Record=RecentTransformCommits.Pop();
-        RecentTransformUndone.Push(Record);
-        ApplyFinalTransformsToRenderObjects(Record.RootsBefore,Record.Descendants,Matrix4x4.Identity);
-        CurrentMoveGizmo=null;
-        UpdateMoveGizmo();
+        TransformUndoRecord Record= this.RecentTransformCommits.Pop();
+        this.RecentTransformUndone.Push(Record);
+        this.ApplyFinalTransformsToRenderObjects(Record.RootsBefore,Record.Descendants,Matrix4x4.Identity);
+        this.CurrentMoveGizmo=null;
+        this.UpdateMoveGizmo();
         return true;
     }
 
     /// <summary><see cref="TryFastUndo"/>の逆。元のコミットと同じ引数で<see cref="ApplyFinalTransformsToRenderObjects"/>を再生するだけ。</summary>
     internal bool TryFastRedo(){
         ThreadHelper.ThrowIfNotOnUIThread();
-        if(InputMachine is not { State:SceneNavState.Idle}||RecentTransformUndone.Count==0){
+        if(this.InputMachine is not { State:SceneNavState.Idle}|| this.RecentTransformUndone.Count==0){
             return false;
         }
 
-        TransformUndoRecord Record=RecentTransformUndone.Pop();
-        RecentTransformCommits.Push(Record);
-        ApplyFinalTransformsToRenderObjects(Record.RootsAfter,Record.Descendants,Record.WorldDelta);
-        CurrentMoveGizmo=null;
-        UpdateMoveGizmo();
+        TransformUndoRecord Record= this.RecentTransformUndone.Pop();
+        this.RecentTransformCommits.Push(Record);
+        this.ApplyFinalTransformsToRenderObjects(Record.RootsAfter,Record.Descendants,Record.WorldDelta);
+        this.CurrentMoveGizmo=null;
+        this.UpdateMoveGizmo();
         return true;
     }
 
@@ -1425,7 +1432,7 @@ internal sealed class SceneHwndHost:HwndHost {
     /// Dolly(Perspective)/Zoom(Orthographic)。
     /// </summary>
     private void HandleWheel(int Delta){
-        if(InputMachine is not { } Machine||ViewState is not { } State){
+        if(this.InputMachine is not { } Machine|| this.ViewState is not { } State){
             return;
         }
 
@@ -1449,22 +1456,22 @@ internal sealed class SceneHwndHost:HwndHost {
     /// ツール切替に横取りしていた分岐は撤廃した(W/E/Rはもう何もしない。Idle中のW/Eは元々
     /// Fly移動にも使われていなかったため観測できる退行は無い)。
     /// </summary>
-    internal void HandleKeyDown(NavigationKey Key)=>InputMachine?.HandleKeyDown(Key);
+    internal void HandleKeyDown(NavigationKey Key)=> this.InputMachine?.HandleKeyDown(Key);
 
-    internal void HandleKeyUp(NavigationKey Key)=>InputMachine?.HandleKeyUp(Key);
+    internal void HandleKeyUp(NavigationKey Key)=> this.InputMachine?.HandleKeyUp(Key);
 
     internal SceneTransformSpace CurrentTransformSpace {
-        get=>ViewState?.TransformSpace??SceneEditorSettings.DefaultTransformSpace;
+        get=> this.ViewState?.TransformSpace??SceneEditorSettings.DefaultTransformSpace;
     }
 
     internal void SetTransformSpace(SceneTransformSpace Space){
         ThreadHelper.ThrowIfNotOnUIThread();
-        if(InputMachine is not { State:SceneNavState.Idle }||ViewState is not { }State){
+        if(this.InputMachine is not { State:SceneNavState.Idle }|| this.ViewState is not { }State){
             return;
         }
         State.TransformSpace=Space;
         State.SaveToSettings();
-        UpdateMoveGizmo();
+        this.UpdateMoveGizmo();
     }
 
     // M0034: SurfaceSnapPlaneはGetToolHandles(Tool)のどの系統表にも属さない専用ハンドルなので、
@@ -1511,27 +1518,28 @@ internal sealed class SceneHwndHost:HwndHost {
     };
 
     /// <summary>WPFの<c>LostKeyboardFocus</c>から呼ぶ。RMBは離されていないので状態遷移はしない。</summary>
-    internal void ClearHeldFlyKeys()=>InputMachine?.HandleLostKeyboardFocus();
+    internal void ClearHeldFlyKeys()=> this.InputMachine?.HandleLostKeyboardFocus();
 
     internal void CancelCurrentOperation(){
-        if(InputMachine is not { }Machine){
+        if(this.InputMachine is not { }Machine){
             return;
         }
         SceneInputStepResult Result=Machine.CancelCurrent();
         if(Result.Capture==SceneCaptureAction.End){
-            Surface?.ReleasePointerCapture();
+            this.Surface?.ReleasePointerCapture();
         }
-        if(Result.GizmoCanceled||EditTransaction.State==EditTransactionState.Dragging){
-            CancelEditTransaction();
+        if(Result.GizmoCanceled|| this.EditTransaction.State==EditTransactionState.Dragging){
+            this.CancelEditTransaction();
         }
         if(Result.MarqueeCanceled){
-            ActiveMarqueeRectangle=null;
-            RefreshOverlay();
+            this.ActiveMarqueeRectangle=null;
+            this.RefreshOverlay();
         }
-        PendingLookDeltaX=0f;
-        PendingLookDeltaY=0f;
-        LookUsesPixelLock=false;
-        OrbitUsesPixelLock=false;
+
+        this.PendingLookDeltaX=0f;
+        this.PendingLookDeltaY=0f;
+        this.LookUsesPixelLock=false;
+        this.OrbitUsesPixelLock=false;
     }
 
     /// <summary>
@@ -1540,15 +1548,15 @@ internal sealed class SceneHwndHost:HwndHost {
     /// (<see cref="SceneViewState.FocusOnBounds"/>)。
     /// </summary>
     internal void RequestFocusSelection(){
-        if(InputMachine is not { } Machine||Machine.State!=SceneNavState.Idle){
+        if(this.InputMachine is not { } Machine||Machine.State!=SceneNavState.Idle){
             return;
         }
 
-        if(ViewState is not { } State||SelectedNodePaths.Count==0){
+        if(this.ViewState is not { } State|| this.SelectedNodePaths.Count==0){
             return;
         }
 
-        List<SceneRenderObject>Selected=[..CurrentRenderObjects.Where(Object=>SelectedNodePaths.Contains(Object.NodeId))];
+        List<SceneRenderObject>Selected=[..this.CurrentRenderObjects.Where(Object=> this.SelectedNodePaths.Contains(Object.NodeId))];
         if(Selected.Count==0){
             return;
         }
@@ -1559,29 +1567,29 @@ internal sealed class SceneHwndHost:HwndHost {
 
     /// <summary>(Re)builds <see cref="Renderer"/> from the pin 済み <see cref="SceneDocumentSnapshot"/>.</summary>
     private void Rebuild(){
-        if(Surface is null||TargetKey is null||TargetSnapshot is null||TargetFilePath is null||TargetClassName is null){
+        if(this.Surface is null|| this.TargetKey is null|| this.TargetSnapshot is null|| this.TargetFilePath is null|| this.TargetClassName is null){
             return;
         }
 
-        if(TargetModel is not { } Model){
+        if(this.TargetModel is not { } Model){
             // Not (yet) found - e.g. analysis hasn't caught up with a just-opened tool window, or
             // the class was renamed/deleted out from under us. Leave the last good frame on screen.
-            SetStatus($"解析結果を待っています: {TargetClassName}");
+            this.SetStatus($"解析結果を待っています: {this.TargetClassName}");
             return;
         }
 
         if(Model.Root is null){
-            DisposeRenderer();
+            this.DisposeRenderer();
             Microsoft.CodeAnalysis.Diagnostic?Diagnostic=Model.Diagnostics.FirstOrDefault();
             string Detail=Diagnostic is null
                 ?"Rootを解析できませんでした。"
                 :$"{Diagnostic.Id}: {Diagnostic.GetMessage()}";
-            ActivityLog.LogError(nameof(SceneHwndHost),$"{TargetClassName}: {Detail}");
-            SetStatus($"シーン解析エラー: {Detail}");
+            ActivityLog.LogError(nameof(SceneHwndHost),$"{this.TargetClassName}: {Detail}");
+            this.SetStatus($"シーン解析エラー: {Detail}");
             return;
         }
 
-        SetStatus($"読み込み中: {TargetClassName}");
+        this.SetStatus($"読み込み中: {this.TargetClassName}");
 
         // 旧 .scene 実装の WarmMeshCache は、WPF の BuildWindowCore 内でJTF/Taskを同期wait
         // するデッドロックを避けるため、生ThreadへI/Oを隔離してからUI側でJoinしていた。
@@ -1589,13 +1597,8 @@ internal sealed class SceneHwndHost:HwndHost {
         // Build全体をこの単一workerへ渡し、UIスレッドではJoin/Waitを一切行わない。完了後の
         // SceneRenderer生成だけをDispatcherへ戻す。live解析が連続してもworkerはlatest-winsで
         // 未処理要求を置換するため、ブリッジプロセスが無制限に増えることもない。
-        BuildWorker?.Request(new SceneRenderBuildRequest(
-            Model,
-            TargetKey.Value,
-            TargetSnapshot.AnalysisGeneration,
-            TargetFilePath,
-            TargetClassName,
-            Surface.Handle));
+        this.BuildWorker?.Request(new SceneRenderBuildRequest(
+                                                              Model, this.TargetKey.Value, this.TargetSnapshot.AnalysisGeneration, this.TargetFilePath, this.TargetClassName, this.Surface.Handle));
     }
 
     private SceneRenderBuildResult BuildRenderObjects(SceneRenderBuildRequest Request){
@@ -1613,20 +1616,21 @@ internal sealed class SceneHwndHost:HwndHost {
     }
 
     private void OnBuildCompleted(SceneRenderBuildRequest Request,SceneRenderBuildResult?Result,Exception?Error){
-        if(Surface is null
-            ||Surface.Handle!=Request.SurfaceHandle
-            ||TargetKey is not { } Key
+        if(this.Surface is null
+            || this.Surface.Handle!=Request.SurfaceHandle
+            || this.TargetKey is not { } Key
             ||!Key.Equals(Request.Key)
-            ||TargetSnapshot?.AnalysisGeneration!=Request.AnalysisGeneration){
+            || this.TargetSnapshot?.AnalysisGeneration!=Request.AnalysisGeneration){
             return;
         }
 
         if(Error is not null){
             ActivityLog.LogError(nameof(SceneHwndHost),Error.ToString());
-            if(Renderer is null){
-                Surface.SetVisible(false);
+            if(this.Renderer is null){
+                this.Surface.SetVisible(false);
             }
-            SetStatus($"表示に失敗しました: {Error.Message}");
+
+            this.SetStatus($"表示に失敗しました: {Error.Message}");
             return;
         }
 
@@ -1638,22 +1642,22 @@ internal sealed class SceneHwndHost:HwndHost {
         // M0020 Phase 0/Phase 3)。ここでサーフェスを隠すと前フレームの残像や背面ペインの露出を
         // 招くだけで、0件でも RenderFrame は clear + Present を行う。
         try {
-            DisposeRenderer();
+            this.DisposeRenderer();
             (this.SceneBoundsCenter,this.SceneBoundsRadius)=SceneCameraFraming.ComputeBounds(Result.RenderObjects);
             this.CurrentRenderObjects=Result.RenderObjects;
 
             Matrix4x4 View;
             Matrix4x4 Projection;
-            if(ViewState is { } State){
+            if(this.ViewState is { } State){
                 // Far平面はライブ編集での規模変化に追従させるため、リビルドのたびに無条件で更新する。
                 State.LastKnownBoundsRadius=this.SceneBoundsRadius;
-                if(PendingCameraReset){
+                if(this.PendingCameraReset){
                     // 初回ビルド成功時、またはコンボボックスでシーンが切り替わった直後
                     // (SetTargetがPendingCameraReset=trueを立てる、事前調査事実3)。
                     State.ResetToBounds(
                         this.SceneBoundsCenter,this.SceneBoundsRadius,
                         SceneCameraFraming.ViewDirection,SceneCameraFraming.DefaultFovYRadians,this.AspectRatio);
-                    PendingCameraReset=false;
+                    this.PendingCameraReset=false;
                 }
 
                 View=State.GetView();
@@ -1664,27 +1668,27 @@ internal sealed class SceneHwndHost:HwndHost {
             }
 
             // 実サイズは Surface.Resized で既に届いているので、800x600 のハードコードは使わない。
-            Renderer=new SceneRenderer(Surface.Handle,SurfaceWidth,SurfaceHeight,Result.RenderObjects,View,Projection);
-            RenderedAnalysisGeneration=Request.AnalysisGeneration;
+            this.Renderer=new SceneRenderer(this.Surface.Handle, this.SurfaceWidth, this.SurfaceHeight,Result.RenderObjects,View,Projection);
+            this.RenderedAnalysisGeneration=Request.AnalysisGeneration;
             // 再解析でRendererを作り直しても選択の見た目を保つ。複数選択(SelectedNodePaths)も
             // 一緒に渡さないと、primary以外のハイライトだけが再ビルドで消える。
-            Renderer.SetSelectedNode(this.SelectedNodePath,this.SelectedNodePaths);
-            UpdateMoveGizmo();
-            Surface.SetVisible(true);
-            SetStatus($"表示中: {Result.Request.ClassName}");
+            this.Renderer.SetSelectedNode(this.SelectedNodePath,this.SelectedNodePaths);
+            this.UpdateMoveGizmo();
+            this.Surface.SetVisible(true);
+            this.SetStatus($"表示中: {Result.Request.ClassName}");
         } catch(Exception Ex){
             ActivityLog.LogError(nameof(SceneHwndHost),Ex.ToString());
-            DisposeRenderer();
-            SetStatus($"表示に失敗しました: {Ex.Message}");
+            this.DisposeRenderer();
+            this.SetStatus($"表示に失敗しました: {Ex.Message}");
         }
     }
 
     private void DisposeRenderer(){
-        Renderer?.Dispose();
-        Renderer=null;
-        RenderedAnalysisGeneration=-1;
-        CurrentRenderObjects=[];
-        Surface?.SetVisible(false);
+        this.Renderer?.Dispose();
+        this.Renderer=null;
+        this.RenderedAnalysisGeneration=-1;
+        this.CurrentRenderObjects=[];
+        this.Surface?.SetVisible(false);
     }
 
     /// <summary>
@@ -1704,7 +1708,7 @@ internal sealed class SceneHwndHost:HwndHost {
     /// </summary>
     private void OnSettingsChanged(){
         ThreadHelper.ThrowIfNotOnUIThread();
-        if(ViewState is not { } State){
+        if(this.ViewState is not { } State){
             return;
         }
 
@@ -1716,18 +1720,18 @@ internal sealed class SceneHwndHost:HwndHost {
     }
 
     private void DetachSubscriptions(){
-        if(RenderingHandler is not null){
-            CompositionTarget.Rendering-=RenderingHandler;
-            RenderingHandler=null;
+        if(this.RenderingHandler is not null){
+            CompositionTarget.Rendering-= this.RenderingHandler;
+            this.RenderingHandler=null;
         }
 
-        if(ResizeHandler is not null&&Surface is not null){
-            Surface.Resized-=ResizeHandler;
-            ResizeHandler=null;
+        if(this.ResizeHandler is not null&& this.Surface is not null){
+            this.Surface.Resized-= this.ResizeHandler;
+            this.ResizeHandler=null;
         }
     }
 
-    private void SetStatus(string Status)=>StatusChanged?.Invoke(Status);
+    private void SetStatus(string Status)=> this.StatusChanged?.Invoke(Status);
 
     private sealed record SceneRenderBuildRequest(
         SceneModel Model,

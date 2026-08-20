@@ -32,8 +32,8 @@ public sealed class SceneEmitModelEqualityTests {
 
     [Fact]
     public void StructurallyIdenticalModelsBuiltSeparatelyAreEqual(){
-        SceneEmitModel Left=BuildModel();
-        SceneEmitModel Right=BuildModel();
+        var Left=BuildModel();
+        var Right=BuildModel();
 
         Assert.Equal(Left,Right);
         Assert.Equal(Left.GetHashCode(),Right.GetHashCode());

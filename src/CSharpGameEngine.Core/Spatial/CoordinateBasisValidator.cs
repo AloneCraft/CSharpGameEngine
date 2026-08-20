@@ -15,9 +15,9 @@ public static class CoordinateBasisValidator {
     /// </summary>
     public static void Validate<TConvention>()
         where TConvention:struct,ICoordinateConvention {
-        XyzVector Right=TConvention.RightXyz;
-        XyzVector Up=TConvention.UpXyz;
-        XyzVector Forward=TConvention.ForwardXyz;
+        var Right=TConvention.RightXyz;
+        var Up=TConvention.UpXyz;
+        var Forward=TConvention.ForwardXyz;
         var ConventionName=typeof(TConvention).Name;
 
         ValidateFinite(Right,ConventionName,nameof(ICoordinateConvention.RightXyz));

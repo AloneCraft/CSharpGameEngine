@@ -41,43 +41,53 @@ namespace CSharpGameEngine.CodeAnalysis;
 [Generator(LanguageNames.CSharp)]
 public sealed class GameSystemGenerator:IIncrementalGenerator {
     public void Initialize(IncrementalGeneratorInitializationContext Context){
-        IncrementalValuesProvider<GameSystemResult?>Candidates=Context.SyntaxProvider.CreateSyntaxProvider(
-            static(Node,_)=>Node is TypeDeclarationSyntax { BaseList.Types.Count:>0 },
-            static(Ctx,_)=>TryAnalyzeSystem(Ctx));
+        var Candidates=Context.SyntaxProvider.CreateSyntaxProvider(
+                                                                  static(Node,_)=>Node is TypeDeclarationSyntax { BaseList.Types.Count:>0 },
+                                                                  static(Ctx,_)=>TryAnalyzeSystem(Ctx));
 
-        IncrementalValuesProvider<GameSystemResult>Systems=Candidates
-            .Where(static Result=>Result.HasValue)
-            .Select(static(Result,_)=>Result!.Value);
+        var Systems=Candidates
+                  .Where(static Result=>Result.HasValue)
+                  .Select(static(Result,_)=>Result!.Value);
 
         // ADR-0040のScene DSL。`IScene`には属性が無いためForAttributeWithMetadataNameが使えず、
         // ISystemと同じく安価な構文プレディケートで絞ってから意味解析で確認する。
         // 流れるのはシンボルを持たないSceneEmitModelだけ(SceneModelBridgeのXMLコメント参照)。
-        IncrementalValuesProvider<SceneEmitModel>SceneDeclarations=Context.SyntaxProvider.CreateSyntaxProvider(
-                static(Node,_)=>SceneModelBridge.IsSceneCandidate(Node),
-                static(Ctx,Ct)=>SceneModelBridge.TryAnalyze(Ctx,Ct))
-            .Where(static Result=>Result.HasValue)
-            .Select(static(Result,_)=>Result!.Value);
+        var SceneDeclarations=Context.SyntaxProvider.CreateSyntaxProvider(
+                                                                         static(Node,_)=>SceneModelBridge.IsSceneCandidate(Node),
+                                                                         static(Ctx,Ct)=>SceneModelBridge.TryAnalyze(Ctx,Ct))
+                                    .Where(static Result=>Result.HasValue)
+                                    .Select(static(Result,_)=>Result!.Value);
+
+        // IRuntimeComponent<TAuthored>の実装。作者Componentに随伴して自動付与する対応表を作るために
+        // 拾う。ISystem/IScene と同じく属性が無いのでForAttributeWithMetadataNameは使えず、
+        // base listを持つstruct宣言を安価に絞ってから意味解析で確認する。流れるのは文字列ペアだけ。
+        var RuntimeComponentPairs=Context.SyntaxProvider.CreateSyntaxProvider(
+                                                                             static(Node,_)=>SceneRuntimeComponentCollector.IsCandidate(Node),
+                                                                             static(Ctx,_)=>SceneRuntimeComponentCollector.TryAnalyze(Ctx))
+                                       .Where(static Result=>Result.HasValue)
+                                       .Select(static(Result,_)=>Result!.Value);
 
         // ADR-0036: ファイル横断・System横断の実行順序を宣言する唯一の属性。ISystem実装struct自身に
         // 直接付けるか、`file`スコープのマーカークラスへ付けてファイル既定値にするかのいずれか
         // (GameSystemOrderAnalyzer.Analyzeがどちらかを判別する)。
-        IncrementalValuesProvider<GameSystemOrderResult>SystemOrders=Context.SyntaxProvider.ForAttributeWithMetadataName(
-            GameSystemOrderAnalyzer.SystemOrderAttributeFullyQualifiedName,
-            static(Node,_)=>Node is TypeDeclarationSyntax,
-            static(Ctx,_)=>GameSystemOrderAnalyzer.Analyze(Ctx));
+        var SystemOrders=Context.SyntaxProvider.ForAttributeWithMetadataName(
+                                                                            GameSystemOrderAnalyzer.SystemOrderAttributeFullyQualifiedName,
+                                                                            static(Node,_)=>Node is TypeDeclarationSyntax,
+                                                                            static(Ctx,_)=>GameSystemOrderAnalyzer.Analyze(Ctx));
 
         Context.RegisterSourceOutput(Systems,static(Spc,Result)=>GameSystemDiagnostics.ReportAll(Spc,Result));
 
         // Compilationそのものをキャッシュキーに含めると、キーストロークのたびに重い生成段が丸ごと
         // 再実行されてしまう。生成可否の判定に必要な事実だけを小さな比較可能値へ縮約する(ADR-0040)。
-        IncrementalValueProvider<GenerationGate>Gate=Context.CompilationProvider.Select(
-            static(Compilation,Ct)=>GenerationGate.FromCompilation(Compilation,Ct));
+        var Gate=Context.CompilationProvider.Select(
+                                                   static(Compilation,Ct)=>GenerationGate.FromCompilation(Compilation,Ct));
 
-        IncrementalValueProvider<((ImmutableArray<GameSystemResult>Systems,ImmutableArray<GameSystemOrderResult>SystemOrders,ImmutableArray<SceneEmitModel>SceneDeclarations)Sources,GenerationGate Gate)>Combined=
+        IncrementalValueProvider<((ImmutableArray<GameSystemResult>Systems,ImmutableArray<GameSystemOrderResult>SystemOrders,ImmutableArray<SceneEmitModel>SceneDeclarations,ImmutableArray<SceneRuntimeComponentPair>RuntimeComponentPairs)Sources,GenerationGate Gate)>Combined=
             Systems.Collect()
                 .Combine(SystemOrders.Collect())
                 .Combine(SceneDeclarations.Collect())
-                .Select(static(Data,_)=>(Data.Left.Left,Data.Left.Right,Data.Right))
+                .Combine(RuntimeComponentPairs.Collect())
+                .Select(static(Data,_)=>(Data.Left.Left.Left,Data.Left.Left.Right,Data.Left.Right,Data.Right))
                 .Combine(Gate);
 
         Context.RegisterSourceOutput(Combined,static(Spc,Source)=>{
@@ -85,12 +95,12 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
                 return;
             }
 
-            ImmutableArray<GameSystemResult>SystemResults=Source.Sources.Systems;
+            var SystemResults=Source.Sources.Systems;
 
-            (GameSystemOrderContext OrderContext,ImmutableArray<Diagnostic>SystemOrderDiagnostics)=
+            (var OrderContext,var SystemOrderDiagnostics)=
                 GameSystemOrderAnalyzer.BuildMap(Source.Sources.SystemOrders);
 
-            foreach(Diagnostic SystemOrderDiagnostic in SystemOrderDiagnostics){
+            foreach(var SystemOrderDiagnostic in SystemOrderDiagnostics){
                 Spc.ReportDiagnostic(SystemOrderDiagnostic);
             }
 
@@ -110,12 +120,12 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
             List<GameSystemResult>ValidStartupSystems=[];
             Dictionary<string,int>MergedSystemOrderByFqn=new(StringComparer.Ordinal);
 
-            foreach(KeyValuePair<string,int>ExistingOrder in OrderContext.SystemOrderByFqn){
+            foreach(var ExistingOrder in OrderContext.SystemOrderByFqn){
                 MergedSystemOrderByFqn[ExistingOrder.Key]=ExistingOrder.Value;
             }
 
-            foreach(SceneEmitModel StartupScene in ValidSceneDeclarations.Where(static S=>S.IsStartupScene)){
-                GameSystemResult SyntheticSystem=SceneStartupSystemEmitter.BuildSyntheticSystemResult(StartupScene);
+            foreach(var StartupScene in ValidSceneDeclarations.Where(static S=>S.IsStartupScene)){
+                var SyntheticSystem=SceneStartupSystemEmitter.BuildSyntheticSystemResult(StartupScene);
                 ValidStartupSystems.Add(SyntheticSystem);
                 MergedSystemOrderByFqn[SyntheticSystem.ClassFullyQualifiedName]=StartupScene.StartupOrder;
             }
@@ -123,15 +133,23 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
             GameSystemOrderContext MergedOrderContext=new(MergedSystemOrderByFqn,OrderContext.FileOrderByPath);
             ImmutableArray<GameSystemResult>AllSystemResults=[.. SystemResults,.. ValidStartupSystems];
 
+            // 随伴付与の索引。ArchetypeのCollectとEmitが必ず同じ集合を導出するよう、以降の両方へ
+            // 同じインスタンスを渡す(引数なので渡し忘れはコンパイルエラーになる)。
+            var RuntimeComponents=SceneRuntimeComponentMap.Build(
+                Source.Sources.RuntimeComponentPairs,out var RuntimeComponentDiagnostics);
+
+            foreach(var RuntimeComponentDiagnostic in RuntimeComponentDiagnostics){
+                Spc.ReportDiagnostic(RuntimeComponentDiagnostic);
+            }
             List<IReadOnlyList<string>>AdditionalComponentSets=[];
 
-            foreach(SceneEmitModel SceneDeclaration in ValidSceneDeclarations){
-                AdditionalComponentSets.AddRange(SceneComponentSetCollector.Collect(SceneDeclaration));
+            foreach(var SceneDeclaration in ValidSceneDeclarations){
+                AdditionalComponentSets.AddRange(SceneComponentSetCollector.Collect(SceneDeclaration,RuntimeComponents));
             }
 
             // エントリポイントを出すかどうかはレジストリ構築の前に決める。生成する場合にだけ
             // Bootstrapの形状を登録し、出さないコンパイルへ余計なArchetypeが増えないようにする。
-            GameSystemEntryPointEmitter.Plan EntryPointPlan=
+            var EntryPointPlan=
                 GameSystemEntryPointEmitter.ShouldEmitPlan(Source.Gate,AllSystemResults,MergedOrderContext);
 
             if(EntryPointPlan.Diagnostic is { } EntryPointDiagnostic){
@@ -142,9 +160,9 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
                 AdditionalComponentSets.Add([GameSystemEntryPointEmitter.BootstrapComponentFullyQualifiedName]);
             }
 
-            GameSystemRegistry Registry=GameSystemIndexAssigner.Assign(AllSystemResults,AdditionalComponentSets,MergedOrderContext);
+            var Registry=GameSystemIndexAssigner.Assign(AllSystemResults,AdditionalComponentSets,MergedOrderContext);
 
-            foreach(Diagnostic Diagnostic in Registry.Diagnostics){
+            foreach(var Diagnostic in Registry.Diagnostics){
                 Spc.ReportDiagnostic(Diagnostic);
             }
 
@@ -156,8 +174,8 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
                 GameSystemEntryPointEmitter.Emit(Spc,Registry);
             }
 
-            foreach(SceneEmitModel SceneDeclaration in ValidSceneDeclarations){
-                SceneInstantiateEmitter.Emit(Spc,SceneDeclaration,Registry);
+            foreach(var SceneDeclaration in ValidSceneDeclarations){
+                SceneInstantiateEmitter.Emit(Spc,SceneDeclaration,Registry,RuntimeComponents);
 
                 if(SceneDeclaration.IsStartupScene){
                     SceneStartupSystemEmitter.EmitHiddenSystem(Spc,SceneDeclaration);

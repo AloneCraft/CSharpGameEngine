@@ -23,16 +23,16 @@ internal readonly struct SceneViewFollowSnapshot {
         new(State.FocusPosition,State.FocusDistance,State.Yaw,State.Pitch);
 
     internal void ApplyMove(SceneViewState State,Vector3 TotalDelta){
-        Restore(State);
+        this.Restore(State);
         State.FocusPosition+=TotalDelta;
     }
 
     internal void ApplyRotation(SceneViewState State,Vector3 Pivot,Quaternion TotalDelta){
-        Quaternion Rotation=SceneTransformMath.NormalizeRotation(TotalDelta);
-        Vector3 OriginalForward=SceneViewCamera.GetForward(this.Yaw,this.Pitch);
-        Vector3 OriginalEye=this.FocusPosition-(OriginalForward*this.FocusDistance);
-        Vector3 NewEye=Pivot+Vector3.Transform(OriginalEye-Pivot,Rotation);
-        Vector3 NewForward=Vector3.Normalize(Vector3.Transform(OriginalForward,Rotation));
+        var Rotation=SceneTransformMath.NormalizeRotation(TotalDelta);
+        var OriginalForward=SceneViewCamera.GetForward(this.Yaw,this.Pitch);
+        var OriginalEye=this.FocusPosition-(OriginalForward*this.FocusDistance);
+        var NewEye=Pivot+Vector3.Transform(OriginalEye-Pivot,Rotation);
+        var NewForward=Vector3.Normalize(Vector3.Transform(OriginalForward,Rotation));
         State.FocusDistance=this.FocusDistance;
         State.Yaw=(float)Math.Atan2(NewForward.X,NewForward.Z);
         State.Pitch=(float)Math.Asin(Math.Max(-1f,Math.Min(1f,NewForward.Y)));
@@ -78,7 +78,7 @@ internal static class DuplicateNodePlanner {
             throw new ArgumentException(nameof(Path));
         }
 
-        NodePath Result=ResultRoot;
+        var Result=ResultRoot;
         for(var I=SourceRoot.Depth;I<Path.Depth;I++){
             Result=Result.Append(Path.Indices[I]);
         }
@@ -88,8 +88,8 @@ internal static class DuplicateNodePlanner {
     internal static bool TryResolveResultSelection(
         SceneProjection Projection,IReadOnlyList<NodePath>Paths,out IReadOnlyList<EditorNodeId>Ids){
         List<EditorNodeId>Resolved=[];
-        foreach(NodePath Path in Paths){
-            if(!Projection.TryGetId(Path,out EditorNodeId Id)){
+        foreach(var Path in Paths){
+            if(!Projection.TryGetId(Path,out var Id)){
                 Ids=Array.Empty<EditorNodeId>();
                 return false;
             }
@@ -104,18 +104,18 @@ internal static class DuplicateNodePlanner {
         out IReadOnlyList<DuplicateNodePlanItem>Plan){
         List<DuplicateNodePlanItem>Items=[];
         Dictionary<NodePath,int>NextChildIndices=[];
-        foreach(SceneProjectionNode Root in Roots){
+        foreach(var Root in Roots){
             if(Root.Path.Parent is not { }ParentPath
-                ||!Projection.TryGetId(ParentPath,out EditorNodeId ParentId)
-                ||!Projection.TryGetNode(ParentId,out SceneProjectionNode Parent)){
+                ||!Projection.TryGetId(ParentPath,out var ParentId)
+                ||!Projection.TryGetNode(ParentId,out var Parent)){
                 Plan=Array.Empty<DuplicateNodePlanItem>();
                 return false;
             }
 
-            if(!NextChildIndices.TryGetValue(ParentPath,out int NextIndex)){
+            if(!NextChildIndices.TryGetValue(ParentPath,out var NextIndex)){
                 NextIndex=Parent.Node.Children.Length;
             }
-            NodePath ResultPath=ParentPath.Append(NextIndex);
+            var ResultPath=ParentPath.Append(NextIndex);
             NextChildIndices[ParentPath]=NextIndex+1;
             Items.Add(new DuplicateNodePlanItem(Root.Id,Root.Path,ResultPath));
         }

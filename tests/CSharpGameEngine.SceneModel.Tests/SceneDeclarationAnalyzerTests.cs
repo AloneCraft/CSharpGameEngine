@@ -7,13 +7,13 @@ namespace CSharpGameEngine.SceneAnalysis.Tests;
 public sealed class SceneDeclarationAnalyzerTests {
     [Fact]
     public void RootOnly_ProducesRootNodeWithNoComponents(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Name="Root" };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene {
+                                                      public Node Root=>new() { Name="Root" };
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertNoDiagnostics(Model);
         Assert.NotNull(Model.Root);
@@ -28,22 +28,22 @@ public sealed class SceneDeclarationAnalyzerTests {
 
     [Fact]
     public void Components_AreReadInSourceOrder(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            using System.Numerics;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Name="Floor",
-                    Components=[
-                        new Transform { Position=new Vector3(0f,0f,0f),Scale=new Vector3(10f,1f,10f) },
-                        new PrimitiveMesh { Type=PrimitiveType.Cube },
-                        new MaterialRef(),
-                    ],
-                };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  using Sample;
+                                                  using System.Numerics;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene {
+                                                      public Node Root=>new() {
+                                                          Name="Floor",
+                                                          Components=[
+                                                              new Transform { Position=new Vector3(0f,0f,0f),Scale=new Vector3(10f,1f,10f) },
+                                                              new PrimitiveMesh { Type=PrimitiveType.Cube },
+                                                              new MaterialRef(),
+                                                          ],
+                                                      };
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertNoDiagnostics(Model);
         Assert.Equal(
@@ -53,24 +53,24 @@ public sealed class SceneDeclarationAnalyzerTests {
 
     [Fact]
     public void NestedChildren_GetSequentialNodePaths(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Children=[
-                        new Node { Name="A" },
-                        new Node {
-                            Name="B",
-                            Children=[
-                                new Node { Name="B0" },
-                                new Node { Name="B1" },
-                            ],
-                        },
-                    ],
-                };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene {
+                                                      public Node Root=>new() {
+                                                          Children=[
+                                                              new Node { Name="A" },
+                                                              new Node {
+                                                                  Name="B",
+                                                                  Children=[
+                                                                      new Node { Name="B0" },
+                                                                      new Node { Name="B1" },
+                                                                  ],
+                                                              },
+                                                          ],
+                                                      };
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertNoDiagnostics(Model);
         Assert.Equal(5,Model.TotalNodeCount);
@@ -83,19 +83,19 @@ public sealed class SceneDeclarationAnalyzerTests {
 
     [Fact]
     public void EnumerateNodes_WalksDepthFirstInDeclarationOrder(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Name="R",
-                    Children=[
-                        new Node { Name="A",Children=[new Node { Name="A0" }] },
-                        new Node { Name="B" },
-                    ],
-                };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene {
+                                                      public Node Root=>new() {
+                                                          Name="R",
+                                                          Children=[
+                                                              new Node { Name="A",Children=[new Node { Name="A0" }] },
+                                                              new Node { Name="B" },
+                                                          ],
+                                                      };
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertNoDiagnostics(Model);
         Assert.Equal(["R","A","A0","B"],Model.EnumerateNodes().Select(static N=>N.Name));
@@ -103,13 +103,13 @@ public sealed class SceneDeclarationAnalyzerTests {
 
     [Fact]
     public void FindNode_ResolvesByPathAndRejectsOutOfRange(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Children=[new Node { Name="Child" }] };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene {
+                                                      public Node Root=>new() { Children=[new Node { Name="Child" }] };
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertNoDiagnostics(Model);
         Assert.Equal("Child",Model.FindNode(NodePath.Root.Append(0))?.Name);
@@ -118,13 +118,13 @@ public sealed class SceneDeclarationAnalyzerTests {
 
     [Fact]
     public void NameOmitted_IsNullAndDisplayNameFallsBackToPath(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Children=[new Node()] };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene {
+                                                      public Node Root=>new() { Children=[new Node()] };
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertNoDiagnostics(Model);
         Assert.Null(Model.Root!.Children[0].Name);
@@ -133,17 +133,17 @@ public sealed class SceneDeclarationAnalyzerTests {
 
     [Fact]
     public void ArrayInitializerSyntax_IsAcceptedLikeCollectionExpression(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Components=new object[] { new DirectionalLight { Intensity=3f } },
-                    Children=new Node[] { new Node { Name="Child" } },
-                };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  using Sample;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene {
+                                                      public Node Root=>new() {
+                                                          Components=new object[] { new DirectionalLight { Intensity=3f } },
+                                                          Children=new Node[] { new Node { Name="Child" } },
+                                                      };
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertNoDiagnostics(Model);
         Assert.Single(Model.Root!.Components);
@@ -152,13 +152,13 @@ public sealed class SceneDeclarationAnalyzerTests {
 
     [Fact]
     public void ExplicitInterfaceImplementation_IsResolved(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                Node IScene.Root=>new() { Name="Explicit" };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene {
+                                                      Node IScene.Root=>new() { Name="Explicit" };
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertNoDiagnostics(Model);
         Assert.Equal("Explicit",Model.Root!.Name);
@@ -166,13 +166,13 @@ public sealed class SceneDeclarationAnalyzerTests {
 
     [Fact]
     public void GetAccessorWithSingleReturn_IsAccepted(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root { get { return new Node { Name="Returned" }; } }
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene {
+                                                      public Node Root { get { return new Node { Name="Returned" }; } }
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertNoDiagnostics(Model);
         Assert.Equal("Returned",Model.Root!.Name);
@@ -180,13 +180,13 @@ public sealed class SceneDeclarationAnalyzerTests {
 
     [Fact]
     public void GetAccessorWithExpressionBody_IsAccepted(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root { get=>new Node { Name="Arrow" }; }
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene {
+                                                      public Node Root { get=>new Node { Name="Arrow" }; }
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertNoDiagnostics(Model);
         Assert.Equal("Arrow",Model.Root!.Name);
@@ -194,14 +194,14 @@ public sealed class SceneDeclarationAnalyzerTests {
 
     [Fact]
     public void StartupSceneAttribute_IsReadWithOrder(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            [StartupScene(Order=3)]
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Name="Root" };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  namespace Game;
+                                                  [StartupScene(Order=3)]
+                                                  public partial class MainScene:IScene {
+                                                      public Node Root=>new() { Name="Root" };
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertNoDiagnostics(Model);
         Assert.True(Model.IsStartupScene);
@@ -210,13 +210,13 @@ public sealed class SceneDeclarationAnalyzerTests {
 
     [Fact]
     public void WithoutStartupSceneAttribute_IsNotAStartupScene(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Name="Root" };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene {
+                                                      public Node Root=>new() { Name="Root" };
+                                                  }
+                                                  """);
 
         Assert.False(Model.IsStartupScene);
         Assert.Equal(0,Model.StartupOrder);
@@ -224,12 +224,12 @@ public sealed class SceneDeclarationAnalyzerTests {
 
     [Fact]
     public void GlobalNamespaceScene_HasNullNamespace(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Name="Root" };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  public partial class MainScene:IScene {
+                                                      public Node Root=>new() { Name="Root" };
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertNoDiagnostics(Model);
         Assert.Null(Model.Namespace);
@@ -238,18 +238,18 @@ public sealed class SceneDeclarationAnalyzerTests {
 
     [Fact]
     public void SourceLocations_PointAtTheDeclaringExpressions(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Name="Root",
-                    Components=[new DirectionalLight { Intensity=3f }],
-                    Children=[new Node { Name="Child" }],
-                };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  using Sample;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene {
+                                                      public Node Root=>new() {
+                                                          Name="Root",
+                                                          Components=[new DirectionalLight { Intensity=3f }],
+                                                          Children=[new Node { Name="Child" }],
+                                                      };
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertNoDiagnostics(Model);
         Assert.NotNull(Model.Root!.InitializerLocation);

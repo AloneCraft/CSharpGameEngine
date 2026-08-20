@@ -131,6 +131,16 @@ internal sealed class SceneEditorSessionService : IDisposable {
         SceneKey?PreferredSceneKey,System.Threading.CancellationToken CancellationToken)=>
         this.Workspace.GetProjectSceneCatalogAsync(PreferredSceneKey,CancellationToken);
 
+    /// <summary>M0053: 追加するComponent型のシンボル解決。pin中のSceneのProjectを優先します。</summary>
+    internal System.Threading.Tasks.Task<(Microsoft.CodeAnalysis.INamedTypeSymbol Symbol,Microsoft.CodeAnalysis.Compilation Compilation)?>ResolveComponentTypeAsync(
+        string FullyQualifiedName,System.Threading.CancellationToken CancellationToken)=>
+        this.Workspace.ResolveComponentTypeAsync(this.PinnedSceneKey,FullyQualifiedName,CancellationToken);
+
+    /// <summary>M0052: Componentパレットの候補。pin中のSceneがあればそのProjectを優先します。</summary>
+    internal System.Threading.Tasks.Task<IReadOnlyList<ComponentPaletteEntry>>GetProjectComponentCatalogAsync(
+        System.Threading.CancellationToken CancellationToken)=>
+        this.Workspace.GetProjectComponentCatalogAsync(this.PinnedSceneKey,CancellationToken);
+
     internal System.Threading.Tasks.Task<SceneModel?>ResolveSceneAsync(
         SceneKey Key,System.Threading.CancellationToken CancellationToken)=>
         this.Workspace.ResolveSceneAsync(Key,CancellationToken);

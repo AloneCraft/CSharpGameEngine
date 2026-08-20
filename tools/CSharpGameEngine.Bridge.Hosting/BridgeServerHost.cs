@@ -22,7 +22,7 @@ public static class BridgeServerHost {
         Func<string,string,(int ExitCode,string Output)>Handler,
         TimeSpan IdleTimeout,
         CancellationToken CancellationToken=default){
-        using CancellationTokenSource IdleCts=CancellationTokenSource.CreateLinkedTokenSource(CancellationToken);
+        using var IdleCts=CancellationTokenSource.CreateLinkedTokenSource(CancellationToken);
         IdleCts.CancelAfter(IdleTimeout);
 
         while(true){
@@ -49,7 +49,7 @@ public static class BridgeServerHost {
     private static async Task HandleConnectionAsync(NamedPipeServerStream Pipe,Func<string,string,(int ExitCode,string Output)>Handler){
         await using(Pipe){
             try {
-                BridgeServerRequest Request= await BridgeWireMessage.ReadAsync<BridgeServerRequest>(Pipe,CancellationToken.None);
+                var Request= await BridgeWireMessage.ReadAsync<BridgeServerRequest>(Pipe,CancellationToken.None);
                 var FirstArg=Request.Args.Length>0?Request.Args[0]:string.Empty;
                 var OutputPath=Request.Args.Length>1?Request.Args[1]:string.Empty;
 

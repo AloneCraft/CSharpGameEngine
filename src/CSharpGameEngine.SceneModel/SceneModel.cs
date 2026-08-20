@@ -65,7 +65,7 @@ internal sealed class SceneModel {
 
     internal bool HasErrors{
         get{
-            foreach(Diagnostic Diagnostic in this.Diagnostics){
+            foreach(var Diagnostic in this.Diagnostics){
                 if(Diagnostic.Severity==DiagnosticSeverity.Error){
                     return true;
                 }
@@ -105,7 +105,7 @@ internal sealed class SceneModel {
         Pending.Push(Root);
 
         while(Pending.Count>0){
-            SceneNode Current=Pending.Pop();
+            var Current=Pending.Pop();
             yield return Current;
 
             for(var Index=Current.Children.Length-1;Index>=0;Index--){
@@ -138,7 +138,7 @@ internal sealed class SceneModel {
     private static int CountNodes(SceneNode Node){
         var Count=1;
 
-        foreach(SceneNode Child in Node.Children){
+        foreach(var Child in Node.Children){
             Count+=CountNodes(Child);
         }
 

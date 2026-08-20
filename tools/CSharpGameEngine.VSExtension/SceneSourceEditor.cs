@@ -23,12 +23,20 @@ internal sealed record SetComponentMemberOperation(
     string ValueExpression,
     string?OriginalValueExpression=null) : SceneEditOperation(SceneKey,NodeId,DocumentVersion);
 
+/// <summary>
+/// <paramref name="Members"/>は<b>メモリ内モデル専用</b>で、C#への書き戻しには使わない
+/// (書き戻しは<paramref name="ComponentExpression"/>をそのまま構文として挿す)。
+/// これが空だと、Roslynの再解析が着地するまでInspectorが「解析待ち…」のまま何も編集できない
+/// (<c>SceneModelEditApplier.TryApplyAddComponent</c>)。両者は
+/// <c>SceneComponentInitializerPolicy.CreatePlan</c>が同じ列挙から作るので食い違わない。
+/// </summary>
 internal sealed record AddComponentOperation(
     SceneKey SceneKey,
     EditorNodeId NodeId,
     long DocumentVersion,
     string ComponentTypeFullyQualifiedName,
-    string ComponentExpression) : SceneEditOperation(SceneKey,NodeId,DocumentVersion);
+    string ComponentExpression,
+    ImmutableArray<SceneComponentMember>Members=default) : SceneEditOperation(SceneKey,NodeId,DocumentVersion);
 
 internal sealed record RemoveComponentOperation(
     SceneKey SceneKey,

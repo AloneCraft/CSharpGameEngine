@@ -12,22 +12,22 @@ if(args.Length!=3){
 var ManifestPath=Path.GetFullPath(args[0]);
 var ScenePath=Path.GetFullPath(args[1]);
 var AssetsPath=Path.GetFullPath(args[2]);
-ImportManifest Manifest=JsonSerializer.Deserialize<ImportManifest>(File.ReadAllText(ManifestPath),JsonOptions())
-    ??throw new InvalidOperationException($"Could not deserialize '{ManifestPath}'.");
+var Manifest=JsonSerializer.Deserialize<ImportManifest>(File.ReadAllText(ManifestPath),JsonOptions())
+           ??throw new InvalidOperationException($"Could not deserialize '{ManifestPath}'.");
 
 if(Manifest.Version!=2){
     throw new InvalidOperationException($"Unsupported manifest version {Manifest.Version}.");
 }
 
-GltfSceneImportResult Result=GltfImporter.ImportScene(Manifest.StagingGlb);
+var Result=GltfImporter.ImportScene(Manifest.StagingGlb);
 if(!Result.Success||Result.Scene is not{ }Scene){
     throw new InvalidOperationException(string.Join(Environment.NewLine,Result.Diagnostics));
 }
 
-Dictionary<string,ImportedSceneNode>MeshNodeByName=Scene.Nodes
-    .Where(Node=>Node.MeshIndex.HasValue)
-    .GroupBy(Node=>Node.Name,StringComparer.Ordinal)
-    .ToDictionary(Group=>Group.Key,Group=>Group.First(),StringComparer.Ordinal);
+var MeshNodeByName=Scene.Nodes
+                       .Where(Node=>Node.MeshIndex.HasValue)
+                       .GroupBy(Node=>Node.Name,StringComparer.Ordinal)
+                       .ToDictionary(Group=>Group.Key,Group=>Group.First(),StringComparer.Ordinal);
 
 if(Manifest.Actors.Count!=55){
     throw new InvalidOperationException($"Expected 55 StaticMeshActors, found {Manifest.Actors.Count}.");
@@ -79,8 +79,8 @@ static string BuildSceneSource(
     ImportedScene Scene,
     IReadOnlyDictionary<string,ImportedSceneNode>MeshNodeByName,
     ImportedSceneNode DirectionalNode){
-    ImportedLight Light=Scene.Lights[DirectionalNode.LightIndex!.Value];
-    Vector3 Direction=ImportedLightDirection.WorldForward(DirectionalNode.WorldTransform);
+    var Light=Scene.Lights[DirectionalNode.LightIndex!.Value];
+    var Direction=ImportedLightDirection.WorldForward(DirectionalNode.WorldTransform);
     ImportEnvironment Environment=Manifest.Environment;
 
     var Builder=new StringBuilder();
@@ -104,8 +104,8 @@ static string BuildSceneSource(
     Builder.AppendLine("        Children=[");
 
     foreach(ImportActor Actor in Manifest.Actors.OrderBy(Item=>Item.Label,StringComparer.Ordinal)){
-        Matrix4x4 World=MeshNodeByName[Actor.Label].WorldTransform;
-        if(!Matrix4x4.Decompose(World,out Vector3 Scale,out Quaternion Rotation,out Vector3 Translation)){
+        var World=MeshNodeByName[Actor.Label].WorldTransform;
+        if(!Matrix4x4.Decompose(World,out var Scale,out var Rotation,out var Translation)){
             throw new InvalidOperationException($"Could not decompose transform for '{Actor.Label}'.");
         }
         Builder.AppendLine("            new Node {");

@@ -29,12 +29,12 @@ internal static class SceneModelRenderObjectBuilder {
         void Append(SceneNode Node,Matrix4x4 ParentWorld){
             // world = local * parentWorld。SceneTransformMathはこのランタイム規約をEditor側の
             // 読み取り・preview・source write-backで一貫して使う純粋層である。
-            Matrix4x4 World=(SceneTransformBinding.TryRead(Node,out SceneTransformValue Local)
-                ?SceneTransformMath.ToMatrix(Local)
-                :Matrix4x4.Identity)*ParentWorld;
+            var World=(SceneTransformBinding.TryRead(Node,out var Local)
+                           ?SceneTransformMath.ToMatrix(Local)
+                           :Matrix4x4.Identity)*ParentWorld;
 
-            string?AssetPath=ExtractStaticMeshAssetPath(Node);
-            string?PrimitiveMeshEnumMemberName=ExtractPrimitiveMeshEnumMemberName(Node);
+            var AssetPath=ExtractStaticMeshAssetPath(Node);
+            var PrimitiveMeshEnumMemberName=ExtractPrimitiveMeshEnumMemberName(Node);
             SimpleMesh Mesh;
             if(AssetPath is not null&&ResolveStaticMesh is not null){
                 Mesh=ResolveStaticMesh(AssetPath)??GizmoMeshFactory.Create();
@@ -48,7 +48,7 @@ internal static class SceneModelRenderObjectBuilder {
             // 立方体で代替描画されるが、通常のステージコンテンツと同列にピッキング対象へ含めると
             // ワールド原点付近で誤選択・誤ドラッグしやすい。Sky domeも同じ理由で対象外にする
             // (「何もない空間」のクリックが背景に当たって選択解除にならない不具合の原因だった)。
-            bool HasDeclaredMesh=AssetPath is not null||PrimitiveMeshEnumMemberName is not null;
+            var HasDeclaredMesh=AssetPath is not null||PrimitiveMeshEnumMemberName is not null;
             Result.Add(new SceneRenderObject {
                 Mesh=Mesh,
                 World=World,
@@ -57,7 +57,7 @@ internal static class SceneModelRenderObjectBuilder {
                 IsPickable=HasDeclaredMesh&&!IsSkyDomeAsset(AssetPath),
             });
 
-            foreach(SceneNode Child in Node.Children){
+            foreach(var Child in Node.Children){
                 Append(Child,World);
             }
         }
@@ -68,11 +68,11 @@ internal static class SceneModelRenderObjectBuilder {
         AssetPath is not null&&AssetPath.IndexOf("SkySphere",StringComparison.OrdinalIgnoreCase)>=0;
 
     internal static SimpleMesh?ResolveViaBridge(string PrimitiveTypeEnumMemberName,string RepoRoot){
-        string?BridgeKind=MapToBridgeKind(PrimitiveTypeEnumMemberName);
+        var BridgeKind=MapToBridgeKind(PrimitiveTypeEnumMemberName);
         if(BridgeKind is null)return null;
-        string DirectoryPath=Path.Combine(RepoRoot,"UserEcsProject","Assets","Primitives");
+        var DirectoryPath=Path.Combine(RepoRoot,"UserEcsProject","Assets","Primitives");
         Directory.CreateDirectory(DirectoryPath);
-        string GlbPath=Path.Combine(DirectoryPath,$"{BridgeKind}.glb");
+        var GlbPath=Path.Combine(DirectoryPath,$"{BridgeKind}.glb");
         if(!File.Exists(GlbPath)){
             ExternalBridgeProcess.RunProducingFile(PrimitiveBridgeProjectRelativePath,BridgeKind,GlbPath,RepoRoot,BridgeTimeout,UseResidentServer:true);
         }
@@ -81,7 +81,7 @@ internal static class SceneModelRenderObjectBuilder {
 
     internal static SimpleMesh?ResolveStaticMeshViaBridge(string AssetPath,string RepoRoot){
         if(string.IsNullOrWhiteSpace(AssetPath))return null;
-        string FullPath=Path.GetFullPath(Path.Combine(RepoRoot,"UserEcsProject",AssetPath));
+        var FullPath=Path.GetFullPath(Path.Combine(RepoRoot,"UserEcsProject",AssetPath));
         return File.Exists(FullPath)?MeshLoader.Load(FullPath,RepoRoot):null;
     }
 

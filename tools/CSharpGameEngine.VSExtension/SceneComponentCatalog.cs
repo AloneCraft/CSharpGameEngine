@@ -8,15 +8,25 @@ namespace CSharpGameEngine.VSExtension;
 
 /// <summary>Shape PaletteやInspectorの「Componentを追加」候補に出すScene Component型の1件。</summary>
 internal sealed class SceneComponentCatalogEntry {
-    internal SceneComponentCatalogEntry(string FullyQualifiedName,string DisplayName,INamedTypeSymbol Symbol){
+    internal SceneComponentCatalogEntry(
+        string FullyQualifiedName,string DisplayName,string CreationExpression,INamedTypeSymbol Symbol){
         this.FullyQualifiedName=FullyQualifiedName;
         this.DisplayName=DisplayName;
+        this.CreationExpression=CreationExpression;
         this.Symbol=Symbol;
     }
 
     internal string FullyQualifiedName { get; }
 
     internal string DisplayName { get; }
+
+    /// <summary>
+    /// このComponentを追加するときソースへ書くobject creation式。書き込み可能メンバーを明示的に
+    /// 列挙してあるので、追加した直後からInspectorで全項目を編集できる
+    /// (<see cref="SceneComponentInitializerPolicy"/>)。シンボルが生きているここで組み立て、
+    /// 以降は文字列として持ち回る。
+    /// </summary>
+    internal string CreationExpression { get; }
 
     internal INamedTypeSymbol Symbol { get; }
 }
@@ -46,8 +56,8 @@ internal static class SceneComponentCatalog {
 
     internal static IReadOnlyList<SceneComponentCatalogEntry>Build(Compilation Compilation){
         List<SceneComponentCatalogEntry>Entries=[];
-        foreach(INamedTypeSymbol Type in EnumerateTypes(Compilation.Assembly.GlobalNamespace)){
-            if(!IsAddable(Type)){
+        foreach(var Type in EnumerateTypes(Compilation.Assembly.GlobalNamespace)){
+            if(!IsAddable(Type,Compilation)){
                 continue;
             }
 
@@ -56,7 +66,7 @@ internal static class SceneComponentCatalog {
                 continue;
             }
 
-            foreach(INamedTypeSymbol Closed in EnumerateClosedInstantiations(Type,Compilation)){
+            foreach(var Closed in EnumerateClosedInstantiations(Type,Compilation)){
                 Entries.Add(CreateEntry(Closed));
             }
         }
@@ -65,21 +75,27 @@ internal static class SceneComponentCatalog {
     }
 
     private static SceneComponentCatalogEntry CreateEntry(INamedTypeSymbol Type){
-        string FullyQualifiedName=SceneTypePredicates.ToFullyQualifiedName(Type);
+        var FullyQualifiedName=SceneTypePredicates.ToFullyQualifiedName(Type);
         // Type.Name/型引数のNameは非修飾の短い名前(例: "PoisonKind")。パレット表示は
         // "StatusEffect<PoisonKind>"のように読める形にしたいので、完全修飾名(FullyQualifiedName)とは
         // 別に組み立てる。
-        string DisplayName=Type.IsGenericType
-            ?$"{Type.Name}<{string.Join(", ",Type.TypeArguments.Select(static Argument=>Argument.Name))}>"
-            :Type.Name;
-        return new SceneComponentCatalogEntry(FullyQualifiedName,DisplayName,Type);
+        var DisplayName=Type.IsGenericType
+                            ?$"{Type.Name}<{string.Join(", ",Type.TypeArguments.Select(static Argument=>Argument.Name))}>"
+                            :Type.Name;
+        return new SceneComponentCatalogEntry(
+            FullyQualifiedName,DisplayName,
+            SceneComponentInitializerPolicy.CreateExpression(Type,FullyQualifiedName),Type);
     }
 
-    private static bool IsAddable(INamedTypeSymbol Type){
+    private static bool IsAddable(INamedTypeSymbol Type,Compilation Compilation){
         if(!SceneTypePredicates.IsNonNullableStruct(Type)
             ||Type.IsRefLikeType
             ||Type.IsImplicitlyDeclared
-            ||SceneTypePredicates.IsReservedComponent(SceneTypePredicates.ToFullyQualifiedName(Type))){
+            ||SceneTypePredicates.IsReservedComponent(SceneTypePredicates.ToFullyQualifiedName(Type))
+            ||SceneTypePredicates.ImplementsSystemInterface(Type)
+            // エンジンが実行時に埋めるComponent。作者が宣言するものではなく、随伴先を宣言すれば
+            // SGが自動付与する(SCENE119)。パレットへ出すと「追加しても中身が永久に空」になる。
+            ||SceneTypePredicates.ImplementsRuntimeComponentInterface(Type,Compilation)){
             return false;
         }
 
@@ -87,7 +103,7 @@ internal static class SceneComponentCatalog {
         // 明示指定を強制するため、requiredを持つ型はAddComponent operationの対象から除外する。
         // (generic型の閉じたinstantiationも同じ型定義のメンバーを共有するため、この判定は型引数を
         // 構築する前の型定義に対して行ってよい。)
-        foreach(ISymbol Member in Type.GetMembers()){
+        foreach(var Member in Type.GetMembers()){
             if(Member is IPropertySymbol { IsRequired:true }||Member is IFieldSymbol { IsRequired:true }){
                 return false;
             }
@@ -111,8 +127,8 @@ internal static class SceneComponentCatalog {
         }
 
         List<IReadOnlyList<ITypeSymbol>>PerParameterCandidates=[];
-        foreach(ITypeParameterSymbol Parameter in OpenType.TypeParameters){
-            IReadOnlyList<ITypeSymbol>Candidates=EnumerateCandidateTypeArguments(Parameter,Compilation);
+        foreach(var Parameter in OpenType.TypeParameters){
+            var Candidates=EnumerateCandidateTypeArguments(Parameter,Compilation);
             if(Candidates.Count==0){
                 return [];
             }
@@ -121,7 +137,7 @@ internal static class SceneComponentCatalog {
         }
 
         List<INamedTypeSymbol>Results=[];
-        foreach(ITypeSymbol[]Arguments in CartesianProduct(PerParameterCandidates)){
+        foreach(var Arguments in CartesianProduct(PerParameterCandidates)){
             Results.Add(OpenType.Construct(Arguments));
             if(Results.Count>=MaxInstantiationsPerType){
                 break;
@@ -150,7 +166,7 @@ internal static class SceneComponentCatalog {
         ITypeParameterSymbol Parameter,Compilation Compilation){
         // 実機確認: where T : System.Enum 単体では HasValueTypeConstraint は true にならない
         // (struct を明示併記した場合だけ true になる)。enum制約の有無は ConstraintTypes だけで判定する。
-        bool WantsEnum=Parameter.ConstraintTypes.Any(static Constraint=>Constraint.SpecialType==SpecialType.System_Enum);
+        var WantsEnum=Parameter.ConstraintTypes.Any(static Constraint=>Constraint.SpecialType==SpecialType.System_Enum);
         ITypeSymbol[]NominalConstraints=[..Parameter.ConstraintTypes.Where(
             static Constraint=>Constraint.SpecialType is not(SpecialType.System_Enum or SpecialType.System_Object))];
 
@@ -159,7 +175,7 @@ internal static class SceneComponentCatalog {
         }
 
         List<ITypeSymbol>Candidates=[];
-        foreach(INamedTypeSymbol Candidate in EnumerateTypes(Compilation.Assembly.GlobalNamespace)){
+        foreach(var Candidate in EnumerateTypes(Compilation.Assembly.GlobalNamespace)){
             if(WantsEnum){
                 if(Candidate.TypeKind==TypeKind.Enum){
                     Candidates.Add(Candidate);
@@ -190,21 +206,21 @@ internal static class SceneComponentCatalog {
             yield break;
         }
 
-        foreach(ITypeSymbol Item in Sequences[Index]){
+        foreach(var Item in Sequences[Index]){
             Accumulator[Index]=Item;
-            foreach(ITypeSymbol[]Rest in CartesianProduct(Sequences,Index+1,Accumulator)){
+            foreach(var Rest in CartesianProduct(Sequences,Index+1,Accumulator)){
                 yield return Rest;
             }
         }
     }
 
     private static IEnumerable<INamedTypeSymbol>EnumerateTypes(INamespaceSymbol Namespace){
-        foreach(INamedTypeSymbol Type in Namespace.GetTypeMembers()){
+        foreach(var Type in Namespace.GetTypeMembers()){
             yield return Type;
         }
 
-        foreach(INamespaceSymbol Child in Namespace.GetNamespaceMembers()){
-            foreach(INamedTypeSymbol Type in EnumerateTypes(Child)){
+        foreach(var Child in Namespace.GetNamespaceMembers()){
+            foreach(var Type in EnumerateTypes(Child)){
                 yield return Type;
             }
         }

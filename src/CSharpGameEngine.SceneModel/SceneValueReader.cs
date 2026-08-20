@@ -45,8 +45,8 @@ internal sealed class SceneValueReader {
             return SceneValue.Unsupported(Expression.ToString(),SceneSourceLocation.FromNode(Expression));
         }
 
-        TypeInfo Info=this.SemanticModel.GetTypeInfo(Expression,this.CancellationToken);
-        ITypeSymbol?ResolvedType=Info.Type??Info.ConvertedType;
+        var Info=this.SemanticModel.GetTypeInfo(Expression,this.CancellationToken);
+        var ResolvedType=Info.Type??Info.ConvertedType;
 
         switch(Expression){
             // 2) default / default(T)
@@ -95,7 +95,7 @@ internal sealed class SceneValueReader {
 
         // 5) 上記の形に当てはまらないが、コンパイル時定数として畳み込める式
         //    (12f*MathF.PI/180f、$"{Const} - Stage"、nameof(X)、const参照)。
-        Optional<object?>Constant=this.SemanticModel.GetConstantValue(Expression,this.CancellationToken);
+        var Constant=this.SemanticModel.GetConstantValue(Expression,this.CancellationToken);
 
         if(Constant.HasValue){
             return this.Create(
@@ -131,9 +131,9 @@ internal sealed class SceneValueReader {
             return SceneValue.Unsupported(Expression.ToString(),SceneSourceLocation.FromNode(Expression));
         }
 
-        BaseObjectCreationExpressionSyntax Creation=(BaseObjectCreationExpressionSyntax)Expression;
-        (ImmutableArray<SceneValue>Arguments,List<string>ArgumentTexts)=this.ReadArguments(Creation.ArgumentList,Depth);
-        (ImmutableArray<SceneComponentMember>Members,List<string>MemberTexts)=this.ReadInitializer(Creation.Initializer,Depth);
+        var Creation=(BaseObjectCreationExpressionSyntax)Expression;
+        (var Arguments,var ArgumentTexts)=this.ReadArguments(Creation.ArgumentList,Depth);
+        (var Members,var MemberTexts)=this.ReadInitializer(Creation.Initializer,Depth);
 
         var TypeText=SceneEmitExpressionWriter.WriteTypeReference(ResolvedType);
         var EmitText=SceneEmitExpressionWriter.WriteObjectCreation(TypeText,ArgumentTexts,MemberTexts);
@@ -169,11 +169,11 @@ internal sealed class SceneValueReader {
             return SceneValue.Unsupported(Expression.ToString(),SceneSourceLocation.FromNode(Expression));
         }
 
-        ImmutableArray<SceneValue>.Builder Elements=ImmutableArray.CreateBuilder<SceneValue>();
+        var Elements=ImmutableArray.CreateBuilder<SceneValue>();
         List<string>ElementTexts=[];
 
-        foreach(ExpressionSyntax Element in EnumerateCollectionElements(Expression)){
-            SceneValue Value=this.Read(Element,Depth+1);
+        foreach(var Element in EnumerateCollectionElements(Expression)){
+            var Value=this.Read(Element,Depth+1);
             Elements.Add(Value);
             ElementTexts.Add(Value.EmitExpressionText);
         }
@@ -198,7 +198,7 @@ internal sealed class SceneValueReader {
     /// <summary><c>[SceneFactory]</c>を付けた静的メソッドの呼び出しだけを許可する。</summary>
     private SceneValue ReadInvocation(InvocationExpressionSyntax Invocation,ITypeSymbol?ResolvedType,int Depth){
         // 呼び出しの形をしていてもコンパイル時定数になるもの(nameof(...)、const引数の畳み込み)が先。
-        Optional<object?>Constant=this.SemanticModel.GetConstantValue(Invocation,this.CancellationToken);
+        var Constant=this.SemanticModel.GetConstantValue(Invocation,this.CancellationToken);
 
         if(Constant.HasValue){
             return this.Create(
@@ -225,7 +225,7 @@ internal sealed class SceneValueReader {
             return SceneValue.Unsupported(Invocation.ToString(),SceneSourceLocation.FromNode(Invocation));
         }
 
-        (ImmutableArray<SceneValue>Arguments,List<string>ArgumentTexts)=this.ReadArguments(Invocation.ArgumentList,Depth);
+        (var Arguments,var ArgumentTexts)=this.ReadArguments(Invocation.ArgumentList,Depth);
         var EmitText=SceneEmitExpressionWriter.WriteInvocation(SceneEmitExpressionWriter.WriteSymbolReference(Method),ArgumentTexts);
 
         return new SceneValue(
@@ -251,7 +251,7 @@ internal sealed class SceneValueReader {
     /// </para>
     /// </summary>
     private SceneValue ReadMemberReference(ExpressionSyntax Expression,ITypeSymbol?ResolvedType,int Depth){
-        SymbolInfo Symbol=this.SemanticModel.GetSymbolInfo(Expression,this.CancellationToken);
+        var Symbol=this.SemanticModel.GetSymbolInfo(Expression,this.CancellationToken);
 
         if(Symbol.Symbol is IFieldSymbol { IsConst:true } EnumField
             &&EnumField.ContainingType is { TypeKind:TypeKind.Enum }){
@@ -271,7 +271,7 @@ internal sealed class SceneValueReader {
             // [SceneAssets] の const string は、Source Generator ではシンボル参照のまま
             // 出力しつつ、VSIX では実ファイルを解決する必要がある。参照種別を失わずに
             // ConstantValue も保持し、両者が同じ SceneModel を共有できるようにする。
-            Optional<object?>StaticMemberConstant=this.SemanticModel.GetConstantValue(Expression,this.CancellationToken);
+            var StaticMemberConstant=this.SemanticModel.GetConstantValue(Expression,this.CancellationToken);
             return this.Create(
                 SceneValueKind.StaticMemberRef,
                 Expression,
@@ -282,7 +282,7 @@ internal sealed class SceneValueReader {
         }
 
         // const参照や static readonly の定数畳み込みはここで拾う。
-        Optional<object?>Constant=this.SemanticModel.GetConstantValue(Expression,this.CancellationToken);
+        var Constant=this.SemanticModel.GetConstantValue(Expression,this.CancellationToken);
 
         if(Constant.HasValue){
             return this.Create(
@@ -303,15 +303,15 @@ internal sealed class SceneValueReader {
     }
 
     private (ImmutableArray<SceneValue>Values,List<string>Texts)ReadArguments(ArgumentListSyntax?ArgumentList,int Depth){
-        ImmutableArray<SceneValue>.Builder Values=ImmutableArray.CreateBuilder<SceneValue>();
+        var Values=ImmutableArray.CreateBuilder<SceneValue>();
         List<string>Texts=[];
 
         if(ArgumentList is null){
             return (Values.ToImmutable(),Texts);
         }
 
-        foreach(ArgumentSyntax Argument in ArgumentList.Arguments){
-            SceneValue Value=this.Read(Argument.Expression,Depth+1);
+        foreach(var Argument in ArgumentList.Arguments){
+            var Value=this.Read(Argument.Expression,Depth+1);
             Values.Add(Value);
             Texts.Add(SceneEmitExpressionWriter.WriteArgument(Argument.NameColon?.Name.Identifier.Text,Value.EmitExpressionText));
         }
@@ -321,20 +321,20 @@ internal sealed class SceneValueReader {
 
     /// <summary>オブジェクト初期化子の<c>Member = value</c>だけを受理する。コレクション初期化子はSCENE110。</summary>
     private (ImmutableArray<SceneComponentMember>Members,List<string>Texts)ReadInitializer(InitializerExpressionSyntax?Initializer,int Depth){
-        ImmutableArray<SceneComponentMember>.Builder Members=ImmutableArray.CreateBuilder<SceneComponentMember>();
+        var Members=ImmutableArray.CreateBuilder<SceneComponentMember>();
         List<string>Texts=[];
 
         if(Initializer is null){
             return (Members.ToImmutable(),Texts);
         }
 
-        foreach(ExpressionSyntax Element in Initializer.Expressions){
+        foreach(var Element in Initializer.Expressions){
             if(Element is not AssignmentExpressionSyntax { Left:IdentifierNameSyntax MemberName } Assignment){
                 this.ReportUnsupported(Element,Element.Kind().ToString());
                 continue;
             }
 
-            SceneValue Value=this.Read(Assignment.Right,Depth+1);
+            var Value=this.Read(Assignment.Right,Depth+1);
             Members.Add(new SceneComponentMember(
                 MemberName.Identifier.Text,
                 this.SemanticModel.GetSymbolInfo(MemberName,this.CancellationToken).Symbol,
@@ -350,7 +350,7 @@ internal sealed class SceneValueReader {
     internal static IEnumerable<ExpressionSyntax>EnumerateCollectionElements(ExpressionSyntax Expression){
         switch(Expression){
             case CollectionExpressionSyntax Collection:
-                foreach(CollectionElementSyntax Element in Collection.Elements){
+                foreach(var Element in Collection.Elements){
                     // スプレッド要素(..source)は静的に確定できないため、式として渡してSCENE110に落とす。
                     if(Element is ExpressionElementSyntax ExpressionElement){
                         yield return ExpressionElement.Expression;
@@ -361,13 +361,13 @@ internal sealed class SceneValueReader {
 
                 break;
             case ArrayCreationExpressionSyntax { Initializer:{ } ArrayInitializer }:
-                foreach(ExpressionSyntax Element in ArrayInitializer.Expressions){
+                foreach(var Element in ArrayInitializer.Expressions){
                     yield return Element;
                 }
 
                 break;
             case ImplicitArrayCreationExpressionSyntax ImplicitArray:
-                foreach(ExpressionSyntax Element in ImplicitArray.Initializer.Expressions){
+                foreach(var Element in ImplicitArray.Initializer.Expressions){
                     yield return Element;
                 }
 

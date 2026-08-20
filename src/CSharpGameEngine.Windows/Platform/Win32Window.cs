@@ -38,7 +38,7 @@ public sealed unsafe class Win32Window:IDisposable {
         EnsureDpiAwareness();
         EnsureClassRegistered();
 
-        SelfHandle=GCHandle.Alloc(this,GCHandleType.Normal);
+        this.SelfHandle=GCHandle.Alloc(this,GCHandleType.Normal);
 
         const uint Style=WS_OVERLAPPEDWINDOW;
 
@@ -62,17 +62,17 @@ public sealed unsafe class Win32Window:IDisposable {
                 HWND.NULL,
                 HMENU.NULL,
                 GetModuleHandleForCurrentProcess(),
-                (void*)GCHandle.ToIntPtr(SelfHandle));
+                (void*)GCHandle.ToIntPtr(this.SelfHandle));
         }
 
         if(Hwnd==HWND.NULL){
-            SelfHandle.Free();
+            this.SelfHandle.Free();
             var Error=Marshal.GetLastWin32Error();
             throw new InvalidOperationException($"CreateWindowExW failed with Win32 error 0x{Error:X8}.");
         }
 
         this.Hwnd=Hwnd;
-        RefreshClientSize();
+        this.RefreshClientSize();
 
         if(Options.Visible){
             _=ShowWindow(Hwnd,SW_SHOW);
@@ -80,7 +80,7 @@ public sealed unsafe class Win32Window:IDisposable {
         }
     }
 
-    public nint Handle=>(nint)Hwnd.Value;
+    public nint Handle=>(nint)this.Hwnd.Value;
 
     public int ClientWidth { get;private set;}
 
@@ -91,16 +91,16 @@ public sealed unsafe class Win32Window:IDisposable {
     public bool IsMinimized { get;private set;}
 
     public void SetTitle(string Title){
-        ObjectDisposedException.ThrowIf(Disposed,this);
+        ObjectDisposedException.ThrowIf(this.Disposed,this);
 
         fixed(char*PTitle=Title){
-            _=SetWindowTextW(Hwnd,PTitle);
+            _=SetWindowTextW(this.Hwnd,PTitle);
         }
     }
 
     /// <summary>Processes all messages currently queued for this thread without blocking.</summary>
     public void PumpEvents(){
-        ObjectDisposedException.ThrowIf(Disposed,this);
+        ObjectDisposedException.ThrowIf(this.Disposed,this);
 
         MSG Msg;
         while(PeekMessageW(&Msg,HWND.NULL,0,0,PM_REMOVE)){
@@ -111,10 +111,10 @@ public sealed unsafe class Win32Window:IDisposable {
 
     /// <summary>True while the given virtual-key code (see <c>VK_*</c>) is held down. Cleared automatically on focus loss.</summary>
     public bool IsKeyDown(int VirtualKeyCode){
-        return VirtualKeyCode is>=0 and <256&&KeyDown[VirtualKeyCode];
+        return VirtualKeyCode is>=0 and <256&& this.KeyDown[VirtualKeyCode];
     }
 
-    public bool IsMouseCaptured=>MouseCaptured;
+    public bool IsMouseCaptured=> this.MouseCaptured;
 
     /// <summary>
     /// Hides the cursor and clips it to this window (mouse-look style capture), or releases it.
@@ -123,19 +123,19 @@ public sealed unsafe class Win32Window:IDisposable {
     /// cost of being bounded by the window's client area.
     /// </summary>
     public void SetMouseCaptured(bool Captured){
-        ObjectDisposedException.ThrowIf(Disposed,this);
+        ObjectDisposedException.ThrowIf(this.Disposed,this);
 
-        if(Captured==MouseCaptured){
+        if(Captured== this.MouseCaptured){
             return;
         }
 
-        MouseCaptured=Captured;
+        this.MouseCaptured=Captured;
 
         if(Captured){
             _=ShowCursor(FALSE);
-            ClipCursorToClientArea();
-            RecenterCursor();
-            SkipNextMouseDelta=true;
+            this.ClipCursorToClientArea();
+            this.RecenterCursor();
+            this.SkipNextMouseDelta=true;
         } else {
             _=ShowCursor(TRUE);
             _=ClipCursor(null);
@@ -156,9 +156,9 @@ public sealed unsafe class Win32Window:IDisposable {
     /// third-person camera's pitch straight to its clamp on Alt-Tab back into the window).
     /// </remarks>
     public(float DeltaX,float DeltaY)ConsumeMouseDelta(){
-        ObjectDisposedException.ThrowIf(Disposed,this);
+        ObjectDisposedException.ThrowIf(this.Disposed,this);
 
-        if(!MouseCaptured){
+        if(!this.MouseCaptured){
             return(0f,0f);
         }
 
@@ -167,13 +167,13 @@ public sealed unsafe class Win32Window:IDisposable {
             return(0f,0f);
         }
 
-        float DeltaX=Current.x-CapturedCenterScreenPoint.x;
-        float DeltaY=Current.y-CapturedCenterScreenPoint.y;
+        float DeltaX=Current.x- this.CapturedCenterScreenPoint.x;
+        float DeltaY=Current.y- this.CapturedCenterScreenPoint.y;
 
-        RecenterCursor();
+        this.RecenterCursor();
 
-        if(SkipNextMouseDelta){
-            SkipNextMouseDelta=false;
+        if(this.SkipNextMouseDelta){
+            this.SkipNextMouseDelta=false;
             return(0f,0f);
         }
 
@@ -182,26 +182,26 @@ public sealed unsafe class Win32Window:IDisposable {
 
     private void RecenterCursor(){
         RECT ClientRect;
-        if(!GetClientRect(Hwnd,&ClientRect)){
+        if(!GetClientRect(this.Hwnd,&ClientRect)){
             return;
         }
 
         POINT Center=new(){ x=(ClientRect.left+ClientRect.right)/2,y=(ClientRect.top+ClientRect.bottom)/2 };
-        _=ClientToScreen(Hwnd,&Center);
+        _=ClientToScreen(this.Hwnd,&Center);
         _=SetCursorPos(Center.x,Center.y);
-        CapturedCenterScreenPoint=Center;
+        this.CapturedCenterScreenPoint=Center;
     }
 
     private void ClipCursorToClientArea(){
         RECT ClientRect;
-        if(!GetClientRect(Hwnd,&ClientRect)){
+        if(!GetClientRect(this.Hwnd,&ClientRect)){
             return;
         }
 
         POINT TopLeft=new(){ x=ClientRect.left,y=ClientRect.top };
         POINT BottomRight=new(){ x=ClientRect.right,y=ClientRect.bottom };
-        _=ClientToScreen(Hwnd,&TopLeft);
-        _=ClientToScreen(Hwnd,&BottomRight);
+        _=ClientToScreen(this.Hwnd,&TopLeft);
+        _=ClientToScreen(this.Hwnd,&BottomRight);
 
         RECT ScreenRect=new(){ left=TopLeft.x,top=TopLeft.y,right=BottomRight.x,bottom=BottomRight.y };
         _=ClipCursor(&ScreenRect);
@@ -209,9 +209,9 @@ public sealed unsafe class Win32Window:IDisposable {
 
     private void RefreshClientSize(){
         RECT ClientRect;
-        if(GetClientRect(Hwnd,&ClientRect)){
-            ClientWidth=ClientRect.right-ClientRect.left;
-            ClientHeight=ClientRect.bottom-ClientRect.top;
+        if(GetClientRect(this.Hwnd,&ClientRect)){
+            this.ClientWidth=ClientRect.right-ClientRect.left;
+            this.ClientHeight=ClientRect.bottom-ClientRect.top;
         }
     }
 
@@ -222,31 +222,31 @@ public sealed unsafe class Win32Window:IDisposable {
                 return 0;
 
             case WM_DESTROY:
-                Destroyed=true;
-                IsClosed=true;
+                this.Destroyed=true;
+                this.IsClosed=true;
                 return 0;
 
             case WM_SIZE:{
-                    IsMinimized=(uint)WParam.Value.ToUInt64()==SIZE_MINIMIZED;
+                this.IsMinimized=(uint)WParam.Value.ToUInt64()==SIZE_MINIMIZED;
 
                     var Lp=LParam.Value.ToInt64();
                     var Width=(int)(Lp&0xFFFF);
                     var Height=(int)((Lp >> 16)&0xFFFF);
 
-                    ClientWidth=Width;
-                    ClientHeight=Height;
+                    this.ClientWidth=Width;
+                    this.ClientHeight=Height;
 
-                    if(!IsMinimized){
-                        Resized?.Invoke(Width,Height);
+                    if(!this.IsMinimized){
+                        this.Resized?.Invoke(Width,Height);
                     }
 
                     return 0;
                 }
 
             case WM_NCDESTROY:{
-                    LRESULT Result=DefWindowProcW(Hwnd,Msg,WParam,LParam);
-                    if(SelfHandle.IsAllocated){
-                        SelfHandle.Free();
+                    var Result=DefWindowProcW(Hwnd,Msg,WParam,LParam);
+                    if(this.SelfHandle.IsAllocated){
+                        this.SelfHandle.Free();
                     }
                     return Result;
                 }
@@ -255,7 +255,7 @@ public sealed unsafe class Win32Window:IDisposable {
             case WM_SYSKEYDOWN:{
                     var VirtualKeyCode=(int)WParam.Value.ToUInt64();
                     if(VirtualKeyCode is>=0 and <256){
-                        KeyDown[VirtualKeyCode]=true;
+                        this.KeyDown[VirtualKeyCode]=true;
                     }
                     // SYSKEY must still reach DefWindowProcW (Alt+F4, the system menu, etc.); plain
                     // WM_KEYDOWN is fully consumed since this is a game window with no default text
@@ -267,7 +267,7 @@ public sealed unsafe class Win32Window:IDisposable {
             case WM_SYSKEYUP:{
                     var VirtualKeyCode=(int)WParam.Value.ToUInt64();
                     if(VirtualKeyCode is>=0 and <256){
-                        KeyDown[VirtualKeyCode]=false;
+                        this.KeyDown[VirtualKeyCode]=false;
                     }
                     return Msg==WM_SYSKEYUP?DefWindowProcW(Hwnd,Msg,WParam,LParam):0;
                 }
@@ -275,19 +275,19 @@ public sealed unsafe class Win32Window:IDisposable {
             case WM_KILLFOCUS:
                 // Keys can't be reliably tracked once another window owns input focus - clear all
                 // state so a key held down during an Alt-Tab doesn't appear "stuck" on return.
-                Array.Clear(KeyDown);
-                if(MouseCaptured){
+                Array.Clear(this.KeyDown);
+                if(this.MouseCaptured){
                     _=ShowCursor(TRUE);
                     _=ClipCursor(null);
                 }
                 return DefWindowProcW(Hwnd,Msg,WParam,LParam);
 
             case WM_SETFOCUS:
-                if(MouseCaptured){
+                if(this.MouseCaptured){
                     _=ShowCursor(FALSE);
-                    ClipCursorToClientArea();
-                    RecenterCursor();
-                    SkipNextMouseDelta=true;
+                    this.ClipCursorToClientArea();
+                    this.RecenterCursor();
+                    this.SkipNextMouseDelta=true;
                 }
                 return DefWindowProcW(Hwnd,Msg,WParam,LParam);
 
@@ -297,23 +297,23 @@ public sealed unsafe class Win32Window:IDisposable {
     }
 
     public void Dispose(){
-        if(Disposed){
+        if(this.Disposed){
             return;
         }
 
-        Disposed=true;
+        this.Disposed=true;
 
-        if(MouseCaptured){
+        if(this.MouseCaptured){
             _=ShowCursor(TRUE);
             _=ClipCursor(null);
-            MouseCaptured=false;
+            this.MouseCaptured=false;
         }
 
-        if(!Destroyed&&Hwnd!=HWND.NULL){
-            _=DestroyWindow(Hwnd);
+        if(!this.Destroyed&& this.Hwnd!=HWND.NULL){
+            _=DestroyWindow(this.Hwnd);
         }
 
-        Hwnd=HWND.NULL;
+        this.Hwnd=HWND.NULL;
     }
 
     private static void EnsureDpiAwareness(){
@@ -356,7 +356,7 @@ public sealed unsafe class Win32Window:IDisposable {
     [UnmanagedCallersOnly]
     private static LRESULT WndProc(HWND Hwnd,uint Msg,WPARAM WParam,LPARAM LParam){
         if(Msg==WM_NCCREATE){
-            CREATESTRUCTW*CreateStruct=(CREATESTRUCTW*)LParam.Value;
+            var CreateStruct=(CREATESTRUCTW*)LParam.Value;
             var SelfHandle=(nint)CreateStruct->lpCreateParams;
             _=SetWindowLongPtrW(Hwnd,GWLP_USERDATA,SelfHandle);
             return DefWindowProcW(Hwnd,Msg,WParam,LParam);
@@ -364,7 +364,7 @@ public sealed unsafe class Win32Window:IDisposable {
 
         var UserData=GetWindowLongPtrW(Hwnd,GWLP_USERDATA);
         if(UserData!=0){
-            GCHandle Handle=GCHandle.FromIntPtr(UserData);
+            var Handle=GCHandle.FromIntPtr(UserData);
             if(Handle.Target is Win32Window Window){
                 try {
                     return Window.HandleMessage(Hwnd,Msg,WParam,LParam);

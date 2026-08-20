@@ -14,9 +14,9 @@ public sealed class HierarchySourceSyncTests {
 
     [Fact]
     public void SelectionPlanner_UsesCtrlForToggleAndShiftForDeclarationOrderRange(){
-        HierarchyNodeSelection First=HierarchySelectionPlanner.Select(HierarchyNodeSelection.Empty,Order,A,false,false);
-        HierarchyNodeSelection Added=HierarchySelectionPlanner.Select(First,Order,B,true,false);
-        HierarchyNodeSelection Ranged=HierarchySelectionPlanner.Select(Added,Order,Root,false,true);
+        var First=HierarchySelectionPlanner.Select(HierarchyNodeSelection.Empty,Order,A,false,false);
+        var Added=HierarchySelectionPlanner.Select(First,Order,B,true,false);
+        var Ranged=HierarchySelectionPlanner.Select(Added,Order,Root,false,true);
 
         Assert.Equal([A,B],Added.Paths);
         Assert.Equal(B,Added.PrimaryPath);
@@ -29,7 +29,7 @@ public sealed class HierarchySourceSyncTests {
     public void SelectionPlanner_RemovingPrimaryKeepsTheRemainingPrimary(){
         HierarchyNodeSelection Existing=new([A,B],B,B);
 
-        HierarchyNodeSelection Result=HierarchySelectionPlanner.Select(Existing,Order,B,true,false);
+        var Result=HierarchySelectionPlanner.Select(Existing,Order,B,true,false);
 
         Assert.Equal([A],Result.Paths);
         Assert.Equal(A,Result.PrimaryPath);
@@ -37,9 +37,9 @@ public sealed class HierarchySourceSyncTests {
 
     [Fact]
     public void MarkerPlanner_UsesNodeCreationSpansAndCoalescesSelectedParentAndChild(){
-        SceneModel Model=Analyze();
+        var Model=Analyze();
 
-        IReadOnlyList<SceneSourceMarkerRange> Ranges=SceneSourceMarkerPlanner.Create(Model,[A,A0,B]);
+        var Ranges=SceneSourceMarkerPlanner.Create(Model,[A,A0,B]);
 
         Assert.Equal(2,Ranges.Count);
         Assert.Equal(Model.FindNode(A)!.Location.Span,Ranges[0].Span);
@@ -48,10 +48,10 @@ public sealed class HierarchySourceSyncTests {
 
     [Fact]
     public void NavigationPlanner_RequiresAnOpenDocumentAndTargetsTheNewExpression(){
-        SceneModel Model=Analyze();
+        var Model=Analyze();
 
         Assert.False(SceneSourceMarkerPlanner.TryCreateNavigation(Model,A,IsDocumentOpen:false,out _,out _));
-        Assert.True(SceneSourceMarkerPlanner.TryCreateNavigation(Model,A,IsDocumentOpen:true,out string FilePath,out int Position));
+        Assert.True(SceneSourceMarkerPlanner.TryCreateNavigation(Model,A,IsDocumentOpen:true,out var FilePath,out var Position));
         Assert.Equal(Model.FilePath,FilePath);
         Assert.Equal(Model.FindNode(A)!.Location.Span.Start,Position);
     }

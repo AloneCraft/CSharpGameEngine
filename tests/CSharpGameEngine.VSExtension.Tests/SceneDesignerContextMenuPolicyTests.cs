@@ -49,10 +49,10 @@ public sealed class SceneDesignerContextMenuPolicyTests {
 
     [Fact]
     public void NonSceneType_IsDisabledWithAnInlineReason(){
-        SceneDesignerCommandPresentation Presentation=SceneDesignerContextMenuPolicy.Create(
-            @"G:\Project\Components.cs",
-            SceneDesignerTargetState.NonSceneType,
-            []);
+        var Presentation=SceneDesignerContextMenuPolicy.Create(
+                                                               @"G:\Project\Components.cs",
+                                                               SceneDesignerTargetState.NonSceneType,
+                                                               []);
 
         Assert.True(Presentation.Visible);
         Assert.False(Presentation.Enabled);
@@ -62,10 +62,10 @@ public sealed class SceneDesignerContextMenuPolicyTests {
 
     [Fact]
     public void PositionOutsideAType_IsDisabledWithAnInlineReason(){
-        SceneDesignerCommandPresentation Presentation=SceneDesignerContextMenuPolicy.Create(
-            @"G:\Project\Scenes.cs",
-            SceneDesignerTargetState.OutsideType,
-            []);
+        var Presentation=SceneDesignerContextMenuPolicy.Create(
+                                                               @"G:\Project\Scenes.cs",
+                                                               SceneDesignerTargetState.OutsideType,
+                                                               []);
 
         Assert.True(Presentation.Visible);
         Assert.False(Presentation.Enabled);
@@ -74,13 +74,13 @@ public sealed class SceneDesignerContextMenuPolicyTests {
 
     [Fact]
     public void PositionOutsideAType_InASceneFileUsesTheSceneSelector(){
-        SceneDesignerCommandPresentation Presentation=SceneDesignerContextMenuPolicy.Create(
-            @"G:\Project\PrimitiveShowcaseScene.cs",
-            SceneDesignerTargetState.OutsideType,
-            [
-                new SceneDesignerMenuItem("BoxScene","Project.BoxScene"),
-                new SceneDesignerMenuItem("SphereScene","Project.SphereScene"),
-            ]);
+        var Presentation=SceneDesignerContextMenuPolicy.Create(
+                                                               @"G:\Project\PrimitiveShowcaseScene.cs",
+                                                               SceneDesignerTargetState.OutsideType,
+                                                               [
+                                                                   new SceneDesignerMenuItem("BoxScene","Project.BoxScene"),
+                                                                   new SceneDesignerMenuItem("SphereScene","Project.SphereScene"),
+                                                               ]);
 
         Assert.True(Presentation.Visible);
         Assert.True(Presentation.Enabled);
@@ -89,10 +89,10 @@ public sealed class SceneDesignerContextMenuPolicyTests {
 
     [Fact]
     public void NonCSharpDocument_IsHidden(){
-        SceneDesignerCommandPresentation Presentation=SceneDesignerContextMenuPolicy.Create(
-            @"G:\Project\Readme.md",
-            SceneDesignerTargetState.SceneType,
-            [new SceneDesignerMenuItem("MainScene","Project.MainScene")]);
+        var Presentation=SceneDesignerContextMenuPolicy.Create(
+                                                               @"G:\Project\Readme.md",
+                                                               SceneDesignerTargetState.SceneType,
+                                                               [new SceneDesignerMenuItem("MainScene","Project.MainScene")]);
 
         Assert.False(Presentation.Visible);
         Assert.Equal(SceneDesignerMenuMode.Hidden,Presentation.Mode);
@@ -100,10 +100,10 @@ public sealed class SceneDesignerContextMenuPolicyTests {
 
     [Fact]
     public void OneScene_UsesTheDirectCommand(){
-        SceneDesignerCommandPresentation Presentation=SceneDesignerContextMenuPolicy.Create(
-            @"G:\Project\MainScene.cs",
-            SceneDesignerTargetState.SceneType,
-            [new SceneDesignerMenuItem("MainScene","Project.MainScene")]);
+        var Presentation=SceneDesignerContextMenuPolicy.Create(
+                                                               @"G:\Project\MainScene.cs",
+                                                               SceneDesignerTargetState.SceneType,
+                                                               [new SceneDesignerMenuItem("MainScene","Project.MainScene")]);
 
         Assert.True(Presentation.Visible);
         Assert.True(Presentation.Enabled);
@@ -113,13 +113,13 @@ public sealed class SceneDesignerContextMenuPolicyTests {
 
     [Fact]
     public void MultipleScenes_UseAFlatSceneListInDeclarationOrder(){
-        SceneDesignerCommandPresentation Presentation=SceneDesignerContextMenuPolicy.Create(
-            @"G:\Project\PrimitiveShowcaseScene.cs",
-            SceneDesignerTargetState.SceneType,
-            [
-                new SceneDesignerMenuItem("PrimitiveShowcaseBoxScene","Project.PrimitiveShowcaseBoxScene"),
-                new SceneDesignerMenuItem("PrimitiveShowcaseSphereScene","Project.PrimitiveShowcaseSphereScene"),
-            ]);
+        var Presentation=SceneDesignerContextMenuPolicy.Create(
+                                                               @"G:\Project\PrimitiveShowcaseScene.cs",
+                                                               SceneDesignerTargetState.SceneType,
+                                                               [
+                                                                   new SceneDesignerMenuItem("PrimitiveShowcaseBoxScene","Project.PrimitiveShowcaseBoxScene"),
+                                                                   new SceneDesignerMenuItem("PrimitiveShowcaseSphereScene","Project.PrimitiveShowcaseSphereScene"),
+                                                               ]);
 
         Assert.True(Presentation.Visible);
         Assert.True(Presentation.Enabled);
@@ -135,9 +135,9 @@ public sealed class SceneDesignerContextMenuPolicyTests {
     /// </summary>
     [Fact]
     public void SceneListItemText_SaysWhatItDoesNotJustTheClassName(){
-        string Text=SceneDesignerContextMenuPolicy.ItemText(
-            new SceneDesignerMenuItem("BoxScene","Project.BoxScene"),
-            IsAtCaret:false);
+        var Text=SceneDesignerContextMenuPolicy.ItemText(
+                                                         new SceneDesignerMenuItem("BoxScene","Project.BoxScene"),
+                                                         IsAtCaret:false);
 
         Assert.Equal("BoxScene をシーン デザイナーで開く",Text);
     }
@@ -161,11 +161,11 @@ public sealed class SceneDesignerContextMenuPolicyTests {
     /// </summary>
     [Fact]
     public void ItemSlots_AreHiddenOutsideTheSceneListMode(){
-        foreach(SceneDesignerMenuMode Mode in new[]{
-            SceneDesignerMenuMode.Direct,
-            SceneDesignerMenuMode.Disabled,
-            SceneDesignerMenuMode.Hidden,
-        }){
+        foreach(var Mode in new[]{
+                                     SceneDesignerMenuMode.Direct,
+                                     SceneDesignerMenuMode.Disabled,
+                                     SceneDesignerMenuMode.Hidden,
+                                 }){
             Assert.False(SceneDesignerContextMenuPolicy.IsItemSlotVisible(Mode,0,ItemCount:1));
             Assert.False(SceneDesignerContextMenuPolicy.IsItemSlotVisible(Mode,0,ItemCount:5));
         }
@@ -186,7 +186,7 @@ public sealed class SceneDesignerContextMenuPolicyTests {
 
     [Fact]
     public void OverflowText_PointsAtTheCompleteListingPath(){
-        string Text=SceneDesignerContextMenuPolicy.OverflowText(HiddenCount:5);
+        var Text=SceneDesignerContextMenuPolicy.OverflowText(HiddenCount:5);
 
         Assert.Contains("5 件",Text);
         Assert.Contains("コンボボックス",Text);
@@ -198,9 +198,9 @@ public sealed class SceneDesignerContextMenuPolicyTests {
     /// </summary>
     [Fact]
     public void SceneListItemText_MarksTheCaretPosition(){
-        string Text=SceneDesignerContextMenuPolicy.ItemText(
-            new SceneDesignerMenuItem("BoxScene","Project.BoxScene"),
-            IsAtCaret:true);
+        var Text=SceneDesignerContextMenuPolicy.ItemText(
+                                                         new SceneDesignerMenuItem("BoxScene","Project.BoxScene"),
+                                                         IsAtCaret:true);
 
         Assert.Equal("BoxScene をシーン デザイナーで開く（カーソル位置）",Text);
     }
@@ -210,11 +210,11 @@ public sealed class SceneDesignerContextMenuPolicyTests {
     [InlineData("Failed","失敗")]
     public void IncompleteAnalysis_IsDisabledWithTheCurrentReason(
         string StateName,string ExpectedReason){
-        SceneDesignerTargetState State=(SceneDesignerTargetState)System.Enum.Parse(typeof(SceneDesignerTargetState),StateName);
-        SceneDesignerCommandPresentation Presentation=SceneDesignerContextMenuPolicy.Create(
-            @"G:\Project\MainScene.cs",
-            State,
-            []);
+        var State=(SceneDesignerTargetState)System.Enum.Parse(typeof(SceneDesignerTargetState),StateName);
+        var Presentation=SceneDesignerContextMenuPolicy.Create(
+                                                               @"G:\Project\MainScene.cs",
+                                                               State,
+                                                               []);
 
         Assert.True(Presentation.Visible);
         Assert.False(Presentation.Enabled);

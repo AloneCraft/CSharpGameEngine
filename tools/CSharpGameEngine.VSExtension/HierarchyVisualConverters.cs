@@ -7,7 +7,7 @@ namespace CSharpGameEngine.VSExtension;
 
 public sealed class HierarchyIconSizeConverter : IValueConverter {
     public object Convert(object Value,Type TargetType,object Parameter,CultureInfo Culture){
-        double FontSize=Value is double Size&&Size>0d?Size:12d;
+        var FontSize=Value is double Size&&Size>0d?Size:12d;
         return Math.Max(12d,Math.Round(FontSize*4d/3d));
     }
 
@@ -24,7 +24,7 @@ public sealed class InverseBooleanToVisibilityConverter : IValueConverter {
 }
 public sealed class HierarchyIndentSizeConverter : IValueConverter {
     public object Convert(object Value,Type TargetType,object Parameter,CultureInfo Culture){
-        double FontSize=Value is double Size&&Size>0d?Size:12d;
+        var FontSize=Value is double Size&&Size>0d?Size:12d;
         return new GridLength(Math.Max(18d,Math.Round(FontSize*1.5d)));
     }
 
@@ -34,7 +34,7 @@ public sealed class HierarchyIndentSizeConverter : IValueConverter {
 
 public sealed class HierarchyIndentThicknessConverter : IValueConverter {
     public object Convert(object Value,Type TargetType,object Parameter,CultureInfo Culture){
-        double FontSize=Value is double Size&&Size>0d?Size:12d;
+        var FontSize=Value is double Size&&Size>0d?Size:12d;
         return new Thickness(Math.Max(18d,Math.Round(FontSize*1.5d)),0d,0d,0d);
     }
 

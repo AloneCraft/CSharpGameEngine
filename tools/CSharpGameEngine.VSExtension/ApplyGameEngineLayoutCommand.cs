@@ -28,7 +28,7 @@ internal sealed class ApplyGameEngineLayoutCommand {
         }
 
         CommandID MenuCommandId=new(CommandSet,CommandId);
-        MenuCommand MenuItem=new(Execute,MenuCommandId);
+        MenuCommand MenuItem=new(this.Execute,MenuCommandId);
         CommandService.AddCommand(MenuItem);
     }
 
@@ -43,15 +43,15 @@ internal sealed class ApplyGameEngineLayoutCommand {
     }
 
     private void Execute(object Sender,EventArgs E){
-        _=Package.JoinableTaskFactory.RunAsync(async delegate {
-            await Package.JoinableTaskFactory.SwitchToMainThreadAsync(Package.DisposalToken);
+        _= this.Package.JoinableTaskFactory.RunAsync(async delegate {
+                                                         await this.Package.JoinableTaskFactory.SwitchToMainThreadAsync(this.Package.DisposalToken);
 
-            if(await Package.GetServiceAsync(typeof(SDTE))is not DTE Dte){
-                return;
-            }
+                                                         if(await this.Package.GetServiceAsync(typeof(SDTE))is not DTE Dte){
+                                                             return;
+                                                         }
 
 
-            await GameEngineLayout.ApplyAsync(Package,Dte);
-        });
+                                                         await GameEngineLayout.ApplyAsync(this.Package,Dte);
+                                                     });
     }
 }

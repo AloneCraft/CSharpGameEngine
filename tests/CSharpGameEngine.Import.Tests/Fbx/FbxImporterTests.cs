@@ -5,7 +5,7 @@ public class FbxImporterTests {
 
     [Fact]
     public void Import_BoxFbx_Succeeds_WithPositionsNormalsAndIndices(){
-        FbxImportResult Result=FbxImporter.Import(FixturePath("Box.fbx"));
+        var Result=FbxImporter.Import(FixturePath("Box.fbx"));
 
         Assert.True(Result.Success,string.Join(Environment.NewLine,Result.Diagnostics));
         Assert.NotNull(Result.Mesh);
@@ -22,10 +22,10 @@ public class FbxImporterTests {
 
     [Fact]
     public void Import_BoxFbx_BoundingBox_IsPlausible(){
-        FbxImportResult Result=FbxImporter.Import(FixturePath("Box.fbx"));
+        var Result=FbxImporter.Import(FixturePath("Box.fbx"));
 
         Assert.True(Result.Success,string.Join(Environment.NewLine,Result.Diagnostics));
-        BoundingBox Bounds=Result.Mesh!.Bounds;
+        var Bounds=Result.Mesh!.Bounds;
 
         Assert.True(Bounds.Min.X<Bounds.Max.X);
         Assert.True(Bounds.Min.Y<Bounds.Max.Y);
@@ -37,7 +37,7 @@ public class FbxImporterTests {
     public void Import_FileDoesNotExist_ReturnsFailedWithError(){
         var MissingPath=FixturePath("DoesNotExist.fbx");
 
-        FbxImportResult Result=FbxImporter.Import(MissingPath);
+        var Result=FbxImporter.Import(MissingPath);
 
         Assert.False(Result.Success);
         Assert.Null(Result.Mesh);
@@ -58,7 +58,7 @@ public class FbxImporterTests {
         File.WriteAllText(TempPath,"this is not a valid FBX file");
 
         try {
-            FbxImportResult Result=FbxImporter.Import(TempPath);
+            var Result=FbxImporter.Import(TempPath);
 
             Assert.False(Result.Success);
             Assert.Null(Result.Mesh);

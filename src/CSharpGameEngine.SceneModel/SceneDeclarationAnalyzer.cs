@@ -31,10 +31,10 @@ internal static class SceneDeclarationAnalyzer {
     }
 
     internal static SceneModel Analyze(INamedTypeSymbol ClassSymbol,Compilation Compilation,CancellationToken CancellationToken){
-        ImmutableArray<Diagnostic>.Builder Diagnostics=ImmutableArray.CreateBuilder<Diagnostic>();
+        var Diagnostics=ImmutableArray.CreateBuilder<Diagnostic>();
         var ClassFullyQualifiedName=ComputeClassFullyQualifiedName(ClassSymbol);
         var Namespace=ClassSymbol.ContainingNamespace.IsGlobalNamespace?null:ClassSymbol.ContainingNamespace.ToDisplayString();
-        TypeDeclarationSyntax?ClassDeclaration=GetFirstDeclaration(ClassSymbol,CancellationToken);
+        var ClassDeclaration=GetFirstDeclaration(ClassSymbol,CancellationToken);
         var FilePath=ClassDeclaration?.SyntaxTree.FilePath??string.Empty;
         var DeclarationPosition=ClassDeclaration?.SpanStart??0;
 
@@ -61,7 +61,7 @@ internal static class SceneDeclarationAnalyzer {
 
         // SGが生成partialへ `private X() { }` を出して外部からの `new X()` を封じる(Scene DSLは実行されない)。
         // ユーザーが自分でコンストラクターを書いていると衝突するため、ここで弾く。
-        foreach(IMethodSymbol Constructor in ClassSymbol.InstanceConstructors){
+        foreach(var Constructor in ClassSymbol.InstanceConstructors){
             // VisualStudioWorkspace の Compilation には、すでにSGが出力した .Scene.g.cs も含まれる。
             // その生成コンストラクターまでSCENE102扱いすると、ライブ解析だけが失敗してRoot=nullになる。
             // Roslyn標準の generated-code 印が付いた宣言はSG自身の出力なので除外し、ユーザー宣言は従来どおり弾く。
@@ -73,23 +73,23 @@ internal static class SceneDeclarationAnalyzer {
             }
         }
 
-        IPropertySymbol?RootProperty=FindRootProperty(ClassSymbol,Compilation);
+        var RootProperty=FindRootProperty(ClassSymbol,Compilation);
 
         if(RootProperty is null){
             Diagnostics.Add(Diagnostic.Create(SceneDslDiagnostics.RootPropertyMustBeExpressionBodied,ClassSymbol.Locations.FirstOrDefault(),ClassSymbol.Name));
             return Failed();
         }
 
-        ExpressionSyntax?RootExpression=GetRootExpression(RootProperty,CancellationToken);
+        var RootExpression=GetRootExpression(RootProperty,CancellationToken);
 
         if(RootExpression is null){
             Diagnostics.Add(Diagnostic.Create(SceneDslDiagnostics.RootPropertyMustBeExpressionBodied,RootProperty.Locations.FirstOrDefault(),ClassSymbol.Name));
             return Failed();
         }
 
-        SemanticModel SemanticModel=Compilation.GetSemanticModel(RootExpression.SyntaxTree);
+        var SemanticModel=Compilation.GetSemanticModel(RootExpression.SyntaxTree);
         SceneValueReader Reader=new(SemanticModel,Diagnostics,CancellationToken);
-        SceneNode?Root=ReadNode(RootExpression,NodePath.Root,Depth:0,SemanticModel,Reader,Diagnostics,ClassSymbol.Name,CancellationToken);
+        var Root=ReadNode(RootExpression,NodePath.Root,Depth:0,SemanticModel,Reader,Diagnostics,ClassSymbol.Name,CancellationToken);
 
         if(Root is null){
             return Failed();
@@ -112,13 +112,13 @@ internal static class SceneDeclarationAnalyzer {
 
     /// <summary><c>[StartupScene]</c>の有無とOrderを読む。<c>IScene</c>実装かどうかの検査(SCENE117)は呼び出し側の責務。</summary>
     internal static (bool IsStartupScene,int Order)ReadStartupScene(INamedTypeSymbol ClassSymbol){
-        foreach(AttributeData Attribute in ClassSymbol.GetAttributes()){
+        foreach(var Attribute in ClassSymbol.GetAttributes()){
             if(Attribute.AttributeClass is not { } AttributeClass
                 ||AttributeClass.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)!= $"global::{SceneDslWellKnownNames.StartupSceneAttributeMetadataName}"){
                 continue;
             }
 
-            foreach(KeyValuePair<string,TypedConstant>Named in Attribute.NamedArguments){
+            foreach(var Named in Attribute.NamedArguments){
                 if(Named.Key=="Order"&&Named.Value.Value is int Order){
                     return (true,Order);
                 }
@@ -139,7 +139,7 @@ internal static class SceneDeclarationAnalyzer {
     private static TypeDeclarationSyntax?GetFirstDeclaration(INamedTypeSymbol ClassSymbol,CancellationToken CancellationToken){
         TypeDeclarationSyntax?FirstDeclaration=null;
 
-        foreach(SyntaxReference Reference in ClassSymbol.DeclaringSyntaxReferences){
+        foreach(var Reference in ClassSymbol.DeclaringSyntaxReferences){
             if(Reference.GetSyntax(CancellationToken) is TypeDeclarationSyntax Declaration){
                 FirstDeclaration??=Declaration;
 
@@ -155,31 +155,31 @@ internal static class SceneDeclarationAnalyzer {
     }
 
     private static bool IsGeneratedSyntaxTree(SyntaxTree SyntaxTree,CancellationToken CancellationToken){
-        string FilePath=SyntaxTree.FilePath??string.Empty;
+        var FilePath=SyntaxTree.FilePath??string.Empty;
         if(FilePath.EndsWith(".g.cs",StringComparison.OrdinalIgnoreCase)
             ||FilePath.EndsWith(".generated.cs",StringComparison.OrdinalIgnoreCase)){
             return true;
         }
 
-        Microsoft.CodeAnalysis.Text.SourceText Text=SyntaxTree.GetText(CancellationToken);
+        var Text=SyntaxTree.GetText(CancellationToken);
         var PrefixLength=Math.Min(Text.Length,256);
-        string Prefix=Text.ToString(Microsoft.CodeAnalysis.Text.TextSpan.FromBounds(0,PrefixLength));
+        var Prefix=Text.ToString(Microsoft.CodeAnalysis.Text.TextSpan.FromBounds(0,PrefixLength));
         return Prefix.IndexOf("<auto-generated",StringComparison.OrdinalIgnoreCase)>=0;
     }
 
     /// <summary>明示的インターフェース実装(<c>Node IScene.Root =&gt; …</c>)も拾えるよう、まず実装解決を試す。</summary>
     private static IPropertySymbol?FindRootProperty(INamedTypeSymbol ClassSymbol,Compilation Compilation){
-        INamedTypeSymbol?SceneInterface=Compilation.GetTypeByMetadataName(SceneDslWellKnownNames.SceneInterfaceMetadataName);
+        var SceneInterface=Compilation.GetTypeByMetadataName(SceneDslWellKnownNames.SceneInterfaceMetadataName);
 
         if(SceneInterface is not null){
-            foreach(ISymbol InterfaceMember in SceneInterface.GetMembers(SceneDslWellKnownNames.RootPropertyName)){
+            foreach(var InterfaceMember in SceneInterface.GetMembers(SceneDslWellKnownNames.RootPropertyName)){
                 if(ClassSymbol.FindImplementationForInterfaceMember(InterfaceMember) is IPropertySymbol Implementation){
                     return Implementation;
                 }
             }
         }
 
-        foreach(ISymbol Member in ClassSymbol.GetMembers(SceneDslWellKnownNames.RootPropertyName)){
+        foreach(var Member in ClassSymbol.GetMembers(SceneDslWellKnownNames.RootPropertyName)){
             if(Member is IPropertySymbol { IsStatic:false,GetMethod:not null } Property
                 &&SceneTypePredicates.ToFullyQualifiedName(Property.Type)==SceneDslWellKnownNames.NodeFullyQualifiedName){
                 return Property;
@@ -194,7 +194,7 @@ internal static class SceneDeclarationAnalyzer {
     /// 複数文のgetter・setterの存在・<c>ref</c>返しはSCENE101。
     /// </summary>
     private static ExpressionSyntax?GetRootExpression(IPropertySymbol RootProperty,CancellationToken CancellationToken){
-        foreach(SyntaxReference Reference in RootProperty.DeclaringSyntaxReferences){
+        foreach(var Reference in RootProperty.DeclaringSyntaxReferences){
             if(Reference.GetSyntax(CancellationToken) is not PropertyDeclarationSyntax Declaration){
                 continue;
             }
@@ -207,7 +207,7 @@ internal static class SceneDeclarationAnalyzer {
                 continue;
             }
 
-            foreach(AccessorDeclarationSyntax Accessor in AccessorList.Accessors){
+            foreach(var Accessor in AccessorList.Accessors){
                 if(!Accessor.IsKind(SyntaxKind.GetAccessorDeclaration)){
                     continue;
                 }
@@ -249,7 +249,7 @@ internal static class SceneDeclarationAnalyzer {
             return null;
         }
 
-        ITypeSymbol?Type=SemanticModel.GetTypeInfo(Expression,CancellationToken).Type;
+        var Type=SemanticModel.GetTypeInfo(Expression,CancellationToken).Type;
 
         if(SceneTypePredicates.IsUnresolved(Type)){
             return null;
@@ -264,10 +264,10 @@ internal static class SceneDeclarationAnalyzer {
         SceneSourceLocation?NameValueLocation=null;
         SceneSourceLocation?ComponentsListLocation=null;
         SceneSourceLocation?ChildrenListLocation=null;
-        ImmutableArray<SceneComponent>Components=ImmutableArray<SceneComponent>.Empty;
-        ImmutableArray<SceneNode>Children=ImmutableArray<SceneNode>.Empty;
+        var Components=ImmutableArray<SceneComponent>.Empty;
+        var Children=ImmutableArray<SceneNode>.Empty;
 
-        foreach(ExpressionSyntax Element in Creation.Initializer?.Expressions??default){
+        foreach(var Element in Creation.Initializer?.Expressions??default){
             if(Element is not AssignmentExpressionSyntax { Left:IdentifierNameSyntax MemberName } Assignment){
                 Diagnostics.Add(Diagnostic.Create(SceneDslDiagnostics.UnknownNodeMember,Element.GetLocation(),Element.ToString()));
                 continue;
@@ -325,7 +325,7 @@ internal static class SceneDeclarationAnalyzer {
         SemanticModel SemanticModel,
         ImmutableArray<Diagnostic>.Builder Diagnostics,
         CancellationToken CancellationToken){
-        Optional<object?>Constant=SemanticModel.GetConstantValue(Expression,CancellationToken);
+        var Constant=SemanticModel.GetConstantValue(Expression,CancellationToken);
 
         if(Constant.HasValue){
             return Constant.Value as string;
@@ -358,10 +358,10 @@ internal static class SceneDeclarationAnalyzer {
         SceneValueReader Reader,
         ImmutableArray<Diagnostic>.Builder Diagnostics,
         CancellationToken CancellationToken){
-        ImmutableArray<SceneComponent>.Builder Components=ImmutableArray.CreateBuilder<SceneComponent>();
+        var Components=ImmutableArray.CreateBuilder<SceneComponent>();
         HashSet<string>SeenTypes=new(StringComparer.Ordinal);
 
-        foreach(ExpressionSyntax Element in SceneValueReader.EnumerateCollectionElements(CollectionExpression)){
+        foreach(var Element in SceneValueReader.EnumerateCollectionElements(CollectionExpression)){
             CancellationToken.ThrowIfCancellationRequested();
 
             if(Element is not BaseObjectCreationExpressionSyntax){
@@ -369,7 +369,7 @@ internal static class SceneDeclarationAnalyzer {
                 continue;
             }
 
-            ITypeSymbol?Type=SemanticModel.GetTypeInfo(Element,CancellationToken).Type;
+            var Type=SemanticModel.GetTypeInfo(Element,CancellationToken).Type;
 
             if(SceneTypePredicates.IsUnresolved(Type)){
                 continue;
@@ -387,12 +387,25 @@ internal static class SceneDeclarationAnalyzer {
                 continue;
             }
 
+            // SCENE119: IRuntimeComponentを実装する型はエンジンが実行時に埋めるためのもので、
+            // 随伴先の作者Componentを宣言すればSGが自動付与する。明示すると重複するので弾く。
+            if(Type is INamedTypeSymbol NamedType
+                &&SceneTypePredicates.ImplementsRuntimeComponentInterface(NamedType,SemanticModel.Compilation)){
+                var AuthoredName=SceneTypePredicates.TryGetAuthoredComponentType(
+                                                                                 NamedType,SemanticModel.Compilation,out var Authored)
+                                     ?SceneTypePredicates.ToFullyQualifiedName(Authored)
+                                     :"(none)";
+                Diagnostics.Add(Diagnostic.Create(
+                    SceneDslDiagnostics.RuntimeComponentType,Element.GetLocation(),TypeFullyQualifiedName,AuthoredName));
+                continue;
+            }
+
             if(!SeenTypes.Add(TypeFullyQualifiedName)){
                 Diagnostics.Add(Diagnostic.Create(SceneDslDiagnostics.DuplicateComponentType,Element.GetLocation(),Path.ToDisplayString(),TypeFullyQualifiedName));
                 continue;
             }
 
-            SceneValue Value=Reader.Read(Element,Depth+1);
+            var Value=Reader.Read(Element,Depth+1);
 
             if(Value.Kind!=SceneValueKind.ObjectCreation){
                 continue;
@@ -419,11 +432,11 @@ internal static class SceneDeclarationAnalyzer {
         ImmutableArray<Diagnostic>.Builder Diagnostics,
         string SceneClassName,
         CancellationToken CancellationToken){
-        ImmutableArray<SceneNode>.Builder Children=ImmutableArray.CreateBuilder<SceneNode>();
+        var Children=ImmutableArray.CreateBuilder<SceneNode>();
         var ChildIndex=0;
 
-        foreach(ExpressionSyntax Element in SceneValueReader.EnumerateCollectionElements(CollectionExpression)){
-            SceneNode?Child=ReadNode(Element,Path.Append(ChildIndex),Depth+1,SemanticModel,Reader,Diagnostics,SceneClassName,CancellationToken);
+        foreach(var Element in SceneValueReader.EnumerateCollectionElements(CollectionExpression)){
+            var Child=ReadNode(Element,Path.Append(ChildIndex),Depth+1,SemanticModel,Reader,Diagnostics,SceneClassName,CancellationToken);
 
             if(Child is not null){
                 Children.Add(Child);

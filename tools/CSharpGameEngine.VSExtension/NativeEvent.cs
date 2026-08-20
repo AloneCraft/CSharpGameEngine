@@ -18,7 +18,7 @@ internal static class NativeEvent {
     private const uint Infinite=0xFFFFFFFF;
 
     public static IntPtr CreateAutoResetEvent(){
-        IntPtr Handle=CreateEvent(IntPtr.Zero,false,false,null);
+        var Handle=CreateEvent(IntPtr.Zero,false,false,null);
         if(Handle==IntPtr.Zero){
             var Error=Marshal.GetLastWin32Error();
             throw new InvalidOperationException($"CreateEvent failed with Win32 error 0x{Error:X8}.");

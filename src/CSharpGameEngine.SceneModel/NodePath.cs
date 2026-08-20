@@ -32,15 +32,15 @@ internal readonly struct NodePath : IEquatable<NodePath> {
 
     internal NodePath?Parent{
         get{
-            ImmutableArray<int>Current=this.Indices;
+            var Current=this.Indices;
             return Current.Length==0?null:new NodePath(Current.RemoveAt(Current.Length-1));
         }
     }
 
     /// <summary><paramref name="Other"/>がこのパスの祖先(自分自身を含まない)かどうか。</summary>
     internal bool IsDescendantOf(NodePath Other){
-        ImmutableArray<int>Self=this.Indices;
-        ImmutableArray<int>Ancestor=Other.Indices;
+        var Self=this.Indices;
+        var Ancestor=Other.Indices;
 
         if(Ancestor.Length>=Self.Length){
             return false;
@@ -56,8 +56,8 @@ internal readonly struct NodePath : IEquatable<NodePath> {
     }
 
     public bool Equals(NodePath Other){
-        ImmutableArray<int>Self=this.Indices;
-        ImmutableArray<int>Target=Other.Indices;
+        var Self=this.Indices;
+        var Target=Other.Indices;
 
         if(Self.Length!=Target.Length){
             return false;
@@ -103,7 +103,7 @@ internal readonly struct NodePath : IEquatable<NodePath> {
             return true;
         }
 
-        ImmutableArray<int>.Builder Builder=ImmutableArray.CreateBuilder<int>();
+        var Builder=ImmutableArray.CreateBuilder<int>();
 
         foreach(var Part in Text.Split('/')){
             if(!int.TryParse(Part,out var Value)||Value<0){

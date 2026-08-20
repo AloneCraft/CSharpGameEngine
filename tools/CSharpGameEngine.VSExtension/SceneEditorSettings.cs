@@ -170,7 +170,7 @@ internal static class SceneEditorSettings {
             return Default;
         }
 
-        string Raw=Store.GetString(CollectionPath,Name,Default.ToString());
+        var Raw=Store.GetString(CollectionPath,Name,Default.ToString());
         return Enum.TryParse(Raw,out T Value)?Value:Default;
     }
 
@@ -185,8 +185,8 @@ internal static class SceneEditorSettings {
             return Default;
         }
 
-        string Raw=Store.GetString(CollectionPath,Name,Default.ToString("G9",CultureInfo.InvariantCulture));
-        return float.TryParse(Raw,NumberStyles.Float,CultureInfo.InvariantCulture,out float Value)?Value:Default;
+        var Raw=Store.GetString(CollectionPath,Name,Default.ToString("G9",CultureInfo.InvariantCulture));
+        return float.TryParse(Raw,NumberStyles.Float,CultureInfo.InvariantCulture,out var Value)?Value:Default;
     }
 
     private static void WriteFloat(string Name,float Value){
@@ -207,7 +207,7 @@ internal static class SceneEditorSettings {
     }
 
     private static WritableSettingsStore?TryGetStore(){
-        WritableSettingsStore?Store=StoreProvider?.Invoke();
+        var Store=StoreProvider?.Invoke();
         if(Store is null){
             return null;
         }

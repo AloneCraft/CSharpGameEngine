@@ -17,11 +17,11 @@ internal readonly struct RawInputModifiers:IEquatable<RawInputModifiers> {
 
     internal bool Alt { get; }
 
-    public bool Equals(RawInputModifiers Other)=>Shift==Other.Shift&&Ctrl==Other.Ctrl&&Alt==Other.Alt;
+    public bool Equals(RawInputModifiers Other)=> this.Shift==Other.Shift&& this.Ctrl==Other.Ctrl&& this.Alt==Other.Alt;
 
-    public override bool Equals(object?Obj)=>Obj is RawInputModifiers Other&&Equals(Other);
+    public override bool Equals(object?Obj)=>Obj is RawInputModifiers Other&& this.Equals(Other);
 
-    public override int GetHashCode()=>(Shift,Ctrl,Alt).GetHashCode();
+    public override int GetHashCode()=>(this.Shift, this.Ctrl, this.Alt).GetHashCode();
 }
 
 internal enum PointerButton { None, Left, Right, Middle }
@@ -48,12 +48,11 @@ internal readonly struct PointerEvent:IEquatable<PointerEvent> {
 
     internal RawInputModifiers Modifiers { get; }
 
-    public bool Equals(PointerEvent Other)=>
-        Kind==Other.Kind&&Button==Other.Button&&X==Other.X&&Y==Other.Y&&Modifiers.Equals(Other.Modifiers);
+    public bool Equals(PointerEvent Other)=> this.Kind==Other.Kind&& this.Button==Other.Button&& this.X==Other.X&& this.Y==Other.Y&& this.Modifiers.Equals(Other.Modifiers);
 
-    public override bool Equals(object?Obj)=>Obj is PointerEvent Other&&Equals(Other);
+    public override bool Equals(object?Obj)=>Obj is PointerEvent Other&& this.Equals(Other);
 
-    public override int GetHashCode()=>(Kind,Button,X,Y,Modifiers).GetHashCode();
+    public override int GetHashCode()=>(this.Kind, this.Button, this.X, this.Y, this.Modifiers).GetHashCode();
 }
 
 /// <summary>

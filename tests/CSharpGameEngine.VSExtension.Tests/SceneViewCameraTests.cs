@@ -18,15 +18,15 @@ public sealed class SceneViewCameraTests {
 
     [Fact]
     public void GetForward_MatchesLegacyTrigFormula_AcrossYawPitchSweep(){
-        foreach(float Yaw in Yaws){
-            foreach(float Pitch in Pitches){
-                Vector3 Actual=SceneViewCamera.GetForward(Yaw,Pitch);
+        foreach(var Yaw in Yaws){
+            foreach(var Pitch in Pitches){
+                var Actual=SceneViewCamera.GetForward(Yaw,Pitch);
 
                 var CosPitch=(float)Math.Cos(Pitch);
-                Vector3 Expected=Vector3.Normalize(new Vector3(
-                    CosPitch*(float)Math.Sin(Yaw),
-                    (float)Math.Sin(Pitch),
-                    CosPitch*(float)Math.Cos(Yaw)));
+                var Expected=Vector3.Normalize(new Vector3(
+                                                           CosPitch*(float)Math.Sin(Yaw),
+                                                           (float)Math.Sin(Pitch),
+                                                           CosPitch*(float)Math.Cos(Yaw)));
 
                 AssertApprox(Expected,Actual);
             }
@@ -35,9 +35,9 @@ public sealed class SceneViewCameraTests {
 
     [Fact]
     public void GetFlatRight_MatchesLegacyCrossProductFormula_AcrossYawSweep(){
-        foreach(float Yaw in Yaws){
-            Vector3 Actual=SceneViewCamera.GetFlatRight(Yaw);
-            Vector3 Expected=Vector3.Normalize(Vector3.Cross(Vector3.UnitY,SceneViewCamera.GetFlatForward(Yaw)));
+        foreach(var Yaw in Yaws){
+            var Actual=SceneViewCamera.GetFlatRight(Yaw);
+            var Expected=Vector3.Normalize(Vector3.Cross(Vector3.UnitY,SceneViewCamera.GetFlatForward(Yaw)));
 
             AssertApprox(Expected,Actual);
         }
@@ -45,11 +45,11 @@ public sealed class SceneViewCameraTests {
 
     [Fact]
     public void GetUp_IsOrthogonalToForwardAndFlatRight_AcrossYawPitchSweep(){
-        foreach(float Yaw in Yaws){
-            foreach(float Pitch in Pitches){
-                Vector3 Up=SceneViewCamera.GetUp(Yaw,Pitch);
-                Vector3 Forward=SceneViewCamera.GetForward(Yaw,Pitch);
-                Vector3 Right=SceneViewCamera.GetFlatRight(Yaw);
+        foreach(var Yaw in Yaws){
+            foreach(var Pitch in Pitches){
+                var Up=SceneViewCamera.GetUp(Yaw,Pitch);
+                var Forward=SceneViewCamera.GetForward(Yaw,Pitch);
+                var Right=SceneViewCamera.GetFlatRight(Yaw);
 
                 Assert.Equal(0f,Vector3.Dot(Up,Forward),3);
                 Assert.Equal(0f,Vector3.Dot(Up,Right),3);
@@ -60,7 +60,7 @@ public sealed class SceneViewCameraTests {
 
     [Fact]
     public void GetUp_AtZeroPitch_EqualsWorldUp(){
-        Vector3 Up=SceneViewCamera.GetUp(Yaw:0.7f,Pitch:0f);
+        var Up=SceneViewCamera.GetUp(Yaw:0.7f,Pitch:0f);
 
         AssertApprox(Vector3.UnitY,Up);
     }
@@ -72,7 +72,7 @@ public sealed class SceneViewCameraTests {
         const float Pitch=0.2f;
         const float Distance=7f;
 
-        Vector3 Eye=SceneViewCamera.GetEyePosition(Focus,Yaw,Pitch,Distance);
+        var Eye=SceneViewCamera.GetEyePosition(Focus,Yaw,Pitch,Distance);
 
         AssertApprox(Focus-SceneViewCamera.GetForward(Yaw,Pitch)*Distance,Eye);
     }
@@ -80,34 +80,34 @@ public sealed class SceneViewCameraTests {
     [Fact]
     public void GetView_AtPositiveDistance_LooksFromEyeTowardFocus(){
         Vector3 Focus=new(1f,2f,3f);
-        Matrix4x4 View=SceneViewCamera.GetView(Focus,Yaw:0.4f,Pitch:0.1f,FocusDistance:5f);
+        var View=SceneViewCamera.GetView(Focus,Yaw:0.4f,Pitch:0.1f,FocusDistance:5f);
 
-        Assert.True(Matrix4x4.Invert(View,out Matrix4x4 InverseView));
-        Vector3 Eye=SceneViewCamera.GetEyePosition(Focus,0.4f,0.1f,5f);
+        Assert.True(Matrix4x4.Invert(View,out var InverseView));
+        var Eye=SceneViewCamera.GetEyePosition(Focus,0.4f,0.1f,5f);
         AssertApprox(Eye,InverseView.Translation);
     }
 
     [Fact]
     public void ApplyLookDelta_ClampsPitchToOrbitRange(){
-        (_,float Pitch)=SceneViewCamera.ApplyLookDelta(
-            Yaw:0f,Pitch:0f,DeltaX:0f,DeltaY:-100000f,
-            YawSensitivity:0.01f,PitchSensitivity:0.01f,InvertX:false,InvertY:false);
+        (_,var Pitch)=SceneViewCamera.ApplyLookDelta(
+                                                     Yaw:0f,Pitch:0f,DeltaX:0f,DeltaY:-100000f,
+                                                     YawSensitivity:0.01f,PitchSensitivity:0.01f,InvertX:false,InvertY:false);
 
         Assert.Equal(SceneViewCamera.MaxPitchRadians,Pitch,4);
     }
 
     [Fact]
     public void ApplyLookDelta_InvertX_NegatesYawDelta(){
-        (float YawNormal,_)=SceneViewCamera.ApplyLookDelta(0f,0f,10f,0f,0.01f,0.01f,InvertX:false,InvertY:false);
-        (float YawInverted,_)=SceneViewCamera.ApplyLookDelta(0f,0f,10f,0f,0.01f,0.01f,InvertX:true,InvertY:false);
+        (var YawNormal,_)=SceneViewCamera.ApplyLookDelta(0f,0f,10f,0f,0.01f,0.01f,InvertX:false,InvertY:false);
+        (var YawInverted,_)=SceneViewCamera.ApplyLookDelta(0f,0f,10f,0f,0.01f,0.01f,InvertX:true,InvertY:false);
 
         Assert.Equal(-YawNormal,YawInverted,4);
     }
 
     [Fact]
     public void ApplyLookDelta_InvertY_NegatesPitchDelta(){
-        (_,float PitchNormal)=SceneViewCamera.ApplyLookDelta(0f,0f,0f,10f,0.01f,0.01f,InvertX:false,InvertY:false);
-        (_,float PitchInverted)=SceneViewCamera.ApplyLookDelta(0f,0f,0f,10f,0.01f,0.01f,InvertX:false,InvertY:true);
+        (_,var PitchNormal)=SceneViewCamera.ApplyLookDelta(0f,0f,0f,10f,0.01f,0.01f,InvertX:false,InvertY:false);
+        (_,var PitchInverted)=SceneViewCamera.ApplyLookDelta(0f,0f,0f,10f,0.01f,0.01f,InvertX:false,InvertY:true);
 
         Assert.Equal(-PitchNormal,PitchInverted,4);
     }
@@ -117,40 +117,40 @@ public sealed class SceneViewCameraTests {
         Vector3 Focus=new(1f,2f,3f);
         const float Yaw=0.4f;
         const float Pitch=0.15f;
-        Matrix4x4 View=SceneViewCamera.GetView(Focus,Yaw,Pitch,FocusDistance:5f);
-        Matrix4x4 Projection=SceneViewCamera.GetProjection((float)(Math.PI/4.0),1f,0.1f,100f);
+        var View=SceneViewCamera.GetView(Focus,Yaw,Pitch,FocusDistance:5f);
+        var Projection=SceneViewCamera.GetProjection((float)(Math.PI/4.0),1f,0.1f,100f);
 
-        (_,Vector3 Direction)=SceneViewCamera.ScreenPointToRay(View,Projection,400f,300f,800f,600f);
+        (_,var Direction)=SceneViewCamera.ScreenPointToRay(View,Projection,400f,300f,800f,600f);
 
         AssertApprox(SceneViewCamera.GetForward(Yaw,Pitch),Direction);
     }
 
     [Fact]
     public void ScreenPointToRay_KnownWorldPoint_RayPassesThroughIt(){
-        Vector3 Focus=Vector3.Zero;
-        Matrix4x4 View=SceneViewCamera.GetView(Focus,Yaw:0.3f,Pitch:0.2f,FocusDistance:10f);
-        Matrix4x4 Projection=SceneViewCamera.GetProjection((float)(Math.PI/4.0),800f/600f,0.1f,100f);
+        var Focus=Vector3.Zero;
+        var View=SceneViewCamera.GetView(Focus,Yaw:0.3f,Pitch:0.2f,FocusDistance:10f);
+        var Projection=SceneViewCamera.GetProjection((float)(Math.PI/4.0),800f/600f,0.1f,100f);
         Vector3 WorldPoint=new(2f,1f,-3f);
 
-        Vector4 Clip=Vector4.Transform(new Vector4(WorldPoint,1f),View*Projection);
-        Vector3 Ndc=new Vector3(Clip.X,Clip.Y,Clip.Z)/Clip.W;
-        float ScreenX=(Ndc.X+1f)/2f*800f;
-        float ScreenY=(1f-Ndc.Y)/2f*600f;
+        var Clip=Vector4.Transform(new Vector4(WorldPoint,1f),View*Projection);
+        var Ndc=new Vector3(Clip.X,Clip.Y,Clip.Z)/Clip.W;
+        var ScreenX=(Ndc.X+1f)/2f*800f;
+        var ScreenY=(1f-Ndc.Y)/2f*600f;
 
-        (Vector3 Origin,Vector3 Direction)=SceneViewCamera.ScreenPointToRay(View,Projection,ScreenX,ScreenY,800f,600f);
+        (var Origin,var Direction)=SceneViewCamera.ScreenPointToRay(View,Projection,ScreenX,ScreenY,800f,600f);
 
-        float T=Vector3.Dot(WorldPoint-Origin,Direction);
-        Vector3 ClosestPointOnRay=Origin+(Direction*T);
+        var T=Vector3.Dot(WorldPoint-Origin,Direction);
+        var ClosestPointOnRay=Origin+(Direction*T);
         Assert.Equal(0f,Vector3.Distance(ClosestPointOnRay,WorldPoint),2);
     }
 
     [Fact]
     public void ScreenPointToRay_Orthographic_ProducesParallelRaysAcrossScreen(){
-        Matrix4x4 View=SceneViewCamera.GetView(Vector3.Zero,Yaw:0.1f,Pitch:0.1f,FocusDistance:10f);
-        Matrix4x4 Projection=Matrix4x4.CreateOrthographic(10f,10f,0.1f,100f);
+        var View=SceneViewCamera.GetView(Vector3.Zero,Yaw:0.1f,Pitch:0.1f,FocusDistance:10f);
+        var Projection=Matrix4x4.CreateOrthographic(10f,10f,0.1f,100f);
 
-        (_,Vector3 DirectionA)=SceneViewCamera.ScreenPointToRay(View,Projection,100f,100f,800f,600f);
-        (_,Vector3 DirectionB)=SceneViewCamera.ScreenPointToRay(View,Projection,700f,500f,800f,600f);
+        (_,var DirectionA)=SceneViewCamera.ScreenPointToRay(View,Projection,100f,100f,800f,600f);
+        (_,var DirectionB)=SceneViewCamera.ScreenPointToRay(View,Projection,700f,500f,800f,600f);
 
         AssertApprox(DirectionA,DirectionB);
     }
@@ -178,15 +178,15 @@ public sealed class SceneViewCameraTests {
     /// </summary>
     [Fact]
     public void GetFlatRight_ProjectsToScreenLeft_BecauseTheEngineUsesRightHandedMatrices(){
-        foreach(float Yaw in Yaws){
-            foreach(float Pitch in Pitches){
+        foreach(var Yaw in Yaws){
+            foreach(var Pitch in Pitches){
                 Vector3 Focus=new(3f,-2f,5f);
-                Matrix4x4 ViewProjection=
+                var ViewProjection=
                     SceneViewCamera.GetView(Focus,Yaw,Pitch,FocusDistance:10f)
                     *SceneViewCamera.GetProjection(FovYRadians:1f,AspectRatio:1.5f,NearZ:0.1f,FarZ:100f);
 
-                Vector3 RightNdc=ProjectToNdc(Focus+(SceneViewCamera.GetFlatRight(Yaw)*2f),ViewProjection);
-                Vector3 UpNdc=ProjectToNdc(Focus+(SceneViewCamera.GetUp(Yaw,Pitch)*2f),ViewProjection);
+                var RightNdc=ProjectToNdc(Focus+(SceneViewCamera.GetFlatRight(Yaw)*2f),ViewProjection);
+                var UpNdc=ProjectToNdc(Focus+(SceneViewCamera.GetUp(Yaw,Pitch)*2f),ViewProjection);
 
                 Assert.True(
                     RightNdc.X<0f,
@@ -209,7 +209,7 @@ public sealed class SceneViewCameraTests {
         const float Pitch=0.3f;
         const float Distance=12f;
 
-        Vector3 Eye=SceneViewCamera.GetEyePosition(Focus,Yaw,Pitch,Distance);
+        var Eye=SceneViewCamera.GetEyePosition(Focus,Yaw,Pitch,Distance);
 
         Assert.Equal(
             Matrix4x4.CreateLookAt(Eye,Focus,Vector3.UnitY),
@@ -225,18 +225,18 @@ public sealed class SceneViewCameraTests {
     /// </summary>
     [Fact]
     public void NearerPointsGetSmallerNdcDepth(){
-        Vector3 Focus=Vector3.Zero;
+        var Focus=Vector3.Zero;
         const float Yaw=0.4f;
         const float Pitch=0.2f;
-        Matrix4x4 ViewProjection=
+        var ViewProjection=
             SceneViewCamera.GetView(Focus,Yaw,Pitch,FocusDistance:10f)
             *SceneViewCamera.GetProjection(FovYRadians:1f,AspectRatio:1.5f,NearZ:0.1f,FarZ:100f);
 
-        Vector3 Forward=SceneViewCamera.GetForward(Yaw,Pitch);
-        Vector3 Eye=SceneViewCamera.GetEyePosition(Focus,Yaw,Pitch,FocusDistance:10f);
+        var Forward=SceneViewCamera.GetForward(Yaw,Pitch);
+        var Eye=SceneViewCamera.GetEyePosition(Focus,Yaw,Pitch,FocusDistance:10f);
 
-        float NearDepth=ProjectToNdc(Eye+(Forward*1f),ViewProjection).Z;
-        float FarDepth=ProjectToNdc(Eye+(Forward*50f),ViewProjection).Z;
+        var NearDepth=ProjectToNdc(Eye+(Forward*1f),ViewProjection).Z;
+        var FarDepth=ProjectToNdc(Eye+(Forward*50f),ViewProjection).Z;
 
         Assert.True(NearDepth<FarDepth,$"近{NearDepth} 遠{FarDepth}: 深度の向きが逆");
         Assert.True(NearDepth is >=0f and <=1f,$"近点のNDC Z={NearDepth}が0..1の外");
@@ -255,16 +255,16 @@ public sealed class SceneViewCameraTests {
     public void DecomposeDirection_IsInvariantToReferenceOrientation_ForFixedScreenPixel(){
         Vector3 Focus=new(2f,-1f,4f);
         const float Distance=10f;
-        Matrix4x4 Projection=SceneViewCamera.GetProjection((float)(Math.PI/4.0),800f/600f,0.1f,100f);
+        var Projection=SceneViewCamera.GetProjection((float)(Math.PI/4.0),800f/600f,0.1f,100f);
         const float ScreenX=320f;
         const float ScreenY=180f;
 
         Vector3?FirstLocalAxes=null;
-        foreach(float Yaw in Yaws){
-            foreach(float Pitch in Pitches){
-                Matrix4x4 View=SceneViewCamera.GetView(Focus,Yaw,Pitch,Distance);
-                (_,Vector3 Direction)=SceneViewCamera.ScreenPointToRay(View,Projection,ScreenX,ScreenY,800f,600f);
-                Vector3 LocalAxes=SceneViewCamera.DecomposeDirection(Direction,Yaw,Pitch);
+        foreach(var Yaw in Yaws){
+            foreach(var Pitch in Pitches){
+                var View=SceneViewCamera.GetView(Focus,Yaw,Pitch,Distance);
+                (_,var Direction)=SceneViewCamera.ScreenPointToRay(View,Projection,ScreenX,ScreenY,800f,600f);
+                var LocalAxes=SceneViewCamera.DecomposeDirection(Direction,Yaw,Pitch);
 
                 FirstLocalAxes??=LocalAxes;
                 AssertApprox(FirstLocalAxes.Value,LocalAxes);
@@ -288,31 +288,31 @@ public sealed class SceneViewCameraTests {
     /// </summary>
     [Fact]
     public void SolveLookOrientation_ReconstructedDirectionMatchesTarget_AcrossYawPitchFovAspectSweep(){
-        Matrix4x4 Projection=SceneViewCamera.GetProjection((float)(Math.PI/4.0),16f/9f,0.1f,100f);
-        Vector3 Focus=Vector3.Zero;
+        var Projection=SceneViewCamera.GetProjection((float)(Math.PI/4.0),16f/9f,0.1f,100f);
+        var Focus=Vector3.Zero;
         const float Distance=8f;
         (float Yaw,float Pitch)[]Seeds=[(0f,0f),(0.5f,-0.3f),(-1.1f,0.2f),(2.3f,0.35f)];
         (float DeltaYaw,float DeltaPitch)[]Deltas=[(0.05f,0.03f),(-0.08f,-0.05f),(0.12f,-0.02f),(-0.04f,0.07f)];
         (float X,float Y)[]ScreenPoints=[(400f,300f),(100f,50f),(700f,550f),(250f,400f)];
 
-        foreach((float SeedYaw,float SeedPitch)in Seeds){
-            foreach((float DeltaYaw,float DeltaPitch)in Deltas){
-                float TargetYaw=SeedYaw+DeltaYaw;
-                float TargetPitch=SeedPitch+DeltaPitch;
-                foreach((float ScreenX,float ScreenY)in ScreenPoints){
-                    Matrix4x4 SeedView=SceneViewCamera.GetView(Focus,SeedYaw,SeedPitch,Distance);
-                    (_,Vector3 SeedRay)=SceneViewCamera.ScreenPointToRay(SeedView,Projection,ScreenX,ScreenY,800f,600f);
-                    Vector3 LocalAxes=SceneViewCamera.DecomposeDirection(SeedRay,SeedYaw,SeedPitch);
+        foreach((var SeedYaw,var SeedPitch)in Seeds){
+            foreach((var DeltaYaw,var DeltaPitch)in Deltas){
+                var TargetYaw=SeedYaw+DeltaYaw;
+                var TargetPitch=SeedPitch+DeltaPitch;
+                foreach((var ScreenX,var ScreenY)in ScreenPoints){
+                    var SeedView=SceneViewCamera.GetView(Focus,SeedYaw,SeedPitch,Distance);
+                    (_,var SeedRay)=SceneViewCamera.ScreenPointToRay(SeedView,Projection,ScreenX,ScreenY,800f,600f);
+                    var LocalAxes=SceneViewCamera.DecomposeDirection(SeedRay,SeedYaw,SeedPitch);
 
-                    Matrix4x4 TargetView=SceneViewCamera.GetView(Focus,TargetYaw,TargetPitch,Distance);
-                    (_,Vector3 TargetDirection)=SceneViewCamera.ScreenPointToRay(
-                        TargetView,Projection,ScreenX,ScreenY,800f,600f);
+                    var TargetView=SceneViewCamera.GetView(Focus,TargetYaw,TargetPitch,Distance);
+                    (_,var TargetDirection)=SceneViewCamera.ScreenPointToRay(
+                                                                             TargetView,Projection,ScreenX,ScreenY,800f,600f);
 
-                    (float SolvedYaw,float SolvedPitch)=SceneViewCamera.SolveLookOrientation(
+                    (var SolvedYaw,var SolvedPitch)=SceneViewCamera.SolveLookOrientation(
                         LocalAxes,TargetDirection,SeedYaw,SeedPitch);
 
-                    Matrix4x4 SolvedView=SceneViewCamera.GetView(Focus,SolvedYaw,SolvedPitch,Distance);
-                    (_,Vector3 ReconstructedDirection)=SceneViewCamera.ScreenPointToRay(
+                    var SolvedView=SceneViewCamera.GetView(Focus,SolvedYaw,SolvedPitch,Distance);
+                    (_,var ReconstructedDirection)=SceneViewCamera.ScreenPointToRay(
                         SolvedView,Projection,ScreenX,ScreenY,800f,600f);
 
                     // atan2/acos/sin/cosを何段も連鎖させるため、他のテストが使う4桁精度(1e-4)より
@@ -333,10 +333,10 @@ public sealed class SceneViewCameraTests {
     public void SolveLookOrientation_TargetBeyondPitchClamp_ClampsGracefully(){
         // Pitch=89°は可動域(-80°〜40°)の外。到達不能な目標でも有限値を返しクランプされる
         // ことを確認する(既存のApplyLookDeltaと同じ黙示クランプでの劣化)。
-        Vector3 TargetDirection=SceneViewCamera.GetForward(Yaw:0f,Pitch:89f*(float)(Math.PI/180.0));
+        var TargetDirection=SceneViewCamera.GetForward(Yaw:0f,Pitch:89f*(float)(Math.PI/180.0));
         Vector3 LocalAxes=new(0f,0f,1f); // 画面中央(ローカルForward軸そのもの)。
 
-        (float Yaw,float Pitch)=SceneViewCamera.SolveLookOrientation(LocalAxes,TargetDirection,0f,0f);
+        (var Yaw,var Pitch)=SceneViewCamera.SolveLookOrientation(LocalAxes,TargetDirection,0f,0f);
 
         Assert.False(float.IsNaN(Yaw)||float.IsInfinity(Yaw));
         Assert.True(Pitch<=SceneViewCamera.MaxPitchRadians+1e-3f);
@@ -353,12 +353,12 @@ public sealed class SceneViewCameraTests {
         Vector3 LocalAxes=new(0f,1f,0f);
         Vector3 TargetDirection=new(0f,0.87758f,1f);
 
-        (_,float PitchNearPositive)=SceneViewCamera.SolveLookOrientation(
-            LocalAxes,TargetDirection,PreviousYaw:0f,PreviousPitch:0.5f);
+        (_,var PitchNearPositive)=SceneViewCamera.SolveLookOrientation(
+                                                                       LocalAxes,TargetDirection,PreviousYaw:0f,PreviousPitch:0.5f);
         Assert.Equal(0.5f,PitchNearPositive,3);
 
-        (_,float PitchNearNegative)=SceneViewCamera.SolveLookOrientation(
-            LocalAxes,TargetDirection,PreviousYaw:0f,PreviousPitch:-0.5f);
+        (_,var PitchNearNegative)=SceneViewCamera.SolveLookOrientation(
+                                                                       LocalAxes,TargetDirection,PreviousYaw:0f,PreviousPitch:-0.5f);
         Assert.Equal(-0.5f,PitchNearNegative,3);
     }
 
@@ -368,8 +368,8 @@ public sealed class SceneViewCameraTests {
         Vector3 LocalAxes=new(1f,0f,0f);
         Vector3 TargetDirection=new(0f,0f,1f);
 
-        (float Yaw,float Pitch)=SceneViewCamera.SolveLookOrientation(
-            LocalAxes,TargetDirection,PreviousYaw:0.42f,PreviousPitch:0.17f);
+        (var Yaw,var Pitch)=SceneViewCamera.SolveLookOrientation(
+                                                                 LocalAxes,TargetDirection,PreviousYaw:0.42f,PreviousPitch:0.17f);
 
         Assert.Equal(0.42f,Yaw,4);
         Assert.Equal(0.17f,Pitch,4);
@@ -385,29 +385,29 @@ public sealed class SceneViewCameraTests {
     /// </summary>
     [Fact]
     public void TrySolveOrbitYawPitch_WellConditionedCase_ReprojectsAnchorToTargetPixel(){
-        Vector3 FocusPosition=Vector3.Zero;
+        var FocusPosition=Vector3.Zero;
         const float FocusDistance=10f;
-        Matrix4x4 Projection=SceneViewCamera.GetProjection((float)(Math.PI/4.0),800f/600f,0.1f,1000f);
+        var Projection=SceneViewCamera.GetProjection((float)(Math.PI/4.0),800f/600f,0.1f,1000f);
         const float SeedYaw=0.2f;
         const float SeedPitch=0.1f;
-        Vector3 AnchorWorldPoint=FocusPosition+new Vector3(3f,1.5f,0f);
+        var AnchorWorldPoint=FocusPosition+new Vector3(3f,1.5f,0f);
 
         const float TargetYaw=0.23f;
         const float TargetPitch=0.14f;
-        Matrix4x4 TargetView=SceneViewCamera.GetView(FocusPosition,TargetYaw,TargetPitch,FocusDistance);
-        Vector3 TargetNdc=ProjectToNdc(AnchorWorldPoint,TargetView*Projection);
-        float TargetScreenX=(TargetNdc.X+1f)*0.5f*800f;
-        float TargetScreenY=(1f-TargetNdc.Y)*0.5f*600f;
+        var TargetView=SceneViewCamera.GetView(FocusPosition,TargetYaw,TargetPitch,FocusDistance);
+        var TargetNdc=ProjectToNdc(AnchorWorldPoint,TargetView*Projection);
+        var TargetScreenX=(TargetNdc.X+1f)*0.5f*800f;
+        var TargetScreenY=(1f-TargetNdc.Y)*0.5f*600f;
 
-        bool Converged=SceneViewCamera.TrySolveOrbitYawPitch(
-            FocusPosition,FocusDistance,Projection,AnchorWorldPoint,
-            TargetScreenX,TargetScreenY,800f,600f,SeedYaw,SeedPitch,
-            out float SolvedYaw,out float SolvedPitch);
+        var Converged=SceneViewCamera.TrySolveOrbitYawPitch(
+                                                            FocusPosition,FocusDistance,Projection,AnchorWorldPoint,
+                                                            TargetScreenX,TargetScreenY,800f,600f,SeedYaw,SeedPitch,
+                                                            out var SolvedYaw,out var SolvedPitch);
 
-        Matrix4x4 SolvedView=SceneViewCamera.GetView(FocusPosition,SolvedYaw,SolvedPitch,FocusDistance);
-        Vector3 Ndc=ProjectToNdc(AnchorWorldPoint,SolvedView*Projection);
-        float ScreenX=(Ndc.X+1f)*0.5f*800f;
-        float ScreenY=(1f-Ndc.Y)*0.5f*600f;
+        var SolvedView=SceneViewCamera.GetView(FocusPosition,SolvedYaw,SolvedPitch,FocusDistance);
+        var Ndc=ProjectToNdc(AnchorWorldPoint,SolvedView*Projection);
+        var ScreenX=(Ndc.X+1f)*0.5f*800f;
+        var ScreenY=(1f-Ndc.Y)*0.5f*600f;
 
         Assert.True(Converged,$"ScreenX={ScreenX} ScreenY={ScreenY} SolvedYaw={SolvedYaw} SolvedPitch={SolvedPitch}");
         Assert.Equal(TargetScreenX,ScreenX,1);
@@ -424,33 +424,33 @@ public sealed class SceneViewCameraTests {
     /// </summary>
     [Fact]
     public void TrySolveOrbitYawPitch_NeverIncreasesResidualBeyondTheSeed(){
-        Vector3 FocusPosition=Vector3.Zero;
+        var FocusPosition=Vector3.Zero;
         const float FocusDistance=3f; // 近い注視距離+大きなドラッグで枝の折り返しが起こりやすい設定。
-        Matrix4x4 Projection=SceneViewCamera.GetProjection((float)(Math.PI/3.0),800f/600f,0.1f,1000f);
+        var Projection=SceneViewCamera.GetProjection((float)(Math.PI/3.0),800f/600f,0.1f,1000f);
         const float SeedYaw=0f;
         const float SeedPitch=0f;
 
         // アンカーはシード視点で画面端(50,50)に実際に映っている点にする(SeedResidualを
         // 意味のある有限値にするため)。
-        Matrix4x4 SeedView=SceneViewCamera.GetView(FocusPosition,SeedYaw,SeedPitch,FocusDistance);
-        (Vector3 Origin,Vector3 Direction)=SceneViewCamera.ScreenPointToRay(SeedView,Projection,50f,50f,800f,600f);
-        Vector3 AnchorWorldPoint=Origin+(Direction*8f);
+        var SeedView=SceneViewCamera.GetView(FocusPosition,SeedYaw,SeedPitch,FocusDistance);
+        (var Origin,var Direction)=SceneViewCamera.ScreenPointToRay(SeedView,Projection,50f,50f,800f,600f);
+        var AnchorWorldPoint=Origin+(Direction*8f);
 
         // 目標は反対側の隅。ドラッグ量が大きいほどOrbitの折り返しに入りやすい。
         const float TargetScreenX=750f;
         const float TargetScreenY=550f;
 
-        float SeedResidual=ComputeScreenResidual(
-            AnchorWorldPoint,SeedView,Projection,TargetScreenX,TargetScreenY,800f,600f);
+        var SeedResidual=ComputeScreenResidual(
+                                               AnchorWorldPoint,SeedView,Projection,TargetScreenX,TargetScreenY,800f,600f);
 
         SceneViewCamera.TrySolveOrbitYawPitch(
             FocusPosition,FocusDistance,Projection,AnchorWorldPoint,
             TargetScreenX,TargetScreenY,800f,600f,SeedYaw,SeedPitch,
-            out float SolvedYaw,out float SolvedPitch);
+            out var SolvedYaw,out var SolvedPitch);
 
-        Matrix4x4 SolvedView=SceneViewCamera.GetView(FocusPosition,SolvedYaw,SolvedPitch,FocusDistance);
-        float SolvedResidual=ComputeScreenResidual(
-            AnchorWorldPoint,SolvedView,Projection,TargetScreenX,TargetScreenY,800f,600f);
+        var SolvedView=SceneViewCamera.GetView(FocusPosition,SolvedYaw,SolvedPitch,FocusDistance);
+        var SolvedResidual=ComputeScreenResidual(
+                                                 AnchorWorldPoint,SolvedView,Projection,TargetScreenX,TargetScreenY,800f,600f);
 
         Assert.True(
             SolvedResidual<=SeedResidual+1e-2f,
@@ -460,15 +460,15 @@ public sealed class SceneViewCameraTests {
 
     [Fact]
     public void TrySolveOrbitYawPitch_ClampsPitchToOrbitRange(){
-        Vector3 FocusPosition=Vector3.Zero;
+        var FocusPosition=Vector3.Zero;
         const float FocusDistance=5f;
-        Matrix4x4 Projection=SceneViewCamera.GetProjection((float)(Math.PI/4.0),800f/600f,0.1f,1000f);
+        var Projection=SceneViewCamera.GetProjection((float)(Math.PI/4.0),800f/600f,0.1f,1000f);
 
         // 真上から見下ろすような、Pitch可動域(-80°〜40°)を大きく超えた目標を要求する。
         SceneViewCamera.TrySolveOrbitYawPitch(
             FocusPosition,FocusDistance,Projection,AnchorWorldPoint:new Vector3(0f,10f,0.01f),
             TargetScreenX:400f,TargetScreenY:10f,ViewportWidth:800f,ViewportHeight:600f,
-            SeedYaw:0f,SeedPitch:0f,out float Yaw,out float Pitch);
+            SeedYaw:0f,SeedPitch:0f,out var Yaw,out var Pitch);
 
         Assert.False(float.IsNaN(Yaw)||float.IsInfinity(Yaw));
         Assert.True(Pitch<=SceneViewCamera.MaxPitchRadians+1e-4f);
@@ -478,11 +478,11 @@ public sealed class SceneViewCameraTests {
     [Fact]
     public void ComputeOrbitAnchorFallbackPoint_RayThroughFocusPlane_ReturnsPlaneIntersection(){
         Vector3 FocusPosition=new(0f,0f,10f);
-        Vector3 Forward=Vector3.UnitZ;
+        var Forward=Vector3.UnitZ;
         Vector3 RayOrigin=new(2f,3f,0f);
-        Vector3 RayDirection=Vector3.UnitZ; // Forwardと平行なレイ、平面Z=10と交わる。
+        var RayDirection=Vector3.UnitZ; // Forwardと平行なレイ、平面Z=10と交わる。
 
-        Vector3 Result=SceneViewCamera.ComputeOrbitAnchorFallbackPoint(RayOrigin,RayDirection,FocusPosition,Forward);
+        var Result=SceneViewCamera.ComputeOrbitAnchorFallbackPoint(RayOrigin,RayDirection,FocusPosition,Forward);
 
         AssertApprox(new Vector3(2f,3f,10f),Result);
     }
@@ -490,11 +490,11 @@ public sealed class SceneViewCameraTests {
     [Fact]
     public void ComputeOrbitAnchorFallbackPoint_RayParallelToPlane_ReturnsFocusPosition(){
         Vector3 FocusPosition=new(0f,0f,10f);
-        Vector3 Forward=Vector3.UnitZ;
+        var Forward=Vector3.UnitZ;
         Vector3 RayOrigin=new(2f,3f,0f);
-        Vector3 RayDirection=Vector3.UnitX; // 平面(法線Forward)と平行。
+        var RayDirection=Vector3.UnitX; // 平面(法線Forward)と平行。
 
-        Vector3 Result=SceneViewCamera.ComputeOrbitAnchorFallbackPoint(RayOrigin,RayDirection,FocusPosition,Forward);
+        var Result=SceneViewCamera.ComputeOrbitAnchorFallbackPoint(RayOrigin,RayDirection,FocusPosition,Forward);
 
         AssertApprox(FocusPosition,Result);
     }
@@ -502,18 +502,18 @@ public sealed class SceneViewCameraTests {
     private static float ComputeScreenResidual(
         Vector3 WorldPoint,Matrix4x4 View,Matrix4x4 Projection,
         float TargetX,float TargetY,float Width,float Height){
-        Vector4 Clip=Vector4.Transform(new Vector4(WorldPoint,1f),View*Projection);
+        var Clip=Vector4.Transform(new Vector4(WorldPoint,1f),View*Projection);
         if(Clip.W<=1e-5f){
             return float.PositiveInfinity;
         }
 
-        float ScreenX=(Clip.X/Clip.W+1f)*0.5f*Width;
-        float ScreenY=(1f-Clip.Y/Clip.W)*0.5f*Height;
+        var ScreenX=(Clip.X/Clip.W+1f)*0.5f*Width;
+        var ScreenY=(1f-Clip.Y/Clip.W)*0.5f*Height;
         return(float)Math.Sqrt(((ScreenX-TargetX)*(ScreenX-TargetX))+((ScreenY-TargetY)*(ScreenY-TargetY)));
     }
 
     private static Vector3 ProjectToNdc(Vector3 World,Matrix4x4 ViewProjection){
-        Vector4 Clip=Vector4.Transform(new Vector4(World,1f),ViewProjection);
+        var Clip=Vector4.Transform(new Vector4(World,1f),ViewProjection);
         return new Vector3(Clip.X,Clip.Y,Clip.Z)/Clip.W;
     }
 

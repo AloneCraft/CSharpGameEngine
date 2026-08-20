@@ -22,7 +22,7 @@ public sealed class SceneDesignerPresentationContractsTests {
             new(new SceneKey("current","global::Second.Alpha"),"Alpha",@"G:\Project\A.cs",10),
         ];
 
-        IReadOnlyList<ProjectSceneCatalogEntry> Actual=ProjectSceneCatalogPresentation.Create("current",Entries);
+        var Actual=ProjectSceneCatalogPresentation.Create("current",Entries);
 
         Assert.Collection(Actual,
             Entry=>{

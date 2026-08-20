@@ -13,15 +13,15 @@ public sealed class TransformWorldResolverTests {
             [3]=new Transform { PositionZ=2f },
         };
         Dictionary<int,int>Parents=new(){ [2]=1,[3]=2 };
-        int TransformLookups=0;
+        var TransformLookups=0;
         TransformWorldResolver Resolver=new();
 
-        TransformResolveStatus First=Resolver.Resolve(3,
-            (int Id,out Transform Value)=>{ TransformLookups++;return Transforms.TryGetValue(Id,out Value); },
-            (int Id,out int Parent)=>Parents.TryGetValue(Id,out Parent),out Matrix4x4 World);
-        TransformResolveStatus Cached=Resolver.Resolve(3,
-            (int Id,out Transform Value)=>{ TransformLookups++;return Transforms.TryGetValue(Id,out Value); },
-            (int Id,out int Parent)=>Parents.TryGetValue(Id,out Parent),out Matrix4x4 CachedWorld);
+        var First=Resolver.Resolve(3,
+                                   (int Id,out Transform Value)=>{ TransformLookups++;return Transforms.TryGetValue(Id,out Value); },
+                                   (int Id,out int Parent)=>Parents.TryGetValue(Id,out Parent),out var World);
+        var Cached=Resolver.Resolve(3,
+                                    (int Id,out Transform Value)=>{ TransformLookups++;return Transforms.TryGetValue(Id,out Value); },
+                                    (int Id,out int Parent)=>Parents.TryGetValue(Id,out Parent),out var CachedWorld);
 
         Assert.Equal(TransformResolveStatus.Success,First);
         Assert.Equal(TransformResolveStatus.Success,Cached);
@@ -35,9 +35,9 @@ public sealed class TransformWorldResolverTests {
         Dictionary<int,Transform>Transforms=new(){ [2]=new Transform() };
         TransformWorldResolver Resolver=new();
 
-        TransformResolveStatus Status=Resolver.Resolve(2,
-            (int Id,out Transform Value)=>Transforms.TryGetValue(Id,out Value),
-            (int Id,out int Parent)=>{ Parent=1;return true; },out _);
+        var Status=Resolver.Resolve(2,
+                                    (int Id,out Transform Value)=>Transforms.TryGetValue(Id,out Value),
+                                    (int Id,out int Parent)=>{ Parent=1;return true; },out _);
 
         Assert.Equal(TransformResolveStatus.DeadParent,Status);
     }
@@ -48,9 +48,9 @@ public sealed class TransformWorldResolverTests {
         Dictionary<int,int>Parents=new(){ [1]=2,[2]=1 };
         TransformWorldResolver Resolver=new();
 
-        TransformResolveStatus Status=Resolver.Resolve(1,
-            (int Id,out Transform Value)=>Transforms.TryGetValue(Id,out Value),
-            (int Id,out int Parent)=>Parents.TryGetValue(Id,out Parent),out _);
+        var Status=Resolver.Resolve(1,
+                                    (int Id,out Transform Value)=>Transforms.TryGetValue(Id,out Value),
+                                    (int Id,out int Parent)=>Parents.TryGetValue(Id,out Parent),out _);
 
         Assert.Equal(TransformResolveStatus.Cycle,Status);
     }

@@ -34,7 +34,7 @@ internal static class SceneEmitEquality {
         unchecked {
             var Hash=17;
 
-            foreach(T Value in Values){
+            foreach(var Value in Values){
                 Hash=(Hash*31)+(Value?.GetHashCode()??0);
             }
 

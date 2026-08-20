@@ -83,8 +83,8 @@ internal static class SceneComponentBindings {
 
     /// <summary>ノードが持つComponentのうち、指定Roleに束縛された最初の1件(宣言順で先着)。</summary>
     internal static SceneComponent?FindComponent(SceneNode Node,SceneComponentRole Role){
-        foreach(SceneComponent Component in Node.Components){
-            if(TryGetRole(Component.TypeFullyQualifiedName,out SceneComponentRole Found)&&Found==Role){
+        foreach(var Component in Node.Components){
+            if(TryGetRole(Component.TypeFullyQualifiedName,out var Found)&&Found==Role){
                 return Component;
             }
         }
@@ -96,7 +96,7 @@ internal static class SceneComponentBindings {
         // SceneComponent.TypeFullyQualifiedName は SymbolDisplayFormat.FullyQualifiedFormat の出力なので
         // Ordinal 一致が正しい(SceneNode.FindComponent も StringComparison.Ordinal)。
         Dictionary<string,SceneComponentRole>Index=new(StringComparer.Ordinal);
-        foreach(SceneComponentBinding Binding in Bindings){
+        foreach(var Binding in Bindings){
             Index[Binding.TypeFullyQualifiedName]=Binding.Role;
         }
 

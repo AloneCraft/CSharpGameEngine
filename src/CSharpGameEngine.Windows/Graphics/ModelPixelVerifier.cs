@@ -29,7 +29,7 @@ public static class ModelPixelVerifier {
             return new ModelVerificationResult(false,default,0.0,"Readback has no pixels (width or height is zero).");
         }
 
-        PixelColor Center=ReadPixel(Readback,Readback.Width/2,Readback.Height/2);
+        var Center=ReadPixel(Readback,Readback.Width/2,Readback.Height/2);
 
         long ForegroundCount=0;
         var TotalCount=(long)Readback.Width*Readback.Height;

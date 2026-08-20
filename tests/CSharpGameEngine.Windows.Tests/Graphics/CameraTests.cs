@@ -145,10 +145,10 @@ public class CameraTests {
                 Vector3 Actual=Camera.GetForward();
 
                 var CosPitch=MathF.Cos(Pitch);
-                Vector3 Expected=Vector3.Normalize(new Vector3(
-                    CosPitch*MathF.Sin(Yaw),
-                    MathF.Sin(Pitch),
-                    CosPitch*MathF.Cos(Yaw)));
+                var Expected=Vector3.Normalize(new Vector3(
+                                                           CosPitch*MathF.Sin(Yaw),
+                                                           MathF.Sin(Pitch),
+                                                           CosPitch*MathF.Cos(Yaw)));
 
                 AssertApprox(Expected.X,Actual.X);
                 AssertApprox(Expected.Y,Actual.Y);
@@ -171,7 +171,7 @@ public class CameraTests {
             Camera.Yaw=Yaw;
 
             Vector3 Actual=Camera.GetFlatRight();
-            Vector3 Expected=Vector3.Normalize(Vector3.Cross(Vector3.UnitY,Camera.GetFlatForward()));
+            var Expected=Vector3.Normalize(Vector3.Cross(Vector3.UnitY,Camera.GetFlatForward()));
 
             AssertApprox(Expected.X,Actual.X);
             AssertApprox(Expected.Y,Actual.Y);
@@ -194,8 +194,8 @@ public class CameraTests {
         // SceneRenderer/VorticeRenderer preview cameras already use.
         Camera Camera=Camera.CreateBoundsFit(new Vector3(-1,-1,-1),new Vector3(1,1,1));
 
-        Vector3 EyeOffset=Vector3.Normalize(Camera.GetEyePosition()-Camera.Target);
-        Vector3 Expected=Vector3.Normalize(new Vector3(1f,0.75f,1f));
+        var EyeOffset=Vector3.Normalize(Camera.GetEyePosition()-Camera.Target);
+        var Expected=Vector3.Normalize(new Vector3(1f,0.75f,1f));
 
         AssertApprox(Expected.X,EyeOffset.X);
         AssertApprox(Expected.Y,EyeOffset.Y);
@@ -208,8 +208,8 @@ public class CameraTests {
         Vector3 Max=new(20,4,20);
         Camera Camera=Camera.CreateBoundsFit(Min,Max);
 
-        float Radius=Vector3.Distance(Min,Max)/2f;
-        float HalfAngleToBoundingSphere=MathF.Asin(Radius/Camera.Distance);
+        var Radius=Vector3.Distance(Min,Max)/2f;
+        var HalfAngleToBoundingSphere=MathF.Asin(Radius/Camera.Distance);
 
         Assert.True(HalfAngleToBoundingSphere<Camera.FovYRadians/2f,
             $"Bounding sphere half-angle {HalfAngleToBoundingSphere} must be smaller than the camera's half FOV {Camera.FovYRadians/2f}.");

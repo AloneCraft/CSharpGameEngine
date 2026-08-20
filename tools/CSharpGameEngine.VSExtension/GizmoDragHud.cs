@@ -58,7 +58,7 @@ internal static class GizmoDragHud {
 
     internal static IReadOnlyList<GizmoOverlayPrimitive>Build(
         in GizmoDragHudState State,Matrix4x4 View,Matrix4x4 Projection,float ViewportWidth,float ViewportHeight){
-        if(ViewportWidth<=0f||ViewportHeight<=0f||!Matrix4x4.Invert(View*Projection,out Matrix4x4 InverseVP)){
+        if(ViewportWidth<=0f||ViewportHeight<=0f||!Matrix4x4.Invert(View*Projection,out var InverseVP)){
             return [];
         }
 
@@ -78,12 +78,12 @@ internal static class GizmoDragHud {
         AddDashedWorldLine(Lines,State.StartPivot,State.CurrentPivot,Yellow);
         if(Lines.Count>0){ Primitives.Add(new GizmoOverlayPrimitive(GizmoPrimitiveKind.Line,Lines)); }
 
-        IReadOnlyList<GizmoOverlayVertex>Dot=BuildScreenDot(
-            State.StartPivot,Yellow,View,Projection,InverseVP,ViewportWidth,ViewportHeight);
+        var Dot=BuildScreenDot(
+                              State.StartPivot,Yellow,View,Projection,InverseVP,ViewportWidth,ViewportHeight);
         if(Dot.Count>0){ Primitives.Add(new GizmoOverlayPrimitive(GizmoPrimitiveKind.Triangle,Dot)); }
 
         float Distance=(State.CurrentPivot-State.StartPivot).Length();
-        string Text=Distance.ToString("F1",CultureInfo.InvariantCulture);
+        var Text=Distance.ToString("F1",CultureInfo.InvariantCulture);
         AddLabelNearCursor(Primitives,Text,Yellow,State,InverseVP,ViewportWidth,ViewportHeight,Row:0);
         return Primitives;
     }
@@ -92,20 +92,20 @@ internal static class GizmoDragHud {
         in GizmoDragHudState State,Matrix4x4 View,Matrix4x4 Projection,Matrix4x4 InverseVP,
         float ViewportWidth,float ViewportHeight){
         List<GizmoOverlayPrimitive>Primitives=[];
-        (Vector3 First,Vector3 Second)=TransformGizmo.CreatePlaneBasis(State.RotateNormal);
+        (var First,var Second)=TransformGizmo.CreatePlaneBasis(State.RotateNormal);
         float Radius=State.RingRadius*State.WorldScale;
-        float ClampedRadians=Math.Max(-(float)(Math.PI*2d),Math.Min((float)(Math.PI*2d),State.RotateAccumulatedRadians));
+        var ClampedRadians=Math.Max(-(float)(Math.PI*2d),Math.Min((float)(Math.PI*2d),State.RotateAccumulatedRadians));
 
-        int Segments=Math.Max(1,Math.Min(WedgeMaxSegments,(int)(Math.Abs(ClampedRadians)*WedgeSegmentsPerRadian)+1));
+        var Segments=Math.Max(1,Math.Min(WedgeMaxSegments,(int)(Math.Abs(ClampedRadians)*WedgeSegmentsPerRadian)+1));
         List<GizmoOverlayVertex>Fill=[];
         List<GizmoOverlayVertex>Outline=[];
         Vector3 PreviousPoint=State.Pivot+(State.RotateStartDirection*Radius);
         Outline.Add(new GizmoOverlayVertex(State.Pivot,Yellow));
         Outline.Add(new GizmoOverlayVertex(PreviousPoint,Yellow));
         for(var Segment=1;Segment<=Segments;Segment++){
-            float Angle=ClampedRadians*Segment/Segments;
-            Vector3 Direction=RotateAroundNormal(State.RotateStartDirection,First,Second,Angle);
-            Vector3 Point=State.Pivot+(Direction*Radius);
+            var Angle=ClampedRadians*Segment/Segments;
+            var Direction=RotateAroundNormal(State.RotateStartDirection,First,Second,Angle);
+            var Point=State.Pivot+(Direction*Radius);
             Fill.Add(new GizmoOverlayVertex(State.Pivot,WedgeFill));
             Fill.Add(new GizmoOverlayVertex(PreviousPoint,WedgeFill));
             Fill.Add(new GizmoOverlayVertex(Point,WedgeFill));
@@ -119,18 +119,18 @@ internal static class GizmoDragHud {
         Primitives.Add(new GizmoOverlayPrimitive(GizmoPrimitiveKind.Line,Outline));
 
         // マウス方向フィードバック: 現在の方向へ、リング半径より少し長く伸ばした破線。
-        Vector3 CurrentDirection=RotateAroundNormal(State.RotateStartDirection,First,Second,ClampedRadians);
+        var CurrentDirection=RotateAroundNormal(State.RotateStartDirection,First,Second,ClampedRadians);
         List<GizmoOverlayVertex>DirectionLine=[];
         AddDashedWorldLine(DirectionLine,State.Pivot,State.Pivot+(CurrentDirection*Radius*1.5f),Yellow);
         if(DirectionLine.Count>0){ Primitives.Add(new GizmoOverlayPrimitive(GizmoPrimitiveKind.Line,DirectionLine)); }
 
-        IReadOnlyList<GizmoOverlayVertex>Dot=BuildScreenDot(
-            State.Pivot+(State.RotateStartDirection*Radius),Yellow,View,Projection,InverseVP,ViewportWidth,ViewportHeight);
+        var Dot=BuildScreenDot(
+                              State.Pivot+(State.RotateStartDirection*Radius),Yellow,View,Projection,InverseVP,ViewportWidth,ViewportHeight);
         if(Dot.Count>0){ Primitives.Add(new GizmoOverlayPrimitive(GizmoPrimitiveKind.Triangle,Dot)); }
 
         // 表示角度は折り返し無しの累積値(180°を超えても符号が反転しない)。
-        float Degrees=State.RotateAccumulatedRadians*(180f/(float)Math.PI);
-        string Text=$"{Degrees.ToString("F1",CultureInfo.InvariantCulture)}°";
+        var Degrees=State.RotateAccumulatedRadians*(180f/(float)Math.PI);
+        var Text=$"{Degrees.ToString("F1",CultureInfo.InvariantCulture)}°";
         AddLabelNearCursor(Primitives,Text,Yellow,State,InverseVP,ViewportWidth,ViewportHeight,Row:0);
         return Primitives;
     }
@@ -158,8 +158,8 @@ internal static class GizmoDragHud {
     private static void AddScaleLine(
         List<GizmoOverlayPrimitive>Primitives,float Factor,Vector4 Color,in GizmoDragHudState State,
         Matrix4x4 InverseVP,float ViewportWidth,float ViewportHeight,int Row){
-        string Sign=Factor>=0f?"+":"";
-        string Text=$"{Sign}{Factor.ToString("F2",CultureInfo.InvariantCulture)}x";
+        var Sign=Factor>=0f?"+":"";
+        var Text=$"{Sign}{Factor.ToString("F2",CultureInfo.InvariantCulture)}x";
         AddLabelNearCursor(Primitives,Text,Color,State,InverseVP,ViewportWidth,ViewportHeight,Row);
     }
 
@@ -175,9 +175,9 @@ internal static class GizmoDragHud {
         Matrix4x4 InverseVP,float ViewportWidth,float ViewportHeight,int Row){
         const float PixelHeight=14f;
         const float OffsetX=18f;
-        float OffsetY=18f+(Row*(PixelHeight+6f));
-        IReadOnlyList<GizmoOverlayVertex>Text3D=BuildScreenText(
-            Text,State.CursorX+OffsetX,State.CursorY-OffsetY,PixelHeight,Color,InverseVP,ViewportWidth,ViewportHeight);
+        var OffsetY=18f+(Row*(PixelHeight+6f));
+        var Text3D=BuildScreenText(
+                                  Text,State.CursorX+OffsetX,State.CursorY-OffsetY,PixelHeight,Color,InverseVP,ViewportWidth,ViewportHeight);
         if(Text3D.Count>0){ Primitives.Add(new GizmoOverlayPrimitive(GizmoPrimitiveKind.Line,Text3D)); }
     }
 
@@ -186,17 +186,17 @@ internal static class GizmoDragHud {
         string Text,float AnchorScreenX,float AnchorScreenY,float PixelHeight,Vector4 Color,
         Matrix4x4 InverseVP,float ViewportWidth,float ViewportHeight){
         List<GizmoOverlayVertex>Vertices=[];
-        float Cursor=0f;
-        foreach(char Ch in Text){
-            if(!Glyphs.TryGetValue(Ch,out(float X0,float Y0,float X1,float Y1)[]?Segments)){
+        var Cursor=0f;
+        foreach(var Ch in Text){
+            if(!Glyphs.TryGetValue(Ch,out var Segments)){
                 Cursor+=SpaceAdvance;
                 continue;
             }
-            foreach((float X0,float Y0,float X1,float Y1)Segment in Segments){
-                float ScreenX0=AnchorScreenX+((Cursor+Segment.X0)*PixelHeight);
-                float ScreenY0=AnchorScreenY-(Segment.Y0*PixelHeight);
-                float ScreenX1=AnchorScreenX+((Cursor+Segment.X1)*PixelHeight);
-                float ScreenY1=AnchorScreenY-(Segment.Y1*PixelHeight);
+            foreach(var Segment in Segments){
+                var ScreenX0=AnchorScreenX+((Cursor+Segment.X0)*PixelHeight);
+                var ScreenY0=AnchorScreenY-(Segment.Y0*PixelHeight);
+                var ScreenX1=AnchorScreenX+((Cursor+Segment.X1)*PixelHeight);
+                var ScreenY1=AnchorScreenY-(Segment.Y1*PixelHeight);
                 Vertices.Add(new GizmoOverlayVertex(ToWorld(ScreenX0,ScreenY0,InverseVP,ViewportWidth,ViewportHeight),Color));
                 Vertices.Add(new GizmoOverlayVertex(ToWorld(ScreenX1,ScreenY1,InverseVP,ViewportWidth,ViewportHeight),Color));
             }
@@ -209,22 +209,22 @@ internal static class GizmoDragHud {
         Vector3 WorldAnchor,Vector4 Color,Matrix4x4 View,Matrix4x4 Projection,Matrix4x4 InverseVP,
         float ViewportWidth,float ViewportHeight){
         if(!SceneViewCamera.TryProjectToScreen(
-            WorldAnchor,View,Projection,ViewportWidth,ViewportHeight,out float ScreenX,out float ScreenY)){
+            WorldAnchor,View,Projection,ViewportWidth,ViewportHeight,out var ScreenX,out var ScreenY)){
             return [];
         }
 
         const int Segments=8;
-        Vector3 Center=ToWorld(ScreenX,ScreenY,InverseVP,ViewportWidth,ViewportHeight);
+        var Center=ToWorld(ScreenX,ScreenY,InverseVP,ViewportWidth,ViewportHeight);
         List<GizmoOverlayVertex>Vertices=[];
         for(var Segment=0;Segment<Segments;Segment++){
-            float AngleA=(float)(Segment*Math.PI*2d/Segments);
-            float AngleB=(float)((Segment+1)*Math.PI*2d/Segments);
-            Vector3 PointA=ToWorld(
-                ScreenX+(DotPixelRadius*(float)Math.Cos(AngleA)),ScreenY+(DotPixelRadius*(float)Math.Sin(AngleA)),
-                InverseVP,ViewportWidth,ViewportHeight);
-            Vector3 PointB=ToWorld(
-                ScreenX+(DotPixelRadius*(float)Math.Cos(AngleB)),ScreenY+(DotPixelRadius*(float)Math.Sin(AngleB)),
-                InverseVP,ViewportWidth,ViewportHeight);
+            var AngleA=(float)(Segment*Math.PI*2d/Segments);
+            var AngleB=(float)((Segment+1)*Math.PI*2d/Segments);
+            var PointA=ToWorld(
+                               ScreenX+(DotPixelRadius*(float)Math.Cos(AngleA)),ScreenY+(DotPixelRadius*(float)Math.Sin(AngleA)),
+                               InverseVP,ViewportWidth,ViewportHeight);
+            var PointB=ToWorld(
+                               ScreenX+(DotPixelRadius*(float)Math.Cos(AngleB)),ScreenY+(DotPixelRadius*(float)Math.Sin(AngleB)),
+                               InverseVP,ViewportWidth,ViewportHeight);
             Vertices.Add(new GizmoOverlayVertex(Center,Color));
             Vertices.Add(new GizmoOverlayVertex(PointA,Color));
             Vertices.Add(new GizmoOverlayVertex(PointB,Color));
@@ -234,28 +234,28 @@ internal static class GizmoDragHud {
 
     private static void AddDashedWorldLine(
         List<GizmoOverlayVertex>Lines,Vector3 From,Vector3 To,Vector4 Color){
-        Vector3 Delta=To-From;
+        var Delta=To-From;
         if(Delta.LengthSquared()<=1e-8f){ return; }
         for(var Index=0;Index<DashCount;Index+=2){
-            float T0=(float)Index/DashCount;
-            float T1=(float)Math.Min(Index+1,DashCount)/DashCount;
+            var T0=(float)Index/DashCount;
+            var T1=(float)Math.Min(Index+1,DashCount)/DashCount;
             Lines.Add(new GizmoOverlayVertex(From+(Delta*T0),Color));
             Lines.Add(new GizmoOverlayVertex(From+(Delta*T1),Color));
         }
     }
 
     private static Vector3 RotateAroundNormal(Vector3 Direction,Vector3 First,Vector3 Second,float Angle){
-        float U=Vector3.Dot(Direction,First);
-        float V=Vector3.Dot(Direction,Second);
-        float Cos=(float)Math.Cos(Angle);
-        float Sin=(float)Math.Sin(Angle);
+        var U=Vector3.Dot(Direction,First);
+        var V=Vector3.Dot(Direction,Second);
+        var Cos=(float)Math.Cos(Angle);
+        var Sin=(float)Math.Sin(Angle);
         return(First*((U*Cos)-(V*Sin)))+(Second*((U*Sin)+(V*Cos)));
     }
 
     private static Vector3 ToWorld(
         float ScreenX,float ScreenY,Matrix4x4 InverseViewProjection,float ViewportWidth,float ViewportHeight){
-        (Vector3 Origin,Vector3 Direction)=SceneViewCamera.ScreenPointToRay(
-            InverseViewProjection,ScreenX,ScreenY,ViewportWidth,ViewportHeight);
+        (var Origin,var Direction)=SceneViewCamera.ScreenPointToRay(
+                                                                    InverseViewProjection,ScreenX,ScreenY,ViewportWidth,ViewportHeight);
         return Origin+(Direction*NearPush);
     }
 
@@ -264,7 +264,7 @@ internal static class GizmoDragHud {
     /// 累積するための純粋関数。<c>PreviousRaw</c>/<c>CurrentRaw</c>は同じ(-π,π]の生の値。
     /// </summary>
     internal static float AccumulateAngle(float Accumulated,float PreviousRaw,float CurrentRaw){
-        float Diff=CurrentRaw-PreviousRaw;
+        var Diff=CurrentRaw-PreviousRaw;
         while(Diff>(float)Math.PI){ Diff-=(float)(Math.PI*2d); }
         while(Diff<-(float)Math.PI){ Diff+=(float)(Math.PI*2d); }
         return Accumulated+Diff;

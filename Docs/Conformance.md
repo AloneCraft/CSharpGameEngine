@@ -2783,3 +2783,120 @@ Expハイブのキャッシュより新しくすること」を機序として**
   追加は直近4回の回帰を生んだ形なので、実害が観測されてから)、`OnWorkspaceChanged`の対象フィルタ
   (参照プロジェクト経由の意味変化を取りこぼす判断に独立した検証が要る)、
   メニューの安全網(`Analyzing`中は`Snapshot.Items`が空なので選択UIの設計変更が要る)。
+
+## M0052: Componentパレットと、Inspectorのグルーピング/展開
+
+- **要求**: 「コンポーネントをツールウィンドウからヒエラルキー、インスペクターのいずれかにドロップしたい。
+  インスペクターにコンポーネントを追加したらそれを展開して内部の値を設定したい」。
+- **設計で先に潰した障害1(追加直後は空)**: `TryApplyAddComponent`は引数なしの`new Foo()`に対応する
+  member空の`SceneComponent`を挿すので、**追加した瞬間に展開しても設定すべき行が無い**。
+  差分検出では「今追加した」と「Undo/外部編集で復活した」を区別できないため、追加を要求した側が
+  明示的にキーを預ける`PendingRevealKey`方式にし、**`Members.Count>0`になるまで保留を解除しない**。
+  その間はグループ本体に「解析待ち…」を出す。ユーザーが自分で畳んだ場合だけ保留を捨てる
+  (これが無いと、設定可能な値を持たない型を永久に畳めなくなる)。
+- **設計で先に潰した障害2(Step 1-7の再来)**: 従来のInspectorのガードは`IsKeyboardFocusWithin`
+  だけで、**マウスだけで操作するExpanderの開閉を守れない**。再解析のたびに`ItemsSource`が
+  差し替わって展開状態もスクロール位置も飛ぶ、Hierarchyのインラインリネームと同型の不具合になる。
+  よって`InspectorContentSignature`によるSkipを**必須要件として**土台に置いた。
+- **再入の構造的回避**: `Expander.Expanded`/`Collapsed`は購読しない。これらは初期のデータバインド
+  代入自体でも発火し、状態更新の起点にすると「確定→再構築→再バインド→再確定」のループを招く
+  (同ファイルのCheckBox/ComboBoxに既存の同種注意書きがある)。代わりに`IsExpanded`をTwoWayバインドし、
+  再構築の直前に生きた`ItemsSource`から読み戻す(`SceneNodeViewModel`と`CaptureCollapsedPaths`と同じ方式)。
+- **既存の平坦APIを壊さない**: `Build`のシグネチャを変えず`BuildGroups`の平坦化として委譲したので、
+  既存の17件は無改変で通る。両者が一致することもテストで固定した。
+- **プレビューと結果を同じ関数から作る**: `ComponentDropPolicy.Evaluate`が`DragOver`のカーソルと
+  `Drop`後の説明文の両方を決める。ただし**Hierarchyのプレビューはbest-effort** —
+  Hierarchyは`ActiveSceneModel`(実解析)しか持たず、Documentの予測モデル(未保存の追加を含む)を
+  見られないため。Inspectorは予測投影を見るので適用側と必ず一致する。どちらも最終判断は
+  `TryApplyAddComponent`が行い、拒否理由はステータスバーに出るので誤った結果が黙って通ることはない。
+- **未検証の技術に機能全体を賭けない**: カスタムWPFツールウィンドウ間の`DoDragDrop`は前例も検証記録も
+  無い(ADR-0022は削除済みで、それ自身「実機確認は未実施」だった)。そこでStep 2-2でダブルクリック/
+  Enterによる追加を先に出荷し、D&D(Step 2-3)を上乗せの独立段にした。D&Dが動かなくても
+  「追加→展開→値設定」は完結する。
+- **generic型名の短縮**: `LastIndexOf('.')`は`A.Pair<A.Kind>`を`Kind>`に切る。パレットが閉じた
+  generic instantiationを出せるようになったので、区切り記号ごとに最後のドット以降を採る
+  `SceneInspectorTypeName.Simplify`へ置き換えた。
+- **Compilationのピン留め回避**: パレットのキャッシュは`INamedTypeSymbol`を持つ
+  `SceneComponentCatalogEntry`ではなく、文字列とアイコンだけの`ComponentPaletteEntry`へ射影してから持つ。
+- Evidence(初版): 全1292件成功(VSExtension 790件、+58件)。ソリューション全体ビルドは0警告0エラー。
+- **意図的にやらなかったこと**: Expanderヘッダからの削除(×)UI(`RemoveComponentOperation`は既に
+  通るので、必要になってから)、重複型のパレット候補からの除外(ドロップ先が事前に確定しない)、
+  未使用の`CanRemove`プロパティ、Hierarchyへの右クリック「Componentを追加」(D&Dの実機確認の結果を見てから)。
+
+### 実機フィードバックによる追加修正
+
+- **WPFバインドのinternalトラップ再発**: `ComponentPaletteEntry.DisplayName`/`Namespace`/`Icon`が
+  `internal`のままXAMLでバインドされ、WPFが無言で失敗しアイコンだけ既定値・文字が空になっていた。
+  Inspectorが空になった過去の不具合と同じ罠。`public`へ変更しテストで固定。
+- **pinの暗黙依存が3経路を無言で壊していた**: `SceneEditorSessionService.Apply`はpin済み
+  (=シーン デザイナーを開いた)Sceneにしか効かないが、Hierarchyは`ActiveSceneModel`だけで
+  表示できるためpinに依存しない。結果、シーン デザイナーを一度も開いていないと
+  **Inspectorへの選択伝播・Hierarchyの構造編集・Component追加のすべてが無言失敗していた**
+  (後二者は`M0052以前から存在していた可能性がある潜在バグ)。共通ヘルパー
+  `CSharpGameEngineViewerPackage.EnsurePinned`で「pin済みならそのまま、未pinなら暗黙にpin」に
+  3経路とも統一した。pinはVSウィンドウを開かずUndo/dirty状態も汚さない。
+- **ダークテーマの文字色**: Expanderヘッダ・行ラベルに明示`Foreground`が無く、`HierarchyToolWindowControl`
+  が`TreeViewItem`のStyle Setterで回避していた同種のリスクを踏んだ。明示指定で解決。
+  **同一原因が`ComponentPaletteToolWindowControl.xaml`の型名(`DisplayName`)にも残っていた**
+  (`ListBox.ItemTemplate`内で生成されるコンテナ越しに単純継承が伝播しない)。同じ行の`Namespace`は
+  `GrayTextKey`を明示していたため無事だった、という対比が原因特定の直接証拠になった。同じく
+  `WindowTextKey`を明示して解決。
+- **ネストしたObjectCreation値の展開表示**: 「Vector3といった構造体フィールド名もネストで子を
+  表示するように」という追加要求。`SceneValue`が既に`ObjectCreation`種別で`Members`/`Arguments`を
+  再帰的に持っていたため、`SceneInspectorRow`判別共用体(`SceneInspectorMemberRow`/
+  `SceneInspectorNestedRow`)を新設し、Component直下でもネスト直下でも同じ`BuildRow`関数で
+  再帰変換した。**表示専用に限定**したのが最重要の判断: `SceneModelEditApplier.TryApplySetMember`は
+  Componentのトップレベルでしか名前一致を探さず、見つからなければ黙って新規メンバーを
+  Component直下に追加するため、ネストの葉を安易に編集可能へ倒すと`Transform { …, X=5f }`のような
+  存在しない偽メンバーが生える実害あるバグになる。ネストの葉は`SceneValue.IsEditable`によらず
+  **強制的に`ReadOnly`**にする安全装置を入れた。XAMLは`DataType`ベースの暗黙`DataTemplate`で
+  自己参照的に再帰させ(`HierarchicalDataTemplate`/`TreeView`は使わない、Step 2-1の判断を継続)、
+  展開状態キー・内容署名もパス込みで再帰対応させてStep 1-7と同種の再構築問題の再発を防いだ。
+  編集対応は実データが無いため次段階へ送った。
+- Evidence(この3件込み): 全1308件成功(VSExtension 806件)。ソリューション全体ビルドは0警告0エラー。
+  VS SDK依存部分はCodeVerified止まりで**実機確認が必須**。
+
+## M0053: 実行時状態のComponent分離と、パレット追加時の既定値埋め
+
+- **要求**: 「default代入するようにして / 全てrequireフィールドがコンポーネントの条件にすべきか?」
+  (パレットから追加したComponentがInspectorで「解析待ち…」のまま編集できない実機報告が発端)。
+- **`required`を採用しなかった判断**: 全required化すれば「解析待ち」問題は構造的に消えるが、
+  **`required`と意味のある既定値は排他**である。`Transform`は明示コンストラクタで
+  `RotationW=1f,ScaleX/Y/Z=1f`を設定し、コメントに「`new Transform()`がUnityと同じidentity
+  transformになるための既定値」と意図を明記している。全required化すると`new Transform()`が違法になり、
+  この設計意図が到達不能になる(`FirstPersonStageScene`の約55ノードが全て回転・スケールを
+  書く羽目になる — まさにそのコンストラクタが避けるために存在しているもの)。加えて`Renderer`のような
+  エンジンハンドルにrequiredを付けると`Renderer=null`を全呼び出し箇所で明示させることになり、
+  「エンジンが後で埋める」という設計意図と真逆の記述を強制する。
+- **問題の本体は初期化構文ではなくフィールドの混在だった**: Component構造体が「作者が設定する値」と
+  「エンジンが実行時に埋めるハンドル」を混ぜており、後者をInspectorへ編集可能として並べるのは
+  積極的な誤りだった。型ごと分離すれば残りが「作者が設定すべき全項目」そのものになり、
+  そこへ既定値を撒く話が初めて筋として通る。
+- **属性ではなくマーカーインターフェースにした理由**: `ISystem`が構造的推論の入口である前例と整合し、
+  **作者が書く側の型定義を一切汚さない**(印が付くのは実行時Component側だけ)。パレット除外と
+  SCENE119判定が候補型自身へのO(1)述語で済む。命名規約(`Xxx`↔`XxxRuntime`)は暗黙で、
+  無関係な`FooRuntime`を誤って随伴させうるしリネームで静かに壊れるため却下した。
+- **登録と生成のズレを構造的に防いだ**: 随伴付与は`BuildEffectiveComponents`という
+  `Parent`/`SceneNodeTag`と同じ1箇所で行い、対応表は`Collect`と`EmitNode`の両方へ**引数で**渡す。
+  引数なので渡し忘れがコンパイルエラーになり、「1箇所を共有する」不変条件がむしろ強まった。
+- **generic判定に文字列比較を使わなかった**: `IRuntimeComponent<T>`は実装側で型引数が埋まるため、
+  完全修飾名は定義側と一致しない。`Interface.OriginalDefinition`を`SymbolEqualityComparer`で比較する。
+- **既定値埋めがコンストラクタ既定値を潰す罠を先に潰した**: 素朴に全フィールドへ`default`を撒くと
+  `Transform`の`RotationW`/`Scale`が0になり、identity transformでなくなる。パラメータなし
+  コンストラクタ本体の`this.X=<定数>;`の並びを構文で読み、そのメンバーはコンストラクタの式を写す。
+  単純代入の並びとして読めなければ`new T()`へ安全に縮退する(既定値を取り違えるくらいなら書かない)。
+- **調査でスコープが縮んだ**: 当初「全フィールドが実行時状態の型(`Renderable`/`FramePresent`)を
+  どう割るか」が難所と見ていたが、全Scene宣言を調べた結果**そもそも作者が書く型ではなく**
+  `World.Create`だけで作られると判明し、非generic版を実装させるだけで済んだ。
+  また`Level`の6フィールドが宣言側・実装側とも完全に未使用の死んだフィールドだと分かり削除した。
+- Evidence: 全1321件成功(VSExtension 814件、CodeAnalysis 104件、SceneModel 114件。+12件)。
+  ソリューション全体ビルドは0警告0エラー。生成コードで随伴付与を実際に確認済み。
+  Component型は18→20種で`MaxComponentTypes=64`に余裕あり。**`FirstPersonStageScene.cs`は無変更**
+  (Scene宣言が実行時フィールドを1つも書いていなかったため)。
+- **正直に記録すべき限界**: この分離で`Renderer is null`の判別ロジックは**消えない**。随伴付与により
+  作者側Entityも`*Runtime`(`Renderer=null`)を持つため、`LevelLoad`の判別が
+  `Runtime.Renderer is null`へ移っただけである。得られたのは編集面の正しさであって、
+  実行時ロジックの単純化ではない。
+- **意図的にやらなかったこと**: パレット追加値の即時反映(`TryApplyAddComponent`が式をパースして
+  メモリ内Componentへ型付きMembersを載せる設計。Compilationを適用経路まで引き回す変更が要る)、
+  既存Component型への`required`一括適用、ネストした値の分解編集。

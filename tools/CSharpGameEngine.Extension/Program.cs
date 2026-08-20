@@ -21,13 +21,13 @@ static bool IsHelp(string Arg)=>
     string.Equals(Arg,"help",StringComparison.OrdinalIgnoreCase);
 
 static int RunViewer(string[]Args){
-    ViewerOptionsParseResult ParseResult=ViewerOptionsParser.Parse(Args);
+    var ParseResult=ViewerOptionsParser.Parse(Args);
     if(!ParseResult.Success){
         Console.WriteLine($"FAILED: {ParseResult.Error}");
         return 2;
     }
 
-    ViewerRunOptions Options=ParseResult.Options!;
+    var Options=ParseResult.Options!;
     var ModelPath=ResolveModelPath(Options.ModelPath);
 
     Console.WriteLine($"Product: {ProductDisplayName} ({InternalName}) Viewer");
@@ -44,8 +44,8 @@ static int RunViewer(string[]Args){
 
     var Extension=Path.GetExtension(ModelPath);
     if(string.Equals(Extension,".fbx",StringComparison.OrdinalIgnoreCase)){
-        CSharpGameEngine.Import.Fbx.FbxImportResult FbxResult=FbxImporter.Import(ModelPath);
-        foreach(CSharpGameEngine.Import.Fbx.FbxImportDiagnostic Diagnostic in FbxResult.Diagnostics){
+        var FbxResult=FbxImporter.Import(ModelPath);
+        foreach(var Diagnostic in FbxResult.Diagnostics){
             Console.WriteLine($"  {Diagnostic}");
         }
 
@@ -54,7 +54,7 @@ static int RunViewer(string[]Args){
             return 1;
         }
 
-        CSharpGameEngine.Import.Fbx.ImportedMesh FbxMesh=FbxResult.Mesh!;
+        var FbxMesh=FbxResult.Mesh!;
         Positions=FbxMesh.Positions;
         Normals=FbxMesh.Normals;
         Uvs=FbxMesh.Uvs;
@@ -64,8 +64,8 @@ static int RunViewer(string[]Args){
         BoundsCenter=FbxMesh.Bounds.Center;
         BoundsRadius=FbxMesh.Bounds.BoundingSphereRadius;
     } else {
-        CSharpGameEngine.Import.Gltf.GltfImportResult GltfResult=GltfImporter.Import(ModelPath);
-        foreach(CSharpGameEngine.Import.Gltf.GltfImportDiagnostic Diagnostic in GltfResult.Diagnostics){
+        var GltfResult=GltfImporter.Import(ModelPath);
+        foreach(var Diagnostic in GltfResult.Diagnostics){
             Console.WriteLine($"  {Diagnostic}");
         }
 
@@ -74,7 +74,7 @@ static int RunViewer(string[]Args){
             return 1;
         }
 
-        CSharpGameEngine.Import.Gltf.ImportedMesh GltfMesh=GltfResult.Mesh!;
+        var GltfMesh=GltfResult.Mesh!;
         Positions=GltfMesh.Positions;
         Normals=GltfMesh.Normals;
         Uvs=GltfMesh.Uvs;
@@ -121,7 +121,7 @@ static int RunViewer(string[]Args){
     Console.WriteLine($"Back buffer format: {ModelRenderer.BackBufferFormat}, depth format: {ModelRenderer.DepthBufferFormat}, {Options.Width}x{Options.Height}");
     Console.WriteLine($"Debug layer: {(Renderer.DebugLayerEnabled?"enabled":"disabled")}{(Renderer.GpuBasedValidationEnabled?" (+GPU-based validation)":string.Empty)}");
     Console.WriteLine($"Shader compilation: {(Renderer.ShaderCompilationSucceeded?"OK":"FAILED")} ({Renderer.ShaderDiagnostics.Count} diagnostic(s))");
-    foreach(HlslDiagnostic Diagnostic in Renderer.ShaderDiagnostics){
+    foreach(var Diagnostic in Renderer.ShaderDiagnostics){
         Console.WriteLine($"  {Diagnostic}");
     }
 
@@ -155,7 +155,7 @@ static int RunViewer(string[]Args){
                 Console.WriteLine("Verification: FAILED (no frame was captured for readback).");
                 ExitCode=1;
             } else {
-                ModelVerificationResult Verification=ModelPixelVerifier.Verify(Renderer.LastCapturedFrame,ModelRenderer.ClearColor);
+                var Verification=ModelPixelVerifier.Verify(Renderer.LastCapturedFrame,ModelRenderer.ClearColor);
                 Console.WriteLine($"Verification: {(Verification.Success?"PASSED":"FAILED")} - {Verification.Details}");
                 if(!Verification.Success){
                     ExitCode=1;
@@ -166,7 +166,7 @@ static int RunViewer(string[]Args){
         var ErrorMessageCount=Renderer.ErrorOrWorseMessageCount;
         Console.WriteLine($"D3D12 validation errors: {ErrorMessageCount}");
         if(ErrorMessageCount>0){
-            foreach(D3D12DebugMessage Message in Renderer.DebugMessages){
+            foreach(var Message in Renderer.DebugMessages){
                 if(Message.IsErrorOrWorse){
                     Console.WriteLine($"  {Message}");
                 }

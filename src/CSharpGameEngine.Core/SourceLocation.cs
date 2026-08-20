@@ -29,28 +29,26 @@ public readonly struct SourceLocation:IEquatable<SourceLocation>{
     /// </summary>
     public int Column { get;}
 
-    public bool IsUnknown=>FilePath is null&&Line==0&&Column==0;
+    public bool IsUnknown=> this.FilePath is null&& this.Line==0&& this.Column==0;
 
     public override string ToString(){
-        if(IsUnknown){
+        if(this.IsUnknown){
             return "<unknown>";
         }
 
-        if(FilePath is null){
-            return $"(Line: {Line}, Column: {Column})";
+        if(this.FilePath is null){
+            return $"(Line: {this.Line}, Column: {this.Column})";
         }
 
-        return $"{FilePath}({Line},{Column})";
+        return $"{this.FilePath}({this.Line},{this.Column})";
     }
 
     public bool Equals(SourceLocation Other)=>
-        StringComparer.Ordinal.Equals(FilePath,Other.FilePath)&&
-        Line==Other.Line&&
-        Column==Other.Column;
+        StringComparer.Ordinal.Equals(this.FilePath,Other.FilePath)&& this.Line==Other.Line&& this.Column==Other.Column;
 
-    public override bool Equals(object?Obj)=>Obj is SourceLocation Other&&Equals(Other);
+    public override bool Equals(object?Obj)=>Obj is SourceLocation Other&& this.Equals(Other);
 
-    public override int GetHashCode()=>HashCode.Combine(StringComparer.Ordinal.GetHashCode(FilePath??string.Empty),Line,Column);
+    public override int GetHashCode()=>HashCode.Combine(StringComparer.Ordinal.GetHashCode(this.FilePath??string.Empty), this.Line, this.Column);
 
     public static bool operator==(SourceLocation Left,SourceLocation Right)=>Left.Equals(Right);
 

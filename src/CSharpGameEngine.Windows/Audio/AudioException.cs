@@ -5,7 +5,7 @@ public sealed class AudioException:Exception {
     public AudioException(string Api,int Hresult,string Context,string?Subject=null)
         :base(FormatMessage(Api,Hresult,Context,Subject)){
         this.Api= Api;
-        HResult=Hresult;
+        this.HResult=Hresult;
     }
 
     public string Api { get;}

@@ -17,7 +17,7 @@ public sealed class SceneViewStateTests {
     private readonly FakeWritableSettingsStore Store=new();
 
     public SceneViewStateTests(MockedVsFixture Fixture)=>
-        SceneEditorSettings.ConfigureStoreProvider(()=>Store);
+        SceneEditorSettings.ConfigureStoreProvider(()=> this.Store);
 
     /// <summary>
     /// M0030 / M0020残課題R1。ドラッグ操作中に実際に使われるのは<see cref="SceneCameraFraming"/>ではなく
@@ -33,7 +33,7 @@ public sealed class SceneViewStateTests {
             FocusDistance=FocusDistance,LastKnownBoundsRadius=BoundsRadius,
             ProjectionMode=SceneProjectionMode.Perspective };
 
-        (float Near,float Far)=SceneCameraFramingTests.ReadPerspectiveDepthRange(State.GetProjection(1.6f));
+        (var Near,var Far)=SceneCameraFramingTests.ReadPerspectiveDepthRange(State.GetProjection(1.6f));
 
         Assert.True(Near>0f,$"near {Near} must be positive");
         Assert.True(Near<Far,$"near {Near} must stay in front of far {Far}");
@@ -49,21 +49,21 @@ public sealed class SceneViewStateTests {
             FocusDistance=500f,LastKnownBoundsRadius=400f,OrthographicSize=20f,
             ProjectionMode=SceneProjectionMode.Orthographic };
 
-        Matrix4x4 Projection=State.GetProjection(1.6f);
+        var Projection=State.GetProjection(1.6f);
 
         // CreateOrthographic: M33=1/(near-far)、M43=near/(near-far)。
-        float Near=Projection.M43/Projection.M33;
+        var Near=Projection.M43/Projection.M33;
         Assert.Equal(SceneCameraFraming.BaseNearPlane,Near,Precision);
     }
 
     [Fact]
     public void Fly_LookOnly_KeepsEyeFixed_WhileYawPitchChange(){
         SceneViewState State=new(){ FocusPosition=new Vector3(1f,2f,3f),FocusDistance=5f,Yaw=0.2f,Pitch=0.1f };
-        Vector3 EyeBefore=State.GetEyePosition();
+        var EyeBefore=State.GetEyePosition();
 
         State.TickFly([],DeltaX:15f,DeltaY:-8f,DeltaTime:1f,Shift:false,Ctrl:false);
 
-        Vector3 EyeAfter=State.GetEyePosition();
+        var EyeAfter=State.GetEyePosition();
         Assert.Equal(EyeBefore.X,EyeAfter.X,Precision);
         Assert.Equal(EyeBefore.Y,EyeAfter.Y,Precision);
         Assert.Equal(EyeBefore.Z,EyeAfter.Z,Precision);
@@ -72,15 +72,15 @@ public sealed class SceneViewStateTests {
     [Fact]
     public void Fly_WKeyHeld_MovesAlongFullForwardIncludingPitch(){
         SceneViewState State=new(){ FocusPosition=Vector3.Zero,FocusDistance=1f,Yaw=0f,Pitch=0.4f };
-        Vector3 EyeBefore=State.GetEyePosition();
+        var EyeBefore=State.GetEyePosition();
 
         State.TickFly([NavigationKey.W],DeltaX:0f,DeltaY:0f,DeltaTime:1f,Shift:false,Ctrl:false);
 
-        Vector3 EyeAfter=State.GetEyePosition();
-        Vector3 Moved=EyeAfter-EyeBefore;
-        Vector3 ExpectedDirection=SceneViewCamera.GetForward(0f,0.4f);
+        var EyeAfter=State.GetEyePosition();
+        var Moved=EyeAfter-EyeBefore;
+        var ExpectedDirection=SceneViewCamera.GetForward(0f,0.4f);
         Assert.True(Moved.Length()>0f);
-        Vector3 ActualDirection=Vector3.Normalize(Moved);
+        var ActualDirection=Vector3.Normalize(Moved);
         Assert.Equal(ExpectedDirection.X,ActualDirection.X,Precision);
         Assert.Equal(ExpectedDirection.Y,ActualDirection.Y,Precision);
         Assert.Equal(ExpectedDirection.Z,ActualDirection.Z,Precision);
@@ -89,14 +89,14 @@ public sealed class SceneViewStateTests {
     [Fact]
     public void Fly_QAndEKeys_MoveAlongWorldUpRegardlessOfPitch(){
         SceneViewState StateUp=new(){ FocusPosition=Vector3.Zero,FocusDistance=1f,Pitch=0.7f };
-        Vector3 EyeBeforeUp=StateUp.GetEyePosition();
+        var EyeBeforeUp=StateUp.GetEyePosition();
         StateUp.TickFly([NavigationKey.E],0f,0f,1f,false,false);
-        Vector3 UpMove=StateUp.GetEyePosition()-EyeBeforeUp;
+        var UpMove=StateUp.GetEyePosition()-EyeBeforeUp;
 
         SceneViewState StateDown=new(){ FocusPosition=Vector3.Zero,FocusDistance=1f,Pitch=0.7f };
-        Vector3 EyeBeforeDown=StateDown.GetEyePosition();
+        var EyeBeforeDown=StateDown.GetEyePosition();
         StateDown.TickFly([NavigationKey.Q],0f,0f,1f,false,false);
-        Vector3 DownMove=StateDown.GetEyePosition()-EyeBeforeDown;
+        var DownMove=StateDown.GetEyePosition()-EyeBeforeDown;
 
         Assert.True(UpMove.Y>0f);
         Assert.Equal(0f,UpMove.X,Precision);
@@ -107,14 +107,14 @@ public sealed class SceneViewStateTests {
     [Fact]
     public void Fly_SpeedScalesWithFocusDistance(){
         SceneViewState Near=new(){ FocusPosition=Vector3.Zero,FocusDistance=1f };
-        Vector3 NearEyeBefore=Near.GetEyePosition();
+        var NearEyeBefore=Near.GetEyePosition();
         Near.TickFly([NavigationKey.W],0f,0f,1f,false,false);
-        float NearMoved=(Near.GetEyePosition()-NearEyeBefore).Length();
+        var NearMoved=(Near.GetEyePosition()-NearEyeBefore).Length();
 
         SceneViewState Far=new(){ FocusPosition=Vector3.Zero,FocusDistance=10f };
-        Vector3 FarEyeBefore=Far.GetEyePosition();
+        var FarEyeBefore=Far.GetEyePosition();
         Far.TickFly([NavigationKey.W],0f,0f,1f,false,false);
-        float FarMoved=(Far.GetEyePosition()-FarEyeBefore).Length();
+        var FarMoved=(Far.GetEyePosition()-FarEyeBefore).Length();
 
         Assert.Equal(10f,FarMoved/NearMoved,Precision);
     }
@@ -122,14 +122,14 @@ public sealed class SceneViewStateTests {
     [Fact]
     public void Fly_ShiftMultipliesSpeedByFour(){
         SceneViewState Normal=new(){ FocusPosition=Vector3.Zero,FocusDistance=1f };
-        Vector3 NormalBefore=Normal.GetEyePosition();
+        var NormalBefore=Normal.GetEyePosition();
         Normal.TickFly([NavigationKey.W],0f,0f,1f,Shift:false,Ctrl:false);
-        float NormalMoved=(Normal.GetEyePosition()-NormalBefore).Length();
+        var NormalMoved=(Normal.GetEyePosition()-NormalBefore).Length();
 
         SceneViewState Fast=new(){ FocusPosition=Vector3.Zero,FocusDistance=1f };
-        Vector3 FastBefore=Fast.GetEyePosition();
+        var FastBefore=Fast.GetEyePosition();
         Fast.TickFly([NavigationKey.W],0f,0f,1f,Shift:true,Ctrl:false);
-        float FastMoved=(Fast.GetEyePosition()-FastBefore).Length();
+        var FastMoved=(Fast.GetEyePosition()-FastBefore).Length();
 
         Assert.Equal(4f,FastMoved/NormalMoved,Precision);
     }
@@ -137,14 +137,14 @@ public sealed class SceneViewStateTests {
     [Fact]
     public void Fly_CtrlMultipliesSpeedByQuarter(){
         SceneViewState Normal=new(){ FocusPosition=Vector3.Zero,FocusDistance=1f };
-        Vector3 NormalBefore=Normal.GetEyePosition();
+        var NormalBefore=Normal.GetEyePosition();
         Normal.TickFly([NavigationKey.W],0f,0f,1f,Shift:false,Ctrl:false);
-        float NormalMoved=(Normal.GetEyePosition()-NormalBefore).Length();
+        var NormalMoved=(Normal.GetEyePosition()-NormalBefore).Length();
 
         SceneViewState Precise=new(){ FocusPosition=Vector3.Zero,FocusDistance=1f };
-        Vector3 PreciseBefore=Precise.GetEyePosition();
+        var PreciseBefore=Precise.GetEyePosition();
         Precise.TickFly([NavigationKey.W],0f,0f,1f,Shift:false,Ctrl:true);
-        float PreciseMoved=(Precise.GetEyePosition()-PreciseBefore).Length();
+        var PreciseMoved=(Precise.GetEyePosition()-PreciseBefore).Length();
 
         Assert.Equal(0.25f,PreciseMoved/NormalMoved,Precision);
     }
@@ -178,7 +178,7 @@ public sealed class SceneViewStateTests {
     [Fact]
     public void Orbit_ChangesYawPitch_FocusPositionUnchanged(){
         SceneViewState State=new(){ FocusPosition=new Vector3(3f,4f,5f),FocusDistance=6f,Yaw=0.1f,Pitch=0.1f };
-        Vector3 FocusBefore=State.FocusPosition;
+        var FocusBefore=State.FocusPosition;
 
         State.ApplyOrbit(20f,10f);
 
@@ -212,13 +212,13 @@ public sealed class SceneViewStateTests {
     [Fact]
     public void Pan_TranslatesFocusAndEyeBySameDelta_ViewDirectionUnchanged(){
         SceneViewState State=new(){ FocusPosition=new Vector3(1f,2f,3f),FocusDistance=4f,Yaw=0.3f,Pitch=0.2f };
-        Vector3 FocusBefore=State.FocusPosition;
-        Vector3 EyeBefore=State.GetEyePosition();
+        var FocusBefore=State.FocusPosition;
+        var EyeBefore=State.GetEyePosition();
 
         State.ApplyPan(30f,-15f);
 
-        Vector3 FocusDelta=State.FocusPosition-FocusBefore;
-        Vector3 EyeDelta=State.GetEyePosition()-EyeBefore;
+        var FocusDelta=State.FocusPosition-FocusBefore;
+        var EyeDelta=State.GetEyePosition()-EyeBefore;
         Assert.Equal(FocusDelta.X,EyeDelta.X,Precision);
         Assert.Equal(FocusDelta.Y,EyeDelta.Y,Precision);
         Assert.Equal(FocusDelta.Z,EyeDelta.Z,Precision);
@@ -228,20 +228,20 @@ public sealed class SceneViewStateTests {
     [Fact]
     public void FollowViewMove_AppliesTotalObjectDeltaFromCapturedViewAndCanRestore(){
         SceneViewState State=new(){ FocusPosition=new Vector3(1f,2f,3f),FocusDistance=4f,Yaw=0.3f,Pitch=0.2f };
-        SceneViewFollowSnapshot Snapshot=SceneViewFollowSnapshot.Capture(State);
-        Vector3 EyeBefore=State.GetEyePosition();
+        var Snapshot=SceneViewFollowSnapshot.Capture(State);
+        var EyeBefore=State.GetEyePosition();
 
         Snapshot.ApplyMove(State,new Vector3(5f,-2f,1f));
 
         Assert.Equal(new Vector3(6f,0f,4f),State.FocusPosition);
-        Vector3 MovedEye=State.GetEyePosition();
-        Vector3 ExpectedMovedEye=EyeBefore+new Vector3(5f,-2f,1f);
+        var MovedEye=State.GetEyePosition();
+        var ExpectedMovedEye=EyeBefore+new Vector3(5f,-2f,1f);
         Assert.Equal(ExpectedMovedEye.X,MovedEye.X,5);
         Assert.Equal(ExpectedMovedEye.Y,MovedEye.Y,5);
         Assert.Equal(ExpectedMovedEye.Z,MovedEye.Z,5);
         Snapshot.Restore(State);
         Assert.Equal(new Vector3(1f,2f,3f),State.FocusPosition);
-        Vector3 RestoredEye=State.GetEyePosition();
+        var RestoredEye=State.GetEyePosition();
         Assert.Equal(EyeBefore.X,RestoredEye.X,5);
         Assert.Equal(EyeBefore.Y,RestoredEye.Y,5);
         Assert.Equal(EyeBefore.Z,RestoredEye.Z,5);
@@ -250,18 +250,18 @@ public sealed class SceneViewStateTests {
     [Fact]
     public void FollowViewRotate_RotatesEyeAndForwardAroundSharedPivot(){
         SceneViewState State=new(){ FocusPosition=Vector3.Zero,FocusDistance=2f,Yaw=0f,Pitch=0f };
-        SceneViewFollowSnapshot Snapshot=SceneViewFollowSnapshot.Capture(State);
-        Vector3 EyeBefore=State.GetEyePosition();
-        Quaternion Delta=Quaternion.CreateFromAxisAngle(Vector3.UnitY,(float)(Math.PI/2d));
+        var Snapshot=SceneViewFollowSnapshot.Capture(State);
+        var EyeBefore=State.GetEyePosition();
+        var Delta=Quaternion.CreateFromAxisAngle(Vector3.UnitY,(float)(Math.PI/2d));
 
         Snapshot.ApplyRotation(State,Vector3.Zero,Delta);
 
-        Vector3 ExpectedEye=Vector3.Transform(EyeBefore,Delta);
+        var ExpectedEye=Vector3.Transform(EyeBefore,Delta);
         Assert.Equal(ExpectedEye.X,State.GetEyePosition().X,3);
         Assert.Equal(ExpectedEye.Y,State.GetEyePosition().Y,3);
         Assert.Equal(ExpectedEye.Z,State.GetEyePosition().Z,3);
-        Vector3 ExpectedForward=Vector3.Transform(Vector3.UnitZ,Delta);
-        Vector3 ActualForward=SceneViewCamera.GetForward(State.Yaw,State.Pitch);
+        var ExpectedForward=Vector3.Transform(Vector3.UnitZ,Delta);
+        var ActualForward=SceneViewCamera.GetForward(State.Yaw,State.Pitch);
         Assert.Equal(ExpectedForward.X,ActualForward.X,3);
         Assert.Equal(ExpectedForward.Y,ActualForward.Y,3);
         Assert.Equal(ExpectedForward.Z,ActualForward.Z,3);
@@ -324,8 +324,8 @@ public sealed class SceneViewStateTests {
             Center,Radius,SceneCameraFraming.ViewDirection,SceneCameraFraming.DefaultFovYRadians,AspectRatio:1f);
 
         Assert.Equal(Center,State.FocusPosition);
-        Vector3 Forward=SceneViewCamera.GetForward(State.Yaw,State.Pitch);
-        Vector3 ExpectedForward=-SceneCameraFraming.ViewDirection;
+        var Forward=SceneViewCamera.GetForward(State.Yaw,State.Pitch);
+        var ExpectedForward=-SceneCameraFraming.ViewDirection;
         Assert.Equal(ExpectedForward.X,Forward.X,Precision);
         Assert.Equal(ExpectedForward.Y,Forward.Y,Precision);
         Assert.Equal(ExpectedForward.Z,Forward.Z,Precision);
@@ -335,7 +335,7 @@ public sealed class SceneViewStateTests {
     public void GetProjection_Perspective_FarScalesWithFocusDistanceButFloorsAtBoundsRadiusTimesTwenty(){
         SceneViewState State=new(){ FocusDistance=1f,LastKnownBoundsRadius=50f };
 
-        Matrix4x4 Projection=State.GetProjection(1f);
+        var Projection=State.GetProjection(1f);
 
         // Far=max(1*20, 50*20)=1000。境界球フロアが効いていることを間接的に確認する
         // (境界球が無い場合は far=20 になり、近い場所のオブジェクトがクリップされてしまう)。
@@ -349,7 +349,7 @@ public sealed class SceneViewStateTests {
             SceneEditorSettings.WriteTransformSpace(SceneTransformSpace.Local);
             SceneEditorSettings.WriteNavigationSpeedMultiplier(3f);
 
-            SceneViewState State=SceneViewState.CreateFromSettings();
+            var State=SceneViewState.CreateFromSettings();
 
             Assert.Equal(SceneTransformSpace.Local,State.TransformSpace);
             Assert.Equal(3f,State.NavigationSpeedMultiplier);
@@ -364,7 +364,7 @@ public sealed class SceneViewStateTests {
             };
 
             Original.SaveToSettings();
-            SceneViewState Restored=SceneViewState.CreateFromSettings();
+            var Restored=SceneViewState.CreateFromSettings();
 
             Assert.Equal(SceneTransformSpace.Local,Restored.TransformSpace);
             Assert.True(Restored.InvertLookY);
@@ -377,7 +377,7 @@ public sealed class SceneViewStateTests {
     [Fact]
     public void ApplyLookPixelLock_SetsYawPitchToSolvedValue(){
         // 画面中央(ローカルaxes=(0,0,1))を注視方向Dwへ厳密に合わせる、最も単純な形。
-        Vector3 AnchorWorldDirection=SceneViewCamera.GetForward(Yaw:0.5f,Pitch:0.2f);
+        var AnchorWorldDirection=SceneViewCamera.GetForward(Yaw:0.5f,Pitch:0.2f);
         SceneViewState State=new(){ Yaw=0f,Pitch=0f };
 
         State.ApplyLookPixelLock(AnchorWorldDirection,CurrentLocalAxes:new Vector3(0f,0f,1f));
@@ -391,17 +391,17 @@ public sealed class SceneViewStateTests {
         SceneViewState State=new(){
             FocusPosition=new Vector3(1f,2f,3f),FocusDistance=10f,Yaw=0.2f,Pitch=0.1f,
         };
-        Vector3 FocusBefore=State.FocusPosition;
-        Vector3 AnchorWorldPoint=State.FocusPosition+new Vector3(3f,1.5f,0f);
+        var FocusBefore=State.FocusPosition;
+        var AnchorWorldPoint=State.FocusPosition+new Vector3(3f,1.5f,0f);
 
         // シードそのままの位置(=アンカーが既に映っている画面座標)を目標にする — Orbitの
         // 不変条件(FocusPositionは変更しない)だけを確認したいので、解自体が難しいケースを
         // 選ぶ必要はない。
-        Matrix4x4 SeedView=State.GetView();
-        Matrix4x4 Projection=State.GetProjection(AspectRatio:800f/600f);
-        Vector4 Clip=Vector4.Transform(new Vector4(AnchorWorldPoint,1f),SeedView*Projection);
-        float TargetScreenX=(Clip.X/Clip.W+1f)*0.5f*800f;
-        float TargetScreenY=(1f-Clip.Y/Clip.W)*0.5f*600f;
+        var SeedView=State.GetView();
+        var Projection=State.GetProjection(AspectRatio:800f/600f);
+        var Clip=Vector4.Transform(new Vector4(AnchorWorldPoint,1f),SeedView*Projection);
+        var TargetScreenX=(Clip.X/Clip.W+1f)*0.5f*800f;
+        var TargetScreenY=(1f-Clip.Y/Clip.W)*0.5f*600f;
 
         State.ApplyOrbitPixelLock(AnchorWorldPoint,TargetScreenX,TargetScreenY,800f,600f,AspectRatio:800f/600f);
 

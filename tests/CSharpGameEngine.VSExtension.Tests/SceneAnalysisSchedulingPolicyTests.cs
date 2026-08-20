@@ -28,10 +28,10 @@ public sealed class SceneAnalysisSchedulingPolicyTests {
 
     [Fact]
     public void OnScheduled_StartsANewWindowWhenNothingIsPending(){
-        TimeSpan Now=TimeSpan.FromSeconds(5);
+        var Now=TimeSpan.FromSeconds(5);
 
-        SceneAnalysisScheduleOutcome Outcome=SceneAnalysisDebouncePolicy.OnScheduled(
-            SceneAnalysisDebouncePolicy.Idle,Now);
+        var Outcome=SceneAnalysisDebouncePolicy.OnScheduled(
+                                                            SceneAnalysisDebouncePolicy.Idle,Now);
 
         Assert.Equal(Now,Outcome.State.PendingSince);
         Assert.Equal(SceneAnalysisDebouncePolicy.Delay,Outcome.Delay);
@@ -43,12 +43,12 @@ public sealed class SceneAnalysisSchedulingPolicyTests {
     /// </summary>
     [Fact]
     public void OnScheduled_KeepsTheOriginalWindowWhileRearming(){
-        TimeSpan Start=TimeSpan.FromSeconds(5);
-        SceneAnalysisDebounceState State=
+        var Start=TimeSpan.FromSeconds(5);
+        var State=
             SceneAnalysisDebouncePolicy.OnScheduled(SceneAnalysisDebouncePolicy.Idle,Start).State;
 
-        SceneAnalysisScheduleOutcome Outcome=SceneAnalysisDebouncePolicy.OnScheduled(
-            State,Start+TimeSpan.FromMilliseconds(100));
+        var Outcome=SceneAnalysisDebouncePolicy.OnScheduled(
+                                                            State,Start+TimeSpan.FromMilliseconds(100));
 
         Assert.Equal(Start,Outcome.State.PendingSince);
     }
@@ -56,12 +56,12 @@ public sealed class SceneAnalysisSchedulingPolicyTests {
     /// <summary>上限に達したら即発火する。ただし窓はまだ閉じない(タイマは武装中)。</summary>
     [Fact]
     public void OnScheduled_FiresImmediatelyAtTheCapButKeepsTheWindowArmed(){
-        TimeSpan Start=TimeSpan.FromSeconds(5);
-        SceneAnalysisDebounceState State=
+        var Start=TimeSpan.FromSeconds(5);
+        var State=
             SceneAnalysisDebouncePolicy.OnScheduled(SceneAnalysisDebouncePolicy.Idle,Start).State;
 
-        SceneAnalysisScheduleOutcome Outcome=SceneAnalysisDebouncePolicy.OnScheduled(
-            State,Start+SceneAnalysisDebouncePolicy.MaxDelay);
+        var Outcome=SceneAnalysisDebouncePolicy.OnScheduled(
+                                                            State,Start+SceneAnalysisDebouncePolicy.MaxDelay);
 
         Assert.Equal(TimeSpan.Zero,Outcome.Delay);
         Assert.NotNull(Outcome.State.PendingSince);
@@ -69,12 +69,12 @@ public sealed class SceneAnalysisSchedulingPolicyTests {
 
     [Fact]
     public void OnScheduled_NeverWaitsPastTheCap(){
-        TimeSpan Start=TimeSpan.FromSeconds(5);
-        SceneAnalysisDebounceState State=
+        var Start=TimeSpan.FromSeconds(5);
+        var State=
             SceneAnalysisDebouncePolicy.OnScheduled(SceneAnalysisDebouncePolicy.Idle,Start).State;
-        TimeSpan Now=Start+SceneAnalysisDebouncePolicy.MaxDelay-TimeSpan.FromMilliseconds(100);
+        var Now=Start+SceneAnalysisDebouncePolicy.MaxDelay-TimeSpan.FromMilliseconds(100);
 
-        SceneAnalysisScheduleOutcome Outcome=SceneAnalysisDebouncePolicy.OnScheduled(State,Now);
+        var Outcome=SceneAnalysisDebouncePolicy.OnScheduled(State,Now);
 
         Assert.Equal(TimeSpan.FromMilliseconds(100),Outcome.Delay);
         Assert.True(Now-Start+Outcome.Delay<=SceneAnalysisDebouncePolicy.MaxDelay);
@@ -83,10 +83,10 @@ public sealed class SceneAnalysisSchedulingPolicyTests {
     /// <summary>Scene Designer自身の書き込み直後はまとめる理由が無いので待たない。</summary>
     [Fact]
     public void OnScheduled_ImmediateReturnsZeroAndStillArmsTheWindow(){
-        TimeSpan Now=TimeSpan.FromSeconds(5);
+        var Now=TimeSpan.FromSeconds(5);
 
-        SceneAnalysisScheduleOutcome Outcome=SceneAnalysisDebouncePolicy.OnScheduled(
-            SceneAnalysisDebouncePolicy.Idle,Now,Immediate:true);
+        var Outcome=SceneAnalysisDebouncePolicy.OnScheduled(
+                                                            SceneAnalysisDebouncePolicy.Idle,Now,Immediate:true);
 
         Assert.Equal(TimeSpan.Zero,Outcome.Delay);
         Assert.Equal(Now,Outcome.State.PendingSince);
@@ -94,12 +94,12 @@ public sealed class SceneAnalysisSchedulingPolicyTests {
 
     [Fact]
     public void OnScheduled_ImmediateDoesNotResetAnExistingWindow(){
-        TimeSpan Start=TimeSpan.FromSeconds(5);
-        SceneAnalysisDebounceState State=
+        var Start=TimeSpan.FromSeconds(5);
+        var State=
             SceneAnalysisDebouncePolicy.OnScheduled(SceneAnalysisDebouncePolicy.Idle,Start).State;
 
-        SceneAnalysisScheduleOutcome Outcome=SceneAnalysisDebouncePolicy.OnScheduled(
-            State,Start+TimeSpan.FromMilliseconds(100),Immediate:true);
+        var Outcome=SceneAnalysisDebouncePolicy.OnScheduled(
+                                                            State,Start+TimeSpan.FromMilliseconds(100),Immediate:true);
 
         Assert.Equal(Start,Outcome.State.PendingSince);
     }
@@ -107,16 +107,16 @@ public sealed class SceneAnalysisSchedulingPolicyTests {
     /// <summary>窓を閉じるのは解析の<b>開始</b>だけ(完走ではない)。</summary>
     [Fact]
     public void OnStarted_ClosesTheWindow(){
-        SceneAnalysisDebounceState State=SceneAnalysisDebouncePolicy
-            .OnScheduled(SceneAnalysisDebouncePolicy.Idle,TimeSpan.FromSeconds(5)).State;
+        var State=SceneAnalysisDebouncePolicy
+                 .OnScheduled(SceneAnalysisDebouncePolicy.Idle,TimeSpan.FromSeconds(5)).State;
 
         Assert.Null(SceneAnalysisDebouncePolicy.OnStarted(State).PendingSince);
     }
 
     [Fact]
     public void OnStarted_IsIdempotent(){
-        SceneAnalysisDebounceState Once=SceneAnalysisDebouncePolicy.OnStarted(
-            SceneAnalysisDebouncePolicy.Idle);
+        var Once=SceneAnalysisDebouncePolicy.OnStarted(
+                                                       SceneAnalysisDebouncePolicy.Idle);
 
         Assert.Null(SceneAnalysisDebouncePolicy.OnStarted(Once).PendingSince);
     }
@@ -124,11 +124,11 @@ public sealed class SceneAnalysisSchedulingPolicyTests {
     /// <summary>単調でない時計(経過が負)でも上限判定が壊れないこと。</summary>
     [Fact]
     public void OnScheduled_ClampsANonMonotonicClockToZeroElapsed(){
-        SceneAnalysisDebounceState State=SceneAnalysisDebouncePolicy
-            .OnScheduled(SceneAnalysisDebouncePolicy.Idle,TimeSpan.FromSeconds(10)).State;
+        var State=SceneAnalysisDebouncePolicy
+                 .OnScheduled(SceneAnalysisDebouncePolicy.Idle,TimeSpan.FromSeconds(10)).State;
 
-        SceneAnalysisScheduleOutcome Outcome=SceneAnalysisDebouncePolicy.OnScheduled(
-            State,TimeSpan.FromSeconds(1));
+        var Outcome=SceneAnalysisDebouncePolicy.OnScheduled(
+                                                            State,TimeSpan.FromSeconds(1));
 
         Assert.Equal(SceneAnalysisDebouncePolicy.Delay,Outcome.Delay);
     }
@@ -153,15 +153,15 @@ public sealed class SceneAnalysisSchedulingPolicyTests {
     /// </summary>
     [Fact]
     public void Debounce_DoesNotDegenerateToZeroWhenEveryAnalysisIsSuperseded(){
-        TimeSpan Interval=TimeSpan.FromMilliseconds(100);
-        TimeSpan Total=TimeSpan.FromSeconds(10);
-        SceneAnalysisDebounceState State=SceneAnalysisDebouncePolicy.Idle;
-        int ImmediateFireCount=0;
-        int Steps=0;
+        var Interval=TimeSpan.FromMilliseconds(100);
+        var Total=TimeSpan.FromSeconds(10);
+        var State=SceneAnalysisDebouncePolicy.Idle;
+        var ImmediateFireCount=0;
+        var Steps=0;
 
-        for(TimeSpan Now=TimeSpan.Zero;Now<Total;Now+=Interval){
+        for(var Now=TimeSpan.Zero;Now<Total;Now+=Interval){
             Steps++;
-            SceneAnalysisScheduleOutcome Outcome=SceneAnalysisDebouncePolicy.OnScheduled(State,Now);
+            var Outcome=SceneAnalysisDebouncePolicy.OnScheduled(State,Now);
             State=Outcome.State;
             if(Outcome.Delay!=TimeSpan.Zero){
                 continue;
@@ -172,7 +172,7 @@ public sealed class SceneAnalysisSchedulingPolicyTests {
             State=SceneAnalysisDebouncePolicy.OnStarted(State);
         }
 
-        int Allowed=(int)(Total.TotalMilliseconds/SceneAnalysisDebouncePolicy.MaxDelay.TotalMilliseconds)+1;
+        var Allowed=(int)(Total.TotalMilliseconds/SceneAnalysisDebouncePolicy.MaxDelay.TotalMilliseconds)+1;
         Assert.Equal(100,Steps);
         Assert.True(
             ImmediateFireCount<=Allowed,
@@ -185,15 +185,15 @@ public sealed class SceneAnalysisSchedulingPolicyTests {
     /// </summary>
     [Fact]
     public void Debounce_ReturnsToTheNormalDelayAfterAnAnalysisStarts(){
-        TimeSpan Start=TimeSpan.FromSeconds(5);
-        SceneAnalysisDebounceState State=
+        var Start=TimeSpan.FromSeconds(5);
+        var State=
             SceneAnalysisDebouncePolicy.OnScheduled(SceneAnalysisDebouncePolicy.Idle,Start).State;
         State=SceneAnalysisDebouncePolicy.OnScheduled(
             State,Start+SceneAnalysisDebouncePolicy.MaxDelay).State;
         State=SceneAnalysisDebouncePolicy.OnStarted(State);
 
-        SceneAnalysisScheduleOutcome Outcome=SceneAnalysisDebouncePolicy.OnScheduled(
-            State,Start+SceneAnalysisDebouncePolicy.MaxDelay+TimeSpan.FromMilliseconds(10));
+        var Outcome=SceneAnalysisDebouncePolicy.OnScheduled(
+                                                            State,Start+SceneAnalysisDebouncePolicy.MaxDelay+TimeSpan.FromMilliseconds(10));
 
         Assert.Equal(SceneAnalysisDebouncePolicy.Delay,Outcome.Delay);
     }

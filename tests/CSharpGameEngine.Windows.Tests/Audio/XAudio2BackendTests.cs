@@ -14,17 +14,17 @@ public class XAudio2BackendTests {
     [WindowsOnlyFact]
     [Trait("Category","Audio")]
     public void CreateEngine_ThenDestroy_DoesNotThrow(){
-        XAudio2EngineHandle Engine=AudioBackend<XAudio2Backend,XAudio2EngineHandle,XAudio2VoiceHandle>.CreateEngine();
+        var Engine=AudioBackend<XAudio2Backend,XAudio2EngineHandle,XAudio2VoiceHandle>.CreateEngine();
         AudioBackend<XAudio2Backend,XAudio2EngineHandle,XAudio2VoiceHandle>.DestroyEngine(Engine);
     }
 
     [WindowsOnlyFact]
     [Trait("Category","Audio")]
     public void FullPlaybackLifecycle_DoesNotThrow(){
-        XAudio2EngineHandle Engine=AudioBackend<XAudio2Backend,XAudio2EngineHandle,XAudio2VoiceHandle>.CreateEngine();
+        var Engine=AudioBackend<XAudio2Backend,XAudio2EngineHandle,XAudio2VoiceHandle>.CreateEngine();
 
         try {
-            XAudio2VoiceHandle Voice=AudioBackend<XAudio2Backend,XAudio2EngineHandle,XAudio2VoiceHandle>.CreateVoice(Engine,SampleRate:44100,Channels:1);
+            var Voice=AudioBackend<XAudio2Backend,XAudio2EngineHandle,XAudio2VoiceHandle>.CreateVoice(Engine,SampleRate:44100,Channels:1);
             var Samples=ProceduralAudioClip.GenerateSineWave(440f,0.1f,44100);
 
             Voice=AudioBackend<XAudio2Backend,XAudio2EngineHandle,XAudio2VoiceHandle>.SubmitBuffer(Voice,Samples,Loop:true);

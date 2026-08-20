@@ -14,11 +14,11 @@ namespace CSharpGameEngine.VSExtension.Tests;
 /// <c>Application</c>生成で例外になる)。
 /// </summary>
 public sealed class MockedVsFixture:IDisposable {
-    public MockedVsFixture()=>ServiceProvider.Reset();
+    public MockedVsFixture()=> this.ServiceProvider.Reset();
 
     internal GlobalServiceProvider ServiceProvider { get; } = new();
 
-    public void Dispose()=>ServiceProvider.Dispose();
+    public void Dispose()=> this.ServiceProvider.Dispose();
 }
 
 /// <summary><see cref="MockedVsFixture"/>を共有する全テストクラスが<c>[Collection(Name)]</c>で参照する。</summary>
@@ -46,7 +46,7 @@ public sealed class SceneEditorSettingsTests {
     private readonly FakeWritableSettingsStore Store=new();
 
     public SceneEditorSettingsTests(MockedVsFixture Fixture)=>
-        SceneEditorSettings.ConfigureStoreProvider(()=>Store);
+        SceneEditorSettings.ConfigureStoreProvider(()=> this.Store);
 
     [Fact]
     public void WriteThenReadTransformSpace_RoundTrips()=>RunOnUiThread(()=>{

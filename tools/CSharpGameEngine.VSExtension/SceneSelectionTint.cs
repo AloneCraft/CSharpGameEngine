@@ -37,7 +37,7 @@ internal static class SceneSelectionTint {
             return UnselectedWeight;
         }
 
-        foreach(NodePath Selected in SelectedPaths){
+        foreach(var Selected in SelectedPaths){
             if(Candidate.Equals(Selected)){
                 return SecondaryWeight;
             }

@@ -30,7 +30,7 @@ internal sealed class FabDownloadWatcher:IDisposable {
 
     public string WatchedFolder { get;}
 
-    public bool IsRunning=>Watcher.EnableRaisingEvents;
+    public bool IsRunning=> this.Watcher.EnableRaisingEvents;
 
     public FabDownloadWatcher(string WatchedFolder,string DestinationFolder,Action<string>OnFileCopied,Action<string>OnError){
         this.WatchedFolder= WatchedFolder ?? throw new ArgumentNullException(nameof(WatchedFolder));
@@ -40,22 +40,22 @@ internal sealed class FabDownloadWatcher:IDisposable {
 
         Directory.CreateDirectory(DestinationFolder);
 
-        Watcher=new FileSystemWatcher(WatchedFolder){
-            NotifyFilter=NotifyFilters.FileName|NotifyFilters.LastWrite,
-            IncludeSubdirectories=false,
-        };
-        Watcher.Created+=(_,E)=>HandleCandidate(E.FullPath);
+        this.Watcher=new FileSystemWatcher(WatchedFolder){
+                                                             NotifyFilter=NotifyFilters.FileName|NotifyFilters.LastWrite,
+                                                             IncludeSubdirectories=false,
+                                                         };
+        this.Watcher.Created+=(_,E)=> this.HandleCandidate(E.FullPath);
         // Browsers commonly download to a temp name (e.g. "*.crdownload") and rename to the final
         // name only once the download finishes - Renamed is the reliable "file is actually ready"
         // signal for that case; Created alone would fire on the temp file and/or on a truncated
         // partial write.
-        Watcher.Renamed+=(_,E)=>HandleCandidate(E.FullPath);
-        Watcher.Error+=(_,E)=>OnError(E.GetException()?.Message??"FileSystemWatcher reported an unknown error.");
+        this.Watcher.Renamed+=(_,E)=> this.HandleCandidate(E.FullPath);
+        this.Watcher.Error+=(_,E)=>OnError(E.GetException()?.Message??"FileSystemWatcher reported an unknown error.");
     }
 
-    public void Start()=>Watcher.EnableRaisingEvents=true;
+    public void Start()=> this.Watcher.EnableRaisingEvents=true;
 
-    public void Stop()=>Watcher.EnableRaisingEvents=false;
+    public void Stop()=> this.Watcher.EnableRaisingEvents=false;
 
     private void HandleCandidate(string Path){
         var Extension= System.IO.Path.GetExtension(Path);
@@ -63,7 +63,7 @@ internal sealed class FabDownloadWatcher:IDisposable {
             return;
         }
 
-        ThreadPool.QueueUserWorkItem(_=>CopyWhenReady(Path));
+        ThreadPool.QueueUserWorkItem(_=> this.CopyWhenReady(Path));
     }
 
     private void CopyWhenReady(string SourcePath){
@@ -72,11 +72,11 @@ internal sealed class FabDownloadWatcher:IDisposable {
                 return;
             }
 
-            var DestinationPath=MakeUnique(Path.Combine(DestinationFolder,Path.GetFileName(SourcePath)));
+            var DestinationPath=MakeUnique(Path.Combine(this.DestinationFolder,Path.GetFileName(SourcePath)));
             File.Copy(SourcePath,DestinationPath,overwrite:false);
-            OnFileCopied(DestinationPath);
+            this.OnFileCopied(DestinationPath);
         } catch(Exception Ex) when (Ex is IOException or UnauthorizedAccessException){
-            OnError($"{SourcePath}: {Ex.Message}");
+            this.OnError($"{SourcePath}: {Ex.Message}");
         }
     }
 
@@ -117,5 +117,5 @@ internal sealed class FabDownloadWatcher:IDisposable {
         return Candidate;
     }
 
-    public void Dispose()=>Watcher.Dispose();
+    public void Dispose()=> this.Watcher.Dispose();
 }

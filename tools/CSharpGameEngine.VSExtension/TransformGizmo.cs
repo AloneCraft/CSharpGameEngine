@@ -77,16 +77,16 @@ internal readonly struct MoveGizmoFrame {
     }
 
     internal Vector3 GetAxis(GizmoHandleId Handle)=>Handle switch {
-        GizmoHandleId.AxisX=>AxisX,
-        GizmoHandleId.AxisY=>AxisY,
-        GizmoHandleId.AxisZ=>AxisZ,
+        GizmoHandleId.AxisX=> this.AxisX,
+        GizmoHandleId.AxisY=> this.AxisY,
+        GizmoHandleId.AxisZ=> this.AxisZ,
         _=>throw new ArgumentOutOfRangeException(nameof(Handle)),
     };
 
     internal (Vector3 First,Vector3 Second)GetPlaneAxes(GizmoHandleId Handle)=>Handle switch {
-        GizmoHandleId.PlaneXY=>(AxisX,AxisY),
-        GizmoHandleId.PlaneYZ=>(AxisY,AxisZ),
-        GizmoHandleId.PlaneZX=>(AxisZ,AxisX),
+        GizmoHandleId.PlaneXY=>(this.AxisX, this.AxisY),
+        GizmoHandleId.PlaneYZ=>(this.AxisY, this.AxisZ),
+        GizmoHandleId.PlaneZX=>(this.AxisZ, this.AxisX),
         _=>throw new ArgumentOutOfRangeException(nameof(Handle)),
     };
 }
@@ -360,17 +360,17 @@ internal sealed class MoveGizmoDrag {
 
     internal bool TryUpdate(Vector3 RayOrigin,Vector3 RayDirection,out Vector3 Delta){
         if(!TransformGizmo.TryIntersectPlane(
-            RayOrigin,Vector3.Normalize(RayDirection),Frame.Pivot,ConstraintNormal,out Vector3 Point,out _)){
+            RayOrigin,Vector3.Normalize(RayDirection), this.Frame.Pivot, this.ConstraintNormal,out Vector3 Point,out _)){
             Delta=default;
             return false;
         }
 
-        Vector3 Raw=Point-StartPoint;
-        if(Handle is GizmoHandleId.AxisX or GizmoHandleId.AxisY or GizmoHandleId.AxisZ){
-            Vector3 Axis=Frame.GetAxis(Handle);
+        Vector3 Raw=Point- this.StartPoint;
+        if(this.Handle is GizmoHandleId.AxisX or GizmoHandleId.AxisY or GizmoHandleId.AxisZ){
+            Vector3 Axis= this.Frame.GetAxis(this.Handle);
             Delta=Axis*Vector3.Dot(Raw,Axis);
         } else {
-            (Vector3 First,Vector3 Second)=Frame.GetPlaneAxes(Handle);
+            (Vector3 First,Vector3 Second)= this.Frame.GetPlaneAxes(this.Handle);
             Delta=(First*Vector3.Dot(Raw,First))+(Second*Vector3.Dot(Raw,Second));
         }
         return true;

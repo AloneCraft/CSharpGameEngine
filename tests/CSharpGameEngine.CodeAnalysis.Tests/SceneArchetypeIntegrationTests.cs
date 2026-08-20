@@ -102,9 +102,9 @@ public sealed class SceneArchetypeIntegrationTests {
         var TooManySystems=string.Join("\n",Enumerable.Range(0,GameSystemIndexAssigner.MaxComponentTypes+1)
             .Select(static Index=> $"internal struct S{Index} : ISystem {{ public bool Update(ref C{Index} c, ref State state) => true; }}"));
 
-        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
-            "namespace Sample;\n"+TooManyComponents,
-            "using CSharpGameEngine.Entities;\nusing Sample;\nnamespace Game;\n"+TooManySystems);
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(
+                                                              "namespace Sample;\n"+TooManyComponents,
+                                                              "using CSharpGameEngine.Entities;\nusing Sample;\nnamespace Game;\n"+TooManySystems);
 
         Assert.Contains(Result.Diagnostics,static D=>D.Id=="SYSGEN026");
     }
@@ -116,12 +116,92 @@ public sealed class SceneArchetypeIntegrationTests {
         var Systems64=string.Join("\n",Enumerable.Range(0,GameSystemIndexAssigner.MaxComponentTypes)
             .Select(static Index=> $"internal struct S{Index} : ISystem {{ public bool Update(ref C{Index} c, ref State state) => true; }}"));
 
-        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
-            "namespace Sample;\n"+Components64,
-            "using CSharpGameEngine.Entities;\nusing Sample;\nnamespace Game;\n"+Systems64);
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(
+                                                              "namespace Sample;\n"+Components64,
+                                                              "using CSharpGameEngine.Entities;\nusing Sample;\nnamespace Game;\n"+Systems64);
 
         Assert.DoesNotContain(Result.Diagnostics,static D=>D.Id=="SYSGEN026");
     }
+
+    /// <summary>
+    /// M0053: <c>IRuntimeComponent&lt;TAuthored&gt;</c>を実装する型は、作者が<c>TAuthored</c>を宣言した
+    /// Nodeへ<c>Parent</c>/<c>SceneNodeTag</c>と同じ仕組みで自動付与される。
+    /// <b>Archetype登録(Collect)と生成(EmitNode)が同じ集合を導出しないとビルドが壊れる</b>ので、
+    /// 実際に生成されたInstantiateコードに随伴Componentが現れることで両者の一致を確かめる。
+    /// </summary>
+    [Fact]
+    public void RuntimeCompanionComponentIsAttachedAutomatically(){
+        var Scene=GameSystemGeneratorTestHelper.GeneratedText(
+            GameSystemGeneratorTestHelper.RunGenerator([
+                .. GameSystemGeneratorTestHelper.SceneDslSources,
+                Components,
+                RuntimeCompanion,
+                Systems,
+                """
+                using CSharpGameEngine.Entities;
+                using Sample;
+                namespace Game;
+                public partial class MainScene:IScene {
+                    public Node Root=>new() { Components=[new Light { Intensity=1f }] };
+                }
+                """,
+            ]),
+            "Game.MainScene.Scene.g.cs");
+
+        // 作者Componentの直後に随伴Componentが並ぶ。
+        Assert.Contains("global::Sample.Light",Scene);
+        Assert.Contains("new global::Sample.LightRuntime()",Scene);
+    }
+
+    /// <summary>随伴Componentは作者Componentを宣言していないNodeへは付かない。</summary>
+    [Fact]
+    public void RuntimeCompanionComponentIsNotAttachedToUnrelatedNodes(){
+        var Scene=GameSystemGeneratorTestHelper.GeneratedText(
+            GameSystemGeneratorTestHelper.RunGenerator([
+                .. GameSystemGeneratorTestHelper.SceneDslSources,
+                Components,
+                RuntimeCompanion,
+                Systems,
+                """
+                using CSharpGameEngine.Entities;
+                using Sample;
+                namespace Game;
+                public partial class MainScene:IScene {
+                    public Node Root=>new() { Components=[new Transform { X=1f }] };
+                }
+                """,
+            ]),
+            "Game.MainScene.Scene.g.cs");
+
+        Assert.DoesNotContain("LightRuntime",Scene);
+    }
+
+    /// <summary>
+    /// SYSGEN027: 同じ作者Componentを2つの実行時Componentが主張すると、どちらを随伴付与するかが
+    /// 非決定になる。曖昧なまま片方を選ぶより明示的に止める。
+    /// </summary>
+    [Fact]
+    public void Sysgen027_ReportsWhenTwoRuntimeComponentsClaimTheSameAuthoredType(){
+        var Result=GameSystemGeneratorTestHelper.RunGenerator([
+            .. GameSystemGeneratorTestHelper.SceneDslSources,
+            Components,
+            """
+            using CSharpGameEngine.Entities;
+            namespace Sample;
+            public struct LightRuntime : IRuntimeComponent<Light> { public int Handle; }
+            public struct LightRuntimeAgain : IRuntimeComponent<Light> { public int Other; }
+            """,
+            Systems,
+        ]);
+
+        Assert.Contains(Result.Diagnostics,static Diagnostic=>Diagnostic.Id=="SYSGEN027");
+    }
+
+    private const string RuntimeCompanion="""
+        using CSharpGameEngine.Entities;
+        namespace Sample;
+        public struct LightRuntime : IRuntimeComponent<Light> { public int Handle; }
+        """;
 
     private static int CountArchetypes(string TypesText){
         var Count=0;

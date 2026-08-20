@@ -27,8 +27,8 @@ public sealed class SceneDslGeneratorEmissionTests {
         """;
 
     private static string Generate(string SceneSource,string HintName="Game.MainScene.Scene.g.cs"){
-        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
-            [.. GameSystemGeneratorTestHelper.SceneDslSources,Components,SceneSource]);
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(
+                                                              [.. GameSystemGeneratorTestHelper.SceneDslSources,Components,SceneSource]);
         return GameSystemGeneratorTestHelper.GeneratedText(Result,HintName);
     }
 
@@ -188,15 +188,15 @@ public sealed class SceneDslGeneratorEmissionTests {
 
     [Fact]
     public void SceneWithDiagnosticsEmitsNothing(){
-        GeneratorDriverRunResult Result=GameSystemGeneratorTestHelper.RunGenerator(
-            [.. GameSystemGeneratorTestHelper.SceneDslSources,Components,
-            """
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public class MainScene:IScene {
-                public Node Root=>new() { Name="Root" };
-            }
-            """]);
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(
+                                                              [.. GameSystemGeneratorTestHelper.SceneDslSources,Components,
+                                                                  """
+                                                                  using CSharpGameEngine.Entities;
+                                                                  namespace Game;
+                                                                  public class MainScene:IScene {
+                                                                      public Node Root=>new() { Name="Root" };
+                                                                  }
+                                                                  """]);
 
         Assert.DoesNotContain(Result.Results[0].GeneratedSources,static S=>S.HintName=="Game.MainScene.Scene.g.cs");
     }

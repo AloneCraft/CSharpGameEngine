@@ -7,5 +7,5 @@ public enum FbxImportDiagnosticSeverity {
 }
 
 public sealed record FbxImportDiagnostic(FbxImportDiagnosticSeverity Severity,string Message){
-    public override string ToString()=> $"{Severity}: {Message}";
+    public override string ToString()=> $"{this.Severity}: {this.Message}";
 }

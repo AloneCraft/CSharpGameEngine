@@ -36,39 +36,39 @@ internal sealed class RenderSurfaceWindow:IDisposable {
         EnsureClassRegistered();
         this.ParentHwnd=ParentHwnd;
 
-        Hwnd=CreateWindowEx(
-            WS_EX_NOREDIRECTIONBITMAP,
-            ClassName,
-            string.Empty,
-            WS_CHILD|(InitiallyVisible?WS_VISIBLE:0),
-            0,
-            0,
-            Width,
-            Height,
-            ParentHwnd,
-            IntPtr.Zero,
-            GetModuleHandle(null),
-            IntPtr.Zero);
+        this.Hwnd=CreateWindowEx(
+                                 WS_EX_NOREDIRECTIONBITMAP,
+                                 ClassName,
+                                 string.Empty,
+                                 WS_CHILD|(InitiallyVisible?WS_VISIBLE:0),
+                                 0,
+                                 0,
+                                 Width,
+                                 Height,
+                                 ParentHwnd,
+                                 IntPtr.Zero,
+                                 GetModuleHandle(null),
+                                 IntPtr.Zero);
 
-        if(Hwnd==IntPtr.Zero){
+        if(this.Hwnd==IntPtr.Zero){
             var Error=Marshal.GetLastWin32Error();
             throw new InvalidOperationException($"CreateWindowEx failed with Win32 error 0x{Error:X8}.");
         }
 
         lock(Instances){
-            Instances[Hwnd]=this;
+            Instances[this.Hwnd]=this;
         }
     }
 
-    public IntPtr Handle=>Hwnd;
+    public IntPtr Handle=> this.Hwnd;
 
     /// <summary>
     /// 未描画の <c>WS_EX_NOREDIRECTIONBITMAP</c> 子HWNDは、ドッキング先に以前表示されていた
     /// ToolWindowを背面から露出させることがある。RendererがPresent可能な間だけ表示する。
     /// </summary>
     public void SetVisible(bool Visible){
-        if(!Disposed&&Hwnd!=IntPtr.Zero){
-            _=ShowWindow(Hwnd,Visible?SW_SHOWNA:SW_HIDE);
+        if(!this.Disposed&& this.Hwnd!=IntPtr.Zero){
+            _=ShowWindow(this.Hwnd,Visible?SW_SHOWNA:SW_HIDE);
         }
     }
 
@@ -85,30 +85,30 @@ internal sealed class RenderSurfaceWindow:IDisposable {
     /// </para>
     /// </summary>
     public void SetPointerCapture(){
-        if(!Disposed&&Hwnd!=IntPtr.Zero&&GetCapture()!=Hwnd){
-            _=SetCapture(Hwnd);
+        if(!this.Disposed&& this.Hwnd!=IntPtr.Zero&&GetCapture()!= this.Hwnd){
+            _=SetCapture(this.Hwnd);
         }
     }
 
     /// <summary>自分がキャプチャを保持している場合のみ解放する(既に奪われている場合は何もしない)。</summary>
     public void ReleasePointerCapture(){
-        if(!Disposed&&Hwnd!=IntPtr.Zero&&GetCapture()==Hwnd){
+        if(!this.Disposed&& this.Hwnd!=IntPtr.Zero&&GetCapture()== this.Hwnd){
             _=ReleaseCapture();
         }
     }
 
     public void Dispose(){
-        if(Disposed){
+        if(this.Disposed){
             return;
         }
 
-        Disposed=true;
+        this.Disposed=true;
 
         lock(Instances){
-            Instances.Remove(Hwnd);
+            Instances.Remove(this.Hwnd);
         }
 
-        if(Hwnd!=IntPtr.Zero){
+        if(this.Hwnd!=IntPtr.Zero){
             // If this native child window still owns real Win32 keyboard focus when destroyed,
             // Windows leaves focus dangling on a handle that no longer exists and WPF's own focus
             // tracking (Keyboard.FocusedElement) desyncs from the real OS focus state for the rest
@@ -116,23 +116,21 @@ internal sealed class RenderSurfaceWindow:IDisposable {
             // pane is closed, while plain character input (routed differently) keeps working. Hand
             // focus back to the last valid external owner (or the parent as a fallback) before
             // tearing down the native window.
-            IntPtr SurfaceHandle=Hwnd;
-            IntPtr CurrentFocus=GetFocus();
-            bool PreviousIsWindow=LastExternalFocusHwnd!=IntPtr.Zero&&IsWindow(LastExternalFocusHwnd);
-            bool ParentIsWindow=ParentHwnd!=IntPtr.Zero&&IsWindow(ParentHwnd);
-            IntPtr ReturnTarget=RenderSurfaceFocusPolicy.SelectReturnTarget(
-                LastExternalFocusHwnd,
-                PreviousIsWindow,
-                SurfaceHandle,
-                ParentHwnd,
-                ParentIsWindow);
+            var SurfaceHandle= this.Hwnd;
+            var CurrentFocus=GetFocus();
+            var PreviousIsWindow= this.LastExternalFocusHwnd!=IntPtr.Zero&&IsWindow(this.LastExternalFocusHwnd);
+            var ParentIsWindow= this.ParentHwnd!=IntPtr.Zero&&IsWindow(this.ParentHwnd);
+            var ReturnTarget=RenderSurfaceFocusPolicy.SelectReturnTarget(this.LastExternalFocusHwnd,
+                                                                         PreviousIsWindow,
+                                                                         SurfaceHandle, this.ParentHwnd,
+                                                                         ParentIsWindow);
             if(RenderSurfaceFocusPolicy.ShouldRestoreFocus(
                 CurrentFocus,SurfaceHandle,ReturnTarget)){
                 SetFocus(ReturnTarget);
             }
 
             _=DestroyWindow(SurfaceHandle);
-            Hwnd=IntPtr.Zero;
+            this.Hwnd=IntPtr.Zero;
         }
     }
 
@@ -215,7 +213,7 @@ internal sealed class RenderSurfaceWindow:IDisposable {
             return IntPtr.Zero;
         }
 
-        RenderSurfaceFocusAction FocusAction=RenderSurfaceFocusPolicy.GetAction(Msg);
+        var FocusAction=RenderSurfaceFocusPolicy.GetAction(Msg);
 
         if(FocusAction==RenderSurfaceFocusAction.MouseWithoutActivation){
             // MA_NOACTIVATEはマウスイベント自体を捨てず、Surfaceをアクティブ化しない。
@@ -238,15 +236,15 @@ internal sealed class RenderSurfaceWindow:IDisposable {
             }
 
             if(FocusedInstance is not null){
-                bool PreviousIsWindow=WParam!=IntPtr.Zero&&IsWindow(WParam);
-                bool ParentIsWindow=FocusedInstance.ParentHwnd!=IntPtr.Zero
-                    &&IsWindow(FocusedInstance.ParentHwnd);
-                IntPtr ReturnTarget=RenderSurfaceFocusPolicy.SelectReturnTarget(
-                    WParam,
-                    PreviousIsWindow,
-                    HWnd,
-                    FocusedInstance.ParentHwnd,
-                    ParentIsWindow);
+                var PreviousIsWindow=WParam!=IntPtr.Zero&&IsWindow(WParam);
+                var ParentIsWindow=FocusedInstance.ParentHwnd!=IntPtr.Zero
+                                 &&IsWindow(FocusedInstance.ParentHwnd);
+                var ReturnTarget=RenderSurfaceFocusPolicy.SelectReturnTarget(
+                                                                             WParam,
+                                                                             PreviousIsWindow,
+                                                                             HWnd,
+                                                                             FocusedInstance.ParentHwnd,
+                                                                             ParentIsWindow);
                 if(ReturnTarget!=IntPtr.Zero){
                     FocusedInstance.LastExternalFocusHwnd=ReturnTarget;
                     SetFocus(ReturnTarget);

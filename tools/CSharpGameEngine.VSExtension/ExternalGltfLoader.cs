@@ -21,8 +21,8 @@ internal static class ExternalGltfLoader {
         try {
             var Json=ExternalBridgeProcess.RunAndReadJson(BridgeProjectRelativePath,GltfPath,TempJsonPath,RepoRoot,BridgeTimeout,UseResidentServer:true);
 
-            BridgeDocument?Document=JsonSerializer.Deserialize<BridgeDocument>(
-                Json,new JsonSerializerOptions { PropertyNameCaseInsensitive=true });
+            var Document=JsonSerializer.Deserialize<BridgeDocument>(
+                                                                   Json,new JsonSerializerOptions { PropertyNameCaseInsensitive=true });
 
             if(Document is null||!Document.Success){
                 throw new InvalidOperationException("glTFファイルのインポートに失敗しました(詳細はブリッジプロセスの出力を確認してください)。");

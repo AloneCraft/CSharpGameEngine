@@ -14,14 +14,14 @@ namespace CSharpGameEngine.SceneAnalysis.Tests;
 public sealed class SceneModelIdentityTests {
     [Fact]
     public void UsingAlias_ResolvesToTheUnderlyingFullyQualifiedName(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            using Xf=Sample.Transform;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Components=[new Xf()] };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  using Xf=Sample.Transform;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene {
+                                                      public Node Root=>new() { Components=[new Xf()] };
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertNoDiagnostics(Model);
         Assert.Equal("global::Sample.Transform",Model.Root!.Components[0].TypeFullyQualifiedName);
@@ -30,22 +30,22 @@ public sealed class SceneModelIdentityTests {
 
     [Fact]
     public void SameSimpleNameInDifferentNamespaces_AreDistinctComponents(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze([
-            SceneAnalysisTestHelper.CommonComponents,
-            "namespace Other;\npublic struct Transform { public float Scalar; }",
-            """
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() {
-                    Components=[
-                        new Sample.Transform(),
-                        new Other.Transform { Scalar=1f },
-                    ],
-                };
-            }
-            """,
-        ]);
+        var Model=SceneAnalysisTestHelper.Analyze([
+                                                      SceneAnalysisTestHelper.CommonComponents,
+                                                      "namespace Other;\npublic struct Transform { public float Scalar; }",
+                                                      """
+                                                      using CSharpGameEngine.Entities;
+                                                      namespace Game;
+                                                      public partial class MainScene:IScene {
+                                                          public Node Root=>new() {
+                                                              Components=[
+                                                                  new Sample.Transform(),
+                                                                  new Other.Transform { Scalar=1f },
+                                                              ],
+                                                          };
+                                                      }
+                                                      """,
+                                                  ]);
 
         SceneAnalysisTestHelper.AssertNoDiagnostics(Model);
         Assert.Equal(
@@ -55,15 +55,15 @@ public sealed class SceneModelIdentityTests {
 
     [Fact]
     public void AliasedEnumMember_IsEmittedWithTheRealFullyQualifiedName(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            using Pt=Sample.PrimitiveType;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Components=[new PrimitiveMesh { Type=Pt.Sphere }] };
-            }
-            """);
+        var Model=SceneAnalysisTestHelper.Analyze("""
+                                                  using CSharpGameEngine.Entities;
+                                                  using Sample;
+                                                  using Pt=Sample.PrimitiveType;
+                                                  namespace Game;
+                                                  public partial class MainScene:IScene {
+                                                      public Node Root=>new() { Components=[new PrimitiveMesh { Type=Pt.Sphere }] };
+                                                  }
+                                                  """);
 
         SceneAnalysisTestHelper.AssertNoDiagnostics(Model);
         Assert.Equal(
@@ -73,22 +73,22 @@ public sealed class SceneModelIdentityTests {
 
     [Fact]
     public void NestedNamespaces_AreFullyQualified(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze([
-            SceneAnalysisTestHelper.CommonComponents,
-            """
-            namespace Deep.Inner.Most {
-                public struct Marker { public int Value; }
-            }
-            """,
-            """
-            using CSharpGameEngine.Entities;
-            using Deep.Inner.Most;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Components=[new Marker { Value=7 }] };
-            }
-            """,
-        ]);
+        var Model=SceneAnalysisTestHelper.Analyze([
+                                                      SceneAnalysisTestHelper.CommonComponents,
+                                                      """
+                                                      namespace Deep.Inner.Most {
+                                                          public struct Marker { public int Value; }
+                                                      }
+                                                      """,
+                                                      """
+                                                      using CSharpGameEngine.Entities;
+                                                      using Deep.Inner.Most;
+                                                      namespace Game;
+                                                      public partial class MainScene:IScene {
+                                                          public Node Root=>new() { Components=[new Marker { Value=7 }] };
+                                                      }
+                                                      """,
+                                                  ]);
 
         SceneAnalysisTestHelper.AssertNoDiagnostics(Model);
         Assert.Equal("global::Deep.Inner.Most.Marker",Model.Root!.Components[0].TypeFullyQualifiedName);
@@ -97,22 +97,22 @@ public sealed class SceneModelIdentityTests {
 
     [Fact]
     public void SceneClassNameCollidingAcrossNamespaces_ProducesDistinctFullyQualifiedNames(){
-        SceneModel First=SceneAnalysisTestHelper.Analyze([
-            SceneAnalysisTestHelper.CommonComponents,
-            """
-            using CSharpGameEngine.Entities;
-            namespace GameA {
-                public partial class MainScene:IScene {
-                    public Node Root=>new() { Name="A" };
-                }
-            }
-            namespace GameB {
-                public partial class MainScene:IScene {
-                    public Node Root=>new() { Name="B" };
-                }
-            }
-            """,
-        ]);
+        var First=SceneAnalysisTestHelper.Analyze([
+                                                      SceneAnalysisTestHelper.CommonComponents,
+                                                      """
+                                                      using CSharpGameEngine.Entities;
+                                                      namespace GameA {
+                                                          public partial class MainScene:IScene {
+                                                              public Node Root=>new() { Name="A" };
+                                                          }
+                                                      }
+                                                      namespace GameB {
+                                                          public partial class MainScene:IScene {
+                                                              public Node Root=>new() { Name="B" };
+                                                          }
+                                                      }
+                                                      """,
+                                                  ]);
 
         SceneAnalysisTestHelper.AssertNoDiagnostics(First);
 
@@ -122,24 +122,24 @@ public sealed class SceneModelIdentityTests {
 
     [Fact]
     public void FileScopedAndBlockScopedNamespaces_BehaveIdentically(){
-        SceneModel FileScoped=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Components=[new DirectionalLight { Intensity=3f }] };
-            }
-            """);
+        var FileScoped=SceneAnalysisTestHelper.Analyze("""
+                                                       using CSharpGameEngine.Entities;
+                                                       using Sample;
+                                                       namespace Game;
+                                                       public partial class MainScene:IScene {
+                                                           public Node Root=>new() { Components=[new DirectionalLight { Intensity=3f }] };
+                                                       }
+                                                       """);
 
-        SceneModel BlockScoped=SceneAnalysisTestHelper.Analyze("""
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game {
-                public partial class MainScene:IScene {
-                    public Node Root=>new() { Components=[new DirectionalLight { Intensity=3f }] };
-                }
-            }
-            """);
+        var BlockScoped=SceneAnalysisTestHelper.Analyze("""
+                                                        using CSharpGameEngine.Entities;
+                                                        using Sample;
+                                                        namespace Game {
+                                                            public partial class MainScene:IScene {
+                                                                public Node Root=>new() { Components=[new DirectionalLight { Intensity=3f }] };
+                                                            }
+                                                        }
+                                                        """);
 
         SceneAnalysisTestHelper.AssertNoDiagnostics(FileScoped);
         SceneAnalysisTestHelper.AssertNoDiagnostics(BlockScoped);
@@ -151,23 +151,23 @@ public sealed class SceneModelIdentityTests {
 
     [Fact]
     public void PartialSceneDeclaredAcrossTwoFiles_IsAnalyzedFromWhereRootLives(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze([
-            SceneAnalysisTestHelper.CommonComponents,
-            """
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-            }
-            """,
-            """
-            using CSharpGameEngine.Entities;
-            using Sample;
-            namespace Game;
-            public partial class MainScene {
-                public Node Root=>new() { Components=[new DirectionalLight { Intensity=5f }] };
-            }
-            """,
-        ]);
+        var Model=SceneAnalysisTestHelper.Analyze([
+                                                      SceneAnalysisTestHelper.CommonComponents,
+                                                      """
+                                                      using CSharpGameEngine.Entities;
+                                                      namespace Game;
+                                                      public partial class MainScene:IScene {
+                                                      }
+                                                      """,
+                                                      """
+                                                      using CSharpGameEngine.Entities;
+                                                      using Sample;
+                                                      namespace Game;
+                                                      public partial class MainScene {
+                                                          public Node Root=>new() { Components=[new DirectionalLight { Intensity=5f }] };
+                                                      }
+                                                      """,
+                                                  ]);
 
         SceneAnalysisTestHelper.AssertNoDiagnostics(Model);
         Assert.Equal("global::Sample.DirectionalLight",Model.Root!.Components[0].TypeFullyQualifiedName);

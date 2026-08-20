@@ -174,7 +174,15 @@ Undo/Redoは範囲を広げていない — M0037で「ペインを標準コマ�
 
 **修正**: 新規`SceneHubPublicationPolicy`(純粋クラス)で選別してから発行する。未保存編集を持つ
 pin中Sceneと同じ対象、および解析対象が無くなった(null)通知は流さない。別Sceneや未pinのときは
-従来どおり流す(Hierarchyはpinしていない文書のSceneも表示するため)。
+従来どおり流す。
+
+> **M0053で訂正**: この時点の「別Sceneや未pinのときは従来どおり流す(Hierarchyはpinしていない
+> 文書のSceneも表示するため)」という記述は、当時の実装挙動を後から書き写したもので**決定ではなかった**。
+> ADR-0020 §5は「アクティブなドキュメントタブの追跡はしない」と明示しており、同ディレクトリの
+> `SceneCatalogTargetPolicy`も既に「pin中Sceneがアクティブ文書より優先する」と決めている。
+> Hierarchyだけが別の原則で動いていたのが、M0053で修正した「シーン デザイナーで開いているのに
+> Hierarchyが空になる」不具合の正体である。現在の規則は
+> `Docs/Milestones/M0053-Runtime-Component-Separation.md`を参照。
 
 ### 原因C-F: 構造編集の保存自体が壊れていた(テストで発見)
 

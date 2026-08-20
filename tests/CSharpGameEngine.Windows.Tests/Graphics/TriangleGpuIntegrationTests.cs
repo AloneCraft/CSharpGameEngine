@@ -36,7 +36,7 @@ public class TriangleGpuIntegrationTests {
             EnableDebugLayer=true,
         };
 
-        using TriangleRenderer Renderer=TriangleRenderer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath);
+        using var Renderer=TriangleRenderer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath);
 
         Assert.True(Renderer.ShaderCompilationSucceeded,string.Join(Environment.NewLine,Renderer.ShaderDiagnostics));
         Assert.Equal(UseWarp,Renderer.IsWarp);
@@ -51,7 +51,7 @@ public class TriangleGpuIntegrationTests {
         Assert.Equal((uint)TotalFrames,Renderer.FramesRendered);
         Assert.NotNull(Renderer.LastCapturedFrame);
 
-        TriangleVerificationResult Verification=TrianglePixelVerifier.Verify(Renderer.LastCapturedFrame!,TriangleRenderer.ClearColor);
+        var Verification=TrianglePixelVerifier.Verify(Renderer.LastCapturedFrame!,TriangleRenderer.ClearColor);
         Assert.True(Verification.Success,Verification.Details);
 
         Assert.Equal(0,Renderer.ErrorOrWorseMessageCount);
@@ -62,7 +62,7 @@ public class TriangleGpuIntegrationTests {
 
         Assert.NotNull(Renderer.LastCapturedFrame);
         Assert.Equal(128,Renderer.LastCapturedFrame!.Width);
-        TriangleVerificationResult ResizedVerification=TrianglePixelVerifier.Verify(Renderer.LastCapturedFrame,TriangleRenderer.ClearColor);
+        var ResizedVerification=TrianglePixelVerifier.Verify(Renderer.LastCapturedFrame,TriangleRenderer.ClearColor);
         Assert.True(ResizedVerification.Success,ResizedVerification.Details);
 
         Assert.Equal(0,Renderer.ErrorOrWorseMessageCount);

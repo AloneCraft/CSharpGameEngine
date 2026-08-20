@@ -25,10 +25,10 @@ public readonly struct Diagnostic {
     public SourceLocation Location { get;}
 
     public override string ToString(){
-        if(Location.IsUnknown){
-            return $"[{Severity}] {Code}: {Message}";
+        if(this.Location.IsUnknown){
+            return $"[{this.Severity}] {this.Code}: {this.Message}";
         }
 
-        return $"[{Severity}] {Code}: {Message} @ {Location}";
+        return $"[{this.Severity}] {this.Code}: {this.Message} @ {this.Location}";
     }
 }

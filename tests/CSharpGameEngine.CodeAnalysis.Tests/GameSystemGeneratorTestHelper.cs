@@ -40,6 +40,7 @@ internal static class GameSystemGeneratorTestHelper {
         // Bootstrapと同じく常時含める(宣言しない限りArchetypeにはならないので副作用は無い)。
         ReadTestAsset("Parent.cs"),
         ReadTestAsset("SceneNodeTag.cs"),
+        ReadTestAsset("IRuntimeComponent.cs"),
     ];
 
     /// <summary>
@@ -145,17 +146,17 @@ internal static class GameSystemGeneratorTestHelper {
 
     internal static Assembly CompileAndLoad(CSharpCompilation Compilation){
         GeneratorDriver Driver=CSharpGeneratorDriver.Create(new GameSystemGenerator());
-        Driver=Driver.RunGeneratorsAndUpdateCompilation(Compilation,out Compilation OutputCompilation,out ImmutableArray<Diagnostic>GeneratorDiagnostics);
+        Driver=Driver.RunGeneratorsAndUpdateCompilation(Compilation,out var OutputCompilation,out var GeneratorDiagnostics);
 
         if(!GeneratorDiagnostics.IsEmpty){
             throw new InvalidOperationException("Generator diagnostics:\n"+string.Join("\n",GeneratorDiagnostics));
         }
 
         using MemoryStream Stream=new();
-        EmitResult EmitResult=OutputCompilation.Emit(Stream);
+        var EmitResult=OutputCompilation.Emit(Stream);
 
         if(!EmitResult.Success){
-            IEnumerable<Diagnostic>Errors=EmitResult.Diagnostics.Where(D=>D.Severity==DiagnosticSeverity.Error);
+            var Errors=EmitResult.Diagnostics.Where(D=>D.Severity==DiagnosticSeverity.Error);
             throw new InvalidOperationException("Compilation failed:\n"+string.Join("\n",Errors));
         }
 
@@ -164,9 +165,9 @@ internal static class GameSystemGeneratorTestHelper {
 
     /// <summary>この設計の型は<c>internal</c>基調なので、Non-publicも検索対象に含める。</summary>
     internal static object?Invoke(Assembly Assembly,string TypeFullName,string MethodName,params object?[]?Args){
-        Type Type=Assembly.GetType(TypeFullName)??throw new InvalidOperationException($"Type '{TypeFullName}' not found.");
-        MethodInfo Method=Type.GetMethod(MethodName,BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Static)
-            ??throw new InvalidOperationException($"Method '{MethodName}' not found on '{TypeFullName}'.");
+        var Type=Assembly.GetType(TypeFullName)??throw new InvalidOperationException($"Type '{TypeFullName}' not found.");
+        var Method=Type.GetMethod(MethodName,BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Static)
+                 ??throw new InvalidOperationException($"Method '{MethodName}' not found on '{TypeFullName}'.");
         return Method.Invoke(null,Args);
     }
 

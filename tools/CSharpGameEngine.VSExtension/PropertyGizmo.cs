@@ -89,7 +89,8 @@ internal readonly struct PropertyGizmoFrame {
 
     internal float OuterConeAngleRadians { get; }
 
-    internal IReadOnlyList<GizmoHandleId>Handles=>Kind switch {
+    internal IReadOnlyList<GizmoHandleId>Handles=>
+        this.Kind switch {
         PropertyGizmoKind.CameraPerspective=>
             [GizmoHandleId.CameraFov,GizmoHandleId.CameraNear,GizmoHandleId.CameraFar],
         PropertyGizmoKind.CameraOrthographic=>
@@ -104,45 +105,45 @@ internal readonly struct PropertyGizmoFrame {
 
     internal IReadOnlyList<GizmoHandleId>EditableHandles { get; }
 
-    internal bool CanEdit(GizmoHandleId Handle)=>EditableHandles.Contains(Handle);
+    internal bool CanEdit(GizmoHandleId Handle)=> this.EditableHandles.Contains(Handle);
 
     internal Vector3 GetHandlePosition(GizmoHandleId Handle){
-        PropertyGizmoFrame Value=this;
-        float NearDistance=GetDisplayNearDistance();
-        float FarDistance=GetDisplayFarDistance();
-        Vector3 NearCenter=Pivot+(Forward*NearDistance);
-        Vector3 FarCenter=Pivot+(Forward*FarDistance);
-        float FarHalfHeight=GetDisplayHalfHeight(FarDistance);
+        var Value=this;
+        var NearDistance= this.GetDisplayNearDistance();
+        var FarDistance= this.GetDisplayFarDistance();
+        var NearCenter= this.Pivot+(this.Forward*NearDistance);
+        var FarCenter= this.Pivot+(this.Forward*FarDistance);
+        var FarHalfHeight= this.GetDisplayHalfHeight(FarDistance);
         return Handle switch {
-            GizmoHandleId.CameraFov=>FarCenter+(Up*FarHalfHeight),
-            GizmoHandleId.CameraNear=>NearCenter-(Right*(WorldScale*0.18f)),
-            GizmoHandleId.CameraFar=>FarCenter-(Right*(WorldScale*0.18f)),
-            GizmoHandleId.CameraOrthographicSize=>FarCenter+(Up*FarHalfHeight),
-            GizmoHandleId.DirectionalDirection=>Pivot+(Forward*WorldScale),
-            GizmoHandleId.PointRange=>Pivot+(Right*Math.Max(Range,WorldScale*0.2f)),
-            GizmoHandleId.SpotDirection=>Pivot+(Forward*Math.Max(WorldScale*0.55f,Range*0.45f)),
-            GizmoHandleId.SpotInnerCone=>ConeHandle(InnerConeAngleRadians,0.72f),
-            GizmoHandleId.SpotOuterCone=>ConeHandle(OuterConeAngleRadians,0.9f),
-            GizmoHandleId.SpotRange=>Pivot+(Forward*Math.Max(Range,WorldScale*0.2f)),
-            _=>Pivot,
+            GizmoHandleId.CameraFov=>FarCenter+(this.Up*FarHalfHeight),
+            GizmoHandleId.CameraNear=>NearCenter-(this.Right*(this.WorldScale*0.18f)),
+            GizmoHandleId.CameraFar=>FarCenter-(this.Right*(this.WorldScale*0.18f)),
+            GizmoHandleId.CameraOrthographicSize=>FarCenter+(this.Up*FarHalfHeight),
+            GizmoHandleId.DirectionalDirection=> this.Pivot+(this.Forward* this.WorldScale),
+            GizmoHandleId.PointRange=> this.Pivot+(this.Right*Math.Max(this.Range, this.WorldScale*0.2f)),
+            GizmoHandleId.SpotDirection=> this.Pivot+(this.Forward*Math.Max(this.WorldScale*0.55f, this.Range*0.45f)),
+            GizmoHandleId.SpotInnerCone=>ConeHandle(this.InnerConeAngleRadians,0.72f),
+            GizmoHandleId.SpotOuterCone=>ConeHandle(this.OuterConeAngleRadians,0.9f),
+            GizmoHandleId.SpotRange=> this.Pivot+(this.Forward*Math.Max(this.Range, this.WorldScale*0.2f)),
+            _=> this.Pivot,
         };
 
         Vector3 ConeHandle(float Angle,float DistanceFraction){
-            float Distance=Math.Max(Value.Range,Value.WorldScale)*DistanceFraction;
+            var Distance=Math.Max(Value.Range,Value.WorldScale)*DistanceFraction;
             return Value.Pivot+(Value.Forward*(float)Math.Cos(Angle)*Distance)
                 +(Value.Up*(float)Math.Sin(Angle)*Distance);
         }
     }
 
     internal PropertyGizmoFrame ApplyPointerDelta(GizmoHandleId Handle,int DeltaX,int DeltaY,bool Snap){
-        float Fov=FovYRadians;
-        float Near=NearZ;
-        float Far=FarZ;
-        float Ortho=OrthographicSize;
-        float NewRange=Range;
-        float Inner=InnerConeAngleRadians;
-        float Outer=OuterConeAngleRadians;
-        Vector3 NewForward=Forward;
+        var Fov= this.FovYRadians;
+        var Near= this.NearZ;
+        var Far= this.FarZ;
+        var Ortho= this.OrthographicSize;
+        var NewRange= this.Range;
+        var Inner= this.InnerConeAngleRadians;
+        var Outer= this.OuterConeAngleRadians;
+        var NewForward= this.Forward;
         float Vertical=-DeltaY;
         switch(Handle){
             case GizmoHandleId.CameraFov:
@@ -177,32 +178,31 @@ internal readonly struct PropertyGizmoFrame {
                 break;
             case GizmoHandleId.DirectionalDirection:
             case GizmoHandleId.SpotDirection:
-                float Yaw=-DeltaX*0.01f;
-                float Pitch=DeltaY*0.01f;
+                var Yaw=-DeltaX*0.01f;
+                var Pitch=DeltaY*0.01f;
                 if(Snap){
                     Yaw=SnapValue(Yaw,Degrees(15f));
                     Pitch=SnapValue(Pitch,Degrees(15f));
                 }
-                Quaternion Rotation=Quaternion.CreateFromAxisAngle(Up,Yaw)
-                    *Quaternion.CreateFromAxisAngle(Right,Pitch);
-                NewForward=NormalizeOr(Vector3.Transform(Forward,Rotation),Forward);
+                var Rotation=Quaternion.CreateFromAxisAngle(this.Up,Yaw)
+                            *Quaternion.CreateFromAxisAngle(this.Right,Pitch);
+                NewForward=NormalizeOr(Vector3.Transform(this.Forward,Rotation), this.Forward);
                 break;
         }
 
-        (Vector3 NewRight,Vector3 NewUp)=CreatePerpendicularAxes(NewForward,Up);
-        return new PropertyGizmoFrame(
-            Kind,ComponentTypeFullyQualifiedName,Pivot,NewRight,NewUp,NewForward,WorldScale,
-            Fov,Near,Far,Ortho,NewRange,Inner,Outer,EditableHandles);
+        (var NewRight,var NewUp)=CreatePerpendicularAxes(NewForward, this.Up);
+        return new PropertyGizmoFrame(this.Kind, this.ComponentTypeFullyQualifiedName, this.Pivot,NewRight,NewUp,NewForward, this.WorldScale,
+            Fov,Near,Far,Ortho,NewRange,Inner,Outer, this.EditableHandles);
     }
 
-    internal float GetDisplayNearDistance()=>Math.Max(NearZ,WorldScale*0.15f);
+    internal float GetDisplayNearDistance()=>Math.Max(this.NearZ, this.WorldScale*0.15f);
 
-    internal float GetDisplayFarDistance()=>Math.Max(
-        GetDisplayNearDistance()+(WorldScale*0.35f),Math.Min(FarZ,WorldScale*4f));
+    internal float GetDisplayFarDistance()=>Math.Max(this.GetDisplayNearDistance()+(this.WorldScale*0.35f),Math.Min(this.FarZ, this.WorldScale*4f));
 
-    internal float GetDisplayHalfHeight(float Distance)=>Kind==PropertyGizmoKind.CameraOrthographic
-        ?Math.Min(Math.Max(OrthographicSize*0.5f,WorldScale*0.2f),WorldScale*3f)
-        :Math.Min((float)Math.Tan(Clamp(FovYRadians,Degrees(1f),Degrees(179f))*0.5f)*Distance,WorldScale*3f);
+    internal float GetDisplayHalfHeight(float Distance)=>
+        this.Kind==PropertyGizmoKind.CameraOrthographic
+        ?Math.Min(Math.Max(this.OrthographicSize*0.5f, this.WorldScale*0.2f), this.WorldScale*3f)
+        :Math.Min((float)Math.Tan(Clamp(this.FovYRadians,Degrees(1f),Degrees(179f))*0.5f)*Distance, this.WorldScale*3f);
 
     private static float SnapPositive(float Value,float Step)=>Math.Max(Step,SnapValue(Value,Step));
 
@@ -217,10 +217,10 @@ internal readonly struct PropertyGizmoFrame {
 
     private static (Vector3 Right,Vector3 Up)CreatePerpendicularAxes(Vector3 Forward,Vector3 PreferredUp){
         Forward=NormalizeOr(Forward,Vector3.UnitZ);
-        Vector3 Reference=Math.Abs(Vector3.Dot(Forward,PreferredUp))<0.98f?PreferredUp:Vector3.UnitY;
+        var Reference=Math.Abs(Vector3.Dot(Forward,PreferredUp))<0.98f?PreferredUp:Vector3.UnitY;
         if(Math.Abs(Vector3.Dot(Forward,Reference))>=0.98f){ Reference=Vector3.UnitX; }
-        Vector3 Right=NormalizeOr(Vector3.Cross(Reference,Forward),Vector3.UnitX);
-        Vector3 Up=NormalizeOr(Vector3.Cross(Forward,Right),Vector3.UnitY);
+        var Right=NormalizeOr(Vector3.Cross(Reference,Forward),Vector3.UnitX);
+        var Up=NormalizeOr(Vector3.Cross(Forward,Right),Vector3.UnitY);
         return (Right,Up);
     }
 }
@@ -230,12 +230,12 @@ internal static class PropertyGizmoBinding {
     internal static bool TryCreate(
         SceneNode Node,Matrix4x4 NodeWorld,float WorldScale,out PropertyGizmoFrame Frame){
         if(SceneComponentBindings.FindComponent(Node,SceneComponentRole.Camera)is{ }Camera){
-            SceneTransformMath.TryDecompose(NodeWorld,out SceneTransformValue Transform);
-            Quaternion Rotation=Transform.Rotation;
-            Vector3 Forward=Vector3.Transform(Vector3.UnitZ,Rotation);
-            Vector3 Right=Vector3.Transform(Vector3.UnitX,Rotation);
-            Vector3 Up=Vector3.Transform(Vector3.UnitY,Rotation);
-            bool Orthographic=ReadProjection(Camera);
+            SceneTransformMath.TryDecompose(NodeWorld,out var Transform);
+            var Rotation=Transform.Rotation;
+            var Forward=Vector3.Transform(Vector3.UnitZ,Rotation);
+            var Right=Vector3.Transform(Vector3.UnitX,Rotation);
+            var Up=Vector3.Transform(Vector3.UnitY,Rotation);
+            var Orthographic=ReadProjection(Camera);
             GizmoHandleId[]Handles=Orthographic
                 ?[GizmoHandleId.CameraOrthographicSize,GizmoHandleId.CameraNear,GizmoHandleId.CameraFar]
                 :[GizmoHandleId.CameraFov,GizmoHandleId.CameraNear,GizmoHandleId.CameraFar];
@@ -250,9 +250,9 @@ internal static class PropertyGizmoBinding {
         }
 
         if(SceneComponentBindings.FindComponent(Node,SceneComponentRole.SpotLight)is{ }Spot){
-            Vector3 Position=ReadPosition(Spot);
-            Vector3 Direction=ReadDirection(Spot,"Direction",Vector3.UnitZ);
-            (Vector3 Right,Vector3 Up)=CreateAxes(Direction);
+            var Position=ReadPosition(Spot);
+            var Direction=ReadDirection(Spot,"Direction",Vector3.UnitZ);
+            (var Right,var Up)=CreateAxes(Direction);
             GizmoHandleId[]Handles=[GizmoHandleId.SpotDirection,GizmoHandleId.SpotInnerCone,
                 GizmoHandleId.SpotOuterCone,GizmoHandleId.SpotRange];
             Frame=new PropertyGizmoFrame(
@@ -274,9 +274,9 @@ internal static class PropertyGizmoBinding {
         }
 
         if(SceneComponentBindings.FindComponent(Node,SceneComponentRole.DirectionalLight)is{ }Directional){
-            SceneTransformMath.TryDecompose(NodeWorld,out SceneTransformValue Transform);
-            Vector3 Direction=ReadDirection(Directional,"DirectionTowardLight",Vector3.UnitZ);
-            (Vector3 Right,Vector3 Up)=CreateAxes(Direction);
+            SceneTransformMath.TryDecompose(NodeWorld,out var Transform);
+            var Direction=ReadDirection(Directional,"DirectionTowardLight",Vector3.UnitZ);
+            (var Right,var Up)=CreateAxes(Direction);
             Frame=new PropertyGizmoFrame(
                 PropertyGizmoKind.DirectionalLight,Directional.TypeFullyQualifiedName,Transform.Position,
                 Right,Up,Direction,WorldScale,0f,0f,0f,0f,0f,0f,0f,
@@ -335,8 +335,8 @@ internal static class PropertyGizmoBinding {
         };
 
     private static (Vector3 Right,Vector3 Up)CreateAxes(Vector3 Forward){
-        Vector3 Reference=Math.Abs(Vector3.Dot(Forward,Vector3.UnitY))<0.98f?Vector3.UnitY:Vector3.UnitX;
-        Vector3 Right=Vector3.Normalize(Vector3.Cross(Reference,Forward));
+        var Reference=Math.Abs(Vector3.Dot(Forward,Vector3.UnitY))<0.98f?Vector3.UnitY:Vector3.UnitX;
+        var Right=Vector3.Normalize(Vector3.Cross(Reference,Forward));
         return (Right,Vector3.Normalize(Vector3.Cross(Forward,Right)));
     }
 
@@ -346,18 +346,18 @@ internal static class PropertyGizmoBinding {
 internal static class FrustumGizmo {
     internal static IReadOnlyList<GizmoOverlayPrimitive>BuildOverlay(
         in PropertyGizmoFrame Frame,GizmoHandleId?Hovered,GizmoHandleId?Active){
-        PropertyGizmoFrame Value=Frame;
+        var Value=Frame;
         List<GizmoOverlayPrimitive>Primitives=[];
-        float NearDistance=Value.GetDisplayNearDistance();
-        float FarDistance=Value.GetDisplayFarDistance();
-        float NearHalfHeight=Value.GetDisplayHalfHeight(NearDistance);
-        float FarHalfHeight=Value.GetDisplayHalfHeight(FarDistance);
+        var NearDistance=Value.GetDisplayNearDistance();
+        var FarDistance=Value.GetDisplayFarDistance();
+        var NearHalfHeight=Value.GetDisplayHalfHeight(NearDistance);
+        var FarHalfHeight=Value.GetDisplayHalfHeight(FarDistance);
         const float Aspect=16f/9f;
-        Vector3 NearCenter=Value.Pivot+(Value.Forward*NearDistance);
-        Vector3 FarCenter=Value.Pivot+(Value.Forward*FarDistance);
+        var NearCenter=Value.Pivot+(Value.Forward*NearDistance);
+        var FarCenter=Value.Pivot+(Value.Forward*FarDistance);
         Vector4 Color=new(0.25f,0.85f,1f,0.85f);
-        Vector3[]Near=Rectangle(NearCenter,NearHalfHeight*Aspect,NearHalfHeight);
-        Vector3[]Far=Rectangle(FarCenter,FarHalfHeight*Aspect,FarHalfHeight);
+        var Near=Rectangle(NearCenter,NearHalfHeight*Aspect,NearHalfHeight);
+        var Far=Rectangle(FarCenter,FarHalfHeight*Aspect,FarHalfHeight);
         AddLoop(Near,Color);
         AddLoop(Far,Color);
         for(var Index=0;Index<4;Index++){
@@ -401,7 +401,7 @@ internal static class PropertyGizmo {
             return FrustumGizmo.BuildOverlay(Frame,Hovered,Active);
         }
 
-        PropertyGizmoFrame Value=Frame;
+        var Value=Frame;
         List<GizmoOverlayPrimitive>Primitives=[];
         Vector4 Color=new(1f,0.72f,0.18f,0.9f);
         if(Value.Kind==PropertyGizmoKind.PointLight){
@@ -409,7 +409,7 @@ internal static class PropertyGizmo {
         } else if(Value.Kind==PropertyGizmoKind.DirectionalLight){
             AddLine(Value.Pivot,Value.Pivot+(Value.Forward*Value.WorldScale),Color);
         } else {
-            float Range=Math.Max(Value.Range,0.01f);
+            var Range=Math.Max(Value.Range,0.01f);
             AddCone(Value.OuterConeAngleRadians,Range,Color);
             AddCone(Value.InnerConeAngleRadians,Range*0.72f,new Vector4(1f,0.9f,0.35f,0.75f));
             AddLine(Value.Pivot,Value.Pivot+(Value.Forward*Range),Color);
@@ -419,14 +419,14 @@ internal static class PropertyGizmo {
 
         void AddCone(float Angle,float Distance,Vector4 ConeColor){
             const int Segments=20;
-            float Radius=(float)Math.Tan(Math.Max(0f,Angle))*Distance;
-            Vector3 Center=Value.Pivot+(Value.Forward*Distance);
+            var Radius=(float)Math.Tan(Math.Max(0f,Angle))*Distance;
+            var Center=Value.Pivot+(Value.Forward*Distance);
             Vector3?First=null;
             Vector3 Previous=default;
             for(var Index=0;Index<=Segments;Index++){
-                float Radians=Index*(float)(Math.PI*2d/Segments);
-                Vector3 Point=Center+(Value.Right*((float)Math.Cos(Radians)*Radius))
-                    +(Value.Up*((float)Math.Sin(Radians)*Radius));
+                var Radians=Index*(float)(Math.PI*2d/Segments);
+                var Point=Center+(Value.Right*((float)Math.Cos(Radians)*Radius))
+                                +(Value.Up*((float)Math.Sin(Radians)*Radius));
                 if(Index==0){ First=Point; }
                 else { AddLine(Previous,Point,ConeColor); }
                 if(Index%5==0){ AddLine(Value.Pivot,Point,ConeColor); }
@@ -437,11 +437,11 @@ internal static class PropertyGizmo {
 
         void AddRing(Vector3 Center,Vector3 AxisA,Vector3 AxisB,float Radius,Vector4 RingColor){
             const int Segments=24;
-            Vector3 Previous=Center+(AxisA*Radius);
+            var Previous=Center+(AxisA*Radius);
             for(var Index=1;Index<=Segments;Index++){
-                float Radians=Index*(float)(Math.PI*2d/Segments);
-                Vector3 Point=Center+(AxisA*((float)Math.Cos(Radians)*Radius))
-                    +(AxisB*((float)Math.Sin(Radians)*Radius));
+                var Radians=Index*(float)(Math.PI*2d/Segments);
+                var Point=Center+(AxisA*((float)Math.Cos(Radians)*Radius))
+                                +(AxisB*((float)Math.Sin(Radians)*Radius));
                 AddLine(Previous,Point,RingColor);
                 Previous=Point;
             }
@@ -456,14 +456,14 @@ internal static class PropertyGizmo {
         in PropertyGizmoFrame Frame,Vector3 RayOrigin,Vector3 RayDirection){
         RayDirection=Vector3.Normalize(RayDirection);
         GizmoHandleId?Best=null;
-        float BestDistance=float.PositiveInfinity;
-        float Radius=Math.Max(Frame.WorldScale*0.1f,0.04f);
-        foreach(GizmoHandleId Handle in Frame.Handles){
+        var BestDistance=float.PositiveInfinity;
+        var Radius=Math.Max(Frame.WorldScale*0.1f,0.04f);
+        foreach(var Handle in Frame.Handles){
             if(!Frame.CanEdit(Handle)){ continue; }
-            Vector3 Center=Frame.GetHandlePosition(Handle);
-            float Along=Vector3.Dot(Center-RayOrigin,RayDirection);
+            var Center=Frame.GetHandlePosition(Handle);
+            var Along=Vector3.Dot(Center-RayOrigin,RayDirection);
             if(Along<0f){ continue; }
-            float Distance=Vector3.Distance(RayOrigin+(RayDirection*Along),Center);
+            var Distance=Vector3.Distance(RayOrigin+(RayDirection*Along),Center);
             if(Distance<=Radius&&Along<BestDistance){
                 Best=Handle;
                 BestDistance=Along;
@@ -475,15 +475,15 @@ internal static class PropertyGizmo {
     internal static SceneEditOperation[]CreateOperations(
         in PropertyGizmoFrame Frame,GizmoHandleId Handle,SceneKey SceneKey,
         EditorNodeId NodeId,long DocumentVersion,PropertyGizmoFrame? OriginalFrame=null){
-        string ComponentTypeFullyQualifiedName=Frame.ComponentTypeFullyQualifiedName;
-        List<(string Name,float Value)>Members=GetMembers(Frame,Handle);
-        Dictionary<string,float>?OriginalMembers=OriginalFrame is { }Original
-            ?GetMembers(Original,Handle).ToDictionary(static Member=>Member.Name,static Member=>Member.Value)
-            :null;
+        var ComponentTypeFullyQualifiedName=Frame.ComponentTypeFullyQualifiedName;
+        var Members=GetMembers(Frame,Handle);
+        var OriginalMembers=OriginalFrame is { }Original
+                               ?GetMembers(Original,Handle).ToDictionary(static Member=>Member.Name,static Member=>Member.Value)
+                               :null;
         return Members.Select(Member=>(SceneEditOperation)new SetComponentMemberOperation(
             SceneKey,NodeId,DocumentVersion,ComponentTypeFullyQualifiedName,
             Member.Name,FormatFloat(Member.Value),
-            OriginalMembers is not null&&OriginalMembers.TryGetValue(Member.Name,out float OriginalValue)
+            OriginalMembers is not null&&OriginalMembers.TryGetValue(Member.Name,out var OriginalValue)
                 ?FormatFloat(OriginalValue):null)).ToArray();
     }
 
@@ -504,14 +504,14 @@ internal static class PropertyGizmo {
     internal static void AddHandleMarkers(
         List<GizmoOverlayPrimitive>Primitives,in PropertyGizmoFrame Frame,
         GizmoHandleId?Hovered,GizmoHandleId?Active){
-        foreach(GizmoHandleId Handle in Frame.Handles){
-            Vector3 Center=Frame.GetHandlePosition(Handle);
-            float Size=Frame.WorldScale*0.07f;
-            Vector4 Base=Frame.CanEdit(Handle)
-                ?new Vector4(1f,0.75f,0.15f,1f)
-                :new Vector4(0.35f,0.35f,0.35f,0.45f);
-            Vector4 Color=Active==Handle?Vector4.One:
-                Hovered==Handle?Vector4.Lerp(Base,Vector4.One,0.6f):Base;
+        foreach(var Handle in Frame.Handles){
+            var Center=Frame.GetHandlePosition(Handle);
+            var Size=Frame.WorldScale*0.07f;
+            var Base=Frame.CanEdit(Handle)
+                         ?new Vector4(1f,0.75f,0.15f,1f)
+                         :new Vector4(0.35f,0.35f,0.35f,0.45f);
+            var Color=Active==Handle?Vector4.One:
+                      Hovered==Handle?Vector4.Lerp(Base,Vector4.One,0.6f):Base;
             Primitives.Add(new GizmoOverlayPrimitive(GizmoPrimitiveKind.Line,[
                 new GizmoOverlayVertex(Center-(Frame.Right*Size),Color),
                 new GizmoOverlayVertex(Center+(Frame.Right*Size),Color)]));

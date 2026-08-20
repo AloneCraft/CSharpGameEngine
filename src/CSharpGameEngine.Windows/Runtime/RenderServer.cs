@@ -26,14 +26,14 @@ public static class RenderServer {
         IReadOnlyList<PrimitiveType>Types,int MeshIndexOffset,int MaterialIndexOffset){
         List<PrimitiveType>DistinctTypes=[];
         Dictionary<PrimitiveType,int>MeshIndexByType=[];
-        foreach(PrimitiveType Type in Types){
+        foreach(var Type in Types){
             if(!MeshIndexByType.ContainsKey(Type)){
                 MeshIndexByType[Type]=DistinctTypes.Count;
                 DistinctTypes.Add(Type);
             }
         }
 
-        StageMeshCreateInfo[]Meshes=new StageMeshCreateInfo[DistinctTypes.Count];
+        var Meshes=new StageMeshCreateInfo[DistinctTypes.Count];
         for(var Index=0;Index<DistinctTypes.Count;Index++){
             Meshes[Index]=ToStageMesh(CreateProceduralMesh(DistinctTypes[Index]));
         }
@@ -42,7 +42,7 @@ public static class RenderServer {
             new StageMaterialCreateInfo { BaseColorFactor=DefaultBaseColorFactor,RoughnessFactor=1f,MetallicFactor=0f },
         ];
 
-        StageObjectCreateInfo[]Objects=new StageObjectCreateInfo[Types.Count];
+        var Objects=new StageObjectCreateInfo[Types.Count];
         for(var Index=0;Index<Types.Count;Index++){
             Objects[Index]=new StageObjectCreateInfo {
                 MeshIndex=MeshIndexOffset+MeshIndexByType[Types[Index]],
@@ -69,8 +69,8 @@ public static class RenderServer {
     /// <summary>Synthesizes Uvs (unused - every primitive uses the flat default material, never a real texture) and Tangents via StageRenderer's own untextured-mesh adapter logic, so this stays byte-for-byte consistent with the legacy MeshCreateInfo path instead of a second, divergent implementation.</summary>
     private static StageMeshCreateInfo ToStageMesh(ProceduralMeshData Mesh){
         var VertexCount=Mesh.Positions.Length;
-        Vector2[]Uvs=new Vector2[VertexCount];
-        Vector4[]Tangents=new Vector4[VertexCount];
+        var Uvs=new Vector2[VertexCount];
+        var Tangents=new Vector4[VertexCount];
         for(var Index=0;Index<VertexCount;Index++){
             Tangents[Index]=StageRenderer.ArbitraryTangentFor(Mesh.Normals[Index]);
         }

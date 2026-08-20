@@ -8,12 +8,12 @@ public class WicImageDecoderTests {
 
     [WindowsOnlyFact]
     public void Decode_RealPngFromBoxTextured_Succeeds(){
-        GltfImportResult ImportResult=GltfImporter.Import(FixturePath("BoxTextured.glb"));
+        var ImportResult=GltfImporter.Import(FixturePath("BoxTextured.glb"));
         Assert.True(ImportResult.Success,string.Join(Environment.NewLine,ImportResult.Diagnostics));
         var TextureBytes=ImportResult.Mesh!.BaseColorTextureBytes;
         Assert.NotNull(TextureBytes);
 
-        WicDecodeResult Result=WicImageDecoder.Decode(TextureBytes!);
+        var Result=WicImageDecoder.Decode(TextureBytes!);
 
         Assert.True(Result.Success,Result.Error);
         Assert.NotNull(Result.Image);
@@ -24,7 +24,7 @@ public class WicImageDecoderTests {
 
     [WindowsOnlyFact]
     public void Decode_EmptyBytes_FailsCleanly(){
-        WicDecodeResult Result=WicImageDecoder.Decode([]);
+        var Result=WicImageDecoder.Decode([]);
 
         Assert.False(Result.Success);
         Assert.Null(Result.Image);
@@ -35,7 +35,7 @@ public class WicImageDecoderTests {
     public void Decode_GarbageBytes_FailsNotException(){
         var Garbage="NOT_A_VALID_IMAGE_FILE_JUST_GARBAGE_BYTES_FOR_TESTING"u8.ToArray();
 
-        WicDecodeResult Result=WicImageDecoder.Decode(Garbage);
+        var Result=WicImageDecoder.Decode(Garbage);
 
         Assert.False(Result.Success);
         Assert.Null(Result.Image);

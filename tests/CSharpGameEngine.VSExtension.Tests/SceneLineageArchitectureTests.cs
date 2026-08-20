@@ -27,7 +27,7 @@ public sealed class SceneLineageArchitectureTests {
     /// </summary>
     [Fact]
     public void LineageDecision_DoesNotDependOnSceneDiffEngine(){
-        string Source=ReadSource("SceneLandingDecision.cs");
+        var Source=ReadSource("SceneLandingDecision.cs");
 
         Assert.DoesNotContain("SceneDiffEngine",Source,StringComparison.Ordinal);
     }
@@ -45,7 +45,7 @@ public sealed class SceneLineageArchitectureTests {
     /// </summary>
     [Fact]
     public void SessionService_DoesNotComparePredictedProjectionAgainstAnalysis(){
-        string Source=ReadSource("SceneEditorSessionService.cs");
+        var Source=ReadSource("SceneEditorSessionService.cs");
 
         Assert.DoesNotContain("SceneDiffEngine.Compare(Document.",Source,StringComparison.Ordinal);
         Assert.DoesNotContain("SceneDiffEngine.Compare(this.Documents",Source,StringComparison.Ordinal);
@@ -54,7 +54,7 @@ public sealed class SceneLineageArchitectureTests {
     /// <summary>着地の判定が実際に<see cref="SceneLandingDecision"/>を経由していること。</summary>
     [Fact]
     public void SessionService_RoutesOwnLandingsThroughLandingDecision(){
-        string Source=ReadSource("SceneEditorSessionService.cs");
+        var Source=ReadSource("SceneEditorSessionService.cs");
 
         Assert.Contains("SceneLandingDecision.Evaluate(",Source,StringComparison.Ordinal);
     }
@@ -74,7 +74,7 @@ public sealed class SceneLineageArchitectureTests {
     /// </summary>
     [Fact]
     public void WorkspaceService_MutatesDebounceStateOnlyThroughThePolicy(){
-        string Source=ReadSource("SceneWorkspaceService.cs");
+        var Source=ReadSource("SceneWorkspaceService.cs");
 
         // 状態を直接組み立てるのが唯一の抜け道。ポリシーの戻り値を代入するのは正しい形なので、
         // 代入の右辺そのものではなく「その場で状態を作っていないか」を見る。
@@ -87,7 +87,7 @@ public sealed class SceneLineageArchitectureTests {
     /// </summary>
     [Fact]
     public void WorkspaceService_ClosesTheDebounceWindowWhenAnalysisStarts(){
-        string Source=ReadSource("SceneWorkspaceService.cs");
+        var Source=ReadSource("SceneWorkspaceService.cs");
 
         Assert.Contains("SceneAnalysisDebouncePolicy.OnStarted(",Source,StringComparison.Ordinal);
         Assert.Contains("SceneAnalysisDebouncePolicy.OnScheduled(",Source,StringComparison.Ordinal);

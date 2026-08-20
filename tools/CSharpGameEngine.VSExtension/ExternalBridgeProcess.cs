@@ -66,11 +66,11 @@ internal static class ExternalBridgeProcess {
     }
 
     private static void RunOneShotProcess(string BridgeProjectRelativePath,string FirstArg,string OutputPath,string RepoRoot,TimeSpan Timeout,string?ExecutablePath){
-        ProcessStartInfo StartInfo=ExecutablePath is not null
-            ?new ProcessStartInfo(ExecutablePath, $"\"{FirstArg}\" \"{OutputPath}\"")
-            :new ProcessStartInfo(
-                "dotnet",
-                $"run --project \"{BridgeProjectRelativePath}\" -- \"{FirstArg}\" \"{OutputPath}\"");
+        var StartInfo=ExecutablePath is not null
+                          ?new ProcessStartInfo(ExecutablePath, $"\"{FirstArg}\" \"{OutputPath}\"")
+                          :new ProcessStartInfo(
+                                                "dotnet",
+                                                $"run --project \"{BridgeProjectRelativePath}\" -- \"{FirstArg}\" \"{OutputPath}\"");
 
         StartInfo.WorkingDirectory=RepoRoot;
         StartInfo.UseShellExecute=false;
@@ -125,7 +125,7 @@ internal static class BridgeExecutableLocator {
         var BinDirectory=Path.Combine(RepoRoot,BridgeProjectRelativePath,"bin");
 
         string?Best=null;
-        DateTime BestWriteTimeUtc=DateTime.MinValue;
+        var BestWriteTimeUtc=DateTime.MinValue;
 
         foreach(var Configuration in Configurations){
             string[]Candidates=[
@@ -137,12 +137,12 @@ internal static class BridgeExecutableLocator {
                 // An apphost without its runtimeconfig is not runnable. It can be left behind
                 // by an incomplete build; launching it produces a misleading hostpolicy.dll error.
                 // Fall back to dotnet run until the portable output is complete.
-                string RuntimeConfigPath=Path.ChangeExtension(Candidate,".runtimeconfig.json");
+                var RuntimeConfigPath=Path.ChangeExtension(Candidate,".runtimeconfig.json");
                 if(!File.Exists(Candidate)||!File.Exists(RuntimeConfigPath)){
                     continue;
                 }
 
-                DateTime WriteTimeUtc=File.GetLastWriteTimeUtc(Candidate);
+                var WriteTimeUtc=File.GetLastWriteTimeUtc(Candidate);
                 if(Best is null||WriteTimeUtc>BestWriteTimeUtc){
                     Best=Candidate;
                     BestWriteTimeUtc=WriteTimeUtc;

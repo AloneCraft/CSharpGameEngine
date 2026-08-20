@@ -94,13 +94,13 @@ internal sealed class ActiveDocumentTracker : IVsSelectionEvents,IDisposable {
         ThreadHelper.ThrowIfNotOnUIThread();
 
         if(NewMultiItemSelect is not null
-            &&NewMultiItemSelect.GetSelectionInfo(out uint ItemCount,out _)==VSConstants.S_OK
+            &&NewMultiItemSelect.GetSelectionInfo(out var ItemCount,out _)==VSConstants.S_OK
             &&ItemCount>1){
             return VSConstants.S_OK;
         }
 
         this.SolutionExplorerFilePath=NewHierarchy is not null
-            &&NewHierarchy.GetCanonicalName(NewItemId,out string CanonicalName)==VSConstants.S_OK
+            &&NewHierarchy.GetCanonicalName(NewItemId,out var CanonicalName)==VSConstants.S_OK
             &&CanonicalName.EndsWith(".cs",StringComparison.OrdinalIgnoreCase)
             ?CanonicalName
             :null;
@@ -117,9 +117,9 @@ internal sealed class ActiveDocumentTracker : IVsSelectionEvents,IDisposable {
         // with fMustHaveFocus=false returns the current or most recently active text view, so moving
         // focus to Scene Designer/Solution Explorer keeps the last code document instead of
         // clearing Hierarchy and racing OpenSceneDesignerCommand.
-        string?FramePath=TryGetFrameDocumentPath(Frame,out var DocumentPath)?DocumentPath:null;
-        string?TextViewPath=this.TryGetActiveTextViewPath(out DocumentPath)?DocumentPath:null;
-        string?SelectedPath=ActiveDocumentPathSelector.Select(FramePath,TextViewPath,CurrentFilePath);
+        var FramePath=TryGetFrameDocumentPath(Frame,out var DocumentPath)?DocumentPath:null;
+        var TextViewPath=this.TryGetActiveTextViewPath(out DocumentPath)?DocumentPath:null;
+        var SelectedPath=ActiveDocumentPathSelector.Select(FramePath,TextViewPath, this.CurrentFilePath);
         if(SelectedPath is not null){
             this.SetDocumentPath(SelectedPath);
         }
@@ -130,10 +130,10 @@ internal sealed class ActiveDocumentTracker : IVsSelectionEvents,IDisposable {
     private void SetDocumentPath(string DocumentPath){
         ThreadHelper.ThrowIfNotOnUIThread();
 
-        CurrentFilePath=DocumentPath.EndsWith(".cs",StringComparison.OrdinalIgnoreCase)
-            ?DocumentPath
-            :null;
-        this.Service.SetActiveDocument(CurrentFilePath);
+        this.CurrentFilePath=DocumentPath.EndsWith(".cs",StringComparison.OrdinalIgnoreCase)
+                                 ?DocumentPath
+                                 :null;
+        this.Service.SetActiveDocument(this.CurrentFilePath);
     }
 
     private static bool TryGetFrameDocumentPath(IVsWindowFrame?Frame,out string DocumentPath){
@@ -164,7 +164,7 @@ internal sealed class ActiveDocumentTracker : IVsSelectionEvents,IDisposable {
     internal IVsTextView? CaptureActiveTextView(string ExpectedFilePath){
         ThreadHelper.ThrowIfNotOnUIThread();
 
-        return this.TryGetActiveTextView(out IVsTextView View,out string DocumentPath)
+        return this.TryGetActiveTextView(out var View,out var DocumentPath)
             &&string.Equals(DocumentPath,ExpectedFilePath,StringComparison.OrdinalIgnoreCase)
             ?View
             :null;
@@ -178,10 +178,10 @@ internal sealed class ActiveDocumentTracker : IVsSelectionEvents,IDisposable {
         ThreadHelper.ThrowIfNotOnUIThread();
 
         Position=0;
-        if(!this.TryGetActiveTextView(out IVsTextView View,out string DocumentPath)
+        if(!this.TryGetActiveTextView(out var View,out var DocumentPath)
             ||!string.Equals(DocumentPath,ExpectedFilePath,StringComparison.OrdinalIgnoreCase)
-            ||View.GetCaretPos(out int Line,out int Column)!=VSConstants.S_OK
-            ||View.GetBuffer(out IVsTextLines Buffer)!=VSConstants.S_OK){
+            ||View.GetCaretPos(out var Line,out var Column)!=VSConstants.S_OK
+            ||View.GetBuffer(out var Buffer)!=VSConstants.S_OK){
             return false;
         }
 
@@ -193,7 +193,7 @@ internal sealed class ActiveDocumentTracker : IVsSelectionEvents,IDisposable {
         View=null!;
         DocumentPath=string.Empty;
         if(this.TextManager.GetActiveView(0,null,out View)!=VSConstants.S_OK
-            ||View.GetBuffer(out IVsTextLines Buffer)!=VSConstants.S_OK
+            ||View.GetBuffer(out var Buffer)!=VSConstants.S_OK
             ||Buffer is not IPersistFileFormat PersistFile
             ||PersistFile.GetCurFile(out var Path,out _)!=VSConstants.S_OK
             ||string.IsNullOrWhiteSpace(Path)){
@@ -234,9 +234,9 @@ internal sealed class ActiveDocumentTracker : IVsSelectionEvents,IDisposable {
         ThreadHelper.ThrowIfNotOnUIThread();
 
         FilePath=null;
-        if(this.Selection.GetCurrentElementValue((uint)VSConstants.VSSELELEMID.SEID_WindowFrame,out object FrameObj)!=VSConstants.S_OK
+        if(this.Selection.GetCurrentElementValue((uint)VSConstants.VSSELELEMID.SEID_WindowFrame,out var FrameObj)!=VSConstants.S_OK
             ||FrameObj is not IVsWindowFrame CurrentFrame
-            ||!this.TryGetSolutionExplorerFrame(out IVsWindowFrame?SeFrame)
+            ||!this.TryGetSolutionExplorerFrame(out var SeFrame)
             ||SeFrame is null
             ||!ReferenceEquals(CurrentFrame,SeFrame)){
             return false;
@@ -255,7 +255,7 @@ internal sealed class ActiveDocumentTracker : IVsSelectionEvents,IDisposable {
         }
 
         Guid SolutionExplorerGuid=new(ToolWindowGuids80.SolutionExplorer);
-        if(this.UIShell.FindToolWindow(0,ref SolutionExplorerGuid,out IVsWindowFrame?Found)==VSConstants.S_OK
+        if(this.UIShell.FindToolWindow(0,ref SolutionExplorerGuid,out var Found)==VSConstants.S_OK
             &&Found is not null){
             this.SolutionExplorerFrame=Found;
             Frame=Found;

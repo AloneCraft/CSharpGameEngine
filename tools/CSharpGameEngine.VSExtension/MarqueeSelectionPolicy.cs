@@ -26,7 +26,7 @@ internal static class MarqueeSelectionPolicy {
         List<EditorNodeId>Updated=Additive?[..Current]:[];
         HashSet<EditorNodeId>Seen=[..Updated];
         EditorNodeId?LastNew=null;
-        foreach(EditorNodeId Hit in Hits){
+        foreach(var Hit in Hits){
             if(Seen.Add(Hit)){
                 Updated.Add(Hit);
                 LastNew=Hit;
@@ -35,7 +35,7 @@ internal static class MarqueeSelectionPolicy {
             }
         }
 
-        EditorNodeId?Primary=LastNew??(Additive?CurrentPrimary:null);
+        var Primary=LastNew??(Additive?CurrentPrimary:null);
         if(Primary is { }Candidate&&!Updated.Contains(Candidate)){
             Primary=Updated.Count>0?Updated[^1]:null;
         }

@@ -19,10 +19,10 @@ internal static class MarqueeOverlay {
             return [];
         }
 
-        Vector3 TopLeft=ToWorld(Rectangle.Left,Rectangle.Top,View,Projection,ViewportWidth,ViewportHeight);
-        Vector3 TopRight=ToWorld(Rectangle.Right,Rectangle.Top,View,Projection,ViewportWidth,ViewportHeight);
-        Vector3 BottomRight=ToWorld(Rectangle.Right,Rectangle.Bottom,View,Projection,ViewportWidth,ViewportHeight);
-        Vector3 BottomLeft=ToWorld(Rectangle.Left,Rectangle.Bottom,View,Projection,ViewportWidth,ViewportHeight);
+        var TopLeft=ToWorld(Rectangle.Left,Rectangle.Top,View,Projection,ViewportWidth,ViewportHeight);
+        var TopRight=ToWorld(Rectangle.Right,Rectangle.Top,View,Projection,ViewportWidth,ViewportHeight);
+        var BottomRight=ToWorld(Rectangle.Right,Rectangle.Bottom,View,Projection,ViewportWidth,ViewportHeight);
+        var BottomLeft=ToWorld(Rectangle.Left,Rectangle.Bottom,View,Projection,ViewportWidth,ViewportHeight);
 
         return [
             new GizmoOverlayPrimitive(GizmoPrimitiveKind.Triangle,[
@@ -48,8 +48,8 @@ internal static class MarqueeOverlay {
 
     private static Vector3 ToWorld(
         float X,float Y,Matrix4x4 View,Matrix4x4 Projection,float ViewportWidth,float ViewportHeight){
-        (Vector3 Origin,Vector3 Direction)=SceneViewCamera.ScreenPointToRay(
-            View,Projection,X,Y,ViewportWidth,ViewportHeight);
+        (var Origin,var Direction)=SceneViewCamera.ScreenPointToRay(
+                                                                    View,Projection,X,Y,ViewportWidth,ViewportHeight);
         return Origin+(Direction*0.01f);
     }
 }

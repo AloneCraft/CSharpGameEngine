@@ -36,7 +36,7 @@ public sealed class SceneEditDocumentTests {
 
     [Fact]
     public void TryApply_PublishesImmediatelyAndIsNotDirtyBeforeAnyEdit(){
-        SceneEditDocument Document=CreateDocument();
+        var Document=CreateDocument();
         Assert.False(Document.IsDirty);
         Assert.False(Document.CanUndo);
         Assert.False(Document.CanRedo);
@@ -44,7 +44,7 @@ public sealed class SceneEditDocumentTests {
 
     [Fact]
     public void TryApply_MakesTheDocumentDirtyAndUndoable(){
-        SceneEditDocument Document=CreateDocument();
+        var Document=CreateDocument();
 
         Assert.True(Document.TryApply([Move(Document,5f)],"Move"));
 
@@ -56,7 +56,7 @@ public sealed class SceneEditDocumentTests {
 
     [Fact]
     public void TryUndo_MultipleSteps_UndoesEachOneAtATime(){
-        SceneEditDocument Document=CreateDocument();
+        var Document=CreateDocument();
         Document.TryApply([Move(Document,1f)],"Move1");
         Document.TryApply([Move(Document,2f)],"Move2");
         Document.TryApply([Move(Document,3f)],"Move3");
@@ -74,7 +74,7 @@ public sealed class SceneEditDocumentTests {
 
     [Fact]
     public void TryRedo_ReappliesUndoneSteps(){
-        SceneEditDocument Document=CreateDocument();
+        var Document=CreateDocument();
         Document.TryApply([Move(Document,1f)],"Move1");
         Document.TryApply([Move(Document,2f)],"Move2");
         Document.TryUndo();
@@ -89,7 +89,7 @@ public sealed class SceneEditDocumentTests {
 
     [Fact]
     public void TryApply_AfterUndo_DiscardsTheRedoBranch(){
-        SceneEditDocument Document=CreateDocument();
+        var Document=CreateDocument();
         Document.TryApply([Move(Document,1f)],"Move1");
         Document.TryApply([Move(Document,2f)],"Move2");
         Document.TryUndo();
@@ -108,7 +108,7 @@ public sealed class SceneEditDocumentTests {
     /// </summary>
     [Fact]
     public void IsDirty_BecomesFalseWhenUndoneBackToTheWatermark(){
-        SceneEditDocument Document=CreateDocument();
+        var Document=CreateDocument();
         Document.TryApply([Move(Document,1f)],"Move1");
         Assert.True(Document.IsDirty);
         Document.MarkWritten();
@@ -128,7 +128,7 @@ public sealed class SceneEditDocumentTests {
     /// </summary>
     [Fact]
     public void IsDirty_StaysTrueWhenUndoingPastTheWatermarkWithoutRollingItBack(){
-        SceneEditDocument Document=CreateDocument();
+        var Document=CreateDocument();
         Document.TryApply([Move(Document,1f)],"Move1");
         Document.TryApply([Move(Document,2f)],"Move2");
         Document.MarkWritten();
@@ -144,7 +144,7 @@ public sealed class SceneEditDocumentTests {
     /// </summary>
     [Fact]
     public void RollbackWatermark_KeepsDocumentAndTextAtTheSamePosition(){
-        SceneEditDocument Document=CreateDocument();
+        var Document=CreateDocument();
         Document.TryApply([Move(Document,1f)],"Move1");
         Document.TryApply([Move(Document,2f)],"Move2");
         Document.MarkWritten();
@@ -161,7 +161,7 @@ public sealed class SceneEditDocumentTests {
     /// <summary>Redoで進めた分もウォーターマークが追いつき、保存時点へ戻れば dirty が消える。</summary>
     [Fact]
     public void AdvanceWatermark_RestoresTheSavedPosition(){
-        SceneEditDocument Document=CreateDocument();
+        var Document=CreateDocument();
         Document.TryApply([Move(Document,1f)],"Move1");
         Document.MarkWritten();
         Document.TryUndo();
@@ -180,7 +180,7 @@ public sealed class SceneEditDocumentTests {
     /// </summary>
     [Fact]
     public void UnwrittenHistory_ExcludesEntriesAlreadyWrittenToText(){
-        SceneEditDocument Document=CreateDocument();
+        var Document=CreateDocument();
         Document.TryApply([Move(Document,1f)],"Move1");
         Document.TryApply([Move(Document,2f)],"Move2");
         Document.MarkWritten();
@@ -198,7 +198,7 @@ public sealed class SceneEditDocumentTests {
     /// </summary>
     [Fact]
     public void MarkWritten_KeepsTheUndoHistoryForTheWholeSession(){
-        SceneEditDocument Document=CreateDocument();
+        var Document=CreateDocument();
         Assert.True(Document.TryApply([Move(Document,2f)],"Move"));
 
         Document.MarkWritten();
@@ -210,7 +210,7 @@ public sealed class SceneEditDocumentTests {
 
     [Fact]
     public void History_ReflectsOnlyEntriesReachableFromCurrent_NotUndoneOnes(){
-        SceneEditDocument Document=CreateDocument();
+        var Document=CreateDocument();
         Document.TryApply([Move(Document,1f)],"Move1");
         Document.TryApply([Move(Document,2f)],"Move2");
         Document.TryUndo();
@@ -227,16 +227,16 @@ public sealed class SceneEditDocumentTests {
     /// </summary>
     [Fact]
     public void TryApply_FailingOperation_LeavesDocumentUnchanged(){
-        SceneEditDocument Document=CreateDocument();
-        EditorNodeId Cube=FindId(Document,"Cube");
+        var Document=CreateDocument();
+        var Cube=FindId(Document,"Cube");
 
         // Cubeは既にTransformを持つので、同じ型を追加しようとすると失敗する。
-        bool Applied=Document.TryApply(
-            [new AddComponentOperation(
-                Key,Cube,DocumentVersion:1,
-                "global::CSharpGameEngine.Runtime.Windows.Transform",
-                "new global::CSharpGameEngine.Runtime.Windows.Transform()")],
-            "Bad");
+        var Applied=Document.TryApply(
+                                      [new AddComponentOperation(
+                                                                 Key,Cube,DocumentVersion:1,
+                                                                 "global::CSharpGameEngine.Runtime.Windows.Transform",
+                                                                 "new global::CSharpGameEngine.Runtime.Windows.Transform()")],
+                                      "Bad");
 
         Assert.False(Applied);
         Assert.False(Document.IsDirty);
@@ -250,7 +250,7 @@ public sealed class SceneEditDocumentTests {
     /// </summary>
     [Fact]
     public void ResetTo_ClearsBothStacksAndTheWatermark(){
-        SceneEditDocument Document=CreateDocument();
+        var Document=CreateDocument();
         Assert.True(Document.TryApply([Move(Document,2f)],"Move"));
         Document.MarkWritten();
         Assert.True(Document.TryApply([Move(Document,3f)],"Move2"));
@@ -272,7 +272,7 @@ public sealed class SceneEditDocumentTests {
     /// </summary>
     [Fact]
     public void NewEditAfterSteppingBelowTheWatermark_KeepsTheInvariant(){
-        SceneEditDocument Document=CreateDocument();
+        var Document=CreateDocument();
         Document.TryApply([Move(Document,1f)],"Move1");
         Document.TryApply([Move(Document,2f)],"Move2");
         Document.MarkWritten();
@@ -289,9 +289,9 @@ public sealed class SceneEditDocumentTests {
     }
 
     private static SceneEditDocument CreateDocument(){
-        SceneModel Model=SceneAnalysisTestHelper.Analyze([TransformTypes,Source]);
+        var Model=SceneAnalysisTestHelper.Analyze([TransformTypes,Source]);
         SceneProjectionReconciler Reconciler=new();
-        SceneProjection Projection=Reconciler.Reconcile(Key,Model,Previous:null);
+        var Projection=Reconciler.Reconcile(Key,Model,Previous:null);
         return new SceneEditDocument(Key,new SceneEditSnapshot(Model,Projection),Reconciler);
     }
 
@@ -303,8 +303,8 @@ public sealed class SceneEditDocumentTests {
         Assert.Single(Document.Projection.Nodes,Node=>Node.Node.Name==NodeName).Id;
 
     private static float ReadX(SceneEditDocument Document){
-        SceneNode Cube=Assert.Single(Document.Model.EnumerateNodes(),static Node=>Node.Name=="Cube");
-        Assert.True(SceneTransformBinding.TryRead(Cube,out SceneTransformValue Value));
+        var Cube=Assert.Single(Document.Model.EnumerateNodes(),static Node=>Node.Name=="Cube");
+        Assert.True(SceneTransformBinding.TryRead(Cube,out var Value));
         return Value.Position.X;
     }
 }

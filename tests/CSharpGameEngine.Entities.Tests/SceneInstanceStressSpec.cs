@@ -13,8 +13,8 @@ public sealed class SceneInstanceStressSpec {
     private const int EntitiesPerScene=5;
 
     private static SceneInstance Instantiate(ref World World){
-        SceneInstance Instance=World.BeginSceneInstance();
-        Entity Root=World.AttachToScene(Instance,World.Create(new Position()));
+        var Instance=World.BeginSceneInstance();
+        var Root=World.AttachToScene(Instance,World.Create(new Position()));
 
         for(var Index=1;Index<EntitiesPerScene;Index++){
             World.AttachToScene(Instance,World.Create(new Position { X=Index },new Parent { Value=Root }));
@@ -30,7 +30,7 @@ public sealed class SceneInstanceStressSpec {
         World World=new();
 
         for(var Index=0;Index<Iterations;Index++){
-            SceneInstance Instance=Instantiate(ref World);
+            var Instance=Instantiate(ref World);
             World.UnloadScene(Instance);
         }
 
@@ -46,11 +46,11 @@ public sealed class SceneInstanceStressSpec {
     public void RepeatedLoadUnload_ReusesSceneSlotsSoTheSceneTableStaysConstant(){
         // Sceneスロットは再利用するので、こちらは増えない。
         World World=new();
-        SceneInstance First=Instantiate(ref World);
+        var First=Instantiate(ref World);
         World.UnloadScene(First);
 
         for(var Index=0;Index<1000;Index++){
-            SceneInstance Instance=Instantiate(ref World);
+            var Instance=Instantiate(ref World);
 
             Assert.Equal(First.Slot,Instance.Slot);
 
