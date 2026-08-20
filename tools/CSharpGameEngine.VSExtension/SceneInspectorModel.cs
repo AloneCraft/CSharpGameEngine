@@ -34,7 +34,8 @@ internal sealed class SceneInspectorMember {
     internal SceneInspectorMember(
         EditorNodeId NodeId,string ComponentTypeFullyQualifiedName,string MemberName,string SourceExpression,
         bool IsEditable,InspectorEditorKind EditorKind,object?ConstantValue,SpecialType?NumericType,
-        IReadOnlyList<InspectorEnumCandidate>EnumCandidates){
+        IReadOnlyList<InspectorEnumCandidate>EnumCandidates,
+        IReadOnlyList<string>?DefinitionMemberPath=null){
         this.NodeId=NodeId;
         this.ComponentTypeFullyQualifiedName=ComponentTypeFullyQualifiedName;
         this.MemberName=MemberName;
@@ -44,6 +45,9 @@ internal sealed class SceneInspectorMember {
         this.ConstantValue=ConstantValue;
         this.NumericType=NumericType;
         this.EnumCandidates=EnumCandidates;
+        this.DefinitionMemberPath=DefinitionMemberPath is null||DefinitionMemberPath.Count==0
+            ?[MemberName]
+            :DefinitionMemberPath;
     }
 
     internal EditorNodeId NodeId { get; }
@@ -67,6 +71,8 @@ internal sealed class SceneInspectorMember {
 
     /// <summary><see cref="InspectorEditorKind.Enum"/>のときだけ非空。</summary>
     internal IReadOnlyList<InspectorEnumCandidate>EnumCandidates { get; }
+
+    internal IReadOnlyList<string>DefinitionMemberPath { get; }
 }
 
 /// <summary>
@@ -262,7 +268,8 @@ internal static class SceneInspectorModelBuilder {
             Kind,
             Member.Value.ConstantValue,
             Kind==InspectorEditorKind.Number?Member.Value.Type?.SpecialType:null,
-            EnumerateEnumCandidates(Member.Value.Type)));
+            EnumerateEnumCandidates(Member.Value.Type),
+            [..ParentPath,Member.MemberName]));
     }
 
     /// <summary>

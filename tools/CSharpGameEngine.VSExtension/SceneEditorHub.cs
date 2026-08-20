@@ -67,6 +67,7 @@ internal static class SceneEditorHub {
     public static event Action<HierarchyEditRequest>?HierarchyEditRequested;
     public static event Action<ComponentAddRequest>?ComponentAddRequested;
     public static event Action<ComponentRevealRequest>?ComponentRevealRequested;
+    public static event Action<DefinitionNavigationRequest>?DefinitionNavigationRequested;
 
     internal static void RequestHierarchyEdit(HierarchyEditRequest Request)=>
         HierarchyEditRequested?.Invoke(Request);
@@ -76,6 +77,9 @@ internal static class SceneEditorHub {
 
     internal static void RequestComponentReveal(ComponentRevealRequest Request)=>
         ComponentRevealRequested?.Invoke(Request);
+
+    internal static void RequestDefinitionNavigation(DefinitionNavigationRequest Request)=>
+        DefinitionNavigationRequested?.Invoke(Request);
 
     public static SceneModel?ActiveSceneModel { get;private set;}
 

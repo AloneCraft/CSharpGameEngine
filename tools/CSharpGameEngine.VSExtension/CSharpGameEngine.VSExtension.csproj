@@ -18,10 +18,13 @@
     <IncludeDebugSymbolsInLocalVSIXDeployment>false</IncludeDebugSymbolsInLocalVSIXDeployment>
     <CopyBuildOutputToOutputDirectory>true</CopyBuildOutputToOutputDirectory>
     <CopyOutputSymbolsToOutputDirectory>false</CopyOutputSymbolsToOutputDirectory>
+    <!-- The VSSDK defaults this to Exp. Keep its deployment/debug target aligned with
+         StartArguments so F5 never launches the previously-corrupted Exp hive. -->
+    <VSSDKTargetPlatformRegRootSuffix>CgeFixed</VSSDKTargetPlatformRegRootSuffix>
     <StartAction>Program</StartAction>
     <StartProgram Condition="'$(DevEnvDir)' != ''">$(DevEnvDir)devenv.exe</StartProgram>
     <UserEcsProjectSolutionPath>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\UserEcsProject.slnx'))</UserEcsProjectSolutionPath>
-    <StartArguments>/rootsuffix Exp &quot;$(UserEcsProjectSolutionPath)&quot;</StartArguments>
+    <StartArguments>/rootsuffix CgeFixed &quot;$(UserEcsProjectSolutionPath)&quot;</StartArguments>
 
     <!-- VSIX deployment copies this assembly out of the repo (into the Extensions hive), so a
          runtime "walk up from my own location" search can never find CSharpGameEngine.slnx.

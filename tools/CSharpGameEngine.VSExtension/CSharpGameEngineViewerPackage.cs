@@ -92,6 +92,7 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             SceneEditorHub.HierarchyNavigationRequested+=this.OnHierarchyNavigationRequested;
             SceneEditorHub.HierarchyEditRequested+=this.OnHierarchyEditRequested;
             SceneEditorHub.ComponentAddRequested+=this.OnComponentAddRequested;
+            SceneEditorHub.DefinitionNavigationRequested+=this.OnDefinitionNavigationRequested;
             SceneEditorHub.SceneModelChanged+=this.OnSceneModelChangedForSourceMarkers;
             this.SceneSession.Selection.SelectionChanged+=this.OnSelectionChangedForHierarchy;
             this.SceneSession.PinnedSnapshotChanged+=this.OnPinnedSnapshotChangedForHub;
@@ -103,7 +104,10 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
         }
 
         this.AssetMetaWatcher=AssetMetaWatcher.StartIfProjectExists();
-        _= this.JoinableTaskFactory.RunAsync(this.TryApplyInitialLayoutAsync);
+        // Do not create this package's tool windows while AsyncPackage.InitializeAsync is still
+        // running. FindToolWindowAsync can then wait on this package's own load operation and
+        // prevent Visual Studio from completing startup. The existing Apply Game Engine Layout
+        // command remains the explicit, safe way to create the default layout.
     }
 
     /// <summary>
@@ -266,6 +270,35 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
 
     private void OnComponentAddRequested(ComponentAddRequest Request)=>
         _=this.JoinableTaskFactory.RunAsync(()=>this.HandleComponentAddAsync(Request));
+
+    private void OnDefinitionNavigationRequested(DefinitionNavigationRequest Request)=>
+        _=this.JoinableTaskFactory.RunAsync(()=>this.HandleDefinitionNavigationAsync(Request));
+
+    private async Task HandleDefinitionNavigationAsync(DefinitionNavigationRequest Request){
+        if(this.SceneSession is not { } Session){
+            return;
+        }
+
+        var Resolved=await Session.ResolveComponentTypeAsync(
+            Request.ComponentTypeFullyQualifiedName,this.DisposalToken);
+        if(Resolved is not { } Result){
+            ActivityLog.LogWarning(nameof(CSharpGameEngineViewerPackage),
+                "Definition type was not resolved: "+Request.ComponentTypeFullyQualifiedName);
+            await this.JoinableTaskFactory.SwitchToMainThreadAsync(this.DisposalToken);
+            SetStatusBarText("定義を解決できません: "+Request.ComponentTypeFullyQualifiedName);
+            return;
+        }
+
+        bool Navigated=await DefinitionNavigationService.NavigateAsync(
+            Result.Symbol,Result.Compilation,Request.MemberName,this.DisposalToken);
+        if(!Navigated){
+            ActivityLog.LogWarning(nameof(CSharpGameEngineViewerPackage),
+                "Definition source was not found: "+Request.ComponentTypeFullyQualifiedName
+                +(Request.MemberName is { Length:>0 }Member?"."+Member:string.Empty));
+            await this.JoinableTaskFactory.SwitchToMainThreadAsync(this.DisposalToken);
+            SetStatusBarText("定義のソースを開けません: "+Request.ComponentTypeFullyQualifiedName);
+        }
+    }
 
     /// <summary>
     /// M0052: <paramref name="Model"/>が既にpin済みならそのSnapshotを、そうでなければ
@@ -599,6 +632,7 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             SceneEditorHub.HierarchyNavigationRequested-=this.OnHierarchyNavigationRequested;
             SceneEditorHub.HierarchyEditRequested-=this.OnHierarchyEditRequested;
             SceneEditorHub.ComponentAddRequested-=this.OnComponentAddRequested;
+            SceneEditorHub.DefinitionNavigationRequested-=this.OnDefinitionNavigationRequested;
             SceneEditorHub.SceneModelChanged-=this.OnSceneModelChangedForSourceMarkers;
             this.SourceMarkerService?.Dispose();
             this.SourceMarkerService=null;

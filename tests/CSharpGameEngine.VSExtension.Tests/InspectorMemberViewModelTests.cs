@@ -11,6 +11,7 @@ namespace CSharpGameEngine.VSExtension.Tests;
 /// </summary>
 public sealed class InspectorMemberViewModelTests {
     [Theory]
+    [InlineData(nameof(InspectorMemberViewModel.IsSelected))]
     [InlineData(nameof(InspectorMemberViewModel.Label))]
     [InlineData(nameof(InspectorMemberViewModel.MemberName))]
     [InlineData(nameof(InspectorMemberViewModel.EditorKind))]
@@ -24,6 +25,7 @@ public sealed class InspectorMemberViewModelTests {
     }
 
     [Theory]
+    [InlineData(nameof(InspectorComponentGroupViewModel.IsSelected))]
     [InlineData(nameof(InspectorComponentGroupViewModel.Header))]
     [InlineData(nameof(InspectorComponentGroupViewModel.FullTypeName))]
     [InlineData(nameof(InspectorComponentGroupViewModel.Rows))]
@@ -47,6 +49,7 @@ public sealed class InspectorMemberViewModelTests {
     }
 
     [Theory]
+    [InlineData(nameof(InspectorNestedRowViewModel.IsSelected))]
     [InlineData(nameof(InspectorNestedRowViewModel.Header))]
     [InlineData(nameof(InspectorNestedRowViewModel.TypeDisplayName))]
     [InlineData(nameof(InspectorNestedRowViewModel.Rows))]

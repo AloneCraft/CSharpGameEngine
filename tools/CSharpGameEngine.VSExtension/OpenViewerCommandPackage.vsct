@@ -452,6 +452,9 @@
     <CommandPlacement guid="guidOpenViewerCommandPackageCmdSet" id="ShowInspectorToolWindowCommandId" priority="0x0008">
       <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarGroup" />
     </CommandPlacement>
+    <CommandPlacement guid="guidOpenViewerCommandPackageCmdSet" id="ShowComponentPaletteToolWindowCommandId" priority="0x0009">
+      <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarGroup" />
+    </CommandPlacement>
 
     <!-- M0020: ソリューションエクスプローラーの単一項目右クリックにも同じ34個のボタン
          (SceneDesignerContextMenuGroup配下、Direct/32スロット/Overflow)をそのまま出す。新しい

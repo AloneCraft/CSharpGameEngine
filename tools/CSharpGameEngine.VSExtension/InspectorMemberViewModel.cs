@@ -1,16 +1,35 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using System.Windows;
 
 namespace CSharpGameEngine.VSExtension;
 
+internal abstract class InspectorSelectableViewModel:INotifyPropertyChanged {
+    private bool Selected;
+
+    public bool IsSelected {
+        get=>this.Selected;
+        set {
+            if(this.Selected==value){
+                return;
+            }
+
+            this.Selected=value;
+            this.PropertyChanged?.Invoke(this,new PropertyChangedEventArgs(nameof(this.IsSelected)));
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+}
 /// <summary>
 /// 1行分のWPF ViewModel。<see cref="InspectorToolWindowControl"/>は選択変更・コミット完了のたびに
 /// 行を丸ごと作り直す(編集中の行はフォーカスで再構築を止める、Hierarchyの再構築対応とは違う単純な方式で
 /// 足りる — Inspectorの再構築頻度は選択変更時だけで、キー入力のたびではないため)。そのため
 /// <c>INotifyPropertyChanged</c>は不要。
 /// </summary>
-internal sealed class InspectorMemberViewModel {
+internal sealed class InspectorMemberViewModel:InspectorSelectableViewModel {
     internal InspectorMemberViewModel(SceneInspectorMember Member){
         this.Member=Member;
         this.DisplayText=Member.EditorKind==InspectorEditorKind.Text
@@ -64,7 +83,7 @@ internal sealed class InspectorMemberViewModel {
 /// (<c>InspectorToolWindowControl.xaml</c>のCheckBox/ComboBoxに同じ注意書きがある)。
 /// </para>
 /// </summary>
-internal sealed class InspectorComponentGroupViewModel {
+internal sealed class InspectorComponentGroupViewModel:InspectorSelectableViewModel {
     /// <summary>
     /// <paramref name="Rows"/>は呼び出し側(<see cref="InspectorToolWindowControl"/>)が
     /// <see cref="SceneInspectorComponentGroup.Rows"/>から再帰的に構築済みのもの
@@ -118,7 +137,7 @@ internal sealed class InspectorComponentGroupViewModel {
 /// 常に読み取り専用として構築済み — このViewModelは表示するだけで、編集可否の判断はここには無い。
 /// </para>
 /// </summary>
-internal sealed class InspectorNestedRowViewModel {
+internal sealed class InspectorNestedRowViewModel:InspectorSelectableViewModel {
     internal InspectorNestedRowViewModel(SceneInspectorNestedRow Row,IReadOnlyList<object>Rows,bool IsExpanded){
         this.Row=Row;
         this.Rows=Rows;

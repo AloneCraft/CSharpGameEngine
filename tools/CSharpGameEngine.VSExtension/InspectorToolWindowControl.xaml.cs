@@ -5,9 +5,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Documents;
+using System.Windows.Media;
+using System.Windows.Media.Media3D;
 using CSharpGameEngine.SceneAnalysis;
 using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Threading;
 using Microsoft.VisualStudio.Shell.Interop;
 
 namespace CSharpGameEngine.VSExtension;
@@ -24,6 +29,8 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
     private SceneSelection?CurrentSelection;
     private bool SuppressNextLostFocusCommit;
     private bool Disposed;
+    private JoinableTask? DeferredComboBoxOpenTask;
+    private readonly InspectorSelectionController Selection=new();
 
     /// <summary>
     /// 畳まれているComponentグループのキー(<see cref="InspectorExpansionKey"/>)。既定は展開なので
@@ -49,6 +56,26 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
 
     public InspectorToolWindowControl(){
         this.InitializeComponent();
+        // TextBox / ComboBox / Expander may mark their mouse and key events handled before
+        // an instance handler declared in the template observes them. Select the logical
+        // inspector row at the control boundary, while leaving the editor focus to WPF.
+        this.AddHandler(
+            Mouse.PreviewMouseDownEvent,
+            new MouseButtonEventHandler(this.Panel_PreviewMouseLeftButtonDown),
+            handledEventsToo:true);
+        this.AddHandler(
+            Mouse.PreviewMouseUpEvent,
+            new MouseButtonEventHandler(this.Panel_PreviewMouseLeftButtonUp),
+            handledEventsToo:true);
+        this.PreviewMouseRightButtonDown+=this.Panel_PreviewMouseRightButtonDown;
+        this.AddHandler(
+            Keyboard.PreviewKeyDownEvent,
+            new KeyEventHandler(this.Panel_PreviewKeyDown),
+            handledEventsToo:true);
+        this.AddHandler(
+            Keyboard.PreviewGotKeyboardFocusEvent,
+            new KeyboardFocusChangedEventHandler(this.Panel_PreviewGotKeyboardFocus),
+            handledEventsToo:true);
 
         // M0051 Step 1-4: Hierarchyと同じ理由で、自分のフォーカス状態をHubへ報告する
         // (Inspectorで数値を編集した直後のCtrl+Sも保存へ届くようにするため)。
@@ -193,7 +220,9 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
 
         this.EmptyMessage.Visibility=Visibility.Collapsed;
         this.MemberScroll.Visibility=Visibility.Visible;
-        this.MemberList.ItemsSource=Groups.Select(this.CreateGroupViewModel).ToArray();
+        var ViewModels=Groups.Select(this.CreateGroupViewModel).ToArray();
+        this.Selection.SetItems(ViewModels);
+        this.MemberList.ItemsSource=ViewModels;
     }
 
     private InspectorComponentGroupViewModel CreateGroupViewModel(SceneInspectorComponentGroup Group){
@@ -281,6 +310,280 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
         }
     }
 
+    private void Panel_PreviewMouseLeftButtonDown(object Sender,MouseButtonEventArgs Args){
+        if(Args.ChangedButton!=MouseButton.Left){
+            return;
+        }
+
+        if(TryGetSelectable(Args.OriginalSource as DependencyObject,out object ViewModel,out _)){
+            this.SelectRow(ViewModel);
+        }
+    }
+
+    private void Panel_PreviewMouseLeftButtonUp(object Sender,MouseButtonEventArgs Args){
+        if(Args.ChangedButton!=MouseButton.Left){
+            return;
+        }
+
+        if(!TryGetSelectable(Args.OriginalSource as DependencyObject,out object ViewModel,out _)
+            ||FindInputControl(Args.OriginalSource as DependencyObject) is not null){
+            return;
+        }
+
+        this.FocusSelectionEditor(ViewModel);
+    }
+
+    private void Panel_PreviewMouseRightButtonDown(object Sender,MouseButtonEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(!TryGetSelectable(Args.OriginalSource as DependencyObject,out object ViewModel,out DefinitionNavigationRequest Request)){
+            return;
+        }
+
+        this.SelectRow(ViewModel);
+        ContextMenu Menu=new();
+        MenuItem Item=new(){
+            Header=DefinitionNavigationStrings.MenuHeader,
+            InputGestureText=DefinitionNavigationStrings.InputGesture};
+        Item.Click+=(MenuSender,MenuArgs)=>SceneEditorHub.RequestDefinitionNavigation(Request);
+        Menu.Items.Add(Item);
+        Menu.PlacementTarget=this;
+        Menu.IsOpen=true;
+        Args.Handled=true;
+    }
+
+    private void InspectorRow_PreviewKeyDown(object Sender,KeyEventArgs Args)=>
+        this.HandleInspectorKey(Args.OriginalSource as DependencyObject??Sender as DependencyObject,Args);
+
+    private void Panel_PreviewKeyDown(object Sender,KeyEventArgs Args)=>
+        this.HandleInspectorKey(Args.OriginalSource as DependencyObject??Keyboard.FocusedElement as DependencyObject,Args);
+
+    private void HandleInspectorKey(DependencyObject? Source,KeyEventArgs Args){
+        Key Key=Args.Key==Key.System?Args.SystemKey:Args.Key;
+        if(Key==Key.F4){
+            // F4 belongs to Visual Studio. Do not handle it here.
+            return;
+        }
+
+        if(Key==Key.Enter&&this.TryOpenSelectedComboBox(Source)){
+            Args.Handled=true;
+            return;
+        }
+
+        if(Key==Key.F12){
+            object?ViewModel=this.Selection.Current;
+            DefinitionNavigationRequest Request;
+            if(TryGetSelectable(Source??Keyboard.FocusedElement as DependencyObject,out object FocusedViewModel,out DefinitionNavigationRequest FocusedRequest)){
+                ViewModel=FocusedViewModel;
+                Request=FocusedRequest;
+            } else if(ViewModel is null||!TryCreateRequest(ViewModel,out Request)){
+                return;
+            }
+
+            this.SelectRow(ViewModel);
+            SceneEditorHub.RequestDefinitionNavigation(Request);
+            Args.Handled=true;
+            return;
+        }
+
+        if(!InspectorKeyboardNavigationPolicy.TryGetMoveDelta(
+            Key,this.IsAnyComboBoxDropDownOpen(Source),out int Delta)){
+            return;
+        }
+
+        if(TryGetSelectable(Source??Keyboard.FocusedElement as DependencyObject,out object Focused,out _)){
+            this.Selection.Select(Focused);
+        }
+
+        InspectorSelectableViewModel?Next=this.Selection.Move(Delta);
+        if(Next is null){
+            return;
+        }
+
+        this.FocusSelectionEditor(Next);
+        Args.Handled=true;
+    }
+
+    private void Panel_PreviewGotKeyboardFocus(object Sender,KeyboardFocusChangedEventArgs Args){
+        if(TryGetSelectable(Args.NewFocus as DependencyObject,out object ViewModel,out _)){
+            this.SelectRow(ViewModel);
+        }
+    }
+
+    private void SelectRow(object ViewModel)=>this.Selection.Select(ViewModel);
+
+    private void FocusSelectionEditor(object ViewModel){
+        if(!TryFindDataContextElement(this.MemberList,ViewModel,out FrameworkElement Root)){
+            return;
+        }
+
+        DependencyObject Target=ViewModel is InspectorMemberViewModel
+            ?FindFocusableEditor(Root)??Root
+            :Root;
+        if(Target is IInputElement Input&&Input.Focus()){
+            Keyboard.Focus(Input);
+        }
+    }
+
+    private bool TryOpenSelectedComboBox(DependencyObject? Source){
+        object? ViewModel=this.Selection.Current;
+        if(TryGetSelectable(Source??Keyboard.FocusedElement as DependencyObject,out object Focused,out _)){
+            ViewModel=Focused;
+            this.SelectRow(ViewModel);
+        }
+
+        if(ViewModel is not InspectorMemberViewModel Member||Member.EditorKind!=InspectorEditorKind.Enum){
+            return false;
+        }
+        if(!TryFindDataContextElement(this.MemberList,ViewModel,out FrameworkElement Root)){
+            return false;
+        }
+
+        if(FindComboBox(Root) is not ComboBox Box){
+            // The row template may not have materialized its editor yet.
+            this.DeferredComboBoxOpenTask=ThreadHelper.JoinableTaskFactory.RunAsync(async delegate {
+                await Task.Yield();
+                this.TryOpenSelectedComboBox(null);
+            });
+            return true;
+        }
+
+        if(!InspectorKeyboardNavigationPolicy.ShouldOpenDropDown(
+            Key.Enter,true,Box.IsDropDownOpen)){
+            return Box.IsDropDownOpen;
+        }
+        Box.Focus();
+        Box.IsDropDownOpen=true;
+        return true;
+    }
+
+    private static ComboBox?FindComboBox(DependencyObject Root){
+        if(Root is ComboBox Box&&Box.IsVisible){
+            return Box;
+        }
+        for(var Index=0;Index<VisualTreeHelper.GetChildrenCount(Root);Index++){
+            if(FindComboBox(VisualTreeHelper.GetChild(Root,Index)) is { } Found){
+                return Found;
+            }
+        }
+        return null;
+    }
+
+    private static DependencyObject?FindFocusableEditor(DependencyObject Root){
+        if(Root is FrameworkElement { IsVisible:true }&&(Root is TextBox or ComboBox or CheckBox)){
+            return Root;
+        }
+
+        for(var Index=0;Index<VisualTreeHelper.GetChildrenCount(Root);Index++){
+            if(FindFocusableEditor(VisualTreeHelper.GetChild(Root,Index)) is { } Found){
+                return Found;
+            }
+        }
+
+        return null;
+    }
+
+    private static DependencyObject?FindInputControl(DependencyObject? Source){
+        for(DependencyObject?Current=Source;Current is not null;Current=GetParent(Current)){
+            if(Current is TextBox or ComboBox or CheckBox){
+                return Current;
+            }
+        }
+
+        return null;
+    }
+
+    private bool IsAnyComboBoxDropDownOpen(DependencyObject? Source)=>
+        FindInputControl(Source) is ComboBox { IsDropDownOpen:true }
+        ||FindOpenComboBox(this.MemberList);
+
+    private static bool FindOpenComboBox(DependencyObject Root){
+        if(Root is ComboBox { IsDropDownOpen:true }){
+            return true;
+        }
+
+        for(var Index=0;Index<VisualTreeHelper.GetChildrenCount(Root);Index++){
+            if(FindOpenComboBox(VisualTreeHelper.GetChild(Root,Index))){
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryFindDataContextElement(DependencyObject Root,object ViewModel,out FrameworkElement Element){
+        bool IsRowRoot=Root is Border&&ViewModel is InspectorMemberViewModel
+                       ||Root is Expander&&ViewModel is InspectorComponentGroupViewModel or InspectorNestedRowViewModel;
+        if(Root is FrameworkElement Candidate&&IsRowRoot&&ReferenceEquals(Candidate.DataContext,ViewModel)){
+            Element=Candidate;
+            return true;
+        }
+
+        for(var Index=0;Index<VisualTreeHelper.GetChildrenCount(Root);Index++){
+            if(TryFindDataContextElement(VisualTreeHelper.GetChild(Root,Index),ViewModel,out Element)){
+                return true;
+            }
+        }
+
+        Element=null!;
+        return false;
+    }
+    private static bool TryGetSelectable(DependencyObject? Source,out object ViewModel,out DefinitionNavigationRequest Request){
+        for(DependencyObject?Current=Source;Current is not null;Current=GetParent(Current)){
+            if(Current is not FrameworkElement Element){
+                continue;
+            }
+
+            if(Element.DataContext is InspectorComponentGroupViewModel Group){
+                ViewModel=Group;
+                Request=new DefinitionNavigationRequest(Group.FullTypeName);
+                return true;
+            }
+            if(Element.DataContext is InspectorMemberViewModel Member){
+                ViewModel=Member;
+                Request=new DefinitionNavigationRequest(
+                    Member.Member.ComponentTypeFullyQualifiedName,
+                    string.Join(".",Member.Member.DefinitionMemberPath));
+                return true;
+            }
+            if(Element.DataContext is InspectorNestedRowViewModel Nested){
+                ViewModel=Nested;
+                Request=new DefinitionNavigationRequest(
+                    Nested.Row.ComponentTypeFullyQualifiedName,string.Join(".",Nested.Row.MemberPath));
+                return true;
+            }
+        }
+
+        ViewModel=null!;
+        Request=null!;
+        return false;
+    }
+
+    private static bool TryCreateRequest(object ViewModel,out DefinitionNavigationRequest Request){
+        switch(ViewModel){
+            case InspectorComponentGroupViewModel Group:
+                Request=new DefinitionNavigationRequest(Group.FullTypeName);
+                return true;
+            case InspectorMemberViewModel Member:
+                Request=new DefinitionNavigationRequest(
+                    Member.Member.ComponentTypeFullyQualifiedName,
+                    string.Join(".",Member.Member.DefinitionMemberPath));
+                return true;
+            case InspectorNestedRowViewModel Nested:
+                Request=new DefinitionNavigationRequest(
+                    Nested.Row.ComponentTypeFullyQualifiedName,string.Join(".",Nested.Row.MemberPath));
+                return true;
+            default:
+                Request=null!;
+                return false;
+        }
+    }
+
+    private static DependencyObject?GetParent(DependencyObject Source)=>Source switch {
+        Visual or Visual3D=>VisualTreeHelper.GetParent(Source),
+        FrameworkContentElement Content=>Content.Parent,
+        ContentElement Content=>ContentOperations.GetParent(Content),
+        _=>LogicalTreeHelper.GetParent(Source),
+    };
     private void Panel_DragOver(object Sender,DragEventArgs Args){
         if(Args.Data.GetData(typeof(ComponentDragPayload)) is not ComponentDragPayload Payload){
             return;
@@ -328,6 +631,7 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
     }
 
     private void ShowEmpty(){
+        this.Selection.SetItems(Array.Empty<InspectorComponentGroupViewModel>());
         this.MemberList.ItemsSource=null;
         this.MemberScroll.Visibility=Visibility.Collapsed;
         this.EmptyMessage.Visibility=Visibility.Visible;
@@ -368,6 +672,12 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
 
     private void CommitTextField(InspectorMemberViewModel ViewModel,string Text){
         ThreadHelper.ThrowIfNotOnUIThread();
+        // Clicking another row makes the old TextBox lose focus. Do not turn an unchanged
+        // value into an edit: a forced refresh there discards the newly selected row.
+        if(!InspectorTextCommitPolicy.HasChanged(ViewModel.DisplayText,Text)){
+            return;
+        }
+
         SceneInspectorMember Member=ViewModel.Member;
         string?NewExpression=Member.EditorKind switch {
             InspectorEditorKind.Number when Member.NumericType is { }Type

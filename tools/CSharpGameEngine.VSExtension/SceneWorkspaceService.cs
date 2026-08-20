@@ -556,14 +556,9 @@ internal sealed class SceneWorkspaceService : IDisposable {
             return null;
         }
 
-        foreach(SceneComponentCatalogEntry Candidate in SceneComponentCatalog.Build(Compilation)){
-            CancellationToken.ThrowIfCancellationRequested();
-            if(string.Equals(Candidate.FullyQualifiedName,FullyQualifiedName,StringComparison.Ordinal)){
-                return (Candidate.Symbol,Compilation);
-            }
-        }
-
-        return null;
+        CancellationToken.ThrowIfCancellationRequested();
+        INamedTypeSymbol?Symbol=ComponentTypeResolver.Resolve(Compilation,FullyQualifiedName);
+        return Symbol is null?null:(Symbol,Compilation);
     }
 
     /// <summary>ComboBox が保持する <see cref="SceneKey"/> を、現在の Project で再解決します。</summary>

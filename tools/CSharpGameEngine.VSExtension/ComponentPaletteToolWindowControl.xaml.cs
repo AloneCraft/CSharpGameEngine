@@ -36,6 +36,11 @@ public partial class ComponentPaletteToolWindowControl:UserControl,IDisposable {
 
     public ComponentPaletteToolWindowControl(){
         this.InitializeComponent();
+        this.EntryList.PreviewMouseRightButtonDown+=this.EntryList_PreviewMouseRightButtonDown;
+        this.AddHandler(
+            Keyboard.PreviewKeyDownEvent,
+            new KeyEventHandler(this.Control_PreviewKeyDown),
+            handledEventsToo:true);
         this.IsKeyboardFocusWithinChanged+=this.OnKeyboardFocusWithinChanged;
         this.Unloaded+=this.OnUnloadedForFocus;
     }
@@ -161,6 +166,39 @@ public partial class ComponentPaletteToolWindowControl:UserControl,IDisposable {
 
         this.AddSelectedEntry();
         Args.Handled=true;
+    }
+
+    private void Control_PreviewKeyDown(object Sender,KeyEventArgs Args){
+        if(Args.Key!=Key.F12||this.EntryList.SelectedItem is not ComponentPaletteEntry Entry){
+            return;
+        }
+
+        SceneEditorHub.RequestDefinitionNavigation(new DefinitionNavigationRequest(Entry.FullyQualifiedName));
+        Args.Handled=true;
+    }
+
+    private void EntryList_PreviewMouseRightButtonDown(object Sender,MouseButtonEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(Args.OriginalSource is not DependencyObject Source||FindEntry(Source) is not { } Entry){
+            return;
+        }
+
+        this.EntryList.SelectedItem=Entry;
+        this.EntryList.Focus();
+        ContextMenu Menu=new();
+        Menu.Items.Add(CreateDefinitionMenuItem(Entry.FullyQualifiedName,null));
+        Menu.PlacementTarget=this.EntryList;
+        Menu.IsOpen=true;
+        Args.Handled=true;
+    }
+
+    private static MenuItem CreateDefinitionMenuItem(string ComponentType,string? MemberName){
+        MenuItem Item=new(){
+            Header=DefinitionNavigationStrings.MenuHeader,
+            InputGestureText=DefinitionNavigationStrings.InputGesture};
+        Item.Click+=(Sender,Args)=>SceneEditorHub.RequestDefinitionNavigation(
+            new DefinitionNavigationRequest(ComponentType,MemberName));
+        return Item;
     }
 
     private void EntryList_PreviewMouseLeftButtonDown(object Sender,MouseButtonEventArgs Args){

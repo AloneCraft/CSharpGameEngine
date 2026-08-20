@@ -19,7 +19,17 @@
              どおり、独自の選択/フォーカス意味論がTextBoxのcommit経路と衝突するため)。 -->
         <DataTemplate DataType="{x:Type local:InspectorMemberViewModel}">
             <Border BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
-                    BorderThickness="0,0,0,1" Opacity="0.9" Padding="6,4">
+                    BorderThickness="0,0,0,1" Opacity="0.9" Padding="6,4" Focusable="True" PreviewKeyDown="InspectorRow_PreviewKeyDown">
+<Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Background" Value="Transparent" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.HighlightKey}}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <Grid Opacity="1">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -33,7 +43,7 @@
                     <Grid Grid.Column="1">
                         <TextBox Text="{Binding DisplayText, Mode=OneTime}"
                                  Visibility="{Binding EditorKind, Converter={StaticResource EditorKindVisibilityConverter}, ConverterParameter='Number,Text'}"
-                                 KeyDown="EditableField_KeyDown" LostFocus="EditableField_LostFocus" />
+                                 PreviewKeyDown="InspectorRow_PreviewKeyDown" KeyDown="EditableField_KeyDown" LostFocus="EditableField_LostFocus" />
                         <!-- IsChecked/SelectedItemはOneWay。初期のデータバインド代入自体が
                              Checked/SelectionChangedを発火させるため、それらをcommitの
                              トリガーにすると「確定→再構築→再バインド→再確定」の無限
@@ -42,11 +52,11 @@
                         <CheckBox VerticalAlignment="Center"
                                   IsChecked="{Binding BooleanValue, Mode=OneWay}"
                                   Visibility="{Binding EditorKind, Converter={StaticResource EditorKindVisibilityConverter}, ConverterParameter=Boolean}"
-                                  Click="BooleanField_Click" />
+                                  Click="BooleanField_Click" PreviewKeyDown="InspectorRow_PreviewKeyDown" />
                         <ComboBox ItemsSource="{Binding EnumCandidateNames}"
                                   SelectedItem="{Binding SelectedEnumName, Mode=OneWay}"
                                   Visibility="{Binding EditorKind, Converter={StaticResource EditorKindVisibilityConverter}, ConverterParameter=Enum}"
-                                  DropDownClosed="EnumField_DropDownClosed" />
+                                  DropDownClosed="EnumField_DropDownClosed" PreviewKeyDown="InspectorRow_PreviewKeyDown" />
                         <TextBlock Text="{Binding DisplayText, Mode=OneTime}" VerticalAlignment="Center"
                                    TextTrimming="CharacterEllipsis"
                                    Foreground="{DynamicResource {x:Static vsshell:VsBrushes.GrayTextKey}}"
@@ -63,8 +73,19 @@
              構築済み(SceneInspectorNestedRowのドキュメントコメント参照)。 -->
         <DataTemplate DataType="{x:Type local:InspectorNestedRowViewModel}">
             <Expander IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
-                      ToolTip="{Binding TypeDisplayName}" Margin="12,0,0,2">
+                      ToolTip="{Binding TypeDisplayName}" Margin="12,0,0,2" Focusable="True" PreviewKeyDown="InspectorRow_PreviewKeyDown">
                 <Expander.Header>
+                <Border Padding="2,1">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Background" Value="Transparent" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                    <Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.HighlightKey}}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="{Binding Header}" FontWeight="Bold"
                                    Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
@@ -73,6 +94,7 @@
                                    Foreground="{DynamicResource {x:Static vsshell:VsBrushes.GrayTextKey}}"
                                    TextTrimming="CharacterEllipsis" />
                     </StackPanel>
+                                    </Border>
                 </Expander.Header>
                 <ItemsControl ItemsSource="{Binding Rows}" />
             </Expander>
@@ -99,11 +121,23 @@
                              CaptureExpansionStateが生きたItemsSourceから読み戻す(Hierarchyの
                              CollapsedPathsと同じ方式)。Expanded/Collapsedイベントは購読しない。 -->
                         <Expander IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
-                                  ToolTip="{Binding FullTypeName}" Margin="0,0,0,2">
+                                  ToolTip="{Binding FullTypeName}" Margin="0,0,0,2" Focusable="True" PreviewKeyDown="InspectorRow_PreviewKeyDown">
                             <Expander.Header>
-                                <TextBlock Text="{Binding Header}" FontWeight="Bold"
+                                <Border Padding="2,1">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Background" Value="Transparent" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                    <Setter Property="Background" Value="{DynamicResource {x:Static vsshell:VsBrushes.HighlightKey}}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                                    <TextBlock Text="{Binding Header}" FontWeight="Bold"
                                            Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
                                            TextTrimming="CharacterEllipsis" />
+                                                        </Border>
                             </Expander.Header>
                             <StackPanel>
                                 <TextBlock Text="解析待ち…" Margin="6,4" FontStyle="Italic"
