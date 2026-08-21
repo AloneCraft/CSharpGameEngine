@@ -4,6 +4,7 @@ using System.Linq;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using CSharpGameEngine.SceneAnalysis;
+using Vortice;
 using SharpGen.Runtime;
 using Vortice.D3DCompiler;
 using Vortice.Direct3D;
@@ -40,6 +41,69 @@ internal sealed class SceneRenderObject {
 }
 
 /// <summary>
+/// A camera view rendered into a rectangle of the Scene Designer swap chain.
+/// The rectangle is expressed in surface pixels with an origin at the upper-left corner.
+/// Invalid or partially out-of-bounds rectangles are clipped by <see cref=SceneRenderer/>
+/// before they reach D3D12.
+/// </summary>
+internal readonly struct SceneCameraPreviewPass {
+    public int X { get; }
+    public int Y { get; }
+    public int Width { get; }
+    public int Height { get; }
+    public Matrix4x4 View { get; }
+    public Matrix4x4 Projection { get; }
+
+    internal SceneCameraPreviewPass(
+        int X,int Y,int Width,int Height,in Matrix4x4 View,in Matrix4x4 Projection){
+        this.X=X;
+        this.Y=Y;
+        this.Width=Width;
+        this.Height=Height;
+        this.View=View;
+        this.Projection=Projection;
+    }
+}
+
+/// <summary>Per-card rendering facts used to distinguish an empty frustum from a failed pass.</summary>
+internal readonly struct SceneCameraPreviewDiagnostics {
+    internal SceneCameraPreviewDiagnostics(int SceneObjectCount,int FrustumCandidateCount,int DrawCallCount,uint ViewProjectionHash){
+        this.SceneObjectCount=SceneObjectCount;
+        this.FrustumCandidateCount=FrustumCandidateCount;
+        this.DrawCallCount=DrawCallCount;
+        this.ViewProjectionHash=ViewProjectionHash;
+    }
+
+    internal int SceneObjectCount { get; }
+    internal int FrustumCandidateCount { get; }
+    internal int DrawCallCount { get; }
+    internal uint ViewProjectionHash { get; }
+
+    internal static uint ComputeViewProjectionHash(in Matrix4x4 View,in Matrix4x4 Projection){
+        Matrix4x4 Value=View*Projection;
+        unchecked{
+            uint Hash=2166136261;
+            Hash=(Hash^(uint)Value.M11.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M12.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M13.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M14.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M21.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M22.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M23.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M24.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M31.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M32.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M33.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M34.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M41.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M42.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M43.GetHashCode())*16777619;
+            return(Hash^(uint)Value.M44.GetHashCode())*16777619;
+        }
+    }
+}
+
+/// <summary>
 /// Multi-object counterpart to <see cref="VorticeRenderer"/> (ADR-0008) for the Scene Designer tool
 /// window (ADR-0020/ADR-0040): one vertex/index buffer per object, a per-object constant buffer slot,
 /// and a selection tint driven by <see cref="SetSelectedNode"/>. Deliberately a separate class from
@@ -54,6 +118,9 @@ internal sealed class SceneRenderObject {
 /// </summary>
 internal sealed class SceneRenderer:IDisposable {
     private const int FrameCount=2;
+    /// <summary>Maximum number of camera thumbnails composed over the main Scene View.</summary>
+    public const int MaxCameraPreviews=3;
+    private const int CameraPassCount=1+MaxCameraPreviews;
     private static readonly Format BackBufferFormat=Format.R8G8B8A8_UNorm;
     private static readonly Format DepthBufferFormat=Format.D32_Float;
 
@@ -64,6 +131,7 @@ internal sealed class SceneRenderer:IDisposable {
     private readonly int RtvDescriptorSize;
     private readonly ID3D12Resource[]RenderTargets=new ID3D12Resource[FrameCount];
     private readonly ID3D12DescriptorHeap DsvHeap;
+    private readonly int DsvDescriptorSize;
     private ID3D12Resource DepthBuffer;
     private readonly ID3D12CommandAllocator[]CommandAllocators=new ID3D12CommandAllocator[FrameCount];
     private readonly ID3D12GraphicsCommandList CommandList;
@@ -102,12 +170,32 @@ internal sealed class SceneRenderer:IDisposable {
         public required Vector4 BaseColorFactor;
     }
 
+    private sealed class PreviewRenderTarget:IDisposable {
+        public required int Width;
+        public required int Height;
+        public required ID3D12Resource Color;
+        public required ID3D12Resource Depth;
+        public required CpuDescriptorHandle Rtv;
+        public required CpuDescriptorHandle Dsv;
+
+        public void Dispose(){
+            this.Depth.Dispose();
+            this.Color.Dispose();
+        }
+    }
+
     private readonly List<ObjectResources>Objects=[];
     private NodePath?SelectedNodeId;
     private IReadOnlyCollection<NodePath>?SelectedNodeIds;
 
     private Matrix4x4 CurrentView;
     private Matrix4x4 CurrentProjection;
+    private readonly SceneCameraPreviewPass[]CameraPreviews=new SceneCameraPreviewPass[MaxCameraPreviews];
+    // Every card owns colour and depth state, so cards cannot inherit the Scene View's depth,
+    // viewport or scissor state.
+    private readonly PreviewRenderTarget?[]CameraPreviewTargets=new PreviewRenderTarget?[MaxCameraPreviews];
+    private readonly SceneCameraPreviewDiagnostics[]CameraPreviewDiagnostics=new SceneCameraPreviewDiagnostics[MaxCameraPreviews];
+    private int CameraPreviewCount;
 
     /// <summary>定数バッファの唯一の更新トリガ。ctor/<see cref="SetCamera"/>/<see cref="SetSelectedNode"/>が立て、<see cref="RenderFrame"/>が消費する。</summary>
     private readonly bool[]ConstantsDirty=new bool[FrameCount];
@@ -241,12 +329,15 @@ internal sealed class SceneRenderer:IDisposable {
         using var TempSwapChain=Factory.CreateSwapChainForHwnd(this.CommandQueue,Hwnd,SwapChainDescription);
         this.SwapChain=TempSwapChain.QueryInterface<IDXGISwapChain3>();
 
-        this.RtvHeap= this.Device.CreateDescriptorHeap(new DescriptorHeapDescription(DescriptorHeapType.RenderTargetView,FrameCount));
+        this.RtvHeap= this.Device.CreateDescriptorHeap(new DescriptorHeapDescription(
+            DescriptorHeapType.RenderTargetView,FrameCount+MaxCameraPreviews));
         this.RtvDescriptorSize= this.Device.GetDescriptorHandleIncrementSize(DescriptorHeapType.RenderTargetView);
         this.CreateRenderTargetViews();
 
-        this.DsvHeap= this.Device.CreateDescriptorHeap(new DescriptorHeapDescription(DescriptorHeapType.DepthStencilView,1));
-        this.DepthBuffer= this.CreateDepthBuffer(this.Width,this.Height);
+        this.DsvHeap= this.Device.CreateDescriptorHeap(new DescriptorHeapDescription(
+            DescriptorHeapType.DepthStencilView,1+MaxCameraPreviews));
+        this.DsvDescriptorSize= this.Device.GetDescriptorHandleIncrementSize(DescriptorHeapType.DepthStencilView);
+        this.DepthBuffer= this.CreateDepthBuffer(this.Width,this.Height,this.DsvHeap.GetCPUDescriptorHandleForHeapStart());
 
         for(var FrameIndex=0;FrameIndex<FrameCount;FrameIndex++){
             this.CommandAllocators[FrameIndex]= this.Device.CreateCommandAllocator(CommandListType.Direct);
@@ -345,7 +436,7 @@ internal sealed class SceneRenderer:IDisposable {
                                                                  new ResourceDescription {
                                                                      Dimension=ResourceDimension.Buffer,
                                                                      // D3D12 は 0 バイトの buffer を許可しないので、0件でも1スロット分は確保する。
-                                                                     Width=(ulong)(this.AlignedSlotSize* this.ObjectCapacity*FrameCount),
+                                                                      Width=(ulong)(this.AlignedSlotSize* this.ObjectCapacity*CameraPassCount*FrameCount),
                                                                      Height=1,
                                                                      DepthOrArraySize=1,
                                                                      MipLevels=1,
@@ -393,6 +484,114 @@ internal sealed class SceneRenderer:IDisposable {
         MarkAllDirty(this.OverlayConstantsDirty);
     }
 
+    /// <summary>
+    /// Sets the camera thumbnails rendered after the primary Scene View. At most
+    /// <see cref=MaxCameraPreviews/> entries are accepted; invalid rectangles are ignored.
+    /// The input is copied so callers may reuse their layout buffer immediately.
+    /// </summary>
+    public void SetCameraPreviews(IReadOnlyList<SceneCameraPreviewPass>?Previews){
+        var Count=0;
+        if(Previews is not null){
+            for(var I=0;I<Previews.Count&&Count<MaxCameraPreviews;I++){
+                var Preview= this.ClipPreview(Previews[I]);
+                if(Preview.Width<=0||Preview.Height<=0){
+                    continue;
+                }
+                this.CameraPreviews[Count++]=Preview;
+            }
+        }
+
+        // Layout changes are infrequent (selection/resize driven), so always invalidate
+        // the frame slots. This also handles a caller replacing an entry with another
+        // entry after invalid rectangles were filtered and packed.
+        var Changed=true;
+        this.CameraPreviewCount=Count;
+        if(Changed){
+            this.EnsurePreviewTargets();
+            this.RefreshCameraPreviewDiagnostics();
+            MarkAllDirty(this.ConstantsDirty);
+        }
+    }
+
+    /// <summary>Removes all camera thumbnails from subsequent frames.</summary>
+    public void ClearCameraPreviews(){
+        if(this.CameraPreviewCount==0){
+            return;
+        }
+        this.CameraPreviewCount=0;
+        Array.Clear(this.CameraPreviewDiagnostics,0,this.CameraPreviewDiagnostics.Length);
+        MarkAllDirty(this.ConstantsDirty);
+    }
+
+    /// <summary>Returns a snapshot of the effective camera preview layout for hit testing.</summary>
+    public IReadOnlyList<SceneCameraPreviewPass> GetCameraPreviews(){
+        var Snapshot=new SceneCameraPreviewPass[this.CameraPreviewCount];
+        Array.Copy(this.CameraPreviews,Snapshot,this.CameraPreviewCount);
+        return Snapshot;
+    }
+
+    /// <summary>Returns the last prepared per-card pass diagnostics for the Scene Designer status UI.</summary>
+    public IReadOnlyList<SceneCameraPreviewDiagnostics> GetCameraPreviewDiagnostics(){
+        var Snapshot=new SceneCameraPreviewDiagnostics[this.CameraPreviewCount];
+        Array.Copy(this.CameraPreviewDiagnostics,Snapshot,this.CameraPreviewCount);
+        return Snapshot;
+    }
+
+    private void RefreshCameraPreviewDiagnostics(){
+        for(var I=0;I<this.CameraPreviewCount;I++){
+            var Preview=this.CameraPreviews[I];
+            var ViewProjection=Preview.View*Preview.Projection;
+            var Candidates=0;
+            foreach(var Obj in this.Objects){
+                var Position=Vector3.Transform(Vector3.Zero,Obj.World);
+                var Clip=Vector4.Transform(new Vector4(Position,1f),ViewProjection);
+                if(Clip.W>1e-5f&&Math.Abs(Clip.X)<=Clip.W&&Math.Abs(Clip.Y)<=Clip.W
+                    &&Clip.Z>=0f&&Clip.Z<=Clip.W){
+                    Candidates++;
+                }
+            }
+            this.CameraPreviewDiagnostics[I]=new SceneCameraPreviewDiagnostics(
+                this.Objects.Count,Candidates,this.Objects.Count,ComputeMatrixHash(ViewProjection));
+        }
+    }
+
+    private static uint ComputeMatrixHash(in Matrix4x4 Value){
+        unchecked{
+            uint Hash=2166136261;
+            Hash=(Hash^(uint)Value.M11.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M12.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M13.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M14.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M21.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M22.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M23.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M24.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M31.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M32.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M33.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M34.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M41.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M42.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M43.GetHashCode())*16777619;
+            return (Hash^(uint)Value.M44.GetHashCode())*16777619;
+        }
+    }
+
+    private SceneCameraPreviewPass ClipPreview(in SceneCameraPreviewPass Preview){
+        var Left=Clamp(Preview.X,0,this.Width);
+        var Top=Clamp(Preview.Y,0,this.Height);
+        var Right=Clamp((long)Preview.X+Preview.Width,0L,this.Width);
+        var Bottom=Clamp((long)Preview.Y+Preview.Height,0L,this.Height);
+        return new SceneCameraPreviewPass(
+            Left,Top,(int)Math.Max(0,Right-Left),(int)Math.Max(0,Bottom-Top),
+            Preview.View,Preview.Projection);
+    }
+
+    // net472 does not provide Math.Clamp; keep clipping local to the renderer so that
+    // negative coordinates and integer overflow cannot reach the native rasterizer.
+    private static int Clamp(int Value,int Min,int Max)=>Math.Min(Math.Max(Value,Min),Max);
+    private static long Clamp(long Value,long Min,long Max)=>Math.Min(Math.Max(Value,Min),Max);
+
     /// <summary>ドラッグpreviewではGPU meshを再構築せず、既存objectのworld定数だけを更新する。</summary>
     public bool UpdateObjectTransform(NodePath NodeId,in Matrix4x4 World){
         var Object= this.Objects.FirstOrDefault(Candidate=>Candidate.NodeId.Equals(NodeId));
@@ -400,6 +599,7 @@ internal sealed class SceneRenderer:IDisposable {
             return false;
         }
         Object.World=World;
+        this.RefreshCameraPreviewDiagnostics();
         MarkAllDirty(this.ConstantsDirty);
         return true;
     }
@@ -430,6 +630,7 @@ internal sealed class SceneRenderer:IDisposable {
         }
 
         Handles=Enumerable.Range(Start,RenderObjects.Count).ToArray();
+        this.RefreshCameraPreviewDiagnostics();
         MarkAllDirty(this.ConstantsDirty);
         return true;
     }
@@ -441,6 +642,7 @@ internal sealed class SceneRenderer:IDisposable {
         }
 
         this.Objects[Handle].World=World;
+        this.RefreshCameraPreviewDiagnostics();
         MarkAllDirty(this.ConstantsDirty);
         return true;
     }
@@ -460,6 +662,7 @@ internal sealed class SceneRenderer:IDisposable {
             DisposeObjectResources(this.Objects[I]);
             this.Objects.RemoveAt(I);
         }
+        this.RefreshCameraPreviewDiagnostics();
         MarkAllDirty(this.ConstantsDirty);
     }
 
@@ -476,6 +679,8 @@ internal sealed class SceneRenderer:IDisposable {
             }
         }
 
+        this.AddCameraPreviewOverlay(Lines);
+
         var TotalCount=Triangles.Count+Lines.Count;
         if(TotalCount>MaxOverlayVertices){
             throw new ArgumentOutOfRangeException(nameof(Primitives),$"overlay頂点数{TotalCount}が上限{MaxOverlayVertices}を超えています。");
@@ -486,6 +691,47 @@ internal sealed class SceneRenderer:IDisposable {
         this.OverlayTriangleVertexCount=Triangles.Count;
         this.OverlayLineVertexCount=Lines.Count;
         MarkAllDirty(this.OverlayGeometryDirty);
+    }
+
+    private void AddCameraPreviewOverlay(List<OverlayVertex>Lines){
+        if(this.CameraPreviewCount==0||this.Width<=0||this.Height<=0
+            ||!Matrix4x4.Invert(this.CurrentView*this.CurrentProjection,out Matrix4x4 InverseViewProjection)){
+            return;
+        }
+
+        for(var I=0;I<this.CameraPreviewCount;I++){
+            SceneCameraPreviewPass Preview=this.CameraPreviews[I];
+            if(Preview.Width<=0||Preview.Height<=0){
+                continue;
+            }
+
+            Vector4 Color=I==0?new Vector4(1f,0.72f,0.1f,1f):new Vector4(0.35f,0.75f,1f,1f);
+            Vector3 TopLeft=ScreenToWorld(Preview.X,Preview.Y,InverseViewProjection);
+            Vector3 TopRight=ScreenToWorld(Preview.X+Preview.Width,Preview.Y,InverseViewProjection);
+            Vector3 BottomRight=ScreenToWorld(Preview.X+Preview.Width,Preview.Y+Preview.Height,InverseViewProjection);
+            Vector3 BottomLeft=ScreenToWorld(Preview.X,Preview.Y+Preview.Height,InverseViewProjection);
+            Lines.Add(new OverlayVertex { Position=TopLeft,Color=Color });
+            Lines.Add(new OverlayVertex { Position=TopRight,Color=Color });
+            Lines.Add(new OverlayVertex { Position=TopRight,Color=Color });
+            Lines.Add(new OverlayVertex { Position=BottomRight,Color=Color });
+            Lines.Add(new OverlayVertex { Position=BottomRight,Color=Color });
+            Lines.Add(new OverlayVertex { Position=BottomLeft,Color=Color });
+            Lines.Add(new OverlayVertex { Position=BottomLeft,Color=Color });
+            Lines.Add(new OverlayVertex { Position=TopLeft,Color=Color });
+
+            IReadOnlyList<GizmoOverlayVertex>Label=GizmoDragHud.BuildScreenText(
+                (I+1).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                Preview.X+6f,Preview.Y+18f,14f,Color,InverseViewProjection,this.Width,this.Height);
+            foreach(GizmoOverlayVertex Vertex in Label){
+                Lines.Add(new OverlayVertex { Position=Vertex.Position,Color=Vertex.Color });
+            }
+        }
+    }
+
+    private Vector3 ScreenToWorld(float X,float Y,in Matrix4x4 InverseViewProjection){
+        float NdcX=(X/(float)this.Width*2f)-1f;
+        float NdcY=1f-(Y/(float)this.Height*2f);
+        return Vector3.Transform(new Vector3(NdcX,NdcY,0f),InverseViewProjection);
     }
 
     private ObjectResources CreateObjectResources(SceneRenderObject RenderObject){
@@ -541,7 +787,7 @@ internal sealed class SceneRenderer:IDisposable {
         Object.VertexBuffer.Dispose();
     }
 
-    private ID3D12Resource CreateDepthBuffer(int W,int H){
+    private ID3D12Resource CreateDepthBuffer(int W,int H,CpuDescriptorHandle DsvHandle){
         var Description=ResourceDescription.Texture2D(DepthBufferFormat,(uint)W,(uint)H,1,1);
         Description.Flags=ResourceFlags.AllowDepthStencil;
 
@@ -551,8 +797,48 @@ internal sealed class SceneRenderer:IDisposable {
                                                         ResourceStates.DepthWrite,
                                                         new ClearValue(DepthBufferFormat,1.0f,0));
 
-        this.Device.CreateDepthStencilView(Buffer,null, this.DsvHeap.GetCPUDescriptorHandleForHeapStart());
+        this.Device.CreateDepthStencilView(Buffer,null,DsvHandle);
         return Buffer;
+    }
+
+    private PreviewRenderTarget CreatePreviewTarget(int Index,int W,int H){
+        var ColorDescription=ResourceDescription.Texture2D(BackBufferFormat,(uint)W,(uint)H,1,1);
+        ColorDescription.Flags=ResourceFlags.AllowRenderTarget;
+        var Color=this.Device.CreateCommittedResource(
+            HeapType.Default,ColorDescription,ResourceStates.CopySource,
+            new ClearValue(BackBufferFormat,new Vortice.Mathematics.Color4(5/255f,5/255f,20/255f,1f)));
+        var Rtv=this.RtvHeap.GetCPUDescriptorHandleForHeapStart()+((FrameCount+Index)*this.RtvDescriptorSize);
+        var Dsv=this.DsvHeap.GetCPUDescriptorHandleForHeapStart()+((Index+1)*this.DsvDescriptorSize);
+        this.Device.CreateRenderTargetView(Color,null,Rtv);
+        return new PreviewRenderTarget{
+            Width=W,Height=H,Color=Color,
+            Depth=this.CreateDepthBuffer(W,H,Dsv),Rtv=Rtv,Dsv=Dsv,
+        };
+    }
+
+    private void EnsurePreviewTargets(bool GpuIsIdle=false){
+        var RequiresRebuild=false;
+        for(var I=0;I<this.CameraPreviewCount;I++){
+            var Preview=this.CameraPreviews[I];
+            var Target=this.CameraPreviewTargets[I];
+            if(Target is null||Target.Width!=Preview.Width||Target.Height!=Preview.Height){
+                RequiresRebuild=true;
+                break;
+            }
+        }
+        if(!RequiresRebuild){ return; }
+        if(!GpuIsIdle){ this.WaitForGpuIdle(); }
+        for(var I=0;I<this.CameraPreviewCount;I++){
+            var Preview=this.CameraPreviews[I];
+            var Target=this.CameraPreviewTargets[I];
+            if(Target is not null&&(Target.Width!=Preview.Width||Target.Height!=Preview.Height)){
+                Target.Dispose();
+                this.CameraPreviewTargets[I]=null;
+            }
+            if(this.CameraPreviewTargets[I] is null){
+                this.CameraPreviewTargets[I]=this.CreatePreviewTarget(I,Preview.Width,Preview.Height);
+            }
+        }
     }
 
     private void CreateRenderTargetViews(){
@@ -570,17 +856,26 @@ internal sealed class SceneRenderer:IDisposable {
             return;
         }
 
-        var FrameOffset=FrameIndex* this.ObjectCapacity* this.AlignedSlotSize;
-        var TotalSize= this.AlignedSlotSize* this.Objects.Count;
+        var FrameOffset=FrameIndex* this.ObjectCapacity*CameraPassCount* this.AlignedSlotSize;
+        var TotalSize= this.AlignedSlotSize* this.Objects.Count*CameraPassCount;
         var Mapped= this.ConstantBuffer.Map<byte>(0,FrameOffset+TotalSize);
-        for(var I=0;I< this.Objects.Count;I++){
-            var Obj= this.Objects[I];
-            var Mvp=Obj.World* this.CurrentView* this.CurrentProjection;
-            var Selected=SceneSelectionTint.GetWeight(Obj.NodeId, this.SelectedNodeId, this.SelectedNodeIds);
-            TransformConstants Constants=new(){ Mvp=Mvp,BaseColorFactor=Obj.BaseColorFactor,Selected=Selected };
-            MemoryMarshal.Write(
-                Mapped.Slice(FrameOffset+(I* this.AlignedSlotSize),Marshal.SizeOf<TransformConstants>()),
-                ref Constants);
+        for(var Pass=0;Pass<= this.CameraPreviewCount;Pass++){
+            var View=Pass==0?this.CurrentView:this.CameraPreviews[Pass-1].View;
+            var Projection=Pass==0?this.CurrentProjection:this.CameraPreviews[Pass-1].Projection;
+            var PassOffset=FrameOffset+(Pass* this.ObjectCapacity* this.AlignedSlotSize);
+            for(var I=0;I< this.Objects.Count;I++){
+                var Obj= this.Objects[I];
+                var Mvp=Obj.World*View*Projection;
+                // Selection tint belongs to the editable primary viewport only. Camera
+                // thumbnails are clean presentation passes and must not show gizmo state.
+                var Selected=Pass==0
+                                  ?SceneSelectionTint.GetWeight(Obj.NodeId, this.SelectedNodeId, this.SelectedNodeIds)
+                                  :0f;
+                TransformConstants Constants=new(){ Mvp=Mvp,BaseColorFactor=Obj.BaseColorFactor,Selected=Selected };
+                MemoryMarshal.Write(
+                    Mapped.Slice(PassOffset+(I* this.AlignedSlotSize),Marshal.SizeOf<TransformConstants>()),
+                    ref Constants);
+            }
         }
 
         this.ConstantBuffer.Unmap(0,null);
@@ -653,9 +948,18 @@ internal sealed class SceneRenderer:IDisposable {
 
         this.Width=NewWidth;
         this.Height=NewHeight;
+        for(var I=0;I< this.CameraPreviewCount;I++){
+            this.CameraPreviews[I]=this.ClipPreview(this.CameraPreviews[I]);
+        }
         this.SwapChain.ResizeBuffers(FrameCount, this.Width, this.Height,BackBufferFormat,SwapChainFlags.None);
         this.CreateRenderTargetViews();
-        this.DepthBuffer= this.CreateDepthBuffer(this.Width, this.Height);
+        this.DepthBuffer= this.CreateDepthBuffer(
+            this.Width,this.Height,this.DsvHeap.GetCPUDescriptorHandleForHeapStart());
+        for(var I=0;I<this.CameraPreviewCount;I++){
+            this.CameraPreviewTargets[I]?.Dispose();
+            this.CameraPreviewTargets[I]=null;
+        }
+        this.EnsurePreviewTargets(GpuIsIdle:true);
 
         // アスペクト比に追従した projection は所有者(SceneHwndHost)が SetCamera で入れ直す。
     }
@@ -693,15 +997,43 @@ internal sealed class SceneRenderer:IDisposable {
         this.CommandList.RSSetViewport(0,0, this.Width, this.Height);
         this.CommandList.RSSetScissorRect(this.Width, this.Height);
 
-        for(var I=0;I< this.Objects.Count;I++){
-            var Obj= this.Objects[I];
-            var ConstantOffset=((FrameIndex* this.ObjectCapacity)+I)* this.AlignedSlotSize;
-            this.CommandList.SetGraphicsRootConstantBufferView(
-                                                               0, this.ConstantBuffer.GPUVirtualAddress+(ulong)ConstantOffset);
-            this.CommandList.IASetVertexBuffers(0,Obj.VertexBufferView);
-            this.CommandList.IASetIndexBuffer(Obj.IndexBufferView);
-            this.CommandList.DrawIndexedInstanced(Obj.IndexCount,1,0,0,0);
+        this.DrawScenePass(FrameIndex,0);
+
+        // Render every thumbnail into its own RGBA/depth pair and only then copy the colour
+        // into the Scene View. This fully separates preview depth, viewport and clear state.
+        for(var PreviewIndex=0;PreviewIndex< this.CameraPreviewCount;PreviewIndex++){
+            var Preview= this.CameraPreviews[PreviewIndex];
+            var PreviewTarget=this.CameraPreviewTargets[PreviewIndex];
+            if(Preview.Width<=0||Preview.Height<=0||PreviewTarget is null){
+                continue;
+            }
+
+            this.CommandList.ResourceBarrierTransition(
+                PreviewTarget.Color,ResourceStates.CopySource,ResourceStates.RenderTarget);
+            this.CommandList.OMSetRenderTargets(PreviewTarget.Rtv,PreviewTarget.Dsv);
+            this.CommandList.ClearRenderTargetView(
+                PreviewTarget.Rtv,new Vortice.Mathematics.Color4(5/255f,5/255f,20/255f,1f));
+            this.CommandList.ClearDepthStencilView(PreviewTarget.Dsv,ClearFlags.Depth,1.0f,0);
+            this.CommandList.SetPipelineState(this.PipelineState);
+            this.CommandList.RSSetViewport(0,0,PreviewTarget.Width,PreviewTarget.Height);
+            this.CommandList.RSSetScissorRect(PreviewTarget.Width,PreviewTarget.Height);
+            this.DrawScenePass(FrameIndex,PreviewIndex+1);
+
+            this.CommandList.ResourceBarrierTransition(
+                PreviewTarget.Color,ResourceStates.RenderTarget,ResourceStates.CopySource);
+            this.CommandList.ResourceBarrierTransition(
+                this.RenderTargets[FrameIndex],ResourceStates.RenderTarget,ResourceStates.CopyDest);
+            this.CommandList.CopyTextureRegion(
+                new TextureCopyLocation(this.RenderTargets[FrameIndex],0),Preview.X,Preview.Y,0,
+                new TextureCopyLocation(PreviewTarget.Color,0),null);
+            this.CommandList.ResourceBarrierTransition(
+                this.RenderTargets[FrameIndex],ResourceStates.CopyDest,ResourceStates.RenderTarget);
         }
+
+        // Gizmos and selection overlays belong to the editable primary viewport. Restore
+        // its rasterizer state before issuing the existing overlay draws below.
+        this.CommandList.RSSetViewport(0,0, this.Width, this.Height);
+        this.CommandList.RSSetScissorRect(this.Width, this.Height);
 
         if(this.OverlayTriangleVertexCount>0){
             this.CommandList.SetPipelineState(this.OverlayTrianglePipelineState);
@@ -727,6 +1059,25 @@ internal sealed class SceneRenderer:IDisposable {
         this.SwapChain.Present(1,PresentFlags.None);
 
         this.SignalFrameSlot(FrameIndex);
+    }
+
+    private void DrawScenePass(int FrameIndex,int PassIndex){
+        var PassOffset=(FrameIndex* this.ObjectCapacity*CameraPassCount)
+                       +(PassIndex* this.ObjectCapacity);
+        for(var I=0;I< this.Objects.Count;I++){
+            var Obj= this.Objects[I];
+            var ConstantOffset=(PassOffset+I)* this.AlignedSlotSize;
+            this.CommandList.SetGraphicsRootConstantBufferView(
+                                                               0, this.ConstantBuffer.GPUVirtualAddress+(ulong)ConstantOffset);
+            this.CommandList.IASetVertexBuffers(0,Obj.VertexBufferView);
+            this.CommandList.IASetIndexBuffer(Obj.IndexBufferView);
+            this.CommandList.DrawIndexedInstanced(Obj.IndexCount,1,0,0,0);
+        }
+    }
+
+    private void SetScissorRect(int Left,int Top,int Right,int Bottom){
+        RawRect Rect=(System.Drawing.Rectangle)new System.Drawing.Rectangle(Left,Top,Right-Left,Bottom-Top);
+        this.CommandList.RSSetScissorRects(Rect);
     }
 
     private void WaitForFrameSlot(int FrameIndex){
@@ -771,6 +1122,9 @@ internal sealed class SceneRenderer:IDisposable {
         }
 
         this.DepthBuffer.Dispose();
+        foreach(var PreviewTarget in this.CameraPreviewTargets){
+            PreviewTarget?.Dispose();
+        }
         this.DsvHeap.Dispose();
         for(var I=0;I<FrameCount;I++){
             this.RenderTargets[I].Dispose();

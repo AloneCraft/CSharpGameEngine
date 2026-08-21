@@ -55,6 +55,8 @@ internal sealed class SceneHwndHost:HwndHost {
     private IReadOnlyList<SceneRenderObject>CurrentRenderObjects=[];
     private IReadOnlyList<NodePath>SelectedNodePaths=[];
     private SceneSelection?CurrentSelection;
+    private bool CameraPreviewEnabled=true;
+    private IReadOnlyList<SceneCameraPreviewLayoutItem>CameraPreviewLayout=[];
 
     // M0020 Phase 1: ナビゲーション状態機械とカメラ/永続ツール状態(ADR-0041 決定事項1)。
     private SceneViewState?ViewState;
@@ -133,6 +135,8 @@ internal sealed class SceneHwndHost:HwndHost {
     /// セッションを知らない)。
     /// </summary>
     internal event Action<NodePath?,bool>?ObjectPicked;
+
+    internal event Action<NodePath>?CameraPreviewSelectionRequested;
 
     /// <summary>
     /// 空間ドラッグで確定した複数NodePathとDown時のCtrl状態。セッション選択への変換は
@@ -258,6 +262,7 @@ internal sealed class SceneHwndHost:HwndHost {
         if(UpdateKind==SceneRenderUpdateKind.Rebuild){ return false; }
         if(UpdateKind==SceneRenderUpdateKind.None){
             this.RenderedAnalysisGeneration=Snapshot.AnalysisGeneration;
+            this.RefreshCameraPreviews();
             this.UpdateMoveGizmo();
             return true;
         }
@@ -278,6 +283,7 @@ internal sealed class SceneHwndHost:HwndHost {
         }
 
         this.RenderedAnalysisGeneration=Snapshot.AnalysisGeneration;
+        this.RefreshCameraPreviews();
         this.UpdateMoveGizmo();
         this.Surface?.SetVisible(true);
         this.SetStatus($"表示中: {Model.ClassName}");
@@ -309,7 +315,61 @@ internal sealed class SceneHwndHost:HwndHost {
 
         this.SelectedNodePaths=ResolvedPaths;
         this.Renderer?.SetSelectedNode(this.SelectedNodePath,ResolvedPaths);
+        this.RefreshCameraPreviews();
         this.UpdateMoveGizmo();
+    }
+
+    internal void SetCameraPreviewEnabled(bool Enabled){
+        if(this.CameraPreviewEnabled==Enabled){
+            return;
+        }
+
+        this.CameraPreviewEnabled=Enabled;
+        this.RefreshCameraPreviews();
+        this.RefreshOverlay();
+    }
+
+    private void RefreshCameraPreviews(){
+        if(this.Renderer is not { }Active||!this.CameraPreviewEnabled
+            ||this.TargetModel is not { }Model||this.SelectedNodePaths.Count==0){
+            this.CameraPreviewLayout=[];
+            this.Renderer?.ClearCameraPreviews();
+            return;
+        }
+
+        IReadOnlyList<SceneCameraPreview>Cameras=SceneCameraPreviewBinding.Build(
+            Model,this.SelectedNodePaths,this.AspectRatio,SceneRenderer.MaxCameraPreviews);
+        IReadOnlyList<SceneCameraPreviewLayoutItem>Layout=CameraPreviewLayoutPolicy.Build(
+            this.SurfaceWidth,this.SurfaceHeight,Cameras);
+        List<SceneCameraPreviewLayoutItem>EffectiveLayout=[];
+        List<SceneCameraPreviewPass>Passes=[];
+        foreach(SceneCameraPreviewLayoutItem Item in Layout){
+            if(!Item.Camera.IsAvailable){
+                EffectiveLayout.Add(Item);
+                continue;
+            }
+
+            SceneCameraPreviewRect Rect=Item.Rect;
+            float CardAspect=Rect.Width/Math.Max(Rect.Height,1f);
+            SceneCameraPreview Camera=Item.Camera.WithAspectRatio(CardAspect);
+            EffectiveLayout.Add(new SceneCameraPreviewLayoutItem(Camera,Rect,Item.Index));
+            Passes.Add(new SceneCameraPreviewPass(
+                (int)Math.Round(Rect.X),(int)Math.Round(Rect.Y),
+                Math.Max(1,(int)Math.Round(Rect.Width)),Math.Max(1,(int)Math.Round(Rect.Height)),
+                Camera.View,Camera.Projection));
+        }
+
+        this.CameraPreviewLayout=EffectiveLayout;
+        Active.SetCameraPreviews(Passes);
+        SceneCameraPreviewLayoutItem?Unavailable=EffectiveLayout.FirstOrDefault(static Item=>!Item.Camera.IsAvailable);
+        IReadOnlyList<SceneCameraPreviewDiagnostics> Diagnostics=Active.GetCameraPreviewDiagnostics();
+        if(Unavailable is { }UnavailableItem){
+            this.SetStatus(UnavailableItem.Camera.ErrorMessage??UnavailableItem.Camera.DisplayName);
+        }
+        if(Unavailable is null&&Diagnostics.Count>0){
+            var First=Diagnostics[0];
+            this.SetStatus($"Camera Preview: objects={First.SceneObjectCount}, frustum={First.FrustumCandidateCount}, draws={First.DrawCallCount}, VP={First.ViewProjectionHash:X8}");
+        }
     }
 
     private void LoadIntoSurface(){
@@ -334,9 +394,10 @@ internal sealed class SceneHwndHost:HwndHost {
             this.ResizeHandler=(W,H)=>{
                                    this.SurfaceWidth=Math.Max(1,W);
                                    this.SurfaceHeight=Math.Max(1,H);
-                                   this.Renderer?.Resize(W,H);
-                                   this.ApplyCamera();
-                                   this.RefreshOverlay();
+                                    this.Renderer?.Resize(W,H);
+                                    this.ApplyCamera();
+                                    this.RefreshCameraPreviews();
+                                    this.RefreshOverlay();
                                };
             this.Surface.Resized+= this.ResizeHandler;
         }
@@ -494,6 +555,15 @@ internal sealed class SceneHwndHost:HwndHost {
 
         if(Event.Kind==PointerEventKind.Down){
             this.ViewportActivated?.Invoke();
+        }
+
+        if(this.CameraPreviewEnabled
+            &&CameraPreviewHitTestPolicy.TryHit(this.CameraPreviewLayout,Event.X,Event.Y,out NodePath PreviewPath)){
+            if(Event.Kind==PointerEventKind.Down&&Event.Button==PointerButton.Left){
+                this.CameraPreviewSelectionRequested?.Invoke(PreviewPath);
+            }
+
+            return;
         }
 
         if(Event.Kind==PointerEventKind.Move&&Machine.State==SceneNavState.Idle){
@@ -1673,6 +1743,7 @@ internal sealed class SceneHwndHost:HwndHost {
             // 再解析でRendererを作り直しても選択の見た目を保つ。複数選択(SelectedNodePaths)も
             // 一緒に渡さないと、primary以外のハイライトだけが再ビルドで消える。
             this.Renderer.SetSelectedNode(this.SelectedNodePath,this.SelectedNodePaths);
+            this.RefreshCameraPreviews();
             this.UpdateMoveGizmo();
             this.Surface.SetVisible(true);
             this.SetStatus($"表示中: {Result.Request.ClassName}");

@@ -10,6 +10,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
+        <ToggleButton x:Name='CameraPreviewToggle' Grid.Row='0' HorizontalAlignment='Right' VerticalAlignment='Top' Margin='0,5,8,0' Panel.ZIndex='5' Width='120' IsChecked='True' Content='Camera Preview' ToolTip='Camera view preview' />
 
         <Border Grid.Row="0" Padding="8,5" Background="#202020">
             <DockPanel LastChildFill="True">
@@ -20,6 +21,7 @@
                           IsEnabled="False"
                           SelectionChanged="OnSceneSelectionChanged"
                           ToolTip="現在の C# 文書と同じプロジェクトの Scene を選択します。" />
+                <TextBlock x:Name="VsixIdentityText" Foreground="#8FC9FF" FontSize="10" />
                 <TextBlock x:Name="StatusText"
                            VerticalAlignment="Center"
                            Foreground="#D8D8D8"

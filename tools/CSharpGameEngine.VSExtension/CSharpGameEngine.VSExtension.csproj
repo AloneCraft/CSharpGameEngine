@@ -31,6 +31,9 @@
          Bake the repo root known at build time into the assembly instead; OpenViewerCommand
          still validates it against the marker file at runtime before trusting it. -->
     <CSharpGameEngineRepoRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\'))</CSharpGameEngineRepoRoot>
+    <CSharpGameEngineVsixVersion>0.1.2</CSharpGameEngineVsixVersion>
+    <CSharpGameEngineBuildUtc>$([System.DateTime]::UtcNow.ToString('O'))</CSharpGameEngineBuildUtc>
+    <CSharpGameEngineGitRevision>unknown</CSharpGameEngineGitRevision>
 
     <!-- Release tracking for the Scene DSL descriptors is owned by CSharpGameEngine.CodeAnalysis,
          which is where they actually ship as an analyzer. Tracking them again here would create a
@@ -138,6 +141,10 @@
 
   <ItemGroup>
     <AssemblyMetadata Include="CSharpGameEngineRepoRoot" Value="$(CSharpGameEngineRepoRoot)" />
+    <AssemblyMetadata Include="CSharpGameEngineVsixVersion" Value="$(CSharpGameEngineVsixVersion)" />
+    <AssemblyMetadata Include="CSharpGameEngineBuildUtc" Value="$(CSharpGameEngineBuildUtc)" />
+    <AssemblyMetadata Include="CSharpGameEngineGitRevision" Value="$(CSharpGameEngineGitRevision)" />
+    <AssemblyMetadata Include="CSharpGameEngineBuildOutputPath" Value="$(TargetPath)" />
   </ItemGroup>
 
   <ItemGroup>
@@ -161,6 +168,18 @@
       <_GeneratedItemTemplateArtifact Include="$(TemplateFileManifest)" />
     </ItemGroup>
     <Delete Files="@(_GeneratedItemTemplateArtifact)" />
+  </Target>
+  <!-- SourceRevisionId is discovered by the SDK after project evaluation. Update the metadata
+       immediately before AssemblyInfo is generated so the installed assembly exposes the actual
+       checkout revision rather than a build-machine setting. -->
+  <Target Name="ResolveCSharpGameEngineVsixBuildIdentity"
+          BeforeTargets="GetAssemblyAttributes">
+    <PropertyGroup>
+      <CSharpGameEngineGitRevision Condition="'$(SourceRevisionId)' != ''">$(SourceRevisionId)</CSharpGameEngineGitRevision>
+    </PropertyGroup>
+    <ItemGroup>
+      <AssemblyMetadata Update="CSharpGameEngineGitRevision" Value="$(CSharpGameEngineGitRevision)" />
+    </ItemGroup>
   </Target>
   <!-- TemplateProjectOutputGroup is normally consumed by a referencing VSIX project. This project
        owns both the VSTemplate and the VSIX, so add its generated archive to the current container. -->

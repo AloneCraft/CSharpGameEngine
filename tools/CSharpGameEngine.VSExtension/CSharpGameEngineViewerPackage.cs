@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -23,8 +22,6 @@ namespace CSharpGameEngine.VSExtension;
 [ProvideToolWindow(typeof(HierarchyToolWindowPane),
     Style=VsDockStyle.Linked,Window=ToolWindowGuids80.SolutionExplorer,
     Orientation=ToolWindowOrientation.Left,DockedWidth=300)]
-[ProvideToolWindow(typeof(SceneDesignerToolWindowPane),
-    Style=VsDockStyle.Tabbed,Window=ToolWindowGuids80.SolutionExplorer)]
 [ProvideToolWindow(typeof(InspectorToolWindowPane),
     Style=VsDockStyle.Linked,Window=ToolWindowGuids80.SolutionExplorer,
     Orientation=ToolWindowOrientation.Right,DockedWidth=300)]
@@ -33,11 +30,6 @@ namespace CSharpGameEngine.VSExtension;
 [ProvideToolWindow(typeof(ComponentPaletteToolWindowPane),
     Style=VsDockStyle.Linked,Window=ToolWindowGuids80.SolutionExplorer,
     Orientation=ToolWindowOrientation.Bottom,DockedWidth=300)]
-// Direct .slnx launch is preferred, but a VS debug launch can still arrive at Start Window.
-// Keep NoSolution as a fallback so that route opens UserEcsProject without taking editor focus.
-[ProvideAutoLoad(VSConstants.UICONTEXT.ShellInitialized_string,PackageAutoLoadFlags.BackgroundLoad)]
-[ProvideAutoLoad(StartupAutoOpenPolicy.NoSolutionContext,PackageAutoLoadFlags.BackgroundLoad)]
-[ProvideAutoLoad(VSConstants.UICONTEXT.SolutionExistsAndFullyLoaded_string,PackageAutoLoadFlags.BackgroundLoad)]
 [ProvideEditorFactory(typeof(GlbFbxPreviewEditorFactory),110,TrustLevel=__VSEDITORTRUSTLEVEL.ETL_AlwaysTrusted)]
 [ProvideEditorLogicalView(typeof(GlbFbxPreviewEditorFactory),VSConstants.LOGVIEWID.Designer_string)]
 [ProvideEditorExtension(typeof(GlbFbxPreviewEditorFactory),".glb",50)]
@@ -57,15 +49,13 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
     private AssetMetaWatcher?AssetMetaWatcher;
     private SceneWorkspaceService?SceneWorkspace;
     private SceneEditorSessionService?SceneSession;
+    private SceneDesignerDocumentManager?SceneDesignerDocuments;
     private ActiveDocumentTracker?DocumentTracker;
     private SceneSourceMarkerService?SourceMarkerService;
 
     protected override async Task InitializeAsync(CancellationToken CancellationToken,IProgress<ServiceProgressData>Progress){
         await this.JoinableTaskFactory.SwitchToMainThreadAsync(CancellationToken);
-
-        // ソリューションを開く処理はRoslyn/ToolWindow初期化より先に開始する。Start Windowでは
-        // 後段のサービスが利用できないことがあり、末尾まで待つと自動起動自体が失われる。
-        _= this.JoinableTaskFactory.RunAsync(this.TryAutoOpenUserEcsProjectAsync);
+        ActivityLog.LogInformation(nameof(CSharpGameEngineViewerPackage),VsixBuildIdentity.ActivityLogText);
 
         await OpenViewerCommand.InitializeAsync(this);
         this.FabWatchCommand= await ToggleFabWatchCommand.InitializeAsync(this);
@@ -87,7 +77,7 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
 
         if(this.SceneWorkspace is not null){
             this.SceneSession=new SceneEditorSessionService(this.SceneWorkspace);
-            SceneDesignerToolWindowPane.ConfigureSessionProvider(()=>this.SceneSession);
+            this.SceneDesignerDocuments=new SceneDesignerDocumentManager();
             InspectorToolWindowPane.ConfigureSessionProvider(()=>this.SceneSession);
             ComponentPaletteToolWindowPane.ConfigureSessionProvider(()=>this.SceneSession);
             this.SourceMarkerService=SceneSourceMarkerService.Start();
@@ -102,7 +92,7 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
             this.SceneWorkspace.ModelChanged+=this.OnWorkspaceModelChangedForHub;
             this.DocumentTracker=ActiveDocumentTracker.Start(this.SceneWorkspace);
             if(this.DocumentTracker is not null){
-                await OpenSceneDesignerCommand.InitializeAsync(this, this.SceneSession, this.DocumentTracker);
+                await OpenSceneDesignerCommand.InitializeAsync(this,this.SceneSession,this.DocumentTracker,this.SceneDesignerDocuments);
             }
         }
 
@@ -111,67 +101,6 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
         // running. FindToolWindowAsync can then wait on this package's own load operation and
         // prevent Visual Studio from completing startup. The existing Apply Game Engine Layout
         // command remains the explicit, safe way to create the default layout.
-    }
-
-    /// <summary>
-    /// Start Window から起動した場合だけ UserEcsProject を開く互換経路です。
-    /// これは SolutionExistsAndFullyLoaded の通常起動を置き換えません。DTE の MainWindow.Activate は
-    /// Tab などのキーボードフォーカスをコードエディタから奪うため、ここでは絶対に呼びません。
-    /// </summary>
-    private async Task TryAutoOpenUserEcsProjectAsync(){
-        // devenv自身のコマンドラインが既にソリューションを指定している場合(このリポジトリのF5設定が
-        // 常にそう)、ネイティブな起動シーケンスが確実に処理する。この判定はプロセス起動時点の
-        // 事実だけを見るためタイミングに一切依存せず、下のポーリング系の判定(IsSolutionOpenAsync等)
-        // が抱える「確認するタイミング自体がネイティブ読み込みの完了より早いと同じ結果を返し続ける」
-        // というレースを構造的に回避できる(StartupAutoOpenPolicy.CommandLineAlreadySpecifiesASolution
-        // のコメント参照)。
-        if(StartupAutoOpenPolicy.CommandLineAlreadySpecifiesASolution(Environment.GetCommandLineArgs())){
-            return;
-        }
-
-        if(!StartupAutoOpenPolicy.ShouldOpenUserEcsProject(await this.IsSolutionOpenAsync(),await this.GetSolutionPathAsync())){
-            return;
-        }
-
-        var RepoRoot=RepoLocator.ResolveRepoRoot();
-        if(RepoRoot is null){
-            return;
-        }
-
-        var SolutionPath=Path.Combine(RepoRoot,"UserEcsProject.slnx");
-        if(!File.Exists(SolutionPath)){
-            return;
-        }
-
-        try {
-            // Start Window の初期化と競合しないよう少し待つ。待機後にもう一度確認することで、
-            // ユーザーがその間に別のソリューションを開いた場合は何もしない。
-            await Task.Delay(TimeSpan.FromSeconds(2), this.DisposalToken);
-            if(!StartupAutoOpenPolicy.ShouldOpenUserEcsProject(await this.IsSolutionOpenAsync(),await this.GetSolutionPathAsync())){
-                return;
-            }
-
-            await this.JoinableTaskFactory.SwitchToMainThreadAsync(this.DisposalToken);
-            if(await this.GetServiceAsync(typeof(SDTE))is not DTE Dte){
-                return;
-            }
-
-            // UIスレッドを取れるまで待っている間にソリューションが開き終わっていることがある
-            // (UIスレッドはコマンドラインで渡されたソリューションの読み込みで塞がっているため、
-            // コールドスタートではこれが通常)。上の判定は最大でも2秒前の情報なので、実行の直前に
-            // もう一度見ないと「開いたばかりのソリューションを閉じて開き直す」ことになる。
-            if(!StartupAutoOpenPolicy.ShouldOpenUserEcsProject(await this.IsSolutionOpenAsync(),Dte.Solution?.FullName)){
-                return;
-            }
-
-            Dte.ExecuteCommand("File.OpenProject",$"\"{SolutionPath}\"");
-        } catch(COMException){
-            // VS startup must remain usable even if the shell rejects the early open request.
-        } catch(OperationCanceledException){
-            // Package disposal while Start Window is still loading is benign.
-        } catch(Exception Ex){
-            ActivityLog.LogError(nameof(CSharpGameEngineViewerPackage),Ex.ToString());
-        }
     }
 
     /// <summary>
@@ -590,8 +519,7 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
                 return;
             }
 
-            // NoSolution fallback may have issued File.OpenProject only moments ago. Do not create
-            // or show tool windows until a solution is actually open; the presentation itself uses
+            // Do not create or show tool windows until a solution is actually open; the presentation itself uses
             // ShowNoActivate, so this wait is not a keyboard-focus workaround.
             if(!await this.WaitForSolutionOpenAsync()){
                 return;
@@ -671,7 +599,8 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
 
             this.SceneSession?.Dispose();
             this.SceneSession=null;
-            SceneDesignerToolWindowPane.ConfigureSessionProvider(null);
+            this.SceneDesignerDocuments?.Dispose();
+            this.SceneDesignerDocuments=null;
             InspectorToolWindowPane.ConfigureSessionProvider(null);
             ComponentPaletteToolWindowPane.ConfigureSessionProvider(null);
             SceneEditorSettings.ConfigureStoreProvider(null);

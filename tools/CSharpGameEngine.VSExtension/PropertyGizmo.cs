@@ -238,18 +238,15 @@ internal static class PropertyGizmoBinding {
     internal static bool TryCreate(
         SceneNode Node,Matrix4x4 NodeWorld,float WorldScale,out PropertyGizmoFrame Frame){
         if(SceneComponentBindings.FindComponent(Node,SceneComponentRole.Camera)is{ }Camera){
-            SceneTransformMath.TryDecompose(NodeWorld,out var Transform);
-            var Rotation=Transform.Rotation;
-            var Forward=Vector3.Transform(Vector3.UnitZ,Rotation);
-            var Right=Vector3.Transform(Vector3.UnitX,Rotation);
-            var Up=Vector3.Transform(Vector3.UnitY,Rotation);
+            SceneCameraPreviewBinding.TryGetCameraAxes(
+                NodeWorld,out var Position,out var Right,out var Up,out var Forward);
             var Orthographic=ReadProjection(Camera);
             GizmoHandleId[]Handles=Orthographic
                 ?[GizmoHandleId.CameraOrthographicSize,GizmoHandleId.CameraNear,GizmoHandleId.CameraFar]
                 :[GizmoHandleId.CameraFov,GizmoHandleId.CameraNear,GizmoHandleId.CameraFar];
             Frame=new PropertyGizmoFrame(
                 Orthographic?PropertyGizmoKind.CameraOrthographic:PropertyGizmoKind.CameraPerspective,
-                Camera.TypeFullyQualifiedName,Transform.Position,Right,Up,Forward,WorldScale,
+                Camera.TypeFullyQualifiedName,Position,Right,Up,Forward,WorldScale,
                 ReadFloat(Camera,"FovYRadians",(float)Math.PI/4f),
                 ReadFloat(Camera,"NearZ",0.1f),ReadFloat(Camera,"FarZ",300f),
                 ReadFloat(Camera,"OrthographicSize",10f),0f,0f,0f,

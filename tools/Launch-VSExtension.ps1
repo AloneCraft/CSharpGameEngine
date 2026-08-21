@@ -1,179 +1,51 @@
+[CmdletBinding()]
 param(
-    [switch]$NoBuild
+    [switch]$NoBuild,
+    [string]$LogPath
 )
 
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference='Stop'
+$RootSuffix='CgeFixed'
+$RepoRoot=Split-Path -Parent $PSScriptRoot
+$Project=Join-Path $RepoRoot 'tools\CSharpGameEngine.VSExtension\CSharpGameEngine.VSExtension.csproj'
+$ReinstallScript=Join-Path $RepoRoot 'tools\CSharpGameEngine.VSExtension\Reinstall-CgeFixedVsix.ps1'
+$Solution=Join-Path $RepoRoot 'UserEcsProject.slnx'
+$Vsix=Join-Path $RepoRoot 'tools\CSharpGameEngine.VSExtension\bin\Debug\net472\CSharpGameEngine.VSExtension.vsix'
+$Timestamp=Get-Date -Format 'yyyyMMdd-HHmmss'
 
-# This launcher deliberately targets the repaired development hive only. Its package
-# CodeBase is a compatibility directory without a VSIX manifest, so it must be kept in
-# sync with the current VSIX deployment before Visual Studio starts.
-$rootSuffix = 'CgeFixed'
-$repoRoot = Split-Path -Parent $PSScriptRoot
-$project = Join-Path $repoRoot 'tools\CSharpGameEngine.VSExtension\CSharpGameEngine.VSExtension.csproj'
-$solution = Join-Path $repoRoot 'UserEcsProject.slnx'
-
-$rootSuffixArgumentPattern = '(?i)/rootsuffix(?:\s+|:)"?{0}"?(?:\s|$)' -f [regex]::Escape($rootSuffix)
-$runningRootSuffixInstances = @(
-    Get-CimInstance -ClassName Win32_Process -Filter "Name = 'devenv.exe'" -ErrorAction SilentlyContinue |
-        Where-Object { $_.CommandLine -match $rootSuffixArgumentPattern }
-)
-if ($runningRootSuffixInstances.Count -gt 0) {
-    throw "Close Visual Studio instances using root suffix '$rootSuffix' before updating its extension files."
+if([string]::IsNullOrWhiteSpace($LogPath)){
+    $LogDirectory=Join-Path $env:LOCALAPPDATA 'CSharpGameEngine\Logs'
+    New-Item -ItemType Directory -Path $LogDirectory -Force | Out-Null
+    $LogPath=Join-Path $LogDirectory "CgeFixed-ActivityLog-$Timestamp.xml"
 }
 
-if (-not $NoBuild) {
-    dotnet build $project -c Debug
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+$RootSuffixArgumentPattern='(?i)(?:/|-)(?:rootSuffix|rootsuffix)(?:\s+|:)"?CgeFixed"?(?:\s|$)'
+$Running=@(Get-CimInstance -ClassName Win32_Process -Filter "Name = 'devenv.exe'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -match $RootSuffixArgumentPattern })
+if($Running.Count -ne 0){
+    throw "Close Visual Studio instances using root suffix '$RootSuffix' before updating its extension files."
 }
 
-$vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
-if (-not (Test-Path $vswhere)) { throw 'vswhere.exe was not found.' }
-$installPath = & $vswhere -latest -products Microsoft.VisualStudio.Product.Community -requires Microsoft.VisualStudio.Component.CoreEditor -property installationPath
-$devenv = Join-Path $installPath 'Common7\IDE\devenv.exe'
-$vsixInstaller = Join-Path $installPath 'Common7\IDE\VSIXInstaller.exe'
-$vsix = Join-Path $repoRoot 'tools\CSharpGameEngine.VSExtension\bin\Debug\net472\CSharpGameEngine.VSExtension.vsix'
-$extensionAssembly = Join-Path $repoRoot 'tools\CSharpGameEngine.VSExtension\bin\Debug\net472\CSharpGameEngine.VSExtension.dll'
-$sourceVsixManifest = Join-Path $repoRoot 'tools\CSharpGameEngine.VSExtension\source.extension.vsixmanifest'
-$sourceSceneTemplate = Join-Path $repoRoot 'tools\CSharpGameEngine.VSExtension\ItemTemplates\CSharp\GameEngine\SceneFile\SceneFile.vstemplate'
-if (-not (Test-Path $devenv)) { throw "devenv.exe was not found: $devenv" }
-if (-not (Test-Path $vsix)) { throw "VSIX was not found: $vsix" }
-if (-not (Test-Path $extensionAssembly)) { throw "VSIX assembly was not found: $extensionAssembly" }
-if (-not (Test-Path $sourceVsixManifest)) { throw "VSIX manifest was not found: $sourceVsixManifest" }
-if (-not (Test-Path $sourceSceneTemplate)) { throw "Scene item template was not found: $sourceSceneTemplate" }
-if (-not (Test-Path $solution)) { throw "UserEcsProject.slnx was not found: $solution" }
-if (-not (Test-Path $vsixInstaller)) { throw "VSIXInstaller.exe was not found: $vsixInstaller" }
-
-[xml]$sourceVsixManifestDocument = Get-Content -LiteralPath $sourceVsixManifest -Raw
-$expectedVsixVersion = [string]$sourceVsixManifestDocument.PackageManifest.Metadata.Identity.Version
-if ([string]::IsNullOrWhiteSpace($expectedVsixVersion)) { throw "VSIX manifest has no Identity Version: $sourceVsixManifest" }
-$expectedSceneTemplateHash = (Get-FileHash -LiteralPath $sourceSceneTemplate -Algorithm SHA256).Hash
-
-$installerProcess = Start-Process -FilePath $vsixInstaller `
-    -ArgumentList '/quiet', "/rootSuffix:$rootSuffix", $vsix `
-    -WindowStyle Hidden `
-    -Wait `
-    -PassThru
-$installerExitCode = $installerProcess.ExitCode
-if ($installerExitCode -ne 0 -and $installerExitCode -ne 1) {
-    throw "VSIX installation failed for root suffix '$rootSuffix' (exit code $installerExitCode)."
+if(!$NoBuild){
+    & dotnet build $Project --configuration Debug
+    if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
 }
 
-$expectedHash = (Get-FileHash -LiteralPath $extensionAssembly -Algorithm SHA256).Hash
-$visualStudioProfiles = Join-Path $env:LOCALAPPDATA 'Microsoft\VisualStudio'
-$profileDirectories = @(
-    Get-ChildItem -LiteralPath $visualStudioProfiles -Directory -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name.EndsWith($rootSuffix, [System.StringComparison]::OrdinalIgnoreCase) }
-)
-$deployedAssemblies = @(
-    $profileDirectories |
-        ForEach-Object {
-            Get-ChildItem -LiteralPath (Join-Path $_.FullName 'Extensions') -Filter 'CSharpGameEngine.VSExtension.dll' -File -Recurse -ErrorAction SilentlyContinue
-        } |
-        ForEach-Object {
-            $deploymentDirectory = $_.Directory
-            $manifestPath = Join-Path $deploymentDirectory.FullName 'extension.vsixmanifest'
-            $hasManifest = Test-Path -LiteralPath $manifestPath
-            $manifestVersion = $null
-            if ($hasManifest) {
-                try {
-                    [xml]$deployedManifest = Get-Content -LiteralPath $manifestPath -Raw
-                    $manifestVersion = [string]$deployedManifest.PackageManifest.Metadata.Identity.Version
-                }
-                catch {
-                    $manifestVersion = $null
-                }
-            }
+if(!(Test-Path -LiteralPath $ReinstallScript)){ throw "CgeFixed maintenance script was not found: $ReinstallScript" }
+if(!(Test-Path -LiteralPath $Vsix)){ throw "VSIX package was not found: $Vsix" }
+if(!(Test-Path -LiteralPath $Solution)){ throw "UserEcsProject.slnx was not found: $Solution" }
 
-            $templateManifestPath = Join-Path $deploymentDirectory.FullName 'ItemTemplates\templateManifest0.1033.vstman'
-            $sceneTemplatePath = Join-Path $deploymentDirectory.FullName 'ItemTemplates\CSharp\GameEngine\1033\SceneFile\SceneFile.vstemplate'
-            $sceneTemplateHash = if (Test-Path -LiteralPath $sceneTemplatePath) {
-                (Get-FileHash -LiteralPath $sceneTemplatePath -Algorithm SHA256).Hash
-            }
-            else {
-                $null
-            }
+$MaintenanceLog=Join-Path (Split-Path -Parent $LogPath) "CgeFixed-VsixMaintenance-$Timestamp.log"
+$Maintenance=@(& $ReinstallScript -SkipBuild -VsixPath $Vsix -LogPath $MaintenanceLog)
+if($Maintenance.Count -ne 1){ throw "CgeFixed maintenance did not return exactly one result. See $MaintenanceLog" }
+Write-Host "VSIX deployment changed: $($Maintenance[0].DeploymentChanged)"
+Write-Host "VSIX maintenance log: $($Maintenance[0].LogPath)"
 
-            [PSCustomObject]@{
-                Assembly = $_
-                Directory = $deploymentDirectory
-                HasManifest = $hasManifest
-                ManifestVersion = $manifestVersion
-                HasTemplateManifest = Test-Path -LiteralPath $templateManifestPath
-                SceneTemplateHash = $sceneTemplateHash
-                Hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
-            }
-        }
-)
-$currentDeploymentDirectories = @(
-    $deployedAssemblies |
-        Where-Object {
-            $_.HasManifest -and
-            $_.Hash -eq $expectedHash -and
-            $_.ManifestVersion -eq $expectedVsixVersion -and
-            $_.HasTemplateManifest -and
-            $_.SceneTemplateHash -eq $expectedSceneTemplateHash
-        } |
-        ForEach-Object { $_.Directory.FullName } |
-        Sort-Object -Unique
-)
-if ($currentDeploymentDirectories.Count -eq 0) {
-    throw "VSIX installation did not deploy the current extension assembly, version, and scene item template to root suffix '$rootSuffix'."
-}
-if ($currentDeploymentDirectories.Count -ne 1) {
-    throw "VSIX installation found multiple current deployment directories for root suffix '$rootSuffix'; refusing to choose one."
-}
+$VsWhere=Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+if(!(Test-Path -LiteralPath $VsWhere)){ throw 'vswhere.exe was not found.' }
+$InstallPath=& $VsWhere -latest -products '*' -property installationPath | Select-Object -First 1
+$Devenv=Join-Path $InstallPath 'Common7\IDE\devenv.exe'
+if(!(Test-Path -LiteralPath $Devenv)){ throw "devenv.exe was not found: $Devenv" }
 
-$currentDeploymentDirectory = Get-Item -LiteralPath $currentDeploymentDirectories[0]
-
-# Item templates are cached independently of VSIX assemblies. Rebuild just that cache after a
-# successful installation, before the interactive CgeFixed instance starts. This is deliberately
-# narrower than devenv /setup, which rebuilds unrelated package registration.
-$templateCacheProcess = Start-Process -FilePath $devenv `
-    -ArgumentList '/RootSuffix', $rootSuffix, '/InstallVSTemplates' `
-    -WindowStyle Hidden `
-    -Wait `
-    -PassThru
-$templateInstallExitCode = $templateCacheProcess.ExitCode
-if ($templateInstallExitCode -ne 0) {
-    throw "Visual Studio item-template cache rebuild failed for root suffix '$rootSuffix' (exit code $templateInstallExitCode)."
-}
-
-$currentDeploymentDlls = @(
-    Get-ChildItem -LiteralPath $currentDeploymentDirectory.FullName -Filter '*.dll' -File -ErrorAction Stop
-)
-if ($currentDeploymentDlls.Count -eq 0) {
-    throw "The current VSIX deployment directory contains no DLL files: $($currentDeploymentDirectory.FullName)"
-}
-
-# Directories containing this package DLL but no VSIX manifest are the old CodeBase
-# compatibility targets. Synchronize all current deployment DLLs into those targets,
-# never create new targets, and verify every copied file before starting Visual Studio.
-$compatibilityDirectories = @(
-    $deployedAssemblies |
-        Where-Object { -not $_.HasManifest } |
-        ForEach-Object { $_.Directory.FullName } |
-        Sort-Object -Unique
-)
-foreach ($compatibilityDirectoryPath in $compatibilityDirectories) {
-    $compatibilityDirectory = Get-Item -LiteralPath $compatibilityDirectoryPath
-    foreach ($sourceDll in $currentDeploymentDlls) {
-        $targetDll = Join-Path $compatibilityDirectory.FullName $sourceDll.Name
-        Copy-Item -LiteralPath $sourceDll.FullName -Destination $targetDll -Force
-        $sourceHash = (Get-FileHash -LiteralPath $sourceDll.FullName -Algorithm SHA256).Hash
-        $targetHash = (Get-FileHash -LiteralPath $targetDll -Algorithm SHA256).Hash
-        if ($targetHash -ne $sourceHash) {
-            throw "Compatibility DLL verification failed: $targetDll"
-        }
-    }
-
-    Write-Host "Synchronized current VSIX DLLs to compatibility CodeBase: $($compatibilityDirectory.FullName)"
-}
-
-if ($installerExitCode -eq 1) {
-    Write-Warning "VSIXInstaller returned exit code 1, but the current extension assembly, manifest version, and template files were verified in root suffix '$rootSuffix'. Continuing."
-}
-
-# Do not run devenv /setup here. The CgeFixed profile already has the compatibility
-# CodeBase registration required for this extension; /setup can block on unrelated
-# system extensions and is not needed for the normal development launch.
-Start-Process -FilePath $devenv -ArgumentList '/RootSuffix', $rootSuffix, ('"{0}"' -f $solution)
+Write-Host "Starting Visual Studio /rootSuffix $RootSuffix. ActivityLog: $LogPath"
+Start-Process -FilePath $Devenv -ArgumentList '/RootSuffix',$RootSuffix,'/Log',('"{0}"' -f $LogPath),('"{0}"' -f $Solution)

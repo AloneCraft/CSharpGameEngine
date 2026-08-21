@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.InteropServices;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
@@ -238,12 +239,25 @@ internal sealed class ActiveDocumentTracker : IVsSelectionEvents,IDisposable {
             ||FrameObj is not IVsWindowFrame CurrentFrame
             ||!this.TryGetSolutionExplorerFrame(out var SeFrame)
             ||SeFrame is null
-            ||!ReferenceEquals(CurrentFrame,SeFrame)){
+            ||!IsSameComObject(CurrentFrame,SeFrame)){
             return false;
         }
 
         FilePath=this.SolutionExplorerFilePath;
         return true;
+    }
+
+    private static bool IsSameComObject(object Left,object Right){
+        IntPtr LeftUnknown=IntPtr.Zero;
+        IntPtr RightUnknown=IntPtr.Zero;
+        try {
+            LeftUnknown=Marshal.GetIUnknownForObject(Left);
+            RightUnknown=Marshal.GetIUnknownForObject(Right);
+            return LeftUnknown==RightUnknown;
+        } finally {
+            if(LeftUnknown!=IntPtr.Zero){ Marshal.Release(LeftUnknown); }
+            if(RightUnknown!=IntPtr.Zero){ Marshal.Release(RightUnknown); }
+        }
     }
 
     private bool TryGetSolutionExplorerFrame(out IVsWindowFrame?Frame){

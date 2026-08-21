@@ -39,6 +39,7 @@ internal sealed class OpenSceneDesignerCommand {
     private readonly AsyncPackage Package;
     private readonly SceneEditorSessionService Session;
     private readonly ActiveDocumentTracker DocumentTracker;
+    private readonly SceneDesignerDocumentManager Documents;
     private readonly OleMenuCommand DirectCommand;
     private readonly OleMenuCommand OverflowCommand;
     private SceneMenuInvocation?CurrentInvocation;
@@ -47,10 +48,12 @@ internal sealed class OpenSceneDesignerCommand {
         AsyncPackage Package,
         OleMenuCommandService CommandService,
         SceneEditorSessionService Session,
-        ActiveDocumentTracker DocumentTracker){
+        ActiveDocumentTracker DocumentTracker,
+        SceneDesignerDocumentManager Documents){
         this.Package=Package??throw new ArgumentNullException(nameof(Package));
         this.Session=Session??throw new ArgumentNullException(nameof(Session));
         this.DocumentTracker=DocumentTracker??throw new ArgumentNullException(nameof(DocumentTracker));
+        this.Documents=Documents??throw new ArgumentNullException(nameof(Documents));
         if(CommandService is null){
             throw new ArgumentNullException(nameof(CommandService));
         }
@@ -87,14 +90,15 @@ internal sealed class OpenSceneDesignerCommand {
     public static async Task InitializeAsync(
         AsyncPackage Package,
         SceneEditorSessionService Session,
-        ActiveDocumentTracker DocumentTracker){
+        ActiveDocumentTracker DocumentTracker,
+        SceneDesignerDocumentManager Documents){
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(Package.DisposalToken);
         var Service=await Package.GetServiceAsync(typeof(IMenuCommandService));
         if(Service is not OleMenuCommandService CommandService){
             throw new InvalidOperationException($"{nameof(IMenuCommandService)} is not available from the VS shell.");
         }
 
-        _=new OpenSceneDesignerCommand(Package,CommandService,Session,DocumentTracker);
+        _=new OpenSceneDesignerCommand(Package,CommandService,Session,DocumentTracker,Documents);
     }
 
     private void UpdateMenuCommands(object Sender,EventArgs E){
@@ -258,28 +262,21 @@ internal sealed class OpenSceneDesignerCommand {
                     return;
                 }
 
-                var Window=await this.Package.FindToolWindowAsync(
-                                                                  typeof(SceneDesignerToolWindowPane),
-                                                                  0,
-                                                                  true,
-                                                                  this.Package.DisposalToken);
-                if(Window is not SceneDesignerToolWindowPane Pane
-                    ||Pane.Frame is not IVsWindowFrame Frame){
-                    throw new NotSupportedException("Cannot create the Scene Designer tool window.");
-                }
-
                 var Snapshot=this.Session.Pin(Chosen);
-                Pane.SetTarget(this.Session,Snapshot);
-                ToolWindowFramePresenter.ShowWithoutActivation(
-                    ()=>ShowFrameWithoutActivation(Frame),
-                    Invocation.EditorView is null?null:()=>RestoreEditorFocus(Invocation.EditorView));
-                this.SetStatusBarText("シーン デザイナーを開きました。");
+                this.Documents.Open(this.Session,Snapshot);
+                if(Invocation.EditorView is not null){
+                    RestoreEditorFocus(Invocation.EditorView);
+                }
+                this.SetStatusBarText($"{Chosen.ClassName} [Scene] をDocument Wellで開きました。");
             } catch(OperationCanceledException) when(this.Package.DisposalToken.IsCancellationRequested){
                 // Package shutdown.
             } catch(Exception Ex){
                 await this.Package.JoinableTaskFactory.SwitchToMainThreadAsync();
-                ActivityLog.LogError(nameof(OpenSceneDesignerCommand),Ex.ToString());
-                this.SetStatusBarText("シーンの解析またはデザイナー表示に失敗しました。詳細は ActivityLog.xml を確認してください。");
+                ActivityLog.LogError(
+                    nameof(OpenSceneDesignerCommand),
+                    $"Scene Designer document open failed; source='{Invocation.FilePath}'; scene='{FullyQualifiedName}'; exception='{Ex.GetType().FullName}'; message='{Ex.Message}'{Environment.NewLine}{Ex}");
+                this.SetStatusBarText(
+                    $"{FullyQualifiedName} をDocument Wellで開けませんでした ({Ex.GetType().Name}: {Ex.Message})。詳細は ActivityLog.xml を確認してください。");
             }
         });
     }

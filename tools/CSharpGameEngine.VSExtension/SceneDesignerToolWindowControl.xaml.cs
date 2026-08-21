@@ -28,6 +28,8 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
 
     public SceneDesignerToolWindowControl(){
         this.InitializeComponent();
+        this.VsixIdentityText.Text=VsixBuildIdentity.DisplayText;
+        this.VsixIdentityText.ToolTip=VsixBuildIdentity.ActivityLogText;
         // M0033: World/Local切り替えはギズモ上のアイコン(TransformSpaceToggleGizmo)へ移った。
         // M0020 Phase 1(ADR-0041 決定事項2): ナビゲーション(WASDQE)を受けるにはWPFの
         // キーボードフォーカスが要る(Wheelはネイティブ側で受けるためフォーカス不要、
@@ -39,6 +41,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         this.RenderHostGrid.KeyDown+=this.OnViewportKeyDown;
         this.RenderHostGrid.KeyUp+=this.OnViewportKeyUp;
         this.RenderHostGrid.LostKeyboardFocus+=this.OnViewportLostKeyboardFocus;
+        this.CameraPreviewToggle.Click+=this.OnCameraPreviewToggleClicked;
     }
 
     /// <summary>
@@ -266,6 +269,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         SceneHwndHost Host=new();
         Host.StatusChanged+=this.OnStatusChanged;
         Host.ViewportActivated+=this.OnViewportActivated;
+        Host.CameraPreviewSelectionRequested+=this.OnCameraPreviewSelectionRequested;
         Host.ObjectPicked+=this.OnObjectPicked;
         Host.ObjectsMarqueePicked+=this.OnObjectsMarqueePicked;
         Host.EditCommitRequested+=this.OnEditCommitRequested;
@@ -296,6 +300,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         this.RenderHostGrid.Children.Remove(Host);
         Host.StatusChanged-=this.OnStatusChanged;
         Host.ViewportActivated-=this.OnViewportActivated;
+        Host.CameraPreviewSelectionRequested-=this.OnCameraPreviewSelectionRequested;
         Host.ObjectPicked-=this.OnObjectPicked;
         Host.ObjectsMarqueePicked-=this.OnObjectsMarqueePicked;
         Host.EditCommitRequested-=this.OnEditCommitRequested;
@@ -488,6 +493,28 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
 
     private void OnStatusChanged(string Status){
         this.StatusText.Text=Status;
+    }
+
+    private void OnCameraPreviewToggleClicked(object Sender,RoutedEventArgs Args){
+        this.Host?.SetCameraPreviewEnabled(this.CameraPreviewToggle.IsChecked==true);
+    }
+
+    private void OnCameraPreviewSelectionRequested(NodePath Path){
+        if(this.Session is not { }Session||Session.PinnedSnapshot is not { }Snapshot
+            ||Snapshot.Projection?.TryGetId(Path,out EditorNodeId Id)!=true){
+            return;
+        }
+
+        SceneSelection?Existing=Session.Selection.CurrentSelection is { }Selection
+            &&Selection.Key.Equals(Snapshot.Key)?Selection:null;
+        IReadOnlyList<EditorNodeId>NodeIds=Existing?.NodeIds??[Id];
+        if(!NodeIds.Contains(Id)){
+            NodeIds=[..NodeIds,Id];
+        }
+
+        Session.Selection.Select(
+            Snapshot.Key,NodeIds,Id,ComponentType:null,MemberName:null,
+            SceneSelectionOrigin.Viewport,Guid.NewGuid());
     }
 
     /// <summary>
