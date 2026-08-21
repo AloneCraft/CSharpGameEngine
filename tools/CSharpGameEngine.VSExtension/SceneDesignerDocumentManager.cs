@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Runtime.InteropServices;
 using CSharpGameEngine.SceneAnalysis;
 using Microsoft.VisualStudio;
@@ -86,7 +87,14 @@ internal sealed class SceneDesignerDocumentManager:IDisposable {
 
     private void OnPaneClosed(SceneKey Key)=>this.Panes.Remove(Key);
     private static string CreateMoniker(SceneKey Key)=>
-        "CSharpGameEngine.SceneDesigner://"+Uri.EscapeDataString(Key.ProjectId)+"/"+Uri.EscapeDataString(Key.ClassFullyQualifiedName);
+        // CreateDocumentWindow registers this value in the RDT as a document path. A custom
+        // protocol URI is rejected by some VS shells with E_INVALIDARG, so use a deterministic,
+        // absolute pseudo path. The view is supplied privately; no file is created.
+        Path.GetFullPath(Path.Combine(
+            Path.GetTempPath(),
+            "CSharpGameEngine.SceneDesigner",
+            Uri.EscapeDataString(Key.ProjectId),
+            Uri.EscapeDataString(Key.ClassFullyQualifiedName)+".scene"));
 }
 
 internal sealed class SceneDesignerDocumentPane:WindowPane {
