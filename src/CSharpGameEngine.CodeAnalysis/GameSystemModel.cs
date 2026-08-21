@@ -14,6 +14,9 @@ internal enum GameSystemMethodRole {
 
     /// <summary><c>Spawn</c>: Archetype形状の登録のみ。ディスパッチ対象外(ADR-0033決定事項2)。</summary>
     SpawnOnly,
+
+    /// <summary>Shutdown lifecycle phase.</summary>
+    Shutdown,
 }
 
 internal enum GameSystemParameterRole {

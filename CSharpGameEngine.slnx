@@ -1,4 +1,4 @@
-﻿<Solution>
+<Solution>
   <Configurations>
     <Platform Name="x64" />
   </Configurations>
@@ -108,20 +108,14 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/CSharpGameEngine.Core/CSharpGameEngine.Core.csproj" />
-    <Project Path="src/CSharpGameEngine.Import/CSharpGameEngine.Import.csproj" />
-    <Project Path="src/CSharpGameEngine.Windows/CSharpGameEngine.Windows.csproj" />
     <Project Path="src/CSharpGameEngine.CodeAnalysis/CSharpGameEngine.CodeAnalysis.csproj" />
-    <Project Path="src/CSharpGameEngine.SceneModel/CSharpGameEngine.SceneModel.csproj" />
     <Project Path="src/CSharpGameEngine.Entities/CSharpGameEngine.Entities.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/CSharpGameEngine.Core.Tests/CSharpGameEngine.Core.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Bridge.Hosting.Tests/CSharpGameEngine.Bridge.Hosting.Tests.csproj" />
-    <Project Path="tests/CSharpGameEngine.Import.Tests/CSharpGameEngine.Import.Tests.csproj" />
-    <Project Path="tests/CSharpGameEngine.Windows.Tests/CSharpGameEngine.Windows.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.CodeAnalysis.Tests/CSharpGameEngine.CodeAnalysis.Tests.csproj" />
-    <Project Path="tests/CSharpGameEngine.SceneModel.Tests/CSharpGameEngine.SceneModel.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Entities.Tests/CSharpGameEngine.Entities.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
@@ -129,7 +123,6 @@
     <File Path="tools/UnrealExport/run_export.cmd" />
     <File Path="tools/UnrealExport/README.md" />
     <Project Path="tools/CSharpGameEngine.TestHost/CSharpGameEngine.TestHost.csproj" />
-    <Project Path="tools/CSharpGameEngine.Ecs.Benchmarks/CSharpGameEngine.Ecs.Benchmarks.csproj" />
     <Project Path="tools/CSharpGameEngine.Extension/CSharpGameEngine.Extension.csproj" />
     <Project Path="tools/CSharpGameEngine.Bridge.Hosting/CSharpGameEngine.Bridge.Hosting.csproj" />
     <Project Path="tools/CSharpGameEngine.Import.Fbx.Cli/CSharpGameEngine.Import.Fbx.Cli.csproj" />
@@ -140,9 +133,5 @@
       <Deploy Solution="Debug|*" />
     </Project>
   </Folder>
-  <Folder Name="/UserEcsProject/">
-    <Project Path="UserEcsProject/UserEcsProject.csproj">
-      <Platform Project="x64" />
-    </Project>
-  </Folder>
+  <Folder Name="/UserEcsProject/" />
 </Solution>

@@ -123,8 +123,17 @@ internal static class GameSystemDiagnostics {
 
     internal static readonly DiagnosticDescriptor SystemHasNoRecognizedMethod=new(
         id:"SYSGEN015",
-        title:"ISystem struct declares no Update or Spawn method",
-        messageFormat:"'{0}' implements ISystem but declares no method named 'Update' or 'Spawn', so it will never run",
+        title:"ISystem struct declares no recognized lifecycle method",
+        messageFormat:"'{0}' implements ISystem but declares no method named 'Update', 'Spawn', or 'Shutdown', so it will never run",
+        category:Category,
+        defaultSeverity:DiagnosticSeverity.Error,
+        isEnabledByDefault:true);
+
+
+    internal static readonly DiagnosticDescriptor ShutdownMethodMustReturnVoid=new(
+        id:"SYSGEN028",
+        title:"Shutdown method must return void",
+        messageFormat:"Method '{0}' is named 'Shutdown' but returns '{1}'; Shutdown must return void",
         category:Category,
         defaultSeverity:DiagnosticSeverity.Error,
         isEnabledByDefault:true);

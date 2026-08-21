@@ -446,6 +446,8 @@ public sealed unsafe class StageRenderer:IDisposable {
 
     public string AdapterDescription=> this.Device?.AdapterDescription??string.Empty;
 
+    public bool IsDisposed=>this.Disposed;
+
     public bool IsWarp=> this.Device?.IsWarp??false;
 
     public bool DebugLayerEnabled=> this.Device?.DebugLayerEnabled??false;
@@ -1464,6 +1466,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     /// slot (<see cref="FrameCount"/>) and only the current slot is written here.
     /// </summary>
     public void SetCamera(in Camera Camera,float AspectRatioOverride=0f){
+        this.ThrowIfDisposed();
         var AspectRatio=AspectRatioOverride>0f?AspectRatioOverride:(float)this.Width/ this.Height;
         this.WriteViewProjection(this.FrameIndex,Camera.GetView()*Camera.GetProjection(AspectRatio));
         this.WriteCameraPosition(this.FrameIndex,Camera.GetEyePosition());
@@ -1478,6 +1481,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     public void SetDirectionalLight(
         Vector3 DirectionTowardLight,Vector3 Color,float Intensity,
         bool CastsShadows=true,float ShadowBiasMeters=0.0015f,int ShadowPriority=0){
+        this.ThrowIfDisposed();
         if(!float.IsFinite(ShadowBiasMeters)||ShadowBiasMeters<0f){
             throw new ArgumentOutOfRangeException(nameof(ShadowBiasMeters));
         }
@@ -1502,6 +1506,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     public void AddDirectionalLightTowardLight(
         Vector3 DirectionTowardLight,Vector3 Color,float Intensity,
         bool CastsShadows=true,int ShadowPriority=0,float ShadowBiasMeters=0.0015f){
+        this.ThrowIfDisposed();
         if(!float.IsFinite(ShadowBiasMeters)||ShadowBiasMeters<0f){
             throw new ArgumentOutOfRangeException(nameof(ShadowBiasMeters));
         }
@@ -1650,11 +1655,13 @@ public sealed unsafe class StageRenderer:IDisposable {
 
     /// <summary>Sets the flat ambient term (a stand-in for sky/indirect lighting) for the frame currently being built.</summary>
     public void SetAmbientLight(Vector3 Color){
+        this.ThrowIfDisposed();
         this.WriteAmbientLight(this.FrameIndex,Color);
     }
 
     /// <summary>Sets the simplified exponential height fog for the frame currently being built. Pass <see cref="FogParams.None"/> to disable it (zero density).</summary>
     public void SetFog(FogParams Fog){
+        this.ThrowIfDisposed();
         this.WriteFog(this.FrameIndex,Fog);
     }
 
@@ -1666,6 +1673,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     /// StructuredBuffer and deterministic Forward+ ranking.
     /// </summary>
     public void AddPointLight(Vector3 Position,Vector3 Color,float Intensity,float Range){
+        this.ThrowIfDisposed();
         this.AddPointLight(Position,Color,Intensity,Range,SelectionPriority:0);
     }
 
@@ -1694,6 +1702,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     /// and 1024-entry global selection as <see cref="AddPointLight(Vector3,Vector3,float,float)"/>.
     /// </summary>
     public void AddSpotLight(Vector3 Position,Vector3 Direction,Vector3 Color,float Intensity,float Range,float InnerConeAngleRadians,float OuterConeAngleRadians){
+        this.ThrowIfDisposed();
         this.AddSpotLight(Position,Direction,Color,Intensity,Range,InnerConeAngleRadians,OuterConeAngleRadians,SelectionPriority:0);
     }
 
@@ -1753,12 +1762,19 @@ public sealed unsafe class StageRenderer:IDisposable {
 
     /// <summary>Sets the world transform for one object for the frame currently being built (see <see cref="SetCamera"/> for the per-frame-slot contract).</summary>
     public void SetObjectTransform(int ObjectIndex,Matrix4x4 World){
+        this.ThrowIfDisposed();
         if(ObjectIndex<0||ObjectIndex>= this.ObjectCount){
             throw new ArgumentOutOfRangeException(nameof(ObjectIndex));
         }
 
         this.ObjectTransforms[ObjectIndex]=World;
         this.WriteObjectConstants(this.FrameIndex,ObjectIndex);
+    }
+
+    private void ThrowIfDisposed(){
+        if(this.Disposed){
+            throw new ObjectDisposedException(nameof(StageRenderer));
+        }
     }
 
     private byte*FrameSlot(uint FrameIndex)=> this.FrameConstantsMapped+(FrameIndex*FrameConstantsStride);
@@ -2569,6 +2585,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     }
 
     public void RenderFrame(bool CaptureForVerification=false){
+        this.ThrowIfDisposed();
         if(this.SizeIsZero){
             return;
         }

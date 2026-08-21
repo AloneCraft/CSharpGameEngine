@@ -36,6 +36,16 @@ internal static class RuntimeRendererBinding {
     }
 
     public static StageRenderer?Resolve(ref StageRenderer? RuntimeRenderer){
+        if(RuntimeRenderer is { IsDisposed:true }){
+            RuntimeRenderer=null;
+        }
+
+        if(ActiveRenderer is { IsDisposed:true }){
+            ActiveRenderer=null;
+            CameraWorldOrigin=default;
+            HasCameraWorldOrigin=false;
+        }
+
         return RuntimeRenderer??=ActiveRenderer;
     }
 
@@ -510,14 +520,26 @@ internal struct AudioPlayback:ISystem {
 
 internal struct Present:ISystem {
     public bool Update(ref FramePresent Present,ref State State){
-        if(Present.Window is not{ }Window||Present.Renderer is not{ }Renderer)return true;
-        if(!State.Enabled){
-            RuntimeRendererBinding.Clear(Renderer);
-            Renderer.Dispose();Window.Dispose();
-            if(Present.AudioEngine is{ }AudioEngine)GameAudio.DestroyEngine(AudioEngine);
-            return true;
-        }
+        if(!State.Enabled||Present.Window is not{ }Window||Present.Renderer is not{ }Renderer)return true;
         if(!Window.IsMinimized)Renderer.RenderFrame();
         return true;
+    }
+
+    public void Shutdown(ref FramePresent Present,ref State State){
+        if(Present.Renderer is{ }Renderer){
+            RuntimeRendererBinding.Clear(Renderer);
+            Renderer.Dispose();
+            Present.Renderer=null;
+        }
+
+        if(Present.Window is{ }Window){
+            Window.Dispose();
+            Present.Window=null;
+        }
+
+        if(Present.AudioEngine is{ }AudioEngine){
+            GameAudio.DestroyEngine(AudioEngine);
+            Present.AudioEngine=null;
+        }
     }
 }

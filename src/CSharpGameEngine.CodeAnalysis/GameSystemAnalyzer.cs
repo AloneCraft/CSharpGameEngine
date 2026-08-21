@@ -26,6 +26,7 @@ internal static class GameSystemAnalyzer {
 
     private const string UpdateMethodName="Update";
     private const string SpawnMethodName="Spawn";
+    private const string ShutdownMethodName="Shutdown";
 
     internal static GameSystemResult Analyze(INamedTypeSymbol SystemSymbol){
         var Diagnostics=ImmutableArray.CreateBuilder<Diagnostic>();
@@ -46,7 +47,7 @@ internal static class GameSystemAnalyzer {
 
         foreach(var Member in SystemSymbol.GetMembers()){
             if(Member is IMethodSymbol { MethodKind:MethodKind.Ordinary } Method
-                &&(Method.Name==UpdateMethodName||Method.Name==SpawnMethodName)){
+                &&(Method.Name==UpdateMethodName||Method.Name==SpawnMethodName||Method.Name==ShutdownMethodName)){
                 Methods.Add(Method);
             }
         }
@@ -98,7 +99,8 @@ internal static class GameSystemAnalyzer {
 
     private static GameSystemMethodModel?AnalyzeMethod(IMethodSymbol Method,ImmutableArray<Diagnostic>.Builder Diagnostics){
         var IsSpawn=Method.Name==SpawnMethodName;
-        var Role=IsSpawn?GameSystemMethodRole.SpawnOnly:GameSystemMethodRole.Dispatch;
+        var IsShutdown=Method.Name==ShutdownMethodName;
+        var Role=IsSpawn?GameSystemMethodRole.SpawnOnly:IsShutdown?GameSystemMethodRole.Shutdown:GameSystemMethodRole.Dispatch;
         var IsValid=true;
         var MethodLocation=Method.Locations.FirstOrDefault()??Location.None;
 
@@ -120,6 +122,11 @@ internal static class GameSystemAnalyzer {
         if(IsSpawn){
             if(!Method.ReturnsVoid){
                 Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.SpawnMethodMustReturnVoid,MethodLocation,Method.Name,Method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
+                IsValid=false;
+            }
+        } else if(IsShutdown){
+            if(!Method.ReturnsVoid){
+                Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.ShutdownMethodMustReturnVoid,MethodLocation,Method.Name,Method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
                 IsValid=false;
             }
         } else if(Method.ReturnType.SpecialType!=SpecialType.System_Boolean){
