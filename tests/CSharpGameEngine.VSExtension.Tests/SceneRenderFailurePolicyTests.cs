@@ -1,0 +1,40 @@
+namespace CSharpGameEngine.VSExtension.Tests;
+
+public sealed class SceneRenderFailurePolicyTests {
+    [Theory]
+    [InlineData(true,false,true)]
+    [InlineData(true,true,false)]
+    [InlineData(false,false,false)]
+    public void FailedNativeSurfaceShowsVisibleWpfStateOnlyAfterBuildCompletes(
+        bool HasFatalRenderFailure,bool IsBuildPending,bool Expected){
+        Assert.Equal(
+            Expected,
+            SceneRenderFailurePolicy.ShouldShowFailure(HasFatalRenderFailure,IsBuildPending));
+    }
+
+    [Fact]
+    public void SupersededWorkerCompletion_DoesNotClearTheNewTargetPendingLease(){
+        var Lifecycle=new SceneRenderBuildLifecycle();
+        long Previous=Lifecycle.Begin();
+
+        Lifecycle.Invalidate(); // target switch
+        long Current=Lifecycle.Begin();
+
+        Assert.False(Lifecycle.TryComplete(Previous));
+        Assert.True(Lifecycle.IsBuildPending);
+        Assert.True(Lifecycle.TryComplete(Current));
+        Assert.False(Lifecycle.IsBuildPending);
+    }
+
+    [Fact]
+    public void RenderFailureInvalidation_AllowsTheWpfFailureStateImmediately(){
+        var Lifecycle=new SceneRenderBuildLifecycle();
+        _=Lifecycle.Begin();
+
+        Lifecycle.Invalidate(); // RenderFrame/Resize fatal path
+
+        Assert.False(Lifecycle.IsBuildPending);
+        Assert.True(SceneRenderFailurePolicy.ShouldShowFailure(
+            HasFatalRenderFailure:true,IsBuildPending:Lifecycle.IsBuildPending));
+    }
+}

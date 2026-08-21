@@ -34,8 +34,11 @@
             <TextBlock x:Name="EmptyStateText"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
+                       Margin="16"
                        Foreground="#D8D8D8"
                        FontSize="14"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
                        Text="シーンを選択してください。" />
         </Grid>
     </Grid>

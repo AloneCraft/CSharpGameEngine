@@ -21,6 +21,13 @@
     <!-- The VSSDK defaults this to Exp. Keep its deployment/debug target aligned with
          StartArguments so F5 never launches the previously-corrupted Exp hive. -->
     <VSSDKTargetPlatformRegRootSuffix>CgeFixed</VSSDKTargetPlatformRegRootSuffix>
+    <!--
+      A normal Visual Studio F5 must deploy to the same CgeFixed hive before devenv starts.
+      Previously only the package was built; opening CgeFixed manually then continued to execute
+      an arbitrary old copy from Extensions.  Keep command-line `dotnet build` deployment-free
+      because the VSSDK deployment target requires desktop MSBuild.
+    -->
+    <DeployExtension Condition="'$(BuildingInsideVisualStudio)' == 'true'">true</DeployExtension>
     <StartAction>Program</StartAction>
     <StartProgram Condition="'$(DevEnvDir)' != ''">$(DevEnvDir)devenv.exe</StartProgram>
     <UserEcsProjectSolutionPath>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\UserEcsProject.slnx'))</UserEcsProjectSolutionPath>
@@ -178,7 +185,14 @@
       <CSharpGameEngineGitRevision Condition="'$(SourceRevisionId)' != ''">$(SourceRevisionId)</CSharpGameEngineGitRevision>
     </PropertyGroup>
     <ItemGroup>
-      <AssemblyMetadata Update="CSharpGameEngineGitRevision" Value="$(CSharpGameEngineGitRevision)" />
+      <!--
+        `Update` without an item metadata predicate updates *every* AssemblyMetadata item in
+        SDK-style projects.  That used to replace the repo root, VSIX version, build time and
+        output path with the Git revision, making the on-screen identity incapable of proving
+        which VSIX was loaded.  Replace only the one late-bound item instead.
+      -->
+      <AssemblyMetadata Remove="CSharpGameEngineGitRevision" />
+      <AssemblyMetadata Include="CSharpGameEngineGitRevision" Value="$(CSharpGameEngineGitRevision)" />
     </ItemGroup>
   </Target>
   <!-- TemplateProjectOutputGroup is normally consumed by a referencing VSIX project. This project

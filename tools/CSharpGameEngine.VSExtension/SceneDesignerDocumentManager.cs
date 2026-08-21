@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Runtime.InteropServices;
 using CSharpGameEngine.SceneAnalysis;
 using Microsoft.VisualStudio;
@@ -10,16 +9,20 @@ using Microsoft.VisualStudio.Shell.Interop;
 namespace CSharpGameEngine.VSExtension;
 
 internal sealed class SceneDesignerDocumentManager:IDisposable {
-    private const uint CreateNewWindow=0x00400000;
+    private const int ENoInterface=unchecked((int)0x80004002);
+    private readonly IServiceProvider ServiceProvider;
     private readonly Dictionary<SceneKey,SceneDesignerDocumentPane>Panes=[];
     private bool Disposed;
+
+    internal SceneDesignerDocumentManager(IServiceProvider ServiceProvider)=>
+        this.ServiceProvider=ServiceProvider??throw new ArgumentNullException(nameof(ServiceProvider));
 
     internal void Open(SceneEditorSessionService Session,SceneDocumentSnapshot Snapshot){
         ThreadHelper.ThrowIfNotOnUIThread();
         if(this.Disposed){ throw new ObjectDisposedException(nameof(SceneDesignerDocumentManager)); }
         if(this.Panes.TryGetValue(Snapshot.Key,out SceneDesignerDocumentPane? Existing)){
             Existing.SetTarget(Session,Snapshot);
-            Existing.ShowWithoutActivation();
+            Existing.Activate();
             return;
         }
         this.Create(Session,Snapshot);
@@ -31,52 +34,56 @@ internal sealed class SceneDesignerDocumentManager:IDisposable {
     }
     private void CreateWindow(SceneEditorSessionService Session,SceneDocumentSnapshot Snapshot){
         ThreadHelper.ThrowIfNotOnUIThread();
-        var Pane=new SceneDesignerDocumentPane(Snapshot.Key,this.OnPaneClosed);
+        var Pane=new SceneDesignerDocumentPane(this.ServiceProvider,Snapshot.Key,this.OnPaneClosed);
         try {
             CreateFrame(Pane,Snapshot);
             Pane.SetTarget(Session,Snapshot);
             this.Panes.Add(Snapshot.Key,Pane);
-            Pane.ShowWithoutActivation();
+            Pane.Activate();
         } catch {
             Pane.Dispose();
             throw;
         }
     }
 
-    private static void CreateFrame(SceneDesignerDocumentPane Pane,SceneDocumentSnapshot Snapshot){
+    private void CreateFrame(SceneDesignerDocumentPane Pane,SceneDocumentSnapshot Snapshot){
         ThreadHelper.ThrowIfNotOnUIThread();
-        if(Package.GetGlobalService(typeof(SVsUIShell))is not IVsUIShell Shell){
-            throw new InvalidOperationException("Visual Studio's UI shell is unavailable.");
+        SceneDesignerDocumentWindowRequest Request=SceneDesignerDocumentWindowPolicy.CreateRequest(Snapshot.Key);
+        if(this.ServiceProvider.GetService(SceneDesignerDocumentWindowPolicy.HostServiceType)
+            is not IVsExternalFilesManager ExternalFiles){
+            throw SceneDesignerDocumentWindowPolicy.CreateFailure(
+                "SVsExternalFilesManager.GetService",Request.Moniker,ENoInterface);
         }
+
         IntPtr View=IntPtr.Zero;
         try {
             View=Marshal.GetIUnknownForObject((IVsWindowPane)Pane);
-            // This is an ad-hoc IVsWindowPane, not a registered editor factory. Passing a private
-            // GUID makes the shell look up an editor that does not exist and prevents the document
-            // frame from being created.
-            Guid Editor=SceneDesignerDocumentWindowPolicy.EditorTypeGuid;
-            Guid CommandUi=Guid.Empty;
-            ErrorHandler.ThrowOnFailure(Shell.CreateDocumentWindow(
-                grfCDW:CreateNewWindow,
-                pszMkDocument:CreateMoniker(Snapshot.Key),
-                pUIH:null,
-                itemid:VSConstants.VSITEMID_NIL,
-                punkDocView:View,
-                punkDocData:IntPtr.Zero,
-                rguidEditorType:ref Editor,
-                pszPhysicalView:null,
-                rguidCmdUI:ref CommandUi,
-                psp:null,
-                pszOwnerCaption:SceneDesignerDocumentPane.CreateCaption(Snapshot.Key),
-                pszEditorCaption:null,
-                pfDefaultPosition:null,
-                ppWindowFrame:out IVsWindowFrame Frame));
+            Guid Editor=Request.EditorTypeGuid;
+            Guid CommandUi=Request.CommandUiGuid;
+            int DefaultPosition;
+            int HResult=ExternalFiles.AddDocument(
+                Request.Flags,
+                Request.Moniker,
+                View,
+                IntPtr.Zero,
+                ref Editor,
+                Request.PhysicalView,
+                ref CommandUi,
+                Request.OwnerCaption,
+                Request.EditorCaption,
+                out DefaultPosition,
+                out IVsWindowFrame Frame);
+            SceneDesignerDocumentWindowPolicy.EnsureAddDocumentSucceeded(Request,HResult,Frame);
             Pane.AttachFrame(Frame);
+        } catch(SceneDesignerDocumentWindowException){
+            throw;
+        } catch(Exception Ex){
+            throw SceneDesignerDocumentWindowPolicy.CreateFailure(
+                "IVsExternalFilesManager.AddDocument",Request.Moniker,Ex.HResult,Ex);
         } finally {
             if(View!=IntPtr.Zero){ Marshal.Release(View); }
         }
     }
-
     public void Dispose(){
         if(this.Disposed){ return; }
         this.Disposed=true;
@@ -86,15 +93,6 @@ internal sealed class SceneDesignerDocumentManager:IDisposable {
     }
 
     private void OnPaneClosed(SceneKey Key)=>this.Panes.Remove(Key);
-    private static string CreateMoniker(SceneKey Key)=>
-        // CreateDocumentWindow registers this value in the RDT as a document path. A custom
-        // protocol URI is rejected by some VS shells with E_INVALIDARG, so use a deterministic,
-        // absolute pseudo path. The view is supplied privately; no file is created.
-        Path.GetFullPath(Path.Combine(
-            Path.GetTempPath(),
-            "CSharpGameEngine.SceneDesigner",
-            Uri.EscapeDataString(Key.ProjectId),
-            Uri.EscapeDataString(Key.ClassFullyQualifiedName)+".scene"));
 }
 
 internal sealed class SceneDesignerDocumentPane:WindowPane {
@@ -104,7 +102,7 @@ internal sealed class SceneDesignerDocumentPane:WindowPane {
     private IVsWindowFrame?Frame;
     private bool IsClosed;
 
-    internal SceneDesignerDocumentPane(SceneKey Key,Action<SceneKey>Closed):base(null){
+    internal SceneDesignerDocumentPane(IServiceProvider ServiceProvider,SceneKey Key,Action<SceneKey>Closed):base(ServiceProvider){
         this.Key=Key;
         this.Closed=Closed??throw new ArgumentNullException(nameof(Closed));
         this.Control=new SceneDesignerToolWindowControl();
@@ -113,9 +111,12 @@ internal sealed class SceneDesignerDocumentPane:WindowPane {
 
     internal void AttachFrame(IVsWindowFrame Frame)=>this.Frame=Frame??throw new ArgumentNullException(nameof(Frame));
     internal void SetTarget(SceneEditorSessionService Session,SceneDocumentSnapshot Snapshot)=>this.Control.SetTarget(Session,Snapshot);
-    internal void ShowWithoutActivation(){
+    internal void Activate(){
         ThreadHelper.ThrowIfNotOnUIThread();
-        if(this.Frame is not null){ ErrorHandler.ThrowOnFailure(this.Frame.ShowNoActivate()); }
+        if(this.Frame is null){
+            throw new InvalidOperationException("The Scene Designer document frame is unavailable.");
+        }
+        ErrorHandler.ThrowOnFailure(this.Frame.Show());
     }
 
     internal static string CreateCaption(SceneKey Key){

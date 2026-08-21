@@ -2,13 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.Design;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using CSharpGameEngine.SceneAnalysis;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
-using Microsoft.VisualStudio.TextManager.Interop;
 
 namespace CSharpGameEngine.VSExtension;
 
@@ -171,7 +169,7 @@ internal sealed class OpenSceneDesignerCommand {
         // OutsideTypeへ落ち、ファイル内の全Sceneを一覧表示する(コードエディタ側と同じロジックを
         // 無改造で再利用できる)。
         if(this.DocumentTracker.TryGetSolutionExplorerInvocationFilePath(out var SolutionExplorerFilePath)){
-            return this.BuildPresentation(SolutionExplorerFilePath,CaretPosition:0,EditorView:null);
+            return this.BuildPresentation(SolutionExplorerFilePath,CaretPosition:0);
         }
 
         var FilePath=this.DocumentTracker.CurrentFilePath;
@@ -185,10 +183,10 @@ internal sealed class OpenSceneDesignerCommand {
             return SceneDesignerContextMenuPolicy.Create(FilePath,SceneDesignerTargetState.Unavailable,[]);
         }
 
-        return this.BuildPresentation(FilePath,CaretPosition,this.DocumentTracker.CaptureActiveTextView(FilePath));
+        return this.BuildPresentation(FilePath,CaretPosition);
     }
 
-    private SceneDesignerCommandPresentation BuildPresentation(string?FilePath,int CaretPosition,IVsTextView?EditorView){
+    private SceneDesignerCommandPresentation BuildPresentation(string?FilePath,int CaretPosition){
         ThreadHelper.ThrowIfNotOnUIThread();
 
         if(FilePath is null){
@@ -207,8 +205,7 @@ internal sealed class OpenSceneDesignerCommand {
             ?new SceneMenuInvocation(
                 FilePath,
                 Presentation.Items,
-                TargetSceneFullyQualifiedName,
-                EditorView)
+                TargetSceneFullyQualifiedName)
             :null;
         return Presentation;
     }
@@ -265,16 +262,16 @@ internal sealed class OpenSceneDesignerCommand {
                 var Snapshot=this.Session.Pin(Chosen);
                 try {
                     this.Documents.Open(this.Session,Snapshot);
-                    if(Invocation.EditorView is not null){
-                        RestoreEditorFocus(Invocation.EditorView);
-                    }
                     this.SetStatusBarText($"{Chosen.ClassName} [Scene] をDocument Wellで開きました。");
                 } catch(Exception DocumentWellException){
+                    SceneDesignerDocumentWindowDiagnostics.ReportFailure(DocumentWellException);
                     ActivityLog.LogWarning(
                         nameof(OpenSceneDesignerCommand),
                         $"Document Well failed; source='{Invocation.FilePath}'; scene='{FullyQualifiedName}'; exception='{DocumentWellException.GetType().FullName}'; message='{DocumentWellException.Message}'. Falling back to Scene Designer tool window.");
-                    await this.OpenToolWindowFallbackAsync(Snapshot,Invocation.EditorView);
-                    this.SetStatusBarText($"{Chosen.ClassName} [Scene] はDocument Wellを利用できないため、Scene Designerパネルで開きました。");
+                    await this.OpenToolWindowFallbackAsync(Snapshot);
+                    string Diagnostic=SceneDesignerDocumentWindowDiagnostics.CompactDiagnostic(DocumentWellException);
+                    this.SetStatusBarText(
+                        $"{Chosen.ClassName} [Scene] のDocument Well作成に失敗しました ({Diagnostic})。Scene Designerパネルへフォールバックしました。ログ: {SceneDesignerDocumentWindowDiagnostics.PersistentLogPath}");
                     ActivityLog.LogInformation(nameof(OpenSceneDesignerCommand),$"Scene Designer tool window fallback opened; scene='{FullyQualifiedName}'.");
                 }
             } catch(OperationCanceledException) when(this.Package.DisposalToken.IsCancellationRequested){
@@ -290,12 +287,12 @@ internal sealed class OpenSceneDesignerCommand {
         });
     }
 
-    private static void ShowFrameWithoutActivation(IVsWindowFrame Frame){
+    private static void ShowFrameAndActivate(IVsWindowFrame Frame){
         ThreadHelper.ThrowIfNotOnUIThread();
-        ErrorHandler.ThrowOnFailure(Frame.ShowNoActivate());
+        ErrorHandler.ThrowOnFailure(Frame.Show());
     }
 
-    private async Task OpenToolWindowFallbackAsync(SceneDocumentSnapshot Snapshot,IVsTextView?EditorView){
+    private async Task OpenToolWindowFallbackAsync(SceneDocumentSnapshot Snapshot){
         await this.Package.JoinableTaskFactory.SwitchToMainThreadAsync(this.Package.DisposalToken);
         var Window=await this.Package.FindToolWindowAsync(
             typeof(SceneDesignerToolWindowPane),0,true,this.Package.DisposalToken);
@@ -305,22 +302,7 @@ internal sealed class OpenSceneDesignerCommand {
 
         await this.Package.JoinableTaskFactory.SwitchToMainThreadAsync(this.Package.DisposalToken);
         Pane.SetTarget(this.Session,Snapshot);
-        ToolWindowFramePresenter.ShowWithoutActivation(
-            ()=>ShowFrameWithoutActivation(Frame),
-            EditorView is null?null:()=>RestoreEditorFocus(EditorView));
-    }
-
-    private static void RestoreEditorFocus(IVsTextView?EditorView){
-        ThreadHelper.ThrowIfNotOnUIThread();
-        if(EditorView is null){
-            return;
-        }
-
-        try {
-            ErrorHandler.ThrowOnFailure(EditorView.SendExplicitFocus());
-        } catch(COMException Ex){
-            ActivityLog.LogWarning(nameof(OpenSceneDesignerCommand),$"元のコードエディタへフォーカスを戻せませんでした: {Ex.Message}");
-        }
+        ShowFrameAndActivate(Frame);
     }
 
     private void SetStatusBarText(string Text){
@@ -334,12 +316,10 @@ internal sealed class OpenSceneDesignerCommand {
         internal SceneMenuInvocation(
             string FilePath,
             IReadOnlyList<SceneDesignerMenuItem> Items,
-            string?TargetSceneFullyQualifiedName,
-            IVsTextView?EditorView){
+            string?TargetSceneFullyQualifiedName){
             this.FilePath=FilePath;
             this.Items=Items;
             this.TargetSceneFullyQualifiedName=TargetSceneFullyQualifiedName;
-            this.EditorView=EditorView;
         }
 
         internal string FilePath { get; }
@@ -347,7 +327,5 @@ internal sealed class OpenSceneDesignerCommand {
         internal IReadOnlyList<SceneDesignerMenuItem> Items { get; }
 
         internal string?TargetSceneFullyQualifiedName { get; }
-
-        internal IVsTextView?EditorView { get; }
     }
 }

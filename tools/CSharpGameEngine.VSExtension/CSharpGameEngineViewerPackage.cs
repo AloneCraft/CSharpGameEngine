@@ -31,7 +31,7 @@ namespace CSharpGameEngine.VSExtension;
     Style=VsDockStyle.Linked,Window=ToolWindowGuids80.SolutionExplorer,
     Orientation=ToolWindowOrientation.Bottom,DockedWidth=300)]
 // Document Well is the primary Scene Designer host. This tool window remains registered only
-// as a recovery path when the low-level document API rejects the current shell state.
+// as a recovery path when Visual Studio cannot create the external virtual document frame.
 [ProvideToolWindow(typeof(SceneDesignerToolWindowPane),
     Style=VsDockStyle.Linked,Window=ToolWindowGuids80.SolutionExplorer,
     Orientation=ToolWindowOrientation.Bottom,DockedWidth=500)]
@@ -82,7 +82,7 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
 
         if(this.SceneWorkspace is not null){
             this.SceneSession=new SceneEditorSessionService(this.SceneWorkspace);
-            this.SceneDesignerDocuments=new SceneDesignerDocumentManager();
+            this.SceneDesignerDocuments=new SceneDesignerDocumentManager(this);
             SceneDesignerToolWindowPane.ConfigureSessionProvider(()=>this.SceneSession);
             InspectorToolWindowPane.ConfigureSessionProvider(()=>this.SceneSession);
             ComponentPaletteToolWindowPane.ConfigureSessionProvider(()=>this.SceneSession);

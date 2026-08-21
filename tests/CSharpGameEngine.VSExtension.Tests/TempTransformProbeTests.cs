@@ -30,6 +30,8 @@ public sealed class TempTransformProbeTests {
         var Type=Compilation.GetTypeByMetadataName("Sample.Transform");
         var Expression=SceneComponentInitializerPolicy.CreateExpression(
             Type!,Type!.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
-        Assert.Fail(Expression);
+        Assert.Equal(
+            "new global::Sample.Transform { PositionX=default, PositionY=default, PositionZ=default, RotationX=default, RotationY=default, RotationZ=default, RotationW=1f, ScaleX=1f, ScaleY=1f, ScaleZ=1f }",
+            Expression);
     }
 }

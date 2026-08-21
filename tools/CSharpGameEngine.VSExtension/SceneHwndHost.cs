@@ -41,6 +41,7 @@ internal sealed class SceneHwndHost:HwndHost {
     private RenderSurfaceWindow?Surface;
     private SceneRenderer?Renderer;
     private LatestOnlyThreadWorker<SceneRenderBuildRequest,SceneRenderBuildResult>?BuildWorker;
+    private readonly SceneRenderBuildLifecycle BuildLifecycle=new();
     private EventHandler?RenderingHandler;
     private Action<int,int>?ResizeHandler;
 
@@ -147,6 +148,13 @@ internal sealed class SceneHwndHost:HwndHost {
     /// <summary>MouseUpで確定したsource編集要求。WPF/session境界がlive bufferへ1 Undoで反映する。</summary>
     internal event Action<SceneEditCommitRequest>?EditCommitRequested;
 
+
+    /// <summary>True while the current target owns an asynchronous scene-build request.</summary>
+    internal bool IsBuildPending=>this.BuildLifecycle.IsBuildPending;
+
+    /// <summary>True only when the current target has an unrecoverable build/present failure.</summary>
+    internal bool HasFatalRenderFailure { get; private set; }
+
     public SceneHwndHost(){
         // Surfaceは描画先でありキーボード入力を持つコントロールではない。HwndHostの既定
         // TabInto経路を残すと、float/dockやマウスクリック後にVSのTab等がSurfaceへ入り、
@@ -184,6 +192,7 @@ internal sealed class SceneHwndHost:HwndHost {
     protected override void DestroyWindowCore(HandleRef Hwnd){
         ThreadHelper.ThrowIfNotOnUIThread();
 
+        this.BuildLifecycle.Invalidate();
         this.BuildWorker?.Dispose();
         this.BuildWorker=null;
         this.CancelEditTransaction();
@@ -221,6 +230,11 @@ internal sealed class SceneHwndHost:HwndHost {
 
             this.CancelEditTransaction();
         }
+
+        // A queued worker result from the previous snapshot must never clear the pending state or
+        // recreate a renderer after this target is accepted. The new Rebuild below receives a
+        // distinct lease; an incremental update deliberately leaves no build pending at all.
+        this.BuildLifecycle.Invalidate();
 
         // コンボボックスでのシーン切替はSceneHwndHostを再生成せず(EnsureHostが既存インスタンスを
         // 返すだけ)、このSetTargetの呼び直しだけが届く。TargetKeyが変わったことをここで検知し、
@@ -383,7 +397,7 @@ internal sealed class SceneHwndHost:HwndHost {
                                       this.TickUndoRedoIfNeeded();
                                       this.UpdateSurfaceSnapArmed();
                                       this.ApplyCamera();
-                                      this.Renderer?.RenderFrame();
+                                      this.RenderSurfaceFrame();
                                   };
             CompositionTarget.Rendering+= this.RenderingHandler;
 
@@ -392,12 +406,16 @@ internal sealed class SceneHwndHost:HwndHost {
             // would just accumulate redundant duplicate calls per resize.
             // これはサーフェスの実サイズを知る唯一の場所でもあるので、アスペクト比の元もここで更新する。
             this.ResizeHandler=(W,H)=>{
-                                   this.SurfaceWidth=Math.Max(1,W);
-                                   this.SurfaceHeight=Math.Max(1,H);
-                                    this.Renderer?.Resize(W,H);
-                                    this.ApplyCamera();
-                                    this.RefreshCameraPreviews();
-                                    this.RefreshOverlay();
+                                   try {
+                                       this.SurfaceWidth=Math.Max(1,W);
+                                       this.SurfaceHeight=Math.Max(1,H);
+                                       this.Renderer?.Resize(W,H);
+                                       this.ApplyCamera();
+                                       this.RefreshCameraPreviews();
+                                       this.RefreshOverlay();
+                                   } catch(Exception Ex){
+                                       this.HandleRenderFailure(Ex);
+                                   }
                                };
             this.Surface.Resized+= this.ResizeHandler;
         }
@@ -410,6 +428,32 @@ internal sealed class SceneHwndHost:HwndHost {
     /// M0020 Phase 1)。値が変わらなければ<see cref="SceneRenderer.SetCamera"/>は何もしないので
     /// 毎フレーム呼んで構わない。
     /// </summary>
+    private void RenderSurfaceFrame(){
+        if(this.Renderer is null){
+            return;
+        }
+        try {
+            this.Renderer.RenderFrame();
+        } catch(Exception Ex){
+            this.HandleRenderFailure(Ex);
+        }
+    }
+
+    private void HandleRenderFailure(Exception Error){
+        // RenderFrame/Resize failure invalidates any concurrent build before reporting status.
+        // Otherwise IsBuildPending suppresses the visible WPF diagnostic and leaves a hidden
+        // native child as a white HwndHost airspace region.
+        this.BuildLifecycle.Invalidate();
+        this.HasFatalRenderFailure=true;
+        ActivityLog.LogError(nameof(SceneHwndHost),Error.ToString());
+        if(this.Renderer is not null){
+            this.DisposeRenderer();
+        } else {
+            this.Surface?.SetVisible(false);
+        }
+        this.SetStatus(Error.ToString());
+    }
+
     private void ApplyCamera(){
         if(this.Renderer is not { } Active|| this.ViewState is not { } State){
             return;
@@ -1637,9 +1681,13 @@ internal sealed class SceneHwndHost:HwndHost {
 
     /// <summary>(Re)builds <see cref="Renderer"/> from the pin 済み <see cref="SceneDocumentSnapshot"/>.</summary>
     private void Rebuild(){
+        // Every rebuild supersedes the prior request, including paths that end before a worker is
+        // started (analysis pending, invalid model, or a destroyed target).
+        this.BuildLifecycle.Invalidate();
         if(this.Surface is null|| this.TargetKey is null|| this.TargetSnapshot is null|| this.TargetFilePath is null|| this.TargetClassName is null){
             return;
         }
+        this.HasFatalRenderFailure=false;
 
         if(this.TargetModel is not { } Model){
             // Not (yet) found - e.g. analysis hasn't caught up with a just-opened tool window, or
@@ -1649,6 +1697,7 @@ internal sealed class SceneHwndHost:HwndHost {
         }
 
         if(Model.Root is null){
+            this.HasFatalRenderFailure=true;
             this.DisposeRenderer();
             Microsoft.CodeAnalysis.Diagnostic?Diagnostic=Model.Diagnostics.FirstOrDefault();
             string Detail=Diagnostic is null
@@ -1667,8 +1716,16 @@ internal sealed class SceneHwndHost:HwndHost {
         // Build全体をこの単一workerへ渡し、UIスレッドではJoin/Waitを一切行わない。完了後の
         // SceneRenderer生成だけをDispatcherへ戻す。live解析が連続してもworkerはlatest-winsで
         // 未処理要求を置換するため、ブリッジプロセスが無制限に増えることもない。
-        this.BuildWorker?.Request(new SceneRenderBuildRequest(
-                                                              Model, this.TargetKey.Value, this.TargetSnapshot.AnalysisGeneration, this.TargetFilePath, this.TargetClassName, this.Surface.Handle));
+        if(this.BuildWorker is not { } Worker){
+            this.HasFatalRenderFailure=true;
+            this.SetStatus("Scene renderer build worker is unavailable.");
+            return;
+        }
+
+        long BuildEpoch=this.BuildLifecycle.Begin();
+        Worker.Request(new SceneRenderBuildRequest(
+                                                    Model, this.TargetKey.Value, this.TargetSnapshot.AnalysisGeneration,
+                                                    this.TargetFilePath, this.TargetClassName, this.Surface.Handle,BuildEpoch));
     }
 
     private SceneRenderBuildResult BuildRenderObjects(SceneRenderBuildRequest Request){
@@ -1686,6 +1743,12 @@ internal sealed class SceneHwndHost:HwndHost {
     }
 
     private void OnBuildCompleted(SceneRenderBuildRequest Request,SceneRenderBuildResult?Result,Exception?Error){
+        // A result for a superseded target must be completely inert. In particular, it must not
+        // clear a newer target's pending lease before the newer worker has returned.
+        if(!this.BuildLifecycle.TryComplete(Request.BuildEpoch)){
+            return;
+        }
+
         if(this.Surface is null
             || this.Surface.Handle!=Request.SurfaceHandle
             || this.TargetKey is not { } Key
@@ -1695,6 +1758,7 @@ internal sealed class SceneHwndHost:HwndHost {
         }
 
         if(Error is not null){
+            this.HasFatalRenderFailure=true;
             ActivityLog.LogError(nameof(SceneHwndHost),Error.ToString());
             if(this.Renderer is null){
                 this.Surface.SetVisible(false);
@@ -1739,6 +1803,7 @@ internal sealed class SceneHwndHost:HwndHost {
 
             // 実サイズは Surface.Resized で既に届いているので、800x600 のハードコードは使わない。
             this.Renderer=new SceneRenderer(this.Surface.Handle, this.SurfaceWidth, this.SurfaceHeight,Result.RenderObjects,View,Projection);
+            this.HasFatalRenderFailure=false;
             this.RenderedAnalysisGeneration=Request.AnalysisGeneration;
             // 再解析でRendererを作り直しても選択の見た目を保つ。複数選択(SelectedNodePaths)も
             // 一緒に渡さないと、primary以外のハイライトだけが再ビルドで消える。
@@ -1748,6 +1813,7 @@ internal sealed class SceneHwndHost:HwndHost {
             this.Surface.SetVisible(true);
             this.SetStatus($"表示中: {Result.Request.ClassName}");
         } catch(Exception Ex){
+            this.HasFatalRenderFailure=true;
             ActivityLog.LogError(nameof(SceneHwndHost),Ex.ToString());
             this.DisposeRenderer();
             this.SetStatus($"表示に失敗しました: {Ex.Message}");
@@ -1810,7 +1876,8 @@ internal sealed class SceneHwndHost:HwndHost {
         long AnalysisGeneration,
         string FilePath,
         string ClassName,
-        IntPtr SurfaceHandle);
+        IntPtr SurfaceHandle,
+        long BuildEpoch);
 
     private sealed record SceneRenderBuildResult(
         SceneRenderBuildRequest Request,

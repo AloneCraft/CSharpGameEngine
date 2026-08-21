@@ -12,22 +12,43 @@ namespace CSharpGameEngine.VSExtension;
 /// </summary>
 internal static class VsixBuildIdentity {
     private const string VersionKey="CSharpGameEngineVsixVersion";
+    private const string RepoRootKey="CSharpGameEngineRepoRoot";
     private const string BuildUtcKey="CSharpGameEngineBuildUtc";
     private const string GitRevisionKey="CSharpGameEngineGitRevision";
     private const string BuildOutputPathKey="CSharpGameEngineBuildOutputPath";
 
     internal static string Version=>GetMetadata(VersionKey)??"unknown";
+    internal static string RepoRoot=>GetMetadata(RepoRootKey)??"unknown";
     internal static string BuildUtc=>GetMetadata(BuildUtcKey)??"unknown";
     internal static string GitRevision=>GetMetadata(GitRevisionKey)??"unknown";
     internal static string LoadedAssemblyPath=>Assembly.GetExecutingAssembly().Location;
     internal static string LoadedAssemblyFileName=>Path.GetFileName(LoadedAssemblyPath);
+    internal static string LoadedAssemblyPathTail{
+        get {
+            string? Directory=Path.GetDirectoryName(LoadedAssemblyPath);
+            string? DirectoryName=string.IsNullOrEmpty(Directory)?null:Path.GetFileName(Directory);
+            return string.IsNullOrEmpty(DirectoryName)
+                ?LoadedAssemblyFileName
+                :$"...\\{DirectoryName}\\{LoadedAssemblyFileName}";
+        }
+    }
     internal static string BuildOutputPath=>GetMetadata(BuildOutputPathKey)??"unknown";
+    internal static VsixDeploymentVerification Deployment=>VsixDeploymentVerifier.Verify(
+        LoadedAssemblyPath,BuildOutputPath);
 
     /// <summary>Compact text intended for the Scene Designer header or diagnostic UI.</summary>
-    internal static string DisplayText=>$"VSIX {Version} | {GitRevision} | {BuildUtc}";
+    internal static string DisplayText{
+        get {
+            VsixDeploymentVerification Verification=Deployment;
+            string Revision=GitRevision.Length>12?GitRevision.Substring(0,12):GitRevision;
+            return $"VSIX {Version} | {Revision} | {Verification.CompactState} | {LoadedAssemblyPathTail}";
+        }
+    }
 
     internal static string ActivityLogText=>
-        $"Loaded {DisplayText}; assembly='{LoadedAssemblyPath}'; buildOutput='{BuildOutputPath}'.";
+        $"Loaded {DisplayText}; assembly='{LoadedAssemblyPath}'; buildOutput='{BuildOutputPath}'; " +
+        $"deployment='{Deployment.Message}'; loadedSha256='{Deployment.LoadedHash??"unknown"}'; " +
+        $"buildSha256='{Deployment.BuildHash??"unknown"}'.";
 
     private static string?GetMetadata(string Key)=>Assembly.GetExecutingAssembly()
         .GetCustomAttributes<AssemblyMetadataAttribute>()

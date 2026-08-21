@@ -17,4 +17,21 @@ public sealed class VsixManifestTests {
         Assert.NotNull(MefAsset);
         Assert.Equal("|%CurrentProject%|",(string?)MefAsset.Attribute("Path"));
     }
+    [Fact]
+    public void LoadedAssembly_BuildIdentityPreservesEachRequiredField(){
+        Assert.NotEqual("unknown",VsixBuildIdentity.Version);
+        Assert.NotEqual("unknown",VsixBuildIdentity.RepoRoot);
+        Assert.NotEqual("unknown",VsixBuildIdentity.BuildUtc);
+        Assert.NotEqual("unknown",VsixBuildIdentity.GitRevision);
+        Assert.NotEqual("unknown",VsixBuildIdentity.BuildOutputPath);
+        Assert.True(Path.IsPathRooted(VsixBuildIdentity.RepoRoot));
+        Assert.True(File.Exists(Path.Combine(VsixBuildIdentity.RepoRoot,RepoLocator.RepoMarkerFileName)));
+        Assert.Equal(VsixBuildIdentity.RepoRoot,RepoLocator.ResolveRepoRoot());
+        Assert.True(DateTimeOffset.TryParse(VsixBuildIdentity.BuildUtc,out _));
+        Assert.EndsWith("CSharpGameEngine.VSExtension.dll",VsixBuildIdentity.BuildOutputPath,StringComparison.OrdinalIgnoreCase);
+        Assert.NotEqual(VsixBuildIdentity.GitRevision,VsixBuildIdentity.RepoRoot);
+        Assert.NotEqual(VsixBuildIdentity.GitRevision,VsixBuildIdentity.Version);
+        Assert.NotEqual(VsixBuildIdentity.GitRevision,VsixBuildIdentity.BuildUtc);
+        Assert.NotEqual(VsixBuildIdentity.GitRevision,VsixBuildIdentity.BuildOutputPath);
+    }
 }

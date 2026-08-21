@@ -493,6 +493,12 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
 
     private void OnStatusChanged(string Status){
         this.StatusText.Text=Status;
+        if(this.Host is { }Host
+            &&SceneRenderFailurePolicy.ShouldShowFailure(Host.HasFatalRenderFailure,Host.IsBuildPending)){
+            // A failed build/Present leaves an invisible child HWND behind. Remove it so the WPF
+            // empty-state message is painted instead of exposing a white HwndHost airspace.
+            this.ShowEmpty(Status);
+        }
     }
 
     private void OnCameraPreviewToggleClicked(object Sender,RoutedEventArgs Args){
