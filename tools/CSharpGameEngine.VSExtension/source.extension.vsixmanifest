@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
-    <Identity Id="CSharpGameEngine.VSExtension.aec17804-e2e4-46e7-b373-de11af816203" Version="0.1.3" Language="en-US" Publisher="CSharpGameEngine" />
+    <Identity Id="CSharpGameEngine.VSExtension.aec17804-e2e4-46e7-b373-de11af816203" Version="0.1.4" Language="en-US" Publisher="CSharpGameEngine" />
     <DisplayName>C# Game Engine Viewer</DisplayName>
     <Description xml:space="preserve">Launches the C# Game Engine glTF model viewer (CSharpGameEngine.Extension) from within Visual Studio. Skeleton/placeholder extension - not a full authoring environment yet.</Description>
   </Metadata>

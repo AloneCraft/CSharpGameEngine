@@ -55,6 +55,8 @@
     <!-- M0051 Step 1-7: リネージ判定が SceneDiffEngine へ逆戻りしないことを検査するためのソース
          (SceneLineageArchitectureTests)。Step 1-6 はその形で実機の高速経路を丸ごと殺した。 -->
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\SceneLandingDecision.cs" Link="TestAssets\Source\SceneLandingDecision.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\CSharpGameEngine.VSExtension\ExperimentalToolWindowState.cs" Link="TestAssets\Source\ExperimentalToolWindowState.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\CSharpGameEngine.VSExtension\CSharpGameEngineViewerPackage.cs" Link="TestAssets\Source\CSharpGameEngineViewerPackage.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\SceneEditorSessionService.cs" Link="TestAssets\Source\SceneEditorSessionService.cs" CopyToOutputDirectory="PreserveNewest" />
 
     <!-- M0051 Step 1-8: デバウンス状態がポリシー経由でのみ遷移することを検査するためのソース。

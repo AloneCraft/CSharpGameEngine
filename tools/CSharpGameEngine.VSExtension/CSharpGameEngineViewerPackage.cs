@@ -57,6 +57,7 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
     private SceneDesignerDocumentManager?SceneDesignerDocuments;
     private ActiveDocumentTracker?DocumentTracker;
     private SceneSourceMarkerService?SourceMarkerService;
+    private ExperimentalToolWindowState?ExperimentalToolWindowState;
 
     protected override async Task InitializeAsync(CancellationToken CancellationToken,IProgress<ServiceProgressData>Progress){
         await this.JoinableTaskFactory.SwitchToMainThreadAsync(CancellationToken);
@@ -103,6 +104,12 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
         }
 
         this.AssetMetaWatcher=AssetMetaWatcher.StartIfProjectExists();
+        this.ExperimentalToolWindowState=new ExperimentalToolWindowState(this);
+        _=this.JoinableTaskFactory.RunAsync(async()=>{
+            if(await this.WaitForSolutionOpenAsync()){
+                await this.ExperimentalToolWindowState.RestoreAsync(this.DisposalToken);
+            }
+        });
         // Do not create this package's tool windows while AsyncPackage.InitializeAsync is still
         // running. FindToolWindowAsync can then wait on this package's own load operation and
         // prevent Visual Studio from completing startup. The existing Apply Game Engine Layout
@@ -586,6 +593,8 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
 
     protected override void Dispose(bool Disposing){
         if(Disposing){
+            this.ExperimentalToolWindowState?.Capture();
+            this.ExperimentalToolWindowState=null;
             this.FabWatchCommand?.Dispose();
             this.AssetMetaWatcher?.Dispose();
             this.DocumentTracker?.Dispose();

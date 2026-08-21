@@ -40,7 +40,7 @@
     <CSharpGameEngineRepoRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\'))</CSharpGameEngineRepoRoot>
     <!-- Bump each deployable VSIX revision.  The installer/version cache must never be asked to
          distinguish a newly fixed extension from a prior binary with the same identity. -->
-    <CSharpGameEngineVsixVersion>0.1.3</CSharpGameEngineVsixVersion>
+    <CSharpGameEngineVsixVersion>0.1.4</CSharpGameEngineVsixVersion>
     <CSharpGameEngineBuildUtc>$([System.DateTime]::UtcNow.ToString('O'))</CSharpGameEngineBuildUtc>
     <CSharpGameEngineGitRevision>unknown</CSharpGameEngineGitRevision>
 
