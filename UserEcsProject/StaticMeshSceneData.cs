@@ -1,4 +1,5 @@
 using System.Numerics;
+using CSharpGameEngine.Entities;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Import.Gltf;
 using CSharpGameEngine.Runtime.Windows;
@@ -11,25 +12,34 @@ internal sealed class StaticMeshSceneData {
         StageMeshCreateInfo[]Meshes,
         StageMaterialCreateInfo[]Materials,
         StageObjectCreateInfo[]Objects,
-        Matrix4x4[]Transforms){
+        Transform[]ObjectTransforms,
+        Matrix4x4[]ObjectLocalTransforms,
+        Entity[]SourceEntities){
         this.Meshes=Meshes;
         this.Materials=Materials;
         this.Objects=Objects;
-        this.Transforms=Transforms;
+        this.ObjectTransforms=ObjectTransforms;
+        this.ObjectLocalTransforms=ObjectLocalTransforms;
+        this.SourceEntities=SourceEntities;
     }
 
     public StageMeshCreateInfo[]Meshes { get;}
     public StageMaterialCreateInfo[]Materials { get;}
     public StageObjectCreateInfo[]Objects { get;}
-    public Matrix4x4[]Transforms { get;}
+    public Transform[]ObjectTransforms { get;}
+    public Matrix4x4[]ObjectLocalTransforms { get;}
+    /// <summary>Authoring Entity whose fixed hierarchy owns each renderer object.</summary>
+    public Entity[]SourceEntities { get;}
 
     public static StaticMeshSceneData Build(
-        IReadOnlyList<(Transform Transform,StaticMesh Mesh)>StaticMeshes,
-        IReadOnlyList<(Transform Transform,PrimitiveMesh Mesh)>Primitives){
+        IReadOnlyList<(Entity Entity,Transform Transform,StaticMesh Mesh)>StaticMeshes,
+        IReadOnlyList<(Entity Entity,Transform Transform,PrimitiveMesh Mesh)>Primitives){
         List<StageMeshCreateInfo>Meshes=[];
         List<StageMaterialCreateInfo>Materials=[];
         List<StageObjectCreateInfo>Objects=[];
-        List<Matrix4x4>Transforms=[];
+        List<Transform>ObjectTransforms=[];
+        List<Matrix4x4>ObjectLocalTransforms=[];
+        List<Entity>SourceEntities=[];
         Dictionary<string,AssetTemplate>Templates=new(StringComparer.OrdinalIgnoreCase);
 
         foreach(var Placement in StaticMeshes){
@@ -39,10 +49,11 @@ internal sealed class StaticMeshSceneData {
                 Templates.Add(FullPath,Template);
             }
 
-            var PlacementTransform=ToMatrix(Placement.Transform);
             foreach(AssetObject Object in Template.Objects){
                 Objects.Add(new StageObjectCreateInfo { MeshIndex=Object.MeshIndex,MaterialIndex=Object.MaterialIndex });
-                Transforms.Add(Object.LocalTransform*PlacementTransform);
+                ObjectTransforms.Add(Placement.Transform);
+                ObjectLocalTransforms.Add(Object.LocalTransform);
+                SourceEntities.Add(Placement.Entity);
             }
         }
 
@@ -52,14 +63,19 @@ internal sealed class StaticMeshSceneData {
             Meshes.AddRange(PrimitiveMeshes);
             Materials.AddRange(PrimitiveMaterials);
             Objects.AddRange(PrimitiveObjects);
-            Transforms.AddRange(Primitives.Select(Item=>ToMatrix(Item.Transform)));
+            foreach(var Primitive in Primitives){
+                ObjectTransforms.Add(Primitive.Transform);
+                ObjectLocalTransforms.Add(Matrix4x4.Identity);
+                SourceEntities.Add(Primitive.Entity);
+            }
         }
 
         if(Objects.Count==0){
             throw new InvalidOperationException("宣言型Sceneに描画可能なStaticMeshまたはPrimitiveMeshがありません。");
         }
 
-        return new StaticMeshSceneData([.. Meshes],[.. Materials],[.. Objects],[.. Transforms]);
+        return new StaticMeshSceneData([.. Meshes],[.. Materials],[.. Objects],
+            [.. ObjectTransforms],[.. ObjectLocalTransforms],[.. SourceEntities]);
     }
 
     private static AssetTemplate LoadAsset(string FullPath,List<StageMeshCreateInfo>Meshes,List<StageMaterialCreateInfo>Materials){
@@ -82,9 +98,12 @@ internal sealed class StaticMeshSceneData {
             RoughnessFactor=Material.RoughnessFactor,
             MetallicFactor=Material.MetallicFactor,
             EmissiveFactor=Material.EmissiveFactor,
+            EmissiveNits=Material.EmissiveNits,
+            EmissiveTextureLuminanceScale=Material.EmissiveTextureLuminanceScale,
             BaseColorTextureBytes=Material.BaseColorTextureBytes,
             NormalTextureBytes=Material.NormalTextureBytes,
             MetallicRoughnessTextureBytes=Material.MetallicRoughnessTextureBytes,
+            EmissiveTextureBytes=Material.EmissiveTextureBytes,
         }));
 
         List<AssetObject>Objects=[];
@@ -99,10 +118,6 @@ internal sealed class StaticMeshSceneData {
         return new AssetTemplate([.. Objects]);
     }
 
-    private static Matrix4x4 ToMatrix(Transform Transform)=>
-        Matrix4x4.CreateScale(Transform.ScaleX,Transform.ScaleY,Transform.ScaleZ)
-        *Matrix4x4.CreateFromQuaternion(new Quaternion(Transform.RotationX,Transform.RotationY,Transform.RotationZ,Transform.RotationW))
-        *Matrix4x4.CreateTranslation(Transform.PositionX,Transform.PositionY,Transform.PositionZ);
 
     private sealed record AssetTemplate(AssetObject[]Objects);
     private readonly record struct AssetObject(int MeshIndex,int MaterialIndex,Matrix4x4 LocalTransform);

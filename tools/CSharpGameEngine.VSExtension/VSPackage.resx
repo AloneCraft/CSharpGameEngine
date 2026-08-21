@@ -46,4 +46,7 @@
   <data name="121" xml:space="preserve">
     <value>Scene Editor</value>
   </data>
+  <data name="122" xml:space="preserve">
+    <value>Transform Precision</value>
+  </data>
 </root>

@@ -12,5 +12,6 @@ public sealed class SceneCameraTests {
         Assert.True(Camera.FovYRadians>0f);
         Assert.True(Camera.NearZ>0f);
         Assert.True(Camera.FarZ>Camera.NearZ);
+        Assert.Equal(0f,Camera.ExposureEv100);
     }
 }

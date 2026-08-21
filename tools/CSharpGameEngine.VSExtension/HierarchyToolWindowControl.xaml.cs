@@ -247,6 +247,8 @@ public partial class HierarchyToolWindowControl:UserControl {
         ContextMenu Menu=new();
         Menu.Items.Add(this.CreateMenuItem("子ノードを追加",(_,_)=>SceneEditorHub.RequestHierarchyEdit(
             new HierarchyEditRequest(HierarchyEditKind.AddChild,this.CurrentSelection.Paths))));
+        Menu.Items.Add(this.CreateMenuItem("Normalize Components",(_,_)=>SceneEditorHub.RequestHierarchyEdit(
+            new HierarchyEditRequest(HierarchyEditKind.NormalizeComponents,this.CurrentSelection.Paths))));
         Menu.Items.Add(this.CreateMenuItem("名前を変更",(_,_)=>{
             Item.BeginRename();
             this.UpdateLayout();
@@ -420,10 +422,13 @@ public partial class HierarchyToolWindowControl:UserControl {
     }
 
     private void Tree_DragOver(object Sender,DragEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
         if(Args.Data.GetData(typeof(ComponentDragPayload)) is ComponentDragPayload ComponentPayload){
-            Args.Effects=ComponentDropPolicy.Accepts(this.EvaluateComponentDrop(Args,ComponentPayload))
+            ComponentDropVerdict Verdict=this.EvaluateComponentDrop(Args,ComponentPayload);
+            Args.Effects=ComponentDropPolicy.Accepts(Verdict)
                 ?DragDropEffects.Copy
                 :DragDropEffects.None;
+            this.UpdateComponentDropFeedback(Verdict,ComponentPayload);
             Args.Handled=true;
             return;
         }
@@ -448,7 +453,8 @@ public partial class HierarchyToolWindowControl:UserControl {
         var Model=SceneEditorHub.ActiveSceneModel;
         if(this.FindNode(Args.OriginalSource as DependencyObject) is not { } Target){
             return ComponentDropPolicy.Evaluate(
-                Model is not null,TargetResolved:false,TargetHasComponentsList:false,TargetAlreadyHasType:false);
+                Model is not null,TargetResolved:false,TargetHasComponentsList:false,TargetAlreadyHasType:false,
+                CanCreateRootChild:true);
         }
 
         var Node=FindSceneNode(Model,Target.Path);
@@ -516,6 +522,11 @@ public partial class HierarchyToolWindowControl:UserControl {
         }
 
         if(this.FindNode(Args.OriginalSource as DependencyObject) is not { } Target){
+            if(Verdict==ComponentDropVerdict.AcceptCreateRootChild){
+                SceneEditorHub.RequestComponentAdd(new ComponentAddRequest(
+                    Payload.ComponentTypeFullyQualifiedName,Payload.ComponentExpression,
+                    NewEntityName:Payload.DisplayName,CreateRootChild:true));
+            }
             return;
         }
 

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Numerics;
 using System.Text;
 using System.Text.Json;
+using CSharpGameEngine.Unreal.SceneImporter;
 using CSharpGameEngine.Import.Gltf;
 
 if(args.Length!=3){
@@ -80,7 +81,7 @@ static string BuildSceneSource(
     IReadOnlyDictionary<string,ImportedSceneNode>MeshNodeByName,
     ImportedSceneNode DirectionalNode){
     var Light=Scene.Lights[DirectionalNode.LightIndex!.Value];
-    var Direction=ImportedLightDirection.WorldForward(DirectionalNode.WorldTransform);
+    var DirectionTowardLight=ImportedLightDirection.WorldForward(DirectionalNode.WorldTransform);
     ImportEnvironment Environment=Manifest.Environment;
 
     var Builder=new StringBuilder();
@@ -121,15 +122,10 @@ static string BuildSceneSource(
 
     Builder.AppendLine("            new Node {");
     Builder.AppendLine("                Name=\"DirectionalLight\",");
-    Builder.AppendLine("                Components=[new DirectionalLight {");
-    Builder.Append("                    DirectionTowardLightX=").Append(F(Direction.X)).AppendLine(",");
-    Builder.Append("                    DirectionTowardLightY=").Append(F(Direction.Y)).AppendLine(",");
-    Builder.Append("                    DirectionTowardLightZ=").Append(F(Direction.Z)).AppendLine(",");
-    Builder.Append("                    ColorR=").Append(F(Light.Color.X)).AppendLine(",");
-    Builder.Append("                    ColorG=").Append(F(Light.Color.Y)).AppendLine(",");
-    Builder.Append("                    ColorB=").Append(F(Light.Color.Z)).AppendLine(",");
-    Builder.Append("                    Intensity=").Append(F(Light.Intensity)).AppendLine(",");
-    Builder.AppendLine("                }],");
+    Builder.AppendLine("                Components=[");
+    UnrealLightSceneEmitter.AppendDirectionalLightComponents(
+        Builder,DirectionTowardLight,Light.Color,Light.Intensity,"                    ");
+    Builder.AppendLine("                ],");
     Builder.AppendLine("            },");
 
     ImportPlayerStart Player=Environment.PlayerStart;

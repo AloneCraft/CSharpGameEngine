@@ -1022,15 +1022,29 @@ internal partial class FirstPersonStageScene : IScene {
             },
             new Node {
                 Name="DirectionalLight",
-                Components=[new DirectionalLight {
-                    DirectionTowardLightX=0.6387412f,
-                    DirectionTowardLightY=-0.7606f,
-                    DirectionTowardLightZ=0.11617841f,
-                    ColorR=1f,
-                    ColorG=1f,
-                    ColorB=1f,
-                    Intensity=6f,
-                }],
+                Components=[
+                    new Transform {
+                        PositionX=0f,
+                        PositionY=0f,
+                        PositionZ=0f,
+                        RotationX=-0.57208294f,
+                        RotationY=-0.4804272f,
+                        RotationZ=0f,
+                        RotationW=0.6647637f,
+                        ScaleX=1f,
+                        ScaleY=1f,
+                        ScaleZ=1f,
+                    },
+                    new DirectionalLight {
+                        ColorR=1f,
+                        ColorG=1f,
+                        ColorB=1f,
+                        IlluminanceLux=100_000f,
+                        CastsShadows=true,
+                        ShadowPriority=100,
+                        ShadowBiasMeters=0.005f,
+                    },
+                ],
             },
             new Node {
                 Name="PlayerStart",

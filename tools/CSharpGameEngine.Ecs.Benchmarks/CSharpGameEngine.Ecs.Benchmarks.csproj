@@ -7,7 +7,7 @@
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="..\..\src\CSharpGameEngine.Entities\*.cs" Link="Entities\%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\CSharpGameEngine.Entities\*.cs" Exclude="..\..\src\CSharpGameEngine.Entities\FixedTransform.cs" Link="Entities\%(Filename)%(Extension)" />
     <ProjectReference Include="..\..\src\CSharpGameEngine.CodeAnalysis\CSharpGameEngine.CodeAnalysis.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>

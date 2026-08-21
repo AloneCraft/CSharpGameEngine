@@ -125,6 +125,46 @@ public class CameraTests {
         Assert.True(Camera.MaxPitchRadiansFirstPerson>Camera.MaxPitchRadians);
     }
 
+    [Fact]
+    public void TrySetWorldOrientation_UsesTransformLocalPositiveZAndPositiveYForForwardAndView(){
+        Camera Camera=Camera.CreateFirstPerson(Vector3.Zero);
+
+        Assert.True(Camera.TrySetWorldOrientation(Vector3.UnitZ,Vector3.UnitX));
+
+        AssertApprox(0f,Camera.GetForward().X);
+        AssertApprox(0f,Camera.GetForward().Y);
+        AssertApprox(1f,Camera.GetForward().Z);
+        AssertApprox(1f,Camera.GetUp().X);
+        AssertApprox(0f,Camera.GetUp().Y);
+        AssertApprox(0f,Camera.GetUp().Z);
+        Assert.Equal(
+            global::CSharpGameEngine.Graphics.D3D12.Camera.BuildViewMatrix(Vector3.Zero,Vector3.UnitZ,Vector3.UnitX),
+            Camera.GetView());
+    }
+
+    [Fact]
+    public void TrySetWorldOrientation_RejectsCollapsedBasisWithoutOverwritingLastValidPose(){
+        Camera Camera=Camera.CreateFirstPerson(Vector3.Zero);
+        Assert.True(Camera.TrySetWorldOrientation(
+            Vector3.Normalize(new Vector3(1f,0.25f,1f)),Vector3.UnitY));
+        float PreviousYaw=Camera.Yaw;
+        float PreviousPitch=Camera.Pitch;
+        Vector3 PreviousUp=Camera.Up;
+
+        Assert.False(Camera.TrySetWorldOrientation(Vector3.Zero,Vector3.UnitY));
+
+        Assert.Equal(PreviousYaw,Camera.Yaw);
+        Assert.Equal(PreviousPitch,Camera.Pitch);
+        Assert.Equal(PreviousUp,Camera.Up);
+    }
+
+    [Fact]
+    public void IsIdentityWorldOrientation_ChecksBothForwardAndUpAxes(){
+        Assert.True(Camera.IsIdentityWorldOrientation(Vector3.UnitZ,Vector3.UnitY));
+        Assert.False(Camera.IsIdentityWorldOrientation(Vector3.UnitX,Vector3.UnitY));
+        Assert.False(Camera.IsIdentityWorldOrientation(Vector3.UnitZ,Vector3.UnitX));
+    }
+
     /// <summary>
     /// Permanent regression guard for ADR-0026's RUF rewrite: independently re-derives the original
     /// hand-written trig formula (the pre-RUF implementation) and checks GetForward against it across

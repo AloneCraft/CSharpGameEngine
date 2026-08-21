@@ -21,6 +21,9 @@ public readonly struct StageMeshCreateInfo {
 /// mirroring <see cref="ModelRenderer"/>'s 1x1-fallback-texture pattern.
 /// </summary>
 public readonly struct StageMaterialCreateInfo {
+    public StageMaterialCreateInfo(){
+    }
+
     public required Vector4 BaseColorFactor { get; init;}
     public required float RoughnessFactor { get; init;}
     public required float MetallicFactor { get; init;}
@@ -28,8 +31,18 @@ public readonly struct StageMaterialCreateInfo {
     /// <summary>HDR emissive RGB factor, added before tone mapping and bloom.</summary>
     public Vector3 EmissiveFactor { get; init;}
 
+    /// <summary>Physically authored emitted luminance in cd/m² (nits).</summary>
+    public Vector3 EmissiveNits { get; init;}
+
+    /// <summary>Mean linear emissive-texture luminance used to scale direct-light patches. One preserves factor/strength-only materials.</summary>
+    public float EmissiveTextureLuminanceScale { get; init;}=1f;
+
+
     public byte[]?BaseColorTextureBytes { get; init;}
     public byte[]?NormalTextureBytes { get; init;}
+
+    /// <summary>Optional raw glTF emissive texture. It modulates both visible self-emission and emission patches.</summary>
+    public byte[]?EmissiveTextureBytes { get; init;}
 
     /// <summary>glTF-standard packed texture: G = roughness, B = metallic.</summary>
     public byte[]?MetallicRoughnessTextureBytes { get; init;}

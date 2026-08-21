@@ -26,12 +26,18 @@ public struct Camera {
     public const float MaxPitchRadiansFirstPerson=85f*MathF.PI/180f;
 
     public Vector3 Target;
+    /// <summary>World-space camera up. Transform-driven cameras set this from their resolved local +Y basis so roll is preserved by <see cref="GetView"/>.</summary>
+    public Vector3 Up;
+
     public float Yaw;
     public float Pitch;
     public float Distance;
     public float FovYRadians;
     public float NearZ;
     public float FarZ;
+    /// <summary>HDR radiance to display exposure in EV100. Zero preserves the legacy exposure.</summary>
+    public float ExposureEv100;
+
 
     /// <summary>Pitch clamp range applied by <see cref="ApplyMouseDelta"/>. Set by the <c>Create*</c> factories; <see cref="MinPitchRadians"/>/<see cref="MaxPitchRadians"/> remain the orbit-camera default values callers may still compare against directly.</summary>
     public float PitchClampMinRadians;
@@ -46,12 +52,14 @@ public struct Camera {
     public static Camera CreateDefault(Vector3 Target){
         return new Camera {
             Target=Target,
+            Up=Vector3.UnitY,
             Yaw=0f,
             Pitch=-15f*MathF.PI/180f,
             Distance=4.5f,
             FovYRadians=MathF.PI/4f,
             NearZ=0.1f,
             FarZ=1000f,
+            ExposureEv100=0f,
             PitchClampMinRadians=MinPitchRadians,
             PitchClampMaxRadians=MaxPitchRadians,
         };
@@ -68,6 +76,7 @@ public struct Camera {
     public static Camera CreateFirstPerson(Vector3 EyePosition){
         return new Camera {
             Target=EyePosition,
+            Up=Vector3.UnitY,
             Yaw=0f,
             Pitch=0f,
             Distance=0f,
@@ -81,6 +90,7 @@ public struct Camera {
             // safety margin over this room's scale while cutting the ratio by ~7x.
             NearZ=0.1f,
             FarZ=300f,
+            ExposureEv100=0f,
             PitchClampMinRadians=MinPitchRadiansFirstPerson,
             PitchClampMaxRadians=MaxPitchRadiansFirstPerson,
         };
@@ -115,12 +125,14 @@ public struct Camera {
 
         return new Camera {
             Target=Target,
+            Up=Vector3.UnitY,
             Yaw=MathF.Atan2(Forward.X,Forward.Z),
             Pitch=MathF.Asin(Forward.Y),
             Distance=Distance,
             FovYRadians=FovY,
             NearZ=0.1f,
             FarZ=Distance+(Radius*4f),
+            ExposureEv100=0f,
             PitchClampMinRadians=MinPitchRadians,
             PitchClampMaxRadians=MaxPitchRadians,
         };
@@ -137,6 +149,81 @@ public struct Camera {
         var Facing=RufQuaternion.FromAxisAngle(RufVector.Up, this.Yaw)*RufQuaternion.FromAxisAngle(RufVector.Left, this.Pitch);
         var Forward=RufQuaternion.RotateVector(Facing,RufVector.Forward).Normalize();
         return(Vector3)Spatial<UnityCoordinateConvention>.ToXyz(Forward);
+    }
+
+    /// <summary>
+    /// Camera up after removing any component parallel to <see cref="GetForward"/>.
+    /// A default-constructed legacy camera has no stored up vector, so it remains world-up
+    /// compatible instead of producing a degenerate view.
+    /// </summary>
+    public readonly Vector3 GetUp(){
+        Vector3 Forward=this.GetForward();
+        return TryNormalizeOrientation(Forward,this.Up,out _,out Vector3 Up)
+            ?Up
+            :GetFallbackUp(Forward);
+    }
+
+    /// <summary>
+    /// Applies a resolved Transform basis to this camera. <paramref name="Forward"/> is the
+    /// Transform's local +Z direction and <paramref name="Up"/> is local +Y. Both are
+    /// orthonormalized before mutating the camera, so a rejected non-finite or collapsed basis
+    /// leaves its last valid view untouched.
+    /// </summary>
+    public bool TrySetWorldOrientation(Vector3 Forward,Vector3 Up){
+        if(!TryNormalizeOrientation(Forward,Up,out Vector3 NormalizedForward,out Vector3 NormalizedUp)){
+            return false;
+        }
+
+        this.Yaw=MathF.Atan2(NormalizedForward.X,NormalizedForward.Z);
+        this.Pitch=MathF.Asin(Math.Clamp(NormalizedForward.Y,-1f,1f));
+        this.Up=NormalizedUp;
+        return true;
+    }
+
+    /// <summary>
+    /// Determines whether a resolved Transform basis is visually the legacy identity orientation.
+    /// Both axes are checked so a pure local +Z roll is not mistaken for an identity camera.
+    /// </summary>
+    public static bool IsIdentityWorldOrientation(Vector3 Forward,Vector3 Up){
+        const float CosineTolerance=1e-5f;
+        return TryNormalizeOrientation(Forward,Up,out Vector3 NormalizedForward,out Vector3 NormalizedUp)
+            &&Vector3.Dot(NormalizedForward,Vector3.UnitZ)>=1f-CosineTolerance
+            &&Vector3.Dot(NormalizedUp,Vector3.UnitY)>=1f-CosineTolerance;
+    }
+
+    /// <summary>
+    /// Normalizes a Transform's local +Z/+Y world basis while preserving the +Z direction.
+    /// The up vector is projected off forward so a non-uniform parent scale cannot skew the
+    /// GPU view matrix. A collapsed or non-finite basis is rejected.
+    /// </summary>
+    public static bool TryNormalizeOrientation(
+        Vector3 Forward,Vector3 Up,
+        out Vector3 NormalizedForward,out Vector3 NormalizedUp){
+        if(!TryNormalize(Forward,out NormalizedForward)){
+            NormalizedUp=default;
+            return false;
+        }
+
+        Vector3 OrthogonalUp=Up-(NormalizedForward*Vector3.Dot(Up,NormalizedForward));
+        return TryNormalize(OrthogonalUp,out NormalizedUp);
+    }
+
+    private static bool TryNormalize(Vector3 Value,out Vector3 Normalized){
+        var LengthSquared=Value.LengthSquared();
+        if(!float.IsFinite(Value.X)||!float.IsFinite(Value.Y)||!float.IsFinite(Value.Z)
+            ||!float.IsFinite(LengthSquared)||LengthSquared<=1e-12f){
+            Normalized=default;
+            return false;
+        }
+
+        Normalized=Vector3.Normalize(Value);
+        return true;
+    }
+
+    private static Vector3 GetFallbackUp(Vector3 Forward){
+        Vector3 Reference=MathF.Abs(Forward.Y)<0.999f?Vector3.UnitY:Vector3.UnitZ;
+        Vector3 Orthogonal=Reference-(Forward*Vector3.Dot(Reference,Forward));
+        return Vector3.Normalize(Orthogonal);
     }
 
     /// <summary>Forward direction projected onto the XZ plane (pitch removed) - the basis for WASD movement.</summary>
@@ -177,7 +264,7 @@ public struct Camera {
     public readonly Matrix4x4 GetView(){
         var Eye= this.GetEyePosition();
         var LookAtPoint= this.Distance>1e-4f? this.Target:Eye+ this.GetForward();
-        return BuildViewMatrix(Eye,LookAtPoint,Vector3.UnitY);
+        return BuildViewMatrix(Eye,LookAtPoint,this.GetUp());
     }
 
     public readonly Matrix4x4 GetProjection(float AspectRatio){

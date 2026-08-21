@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<VSTemplate Version="3.0.0" Type="Item" xmlns="http://schemas.microsoft.com/developer/vstemplate/2005">
+  <TemplateData>
+    <Name>シーンファイル</Name>
+    <Description>C# Game Engine の基本ステージを作成します。</Description>
+    <Icon>__TemplateIcon.ico</Icon>
+    <ProjectType>CSharp</ProjectType>
+    <ShowByDefault>true</ShowByDefault>
+    <TemplateID>CSharpGameEngine.SceneFile</TemplateID>
+    <DefaultName>Scene.cs</DefaultName>
+    <SortOrder>10</SortOrder>
+    <NumberOfParentCategoriesToRollUp>1</NumberOfParentCategoriesToRollUp>
+  </TemplateData>
+  <TemplateContent>
+    <ProjectItem ReplaceParameters="true">Scene.cs</ProjectItem>
+  </TemplateContent>
+</VSTemplate>

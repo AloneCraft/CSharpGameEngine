@@ -11,6 +11,7 @@ public enum CameraProjection {
 /// Scene DSLとRuntime ECSで使うCamera Component。
 /// 姿勢は自身では持たず、同じNodeの<see cref="Transform"/>から位置・向きを取る(投影パラメータ専用)。
 /// </summary>
+[SceneComponentOrder(SceneComponentCategory.Camera,0)]
 [SceneComponentIcon("Assets/Editor/ComponentIcons/Camera.svg")]
 public struct Camera {
     public bool Active;
@@ -19,6 +20,8 @@ public struct Camera {
     public float NearZ;
     public float FarZ;
     public float OrthographicSize;
+    /// <summary>物理照明をHDRへ写像する露出補正[EV100]。</summary>
+    public float ExposureEv100;
 
     public Camera(){
         this.Active=true;
@@ -27,5 +30,6 @@ public struct Camera {
         this.NearZ=0.1f;
         this.FarZ=300f;
         this.OrthographicSize=10f;
+        this.ExposureEv100=0f;
     }
 }

@@ -21,13 +21,15 @@ internal sealed class SceneComponent {
         ImmutableArray<SceneValue>ConstructorArguments,
         ImmutableArray<SceneComponentMember>Members,
         string EmitExpressionText,
-        SceneSourceLocation Location){
+        SceneSourceLocation Location,
+        SceneComponentOrderKey?OrderKey=null){
         this.TypeSymbol=TypeSymbol;
         this.TypeFullyQualifiedName=TypeFullyQualifiedName;
         this.ConstructorArguments=ConstructorArguments;
         this.Members=Members;
         this.EmitExpressionText=EmitExpressionText;
         this.Location=Location;
+        this.OrderKey=OrderKey??SceneComponentOrdering.GetSortKey(TypeSymbol,TypeFullyQualifiedName);
     }
 
     /// <summary>型が未解決(入力途中)なら<c>null</c>。</summary>
@@ -45,6 +47,9 @@ internal sealed class SceneComponent {
 
     /// <summary><c>new T { … }</c>全体。</summary>
     internal SceneSourceLocation Location { get;}
+
+    /// <summary>正規化に使うカテゴリ、明示順、完全修飾型名の比較キー。</summary>
+    internal SceneComponentOrderKey OrderKey { get; }
 
     internal SceneComponentMember?FindMember(string MemberName){
         foreach(var Member in this.Members){

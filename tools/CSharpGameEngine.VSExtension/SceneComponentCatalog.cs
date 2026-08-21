@@ -9,11 +9,13 @@ namespace CSharpGameEngine.VSExtension;
 /// <summary>Shape PaletteやInspectorの「Componentを追加」候補に出すScene Component型の1件。</summary>
 internal sealed class SceneComponentCatalogEntry {
     internal SceneComponentCatalogEntry(
-        string FullyQualifiedName,string DisplayName,string CreationExpression,INamedTypeSymbol Symbol){
+        string FullyQualifiedName,string DisplayName,string CreationExpression,INamedTypeSymbol Symbol,
+        SceneComponentOrderKey OrderKey){
         this.FullyQualifiedName=FullyQualifiedName;
         this.DisplayName=DisplayName;
         this.CreationExpression=CreationExpression;
         this.Symbol=Symbol;
+        this.OrderKey=OrderKey;
     }
 
     internal string FullyQualifiedName { get; }
@@ -29,6 +31,8 @@ internal sealed class SceneComponentCatalogEntry {
     internal string CreationExpression { get; }
 
     internal INamedTypeSymbol Symbol { get; }
+
+    internal SceneComponentOrderKey OrderKey { get; }
 }
 
 /// <summary>
@@ -71,7 +75,7 @@ internal static class SceneComponentCatalog {
             }
         }
 
-        return Entries.OrderBy(static Entry=>Entry.DisplayName,StringComparer.Ordinal).ToArray();
+        return Entries.OrderBy(static Entry=>Entry.OrderKey.Category).ThenBy(static Entry=>Entry.OrderKey.Order).ThenBy(static Entry=>Entry.OrderKey.FullyQualifiedName,StringComparer.Ordinal).ToArray();
     }
 
     private static SceneComponentCatalogEntry CreateEntry(INamedTypeSymbol Type){
@@ -84,7 +88,8 @@ internal static class SceneComponentCatalog {
                             :Type.Name;
         return new SceneComponentCatalogEntry(
             FullyQualifiedName,DisplayName,
-            SceneComponentInitializerPolicy.CreateExpression(Type,FullyQualifiedName),Type);
+            SceneComponentInitializerPolicy.CreateExpression(Type,FullyQualifiedName),Type,
+            SceneComponentOrdering.GetSortKey(Type,FullyQualifiedName));
     }
 
     private static bool IsAddable(INamedTypeSymbol Type,Compilation Compilation){

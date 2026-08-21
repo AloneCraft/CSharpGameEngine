@@ -118,6 +118,24 @@
     </VSCTCompile>
   </ItemGroup>
 
+  <!-- Template source is copied into an item-template archive; it is not source for this VSIX. -->
+  <ItemGroup>
+    <Compile Remove="ItemTemplates\**\*.cs" />
+  </ItemGroup>
+  <!--
+    Item templates are authored as ordinary source files and zipped by the VSSDK's ZipItems target.
+    TemplateProjectOutputGroup then exposes the generated archive to source.extension.vsixmanifest,
+    so the installed VSIX always receives the template that was built from this checkout.
+  -->
+  <ItemGroup>
+    <VSTemplate Include="ItemTemplates\CSharp\GameEngine\SceneFile\SceneFile.vstemplate">
+      <TemplateType>Item</TemplateType>
+      <Language>CSharp</Language>
+      <OutputSubPath>GameEngine</OutputSubPath>
+      <Culture>1033</Culture>
+    </VSTemplate>
+  </ItemGroup>
+
   <ItemGroup>
     <AssemblyMetadata Include="CSharpGameEngineRepoRoot" Value="$(CSharpGameEngineRepoRoot)" />
   </ItemGroup>
@@ -130,5 +148,30 @@
       <_Parameter1>CSharpGameEngine.VSExtension.Tests</_Parameter1>
     </AssemblyAttribute>
   </ItemGroup>
+  <!--
+    VsixUtil writes a regenerated template manifest over the previous file without truncating it.
+    When a template becomes shorter, stale XML remains at the end and Visual Studio silently ignores
+    every item template in the VSIX.  Delete the prior output and its cache before every generation.
+  -->
+  <Target Name="ClearGeneratedItemTemplateManifest"
+          BeforeTargets="GenerateTemplatesManifest">
+    <ItemGroup>
+      <_GeneratedItemTemplateArtifact Include="$(IntermediateOutputPath)TemplateManifests\*.vstman" />
+      <_GeneratedItemTemplateArtifact Include="$(CreateTemplateManifestsCacheFile)" />
+      <_GeneratedItemTemplateArtifact Include="$(TemplateFileManifest)" />
+    </ItemGroup>
+    <Delete Files="@(_GeneratedItemTemplateArtifact)" />
+  </Target>
+  <!-- TemplateProjectOutputGroup is normally consumed by a referencing VSIX project. This project
+       owns both the VSTemplate and the VSIX, so add its generated archive to the current container. -->
+  <Target Name="IncludeGeneratedItemTemplatesInVsix"
+          BeforeTargets="GetVsixSourceItems"
+          DependsOnTargets="TemplateProjectOutputGroup;ZipItems">
+    <ItemGroup>
+      <VSIXSourceItem Include="$(OutDir)ItemTemplates\CSharp\GameEngine\1033\SceneFile.zip">
+        <VSIXSubPath>ItemTemplates\CSharp\GameEngine\1033</VSIXSubPath>
+      </VSIXSourceItem>
+    </ItemGroup>
+  </Target>
 
 </Project>

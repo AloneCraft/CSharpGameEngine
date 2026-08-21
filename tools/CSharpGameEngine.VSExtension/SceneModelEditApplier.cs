@@ -30,7 +30,9 @@ internal static class SceneModelEditApplier {
         IReadOnlyList<SceneEditOperation>Operations,out SceneModel Predicted,out SceneProjection PredictedProjection){
         Predicted=Base;
         PredictedProjection=Projection;
-        if(Base.Root is not { }Root||Operations.Count==0||Base.HasErrors){
+        if(Base.Root is not { }Root||Operations.Count==0
+            ||(Base.HasErrors&&Operations.Any(static Operation=>
+                Operation is not NormalizeComponentsOperation))){
             return false;
         }
 
@@ -61,7 +63,7 @@ internal static class SceneModelEditApplier {
             CurrentProjection=Operation switch {
                 ReparentNodeOperation when MovedToPath is { }NewPath=>
                     PreserveNodeIdentity(Key,ProjectionBeforeOp,Naive,TargetNode.Node,NewPath),
-                AddComponentOperation or RemoveComponentOperation=>
+                AddComponentOperation or RemoveComponentOperation or NormalizeComponentsOperation=>
                     PreserveNodeIdentity(Key,ProjectionBeforeOp,Naive,TargetNode.Node,TargetNode.Node.Path),
                 _=>Naive,
             };
@@ -111,7 +113,7 @@ internal static class SceneModelEditApplier {
         Operation is SetTransformOperation or SetComponentMemberOperation
             or RenameNodeOperation or AddNodeOperation or RemoveNodeOperation
             or ReparentNodeOperation or ReorderNodeOperation or DuplicateNodeOperation
-            or AddComponentOperation or RemoveComponentOperation;
+            or AddComponentOperation or RemoveComponentOperation or NormalizeComponentsOperation;
 
     private static bool TryApplyOne(
         SceneNode Root,SceneProjection Projection,SceneProjectionNode TargetNode,SceneEditOperation Operation,
@@ -155,6 +157,15 @@ internal static class SceneModelEditApplier {
                 Updated=ReplaceAtPath(Root,TargetPath,_=>NewLive);
                 return true;
             }
+            case NormalizeComponentsOperation: {
+                var Live=GetAtPath(Root,TargetPath);
+                if(!TryApplyNormalizeComponents(Live,out var NewLive)){
+                    Updated=Root;
+                    return false;
+                }
+                Updated=ReplaceAtPath(Root,TargetPath,_=>NewLive);
+                return true;
+            }
             case RenameNodeOperation Rename: {
                 var NewName=Rename.NewName?.Trim()??"";
                 if(NewName.Length==0){
@@ -165,7 +176,7 @@ internal static class SceneModelEditApplier {
                 return true;
             }
             case AddNodeOperation Add:
-                return TryAddNode(Root,TargetPath,Add.NodeName,out Updated);
+                return TryAddNode(Root,TargetPath,Add,out Updated);
             case RemoveNodeOperation:
                 if(TargetPath.IsRoot||TargetPath.Parent is not { }ParentPath){
                     Updated=Root;
@@ -377,21 +388,46 @@ internal static class SceneModelEditApplier {
             Node.ComponentsListLocation,Node.ChildrenListLocation);
     }
 
-    private static bool TryAddNode(SceneNode Root,NodePath ParentPath,string RequestedName,out SceneNode NewRoot){
+    private static bool TryAddNode(SceneNode Root,NodePath ParentPath,AddNodeOperation Operation,out SceneNode NewRoot){
         NewRoot=Root;
         var Parent=GetAtPath(Root,ParentPath);
         if(SceneSourceEditor.IsGenerated(Parent.Location.FilePath)){
             return false;
         }
 
-        var Name=CreateUniqueNodeName(Parent,RequestedName);
+        var Name=CreateUniqueNodeName(Parent,Operation.NodeName);
+        ImmutableArray<SceneComponent>Components=CreateInitialComponents(Operation.InitialComponents);
         SceneNode NewChild=new(
-            NodePath.Root,Name,ImmutableArray<SceneComponent>.Empty,ImmutableArray<SceneNode>.Empty,
-            SceneSourceLocation.None,null,null,null,null);
+            NodePath.Root,Name,Components,ImmutableArray<SceneNode>.Empty,
+            SceneSourceLocation.None,null,null,
+            Components.Length>0?SceneSourceLocation.None:null,null);
         NewRoot=ReplaceAtPath(Root,ParentPath,P=>WithChildrenList(P,P.Children.Add(NewChild)));
         return true;
     }
 
+    private static ImmutableArray<SceneComponent>CreateInitialComponents(
+        ImmutableArray<NewNodeComponent>InitialComponents){
+        if(InitialComponents.IsDefaultOrEmpty){
+            return ImmutableArray<SceneComponent>.Empty;
+        }
+
+        ImmutableArray<SceneComponent>.Builder Components=ImmutableArray.CreateBuilder<SceneComponent>();
+        foreach(NewNodeComponent Initial in InitialComponents){
+            if(string.IsNullOrWhiteSpace(Initial.ComponentTypeFullyQualifiedName)
+                ||string.IsNullOrWhiteSpace(Initial.ComponentExpression)){
+                continue;
+            }
+            Components.Add(new SceneComponent(
+                TypeSymbol:null,
+                Initial.ComponentTypeFullyQualifiedName,
+                ImmutableArray<SceneValue>.Empty,
+                Initial.Members.IsDefault?ImmutableArray<SceneComponentMember>.Empty:Initial.Members,
+                EmitExpressionText:Initial.ComponentExpression,
+                SceneSourceLocation.None,
+                Initial.OrderKey));
+        }
+        return SceneComponentOrdering.Normalize(Components.ToImmutable());
+    }
     private static bool TryRemoveChildAt(SceneNode Root,NodePath ParentPath,int LocalIndex,out SceneNode NewRoot){
         NewRoot=Root;
         var Parent=GetAtPath(Root,ParentPath);
@@ -526,7 +562,7 @@ internal static class SceneModelEditApplier {
             // 同じ判定。保存時になって初めて失敗させず、その場で弾く。
             return false;
         }
-        if(Node.ComponentsListLocation is null||SceneSourceEditor.IsGenerated(Node.Location.FilePath)){
+        if(SceneSourceEditor.IsGenerated(Node.Location.FilePath)){
             // ComponentsListLocationが無い(Components=[…]が未記述の)Nodeへの追加は、
             // SceneSourceEditor.ApplyAddComponent側がまだ対応していない(「Nodeに編集可能な
             // Componentsコレクションがありません。」)。保存時に必ず失敗するので、ここで揃えて弾く。
@@ -542,11 +578,14 @@ internal static class SceneModelEditApplier {
             ImmutableArray<SceneValue>.Empty,
             Operation.Members.IsDefault?ImmutableArray<SceneComponentMember>.Empty:Operation.Members,
             EmitExpressionText:Operation.ComponentExpression,
-            SceneSourceLocation.None);
+            SceneSourceLocation.None,
+            Operation.OrderKey);
+        ImmutableArray<SceneComponent>Components=SceneComponentOrdering.Normalize(
+            Node.Components.Add(NewComponent));
         Updated=new SceneNode(
-            Node.Path,Node.Name,Node.Components.Add(NewComponent),Node.Children,
+            Node.Path,Node.Name,Components,Node.Children,
             Node.Location,Node.InitializerLocation,Node.NameValueLocation,
-            Node.ComponentsListLocation,Node.ChildrenListLocation);
+            Node.ComponentsListLocation??SceneSourceLocation.None,Node.ChildrenListLocation);
         return true;
     }
 
@@ -559,13 +598,30 @@ internal static class SceneModelEditApplier {
             return false;
         }
 
+        ImmutableArray<SceneComponent>Components=SceneComponentOrdering.Normalize(
+            Node.Components.Remove(Component));
         Updated=new SceneNode(
-            Node.Path,Node.Name,Node.Components.Remove(Component),Node.Children,
+            Node.Path,Node.Name,Components,Node.Children,
             Node.Location,Node.InitializerLocation,Node.NameValueLocation,
             Node.ComponentsListLocation,Node.ChildrenListLocation);
         return true;
     }
 
+    private static bool TryApplyNormalizeComponents(SceneNode Node,out SceneNode Updated){
+        Updated=Node;
+        if(SceneSourceEditor.IsGenerated(Node.Location.FilePath)){
+            return false;
+        }
+        ImmutableArray<SceneComponent>Components=SceneComponentOrdering.Normalize(Node.Components);
+        if(Components.SequenceEqual(Node.Components)){
+            return true;
+        }
+        Updated=new SceneNode(
+            Node.Path,Node.Name,Components,Node.Children,
+            Node.Location,Node.InitializerLocation,Node.NameValueLocation,
+            Node.ComponentsListLocation,Node.ChildrenListLocation);
+        return true;
+    }
     /// <summary>
     /// リテラルとして確実に解釈できる式だけを受け付ける。定数式・静的参照・ファクトリ呼び出しなどは
     /// 解決にセマンティックモデルが要るため、ここでは素直に諦めて従来経路へ落とす。
@@ -656,7 +712,7 @@ internal static class SceneModelEditApplier {
     private static SceneComponent WithMembers(
         SceneComponent Component,ImmutableArray<SceneComponentMember>Members)=>
         new(Component.TypeSymbol,Component.TypeFullyQualifiedName,Component.ConstructorArguments,
-            Members,Component.EmitExpressionText,Component.Location);
+            Members,Component.EmitExpressionText,Component.Location,Component.OrderKey);
 
     private static SceneModel RebuildModel(SceneModel Base,SceneNode NewRoot)=>
         new(Base.Namespace,Base.ClassName,Base.ClassFullyQualifiedName,Base.ClassSymbol,

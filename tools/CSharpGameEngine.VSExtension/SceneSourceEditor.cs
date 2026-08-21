@@ -36,7 +36,8 @@ internal sealed record AddComponentOperation(
     long DocumentVersion,
     string ComponentTypeFullyQualifiedName,
     string ComponentExpression,
-    ImmutableArray<SceneComponentMember>Members=default) : SceneEditOperation(SceneKey,NodeId,DocumentVersion);
+    ImmutableArray<SceneComponentMember>Members=default,
+    SceneComponentOrderKey?OrderKey=null) : SceneEditOperation(SceneKey,NodeId,DocumentVersion);
 
 internal sealed record RemoveComponentOperation(
     SceneKey SceneKey,
@@ -44,16 +45,31 @@ internal sealed record RemoveComponentOperation(
     long DocumentVersion,
     string ComponentTypeFullyQualifiedName) : SceneEditOperation(SceneKey,NodeId,DocumentVersion);
 
+/// <summary>重複を first-wins で除去し、カテゴリ・order・完全修飾型名順へ整列する明示操作。</summary>
+internal sealed record NormalizeComponentsOperation(
+    SceneKey SceneKey,
+    EditorNodeId NodeId,
+    long DocumentVersion) : SceneEditOperation(SceneKey,NodeId,DocumentVersion);
+
 internal sealed record RenameNodeOperation(
     SceneKey SceneKey,
     EditorNodeId NodeId,
     long DocumentVersion,
     string NewName) : SceneEditOperation(SceneKey,NodeId,DocumentVersion);
+
+/// <summary>新規Nodeを原子的に作るとき、同じNode初期化子へ入れるComponentの1件。</summary>
+internal sealed record NewNodeComponent(
+    string ComponentTypeFullyQualifiedName,
+    string ComponentExpression,
+    ImmutableArray<SceneComponentMember>Members=default,
+    SceneComponentOrderKey?OrderKey=null);
+
 internal sealed record AddNodeOperation(
     SceneKey SceneKey,
     EditorNodeId NodeId,
     long DocumentVersion,
-    string NodeName) : SceneEditOperation(SceneKey,NodeId,DocumentVersion);
+    string NodeName,
+    ImmutableArray<NewNodeComponent>InitialComponents=default) : SceneEditOperation(SceneKey,NodeId,DocumentVersion);
 
 internal sealed record RemoveNodeOperation(
     SceneKey SceneKey,
@@ -108,6 +124,7 @@ internal enum SceneEditOperationKind {
     ReorderNode,
     AddComponent,
     RemoveComponent,
+    NormalizeComponents,
     AssignAsset,
 }
 
@@ -194,8 +211,9 @@ internal static class SceneSourceEditor {
 
         return Operation switch {
             SetComponentMemberOperation SetMember=>ApplySetComponentMember(Root,Node,SetMember),
-            AddComponentOperation AddComponent=>ApplyAddComponent(Root,Node,AddComponent),
-            RemoveComponentOperation RemoveComponent=>ApplyRemoveComponent(Root,Node,RemoveComponent),
+            AddComponentOperation AddComponent=>ApplyAddComponent(Root,Node,AddComponent,Annotations),
+            RemoveComponentOperation RemoveComponent=>ApplyRemoveComponent(Root,Node,RemoveComponent,Annotations),
+            NormalizeComponentsOperation Normalize=>ApplyNormalizeComponents(Root,Node,Normalize,Annotations),
             SetTransformOperation SetTransform=>ApplySetTransform(Root,Node,SetTransform,Annotations),
             DuplicateNodeOperation Duplicate=>ApplyDuplicateNode(Root,Projection,Node,Duplicate),
             RenameNodeOperation Rename=>ApplyRename(Root,Node,Rename,Annotations),
@@ -460,6 +478,8 @@ internal static class SceneSourceEditor {
             return false;
         }
 
+        SceneNode?PredictedNewNode=Entry.After.Projection.TryGetNode(
+            ResolvedId,out SceneProjectionNode PredictedNode)?PredictedNode.Node:null;
         SyntaxAnnotation NewAnnotation=new($"SceneSaveNode_{Annotations.Count}");
         Current=Current.ReplaceNode(NewChild,NewChild.WithAdditionalAnnotations(NewAnnotation));
         Annotations[ResolvedId]=NewAnnotation;
@@ -476,9 +496,10 @@ internal static class SceneSourceEditor {
                 &&Identifier.Identifier.ValueText=="Name")
             is { Right:{ }NameValue }?SceneSourceLocation.FromNode(NameValue):null;
         SceneNode SyntheticContent=new(
-            Parent.Node.Path.Append(LocalIndex),Add.NodeName,
-            ImmutableArray<SceneComponent>.Empty,ImmutableArray<SceneNode>.Empty,
-            SceneSourceLocation.FromNode(NewChild),null,NameValueLocation,null,null);
+            Parent.Node.Path.Append(LocalIndex),PredictedNewNode?.Name??Add.NodeName,
+            PredictedNewNode?.Components??ImmutableArray<SceneComponent>.Empty,ImmutableArray<SceneNode>.Empty,
+            SceneSourceLocation.FromNode(NewChild),null,NameValueLocation,
+            PredictedNewNode?.ComponentsListLocation,null);
         WorkingNodes=[..WorkingNodes,new SceneProjectionNode(ResolvedId,Parent.Id,SyntheticContent)];
         UpdatedProjection=new SceneProjection(Key,WorkingNodes);
         return true;
@@ -590,6 +611,256 @@ internal static class SceneSourceEditor {
         return SceneSourceEditResult.Failure("ComponentsコレクションからComponentを削除できません。");
     }
 
+    private static SceneSourceEditResult ApplyAddComponent(
+        SyntaxNode Root,SceneProjectionNode Node,AddComponentOperation Operation,
+        IReadOnlyDictionary<EditorNodeId,SyntaxAnnotation>? Annotations){
+        if(Node.Node.FindComponent(Operation.ComponentTypeFullyQualifiedName)is not null){
+            return SceneSourceEditResult.Failure("同じ型のComponentは既にNodeへ追加されています。");
+        }
+
+        ExpressionSyntax NewExpression=SyntaxFactory.ParseExpression(Operation.ComponentExpression);
+        if(NewExpression.ContainsDiagnostics||NewExpression is not BaseObjectCreationExpressionSyntax){
+            return SceneSourceEditResult.Failure("追加するComponentが有効なobject creation式ではありません。");
+        }
+
+        BaseObjectCreationExpressionSyntax?NodeCreation=FindNodeCreation(
+            Root,Node.Node,AnnotationFor(Annotations,Node.Id));
+        if(NodeCreation is null){
+            return SceneSourceEditResult.Failure("追加先Nodeのobject creation式がSourceに見つかりません。");
+        }
+
+        ExpressionSyntax?Collection=FindComponentsExpression(NodeCreation);
+        if(Collection is null){
+            return SceneSourceEditResult.Success(Root.ReplaceNode(
+                NodeCreation,AddComponentsMember(NodeCreation,NewExpression)));
+        }
+        if(!TryAppendComponent(Collection,NewExpression,out ExpressionSyntax Appended)){
+            return SceneSourceEditResult.Failure("Componentsコレクションの形式を編集できません。");
+        }
+
+        ExpressionSyntax Updated=NormalizeComponentCollection(
+            Appended,Node.Node.Components,Operation);
+        return SceneSourceEditResult.Success(
+            Root.ReplaceNode(Collection,Updated.WithTriviaFrom(Collection)));
+    }
+
+    private static SceneSourceEditResult ApplyRemoveComponent(
+        SyntaxNode Root,SceneProjectionNode Node,RemoveComponentOperation Operation,
+        IReadOnlyDictionary<EditorNodeId,SyntaxAnnotation>? Annotations){
+        if(Node.Node.FindComponent(Operation.ComponentTypeFullyQualifiedName)is null){
+            return SceneSourceEditResult.Failure("削除するComponentが現在のNodeに見つかりません。");
+        }
+        BaseObjectCreationExpressionSyntax?NodeCreation=FindNodeCreation(
+            Root,Node.Node,AnnotationFor(Annotations,Node.Id));
+        ExpressionSyntax?Collection=NodeCreation is null?null:FindComponentsExpression(NodeCreation);
+        if(Collection is null){
+            return SceneSourceEditResult.Failure("削除するComponentのComponentsコレクションがSourceに見つかりません。");
+        }
+        if(!TryRemoveComponent(Collection,Operation.ComponentTypeFullyQualifiedName,
+            out ExpressionSyntax WithoutComponent)){
+            return SceneSourceEditResult.Failure("ComponentsコレクションからComponentを削除できません。");
+        }
+
+        ExpressionSyntax Updated=NormalizeComponentCollection(
+            WithoutComponent,Node.Node.Components);
+        return SceneSourceEditResult.Success(
+            Root.ReplaceNode(Collection,Updated.WithTriviaFrom(Collection)));
+    }
+
+    private static SceneSourceEditResult ApplyNormalizeComponents(
+        SyntaxNode Root,SceneProjectionNode Node,NormalizeComponentsOperation Operation,
+        IReadOnlyDictionary<EditorNodeId,SyntaxAnnotation>? Annotations){
+        BaseObjectCreationExpressionSyntax?NodeCreation=FindNodeCreation(
+            Root,Node.Node,AnnotationFor(Annotations,Node.Id));
+        ExpressionSyntax?Collection=NodeCreation is null?null:FindComponentsExpression(NodeCreation);
+        if(Collection is null){
+            return SceneSourceEditResult.Success(Root);
+        }
+
+        ExpressionSyntax Updated=NormalizeComponentCollection(Collection,Node.Node.Components);
+        return SceneSourceEditResult.Success(
+            Root.ReplaceNode(Collection,Updated.WithTriviaFrom(Collection)));
+    }
+
+    private static ExpressionSyntax? FindComponentsExpression(
+        BaseObjectCreationExpressionSyntax Creation)=>
+        Creation.Initializer?.Expressions
+            .OfType<AssignmentExpressionSyntax>()
+            .FirstOrDefault(static Assignment=>Assignment.Left is IdentifierNameSyntax Identifier
+                &&Identifier.Identifier.ValueText=="Components")?.Right;
+
+    private static BaseObjectCreationExpressionSyntax AddComponentsMember(
+        BaseObjectCreationExpressionSyntax Creation,ExpressionSyntax Component){
+        CollectionExpressionSyntax Components=SyntaxFactory.CollectionExpression(
+            SyntaxFactory.SingletonSeparatedList<CollectionElementSyntax>(
+                SyntaxFactory.ExpressionElement(Component)));
+        AssignmentExpressionSyntax Assignment=SyntaxFactory.AssignmentExpression(
+            SyntaxKind.SimpleAssignmentExpression,SyntaxFactory.IdentifierName("Components"),Components);
+        InitializerExpressionSyntax Initializer=Creation.Initializer
+            ??SyntaxFactory.InitializerExpression(SyntaxKind.ObjectInitializerExpression);
+        return WithInitializer(Creation,Initializer.WithExpressions(
+            Initializer.Expressions.Add(Assignment)));
+    }
+
+    private static bool TryAppendComponent(
+        ExpressionSyntax Collection,ExpressionSyntax Component,out ExpressionSyntax Updated){
+        switch(Collection){
+            case CollectionExpressionSyntax Values:
+                Updated=Values.WithElements(
+                    Values.Elements.Add(SyntaxFactory.ExpressionElement(Component)));
+                return true;
+            case ArrayCreationExpressionSyntax { Initializer:{ }Initializer }Array:
+                Updated=Array.WithInitializer(Initializer.WithExpressions(
+                    Initializer.Expressions.Add(Component)));
+                return true;
+            case ImplicitArrayCreationExpressionSyntax { Initializer:{ }Initializer }Implicit:
+                Updated=Implicit.WithInitializer(Initializer.WithExpressions(
+                    Initializer.Expressions.Add(Component)));
+                return true;
+            default:
+                Updated=Collection;
+                return false;
+        }
+    }
+
+    private static bool TryRemoveComponent(
+        ExpressionSyntax Collection,string ComponentTypeFullyQualifiedName,out ExpressionSyntax Updated){
+        switch(Collection){
+            case CollectionExpressionSyntax Values:
+                ExpressionElementSyntax?Element=Values.Elements.OfType<ExpressionElementSyntax>()
+                    .FirstOrDefault(Candidate=>IsComponentExpressionOfType(
+                        Candidate.Expression,ComponentTypeFullyQualifiedName));
+                Updated=Element is null?Collection:Values.WithElements(Values.Elements.Remove(Element));
+                return Element is not null;
+            case ArrayCreationExpressionSyntax { Initializer:{ }Initializer }Array:
+                ExpressionSyntax?ArrayElement=Initializer.Expressions.FirstOrDefault(Candidate=>
+                    IsComponentExpressionOfType(Candidate,ComponentTypeFullyQualifiedName));
+                Updated=ArrayElement is null?Collection:Array.WithInitializer(
+                    Initializer.WithExpressions(Initializer.Expressions.Remove(ArrayElement)));
+                return ArrayElement is not null;
+            case ImplicitArrayCreationExpressionSyntax { Initializer:{ }Initializer }Implicit:
+                ExpressionSyntax?ImplicitElement=Initializer.Expressions.FirstOrDefault(Candidate=>
+                    IsComponentExpressionOfType(Candidate,ComponentTypeFullyQualifiedName));
+                Updated=ImplicitElement is null?Collection:Implicit.WithInitializer(
+                    Initializer.WithExpressions(Initializer.Expressions.Remove(ImplicitElement)));
+                return ImplicitElement is not null;
+            default:
+                Updated=Collection;
+                return false;
+        }
+    }
+
+    private static bool IsComponentExpressionOfType(
+        ExpressionSyntax Expression,string ComponentTypeFullyQualifiedName)=>
+        Expression is ObjectCreationExpressionSyntax Creation
+        &&string.Equals(ComponentSimpleTypeName(Creation.Type.ToString()),
+            ComponentSimpleTypeName(ComponentTypeFullyQualifiedName),StringComparison.Ordinal);
+
+    private static ExpressionSyntax NormalizeComponentCollection(
+        ExpressionSyntax Collection,ImmutableArray<SceneComponent> ExistingComponents,
+        AddComponentOperation?AddedComponent=null)=>Collection switch {
+            CollectionExpressionSyntax Values when Values.Elements.All(
+                static Element=>Element is ExpressionElementSyntax)=>Values.WithElements(
+                    SyntaxFactory.SeparatedList<CollectionElementSyntax>(
+                        NormalizeComponentExpressions(
+                            Values.Elements.OfType<ExpressionElementSyntax>()
+                                .Select(static Element=>Element.Expression),
+                            ExistingComponents,AddedComponent)
+                        .Select(static Expression=>SyntaxFactory.ExpressionElement(Expression)))),
+            CollectionExpressionSyntax=>Collection,
+            ArrayCreationExpressionSyntax { Initializer:{ }Initializer }Array=>Array.WithInitializer(
+                Initializer.WithExpressions(SyntaxFactory.SeparatedList<ExpressionSyntax>(
+                    NormalizeComponentExpressions(Initializer.Expressions,ExistingComponents,AddedComponent)))),
+            ImplicitArrayCreationExpressionSyntax { Initializer:{ }Initializer }Implicit=>Implicit.WithInitializer(
+                Initializer.WithExpressions(SyntaxFactory.SeparatedList<ExpressionSyntax>(
+                    NormalizeComponentExpressions(Initializer.Expressions,ExistingComponents,AddedComponent)))),
+            _=>Collection,
+        };
+
+    private static IEnumerable<ExpressionSyntax> NormalizeComponentExpressions(
+        IEnumerable<ExpressionSyntax> Expressions,ImmutableArray<SceneComponent> ExistingComponents,
+        AddComponentOperation?AddedComponent){
+        Dictionary<string,SceneComponentOrderKey>KnownOrdersByFullName=new(StringComparer.Ordinal);
+        Dictionary<string,SceneComponentOrderKey>KnownOrdersBySimpleName=new(StringComparer.Ordinal);
+        void AddKnownOrder(string FullyQualifiedName,SceneComponentOrderKey Key){
+            KnownOrdersByFullName[FullyQualifiedName]=Key;
+            string SimpleName=ComponentSimpleTypeName(FullyQualifiedName);
+            if(!KnownOrdersBySimpleName.ContainsKey(SimpleName)){
+                KnownOrdersBySimpleName.Add(SimpleName,Key);
+            }
+        }
+
+        foreach(SceneComponent Component in ExistingComponents){
+            AddKnownOrder(Component.TypeFullyQualifiedName,Component.OrderKey);
+        }
+        if(AddedComponent is not null){
+            string FullyQualifiedName=AddedComponent.ComponentTypeFullyQualifiedName;
+            AddKnownOrder(FullyQualifiedName,
+                AddedComponent.OrderKey??SceneComponentOrdering.GetSortKey(
+                    TypeSymbol:null,FullyQualifiedName));
+        }
+
+        HashSet<string>SeenTypes=new(StringComparer.Ordinal);
+        List<(ExpressionSyntax Expression,SceneComponentOrderKey Key,int Sequence)>FirstDeclarations=[];
+        var Sequence=0;
+        foreach(ExpressionSyntax Expression in Expressions){
+            if(Expression is not ObjectCreationExpressionSyntax Creation){
+                FirstDeclarations.Add((Expression,
+                    new SceneComponentOrderKey(int.MaxValue,0,Expression.ToString()),Sequence++));
+                continue;
+            }
+
+            string DeclaredTypeName=Creation.Type.ToString();
+            string CanonicalTypeName=CanonicalizeComponentTypeName(DeclaredTypeName);
+            SceneComponentOrderKey Key;
+            string Identity;
+            if(KnownOrdersByFullName.TryGetValue(CanonicalTypeName,out SceneComponentOrderKey KnownKey)){
+                Key=KnownKey;
+                Identity=KnownKey.FullyQualifiedName;
+            } else if(!IsQualifiedComponentTypeName(DeclaredTypeName)
+                &&KnownOrdersBySimpleName.TryGetValue(
+                    ComponentSimpleTypeName(DeclaredTypeName),out KnownKey)){
+                Key=KnownKey;
+                Identity=KnownKey.FullyQualifiedName;
+            } else {
+                Identity=CanonicalTypeName;
+                Key=SceneComponentOrdering.GetSortKey(TypeSymbol:null,Identity);
+            }
+            if(SeenTypes.Add(Identity)){
+                FirstDeclarations.Add((Expression,Key,Sequence));
+            }
+            Sequence++;
+        }
+
+        return FirstDeclarations
+            .OrderBy(static Entry=>Entry.Key.Category)
+            .ThenBy(static Entry=>Entry.Key.Order)
+            .ThenBy(static Entry=>Entry.Key.FullyQualifiedName,StringComparer.Ordinal)
+            .ThenBy(static Entry=>Entry.Sequence)
+            .Select(static Entry=>Entry.Expression);
+    }
+
+    private static string CanonicalizeComponentTypeName(string TypeName)=>
+        TypeName.StartsWith("global::",StringComparison.Ordinal)
+            ?TypeName
+            :"global::"+TypeName;
+
+    private static bool IsQualifiedComponentTypeName(string TypeName){
+        int GenericStart=TypeName.IndexOf('<');
+        string NonGenericName=GenericStart>=0?TypeName.Substring(0,GenericStart):TypeName;
+        return NonGenericName.StartsWith("global::",StringComparison.Ordinal)
+            ||NonGenericName.IndexOf('.')>=0;
+    }
+
+    private static string ComponentSimpleTypeName(string TypeName){
+        int GenericStart=TypeName.IndexOf('<');
+        string NonGenericName=GenericStart>=0?TypeName.Substring(0,GenericStart):TypeName;
+        int LastDot=NonGenericName.LastIndexOf('.');
+        string Name=LastDot>=0?NonGenericName.Substring(LastDot+1):NonGenericName;
+        const string GlobalPrefix="global::";
+        return Name.StartsWith(GlobalPrefix,StringComparison.Ordinal)
+            ?Name.Substring(GlobalPrefix.Length):Name;
+    }
     /// <summary>
     /// M0051(既存バグの修正): 以前はTransformの構文を<c>Transform.Location.Span</c>との一致だけで
     /// 探していたため、<b>同一Nodeに対して先にRename等の構造編集が適用されるとSpanがずれて
@@ -810,7 +1081,11 @@ internal static class SceneSourceEditor {
         // なるのに、こちらは毎回 Node を採番してしまい、往復検証が必ず不一致になっていた。
         // 書き戻し中の構文木(Creation)の実際の子から集めることで両者の採番規則が一致する。
         string Name=CreateUniqueNodeName(EnumerateChildNodeNames(Creation),Operation.NodeName);
-        BaseObjectCreationExpressionSyntax NewNode=CreateNodeCreation(Name);
+        if(!SceneInitialComponentFactory.TryCreateNodeCreation(Name,Operation.InitialComponents,
+            out BaseObjectCreationExpressionSyntax NewNode,out string?ErrorMessage)){
+            return SceneSourceEditResult.Failure(
+                ErrorMessage??"新規Nodeの初期Componentを生成できません。");
+        }
         ExpressionSyntax?Children=FindChildrenExpression(Creation);
         if(Children is not null){
             if(!TryAppendChild(Children,NewNode,out ExpressionSyntax UpdatedChildren)){

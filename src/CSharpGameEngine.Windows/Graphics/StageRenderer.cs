@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using CSharpGameEngine.Compiler.Hlsl;
@@ -45,8 +47,8 @@ public readonly struct MeshCreateInfo {
 
 /// <summary>
 /// Renders a fixed set of independently-transformed, textured PBR-lite meshes (ADR-0018 extends
-/// the untextured ADR-0016 vertical slice) with a movable camera, one data-driven directional
-/// light + ambient term, and a simplified exponential height fog. Deliberately evolved in place
+/// the untextured ADR-0016 vertical slice) with a movable camera, up to four data-driven
+/// directional lights + ambient term, and a simplified exponential height fog. Deliberately evolved in place
 /// rather than duplicated into a third renderer class (see ADR-0018): unlike the
 /// ModelRenderer/StageRenderer split in ADR-0004, the old untextured contract here is strictly
 /// subsumed by the new one (a 1x1 fallback texture per slot reproduces the old solid-color look
@@ -58,38 +60,74 @@ public sealed unsafe class StageRenderer:IDisposable {
     public const DXGI_FORMAT DepthBufferFormat=DXGI_FORMAT_D32_FLOAT;
     private const DXGI_FORMAT HdrColorFormat=DXGI_FORMAT_R16G16B16A16_FLOAT;
     private const DXGI_FORMAT MaterialTextureFormat=DXGI_FORMAT_R8G8B8A8_UNORM;
-    private const DXGI_FORMAT ShadowMapResourceFormat=DXGI_FORMAT_R32_TYPELESS;
-    private const DXGI_FORMAT ShadowMapDsvFormat=DXGI_FORMAT_D32_FLOAT;
-    private const DXGI_FORMAT ShadowMapSrvFormat=DXGI_FORMAT_R32_FLOAT;
-    private const int ShadowMapResolution=1024;
+    private const float GltfImportEmissiveDefaultNits=100f;
+    private const DXGI_FORMAT ShadowAtlasResourceFormat=DXGI_FORMAT_R32_TYPELESS;
+    private const DXGI_FORMAT ShadowAtlasDsvFormat=DXGI_FORMAT_D32_FLOAT;
+    private const DXGI_FORMAT ShadowAtlasSrvFormat=DXGI_FORMAT_R32_FLOAT;
+    public const int ShadowAtlasSizePixels=PhysicalShadowAtlasPlan.AtlasSizePixels;
+    public const int ShadowAtlasTileSizePixels=PhysicalShadowAtlasPlan.TileSizePixels;
+    public const int DirectionalShadowAtlasTileIndex=0;
 
     /// <summary>D3D12 constant buffer views must start at a 256-byte aligned GPU address.</summary>
     private const uint ConstantAlignment=512;
 
-    /// <summary>Fixed capacity, no light culling/clustering in this vertical slice (ADR-0037). Must match Stage.hlsl's MAX_POINT_LIGHTS.</summary>
-    public const int MaxPointLights=4;
+    /// <summary>Maximum additive directional lights accepted per frame. Must match Stage.hlsl.</summary>
+    public const int MaxDirectionalLights=4;
 
-    /// <summary>Fixed capacity, no light culling/clustering in this vertical slice (ADR-0037). Must match Stage.hlsl's MAX_SPOT_LIGHTS.</summary>
-    public const int MaxSpotLights=4;
+    /// <summary>Maximum local lights accepted per frame across point and spot submissions.</summary>
+    public const int MaxLocalLights=1024;
 
-    private const uint PointLightStride=32; // 2 float4 - see Stage.hlsl's PointLightData
-    private const uint SpotLightStride=48;  // 3 float4 - see Stage.hlsl's SpotLightData
+    /// <summary>Legacy public cap retained for source compatibility. Point and spot now share the 1024-light StructuredBuffer.</summary>
+    public const int MaxPointLights=MaxLocalLights;
 
-    // FrameCB (b0) byte layout - see Stage.hlsl. Each Set*/Add* method writes only its own slice,
-    // so SetCamera/SetDirectionalLight/SetAmbientLight/SetFog/AddPointLight/AddSpotLight may be
-    // called in any order per frame.
+    /// <summary>Legacy public cap retained for source compatibility. Point and spot now share the 1024-light StructuredBuffer.</summary>
+    public const int MaxSpotLights=MaxLocalLights;
+
+    /// <summary>Forward+ screen-space tile edge length in physical pixels.</summary>
+    public const int ForwardPlusTileSizePixels=16;
+
+    /// <summary>Maximum local-light candidates evaluated by one Forward+ tile.</summary>
+    public const int MaxLightsPerForwardPlusTile=64;
+
+    /// <summary>Six 90-degree projections for the one physical Point caster selected by the atlas plan.</summary>
+    public const int MaxPointShadowProjections=
+        PhysicalShadowAtlasPlan.PointLightBudget*PhysicalShadowAtlasPlan.PointTilesPerLight;
+
+    /// <summary>Maximum projected spot-light casters selected by the physical atlas plan.</summary>
+    public const int MaxSpotShadowProjections=PhysicalShadowAtlasPlan.SpotTileBudget;
+
+    /// <summary>Maximum projected Area/Emissive casters sharing the physical atlas budget.</summary>
+    public const int MaxAreaAndEmissiveShadowProjections=
+        PhysicalShadowAtlasPlan.AreaAndEmissiveTileBudget;
+
+    private const uint DirectionalLightStride=32; // 2 float4 - see Stage.hlsl's DirectionalLightData
+    private const uint LocalLightStride=96; // 6 float4 - see Stage.hlsl's LocalLightData
+    private const uint PointShadowProjectionStride=80; // float4x4 + float4 - see Stage.hlsl
+    private const uint SpotShadowProjectionStride=80; // float4x4 + float4 - see Stage.hlsl
+    private const uint AreaShadowMetadataStride=16; // one float4 - see Stage.hlsl
+    private const uint AreaShadowProjectionStride=80; // float4x4 + float4 - see Stage.hlsl
+    private const int PointShadowProjectionConstantSlotOffset=1+MaxSpotShadowProjections;
+    private const int AreaShadowProjectionConstantSlotOffset=
+        PointShadowProjectionConstantSlotOffset+MaxPointShadowProjections;
+    private const int ShadowAtlasProjectionConstantSlotCount=
+        AreaShadowProjectionConstantSlotOffset+MaxAreaAndEmissiveShadowProjections;
+    private const uint ForwardPlusTileRecordUIntCount=1u+(uint)MaxLightsPerForwardPlusTile;
+    private const uint ForwardPlusTileRecordStride=sizeof(uint)*ForwardPlusTileRecordUIntCount;
+
+    // FrameCB (b0) byte layout - see Stage.hlsl. Local lights and Forward+ tile lists live in
+    // root-SRV StructuredBuffers (t5/t6); only their per-frame counts/grid remain here.
     private const uint FrameViewProjectionOffset=0;   // float4x4, 64 bytes
     private const uint FrameCameraPositionOffset=64;  // float4 (xyz used)
-    private const uint FrameLightDirectionOffset=80;  // float4 (xyz used)
-    private const uint FrameLightColorOffset=96;      // float4 (xyz used)
-    private const uint FrameAmbientColorOffset=112;   // float4 (xyz used)
-    private const uint FrameFogParamsOffset=128;      // float4: x=density, y=heightFalloff
-    private const uint FrameFogColorOffset=144;       // float4 (xyz used)
-    private const uint FrameLightCountsOffset=160;    // int4: x=active point lights, y=active spot lights
-    private const uint FramePointLightsOffset=176;    // MaxPointLights * PointLightStride bytes
-    private const uint FrameSpotLightsOffset=FramePointLightsOffset+(MaxPointLights*PointLightStride); // MaxSpotLights * SpotLightStride bytes
-    private const uint FrameShadowViewProjectionOffset=FrameSpotLightsOffset+(MaxSpotLights*SpotLightStride);
-    private const uint FrameConstantsSize=FrameShadowViewProjectionOffset+64;
+    private const uint FrameDirectionalLightsOffset=80; // MaxDirectionalLights * DirectionalLightStride bytes
+    private const uint FrameAmbientColorOffset=FrameDirectionalLightsOffset+(MaxDirectionalLights*DirectionalLightStride);
+    private const uint FrameFogParamsOffset=FrameAmbientColorOffset+16; // float4: x=density, y=heightFalloff
+    private const uint FrameFogColorOffset=FrameFogParamsOffset+16;     // float4 (xyz used)
+    private const uint FrameExposureOffset=FrameFogColorOffset+16;      // float4: x=2^-EV100
+    private const uint FrameLightCountsOffset=FrameExposureOffset+16;   // int4: x=local, y=shadow directional index, z=directional count, w=spot projections
+    private const uint FrameForwardPlusGridOffset=FrameLightCountsOffset+16; // uint4: tile count X/Y, tile edge, tile cap
+    private const uint FrameShadowViewProjectionOffset=FrameForwardPlusGridOffset+16;
+    private const uint FrameDirectionalShadowAtlasUvScaleOffset=FrameShadowViewProjectionOffset+64;
+    private const uint FrameConstantsSize=FrameDirectionalShadowAtlasUvScaleOffset+16;
 
     /// <summary>
     /// FrameConstantsBuffer専用のフレームスロット幅。FrameConstantsSize以上、かつD3D12のroot CBV
@@ -113,6 +151,8 @@ public sealed unsafe class StageRenderer:IDisposable {
     public static readonly PixelColor ClearColor=new(89,140,217,255);
 
     private static readonly Vector3 DefaultLightDirectionTowardLight=Vector3.Normalize(new Vector3(0.4f,0.7f,0.5f));
+    private static readonly ShadowAtlasTile DirectionalShadowAtlasTile=
+        ShadowAtlasTile.FromIndex(DirectionalShadowAtlasTileIndex);
     private static readonly Vector3 DefaultLightColor=new(1.0f,1.0f,1.0f);
     private static readonly Vector3 DefaultAmbientColor=new(0.12f,0.12f,0.15f);
 
@@ -121,6 +161,158 @@ public sealed unsafe class StageRenderer:IDisposable {
         public Vector3 Normal;
         public Vector4 Tangent;
         public Vector2 Uv;
+    }
+
+    private enum LocalLightType {
+        Point,
+        Spot,
+        Area,
+    }
+
+    /// <summary>Deferred directional submission used to rank direct lighting independently of shadow priority.</summary>
+    private readonly struct DirectionalLightSubmission {
+        public DirectionalLightSubmission(
+            Vector3 DirectionTowardLight,Vector3 ColorTimesIntensity,bool CastsShadows,
+            int ShadowPriority,float ShadowBiasMeters,int StableSubmissionOrder){
+            this.DirectionTowardLight=DirectionTowardLight;
+            this.ColorTimesIntensity=ColorTimesIntensity;
+            this.CastsShadows=CastsShadows;
+            this.ShadowPriority=ShadowPriority;
+            this.ShadowBiasMeters=ShadowBiasMeters;
+            this.StableSubmissionOrder=StableSubmissionOrder;
+        }
+        public Vector3 DirectionTowardLight { get; }
+        public Vector3 ColorTimesIntensity { get; }
+        public bool CastsShadows { get; }
+        public int ShadowPriority { get; }
+        public float ShadowBiasMeters { get; }
+        public int StableSubmissionOrder { get; }
+    }
+
+    private readonly struct RankedDirectionalLightSubmission {
+        public RankedDirectionalLightSubmission(DirectionalLightSubmission Submission,float ScreenContribution){
+            this.Submission=Submission;
+            this.ScreenContribution=ScreenContribution;
+        }
+        public DirectionalLightSubmission Submission { get; }
+        public float ScreenContribution { get; }
+    }
+
+    /// <summary>CPU-side deferred local-light submission. Ranking is finalized once the camera for the frame is known.</summary>
+    private readonly struct LocalLightSubmission {
+        public LocalLightSubmission(
+            LocalLightType Type,Vector3 Position,float Range,Vector3 Direction,float InnerConeCos,
+            Vector3 ColorTimesIntensity,float OuterConeCos,int SelectionPriority,int StableSubmissionOrder,
+            bool CastsShadows,float ShadowBiasMeters){
+            if(Type==LocalLightType.Area)throw new ArgumentOutOfRangeException(nameof(Type));
+            this.Type=Type;
+            this.Position=Position;
+            this.Range=Range;
+            this.Direction=Direction;
+            this.InnerConeCos=InnerConeCos;
+            this.ColorTimesIntensity=ColorTimesIntensity;
+            this.OuterConeCos=OuterConeCos;
+            this.SelectionPriority=SelectionPriority;
+            this.StableSubmissionOrder=StableSubmissionOrder;
+            this.CastsShadows=CastsShadows;
+            this.ShadowBiasMeters=ShadowBiasMeters;
+            this.Right=Vector3.Zero;
+            this.Up=Vector3.Zero;
+            this.HalfWidth=0f;
+            this.HalfHeight=0f;
+            this.ShadowKind=Type==LocalLightType.Point
+                ?PhysicalLightKind.Point:PhysicalLightKind.Spot;
+        }
+        public LocalLightSubmission(
+            LocalLightType Type,Vector3 Position,float Range,Vector3 Direction,float InnerConeCos,
+            Vector3 ColorTimesIntensity,float OuterConeCos,int SelectionPriority,int StableSubmissionOrder,
+            bool CastsShadows,float ShadowBiasMeters,
+            Vector3 Right,Vector3 Up,float HalfWidth,float HalfHeight,PhysicalLightKind ShadowKind){
+            this.Type=Type;
+            this.Position=Position;
+            this.Range=Range;
+            this.Direction=Direction;
+            this.InnerConeCos=InnerConeCos;
+            this.ColorTimesIntensity=ColorTimesIntensity;
+            this.OuterConeCos=OuterConeCos;
+            this.SelectionPriority=SelectionPriority;
+            this.StableSubmissionOrder=StableSubmissionOrder;
+            this.CastsShadows=CastsShadows;
+            this.ShadowBiasMeters=ShadowBiasMeters;
+            this.Right=Right;
+            this.Up=Up;
+            this.HalfWidth=HalfWidth;
+            this.HalfHeight=HalfHeight;
+            this.ShadowKind=ShadowKind;
+        }
+        public LocalLightType Type { get; }
+        public Vector3 Position { get; }
+        public float Range { get; }
+        public Vector3 Direction { get; }
+        public float InnerConeCos { get; }
+        public Vector3 ColorTimesIntensity { get; }
+        public float OuterConeCos { get; }
+        public int SelectionPriority { get; }
+        public int StableSubmissionOrder { get; }
+        public bool CastsShadows { get; }
+        public float ShadowBiasMeters { get; }
+        public Vector3 Right { get; }
+        public Vector3 Up { get; }
+        public float HalfWidth { get; }
+        public float HalfHeight { get; }
+        public PhysicalLightKind ShadowKind { get; }
+    }
+
+    private readonly struct RankedLocalLightSubmission {
+        public RankedLocalLightSubmission(LocalLightSubmission Submission,float ScreenContribution){
+            this.Submission=Submission;
+            this.ScreenContribution=ScreenContribution;
+        }
+        public LocalLightSubmission Submission { get; }
+        public float ScreenContribution { get; }
+    }
+
+    /// <summary>Matches Stage.hlsl's 6-float4 LocalLightData exactly.</summary>
+    private struct LocalLightGpuData {
+        public Vector4 PositionAndRange;
+        public Vector4 DirectionAndInnerCos;
+        public Vector4 ColorAndOuterCos;
+        public Vector4 TypeAndPadding;
+        public Vector4 RightAndHalfWidth;
+        public Vector4 UpAndHalfHeight;
+    }
+
+    /// <summary>Matches Stage.hlsl's matrix + PhysicalShadowAtlasPlan UV rectangle record for a Point face.</summary>
+    private struct PointShadowProjectionGpuData {
+        public Matrix4x4 ViewProjection;
+        public Vector4 UvScaleOffset;
+    }
+
+    /// <summary>Matches Stage.hlsl's matrix + PhysicalShadowAtlasPlan UV rectangle record.</summary>
+    private struct SpotShadowProjectionGpuData {
+        public Matrix4x4 ViewProjection;
+        public Vector4 UvScaleOffset;
+    }
+
+    /// <summary>Matches Stage.hlsl's Area/Emissive PCSS source radius and clip-distance record at t9.</summary>
+    private struct AreaShadowMetadataGpuData {
+        public Vector4 SourceRadiusAndPadding;
+    }
+
+    /// <summary>Matches Stage.hlsl's independent Area/Emissive center-projection record at t10.</summary>
+    private struct AreaShadowProjectionGpuData {
+        public Matrix4x4 ViewProjection;
+        public Vector4 UvScaleOffset;
+    }
+
+    /// <summary>One atlas projection render target and its shadow-only constant-buffer slot.</summary>
+    private readonly struct ShadowAtlasProjection {
+        public ShadowAtlasProjection(ShadowAtlasTile Tile,int ShadowConstantsSlot){
+            this.Tile=Tile;
+            this.ShadowConstantsSlot=ShadowConstantsSlot;
+        }
+        public ShadowAtlasTile Tile { get; }
+        public int ShadowConstantsSlot { get; }
     }
 
     private GraphicsDevice?Device;
@@ -133,7 +325,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     private ID3D12Resource*DepthBuffer;
     private ID3D12Resource*HdrColorBuffer;
     private ID3D12DescriptorHeap*HdrSrvHeap;
-    private ID3D12Resource*ShadowMap;
+    private ID3D12Resource*ShadowAtlas;
     private readonly ID3D12CommandAllocator*[]CommandAllocators=new ID3D12CommandAllocator*[FrameCount];
     private ID3D12GraphicsCommandList*CommandList;
     private ID3D12Fence*Fence;
@@ -157,7 +349,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     private D3D12_INDEX_BUFFER_VIEW[]IndexBufferViews=[];
     private uint[]IndexCounts=[];
 
-    // Per-material (indexed by materialIndex). Three material textures plus one shared shadow SRV.
+    // Per-material (indexed by materialIndex). Four material textures plus one shared shadow SRV.
     private int MaterialCount;
     private ID3D12Resource*[]MaterialTextures=[];
     private ID3D12DescriptorHeap*SrvHeap;
@@ -165,7 +357,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     private Vector4[]MaterialBaseColorFactors=[];
     private float[]MaterialRoughnessFactors=[];
     private float[]MaterialMetallicFactors=[];
-    private Vector3[]MaterialEmissiveFactors=[];
+    private Vector3[]MaterialEmissiveNits=[];
 
     // Per-object (indexed by objectIndex).
     private int ObjectCount;
@@ -175,16 +367,69 @@ public sealed unsafe class StageRenderer:IDisposable {
 
     private ID3D12Resource*FrameConstantsBuffer;
     private byte*FrameConstantsMapped;
+    private ID3D12Resource*LocalLightsBuffer;
+    private byte*LocalLightsMapped;
+    private ID3D12Resource*ForwardPlusTileListBuffer;
+    private byte*ForwardPlusTileListMapped;
+    private uint ForwardPlusTileFrameSize;
+    private int ForwardPlusTileCountX;
+    private int ForwardPlusTileCountY;
     private ID3D12Resource*ObjectConstantsBuffer;
     private byte*ObjectConstantsMapped;
     private ID3D12Resource*ShadowConstantsBuffer;
     private byte*ShadowConstantsMapped;
+    private ID3D12Resource*SpotShadowProjectionBuffer;
+    private byte*SpotShadowProjectionMapped;
+    private ID3D12Resource*PointShadowProjectionBuffer;
+    private byte*PointShadowProjectionMapped;
+    private ID3D12Resource*AreaShadowMetadataBuffer;
+    private byte*AreaShadowMetadataMapped;
+    private ID3D12Resource*AreaShadowProjectionBuffer;
+    private byte*AreaShadowProjectionMapped;
 
-    // Point/spot lights are additive per frame (AddPointLight/AddSpotLight), unlike the singleton
-    // directional light/ambient/fog which are overwritten in place. Counts reset to zero at the end
-    // of RenderFrame so a light that stops calling Add (its owning Entity went away) doesn't linger.
-    private int PointLightCount;
-    private int SpotLightCount;
+    // AddDirectionalLightTowardLight/point/spot lights are additive per frame. The legacy
+    // SetDirectionalLight singleton is rewritten into every swap-chain frame slot until it is
+    // replaced, matching the original setter's behaviour; additive counts reset so removed
+    // owning entities do not linger.
+    private int DirectionalLightCount=1;
+    private int DirectionalShadowIndex;
+    private bool DirectionalLightsExplicitThisFrame;
+    private bool DirectionalLightsPersistAcrossFrames;
+    private readonly List<PhysicalLightCandidate>DirectionalShadowCandidates=[];
+    private PhysicalLightCandidate?SelectedDirectionalShadowAtlasCandidate;
+    private DirectionalLightSubmission?PersistentDirectionalLightSubmission;
+    private readonly List<DirectionalLightSubmission>DirectionalLightSubmissions=[];
+    private readonly List<LocalLightSubmission>LocalLightSubmissions=[];
+    private readonly List<LocalLightSubmission>SelectedLocalLightSubmissions=[];
+    private readonly List<ShadowAtlasProjection>PointShadowAtlasProjections=[];
+    private readonly List<ShadowAtlasProjection>SpotShadowAtlasProjections=[];
+    private readonly List<ShadowAtlasProjection>AreaShadowAtlasProjections=[];
+    private readonly Matrix4x4[]FrameViewProjections=new Matrix4x4[FrameCount];
+    private int LocalLightCount;
+    private int PointShadowProjectionCount;
+    private int SpotShadowProjectionCount;
+    private int AreaShadowProjectionCount;
+    private int DroppedDirectionalLightsThisFrameValue;
+    private int DroppedLocalLightsThisFrameValue;
+    private int DroppedTileLightReferencesThisFrameValue;
+
+    /// <summary>Visible diagnostic counter for Directional submissions over the four-light cap.</summary>
+    public int DroppedDirectionalLightsThisFrame=>this.DroppedDirectionalLightsThisFrameValue;
+
+    /// <summary>Directional overflow count captured when the prior frame was submitted.</summary>
+    public int DroppedDirectionalLightsLastFrame { get;private set; }
+
+    /// <summary>Visible diagnostic counter; direct lighting for already selected lights continues.</summary>
+    public int DroppedLocalLightsThisFrame=>this.DroppedLocalLightsThisFrameValue;
+
+    /// <summary>Overflow count captured when the prior frame was submitted.</summary>
+    public int DroppedLocalLightsLastFrame { get;private set; }
+
+    /// <summary>Visible count of candidate references rejected by the 64-light per-tile cap during the current frame.</summary>
+    public int DroppedTileLightReferencesThisFrame=>this.DroppedTileLightReferencesThisFrameValue;
+
+    /// <summary>Tile-list overflow count captured when the prior frame was submitted.</summary>
+    public int DroppedTileLightReferencesLastFrame { get;private set; }
 
     private ID3D12Resource*ReadbackBuffer;
     private ulong ReadbackBufferSize;
@@ -321,7 +566,7 @@ public sealed unsafe class StageRenderer:IDisposable {
         this.CreateDsvHeap();
         this.CreateDepthBuffer(Width,Height);
         this.CreateHdrColorBuffer(Width,Height);
-        this.CreateShadowMap();
+        this.CreateShadowAtlas();
 
         for(var I=0;I<FrameCount;I++){
             ID3D12CommandAllocator*Allocator;
@@ -360,6 +605,7 @@ public sealed unsafe class StageRenderer:IDisposable {
         this.CreateMaterialResources(Materials);
         this.CreateObjectMappings(Objects);
         this.CreateConstantBuffers();
+        this.CreateForwardPlusTileBuffer(Width,Height);
         this.CreateShadowConstantsBuffer();
         this.UpdateViewportAndScissor(Width,Height);
         this.InitializeConstantsToDefaults();
@@ -487,20 +733,20 @@ public sealed unsafe class StageRenderer:IDisposable {
         this.Device.Device->CreateShaderResourceView(Resource,&SrvDesc, this.HdrSrvHeap->GetCPUDescriptorHandleForHeapStart());
     }
 
-    private void CreateShadowMap(){
-        D3D12_RESOURCE_DESC ResourceDesc=D3D12_RESOURCE_DESC.Tex2D(ShadowMapResourceFormat,ShadowMapResolution,ShadowMapResolution,mipLevels:1);
+    private void CreateShadowAtlas(){
+        D3D12_RESOURCE_DESC ResourceDesc=D3D12_RESOURCE_DESC.Tex2D(ShadowAtlasResourceFormat,ShadowAtlasSizePixels,ShadowAtlasSizePixels,mipLevels:1);
         ResourceDesc.Flags|=D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
         D3D12_HEAP_PROPERTIES HeapProps=new(D3D12_HEAP_TYPE_DEFAULT);
-        D3D12_CLEAR_VALUE ClearValue=new(ShadowMapDsvFormat,1.0f,0);
+        D3D12_CLEAR_VALUE ClearValue=new(ShadowAtlasDsvFormat,1.0f,0);
         ID3D12Resource*Resource;
         D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateCommittedResource(&HeapProps,D3D12_HEAP_FLAG_NONE,&ResourceDesc,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,&ClearValue,__uuidof<ID3D12Resource>(),(void**)&Resource),
-            nameof(this.CreateShadowMap),nameof(this.CreateShadowMap));
+            nameof(this.CreateShadowAtlas),nameof(this.CreateShadowAtlas));
 
-        D3D12_DEPTH_STENCIL_VIEW_DESC DsvDesc=new(){ Format=ShadowMapDsvFormat,ViewDimension=D3D12_DSV_DIMENSION.D3D12_DSV_DIMENSION_TEXTURE2D };
+        D3D12_DEPTH_STENCIL_VIEW_DESC DsvDesc=new(){ Format=ShadowAtlasDsvFormat,ViewDimension=D3D12_DSV_DIMENSION.D3D12_DSV_DIMENSION_TEXTURE2D };
         D3D12_CPU_DESCRIPTOR_HANDLE ShadowDsv=new(this.DsvHeap->GetCPUDescriptorHandleForHeapStart(),1, this.DsvDescriptorSize);
         this.Device.Device->CreateDepthStencilView(Resource,&DsvDesc,ShadowDsv);
-        this.ShadowMap=Resource;
+        this.ShadowAtlas=Resource;
     }
 
     private void CompileShaders(string ShaderPath){
@@ -577,7 +823,7 @@ public sealed unsafe class StageRenderer:IDisposable {
 
         D3D12_DESCRIPTOR_RANGE SrvRange=new(){
             RangeType=D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
-            NumDescriptors=4,
+            NumDescriptors=5,
             BaseShaderRegister=0,
         };
 
@@ -610,17 +856,59 @@ public sealed unsafe class StageRenderer:IDisposable {
             ShaderVisibility=D3D12_SHADER_VISIBILITY_PIXEL,
         };
 
-        D3D12_ROOT_PARAMETER*RootParams=stackalloc D3D12_ROOT_PARAMETER[3];
+        D3D12_ROOT_PARAMETER LocalLightsParam=new(){
+            ParameterType=D3D12_ROOT_PARAMETER_TYPE_SRV,
+            ShaderVisibility=D3D12_SHADER_VISIBILITY_PIXEL,
+        };
+        LocalLightsParam.Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=5,RegisterSpace=0 };
+
+        D3D12_ROOT_PARAMETER ForwardPlusTileListParam=new(){
+            ParameterType=D3D12_ROOT_PARAMETER_TYPE_SRV,
+            ShaderVisibility=D3D12_SHADER_VISIBILITY_PIXEL,
+        };
+        ForwardPlusTileListParam.Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=6,RegisterSpace=0 };
+
+        D3D12_ROOT_PARAMETER SpotShadowProjectionsParam=new(){
+            ParameterType=D3D12_ROOT_PARAMETER_TYPE_SRV,
+            ShaderVisibility=D3D12_SHADER_VISIBILITY_PIXEL,
+        };
+        SpotShadowProjectionsParam.Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=7,RegisterSpace=0 };
+
+        D3D12_ROOT_PARAMETER PointShadowProjectionsParam=new(){
+            ParameterType=D3D12_ROOT_PARAMETER_TYPE_SRV,
+            ShaderVisibility=D3D12_SHADER_VISIBILITY_PIXEL,
+        };
+        PointShadowProjectionsParam.Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=8,RegisterSpace=0 };
+
+        D3D12_ROOT_PARAMETER AreaShadowMetadataParam=new(){
+            ParameterType=D3D12_ROOT_PARAMETER_TYPE_SRV,
+            ShaderVisibility=D3D12_SHADER_VISIBILITY_PIXEL,
+        };
+        AreaShadowMetadataParam.Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=9,RegisterSpace=0 };
+
+        D3D12_ROOT_PARAMETER AreaShadowProjectionsParam=new(){
+            ParameterType=D3D12_ROOT_PARAMETER_TYPE_SRV,
+            ShaderVisibility=D3D12_SHADER_VISIBILITY_PIXEL,
+        };
+        AreaShadowProjectionsParam.Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=10,RegisterSpace=0 };
+
+        D3D12_ROOT_PARAMETER*RootParams=stackalloc D3D12_ROOT_PARAMETER[9];
         RootParams[0]=FrameParam;
         RootParams[1]=ObjectParam;
         RootParams[2]=TextureParam;
         RootParams[2].DescriptorTable=new D3D12_ROOT_DESCRIPTOR_TABLE { NumDescriptorRanges=1,pDescriptorRanges=&SrvRange };
+        RootParams[3]=LocalLightsParam;
+        RootParams[4]=ForwardPlusTileListParam;
+        RootParams[5]=SpotShadowProjectionsParam;
+        RootParams[6]=PointShadowProjectionsParam;
+        RootParams[7]=AreaShadowMetadataParam;
+        RootParams[8]=AreaShadowProjectionsParam;
         D3D12_STATIC_SAMPLER_DESC*StaticSamplers=stackalloc D3D12_STATIC_SAMPLER_DESC[2];
         StaticSamplers[0]=StaticSampler;
         StaticSamplers[1]=ShadowSampler;
 
         D3D12_ROOT_SIGNATURE_DESC RootSignatureDesc=new(){
-            NumParameters=3,
+            NumParameters=9,
             pParameters=RootParams,
             NumStaticSamplers=2,
             pStaticSamplers=StaticSamplers,
@@ -807,7 +1095,7 @@ public sealed unsafe class StageRenderer:IDisposable {
                 SampleMask=uint.MaxValue,
                 PrimitiveTopologyType=D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
                 NumRenderTargets=0,
-                DSVFormat=ShadowMapDsvFormat,
+                DSVFormat=ShadowAtlasDsvFormat,
                 SampleDesc=new DXGI_SAMPLE_DESC(1,0),
             };
             PsoDesc.RasterizerState.CullMode=D3D12_CULL_MODE_NONE;
@@ -923,27 +1211,30 @@ public sealed unsafe class StageRenderer:IDisposable {
 
     private void CreateMaterialResources(IReadOnlyList<StageMaterialCreateInfo>Materials){
         this.MaterialCount=Materials.Count;
-        this.MaterialTextures=new ID3D12Resource*[this.MaterialCount*3];
+        this.MaterialTextures=new ID3D12Resource*[this.MaterialCount*4];
         this.MaterialBaseColorFactors=new Vector4[this.MaterialCount];
         this.MaterialRoughnessFactors=new float[this.MaterialCount];
         this.MaterialMetallicFactors=new float[this.MaterialCount];
-        this.MaterialEmissiveFactors=new Vector3[this.MaterialCount];
+        this.MaterialEmissiveNits=new Vector3[this.MaterialCount];
 
         for(var I=0;I< this.MaterialCount;I++){
             StageMaterialCreateInfo Material=Materials[I];
             this.MaterialBaseColorFactors[I]=Material.BaseColorFactor;
             this.MaterialRoughnessFactors[I]=Material.RoughnessFactor;
             this.MaterialMetallicFactors[I]=Material.MetallicFactor;
-            this.MaterialEmissiveFactors[I]=Material.EmissiveFactor;
+            this.MaterialEmissiveNits[I]=Material.EmissiveNits!=Vector3.Zero
+                ?Material.EmissiveNits
+                :Material.EmissiveFactor*GltfImportEmissiveDefaultNits;
 
-            this.MaterialTextures[(I*3)+0]= this.CreateTextureResource(Material.BaseColorTextureBytes,WhiteFallback());
-            this.MaterialTextures[(I*3)+1]= this.CreateTextureResource(Material.NormalTextureBytes,FlatNormalFallback());
-            this.MaterialTextures[(I*3)+2]= this.CreateTextureResource(Material.MetallicRoughnessTextureBytes,WhiteFallback());
+            this.MaterialTextures[(I*4)+0]= this.CreateTextureResource(Material.BaseColorTextureBytes,WhiteFallback());
+            this.MaterialTextures[(I*4)+1]= this.CreateTextureResource(Material.NormalTextureBytes,FlatNormalFallback());
+            this.MaterialTextures[(I*4)+2]= this.CreateTextureResource(Material.MetallicRoughnessTextureBytes,WhiteFallback());
+            this.MaterialTextures[(I*4)+3]= this.CreateTextureResource(Material.EmissiveTextureBytes,WhiteFallback());
         }
 
         D3D12_DESCRIPTOR_HEAP_DESC SrvHeapDesc=new(){
             Type=D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-            NumDescriptors=(uint)(this.MaterialCount*4),
+            NumDescriptors=(uint)(this.MaterialCount*5),
             Flags=D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
         };
         ID3D12DescriptorHeap*SrvHeap;
@@ -961,19 +1252,19 @@ public sealed unsafe class StageRenderer:IDisposable {
         SrvDesc.Texture2D.MipLevels=1;
 
         for(var I=0;I< this.MaterialTextures.Length;I++){
-            D3D12_CPU_DESCRIPTOR_HANDLE Handle=new(SrvHeapStart,(I/3)*4+(I%3), this.SrvDescriptorSize);
+            D3D12_CPU_DESCRIPTOR_HANDLE Handle=new(SrvHeapStart,(I/4)*5+(I%4), this.SrvDescriptorSize);
             this.Device.Device->CreateShaderResourceView(this.MaterialTextures[I],&SrvDesc,Handle);
         }
 
         D3D12_SHADER_RESOURCE_VIEW_DESC ShadowSrvDesc=new(){
-            Format=ShadowMapSrvFormat,
+            Format=ShadowAtlasSrvFormat,
             ViewDimension=D3D12_SRV_DIMENSION_TEXTURE2D,
             Shader4ComponentMapping=(uint)TerraFX.Interop.DirectX.D3D12.D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
         };
         ShadowSrvDesc.Texture2D.MipLevels=1;
         for(var I=0;I< this.MaterialCount;I++){
-            D3D12_CPU_DESCRIPTOR_HANDLE Handle=new(SrvHeapStart,(I*4)+3, this.SrvDescriptorSize);
-            this.Device.Device->CreateShaderResourceView(this.ShadowMap,&ShadowSrvDesc,Handle);
+            D3D12_CPU_DESCRIPTOR_HANDLE Handle=new(SrvHeapStart,(I*5)+4, this.SrvDescriptorSize);
+            this.Device.Device->CreateShaderResourceView(this.ShadowAtlas,&ShadowSrvDesc,Handle);
         }
     }
 
@@ -1072,12 +1363,56 @@ public sealed unsafe class StageRenderer:IDisposable {
         var FrameBufferSize=FrameConstantsStride*FrameCount;
         this.CreateUploadBuffer(FrameBufferSize,out this.FrameConstantsBuffer,out this.FrameConstantsMapped,"creating the frame constant buffer");
 
+        var LocalLightBufferSize=LocalLightStride*(uint)MaxLocalLights*FrameCount;
+        this.CreateUploadBuffer(LocalLightBufferSize,out this.LocalLightsBuffer,out this.LocalLightsMapped,"creating the Forward+ local-light StructuredBuffer");
+
+        var SpotShadowProjectionBufferSize=SpotShadowProjectionStride*(uint)MaxSpotShadowProjections*FrameCount;
+        this.CreateUploadBuffer(SpotShadowProjectionBufferSize,out this.SpotShadowProjectionBuffer,
+            out this.SpotShadowProjectionMapped,"creating the spot shadow-projection StructuredBuffer");
+
+        var PointShadowProjectionBufferSize=PointShadowProjectionStride*(uint)MaxPointShadowProjections*FrameCount;
+        this.CreateUploadBuffer(PointShadowProjectionBufferSize,out this.PointShadowProjectionBuffer,
+            out this.PointShadowProjectionMapped,"creating the point shadow-projection StructuredBuffer");
+
+        var AreaShadowMetadataBufferSize=AreaShadowMetadataStride*(uint)MaxAreaAndEmissiveShadowProjections*FrameCount;
+        this.CreateUploadBuffer(AreaShadowMetadataBufferSize,out this.AreaShadowMetadataBuffer,
+            out this.AreaShadowMetadataMapped,"creating the area shadow-metadata StructuredBuffer");
+
+        var AreaShadowProjectionBufferSize=AreaShadowProjectionStride*(uint)MaxAreaAndEmissiveShadowProjections*FrameCount;
+        this.CreateUploadBuffer(AreaShadowProjectionBufferSize,out this.AreaShadowProjectionBuffer,
+            out this.AreaShadowProjectionMapped,"creating the area shadow-projection StructuredBuffer");
+
         var ObjectBufferSize=ConstantAlignment*(uint)this.ObjectCount*FrameCount;
         this.CreateUploadBuffer(ObjectBufferSize,out this.ObjectConstantsBuffer,out this.ObjectConstantsMapped,"creating the object constant buffer");
     }
 
+    private void CreateForwardPlusTileBuffer(int Width,int Height){
+        this.ForwardPlusTileCountX=(Width+ForwardPlusTileSizePixels-1)/ForwardPlusTileSizePixels;
+        this.ForwardPlusTileCountY=(Height+ForwardPlusTileSizePixels-1)/ForwardPlusTileSizePixels;
+        uint TileCount=checked((uint)(this.ForwardPlusTileCountX*this.ForwardPlusTileCountY));
+        this.ForwardPlusTileFrameSize=checked(TileCount*ForwardPlusTileRecordStride);
+        uint BufferSize=checked(this.ForwardPlusTileFrameSize*FrameCount);
+        this.CreateUploadBuffer(BufferSize,out this.ForwardPlusTileListBuffer,out this.ForwardPlusTileListMapped,"creating the Forward+ tile-list StructuredBuffer");
+        for(uint Frame=0;Frame<FrameCount;Frame++){
+            this.WriteForwardPlusGrid(Frame);
+            this.ClearForwardPlusTileList(Frame);
+        }
+    }
+
+    private void ReleaseForwardPlusTileBuffer(){
+        if(this.ForwardPlusTileListBuffer!=null){
+            this.ForwardPlusTileListBuffer->Unmap(0,null);
+            this.ForwardPlusTileListMapped=null;
+            _=this.ForwardPlusTileListBuffer->Release();
+            this.ForwardPlusTileListBuffer=null;
+            this.ForwardPlusTileFrameSize=0;
+            this.ForwardPlusTileCountX=0;
+            this.ForwardPlusTileCountY=0;
+        }
+    }
+
     private void CreateShadowConstantsBuffer(){
-        var ShadowBufferSize=ConstantAlignment*FrameCount;
+        var ShadowBufferSize=ConstantAlignment*FrameCount*(uint)ShadowAtlasProjectionConstantSlotCount;
         this.CreateUploadBuffer(ShadowBufferSize,out this.ShadowConstantsBuffer,out this.ShadowConstantsMapped,nameof(this.CreateShadowConstantsBuffer));
     }
 
@@ -1109,11 +1444,13 @@ public sealed unsafe class StageRenderer:IDisposable {
         for(uint Frame=0;Frame<FrameCount;Frame++){
             this.WriteViewProjection(Frame,DefaultCamera.GetView()*DefaultCamera.GetProjection((float)this.Width/ this.Height));
             this.WriteCameraPosition(Frame,DefaultCamera.GetEyePosition());
-            this.WriteDirectionalLight(Frame,DefaultLightDirectionTowardLight,DefaultLightColor);
+            this.WriteDirectionalLight(Frame,0,DefaultLightDirectionTowardLight,DefaultLightColor,0.0015f);
             this.WriteAmbientLight(Frame,DefaultAmbientColor);
             this.WriteFog(Frame,FogParams.None);
+            this.WriteExposure(Frame,DefaultCamera.ExposureEv100);
             this.WriteShadowViewProjection(Frame,BuildShadowViewProjection(DefaultLightDirectionTowardLight));
             this.WriteLightCounts(Frame); // D3D12 does not guarantee zero-initialized upload-heap memory; without this the very first frame could loop over garbage PointLights/SpotLights entries.
+            this.WriteAreaShadowDefaults(Frame);
 
             for(var ObjectIndex=0;ObjectIndex< this.ObjectCount;ObjectIndex++){
                 this.WriteObjectConstants(Frame,ObjectIndex);
@@ -1130,12 +1467,185 @@ public sealed unsafe class StageRenderer:IDisposable {
         var AspectRatio=AspectRatioOverride>0f?AspectRatioOverride:(float)this.Width/ this.Height;
         this.WriteViewProjection(this.FrameIndex,Camera.GetView()*Camera.GetProjection(AspectRatio));
         this.WriteCameraPosition(this.FrameIndex,Camera.GetEyePosition());
+        this.WriteExposure(this.FrameIndex,Camera.ExposureEv100);
     }
 
-    /// <summary>Sets the single data-driven directional light (sun) for the frame currently being built. <paramref name="DirectionTowardLight"/> points from the scene toward the light (i.e. the direction surfaces should face to be lit), not the direction light travels.</summary>
-    public void SetDirectionalLight(Vector3 DirectionTowardLight,Vector3 Color,float Intensity){
-        this.WriteDirectionalLight(this.FrameIndex,DirectionTowardLight,Color*Intensity);
-        this.WriteShadowViewProjection(this.FrameIndex,BuildShadowViewProjection(DirectionTowardLight));
+    /// <summary>
+    /// Backward-compatible singleton setter. It replaces this frame's additive Directional list
+    /// with exactly one light. <paramref name="DirectionTowardLight"/> points from the scene
+    /// toward the light, not the direction light travels.
+    /// </summary>
+    public void SetDirectionalLight(
+        Vector3 DirectionTowardLight,Vector3 Color,float Intensity,
+        bool CastsShadows=true,float ShadowBiasMeters=0.0015f,int ShadowPriority=0){
+        if(!float.IsFinite(ShadowBiasMeters)||ShadowBiasMeters<0f){
+            throw new ArgumentOutOfRangeException(nameof(ShadowBiasMeters));
+        }
+        this.BeginDirectionalLightSubmission();
+        var Submission=new DirectionalLightSubmission(
+            DirectionTowardLight,Color*Intensity,CastsShadows,ShadowPriority,ShadowBiasMeters,
+            StableSubmissionOrder:0);
+        this.AddDirectionalLightCore(
+            DirectionTowardLight,Color,Intensity,CastsShadows,ShadowPriority,ShadowBiasMeters);
+        // Keep the value in the deferred list too: a later Add in this same frame must retain
+        // the setter's light instead of silently replacing it.
+        this.DirectionalLightSubmissions.Add(Submission);
+        this.PersistentDirectionalLightSubmission=Submission;
+        this.DirectionalLightsPersistAcrossFrames=true;
+    }
+
+    /// <summary>
+    /// Adds a legacy surface-to-light Directional input for the current frame. Direct-light
+    /// overflow keeps the four largest screen contributions, then stable submission order.
+    /// The one-map shadow pass independently follows <paramref name="ShadowPriority"/>.
+    /// </summary>
+    public void AddDirectionalLightTowardLight(
+        Vector3 DirectionTowardLight,Vector3 Color,float Intensity,
+        bool CastsShadows=true,int ShadowPriority=0,float ShadowBiasMeters=0.0015f){
+        if(!float.IsFinite(ShadowBiasMeters)||ShadowBiasMeters<0f){
+            throw new ArgumentOutOfRangeException(nameof(ShadowBiasMeters));
+        }
+        if(!this.DirectionalLightsExplicitThisFrame){
+            this.BeginDirectionalLightSubmission();
+        }
+        this.DirectionalLightsPersistAcrossFrames=false;
+        this.DirectionalLightSubmissions.Add(new DirectionalLightSubmission(
+            DirectionTowardLight,Color*Intensity,CastsShadows,ShadowPriority,ShadowBiasMeters,
+            this.DirectionalLightSubmissions.Count));
+    }
+
+    private void BeginDirectionalLightSubmission(){
+        this.DirectionalLightsExplicitThisFrame=true;
+        this.DirectionalLightsPersistAcrossFrames=false;
+        this.DirectionalLightCount=0;
+        this.DirectionalShadowIndex=-1;
+        this.SelectedDirectionalShadowAtlasCandidate=null;
+        this.DirectionalShadowCandidates.Clear();
+        this.PersistentDirectionalLightSubmission=null;
+        this.DirectionalLightSubmissions.Clear();
+    }
+
+    private void AddDirectionalLightCore(
+        Vector3 DirectionTowardLight,Vector3 Color,float Intensity,
+        bool CastsShadows,int ShadowPriority,float ShadowBiasMeters){
+        if(this.DirectionalLightCount>=MaxDirectionalLights){
+            this.DroppedDirectionalLightsThisFrameValue++;
+            return;
+        }
+
+        int Index=this.DirectionalLightCount;
+        this.WriteDirectionalLight(
+            this.FrameIndex,Index,DirectionTowardLight,Color*Intensity,ShadowBiasMeters);
+        this.DirectionalLightCount++;
+        this.DirectionalShadowCandidates.Add(new PhysicalLightCandidate(
+            Index,PhysicalLightKind.Directional,ShadowPriority,ScreenContribution:0f,CastsShadows));
+        int SelectedShadowIndex=PhysicalLightBudget.SelectDirectionalShadowIndex(
+            this.DirectionalShadowCandidates);
+        this.SelectedDirectionalShadowAtlasCandidate=SelectedShadowIndex>=0
+            ?this.DirectionalShadowCandidates[SelectedShadowIndex] :null;
+        if(SelectedShadowIndex!=this.DirectionalShadowIndex){
+            this.DirectionalShadowIndex=SelectedShadowIndex;
+            if(SelectedShadowIndex>=0){
+                this.WriteShadowViewProjection(
+                    this.FrameIndex,BuildShadowViewProjection(DirectionTowardLight));
+            }
+        }
+        this.WriteLightCounts(this.FrameIndex);
+    }
+
+    /// <summary>
+    /// Finalizes additive Directional submissions after the frame's camera is known. Direct
+    /// lighting intentionally ignores shadow priority: it is ranked by contribution and then
+    /// stable submission order. Shadow priority is applied only to the selected direct lights.
+    /// </summary>
+    private void PrepareDirectionalLights(uint FrameIndex){
+        if(this.DirectionalLightsPersistAcrossFrames){
+            if(this.PersistentDirectionalLightSubmission is not DirectionalLightSubmission Submission){
+                this.DirectionalLightCount=0;
+                this.DirectionalShadowIndex=-1;
+                this.SelectedDirectionalShadowAtlasCandidate=null;
+                this.DirectionalShadowCandidates.Clear();
+                this.WriteLightCounts(FrameIndex);
+                return;
+            }
+
+            this.DirectionalLightCount=1;
+            this.DirectionalShadowIndex=-1;
+            this.SelectedDirectionalShadowAtlasCandidate=null;
+            this.DirectionalShadowCandidates.Clear();
+            this.WriteDirectionalLight(
+                FrameIndex,0,Submission.DirectionTowardLight,Submission.ColorTimesIntensity,
+                Submission.ShadowBiasMeters);
+            if(Submission.CastsShadows){
+                var Candidate=new PhysicalLightCandidate(
+                    Submission.StableSubmissionOrder,PhysicalLightKind.Directional,
+                    Submission.ShadowPriority,CalculateDirectionalScreenContribution(Submission),
+                    CastsShadows:true);
+                this.DirectionalShadowCandidates.Add(Candidate);
+                this.DirectionalShadowIndex=0;
+                this.SelectedDirectionalShadowAtlasCandidate=Candidate;
+                this.WriteShadowViewProjection(
+                    FrameIndex,BuildShadowViewProjection(Submission.DirectionTowardLight));
+            }
+            this.WriteLightCounts(FrameIndex);
+            return;
+        }
+
+        if(!this.DirectionalLightsExplicitThisFrame){
+            return;
+        }
+
+        List<RankedDirectionalLightSubmission> Ranked=new(this.DirectionalLightSubmissions.Count);
+        foreach(DirectionalLightSubmission Submission in this.DirectionalLightSubmissions){
+            Ranked.Add(new RankedDirectionalLightSubmission(
+                Submission,CalculateDirectionalScreenContribution(Submission)));
+        }
+        Ranked.Sort(static (Left,Right)=>{
+            int Contribution=Right.ScreenContribution.CompareTo(Left.ScreenContribution);
+            return Contribution!=0
+                ?Contribution
+                :Left.Submission.StableSubmissionOrder.CompareTo(Right.Submission.StableSubmissionOrder);
+        });
+
+        this.DirectionalLightCount=Math.Min(Ranked.Count,MaxDirectionalLights);
+        this.DroppedDirectionalLightsThisFrameValue=Ranked.Count-this.DirectionalLightCount;
+        this.DirectionalShadowIndex=-1;
+        this.SelectedDirectionalShadowAtlasCandidate=null;
+        this.DirectionalShadowCandidates.Clear();
+        for(int Index=0;Index<this.DirectionalLightCount;Index++){
+            DirectionalLightSubmission Submission=Ranked[Index].Submission;
+            this.WriteDirectionalLight(
+                FrameIndex,Index,Submission.DirectionTowardLight,Submission.ColorTimesIntensity,
+                Submission.ShadowBiasMeters);
+            this.DirectionalShadowCandidates.Add(new PhysicalLightCandidate(
+                Submission.StableSubmissionOrder,PhysicalLightKind.Directional,
+                Submission.ShadowPriority,Ranked[Index].ScreenContribution,Submission.CastsShadows));
+        }
+
+        int SelectedStableOrder=PhysicalLightBudget.SelectDirectionalShadowIndex(
+            this.DirectionalShadowCandidates);
+        if(SelectedStableOrder>=0){
+            for(int Index=0;Index<this.DirectionalShadowCandidates.Count;Index++){
+                if(this.DirectionalShadowCandidates[Index].StableSubmissionOrder!=SelectedStableOrder){
+                    continue;
+                }
+                this.DirectionalShadowIndex=Index;
+                this.SelectedDirectionalShadowAtlasCandidate=this.DirectionalShadowCandidates[Index];
+                this.WriteShadowViewProjection(
+                    FrameIndex,BuildShadowViewProjection(Ranked[Index].Submission.DirectionTowardLight));
+                break;
+            }
+        }
+        this.WriteLightCounts(FrameIndex);
+    }
+
+    private static float CalculateDirectionalScreenContribution(in DirectionalLightSubmission Submission){
+        float Contribution=MathF.Max(Submission.ColorTimesIntensity.X,
+            MathF.Max(Submission.ColorTimesIntensity.Y,Submission.ColorTimesIntensity.Z));
+        if(!float.IsFinite(Contribution)){
+            return float.MaxValue;
+        }
+        return MathF.Max(0f,Contribution);
     }
 
     /// <summary>Sets the flat ambient term (a stand-in for sky/indirect lighting) for the frame currently being built.</summary>
@@ -1151,20 +1661,28 @@ public sealed unsafe class StageRenderer:IDisposable {
     /// <summary>
     /// Adds one point light (radiates equally in all directions, attenuated by distance with a
     /// smooth falloff that reaches zero at <paramref name="Range"/>) for the frame currently being
-    /// built. Unlike <see cref="SetDirectionalLight"/>, this is additive per frame: call it once per
-    /// active light, up to <see cref="MaxPointLights"/> - the count resets to zero at the end of
-    /// <see cref="RenderFrame"/>, so a light that stops calling this simply stops contributing on
-    /// the next frame (no stale state to clear).
+    /// built. It is source-compatible with the former fixed point-light cbuffer API; submission is
+    /// deferred until <see cref="RenderFrame"/>, where all point/spot lights share the 1024-entry
+    /// StructuredBuffer and deterministic Forward+ ranking.
     /// </summary>
     public void AddPointLight(Vector3 Position,Vector3 Color,float Intensity,float Range){
-        if(this.PointLightCount>=MaxPointLights){
-            Debug.Assert(false, $"CGE-STAGE-LIGHT-001: exceeded MaxPointLights ({MaxPointLights}); extra point lights are silently dropped this frame.");
-            return;
-        }
+        this.AddPointLight(Position,Color,Intensity,Range,SelectionPriority:0);
+    }
 
-        this.WritePointLight(this.FrameIndex, this.PointLightCount,Position,Range,Color*Intensity);
-        this.PointLightCount++;
-        this.WriteLightCounts(this.FrameIndex);
+    internal void AddPointLight(Vector3 Position,Vector3 Color,float Intensity,float Range,int SelectionPriority){
+        this.AddPointLight(
+            Position,Color,Intensity,Range,SelectionPriority,CastsShadows:false,ShadowBiasMeters:0f);
+    }
+
+    internal void AddPointLight(
+        Vector3 Position,Vector3 Color,float Intensity,float Range,int SelectionPriority,
+        bool CastsShadows,float ShadowBiasMeters){
+        if(!float.IsFinite(ShadowBiasMeters)||ShadowBiasMeters<0f){
+            throw new ArgumentOutOfRangeException(nameof(ShadowBiasMeters));
+        }
+        this.LocalLightSubmissions.Add(new LocalLightSubmission(
+            LocalLightType.Point,Position,Range,Vector3.Zero,0f,Color*Intensity,0f,
+            SelectionPriority,this.LocalLightSubmissions.Count,CastsShadows,ShadowBiasMeters));
     }
 
     /// <summary>
@@ -1172,19 +1690,66 @@ public sealed unsafe class StageRenderer:IDisposable {
     /// being built. <paramref name="Direction"/> is the direction the cone points toward (need not
     /// be normalized) and the brightness falls off smoothly between
     /// <paramref name="InnerConeAngleRadians"/> (full brightness) and
-    /// <paramref name="OuterConeAngleRadians"/> (zero). Additive per frame - see
-    /// <see cref="AddPointLight"/> for the accumulate/reset contract.
+    /// <paramref name="OuterConeAngleRadians"/> (zero). It shares the same deferred StructuredBuffer
+    /// and 1024-entry global selection as <see cref="AddPointLight(Vector3,Vector3,float,float)"/>.
     /// </summary>
     public void AddSpotLight(Vector3 Position,Vector3 Direction,Vector3 Color,float Intensity,float Range,float InnerConeAngleRadians,float OuterConeAngleRadians){
-        if(this.SpotLightCount>=MaxSpotLights){
-            Debug.Assert(false, $"CGE-STAGE-LIGHT-002: exceeded MaxSpotLights ({MaxSpotLights}); extra spot lights are silently dropped this frame.");
-            return;
-        }
-
-        this.WriteSpotLight(this.FrameIndex, this.SpotLightCount,Position,Range,Vector3.Normalize(Direction),MathF.Cos(InnerConeAngleRadians),Color*Intensity,MathF.Cos(OuterConeAngleRadians));
-        this.SpotLightCount++;
-        this.WriteLightCounts(this.FrameIndex);
+        this.AddSpotLight(Position,Direction,Color,Intensity,Range,InnerConeAngleRadians,OuterConeAngleRadians,SelectionPriority:0);
     }
+
+    internal void AddSpotLight(
+        Vector3 Position,Vector3 Direction,Vector3 Color,float Intensity,float Range,
+        float InnerConeAngleRadians,float OuterConeAngleRadians,int SelectionPriority){
+        this.AddSpotLight(Position,Direction,Color,Intensity,Range,InnerConeAngleRadians,
+            OuterConeAngleRadians,SelectionPriority,CastsShadows:false,ShadowBiasMeters:0f);
+    }
+
+    internal void AddSpotLight(
+        Vector3 Position,Vector3 Direction,Vector3 Color,float Intensity,float Range,
+        float InnerConeAngleRadians,float OuterConeAngleRadians,int SelectionPriority,
+        bool CastsShadows,float ShadowBiasMeters){
+        if(!float.IsFinite(ShadowBiasMeters)||ShadowBiasMeters<0f){
+            throw new ArgumentOutOfRangeException(nameof(ShadowBiasMeters));
+        }
+        this.LocalLightSubmissions.Add(new LocalLightSubmission(
+            LocalLightType.Spot,Position,Range,Vector3.Normalize(Direction),MathF.Cos(InnerConeAngleRadians),
+            Color*Intensity,MathF.Cos(OuterConeAngleRadians),SelectionPriority,
+            this.LocalLightSubmissions.Count,CastsShadows,ShadowBiasMeters));
+    }
+    /// <summary>
+    /// Queues one one-sided rectangle for the current frame. Its shadow settings are retained on
+    /// the submission but are intentionally not allocated until the projected Atlas path is
+    /// connected; direct lighting remains active in that interim state.
+    /// </summary>
+    internal void AddAreaLight(
+        Vector3 Position,Vector3 Direction,Vector3 Right,Vector3 Up,Vector3 LinearRgb,
+        float LuminanceNits,float WidthMeters,float HeightMeters,float RangeMeters,
+        int SelectionPriority,bool CastsShadows,float ShadowBiasMeters,PhysicalLightKind ShadowKind){
+        if(ShadowKind!=PhysicalLightKind.Area&&ShadowKind!=PhysicalLightKind.Emissive){
+            throw new ArgumentOutOfRangeException(nameof(ShadowKind));
+        }
+        if(!IsFinite(Position)||!IsFinite(LinearRgb)
+            ||!float.IsFinite(LuminanceNits)||LuminanceNits<0f
+            ||!float.IsFinite(WidthMeters)||WidthMeters<=0f
+            ||!float.IsFinite(HeightMeters)||HeightMeters<=0f
+            ||!float.IsFinite(RangeMeters)||RangeMeters<=0f
+            ||!float.IsFinite(ShadowBiasMeters)||ShadowBiasMeters<0f
+            ||!TryNormalize(Direction,out Vector3 UnitDirection)
+            ||!TryNormalize(Right,out Vector3 UnitRight)
+            ||!TryNormalize(Up,out Vector3 UnitUp)
+            ||MathF.Abs(Vector3.Dot(UnitDirection,UnitRight))>1e-3f
+            ||MathF.Abs(Vector3.Dot(UnitDirection,UnitUp))>1e-3f
+            ||MathF.Abs(Vector3.Dot(UnitRight,UnitUp))>1e-3f
+            ||Vector3.Dot(Vector3.Cross(UnitRight,UnitUp),UnitDirection)<0.999f){
+            throw new ArgumentException(
+                "Area lights require finite positive dimensions/range and a right-handed orthonormal basis.");
+        }
+        this.LocalLightSubmissions.Add(new LocalLightSubmission(
+            LocalLightType.Area,Position,RangeMeters,UnitDirection,0f,LinearRgb*LuminanceNits,0f,
+            SelectionPriority,this.LocalLightSubmissions.Count,CastsShadows,ShadowBiasMeters,
+            UnitRight,UnitUp,WidthMeters*0.5f,HeightMeters*0.5f,ShadowKind));
+    }
+
 
     /// <summary>Sets the world transform for one object for the frame currently being built (see <see cref="SetCamera"/> for the per-frame-slot contract).</summary>
     public void SetObjectTransform(int ObjectIndex,Matrix4x4 World){
@@ -1199,6 +1764,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     private byte*FrameSlot(uint FrameIndex)=> this.FrameConstantsMapped+(FrameIndex*FrameConstantsStride);
 
     private void WriteViewProjection(uint FrameIndex,Matrix4x4 ViewProjection){
+        this.FrameViewProjections[FrameIndex]=ViewProjection;
         Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameViewProjectionOffset,&ViewProjection,(uint)sizeof(Matrix4x4));
     }
 
@@ -1207,11 +1773,15 @@ public sealed unsafe class StageRenderer:IDisposable {
         Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameCameraPositionOffset,&Packed,(uint)sizeof(Vector4));
     }
 
-    private void WriteDirectionalLight(uint FrameIndex,Vector3 DirectionTowardLight,Vector3 ColorTimesIntensity){
-        Vector4 Direction=new(Vector3.Normalize(DirectionTowardLight),0f);
+    /// <summary>Writes Stage.hlsl's DirectionalLightData[index] (direction+bias, color*intensity).</summary>
+    private void WriteDirectionalLight(
+        uint FrameIndex,int Index,Vector3 DirectionTowardLight,Vector3 ColorTimesIntensity,
+        float ShadowBiasMeters){
+        var Destination=this.FrameSlot(FrameIndex)+FrameDirectionalLightsOffset+((uint)Index*DirectionalLightStride);
+        Vector4 Direction=new(Vector3.Normalize(DirectionTowardLight),ShadowBiasMeters);
         Vector4 Color=new(ColorTimesIntensity,0f);
-        Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameLightDirectionOffset,&Direction,(uint)sizeof(Vector4));
-        Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameLightColorOffset,&Color,(uint)sizeof(Vector4));
+        Unsafe.CopyBlock(Destination,&Direction,(uint)sizeof(Vector4));
+        Unsafe.CopyBlock(Destination+16,&Color,(uint)sizeof(Vector4));
     }
 
     private void WriteAmbientLight(uint FrameIndex,Vector3 Color){
@@ -1226,6 +1796,15 @@ public sealed unsafe class StageRenderer:IDisposable {
         Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameFogColorOffset,&FogColor,(uint)sizeof(Vector4));
     }
 
+    private void WriteExposure(uint FrameIndex,float ExposureEv100){
+        if(!float.IsFinite(ExposureEv100)){
+            throw new ArgumentOutOfRangeException(nameof(ExposureEv100),"Camera exposure must be finite.");
+        }
+        // EV100 is one stop per integer: +1 halves the HDR signal before ACES.
+        Vector4 Packed=new(PhysicalLightUnits.Ev100ToExposureScale(ExposureEv100),ExposureEv100,0f,0f);
+        Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameExposureOffset,&Packed,(uint)sizeof(Vector4));
+    }
+
     private static Matrix4x4 BuildShadowViewProjection(Vector3 DirectionTowardLight){
         Vector3 Direction=Vector3.Normalize(DirectionTowardLight);
         Matrix4x4 View=Matrix4x4.CreateLookAt(-(Direction*35f),Vector3.Zero,Vector3.UnitY);
@@ -1234,32 +1813,577 @@ public sealed unsafe class StageRenderer:IDisposable {
 
     private void WriteShadowViewProjection(uint FrameIndex,Matrix4x4 ShadowViewProjection){
         Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameShadowViewProjectionOffset,&ShadowViewProjection,(uint)sizeof(Matrix4x4));
-        Unsafe.CopyBlock(this.ShadowConstantsMapped+(FrameIndex*ConstantAlignment),&ShadowViewProjection,(uint)sizeof(Matrix4x4));
+        Unsafe.CopyBlock(this.ShadowConstantsSlot(FrameIndex,0),&ShadowViewProjection,(uint)sizeof(Matrix4x4));
+        this.WriteDirectionalShadowAtlasUvScaleOffset(FrameIndex);
     }
 
-    /// <summary>Writes Stage.hlsl's PointLightData[index] (2 float4: position+range, color*intensity).</summary>
-    private void WritePointLight(uint FrameIndex,int Index,Vector3 Position,float Range,Vector3 ColorTimesIntensity){
-        var Destination= this.FrameSlot(FrameIndex)+FramePointLightsOffset+((uint)Index*PointLightStride);
-        Vector4 PositionAndRange=new(Position,Range);
-        Vector4 ColorPacked=new(ColorTimesIntensity,0f);
-        Unsafe.CopyBlock(Destination,&PositionAndRange,(uint)sizeof(Vector4));
-        Unsafe.CopyBlock(Destination+16,&ColorPacked,(uint)sizeof(Vector4));
+    private byte*ShadowConstantsSlot(uint FrameIndex,int Slot){
+        if((uint)Slot>=(uint)ShadowAtlasProjectionConstantSlotCount){
+            throw new ArgumentOutOfRangeException(nameof(Slot));
+        }
+        uint LinearSlot=(FrameIndex*(uint)ShadowAtlasProjectionConstantSlotCount)+(uint)Slot;
+        return this.ShadowConstantsMapped+(LinearSlot*ConstantAlignment);
     }
 
-    /// <summary>Writes Stage.hlsl's SpotLightData[index] (3 float4: position+range, direction+innerCos, color*intensity+outerCos).</summary>
-    private void WriteSpotLight(uint FrameIndex,int Index,Vector3 Position,float Range,Vector3 Direction,float InnerConeCos,Vector3 ColorTimesIntensity,float OuterConeCos){
-        var Destination= this.FrameSlot(FrameIndex)+FrameSpotLightsOffset+((uint)Index*SpotLightStride);
-        Vector4 PositionAndRange=new(Position,Range);
-        Vector4 DirectionAndInnerCos=new(Direction,InnerConeCos);
-        Vector4 ColorAndOuterCos=new(ColorTimesIntensity,OuterConeCos);
-        Unsafe.CopyBlock(Destination,&PositionAndRange,(uint)sizeof(Vector4));
-        Unsafe.CopyBlock(Destination+16,&DirectionAndInnerCos,(uint)sizeof(Vector4));
-        Unsafe.CopyBlock(Destination+32,&ColorAndOuterCos,(uint)sizeof(Vector4));
+    /// <summary>Writes the PhysicalShadowAtlasPlan tile-0 rectangle used by the directional shadow pass.</summary>
+    private void WriteDirectionalShadowAtlasUvScaleOffset(uint FrameIndex){
+        Vector4 UvScaleOffset=DirectionalShadowAtlasTile.UvScaleOffset;
+        Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameDirectionalShadowAtlasUvScaleOffset,
+            &UvScaleOffset,(uint)sizeof(Vector4));
     }
 
-    /// <summary>Writes Stage.hlsl's FrameCB.LightCounts (int4: x=active point lights, y=active spot lights).</summary>
+    private byte*LocalLightsFrameSlot(uint FrameIndex)=>this.LocalLightsMapped+(FrameIndex*(LocalLightStride*(uint)MaxLocalLights));
+
+    private byte*SpotShadowProjectionFrameSlot(uint FrameIndex)=>this.SpotShadowProjectionMapped+(FrameIndex*(SpotShadowProjectionStride*(uint)MaxSpotShadowProjections));
+
+    private byte*PointShadowProjectionFrameSlot(uint FrameIndex)=>this.PointShadowProjectionMapped+(FrameIndex*(PointShadowProjectionStride*(uint)MaxPointShadowProjections));
+
+    private byte*AreaShadowMetadataFrameSlot(uint FrameIndex)=>this.AreaShadowMetadataMapped
+        +(FrameIndex*(AreaShadowMetadataStride*(uint)MaxAreaAndEmissiveShadowProjections));
+
+    private byte*AreaShadowProjectionFrameSlot(uint FrameIndex)=>this.AreaShadowProjectionMapped
+        +(FrameIndex*(AreaShadowProjectionStride*(uint)MaxAreaAndEmissiveShadowProjections));
+
+    private byte*ForwardPlusTileFrameSlot(uint FrameIndex)=>this.ForwardPlusTileListMapped+(FrameIndex*this.ForwardPlusTileFrameSize);
+
+    private void WriteForwardPlusGrid(uint FrameIndex){
+        var Grid=stackalloc uint[4]{
+            (uint)this.ForwardPlusTileCountX,(uint)this.ForwardPlusTileCountY,
+            ForwardPlusTileSizePixels,MaxLightsPerForwardPlusTile,
+        };
+        Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameForwardPlusGridOffset,Grid,16);
+    }
+
+    private void ClearForwardPlusTileList(uint FrameIndex){
+        if(this.ForwardPlusTileFrameSize!=0){
+            Unsafe.InitBlock(this.ForwardPlusTileFrameSlot(FrameIndex),0,this.ForwardPlusTileFrameSize);
+        }
+    }
+
+    private void PrepareForwardPlusLocalLights(uint FrameIndex){
+        this.ClearForwardPlusTileList(FrameIndex);
+        this.SelectedLocalLightSubmissions.Clear();
+        this.SpotShadowProjectionCount=0;
+        this.PointShadowProjectionCount=0;
+        this.AreaShadowProjectionCount=0;
+        Matrix4x4 ViewProjection=this.FrameViewProjections[FrameIndex];
+        List<RankedLocalLightSubmission> Ranked=new(this.LocalLightSubmissions.Count);
+        foreach(LocalLightSubmission Submission in this.LocalLightSubmissions){
+            Ranked.Add(new RankedLocalLightSubmission(
+                Submission,CalculateScreenContribution(Submission,ViewProjection)));
+        }
+
+        Ranked.Sort(static (Left,Right)=>{
+            int Priority=Right.Submission.SelectionPriority.CompareTo(Left.Submission.SelectionPriority);
+            if(Priority!=0){
+                return Priority;
+            }
+            int Contribution=Right.ScreenContribution.CompareTo(Left.ScreenContribution);
+            return Contribution!=0
+                ?Contribution
+                :Left.Submission.StableSubmissionOrder.CompareTo(Right.Submission.StableSubmissionOrder);
+        });
+
+        this.LocalLightCount=Math.Min(Ranked.Count,MaxLocalLights);
+        this.DroppedLocalLightsThisFrameValue=Ranked.Count-this.LocalLightCount;
+        this.DroppedTileLightReferencesThisFrameValue=0;
+        for(int LocalIndex=0;LocalIndex<this.LocalLightCount;LocalIndex++){
+            LocalLightSubmission Submission=Ranked[LocalIndex].Submission;
+            this.WriteLocalLight(FrameIndex,LocalIndex,Submission);
+            this.SelectedLocalLightSubmissions.Add(Submission);
+            if(this.TryGetForwardPlusTileBounds(Submission,ViewProjection,
+                out int MinimumTileX,out int MaximumTileX,out int MinimumTileY,out int MaximumTileY)){
+                for(int TileY=MinimumTileY;TileY<=MaximumTileY;TileY++){
+                    for(int TileX=MinimumTileX;TileX<=MaximumTileX;TileX++){
+                        this.AddForwardPlusTileCandidate(FrameIndex,TileX,TileY,LocalIndex);
+                    }
+                }
+            }
+        }
+        this.WriteLightCounts(FrameIndex);
+    }
+
+    /// <summary>
+    /// Uses PhysicalShadowAtlasPlan as the only allocation authority. Selected Point casters
+    /// receive their plan-owned six face tiles; selected Spot and Area/Emissive casters each
+    /// receive one center-projection tile through the same single plan selection.
+    /// </summary>
+    private void PrepareLocalShadowAtlasProjections(uint FrameIndex){
+        this.PointShadowAtlasProjections.Clear();
+        this.SpotShadowAtlasProjections.Clear();
+        this.AreaShadowAtlasProjections.Clear();
+        this.PointShadowProjectionCount=0;
+        this.SpotShadowProjectionCount=0;
+        this.AreaShadowProjectionCount=0;
+        List<PhysicalLightCandidate>Casters=[];
+        Dictionary<int,int>LocalIndexByStableOrder=[];
+
+        if(this.DirectionalShadowIndex>=0){
+            // The atlas has one directional tile regardless of the original direct-list stable
+            // order. Normalize it to zero so a selected submission beyond the first four cannot
+            // collide with the local-light namespace used below.
+            PhysicalLightCandidate Directional=this.SelectedDirectionalShadowAtlasCandidate
+                ??new PhysicalLightCandidate(0,PhysicalLightKind.Directional,0,0f,CastsShadows:true);
+            Casters.Add(new PhysicalLightCandidate(
+                0,PhysicalLightKind.Directional,Directional.ShadowPriority,
+                Directional.ScreenContribution,CastsShadows:true));
+        }
+
+        Matrix4x4 ViewProjection=this.FrameViewProjections[FrameIndex];
+        for(int LocalIndex=0;LocalIndex<this.SelectedLocalLightSubmissions.Count;LocalIndex++){
+            LocalLightSubmission Submission=this.SelectedLocalLightSubmissions[LocalIndex];
+            bool IsValidCaster=Submission.Type switch {
+                LocalLightType.Point=>TryValidatePointShadowProjection(Submission),
+                LocalLightType.Spot=>TryBuildSpotShadowViewProjection(Submission,out _),
+                LocalLightType.Area=>TryBuildAreaShadowViewProjection(Submission,out _),
+                _=>false,
+            };
+            if(!Submission.CastsShadows||!IsValidCaster){
+                continue;
+            }
+
+            int StableOrder=MaxDirectionalLights+Submission.StableSubmissionOrder;
+            PhysicalLightKind Kind=Submission.ShadowKind;
+            Casters.Add(new PhysicalLightCandidate(
+                StableOrder,Kind,Submission.SelectionPriority,
+                CalculateScreenContribution(Submission,ViewProjection),CastsShadows:true));
+            LocalIndexByStableOrder.Add(StableOrder,LocalIndex);
+        }
+
+        if(Casters.Count==0){
+            this.WriteLightCounts(FrameIndex);
+            return;
+        }
+
+        PhysicalShadowAtlasPlan Plan=PhysicalShadowAtlasPlan.Select(Casters);
+        Span<Matrix4x4> PointFaceViewProjections=stackalloc Matrix4x4[MaxPointShadowProjections];
+        foreach(ShadowAtlasAllocation Allocation in Plan.Allocations){
+            if(!LocalIndexByStableOrder.TryGetValue(
+                Allocation.Candidate.StableSubmissionOrder,out int LocalIndex)){
+                continue;
+            }
+
+            LocalLightSubmission Submission=this.SelectedLocalLightSubmissions[LocalIndex];
+            if(Allocation.Candidate.Kind==PhysicalLightKind.Point){
+                if(this.PointShadowProjectionCount!=0
+                    ||Allocation.TileCount!=MaxPointShadowProjections){
+                    continue;
+                }
+
+                if(!TryBuildPointShadowViewProjections(Submission,PointFaceViewProjections)){
+                    continue;
+                }
+
+                int ProjectionBaseIndex=this.PointShadowProjectionCount;
+                for(int FaceIndex=0;FaceIndex<MaxPointShadowProjections;FaceIndex++){
+                    ShadowAtlasTile PointTile=Allocation.GetTile(FaceIndex);
+                    this.WritePointShadowProjection(
+                        FrameIndex,ProjectionBaseIndex+FaceIndex,PointFaceViewProjections[FaceIndex],PointTile);
+                    this.PointShadowAtlasProjections.Add(new ShadowAtlasProjection(
+                        PointTile,PointShadowProjectionConstantSlotOffset+ProjectionBaseIndex+FaceIndex));
+                }
+                this.WritePointShadowMetadata(FrameIndex,LocalIndex,Submission,ProjectionBaseIndex);
+                this.PointShadowProjectionCount+=MaxPointShadowProjections;
+                continue;
+            }
+
+            if(Allocation.Candidate.Kind==PhysicalLightKind.Spot){
+                if(this.SpotShadowProjectionCount>=MaxSpotShadowProjections
+                    ||!TryBuildSpotShadowViewProjection(Submission,out Matrix4x4 ShadowViewProjection)){
+                    continue;
+                }
+
+                int ProjectionIndex=this.SpotShadowProjectionCount;
+                ShadowAtlasTile Tile=Allocation.GetTile(0);
+                this.WriteSpotShadowProjection(FrameIndex,ProjectionIndex,ShadowViewProjection,Tile);
+                this.WriteSpotShadowMetadata(FrameIndex,LocalIndex,Submission,ProjectionIndex);
+                this.SpotShadowAtlasProjections.Add(new ShadowAtlasProjection(
+                    Tile,ProjectionIndex+1)); // slot zero belongs to the directional projection.
+                this.SpotShadowProjectionCount++;
+                continue;
+            }
+
+            if((Allocation.Candidate.Kind!=PhysicalLightKind.Area
+                &&Allocation.Candidate.Kind!=PhysicalLightKind.Emissive)
+                ||this.AreaShadowProjectionCount>=MaxAreaAndEmissiveShadowProjections
+                ||!TryBuildAreaShadowViewProjection(Submission,out Matrix4x4 AreaShadowViewProjection)){
+                continue;
+            }
+
+            int AreaProjectionIndex=this.AreaShadowProjectionCount;
+            if(Allocation.TileCount!=1){
+                continue;
+            }
+            ShadowAtlasTile AreaTile=Allocation.GetTile(0);
+            this.WriteAreaShadowProjection(
+                FrameIndex,AreaProjectionIndex,AreaShadowViewProjection,AreaTile);
+            this.WriteAreaShadowMetadata(FrameIndex,LocalIndex,Submission,AreaProjectionIndex);
+            this.AreaShadowAtlasProjections.Add(new ShadowAtlasProjection(
+                AreaTile,AreaShadowProjectionConstantSlotOffset+AreaProjectionIndex));
+            this.AreaShadowProjectionCount++;
+        }
+
+        this.WriteLightCounts(FrameIndex);
+    }
+
+    private static float CalculateScreenContribution(in LocalLightSubmission Submission,in Matrix4x4 ViewProjection){
+        float Luminance=MathF.Max(Submission.ColorTimesIntensity.X,
+            MathF.Max(Submission.ColorTimesIntensity.Y,Submission.ColorTimesIntensity.Z));
+        if(!float.IsFinite(Luminance)||!float.IsFinite(Submission.Range)){
+            return float.MaxValue;
+        }
+        Luminance=MathF.Max(0f,Luminance);
+        Vector4 Clip=Vector4.Transform(new Vector4(Submission.Position,1f),ViewProjection);
+        float Depth=MathF.Abs(Clip.W);
+        if(!float.IsFinite(Depth)||Depth<1e-3f){
+            return MathF.Min(float.MaxValue,Luminance*Submission.Range*Submission.Range);
+        }
+        float Contribution=Luminance*Submission.Range*Submission.Range/MathF.Max(Depth*Depth,1e-4f);
+        return float.IsFinite(Contribution)?Contribution:float.MaxValue;
+    }
+
+    private bool TryGetForwardPlusTileBounds(
+        in LocalLightSubmission Submission,in Matrix4x4 ViewProjection,
+        out int MinimumTileX,out int MaximumTileX,out int MinimumTileY,out int MaximumTileY){
+        if(this.ForwardPlusTileCountX<=0||this.ForwardPlusTileCountY<=0){
+            MinimumTileX=MaximumTileX=MinimumTileY=MaximumTileY=0;
+            return false;
+        }
+        if(!IsFinite(Submission.Position)||!float.IsFinite(Submission.Range)||Submission.Range<=0f){
+            MinimumTileX=0;
+            MaximumTileX=this.ForwardPlusTileCountX-1;
+            MinimumTileY=0;
+            MaximumTileY=this.ForwardPlusTileCountY-1;
+            return true;
+        }
+
+        float MinimumNdcX=float.MaxValue;
+        float MaximumNdcX=float.MinValue;
+        float MinimumNdcY=float.MaxValue;
+        float MaximumNdcY=float.MinValue;
+        for(int X=-1;X<=1;X+=2){
+            for(int Y=-1;Y<=1;Y+=2){
+                for(int Z=-1;Z<=1;Z+=2){
+                    Vector3 Corner=Submission.Position+(new Vector3(X,Y,Z)*Submission.Range);
+                    Vector4 Clip=Vector4.Transform(new Vector4(Corner,1f),ViewProjection);
+                    if(!float.IsFinite(Clip.X)||!float.IsFinite(Clip.Y)||!float.IsFinite(Clip.W)||Clip.W<=1e-4f){
+                        MinimumTileX=0;
+                        MaximumTileX=this.ForwardPlusTileCountX-1;
+                        MinimumTileY=0;
+                        MaximumTileY=this.ForwardPlusTileCountY-1;
+                        return true;
+                    }
+                    float NdcX=Clip.X/Clip.W;
+                    float NdcY=Clip.Y/Clip.W;
+                    MinimumNdcX=MathF.Min(MinimumNdcX,NdcX);
+                    MaximumNdcX=MathF.Max(MaximumNdcX,NdcX);
+                    MinimumNdcY=MathF.Min(MinimumNdcY,NdcY);
+                    MaximumNdcY=MathF.Max(MaximumNdcY,NdcY);
+                }
+            }
+        }
+
+        if(MaximumNdcX< -1f||MinimumNdcX>1f||MaximumNdcY< -1f||MinimumNdcY>1f){
+            MinimumTileX=MaximumTileX=MinimumTileY=MaximumTileY=0;
+            return false;
+        }
+        float MinimumPixelX=(MinimumNdcX*0.5f+0.5f)*this.Width;
+        float MaximumPixelX=(MaximumNdcX*0.5f+0.5f)*this.Width;
+        float MinimumPixelY=(-MaximumNdcY*0.5f+0.5f)*this.Height;
+        float MaximumPixelY=(-MinimumNdcY*0.5f+0.5f)*this.Height;
+        MinimumTileX=Math.Clamp((int)MathF.Floor(MinimumPixelX/ForwardPlusTileSizePixels),0,this.ForwardPlusTileCountX-1);
+        MaximumTileX=Math.Clamp((int)MathF.Floor(MaximumPixelX/ForwardPlusTileSizePixels),0,this.ForwardPlusTileCountX-1);
+        MinimumTileY=Math.Clamp((int)MathF.Floor(MinimumPixelY/ForwardPlusTileSizePixels),0,this.ForwardPlusTileCountY-1);
+        MaximumTileY=Math.Clamp((int)MathF.Floor(MaximumPixelY/ForwardPlusTileSizePixels),0,this.ForwardPlusTileCountY-1);
+        return true;
+    }
+
+    private static bool IsFinite(Vector3 Value)=>float.IsFinite(Value.X)&&float.IsFinite(Value.Y)&&float.IsFinite(Value.Z);
+
+    private static bool TryNormalize(Vector3 Value,out Vector3 Normalized){
+        Normalized=Vector3.Zero;
+        if(!IsFinite(Value)){
+            return false;
+        }
+        float LengthSquared=Value.LengthSquared();
+        if(!float.IsFinite(LengthSquared)||LengthSquared<=1e-12f){
+            return false;
+        }
+        Normalized=Value/MathF.Sqrt(LengthSquared);
+        return IsFinite(Normalized);
+    }
+
+    private void WriteLocalLight(uint FrameIndex,int Index,in LocalLightSubmission Submission){
+        LocalLightGpuData Data=new(){
+            PositionAndRange=new Vector4(Submission.Position,Submission.Range),
+            DirectionAndInnerCos=new Vector4(Submission.Direction,Submission.InnerConeCos),
+            ColorAndOuterCos=new Vector4(Submission.ColorTimesIntensity,Submission.OuterConeCos),
+            TypeAndPadding=new Vector4((float)Submission.Type,-1f,0f,0f),
+            RightAndHalfWidth=new Vector4(Submission.Right,Submission.HalfWidth),
+            UpAndHalfHeight=new Vector4(Submission.Up,Submission.HalfHeight),
+        };
+        byte*Destination=this.LocalLightsFrameSlot(FrameIndex)+((uint)Index*LocalLightStride);
+        Unsafe.CopyBlock(Destination,&Data,LocalLightStride);
+    }
+
+    private void WritePointShadowMetadata(
+        uint FrameIndex,int LocalLightIndex,in LocalLightSubmission Submission,int ProjectionBaseIndex){
+        if(Submission.Type!=LocalLightType.Point){
+            throw new ArgumentException("Only point lights may own six-face atlas shadows.",nameof(Submission));
+        }
+        Vector4 Metadata=new((float)Submission.Type,ProjectionBaseIndex,Submission.ShadowBiasMeters,0f);
+        byte*Destination=this.LocalLightsFrameSlot(FrameIndex)+((uint)LocalLightIndex*LocalLightStride)+48;
+        Unsafe.CopyBlock(Destination,&Metadata,(uint)sizeof(Vector4));
+    }
+
+    private void WriteSpotShadowMetadata(
+        uint FrameIndex,int LocalLightIndex,in LocalLightSubmission Submission,int ProjectionIndex){
+        if(Submission.Type!=LocalLightType.Spot){
+            throw new ArgumentException("Only spot lights may own projected atlas shadows.",nameof(Submission));
+        }
+        Vector4 Metadata=new((float)Submission.Type,ProjectionIndex,Submission.ShadowBiasMeters,0f);
+        byte*Destination=this.LocalLightsFrameSlot(FrameIndex)+((uint)LocalLightIndex*LocalLightStride)+48;
+        Unsafe.CopyBlock(Destination,&Metadata,(uint)sizeof(Vector4));
+    }
+
+    /// <summary>
+    /// Writes the source extent and selected center-projection index for one true rectangular
+    /// Area/Emissive light. The metadata record is indexed by projection index; the local-light
+    /// record carries that same index for the later pixel-shadow lookup.
+    /// </summary>
+    private void WriteAreaShadowMetadata(
+        uint FrameIndex,int LocalLightIndex,in LocalLightSubmission Submission,int ProjectionIndex){
+        if(Submission.Type!=LocalLightType.Area){
+            throw new ArgumentException("Only Area/Emissive lights may own area atlas shadows.",nameof(Submission));
+        }
+        if((uint)ProjectionIndex>=(uint)MaxAreaAndEmissiveShadowProjections){
+            throw new ArgumentOutOfRangeException(nameof(ProjectionIndex));
+        }
+
+        AreaShadowMetadataGpuData Data=new(){
+            SourceRadiusAndPadding=new Vector4(
+                MathF.Sqrt((Submission.HalfWidth*Submission.HalfWidth)
+                    +(Submission.HalfHeight*Submission.HalfHeight)),
+                Math.Clamp(Submission.Range*0.005f,0.01f,0.1f),
+                MathF.Max(Submission.Range,
+                    Math.Clamp(Submission.Range*0.005f,0.01f,0.1f)+0.01f),0f),
+        };
+        byte*MetadataDestination=this.AreaShadowMetadataFrameSlot(FrameIndex)
+            +((uint)ProjectionIndex*AreaShadowMetadataStride);
+        Unsafe.CopyBlock(MetadataDestination,&Data,AreaShadowMetadataStride);
+
+        Vector4 Metadata=new((float)Submission.Type,ProjectionIndex,Submission.ShadowBiasMeters,0f);
+        byte*LocalLightDestination=this.LocalLightsFrameSlot(FrameIndex)
+            +((uint)LocalLightIndex*LocalLightStride)+48;
+        Unsafe.CopyBlock(LocalLightDestination,&Metadata,(uint)sizeof(Vector4));
+    }
+
+    private void WriteAreaShadowProjection(
+        uint FrameIndex,int ProjectionIndex,Matrix4x4 ViewProjection,in ShadowAtlasTile Tile){
+        if((uint)ProjectionIndex>=(uint)MaxAreaAndEmissiveShadowProjections){
+            throw new ArgumentOutOfRangeException(nameof(ProjectionIndex));
+        }
+        AreaShadowProjectionGpuData Data=new(){
+            ViewProjection=ViewProjection,
+            UvScaleOffset=Tile.UvScaleOffset,
+        };
+        byte*Destination=this.AreaShadowProjectionFrameSlot(FrameIndex)
+            +((uint)ProjectionIndex*AreaShadowProjectionStride);
+        Unsafe.CopyBlock(Destination,&Data,AreaShadowProjectionStride);
+        Unsafe.CopyBlock(this.ShadowConstantsSlot(
+            FrameIndex,AreaShadowProjectionConstantSlotOffset+ProjectionIndex),
+            &ViewProjection,(uint)sizeof(Matrix4x4));
+    }
+
+    /// <summary>Initializes the independently-bound t9/t10 records before any Area light is submitted.</summary>
+    private void WriteAreaShadowDefaults(uint FrameIndex){
+        AreaShadowMetadataGpuData Metadata=new(){ SourceRadiusAndPadding=Vector4.Zero };
+        AreaShadowProjectionGpuData Projection=new(){
+            ViewProjection=Matrix4x4.Identity,
+            UvScaleOffset=Vector4.Zero,
+        };
+        for(int ProjectionIndex=0;ProjectionIndex<MaxAreaAndEmissiveShadowProjections;ProjectionIndex++){
+            byte*MetadataDestination=this.AreaShadowMetadataFrameSlot(FrameIndex)
+                +((uint)ProjectionIndex*AreaShadowMetadataStride);
+            Unsafe.CopyBlock(MetadataDestination,&Metadata,AreaShadowMetadataStride);
+            byte*ProjectionDestination=this.AreaShadowProjectionFrameSlot(FrameIndex)
+                +((uint)ProjectionIndex*AreaShadowProjectionStride);
+            Unsafe.CopyBlock(ProjectionDestination,&Projection,AreaShadowProjectionStride);
+            Matrix4x4 ViewProjection=Projection.ViewProjection;
+            Unsafe.CopyBlock(this.ShadowConstantsSlot(
+                FrameIndex,AreaShadowProjectionConstantSlotOffset+ProjectionIndex),
+                &ViewProjection,(uint)sizeof(Matrix4x4));
+        }
+    }
+
+    private void WritePointShadowProjection(
+        uint FrameIndex,int ProjectionIndex,Matrix4x4 ViewProjection,in ShadowAtlasTile Tile){
+        if((uint)ProjectionIndex>=(uint)MaxPointShadowProjections){
+            throw new ArgumentOutOfRangeException(nameof(ProjectionIndex));
+        }
+        PointShadowProjectionGpuData Data=new(){
+            ViewProjection=ViewProjection,
+            UvScaleOffset=Tile.UvScaleOffset,
+        };
+        byte*Destination=this.PointShadowProjectionFrameSlot(FrameIndex)
+            +((uint)ProjectionIndex*PointShadowProjectionStride);
+        Unsafe.CopyBlock(Destination,&Data,PointShadowProjectionStride);
+        Unsafe.CopyBlock(this.ShadowConstantsSlot(
+            FrameIndex,PointShadowProjectionConstantSlotOffset+ProjectionIndex),
+            &ViewProjection,(uint)sizeof(Matrix4x4));
+    }
+
+    private void WriteSpotShadowProjection(
+        uint FrameIndex,int ProjectionIndex,Matrix4x4 ViewProjection,in ShadowAtlasTile Tile){
+        if((uint)ProjectionIndex>=(uint)MaxSpotShadowProjections){
+            throw new ArgumentOutOfRangeException(nameof(ProjectionIndex));
+        }
+        SpotShadowProjectionGpuData Data=new(){
+            ViewProjection=ViewProjection,
+            UvScaleOffset=Tile.UvScaleOffset,
+        };
+        byte*Destination=this.SpotShadowProjectionFrameSlot(FrameIndex)
+            +((uint)ProjectionIndex*SpotShadowProjectionStride);
+        Unsafe.CopyBlock(Destination,&Data,SpotShadowProjectionStride);
+        Unsafe.CopyBlock(this.ShadowConstantsSlot(FrameIndex,ProjectionIndex+1),
+            &ViewProjection,(uint)sizeof(Matrix4x4));
+    }
+
+    private static bool TryBuildSpotShadowViewProjection(
+        in LocalLightSubmission Submission,out Matrix4x4 ShadowViewProjection){
+        ShadowViewProjection=Matrix4x4.Identity;
+        if(!IsFinite(Submission.Position)||!IsFinite(Submission.Direction)
+            ||!float.IsFinite(Submission.Range)||Submission.Range<=0f
+            ||!float.IsFinite(Submission.OuterConeCos)){
+            return false;
+        }
+
+        float DirectionLengthSquared=Submission.Direction.LengthSquared();
+        if(DirectionLengthSquared<1e-8f||!float.IsFinite(DirectionLengthSquared)){
+            return false;
+        }
+
+        Vector3 Direction=Vector3.Normalize(Submission.Direction);
+        Vector3 Up=MathF.Abs(Vector3.Dot(Direction,Vector3.UnitY))>0.99f
+            ?Vector3.UnitX:Vector3.UnitY;
+        float OuterHalfAngleRadians=MathF.Acos(Math.Clamp(Submission.OuterConeCos,-1f,1f));
+        float FieldOfView=Math.Clamp(OuterHalfAngleRadians*2f,0.01f,MathF.PI-0.01f);
+        float NearZ=Math.Clamp(Submission.Range*0.005f,0.01f,0.1f);
+        float FarZ=MathF.Max(Submission.Range,NearZ+0.01f);
+        Matrix4x4 View=Matrix4x4.CreateLookAt(
+            Submission.Position,Submission.Position+Direction,Up);
+        ShadowViewProjection=View*Matrix4x4.CreatePerspectiveFieldOfView(FieldOfView,1f,NearZ,FarZ);
+        return true;
+    }
+
+    /// <summary>
+    /// Builds the safe center projection used by an Area/Emissive rectangular source's atlas
+    /// tile. The source itself remains a rectangle for direct lighting; this is intentionally a
+    /// conservative, one-tile perspective view centered on the source normal for the later PCSS
+    /// lookup path.
+    /// </summary>
+    private static bool TryBuildAreaShadowViewProjection(
+        in LocalLightSubmission Submission,out Matrix4x4 ShadowViewProjection){
+        ShadowViewProjection=Matrix4x4.Identity;
+        if(Submission.Type!=LocalLightType.Area
+            ||!IsFinite(Submission.Position)||!IsFinite(Submission.Direction)||!IsFinite(Submission.Up)
+            ||!float.IsFinite(Submission.Range)||Submission.Range<=0f
+            ||!float.IsFinite(Submission.HalfWidth)||Submission.HalfWidth<=0f
+            ||!float.IsFinite(Submission.HalfHeight)||Submission.HalfHeight<=0f){
+            return false;
+        }
+        if(!TryNormalize(Submission.Direction,out Vector3 Direction)
+            ||!TryNormalize(Submission.Up,out Vector3 Up)){
+            return false;
+        }
+        float DirectionUpDot=MathF.Abs(Vector3.Dot(Direction,Up));
+        if(!float.IsFinite(DirectionUpDot)||DirectionUpDot>=0.999f){
+            return false;
+        }
+
+        float NearZ=Math.Clamp(Submission.Range*0.005f,0.01f,0.1f);
+        float FarZ=MathF.Max(Submission.Range,NearZ+0.01f);
+        Matrix4x4 View=Matrix4x4.CreateLookAt(
+            Submission.Position,Submission.Position+Direction,Up);
+        ShadowViewProjection=View*Matrix4x4.CreatePerspectiveFieldOfView(
+            MathF.PI/2f,1f,NearZ,FarZ);
+        return true;
+    }
+
+    private static bool TryValidatePointShadowProjection(in LocalLightSubmission Submission)=>
+        IsFinite(Submission.Position)&&float.IsFinite(Submission.Range)&&Submission.Range>0f;
+
+    /// <summary>
+    /// Builds the six row-vector 90-degree point-light views in the atlas face order
+    /// +X, -X, +Y, -Y, +Z, -Z. HLSL's face selector uses this exact ordering.
+    /// </summary>
+    private static bool TryBuildPointShadowViewProjections(
+        in LocalLightSubmission Submission,Span<Matrix4x4> FaceViewProjections){
+        if(FaceViewProjections.Length<MaxPointShadowProjections
+            ||!TryValidatePointShadowProjection(Submission)){
+            return false;
+        }
+
+        float NearZ=Math.Clamp(Submission.Range*0.005f,0.01f,0.1f);
+        float FarZ=MathF.Max(Submission.Range,NearZ+0.01f);
+        Matrix4x4 Projection=Matrix4x4.CreatePerspectiveFieldOfView(
+            MathF.PI/2f,1f,NearZ,FarZ);
+        for(int FaceIndex=0;FaceIndex<MaxPointShadowProjections;FaceIndex++){
+            GetPointShadowFaceBasis(FaceIndex,out Vector3 Direction,out Vector3 Up);
+            Matrix4x4 View=Matrix4x4.CreateLookAt(
+                Submission.Position,Submission.Position+Direction,Up);
+            FaceViewProjections[FaceIndex]=View*Projection;
+        }
+        return true;
+    }
+
+    private static void GetPointShadowFaceBasis(
+        int FaceIndex,out Vector3 Direction,out Vector3 Up){
+        switch(FaceIndex){
+            case 0:
+                Direction=Vector3.UnitX;
+                Up=Vector3.UnitY;
+                return;
+            case 1:
+                Direction=-Vector3.UnitX;
+                Up=Vector3.UnitY;
+                return;
+            case 2:
+                Direction=Vector3.UnitY;
+                Up=-Vector3.UnitZ;
+                return;
+            case 3:
+                Direction=-Vector3.UnitY;
+                Up=Vector3.UnitZ;
+                return;
+            case 4:
+                Direction=Vector3.UnitZ;
+                Up=Vector3.UnitY;
+                return;
+            case 5:
+                Direction=-Vector3.UnitZ;
+                Up=Vector3.UnitY;
+                return;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(FaceIndex));
+        }
+    }
+
+    private void AddForwardPlusTileCandidate(uint FrameIndex,int TileX,int TileY,int LocalLightIndex){
+        uint TileIndex=(uint)((TileY*this.ForwardPlusTileCountX)+TileX);
+        uint*Record=(uint*)(this.ForwardPlusTileFrameSlot(FrameIndex)+(TileIndex*ForwardPlusTileRecordStride));
+        uint Count=Record[0];
+        if(Count>=(uint)MaxLightsPerForwardPlusTile){
+            this.DroppedTileLightReferencesThisFrameValue++;
+            return;
+        }
+        Record[Count+1]=(uint)LocalLightIndex;
+        Record[0]=Count+1;
+    }
+
+    /// <summary>Writes FrameCB counts: local StructuredBuffer count, directional shadow index and directional count.</summary>
     private void WriteLightCounts(uint FrameIndex){
-        var Counts=stackalloc int[4]{ this.PointLightCount, this.SpotLightCount,0,0 };
+        var Counts=stackalloc int[4]{ this.LocalLightCount,this.DirectionalShadowIndex,this.DirectionalLightCount,this.SpotShadowProjectionCount };
         Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameLightCountsOffset,Counts,16);
     }
 
@@ -1277,23 +2401,49 @@ public sealed unsafe class StageRenderer:IDisposable {
         Vector4 MaterialParams=new(this.MaterialRoughnessFactors[MaterialIndex], this.MaterialMetallicFactors[MaterialIndex],0f,0f);
         Unsafe.CopyBlock(Destination+ObjectMaterialParamsOffset,&MaterialParams,(uint)sizeof(Vector4));
 
-        Vector4 EmissiveFactor=new(this.MaterialEmissiveFactors[MaterialIndex],1f);
-        Unsafe.CopyBlock(Destination+ObjectEmissiveFactorOffset,&EmissiveFactor,(uint)sizeof(Vector4));
+        Vector4 EmissiveNits=new(this.MaterialEmissiveNits[MaterialIndex],1f);
+        Unsafe.CopyBlock(Destination+ObjectEmissiveFactorOffset,&EmissiveNits,(uint)sizeof(Vector4));
     }
 
     private ulong GetFrameConstantsAddress(uint FrameIndex){
         return this.FrameConstantsBuffer->GetGPUVirtualAddress()+(FrameIndex*FrameConstantsStride);
     }
 
+    private ulong GetLocalLightsAddress(uint FrameIndex)=>
+        this.LocalLightsBuffer->GetGPUVirtualAddress()+(FrameIndex*(LocalLightStride*(uint)MaxLocalLights));
+
+    private ulong GetSpotShadowProjectionAddress(uint FrameIndex)=>
+        this.SpotShadowProjectionBuffer->GetGPUVirtualAddress()+(FrameIndex*(SpotShadowProjectionStride*(uint)MaxSpotShadowProjections));
+
+    private ulong GetPointShadowProjectionAddress(uint FrameIndex)=>
+        this.PointShadowProjectionBuffer->GetGPUVirtualAddress()+(FrameIndex*(PointShadowProjectionStride*(uint)MaxPointShadowProjections));
+
+    private ulong GetAreaShadowMetadataAddress(uint FrameIndex)=>
+        this.AreaShadowMetadataBuffer->GetGPUVirtualAddress()
+        +(FrameIndex*(AreaShadowMetadataStride*(uint)MaxAreaAndEmissiveShadowProjections));
+
+    private ulong GetAreaShadowProjectionAddress(uint FrameIndex)=>
+        this.AreaShadowProjectionBuffer->GetGPUVirtualAddress()
+        +(FrameIndex*(AreaShadowProjectionStride*(uint)MaxAreaAndEmissiveShadowProjections));
+
+    private ulong GetForwardPlusTileListAddress(uint FrameIndex)=>
+        this.ForwardPlusTileListBuffer->GetGPUVirtualAddress()+(FrameIndex*this.ForwardPlusTileFrameSize);
+
     private ulong GetObjectConstantsAddress(uint FrameIndex,int ObjectIndex){
         var Slot=((ulong)FrameIndex*(ulong)this.ObjectCount)+(ulong)ObjectIndex;
         return this.ObjectConstantsBuffer->GetGPUVirtualAddress()+(Slot*ConstantAlignment);
     }
 
-    private ulong GetShadowConstantsAddress(uint FrameIndex)=> this.ShadowConstantsBuffer->GetGPUVirtualAddress()+(FrameIndex*ConstantAlignment);
+    private ulong GetShadowConstantsAddress(uint FrameIndex,int Slot){
+        if((uint)Slot>=(uint)ShadowAtlasProjectionConstantSlotCount){
+            throw new ArgumentOutOfRangeException(nameof(Slot));
+        }
+        ulong LinearSlot=((ulong)FrameIndex*(uint)ShadowAtlasProjectionConstantSlotCount)+(uint)Slot;
+        return this.ShadowConstantsBuffer->GetGPUVirtualAddress()+(LinearSlot*ConstantAlignment);
+    }
 
     private D3D12_GPU_DESCRIPTOR_HANDLE GetMaterialDescriptorTable(int MaterialIndex){
-        return new D3D12_GPU_DESCRIPTOR_HANDLE(this.SrvHeap->GetGPUDescriptorHandleForHeapStart(),MaterialIndex*4, this.SrvDescriptorSize);
+        return new D3D12_GPU_DESCRIPTOR_HANDLE(this.SrvHeap->GetGPUDescriptorHandleForHeapStart(),MaterialIndex*5, this.SrvDescriptorSize);
     }
 
     private void UpdateViewportAndScissor(int Width,int Height){
@@ -1340,6 +2490,7 @@ public sealed unsafe class StageRenderer:IDisposable {
         }
 
         this.ReleaseReadbackBuffer();
+        this.ReleaseForwardPlusTileBuffer();
 
         if(this.DepthBuffer!=null){
             _= this.DepthBuffer->Release();
@@ -1357,24 +2508,54 @@ public sealed unsafe class StageRenderer:IDisposable {
         this.CreateRenderTargetViews();
         this.CreateDepthBuffer(Width,Height);
         this.CreateHdrColorBuffer(Width,Height);
+        this.CreateForwardPlusTileBuffer(Width,Height);
         this.FrameIndex= this.SwapChain->GetCurrentBackBufferIndex();
         this.UpdateViewportAndScissor(Width,Height);
     }
 
-    private void RenderShadowPass(){
-        D3D12_RESOURCE_BARRIER ToDepth=D3D12_RESOURCE_BARRIER.InitTransition(this.ShadowMap,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_DEPTH_WRITE);
+    /// <summary>Renders the selected directional and Spot projection tiles in one Atlas transition pair.</summary>
+    private void RenderShadowAtlasProjections(){
+        if(this.DirectionalShadowIndex<0&&this.PointShadowAtlasProjections.Count==0
+            &&this.SpotShadowAtlasProjections.Count==0
+            &&this.AreaShadowAtlasProjections.Count==0){
+            return;
+        }
+        D3D12_RESOURCE_BARRIER ToDepth=D3D12_RESOURCE_BARRIER.InitTransition(this.ShadowAtlas,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_DEPTH_WRITE);
         this.CommandList->ResourceBarrier(1,&ToDepth);
         D3D12_CPU_DESCRIPTOR_HANDLE ShadowDsv=new(this.DsvHeap->GetCPUDescriptorHandleForHeapStart(),1, this.DsvDescriptorSize);
         this.CommandList->OMSetRenderTargets(0,null,FALSE,&ShadowDsv);
-        this.CommandList->ClearDepthStencilView(ShadowDsv,D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH,1.0f,0,0,null);
         this.CommandList->SetGraphicsRootSignature(this.ShadowRootSignature);
         this.CommandList->SetPipelineState(this.ShadowPipelineState);
-        this.CommandList->SetGraphicsRootConstantBufferView(0, this.GetShadowConstantsAddress(this.FrameIndex));
-        D3D12_VIEWPORT ShadowViewport=new(){ Width=ShadowMapResolution,Height=ShadowMapResolution,MinDepth=0f,MaxDepth=1f };
-        RECT ShadowScissor=new(){ left=0,top=0,right=ShadowMapResolution,bottom=ShadowMapResolution };
+        this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        if(this.DirectionalShadowIndex>=0){
+            this.RenderShadowAtlasProjection(new ShadowAtlasProjection(DirectionalShadowAtlasTile,0),ShadowDsv);
+        }
+        foreach(ShadowAtlasProjection Projection in this.PointShadowAtlasProjections){
+            this.RenderShadowAtlasProjection(Projection,ShadowDsv);
+        }
+        foreach(ShadowAtlasProjection Projection in this.SpotShadowAtlasProjections){
+            this.RenderShadowAtlasProjection(Projection,ShadowDsv);
+        }
+        foreach(ShadowAtlasProjection Projection in this.AreaShadowAtlasProjections){
+            this.RenderShadowAtlasProjection(Projection,ShadowDsv);
+        }
+        D3D12_RESOURCE_BARRIER ToShader=D3D12_RESOURCE_BARRIER.InitTransition(this.ShadowAtlas,D3D12_RESOURCE_STATE_DEPTH_WRITE,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+        this.CommandList->ResourceBarrier(1,&ToShader);
+    }
+
+    private void RenderShadowAtlasProjection(
+        in ShadowAtlasProjection Projection,D3D12_CPU_DESCRIPTOR_HANDLE ShadowDsv){
+        ShadowAtlasTile Tile=Projection.Tile;
+        RECT ShadowScissor=new(){ left=Tile.X,top=Tile.Y,right=Tile.X+Tile.Width,bottom=Tile.Y+Tile.Height };
+        this.CommandList->ClearDepthStencilView(ShadowDsv,D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH,1.0f,0,1,&ShadowScissor);
+        this.CommandList->SetGraphicsRootConstantBufferView(0,
+            this.GetShadowConstantsAddress(this.FrameIndex,Projection.ShadowConstantsSlot));
+        D3D12_VIEWPORT ShadowViewport=new(){
+            TopLeftX=Tile.X,TopLeftY=Tile.Y,Width=Tile.Width,Height=Tile.Height,
+            MinDepth=0f,MaxDepth=1f,
+        };
         this.CommandList->RSSetViewports(1,&ShadowViewport);
         this.CommandList->RSSetScissorRects(1,&ShadowScissor);
-        this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         for(var I=0;I< this.ObjectCount;I++){
             var MeshIndex= this.ObjectMeshIndices[I];
             this.CommandList->SetGraphicsRootConstantBufferView(1, this.GetObjectConstantsAddress(this.FrameIndex,I));
@@ -1385,8 +2566,6 @@ public sealed unsafe class StageRenderer:IDisposable {
                 this.CommandList->DrawIndexedInstanced(this.IndexCounts[MeshIndex],1,0,0,0);
             }
         }
-        D3D12_RESOURCE_BARRIER ToShader=D3D12_RESOURCE_BARRIER.InitTransition(this.ShadowMap,D3D12_RESOURCE_STATE_DEPTH_WRITE,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-        this.CommandList->ResourceBarrier(1,&ToShader);
     }
 
     public void RenderFrame(bool CaptureForVerification=false){
@@ -1397,8 +2576,11 @@ public sealed unsafe class StageRenderer:IDisposable {
         ID3D12CommandAllocator*Allocator= this.CommandAllocators[this.FrameIndex];
         D3D12Diagnostics.EnsureSuccess(Allocator->Reset(),"ID3D12CommandAllocator::Reset","resetting the frame command allocator");
         D3D12Diagnostics.EnsureSuccess(this.CommandList->Reset(Allocator, this.PipelineState),"ID3D12GraphicsCommandList::Reset","resetting the graphics command list");
+        this.PrepareDirectionalLights(this.FrameIndex);
+        this.PrepareForwardPlusLocalLights(this.FrameIndex);
 
-        this.RenderShadowPass();
+        this.PrepareLocalShadowAtlasProjections(this.FrameIndex);
+        this.RenderShadowAtlasProjections();
 
         ID3D12Resource*BackBuffer= this.BackBuffers[this.FrameIndex];
 
@@ -1419,6 +2601,12 @@ public sealed unsafe class StageRenderer:IDisposable {
         ID3D12DescriptorHeap*SrvHeap=this.SrvHeap;
         this.CommandList->SetDescriptorHeaps(1,&SrvHeap);
         this.CommandList->SetGraphicsRootConstantBufferView(0, this.GetFrameConstantsAddress(this.FrameIndex));
+        this.CommandList->SetGraphicsRootShaderResourceView(3,this.GetLocalLightsAddress(this.FrameIndex));
+        this.CommandList->SetGraphicsRootShaderResourceView(4,this.GetForwardPlusTileListAddress(this.FrameIndex));
+        this.CommandList->SetGraphicsRootShaderResourceView(5,this.GetSpotShadowProjectionAddress(this.FrameIndex));
+        this.CommandList->SetGraphicsRootShaderResourceView(6,this.GetPointShadowProjectionAddress(this.FrameIndex));
+        this.CommandList->SetGraphicsRootShaderResourceView(7,this.GetAreaShadowMetadataAddress(this.FrameIndex));
+        this.CommandList->SetGraphicsRootShaderResourceView(8,this.GetAreaShadowProjectionAddress(this.FrameIndex));
 
         fixed(D3D12_VIEWPORT*PViewport=&this.Viewport)
         fixed(RECT*PScissorRect=&this.ScissorRect){
@@ -1492,11 +2680,32 @@ public sealed unsafe class StageRenderer:IDisposable {
         this.Device.PollDebugMessages();
         this.FramesRendered++;
 
-        // The point/spot light counts (and the data they gate) have already been submitted to the
+        // All additive light counts (and the data they gate) have already been submitted to the
         // GPU above; reset so the next frame starts from zero and only reflects lights that call
-        // AddPointLight/AddSpotLight again this frame (see the fields' doc comment).
-        this.PointLightCount=0;
-        this.SpotLightCount=0;
+        // their Add method again this frame (see the fields' doc comment).
+        if(!this.DirectionalLightsPersistAcrossFrames){
+            this.DirectionalLightCount=0;
+            this.DirectionalShadowIndex=-1;
+            this.SelectedDirectionalShadowAtlasCandidate=null;
+        }
+        this.DirectionalLightsExplicitThisFrame=false;
+        this.DirectionalShadowCandidates.Clear();
+        this.DirectionalLightSubmissions.Clear();
+        this.LocalLightSubmissions.Clear();
+        this.SelectedLocalLightSubmissions.Clear();
+        this.PointShadowAtlasProjections.Clear();
+        this.SpotShadowAtlasProjections.Clear();
+        this.AreaShadowAtlasProjections.Clear();
+        this.LocalLightCount=0;
+        this.PointShadowProjectionCount=0;
+        this.SpotShadowProjectionCount=0;
+        this.AreaShadowProjectionCount=0;
+        this.DroppedDirectionalLightsLastFrame=this.DroppedDirectionalLightsThisFrameValue;
+        this.DroppedDirectionalLightsThisFrameValue=0;
+        this.DroppedLocalLightsLastFrame=this.DroppedLocalLightsThisFrameValue;
+        this.DroppedLocalLightsThisFrameValue=0;
+        this.DroppedTileLightReferencesLastFrame=this.DroppedTileLightReferencesThisFrameValue;
+        this.DroppedTileLightReferencesThisFrameValue=0;
 
         if(CaptureForVerification){
             this.WaitForGpuIdle();
@@ -1592,12 +2801,48 @@ public sealed unsafe class StageRenderer:IDisposable {
         this.WaitForGpuIdle();
 
         this.ReleaseReadbackBuffer();
+        this.ReleaseForwardPlusTileBuffer();
 
         if(this.FrameConstantsBuffer!=null){
             this.FrameConstantsBuffer->Unmap(0,null);
             this.FrameConstantsMapped=null;
             _= this.FrameConstantsBuffer->Release();
             this.FrameConstantsBuffer=null;
+        }
+
+        if(this.LocalLightsBuffer!=null){
+            this.LocalLightsBuffer->Unmap(0,null);
+            this.LocalLightsMapped=null;
+            _=this.LocalLightsBuffer->Release();
+            this.LocalLightsBuffer=null;
+        }
+
+        if(this.SpotShadowProjectionBuffer!=null){
+            this.SpotShadowProjectionBuffer->Unmap(0,null);
+            this.SpotShadowProjectionMapped=null;
+            _=this.SpotShadowProjectionBuffer->Release();
+            this.SpotShadowProjectionBuffer=null;
+        }
+
+        if(this.PointShadowProjectionBuffer!=null){
+            this.PointShadowProjectionBuffer->Unmap(0,null);
+            this.PointShadowProjectionMapped=null;
+            _=this.PointShadowProjectionBuffer->Release();
+            this.PointShadowProjectionBuffer=null;
+        }
+
+        if(this.AreaShadowMetadataBuffer!=null){
+            this.AreaShadowMetadataBuffer->Unmap(0,null);
+            this.AreaShadowMetadataMapped=null;
+            _=this.AreaShadowMetadataBuffer->Release();
+            this.AreaShadowMetadataBuffer=null;
+        }
+
+        if(this.AreaShadowProjectionBuffer!=null){
+            this.AreaShadowProjectionBuffer->Unmap(0,null);
+            this.AreaShadowProjectionMapped=null;
+            _=this.AreaShadowProjectionBuffer->Release();
+            this.AreaShadowProjectionBuffer=null;
         }
 
         if(this.ObjectConstantsBuffer!=null){
@@ -1707,9 +2952,9 @@ public sealed unsafe class StageRenderer:IDisposable {
             this.DepthBuffer=null;
         }
 
-        if(this.ShadowMap!=null){
-            _= this.ShadowMap->Release();
-            this.ShadowMap=null;
+        if(this.ShadowAtlas!=null){
+            _= this.ShadowAtlas->Release();
+            this.ShadowAtlas=null;
         }
 
         if(this.DsvHeap!=null){

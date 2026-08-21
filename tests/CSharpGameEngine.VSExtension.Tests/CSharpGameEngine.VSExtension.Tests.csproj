@@ -45,6 +45,10 @@
        requiring a running Visual Studio instance. -->
   <ItemGroup>
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\source.extension.vsixmanifest" Link="TestAssets\source.extension.vsixmanifest" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\CSharpGameEngine.VSExtension\bin\$(Configuration)\net472\CSharpGameEngine.VSExtension.vsix" Link="TestAssets\CSharpGameEngine.VSExtension.vsix" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\CSharpGameEngine.VSExtension\ItemTemplates\CSharp\GameEngine\SceneFile\**\*"
+          Link="TestAssets\ItemTemplates\CSharp\GameEngine\SceneFile\%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
 
     <!-- M0051 Step 1-7: リネージ判定が SceneDiffEngine へ逆戻りしないことを検査するためのソース
          (SceneLineageArchitectureTests)。Step 1-6 はその形で実機の高速経路を丸ごと殺した。 -->

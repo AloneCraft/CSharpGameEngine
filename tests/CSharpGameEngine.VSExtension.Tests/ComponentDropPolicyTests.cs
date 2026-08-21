@@ -31,9 +31,9 @@ public sealed class ComponentDropPolicyTests {
     /// が拒否する。離す前に不可カーソルで伝えるため、同じ条件をここでも見る。
     /// </summary>
     [Fact]
-    public void Evaluate_NodeWithoutAComponentsList_IsRejected()=>
+    public void Evaluate_NodeWithoutAComponentsList_IsAcceptedAndCreatesItOnDrop()=>
         Assert.Equal(
-            ComponentDropVerdict.RejectNoComponentsList,
+            ComponentDropVerdict.Accept,
             ComponentDropPolicy.Evaluate(
                 HasScene:true,TargetResolved:true,TargetHasComponentsList:false,TargetAlreadyHasType:false));
 
@@ -57,8 +57,6 @@ public sealed class ComponentDropPolicyTests {
     [Fact]
     public void Describe_RejectionsNameTheComponentSoTheStatusBarIsActionable(){
         Assert.Contains("Transform",ComponentDropPolicy.Describe(ComponentDropVerdict.RejectDuplicate,"Transform"));
-        Assert.Contains(
-            "Transform",ComponentDropPolicy.Describe(ComponentDropVerdict.RejectNoComponentsList,"Transform"));
     }
 
     [Fact]

@@ -277,7 +277,7 @@ public sealed class SceneModelEditApplierTests {
     /// 保存操作で初めて失敗が判明することになる。
     /// </summary>
     [Fact]
-    public void TryApply_AddComponent_RejectsWhenComponentsListLocationIsMissing(){
+    public void TryApply_AddComponent_CreatesComponentsListWhenItIsMissing(){
         const string SourceWithoutComponentsList="""
             using CSharpGameEngine.Entities;
             using CSharpGameEngine.Runtime.Windows;
@@ -289,13 +289,16 @@ public sealed class SceneModelEditApplierTests {
         (var Base,var Projection,var Reconciler)=
             Analyze(SourceWithoutComponentsList);
 
-        Assert.False(SceneModelEditApplier.TryApply(
+        Assert.True(SceneModelEditApplier.TryApply(
             Base,Projection,Reconciler,Key,
             [new AddComponentOperation(
                 Key,FindId(Projection,"Empty"),DocumentVersion:1,
                 "global::CSharpGameEngine.Runtime.Windows.Transform",
                 "new global::CSharpGameEngine.Runtime.Windows.Transform()")],
-            out _,out _));
+            out var Predicted,out _));
+        var Empty=FindNode(Predicted,"Empty");
+        Assert.NotNull(Empty.FindComponent("global::CSharpGameEngine.Runtime.Windows.Transform"));
+        Assert.NotNull(Empty.ComponentsListLocation);
     }
 
     [Fact]

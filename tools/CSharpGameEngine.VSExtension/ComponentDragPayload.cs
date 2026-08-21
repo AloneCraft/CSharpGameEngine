@@ -20,6 +20,9 @@ internal sealed record ComponentDragPayload(
 internal enum ComponentDropVerdict {
     Accept,
 
+    /// <summary>Hierarchyの空白へ落とす。Root直下へ新規Entityを作る。</summary>
+    AcceptCreateRootChild,
+
     /// <summary>Sceneが開かれていない。</summary>
     RejectNoScene,
 
@@ -29,7 +32,7 @@ internal enum ComponentDropVerdict {
     /// <summary>同じ型のComponentを既に持っている。</summary>
     RejectDuplicate,
 
-    /// <summary>対象ノードに<c>Components=[…]</c>が書かれていないので、追加先の構文が無い。</summary>
+    /// <summary>互換用。編集可能なNodeにはComponentsコレクションを生成するため、通常は返さない。</summary>
     RejectNoComponentsList,
 }
 
@@ -48,33 +51,34 @@ internal enum ComponentDropVerdict {
 /// </summary>
 internal static class ComponentDropPolicy {
     internal static ComponentDropVerdict Evaluate(
-        bool HasScene,bool TargetResolved,bool TargetHasComponentsList,bool TargetAlreadyHasType){
+        bool HasScene,bool TargetResolved,bool TargetHasComponentsList,bool TargetAlreadyHasType,
+        bool CanCreateRootChild=false){
         if(!HasScene){
             return ComponentDropVerdict.RejectNoScene;
         }
 
         if(!TargetResolved){
-            return ComponentDropVerdict.RejectNoTarget;
+            return CanCreateRootChild?ComponentDropVerdict.AcceptCreateRootChild:ComponentDropVerdict.RejectNoTarget;
         }
 
         if(TargetAlreadyHasType){
             return ComponentDropVerdict.RejectDuplicate;
         }
 
-        return TargetHasComponentsList
-            ?ComponentDropVerdict.Accept
-            :ComponentDropVerdict.RejectNoComponentsList;
+        _=TargetHasComponentsList;
+        return ComponentDropVerdict.Accept;
     }
 
-    internal static bool Accepts(ComponentDropVerdict Verdict)=>Verdict==ComponentDropVerdict.Accept;
+    internal static bool Accepts(ComponentDropVerdict Verdict)=>Verdict is ComponentDropVerdict.Accept or ComponentDropVerdict.AcceptCreateRootChild;
 
     internal static string Describe(ComponentDropVerdict Verdict,string DisplayName)=>Verdict switch {
         ComponentDropVerdict.Accept=>$"{DisplayName} を追加します。",
+        ComponentDropVerdict.AcceptCreateRootChild=>$"Root 直下に {DisplayName} を持つ新規Entityを作成します。",
         ComponentDropVerdict.RejectNoScene=>"シーンが開かれていません。",
         ComponentDropVerdict.RejectNoTarget=>"追加先のノードがありません。",
-        ComponentDropVerdict.RejectDuplicate=>$"このノードは既に {DisplayName} を持っています。",
+        ComponentDropVerdict.RejectDuplicate=>$"このEntityには既に {DisplayName} があります。",
         ComponentDropVerdict.RejectNoComponentsList=>
-            $"このノードには Components=[…] が書かれていないため {DisplayName} を追加できません。",
+            $"このEntityの Components コレクションを作成できません。",
         _=>throw new ArgumentOutOfRangeException(nameof(Verdict),Verdict,"未知のドロップ判定です。"),
     };
 }

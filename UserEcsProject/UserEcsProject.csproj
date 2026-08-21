@@ -9,7 +9,7 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>false</SelfContained>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
-    <CompilerGeneratedFilesOutputPath>Generated</CompilerGeneratedFilesOutputPath>
+    <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)Generated</CompilerGeneratedFilesOutputPath>
   </PropertyGroup>
 
   <ItemGroup>
@@ -35,5 +35,6 @@
 
   <ItemGroup>
     <Compile Remove="../src/CSharpGameEngine.Entities/SceneComponentIconAttribute.cs" />
+    <Compile Remove="../src/CSharpGameEngine.Entities/SceneComponentOrderAttribute.cs" />
   </ItemGroup>
 </Project>

@@ -150,8 +150,10 @@ public static class GltfImporter {
     /// multi-object level rather than preview a single asset. Existing callers of
     /// <see cref="Import(string)"/> are unaffected; this is a separate, additive entry point.
     /// </summary>
-    public static GltfSceneImportResult ImportScene(string FilePath){
+    public static GltfSceneImportResult ImportScene(string FilePath,GltfImportOptions?Options=null){
         ArgumentException.ThrowIfNullOrWhiteSpace(FilePath);
+        Options??=new GltfImportOptions();
+        Options.Validate();
 
         var FullPath=Path.GetFullPath(FilePath);
         if(!File.Exists(FullPath)){
@@ -232,7 +234,7 @@ public static class GltfImporter {
                     MaterialIndex=GetOrAddDefaultMaterial(Materials,MaterialIndexByGltfMaterial);
                 } else if(!MaterialIndexByGltfMaterial.TryGetValue(Material,out MaterialIndex)){
                     MaterialIndex=Materials.Count;
-                    Materials.Add(ImportMaterial(Material));
+                    Materials.Add(ImportMaterial(Material,Options));
                     MaterialIndexByGltfMaterial[Material]=MaterialIndex;
                 }
 
@@ -286,22 +288,32 @@ public static class GltfImporter {
         return Materials.Count-1;
     }
 
-    private static ImportedPbrMaterial ImportMaterial(Material Material){
+    private static ImportedPbrMaterial ImportMaterial(Material Material,GltfImportOptions Options){
         MaterialChannel?BaseColorChannel=Material.FindChannel("BaseColor");
         MaterialChannel?NormalChannel=Material.FindChannel("Normal");
         MaterialChannel?MetallicRoughnessChannel=Material.FindChannel("MetallicRoughness");
         MaterialChannel?EmissiveChannel=Material.FindChannel("Emissive");
 
+        Vector3 EmissiveFactor=EmissiveChannel is { Color: var EmissiveColor }
+            ?new Vector3(EmissiveColor.X,EmissiveColor.Y,EmissiveColor.Z)
+            :Vector3.Zero;
+        var EmissiveStrength=EmissiveChannel?.GetFactor("EmissiveStrength")??1f;
+        byte[]?EmissiveTextureBytes=ExtractTextureBytes(EmissiveChannel);
+        float EmissiveTextureLuminanceScale=EmissiveTextureLuminance.CalculateOrIdentity(EmissiveTextureBytes);
+
+
         return new ImportedPbrMaterial {
             BaseColorFactor=BaseColorChannel?.Color??new Vector4(1f,1f,1f,1f),
             MetallicFactor=MetallicRoughnessChannel?.GetFactor("MetallicFactor")??1f,
             RoughnessFactor=MetallicRoughnessChannel?.GetFactor("RoughnessFactor")??1f,
-            EmissiveFactor=EmissiveChannel is { Color: var EmissiveColor }
-                ? new Vector3(EmissiveColor.X,EmissiveColor.Y,EmissiveColor.Z)
-                : Vector3.Zero,
+            EmissiveFactor=EmissiveFactor,
+            EmissiveStrength=EmissiveStrength,
+            EmissiveNits=EmissiveFactor*EmissiveStrength*Options.EmissiveNitsPerUnit,
             BaseColorTextureBytes=ExtractTextureBytes(BaseColorChannel),
             NormalTextureBytes=ExtractTextureBytes(NormalChannel),
             MetallicRoughnessTextureBytes=ExtractTextureBytes(MetallicRoughnessChannel),
+            EmissiveTextureLuminanceScale=EmissiveTextureLuminanceScale,
+            EmissiveTextureBytes=EmissiveTextureBytes,
         };
     }
 

@@ -152,7 +152,7 @@
                   PreviewKeyDown="Tree_PreviewKeyDown"
                   PreviewMouseRightButtonDown="Tree_PreviewMouseRightButtonDown"
                   PreviewMouseMove="Tree_PreviewMouseMove"
-                  AllowDrop="True" DragOver="Tree_DragOver" Drop="Tree_Drop"
+                  AllowDrop="True" DragOver="Tree_DragOver" DragLeave="Tree_DragLeave" Drop="Tree_Drop"
                   Style="{StaticResource {x:Static vsshell:VsResourceKeys.ThemedDialogTreeViewStyleKey}}"
                   Background="Transparent" BorderThickness="0">
             <TreeView.ItemContainerStyle>
@@ -193,5 +193,12 @@
                 </HierarchicalDataTemplate>
             </TreeView.ItemTemplate>
         </TreeView>
+        <Border x:Name="ComponentDropFeedback" Grid.Row="1" Margin="8" Padding="8"
+                HorizontalAlignment="Left" VerticalAlignment="Top" MaxWidth="280"
+                Background="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarSelectedKey}}"
+                Visibility="Collapsed" IsHitTestVisible="False">
+            <TextBlock x:Name="ComponentDropFeedbackText" TextWrapping="Wrap"
+                       Foreground="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarTextSelectedKey}}" />
+        </Border>
     </Grid>
 </UserControl>

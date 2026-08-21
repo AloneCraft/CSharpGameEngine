@@ -26,6 +26,7 @@ internal enum HierarchyEditKind {
     Remove,
     Reparent,
     Reorder,
+    NormalizeComponents,
 }
 
 internal sealed record HierarchyEditRequest(
@@ -49,7 +50,9 @@ internal sealed record ComponentAddRequest(
     string ComponentTypeFullyQualifiedName,
     string ComponentExpression,
     NodePath?TargetPath=null,
-    EditorNodeId?TargetNodeId=null);
+    EditorNodeId?TargetNodeId=null,
+    string?NewEntityName=null,
+    bool CreateRootChild=false);
 
 /// <summary>
 /// M0052: 追加が成功したComponentをInspectorで展開して見せる要求。追加を適用したPackage境界が

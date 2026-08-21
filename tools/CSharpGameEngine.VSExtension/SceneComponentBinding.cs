@@ -16,6 +16,7 @@ internal enum SceneComponentRole {
     DirectionalLight,
     PointLight,
     SpotLight,
+    AreaLight,
 }
 
 /// <summary>Component型完全修飾名1件と、それがエディタ上で持つ意味の対応。</summary>
@@ -58,6 +59,7 @@ internal static class SceneComponentBindings {
     internal const string DirectionalLightTypeFullyQualifiedName="global::UserEcsProject.DirectionalLight";
     internal const string PointLightTypeFullyQualifiedName="global::UserEcsProject.PointLight";
     internal const string SpotLightTypeFullyQualifiedName="global::UserEcsProject.SpotLight";
+    internal const string AreaLightTypeFullyQualifiedName="global::UserEcsProject.AreaLight";
 
     // 退役した global::UserEcsProject.Transform は登録しない。互換のため両方登録すると、実シーンが
     // 原点に固まって描画されていたバグ(M0020 Phase 0 で修正)を静かに塗り潰し、直ったかどうかが
@@ -70,6 +72,7 @@ internal static class SceneComponentBindings {
         new SceneComponentBinding(DirectionalLightTypeFullyQualifiedName,SceneComponentRole.DirectionalLight),
         new SceneComponentBinding(PointLightTypeFullyQualifiedName,SceneComponentRole.PointLight),
         new SceneComponentBinding(SpotLightTypeFullyQualifiedName,SceneComponentRole.SpotLight),
+        new SceneComponentBinding(AreaLightTypeFullyQualifiedName,SceneComponentRole.AreaLight),
     ];
 
     private static readonly IReadOnlyList<SceneComponentBinding>AllValue=Array.AsReadOnly(Table);

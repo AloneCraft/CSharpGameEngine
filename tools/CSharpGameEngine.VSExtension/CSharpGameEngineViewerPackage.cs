@@ -47,7 +47,10 @@ namespace CSharpGameEngine.VSExtension;
 // GeneratePkgDefFile=true なので .pkgdef へ自動登録される(マニフェストの手編集は不要)。
 [ProvideOptionPage(typeof(SceneEditorOptionsPage),"C# Game Engine","Scene Editor",120,121,
     supportsAutomation:true)]
-public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
+// Tools>Options > C# Game Engine > Transform Precision。120/122 は VSPackage.resx のカテゴリ名/ページ名。
+[ProvideOptionPage(typeof(TransformPrecisionOptionsPage),"C# Game Engine","Transform Precision",120,122,
+    supportsAutomation:true)]
+public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
     public const string PackageGuidString="aec17804-e2e4-46e7-b373-de11af816203";
 
     private ToggleFabWatchCommand?FabWatchCommand;
@@ -206,6 +209,14 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
                     }
                 }
                 break;
+            case HierarchyEditKind.NormalizeComponents:
+                foreach(var Path in Roots){
+                    if(Projection.TryGetId(Path,out var NormalizeId)){
+                        Operations.Add(new NormalizeComponentsOperation(
+                            Snapshot.Key,NormalizeId,Snapshot.DocumentVersion));
+                    }
+                }
+                break;
             case HierarchyEditKind.Rename:
                 var RequestedName=Request.NewName;
                 if(Request.Paths.FirstOrDefault() is { } RenamePath
@@ -256,6 +267,7 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             Request.Kind switch {
                 HierarchyEditKind.AddChild=>"Add child",
                 HierarchyEditKind.Rename=>"Rename node",
+                HierarchyEditKind.NormalizeComponents=>"Normalize components",
                 HierarchyEditKind.Remove=>"Remove node",
                 HierarchyEditKind.Reparent=>"Reparent node",
                 HierarchyEditKind.Reorder=>"Reorder node",
@@ -360,6 +372,10 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             return;
         }
 
+        if(Request.CreateRootChild){
+            await this.TryCreateRootChildForComponentAsync(Request,Session,Snapshot);
+            return;
+        }
         EditorNodeId?NodeId=Request.TargetNodeId;
         if(NodeId is null&&Request.TargetPath is { } Path&&Projection.TryGetId(Path,out var ResolvedId)){
             NodeId=ResolvedId;
@@ -387,7 +403,9 @@ public sealed class CSharpGameEngineViewerPackage:AsyncPackage {
             Snapshot.Key,TargetId,Snapshot.DocumentVersion,
             Request.ComponentTypeFullyQualifiedName,
             Plan?.Expression??Request.ComponentExpression,
-            Plan?.Members??default);
+            Plan?.Members??default,
+            Resolved is { } ResolvedSymbol?SceneComponentOrdering.GetSortKey(
+                ResolvedSymbol.Symbol,Request.ComponentTypeFullyQualifiedName):null);
         SceneEditCommitRequest CommitRequest=new(
             Snapshot.Key,Snapshot.DocumentVersion,"Add component",
             Array.Empty<SceneTransformChange>(),SceneTransformMemberMask.None,

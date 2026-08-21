@@ -27,8 +27,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Remove="Runtime\Transform.cs;Runtime\TransformWorldResolver.cs" />
     <ProjectReference Include="..\CSharpGameEngine.Core\CSharpGameEngine.Core.csproj" />
     <Compile Include="..\CSharpGameEngine.Entities\SceneComponentIconAttribute.cs" Link="Entities\SceneComponentIconAttribute.cs" />
+    <Compile Include="..\CSharpGameEngine.Entities\SceneComponentOrderAttribute.cs" Link="Entities\SceneComponentOrderAttribute.cs" />
   </ItemGroup>
 
   <!--
