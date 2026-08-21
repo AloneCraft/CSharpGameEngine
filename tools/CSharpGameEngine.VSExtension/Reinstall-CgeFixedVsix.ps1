@@ -77,21 +77,23 @@ function Get-CgeFixedHives{
 function Get-CgeFixedInstallations([object[]]$Hives){
     $Matches=foreach($Hive in $Hives){
         $ExtensionsDirectory=Join-Path $Hive.FullName 'Extensions'
-        Get-ChildItem -LiteralPath $ExtensionsDirectory -Filter '*.vsixmanifest' -File -Recurse -ErrorAction SilentlyContinue |
-            ForEach-Object {
-                try { $Identity=Get-VsixManifestIdentity $_.FullName }
-                catch { Write-Log "Ignoring unreadable extension manifest: $($_.FullName)"; return }
-                if($Identity.Id -ne $ExtensionId){ return }
-                $Directory=Split-Path -Parent $_.FullName
-                $Assembly=Get-ChildItem -LiteralPath $Directory -Filter 'CSharpGameEngine.VSExtension.dll' -File -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-                [pscustomobject]@{
-                    Hive=$Hive.FullName
-                    Manifest=$_.FullName
-                    Directory=$Directory
-                    Version=$Identity.Version
-                    Assembly=if($null -eq $Assembly){$null}else{$Assembly.FullName}
-                }
+        # Do not use return inside ForEach-Object: it can exit this function as soon as an
+        # unrelated extension manifest is encountered and make a valid C# Game Engine VSIX appear
+        # missing. A normal foreach keeps every manifest scan local to this hive.
+        foreach($Manifest in @(Get-ChildItem -LiteralPath $ExtensionsDirectory -Filter '*.vsixmanifest' -File -Recurse -ErrorAction SilentlyContinue)){
+            try { $Identity=Get-VsixManifestIdentity $Manifest.FullName }
+            catch { Write-Log "Ignoring unreadable extension manifest: $($Manifest.FullName)"; continue }
+            if($Identity.Id -ne $ExtensionId){ continue }
+            $Directory=Split-Path -Parent $Manifest.FullName
+            $Assembly=Get-ChildItem -LiteralPath $Directory -Filter 'CSharpGameEngine.VSExtension.dll' -File -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+            [pscustomobject]@{
+                Hive=$Hive.FullName
+                Manifest=$Manifest.FullName
+                Directory=$Directory
+                Version=$Identity.Version
+                Assembly=if($null -eq $Assembly){$null}else{$Assembly.FullName}
             }
+        }
     }
     return @($Matches)
 }
@@ -203,9 +205,10 @@ if([string]::IsNullOrWhiteSpace($ExpectedVersion)){ throw "Source manifest has n
 $BuildAssembly=Join-Path (Split-Path -Parent $VsixPath) 'CSharpGameEngine.VSExtension.dll'
 if(!(Test-Path -LiteralPath $BuildAssembly)){ throw "Build assembly was not found beside the VSIX: $BuildAssembly" }
 $BuildHash=(Get-FileHash -LiteralPath $BuildAssembly -Algorithm SHA256).Hash
-$Hives=Get-CgeFixedHives
-$Installed=Get-CgeFixedInstallations $Hives
-$Legacy=Get-CgeFixedLegacyDirectories $Hives
+# PowerShell unwraps one-item function output into a scalar. Preserve discovery as arrays so the singleton happy path has Count=1.
+$Hives=@(Get-CgeFixedHives)
+$Installed=@(Get-CgeFixedInstallations $Hives)
+$Legacy=@(Get-CgeFixedLegacyDirectories $Hives)
 $Current=$Installed.Count -eq 1 -and $Installed[0].Version -eq $ExpectedVersion -and
     $Installed[0].Assembly -and (Get-FileHash -LiteralPath $Installed[0].Assembly -Algorithm SHA256).Hash -eq $BuildHash -and
     $Legacy.Count -eq 0
@@ -225,9 +228,9 @@ if($UninstallExitCode -ne 0){ Write-Log "Uninstall returned exit code $Uninstall
 Write-Log "Installing $VsixPath into /rootSuffix $RootSuffix."
 [void](Invoke-VsixInstaller $Installer @($VsixPath, "/rootSuffix:$RootSuffix", '/quiet'))
 
-$Hives=Get-CgeFixedHives
-$Installed=Get-CgeFixedInstallations $Hives
-$Legacy=Get-CgeFixedLegacyDirectories $Hives
+$Hives=@(Get-CgeFixedHives)
+$Installed=@(Get-CgeFixedInstallations $Hives)
+$Legacy=@(Get-CgeFixedLegacyDirectories $Hives)
 if($Installed.Count -ne 1){ throw "Expected exactly one $ExtensionId installation, found $($Installed.Count)." }
 if($Installed[0].Version -ne $ExpectedVersion){ throw "Installed version is $($Installed[0].Version), expected $ExpectedVersion." }
 if([string]::IsNullOrWhiteSpace($Installed[0].Assembly)){ throw "Installed extension assembly was not found under $($Installed[0].Directory)." }

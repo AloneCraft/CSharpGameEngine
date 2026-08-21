@@ -45,6 +45,8 @@
        requiring a running Visual Studio instance. -->
   <ItemGroup>
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\source.extension.vsixmanifest" Link="TestAssets\source.extension.vsixmanifest" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\CSharpGameEngine.VSExtension\Reinstall-CgeFixedVsix.ps1" Link="TestAssets\Reinstall-CgeFixedVsix.ps1" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\Launch-VSExtension.ps1" Link="TestAssets\Launch-VSExtension.ps1" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\bin\$(Configuration)\net472\CSharpGameEngine.VSExtension.vsix" Link="TestAssets\CSharpGameEngine.VSExtension.vsix" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\ItemTemplates\CSharp\GameEngine\SceneFile\**\*"
           Link="TestAssets\ItemTemplates\CSharp\GameEngine\SceneFile\%(RecursiveDir)%(Filename)%(Extension)"
