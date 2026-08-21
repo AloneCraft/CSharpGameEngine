@@ -263,11 +263,20 @@ internal sealed class OpenSceneDesignerCommand {
                 }
 
                 var Snapshot=this.Session.Pin(Chosen);
-                this.Documents.Open(this.Session,Snapshot);
-                if(Invocation.EditorView is not null){
-                    RestoreEditorFocus(Invocation.EditorView);
+                try {
+                    this.Documents.Open(this.Session,Snapshot);
+                    if(Invocation.EditorView is not null){
+                        RestoreEditorFocus(Invocation.EditorView);
+                    }
+                    this.SetStatusBarText($"{Chosen.ClassName} [Scene] をDocument Wellで開きました。");
+                } catch(Exception DocumentWellException){
+                    ActivityLog.LogWarning(
+                        nameof(OpenSceneDesignerCommand),
+                        $"Document Well failed; source='{Invocation.FilePath}'; scene='{FullyQualifiedName}'; exception='{DocumentWellException.GetType().FullName}'; message='{DocumentWellException.Message}'. Falling back to Scene Designer tool window.");
+                    await this.OpenToolWindowFallbackAsync(Snapshot,Invocation.EditorView);
+                    this.SetStatusBarText($"{Chosen.ClassName} [Scene] はDocument Wellを利用できないため、Scene Designerパネルで開きました。");
+                    ActivityLog.LogInformation(nameof(OpenSceneDesignerCommand),$"Scene Designer tool window fallback opened; scene='{FullyQualifiedName}'.");
                 }
-                this.SetStatusBarText($"{Chosen.ClassName} [Scene] をDocument Wellで開きました。");
             } catch(OperationCanceledException) when(this.Package.DisposalToken.IsCancellationRequested){
                 // Package shutdown.
             } catch(Exception Ex){
@@ -284,6 +293,21 @@ internal sealed class OpenSceneDesignerCommand {
     private static void ShowFrameWithoutActivation(IVsWindowFrame Frame){
         ThreadHelper.ThrowIfNotOnUIThread();
         ErrorHandler.ThrowOnFailure(Frame.ShowNoActivate());
+    }
+
+    private async Task OpenToolWindowFallbackAsync(SceneDocumentSnapshot Snapshot,IVsTextView?EditorView){
+        await this.Package.JoinableTaskFactory.SwitchToMainThreadAsync(this.Package.DisposalToken);
+        var Window=await this.Package.FindToolWindowAsync(
+            typeof(SceneDesignerToolWindowPane),0,true,this.Package.DisposalToken);
+        if(Window is not SceneDesignerToolWindowPane Pane||Pane.Frame is not IVsWindowFrame Frame){
+            throw new NotSupportedException("Cannot create the Scene Designer fallback tool window.");
+        }
+
+        await this.Package.JoinableTaskFactory.SwitchToMainThreadAsync(this.Package.DisposalToken);
+        Pane.SetTarget(this.Session,Snapshot);
+        ToolWindowFramePresenter.ShowWithoutActivation(
+            ()=>ShowFrameWithoutActivation(Frame),
+            EditorView is null?null:()=>RestoreEditorFocus(EditorView));
     }
 
     private static void RestoreEditorFocus(IVsTextView?EditorView){

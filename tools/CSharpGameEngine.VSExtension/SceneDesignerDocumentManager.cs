@@ -50,7 +50,10 @@ internal sealed class SceneDesignerDocumentManager:IDisposable {
         IntPtr View=IntPtr.Zero;
         try {
             View=Marshal.GetIUnknownForObject((IVsWindowPane)Pane);
-            Guid Editor=SceneDesignerDocumentPane.DocumentTypeGuid;
+            // This is an ad-hoc IVsWindowPane, not a registered editor factory. Passing a private
+            // GUID makes the shell look up an editor that does not exist and prevents the document
+            // frame from being created.
+            Guid Editor=SceneDesignerDocumentWindowPolicy.EditorTypeGuid;
             Guid CommandUi=Guid.Empty;
             ErrorHandler.ThrowOnFailure(Shell.CreateDocumentWindow(
                 grfCDW:CreateNewWindow,
@@ -87,7 +90,6 @@ internal sealed class SceneDesignerDocumentManager:IDisposable {
 }
 
 internal sealed class SceneDesignerDocumentPane:WindowPane {
-    internal static readonly Guid DocumentTypeGuid=new("ca5da38e-980d-4583-8321-5834d35a9901");
     private readonly SceneKey Key;
     private readonly Action<SceneKey>Closed;
     private readonly SceneDesignerToolWindowControl Control;

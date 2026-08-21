@@ -30,6 +30,11 @@ namespace CSharpGameEngine.VSExtension;
 [ProvideToolWindow(typeof(ComponentPaletteToolWindowPane),
     Style=VsDockStyle.Linked,Window=ToolWindowGuids80.SolutionExplorer,
     Orientation=ToolWindowOrientation.Bottom,DockedWidth=300)]
+// Document Well is the primary Scene Designer host. This tool window remains registered only
+// as a recovery path when the low-level document API rejects the current shell state.
+[ProvideToolWindow(typeof(SceneDesignerToolWindowPane),
+    Style=VsDockStyle.Linked,Window=ToolWindowGuids80.SolutionExplorer,
+    Orientation=ToolWindowOrientation.Bottom,DockedWidth=500)]
 [ProvideEditorFactory(typeof(GlbFbxPreviewEditorFactory),110,TrustLevel=__VSEDITORTRUSTLEVEL.ETL_AlwaysTrusted)]
 [ProvideEditorLogicalView(typeof(GlbFbxPreviewEditorFactory),VSConstants.LOGVIEWID.Designer_string)]
 [ProvideEditorExtension(typeof(GlbFbxPreviewEditorFactory),".glb",50)]
@@ -78,6 +83,7 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
         if(this.SceneWorkspace is not null){
             this.SceneSession=new SceneEditorSessionService(this.SceneWorkspace);
             this.SceneDesignerDocuments=new SceneDesignerDocumentManager();
+            SceneDesignerToolWindowPane.ConfigureSessionProvider(()=>this.SceneSession);
             InspectorToolWindowPane.ConfigureSessionProvider(()=>this.SceneSession);
             ComponentPaletteToolWindowPane.ConfigureSessionProvider(()=>this.SceneSession);
             this.SourceMarkerService=SceneSourceMarkerService.Start();
@@ -601,6 +607,7 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
             this.SceneSession=null;
             this.SceneDesignerDocuments?.Dispose();
             this.SceneDesignerDocuments=null;
+            SceneDesignerToolWindowPane.ConfigureSessionProvider(null);
             InspectorToolWindowPane.ConfigureSessionProvider(null);
             ComponentPaletteToolWindowPane.ConfigureSessionProvider(null);
             SceneEditorSettings.ConfigureStoreProvider(null);
