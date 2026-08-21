@@ -44,8 +44,8 @@ function Get-VsixManifestIdentity([string]$ManifestPath){
 function Get-VsixInstallerPath{
     $VsWhere=Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
     if(Test-Path -LiteralPath $VsWhere){
-        $InstallPath=& $VsWhere -latest -products '*' -property installationPath | Select-Object -First 1
-        if($InstallPath){
+        $InstallPaths=@(& $VsWhere -products '*' -requires Microsoft.VisualStudio.Component.CoreEditor -property installationPath)
+        foreach($InstallPath in $InstallPaths){
             $Candidate=Join-Path $InstallPath 'Common7\IDE\VSIXInstaller.exe'
             if(Test-Path -LiteralPath $Candidate){ return $Candidate }
         }

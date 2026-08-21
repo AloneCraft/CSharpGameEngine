@@ -71,11 +71,20 @@ if($Maintenance.Count -ne 1){ throw "CgeFixed maintenance did not return exactly
 Write-Host "VSIX deployment changed: $($Maintenance[0].DeploymentChanged)"
 Write-Host "VSIX maintenance log: $($Maintenance[0].LogPath)"
 
-$VsWhere=Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
-if(!(Test-Path -LiteralPath $VsWhere)){ throw 'vswhere.exe was not found.' }
-$InstallPath=& $VsWhere -latest -products '*' -property installationPath | Select-Object -First 1
+function Get-VisualStudioInstallPath{
+    $VsWhere=Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+    if(!(Test-Path -LiteralPath $VsWhere)){ throw 'vswhere.exe was not found.' }
+    $Candidates=@(& $VsWhere -products '*' -requires Microsoft.VisualStudio.Component.CoreEditor -property installationPath)
+    foreach($Candidate in $Candidates){
+        if(Test-Path -LiteralPath (Join-Path $Candidate 'Common7\IDE\devenv.exe')){
+            return $Candidate
+        }
+    }
+    throw "No runnable Visual Studio installation was found. Candidates: $($Candidates -join ', ')"
+}
+
+$InstallPath=Get-VisualStudioInstallPath
 $Devenv=Join-Path $InstallPath 'Common7\IDE\devenv.exe'
-if(!(Test-Path -LiteralPath $Devenv)){ throw "devenv.exe was not found: $Devenv" }
 
 Write-Host "Starting Visual Studio /rootSuffix $RootSuffix. ActivityLog: $LogPath"
 Start-Process -FilePath $Devenv -ArgumentList '/RootSuffix',$RootSuffix,'/Log',('"{0}"' -f $LogPath),('"{0}"' -f $Solution)

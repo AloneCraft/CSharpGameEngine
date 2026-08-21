@@ -19,8 +19,21 @@ public sealed class VsixDeploymentScriptTests {
         Assert.Contains("[switch]$CloseCgeFixed",Script);
         Assert.Contains("CloseMainWindow()",Script);
         Assert.DoesNotContain("Stop-Process",Script);
+        Assert.Contains("-requires Microsoft.VisualStudio.Component.CoreEditor",Script);
+        Assert.Contains("Get-VisualStudioInstallPath",Script);
+        Assert.Contains("Common7\\IDE\\devenv.exe",Script);
+        Assert.DoesNotContain("-latest -products",Script);
     }
 
+[Fact]
+    public void ReinstallScript_SelectsAVisualStudioInstallerFromAllRunnableCandidates(){
+        string Script=File.ReadAllText(Path.Combine(
+            AppContext.BaseDirectory,"TestAssets","Reinstall-CgeFixedVsix.ps1"));
+
+        Assert.Contains("$InstallPaths=@(& $VsWhere -products",Script);
+        Assert.Contains("foreach($InstallPath in $InstallPaths)",Script);
+        Assert.DoesNotContain("-latest -products",Script);
+    }
     private static int CountOccurrences(string Text,string Value){
         int Count=0;
         int Index=0;
