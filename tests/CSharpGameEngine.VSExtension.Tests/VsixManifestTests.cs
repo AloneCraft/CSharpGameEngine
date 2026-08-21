@@ -17,6 +17,21 @@ public sealed class VsixManifestTests {
         Assert.NotNull(MefAsset);
         Assert.Equal("|%CurrentProject%|",(string?)MefAsset.Attribute("Path"));
     }
+
+    [Fact]
+    public void SourceManifest_VersionMatchesLoadedAssemblyIdentity(){
+        var ManifestPath=Path.Combine(AppContext.BaseDirectory,"TestAssets","source.extension.vsixmanifest");
+        XNamespace VsixNamespace="http://schemas.microsoft.com/developer/vsx-schema/2011";
+
+        string? ManifestVersion=(string?)XDocument.Load(ManifestPath)
+            .Root?
+            .Element(VsixNamespace+"Metadata")?
+            .Element(VsixNamespace+"Identity")?
+            .Attribute("Version");
+
+        Assert.Equal(VsixBuildIdentity.Version,ManifestVersion);
+    }
+
     [Fact]
     public void LoadedAssembly_BuildIdentityPreservesEachRequiredField(){
         Assert.NotEqual("unknown",VsixBuildIdentity.Version);

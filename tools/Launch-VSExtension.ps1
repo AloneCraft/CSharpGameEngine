@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [switch]$NoBuild,
+    [switch]$CloseCgeFixed,
     [string]$LogPath
 )
 
@@ -20,11 +21,40 @@ if([string]::IsNullOrWhiteSpace($LogPath)){
 }
 
 $RootSuffixArgumentPattern='(?i)(?:/|-)(?:rootSuffix|rootsuffix)(?:\s+|:)"?CgeFixed"?(?:\s|$)'
-$Running=@(Get-CimInstance -ClassName Win32_Process -Filter "Name = 'devenv.exe'" -ErrorAction SilentlyContinue |
-    Where-Object { $_.CommandLine -match $RootSuffixArgumentPattern })
-if($Running.Count -ne 0){
-    throw "Close Visual Studio instances using root suffix '$RootSuffix' before updating its extension files."
+function Get-CgeFixedProcesses{
+    return @(Get-CimInstance -ClassName Win32_Process -Filter "Name = 'devenv.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -match $RootSuffixArgumentPattern })
 }
+
+# Never terminate devenv. With -CloseCgeFixed the launcher only asks each visible instance to
+# close, leaving Visual Studio's normal save/cancel dialog in control; without it we fail before
+# touching the extension hive.
+function Assert-CgeFixedCanBeUpdated{
+    $Running=Get-CgeFixedProcesses
+    if($Running.Count -eq 0){ return }
+    if(!$CloseCgeFixed){
+        throw "Visual Studio /rootSuffix $RootSuffix is running. Close it, or rerun with -CloseCgeFixed to request a normal Visual Studio close."
+    }
+
+    foreach($Entry in $Running){
+        $Process=Get-Process -Id $Entry.ProcessId -ErrorAction Stop
+        if(!$Process.CloseMainWindow()){
+            throw "Could not request a normal close for CgeFixed PID $($Entry.ProcessId). Close it manually; no process was terminated."
+        }
+    }
+
+    $Deadline=[DateTime]::UtcNow.AddSeconds(60)
+    do {
+        Start-Sleep -Milliseconds 500
+        $Running=Get-CgeFixedProcesses
+    } while($Running.Count -ne 0 -and [DateTime]::UtcNow -lt $Deadline)
+
+    if($Running.Count -ne 0){
+        throw "CgeFixed is still running, probably waiting for a save/cancel dialog. Close it manually; no extension files were changed."
+    }
+}
+
+Assert-CgeFixedCanBeUpdated
 
 if(!$NoBuild){
     & dotnet build $Project --configuration Debug

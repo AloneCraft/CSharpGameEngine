@@ -9,7 +9,6 @@ param(
 
 $ErrorActionPreference='Stop'
 $ExtensionId='CSharpGameEngine.VSExtension.aec17804-e2e4-46e7-b373-de11af816203'
-$ExpectedVersion='0.1.2'
 $RootSuffix='CgeFixed'
 $ScriptDirectory=Split-Path -Parent $PSCommandPath
 $ProjectPath=Join-Path $ScriptDirectory 'CSharpGameEngine.VSExtension.csproj'
@@ -196,9 +195,11 @@ $VsixPath=[IO.Path]::GetFullPath($VsixPath)
 if(!(Test-Path -LiteralPath $VsixPath)){ throw "VSIX package was not found: $VsixPath" }
 $SourceManifest=Join-Path $ScriptDirectory 'source.extension.vsixmanifest'
 $SourceIdentity=Get-VsixManifestIdentity $SourceManifest
-if($SourceIdentity.Id -ne $ExtensionId -or $SourceIdentity.Version -ne $ExpectedVersion){
-    throw "Source manifest must be $ExtensionId version $ExpectedVersion, but is $($SourceIdentity.Id) version $($SourceIdentity.Version)."
+if($SourceIdentity.Id -ne $ExtensionId){
+    throw "Source manifest must use extension ID $ExtensionId, but is $($SourceIdentity.Id)."
 }
+$ExpectedVersion=$SourceIdentity.Version
+if([string]::IsNullOrWhiteSpace($ExpectedVersion)){ throw "Source manifest has no VSIX version: $SourceManifest" }
 $BuildAssembly=Join-Path (Split-Path -Parent $VsixPath) 'CSharpGameEngine.VSExtension.dll'
 if(!(Test-Path -LiteralPath $BuildAssembly)){ throw "Build assembly was not found beside the VSIX: $BuildAssembly" }
 $BuildHash=(Get-FileHash -LiteralPath $BuildAssembly -Algorithm SHA256).Hash
