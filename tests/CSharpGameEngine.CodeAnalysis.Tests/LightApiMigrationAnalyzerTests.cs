@@ -94,7 +94,7 @@ public sealed class LightApiMigrationAnalyzerTests {
     [Fact]
     public void ProjectWithoutTransformPrecisionContract_IsNotAnalyzed(){
         var Diagnostics=Analyze(Preamble.Replace(
-            "[assembly: CSharpGameEngine.Entities.TransformPrecision(384,173)]\n",string.Empty,StringComparison.Ordinal)+"""
+            "[assembly: CSharpGameEngine.Entities.TransformPrecision(384,173)]",string.Empty,StringComparison.Ordinal)+"""
             namespace Game;
             public static class Scene {
                 public static void Build()=>_ = new UserEcsProject.PointLight { Intensity=1f };

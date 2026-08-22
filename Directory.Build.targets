@@ -1,0 +1,10 @@
+<Project>
+  <!-- Logical numeric formats are runtime-owned. Every net10 application/test compilation gets
+       the library reference automatically; the library itself is excluded to avoid a cycle. -->
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'UserEcsProject' or '$(MSBuildProjectName)' == 'CSharpGameEngine.Entities' or '$(MSBuildProjectName)' == 'CSharpGameEngine.Windows.Tests' or '$(MSBuildProjectName)' == 'CSharpGameEngine.CodeAnalysis.Tests'">
+    <ProjectReference Include="$(MSBuildThisFileDirectory)src\CSharpGameEngine.Numerics\CSharpGameEngine.Numerics.csproj" />
+  </ItemGroup>
+
+</Project>
+
+

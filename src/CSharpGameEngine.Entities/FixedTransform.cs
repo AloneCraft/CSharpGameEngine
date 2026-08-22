@@ -7,7 +7,7 @@ namespace CSharpGameEngine.Runtime.Windows;
 
 /// <summary>
 /// Scene-user-compilation Transform. Its absolute position and scale use the precision selected
-/// by <c>[assembly: TransformPrecision(...)]</c>; quaternion components use a normalized-range
+/// by <c>the Runtime-owned Logical precision library</c>; quaternion components use a normalized-range
 /// fixed scalar. Coordinates use Unity-compatible RUF (+X right, +Y up, +Z forward).
 /// </summary>
 /// <remarks>
@@ -17,24 +17,24 @@ namespace CSharpGameEngine.Runtime.Windows;
 /// </remarks>
 [SceneComponentOrder(SceneComponentCategory.Spatial,0)]
 public struct Transform {
-    public FixedScalar PositionX;
-    public FixedScalar PositionY;
-    public FixedScalar PositionZ;
+    public Logical.Scalar PositionX;
+    public Logical.Scalar PositionY;
+    public Logical.Scalar PositionZ;
 
-    public FixedRotationScalar RotationX;
-    public FixedRotationScalar RotationY;
-    public FixedRotationScalar RotationZ;
-    public FixedRotationScalar RotationW;
+    public Logical.Scalar RotationX;
+    public Logical.Scalar RotationY;
+    public Logical.Scalar RotationZ;
+    public Logical.Scalar RotationW;
 
-    public FixedScalar ScaleX;
-    public FixedScalar ScaleY;
-    public FixedScalar ScaleZ;
+    public Logical.Scalar ScaleX;
+    public Logical.Scalar ScaleY;
+    public Logical.Scalar ScaleZ;
 
     public Transform(){
-        this.RotationW=FixedRotationScalar.One;
-        this.ScaleX=FixedScalar.One;
-        this.ScaleY=FixedScalar.One;
-        this.ScaleZ=FixedScalar.One;
+        this.RotationW=Logical.Scalar.One;
+        this.ScaleX=Logical.Scalar.One;
+        this.ScaleY=Logical.Scalar.One;
+        this.ScaleZ=Logical.Scalar.One;
     }
 }
 
@@ -110,24 +110,24 @@ public static class TransformMath {
 /// until camera-origin subtraction, so a large absolute translation never crosses a float boundary.
 /// </summary>
 public readonly struct FixedAffineTransform {
-    public FixedScalar M11 { get; }
-    public FixedScalar M12 { get; }
-    public FixedScalar M13 { get; }
-    public FixedScalar M21 { get; }
-    public FixedScalar M22 { get; }
-    public FixedScalar M23 { get; }
-    public FixedScalar M31 { get; }
-    public FixedScalar M32 { get; }
-    public FixedScalar M33 { get; }
-    public FixedScalar M41 { get; }
-    public FixedScalar M42 { get; }
-    public FixedScalar M43 { get; }
+    public Logical.Scalar M11 { get; }
+    public Logical.Scalar M12 { get; }
+    public Logical.Scalar M13 { get; }
+    public Logical.Scalar M21 { get; }
+    public Logical.Scalar M22 { get; }
+    public Logical.Scalar M23 { get; }
+    public Logical.Scalar M31 { get; }
+    public Logical.Scalar M32 { get; }
+    public Logical.Scalar M33 { get; }
+    public Logical.Scalar M41 { get; }
+    public Logical.Scalar M42 { get; }
+    public Logical.Scalar M43 { get; }
 
     private FixedAffineTransform(
-        FixedScalar M11,FixedScalar M12,FixedScalar M13,
-        FixedScalar M21,FixedScalar M22,FixedScalar M23,
-        FixedScalar M31,FixedScalar M32,FixedScalar M33,
-        FixedScalar M41,FixedScalar M42,FixedScalar M43){
+        Logical.Scalar M11,Logical.Scalar M12,Logical.Scalar M13,
+        Logical.Scalar M21,Logical.Scalar M22,Logical.Scalar M23,
+        Logical.Scalar M31,Logical.Scalar M32,Logical.Scalar M33,
+        Logical.Scalar M41,Logical.Scalar M42,Logical.Scalar M43){
         this.M11=M11; this.M12=M12; this.M13=M13;
         this.M21=M21; this.M22=M22; this.M23=M23;
         this.M31=M31; this.M32=M32; this.M33=M33;
@@ -135,50 +135,50 @@ public readonly struct FixedAffineTransform {
     }
 
     public static FixedAffineTransform Identity=>new(
-        FixedScalar.One,FixedScalar.Zero,FixedScalar.Zero,
-        FixedScalar.Zero,FixedScalar.One,FixedScalar.Zero,
-        FixedScalar.Zero,FixedScalar.Zero,FixedScalar.One,
-        FixedScalar.Zero,FixedScalar.Zero,FixedScalar.Zero);
+        Logical.Scalar.One,Logical.Scalar.Zero,Logical.Scalar.Zero,
+        Logical.Scalar.Zero,Logical.Scalar.One,Logical.Scalar.Zero,
+        Logical.Scalar.Zero,Logical.Scalar.Zero,Logical.Scalar.One,
+        Logical.Scalar.Zero,Logical.Scalar.Zero,Logical.Scalar.Zero);
 
     public static FixedTransformStatus TryFromTransform(
         in Transform Transform,out FixedAffineTransform Matrix){
         FixedTransformStatus Status=TryGetNormalizedQuaternion(
-            Transform,out FixedScalar X,out FixedScalar Y,out FixedScalar Z,out FixedScalar W);
+            Transform,out Logical.Scalar X,out Logical.Scalar Y,out Logical.Scalar Z,out Logical.Scalar W);
         if(Status!=FixedTransformStatus.Success){
             Matrix=default;
             return Status;
         }
 
-        if(!TryDoubleProduct(X,X,out FixedScalar TwoXX)
-            ||!TryDoubleProduct(Y,Y,out FixedScalar TwoYY)
-            ||!TryDoubleProduct(Z,Z,out FixedScalar TwoZZ)
-            ||!TryDoubleProduct(X,Y,out FixedScalar TwoXY)
-            ||!TryDoubleProduct(X,Z,out FixedScalar TwoXZ)
-            ||!TryDoubleProduct(Y,Z,out FixedScalar TwoYZ)
-            ||!TryDoubleProduct(X,W,out FixedScalar TwoXW)
-            ||!TryDoubleProduct(Y,W,out FixedScalar TwoYW)
-            ||!TryDoubleProduct(Z,W,out FixedScalar TwoZW)
-            ||!FixedScalar.TrySubtract(FixedScalar.One,TwoYY,out FixedScalar M11)
-            ||!FixedScalar.TrySubtract(M11,TwoZZ,out M11)
-            ||!FixedScalar.TryAdd(TwoXY,TwoZW,out FixedScalar M12)
-            ||!FixedScalar.TrySubtract(TwoXZ,TwoYW,out FixedScalar M13)
-            ||!FixedScalar.TrySubtract(TwoXY,TwoZW,out FixedScalar M21)
-            ||!FixedScalar.TrySubtract(FixedScalar.One,TwoXX,out FixedScalar M22)
-            ||!FixedScalar.TrySubtract(M22,TwoZZ,out M22)
-            ||!FixedScalar.TryAdd(TwoYZ,TwoXW,out FixedScalar M23)
-            ||!FixedScalar.TryAdd(TwoXZ,TwoYW,out FixedScalar M31)
-            ||!FixedScalar.TrySubtract(TwoYZ,TwoXW,out FixedScalar M32)
-            ||!FixedScalar.TrySubtract(FixedScalar.One,TwoXX,out FixedScalar M33)
-            ||!FixedScalar.TrySubtract(M33,TwoYY,out M33)
-            ||!FixedScalar.TryMultiply(Transform.ScaleX,M11,out M11)
-            ||!FixedScalar.TryMultiply(Transform.ScaleX,M12,out M12)
-            ||!FixedScalar.TryMultiply(Transform.ScaleX,M13,out M13)
-            ||!FixedScalar.TryMultiply(Transform.ScaleY,M21,out M21)
-            ||!FixedScalar.TryMultiply(Transform.ScaleY,M22,out M22)
-            ||!FixedScalar.TryMultiply(Transform.ScaleY,M23,out M23)
-            ||!FixedScalar.TryMultiply(Transform.ScaleZ,M31,out M31)
-            ||!FixedScalar.TryMultiply(Transform.ScaleZ,M32,out M32)
-            ||!FixedScalar.TryMultiply(Transform.ScaleZ,M33,out M33)){
+        if(!TryDoubleProduct(X,X,out Logical.Scalar TwoXX)
+            ||!TryDoubleProduct(Y,Y,out Logical.Scalar TwoYY)
+            ||!TryDoubleProduct(Z,Z,out Logical.Scalar TwoZZ)
+            ||!TryDoubleProduct(X,Y,out Logical.Scalar TwoXY)
+            ||!TryDoubleProduct(X,Z,out Logical.Scalar TwoXZ)
+            ||!TryDoubleProduct(Y,Z,out Logical.Scalar TwoYZ)
+            ||!TryDoubleProduct(X,W,out Logical.Scalar TwoXW)
+            ||!TryDoubleProduct(Y,W,out Logical.Scalar TwoYW)
+            ||!TryDoubleProduct(Z,W,out Logical.Scalar TwoZW)
+            ||!Logical.Scalar.TrySubtract(Logical.Scalar.One,TwoYY,out Logical.Scalar M11)
+            ||!Logical.Scalar.TrySubtract(M11,TwoZZ,out M11)
+            ||!Logical.Scalar.TryAdd(TwoXY,TwoZW,out Logical.Scalar M12)
+            ||!Logical.Scalar.TrySubtract(TwoXZ,TwoYW,out Logical.Scalar M13)
+            ||!Logical.Scalar.TrySubtract(TwoXY,TwoZW,out Logical.Scalar M21)
+            ||!Logical.Scalar.TrySubtract(Logical.Scalar.One,TwoXX,out Logical.Scalar M22)
+            ||!Logical.Scalar.TrySubtract(M22,TwoZZ,out M22)
+            ||!Logical.Scalar.TryAdd(TwoYZ,TwoXW,out Logical.Scalar M23)
+            ||!Logical.Scalar.TryAdd(TwoXZ,TwoYW,out Logical.Scalar M31)
+            ||!Logical.Scalar.TrySubtract(TwoYZ,TwoXW,out Logical.Scalar M32)
+            ||!Logical.Scalar.TrySubtract(Logical.Scalar.One,TwoXX,out Logical.Scalar M33)
+            ||!Logical.Scalar.TrySubtract(M33,TwoYY,out M33)
+            ||!Logical.Scalar.TryMultiply(Transform.ScaleX,M11,out M11)
+            ||!Logical.Scalar.TryMultiply(Transform.ScaleX,M12,out M12)
+            ||!Logical.Scalar.TryMultiply(Transform.ScaleX,M13,out M13)
+            ||!Logical.Scalar.TryMultiply(Transform.ScaleY,M21,out M21)
+            ||!Logical.Scalar.TryMultiply(Transform.ScaleY,M22,out M22)
+            ||!Logical.Scalar.TryMultiply(Transform.ScaleY,M23,out M23)
+            ||!Logical.Scalar.TryMultiply(Transform.ScaleZ,M31,out M31)
+            ||!Logical.Scalar.TryMultiply(Transform.ScaleZ,M32,out M32)
+            ||!Logical.Scalar.TryMultiply(Transform.ScaleZ,M33,out M33)){
             Matrix=default;
             return FixedTransformStatus.NumericOverflow;
         }
@@ -191,21 +191,21 @@ public readonly struct FixedAffineTransform {
 
     public static FixedTransformStatus TryMultiply(
         in FixedAffineTransform Left,in FixedAffineTransform Right,out FixedAffineTransform Result){
-        if(!TryDot3(Left.M11,Left.M12,Left.M13,Right.M11,Right.M21,Right.M31,out FixedScalar M11)
-            ||!TryDot3(Left.M11,Left.M12,Left.M13,Right.M12,Right.M22,Right.M32,out FixedScalar M12)
-            ||!TryDot3(Left.M11,Left.M12,Left.M13,Right.M13,Right.M23,Right.M33,out FixedScalar M13)
-            ||!TryDot3(Left.M21,Left.M22,Left.M23,Right.M11,Right.M21,Right.M31,out FixedScalar M21)
-            ||!TryDot3(Left.M21,Left.M22,Left.M23,Right.M12,Right.M22,Right.M32,out FixedScalar M22)
-            ||!TryDot3(Left.M21,Left.M22,Left.M23,Right.M13,Right.M23,Right.M33,out FixedScalar M23)
-            ||!TryDot3(Left.M31,Left.M32,Left.M33,Right.M11,Right.M21,Right.M31,out FixedScalar M31)
-            ||!TryDot3(Left.M31,Left.M32,Left.M33,Right.M12,Right.M22,Right.M32,out FixedScalar M32)
-            ||!TryDot3(Left.M31,Left.M32,Left.M33,Right.M13,Right.M23,Right.M33,out FixedScalar M33)
-            ||!TryDot3(Left.M41,Left.M42,Left.M43,Right.M11,Right.M21,Right.M31,out FixedScalar TranslationX)
-            ||!FixedScalar.TryAdd(TranslationX,Right.M41,out TranslationX)
-            ||!TryDot3(Left.M41,Left.M42,Left.M43,Right.M12,Right.M22,Right.M32,out FixedScalar TranslationY)
-            ||!FixedScalar.TryAdd(TranslationY,Right.M42,out TranslationY)
-            ||!TryDot3(Left.M41,Left.M42,Left.M43,Right.M13,Right.M23,Right.M33,out FixedScalar TranslationZ)
-            ||!FixedScalar.TryAdd(TranslationZ,Right.M43,out TranslationZ)){
+        if(!TryDot3(Left.M11,Left.M12,Left.M13,Right.M11,Right.M21,Right.M31,out Logical.Scalar M11)
+            ||!TryDot3(Left.M11,Left.M12,Left.M13,Right.M12,Right.M22,Right.M32,out Logical.Scalar M12)
+            ||!TryDot3(Left.M11,Left.M12,Left.M13,Right.M13,Right.M23,Right.M33,out Logical.Scalar M13)
+            ||!TryDot3(Left.M21,Left.M22,Left.M23,Right.M11,Right.M21,Right.M31,out Logical.Scalar M21)
+            ||!TryDot3(Left.M21,Left.M22,Left.M23,Right.M12,Right.M22,Right.M32,out Logical.Scalar M22)
+            ||!TryDot3(Left.M21,Left.M22,Left.M23,Right.M13,Right.M23,Right.M33,out Logical.Scalar M23)
+            ||!TryDot3(Left.M31,Left.M32,Left.M33,Right.M11,Right.M21,Right.M31,out Logical.Scalar M31)
+            ||!TryDot3(Left.M31,Left.M32,Left.M33,Right.M12,Right.M22,Right.M32,out Logical.Scalar M32)
+            ||!TryDot3(Left.M31,Left.M32,Left.M33,Right.M13,Right.M23,Right.M33,out Logical.Scalar M33)
+            ||!TryDot3(Left.M41,Left.M42,Left.M43,Right.M11,Right.M21,Right.M31,out Logical.Scalar TranslationX)
+            ||!Logical.Scalar.TryAdd(TranslationX,Right.M41,out TranslationX)
+            ||!TryDot3(Left.M41,Left.M42,Left.M43,Right.M12,Right.M22,Right.M32,out Logical.Scalar TranslationY)
+            ||!Logical.Scalar.TryAdd(TranslationY,Right.M42,out TranslationY)
+            ||!TryDot3(Left.M41,Left.M42,Left.M43,Right.M13,Right.M23,Right.M33,out Logical.Scalar TranslationZ)
+            ||!Logical.Scalar.TryAdd(TranslationZ,Right.M43,out TranslationZ)){
             Result=default;
             return FixedTransformStatus.NumericOverflow;
         }
@@ -233,9 +233,9 @@ public readonly struct FixedAffineTransform {
     /// </summary>
     public FixedTransformStatus TryToCameraRelativeMatrix(
         in FixedAffineTransform CameraWorld,out Matrix4x4 Matrix){
-        if(!FixedScalar.TrySubtract(this.M41,CameraWorld.M41,out FixedScalar X)
-            ||!FixedScalar.TrySubtract(this.M42,CameraWorld.M42,out FixedScalar Y)
-            ||!FixedScalar.TrySubtract(this.M43,CameraWorld.M43,out FixedScalar Z)){
+        if(!Logical.Scalar.TrySubtract(this.M41,CameraWorld.M41,out Logical.Scalar X)
+            ||!Logical.Scalar.TrySubtract(this.M42,CameraWorld.M42,out Logical.Scalar Y)
+            ||!Logical.Scalar.TrySubtract(this.M43,CameraWorld.M43,out Logical.Scalar Z)){
             Matrix=default;
             return FixedTransformStatus.NumericOverflow;
         }
@@ -291,52 +291,52 @@ public readonly struct FixedAffineTransform {
 
     private static FixedTransformStatus TryGetNormalizedQuaternion(
         in Transform Transform,
-        out FixedScalar X,out FixedScalar Y,out FixedScalar Z,out FixedScalar W){
+        out Logical.Scalar X,out Logical.Scalar Y,out Logical.Scalar Z,out Logical.Scalar W){
         X=Transform.RotationX;
         Y=Transform.RotationY;
         Z=Transform.RotationZ;
         W=Transform.RotationW;
-        if(!FixedScalar.TryMultiply(X,X,out FixedScalar XX)
-            ||!FixedScalar.TryMultiply(Y,Y,out FixedScalar YY)
-            ||!FixedScalar.TryMultiply(Z,Z,out FixedScalar ZZ)
-            ||!FixedScalar.TryMultiply(W,W,out FixedScalar WW)
-            ||!FixedScalar.TryAdd(XX,YY,out FixedScalar LengthSquared)
-            ||!FixedScalar.TryAdd(LengthSquared,ZZ,out LengthSquared)
-            ||!FixedScalar.TryAdd(LengthSquared,WW,out LengthSquared)){
+        if(!Logical.Scalar.TryMultiply(X,X,out Logical.Scalar XX)
+            ||!Logical.Scalar.TryMultiply(Y,Y,out Logical.Scalar YY)
+            ||!Logical.Scalar.TryMultiply(Z,Z,out Logical.Scalar ZZ)
+            ||!Logical.Scalar.TryMultiply(W,W,out Logical.Scalar WW)
+            ||!Logical.Scalar.TryAdd(XX,YY,out Logical.Scalar LengthSquared)
+            ||!Logical.Scalar.TryAdd(LengthSquared,ZZ,out LengthSquared)
+            ||!Logical.Scalar.TryAdd(LengthSquared,WW,out LengthSquared)){
             return FixedTransformStatus.NumericOverflow;
         }
-        if(LengthSquared.IsZero||!FixedScalar.TrySquareRoot(LengthSquared,out FixedScalar Length)
+        if(LengthSquared.IsZero||!Logical.Scalar.TrySquareRoot(LengthSquared,out Logical.Scalar Length)
             ||Length.IsZero){
             return FixedTransformStatus.NonInvertible;
         }
-        if(!FixedScalar.TryDivide(X,Length,out X)
-            ||!FixedScalar.TryDivide(Y,Length,out Y)
-            ||!FixedScalar.TryDivide(Z,Length,out Z)
-            ||!FixedScalar.TryDivide(W,Length,out W)){
+        if(!Logical.Scalar.TryDivide(X,Length,out X)
+            ||!Logical.Scalar.TryDivide(Y,Length,out Y)
+            ||!Logical.Scalar.TryDivide(Z,Length,out Z)
+            ||!Logical.Scalar.TryDivide(W,Length,out W)){
             return FixedTransformStatus.NumericOverflow;
         }
         return FixedTransformStatus.Success;
     }
 
     private static bool TryDoubleProduct(
-        FixedScalar Left,FixedScalar Right,out FixedScalar Result){
+        Logical.Scalar Left,Logical.Scalar Right,out Logical.Scalar Result){
         Result=default;
-        return FixedScalar.TryMultiply(Left,Right,out FixedScalar Product)
-            &&FixedScalar.TryAdd(Product,Product,out Result);
+        return Logical.Scalar.TryMultiply(Left,Right,out Logical.Scalar Product)
+            &&Logical.Scalar.TryAdd(Product,Product,out Result);
     }
 
     private static bool TryDot3(
-        FixedScalar LeftX,FixedScalar LeftY,FixedScalar LeftZ,
-        FixedScalar RightX,FixedScalar RightY,FixedScalar RightZ,
-        out FixedScalar Result){
+        Logical.Scalar LeftX,Logical.Scalar LeftY,Logical.Scalar LeftZ,
+        Logical.Scalar RightX,Logical.Scalar RightY,Logical.Scalar RightZ,
+        out Logical.Scalar Result){
         Result=default;
-        if(!FixedScalar.TryMultiply(LeftX,RightX,out FixedScalar ProductX)
-            ||!FixedScalar.TryMultiply(LeftY,RightY,out FixedScalar ProductY)
-            ||!FixedScalar.TryMultiply(LeftZ,RightZ,out FixedScalar ProductZ)
-            ||!FixedScalar.TryAdd(ProductX,ProductY,out FixedScalar Sum)){
+        if(!Logical.Scalar.TryMultiply(LeftX,RightX,out Logical.Scalar ProductX)
+            ||!Logical.Scalar.TryMultiply(LeftY,RightY,out Logical.Scalar ProductY)
+            ||!Logical.Scalar.TryMultiply(LeftZ,RightZ,out Logical.Scalar ProductZ)
+            ||!Logical.Scalar.TryAdd(ProductX,ProductY,out Logical.Scalar Sum)){
             return false;
         }
-        return FixedScalar.TryAdd(Sum,ProductZ,out Result);
+        return Logical.Scalar.TryAdd(Sum,ProductZ,out Result);
     }
 }
 

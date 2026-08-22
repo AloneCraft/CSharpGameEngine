@@ -110,10 +110,12 @@
     <Project Path="src/CSharpGameEngine.Core/CSharpGameEngine.Core.csproj" />
     <Project Path="src/CSharpGameEngine.CodeAnalysis/CSharpGameEngine.CodeAnalysis.csproj" />
     <Project Path="src/CSharpGameEngine.Entities/CSharpGameEngine.Entities.csproj" />
+    <Project Path="src/CSharpGameEngine.Numerics/CSharpGameEngine.Numerics.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/CSharpGameEngine.Core.Tests/CSharpGameEngine.Core.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Bridge.Hosting.Tests/CSharpGameEngine.Bridge.Hosting.Tests.csproj" />
+    <Project Path="tests/CSharpGameEngine.Numerics.Tests/CSharpGameEngine.Numerics.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.CodeAnalysis.Tests/CSharpGameEngine.CodeAnalysis.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Entities.Tests/CSharpGameEngine.Entities.Tests.csproj" />

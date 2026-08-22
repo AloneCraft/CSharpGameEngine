@@ -52,8 +52,4 @@ SCENE116 | CSharpGameEngine.Entities.CodeGen | Error | SceneDslDiagnostics
 SCENE117 | CSharpGameEngine.Entities.CodeGen | Error | SceneDslDiagnostics
 SCENE118 | CSharpGameEngine.Entities.CodeGen | Error | SceneDslDiagnostics
 SCENE119 | CSharpGameEngine.Entities.CodeGen | Error | SceneDslDiagnostics
-TRFPREC001 | CSharpGameEngine.Entities.TransformPrecision | Error | TransformPrecisionDiagnostics
-TRFPREC002 | CSharpGameEngine.Entities.TransformPrecision | Error | TransformPrecisionDiagnostics
-TRFPREC003 | CSharpGameEngine.Entities.TransformPrecision | Error | TransformPrecisionDiagnostics
-TRFPREC004 | CSharpGameEngine.Entities.TransformPrecision | Error | TransformPrecisionDiagnostics
 LGT001 | CSharpGameEngine.Lighting | Error | LightApiMigrationDiagnostics

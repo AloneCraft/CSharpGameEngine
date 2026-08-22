@@ -44,9 +44,6 @@ namespace CSharpGameEngine.VSExtension;
 // GeneratePkgDefFile=true なので .pkgdef へ自動登録される(マニフェストの手編集は不要)。
 [ProvideOptionPage(typeof(SceneEditorOptionsPage),"C# Game Engine","Scene Editor",120,121,
     supportsAutomation:true)]
-// Tools>Options > C# Game Engine > Transform Precision。120/122 は VSPackage.resx のカテゴリ名/ページ名。
-[ProvideOptionPage(typeof(TransformPrecisionOptionsPage),"C# Game Engine","Transform Precision",120,122,
-    supportsAutomation:true)]
 public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
     public const string PackageGuidString="aec17804-e2e4-46e7-b373-de11af816203";
 
