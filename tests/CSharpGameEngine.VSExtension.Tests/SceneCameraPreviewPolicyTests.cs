@@ -145,7 +145,88 @@ public sealed class SceneCameraPreviewPolicyTests {
         Assert.False(CameraPreviewHitTestPolicy.TryHit(Layout, 0f, 0f, out NodePath Outside));
     }
 
+    [Fact]
+    public void Build_ReportsMissingTransformWithNonEmptyMessage() {
+        SceneModel Model = SceneAnalysisTestHelper.Analyze([Components, """
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Runtime.Windows;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() { Name="CameraOnly", Components=[new Camera()] };
+            }
+            """]);
+
+        IReadOnlyList<SceneCameraPreview> Cameras = SceneCameraPreviewBinding.Build(
+            Model, [NodePath.Root], 16f / 9f);
+
+        SceneCameraPreview Camera = Assert.Single(Cameras);
+        Assert.False(Camera.IsAvailable);
+        Assert.False(string.IsNullOrEmpty(Camera.ErrorMessage));
+    }
+
     private static SceneCameraPreview CreatePreview(NodePath Path, string Name) =>
         new(Path, Name, SceneProjectionMode.Perspective, 16f / 9f, 1f, 0.1f, 100f, 10f,
             Matrix4x4.Identity, Matrix4x4.Identity, Matrix4x4.Identity);
+}
+
+public sealed class CameraPreviewDrawPolicyTests {
+    [Fact]
+    public void ShouldDraw_AlwaysDrawsOnTheMainViewport() {
+        NodePath CameraNode = NodePath.Root.Append(0);
+        NodePath OtherNode = NodePath.Root.Append(1);
+
+        Assert.True(CameraPreviewDrawPolicy.ShouldDraw(0, CameraNode, CameraNode));
+        Assert.True(CameraPreviewDrawPolicy.ShouldDraw(0, OtherNode, CameraNode));
+    }
+
+    [Fact]
+    public void ShouldDraw_ExcludesOnlyTheCameraNodeItselfOnAPreviewPass() {
+        NodePath CameraNode = NodePath.Root.Append(0);
+        NodePath OtherNode = NodePath.Root.Append(1);
+
+        Assert.False(CameraPreviewDrawPolicy.ShouldDraw(1, CameraNode, CameraNode));
+        Assert.True(CameraPreviewDrawPolicy.ShouldDraw(1, OtherNode, CameraNode));
+        Assert.False(CameraPreviewDrawPolicy.ShouldDraw(3, CameraNode, CameraNode));
+        Assert.True(CameraPreviewDrawPolicy.ShouldDraw(3, OtherNode, CameraNode));
+    }
+}
+
+public sealed class SceneConstantBufferLayoutTests {
+    private const int AlignedSlotSize = 256;
+    private const int CameraPassCount = 4; // 1 main viewport + SceneRenderer.MaxCameraPreviews(3)
+    private const int FrameCount = 2;
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(37)]
+    public void WriteOffsets_StayWithinTheMappedRegion_ForEveryFrameAndPass(int ObjectCount) {
+        int ObjectCapacity = Math.Max(1, ObjectCount * 2);
+        int AllocatedSize = SceneConstantBufferLayout.ComputeAllocatedSize(
+            AlignedSlotSize, ObjectCapacity, CameraPassCount, FrameCount);
+
+        for (int FrameIndex = 0; FrameIndex < FrameCount; FrameIndex++) {
+            int FrameOffset = SceneConstantBufferLayout.ComputeFrameOffset(
+                FrameIndex, AlignedSlotSize, ObjectCapacity, CameraPassCount);
+            int MapLength = SceneConstantBufferLayout.ComputeMapLength(
+                AlignedSlotSize, ObjectCapacity, CameraPassCount);
+
+            // Map()に渡す長さそのものが確保済みバッファ内に収まっていること。
+            Assert.True(FrameOffset + MapLength <= AllocatedSize,
+                $"frame={FrameIndex} objects={ObjectCount}: FrameOffset+MapLength={FrameOffset + MapLength} exceeds AllocatedSize={AllocatedSize}");
+
+            for (int Pass = 0; Pass < CameraPassCount; Pass++) {
+                for (int ObjectIndex = 0; ObjectIndex < ObjectCount; ObjectIndex++) {
+                    int WriteOffset = SceneConstantBufferLayout.ComputeWriteOffset(
+                        FrameOffset, Pass, ObjectIndex, AlignedSlotSize, ObjectCapacity);
+                    int WriteEnd = WriteOffset + AlignedSlotSize;
+
+                    Assert.True(WriteOffset >= FrameOffset,
+                        $"frame={FrameIndex} pass={Pass} object={ObjectIndex}: WriteOffset={WriteOffset} precedes FrameOffset={FrameOffset}");
+                    Assert.True(WriteEnd <= FrameOffset + MapLength,
+                        $"frame={FrameIndex} pass={Pass} object={ObjectIndex}: WriteEnd={WriteEnd} exceeds mapped region {FrameOffset + MapLength}");
+                }
+            }
+        }
+    }
 }

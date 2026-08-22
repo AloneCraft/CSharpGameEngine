@@ -370,7 +370,7 @@ internal sealed class SceneHwndHost:HwndHost {
             Passes.Add(new SceneCameraPreviewPass(
                 (int)Math.Round(Rect.X),(int)Math.Round(Rect.Y),
                 Math.Max(1,(int)Math.Round(Rect.Width)),Math.Max(1,(int)Math.Round(Rect.Height)),
-                Camera.View,Camera.Projection));
+                Camera.View,Camera.Projection,Camera.NodePath));
         }
 
         this.CameraPreviewLayout=EffectiveLayout;

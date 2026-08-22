@@ -144,7 +144,7 @@ internal static class SceneCameraPreviewBinding {
                 :new SceneCameraPreview(
                     Node.Path,Node.DisplayName,ReadProjection(Camera),
                     AspectRatio,DefaultFovYRadians,DefaultNearZ,DefaultFarZ,DefaultOrthographicSize,
-                    World,Matrix4x4.Identity,Matrix4x4.Identity,string.Empty);
+                    World,Matrix4x4.Identity,Matrix4x4.Identity,"Camera node has no Transform component.");
         }
 
         foreach (SceneNode Child in Node.Children) {

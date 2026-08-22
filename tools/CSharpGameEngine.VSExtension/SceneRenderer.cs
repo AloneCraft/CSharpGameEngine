@@ -53,15 +53,23 @@ internal readonly struct SceneCameraPreviewPass {
     public int Height { get; }
     public Matrix4x4 View { get; }
     public Matrix4x4 Projection { get; }
+    /// <summary>
+    /// このカードの視点になっているノード。メッシュ未宣言ノードはGizmoMeshFactoryの
+    /// プレースホルダー立方体で代替描画されるため、カメラ自身のノードをこのカードで
+    /// 描くと視点が立方体の内側に入り込み画面全体を塗り潰す。DrawScenePassはこのIDと
+    /// 一致するオブジェクトをこのパスの描画から除外する。
+    /// </summary>
+    public NodePath CameraNodeId { get; }
 
     internal SceneCameraPreviewPass(
-        int X,int Y,int Width,int Height,in Matrix4x4 View,in Matrix4x4 Projection){
+        int X,int Y,int Width,int Height,in Matrix4x4 View,in Matrix4x4 Projection,NodePath CameraNodeId){
         this.X=X;
         this.Y=Y;
         this.Width=Width;
         this.Height=Height;
         this.View=View;
         this.Projection=Projection;
+        this.CameraNodeId=CameraNodeId;
     }
 }
 
@@ -101,6 +109,28 @@ internal readonly struct SceneCameraPreviewDiagnostics {
             return(Hash^(uint)Value.M44.GetHashCode())*16777619;
         }
     }
+}
+
+/// <summary>
+/// 定数バッファの単一フレーム分は<c>ObjectCapacity(=Objects.Count*2、成長余地込み)×CameraPassCount</c>
+/// スロット。<see cref="SceneRenderer"/>はメインビューポート(pass 0)とカメラプレビュー最大
+/// <see cref="SceneRenderer.MaxCameraPreviews"/>枚(pass 1..N)を1本のバッファへ並べて書くため、
+/// Map長・書き込みオフセットのどちらもこの<c>ObjectCapacity</c>基準でなければならない
+/// (<c>Objects.Count</c>基準にすると、カメラプレビューが2枚以上あるとき範囲外書き込みになる)。
+/// GPUデバイスを必要としない純粋な算術なのでユニットテストできる。
+/// </summary>
+internal static class SceneConstantBufferLayout {
+    internal static int ComputeAllocatedSize(int AlignedSlotSize,int ObjectCapacity,int CameraPassCount,int FrameCount)=>
+        AlignedSlotSize*ObjectCapacity*CameraPassCount*FrameCount;
+
+    internal static int ComputeFrameOffset(int FrameIndex,int AlignedSlotSize,int ObjectCapacity,int CameraPassCount)=>
+        FrameIndex*ObjectCapacity*CameraPassCount*AlignedSlotSize;
+
+    internal static int ComputeMapLength(int AlignedSlotSize,int ObjectCapacity,int CameraPassCount)=>
+        AlignedSlotSize*ObjectCapacity*CameraPassCount;
+
+    internal static int ComputeWriteOffset(int FrameOffset,int Pass,int ObjectIndex,int AlignedSlotSize,int ObjectCapacity)=>
+        FrameOffset+(Pass*ObjectCapacity*AlignedSlotSize)+(ObjectIndex*AlignedSlotSize);
 }
 
 /// <summary>
@@ -436,7 +466,8 @@ internal sealed class SceneRenderer:IDisposable {
                                                                  new ResourceDescription {
                                                                      Dimension=ResourceDimension.Buffer,
                                                                      // D3D12 は 0 バイトの buffer を許可しないので、0件でも1スロット分は確保する。
-                                                                      Width=(ulong)(this.AlignedSlotSize* this.ObjectCapacity*CameraPassCount*FrameCount),
+                                                                      Width=(ulong)SceneConstantBufferLayout.ComputeAllocatedSize(
+                                                                          this.AlignedSlotSize, this.ObjectCapacity,CameraPassCount,FrameCount),
                                                                      Height=1,
                                                                      DepthOrArraySize=1,
                                                                      MipLevels=1,
@@ -542,7 +573,11 @@ internal sealed class SceneRenderer:IDisposable {
             var Preview=this.CameraPreviews[I];
             var ViewProjection=Preview.View*Preview.Projection;
             var Candidates=0;
+            var Draws=0;
             foreach(var Obj in this.Objects){
+                if(CameraPreviewDrawPolicy.ShouldDraw(I+1,Obj.NodeId,Preview.CameraNodeId)){
+                    Draws++;
+                }
                 var Position=Vector3.Transform(Vector3.Zero,Obj.World);
                 var Clip=Vector4.Transform(new Vector4(Position,1f),ViewProjection);
                 if(Clip.W>1e-5f&&Math.Abs(Clip.X)<=Clip.W&&Math.Abs(Clip.Y)<=Clip.W
@@ -551,7 +586,7 @@ internal sealed class SceneRenderer:IDisposable {
                 }
             }
             this.CameraPreviewDiagnostics[I]=new SceneCameraPreviewDiagnostics(
-                this.Objects.Count,Candidates,this.Objects.Count,ComputeMatrixHash(ViewProjection));
+                this.Objects.Count,Candidates,Draws,ComputeMatrixHash(ViewProjection));
         }
     }
 
@@ -584,7 +619,7 @@ internal sealed class SceneRenderer:IDisposable {
         var Bottom=Clamp((long)Preview.Y+Preview.Height,0L,this.Height);
         return new SceneCameraPreviewPass(
             Left,Top,(int)Math.Max(0,Right-Left),(int)Math.Max(0,Bottom-Top),
-            Preview.View,Preview.Projection);
+            Preview.View,Preview.Projection,Preview.CameraNodeId);
     }
 
     // net472 does not provide Math.Clamp; keep clipping local to the renderer so that
@@ -856,13 +891,14 @@ internal sealed class SceneRenderer:IDisposable {
             return;
         }
 
-        var FrameOffset=FrameIndex* this.ObjectCapacity*CameraPassCount* this.AlignedSlotSize;
-        var TotalSize= this.AlignedSlotSize* this.Objects.Count*CameraPassCount;
+        var FrameOffset=SceneConstantBufferLayout.ComputeFrameOffset(
+            FrameIndex, this.AlignedSlotSize, this.ObjectCapacity,CameraPassCount);
+        var TotalSize=SceneConstantBufferLayout.ComputeMapLength(
+            this.AlignedSlotSize, this.ObjectCapacity,CameraPassCount);
         var Mapped= this.ConstantBuffer.Map<byte>(0,FrameOffset+TotalSize);
         for(var Pass=0;Pass<= this.CameraPreviewCount;Pass++){
             var View=Pass==0?this.CurrentView:this.CameraPreviews[Pass-1].View;
             var Projection=Pass==0?this.CurrentProjection:this.CameraPreviews[Pass-1].Projection;
-            var PassOffset=FrameOffset+(Pass* this.ObjectCapacity* this.AlignedSlotSize);
             for(var I=0;I< this.Objects.Count;I++){
                 var Obj= this.Objects[I];
                 var Mvp=Obj.World*View*Projection;
@@ -872,8 +908,10 @@ internal sealed class SceneRenderer:IDisposable {
                                   ?SceneSelectionTint.GetWeight(Obj.NodeId, this.SelectedNodeId, this.SelectedNodeIds)
                                   :0f;
                 TransformConstants Constants=new(){ Mvp=Mvp,BaseColorFactor=Obj.BaseColorFactor,Selected=Selected };
+                var WriteOffset=SceneConstantBufferLayout.ComputeWriteOffset(
+                    FrameOffset,Pass,I, this.AlignedSlotSize, this.ObjectCapacity);
                 MemoryMarshal.Write(
-                    Mapped.Slice(PassOffset+(I* this.AlignedSlotSize),Marshal.SizeOf<TransformConstants>()),
+                    Mapped.Slice(WriteOffset,Marshal.SizeOf<TransformConstants>()),
                     ref Constants);
             }
         }
@@ -1062,10 +1100,14 @@ internal sealed class SceneRenderer:IDisposable {
     }
 
     private void DrawScenePass(int FrameIndex,int PassIndex){
+        var CameraNodeId=PassIndex==0?default:this.CameraPreviews[PassIndex-1].CameraNodeId;
         var PassOffset=(FrameIndex* this.ObjectCapacity*CameraPassCount)
                        +(PassIndex* this.ObjectCapacity);
         for(var I=0;I< this.Objects.Count;I++){
             var Obj= this.Objects[I];
+            if(!CameraPreviewDrawPolicy.ShouldDraw(PassIndex,Obj.NodeId,CameraNodeId)){
+                continue;
+            }
             var ConstantOffset=(PassOffset+I)* this.AlignedSlotSize;
             this.CommandList.SetGraphicsRootConstantBufferView(
                                                                0, this.ConstantBuffer.GPUVirtualAddress+(ulong)ConstantOffset);
