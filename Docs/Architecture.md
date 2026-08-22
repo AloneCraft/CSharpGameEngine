@@ -124,12 +124,16 @@ Roslynにロードされない。
 - `CSharpGameEngine.slnx` がこのリポジトリの唯一のソリューションファイルである。
   Visual Studio によってレガシーな `CSharpGameEngine.sln` 形式から移行済みで、
   そのファイルはもう存在しない。
-- `src/`、`tests/`、`tools/` 配下の各プロジェクトは、対応する `/src/`、`/tests/`、`/tools/`
-  フォルダ内で必ず `CSharpGameEngine.slnx` に登録すること。登録漏れがあっても
-  `dotnet build`/`dotnet test`/`dotnet run --project` は `.csproj` に対して直接動作するが、
+- リポジトリ直下と全サブフォルダにある `bin`、`obj`、`.git`、`.vs`、`.gitignore` で除外された
+  ローカル `VSIXProject1` 以外の全 `.csproj` と
+  `.shproj` は、配置場所に関係なく `CSharpGameEngine.slnx` に登録すること。登録漏れがあっても
+  `dotnet build`/`dotnet test`/`dotnet run --project` はプロジェクトに対して直接動作するが、
   Visual Studio 上には表示されない。
-- プロジェクトの追加・削除・移動を行う際は、同じ変更の中で `CSharpGameEngine.slnx` も
-  更新すること。
+- 全 `.projitems` も `CSharpGameEngine.slnx` のソリューション項目として登録すること。
+- `.shproj` は対応する `.projitems` を `Label="Shared"` で import し、共有プロジェクトの管理項目は
+  ワイルドカードではなく `.projitems` に明示すること。
+- プロジェクトまたは共有プロジェクトファイルの追加・削除・移動・改名を行う際は、同じ変更の中で
+  `CSharpGameEngine.slnx` を更新し、登録整合性テストを実行すること。
 - ソリューションが宣言しているプラットフォームは **x64 のみ**である。
 - `UserGameProject.slnx`(2つ目のソリューションファイル)は ADR-0034 で削除した。
   M0009 で消えた `CSharpGameEngine.Ecs` 等を参照しており、読み込み不能な状態で放置されていた。
