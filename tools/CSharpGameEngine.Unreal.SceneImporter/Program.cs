@@ -164,18 +164,20 @@ static void AppendFog(StringBuilder Builder,ImportFog Fog){
 }
 
 static void AppendTransform(StringBuilder Builder,Vector3 Translation,Quaternion Rotation,Vector3 Scale,string Indent){
+    Vector3 Euler=ToEulerRuf(Rotation);
     Builder.Append(Indent).AppendLine("new Transform {");
-    Builder.Append(Indent).Append("    PositionX=").Append(F(Translation.X)).AppendLine(",");
-    Builder.Append(Indent).Append("    PositionY=").Append(F(Translation.Y)).AppendLine(",");
-    Builder.Append(Indent).Append("    PositionZ=").Append(F(Translation.Z)).AppendLine(",");
-    Builder.Append(Indent).Append("    RotationX=").Append(F(Rotation.X)).AppendLine(",");
-    Builder.Append(Indent).Append("    RotationY=").Append(F(Rotation.Y)).AppendLine(",");
-    Builder.Append(Indent).Append("    RotationZ=").Append(F(Rotation.Z)).AppendLine(",");
-    Builder.Append(Indent).Append("    RotationW=").Append(F(Rotation.W)).AppendLine(",");
-    Builder.Append(Indent).Append("    ScaleX=").Append(F(Scale.X)).AppendLine(",");
-    Builder.Append(Indent).Append("    ScaleY=").Append(F(Scale.Y)).AppendLine(",");
-    Builder.Append(Indent).Append("    ScaleZ=").Append(F(Scale.Z)).AppendLine(",");
+    Builder.Append(Indent).Append("    Position=new Logical.Vector3(").Append(F(Translation.X)).Append(',').Append(F(Translation.Y)).Append(',').Append(F(Translation.Z)).AppendLine("),");
+    Builder.Append(Indent).Append("    Rotation=new Logical.Vector3(").Append(F(Euler.X)).Append(',').Append(F(Euler.Y)).Append(',').Append(F(Euler.Z)).AppendLine("),");
+    Builder.Append(Indent).Append("    Scale=new Logical.Vector3(").Append(F(Scale.X)).Append(',').Append(F(Scale.Y)).Append(',').Append(F(Scale.Z)).AppendLine("),");
     Builder.Append(Indent).AppendLine("},");
+}
+
+static Vector3 ToEulerRuf(Quaternion Rotation){
+    Rotation=Quaternion.Normalize(Rotation);
+    float Pitch=MathF.Asin(Math.Clamp(2f*(Rotation.W*Rotation.X-Rotation.Y*Rotation.Z),-1f,1f));
+    float Yaw=MathF.Atan2(2f*(Rotation.W*Rotation.Y+Rotation.Z*Rotation.X),1f-2f*(Rotation.X*Rotation.X+Rotation.Y*Rotation.Y));
+    float Roll=MathF.Atan2(2f*(Rotation.W*Rotation.Z+Rotation.X*Rotation.Y),1f-2f*(Rotation.X*Rotation.X+Rotation.Z*Rotation.Z));
+    return new Vector3(Pitch,Yaw,Roll);
 }
 
 static string AssetMemberName(string AssetPath)=>Path.GetFileNameWithoutExtension(AssetPath);

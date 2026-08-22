@@ -4,33 +4,36 @@ using CSharpGameEngine.SceneAnalysis;
 
 namespace CSharpGameEngine.VSExtension;
 
-/// <summary>VSIX内で扱う、Scene DSLのflatなローカルTRS値。</summary>
+/// <summary>Designer-side TRS. Rotation is stored for editing as RUF Euler radians and exposed to gizmos as a quaternion.</summary>
 internal readonly struct SceneTransformValue {
     internal SceneTransformValue(Vector3 Position,Quaternion Rotation,Vector3 Scale){
         this.Position=Position;
         this.Rotation=SceneTransformMath.NormalizeRotation(Rotation);
+        this.EulerRotation=SceneTransformMath.ToEulerRuf(this.Rotation);
+        this.Scale=Scale;
+    }
+
+    internal SceneTransformValue(Vector3 Position,Vector3 EulerRotation,Vector3 Scale){
+        this.Position=Position;
+        this.EulerRotation=EulerRotation;
+        this.Rotation=SceneTransformMath.CreateRotation(EulerRotation);
         this.Scale=Scale;
     }
 
     internal Vector3 Position { get; }
-
     internal Quaternion Rotation { get; }
-
+    internal Vector3 EulerRotation { get; }
     internal Vector3 Scale { get; }
-
-    internal static SceneTransformValue Identity=>new(Vector3.Zero,Quaternion.Identity,Vector3.One);
+    internal static SceneTransformValue Identity=>new(Vector3.Zero,Vector3.Zero,Vector3.One);
 }
 
-/// <summary>
-/// Scene Designer用の純粋なTRS計算。net472のVSIXからnet10.0のRuntime.Windowsを参照できないため、
-/// RuntimeのTransformMathと同じSystem.Numerics row-vector式をこの境界で固定する。
-/// </summary>
+/// <summary>Row-vector TRS helpers shared by the scene designer and its gizmos.</summary>
 internal static class SceneTransformMath {
     private const float QuaternionEpsilon=1e-12f;
 
     internal static Matrix4x4 ToMatrix(in SceneTransformValue Transform)=>
         Matrix4x4.CreateScale(Transform.Scale)
-        *Matrix4x4.CreateFromQuaternion(NormalizeRotation(Transform.Rotation))
+        *Matrix4x4.CreateFromQuaternion(Transform.Rotation)
         *Matrix4x4.CreateTranslation(Transform.Position);
 
     internal static Matrix4x4 ToWorld(in SceneTransformValue Local,in Matrix4x4 ParentWorld)=>
@@ -42,7 +45,6 @@ internal static class SceneTransformMath {
             Local=default;
             return false;
         }
-
         return TryDecompose(World*InverseParent,out Local);
     }
 
@@ -52,9 +54,25 @@ internal static class SceneTransformMath {
             Transform=default;
             return false;
         }
-
         Transform=new SceneTransformValue(Position,Rotation,Scale);
         return true;
+    }
+
+    /// <summary>Creates Yaw(U)-Pitch(R)-Roll(F) orientation from public RUF radians.</summary>
+    internal static Quaternion CreateRotation(Vector3 EulerRuf)=>
+        Quaternion.CreateFromYawPitchRoll(EulerRuf.Y,EulerRuf.X,EulerRuf.Z);
+
+    /// <summary>Converts a gizmo quaternion to public RUF radians in the Yaw(U)-Pitch(R)-Roll(F) convention.</summary>
+    internal static Vector3 ToEulerRuf(Quaternion Rotation){
+        Rotation=NormalizeRotation(Rotation);
+        float SinR=2f*(Rotation.W*Rotation.X-Rotation.Y*Rotation.Z);
+        SinR=SinR>1f?1f:SinR<-1f?-1f:SinR;
+        float R=(float)Math.Asin(SinR);
+        float U=(float)Math.Atan2(2f*(Rotation.W*Rotation.Y+Rotation.Z*Rotation.X),
+            1f-2f*(Rotation.X*Rotation.X+Rotation.Y*Rotation.Y));
+        float F=(float)Math.Atan2(2f*(Rotation.W*Rotation.Z+Rotation.X*Rotation.Y),
+            1f-2f*(Rotation.X*Rotation.X+Rotation.Z*Rotation.Z));
+        return new Vector3(R,U,F);
     }
 
     internal static Quaternion NormalizeRotation(Quaternion Rotation)=>
@@ -68,64 +86,48 @@ internal static class SceneTransformMath {
     internal static bool NearlyEqual(float Left,float Right,float Epsilon=1e-6f)=>
         Math.Abs(Left-Right)<=Epsilon;
 
-    private static bool IsFinite(Vector3 Value)=>
-        IsFinite(Value.X)&&IsFinite(Value.Y)&&IsFinite(Value.Z);
-
-    private static bool IsFinite(Quaternion Value)=>
-        IsFinite(Value.X)&&IsFinite(Value.Y)&&IsFinite(Value.Z)&&IsFinite(Value.W);
-
+    private static bool IsFinite(Vector3 Value)=>IsFinite(Value.X)&&IsFinite(Value.Y)&&IsFinite(Value.Z);
+    private static bool IsFinite(Quaternion Value)=>IsFinite(Value.X)&&IsFinite(Value.Y)&&IsFinite(Value.Z)&&IsFinite(Value.W);
     private static bool IsFinite(float Value)=>!float.IsNaN(Value)&&!float.IsInfinity(Value);
 }
 
-/// <summary>SceneModelのLocalTransform bindingをTRS値と編集可否へ変換する。</summary>
+/// <summary>Reads and validates the nested public Transform.Position/Rotation/Scale vectors.</summary>
 internal static class SceneTransformBinding {
     internal static bool TryRead(SceneNode Node,out SceneTransformValue Transform){
         var Component=SceneComponentBindings.FindComponent(Node,SceneComponentRole.LocalTransform);
-        if(Component is null){
-            Transform=default;
-            return false;
+        if(Component is null){ Transform=default; return false; }
+        if(IsLegacyFlat(Component)){
+            Transform=new SceneTransformValue(
+                new Vector3(ReadLegacyFloat(Component,"PositionX"),ReadLegacyFloat(Component,"PositionY"),ReadLegacyFloat(Component,"PositionZ")),
+                new Quaternion(ReadLegacyFloat(Component,"RotationX"),ReadLegacyFloat(Component,"RotationY"),ReadLegacyFloat(Component,"RotationZ"),ReadLegacyFloat(Component,"RotationW",1f)),
+                new Vector3(ReadLegacyFloat(Component,"ScaleX",1f),ReadLegacyFloat(Component,"ScaleY",1f),ReadLegacyFloat(Component,"ScaleZ",1f)));
+        } else {
+            Transform=new SceneTransformValue(
+                ReadVector(Component,"Position",Vector3.Zero),
+                ReadVector(Component,"Rotation",Vector3.Zero),
+                ReadVector(Component,"Scale",Vector3.One));
         }
-
-        Vector3 Position=new(
-            ReadFloat(Component,"PositionX"),
-            ReadFloat(Component,"PositionY"),
-            ReadFloat(Component,"PositionZ"));
-        Quaternion Rotation=new(
-            ReadFloat(Component,"RotationX"),
-            ReadFloat(Component,"RotationY"),
-            ReadFloat(Component,"RotationZ"),
-            ReadFloat(Component,"RotationW",1f));
-        Vector3 Scale=new(
-            ReadFloat(Component,"ScaleX",1f),
-            ReadFloat(Component,"ScaleY",1f),
-            ReadFloat(Component,"ScaleZ",1f));
-        Transform=new SceneTransformValue(Position,Rotation,Scale);
         return true;
     }
 
     internal static bool CanEditMove(SceneNode Node,GizmoHandleId Handle){
         var Component=SceneComponentBindings.FindComponent(Node,SceneComponentRole.LocalTransform);
-        if(Component is null){
-            return false;
-        }
-
+        if(Component is null){ return false; }
         return Handle switch {
-            GizmoHandleId.AxisX=>CanEdit(Component,"PositionX"),
-            GizmoHandleId.AxisY=>CanEdit(Component,"PositionY"),
-            GizmoHandleId.AxisZ=>CanEdit(Component,"PositionZ"),
-            GizmoHandleId.PlaneXY=>CanEdit(Component,"PositionX")&&CanEdit(Component,"PositionY"),
-            GizmoHandleId.PlaneYZ=>CanEdit(Component,"PositionY")&&CanEdit(Component,"PositionZ"),
-            GizmoHandleId.PlaneZX=>CanEdit(Component,"PositionZ")&&CanEdit(Component,"PositionX"),
+            GizmoHandleId.AxisX=>CanEditVector(Component,"Position",0),
+            GizmoHandleId.AxisY=>CanEditVector(Component,"Position",1),
+            GizmoHandleId.AxisZ=>CanEditVector(Component,"Position",2),
+            GizmoHandleId.PlaneXY=>CanEditVector(Component,"Position",0)&&CanEditVector(Component,"Position",1),
+            GizmoHandleId.PlaneYZ=>CanEditVector(Component,"Position",1)&&CanEditVector(Component,"Position",2),
+            GizmoHandleId.PlaneZX=>CanEditVector(Component,"Position",2)&&CanEditVector(Component,"Position",0),
             _=>false,
         };
     }
 
     internal static bool CanEditAllPosition(SceneNode Node)=>
-        SceneComponentBindings.FindComponent(Node,SceneComponentRole.LocalTransform)is{ }Component
-        &&CanEdit(Component,"PositionX")&&CanEdit(Component,"PositionY")&&CanEdit(Component,"PositionZ");
+        SceneComponentBindings.FindComponent(Node,SceneComponentRole.LocalTransform)is { }Component
+        &&CanEditVector(Component,"Position",0)&&CanEditVector(Component,"Position",1)&&CanEditVector(Component,"Position",2);
 
-    // M0034: SurfaceSnapPlaneはPosition+Rotationの両方を書き換えるため、Toolに依らずCanEditRotation
-    // (全Position+全Rotationが編集可能)と同じ要件をHandle優先で判定する。
     internal static bool CanEditTransform(SceneNode Node,SceneActiveTool Tool,GizmoHandleId Handle)=>
         Handle==GizmoHandleId.SurfaceSnapPlane
             ?CanEditRotation(Node)
@@ -136,35 +138,83 @@ internal static class SceneTransformBinding {
                 _=>false,
             };
 
-    private static bool CanEditRotation(SceneNode Node)=>
-        SceneComponentBindings.FindComponent(Node,SceneComponentRole.LocalTransform)is{ }Component
-        &&CanEditAllPosition(Node)
-        &&CanEdit(Component,"RotationX")&&CanEdit(Component,"RotationY")
-        &&CanEdit(Component,"RotationZ")&&CanEdit(Component,"RotationW");
+    private static bool CanEditRotation(SceneNode Node){
+        var Component=SceneComponentBindings.FindComponent(Node,SceneComponentRole.LocalTransform);
+        if(Component is null||!CanEditAllPosition(Node)){ return false; }
+        if(IsLegacyFlat(Component)){
+            return CanEditLegacy(Component,"RotationX")&&CanEditLegacy(Component,"RotationY")
+                &&CanEditLegacy(Component,"RotationZ")&&CanEditLegacy(Component,"RotationW");
+        }
+        return CanEditVector(Component,"Rotation",0)&&CanEditVector(Component,"Rotation",1)&&CanEditVector(Component,"Rotation",2);
+    }
 
     private static bool CanEditScale(SceneNode Node,GizmoHandleId Handle){
         var Component=SceneComponentBindings.FindComponent(Node,SceneComponentRole.LocalTransform);
-        if(Component is null||!CanEditAllPosition(Node)
-            ||!CanEdit(Component,"RotationX")||!CanEdit(Component,"RotationY")
-            ||!CanEdit(Component,"RotationZ")||!CanEdit(Component,"RotationW")){
+        if(Component is null||!CanEditAllPosition(Node)){
             return false;
         }
-
-        return(Handle is GizmoHandleId.ScaleX or GizmoHandleId.ScaleY
-            or GizmoHandleId.ScaleZ or GizmoHandleId.ScaleUniform)
-            &&CanEdit(Component,"ScaleX")&&CanEdit(Component,"ScaleY")&&CanEdit(Component,"ScaleZ");
+        if(IsLegacyFlat(Component)&&(!CanEditLegacy(Component,"RotationX")||!CanEditLegacy(Component,"RotationY")
+            ||!CanEditLegacy(Component,"RotationZ")||!CanEditLegacy(Component,"RotationW"))){
+            return false;
+        }
+        if(!IsLegacyFlat(Component)&&(!CanEditVector(Component,"Rotation",0)||!CanEditVector(Component,"Rotation",1)||!CanEditVector(Component,"Rotation",2))){
+            return false;
+        }
+        if(IsLegacyFlat(Component)){
+            return(Handle is GizmoHandleId.ScaleX or GizmoHandleId.ScaleY or GizmoHandleId.ScaleZ or GizmoHandleId.ScaleUniform)
+                &&CanEditLegacy(Component,"ScaleX")&&CanEditLegacy(Component,"ScaleY")&&CanEditLegacy(Component,"ScaleZ");
+        }
+        return(Handle is GizmoHandleId.ScaleX or GizmoHandleId.ScaleY or GizmoHandleId.ScaleZ or GizmoHandleId.ScaleUniform)
+            &&CanEditVector(Component,"Scale",0)&&CanEditVector(Component,"Scale",1)&&CanEditVector(Component,"Scale",2);
     }
 
-    private static bool CanEdit(SceneComponent Component,string Name)=>
-        Component.FindMember(Name)?.Value.IsEditable??true;
+    internal static Vector3 ReadVector(SceneComponent Component,string Name,Vector3 Default){
+        if(IsLegacyFlat(Component)){
+            return new Vector3(
+                ReadLegacyFloat(Component,Name+"X",Default.X),
+                ReadLegacyFloat(Component,Name+"Y",Default.Y),
+                ReadLegacyFloat(Component,Name+"Z",Default.Z));
+        }
+        return new Vector3(
+            ReadVectorComponent(Component,Name,0,Default.X),
+            ReadVectorComponent(Component,Name,1,Default.Y),
+            ReadVectorComponent(Component,Name,2,Default.Z));
+    }
 
-    private static float ReadFloat(SceneComponent Component,string Name,float Default=0f)=>
-        Component.FindMember(Name)?.Value.ConstantValue switch {
-            float Float=>Float,
-            double Double=>(float)Double,
-            decimal Decimal=>(float)Decimal,
-            int Integer=>Integer,
-            long Long=>Long,
-            _=>Default,
-        };
+    internal static float ReadVectorComponent(SceneComponent Component,string Name,int Index,float Default){
+        SceneValue?Value=Component.FindMember(Name)?.Value;
+        if(Value is null){ return Default; }
+        if(Value.Members.Length>Index){ return ReadFloat(Value.Members[Index].Value.ConstantValue,Default); }
+        return Value.Arguments.Length>Index?ReadFloat(Value.Arguments[Index].ConstantValue,Default):Default;
+    }
+
+    internal static bool CanEditVector(SceneComponent Component,string Name,int Index){
+        if(IsLegacyFlat(Component)){
+            string LegacyName=Name+(Index==0?"X":Index==1?"Y":"Z");
+            return Component.FindMember(LegacyName)?.Value.IsEditable??true;
+        }
+        SceneValue?Value=Component.FindMember(Name)?.Value;
+        if(Value is null){ return true; }
+        if(Value.Kind!=SceneValueKind.ObjectCreation){ return false; }
+        if(Value.Members.Length>Index){ return Value.Members[Index].Value.IsEditable; }
+        return Value.Arguments.Length>Index&&Value.Arguments[Index].IsEditable;
+    }
+
+    // Existing hand-written scenes can be displayed once and are rewritten to the public RUF vectors on edit.
+    private static bool IsLegacyFlat(SceneComponent Component)=>
+        Component.FindMember("Position") is null
+        &&(Component.FindMember("PositionX") is not null||Component.FindMember("PositionY") is not null
+            ||Component.FindMember("PositionZ") is not null||Component.FindMember("RotationX") is not null
+            ||Component.FindMember("RotationY") is not null||Component.FindMember("RotationZ") is not null
+            ||Component.FindMember("RotationW") is not null||Component.FindMember("ScaleX") is not null
+            ||Component.FindMember("ScaleY") is not null||Component.FindMember("ScaleZ") is not null);
+
+    private static bool CanEditLegacy(SceneComponent Component,string Name)=>Component.FindMember(Name)?.Value.IsEditable??true;
+
+    private static float ReadLegacyFloat(SceneComponent Component,string Name,float Default=0f)=>
+        ReadFloat(Component.FindMember(Name)?.Value.ConstantValue,Default);
+    private static float ReadFloat(object? Value,float Default)=>Value switch {
+        float Float=>Float, double Double=>(float)Double, decimal Decimal=>(float)Decimal,
+        int Integer=>Integer, long Long=>Long, _=>Default,
+    };
 }

@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\CSharpGameEngine.Windows\CSharpGameEngine.Windows.csproj" />
+    <ProjectReference Include="..\..\UserEcsProject\UserEcsProject.csproj" />
     <!-- The authored physical-light API lives in the user-compilable engine source. Keep a
          compile-time contract test here so an editor-only change cannot reintroduce positional
          or unitless light fields. -->

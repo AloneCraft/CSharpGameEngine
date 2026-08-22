@@ -39,6 +39,9 @@ public sealed class SceneFileItemTemplateTests {
         Assert.Contains("new HeightFog()",Source);
         Assert.Contains("new PrimitiveMesh { Type=PrimitiveType.Box }",Source);
         Assert.Contains("new PlayerStart()",Source);
+        Assert.Contains("Position=new Logical.Vector3(0f,-0.5f,0f)",Source);
+        Assert.Contains("Scale=new Logical.Vector3(10f,1f,10f)",Source);
+        Assert.DoesNotContain("RotationW",Source);
     }
 
     [Fact]

@@ -254,7 +254,7 @@ internal static class SceneInspectorModelBuilder {
     private static SceneInspectorRow BuildRow(
         EditorNodeId NodeId,string ComponentTypeFullyQualifiedName,IReadOnlyList<string>ParentPath,
         SceneComponentMember Member,bool AllowEdit){
-        if(TryBuildNested(NodeId,ComponentTypeFullyQualifiedName,ParentPath,Member.MemberName,Member.Value)is { }Nested){
+        if(TryBuildNested(NodeId,ComponentTypeFullyQualifiedName,ParentPath,Member.MemberName,Member.Value,AllowEdit)is { }Nested){
             return Nested;
         }
 
@@ -279,22 +279,25 @@ internal static class SceneInspectorModelBuilder {
     /// </summary>
     private static SceneInspectorNestedRow?TryBuildNested(
         EditorNodeId NodeId,string ComponentTypeFullyQualifiedName,IReadOnlyList<string>ParentPath,
-        string MemberName,SceneValue Value){
+        string MemberName,SceneValue Value,bool AllowEdit){
         if(Value.Kind!=SceneValueKind.ObjectCreation||(Value.Members.IsEmpty&&Value.Arguments.IsEmpty)){
             return null;
         }
 
         IReadOnlyList<string>Path=[..ParentPath,MemberName];
+        var ArgumentLabels=ResolveArgumentLabels(Value.Type,Value.Arguments.Length);
+        bool AllowRufEdit=AllowEdit
+            &&(ArgumentLabels.SequenceEqual(["R","U","F"],StringComparer.Ordinal)
+                ||Value.Members.Select(static Member=>Member.MemberName).SequenceEqual(["R","U","F"],StringComparer.Ordinal));
         List<SceneInspectorRow>Rows=[];
         foreach(var Member in Value.Members){
-            Rows.Add(BuildRow(NodeId,ComponentTypeFullyQualifiedName,Path,Member,AllowEdit:false));
+            Rows.Add(BuildRow(NodeId,ComponentTypeFullyQualifiedName,Path,Member,AllowRufEdit));
         }
 
-        var ArgumentLabels=ResolveArgumentLabels(Value.Type,Value.Arguments.Length);
         for(var Index=0;Index<Value.Arguments.Length;Index++){
             var Argument=Value.Arguments[Index];
             SceneComponentMember Synthetic=new(ArgumentLabels[Index],MemberSymbol:null,Argument,Argument.Location);
-            Rows.Add(BuildRow(NodeId,ComponentTypeFullyQualifiedName,Path,Synthetic,AllowEdit:false));
+            Rows.Add(BuildRow(NodeId,ComponentTypeFullyQualifiedName,Path,Synthetic,AllowRufEdit));
         }
 
         return new SceneInspectorNestedRow(
@@ -465,6 +468,12 @@ internal static class SceneInspectorValueFormat {
 
     internal static string FormatBoolean(bool Value)=>Value?"true":"false";
 
+    /// <summary>数値入力欄で表示する値から、C#ソース専用のfloatサフィックスを除去する。</summary>
+    internal static string RemoveFloatSuffix(string Expression)=>
+        Expression.EndsWith("f",StringComparison.OrdinalIgnoreCase)
+            ?Expression[..^1]
+            :Expression;
+
     internal static string FormatText(string Value)=>SymbolDisplay.FormatLiteral(Value,quote:true);
 }
 
@@ -484,7 +493,7 @@ internal static class SceneInspectorCommitPlanner {
         SceneKey SceneKey,long DocumentVersion,SceneInspectorMember Member,string NewValueExpression){
         SetComponentMemberOperation Operation=new(
             SceneKey,Member.NodeId,DocumentVersion,Member.ComponentTypeFullyQualifiedName,
-            Member.MemberName,NewValueExpression);
+            Member.MemberName,NewValueExpression,MemberPath:[..Member.DefinitionMemberPath]);
         return new SceneEditCommitRequest(
             SceneKey,DocumentVersion,$"Edit {Member.MemberName}",
             Array.Empty<SceneTransformChange>(),SceneTransformMemberMask.None,

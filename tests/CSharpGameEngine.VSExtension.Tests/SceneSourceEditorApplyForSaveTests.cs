@@ -16,7 +16,9 @@ namespace CSharpGameEngine.VSExtension.Tests;
 public sealed class SceneSourceEditorApplyForSaveTests {
     private const string TransformTypes="""
         namespace CSharpGameEngine.Runtime.Windows {
+            public struct Vector3 { public float R; public float U; public float F; public Vector3(float R,float U,float F){ this.R=R;this.U=U;this.F=F; } }
             public struct Transform {
+                public Vector3 Position; public Vector3 Rotation; public Vector3 Scale;
                 public float PositionX; public float PositionY; public float PositionZ;
                 public float RotationX; public float RotationY; public float RotationZ; public float RotationW;
                 public float ScaleX; public float ScaleY; public float ScaleZ;
@@ -65,7 +67,7 @@ public sealed class SceneSourceEditorApplyForSaveTests {
 
         Assert.True(Result.Succeeded,Result.ErrorMessage);
         var Text=Result.Root!.ToFullString();
-        Assert.Contains("PositionX=9f",Text);
+        Assert.Contains("Position=new global::CSharpGameEngine.Runtime.Windows.Vector3(9f,0f,0f)",Text);
         Assert.Contains("// 手書きの大事なコメント",Text); // 無関係な部分の書式は保持される
     }
 
@@ -164,7 +166,7 @@ public sealed class SceneSourceEditorApplyForSaveTests {
 
         Assert.True(Result.Succeeded,Result.ErrorMessage);
         var Text=Result.Root!.ToFullString();
-        Assert.Contains("PositionX=7f",Text);
+        Assert.Contains("Position=new global::CSharpGameEngine.Runtime.Windows.Vector3(7f,0f,0f)",Text);
         Assert.Contains("Name=\"Ball\"",Text);
     }
 

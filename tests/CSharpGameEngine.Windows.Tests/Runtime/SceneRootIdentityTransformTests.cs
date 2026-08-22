@@ -1,5 +1,6 @@
 using System.Numerics;
 using CSharpGameEngine.Runtime.Windows;
+using Logical=CSharpGameEngine.Numerics.Logical256;
 
 namespace CSharpGameEngine.Windows.Tests.Runtime;
 
@@ -11,7 +12,7 @@ public sealed class SceneRootIdentityTransformTests {
         var Status=Resolver.Resolve(2,
             (int Id,out Transform Value)=>{
                 if(Id==2){
-                    Value=new Transform { PositionY=3f };
+                    Value=new Transform { Position=new Logical.Vector3(0f,3f,0f) };
                     return true;
                 }
                 if(Id==1){

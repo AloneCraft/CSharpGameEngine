@@ -55,6 +55,18 @@ public sealed class HierarchyComponentMutationTests {
     }
 
     [Fact]
+    public void DownwardLightTransform_UsesAPositiveRQuarterTurnForRufEulerRotation(){
+        const string RufTransformExpression="new global::CSharpGameEngine.Entities.Transform { Position=new global::CSharpGameEngine.Numerics.Logical256.Vector3(0, 0, 0), Rotation=new global::CSharpGameEngine.Numerics.Logical256.Vector3(0, 0, 0), Scale=new global::CSharpGameEngine.Numerics.Logical256.Vector3(1, 1, 1) }";
+
+        string Downward=CSharpGameEngineViewerPackage.CreateInitialTransformExpression(
+            RufTransformExpression,FacesDown:true);
+        string Point=CSharpGameEngineViewerPackage.CreateInitialTransformExpression(
+            RufTransformExpression,FacesDown:false);
+
+        Assert.Contains("Rotation=new global::CSharpGameEngine.Numerics.Logical256.Vector3(1.5707964f, 0, 0)",Downward);
+        Assert.Equal(RufTransformExpression,Point);
+    }
+    [Fact]
     public void AddComponent_CreatesAnOmittedComponentsCollectionOnTheTargetNode(){
         const string LightTypes="""
             namespace Sample { public struct DirectionalLight { } }

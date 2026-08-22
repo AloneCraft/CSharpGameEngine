@@ -13,22 +13,22 @@ public static class UnrealLightSceneEmitter {
     /// travels. The former scene field named <c>DirectionTowardLight</c> used the opposite,
     /// surface-to-light convention, so it must be negated at this boundary.
     /// </summary>
-    public static Quaternion CreateRotationForLightTravelDirection(Vector3 DirectionTowardLight){
+    public static Vector3 CreateEulerRotationForLightTravelDirection(Vector3 DirectionTowardLight){
         ValidateFiniteNonZero(DirectionTowardLight,nameof(DirectionTowardLight));
 
         Vector3 TravelDirection=-Vector3.Normalize(DirectionTowardLight);
         float Dot=Math.Clamp(Vector3.Dot(Vector3.UnitZ,TravelDirection),-1f,1f);
         if(Dot>=1f-1e-6f){
-            return Quaternion.Identity;
+            return Vector3.Zero;
         }
         if(Dot<=-1f+1e-6f){
             // +Y is the deterministic 180-degree axis that maps +Z to -Z.
-            return new Quaternion(0f,1f,0f,0f);
+            return new Vector3(0f,MathF.PI,0f);
         }
 
         Vector3 Axis=Vector3.Normalize(Vector3.Cross(Vector3.UnitZ,TravelDirection));
         Quaternion Rotation=Quaternion.CreateFromAxisAngle(Axis,MathF.Acos(Dot));
-        return Rotation.W<0f?Quaternion.Negate(Rotation):Rotation;
+        return ToEulerRuf(Rotation.W<0f?Quaternion.Negate(Rotation):Rotation);
     }
 
     /// <summary>
@@ -46,18 +46,11 @@ public static class UnrealLightSceneEmitter {
             throw new ArgumentOutOfRangeException(nameof(IlluminanceLux),"Directional illuminance must be finite and non-negative lux.");
         }
 
-        Quaternion Rotation=CreateRotationForLightTravelDirection(DirectionTowardLight);
+        Vector3 Euler=CreateEulerRotationForLightTravelDirection(DirectionTowardLight);
         Builder.Append(Indent).AppendLine("new Transform {");
-        Builder.Append(Indent).Append("    PositionX=0f,").AppendLine();
-        Builder.Append(Indent).Append("    PositionY=0f,").AppendLine();
-        Builder.Append(Indent).Append("    PositionZ=0f,").AppendLine();
-        Builder.Append(Indent).Append("    RotationX=").Append(FormatFloat(Rotation.X)).AppendLine(",");
-        Builder.Append(Indent).Append("    RotationY=").Append(FormatFloat(Rotation.Y)).AppendLine(",");
-        Builder.Append(Indent).Append("    RotationZ=").Append(FormatFloat(Rotation.Z)).AppendLine(",");
-        Builder.Append(Indent).Append("    RotationW=").Append(FormatFloat(Rotation.W)).AppendLine(",");
-        Builder.Append(Indent).Append("    ScaleX=1f,").AppendLine();
-        Builder.Append(Indent).Append("    ScaleY=1f,").AppendLine();
-        Builder.Append(Indent).Append("    ScaleZ=1f,").AppendLine();
+        Builder.Append(Indent).AppendLine("    Position=new Logical.Vector3(0f,0f,0f),");
+        Builder.Append(Indent).Append("    Rotation=new Logical.Vector3(").Append(FormatFloat(Euler.X)).Append(',').Append(FormatFloat(Euler.Y)).Append(',').Append(FormatFloat(Euler.Z)).AppendLine("),");
+        Builder.Append(Indent).AppendLine("    Scale=new Logical.Vector3(1f,1f,1f),");
         Builder.Append(Indent).AppendLine("},");
         Builder.Append(Indent).AppendLine("new DirectionalLight {");
         Builder.Append(Indent).Append("    ColorR=").Append(FormatFloat(LinearRgb.X)).AppendLine(",");
@@ -68,6 +61,14 @@ public static class UnrealLightSceneEmitter {
         Builder.Append(Indent).AppendLine("    ShadowPriority=100,");
         Builder.Append(Indent).AppendLine("    ShadowBiasMeters=0.005f,");
         Builder.Append(Indent).AppendLine("},");
+    }
+
+    private static Vector3 ToEulerRuf(Quaternion Rotation){
+        Rotation=Quaternion.Normalize(Rotation);
+        float Pitch=MathF.Asin(Math.Clamp(2f*(Rotation.W*Rotation.X-Rotation.Y*Rotation.Z),-1f,1f));
+        float Yaw=MathF.Atan2(2f*(Rotation.W*Rotation.Y+Rotation.Z*Rotation.X),1f-2f*(Rotation.X*Rotation.X+Rotation.Y*Rotation.Y));
+        float Roll=MathF.Atan2(2f*(Rotation.W*Rotation.Z+Rotation.X*Rotation.Y),1f-2f*(Rotation.X*Rotation.X+Rotation.Z*Rotation.Z));
+        return new Vector3(Pitch,Yaw,Roll);
     }
 
     private static string FormatFloat(float Value)=>Value==0f

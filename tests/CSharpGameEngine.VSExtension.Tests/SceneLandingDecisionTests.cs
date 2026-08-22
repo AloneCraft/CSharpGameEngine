@@ -24,7 +24,9 @@ namespace CSharpGameEngine.VSExtension.Tests;
 public sealed class SceneLandingDecisionTests {
     private const string TransformTypes="""
         namespace CSharpGameEngine.Runtime.Windows {
+            public struct Vector3 { public float R; public float U; public float F; public Vector3(float R,float U,float F){ this.R=R;this.U=U;this.F=F; } }
             public struct Transform {
+                public Vector3 Position; public Vector3 Rotation; public Vector3 Scale;
                 public float PositionX; public float PositionY; public float PositionZ;
                 public float RotationX; public float RotationY; public float RotationZ; public float RotationW;
                 public float ScaleX; public float ScaleY; public float ScaleZ;
@@ -300,7 +302,7 @@ public sealed class SceneLandingDecisionTests {
             var LandedRoot=Written.FinalRoot??this.Root;
             if(TamperPositionX is { }X){
                 LandedRoot=CSharpSyntaxTree
-                    .ParseText(LandedRoot.ToFullString().Replace("PositionX=9f",$"PositionX={X}f")).GetRoot();
+                    .ParseText(System.Text.RegularExpressions.Regex.Replace(LandedRoot.ToFullString(),@"Position\s*=\s*new\s+global::CSharpGameEngine\.Runtime\.Windows\.Vector3\(\s*9f\s*,\s*0f\s*,\s*0f\s*\)",$"Position=new global::CSharpGameEngine.Runtime.Windows.Vector3({X}f,0f,0f)")).GetRoot();
             }
             if(ExtraNodeName is { }Extra){
                 LandedRoot=CSharpSyntaxTree.ParseText(LandedRoot.ToFullString()

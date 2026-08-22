@@ -28,12 +28,16 @@ public sealed class LogicalNumericsTests {
     }
 
     [Fact]
-    public void LogicalVectorsAndQuaternionsNormalize(){
+    public void LogicalVectorsUseRufComponentsAndNormalize(){
         Logical256.Vector3 Direction=new(3d,4d,0d);
         Logical256.Vector3 Unit=Direction.Normalize();
-        Assert.Equal(1d,(double)Unit.LengthSquared);
 
-        Logical256.Quaternion Identity=Logical256.Quaternion.Identity;
-        Assert.Equal(Identity,Identity.Normalize());
+        Assert.Equal(3d,(double)Direction.R);
+        Assert.Equal(4d,(double)Direction.U);
+        Assert.Equal(0d,(double)Direction.F);
+        Assert.Equal(1d,(double)Unit.LengthSquared);
+        Assert.Equal(Logical256.Vector3.UnitR,new Logical256.Vector3(1d,0d,0d));
+        Assert.Equal(Logical256.Vector3.UnitU,new Logical256.Vector3(0d,1d,0d));
+        Assert.Equal(Logical256.Vector3.UnitF,new Logical256.Vector3(0d,0d,1d));
     }
 }

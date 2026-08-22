@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Linq;
+using System.Numerics;
 using CSharpGameEngine.SceneAnalysis;
 
 namespace CSharpGameEngine.VSExtension;
@@ -218,14 +219,8 @@ internal static class SceneModelEditApplier {
             return false;
         }
 
-        var Members=Transform.Members;
-        foreach((var Name,var Value,var _)in
-            SceneSourceEditor.EnumerateTransformMembers(Operation.Transform,Operation.Members)){
-            var Existing=FindMember(Members,Name);
-            if(Existing is not null&&!Existing.Value.IsEditable){
-                return false;
-            }
-            Members=SetFloatMember(Members,Existing,Name,Value,Transform.Location);
+        if(!TryApplyTransformVectors(Transform,Operation.Transform,Operation.Members,out var Members)){
+            return false;
         }
 
         var Clone=ReplaceComponent(Source,Transform,WithMembers(Transform,Members));
@@ -494,20 +489,8 @@ internal static class SceneModelEditApplier {
             return false;
         }
 
-        var Members=Transform.Members;
-        foreach((var Name,var Value,var Default)in
-            SceneSourceEditor.EnumerateTransformMembers(Operation.Transform,Operation.Members)){
-            var Existing=FindMember(Members,Name);
-            var Current=Existing is null?Default:SceneSourceEditor.ReadFloat(Existing.Value.ConstantValue,Default);
-            // ソース層(SceneSourceEditor.TryUpdateTransformCreation)と同じ判定にする。
-            // 値が変わらないメンバーは書かないため、予測モデルにも書いてはならない。
-            if(SceneTransformMath.NearlyEqual(Current,Value)){
-                continue;
-            }
-            if(Existing is not null&&!Existing.Value.IsEditable){
-                return false;
-            }
-            Members=SetFloatMember(Members,Existing,Name,Value,Transform.Location);
+        if(!TryApplyTransformVectors(Transform,Operation.Transform,Operation.Members,out var Members)){
+            return false;
         }
 
         if(Members.Equals(Transform.Members)){
@@ -515,6 +498,46 @@ internal static class SceneModelEditApplier {
         }
         Updated=ReplaceComponent(Node,Transform,WithMembers(Transform,Members));
         return true;
+    }
+
+    private static bool TryApplyTransformVectors(
+        SceneComponent Transform,SceneTransformValue Value,SceneTransformMemberMask Mask,
+        out ImmutableArray<SceneComponentMember> Members){
+        Members=Transform.Members;
+        foreach((string Name,Vector3 Vector,Vector3 Default)in SceneSourceEditor.EnumerateTransformVectors(Value,Mask)){
+            Vector3 Current=SceneTransformBinding.ReadVector(Transform,Name,Default);
+            if(SceneTransformMath.NearlyEqual(Current.X,Vector.X)
+                &&SceneTransformMath.NearlyEqual(Current.Y,Vector.Y)
+                &&SceneTransformMath.NearlyEqual(Current.Z,Vector.Z)){
+                continue;
+            }
+            if(!SceneTransformBinding.CanEditVector(Transform,Name,0)
+                ||!SceneTransformBinding.CanEditVector(Transform,Name,1)
+                ||!SceneTransformBinding.CanEditVector(Transform,Name,2)){
+                return false;
+            }
+            SceneComponentMember?Existing=FindMember(Members,Name);
+            SceneValue VectorValue=CreateVectorValue(Name,Vector,Existing,Transform,Transform.Location);
+            Members=SetMember(Members,Existing,Name,VectorValue,Transform.Location);
+        }
+        return true;
+    }
+
+    private static SceneValue CreateVectorValue(
+        string Name,Vector3 Value,SceneComponentMember?Existing,SceneComponent Component,SceneSourceLocation Fallback){
+        SceneValue?Old=Existing?.Value;
+        Microsoft.CodeAnalysis.ITypeSymbol?Type=Old?.Type??GetDeclaredMemberType(Component,Name);
+        ImmutableArray<SceneValue>Arguments=[
+            CreateLiteral(Value.X,SceneSourceEditor.FormatFloat(Value.X),Existing,Fallback),
+            CreateLiteral(Value.Y,SceneSourceEditor.FormatFloat(Value.Y),Existing,Fallback),
+            CreateLiteral(Value.Z,SceneSourceEditor.FormatFloat(Value.Z),Existing,Fallback),
+        ];
+        string TypeName=Type?.ToDisplayString(Microsoft.CodeAnalysis.SymbolDisplayFormat.FullyQualifiedFormat)??"Logical.Vector3";
+        string Text=$"new {TypeName}({SceneSourceEditor.FormatFloat(Value.X)}, {SceneSourceEditor.FormatFloat(Value.Y)}, {SceneSourceEditor.FormatFloat(Value.Z)})";
+        return new SceneValue(
+            SceneValueKind.ObjectCreation,Type,ConstantValue:null,ReferencedSymbol:null,
+            ImmutableArray<SceneComponentMember>.Empty,Arguments,ImmutableArray<SceneValue>.Empty,
+            Text,Text,Old?.Location??Fallback);
     }
 
     private static bool TryApplySetMember(
@@ -525,6 +548,12 @@ internal static class SceneModelEditApplier {
             return false;
         }
 
+        ImmutableArray<string>Path=Operation.MemberPath.IsDefaultOrEmpty
+            ?ImmutableArray.Create(Operation.MemberName)
+            :Operation.MemberPath;
+        if(Path.Length>1){
+            return TryApplyNestedSetMember(Node,Component,Path,Operation,out Updated);
+        }
         var Existing=FindMember(Component.Members,Operation.MemberName);
         if(Existing is not null&&!Existing.Value.IsEditable){
             return false;
@@ -541,6 +570,39 @@ internal static class SceneModelEditApplier {
         return true;
     }
 
+    private static bool TryApplyNestedSetMember(
+        SceneNode Node,SceneComponent Component,ImmutableArray<string>Path,
+        SetComponentMemberOperation Operation,out SceneNode Updated){
+        Updated=Node;
+        SceneComponentMember?Top=FindMember(Component.Members,Path[0]);
+        if(Top?.Value.Kind!=SceneValueKind.ObjectCreation||!TryGetVectorComponentIndex(Path[1],out int Index)
+            ||Top.Value.Arguments.Length<=Index){
+            return false;
+        }
+        SceneValue ExistingValue=Top.Value.Arguments[Index];
+        SceneComponentMember ExistingChild=new(Path[1],MemberSymbol:null,ExistingValue,ExistingValue.Location);
+        if(!ExistingValue.IsEditable||!TryParseLiteral(Operation.ValueExpression,ExistingChild,out var ConstantValue)){
+            return false;
+        }
+        SceneValue UpdatedChild=CreateLiteral(ConstantValue,Operation.ValueExpression.Trim(),ExistingChild,Component.Location);
+        SceneValue TopValue=new(
+            Top.Value.Kind,Top.Value.Type,Top.Value.ConstantValue,Top.Value.ReferencedSymbol,
+            Top.Value.Members,Top.Value.Arguments.SetItem(Index,UpdatedChild),Top.Value.Elements,
+            Top.Value.EmitExpressionText,Top.Value.SourceExpressionText,Top.Value.Location);
+        ImmutableArray<SceneComponentMember>Members=SetMember(
+            Component.Members,Top,Path[0],TopValue,Component.Location);
+        Updated=ReplaceComponent(Node,Component,WithMembers(Component,Members));
+        return true;
+    }
+
+    private static bool TryGetVectorComponentIndex(string Name,out int Index){
+        switch(Name){
+            case "R": Index=0; return true;
+            case "U": Index=1; return true;
+            case "F": Index=2; return true;
+            default: Index=-1; return false;
+        }
+    }
     /// <summary>
     /// M0051: <c>SceneComponentCatalog</c>由来のComponent追加。<see cref="SceneSourceEditor.ApplyAddComponent"/>
     /// と同じ2つの前提を、書き戻し(保存)より前のこの層で確かめる — ここで弾いておけば、
@@ -677,6 +739,12 @@ internal static class SceneModelEditApplier {
         return Members.Add(new SceneComponentMember(Name,MemberSymbol:null,Value,Fallback));
     }
 
+    private static Microsoft.CodeAnalysis.ITypeSymbol? GetDeclaredMemberType(SceneComponent Component,string?Name)=>
+        Name is null?null:Component.TypeSymbol?.GetMembers(Name).FirstOrDefault() switch {
+            Microsoft.CodeAnalysis.IFieldSymbol Field=>Field.Type,
+            Microsoft.CodeAnalysis.IPropertySymbol Property=>Property.Type,
+            _=>null,
+        };
     private static SceneValue CreateLiteral(
         object?ConstantValue,string Text,SceneComponentMember?Existing,SceneSourceLocation Fallback)=>
         new(SceneValueKind.Literal,

@@ -6,11 +6,12 @@ namespace CSharpGameEngine.Import.Gltf.Tests;
 
 public sealed class UnrealLightSceneEmitterTests {
     [Fact]
-    public void CreateRotationForLightTravelDirection_MapsLocalForwardToOppositeOfLegacySurfaceToLightDirection(){
+    public void CreateEulerRotationForLightTravelDirection_MapsLocalForwardToOppositeOfLegacySurfaceToLightDirection(){
         Vector3 DirectionTowardLight=Vector3.Normalize(new Vector3(0.6387412f,-0.7606f,0.11617841f));
 
-        Quaternion Rotation=UnrealLightSceneEmitter.CreateRotationForLightTravelDirection(DirectionTowardLight);
-        Vector3 ActualTravelDirection=Vector3.Transform(Vector3.UnitZ,Rotation);
+        Vector3 Euler=UnrealLightSceneEmitter.CreateEulerRotationForLightTravelDirection(DirectionTowardLight);
+        Vector3 ActualTravelDirection=Vector3.Transform(
+            Vector3.UnitZ,Quaternion.CreateFromYawPitchRoll(Euler.Y,Euler.X,Euler.Z));
 
         Assert.InRange(Vector3.Distance(-DirectionTowardLight,ActualTravelDirection),0f,0.0001f);
     }
@@ -31,8 +32,8 @@ public sealed class UnrealLightSceneEmitterTests {
     }
 
     [Fact]
-    public void CreateRotationForLightTravelDirection_RejectsZeroDirection(){
+    public void CreateEulerRotationForLightTravelDirection_RejectsZeroDirection(){
         Assert.Throws<ArgumentOutOfRangeException>(()=>
-            UnrealLightSceneEmitter.CreateRotationForLightTravelDirection(Vector3.Zero));
+            UnrealLightSceneEmitter.CreateEulerRotationForLightTravelDirection(Vector3.Zero));
     }
 }

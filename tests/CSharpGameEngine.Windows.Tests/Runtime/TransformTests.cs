@@ -1,5 +1,6 @@
 using System.Numerics;
 using CSharpGameEngine.Entities;
+using Logical=CSharpGameEngine.Numerics.Logical256;
 using CSharpGameEngine.Runtime.Windows;
 using RenderCamera=CSharpGameEngine.Graphics.D3D12.Camera;
 
@@ -10,22 +11,21 @@ public sealed class TransformTests {
     public void NewTransform_IsIdentity(){
         Transform Transform=new();
 
-        Assert.Equal(0f,(float)Transform.PositionX);
-        Assert.Equal(0f,(float)Transform.PositionY);
-        Assert.Equal(0f,(float)Transform.PositionZ);
-        Assert.Equal(0f,(float)Transform.RotationX);
-        Assert.Equal(0f,(float)Transform.RotationY);
-        Assert.Equal(0f,(float)Transform.RotationZ);
-        Assert.Equal(1f,(float)Transform.RotationW);
-        Assert.Equal(1f,(float)Transform.ScaleX);
-        Assert.Equal(1f,(float)Transform.ScaleY);
-        Assert.Equal(1f,(float)Transform.ScaleZ);
+        Assert.Equal(0f,(float)Transform.Position.R);
+        Assert.Equal(0f,(float)Transform.Position.U);
+        Assert.Equal(0f,(float)Transform.Position.F);
+        Assert.Equal(0f,(float)Transform.Rotation.R);
+        Assert.Equal(0f,(float)Transform.Rotation.U);
+        Assert.Equal(0f,(float)Transform.Rotation.F);
+        Assert.Equal(1f,(float)Transform.Scale.R);
+        Assert.Equal(1f,(float)Transform.Scale.U);
+        Assert.Equal(1f,(float)Transform.Scale.F);
     }
 
     [Fact]
     public void ToWorld_ComposesChildLocalTransformWithParentWorldTransform(){
-        Transform Parent=new() { PositionX=10f,RotationW=1f,ScaleX=2f,ScaleY=2f,ScaleZ=2f };
-        Transform Child=new() { PositionX=3f,PositionY=1f,RotationW=1f,ScaleX=1f,ScaleY=1f,ScaleZ=1f };
+        Transform Parent=new() { Position=new Logical.Vector3(10f,0f,0f),Scale=new Logical.Vector3(2f,2f,2f) };
+        Transform Child=new() { Position=new Logical.Vector3(3f,1f,0f) };
 
         var World=TransformMath.ToWorld(Child,TransformMath.ToMatrix(Parent));
 
@@ -37,10 +37,10 @@ public sealed class TransformTests {
 
     [Fact]
     public void TryCalculateLocal_PreservesWorldTransformWhenReparented(){
-        Transform OldParent=new() { PositionX=10f,RotationW=1f,ScaleX=2f,ScaleY=2f,ScaleZ=2f };
-        Transform Child=new() { PositionX=3f,PositionY=1f,RotationW=1f,ScaleX=1f,ScaleY=1f,ScaleZ=1f };
+        Transform OldParent=new() { Position=new Logical.Vector3(10f,0f,0f),Scale=new Logical.Vector3(2f,2f,2f) };
+        Transform Child=new() { Position=new Logical.Vector3(3f,1f,0f) };
         var World=TransformMath.ToWorld(Child,TransformMath.ToMatrix(OldParent));
-        Transform NewParent=new() { PositionX=-4f,PositionY=2f,RotationW=1f,ScaleX=0.5f,ScaleY=0.5f,ScaleZ=0.5f };
+        Transform NewParent=new() { Position=new Logical.Vector3(-4f,2f,0f),Scale=new Logical.Vector3(0.5f,0.5f,0.5f) };
 
         Assert.True(TransformMath.TryCalculateLocal(World,TransformMath.ToMatrix(NewParent),out var Local));
         Assert.Equal(World,TransformMath.ToWorld(Local,TransformMath.ToMatrix(NewParent)));
@@ -48,21 +48,21 @@ public sealed class TransformTests {
 
     [Fact]
     public void TryCalculateLocal_RejectsNonInvertibleParent(){
-        Transform Parent=new() { RotationW=1f,ScaleX=0f,ScaleY=1f,ScaleZ=1f };
+        Transform Parent=new() { Scale=new Logical.Vector3(0f,1f,1f) };
 
         Assert.False(TransformMath.TryCalculateLocal(Matrix4x4.Identity,TransformMath.ToMatrix(Parent),out _));
     }
 
     [Fact]
     public void TryToCameraRelativeMatrix_SubtractsFixedOriginBeforeFloatConversion(){
-        FixedScalar LargeOrigin=FixedScalar.ParseInvariant("1000000000000000000000000000000");
-        Assert.True(FixedScalar.TryAdd(
+        Logical.Scalar LargeOrigin=Logical.Scalar.ParseInvariant("1000000000000000000000000000000");
+        Assert.True(Logical.Scalar.TryAdd(
             LargeOrigin,
-            FixedScalar.ParseInvariant("0.125"),
-            out FixedScalar NearbyPosition));
+            Logical.Scalar.ParseInvariant("0.125"),
+            out Logical.Scalar NearbyPosition));
 
-        Transform Camera=new() { PositionX=LargeOrigin };
-        Transform Object=new() { PositionX=NearbyPosition };
+        Transform Camera=new() { Position=new Logical.Vector3(LargeOrigin,0f,0f) };
+        Transform Object=new() { Position=new Logical.Vector3(NearbyPosition,0f,0f) };
 
         FixedTransformStatus Status=TransformMath.TryToCameraRelativeMatrix(
             Object,Camera,out Matrix4x4 Matrix);
@@ -74,11 +74,10 @@ public sealed class TransformTests {
     }
     [Fact]
     public void FixedTransformWorldResolver_ComposesHierarchyBeforeCameraRelativeFloatConversion(){
-        FixedScalar LargeOrigin=FixedScalar.ParseInvariant("1000000000000000000000000000000");
-        Transform Parent=new() { PositionX=LargeOrigin };
+        Logical.Scalar LargeOrigin=Logical.Scalar.ParseInvariant("1000000000000000000000000000000");
+        Transform Parent=new() { Position=new Logical.Vector3(LargeOrigin,0f,0f) };
         Transform Child=new() {
-            PositionX=FixedScalar.ParseInvariant("0.125"),
-            PositionY=2f,
+            Position=new Logical.Vector3(Logical.Scalar.ParseInvariant("0.125"),2f,0f),
         };
         FixedTransformWorldResolver Resolver=new();
 
@@ -114,10 +113,10 @@ public sealed class TransformTests {
 
     [Fact]
     public void FixedTransformWorldResolver_UsesParentedCameraWorldBeforeFloatConversion(){
-        FixedScalar LargeOrigin=FixedScalar.ParseInvariant("1000000000000000000000000000000");
-        Transform Root=new() { PositionX=LargeOrigin };
-        Transform Camera=new() { PositionX=2f,PositionY=3f };
-        Transform Object=new() { PositionX=2.125f,PositionY=4f };
+        Logical.Scalar LargeOrigin=Logical.Scalar.ParseInvariant("1000000000000000000000000000000");
+        Transform Root=new() { Position=new Logical.Vector3(LargeOrigin,0f,0f) };
+        Transform Camera=new() { Position=new Logical.Vector3(2f,3f,0f) };
+        Transform Object=new() { Position=new Logical.Vector3(2.125f,4f,0f) };
         FixedTransformWorldResolver Resolver=new();
 
         Assert.Equal(
@@ -160,11 +159,10 @@ public sealed class TransformTests {
 
     [Fact]
     public void FixedTransformWorldResolver_UsesParentedCameraLocalPositiveZForViewAtLargeCoordinates(){
-        FixedScalar LargeOrigin=FixedScalar.ParseInvariant("1000000000000000000000000000000");
-        Transform Root=new() { PositionX=LargeOrigin };
+        Logical.Scalar LargeOrigin=Logical.Scalar.ParseInvariant("1000000000000000000000000000000");
+        Transform Root=new() { Position=new Logical.Vector3(LargeOrigin,0f,0f) };
         Transform Parent=new() {
-            RotationY=0.70710678f,
-            RotationW=0.70710678f,
+            Rotation=new Logical.Vector3(0f,MathF.PI/2f,0f),
         };
         Transform Camera=new();
         FixedTransformWorldResolver Resolver=new();

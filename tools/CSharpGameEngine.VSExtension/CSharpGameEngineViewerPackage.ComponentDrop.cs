@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 using CSharpGameEngine.SceneAnalysis;
 using Microsoft.VisualStudio.Shell;
 
@@ -83,14 +84,24 @@ public sealed partial class CSharpGameEngineViewerPackage {
             StringComparison.Ordinal)
         &&FullyQualifiedName.EndsWith("Light",StringComparison.Ordinal);
 
-    internal static string CreateInitialTransformExpression(string Expression,bool FacesDown)=>
-        !FacesDown?Expression
-        :Expression.Replace("RotationX=default","RotationX=0.70710678f")
-            // The legacy float Transform constructor wrote 1f, while the Scene-owned fixed
-            // Transform uses FixedRotationScalar.One. Keep the authored quarter turn normalized
-            // in both representations so local +Z initially points down (-Y).
+    internal static string CreateInitialTransformExpression(string Expression,bool FacesDown){
+        if(!FacesDown){
+            return Expression;
+        }
+
+        // R/U/F Euler angles: a positive quarter turn around R maps local +F down to -U.
+        string Euler=Regex.Replace(Expression,
+            @"(Rotation\s*=\s*new\s+[^\(]+\(\s*)0(\s*,\s*0\s*,\s*0\s*\))",
+            "${1}1.5707964f${2}",RegexOptions.CultureInvariant);
+        if(!string.Equals(Euler,Expression,StringComparison.Ordinal)){
+            return Euler;
+        }
+
+        // Keep generated scenes authored against the prior flat-quaternion Transform readable.
+        return Expression.Replace("RotationX=default","RotationX=0.70710678f")
             .Replace("RotationW=1f","RotationW=0.70710678f")
             .Replace("RotationW=FixedRotationScalar.One","RotationW=0.70710678f");
+    }
 
     private static string SimpleName(string FullyQualifiedName){
         int GenericStart=FullyQualifiedName.IndexOf('<');

@@ -48,8 +48,8 @@ public sealed class SceneEditConflictMergerTests {
         var Result=SceneEditConflictMerger.Merge(CreateMoveRequest(Cube,Started),Latest);
 
         Assert.False(Result.Succeeded);
-        Assert.Contains("PositionX",Result.ErrorMessage);
-        Assert.Contains("編集できません",Result.ErrorMessage);
+        Assert.Contains("Transform.Position",Result.ErrorMessage);
+        Assert.Contains("no longer editable",Result.ErrorMessage);
         Assert.Empty(Result.Operations);
     }
 

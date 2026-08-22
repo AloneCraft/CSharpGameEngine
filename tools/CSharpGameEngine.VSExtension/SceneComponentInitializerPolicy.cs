@@ -72,6 +72,10 @@ internal static class SceneComponentInitializerPolicy {
                 "new "+FullyQualifiedName+"()",ImmutableArray<SceneComponentMember>.Empty);
         }
 
+        if(TryCreateRufTransformPlan(Members,FullyQualifiedName,out SceneComponentInitializerPlan RufTransformPlan)){
+            return RufTransformPlan;
+        }
+
         var Defaults=ReadParameterlessConstructorDefaults(Type);
         StringBuilder Builder=new();
         var MemberBuilder=ImmutableArray.CreateBuilder<SceneComponentMember>(Members.Length);
@@ -125,6 +129,76 @@ internal static class SceneComponentInitializerPolicy {
             SceneSourceLocation.None);
     }
 
+    /// <summary>
+    /// Creates explicit Position, Rotation, and Scale R/U/F vectors when a Transform exposes a
+    /// common three-argument R/U/F vector type. The initial component is then immediately editable.
+    /// </summary>
+    private static bool TryCreateRufTransformPlan(
+        IReadOnlyList<ISymbol> Members,string FullyQualifiedName,out SceneComponentInitializerPlan Plan){
+        Plan=null!;
+        string[]Names=["Position","Rotation","Scale"];
+        ISymbol?[]TransformMembers=Names.Select(Name=>Members.FirstOrDefault(Member=>
+            string.Equals(Member.Name,Name,System.StringComparison.Ordinal))).ToArray();
+        if(TransformMembers.Any(static Member=>Member is null)
+            ||GetMemberType(TransformMembers[0]!) is not INamedTypeSymbol VectorType
+            ||!TransformMembers.All(Member=>SymbolEqualityComparer.Default.Equals(GetMemberType(Member!),VectorType))
+            ||!HasRufConstructor(VectorType,out IMethodSymbol? Constructor)){
+            return false;
+        }
+
+        int[][]Values=[[0,0,0],[0,0,0],[1,1,1]];
+        StringBuilder Builder=new();
+        var MemberBuilder=ImmutableArray.CreateBuilder<SceneComponentMember>(Names.Length);
+        Builder.Append("new ").Append(FullyQualifiedName).Append(" { ");
+        for(var Index=0;Index<Names.Length;Index++){
+            if(Index>0){
+                Builder.Append(", ");
+            }
+
+            SceneValue Value=CreateRufVectorValue(VectorType,Constructor!,Values[Index]);
+            Builder.Append(Names[Index]).Append('=').Append(Value.EmitExpressionText);
+            MemberBuilder.Add(new SceneComponentMember(
+                Names[Index],TransformMembers[Index],Value,SceneSourceLocation.None));
+        }
+
+        Builder.Append(" }");
+        Plan=new SceneComponentInitializerPlan(Builder.ToString(),MemberBuilder.MoveToImmutable());
+        return true;
+    }
+
+    private static ITypeSymbol?GetMemberType(ISymbol Member)=>Member switch {
+        IFieldSymbol Field=>Field.Type,
+        IPropertySymbol Property=>Property.Type,
+        _=>null,
+    };
+
+    private static bool HasRufConstructor(INamedTypeSymbol VectorType,out IMethodSymbol? Constructor){
+        Constructor=VectorType.InstanceConstructors.FirstOrDefault(Candidate=>
+            Candidate.Parameters.Length==3
+            &&string.Equals(Candidate.Parameters[0].Name,"R",System.StringComparison.Ordinal)
+            &&string.Equals(Candidate.Parameters[1].Name,"U",System.StringComparison.Ordinal)
+            &&string.Equals(Candidate.Parameters[2].Name,"F",System.StringComparison.Ordinal));
+        return Constructor is not null;
+    }
+
+    private static SceneValue CreateRufVectorValue(
+        INamedTypeSymbol VectorType,IMethodSymbol Constructor,IReadOnlyList<int> Values){
+        ImmutableArray<SceneValue>.Builder Arguments=ImmutableArray.CreateBuilder<SceneValue>(3);
+        for(var Index=0;Index<3;Index++){
+            string Text=Values[Index].ToString(System.Globalization.CultureInfo.InvariantCulture);
+            Arguments.Add(new SceneValue(
+                SceneValueKind.Literal,Constructor.Parameters[Index].Type,Values[Index],ReferencedSymbol:null,
+                ImmutableArray<SceneComponentMember>.Empty,ImmutableArray<SceneValue>.Empty,
+                ImmutableArray<SceneValue>.Empty,Text,Text,SceneSourceLocation.None));
+        }
+
+        string TypeName=VectorType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        string Expression="new "+TypeName+"("+string.Join(", ",Arguments.Select(Argument=>Argument.EmitExpressionText))+")";
+        return new SceneValue(
+            SceneValueKind.ObjectCreation,VectorType,ConstantValue:null,ReferencedSymbol:null,
+            ImmutableArray<SceneComponentMember>.Empty,Arguments.MoveToImmutable(),
+            ImmutableArray<SceneValue>.Empty,Expression,Expression,SceneSourceLocation.None);
+    }
     /// <summary>
     /// コンストラクタが書いた式の定数値。<c>bool</c>のチェック状態と<c>string</c>の初期表示に要る
     /// (数値とenumは<see cref="SceneValue.SourceExpressionText"/>から描くので無くても困らない)。

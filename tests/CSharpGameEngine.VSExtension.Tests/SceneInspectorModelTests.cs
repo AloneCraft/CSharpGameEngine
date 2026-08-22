@@ -293,7 +293,42 @@ public sealed class SceneInspectorModelTests {
         }
     }
 
-    private static IEnumerable<string>LeafNames(SceneInspectorComponentGroup Group)=>
+    [Fact]
+    public void BuildGroups_RufTransformVectors_AreEditableNestedLeavesWithMemberPaths(){
+        const string Types="""
+            namespace Sample {
+                public struct Vector3 { public Vector3(float R,float U,float F){} }
+                public struct Transform { public Vector3 Position; public Vector3 Rotation; public Vector3 Scale; }
+            }
+            """;
+        var Model=SceneAnalysisTestHelper.Analyze([
+            Types,
+            """
+            using CSharpGameEngine.Entities;
+            using Sample;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() { Children=[new Node { Name="Thing",Components=[new Transform {
+                    Position=new Vector3(1f,2f,3f), Rotation=new Vector3(0f,0f,0f), Scale=new Vector3(1f,1f,1f),
+                }] }] };
+            }
+            """,
+        ]);
+        var Snapshot=SceneDocumentSnapshot.Create(
+            Key,"document-a",DocumentVersion:1,AnalysisGeneration:1,Model,HasBlockingErrors:false,Previous:null,new SceneProjectionReconciler());
+        var Group=Assert.Single(SceneInspectorModelBuilder.BuildGroups(Snapshot,SelectAllOf(Snapshot,"Thing")));
+
+        Assert.Equal(["Position","Rotation","Scale"],Group.Rows.Cast<SceneInspectorNestedRow>().Select(static Row=>Row.DisplayName));
+        var Position=Assert.IsType<SceneInspectorNestedRow>(Group.Rows[0]);
+        var Leaves=Position.Rows.Cast<SceneInspectorMemberRow>().Select(static Row=>Row.Member).ToArray();
+        Assert.Equal(["R","U","F"],Leaves.Select(static Member=>Member.MemberName));
+        Assert.All(Leaves,static Member=>Assert.True(Member.IsEditable));
+        Assert.Equal(["Position","R"],Leaves[0].DefinitionMemberPath);
+
+        var Request=SceneInspectorCommitPlanner.CreateCommit(Snapshot.Key,Snapshot.DocumentVersion,Leaves[0],"9f");
+        var Operation=Assert.IsType<SetComponentMemberOperation>(Assert.Single(Request.DirectOperations));
+        Assert.Equal(["Position","R"],Operation.MemberPath.ToArray());
+    }    private static IEnumerable<string>LeafNames(SceneInspectorComponentGroup Group)=>
         FlattenLeaves(Group.Rows).Select(static Member=>Member.MemberName);
 
     private static SceneDocumentSnapshot CreateVector3PositionSnapshot(bool UseInitializer){

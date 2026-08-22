@@ -29,7 +29,9 @@ namespace CSharpGameEngine.VSExtension.Tests;
 public sealed class SceneSaveStepsTests {
     private const string TransformTypes="""
         namespace CSharpGameEngine.Runtime.Windows {
+            public struct Vector3 { public float R; public float U; public float F; public Vector3(float R,float U,float F){ this.R=R;this.U=U;this.F=F; } }
             public struct Transform {
+                public Vector3 Position; public Vector3 Rotation; public Vector3 Scale;
                 public float PositionX; public float PositionY; public float PositionZ;
                 public float RotationX; public float RotationY; public float RotationZ; public float RotationW;
                 public float ScaleX; public float ScaleY; public float ScaleZ;

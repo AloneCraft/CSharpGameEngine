@@ -139,35 +139,20 @@ internal static class SceneEditConflictMerger {
         SceneNode Node,SceneTransformMemberMask Members,out string?ErrorMessage){
         var Transform=SceneComponentBindings.FindComponent(Node,SceneComponentRole.LocalTransform);
         if(Transform is null){
-            ErrorMessage="最新 Scene に Transform がありません。";
+            ErrorMessage="The latest scene has no Transform.";
             return false;
         }
-
-        var Names=EnumerateTransformMemberNames(Members);
-        foreach(var Name in Names){
-            var Member=Transform.FindMember(Name);
-            if(Member is not null&&!Member.Value.IsEditable){
-                ErrorMessage=$"Transform.{Name} は外部変更後の式を保持するため編集できません。";
+        foreach((string Name,Vector3 _,Vector3 _) in
+            SceneSourceEditor.EnumerateTransformVectors(SceneTransformValue.Identity,Members)){
+            for(int Index=0;Index<3;Index++){
+                if(SceneTransformBinding.CanEditVector(Transform,Name,Index)){ continue; }
+                ErrorMessage=$"Transform.{Name} RUF component is no longer editable.";
                 return false;
             }
         }
         ErrorMessage=null;
         return true;
     }
-
-    private static IEnumerable<string>EnumerateTransformMemberNames(SceneTransformMemberMask Members){
-        if(Members.HasFlag(SceneTransformMemberMask.Position)){
-            yield return "PositionX"; yield return "PositionY"; yield return "PositionZ";
-        }
-        if(Members.HasFlag(SceneTransformMemberMask.Rotation)){
-            yield return "RotationX"; yield return "RotationY";
-            yield return "RotationZ"; yield return "RotationW";
-        }
-        if(Members.HasFlag(SceneTransformMemberMask.Scale)){
-            yield return "ScaleX"; yield return "ScaleY"; yield return "ScaleZ";
-        }
-    }
-
     private static float ReadFloat(object? Value,float Default)=>Value switch {
         float Float=>Float,
         double Double=>(float)Double,

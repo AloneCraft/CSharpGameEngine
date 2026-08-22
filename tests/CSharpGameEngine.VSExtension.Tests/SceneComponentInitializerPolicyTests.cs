@@ -57,6 +57,23 @@ public sealed class SceneComponentInitializerPolicyTests {
     }
 
     [Fact]
+    public void CreateExpression_RufTransform_InitializesNestedVectorsForImmediateInspectorEditing(){
+        var Expression=Build("""
+                             namespace Sample;
+                             public struct Vector3 {
+                                 public float R; public float U; public float F;
+                                 public Vector3(float R,float U,float F){ this.R=R;this.U=U;this.F=F; }
+                             }
+                             public struct Transform {
+                                 public Vector3 Position; public Vector3 Rotation; public Vector3 Scale;
+                             }
+                             ""","Sample.Transform");
+
+        Assert.Equal(
+            "new global::Sample.Transform { Position=new global::Sample.Vector3(0, 0, 0), Rotation=new global::Sample.Vector3(0, 0, 0), Scale=new global::Sample.Vector3(1, 1, 1) }",
+            Expression);
+    }
+    [Fact]
     public void CreateExpression_TypeWithoutWritableMembers_StaysABareConstruction(){
         var Expression=Build("""
                              namespace Sample;

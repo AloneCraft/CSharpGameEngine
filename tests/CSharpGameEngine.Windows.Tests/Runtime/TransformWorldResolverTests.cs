@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Numerics;
 using CSharpGameEngine.Runtime.Windows;
+using Logical=CSharpGameEngine.Numerics.Logical256;
 
 namespace CSharpGameEngine.Windows.Tests.Runtime;
 
@@ -8,9 +9,9 @@ public sealed class TransformWorldResolverTests {
     [Fact]
     public void Resolve_ComposesLocalTransformWithAllParentsAndCachesTheResult(){
         Dictionary<int,Transform>Transforms=new(){
-            [1]=new Transform { PositionX=10f },
-            [2]=new Transform { PositionY=3f },
-            [3]=new Transform { PositionZ=2f },
+            [1]=new Transform { Position=new Logical.Vector3(10f,0f,0f) },
+            [2]=new Transform { Position=new Logical.Vector3(0f,3f,0f) },
+            [3]=new Transform { Position=new Logical.Vector3(0f,0f,2f) },
         };
         Dictionary<int,int>Parents=new(){ [2]=1,[3]=2 };
         var TransformLookups=0;

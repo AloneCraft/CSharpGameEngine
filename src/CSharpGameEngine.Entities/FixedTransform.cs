@@ -7,8 +7,8 @@ namespace CSharpGameEngine.Runtime.Windows;
 
 /// <summary>
 /// Scene-user-compilation Transform. Its absolute position and scale use the precision selected
-/// by <c>the Runtime-owned Logical precision library</c>; quaternion components use a normalized-range
-/// fixed scalar. Coordinates use Unity-compatible RUF (+X right, +Y up, +Z forward).
+/// by <c>the Runtime-owned Logical precision library</c>. Rotation is stored as RUF Euler angles
+/// in radians. Coordinates use Unity-compatible RUF (+X right, +Y up, +Z forward).
 /// </summary>
 /// <remarks>
 /// This source is linked into a Scene compilation (rather than the Windows renderer DLL), because
@@ -17,24 +17,21 @@ namespace CSharpGameEngine.Runtime.Windows;
 /// </remarks>
 [SceneComponentOrder(SceneComponentCategory.Spatial,0)]
 public struct Transform {
-    public Logical.Scalar PositionX;
-    public Logical.Scalar PositionY;
-    public Logical.Scalar PositionZ;
+    public Logical.Vector3 Position;
 
-    public Logical.Scalar RotationX;
-    public Logical.Scalar RotationY;
-    public Logical.Scalar RotationZ;
-    public Logical.Scalar RotationW;
+    /// <summary>
+    /// Euler angles in radians. R rotates around right (+X), U around up (+Y), and F around
+    /// forward (+Z). They are applied in the <c>U-R-F</c> order used by
+    /// <see cref="Quaternion.CreateFromYawPitchRoll"/>.
+    /// </summary>
+    public Logical.Vector3 Rotation;
 
-    public Logical.Scalar ScaleX;
-    public Logical.Scalar ScaleY;
-    public Logical.Scalar ScaleZ;
+    public Logical.Vector3 Scale;
 
     public Transform(){
-        this.RotationW=Logical.Scalar.One;
-        this.ScaleX=Logical.Scalar.One;
-        this.ScaleY=Logical.Scalar.One;
-        this.ScaleZ=Logical.Scalar.One;
+        this.Position=Logical.Vector3.Zero;
+        this.Rotation=Logical.Vector3.Zero;
+        this.Scale=Logical.Vector3.One;
     }
 }
 
@@ -52,11 +49,11 @@ public enum FixedTransformStatus {
 /// </summary>
 public static class TransformMath {
     public static Matrix4x4 ToMatrix(in Transform Transform)=>
-        Matrix4x4.CreateScale(Transform.ScaleX,Transform.ScaleY,Transform.ScaleZ)
-        *Matrix4x4.CreateFromQuaternion(new Quaternion(
-            Transform.RotationX,Transform.RotationY,Transform.RotationZ,Transform.RotationW))
+        Matrix4x4.CreateScale(Transform.Scale.R,Transform.Scale.U,Transform.Scale.F)
+        *Matrix4x4.CreateFromQuaternion(Quaternion.CreateFromYawPitchRoll(
+            Transform.Rotation.U,Transform.Rotation.R,Transform.Rotation.F))
         *Matrix4x4.CreateTranslation(
-            Transform.PositionX,Transform.PositionY,Transform.PositionZ);
+            Transform.Position.R,Transform.Position.U,Transform.Position.F);
 
     public static Matrix4x4 ToWorld(in Transform Local,in Matrix4x4 ParentWorld)=>
         ToMatrix(Local)*ParentWorld;
@@ -75,16 +72,9 @@ public static class TransformMath {
         }
 
         Local=new Transform {
-            PositionX=Position.X,
-            PositionY=Position.Y,
-            PositionZ=Position.Z,
-            RotationX=Rotation.X,
-            RotationY=Rotation.Y,
-            RotationZ=Rotation.Z,
-            RotationW=Rotation.W,
-            ScaleX=Scale.X,
-            ScaleY=Scale.Y,
-            ScaleZ=Scale.Z,
+            Position=new Logical.Vector3(Position.X,Position.Y,Position.Z),
+            Rotation=FixedAffineTransform.ToEulerRuf(Rotation),
+            Scale=new Logical.Vector3(Scale.X,Scale.Y,Scale.Z),
         };
         return true;
     }
@@ -170,22 +160,22 @@ public readonly struct FixedAffineTransform {
             ||!Logical.Scalar.TrySubtract(TwoYZ,TwoXW,out Logical.Scalar M32)
             ||!Logical.Scalar.TrySubtract(Logical.Scalar.One,TwoXX,out Logical.Scalar M33)
             ||!Logical.Scalar.TrySubtract(M33,TwoYY,out M33)
-            ||!Logical.Scalar.TryMultiply(Transform.ScaleX,M11,out M11)
-            ||!Logical.Scalar.TryMultiply(Transform.ScaleX,M12,out M12)
-            ||!Logical.Scalar.TryMultiply(Transform.ScaleX,M13,out M13)
-            ||!Logical.Scalar.TryMultiply(Transform.ScaleY,M21,out M21)
-            ||!Logical.Scalar.TryMultiply(Transform.ScaleY,M22,out M22)
-            ||!Logical.Scalar.TryMultiply(Transform.ScaleY,M23,out M23)
-            ||!Logical.Scalar.TryMultiply(Transform.ScaleZ,M31,out M31)
-            ||!Logical.Scalar.TryMultiply(Transform.ScaleZ,M32,out M32)
-            ||!Logical.Scalar.TryMultiply(Transform.ScaleZ,M33,out M33)){
+            ||!Logical.Scalar.TryMultiply(Transform.Scale.R,M11,out M11)
+            ||!Logical.Scalar.TryMultiply(Transform.Scale.R,M12,out M12)
+            ||!Logical.Scalar.TryMultiply(Transform.Scale.R,M13,out M13)
+            ||!Logical.Scalar.TryMultiply(Transform.Scale.U,M21,out M21)
+            ||!Logical.Scalar.TryMultiply(Transform.Scale.U,M22,out M22)
+            ||!Logical.Scalar.TryMultiply(Transform.Scale.U,M23,out M23)
+            ||!Logical.Scalar.TryMultiply(Transform.Scale.F,M31,out M31)
+            ||!Logical.Scalar.TryMultiply(Transform.Scale.F,M32,out M32)
+            ||!Logical.Scalar.TryMultiply(Transform.Scale.F,M33,out M33)){
             Matrix=default;
             return FixedTransformStatus.NumericOverflow;
         }
 
         Matrix=new FixedAffineTransform(
             M11,M12,M13,M21,M22,M23,M31,M32,M33,
-            Transform.PositionX,Transform.PositionY,Transform.PositionZ);
+            Transform.Position.R,Transform.Position.U,Transform.Position.F);
         return FixedTransformStatus.Success;
     }
 
@@ -292,30 +282,30 @@ public readonly struct FixedAffineTransform {
     private static FixedTransformStatus TryGetNormalizedQuaternion(
         in Transform Transform,
         out Logical.Scalar X,out Logical.Scalar Y,out Logical.Scalar Z,out Logical.Scalar W){
-        X=Transform.RotationX;
-        Y=Transform.RotationY;
-        Z=Transform.RotationZ;
-        W=Transform.RotationW;
-        if(!Logical.Scalar.TryMultiply(X,X,out Logical.Scalar XX)
-            ||!Logical.Scalar.TryMultiply(Y,Y,out Logical.Scalar YY)
-            ||!Logical.Scalar.TryMultiply(Z,Z,out Logical.Scalar ZZ)
-            ||!Logical.Scalar.TryMultiply(W,W,out Logical.Scalar WW)
-            ||!Logical.Scalar.TryAdd(XX,YY,out Logical.Scalar LengthSquared)
-            ||!Logical.Scalar.TryAdd(LengthSquared,ZZ,out LengthSquared)
-            ||!Logical.Scalar.TryAdd(LengthSquared,WW,out LengthSquared)){
-            return FixedTransformStatus.NumericOverflow;
+        // Euler-angle trigonometry is evaluated only in the normalized orientation range.
+        // Position and hierarchy composition remain in Logical fixed precision.
+        if(!Transform.Rotation.R.TryToSingle(out float R)
+            ||!Transform.Rotation.U.TryToSingle(out float U)
+            ||!Transform.Rotation.F.TryToSingle(out float F)){
+            X=Y=Z=W=default;
+            return FixedTransformStatus.FloatConversionOverflow;
         }
-        if(LengthSquared.IsZero||!Logical.Scalar.TrySquareRoot(LengthSquared,out Logical.Scalar Length)
-            ||Length.IsZero){
-            return FixedTransformStatus.NonInvertible;
-        }
-        if(!Logical.Scalar.TryDivide(X,Length,out X)
-            ||!Logical.Scalar.TryDivide(Y,Length,out Y)
-            ||!Logical.Scalar.TryDivide(Z,Length,out Z)
-            ||!Logical.Scalar.TryDivide(W,Length,out W)){
-            return FixedTransformStatus.NumericOverflow;
-        }
+        Quaternion Rotation=Quaternion.CreateFromYawPitchRoll(U,R,F);
+        X=Rotation.X;
+        Y=Rotation.Y;
+        Z=Rotation.Z;
+        W=Rotation.W;
         return FixedTransformStatus.Success;
+    }
+
+    internal static Logical.Vector3 ToEulerRuf(Quaternion Rotation){
+        Rotation=Quaternion.Normalize(Rotation);
+        float Pitch=MathF.Asin(Math.Clamp(2f*(Rotation.W*Rotation.X-Rotation.Y*Rotation.Z),-1f,1f));
+        float Yaw=MathF.Atan2(2f*(Rotation.W*Rotation.Y+Rotation.Z*Rotation.X),
+            1f-2f*(Rotation.X*Rotation.X+Rotation.Y*Rotation.Y));
+        float Roll=MathF.Atan2(2f*(Rotation.W*Rotation.Z+Rotation.X*Rotation.Y),
+            1f-2f*(Rotation.X*Rotation.X+Rotation.Z*Rotation.Z));
+        return new Logical.Vector3(Pitch,Yaw,Roll);
     }
 
     private static bool TryDoubleProduct(

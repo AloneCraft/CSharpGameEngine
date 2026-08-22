@@ -104,7 +104,7 @@ public sealed class InspectorMemberViewModelTests {
         InspectorMemberViewModel ViewModel=new(Member);
 
         Assert.Equal("DirectionalLight.Intensity",ViewModel.Label);
-        Assert.Equal("3f",ViewModel.DisplayText);
+        Assert.Equal("3",ViewModel.DisplayText);
     }
 
     [Fact]

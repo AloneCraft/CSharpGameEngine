@@ -14,7 +14,9 @@ namespace CSharpGameEngine.VSExtension.Tests;
 public sealed class SceneModelEditApplierTests {
     private const string TransformTypes="""
         namespace CSharpGameEngine.Runtime.Windows {
+            public struct Vector3 { public float R; public float U; public float F; public Vector3(float R,float U,float F){ this.R=R;this.U=U;this.F=F; } }
             public struct Transform {
+                public Vector3 Position; public Vector3 Rotation; public Vector3 Scale;
                 public float PositionX; public float PositionY; public float PositionZ;
                 public float RotationX; public float RotationY; public float RotationZ; public float RotationW;
                 public float ScaleX; public float ScaleY; public float ScaleZ;
@@ -497,7 +499,8 @@ public sealed class SceneModelEditApplierTests {
         var TruthProjection=Reconciler.Reconcile(Key,Truth,BaseProjection);
 
         var Diff=SceneDiffEngine.Compare(PredictedProjection,TruthProjection);
-        Assert.All(Diff.Entries,static Entry=>Assert.Equal(SceneDiffKind.ComponentChanged,Entry.Kind));
+        Assert.Equal(SceneDiffKind.ComponentChanged,Diff.Entries[0].Kind);
+        Assert.All(Diff.Entries.Skip(1),static Entry=>Assert.Equal(SceneDiffKind.MemberChanged,Entry.Kind));
 
         // 実際に描画・Inspectorが読む値そのものが一致していることを直接確かめる。
         AssertTransformEqual(Truth,Predicted,"Cube");

@@ -20,7 +20,9 @@ namespace CSharpGameEngine.VSExtension.Tests;
 public sealed class SceneSaveVerificationTests {
     private const string TransformTypes="""
         namespace CSharpGameEngine.Runtime.Windows {
+            public struct Vector3 { public float R; public float U; public float F; public Vector3(float R,float U,float F){ this.R=R;this.U=U;this.F=F; } }
             public struct Transform {
+                public Vector3 Position; public Vector3 Rotation; public Vector3 Scale;
                 public float PositionX; public float PositionY; public float PositionZ;
                 public float RotationX; public float RotationY; public float RotationZ; public float RotationW;
                 public float ScaleX; public float ScaleY; public float ScaleZ;
@@ -65,7 +67,7 @@ public sealed class SceneSaveVerificationTests {
             CancellationToken.None,out var Error),Error);
 
         Assert.Contains("手書きの大事なコメント",Edited.Root!.ToFullString());
-        Assert.Contains("PositionX=9f",Edited.Root.ToFullString());
+        Assert.Contains("Position=new global::CSharpGameEngine.Runtime.Windows.Vector3(9f,0f,0f)",Edited.Root.ToFullString());
     }
 
     /// <summary>
@@ -116,8 +118,8 @@ public sealed class SceneSaveVerificationTests {
 
         // 各ステップが実際にその時点の値を持つ(まとめて最終値になっていない)。
         Assert.Contains("PositionX=1f",Steps.Steps[0].ToFullString());
-        Assert.Contains("PositionX=2f",Steps.Steps[1].ToFullString());
-        Assert.Contains("PositionX=3f",Steps.Steps[2].ToFullString());
+        Assert.Contains("Position=new global::CSharpGameEngine.Runtime.Windows.Vector3(2f,0f,0f)",Steps.Steps[1].ToFullString());
+        Assert.Contains("Position=new global::CSharpGameEngine.Runtime.Windows.Vector3(3f,0f,0f)",Steps.Steps[2].ToFullString());
     }
 
     /// <summary>ステップ列の最終木は、従来の<see cref="SceneSourceEditor.ApplyForSave"/>の結果と一致する。</summary>

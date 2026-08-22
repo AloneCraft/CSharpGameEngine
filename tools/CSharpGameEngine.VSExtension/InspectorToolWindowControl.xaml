@@ -43,7 +43,18 @@
                     <Grid Grid.Column="1">
                         <TextBox Text="{Binding DisplayText, Mode=OneTime}"
                                  Visibility="{Binding EditorKind, Converter={StaticResource EditorKindVisibilityConverter}, ConverterParameter='Number,Text'}"
-                                 PreviewKeyDown="InspectorRow_PreviewKeyDown" KeyDown="EditableField_KeyDown" LostFocus="EditableField_LostFocus" />
+                                 PreviewKeyDown="InspectorRow_PreviewKeyDown" KeyDown="EditableField_KeyDown" LostFocus="EditableField_LostFocus">
+                            <TextBox.Style>
+                                <Style TargetType="TextBox">
+                                    <Setter Property="TextAlignment" Value="Left" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding EditorKind}" Value="Number">
+                                            <Setter Property="TextAlignment" Value="Right" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBox.Style>
+                        </TextBox>
                         <!-- IsChecked/SelectedItemはOneWay。初期のデータバインド代入自体が
                              Checked/SelectionChangedを発火させるため、それらをcommitの
                              トリガーにすると「確定→再構築→再バインド→再確定」の無限
@@ -60,7 +71,18 @@
                         <TextBlock Text="{Binding DisplayText, Mode=OneTime}" VerticalAlignment="Center"
                                    TextTrimming="CharacterEllipsis"
                                    Foreground="{DynamicResource {x:Static vsshell:VsBrushes.GrayTextKey}}"
-                                   Visibility="{Binding EditorKind, Converter={StaticResource EditorKindVisibilityConverter}, ConverterParameter=ReadOnly}" />
+                                   Visibility="{Binding EditorKind, Converter={StaticResource EditorKindVisibilityConverter}, ConverterParameter=ReadOnly}">
+                             <TextBlock.Style>
+                                 <Style TargetType="TextBlock">
+                                     <Setter Property="TextAlignment" Value="Left" />
+                                     <Style.Triggers>
+                                         <DataTrigger Binding="{Binding EditorKind}" Value="Number">
+                                             <Setter Property="TextAlignment" Value="Right" />
+                                         </DataTrigger>
+                                     </Style.Triggers>
+                                 </Style>
+                             </TextBlock.Style>
+                         </TextBlock>
                     </Grid>
                 </Grid>
             </Border>

@@ -32,9 +32,11 @@ internal abstract class InspectorSelectableViewModel:INotifyPropertyChanged {
 internal sealed class InspectorMemberViewModel:InspectorSelectableViewModel {
     internal InspectorMemberViewModel(SceneInspectorMember Member){
         this.Member=Member;
-        this.DisplayText=Member.EditorKind==InspectorEditorKind.Text
-            ?Member.ConstantValue as string??string.Empty
-            :Member.SourceExpression;
+        this.DisplayText=Member.EditorKind switch {
+            InspectorEditorKind.Text=>Member.ConstantValue as string??string.Empty,
+            InspectorEditorKind.Number=>SceneInspectorValueFormat.RemoveFloatSuffix(Member.SourceExpression),
+            _=>Member.SourceExpression,
+        };
         this.BooleanValue=Member.ConstantValue is bool BoolValue&&BoolValue;
         this.SelectedEnumName=ExtractTrailingIdentifier(Member.SourceExpression);
     }

@@ -71,7 +71,7 @@ internal static class SceneSaveVerification {
         var ExpectedSignature=SceneModelStructuralSignature.Compute(Expected);
         var ActualSignature=SceneModelStructuralSignature.Compute(Actual);
         if(!string.Equals(ExpectedSignature,ActualSignature,StringComparison.Ordinal)){
-            ErrorMessage="書き戻し結果が編集内容と一致しません(往復検証に失敗)。";
+            ErrorMessage=$"書き戻し結果が編集内容と一致しません(往復検証に失敗)。 Expected={ExpectedSignature} Actual={ActualSignature}";
             return false;
         }
 

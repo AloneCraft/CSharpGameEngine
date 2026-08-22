@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Linq;
+using System.Numerics;
 using CSharpGameEngine.SceneAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -21,7 +22,8 @@ internal sealed record SetComponentMemberOperation(
     string ComponentTypeFullyQualifiedName,
     string MemberName,
     string ValueExpression,
-    string?OriginalValueExpression=null) : SceneEditOperation(SceneKey,NodeId,DocumentVersion);
+    string?OriginalValueExpression=null,
+    ImmutableArray<string>MemberPath=default) : SceneEditOperation(SceneKey,NodeId,DocumentVersion);
 
 /// <summary>
 /// <paramref name="Members"/>は<b>メモリ内モデル専用</b>で、C#への書き戻しには使わない
@@ -508,29 +510,67 @@ internal static class SceneSourceEditor {
     private static SceneSourceEditResult ApplySetComponentMember(
         SyntaxNode Root,SceneProjectionNode Node,SetComponentMemberOperation Operation){
         SceneComponent?Component=Node.Node.FindComponent(Operation.ComponentTypeFullyQualifiedName);
-        SceneComponentMember?Member=Component?.FindMember(Operation.MemberName);
         if(Component is null){
-            return SceneSourceEditResult.Failure("対象のComponentまたはMemberが現在のSceneに見つかりません。");
+            return SceneSourceEditResult.Failure("The component or member does not exist in this scene.");
         }
-
         ExpressionSyntax NewExpression=SyntaxFactory.ParseExpression(Operation.ValueExpression);
         if(NewExpression.ContainsDiagnostics){
-            return SceneSourceEditResult.Failure("新しい値が妥当なC#式ではありません。");
+            return SceneSourceEditResult.Failure("The new value is not a valid C# expression.");
         }
+        ImmutableArray<string>Path=Operation.MemberPath.IsDefaultOrEmpty
+            ?ImmutableArray.Create(Operation.MemberName)
+            :Operation.MemberPath;
+        if(Path.Length>1){
+            return ApplySetNestedComponentMember(Root,Component,Path,NewExpression);
+        }
+
+        SceneComponentMember?Member=Component.FindMember(Operation.MemberName);
         if(Member is null){
             bool MemberExists=Component.TypeSymbol?.GetMembers(Operation.MemberName).Length>0;
             if(!MemberExists){
-                return SceneSourceEditResult.Failure("対象のMemberがComponent型に宣言されていません。");
+                return SceneSourceEditResult.Failure("The member is not declared on this component.");
             }
             return ApplyInsertComponentMember(Root,Component,Operation.MemberName,NewExpression);
         }
-
         ExpressionSyntax?OldExpression=FindExpression(Root,Member.Value.Location.Span);
         if(OldExpression is null){
-            return SceneSourceEditResult.Failure("対象のMember値がC#ソースに見つかりません。");
+            return SceneSourceEditResult.Failure("The component member value was not found in source.");
         }
-
         return SceneSourceEditResult.Success(Root.ReplaceNode(OldExpression,NewExpression.WithTriviaFrom(OldExpression)));
+    }
+
+    private static SceneSourceEditResult ApplySetNestedComponentMember(
+        SyntaxNode Root,SceneComponent Component,ImmutableArray<string> Path,ExpressionSyntax NewExpression){
+        SceneComponentMember?Top=Component.FindMember(Path[0]);
+        if(Top?.Value.Kind!=SceneValueKind.ObjectCreation){
+            return SceneSourceEditResult.Failure($"{Path[0]} is not an editable object creation.");
+        }
+        ExpressionSyntax?TopExpression=FindExpression(Root,Top.Value.Location.Span);
+        if(TopExpression is not BaseObjectCreationExpressionSyntax Creation){
+            return SceneSourceEditResult.Failure($"{Path[0]} is not an object creation in source.");
+        }
+        string Child=Path[1];
+        ArgumentSyntax?Argument=Creation.ArgumentList?.Arguments.FirstOrDefault(Candidate=>
+            Candidate.NameColon?.Name.Identifier.ValueText==Child);
+        if(Argument is null&&TryGetVectorComponentIndex(Child,out int Index)
+            &&Creation.ArgumentList is { }Arguments&&Arguments.Arguments.Count>Index){
+            Argument=Arguments.Arguments[Index];
+        }
+        if(Argument is null){
+            return SceneSourceEditResult.Failure($"{string.Join(".",Path)} is not a positional Vector3 component.");
+        }
+        ArgumentSyntax UpdatedArgument=Argument.WithExpression(NewExpression.WithTriviaFrom(Argument.Expression));
+        BaseObjectCreationExpressionSyntax UpdatedCreation=(BaseObjectCreationExpressionSyntax)Creation.ReplaceNode(Argument,UpdatedArgument);
+        return SceneSourceEditResult.Success(Root.ReplaceNode(Creation,UpdatedCreation));
+    }
+
+    private static bool TryGetVectorComponentIndex(string Name,out int Index){
+        switch(Name){
+            case "R": Index=0; return true;
+            case "U": Index=1; return true;
+            case "F": Index=2; return true;
+            default: Index=-1; return false;
+        }
     }
 
     private static SceneSourceEditResult ApplyInsertComponentMember(
@@ -950,58 +990,69 @@ internal static class SceneSourceEditor {
     private static bool TryUpdateTransformCreation(
         BaseObjectCreationExpressionSyntax Creation,SceneComponent Transform,SceneTransformValue Value,
         SceneTransformMemberMask Members,out BaseObjectCreationExpressionSyntax Updated,out string?ErrorMessage){
-        InitializerExpressionSyntax Initializer=Creation.Initializer
-            ??SyntaxFactory.InitializerExpression(SyntaxKind.ObjectInitializerExpression);
-        SeparatedSyntaxList<ExpressionSyntax>Expressions=Initializer.Expressions;
-        Dictionary<string,int>AssignmentIndices=new(StringComparer.Ordinal);
-        for(int Index=0;Index<Expressions.Count;Index++){
-            if(Expressions[Index]is AssignmentExpressionSyntax Assignment
-                &&Assignment.Left is IdentifierNameSyntax Identifier){
-                AssignmentIndices[Identifier.Identifier.ValueText]=Index;
-            }
-        }
-
-        foreach((string Name,float MemberValue,float Default)in EnumerateTransformMembers(Value,Members)){
-            SceneComponentMember?Member=Transform.FindMember(Name);
-            float Current=Member is null?Default:ReadFloat(Member.Value.ConstantValue,Default);
-            if(SceneTransformMath.NearlyEqual(Current,MemberValue)){
-                continue;
-            }
-            if(Member is not null&&!Member.Value.IsEditable){
-                Updated=Creation;
-                ErrorMessage=$"Transform.{Name}は式を保持するためギズモから編集できません。";
-                return false;
-            }
-
-            ExpressionSyntax NewValue=SyntaxFactory.ParseExpression(FormatFloat(MemberValue));
-            if(NewValue.ContainsDiagnostics){
-                Updated=Creation;
-                ErrorMessage=$"Transform.{Name}の値をC#式へ変換できません。";
-                return false;
-            }
-
-            if(AssignmentIndices.TryGetValue(Name,out int AssignmentIndex)){
-                AssignmentExpressionSyntax Assignment=(AssignmentExpressionSyntax)Expressions[AssignmentIndex];
-                AssignmentExpressionSyntax Replaced=Assignment.WithRight(NewValue.WithTriviaFrom(Assignment.Right));
-                Expressions=Expressions.Replace(Assignment,Replaced);
-            } else {
-                AssignmentExpressionSyntax Added=SyntaxFactory.AssignmentExpression(
-                    SyntaxKind.SimpleAssignmentExpression,SyntaxFactory.IdentifierName(Name),NewValue);
-                Expressions=Expressions.Add(Added);
-                AssignmentIndices.Add(Name,Expressions.Count-1);
-            }
-        }
-
-        InitializerExpressionSyntax UpdatedInitializer=Initializer.WithExpressions(Expressions);
-        Updated=Creation switch {
-            ObjectCreationExpressionSyntax Explicit=>Explicit.WithInitializer(UpdatedInitializer),
-            ImplicitObjectCreationExpressionSyntax Implicit=>Implicit.WithInitializer(UpdatedInitializer),
-            _=>Creation,
-        };
+        Updated=Creation;
         ErrorMessage=null;
+        if((Members&SceneTransformMemberMask.Position)!=0
+            &&!TryUpdateTransformVector(Updated,Transform,"Position",Value.Position,Vector3.Zero,out Updated,out ErrorMessage)){
+            return false;
+        }
+        if((Members&SceneTransformMemberMask.Rotation)!=0
+            &&!TryUpdateTransformVector(Updated,Transform,"Rotation",Value.EulerRotation,Vector3.Zero,out Updated,out ErrorMessage)){
+            return false;
+        }
+        if((Members&SceneTransformMemberMask.Scale)!=0
+            &&!TryUpdateTransformVector(Updated,Transform,"Scale",Value.Scale,Vector3.One,out Updated,out ErrorMessage)){
+            return false;
+        }
         return true;
     }
 
+    private static bool TryUpdateTransformVector(
+        BaseObjectCreationExpressionSyntax Creation,SceneComponent Transform,string Name,Vector3 Value,Vector3 Default,
+        out BaseObjectCreationExpressionSyntax Updated,out string?ErrorMessage){
+        Updated=Creation;
+        ErrorMessage=null;
+        Vector3 Current=SceneTransformBinding.ReadVector(Transform,Name,Default);
+        if(SceneTransformMath.NearlyEqual(Current.X,Value.X)
+            &&SceneTransformMath.NearlyEqual(Current.Y,Value.Y)
+            &&SceneTransformMath.NearlyEqual(Current.Z,Value.Z)){
+            return true;
+        }
+        if(!SceneTransformBinding.CanEditVector(Transform,Name,0)
+            ||!SceneTransformBinding.CanEditVector(Transform,Name,1)
+            ||!SceneTransformBinding.CanEditVector(Transform,Name,2)){
+            ErrorMessage=$"Transform.{Name} is not a literal Vector3 and cannot be edited by the gizmo.";
+            return false;
+        }
+
+        SceneComponentMember?Member=Transform.FindMember(Name);
+        ITypeSymbol?VectorType=Member?.Value.Type??GetDeclaredMemberType(Transform,Name);
+        string TypeName=VectorType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)??"Logical.Vector3";
+        ExpressionSyntax NewValue=SyntaxFactory.ParseExpression(
+            $"new {TypeName}({FormatFloat(Value.X)},{FormatFloat(Value.Y)},{FormatFloat(Value.Z)})");
+        if(NewValue.ContainsDiagnostics){
+            ErrorMessage=$"Transform.{Name} has an invalid Vector3 expression.";
+            return false;
+        }
+        if(FindMemberValue(Creation,Name)is { }OldValue){
+            Updated=(BaseObjectCreationExpressionSyntax)Creation.ReplaceNode(OldValue,NewValue.WithTriviaFrom(OldValue));
+            return true;
+        }
+
+        InitializerExpressionSyntax Initializer=Creation.Initializer
+            ??SyntaxFactory.InitializerExpression(SyntaxKind.ObjectInitializerExpression);
+        AssignmentExpressionSyntax Added=SyntaxFactory.AssignmentExpression(
+            SyntaxKind.SimpleAssignmentExpression,SyntaxFactory.IdentifierName(Name),NewValue);
+        Updated=WithInitializer(Creation,Initializer.WithExpressions(Initializer.Expressions.Add(Added)));
+        return true;
+    }
+
+    private static ITypeSymbol? GetDeclaredMemberType(SceneComponent Component,string Name)=>
+        Component.TypeSymbol?.GetMembers(Name).FirstOrDefault() switch {
+            IFieldSymbol Field=>Field.Type,
+            IPropertySymbol Property=>Property.Type,
+            _=>null,
+        };
     private static BaseObjectCreationExpressionSyntax ReplaceNodeName(
         BaseObjectCreationExpressionSyntax Creation,string Name){
         AssignmentExpressionSyntax?Assignment=Creation.Initializer?.Expressions
@@ -1413,30 +1464,13 @@ internal static class SceneSourceEditor {
     private static ExpressionSyntax?FindExpression(SyntaxNode Root,TextSpan Span)=>
         Root.DescendantNodesAndSelf().OfType<ExpressionSyntax>().SingleOrDefault(Node=>Node.Span==Span);
 
-    /// <summary>
-    /// M0038: 予測モデル層(<see cref="SceneModelEditApplier"/>)と共有する。Transformの
-    /// メンバー語彙・既定値・数値フォーマットをソース層とモデル層で二重定義しないための共有点。
-    /// </summary>
-    internal static IEnumerable<(string Name,float Value,float Default)>EnumerateTransformMembers(
+    /// <summary>Shared public RUF Transform vectors for source and predicted-model updates.</summary>
+    internal static IEnumerable<(string Name,Vector3 Value,Vector3 Default)>EnumerateTransformVectors(
         SceneTransformValue Transform,SceneTransformMemberMask Members){
-        if((Members&SceneTransformMemberMask.Position)!=0){
-            yield return("PositionX",Transform.Position.X,0f);
-            yield return("PositionY",Transform.Position.Y,0f);
-            yield return("PositionZ",Transform.Position.Z,0f);
-        }
-        if((Members&SceneTransformMemberMask.Rotation)!=0){
-            yield return("RotationX",Transform.Rotation.X,0f);
-            yield return("RotationY",Transform.Rotation.Y,0f);
-            yield return("RotationZ",Transform.Rotation.Z,0f);
-            yield return("RotationW",Transform.Rotation.W,1f);
-        }
-        if((Members&SceneTransformMemberMask.Scale)!=0){
-            yield return("ScaleX",Transform.Scale.X,1f);
-            yield return("ScaleY",Transform.Scale.Y,1f);
-            yield return("ScaleZ",Transform.Scale.Z,1f);
-        }
+        if((Members&SceneTransformMemberMask.Position)!=0){ yield return("Position",Transform.Position,Vector3.Zero); }
+        if((Members&SceneTransformMemberMask.Rotation)!=0){ yield return("Rotation",Transform.EulerRotation,Vector3.Zero); }
+        if((Members&SceneTransformMemberMask.Scale)!=0){ yield return("Scale",Transform.Scale,Vector3.One); }
     }
-
     /// <summary>M0038: <see cref="SceneModelEditApplier"/>と共有(<see cref="EnumerateTransformMembers"/>参照)。</summary>
     internal static float ReadFloat(object?Value,float Default)=>Value switch {
         float Float=>Float,

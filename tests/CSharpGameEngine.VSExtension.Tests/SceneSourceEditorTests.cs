@@ -9,7 +9,9 @@ namespace CSharpGameEngine.VSExtension.Tests;
 public sealed class SceneSourceEditorTests {
     private const string TransformTypes="""
         namespace CSharpGameEngine.Runtime.Windows {
+            public struct Vector3 { public float R; public float U; public float F; public Vector3(float R,float U,float F){ this.R=R;this.U=U;this.F=F; } }
             public struct Transform {
+                public Vector3 Position; public Vector3 Rotation; public Vector3 Scale;
                 public float PositionX; public float PositionY; public float PositionZ;
                 public float RotationX; public float RotationY; public float RotationZ; public float RotationW;
                 public float ScaleX; public float ScaleY; public float ScaleZ;
@@ -49,6 +51,31 @@ public sealed class SceneSourceEditorTests {
         Assert.Contains("Name=\"Cube\"",Changed);
     }
 
+    [Fact]
+    public void SetComponentMember_RufNestedPath_ReplacesOnlyTheSelectedVectorComponent(){
+        const string TransformSource="""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Runtime.Windows;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() { Children=[new Node { Name="Cube", Components=[new Transform {
+                    Position=new Vector3(1f,2f,3f), Rotation=new Vector3(0f,0f,0f), Scale=new Vector3(1f,1f,1f),
+                }] }] };
+            }
+            """;
+        var Model=SceneAnalysisTestHelper.Analyze([TransformTypes,TransformSource]);
+        var Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        var Cube=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Cube").Id;
+
+        var Result=SceneSourceEditor.Apply(
+            CSharpSyntaxTree.ParseText(TransformSource).GetRoot(),Projection,
+            new SetComponentMemberOperation(
+                Key,Cube,DocumentVersion:1,"global::CSharpGameEngine.Runtime.Windows.Transform","R","9f",
+                MemberPath:["Position","R"]));
+
+        Assert.True(Result.Succeeded,Result.ErrorMessage);
+        Assert.Matches(@"Position\s*=\s*new\s+Vector3\(\s*9f\s*,\s*2f\s*,\s*3f\s*\)",Result.Root!.ToFullString());
+    }
     [Fact]
     public void RenameNode_ChangesOnlyNameLiteral(){
         (var Projection,var Cube)=CreateProjection();
@@ -134,8 +161,7 @@ public sealed class SceneSourceEditorTests {
 
         Assert.True(Result.Succeeded,Result.ErrorMessage);
         var Changed=Result.Root!.ToFullString();
-        Assert.Contains("PositionX=3f",Changed);
-        Assert.Contains("PositionY=2f",Changed);
+        Assert.Contains("Position=new global::CSharpGameEngine.Runtime.Windows.Vector3(3f,2f,0f)",Changed);
         Assert.Contains("// keep",Changed);
     }
 
@@ -161,7 +187,7 @@ public sealed class SceneSourceEditorTests {
                                            new SetTransformOperation(Key,Cube,DocumentVersion:1,Value));
 
         Assert.True(Result.Succeeded,Result.ErrorMessage);
-        Assert.Contains("PositionY=4f",Result.Root!.ToFullString());
+        Assert.Contains("Position=new global::CSharpGameEngine.Runtime.Windows.Vector3(1f,4f,0f)",Result.Root!.ToFullString());
     }
 
     [Fact]
@@ -193,7 +219,7 @@ public sealed class SceneSourceEditorTests {
 
         Assert.True(Result.Succeeded,Result.ErrorMessage);
         var Changed=Result.Root!.ToFullString();
-        Assert.Contains("PositionX=4f",Changed);
+        Assert.Contains("Position=new global::CSharpGameEngine.Runtime.Windows.Vector3(4f,0f,0f)",Changed);
         Assert.Contains("RotationW=2f",Changed);
         Assert.Contains("ScaleX=3f",Changed);
         Assert.DoesNotContain("RotationW=1f",Changed);
@@ -227,7 +253,7 @@ public sealed class SceneSourceEditorTests {
 
         Assert.True(Result.Succeeded,Result.ErrorMessage);
         var Changed=Result.Root!.ToFullString();
-        Assert.Contains("RotationZ=",Changed);
+        Assert.Contains("Rotation=new global::CSharpGameEngine.Runtime.Windows.Vector3(",Changed);
         Assert.Contains("ScaleX=3f",Changed);
         Assert.DoesNotContain("ScaleX=1f",Changed);
     }
@@ -257,9 +283,7 @@ public sealed class SceneSourceEditorTests {
 
         Assert.True(Result.Succeeded,Result.ErrorMessage);
         var Changed=Result.Root!.ToFullString();
-        Assert.Contains("ScaleX=2f",Changed);
-        Assert.Contains("ScaleY=3f",Changed);
-        Assert.Contains("ScaleZ=4f",Changed);
+        Assert.Contains("Scale=new global::CSharpGameEngine.Runtime.Windows.Vector3(2f,3f,4f)",Changed);
         Assert.Contains("RotationW=2f",Changed);
         Assert.DoesNotContain("RotationW=1f",Changed);
     }
@@ -291,7 +315,7 @@ public sealed class SceneSourceEditorTests {
         Assert.Equal(2,System.Text.RegularExpressions.Regex.Matches(Changed,"duplicate-comment").Count);
         Assert.Contains("Cube (2)",Changed);
         Assert.Contains("PositionX=1f",Changed);
-        Assert.Contains("PositionX=5f",Changed);
+        Assert.Contains("Position=new global::CSharpGameEngine.Runtime.Windows.Vector3(5f,0f,0f)",Changed);
     }
 
     [Fact]
