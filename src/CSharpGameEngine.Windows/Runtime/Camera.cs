@@ -13,23 +13,13 @@ public enum CameraProjection {
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.Camera,0)]
 [SceneComponentIcon("Assets/Editor/ComponentIcons/Camera.svg")]
-public struct Camera {
-    public bool Active;
-    public CameraProjection Projection;
-    public float FovYRadians;
-    public float NearZ;
-    public float FarZ;
-    public float OrthographicSize;
+public struct Camera() {
+    public bool Active=true;
+    public CameraProjection Projection=CameraProjection.Perspective;
+    public float FovYRadians=System.MathF.PI/4f;
+    public float NearZ=0.1f;
+    public float FarZ=300f;
+    public float OrthographicSize=10f;
     /// <summary>物理照明をHDRへ写像する露出補正[EV100]。</summary>
-    public float ExposureEv100;
-
-    public Camera(){
-        this.Active=true;
-        this.Projection=CameraProjection.Perspective;
-        this.FovYRadians=System.MathF.PI/4f;
-        this.NearZ=0.1f;
-        this.FarZ=300f;
-        this.OrthographicSize=10f;
-        this.ExposureEv100=0f;
-    }
+    public float ExposureEv100=0f;
 }

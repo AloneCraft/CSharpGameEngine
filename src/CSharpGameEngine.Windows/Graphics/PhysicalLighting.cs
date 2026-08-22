@@ -228,30 +228,21 @@ public readonly record struct PhysicalLightBudgetDiagnostics(
     int DroppedLocal);
 
 /// <summary>Deterministic selection result for the global and local Forward+ light lists.</summary>
-public sealed class PhysicalLightBudgetSelection {
-    internal PhysicalLightBudgetSelection(
+public sealed class PhysicalLightBudgetSelection(
         PhysicalLightCandidate[]Directional,
         PhysicalLightCandidate[]Local,
-        PhysicalLightBudgetDiagnostics Diagnostics){
-        this.Directional=Directional;
-        this.Local=Local;
-        this.Diagnostics=Diagnostics;
-    }
+        PhysicalLightBudgetDiagnostics Diagnostics) {
 
-    public IReadOnlyList<PhysicalLightCandidate>Directional { get; }
-    public IReadOnlyList<PhysicalLightCandidate>Local { get; }
-    public PhysicalLightBudgetDiagnostics Diagnostics { get; }
+    public IReadOnlyList<PhysicalLightCandidate>Directional { get; }=Directional;
+    public IReadOnlyList<PhysicalLightCandidate>Local { get; }=Local;
+    public PhysicalLightBudgetDiagnostics Diagnostics { get; }=Diagnostics;
 }
 
 /// <summary>Deterministic per-tile local-light list with the configured 64-light cap.</summary>
-public sealed class PhysicalLightTileSelection {
-    internal PhysicalLightTileSelection(PhysicalLightCandidate[]Lights,int DroppedCount){
-        this.Lights=Lights;
-        this.DroppedCount=DroppedCount;
-    }
+public sealed class PhysicalLightTileSelection(PhysicalLightCandidate[]Lights,int DroppedCount) {
 
-    public IReadOnlyList<PhysicalLightCandidate>Lights { get; }
-    public int DroppedCount { get; }
+    public IReadOnlyList<PhysicalLightCandidate>Lights { get; }=Lights;
+    public int DroppedCount { get; }=DroppedCount;
 }
 
 /// <summary>
@@ -430,17 +421,11 @@ public readonly record struct ShadowAtlasDiagnostics(
 /// and <see cref="ShadowCastersWithoutAtlasTiles"/> identifies casters that continue direct
 /// illumination but cannot sample a shadow this frame.
 /// </summary>
-public sealed class PhysicalShadowAtlasPlan {
-    internal PhysicalShadowAtlasPlan(
+public sealed class PhysicalShadowAtlasPlan(
         PhysicalLightCandidate[]SubmittedLights,
         ShadowAtlasAllocation[]Allocations,
         PhysicalLightCandidate[]ShadowCastersWithoutAtlasTiles,
-        ShadowAtlasDiagnostics Diagnostics){
-        this.SubmittedLights=SubmittedLights;
-        this.Allocations=Allocations;
-        this.ShadowCastersWithoutAtlasTiles=ShadowCastersWithoutAtlasTiles;
-        this.Diagnostics=Diagnostics;
-    }
+        ShadowAtlasDiagnostics Diagnostics) {
 
     public const int AtlasSizePixels=4096;
     public const int TileSizePixels=1024;
@@ -456,10 +441,10 @@ public sealed class PhysicalShadowAtlasPlan {
     public const int ReservedTileCount=TileCount-TotalDefaultAllocatedTiles;
 
     /// <summary>All direct-light submissions, including non-casters and atlas-overflow casters.</summary>
-    public IReadOnlyList<PhysicalLightCandidate>SubmittedLights { get; }
-    public IReadOnlyList<ShadowAtlasAllocation>Allocations { get; }
-    public IReadOnlyList<PhysicalLightCandidate>ShadowCastersWithoutAtlasTiles { get; }
-    public ShadowAtlasDiagnostics Diagnostics { get; }
+    public IReadOnlyList<PhysicalLightCandidate>SubmittedLights { get; }=SubmittedLights;
+    public IReadOnlyList<ShadowAtlasAllocation>Allocations { get; }=Allocations;
+    public IReadOnlyList<PhysicalLightCandidate>ShadowCastersWithoutAtlasTiles { get; }=ShadowCastersWithoutAtlasTiles;
+    public ShadowAtlasDiagnostics Diagnostics { get; }=Diagnostics;
 
     public bool TryGetAllocation(int StableSubmissionOrder,out ShadowAtlasAllocation Allocation){
         foreach(ShadowAtlasAllocation Current in Allocations){

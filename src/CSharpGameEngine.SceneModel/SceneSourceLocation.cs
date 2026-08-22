@@ -9,16 +9,10 @@ namespace CSharpGameEngine.SceneAnalysis;
 /// でのみ有効</b>であり、解析を跨いで保持してはならない(ADR-0040、SceneSourceEditorは書き換え直前に必ず
 /// 再解析する)。
 /// </summary>
-internal readonly struct SceneSourceLocation : IEquatable<SceneSourceLocation> {
-    internal readonly string FilePath;
-    internal readonly TextSpan Span;
-    internal readonly LinePositionSpan LineSpan;
-
-    internal SceneSourceLocation(string FilePath,TextSpan Span,LinePositionSpan LineSpan){
-        this.FilePath=FilePath;
-        this.Span=Span;
-        this.LineSpan=LineSpan;
-    }
+internal readonly struct SceneSourceLocation(string FilePath,TextSpan Span,LinePositionSpan LineSpan) : IEquatable<SceneSourceLocation> {
+    internal string FilePath { get; }=FilePath;
+    internal TextSpan Span { get; }=Span;
+    internal LinePositionSpan LineSpan { get; }=LineSpan;
 
     internal static SceneSourceLocation None=>new(string.Empty,default,default);
 

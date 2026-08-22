@@ -7,16 +7,10 @@ namespace CSharpGameEngine.Spatial.Abstractions;
 /// is active; only <see cref="ICoordinateConvention.ToXyz"/>/<see cref="ICoordinateConvention.FromXyz"/>
 /// know how a given preset maps this to physical storage. Blittable, unmanaged, no heap allocation.
 /// </summary>
-public readonly struct RufVector:IEquatable<RufVector>{
-    public float R { get;}
-    public float U { get;}
-    public float F { get;}
-
-    public RufVector(float R,float U,float F){
-        this.R= R;
-        this.U= U;
-        this.F= F;
-    }
+public readonly struct RufVector(float R,float U,float F):IEquatable<RufVector>{
+    public float R { get;}=R;
+    public float U { get;}=U;
+    public float F { get;}=F;
 
     public static readonly RufVector Zero=new(0f,0f,0f);
     public static readonly RufVector Right=new(1f,0f,0f);

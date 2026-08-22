@@ -15,8 +15,7 @@ namespace CSharpGameEngine.SceneAnalysis;
 /// というクラスのバグが構造的に発生しない。
 /// </para>
 /// </summary>
-internal sealed class SceneModel {
-    internal SceneModel(
+internal sealed class SceneModel(
         string?Namespace,
         string ClassName,
         string ClassFullyQualifiedName,
@@ -27,41 +26,30 @@ internal sealed class SceneModel {
         ImmutableArray<Diagnostic>Diagnostics,
         string FilePath,
         int DeclarationPosition){
-        this.Namespace=Namespace;
-        this.ClassName=ClassName;
-        this.ClassFullyQualifiedName=ClassFullyQualifiedName;
-        this.ClassSymbol=ClassSymbol;
-        this.Root=Root;
-        this.IsStartupScene=IsStartupScene;
-        this.StartupOrder=StartupOrder;
-        this.Diagnostics=Diagnostics;
-        this.FilePath=FilePath;
-        this.DeclarationPosition=DeclarationPosition;
-    }
 
-    internal string?Namespace { get;}
+    internal string?Namespace { get; }=Namespace;
 
-    internal string ClassName { get;}
+    internal string ClassName { get; }=ClassName;
 
     /// <summary><c>global::</c>接頭辞<b>なし</b>の完全修飾名(<c>GameSystemResult.ClassFullyQualifiedName</c>と同じキー空間)。</summary>
-    internal string ClassFullyQualifiedName { get;}
+    internal string ClassFullyQualifiedName { get; }=ClassFullyQualifiedName;
 
-    internal INamedTypeSymbol?ClassSymbol { get;}
+    internal INamedTypeSymbol?ClassSymbol { get; }=ClassSymbol;
 
     /// <summary>解析に失敗した場合は<c>null</c>。</summary>
-    internal SceneNode?Root { get;}
+    internal SceneNode?Root { get; }=Root;
 
     /// <summary><c>[StartupScene]</c>が付いているか。SGが起動時に自動でinstantiateする合成Systemを作る。</summary>
-    internal bool IsStartupScene { get;}
+    internal bool IsStartupScene { get; }=IsStartupScene;
 
-    internal int StartupOrder { get;}
+    internal int StartupOrder { get; }=StartupOrder;
 
-    internal ImmutableArray<Diagnostic>Diagnostics { get;}
+    internal ImmutableArray<Diagnostic>Diagnostics { get; }=Diagnostics;
 
-    internal string FilePath { get;}
+    internal string FilePath { get; }=FilePath;
 
     /// <summary>決定論的な整列キー(<c>SourceSpan.Start</c>)。<c>Collect()</c>の順序に依存しないため。</summary>
-    internal int DeclarationPosition { get;}
+    internal int DeclarationPosition { get; }=DeclarationPosition;
 
     internal bool HasErrors{
         get{

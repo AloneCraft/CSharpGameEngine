@@ -16,25 +16,19 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// <see cref="IEquatable{T}"/>を手書きする。
 /// </para>
 /// </summary>
-internal readonly struct GenerationGate : IEquatable<GenerationGate> {
+internal readonly struct GenerationGate(bool HasRuntimeMarker,OutputKind OutputKind,bool HasUserEntryPoint) : IEquatable<GenerationGate> {
     /// <summary>
     /// <c>CSharpGameEngine.Entities.ISystem</c>がコンパイル内に実在するか。ADR-0014により1つの
     /// アナライザーパッケージへ複数のGeneratorが同居するため、このECSを使う意図が無いプロジェクトでも
     /// 参照だけで本Generatorが走る。無条件に出力すると空の<c>World</c>等が紛れ込んで実際にビルドを壊す
     /// (ADR-0032実装時に確認済みの回帰)。
     /// </summary>
-    internal readonly bool HasRuntimeMarker;
+    internal readonly bool HasRuntimeMarker=HasRuntimeMarker;
 
-    internal readonly OutputKind OutputKind;
+    internal readonly OutputKind OutputKind=OutputKind;
 
     /// <summary>ユーザーが<c>Program.cs</c>を持っているか。持っていればエントリポイントを生成しない(CS0017の回避)。</summary>
-    internal readonly bool HasUserEntryPoint;
-
-    internal GenerationGate(bool HasRuntimeMarker,OutputKind OutputKind,bool HasUserEntryPoint){
-        this.HasRuntimeMarker=HasRuntimeMarker;
-        this.OutputKind=OutputKind;
-        this.HasUserEntryPoint=HasUserEntryPoint;
-    }
+    internal readonly bool HasUserEntryPoint=HasUserEntryPoint;
 
     internal static GenerationGate FromCompilation(Compilation Compilation,CancellationToken CancellationToken){
         return new GenerationGate(

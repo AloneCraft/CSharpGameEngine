@@ -16,23 +16,17 @@ namespace CSharpGameEngine.Runtime.Windows;
 /// matrices converted to float at the final GPU boundary.
 /// </remarks>
 [SceneComponentOrder(SceneComponentCategory.Spatial,0)]
-public struct Transform {
-    public Logical.Vector3 Position;
+public struct Transform() {
+    public Logical.Vector3 Position=Logical.Vector3.Zero;
 
     /// <summary>
     /// Euler angles in radians. R rotates around right (+X), U around up (+Y), and F around
     /// forward (+Z). They are applied in the <c>U-R-F</c> order used by
     /// <see cref="Quaternion.CreateFromYawPitchRoll"/>.
     /// </summary>
-    public Logical.Vector3 Rotation;
+    public Logical.Vector3 Rotation=Logical.Vector3.Zero;
 
-    public Logical.Vector3 Scale;
-
-    public Transform(){
-        this.Position=Logical.Vector3.Zero;
-        this.Rotation=Logical.Vector3.Zero;
-        this.Scale=Logical.Vector3.One;
-    }
+    public Logical.Vector3 Scale=Logical.Vector3.One;
 }
 
 /// <summary>Result of a fixed Transform operation that cannot silently wrap or lose a GPU pose.</summary>

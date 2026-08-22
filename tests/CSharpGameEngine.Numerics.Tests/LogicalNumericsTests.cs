@@ -40,4 +40,21 @@ public sealed class LogicalNumericsTests {
         Assert.Equal(Logical256.Vector3.UnitU,new Logical256.Vector3(0d,1d,0d));
         Assert.Equal(Logical256.Vector3.UnitF,new Logical256.Vector3(0d,0d,1d));
     }
+
+    [Fact]
+    public void RawLimbPrimaryConstructorsArePublicForEveryProfile(){
+        Assert.Equal(new Logical128.Scalar(1,2),new Logical128.Scalar(1,2));
+        Assert.Equal(new Logical192.Scalar(1,2,3),new Logical192.Scalar(1,2,3));
+        Assert.Equal(new Logical256.Scalar(1,2,3,4),new Logical256.Scalar(1,2,3,4));
+    }
+
+    [Fact]
+    public void RufVectorOperationsAreAvailableForEveryProfile(){
+        Logical128.Vector3 A128=new(1d,2d,3d);
+        Logical192.Vector3 A192=new(1d,2d,3d);
+        Logical256.Vector3 A256=new(1d,2d,3d);
+        Assert.Equal(new Logical128.Vector3(-3d,6d,-3d),Logical128.Vector3.Cross(A128,new(4d,5d,6d)));
+        Assert.Equal(new Logical192.Vector3(-3d,6d,-3d),Logical192.Vector3.Cross(A192,new(4d,5d,6d)));
+        Assert.Equal(new Logical256.Vector3(-3d,6d,-3d),Logical256.Vector3.Cross(A256,new(4d,5d,6d)));
+    }
 }

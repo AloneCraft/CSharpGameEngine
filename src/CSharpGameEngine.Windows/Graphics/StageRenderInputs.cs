@@ -20,9 +20,7 @@ public readonly struct StageMeshCreateInfo {
 /// common case for this engine's baked UE content) supplies null and relies on the factor alone,
 /// mirroring <see cref="ModelRenderer"/>'s 1x1-fallback-texture pattern.
 /// </summary>
-public readonly struct StageMaterialCreateInfo {
-    public StageMaterialCreateInfo(){
-    }
+public readonly struct StageMaterialCreateInfo() {
 
     public required Vector4 BaseColorFactor { get; init;}
     public required float RoughnessFactor { get; init;}

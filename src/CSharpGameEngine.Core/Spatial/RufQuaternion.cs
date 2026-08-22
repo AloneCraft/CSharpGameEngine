@@ -12,18 +12,11 @@ namespace CSharpGameEngine.Spatial.Abstractions;
 /// Positive <see cref="FromAxisAngle"/> rotation follows the right-hand rule around the given
 /// axis, evaluated on the R/U/F triple.
 /// </summary>
-public readonly struct RufQuaternion:IEquatable<RufQuaternion>{
-    public float R { get;}
-    public float U { get;}
-    public float F { get;}
-    public float W { get;}
-
-    public RufQuaternion(float R,float U,float F,float W){
-        this.R= R;
-        this.U= U;
-        this.F= F;
-        this.W= W;
-    }
+public readonly struct RufQuaternion(float R,float U,float F,float W):IEquatable<RufQuaternion>{
+    public float R { get;}=R;
+    public float U { get;}=U;
+    public float F { get;}=F;
+    public float W { get;}=W;
 
     public static readonly RufQuaternion Identity=new(0f,0f,0f,1f);
 

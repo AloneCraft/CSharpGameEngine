@@ -16,20 +16,14 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// 流す値がCompilationをルート保持すると、キーストロークのたびにキャッシュが無効化される。
 /// </para>
 /// </summary>
-internal readonly struct SceneRuntimeComponentPair {
-    internal SceneRuntimeComponentPair(
-        string AuthoredFullyQualifiedName,string RuntimeFullyQualifiedName,Location?Location){
-        this.AuthoredFullyQualifiedName=AuthoredFullyQualifiedName;
-        this.RuntimeFullyQualifiedName=RuntimeFullyQualifiedName;
-        this.Location=Location;
-    }
+internal readonly struct SceneRuntimeComponentPair(
+    string AuthoredFullyQualifiedName,string RuntimeFullyQualifiedName,Location?Location) {
+    internal string AuthoredFullyQualifiedName { get; }=AuthoredFullyQualifiedName;
 
-    internal string AuthoredFullyQualifiedName { get; }
-
-    internal string RuntimeFullyQualifiedName { get; }
+    internal string RuntimeFullyQualifiedName { get; }=RuntimeFullyQualifiedName;
 
     /// <summary>SYSGEN027(同一作者型を2つの実行時Componentが主張)の報告位置。</summary>
-    internal Location?Location { get; }
+    internal Location?Location { get; }=Location;
 }
 
 /// <summary>

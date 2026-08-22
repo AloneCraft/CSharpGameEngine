@@ -8,16 +8,10 @@ namespace CSharpGameEngine.Spatial.Abstractions;
 /// counterpart and <see cref="ICoordinateConvention"/> for the boundary between the two.
 /// Blittable, unmanaged, no heap allocation.
 /// </summary>
-public readonly struct XyzVector:IEquatable<XyzVector>{
-    public float X { get;}
-    public float Y { get;}
-    public float Z { get;}
-
-    public XyzVector(float X,float Y,float Z){
-        this.X= X;
-        this.Y= Y;
-        this.Z= Z;
-    }
+public readonly struct XyzVector(float X,float Y,float Z):IEquatable<XyzVector>{
+    public float X { get;}=X;
+    public float Y { get;}=Y;
+    public float Z { get;}=Z;
 
     public static readonly XyzVector Zero=new(0f,0f,0f);
 

@@ -1,33 +1,30 @@
 namespace CSharpGameEngine.Core;
 
-public readonly struct SourceLocation:IEquatable<SourceLocation>{
+public readonly struct SourceLocation(string?FilePath,int Line,int Column):IEquatable<SourceLocation> {
     public static SourceLocation Unknown { get;}=new(null,0,0);
 
-    public SourceLocation(string?FilePath,int Line,int Column){
-        if(Line<0){
-            throw new ArgumentOutOfRangeException(nameof(Line));
-        }
+    public string?FilePath { get;}=NormalizeFilePath(FilePath);
 
-        if(Column<0){
-            throw new ArgumentOutOfRangeException(nameof(Column));
-        }
-
-        this.FilePath=string.IsNullOrWhiteSpace(FilePath) ?null: FilePath;
-        this.Line=Line;
-        this.Column=Column;
-    }
-
-    public string?FilePath { get;}
+    private static string?NormalizeFilePath(string?FilePath)=>
+        string.IsNullOrWhiteSpace(FilePath)?null:FilePath;
 
     /// <summary>
     /// 1始まりの行番号。Unknown のときは 0。
     /// </summary>
-    public int Line { get;}
+    public int Line { get;}=ValidateCoordinate(Line,nameof(Line));
 
     /// <summary>
     /// 1始まりの列番号。Unknown のときは 0。
     /// </summary>
-    public int Column { get;}
+    public int Column { get;}=ValidateCoordinate(Column,nameof(Column));
+
+    private static int ValidateCoordinate(int Value,string ParameterName){
+        if(Value<0){
+            throw new ArgumentOutOfRangeException(ParameterName);
+        }
+
+        return Value;
+    }
 
     public bool IsUnknown=> this.FilePath is null&& this.Line==0&& this.Column==0;
 

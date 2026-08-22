@@ -7,4 +7,10 @@
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>CSharpGameEngine.Numerics.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
 </Project>

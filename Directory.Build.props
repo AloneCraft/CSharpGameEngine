@@ -6,6 +6,6 @@
 	<DebugSymbols>true</DebugSymbols>
 	<DebugType>portable</DebugType>
 	<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-	<LangVersion>default</LangVersion>
+	<LangVersion>14</LangVersion>
   </PropertyGroup>
 </Project>

@@ -36,10 +36,6 @@ namespace CSharpGameEngine.Entities;
 /// </para>
 /// </summary>
 [AttributeUsage(AttributeTargets.Struct|AttributeTargets.Class,AllowMultiple=false,Inherited=false)]
-public sealed class SystemOrderAttribute:Attribute {
-    public SystemOrderAttribute(int Order){
-        this.Order=Order;
-    }
-
-    public int Order { get;}
+public sealed class SystemOrderAttribute(int Order):Attribute {
+    public int Order { get; }=Order;
 }

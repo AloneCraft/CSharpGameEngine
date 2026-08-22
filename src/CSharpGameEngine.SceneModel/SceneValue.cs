@@ -50,8 +50,7 @@ internal enum SceneValueKind {
 /// ないので割り当ては問題にならず、structのレイアウト循環リスクを完全に避けられる。
 /// </para>
 /// </summary>
-internal sealed class SceneValue {
-    internal SceneValue(
+internal sealed class SceneValue(
         SceneValueKind Kind,
         ITypeSymbol?Type,
         object?ConstantValue,
@@ -61,53 +60,42 @@ internal sealed class SceneValue {
         ImmutableArray<SceneValue>Elements,
         string EmitExpressionText,
         string SourceExpressionText,
-        SceneSourceLocation Location){
-        this.Kind=Kind;
-        this.Type=Type;
-        this.ConstantValue=ConstantValue;
-        this.ReferencedSymbol=ReferencedSymbol;
-        this.Members=Members;
-        this.Arguments=Arguments;
-        this.Elements=Elements;
-        this.EmitExpressionText=EmitExpressionText;
-        this.SourceExpressionText=SourceExpressionText;
-        this.Location=Location;
-    }
+        SceneSourceLocation Location) {
 
-    internal SceneValueKind Kind { get;}
+    internal SceneValueKind Kind { get; }=Kind;
 
-    internal ITypeSymbol?Type { get;}
+    internal ITypeSymbol?Type { get; }=Type;
 
     /// <summary><see cref="SceneValueKind.Literal"/>/<see cref="SceneValueKind.ConstantExpression"/>/<see cref="SceneValueKind.EnumMember"/>のとき設定される。</summary>
-    internal object?ConstantValue { get;}
+    internal object?ConstantValue { get; }=ConstantValue;
 
     /// <summary><see cref="SceneValueKind.EnumMember"/>/<see cref="SceneValueKind.StaticMemberRef"/>/<see cref="SceneValueKind.FactoryCall"/>のとき設定される。</summary>
-    internal ISymbol?ReferencedSymbol { get;}
+    internal ISymbol?ReferencedSymbol { get; }=ReferencedSymbol;
 
     /// <summary><see cref="SceneValueKind.ObjectCreation"/>のオブジェクト初期化子。</summary>
-    internal ImmutableArray<SceneComponentMember>Members { get;}
+    internal ImmutableArray<SceneComponentMember>Members { get; }=Members;
 
     /// <summary><see cref="SceneValueKind.ObjectCreation"/>の位置引数、または<see cref="SceneValueKind.FactoryCall"/>の引数。</summary>
-    internal ImmutableArray<SceneValue>Arguments { get;}
+    internal ImmutableArray<SceneValue>Arguments { get; }=Arguments;
 
     /// <summary><see cref="SceneValueKind.Collection"/>の要素。</summary>
-    internal ImmutableArray<SceneValue>Elements { get;}
+    internal ImmutableArray<SceneValue>Elements { get; }=Elements;
 
     /// <summary>
     /// 生成コードへそのまま出せる<b>完全修飾済み</b>の式テキスト。usingディレクティブに依存しない
     /// (旧SceneRuntimeEmitterはソースを逐語コピーしてusingも一緒に運んでいたが、using aliasと
     /// 同名型で破綻するため廃止した)。
     /// </summary>
-    internal string EmitExpressionText { get;}
+    internal string EmitExpressionText { get; }=EmitExpressionText;
 
     /// <summary>
     /// 元のソーステキスト。<b>Inspectorの表示にはこちらを使う</b> — <see cref="SceneValueKind.ConstantExpression"/>は
     /// <see cref="EmitExpressionText"/>で値へ畳み込まれてしまうため、ユーザーが書いた
     /// <c>12f*MathF.PI/180f</c>をそのまま見せるにはこれが要る。
     /// </summary>
-    internal string SourceExpressionText { get;}
+    internal string SourceExpressionText { get; }=SourceExpressionText;
 
-    internal SceneSourceLocation Location { get;}
+    internal SceneSourceLocation Location { get; }=Location;
 
     /// <summary>
     /// Inspectorが数値入力やenumピッカーで<b>直接編集できる</b>か。定数式・静的参照・ファクトリ呼び出しは

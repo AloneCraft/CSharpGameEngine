@@ -39,16 +39,11 @@ public enum SceneComponentCategory {
 /// so existing game components preserve a stable, non-breaking default.
 /// </summary>
 [AttributeUsage(AttributeTargets.Struct,AllowMultiple=false,Inherited=false)]
-public sealed class SceneComponentOrderAttribute:Attribute {
+public sealed class SceneComponentOrderAttribute(SceneComponentCategory Category,int Order):Attribute {
     /// <summary>Initializes a category and its explicit order within that category.</summary>
-    public SceneComponentOrderAttribute(SceneComponentCategory Category,int Order){
-        this.Category=Category;
-        this.Order=Order;
-    }
-
     /// <summary>Functional category, compared before <see cref="Order"/>.</summary>
-    public SceneComponentCategory Category { get; }
+    public SceneComponentCategory Category { get; }=Category;
 
     /// <summary>Stable ordering value within <see cref="Category"/>.</summary>
-    public int Order { get; }
+    public int Order { get; }=Order;
 }

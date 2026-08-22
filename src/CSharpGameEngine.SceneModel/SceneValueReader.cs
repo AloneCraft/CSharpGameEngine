@@ -21,16 +21,13 @@ namespace CSharpGameEngine.SceneAnalysis;
 /// 別のコンパイルエラーが既に出ているので、その上に赤線を重ねない。
 /// </para>
 /// </summary>
-internal sealed class SceneValueReader {
-    private readonly SemanticModel SemanticModel;
-    private readonly ImmutableArray<Diagnostic>.Builder Diagnostics;
-    private readonly CancellationToken CancellationToken;
-
-    internal SceneValueReader(SemanticModel SemanticModel,ImmutableArray<Diagnostic>.Builder Diagnostics,CancellationToken CancellationToken){
-        this.SemanticModel=SemanticModel;
-        this.Diagnostics=Diagnostics;
-        this.CancellationToken=CancellationToken;
-    }
+internal sealed class SceneValueReader(
+    SemanticModel SemanticModel,
+    ImmutableArray<Diagnostic>.Builder Diagnostics,
+    CancellationToken CancellationToken) {
+    private readonly SemanticModel SemanticModel=SemanticModel;
+    private readonly ImmutableArray<Diagnostic>.Builder Diagnostics=Diagnostics;
+    private readonly CancellationToken CancellationToken=CancellationToken;
 
     internal SceneValue Read(ExpressionSyntax Expression,int Depth){
         this.CancellationToken.ThrowIfCancellationRequested();

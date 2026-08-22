@@ -170,106 +170,59 @@ public sealed unsafe class StageRenderer:IDisposable {
     }
 
     /// <summary>Deferred directional submission used to rank direct lighting independently of shadow priority.</summary>
-    private readonly struct DirectionalLightSubmission {
-        public DirectionalLightSubmission(
-            Vector3 DirectionTowardLight,Vector3 ColorTimesIntensity,bool CastsShadows,
-            int ShadowPriority,float ShadowBiasMeters,int StableSubmissionOrder){
-            this.DirectionTowardLight=DirectionTowardLight;
-            this.ColorTimesIntensity=ColorTimesIntensity;
-            this.CastsShadows=CastsShadows;
-            this.ShadowPriority=ShadowPriority;
-            this.ShadowBiasMeters=ShadowBiasMeters;
-            this.StableSubmissionOrder=StableSubmissionOrder;
-        }
-        public Vector3 DirectionTowardLight { get; }
-        public Vector3 ColorTimesIntensity { get; }
-        public bool CastsShadows { get; }
-        public int ShadowPriority { get; }
-        public float ShadowBiasMeters { get; }
-        public int StableSubmissionOrder { get; }
+    private readonly struct DirectionalLightSubmission(
+        Vector3 DirectionTowardLight,Vector3 ColorTimesIntensity,bool CastsShadows,
+        int ShadowPriority,float ShadowBiasMeters,int StableSubmissionOrder) {
+        public Vector3 DirectionTowardLight { get; }=DirectionTowardLight;
+        public Vector3 ColorTimesIntensity { get; }=ColorTimesIntensity;
+        public bool CastsShadows { get; }=CastsShadows;
+        public int ShadowPriority { get; }=ShadowPriority;
+        public float ShadowBiasMeters { get; }=ShadowBiasMeters;
+        public int StableSubmissionOrder { get; }=StableSubmissionOrder;
     }
 
-    private readonly struct RankedDirectionalLightSubmission {
-        public RankedDirectionalLightSubmission(DirectionalLightSubmission Submission,float ScreenContribution){
-            this.Submission=Submission;
-            this.ScreenContribution=ScreenContribution;
-        }
-        public DirectionalLightSubmission Submission { get; }
-        public float ScreenContribution { get; }
+    private readonly struct RankedDirectionalLightSubmission(DirectionalLightSubmission Submission,float ScreenContribution) {
+        public DirectionalLightSubmission Submission { get; }=Submission;
+        public float ScreenContribution { get; }=ScreenContribution;
     }
 
     /// <summary>CPU-side deferred local-light submission. Ranking is finalized once the camera for the frame is known.</summary>
-    private readonly struct LocalLightSubmission {
+    private readonly struct LocalLightSubmission(
+        LocalLightType Type,Vector3 Position,float Range,Vector3 Direction,float InnerConeCos,
+        Vector3 ColorTimesIntensity,float OuterConeCos,int SelectionPriority,int StableSubmissionOrder,
+        bool CastsShadows,float ShadowBiasMeters,
+        Vector3 Right,Vector3 Up,float HalfWidth,float HalfHeight,PhysicalLightKind ShadowKind) {
         public LocalLightSubmission(
             LocalLightType Type,Vector3 Position,float Range,Vector3 Direction,float InnerConeCos,
             Vector3 ColorTimesIntensity,float OuterConeCos,int SelectionPriority,int StableSubmissionOrder,
-            bool CastsShadows,float ShadowBiasMeters){
+            bool CastsShadows,float ShadowBiasMeters)
+            :this(Type,Position,Range,Direction,InnerConeCos,ColorTimesIntensity,OuterConeCos,
+                SelectionPriority,StableSubmissionOrder,CastsShadows,ShadowBiasMeters,
+                Vector3.Zero,Vector3.Zero,0f,0f,
+                Type==LocalLightType.Point?PhysicalLightKind.Point:PhysicalLightKind.Spot) {
             if(Type==LocalLightType.Area)throw new ArgumentOutOfRangeException(nameof(Type));
-            this.Type=Type;
-            this.Position=Position;
-            this.Range=Range;
-            this.Direction=Direction;
-            this.InnerConeCos=InnerConeCos;
-            this.ColorTimesIntensity=ColorTimesIntensity;
-            this.OuterConeCos=OuterConeCos;
-            this.SelectionPriority=SelectionPriority;
-            this.StableSubmissionOrder=StableSubmissionOrder;
-            this.CastsShadows=CastsShadows;
-            this.ShadowBiasMeters=ShadowBiasMeters;
-            this.Right=Vector3.Zero;
-            this.Up=Vector3.Zero;
-            this.HalfWidth=0f;
-            this.HalfHeight=0f;
-            this.ShadowKind=Type==LocalLightType.Point
-                ?PhysicalLightKind.Point:PhysicalLightKind.Spot;
         }
-        public LocalLightSubmission(
-            LocalLightType Type,Vector3 Position,float Range,Vector3 Direction,float InnerConeCos,
-            Vector3 ColorTimesIntensity,float OuterConeCos,int SelectionPriority,int StableSubmissionOrder,
-            bool CastsShadows,float ShadowBiasMeters,
-            Vector3 Right,Vector3 Up,float HalfWidth,float HalfHeight,PhysicalLightKind ShadowKind){
-            this.Type=Type;
-            this.Position=Position;
-            this.Range=Range;
-            this.Direction=Direction;
-            this.InnerConeCos=InnerConeCos;
-            this.ColorTimesIntensity=ColorTimesIntensity;
-            this.OuterConeCos=OuterConeCos;
-            this.SelectionPriority=SelectionPriority;
-            this.StableSubmissionOrder=StableSubmissionOrder;
-            this.CastsShadows=CastsShadows;
-            this.ShadowBiasMeters=ShadowBiasMeters;
-            this.Right=Right;
-            this.Up=Up;
-            this.HalfWidth=HalfWidth;
-            this.HalfHeight=HalfHeight;
-            this.ShadowKind=ShadowKind;
-        }
-        public LocalLightType Type { get; }
-        public Vector3 Position { get; }
-        public float Range { get; }
-        public Vector3 Direction { get; }
-        public float InnerConeCos { get; }
-        public Vector3 ColorTimesIntensity { get; }
-        public float OuterConeCos { get; }
-        public int SelectionPriority { get; }
-        public int StableSubmissionOrder { get; }
-        public bool CastsShadows { get; }
-        public float ShadowBiasMeters { get; }
-        public Vector3 Right { get; }
-        public Vector3 Up { get; }
-        public float HalfWidth { get; }
-        public float HalfHeight { get; }
-        public PhysicalLightKind ShadowKind { get; }
+        public LocalLightType Type { get; }=Type;
+        public Vector3 Position { get; }=Position;
+        public float Range { get; }=Range;
+        public Vector3 Direction { get; }=Direction;
+        public float InnerConeCos { get; }=InnerConeCos;
+        public Vector3 ColorTimesIntensity { get; }=ColorTimesIntensity;
+        public float OuterConeCos { get; }=OuterConeCos;
+        public int SelectionPriority { get; }=SelectionPriority;
+        public int StableSubmissionOrder { get; }=StableSubmissionOrder;
+        public bool CastsShadows { get; }=CastsShadows;
+        public float ShadowBiasMeters { get; }=ShadowBiasMeters;
+        public Vector3 Right { get; }=Right;
+        public Vector3 Up { get; }=Up;
+        public float HalfWidth { get; }=HalfWidth;
+        public float HalfHeight { get; }=HalfHeight;
+        public PhysicalLightKind ShadowKind { get; }=ShadowKind;
     }
 
-    private readonly struct RankedLocalLightSubmission {
-        public RankedLocalLightSubmission(LocalLightSubmission Submission,float ScreenContribution){
-            this.Submission=Submission;
-            this.ScreenContribution=ScreenContribution;
-        }
-        public LocalLightSubmission Submission { get; }
-        public float ScreenContribution { get; }
+    private readonly struct RankedLocalLightSubmission(LocalLightSubmission Submission,float ScreenContribution) {
+        public LocalLightSubmission Submission { get; }=Submission;
+        public float ScreenContribution { get; }=ScreenContribution;
     }
 
     /// <summary>Matches Stage.hlsl's 6-float4 LocalLightData exactly.</summary>
@@ -306,13 +259,9 @@ public sealed unsafe class StageRenderer:IDisposable {
     }
 
     /// <summary>One atlas projection render target and its shadow-only constant-buffer slot.</summary>
-    private readonly struct ShadowAtlasProjection {
-        public ShadowAtlasProjection(ShadowAtlasTile Tile,int ShadowConstantsSlot){
-            this.Tile=Tile;
-            this.ShadowConstantsSlot=ShadowConstantsSlot;
-        }
-        public ShadowAtlasTile Tile { get; }
-        public int ShadowConstantsSlot { get; }
+    private readonly struct ShadowAtlasProjection(ShadowAtlasTile Tile,int ShadowConstantsSlot) {
+        public ShadowAtlasTile Tile { get; }=Tile;
+        public int ShadowConstantsSlot { get; }=ShadowConstantsSlot;
     }
 
     private GraphicsDevice?Device;

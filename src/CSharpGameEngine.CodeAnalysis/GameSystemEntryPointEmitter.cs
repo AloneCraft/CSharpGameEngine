@@ -35,14 +35,9 @@ internal static class GameSystemEntryPointEmitter {
     /// エントリポイントを生成するかどうかの判定結果。<see cref="Diagnostic"/>は
     /// 「生成すべき状況なのに生成できない」場合の理由(CS5001の代わりに原因を伝えるため)。
     /// </summary>
-    internal readonly struct Plan {
-        internal readonly bool Emit;
-        internal readonly Diagnostic?Diagnostic;
-
-        internal Plan(bool Emit,Diagnostic?Diagnostic){
-            this.Emit=Emit;
-            this.Diagnostic=Diagnostic;
-        }
+    internal readonly struct Plan(bool Emit,Diagnostic?Diagnostic) {
+        internal readonly bool Emit=Emit;
+        internal readonly Diagnostic?Diagnostic=Diagnostic;
     }
 
     /// <summary>

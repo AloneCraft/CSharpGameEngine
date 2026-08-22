@@ -6,12 +6,7 @@ namespace CSharpGameEngine.Audio.XAudio2;
 /// until a buffer has been submitted) - XAudio2 streams from this pointer for as long as the voice
 /// plays, so it must stay valid until <see cref="XAudio2Backend.DestroyVoice"/> frees it.
 /// </summary>
-public readonly struct XAudio2VoiceHandle {
-    internal readonly nint VoicePointer;
-    internal readonly nint BufferDataPointer;
-
-    internal XAudio2VoiceHandle(nint VoicePointer,nint BufferDataPointer){
-        this.VoicePointer= VoicePointer;
-        this.BufferDataPointer= BufferDataPointer;
-    }
+public readonly struct XAudio2VoiceHandle(nint VoicePointer,nint BufferDataPointer) {
+    internal readonly nint VoicePointer=VoicePointer;
+    internal readonly nint BufferDataPointer=BufferDataPointer;
 }

@@ -10,20 +10,13 @@ namespace CSharpGameEngine.SceneAnalysis;
 /// Inspectorが値を差し替えるときは後者(最小差分)、メンバーごと削除するときは前者を使う。
 /// </para>
 /// </summary>
-internal sealed class SceneComponentMember {
-    internal SceneComponentMember(string MemberName,ISymbol?MemberSymbol,SceneValue Value,SceneSourceLocation Location){
-        this.MemberName=MemberName;
-        this.MemberSymbol=MemberSymbol;
-        this.Value=Value;
-        this.Location=Location;
-    }
-
-    internal string MemberName { get;}
+internal sealed class SceneComponentMember(string MemberName,ISymbol?MemberSymbol,SceneValue Value,SceneSourceLocation Location) {
+    internal string MemberName { get; }=MemberName;
 
     /// <summary><c>IPropertySymbol</c>または<c>IFieldSymbol</c>。未解決なら<c>null</c>。</summary>
-    internal ISymbol?MemberSymbol { get;}
+    internal ISymbol?MemberSymbol { get; }=MemberSymbol;
 
-    internal SceneValue Value { get;}
+    internal SceneValue Value { get; }=Value;
 
-    internal SceneSourceLocation Location { get;}
+    internal SceneSourceLocation Location { get; }=Location;
 }

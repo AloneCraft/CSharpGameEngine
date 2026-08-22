@@ -5,15 +5,10 @@ using System.Linq;
 using Microsoft.CodeAnalysis;
 namespace CSharpGameEngine.SceneAnalysis;
 /// <summary>Component正規化に使うカテゴリ、明示順、完全修飾型名の比較キー。</summary>
-internal readonly struct SceneComponentOrderKey:IComparable<SceneComponentOrderKey> {
-    internal SceneComponentOrderKey(int Category,int Order,string FullyQualifiedName){
-        this.Category=Category;
-        this.Order=Order;
-        this.FullyQualifiedName=FullyQualifiedName??throw new ArgumentNullException(nameof(FullyQualifiedName));
-    }
-    internal int Category { get; }
-    internal int Order { get; }
-    internal string FullyQualifiedName { get; }
+internal readonly struct SceneComponentOrderKey(int Category,int Order,string FullyQualifiedName):IComparable<SceneComponentOrderKey> {
+    internal int Category { get; }=Category;
+    internal int Order { get; }=Order;
+    internal string FullyQualifiedName { get; }=FullyQualifiedName??throw new ArgumentNullException(nameof(FullyQualifiedName));
     public int CompareTo(SceneComponentOrderKey Other){
         var CategoryComparison=this.Category.CompareTo(Other.Category);
         if(CategoryComparison!=0){

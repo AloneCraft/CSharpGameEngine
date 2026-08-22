@@ -12,12 +12,8 @@ namespace CSharpGameEngine.SceneAnalysis;
 /// その変更を起こしたのはエディター自身なので新しいパスを計算して復元できる。
 /// </para>
 /// </summary>
-internal readonly struct NodePath : IEquatable<NodePath> {
-    private readonly ImmutableArray<int>Values;
-
-    internal NodePath(ImmutableArray<int>Values){
-        this.Values=Values;
-    }
+internal readonly struct NodePath(ImmutableArray<int> Values) : IEquatable<NodePath> {
+    private readonly ImmutableArray<int> Values=Values;
 
     /// <summary><c>default(NodePath)</c>でも安全に空配列を返す。</summary>
     internal ImmutableArray<int>Indices=>this.Values.IsDefault?ImmutableArray<int>.Empty:this.Values;
