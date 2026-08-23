@@ -434,14 +434,19 @@ public partial class HierarchyToolWindowControl:UserControl {
         }
 
         if(!Args.Data.GetDataPresent(typeof(HierarchyDragPayload))
-            ||this.FindNode(Args.OriginalSource as DependencyObject) is not { } Target){
+            ||FindNodeContainer(Args.OriginalSource as DependencyObject) is not { } Container
+            ||Container.DataContext is not SceneNodeViewModel){
             Args.Effects=DragDropEffects.None;
             Args.Handled=true;
+            this.HideReorderDropIndicator();
             return;
         }
 
         Args.Effects=DragDropEffects.Move;
         Args.Handled=true;
+        var Position=Args.GetPosition(Container);
+        var Kind=HierarchyInsertionPolicy.Resolve(Position.Y,Container.ActualHeight);
+        this.UpdateReorderDropFeedback(Container,Kind);
     }
 
     /// <summary>
@@ -487,19 +492,21 @@ public partial class HierarchyToolWindowControl:UserControl {
             return;
         }
 
+        this.HideReorderDropIndicator();
         if(Args.Data.GetData(typeof(HierarchyDragPayload)) is not HierarchyDragPayload Payload
             ||Payload.Paths.Count==0
-            ||this.FindNode(Args.OriginalSource as DependencyObject) is not { } Target){
+            ||FindNodeContainer(Args.OriginalSource as DependencyObject) is not { } Container
+            ||Container.DataContext is not SceneNodeViewModel Target){
             return;
         }
 
-        var Position=Args.GetPosition((IInputElement)Args.OriginalSource);
-        var Height=(Args.OriginalSource as FrameworkElement)?.ActualHeight??0d;
-        if(Height>0d&&Position.Y<Height*.25d&&Target.Path.Parent is { } Parent){
+        var Position=Args.GetPosition(Container);
+        var Kind=HierarchyInsertionPolicy.Resolve(Position.Y,Container.ActualHeight);
+        if(Kind==HierarchyInsertionKind.Before&&Target.Path.Parent is { } Parent){
             SceneEditorHub.RequestHierarchyEdit(new HierarchyEditRequest(
                 HierarchyEditKind.Reparent,Payload.Paths,TargetPath:Parent,
                 TargetIndex:Target.Path.Indices.Last()));
-        } else if(Height>0d&&Position.Y>Height*.75d&&Target.Path.Parent is { } ParentAfter){
+        } else if(Kind==HierarchyInsertionKind.After&&Target.Path.Parent is { } ParentAfter){
             SceneEditorHub.RequestHierarchyEdit(new HierarchyEditRequest(
                 HierarchyEditKind.Reparent,Payload.Paths,TargetPath:ParentAfter,
                 TargetIndex:Target.Path.Indices.Last()+1));
@@ -599,6 +606,21 @@ public partial class HierarchyToolWindowControl:UserControl {
         for(var Current=Element;Current is not null;Current=VisualTreeHelper.GetParent(Current)){
             if(Current is TreeViewItem { DataContext:SceneNodeViewModel Node }){
                 return Node;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// <see cref="FindNode"/>と同じ探索だが、ノードだけでなくその<see cref="TreeViewItem"/>コンテナも
+    /// 返す。並べ替えドラッグの挿入位置プレビュー(<see cref="Tree_DragOver"/>)と実際の適用
+    /// (<see cref="Tree_Drop"/>)が同じ幾何情報(コンテナの高さ・座標)を参照できるようにするため。
+    /// </summary>
+    private static TreeViewItem?FindNodeContainer(DependencyObject?Element){
+        for(var Current=Element;Current is not null;Current=VisualTreeHelper.GetParent(Current)){
+            if(Current is TreeViewItem Item){
+                return Item;
             }
         }
 

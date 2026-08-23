@@ -3174,7 +3174,25 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
     Inspectorは予測投影を見るので適用側と必ず一致する。最終判断は常に`TryApplyAddComponent`で、
     拒否理由はステータスバーに出る。
   - 重複型をパレット候補から外さない(ドロップ先が事前に確定しないため)。`DragOver`の不可カーソルで伝える。
-  - Expanderヘッダからの削除(×)は未実装。`RemoveComponentOperation`自体は既に通る。
+  - Expanderヘッダに削除(×)ボタンを実装した。`ComponentRemoveRequest`/`RequestComponentRemove`
+    (`SceneEditorHub.cs`)を新設し、`ComponentAddRequest`→`HandleComponentAddAsync`と同じ
+    単一適用点パターンで`HandleComponentRemoveAsync`(`CSharpGameEngineViewerPackage.cs`)へ配線した。
+    `EnsurePinned`を経由するため、Scene デザイナー未オープンでも無言失敗しない。
+    **実機報告で発覚し追加修正**: 既定のButtonクロムでは"×"がダークテーマ背景でほぼ見えず、
+    当たり判定も不明瞭だったため、`Border`+`TextBlock`の自前`ControlTemplate`
+    (`InspectorRemoveButtonStyle`)へ差し替えた。削除実行前にHierarchyと同じ`MessageBox.Show`
+    (Yes/No、Warning)で確認するようにし、Componentヘッダ行を選択した状態での`Key.Delete`からも
+    同じ確認→削除経路(`RequestRemoveComponent`共通メソッド)を通せるようにした。
+  - **ノード並べ替えドラッグの挿入位置プレビュー**を追加した。挿入位置(前/後/子として取り込む)の
+    判定を`HierarchyInsertionPolicy.Resolve`(新規`HierarchyInsertionPolicy.cs`)へ純粋関数として
+    切り出し、`Tree_DragOver`(プレビュー)と`Tree_Drop`(実適用)の両方から同じ関数を呼ぶことで
+    食い違いを無くした(`ComponentDropPolicy`と同じ設計判断)。対象は`FindNodeContainer`で解決した
+    `TreeViewItem`コンテナの実座標・高さを基準にする(従来の`Args.OriginalSource`基準から変更、
+    行によって当たる子要素が違う不安定さを解消)。視覚表示は`ReorderInsertionLine`(前/後、水平線)
+    /`ReorderIntoHighlight`(子として取り込む場合、対象行を囲む枠線)の2つのオーバーレイ
+    (`HierarchyToolWindowControl.ReorderDrop.cs`、`ComponentDropFeedback`と同じ「コードから位置決め」
+    の作法)。`HierarchyInsertionPolicyTests`で境界値(25%/75%ちょうど、高さ0以下)を含めて
+    ユニットテスト済み。実機確認は未実施。
   - 追加直後のComponentはmemberが空で、Roslyn再解析が着地するまで値を設定できない。その間は
     「解析待ち…」を表示し、`PendingRevealKey`を保持し続ける。
 - **未検証の前提**: カスタムWPFツールウィンドウ間の`DragDrop.DoDragDrop`はこのリポジトリに前例も

@@ -168,8 +168,14 @@ Hierarchyの構造編集自体が同じ理由で壊れていた**可能性があ
   拒否理由はステータスバーに出るので、誤った結果が黙って通ることはない。
 - 重複型をパレットの候補から**外さない**。ドロップ先が事前に確定しないため。代わりに`DragOver`で
   不可カーソルにして離す前に伝える。
-- Expanderヘッダからの削除(×)は入れていない。`RemoveComponentOperation`は既に通るので、
-  必要になった時点でUIを足せる。
+- Expanderヘッダに削除(×)ボタンを実装した(`ComponentRemoveRequest`→`HandleComponentRemoveAsync`、
+  `ComponentAddRequest`と同じ単一適用点パターン)。**実機報告で発覚し追加修正**: 既定のButtonクロムでは
+  "×"の文字がダークテーマ背景に対してほぼ見えず、当たり判定も不明瞭だったため、`Border`+`TextBlock`の
+  自前`ControlTemplate`(`InspectorRemoveButtonStyle`)へ差し替えて確実に描画されるようにした。
+  削除はHierarchyの削除確認(`HierarchyToolWindowControl.RequestRemove`)と同じ`MessageBox.Show`
+  (Yes/No、Warning)を経由するようにした。加えて、Componentのヘッダ行を選択した状態での`Key.Delete`
+  でも同じ確認→削除経路(`RequestRemoveComponent`共通メソッド)を通せるようにした
+  (`HandleInspectorKey`)。
 - `CanRemove`のような未使用のプロパティはグループに持たせていない。
 
 ## 未検証の前提
@@ -197,5 +203,28 @@ VS SDK依存部分はCodeVerified止まりで**実機確認が必須**。
 - **Step 2-2**: 型が出る / 検索が効く / ダブルクリックで追加できる / Inspectorが自動展開する /
   **解析着地後に値が編集できる**(「解析待ち…」→行が出るまで) / Ctrl+Zで消える / 保存でC#に書かれる /
   `Components=[…]`未記述ノードで拒否メッセージ。
-- **Step 2-3**: パレット→Hierarchyの任意ノード / パレット→Inspector / 重複型で不可カーソル /
-  **既存のノードReparentドラッグが無傷**。
+- **Step 2-3(D&D検証チェックリスト)**: コードレビューではロジック上の不備は見つからなかった
+  (Hierarchyの既存Reparentドラッグと同じ「しきい値越えてから`DoDragDrop`」の作法、
+  `ComponentDropPolicy.Evaluate`はプレビューと実判定を同じ関数から作りテスト済み)。未検証なのは
+  純粋にOS/WPFレベルの`DragDrop.DoDragDrop`が別ツールウィンドウ(別`HwndSource`)間で実際に
+  ペイロードを届けるかという、コードでは検証しきれない部分のみ。以下をF5(Experimental Instance)で
+  実際に辿って確認する:
+  1. **起動**: `F5`でExperimental Instanceを起動し、Componentを持つSceneを開き、Scene Designerを
+     pinした状態にする(pin無しでは追加/削除が無言失敗する既知の問題があるため — `EnsurePinned`)。
+  2. **パレットを開く**: Component パレットツールウィンドウを開き、Hierarchy/Inspectorと同時に
+     見える位置にドッキングする(Inspectorとタブ結合させない設計)。
+  3. **パレット→Hierarchyの任意ノード**: 型をHierarchy上の既存ノードへドラッグ。ドラッグ中に
+     カーソルが「コピー」アイコンになること、離した時点でComponentが追加されること、Inspectorが
+     自動展開されて値が見えることを確認する。
+  4. **パレット→Hierarchyの空白**: 型をHierarchyの空白部分(ノードが無い場所)へドラッグ。
+     Root直下に新規Entityが作られ、そのComponentを持つことを確認する(`AcceptCreateRootChild`経路)。
+  5. **パレット→Inspector**: Hierarchyでノードを選択した状態で、型をInspectorパネルへドラッグ
+     &ドロップ(パネル内のどこに落としても選択中ノードが対象になる)。Componentが追加されることを
+     確認する。
+  6. **重複型のフィードバック**: 既に持っているComponent型を同じノードへドラッグし、不可カーソルが
+     出ること、離してもComponentが増えないこと、ステータスバーに拒否理由が出ることを確認する。
+  7. **既存のノードReparentドラッグが無傷**: Hierarchy内でのノード同士のReparentドラッグが、
+     Componentドラッグ実装追加後も変わらず機能することを確認する(`Tree_DragOver`/`Tree_Drop`が
+     `ComponentDragPayload`と`HierarchyDragPayload`を型で見分けているため干渉が無いはずだが要確認)。
+  8. **Sceneが開かれていない状態でのドラッグ**: Scene Designerを閉じた状態でドラッグした場合、
+     `RejectNoScene`のフィードバック(不可カーソル・拒否理由)が出ることを確認する。

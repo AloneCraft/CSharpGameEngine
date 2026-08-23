@@ -29,5 +29,6 @@ public partial class HierarchyToolWindowControl {
         this.Tree.Cursor=null;
         this.Tree.ToolTip=null;
         this.ComponentDropFeedback.Visibility=Visibility.Collapsed;
+        this.HideReorderDropIndicator();
     }
 }

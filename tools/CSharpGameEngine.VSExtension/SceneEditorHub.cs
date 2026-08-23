@@ -59,6 +59,13 @@ internal sealed record ComponentAddRequest(
 /// 発行し、Inspectorが受け取る(<see cref="InspectorRevealPolicy"/>)。
 /// </summary>
 internal sealed record ComponentRevealRequest(EditorNodeId NodeId,string ComponentTypeFullyQualifiedName);
+
+/// <summary>
+/// M0052: Inspector Expanderヘッダの削除(×)ボタンからのComponent削除要求。発生源はInspectorのみ
+/// (Hierarchyには相当するUIが無い)なので<see cref="ComponentAddRequest"/>と違い対象は
+/// <see cref="EditorNodeId"/>だけで一意に決まる。
+/// </summary>
+internal sealed record ComponentRemoveRequest(EditorNodeId NodeId,string ComponentTypeFullyQualifiedName);
 internal static class SceneEditorHub {
     /// <summary>Raised whenever the analysed scene changes - including to null, when the active document declares none.</summary>
     public static event Action<SceneModel?>?SceneModelChanged;
@@ -70,6 +77,7 @@ internal static class SceneEditorHub {
     public static event Action<HierarchyEditRequest>?HierarchyEditRequested;
     public static event Action<ComponentAddRequest>?ComponentAddRequested;
     public static event Action<ComponentRevealRequest>?ComponentRevealRequested;
+    public static event Action<ComponentRemoveRequest>?ComponentRemoveRequested;
     public static event Action<DefinitionNavigationRequest>?DefinitionNavigationRequested;
 
     internal static void RequestHierarchyEdit(HierarchyEditRequest Request)=>
@@ -80,6 +88,9 @@ internal static class SceneEditorHub {
 
     internal static void RequestComponentReveal(ComponentRevealRequest Request)=>
         ComponentRevealRequested?.Invoke(Request);
+
+    internal static void RequestComponentRemove(ComponentRemoveRequest Request)=>
+        ComponentRemoveRequested?.Invoke(Request);
 
     internal static void RequestDefinitionNavigation(DefinitionNavigationRequest Request)=>
         DefinitionNavigationRequested?.Invoke(Request);

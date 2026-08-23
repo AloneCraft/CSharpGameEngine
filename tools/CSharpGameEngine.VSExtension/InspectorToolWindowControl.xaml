@@ -12,6 +12,36 @@
     <UserControl.Resources>
         <local:InspectorEditorKindVisibilityConverter x:Key="EditorKindVisibilityConverter" />
 
+        <!-- 既定のButtonクロムはVSテーマの背景色に馴染まず"×"の文字が事実上見えなくなる
+             (実機報告)。テーマ非依存で確実に文字が見える自前テンプレートへ差し替える。 -->
+        <Style x:Key="InspectorRemoveButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="18" />
+            <Setter Property="Height" Value="18" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome" Background="Transparent" CornerRadius="2">
+                            <TextBlock Text="×" FontWeight="Bold" HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background"
+                                        Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarHoverKey}}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Chrome" Property="Background"
+                                        Value="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarHoverOverSelectedKey}}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- 単純な値を持つ行(InspectorMemberViewModel)。DataTypeだけ付けて明示キーは付けない
              ("暗黙" DataTemplate)ので、ItemTemplateを指定しないItemsControlは実行時型を見て
              自動的にこれを選ぶ。これにより、下の入れ子テンプレートと合わせて自己参照的な
@@ -156,9 +186,19 @@
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
-                                    <TextBlock Text="{Binding Header}" FontWeight="Bold"
-                                           Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
-                                           TextTrimming="CharacterEllipsis" />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding Header}" FontWeight="Bold"
+                                               Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
+                                               TextTrimming="CharacterEllipsis" />
+                                        <Button Grid.Column="1" Style="{StaticResource InspectorRemoveButtonStyle}"
+                                                Margin="4,0,0,0"
+                                                ToolTip="このコンポーネントを削除"
+                                                Click="RemoveComponentButton_Click" />
+                                    </Grid>
                                                         </Border>
                             </Expander.Header>
                             <StackPanel>

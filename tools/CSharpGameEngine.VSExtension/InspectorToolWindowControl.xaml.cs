@@ -351,13 +351,18 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
         Args.Handled=true;
     }
 
-    private void InspectorRow_PreviewKeyDown(object Sender,KeyEventArgs Args)=>
+    private void InspectorRow_PreviewKeyDown(object Sender,KeyEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
         this.HandleInspectorKey(Args.OriginalSource as DependencyObject??Sender as DependencyObject,Args);
+    }
 
-    private void Panel_PreviewKeyDown(object Sender,KeyEventArgs Args)=>
+    private void Panel_PreviewKeyDown(object Sender,KeyEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
         this.HandleInspectorKey(Args.OriginalSource as DependencyObject??Keyboard.FocusedElement as DependencyObject,Args);
+    }
 
     private void HandleInspectorKey(DependencyObject? Source,KeyEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
         Key Key=Args.Key==Key.System?Args.SystemKey:Args.Key;
         if(Key==Key.F4){
             // F4 belongs to Visual Studio. Do not handle it here.
@@ -366,6 +371,20 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
 
         if(Key==Key.Enter&&this.TryOpenSelectedComboBox(Source)){
             Args.Handled=true;
+            return;
+        }
+
+        if(Key==Key.Delete){
+            object?Selected=this.Selection.Current;
+            if(Selected is null&&TryGetSelectable(Source??Keyboard.FocusedElement as DependencyObject,out object FocusedForDelete,out _)){
+                Selected=FocusedForDelete;
+            }
+
+            if(Selected is InspectorComponentGroupViewModel Group){
+                RequestRemoveComponent(Group);
+                Args.Handled=true;
+            }
+
             return;
         }
 
@@ -701,6 +720,33 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
         }
 
         this.SubmitCommit(ViewModel.Member,SceneInspectorValueFormat.FormatBoolean(Box.IsChecked==true));
+    }
+
+    private void RemoveComponentButton_Click(object Sender,RoutedEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        Args.Handled=true;
+        if(Sender is not Button Button||Button.DataContext is not InspectorComponentGroupViewModel ViewModel){
+            return;
+        }
+
+        RequestRemoveComponent(ViewModel);
+    }
+
+    /// <summary>
+    /// ×ボタン・Deleteキー共通の削除経路。Hierarchyの削除確認
+    /// (<c>HierarchyToolWindowControl.RequestRemove</c>)と同じ<see cref="MessageBox"/>の
+    /// パターンで確認してから<see cref="SceneEditorHub.RequestComponentRemove"/>を発行する。
+    /// </summary>
+    private static void RequestRemoveComponent(InspectorComponentGroupViewModel ViewModel){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(MessageBox.Show(
+            $"{ViewModel.Header} を削除します。よろしいですか？",
+            "コンポーネントの削除",MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes){
+            return;
+        }
+
+        SceneEditorHub.RequestComponentRemove(
+            new ComponentRemoveRequest(ViewModel.Group.NodeId,ViewModel.Group.ComponentTypeFullyQualifiedName));
     }
 
     private void EnumField_DropDownClosed(object Sender,EventArgs Args){

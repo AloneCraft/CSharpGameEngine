@@ -89,6 +89,7 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
             SceneEditorHub.HierarchyNavigationRequested+=this.OnHierarchyNavigationRequested;
             SceneEditorHub.HierarchyEditRequested+=this.OnHierarchyEditRequested;
             SceneEditorHub.ComponentAddRequested+=this.OnComponentAddRequested;
+            SceneEditorHub.ComponentRemoveRequested+=this.OnComponentRemoveRequested;
             SceneEditorHub.DefinitionNavigationRequested+=this.OnDefinitionNavigationRequested;
             SceneEditorHub.SceneModelChanged+=this.OnSceneModelChangedForSourceMarkers;
             this.SceneSession.Selection.SelectionChanged+=this.OnSelectionChangedForHierarchy;
@@ -362,6 +363,36 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
             $"{Request.ComponentTypeFullyQualifiedName} を追加できませんでした(既に持っているか、Components リストがありません)。");
     }
 
+    private void OnComponentRemoveRequested(ComponentRemoveRequest Request)=>
+        _=this.JoinableTaskFactory.RunAsync(()=>this.HandleComponentRemoveAsync(Request));
+
+    /// <summary>
+    /// Inspector Expanderヘッダの削除(×)ボタンの唯一の適用点。<see cref="HandleComponentAddAsync"/>と
+    /// 同じ理由でEnsurePinnedを必ず経由する。
+    /// </summary>
+    private async Task HandleComponentRemoveAsync(ComponentRemoveRequest Request){
+        await this.JoinableTaskFactory.SwitchToMainThreadAsync(this.DisposalToken);
+        if(this.SceneSession is not { } Session||SceneEditorHub.ActiveSceneModel is not { } Model){
+            return;
+        }
+
+        var Snapshot=this.EnsurePinned(Session,Model);
+        if(Snapshot is null){
+            return;
+        }
+
+        RemoveComponentOperation Operation=new(
+            Snapshot.Key,Request.NodeId,Snapshot.DocumentVersion,Request.ComponentTypeFullyQualifiedName);
+        SceneEditCommitRequest CommitRequest=new(
+            Snapshot.Key,Snapshot.DocumentVersion,"Remove component",
+            Array.Empty<SceneTransformChange>(),SceneTransformMemberMask.None,
+            DirectOperations:[Operation]);
+        if(!Session.Apply(CommitRequest)){
+            SetStatusBarText(
+                $"{Request.ComponentTypeFullyQualifiedName} を削除できませんでした。");
+        }
+    }
+
     private static void SetStatusBarText(string Text){
         ThreadHelper.ThrowIfNotOnUIThread();
         if(GetGlobalService(typeof(SVsStatusbar))is IVsStatusbar StatusBar){
@@ -600,6 +631,7 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
             SceneEditorHub.HierarchyNavigationRequested-=this.OnHierarchyNavigationRequested;
             SceneEditorHub.HierarchyEditRequested-=this.OnHierarchyEditRequested;
             SceneEditorHub.ComponentAddRequested-=this.OnComponentAddRequested;
+            SceneEditorHub.ComponentRemoveRequested-=this.OnComponentRemoveRequested;
             SceneEditorHub.DefinitionNavigationRequested-=this.OnDefinitionNavigationRequested;
             SceneEditorHub.SceneModelChanged-=this.OnSceneModelChangedForSourceMarkers;
             this.SourceMarkerService?.Dispose();

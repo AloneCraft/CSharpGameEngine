@@ -200,5 +200,17 @@
             <TextBlock x:Name="ComponentDropFeedbackText" TextWrapping="Wrap"
                        Foreground="{DynamicResource {x:Static vsshell:VsBrushes.CommandBarTextSelectedKey}}" />
         </Border>
+
+        <!-- ノード並べ替えドラッグの挿入位置プレビュー。前/後は水平線、子として取り込む場合は
+             対象行を囲む枠線。位置・サイズはコードから(TranslatePoint基準で)決める。 -->
+        <Border x:Name="ReorderInsertionLine" Grid.Row="1" Height="2"
+                HorizontalAlignment="Stretch" VerticalAlignment="Top"
+                Background="{DynamicResource {x:Static vsshell:VsBrushes.HighlightKey}}"
+                Visibility="Collapsed" IsHitTestVisible="False" />
+        <Border x:Name="ReorderIntoHighlight" Grid.Row="1"
+                HorizontalAlignment="Stretch" VerticalAlignment="Top"
+                BorderBrush="{DynamicResource {x:Static vsshell:VsBrushes.HighlightKey}}"
+                BorderThickness="2" Background="Transparent"
+                Visibility="Collapsed" IsHitTestVisible="False" />
     </Grid>
 </UserControl>
