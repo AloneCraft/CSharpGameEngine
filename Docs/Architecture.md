@@ -137,3 +137,14 @@ Roslynにロードされない。
 - ソリューションが宣言しているプラットフォームは **x64 のみ**である。
 - `UserGameProject.slnx`(2つ目のソリューションファイル)は ADR-0034 で削除した。
   M0009 で消えた `CSharpGameEngine.Ecs` 等を参照しており、読み込み不能な状態で放置されていた。
+
+
+## Spatial partitioning
+
+L3 World owns a read-only fixed-point loose-octree snapshot. L3 Systems may own separate mutable indexes when their narrowed membership or update policy offsets duplicated storage and maintenance.
+
+### Scene View spatial debug channel
+
+Scene Viewの描画モードはVSIXのPSO切替で実装し、ランタイムのGlobal Spatial Octreeは `SpatialDebugHub` の要求駆動Named Pipeで読み取り専用公開する。個別System索引の暗黙収集は行わず、描画用頂点予算は既存ギズモ4,096と空間デバッグ12,288を分離する。
+
+Editor PreviewはVSIX内の複製実装ではなく、生成済みRuntimeアセンブリを隔離Hostで実行する共通World経路である。

@@ -59,6 +59,8 @@ internal static class SceneStartupSystemEmitter {
             HiddenSystemSimpleName(Scene),
             [Method],
             Diagnostics:[],
+            ExecuteInEditor:true,
+            RealtimeInEditor:false,
             Scene.FilePath,
             Scene.DeclarationPosition);
     }

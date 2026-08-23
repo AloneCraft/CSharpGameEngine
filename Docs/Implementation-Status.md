@@ -3270,3 +3270,32 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Next action: Experimental Instanceでの目視確認と、**`UserEcsProject`の起動確認**
   (Archetype構成が変わったため描画・音響の全経路を見る)。詳細は
   Docs/Milestones/M0053-Runtime-Component-Separation.md の「Next action」節。
+
+
+## F-L3-015 - Entity loose octree
+
+- Layer: L3 - ECS / Job Runtime
+- Status: Implemented
+- Verification: TestVerified
+- Intended specification: Docs/Specifications/Spatial-Partitioning.md
+- Implementation evidence: src/CSharpGameEngine.Entities/SpatialPartitioning.cs
+- Tests: tests/CSharpGameEngine.Windows.Tests/Runtime/SpatialPartitioningTests.cs
+- Conformance: Matches
+
+## F-L3-016 - World global spatial snapshot
+
+- Layer: L3 - ECS / Job Runtime
+- Status: Implemented
+- Verification: TestVerified
+- Intended specification: Docs/Specifications/Spatial-Partitioning.md
+- Implementation evidence: src/CSharpGameEngine.Entities/SpatialWorld.cs; src/CSharpGameEngine.CodeAnalysis/SpatialWorldEmitter.cs
+- Tests: tests/CSharpGameEngine.CodeAnalysis.Tests/SpatialWorldGeneratorEmissionTests.cs
+- Conformance: Matches
+
+## F-L3-017 - Scene View render modes and global octree overlay
+
+- Layer: L3 - Editor / Runtime Diagnostics
+- Status: Implemented
+- Verification: TestVerified (automated); UserEcs smoke pending
+- Implementation evidence: tools/CSharpGameEngine.VSExtension/SceneRenderer.cs; SceneHwndHost.cs; src/CSharpGameEngine.Entities/SpatialDebug.cs
+- Tests: tests/CSharpGameEngine.VSExtension.Tests/SpatialDebugOverlayTests.cs

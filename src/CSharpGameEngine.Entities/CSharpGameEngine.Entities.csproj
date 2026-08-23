@@ -21,6 +21,9 @@
   <ItemGroup>
     <Compile Remove="Generated\**\*.cs" />
     <Compile Remove="FixedTransform.cs" />
+    <Compile Remove="SpatialPartitioning.cs" />
+    <Compile Remove="SpatialWorld.cs" />
+    <Compile Remove="SpatialDebug.cs" />
   </ItemGroup>
 
   <ItemGroup>

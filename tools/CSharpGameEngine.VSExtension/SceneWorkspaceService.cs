@@ -364,6 +364,9 @@ internal sealed class SceneWorkspaceService : IDisposable {
         return new SceneKey(Document.Project.Id.Id.ToString("N"),Model.ClassFullyQualifiedName);
     }
 
+    internal string?TryGetProjectAssemblyName(SceneKey Key)=>
+        SceneRuntimeProcessNameResolver.Resolve(this.Workspace.CurrentSolution.Projects.Select(Project=>
+            new SceneRuntimeProjectAssembly(Project.Id.Id.ToString("N"),Project.AssemblyName)),Key);
     /// <summary>
     /// Analyses the exact file captured by a command invocation instead of reading the debounced,
     /// mutable active-document cache. This makes the command's 0/1/N decision independent of focus

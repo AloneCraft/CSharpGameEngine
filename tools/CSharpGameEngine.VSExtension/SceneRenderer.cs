@@ -167,6 +167,7 @@ internal sealed class SceneRenderer:IDisposable {
     private readonly ID3D12GraphicsCommandList CommandList;
     private readonly ID3D12RootSignature RootSignature;
     private readonly ID3D12PipelineState PipelineState;
+    private readonly ID3D12PipelineState WireframePipelineState;
     private readonly ID3D12PipelineState OverlayTrianglePipelineState;
     private readonly ID3D12PipelineState OverlayLinePipelineState;
     private readonly ID3D12Fence Fence;
@@ -177,7 +178,9 @@ internal sealed class SceneRenderer:IDisposable {
     private readonly int AlignedSlotSize;
     private readonly int ObjectCapacity;
     // M0037: internal化してSceneHwndHost.RefreshOverlayがHUD追加前に予算超過を防げるようにする。
-    internal const int MaxOverlayVertices=4096;
+    internal const int MaxGizmoOverlayVertices=4096;
+    internal const int MaxSpatialDebugOverlayVertices=12288;
+    internal const int MaxOverlayVertices=18432;
     private readonly ID3D12Resource OverlayVertexBuffer;
     private readonly ID3D12Resource OverlayConstantBuffer;
     private readonly VertexBufferView[]OverlayTriangleVertexViews=new VertexBufferView[FrameCount];
@@ -226,6 +229,7 @@ internal sealed class SceneRenderer:IDisposable {
     private readonly PreviewRenderTarget?[]CameraPreviewTargets=new PreviewRenderTarget?[MaxCameraPreviews];
     private readonly SceneCameraPreviewDiagnostics[]CameraPreviewDiagnostics=new SceneCameraPreviewDiagnostics[MaxCameraPreviews];
     private int CameraPreviewCount;
+    private SceneViewRenderMode CurrentRenderMode=SceneViewRenderMode.Lit;
 
     /// <summary>定数バッファの唯一の更新トリガ。ctor/<see cref="SetCamera"/>/<see cref="SetSelectedNode"/>が立て、<see cref="RenderFrame"/>が消費する。</summary>
     private readonly bool[]ConstantsDirty=new bool[FrameCount];
@@ -244,6 +248,7 @@ internal sealed class SceneRenderer:IDisposable {
         public Matrix4x4 Mvp;
         public Vector4 BaseColorFactor;
         public float Selected;
+        public float RenderMode;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -263,6 +268,7 @@ internal sealed class SceneRenderer:IDisposable {
             row_major float4x4 MVP;
             float4 BaseColorFactor;
             float Selected;
+            float RenderMode;
         };
 
         struct VertexInput { float3 Position : POSITION; float3 Normal : NORMAL; };
@@ -283,6 +289,14 @@ internal sealed class SceneRenderer:IDisposable {
         float4 PSMain(VertexOutput input) : SV_Target
         {
             float3 n = normalize(input.Normal);
+            if (RenderMode > 0.5 && RenderMode < 1.5)
+            {
+                return float4(saturate(BaseColorFactor.rgb + Selected * SelectionTint), 1.0);
+            }
+            if (RenderMode >= 1.5 && RenderMode < 2.5)
+            {
+                return float4(saturate((n * 0.5) + 0.5), 1.0);
+            }
             float3 lightDirection = normalize(LightDirectionRaw);
             float ndotl = max(dot(n, lightDirection), 0.0);
             float3 shaded = AmbientColor + BaseColorFactor.rgb * ndotl;
@@ -418,6 +432,8 @@ internal sealed class SceneRenderer:IDisposable {
             SampleDescription=new SampleDescription(1,0),
         };
         this.PipelineState= this.Device.CreateGraphicsPipelineState(PsoDescription);
+        PsoDescription.RasterizerState=RasterizerDescription.Wireframe;
+        this.WireframePipelineState=this.Device.CreateGraphicsPipelineState(PsoDescription);
 
         var OverlayVsResult=Compiler.Compile(
                                              OverlayShaderSource,"VSMain","SceneRendererOverlay","vs_5_0",
@@ -504,6 +520,19 @@ internal sealed class SceneRenderer:IDisposable {
     /// から注入する。ADR-0041 決定事項1: レンダラーは編集ビュー状態を持たない。値が変わらなければ
     /// 何もしないので、毎フレーム呼んでも静止時のコストは行列比較2回だけ。
     /// </summary>
+    public void SetRenderMode(SceneViewRenderMode Mode){
+        if(!Enum.IsDefined(typeof(SceneViewRenderMode),Mode)){
+            Mode=SceneViewRenderMode.Lit;
+        }
+        if(this.CurrentRenderMode==Mode){
+            return;
+        }
+        this.CurrentRenderMode=Mode;
+        MarkAllDirty(this.ConstantsDirty);
+    }
+
+    public SceneViewRenderMode GetRenderMode()=>this.CurrentRenderMode;
+
     public void SetCamera(in Matrix4x4 View,in Matrix4x4 Projection){
         if(this.CurrentView.Equals(View)&& this.CurrentProjection.Equals(Projection)){
             return;
@@ -702,18 +731,22 @@ internal sealed class SceneRenderer:IDisposable {
     }
 
     /// <summary>ギズモoverlayを固定容量upload bufferへ置き換える。GPU resource自体は再生成しない。</summary>
-    public void SetOverlay(IReadOnlyList<GizmoOverlayPrimitive>?Primitives){
+    public void SetOverlay(IReadOnlyList<GizmoOverlayPrimitive>?Primitives)=>this.SetOverlay(Primitives,null);
+
+    public void SetOverlay(IReadOnlyList<GizmoOverlayPrimitive>?Primitives,IReadOnlyList<GizmoOverlayPrimitive>?SpatialDebugPrimitives){
         List<OverlayVertex>Triangles=[];
         List<OverlayVertex>Lines=[];
-        if(Primitives is not null){
-            foreach(var Primitive in Primitives){
-                var Target=Primitive.Kind==GizmoPrimitiveKind.Triangle?Triangles:Lines;
-                foreach(var Vertex in Primitive.Vertices){
-                    Target.Add(new OverlayVertex { Position=Vertex.Position,Color=Vertex.Color });
-                }
-            }
+        AddOverlayPrimitives(Primitives,Triangles,Lines);
+        int GizmoCount=Triangles.Count+Lines.Count;
+        if(GizmoCount>MaxGizmoOverlayVertices){
+            throw new ArgumentOutOfRangeException(nameof(Primitives));
         }
-
+        int SpatialStart=Triangles.Count+Lines.Count;
+        AddOverlayPrimitives(SpatialDebugPrimitives,Triangles,Lines);
+        int SpatialCount=Triangles.Count+Lines.Count-SpatialStart;
+        if(SpatialCount>MaxSpatialDebugOverlayVertices){
+            throw new ArgumentOutOfRangeException(nameof(SpatialDebugPrimitives));
+        }
         this.AddCameraPreviewOverlay(Lines);
 
         var TotalCount=Triangles.Count+Lines.Count;
@@ -726,6 +759,18 @@ internal sealed class SceneRenderer:IDisposable {
         this.OverlayTriangleVertexCount=Triangles.Count;
         this.OverlayLineVertexCount=Lines.Count;
         MarkAllDirty(this.OverlayGeometryDirty);
+    }
+
+    private static void AddOverlayPrimitives(IReadOnlyList<GizmoOverlayPrimitive>?Primitives,List<OverlayVertex>Triangles,List<OverlayVertex>Lines){
+        if(Primitives is null){
+            return;
+        }
+        foreach(var Primitive in Primitives){
+            var Target=Primitive.Kind==GizmoPrimitiveKind.Triangle?Triangles:Lines;
+            foreach(var Vertex in Primitive.Vertices){
+                Target.Add(new OverlayVertex { Position=Vertex.Position,Color=Vertex.Color });
+            }
+        }
     }
 
     private void AddCameraPreviewOverlay(List<OverlayVertex>Lines){
@@ -907,7 +952,7 @@ internal sealed class SceneRenderer:IDisposable {
                 var Selected=Pass==0
                                   ?SceneSelectionTint.GetWeight(Obj.NodeId, this.SelectedNodeId, this.SelectedNodeIds)
                                   :0f;
-                TransformConstants Constants=new(){ Mvp=Mvp,BaseColorFactor=Obj.BaseColorFactor,Selected=Selected };
+                TransformConstants Constants=new(){ Mvp=Mvp,BaseColorFactor=Obj.BaseColorFactor,Selected=Selected,RenderMode=(float)this.CurrentRenderMode };
                 var WriteOffset=SceneConstantBufferLayout.ComputeWriteOffset(
                     FrameOffset,Pass,I, this.AlignedSlotSize, this.ObjectCapacity);
                 MemoryMarshal.Write(
@@ -1020,7 +1065,7 @@ internal sealed class SceneRenderer:IDisposable {
 
         var CommandAllocator= this.CommandAllocators[FrameIndex];
         CommandAllocator.Reset();
-        this.CommandList.Reset(CommandAllocator, this.PipelineState);
+        this.CommandList.Reset(CommandAllocator,this.CurrentRenderMode==SceneViewRenderMode.Wireframe?this.WireframePipelineState:this.PipelineState);
 
         this.CommandList.ResourceBarrierTransition(this.RenderTargets[FrameIndex],ResourceStates.Present,ResourceStates.RenderTarget);
 
@@ -1052,7 +1097,7 @@ internal sealed class SceneRenderer:IDisposable {
             this.CommandList.ClearRenderTargetView(
                 PreviewTarget.Rtv,new Vortice.Mathematics.Color4(5/255f,5/255f,20/255f,1f));
             this.CommandList.ClearDepthStencilView(PreviewTarget.Dsv,ClearFlags.Depth,1.0f,0);
-            this.CommandList.SetPipelineState(this.PipelineState);
+            this.CommandList.SetPipelineState(this.CurrentRenderMode==SceneViewRenderMode.Wireframe?this.WireframePipelineState:this.PipelineState);
             this.CommandList.RSSetViewport(0,0,PreviewTarget.Width,PreviewTarget.Height);
             this.CommandList.RSSetScissorRect(PreviewTarget.Width,PreviewTarget.Height);
             this.DrawScenePass(FrameIndex,PreviewIndex+1);
@@ -1155,6 +1200,7 @@ internal sealed class SceneRenderer:IDisposable {
         }
 
         this.PipelineState.Dispose();
+        this.WireframePipelineState.Dispose();
         this.OverlayLinePipelineState.Dispose();
         this.OverlayTrianglePipelineState.Dispose();
         this.RootSignature.Dispose();

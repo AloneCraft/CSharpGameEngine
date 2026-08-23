@@ -7,6 +7,12 @@ namespace CSharpGameEngine.Entities;
 public interface ISystem {
 }
 
+/// <summary>Controls which execution host owns a <see cref="State"/> instance.</summary>
+public enum EngineExecutionMode {
+    Runtime,
+    EditorPreview,
+}
+
 public interface IArchetype {
 }
 
@@ -14,6 +20,10 @@ public record struct Entity(int Id);
 
 public partial struct State(World World){
     public bool Enabled { get; set;}
+    /// <summary>Gets or sets the host mode. Runtime is the safe default for user-created states.</summary>
+    public EngineExecutionMode ExecutionMode { get; set; }
+
+    public bool IsEditorPreview => this.ExecutionMode==EngineExecutionMode.EditorPreview;
 
     public World World { get;}=World;
 }

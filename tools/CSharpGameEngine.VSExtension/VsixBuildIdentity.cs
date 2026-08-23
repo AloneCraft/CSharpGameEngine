@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -36,17 +37,23 @@ internal static class VsixBuildIdentity {
     internal static VsixDeploymentVerification Deployment=>VsixDeploymentVerifier.Verify(
         LoadedAssemblyPath,BuildOutputPath);
 
+    /// <summary>Formats the embedded UTC build metadata for the compact Scene View header.</summary>
+    internal static string FormatBuildUtc(string Value){
+        return DateTimeOffset.TryParse(Value,CultureInfo.InvariantCulture,DateTimeStyles.RoundtripKind,out DateTimeOffset Parsed)
+            ?Parsed.ToUniversalTime().ToString("yyyy-MM-dd HH:mm'Z'",CultureInfo.InvariantCulture)
+            :"unknown";
+    }
+
     /// <summary>Compact text intended for the Scene Designer header or diagnostic UI.</summary>
     internal static string DisplayText{
         get {
             VsixDeploymentVerification Verification=Deployment;
-            string Revision=GitRevision.Length>12?GitRevision.Substring(0,12):GitRevision;
-            return $"VSIX {Version} | {Revision} | {Verification.CompactState} | {LoadedAssemblyPathTail}";
+            return $"VSIX {Version} | build {FormatBuildUtc(BuildUtc)} | {Verification.CompactState}";
         }
     }
 
     internal static string ActivityLogText=>
-        $"Loaded {DisplayText}; assembly='{LoadedAssemblyPath}'; buildOutput='{BuildOutputPath}'; " +
+        $"Loaded {DisplayText}; revision='{GitRevision}'; assembly='{LoadedAssemblyPath}'; buildOutput='{BuildOutputPath}'; " +
         $"deployment='{Deployment.Message}'; loadedSha256='{Deployment.LoadedHash??"unknown"}'; " +
         $"buildSha256='{Deployment.BuildHash??"unknown"}'.";
 

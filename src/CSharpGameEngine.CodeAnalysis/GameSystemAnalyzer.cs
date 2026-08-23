@@ -71,12 +71,23 @@ internal static class GameSystemAnalyzer {
         }
 
         var TypeLocation=SystemSymbol.Locations.FirstOrDefault()??Location.None;
+        var ExecuteInEditor=false;
+        var RealtimeInEditor=false;
+        foreach(var Attribute in SystemSymbol.GetAttributes()){
+            if(Attribute.AttributeClass?.ToDisplayString()=="CSharpGameEngine.Entities.ExecuteInEditorAttribute"){
+                ExecuteInEditor=true;
+                RealtimeInEditor=Attribute.NamedArguments.Any(static A=>A.Key=="Realtime"&&A.Value.Value is true);
+                break;
+            }
+        }
 
         return new GameSystemResult(
             SystemSymbol.ContainingNamespace.IsGlobalNamespace?null:SystemSymbol.ContainingNamespace.ToDisplayString(),
             SystemSymbol.Name,
             [.. MethodModels],
             Diagnostics.ToImmutable(),
+            ExecuteInEditor,
+            RealtimeInEditor,
             TypeLocation.SourceTree?.FilePath??string.Empty,
             TypeLocation.SourceSpan.Start);
     }

@@ -321,3 +321,8 @@ Scene Authoringの診断は`SCENE001`〜`008`(`SCENE009`はADR-0033で削除。�
 - 汎用の`Add<T>`/`Remove<T>`/`Destroy`(旧`EntityCommandBuffer`)と除外条件(旧`[Without]`)は未実装。
 - `ISystem`の検出に属性ベースの高速パス(`ForAttributeWithMetadataName`)が使えず、base listを持つ全型宣言に
   対して意味解析を行う。
+
+
+## Spatial snapshot
+
+When `Transform` and `SpatialBounds` share an Archetype, generated code scans that Archetype after structural playback and refreshes `World.GlobalSpatialIndex`. Systems therefore read the prior complete snapshot unless they explicitly refresh it as the sole writer.

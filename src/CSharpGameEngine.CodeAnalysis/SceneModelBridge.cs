@@ -42,7 +42,7 @@ internal static class SceneModelBridge {
             Model.Namespace,
             Model.ClassName,
             Model.ClassFullyQualifiedName,
-            Model.Root is { } Root?ToEmitNode(Root):null,
+            Model.Root is { } Root?ToEmitNode(Root,string.Equals(Model.Namespace,"UserEcsProject.Scenes",StringComparison.Ordinal)):null,
             Model.TotalNodeCount,
             Model.IsStartupScene,
             Model.StartupOrder,
@@ -51,17 +51,32 @@ internal static class SceneModelBridge {
             Model.DeclarationPosition);
     }
 
-    private static SceneEmitNode ToEmitNode(SceneNode Node){
-        var Components=ImmutableArray.CreateBuilder<SceneEmitComponent>(Node.Components.Length);
+    private static SceneEmitNode ToEmitNode(SceneNode Node,bool AddSampleSpatialBounds){
+        var Components=ImmutableArray.CreateBuilder<SceneEmitComponent>(Node.Components.Length+1);
 
+        bool HasTransform=false;
+        bool HasRenderableMesh=false;
+        bool HasSpatialBounds=false;
         foreach(var Component in Node.Components){
             Components.Add(new SceneEmitComponent(Component.TypeFullyQualifiedName,Component.EmitExpressionText));
+            HasTransform|=string.Equals(Component.TypeFullyQualifiedName,"global::CSharpGameEngine.Runtime.Windows.Transform",StringComparison.Ordinal);
+            HasRenderableMesh|=string.Equals(Component.TypeFullyQualifiedName,"global::CSharpGameEngine.Runtime.Windows.StaticMesh",StringComparison.Ordinal)
+                ||string.Equals(Component.TypeFullyQualifiedName,"global::CSharpGameEngine.Runtime.Windows.PrimitiveMesh",StringComparison.Ordinal);
+            HasSpatialBounds|=string.Equals(Component.TypeFullyQualifiedName,"global::CSharpGameEngine.Entities.SpatialBounds",StringComparison.Ordinal);
+        }
+
+        // The sample executable opts its renderable Scene nodes into the global index at generation time.
+        // The generated component is explicit and deterministic; runtime mesh bounds are never inferred.
+        if(AddSampleSpatialBounds&&HasTransform&&HasRenderableMesh&&!HasSpatialBounds){
+            Components.Add(new SceneEmitComponent(
+                "global::CSharpGameEngine.Entities.SpatialBounds",
+                "global::CSharpGameEngine.Entities.SpatialBounds.UnitCube"));
         }
 
         var Children=ImmutableArray.CreateBuilder<SceneEmitNode>(Node.Children.Length);
 
         foreach(var Child in Node.Children){
-            Children.Add(ToEmitNode(Child));
+            Children.Add(ToEmitNode(Child,AddSampleSpatialBounds));
         }
 
         return new SceneEmitNode(

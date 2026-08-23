@@ -30,6 +30,7 @@ public sealed class SceneDesignerToolWindowPane:ToolWindowPane {
         this.Caption="シーン デザイナー";
         this.Control=new SceneDesignerToolWindowControl();
         this.Content= this.Control;
+        ThreadHelper.ThrowIfNotOnUIThread();
         if(SessionProvider?.Invoke() is { } Session){
             this.Control.SetSession(Session);
         }
@@ -37,5 +38,8 @@ public sealed class SceneDesignerToolWindowPane:ToolWindowPane {
 
     internal static void ConfigureSessionProvider(Func<SceneEditorSessionService?>?Provider)=>SessionProvider=Provider;
 
-    internal void SetTarget(SceneEditorSessionService Session,SceneDocumentSnapshot Snapshot)=> this.Control.SetTarget(Session,Snapshot);
+    internal void SetTarget(SceneEditorSessionService Session,SceneDocumentSnapshot Snapshot){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        this.Control.SetTarget(Session,Snapshot);
+    }
 }

@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using System.IO;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Interop;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -33,6 +36,7 @@ internal sealed class SceneHwndHost:HwndHost {
     private string?RepoRoot;
     private string?TargetFilePath;
     private string?TargetClassName;
+    private string?SpatialDebugRuntimeProcessName;
     private SceneModel?TargetModel;
     private SceneKey?TargetKey;
     private SceneDocumentSnapshot?TargetSnapshot;
@@ -58,6 +62,17 @@ internal sealed class SceneHwndHost:HwndHost {
     private SceneSelection?CurrentSelection;
     private bool CameraPreviewEnabled=true;
     private IReadOnlyList<SceneCameraPreviewLayoutItem>CameraPreviewLayout=[];
+    private IReadOnlyList<GizmoOverlayPrimitive>CurrentSpatialDebugOverlay=[];
+    private SceneSpatialDebugSnapshot?CurrentSpatialDebugSnapshot;
+    private DispatcherTimer?SpatialDebugTimer;
+    private int SpatialDebugRequestInFlight;
+    private bool GlobalSpatialOctreeEnabled;
+    private string LastSpatialDebugStatus="";
+    private IReadOnlyList<int>SpatialDebugProcessIds=[];
+    private int?SelectedSpatialDebugProcessId;
+    private Process?EditorPreviewProcess;
+    private string?EditorPreviewSceneName;
+    private string?EditorPreviewTempDirectory;
 
     // M0020 Phase 1: ナビゲーション状態機械とカメラ/永続ツール状態(ADR-0041 決定事項1)。
     private SceneViewState?ViewState;
@@ -126,6 +141,7 @@ internal sealed class SceneHwndHost:HwndHost {
     private float AspectRatio=> this.SurfaceWidth/(float)this.SurfaceHeight;
 
     internal event Action<string>?StatusChanged;
+    internal event Action<IReadOnlyList<int>,int?>?SpatialDebugProcessCandidatesChanged;
 
     /// <summary>Pointerの<c>Down</c>で発火。WPF側は購読して<c>Keyboard.Focus</c>をここでだけ呼ぶ(ADR-0041 決定事項2)。</summary>
     internal event Action?ViewportActivated;
@@ -186,6 +202,10 @@ internal sealed class SceneHwndHost:HwndHost {
                                                                                                  Completed:this.OnBuildCompleted);
 #pragma warning restore VSTHRD001
         this.LoadIntoSurface();
+        this.GlobalSpatialOctreeEnabled=this.ViewState?.ShowGlobalSpatialOctree??false;
+        this.SpatialDebugTimer=new DispatcherTimer(DispatcherPriority.Background){ Interval=TimeSpan.FromMilliseconds(66) };
+        this.SpatialDebugTimer.Tick+=this.PollSpatialDebug;
+        this.SpatialDebugTimer.Start();
         return new HandleRef(this, this.Surface.Handle);
     }
 
@@ -193,8 +213,14 @@ internal sealed class SceneHwndHost:HwndHost {
         ThreadHelper.ThrowIfNotOnUIThread();
 
         this.BuildLifecycle.Invalidate();
+        if(this.SpatialDebugTimer is not null){
+            this.SpatialDebugTimer.Stop();
+            this.SpatialDebugTimer.Tick-=this.PollSpatialDebug;
+            this.SpatialDebugTimer=null;
+        }
         this.BuildWorker?.Dispose();
         this.BuildWorker=null;
+        this.StopEditorPreviewHost();
         this.CancelEditTransaction();
         SceneEditorSettings.SettingsChanged-=this.OnSettingsChanged;
         this.DetachSubscriptions();
@@ -221,7 +247,17 @@ internal sealed class SceneHwndHost:HwndHost {
     /// Session が pin した snapshot を描画対象にします。解析中の blocking error は Last Known Good
     /// projection を保持するので、ここでrendererを空へ戻しません。
     /// </summary>
-    internal void SetTarget(SceneDocumentSnapshot Snapshot){
+    internal void SetTarget(SceneDocumentSnapshot Snapshot)=>this.SetTarget(Snapshot,this.SpatialDebugRuntimeProcessName);
+
+    internal void SetTarget(SceneDocumentSnapshot Snapshot,string?RuntimeProcessName){
+        if(!string.Equals(this.SpatialDebugRuntimeProcessName,RuntimeProcessName,StringComparison.Ordinal)){
+            this.SpatialDebugRuntimeProcessName=RuntimeProcessName;
+            this.CurrentSpatialDebugSnapshot=null;
+            this.CurrentSpatialDebugOverlay=[];
+            this.SpatialDebugProcessIds=[];
+            this.SelectedSpatialDebugProcessId=null;
+            this.SpatialDebugProcessCandidatesChanged?.Invoke([],null);
+        }
         if(this.EditTransaction.State!=EditTransactionState.Idle){
             if(this.TargetKey is { }EditingKey&&EditingKey.Equals(Snapshot.Key)){
                 this.EditTransaction.QueueSnapshot(Snapshot);
@@ -265,6 +301,8 @@ internal sealed class SceneHwndHost:HwndHost {
             && this.TryApplyIncrementalSnapshot(Snapshot,Model)){
             return;
         }
+
+        this.EnsureEditorPreviewHost();
 
         if(this.Surface is not null){
             this.Rebuild();
@@ -343,6 +381,203 @@ internal sealed class SceneHwndHost:HwndHost {
         this.RefreshOverlay();
     }
 
+    internal void SetRenderMode(SceneViewRenderMode Mode){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(this.ViewState is not { }State){
+            return;
+        }
+        State.RenderMode=Mode;
+        SceneEditorSettings.WriteRenderMode(Mode);
+        this.Renderer?.SetRenderMode(Mode);
+    }
+
+    internal void SetGlobalSpatialOctreeEnabled(bool Enabled){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        this.GlobalSpatialOctreeEnabled=Enabled;
+        if(this.ViewState is { }State){
+            State.ShowGlobalSpatialOctree=Enabled;
+            SceneEditorSettings.WriteShowGlobalSpatialOctree(Enabled);
+        }
+        if(!Enabled){
+            this.CurrentSpatialDebugSnapshot=null;
+            this.CurrentSpatialDebugOverlay=[];
+        }
+        this.RefreshOverlay();
+    }
+
+    internal void SetSpatialDebugProcessId(int?ProcessId){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        int?ResolvedProcessId=ProcessId is { }Requested&&this.SpatialDebugProcessIds.Contains(Requested)?Requested:null;
+        if(this.SelectedSpatialDebugProcessId==ResolvedProcessId){
+            return;
+        }
+        this.SelectedSpatialDebugProcessId=ResolvedProcessId;
+        this.CurrentSpatialDebugSnapshot=null;
+        this.CurrentSpatialDebugOverlay=[];
+        this.SpatialDebugProcessCandidatesChanged?.Invoke(this.SpatialDebugProcessIds,this.SelectedSpatialDebugProcessId);
+        this.RefreshOverlay();
+    }
+
+    private void EnsureEditorPreviewHost(){
+        var sceneName=this.TargetModel?.ClassFullyQualifiedName;
+        if(string.IsNullOrWhiteSpace(sceneName)){
+            return;
+        }
+        if(this.EditorPreviewProcess is { HasExited:false }&&string.Equals(this.EditorPreviewSceneName,sceneName,StringComparison.Ordinal)){
+            return;
+        }
+        this.StopEditorPreviewHost();
+        string? root=this.RepoRoot;
+        try{ root??=RepoLocator.ResolveRepoRoot(); }catch{ root=null; }
+        if(root is null){
+            return;
+        }
+        string? assemblyPath=Environment.GetEnvironmentVariable("CGE_EDITOR_PREVIEW_ASSEMBLY");
+        if(assemblyPath is null){
+            string assemblyName=Path.GetFileNameWithoutExtension(this.SpatialDebugRuntimeProcessName??"UserEcsProject");
+            string? projectDirectory=Path.GetDirectoryName(this.TargetFilePath??string.Empty);
+            while(projectDirectory is not null&&!Directory.GetFiles(projectDirectory,"*.csproj").Any()){
+                projectDirectory=Directory.GetParent(projectDirectory)?.FullName;
+            }
+            if(projectDirectory is not null){
+                string debugDirectory=Path.Combine(projectDirectory,"bin","Debug");
+                if(Directory.Exists(debugDirectory)){
+                    assemblyPath=Directory.GetFiles(debugDirectory,$"{assemblyName}.dll",SearchOption.AllDirectories)
+                        .FirstOrDefault(static PathValue=>!PathValue.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}",StringComparison.OrdinalIgnoreCase));
+                }
+            }
+        }
+        assemblyPath??=Path.Combine(root,"UserEcsProject","bin","Debug","net10.0-windows10.0.19041.0","win-x64","UserEcsProject.dll");
+        string hostPath=Environment.GetEnvironmentVariable("CGE_EDITOR_PREVIEW_HOST")
+            ??Path.Combine(root,"tools","CSharpGameEngine.EditorPreview.Host","bin","Debug","net10.0","CSharpGameEngine.EditorPreview.Host.dll");
+        if(!File.Exists(assemblyPath)||!File.Exists(hostPath)){
+            return;
+        }
+        try{
+            assemblyPath=this.PrepareEditorPreviewAssembly(assemblyPath);
+            var StartInfo=new ProcessStartInfo{
+                FileName="dotnet",
+                Arguments=string.Format("\"{0}\" --assembly \"{1}\" --scene \"{2}\"",hostPath,assemblyPath,sceneName),
+                UseShellExecute=false,
+                CreateNoWindow=true,
+                WorkingDirectory=Path.GetDirectoryName(assemblyPath)??root,
+            };
+            this.EditorPreviewProcess=Process.Start(StartInfo);
+            this.EditorPreviewSceneName=sceneName;
+        }catch(Exception Ex) when(Ex is IOException or InvalidOperationException or System.ComponentModel.Win32Exception){
+            this.EditorPreviewProcess=null;
+            this.EditorPreviewSceneName=null;
+        }
+    }
+
+    private string PrepareEditorPreviewAssembly(string AssemblyPath){
+        string SourceDirectory=Path.GetDirectoryName(AssemblyPath)??throw new DirectoryNotFoundException();
+        string TempDirectory=Path.Combine(Path.GetTempPath(),"CSharpGameEngine.EditorPreview",Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(TempDirectory);
+        foreach(string FilePath in Directory.GetFiles(SourceDirectory)){
+            string Extension=Path.GetExtension(FilePath);
+            if(!string.Equals(Extension,".dll",StringComparison.OrdinalIgnoreCase)
+                &&!string.Equals(Extension,".json",StringComparison.OrdinalIgnoreCase)
+                &&!string.Equals(Extension,".pdb",StringComparison.OrdinalIgnoreCase)){
+                continue;
+            }
+            File.Copy(FilePath,Path.Combine(TempDirectory,Path.GetFileName(FilePath)),overwrite:true);
+        }
+        this.EditorPreviewTempDirectory=TempDirectory;
+        return Path.Combine(TempDirectory,Path.GetFileName(AssemblyPath));
+    }
+    private void StopEditorPreviewHost(){
+        Process? process=this.EditorPreviewProcess;
+        this.EditorPreviewProcess=null;
+        this.EditorPreviewSceneName=null;
+        if(process is null){
+            return;
+        }
+        try{
+            if(!process.HasExited){
+                process.Kill();
+                process.WaitForExit(500);
+            }
+        }catch(InvalidOperationException){
+        }catch(System.ComponentModel.Win32Exception){
+        }finally{
+            process.Dispose();
+            string? tempDirectory=this.EditorPreviewTempDirectory;
+            this.EditorPreviewTempDirectory=null;
+            if(tempDirectory is not null){
+                try{ Directory.Delete(tempDirectory,recursive:true); }catch(IOException){}catch(UnauthorizedAccessException){}
+            }
+        }
+    }
+    #pragma warning disable VSTHRD100
+    private async void PollSpatialDebug(object?Sender,EventArgs Args){
+        if(!this.GlobalSpatialOctreeEnabled||this.SpatialDebugRequestInFlight!=0){
+            return;
+        }
+        if(string.IsNullOrWhiteSpace(this.SpatialDebugRuntimeProcessName)&&this.EditorPreviewProcess is not { HasExited:false }){
+            this.UpdateSpatialDebugProcessCandidates([],null);
+            this.ApplySpatialDebugResult(null,"Global Spatial Octree: runtime project unavailable");
+            return;
+        }
+        IReadOnlyList<int>RuntimeCandidateIds=string.IsNullOrWhiteSpace(this.SpatialDebugRuntimeProcessName)?[]:SpatialDebugClient.FindProcessIds(this.SpatialDebugRuntimeProcessName);
+        int?ProcessId=SpatialDebugProcessSelectionPolicy.Resolve(RuntimeCandidateIds,this.SelectedSpatialDebugProcessId);
+        bool UseEditorPreview=false;
+        if((RuntimeCandidateIds.Count==0||ProcessId is null)&&this.EditorPreviewProcess is { HasExited:false }){
+            ProcessId=this.EditorPreviewProcess.Id;
+            UseEditorPreview=true;
+        }
+        this.UpdateSpatialDebugProcessCandidates(RuntimeCandidateIds,UseEditorPreview?null:ProcessId);
+        if(ProcessId is null){
+            this.ApplySpatialDebugResult(null,RuntimeCandidateIds.Count==0
+                ?"Global Spatial Octree: game not running; editor preview unavailable"
+                :"Global Spatial Octree: select game PID");
+            return;
+        }
+        Interlocked.Exchange(ref this.SpatialDebugRequestInFlight,1);
+        try {
+            SceneSpatialDebugSnapshot?Snapshot=null;
+            string Status="disconnected";
+            bool Success=await Task.Run(()=>SpatialDebugClient.TryGetSnapshot(ProcessId.Value,null,out Snapshot,out Status));
+            if(!Success){
+                this.ApplySpatialDebugResult(null,$"Global Spatial Octree: {Status}");
+                return;
+            }
+            if(Snapshot is null||Snapshot.Nodes.Count==0){
+                this.ApplySpatialDebugResult(Snapshot,"Global Spatial Octree: snapshot empty");
+                return;
+            }
+            string Truncation=Snapshot.Truncated?", truncated":"";
+            string Excluded=Snapshot.ExcludedNodeCount>0?$", excluded={Snapshot.ExcludedNodeCount}":"";
+            this.ApplySpatialDebugResult(Snapshot,$"Global Spatial Octree: {(UseEditorPreview?"Editor Preview":"Runtime")} | {Snapshot.Nodes.Count} nodes{Truncation}{Excluded}");
+        } catch(Exception Ex) when(Ex is IOException or InvalidOperationException or UnauthorizedAccessException){
+            this.ApplySpatialDebugResult(null,"Global Spatial Octree: disconnected");
+        } finally {
+            Interlocked.Exchange(ref this.SpatialDebugRequestInFlight,0);
+        }
+    }
+
+    #pragma warning restore VSTHRD100
+
+    private void UpdateSpatialDebugProcessCandidates(IReadOnlyList<int>CandidateIds,int?ProcessId){
+        if(this.SpatialDebugProcessIds.SequenceEqual(CandidateIds)&&this.SelectedSpatialDebugProcessId==ProcessId){
+            return;
+        }
+        this.SpatialDebugProcessIds=CandidateIds;
+        this.SelectedSpatialDebugProcessId=ProcessId;
+        this.SpatialDebugProcessCandidatesChanged?.Invoke(CandidateIds,ProcessId);
+    }
+
+    private void ApplySpatialDebugResult(SceneSpatialDebugSnapshot?Snapshot,string Status){
+        if(!this.GlobalSpatialOctreeEnabled){
+            return;
+        }
+        this.CurrentSpatialDebugSnapshot=Snapshot;
+        if(!string.Equals(this.LastSpatialDebugStatus,Status,StringComparison.Ordinal)){
+            this.LastSpatialDebugStatus=Status;
+            this.SetStatus(Status);
+        }
+        this.RefreshOverlay();
+    }
     private void RefreshCameraPreviews(){
         if(this.Renderer is not { }Active||!this.CameraPreviewEnabled
             ||this.TargetModel is not { }Model||this.SelectedNodePaths.Count==0){
@@ -890,7 +1125,13 @@ internal sealed class SceneHwndHost:HwndHost {
             }
         }
 
-        Active.SetOverlay(Primitives.Count==0?null:Primitives);
+        if(this.GlobalSpatialOctreeEnabled&&this.CurrentSpatialDebugSnapshot is { }SpatialSnapshot&&this.ViewState is { }SpatialState){
+            Matrix4x4 ViewProjection=SpatialState.GetView()*SpatialState.GetProjection(this.AspectRatio);
+            this.CurrentSpatialDebugOverlay=SpatialDebugOverlay.Build(SpatialSnapshot,ViewProjection);
+        } else {
+            this.CurrentSpatialDebugOverlay=[];
+        }
+        Active.SetOverlay(Primitives.Count==0?null:Primitives,this.CurrentSpatialDebugOverlay.Count==0?null:this.CurrentSpatialDebugOverlay);
     }
 
     private void PublishMarqueeSelection(ScreenRectangle Rectangle,bool CtrlHeld){
@@ -1803,6 +2044,7 @@ internal sealed class SceneHwndHost:HwndHost {
 
             // 実サイズは Surface.Resized で既に届いているので、800x600 のハードコードは使わない。
             this.Renderer=new SceneRenderer(this.Surface.Handle, this.SurfaceWidth, this.SurfaceHeight,Result.RenderObjects,View,Projection);
+            this.Renderer.SetRenderMode(this.ViewState?.RenderMode??SceneViewRenderMode.Lit);
             this.HasFatalRenderFailure=false;
             this.RenderedAnalysisGeneration=Request.AnalysisGeneration;
             // 再解析でRendererを作り直しても選択の見た目を保つ。複数選択(SelectedNodePaths)も

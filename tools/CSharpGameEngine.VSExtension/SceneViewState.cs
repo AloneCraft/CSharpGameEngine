@@ -17,6 +17,7 @@ internal enum SceneActiveTool { Select, Move, Rotate, Scale }
 internal enum SceneTransformSpace { World, Local }
 
 internal enum SceneProjectionMode { Perspective, Orthographic }
+internal enum SceneViewRenderMode { Lit, BaseColor, Normal, Wireframe }
 
 /// <summary>Unity/Unreal/Blender/Mayaの具体値充填はADR-0041決定事項7によりスコープ外。器のみ用意する。</summary>
 internal enum SceneNavigationPreset { Default, Custom }
@@ -61,6 +62,8 @@ internal sealed class SceneViewState {
     internal SceneTransformSpace TransformSpace;
     internal SceneProjectionMode ProjectionMode;
     internal SceneNavigationPreset NavigationPreset;
+    internal SceneViewRenderMode RenderMode;
+    internal bool ShowGlobalSpatialOctree;
     internal float NavigationSpeedMultiplier=1f;
     internal bool InvertLookX;
     internal bool InvertLookY;
@@ -106,6 +109,8 @@ internal sealed class SceneViewState {
             TransformSpace=SceneEditorSettings.ReadTransformSpace(),
             ProjectionMode=SceneEditorSettings.ReadProjectionMode(),
             NavigationPreset=SceneEditorSettings.ReadNavigationPreset(),
+            RenderMode=SceneEditorSettings.ReadRenderMode(),
+            ShowGlobalSpatialOctree=SceneEditorSettings.ReadShowGlobalSpatialOctree(),
             NavigationSpeedMultiplier=SceneEditorSettings.ReadNavigationSpeedMultiplier(),
             InvertLookX=SceneEditorSettings.ReadInvertLookX(),
             InvertLookY=SceneEditorSettings.ReadInvertLookY(),
@@ -120,6 +125,8 @@ internal sealed class SceneViewState {
         SceneEditorSettings.WriteTransformSpace(this.TransformSpace);
         SceneEditorSettings.WriteProjectionMode(this.ProjectionMode);
         SceneEditorSettings.WriteNavigationPreset(this.NavigationPreset);
+        SceneEditorSettings.WriteRenderMode(this.RenderMode);
+        SceneEditorSettings.WriteShowGlobalSpatialOctree(this.ShowGlobalSpatialOctree);
         SceneEditorSettings.WriteNavigationSpeedMultiplier(this.NavigationSpeedMultiplier);
         SceneEditorSettings.WriteInvertLookX(this.InvertLookX);
         SceneEditorSettings.WriteInvertLookY(this.InvertLookY);

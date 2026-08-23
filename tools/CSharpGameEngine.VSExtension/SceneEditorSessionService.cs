@@ -106,6 +106,7 @@ internal sealed class SceneEditorSessionService : IDisposable {
     }
     internal bool TryGetSnapshot(SceneKey Key,out SceneDocumentSnapshot Snapshot)=>
         this.Snapshots.TryGetValue(Key,out Snapshot!);
+    internal string?TryGetRuntimeProcessName(SceneKey Key)=>this.Workspace.TryGetProjectAssemblyName(Key);
 
     /// <summary>選択 Scene が削除・解析不能になったとき、Viewport を明示的な空状態へ戻します。</summary>
     internal void ClearPin(){

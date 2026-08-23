@@ -168,7 +168,9 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
 
             GameSystemTypesEmitter.Emit(Spc,Registry);
             GameSystemWorldEmitter.Emit(Spc,Registry);
+            SpatialWorldEmitter.Emit(Spc,Registry);
             GameSystemLoopEmitter.Emit(Spc,Registry);
+            GeneratedEditorPreviewBridgeEmitter.Emit(Spc,ValidSceneDeclarations,Registry,Source.Gate.LogicalSpatialProfile);
 
             if(EntryPointPlan.Emit){
                 GameSystemEntryPointEmitter.Emit(Spc,Registry);

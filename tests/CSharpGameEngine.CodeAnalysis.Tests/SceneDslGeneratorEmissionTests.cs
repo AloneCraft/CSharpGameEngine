@@ -217,4 +217,29 @@ public sealed class SceneDslGeneratorEmissionTests {
 
         Assert.Equal(Generate(Scene),Generate(Scene));
     }
+    [Fact]
+    public void UserEcsRenderableScenesReceiveDeterministicSpatialBounds(){
+        var Result=GameSystemGeneratorTestHelper.RunGenerator([
+            .. GameSystemGeneratorTestHelper.SceneDslSources,
+            """
+            using CSharpGameEngine.Entities;
+            namespace CSharpGameEngine.Runtime.Windows;
+            public struct Transform { }
+            public struct StaticMesh { }
+            """,
+            """
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Runtime.Windows;
+            namespace UserEcsProject.Scenes;
+            public partial class SampleScene:IScene {
+                public Node Root=>new() { Components=[new Transform(),new StaticMesh()] };
+            }
+            """,
+        ]);
+        var Text=GameSystemGeneratorTestHelper.GeneratedText(Result,"UserEcsProject.Scenes.SampleScene.Scene.g.cs");
+
+        Assert.Contains("global::CSharpGameEngine.Entities.SpatialBounds.UnitCube",Text);
+        Assert.Contains("global::CSharpGameEngine.Runtime.Windows.Transform",Text);
+        Assert.Contains("global::CSharpGameEngine.Runtime.Windows.StaticMesh",Text);
+    }
 }

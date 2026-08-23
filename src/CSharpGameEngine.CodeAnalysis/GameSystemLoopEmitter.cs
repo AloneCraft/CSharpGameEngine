@@ -37,6 +37,8 @@ internal static class GameSystemLoopEmitter {
         List<GameSystemResult>DispatchSystems=[.. Registry.ValidSystems.Where(static S=>S.Methods.Any(static M=>M.Role==GameSystemMethodRole.Dispatch))];
         List<GameSystemResult>ShutdownSystems=[.. Registry.ValidSystems.Where(static S=>S.Methods.Any(static M=>M.Role==GameSystemMethodRole.Shutdown)).Reverse()];
         List<GameSystemResult>AllSystems=[.. Registry.ValidSystems.Where(static S=>S.Methods.Any(static M=>M.Role==GameSystemMethodRole.Dispatch||M.Role==GameSystemMethodRole.Shutdown))];
+        List<GameSystemResult>EditorSystems=[.. Registry.ValidSystems.Where(static S=>S.ExecuteInEditor&&S.Methods.Any(static M=>M.Role==GameSystemMethodRole.Dispatch||M.Role==GameSystemMethodRole.Shutdown))];
+        List<GameSystemResult>RealtimeEditorSystems=[.. EditorSystems.Where(static S=>S.RealtimeInEditor)];
 
         if(Registry.Archetypes.Length==0||DispatchSystems.Count==0){
             return;
@@ -66,7 +68,58 @@ internal static class GameSystemLoopEmitter {
         }
 
         Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
+        if(SpatialWorldEmitter.ShouldEmit(Registry)) {
+            Lines.Add("        State.World.RefreshGlobalSpatialIndex();");
+        }
         Lines.Add("    }");
+        if(EditorSystems.Count>0){
+            var EditorBindings=BuildSystemBindings(EditorSystems);
+            var EditorContexts=BuildContextBindings(EditorSystems);
+            Lines.Add($"    internal static void RunEditorFrame(ref global::CSharpGameEngine.Entities.State State) {{");
+            Lines.Add("        if (!State.Enabled) return;");
+            foreach(var EditorSystem in EditorBindings){
+                Lines.Add($"        var {EditorSystem.VariableName} = new {EditorSystem.TypeReference}();");
+                Lines.Add($"        _ = {EditorSystem.VariableName};");
+            }
+            foreach(var Archetype in Registry.Archetypes){
+                Lines.AddRange(BuildArchetypeLoopBody(Archetype,Registry,EditorBindings,EditorContexts,ComponentIndexByType,GameSystemMethodRole.Dispatch));
+                Lines.Add("        if (!State.Enabled) return;");
+            }
+            Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
+            if(SpatialWorldEmitter.ShouldEmit(Registry)){
+                Lines.Add("        State.World.RefreshGlobalSpatialIndex();");
+            }
+            Lines.Add("    }");
+            if(RealtimeEditorSystems.Count>0){
+                var RealtimeBindings=BuildSystemBindings(RealtimeEditorSystems);
+                var RealtimeContexts=BuildContextBindings(RealtimeEditorSystems);
+                Lines.Add($"    internal static void RunEditorRealtimeFrame(ref global::CSharpGameEngine.Entities.State State) {{");
+                Lines.Add("        if (!State.Enabled) return;");
+                foreach(var RealtimeSystem in RealtimeBindings){
+                    Lines.Add($"        var {RealtimeSystem.VariableName} = new {RealtimeSystem.TypeReference}();");
+                    Lines.Add($"        _ = {RealtimeSystem.VariableName};");
+                }
+                foreach(var Archetype in Registry.Archetypes){
+                    Lines.AddRange(BuildArchetypeLoopBody(Archetype,Registry,RealtimeBindings,RealtimeContexts,ComponentIndexByType,GameSystemMethodRole.Dispatch));
+                    Lines.Add("        if (!State.Enabled) return;");
+                }
+                Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
+                if(SpatialWorldEmitter.ShouldEmit(Registry)){
+                    Lines.Add("        State.World.RefreshGlobalSpatialIndex();");
+                }
+                Lines.Add("    }");
+            }
+            Lines.Add($"    internal static void ShutdownEditor(ref global::CSharpGameEngine.Entities.State State) {{");
+            foreach(var EditorSystem in EditorBindings){
+                Lines.Add($"        var {EditorSystem.VariableName} = new {EditorSystem.TypeReference}();");
+                Lines.Add($"        _ = {EditorSystem.VariableName};");
+            }
+            for(var ArchetypeIndex=Registry.Archetypes.Length-1;ArchetypeIndex>=0;ArchetypeIndex--){
+                GameSystemArchetypeInfo Archetype=Registry.Archetypes[ArchetypeIndex];
+                Lines.AddRange(BuildArchetypeLoopBody(Archetype,Registry,EditorBindings,EditorContexts,ComponentIndexByType,GameSystemMethodRole.Shutdown));
+            }
+            Lines.Add("    }");
+        }
         Lines.Add($"    internal static void Shutdown({BuildRunFrameParameterList(Systems,Contexts)}) {{");
 
         for(var ArchetypeIndex=Registry.Archetypes.Length-1;ArchetypeIndex>=0;ArchetypeIndex--){

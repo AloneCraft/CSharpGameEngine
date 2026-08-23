@@ -3,10 +3,13 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:vsshell="clr-namespace:Microsoft.VisualStudio.Shell;assembly=Microsoft.VisualStudio.Shell.15.0"
              mc:Ignorable="d"
+             Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
              d:DesignHeight="400" d:DesignWidth="600">
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
@@ -21,16 +24,24 @@
                           IsEnabled="False"
                           SelectionChanged="OnSceneSelectionChanged"
                           ToolTip="現在の C# 文書と同じプロジェクトの Scene を選択します。" />
+                <TextBlock Text="View" Foreground="#D8D8D8" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <ComboBox x:Name="ViewModeSelector" Width="120" Margin="0,0,8,0" SelectedValuePath="Tag" SelectionChanged="OnViewModeSelectionChanged" ToolTip="View">
+                    <ComboBoxItem Tag="Lit" Content="Lit" />
+                    <ComboBoxItem Tag="BaseColor" Content="Base Color" />
+                    <ComboBoxItem Tag="Normal" Content="Normal" />
+                    <ComboBoxItem Tag="Wireframe" Content="Wireframe" />
+                </ComboBox>
+                <CheckBox x:Name="GlobalSpatialOctreeToggle" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" VerticalAlignment="Center" Margin="0,0,8,0" Content="Debug Overlays > Global Spatial Octree" ToolTip="Shows the runtime GlobalSpatialIndex octree in the central Scene View viewport." Checked="OnGlobalSpatialOctreeChanged" Unchecked="OnGlobalSpatialOctreeChanged" />
+                <ComboBox x:Name="SpatialDebugProcessSelector" Width="92" Margin="0,0,8,0" Visibility="Collapsed" SelectionChanged="OnSpatialDebugProcessSelectionChanged" ToolTip="Global Spatial Octree を提供するゲームプロセスの PID" />
                 <TextBlock x:Name="VsixIdentityText" Foreground="#8FC9FF" FontSize="10" />
-                <TextBlock x:Name="StatusText"
-                           VerticalAlignment="Center"
-                           Foreground="#D8D8D8"
-                           Text="シーンを選択してください。"
-                           TextTrimming="CharacterEllipsis" />
             </DockPanel>
         </Border>
 
-        <Grid x:Name="RenderHostGrid" Grid.Row="1" Background="#050514">
+        <Border Grid.Row="1" Padding="8,0,8,4" Background="#202020">
+            <TextBlock x:Name="StatusText" Foreground="#D8D8D8" Text="シーンを選択してください。" TextTrimming="CharacterEllipsis" />
+        </Border>
+
+        <Grid x:Name="RenderHostGrid" Grid.Row="2" Background="#050514">
             <TextBlock x:Name="EmptyStateText"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"

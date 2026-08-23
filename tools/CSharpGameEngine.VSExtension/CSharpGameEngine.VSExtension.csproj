@@ -17,6 +17,8 @@
     <IncludeDebugSymbolsInVSIXContainer>false</IncludeDebugSymbolsInVSIXContainer>
     <IncludeDebugSymbolsInLocalVSIXDeployment>false</IncludeDebugSymbolsInLocalVSIXDeployment>
     <CopyBuildOutputToOutputDirectory>true</CopyBuildOutputToOutputDirectory>
+    <!-- Refresh the embedded identity on every Visual Studio build so an older VSIX cannot be reused silently. -->
+    <DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
     <CopyOutputSymbolsToOutputDirectory>false</CopyOutputSymbolsToOutputDirectory>
     <!-- The VSSDK defaults this to Exp. Keep its deployment/debug target aligned with
          StartArguments so F5 never launches the previously-corrupted Exp hive. -->
@@ -40,7 +42,7 @@
     <CSharpGameEngineRepoRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\'))</CSharpGameEngineRepoRoot>
     <!-- Bump each deployable VSIX revision.  The installer/version cache must never be asked to
          distinguish a newly fixed extension from a prior binary with the same identity. -->
-    <CSharpGameEngineVsixVersion>0.1.5</CSharpGameEngineVsixVersion>
+    <CSharpGameEngineVsixVersion>0.1.6</CSharpGameEngineVsixVersion>
     <CSharpGameEngineBuildUtc>$([System.DateTime]::UtcNow.ToString('O'))</CSharpGameEngineBuildUtc>
     <CSharpGameEngineGitRevision>unknown</CSharpGameEngineGitRevision>
 
@@ -181,10 +183,15 @@
   <!-- SourceRevisionId is discovered by the SDK after project evaluation. Update the metadata
        immediately before AssemblyInfo is generated so the installed assembly exposes the actual
        checkout revision rather than a build-machine setting. -->
+  <!-- Touch the generated AssemblyInfo before CoreCompile so a normal incremental build refreshes the identity metadata. -->
+  <Target Name="RefreshCSharpGameEngineVsixBuildIdentity" BeforeTargets="CoreCompile">
+    <Touch Files="$(GeneratedAssemblyInfoFile)" AlwaysCreate="true" />
+  </Target>
   <Target Name="ResolveCSharpGameEngineVsixBuildIdentity"
           BeforeTargets="GetAssemblyAttributes">
     <PropertyGroup>
       <CSharpGameEngineGitRevision Condition="'$(SourceRevisionId)' != ''">$(SourceRevisionId)</CSharpGameEngineGitRevision>
+      <CSharpGameEngineBuildUtc>$([System.DateTime]::UtcNow.ToString('O'))</CSharpGameEngineBuildUtc>
     </PropertyGroup>
     <ItemGroup>
       <!--
@@ -193,6 +200,8 @@
         output path with the Git revision, making the on-screen identity incapable of proving
         which VSIX was loaded.  Replace only the one late-bound item instead.
       -->
+      <AssemblyMetadata Remove="CSharpGameEngineBuildUtc" />
+      <AssemblyMetadata Include="CSharpGameEngineBuildUtc" Value="$(CSharpGameEngineBuildUtc)" />
       <AssemblyMetadata Remove="CSharpGameEngineGitRevision" />
       <AssemblyMetadata Include="CSharpGameEngineGitRevision" Value="$(CSharpGameEngineGitRevision)" />
     </ItemGroup>
@@ -207,6 +216,25 @@
         <VSIXSubPath>ItemTemplates\CSharp\GameEngine\1033</VSIXSubPath>
       </VSIXSourceItem>
     </ItemGroup>
+  </Target>
+
+  <!--
+    WPF's incremental markup compiler can leave the generated .g.cs files in place while dropping
+    one or more BAML files (for example after a control is renamed).  A normal Visual Studio F5
+    build must repair that state automatically; otherwise the deployment target would install an
+    assembly whose g.resources is incomplete.  Touching the Page inputs is enough to invalidate the
+    markup compiler without deleting obj/project.assets.json or any user source file content.
+  -->
+  <Target Name="RepairIncompleteWpfBamlResources"
+          BeforeTargets="MarkupCompilePass1"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
+      <_ExpectedWpfBamlForRepair Include="@(Page->'$(IntermediateOutputPath)%(Filename).baml')" />
+      <_MissingWpfBamlForRepair Include="@(_ExpectedWpfBamlForRepair)" Condition="!Exists('%(Identity)')" />
+    </ItemGroup>
+    <Touch Files="@(Page)"
+           AlwaysCreate="true"
+           Condition="'@(_MissingWpfBamlForRepair)' != ''" />
   </Target>
 
   <!-- A stale WPF incremental-build cache can produce the generated .g.cs files while omitting

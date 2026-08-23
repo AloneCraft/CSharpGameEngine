@@ -124,3 +124,8 @@ Viewerのオプションは`triangle`コマンドと同様（`--frames` / `--wid
 - `CSharpGameEngine.Import`（glTF/GLB・FBXインポータ）はWindows/D3D非依存の`net10.0`プロジェクトです
   （詳細: [Docs/Decisions/ADR-0004-Gltf-Model-Viewer-Vertical-Slice.md](Docs/Decisions/ADR-0004-Gltf-Model-Viewer-Vertical-Slice.md)、
   [Docs/Decisions/ADR-0009-Fbx-Model-Import.md](Docs/Decisions/ADR-0009-Fbx-Model-Import.md)）。
+
+
+## Spatial partitioning
+
+Add `SpatialBounds` beside a fixed-point `Transform` to participate in `World.GlobalSpatialIndex`; query it with `SpatialAabb`, `SpatialSphere`, or `SpatialRay`. Systems needing separate filtering or timing can own an `EntityLooseOctree` and update it explicitly. See `Docs/Specifications/Spatial-Partitioning.md`.

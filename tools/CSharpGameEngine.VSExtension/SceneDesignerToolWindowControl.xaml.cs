@@ -23,6 +23,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     private CancellationTokenSource?CatalogCancellation;
     private long CatalogGeneration;
     private bool UpdatingSelector;
+    private bool UpdatingSpatialDebugProcessSelector;
     private PendingDuplicateSelection?PendingDuplicateSelectionRestore;
     private bool Disposed;
 
@@ -42,6 +43,8 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         this.RenderHostGrid.KeyUp+=this.OnViewportKeyUp;
         this.RenderHostGrid.LostKeyboardFocus+=this.OnViewportLostKeyboardFocus;
         this.CameraPreviewToggle.Click+=this.OnCameraPreviewToggleClicked;
+        this.ViewModeSelector.SelectedValue=SceneEditorSettings.DefaultRenderMode.ToString();
+        this.GlobalSpatialOctreeToggle.IsChecked=SceneEditorSettings.DefaultShowGlobalSpatialOctree;
     }
 
     /// <summary>
@@ -174,6 +177,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     }
 
     internal void SetSession(SceneEditorSessionService Session){
+        ThreadHelper.ThrowIfNotOnUIThread();
         if(this.Disposed||ReferenceEquals(this.Session,Session)){
             return;
         }
@@ -195,6 +199,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     }
 
     internal void SetTarget(SceneEditorSessionService Session,SceneDocumentSnapshot Snapshot){
+        ThreadHelper.ThrowIfNotOnUIThread();
         this.SetSession(Session);
         this.ShowSnapshot(Snapshot);
 
@@ -216,6 +221,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
 
     private void OnPinnedSnapshotChanged(SceneDocumentSnapshot?Snapshot){
         this.DispatchToUi(()=>{
+            ThreadHelper.ThrowIfNotOnUIThread();
             if(Snapshot is null){
                 this.ShowEmpty("選択中のシーンは解決できなくなりました。");
             } else {
@@ -241,6 +247,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     }
 
     private void ShowSnapshot(SceneDocumentSnapshot Snapshot){
+        ThreadHelper.ThrowIfNotOnUIThread();
         SceneModel?Model=Snapshot.LastKnownGoodModel??Snapshot.CurrentModel;
         if(Model?.Root is null){
             this.ShowEmpty(Snapshot.HasBlockingErrors
@@ -250,13 +257,14 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         }
 
         SceneHwndHost Host=this.EnsureHost();
-        Host.SetTarget(Snapshot);
+        Host.SetTarget(Snapshot,this.Session?.TryGetRuntimeProcessName(Snapshot.Key));
         if(this.Session?.Selection.CurrentSelection is { } Selection){
             Host.SetSelection(Snapshot,Selection);
         }
     }
 
     private SceneHwndHost EnsureHost(){
+        ThreadHelper.ThrowIfNotOnUIThread();
         if(this.Host is not null){
             return this.Host;
         }
@@ -268,6 +276,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
 
         SceneHwndHost Host=new();
         Host.StatusChanged+=this.OnStatusChanged;
+        Host.SpatialDebugProcessCandidatesChanged+=this.OnSpatialDebugProcessCandidatesChanged;
         Host.ViewportActivated+=this.OnViewportActivated;
         Host.CameraPreviewSelectionRequested+=this.OnCameraPreviewSelectionRequested;
         Host.ObjectPicked+=this.OnObjectPicked;
@@ -278,8 +287,12 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         Host.RedoRequested+=this.OnRedoKeyRequested;
         Host.SaveRequested+=this.OnSaveKeyRequested;
         this.Host=Host;
+        this.ViewModeSelector.SelectedValue=SceneEditorSettings.ReadRenderMode().ToString();
+        this.GlobalSpatialOctreeToggle.IsChecked=SceneEditorSettings.ReadShowGlobalSpatialOctree();
         this.EmptyStateText.Visibility=Visibility.Collapsed;
         this.RenderHostGrid.Children.Add(Host);
+        Host.SetRenderMode(SceneEditorSettings.ReadRenderMode());
+        Host.SetGlobalSpatialOctreeEnabled(SceneEditorSettings.ReadShowGlobalSpatialOctree());
         return Host;
     }
 
@@ -299,6 +312,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         this.Host=null;
         this.RenderHostGrid.Children.Remove(Host);
         Host.StatusChanged-=this.OnStatusChanged;
+        Host.SpatialDebugProcessCandidatesChanged-=this.OnSpatialDebugProcessCandidatesChanged;
         Host.ViewportActivated-=this.OnViewportActivated;
         Host.CameraPreviewSelectionRequested-=this.OnCameraPreviewSelectionRequested;
         Host.ObjectPicked-=this.OnObjectPicked;
@@ -433,6 +447,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
 
             // Pin is Designer 内だけの切替であり、DTE/TextView を操作しない。コードエディタの
             // キャレット、タブ、キーボードフォーカスはこの選択では移動しない。
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
             this.ShowSnapshot(Session.Pin(Model));
         } catch(Exception Ex){
             ActivityLog.LogError(nameof(SceneDesignerToolWindowControl),Ex.ToString());
@@ -501,6 +516,38 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         }
     }
 
+    private void OnViewModeSelectionChanged(object Sender,SelectionChangedEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(this.ViewModeSelector.SelectedValue is string Value&&Enum.TryParse(Value,out SceneViewRenderMode Mode)){
+            this.Host?.SetRenderMode(Mode);
+        }
+    }
+    private void OnGlobalSpatialOctreeChanged(object Sender,RoutedEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        bool Enabled=this.GlobalSpatialOctreeToggle.IsChecked==true;
+        this.Host?.SetGlobalSpatialOctreeEnabled(Enabled);
+        this.SpatialDebugProcessSelector.Visibility=Enabled&&this.SpatialDebugProcessSelector.Items.Count>1?Visibility.Visible:Visibility.Collapsed;
+    }
+    private void OnSpatialDebugProcessCandidatesChanged(IReadOnlyList<int>CandidateIds,int?SelectedProcessId){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        this.UpdatingSpatialDebugProcessSelector=true;
+        try {
+            this.SpatialDebugProcessSelector.ItemsSource=CandidateIds;
+            this.SpatialDebugProcessSelector.SelectedItem=SelectedProcessId;
+            this.SpatialDebugProcessSelector.Visibility=this.GlobalSpatialOctreeToggle.IsChecked==true
+                &&SpatialDebugProcessSelectionPolicy.ShouldShowPicker(CandidateIds)?Visibility.Visible:Visibility.Collapsed;
+        } finally {
+            this.UpdatingSpatialDebugProcessSelector=false;
+        }
+    }
+    private void OnSpatialDebugProcessSelectionChanged(object Sender,SelectionChangedEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(this.UpdatingSpatialDebugProcessSelector){
+            return;
+        }
+        int?ProcessId=this.SpatialDebugProcessSelector.SelectedItem is int SelectedProcessId?SelectedProcessId:null;
+        this.Host?.SetSpatialDebugProcessId(ProcessId);
+    }
     private void OnCameraPreviewToggleClicked(object Sender,RoutedEventArgs Args){
         this.Host?.SetCameraPreviewEnabled(this.CameraPreviewToggle.IsChecked==true);
     }

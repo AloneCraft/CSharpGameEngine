@@ -73,12 +73,16 @@ internal readonly struct GameSystemResult(
         string ClassName,
         ImmutableArray<GameSystemMethodModel>Methods,
         ImmutableArray<Diagnostic>Diagnostics,
+        bool ExecuteInEditor,
+        bool RealtimeInEditor,
         string FilePath,
         int DeclarationPosition) {
     internal readonly string?Namespace=Namespace;
     internal readonly string ClassName=ClassName;
     internal readonly ImmutableArray<GameSystemMethodModel>Methods=Methods;
     internal readonly ImmutableArray<Diagnostic>Diagnostics=Diagnostics;
+    internal readonly bool ExecuteInEditor=ExecuteInEditor;
+    internal readonly bool RealtimeInEditor=RealtimeInEditor;
 
     /// <summary>
     /// 実行順序の決定に使う宣言位置。ADR-0033決定事項1により、実行順は「ソース上の記述順」。

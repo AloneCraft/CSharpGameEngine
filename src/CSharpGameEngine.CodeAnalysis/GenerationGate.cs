@@ -16,7 +16,7 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// <see cref="IEquatable{T}"/>を手書きする。
 /// </para>
 /// </summary>
-internal readonly struct GenerationGate(bool HasRuntimeMarker,OutputKind OutputKind,bool HasUserEntryPoint) : IEquatable<GenerationGate> {
+internal readonly struct GenerationGate(bool HasRuntimeMarker,OutputKind OutputKind,bool HasUserEntryPoint,string LogicalSpatialProfile="Unknown") : IEquatable<GenerationGate> {
     /// <summary>
     /// <c>CSharpGameEngine.Entities.ISystem</c>がコンパイル内に実在するか。ADR-0014により1つの
     /// アナライザーパッケージへ複数のGeneratorが同居するため、このECSを使う意図が無いプロジェクトでも
@@ -29,18 +29,28 @@ internal readonly struct GenerationGate(bool HasRuntimeMarker,OutputKind OutputK
 
     /// <summary>ユーザーが<c>Program.cs</c>を持っているか。持っていればエントリポイントを生成しない(CS0017の回避)。</summary>
     internal readonly bool HasUserEntryPoint=HasUserEntryPoint;
+    internal readonly string LogicalSpatialProfile=LogicalSpatialProfile;
 
     internal static GenerationGate FromCompilation(Compilation Compilation,CancellationToken CancellationToken){
+        var LogicalSpatialProfile="Unknown";
+        foreach(var Tree in Compilation.SyntaxTrees){
+            var Text=Tree.GetText(CancellationToken).ToString();
+            if(Text.IndexOf("Logical256",StringComparison.Ordinal)>=0){ LogicalSpatialProfile="Logical256"; break; }
+            if(Text.IndexOf("Logical192",StringComparison.Ordinal)>=0){ LogicalSpatialProfile="Logical192"; }
+            else if(Text.IndexOf("Logical128",StringComparison.Ordinal)>=0){ LogicalSpatialProfile="Logical128"; }
+        }
         return new GenerationGate(
             Compilation.GetTypeByMetadataName(GameSystemAnalyzer.SystemInterfaceMetadataName) is not null,
             Compilation.Options.OutputKind,
-            Compilation.GetEntryPoint(CancellationToken) is not null);
+            Compilation.GetEntryPoint(CancellationToken) is not null,
+            LogicalSpatialProfile);
     }
 
     public bool Equals(GenerationGate Other){
         return this.HasRuntimeMarker==Other.HasRuntimeMarker
             &&this.OutputKind==Other.OutputKind
-            &&this.HasUserEntryPoint==Other.HasUserEntryPoint;
+            &&this.HasUserEntryPoint==Other.HasUserEntryPoint
+            &&string.Equals(this.LogicalSpatialProfile,Other.LogicalSpatialProfile,StringComparison.Ordinal);
     }
 
     public override bool Equals(object?Obj)=>Obj is GenerationGate Other&&this.Equals(Other);
@@ -51,6 +61,7 @@ internal readonly struct GenerationGate(bool HasRuntimeMarker,OutputKind OutputK
             Hash=(Hash*31)+(this.HasRuntimeMarker?1:0);
             Hash=(Hash*31)+(int)this.OutputKind;
             Hash=(Hash*31)+(this.HasUserEntryPoint?1:0);
+            Hash=(Hash*31)+StringComparer.Ordinal.GetHashCode(this.LogicalSpatialProfile);
             return Hash;
         }
     }

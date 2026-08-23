@@ -45,6 +45,8 @@ internal static class SceneEditorSettings {
     internal const SceneTransformSpace DefaultTransformSpace=SceneTransformSpace.World;
     internal const SceneProjectionMode DefaultProjectionMode=SceneProjectionMode.Perspective;
     internal const SceneNavigationPreset DefaultNavigationPreset=SceneNavigationPreset.Default;
+    internal const SceneViewRenderMode DefaultRenderMode=SceneViewRenderMode.Lit;
+    internal const bool DefaultShowGlobalSpatialOctree=false;
     internal const float DefaultNavigationSpeedMultiplier=1.0f;
 
     private static Func<WritableSettingsStore?>?StoreProvider;
@@ -113,6 +115,23 @@ internal static class SceneEditorSettings {
     internal static void WriteNavigationPreset(SceneNavigationPreset Value){
         ThreadHelper.ThrowIfNotOnUIThread();
         WriteEnum("NavigationPreset",Value);
+    }
+
+    internal static SceneViewRenderMode ReadRenderMode(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        return ReadEnum("RenderMode",DefaultRenderMode);
+    }
+    internal static void WriteRenderMode(SceneViewRenderMode Value){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        WriteEnum("RenderMode",Value);
+    }
+    internal static bool ReadShowGlobalSpatialOctree(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        return ReadBoolean("ShowGlobalSpatialOctree",DefaultShowGlobalSpatialOctree);
+    }
+    internal static void WriteShowGlobalSpatialOctree(bool Value){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        WriteBoolean("ShowGlobalSpatialOctree",Value);
     }
 
     internal static float ReadNavigationSpeedMultiplier(){

@@ -49,4 +49,27 @@ public sealed class VsixManifestTests {
         Assert.NotEqual(VsixBuildIdentity.GitRevision,VsixBuildIdentity.BuildUtc);
         Assert.NotEqual(VsixBuildIdentity.GitRevision,VsixBuildIdentity.BuildOutputPath);
     }
+    [Theory]
+    [InlineData("2026-08-23T14:20:31.1234567Z", "2026-08-23 14:20Z")]
+    [InlineData("2026-08-23T23:59:59+09:00", "2026-08-23 14:59Z")]
+    public void BuildUtc_FormatsCompactUniversalTimestamp(string Value,string Expected){
+        Assert.Equal(Expected,VsixBuildIdentity.FormatBuildUtc(Value));
+    }
+
+    [Fact]
+    public void BuildUtc_InvalidMetadataUsesUnknown(){
+        Assert.Equal("unknown",VsixBuildIdentity.FormatBuildUtc("not-a-timestamp"));
+    }
+    [Fact]
+    public void DisplayText_ContainsEmbeddedBuildTimestamp(){
+        Assert.Contains($"build {VsixBuildIdentity.FormatBuildUtc(VsixBuildIdentity.BuildUtc)}",VsixBuildIdentity.DisplayText);
+    }
+    [Fact]
+    public void VsixProject_ForcesIdentityRefreshDuringIncrementalBuild(){
+        string ProjectPath=Path.Combine(VsixBuildIdentity.RepoRoot,"tools","CSharpGameEngine.VSExtension","CSharpGameEngine.VSExtension.csproj");
+        string Project=File.ReadAllText(ProjectPath);
+        Assert.Contains("<DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>",Project);
+        Assert.Contains("BeforeTargets=\"CoreCompile\"",Project);
+        Assert.Contains("AssemblyMetadata Remove=\"CSharpGameEngineBuildUtc\"",Project);
+    }
 }

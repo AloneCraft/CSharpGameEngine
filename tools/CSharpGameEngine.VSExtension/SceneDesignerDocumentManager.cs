@@ -110,7 +110,10 @@ internal sealed class SceneDesignerDocumentPane:WindowPane {
     }
 
     internal void AttachFrame(IVsWindowFrame Frame)=>this.Frame=Frame??throw new ArgumentNullException(nameof(Frame));
-    internal void SetTarget(SceneEditorSessionService Session,SceneDocumentSnapshot Snapshot)=>this.Control.SetTarget(Session,Snapshot);
+    internal void SetTarget(SceneEditorSessionService Session,SceneDocumentSnapshot Snapshot){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        this.Control.SetTarget(Session,Snapshot);
+    }
     internal void Activate(){
         ThreadHelper.ThrowIfNotOnUIThread();
         if(this.Frame is null){

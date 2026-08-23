@@ -2900,3 +2900,11 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - **意図的にやらなかったこと**: パレット追加値の即時反映(`TryApplyAddComponent`が式をパースして
   メモリ内Componentへ型付きMembersを載せる設計。Compilationを適用経路まで引き回す変更が要る)、
   既存Component型への`required`一括適用、ネストした値の分解編集。
+
+
+## F-L3-015 and F-L3-016 - Spatial partitioning
+
+- Intended: fixed-point shared loose-octree snapshot with optional manually-owned private indexes.
+- Observed: `EntityLooseOctree` stores one Entity proxy; `World` exposes a read-only index and generated code refreshes it after playback.
+- Verification: unit tests and generator-emission tests.
+- Result: Matches.

@@ -543,3 +543,13 @@ UIA `NativeWindowHandle`+`PrintWindow`方式、`SetForegroundWindow`不使用)�
 関連: [[ADR-0041-Scene-Editor-Interaction-Architecture]]、
 [[ADR-0040-CSharp-Scene-DSL-and-Bidirectional-Editor]]、[[M0020-Scene-Editor-Interaction]]、
 `Docs/シーンエディタの仕様.md`
+
+## 13. View 描画モードとランタイム空間デバッグ
+
+Scene View 上部の `View` は `Lit`、`Base Color`、`Normal`、`Wireframe` をラジオ選択する。設定は Visual Studio のユーザー設定へ保存し、カメラプレビューにも同じモードを適用する。`Debug Overlays > Global Spatial Octree` は既定オフのチェック項目で、オンのときだけ実行中ゲームの `World.GlobalSpatialIndex` をNamed Pipe経由で取得して主Scene Viewへワイヤー重畳する。個別Systemの索引は自動表示しない。
+
+ゲーム側はプロセスIDを含むユーザー限定Named Pipeを公開し、Scene Viewから要求されたときだけ最大8,192ノードを不変スナップショット化する。VSIXは最大512ノードを視錐台優先で表示し、Rootを必ず含める。通信断、終了、不正パケット、float変換不能座標は表示停止とステータス表示だけで扱い、ゲーム実行や通常描画を失敗させない。
+
+## Editor Preview World
+
+Scene Viewの未実行状態は、Source Generatorが出力する GeneratedEditorPreviewBridge を隔離net10 Preview Hostから実行する。Runtimeと同じWorld、SystemOrder、GlobalSpatialIndex、SpatialDebugHubを使い、[ExecuteInEditor] のSystemだけを変更時（Realtime=trueは15Hz追加）に実行する。Runtimeスナップショットが有効な間はRuntimeを優先し、終了または未接続時はEditor Previewへ自動フォールバックする。

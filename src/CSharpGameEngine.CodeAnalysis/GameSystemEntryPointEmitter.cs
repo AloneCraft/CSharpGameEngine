@@ -132,6 +132,10 @@ internal static class GameSystemEntryPointEmitter {
             "}",
         ];
 
+        if(SpatialWorldEmitter.ShouldEmit(Registry)) {
+            Lines.Insert(Lines.Count-3,"        State.World.RefreshGlobalSpatialIndex();");
+        }
+
         Context.AddSource(HintName,SourceText.From(string.Join("\n",Lines),Encoding.UTF8));
     }
 }
