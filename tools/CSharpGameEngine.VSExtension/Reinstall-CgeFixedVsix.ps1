@@ -41,6 +41,56 @@ function Get-VsixManifestIdentity([string]$ManifestPath){
     return [pscustomobject]@{ Id=[string]$Identity.Id; Version=[string]$Identity.Version }
 }
 
+function Get-EmbeddedWpfBamlNames([string]$AssemblyPath){
+    $Assembly=[Reflection.Assembly]::LoadFrom($AssemblyPath)
+    $ResourceName=$Assembly.GetManifestResourceNames() |
+        Where-Object { $_ -like '*.g.resources' } |
+        Select-Object -First 1
+    if([string]::IsNullOrWhiteSpace($ResourceName)){
+        throw "VSIX assembly has no g.resources resource: $AssemblyPath"
+    }
+
+    $Stream=$Assembly.GetManifestResourceStream($ResourceName)
+    if($null -eq $Stream){ throw "Unable to open g.resources resource '$ResourceName' in $AssemblyPath" }
+    $Reader=New-Object System.Resources.ResourceReader($Stream)
+    try {
+        $Names=foreach($Entry in $Reader){
+            $Name=[string]$Entry.Key
+            if($Name -like '*.baml'){ $Name.ToLowerInvariant() }
+        }
+        return @($Names)
+    }
+    finally {
+        $Reader.Close()
+        $Stream.Close()
+    }
+}
+
+function Assert-WpfBamlResources([string]$AssemblyPath){
+    $Expected=@(Get-ChildItem -LiteralPath $ScriptDirectory -Filter '*.xaml' -File |
+        ForEach-Object { $_.BaseName.ToLowerInvariant()+'.baml' })
+    $Actual=@(Get-EmbeddedWpfBamlNames $AssemblyPath)
+    $Missing=@($Expected | Where-Object { $Actual -notcontains $_ })
+    if($Missing.Count -ne 0){
+        throw "VSIX assembly is missing WPF BAML resources for XAML: $($Missing -join ', ')"
+    }
+}
+
+function Get-VsixAssemblyHash([string]$PackagePath){
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $Archive=[IO.Compression.ZipFile]::OpenRead($PackagePath)
+    try {
+        $Entry=$Archive.Entries |
+            Where-Object { $_.FullName -like '*CSharpGameEngine.VSExtension.dll' } |
+            Select-Object -First 1
+        if($null -eq $Entry){ throw "VSIX package does not contain CSharpGameEngine.VSExtension.dll: $PackagePath" }
+        $Stream=$Entry.Open()
+        try { return (Get-FileHash -InputStream $Stream -Algorithm SHA256).Hash }
+        finally { $Stream.Dispose() }
+    }
+    finally { $Archive.Dispose() }
+}
+
 function Get-VsixInstallerPath{
     $VsWhere=Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
     if(Test-Path -LiteralPath $VsWhere){
@@ -189,7 +239,7 @@ if([string]::IsNullOrWhiteSpace($VsixPath)){
 
 Assert-CgeFixedIsNotRunning
 if(!$SkipBuild){
-    & dotnet build $ProjectPath --configuration $Configuration
+    & dotnet build $ProjectPath --configuration $Configuration -t:Rebuild
     if($LASTEXITCODE -ne 0){ throw "VSIX build failed (exit code $LASTEXITCODE)." }
 }
 
@@ -204,7 +254,12 @@ $ExpectedVersion=$SourceIdentity.Version
 if([string]::IsNullOrWhiteSpace($ExpectedVersion)){ throw "Source manifest has no VSIX version: $SourceManifest" }
 $BuildAssembly=Join-Path (Split-Path -Parent $VsixPath) 'CSharpGameEngine.VSExtension.dll'
 if(!(Test-Path -LiteralPath $BuildAssembly)){ throw "Build assembly was not found beside the VSIX: $BuildAssembly" }
+Assert-WpfBamlResources $BuildAssembly
 $BuildHash=(Get-FileHash -LiteralPath $BuildAssembly -Algorithm SHA256).Hash
+$PackageHash=Get-VsixAssemblyHash $VsixPath
+if($PackageHash -ne $BuildHash){
+    throw "VSIX package DLL SHA-256 does not match build output. Package=$PackageHash Build=$BuildHash. Rebuild the VSIX before deployment."
+}
 # PowerShell unwraps one-item function output into a scalar. Preserve discovery as arrays so the singleton happy path has Count=1.
 $Hives=@(Get-CgeFixedHives)
 $Installed=@(Get-CgeFixedInstallations $Hives)
@@ -234,6 +289,7 @@ $Legacy=@(Get-CgeFixedLegacyDirectories $Hives)
 if($Installed.Count -ne 1){ throw "Expected exactly one $ExtensionId installation, found $($Installed.Count)." }
 if($Installed[0].Version -ne $ExpectedVersion){ throw "Installed version is $($Installed[0].Version), expected $ExpectedVersion." }
 if([string]::IsNullOrWhiteSpace($Installed[0].Assembly)){ throw "Installed extension assembly was not found under $($Installed[0].Directory)." }
+Assert-WpfBamlResources $Installed[0].Assembly
 $InstalledHash=(Get-FileHash -LiteralPath $Installed[0].Assembly -Algorithm SHA256).Hash
 if($InstalledHash -ne $BuildHash){ throw "Installed DLL SHA-256 does not match build output. Installed=$InstalledHash Build=$BuildHash" }
 if($Legacy.Count -ne 0){ throw "Legacy CSharpGameEngine extension directories remain after installation: $($Legacy.Directory -join ', ')" }

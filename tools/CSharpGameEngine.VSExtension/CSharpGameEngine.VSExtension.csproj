@@ -40,7 +40,7 @@
     <CSharpGameEngineRepoRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\'))</CSharpGameEngineRepoRoot>
     <!-- Bump each deployable VSIX revision.  The installer/version cache must never be asked to
          distinguish a newly fixed extension from a prior binary with the same identity. -->
-    <CSharpGameEngineVsixVersion>0.1.4</CSharpGameEngineVsixVersion>
+    <CSharpGameEngineVsixVersion>0.1.5</CSharpGameEngineVsixVersion>
     <CSharpGameEngineBuildUtc>$([System.DateTime]::UtcNow.ToString('O'))</CSharpGameEngineBuildUtc>
     <CSharpGameEngineGitRevision>unknown</CSharpGameEngineGitRevision>
 
@@ -207,6 +207,20 @@
         <VSIXSubPath>ItemTemplates\CSharp\GameEngine\1033</VSIXSubPath>
       </VSIXSourceItem>
     </ItemGroup>
+  </Target>
+
+  <!-- A stale WPF incremental-build cache can produce the generated .g.cs files while omitting
+       the corresponding BAML from g.resources. Never allow that incomplete assembly to reach F5
+       deployment: validate every Page item after Compile and before the VSIX deployment target. -->
+  <Target Name="ValidateWpfBamlResources"
+          AfterTargets="MarkupCompilePass2;Compile"
+          BeforeTargets="DeployVsixExtensionFiles">
+    <ItemGroup>
+      <_ExpectedWpfBaml Include="@(Page->'$(IntermediateOutputPath)%(Filename).baml')" />
+      <_MissingWpfBaml Include="@(_ExpectedWpfBaml)" Condition="!Exists('%(Identity)')" />
+    </ItemGroup>
+    <Error Condition="'@(_MissingWpfBaml)' != ''"
+           Text="WPF BAML resource generation is incomplete. Missing: @(_MissingWpfBaml). Rebuild the VSIX before launching Visual Studio." />
   </Target>
 
 </Project>

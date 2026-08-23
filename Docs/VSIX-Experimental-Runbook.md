@@ -44,3 +44,11 @@ Studio プロファイルや `.vs` を消すと、ウィンドウ状態の再現
 - `CgeFixed` 以外の root suffix の拡張やユーザー作業を自動削除しないこと。
 - 失敗時はまず VSIX のロード同一性、次に Document Well の HRESULT、最後に Scene Renderer
   の診断を確認し、推測でキャッシュを削除しないこと。
+
+## F5 preflight requirements
+
+`Launch-VSExtension.ps1` uses a forced `Rebuild`. The build fails if any source XAML Page has no generated BAML, and deployment does not continue.
+
+Before Visual Studio starts, verify the VSIX package DLL SHA-256 matches the local Debug DLL, exactly one `CgeFixed` installation exists for the extension ID, and the installed DLL has the expected version, hash, and every source XAML BAML resource.
+
+If deployment reports missing BAML, rebuild with `dotnet build tools/CSharpGameEngine.VSExtension/CSharpGameEngine.VSExtension.csproj -c Debug -t:Rebuild`. If it reports a package hash mismatch, discard the stale package and rebuild. Duplicate, stale-version, stale-hash, or installed-BAML errors stop F5 before `devenv.exe`; inspect `%LOCALAPPDATA%\\CSharpGameEngine\\Logs\\CgeFixed-VsixMaintenance-*.log`.

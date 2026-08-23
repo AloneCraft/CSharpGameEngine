@@ -57,7 +57,7 @@ function Assert-CgeFixedCanBeUpdated{
 Assert-CgeFixedCanBeUpdated
 
 if(!$NoBuild){
-    & dotnet build $Project --configuration Debug
+    & dotnet build $Project --configuration Debug -t:Rebuild
     if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
 }
 

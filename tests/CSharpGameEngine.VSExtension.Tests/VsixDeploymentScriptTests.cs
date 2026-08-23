@@ -17,12 +17,25 @@ public sealed class VsixDeploymentScriptTests {
             AppContext.BaseDirectory,"TestAssets","Launch-VSExtension.ps1"));
 
         Assert.Contains("[switch]$CloseCgeFixed",Script);
+        Assert.Contains("-t:Rebuild",Script);
         Assert.Contains("CloseMainWindow()",Script);
         Assert.DoesNotContain("Stop-Process",Script);
         Assert.Contains("-requires Microsoft.VisualStudio.Component.CoreEditor",Script);
         Assert.Contains("Get-VisualStudioInstallPath",Script);
         Assert.Contains("Common7\\IDE\\devenv.exe",Script);
         Assert.DoesNotContain("-latest -products",Script);
+    }
+
+    [Fact]
+    public void ReinstallScript_VerifiesBamlAndPackageBeforeDeployment(){
+        string Script=File.ReadAllText(Path.Combine(
+            AppContext.BaseDirectory,"TestAssets","Reinstall-CgeFixedVsix.ps1"));
+
+        Assert.Contains("Get-EmbeddedWpfBamlNames",Script);
+        Assert.Contains("Assert-WpfBamlResources",Script);
+        Assert.Contains("Get-VsixAssemblyHash",Script);
+        Assert.Contains("-t:Rebuild",Script);
+        Assert.Contains("VSIX package DLL SHA-256 does not match build output",Script);
     }
 
 [Fact]
