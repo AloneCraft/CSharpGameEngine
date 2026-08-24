@@ -1,5 +1,5 @@
 using System.Reflection;
-using UserEcsProject;
+using CSharpGameEngine.Runtime.Windows;
 
 namespace CSharpGameEngine.Runtime.Windows.Tests;
 

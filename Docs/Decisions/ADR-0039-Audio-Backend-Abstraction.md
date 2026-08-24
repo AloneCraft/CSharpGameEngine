@@ -209,3 +209,8 @@ dotnet build UserEcsProject/UserEcsProject.csproj -c Debug
 
 関連: [[ADR-0025-RUF-Semantic-Coordinates]]、[[ADR-0033-Static-Archetype-Ecs-Migration]]、
 [[ADR-0035-Generated-Entry-Point-And-Engine-Objects-As-Components]]、[[ADR-0038-Startup-Scene-Declarative-Api]]
+
+
+## Windows ownership update (ADR-0048)
+
+XAudio2 is selected by the shared Windows Runtime facade. UserEcsProject no longer defines a global audio alias or backend facade.

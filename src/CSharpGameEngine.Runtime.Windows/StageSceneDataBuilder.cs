@@ -2,13 +2,12 @@ using System.Numerics;
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Import.Gltf;
-using CSharpGameEngine.Runtime.Windows;
 
-namespace UserEcsProject;
+namespace CSharpGameEngine.Runtime.Windows;
 
 /// <summary>宣言された個別StaticMeshを、固定ロースター型StageRendererの生成入力へ変換する。</summary>
-internal sealed class StaticMeshSceneData {
-    private StaticMeshSceneData(
+internal sealed class StageSceneDataBuilder {
+    private StageSceneDataBuilder(
         StageMeshCreateInfo[]Meshes,
         StageMaterialCreateInfo[]Materials,
         StageObjectCreateInfo[]Objects,
@@ -31,7 +30,7 @@ internal sealed class StaticMeshSceneData {
     /// <summary>Authoring Entity whose fixed hierarchy owns each renderer object.</summary>
     public Entity[]SourceEntities { get;}
 
-    public static StaticMeshSceneData Build(
+    public static StageSceneDataBuilder Build(
         IReadOnlyList<(Entity Entity,Transform Transform,StaticMesh Mesh)>StaticMeshes,
         IReadOnlyList<(Entity Entity,Transform Transform,PrimitiveMesh Mesh)>Primitives){
         List<StageMeshCreateInfo>Meshes=[];
@@ -71,10 +70,10 @@ internal sealed class StaticMeshSceneData {
         }
 
         if(Objects.Count==0){
-            throw new InvalidOperationException("宣言型Sceneに描画可能なStaticMeshまたはPrimitiveMeshがありません。");
+            throw new InvalidOperationException("Runtime requires at least one StaticMesh or PrimitiveMesh.");
         }
 
-        return new StaticMeshSceneData([.. Meshes],[.. Materials],[.. Objects],
+        return new StageSceneDataBuilder([.. Meshes],[.. Materials],[.. Objects],
             [.. ObjectTransforms],[.. ObjectLocalTransforms],[.. SourceEntities]);
     }
 

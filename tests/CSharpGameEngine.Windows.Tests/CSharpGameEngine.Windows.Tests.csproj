@@ -22,9 +22,9 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\CSharpGameEngine.Windows\CSharpGameEngine.Windows.csproj" />
     <ProjectReference Include="..\..\UserEcsProject\UserEcsProject.csproj" />
-    <!-- The authored physical-light API lives in the user-compilable engine source. Keep a
-         compile-time contract test here so an editor-only change cannot reintroduce positional
-         or unitless light fields. -->
+    <!-- The authored physical-light API is compiled from the shared Runtime.Windows source inside
+         UserEcsProject. Keep a compile-time contract test here so editor-only changes cannot
+         reintroduce positional or unitless light fields. -->
     <!-- Test-only edge: production CSharpGameEngine.Windows itself has no reference to the
          importers - only the model/stage GPU integration tests load .glb fixtures. -->
     <ProjectReference Include="..\..\src\CSharpGameEngine.Import\CSharpGameEngine.Import.csproj" />

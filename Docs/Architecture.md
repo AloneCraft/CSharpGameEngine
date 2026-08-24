@@ -148,3 +148,10 @@ L3 World owns a read-only fixed-point loose-octree snapshot. L3 Systems may own 
 Scene Viewの描画モードはVSIXのPSO切替で実装し、ランタイムのGlobal Spatial Octreeは `SpatialDebugHub` の要求駆動Named Pipeで読み取り専用公開する。個別System索引の暗黙収集は行わず、描画用頂点予算は既存ギズモ4,096と空間デバッグ12,288を分離する。
 
 Editor PreviewはVSIX内の複製実装ではなく、生成済みRuntimeアセンブリを隔離Hostで実行する共通World経路である。
+
+
+## Shared Windows ECS Runtime
+
+`CSharpGameEngine.Runtime.Windows` is a source-shared L5 runtime module. Its `.projitems` is compiled into the user ECS compilation together with Entities, the analyzer, and the selected fixed-precision profile. This keeps generated World/State APIs, hierarchy resolution, stage rendering, XAudio2 selection, and runtime companion components on one concrete Logical type.
+
+UserEcsProject remains an L9 composition root for scenes, gameplay components, assets, and precision selection. Runtime systems do not depend on a scene class name or on `PlayerStart`; one active Camera is required and its Transform is authoritative.

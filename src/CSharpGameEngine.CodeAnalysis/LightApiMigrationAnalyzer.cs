@@ -110,9 +110,13 @@ public sealed class LightApiMigrationAnalyzer:DiagnosticAnalyzer {
 
     private static bool TryGetLightName(INamedTypeSymbol Type,out string LightName){
         LightName=Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) switch {
+            "global::CSharpGameEngine.Runtime.Windows.DirectionalLight"=>"DirectionalLight",
             "global::UserEcsProject.DirectionalLight"=>"DirectionalLight",
+            "global::CSharpGameEngine.Runtime.Windows.PointLight"=>"PointLight",
             "global::UserEcsProject.PointLight"=>"PointLight",
+            "global::CSharpGameEngine.Runtime.Windows.SpotLight"=>"SpotLight",
             "global::UserEcsProject.SpotLight"=>"SpotLight",
+            "global::CSharpGameEngine.Runtime.Windows.AreaLight"=>"AreaLight",
             "global::UserEcsProject.AreaLight"=>"AreaLight",
             _=>string.Empty,
         };

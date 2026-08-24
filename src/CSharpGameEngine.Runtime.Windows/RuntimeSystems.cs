@@ -2,11 +2,10 @@ using System.Numerics;
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Platform.Windows;
-using CSharpGameEngine.Runtime.Windows;
 using RenderCamera=CSharpGameEngine.Graphics.D3D12.Camera;
-using SceneCamera=CSharpGameEngine.Runtime.Windows.Camera;
+using Camera=CSharpGameEngine.Runtime.Windows.Camera;
 
-namespace UserEcsProject.Systems;
+namespace CSharpGameEngine.Runtime.Windows;
 
 [SystemOrder(1)]
 file sealed class Order;
@@ -68,8 +67,6 @@ internal static class LightTransform {
 
 /// <summary>
 /// Applies the fixed hierarchy's local +Z/+Y camera basis at the final renderer boundary.
-/// Identity world bases keep the legacy PlayerStart yaw/pitch initialization; every non-identity
-/// basis, including a parent rotation or pure roll, overrides that legacy pose.
 /// </summary>
 internal static class CameraTransform {
     public static FixedTransformStatus TryApplyWorldOrientation(
@@ -91,16 +88,17 @@ internal static class CameraTransform {
         return FixedTransformStatus.NonInvertible;
     }
 
-    public static void ApplyLegacyPlayerStart(
-        ref RenderCamera Camera,in PlayerStart PlayerStart){
-        Camera.Yaw=PlayerStart.YawRadians;
-        Camera.Pitch=PlayerStart.PitchRadians;
-        Camera.Up=Vector3.UnitY;
-    }
 }
 
 internal struct Window:ISystem {
-    public bool Update(ref AppHost App,ref AppHostRuntime Runtime,ref State State){
+    private Entity HostEntity;
+    private bool HasHostEntity;
+
+    public bool Update(Entity Entity,ref AppHost App,ref AppHostRuntime Runtime,ref State State){
+        if(!this.HasHostEntity){this.HostEntity=Entity;this.HasHostEntity=true;}
+        else if(!this.HostEntity.Equals(Entity)){
+            throw new InvalidOperationException("Runtime requires exactly one AppHost.");
+        }
         if(Runtime.Window is not{ }Window){
             Runtime.Window=new Win32Window(new Win32WindowOptions { Title=App.Title,Width=App.Width,Height=App.Height,Visible=true });
             return true;
@@ -120,21 +118,15 @@ internal struct Window:ISystem {
 /// {AppHost,Level}より後ろへ登録されるため、同一フレームで確定してはならない。
 /// </summary>
 internal struct LevelLoad:ISystem {
+    private Entity LevelEntity;
+    private bool HasLevelEntity;
     private List<(Entity Entity,Transform Transform,StaticMesh Mesh)>?PendingStaticMeshes;
     private List<(Entity Entity,Transform Transform,PrimitiveMesh Mesh)>?PendingPrimitives;
-    private AmbientLight PendingAmbient;
-    private HeightFog PendingFog;
-    private Transform PendingPlayerTransform;
-    private PlayerStart PendingPlayerStart;
     private Entity PendingCameraEntity;
-    private SceneCamera PendingCamera;
-    private bool HasEnvironment;
-    private bool HasSun;
-    private bool HasPlayerStart;
-    private bool HasActiveCamera;
+    private Camera PendingCamera;
+    private int ActiveCameraCount;
     private bool CollectionPassStarted;
     private bool RosterCaptured;
-    private bool UsesTransformCameraOrientation;
 
     public bool Update(Entity Entity,ref Transform Transform,ref StaticMesh Mesh,ref State State){
         if(!this.RosterCaptured)(this.PendingStaticMeshes??=[]).Add((Entity,Transform,Mesh));
@@ -146,52 +138,30 @@ internal struct LevelLoad:ISystem {
         return true;
     }
 
-    public bool Update(ref AmbientLight Ambient,ref HeightFog Fog,ref State State){
-        if(!this.RosterCaptured){
-            this.PendingAmbient=Ambient;
-            this.PendingFog=Fog;
-            this.HasEnvironment=true; }
-        return true;
-    }
-
-    public bool Update(ref Transform Transform,ref UserEcsProject.DirectionalLight Sun,ref State State){
-        if(!this.RosterCaptured){
-            this.HasSun=true; }
-        return true;
-    }
-
-    public bool Update(ref Transform Transform,ref PlayerStart PlayerStart,ref State State){
-        if(!this.RosterCaptured){
-            this.PendingPlayerTransform=Transform;
-            this.PendingPlayerStart=PlayerStart;
-            this.HasPlayerStart=true; }
-        return true;
-    }
-
-    public bool Update(Entity Entity,ref Transform Transform,ref SceneCamera Camera,ref State State){
+    public bool Update(Entity Entity,ref Transform Transform,ref Camera Camera,ref State State){
         if(!this.RosterCaptured&&Camera.Active){
-            this.PendingCameraEntity=Entity;
-            this.PendingCamera=Camera;
-            this.HasActiveCamera=true; }
+            this.ActiveCameraCount++;
+            if(this.ActiveCameraCount==1){
+                this.PendingCameraEntity=Entity;
+                this.PendingCamera=Camera;
+            }
+        }
         return true;
     }
-
-    public bool Update(ref AppHost App,ref AppHostRuntime AppRuntime,ref Level Level,ref LevelRuntime LevelRuntime,ref State State){
+    public bool Update(Entity Entity,ref AppHost App,ref AppHostRuntime AppRuntime,ref Level Level,ref LevelRuntime LevelRuntime,ref State State){
+        if(!this.HasLevelEntity){this.LevelEntity=Entity;this.HasLevelEntity=true;}
+        else if(!this.LevelEntity.Equals(Entity)){
+            throw new InvalidOperationException("Runtime requires exactly one Level.");
+        }
         if(LevelRuntime.Loaded){
             FixedTransformResolveStatus CameraResolveStatus=RuntimeWorldTransform.TryResolveWorld(
                 this.PendingCameraEntity,State.World,out FixedAffineTransform CameraWorld);
             LevelRuntime.LastCameraWorldResolveStatus=CameraResolveStatus;
             if(CameraResolveStatus==FixedTransformResolveStatus.Success){
                 FixedTransformStatus CameraStatus=CameraTransform.TryApplyWorldOrientation(
-                    CameraWorld,ref LevelRuntime.RenderCamera,out bool UsesTransformOrientation);
+                    CameraWorld,ref LevelRuntime.RenderCamera,out _);
                 LevelRuntime.LastCameraTransformStatus=CameraStatus;
                 if(CameraStatus==FixedTransformStatus.Success){
-                    if(!UsesTransformOrientation&&this.UsesTransformCameraOrientation){
-                        CameraTransform.ApplyLegacyPlayerStart(
-                            ref LevelRuntime.RenderCamera,this.PendingPlayerStart);
-                    }
-
-                    this.UsesTransformCameraOrientation=UsesTransformOrientation;
                     // The generated loop is archetype-major. Refresh before any Renderable/light
                     // archetype executes so every GPU submission in this frame uses one camera origin.
                     RuntimeRendererBinding.SetCameraWorldOrigin(CameraWorld);
@@ -207,11 +177,14 @@ internal struct LevelLoad:ISystem {
         if(AppRuntime.Window is not{ }Window)return true;
         if(!this.CollectionPassStarted){
             this.CollectionPassStarted=true;return true; }
-        if(!this.HasEnvironment||!this.HasSun||!this.HasPlayerStart||!this.HasActiveCamera){
-            throw new InvalidOperationException("FirstPersonStageSceneの環境光、Fog、DirectionalLight、PlayerStartが揃っていません。");
+        if(this.ActiveCameraCount==0){
+            throw new InvalidOperationException("Runtime requires exactly one active Camera, but none was found.");
+        }
+        if(this.ActiveCameraCount>1){
+            throw new InvalidOperationException($"Runtime requires exactly one active Camera, but {this.ActiveCameraCount} were found.");
         }
 
-        var Scene=StaticMeshSceneData.Build(
+        var Scene=StageSceneDataBuilder.Build(
             this.PendingStaticMeshes??=[],
             this.PendingPrimitives??=[]);
         var Renderer=StageRenderer.Create(
@@ -229,15 +202,11 @@ internal struct LevelLoad:ISystem {
         }
 
         FixedTransformStatus InitialCameraStatus=CameraTransform.TryApplyWorldOrientation(
-            InitialCameraWorld,ref Camera,out bool InitialUsesTransformOrientation);
+            InitialCameraWorld,ref Camera,out _);
         LevelRuntime.LastCameraTransformStatus=InitialCameraStatus;
         if(InitialCameraStatus!=FixedTransformStatus.Success){
             throw new InvalidOperationException(
                 $"The active camera Transform basis cannot produce a renderer view: {InitialCameraStatus}.");
-        }
-        this.UsesTransformCameraOrientation=InitialUsesTransformOrientation;
-        if(!InitialUsesTransformOrientation){
-            CameraTransform.ApplyLegacyPlayerStart(ref Camera,this.PendingPlayerStart);
         }
 
         Camera.FovYRadians= this.PendingCamera.FovYRadians;
@@ -315,7 +284,7 @@ internal struct LevelLoad:ISystem {
 }
 
 internal struct CameraOriginSync:ISystem {
-    public bool Update(Entity Entity,ref Transform Transform,ref SceneCamera Camera,ref State State){
+    public bool Update(Entity Entity,ref Transform Transform,ref Camera Camera,ref State State){
         if(Camera.Active
             &&RuntimeWorldTransform.TryResolveWorld(Entity,State.World,out FixedAffineTransform CameraWorld)
                 ==FixedTransformResolveStatus.Success
@@ -330,7 +299,7 @@ internal struct CameraOriginSync:ISystem {
 }
 
 internal struct DirectionalLightSync:ISystem {
-    public bool Update(Entity Entity,ref Transform Transform,ref UserEcsProject.DirectionalLight Light,ref DirectionalLightRuntime Runtime,ref State State){
+    public bool Update(Entity Entity,ref Transform Transform,ref DirectionalLight Light,ref DirectionalLightRuntime Runtime,ref State State){
         if(RuntimeRendererBinding.Resolve(ref Runtime.Renderer) is { }Renderer){
             FixedTransformStatus Status=LightTransform.TryGetCameraRelativePose(
                 Entity,State.World,out _,out Vector3 Forward,out FixedTransformResolveStatus ResolveStatus);
@@ -367,7 +336,7 @@ internal struct HeightFogSync:ISystem {
 }
 
 internal struct PointLightSync:ISystem {
-    public bool Update(Entity Entity,ref Transform Transform,ref UserEcsProject.PointLight Light,ref PointLightRuntime Runtime,ref State State){
+    public bool Update(Entity Entity,ref Transform Transform,ref PointLight Light,ref PointLightRuntime Runtime,ref State State){
         if(RuntimeRendererBinding.Resolve(ref Runtime.Renderer) is { }Renderer){
             FixedTransformStatus Status=LightTransform.TryGetCameraRelativePose(
                 Entity,State.World,out Vector3 Position,out _,out FixedTransformResolveStatus ResolveStatus);
@@ -389,7 +358,7 @@ internal struct PointLightSync:ISystem {
 }
 
 internal struct SpotLightSync:ISystem {
-    public bool Update(Entity Entity,ref Transform Transform,ref UserEcsProject.SpotLight Light,ref SpotLightRuntime Runtime,ref State State){
+    public bool Update(Entity Entity,ref Transform Transform,ref SpotLight Light,ref SpotLightRuntime Runtime,ref State State){
         if(RuntimeRendererBinding.Resolve(ref Runtime.Renderer) is { }Renderer){
             FixedTransformStatus Status=LightTransform.TryGetCameraRelativePose(
                 Entity,State.World,out Vector3 Position,out Vector3 Forward,out FixedTransformResolveStatus ResolveStatus);
@@ -413,7 +382,7 @@ internal struct SpotLightSync:ISystem {
 }
 
 internal struct AreaLightSync:ISystem {
-    public bool Update(Entity Entity,ref Transform Transform,ref UserEcsProject.AreaLight Light,ref AreaLightRuntime Runtime,ref State State){
+    public bool Update(Entity Entity,ref Transform Transform,ref AreaLight Light,ref AreaLightRuntime Runtime,ref State State){
         if(RuntimeRendererBinding.Resolve(ref Runtime.Renderer) is { }Renderer){
             FixedTransformStatus Status=LightTransform.TryGetCameraRelativePose(
                 Entity,State.World,out Vector3 Position,out Vector3 Forward,out FixedTransformResolveStatus ResolveStatus);
@@ -512,8 +481,8 @@ internal struct HierarchyQueryRegistration:ISystem { public void Spawn(ref Paren
 internal struct AudioPlayback:ISystem {
     public bool Update(ref AudioSource Source,ref AudioSourceRuntime Runtime,ref State State){
         if(Runtime.Voice is not{ }Voice)return true;
-        if(!State.Enabled){ GameAudio.Stop(Voice);GameAudio.DestroyVoice(Voice);return true; }
-        GameAudio.SetVolume(Voice,Source.Volume);
+        if(!State.Enabled){ WindowsAudio.Stop(Voice);WindowsAudio.DestroyVoice(Voice);return true; }
+        WindowsAudio.SetVolume(Voice,Source.Volume);
         return true;
     }
 }
@@ -538,7 +507,7 @@ internal struct Present:ISystem {
         }
 
         if(Present.AudioEngine is{ }AudioEngine){
-            GameAudio.DestroyEngine(AudioEngine);
+            WindowsAudio.DestroyEngine(AudioEngine);
             Present.AudioEngine=null;
         }
     }

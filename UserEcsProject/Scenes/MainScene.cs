@@ -1,4 +1,5 @@
 using CSharpGameEngine.Entities;
+using CSharpGameEngine.Runtime.Windows;
 
 namespace UserEcsProject.Scenes;
 

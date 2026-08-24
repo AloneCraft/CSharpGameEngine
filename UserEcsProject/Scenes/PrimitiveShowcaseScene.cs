@@ -7,7 +7,7 @@ namespace UserEcsProject.Scenes;
 // ADR-0040 Phase 6 のデモ: 個別配置プリミティブ({Transform, PrimitiveMesh})を宣言する、
 // MainScene.cs とは独立した Startup Scene 群。GameSystemGenerator は [StartupScene] を複数許容する
 // ため、MainScene.cs を一切変更せずに済む(既存の Lvl_FirstPerson の見た目は不変)。
-// Systems/RuntimeSystem.cs の LevelLoad が MainScene の Level から生成する StageRenderer/カメラを
+// src/CSharpGameEngine.Runtime.Windows/RuntimeSystems.cs の LevelLoad が MainScene の Level から生成する StageRenderer/カメラを
 // 共有し、そこへこのシーンのプリミティブが追加でロースターへ載る。
 //
 // 各プリミティブを Root 直下の Children ではなく、それぞれ専用の Root(単一ノード、Components のみ)

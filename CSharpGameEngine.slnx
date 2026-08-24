@@ -1,5 +1,7 @@
 <Solution>
   <Configurations>
+    <BuildType Name="Debug" />
+    <BuildType Name="Release" />
     <Platform Name="x64" />
   </Configurations>
   <Folder Name="/Docs/">
@@ -115,6 +117,8 @@
     <Project Path="src/CSharpGameEngine.Import/CSharpGameEngine.Import.csproj" />
     <Project Path="src/CSharpGameEngine.SceneModel/CSharpGameEngine.SceneModel.csproj" />
     <Project Path="src/CSharpGameEngine.Windows/CSharpGameEngine.Windows.csproj" />
+    <Project Path="src/CSharpGameEngine.Runtime.Windows/CSharpGameEngine.Runtime.Windows.shproj" />
+    <File Path="src/CSharpGameEngine.Runtime.Windows/CSharpGameEngine.Runtime.Windows.projitems" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/CSharpGameEngine.Core.Tests/CSharpGameEngine.Core.Tests.csproj" />

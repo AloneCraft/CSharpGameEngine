@@ -12,6 +12,8 @@
     <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)Generated</CompilerGeneratedFilesOutputPath>
   </PropertyGroup>
 
+  <Import Project="..\src\CSharpGameEngine.Runtime.Windows\CSharpGameEngine.Runtime.Windows.projitems" Label="Shared" />
+
   <ItemGroup>
     <Compile Remove="Generated\**\*.cs" />
   </ItemGroup>
@@ -31,7 +33,6 @@
   <ItemGroup>
     <None Include="..\assets\Shaders\Stage.hlsl" Link="Shaders\Stage.hlsl" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
-
 
   <ItemGroup>
     <Compile Remove="../src/CSharpGameEngine.Entities/SceneComponentIconAttribute.cs" />

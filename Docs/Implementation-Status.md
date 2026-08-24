@@ -3299,3 +3299,13 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Verification: TestVerified (automated); UserEcs smoke pending
 - Implementation evidence: tools/CSharpGameEngine.VSExtension/SceneRenderer.cs; SceneHwndHost.cs; src/CSharpGameEngine.Entities/SpatialDebug.cs
 - Tests: tests/CSharpGameEngine.VSExtension.Tests/SpatialDebugOverlayTests.cs
+
+## F-L5-001 — Shared Windows ECS Runtime
+
+- Layer: L5 — Runtime Feature Modules
+- Status: Implemented
+- Verification: TestVerified (Debug/Release solution build and test, UserEcsProject build, Windows light contract, VSIX binding, analyzer migration)
+- Intended specification: Docs/Decisions/ADR-0048-Shared-Windows-Ecs-Runtime.md
+- Implementation evidence: `src/CSharpGameEngine.Runtime.Windows/CSharpGameEngine.Runtime.Windows.shproj`, `src/CSharpGameEngine.Runtime.Windows/CSharpGameEngine.Runtime.Windows.projitems`
+- Contract: shared source owns Windows ECS components/systems, XAudio2 facade, fixed hierarchy resolution, and stage data; UserEcsProject retains scenes/gameplay/precision selection.
+- Known deviations: none for the shared Runtime migration.

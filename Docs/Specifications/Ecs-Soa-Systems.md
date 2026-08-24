@@ -326,3 +326,8 @@ Scene Authoringの診断は`SCENE001`〜`008`(`SCENE009`はADR-0033で削除。�
 ## Spatial snapshot
 
 When `Transform` and `SpatialBounds` share an Archetype, generated code scans that Archetype after structural playback and refreshes `World.GlobalSpatialIndex`. Systems therefore read the prior complete snapshot unless they explicitly refresh it as the sole writer.
+
+
+## Windows Runtime source boundary
+
+The generated ECS compilation imports `CSharpGameEngine.Runtime.Windows.projitems`. Runtime companion components remain in the generated archetype surface, while their implementation source is shared and precision-selected with the user compilation.

@@ -229,3 +229,8 @@ Present」が`Program.cs`なしで通っている。立方体が暗く見える�
 - F-L7-016 — `GameSystemGenerator`診断(SYSGEN021の追加)
 
 関連: [[M0015-Generated-Entry-Point]]
+
+
+## Shared Runtime follow-up (ADR-0048)
+
+The Windows engine-object components and generated runtime systems now live in `CSharpGameEngine.Runtime.Windows` shared source. UserEcsProject imports the projitems rather than owning a duplicate RuntimeSystem.

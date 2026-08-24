@@ -662,7 +662,7 @@ internal partial class FirstPersonStageScene : IScene {
                         Rotation=new Logical.Vector3(0f,0f,0f),
                         Scale=new Logical.Vector3(1f,1f,1f),
                     },
-                    new PlayerStart { YawRadians=0f,PitchRadians=0f },
+                    new PlayerStart(),
                     new Camera { Active=true },
                 ],
             },

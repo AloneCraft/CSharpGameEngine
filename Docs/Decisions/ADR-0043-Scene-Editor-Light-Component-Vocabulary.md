@@ -64,3 +64,8 @@ PropertyGizmo と Inspector は上記の物理フィールドを編集する。�
 ### Emissive
 
 Material の Emissive は自己発光表示だけでなく、直接光と影を生成する発光面として扱う。glTF の `emissiveFactor`、`emissiveTexture`、`KHR_materials_emissive_strength` を読み込み、値 1.0 は既定で 100 nits に換算する。発光三角形は決定的に最大 16 個の矩形パッチへ近似し、Object の Transform に追従して AreaLight と同じ直接光・シャドウ経路へ送る。二次反射および多重 GI はこの決定の対象外である。
+
+
+## Namespace update (ADR-0048)
+
+The authored physical light vocabulary is `CSharpGameEngine.Runtime.Windows.{DirectionalLight,PointLight,SpotLight,AreaLight}`. VSIX bindings and migration diagnostics use these names; old UserEcsProject names remain diagnostic-only.

@@ -92,6 +92,25 @@ public sealed class LightApiMigrationAnalyzerTests {
     }
 
     [Fact]
+    public void RuntimePhysicalVocabulary_IsAccepted(){
+        var Diagnostics=Analyze(Preamble+"""
+            namespace CSharpGameEngine.Runtime.Windows {
+                public struct PointLight {
+                    public float LuminousFluxLumens;
+                    public float RangeMeters;
+                }
+            }
+            namespace Game;
+            public static class Scene {
+                public static void Build()=>_ = new CSharpGameEngine.Runtime.Windows.PointLight {
+                    LuminousFluxLumens=800f,RangeMeters=10f,
+                };
+            }
+            """);
+
+        Assert.Empty(Diagnostics);
+    }
+    [Fact]
     public void ProjectWithoutTransformPrecisionContract_IsNotAnalyzed(){
         var Diagnostics=Analyze(Preamble.Replace(
             "[assembly: CSharpGameEngine.Entities.TransformPrecision(384,173)]",string.Empty,StringComparison.Ordinal)+"""

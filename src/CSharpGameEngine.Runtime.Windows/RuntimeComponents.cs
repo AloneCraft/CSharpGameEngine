@@ -2,10 +2,9 @@ using System.Numerics;
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Platform.Windows;
-using CSharpGameEngine.Runtime.Windows;
 using RenderCamera=CSharpGameEngine.Graphics.D3D12.Camera;
 
-namespace UserEcsProject;
+namespace CSharpGameEngine.Runtime.Windows;
 
 // ============================================================================
 // エンジンオブジェクト(Win32Window / StageRenderer / AudioEngineHandle)はComponentのフィールドとして持つ。
@@ -98,12 +97,6 @@ public struct HeightFog {
 }
 
 /// <summary>実行時の初期一人称カメラ位置と向きを宣言する。</summary>
-[SceneComponentIcon("Assets/Editor/ComponentIcons/PlayerStart.svg")]
-public struct PlayerStart {
-    public float YawRadians;
-    public float PitchRadians;
-}
-
 /// <summary>
 /// 単一のオーディオリスナー(「耳」)。現時点では位置を持つだけの器で、<see cref="AudioSource"/>との
 /// 距離減衰計算は行わない — 閉集合Archetypeでは別Entityのコンポーネントを横断参照できないため

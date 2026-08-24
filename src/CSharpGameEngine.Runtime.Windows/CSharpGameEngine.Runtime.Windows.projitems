@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <MSBuildAllProjects Condition="'$(MSBuildVersion)' == '' Or '$(MSBuildVersion)' &lt; '16.0'">$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+    <HasSharedItems>true</HasSharedItems>
+    <Shared37707867-1453-44b9-bd3d-bf54cd7ffcae>{37707867-1453-44b9-bd3d-bf54cd7ffcae}</Shared37707867-1453-44b9-bd3d-bf54cd7ffcae>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <Import_RootNamespace>CSharpGameEngine.Runtime.Windows</Import_RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)RuntimeComponents.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)StageSceneDataBuilder.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)WindowsAudioRuntime.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)RuntimeWorldTransform.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)RuntimeSystems.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\AmbientLight.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\AppHost.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\AreaLight.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\AudioListener.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\AudioSource.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\DirectionalLight.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\FramePresent.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\HeightFog.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\Level.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\PlayerStart.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\PointLight.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\Renderable.svg" />
+    <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\SpotLight.svg" />
+  </ItemGroup>
+</Project>

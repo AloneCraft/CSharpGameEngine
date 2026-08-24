@@ -136,3 +136,8 @@ Source Generatorが自動的に付与する。仕組みは`Parent`/`SceneNodeTag
   System側で索引が付くため保証は保たれる
 - ADR-0040(Scene DSL / C#が正本)— `BuildEffectiveComponents`の共有原則をそのまま継承
 - M0052(Componentパレット)— この設計を必要とした発端
+
+
+## Shared-source ownership update (ADR-0048)
+
+Runtime companion components and their systems are compiled from `CSharpGameEngine.Runtime.Windows` shared source with the consuming Logical precision. They are not authored scene components.

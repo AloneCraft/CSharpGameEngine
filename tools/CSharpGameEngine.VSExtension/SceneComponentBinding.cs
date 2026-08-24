@@ -56,10 +56,10 @@ internal static class SceneComponentBindings {
     internal const string PrimitiveMeshTypeFullyQualifiedName="global::CSharpGameEngine.Runtime.Windows.PrimitiveMesh";
     internal const string StaticMeshTypeFullyQualifiedName="global::CSharpGameEngine.Runtime.Windows.StaticMesh";
     internal const string CameraTypeFullyQualifiedName="global::CSharpGameEngine.Runtime.Windows.Camera";
-    internal const string DirectionalLightTypeFullyQualifiedName="global::UserEcsProject.DirectionalLight";
-    internal const string PointLightTypeFullyQualifiedName="global::UserEcsProject.PointLight";
-    internal const string SpotLightTypeFullyQualifiedName="global::UserEcsProject.SpotLight";
-    internal const string AreaLightTypeFullyQualifiedName="global::UserEcsProject.AreaLight";
+    internal const string DirectionalLightTypeFullyQualifiedName="global::CSharpGameEngine.Runtime.Windows.DirectionalLight";
+    internal const string PointLightTypeFullyQualifiedName="global::CSharpGameEngine.Runtime.Windows.PointLight";
+    internal const string SpotLightTypeFullyQualifiedName="global::CSharpGameEngine.Runtime.Windows.SpotLight";
+    internal const string AreaLightTypeFullyQualifiedName="global::CSharpGameEngine.Runtime.Windows.AreaLight";
 
     // 退役した global::UserEcsProject.Transform は登録しない。互換のため両方登録すると、実シーンが
     // 原点に固まって描画されていたバグ(M0020 Phase 0 で修正)を静かに塗り潰し、直ったかどうかが

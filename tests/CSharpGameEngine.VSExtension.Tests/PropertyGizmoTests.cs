@@ -15,7 +15,7 @@ public sealed class PropertyGizmoTests {
                 public float FovYRadians; public float NearZ; public float FarZ; public float OrthographicSize;
             }
         }
-        namespace UserEcsProject {
+        namespace CSharpGameEngine.Runtime.Windows {
             public struct DirectionalLight {
                 public float DirectionTowardLightX; public float DirectionTowardLightY; public float DirectionTowardLightZ;
             }
@@ -149,7 +149,7 @@ public sealed class PropertyGizmoTests {
     private static SceneNode AnalyzePhysicalNode(string ComponentExpression){
         var SceneSource=$$"""
                           using CSharpGameEngine.Entities;
-                          using UserEcsProject;
+                          using CSharpGameEngine.Runtime.Windows;
                           namespace Game;
                           public partial class MainScene:IScene {
                               public Node Root=>new() { Components=[{{ComponentExpression}}] };
@@ -161,7 +161,7 @@ public sealed class PropertyGizmoTests {
     }
 
     private const string PhysicalComponents="""
-        namespace UserEcsProject {
+        namespace CSharpGameEngine.Runtime.Windows {
             public struct DirectionalLight { public float IlluminanceLux; }
             public struct SpotLight {
                 public float RangeMeters;
@@ -177,7 +177,6 @@ public sealed class PropertyGizmoTests {
         var SceneSource=$$"""
                           using CSharpGameEngine.Entities;
                           using CSharpGameEngine.Runtime.Windows;
-                          using UserEcsProject;
                           namespace Game;
                           public partial class MainScene:IScene {
                               public Node Root=>new() { Components=[{{ComponentExpression}}] };

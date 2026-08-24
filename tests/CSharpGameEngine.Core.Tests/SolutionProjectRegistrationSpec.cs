@@ -19,7 +19,7 @@ public sealed class SolutionProjectRegistrationSpec {
     public void SharedProjectsImportExplicitProjitemsWithoutWildcards(){
         foreach(var SharedProjectPath in EnumeratePaths("*.shproj")){
             var SharedProject=XDocument.Load(Path.Combine(RepositoryRoot,SharedProjectPath.Replace('/',Path.DirectorySeparatorChar)));
-            var Imports=SharedProject.Descendants("Import").Where(Element=>string.Equals(Element.Attribute("Label")?.Value,"Shared",StringComparison.Ordinal));
+            var Imports=SharedProject.Descendants().Where(Element=>Element.Name.LocalName=="Import").Where(Element=>string.Equals(Element.Attribute("Label")?.Value,"Shared",StringComparison.Ordinal));
             Assert.NotEmpty(Imports);
             foreach(var Import in Imports){
                 var ImportPath=Import.Attribute("Project")?.Value;

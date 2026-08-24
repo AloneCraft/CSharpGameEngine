@@ -553,3 +553,8 @@ Scene View 上部の `View` は `Lit`、`Base Color`、`Normal`、`Wireframe` �
 ## Editor Preview World
 
 Scene Viewの未実行状態は、Source Generatorが出力する GeneratedEditorPreviewBridge を隔離net10 Preview Hostから実行する。Runtimeと同じWorld、SystemOrder、GlobalSpatialIndex、SpatialDebugHubを使い、[ExecuteInEditor] のSystemだけを変更時（Realtime=trueは15Hz追加）に実行する。Runtimeスナップショットが有効な間はRuntimeを優先し、終了または未接続時はEditor Previewへ自動フォールバックする。
+
+
+## Runtime component namespace
+
+Scene View light bindings use `CSharpGameEngine.Runtime.Windows` physical light components. UserEcsProject contains scene declarations and gameplay markers only; runtime/editor preview use the same generated source boundary.

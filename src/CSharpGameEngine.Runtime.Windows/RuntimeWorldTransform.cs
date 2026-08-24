@@ -1,8 +1,7 @@
 using System.Numerics;
 using CSharpGameEngine.Entities;
-using CSharpGameEngine.Runtime.Windows;
 
-namespace UserEcsProject.Systems;
+namespace CSharpGameEngine.Runtime.Windows;
 
 /// <summary>
 /// Bridges the generated ECS hierarchy to the scene-selected fixed-point Transform implementation.

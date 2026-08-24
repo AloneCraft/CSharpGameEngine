@@ -47,9 +47,9 @@ public sealed class SceneComponentBindingTests {
 
     [Theory]
     [InlineData("global::CSharpGameEngine.Runtime.Windows.Camera",(int)SceneComponentRole.Camera)]
-    [InlineData("global::UserEcsProject.DirectionalLight",(int)SceneComponentRole.DirectionalLight)]
-    [InlineData("global::UserEcsProject.PointLight",(int)SceneComponentRole.PointLight)]
-    [InlineData("global::UserEcsProject.SpotLight",(int)SceneComponentRole.SpotLight)]
+    [InlineData("global::CSharpGameEngine.Runtime.Windows.DirectionalLight",(int)SceneComponentRole.DirectionalLight)]
+    [InlineData("global::CSharpGameEngine.Runtime.Windows.PointLight",(int)SceneComponentRole.PointLight)]
+    [InlineData("global::CSharpGameEngine.Runtime.Windows.SpotLight",(int)SceneComponentRole.SpotLight)]
     public void Phase6Bindings_RecognizeCameraAndCurrentLightVocabulary(
         string TypeFullyQualifiedName,int ExpectedValue){
         Assert.True(SceneComponentBindings.TryGetRole(TypeFullyQualifiedName,out var Actual));
