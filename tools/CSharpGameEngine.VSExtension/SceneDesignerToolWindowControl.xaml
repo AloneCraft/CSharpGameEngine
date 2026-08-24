@@ -12,7 +12,6 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         <ToggleButton x:Name='CameraPreviewToggle' Grid.Row='0' HorizontalAlignment='Right' VerticalAlignment='Top' Margin='0,5,8,0' Panel.ZIndex='5' Width='120' IsChecked='True' Content='{local:Loc SceneCameraPreview}' ToolTip='{local:Loc SceneCameraPreviewToolTip}' />
@@ -38,27 +37,7 @@
                 <TextBlock x:Name="VsixIdentityText" Foreground="#8FC9FF" FontSize="10" />
             </DockPanel>
         </Border>
-
-        <Border Grid.Row="1" Padding="8,3" Background="#202020" BorderBrush="#404040" BorderThickness="0,1,0,0">
-            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="{local:Loc PhysicsLabel}" Foreground="#D8D8D8" VerticalAlignment="Center" Margin="0,0,6,0" />
-                    <Button Content="{local:Loc PhysicsSimulate}" Margin="0,0,4,0" Padding="7,1" Click="OnPhysicsSimulate" />
-                    <Button Content="{local:Loc PhysicsPause}" Margin="0,0,4,0" Padding="7,1" Click="OnPhysicsPause" />
-                    <Button Content="{local:Loc PhysicsStep}" Margin="0,0,4,0" Padding="7,1" Click="OnPhysicsStep" />
-                    <Button Content="{local:Loc PhysicsReset}" Margin="0,0,8,0" Padding="7,1" Click="OnPhysicsReset" />
-                    <Button Content="{local:Loc PhysicsBakeSelected}" Margin="0,0,4,0" Padding="7,1" IsEnabled="False" ToolTip="{local:Loc PhysicsBakeSelectedDeferredToolTip}" />
-                    <Button Content="{local:Loc PhysicsBakeAll}" Margin="0,0,8,0" Padding="7,1" IsEnabled="False" ToolTip="{local:Loc PhysicsBakeAllDeferredToolTip}" />
-                    <CheckBox x:Name="PhysicsDebugToggle" Content="{local:Loc PhysicsDebug}" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" VerticalAlignment="Center" Margin="0,0,8,0" Checked="OnPhysicsDebugChanged" Unchecked="OnPhysicsDebugChanged" />
-                    <CheckBox x:Name="PhysicsBoundsToggle" Content="{local:Loc PhysicsColliderAabb}" IsChecked="True" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" VerticalAlignment="Center" Margin="0,0,8,0" Checked="OnPhysicsDebugOptionsChanged" Unchecked="OnPhysicsDebugOptionsChanged" />
-                    <CheckBox x:Name="PhysicsVelocityToggle" Content="{local:Loc PhysicsVelocity}" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" VerticalAlignment="Center" Margin="0,0,8,0" Checked="OnPhysicsDebugOptionsChanged" Unchecked="OnPhysicsDebugOptionsChanged" />
-                    <CheckBox x:Name="PhysicsSleepToggle" Content="{local:Loc PhysicsSleep}" IsChecked="True" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" VerticalAlignment="Center" Margin="0,0,8,0" Checked="OnPhysicsDebugOptionsChanged" Unchecked="OnPhysicsDebugOptionsChanged" />
-                    <CheckBox x:Name="PhysicsCenterOfMassToggle" Content="{local:Loc PhysicsCenterOfMass}" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" VerticalAlignment="Center" Checked="OnPhysicsDebugOptionsChanged" Unchecked="OnPhysicsDebugOptionsChanged" />
-                </StackPanel>
-            </ScrollViewer>
-        </Border>
-
-        <Border Grid.Row="2" Padding="8,0,8,4" Background="#202020">
+        <Border Grid.Row="1" Padding="8,0,8,4" Background="#202020">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -68,16 +47,78 @@
                 <TextBlock x:Name="SpatialDebugStatusText" Grid.Column="1" Margin="12,0,0,0" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" Text="{local:Loc SceneSpatialOff}" TextTrimming="CharacterEllipsis" />
             </Grid>
         </Border>
-        <Grid x:Name="RenderHostGrid" Grid.Row="3" Background="#050514">
-            <TextBlock x:Name="EmptyStateText"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       Margin="16"
-                       Foreground="#D8D8D8"
-                       FontSize="14"
-                       TextAlignment="Center"
-                       TextWrapping="Wrap"
-                       Text="{local:Loc SceneSelectPrompt}" />
+                <Grid x:Name="SceneSurfaceGrid" Grid.Row="2" Background="#050514">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Grid x:Name="RenderHostGrid" Grid.Column="0" Background="#050514">
+                <TextBlock x:Name="EmptyStateText"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Margin="16"
+                           Foreground="#D8D8D8"
+                           FontSize="14"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           Text="{local:Loc SceneSelectPrompt}" />
+            </Grid>
+            <Grid x:Name="PhysicsSidebarGrid" Grid.Column="1" Background="#202020">
+                <Button x:Name="PhysicsPanelToggle"
+                              Width="24"
+                              HorizontalAlignment="Stretch"
+                              VerticalAlignment="Stretch"
+                              Content="{local:Loc PhysicsPanelOpenGlyph}"
+                              ToolTip="{local:Loc PhysicsPanelOpenToolTip}"
+                              Click="OnPhysicsPanelToggleClicked" />
+                <Border x:Name="PhysicsPanelBorder"
+                        Width="280"
+                        Visibility="Collapsed"
+                        BorderBrush="#404040"
+                        BorderThickness="1,0,0,0"
+                        Background="#202020">
+                    <DockPanel LastChildFill="True">
+                        <Grid DockPanel.Dock="Top" Height="32" Margin="8,3,4,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="{local:Loc PhysicsLabel}"
+                                       Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}"
+                                       VerticalAlignment="Center"
+                                       FontWeight="SemiBold" />
+                            <Button Grid.Column="1"
+                                    x:Name="PhysicsPanelCloseButton"
+                                    Width="24"
+                                    Height="24"
+                                    Padding="0"
+                                    Content="{local:Loc PhysicsPanelCloseGlyph}"
+                                    ToolTip="{local:Loc PhysicsPanelCloseToolTip}"
+                                    Click="OnPhysicsPanelToggleClicked" />
+                        </Grid>
+                        <ScrollViewer Padding="8,4,8,8" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <Button Content="{local:Loc PhysicsSimulate}" Margin="0,0,4,0" Padding="7,1" Click="OnPhysicsSimulate" />
+                                    <Button Content="{local:Loc PhysicsPause}" Padding="7,1" Click="OnPhysicsPause" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <Button Content="{local:Loc PhysicsStep}" Margin="0,0,4,0" Padding="7,1" Click="OnPhysicsStep" />
+                                    <Button Content="{local:Loc PhysicsReset}" Padding="7,1" Click="OnPhysicsReset" />
+                                </StackPanel>
+                                <Button Content="{local:Loc PhysicsBakeSelected}" HorizontalAlignment="Left" Margin="0,0,0,4" Padding="7,1" IsEnabled="False" ToolTip="{local:Loc PhysicsBakeSelectedDeferredToolTip}" />
+                                <Button Content="{local:Loc PhysicsBakeAll}" HorizontalAlignment="Left" Margin="0,0,0,12" Padding="7,1" IsEnabled="False" ToolTip="{local:Loc PhysicsBakeAllDeferredToolTip}" />
+                                <CheckBox x:Name="PhysicsDebugToggle" Content="{local:Loc PhysicsDebug}" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" Margin="0,0,0,8" Checked="OnPhysicsDebugChanged" Unchecked="OnPhysicsDebugChanged" />
+                                <CheckBox x:Name="PhysicsBoundsToggle" Content="{local:Loc PhysicsColliderAabb}" IsChecked="True" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" Margin="0,0,0,8" Checked="OnPhysicsDebugOptionsChanged" Unchecked="OnPhysicsDebugOptionsChanged" />
+                                <CheckBox x:Name="PhysicsVelocityToggle" Content="{local:Loc PhysicsVelocity}" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" Margin="0,0,0,8" Checked="OnPhysicsDebugOptionsChanged" Unchecked="OnPhysicsDebugOptionsChanged" />
+                                <CheckBox x:Name="PhysicsSleepToggle" Content="{local:Loc PhysicsSleep}" IsChecked="True" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" Margin="0,0,0,8" Checked="OnPhysicsDebugOptionsChanged" Unchecked="OnPhysicsDebugOptionsChanged" />
+                                <CheckBox x:Name="PhysicsCenterOfMassToggle" Content="{local:Loc PhysicsCenterOfMass}" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" Checked="OnPhysicsDebugOptionsChanged" Unchecked="OnPhysicsDebugOptionsChanged" />
+                            </StackPanel>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Border>
+            </Grid>
         </Grid>
     </Grid>
 </UserControl>

@@ -28,6 +28,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     private bool Disposed;
 
     public SceneDesignerToolWindowControl(){
+        ThreadHelper.ThrowIfNotOnUIThread();
         this.InitializeComponent();
         this.VsixIdentityText.Text=VsixBuildIdentity.DisplayText;
         this.VsixIdentityText.ToolTip=VsixBuildIdentity.ToolTipText;
@@ -45,6 +46,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         this.CameraPreviewToggle.Click+=this.OnCameraPreviewToggleClicked;
         this.ViewModeSelector.SelectedValue=SceneEditorSettings.DefaultRenderMode.ToString();
         this.GlobalSpatialOctreeToggle.IsChecked=SceneEditorSettings.DefaultShowGlobalSpatialOctree;
+        this.SetPhysicsPanelVisible(SceneEditorSettings.ReadShowPhysicsPanel(),Persist:false);
     }
 
     /// <summary>
@@ -525,6 +527,20 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             this.Host?.SetRenderMode(Mode);
         }
     }
+    private void OnPhysicsPanelToggleClicked(object Sender,RoutedEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        this.SetPhysicsPanelVisible(this.PhysicsPanelBorder.Visibility!=Visibility.Visible);
+    }
+
+    private void SetPhysicsPanelVisible(bool Visible,bool Persist=true){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        this.PhysicsPanelToggle.Visibility=Visible?Visibility.Collapsed:Visibility.Visible;
+        this.PhysicsPanelBorder.Visibility=Visible?Visibility.Visible:Visibility.Collapsed;
+        if(Persist){
+            SceneEditorSettings.WriteShowPhysicsPanel(Visible);
+        }
+    }
+
     private void OnPhysicsDebugChanged(object Sender,RoutedEventArgs Args){
         ThreadHelper.ThrowIfNotOnUIThread();
         this.Host?.SetPhysicsDebugEnabled(this.PhysicsDebugToggle.IsChecked==true);
@@ -737,6 +753,11 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
 
     private void OnViewportKeyDown(object Sender,KeyEventArgs Args){
         ThreadHelper.ThrowIfNotOnUIThread();
+        if(Args.Key==Key.N){
+            this.SetPhysicsPanelVisible(this.PhysicsPanelBorder.Visibility!=Visibility.Visible);
+            Args.Handled=true;
+            return;
+        }
         if(Args.Key==Key.Escape){
             this.Host?.CancelCurrentOperation();
             Args.Handled=true;

@@ -42,6 +42,7 @@ internal static class SceneEditorSettings {
     internal const SceneNavigationPreset DefaultNavigationPreset=SceneNavigationPreset.Default;
     internal const SceneViewRenderMode DefaultRenderMode=SceneViewRenderMode.Lit;
     internal const bool DefaultShowGlobalSpatialOctree=false;
+    internal const bool DefaultShowPhysicsPanel=false;
     internal const float DefaultNavigationSpeedMultiplier=1.0f;
 
     private static Func<WritableSettingsStore?>?StoreProvider;
@@ -152,6 +153,14 @@ internal static class SceneEditorSettings {
     internal static void WriteShowGlobalSpatialOctree(bool Value){
         ThreadHelper.ThrowIfNotOnUIThread();
         WriteBoolean("ShowGlobalSpatialOctree",Value);
+    }
+    internal static bool ReadShowPhysicsPanel(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        return ReadBoolean("ShowPhysicsPanel",DefaultShowPhysicsPanel);
+    }
+    internal static void WriteShowPhysicsPanel(bool Value){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        WriteBoolean("ShowPhysicsPanel",Value);
     }
 
     internal static float ReadNavigationSpeedMultiplier(){

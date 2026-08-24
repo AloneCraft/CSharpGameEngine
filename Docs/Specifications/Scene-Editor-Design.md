@@ -565,3 +565,9 @@ Scene View、Hierarchy、Inspector、Component Palette、Options、ダイアロ�
 日本語UIでも`Scene View`、`Transform`、`Collider`、`RigidBody`、`AABB`、`Logical256`等のコード対応用語は英語表記を維持する。Scene名、Node名、Component/member名、パス、PID、tick、HRESULT、Stable ID、C#リテラルは値をそのまま表示する。Spatial/Physics Named Pipeの理由は内部enumとして扱い、wire tokenそのものをHUDへ表示しない。
 
 `VSIX 0.1.x | build yyyy-MM-dd HH:mmZ | current`はスクリーンショット／動画による配置同一性確認のためinvariantとする。選択UI cultureと詳細なrevision/hash/pathはToolTipおよびActivity Logで確認できる。
+
+## Physicsパネルの右端折りたたみ
+
+Physicsの操作とデバッグ表示設定はScene Viewヘッダーから分離し、ビューポート右端の専用サイドバーへ配置する。既定は閉じた状態で、閉じているときは幅24 DIPの`<`タブだけを表示する。タブをクリックすると幅280 DIPのパネルを開き、パネル見出し右側の`>`で閉じる。パネルはネイティブ`HwndHost`の上へ重ねず、右列としてレイアウトするため、開閉時はビューポート幅も更新する。
+
+Scene Viewのビューポートがキーボードフォーカスを持つとき、`N`で同じ開閉操作を行う。`N`はVisual Studio全体のコマンドには登録せず、Scene Viewの入力処理だけで消費する。パネルの開閉状態は`SceneEditorSettings.ShowPhysicsPanel`へ保存し、未保存・不正値は閉じた状態へフォールバックする。`Simulate`、`Pause`、`Step`、`Reset`、Bake（Deferred）、Collider/AABB、Velocity、Sleep、Center of Massの既存処理とPhysics/Runtime・Editor Previewのデータ経路は変更しない。

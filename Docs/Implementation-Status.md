@@ -3367,3 +3367,14 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Implementation evidence: `VsixLocalization.cs`, `VsixStrings.resx`, `VsixStrings.ja-JP.resx`, localized VSCT/VSPackage resources, `ja-JP/Extension.vsixlangpack`, Culture 1033/1041 Scene templates.
 - Tests: 958 VSIX tests per configuration cover resource culture fallback/parity/placeholders, intentional-English allowlist, XAML key and expanded UI-sink scans, VSCT structural parity, debug reason formatting, VSIX satellite/langpack/template payloads, and byte identity with the current build VSIX.
 - Conformance: Matches automated scope. RuntimeVerified/Verified promotion is blocked on the 1033 language pack plus both LCID visual/layout checks.
+
+## F-L8-016 - Scene View Physics sidebar
+
+- Layer: L8 - Visual Studio Authoring Environment
+- Status: Implemented
+- Verification: TestVerified (layout and settings tests; VSIX build pending)
+- Intended specification: Docs/Specifications/Scene-Editor-Design.md#physicsパネルの右端折りたたみ
+- Implementation evidence: `tools/CSharpGameEngine.VSExtension/SceneDesignerToolWindowControl.xaml`; `SceneDesignerToolWindowControl.xaml.cs`; `SceneEditorSettings.cs`
+- Contract: Physics controls are hosted in a persisted 280 DIP right sidebar. A collapsed 24 DIP chevron opens it and viewport-focused `N` toggles it. Runtime and Editor Preview physics data paths are unchanged.
+- Known deviations: Experimental Instance visual verification remains pending.
+- Next action: Run VSIX Debug/Release build and confirm open/close, N shortcut, and viewport resize in the Experimental Instance.

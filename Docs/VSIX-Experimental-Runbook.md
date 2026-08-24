@@ -45,6 +45,20 @@ Studio プロファイルや `.vs` を消すと、ウィンドウ状態の再現
 - 失敗時はまず VSIX のロード同一性、次に Document Well の HRESULT、最後に Scene Renderer
   の診断を確認し、推測でキャッシュを削除しないこと。
 
+## PowerShell UTF-8
+
+リポジトリのVSIXスクリプトは起動時にコンソールとPowerShellの出力既定値をUTF-8へ設定する。既存ファイルを編集する場合も、`Get-Content`／`WriteAllLines`の暗黙エンコーディングに依存せず、`[IO.File]::ReadAllText($Path,[Text.Encoding]::UTF8)`と`[IO.File]::WriteAllText($Path,$Text,[Text.UTF8Encoding]::new($false))`を使う。単発のPowerShell操作では次を最初に実行する。
+
+```powershell
+$Utf8NoBom=[Text.UTF8Encoding]::new($false)
+[Console]::InputEncoding=$Utf8NoBom
+[Console]::OutputEncoding=$Utf8NoBom
+$OutputEncoding=$Utf8NoBom
+$PSDefaultParameterValues['Out-File:Encoding']='utf8'
+$PSDefaultParameterValues['Set-Content:Encoding']='utf8'
+$PSDefaultParameterValues['Add-Content:Encoding']='utf8'
+```
+
 ## F5 preflight requirements
 
 `Launch-VSExtension.ps1` uses a forced `Rebuild`. The build fails if any source XAML Page has no generated BAML, and deployment does not continue.

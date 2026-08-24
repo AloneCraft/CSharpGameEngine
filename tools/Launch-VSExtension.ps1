@@ -6,6 +6,13 @@ param(
 )
 
 $ErrorActionPreference='Stop'
+$Utf8NoBom=[Text.UTF8Encoding]::new($false)
+[Console]::InputEncoding=$Utf8NoBom
+[Console]::OutputEncoding=$Utf8NoBom
+$OutputEncoding=$Utf8NoBom
+$PSDefaultParameterValues['Out-File:Encoding']='utf8'
+$PSDefaultParameterValues['Set-Content:Encoding']='utf8'
+$PSDefaultParameterValues['Add-Content:Encoding']='utf8'
 $RootSuffix='CgeFixed'
 $RepoRoot=Split-Path -Parent $PSScriptRoot
 $Project=Join-Path $RepoRoot 'tools\CSharpGameEngine.VSExtension\CSharpGameEngine.VSExtension.csproj'

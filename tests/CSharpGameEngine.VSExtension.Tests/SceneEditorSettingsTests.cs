@@ -258,6 +258,20 @@ public sealed class SceneEditorSettingsTests {
         Assert.False(SceneEditorSettings.ReadInvertLookX());
     });
 
+    [Fact]
+    public void ReadShowPhysicsPanel_NoStoredValue_ReturnsClosedDefault()=>RunOnUiThread(()=>{
+        Assert.False(SceneEditorSettings.DefaultShowPhysicsPanel);
+        Assert.False(SceneEditorSettings.ReadShowPhysicsPanel());
+    });
+
+    [Fact]
+    public void WriteThenReadShowPhysicsPanel_RoundTrips()=>RunOnUiThread(()=>{
+        SceneEditorSettings.WriteShowPhysicsPanel(true);
+        Assert.True(SceneEditorSettings.ReadShowPhysicsPanel());
+        SceneEditorSettings.WriteShowPhysicsPanel(false);
+        Assert.False(SceneEditorSettings.ReadShowPhysicsPanel());
+    });
+
     private static void RunOnUiThread(Action Action)=>
         ThreadHelper.JoinableTaskFactory.Run(async()=>{
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();

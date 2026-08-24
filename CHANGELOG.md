@@ -16,3 +16,4 @@
 
 - Added the shared `CSharpGameEngine.Runtime.Windows` ECS source module and moved Windows runtime components, stage data, fixed hierarchy resolution, XAudio2 facade, and runtime systems out of UserEcsProject.
 - Migrated Scene View light bindings to the Runtime.Windows namespace; retained legacy light names only for analyzer diagnostics.
+- Scene View Physics controls now live in a persisted right sidebar with a chevron tab and `N` shortcut.

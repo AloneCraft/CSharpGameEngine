@@ -13,6 +13,8 @@ public sealed class VsixLocalizationTests {
         "DefinitionInputGesture",
         "PhysicsColliderAabb",
         "PhysicsLabel",
+        "PhysicsPanelOpenGlyph",
+        "PhysicsPanelCloseGlyph",
         "SceneRenderModeBaseColor",
         "SceneRenderModeLit",
         "SceneRenderModeNormal",

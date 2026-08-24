@@ -8,6 +8,13 @@ param(
 )
 
 $ErrorActionPreference='Stop'
+$Utf8NoBom=[Text.UTF8Encoding]::new($false)
+[Console]::InputEncoding=$Utf8NoBom
+[Console]::OutputEncoding=$Utf8NoBom
+$OutputEncoding=$Utf8NoBom
+$PSDefaultParameterValues['Out-File:Encoding']='utf8'
+$PSDefaultParameterValues['Set-Content:Encoding']='utf8'
+$PSDefaultParameterValues['Add-Content:Encoding']='utf8'
 $ExtensionId='CSharpGameEngine.VSExtension.aec17804-e2e4-46e7-b373-de11af816203'
 $RootSuffix='CgeFixed'
 $ScriptDirectory=Split-Path -Parent $PSCommandPath
@@ -33,7 +40,7 @@ function Write-Log([string]$Message){
 }
 
 function Get-VsixManifestIdentity([string]$ManifestPath){
-    [xml]$Manifest=Get-Content -LiteralPath $ManifestPath -Raw
+    [xml]$Manifest=[IO.File]::ReadAllText($ManifestPath,$Utf8NoBom)
     $Namespace=New-Object System.Xml.XmlNamespaceManager($Manifest.NameTable)
     $Namespace.AddNamespace('vsix','http://schemas.microsoft.com/developer/vsx-schema/2011')
     $Identity=$Manifest.SelectSingleNode('/vsix:PackageManifest/vsix:Metadata/vsix:Identity',$Namespace)
