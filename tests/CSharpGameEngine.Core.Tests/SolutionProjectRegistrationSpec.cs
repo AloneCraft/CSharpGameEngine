@@ -34,13 +34,18 @@ public sealed class SolutionProjectRegistrationSpec {
             Assert.Empty(WildcardIncludes);
         }
     }
+    [Fact]
+    public void TransientWpfBuildProjectsAreNotRegistrationCandidates(){
+        var TransientPath=Path.Combine(RepositoryRoot,"tools","CSharpGameEngine.VSExtension","CSharpGameEngine.VSExtension_build_wpftmp.csproj");
+        Assert.False(IsTrackedArea(TransientPath));
+    }
     private static string[] EnumeratePaths(string Pattern){
         var Extension=Pattern.TrimStart('*');
         return Directory.EnumerateFiles(RepositoryRoot,Pattern,SearchOption.AllDirectories).Where(IsTrackedArea).Where(Path=>Path.EndsWith(Extension,StringComparison.OrdinalIgnoreCase)).Select(Path=>Normalize(Path)).Where(Path=>Path is not null).Select(Path=>Path!).ToArray();
     }
     private static bool IsTrackedArea(string FilePath){
         var Relative=Path.GetRelativePath(RepositoryRoot,FilePath);
-        return !Relative.Split(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar).Any(Segment=>Segment is "bin" or "obj" or ".git" or ".vs" or "VSIXProject1");
+        return !Relative.Split(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar).Any(Segment=>Segment is "bin" or "obj" or ".git" or ".vs" or "VSIXProject1")&&!Path.GetFileName(FilePath).EndsWith("_wpftmp.csproj",StringComparison.OrdinalIgnoreCase);
     }
     private static string? Normalize(string? PathValue){
         if(string.IsNullOrWhiteSpace(PathValue)){

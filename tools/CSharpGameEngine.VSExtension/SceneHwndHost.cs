@@ -1949,10 +1949,11 @@ internal sealed class SceneHwndHost:HwndHost {
     /// <summary>WPFの<c>LostKeyboardFocus</c>から呼ぶ。RMBは離されていないので状態遷移はしない。</summary>
     internal void ClearHeldFlyKeys()=> this.InputMachine?.HandleLostKeyboardFocus();
 
-    internal void CancelCurrentOperation(){
+    internal bool CancelCurrentOperation(){
         if(this.InputMachine is not { }Machine){
-            return;
+            return false;
         }
+        bool Canceled=Machine.State!=SceneNavState.Idle||this.EditTransaction.State==EditTransactionState.Dragging;
         SceneInputStepResult Result=Machine.CancelCurrent();
         if(Result.Capture==SceneCaptureAction.End){
             this.Surface?.ReleasePointerCapture();
@@ -1968,6 +1969,7 @@ internal sealed class SceneHwndHost:HwndHost {
         this.PendingLookDeltaX=0f;
         this.PendingLookDeltaY=0f;
         this.LookUsesPixelLock=false;
+        return Canceled;
     }
 
     /// <summary>

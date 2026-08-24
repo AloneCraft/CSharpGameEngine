@@ -99,6 +99,8 @@ Roslynにロードされない。
   [[ADR-0041-Scene-Editor-Interaction-Architecture]]、詳細設計は
   [[Scene-Editor-Design]](`Docs/Specifications/Scene-Editor-Design.md`)、フェーズ計画は
   [[M0020-Scene-Editor-Interaction]]を参照。
+   Scene View/Hierarchy/Inspector/Component PaletteのEscはL8共通routerでVisual Studio command routingの前に消費し、一時操作の取消→共通Scene選択の解除の順に同期する。
+
 - `SourceLocation` の line/column は、判明している場合は **1始まり**。`0` は不明を意味する。
 - レイヤー番号はドキュメント/ソリューション整理のためだけのものであり、名前空間には含めない。
   ADR-0034 以降、**レイヤー境界はアセンブリでは強制されない**(`Core`がL1とL2を跨ぐ)。
@@ -167,3 +169,18 @@ VSIXが所有する表示文言は英語neutralの`VsixStrings`と日本語`ja-J
 Spatial/Physics debug protocolは不変の理由enum・wire token・数値DTOだけを運び、Scene Viewがlocale別の全文HUDへ変換する。ファイルパス、C#シンボル、HRESULT、Stable ID、Build UTC identityは翻訳しない。詳細はADR-0050を参照する。
 
 現実装の`Transform`共有ソースは物理的にはEntitiesにあるが公開namespaceが`Runtime.Windows`であり、Physics systemがその名前空間を参照する。共有Transform契約をWindows非依存namespaceへ移すまでは、意図したL5モジュール分離に対する既知の構造上の逸脱である。
+
+## Autonomous Feature verification
+
+`CSharpGameEngine.FeatureRunner`はL7の独立CLIであり、L0〜L9のFeature IDを自動Stageへ対応付ける。L9 Stage PackはFoundation、Rendering、Rigid、Deformable、Fluid、Destruction、Celestial、ProbabilityQuantum、Coupling、VSIXに分離し、process、timeout、artifact、再開単位を隔離する。Visual StageはC# `IScene`を正本にし、WARPを必須adapter、Hardwareを任意追加passとする。結果は`.artifacts/FeatureStages`のversioned JSONであり、source/artifactの正本関係を変えない。詳細はADR-0051と`Docs/Feature-Stages.md`を参照する。
+
+### External provider boundary
+
+- OS/native/driver bindingはL0に置き、Win32/D3D12と同じ抽象度にする。
+- FFT、sparse solver、geometry、compute等の任意providerはL4 adapterの背後に置く。
+- L5 solverはengine-owned L4 contractだけを参照し、外部型をComponent、公開API、Command/Event、artifactへ漏らさない。
+- engine-owned CPU referenceをcorrectnessの必須経路とし、GPU・外部providerは追加backendとして同じOracleで比較する。
+
+### Static ECS mask boundary
+
+現行のComponent型上限は64である。単一`long` maskはSource GeneratorのArchetype部分集合判定だけに使われ、生成Runtimeにはmask判定が残らない。65型以上はF-L3-020へ延期し、将来も1–64の単一mask pathを不変にしたまま65–128だけを二重maskへ分岐する。

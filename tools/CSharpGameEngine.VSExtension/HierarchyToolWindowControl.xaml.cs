@@ -39,6 +39,7 @@ public partial class HierarchyToolWindowControl:UserControl {
     private HierarchyNodeSelection CurrentSelection=HierarchyNodeSelection.Empty;
     private SceneNodeViewModel? DragNode;
     private Point DragStart;
+    private readonly SceneEditorEscapeRouter EscapeRouter;
 
     /// <summary>
     /// M0051 Step 1-7: 直前に<see cref="Populate"/>した内容の署名。一致するなら
@@ -57,6 +58,7 @@ public partial class HierarchyToolWindowControl:UserControl {
 
     public HierarchyToolWindowControl(){
         this.InitializeComponent();
+        this.EscapeRouter=new(this,this.HandleEscape);
 
         SceneEditorHub.SceneModelChanged+=this.OnSceneModelChanged;
         SceneEditorHub.SelectedNodePathChanged+=this.OnSelectedNodePathChanged;
@@ -205,6 +207,19 @@ public partial class HierarchyToolWindowControl:UserControl {
         }
     }
 
+    private void HandleEscape(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(this.TryFindRenamingNode() is { }RenamingNode){
+            RenamingNode.CancelRename();
+            this.ReleaseDeferredPopulate();
+            return;
+        }
+        if(this.CurrentSelection.Paths.Count==0){
+            return;
+        }
+        this.CurrentSelection=HierarchyNodeSelection.Empty;
+        this.PublishCurrentSelection();
+    }
     private void Tree_PreviewKeyDown(object Sender,KeyEventArgs Args){
         if(Args.OriginalSource is TextBox){
             return;

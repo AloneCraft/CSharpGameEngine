@@ -12,16 +12,12 @@ namespace CSharpGameEngine.VSExtension;
 /// sample. <see cref="SetModelPath"/> supports being told a new path after the surface already
 /// exists, so the same pane instance can be reused if VS reloads the same doc data.
 /// </summary>
-internal sealed class AssetPreviewHwndHost:HwndHost {
+internal sealed class AssetPreviewHwndHost(string ModelPath) : HwndHost {
     private string?RepoRoot;
-    private string ModelPath;
+    private string ModelPath = ModelPath;
     private RenderSurfaceWindow?Surface;
     private VorticeRenderer?Renderer;
     private EventHandler?RenderingHandler;
-
-    public AssetPreviewHwndHost(string ModelPath){
-        this.ModelPath=ModelPath;
-    }
 
     protected override HandleRef BuildWindowCore(HandleRef HwndParent){
         this.Surface=new RenderSurfaceWindow(HwndParent.Handle,800,600);

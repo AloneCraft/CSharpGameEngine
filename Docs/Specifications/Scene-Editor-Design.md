@@ -188,7 +188,13 @@ GizmoDragging
 - ドラッグ系状態への遷移で`SetCapture`、離脱で解放。
 - `PendingSelect`はLMB Down時点で対象/空間とCtrl状態を固定する。空間開始だけが4pxのユークリッド距離
   閾値を越えた時点で`MarqueeSelecting`へ進み、進んだ後はRMB/MMBでも操作種別を変えない。
-- `Esc`は現在の一時操作のキャンセル(仕様§12)。Idle時は何もしない。
+- `Esc`は現在の一時操作のキャンセル(仕様§12)。Idle時は共通Scene選択を解除する。
+
+### 4.3 共通Escルーティング
+
+`SceneEditorEscapeRouter`はScene View、Hierarchy、Inspector、Component Paletteの各rootに1つだけ置く。WPFの`PreviewKeyDown`/`PreviewKeyUp`とownerの`HwndSource`に登録した`WM_KEYDOWN`/`WM_KEYUP` hookの双方からEscを受ける。ownerがキーボードフォーカスを持つ場合だけ消費するため、C# editor、Solution Explorer、その他のVisual Studio画面のEscは変更しない。KeyDownの最初の1回だけ意味処理を実行し、リピートは消費する。KeyUp、フォーカス喪失、Unload、Disposeでリピート状態を解除する。
+
+優先順位は「一時操作または編集中UIを取消す」→「Scene選択を解除する」→「何もなくてもEscを消費する」。Scene ViewはFly/Pan/Orbit、矩形選択、ギズモ/Transform transactionを先に取消す。Hierarchyはinline rename、InspectorはTextBox復元またはComboBox close、Component Paletteは検索文字の消去を先に行う。EscではPhysics panel、Camera Preview、Scene Designer documentを閉じない。
 - RMB保持中はW/E/Q/A/S/DをFly入力が占有する(仕様§5)。ツール切替キーはIdle時のみ有効:
   W=Move、E=Rotate、R=Scale、F=FocusSelection。
 - コンテキストメニュー(優先度5)はM0020スコープ外だが、状態機械上は「RMB Down→移動なしでUp」を

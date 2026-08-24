@@ -2909,12 +2909,12 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - Verification: unit tests and generator-emission tests.
 - Result: Matches.
 
-## F-L3-018 / F-L5-002 / F-L5-003 / F-L6-002 / F-L7-012 / F-L8-014 — Physics foundation
+## F-L3-018 / F-L5-002 / F-L5-003 / F-L6-002 / F-L7-020 / F-L8-014 — Physics foundation
 
 - Intended: shared deterministic tick and domain contracts, complete v1 rigid-body/cooking/cache/prefracture/editor workflow.
 - Observed: phase/tick/numerics/public API/basic solver/artifact identity/debug foundation exists; advanced collision, actual cooking/destruction playback, cache playback/handoff and Scene Bake Host do not.
 - Verification: Debug/Release full builds and 1,527 tests per configuration passed; UserEcsProject runtime smoke passed. VSIX Experimental Instance visual smoke remains pending.
-- Result: `Matches` for F-L5-002; `Partial` for F-L3-018 (0..N scheduler is not wired into the shipping loop), F-L5-003/F-L6-002/F-L7-012/F-L8-014.
+- Result: `Matches` for F-L5-002; `Partial` for F-L3-018 (0..N scheduler is not wired into the shipping loop), F-L5-003/F-L6-002/F-L7-020/F-L8-014.
 
 ## F-L8-015 — VSIX English/Japanese localization
 
@@ -2922,3 +2922,24 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - Observed: shared `VsixText`/`LocExtension` resources, culture-specific command/installer/package/template payloads, typed Spatial/Physics status reasons, and invariant build identity are present.
 - Verification: 958 VSIX tests and 1,564 Solution tests per Debug/Release configuration passed, including resource parity/fallback/placeholders, intentional-English allowlist, XAML key/UI-sink checks, VSCT parity, debug status formats, current-build VSIX byte identity, and payload checks. `/LCID 1041` selected `ja-JP` with matching installed/build hashes.
 - Result: `Matches` for automated conformance. `/LCID 1033` currently falls back to `ja-JP` because the installed Visual Studio has no 1033 resource directory; `RuntimeVerified` remains pending until the English language pack and both visual/layout sweeps are completed.
+
+## F-L8-017 — Scene Designer common Escape handling
+
+- Intended: while a Scene View, Hierarchy, Inspector, or Component Palette owns keyboard focus, Esc must cancel its local transient state first, otherwise clear shared Scene selection, and never reach Visual Studio tab routing. Other Visual Studio surfaces retain their existing Esc behavior.
+- Observed: `SceneEditorEscapeRouter` uses both WPF preview input and an HwndSource key hook, gated by `IsKeyboardFocusWithin`; `SceneEditorEscapeRoutingPolicy` prevents repeat execution. Scene View calls `CancelCurrentOperation()` before `TryClearCurrent`; Hierarchy sends its existing empty `HierarchyNodeSelection`; Inspector restores text/closes ComboBoxes; Component Palette clears a nonempty search. `SceneSelectionService.TryClearCurrent` prevents duplicate empty notifications.
+- Verification: Debug/Release full-solution test runs passed (1,575 tests per configuration), including 969 VSIX tests, the routing-policy truth table, empty-selection event behavior, and existing marquee/gizmo cancellation coverage.
+- Result: Matches automated scope. Experimental Instance verification of focused Esc consuming Visual Studio's document-tab command remains pending.
+
+## F-L7-021 / F-L9-008 — Autonomous Feature Runner and Stage Packs
+
+- Intended: every active feature has a machine-selectable verification Stage; every deferred Simulation feature has a deterministic Oracle without being reported as passed; visual certification requires WARP; results are versioned and resumable.
+- Observed: the C# catalog contains unique Feature/Stage IDs, maps all existing 48 features to executable commands, maps future 28 features and foundation dependencies to `NotImplemented`, and validates references, commands, WARP, seed/tick/timeout, and Oracle presence. CLI selection writes Git provenance, hashes, assertions, typed status, and SHA-256 to ignored JSON artifacts. Ten independent Pack processes compile C# `IScene` definitions, instantiate generated ECS entities, verify ownership/unload, and emit stable state hashes. Explicit F-L5-004 execution produced `NotImplemented` and a non-success process result.
+- Verification: 11 FeatureRunner tests passed in each Debug/Release configuration; all 10 Stage Pack projects built without warnings or errors in both configurations; `stage-packs.contract` passed all Pack processes in both configurations; normal parallel full-solution runs passed 1,587 tests per configuration, including the regression that ignores transient WPF `*_wpftmp.csproj` files during registration scans; `list --json` emitted the canonical catalog; IDE0007 var-style verification reported no diagnostics in the new runner and Stage Pack code.
+- Result: `Matches` for F-L7-021 and the F-L9-008 Stage Pack infrastructure. Deferred solver correctness is not inferred from representative Pack-host scenes.
+
+## F-L3-020 — Extended static ECS component mask
+
+- Intended now: retain the 64-type cap and the existing no-runtime-mask-cost path. Future: preserve one mask for 1–64, use two masks for 65–128, diagnose 129+.
+- Observed: `MaxComponentTypes=64`; SYSGEN026 rejects 65; generator-time subset tests select direct generated Archetype loops, so Runtime performs no mask matching.
+- Verification: existing exactly-64 and over-limit generator tests; future Stage is explicitly `NotImplemented`.
+- Result: `Matches` for the current deferred decision.

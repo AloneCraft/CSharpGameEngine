@@ -186,28 +186,18 @@ public struct EmissiveMeshLighting:IRuntimeComponent {
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.LightingEnvironment,10)]
 [SceneComponentIcon("Assets/Editor/ComponentIcons/DirectionalLight.svg")]
-public struct DirectionalLight {
+public struct DirectionalLight() {
     /// <summary>Linear RGBの発光色。</summary>
-    public float ColorR;
-    public float ColorG;
-    public float ColorB;
+    public float ColorR = 1f;
+    public float ColorG = 1f;
+    public float ColorB = 1f;
 
     /// <summary>照度[lux]。</summary>
-    public float IlluminanceLux;
-    public bool CastsShadows;
-    public int ShadowPriority;
+    public float IlluminanceLux = 100_000f;
+    public bool CastsShadows = true;
+    public int ShadowPriority = 0;
     /// <summary>シャドウ深度比較の物理バイアス[m]。</summary>
-    public float ShadowBiasMeters;
-
-    public DirectionalLight(){
-        this.ColorR=1f;
-        this.ColorG=1f;
-        this.ColorB=1f;
-        this.IlluminanceLux=100_000f;
-        this.CastsShadows=true;
-        this.ShadowPriority=0;
-        this.ShadowBiasMeters=0.005f;
-    }
+    public float ShadowBiasMeters = 0.005f;
 }
 
 /// <summary>
@@ -216,26 +206,15 @@ public struct DirectionalLight {
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.LightingEnvironment,20)]
 [SceneComponentIcon("Assets/Editor/ComponentIcons/PointLight.svg")]
-public struct PointLight {
-    public float ColorR;
-    public float ColorG;
-    public float ColorB;
-    public float LuminousFluxLumens;
-    public float RangeMeters;
-    public bool CastsShadows;
-    public int ShadowPriority;
-    public float ShadowBiasMeters;
-
-    public PointLight(){
-        this.ColorR=1f;
-        this.ColorG=1f;
-        this.ColorB=1f;
-        this.LuminousFluxLumens=800f;
-        this.RangeMeters=10f;
-        this.CastsShadows=true;
-        this.ShadowPriority=0;
-        this.ShadowBiasMeters=0.005f;
-    }
+public struct PointLight() {
+    public float ColorR = 1f;
+    public float ColorG = 1f;
+    public float ColorB = 1f;
+    public float LuminousFluxLumens = 800f;
+    public float RangeMeters = 10f;
+    public bool CastsShadows = true;
+    public int ShadowPriority = 0;
+    public float ShadowBiasMeters = 0.005f;
 }
 
 /// <summary>
@@ -244,30 +223,17 @@ public struct PointLight {
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.LightingEnvironment,30)]
 [SceneComponentIcon("Assets/Editor/ComponentIcons/SpotLight.svg")]
-public struct SpotLight {
-    public float ColorR;
-    public float ColorG;
-    public float ColorB;
-    public float LuminousFluxLumens;
-    public float RangeMeters;
-    public float InnerConeFullAngleDegrees;
-    public float OuterConeFullAngleDegrees;
-    public bool CastsShadows;
-    public int ShadowPriority;
-    public float ShadowBiasMeters;
-
-    public SpotLight(){
-        this.ColorR=1f;
-        this.ColorG=1f;
-        this.ColorB=1f;
-        this.LuminousFluxLumens=800f;
-        this.RangeMeters=10f;
-        this.InnerConeFullAngleDegrees=30f;
-        this.OuterConeFullAngleDegrees=45f;
-        this.CastsShadows=true;
-        this.ShadowPriority=0;
-        this.ShadowBiasMeters=0.005f;
-    }
+public struct SpotLight() {
+    public float ColorR = 1f;
+    public float ColorG = 1f;
+    public float ColorB = 1f;
+    public float LuminousFluxLumens = 800f;
+    public float RangeMeters = 10f;
+    public float InnerConeFullAngleDegrees = 30f;
+    public float OuterConeFullAngleDegrees = 45f;
+    public bool CastsShadows = true;
+    public int ShadowPriority = 0;
+    public float ShadowBiasMeters = 0.005f;
 }
 
 /// <summary>
@@ -276,31 +242,18 @@ public struct SpotLight {
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.LightingEnvironment,40)]
 [SceneComponentIcon("Assets/Editor/ComponentIcons/AreaLight.svg")]
-public struct AreaLight {
-    public float ColorR;
-    public float ColorG;
-    public float ColorB;
+public struct AreaLight() {
+    public float ColorR = 1f;
+    public float ColorG = 1f;
+    public float ColorB = 1f;
     /// <summary>輝度[cd/m²]（nit）。</summary>
-    public float LuminanceNits;
-    public float WidthMeters;
-    public float HeightMeters;
-    public float RangeMeters;
-    public bool CastsShadows;
-    public int ShadowPriority;
-    public float ShadowBiasMeters;
-
-    public AreaLight(){
-        this.ColorR=1f;
-        this.ColorG=1f;
-        this.ColorB=1f;
-        this.LuminanceNits=100f;
-        this.WidthMeters=1f;
-        this.HeightMeters=1f;
-        this.RangeMeters=10f;
-        this.CastsShadows=true;
-        this.ShadowPriority=0;
-        this.ShadowBiasMeters=0.005f;
-    }
+    public float LuminanceNits = 100f;
+    public float WidthMeters = 1f;
+    public float HeightMeters = 1f;
+    public float RangeMeters = 10f;
+    public bool CastsShadows = true;
+    public int ShadowPriority = 0;
+    public float ShadowBiasMeters = 0.005f;
 }
 
 /// <summary>

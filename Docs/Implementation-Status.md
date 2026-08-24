@@ -3342,7 +3342,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Evidence: `PhysicsCooking.cs`, `PhysicsCache.cs`, `PhysicsBakeTests.cs`.
 - Conformance: Partial. Actual convex/mesh/Voronoi cooking, playback/handoff, and incremental build copy are missing.
 
-## F-L7-012 — Physics CLI and Bake Host
+## F-L7-020 — Physics CLI and Bake Host
 
 - Layer: L7 — Static Compiler / Bake
 - Status: PartiallyImplemented
@@ -3378,3 +3378,98 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Contract: Physics controls are hosted in a persisted 280 DIP right sidebar. A collapsed 24 DIP chevron opens it and viewport-focused `N` toggles it. Runtime and Editor Preview physics data paths are unchanged.
 - Known deviations: Experimental Instance visual verification remains pending.
 - Next action: Run VSIX Debug/Release build and confirm open/close, N shortcut, and viewport resize in the Experimental Instance.
+## F-L8-017 — Scene Designer common Escape handling
+
+- Layer: L8 — Visual Studio Authoring Environment
+- Status: Implemented
+- Verification: TestVerified (Debug/Release VSIX and full-solution test runs); Experimental Instance verification pending
+- Intended specification: `Docs/Specifications/Scene-Editor-Design.md#43-共通escルーティング`
+- Implementation evidence: `SceneEditorEscapeRouter.cs`, `SceneEditorEscapeRoutingPolicy.cs`, `SceneDesignerToolWindowControl.xaml.cs`, `HierarchyToolWindowControl.xaml.cs`, `InspectorToolWindowControl.xaml.cs`, `ComponentPaletteToolWindowControl.xaml.cs`, `SceneSelectionService`.
+- Tests: `SceneEditorEscapeRoutingPolicyTests.cs`, `SceneEditorSessionContractsTests.cs`, and existing `SceneInputStateMachineTests.cs` cancellation coverage.
+- Contract: focused Scene Designer surfaces consume Esc before Visual Studio routing. They cancel transient UI/viewport work first, otherwise issue exactly one empty shared Scene selection; no-op Esc remains consumed.
+- Conformance: Matches automated scope. Visual Studio Experimental Instance confirmation that Esc no longer activates another document tab remains pending.
+
+## F-L7-021 — Autonomous Feature Runner
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Autonomous verification
+- Status: Implemented
+- Verification: TestVerified (Debug/Release: 11 tests per configuration; parallel full solution: 1,587 tests per configuration)
+- Intended specification: `Docs/Feature-Stages.md`, `Docs/Decisions/ADR-0051-Autonomous-Feature-Runner-And-Stage-Packs.md`
+- Implementation evidence: `tools/CSharpGameEngine.FeatureRunner/FeatureStageCatalog.cs`, `FeatureRunnerApplication.cs`, `FeatureStageExecutor.cs`, `FeatureRunResultStore.cs`, `RepositoryInspection.cs`
+- Tests: `tests/CSharpGameEngine.FeatureRunner.Tests/`
+- Reverse-engineered behavior: Feature/Stage IDs are validated at startup; CLI supports list/run/run-feature/suite/resume; process results include Git provenance, seed/ticks, hashes, assertions and typed status in a versioned JSON artifact. Explicitly selected deferred features return `NotImplemented` and a non-success code.
+- Conformance: Matches ADR-0051 for the runner foundation.
+- Known deviations: domain solver bodies remain deferred and are tracked by their F-L5 Feature IDs.
+- Next action: retain catalog/result compatibility while domain Features replace deferred Stages.
+
+## F-L9-008 — Feature Stage Packs
+
+- Layer: L9 — Game / Application
+- Parent capability: Autonomous verification
+- Status: Implemented
+- Verification: RuntimeVerified in Debug/Release for all 10 independent Pack executables; parallel full solution passed 1,587 tests per configuration
+- Intended specification: `Docs/Feature-Stages.md#stage-pack分離`
+- Implementation evidence: `FeatureStagePack` taxonomy and `stage-packs.contract` in `tools/CSharpGameEngine.FeatureRunner/FeatureStageCatalog.cs`; shared host in `stages/CSharpGameEngine.FeatureStages.Shared/`; independent Foundation/Rendering/Rigid/Deformable/Fluid/Destruction/Celestial/ProbabilityQuantum/Coupling/VSIX executable projects under `stages/`
+- Tests: `FeatureStageCatalogTests.EveryExistingFeatureHasAnExecutableAutomatedStage`, `EveryDeferredSimulationFeatureHasAnExplicitNotImplementedStage`, `EveryVisualStageRequiresWarpAndAllowsOptionalHardware`, `EveryVisualStageHasACompiledSceneDefinition`, and `stage-packs.contract`
+- Reverse-engineered behavior: existing 48 features are covered by executable grouped stages. The 10 independent Pack processes compile C# `IScene` definitions, instantiate generated ECS entities, verify entity count/root ownership/unload, and emit stable state hashes. Future solver features retain explicit deterministic Oracles and return `NotImplemented`.
+- Conformance: Matches the Stage Pack infrastructure contract. Domain solver correctness remains owned by each deferred F-L5 Feature and is not inferred from the Pack-host pass.
+- Next action: replace representative Pack scenes with solver-specific execution as each Feature is implemented.
+
+## F-L3-020 — Extended static ECS component mask
+
+- Layer: L3 — ECS / Job Runtime
+- Status: Deferred
+- Verification: Unverified; future Stage `foundation.extended-ecs-mask` is registered as `NotImplemented`
+- Intended specification: `Docs/Feature-Stages.md#基盤stageと64型上限`
+- Current behavior: `GameSystemIndexAssigner.MaxComponentTypes` remains 64. Mask matching occurs only while generating source; generated Runtime dispatch contains direct Archetype loops and pays no mask cost.
+- Target behavior: preserve the 1–64 single-mask generator path, use two masks for 65–128, and emit an explicit diagnostic for 129 or more.
+- Conformance: Matches the current decision to retain the 64-type limit.
+- Next action: implement only when a real stage composition requires more than 64 Component types.
+
+## Deferred Simulation/Physics features with designed Stages
+
+All entries below remain `Deferred / Unverified`. Their intended behavior and deterministic Oracle are specified in `Docs/Feature-Stages.md`; implementation evidence does not yet exist, and explicit execution returns `NotImplemented`.
+
+| Feature ID | Capability | Stage ID | Conformance |
+|---|---|---|---|
+| F-L5-004 | Joints | `rigid.joints` | Unknown |
+| F-L5-005 | Ragdoll | `rigid.ragdoll` | Unknown |
+| F-L5-006 | Character Controller | `rigid.character-controller` | Unknown |
+| F-L5-007 | Vehicle | `rigid.vehicle` | Unknown |
+| F-L5-008 | Dynamic-Dynamic CCD | `rigid.dynamic-ccd` | Unknown |
+| F-L5-009 | Parallel Solver | `rigid.parallel-solver` | Unknown |
+| F-L5-010 | GPU Solver | `rigid.gpu-solver` | Unknown |
+| F-L5-011 | Rollback | `rigid.rollback` | Unknown |
+| F-L5-012 | PBD / XPBD | `deformable.xpbd` | Unknown |
+| F-L5-013 | Cloth | `deformable.cloth` | Unknown |
+| F-L5-014 | Rope | `deformable.rope` | Unknown |
+| F-L5-015 | Soft Body | `deformable.soft-body` | Unknown |
+| F-L5-016 | FEM | `deformable.fem` | Unknown |
+| F-L5-017 | MPM | `deformable.mpm` | Unknown |
+| F-L5-018 | SPH / PBF | `fluid.sph-pbf` | Unknown |
+| F-L5-019 | FLIP / APIC | `fluid.flip-apic` | Unknown |
+| F-L5-020 | Eulerian Grid | `fluid.eulerian-grid` | Unknown |
+| F-L5-021 | Runtime Voronoi / Boolean | `destruction.runtime-topology` | Unknown |
+| F-L5-022 | Voxel / SDF destruction | `destruction.voxel-sdf` | Unknown |
+| F-L5-023 | Kepler orbit | `celestial.kepler` | Unknown |
+| F-L5-024 | Direct N-body | `celestial.direct-nbody` | Unknown |
+| F-L5-025 | Barnes–Hut | `celestial.barnes-hut` | Unknown |
+| F-L5-026 | FMM | `celestial.fmm` | Unknown |
+| F-L5-027 | Hierarchical celestial coordinates | `celestial.hierarchical-frames` | Unknown |
+| F-L5-028 | Gameplay probability Domain | `probability.gameplay` | Unknown |
+| F-L5-029 | Wavefunction Grid | `probability.wavefunction-grid` | Unknown |
+| F-L5-030 | Monte Carlo scientific quantum Domain | `probability.monte-carlo-quantum` | Unknown |
+| F-L5-031 | Cross-domain coupling | `coupling.multidomain` | Unknown |
+
+## Deferred Simulation infrastructure
+
+| Feature ID | Capability | Stage ID | Status |
+|---|---|---|---|
+| F-L0-008 | D3D12 compute/readback | `foundation.d3d12-compute` | Deferred |
+| F-L3-019 | Deterministic Job Runtime | `foundation.deterministic-jobs` | Deferred |
+| F-L4-003 | Simulation backend contracts/adapters | `foundation.simulation-adapters` | Deferred |
+| F-L6-003 | Field/graph artifacts | `foundation.field-artifacts` | Deferred |
+| F-L5-032 | Animation/Physics pose bridge | `deformable.pose-bridge` | Deferred |
+| F-L5-033 | Volume/field renderer | `fluid.volume-renderer` | Deferred |
+| F-L5-034 | Thermal field Domain | `coupling.thermal-field` | Deferred |

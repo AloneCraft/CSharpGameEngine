@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <MSBuildAllProjects Condition="'$(MSBuildVersion)' == '' Or '$(MSBuildVersion)' &lt; '16.0'">$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+    <HasSharedItems>true</HasSharedItems>
+    <Shared2eab71d8-5212-4420-955d-b75945ecf100>{2eab71d8-5212-4420-955d-b75945ecf100}</Shared2eab71d8-5212-4420-955d-b75945ecf100>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <Import_RootNamespace>CSharpGameEngine.FeatureStages</Import_RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)StagePackComponents.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)StagePackHost.cs" />
+  </ItemGroup>
+</Project>

@@ -265,7 +265,7 @@ partial型はアセンブリ境界をまたげないため、`CSharpGameEngine.E
 Generatorは`CSharpGameEngine.Entities.ISystem`型がコンパイル内に実在する場合のみ出力する。これにより、
 アナライザーパッケージを別目的で参照しているだけのプロジェクトを汚染しない。
 
-## 診断(SYSGEN001〜020、SYSGEN009は欠番)
+## 診断(SYSGEN001〜027、SYSGEN009は欠番)
 
 カテゴリ`CSharpGameEngine.Entities.CodeGen`、すべて`Error`。
 
@@ -285,6 +285,8 @@ Generatorは`CSharpGameEngine.Entities.ISystem`型がコンパイル内に実在
 | SYSGEN020 | 異なるComponent型が同じ単純名を持つ(生成フィールド名が衝突する) |
 | SYSGEN021 | Context引数があるためエントリポイントを生成できない(ADR-0035) |
 | SYSGEN022〜025 | `[SystemOrder]`の誤用(fileマーカーが`file`スコープでない、1ファイル複数マーカー、複数ファイルが同一のファイル既定値、非ISystem structへの付与。ADR-0036) |
+| SYSGEN026 | 1コンパイルのComponent型が現行上限64を超える |
+| SYSGEN027 | 同じ作者Componentを複数のRuntime companion Componentが主張する |
 
 診断が1件でもある`ISystem` structは、そのstruct分の出力を丸ごとスキップする。
 
@@ -313,7 +315,8 @@ Scene Authoringの診断は`SCENE001`〜`008`(`SCENE009`はADR-0033で削除。�
 ## 既知の制約
 
 - Archetypeは`Update`/`Spawn`で宣言した閉集合に限られる。実行時に任意の構成を作ることはできない。
-- 部分集合判定を`long`ビットマスクで行うため、1コンパイルあたりのComponent型は最大63種類。
+- 部分集合判定をSource Generator内の単一`long`ビットマスクで行うため、1コンパイルあたりのComponent型は最大64種類。maskは生成するArchetype loopの選択にだけ使われ、生成Runtimeへは残らない。
+- 65型以上はF-L3-020としてDeferred。将来は1–64の単一mask pathを変えず、65–128だけを二重maskへ分岐し、129以上を明示診断にする。
 - Archetype名は出現順の連番なので、Systemを増減すると既存Archetypeの番号がずれる(ユーザーコードは
   Archetype名を参照しないため実害は無いが、生成コードを名指しするテストは影響を受ける)。
 - 実行順序は記述順依存。複数ファイルへ分割した場合、`[SystemOrder]`(ADR-0036)を使わなければ

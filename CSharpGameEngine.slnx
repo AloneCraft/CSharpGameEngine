@@ -128,6 +128,22 @@
     <Project Path="src/CSharpGameEngine.Runtime.Windows/CSharpGameEngine.Runtime.Windows.shproj" />
     <File Path="src/CSharpGameEngine.Runtime.Windows/CSharpGameEngine.Runtime.Windows.projitems" />
   </Folder>
+  <Folder Name="/stages/">
+    <Project Path="stages/CSharpGameEngine.FeatureStages.Celestial/CSharpGameEngine.FeatureStages.Celestial.csproj" />
+    <Project Path="stages/CSharpGameEngine.FeatureStages.Coupling/CSharpGameEngine.FeatureStages.Coupling.csproj" />
+    <Project Path="stages/CSharpGameEngine.FeatureStages.Deformable/CSharpGameEngine.FeatureStages.Deformable.csproj" />
+    <Project Path="stages/CSharpGameEngine.FeatureStages.Destruction/CSharpGameEngine.FeatureStages.Destruction.csproj" />
+    <Project Path="stages/CSharpGameEngine.FeatureStages.Fluid/CSharpGameEngine.FeatureStages.Fluid.csproj" />
+    <Project Path="stages/CSharpGameEngine.FeatureStages.Foundation/CSharpGameEngine.FeatureStages.Foundation.csproj" />
+    <Project Path="stages/CSharpGameEngine.FeatureStages.ProbabilityQuantum/CSharpGameEngine.FeatureStages.ProbabilityQuantum.csproj" />
+    <Project Path="stages/CSharpGameEngine.FeatureStages.Rendering/CSharpGameEngine.FeatureStages.Rendering.csproj" />
+    <Project Path="stages/CSharpGameEngine.FeatureStages.Rigid/CSharpGameEngine.FeatureStages.Rigid.csproj" />
+    <Project Path="stages/CSharpGameEngine.FeatureStages.Shared/CSharpGameEngine.FeatureStages.Shared.shproj">
+      <Platform Project="AnyCPU" />
+    </Project>
+    <File Path="stages/CSharpGameEngine.FeatureStages.Shared/CSharpGameEngine.FeatureStages.Shared.projitems" />
+    <Project Path="stages/CSharpGameEngine.FeatureStages.Vsix/CSharpGameEngine.FeatureStages.Vsix.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/CSharpGameEngine.Core.Tests/CSharpGameEngine.Core.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Bridge.Hosting.Tests/CSharpGameEngine.Bridge.Hosting.Tests.csproj" />
@@ -135,6 +151,7 @@
     <Project Path="tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.CodeAnalysis.Tests/CSharpGameEngine.CodeAnalysis.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Entities.Tests/CSharpGameEngine.Entities.Tests.csproj" />
+    <Project Path="tests/CSharpGameEngine.FeatureRunner.Tests/CSharpGameEngine.FeatureRunner.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Import.Tests/CSharpGameEngine.Import.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.SceneModel.Tests/CSharpGameEngine.SceneModel.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Windows.Tests/CSharpGameEngine.Windows.Tests.csproj" />
@@ -146,6 +163,9 @@
     <Project Path="tools/CSharpGameEngine.TestHost/CSharpGameEngine.TestHost.csproj" />
     <Project Path="tools/CSharpGameEngine.Extension/CSharpGameEngine.Extension.csproj" />
     <Project Path="tools/CSharpGameEngine.Bridge.Hosting/CSharpGameEngine.Bridge.Hosting.csproj" />
+    <Project Path="tools/CSharpGameEngine.FeatureRunner/CSharpGameEngine.FeatureRunner.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="tools/CSharpGameEngine.Import.Fbx.Cli/CSharpGameEngine.Import.Fbx.Cli.csproj" />
     <Project Path="tools/CSharpGameEngine.Import.Gltf.Cli/CSharpGameEngine.Import.Gltf.Cli.csproj" />
     <Project Path="tools/CSharpGameEngine.Primitive.Cli/CSharpGameEngine.Primitive.Cli.csproj" />

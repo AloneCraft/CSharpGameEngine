@@ -1,0 +1,8 @@
+<Project>
+  <PropertyGroup>
+    <CompilerGeneratedFilesOutputPath>$(IntermediateOutputPath)Generated</CompilerGeneratedFilesOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="$(MSBuildProjectDirectory)\Generated\**\*.cs" />
+  </ItemGroup>
+</Project>

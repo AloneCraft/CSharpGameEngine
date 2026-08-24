@@ -26,10 +26,12 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     private bool UpdatingSpatialDebugProcessSelector;
     private PendingDuplicateSelection?PendingDuplicateSelectionRestore;
     private bool Disposed;
+    private readonly SceneEditorEscapeRouter EscapeRouter;
 
     public SceneDesignerToolWindowControl(){
         ThreadHelper.ThrowIfNotOnUIThread();
         this.InitializeComponent();
+        this.EscapeRouter=new(this,this.HandleEscape);
         this.VsixIdentityText.Text=VsixBuildIdentity.DisplayText;
         this.VsixIdentityText.ToolTip=VsixBuildIdentity.ToolTipText;
         // M0033: World/Local切り替えはギズモ上のアイコン(TransformSpaceToggleGizmo)へ移った。
@@ -503,6 +505,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         }
 
         this.Disposed=true;
+        this.EscapeRouter.Dispose();
         this.CatalogCancellation?.Cancel();
         this.CatalogCancellation?.Dispose();
         this.CatalogCancellation=null;
@@ -751,6 +754,27 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             SceneSelectionOrigin.Viewport,Guid.NewGuid());
     }
 
+    private void HandleEscape(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(this.TryCloseSceneComboBox()){
+            return;
+        }
+        if(this.Host?.CancelCurrentOperation()==true){
+            return;
+        }
+        if(this.Session?.Selection.TryClearCurrent(SceneSelectionOrigin.Viewport,Guid.NewGuid())==true){
+            this.StatusText.Text=VsixText.Get("SceneDesigner_SelectionCleared");
+        }
+    }
+    private bool TryCloseSceneComboBox(){
+        foreach(ComboBox Box in new[]{this.SceneSelector,this.ViewModeSelector,this.SpatialDebugProcessSelector}){
+            if(Box.IsDropDownOpen){
+                Box.IsDropDownOpen=false;
+                return true;
+            }
+        }
+        return false;
+    }
     private void OnViewportKeyDown(object Sender,KeyEventArgs Args){
         ThreadHelper.ThrowIfNotOnUIThread();
         if(Args.Key==Key.N){
@@ -758,12 +782,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             Args.Handled=true;
             return;
         }
-        if(Args.Key==Key.Escape){
-            this.Host?.CancelCurrentOperation();
-            Args.Handled=true;
-            return;
-        }
-        if(TryMapNavigationKey(Args.Key,out NavigationKey NavKey)){
+if(TryMapNavigationKey(Args.Key,out NavigationKey NavKey)){
             this.Host?.HandleKeyDown(NavKey);
             Args.Handled=true;
             return;

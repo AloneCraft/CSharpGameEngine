@@ -46,6 +46,24 @@ public sealed class SceneEditorSessionContractsTests {
         Assert.Equal(SceneSelectionOrigin.Source,Notifications[1].Origin);
     }
 
+    [Fact]
+    public void Selection_TryClearCurrent_EmitsOneEmptySelectionOnlyWhenNeeded(){
+        SceneSelectionService Service=new();
+        List<SceneSelection>Notifications=[];
+        Service.SelectionChanged+=Notifications.Add;
+        EditorNodeId Node=new(42);
+
+        Assert.True(Service.Select(Key,[Node],Node,"global::Sample.Transform","X",SceneSelectionOrigin.Viewport,Guid.NewGuid()));
+        Assert.True(Service.TryClearCurrent(SceneSelectionOrigin.ComponentPalette,Guid.NewGuid()));
+        Assert.False(Service.TryClearCurrent(SceneSelectionOrigin.Inspector,Guid.NewGuid()));
+
+        SceneSelection Cleared=Assert.Single(Notifications.Skip(1));
+        Assert.Empty(Cleared.NodeIds);
+        Assert.Null(Cleared.PrimaryNodeId);
+        Assert.Null(Cleared.ComponentType);
+        Assert.Null(Cleared.MemberName);
+        Assert.Equal(SceneSelectionOrigin.ComponentPalette,Cleared.Origin);
+    }
     private static SceneModel Analyze(string Name){
         return SceneAnalysisTestHelper.Analyze(
             "using CSharpGameEngine.Entities;\n"

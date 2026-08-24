@@ -30,65 +30,43 @@ public readonly record struct PhysicsLayerMask(ulong Value) {
     public bool Contains(PhysicsLayer Layer)=>(this.Value&(1UL<<Layer.Value))!=0;
 }
 
-public struct PhysicsMaterial {
-    public PhysicsScalar Friction;
-    public PhysicsScalar Restitution;
-
-    public PhysicsMaterial(){
-        this.Friction=PhysicsScalar.FromDouble(0.5);
-        this.Restitution=PhysicsScalar.Zero;
-    }
+public struct PhysicsMaterial() {
+    public PhysicsScalar Friction = PhysicsScalar.FromDouble(0.5);
+    public PhysicsScalar Restitution = PhysicsScalar.Zero;
 }
 
 [SceneComponentOrder(SceneComponentCategory.Spatial,20)]
-public struct Collider {
-    public ColliderShape Shape;
+public struct Collider() {
+    public ColliderShape Shape = ColliderShape.Box;
     public PhysicsVector3 Center;
-    public PhysicsVector3 HalfExtents;
-    public PhysicsScalar Radius;
-    public PhysicsScalar HalfHeight;
-    public PhysicsMaterial Material;
+    public PhysicsVector3 HalfExtents = new(
+                                            PhysicsScalar.FromDouble(0.5),
+                                            PhysicsScalar.FromDouble(0.5),
+                                            PhysicsScalar.FromDouble(0.5));
+    public PhysicsScalar Radius = PhysicsScalar.FromDouble(0.5);
+    public PhysicsScalar HalfHeight = PhysicsScalar.FromDouble(0.5);
+    public PhysicsMaterial Material = new();
     public PhysicsLayer Layer;
-    public PhysicsLayerMask CollidesWith;
+    public PhysicsLayerMask CollidesWith = PhysicsLayerMask.All;
     public string? Asset;
     public bool IsTrigger;
-
-    public Collider(){
-        this.Shape=ColliderShape.Box;
-        this.HalfExtents=new PhysicsVector3(
-            PhysicsScalar.FromDouble(0.5),
-            PhysicsScalar.FromDouble(0.5),
-            PhysicsScalar.FromDouble(0.5));
-        this.Radius=PhysicsScalar.FromDouble(0.5);
-        this.HalfHeight=PhysicsScalar.FromDouble(0.5);
-        this.Material=new PhysicsMaterial();
-        this.CollidesWith=PhysicsLayerMask.All;
-    }
 }
 
 [SceneComponentOrder(SceneComponentCategory.Spatial,21)]
-public struct RigidBody {
-    public PhysicsMotionType MotionType;
-    public PhysicsScalar Mass;
-    public PhysicsScalar GravityFactor;
-    public bool AllowSleep;
+public struct RigidBody() {
+    public PhysicsMotionType MotionType = PhysicsMotionType.Dynamic;
+    public PhysicsScalar Mass = PhysicsScalar.One;
+    public PhysicsScalar GravityFactor = PhysicsScalar.One;
+    public bool AllowSleep = true;
     public PhysicsCcdMode Ccd;
-
-    public RigidBody(){
-        this.MotionType=PhysicsMotionType.Dynamic;
-        this.Mass=PhysicsScalar.One;
-        this.GravityFactor=PhysicsScalar.One;
-        this.AllowSleep=true;
-    }
 }
 
 public struct PhysicsStableId:IRuntimeComponent<Collider> {
     public ulong Value;
 }
 
-public struct PhysicsRotation {
-    public PhysicsQuaternion Value;
-    public PhysicsRotation(){ this.Value=PhysicsQuaternion.Identity; }
+public struct PhysicsRotation() {
+    public PhysicsQuaternion Value = PhysicsQuaternion.Identity;
 }
 
 public struct PhysicsVelocity {

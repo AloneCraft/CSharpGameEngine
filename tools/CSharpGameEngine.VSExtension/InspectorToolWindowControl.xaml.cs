@@ -31,6 +31,7 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
     private bool Disposed;
     private JoinableTask? DeferredComboBoxOpenTask;
     private readonly InspectorSelectionController Selection=new();
+    private readonly SceneEditorEscapeRouter EscapeRouter;
 
     /// <summary>
     /// 畳まれているComponentグループのキー(<see cref="InspectorExpansionKey"/>)。既定は展開なので
@@ -56,6 +57,7 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
 
     public InspectorToolWindowControl(){
         this.InitializeComponent();
+        this.EscapeRouter=new(this,this.HandleEscape);
         // TextBox / ComboBox / Expander may mark their mouse and key events handled before
         // an instance handler declared in the template observes them. Select the logical
         // inspector row at the control boundary, while leaving the editor focus to WPF.
@@ -174,7 +176,7 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
     private void OnSelectionChanged(SceneSelection Selection){
         this.DispatchToUi(()=>{
             this.CurrentSelection=Selection;
-            this.TryRefresh();
+            this.TryRefresh(Force:Selection.NodeIds.Count==0&&Selection.ComponentType is null&&Selection.MemberName is null);
         });
     }
 
@@ -351,6 +353,38 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
         Args.Handled=true;
     }
 
+    private void HandleEscape(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(this.TryCancelTextEdit()){
+            return;
+        }
+        if(TryCloseOpenComboBox(this.MemberList)){
+            return;
+        }
+        this.Session?.Selection.TryClearCurrent(SceneSelectionOrigin.Inspector,Guid.NewGuid());
+    }
+    private bool TryCancelTextEdit(){
+        if(Keyboard.FocusedElement is not TextBox Box||Box.DataContext is not InspectorMemberViewModel ViewModel){
+            return false;
+        }
+        this.SuppressNextLostFocusCommit=true;
+        Box.Text=ViewModel.DisplayText;
+        Keyboard.ClearFocus();
+        return true;
+    }
+    private static bool TryCloseOpenComboBox(DependencyObject Root){
+        if(Root is ComboBox { IsDropDownOpen:true }Box){
+            Box.IsDropDownOpen=false;
+            return true;
+        }
+        int Count=VisualTreeHelper.GetChildrenCount(Root);
+        for(int Index=0;Index<Count;Index++){
+            if(TryCloseOpenComboBox(VisualTreeHelper.GetChild(Root,Index))){
+                return true;
+            }
+        }
+        return false;
+    }
     private void InspectorRow_PreviewKeyDown(object Sender,KeyEventArgs Args){
         ThreadHelper.ThrowIfNotOnUIThread();
         this.HandleInspectorKey(Args.OriginalSource as DependencyObject??Sender as DependencyObject,Args);
@@ -800,6 +834,7 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
         }
 
         this.Disposed=true;
+        this.EscapeRouter.Dispose();
         SceneEditorHub.ComponentRevealRequested-=this.OnComponentRevealRequested;
         this.DetachSession();
     }

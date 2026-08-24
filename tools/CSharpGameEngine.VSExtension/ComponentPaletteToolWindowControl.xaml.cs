@@ -26,6 +26,7 @@ public partial class ComponentPaletteToolWindowControl:UserControl,IDisposable {
     private ComponentPaletteEntry?DragEntry;
     private Point DragStart;
     private bool Disposed;
+    private readonly SceneEditorEscapeRouter EscapeRouter;
 
     /// <summary>
     /// 直前に並べた候補の署名。同じなら<c>ItemsSource</c>を差し替えない — 再解析のたびに作り直すと
@@ -36,6 +37,7 @@ public partial class ComponentPaletteToolWindowControl:UserControl,IDisposable {
 
     public ComponentPaletteToolWindowControl(){
         this.InitializeComponent();
+        this.EscapeRouter=new(this,this.HandleEscape);
         this.EntryList.PreviewMouseRightButtonDown+=this.EntryList_PreviewMouseRightButtonDown;
         this.AddHandler(
             Keyboard.PreviewKeyDownEvent,
@@ -168,6 +170,14 @@ public partial class ComponentPaletteToolWindowControl:UserControl,IDisposable {
         Args.Handled=true;
     }
 
+    private void HandleEscape(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(!string.IsNullOrEmpty(this.SearchBox.Text)){
+            this.SearchBox.Clear();
+            return;
+        }
+        this.Session?.Selection.TryClearCurrent(SceneSelectionOrigin.ComponentPalette,Guid.NewGuid());
+    }
     private void Control_PreviewKeyDown(object Sender,KeyEventArgs Args){
         if(Args.Key!=Key.F12||this.EntryList.SelectedItem is not ComponentPaletteEntry Entry){
             return;
@@ -259,6 +269,7 @@ public partial class ComponentPaletteToolWindowControl:UserControl,IDisposable {
         }
 
         this.Disposed=true;
+        this.EscapeRouter.Dispose();
         this.DetachSession();
         this.CatalogCancellation?.Cancel();
         this.CatalogCancellation?.Dispose();

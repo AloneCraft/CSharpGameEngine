@@ -36,6 +36,19 @@ dotnet run --project tools/CSharpGameEngine.TestHost -- --help
 dotnet run --project tools/CSharpGameEngine.TestHost -- self-test
 ```
 
+## Feature Runner
+
+Feature IDから自動Stageを列挙・実行・再開できます。Visual検証の既定はWARPで、結果はGit管理外の`.artifacts/FeatureStages/`へversioned JSONとして保存されます。
+
+```bash
+dotnet run --project tools/CSharpGameEngine.FeatureRunner -- list
+dotnet run --project tools/CSharpGameEngine.FeatureRunner -- run-feature F-L7-021
+dotnet run --project tools/CSharpGameEngine.FeatureRunner -- suite changed
+dotnet run --project tools/CSharpGameEngine.FeatureRunner -- resume <run-result.json>
+```
+
+将来機能もStageとOracleを列挙できますが、実装されるまで明示的な`NotImplemented`となり成功扱いされません。詳細は[Docs/Feature-Stages.md](Docs/Feature-Stages.md)を参照してください。
+
 ### Triangle（Windows + Direct3D 12）
 通常起動（ウィンドウを表示し、閉じるまで描画を継続）:
 ```bash

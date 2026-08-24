@@ -20,6 +20,8 @@ internal static class NativeMethods {
 
     public const uint WM_SIZE=0x0005;
     public const uint WM_SETFOCUS=0x0007;
+    public const int WM_KEYDOWN=0x0100;
+    public const int WM_KEYUP=0x0101;
     public const uint WM_MOUSEACTIVATE=0x0021;
     public const int MA_NOACTIVATE=3;
     public const int SW_HIDE=0;
@@ -47,6 +49,7 @@ internal static class NativeMethods {
     public const uint WM_CAPTURECHANGED=0x0215;
 
     public const int VK_SHIFT=0x10;
+    public const int VK_ESCAPE=0x1B;
     public const int VK_CONTROL=0x11;
     public const int VK_MENU=0x12;
     public const int VK_S=0x53;

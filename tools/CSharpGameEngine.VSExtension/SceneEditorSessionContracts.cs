@@ -84,6 +84,7 @@ internal enum SceneSelectionOrigin {
     Hierarchy,
     Viewport,
     Inspector,
+    ComponentPalette,
     Source,
     ProgrammaticSourceSync,
 }
@@ -159,6 +160,13 @@ internal sealed class SceneSelectionService {
 
     internal bool Clear(SceneKey Key,SceneSelectionOrigin Origin,Guid CorrelationId)=>
         this.Select(Key,[],PrimaryNodeId:null,ComponentType:null,MemberName:null,Origin,CorrelationId);
+    internal bool TryClearCurrent(SceneSelectionOrigin Origin,Guid CorrelationId){
+        if(this.Current is not { }Current
+            ||(Current.NodeIds.Count==0&&Current.ComponentType is null&&Current.MemberName is null)){
+            return false;
+        }
+        return this.Clear(Current.Key,Origin,CorrelationId);
+    }
 
     private static bool SameSemanticSelection(
         SceneSelection Existing,

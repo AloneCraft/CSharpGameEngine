@@ -281,14 +281,9 @@ public sealed class AreaEmissiveShadowGpuIntegrationTests {
         }
     }
 
-    private sealed class ShadowScene:IDisposable {
-        public ShadowScene(Win32Window Window,StageRenderer Renderer){
-            this.Window=Window;
-            this.Renderer=Renderer;
-        }
-
-        public Win32Window Window { get; }
-        public StageRenderer Renderer { get; }
+    private sealed class ShadowScene(Win32Window Window, StageRenderer Renderer) : IDisposable {
+        public Win32Window Window { get; } = Window;
+        public StageRenderer Renderer { get; } = Renderer;
 
         public void Dispose(){
             this.Renderer.Dispose();
