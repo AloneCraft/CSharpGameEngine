@@ -179,7 +179,7 @@ internal static class ResidentBridgeClient {
                 var Payload=ReadExactly(Stream,Length);
 
                 Result=JsonSerializer.Deserialize<T>(Payload)
-                    ??throw new InvalidOperationException("常駐ブリッジサーバーからの応答が空でした。");
+                    ??throw new InvalidOperationException(VsixText.Get("ResidentBridge_EmptyResponse"));
             } catch(Exception Ex){
                 Error=Ex;
             } finally {
@@ -189,7 +189,7 @@ internal static class ResidentBridgeClient {
         ReaderThread.Start();
 
         if(!Completed.Wait(Timeout)){
-            throw new TimeoutException("常駐ブリッジサーバーからの応答がタイムアウトしました。");
+            throw new TimeoutException(VsixText.Get("ResidentBridge_ResponseTimedOut"));
         }
 
         if(Error is not null){
@@ -207,7 +207,7 @@ internal static class ResidentBridgeClient {
         while(Offset<Count){
             var Read=Stream.Read(Buffer,Offset,Count-Offset);
             if(Read==0){
-                throw new IOException("常駐ブリッジサーバーとの接続が予期せず切断されました。");
+                throw new IOException(VsixText.Get("ResidentBridge_Disconnected"));
             }
 
             Offset+=Read;

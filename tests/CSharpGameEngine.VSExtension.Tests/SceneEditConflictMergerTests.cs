@@ -33,7 +33,7 @@ public sealed class SceneEditConflictMergerTests {
         var Result=SceneEditConflictMerger.Merge(CreateMoveRequest(Cube,Started),Latest);
 
         Assert.False(Result.Succeeded);
-        Assert.Contains("最新 Transform を解決できません",Result.ErrorMessage);
+        Assert.Contains(Cube.ToString(),Result.ErrorMessage);
         Assert.Empty(Result.Operations);
     }
 
@@ -49,7 +49,6 @@ public sealed class SceneEditConflictMergerTests {
 
         Assert.False(Result.Succeeded);
         Assert.Contains("Transform.Position",Result.ErrorMessage);
-        Assert.Contains("no longer editable",Result.ErrorMessage);
         Assert.Empty(Result.Operations);
     }
 
@@ -66,7 +65,7 @@ public sealed class SceneEditConflictMergerTests {
         var Result=SceneEditConflictMerger.Merge(Request,Latest);
 
         Assert.False(Result.Succeeded);
-        Assert.Contains("編集対象を解決できません",Result.ErrorMessage);
+        Assert.NotEmpty(Result.ErrorMessage!);
     }
 
     [Fact]
@@ -100,7 +99,7 @@ public sealed class SceneEditConflictMergerTests {
 
         Assert.False(Result.Succeeded);
         Assert.Contains("global::Sample.SpotLight",Result.ErrorMessage);
-        Assert.Contains("最新 Scene にありません",Result.ErrorMessage);
+        Assert.Empty(Result.Operations);
     }
 
     [Fact]
@@ -120,7 +119,7 @@ public sealed class SceneEditConflictMergerTests {
 
         Assert.False(Result.Succeeded);
         Assert.Contains("Intensity",Result.ErrorMessage);
-        Assert.Contains("編集できません",Result.ErrorMessage);
+        Assert.Empty(Result.Operations);
     }
 
     private static SceneTransformValue IdentityAt(float PositionX)=>

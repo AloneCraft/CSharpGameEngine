@@ -61,6 +61,8 @@ internal static class SceneStartupSystemEmitter {
             Diagnostics:[],
             ExecuteInEditor:true,
             RealtimeInEditor:false,
+            Phase:0,
+            IsWorldSystem:false,
             Scene.FilePath,
             Scene.DeclarationPosition);
     }

@@ -36,14 +36,14 @@ internal static class ComponentIconSourceEditor {
         var NormalizedPath=string.Empty;
         if(SelectedProjectRelativePath is not null
             &&!ProjectIconPath.TryNormalize(SelectedProjectRelativePath,out NormalizedPath)){
-            return ComponentIconSourceEditResult.Failure("コンポーネントアイコンはプロジェクト相対の SVG または PNG である必要があります。");
+            return ComponentIconSourceEditResult.Failure(VsixText.Get("ComponentIcon_ProjectRelativeImageRequired"));
         }
 
         var Declaration=Root.DescendantNodes()
                            .OfType<StructDeclarationSyntax>()
                            .FirstOrDefault(Candidate=>Candidate.SpanStart==DeclarationSpanStart);
         if(Declaration is null){
-            return ComponentIconSourceEditResult.Failure("アイコンを編集する Component struct が現在のソースに見つかりません。");
+            return ComponentIconSourceEditResult.Failure(VsixText.Get("ComponentIcon_ComponentNotFound"));
         }
 
         var Existing=Declaration.AttributeLists
@@ -91,7 +91,7 @@ internal static class ComponentIconSourceEditor {
         var OwningList=Declaration.AttributeLists
                                  .FirstOrDefault(List=>List.Attributes.Any(Attribute=>ReferenceEquals(Attribute,Existing)));
         if(OwningList is null){
-            return ComponentIconSourceEditResult.Failure("コンポーネントアイコン属性を現在の宣言から削除できませんでした。");
+            return ComponentIconSourceEditResult.Failure(VsixText.Get("ComponentIcon_RemoveAttributeFailed"));
         }
 
         if(OwningList.Attributes.Count>1){

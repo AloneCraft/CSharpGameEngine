@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Numerics;
 using CSharpGameEngine.SceneAnalysis;
@@ -94,6 +95,14 @@ internal static class SceneCameraPreviewBinding {
         SceneModel? Model,
         IReadOnlyCollection<NodePath> SelectedPaths,
         float AspectRatio,
+        int MaximumPreviewCount = DefaultMaximumPreviewCount) =>
+        Build(VsixLocalization.UICulture,Model,SelectedPaths,AspectRatio,MaximumPreviewCount);
+
+    internal static IReadOnlyList<SceneCameraPreview> Build(
+        CultureInfo Culture,
+        SceneModel? Model,
+        IReadOnlyCollection<NodePath> SelectedPaths,
+        float AspectRatio,
         int MaximumPreviewCount = DefaultMaximumPreviewCount) {
         if (Model?.Root is null || SelectedPaths.Count == 0 || MaximumPreviewCount <= 0) {
             return Array.Empty<SceneCameraPreview>();
@@ -103,7 +112,7 @@ internal static class SceneCameraPreviewBinding {
             ? AspectRatio
             : DefaultAspectRatio;
         Dictionary<NodePath, SceneCameraPreview> ByPath = new();
-        Collect(Model.Root, Matrix4x4.Identity, SafeAspect, ByPath);
+        Collect(Culture,Model.Root,Matrix4x4.Identity,SafeAspect,ByPath);
 
         List<SceneCameraPreview> Result = new();
         foreach (NodePath Path in SelectedPaths) {
@@ -128,6 +137,7 @@ internal static class SceneCameraPreviewBinding {
         Build(Model, SelectedPaths, AspectRatio, MaximumPreviewCount);
 
     private static void Collect(
+        CultureInfo Culture,
         SceneNode Node,
         Matrix4x4 ParentWorld,
         float AspectRatio,
@@ -140,19 +150,20 @@ internal static class SceneCameraPreviewBinding {
 
         if (SceneComponentBindings.FindComponent(Node, SceneComponentRole.Camera) is { } Camera) {
             Result[Node.Path] = HasTransform
-                ?Create(Node, Camera, World, AspectRatio)
+                ?Create(Culture,Node,Camera,World,AspectRatio)
                 :new SceneCameraPreview(
                     Node.Path,Node.DisplayName,ReadProjection(Camera),
                     AspectRatio,DefaultFovYRadians,DefaultNearZ,DefaultFarZ,DefaultOrthographicSize,
-                    World,Matrix4x4.Identity,Matrix4x4.Identity,"Camera node has no Transform component.");
+                    World,Matrix4x4.Identity,Matrix4x4.Identity,VsixText.Get("SceneCameraMissingTransform",Culture));
         }
 
         foreach (SceneNode Child in Node.Children) {
-            Collect(Child, World, AspectRatio, Result);
+            Collect(Culture,Child,World,AspectRatio,Result);
         }
     }
 
     private static SceneCameraPreview Create(
+        CultureInfo Culture,
         SceneNode Node,
         SceneComponent Camera,
         Matrix4x4 World,
@@ -162,7 +173,7 @@ internal static class SceneCameraPreviewBinding {
         float NearZ = ReadFloat(Camera, "NearZ", DefaultNearZ);
         float FarZ = ReadFloat(Camera, "FarZ", DefaultFarZ);
         float OrthographicSize = ReadFloat(Camera, "OrthographicSize", DefaultOrthographicSize);
-        string? Error = Validate(World, ProjectionMode, AspectRatio, FovY, NearZ, FarZ, OrthographicSize);
+        string? Error=Validate(Culture,World,ProjectionMode,AspectRatio,FovY,NearZ,FarZ,OrthographicSize);
 
         if (Error is not null) {
             return new SceneCameraPreview(Node.Path, Node.DisplayName, ProjectionMode,
@@ -207,6 +218,7 @@ internal static class SceneCameraPreviewBinding {
     }
 
     private static string? Validate(
+        CultureInfo Culture,
         Matrix4x4 World,
         SceneProjectionMode ProjectionMode,
         float AspectRatio,
@@ -215,27 +227,27 @@ internal static class SceneCameraPreviewBinding {
         float FarZ,
         float OrthographicSize) {
         if (!IsFinite(World) || !IsFinite(AspectRatio) || AspectRatio <= 0f) {
-            return "Camera transform or aspect ratio is not finite.";
+            return VsixText.Get("SceneCameraNonFiniteTransformOrAspect",Culture);
         }
 
         Vector3 Forward = Vector3.TransformNormal(Vector3.UnitZ, World);
         Vector3 Up = Vector3.TransformNormal(Vector3.UnitY, World);
         if (!IsFinite(Forward) || !IsFinite(Up) || Forward.LengthSquared() < 1e-12f || Up.LengthSquared() < 1e-12f) {
-            return "Camera transform has a zero-length view axis.";
+            return VsixText.Get("SceneCameraZeroLengthViewAxis",Culture);
         }
 
         if (!IsFinite(NearZ) || !IsFinite(FarZ) || NearZ <= 0f || FarZ <= NearZ) {
-            return "Camera NearZ/FarZ values are invalid.";
+            return VsixText.Get("SceneCameraNearFarInvalid",Culture);
         }
 
         if (ProjectionMode == SceneProjectionMode.Perspective &&
             (!IsFinite(FovY) || FovY <= 0f || FovY >= Math.PI)) {
-            return "Camera FovYRadians must be between 0 and π.";
+            return VsixText.Get("SceneCameraFovInvalid",Culture);
         }
 
         if (ProjectionMode == SceneProjectionMode.Orthographic &&
             (!IsFinite(OrthographicSize) || OrthographicSize <= 0f)) {
-            return "Camera OrthographicSize must be positive.";
+            return VsixText.Get("SceneCameraOrthographicSizeInvalid",Culture);
         }
 
         return null;

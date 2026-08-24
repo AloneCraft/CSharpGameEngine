@@ -155,3 +155,15 @@ Editor PreviewはVSIX内の複製実装ではなく、生成済みRuntimeアセ�
 `CSharpGameEngine.Runtime.Windows` is a source-shared L5 runtime module. Its `.projitems` is compiled into the user ECS compilation together with Entities, the analyzer, and the selected fixed-precision profile. This keeps generated World/State APIs, hierarchy resolution, stage rendering, XAudio2 selection, and runtime companion components on one concrete Logical type.
 
 UserEcsProject remains an L9 composition root for scenes, gameplay components, assets, and precision selection. Runtime systems do not depend on a scene class name or on `PlayerStart`; one active Camera is required and its Transform is authoritative.
+
+## Deterministic Simulation / Physics domains
+
+`CSharpGameEngine.Runtime.Simulation`(L3/L5共通実行契約)は整数tick、phase、Domain command/event、cache identityを所有する。`CSharpGameEngine.Runtime.Physics`(L5)はユーザー選択Logical profileと同じCompilation内でQ32.32局所剛体を実行し、Physics専用Dynamic AABB Treeを使う。Global Loose Octreeは一般空間Query/表示のままである。Cooking/CacheはL6 artifact、CLI/将来Bake HostはL7、Scene ViewはL8 frontendとする。異種Simulationは翌tick Bridgeだけを共有しsolverを共有しない。
+
+### VSIX localization boundary
+
+VSIXが所有する表示文言は英語neutralの`VsixStrings`と日本語`ja-JP` satelliteへ集約する。Package初期化時に取得したVisual StudioのUI cultureを`VsixLocalization`へ固定し、devenv全体のThread cultureは変更しない。WPFは`LocExtension`、C#は`VsixText.Get/Format`、VSCT/VSPackage/VSIX installerはVSSDKのculture別resourceを使用する。
+
+Spatial/Physics debug protocolは不変の理由enum・wire token・数値DTOだけを運び、Scene Viewがlocale別の全文HUDへ変換する。ファイルパス、C#シンボル、HRESULT、Stable ID、Build UTC identityは翻訳しない。詳細はADR-0050を参照する。
+
+現実装の`Transform`共有ソースは物理的にはEntitiesにあるが公開namespaceが`Runtime.Windows`であり、Physics systemがその名前空間を参照する。共有Transform契約をWindows非依存namespaceへ移すまでは、意図したL5モジュール分離に対する既知の構造上の逸脱である。

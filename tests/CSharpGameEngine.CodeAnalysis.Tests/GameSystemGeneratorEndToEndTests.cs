@@ -144,16 +144,12 @@ public sealed class GameSystemGeneratorEndToEndTests {
     }
 
     /// <summary>
-    /// ADR-0040 Phase 6実装中に実際にハマった落とし穴の固定回帰テスト: Scene DSLのChildrenは自動で
-    /// Parentが付与され、Systemがオーバーロードで宣言したのと同じComponent部分集合であっても
-    /// (部分集合一致でUpdateは発火するが)実体のArchetypeは別物になる。Scene由来の追加Archetypeは
-    /// 実Systemが宣言した全Archetypeより<b>後に</b>登録される(ADR-0038)ため、上のテストと同じ
-    /// 「先に宣言したオーバーロードで集めてから後で読む」パターンは、対象がScene DSLの子ノード
-    /// (Parent付き)だと機能しない — 親と同じ階層(Rootまたは兄弟)に直接置く必要がある。
-    /// PrimitiveShowcaseScene.csがChildrenではなく独立したRootを使っているのはこのため。
+    /// System-major契約の回帰テスト。Systemの先行Updateメソッドは、System/Sceneのどちらが宣言した
+    /// Archetypeかに関係なく一致する全Archetypeを処理し、その後に次のUpdateメソッドへ進む。
+    /// Scene Childrenへ自動付与されるParentやArchetype登録順で集計結果が変わってはならない。
     /// </summary>
     [Fact]
-    public void SceneChildNodeArchetype_IsProcessedAfterAllSystemDeclaredArchetypes(){
+    public void SystemMajorDispatch_ProcessesSceneChildBeforeLaterSystemMethod(){
         var ComponentsAndSystem="""
             namespace Sample;
             public struct Foo { }
@@ -207,9 +203,9 @@ public sealed class GameSystemGeneratorEndToEndTests {
                     AccumulatingSystem system = new();
                     GeneratedGameLoop.RunFrame(ref state, ref system);
 
-                    // {Position,Foo,Parent} はScene専用Archetypeとして{Trigger}より後ろに登録されるため、
-                    // Triggerオーバーロードが読む時点ではまだ処理されておらず0のまま(意図通りの挙動)。
-                    if (system.SnapshotAtConsumeTime != 0) return "FAIL:SnapshotAtConsumeTime=" + system.SnapshotAtConsumeTime;
+                    // System-major dispatchでは先のUpdateメソッドを一致する全Archetypeへ適用してから
+                    // 次のUpdateメソッドへ進む。Scene専用Archetypeの登録順に依存せず1件が集計済みになる。
+                    if (system.SnapshotAtConsumeTime != 1) return "FAIL:SnapshotAtConsumeTime=" + system.SnapshotAtConsumeTime;
 
                     return "OK";
                 }

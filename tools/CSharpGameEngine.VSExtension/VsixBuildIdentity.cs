@@ -52,10 +52,14 @@ internal static class VsixBuildIdentity {
         }
     }
 
+    internal static string ToolTipText=>VsixText.Format("VsixBuildIdentityToolTip",
+        VsixLocalization.UICulture.Name,GitRevision,Deployment.Message,LoadedAssemblyPath,BuildOutputPath,
+        Deployment.LoadedHash??"unknown",Deployment.BuildHash??"unknown");
+
     internal static string ActivityLogText=>
-        $"Loaded {DisplayText}; revision='{GitRevision}'; assembly='{LoadedAssemblyPath}'; buildOutput='{BuildOutputPath}'; " +
-        $"deployment='{Deployment.Message}'; loadedSha256='{Deployment.LoadedHash??"unknown"}'; " +
-        $"buildSha256='{Deployment.BuildHash??"unknown"}'.";
+        $"Loaded {DisplayText}; uiCulture='{VsixLocalization.UICulture.Name}'; revision='{GitRevision}'; " +
+        $"assembly='{LoadedAssemblyPath}'; buildOutput='{BuildOutputPath}'; deployment='{Deployment.Message}'; " +
+        $"loadedSha256='{Deployment.LoadedHash??"unknown"}'; buildSha256='{Deployment.BuildHash??"unknown"}'.";
 
     private static string?GetMetadata(string Key)=>Assembly.GetExecutingAssembly()
         .GetCustomAttributes<AssemblyMetadataAttribute>()

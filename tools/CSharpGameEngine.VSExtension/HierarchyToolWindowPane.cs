@@ -13,7 +13,7 @@ public sealed class HierarchyToolWindowPane:ToolWindowPane {
     public const string PaneGuidString="21310c74-a151-49af-a47b-67c543d80eb9";
 
     public HierarchyToolWindowPane():base(null){
-        this.Caption="ヒエラルキー";
+        this.Caption=VsixText.Get("PaneHierarchy");
         this.Content=new HierarchyToolWindowControl();
     }
 }

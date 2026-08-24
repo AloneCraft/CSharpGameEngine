@@ -312,7 +312,7 @@ internal sealed class ComponentIconEditorService {
         if(SelectedProjectRelativePath is not null){
             if(!ProjectIconPath.TryResolve(
                 Target.ProjectDirectory,SelectedProjectRelativePath,out var Normalized,out _)){
-                return ComponentIconWriteResult.Failure("選択されたアイコンは現在のプロジェクトの SVG または PNG ではありません。");
+                return ComponentIconWriteResult.Failure(VsixText.Get("ComponentIcon_SelectedAssetInvalid"));
             }
             NormalizedPath=Normalized;
         }
@@ -321,26 +321,26 @@ internal sealed class ComponentIconEditorService {
         if(Document is null
             ||!Document.Project.Id.Equals(Target.ProjectId)
             ||!string.Equals(Document.FilePath,Target.FilePath,StringComparison.OrdinalIgnoreCase)){
-            return ComponentIconWriteResult.Failure("Component icon の対象ソースは現在のRoslyn Workspaceにありません。");
+            return ComponentIconWriteResult.Failure(VsixText.Get("ComponentIcon_SourceMissingFromWorkspace"));
         }
 
         var Before=await Document.GetTextAsync(CancellationToken).ConfigureAwait(false);
         var Root=await Document.GetSyntaxRootAsync(CancellationToken).ConfigureAwait(false);
         if(Root is null){
-            return ComponentIconWriteResult.Failure("Component icon の対象ソースを解析できません。");
+            return ComponentIconWriteResult.Failure(VsixText.Get("ComponentIcon_SourceParseFailed"));
         }
 
         var Edited=ComponentIconSourceEditor.Apply(
                                                    Root,Target.DeclarationSpanStart,NormalizedPath);
         if(!Edited.Succeeded){
-            return ComponentIconWriteResult.Failure(Edited.ErrorMessage??"Component icon を編集できません。");
+            return ComponentIconWriteResult.Failure(Edited.ErrorMessage??VsixText.Get("ComponentIcon_EditFailed"));
         }
 
         var After=SourceText.From(Edited.Root!.ToFullString(),Before.Encoding);
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(CancellationToken);
-        return this.TextBufferWriter.TryApply(Target.Buffer,Before,After,"Set Component Icon")
+        return this.TextBufferWriter.TryApply(Target.Buffer,Before,After,VsixText.Get("ComponentIcon_UndoName"))
             ?ComponentIconWriteResult.Success()
-            :ComponentIconWriteResult.Failure("編集中にC#ソースが変化したため、Component icon の更新を中止しました。");
+            :ComponentIconWriteResult.Failure(VsixText.Get("ComponentIcon_SourceChanged"));
     }
 }
 
@@ -438,7 +438,7 @@ internal sealed class ComponentIconPickerPopup {
                                      Placement=PlacementMode.Bottom,
                                      StaysOpen=false,
                                  };
-        Menu.Items.Add(this.CreateItem("既定アイコン",SceneVisualIcon.ComponentDefault(),Target,ProjectRelativePath:null,Menu,EditorService));
+        Menu.Items.Add(this.CreateItem(VsixText.Get("ComponentIcon_DefaultIcon"),SceneVisualIcon.ComponentDefault(),Target,ProjectRelativePath:null,Menu,EditorService));
         foreach(var Asset in Assets){
             var Icon=SceneVisualIcon.ProjectAsset(Asset.ProjectRelativePath,Asset.AbsolutePath);
             Menu.Items.Add(this.CreateItem(Asset.DisplayName,Icon,Target,Asset.ProjectRelativePath,Menu,EditorService));
@@ -460,7 +460,7 @@ internal sealed class ComponentIconPickerPopup {
                 var Result=await EditorService.ApplyAsync(
                                                           Target,ProjectRelativePath,CancellationToken.None).ConfigureAwait(false);
                 if(!Result.Succeeded){
-                    ActivityLog.LogError(nameof(ComponentIconPickerPopup),Result.ErrorMessage??"Component icon の更新に失敗しました。");
+                    ActivityLog.LogError(nameof(ComponentIconPickerPopup),Result.ErrorMessage??VsixText.Get("ComponentIcon_UpdateFailed"));
                 }
             });
         };

@@ -191,6 +191,8 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
             return null;
         }
 
+        if(Symbol.TypeKind==TypeKind.Interface){ return null; }
+
         var ImplementsISystem=Symbol.AllInterfaces.Any(static I=>
             I.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)==GameSystemAnalyzer.SystemInterfaceFullyQualifiedName);
 

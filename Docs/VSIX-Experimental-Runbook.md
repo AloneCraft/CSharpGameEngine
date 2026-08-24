@@ -51,4 +51,19 @@ Studio プロファイルや `.vs` を消すと、ウィンドウ状態の再現
 
 Before Visual Studio starts, verify the VSIX package DLL SHA-256 matches the local Debug DLL, exactly one `CgeFixed` installation exists for the extension ID, and the installed DLL has the expected version, hash, and every source XAML BAML resource.
 
+## 英語・日本語の実機確認
+
+VSIX 0.1.7以降はVisual Studioの表示言語を自動使用する。言語変更後はVisual Studioを再起動する。独立したExperimental Instanceで次を順に起動する。
+
+```powershell
+devenv.exe /RootSuffix CgeFixed /LCID 1033
+devenv.exe /RootSuffix CgeFixed /LCID 1041
+```
+
+`/LCID`は該当するVisual Studio表示言語パックが導入済みの場合だけ切り替わる。Activity Logの`uiCulture`を確認し、1033指定でも`ja-JP`ならVisual Studio Installerで英語言語パックを追加してから再確認する。`Common7\IDE\1033`がなく`1041`だけがある環境では英語へ切り替わらない。
+
+各LCIDでExtension Manager、Toolsメニュー、toolbar/context menu、各Pane caption、Scene View、Hierarchy、Inspector、Component Palette、Options、ダイアログ、空状態、Spatial/Physics HUD、Add New ItemのScene templateを確認する。英語・日本語の長い文言でもボタンやビューポートを押し潰さないことを確認する。
+
+Scene Viewヘッダーの`VSIX <version> | build <UTC> | current`は意図的に翻訳しない。ToolTipとActivity Logには選択されたUI culture、revision、検証状態、ロード済みDLL path/hashを残す。日本語resourceが欠けた場合は英語、英語keyも欠けた場合は`[Resource.Key]`となるため、角括弧付きkeyが見えた場合は不完全なVSIXとして扱う。
+
 If deployment reports missing BAML, rebuild with `dotnet build tools/CSharpGameEngine.VSExtension/CSharpGameEngine.VSExtension.csproj -c Debug -t:Rebuild`. If it reports a package hash mismatch, discard the stale package and rebuild. Duplicate, stale-version, stale-hash, or installed-BAML errors stop F5 before `devenv.exe`; inspect `%LOCALAPPDATA%\\CSharpGameEngine\\Logs\\CgeFixed-VsixMaintenance-*.log`.

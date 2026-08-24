@@ -4,6 +4,7 @@
     <TargetFramework>net472</TargetFramework>
     <UseWindowsForms>false</UseWindowsForms>
     <UseWPF>true</UseWPF>
+    <NeutralLanguage>en-US</NeutralLanguage>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- Directory.Build.props leaves LangVersion at "default", which resolves to C# 7.3 for
          net472 - too old for this project's Nullable annotations. Pin explicitly, matching the
@@ -14,6 +15,7 @@
     <VSSDKBuildToolsAutoSetup>true</VSSDKBuildToolsAutoSetup>
     <GeneratePkgDefFile>true</GeneratePkgDefFile>
     <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
+    <IncludeSatelliteAssembliesInVSIXContainer>true</IncludeSatelliteAssembliesInVSIXContainer>
     <IncludeDebugSymbolsInVSIXContainer>false</IncludeDebugSymbolsInVSIXContainer>
     <IncludeDebugSymbolsInLocalVSIXDeployment>false</IncludeDebugSymbolsInLocalVSIXDeployment>
     <CopyBuildOutputToOutputDirectory>true</CopyBuildOutputToOutputDirectory>
@@ -42,7 +44,7 @@
     <CSharpGameEngineRepoRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\'))</CSharpGameEngineRepoRoot>
     <!-- Bump each deployable VSIX revision.  The installer/version cache must never be asked to
          distinguish a newly fixed extension from a prior binary with the same identity. -->
-    <CSharpGameEngineVsixVersion>0.1.6</CSharpGameEngineVsixVersion>
+    <CSharpGameEngineVsixVersion>0.1.7</CSharpGameEngineVsixVersion>
     <CSharpGameEngineBuildUtc>$([System.DateTime]::UtcNow.ToString('O'))</CSharpGameEngineBuildUtc>
     <CSharpGameEngineGitRevision>unknown</CSharpGameEngineGitRevision>
 
@@ -127,9 +129,24 @@
   </ItemGroup>
 
   <ItemGroup>
-    <VSCTCompile Include="OpenViewerCommandPackage.vsct">
+    <VSCTCompile Include="OpenViewerCommandPackage.en-US.vsct">
       <ResourceName>Menus.ctmenu</ResourceName>
     </VSCTCompile>
+    <VSCTCompile Include="OpenViewerCommandPackage.ja-JP.vsct">
+      <ResourceName>Menus.ctmenu</ResourceName>
+    </VSCTCompile>
+    <EmbeddedResource Update="VSPackage.en-US.resx">
+      <MergeWithCTO>true</MergeWithCTO>
+      <LogicalName>VSPackage.en-US.Resources</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Update="VSPackage.ja-JP.resx">
+      <MergeWithCTO>true</MergeWithCTO>
+      <LogicalName>VSPackage.ja-JP.Resources</LogicalName>
+    </EmbeddedResource>
+    <Content Include="ja-JP\Extension.vsixlangpack">
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <VSIXSubPath>ja-JP</VSIXSubPath>
+    </Content>
   </ItemGroup>
 
   <!-- Template source is copied into an item-template archive; it is not source for this VSIX. -->
@@ -147,6 +164,12 @@
       <Language>CSharp</Language>
       <OutputSubPath>GameEngine</OutputSubPath>
       <Culture>1033</Culture>
+    </VSTemplate>
+    <VSTemplate Include="ItemTemplates\CSharp\GameEngine\SceneFile\SceneFile.vstemplate">
+      <TemplateType>Item</TemplateType>
+      <Language>CSharp</Language>
+      <OutputSubPath>GameEngine</OutputSubPath>
+      <Culture>1041</Culture>
     </VSTemplate>
   </ItemGroup>
 
@@ -214,6 +237,9 @@
     <ItemGroup>
       <VSIXSourceItem Include="$(OutDir)ItemTemplates\CSharp\GameEngine\1033\SceneFile.zip">
         <VSIXSubPath>ItemTemplates\CSharp\GameEngine\1033</VSIXSubPath>
+      </VSIXSourceItem>
+      <VSIXSourceItem Include="$(OutDir)ItemTemplates\CSharp\GameEngine\1041\SceneFile.zip">
+        <VSIXSubPath>ItemTemplates\CSharp\GameEngine\1041</VSIXSubPath>
       </VSIXSourceItem>
     </ItemGroup>
   </Target>

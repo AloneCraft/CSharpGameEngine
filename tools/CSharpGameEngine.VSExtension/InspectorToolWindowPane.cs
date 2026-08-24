@@ -17,7 +17,7 @@ public sealed class InspectorToolWindowPane:ToolWindowPane {
     private static Func<SceneEditorSessionService?>?SessionProvider;
 
     public InspectorToolWindowPane():base(null){
-        this.Caption="インスペクター";
+        this.Caption=VsixText.Get("PaneInspector");
         this.Content=new InspectorToolWindowControl();
         if(SessionProvider?.Invoke() is { } Session&& this.Content is InspectorToolWindowControl Control){
             Control.SetSession(Session);

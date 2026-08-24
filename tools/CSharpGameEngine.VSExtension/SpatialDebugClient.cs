@@ -24,9 +24,9 @@ internal readonly record struct SceneSpatialDebugNode(Vector3 Min,Vector3 Max,in
 internal static class SpatialDebugClient {
     private const int ProtocolVersion=1;
     private const int MaxPayloadBytes=16*1024*1024;
-    internal static bool TryGetSnapshot(int ProcessId,Guid?WorldId,out SceneSpatialDebugSnapshot?Snapshot,out string Status){
+    internal static bool TryGetSnapshot(int ProcessId,Guid?WorldId,out SceneSpatialDebugSnapshot?Snapshot,out DebugClientStatus Status){
         Snapshot=null;
-        Status="disconnected";
+        Status=DebugClientStatus.TransportFailure(DebugStatusReason.Disconnected);
         try {
             using NamedPipeClientStream Pipe=new(".", $"CSharpGameEngine.SpatialDebug.{ProcessId}",PipeDirection.InOut,PipeOptions.None);
             Pipe.Connect(100);
@@ -38,16 +38,16 @@ internal static class SpatialDebugClient {
             byte[]Length=ReadExactly(Pipe,4);
             int Count=BitConverter.ToInt32(Length,0);
             if(Count<=0||Count>MaxPayloadBytes){
-                Status="invalid response";
+                Status=DebugClientStatus.TransportFailure(DebugStatusReason.InvalidResponse);
                 return false;
             }
             SpatialDebugResponse?Response=JsonSerializer.Deserialize<SpatialDebugResponse>(ReadExactly(Pipe,Count));
             if(Response is null||Response.Protocol!=ProtocolVersion){
-                Status="invalid response";
+                Status=DebugClientStatus.TransportFailure(DebugStatusReason.InvalidResponse);
                 return false;
             }
             if(!string.Equals(Response.Status,"ok",StringComparison.Ordinal)){
-                Status="waiting for snapshot";
+                Status=DebugClientStatus.FromWireToken(Response.Status,DebugStatusReason.SnapshotUnavailable);
                 return false;
             }
             List<SceneSpatialDebugNode>Nodes=[];
@@ -60,22 +60,22 @@ internal static class SpatialDebugClient {
                 Nodes.Add(Converted);
             }
             Snapshot=new SceneSpatialDebugSnapshot(Response.WorldId,Response.Sequence,Response.Truncated,Nodes,ExcludedNodeCount);
-            Status="connected";
+            Status=DebugClientStatus.FromWireToken(Response.Status,DebugStatusReason.SnapshotUnavailable);
             return true;
         } catch(TimeoutException){
-            Status="pipe unavailable";
+            Status=DebugClientStatus.TransportFailure(DebugStatusReason.PipeUnavailable);
             return false;
         } catch(IOException){
-            Status="pipe unavailable";
+            Status=DebugClientStatus.TransportFailure(DebugStatusReason.PipeUnavailable);
             return false;
         } catch(UnauthorizedAccessException){
-            Status="access denied";
+            Status=DebugClientStatus.TransportFailure(DebugStatusReason.AccessDenied);
             return false;
         } catch(InvalidOperationException){
-            Status="disconnected";
+            Status=DebugClientStatus.TransportFailure(DebugStatusReason.Disconnected);
             return false;
         } catch(JsonException){
-            Status="invalid response";
+            Status=DebugClientStatus.TransportFailure(DebugStatusReason.InvalidResponse);
             return false;
         }
     }

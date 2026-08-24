@@ -1,5 +1,4 @@
 using System;
-using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -34,9 +33,8 @@ public partial class SceneEditorOptionsControl:UserControl {
     public SceneEditorOptionsControl(){
         this.InitializeComponent();
 
-        this.NavigationSpeedRangeHint.Text=string.Format(
-            CultureInfo.InvariantCulture,
-            "指定できる範囲: {0} 〜 {1}(範囲外や解釈できない値は自動的に補正されます)",
+        this.NavigationSpeedRangeHint.Text=VsixText.Format(
+            "OptionsNavigationSpeedRange",
             SceneViewState.MinNavigationSpeedMultiplier,
             SceneViewState.MaxNavigationSpeedMultiplier);
     }

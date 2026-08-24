@@ -54,7 +54,7 @@ internal static class SceneInstantiateEmitter {
         Lines.Add($"    public static {SceneInstanceFullyQualifiedName} Instantiate(ref {WorldFullyQualifiedName} World) {{");
         Lines.Add($"        {SceneInstanceFullyQualifiedName} Instance = World.BeginSceneInstance();");
 
-        EmitNode(Lines,Root,ParentLocalName:null,Registry,ComponentIndexByType,RuntimeComponents);
+        EmitNode(Lines,Root,Scene.ClassFullyQualifiedName,ParentLocalName:null,Registry,ComponentIndexByType,RuntimeComponents);
 
         Lines.Add($"        World.EndSceneInstance(Instance, {Root.LocalName});");
         Lines.Add("        return Instance;");
@@ -113,11 +113,18 @@ internal static class SceneInstantiateEmitter {
     private static void EmitNode(
         List<string>Lines,
         SceneEmitNode Node,
+        string SceneFullyQualifiedName,
         string?ParentLocalName,
         GameSystemRegistry Registry,
         Dictionary<string,int>ComponentIndexByType,
         SceneRuntimeComponentMap RuntimeComponents){
         var Components=BuildEffectiveComponents(Node,ParentLocalName,RuntimeComponents);
+        for(int Index=0;Index<Components.Count;Index++){
+            if(Components[Index].TypeFullyQualifiedName=="global::CSharpGameEngine.Runtime.Physics.PhysicsStableId"){
+                ulong StableId=BuildStableId(SceneFullyQualifiedName+"/"+Node.PathDisplay);
+                Components[Index]=(Components[Index].TypeFullyQualifiedName,$"new global::CSharpGameEngine.Runtime.Physics.PhysicsStableId {{ Value = {StableId}UL }}");
+            }
+        }
         var NameComment=Node.Name is null?"(unnamed)": $"\"{Node.Name}\"";
         Lines.Add($"        // [{Node.PathDisplay}] {NameComment}");
 
@@ -140,7 +147,16 @@ internal static class SceneInstantiateEmitter {
         Lines.Add($"        {EntityFullyQualifiedName} {Node.LocalName} = World.AttachToScene(Instance, global::CSharpGameEngine.Entities.{ArchetypeInfo.Name}.Create(ref World, {Arguments}));");
 
         foreach(SceneEmitNode Child in Node.Children){
-            EmitNode(Lines,Child,Node.LocalName,Registry,ComponentIndexByType,RuntimeComponents);
+            EmitNode(Lines,Child,SceneFullyQualifiedName,Node.LocalName,Registry,ComponentIndexByType,RuntimeComponents);
         }
+    }
+
+    private static ulong BuildStableId(string Value){
+        ulong Hash=14695981039346656037UL;
+        foreach(char Character in Value){
+            Hash=(Hash^(byte)Character)*1099511628211UL;
+            Hash=(Hash^(byte)(Character>>8))*1099511628211UL;
+        }
+        return Hash==0?1UL:Hash;
     }
 }

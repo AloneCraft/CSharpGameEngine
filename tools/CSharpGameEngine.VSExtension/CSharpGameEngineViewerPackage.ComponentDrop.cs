@@ -18,7 +18,7 @@ public sealed partial class CSharpGameEngineViewerPackage {
         ComponentAddRequest Request,SceneEditorSessionService Session,SceneDocumentSnapshot Snapshot){
         if(Snapshot.Projection is not { } Projection
             ||!Projection.TryGetId(NodePath.Root,out EditorNodeId RootId)){
-            SetStatusBarText("Root entity could not be resolved for the component drop.");
+            SetStatusBarText(VsixText.Get("ComponentDropRootResolveFailed"));
             return;
         }
 
@@ -26,7 +26,7 @@ public sealed partial class CSharpGameEngineViewerPackage {
             Request.ComponentTypeFullyQualifiedName,this.DisposalToken);
         await this.JoinableTaskFactory.SwitchToMainThreadAsync(this.DisposalToken);
         if(Dropped is not { } DroppedType){
-            SetStatusBarText("The dropped component type could not be resolved.");
+            SetStatusBarText(VsixText.Get("ComponentDropTypeResolveFailed"));
             return;
         }
 
@@ -38,7 +38,7 @@ public sealed partial class CSharpGameEngineViewerPackage {
                 SceneComponentBindings.TransformTypeFullyQualifiedName,this.DisposalToken);
             await this.JoinableTaskFactory.SwitchToMainThreadAsync(this.DisposalToken);
             if(Transform is not { } TransformType){
-                SetStatusBarText("A Transform is required for this light, but its type could not be resolved.");
+                SetStatusBarText(VsixText.Get("ComponentDropTransformResolveFailed"));
                 return;
             }
 
@@ -66,11 +66,11 @@ public sealed partial class CSharpGameEngineViewerPackage {
             Snapshot.Key,RootId,Snapshot.DocumentVersion,Name,
             InitialComponents.ToImmutableArray());
         SceneEditCommitRequest CommitRequest=new(
-            Snapshot.Key,Snapshot.DocumentVersion,"Create entity with component",
+            Snapshot.Key,Snapshot.DocumentVersion,VsixText.Get("UndoCreateEntityWithComponent"),
             Array.Empty<SceneTransformChange>(),SceneTransformMemberMask.None,
             DirectOperations:[Operation]);
         if(!Session.Apply(CommitRequest)){
-            SetStatusBarText("The new entity and component could not be added.");
+            SetStatusBarText(VsixText.Get("ComponentDropCreateFailed"));
         }
     }
 

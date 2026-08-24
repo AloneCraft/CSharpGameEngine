@@ -331,3 +331,7 @@ When `Transform` and `SpatialBounds` share an Archetype, generated code scans th
 ## Windows Runtime source boundary
 
 The generated ECS compilation imports `CSharpGameEngine.Runtime.Windows.projitems`. Runtime companion components remain in the generated archetype surface, while their implementation source is shared and precision-selected with the user compilation.
+
+## System-major phase scheduling
+
+Source GeneratorはSystem-majorでコードを生成し、Runtime/Editor Previewごとに永続`GeneratedSystemSet`を1つ所有する。`IWorldSystem.Update(ref State)`はcomponent queryを持たないWorld systemである。`SystemPhase`はFrameInput、FixedSimulation、PhysicsSimulation、PostPhysics、Presentationを定義し、`SystemOrder`後にphase内の決定順で実行する。既定ユーザーSystemはFixedSimulation、bootstrapはFrameInputである。

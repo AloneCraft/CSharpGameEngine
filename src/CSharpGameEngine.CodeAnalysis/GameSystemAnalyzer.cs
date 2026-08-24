@@ -21,6 +21,8 @@ internal static class GameSystemAnalyzer {
 
     /// <summary><c>Compilation.GetTypeByMetadataName</c>用(<c>global::</c>接頭辞を付けない)。</summary>
     internal const string SystemInterfaceMetadataName="CSharpGameEngine.Entities.ISystem";
+    internal const string WorldSystemInterfaceMetadataName="CSharpGameEngine.Entities.IWorldSystem";
+    internal const string SystemPhaseAttributeMetadataName="CSharpGameEngine.Entities.SystemPhaseAttribute";
     internal const string EntityFullyQualifiedName="global::CSharpGameEngine.Entities.Entity";
     internal const string StateFullyQualifiedName="global::CSharpGameEngine.Entities.State";
 
@@ -43,6 +45,8 @@ internal static class GameSystemAnalyzer {
             Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.SystemMustNotBeNested,SystemSymbol.Locations.FirstOrDefault(),SystemSymbol.Name));
         }
 
+        var IsWorldSystem=SystemSymbol.AllInterfaces.Any(static Interface=>Interface.ToDisplayString()==WorldSystemInterfaceMetadataName);
+
         List<IMethodSymbol>Methods=[];
 
         foreach(var Member in SystemSymbol.GetMembers()){
@@ -63,7 +67,7 @@ internal static class GameSystemAnalyzer {
         List<GameSystemMethodModel>MethodModels=[];
 
         foreach(var Method in Methods){
-            var Model=AnalyzeMethod(Method,Diagnostics);
+            var Model=AnalyzeMethod(Method,Diagnostics,IsWorldSystem);
 
             if(Model is { } Value){
                 MethodModels.Add(Value);
@@ -81,6 +85,26 @@ internal static class GameSystemAnalyzer {
             }
         }
 
+        var Phase=MethodModels.Any(static Method=>Method.Components.Any(static Component=>Component.TypeFullyQualifiedName=="global::CSharpGameEngine.Entities.Bootstrap"))?0:1;
+        foreach(var Attribute in SystemSymbol.GetAttributes()){
+            if(Attribute.AttributeClass?.ToDisplayString()==SystemPhaseAttributeMetadataName
+                &&Attribute.ConstructorArguments.Length==1){
+                object? Value=Attribute.ConstructorArguments[0].Value;
+                Phase=Value switch {
+                    byte ByteValue=>ByteValue,
+                    sbyte SignedByteValue=>SignedByteValue,
+                    short ShortValue=>ShortValue,
+                    ushort UnsignedShortValue=>UnsignedShortValue,
+                    int IntValue=>IntValue,
+                    uint UnsignedIntValue=>checked((int)UnsignedIntValue),
+                    long LongValue=>checked((int)LongValue),
+                    ulong UnsignedLongValue=>checked((int)UnsignedLongValue),
+                    _=>Phase,
+                };
+                break;
+            }
+        }
+
         return new GameSystemResult(
             SystemSymbol.ContainingNamespace.IsGlobalNamespace?null:SystemSymbol.ContainingNamespace.ToDisplayString(),
             SystemSymbol.Name,
@@ -88,6 +112,8 @@ internal static class GameSystemAnalyzer {
             Diagnostics.ToImmutable(),
             ExecuteInEditor,
             RealtimeInEditor,
+            Phase,
+            IsWorldSystem,
             TypeLocation.SourceTree?.FilePath??string.Empty,
             TypeLocation.SourceSpan.Start);
     }
@@ -108,7 +134,7 @@ internal static class GameSystemAnalyzer {
         return Location.SourceSpan.Start;
     }
 
-    private static GameSystemMethodModel?AnalyzeMethod(IMethodSymbol Method,ImmutableArray<Diagnostic>.Builder Diagnostics){
+    private static GameSystemMethodModel?AnalyzeMethod(IMethodSymbol Method,ImmutableArray<Diagnostic>.Builder Diagnostics,bool IsWorldSystem){
         var IsSpawn=Method.Name==SpawnMethodName;
         var IsShutdown=Method.Name==ShutdownMethodName;
         var Role=IsSpawn?GameSystemMethodRole.SpawnOnly:IsShutdown?GameSystemMethodRole.Shutdown:GameSystemMethodRole.Dispatch;
@@ -249,7 +275,7 @@ internal static class GameSystemAnalyzer {
             CallOrder.Add(new GameSystemParameterSlot(GameSystemParameterRole.State,0));
         }
 
-        if(Components.Count==0){
+        if(Components.Count==0&&!IsWorldSystem){
             Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.MethodMustHaveAtLeastOneComponentParameter,MethodLocation,Method.Name));
             IsValid=false;
         }

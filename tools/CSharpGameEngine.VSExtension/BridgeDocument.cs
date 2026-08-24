@@ -30,7 +30,7 @@ internal sealed class BridgeDocument {
                                 :new Vector4(1f,1f,1f,1f);
 
         if(PositionValues.Length==0){
-            throw new InvalidOperationException("インポートされたメッシュに頂点がありません。");
+            throw new InvalidOperationException(VsixText.Get("Bridge_MeshHasNoVertices"));
         }
 
         (var Center,var Radius)=SimpleMesh.ComputeBoundingSphere(PositionValues);

@@ -45,7 +45,7 @@ internal sealed class OpenGameCommand {
         var RepoRoot=RepoLocator.ResolveRepoRoot();
         if(RepoRoot is null){
             this.ShowMessage(
-                             $"リポジトリルート({RepoLocator.RepoMarkerFileName})が見つかりませんでした。",
+                             VsixText.Format("Common_RepoRootNotFound",RepoLocator.RepoMarkerFileName),
                              OLEMSGICON.OLEMSGICON_WARNING);
             return;
         }
@@ -58,14 +58,15 @@ internal sealed class OpenGameCommand {
         try {
             Process.Start(StartInfo);
         } catch(Exception Ex){
-            this.ShowMessage($"UserEcsProjectの起動に失敗しました: {Ex.Message}",OLEMSGICON.OLEMSGICON_CRITICAL);
+            ActivityLog.LogError(nameof(OpenGameCommand),Ex.ToString());
+            this.ShowMessage(VsixText.Format("OpenGame_LaunchFailed",Ex.Message),OLEMSGICON.OLEMSGICON_CRITICAL);
         }
     }
 
     private void ShowMessage(string Message,OLEMSGICON Icon){
         VsShellUtilities.ShowMessageBox(this.Package,
             Message,
-            "C# Game Engine",
+            VsixText.Get("Common_ProductTitle"),
             Icon,
             OLEMSGBUTTON.OLEMSGBUTTON_OK,
             OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);

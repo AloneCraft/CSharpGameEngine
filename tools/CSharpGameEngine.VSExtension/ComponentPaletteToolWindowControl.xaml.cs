@@ -149,8 +149,8 @@ public partial class ComponentPaletteToolWindowControl:UserControl,IDisposable {
         var Filtered=ComponentPaletteFilterPolicy.Filter(this.Entries,this.SearchBox.Text);
         this.EntryList.ItemsSource=Filtered;
         this.StatusMessage.Text=this.Entries.Count==0
-            ?"追加できるComponent型が見つかりません。シーンを開いてください。"
-            :$"{Filtered.Count} / {this.Entries.Count} 件。ダブルクリックまたは Enter で、選択中のノードに追加します。";
+            ?VsixText.Get("ComponentPaletteEmpty")
+            :VsixText.Format("ComponentPaletteCount",Filtered.Count,this.Entries.Count);
     }
 
     private void EntryList_MouseDoubleClick(object Sender,MouseButtonEventArgs Args){

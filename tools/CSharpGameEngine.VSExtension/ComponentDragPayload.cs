@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 
 namespace CSharpGameEngine.VSExtension;
 
@@ -71,14 +72,16 @@ internal static class ComponentDropPolicy {
 
     internal static bool Accepts(ComponentDropVerdict Verdict)=>Verdict is ComponentDropVerdict.Accept or ComponentDropVerdict.AcceptCreateRootChild;
 
-    internal static string Describe(ComponentDropVerdict Verdict,string DisplayName)=>Verdict switch {
-        ComponentDropVerdict.Accept=>$"{DisplayName} を追加します。",
-        ComponentDropVerdict.AcceptCreateRootChild=>$"Root 直下に {DisplayName} を持つ新規Entityを作成します。",
-        ComponentDropVerdict.RejectNoScene=>"シーンが開かれていません。",
-        ComponentDropVerdict.RejectNoTarget=>"追加先のノードがありません。",
-        ComponentDropVerdict.RejectDuplicate=>$"このEntityには既に {DisplayName} があります。",
-        ComponentDropVerdict.RejectNoComponentsList=>
-            $"このEntityの Components コレクションを作成できません。",
-        _=>throw new ArgumentOutOfRangeException(nameof(Verdict),Verdict,"未知のドロップ判定です。"),
+    internal static string Describe(ComponentDropVerdict Verdict,string DisplayName)=>
+        Describe(Verdict,DisplayName,VsixLocalization.UICulture);
+    internal static string Describe(ComponentDropVerdict Verdict,string DisplayName,CultureInfo Culture)=>Verdict switch {
+        ComponentDropVerdict.Accept=>VsixText.Format(Culture,"ComponentDrop_Add",DisplayName),
+        ComponentDropVerdict.AcceptCreateRootChild=>VsixText.Format(Culture,"ComponentDrop_CreateRootChild",DisplayName),
+        ComponentDropVerdict.RejectNoScene=>VsixText.Get("ComponentDrop_NoScene",Culture),
+        ComponentDropVerdict.RejectNoTarget=>VsixText.Get("ComponentDrop_NoTarget",Culture),
+        ComponentDropVerdict.RejectDuplicate=>VsixText.Format(Culture,"ComponentDrop_Duplicate",DisplayName),
+        ComponentDropVerdict.RejectNoComponentsList=>VsixText.Get("ComponentDrop_NoComponentsList",Culture),
+        _=>throw new ArgumentOutOfRangeException(
+            nameof(Verdict),Verdict,VsixText.Get("ComponentDrop_UnknownVerdict",Culture)),
     };
 }

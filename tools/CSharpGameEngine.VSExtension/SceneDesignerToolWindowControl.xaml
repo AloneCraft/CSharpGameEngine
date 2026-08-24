@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:vsshell="clr-namespace:Microsoft.VisualStudio.Shell;assembly=Microsoft.VisualStudio.Shell.15.0"
+             xmlns:local="clr-namespace:CSharpGameEngine.VSExtension"
              mc:Ignorable="d"
              Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
              d:DesignHeight="400" d:DesignWidth="600">
@@ -11,9 +12,10 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
-        <ToggleButton x:Name='CameraPreviewToggle' Grid.Row='0' HorizontalAlignment='Right' VerticalAlignment='Top' Margin='0,5,8,0' Panel.ZIndex='5' Width='120' IsChecked='True' Content='Camera Preview' ToolTip='Camera view preview' />
+        <ToggleButton x:Name='CameraPreviewToggle' Grid.Row='0' HorizontalAlignment='Right' VerticalAlignment='Top' Margin='0,5,8,0' Panel.ZIndex='5' Width='120' IsChecked='True' Content='{local:Loc SceneCameraPreview}' ToolTip='{local:Loc SceneCameraPreviewToolTip}' />
 
         <Border Grid.Row="0" Padding="8,5" Background="#202020">
             <DockPanel LastChildFill="True">
@@ -23,25 +25,50 @@
                           DisplayMemberPath="DisplayName"
                           IsEnabled="False"
                           SelectionChanged="OnSceneSelectionChanged"
-                          ToolTip="現在の C# 文書と同じプロジェクトの Scene を選択します。" />
-                <TextBlock Text="View" Foreground="#D8D8D8" VerticalAlignment="Center" Margin="0,0,4,0" />
-                <ComboBox x:Name="ViewModeSelector" Width="120" Margin="0,0,8,0" SelectedValuePath="Tag" SelectionChanged="OnViewModeSelectionChanged" ToolTip="View">
-                    <ComboBoxItem Tag="Lit" Content="Lit" />
-                    <ComboBoxItem Tag="BaseColor" Content="Base Color" />
-                    <ComboBoxItem Tag="Normal" Content="Normal" />
-                    <ComboBoxItem Tag="Wireframe" Content="Wireframe" />
+                          ToolTip="{local:Loc SceneSelectorToolTip}" />
+                <TextBlock Text="{local:Loc SceneViewLabel}" Foreground="#D8D8D8" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <ComboBox x:Name="ViewModeSelector" Width="120" Margin="0,0,8,0" SelectedValuePath="Tag" SelectionChanged="OnViewModeSelectionChanged" ToolTip="{local:Loc SceneViewLabel}">
+                    <ComboBoxItem Tag="Lit" Content="{local:Loc SceneRenderModeLit}" />
+                    <ComboBoxItem Tag="BaseColor" Content="{local:Loc SceneRenderModeBaseColor}" />
+                    <ComboBoxItem Tag="Normal" Content="{local:Loc SceneRenderModeNormal}" />
+                    <ComboBoxItem Tag="Wireframe" Content="{local:Loc SceneRenderModeWireframe}" />
                 </ComboBox>
-                <CheckBox x:Name="GlobalSpatialOctreeToggle" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" VerticalAlignment="Center" Margin="0,0,8,0" Content="Debug Overlays > Global Spatial Octree" ToolTip="Shows the runtime GlobalSpatialIndex octree in the central Scene View viewport." Checked="OnGlobalSpatialOctreeChanged" Unchecked="OnGlobalSpatialOctreeChanged" />
-                <ComboBox x:Name="SpatialDebugProcessSelector" Width="92" Margin="0,0,8,0" Visibility="Collapsed" SelectionChanged="OnSpatialDebugProcessSelectionChanged" ToolTip="Global Spatial Octree を提供するゲームプロセスの PID" />
+                <CheckBox x:Name="GlobalSpatialOctreeToggle" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" VerticalAlignment="Center" Margin="0,0,8,0" Content="{local:Loc SceneGlobalSpatialOctree}" ToolTip="{local:Loc SceneGlobalSpatialOctreeToolTip}" Checked="OnGlobalSpatialOctreeChanged" Unchecked="OnGlobalSpatialOctreeChanged" />
+                <ComboBox x:Name="SpatialDebugProcessSelector" Width="92" Margin="0,0,8,0" Visibility="Collapsed" SelectionChanged="OnSpatialDebugProcessSelectionChanged" ToolTip="{local:Loc SceneSpatialDebugProcessToolTip}" />
                 <TextBlock x:Name="VsixIdentityText" Foreground="#8FC9FF" FontSize="10" />
             </DockPanel>
         </Border>
 
-        <Border Grid.Row="1" Padding="8,0,8,4" Background="#202020">
-            <TextBlock x:Name="StatusText" Foreground="#D8D8D8" Text="シーンを選択してください。" TextTrimming="CharacterEllipsis" />
+        <Border Grid.Row="1" Padding="8,3" Background="#202020" BorderBrush="#404040" BorderThickness="0,1,0,0">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{local:Loc PhysicsLabel}" Foreground="#D8D8D8" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <Button Content="{local:Loc PhysicsSimulate}" Margin="0,0,4,0" Padding="7,1" Click="OnPhysicsSimulate" />
+                    <Button Content="{local:Loc PhysicsPause}" Margin="0,0,4,0" Padding="7,1" Click="OnPhysicsPause" />
+                    <Button Content="{local:Loc PhysicsStep}" Margin="0,0,4,0" Padding="7,1" Click="OnPhysicsStep" />
+                    <Button Content="{local:Loc PhysicsReset}" Margin="0,0,8,0" Padding="7,1" Click="OnPhysicsReset" />
+                    <Button Content="{local:Loc PhysicsBakeSelected}" Margin="0,0,4,0" Padding="7,1" IsEnabled="False" ToolTip="{local:Loc PhysicsBakeSelectedDeferredToolTip}" />
+                    <Button Content="{local:Loc PhysicsBakeAll}" Margin="0,0,8,0" Padding="7,1" IsEnabled="False" ToolTip="{local:Loc PhysicsBakeAllDeferredToolTip}" />
+                    <CheckBox x:Name="PhysicsDebugToggle" Content="{local:Loc PhysicsDebug}" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" VerticalAlignment="Center" Margin="0,0,8,0" Checked="OnPhysicsDebugChanged" Unchecked="OnPhysicsDebugChanged" />
+                    <CheckBox x:Name="PhysicsBoundsToggle" Content="{local:Loc PhysicsColliderAabb}" IsChecked="True" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" VerticalAlignment="Center" Margin="0,0,8,0" Checked="OnPhysicsDebugOptionsChanged" Unchecked="OnPhysicsDebugOptionsChanged" />
+                    <CheckBox x:Name="PhysicsVelocityToggle" Content="{local:Loc PhysicsVelocity}" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" VerticalAlignment="Center" Margin="0,0,8,0" Checked="OnPhysicsDebugOptionsChanged" Unchecked="OnPhysicsDebugOptionsChanged" />
+                    <CheckBox x:Name="PhysicsSleepToggle" Content="{local:Loc PhysicsSleep}" IsChecked="True" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" VerticalAlignment="Center" Margin="0,0,8,0" Checked="OnPhysicsDebugOptionsChanged" Unchecked="OnPhysicsDebugOptionsChanged" />
+                    <CheckBox x:Name="PhysicsCenterOfMassToggle" Content="{local:Loc PhysicsCenterOfMass}" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" VerticalAlignment="Center" Checked="OnPhysicsDebugOptionsChanged" Unchecked="OnPhysicsDebugOptionsChanged" />
+                </StackPanel>
+            </ScrollViewer>
         </Border>
 
-        <Grid x:Name="RenderHostGrid" Grid.Row="2" Background="#050514">
+        <Border Grid.Row="2" Padding="8,0,8,4" Background="#202020">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="StatusText" Grid.Column="0" Foreground="#D8D8D8" Text="{local:Loc SceneSelectPrompt}" TextTrimming="CharacterEllipsis" />
+                <TextBlock x:Name="SpatialDebugStatusText" Grid.Column="1" Margin="12,0,0,0" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" Text="{local:Loc SceneSpatialOff}" TextTrimming="CharacterEllipsis" />
+            </Grid>
+        </Border>
+        <Grid x:Name="RenderHostGrid" Grid.Row="3" Background="#050514">
             <TextBlock x:Name="EmptyStateText"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
@@ -50,7 +77,7 @@
                        FontSize="14"
                        TextAlignment="Center"
                        TextWrapping="Wrap"
-                       Text="シーンを選択してください。" />
+                       Text="{local:Loc SceneSelectPrompt}" />
         </Grid>
     </Grid>
 </UserControl>

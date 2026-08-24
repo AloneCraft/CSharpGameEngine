@@ -138,10 +138,10 @@ internal sealed class EditTransactionController {
 
     internal void Begin(SceneDocumentSnapshot Snapshot,IReadOnlyList<SceneTransformTarget>Targets){
         if(this.State!=EditTransactionState.Idle){
-            throw new InvalidOperationException("編集トランザクションは既に進行中です。");
+            throw new InvalidOperationException(VsixText.Get("EditTransactionAlreadyActive"));
         }
         if(Targets.Count==0){
-            throw new ArgumentException("編集対象がありません。",nameof(Targets));
+            throw new ArgumentException(VsixText.Get("EditTransactionTargetMissing"),nameof(Targets));
         }
 
         this.StartedSnapshot=Snapshot??throw new ArgumentNullException(nameof(Snapshot));
@@ -154,7 +154,7 @@ internal sealed class EditTransactionController {
 
     internal void BeginDirect(SceneDocumentSnapshot Snapshot){
         if(this.State!=EditTransactionState.Idle){
-            throw new InvalidOperationException("編集トランザクションは既に進行中です。");
+            throw new InvalidOperationException(VsixText.Get("EditTransactionAlreadyActive"));
         }
         this.StartedSnapshot=Snapshot??throw new ArgumentNullException(nameof(Snapshot));
         this.Targets=[];
@@ -209,10 +209,10 @@ internal sealed class EditTransactionController {
 
     internal void QueueSnapshot(SceneDocumentSnapshot Snapshot){
         if(this.State==EditTransactionState.Idle){
-            throw new InvalidOperationException("保留できる編集トランザクションがありません。");
+            throw new InvalidOperationException(VsixText.Get("EditTransactionNoActiveToQueue"));
         }
         if(this.StartedSnapshot is not { } Started||!Started.Key.Equals(Snapshot.Key)){
-            throw new ArgumentException("編集中Sceneと異なるsnapshotは保留できません。",nameof(Snapshot));
+            throw new ArgumentException(VsixText.Get("EditTransactionSceneMismatch"),nameof(Snapshot));
         }
 
         this.PendingSnapshot=Snapshot;
@@ -326,7 +326,7 @@ internal sealed class EditTransactionController {
 
     private void EnsureState(EditTransactionState Expected){
         if(this.State!=Expected){
-            throw new InvalidOperationException($"編集トランザクション状態が不正です。expected={Expected}, actual={this.State}");
+            throw new InvalidOperationException(VsixText.Format("EditTransactionInvalidState",Expected,this.State));
         }
     }
 }

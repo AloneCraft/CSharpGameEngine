@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PackageLanguagePackManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011">
+  <Metadata>
+    <DisplayName>C# Game Engine</DisplayName>
+    <Description>Visual Studio に C# Game Engine のScene編集、Hierarchy、Inspector、Component Palette、デバッグ表示を追加します。</Description>
+  </Metadata>
+</PackageLanguagePackManifest>

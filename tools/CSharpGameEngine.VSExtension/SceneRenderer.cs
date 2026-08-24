@@ -180,7 +180,8 @@ internal sealed class SceneRenderer:IDisposable {
     // M0037: internal化してSceneHwndHost.RefreshOverlayがHUD追加前に予算超過を防げるようにする。
     internal const int MaxGizmoOverlayVertices=4096;
     internal const int MaxSpatialDebugOverlayVertices=12288;
-    internal const int MaxOverlayVertices=18432;
+    internal const int MaxPhysicsDebugOverlayVertices=12288;
+    internal const int MaxOverlayVertices=32768;
     private readonly ID3D12Resource OverlayVertexBuffer;
     private readonly ID3D12Resource OverlayConstantBuffer;
     private readonly VertexBufferView[]OverlayTriangleVertexViews=new VertexBufferView[FrameCount];
@@ -399,12 +400,12 @@ internal sealed class SceneRenderer:IDisposable {
 
         var VsCompileResult=Compiler.Compile(ShaderSource,"VSMain","SceneRenderer","vs_5_0",out var VertexShaderBlob,out var VsErrorBlob);
         if(VsCompileResult.Failure||VertexShaderBlob is null){
-            throw new InvalidOperationException($"Vertex shader compilation failed: {VsErrorBlob?.AsString()}");
+            throw new InvalidOperationException(VsixText.Format("SceneRendererVertexShaderCompileFailed",VsErrorBlob?.AsString()));
         }
 
         var PsCompileResult=Compiler.Compile(ShaderSource,"PSMain","SceneRenderer","ps_5_0",out var PixelShaderBlob,out var PsErrorBlob);
         if(PsCompileResult.Failure||PixelShaderBlob is null){
-            throw new InvalidOperationException($"Pixel shader compilation failed: {PsErrorBlob?.AsString()}");
+            throw new InvalidOperationException(VsixText.Format("SceneRendererPixelShaderCompileFailed",PsErrorBlob?.AsString()));
         }
 
         using var VertexShaderBlobOwned=VertexShaderBlob;
@@ -439,14 +440,14 @@ internal sealed class SceneRenderer:IDisposable {
                                              OverlayShaderSource,"VSMain","SceneRendererOverlay","vs_5_0",
                                              out var OverlayVertexShaderBlob,out var OverlayVsErrorBlob);
         if(OverlayVsResult.Failure||OverlayVertexShaderBlob is null){
-            throw new InvalidOperationException($"Overlay vertex shader compilation failed: {OverlayVsErrorBlob?.AsString()}");
+            throw new InvalidOperationException(VsixText.Format("SceneRendererOverlayVertexShaderCompileFailed",OverlayVsErrorBlob?.AsString()));
         }
         var OverlayPsResult=Compiler.Compile(
                                              OverlayShaderSource,"PSMain","SceneRendererOverlay","ps_5_0",
                                              out var OverlayPixelShaderBlob,out var OverlayPsErrorBlob);
         if(OverlayPsResult.Failure||OverlayPixelShaderBlob is null){
             OverlayVertexShaderBlob.Dispose();
-            throw new InvalidOperationException($"Overlay pixel shader compilation failed: {OverlayPsErrorBlob?.AsString()}");
+            throw new InvalidOperationException(VsixText.Format("SceneRendererOverlayPixelShaderCompileFailed",OverlayPsErrorBlob?.AsString()));
         }
 
         using var OverlayVertexShaderBlobOwned=OverlayVertexShaderBlob;
@@ -731,36 +732,39 @@ internal sealed class SceneRenderer:IDisposable {
     }
 
     /// <summary>ギズモoverlayを固定容量upload bufferへ置き換える。GPU resource自体は再生成しない。</summary>
-    public void SetOverlay(IReadOnlyList<GizmoOverlayPrimitive>?Primitives)=>this.SetOverlay(Primitives,null);
+    public void SetOverlay(IReadOnlyList<GizmoOverlayPrimitive>?Primitives)=>this.SetOverlay(Primitives,null,null);
 
-    public void SetOverlay(IReadOnlyList<GizmoOverlayPrimitive>?Primitives,IReadOnlyList<GizmoOverlayPrimitive>?SpatialDebugPrimitives){
+    public void SetOverlay(IReadOnlyList<GizmoOverlayPrimitive>?Primitives,IReadOnlyList<GizmoOverlayPrimitive>?SpatialDebugPrimitives)=>
+        this.SetOverlay(Primitives,SpatialDebugPrimitives,null);
+
+    public void SetOverlay(
+        IReadOnlyList<GizmoOverlayPrimitive>?Primitives,
+        IReadOnlyList<GizmoOverlayPrimitive>?SpatialDebugPrimitives,
+        IReadOnlyList<GizmoOverlayPrimitive>?PhysicsDebugPrimitives){
         List<OverlayVertex>Triangles=[];
         List<OverlayVertex>Lines=[];
         AddOverlayPrimitives(Primitives,Triangles,Lines);
         int GizmoCount=Triangles.Count+Lines.Count;
-        if(GizmoCount>MaxGizmoOverlayVertices){
-            throw new ArgumentOutOfRangeException(nameof(Primitives));
-        }
+        if(GizmoCount>MaxGizmoOverlayVertices){ throw new ArgumentOutOfRangeException(nameof(Primitives)); }
         int SpatialStart=Triangles.Count+Lines.Count;
         AddOverlayPrimitives(SpatialDebugPrimitives,Triangles,Lines);
         int SpatialCount=Triangles.Count+Lines.Count-SpatialStart;
-        if(SpatialCount>MaxSpatialDebugOverlayVertices){
-            throw new ArgumentOutOfRangeException(nameof(SpatialDebugPrimitives));
-        }
+        if(SpatialCount>MaxSpatialDebugOverlayVertices){ throw new ArgumentOutOfRangeException(nameof(SpatialDebugPrimitives)); }
+        int PhysicsStart=Triangles.Count+Lines.Count;
+        AddOverlayPrimitives(PhysicsDebugPrimitives,Triangles,Lines);
+        int PhysicsCount=Triangles.Count+Lines.Count-PhysicsStart;
+        if(PhysicsCount>MaxPhysicsDebugOverlayVertices){ throw new ArgumentOutOfRangeException(nameof(PhysicsDebugPrimitives)); }
         this.AddCameraPreviewOverlay(Lines);
-
-        var TotalCount=Triangles.Count+Lines.Count;
+        int TotalCount=Triangles.Count+Lines.Count;
         if(TotalCount>MaxOverlayVertices){
-            throw new ArgumentOutOfRangeException(nameof(Primitives),$"overlay頂点数{TotalCount}が上限{MaxOverlayVertices}を超えています。");
+            throw new ArgumentOutOfRangeException(nameof(Primitives),VsixText.Format("SceneRendererOverlayVertexLimitExceeded",TotalCount,MaxOverlayVertices));
         }
-
         this.OverlayTriangles=Triangles.ToArray();
         this.OverlayLines=Lines.ToArray();
         this.OverlayTriangleVertexCount=Triangles.Count;
         this.OverlayLineVertexCount=Lines.Count;
         MarkAllDirty(this.OverlayGeometryDirty);
     }
-
     private static void AddOverlayPrimitives(IReadOnlyList<GizmoOverlayPrimitive>?Primitives,List<OverlayVertex>Triangles,List<OverlayVertex>Lines){
         if(Primitives is null){
             return;

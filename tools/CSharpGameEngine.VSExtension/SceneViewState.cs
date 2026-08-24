@@ -256,6 +256,7 @@ internal sealed class SceneViewState {
     internal void ApplyOrbit(float DeltaX,float DeltaY)=>
         (this.Yaw, this.Pitch)=SceneViewCamera.ApplyLookDelta(this.Yaw, this.Pitch,DeltaX,DeltaY,OrbitSensitivity,OrbitSensitivity, this.InvertOrbitX, this.InvertOrbitY);
 
+
     /// <summary>
     /// Alt+LMBドラッグのピクセル完全一致(M0020追加、ベストエフォート)。<paramref name="AnchorWorldPoint"/>
     /// (クリック時に捕捉した固定のワールド座標)が、現在のマウス位置
@@ -267,17 +268,6 @@ internal sealed class SceneViewState {
     /// FocusPosition/FocusDistanceは毎回ライブに読むため、ドラッグ中にホイールでFocusDistanceが
     /// 変わっても次のムーブイベントで自動的に追従する。
     /// </summary>
-    internal void ApplyOrbitPixelLock(
-        Vector3 AnchorWorldPoint,float TargetScreenX,float TargetScreenY,
-        float ViewportWidth,float ViewportHeight,float AspectRatio){
-        var Projection= this.GetProjection(AspectRatio);
-        SceneViewCamera.TrySolveOrbitYawPitch(this.FocusPosition, this.FocusDistance,Projection,AnchorWorldPoint,
-            TargetScreenX,TargetScreenY,ViewportWidth,ViewportHeight, this.Yaw, this.Pitch,
-            out var NewYaw,out var NewPitch);
-        this.Yaw=NewYaw;
-        this.Pitch=NewPitch;
-    }
-
     /// <summary>
     /// FocusPositionだけ更新すればEyeはYaw/Pitch/FocusDistance不変なので自動的に同じ量だけ追従する
     /// (design doc §2「視線方向を変えず画面平面上を移動」)。

@@ -97,14 +97,14 @@ public sealed class SceneEditorSettingsTests {
     /// </summary>
     [Fact]
     public void ReadInvertLookX_NoStoredValue_ReturnsTheConfiguredDefault(){
-        Assert.False(SceneEditorSettings.DefaultInvertLookX);
-        RunOnUiThread(()=>Assert.False(SceneEditorSettings.ReadInvertLookX()));
+        Assert.True(SceneEditorSettings.DefaultInvertLookX);
+        RunOnUiThread(()=>Assert.True(SceneEditorSettings.ReadInvertLookX()));
     }
 
     [Fact]
     public void ReadInvertLookY_NoStoredValue_ReturnsTheConfiguredDefault(){
-        Assert.False(SceneEditorSettings.DefaultInvertLookY);
-        RunOnUiThread(()=>Assert.False(SceneEditorSettings.ReadInvertLookY()));
+        Assert.True(SceneEditorSettings.DefaultInvertLookY);
+        RunOnUiThread(()=>Assert.True(SceneEditorSettings.ReadInvertLookY()));
     }
 
     [Fact]
@@ -124,14 +124,14 @@ public sealed class SceneEditorSettingsTests {
     /// <summary>Orbit(Alt+LMB)にはこれまで反転設定が存在せず、常にfalse,false固定だった。</summary>
     [Fact]
     public void ReadInvertOrbitX_NoStoredValue_ReturnsTheConfiguredDefault(){
-        Assert.False(SceneEditorSettings.DefaultInvertOrbitX);
-        RunOnUiThread(()=>Assert.False(SceneEditorSettings.ReadInvertOrbitX()));
+        Assert.True(SceneEditorSettings.DefaultInvertOrbitX);
+        RunOnUiThread(()=>Assert.True(SceneEditorSettings.ReadInvertOrbitX()));
     }
 
     [Fact]
     public void ReadInvertOrbitY_NoStoredValue_ReturnsTheConfiguredDefault(){
-        Assert.False(SceneEditorSettings.DefaultInvertOrbitY);
-        RunOnUiThread(()=>Assert.False(SceneEditorSettings.ReadInvertOrbitY()));
+        Assert.True(SceneEditorSettings.DefaultInvertOrbitY);
+        RunOnUiThread(()=>Assert.True(SceneEditorSettings.ReadInvertOrbitY()));
     }
 
     [Fact]
@@ -226,7 +226,7 @@ public sealed class SceneEditorSettingsTests {
         SceneEditorSettings.ConfigureStoreProvider(null);
 
         Assert.Equal(1.0f,SceneEditorSettings.ReadNavigationSpeedMultiplier());
-        Assert.False(SceneEditorSettings.ReadInvertLookX());
+        Assert.True(SceneEditorSettings.ReadInvertLookX());
     });
 
     [Fact]
@@ -235,6 +235,27 @@ public sealed class SceneEditorSettingsTests {
 
         SceneEditorSettings.WriteTransformSpace(SceneTransformSpace.World);
         SceneEditorSettings.WriteNavigationSpeedMultiplier(3f);
+    });
+
+    [Fact]
+    public void MigrateNavigationSettingsIfNeeded_UpdatesLegacyValuesOnce()=>RunOnUiThread(()=>{
+        var Store=new FakeWritableSettingsStore();
+        SceneEditorSettings.ConfigureStoreProvider(()=>Store);
+        SceneEditorSettings.WriteInvertLookX(false);
+        SceneEditorSettings.WriteInvertLookY(false);
+        SceneEditorSettings.WriteInvertOrbitX(false);
+        SceneEditorSettings.WriteInvertOrbitY(false);
+
+        SceneEditorSettings.MigrateNavigationSettingsIfNeeded();
+
+        Assert.True(SceneEditorSettings.ReadInvertLookX());
+        Assert.True(SceneEditorSettings.ReadInvertLookY());
+        Assert.True(SceneEditorSettings.ReadInvertOrbitX());
+        Assert.True(SceneEditorSettings.ReadInvertOrbitY());
+
+        SceneEditorSettings.WriteInvertLookX(false);
+        SceneEditorSettings.MigrateNavigationSettingsIfNeeded();
+        Assert.False(SceneEditorSettings.ReadInvertLookX());
     });
 
     private static void RunOnUiThread(Action Action)=>

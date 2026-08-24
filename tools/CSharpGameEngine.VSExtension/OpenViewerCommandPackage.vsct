@@ -38,7 +38,7 @@
         <Icon guid="ImageCatalogGuid" id="OpenFolder" />
         <CommandFlag>IconIsMoniker</CommandFlag>
         <Strings>
-          <ButtonText>C# Game Engine Viewer を開く</ButtonText>
+          <ButtonText>Open C# Game Engine Viewer</ButtonText>
         </Strings>
       </Button>
       <Button guid="guidOpenViewerCommandPackageCmdSet" id="ToggleFabWatchCommandId" priority="0x0102" type="Button">
@@ -46,7 +46,7 @@
         <Icon guid="ImageCatalogGuid" id="FolderOpened" />
         <CommandFlag>IconIsMoniker</CommandFlag>
         <Strings>
-          <ButtonText>Fabダウンロード監視を開始</ButtonText>
+          <ButtonText>Start monitoring Fab downloads</ButtonText>
         </Strings>
       </Button>
       <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenFabCommandId" priority="0x0103" type="Button">
@@ -54,7 +54,7 @@
         <Icon guid="ImageCatalogGuid" id="ViewInBrowser" />
         <CommandFlag>IconIsMoniker</CommandFlag>
         <Strings>
-          <ButtonText>Fab を開く</ButtonText>
+          <ButtonText>Open Fab</ButtonText>
         </Strings>
       </Button>
       <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenGameCommandId" priority="0x0104" type="Button">
@@ -62,7 +62,7 @@
         <Icon guid="ImageCatalogGuid" id="Play" />
         <CommandFlag>IconIsMoniker</CommandFlag>
         <Strings>
-          <ButtonText>ゲームを開く</ButtonText>
+          <ButtonText>Open Game</ButtonText>
         </Strings>
       </Button>
       <Button guid="guidOpenViewerCommandPackageCmdSet" id="ShowHierarchyToolWindowCommandId" priority="0x0105" type="Button">
@@ -70,7 +70,7 @@
         <Icon guid="ImageCatalogGuid" id="ToolWindow" />
         <CommandFlag>IconIsMoniker</CommandFlag>
         <Strings>
-          <ButtonText>ヒエラルキー パネルを表示</ButtonText>
+          <ButtonText>Show Hierarchy</ButtonText>
         </Strings>
       </Button>
       <Button guid="guidOpenViewerCommandPackageCmdSet" id="ApplyGameEngineLayoutCommandId" priority="0x0106" type="Button">
@@ -78,7 +78,7 @@
         <Icon guid="ImageCatalogGuid" id="LayoutPanel" />
         <CommandFlag>IconIsMoniker</CommandFlag>
         <Strings>
-          <ButtonText>GameEngine レイアウトを適用</ButtonText>
+          <ButtonText>Apply Game Engine layout</ButtonText>
         </Strings>
       </Button>
       <Button guid="guidOpenViewerCommandPackageCmdSet" id="ShowInspectorToolWindowCommandId" priority="0x0107" type="Button">
@@ -86,7 +86,7 @@
         <Icon guid="ImageCatalogGuid" id="ToolWindow" />
         <CommandFlag>IconIsMoniker</CommandFlag>
         <Strings>
-          <ButtonText>インスペクター パネルを表示</ButtonText>
+          <ButtonText>Show Inspector</ButtonText>
         </Strings>
       </Button>
       <Button guid="guidOpenViewerCommandPackageCmdSet" id="ShowComponentPaletteToolWindowCommandId" priority="0x0108" type="Button">
@@ -94,7 +94,7 @@
         <Icon guid="ImageCatalogGuid" id="ToolWindow" />
         <CommandFlag>IconIsMoniker</CommandFlag>
         <Strings>
-          <ButtonText>コンポーネント パレットを表示</ButtonText>
+          <ButtonText>Show Component Palette</ButtonText>
         </Strings>
       </Button>
       <!-- 0x0108 (PreviewSceneDefinitionCommandId) は ADR-0040 で退役した。VSIX の Scene 表示は
@@ -106,7 +106,7 @@
         <CommandFlag>DynamicVisibility</CommandFlag>
         <CommandFlag>TextChanges</CommandFlag>
         <Strings>
-          <ButtonText>シーン デザイナーで開く</ButtonText>
+          <ButtonText>Open in Scene Designer</ButtonText>
         </Strings>
       </Button>
       <!-- 同じファイルに複数の Scene がある場合の一覧 (0x0110〜0x012F の32スロット + 溢れ表示

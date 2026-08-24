@@ -89,7 +89,7 @@ public sealed class SceneSaveVerificationTests {
         Assert.False(SceneSaveVerification.Verify(
             Root,Root,Compilation,Document.Model,Key.ClassFullyQualifiedName,
             CancellationToken.None,out var Error));
-        Assert.Contains("一致しません",Error);
+        Assert.Contains(SceneModelStructuralSignature.Compute(Document.Model),Error);
     }
 
     /// <summary>

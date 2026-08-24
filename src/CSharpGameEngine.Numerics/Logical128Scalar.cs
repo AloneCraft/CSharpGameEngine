@@ -15,6 +15,8 @@ public readonly struct Scalar(ulong Limb0,ulong Limb1):IComparable<Scalar>,IEqua
         public static bool TryFromDouble(double Value,out Scalar Result)=>TryRaw(FixedScalarMath.TryFromDouble(Value,TotalBits,FractionalBits,out BigInteger Raw)?Raw:null,out Result);
         public static Scalar ParseInvariant(string Text){ if(!TryParseInvariant(Text,out Scalar Result)){ throw new FormatException(); } return Result; }
         public static bool TryParseInvariant(string? Text,out Scalar Result)=>TryRaw(FixedScalarMath.TryParseInvariant(Text,TotalBits,FractionalBits,out BigInteger Raw)?Raw:null,out Result);
+        public bool TryToScaledInt64(int TargetFractionalBits,out long RawValue)=>FixedScalarMath.TryToScaledInt64(this.Raw,FractionalBits,TargetFractionalBits,out RawValue);
+        public static bool TryFromScaledInt64(long RawValue,int SourceFractionalBits,out Scalar Result)=>TryRaw(FixedScalarMath.TryFromScaledInt64(RawValue,SourceFractionalBits,FractionalBits,TotalBits,out BigInteger Raw)?Raw:null,out Result);
         public double ToDouble()=>(double)this.Raw/(double)(BigInteger.One<<FractionalBits);
         public bool TryToSingle(out float Value){ double D=this.ToDouble(); if(!double.IsFinite(D)||D>float.MaxValue||D<float.MinValue){ Value=0f; return false; } Value=(float)D; return true; }
         public override string ToString()=>FixedScalarMath.ToStringInvariant(this.Raw,FractionalBits);

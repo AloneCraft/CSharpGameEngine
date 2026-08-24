@@ -387,23 +387,15 @@ public sealed class SceneViewStateTests {
     }
 
     [Fact]
-    public void ApplyOrbitPixelLock_MovesTowardTarget_WithoutTouchingFocusPosition(){
+    public void Orbit_ZeroDeltaDoesNotChangeCamera(){
         SceneViewState State=new(){
             FocusPosition=new Vector3(1f,2f,3f),FocusDistance=10f,Yaw=0.2f,Pitch=0.1f,
         };
         var FocusBefore=State.FocusPosition;
-        var AnchorWorldPoint=State.FocusPosition+new Vector3(3f,1.5f,0f);
-
         // シードそのままの位置(=アンカーが既に映っている画面座標)を目標にする — Orbitの
         // 不変条件(FocusPositionは変更しない)だけを確認したいので、解自体が難しいケースを
         // 選ぶ必要はない。
-        var SeedView=State.GetView();
-        var Projection=State.GetProjection(AspectRatio:800f/600f);
-        var Clip=Vector4.Transform(new Vector4(AnchorWorldPoint,1f),SeedView*Projection);
-        var TargetScreenX=(Clip.X/Clip.W+1f)*0.5f*800f;
-        var TargetScreenY=(1f-Clip.Y/Clip.W)*0.5f*600f;
-
-        State.ApplyOrbitPixelLock(AnchorWorldPoint,TargetScreenX,TargetScreenY,800f,600f,AspectRatio:800f/600f);
+        State.ApplyOrbit(0f,0f);
 
         Assert.Equal(FocusBefore,State.FocusPosition);
         Assert.Equal(0.2f,State.Yaw,Precision);

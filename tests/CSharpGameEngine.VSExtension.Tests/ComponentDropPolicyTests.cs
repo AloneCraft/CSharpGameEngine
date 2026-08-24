@@ -1,3 +1,4 @@
+using System.Globalization;
 namespace CSharpGameEngine.VSExtension.Tests;
 
 /// <summary>
@@ -57,6 +58,18 @@ public sealed class ComponentDropPolicyTests {
     [Fact]
     public void Describe_RejectionsNameTheComponentSoTheStatusBarIsActionable(){
         Assert.Contains("Transform",ComponentDropPolicy.Describe(ComponentDropVerdict.RejectDuplicate,"Transform"));
+    }
+
+    [Theory]
+    [InlineData("en-US","This Entity already has Transform.")]
+    [InlineData("ja-JP","このEntityには既に Transform があります。")]
+    public void Describe_UsesTheRequestedUiCulture(string CultureName,string Expected){
+        Assert.Equal(
+            Expected,
+            ComponentDropPolicy.Describe(
+                ComponentDropVerdict.RejectDuplicate,
+                "Transform",
+                CultureInfo.GetCultureInfo(CultureName)));
     }
 
     [Fact]

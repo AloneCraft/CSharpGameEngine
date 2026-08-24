@@ -69,7 +69,9 @@ internal static class GameSystemIndexAssigner {
 
         foreach(var System in ValidSystems){
             foreach(var Method in System.Methods){
-                RegisterSet([.. Method.Components.Select(static C=>C.TypeFullyQualifiedName)]);
+                if(Method.Components.Length>0){
+                    RegisterSet([.. Method.Components.Select(static C=>C.TypeFullyQualifiedName)]);
+                }
             }
         }
 

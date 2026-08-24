@@ -53,7 +53,7 @@ internal sealed class AssetPreviewHwndHost:HwndHost {
         try {
             this.RepoRoot??=RepoLocator.ResolveRepoRoot();
             if(this.RepoRoot is null){
-                throw new InvalidOperationException($"リポジトリルート({RepoLocator.RepoMarkerFileName})が見つかりませんでした。");
+                throw new InvalidOperationException(VsixText.Format("Common_RepoRootNotFound",RepoLocator.RepoMarkerFileName));
             }
 
             var Mesh=MeshLoader.Load(this.ModelPath, this.RepoRoot);
@@ -64,9 +64,10 @@ internal sealed class AssetPreviewHwndHost:HwndHost {
             this.RenderingHandler=(_,_)=> this.Renderer?.RenderFrame();
             CompositionTarget.Rendering+= this.RenderingHandler;
         } catch(Exception Ex){
+            Microsoft.VisualStudio.Shell.ActivityLog.LogError(nameof(AssetPreviewHwndHost),Ex.ToString());
             System.Windows.MessageBox.Show(
-                $"アセットのプレビューに失敗しました: {Ex}",
-                "C# Game Engine Asset Preview",
+                VsixText.Format("AssetPreview_LoadFailed",Ex.Message),
+                VsixText.Get("AssetPreview_Title"),
                 System.Windows.MessageBoxButton.OK,
                 System.Windows.MessageBoxImage.Error);
         }

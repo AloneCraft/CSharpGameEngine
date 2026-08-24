@@ -32,7 +32,7 @@ internal static class ExternalFbxLoader {
                                                                    Json,new JsonSerializerOptions { PropertyNameCaseInsensitive=true });
 
             if(Document is null||!Document.Success){
-                throw new InvalidOperationException("FBXファイルのインポートに失敗しました(詳細はブリッジプロセスの出力を確認してください)。");
+                throw new InvalidOperationException(VsixText.Get("Bridge_FbxImportFailed"));
             }
 
             return Document.ToSimpleMesh();

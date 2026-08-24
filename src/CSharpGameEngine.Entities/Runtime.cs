@@ -20,6 +20,15 @@ public record struct Entity(int Id);
 
 public partial struct State(World World){
     public bool Enabled { get; set;}
+    public SimulationTiming Timing { get;internal set; }=SimulationTiming.Default;
+    public ulong FixedTick=>this.Timing.Tick;
+    public int FixedTickRate=>this.Timing.TickRate;
+    public SystemPhase Phase=>this.Timing.Phase;
+
+    public void SetSimulationTiming(ulong Tick,int TickRate,SystemPhase Phase){
+        if(TickRate<=0){ throw new ArgumentOutOfRangeException(nameof(TickRate)); }
+        this.Timing=new SimulationTiming(Tick,TickRate,Phase);
+    }
     /// <summary>Gets or sets the host mode. Runtime is the safe default for user-created states.</summary>
     public EngineExecutionMode ExecutionMode { get; set; }
 

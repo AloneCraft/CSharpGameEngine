@@ -49,4 +49,10 @@
   <data name="122" xml:space="preserve">
     <value>Transform Precision</value>
   </data>
+  <data name="130" xml:space="preserve">
+    <value>Scene file</value>
+  </data>
+  <data name="131" xml:space="preserve">
+    <value>Creates a basic C# Game Engine stage.</value>
+  </data>
 </root>

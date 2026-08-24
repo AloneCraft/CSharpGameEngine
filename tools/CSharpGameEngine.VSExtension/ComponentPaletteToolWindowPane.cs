@@ -16,7 +16,7 @@ public sealed class ComponentPaletteToolWindowPane:ToolWindowPane {
     private static Func<SceneEditorSessionService?>?SessionProvider;
 
     public ComponentPaletteToolWindowPane():base(null){
-        this.Caption="コンポーネント";
+        this.Caption=VsixText.Get("PaneComponentPalette");
         this.Content=new ComponentPaletteToolWindowControl();
         if(SessionProvider?.Invoke() is { } Session&& this.Content is ComponentPaletteToolWindowControl Control){
             Control.SetSession(Session);

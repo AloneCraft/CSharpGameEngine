@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Globalization;
 using CSharpGameEngine.SceneAnalysis;
 
 namespace CSharpGameEngine.VSExtension;
@@ -87,17 +88,21 @@ internal static class SceneProjectionIdentityComparer {
     }
 
     /// <summary>デバッグ・診断用。一致しない最初のPathを返す(全て一致するならnull)。</summary>
-    internal static string?FindFirstMismatch(SceneProjection Left,SceneProjection Right){
+    internal static string?FindFirstMismatch(SceneProjection Left,SceneProjection Right)=>
+        FindFirstMismatch(VsixLocalization.UICulture,Left,Right);
+
+    internal static string?FindFirstMismatch(
+        CultureInfo Culture,SceneProjection Left,SceneProjection Right){
         if(Left.Nodes.Count!=Right.Nodes.Count){
-            return $"ノード数が違います({Left.Nodes.Count} / {Right.Nodes.Count})";
+            return VsixText.Format(Culture,"SceneProjectionNodeCountMismatch",Left.Nodes.Count,Right.Nodes.Count);
         }
 
         foreach(var Node in Left.Nodes){
             if(!Right.TryGetId(Node.Path,out var RightId)){
-                return $"右に存在しないPath: {Node.Path.ToDisplayString()}";
+                return VsixText.Format(Culture,"SceneProjectionPathMissingRight",Node.Path.ToDisplayString());
             }
             if(!RightId.Equals(Node.Id)){
-                return $"Idが違います: {Node.Path.ToDisplayString()}";
+                return VsixText.Format(Culture,"SceneProjectionIdMismatch",Node.Path.ToDisplayString());
             }
         }
 

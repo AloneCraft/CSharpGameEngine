@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
@@ -13,9 +15,9 @@ namespace CSharpGameEngine.VSExtension;
 /// </para>
 /// </summary>
 internal static class SceneUndoTransactionNaming {
-    /// <summary>表示名の接頭辞。</summary>
-    internal const string Prefix="Scene デザイナー: ";
-
     /// <summary><paramref name="Label"/>は<see cref="SceneUndoEntry.Label"/>(例: "Rename node")。</summary>
-    internal static string Format(string Label)=>Prefix+Label;
+    internal static string Format(string Label)=>Format(VsixLocalization.UICulture,Label);
+
+    internal static string Format(CultureInfo Culture,string Label)=>
+        VsixText.Format(Culture,"SceneUndoTransaction",Label);
 }

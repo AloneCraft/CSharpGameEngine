@@ -23,10 +23,12 @@ internal static class GeneratedEditorPreviewBridgeEmitter {
             "internal static class GeneratedEditorPreviewBridge {",
             "    private static global::CSharpGameEngine.Entities.World PreviewWorld;",
             "    private static global::CSharpGameEngine.Entities.State PreviewState;",
+            "    private static GeneratedSystemSet PreviewSystems;",
             "    private static bool Initialized;",
             $"    internal static string SelectedLogicalSpatialProfile => \"{Escape(LogicalSpatialProfile)}\";",
             "    internal static bool Initialize(string? SceneName) {",
             "        PreviewWorld = new global::CSharpGameEngine.Entities.World();",
+            "        PreviewSystems = default;",
             "        bool Matched = false;",
             "        switch (SceneName) {",
         ];
@@ -45,7 +47,7 @@ internal static class GeneratedEditorPreviewBridgeEmitter {
         Lines.Add("        if (!Matched) return false;");
         Lines.Add("        PreviewState = new global::CSharpGameEngine.Entities.State(PreviewWorld) { Enabled = true, ExecutionMode = global::CSharpGameEngine.Entities.EngineExecutionMode.EditorPreview };");
         if(HasEditorSystems){
-            Lines.Add("        GeneratedGameLoop.RunEditorFrame(ref PreviewState);");
+            Lines.Add("        GeneratedGameLoop.RunEditorFrame(ref PreviewState, ref PreviewSystems);");
         } else {
             Lines.Add("        PreviewState.World.PlaybackStructuralChanges(ref PreviewState);");
             if(HasSpatialIndex){ Lines.Add("        PreviewState.World.RefreshGlobalSpatialIndex();"); }
@@ -56,7 +58,7 @@ internal static class GeneratedEditorPreviewBridgeEmitter {
         Lines.Add("    internal static void TickOnChange() {");
         Lines.Add("        if (!Initialized || !PreviewState.Enabled) return;");
         if(HasEditorSystems){
-            Lines.Add("        GeneratedGameLoop.RunEditorFrame(ref PreviewState);");
+            Lines.Add("        GeneratedGameLoop.RunEditorFrame(ref PreviewState, ref PreviewSystems);");
         } else {
             if(HasSpatialIndex){ Lines.Add("        PreviewState.World.RefreshGlobalSpatialIndex();"); }
         }
@@ -64,14 +66,14 @@ internal static class GeneratedEditorPreviewBridgeEmitter {
         if(HasRealtimeSystems){
             Lines.Add("    internal static void TickRealtime() {");
             Lines.Add("        if (!Initialized || !PreviewState.Enabled) return;");
-            Lines.Add("        GeneratedGameLoop.RunEditorRealtimeFrame(ref PreviewState);");
+            Lines.Add("        GeneratedGameLoop.RunEditorRealtimeFrame(ref PreviewState, ref PreviewSystems);");
             Lines.Add("    }");
         } else {
             Lines.Add("    internal static void TickRealtime() { }");
         }
         Lines.Add("    internal static void Shutdown() {");
         if(HasEditorSystems){
-            Lines.Add("        if (Initialized) GeneratedGameLoop.ShutdownEditor(ref PreviewState);");
+            Lines.Add("        if (Initialized) GeneratedGameLoop.ShutdownEditor(ref PreviewState, ref PreviewSystems);");
         }
         Lines.Add("        PreviewState.Enabled = false;");
         Lines.Add("        Initialized = false;");

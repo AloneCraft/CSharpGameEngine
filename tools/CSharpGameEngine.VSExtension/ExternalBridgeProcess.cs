@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Text;
 
@@ -34,7 +35,7 @@ internal static class ExternalBridgeProcess {
         RunProcess(BridgeProjectRelativePath,InputPath,OutputJsonPath,RepoRoot,Timeout,UseResidentServer);
 
         if(!File.Exists(OutputJsonPath)){
-            throw new InvalidOperationException($"インポートブリッジ({BridgeProjectRelativePath})が出力ファイルを生成しませんでした。");
+            throw new InvalidOperationException(VsixText.Format("Bridge_OutputNotGenerated",BridgeProjectRelativePath));
         }
 
         return File.ReadAllText(OutputJsonPath);
@@ -45,7 +46,7 @@ internal static class ExternalBridgeProcess {
         RunProcess(BridgeProjectRelativePath,FirstArg,OutputPath,RepoRoot,Timeout,UseResidentServer);
 
         if(!File.Exists(OutputPath)){
-            throw new InvalidOperationException($"生成ブリッジ({BridgeProjectRelativePath})が出力ファイルを生成しませんでした。");
+            throw new InvalidOperationException(VsixText.Format("Bridge_GeneratedOutputNotGenerated",BridgeProjectRelativePath));
         }
     }
 
@@ -56,7 +57,7 @@ internal static class ExternalBridgeProcess {
             ResidentBridgeClient.TryRun(ExecutablePath,RepoRoot,BridgeProjectRelativePath,FirstArg,OutputPath,Timeout,out var ResidentExitCode,out var ResidentOutput)){
             if(ResidentExitCode!=0){
                 throw new InvalidOperationException(
-                    $"インポートブリッジ({BridgeProjectRelativePath})がエラー終了しました(exit code {ResidentExitCode})。\n{ResidentOutput}");
+                    VsixText.Format("Bridge_ExitedWithError",BridgeProjectRelativePath,ResidentExitCode.ToString(CultureInfo.InvariantCulture),ResidentOutput));
             }
 
             return;
@@ -96,12 +97,12 @@ internal static class ExternalBridgeProcess {
         var Exited=Process.WaitForExit((int)Timeout.TotalMilliseconds);
         if(!Exited){
             try { Process.Kill();} catch(InvalidOperationException){ }
-            throw new TimeoutException($"インポートブリッジ({BridgeProjectRelativePath})が{Timeout.TotalSeconds}秒以内に終了しませんでした。");
+            throw new TimeoutException(VsixText.Format("Bridge_TimedOut",BridgeProjectRelativePath,Timeout.TotalSeconds.ToString(CultureInfo.InvariantCulture)));
         }
 
         if(Process.ExitCode!=0){
             throw new InvalidOperationException(
-                $"インポートブリッジ({BridgeProjectRelativePath})がエラー終了しました(exit code {Process.ExitCode})。\n{Stdout}\n{Stderr}");
+                VsixText.Format("Bridge_ExitedWithError",BridgeProjectRelativePath,Process.ExitCode.ToString(CultureInfo.InvariantCulture),Stdout+Environment.NewLine+Stderr));
         }
     }
 }

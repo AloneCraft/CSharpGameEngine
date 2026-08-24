@@ -81,7 +81,7 @@ internal sealed class SceneEditorSessionService : IDisposable {
 
     internal SceneDocumentSnapshot Pin(SceneModel Model){
         SceneKey Key=this.Workspace.TryCreateSceneKey(Model)
-            ??throw new InvalidOperationException("Scene Designer の対象にできるのはソリューション内の C# Document だけです。");
+            ??throw new InvalidOperationException(VsixText.Get("SessionPinDocumentOnly"));
         SceneDocumentSnapshot RealSnapshot=this.Publish(Model,Key);
         this.PinnedSceneKey=Key;
         SceneDocumentSnapshot Published=this.EnsureDocumentAndPublish(Key,RealSnapshot);
@@ -233,7 +233,7 @@ internal sealed class SceneEditorSessionService : IDisposable {
             // 戻せる履歴はあるのにテキストと同期できない = C#を直接編集された状態。
             // 黙って無反応だと原因が分からないので、ここだけは理由を返す。
             if(!IsSaving&&Document.History.Count>0&&Document.History.Count<=Document.TextWatermark){
-                BlockedReason="C#ソースが直接編集されたため、ここから先はコードエディタのCtrl+Zで戻してください。";
+                BlockedReason=VsixText.Get("SessionUndoBlockedSourceChanged");
             }
 
             return false;
@@ -331,13 +331,13 @@ internal sealed class SceneEditorSessionService : IDisposable {
     internal async Task<SceneEditCommitResult>SaveAsync(SceneKey Key,CancellationToken CancellationToken){
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(CancellationToken);
         if(!this.Documents.TryGetValue(Key,out SceneEditDocument?Document)){
-            return new SceneEditCommitResult(false,"保存対象のSceneが開かれていません。",WasRebased:false);
+            return new SceneEditCommitResult(false,VsixText.Get("SessionSaveSceneNotOpen"),WasRebased:false);
         }
         if(!Document.IsDirty){
             return new SceneEditCommitResult(true,ErrorMessage:null,WasRebased:false);
         }
         if(!this.SavesInFlight.Add(Key)){
-            return new SceneEditCommitResult(false,"既にこのSceneの保存が進行中です。",WasRebased:false);
+            return new SceneEditCommitResult(false,VsixText.Get("SessionSaveAlreadyInProgress"),WasRebased:false);
         }
 
         try {
@@ -345,16 +345,16 @@ internal sealed class SceneEditorSessionService : IDisposable {
                 .ResolveSceneEditContextAsync(Key,CancellationToken).ConfigureAwait(false);
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(CancellationToken);
             if(this.Disposed){
-                return new SceneEditCommitResult(false,"セッションが終了しました。",WasRebased:false);
+                return new SceneEditCommitResult(false,VsixText.Get("SessionEnded"),WasRebased:false);
             }
             if(Context is null){
-                return new SceneEditCommitResult(false,"対象Sceneの最新C#ソースを解決できません。",WasRebased:false);
+                return new SceneEditCommitResult(false,VsixText.Get("SessionSaveSourceUnavailable"),WasRebased:false);
             }
             if(Context.Model.HasErrors||Context.Model.Root is null){
-                return new SceneEditCommitResult(false,"対象SceneにC#解析エラーがあるため保存できません。",WasRebased:false);
+                return new SceneEditCommitResult(false,VsixText.Get("SessionSaveAnalysisErrors"),WasRebased:false);
             }
             if(!this.Reconcilers.TryGetValue(Key,out SceneProjectionReconciler?Reconciler)){
-                return new SceneEditCommitResult(false,"対象SceneのID対応表が見つかりません。",WasRebased:false);
+                return new SceneEditCommitResult(false,VsixText.Get("SessionSaveIdMapMissing"),WasRebased:false);
             }
 
             // M0051 Step 1-6: 履歴はセッション全体で保持するようになったので、毎回先頭から再生すると
@@ -378,7 +378,7 @@ internal sealed class SceneEditorSessionService : IDisposable {
             SceneSourceEditStepsResult Edited=SceneSourceEditor.ApplyForSaveSteps(
                 Context.Root,Key,RealProjection,Document.UnwrittenHistory);
             if(!Edited.Succeeded||Edited.FinalRoot is null){
-                return new SceneEditCommitResult(false,Edited.ErrorMessage??"保存に失敗しました。",WasRebased:false);
+                return new SceneEditCommitResult(false,Edited.ErrorMessage??VsixText.Get("SessionSaveFailed"),WasRebased:false);
             }
 
             // M0051: 書き戻した構文木を読み直し、Documentの編集内容と意味的に一致するか検算する。
@@ -427,7 +427,7 @@ internal sealed class SceneEditorSessionService : IDisposable {
             // 保存自体に失敗しても書き戻しは成功しているので、編集は失われない — 警告に留める。
             if(!this.Workspace.TrySaveDocumentToDisk(Context.FilePath,out string?SaveError)){
                 return new SceneEditCommitResult(
-                    true,$"C#ソースへ反映しましたが、ファイル保存に失敗しました: {SaveError}",WasRebased:false);
+                    true,VsixText.Format("SessionSaveDiskWriteWarning",SaveError??VsixText.Get("UnknownError")),WasRebased:false);
             }
 
             return new SceneEditCommitResult(true,ErrorMessage:null,WasRebased:false);

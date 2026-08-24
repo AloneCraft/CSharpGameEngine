@@ -241,7 +241,7 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
     private object BuildRowViewModel(SceneInspectorRow Row)=>Row switch {
         SceneInspectorMemberRow Leaf=>new InspectorMemberViewModel(Leaf.Member),
         SceneInspectorNestedRow Nested=>this.CreateNestedRowViewModel(Nested),
-        _=>throw new InvalidOperationException("未知のInspector行種別です。"),
+        _=>throw new InvalidOperationException(VsixText.Get("InspectorUnknownRowType")),
     };
 
     private InspectorNestedRowViewModel CreateNestedRowViewModel(SceneInspectorNestedRow Row){
@@ -705,7 +705,7 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
             _=>null,
         };
         if(NewExpression is null){
-            SetStatus($"{Member.MemberName} の値を解釈できません。");
+            SetStatus(VsixText.Format("InspectorValueParseFailed",Member.MemberName));
             this.TryRefresh(Force:true);
             return;
         }
@@ -740,8 +740,8 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
     private static void RequestRemoveComponent(InspectorComponentGroupViewModel ViewModel){
         ThreadHelper.ThrowIfNotOnUIThread();
         if(MessageBox.Show(
-            $"{ViewModel.Header} を削除します。よろしいですか？",
-            "コンポーネントの削除",MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes){
+            VsixText.Format("InspectorRemovePrompt",ViewModel.Header),
+            VsixText.Get("InspectorRemoveTitle"),MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes){
             return;
         }
 
@@ -781,7 +781,7 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
         SceneEditCommitRequest Request=SceneInspectorCommitPlanner.CreateCommit(
             Snapshot.Key,Snapshot.DocumentVersion,Member,NewExpression);
         if(!Session.Apply(Request)){
-            SetStatus("インスペクターの編集を反映できませんでした。");
+            SetStatus(VsixText.Get("InspectorCommitFailed"));
         }
 
         this.TryRefresh(Force:true);

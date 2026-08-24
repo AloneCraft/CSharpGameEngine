@@ -30,7 +30,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     public SceneDesignerToolWindowControl(){
         this.InitializeComponent();
         this.VsixIdentityText.Text=VsixBuildIdentity.DisplayText;
-        this.VsixIdentityText.ToolTip=VsixBuildIdentity.ActivityLogText;
+        this.VsixIdentityText.ToolTip=VsixBuildIdentity.ToolTipText;
         // M0033: World/Local切り替えはギズモ上のアイコン(TransformSpaceToggleGizmo)へ移った。
         // M0020 Phase 1(ADR-0041 決定事項2): ナビゲーション(WASDQE)を受けるにはWPFの
         // キーボードフォーカスが要る(Wheelはネイティブ側で受けるためフォーカス不要、
@@ -162,7 +162,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             Result=await Session.SaveAsync(Key,CancellationToken.None).ConfigureAwait(false);
         } catch(Exception Ex){
             ActivityLog.LogError(nameof(SceneDesignerToolWindowControl),Ex.ToString());
-            Result=new SceneEditCommitResult(false,"保存中にエラーが発生しました。",WasRebased:false);
+            Result=new SceneEditCommitResult(false,VsixText.Get("SessionSaveFailed"),WasRebased:false);
         }
 
         this.DispatchToUi(()=>{
@@ -171,7 +171,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
                 return;
             }
             if(Package.GetGlobalService(typeof(SVsStatusbar))is IVsStatusbar StatusBar){
-                StatusBar.SetText(Result.Succeeded?"Scene を保存しました。":Result.ErrorMessage??"Scene の保存に失敗しました。");
+                StatusBar.SetText(Result.Succeeded?VsixText.Get("SceneDesigner_SaveSucceeded"):Result.ErrorMessage??VsixText.Get("SessionSaveFailed"));
             }
         });
     }
@@ -192,7 +192,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         if(Session.PinnedSnapshot is { } Snapshot){
             this.ShowSnapshot(Snapshot);
         } else {
-            this.ShowEmpty("シーンを選択してください。");
+            this.ShowEmpty(VsixText.Get("SceneSelectPrompt"));
         }
 
         this.RefreshSceneCatalog();
@@ -223,7 +223,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         this.DispatchToUi(()=>{
             ThreadHelper.ThrowIfNotOnUIThread();
             if(Snapshot is null){
-                this.ShowEmpty("選択中のシーンは解決できなくなりました。");
+                this.ShowEmpty(VsixText.Get("SceneDesigner_SelectedSceneMissing"));
             } else {
                 this.ShowSnapshot(Snapshot);
                 this.TryRestoreDuplicateSelection(Snapshot);
@@ -251,8 +251,8 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         SceneModel?Model=Snapshot.LastKnownGoodModel??Snapshot.CurrentModel;
         if(Model?.Root is null){
             this.ShowEmpty(Snapshot.HasBlockingErrors
-                ?"シーンの解析に失敗しました。C# のエラーを修正してください。"
-                :"描画できるシーンがありません。");
+                ?VsixText.Get("SceneDesigner_BlockingErrors")
+                :VsixText.Get("SceneDesigner_NoRenderableScene"));
             return;
         }
 
@@ -271,11 +271,12 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
 
         // SceneReady のときだけ HwndHost を attach する。未選択状態で BuildWindowCore を呼ばない。
         if(!SceneDesignerHostAttachmentPolicy.ShouldAttach(SceneDesignerHostState.SceneReady)){
-            throw new InvalidOperationException("Scene Designer host の attach 状態が不正です。");
+            throw new InvalidOperationException(VsixText.Get("SceneDesigner_HostAttachmentInvalid"));
         }
 
         SceneHwndHost Host=new();
         Host.StatusChanged+=this.OnStatusChanged;
+        Host.SpatialDebugStatusChanged+=this.OnSpatialDebugStatusChanged;
         Host.SpatialDebugProcessCandidatesChanged+=this.OnSpatialDebugProcessCandidatesChanged;
         Host.ViewportActivated+=this.OnViewportActivated;
         Host.CameraPreviewSelectionRequested+=this.OnCameraPreviewSelectionRequested;
@@ -293,6 +294,8 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         this.RenderHostGrid.Children.Add(Host);
         Host.SetRenderMode(SceneEditorSettings.ReadRenderMode());
         Host.SetGlobalSpatialOctreeEnabled(SceneEditorSettings.ReadShowGlobalSpatialOctree());
+        Host.SetPhysicsDebugEnabled(this.PhysicsDebugToggle.IsChecked==true);
+        this.ApplyPhysicsDebugOptions(Host);
         return Host;
     }
 
@@ -312,6 +315,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         this.Host=null;
         this.RenderHostGrid.Children.Remove(Host);
         Host.StatusChanged-=this.OnStatusChanged;
+        Host.SpatialDebugStatusChanged-=this.OnSpatialDebugStatusChanged;
         Host.SpatialDebugProcessCandidatesChanged-=this.OnSpatialDebugProcessCandidatesChanged;
         Host.ViewportActivated-=this.OnViewportActivated;
         Host.CameraPreviewSelectionRequested-=this.OnCameraPreviewSelectionRequested;
@@ -368,7 +372,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
                 bool Selected=this.TrySyncSelectorToPinnedScene();
                 if(!SceneCatalogTargetPolicy.KeepsPresentedScene(
                     Session.PinnedSnapshot is not null,Catalog is not null)){
-                    this.ShowEmpty("シーンを選択してください。");
+                    this.ShowEmpty(VsixText.Get("SceneSelectPrompt"));
                 } else if(Catalog is not null&&Session.PinnedSceneKey is { } Key
                     &&string.Equals(Key.ProjectId,Catalog.ProjectId,StringComparison.Ordinal)
                     &&!Selected){
@@ -385,7 +389,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
                     this.SceneSelector.IsEnabled=false;
                     if(!SceneCatalogTargetPolicy.KeepsPresentedScene(
                         Session.PinnedSnapshot is not null,HasCatalog:false)){
-                        this.ShowEmpty("シーン一覧の取得に失敗しました。ActivityLog.xml を確認してください。");
+                        this.ShowEmpty(VsixText.Get("SceneDesigner_CatalogFailed"));
                     }
                 }
             });
@@ -433,7 +437,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
 
     private async Task SelectSceneAsync(SceneEditorSessionService Session,SceneKey Key){
         try {
-            this.StatusText.Text="シーンを解析中...";
+            this.StatusText.Text=VsixText.Get("SceneDesigner_Analyzing");
             SceneModel?Model=await Session.ResolveSceneAsync(Key,CancellationToken.None).ConfigureAwait(true);
             if(this.Disposed||!ReferenceEquals(this.Session,Session)){
                 return;
@@ -441,7 +445,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
 
             if(Model?.Root is null){
                 Session.ClearPin();
-                this.ShowEmpty("選択したシーンは解決できないか、解析エラーがあります。");
+                this.ShowEmpty(VsixText.Get("SceneDesigner_SelectedSceneUnresolved"));
                 return;
             }
 
@@ -453,7 +457,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             ActivityLog.LogError(nameof(SceneDesignerToolWindowControl),Ex.ToString());
             if(!this.Disposed){
                 Session.ClearPin();
-                this.ShowEmpty("シーンの選択に失敗しました。ActivityLog.xml を確認してください。");
+                this.ShowEmpty(VsixText.Get("SceneDesigner_SelectFailed"));
             }
         }
     }
@@ -483,9 +487,8 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             }
 
             MessageBoxResult Choice=MessageBox.Show(
-                "このSceneのC#ソースがScene Designerの外で変更されました。\n"
-                +"未保存の編集を破棄して読み込み直しますか？",
-                "Scene Designer",MessageBoxButton.YesNo,MessageBoxImage.Warning);
+                VsixText.Get("SceneDesigner_ExternalChangePrompt"),
+                VsixText.Get("PaneSceneDesigner"),MessageBoxButton.YesNo,MessageBoxImage.Warning);
             if(Choice==MessageBoxResult.Yes){
                 Session.DiscardUnsavedChanges(Key);
             }
@@ -522,12 +525,36 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             this.Host?.SetRenderMode(Mode);
         }
     }
+    private void OnPhysicsDebugChanged(object Sender,RoutedEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        this.Host?.SetPhysicsDebugEnabled(this.PhysicsDebugToggle.IsChecked==true);
+    }
+    private void OnPhysicsDebugOptionsChanged(object Sender,RoutedEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(this.Host is { }Host){ this.ApplyPhysicsDebugOptions(Host); }
+    }
+    private void ApplyPhysicsDebugOptions(SceneHwndHost Host){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        Host.SetPhysicsDebugOptions(new PhysicsDebugOverlayOptions(
+            Bounds:this.PhysicsBoundsToggle.IsChecked==true,
+            Velocity:this.PhysicsVelocityToggle.IsChecked==true,
+            CenterOfMass:this.PhysicsCenterOfMassToggle.IsChecked==true,
+            Sleep:this.PhysicsSleepToggle.IsChecked==true));
+    }
+    private void OnPhysicsSimulate(object Sender,RoutedEventArgs Args){ ThreadHelper.ThrowIfNotOnUIThread();this.Host?.RequestPhysicsControl("simulate"); }
+    private void OnPhysicsPause(object Sender,RoutedEventArgs Args){ ThreadHelper.ThrowIfNotOnUIThread();this.Host?.RequestPhysicsControl("pause"); }
+    private void OnPhysicsStep(object Sender,RoutedEventArgs Args){ ThreadHelper.ThrowIfNotOnUIThread();this.Host?.RequestPhysicsControl("step"); }
+    private void OnPhysicsReset(object Sender,RoutedEventArgs Args){ ThreadHelper.ThrowIfNotOnUIThread();this.Host?.RequestPhysicsControl("reset"); }
     private void OnGlobalSpatialOctreeChanged(object Sender,RoutedEventArgs Args){
         ThreadHelper.ThrowIfNotOnUIThread();
         bool Enabled=this.GlobalSpatialOctreeToggle.IsChecked==true;
         this.Host?.SetGlobalSpatialOctreeEnabled(Enabled);
         this.SpatialDebugProcessSelector.Visibility=Enabled&&this.SpatialDebugProcessSelector.Items.Count>1?Visibility.Visible:Visibility.Collapsed;
     }
+    private void OnSpatialDebugStatusChanged(string Status){
+        this.SpatialDebugStatusText.Text=Status;
+    }
+
     private void OnSpatialDebugProcessCandidatesChanged(IReadOnlyList<int>CandidateIds,int?SelectedProcessId){
         ThreadHelper.ThrowIfNotOnUIThread();
         this.UpdatingSpatialDebugProcessSelector=true;
@@ -601,8 +628,8 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         // どのノードが選択されたか実機で目視確認できるようにする(選択のハイライト以外に
         // フィードバックが無かったため)。
         this.StatusText.Text=HitId is { } DisplayId&&Snapshot.Projection?.TryGetNode(DisplayId,out SceneProjectionNode DisplayNode)==true
-                                 ?$"選択: {DisplayNode.Node.DisplayName}({DisplayNode.Path.ToDisplayString()})"
-                                 :"選択解除";
+                                 ?VsixText.Format("SceneDesigner_Selection",DisplayNode.Node.DisplayName,DisplayNode.Path.ToDisplayString())
+                                 :VsixText.Get("SceneDesigner_SelectionCleared");
 
         if(!CtrlHeld){
             Session.Selection.Select(
@@ -654,8 +681,8 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         MarqueeSelectionUpdate Update=MarqueeSelectionPolicy.Combine(
             Existing?.NodeIds??[],HitIds,CtrlHeld,Existing?.PrimaryNodeId);
         this.StatusText.Text=Update.NodeIds.Count==0
-                                 ?"選択解除"
-                                 :$"矩形選択: {Update.NodeIds.Count}件";
+                                 ?VsixText.Get("SceneDesigner_SelectionCleared")
+                                 :VsixText.Format("SceneDesigner_MarqueeSelection",Update.NodeIds.Count);
         Session.Selection.Select(
             Snapshot.Key,Update.NodeIds,Update.PrimaryNodeId,
             ComponentType:null,MemberName:null,SceneSelectionOrigin.Viewport,Guid.NewGuid());
@@ -672,7 +699,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         SceneEditorSessionService?Session=this.Session;
         SceneHwndHost?Host=this.Host;
         if(Session is null||Host is null){
-            Host?.CompleteEditCommit(false,"Scene Editorセッションが利用できません。");
+            Host?.CompleteEditCommit(false,VsixText.Get("SessionEnded"));
             return;
         }
 
@@ -685,9 +712,9 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         if(!Applied){
             this.PendingDuplicateSelectionRestore=null;
         }
-        Host.CompleteEditCommit(Applied,Applied?null:"この編集はまだScene Designerでサポートされていません。");
+        Host.CompleteEditCommit(Applied,Applied?null:VsixText.Get("SceneDesigner_EditUnsupported"));
         if(!Applied&&Package.GetGlobalService(typeof(SVsStatusbar))is IVsStatusbar StatusBar){
-            StatusBar.SetText("Scene Designerの編集を反映できませんでした。");
+            StatusBar.SetText(VsixText.Get("SceneDesigner_EditApplyFailed"));
         }
     }
 

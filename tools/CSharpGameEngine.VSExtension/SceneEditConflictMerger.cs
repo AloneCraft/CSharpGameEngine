@@ -35,7 +35,7 @@ internal static class SceneEditConflictMerger {
         if(Request is null){ throw new ArgumentNullException(nameof(Request)); }
         if(Latest is null){ throw new ArgumentNullException(nameof(Latest)); }
         if(!Request.SceneKey.Equals(Latest.Key)||Latest.Projection is not { }Projection){
-            return SceneEditConflictMergeResult.Failure("最新 Scene の編集対象を解決できません。");
+            return SceneEditConflictMergeResult.Failure(VsixText.Get("ConflictTargetUnavailable"));
         }
         if(Request.DocumentVersion==Latest.DocumentVersion){
             return SceneEditConflictMergeResult.Success(SceneEditorSessionService.CreateOperations(Request));
@@ -61,7 +61,7 @@ internal static class SceneEditConflictMerger {
             if(!Projection.TryGetNode(Change.NodeId,out var Node)
                 ||!SceneTransformBinding.TryRead(Node.Node,out var Current)){
                 return SceneEditConflictMergeResult.Failure(
-                    $"Node {Change.NodeId} の最新 Transform を解決できません。");
+                    VsixText.Format("ConflictNodeTransformUnavailable",Change.NodeId.ToString()));
             }
             if(!CanEditTransformMembers(Node.Node,Request.Members,out var ErrorMessage)){
                 return SceneEditConflictMergeResult.Failure(ErrorMessage!);
@@ -82,29 +82,29 @@ internal static class SceneEditConflictMerger {
     private static SceneEditConflictMergeResult MergeMember(
         SetComponentMemberOperation Operation,SceneProjection Projection){
         if(!Projection.TryGetNode(Operation.NodeId,out var Node)){
-            return SceneEditConflictMergeResult.Failure($"Node {Operation.NodeId} の最新値を解決できません。");
+            return SceneEditConflictMergeResult.Failure(VsixText.Format("ConflictNodeValueUnavailable",Operation.NodeId.ToString()));
         }
         var Component=Node.Node.FindComponent(Operation.ComponentTypeFullyQualifiedName);
         if(Component is null){
             return SceneEditConflictMergeResult.Failure(
-                $"{Operation.ComponentTypeFullyQualifiedName} が最新 Scene にありません。");
+                VsixText.Format("ConflictComponentMissing",Operation.ComponentTypeFullyQualifiedName));
         }
         var Member=Component.FindMember(Operation.MemberName);
         if(Member is not null&&!Member.Value.IsEditable){
             return SceneEditConflictMergeResult.Failure(
-                $"{Operation.MemberName} は外部変更後の式を保持するため編集できません。");
+                VsixText.Format("ConflictMemberExternallyChanged",Operation.MemberName));
         }
         if(!TryParseFloat(Operation.OriginalValueExpression!,out var Original)
             ||!TryParseFloat(Operation.ValueExpression,out var Final)){
             return SceneEditConflictMergeResult.Failure(
-                $"{Operation.MemberName} のドラッグ差分を数値として解決できません。");
+                VsixText.Format("ConflictMemberDeltaNotNumeric",Operation.MemberName));
         }
 
         var Current=Member is null?Original:ReadFloat(Member.Value.ConstantValue,Original);
         var Merged=Current+(Final-Original);
         if(float.IsNaN(Merged)||float.IsInfinity(Merged)){
             return SceneEditConflictMergeResult.Failure(
-                $"{Operation.MemberName} の競合マージ結果が有限値ではありません。");
+                VsixText.Format("ConflictMemberMergeNonFinite",Operation.MemberName));
         }
         var Result=Operation with { ValueExpression=FormatFloat(Merged) };
         return SceneEditConflictMergeResult.Success([Result]);
@@ -139,14 +139,14 @@ internal static class SceneEditConflictMerger {
         SceneNode Node,SceneTransformMemberMask Members,out string?ErrorMessage){
         var Transform=SceneComponentBindings.FindComponent(Node,SceneComponentRole.LocalTransform);
         if(Transform is null){
-            ErrorMessage="The latest scene has no Transform.";
+            ErrorMessage=VsixText.Get("ConflictTransformMissing");
             return false;
         }
         foreach((string Name,Vector3 _,Vector3 _) in
             SceneSourceEditor.EnumerateTransformVectors(SceneTransformValue.Identity,Members)){
             for(int Index=0;Index<3;Index++){
                 if(SceneTransformBinding.CanEditVector(Transform,Name,Index)){ continue; }
-                ErrorMessage=$"Transform.{Name} RUF component is no longer editable.";
+                ErrorMessage=VsixText.Format("ConflictTransformMemberNotEditable",Name);
                 return false;
             }
         }

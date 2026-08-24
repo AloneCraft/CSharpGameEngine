@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Localized the complete VSIX-owned UI for English and Japanese, with English neutral fallback, Visual Studio UI-culture selection, localized menus/installer/templates, and culture-independent debug protocol tokens.
+- Bumped the VSIX deployment version to 0.1.7 and added locale/resource payload tests so stale or incomplete localized packages fail verification.
+
+- Added shared deterministic Simulation and Physics source runtimes, system-major fixed phases, Unity-style Collider/RigidBody APIs, Q32.32 local physics, a deterministic physics broadphase, cache/cooking identities, and prefracture contracts.
+- Added demand-driven Runtime/Editor Preview Physics debug snapshots and Scene View AABB/velocity/sleep/center-of-mass overlays with Simulate/Pause/Step/Reset.
+- Recorded advanced rigid body, fluid, destruction, celestial, and quantum domains as Deferred; incomplete v1 solver/Bake paths remain explicitly PartiallyImplemented.
+
 - Scene ViewにLit/Base Color/Normal/Wireframe表示モードを追加。
 - Global Spatial Octreeの要求駆動Named Pipeスナップショットとワイヤーフレームオーバーレイを追加。
 

@@ -48,11 +48,17 @@
 
   <!-- Keep the source manifest beside the tests so VSIX asset registration is covered without
        requiring a running Visual Studio instance. -->
+  <PropertyGroup>
+    <!-- CSharpGameEngine.slnx builds x64 into bin\x64\..., while a direct project test keeps the
+         SDK's bin\... layout. The packaging tests must inspect the VSIX produced by the current
+         build instead of silently reusing a package from the other layout. -->
+    <CgeVsixPlatformOutputSegment Condition="'$(Platform)' == 'x64'">x64\</CgeVsixPlatformOutputSegment>
+  </PropertyGroup>
   <ItemGroup>
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\source.extension.vsixmanifest" Link="TestAssets\source.extension.vsixmanifest" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\Reinstall-CgeFixedVsix.ps1" Link="TestAssets\Reinstall-CgeFixedVsix.ps1" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\Launch-VSExtension.ps1" Link="TestAssets\Launch-VSExtension.ps1" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\bin\$(Configuration)\net472\CSharpGameEngine.VSExtension.vsix" Link="TestAssets\CSharpGameEngine.VSExtension.vsix" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\CSharpGameEngine.VSExtension\bin\$(CgeVsixPlatformOutputSegment)$(Configuration)\net472\CSharpGameEngine.VSExtension.vsix" Link="TestAssets\CSharpGameEngine.VSExtension.vsix" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\ItemTemplates\CSharp\GameEngine\SceneFile\**\*"
           Link="TestAssets\ItemTemplates\CSharp\GameEngine\SceneFile\%(RecursiveDir)%(Filename)%(Extension)"
           CopyToOutputDirectory="PreserveNewest" />

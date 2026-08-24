@@ -25,18 +25,13 @@ namespace CSharpGameEngine.VSExtension;
 internal static class SceneEditorSettings {
     private const string CollectionPath=@"CSharpGameEngine\SceneEditor";
 
-    // 実機確認(2026-08): 一時的にX/Yとも既定を反転側(true)へ変更したが、実機で試した結果
-    // 反転しない側(false)を既定として維持することにした。
-    // これらは Tools>Options ページ(SceneEditorOptionsPage)の初期値/「既定へ戻す」の基準でもある。
-    internal const bool DefaultInvertLookX=false;
-    internal const bool DefaultInvertLookY=false;
+    // Lookの水平・垂直は反転を既定とする。OptionsのReset to Defaultsもこの値を使う。
+    internal const bool DefaultInvertLookX=true;
+    internal const bool DefaultInvertLookY=true;
 
-    // Orbit(Alt+LMBドラッグ)にはこれまで反転設定が存在せず、SceneViewState.ApplyOrbitが
-    // false,falseを固定で渡していた。Look/Orbitで別々に反転できるよう独立した設定にする
-    // (Phase 1実機検証でOrbitの向きは正しいと確認済みだったのに対し、Lookは上下が逆だった
-    // という経緯があり、両者の「自然な向き」の感覚は必ずしも一致しないため)。
-    internal const bool DefaultInvertOrbitX=false;
-    internal const bool DefaultInvertOrbitY=false;
+    // Orbit(Alt+LMBドラッグ)もLookと独立した水平・垂直反転を既定とする。
+    internal const bool DefaultInvertOrbitX=true;
+    internal const bool DefaultInvertOrbitY=true;
 
     // 残り4項目の既定値も、オプション画面が基準として参照できるよう名前付き定数へ引き上げる
     // (以前は各Readのインラインリテラルだった)。
@@ -50,6 +45,8 @@ internal static class SceneEditorSettings {
     internal const float DefaultNavigationSpeedMultiplier=1.0f;
 
     private static Func<WritableSettingsStore?>?StoreProvider;
+    private const string NavigationSettingsMigrationVersionProperty=nameof(NavigationSettingsMigrationVersion);
+    private const int NavigationSettingsMigrationVersion=1;
 
     /// <summary>
     /// 設定がこのクラス経由で書き換えられたことの通知。Tools&gt;Options ページで値を変えたとき、
@@ -71,6 +68,29 @@ internal static class SceneEditorSettings {
     internal static event Action?SettingsChanged;
 
     internal static void ConfigureStoreProvider(Func<WritableSettingsStore?>?Provider)=>StoreProvider=Provider;
+
+    internal static void MigrateNavigationSettingsIfNeeded(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        var Store=TryGetStore();
+        if(Store is null){
+            return;
+        }
+
+        string VersionText=Store.PropertyExists(CollectionPath,NavigationSettingsMigrationVersionProperty)
+            ?Store.GetString(CollectionPath,NavigationSettingsMigrationVersionProperty,NavigationSettingsMigrationVersion.ToString(CultureInfo.InvariantCulture))
+            :string.Empty;
+        int Version=int.TryParse(VersionText,NumberStyles.Integer,CultureInfo.InvariantCulture,out var ParsedVersion)
+            ?ParsedVersion:0;
+        if(Version>=NavigationSettingsMigrationVersion){
+            return;
+        }
+
+        WriteInvertLookX(DefaultInvertLookX);
+        WriteInvertLookY(DefaultInvertLookY);
+        WriteInvertOrbitX(DefaultInvertOrbitX);
+        WriteInvertOrbitY(DefaultInvertOrbitY);
+        Store.SetString(CollectionPath,NavigationSettingsMigrationVersionProperty,NavigationSettingsMigrationVersion.ToString(CultureInfo.InvariantCulture));
+    }
 
     /// <summary>
     /// オプション画面が公開する5項目をまとめて書き、最後に<see cref="SettingsChanged"/>を

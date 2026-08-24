@@ -205,7 +205,8 @@ public sealed class SceneLandingDecisionTests {
         F.Apply([new RemoveNodeOperation(Key,F.Id("Beta"),1)],"Remove node");
 
         Assert.False(SceneProjectionIdentityComparer.Matches(Before,F.Document.Projection));
-        Assert.Contains("ノード数",SceneProjectionIdentityComparer.FindFirstMismatch(Before,F.Document.Projection)!);
+        Assert.Contains("ノード数",SceneProjectionIdentityComparer.FindFirstMismatch(
+            System.Globalization.CultureInfo.GetCultureInfo("ja-JP"),Before,F.Document.Projection)!);
     }
 
     private static SceneModel Analyze(string?ExtraNodeName=null,float?TamperPositionX=null){

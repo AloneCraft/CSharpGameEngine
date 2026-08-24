@@ -245,17 +245,17 @@ public partial class HierarchyToolWindowControl:UserControl {
         }
 
         ContextMenu Menu=new();
-        Menu.Items.Add(this.CreateMenuItem("子ノードを追加",(_,_)=>SceneEditorHub.RequestHierarchyEdit(
+        Menu.Items.Add(this.CreateMenuItem(VsixText.Get("HierarchyAddChild"),(_,_)=>SceneEditorHub.RequestHierarchyEdit(
             new HierarchyEditRequest(HierarchyEditKind.AddChild,this.CurrentSelection.Paths))));
-        Menu.Items.Add(this.CreateMenuItem("Normalize Components",(_,_)=>SceneEditorHub.RequestHierarchyEdit(
+        Menu.Items.Add(this.CreateMenuItem(VsixText.Get("HierarchyNormalizeComponents"),(_,_)=>SceneEditorHub.RequestHierarchyEdit(
             new HierarchyEditRequest(HierarchyEditKind.NormalizeComponents,this.CurrentSelection.Paths))));
-        Menu.Items.Add(this.CreateMenuItem("名前を変更",(_,_)=>{
+        Menu.Items.Add(this.CreateMenuItem(VsixText.Get("HierarchyRename"),(_,_)=>{
             Item.BeginRename();
             this.UpdateLayout();
             this.FocusRenameBox(Item);
         }));
         Menu.Items.Add(new Separator());
-        Menu.Items.Add(this.CreateMenuItem("削除",(_,_)=>this.RequestRemove()));
+        Menu.Items.Add(this.CreateMenuItem(VsixText.Get("HierarchyRemove"),(_,_)=>this.RequestRemove()));
         Menu.PlacementTarget=this.Tree;
         Menu.IsOpen=true;
         Args.Handled=true;
@@ -275,8 +275,8 @@ public partial class HierarchyToolWindowControl:UserControl {
 
         var HasChildren=Paths.Select(this.FindViewModel).Any(Node=>Node is { HasChildren:true });
         if(HasChildren
-            &&MessageBox.Show("子ノードを含む選択を削除します。よろしいですか？",
-                "シーン階層の削除",MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes){
+            &&MessageBox.Show(VsixText.Get("HierarchyRemoveSelectionWithChildrenPrompt"),
+                VsixText.Get("HierarchyRemoveTitle"),MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes){
             return;
         }
 

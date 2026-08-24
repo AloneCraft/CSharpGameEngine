@@ -375,7 +375,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
     internal async Task<IReadOnlyList<SceneModel>>AnalyzeFileNowAsync(string FilePath,CancellationToken CancellationToken){
         DocumentId?DocumentId=this.FindDocument(FilePath);
         if(DocumentId is null){
-            throw new InvalidOperationException($"Roslyn workspace に対象ファイルがありません: {FilePath}");
+            throw new InvalidOperationException(VsixText.Format("WorkspaceFileMissing",FilePath));
         }
 
         SceneDocumentAnalysisResult Result=await this.AnalyzeAllAsync(DocumentId,CancellationToken).ConfigureAwait(false);
@@ -664,11 +664,11 @@ internal sealed class SceneWorkspaceService : IDisposable {
         CancellationToken CancellationToken){
         await this.TaskFactory.SwitchToMainThreadAsync(CancellationToken);
         if(this.EditorAdapters is null||this.TextBufferWriter is null){
-            return new SceneLiveBufferWriteResult(false,"Visual StudioのEditor/Undoサービスを取得できません。");
+            return new SceneLiveBufferWriteResult(false,VsixText.Get("WorkspaceEditorUndoServicesUnavailable"));
         }
         if(!this.Workspace.IsDocumentOpen(Context.DocumentId)){
             if(!this.Workspace.CanOpenDocuments){
-                return new SceneLiveBufferWriteResult(false,"対象SceneのC#文書をlive bufferとして開けません。");
+                return new SceneLiveBufferWriteResult(false,VsixText.Get("WorkspaceLiveDocumentOpenUnavailable"));
             }
             this.Workspace.OpenDocument(Context.DocumentId,activate:false);
         }
@@ -676,7 +676,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
                                   Context.FilePath,out ITextBuffer?Buffer,
                                   out Microsoft.VisualStudio.TextManager.Interop.IVsTextBuffer?VsBuffer)
             ||Buffer is null||VsBuffer is null){
-            return new SceneLiveBufferWriteResult(false,"対象SceneのVisual Studio text bufferを取得できません。");
+            return new SceneLiveBufferWriteResult(false,VsixText.Get("WorkspaceTextBufferUnavailable"));
         }
 
         // ギズモ/インスペクター編集はユーザーがコードエディタで別の箇所を読んでいる間にも起こる。
@@ -705,11 +705,10 @@ internal sealed class SceneWorkspaceService : IDisposable {
             // 既に前段までが書き込まれているため、その事実を明示する。
             return Index==0
                 ?new SceneLiveBufferWriteResult(
-                    false,"編集中にC#ソースが変化したため上書きを中止しました。",LiveTextChanged:true)
+                    false,VsixText.Get("WorkspaceSourceChangedDuringEdit"),LiveTextChanged:true)
                 :new SceneLiveBufferWriteResult(
                     false,
-                    $"保存の途中({Index+1}/{Steps.Count}段目)でC#ソースの状態が想定と食い違ったため中断しました。"
-                    +"直前までの変更は適用済みです。Ctrl+Zで戻せます。",
+                    VsixText.Format("WorkspaceSourceMismatchDuringSave",Index+1,Steps.Count),
                     LiveTextChanged:true);
         }
 
@@ -805,7 +804,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
         ThreadHelper.ThrowIfNotOnUIThread();
         ErrorMessage=null;
         if(Package.GetGlobalService(typeof(SVsRunningDocumentTable))is not IVsRunningDocumentTable Rdt){
-            ErrorMessage="Visual StudioのRunning Document Tableを取得できません。";
+            ErrorMessage=VsixText.Get("WorkspaceRunningDocumentTableUnavailable");
             return false;
         }
 
@@ -815,14 +814,14 @@ internal sealed class SceneWorkspaceService : IDisposable {
                 (uint)_VSRDTFLAGS.RDT_NoLock,FilePath,
                 out IVsHierarchy?Hierarchy,out uint ItemId,out DocDataPointer,out uint DocCookie);
             if(ErrorHandler.Failed(FindResult)||DocCookie==0){
-                ErrorMessage="対象Sceneのドキュメントが開かれていないため保存できません。";
+                ErrorMessage=VsixText.Get("WorkspaceSaveDocumentNotOpen");
                 return false;
             }
 
             int SaveResult=Rdt.SaveDocuments(
                 (uint)__VSRDTSAVEOPTIONS.RDTSAVEOPT_SaveIfDirty,Hierarchy,ItemId,DocCookie);
             if(ErrorHandler.Failed(SaveResult)){
-                ErrorMessage=$"対象Sceneのファイル保存に失敗しました(HRESULT 0x{SaveResult:X8})。";
+                ErrorMessage=VsixText.Format("WorkspaceSaveFailed",$"0x{SaveResult:X8}");
                 return false;
             }
 
@@ -1065,14 +1064,14 @@ internal sealed class SceneWorkspaceService : IDisposable {
 
         Document?Document=this.Workspace.CurrentSolution.GetDocument(DocumentId);
         if(Document is null){
-            throw new InvalidOperationException($"Roslyn workspace に対象Documentがありません: {DocumentId}");
+            throw new InvalidOperationException(VsixText.Format("WorkspaceDocumentMissing",DocumentId.ToString()));
         }
 
         Compilation?Compilation=await Document.Project.GetCompilationAsync(CancellationToken).ConfigureAwait(false);
         SyntaxNode?Root=await Document.GetSyntaxRootAsync(CancellationToken).ConfigureAwait(false);
         SemanticModel?SemanticModel=await Document.GetSemanticModelAsync(CancellationToken).ConfigureAwait(false);
         if(Compilation is null||Root is null||SemanticModel is null){
-            throw new InvalidOperationException($"Roslyn解析に必要な情報を取得できませんでした: {Document.FilePath}");
+            throw new InvalidOperationException(VsixText.Format("WorkspaceAnalysisDataUnavailable",Document.FilePath??string.Empty));
         }
 
         List<SceneModel>Models=[];

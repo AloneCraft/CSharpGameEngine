@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -58,6 +59,7 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
 
     protected override async Task InitializeAsync(CancellationToken CancellationToken,IProgress<ServiceProgressData>Progress){
         await this.JoinableTaskFactory.SwitchToMainThreadAsync(CancellationToken);
+        VsixLocalization.Capture(CultureInfo.CurrentUICulture);
         ActivityLog.LogInformation(nameof(CSharpGameEngineViewerPackage),VsixBuildIdentity.ActivityLogText);
 
         await OpenViewerCommand.InitializeAsync(this);
@@ -77,6 +79,7 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
         this.SceneWorkspace=SceneWorkspaceService.Initialize();
         SceneEditorSettings.ConfigureStoreProvider(
             ()=>new ShellSettingsManager(this).GetWritableSettingsStore(SettingsScope.UserSettings));
+        SceneEditorSettings.MigrateNavigationSettingsIfNeeded();
 
         if(this.SceneWorkspace is not null){
             this.SceneSession=new SceneEditorSessionService(this.SceneWorkspace);
@@ -237,7 +240,7 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
             ActivityLog.LogWarning(nameof(CSharpGameEngineViewerPackage),
                 "Definition type was not resolved: "+Request.ComponentTypeFullyQualifiedName);
             await this.JoinableTaskFactory.SwitchToMainThreadAsync(this.DisposalToken);
-            SetStatusBarText("定義を解決できません: "+Request.ComponentTypeFullyQualifiedName);
+            SetStatusBarText(VsixText.Format("StatusDefinitionTypeResolveFailed",Request.ComponentTypeFullyQualifiedName));
             return;
         }
 
@@ -248,7 +251,7 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
                 "Definition source was not found: "+Request.ComponentTypeFullyQualifiedName
                 +(Request.MemberName is { Length:>0 }Member?"."+Member:string.Empty));
             await this.JoinableTaskFactory.SwitchToMainThreadAsync(this.DisposalToken);
-            SetStatusBarText("定義のソースを開けません: "+Request.ComponentTypeFullyQualifiedName);
+            SetStatusBarText(VsixText.Format("StatusDefinitionSourceOpenFailed",Request.ComponentTypeFullyQualifiedName));
             return;
         }
 
@@ -258,7 +261,7 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
             ActivityLog.LogWarning(nameof(CSharpGameEngineViewerPackage),
                 "Definition source was not found: "+Request.ComponentTypeFullyQualifiedName
                 +(Request.MemberName is { Length:>0 }Member?"."+Member:string.Empty));
-            SetStatusBarText("定義のソースを開けません: "+Request.ComponentTypeFullyQualifiedName);
+            SetStatusBarText(VsixText.Format("StatusDefinitionSourceOpenFailed",Request.ComponentTypeFullyQualifiedName));
         }
     }
 
@@ -323,7 +326,7 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
 
         NodeId??=Session.Selection.CurrentSelection?.PrimaryNodeId;
         if(NodeId is not { } TargetId){
-            SetStatusBarText("Componentを追加するノードを選択してください。");
+            SetStatusBarText(VsixText.Get("StatusComponentTargetRequired"));
             return;
         }
 
@@ -347,7 +350,7 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
             Resolved is { } ResolvedSymbol?SceneComponentOrdering.GetSortKey(
                 ResolvedSymbol.Symbol,Request.ComponentTypeFullyQualifiedName):null);
         SceneEditCommitRequest CommitRequest=new(
-            Snapshot.Key,Snapshot.DocumentVersion,"Add component",
+            Snapshot.Key,Snapshot.DocumentVersion,VsixText.Get("UndoAddComponent"),
             Array.Empty<SceneTransformChange>(),SceneTransformMemberMask.None,
             DirectOperations:[Operation]);
         if(Session.Apply(CommitRequest)){
@@ -359,8 +362,8 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
         // TryApplyAddComponentが拒否する主因は「同じ型を既に持っている」と
         // 「Components=[…]が書かれていないノード」。どちらもユーザーの操作で起きうるので、
         // ログではなくステータスバーで返す。
-        SetStatusBarText(
-            $"{Request.ComponentTypeFullyQualifiedName} を追加できませんでした(既に持っているか、Components リストがありません)。");
+        SetStatusBarText(VsixText.Format(
+            "StatusComponentAddFailed",Request.ComponentTypeFullyQualifiedName));
     }
 
     private void OnComponentRemoveRequested(ComponentRemoveRequest Request)=>
@@ -384,12 +387,12 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
         RemoveComponentOperation Operation=new(
             Snapshot.Key,Request.NodeId,Snapshot.DocumentVersion,Request.ComponentTypeFullyQualifiedName);
         SceneEditCommitRequest CommitRequest=new(
-            Snapshot.Key,Snapshot.DocumentVersion,"Remove component",
+            Snapshot.Key,Snapshot.DocumentVersion,VsixText.Get("UndoRemoveComponent"),
             Array.Empty<SceneTransformChange>(),SceneTransformMemberMask.None,
             DirectOperations:[Operation]);
         if(!Session.Apply(CommitRequest)){
-            SetStatusBarText(
-                $"{Request.ComponentTypeFullyQualifiedName} を削除できませんでした。");
+            SetStatusBarText(VsixText.Format(
+                "StatusComponentRemoveFailed",Request.ComponentTypeFullyQualifiedName));
         }
     }
 

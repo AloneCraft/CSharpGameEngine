@@ -12,6 +12,8 @@
     <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)Generated</CompilerGeneratedFilesOutputPath>
   </PropertyGroup>
 
+  <Import Project="..\src\CSharpGameEngine.Runtime.Simulation\CSharpGameEngine.Runtime.Simulation.projitems" Label="Shared" />
+  <Import Project="..\src\CSharpGameEngine.Runtime.Physics\CSharpGameEngine.Runtime.Physics.projitems" Label="Shared" />
   <Import Project="..\src\CSharpGameEngine.Runtime.Windows\CSharpGameEngine.Runtime.Windows.projitems" Label="Shared" />
 
   <ItemGroup>

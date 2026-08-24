@@ -243,7 +243,7 @@ internal sealed class OpenSceneDesignerCommand {
 
     private void OpenScene(SceneMenuInvocation Invocation,string FullyQualifiedName){
         ThreadHelper.ThrowIfNotOnUIThread();
-        this.SetStatusBarText("シーンを解析しています...");
+        this.SetStatusBarText(VsixText.Get("SceneDesigner_Analyzing"));
 
         _=this.Package.JoinableTaskFactory.RunAsync(async delegate {
             try {
@@ -255,14 +255,14 @@ internal sealed class OpenSceneDesignerCommand {
                 var Chosen=Models.SingleOrDefault(Model=>
                                                      string.Equals(Model.ClassFullyQualifiedName,FullyQualifiedName,StringComparison.Ordinal));
                 if(Chosen is null){
-                    this.SetStatusBarText("選択した IScene 実装クラスは編集後に見つからなくなりました。");
+                    this.SetStatusBarText(VsixText.Get("SceneDesigner_SelectedSceneMissing"));
                     return;
                 }
 
                 var Snapshot=this.Session.Pin(Chosen);
                 try {
                     this.Documents.Open(this.Session,Snapshot);
-                    this.SetStatusBarText($"{Chosen.ClassName} [Scene] をDocument Wellで開きました。");
+                    this.SetStatusBarText(VsixText.Format("SceneDesigner_OpenedInDocumentWell",Chosen.ClassName));
                 } catch(Exception DocumentWellException){
                     SceneDesignerDocumentWindowDiagnostics.ReportFailure(DocumentWellException);
                     ActivityLog.LogWarning(
@@ -271,7 +271,7 @@ internal sealed class OpenSceneDesignerCommand {
                     await this.OpenToolWindowFallbackAsync(Snapshot);
                     string Diagnostic=SceneDesignerDocumentWindowDiagnostics.CompactDiagnostic(DocumentWellException);
                     this.SetStatusBarText(
-                        $"{Chosen.ClassName} [Scene] のDocument Well作成に失敗しました ({Diagnostic})。Scene Designerパネルへフォールバックしました。ログ: {SceneDesignerDocumentWindowDiagnostics.PersistentLogPath}");
+                        VsixText.Format("SceneDesigner_FallbackOpened",Chosen.ClassName,Diagnostic,SceneDesignerDocumentWindowDiagnostics.PersistentLogPath));
                     ActivityLog.LogInformation(nameof(OpenSceneDesignerCommand),$"Scene Designer tool window fallback opened; scene='{FullyQualifiedName}'.");
                 }
             } catch(OperationCanceledException) when(this.Package.DisposalToken.IsCancellationRequested){
@@ -282,7 +282,7 @@ internal sealed class OpenSceneDesignerCommand {
                     nameof(OpenSceneDesignerCommand),
                     $"Scene Designer document open failed; source='{Invocation.FilePath}'; scene='{FullyQualifiedName}'; exception='{Ex.GetType().FullName}'; message='{Ex.Message}'{Environment.NewLine}{Ex}");
                 this.SetStatusBarText(
-                    $"{FullyQualifiedName} をDocument Wellで開けませんでした ({Ex.GetType().Name}: {Ex.Message})。詳細は ActivityLog.xml を確認してください。");
+                    VsixText.Format("SceneDesigner_OpenFailed",FullyQualifiedName,Ex.GetType().Name,Ex.Message));
             }
         });
     }
@@ -297,7 +297,7 @@ internal sealed class OpenSceneDesignerCommand {
         var Window=await this.Package.FindToolWindowAsync(
             typeof(SceneDesignerToolWindowPane),0,true,this.Package.DisposalToken);
         if(Window is not SceneDesignerToolWindowPane Pane||Pane.Frame is not IVsWindowFrame Frame){
-            throw new NotSupportedException("Cannot create the Scene Designer fallback tool window.");
+            throw new NotSupportedException(VsixText.Get("SceneDesigner_FallbackWindowUnavailable"));
         }
 
         await this.Package.JoinableTaskFactory.SwitchToMainThreadAsync(this.Package.DisposalToken);

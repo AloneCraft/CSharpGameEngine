@@ -265,9 +265,9 @@ public sealed class SceneUndoRoutingPolicyTests {
 
     [Fact]
     public void TransactionName_CarriesTheOperationLabel(){
-        var Formatted=SceneUndoTransactionNaming.Format("Remove node");
+        var Formatted=SceneUndoTransactionNaming.Format(
+            System.Globalization.CultureInfo.GetCultureInfo("en-US"),"Remove node");
 
-        Assert.StartsWith(SceneUndoTransactionNaming.Prefix,Formatted,System.StringComparison.Ordinal);
-        Assert.EndsWith("Remove node",Formatted,System.StringComparison.Ordinal);
+        Assert.Equal("Scene Designer: Remove node",Formatted);
     }
 }

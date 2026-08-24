@@ -1,6 +1,7 @@
 using CSharpGameEngine.SceneAnalysis;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.VisualStudio.Shell;
 
 namespace CSharpGameEngine.VSExtension;
 
@@ -52,26 +53,31 @@ internal static class SceneSaveVerification {
         try {
             Reanalyzed=OriginalCompilation.ReplaceSyntaxTree(OriginalRoot.SyntaxTree,EditedTree);
         } catch(Exception Ex){
-            ErrorMessage=$"書き戻し結果の再解析に失敗しました: {Ex.Message}";
+            try {
+                ActivityLog.LogError(nameof(SceneSaveVerification),Ex.ToString());
+            } catch(Exception){
+                // Unit tests and early package loading may not have a Visual Studio Activity Log service.
+            }
+            ErrorMessage=VsixText.Get("SaveVerificationReanalysisFailed");
             return false;
         }
 
         var Type=Reanalyzed.GetTypeByMetadataName(ClassFullyQualifiedName);
         if(Type is null||!SceneTypePredicates.ImplementsSceneInterface(Type)){
-            ErrorMessage="書き戻し結果からScene宣言を再発見できませんでした。";
+            ErrorMessage=VsixText.Get("SaveVerificationSceneDeclarationMissing");
             return false;
         }
 
         var Actual=SceneDeclarationAnalyzer.Analyze(Type,Reanalyzed,CancellationToken);
         if(Actual.HasErrors||Actual.Root is null){
-            ErrorMessage="書き戻し結果に解析エラーが生じました。";
+            ErrorMessage=VsixText.Get("SaveVerificationAnalysisErrors");
             return false;
         }
 
         var ExpectedSignature=SceneModelStructuralSignature.Compute(Expected);
         var ActualSignature=SceneModelStructuralSignature.Compute(Actual);
         if(!string.Equals(ExpectedSignature,ActualSignature,StringComparison.Ordinal)){
-            ErrorMessage=$"書き戻し結果が編集内容と一致しません(往復検証に失敗)。 Expected={ExpectedSignature} Actual={ActualSignature}";
+            ErrorMessage=VsixText.Format("SaveVerificationMismatch",ExpectedSignature,ActualSignature);
             return false;
         }
 

@@ -2908,3 +2908,17 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - Observed: `EntityLooseOctree` stores one Entity proxy; `World` exposes a read-only index and generated code refreshes it after playback.
 - Verification: unit tests and generator-emission tests.
 - Result: Matches.
+
+## F-L3-018 / F-L5-002 / F-L5-003 / F-L6-002 / F-L7-012 / F-L8-014 — Physics foundation
+
+- Intended: shared deterministic tick and domain contracts, complete v1 rigid-body/cooking/cache/prefracture/editor workflow.
+- Observed: phase/tick/numerics/public API/basic solver/artifact identity/debug foundation exists; advanced collision, actual cooking/destruction playback, cache playback/handoff and Scene Bake Host do not.
+- Verification: Debug/Release full builds and 1,527 tests per configuration passed; UserEcsProject runtime smoke passed. VSIX Experimental Instance visual smoke remains pending.
+- Result: `Matches` for F-L5-002; `Partial` for F-L3-018 (0..N scheduler is not wired into the shipping loop), F-L5-003/F-L6-002/F-L7-012/F-L8-014.
+
+## F-L8-015 — VSIX English/Japanese localization
+
+- Intended: English neutral/final fallback, Japanese satellite, Visual Studio UI culture selection, and localization of every VSIX-owned user-facing surface without changing Runtime/API/wire contracts.
+- Observed: shared `VsixText`/`LocExtension` resources, culture-specific command/installer/package/template payloads, typed Spatial/Physics status reasons, and invariant build identity are present.
+- Verification: 958 VSIX tests and 1,564 Solution tests per Debug/Release configuration passed, including resource parity/fallback/placeholders, intentional-English allowlist, XAML key/UI-sink checks, VSCT parity, debug status formats, current-build VSIX byte identity, and payload checks. `/LCID 1041` selected `ja-JP` with matching installed/build hashes.
+- Result: `Matches` for automated conformance. `/LCID 1033` currently falls back to `ja-JP` because the installed Visual Studio has no 1033 resource directory; `RuntimeVerified` remains pending until the English language pack and both visual/layout sweeps are completed.

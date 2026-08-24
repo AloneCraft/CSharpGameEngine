@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <VSTemplate Version="3.0.0" Type="Item" xmlns="http://schemas.microsoft.com/developer/vstemplate/2005">
   <TemplateData>
-    <Name>シーンファイル</Name>
-    <Description>C# Game Engine の基本ステージを作成します。</Description>
+    <Name Package="{aec17804-e2e4-46e7-b373-de11af816203}" ID="130" />
+    <Description Package="{aec17804-e2e4-46e7-b373-de11af816203}" ID="131" />
     <Icon>__TemplateIcon.ico</Icon>
     <ProjectType>CSharp</ProjectType>
     <ShowByDefault>true</ShowByDefault>

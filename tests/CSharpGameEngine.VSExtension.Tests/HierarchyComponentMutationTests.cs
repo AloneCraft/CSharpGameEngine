@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Linq;
 using CSharpGameEngine.SceneAnalysis;
 using CSharpGameEngine.SceneAnalysis.Tests;
@@ -11,6 +12,7 @@ namespace CSharpGameEngine.VSExtension.Tests;
 /// Regression coverage for component drops that mutate hierarchy source. These tests keep the
 /// source writer and its predicted scene model on the same first-wins ordering contract.
 /// </summary>
+[Collection(VsixLocalizationTestCollection.Name)]
 public sealed class HierarchyComponentMutationTests {
     private const string TransformTypes="""
         namespace CSharpGameEngine.Runtime.Windows {
@@ -26,18 +28,24 @@ public sealed class HierarchyComponentMutationTests {
 
     [Fact]
     public void ComponentDropPolicy_BlankHierarchyCreatesARootChildAndDuplicateExplainsWhyItCannotDrop(){
-        var BlankHierarchy=ComponentDropPolicy.Evaluate(
-            HasScene:true,TargetResolved:false,TargetHasComponentsList:false,TargetAlreadyHasType:false,
-            CanCreateRootChild:true);
-        var Duplicate=ComponentDropPolicy.Evaluate(
-            HasScene:true,TargetResolved:true,TargetHasComponentsList:true,TargetAlreadyHasType:true);
+        CultureInfo Original=VsixLocalization.UICulture;
+        try {
+            VsixLocalization.Capture(CultureInfo.GetCultureInfo("ja-JP"));
+            var BlankHierarchy=ComponentDropPolicy.Evaluate(
+                HasScene:true,TargetResolved:false,TargetHasComponentsList:false,TargetAlreadyHasType:false,
+                CanCreateRootChild:true);
+            var Duplicate=ComponentDropPolicy.Evaluate(
+                HasScene:true,TargetResolved:true,TargetHasComponentsList:true,TargetAlreadyHasType:true);
 
-        Assert.Equal(ComponentDropVerdict.AcceptCreateRootChild,BlankHierarchy);
-        Assert.True(ComponentDropPolicy.Accepts(BlankHierarchy));
-        Assert.Equal(ComponentDropVerdict.RejectDuplicate,Duplicate);
-        var Message=ComponentDropPolicy.Describe(Duplicate,"PointLight");
-        Assert.Contains("PointLight",Message);
-        Assert.Contains("\u65E2\u306B",Message);
+            Assert.Equal(ComponentDropVerdict.AcceptCreateRootChild,BlankHierarchy);
+            Assert.True(ComponentDropPolicy.Accepts(BlankHierarchy));
+            Assert.Equal(ComponentDropVerdict.RejectDuplicate,Duplicate);
+            var Message=ComponentDropPolicy.Describe(Duplicate,"PointLight");
+            Assert.Contains("PointLight",Message);
+            Assert.Contains("\u65E2\u306B",Message);
+        } finally {
+            VsixLocalization.Capture(Original);
+        }
     }
 
     [Fact]

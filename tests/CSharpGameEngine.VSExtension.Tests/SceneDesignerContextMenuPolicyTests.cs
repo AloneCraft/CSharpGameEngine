@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Linq;
 using CSharpGameEngine.VSExtension;
 using Xunit;
@@ -5,6 +6,7 @@ using Xunit;
 namespace CSharpGameEngine.VSExtension.Tests;
 
 public sealed class SceneDesignerContextMenuPolicyTests {
+    private static readonly CultureInfo Japanese=CultureInfo.GetCultureInfo("ja-JP");
     private static readonly SceneDesignerMenuItem Box=new("PrimitiveShowcaseBoxScene","Project.PrimitiveShowcaseBoxScene");
     private static readonly SceneDesignerMenuItem Sphere=new("PrimitiveShowcaseSphereScene","Project.PrimitiveShowcaseSphereScene");
 
@@ -49,7 +51,7 @@ public sealed class SceneDesignerContextMenuPolicyTests {
 
     [Fact]
     public void NonSceneType_IsDisabledWithAnInlineReason(){
-        var Presentation=SceneDesignerContextMenuPolicy.Create(
+        var Presentation=SceneDesignerContextMenuPolicy.Create(Japanese,
                                                                @"G:\Project\Components.cs",
                                                                SceneDesignerTargetState.NonSceneType,
                                                                []);
@@ -62,7 +64,7 @@ public sealed class SceneDesignerContextMenuPolicyTests {
 
     [Fact]
     public void PositionOutsideAType_IsDisabledWithAnInlineReason(){
-        var Presentation=SceneDesignerContextMenuPolicy.Create(
+        var Presentation=SceneDesignerContextMenuPolicy.Create(Japanese,
                                                                @"G:\Project\Scenes.cs",
                                                                SceneDesignerTargetState.OutsideType,
                                                                []);
@@ -74,7 +76,7 @@ public sealed class SceneDesignerContextMenuPolicyTests {
 
     [Fact]
     public void PositionOutsideAType_InASceneFileUsesTheSceneSelector(){
-        var Presentation=SceneDesignerContextMenuPolicy.Create(
+        var Presentation=SceneDesignerContextMenuPolicy.Create(Japanese,
                                                                @"G:\Project\PrimitiveShowcaseScene.cs",
                                                                SceneDesignerTargetState.OutsideType,
                                                                [
@@ -89,7 +91,7 @@ public sealed class SceneDesignerContextMenuPolicyTests {
 
     [Fact]
     public void NonCSharpDocument_IsHidden(){
-        var Presentation=SceneDesignerContextMenuPolicy.Create(
+        var Presentation=SceneDesignerContextMenuPolicy.Create(Japanese,
                                                                @"G:\Project\Readme.md",
                                                                SceneDesignerTargetState.SceneType,
                                                                [new SceneDesignerMenuItem("MainScene","Project.MainScene")]);
@@ -100,7 +102,7 @@ public sealed class SceneDesignerContextMenuPolicyTests {
 
     [Fact]
     public void OneScene_UsesTheDirectCommand(){
-        var Presentation=SceneDesignerContextMenuPolicy.Create(
+        var Presentation=SceneDesignerContextMenuPolicy.Create(Japanese,
                                                                @"G:\Project\MainScene.cs",
                                                                SceneDesignerTargetState.SceneType,
                                                                [new SceneDesignerMenuItem("MainScene","Project.MainScene")]);
@@ -113,7 +115,7 @@ public sealed class SceneDesignerContextMenuPolicyTests {
 
     [Fact]
     public void MultipleScenes_UseAFlatSceneListInDeclarationOrder(){
-        var Presentation=SceneDesignerContextMenuPolicy.Create(
+        var Presentation=SceneDesignerContextMenuPolicy.Create(Japanese,
                                                                @"G:\Project\PrimitiveShowcaseScene.cs",
                                                                SceneDesignerTargetState.SceneType,
                                                                [
@@ -135,7 +137,7 @@ public sealed class SceneDesignerContextMenuPolicyTests {
     /// </summary>
     [Fact]
     public void SceneListItemText_SaysWhatItDoesNotJustTheClassName(){
-        var Text=SceneDesignerContextMenuPolicy.ItemText(
+        var Text=SceneDesignerContextMenuPolicy.ItemText(Japanese,
                                                          new SceneDesignerMenuItem("BoxScene","Project.BoxScene"),
                                                          IsAtCaret:false);
 
@@ -186,7 +188,7 @@ public sealed class SceneDesignerContextMenuPolicyTests {
 
     [Fact]
     public void OverflowText_PointsAtTheCompleteListingPath(){
-        var Text=SceneDesignerContextMenuPolicy.OverflowText(HiddenCount:5);
+        var Text=SceneDesignerContextMenuPolicy.OverflowText(Japanese,HiddenCount:5);
 
         Assert.Contains("5 件",Text);
         Assert.Contains("コンボボックス",Text);
@@ -198,7 +200,7 @@ public sealed class SceneDesignerContextMenuPolicyTests {
     /// </summary>
     [Fact]
     public void SceneListItemText_MarksTheCaretPosition(){
-        var Text=SceneDesignerContextMenuPolicy.ItemText(
+        var Text=SceneDesignerContextMenuPolicy.ItemText(Japanese,
                                                          new SceneDesignerMenuItem("BoxScene","Project.BoxScene"),
                                                          IsAtCaret:true);
 
@@ -211,7 +213,7 @@ public sealed class SceneDesignerContextMenuPolicyTests {
     public void IncompleteAnalysis_IsDisabledWithTheCurrentReason(
         string StateName,string ExpectedReason){
         var State=(SceneDesignerTargetState)System.Enum.Parse(typeof(SceneDesignerTargetState),StateName);
-        var Presentation=SceneDesignerContextMenuPolicy.Create(
+        var Presentation=SceneDesignerContextMenuPolicy.Create(Japanese,
                                                                @"G:\Project\MainScene.cs",
                                                                State,
                                                                []);

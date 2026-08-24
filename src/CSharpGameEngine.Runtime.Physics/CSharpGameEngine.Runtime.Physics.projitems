@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <MSBuildAllProjects Condition="'$(MSBuildVersion)' == '' Or '$(MSBuildVersion)' &lt; '16.0'">$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
+    <HasSharedItems>true</HasSharedItems>
+    <Shared785bc486-737b-4f65-9938-957469c710c7>{785bc486-737b-4f65-9938-957469c710c7}</Shared785bc486-737b-4f65-9938-957469c710c7>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration">
+    <Import_RootNamespace>CSharpGameEngine.Runtime.Physics</Import_RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)PhysicsNumerics.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PhysicsComponents.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PhysicsContracts.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PhysicsWorldIntegration.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PhysicsSystems.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)DeterministicAabbTree.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)DeterministicPhysicsWorld.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PhysicsCache.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PhysicsCooking.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PhysicsDebug.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PhysicsSimulationControl.cs" />
+  </ItemGroup>
+</Project>

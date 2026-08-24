@@ -27,7 +27,7 @@ public sealed class SceneDesignerToolWindowPane:ToolWindowPane {
     private readonly SceneDesignerToolWindowControl Control;
 
     public SceneDesignerToolWindowPane():base(null){
-        this.Caption="シーン デザイナー";
+        this.Caption=VsixText.Get("PaneSceneDesigner");
         this.Control=new SceneDesignerToolWindowControl();
         this.Content= this.Control;
         ThreadHelper.ThrowIfNotOnUIThread();

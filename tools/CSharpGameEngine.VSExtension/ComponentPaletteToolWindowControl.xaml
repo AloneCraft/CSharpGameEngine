@@ -18,7 +18,7 @@
 
         <TextBox x:Name="SearchBox" Grid.Row="0" Margin="4"
                  TextChanged="SearchBox_TextChanged"
-                 ToolTip="型名と名前空間を空白区切りで絞り込みます。" />
+                 ToolTip="{local:Loc ComponentPaletteSearchToolTip}" />
 
         <ListBox x:Name="EntryList" Grid.Row="1" Margin="4,0,4,0"
                  BorderThickness="0" Background="Transparent"
@@ -55,6 +55,6 @@
 
         <TextBlock x:Name="StatusMessage" Grid.Row="2" Margin="6,4" TextWrapping="Wrap"
                    Foreground="{DynamicResource {x:Static vsshell:VsBrushes.GrayTextKey}}"
-                   Text="ダブルクリックまたは Enter で、選択中のノードに追加します。" />
+                   Text="{local:Loc ComponentPaletteReadyHint}" />
     </Grid>
 </UserControl>

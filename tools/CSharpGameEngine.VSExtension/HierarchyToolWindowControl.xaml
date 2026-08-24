@@ -61,7 +61,7 @@
                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
                                                   Focusable="False" Background="Transparent" BorderThickness="0"
                                                   IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
-                                                  ToolTip="Expand or collapse">
+                                                  ToolTip="{local:Loc HierarchyExpandCollapse}">
                                         <ToggleButton.Template>
                                             <ControlTemplate TargetType="{x:Type ToggleButton}">
                                                 <Grid Background="Transparent">
@@ -145,7 +145,7 @@
         <TextBlock x:Name="EmptyMessage" Grid.Row="0" Margin="8"
                    TextWrapping="Wrap"
                    Foreground="{DynamicResource {x:Static vsshell:VsBrushes.GrayTextKey}}"
-                   Text="IScene を宣言する C# ファイルを開いてください。" />
+                   Text="{local:Loc HierarchyEmpty}" />
 
         <TreeView x:Name="Tree" Grid.Row="1" SelectedItemChanged="Tree_SelectedItemChanged"
                   PreviewMouseLeftButtonDown="Tree_PreviewMouseLeftButtonDown"

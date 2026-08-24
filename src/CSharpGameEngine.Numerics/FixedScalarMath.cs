@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Numerics;
 
 namespace CSharpGameEngine.Numerics;
@@ -120,6 +120,37 @@ internal static class FixedScalarMath {
     internal static BigInteger DivideRoundToNearest(BigInteger Numerator,BigInteger Denominator){
         BigInteger Quotient=BigInteger.DivRem(Numerator,Denominator,out BigInteger Remainder);
         if(BigInteger.Abs(Remainder)*2>=BigInteger.Abs(Denominator)){
+            Quotient+=Numerator.Sign==Denominator.Sign?BigInteger.One:-BigInteger.One;
+        }
+        return Quotient;
+    }
+
+    internal static bool TryToScaledInt64(BigInteger Raw,int SourceFractionalBits,int TargetFractionalBits,out long Result){
+        Result=0;
+        if(TargetFractionalBits is <0 or >126){ return false; }
+        BigInteger Scaled=TargetFractionalBits>=SourceFractionalBits
+            ?Raw<<(TargetFractionalBits-SourceFractionalBits)
+            :DivideRoundToNearestEven(Raw,BigInteger.One<<(SourceFractionalBits-TargetFractionalBits));
+        if(Scaled<long.MinValue||Scaled>long.MaxValue){ return false; }
+        Result=(long)Scaled;
+        return true;
+    }
+
+    internal static bool TryFromScaledInt64(long Raw,int SourceFractionalBits,int TargetFractionalBits,int TotalBits,out BigInteger Result){
+        Result=BigInteger.Zero;
+        if(SourceFractionalBits is <0 or >126){ return false; }
+        Result=TargetFractionalBits>=SourceFractionalBits
+            ?(BigInteger)Raw<<(TargetFractionalBits-SourceFractionalBits)
+            :DivideRoundToNearestEven(Raw,BigInteger.One<<(SourceFractionalBits-TargetFractionalBits));
+        return Result>=MinimumRaw(TotalBits)&&Result<=MaximumRaw(TotalBits);
+    }
+
+    private static BigInteger DivideRoundToNearestEven(BigInteger Numerator,BigInteger Denominator){
+        BigInteger Quotient=BigInteger.DivRem(Numerator,Denominator,out BigInteger Remainder);
+        BigInteger TwiceRemainder=BigInteger.Abs(Remainder)*2;
+        BigInteger AbsoluteDenominator=BigInteger.Abs(Denominator);
+        if(TwiceRemainder>AbsoluteDenominator
+            ||TwiceRemainder==AbsoluteDenominator&&!Quotient.IsEven){
             Quotient+=Numerator.Sign==Denominator.Sign?BigInteger.One:-BigInteger.One;
         }
         return Quotient;

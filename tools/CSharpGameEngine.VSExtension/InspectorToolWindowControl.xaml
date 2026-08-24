@@ -163,7 +163,7 @@
         <TextBlock x:Name="EmptyMessage" Grid.Row="0" Margin="8"
                    TextWrapping="Wrap"
                    Foreground="{DynamicResource {x:Static vsshell:VsBrushes.GrayTextKey}}"
-                   Text="シーン ビューまたはヒエラルキーでノードを選択してください。" />
+                   Text="{local:Loc InspectorEmpty}" />
 
         <ScrollViewer x:Name="MemberScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <ItemsControl x:Name="MemberList">
@@ -196,13 +196,13 @@
                                                TextTrimming="CharacterEllipsis" />
                                         <Button Grid.Column="1" Style="{StaticResource InspectorRemoveButtonStyle}"
                                                 Margin="4,0,0,0"
-                                                ToolTip="このコンポーネントを削除"
+                                                ToolTip="{local:Loc InspectorRemoveComponentToolTip}"
                                                 Click="RemoveComponentButton_Click" />
                                     </Grid>
                                                         </Border>
                             </Expander.Header>
                             <StackPanel>
-                                <TextBlock Text="解析待ち…" Margin="6,4" FontStyle="Italic"
+                                <TextBlock Text="{local:Loc InspectorAnalysisPending}" Margin="6,4" FontStyle="Italic"
                                            Foreground="{DynamicResource {x:Static vsshell:VsBrushes.GrayTextKey}}"
                                            Visibility="{Binding PendingMessageVisibility}" />
                                 <!-- ItemTemplateを指定しない: 各行(InspectorMemberViewModel/

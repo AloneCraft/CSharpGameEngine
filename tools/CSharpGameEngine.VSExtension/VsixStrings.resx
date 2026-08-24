@@ -1,0 +1,383 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="PaneSceneDesigner" xml:space="preserve"><value>Scene Designer</value></data>
+  <data name="PaneHierarchy" xml:space="preserve"><value>Hierarchy</value></data>
+  <data name="PaneInspector" xml:space="preserve"><value>Inspector</value></data>
+  <data name="PaneComponentPalette" xml:space="preserve"><value>Components</value></data>
+  <data name="DefinitionGoTo" xml:space="preserve"><value>Go To Definition</value></data>
+  <data name="DefinitionInputGesture" xml:space="preserve"><value>F12</value></data>
+  <data name="ComponentPaletteSearchToolTip" xml:space="preserve"><value>Filter by type name and namespace using space-separated terms.</value></data>
+  <data name="ComponentPaletteReadyHint" xml:space="preserve"><value>Double-click or press Enter to add to the selected node.</value></data>
+  <data name="ComponentPaletteEmpty" xml:space="preserve"><value>No Component types are available. Open a Scene.</value></data>
+  <data name="ComponentPaletteCount" xml:space="preserve"><value>{0} / {1} items. Double-click or press Enter to add to the selected node.</value></data>
+  <data name="HierarchyExpandCollapse" xml:space="preserve"><value>Expand or collapse</value></data>
+  <data name="HierarchyEmpty" xml:space="preserve"><value>Open a C# file that declares an IScene.</value></data>
+  <data name="InspectorEmpty" xml:space="preserve"><value>Select a node in the Scene View or Hierarchy.</value></data>
+  <data name="InspectorRemoveComponentToolTip" xml:space="preserve"><value>Remove this Component</value></data>
+  <data name="InspectorAnalysisPending" xml:space="preserve"><value>Waiting for analysis…</value></data>
+  <data name="SceneCameraPreview" xml:space="preserve"><value>Camera Preview</value></data>
+  <data name="SceneCameraPreviewToolTip" xml:space="preserve"><value>Preview the Camera view.</value></data>
+  <data name="SceneSelectorToolTip" xml:space="preserve"><value>Select a Scene from the same project as the current C# document.</value></data>
+  <data name="SceneViewLabel" xml:space="preserve"><value>View</value></data>
+  <data name="SceneRenderModeLit" xml:space="preserve"><value>Lit</value></data>
+  <data name="SceneRenderModeBaseColor" xml:space="preserve"><value>Base Color</value></data>
+  <data name="SceneRenderModeNormal" xml:space="preserve"><value>Normal</value></data>
+  <data name="SceneRenderModeWireframe" xml:space="preserve"><value>Wireframe</value></data>
+  <data name="SceneGlobalSpatialOctree" xml:space="preserve"><value>Debug Overlays &gt; Global Spatial Octree</value></data>
+  <data name="SceneGlobalSpatialOctreeToolTip" xml:space="preserve"><value>Show the runtime GlobalSpatialIndex octree in the central Scene View viewport.</value></data>
+  <data name="SceneSpatialDebugProcessToolTip" xml:space="preserve"><value>PID of the game process providing the Global Spatial Octree.</value></data>
+  <data name="PhysicsLabel" xml:space="preserve"><value>Physics</value></data>
+  <data name="PhysicsSimulate" xml:space="preserve"><value>Simulate</value></data>
+  <data name="PhysicsPause" xml:space="preserve"><value>Pause</value></data>
+  <data name="PhysicsStep" xml:space="preserve"><value>Step</value></data>
+  <data name="PhysicsReset" xml:space="preserve"><value>Reset</value></data>
+  <data name="PhysicsBakeSelected" xml:space="preserve"><value>Bake Selected</value></data>
+  <data name="PhysicsBakeAll" xml:space="preserve"><value>Bake All</value></data>
+  <data name="PhysicsBakeSelectedDeferredToolTip" xml:space="preserve"><value>Selected Scene output from the Simulation Bake Host is Deferred. CLI bake is available.</value></data>
+  <data name="PhysicsBakeAllDeferredToolTip" xml:space="preserve"><value>Full Scene output from the Simulation Bake Host is Deferred. CLI bake is available.</value></data>
+  <data name="PhysicsDebug" xml:space="preserve"><value>Debug</value></data>
+  <data name="PhysicsColliderAabb" xml:space="preserve"><value>Collider / AABB</value></data>
+  <data name="PhysicsVelocity" xml:space="preserve"><value>Velocity</value></data>
+  <data name="PhysicsSleep" xml:space="preserve"><value>Sleep</value></data>
+  <data name="PhysicsCenterOfMass" xml:space="preserve"><value>Center of Mass</value></data>
+  <data name="SceneSelectPrompt" xml:space="preserve"><value>Select a Scene.</value></data>
+  <data name="SceneSpatialOff" xml:space="preserve"><value>Global Spatial Octree: off</value></data>
+  <data name="OptionsNavigationHeader" xml:space="preserve"><value>Scene View navigation</value></data>
+  <data name="OptionsInvertLookX" xml:space="preserve"><value>Invert horizontal view rotation (RMB drag / Look)</value></data>
+  <data name="OptionsInvertLookY" xml:space="preserve"><value>Invert vertical view rotation (RMB drag / Look)</value></data>
+  <data name="OptionsInvertOrbitX" xml:space="preserve"><value>Invert horizontal view rotation (Alt+LMB drag / Orbit)</value></data>
+  <data name="OptionsInvertOrbitY" xml:space="preserve"><value>Invert vertical view rotation (Alt+LMB drag / Orbit)</value></data>
+  <data name="OptionsNavigationSpeedMultiplier" xml:space="preserve"><value>Navigation speed multiplier:</value></data>
+  <data name="OptionsNavigationSpeedRange" xml:space="preserve"><value>Allowed range: {0} to {1}. Values outside the range or values that cannot be parsed are corrected automatically.</value></data>
+  <data name="OptionsResetDefaults" xml:space="preserve"><value>Reset to Defaults</value></data>
+  <data name="PhysicsDebugProcessUnavailable" xml:space="preserve"><value>Physics: process unavailable</value></data>
+  <data name="PhysicsDebugConnected" xml:space="preserve"><value>Physics: connected</value></data>
+  <data name="PhysicsDebugDisconnected" xml:space="preserve"><value>Physics: disconnected</value></data>
+  <data name="PhysicsDebugPipeUnavailable" xml:space="preserve"><value>Physics: pipe unavailable</value></data>
+  <data name="PhysicsDebugAccessDenied" xml:space="preserve"><value>Physics: access denied</value></data>
+  <data name="PhysicsDebugInvalidResponse" xml:space="preserve"><value>Physics: invalid response</value></data>
+  <data name="PhysicsDebugSnapshotUnavailable" xml:space="preserve"><value>Physics: waiting for snapshot</value></data>
+  <data name="PhysicsDebugRequestRejected" xml:space="preserve"><value>Physics: request rejected</value></data>
+  <data name="PhysicsDebugRuntimeSnapshot" xml:space="preserve"><value>Physics: Runtime | PID {0} | tick {1} | {2} bodies | excluded={3}</value></data>
+  <data name="PhysicsDebugEditorSnapshot" xml:space="preserve"><value>Physics: Editor Preview | tick {0} | {1} bodies | excluded={2}</value></data>
+  <data name="SceneSpatialWaiting" xml:space="preserve"><value>Global Spatial Octree: waiting</value></data>
+  <data name="SceneSpatialRuntimeProjectUnavailable" xml:space="preserve"><value>Global Spatial Octree: runtime project unavailable</value></data>
+  <data name="SceneSpatialPreviewUnavailable" xml:space="preserve"><value>Global Spatial Octree: game not running; Editor Preview unavailable</value></data>
+  <data name="SceneSpatialSelectGamePid" xml:space="preserve"><value>Global Spatial Octree: select game PID</value></data>
+  <data name="SceneSpatialDisconnected" xml:space="preserve"><value>Global Spatial Octree: disconnected</value></data>
+  <data name="SceneSpatialPipeUnavailable" xml:space="preserve"><value>Global Spatial Octree: pipe unavailable</value></data>
+  <data name="SceneSpatialAccessDenied" xml:space="preserve"><value>Global Spatial Octree: access denied</value></data>
+  <data name="SceneSpatialInvalidResponse" xml:space="preserve"><value>Global Spatial Octree: invalid response</value></data>
+  <data name="SceneSpatialSnapshotUnavailable" xml:space="preserve"><value>Global Spatial Octree: waiting for snapshot</value></data>
+  <data name="SceneSpatialRequestRejected" xml:space="preserve"><value>Global Spatial Octree: request rejected</value></data>
+  <data name="SceneSpatialRuntimeEmpty" xml:space="preserve"><value>Global Spatial Octree: Runtime | PID {0} | snapshot empty</value></data>
+  <data name="SceneSpatialEditorEmpty" xml:space="preserve"><value>Global Spatial Octree: Editor Preview | snapshot empty</value></data>
+  <data name="SceneSpatialRuntimeSnapshot" xml:space="preserve"><value>Global Spatial Octree: Runtime | PID {0} | {1} nodes | truncated={2} | excluded={3}</value></data>
+  <data name="SceneSpatialEditorSnapshot" xml:space="preserve"><value>Global Spatial Octree: Editor Preview | {0} nodes | truncated={1} | excluded={2}</value></data>
+  <data name="VsixBuildIdentityToolTip" xml:space="preserve"><value>UI culture: {0}&#x0A;Revision: {1}&#x0A;Deployment: {2}&#x0A;Loaded assembly: {3}&#x0A;Build output: {4}&#x0A;Loaded SHA-256: {5}&#x0A;Build SHA-256: {6}</value></data>
+  <data name="ConflictTargetUnavailable" xml:space="preserve"><value>The latest Scene edit target could not be resolved.</value></data>
+  <data name="ConflictNodeTransformUnavailable" xml:space="preserve"><value>The latest Transform for Node {0} could not be resolved.</value></data>
+  <data name="ConflictNodeValueUnavailable" xml:space="preserve"><value>The latest value for Node {0} could not be resolved.</value></data>
+  <data name="ConflictComponentMissing" xml:space="preserve"><value>{0} is not present in the latest Scene.</value></data>
+  <data name="ConflictMemberExternallyChanged" xml:space="preserve"><value>{0} cannot be edited because its expression was preserved after an external change.</value></data>
+  <data name="ConflictMemberDeltaNotNumeric" xml:space="preserve"><value>The drag delta for {0} could not be resolved as a number.</value></data>
+  <data name="ConflictMemberMergeNonFinite" xml:space="preserve"><value>The conflict-merge result for {0} is not finite.</value></data>
+  <data name="ConflictTransformMissing" xml:space="preserve"><value>The latest Scene has no Transform.</value></data>
+  <data name="ConflictTransformMemberNotEditable" xml:space="preserve"><value>Transform.{0} RUF components are no longer editable.</value></data>
+  <data name="SaveVerificationReanalysisFailed" xml:space="preserve"><value>Failed to reanalyze the written result.</value></data>
+  <data name="SaveVerificationSceneDeclarationMissing" xml:space="preserve"><value>The Scene declaration could not be rediscovered in the written result.</value></data>
+  <data name="SaveVerificationAnalysisErrors" xml:space="preserve"><value>The written result contains analysis errors.</value></data>
+  <data name="SaveVerificationMismatch" xml:space="preserve"><value>The written result does not match the edit (round-trip verification failed). Expected={0} Actual={1}</value></data>
+  <data name="SessionPinDocumentOnly" xml:space="preserve"><value>Scene Designer can target only C# Documents in the solution.</value></data>
+  <data name="SessionUndoBlockedSourceChanged" xml:space="preserve"><value>The C# source was edited directly. Use Ctrl+Z in the code editor to undo beyond this point.</value></data>
+  <data name="SessionSaveSceneNotOpen" xml:space="preserve"><value>The Scene to save is not open.</value></data>
+  <data name="SessionSaveAlreadyInProgress" xml:space="preserve"><value>This Scene is already being saved.</value></data>
+  <data name="SessionEnded" xml:space="preserve"><value>The session has ended.</value></data>
+  <data name="SessionSaveSourceUnavailable" xml:space="preserve"><value>The latest C# source for the target Scene could not be resolved.</value></data>
+  <data name="SessionSaveAnalysisErrors" xml:space="preserve"><value>The target Scene cannot be saved because it has C# analysis errors.</value></data>
+  <data name="SessionSaveIdMapMissing" xml:space="preserve"><value>The ID mapping for the target Scene could not be found.</value></data>
+  <data name="SessionSaveFailed" xml:space="preserve"><value>Failed to save the Scene.</value></data>
+  <data name="SessionSaveDiskWriteWarning" xml:space="preserve"><value>The changes were applied to the C# source, but the file could not be saved: {0}</value></data>
+  <data name="UnknownError" xml:space="preserve"><value>Unknown error</value></data>
+  <data name="WorkspaceFileMissing" xml:space="preserve"><value>The target file is not present in the Roslyn workspace: {0}</value></data>
+  <data name="WorkspaceEditorUndoServicesUnavailable" xml:space="preserve"><value>The Visual Studio editor or Undo service is unavailable.</value></data>
+  <data name="WorkspaceLiveDocumentOpenUnavailable" xml:space="preserve"><value>The target Scene C# document cannot be opened as a live buffer.</value></data>
+  <data name="WorkspaceTextBufferUnavailable" xml:space="preserve"><value>The Visual Studio text buffer for the target Scene is unavailable.</value></data>
+  <data name="WorkspaceSourceChangedDuringEdit" xml:space="preserve"><value>The C# source changed during editing, so the overwrite was canceled.</value></data>
+  <data name="WorkspaceSourceMismatchDuringSave" xml:space="preserve"><value>Saving stopped at step {0} of {1} because the C# source did not match the expected state. Changes through the previous step have been applied and can be undone with Ctrl+Z.</value></data>
+  <data name="WorkspaceRunningDocumentTableUnavailable" xml:space="preserve"><value>The Visual Studio Running Document Table is unavailable.</value></data>
+  <data name="WorkspaceSaveDocumentNotOpen" xml:space="preserve"><value>The target Scene document is not open and cannot be saved.</value></data>
+  <data name="WorkspaceSaveFailed" xml:space="preserve"><value>Failed to save the target Scene file (HRESULT {0}).</value></data>
+  <data name="WorkspaceDocumentMissing" xml:space="preserve"><value>The target Document is not present in the Roslyn workspace: {0}</value></data>
+  <data name="WorkspaceAnalysisDataUnavailable" xml:space="preserve"><value>The information required for Roslyn analysis is unavailable: {0}</value></data>
+  <data name="SourceEditSceneKeyMismatch" xml:space="preserve"><value>The target Scene does not match the operation SceneKey.</value></data>
+  <data name="SourceEditNodeNotFound" xml:space="preserve"><value>The target Node was not found in the current Scene.</value></data>
+  <data name="SourceEditGeneratedSceneReadOnly" xml:space="preserve"><value>Generated .g.cs files cannot be edited from Scene Designer.</value></data>
+  <data name="SourceEditOperationUnsupported" xml:space="preserve"><value>This Scene edit operation is not implemented by Source Editor.</value></data>
+  <data name="SourceEditProjectionTargetMissing" xml:space="preserve"><value>The target Scene or Node was not found in the current projection.</value></data>
+  <data name="SourceEditOperationFailed" xml:space="preserve"><value>The Scene edit operation failed.</value></data>
+  <data name="SourceEditLastKnownGoodUnavailable" xml:space="preserve"><value>The current Scene has no editable Last Known Good projection.</value></data>
+  <data name="SourceSaveReapplyFailed" xml:space="preserve"><value>Failed to reapply edits while saving.</value></data>
+  <data name="SourceSaveNodeSyntaxMissing" xml:space="preserve"><value>The target Node syntax could not be identified while saving.</value></data>
+  <data name="SourceSaveDestinationNodeSyntaxMissing" xml:space="preserve"><value>The destination Node syntax could not be identified while saving.</value></data>
+  <data name="SourceSaveAddedNodeSyntaxMissing" xml:space="preserve"><value>The added Node syntax could not be identified again while saving.</value></data>
+  <data name="SourceEditComponentOrMemberMissing" xml:space="preserve"><value>The Component or member does not exist in this Scene.</value></data>
+  <data name="SourceEditInvalidCSharpExpression" xml:space="preserve"><value>The new value is not a valid C# expression.</value></data>
+  <data name="SourceEditMemberNotDeclared" xml:space="preserve"><value>The member is not declared on this Component.</value></data>
+  <data name="SourceEditMemberValueMissing" xml:space="preserve"><value>The Component member value was not found in source.</value></data>
+  <data name="SourceEditPathNotEditableObjectCreation" xml:space="preserve"><value>{0} is not an editable object creation.</value></data>
+  <data name="SourceEditPathNotSourceObjectCreation" xml:space="preserve"><value>{0} is not an object creation in source.</value></data>
+  <data name="SourceEditPathNotPositionalVector3" xml:space="preserve"><value>{0} is not a positional Vector3 component.</value></data>
+  <data name="SourceEditComponentCreationMissing" xml:space="preserve"><value>The target Component creation expression was not found in the C# source.</value></data>
+  <data name="SourceEditDuplicateComponent" xml:space="preserve"><value>A Component of the same type has already been added to the Node.</value></data>
+  <data name="SourceEditComponentsCollectionMissing" xml:space="preserve"><value>The Node has no editable Components collection.</value></data>
+  <data name="SourceEditInvalidComponentCreation" xml:space="preserve"><value>The Component to add is not a valid object creation expression.</value></data>
+  <data name="SourceEditComponentsSyntaxUnsupported" xml:space="preserve"><value>The Components collection syntax cannot be edited.</value></data>
+  <data name="SourceEditComponentToRemoveMissing" xml:space="preserve"><value>The Component to remove was not found on the current Node.</value></data>
+  <data name="SourceEditComponentCreationToRemoveMissing" xml:space="preserve"><value>The Component creation expression to remove was not found in the C# source.</value></data>
+  <data name="SourceEditComponentRemovalFailed" xml:space="preserve"><value>The Component could not be removed from the Components collection.</value></data>
+  <data name="SourceEditAddTargetCreationMissing" xml:space="preserve"><value>The target Node object creation expression was not found in source.</value></data>
+  <data name="SourceEditComponentCollectionToRemoveMissing" xml:space="preserve"><value>The Components collection containing the Component to remove was not found in source.</value></data>
+  <data name="SourceEditTargetTransformMissing" xml:space="preserve"><value>The target Node has no editable Transform Component.</value></data>
+  <data name="SourceEditGeneratedTransformReadOnly" xml:space="preserve"><value>A Transform in a generated .g.cs file cannot be edited.</value></data>
+  <data name="SourceEditTransformCreationMissing" xml:space="preserve"><value>The Transform object creation expression was not found in source.</value></data>
+  <data name="SourceEditTransformUpdateFailed" xml:space="preserve"><value>The Transform could not be updated.</value></data>
+  <data name="SourceEditNodeCannotDuplicate" xml:space="preserve"><value>A Scene Root or a Node outside a Children list cannot be duplicated.</value></data>
+  <data name="SourceEditDuplicateNodeCreationMissing" xml:space="preserve"><value>The object creation expression for the Node to duplicate was not found in source.</value></data>
+  <data name="SourceEditParentChildrenMissing" xml:space="preserve"><value>The parent Node Children list was not found in source.</value></data>
+  <data name="SourceEditDuplicateTransformMissing" xml:space="preserve"><value>The Node to duplicate has no editable Transform.</value></data>
+  <data name="SourceEditDuplicateTransformUpdateFailed" xml:space="preserve"><value>The duplicated Transform could not be updated.</value></data>
+  <data name="SourceEditDuplicateInsertionFailed" xml:space="preserve"><value>The duplicate could not be added to the parent Node Children syntax.</value></data>
+  <data name="SourceEditTransformVectorNotLiteral" xml:space="preserve"><value>Transform.{0} is not a literal Vector3 and cannot be edited by the gizmo.</value></data>
+  <data name="SourceEditTransformVectorInvalid" xml:space="preserve"><value>Transform.{0} has an invalid Vector3 expression.</value></data>
+  <data name="SourceEditGeneratedNodeAddReadOnly" xml:space="preserve"><value>Nodes cannot be added to a generated .g.cs file.</value></data>
+  <data name="SourceEditAddTargetSyntaxMissing" xml:space="preserve"><value>The destination Node syntax was not found.</value></data>
+  <data name="SourceEditInitialComponentsFailed" xml:space="preserve"><value>The initial Components for the new Node could not be created.</value></data>
+  <data name="SourceEditChildrenExpressionUnsupported" xml:space="preserve"><value>The Children expression cannot be edited.</value></data>
+  <data name="SourceEditRootCannotRemove" xml:space="preserve"><value>The Scene Root cannot be removed.</value></data>
+  <data name="SourceEditGeneratedNodeRemoveReadOnly" xml:space="preserve"><value>Nodes cannot be removed from a generated .g.cs file.</value></data>
+  <data name="SourceEditRemoveTargetNotStaticChild" xml:space="preserve"><value>The removal target is not a static Children element.</value></data>
+  <data name="SourceEditReparentParentMissing" xml:space="preserve"><value>A parent Node required for Reparent was not found.</value></data>
+  <data name="SourceEditReparentCycle" xml:space="preserve"><value>A Node cannot be moved under itself or one of its descendants.</value></data>
+  <data name="SourceEditReparentSyntaxMissing" xml:space="preserve"><value>The syntax required for Reparent was not found.</value></data>
+  <data name="SourceEditReparentSourceChildrenUnsupported" xml:space="preserve"><value>The source Children expression for Reparent cannot be edited.</value></data>
+  <data name="SourceEditReparentDestinationChildrenUnsupported" xml:space="preserve"><value>The destination Children expression for Reparent cannot be edited.</value></data>
+  <data name="SourceEditRootCannotReorder" xml:space="preserve"><value>The Scene Root cannot be reordered.</value></data>
+  <data name="SourceEditReorderTargetNotStaticChild" xml:space="preserve"><value>The reorder target is not a static Children element.</value></data>
+  <data name="SourceEditReorderChildrenUnsupported" xml:space="preserve"><value>This Children expression does not support reordering.</value></data>
+  <data name="SourceEditNodeNameEmpty" xml:space="preserve"><value>A Node name cannot be empty.</value></data>
+  <data name="SourceEditRenameSyntaxMissing" xml:space="preserve"><value>The syntax required for Rename was not found.</value></data>
+  <data name="SourceEditNonFiniteTransform" xml:space="preserve"><value>A non-finite value cannot be written to a Transform.</value></data>
+  <data name="Common_RepoRootNotFound" xml:space="preserve"><value>Repository root ({0}) was not found.</value></data>
+  <data name="Common_ProductTitle" xml:space="preserve"><value>C# Game Engine</value></data>
+  <data name="Common_ViewerTitle" xml:space="preserve"><value>C# Game Engine Viewer</value></data>
+  <data name="AssetPreview_LoadFailed" xml:space="preserve"><value>Asset preview failed: {0}</value></data>
+  <data name="AssetPreview_Title" xml:space="preserve"><value>C# Game Engine Asset Preview</value></data>
+  <data name="Bridge_MeshHasNoVertices" xml:space="preserve"><value>The imported mesh has no vertices.</value></data>
+  <data name="Bridge_OutputNotGenerated" xml:space="preserve"><value>Import bridge ({0}) did not generate an output file.</value></data>
+  <data name="Bridge_GeneratedOutputNotGenerated" xml:space="preserve"><value>Generation bridge ({0}) did not generate an output file.</value></data>
+  <data name="Bridge_ExitedWithError" xml:space="preserve"><value>Import bridge ({0}) exited with an error (exit code {1}).
+{2}</value></data>
+  <data name="Bridge_TimedOut" xml:space="preserve"><value>Import bridge ({0}) did not exit within {1} seconds.</value></data>
+  <data name="Bridge_FbxImportFailed" xml:space="preserve"><value>The FBX file could not be imported. See the bridge process output for details.</value></data>
+  <data name="Bridge_GltfImportFailed" xml:space="preserve"><value>The glTF file could not be imported. See the bridge process output for details.</value></data>
+  <data name="ResidentBridge_EmptyResponse" xml:space="preserve"><value>The resident bridge server returned an empty response.</value></data>
+  <data name="ResidentBridge_ResponseTimedOut" xml:space="preserve"><value>The resident bridge server response timed out.</value></data>
+  <data name="ResidentBridge_Disconnected" xml:space="preserve"><value>The connection to the resident bridge server was unexpectedly closed.</value></data>
+  <data name="ComponentDrop_Add" xml:space="preserve"><value>Add {0}.</value></data>
+  <data name="ComponentDrop_CreateRootChild" xml:space="preserve"><value>Create a new Entity with {0} directly under Root.</value></data>
+  <data name="ComponentDrop_NoScene" xml:space="preserve"><value>No Scene is open.</value></data>
+  <data name="ComponentDrop_NoTarget" xml:space="preserve"><value>There is no target Node.</value></data>
+  <data name="ComponentDrop_Duplicate" xml:space="preserve"><value>This Entity already has {0}.</value></data>
+  <data name="ComponentDrop_NoComponentsList" xml:space="preserve"><value>The Components collection for this Entity cannot be created.</value></data>
+  <data name="ComponentDrop_UnknownVerdict" xml:space="preserve"><value>Unknown drop verdict.</value></data>
+  <data name="ComponentIcon_ProjectRelativeImageRequired" xml:space="preserve"><value>The Component icon must be a project-relative SVG or PNG file.</value></data>
+  <data name="ComponentIcon_ComponentNotFound" xml:space="preserve"><value>The Component struct whose icon is being edited was not found in the current source.</value></data>
+  <data name="ComponentIcon_RemoveAttributeFailed" xml:space="preserve"><value>The Component icon attribute could not be removed from the current declaration.</value></data>
+  <data name="ComponentIcon_SelectedAssetInvalid" xml:space="preserve"><value>The selected icon is not an SVG or PNG file in the current project.</value></data>
+  <data name="ComponentIcon_SourceMissingFromWorkspace" xml:space="preserve"><value>The Component icon source is not in the current Roslyn Workspace.</value></data>
+  <data name="ComponentIcon_SourceParseFailed" xml:space="preserve"><value>The Component icon source could not be analyzed.</value></data>
+  <data name="ComponentIcon_EditFailed" xml:space="preserve"><value>The Component icon could not be edited.</value></data>
+  <data name="ComponentIcon_UndoName" xml:space="preserve"><value>Set Component Icon</value></data>
+  <data name="ComponentIcon_SourceChanged" xml:space="preserve"><value>The Component icon update was canceled because the C# source changed during editing.</value></data>
+  <data name="ComponentIcon_DefaultIcon" xml:space="preserve"><value>Default Icon</value></data>
+  <data name="ComponentIcon_UpdateFailed" xml:space="preserve"><value>The Component icon update failed.</value></data>
+  <data name="GameEngineLayout_InvalidToolWindow" xml:space="preserve"><value>This ToolWindow cannot be included in the initial layout.</value></data>
+  <data name="OpenFab_BrowserLaunchFailed" xml:space="preserve"><value>The browser could not be started: {0}</value></data>
+  <data name="OpenGame_LaunchFailed" xml:space="preserve"><value>UserEcsProject could not be started: {0}</value></data>
+  <data name="OpenViewer_RepoRootNotFound" xml:space="preserve"><value>Repository root ({0}) was not found. This VSIX is a development skeleton and works only with the path embedded at build time. See ADR-0006 for details.</value></data>
+  <data name="OpenViewer_LaunchFailed" xml:space="preserve"><value>The viewer could not be started: {0}</value></data>
+  <data name="SceneDesigner_Analyzing" xml:space="preserve"><value>Analyzing the Scene...</value></data>
+  <data name="SceneDesigner_SelectedSceneMissing" xml:space="preserve"><value>The selected IScene implementation class was not found after the edit.</value></data>
+  <data name="SceneDesigner_OpenedInDocumentWell" xml:space="preserve"><value>{0} [Scene] was opened in the Document Well.</value></data>
+  <data name="SceneDesigner_FallbackOpened" xml:space="preserve"><value>The Document Well for {0} [Scene] could not be created ({1}). The Scene Designer panel was opened instead. Log: {2}</value></data>
+  <data name="SceneDesigner_OpenFailed" xml:space="preserve"><value>{0} could not be opened in the Document Well ({1}: {2}). See ActivityLog.xml for details.</value></data>
+  <data name="SceneDesigner_FallbackWindowUnavailable" xml:space="preserve"><value>The Scene Designer fallback ToolWindow could not be created.</value></data>
+  <data name="FabWatch_StopCommand" xml:space="preserve"><value>Stop Fab Download Watch</value></data>
+  <data name="FabWatch_StartCommand" xml:space="preserve"><value>Start Fab Download Watch</value></data>
+  <data name="FabWatch_Stopped" xml:space="preserve"><value>Fab download watch was stopped.
+Watched folder: {0}</value></data>
+  <data name="FabWatch_DownloadFolderFailed" xml:space="preserve"><value>The Downloads folder could not be resolved: {0}</value></data>
+  <data name="FabWatch_Started" xml:space="preserve"><value>Fab download watch was started.
+Watched folder: {0}
+Destination: {1}
+
+Supported extensions: {2}
+
+Sign-in and downloads from Fab are not performed in this window. Always perform those actions yourself in the browser.</value></data>
+  <data name="FabWatch_FileCopied" xml:space="preserve"><value>Fab: Copied {0} to Assets/Fab.</value></data>
+  <data name="FabWatch_Error" xml:space="preserve"><value>Fab download watch error: {0}</value></data>
+  <data name="SceneStatusDisplayed" xml:space="preserve"><value>Displaying: {0}</value></data>
+  <data name="SceneCameraDiagnostics" xml:space="preserve"><value>Camera Preview: objects={0}, frustum={1}, draws={2}, VP={3}</value></data>
+  <data name="SceneRenderFailed" xml:space="preserve"><value>Scene rendering failed. See ActivityLog.xml for details.</value></data>
+  <data name="ScenePropertyEditing" xml:space="preserve"><value>Editing properties: {0}</value></data>
+  <data name="SceneDuplicateUnsupported" xml:space="preserve"><value>A Scene Root or a Node whose parent Children cannot be resolved cannot be duplicated.</value></data>
+  <data name="SceneDuplicatePreviewUnavailable" xml:space="preserve"><value>Rendering resources for the duplicate preview could not be allocated.</value></data>
+  <data name="SceneToolEditing" xml:space="preserve"><value>Editing {0}: {1}</value></data>
+  <data name="ScenePropertyCommitDiscarded" xml:space="preserve"><value>The property edit could not be committed, so the change was discarded.</value></data>
+  <data name="ScenePropertyApplying" xml:space="preserve"><value>Applying the property edit to the C# source...</value></data>
+  <data name="SceneToolCommitDiscarded" xml:space="preserve"><value>{0} could not be committed, so the change was discarded.</value></data>
+  <data name="SceneToolApplying" xml:space="preserve"><value>Applying {0} to the C# source...</value></data>
+  <data name="SceneCommitFailedRollback" xml:space="preserve"><value>Applying the edit to the C# source failed. The edit will be rolled back.</value></data>
+  <data name="SceneCommitFailed" xml:space="preserve"><value>Applying the edit to the C# source failed.</value></data>
+  <data name="ScenePropertyApplied" xml:space="preserve"><value>The property was applied to the C# source. Press Ctrl+Z to undo.</value></data>
+  <data name="SceneTransformApplied" xml:space="preserve"><value>Transform was applied to the C# source. Press Ctrl+Z to undo.</value></data>
+  <data name="SceneAnalysisWaiting" xml:space="preserve"><value>Waiting for analysis: {0}</value></data>
+  <data name="SceneAnalysisFailed" xml:space="preserve"><value>Scene analysis failed for {0} ({1}).</value></data>
+  <data name="SceneLoading" xml:space="preserve"><value>Loading: {0}</value></data>
+  <data name="SceneRenderWorkerUnavailable" xml:space="preserve"><value>The Scene renderer build worker is unavailable.</value></data>
+  <data name="SceneToolMove" xml:space="preserve"><value>Move</value></data>
+  <data name="SceneToolRotate" xml:space="preserve"><value>Rotate</value></data>
+  <data name="SceneToolScale" xml:space="preserve"><value>Scale</value></data>
+  <data name="SceneToolTransform" xml:space="preserve"><value>Transform</value></data>
+  <data name="UndoEditSceneProperty" xml:space="preserve"><value>Edit Scene Property</value></data>
+  <data name="UndoDuplicateSceneSelection" xml:space="preserve"><value>Duplicate and {0} Scene Selection</value></data>
+  <data name="UndoTransformSceneSelection" xml:space="preserve"><value>{0} Scene Selection</value></data>
+  <data name="StatusDefinitionTypeResolveFailed" xml:space="preserve"><value>Could not resolve the definition for {0}.</value></data>
+  <data name="StatusDefinitionSourceOpenFailed" xml:space="preserve"><value>Could not open the definition source for {0}.</value></data>
+  <data name="StatusComponentTargetRequired" xml:space="preserve"><value>Select a Node to add the Component to.</value></data>
+  <data name="StatusComponentAddFailed" xml:space="preserve"><value>Could not add {0}. The Entity may already have it, or it may not have a Components collection.</value></data>
+  <data name="StatusComponentRemoveFailed" xml:space="preserve"><value>Could not remove {0}.</value></data>
+  <data name="UndoAddComponent" xml:space="preserve"><value>Add Component</value></data>
+  <data name="UndoRemoveComponent" xml:space="preserve"><value>Remove Component</value></data>
+  <data name="ComponentDropRootResolveFailed" xml:space="preserve"><value>The Root Entity could not be resolved for the Component drop.</value></data>
+  <data name="ComponentDropTypeResolveFailed" xml:space="preserve"><value>The dropped Component type could not be resolved.</value></data>
+  <data name="ComponentDropTransformResolveFailed" xml:space="preserve"><value>This Light requires a Transform, but the Transform type could not be resolved.</value></data>
+  <data name="ComponentDropCreateFailed" xml:space="preserve"><value>The Entity and Component could not be created.</value></data>
+  <data name="UndoCreateEntityWithComponent" xml:space="preserve"><value>Create Entity with Component</value></data>
+  <data name="HierarchyAddChild" xml:space="preserve"><value>Add Child Node</value></data>
+  <data name="HierarchyNormalizeComponents" xml:space="preserve"><value>Normalize Components</value></data>
+  <data name="HierarchyRename" xml:space="preserve"><value>Rename</value></data>
+  <data name="HierarchyRemove" xml:space="preserve"><value>Remove</value></data>
+  <data name="HierarchyRemoveSelectionWithChildrenPrompt" xml:space="preserve"><value>Remove the selection including its child Nodes?</value></data>
+  <data name="HierarchyRemoveTitle" xml:space="preserve"><value>Remove from Scene Hierarchy</value></data>
+  <data name="InspectorValueParseFailed" xml:space="preserve"><value>The value for {0} could not be parsed.</value></data>
+  <data name="InspectorRemovePrompt" xml:space="preserve"><value>Remove {0}?</value></data>
+  <data name="InspectorRemoveTitle" xml:space="preserve"><value>Remove Component</value></data>
+  <data name="InspectorCommitFailed" xml:space="preserve"><value>The Inspector edit could not be applied.</value></data>
+  <data name="SceneDesigner_SaveSucceeded" xml:space="preserve"><value>The Scene was saved.</value></data>
+  <data name="SceneDesigner_BlockingErrors" xml:space="preserve"><value>Scene analysis failed. Fix the C# errors.</value></data>
+  <data name="SceneDesigner_NoRenderableScene" xml:space="preserve"><value>There is no Scene that can be rendered.</value></data>
+  <data name="SceneDesigner_HostAttachmentInvalid" xml:space="preserve"><value>The Scene Designer host attachment state is invalid.</value></data>
+  <data name="SceneDesigner_CatalogFailed" xml:space="preserve"><value>The Scene list could not be loaded. See ActivityLog.xml for details.</value></data>
+  <data name="SceneDesigner_SelectedSceneUnresolved" xml:space="preserve"><value>The selected Scene could not be resolved or has analysis errors.</value></data>
+  <data name="SceneDesigner_SelectFailed" xml:space="preserve"><value>The Scene could not be selected. See ActivityLog.xml for details.</value></data>
+  <data name="SceneDesigner_ExternalChangePrompt" xml:space="preserve"><value>The C# source for this Scene was changed outside Scene Designer.
+Discard unsaved edits and reload it?</value></data>
+  <data name="SceneDesigner_Selection" xml:space="preserve"><value>Selected: {0} ({1})</value></data>
+  <data name="SceneDesigner_SelectionCleared" xml:space="preserve"><value>Selection cleared</value></data>
+  <data name="SceneDesigner_MarqueeSelection" xml:space="preserve"><value>Marquee selection: {0}</value></data>
+  <data name="SceneDesigner_EditUnsupported" xml:space="preserve"><value>This edit is not yet supported by Scene Designer.</value></data>
+  <data name="SceneDesigner_EditApplyFailed" xml:space="preserve"><value>The Scene Designer edit could not be applied.</value></data>
+  <data name="EditTransactionAlreadyActive" xml:space="preserve">
+    <value>The edit transaction is already in progress.</value>
+  </data>
+  <data name="EditTransactionTargetMissing" xml:space="preserve">
+    <value>There is no edit target.</value>
+  </data>
+  <data name="EditTransactionNoActiveToQueue" xml:space="preserve">
+    <value>There is no edit transaction that can queue a snapshot.</value>
+  </data>
+  <data name="EditTransactionSceneMismatch" xml:space="preserve">
+    <value>A snapshot from a different Scene cannot be queued during editing.</value>
+  </data>
+  <data name="EditTransactionInvalidState" xml:space="preserve">
+    <value>The edit transaction state is invalid. expected={0}, actual={1}</value>
+  </data>
+  <data name="SceneCameraMissingTransform" xml:space="preserve">
+    <value>The Camera Node has no Transform Component.</value>
+  </data>
+  <data name="SceneCameraNonFiniteTransformOrAspect" xml:space="preserve">
+    <value>The Camera Transform or aspect ratio is not finite.</value>
+  </data>
+  <data name="SceneCameraZeroLengthViewAxis" xml:space="preserve">
+    <value>The Camera Transform has a zero-length view axis.</value>
+  </data>
+  <data name="SceneCameraNearFarInvalid" xml:space="preserve">
+    <value>Camera NearZ/FarZ values are invalid.</value>
+  </data>
+  <data name="SceneCameraFovInvalid" xml:space="preserve">
+    <value>Camera FovYRadians must be between 0 and π.</value>
+  </data>
+  <data name="SceneCameraOrthographicSizeInvalid" xml:space="preserve">
+    <value>Camera OrthographicSize must be positive.</value>
+  </data>
+  <data name="SceneDesignerMenuOpen" xml:space="preserve">
+    <value>Open in Scene Designer</value>
+  </data>
+  <data name="SceneDesignerMenuAnalyzingDisabled" xml:space="preserve">
+    <value>Open in Scene Designer (analyzing Scene)</value>
+  </data>
+  <data name="SceneDesignerMenuAnalysisFailedDisabled" xml:space="preserve">
+    <value>Open in Scene Designer (Scene analysis failed)</value>
+  </data>
+  <data name="SceneDesignerMenuNoSceneDisabled" xml:space="preserve">
+    <value>Open in Scene Designer (this file has no class that implements IScene)</value>
+  </data>
+  <data name="SceneDesignerMenuNonSceneTypeDisabled" xml:space="preserve">
+    <value>Open in Scene Designer (this class does not implement IScene)</value>
+  </data>
+  <data name="SceneDesignerMenuItemOpen" xml:space="preserve">
+    <value>Open {0} in Scene Designer</value>
+  </data>
+  <data name="SceneDesignerMenuItemOpenAtCaret" xml:space="preserve">
+    <value>Open {0} in Scene Designer (caret position)</value>
+  </data>
+  <data name="SceneDesignerMenuOverflow" xml:space="preserve">
+    <value>Select {0} more Scenes from the combo box in Scene Designer.</value>
+  </data>
+  <data name="SceneProjectionNodeCountMismatch" xml:space="preserve">
+    <value>Node count differs ({0} / {1}).</value>
+  </data>
+  <data name="SceneProjectionPathMissingRight" xml:space="preserve">
+    <value>Path is missing on the right: {0}</value>
+  </data>
+  <data name="SceneProjectionIdMismatch" xml:space="preserve">
+    <value>ID differs: {0}</value>
+  </data>
+  <data name="SceneUndoTransaction" xml:space="preserve">
+    <value>Scene Designer: {0}</value>
+  </data>
+  <data name="SceneRendererVertexShaderCompileFailed" xml:space="preserve">
+    <value>Vertex shader compilation failed: {0}</value>
+  </data>
+  <data name="SceneRendererPixelShaderCompileFailed" xml:space="preserve">
+    <value>Pixel shader compilation failed: {0}</value>
+  </data>
+  <data name="SceneRendererOverlayVertexShaderCompileFailed" xml:space="preserve">
+    <value>Overlay vertex shader compilation failed: {0}</value>
+  </data>
+  <data name="SceneRendererOverlayPixelShaderCompileFailed" xml:space="preserve">
+    <value>Overlay pixel shader compilation failed: {0}</value>
+  </data>
+  <data name="SceneRendererOverlayVertexLimitExceeded" xml:space="preserve">
+    <value>The overlay has {0} vertices, which exceeds the limit of {1}.</value>
+  </data>
+  <data name="InspectorUnknownRowType" xml:space="preserve">
+    <value>The Inspector row type is unknown.</value>
+  </data>
+</root>

@@ -25,7 +25,7 @@ internal static class ExternalGltfLoader {
                                                                    Json,new JsonSerializerOptions { PropertyNameCaseInsensitive=true });
 
             if(Document is null||!Document.Success){
-                throw new InvalidOperationException("glTFファイルのインポートに失敗しました(詳細はブリッジプロセスの出力を確認してください)。");
+                throw new InvalidOperationException(VsixText.Get("Bridge_GltfImportFailed"));
             }
 
             return Document.ToSimpleMesh();

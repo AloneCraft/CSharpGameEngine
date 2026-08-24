@@ -3309,3 +3309,61 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Implementation evidence: `src/CSharpGameEngine.Runtime.Windows/CSharpGameEngine.Runtime.Windows.shproj`, `src/CSharpGameEngine.Runtime.Windows/CSharpGameEngine.Runtime.Windows.projitems`
 - Contract: shared source owns Windows ECS components/systems, XAudio2 facade, fixed hierarchy resolution, and stage data; UserEcsProject retains scenes/gameplay/precision selection.
 - Known deviations: none for the shared Runtime migration.
+
+## F-L3-018 — System-major fixed simulation phases
+
+- Layer: L3 — ECS / Job Runtime
+- Status: PartiallyImplemented
+- Verification: TestVerified (Debug/Release full solution tests)
+- Evidence: `SimulationSystems.cs`, `GameSystemLoopEmitter.cs`, `GameSystemPhaseTests.cs`
+- Conformance: Partial. Phase dispatch and persistent state match; the shipping frame loop still executes exactly one fixed tick per presented frame and has not yet integrated `FixedTickScheduler` for 0..N catch-up.
+
+## F-L5-002 — Shared deterministic Simulation Runtime
+
+- Layer: L5 — Runtime Feature Modules
+- Status: Implemented
+- Verification: TestVerified
+- Evidence: `src/CSharpGameEngine.Runtime.Simulation/`, fixed tick and message tests.
+- Conformance: Matches for integer tick, deterministic envelopes, cache identity, and next-tick bridge.
+
+## F-L5-003 — Deterministic local rigid-body Physics Runtime
+
+- Layer: L5 — Runtime Feature Modules
+- Status: PartiallyImplemented
+- Verification: TestVerified for Q32.32, Logical conversion, AABB broadphase/basic body/query/sleep; UserEcsProject Runtime smoke verified for the current startup scenes.
+- Evidence: `src/CSharpGameEngine.Runtime.Physics/`, `tests/CSharpGameEngine.Windows.Tests/Physics/`.
+- Conformance: Partial. GJK/EPA, mesh BVH, full manifold/warm start iteration solver and ContinuousStatic CCD remain missing.
+
+## F-L6-002 — Physics Cooking and Simulation Cache artifacts
+
+- Layer: L6 — Runtime Artifacts
+- Status: PartiallyImplemented
+- Verification: TestVerified for key identity, serialization rejection, stable bond order.
+- Evidence: `PhysicsCooking.cs`, `PhysicsCache.cs`, `PhysicsBakeTests.cs`.
+- Conformance: Partial. Actual convex/mesh/Voronoi cooking, playback/handoff, and incremental build copy are missing.
+
+## F-L7-012 — Physics CLI and Bake Host
+
+- Layer: L7 — Static Compiler / Bake
+- Status: PartiallyImplemented
+- Verification: CodeVerified; CLI Debug build.
+- Evidence: `tools/CSharpGameEngine.Physics.Cli/`.
+- Conformance: Partial. CLI emits identity artifacts, but does not yet instantiate and simulate a Scene; VSIX Bake buttons remain disabled rather than generating a false successful cache.
+
+## F-L8-014 — Scene View Physics control and debug overlay
+
+- Layer: L8 — Visual Studio Authoring Environment
+- Status: PartiallyImplemented
+- Verification: TestVerified for overlay generation and VSIX Debug/Release builds; Experimental Instance visual smoke pending.
+- Evidence: `PhysicsDebugClient.cs`, `PhysicsDebugOverlay.cs`, `SceneHwndHost.cs`, `SceneDesignerToolWindowControl.xaml`.
+- Conformance: Partial. AABB/velocity/sleep/COM and simulate/pause/step/reset exist; contact/tree/fracture bond and Bake execution remain missing.
+
+## F-L8-015 — VSIX English/Japanese localization
+
+- Layer: L8 — Visual Studio Authoring Environment
+- Status: Implemented
+- Verification: TestVerified; Debug/Release Solution build and 1,564 tests per configuration passed. `/LCID 1041` selected `ja-JP` and the installed/build DLL hashes matched. `/LCID 1033` was passed to devenv, but this Visual Studio installation has no 1033 resource directory and fell back to `ja-JP`; both LCID visual sweeps remain pending.
+- Intended specification: `Docs/Decisions/ADR-0050-Vsix-English-Japanese-Localization.md`, `Docs/Milestones/M0056-Vsix-Localization.md`
+- Implementation evidence: `VsixLocalization.cs`, `VsixStrings.resx`, `VsixStrings.ja-JP.resx`, localized VSCT/VSPackage resources, `ja-JP/Extension.vsixlangpack`, Culture 1033/1041 Scene templates.
+- Tests: 958 VSIX tests per configuration cover resource culture fallback/parity/placeholders, intentional-English allowlist, XAML key and expanded UI-sink scans, VSCT structural parity, debug reason formatting, VSIX satellite/langpack/template payloads, and byte identity with the current build VSIX.
+- Conformance: Matches automated scope. RuntimeVerified/Verified promotion is blocked on the 1033 language pack plus both LCID visual/layout checks.

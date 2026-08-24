@@ -23,6 +23,8 @@ internal static class GameSystemGeneratorTestHelper {
 
     /// <summary>ADR-0036の<c>[SystemOrder]</c>。全コンパイルに含めても、実際に付けなければ何も変わらない。</summary>
     internal static readonly string SystemOrderAttributeSource=ReadTestAsset("SystemOrderAttribute.cs");
+    internal static readonly string SimulationSystemsSource=ReadTestAsset("SimulationSystems.cs");
+    internal static readonly string ExecuteInEditorAttributeSource=ReadTestAsset("ExecuteInEditorAttribute.cs");
 
 
     /// <summary>
@@ -107,6 +109,8 @@ internal static class GameSystemGeneratorTestHelper {
             (null,RuntimeSource),
             (null,BootstrapSource),
             (null,SystemOrderAttributeSource),
+            (null,SimulationSystemsSource),
+            (null,ExecuteInEditorAttributeSource),
             .. SceneRuntimeSources.Select(static Source=>((string?)null,Source)),
             .. ExtraSources,
         ];

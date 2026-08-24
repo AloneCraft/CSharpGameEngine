@@ -18,7 +18,12 @@ public sealed class SceneFileItemTemplateTests {
         XNamespace TemplateNamespace="http://schemas.microsoft.com/developer/vstemplate/2005";
         var Data=Assert.IsType<XElement>(Template.Root?.Element(TemplateNamespace+"TemplateData"));
 
-        Assert.Equal("シーンファイル",Data.Element(TemplateNamespace+"Name")?.Value);
+        var Name=Assert.IsType<XElement>(Data.Element(TemplateNamespace+"Name"));
+        var Description=Assert.IsType<XElement>(Data.Element(TemplateNamespace+"Description"));
+        Assert.Equal("{aec17804-e2e4-46e7-b373-de11af816203}",(string?)Name.Attribute("Package"));
+        Assert.Equal("130",(string?)Name.Attribute("ID"));
+        Assert.Equal("{aec17804-e2e4-46e7-b373-de11af816203}",(string?)Description.Attribute("Package"));
+        Assert.Equal("131",(string?)Description.Attribute("ID"));
         Assert.Equal("CSharp",Data.Element(TemplateNamespace+"ProjectType")?.Value);
         Assert.Null(Data.Element(TemplateNamespace+"TemplateGroupID"));
         Assert.Equal("true",Data.Element(TemplateNamespace+"ShowByDefault")?.Value);
@@ -76,6 +81,9 @@ public sealed class SceneFileItemTemplateTests {
         Assert.NotNull(Archive.GetEntry("ItemTemplates/CSharp/GameEngine/1033/SceneFile/SceneFile.vstemplate"));
         Assert.NotNull(Archive.GetEntry("ItemTemplates/CSharp/GameEngine/1033/SceneFile/Scene.cs"));
         Assert.NotNull(Archive.GetEntry("ItemTemplates/CSharp/GameEngine/1033/SceneFile/__TemplateIcon.ico"));
+        Assert.NotNull(Archive.GetEntry("ItemTemplates/CSharp/GameEngine/1041/SceneFile/SceneFile.vstemplate"));
+        Assert.NotNull(Archive.GetEntry("ItemTemplates/CSharp/GameEngine/1041/SceneFile/Scene.cs"));
+        Assert.NotNull(Archive.GetEntry("ItemTemplates/CSharp/GameEngine/1041/SceneFile/__TemplateIcon.ico"));
         Assert.DoesNotContain(Archive.Entries,Entry=>Entry.FullName.StartsWith("CSharp/GameEngine/",StringComparison.Ordinal));
 
         using var ManifestStream=TemplateManifest.Open();

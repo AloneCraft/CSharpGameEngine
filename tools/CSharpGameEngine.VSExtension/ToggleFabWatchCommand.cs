@@ -47,20 +47,20 @@ internal sealed class ToggleFabWatchCommand:IDisposable {
 
     private void UpdateText(object Sender,EventArgs E){
         var Running= this.Watcher?.IsRunning??false;
-        this.Command.Text=Running?"Fabダウンロード監視を停止":"Fabダウンロード監視を開始";
+        this.Command.Text=Running?VsixText.Get("FabWatch_StopCommand"):VsixText.Get("FabWatch_StartCommand");
         this.Command.Checked=Running;
     }
 
     private void Execute(object Sender,EventArgs E){
         if(this.Watcher is { IsRunning:true }){
             this.Watcher.Stop();
-            this.ShowMessage($"Fabダウンロード監視を停止しました。\n監視フォルダ: {this.Watcher.WatchedFolder}");
+            this.ShowMessage(VsixText.Format("FabWatch_Stopped",this.Watcher.WatchedFolder));
             return;
         }
 
         var RepoRoot=RepoLocator.ResolveRepoRoot();
         if(RepoRoot is null){
-            this.ShowMessage($"リポジトリルート({RepoLocator.RepoMarkerFileName})が見つかりませんでした。",OLEMSGICON.OLEMSGICON_WARNING);
+            this.ShowMessage(VsixText.Format("Common_RepoRootNotFound",RepoLocator.RepoMarkerFileName),OLEMSGICON.OLEMSGICON_WARNING);
             return;
         }
 
@@ -68,7 +68,8 @@ internal sealed class ToggleFabWatchCommand:IDisposable {
         try {
             DownloadsFolder=KnownFolders.GetDownloadsFolder();
         } catch(Exception Ex){
-            this.ShowMessage($"ダウンロードフォルダの取得に失敗しました: {Ex.Message}",OLEMSGICON.OLEMSGICON_CRITICAL);
+            ActivityLog.LogError(nameof(ToggleFabWatchCommand),Ex.ToString());
+            this.ShowMessage(VsixText.Format("FabWatch_DownloadFolderFailed",Ex.Message),OLEMSGICON.OLEMSGICON_CRITICAL);
             return;
         }
 
@@ -79,18 +80,14 @@ internal sealed class ToggleFabWatchCommand:IDisposable {
         this.Watcher.Start();
 
         this.ShowMessage(
-                         "Fabダウンロード監視を開始しました。\n"+
-                         $"監視フォルダ: {DownloadsFolder}\n" +
-                         $"コピー先: {Destination}\n\n" +
-                         $"対応拡張子: {string.Join(", ",FabDownloadWatcher.WatchedExtensions)}\n\n" +
-                         "Fab自体へのログイン・ダウンロードはこのウィンドウでは行いません - 常にブラウザ上でご自身の操作で行ってください。");
+                         VsixText.Format("FabWatch_Started",DownloadsFolder,Destination,string.Join(", ",FabDownloadWatcher.WatchedExtensions)));
     }
 
     private void OnFileCopied(string DestinationPath){
         _= this.Package.JoinableTaskFactory.RunAsync(async delegate {
                                                          await this.Package.JoinableTaskFactory.SwitchToMainThreadAsync();
                                                          if(await this.Package.GetServiceAsync(typeof(SVsStatusbar))is IVsStatusbar StatusBar){
-                                                             StatusBar.SetText($"Fab: {Path.GetFileName(DestinationPath)} を Assets/Fab にコピーしました。");
+                                                             StatusBar.SetText(VsixText.Format("FabWatch_FileCopied",Path.GetFileName(DestinationPath)));
                                                          }
                                                      });
     }
@@ -99,7 +96,7 @@ internal sealed class ToggleFabWatchCommand:IDisposable {
         _= this.Package.JoinableTaskFactory.RunAsync(async delegate {
                                                          await this.Package.JoinableTaskFactory.SwitchToMainThreadAsync();
                                                          if(await this.Package.GetServiceAsync(typeof(SVsStatusbar))is IVsStatusbar StatusBar){
-                                                             StatusBar.SetText($"Fabダウンロード監視でエラー: {Message}");
+                                                             StatusBar.SetText(VsixText.Format("FabWatch_Error",Message));
                                                          }
                                                      });
     }
@@ -107,7 +104,7 @@ internal sealed class ToggleFabWatchCommand:IDisposable {
     private void ShowMessage(string Message,OLEMSGICON Icon=OLEMSGICON.OLEMSGICON_INFO){
         VsShellUtilities.ShowMessageBox(this.Package,
             Message,
-            "C# Game Engine Viewer",
+            VsixText.Get("Common_ViewerTitle"),
             Icon,
             OLEMSGBUTTON.OLEMSGBUTTON_OK,
             OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);

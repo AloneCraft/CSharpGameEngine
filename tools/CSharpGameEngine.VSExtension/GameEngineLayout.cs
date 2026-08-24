@@ -82,7 +82,7 @@ internal static class GameEngineLayout {
         InitialLayoutToolWindowKind.Hierarchy=>typeof(HierarchyToolWindowPane),
         InitialLayoutToolWindowKind.Inspector=>typeof(InspectorToolWindowPane),
         InitialLayoutToolWindowKind.ComponentPalette=>typeof(ComponentPaletteToolWindowPane),
-        _=>throw new System.ArgumentOutOfRangeException(nameof(Kind),Kind,"初期レイアウトに含められないToolWindowです。"),
+        _=>throw new System.ArgumentOutOfRangeException(nameof(Kind),Kind,VsixText.Get("GameEngineLayout_InvalidToolWindow")),
     };
 
     private static VSSETFRAMEPOS GetFramePosition(InitialLayoutToolWindowKind Kind)=>Kind switch {
@@ -90,7 +90,7 @@ internal static class GameEngineLayout {
         InitialLayoutToolWindowKind.Inspector=>VSSETFRAMEPOS.SFP_fDock|VSSETFRAMEPOS.SFP_fDockRight,
         // 右側の下段。Inspectorとタブ結合させないのは、ドラッグ中に隠れるドロップ先が成立しないため。
         InitialLayoutToolWindowKind.ComponentPalette=>VSSETFRAMEPOS.SFP_fDock|VSSETFRAMEPOS.SFP_fDockBottom,
-        _=>throw new System.ArgumentOutOfRangeException(nameof(Kind),Kind,"初期レイアウトに含められないToolWindowです。"),
+        _=>throw new System.ArgumentOutOfRangeException(nameof(Kind),Kind,VsixText.Get("GameEngineLayout_InvalidToolWindow")),
     };
 
     private static void ShowFrameWithoutActivation(ToolWindowPane Pane){

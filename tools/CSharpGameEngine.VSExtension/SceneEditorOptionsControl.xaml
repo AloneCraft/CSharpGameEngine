@@ -4,36 +4,37 @@
              mc:Ignorable="d"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="clr-namespace:CSharpGameEngine.VSExtension"
              d:DesignHeight="220" d:DesignWidth="460">
     <!-- Tools>Options のページなので Background/Foreground は敷かない。VsBrushes.WindowTextKey を
          UserControl に指定すると、このダイアログでは TextBlock だけが淡いグレーで描かれ
          (CheckBox は自前の Foreground を持つため濃いまま)見出しとラベルが読みにくくなる。
          ホストのダイアログ既定色を継承させるのが正しい。 -->
     <StackPanel Margin="0,0,0,8">
-        <TextBlock Text="Scene View のナビゲーション" FontWeight="Bold" Margin="0,0,0,8" />
+        <TextBlock Text="{local:Loc OptionsNavigationHeader}" FontWeight="Bold" Margin="0,0,0,8" />
 
         <CheckBox x:Name="InvertLookXCheckBox" Margin="0,0,0,6"
-                  Content="視点の左右回転を反転する (RMB ドラッグ / Look)"
+                  Content="{local:Loc OptionsInvertLookX}"
                   Checked="OnUserEditedValue" Unchecked="OnUserEditedValue" />
         <CheckBox x:Name="InvertLookYCheckBox" Margin="0,0,0,12"
-                  Content="視点の上下回転を反転する (RMB ドラッグ / Look)"
+                  Content="{local:Loc OptionsInvertLookY}"
                   Checked="OnUserEditedValue" Unchecked="OnUserEditedValue" />
 
         <CheckBox x:Name="InvertOrbitXCheckBox" Margin="0,0,0,6"
-                  Content="視点の左右回転を反転する (Alt+LMB ドラッグ / Orbit)"
+                  Content="{local:Loc OptionsInvertOrbitX}"
                   Checked="OnUserEditedValue" Unchecked="OnUserEditedValue" />
         <CheckBox x:Name="InvertOrbitYCheckBox" Margin="0,0,0,12"
-                  Content="視点の上下回転を反転する (Alt+LMB ドラッグ / Orbit)"
+                  Content="{local:Loc OptionsInvertOrbitY}"
                   Checked="OnUserEditedValue" Unchecked="OnUserEditedValue" />
 
         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-            <TextBlock Text="ナビゲーション速度倍率:" VerticalAlignment="Center" Margin="0,0,8,0" />
+            <TextBlock Text="{local:Loc OptionsNavigationSpeedMultiplier}" VerticalAlignment="Center" Margin="0,0,8,0" />
             <TextBox x:Name="NavigationSpeedMultiplierTextBox" Width="80" VerticalAlignment="Center"
                      TextChanged="OnUserEditedValue" />
         </StackPanel>
         <TextBlock x:Name="NavigationSpeedRangeHint" Margin="0,0,0,12" Opacity="0.75" />
 
-        <Button x:Name="ResetToDefaultsButton" Content="既定に戻す"
+        <Button x:Name="ResetToDefaultsButton" Content="{local:Loc OptionsResetDefaults}"
                 HorizontalAlignment="Left" Padding="12,2" Click="ResetToDefaultsButton_Click" />
     </StackPanel>
 </UserControl>

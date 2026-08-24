@@ -90,6 +90,7 @@ internal static class CameraTransform {
 
 }
 
+[SystemPhase(SystemPhase.FrameInput)]
 internal struct Window:ISystem {
     private Entity HostEntity;
     private bool HasHostEntity;
@@ -117,6 +118,7 @@ internal struct Window:ISystem {
 /// 固定ロースター型StageRendererを構築する。Scene由来の子Archetypeは実System由来の
 /// {AppHost,Level}より後ろへ登録されるため、同一フレームで確定してはならない。
 /// </summary>
+[SystemPhase(SystemPhase.Presentation)]
 internal struct LevelLoad:ISystem {
     private Entity LevelEntity;
     private bool HasLevelEntity;
@@ -125,7 +127,6 @@ internal struct LevelLoad:ISystem {
     private Entity PendingCameraEntity;
     private Camera PendingCamera;
     private int ActiveCameraCount;
-    private bool CollectionPassStarted;
     private bool RosterCaptured;
 
     public bool Update(Entity Entity,ref Transform Transform,ref StaticMesh Mesh,ref State State){
@@ -162,7 +163,7 @@ internal struct LevelLoad:ISystem {
                     CameraWorld,ref LevelRuntime.RenderCamera,out _);
                 LevelRuntime.LastCameraTransformStatus=CameraStatus;
                 if(CameraStatus==FixedTransformStatus.Success){
-                    // The generated loop is archetype-major. Refresh before any Renderable/light
+                    // Presentation runs system-major. Refresh before later Renderable/light
                     // archetype executes so every GPU submission in this frame uses one camera origin.
                     RuntimeRendererBinding.SetCameraWorldOrigin(CameraWorld);
                     LevelRuntime.HasLastCameraWorldPose=true;
@@ -175,8 +176,7 @@ internal struct LevelLoad:ISystem {
             return true;
         }
         if(AppRuntime.Window is not{ }Window)return true;
-        if(!this.CollectionPassStarted){
-            this.CollectionPassStarted=true;return true; }
+        this.RosterCaptured=true;
         if(this.ActiveCameraCount==0){
             throw new InvalidOperationException("Runtime requires exactly one active Camera, but none was found.");
         }
@@ -283,6 +283,7 @@ internal struct LevelLoad:ISystem {
     }
 }
 
+[SystemPhase(SystemPhase.Presentation)]
 internal struct CameraOriginSync:ISystem {
     public bool Update(Entity Entity,ref Transform Transform,ref Camera Camera,ref State State){
         if(Camera.Active
@@ -298,6 +299,7 @@ internal struct CameraOriginSync:ISystem {
     }
 }
 
+[SystemPhase(SystemPhase.Presentation)]
 internal struct DirectionalLightSync:ISystem {
     public bool Update(Entity Entity,ref Transform Transform,ref DirectionalLight Light,ref DirectionalLightRuntime Runtime,ref State State){
         if(RuntimeRendererBinding.Resolve(ref Runtime.Renderer) is { }Renderer){
@@ -319,6 +321,7 @@ internal struct DirectionalLightSync:ISystem {
     }
 }
 
+[SystemPhase(SystemPhase.Presentation)]
 internal struct AmbientLightSync:ISystem {
     public bool Update(ref AmbientLight Light,ref AmbientLightRuntime Runtime,ref State State){
         RuntimeRendererBinding.Resolve(ref Runtime.Renderer)?.SetAmbientLight(
@@ -327,6 +330,7 @@ internal struct AmbientLightSync:ISystem {
     }
 }
 
+[SystemPhase(SystemPhase.Presentation)]
 internal struct HeightFogSync:ISystem {
     public bool Update(ref HeightFog Fog,ref HeightFogRuntime Runtime,ref State State){
         RuntimeRendererBinding.Resolve(ref Runtime.Renderer)?.SetFog(
@@ -335,6 +339,7 @@ internal struct HeightFogSync:ISystem {
     }
 }
 
+[SystemPhase(SystemPhase.Presentation)]
 internal struct PointLightSync:ISystem {
     public bool Update(Entity Entity,ref Transform Transform,ref PointLight Light,ref PointLightRuntime Runtime,ref State State){
         if(RuntimeRendererBinding.Resolve(ref Runtime.Renderer) is { }Renderer){
@@ -357,6 +362,7 @@ internal struct PointLightSync:ISystem {
     }
 }
 
+[SystemPhase(SystemPhase.Presentation)]
 internal struct SpotLightSync:ISystem {
     public bool Update(Entity Entity,ref Transform Transform,ref SpotLight Light,ref SpotLightRuntime Runtime,ref State State){
         if(RuntimeRendererBinding.Resolve(ref Runtime.Renderer) is { }Renderer){
@@ -381,6 +387,7 @@ internal struct SpotLightSync:ISystem {
     }
 }
 
+[SystemPhase(SystemPhase.Presentation)]
 internal struct AreaLightSync:ISystem {
     public bool Update(Entity Entity,ref Transform Transform,ref AreaLight Light,ref AreaLightRuntime Runtime,ref State State){
         if(RuntimeRendererBinding.Resolve(ref Runtime.Renderer) is { }Renderer){
@@ -405,6 +412,7 @@ internal struct AreaLightSync:ISystem {
     }
 }
 
+[SystemPhase(SystemPhase.Presentation)]
 internal struct TransformSync:ISystem {
     public bool Update(Entity Entity,ref Transform Transform,ref Renderable Renderable,ref State State){
         if(Renderable.Renderer is{ }Renderer){
@@ -431,6 +439,7 @@ internal struct TransformSync:ISystem {
     }
 }
 
+[SystemPhase(SystemPhase.Presentation)]
 internal struct EmissiveMeshLightSync:ISystem {
     public bool Update(
         Entity Entity,
@@ -478,6 +487,7 @@ internal struct AudioListenerSpawn:ISystem { public void Spawn(ref AudioListener
 internal struct HierarchyQueryRegistration:ISystem { public void Spawn(ref Parent Parent){} }
 
 
+[SystemPhase(SystemPhase.Presentation)]
 internal struct AudioPlayback:ISystem {
     public bool Update(ref AudioSource Source,ref AudioSourceRuntime Runtime,ref State State){
         if(Runtime.Voice is not{ }Voice)return true;
@@ -487,6 +497,7 @@ internal struct AudioPlayback:ISystem {
     }
 }
 
+[SystemPhase(SystemPhase.Presentation)]
 internal struct Present:ISystem {
     public bool Update(ref FramePresent Present,ref State State){
         if(!State.Enabled||Present.Window is not{ }Window||Present.Renderer is not{ }Renderer)return true;

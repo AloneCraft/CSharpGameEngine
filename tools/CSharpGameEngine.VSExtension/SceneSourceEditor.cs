@@ -200,15 +200,15 @@ internal sealed class SceneSourceEditStepsResult {
 internal static class SceneSourceEditor {
     internal static SceneSourceEditResult Apply(SyntaxNode Root,SceneProjection Projection,SceneEditOperation Operation,IReadOnlyDictionary<EditorNodeId,SyntaxAnnotation>? Annotations=null){
         if(!Projection.Key.Equals(Operation.SceneKey)){
-            return SceneSourceEditResult.Failure("対象のSceneと操作のSceneKeyが一致しません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditSceneKeyMismatch"));
         }
 
         if(!Projection.TryGetNode(Operation.NodeId,out SceneProjectionNode Node)){
-            return SceneSourceEditResult.Failure("対象のNodeが現在のSceneに見つかりません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditNodeNotFound"));
         }
 
         if(IsGenerated(Node.Node.Location.FilePath)){
-            return SceneSourceEditResult.Failure("生成された .g.cs はScene Designerから編集できません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditGeneratedSceneReadOnly"));
         }
 
         return Operation switch {
@@ -223,7 +223,7 @@ internal static class SceneSourceEditor {
             RemoveNodeOperation Remove=>ApplyRemoveNode(Root,Projection,Node,Remove,Annotations),
             ReparentNodeOperation Reparent=>ApplyReparentNode(Root,Projection,Node,Reparent,Annotations),
             ReorderNodeOperation Reorder=>ApplyReorderNode(Root,Projection,Node,Reorder,Annotations),
-            _=>SceneSourceEditResult.Failure("このScene編集操作はSource Editorで未実装です。"),
+            _=>SceneSourceEditResult.Failure(VsixText.Get("SourceEditOperationUnsupported")),
         };
     }
 
@@ -242,7 +242,7 @@ internal static class SceneSourceEditor {
         foreach(SceneEditOperation Operation in Operations){
             if(!Projection.Key.Equals(Operation.SceneKey)
                 ||!Projection.TryGetNode(Operation.NodeId,out SceneProjectionNode Node)){
-                return SceneSourceEditResult.Failure("対象のSceneまたはNodeが現在の投影に見つかりません。");
+                return SceneSourceEditResult.Failure(VsixText.Get("SourceEditProjectionTargetMissing"));
             }
             int Start=Node.Node.Location.Span.Start;
             if(Operation is DuplicateNodeOperation&&Node.Path.Parent is { }ParentPath
@@ -290,7 +290,7 @@ internal static class SceneSourceEditor {
             .ThenBy(static Item=>Item.Sequence)){
             SceneSourceEditResult Applied=Apply(Current,Projection,Operation,Annotations);
             if(!Applied.Succeeded){
-                return SceneSourceEditResult.Failure(Applied.ErrorMessage??"Scene編集操作に失敗しました。");
+                return SceneSourceEditResult.Failure(Applied.ErrorMessage??VsixText.Get("SourceEditOperationFailed"));
             }
             Current=Applied.Root!;
         }
@@ -303,7 +303,7 @@ internal static class SceneSourceEditor {
     /// </summary>
     internal static SceneSourceEditResult ApplyLatest(SyntaxNode Root,SceneDocumentSnapshot Snapshot,SceneEditOperation Operation){
         if(Snapshot.Projection is null){
-            return SceneSourceEditResult.Failure("現在のSceneには編集可能なLast Known Good投影がありません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditLastKnownGoodUnavailable"));
         }
 
         SceneSourceEditResult Result=Apply(Root,Snapshot.Projection,Operation);
@@ -317,7 +317,7 @@ internal static class SceneSourceEditor {
     internal static SceneSourceEditResult ApplyLatestBatch(
         SyntaxNode Root,SceneDocumentSnapshot Snapshot,IReadOnlyList<SceneEditOperation>Operations){
         if(Snapshot.Projection is null){
-            return SceneSourceEditResult.Failure("現在のSceneには編集可能なLast Known Good投影がありません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditLastKnownGoodUnavailable"));
         }
 
         SceneSourceEditResult Result=ApplyBatch(Root,Snapshot.Projection,Operations);
@@ -345,7 +345,7 @@ internal static class SceneSourceEditor {
         SyntaxNode Root,SceneKey Key,SceneProjection RealProjection,IReadOnlyList<SceneUndoEntry>History){
         SceneSourceEditStepsResult Steps=ApplyForSaveSteps(Root,Key,RealProjection,History);
         if(!Steps.Succeeded){
-            return SceneSourceEditResult.Failure(Steps.ErrorMessage??"保存時の再適用に失敗しました。");
+            return SceneSourceEditResult.Failure(Steps.ErrorMessage??VsixText.Get("SourceSaveReapplyFailed"));
         }
 
         return SceneSourceEditResult.Success(Steps.FinalRoot??Root);
@@ -415,22 +415,22 @@ internal static class SceneSourceEditor {
         foreach(SceneUndoEntry Entry in History){
             foreach(SceneEditOperation Operation in Entry.Operations){
                 if(!TryEnsureAnnotated(Operation.NodeId)){
-                    return SceneSourceEditStepsResult.Failure("保存時に対象Nodeの構文を特定できません。");
+                    return SceneSourceEditStepsResult.Failure(VsixText.Get("SourceSaveNodeSyntaxMissing"));
                 }
                 if(Operation is ReparentNodeOperation Reparent&&!TryEnsureAnnotated(Reparent.NewParentNodeId)){
-                    return SceneSourceEditStepsResult.Failure("保存時に移動先Nodeの構文を特定できません。");
+                    return SceneSourceEditStepsResult.Failure(VsixText.Get("SourceSaveDestinationNodeSyntaxMissing"));
                 }
 
                 SceneSourceEditResult Result=Apply(Current,WorkingProjection,Operation,Annotations);
                 if(!Result.Succeeded||Result.Root is not { }NewRoot){
-                    return SceneSourceEditStepsResult.Failure(Result.ErrorMessage??"保存時の再適用に失敗しました。");
+                    return SceneSourceEditStepsResult.Failure(Result.ErrorMessage??VsixText.Get("SourceSaveReapplyFailed"));
                 }
                 Current=NewRoot;
 
                 if(Operation is AddNodeOperation Add
                     &&!TryRegisterNewNode(
                         Key,Add,Entry,ref Current,WorkingProjection,Annotations,ref WorkingNodes,out WorkingProjection)){
-                    return SceneSourceEditStepsResult.Failure("保存時に追加したNodeの構文を再特定できません。");
+                    return SceneSourceEditStepsResult.Failure(VsixText.Get("SourceSaveAddedNodeSyntaxMissing"));
                 }
             }
 
@@ -511,11 +511,11 @@ internal static class SceneSourceEditor {
         SyntaxNode Root,SceneProjectionNode Node,SetComponentMemberOperation Operation){
         SceneComponent?Component=Node.Node.FindComponent(Operation.ComponentTypeFullyQualifiedName);
         if(Component is null){
-            return SceneSourceEditResult.Failure("The component or member does not exist in this scene.");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditComponentOrMemberMissing"));
         }
         ExpressionSyntax NewExpression=SyntaxFactory.ParseExpression(Operation.ValueExpression);
         if(NewExpression.ContainsDiagnostics){
-            return SceneSourceEditResult.Failure("The new value is not a valid C# expression.");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditInvalidCSharpExpression"));
         }
         ImmutableArray<string>Path=Operation.MemberPath.IsDefaultOrEmpty
             ?ImmutableArray.Create(Operation.MemberName)
@@ -528,13 +528,13 @@ internal static class SceneSourceEditor {
         if(Member is null){
             bool MemberExists=Component.TypeSymbol?.GetMembers(Operation.MemberName).Length>0;
             if(!MemberExists){
-                return SceneSourceEditResult.Failure("The member is not declared on this component.");
+                return SceneSourceEditResult.Failure(VsixText.Get("SourceEditMemberNotDeclared"));
             }
             return ApplyInsertComponentMember(Root,Component,Operation.MemberName,NewExpression);
         }
         ExpressionSyntax?OldExpression=FindExpression(Root,Member.Value.Location.Span);
         if(OldExpression is null){
-            return SceneSourceEditResult.Failure("The component member value was not found in source.");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditMemberValueMissing"));
         }
         return SceneSourceEditResult.Success(Root.ReplaceNode(OldExpression,NewExpression.WithTriviaFrom(OldExpression)));
     }
@@ -543,11 +543,11 @@ internal static class SceneSourceEditor {
         SyntaxNode Root,SceneComponent Component,ImmutableArray<string> Path,ExpressionSyntax NewExpression){
         SceneComponentMember?Top=Component.FindMember(Path[0]);
         if(Top?.Value.Kind!=SceneValueKind.ObjectCreation){
-            return SceneSourceEditResult.Failure($"{Path[0]} is not an editable object creation.");
+            return SceneSourceEditResult.Failure(VsixText.Format("SourceEditPathNotEditableObjectCreation",Path[0]));
         }
         ExpressionSyntax?TopExpression=FindExpression(Root,Top.Value.Location.Span);
         if(TopExpression is not BaseObjectCreationExpressionSyntax Creation){
-            return SceneSourceEditResult.Failure($"{Path[0]} is not an object creation in source.");
+            return SceneSourceEditResult.Failure(VsixText.Format("SourceEditPathNotSourceObjectCreation",Path[0]));
         }
         string Child=Path[1];
         ArgumentSyntax?Argument=Creation.ArgumentList?.Arguments.FirstOrDefault(Candidate=>
@@ -557,7 +557,7 @@ internal static class SceneSourceEditor {
             Argument=Arguments.Arguments[Index];
         }
         if(Argument is null){
-            return SceneSourceEditResult.Failure($"{string.Join(".",Path)} is not a positional Vector3 component.");
+            return SceneSourceEditResult.Failure(VsixText.Format("SourceEditPathNotPositionalVector3",string.Join(".",Path)));
         }
         ArgumentSyntax UpdatedArgument=Argument.WithExpression(NewExpression.WithTriviaFrom(Argument.Expression));
         BaseObjectCreationExpressionSyntax UpdatedCreation=(BaseObjectCreationExpressionSyntax)Creation.ReplaceNode(Argument,UpdatedArgument);
@@ -579,7 +579,7 @@ internal static class SceneSourceEditor {
             .OfType<BaseObjectCreationExpressionSyntax>()
             .SingleOrDefault(Candidate=>Candidate.Span==Component.Location.Span);
         if(Creation is null){
-            return SceneSourceEditResult.Failure("対象のComponent生成式がC#ソースに見つかりません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditComponentCreationMissing"));
         }
 
         AssignmentExpressionSyntax Assignment=SyntaxFactory.AssignmentExpression(
@@ -599,15 +599,15 @@ internal static class SceneSourceEditor {
     private static SceneSourceEditResult ApplyAddComponent(
         SyntaxNode Root,SceneProjectionNode Node,AddComponentOperation Operation){
         if(Node.Node.FindComponent(Operation.ComponentTypeFullyQualifiedName)is not null){
-            return SceneSourceEditResult.Failure("同じ型のComponentは既にNodeへ追加されています。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditDuplicateComponent"));
         }
         if(Node.Node.ComponentsListLocation is not { }Location){
-            return SceneSourceEditResult.Failure("Nodeに編集可能なComponentsコレクションがありません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditComponentsCollectionMissing"));
         }
 
         ExpressionSyntax NewExpression=SyntaxFactory.ParseExpression(Operation.ComponentExpression);
         if(NewExpression.ContainsDiagnostics||NewExpression is not BaseObjectCreationExpressionSyntax){
-            return SceneSourceEditResult.Failure("追加するComponentが妥当なobject creation式ではありません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditInvalidComponentCreation"));
         }
         ExpressionSyntax?Collection=Root.DescendantNodesAndSelf().OfType<ExpressionSyntax>()
             .FirstOrDefault(Candidate=>Candidate.Span==Location.Span);
@@ -621,7 +621,7 @@ internal static class SceneSourceEditor {
             _=>null,
         };
         return Collection is null||Updated is null
-            ?SceneSourceEditResult.Failure("Componentsコレクションの構文を編集できません。")
+            ?SceneSourceEditResult.Failure(VsixText.Get("SourceEditComponentsSyntaxUnsupported"))
             :SceneSourceEditResult.Success(Root.ReplaceNode(Collection,Updated.WithTriviaFrom(Collection)));
     }
 
@@ -629,13 +629,13 @@ internal static class SceneSourceEditor {
         SyntaxNode Root,SceneProjectionNode Node,RemoveComponentOperation Operation){
         SceneComponent?Component=Node.Node.FindComponent(Operation.ComponentTypeFullyQualifiedName);
         if(Component is null){
-            return SceneSourceEditResult.Failure("削除するComponentが現在のNodeに見つかりません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditComponentToRemoveMissing"));
         }
         BaseObjectCreationExpressionSyntax?Creation=Root.DescendantNodesAndSelf()
             .OfType<BaseObjectCreationExpressionSyntax>()
             .SingleOrDefault(Candidate=>Candidate.Span==Component.Location.Span);
         if(Creation is null){
-            return SceneSourceEditResult.Failure("削除するComponent生成式がC#ソースに見つかりません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditComponentCreationToRemoveMissing"));
         }
 
         if(Creation.Parent is ExpressionElementSyntax Element
@@ -648,25 +648,25 @@ internal static class SceneSourceEditor {
                 Initializer.Expressions.Remove(Creation));
             return SceneSourceEditResult.Success(Root.ReplaceNode(Initializer,Updated));
         }
-        return SceneSourceEditResult.Failure("ComponentsコレクションからComponentを削除できません。");
+        return SceneSourceEditResult.Failure(VsixText.Get("SourceEditComponentRemovalFailed"));
     }
 
     private static SceneSourceEditResult ApplyAddComponent(
         SyntaxNode Root,SceneProjectionNode Node,AddComponentOperation Operation,
         IReadOnlyDictionary<EditorNodeId,SyntaxAnnotation>? Annotations){
         if(Node.Node.FindComponent(Operation.ComponentTypeFullyQualifiedName)is not null){
-            return SceneSourceEditResult.Failure("同じ型のComponentは既にNodeへ追加されています。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditDuplicateComponent"));
         }
 
         ExpressionSyntax NewExpression=SyntaxFactory.ParseExpression(Operation.ComponentExpression);
         if(NewExpression.ContainsDiagnostics||NewExpression is not BaseObjectCreationExpressionSyntax){
-            return SceneSourceEditResult.Failure("追加するComponentが有効なobject creation式ではありません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditInvalidComponentCreation"));
         }
 
         BaseObjectCreationExpressionSyntax?NodeCreation=FindNodeCreation(
             Root,Node.Node,AnnotationFor(Annotations,Node.Id));
         if(NodeCreation is null){
-            return SceneSourceEditResult.Failure("追加先Nodeのobject creation式がSourceに見つかりません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditAddTargetCreationMissing"));
         }
 
         ExpressionSyntax?Collection=FindComponentsExpression(NodeCreation);
@@ -675,7 +675,7 @@ internal static class SceneSourceEditor {
                 NodeCreation,AddComponentsMember(NodeCreation,NewExpression)));
         }
         if(!TryAppendComponent(Collection,NewExpression,out ExpressionSyntax Appended)){
-            return SceneSourceEditResult.Failure("Componentsコレクションの形式を編集できません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditComponentsSyntaxUnsupported"));
         }
 
         ExpressionSyntax Updated=NormalizeComponentCollection(
@@ -688,17 +688,17 @@ internal static class SceneSourceEditor {
         SyntaxNode Root,SceneProjectionNode Node,RemoveComponentOperation Operation,
         IReadOnlyDictionary<EditorNodeId,SyntaxAnnotation>? Annotations){
         if(Node.Node.FindComponent(Operation.ComponentTypeFullyQualifiedName)is null){
-            return SceneSourceEditResult.Failure("削除するComponentが現在のNodeに見つかりません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditComponentToRemoveMissing"));
         }
         BaseObjectCreationExpressionSyntax?NodeCreation=FindNodeCreation(
             Root,Node.Node,AnnotationFor(Annotations,Node.Id));
         ExpressionSyntax?Collection=NodeCreation is null?null:FindComponentsExpression(NodeCreation);
         if(Collection is null){
-            return SceneSourceEditResult.Failure("削除するComponentのComponentsコレクションがSourceに見つかりません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditComponentCollectionToRemoveMissing"));
         }
         if(!TryRemoveComponent(Collection,Operation.ComponentTypeFullyQualifiedName,
             out ExpressionSyntax WithoutComponent)){
-            return SceneSourceEditResult.Failure("ComponentsコレクションからComponentを削除できません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditComponentRemovalFailed"));
         }
 
         ExpressionSyntax Updated=NormalizeComponentCollection(
@@ -916,10 +916,10 @@ internal static class SceneSourceEditor {
         IReadOnlyDictionary<EditorNodeId,SyntaxAnnotation>? Annotations){
         SceneComponent?Transform=SceneComponentBindings.FindComponent(Node.Node,SceneComponentRole.LocalTransform);
         if(Transform is null){
-            return SceneSourceEditResult.Failure("対象Nodeに編集可能なTransform Componentがありません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditTargetTransformMissing"));
         }
         if(IsGenerated(Transform.Location.FilePath)){
-            return SceneSourceEditResult.Failure("生成された .g.cs のTransformは編集できません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditGeneratedTransformReadOnly"));
         }
 
         BaseObjectCreationExpressionSyntax?Creation=
@@ -930,13 +930,13 @@ internal static class SceneSourceEditor {
             .OfType<BaseObjectCreationExpressionSyntax>()
             .SingleOrDefault(Candidate=>Candidate.Span==Transform.Location.Span);
         if(Creation is null){
-            return SceneSourceEditResult.Failure("Transformのobject creationがSourceに見つかりません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditTransformCreationMissing"));
         }
 
         if(!TryUpdateTransformCreation(
             Creation,Transform,Operation.Transform,Operation.Members,
             out BaseObjectCreationExpressionSyntax UpdatedCreation,out string?ErrorMessage)){
-            return SceneSourceEditResult.Failure(ErrorMessage??"Transformを更新できません。");
+            return SceneSourceEditResult.Failure(ErrorMessage??VsixText.Get("SourceEditTransformUpdateFailed"));
         }
         return SceneSourceEditResult.Success(Root.ReplaceNode(Creation,UpdatedCreation));
     }
@@ -947,20 +947,20 @@ internal static class SceneSourceEditor {
             ||!Projection.TryGetId(ParentPath,out EditorNodeId ParentId)
             ||!Projection.TryGetNode(ParentId,out SceneProjectionNode Parent)
             ||Parent.Node.ChildrenListLocation is not { }ChildrenLocation){
-            return SceneSourceEditResult.Failure("Scene RootまたはChildrenリスト外のNodeは複製できません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditNodeCannotDuplicate"));
         }
 
         BaseObjectCreationExpressionSyntax?SourceCreation=Root.DescendantNodesAndSelf()
             .OfType<BaseObjectCreationExpressionSyntax>()
             .SingleOrDefault(Candidate=>Candidate.Span==Node.Node.Location.Span);
         if(SourceCreation is null){
-            return SceneSourceEditResult.Failure("複製対象Nodeのobject creationがSourceに見つかりません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditDuplicateNodeCreationMissing"));
         }
         ExpressionSyntax?ChildrenExpression=SourceCreation.Ancestors()
             .OfType<ExpressionSyntax>()
             .FirstOrDefault(Candidate=>Candidate.SpanStart==ChildrenLocation.Span.Start);
         if(ChildrenExpression is null){
-            return SceneSourceEditResult.Failure("親NodeのChildrenリストがSourceに見つかりません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditParentChildrenMissing"));
         }
 
         SceneComponent?Transform=SceneComponentBindings.FindComponent(Node.Node,SceneComponentRole.LocalTransform);
@@ -968,12 +968,12 @@ internal static class SceneSourceEditor {
             .OfType<BaseObjectCreationExpressionSyntax>()
             .SingleOrDefault(Candidate=>Candidate.Span==Transform.Location.Span);
         if(Transform is null||TransformCreation is null){
-            return SceneSourceEditResult.Failure("複製対象Nodeに編集可能なTransformがありません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditDuplicateTransformMissing"));
         }
         if(!TryUpdateTransformCreation(
             TransformCreation,Transform,Operation.Transform,Operation.Members,
             out BaseObjectCreationExpressionSyntax UpdatedTransform,out string?ErrorMessage)){
-            return SceneSourceEditResult.Failure(ErrorMessage??"複製先Transformを更新できません。");
+            return SceneSourceEditResult.Failure(ErrorMessage??VsixText.Get("SourceEditDuplicateTransformUpdateFailed"));
         }
 
         BaseObjectCreationExpressionSyntax Clone=(BaseObjectCreationExpressionSyntax)
@@ -982,7 +982,7 @@ internal static class SceneSourceEditor {
             Clone=ReplaceNodeName(Clone,CreateUniqueSiblingName(BaseName,Parent.Node,ChildrenExpression));
         }
         if(!TryAppendChild(ChildrenExpression,Clone,out ExpressionSyntax UpdatedChildren)){
-            return SceneSourceEditResult.Failure("親NodeのChildren構文へ複製を追加できません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditDuplicateInsertionFailed"));
         }
         return SceneSourceEditResult.Success(Root.ReplaceNode(ChildrenExpression,UpdatedChildren));
     }
@@ -1021,7 +1021,7 @@ internal static class SceneSourceEditor {
         if(!SceneTransformBinding.CanEditVector(Transform,Name,0)
             ||!SceneTransformBinding.CanEditVector(Transform,Name,1)
             ||!SceneTransformBinding.CanEditVector(Transform,Name,2)){
-            ErrorMessage=$"Transform.{Name} is not a literal Vector3 and cannot be edited by the gizmo.";
+            ErrorMessage=VsixText.Format("SourceEditTransformVectorNotLiteral",Name);
             return false;
         }
 
@@ -1031,7 +1031,7 @@ internal static class SceneSourceEditor {
         ExpressionSyntax NewValue=SyntaxFactory.ParseExpression(
             $"new {TypeName}({FormatFloat(Value.X)},{FormatFloat(Value.Y)},{FormatFloat(Value.Z)})");
         if(NewValue.ContainsDiagnostics){
-            ErrorMessage=$"Transform.{Name} has an invalid Vector3 expression.";
+            ErrorMessage=VsixText.Format("SourceEditTransformVectorInvalid",Name);
             return false;
         }
         if(FindMemberValue(Creation,Name)is { }OldValue){
@@ -1118,12 +1118,12 @@ internal static class SceneSourceEditor {
         SyntaxNode Root,SceneProjection Projection,SceneProjectionNode Parent,AddNodeOperation Operation,
         IReadOnlyDictionary<EditorNodeId,SyntaxAnnotation>? Annotations){
         if(Parent.Node.Location.FilePath is { } ParentFile&&IsGenerated(ParentFile)){
-            return SceneSourceEditResult.Failure("生成された .g.cs にはノードを追加できません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditGeneratedNodeAddReadOnly"));
         }
 
         BaseObjectCreationExpressionSyntax?Creation=FindNodeCreation(Root,Parent.Node,AnnotationFor(Annotations,Parent.Id));
         if(Creation is null){
-            return SceneSourceEditResult.Failure("追加先 Node の構文が見つかりません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditAddTargetSyntaxMissing"));
         }
 
         // M0051 Step 1-4(バグ修正): 以前は投影(Parent.Node)の子から採番していたが、これは
@@ -1135,12 +1135,12 @@ internal static class SceneSourceEditor {
         if(!SceneInitialComponentFactory.TryCreateNodeCreation(Name,Operation.InitialComponents,
             out BaseObjectCreationExpressionSyntax NewNode,out string?ErrorMessage)){
             return SceneSourceEditResult.Failure(
-                ErrorMessage??"新規Nodeの初期Componentを生成できません。");
+                ErrorMessage??VsixText.Get("SourceEditInitialComponentsFailed"));
         }
         ExpressionSyntax?Children=FindChildrenExpression(Creation);
         if(Children is not null){
             if(!TryAppendChild(Children,NewNode,out ExpressionSyntax UpdatedChildren)){
-                return SceneSourceEditResult.Failure("Children の式を編集できません。");
+                return SceneSourceEditResult.Failure(VsixText.Get("SourceEditChildrenExpressionUnsupported"));
             }
 
             return SceneSourceEditResult.Success(Root.ReplaceNode(Children,UpdatedChildren.WithTriviaFrom(Children)));
@@ -1154,18 +1154,18 @@ internal static class SceneSourceEditor {
         SyntaxNode Root,SceneProjection Projection,SceneProjectionNode Node,RemoveNodeOperation Operation,
         IReadOnlyDictionary<EditorNodeId,SyntaxAnnotation>? Annotations){
         if(Node.ParentId is not { } ParentId||!Projection.TryGetNode(ParentId,out SceneProjectionNode Parent)){
-            return SceneSourceEditResult.Failure("Scene Root は削除できません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditRootCannotRemove"));
         }
 
         if(IsGenerated(Node.Node.Location.FilePath)){
-            return SceneSourceEditResult.Failure("生成された .g.cs からは削除できません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditGeneratedNodeRemoveReadOnly"));
         }
 
         BaseObjectCreationExpressionSyntax?Creation=FindNodeCreation(Root,Node.Node,AnnotationFor(Annotations,Node.Id));
         BaseObjectCreationExpressionSyntax?ParentCreation=FindNodeCreation(Root,Parent.Node,AnnotationFor(Annotations,Parent.Id));
         ExpressionSyntax?Children=ParentCreation is null?null:FindChildrenExpression(ParentCreation);
         if(Creation is null||Children is null||!TryRemoveChild(Children,Creation,out ExpressionSyntax UpdatedChildren)){
-            return SceneSourceEditResult.Failure("削除対象が Children の静的な要素ではありません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditRemoveTargetNotStaticChild"));
         }
 
         return SceneSourceEditResult.Success(Root.ReplaceNode(Children,UpdatedChildren.WithTriviaFrom(Children)));
@@ -1177,11 +1177,11 @@ internal static class SceneSourceEditor {
         if(Node.ParentId is not { } OldParentId
             ||!Projection.TryGetNode(OldParentId,out SceneProjectionNode OldParent)
             ||!Projection.TryGetNode(Operation.NewParentNodeId,out SceneProjectionNode NewParent)){
-            return SceneSourceEditResult.Failure("Reparent の親 Node が見つかりません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditReparentParentMissing"));
         }
 
         if(Node.Path.Equals(NewParent.Path)||NewParent.Path.IsDescendantOf(Node.Path)){
-            return SceneSourceEditResult.Failure("自身または子孫へは移動できません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditReparentCycle"));
         }
 
         if(OldParent.Id.Equals(NewParent.Id)){
@@ -1194,7 +1194,7 @@ internal static class SceneSourceEditor {
         BaseObjectCreationExpressionSyntax?OldParentCreation=FindNodeCreation(Root,OldParent.Node,AnnotationFor(Annotations,OldParent.Id));
         BaseObjectCreationExpressionSyntax?NewParentCreation=FindNodeCreation(Root,NewParent.Node,AnnotationFor(Annotations,NewParent.Id));
         if(Creation is null||OldParentCreation is null||NewParentCreation is null){
-            return SceneSourceEditResult.Failure("Reparent 対象の構文が見つかりません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditReparentSyntaxMissing"));
         }
 
         SyntaxAnnotation MovedAnnotation=new("SceneHierarchyMoved");
@@ -1215,7 +1215,7 @@ internal static class SceneSourceEditor {
         BaseObjectCreationExpressionSyntax CurrentNewParent=Current.GetAnnotatedNodes(NewParentAnnotation).OfType<BaseObjectCreationExpressionSyntax>().Single();
         ExpressionSyntax?OldChildren=FindChildrenExpression(CurrentOldParent);
         if(OldChildren is null||!TryRemoveChild(OldChildren,Moved,out ExpressionSyntax UpdatedOldChildren)){
-            return SceneSourceEditResult.Failure("Reparent 元の Children を編集できません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditReparentSourceChildrenUnsupported"));
         }
 
         Current=Current.ReplaceNode(OldChildren,UpdatedOldChildren.WithTriviaFrom(OldChildren));
@@ -1223,7 +1223,7 @@ internal static class SceneSourceEditor {
         ExpressionSyntax?NewChildren=FindChildrenExpression(CurrentNewParent);
         if(NewChildren is not null){
             if(!TryInsertChild(NewChildren,Moved,Operation.NewIndex,out ExpressionSyntax UpdatedNewChildren)){
-                return SceneSourceEditResult.Failure("Reparent 先の Children を編集できません。");
+                return SceneSourceEditResult.Failure(VsixText.Get("SourceEditReparentDestinationChildrenUnsupported"));
             }
 
             return SceneSourceEditResult.Success(Current.ReplaceNode(NewChildren,UpdatedNewChildren.WithTriviaFrom(NewChildren)));
@@ -1237,18 +1237,18 @@ internal static class SceneSourceEditor {
         SyntaxNode Root,SceneProjection Projection,SceneProjectionNode Node,ReorderNodeOperation Operation,
         IReadOnlyDictionary<EditorNodeId,SyntaxAnnotation>? Annotations){
         if(Node.ParentId is not { } ParentId||!Projection.TryGetNode(ParentId,out SceneProjectionNode Parent)){
-            return SceneSourceEditResult.Failure("Scene Root は並べ替えできません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditRootCannotReorder"));
         }
 
         BaseObjectCreationExpressionSyntax?Creation=FindNodeCreation(Root,Node.Node,AnnotationFor(Annotations,Node.Id));
         BaseObjectCreationExpressionSyntax?ParentCreation=FindNodeCreation(Root,Parent.Node,AnnotationFor(Annotations,Parent.Id));
         ExpressionSyntax?Children=ParentCreation is null?null:FindChildrenExpression(ParentCreation);
         if(Creation is null||Children is null||!TryRemoveChild(Children,Creation,out ExpressionSyntax WithoutChild)){
-            return SceneSourceEditResult.Failure("並べ替え対象が Children の静的な要素ではありません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditReorderTargetNotStaticChild"));
         }
 
         if(!TryInsertChild(WithoutChild,Creation,Operation.NewIndex,out ExpressionSyntax UpdatedChildren)){
-            return SceneSourceEditResult.Failure("Children の並べ替えに対応していない式です。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditReorderChildrenUnsupported"));
         }
 
         return SceneSourceEditResult.Success(Root.ReplaceNode(Children,UpdatedChildren.WithTriviaFrom(Children)));
@@ -1418,12 +1418,12 @@ internal static class SceneSourceEditor {
         SyntaxNode Root,SceneProjectionNode Node,RenameNodeOperation Operation,
         IReadOnlyDictionary<EditorNodeId,SyntaxAnnotation>? Annotations){
         if(string.IsNullOrWhiteSpace(Operation.NewName)){
-            return SceneSourceEditResult.Failure("Node 名は空にできません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditNodeNameEmpty"));
         }
 
         BaseObjectCreationExpressionSyntax?Creation=FindNodeCreation(Root,Node.Node,AnnotationFor(Annotations,Node.Id));
         if(Creation is null){
-            return SceneSourceEditResult.Failure("Rename 対象の構文が見つかりません。");
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditRenameSyntaxMissing"));
         }
 
         // M0051(既存バグの修正): 以前はNameの右辺を`NameValueLocation.Span`との一致だけで探していたため、
@@ -1484,7 +1484,7 @@ internal static class SceneSourceEditor {
     /// <summary>M0038: <see cref="SceneModelEditApplier"/>と共有(<see cref="EnumerateTransformMembers"/>参照)。</summary>
     internal static string FormatFloat(float Value){
         if(float.IsNaN(Value)||float.IsInfinity(Value)){
-            throw new ArgumentOutOfRangeException(nameof(Value),"Transformへ非有限値は書き込めません。");
+            throw new ArgumentOutOfRangeException(nameof(Value),VsixText.Get("SourceEditNonFiniteTransform"));
         }
         return Value.ToString("R",CultureInfo.InvariantCulture)+"f";
     }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 
 namespace CSharpGameEngine.VSExtension;
 
@@ -54,27 +55,35 @@ internal sealed class SceneDesignerCommandPresentation {
 /// UIスレッドからRoslyn解析を開始・待機してはならないため、呼び出し元は解析済みの状態だけを渡す。
 /// </summary>
 internal static class SceneDesignerContextMenuPolicy {
-    internal const string OpenText="シーン デザイナーで開く";
+    internal static string OpenText=>GetOpenText(VsixLocalization.UICulture);
+
+    private static string GetOpenText(CultureInfo Culture)=>VsixText.Get("SceneDesignerMenuOpen",Culture);
 
     internal static SceneDesignerCommandPresentation Create(
         string? FilePath,
         SceneDesignerTargetState TargetState,
+        IReadOnlyList<SceneDesignerMenuItem> Items)=>
+        Create(VsixLocalization.UICulture,FilePath,TargetState,Items);
+
+    internal static SceneDesignerCommandPresentation Create(
+        CultureInfo Culture,string? FilePath,
+        SceneDesignerTargetState TargetState,
         IReadOnlyList<SceneDesignerMenuItem> Items){
         if(FilePath is null||!FilePath.EndsWith(".cs",StringComparison.OrdinalIgnoreCase)
             ||TargetState==SceneDesignerTargetState.Unavailable){
-            return new(SceneDesignerMenuMode.Hidden,OpenText,[]);
+            return new(SceneDesignerMenuMode.Hidden,GetOpenText(Culture),[]);
         }
 
         return TargetState switch {
-            SceneDesignerTargetState.Analyzing=>Disabled("シーンを解析中"),
-            SceneDesignerTargetState.Failed=>Disabled("Scene 解析に失敗"),
+            SceneDesignerTargetState.Analyzing=>Disabled(Culture,"SceneDesignerMenuAnalyzingDisabled"),
+            SceneDesignerTargetState.Failed=>Disabled(Culture,"SceneDesignerMenuAnalysisFailedDisabled"),
             // Scene宣言の直前コメントやusing/namespace上からも開けるよう、同じファイルに
             // Sceneがあれば型外は選択メニューへ委譲する。通常型の内部は誤操作防止のため無効のまま。
-            SceneDesignerTargetState.OutsideType when Items.Count>0=>Available(Items),
-            SceneDesignerTargetState.OutsideType=>Disabled("このファイルには IScene 実装クラスがありません"),
-            SceneDesignerTargetState.NonSceneType=>Disabled("このクラスは IScene を実装していません"),
-            SceneDesignerTargetState.SceneType=>Available(Items),
-            _=>Disabled("このファイルには IScene 実装クラスがありません"),
+            SceneDesignerTargetState.OutsideType when Items.Count>0=>Available(Culture,Items),
+            SceneDesignerTargetState.OutsideType=>Disabled(Culture,"SceneDesignerMenuNoSceneDisabled"),
+            SceneDesignerTargetState.NonSceneType=>Disabled(Culture,"SceneDesignerMenuNonSceneTypeDisabled"),
+            SceneDesignerTargetState.SceneType=>Available(Culture,Items),
+            _=>Disabled(Culture,"SceneDesignerMenuNoSceneDisabled"),
         };
     }
 
@@ -90,7 +99,10 @@ internal static class SceneDesignerContextMenuPolicy {
     /// </para>
     /// </summary>
     internal static string ItemText(SceneDesignerMenuItem Item,bool IsAtCaret)=>
-        IsAtCaret?$"{Item.Text} を{OpenText}（カーソル位置）":$"{Item.Text} を{OpenText}";
+        ItemText(VsixLocalization.UICulture,Item,IsAtCaret);
+
+    internal static string ItemText(CultureInfo Culture,SceneDesignerMenuItem Item,bool IsAtCaret)=>
+        VsixText.Format(Culture,IsAtCaret?"SceneDesignerMenuItemOpenAtCaret":"SceneDesignerMenuItemOpen",Item.Text);
 
     /// <summary>
     /// シーン一覧のスロット(.vsctに固定IDで並べたButton)を表示するか。<see cref="SceneDesignerMenuMode.SceneList"/>
@@ -109,12 +121,16 @@ internal static class SceneDesignerContextMenuPolicy {
     /// コンボボックス)へ誘導する。
     /// </summary>
     internal static string OverflowText(int HiddenCount)=>
-        $"他 {HiddenCount} 件はシーン デザイナーのコンボボックスから選択してください";
+        OverflowText(VsixLocalization.UICulture,HiddenCount);
 
-    private static SceneDesignerCommandPresentation Available(IReadOnlyList<SceneDesignerMenuItem> Items)=>
+    internal static string OverflowText(CultureInfo Culture,int HiddenCount)=>
+        VsixText.Format(Culture,"SceneDesignerMenuOverflow",HiddenCount);
+
+    private static SceneDesignerCommandPresentation Available(
+        CultureInfo Culture,IReadOnlyList<SceneDesignerMenuItem> Items)=>
         Items.Count==1
-            ?new(SceneDesignerMenuMode.Direct,OpenText,Items)
-            :new(SceneDesignerMenuMode.SceneList,OpenText,Items);
-    private static SceneDesignerCommandPresentation Disabled(string Reason)=>
-        new(SceneDesignerMenuMode.Disabled,$"{OpenText}（{Reason}）",[]);
+            ?new(SceneDesignerMenuMode.Direct,GetOpenText(Culture),Items)
+            :new(SceneDesignerMenuMode.SceneList,GetOpenText(Culture),Items);
+    private static SceneDesignerCommandPresentation Disabled(CultureInfo Culture,string Key)=>
+        new(SceneDesignerMenuMode.Disabled,VsixText.Get(Key,Culture),[]);
 }

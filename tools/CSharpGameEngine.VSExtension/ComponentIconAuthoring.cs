@@ -61,7 +61,7 @@ public sealed class SceneVisualIcon {
     public bool HasReservedLockOverlay=>false;
 
     /// <summary>Accessible tooltip text shared by hierarchy rows and editor glyphs.</summary>
-    public string ToolTip=>this.ProjectRelativePath??"Component";
+    public string ToolTip=>this.ProjectRelativePath??VsixText.Get("ComponentIcon_DefaultIcon");
 
     internal static SceneVisualIcon ComponentDefault()=>new(KnownMonikers.Component,null,null);
 

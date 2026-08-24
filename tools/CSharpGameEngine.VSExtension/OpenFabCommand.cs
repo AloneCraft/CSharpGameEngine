@@ -46,9 +46,10 @@ internal sealed class OpenFabCommand {
         try {
             Process.Start(new ProcessStartInfo(FabUrl){ UseShellExecute=true });
         } catch(Exception Ex){
+            ActivityLog.LogError(nameof(OpenFabCommand),Ex.ToString());
             VsShellUtilities.ShowMessageBox(this.Package,
-                $"ブラウザの起動に失敗しました: {Ex.Message}",
-                "C# Game Engine Viewer",
+                VsixText.Format("OpenFab_BrowserLaunchFailed",Ex.Message),
+                VsixText.Get("Common_ViewerTitle"),
                 OLEMSGICON.OLEMSGICON_CRITICAL,
                 OLEMSGBUTTON.OLEMSGBUTTON_OK,
                 OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_FIRST);

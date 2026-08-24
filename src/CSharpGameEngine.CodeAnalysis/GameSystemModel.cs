@@ -75,6 +75,8 @@ internal readonly struct GameSystemResult(
         ImmutableArray<Diagnostic>Diagnostics,
         bool ExecuteInEditor,
         bool RealtimeInEditor,
+        int Phase,
+        bool IsWorldSystem,
         string FilePath,
         int DeclarationPosition) {
     internal readonly string?Namespace=Namespace;
@@ -83,6 +85,8 @@ internal readonly struct GameSystemResult(
     internal readonly ImmutableArray<Diagnostic>Diagnostics=Diagnostics;
     internal readonly bool ExecuteInEditor=ExecuteInEditor;
     internal readonly bool RealtimeInEditor=RealtimeInEditor;
+    internal readonly int Phase=Phase;
+    internal readonly bool IsWorldSystem=IsWorldSystem;
 
     /// <summary>
     /// 実行順序の決定に使う宣言位置。ADR-0033決定事項1により、実行順は「ソース上の記述順」。
