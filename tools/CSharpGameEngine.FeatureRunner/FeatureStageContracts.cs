@@ -5,7 +5,17 @@ public enum FeatureLifecycleStatus {
     Implemented,
     PartiallyImplemented,
     Implementing,
+    Specified,
     Deferred,
+}
+public enum FeatureRoadmapTrack {
+    Established,
+    Rendering,
+    AssetContent,
+    EditorVsix,
+    EcsRuntime,
+    AudioInputPlatform,
+    TestingCiRelease,
 }
 public enum FeatureStageAvailability {
     Executable,
@@ -43,7 +53,7 @@ public enum FeatureStageRunStatus {
     TimedOut,
     InfrastructureError,
 }
-public sealed record FeatureDefinition(string Id,string Name,string Layer,FeatureLifecycleStatus Status);
+public sealed record FeatureDefinition(string Id,string Name,string Layer,FeatureLifecycleStatus Status,FeatureRoadmapTrack Track,int DependencyLevel,IReadOnlyList<string>DependsOnFeatureIds);
 public sealed record FeatureStageCommand(string FileName,IReadOnlyList<string>Arguments,IReadOnlyList<string>WarpArguments,IReadOnlyList<string>HardwareArguments){
     public FeatureStageCommand(string FileName,IReadOnlyList<string>Arguments):this(FileName,Arguments,[],[]){
     }

@@ -6,6 +6,27 @@
 
 正本は`tools/CSharpGameEngine.FeatureRunner/FeatureStageCatalog.cs`であり、この文書は人間向けの契約である。カタログの一意性、参照整合性、既存48機能の実行可能Stage割り当て、将来28機能の`NotImplemented`割り当ては自動テストで固定する。
 
+## Catalog v2 and non-physics registration
+
+Catalog JSON is `csharp-game-engine-feature-catalog-v2`. Each Feature now publishes `track`, `dependencyLevel`, and `dependsOnFeatureIds` in addition to ID/name/layer/status. Run-result JSON remains `csharp-game-engine-feature-run-result-v1`; this change does not alter a completed run artifact.
+
+The six non-physics tracks have 63 Roadmap rows registered one-to-one as Feature/target-Stage pairs. F-L0-008 and F-L3-019 changed from `Deferred` to `Specified`; F-L3-018 remains `PartiallyImplemented`; F-L3-020 remains `Deferred`. All new target Stages are `NotImplemented` with an oracle and input paths. The two pre-existing stage IDs `foundation.d3d12-compute` and `foundation.deterministic-jobs` are reused; the remaining 61 Stage IDs are new registrations.
+
+| Track | Specification | Visual Pack policy |
+|---|---|---|
+| Rendering | [Rendering](Specifications/Rendering.md) | Rendering Pack with required WARP and optional hardware. |
+| Asset / Content | [Asset / Content Pipeline](Specifications/Asset-Content-Pipeline.md) | Foundation, except VSIX asset authoring. |
+| Editor / VSIX | [Editor / VSIX](Specifications/Editor-VSIX.md) | VSIX Pack; only requested visual aliases use the C# reference scene. |
+| ECS / Runtime | [ECS / Runtime](Specifications/Ecs-Runtime.md) | Foundation headless contracts. |
+| Audio / Input / Platform | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | Foundation headless contracts plus VSIX diagnostics. |
+| Testing / CI / Release | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | Foundation headless contracts. |
+
+The existing ten Packs remain unchanged: Foundation, Rendering, Rigid, Deformable, Fluid, Destruction, Celestial, ProbabilityQuantum, Coupling, and VSIX. Visual aliases for the new Rendering/VSIX reservations bind to existing C# reference scenes; no pack project was added.
+
+Timeout defaults are 900 seconds for contract, 1800 for visual/integration, 3600 for Experimental Visual Studio, 7200 for performance/release, and 28800 for stress. A normal `changed`, `smoke`, `full`, `stress`, or `vsix` suite selects executable Stages only. Explicit `run` or `run-feature` on a future feature returns nonzero `NotImplemented` and records it in a v1 run-result artifact.
+
+Release scope selects tracks and a reached dependency Level. Only executable Features in that closure are required verdicts; `Specified`/`Deferred` work remains visible but cannot become a skipped success.
+
 ## CLI
 
 ```text

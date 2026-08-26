@@ -1,5 +1,108 @@
 # Roadmap
 
+## Non-physics Feature index (authoritative)
+
+This index is the authoritative machine-tracked mapping for the six non-physics tracks. The older narrative tables below remain planning context. Every row has one Feature and one target Stage; `Specified`/`Deferred` target Stages are deliberately `NotImplemented` until their implementation lands.
+
+Current baseline corrections: point/spot/area/emissive shadows and HDR/ACES/bloom are observed renderer baseline; Scene Designer transform tools are observed baseline and require new visual acceptance; existing ECS phase/structural behavior is a base for the unified target; C# `IScene` remains the only authoring truth. F-L3-020 remains `Deferred` for the future 65-128-type generator path, while 1-64 uses one generation-time `ulong` with no runtime mask penalty.
+
+### Rendering
+
+| Level | Feature ID | Status | Summary | Depends on | Specification | Stage |
+|---:|---|---|---|---|---|---|
+| 1 | F-L7-022 | Specified | Rendering baseline conformance | None | [Rendering](Specifications/Rendering.md) | `rendering.baseline` |
+| 2 | F-L4-004 | Specified | Engine-owned Render Graph | F-L7-022 | [Rendering](Specifications/Rendering.md) | `rendering.render-graph` |
+| 2 | F-L0-008 | Specified | D3D12 compute/readback | F-L7-022 | [Rendering](Specifications/Rendering.md) | `foundation.d3d12-compute` |
+| 3 | F-L6-004 | Specified | Shader artifacts and PSO provenance | F-L0-008 | [Rendering](Specifications/Rendering.md) | `rendering.shader-artifacts` |
+| 3 | F-L4-005 | Specified | Materials and textures | F-L6-004 | [Rendering](Specifications/Rendering.md) | `rendering.materials` |
+| 4 | F-L4-006 | Specified | Visibility, LOD, instancing | F-L4-004, F-L4-005 | [Rendering](Specifications/Rendering.md) | `rendering.visibility` |
+| 4 | F-L4-007 | Specified | Quality profiles | F-L4-006 | [Rendering](Specifications/Rendering.md) | `rendering.quality-profiles` |
+| 5 | F-L0-009 | Specified | Device recovery | F-L4-004, F-L4-007 | [Rendering](Specifications/Rendering.md) | `rendering.device-recovery` |
+| 5 | F-L8-018 | Specified | Shared isolated preview | F-L0-009, F-L8-022 | [Rendering](Specifications/Rendering.md) | `vsix.rendering-preview` |
+| 6 | F-L7-023 | Specified | Performance evidence | F-L4-007, F-L0-009 | [Rendering](Specifications/Rendering.md) | `rendering.performance` |
+| 7 | F-L7-024 | Specified | Release evidence | F-L7-023, F-L8-018 | [Rendering](Specifications/Rendering.md) | `rendering.release` |
+
+### Asset / Content
+
+| Level | Feature ID | Status | Summary | Depends on | Specification | Stage |
+|---:|---|---|---|---|---|---|
+| 1 | F-L2-004 | Specified | Asset identity and canonical metadata | None | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.identity` |
+| 2 | F-L7-025 | Specified | Importer conformance | F-L2-004 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.importer-conformance` |
+| 3 | F-L6-005 | Specified | Content artifact envelope | F-L7-025 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.artifact-schema` |
+| 4 | F-L7-026 | Specified | Incremental compiler | F-L6-005 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.incremental-cook` |
+| 4 | F-L7-027 | Specified | Cache recovery and GC | F-L7-026 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.cache-recovery` |
+| 5 | F-L4-008 | Specified | Runtime asset handles | F-L7-027 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.runtime-load` |
+| 5 | F-L6-006 | Specified | Shipping content manifest | F-L4-008 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.package` |
+| 6 | F-L8-019 | Specified | VSIX asset authoring | F-L6-006, F-L8-022 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `vsix.asset-authoring` |
+| 6 | F-L7-028 | Specified | Performance evidence | F-L6-006 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.performance` |
+| 7 | F-L7-029 | Specified | Release evidence | F-L7-028, F-L8-019 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.release` |
+
+### Editor / VSIX
+
+| Level | Feature ID | Status | Summary | Depends on | Specification | Stage |
+|---:|---|---|---|---|---|---|
+| 1 | F-L8-020 | Specified | Manual/Experimental baseline | None | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.experimental-smoke` |
+| 2 | F-L8-021 | Specified | Experimental automation | F-L8-020 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.experimental-automation` |
+| 3 | F-L8-022 | Specified | Versioned authoring host | F-L8-021 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.host-lifecycle` |
+| 4 | F-L8-023 | Specified | Transform visual conformance | F-L8-022 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.transform-tools` |
+| 4 | F-L8-024 | Specified | Typed inspector and palette | F-L8-022 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.inspector-contracts` |
+| 5 | F-L8-025 | Specified | C# source synchronization v2 | F-L8-023, F-L8-024 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.source-sync` |
+| 5 | F-L8-026 | Specified | Bake, asset, diagnostic UI | F-L8-025 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.bake-integration` |
+| 6 | F-L8-027 | Specified | Read-only debug tools | F-L8-026 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.debug-tools` |
+| 6 | F-L8-028 | Specified | Compatibility matrix | F-L8-027 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.compatibility` |
+| 7 | F-L8-029 | Specified | Release evidence | F-L8-028 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.release` |
+
+### ECS / Runtime
+
+| Level | Feature ID | Status | Summary | Depends on | Specification | Stage |
+|---:|---|---|---|---|---|---|
+| 1 | F-L7-030 | Specified | ECS baseline conformance | None | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.baseline` |
+| 2 | F-L3-018 | PartiallyImplemented | Fixed tick scheduler | F-L7-030 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.fixed-tick` |
+| 2 | F-L5-035 | Specified | Portable shared Transform | F-L7-030 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.runtime-boundary` |
+| 3 | F-L3-021 | Specified | Unified structural command buffer | F-L3-018, F-L5-035 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.structural-changes` |
+| 4 | F-L3-022 | Specified | Enable masks and change versions | F-L3-021 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.change-tracking` |
+| 4 | F-L3-019 | Specified | Deterministic job runtime | F-L3-022 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `foundation.deterministic-jobs` |
+| 5 | F-L7-031 | Specified | Generated schedule diagnostics | F-L3-019 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.schedule-diagnostics` |
+| 5 | F-L6-007 | Specified | Schema-fingerprinted snapshots | F-L3-022, F-L3-019 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.snapshot` |
+| 6 | F-L7-032 | Specified | Performance evidence | F-L7-031, F-L6-007 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.performance` |
+| 7 | F-L7-033 | Specified | Release evidence | F-L7-032 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.release` |
+
+### Audio / Input / Platform
+
+| Level | Feature ID | Status | Summary | Depends on | Specification | Stage |
+|---:|---|---|---|---|---|---|
+| 1 | F-L1-008 | Specified | Platform event/timestamp contracts | None | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `platform.boundaries` |
+| 2 | F-L0-010 | Specified | Win32 window and input binding | F-L1-008 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `platform.window-input` |
+| 2 | F-L4-009 | Specified | Audio device lifecycle | F-L1-008 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `audio.lifecycle` |
+| 3 | F-L4-010 | Specified | Deterministic input actions | F-L0-010 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `input.actions` |
+| 3 | F-L4-011 | Specified | Mixer and offline oracle | F-L4-009 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `audio.mixer` |
+| 4 | F-L4-012 | Specified | Spatial audio and recovery | F-L4-010, F-L4-011 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `audio.spatial` |
+| 5 | F-L8-030 | Specified | Platform diagnostics viewer | F-L4-012 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `vsix.platform-debug` |
+| 6 | F-L7-034 | Specified | Compatibility evidence | F-L8-030 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `platform.compatibility` |
+| 7 | F-L7-035 | Specified | Release evidence | F-L7-034 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `platform.release` |
+
+### Testing / CI / Release
+
+| Level | Feature ID | Status | Summary | Depends on | Specification | Stage |
+|---:|---|---|---|---|---|---|
+| 1 | F-L7-036 | Specified | Coverage and catalog validation | F-L7-021 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.coverage` |
+| 1 | F-L7-037 | Specified | Manual evidence ledger | F-L7-036 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.manual-ledger` |
+| 2 | F-L7-038 | Specified | Changed-path stage selection | F-L7-036 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.changed-selection` |
+| 2 | F-L7-039 | Specified | Hermetic clean build | F-L7-038 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.clean-build` |
+| 3 | F-L7-040 | Specified | Golden artifact policy | F-L7-039 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.golden-policy` |
+| 4 | F-L7-041 | Specified | Performance framework | F-L7-040 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.performance` |
+| 4 | F-L7-042 | Specified | Explicit CI matrix | F-L7-041 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.ci-matrix` |
+| 5 | F-L7-043 | Specified | Retry/quarantine policy | F-L7-042 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.failure-policy` |
+| 5 | F-L7-044 | Specified | Stress contract | F-L7-043 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.stress-contract` |
+| 6 | F-L7-045 | Specified | Package and SBOM validation | F-L7-044 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `release.packages` |
+| 6 | F-L7-046 | Specified | Compatibility matrix | F-L7-045 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `release.compatibility` |
+| 7 | F-L7-047 | Specified | Release candidate gate | F-L7-046 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `release.candidate` |
+| 7 | F-L7-048 | Specified | Immutable release manifest | F-L7-047 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `release.manifest` |
+
+## Non-physics integration order
+
+Implement cross-track work by dependency Level 1 through 7. At each Level, first complete the listed contract Stage and then replace it with an executable Stage in the same Feature change. Do not retain old APIs, readers, generated artifacts, or renderer/host paths as compatibility bridges.
+
 この文書は物理・非物理を含む全体の計画順序を示す。現在の実装事実は`Implementation-Status.md`、機械実行可能なStage正本は`FeatureStageCatalog.cs`を参照する。ここに記載した未着手Stage IDは候補名であり、実装着手時にFeature IDを採番してカタログへ登録するまでは機械実行可能なStageではない。
 
 ## Priority 0 — 自律検証基盤
@@ -29,11 +132,11 @@ F-L5-012 XPBDを粒子基盤にし、Cloth/Rope/Soft Bodyへ進む。FEM/MPMはs
 
 KeplerとDirect N-bodyのreference Oracleを先に確立し、Barnes–Hut、FMM、hierarchical framesへ進む。Probabilityはゲーム用途と科学用途を明確に分離し、再現性・誤差・provenanceをartifactに持つ。Domain couplingは各単独Domainが検証済みになってから翌tick bridgeで実装する。
 
-## Deferred foundation
+## Deferred and specified foundation
 
 - F-L3-020 Extended ECS mask: 現行64型上限を維持。必要になった時点で65–128二重maskを追加し、1–64 pathを不変にする。
-- F-L0-008 D3D12 compute/readback。
-- F-L3-019 deterministic job runtime。
+- F-L0-008 D3D12 compute/readback (`Specified`; Rendering target Stage is `foundation.d3d12-compute`)。
+- F-L3-019 deterministic job runtime (`Specified`; ECS target Stage is `foundation.deterministic-jobs`)。
 - F-L4-003 engine-owned simulation contracts and optional L4 adapters。
 - F-L6-003 field/graph artifacts。
 - F-L5-032/033/034 pose bridge、volume renderer、thermal field。
@@ -278,7 +381,7 @@ Feature RunnerとStage Packsを、変更選択、clean build、visual/performanc
 
 - 対象Featureが`Implementation-Status.md`に安定ID、status、evidence、test、next action付きで存在する。
 - Intended Specificationと、必要な所有権・依存方向・永続形式のADRが存在する。
-- すべてのImplemented/PartiallyImplemented FeatureがExecutable Stageへ割り当てられ、Deferred FeatureはOracle付き`NotImplemented` Stageを持つ。
+- すべてのImplemented/PartiallyImplemented FeatureがExecutable Stageへ割り当てられ、Specified/Deferred FeatureはOracle付き`NotImplemented` Stageを持つ。
 - Debug/Releaseのunit/integration testが成功し、Visual FeatureはWARP、performance Featureは予算、Editor Featureは必要なExperimental Instance証跡を満たす。
 - 最終コードから観測挙動を再調査し、`Matches`、`MatchesWithDocumentedExtension`、`Partial`、`Mismatch`のいずれかを記録する。
 - clean checkoutからbuild/test/packageを再現でき、生成artifactにcommit、tool/provider version、input/dependency hash、configurationが記録される。

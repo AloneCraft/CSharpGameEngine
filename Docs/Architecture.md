@@ -170,6 +170,14 @@ Spatial/Physics debug protocolは不変の理由enum・wire token・数値DTOだ
 
 現実装の`Transform`共有ソースは物理的にはEntitiesにあるが公開namespaceが`Runtime.Windows`であり、Physics systemがその名前空間を参照する。共有Transform契約をWindows非依存namespaceへ移すまでは、意図したL5モジュール分離に対する既知の構造上の逸脱である。
 
+## Non-physics target design and verification boundary
+
+The Rendering, Asset/Content, Editor/VSIX, ECS/Runtime, Audio/Input/Platform, and Testing/CI/Release target designs are specified in `Docs/Specifications/` and adopted by ADR-0052 through ADR-0057. They are intended architecture, not evidence that their runtime bodies already exist.
+
+The target keeps Win32/D3D12/XAudio2 binding at L0, portable values at L1-L5, engine-owned runtime servers at L4, artifacts at L6, static compilers/bake at L7, and Visual Studio only at L8. Runtime L0-L6 must not reference Roslyn or Visual Studio SDK. C# `IScene` remains source of truth; artifacts/caches are reproducible and old readers are removed with an immediate feature cutover.
+
+ECS vNext preserves the generated one-to-sixty-four-component single-`ulong` generator path with no runtime mask cost. F-L3-020 remains a future two-mask design, not an active runtime dependency. The currently implemented machine behavior is the Feature catalog v2: tracks, dependency Levels, dependency IDs, oracle-bearing target Stages, and Visual alias registration. It does not implement the six subsystem target bodies.
+
 ## Autonomous Feature verification
 
 `CSharpGameEngine.FeatureRunner`はL7の独立CLIであり、L0〜L9のFeature IDを自動Stageへ対応付ける。L9 Stage PackはFoundation、Rendering、Rigid、Deformable、Fluid、Destruction、Celestial、ProbabilityQuantum、Coupling、VSIXに分離し、process、timeout、artifact、再開単位を隔離する。Visual StageはC# `IScene`を正本にし、WARPを必須adapter、Hardwareを任意追加passとする。結果は`.artifacts/FeatureStages`のversioned JSONであり、source/artifactの正本関係を変えない。詳細はADR-0051と`Docs/Feature-Stages.md`を参照する。

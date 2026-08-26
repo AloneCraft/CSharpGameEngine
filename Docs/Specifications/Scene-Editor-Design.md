@@ -17,6 +17,8 @@ ADR-0041                        … 意思決定(なぜこの構造か)
 M0020                           … 実装フェーズ計画と完了条件
 ```
 
+> Parent specification: [Editor / VSIX](Editor-VSIX.md). This document remains the implementation-level specification for the currently observed Scene Designer baseline. Target Preview/Import/Bake host, source-sync v2, and release contracts are owned by the parent specification.
+
 ## 1. 全体アーキテクチャ
 
 既存パイプライン(実装済み・ADR-0040)へ、新規コンポーネント(◆)を差し込む。

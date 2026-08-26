@@ -1,5 +1,15 @@
 # Reverse-engineered specification
 
+## RE-L7-021 addendum — Catalog v2 non-physics registration
+
+- Confidence: High
+- Evidence: `tools/CSharpGameEngine.FeatureRunner/FeatureStageContracts.cs`, `FeatureStageCatalog.cs`, `FeatureRunnerApplication.cs`, `tests/CSharpGameEngine.FeatureRunner.Tests/`.
+- Observed behavior: The catalog now contains `Specified`, a track enum, dependency Levels, and dependency Feature IDs. It validates unknown/self/cyclic/Level-inverted dependencies and requires an executable Stage for implemented states and a `NotImplemented` Stage for specified/deferred states.
+- Observed behavior: `list --json` emits catalog schema v2 metadata. Run-result artifacts remain schema v1. Explicit future `run`/`run-feature` execution returns `NotImplemented` and nonzero; normal suites continue to select executable stages only.
+- Observed behavior: Sixty-three non-physics Roadmap Feature IDs are registered. Two existing IDs reuse their Stage IDs and sixty-one new target Stage IDs have no command. New Rendering/VSIX visual reservations alias existing C# reference scenes.
+- Intended behavior: Matches ADR-0057 and [Testing-CI-Release](Specifications/Testing-CI-Release.md) for the registration infrastructure.
+- Result: MatchesWithDocumentedExtension. The target runtime bodies described by the six new specifications are still unimplemented and must not be inferred from the registration.
+
 ## RE-L3-015/016 - Spatial partitioning
 
 - Confidence: High

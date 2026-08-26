@@ -40,7 +40,8 @@ public sealed class FeatureRunnerApplication {
     private int RunList(string[]Args){
         var Json=Args.Skip(1).Any(static Argument=>Argument.Equals("--json",StringComparison.OrdinalIgnoreCase));
         if(Json){
-            this.Output.WriteLine(JsonSerializer.Serialize(new {schema="csharp-game-engine-feature-catalog-v1",features=this.Catalog.Features,stages=this.Catalog.Stages},FeatureRunResultStore.CreateJsonOptions()));
+            var Features=this.Catalog.Features.Select(static Feature=>new {id=Feature.Id,name=Feature.Name,layer=Feature.Layer,status=Feature.Status.ToString(),track=Feature.Track.ToString(),dependencyLevel=Feature.DependencyLevel,dependsOnFeatureIds=Feature.DependsOnFeatureIds});
+            this.Output.WriteLine(JsonSerializer.Serialize(new {schema=FeatureStageCatalog.CatalogSchemaVersion,features=Features,stages=this.Catalog.Stages},FeatureRunResultStore.CreateJsonOptions()));
             return 0;
         }
         foreach(var Stage in this.Catalog.Stages){

@@ -5,6 +5,8 @@
 [[ADR-0033-Static-Archetype-Ecs-Migration]]を参照。動的Archetype方式([[ADR-0029-Dynamic-Archetype-Soa-Ecs]])は
 本仕様への移行に伴い削除された。
 
+> Parent specification: [ECS / Runtime](Ecs-Runtime.md). This document remains the lower-level description of the currently generated archetype/system implementation. Entity generation, unified structural replay, enable/change tracking, job diagnostics, fixed-tick catch-up, and snapshot targets are specified by the parent.
+
 ## 概要
 
 ユーザーはComponent型(`struct`)と、`ISystem`を実装するstructの`Update`/`Spawn`メソッドだけを書く。

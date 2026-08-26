@@ -8,6 +8,9 @@
     <File Path="Docs/20260803-0.txt" />
     <File Path="Docs/20260803-1.txt" />
     <File Path="Docs/Implementation-Status.md" />
+    <File Path="Docs/Roadmap.md" />
+    <File Path="Docs/Feature-Stages.md" />
+    <File Path="Docs/Reverse-Engineered-Spec.md" />
     <File Path="Docs/今は実装していないが実装すべき機能.md" />
     <File Path="Docs/Conformance.md" />
     <File Path="Docs/Implement-AoS-SoA-Entity-SourceGenerator-Prompt.md" />
@@ -22,6 +25,12 @@
     <File Path="Docs/Specifications/Physics.md" />
     <File Path="Docs/Specifications/Ecs-Soa-Systems.md" />
     <File Path="Docs/Specifications/Scene-Editor-Design.md" />
+    <File Path="Docs/Specifications/Rendering.md" />
+    <File Path="Docs/Specifications/Asset-Content-Pipeline.md" />
+    <File Path="Docs/Specifications/Editor-VSIX.md" />
+    <File Path="Docs/Specifications/Ecs-Runtime.md" />
+    <File Path="Docs/Specifications/Audio-Input-Platform.md" />
+    <File Path="Docs/Specifications/Testing-CI-Release.md" />
   </Folder>
   <Folder Name="/Docs/Decisions/">
     <File Path="Docs/Decisions/ADR-0001-Layered-Architecture.md" />
@@ -68,6 +77,12 @@
     <File Path="Docs/Decisions/ADR-0043-Scene-Editor-Light-Component-Vocabulary.md" />
     <File Path="Docs/Decisions/ADR-0047-Generated-Editor-World-And-Preview-Host.md" />
     <File Path="Docs/Decisions/ADR-0049-Deterministic-Physics-Domains.md" />
+    <File Path="Docs/Decisions/ADR-0052-Render-Graph-And-Preview-Boundary.md" />
+    <File Path="Docs/Decisions/ADR-0053-Asset-Identity-And-Content-Artifacts.md" />
+    <File Path="Docs/Decisions/ADR-0054-Editor-Authoring-Host-And-Source-Synchronization.md" />
+    <File Path="Docs/Decisions/ADR-0055-Static-Ecs-VNext-And-Deterministic-Execution.md" />
+    <File Path="Docs/Decisions/ADR-0056-Platform-Input-And-Audio-Server-Boundaries.md" />
+    <File Path="Docs/Decisions/ADR-0057-Level-Gated-Verification-And-Release-Evidence.md" />
   </Folder>
   <Folder Name="/Docs/Milestones/">
     <File Path="Docs/Milestones/M0001-CodeAnalysis-Foundation.md" />

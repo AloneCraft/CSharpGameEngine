@@ -3315,8 +3315,13 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Layer: L3 — ECS / Job Runtime
 - Status: PartiallyImplemented
 - Verification: TestVerified (Debug/Release full solution tests)
+- Intended specification: `Docs/Specifications/Ecs-Runtime.md#tick-state-and-structural-changes`
+- Stage: `ecs.fixed-tick` (`NotImplemented` target acceptance); existing `rigid.physics` remains executable baseline evidence
+- Depends on: F-L7-030
+- Current delta: phase dispatch is present; the shipping loop has not adopted the target 60 Hz/maximum-eight-catch-up scheduler.
 - Evidence: `SimulationSystems.cs`, `GameSystemLoopEmitter.cs`, `GameSystemPhaseTests.cs`
 - Conformance: Partial. Phase dispatch and persistent state match; the shipping frame loop still executes exactly one fixed tick per presented frame and has not yet integrated `FixedTickScheduler` for 0..N catch-up.
+- Next action: implement the fixed-tick state machine and replace the target Stage with its executable oracle.
 
 ## F-L5-002 — Shared deterministic Simulation Runtime
 
@@ -3462,14 +3467,822 @@ All entries below remain `Deferred / Unverified`. Their intended behavior and de
 | F-L5-030 | Monte Carlo scientific quantum Domain | `probability.monte-carlo-quantum` | Unknown |
 | F-L5-031 | Cross-domain coupling | `coupling.multidomain` | Unknown |
 
-## Deferred Simulation infrastructure
+## Deferred Simulation infrastructure and specified non-physics overrides
+
+F-L0-008 and F-L3-019 are non-physics Roadmap Features and are `Specified`; the remaining rows in this table remain Deferred simulation infrastructure.
 
 | Feature ID | Capability | Stage ID | Status |
 |---|---|---|---|
-| F-L0-008 | D3D12 compute/readback | `foundation.d3d12-compute` | Deferred |
-| F-L3-019 | Deterministic Job Runtime | `foundation.deterministic-jobs` | Deferred |
+| F-L0-008 | D3D12 compute/readback | `foundation.d3d12-compute` | Specified |
+| F-L3-019 | Deterministic Job Runtime | `foundation.deterministic-jobs` | Specified |
 | F-L4-003 | Simulation backend contracts/adapters | `foundation.simulation-adapters` | Deferred |
 | F-L6-003 | Field/graph artifacts | `foundation.field-artifacts` | Deferred |
 | F-L5-032 | Animation/Physics pose bridge | `deformable.pose-bridge` | Deferred |
 | F-L5-033 | Volume/field renderer | `fluid.volume-renderer` | Deferred |
 | F-L5-034 | Thermal field Domain | `coupling.thermal-field` | Deferred |
+
+## F-L7-022 — Rendering baseline conformance
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Rendering Roadmap
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Rendering.md#scope-and-current-baseline`
+- Stage: `rendering.baseline` (`NotImplemented`, Visual / Rendering, 1800s)
+- Depends on: None
+- Current delta: Existing D3D12/WARP work is baseline evidence; the target conformance contract is not implemented.
+- Conformance: Unknown
+- Next action: Implement the baseline audit and replace the target Stage with an executable WARP oracle.
+
+## F-L4-004 — Engine-owned Render Graph
+
+- Layer: L4 — Domain Servers
+- Parent capability: Rendering Roadmap
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Rendering.md#target-public-contracts`
+- Stage: `rendering.render-graph` (`NotImplemented`, Headless / Foundation, 900s)
+- Depends on: F-L7-022
+- Current delta: No engine-owned graph compiler, hazard model, or transient alias contract exists.
+- Conformance: Unknown
+- Next action: Implement graph declaration/compile and remove the replaced ad-hoc pass lifetime path.
+
+## F-L0-008 — D3D12 compute and readback
+
+- Layer: L0 — Platform / Native Backends
+- Parent capability: Rendering Roadmap
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Rendering.md#stage-oracle-matrix`
+- Stage: `foundation.d3d12-compute` (`NotImplemented`, Visual / Rendering, 1800s)
+- Depends on: F-L7-022
+- Current delta: The target compute/readback contract and CPU comparison oracle are not implemented.
+- Conformance: Unknown
+- Next action: Implement the private L0 compute path and keep D3D12 types below the Render Server boundary.
+
+## F-L6-004 — Shader artifact compiler and PSO provenance
+
+- Layer: L6 — Runtime Artifacts
+- Parent capability: Rendering Roadmap
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Rendering.md#data-flow`
+- Stage: `rendering.shader-artifacts` (`NotImplemented`, Headless / Foundation, 900s)
+- Depends on: F-L0-008
+- Current delta: Runtime artifact provenance and no-runtime-compilation enforcement do not exist.
+- Conformance: Unknown
+- Next action: Implement L7 DXC bake output and the L6 artifact envelope, then remove runtime compile use.
+
+## F-L4-005 — Material and texture runtime
+
+- Layer: L4 — Domain Servers
+- Parent capability: Rendering Roadmap
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Rendering.md#target-public-contracts`
+- Stage: `rendering.materials` (`NotImplemented`, Visual / Rendering, 1800s)
+- Depends on: F-L6-004
+- Current delta: The target artifact-backed material/texture ownership model is not implemented.
+- Conformance: Unknown
+- Next action: Implement material/resource handles and retire the replaced direct binding path.
+
+## F-L4-006 — Visibility, LOD, and instancing
+
+- Layer: L4 — Domain Servers
+- Parent capability: Rendering Roadmap
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Rendering.md#data-flow`
+- Stage: `rendering.visibility` (`NotImplemented`, Visual / Rendering, 1800s)
+- Depends on: F-L4-004, F-L4-005
+- Current delta: Immutable RenderWorldSnapshot extraction and CPU-checked visibility are not implemented.
+- Conformance: Unknown
+- Next action: Implement stable-ID snapshot extraction, culling, LOD hysteresis, and instance batching.
+
+## F-L4-007 — Rendering quality profiles
+
+- Layer: L4 — Domain Servers
+- Parent capability: Rendering Roadmap
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Rendering.md#visual-and-quality-policy`
+- Stage: `rendering.quality-profiles` (`NotImplemented`, Visual / Rendering, 1800s)
+- Depends on: F-L4-006
+- Current delta: Existing lighting/shadow baseline lacks the target profile/cascade/IBL/exposure/AA contract.
+- Conformance: Unknown
+- Next action: Implement data-driven profiles while retaining the observed local-light baseline.
+
+## F-L0-009 — D3D12 device recovery
+
+- Layer: L0 — Platform / Native Backends
+- Parent capability: Rendering Roadmap
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Rendering.md#device-and-preview-state-machines`
+- Stage: `rendering.device-recovery` (`NotImplemented`, Visual / Rendering, 1800s)
+- Depends on: F-L4-004, F-L4-007
+- Current delta: The fixed Ready/Suspended/Recovering/Faulted/Disposed state machine is not implemented.
+- Conformance: Unknown
+- Next action: Implement artifact-only resource rebuild and typed state diagnostics.
+
+## F-L8-018 — Shared isolated rendering preview
+
+- Layer: L8 — Visual Studio Authoring Environment
+- Parent capability: Rendering Roadmap
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Rendering.md#device-and-preview-state-machines`
+- Stage: `vsix.rendering-preview` (`NotImplemented`, Visual / VSIX, 1800s)
+- Depends on: F-L0-009, F-L8-022
+- Current delta: The target shared Render Server Preview Host has not replaced the VSIX renderer path.
+- Conformance: Unknown
+- Next action: Implement the versioned Preview Host client and remove the VSIX-specific renderer.
+
+## F-L7-023 — Rendering performance evidence
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Rendering Roadmap
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Rendering.md#performance-and-release-evidence`
+- Stage: `rendering.performance` (`NotImplemented`, Visual / Rendering, 7200s)
+- Depends on: F-L4-007, F-L0-009
+- Current delta: The required warm-up/sample/MAD evidence contract is not implemented.
+- Conformance: Unknown
+- Next action: Implement the rendering measurement harness and provenance artifact.
+
+## F-L7-024 — Rendering release evidence
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Rendering Roadmap
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Rendering.md#performance-and-release-evidence`
+- Stage: `rendering.release` (`NotImplemented`, Headless / Foundation, 7200s)
+- Depends on: F-L7-023, F-L8-018
+- Current delta: No scoped rendering release closure/manifest gate exists.
+- Conformance: Unknown
+- Next action: Implement release-scope rendering evidence and immutable manifest integration.
+
+## F-L2-004 — Asset identity and canonical metadata
+
+- Layer: L2 — Type Schema / Identity
+- Parent capability: Asset / Content Pipeline
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Asset-Content-Pipeline.md#identity-and-canonical-metadata`
+- Stage: `content.identity` (`NotImplemented`, Headless / Foundation, 900s)
+- Depends on: None
+- Current delta: AssetId, SubAssetId, canonical URI, and canonical JSON metadata are not implemented.
+- Conformance: Unknown
+- Next action: Implement identity values and one-shot metadata migration without an old reader.
+
+## F-L7-025 — Importer conformance
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Asset / Content Pipeline
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Asset-Content-Pipeline.md#import-boundary-and-artifact-envelope`
+- Stage: `content.importer-conformance` (`NotImplemented`, Headless / Foundation, 900s)
+- Depends on: F-L2-004
+- Current delta: Provider-independent engine IR conformance is not implemented.
+- Conformance: Unknown
+- Next action: Implement importer adapters and fixtures without exposing provider types.
+
+## F-L6-005 — Content artifact envelope
+
+- Layer: L6 — Runtime Artifacts
+- Parent capability: Asset / Content Pipeline
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Asset-Content-Pipeline.md#import-boundary-and-artifact-envelope`
+- Stage: `content.artifact-schema` (`NotImplemented`, Headless / Foundation, 900s)
+- Depends on: F-L7-025
+- Current delta: Canonical little-endian CAS header, provenance, and checksum are not implemented.
+- Conformance: Unknown
+- Next action: Implement the artifact envelope and corruption rejection.
+
+## F-L7-026 — Incremental content compiler
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Asset / Content Pipeline
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Asset-Content-Pipeline.md#data-flow-and-state`
+- Stage: `content.incremental-cook` (`NotImplemented`, Headless / Foundation, 900s)
+- Depends on: F-L6-005
+- Current delta: Dependency DAG dirty propagation and atomic publication are not implemented.
+- Conformance: Unknown
+- Next action: Implement DAG compilation and atomic CAS publishing.
+
+## F-L7-027 — Content cache recovery and GC
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Asset / Content Pipeline
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Asset-Content-Pipeline.md#data-flow-and-state`
+- Stage: `content.cache-recovery` (`NotImplemented`, Headless / Foundation, 900s)
+- Depends on: F-L7-026
+- Current delta: Last-known-good recovery and reachability GC are not implemented.
+- Conformance: Unknown
+- Next action: Implement interruption recovery and root-safe GC.
+
+## F-L4-008 — Asynchronous runtime asset handles
+
+- Layer: L4 — Domain Servers
+- Parent capability: Asset / Content Pipeline
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Asset-Content-Pipeline.md#data-flow-and-state`
+- Stage: `content.runtime-load` (`NotImplemented`, Headless / Foundation, 900s)
+- Depends on: F-L7-027
+- Current delta: `AssetHandle<T>` retain/release/load ownership is not implemented.
+- Conformance: Unknown
+- Next action: Implement asynchronous handle state and cancellation ownership rules.
+
+## F-L6-006 — Shipping content manifest
+
+- Layer: L6 — Runtime Artifacts
+- Parent capability: Asset / Content Pipeline
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Asset-Content-Pipeline.md#performance-and-shipping-rules`
+- Stage: `content.package` (`NotImplemented`, Headless / Foundation, 900s)
+- Depends on: F-L4-008
+- Current delta: Reachable artifact closure manifests are not implemented.
+- Conformance: Unknown
+- Next action: Implement manifest generation and closure verification.
+
+## F-L8-019 — VSIX asset authoring
+
+- Layer: L8 — Visual Studio Authoring Environment
+- Parent capability: Asset / Content Pipeline
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Asset-Content-Pipeline.md#stage-oracle-matrix`
+- Stage: `vsix.asset-authoring` (`NotImplemented`, Visual / VSIX, 1800s)
+- Depends on: F-L6-006, F-L8-022
+- Current delta: Typed asset metadata/import authoring through the target host is not implemented.
+- Conformance: Unknown
+- Next action: Implement VSIX authoring backed by the versioned content host.
+
+## F-L7-028 — Content pipeline performance evidence
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Asset / Content Pipeline
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Asset-Content-Pipeline.md#performance-and-shipping-rules`
+- Stage: `content.performance` (`NotImplemented`, Headless / Foundation, 7200s)
+- Depends on: F-L6-006
+- Current delta: Cold/incremental performance evidence is not implemented.
+- Conformance: Unknown
+- Next action: Implement the content measurement harness and provenance artifact.
+
+## F-L7-029 — Content pipeline release evidence
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Asset / Content Pipeline
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Asset-Content-Pipeline.md#performance-and-shipping-rules`
+- Stage: `content.release` (`NotImplemented`, Headless / Foundation, 7200s)
+- Depends on: F-L7-028, F-L8-019
+- Current delta: Content release closure and package evidence are not implemented.
+- Conformance: Unknown
+- Next action: Implement scoped release validation and immutable manifest evidence.
+
+## F-L8-020 — VSIX manual and Experimental Instance baseline
+
+- Layer: L8 — Visual Studio Authoring Environment
+- Parent capability: Editor / VSIX
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Editor-VSIX.md#manual-and-automated-evidence`
+- Stage: `vsix.experimental-smoke` (`NotImplemented`, Headless / VSIX, 3600s)
+- Depends on: None
+- Current delta: The target owned/manual Experimental Instance evidence ledger is not implemented.
+- Conformance: Unknown
+- Next action: Implement owned evidence capture that cannot report pending manual work as pass.
+
+## F-L8-021 — VSIX Experimental Instance automation
+
+- Layer: L8 — Visual Studio Authoring Environment
+- Parent capability: Editor / VSIX
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Editor-VSIX.md#manual-and-automated-evidence`
+- Stage: `vsix.experimental-automation` (`NotImplemented`, Headless / VSIX, 3600s)
+- Depends on: F-L8-020
+- Current delta: Target Experimental Instance automation is not implemented.
+- Conformance: Unknown
+- Next action: Implement the launch/open/diagnostic/shutdown automation contract.
+
+## F-L8-022 — Versioned authoring host lifecycle
+
+- Layer: L8 — Visual Studio Authoring Environment
+- Parent capability: Editor / VSIX
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Editor-VSIX.md#host-boundary-and-protocol`
+- Stage: `vsix.host-lifecycle` (`NotImplemented`, Headless / VSIX, 1800s)
+- Depends on: F-L8-021
+- Current delta: Preview, Import, and Bake have not been unified under the target versioned state machine.
+- Conformance: Unknown
+- Next action: Implement the out-of-process protocol and terminal failure behavior.
+
+## F-L8-023 — Transform tool visual conformance
+
+- Layer: L8 — Visual Studio Authoring Environment
+- Parent capability: Editor / VSIX
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Editor-VSIX.md#editing-contracts`
+- Stage: `vsix.transform-tools` (`NotImplemented`, Visual / VSIX, 1800s)
+- Depends on: F-L8-022
+- Current delta: Existing transform editing lacks the target WARP/rebase/acceptance Stage proof.
+- Conformance: Unknown
+- Next action: Implement the visual conformance oracle without replacing established editing behavior.
+
+## F-L8-024 — Typed inspector and component palette
+
+- Layer: L8 — Visual Studio Authoring Environment
+- Parent capability: Editor / VSIX
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Editor-VSIX.md#editing-contracts`
+- Stage: `vsix.inspector-contracts` (`NotImplemented`, Headless / VSIX, 1800s)
+- Depends on: F-L8-022
+- Current delta: Target enum/vector/asset/add/remove/reorder schema coverage is not implemented.
+- Conformance: Unknown
+- Next action: Implement typed edit schemas and no-invalid-source-mutation guarantees.
+
+## F-L8-025 — C# source synchronization v2
+
+- Layer: L8 — Visual Studio Authoring Environment
+- Parent capability: Editor / VSIX
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Editor-VSIX.md#authoring-model`
+- Stage: `vsix.source-sync` (`NotImplemented`, Headless / VSIX, 1800s)
+- Depends on: F-L8-023, F-L8-024
+- Current delta: The target one-gesture/one-native-Undo/reparse convergence contract is not implemented.
+- Conformance: Unknown
+- Next action: Implement v2 synchronization and remove superseded writeback behavior.
+
+## F-L8-026 — Bake, asset, and diagnostic UI
+
+- Layer: L8 — Visual Studio Authoring Environment
+- Parent capability: Editor / VSIX
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Editor-VSIX.md#editing-contracts`
+- Stage: `vsix.bake-integration` (`NotImplemented`, Headless / VSIX, 1800s)
+- Depends on: F-L8-025
+- Current delta: Target host-backed bake/import progress and failure UI is not implemented.
+- Conformance: Unknown
+- Next action: Implement protocol-backed progress and actionable diagnostic surfaces.
+
+## F-L8-027 — Read-only runtime debug tools
+
+- Layer: L8 — Visual Studio Authoring Environment
+- Parent capability: Editor / VSIX
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Editor-VSIX.md#editing-contracts`
+- Stage: `vsix.debug-tools` (`NotImplemented`, Headless / VSIX, 1800s)
+- Depends on: F-L8-026
+- Current delta: On-demand immutable Render Graph/profiler/debug snapshots are not implemented.
+- Conformance: Unknown
+- Next action: Implement read-only snapshot viewers through the host protocol.
+
+## F-L8-028 — VSIX compatibility matrix
+
+- Layer: L8 — Visual Studio Authoring Environment
+- Parent capability: Editor / VSIX
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Editor-VSIX.md#manual-and-automated-evidence`
+- Stage: `vsix.compatibility` (`NotImplemented`, Headless / VSIX, 3600s)
+- Depends on: F-L8-027
+- Current delta: Target net472/Visual Studio compatibility manifest evidence is not implemented.
+- Conformance: Unknown
+- Next action: Implement compatibility matrix collection and validation.
+
+## F-L8-029 — VSIX release evidence
+
+- Layer: L8 — Visual Studio Authoring Environment
+- Parent capability: Editor / VSIX
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Editor-VSIX.md#stage-oracle-matrix`
+- Stage: `vsix.release` (`NotImplemented`, Headless / VSIX, 7200s)
+- Depends on: F-L8-028
+- Current delta: Signed install/run/uninstall release evidence is not implemented.
+- Conformance: Unknown
+- Next action: Implement the VSIX package release gate and immutable evidence manifest.
+
+## F-L7-030 — ECS runtime baseline conformance
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: ECS / Runtime
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Ecs-Runtime.md#scope-and-observed-baseline`
+- Stage: `ecs.baseline` (`NotImplemented`, Headless / Foundation, 900s)
+- Depends on: None
+- Current delta: Existing generated archetype/runtime evidence has not been consolidated into the target baseline oracle.
+- Conformance: Unknown
+- Next action: Implement baseline verification and migration inventory.
+
+## F-L5-035 — Portable shared Transform module
+
+- Layer: L5 — Runtime Feature Modules
+- Parent capability: ECS / Runtime
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Ecs-Runtime.md#runtime-boundaries-and-shared-transform`
+- Stage: `ecs.runtime-boundary` (`NotImplemented`, Headless / Foundation, 900s)
+- Depends on: F-L7-030
+- Current delta: Transform remains in the Windows runtime namespace rather than a portable L5 shared module.
+- Conformance: Unknown
+- Next action: Move Transform source and remove the Windows-namespaced predecessor in the same change.
+
+## F-L3-021 — Unified structural command buffer
+
+- Layer: L3 — ECS / Job Runtime
+- Parent capability: ECS / Runtime
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Ecs-Runtime.md#tick-state-and-structural-changes`
+- Stage: `ecs.structural-changes` (`NotImplemented`, Headless / Foundation, 900s)
+- Depends on: F-L3-018, F-L5-035
+- Current delta: Existing movement/delayed changes are not the unified Create/Destroy/Add/Remove/Move deterministic buffer.
+- Conformance: Unknown
+- Next action: Implement tick-end command replay and retire replaced structural mutation APIs.
+
+## F-L3-022 — Enable masks and change versions
+
+- Layer: L3 — ECS / Job Runtime
+- Parent capability: ECS / Runtime
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Ecs-Runtime.md#generated-storage-and-scheduling`
+- Stage: `ecs.change-tracking` (`NotImplemented`, Headless / Foundation, 900s)
+- Depends on: F-L3-021
+- Current delta: Generated enableable component/change-version query contracts are not implemented.
+- Conformance: Unknown
+- Next action: Implement generated enable bits and changed queries without runtime mask penalty.
+
+## F-L3-019 — Deterministic job runtime
+
+- Layer: L3 — ECS / Job Runtime
+- Parent capability: ECS / Runtime
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Ecs-Runtime.md#generated-storage-and-scheduling`
+- Stage: `foundation.deterministic-jobs` (`NotImplemented`, Headless / Foundation, 900s)
+- Depends on: F-L3-022
+- Current delta: Target generated access graph and stable worker merge runtime are not implemented.
+- Conformance: Unknown
+- Next action: Implement deterministic scheduled execution and remove superseded job paths.
+
+## F-L7-031 — Generated schedule diagnostics
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: ECS / Runtime
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Ecs-Runtime.md#generated-storage-and-scheduling`
+- Stage: `ecs.schedule-diagnostics` (`NotImplemented`, Headless / Foundation, 900s)
+- Depends on: F-L3-019
+- Current delta: Pre-execution conflict/cycle diagnostics are not implemented.
+- Conformance: Unknown
+- Next action: Implement source-generator access graph diagnostics and deterministic schedule output.
+
+## F-L6-007 — Schema-fingerprinted ECS snapshots
+
+- Layer: L6 — Runtime Artifacts
+- Parent capability: ECS / Runtime
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Ecs-Runtime.md#snapshot-artifact`
+- Stage: `ecs.snapshot` (`NotImplemented`, Headless / Foundation, 900s)
+- Depends on: F-L3-022, F-L3-019
+- Current delta: Fingerprinted snapshot serialization and corruption rejection are not implemented.
+- Conformance: Unknown
+- Next action: Implement schema fingerprint/checksum snapshots with no legacy reader.
+
+## F-L7-032 — ECS runtime performance evidence
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: ECS / Runtime
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Ecs-Runtime.md#performance-and-release-evidence`
+- Stage: `ecs.performance` (`NotImplemented`, Headless / Foundation, 7200s)
+- Depends on: F-L7-031, F-L6-007
+- Current delta: The 1/64-type no-runtime-mask-penalty performance evidence is not implemented.
+- Conformance: Unknown
+- Next action: Implement benchmark evidence with generated-source provenance.
+
+## F-L7-033 — ECS runtime release evidence
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: ECS / Runtime
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Ecs-Runtime.md#performance-and-release-evidence`
+- Stage: `ecs.release` (`NotImplemented`, Headless / Foundation, 7200s)
+- Depends on: F-L7-032
+- Current delta: ECS schema/schedule/replay release closure is not implemented.
+- Conformance: Unknown
+- Next action: Implement scoped release evidence and immutable manifest integration.
+
+## F-L1-008 — Platform event and timestamp contracts
+
+- Layer: L1 — Core Kernel
+- Parent capability: Audio / Input / Platform
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Audio-Input-Platform.md#l1-value-contracts`
+- Stage: `platform.boundaries` (`NotImplemented`, Headless / Foundation, 900s)
+- Depends on: None
+- Current delta: Portable timestamp/window/device/action/audio contracts are not implemented.
+- Conformance: Unknown
+- Next action: Implement native-free L1 values and contract diagnostics.
+
+## F-L0-010 — Win32 window and input binding
+
+- Layer: L0 — Platform / Native Backends
+- Parent capability: Audio / Input / Platform
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Audio-Input-Platform.md#server-data-flow`
+- Stage: `platform.window-input` (`NotImplemented`, Headless / Foundation, 900s)
+- Depends on: F-L1-008
+- Current delta: Target QPC monotonic input, focus/capture/hotplug release semantics are not implemented.
+- Conformance: Unknown
+- Next action: Implement the Win32 adapter below the portable input contract.
+
+## F-L4-009 — Audio device lifecycle server
+
+- Layer: L4 — Domain Servers
+- Parent capability: Audio / Input / Platform
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Audio-Input-Platform.md#audio-contract-and-recovery`
+- Stage: `audio.lifecycle` (`NotImplemented`, Headless / Foundation, 900s)
+- Depends on: F-L1-008
+- Current delta: Target Audio Server state/ownership lifecycle is not implemented.
+- Conformance: Unknown
+- Next action: Implement server/device state transitions with silent fallback.
+
+## F-L4-010 — Deterministic input action server
+
+- Layer: L4 — Domain Servers
+- Parent capability: Audio / Input / Platform
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Audio-Input-Platform.md#input-contract`
+- Stage: `input.actions` (`NotImplemented`, Headless / Foundation, 900s)
+- Depends on: F-L0-010
+- Current delta: Context/chord/dead-zone/rebind deterministic actions are not implemented.
+- Conformance: Unknown
+- Next action: Implement action-map evaluation and stable event ordering.
+
+## F-L4-011 — Audio mixer and offline oracle
+
+- Layer: L4 — Domain Servers
+- Parent capability: Audio / Input / Platform
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Audio-Input-Platform.md#audio-contract-and-recovery`
+- Stage: `audio.mixer` (`NotImplemented`, Headless / Foundation, 900s)
+- Depends on: F-L4-009
+- Current delta: Mandatory silent/offline PCM mixer oracle is not implemented.
+- Conformance: Unknown
+- Next action: Implement bus/voice/mixer/underrun behavior against deterministic PCM reference.
+
+## F-L4-012 — Spatial audio and recovery
+
+- Layer: L4 — Domain Servers
+- Parent capability: Audio / Input / Platform
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Audio-Input-Platform.md#audio-contract-and-recovery`
+- Stage: `audio.spatial` (`NotImplemented`, Headless / Foundation, 900s)
+- Depends on: F-L4-010, F-L4-011
+- Current delta: Stream artifacts, spatial state, and device recreation restore policy are not implemented.
+- Conformance: Unknown
+- Next action: Implement artifact-backed voice recovery and typed stop decisions.
+
+## F-L8-030 — Platform diagnostics viewer
+
+- Layer: L8 — Visual Studio Authoring Environment
+- Parent capability: Audio / Input / Platform
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Audio-Input-Platform.md#performance-and-compatibility`
+- Stage: `vsix.platform-debug` (`NotImplemented`, Headless / VSIX, 1800s)
+- Depends on: F-L4-012
+- Current delta: Read-only platform/input/audio diagnostics snapshots are not implemented.
+- Conformance: Unknown
+- Next action: Implement the VSIX diagnostics viewer over immutable server snapshots.
+
+## F-L7-034 — Platform compatibility evidence
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Audio / Input / Platform
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Audio-Input-Platform.md#performance-and-compatibility`
+- Stage: `platform.compatibility` (`NotImplemented`, Headless / Foundation, 3600s)
+- Depends on: F-L8-030
+- Current delta: Required Windows vs optional hardware compatibility evidence is not implemented.
+- Conformance: Unknown
+- Next action: Implement the platform matrix and provenance capture.
+
+## F-L7-035 — Platform release evidence
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Audio / Input / Platform
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Audio-Input-Platform.md#stage-oracle-matrix`
+- Stage: `platform.release` (`NotImplemented`, Headless / Foundation, 7200s)
+- Depends on: F-L7-034
+- Current delta: Scoped platform release closure is not implemented.
+- Conformance: Unknown
+- Next action: Implement release gate evidence and immutable manifest integration.
+
+## F-L7-036 — Feature coverage and catalog validation
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Testing / CI / Release
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Testing-CI-Release.md#catalog-and-feature-metadata`
+- Stage: `verification.coverage` (`NotImplemented`, Headless / Foundation, 900s)
+- Depends on: F-L7-021
+- Current delta: Full ledger/Catalog/Stage/Visual binding validation is not implemented.
+- Conformance: Unknown
+- Next action: Implement machine-readable coverage validation and release evidence.
+
+## F-L7-037 — Manual verification ledger
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Testing / CI / Release
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Testing-CI-Release.md#ci-matrix-and-evidence-separation`
+- Stage: `verification.manual-ledger` (`NotImplemented`, Headless / Foundation, 900s)
+- Depends on: F-L7-036
+- Current delta: Owned and expiring manual evidence tracking is not implemented.
+- Conformance: Unknown
+- Next action: Implement a ledger that cannot treat missing manual evidence as pass.
+
+## F-L7-038 — Changed-path stage selection
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Testing / CI / Release
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Testing-CI-Release.md#catalog-and-feature-metadata`
+- Stage: `verification.changed-selection` (`NotImplemented`, Headless / Foundation, 900s)
+- Depends on: F-L7-036
+- Current delta: Target affected executable-stage selection is not implemented.
+- Conformance: Unknown
+- Next action: Implement changed selection excluding future NotImplemented stages.
+
+## F-L7-039 — Hermetic clean-build verification
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Testing / CI / Release
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Testing-CI-Release.md#ci-matrix-and-evidence-separation`
+- Stage: `verification.clean-build` (`NotImplemented`, Headless / Foundation, 900s)
+- Depends on: F-L7-038
+- Current delta: Explicit clean restore/build/test/artifact cell is not implemented.
+- Conformance: Unknown
+- Next action: Implement hermetic Debug/Release clean-build verification.
+
+## F-L7-040 — Golden artifact policy
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Testing / CI / Release
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Testing-CI-Release.md#golden-performance-and-stress-policy`
+- Stage: `verification.golden-policy` (`NotImplemented`, Headless / Foundation, 900s)
+- Depends on: F-L7-039
+- Current delta: Provenance/review/regeneration tolerance policy is not implemented.
+- Conformance: Unknown
+- Next action: Implement governed golden artifact updates and oracle provenance.
+
+## F-L7-041 — Performance measurement framework
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Testing / CI / Release
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Testing-CI-Release.md#golden-performance-and-stress-policy`
+- Stage: `verification.performance` (`NotImplemented`, Headless / Foundation, 7200s)
+- Depends on: F-L7-040
+- Current delta: Shared five-warm-up/thirty-sample evidence framework is not implemented.
+- Conformance: Unknown
+- Next action: Implement versioned performance results and machine fingerprint capture.
+
+## F-L7-042 — Explicit CI matrix
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Testing / CI / Release
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Testing-CI-Release.md#ci-matrix-and-evidence-separation`
+- Stage: `verification.ci-matrix` (`NotImplemented`, Headless / Foundation, 7200s)
+- Depends on: F-L7-041
+- Current delta: Required Windows/TFM/WARP explicit matrix is not implemented.
+- Conformance: Unknown
+- Next action: Implement the CI matrix with separate Debug/Release and optional hardware passes.
+
+## F-L7-043 — Failure, retry, and quarantine policy
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Testing / CI / Release
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Testing-CI-Release.md#retry-quarantine-and-failure-policy`
+- Stage: `verification.failure-policy` (`NotImplemented`, Headless / Foundation, 900s)
+- Depends on: F-L7-042
+- Current delta: Infrastructure-only retry and expiring quarantine enforcement are not implemented.
+- Conformance: Unknown
+- Next action: Implement deterministic failure classification and quarantine expiry checks.
+
+## F-L7-044 — Stress contract
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Testing / CI / Release
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Testing-CI-Release.md#golden-performance-and-stress-policy`
+- Stage: `verification.stress-contract` (`NotImplemented`, Headless / Foundation, 28800s)
+- Depends on: F-L7-043
+- Current delta: Reproducible stress execution/envelope contract is not implemented.
+- Conformance: Unknown
+- Next action: Implement long-run stress evidence with deterministic reproduction data.
+
+## F-L7-045 — Package install and SBOM validation
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Testing / CI / Release
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Testing-CI-Release.md#artifact-retention-and-package-gate`
+- Stage: `release.packages` (`NotImplemented`, Headless / Foundation, 7200s)
+- Depends on: F-L7-044
+- Current delta: Package closure, SPDX JSON SBOM, signing inputs, install/run/uninstall gate is not implemented.
+- Conformance: Unknown
+- Next action: Implement package validation from actual release payloads.
+
+## F-L7-046 — Release compatibility matrix
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Testing / CI / Release
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Testing-CI-Release.md#ci-matrix-and-evidence-separation`
+- Stage: `release.compatibility` (`NotImplemented`, Headless / Foundation, 7200s)
+- Depends on: F-L7-045
+- Current delta: Scoped compatibility matrix aggregation is not implemented.
+- Conformance: Unknown
+- Next action: Implement required/optional compatibility evidence collection.
+
+## F-L7-047 — Release candidate gate
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Testing / CI / Release
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Testing-CI-Release.md#release-scope-and-level-gates`
+- Stage: `release.candidate` (`NotImplemented`, Headless / Foundation, 7200s)
+- Depends on: F-L7-046
+- Current delta: Track/Level scoped executable gate is not implemented.
+- Conformance: Unknown
+- Next action: Implement RC gate selection and failure reporting.
+
+## F-L7-048 — Immutable release manifest
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Testing / CI / Release
+- Status: Specified
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Testing-CI-Release.md#artifact-retention-and-package-gate`
+- Stage: `release.manifest` (`NotImplemented`, Headless / Foundation, 7200s)
+- Depends on: F-L7-047
+- Current delta: Formal immutable release manifests and retention policy are not implemented.
+- Conformance: Unknown
+- Next action: Implement final manifest publication with hashes, SBOM, provenance, and retention class.

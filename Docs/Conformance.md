@@ -1,5 +1,13 @@
 # Conformance
 
+## 2026-08-25 Non-physics design and Stage catalog v2
+
+- Intended specification: ADR-0052 through ADR-0057; [Roadmap](Roadmap.md); the six specifications under `Docs/Specifications/`.
+- Implementation: FeatureRunner catalog v2 adds `Specified`, Track, dependency Level, dependency Feature IDs, status-specific Stage validation, 61 new commandless target stages, and Rendering/VSIX reference-scene aliases. F-L0-008 and F-L3-019 are now `Specified`; F-L3-018 remains `PartiallyImplemented`; F-L3-020 remains `Deferred`.
+- Reverse-engineered behavior: Explicit target execution returns `NotImplemented` with a nonzero code; normal suites filter to executable stages. JSON catalog output is v2 while run-result output remains v1.
+- Tests and runtime verification: FeatureRunner Debug tests pass 16 cases, catalog CLI emits v2, and explicit target execution returns `NotImplemented`/exit 3. The full solution Debug test run completed without failures; the full solution Release test run before the final suite-exclusion test completed without failures, and the full solution Release build passed. The final Release FeatureRunner test assembly was compiled but Windows Defender rejected its `obj` to `bin` copy as potentially unwanted software, so the added suite-exclusion case is not Release-runtime-verified.
+- Conformance: Matches for the requested design-registration implementation and Debug verification; Release verification is Partial because of the external Defender copy block. The Rendering, Asset/Content, Editor/VSIX, ECS/Runtime, Audio/Input/Platform, and Testing/CI/Release runtime bodies are `Specified`, not implemented; their conformance is Unknown until each target Stage becomes executable.
+
 このファイルは`.github/skills/CSharpGameEngine-Documentation/SKILL.md`が定義するConformanceモデル
 (意図した仕様 ↕ 実装 ↕ リバースエンジニアリングした観測挙動 ↕ テスト/実行検証)に従う。
 

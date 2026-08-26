@@ -6,7 +6,7 @@ public sealed class FeatureStageExecutor:IFeatureStageExecutor {
     public async Task<FeatureStageRunResult>ExecuteAsync(FeatureStageDefinition Stage,FeatureStageExecutionOptions Options,CancellationToken CancellationToken){
         var Started=DateTimeOffset.UtcNow;
         if(Stage.Availability==FeatureStageAvailability.NotImplemented){
-            return FeatureStageRunResult.Create(Stage,Options,FeatureStageRunStatus.NotImplemented,"Stage is designed but its feature implementation is deferred.",[new FeatureStageAssertion("implementation-availability","NotImplemented",false)],null,null,["The feature implementation and executable oracle are not available yet."],StartedUtc:Started,FinishedUtc:DateTimeOffset.UtcNow);
+            return FeatureStageRunResult.Create(Stage,Options,FeatureStageRunStatus.NotImplemented,"Stage is specified but not implemented.",[new FeatureStageAssertion("implementation-availability","NotImplemented",false)],null,null,["The feature implementation and executable oracle are not available yet."],StartedUtc:Started,FinishedUtc:DateTimeOffset.UtcNow);
         }
         var Assertions=new List<FeatureStageAssertion>();
         var Errors=new List<string>();

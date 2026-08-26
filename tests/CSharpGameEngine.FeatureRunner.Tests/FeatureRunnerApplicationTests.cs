@@ -10,7 +10,12 @@ public sealed class FeatureRunnerApplicationTests {
         var Application=new FeatureRunnerApplication(Catalog,Executor,Store,new EmptyChangedPathProvider(),Output,new StringWriter());
         var ExitCode=await Application.RunAsync(["list","--json"],CancellationToken.None);
         Assert.Equal(0,ExitCode);
+        Assert.Contains("csharp-game-engine-feature-catalog-v2",Output.ToString(),StringComparison.Ordinal);
         Assert.Contains("F-L7-021",Output.ToString(),StringComparison.Ordinal);
+        Assert.Contains("F-L7-022",Output.ToString(),StringComparison.Ordinal);
+        Assert.Contains("dependencyLevel",Output.ToString(),StringComparison.Ordinal);
+        Assert.Contains("dependsOnFeatureIds",Output.ToString(),StringComparison.Ordinal);
+        Assert.Contains("Rendering",Output.ToString(),StringComparison.Ordinal);
         Assert.Contains("rigid.physics",Output.ToString(),StringComparison.Ordinal);
         Assert.Empty(Executor.ExecutedStageIds);
     }
@@ -36,6 +41,29 @@ public sealed class FeatureRunnerApplicationTests {
         Assert.Equal(3,ExitCode);
         var Document=Assert.Single(Store.Documents);
         Assert.Equal(FeatureStageRunStatus.NotImplemented,Assert.Single(Document.Results).Status);
+    }
+    [Fact]
+    public async Task RunSpecifiedFeature_RecordsNotImplementedAndReturnsNonzero(){
+        var Catalog=FeatureStageCatalog.CreateDefault();
+        var Executor=new FakeExecutor();
+        var Store=new RecordingStore();
+        var Application=new FeatureRunnerApplication(Catalog,Executor,Store,new EmptyChangedPathProvider(),new StringWriter(),new StringWriter());
+        var ExitCode=await Application.RunAsync(["run-feature","F-L7-022"],CancellationToken.None);
+        Assert.Equal(3,ExitCode);
+        var Document=Assert.Single(Store.Documents);
+        Assert.Equal(FeatureStageRunStatus.NotImplemented,Assert.Single(Document.Results).Status);
+    }
+    [Fact]
+    public async Task FullSuite_ExcludesSpecifiedStages(){
+        var Catalog=FeatureStageCatalog.CreateDefault();
+        var Executor=new FakeExecutor();
+        var Store=new RecordingStore();
+        var Application=new FeatureRunnerApplication(Catalog,Executor,Store,new EmptyChangedPathProvider(),new StringWriter(),new StringWriter());
+        var ExitCode=await Application.RunAsync(["suite","full"],CancellationToken.None);
+        Assert.Equal(0,ExitCode);
+        Assert.DoesNotContain("rendering.baseline",Executor.ExecutedStageIds,StringComparer.Ordinal);
+        Assert.DoesNotContain("content.identity",Executor.ExecutedStageIds,StringComparer.Ordinal);
+        Assert.All(Assert.Single(Store.Documents).Results,static Result=>Assert.Equal(FeatureStageRunStatus.Passed,Result.Status));
     }
     private sealed class FakeExecutor:IFeatureStageExecutor {
         internal List<string>ExecutedStageIds{get;}=[];
