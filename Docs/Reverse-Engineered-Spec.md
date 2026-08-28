@@ -4,11 +4,19 @@
 
 - Confidence: High
 - Evidence: `tools/CSharpGameEngine.FeatureRunner/FeatureStageContracts.cs`, `FeatureStageCatalog.cs`, `FeatureRunnerApplication.cs`, `tests/CSharpGameEngine.FeatureRunner.Tests/`.
-- Observed behavior: The catalog now contains `Specified`, a track enum, dependency Levels, and dependency Feature IDs. It validates unknown/self/cyclic/Level-inverted dependencies and requires an executable Stage for implemented states and a `NotImplemented` Stage for specified/deferred states.
+- Observed behavior: The catalog now contains `Specified`, a track enum, dependency Levels, and dependency Feature IDs. It validates unknown/self/cyclic/Level-inverted dependencies and requires an executable Stage for implemented states and a `NotImplemented` Stage for specified/deferred states. `ecs.baseline` and `ecs.fixed-tick` are executable.
 - Observed behavior: `list --json` emits catalog schema v2 metadata. Run-result artifacts remain schema v1. Explicit future `run`/`run-feature` execution returns `NotImplemented` and nonzero; normal suites continue to select executable stages only.
-- Observed behavior: Sixty-three non-physics Roadmap Feature IDs are registered. Two existing IDs reuse their Stage IDs and sixty-one new target Stage IDs have no command. New Rendering/VSIX visual reservations alias existing C# reference scenes.
+- Observed behavior: Sixty-three non-physics Roadmap Feature IDs are registered. F-L7-030 and F-L3-018 have executable target stages; remaining future target stages retain explicit NotImplemented or deferred handling. New Rendering/VSIX visual reservations alias existing C# reference scenes.
 - Intended behavior: Matches ADR-0057 and [Testing-CI-Release](Specifications/Testing-CI-Release.md) for the registration infrastructure.
 - Result: MatchesWithDocumentedExtension. The target runtime bodies described by the six new specifications are still unimplemented and must not be inferred from the registration.
+
+## RE-L7-030 / RE-L3-018 — ECS baseline and fixed-tick shipping loop
+
+- Confidence: High.
+- Evidence: `Runtime.cs`, `SimulationSystems.cs`, `FixedTickScheduler.cs`, `GameSystemLoopEmitter.cs`, `GameSystemGeneratorEndToEndTests.cs`, `FixedTickSchedulerTests.cs`, and the executable `ecs.baseline`/`ecs.fixed-tick` stages.
+- Observed behavior: `State.FixedTick` advances only after a complete FixedSimulation/PhysicsSimulation/PostPhysics tick. Each host frame executes FrameInput, global spatial refresh, and Presentation once; simulation runs 0..8 times from a 60 Hz accumulator. Pause ignores elapsed counter units, Step queues work while paused and consumes one tick per host frame, and interpolation reports the retained accumulator boundary. Clamp entry emits one `CGE-FIXED-TICK-OVERRUN` diagnostic with the attempted count, cap, backlog, and `RetainBacklog` policy.
+- Observed behavior: Generated `Run` owns Stopwatch sampling. `RunFrame` accepts the scheduler and explicit elapsed counter/frequency; Editor Preview calls the shared simulation-tick helper explicitly and does not perform wall-clock catch-up.
+- Result: Matches for F-L7-030 and F-L3-018 fixed-tick scope. Physics solver/cooking/bake/UI behavior remains outside this result.
 
 ## RE-L3-015/016 - Spatial partitioning
 
@@ -22,7 +30,7 @@
 - Confidence: High for phase/Q32.32/API/cache; Medium for basic contact behavior.
 - Evidence: generated loop source, shared Physics source, and selected automated tests.
 - Observed behavior: generated loops retain system structs and execute phase barriers. Dynamic Physics bodies preserve solver pose across ECS synchronization, integrate gravity at 60 Hz, use stable-ID sorted storage and a separate AABB tree. Debug data is only enumerated after a pipe request. Pause/step/reset control the same world used by Runtime and Editor Preview.
-- Result: Partial against the full v1 contract because advanced narrowphase, CCD, destruction playback and real Scene bake are absent.
+- Result: Matches for the fixed-tick/ECS portion; Partial against the full v1 physics contract because advanced narrowphase, CCD, destruction playback and real Scene bake are absent.
 
 ## RE-L8-015 — VSIX English/Japanese localization
 

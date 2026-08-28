@@ -33,6 +33,7 @@
     <None Include="..\..\src\CSharpGameEngine.Entities\SystemOrderAttribute.cs" Link="TestAssets\Entities\SystemOrderAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Entities\SimulationSystems.cs" Link="TestAssets\Entities\SimulationSystems.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Entities\ExecuteInEditorAttribute.cs" Link="TestAssets\Entities\ExecuteInEditorAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\CSharpGameEngine.Runtime.Simulation\FixedTickScheduler.cs" Link="TestAssets\Simulation\FixedTickScheduler.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Entities\Parent.cs" Link="TestAssets\Entities\Parent.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Entities\SceneNodeTag.cs" Link="TestAssets\Entities\SceneNodeTag.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Entities\IRuntimeComponent.cs" Link="TestAssets\Entities\IRuntimeComponent.cs" CopyToOutputDirectory="PreserveNewest" />

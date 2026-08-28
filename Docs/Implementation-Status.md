@@ -3313,15 +3313,15 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 ## F-L3-018 — System-major fixed simulation phases
 
 - Layer: L3 — ECS / Job Runtime
-- Status: PartiallyImplemented
-- Verification: TestVerified (Debug/Release full solution tests)
+- Status: Implemented
+- Verification: TestVerified (fixed-tick E2E and Debug/Release stage evidence)
 - Intended specification: `Docs/Specifications/Ecs-Runtime.md#tick-state-and-structural-changes`
-- Stage: `ecs.fixed-tick` (`NotImplemented` target acceptance); existing `rigid.physics` remains executable baseline evidence
+- Stage: `ecs.fixed-tick` (`Executable`); existing `rigid.physics` remains executable physics evidence
 - Depends on: F-L7-030
-- Current delta: phase dispatch is present; the shipping loop has not adopted the target 60 Hz/maximum-eight-catch-up scheduler.
-- Evidence: `SimulationSystems.cs`, `GameSystemLoopEmitter.cs`, `GameSystemPhaseTests.cs`
-- Conformance: Partial. Phase dispatch and persistent state match; the shipping frame loop still executes exactly one fixed tick per presented frame and has not yet integrated `FixedTickScheduler` for 0..N catch-up.
-- Next action: implement the fixed-tick state machine and replace the target Stage with its executable oracle.
+- Current delta: none for the fixed-tick scope. Solver, cooking, bake-host, and VSIX physics UI remain outside this milestone.
+- Evidence: `FixedTickScheduler.cs`, `GameSystemLoopEmitter.cs`, `GameSystemGeneratorEndToEndTests.cs`, `FixedTickSchedulerTests.cs`
+- Conformance: Matches for the 60 Hz/maximum-eight, retained-backlog, pause/step, interpolation, and generated phase-loop scope.
+- Next action: continue with the separately scoped Physics Solver and content milestones.
 
 ## F-L5-002 — Shared deterministic Simulation Runtime
 
@@ -3888,14 +3888,15 @@ F-L0-008 and F-L3-019 are non-physics Roadmap Features and are `Specified`; the 
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: ECS / Runtime
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified (Entities and CodeAnalysis suites, sequential Debug/Release stage runs)
 - Intended specification: `Docs/Specifications/Ecs-Runtime.md#scope-and-observed-baseline`
-- Stage: `ecs.baseline` (`NotImplemented`, Headless / Foundation, 900s)
+- Stage: `ecs.baseline` (`Executable`, Headless / Foundation, 900s)
 - Depends on: None
-- Current delta: Existing generated archetype/runtime evidence has not been consolidated into the target baseline oracle.
-- Conformance: Unknown
-- Next action: Implement baseline verification and migration inventory.
+- Current delta: none for the closed-set Archetype, Scene generation/lifecycle, system-major ordering, and delayed structural-change baseline.
+- Evidence: `src/CSharpGameEngine.Entities/`, `src/CSharpGameEngine.CodeAnalysis/`, `tests/CSharpGameEngine.Entities.Tests/`, `tests/CSharpGameEngine.CodeAnalysis.Tests/`
+- Conformance: Matches for the implemented baseline contract; unified command replay and other future ECS features remain separately specified.
+- Next action: preserve the executable oracle while implementing the next ECS roadmap feature.
 
 ## F-L5-035 — Portable shared Transform module
 

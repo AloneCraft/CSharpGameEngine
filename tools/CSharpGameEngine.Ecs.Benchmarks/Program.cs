@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Generated;
+using CSharpGameEngine.Runtime.Simulation;
 
 const int DefaultEntities=100_000;
 const int DefaultFrames=300;
@@ -39,11 +40,12 @@ static void RunSoa(int Entities,int Frames){
     }
 
     BenchmarkSystem System=new();
-    GeneratedGameLoop.RunFrame(ref State,ref System);
+    var Scheduler=new FixedTickScheduler();
+    GeneratedGameLoop.RunFrame(ref State,ref System,ref Scheduler,1_000,60_000);
     var Before=GC.GetAllocatedBytesForCurrentThread();
     var Start=Stopwatch.GetTimestamp();
     for(var Frame=0;Frame<Frames;Frame++){
-        GeneratedGameLoop.RunFrame(ref State,ref System);
+        GeneratedGameLoop.RunFrame(ref State,ref System,ref Scheduler,1_000,60_000);
     }
 
     Print("SoA",Stopwatch.GetElapsedTime(Start),GC.GetAllocatedBytesForCurrentThread()-Before,World.Archetype1.GetPositionRefUnchecked(Entities-1).X);

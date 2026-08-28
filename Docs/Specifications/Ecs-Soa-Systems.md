@@ -5,7 +5,7 @@
 [[ADR-0033-Static-Archetype-Ecs-Migration]]を参照。動的Archetype方式([[ADR-0029-Dynamic-Archetype-Soa-Ecs]])は
 本仕様への移行に伴い削除された。
 
-> Parent specification: [ECS / Runtime](Ecs-Runtime.md). This document remains the lower-level description of the currently generated archetype/system implementation. Entity generation, unified structural replay, enable/change tracking, job diagnostics, fixed-tick catch-up, and snapshot targets are specified by the parent.
+> Parent specification: [ECS / Runtime](Ecs-Runtime.md). This document remains the lower-level description of the generated archetype/system implementation. Entity generation, unified structural replay, enable/change tracking, job diagnostics, and snapshot targets are specified by the parent; the fixed-tick loop described below is implemented in the current generator.
 
 ## 概要
 
@@ -63,7 +63,7 @@ Componentは`ref`必須・Contextは`ref`禁止なので、ref-kindだけで曖�
 
 | メソッド名 | 役割 |
 |---|---|
-| `Update` | Archetypeを登録し、**毎フレームのディスパッチ対象**になる。戻り値`bool`、末尾に`ref State`必須 |
+| `Update` | Archetypeを登録し、該当phaseのディスパッチ対象になる。戻り値`bool`、末尾に`ref State`必須 |
 | `Spawn` | **Archetype形状の宣言のみ**。ディスパッチされない。戻り値`void`、`ref` Component引数のみ(Entity/State不可) |
 
 `Spawn`は「どの`Update`オーバーロードとも一致しない構成」を成立させるために使う。実例:
@@ -155,7 +155,9 @@ RenderObjectRef}`を要求するメソッドは、静的プロップ(その構�
 ```csharp
 internal static class GeneratedGameLoop
 {
-    internal static void RunFrame(ref State State, ref System0 system0, …, in FrameContext frameContext, StageRenderer stageRenderer, …);
+    internal static void RunFrame(ref State State, ref GeneratedSystemSet Systems,
+        ref FixedTickScheduler Scheduler, long ElapsedCounter, long CounterFrequency,
+        in FrameContext frameContext, StageRenderer stageRenderer, …);
     internal static void Run(ref State State, in FrameContext frameContext, …);
 }
 ```
@@ -163,9 +165,10 @@ internal static class GeneratedGameLoop
 - System実体は`ref`で受け取る(可変structのフィールドがフレーム間で保持されるようにするため)。
 - Context引数はコンパイル内で使われている型を重複排除し、FQN Ordinal順に並べる。パラメータ名は単純型名の
   先頭を小文字化したもの(衝突時は連番、C#予約語なら`@`エスケープ)。
-- `RunFrame`の末尾で必ず`State.World.PlaybackMoveArchetypes(ref State)`を呼ぶ。
-- `Run`は`while(State.Enabled)`で`RunFrame`を回すが、Context引数をループ全体で固定してしまうため、
-  毎フレーム値が変わるContext(`FrameContext`等)を使う実アプリは`RunFrame`を直接呼ぶ。
+- `RunFrame`はFrameInputを1回実行し、Schedulerが返す0〜8回のsimulation tickごとにFixedSimulation、PhysicsSimulation、PostPhysicsを順番に実行する。その後、global spatial refreshとPresentationを各1回実行する。
+- `State.FixedTick`は完了したsimulation tickの末尾でだけ進み、Presentationは完了tickと`InterpolationAlpha`を観測する。既存の遅延構造変更は各simulation phaseのbarrierでplaybackされる。
+- `Run`は`while(State.Enabled)`でRunFrameを回し、`Stopwatch`から取得したcounterを渡す。Pause中は時間を蓄積せず、Stepは1 host frameにつき1 tickだけ実行する。
+- Editor Previewの`RunEditorFrame`/`RunEditorRealtimeFrame`は壁時計catch-upを行わず、同じsimulation-tick helperを明示的に1回呼ぶ。
 
 ## 生成されるエントリポイント(ADR-0035)
 

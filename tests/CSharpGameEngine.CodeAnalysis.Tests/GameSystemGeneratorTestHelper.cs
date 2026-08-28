@@ -25,6 +25,7 @@ internal static class GameSystemGeneratorTestHelper {
     internal static readonly string SystemOrderAttributeSource=ReadTestAsset("SystemOrderAttribute.cs");
     internal static readonly string SimulationSystemsSource=ReadTestAsset("SimulationSystems.cs");
     internal static readonly string ExecuteInEditorAttributeSource=ReadTestAsset("ExecuteInEditorAttribute.cs");
+    internal static readonly string FixedTickSchedulerSource=ReadSimulationTestAsset("FixedTickScheduler.cs");
 
 
     /// <summary>
@@ -80,6 +81,9 @@ internal static class GameSystemGeneratorTestHelper {
     private static string ReadCoreTestAsset(string FileName)=>
         File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"TestAssets","Core",FileName));
 
+    private static string ReadSimulationTestAsset(string FileName)=>
+        File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"TestAssets","Simulation",FileName));
+
     /// <summary><see cref="RuntimeSource"/>を常に含めるコンパイルを作る(全コンパイルがWorld/State/ISystemを必要とするため)。</summary>
     internal static CSharpCompilation CreateCompilation(params string[]ExtraSources)=>
         CreateCompilation([.. ExtraSources.Select(static Source=>(Path:(string?)null,Source:Source))]);
@@ -93,6 +97,7 @@ internal static class GameSystemGeneratorTestHelper {
         .. AppDomain.CurrentDomain.GetAssemblies()
             .Where(static Assembly=>!Assembly.IsDynamic&&!string.IsNullOrEmpty(Assembly.Location))
             .Select(static Assembly=>MetadataReference.CreateFromFile(Assembly.Location)),
+        MetadataReference.CreateFromFile(typeof(Console).Assembly.Location),
     ];
 
     private static readonly CSharpParseOptions ParseOptions=new(LanguageVersion.Latest);
@@ -111,6 +116,7 @@ internal static class GameSystemGeneratorTestHelper {
             (null,SystemOrderAttributeSource),
             (null,SimulationSystemsSource),
             (null,ExecuteInEditorAttributeSource),
+            (null,FixedTickSchedulerSource),
             .. SceneRuntimeSources.Select(static Source=>((string?)null,Source)),
             .. ExtraSources,
         ];

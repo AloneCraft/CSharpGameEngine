@@ -1,12 +1,18 @@
 # Conformance
 
+## 2026-08-29 M0059 ECS baseline and fixed-tick shipping loop
+
+- Implementation: F-L7-030 and F-L3-018 are `Implemented`; `ecs.baseline` and `ecs.fixed-tick` are executable stages. The generated runtime uses a 60 Hz scheduler with an eight-tick host-frame cap, retained backlog, pause/step playback, interpolation state, and a single `State.FixedTick` source of truth.
+- Tests and runtime verification: Debug and Release full-solution test runs passed 1,596 tests each, `ecs.baseline` and `ecs.fixed-tick` passed in both configurations, Stage Pack contracts passed in both configurations, and UserEcsProject built in Debug/Release. UserEcsProject runtime smoke launched and closed cleanly with exit code 0.
+- Conformance: Matches for the M0059 ECS baseline and fixed-tick scope. Physics solver, cooking, bake-host, and VSIX physics UI remain outside this milestone.
+
 ## 2026-08-25 Non-physics design and Stage catalog v2
 
 - Intended specification: ADR-0052 through ADR-0057; [Roadmap](Roadmap.md); the six specifications under `Docs/Specifications/`.
-- Implementation: FeatureRunner catalog v2 adds `Specified`, Track, dependency Level, dependency Feature IDs, status-specific Stage validation, 61 new commandless target stages, and Rendering/VSIX reference-scene aliases. F-L0-008 and F-L3-019 are now `Specified`; F-L3-018 remains `PartiallyImplemented`; F-L3-020 remains `Deferred`.
+- Implementation: FeatureRunner catalog v2 adds `Specified`, Track, dependency Level, dependency Feature IDs, status-specific Stage validation, and Rendering/VSIX reference-scene aliases. F-L0-008 and F-L3-019 remain `Specified`; F-L7-030 and F-L3-018 are now `Implemented` with executable ECS baseline/fixed-tick stages; F-L3-020 remains `Deferred`.
 - Reverse-engineered behavior: Explicit target execution returns `NotImplemented` with a nonzero code; normal suites filter to executable stages. JSON catalog output is v2 while run-result output remains v1.
 - Tests and runtime verification: FeatureRunner Debug tests pass 16 cases, catalog CLI emits v2, and explicit target execution returns `NotImplemented`/exit 3. The full solution Debug test run completed without failures; the full solution Release test run before the final suite-exclusion test completed without failures, and the full solution Release build passed. The final Release FeatureRunner test assembly was compiled but Windows Defender rejected its `obj` to `bin` copy as potentially unwanted software, so the added suite-exclusion case is not Release-runtime-verified.
-- Conformance: Matches for the requested design-registration implementation and Debug verification; Release verification is Partial because of the external Defender copy block. The Rendering, Asset/Content, Editor/VSIX, ECS/Runtime, Audio/Input/Platform, and Testing/CI/Release runtime bodies are `Specified`, not implemented; their conformance is Unknown until each target Stage becomes executable.
+- Conformance: Matches for the requested design-registration implementation and Debug verification; Release verification is Partial because of the external Defender copy block. ECS baseline and fixed-tick runtime scope is now executable; later ECS, Rendering, Asset/Content, Editor/VSIX, Audio/Input/Platform, and Testing/CI/Release runtime bodies remain `Specified` or deferred.
 
 このファイルは`.github/skills/CSharpGameEngine-Documentation/SKILL.md`が定義するConformanceモデル
 (意図した仕様 ↕ 実装 ↕ リバースエンジニアリングした観測挙動 ↕ テスト/実行検証)に従う。
@@ -2910,6 +2916,13 @@ Expハイブのキャッシュより新しくすること」を機序として**
   既存Component型への`required`一括適用、ネストした値の分解編集。
 
 
+## F-L7-030 — ECS baseline and generated lifecycle
+
+- Intended: closed-set Archetype generation, deterministic Scene creation/unload, system-major dispatch, and delayed structural changes are fixed as the migration baseline.
+- Observed: generated Archetypes are compile-time closed, Scene instances generate deterministic entity ownership, generated dispatch is system-major, and structural changes are replayed through phase barriers.
+- Verification: `ecs.baseline` runs the full Entities suite followed by the full CodeAnalysis suite as sequential commands.
+- Result: `Matches` for the baseline contract.
+
 ## F-L3-015 and F-L3-016 - Spatial partitioning
 
 - Intended: fixed-point shared loose-octree snapshot with optional manually-owned private indexes.
@@ -2921,8 +2934,8 @@ Expハイブのキャッシュより新しくすること」を機序として**
 
 - Intended: shared deterministic tick and domain contracts, complete v1 rigid-body/cooking/cache/prefracture/editor workflow.
 - Observed: phase/tick/numerics/public API/basic solver/artifact identity/debug foundation exists; advanced collision, actual cooking/destruction playback, cache playback/handoff and Scene Bake Host do not.
-- Verification: Debug/Release full builds and 1,527 tests per configuration passed; UserEcsProject runtime smoke passed. VSIX Experimental Instance visual smoke remains pending.
-- Result: `Matches` for F-L5-002; `Partial` for F-L3-018 (0..N scheduler is not wired into the shipping loop), F-L5-003/F-L6-002/F-L7-020/F-L8-014.
+- Verification: Debug/Release full builds and 1,596 tests per configuration passed; UserEcsProject Debug runtime smoke created its window and exited with code 0 after WM_CLOSE without forced termination. VSIX Experimental Instance visual smoke remains pending.
+- Result: `Matches` for F-L5-002 and F-L3-018 fixed-tick scope; `Partial` remains for F-L5-003/F-L6-002/F-L7-020/F-L8-014 because solver, cooking, bake-host, and VSIX physics UI are outside M0059.
 
 ## F-L8-015 — VSIX English/Japanese localization
 

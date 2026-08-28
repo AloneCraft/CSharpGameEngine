@@ -1,6 +1,6 @@
 # ECS and Runtime specification
 
-- Status: Specified, except F-L3-018 remains PartiallyImplemented
+- Status: Implemented for the ECS baseline and fixed-tick shipping loop; later ECS roadmap features remain specified or deferred
 - Parent index: [Roadmap](../Roadmap.md), [Implementation Status](../Implementation-Status.md)
 - Decisions: [ADR-0055](../Decisions/ADR-0055-Static-Ecs-VNext-And-Deterministic-Execution.md)
 - Related lower specification: [Ecs-Soa-Systems](Ecs-Soa-Systems.md)
@@ -8,7 +8,7 @@
 
 ## Scope and observed baseline
 
-The current generated closed-set archetype runtime, SoA storage, deterministic simulation modules, system phases, and `MoveArchetype`/delayed structural behavior are real baseline evidence. F-L3-018 is therefore `PartiallyImplemented`: phase dispatch exists, while the shipping loop has not adopted the target fixed-tick catch-up state machine. This specification defines the vNext contract; it does not claim the remaining command buffer, generation, enable/change tracking, job, snapshot, or portable Transform work exists today.
+The current generated closed-set archetype runtime, SoA storage, deterministic simulation modules, system phases, and `MoveArchetype`/delayed structural behavior are the executable F-L7-030 baseline. F-L3-018 is implemented for the shipping loop: `FixedTickScheduler` supplies 60 Hz fixed updates, at most eight simulation ticks per host frame, retained backlog, pause/step control, and an interpolation boundary. This specification does not claim the remaining unified command buffer, generation, enable/change tracking, job, snapshot, or portable Transform work exists today.
 
 ## Runtime boundaries and shared Transform
 
@@ -27,6 +27,12 @@ Running or Paused -> Dispose -> Disposed
 ```
 
 Interpolation observes only completed tick snapshots. It cannot expose partially replayed structural changes.
+
+`State.FixedTick` is the only simulation tick source of truth. `FixedTickScheduler` reports the number of available steps, the pre-cap attempted count, clamp transition, retained backlog, and `InterpolationAlpha`; it does not own a tick number. The generated shipping `Run` is the only loop entry that samples `Stopwatch` and passes elapsed counter units into `RunFrame`. Systems and physics receive only `State` and deterministic simulation data.
+
+While `State.PlaybackState` is `Paused`, elapsed host time is ignored. `StepSimulation()` changes the state to paused and queues one or more manual steps; each host frame consumes at most one queued step. `PauseSimulation()` and `ResumeSimulation()` clear the pending manual-step queue. FrameInput, global spatial refresh, and Presentation still run once per host frame while paused. Editor Preview uses the same complete simulation-tick helper through explicit `RunEditorFrame` calls and never performs wall-clock catch-up.
+
+When the attempted step count exceeds the cap, the scheduler retains the unconsumed backlog. The generated loop emits one `CGE-FIXED-TICK-OVERRUN` diagnostic on entry to the clamped state containing attempted steps, maximum steps, backlog, and `RetainBacklog`.
 
 `EntityCommandBuffer` is the sole structural path for Create, Destroy, Add, Remove, and Move. At fixed-tick end it replays a deterministic total order:
 

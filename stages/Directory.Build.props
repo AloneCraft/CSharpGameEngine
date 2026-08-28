@@ -6,6 +6,7 @@
     <IsPackable>false</IsPackable>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
   </PropertyGroup>
+  <Import Project="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Runtime.Simulation\CSharpGameEngine.Runtime.Simulation.projitems" Label="Shared" />
   <ItemGroup>
     <Compile Remove="Generated\**\*.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Entities\*.cs" Link="Entities\%(Filename)%(Extension)" />

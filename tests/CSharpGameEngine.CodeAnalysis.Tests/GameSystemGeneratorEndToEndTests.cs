@@ -61,7 +61,8 @@ public sealed class GameSystemGeneratorEndToEndTests {
                     world.Create(new Position(), new Velocity());
 
                     CountingSystem counting = new();
-                    GeneratedGameLoop.RunFrame(ref state, ref counting);
+                    var scheduler = new global::CSharpGameEngine.Runtime.Simulation.FixedTickScheduler();
+                    GeneratedGameLoop.RunFrame(ref state, ref counting, ref scheduler, 1_000, 60_000);
 
                     // {Position} は2体(単独 + {Position,Velocity}の方にも部分集合一致)にヒットする。
                     if (counting.PositionOnly != 2) return "FAIL:PositionOnly=" + counting.PositionOnly;
@@ -128,7 +129,8 @@ public sealed class GameSystemGeneratorEndToEndTests {
                     world.Create(new Velocity { X = 0f });
 
                     AccumulatingSystem system = new();
-                    GeneratedGameLoop.RunFrame(ref state, ref system);
+                    var scheduler = new global::CSharpGameEngine.Runtime.Simulation.FixedTickScheduler();
+                    GeneratedGameLoop.RunFrame(ref state, ref system, ref scheduler, 1_000, 60_000);
 
                     if (system.SnapshotAtConsumeTime != 3) return "FAIL:SnapshotAtConsumeTime=" + system.SnapshotAtConsumeTime;
 
@@ -201,7 +203,8 @@ public sealed class GameSystemGeneratorEndToEndTests {
                     State state = new(world) { Enabled = true };
 
                     AccumulatingSystem system = new();
-                    GeneratedGameLoop.RunFrame(ref state, ref system);
+                    var scheduler = new global::CSharpGameEngine.Runtime.Simulation.FixedTickScheduler();
+                    GeneratedGameLoop.RunFrame(ref state, ref system, ref scheduler, 1_000, 60_000);
 
                     // System-major dispatchでは先のUpdateメソッドを一致する全Archetypeへ適用してから
                     // 次のUpdateメソッドへ進む。Scene専用Archetypeの登録順に依存せず1件が集計済みになる。
@@ -250,14 +253,15 @@ public sealed class GameSystemGeneratorEndToEndTests {
                     world.Create(new Position { X = 2f });
 
                     PromoteSystem system = new();
-                    GeneratedGameLoop.RunFrame(ref state, ref system);
+                    var scheduler = new global::CSharpGameEngine.Runtime.Simulation.FixedTickScheduler();
+                    GeneratedGameLoop.RunFrame(ref state, ref system, ref scheduler, 1_000, 60_000);
 
                     if (world.Archetype0.Count != 0) return "FAIL:sourceNotEmptied=" + world.Archetype0.Count;
                     if (world.Archetype1.Count != 2) return "FAIL:destinationCount=" + world.Archetype1.Count;
                     if (world.Archetype1.GetVelocityRefUnchecked(0).X != 3f) return "FAIL:velocityNotApplied";
 
                     // 2フレーム目は移動元が空なので何も起きない。
-                    GeneratedGameLoop.RunFrame(ref state, ref system);
+                    GeneratedGameLoop.RunFrame(ref state, ref system, ref scheduler, 1_000, 60_000);
 
                     if (world.Archetype1.Count != 2) return "FAIL:secondFrameCount=" + world.Archetype1.Count;
 
@@ -301,7 +305,8 @@ public sealed class GameSystemGeneratorEndToEndTests {
 
                     MoveSystem system = new();
                     FrameContext frame = new(0.5f);
-                    GeneratedGameLoop.RunFrame(ref state, ref system, in frame);
+                    var scheduler = new global::CSharpGameEngine.Runtime.Simulation.FixedTickScheduler();
+                    GeneratedGameLoop.RunFrame(ref state, ref system, ref scheduler, 1_000, 60_000, in frame);
 
                     if (world.Archetype0.GetPositionRefUnchecked(0).X != 0.5f) return "FAIL:X=" + world.Archetype0.GetPositionRefUnchecked(0).X;
 
@@ -355,6 +360,151 @@ public sealed class GameSystemGeneratorEndToEndTests {
         var Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
         var Result=GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.TestEntry","RunScenario");
 
+        Assert.Equal("OK",Result);
+    }
+
+    [Fact]
+    public void FixedTickRunFrame_UsesHostFrameBoundariesAndPlaybackControls(){
+        var Source="""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Generated;
+
+            namespace Game;
+
+            public struct Anchor { }
+
+            public sealed class Log
+            {
+                public System.Collections.Generic.List<string> Entries = new();
+            }
+
+            [SystemPhase(SystemPhase.FrameInput)]
+            internal struct InputSystem : IWorldSystem
+            {
+                public bool Update(Log log, ref State state)
+                {
+                    log.Entries.Add("input");
+                    return true;
+                }
+            }
+
+            [SystemPhase(SystemPhase.FixedSimulation)]
+            internal struct FixedSystem : IWorldSystem
+            {
+                public bool Update(Log log, ref State state)
+                {
+                    log.Entries.Add("fixed:" + state.FixedTick);
+                    return true;
+                }
+            }
+
+            [SystemPhase(SystemPhase.FixedSimulation)]
+            internal struct AnchorSystem : ISystem
+            {
+                public bool Update(ref Anchor anchor, ref State state) => true;
+            }
+
+            [SystemPhase(SystemPhase.PhysicsSimulation)]
+            internal struct PhysicsSystem : IWorldSystem
+            {
+                public bool Update(Log log, ref State state)
+                {
+                    log.Entries.Add("physics:" + state.FixedTick);
+                    return true;
+                }
+            }
+
+            [SystemPhase(SystemPhase.PostPhysics)]
+            internal struct PostPhysicsSystem : IWorldSystem
+            {
+                public bool Update(Log log, ref State state)
+                {
+                    log.Entries.Add("post:" + state.FixedTick);
+                    return true;
+                }
+            }
+
+            [SystemPhase(SystemPhase.Presentation)]
+            internal struct PresentationSystem : IWorldSystem
+            {
+                public bool Update(Log log, ref State state)
+                {
+                    log.Entries.Add("present:" + state.FixedTick);
+                    return true;
+                }
+            }
+
+            internal static class TestEntry
+            {
+                internal static string RunScenario()
+                {
+                    World world = new();
+                    world.Create(new Anchor());
+                    State state = new(world) { Enabled = true };
+                    InputSystem input = new();
+                    FixedSystem fixedSystem = new();
+                    AnchorSystem anchor = new();
+                    PhysicsSystem physics = new();
+                    PostPhysicsSystem post = new();
+                    PresentationSystem presentation = new();
+                    var log = new Log();
+                    var scheduler = new global::CSharpGameEngine.Runtime.Simulation.FixedTickScheduler();
+
+                    GeneratedGameLoop.RunFrame(ref state, ref input, ref fixedSystem, ref anchor, ref physics, ref post, ref presentation, ref scheduler, 0, 60_000, log);
+                    if (log.Entries.Count != 2 || log.Entries[0] != "input" || log.Entries[1] != "present:0") return "FAIL:zero=" + string.Join(",", log.Entries);
+
+                    log.Entries.Clear();
+                    GeneratedGameLoop.RunFrame(ref state, ref input, ref fixedSystem, ref anchor, ref physics, ref post, ref presentation, ref scheduler, 1_000, 60_000, log);
+                    var Expected = new[] { "input", "fixed:0", "physics:0", "post:0", "present:1" };
+                    if (!log.Entries.SequenceEqual(Expected)) return "FAIL:one=" + string.Join(",", log.Entries);
+                    if (state.FixedTick != 1UL || state.InterpolationAlpha != 0d) return "FAIL:tick=" + state.FixedTick + ":alpha=" + state.InterpolationAlpha;
+
+                    log.Entries.Clear();
+                    GeneratedGameLoop.RunFrame(ref state, ref input, ref fixedSystem, ref anchor, ref physics, ref post, ref presentation, ref scheduler, 8_000, 60_000, log);
+                    if (log.Entries.Count(static entry => entry.StartsWith("fixed:")) != 8 || log.Entries.Count(static entry => entry.StartsWith("physics:")) != 8 || log.Entries.Count(static entry => entry.StartsWith("post:")) != 8) return "FAIL:eight=" + string.Join(",", log.Entries);
+                    if (log.Entries.Count(static entry => entry == "input") != 1 || log.Entries.Count(static entry => entry == "present:9") != 1) return "FAIL:host=" + string.Join(",", log.Entries);
+
+                    log.Entries.Clear();
+                    var ErrorWriter = new System.IO.StringWriter();
+                    var PreviousError = System.Console.Error;
+                    System.Console.SetError(ErrorWriter);
+                    GeneratedGameLoop.RunFrame(ref state, ref input, ref fixedSystem, ref anchor, ref physics, ref post, ref presentation, ref scheduler, 60_000, 60_000, log);
+                    System.Console.SetError(PreviousError);
+                    if (!ErrorWriter.ToString().Contains("CGE-FIXED-TICK-OVERRUN", StringComparison.Ordinal) || !ErrorWriter.ToString().Contains("attemptedSteps=60", StringComparison.Ordinal) || !ErrorWriter.ToString().Contains("maximumSteps=8", StringComparison.Ordinal) || !ErrorWriter.ToString().Contains("backlog=52", StringComparison.Ordinal) || !ErrorWriter.ToString().Contains("policy=RetainBacklog", StringComparison.Ordinal)) return "FAIL:overrun=" + ErrorWriter;
+                    if (state.FixedTick != 17UL) return "FAIL:overrun-tick=" + state.FixedTick;
+
+                    state.PauseSimulation();
+                    log.Entries.Clear();
+                    GeneratedGameLoop.RunFrame(ref state, ref input, ref fixedSystem, ref anchor, ref physics, ref post, ref presentation, ref scheduler, 60_000, 60_000, log);
+                    if (state.FixedTick != 17UL || log.Entries.Count(static entry => entry.StartsWith("fixed:")) != 0 || log.Entries.Count(static entry => entry == "input") != 1 || log.Entries.Count(static entry => entry == "present:17") != 1) return "FAIL:pause=" + string.Join(",", log.Entries);
+
+                    state.StepSimulation();
+                    state.StepSimulation();
+                    state.StepSimulation();
+                    log.Entries.Clear();
+                    GeneratedGameLoop.RunFrame(ref state, ref input, ref fixedSystem, ref anchor, ref physics, ref post, ref presentation, ref scheduler, 60_000, 60_000, log);
+                    if (state.FixedTick != 18UL || log.Entries.Count(static entry => entry.StartsWith("fixed:")) != 1) return "FAIL:step=" + string.Join(",", log.Entries);
+                    log.Entries.Clear();
+                    GeneratedGameLoop.RunFrame(ref state, ref input, ref fixedSystem, ref anchor, ref physics, ref post, ref presentation, ref scheduler, 60_000, 60_000, log);
+                    if (state.FixedTick != 19UL || log.Entries.Count(static entry => entry.StartsWith("fixed:")) != 1) return "FAIL:second-step=" + string.Join(",", log.Entries);
+                    log.Entries.Clear();
+                    GeneratedGameLoop.RunFrame(ref state, ref input, ref fixedSystem, ref anchor, ref physics, ref post, ref presentation, ref scheduler, 60_000, 60_000, log);
+                    if (state.FixedTick != 20UL || log.Entries.Count(static entry => entry.StartsWith("fixed:")) != 1) return "FAIL:third-step=" + string.Join(",", log.Entries);
+                    log.Entries.Clear();
+                    GeneratedGameLoop.RunFrame(ref state, ref input, ref fixedSystem, ref anchor, ref physics, ref post, ref presentation, ref scheduler, 60_000, 60_000, log);
+                    if (state.FixedTick != 20UL || log.Entries.Count(static entry => entry.StartsWith("fixed:")) != 0) return "FAIL:fourth-step=" + string.Join(",", log.Entries);
+
+                    state.ResumeSimulation();
+                    log.Entries.Clear();
+                    GeneratedGameLoop.RunFrame(ref state, ref input, ref fixedSystem, ref anchor, ref physics, ref post, ref presentation, ref scheduler, 0, 60_000, log);
+                    if (state.FixedTick != 28UL || log.Entries.Count(static entry => entry.StartsWith("fixed:")) != 8) return "FAIL:resume=" + string.Join(",", log.Entries);
+
+                    return "OK";
+                }
+            }
+            """;
+        var Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
+        var Result=GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.TestEntry","RunScenario");
         Assert.Equal("OK",Result);
     }
 

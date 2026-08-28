@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fixed the ECS baseline as executable `ecs.baseline` and moved the generated shipping loop to a 60 Hz fixed-tick scheduler with a maximum of eight retained-backlog catch-up ticks, pause/resume/step controls, interpolation alpha, and `CGE-FIXED-TICK-OVERRUN` diagnostics. `F-L7-030` and `F-L3-018` are now Implemented; generated `RunFrame` callers must pass the scheduler and elapsed counter/frequency.
 - Added the autonomous Feature Runner with stable Feature/Stage catalogs, changed/smoke/full/stress/VSIX suites, WARP-first visual validation, resumable versioned JSON results, and explicit `NotImplemented` outcomes for deferred features.
 - Assigned machine-verifiable stages to the active 48 features and deterministic Oracle designs to 28 deferred Simulation/Physics features; retained the current 64-component Source Generator limit without adding runtime mask cost.
 - Added 10 isolated C# `IScene` Stage Pack executables and made solution registration checks ignore transient WPF `*_wpftmp.csproj` build files.

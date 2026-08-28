@@ -187,8 +187,9 @@ public sealed class GameSystemEntryPointTests {
                 internal static int BootstrapTicks;
                 internal static int Spawned;
                 internal static int Frames;
+                internal static int Shutdowns;
 
-                internal static string Result() => Spawned + ":" + Frames + ":" + BootstrapTicks;
+                internal static string Result() => Spawned + ":" + Frames + ":" + BootstrapTicks + ":" + Shutdowns;
             }
 
             internal struct StartupSystem : ISystem
@@ -197,8 +198,8 @@ public sealed class GameSystemEntryPointTests {
                 {
                     Trace.BootstrapTicks++;
 
-                    // 安全網: TickSystemが一度も走らなくてもテストがハングしないようにする。
-                    if (Trace.BootstrapTicks > 100) state.Enabled = false;
+                    // Runはhost frameを止めずに回るため、FrameInput側で3 host frame後に終了する。
+                    if (Trace.BootstrapTicks >= 3) state.Enabled = false;
 
                     if (bootstrap.Done) return true;
                     bootstrap.Done = true;
@@ -218,17 +219,24 @@ public sealed class GameSystemEntryPointTests {
                     return true;
                 }
             }
+
+            internal struct ShutdownSystem : IWorldSystem
+            {
+                public void Shutdown(ref State state)
+                {
+                    Trace.Shutdowns++;
+                }
+            }
             """);
 
         var Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Compilation);
 
         GameSystemGeneratorTestHelper.Invoke(Assembly,"CSharpGameEngine.Generated.GeneratedEntryPoint","Main");
 
-        // Spawned=1: Bootstrapは一度きり。Frames=3: 停止条件どおり。BootstrapTicks=3: Bootstrapの
-        // Archetypeループは毎フレーム回り続ける(閉集合方式にDestroyは無い)。
-        // Frames=3がBootstrapTicksと一致すること自体が「Archetype0(Bootstrap)が作ったEntityは
-        // 同じフレームのうちにArchetype1(Position)のループで処理される」ことの証明でもある。
-        Assert.Equal("1:3:3",GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.Trace","Result"));
+        // Spawned=1: Bootstrapは一度きり。BootstrapTicks=3: 3 host frameで停止する。
+        // FixedSimulationは実時間Schedulerがtickを獲得した場合だけ進むため、短いE2Eでは0でも成立する。
+        var Result=(string)GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.Trace","Result")!;
+        Assert.Equal("1:0:3:1",Result);
     }
 
     private static void AssertNoEntryPoint(GeneratorDriverRunResult Result)=>

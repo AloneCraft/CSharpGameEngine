@@ -56,8 +56,8 @@ Current baseline corrections: point/spot/area/emissive shadows and HDR/ACES/bloo
 
 | Level | Feature ID | Status | Summary | Depends on | Specification | Stage |
 |---:|---|---|---|---|---|---|
-| 1 | F-L7-030 | Specified | ECS baseline conformance | None | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.baseline` |
-| 2 | F-L3-018 | PartiallyImplemented | Fixed tick scheduler | F-L7-030 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.fixed-tick` |
+| 1 | F-L7-030 | Implemented | ECS baseline conformance | None | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.baseline` |
+| 2 | F-L3-018 | Implemented | Fixed tick scheduler | F-L7-030 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.fixed-tick` |
 | 2 | F-L5-035 | Specified | Portable shared Transform | F-L7-030 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.runtime-boundary` |
 | 3 | F-L3-021 | Specified | Unified structural command buffer | F-L3-018, F-L5-035 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.structural-changes` |
 | 4 | F-L3-022 | Specified | Enable masks and change versions | F-L3-021 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.change-tracking` |
@@ -114,7 +114,7 @@ Implement cross-track work by dependency Level 1 through 7. At each Level, first
 
 ## Priority 1 — v1 Physics完成
 
-- F-L3-018: shipping loopへ0..N fixed tick schedulerを接続。
+- F-L3-018: 60 Hz・最大8 tick・backlog保持のshipping loopを実装済み。次はPhysics SolverのF-L5-003。
 - F-L5-003: GJK/EPA、Static Mesh BVH、4点manifold、8/3 warm start、ContinuousStatic CCD。
 - F-L6-002: actual convex/mesh/Voronoi cooking、cache playback/handoff、incremental cook。
 - F-L7-020: real Scene Bake Host。

@@ -2,15 +2,15 @@
 
 ## 目的
 
-`CSharpGameEngine.FeatureRunner`は、機能IDと自動検証シナリオを一対多で結び、対話操作なしで実行・再開・結果保存するL7ツールである。既存機能は実行可能なStageへ、未実装機能はOracleまで確定した`NotImplemented` Stageへ登録する。未実装・タイムアウト・基盤障害を成功として扱わない。
+`CSharpGameEngine.FeatureRunner`は、機能IDと自動検証シナリオを一対多で結び、対話操作なしで実行・再開・結果保存するL7ツールである。実装済み機能は実行可能なStageへ、未実装機能はOracleまで確定した`NotImplemented` Stageへ登録する。未実装・タイムアウト・基盤障害を成功として扱わない。
 
-正本は`tools/CSharpGameEngine.FeatureRunner/FeatureStageCatalog.cs`であり、この文書は人間向けの契約である。カタログの一意性、参照整合性、既存48機能の実行可能Stage割り当て、将来28機能の`NotImplemented`割り当ては自動テストで固定する。
+正本は`tools/CSharpGameEngine.FeatureRunner/FeatureStageCatalog.cs`であり、この文書は人間向けの契約である。カタログの一意性、参照整合性、実装済み機能の実行可能Stage割り当て、未実装機能の`NotImplemented`割り当ては自動テストで固定する。
 
 ## Catalog v2 and non-physics registration
 
 Catalog JSON is `csharp-game-engine-feature-catalog-v2`. Each Feature now publishes `track`, `dependencyLevel`, and `dependsOnFeatureIds` in addition to ID/name/layer/status. Run-result JSON remains `csharp-game-engine-feature-run-result-v1`; this change does not alter a completed run artifact.
 
-The six non-physics tracks have 63 Roadmap rows registered one-to-one as Feature/target-Stage pairs. F-L0-008 and F-L3-019 changed from `Deferred` to `Specified`; F-L3-018 remains `PartiallyImplemented`; F-L3-020 remains `Deferred`. All new target Stages are `NotImplemented` with an oracle and input paths. The two pre-existing stage IDs `foundation.d3d12-compute` and `foundation.deterministic-jobs` are reused; the remaining 61 Stage IDs are new registrations.
+The six non-physics tracks have 63 Roadmap rows registered one-to-one as Feature/target-Stage pairs. F-L0-008 and F-L3-019 remain `Specified`; F-L7-030 and F-L3-018 are `Implemented` with executable `ecs.baseline` and `ecs.fixed-tick` stages; F-L3-020 remains `Deferred`. The remaining target Stages are `NotImplemented` with an oracle and input paths. The two pre-existing stage IDs `foundation.d3d12-compute` and `foundation.deterministic-jobs` are reused; the remaining target Stage IDs are registered in the catalog.
 
 | Track | Specification | Visual Pack policy |
 |---|---|---|
@@ -73,6 +73,8 @@ resume <run-result.json> [options]
 | `geometry.import` | Foundation | F-L0-003/005, F-L2-002, F-L7-005 | fixtureと座標変換が期待artifactに一致 |
 | `rendering.warp-triangle` | Rendering | F-L0-001/002/004/007, F-L4-002 | hidden WARP readback成功、D3D12 error 0 |
 | `ecs.scene` | Foundation | F-L3-011/012/013 | 生成Archetype・Scene・起動lifecycle契約が成功 |
+| `ecs.baseline` | Foundation | F-L7-030 | Entities/CodeAnalysis全テストで閉集合Archetype、Scene lifecycle、system-major、遅延構造変更のbaselineが成功 |
+| `ecs.fixed-tick` | Foundation | F-L3-018 | 60 Hz、最大8 tick、backlog保持、pause/step、補間境界のScheduler/生成E2Eが成功 |
 | `audio.windows` | Foundation | F-L1-007, F-L4-001 | Audio abstraction/XAudio2契約が成功 |
 | `vsix.toolchain` | VSIX | F-L8-001/002/005/008 | command/package/bridgeテストが成功 |
 | `vsix.scene-editor` | VSIX | F-L8-010/011/012/015/016/017 | 編集・同期・localization・routing契約が成功 |

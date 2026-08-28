@@ -21,6 +21,9 @@ public record struct Entity(int Id);
 public partial struct State(World World){
     public bool Enabled { get; set;}
     public SimulationTiming Timing { get;internal set; }=SimulationTiming.Default;
+    public SimulationPlaybackState PlaybackState { get;private set; }=SimulationPlaybackState.Running;
+    public double InterpolationAlpha { get;internal set; }
+    private int PendingSimulationSteps;
     public ulong FixedTick=>this.Timing.Tick;
     public int FixedTickRate=>this.Timing.TickRate;
     public SystemPhase Phase=>this.Timing.Phase;
@@ -28,6 +31,25 @@ public partial struct State(World World){
     public void SetSimulationTiming(ulong Tick,int TickRate,SystemPhase Phase){
         if(TickRate<=0){ throw new ArgumentOutOfRangeException(nameof(TickRate)); }
         this.Timing=new SimulationTiming(Tick,TickRate,Phase);
+    }
+    public void PauseSimulation(){
+        this.PlaybackState=SimulationPlaybackState.Paused;
+        this.PendingSimulationSteps=0;
+    }
+    public void ResumeSimulation(){
+        this.PlaybackState=SimulationPlaybackState.Running;
+        this.PendingSimulationSteps=0;
+    }
+    public void StepSimulation(){
+        this.PlaybackState=SimulationPlaybackState.Paused;
+        this.PendingSimulationSteps=checked(this.PendingSimulationSteps+1);
+    }
+    internal bool TryConsumeSimulationStep(){
+        if(this.PlaybackState!=SimulationPlaybackState.Paused||this.PendingSimulationSteps<=0){
+            return false;
+        }
+        this.PendingSimulationSteps--;
+        return true;
     }
     /// <summary>Gets or sets the host mode. Runtime is the safe default for user-created states.</summary>
     public EngineExecutionMode ExecutionMode { get; set; }

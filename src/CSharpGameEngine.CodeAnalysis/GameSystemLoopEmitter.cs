@@ -39,34 +39,50 @@ internal static class GameSystemLoopEmitter {
         }
         Lines.Add("}");
         Lines.Add("internal static class GeneratedGameLoop {");
+        Lines.Add($"    private static void RunSimulationTick({BuildSimulationTickParameterList(Contexts)}) {{");
+        Lines.Add($"        RunPhase(global::CSharpGameEngine.Entities.SystemPhase.FixedSimulation, ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, EditorOnly, RealtimeOnly);");
+        Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
+        Lines.Add($"        RunPhase(global::CSharpGameEngine.Entities.SystemPhase.PhysicsSimulation, ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, EditorOnly, RealtimeOnly);");
+        Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
+        Lines.Add($"        RunPhase(global::CSharpGameEngine.Entities.SystemPhase.PostPhysics, ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, EditorOnly, RealtimeOnly);");
+        Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
+        Lines.Add("        if (State.Enabled) State.SetSimulationTiming(checked(State.FixedTick + 1UL), State.FixedTickRate, global::CSharpGameEngine.Entities.SystemPhase.FixedSimulation);");
+        Lines.Add("    }");
         Lines.Add($"    internal static void RunFrame({BuildSystemSetFrameParameterList(Contexts)}) {{");
         Lines.Add("        if (!State.Enabled) return;");
         Lines.Add($"        RunPhase(global::CSharpGameEngine.Entities.SystemPhase.FrameInput, ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, false, false);");
         Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
         Lines.Add("        if (!State.Enabled) return;");
-        Lines.Add($"        RunPhase(global::CSharpGameEngine.Entities.SystemPhase.FixedSimulation, ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, false, false);");
-        Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
-        Lines.Add("        if (!State.Enabled) return;");
-        Lines.Add($"        RunPhase(global::CSharpGameEngine.Entities.SystemPhase.PhysicsSimulation, ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, false, false);");
-        Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
-        Lines.Add("        if (!State.Enabled) return;");
-        Lines.Add($"        RunPhase(global::CSharpGameEngine.Entities.SystemPhase.PostPhysics, ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, false, false);");
-        Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
+        Lines.Add("        var Steps = 0;");
+        Lines.Add("        if (State.PlaybackState == global::CSharpGameEngine.Entities.SimulationPlaybackState.Running) {");
+        Lines.Add("            var Advance = Scheduler.Advance(ElapsedCounter, CounterFrequency);");
+        Lines.Add("            Steps = Advance.Steps;");
+        Lines.Add("            State.InterpolationAlpha = Advance.InterpolationAlpha;");
+        Lines.Add("            if (Advance.ShouldReportOverrun) {");
+        Lines.Add("                global::System.Console.Error.WriteLine("+(char)34+"CGE-FIXED-TICK-OVERRUN attemptedSteps="+(char)34+" + Advance.AttemptedSteps + "+(char)34+" maximumSteps="+(char)34+" + Scheduler.MaximumStepsPerFrame + "+(char)34+" backlog="+(char)34+" + Advance.BacklogSteps + "+(char)34+" policy="+(char)34+" + Advance.OverrunPolicy);");
+        Lines.Add("            }");
+        Lines.Add("        } else {");
+        Lines.Add("            State.InterpolationAlpha = Scheduler.InterpolationAlpha;");
+        Lines.Add("            if (State.TryConsumeSimulationStep()) Steps = 1;");
+        Lines.Add("        }");
+        Lines.Add("        for (var StepIndex = 0; StepIndex < Steps; StepIndex++) {");
+        Lines.Add($"            RunSimulationTick(ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, false, false);");
+        Lines.Add("            if (!State.Enabled) return;");
+        Lines.Add("        }");
         if(SpatialWorldEmitter.ShouldEmit(Registry)){ Lines.Add("        State.World.RefreshGlobalSpatialIndex();"); }
         Lines.Add("        if (!State.Enabled) return;");
         Lines.Add($"        RunPhase(global::CSharpGameEngine.Entities.SystemPhase.Presentation, ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, false, false);");
-        Lines.Add("        State.SetSimulationTiming(checked(State.FixedTick + 1UL), State.FixedTickRate, global::CSharpGameEngine.Entities.SystemPhase.FixedSimulation);");
         Lines.Add("    }");
 
         // Compatibility overload for callers generated before GeneratedSystemSet. Runtime and editor paths do not use it.
         Lines.Add($"    internal static void RunFrame({BuildLegacyFrameParameterList(Systems,Contexts)}) {{");
         Lines.Add("        GeneratedSystemSet Systems = default;");
         foreach(SystemBinding System in Systems){ Lines.Add($"        Systems.{System.VariableName} = {System.VariableName};"); }
-        Lines.Add($"        RunFrame(ref State, ref Systems{BuildContextArgumentSuffix(Contexts)});");
+        Lines.Add($"        RunFrame(ref State, ref Systems, ref Scheduler, ElapsedCounter, CounterFrequency{BuildContextArgumentSuffix(Contexts)});");
         foreach(SystemBinding System in Systems){ Lines.Add($"        {System.VariableName} = Systems.{System.VariableName};"); }
         Lines.Add("    }");
 
-        Lines.Add($"    private static void RunPhase(global::CSharpGameEngine.Entities.SystemPhase Phase, {BuildSystemSetFrameParameterList(Contexts)}, bool EditorOnly, bool RealtimeOnly) {{");
+        Lines.Add($"    private static void RunPhase(global::CSharpGameEngine.Entities.SystemPhase Phase, {BuildPhaseParameterList(Contexts)}) {{");
         Lines.Add("        State.SetSimulationTiming(State.FixedTick, State.FixedTickRate, Phase);");
         foreach(SystemBinding Binding in Systems){
             bool IsEditor=Binding.System.ExecuteInEditor;
@@ -81,22 +97,12 @@ internal static class GameSystemLoopEmitter {
         bool HasRealtimeEditorSystems=Systems.Any(static Binding=>Binding.System.ExecuteInEditor&&Binding.System.RealtimeInEditor);
         if(HasEditorSystems){
             Lines.Add($"    internal static void RunEditorFrame(ref global::CSharpGameEngine.Entities.State State, ref GeneratedSystemSet Systems{BuildContextParameterSuffix(Contexts)}) {{");
-            Lines.Add($"        RunPhase(global::CSharpGameEngine.Entities.SystemPhase.FixedSimulation, ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, true, false);");
-            Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
-            Lines.Add($"        RunPhase(global::CSharpGameEngine.Entities.SystemPhase.PhysicsSimulation, ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, true, false);");
-            Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
-            Lines.Add($"        RunPhase(global::CSharpGameEngine.Entities.SystemPhase.PostPhysics, ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, true, false);");
-            Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
+            Lines.Add($"        RunSimulationTick(ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, true, false);");
             if(SpatialWorldEmitter.ShouldEmit(Registry)){ Lines.Add("        State.World.RefreshGlobalSpatialIndex();"); }
             Lines.Add("    }");
             if(HasRealtimeEditorSystems){
                 Lines.Add($"    internal static void RunEditorRealtimeFrame(ref global::CSharpGameEngine.Entities.State State, ref GeneratedSystemSet Systems{BuildContextParameterSuffix(Contexts)}) {{");
-                Lines.Add($"        RunPhase(global::CSharpGameEngine.Entities.SystemPhase.FixedSimulation, ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, true, true);");
-                Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
-                Lines.Add($"        RunPhase(global::CSharpGameEngine.Entities.SystemPhase.PhysicsSimulation, ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, true, true);");
-                Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
-                Lines.Add($"        RunPhase(global::CSharpGameEngine.Entities.SystemPhase.PostPhysics, ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, true, true);");
-                Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
+                Lines.Add($"        RunSimulationTick(ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, true, true);");
                 if(SpatialWorldEmitter.ShouldEmit(Registry)){ Lines.Add("        State.World.RefreshGlobalSpatialIndex();"); }
                 Lines.Add("    }");
             }
@@ -110,9 +116,14 @@ internal static class GameSystemLoopEmitter {
         Lines.Add("    }");
         Lines.Add($"    internal static void Run({BuildRunParameterList(Contexts)}) {{");
         Lines.Add("        GeneratedSystemSet Systems = default;");
+        Lines.Add("        var Scheduler = new global::CSharpGameEngine.Runtime.Simulation.FixedTickScheduler();");
+        Lines.Add("        var PreviousCounter = global::System.Diagnostics.Stopwatch.GetTimestamp();");
         Lines.Add("        try {");
         Lines.Add("            while (State.Enabled) {");
-        Lines.Add($"                RunFrame(ref State, ref Systems{BuildContextArgumentSuffix(Contexts)});");
+        Lines.Add("                var CurrentCounter = global::System.Diagnostics.Stopwatch.GetTimestamp();");
+        Lines.Add("                var ElapsedCounter = CurrentCounter - PreviousCounter;");
+        Lines.Add("                PreviousCounter = CurrentCounter;");
+        Lines.Add($"                RunFrame(ref State, ref Systems, ref Scheduler, ElapsedCounter, global::System.Diagnostics.Stopwatch.Frequency{BuildContextArgumentSuffix(Contexts)});");
         Lines.Add("            }");
         Lines.Add("        } finally {");
         Lines.Add($"            Shutdown(ref State, ref Systems{BuildContextArgumentSuffix(Contexts)});");
@@ -246,10 +257,17 @@ internal static class GameSystemLoopEmitter {
     }
 
     private static string BuildSystemSetFrameParameterList(List<ContextBinding> Contexts)=>
-        "ref global::CSharpGameEngine.Entities.State State, ref GeneratedSystemSet Systems"+BuildContextParameterSuffix(Contexts);
+        "ref global::CSharpGameEngine.Entities.State State, ref GeneratedSystemSet Systems, ref global::CSharpGameEngine.Runtime.Simulation.FixedTickScheduler Scheduler, long ElapsedCounter, long CounterFrequency"+BuildContextParameterSuffix(Contexts);
+    private static string BuildPhaseParameterList(List<ContextBinding> Contexts)=>
+        "ref global::CSharpGameEngine.Entities.State State, ref GeneratedSystemSet Systems"+BuildContextParameterSuffix(Contexts)+", bool EditorOnly, bool RealtimeOnly";
+    private static string BuildSimulationTickParameterList(List<ContextBinding> Contexts)=>
+        "ref global::CSharpGameEngine.Entities.State State, ref GeneratedSystemSet Systems"+BuildContextParameterSuffix(Contexts)+", bool EditorOnly, bool RealtimeOnly";
     private static string BuildLegacyFrameParameterList(List<SystemBinding> Systems,List<ContextBinding> Contexts){
         List<string> Parameters=["ref global::CSharpGameEngine.Entities.State State"];
         Parameters.AddRange(Systems.Select(static System=>$"ref {System.TypeReference} {System.VariableName}"));
+        Parameters.Add("ref global::CSharpGameEngine.Runtime.Simulation.FixedTickScheduler Scheduler");
+        Parameters.Add("long ElapsedCounter");
+        Parameters.Add("long CounterFrequency");
         Parameters.AddRange(Contexts.Select(static Context=>$"{(Context.IsReferenceType?string.Empty:"in ")}{Context.TypeFullyQualifiedName} {Context.ParameterName}"));
         return string.Join(", ",Parameters);
     }

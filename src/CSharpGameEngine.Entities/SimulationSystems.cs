@@ -1,5 +1,10 @@
 namespace CSharpGameEngine.Entities;
 
+public enum SimulationPlaybackState:byte {
+    Running,
+    Paused,
+}
+
 /// <summary>Stable frame phases. Values are persisted by generated execution metadata.</summary>
 public enum SystemPhase:byte {
     FrameInput,

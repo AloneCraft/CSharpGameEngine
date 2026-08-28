@@ -37,16 +37,22 @@ public sealed class FeatureStageCatalogTests {
         Assert.Equal(63,Features.Select(static Feature=>Feature.Id).Distinct(StringComparer.Ordinal).Count());
         Assert.All(Features,static Feature=>Assert.NotEqual(FeatureRoadmapTrack.Established,Feature.Track));
         Assert.All(Features,static Feature=>Assert.InRange(Feature.DependencyLevel,1,7));
-        Assert.Equal(FeatureLifecycleStatus.PartiallyImplemented,Assert.Single(Features,static Feature=>Feature.Id=="F-L3-018").Status);
-        Assert.All(Features.Where(static Feature=>Feature.Id!="F-L3-018"),static Feature=>Assert.Equal(FeatureLifecycleStatus.Specified,Feature.Status));
+        Assert.Equal(FeatureLifecycleStatus.Implemented,Assert.Single(Features,static Feature=>Feature.Id=="F-L3-018").Status);
+        Assert.Equal(FeatureLifecycleStatus.Implemented,Assert.Single(Features,static Feature=>Feature.Id=="F-L7-030").Status);
+        Assert.All(Features.Where(static Feature=>Feature.Id is not "F-L3-018" and not "F-L7-030"),static Feature=>Assert.Equal(FeatureLifecycleStatus.Specified,Feature.Status));
         foreach(var Feature in Features){
-            var Stage=Assert.Single(Catalog.Stages,Stage=>Stage.FeatureIds.Contains(Feature.Id,StringComparer.Ordinal)&&Stage.Availability==FeatureStageAvailability.NotImplemented);
-            Assert.False(string.IsNullOrWhiteSpace(Stage.Oracle));
-            Assert.NotEmpty(Stage.InputPaths);
+            var ExpectedAvailability=Feature.Id is "F-L3-018" or "F-L7-030"?FeatureStageAvailability.Executable:FeatureStageAvailability.NotImplemented;
+            var Stages=Catalog.Stages.Where(Stage=>Stage.FeatureIds.Contains(Feature.Id,StringComparer.Ordinal)&&Stage.Availability==ExpectedAvailability).ToArray();
+            Assert.NotEmpty(Stages);
+            Assert.All(Stages,static Stage=>{
+                Assert.False(string.IsNullOrWhiteSpace(Stage.Oracle));
+                Assert.NotEmpty(Stage.InputPaths);
+            });
         }
         var TargetStageIds=Catalog.Stages.Where(Stage=>Stage.Availability==FeatureStageAvailability.NotImplemented&&Stage.FeatureIds.Any(FeatureId=>FeatureStageCatalog.NonPhysicsRoadmapFeatureIds.Contains(FeatureId,StringComparer.Ordinal))).Select(static Stage=>Stage.Id).ToArray();
-        Assert.Equal(63,TargetStageIds.Length);
-        Assert.Equal(61,TargetStageIds.Except(["foundation.d3d12-compute","foundation.deterministic-jobs"],StringComparer.Ordinal).Count());
+        Assert.Equal(61,TargetStageIds.Length);
+        Assert.Equal(59,TargetStageIds.Except(["foundation.d3d12-compute","foundation.deterministic-jobs"],StringComparer.Ordinal).Count());
+        Assert.All(["ecs.baseline","ecs.fixed-tick"],StageId=>Assert.Equal(FeatureStageAvailability.Executable,Assert.Single(Catalog.Stages,Stage=>Stage.Id==StageId).Availability));
     }
     [Fact]
     public void RoadmapDependencies_AreKnownAcyclicAndLevelOrdered(){

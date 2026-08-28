@@ -20,7 +20,7 @@ Use index-plus-generation entities with slot retirement on generation wrap; port
 
 ## Migration and verification
 
-F-L3-018 remains PartiallyImplemented until fixed-tick integration lands. `ecs.*` and `foundation.deterministic-jobs` Stages in [Ecs-Runtime](../Specifications/Ecs-Runtime.md) define the target proof.
+M0059 integrates the fixed-tick decision into the generated shipping loop. F-L7-030 and F-L3-018 are now Implemented with executable `ecs.baseline` and `ecs.fixed-tick` Stage oracles. The scheduler retains overrun backlog, while `State.FixedTick` remains the sole tick source of truth. `ecs.*` and `foundation.deterministic-jobs` Stages in [Ecs-Runtime](../Specifications/Ecs-Runtime.md) continue to define the remaining target proof.
 
 ## Related features
 
