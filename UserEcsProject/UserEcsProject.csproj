@@ -34,6 +34,10 @@
 
   <ItemGroup>
     <CgeShaderGraph Include="..\assets\Shaders\Stage.cgeshadergraph" />
+    <CgeShaderSubgraph Include="..\assets\Shaders\Pbr.cgesubgraph" />
+    <CgeShaderSubgraph Include="..\assets\Shaders\Shadow.cgesubgraph" />
+    <CgeShaderSubgraph Include="..\assets\Shaders\Pcss.cgesubgraph" />
+    <CgeShaderSubgraph Include="..\assets\Shaders\Aces.cgesubgraph" />
   </ItemGroup>
 
   <ItemGroup>

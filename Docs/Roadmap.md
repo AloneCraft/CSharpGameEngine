@@ -4,6 +4,8 @@
 
 This index is the authoritative machine-tracked mapping for the six non-physics tracks. The older narrative tables below remain planning context. Every row has one Feature and one target Stage; `Specified`/`Deferred` target Stages are deliberately `NotImplemented` until their implementation lands.
 
+M0061 completes external production Shader Subgraph composition, recursive dependency hashes, incremental artifact reuse, and VSIX dependency navigation without adding new Feature IDs. Structured region authoring and Experimental Instance automation remain follow-up conformance work.
+
 Current baseline corrections: point/spot/area/emissive shadows and HDR/ACES/bloom are observed renderer baseline; Scene Designer transform tools are observed baseline and require new visual acceptance; existing ECS phase/structural behavior is a base for the unified target; C# `IScene` remains the only authoring truth. F-L3-020 remains `Deferred` for the future 65-128-type generator path, while 1-64 uses one generation-time `ulong` with no runtime mask penalty.
 
 ### Rendering

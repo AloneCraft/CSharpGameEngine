@@ -36,6 +36,7 @@ public static class ShaderGraphCanonicalization {
             EntryPoint = Document.EntryPoint,
             RootSubgraphId = Document.RootSubgraphId,
             Subgraphs = Subgraphs,
+            Dependencies = Document.Dependencies.OrderBy(Dependency => Dependency.Path, StringComparer.Ordinal).ThenBy(Dependency => Dependency.Id.ToString(), StringComparer.Ordinal).Select(Dependency => new ShaderGraphDependency { Id = Dependency.Id, Path = Dependency.Path.Replace('\\', '/') }).ToList(),
             Layout = NormalizeLayout(Document.Layout)
         };
     }

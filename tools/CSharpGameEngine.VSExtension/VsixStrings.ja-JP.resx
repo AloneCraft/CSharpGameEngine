@@ -423,6 +423,9 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
   <data name="ShaderGraphPaletteSearch" xml:space="preserve">
     <value>ノード型を検索</value>
   </data>
+  <data name="ShaderGraphDependencies" xml:space="preserve">
+    <value>外部Subgraph</value>
+  </data>
   <data name="ShaderGraphPropertyInspector" xml:space="preserve">
     <value>プロパティ インスペクター</value>
   </data>
@@ -452,6 +455,9 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
   </data>
   <data name="ShaderGraphNodeDiagnostic" xml:space="preserve">
     <value>Shader Graphノード {0}: {1}</value>
+  </data>
+  <data name="ShaderGraphDependencyMissing" xml:space="preserve">
+    <value>Shader Graphの依存ファイルが見つかりません: {0}</value>
   </data>
   <data name="ShaderGraphReloaded" xml:space="preserve">
     <value>外部変更後にShader Graphを再読み込みしました。</value>

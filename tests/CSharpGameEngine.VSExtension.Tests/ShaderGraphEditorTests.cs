@@ -48,6 +48,10 @@ public sealed class ShaderGraphEditorTests {
             Assert.NotNull(Archive.GetEntry($"ItemTemplates/CSharp/GameEngine/{Culture}/ShaderSubgraph/ShaderSubgraph.vstemplate"));
         }
         Assert.NotNull(Archive.GetEntry("ShaderGraphTemplates/Stage.cgeshadergraph"));
+        Assert.NotNull(Archive.GetEntry("ShaderGraphTemplates/Pbr.cgesubgraph"));
+        Assert.NotNull(Archive.GetEntry("ShaderGraphTemplates/Shadow.cgesubgraph"));
+        Assert.NotNull(Archive.GetEntry("ShaderGraphTemplates/Pcss.cgesubgraph"));
+        Assert.NotNull(Archive.GetEntry("ShaderGraphTemplates/Aces.cgesubgraph"));
         Assert.NotNull(Archive.GetEntry("ShaderGraphTemplates/Model.cgeshadergraph"));
         Assert.NotNull(Archive.GetEntry("ShaderGraphTemplates/Triangle.cgeshadergraph"));
         var PkgDef=Archive.GetEntry("CSharpGameEngine.VSExtension.pkgdef");
@@ -59,6 +63,28 @@ public sealed class ShaderGraphEditorTests {
         Assert.Contains(ShaderGraphEditorFactory.FactoryGuidString,Text,StringComparison.OrdinalIgnoreCase);
     }
     [Fact]
+    public void GraphTemplate_RemapsAndCopiesExternalSubgraphs() {
+        var Root=Path.Combine(Path.GetTempPath(),"CgeShaderGraphTemplate",Guid.NewGuid().ToString("N"));
+        var SourceDirectory=Path.Combine(Root,"source");
+        var DestinationDirectory=Path.Combine(Root,"destination");
+        Directory.CreateDirectory(SourceDirectory);
+        Directory.CreateDirectory(DestinationDirectory);
+        try {
+            var DependencyRoot=StableId.New();
+            var Dependency=new ShaderGraphDocument { Id=StableId.New(),RootSubgraphId=DependencyRoot,Subgraphs={new ShaderGraphSubgraph { Id=DependencyRoot,Name="PBR" }} };
+            File.WriteAllText(Path.Combine(SourceDirectory,"Pbr.cgesubgraph"),ShaderGraphCanonicalization.ToCanonicalJson(Dependency));
+            var GraphRoot=StableId.New();
+            var Graph=new ShaderGraphDocument { Id=StableId.New(),RootSubgraphId=GraphRoot,Subgraphs={new ShaderGraphSubgraph { Id=GraphRoot }},Dependencies={new ShaderGraphDependency { Id=Dependency.Id,Path="Pbr.cgesubgraph" }} };
+            var Destination=Path.Combine(DestinationDirectory,"MyStage.cgeshadergraph");
+            var Created=new List<string>();
+            var Remapped=ShaderGraphTemplateWizard.RemapBundle(Graph,SourceDirectory,Destination,Created.Add);
+            Assert.Single(Created);
+            Assert.Equal("MyStage.Pbr.cgesubgraph",Remapped.Dependencies.Single().Path);
+            var Copied=ShaderGraphCanonicalization.FromJson(File.ReadAllText(Created.Single()))!;
+            Assert.Equal(Remapped.Dependencies.Single().Id,Copied.Id);
+            Assert.NotEqual(Dependency.Id,Copied.Id);
+        } finally { Directory.Delete(Root,true); }
+    }    [Fact]
     public void Templates_RegisterGraphAndSubgraphWizards() {
         var Root=Path.Combine(AppContext.BaseDirectory,"TestAssets","ItemTemplates","CSharp","GameEngine");
         var Graph=XDocument.Load(Path.Combine(Root,"ShaderGraph","ShaderGraph.vstemplate")).ToString();

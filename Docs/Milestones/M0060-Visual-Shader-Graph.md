@@ -30,3 +30,6 @@ The external reusable PBR/shadow/PCSS/ACES .cgesubgraph production split and aut
 ## Next milestone
 
 Extract reusable production declarations into dependency-tracked external subgraphs, add first-class region editing/navigation, and automate Visual Studio Experimental Instance open/edit/save/reload evidence.
+## Follow-up closure
+
+M0061/ADR-0059 completes the external PBR/Shadow/PCSS/ACES split, recursive dependency hashing, artifact cache validation, Stage-template dependency copying, and dedicated Subgraph navigation. Structured high-level region authoring and Experimental Instance automation remain future work.

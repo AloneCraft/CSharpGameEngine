@@ -38,6 +38,10 @@
     <CgeShaderGraph Include="..\..\assets\Shaders\Triangle.cgeshadergraph" />
     <CgeShaderGraph Include="..\..\assets\Shaders\Model.cgeshadergraph" />
     <CgeShaderGraph Include="..\..\assets\Shaders\Stage.cgeshadergraph" />
+    <CgeShaderSubgraph Include="..\..\assets\Shaders\Pbr.cgesubgraph" />
+    <CgeShaderSubgraph Include="..\..\assets\Shaders\Shadow.cgesubgraph" />
+    <CgeShaderSubgraph Include="..\..\assets\Shaders\Pcss.cgesubgraph" />
+    <CgeShaderSubgraph Include="..\..\assets\Shaders\Aces.cgesubgraph" />
     <!-- From the former Graphics.D3D12.Tests. -->
     <None Include="..\..\assets\TestFixtures\Gltf\Box.glb" Link="Fixtures\Box.glb" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\TestFixtures\Gltf\BoxTextured.glb" Link="Fixtures\BoxTextured.glb" CopyToOutputDirectory="PreserveNewest" />

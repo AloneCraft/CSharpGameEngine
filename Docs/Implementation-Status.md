@@ -4295,9 +4295,9 @@ F-L0-008 and F-L3-019 are non-physics Roadmap Features and are `Specified`; the 
 - Intended specification: Docs/Specifications/Shader-Graph.md#canonical-assets
 - Stage: shadergraph.schema (Executable, Headless / Foundation, 900s)
 - Depends on: F-L7-022
-- Current delta: Canonical UTF-8 JSON, stable IDs, typed ports, semantic hashing, regions, internal Subgraphs, cycle and recursion rejection are implemented.
+- Current delta: Canonical UTF-8 JSON, stable IDs, typed ports, semantic hashing, regions, internal/external Subgraphs, recursive dependency identity/hash, cycle and recursion rejection are implemented.
 - Conformance: Partial
-- Next action: Add dependency-tracked external production .cgesubgraph composition.
+- Next action: Complete first-class high-level If/For/Return region authoring and unknown-field preservation evidence.
 
 ## F-L7-049 — Shader Graph compiler
 
@@ -4308,9 +4308,9 @@ F-L0-008 and F-L3-019 are non-physics Roadmap Features and are `Specified`; the 
 - Intended specification: Docs/Specifications/Shader-Graph.md#compiler-cli
 - Stage: shadergraph.compiler (Executable, Headless / Foundation, 1800s)
 - Depends on: F-L2-005
-- Current delta: Typed syntax-node graphs deterministically regenerate production HLSL, map node diagnostics, compile all nine fixed-ABI entries, and emit artifacts.
+- Current delta: Typed syntax-node graphs and recursive external production Subgraphs deterministically regenerate production HLSL, preserve node source mapping, compile all nine fixed-ABI entries, and reuse dependency-identical artifacts.
 - Conformance: Partial
-- Next action: Lower external reusable production Subgraphs and first-class If/For/Return region authoring.
+- Next action: Implement first-class high-level If/For/Return region authoring and lowering.
 
 ## F-L8-031 — Visual Shader Graph editor
 
@@ -4321,6 +4321,6 @@ F-L0-008 and F-L3-019 are non-physics Roadmap Features and are `Specified`; the 
 - Intended specification: Docs/Specifications/Shader-Graph.md#visual-studio-editor
 - Stage: vsix.shader-graph (Executable, Headless / VSIX, 1800s)
 - Depends on: F-L7-049
-- Current delta: Editor Factory, WPF node canvas, typed connections, edit commands, properties, diagnostics, save/build, external-change handling, localized templates, and target wizard are implemented.
+- Current delta: Editor Factory, WPF node canvas, typed connections, edit commands, properties, diagnostics, save/build, external-change handling, external Subgraph navigation, localized templates, dependency-bundle copying, and target wizard are implemented.
 - Conformance: Partial
-- Next action: Add dedicated external Subgraph navigation and automated Experimental Instance interaction evidence.
+- Next action: Add automated Experimental Instance open/edit/save/reload interaction evidence.

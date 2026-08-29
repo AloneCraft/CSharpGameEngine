@@ -24,7 +24,7 @@ The existing VSIX WPF and IVsEditorFactory infrastructure owns the visual editor
 - Fixed ABI mismatch, corruption, and reflection mismatch fail before GPU submission.
 - Layout edits do not invalidate DXIL.
 - Custom HLSL and user-DLL nodes are not v1 extension points.
-- External production subgraph extraction remains a follow-up; current production graphs retain complete typed syntax-node trees.
+- External production subgraph extraction was deferred to a follow-up and is completed by ADR-0059/M0061.
 
 ## Verification
 

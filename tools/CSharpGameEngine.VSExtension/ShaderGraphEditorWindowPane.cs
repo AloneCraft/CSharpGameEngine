@@ -20,6 +20,7 @@ internal sealed class ShaderGraphEditorWindowPane:WindowPane,IVsPersistDocData,I
         this.Control=new ShaderGraphEditorControl(this.Document);
         this.Control.SaveRequested+=this.Save;
         this.Control.OpenGeneratedHlslRequested+=this.OpenGeneratedHlsl;
+        this.Control.OpenDependencyRequested+=this.OpenDependency;
         this.Content=this.Control;
         this.ErrorList=new ErrorListProvider(this);
         this.Document.Changed+=this.UpdateErrorList;
@@ -54,7 +55,13 @@ internal sealed class ShaderGraphEditorWindowPane:WindowPane,IVsPersistDocData,I
             VsShellUtilities.OpenDocument(this,PathValue);
         }
     }
-    private void SetStatus(string Text)=>this.Control.SetStatusText(Text);
+    private void OpenDependency(string RelativePath) {
+        try {
+            var FullPath=Path.GetFullPath(Path.Combine(Path.GetDirectoryName(this.Document.FilePath)!,RelativePath));
+            if(!File.Exists(FullPath)) { this.SetStatus(VsixText.Format("ShaderGraphDependencyMissing",FullPath));return; }
+            VsShellUtilities.OpenDocument(this,FullPath);
+        } catch(Exception Exception) { this.SetStatus(Exception.Message); }
+    }    private void SetStatus(string Text)=>this.Control.SetStatusText(Text);
     private void UpdateErrorList() {
         this.ErrorList.Tasks.Clear();
         foreach(var Diagnostic in this.Document.Validate().Diagnostics) {

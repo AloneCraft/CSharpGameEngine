@@ -115,3 +115,7 @@ F-L7-022 and F-L6-004 are Implemented with executable stages. F-L0-008 remains S
 ## M0060 artifact-only update
 
 Stage, Model, and Triangle consume fixed-ABI CGESHDR1 artifacts only. Debug artifact changes exchange validated PSOs at a frame boundary and preserve last-known-good on failure; Release loads once and contains no watcher. Canonical Graph and editor contracts are defined in [Shader Graph](Shader-Graph.md).
+
+## M0061 external Subgraph update
+
+Stage resolves PBR, Shadow, PCSS, and ACES from explicit external `.cgesubgraph` inputs. Recursive dependency hashes participate in Artifact identity while the root semantic hash remains independently observable. Exact HLSL parity preserves the M0060 WARP baseline; Runtime continues to consume the same CGESHDR1 contract.

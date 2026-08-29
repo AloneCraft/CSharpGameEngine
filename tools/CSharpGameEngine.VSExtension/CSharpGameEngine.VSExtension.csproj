@@ -181,6 +181,10 @@
 
   <ItemGroup>
     <Content Include="..\..\assets\Shaders\Stage.cgeshadergraph" Link="ShaderGraphTemplates\Stage.cgeshadergraph"><IncludeInVSIX>true</IncludeInVSIX><VSIXSubPath>ShaderGraphTemplates</VSIXSubPath></Content>
+    <Content Include="..\..\assets\Shaders\Pbr.cgesubgraph" Link="ShaderGraphTemplates\Pbr.cgesubgraph"><IncludeInVSIX>true</IncludeInVSIX><VSIXSubPath>ShaderGraphTemplates</VSIXSubPath></Content>
+    <Content Include="..\..\assets\Shaders\Shadow.cgesubgraph" Link="ShaderGraphTemplates\Shadow.cgesubgraph"><IncludeInVSIX>true</IncludeInVSIX><VSIXSubPath>ShaderGraphTemplates</VSIXSubPath></Content>
+    <Content Include="..\..\assets\Shaders\Pcss.cgesubgraph" Link="ShaderGraphTemplates\Pcss.cgesubgraph"><IncludeInVSIX>true</IncludeInVSIX><VSIXSubPath>ShaderGraphTemplates</VSIXSubPath></Content>
+    <Content Include="..\..\assets\Shaders\Aces.cgesubgraph" Link="ShaderGraphTemplates\Aces.cgesubgraph"><IncludeInVSIX>true</IncludeInVSIX><VSIXSubPath>ShaderGraphTemplates</VSIXSubPath></Content>
     <Content Include="..\..\assets\Shaders\Model.cgeshadergraph" Link="ShaderGraphTemplates\Model.cgeshadergraph"><IncludeInVSIX>true</IncludeInVSIX><VSIXSubPath>ShaderGraphTemplates</VSIXSubPath></Content>
     <Content Include="..\..\assets\Shaders\Triangle.cgeshadergraph" Link="ShaderGraphTemplates\Triangle.cgeshadergraph"><IncludeInVSIX>true</IncludeInVSIX><VSIXSubPath>ShaderGraphTemplates</VSIXSubPath></Content>
   </ItemGroup>

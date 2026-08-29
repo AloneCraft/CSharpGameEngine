@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Split the production Stage graph into external PBR, Shadow, PCSS, and ACES Subgraphs with recursive identity/hash validation while preserving byte-identical generated HLSL.
+- Added dependency-aware Shader Artifact reuse, explicit MSBuild Subgraph inputs, VSIX dependency navigation, and coherent dependency-bundle copying for new Stage Graph templates.
+
 - Replaced production Stage, Model, and Triangle HLSL runtime compilation with canonical Visual Shader Graph sources, deterministic CLI/MSBuild compilation, checksummed fixed-ABI Shader Artifacts, Debug frame-boundary hot reload with last-known-good recovery, and Release one-shot loading.
 - Renamed Level.ShaderPath to Level.ShaderArtifactPath without a compatibility API and removed DXC/HlslCompiler from the D3D12 Runtime.
 - Added localized Visual Studio Shader Graph/Subgraph custom editors and item templates, typed node editing, Error List diagnostics, source save/build publication, and generated-HLSL opening.

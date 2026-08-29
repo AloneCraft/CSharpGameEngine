@@ -20,6 +20,17 @@ public class ShaderGraphTests {
         Assert.Equal(LeftHash, RightHash);
     }
     [Fact]
+    public void Dependencies_AreCanonicalAndContributeToSemanticHash() {
+        var Graph=BuildLayoutAwareGraph("dependencies");
+        Graph.Dependencies.Add(new ShaderGraphDependency { Id=StableId.New(),Path="z\\Shared.cgesubgraph" });
+        Graph.Dependencies.Add(new ShaderGraphDependency { Id=StableId.New(),Path="a/Lighting.cgesubgraph" });
+        var Json=ShaderGraphCanonicalization.ToCanonicalJson(Graph);
+        var Parsed=ShaderGraphCanonicalization.FromJson(Json)!;
+        Assert.Equal(new[]{"a/Lighting.cgesubgraph","z/Shared.cgesubgraph"},Parsed.Dependencies.Select(Dependency=>Dependency.Path));
+        var Before=ShaderGraphCanonicalization.ComputeSemanticHash(Parsed);
+        Parsed.Dependencies[0].Path="a/Changed.cgesubgraph";
+        Assert.NotEqual(Before,ShaderGraphCanonicalization.ComputeSemanticHash(Parsed));
+    }    [Fact]
     public void Validator_DetectsTypeMismatch() {
         var Graph = BuildTypeMismatchGraph();
         var Result = ShaderGraphValidator.Validate(Graph);

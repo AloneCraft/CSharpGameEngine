@@ -85,6 +85,7 @@
     <File Path="Docs/Decisions/ADR-0056-Platform-Input-And-Audio-Server-Boundaries.md" />
     <File Path="Docs/Decisions/ADR-0057-Level-Gated-Verification-And-Release-Evidence.md" />
     <File Path="Docs/Decisions/ADR-0058-Visual-Shader-Graph-And-Artifact-Runtime.md" />
+    <File Path="Docs/Decisions/ADR-0059-External-Shader-Subgraph-Composition.md" />
   </Folder>
   <Folder Name="/Docs/Milestones/">
     <File Path="Docs/Milestones/M0001-CodeAnalysis-Foundation.md" />
@@ -111,6 +112,7 @@
     <File Path="Docs/Milestones/M0031-Inspector-Member-Editing.md" />
     <File Path="Docs/Milestones/M0055-Deterministic-Physics-Foundation.md" />
     <File Path="Docs/Milestones/M0060-Visual-Shader-Graph.md" />
+    <File Path="Docs/Milestones/M0061-External-Shader-Subgraphs.md" />
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
@@ -124,6 +126,10 @@
     <File Path="assets/Shaders/Triangle.cgeshadergraph" />
     <File Path="assets/Shaders/Model.cgeshadergraph" />
     <File Path="assets/Shaders/Stage.cgeshadergraph" />
+    <File Path="assets/Shaders/Pbr.cgesubgraph" />
+    <File Path="assets/Shaders/Shadow.cgesubgraph" />
+    <File Path="assets/Shaders/Pcss.cgesubgraph" />
+    <File Path="assets/Shaders/Aces.cgesubgraph" />
     <File Path="assets/TestFixtures/Gltf/Box.glb" />
     <File Path="assets/TestFixtures/Gltf/BoxTextured.glb" />
     <File Path="assets/TestFixtures/Gltf/Triangle.gltf" />

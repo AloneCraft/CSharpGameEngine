@@ -1,3 +1,13 @@
+# Conformance
+
+## 2026-08-29 M0061 external Shader Subgraphs
+
+- Intended specification: ADR-0059, M0061, Shader Graph, Rendering, and Editor/VSIX specifications.
+- Implementation: Stage now composes external PBR, Shadow, PCSS, and ACES typed-syntax Subgraphs recursively. Root and dependency hashes are distinct, valid identical artifacts skip DXC, MSBuild tracks explicit Subgraph inputs, and VSIX templates/navigation understand the dependency bundle.
+- Reverse-engineered behavior: The composed Stage HLSL is byte-identical to the pre-split golden SHA-256 `67C5652958550327DFB90C2059E1FE5778A0D0B59B0787D21919314A9D67DF81`; all five Stage entries compile from the composed graph.
+- Verification: All five shader Feature Stages passed in Debug and Release. Full solution runs passed 1,628 Debug tests and 1,627 Release tests sequentially. Focused schema/artifact/compiler, VSIX, Windows, and solution-registration tests passed in both configurations; UserEcsProject built external Stage dependencies, reused matching artifacts, and completed startup/window-close/shutdown smoke with exit code 0 in both configurations.
+- Conformance: External Subgraph composition, dependency hashing/cache, template copying, and dedicated navigation Match. F-L2-005/F-L7-049 remain Partial for first-class high-level structured-region authoring; F-L8-031 remains Partial for automated Experimental Instance interaction.
+
 ## 2026-08-29 M0060 Visual Shader Graph and artifact runtime
 
 - Intended specification: ADR-0058, M0060, Rendering, Editor/VSIX, and Shader Graph specifications.
@@ -5,7 +15,6 @@
 - Reverse-engineered behavior: Runtime assemblies contain no HlslCompiler or DXC dependency. Corrupt Debug writes retain last-known-good PSOs; successful later writes recover. Layout-only Graph edits preserve semantic hash.
 - Tests and runtime verification: all five M0060 Feature Stages passed in Debug and Release. Full solution runs passed 1,623 Debug tests and 1,622 Release tests sequentially. TestHost and Model Viewer passed WARP readback with zero D3D12 validation errors in both configurations, and UserEcsProject completed normal startup/window-close/shutdown smoke in both configurations.
 - Conformance: Matches for F-L7-022 and F-L6-004. Partial for F-L2-005, F-L7-049, and F-L8-031 because production PBR/shadow/PCSS/ACES logic has not yet been extracted into external dependency-tracked .cgesubgraph files, dedicated external Subgraph navigation is absent, and Experimental Instance interaction has not been automated.
-# Conformance
 
 ## 2026-08-29 M0059 ECS baseline and fixed-tick shipping loop
 

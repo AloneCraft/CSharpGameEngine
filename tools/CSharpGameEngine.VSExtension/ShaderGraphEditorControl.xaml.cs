@@ -35,6 +35,8 @@ public partial class ShaderGraphEditorControl:UserControl {
     internal ShaderGraphEditorDocument Document { get; }
     internal event Action?SaveRequested;
     internal event Action?OpenGeneratedHlslRequested;
+    internal event Action<string>?OpenDependencyRequested;
+    internal IReadOnlyList<string>DependencyPaths=>this.Document.Graph.Dependencies.Select(Dependency=>Dependency.Path).ToArray();
     internal void SetStatusText(string Text)=>this.StatusText.Text=Text;
     private void OnDocumentChanged() {
         this.RefreshAll();
@@ -58,9 +60,13 @@ public partial class ShaderGraphEditorControl:UserControl {
         this.UndoButton.IsEnabled=this.Document.CanUndo;
         this.RedoButton.IsEnabled=this.Document.CanRedo;
         this.SaveButton.IsEnabled=this.Document.IsDirty;
+        this.RefreshDependencies();
         this.RefreshCanvas();
         this.RefreshInspector();
         this.RefreshDiagnostics();
+    }
+    private void RefreshDependencies() {
+        this.DependencyList.ItemsSource=this.DependencyPaths;
     }
     private void RefreshPalette() {
         this.PaletteList.ItemsSource=this.Document.GetPaletteNodeTypes(this.PaletteSearch?.Text);
@@ -190,6 +196,9 @@ public partial class ShaderGraphEditorControl:UserControl {
         this.DiagnosticsList.ItemsSource=Diagnostics.Select(Item=>$"{Item.Code}: {Item.Message}").ToArray();
     }
     private void PaletteSearch_TextChanged(object Sender,TextChangedEventArgs Arguments)=>this.RefreshPalette();
+    private void DependencyList_MouseDoubleClick(object Sender,MouseButtonEventArgs Arguments) {
+        if(this.DependencyList.SelectedItem is string PathValue) { this.OpenDependencyRequested?.Invoke(PathValue); }
+    }
     private void PaletteList_MouseDoubleClick(object Sender,MouseButtonEventArgs Arguments) {
         if(this.PaletteList.SelectedItem is string Type) { _=this.Document.AddFromPrototype(Type,(float)this.CanvasScroll.HorizontalOffset+80+this.ViewOriginX,(float)this.CanvasScroll.VerticalOffset+80+this.ViewOriginY); }
     }

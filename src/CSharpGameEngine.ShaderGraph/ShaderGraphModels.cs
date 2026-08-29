@@ -26,7 +26,12 @@ public sealed class ShaderGraphDocument {
     public ShaderGraphEntryPointContract? EntryPoint { get; set; }
     public StableId RootSubgraphId { get; set; }
     public List<ShaderGraphSubgraph> Subgraphs { get; set; } = new List<ShaderGraphSubgraph>();
+    public List<ShaderGraphDependency> Dependencies { get; set; } = new List<ShaderGraphDependency>();
     public ShaderGraphEditorLayout? Layout { get; set; }
+}
+public sealed class ShaderGraphDependency {
+    public StableId Id { get; set; }
+    public string Path { get; set; } = string.Empty;
 }
 public sealed class ShaderGraphSubgraph {
     public StableId Id { get; set; }

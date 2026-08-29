@@ -141,3 +141,7 @@ PackはFoundation、Rendering、Rigid、Deformable、Fluid、Destruction、Celes
 ## M0060 executable shader stages
 
 rendering.baseline fixes the WARP visual baseline. shadergraph.schema validates canonical graph contracts, shadergraph.compiler compiles all fixed entries, rendering.shader-artifacts validates the container and artifact-only Runtime, and vsix.shader-graph validates the editor/package surface. All commands run sequentially through Feature Runner in the requested configuration.
+
+## M0061 external Subgraph evidence
+
+The existing `shadergraph.schema`, `shadergraph.compiler`, `rendering.shader-artifacts`, and `vsix.shader-graph` stages now include canonical external dependency metadata, exact Stage HLSL composition, dependency-hash artifact reuse, production Subgraph packaging, and template/navigation tests. No new Feature or Stage ID is introduced.
