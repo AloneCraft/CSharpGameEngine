@@ -3485,15 +3485,14 @@ F-L0-008 and F-L3-019 are non-physics Roadmap Features and are `Specified`; the 
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Rendering Roadmap
-- Status: Specified
-- Verification: Unverified
-- Intended specification: `Docs/Specifications/Rendering.md#scope-and-current-baseline`
-- Stage: `rendering.baseline` (`NotImplemented`, Visual / Rendering, 1800s)
+- Status: Implemented
+- Verification: TestVerified
+- Intended specification: Docs/Specifications/Rendering.md#scope-and-current-baseline
+- Stage: rendering.baseline (Executable, Visual / Rendering, 1800s)
 - Depends on: None
-- Current delta: Existing D3D12/WARP work is baseline evidence; the target conformance contract is not implemented.
-- Conformance: Unknown
-- Next action: Implement the baseline audit and replace the target Stage with an executable WARP oracle.
-
+- Current delta: Triangle, Model, Stage, lights, shadows, HDR, bloom, and ACES run from Shader Artifacts and retain WARP golden/readback and debug-layer oracles.
+- Conformance: Matches
+- Next action: Keep golden tolerances and resource/debug diagnostics stable as later Render Graph work lands.
 ## F-L4-004 — Engine-owned Render Graph
 
 - Layer: L4 — Domain Servers
@@ -3524,15 +3523,14 @@ F-L0-008 and F-L3-019 are non-physics Roadmap Features and are `Specified`; the 
 
 - Layer: L6 — Runtime Artifacts
 - Parent capability: Rendering Roadmap
-- Status: Specified
-- Verification: Unverified
-- Intended specification: `Docs/Specifications/Rendering.md#data-flow`
-- Stage: `rendering.shader-artifacts` (`NotImplemented`, Headless / Foundation, 900s)
-- Depends on: F-L0-008
-- Current delta: Runtime artifact provenance and no-runtime-compilation enforcement do not exist.
-- Conformance: Unknown
-- Next action: Implement L7 DXC bake output and the L6 artifact envelope, then remove runtime compile use.
-
+- Status: Implemented
+- Verification: TestVerified
+- Intended specification: Docs/Specifications/Rendering.md#data-flow and Docs/Specifications/Shader-Graph.md
+- Stage: rendering.shader-artifacts (Executable, Headless / Foundation, 1800s)
+- Depends on: F-L7-022, F-L7-049
+- Current delta: CGESHDR1 records fixed target ABI, semantic/dependency hashes, compiler provenance, nine entry DXIL payloads, reflection, PSO key, and checksum. Runtime DXC is removed.
+- Conformance: Matches
+- Next action: Extend dependency hashes to external production Subgraph files without changing the runtime container contract.
 ## F-L4-005 — Material and texture runtime
 
 - Layer: L4 — Domain Servers
@@ -4287,3 +4285,42 @@ F-L0-008 and F-L3-019 are non-physics Roadmap Features and are `Specified`; the 
 - Current delta: Formal immutable release manifests and retention policy are not implemented.
 - Conformance: Unknown
 - Next action: Implement final manifest publication with hashes, SBOM, provenance, and retention class.
+
+## F-L2-005 — Shader Graph canonical schema
+
+- Layer: L2 — Asset Schemas
+- Parent capability: Shader Graph
+- Status: Implemented
+- Verification: TestVerified
+- Intended specification: Docs/Specifications/Shader-Graph.md#canonical-assets
+- Stage: shadergraph.schema (Executable, Headless / Foundation, 900s)
+- Depends on: F-L7-022
+- Current delta: Canonical UTF-8 JSON, stable IDs, typed ports, semantic hashing, regions, internal Subgraphs, cycle and recursion rejection are implemented.
+- Conformance: Partial
+- Next action: Add dependency-tracked external production .cgesubgraph composition.
+
+## F-L7-049 — Shader Graph compiler
+
+- Layer: L7 — Static Compiler / Bake
+- Parent capability: Shader Graph
+- Status: Implemented
+- Verification: TestVerified
+- Intended specification: Docs/Specifications/Shader-Graph.md#compiler-cli
+- Stage: shadergraph.compiler (Executable, Headless / Foundation, 1800s)
+- Depends on: F-L2-005
+- Current delta: Typed syntax-node graphs deterministically regenerate production HLSL, map node diagnostics, compile all nine fixed-ABI entries, and emit artifacts.
+- Conformance: Partial
+- Next action: Lower external reusable production Subgraphs and first-class If/For/Return region authoring.
+
+## F-L8-031 — Visual Shader Graph editor
+
+- Layer: L8 — Tools / Visual Studio
+- Parent capability: Editor / VSIX
+- Status: Implemented
+- Verification: TestVerified
+- Intended specification: Docs/Specifications/Shader-Graph.md#visual-studio-editor
+- Stage: vsix.shader-graph (Executable, Headless / VSIX, 1800s)
+- Depends on: F-L7-049
+- Current delta: Editor Factory, WPF node canvas, typed connections, edit commands, properties, diagnostics, save/build, external-change handling, localized templates, and target wizard are implemented.
+- Conformance: Partial
+- Next action: Add dedicated external Subgraph navigation and automated Experimental Instance interaction evidence.

@@ -1,13 +1,13 @@
 # Rendering specification
 
-- Status: Specified
+- Status: Partially implemented
 - Parent index: [Roadmap](../Roadmap.md), [Implementation Status](../Implementation-Status.md)
-- Decisions: [ADR-0052](../Decisions/ADR-0052-Render-Graph-And-Preview-Boundary.md)
+- Decisions: [ADR-0052](../Decisions/ADR-0052-Render-Graph-And-Preview-Boundary.md), [ADR-0058](../Decisions/ADR-0058-Visual-Shader-Graph-And-Artifact-Runtime.md)
 - Target layers: L0, L4, L6, L7, L8
 
 ## Scope and current baseline
 
-This specification defines the target rendering contract. It does not claim that the target Render Graph, artifact compiler, recovery state machine, or shared Preview Host already exists.
+This specification defines the target rendering contract. The Shader Graph compiler and artifact runtime are implemented; the target Render Graph, recovery state machine, and shared Preview Host remain specified work.
 
 The observed baseline is a Windows D3D12 path: `StageRenderer`, `RenderServer`, the WARP triangle stage, directional shadows, HDR, ACES, bloom, and point, spot, area, and emissive lighting/shadow work. Those capabilities are retained as regression baselines. The work tracked here adds graph ownership, artifact provenance, snapshot extraction, cascade/IBL/exposure/AA policy, recovery, and a common preview boundary.
 
@@ -52,10 +52,10 @@ C# scene / runtime state
   -> immutable result / preview snapshot
 ```
 
-HLSL source flows through L7 only:
+Shader Graph source flows through L7 only:
 
 ```text
-HLSL + include graph -> DXC -> DXIL + reflection + dependency hash -> L6 artifact -> Render Server
+canonical Shader Graph -> deterministic HLSL/source map -> DXC -> DXIL + reflection + dependency hash -> L6 artifact -> Render Server
 ```
 
 An artifact mismatch, missing dependency, or invalid reflection layout fails before a GPU command list is submitted. A runtime request must never silently compile source HLSL.
@@ -97,10 +97,10 @@ Rendering performance stages use five warm-up iterations and thirty measured sam
 
 | Feature | Level | Stage | Mode | Timeout | Oracle |
 |---|---:|---|---|---:|---|
-| F-L7-022 | 1 | `rendering.baseline` | Visual / Rendering | 1800s | WARP baseline and no debug-layer errors. |
+| F-L7-022 | 1 | rendering.baseline | Visual / Rendering | 1800s | Executable WARP baseline and no debug-layer errors. |
 | F-L4-004 | 2 | `rendering.render-graph` | Headless / Foundation | 900s | Topology, hazards, barriers, and aliases are valid. |
 | F-L0-008 | 2 | `foundation.d3d12-compute` | Visual / Rendering | 1800s | Compute output equals CPU vector. |
-| F-L6-004 | 3 | `rendering.shader-artifacts` | Headless / Foundation | 900s | DXIL/reflection/provenance reproduce. |
+| F-L6-004 | 3 | rendering.shader-artifacts | Headless / Foundation | 1800s | Executable DXIL/reflection/provenance/runtime boundary. |
 | F-L4-005 | 3 | `rendering.materials` | Visual / Rendering | 1800s | Material and texture result matches reference. |
 | F-L4-006 | 4 | `rendering.visibility` | Visual / Rendering | 1800s | Snapshot/visibility/LOD/instance oracle matches. |
 | F-L4-007 | 4 | `rendering.quality-profiles` | Visual / Rendering | 1800s | Quality profile reference tolerance holds. |
@@ -109,4 +109,9 @@ Rendering performance stages use five warm-up iterations and thirty measured sam
 | F-L7-023 | 6 | `rendering.performance` | Visual / Rendering | 7200s | Thirty-sample performance evidence. |
 | F-L7-024 | 7 | `rendering.release` | Headless / Foundation | 7200s | Scoped release closure and required evidence. |
 
-All rows are currently `Specified` and registered as `NotImplemented` except that the pre-existing baseline remains independently executable through `rendering.warp-triangle`.
+F-L7-022 and F-L6-004 are Implemented with executable stages. F-L0-008 remains Specified and is not a dependency of Shader Artifacts. Remaining rows retain their declared target status.
+
+
+## M0060 artifact-only update
+
+Stage, Model, and Triangle consume fixed-ABI CGESHDR1 artifacts only. Debug artifact changes exchange validated PSOs at a frame boundary and preserve last-known-good on failure; Release loads once and contains no watcher. Canonical Graph and editor contracts are defined in [Shader Graph](Shader-Graph.md).

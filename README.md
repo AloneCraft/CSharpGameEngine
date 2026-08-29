@@ -111,6 +111,7 @@ Viewerのオプションは`triangle`コマンドと同様（`--frames` / `--wid
 - Direct3D 12 Feature Level 11_0 に対応したHardware AdapterまたはWARP
 - 追加のWindows SDKやDirectX Shader Compilerの個別インストールは不要（`TerraFX.Interop.Windows`と
   `Microsoft.Direct3D.DXC`のNuGetパッケージから必要なバイナリ・ヘッダが解決されます）
+- DXC is used by CSharpGameEngine.ShaderGraph.Cli only; shipping D3D12 Runtime loads .cgeshaderartifact and does not deploy or invoke DXC.
 - Debug Layerを使う場合、Windowsの「グラフィックス ツール」オプション機能が無効だと自動的に
   Debug Layerなしで継続します（診断出力にその旨を表示）
 

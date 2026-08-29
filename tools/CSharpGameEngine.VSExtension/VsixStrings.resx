@@ -384,4 +384,94 @@ Discard unsaved edits and reload it?</value></data>
   <data name="InspectorUnknownRowType" xml:space="preserve">
     <value>The Inspector row type is unknown.</value>
   </data>
+  <data name="ShaderGraphUndo" xml:space="preserve">
+    <value>Undo</value>
+  </data>
+  <data name="ShaderGraphRedo" xml:space="preserve">
+    <value>Redo</value>
+  </data>
+  <data name="ShaderGraphSave" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="ShaderGraphCopy" xml:space="preserve">
+    <value>Copy</value>
+  </data>
+  <data name="ShaderGraphPaste" xml:space="preserve">
+    <value>Paste</value>
+  </data>
+  <data name="ShaderGraphDuplicate" xml:space="preserve">
+    <value>Duplicate</value>
+  </data>
+  <data name="ShaderGraphDelete" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="ShaderGraphFrame" xml:space="preserve">
+    <value>Comment / Frame</value>
+  </data>
+  <data name="ShaderGraphEntry" xml:space="preserve">
+    <value>Entry</value>
+  </data>
+  <data name="ShaderGraphOpenHlsl" xml:space="preserve">
+    <value>Open Generated HLSL</value>
+  </data>
+  <data name="ShaderGraphZoom" xml:space="preserve">
+    <value>Zoom</value>
+  </data>
+  <data name="ShaderGraphPalette" xml:space="preserve">
+    <value>Node Palette</value>
+  </data>
+  <data name="ShaderGraphPaletteSearch" xml:space="preserve">
+    <value>Search node types</value>
+  </data>
+  <data name="ShaderGraphPropertyInspector" xml:space="preserve">
+    <value>Property Inspector</value>
+  </data>
+  <data name="ShaderGraphDiagnostics" xml:space="preserve">
+    <value>Diagnostics</value>
+  </data>
+  <data name="ShaderGraphPortSummary" xml:space="preserve">
+    <value>in: {0}</value>
+  </data>
+  <data name="ShaderGraphStatus" xml:space="preserve">
+    <value>{0} | showing {1}/{2} nodes | semantic {3}</value>
+  </data>
+  <data name="ShaderGraphUseSyntaxSource" xml:space="preserve">
+    <value>Use Syntax as connection source</value>
+  </data>
+  <data name="ShaderGraphConnectionSelected" xml:space="preserve">
+    <value>Connection source selected.</value>
+  </data>
+  <data name="ShaderGraphConnectSourceTo" xml:space="preserve">
+    <value>Connect source to {0}</value>
+  </data>
+  <data name="ShaderGraphSelectNode" xml:space="preserve">
+    <value>Select a node.</value>
+  </data>
+  <data name="ShaderGraphSelectedNodes" xml:space="preserve">
+    <value>{0} nodes selected.</value>
+  </data>
+  <data name="ShaderGraphNodeDiagnostic" xml:space="preserve">
+    <value>Shader Graph node {0}: {1}</value>
+  </data>
+  <data name="ShaderGraphReloaded" xml:space="preserve">
+    <value>Shader Graph reloaded after an external change.</value>
+  </data>
+  <data name="ShaderGraphExternalChangePrompt" xml:space="preserve">
+    <value>The Shader Graph changed outside Visual Studio. Reload and discard unsaved editor changes?</value>
+  </data>
+  <data name="ShaderGraphExternalChangeTitle" xml:space="preserve">
+    <value>Shader Graph external change</value>
+  </data>
+  <data name="ShaderGraphExternalKeep" xml:space="preserve">
+    <value>External Shader Graph change kept pending; editor changes were retained.</value>
+  </data>
+  <data name="ShaderGraphWizardTitle" xml:space="preserve">
+    <value>C# Game Engine Shader Graph</value>
+  </data>
+  <data name="ShaderGraphWizardPrompt" xml:space="preserve">
+    <value>Select the fixed shader target ABI:</value>
+  </data>
+  <data name="ShaderGraphWizardCreate" xml:space="preserve">
+    <value>Create</value>
+  </data>
 </root>

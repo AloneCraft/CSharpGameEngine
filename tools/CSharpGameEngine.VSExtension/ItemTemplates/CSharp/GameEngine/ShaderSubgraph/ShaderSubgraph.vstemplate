@@ -1,0 +1,9 @@
+<VSTemplate Version="3.0.0" Type="Item" xmlns="http://schemas.microsoft.com/developer/vstemplate/2005">
+ <TemplateData>
+  <Name Package="{aec17804-e2e4-46e7-b373-de11af816203}" ID="134" />
+  <Description Package="{aec17804-e2e4-46e7-b373-de11af816203}" ID="135" />
+  <ProjectType>CSharp</ProjectType><DefaultName>ShaderSubgraph.cgesubgraph</DefaultName><Icon>__TemplateIcon.ico</Icon><ShowByDefault>true</ShowByDefault><NumberOfParentCategoriesToRollUp>1</NumberOfParentCategoriesToRollUp><TemplateID>CSharpGameEngine.ShaderSubgraph</TemplateID>
+ </TemplateData>
+ <TemplateContent><ProjectItem ReplaceParameters="false" TargetFileName="$safeitemname$.cgesubgraph">ShaderSubgraph.cgesubgraph</ProjectItem></TemplateContent>
+ <WizardExtension><Assembly>CSharpGameEngine.VSExtension</Assembly><FullClassName>CSharpGameEngine.VSExtension.ShaderSubgraphTemplateWizard</FullClassName></WizardExtension>
+</VSTemplate>

@@ -1,6 +1,6 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using CSharpGameEngine.Compiler.Hlsl;
+using CSharpGameEngine.ShaderArtifacts;
 using TerraFX.Interop.DirectX;
 using TerraFX.Interop.Windows;
 using static TerraFX.Interop.DirectX.D3D_PRIMITIVE_TOPOLOGY;
@@ -64,6 +64,8 @@ public sealed unsafe class TriangleRenderer:IDisposable {
     private int Height;
     private bool SizeIsZero;
     private bool Disposed;
+    private string ShaderArtifactPath=string.Empty;
+    private ShaderArtifactMonitor?ShaderArtifactMonitor;
 
     private D3D12_VIEWPORT Viewport;
     private RECT ScissorRect;
@@ -80,14 +82,18 @@ public sealed unsafe class TriangleRenderer:IDisposable {
 
     public int ErrorOrWorseMessageCount=> this.Device?.ErrorOrWorseMessageCount??0;
 
-    public bool ShaderCompilationSucceeded { get;private set;}
+    public static bool ShaderHotReloadEnabled=>ShaderArtifactMonitor.IsEnabled;
 
-    public IReadOnlyList<HlslDiagnostic>ShaderDiagnostics { get;private set;}=[];
+    public bool ShaderArtifactLoaded { get;private set;}
+
+    public string ShaderSemanticHash { get;private set;}=string.Empty;
+
+    public IReadOnlyList<string>ShaderArtifactDiagnostics { get;private set;}=[];
 
     public uint FramesRendered { get;private set;}
 
-    public static TriangleRenderer Create(nint Hwnd,int Width,int Height,GraphicsDeviceOptions DeviceOptions,string ShaderPath){
-        ArgumentNullException.ThrowIfNull(ShaderPath);
+    public static TriangleRenderer Create(nint Hwnd,int Width,int Height,GraphicsDeviceOptions DeviceOptions,string ShaderArtifactPath){
+        ArgumentNullException.ThrowIfNull(ShaderArtifactPath);
         if(Width<=0||Height<=0){
             throw new ArgumentOutOfRangeException(nameof(Width),"Initial width/height must both be positive.");
         }
@@ -99,7 +105,7 @@ public sealed unsafe class TriangleRenderer:IDisposable {
 
         var Completed=false;
         try {
-            Renderer.Initialize((HWND)Hwnd,Width,Height,DeviceOptions,ShaderPath);
+            Renderer.Initialize((HWND)Hwnd,Width,Height,DeviceOptions,ShaderArtifactPath);
             Completed=true;
             return Renderer;
         } finally {
@@ -112,7 +118,7 @@ public sealed unsafe class TriangleRenderer:IDisposable {
     private TriangleRenderer(){
     }
 
-    private void Initialize(HWND Hwnd,int Width,int Height,GraphicsDeviceOptions DeviceOptions,string ShaderPath){
+    private void Initialize(HWND Hwnd,int Width,int Height,GraphicsDeviceOptions DeviceOptions,string ShaderArtifactPath){
         this.Device=GraphicsDevice.Create(DeviceOptions);
 
         this.CreateSwapChain(Hwnd,Width,Height);
@@ -145,9 +151,11 @@ public sealed unsafe class TriangleRenderer:IDisposable {
         this.FrameIndex= this.SwapChain->GetCurrentBackBufferIndex();
         this.FenceValues[this.FrameIndex]=1;
 
-        this.CompileShaders(ShaderPath);
+        this.ShaderArtifactPath=Path.GetFullPath(ShaderArtifactPath);
+        this.LoadShaderArtifact(this.ShaderArtifactPath);
         this.CreateRootSignature();
         this.CreatePipelineState();
+        this.ShaderArtifactMonitor=new ShaderArtifactMonitor(this.ShaderArtifactPath);
         this.CreateVertexBuffer();
         this.UpdateViewportAndScissor(Width,Height);
     }
@@ -210,38 +218,50 @@ public sealed unsafe class TriangleRenderer:IDisposable {
         }
     }
 
-    private void CompileShaders(string ShaderPath){
-        var DebugShaders=false;
-#if DEBUG
-        DebugShaders = true;
-#endif
-
-        var Vs=HlslCompiler.Compile(new HlslCompileRequest {
-                                                               FilePath=ShaderPath,
-                                                               EntryPoint="VSMain",
-                                                               TargetProfile="vs_6_0",
-                                                               EnableDebugInfo=DebugShaders,
-                                                           });
-
-        var Ps=HlslCompiler.Compile(new HlslCompileRequest {
-                                                               FilePath=ShaderPath,
-                                                               EntryPoint="PSMain",
-                                                               TargetProfile="ps_6_0",
-                                                               EnableDebugInfo=DebugShaders,
-                                                           });
-
-        this.ShaderCompilationSucceeded=Vs.Success&&Ps.Success;
-        this.ShaderDiagnostics=[.. Vs.Diagnostics,.. Ps.Diagnostics];
-
-        if(!this.ShaderCompilationSucceeded){
-            var Details=string.Join(Environment.NewLine, this.ShaderDiagnostics);
-            throw new InvalidOperationException($"HLSL shader compilation failed for '{ShaderPath}':{Environment.NewLine}{Details}");
+private void LoadShaderArtifact(string ShaderArtifactPath){
+        if(!ShaderArtifactRuntime.TryLoad(ShaderArtifactPath,ShaderArtifactTargetKind.Triangle,out var Package,out var Error)||Package is null){
+            this.ShaderArtifactLoaded=false;
+            this.ShaderArtifactDiagnostics=[Error];
+            throw new InvalidOperationException($"Shader artifact load failed for '{ShaderArtifactPath}':{Environment.NewLine}{Error}");
         }
-
-        this.VertexShaderBytecode=Vs.Bytecode;
-        this.PixelShaderBytecode=Ps.Bytecode;
+        this.VertexShaderBytecode=Package.GetBytecode("VSMain");
+        this.PixelShaderBytecode=Package.GetBytecode("PSMain");
+        this.ShaderArtifactLoaded=true;
+        this.ShaderSemanticHash=Package.Document.SemanticHash;
+        this.ShaderArtifactDiagnostics=[];
     }
-
+    private void TryReloadShaderArtifact(){
+        if(this.ShaderArtifactMonitor?.ConsumeReloadRequest()!=true){
+            return;
+        }
+        if(!ShaderArtifactRuntime.TryLoad(this.ShaderArtifactPath,ShaderArtifactTargetKind.Triangle,out var Package,out var Error)||Package is null){
+            this.ShaderArtifactDiagnostics=[Error];
+            return;
+        }
+        var OldVertexShader=this.VertexShaderBytecode;
+        var OldPixelShader=this.PixelShaderBytecode;
+        var OldPipelineState=this.PipelineState;
+        try{
+            this.VertexShaderBytecode=Package.GetBytecode("VSMain");
+            this.PixelShaderBytecode=Package.GetBytecode("PSMain");
+            this.CreatePipelineState();
+            this.WaitForGpuIdle();
+            if(OldPipelineState!=null){
+                _=OldPipelineState->Release();
+            }
+            this.ShaderArtifactLoaded=true;
+            this.ShaderSemanticHash=Package.Document.SemanticHash;
+            this.ShaderArtifactDiagnostics=[];
+        }catch(Exception Exception){
+            this.VertexShaderBytecode=OldVertexShader;
+            this.PixelShaderBytecode=OldPixelShader;
+            if(this.PipelineState!=OldPipelineState){
+                _=this.PipelineState->Release();
+                this.PipelineState=OldPipelineState;
+            }
+            this.ShaderArtifactDiagnostics=[Exception.Message];
+        }
+    }
     private byte[]VertexShaderBytecode=[];
     private byte[]PixelShaderBytecode=[];
 
@@ -411,6 +431,7 @@ public sealed unsafe class TriangleRenderer:IDisposable {
     }
 
     public void RenderFrame(bool CaptureForVerification=false){
+        this.TryReloadShaderArtifact();
         if(this.SizeIsZero){
             return;
         }
@@ -565,6 +586,8 @@ public sealed unsafe class TriangleRenderer:IDisposable {
         }
 
         this.Disposed=true;
+        this.ShaderArtifactMonitor?.Dispose();
+        this.ShaderArtifactMonitor=null;
 
         this.WaitForGpuIdle();
 

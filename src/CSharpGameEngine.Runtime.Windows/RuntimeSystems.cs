@@ -189,7 +189,7 @@ internal struct LevelLoad:ISystem {
             this.PendingPrimitives??=[]);
         var Renderer=StageRenderer.Create(
                                           Window.Handle,Window.ClientWidth,Window.ClientHeight,new GraphicsDeviceOptions(),
-                                          Path.Combine(AppContext.BaseDirectory,Level.ShaderPath),Scene.Meshes,Scene.Materials,Scene.Objects);
+                                          Path.Combine(AppContext.BaseDirectory,Level.ShaderArtifactPath),Scene.Meshes,Scene.Materials,Scene.Objects);
         Window.Resized+=(Width,Height)=>Renderer.Resize(Width,Height);
 
         var Camera=RenderCamera.CreateFirstPerson(Vector3.Zero);

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using CSharpGameEngine.Compiler.Hlsl;
+using CSharpGameEngine.ShaderArtifacts;
 using TerraFX.Interop.DirectX;
 using TerraFX.Interop.Windows;
 using static TerraFX.Interop.DirectX.D3D_PRIMITIVE_TOPOLOGY;
@@ -71,7 +71,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     /// <summary>D3D12 constant buffer views must start at a 256-byte aligned GPU address.</summary>
     private const uint ConstantAlignment=512;
 
-    /// <summary>Maximum additive directional lights accepted per frame. Must match Stage.hlsl.</summary>
+    /// <summary>Maximum additive directional lights accepted per frame. Must match Stage shader ABI.</summary>
     public const int MaxDirectionalLights=4;
 
     /// <summary>Maximum local lights accepted per frame across point and spot submissions.</summary>
@@ -100,12 +100,12 @@ public sealed unsafe class StageRenderer:IDisposable {
     public const int MaxAreaAndEmissiveShadowProjections=
         PhysicalShadowAtlasPlan.AreaAndEmissiveTileBudget;
 
-    private const uint DirectionalLightStride=32; // 2 float4 - see Stage.hlsl's DirectionalLightData
-    private const uint LocalLightStride=96; // 6 float4 - see Stage.hlsl's LocalLightData
-    private const uint PointShadowProjectionStride=80; // float4x4 + float4 - see Stage.hlsl
-    private const uint SpotShadowProjectionStride=80; // float4x4 + float4 - see Stage.hlsl
-    private const uint AreaShadowMetadataStride=16; // one float4 - see Stage.hlsl
-    private const uint AreaShadowProjectionStride=80; // float4x4 + float4 - see Stage.hlsl
+    private const uint DirectionalLightStride=32; // 2 float4 - see Stage shader ABI's DirectionalLightData
+    private const uint LocalLightStride=96; // 6 float4 - see Stage shader ABI's LocalLightData
+    private const uint PointShadowProjectionStride=80; // float4x4 + float4 - see Stage shader ABI
+    private const uint SpotShadowProjectionStride=80; // float4x4 + float4 - see Stage shader ABI
+    private const uint AreaShadowMetadataStride=16; // one float4 - see Stage shader ABI
+    private const uint AreaShadowProjectionStride=80; // float4x4 + float4 - see Stage shader ABI
     private const int PointShadowProjectionConstantSlotOffset=1+MaxSpotShadowProjections;
     private const int AreaShadowProjectionConstantSlotOffset=
         PointShadowProjectionConstantSlotOffset+MaxPointShadowProjections;
@@ -114,7 +114,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     private const uint ForwardPlusTileRecordUIntCount=1u+(uint)MaxLightsPerForwardPlusTile;
     private const uint ForwardPlusTileRecordStride=sizeof(uint)*ForwardPlusTileRecordUIntCount;
 
-    // FrameCB (b0) byte layout - see Stage.hlsl. Local lights and Forward+ tile lists live in
+    // FrameCB (b0) byte layout - see Stage shader ABI. Local lights and Forward+ tile lists live in
     // root-SRV StructuredBuffers (t5/t6); only their per-frame counts/grid remain here.
     private const uint FrameViewProjectionOffset=0;   // float4x4, 64 bytes
     private const uint FrameCameraPositionOffset=64;  // float4 (xyz used)
@@ -138,7 +138,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     /// </summary>
     private const uint FrameConstantsStride=((FrameConstantsSize+255u)/256u)*256u;
 
-    // ObjectCB (b1) byte layout - see Stage.hlsl.
+    // ObjectCB (b1) byte layout - see Stage shader ABI.
     private const uint ObjectWorldOffset=0;            // float4x4, 64 bytes
     private const uint ObjectBaseColorFactorOffset=64; // float4
     private const uint ObjectMaterialParamsOffset=80;  // float4: x=roughness, y=metallic
@@ -225,7 +225,7 @@ public sealed unsafe class StageRenderer:IDisposable {
         public float ScreenContribution { get; }=ScreenContribution;
     }
 
-    /// <summary>Matches Stage.hlsl's 6-float4 LocalLightData exactly.</summary>
+    /// <summary>Matches Stage shader ABI's 6-float4 LocalLightData exactly.</summary>
     private struct LocalLightGpuData {
         public Vector4 PositionAndRange;
         public Vector4 DirectionAndInnerCos;
@@ -235,24 +235,24 @@ public sealed unsafe class StageRenderer:IDisposable {
         public Vector4 UpAndHalfHeight;
     }
 
-    /// <summary>Matches Stage.hlsl's matrix + PhysicalShadowAtlasPlan UV rectangle record for a Point face.</summary>
+    /// <summary>Matches Stage shader ABI's matrix + PhysicalShadowAtlasPlan UV rectangle record for a Point face.</summary>
     private struct PointShadowProjectionGpuData {
         public Matrix4x4 ViewProjection;
         public Vector4 UvScaleOffset;
     }
 
-    /// <summary>Matches Stage.hlsl's matrix + PhysicalShadowAtlasPlan UV rectangle record.</summary>
+    /// <summary>Matches Stage shader ABI's matrix + PhysicalShadowAtlasPlan UV rectangle record.</summary>
     private struct SpotShadowProjectionGpuData {
         public Matrix4x4 ViewProjection;
         public Vector4 UvScaleOffset;
     }
 
-    /// <summary>Matches Stage.hlsl's Area/Emissive PCSS source radius and clip-distance record at t9.</summary>
+    /// <summary>Matches Stage shader ABI's Area/Emissive PCSS source radius and clip-distance record at t9.</summary>
     private struct AreaShadowMetadataGpuData {
         public Vector4 SourceRadiusAndPadding;
     }
 
-    /// <summary>Matches Stage.hlsl's independent Area/Emissive center-projection record at t10.</summary>
+    /// <summary>Matches Stage shader ABI's independent Area/Emissive center-projection record at t10.</summary>
     private struct AreaShadowProjectionGpuData {
         public Matrix4x4 ViewProjection;
         public Vector4 UvScaleOffset;
@@ -389,6 +389,8 @@ public sealed unsafe class StageRenderer:IDisposable {
     private int Height;
     private bool SizeIsZero;
     private bool Disposed;
+    private string ShaderArtifactPath=string.Empty;
+    private ShaderArtifactMonitor?ShaderArtifactMonitor;
 
     private D3D12_VIEWPORT Viewport;
     private RECT ScissorRect;
@@ -407,18 +409,22 @@ public sealed unsafe class StageRenderer:IDisposable {
 
     public int ErrorOrWorseMessageCount=> this.Device?.ErrorOrWorseMessageCount??0;
 
-    public bool ShaderCompilationSucceeded { get;private set;}
+    public static bool ShaderHotReloadEnabled=>ShaderArtifactMonitor.IsEnabled;
 
-    public IReadOnlyList<HlslDiagnostic>ShaderDiagnostics { get;private set;}=[];
+    public bool ShaderArtifactLoaded { get;private set;}
+
+    public string ShaderSemanticHash { get;private set;}=string.Empty;
+
+    public IReadOnlyList<string>ShaderArtifactDiagnostics { get;private set;}=[];
 
     public uint FramesRendered { get;private set;}
 
     public PixelReadbackResult?LastCapturedFrame { get;private set;}
 
     public static StageRenderer Create(
-        nint Hwnd,int Width,int Height,GraphicsDeviceOptions DeviceOptions,string ShaderPath,
+        nint Hwnd,int Width,int Height,GraphicsDeviceOptions DeviceOptions,string ShaderArtifactPath,
         IReadOnlyList<StageMeshCreateInfo>Meshes,IReadOnlyList<StageMaterialCreateInfo>Materials,IReadOnlyList<StageObjectCreateInfo>Objects){
-        ArgumentNullException.ThrowIfNull(ShaderPath);
+        ArgumentNullException.ThrowIfNull(ShaderArtifactPath);
         ArgumentNullException.ThrowIfNull(Meshes);
         ArgumentNullException.ThrowIfNull(Materials);
         ArgumentNullException.ThrowIfNull(Objects);
@@ -460,7 +466,7 @@ public sealed unsafe class StageRenderer:IDisposable {
 
         var Completed=false;
         try {
-            Renderer.Initialize((HWND)Hwnd,Width,Height,DeviceOptions,ShaderPath,Meshes,Materials,Objects);
+            Renderer.Initialize((HWND)Hwnd,Width,Height,DeviceOptions,ShaderArtifactPath,Meshes,Materials,Objects);
             Completed=true;
             return Renderer;
         } finally {
@@ -472,7 +478,7 @@ public sealed unsafe class StageRenderer:IDisposable {
 
     /// <summary>Legacy adapter (pre-ADR-0018): one untextured solid-color mesh per object, exactly reproducing the old 1:1 mesh/material/object indexing so existing callers (and <c>StageGpuIntegrationTests</c>) keep working unchanged. Synthesized UVs/tangents never matter visually here since every material falls back to its 1x1 default textures.</summary>
     public static StageRenderer Create(
-        nint Hwnd,int Width,int Height,GraphicsDeviceOptions DeviceOptions,string ShaderPath,
+        nint Hwnd,int Width,int Height,GraphicsDeviceOptions DeviceOptions,string ShaderArtifactPath,
         IReadOnlyList<MeshCreateInfo>Meshes){
         ArgumentNullException.ThrowIfNull(Meshes);
 
@@ -494,7 +500,7 @@ public sealed unsafe class StageRenderer:IDisposable {
             StageObjects[I]=new StageObjectCreateInfo { MeshIndex=I,MaterialIndex=I };
         }
 
-        return Create(Hwnd,Width,Height,DeviceOptions,ShaderPath,StageMeshes,StageMaterials,StageObjects);
+        return Create(Hwnd,Width,Height,DeviceOptions,ShaderArtifactPath,StageMeshes,StageMaterials,StageObjects);
     }
 
     /// <summary>An arbitrary unit tangent perpendicular to <paramref name="Normal"/> - correct for TBN orthonormality even though it isn't aligned to any real UV direction, which is fine when the bound normal texture is always the flat 1x1 fallback (see <see cref="MaterialTextureFormat"/> fallback images). Internal (not private) so <see cref="CSharpGameEngine.Runtime.Windows.RenderServer"/> can reuse the same untextured-mesh UV/tangent synthesis instead of duplicating it.</summary>
@@ -507,7 +513,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     private StageRenderer(){
     }
 
-    private void Initialize(HWND Hwnd,int Width,int Height,GraphicsDeviceOptions DeviceOptions,string ShaderPath,
+    private void Initialize(HWND Hwnd,int Width,int Height,GraphicsDeviceOptions DeviceOptions,string ShaderArtifactPath,
         IReadOnlyList<StageMeshCreateInfo>Meshes,IReadOnlyList<StageMaterialCreateInfo>Materials,IReadOnlyList<StageObjectCreateInfo>Objects){
         this.Device=GraphicsDevice.Create(DeviceOptions);
 
@@ -545,13 +551,15 @@ public sealed unsafe class StageRenderer:IDisposable {
         this.FrameIndex= this.SwapChain->GetCurrentBackBufferIndex();
         this.FenceValues[this.FrameIndex]=1;
 
-        this.CompileShaders(ShaderPath);
+        this.ShaderArtifactPath=Path.GetFullPath(ShaderArtifactPath);
+        this.LoadShaderArtifact(this.ShaderArtifactPath);
         this.CreateRootSignature();
         this.CreateShadowRootSignature();
         this.CreatePostProcessRootSignature();
         this.CreatePipelineState();
         this.CreateShadowPipelineState();
         this.CreatePostProcessPipelineState();
+        this.ShaderArtifactMonitor=new ShaderArtifactMonitor(this.ShaderArtifactPath);
         this.CreateMeshBuffers(Meshes);
         this.CreateMaterialResources(Materials);
         this.CreateObjectMappings(Objects);
@@ -700,62 +708,64 @@ public sealed unsafe class StageRenderer:IDisposable {
         this.ShadowAtlas=Resource;
     }
 
-    private void CompileShaders(string ShaderPath){
-        var DebugShaders=false;
-#if DEBUG
-        DebugShaders = true;
-#endif
-
-        HlslCompileResult Vs=HlslCompiler.Compile(new HlslCompileRequest {
-            FilePath=ShaderPath,
-            EntryPoint="VSMain",
-            TargetProfile="vs_6_0",
-            EnableDebugInfo=DebugShaders,
-        });
-
-        HlslCompileResult Ps=HlslCompiler.Compile(new HlslCompileRequest {
-            FilePath=ShaderPath,
-            EntryPoint="PSMain",
-            TargetProfile="ps_6_0",
-            EnableDebugInfo=DebugShaders,
-        });
-
-        HlslCompileResult FullscreenVs=HlslCompiler.Compile(new HlslCompileRequest {
-            FilePath=ShaderPath,
-            EntryPoint="FullscreenVS",
-            TargetProfile="vs_6_0",
-            EnableDebugInfo=DebugShaders,
-        });
-
-        HlslCompileResult PostPs=HlslCompiler.Compile(new HlslCompileRequest {
-            FilePath=ShaderPath,
-            EntryPoint="PostProcessPS",
-            TargetProfile="ps_6_0",
-            EnableDebugInfo=DebugShaders,
-        });
-
-        HlslCompileResult ShadowVs=HlslCompiler.Compile(new HlslCompileRequest {
-            FilePath=ShaderPath,
-            EntryPoint="VSShadowMain",
-            TargetProfile="vs_6_0",
-            EnableDebugInfo=DebugShaders,
-        });
-
-        this.ShaderCompilationSucceeded=Vs.Success&&Ps.Success&&FullscreenVs.Success&&PostPs.Success&&ShadowVs.Success;
-        this.ShaderDiagnostics=[.. Vs.Diagnostics,.. Ps.Diagnostics,.. FullscreenVs.Diagnostics,.. PostPs.Diagnostics,.. ShadowVs.Diagnostics];
-
-        if(!this.ShaderCompilationSucceeded){
-            var Details=string.Join(Environment.NewLine, this.ShaderDiagnostics);
-            throw new InvalidOperationException($"HLSL shader compilation failed for '{ShaderPath}':{Environment.NewLine}{Details}");
+private void LoadShaderArtifact(string ShaderArtifactPath){
+        if(!ShaderArtifactRuntime.TryLoad(ShaderArtifactPath,ShaderArtifactTargetKind.Stage,out var Package,out var Error)||Package is null){
+            this.ShaderArtifactLoaded=false;
+            this.ShaderArtifactDiagnostics=[Error];
+            throw new InvalidOperationException($"Shader artifact load failed for '{ShaderArtifactPath}':{Environment.NewLine}{Error}");
         }
-
-        this.VertexShaderBytecode=Vs.Bytecode;
-        this.PixelShaderBytecode=Ps.Bytecode;
-        this.FullscreenVertexShaderBytecode=FullscreenVs.Bytecode;
-        this.PostProcessPixelShaderBytecode=PostPs.Bytecode;
-        this.ShadowVertexShaderBytecode=ShadowVs.Bytecode;
+        this.ApplyShaderArtifact(Package);
+        this.ShaderArtifactLoaded=true;
+        this.ShaderSemanticHash=Package.Document.SemanticHash;
+        this.ShaderArtifactDiagnostics=[];
     }
-
+    private void ApplyShaderArtifact(ShaderArtifactPackage Package){
+        this.VertexShaderBytecode=Package.GetBytecode("VSMain");
+        this.PixelShaderBytecode=Package.GetBytecode("PSMain");
+        this.FullscreenVertexShaderBytecode=Package.GetBytecode("FullscreenVS");
+        this.PostProcessPixelShaderBytecode=Package.GetBytecode("PostProcessPS");
+        this.ShadowVertexShaderBytecode=Package.GetBytecode("VSShadowMain");
+    }
+    private void TryReloadShaderArtifact(){
+        if(this.ShaderArtifactMonitor?.ConsumeReloadRequest()!=true){
+            return;
+        }
+        if(!ShaderArtifactRuntime.TryLoad(this.ShaderArtifactPath,ShaderArtifactTargetKind.Stage,out var Package,out var Error)||Package is null){
+            this.ShaderArtifactDiagnostics=[Error];
+            return;
+        }
+        var OldVertexShader=this.VertexShaderBytecode;
+        var OldPixelShader=this.PixelShaderBytecode;
+        var OldFullscreenVertexShader=this.FullscreenVertexShaderBytecode;
+        var OldPostProcessPixelShader=this.PostProcessPixelShaderBytecode;
+        var OldShadowVertexShader=this.ShadowVertexShaderBytecode;
+        var OldPipelineState=this.PipelineState;
+        var OldShadowPipelineState=this.ShadowPipelineState;
+        var OldPostProcessPipelineState=this.PostProcessPipelineState;
+        try{
+            this.ApplyShaderArtifact(Package);
+            this.CreatePipelineState();
+            this.CreateShadowPipelineState();
+            this.CreatePostProcessPipelineState();
+            this.WaitForGpuIdle();
+            if(OldPipelineState!=null){ _=OldPipelineState->Release(); }
+            if(OldShadowPipelineState!=null){ _=OldShadowPipelineState->Release(); }
+            if(OldPostProcessPipelineState!=null){ _=OldPostProcessPipelineState->Release(); }
+            this.ShaderArtifactLoaded=true;
+            this.ShaderSemanticHash=Package.Document.SemanticHash;
+            this.ShaderArtifactDiagnostics=[];
+        }catch(Exception Exception){
+            this.VertexShaderBytecode=OldVertexShader;
+            this.PixelShaderBytecode=OldPixelShader;
+            this.FullscreenVertexShaderBytecode=OldFullscreenVertexShader;
+            this.PostProcessPixelShaderBytecode=OldPostProcessPixelShader;
+            this.ShadowVertexShaderBytecode=OldShadowVertexShader;
+            if(this.PipelineState!=OldPipelineState){ _=this.PipelineState->Release();this.PipelineState=OldPipelineState; }
+            if(this.ShadowPipelineState!=OldShadowPipelineState){ _=this.ShadowPipelineState->Release();this.ShadowPipelineState=OldShadowPipelineState; }
+            if(this.PostProcessPipelineState!=OldPostProcessPipelineState){ _=this.PostProcessPipelineState->Release();this.PostProcessPipelineState=OldPostProcessPipelineState; }
+            this.ShaderArtifactDiagnostics=[Exception.Message];
+        }
+    }
     private byte[]VertexShaderBytecode=[];
     private byte[]PixelShaderBytecode=[];
 
@@ -1738,7 +1748,7 @@ public sealed unsafe class StageRenderer:IDisposable {
         Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameCameraPositionOffset,&Packed,(uint)sizeof(Vector4));
     }
 
-    /// <summary>Writes Stage.hlsl's DirectionalLightData[index] (direction+bias, color*intensity).</summary>
+    /// <summary>Writes Stage shader ABI's DirectionalLightData[index] (direction+bias, color*intensity).</summary>
     private void WriteDirectionalLight(
         uint FrameIndex,int Index,Vector3 DirectionTowardLight,Vector3 ColorTimesIntensity,
         float ShadowBiasMeters){
@@ -2535,6 +2545,7 @@ public sealed unsafe class StageRenderer:IDisposable {
 
     public void RenderFrame(bool CaptureForVerification=false){
         this.ThrowIfDisposed();
+        this.TryReloadShaderArtifact();
         if(this.SizeIsZero){
             return;
         }
@@ -2763,6 +2774,8 @@ public sealed unsafe class StageRenderer:IDisposable {
         }
 
         this.Disposed=true;
+        this.ShaderArtifactMonitor?.Dispose();
+        this.ShaderArtifactMonitor=null;
 
         this.WaitForGpuIdle();
 

@@ -29,6 +29,7 @@
          derives from the real abstract class; it never talks to an actual running VS). -->
     <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" />
     <PackageReference Include="Microsoft.VisualStudio.Sdk.TestFramework" Version="17.11.66" />
+    <PackageReference Include="Microsoft.VisualStudio.TemplateWizardInterface" Version="17.10.40170" />
   </ItemGroup>
 
   <!--
@@ -62,6 +63,8 @@
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\ItemTemplates\CSharp\GameEngine\SceneFile\**\*"
           Link="TestAssets\ItemTemplates\CSharp\GameEngine\SceneFile\%(RecursiveDir)%(Filename)%(Extension)"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\CSharpGameEngine.VSExtension\ItemTemplates\CSharp\GameEngine\ShaderGraph\**\*" Link="TestAssets\ItemTemplates\CSharp\GameEngine\ShaderGraph\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\CSharpGameEngine.VSExtension\ItemTemplates\CSharp\GameEngine\ShaderSubgraph\**\*" Link="TestAssets\ItemTemplates\CSharp\GameEngine\ShaderSubgraph\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
 
     <!-- M0051 Step 1-7: リネージ判定が SceneDiffEngine へ逆戻りしないことを検査するためのソース
          (SceneLineageArchitectureTests)。Step 1-6 はその形で実機の高速経路を丸ごと殺した。 -->

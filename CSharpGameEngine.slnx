@@ -31,6 +31,7 @@
     <File Path="Docs/Specifications/Ecs-Runtime.md" />
     <File Path="Docs/Specifications/Audio-Input-Platform.md" />
     <File Path="Docs/Specifications/Testing-CI-Release.md" />
+    <File Path="Docs/Specifications/Shader-Graph.md" />
   </Folder>
   <Folder Name="/Docs/Decisions/">
     <File Path="Docs/Decisions/ADR-0001-Layered-Architecture.md" />
@@ -83,6 +84,7 @@
     <File Path="Docs/Decisions/ADR-0055-Static-Ecs-VNext-And-Deterministic-Execution.md" />
     <File Path="Docs/Decisions/ADR-0056-Platform-Input-And-Audio-Server-Boundaries.md" />
     <File Path="Docs/Decisions/ADR-0057-Level-Gated-Verification-And-Release-Evidence.md" />
+    <File Path="Docs/Decisions/ADR-0058-Visual-Shader-Graph-And-Artifact-Runtime.md" />
   </Folder>
   <Folder Name="/Docs/Milestones/">
     <File Path="Docs/Milestones/M0001-CodeAnalysis-Foundation.md" />
@@ -108,17 +110,20 @@
     <File Path="Docs/Milestones/M0030-SceneView-Gizmo-Transform-Editing.md" />
     <File Path="Docs/Milestones/M0031-Inspector-Member-Editing.md" />
     <File Path="Docs/Milestones/M0055-Deterministic-Physics-Foundation.md" />
+    <File Path="Docs/Milestones/M0060-Visual-Shader-Graph.md" />
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
     <File Path="Directory.Build.props" />
+    <File Path="Directory.Build.targets" />
+    <File Path="build/CSharpGameEngine.ShaderGraph.targets" />
     <File Path="global.json" />
     <File Path="README.md" />
   </Folder>
   <Folder Name="/assets/">
-    <File Path="assets/Shaders/Triangle.hlsl" />
-    <File Path="assets/Shaders/Model.hlsl" />
-    <File Path="assets/Shaders/Stage.hlsl" />
+    <File Path="assets/Shaders/Triangle.cgeshadergraph" />
+    <File Path="assets/Shaders/Model.cgeshadergraph" />
+    <File Path="assets/Shaders/Stage.cgeshadergraph" />
     <File Path="assets/TestFixtures/Gltf/Box.glb" />
     <File Path="assets/TestFixtures/Gltf/BoxTextured.glb" />
     <File Path="assets/TestFixtures/Gltf/Triangle.gltf" />
@@ -136,6 +141,8 @@
     <Project Path="src/CSharpGameEngine.Import/CSharpGameEngine.Import.csproj" />
     <Project Path="src/CSharpGameEngine.SceneModel/CSharpGameEngine.SceneModel.csproj" />
     <Project Path="src/CSharpGameEngine.Windows/CSharpGameEngine.Windows.csproj" />
+    <Project Path="src/CSharpGameEngine.ShaderGraph/CSharpGameEngine.ShaderGraph.csproj" />
+    <Project Path="src/CSharpGameEngine.ShaderArtifacts/CSharpGameEngine.ShaderArtifacts.csproj" />
     <Project Path="src/CSharpGameEngine.Runtime.Simulation/CSharpGameEngine.Runtime.Simulation.shproj" />
     <File Path="src/CSharpGameEngine.Runtime.Simulation/CSharpGameEngine.Runtime.Simulation.projitems" />
     <Project Path="src/CSharpGameEngine.Runtime.Physics/CSharpGameEngine.Runtime.Physics.shproj" />
@@ -170,6 +177,9 @@
     <Project Path="tests/CSharpGameEngine.Import.Tests/CSharpGameEngine.Import.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.SceneModel.Tests/CSharpGameEngine.SceneModel.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Windows.Tests/CSharpGameEngine.Windows.Tests.csproj" />
+    <Project Path="tests/CSharpGameEngine.ShaderGraph.Tests/CSharpGameEngine.ShaderGraph.Tests.csproj" />
+    <Project Path="tests/CSharpGameEngine.ShaderArtifacts.Tests/CSharpGameEngine.ShaderArtifacts.Tests.csproj" />
+    <Project Path="tests/CSharpGameEngine.ShaderGraph.Cli.Tests/CSharpGameEngine.ShaderGraph.Cli.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <File Path="tools/UnrealExport/export_lvl_firstperson.py" />
@@ -185,6 +195,7 @@
     <Project Path="tools/CSharpGameEngine.Import.Gltf.Cli/CSharpGameEngine.Import.Gltf.Cli.csproj" />
     <Project Path="tools/CSharpGameEngine.Primitive.Cli/CSharpGameEngine.Primitive.Cli.csproj" />
     <Project Path="tools/CSharpGameEngine.Physics.Cli/CSharpGameEngine.Physics.Cli.csproj" />
+    <Project Path="tools/CSharpGameEngine.ShaderGraph.Cli/CSharpGameEngine.ShaderGraph.Cli.csproj" />
     <Project Path="tools/CSharpGameEngine.Unreal.SceneImporter/CSharpGameEngine.Unreal.SceneImporter.csproj" />
     <Project Path="tools/CSharpGameEngine.Ecs.Benchmarks/CSharpGameEngine.Ecs.Benchmarks.csproj" />
     <Project Path="tools/CSharpGameEngine.EditorPreview.Host/CSharpGameEngine.EditorPreview.Host.csproj" />

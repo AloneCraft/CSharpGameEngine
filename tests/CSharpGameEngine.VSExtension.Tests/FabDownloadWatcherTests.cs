@@ -12,6 +12,7 @@ namespace CSharpGameEngine.VSExtension.Tests;
 /// Downloads folder (ADR-0011) - live VS UI automation proved unreliable for verifying this in a
 /// running Exp instance, but the watcher itself has no VS dependency, so it's fully testable here.
 /// </summary>
+[Collection(FileSystemWatcherTestCollection.Name)]
 public sealed class FabDownloadWatcherTests:IDisposable {
     private readonly string WatchedFolder;
     private readonly string DestinationFolder;

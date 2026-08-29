@@ -1,5 +1,4 @@
 using System.Numerics;
-using CSharpGameEngine.Compiler.Hlsl;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Platform.Windows;
 using FbxImporter=CSharpGameEngine.Import.Fbx.FbxImporter;
@@ -87,7 +86,7 @@ static int RunViewer(string[]Args){
 
     Console.WriteLine($"Mesh: {Positions.Count} vertices, {Indices.Count/3} triangles, bounds radius={BoundsRadius:F3}");
 
-    var ShaderPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Model.hlsl");
+    var ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Model.cgeshaderartifact");
     Console.WriteLine($"Mode: {(Options.Hidden?"hidden":"windowed")}, frames={(Options.Frames is int F?F.ToString():"until closed")}, verify={Options.Verify}");
 
     using Win32Window Window=new(new Win32WindowOptions {
@@ -106,7 +105,7 @@ static int RunViewer(string[]Args){
     ModelRenderer Renderer;
     try {
         Renderer=ModelRenderer.Create(
-            Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
+            Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderArtifactPath,
             Positions,Normals,Uvs,Indices,BaseColorTextureBytes,BaseColorFactor,
             BoundsCenter,BoundsRadius);
     } catch(Exception Ex){
@@ -120,8 +119,8 @@ static int RunViewer(string[]Args){
     Console.WriteLine($"Feature level: {GraphicsDevice.RequiredFeatureLevel}");
     Console.WriteLine($"Back buffer format: {ModelRenderer.BackBufferFormat}, depth format: {ModelRenderer.DepthBufferFormat}, {Options.Width}x{Options.Height}");
     Console.WriteLine($"Debug layer: {(Renderer.DebugLayerEnabled?"enabled":"disabled")}{(Renderer.GpuBasedValidationEnabled?" (+GPU-based validation)":string.Empty)}");
-    Console.WriteLine($"Shader compilation: {(Renderer.ShaderCompilationSucceeded?"OK":"FAILED")} ({Renderer.ShaderDiagnostics.Count} diagnostic(s))");
-    foreach(var Diagnostic in Renderer.ShaderDiagnostics){
+    Console.WriteLine($"Shader compilation: {(Renderer.ShaderArtifactLoaded?"OK":"FAILED")} ({Renderer.ShaderArtifactDiagnostics.Count} diagnostic(s))");
+    foreach(var Diagnostic in Renderer.ShaderArtifactDiagnostics){
         Console.WriteLine($"  {Diagnostic}");
     }
 

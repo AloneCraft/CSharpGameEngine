@@ -53,4 +53,16 @@
   <data name="131" xml:space="preserve">
     <value>C# Game Engine の基本ステージを作成します。</value>
   </data>
+  <data name="132" xml:space="preserve">
+    <value>シェーダーグラフ</value>
+  </data>
+  <data name="133" xml:space="preserve">
+    <value>Stage、Model、Triangle の固定ABI用Visual Shader Graphを作成します。</value>
+  </data>
+  <data name="134" xml:space="preserve">
+    <value>シェーダーサブグラフ</value>
+  </data>
+  <data name="135" xml:space="preserve">
+    <value>再利用可能な型付きVisual Shader Subgraphを作成します。</value>
+  </data>
 </root>

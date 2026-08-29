@@ -11,7 +11,7 @@ namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// abort a hung CoreCLR thread).
 /// </summary>
 public class ModelGpuIntegrationTests {
-    private static readonly string ShaderPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Model.hlsl");
+    private static readonly string ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Model.cgeshaderartifact");
     private static readonly string BoxPath=Path.Combine(AppContext.BaseDirectory,"Fixtures","Box.glb");
     private static readonly string BoxTexturedPath=Path.Combine(AppContext.BaseDirectory,"Fixtures","BoxTextured.glb");
 
@@ -54,11 +54,11 @@ public class ModelGpuIntegrationTests {
         };
 
         using var Renderer=ModelRenderer.Create(
-                                                Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
+                                                Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderArtifactPath,
                                                 Mesh.Positions,Mesh.Normals,Mesh.Uvs,Mesh.Indices,Mesh.BaseColorTextureBytes,Mesh.BaseColorFactor,
                                                 Mesh.Bounds.Center,Mesh.Bounds.BoundingSphereRadius);
 
-        Assert.True(Renderer.ShaderCompilationSucceeded,string.Join(Environment.NewLine,Renderer.ShaderDiagnostics));
+        Assert.True(Renderer.ShaderArtifactLoaded,string.Join(Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
         Assert.Equal(UseWarp,Renderer.IsWarp);
         Assert.True(Renderer.DebugLayerEnabled);
 

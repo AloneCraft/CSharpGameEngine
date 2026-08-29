@@ -78,3 +78,8 @@ Experimental Instance evidence remains explicit. Required automated cells valida
 | F-L8-029 | 7 | `vsix.release` | Headless / VSIX | 7200s | Signed inputs, install, run, uninstall. |
 
 All rows are `Specified` and registered as `NotImplemented`. Existing Scene Designer test stages remain executable baseline evidence.
+
+
+## Visual Shader Graph editor
+
+F-L8-031 adds an IVsEditorFactory-backed WPF editor for .cgeshadergraph and .cgesubgraph. It uses the existing package, localization, Error List, Save, and native Undo/Redo boundaries. Typed invalid connections are rejected before mutation; save persists canonical source even when compilation fails, while the last-known-good artifact is not overwritten. Localized 1033/1041 item templates include root target selection and Subgraph creation. See [Shader Graph](Shader-Graph.md). Dedicated external Subgraph navigation and automated Experimental Instance interaction remain partial conformance.

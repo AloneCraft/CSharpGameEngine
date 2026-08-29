@@ -48,7 +48,7 @@ public sealed class FeatureRunnerApplicationTests {
         var Executor=new FakeExecutor();
         var Store=new RecordingStore();
         var Application=new FeatureRunnerApplication(Catalog,Executor,Store,new EmptyChangedPathProvider(),new StringWriter(),new StringWriter());
-        var ExitCode=await Application.RunAsync(["run-feature","F-L7-022"],CancellationToken.None);
+        var ExitCode=await Application.RunAsync(["run-feature","F-L0-008"],CancellationToken.None);
         Assert.Equal(3,ExitCode);
         var Document=Assert.Single(Store.Documents);
         Assert.Equal(FeatureStageRunStatus.NotImplemented,Assert.Single(Document.Results).Status);
@@ -61,7 +61,7 @@ public sealed class FeatureRunnerApplicationTests {
         var Application=new FeatureRunnerApplication(Catalog,Executor,Store,new EmptyChangedPathProvider(),new StringWriter(),new StringWriter());
         var ExitCode=await Application.RunAsync(["suite","full"],CancellationToken.None);
         Assert.Equal(0,ExitCode);
-        Assert.DoesNotContain("rendering.baseline",Executor.ExecutedStageIds,StringComparer.Ordinal);
+        Assert.Contains("rendering.baseline",Executor.ExecutedStageIds,StringComparer.Ordinal);
         Assert.DoesNotContain("content.identity",Executor.ExecutedStageIds,StringComparer.Ordinal);
         Assert.All(Assert.Single(Store.Documents).Results,static Result=>Assert.Equal(FeatureStageRunStatus.Passed,Result.Status));
     }

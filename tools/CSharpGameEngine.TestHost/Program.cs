@@ -1,4 +1,3 @@
-using CSharpGameEngine.Compiler.Hlsl;
 using CSharpGameEngine.Core;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Platform.Windows;
@@ -58,7 +57,7 @@ static int RunTriangle(string[]TriangleArgs){
     }
 
     var Options=ParseResult.Options!;
-    var ShaderPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Triangle.hlsl");
+    var ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Triangle.cgeshaderartifact");
 
     Console.WriteLine($"Product: {ProductDisplayName} ({InternalName})");
     Console.WriteLine($"Mode: {(Options.Hidden?"hidden":"windowed")}, frames={(Options.Frames is int F?F.ToString():"until closed")}, verify={Options.Verify}");
@@ -78,7 +77,7 @@ static int RunTriangle(string[]TriangleArgs){
 
     TriangleRenderer Renderer;
     try {
-        Renderer=TriangleRenderer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath);
+        Renderer=TriangleRenderer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderArtifactPath);
     } catch(Exception Ex){
         Console.WriteLine($"FAILED: could not initialize the D3D12 renderer: {Ex.Message}");
         return 1;
@@ -90,8 +89,8 @@ static int RunTriangle(string[]TriangleArgs){
     Console.WriteLine($"Feature level: {GraphicsDevice.RequiredFeatureLevel}");
     Console.WriteLine($"Back buffer format: {TriangleRenderer.BackBufferFormat}, {Options.Width}x{Options.Height}");
     Console.WriteLine($"Debug layer: {(Renderer.DebugLayerEnabled?"enabled":"disabled")}{(Renderer.GpuBasedValidationEnabled?" (+GPU-based validation)":string.Empty)}");
-    Console.WriteLine($"Shader compilation: {(Renderer.ShaderCompilationSucceeded?"OK":"FAILED")} ({Renderer.ShaderDiagnostics.Count} diagnostic(s))");
-    foreach(var Diagnostic in Renderer.ShaderDiagnostics){
+    Console.WriteLine($"Shader compilation: {(Renderer.ShaderArtifactLoaded?"OK":"FAILED")} ({Renderer.ShaderArtifactDiagnostics.Count} diagnostic(s))");
+    foreach(var Diagnostic in Renderer.ShaderArtifactDiagnostics){
         Console.WriteLine($"  {Diagnostic}");
     }
 

@@ -384,4 +384,94 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
   <data name="InspectorUnknownRowType" xml:space="preserve">
     <value>未知のInspector行種別です。</value>
   </data>
+  <data name="ShaderGraphUndo" xml:space="preserve">
+    <value>元に戻す</value>
+  </data>
+  <data name="ShaderGraphRedo" xml:space="preserve">
+    <value>やり直し</value>
+  </data>
+  <data name="ShaderGraphSave" xml:space="preserve">
+    <value>保存</value>
+  </data>
+  <data name="ShaderGraphCopy" xml:space="preserve">
+    <value>コピー</value>
+  </data>
+  <data name="ShaderGraphPaste" xml:space="preserve">
+    <value>貼り付け</value>
+  </data>
+  <data name="ShaderGraphDuplicate" xml:space="preserve">
+    <value>複製</value>
+  </data>
+  <data name="ShaderGraphDelete" xml:space="preserve">
+    <value>削除</value>
+  </data>
+  <data name="ShaderGraphFrame" xml:space="preserve">
+    <value>コメント / フレーム</value>
+  </data>
+  <data name="ShaderGraphEntry" xml:space="preserve">
+    <value>エントリ</value>
+  </data>
+  <data name="ShaderGraphOpenHlsl" xml:space="preserve">
+    <value>生成HLSLを開く</value>
+  </data>
+  <data name="ShaderGraphZoom" xml:space="preserve">
+    <value>ズーム</value>
+  </data>
+  <data name="ShaderGraphPalette" xml:space="preserve">
+    <value>ノード パレット</value>
+  </data>
+  <data name="ShaderGraphPaletteSearch" xml:space="preserve">
+    <value>ノード型を検索</value>
+  </data>
+  <data name="ShaderGraphPropertyInspector" xml:space="preserve">
+    <value>プロパティ インスペクター</value>
+  </data>
+  <data name="ShaderGraphDiagnostics" xml:space="preserve">
+    <value>診断</value>
+  </data>
+  <data name="ShaderGraphPortSummary" xml:space="preserve">
+    <value>入力: {0}</value>
+  </data>
+  <data name="ShaderGraphStatus" xml:space="preserve">
+    <value>{0} | {1}/{2} ノードを表示 | semantic {3}</value>
+  </data>
+  <data name="ShaderGraphUseSyntaxSource" xml:space="preserve">
+    <value>Syntaxを接続元にする</value>
+  </data>
+  <data name="ShaderGraphConnectionSelected" xml:space="preserve">
+    <value>接続元を選択しました。</value>
+  </data>
+  <data name="ShaderGraphConnectSourceTo" xml:space="preserve">
+    <value>接続元を {0} へ接続</value>
+  </data>
+  <data name="ShaderGraphSelectNode" xml:space="preserve">
+    <value>ノードを選択してください。</value>
+  </data>
+  <data name="ShaderGraphSelectedNodes" xml:space="preserve">
+    <value>{0} ノードを選択中。</value>
+  </data>
+  <data name="ShaderGraphNodeDiagnostic" xml:space="preserve">
+    <value>Shader Graphノード {0}: {1}</value>
+  </data>
+  <data name="ShaderGraphReloaded" xml:space="preserve">
+    <value>外部変更後にShader Graphを再読み込みしました。</value>
+  </data>
+  <data name="ShaderGraphExternalChangePrompt" xml:space="preserve">
+    <value>Shader GraphがVisual Studio外部で変更されました。未保存のエディター変更を破棄して再読み込みしますか？</value>
+  </data>
+  <data name="ShaderGraphExternalChangeTitle" xml:space="preserve">
+    <value>Shader Graphの外部変更</value>
+  </data>
+  <data name="ShaderGraphExternalKeep" xml:space="preserve">
+    <value>外部変更を保留し、エディター側の変更を保持しました。</value>
+  </data>
+  <data name="ShaderGraphWizardTitle" xml:space="preserve">
+    <value>C# ゲームエンジン シェーダーグラフ</value>
+  </data>
+  <data name="ShaderGraphWizardPrompt" xml:space="preserve">
+    <value>固定Shader target ABIを選択してください:</value>
+  </data>
+  <data name="ShaderGraphWizardCreate" xml:space="preserve">
+    <value>作成</value>
+  </data>
 </root>

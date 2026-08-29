@@ -31,15 +31,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- ADR-0034: Triangle.hlsl and Model.hlsl were declared with these exact Link paths by BOTH
+    <!-- ADR-0034: Triangle and Model shader graphs were declared with these exact Link paths by BOTH
          former test projects (Graphics.D3D12.Tests and Compiler.Hlsl.Tests). Each must appear
          exactly once here - a duplicate <None> with the same Link is an MSBuild warning, and
          TreatWarningsAsErrors=true turns that into a build failure. -->
-    <None Include="..\..\assets\Shaders\Triangle.hlsl" Link="Shaders\Triangle.hlsl" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\assets\Shaders\Model.hlsl" Link="Shaders\Model.hlsl" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\assets\Shaders\Stage.hlsl" Link="Shaders\Stage.hlsl" CopyToOutputDirectory="PreserveNewest" />
-    <!-- From the former Compiler.Hlsl.Tests: a deliberately broken shader for the compile-error path. -->
-    <None Include="TestShaders\SyntaxError.hlsl" CopyToOutputDirectory="PreserveNewest" />
+    <CgeShaderGraph Include="..\..\assets\Shaders\Triangle.cgeshadergraph" />
+    <CgeShaderGraph Include="..\..\assets\Shaders\Model.cgeshadergraph" />
+    <CgeShaderGraph Include="..\..\assets\Shaders\Stage.cgeshadergraph" />
     <!-- From the former Graphics.D3D12.Tests. -->
     <None Include="..\..\assets\TestFixtures\Gltf\Box.glb" Link="Fixtures\Box.glb" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\TestFixtures\Gltf\BoxTextured.glb" Link="Fixtures\BoxTextured.glb" CopyToOutputDirectory="PreserveNewest" />

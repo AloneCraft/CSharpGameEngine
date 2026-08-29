@@ -56,10 +56,12 @@
 
   <ItemGroup>
     <ProjectCapability Include="CreateVsixContainer" />
+    <ProjectReference Include="..\..\src\CSharpGameEngine.ShaderGraph\CSharpGameEngine.ShaderGraph.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.VisualStudio.TemplateWizardInterface" Version="17.10.40170" ExcludeAssets="runtime" />
     <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="18.8.739" />
 
     <!-- ADR-0021: GameEngineLayout casts EnvDTE.DTE.CommandBars (typed as plain System.Object)
@@ -171,8 +173,17 @@
       <OutputSubPath>GameEngine</OutputSubPath>
       <Culture>1041</Culture>
     </VSTemplate>
+    <VSTemplate Include="ItemTemplates\CSharp\GameEngine\ShaderGraph\ShaderGraph.vstemplate"><TemplateType>Item</TemplateType><Language>CSharp</Language><OutputSubPath>GameEngine</OutputSubPath><Culture>1033</Culture></VSTemplate>
+    <VSTemplate Include="ItemTemplates\CSharp\GameEngine\ShaderGraph\ShaderGraph.vstemplate"><TemplateType>Item</TemplateType><Language>CSharp</Language><OutputSubPath>GameEngine</OutputSubPath><Culture>1041</Culture></VSTemplate>
+    <VSTemplate Include="ItemTemplates\CSharp\GameEngine\ShaderSubgraph\ShaderSubgraph.vstemplate"><TemplateType>Item</TemplateType><Language>CSharp</Language><OutputSubPath>GameEngine</OutputSubPath><Culture>1033</Culture></VSTemplate>
+    <VSTemplate Include="ItemTemplates\CSharp\GameEngine\ShaderSubgraph\ShaderSubgraph.vstemplate"><TemplateType>Item</TemplateType><Language>CSharp</Language><OutputSubPath>GameEngine</OutputSubPath><Culture>1041</Culture></VSTemplate>
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="..\..\assets\Shaders\Stage.cgeshadergraph" Link="ShaderGraphTemplates\Stage.cgeshadergraph"><IncludeInVSIX>true</IncludeInVSIX><VSIXSubPath>ShaderGraphTemplates</VSIXSubPath></Content>
+    <Content Include="..\..\assets\Shaders\Model.cgeshadergraph" Link="ShaderGraphTemplates\Model.cgeshadergraph"><IncludeInVSIX>true</IncludeInVSIX><VSIXSubPath>ShaderGraphTemplates</VSIXSubPath></Content>
+    <Content Include="..\..\assets\Shaders\Triangle.cgeshadergraph" Link="ShaderGraphTemplates\Triangle.cgeshadergraph"><IncludeInVSIX>true</IncludeInVSIX><VSIXSubPath>ShaderGraphTemplates</VSIXSubPath></Content>
+  </ItemGroup>
   <ItemGroup>
     <AssemblyMetadata Include="CSharpGameEngineRepoRoot" Value="$(CSharpGameEngineRepoRoot)" />
     <AssemblyMetadata Include="CSharpGameEngineVsixVersion" Value="$(CSharpGameEngineVsixVersion)" />
@@ -241,6 +252,10 @@
       <VSIXSourceItem Include="$(OutDir)ItemTemplates\CSharp\GameEngine\1041\SceneFile.zip">
         <VSIXSubPath>ItemTemplates\CSharp\GameEngine\1041</VSIXSubPath>
       </VSIXSourceItem>
+      <VSIXSourceItem Include="$(OutDir)ItemTemplates\CSharp\GameEngine\1033\ShaderGraph.zip"><VSIXSubPath>ItemTemplates\CSharp\GameEngine\1033</VSIXSubPath></VSIXSourceItem>
+      <VSIXSourceItem Include="$(OutDir)ItemTemplates\CSharp\GameEngine\1041\ShaderGraph.zip"><VSIXSubPath>ItemTemplates\CSharp\GameEngine\1041</VSIXSubPath></VSIXSourceItem>
+      <VSIXSourceItem Include="$(OutDir)ItemTemplates\CSharp\GameEngine\1033\ShaderSubgraph.zip"><VSIXSubPath>ItemTemplates\CSharp\GameEngine\1033</VSIXSubPath></VSIXSourceItem>
+      <VSIXSourceItem Include="$(OutDir)ItemTemplates\CSharp\GameEngine\1041\ShaderSubgraph.zip"><VSIXSubPath>ItemTemplates\CSharp\GameEngine\1041</VSIXSubPath></VSIXSourceItem>
     </ItemGroup>
   </Target>
 

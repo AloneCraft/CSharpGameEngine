@@ -8,7 +8,7 @@ namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// timeout so a driver/GPU hang fails the test instead of hanging the run.
 /// </summary>
 public class TriangleGpuIntegrationTests {
-    private static readonly string ShaderPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Triangle.hlsl");
+    private static readonly string ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Triangle.cgeshaderartifact");
 
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
@@ -36,9 +36,9 @@ public class TriangleGpuIntegrationTests {
             EnableDebugLayer=true,
         };
 
-        using var Renderer=TriangleRenderer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath);
+        using var Renderer=TriangleRenderer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderArtifactPath);
 
-        Assert.True(Renderer.ShaderCompilationSucceeded,string.Join(Environment.NewLine,Renderer.ShaderDiagnostics));
+        Assert.True(Renderer.ShaderArtifactLoaded,string.Join(Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
         Assert.Equal(UseWarp,Renderer.IsWarp);
         Assert.True(Renderer.DebugLayerEnabled);
 

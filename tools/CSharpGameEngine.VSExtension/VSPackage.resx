@@ -55,4 +55,16 @@
   <data name="131" xml:space="preserve">
     <value>Creates a basic C# Game Engine stage.</value>
   </data>
+  <data name="132" xml:space="preserve">
+    <value>Shader Graph</value>
+  </data>
+  <data name="133" xml:space="preserve">
+    <value>Creates a visual Shader Graph for a fixed Stage, Model, or Triangle ABI.</value>
+  </data>
+  <data name="134" xml:space="preserve">
+    <value>Shader Subgraph</value>
+  </data>
+  <data name="135" xml:space="preserve">
+    <value>Creates a reusable typed visual Shader Subgraph.</value>
+  </data>
 </root>

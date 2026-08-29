@@ -10,7 +10,7 @@
 
 Catalog JSON is `csharp-game-engine-feature-catalog-v2`. Each Feature now publishes `track`, `dependencyLevel`, and `dependsOnFeatureIds` in addition to ID/name/layer/status. Run-result JSON remains `csharp-game-engine-feature-run-result-v1`; this change does not alter a completed run artifact.
 
-The six non-physics tracks have 63 Roadmap rows registered one-to-one as Feature/target-Stage pairs. F-L0-008 and F-L3-019 remain `Specified`; F-L7-030 and F-L3-018 are `Implemented` with executable `ecs.baseline` and `ecs.fixed-tick` stages; F-L3-020 remains `Deferred`. The remaining target Stages are `NotImplemented` with an oracle and input paths. The two pre-existing stage IDs `foundation.d3d12-compute` and `foundation.deterministic-jobs` are reused; the remaining target Stage IDs are registered in the catalog.
+The six non-physics tracks have 66 Roadmap rows registered one-to-one as Feature/target-Stage pairs. F-L0-008 and F-L3-019 remain Specified; F-L7-030, F-L3-018, F-L7-022, F-L2-005, F-L7-049, F-L6-004, and F-L8-031 are Implemented with executable target stages; F-L3-020 remains `Deferred`. The remaining target Stages are `NotImplemented` with an oracle and input paths. The two pre-existing stage IDs `foundation.d3d12-compute` and `foundation.deterministic-jobs` are reused; the remaining target Stage IDs are registered in the catalog.
 
 | Track | Specification | Visual Pack policy |
 |---|---|---|
@@ -136,3 +136,8 @@ resume <run-result.json> [options]
 PackはFoundation、Rendering、Rigid、Deformable、Fluid、Destruction、Celestial、ProbabilityQuantum、Coupling、VSIXに分離する。分離理由はComponent mask上限ではなく、solver依存、native/GPU初期化、障害隔離、timeout、artifact量、再開単位である。Visual StageはC# `IScene`を正本とし、手書きMainが選択Sceneだけを固定tick実行する。`[StartupScene]`は使用しない。
 
 10個の独立Pack実行プロジェクト、共有host、各PackのC# `IScene`、生成ECSの実体化・ownership・unload・state hash検証まで実装済みである。将来solver本体は、対応Featureが実装されるまで明示的な`NotImplemented` Stageとして維持する。
+
+
+## M0060 executable shader stages
+
+rendering.baseline fixes the WARP visual baseline. shadergraph.schema validates canonical graph contracts, shadergraph.compiler compiles all fixed entries, rendering.shader-artifacts validates the container and artifact-only Runtime, and vsix.shader-graph validates the editor/package surface. All commands run sequentially through Feature Runner in the requested configuration.

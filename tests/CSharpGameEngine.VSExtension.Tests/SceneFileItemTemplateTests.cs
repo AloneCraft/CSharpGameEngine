@@ -89,7 +89,7 @@ public sealed class SceneFileItemTemplateTests {
         using var ManifestStream=TemplateManifest.Open();
         var Manifest=XDocument.Load(ManifestStream);
         XNamespace ManifestNamespace="http://schemas.microsoft.com/developer/vstemplatemanifest/2015";
-        var Container=Assert.Single(Manifest.Root!.Elements(ManifestNamespace+"VSTemplateContainer"));
+        var Container=Assert.Single(Manifest.Root!.Elements(ManifestNamespace+"VSTemplateContainer"),Item=>Item.Element(ManifestNamespace+"RelativePathOnDisk")?.Value.EndsWith("SceneFile",StringComparison.Ordinal)==true);
 
         Assert.Equal("Item",(string?)Container.Attribute("TemplateType"));
         Assert.Equal("CSharp\\GameEngine\\1033\\SceneFile",Container.Element(ManifestNamespace+"RelativePathOnDisk")?.Value);

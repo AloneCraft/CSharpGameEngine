@@ -33,7 +33,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\assets\Shaders\Stage.hlsl" Link="Shaders\Stage.hlsl" CopyToOutputDirectory="PreserveNewest" />
+    <CgeShaderGraph Include="..\assets\Shaders\Stage.cgeshadergraph" />
   </ItemGroup>
 
   <ItemGroup>

@@ -10,10 +10,12 @@ Current baseline corrections: point/spot/area/emissive shadows and HDR/ACES/bloo
 
 | Level | Feature ID | Status | Summary | Depends on | Specification | Stage |
 |---:|---|---|---|---|---|---|
-| 1 | F-L7-022 | Specified | Rendering baseline conformance | None | [Rendering](Specifications/Rendering.md) | `rendering.baseline` |
+| 1 | F-L7-022 | Implemented | Rendering baseline conformance | None | [Rendering](Specifications/Rendering.md) | rendering.baseline |
+| 1 | F-L2-005 | Implemented | Shader Graph canonical schema | F-L7-022 | [Shader Graph](Specifications/Shader-Graph.md) | shadergraph.schema |
+| 2 | F-L7-049 | Implemented | Shader Graph compiler | F-L2-005 | [Shader Graph](Specifications/Shader-Graph.md) | shadergraph.compiler |
 | 2 | F-L4-004 | Specified | Engine-owned Render Graph | F-L7-022 | [Rendering](Specifications/Rendering.md) | `rendering.render-graph` |
 | 2 | F-L0-008 | Specified | D3D12 compute/readback | F-L7-022 | [Rendering](Specifications/Rendering.md) | `foundation.d3d12-compute` |
-| 3 | F-L6-004 | Specified | Shader artifacts and PSO provenance | F-L0-008 | [Rendering](Specifications/Rendering.md) | `rendering.shader-artifacts` |
+| 3 | F-L6-004 | Implemented | Shader artifacts and PSO provenance | F-L7-022, F-L7-049 | [Shader Graph](Specifications/Shader-Graph.md) | rendering.shader-artifacts |
 | 3 | F-L4-005 | Specified | Materials and textures | F-L6-004 | [Rendering](Specifications/Rendering.md) | `rendering.materials` |
 | 4 | F-L4-006 | Specified | Visibility, LOD, instancing | F-L4-004, F-L4-005 | [Rendering](Specifications/Rendering.md) | `rendering.visibility` |
 | 4 | F-L4-007 | Specified | Quality profiles | F-L4-006 | [Rendering](Specifications/Rendering.md) | `rendering.quality-profiles` |
@@ -41,6 +43,7 @@ Current baseline corrections: point/spot/area/emissive shadows and HDR/ACES/bloo
 
 | Level | Feature ID | Status | Summary | Depends on | Specification | Stage |
 |---:|---|---|---|---|---|---|
+| 3 | F-L8-031 | Implemented | Visual Shader Graph editor | F-L7-049 | [Shader Graph](Specifications/Shader-Graph.md) | vsix.shader-graph |
 | 1 | F-L8-020 | Specified | Manual/Experimental baseline | None | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.experimental-smoke` |
 | 2 | F-L8-021 | Specified | Experimental automation | F-L8-020 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.experimental-automation` |
 | 3 | F-L8-022 | Specified | Versioned authoring host | F-L8-021 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.host-lifecycle` |

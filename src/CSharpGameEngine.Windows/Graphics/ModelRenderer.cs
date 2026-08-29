@@ -1,6 +1,6 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using CSharpGameEngine.Compiler.Hlsl;
+using CSharpGameEngine.ShaderArtifacts;
 using TerraFX.Interop.DirectX;
 using TerraFX.Interop.Windows;
 using static TerraFX.Interop.DirectX.D3D_PRIMITIVE_TOPOLOGY;
@@ -87,6 +87,8 @@ public sealed unsafe class ModelRenderer:IDisposable {
     private int Height;
     private bool SizeIsZero;
     private bool Disposed;
+    private string ShaderArtifactPath=string.Empty;
+    private ShaderArtifactMonitor?ShaderArtifactMonitor;
 
     private Vector3 BoundsCenter;
     private float BoundsRadius;
@@ -106,9 +108,13 @@ public sealed unsafe class ModelRenderer:IDisposable {
 
     public int ErrorOrWorseMessageCount=> this.Device?.ErrorOrWorseMessageCount??0;
 
-    public bool ShaderCompilationSucceeded { get;private set;}
+    public static bool ShaderHotReloadEnabled=>ShaderArtifactMonitor.IsEnabled;
 
-    public IReadOnlyList<HlslDiagnostic>ShaderDiagnostics { get;private set;}=[];
+    public bool ShaderArtifactLoaded { get;private set;}
+
+    public string ShaderSemanticHash { get;private set;}=string.Empty;
+
+    public IReadOnlyList<string>ShaderArtifactDiagnostics { get;private set;}=[];
 
     public uint FramesRendered { get;private set;}
 
@@ -120,11 +126,11 @@ public sealed unsafe class ModelRenderer:IDisposable {
     public string?TextureLoadError { get;private set;}
 
     public static ModelRenderer Create(
-        nint Hwnd,int Width,int Height,GraphicsDeviceOptions DeviceOptions,string ShaderPath,
+        nint Hwnd,int Width,int Height,GraphicsDeviceOptions DeviceOptions,string ShaderArtifactPath,
         IReadOnlyList<Vector3>Positions,IReadOnlyList<Vector3>Normals,IReadOnlyList<Vector2>Uvs,IReadOnlyList<uint>Indices,
         byte[]?BaseColorTextureBytes,Vector4 BaseColorFactor,
         Vector3 BoundsCenter,float BoundsRadius){
-        ArgumentNullException.ThrowIfNull(ShaderPath);
+        ArgumentNullException.ThrowIfNull(ShaderArtifactPath);
         ArgumentNullException.ThrowIfNull(Positions);
         ArgumentNullException.ThrowIfNull(Normals);
         ArgumentNullException.ThrowIfNull(Uvs);
@@ -147,7 +153,7 @@ public sealed unsafe class ModelRenderer:IDisposable {
 
         var Completed=false;
         try {
-            Renderer.Initialize((HWND)Hwnd,Width,Height,DeviceOptions,ShaderPath,Positions,Normals,Uvs,Indices,BaseColorTextureBytes);
+            Renderer.Initialize((HWND)Hwnd,Width,Height,DeviceOptions,ShaderArtifactPath,Positions,Normals,Uvs,Indices,BaseColorTextureBytes);
             Completed=true;
             return Renderer;
         } finally {
@@ -160,7 +166,7 @@ public sealed unsafe class ModelRenderer:IDisposable {
     private ModelRenderer(){
     }
 
-    private void Initialize(HWND Hwnd,int Width,int Height,GraphicsDeviceOptions DeviceOptions,string ShaderPath,
+    private void Initialize(HWND Hwnd,int Width,int Height,GraphicsDeviceOptions DeviceOptions,string ShaderArtifactPath,
         IReadOnlyList<Vector3>Positions,IReadOnlyList<Vector3>Normals,IReadOnlyList<Vector2>Uvs,IReadOnlyList<uint>Indices,
         byte[]?BaseColorTextureBytes){
         this.Device=GraphicsDevice.Create(DeviceOptions);
@@ -197,9 +203,11 @@ public sealed unsafe class ModelRenderer:IDisposable {
         this.FrameIndex= this.SwapChain->GetCurrentBackBufferIndex();
         this.FenceValues[this.FrameIndex]=1;
 
-        this.CompileShaders(ShaderPath);
+        this.ShaderArtifactPath=Path.GetFullPath(ShaderArtifactPath);
+        this.LoadShaderArtifact(this.ShaderArtifactPath);
         this.CreateRootSignature();
         this.CreatePipelineState();
+        this.ShaderArtifactMonitor=new ShaderArtifactMonitor(this.ShaderArtifactPath);
         this.CreateVertexBuffer(Positions,Normals,Uvs);
         this.CreateIndexBuffer(Indices);
         this.CreateConstantBuffer();
@@ -299,38 +307,50 @@ public sealed unsafe class ModelRenderer:IDisposable {
         this.DepthBuffer=DepthBuffer;
     }
 
-    private void CompileShaders(string ShaderPath){
-        var DebugShaders=false;
-#if DEBUG
-        DebugShaders = true;
-#endif
-
-        HlslCompileResult Vs=HlslCompiler.Compile(new HlslCompileRequest {
-            FilePath=ShaderPath,
-            EntryPoint="VSMain",
-            TargetProfile="vs_6_0",
-            EnableDebugInfo=DebugShaders,
-        });
-
-        HlslCompileResult Ps=HlslCompiler.Compile(new HlslCompileRequest {
-            FilePath=ShaderPath,
-            EntryPoint="PSMain",
-            TargetProfile="ps_6_0",
-            EnableDebugInfo=DebugShaders,
-        });
-
-        this.ShaderCompilationSucceeded=Vs.Success&&Ps.Success;
-        this.ShaderDiagnostics=[.. Vs.Diagnostics,.. Ps.Diagnostics];
-
-        if(!this.ShaderCompilationSucceeded){
-            var Details=string.Join(Environment.NewLine, this.ShaderDiagnostics);
-            throw new InvalidOperationException($"HLSL shader compilation failed for '{ShaderPath}':{Environment.NewLine}{Details}");
+private void LoadShaderArtifact(string ShaderArtifactPath){
+        if(!ShaderArtifactRuntime.TryLoad(ShaderArtifactPath,ShaderArtifactTargetKind.Model,out var Package,out var Error)||Package is null){
+            this.ShaderArtifactLoaded=false;
+            this.ShaderArtifactDiagnostics=[Error];
+            throw new InvalidOperationException($"Shader artifact load failed for '{ShaderArtifactPath}':{Environment.NewLine}{Error}");
         }
-
-        this.VertexShaderBytecode=Vs.Bytecode;
-        this.PixelShaderBytecode=Ps.Bytecode;
+        this.VertexShaderBytecode=Package.GetBytecode("VSMain");
+        this.PixelShaderBytecode=Package.GetBytecode("PSMain");
+        this.ShaderArtifactLoaded=true;
+        this.ShaderSemanticHash=Package.Document.SemanticHash;
+        this.ShaderArtifactDiagnostics=[];
     }
-
+    private void TryReloadShaderArtifact(){
+        if(this.ShaderArtifactMonitor?.ConsumeReloadRequest()!=true){
+            return;
+        }
+        if(!ShaderArtifactRuntime.TryLoad(this.ShaderArtifactPath,ShaderArtifactTargetKind.Model,out var Package,out var Error)||Package is null){
+            this.ShaderArtifactDiagnostics=[Error];
+            return;
+        }
+        var OldVertexShader=this.VertexShaderBytecode;
+        var OldPixelShader=this.PixelShaderBytecode;
+        var OldPipelineState=this.PipelineState;
+        try{
+            this.VertexShaderBytecode=Package.GetBytecode("VSMain");
+            this.PixelShaderBytecode=Package.GetBytecode("PSMain");
+            this.CreatePipelineState();
+            this.WaitForGpuIdle();
+            if(OldPipelineState!=null){
+                _=OldPipelineState->Release();
+            }
+            this.ShaderArtifactLoaded=true;
+            this.ShaderSemanticHash=Package.Document.SemanticHash;
+            this.ShaderArtifactDiagnostics=[];
+        }catch(Exception Exception){
+            this.VertexShaderBytecode=OldVertexShader;
+            this.PixelShaderBytecode=OldPixelShader;
+            if(this.PipelineState!=OldPipelineState){
+                _=this.PipelineState->Release();
+                this.PipelineState=OldPipelineState;
+            }
+            this.ShaderArtifactDiagnostics=[Exception.Message];
+        }
+    }
     private byte[]VertexShaderBytecode=[];
     private byte[]PixelShaderBytecode=[];
 
@@ -729,6 +749,7 @@ public sealed unsafe class ModelRenderer:IDisposable {
     }
 
     public void RenderFrame(bool CaptureForVerification=false){
+        this.TryReloadShaderArtifact();
         if(this.SizeIsZero){
             return;
         }
@@ -890,6 +911,8 @@ public sealed unsafe class ModelRenderer:IDisposable {
         }
 
         this.Disposed=true;
+        this.ShaderArtifactMonitor?.Dispose();
+        this.ShaderArtifactMonitor=null;
 
         this.WaitForGpuIdle();
 

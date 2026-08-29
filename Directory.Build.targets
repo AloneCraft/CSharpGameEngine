@@ -5,6 +5,7 @@
     <ProjectReference Include="$(MSBuildThisFileDirectory)src\CSharpGameEngine.Numerics\CSharpGameEngine.Numerics.csproj" />
   </ItemGroup>
 
+  <Import Project="$(MSBuildThisFileDirectory)build\CSharpGameEngine.ShaderGraph.targets" />
 </Project>
 
 

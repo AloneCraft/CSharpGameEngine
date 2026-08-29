@@ -1,0 +1,297 @@
+using Xunit;
+namespace CSharpGameEngine.ShaderGraph.Tests;
+public class ShaderGraphTests {
+    [Fact]
+    public void CanonicalRoundTrip_PreservesSemantics() {
+        var Graph = BuildRoundTripGraph();
+        var Json = ShaderGraphCanonicalization.ToCanonicalJson(Graph);
+        var Parsed = ShaderGraphCanonicalization.FromJson(Json);
+        Assert.NotNull(Parsed);
+        var ParsedJson = ShaderGraphCanonicalization.ToCanonicalJson(Parsed!);
+        Assert.Equal(Json, ParsedJson);
+    }
+    [Fact]
+    public void SemanticHash_IgnoresEditorLayout() {
+        var Left=BuildLayoutAwareGraph("left");
+        var Right=ShaderGraphCanonicalization.FromJson(ShaderGraphCanonicalization.ToCanonicalJson(Left))!;
+        Right.Layout=new ShaderGraphEditorLayout();
+        var LeftHash = ShaderGraphCanonicalization.ComputeSemanticHash(Left);
+        var RightHash = ShaderGraphCanonicalization.ComputeSemanticHash(Right);
+        Assert.Equal(LeftHash, RightHash);
+    }
+    [Fact]
+    public void Validator_DetectsTypeMismatch() {
+        var Graph = BuildTypeMismatchGraph();
+        var Result = ShaderGraphValidator.Validate(Graph);
+        Assert.Contains(Result.Diagnostics, Item => Item.Code == ShaderGraphDiagnosticCode.TypeMismatch);
+    }
+    [Fact]
+    public void Validator_DetectsCycle() {
+        var Graph = BuildCycleGraph();
+        var Result = ShaderGraphValidator.Validate(Graph);
+        Assert.Contains(Result.Diagnostics, Item => Item.Code == ShaderGraphDiagnosticCode.CycleDetected);
+    }
+    [Fact]
+    public void Validator_DetectsUnknownNode() {
+        var Graph = BuildUnknownNodeGraph();
+        var Result = ShaderGraphValidator.Validate(Graph);
+        Assert.Contains(Result.Diagnostics, Item => Item.Code == ShaderGraphDiagnosticCode.UnknownNode);
+    }
+    [Fact]
+    public void Validator_DetectsRegionUnknownNode() {
+        var Graph = BuildRegionGraph();
+        var Result = ShaderGraphValidator.Validate(Graph);
+        Assert.Contains(Result.Diagnostics, Item => Item.Code == ShaderGraphDiagnosticCode.RegionInvalidNode);
+    }
+    [Fact]
+    public void Validator_DetectsSubgraphRecursion() {
+        var Graph = BuildSubgraphRecursionGraph();
+        var Result = ShaderGraphValidator.Validate(Graph);
+        Assert.Contains(Result.Diagnostics, Item => Item.Code == ShaderGraphDiagnosticCode.SubgraphRecursion);
+    }
+    [Fact]
+    public void Validator_DetectsForRange() {
+        var Graph = BuildForRangeGraph();
+        var Result = ShaderGraphValidator.Validate(Graph);
+        Assert.Contains(Result.Diagnostics, Item => Item.Code == ShaderGraphDiagnosticCode.ForRangeForbidden);
+    }
+    [Fact]
+    public void Emitter_ProducesDeterministicHlsl() {
+        var Graph = BuildEmitterGraph();
+        var First = ShaderGraphEmitter.Emit(Graph);
+        var Second = ShaderGraphEmitter.Emit(Graph);
+        Assert.True(First.Success);
+        Assert.True(Second.Success);
+        Assert.Equal(First.Hlsl, Second.Hlsl);
+        Assert.NotEmpty(First.SourceMap.Entries);
+    }
+    [Fact]
+    public void Validator_RejectsEntryPointMismatch() {
+        var Graph = BuildRoundTripGraph();
+        var Modified = new ShaderGraphDocument {
+            Version = Graph.Version,
+            Id = Graph.Id,
+            Target = Graph.Target,
+            EntryPoint = new ShaderGraphEntryPointContract { TargetKind = ShaderGraphTargetKind.Model, Name = "WrongName", ReturnType = ShaderGraphValueType.Float },
+            RootSubgraphId = Graph.RootSubgraphId,
+            Subgraphs = Graph.Subgraphs,
+            Layout = Graph.Layout
+        };
+        var Result = ShaderGraphValidator.Validate(Modified);
+        Assert.Contains(Result.Diagnostics, Item => Item.Code == ShaderGraphDiagnosticCode.EntryPointMismatch);
+    }
+    private static ShaderGraphDocument BuildRoundTripGraph() {
+        var Root = StableId.New();
+        var Node = StableId.New();
+        return new ShaderGraphDocument {
+            Target = new ShaderGraphTarget { Kind = ShaderGraphTargetKind.Stage, Name = "Test" },
+            EntryPoint = new ShaderGraphEntryPointContract { TargetKind = ShaderGraphTargetKind.Stage, Name = "StageMain", ReturnType = ShaderGraphValueType.Float4 },
+            RootSubgraphId = Root,
+            Subgraphs = {
+                new ShaderGraphSubgraph {
+                    Id = Root,
+                    Nodes = {
+                        new ShaderGraphNode {
+                            Id = Node,
+                            Type = "ConstantFloat",
+                            Arguments = { new ShaderGraphArgument { Name = "Value", Value = "1.0" } }
+                        }
+                    },
+                    Edges = {
+                        new ShaderGraphEdge {
+                            Id = StableId.New(),
+                            FromNodeId = Node,
+                            ToNodeId = Node,
+                            FromPort = "Out",
+                            ToPort = "In"
+                        }
+                    },
+                    Outputs = { new ShaderGraphPort { Name = "Out", Type = ShaderGraphValueType.Float } },
+                    Regions = { }
+                }
+            }
+        };
+    }
+    private static ShaderGraphDocument BuildLayoutAwareGraph(string LayoutLabel) {
+        var Root = StableId.New();
+        var Node = StableId.New();
+        return new ShaderGraphDocument {
+            RootSubgraphId = Root,
+            Layout = new ShaderGraphEditorLayout {
+                Nodes = { new ShaderGraphNodeLayout { NodeId = Node, X = LayoutLabel == "left" ? 1 : 2, Y = 0 } },
+                Regions = { }
+            },
+            Subgraphs = {
+                new ShaderGraphSubgraph {
+                    Id = Root,
+                    Inputs = { new ShaderGraphPort { Name = "In", Type = ShaderGraphValueType.Float } },
+                    Outputs = { new ShaderGraphPort { Name = "Out", Type = ShaderGraphValueType.Float } },
+                    Nodes = {
+                        new ShaderGraphNode {
+                            Id = Node,
+                            Type = "ConstantFloat",
+                            Arguments = { new ShaderGraphArgument { Name = "Value", Value = "1.0" } }
+                        }
+                    }
+                }
+            }
+        };
+    }
+    private static ShaderGraphDocument BuildTypeMismatchGraph() {
+        var Root = StableId.New();
+        var ConstantFloat2 = StableId.New();
+        var Output = StableId.New();
+        return new ShaderGraphDocument {
+            RootSubgraphId = Root,
+            Subgraphs = {
+                new ShaderGraphSubgraph {
+                    Id = Root,
+                    Nodes = {
+                        new ShaderGraphNode { Id = ConstantFloat2, Type = "ConstantFloat2", Arguments = { new ShaderGraphArgument { Name = "Value", Value = "0.0" } } },
+                        new ShaderGraphNode { Id = Output, Type = "OutputFloat" }
+                    },
+                    Edges = {
+                        new ShaderGraphEdge {
+                            Id = StableId.New(),
+                            FromNodeId = ConstantFloat2,
+                            FromPort = "Out",
+                            ToNodeId = Output,
+                            ToPort = "In"
+                        }
+                    }
+                }
+            }
+        };
+    }
+    private static ShaderGraphDocument BuildCycleGraph() {
+        var Root = StableId.New();
+        var AddA = StableId.New();
+        var AddB = StableId.New();
+        var C1 = StableId.New();
+        var C2 = StableId.New();
+        return new ShaderGraphDocument {
+            RootSubgraphId = Root,
+            Subgraphs = {
+                new ShaderGraphSubgraph {
+                    Id = Root,
+                    Nodes = {
+                        new ShaderGraphNode { Id = AddA, Type = "AddFloat" },
+                        new ShaderGraphNode { Id = AddB, Type = "AddFloat" },
+                        new ShaderGraphNode { Id = C1, Type = "ConstantFloat", Arguments = { new ShaderGraphArgument { Name = "Value", Value = "1.0" } } },
+                        new ShaderGraphNode { Id = C2, Type = "ConstantFloat", Arguments = { new ShaderGraphArgument { Name = "Value", Value = "2.0" } } }
+                    },
+                    Edges = {
+                        new ShaderGraphEdge { Id = StableId.New(), FromNodeId = C1, FromPort = "Out", ToNodeId = AddA, ToPort = "A" },
+                        new ShaderGraphEdge { Id = StableId.New(), FromNodeId = C2, FromPort = "Out", ToNodeId = AddA, ToPort = "B" },
+                        new ShaderGraphEdge { Id = StableId.New(), FromNodeId = AddA, FromPort = "Out", ToNodeId = AddB, ToPort = "A" },
+                        new ShaderGraphEdge { Id = StableId.New(), FromNodeId = AddB, FromPort = "Out", ToNodeId = AddA, ToPort = "B" }
+                    }
+                }
+            }
+        };
+    }
+    private static ShaderGraphDocument BuildUnknownNodeGraph() {
+        var Root = StableId.New();
+        return new ShaderGraphDocument {
+            RootSubgraphId = Root,
+            Subgraphs = {
+                new ShaderGraphSubgraph {
+                    Id = Root,
+                    Nodes = { new ShaderGraphNode { Id = StableId.New(), Type = "NotARealNode" } }
+                }
+            }
+        };
+    }
+    private static ShaderGraphDocument BuildSubgraphRecursionGraph() {
+        var Root = StableId.New();
+        var A = StableId.New();
+        var B = StableId.New();
+        return new ShaderGraphDocument {
+            RootSubgraphId = Root,
+            Subgraphs = {
+                new ShaderGraphSubgraph {
+                    Id = Root,
+                    Nodes = {
+                        new ShaderGraphNode {
+                            Id = A,
+                            Type = "SubgraphCall",
+                            Arguments = { new ShaderGraphArgument { Name = "SubgraphId", Value = B.ToString() } }
+                        }
+                    },
+                    Outputs = { new ShaderGraphPort { Name = "Out", Type = ShaderGraphValueType.Float } }
+                },
+                new ShaderGraphSubgraph {
+                    Id = B,
+                    Inputs = { new ShaderGraphPort { Name = "In", Type = ShaderGraphValueType.Float } },
+                    Outputs = { new ShaderGraphPort { Name = "Out", Type = ShaderGraphValueType.Float } },
+                    Nodes = {
+                        new ShaderGraphNode {
+                            Id = B,
+                            Type = "SubgraphCall",
+                            Arguments = { new ShaderGraphArgument { Name = "SubgraphId", Value = Root.ToString() } }
+                        }
+                    }
+                }
+            }
+        };
+    }
+    private static ShaderGraphDocument BuildRegionGraph() {
+        var Root = StableId.New();
+        return new ShaderGraphDocument {
+            RootSubgraphId = Root,
+            Subgraphs = {
+                new ShaderGraphSubgraph {
+                    Id = Root,
+                    Regions = { new ShaderGraphRegion { Id = StableId.New(), Name = "R", NodeIds = { StableId.New() } } }
+                }
+            }
+        };
+    }
+    private static ShaderGraphDocument BuildForRangeGraph() {
+        var Root = StableId.New();
+        return new ShaderGraphDocument {
+            RootSubgraphId = Root,
+            Subgraphs = {
+                new ShaderGraphSubgraph {
+                    Id = Root,
+                    Nodes = {
+                        new ShaderGraphNode {
+                            Id = StableId.New(),
+                            Type = "ForRange"
+                        }
+                    }
+                }
+            }
+        };
+    }
+    private static ShaderGraphDocument BuildEmitterGraph() {
+        var Root = StableId.New();
+        var C1 = StableId.New();
+        var C2 = StableId.New();
+        var Add = StableId.New();
+        var Out = StableId.New();
+        return new ShaderGraphDocument {
+            Target = new ShaderGraphTarget { Kind = ShaderGraphTargetKind.Stage },
+            EntryPoint = new ShaderGraphEntryPointContract { TargetKind = ShaderGraphTargetKind.Stage, Name = "StageMain", ReturnType = ShaderGraphValueType.Float4 },
+            RootSubgraphId = Root,
+            Subgraphs = {
+                new ShaderGraphSubgraph {
+                    Id = Root,
+                    Inputs = { },
+                    Outputs = { new ShaderGraphPort { Name = "Out", Type = ShaderGraphValueType.Float4 } },
+                    Nodes = {
+                        new ShaderGraphNode { Id = C1, Type = "ConstantFloat", Arguments = { new ShaderGraphArgument { Name = "Value", Value = "1.0" } } },
+                        new ShaderGraphNode { Id = C2, Type = "ConstantFloat", Arguments = { new ShaderGraphArgument { Name = "Value", Value = "2.0" } } },
+                        new ShaderGraphNode { Id = Add, Type = "AddFloat" },
+                        new ShaderGraphNode { Id = Out, Type = "OutputFloat" }
+                    },
+                    Edges = {
+                        new ShaderGraphEdge { Id = StableId.New(), FromNodeId = C1, FromPort = "Out", ToNodeId = Add, ToPort = "A" },
+                        new ShaderGraphEdge { Id = StableId.New(), FromNodeId = C2, FromPort = "Out", ToNodeId = Add, ToPort = "B" },
+                        new ShaderGraphEdge { Id = StableId.New(), FromNodeId = Add, FromPort = "Out", ToNodeId = Out, ToPort = "In" }
+                    }
+                }
+            }
+        };
+    }
+}

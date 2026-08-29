@@ -13,7 +13,7 @@ namespace CSharpGameEngine.Runtime.Windows.Tests;
 /// well-formed <see cref="StageMeshCreateInfo"/> data.
 /// </summary>
 public class RenderServerTests {
-    private static readonly string ShaderPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.hlsl");
+    private static readonly string ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact");
 
     [WindowsOnlyFact]
     public void BuildPrimitiveRoster_SamePrimitiveTypeRepeated_DedupesToOneMeshEntry(){
@@ -82,10 +82,10 @@ public class RenderServerTests {
         GraphicsDeviceOptions DeviceOptions=new(){ UseWarp=true,EnableDebugLayer=true };
 
         using var Renderer=StageRenderer.Create(
-                                                Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
+                                                Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderArtifactPath,
                                                 Meshes,Materials,Objects);
 
-        Assert.True(Renderer.ShaderCompilationSucceeded,string.Join(Environment.NewLine,Renderer.ShaderDiagnostics));
+        Assert.True(Renderer.ShaderArtifactLoaded,string.Join(Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
 
         var Camera=CSharpGameEngine.Graphics.D3D12.Camera.CreateDefault(Vector3.Zero);
         Renderer.SetCamera(Camera);

@@ -45,7 +45,7 @@ public static class PhysicalLightUnits {
         return 2f*Pi*(1f-MathF.Cos(HalfAngleRadians));
     }
     /// <summary>
-    /// Integrates the squared smooth falloff used by <c>Stage.hlsl</c>. This is smaller than the
+    /// Integrates the squared smooth falloff used by <c>Stage shader ABI</c>. This is smaller than the
     /// outer hard-cone solid angle when inner and outer angles differ, so using it preserves the
     /// public luminous flux after the shader's transition attenuation.
     /// </summary>

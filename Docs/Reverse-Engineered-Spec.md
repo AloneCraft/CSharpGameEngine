@@ -1,3 +1,11 @@
+## RE-L2-005 / RE-L7-049 / RE-L6-004 / RE-L8-031 — Visual Shader Graph pipeline
+
+- Confidence: High.
+- Evidence: CSharpGameEngine.ShaderGraph, CSharpGameEngine.ShaderArtifacts, CSharpGameEngine.ShaderGraph.Cli, ShaderArtifactRuntime, the three D3D12 renderers, MSBuild target, VSIX ShaderGraphEditor files, production Graph JSON, and their test projects.
+- Observed behavior: Production graph files contain stable GUID syntax nodes and typed child edges rather than raw HLSL payloads. Canonical layout exclusion gives stable semantic hashes. The compiler regenerates byte-identical HLSL and fixed-entry artifacts for identical input.
+- Observed behavior: Runtime validates target, ABI, entries, profiles, reflection, and checksum before PSO creation. Debug watches artifacts and preserves the old PSO on load or creation failure; Release excludes watch behavior.
+- Observed behavior: VSIX registers both file extensions and packages localized templates. Source save is independent from successful artifact publication; diagnostics route to the Error List.
+- Result: Matches for artifact/runtime and Rendering baseline. Partial for external production Subgraph composition, first-class high-level region authoring, dedicated Subgraph navigation, and Experimental Instance automation.
 # Reverse-engineered specification
 
 ## RE-L7-021 addendum — Catalog v2 non-physics registration

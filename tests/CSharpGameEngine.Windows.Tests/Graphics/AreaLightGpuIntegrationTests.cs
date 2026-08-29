@@ -6,7 +6,7 @@ namespace CSharpGameEngine.Graphics.D3D12.Tests;
 
 /// <summary>WARP regressions for the native one-record rectangle Area local-light path.</summary>
 public sealed class AreaLightGpuIntegrationTests {
-    private static readonly string ShaderPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.hlsl");
+    private static readonly string ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact");
 
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
@@ -38,9 +38,9 @@ public sealed class AreaLightGpuIntegrationTests {
         };
 
         using var Renderer=StageRenderer.Create(
-            Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
+            Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderArtifactPath,
             [GroundMesh],[Material],[new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 }]);
-        Assert.True(Renderer.ShaderCompilationSucceeded,string.Join(Environment.NewLine,Renderer.ShaderDiagnostics));
+        Assert.True(Renderer.ShaderArtifactLoaded,string.Join(Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
 
         Camera Camera=Camera.CreateDefault(Vector3.Zero);
         Camera.Pitch=-89f*MathF.PI/180f;

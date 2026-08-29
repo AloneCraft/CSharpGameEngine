@@ -1,0 +1,18 @@
+<Project>
+  <PropertyGroup>
+    <CgeShaderGraphCliProject>$(MSBuildThisFileDirectory)..\tools\CSharpGameEngine.ShaderGraph.Cli\CSharpGameEngine.ShaderGraph.Cli.csproj</CgeShaderGraphCliProject>
+    <CgeShaderGraphCliExe>$(MSBuildThisFileDirectory)..\tools\CSharpGameEngine.ShaderGraph.Cli\bin\x64\$(Configuration)\net10.0-windows10.0.19041.0\CSharpGameEngine.ShaderGraph.Cli.exe</CgeShaderGraphCliExe>
+    <CgeShaderGraphIntermediateDirectory>$(IntermediateOutputPath)ShaderGraph\</CgeShaderGraphIntermediateDirectory>
+  </PropertyGroup>
+  <Target Name="BuildCgeShaderGraphCli" BeforeTargets="CompileCgeShaderGraphs" Condition="'@(CgeShaderGraph)' != ''">
+    <MSBuild Projects="$(CgeShaderGraphCliProject)" Targets="Build" Properties="Configuration=$(Configuration);Platform=x64" BuildInParallel="false" />
+  </Target>
+  <Target Name="CompileCgeShaderGraphs" BeforeTargets="PrepareForBuild" DependsOnTargets="BuildCgeShaderGraphCli" Condition="'@(CgeShaderGraph)' != ''" Inputs="@(CgeShaderGraph);@(CgeShaderSubgraph);$(CgeShaderGraphCliExe)" Outputs="@(CgeShaderGraph->'$(CgeShaderGraphIntermediateDirectory)%(Filename).cgeshaderartifact')">
+    <MakeDir Directories="$(CgeShaderGraphIntermediateDirectory)" />
+    <Exec Command="&quot;$(CgeShaderGraphCliExe)&quot; build &quot;%(CgeShaderGraph.FullPath)&quot; &quot;$(CgeShaderGraphIntermediateDirectory)%(CgeShaderGraph.Filename).cgeshaderartifact&quot; &quot;$(CgeShaderGraphIntermediateDirectory)%(CgeShaderGraph.Filename).generated.hlsl&quot; &quot;$(Configuration)&quot;" />
+  </Target>
+  <Target Name="PublishCgeShaderArtifacts" AfterTargets="Build" DependsOnTargets="CompileCgeShaderGraphs" Condition="'@(CgeShaderGraph)' != ''">
+    <MakeDir Directories="$(TargetDir)Shaders" />
+    <Exec Command="&quot;$(CgeShaderGraphCliExe)&quot; publish &quot;$(CgeShaderGraphIntermediateDirectory)%(CgeShaderGraph.Filename).cgeshaderartifact&quot; &quot;$(TargetDir)Shaders\%(CgeShaderGraph.Filename).cgeshaderartifact&quot;" />
+  </Target>
+</Project>

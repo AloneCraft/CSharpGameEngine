@@ -11,7 +11,7 @@ namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// requiring a physical GPU (same rationale as <see cref="ModelGpuIntegrationTests"/>).
 /// </summary>
 public class StageGpuIntegrationTests {
-    private static readonly string ShaderPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.hlsl");
+    private static readonly string ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact");
 
     [Fact]
     public void StageShadowAtlas_DirectionalTileZeroMatchesPhysicalPlan(){
@@ -140,13 +140,13 @@ public class StageGpuIntegrationTests {
         };
 
         using var Renderer=StageRenderer.Create(
-                                                Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
+                                                Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderArtifactPath,
                                                 [
                                                     new MeshCreateInfo { Positions=Ground.Positions,Normals=Ground.Normals,Indices=Ground.Indices,BaseColorFactor=new Vector4(0.3f,0.6f,0.3f,1f)},
                                                     new MeshCreateInfo { Positions=Character.Positions,Normals=Character.Normals,Indices=Character.Indices,BaseColorFactor=new Vector4(0.8f,0.2f,0.2f,1f)},
                                                 ]);
 
-        Assert.True(Renderer.ShaderCompilationSucceeded,string.Join(Environment.NewLine,Renderer.ShaderDiagnostics));
+        Assert.True(Renderer.ShaderArtifactLoaded,string.Join(Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
         Assert.True(Renderer.IsWarp);
 
         Camera Camera=Camera.CreateDefault(new Vector3(0f,1f,0f));
@@ -183,7 +183,7 @@ public class StageGpuIntegrationTests {
         };
 
         using var Renderer=StageRenderer.Create(
-                                                Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
+                                                Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderArtifactPath,
                                                 [new MeshCreateInfo { Positions=Ground.Positions,Normals=Ground.Normals,Indices=Ground.Indices,BaseColorFactor=Vector4.One }]);
 
         Camera Camera=Camera.CreateDefault(Vector3.Zero);
@@ -225,7 +225,7 @@ public class StageGpuIntegrationTests {
         StageMaterialCreateInfo BlueMaterial=new(){ BaseColorFactor=new Vector4(0,0,1,1),RoughnessFactor=1f,MetallicFactor=0f };
 
         using var Renderer=StageRenderer.Create(
-                                                Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
+                                                Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderArtifactPath,
                                                 [Mesh],
                                                 [RedMaterial,BlueMaterial],
                                                 [
@@ -233,7 +233,7 @@ public class StageGpuIntegrationTests {
                                                     new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=1 },
                                                 ]);
 
-        Assert.True(Renderer.ShaderCompilationSucceeded,string.Join(Environment.NewLine,Renderer.ShaderDiagnostics));
+        Assert.True(Renderer.ShaderArtifactLoaded,string.Join(Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
 
         Camera Camera=Camera.CreateDefault(Vector3.Zero);
         Renderer.SetCamera(Camera);
@@ -290,7 +290,7 @@ public class StageGpuIntegrationTests {
         StageMaterialCreateInfo Material=new(){ BaseColorFactor=Vector4.One,RoughnessFactor=1f,MetallicFactor=0f };
 
         using var Renderer=StageRenderer.Create(
-                                                Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
+                                                Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderArtifactPath,
                                                 [Mesh],[Material],[new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 }]);
 
         Camera Camera=Camera.CreateDefault(Vector3.Zero);
@@ -337,7 +337,7 @@ public class StageGpuIntegrationTests {
         StageMeshCreateInfo Mesh=new(){ Positions=Ground.Positions,Normals=Ground.Normals,Tangents=Tangents,Uvs=Uvs,Indices=Ground.Indices };
         StageMaterialCreateInfo Material=new(){ BaseColorFactor=Vector4.One,RoughnessFactor=1f,MetallicFactor=0f };
         using var Renderer=StageRenderer.Create(
-            Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
+            Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderArtifactPath,
             [Mesh],[Material],[new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 }]);
         Camera Camera=Camera.CreateDefault(Vector3.Zero);
 
@@ -389,7 +389,7 @@ public class StageGpuIntegrationTests {
         StageMeshCreateInfo Mesh=new(){ Positions=Ground.Positions,Normals=Ground.Normals,Tangents=Tangents,Uvs=Uvs,Indices=Ground.Indices };
         StageMaterialCreateInfo Material=new(){ BaseColorFactor=Vector4.One,RoughnessFactor=1f,MetallicFactor=0f };
         using var Renderer=StageRenderer.Create(
-                                                Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
+                                                Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderArtifactPath,
                                                 [Mesh],[Material],[new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 }]);
         Camera Camera=Camera.CreateDefault(Vector3.Zero);
 
@@ -495,10 +495,10 @@ public class StageGpuIntegrationTests {
         StageMaterialCreateInfo Material=new(){ BaseColorFactor=new Vector4(0.8f,0.3f,0.2f,1f),RoughnessFactor=0.6f,MetallicFactor=0f };
 
         using var Renderer=StageRenderer.Create(
-                                                Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
+                                                Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderArtifactPath,
                                                 [Mesh],[Material],[new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 }]);
 
-        Assert.True(Renderer.ShaderCompilationSucceeded,string.Join(Environment.NewLine,Renderer.ShaderDiagnostics));
+        Assert.True(Renderer.ShaderArtifactLoaded,string.Join(Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
 
         Camera Camera=Camera.CreateDefault(Vector3.Zero);
         var LightDirection=Vector3.Normalize(new Vector3(0.3f,0.8f,0.4f));
@@ -577,14 +577,14 @@ public class StageGpuIntegrationTests {
         StageMaterialCreateInfo Material=new(){ BaseColorFactor=Vector4.One,RoughnessFactor=1f,MetallicFactor=0f };
 
         using var Renderer=StageRenderer.Create(
-                                                Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
+                                                Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderArtifactPath,
                                                 [GroundMesh,BlockerMesh],[Material],
                                                 [
                                                     new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 }, // ground, object 0
                                                     new StageObjectCreateInfo { MeshIndex=1,MaterialIndex=0 }, // blocker, object 1
                                                 ]);
 
-        Assert.True(Renderer.ShaderCompilationSucceeded,string.Join(Environment.NewLine,Renderer.ShaderDiagnostics));
+        Assert.True(Renderer.ShaderArtifactLoaded,string.Join(Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
 
         // Nearly-top-down orbit camera targeting the world origin, so the captured frame's center
         // pixel corresponds to the ground point directly below the blocker once the blocker is
@@ -660,13 +660,13 @@ public class StageGpuIntegrationTests {
         };
 
         using var Renderer=StageRenderer.Create(
-            Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
+            Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderArtifactPath,
             [GroundMesh,BlockerMesh],[Material],
             [
                 new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 },
                 new StageObjectCreateInfo { MeshIndex=1,MaterialIndex=0 },
             ]);
-        Assert.True(Renderer.ShaderCompilationSucceeded,string.Join(Environment.NewLine,Renderer.ShaderDiagnostics));
+        Assert.True(Renderer.ShaderArtifactLoaded,string.Join(Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
 
         // Aim at the off-axis projected shadow, not the blocker itself, so the capture sees the
         // ground receiver rather than the blocker's lit top face.
@@ -744,13 +744,13 @@ public class StageGpuIntegrationTests {
         };
 
         using var Renderer=StageRenderer.Create(
-            Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
+            Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderArtifactPath,
             [GroundMesh,BlockerMesh],[Material],
             [
                 new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 },
                 new StageObjectCreateInfo { MeshIndex=1,MaterialIndex=0 },
             ]);
-        Assert.True(Renderer.ShaderCompilationSucceeded,string.Join(Environment.NewLine,Renderer.ShaderDiagnostics));
+        Assert.True(Renderer.ShaderArtifactLoaded,string.Join(Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
 
         // The light-to-receiver segment passes through BlockerPosition. This receiver lies on the
         // Point's -X major axis (cube face 1). Reserving directional tile 0 means the Point's
@@ -818,9 +818,9 @@ public class StageGpuIntegrationTests {
         };
 
         using var Renderer=StageRenderer.Create(
-            Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
+            Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderArtifactPath,
             [GroundMesh],[Material],[new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 }]);
-        Assert.True(Renderer.ShaderCompilationSucceeded,string.Join(Environment.NewLine,Renderer.ShaderDiagnostics));
+        Assert.True(Renderer.ShaderArtifactLoaded,string.Join(Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
 
         Camera Camera=Camera.CreateDefault(Vector3.Zero);
         Camera.Pitch=-89f*MathF.PI/180f;

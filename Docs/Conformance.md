@@ -1,3 +1,10 @@
+## 2026-08-29 M0060 Visual Shader Graph and artifact runtime
+
+- Intended specification: ADR-0058, M0060, Rendering, Editor/VSIX, and Shader Graph specifications.
+- Implementation: Canonical Stage/Model/Triangle Graphs, typed syntax-node lowering, deterministic HLSL/source maps, nine-entry DXC build, CGESHDR1 artifact container, artifact-only D3D12 Runtime, Debug frame-boundary hot reload, Release one-shot load, MSBuild publication, and localized VSIX Graph/Subgraph editors/templates.
+- Reverse-engineered behavior: Runtime assemblies contain no HlslCompiler or DXC dependency. Corrupt Debug writes retain last-known-good PSOs; successful later writes recover. Layout-only Graph edits preserve semantic hash.
+- Tests and runtime verification: all five M0060 Feature Stages passed in Debug and Release. Full solution runs passed 1,623 Debug tests and 1,622 Release tests sequentially. TestHost and Model Viewer passed WARP readback with zero D3D12 validation errors in both configurations, and UserEcsProject completed normal startup/window-close/shutdown smoke in both configurations.
+- Conformance: Matches for F-L7-022 and F-L6-004. Partial for F-L2-005, F-L7-049, and F-L8-031 because production PBR/shadow/PCSS/ACES logic has not yet been extracted into external dependency-tracked .cgesubgraph files, dedicated external Subgraph navigation is absent, and Experimental Instance interaction has not been automated.
 # Conformance
 
 ## 2026-08-29 M0059 ECS baseline and fixed-tick shipping loop

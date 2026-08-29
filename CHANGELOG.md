@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Replaced production Stage, Model, and Triangle HLSL runtime compilation with canonical Visual Shader Graph sources, deterministic CLI/MSBuild compilation, checksummed fixed-ABI Shader Artifacts, Debug frame-boundary hot reload with last-known-good recovery, and Release one-shot loading.
+- Renamed Level.ShaderPath to Level.ShaderArtifactPath without a compatibility API and removed DXC/HlslCompiler from the D3D12 Runtime.
+- Added localized Visual Studio Shader Graph/Subgraph custom editors and item templates, typed node editing, Error List diagnostics, source save/build publication, and generated-HLSL opening.
+
 - Fixed the ECS baseline as executable `ecs.baseline` and moved the generated shipping loop to a 60 Hz fixed-tick scheduler with a maximum of eight retained-backlog catch-up ticks, pause/resume/step controls, interpolation alpha, and `CGE-FIXED-TICK-OVERRUN` diagnostics. `F-L7-030` and `F-L3-018` are now Implemented; generated `RunFrame` callers must pass the scheduler and elapsed counter/frequency.
 - Added the autonomous Feature Runner with stable Feature/Stage catalogs, changed/smoke/full/stress/VSIX suites, WARP-first visual validation, resumable versioned JSON results, and explicit `NotImplemented` outcomes for deferred features.
 - Assigned machine-verifiable stages to the active 48 features and deterministic Oracle designs to 28 deferred Simulation/Physics features; retained the current 64-component Source Generator limit without adding runtime mask cost.

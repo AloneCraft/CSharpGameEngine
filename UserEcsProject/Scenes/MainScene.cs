@@ -18,7 +18,7 @@ internal partial class MainScene:IScene {
                 Height=720,
             },
             new Level {
-                ShaderPath="Shaders/Stage.hlsl",
+                ShaderArtifactPath="Shaders/Stage.cgeshaderartifact",
             },
         ],
     };

@@ -10,7 +10,7 @@ namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// penumbra failure.
 /// </summary>
 public sealed class AreaEmissiveShadowGpuIntegrationTests {
-    private static readonly string ShaderPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.hlsl");
+    private static readonly string ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact");
     private static readonly Vector3 AreaSourcePosition=new(0f,8f,0f);
     private static readonly Vector3 AreaForward=-Vector3.UnitY;
     private static readonly Vector3 BlockerPosition=new(1.5f,4f,0f);
@@ -153,7 +153,7 @@ public sealed class AreaEmissiveShadowGpuIntegrationTests {
             MetallicFactor=0f,
         };
         StageRenderer Renderer=StageRenderer.Create(
-            Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderPath,
+            Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderArtifactPath,
             [CreateStageMesh(Ground),CreateStageMesh(Blocker)],[Material],
             [
                 new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 },
@@ -187,8 +187,8 @@ public sealed class AreaEmissiveShadowGpuIntegrationTests {
 
     private static PixelReadbackResult Render(
         ShadowScene Scene,in Camera Camera,Vector3 CurrentBlockerPosition,Action<StageRenderer> SubmitLights){
-        Assert.True(Scene.Renderer.ShaderCompilationSucceeded,
-            string.Join(Environment.NewLine,Scene.Renderer.ShaderDiagnostics));
+        Assert.True(Scene.Renderer.ShaderArtifactLoaded,
+            string.Join(Environment.NewLine,Scene.Renderer.ShaderArtifactDiagnostics));
         for(int Frame=0;Frame<3;Frame++){
             Scene.Renderer.SetCamera(Camera);
             Scene.Renderer.SetAmbientLight(Vector3.Zero);

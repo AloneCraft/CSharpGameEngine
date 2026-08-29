@@ -41,6 +41,10 @@ namespace CSharpGameEngine.VSExtension;
 [ProvideEditorExtension(typeof(GlbFbxPreviewEditorFactory),".glb",50)]
 [ProvideEditorExtension(typeof(GlbFbxPreviewEditorFactory),".gltf",50)]
 [ProvideEditorExtension(typeof(GlbFbxPreviewEditorFactory),".fbx",50)]
+[ProvideEditorFactory(typeof(ShaderGraphEditorFactory),111,TrustLevel=__VSEDITORTRUSTLEVEL.ETL_AlwaysTrusted)]
+[ProvideEditorLogicalView(typeof(ShaderGraphEditorFactory),VSConstants.LOGVIEWID.Designer_string)]
+[ProvideEditorExtension(typeof(ShaderGraphEditorFactory),".cgeshadergraph",60)]
+[ProvideEditorExtension(typeof(ShaderGraphEditorFactory),".cgesubgraph",60)]
 // Tools>Options > C# Game Engine > Scene Editor。120/121 は VSPackage.resx のカテゴリ名/ページ名。
 // GeneratePkgDefFile=true なので .pkgdef へ自動登録される(マニフェストの手編集は不要)。
 [ProvideOptionPage(typeof(SceneEditorOptionsPage),"C# Game Engine","Scene Editor",120,121,
@@ -72,6 +76,7 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
         await ShowComponentPaletteToolWindowCommand.InitializeAsync(this);
 
         this.RegisterEditorFactory(new GlbFbxPreviewEditorFactory());
+        this.RegisterEditorFactory(new ShaderGraphEditorFactory());
 
         // ADR-0040: the Scene editor reads scenes from live Roslyn. Both of these degrade to null
         // when the managed language service is unavailable, in which case the Hierarchy simply shows

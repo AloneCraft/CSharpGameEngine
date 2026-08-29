@@ -55,7 +55,7 @@ public struct AppHost {
 [SceneComponentIcon("Assets/Editor/ComponentIcons/Level.svg")]
 public struct Level {
     /// <summary>シェーダーのパス。アプリのベースディレクトリ(<c>AppContext.BaseDirectory</c>)からの相対。</summary>
-    public string ShaderPath;
+    public string ShaderArtifactPath;
 }
 
 /// <summary>SkyLightをStageRendererの単純な環境光へ写像した宣言Component。</summary>
