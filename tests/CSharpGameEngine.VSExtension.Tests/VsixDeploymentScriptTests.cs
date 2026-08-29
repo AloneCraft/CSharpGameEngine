@@ -38,6 +38,16 @@ public sealed class VsixDeploymentScriptTests {
         Assert.Contains("VSIX package DLL SHA-256 does not match build output",Script);
     }
 
+    [Fact]
+    public void ReinstallScript_AcceptsAnIsolatedRootSuffixAndDefaultsToCgeFixed(){
+        string Script=File.ReadAllText(Path.Combine(
+            AppContext.BaseDirectory,"TestAssets","Reinstall-CgeFixedVsix.ps1"));
+
+        Assert.Contains("[string]$RootSuffix='CgeFixed'",Script);
+        Assert.Contains("/rootSuffix:$RootSuffix",Script);
+        Assert.DoesNotContain("$RootSuffix='CgeFixed'\r\n$ScriptDirectory",Script);
+    }
+
 [Fact]
     public void ReinstallScript_SelectsAVisualStudioInstallerFromAllRunnableCandidates(){
         string Script=File.ReadAllText(Path.Combine(

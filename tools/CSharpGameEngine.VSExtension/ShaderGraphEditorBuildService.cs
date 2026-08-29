@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 namespace CSharpGameEngine.VSExtension;
+internal enum ShaderGraphEditorBuildOperation { BuildRoot,ValidateSubgraph }
 internal sealed class ShaderGraphEditorBuildResult {
     internal ShaderGraphEditorBuildResult(bool Success,string Message,string?GeneratedHlslPath) { this.Success=Success;this.Message=Message;this.GeneratedHlslPath=GeneratedHlslPath; }
     internal bool Success { get; }
@@ -11,21 +12,29 @@ internal sealed class ShaderGraphEditorBuildResult {
     internal string?GeneratedHlslPath { get; }
 }
 internal static class ShaderGraphEditorBuildService {
+    internal static ShaderGraphEditorBuildOperation GetOperation(string GraphPath)=>
+        string.Equals(Path.GetExtension(GraphPath),".cgesubgraph",StringComparison.OrdinalIgnoreCase)?ShaderGraphEditorBuildOperation.ValidateSubgraph:ShaderGraphEditorBuildOperation.BuildRoot;
     internal static ShaderGraphEditorBuildResult BuildAndPublish(string GraphPath) {
         var RepoRoot=RepoLocator.ResolveRepoRoot();
         if(RepoRoot is null) { return new ShaderGraphEditorBuildResult(false,"Repository root is unavailable.",null); }
         var CliPath=FindCli(RepoRoot);
         if(CliPath is null) { return new ShaderGraphEditorBuildResult(false,"Shader Graph CLI is not built. Build CSharpGameEngine.ShaderGraph.Cli first.",null); }
+        if(GetOperation(GraphPath)==ShaderGraphEditorBuildOperation.ValidateSubgraph) {
+            var Validation=Run(CliPath,"validate "+Quote(GraphPath),RepoRoot);
+            return Validation.ExitCode==0
+                ?new ShaderGraphEditorBuildResult(true,"Shader Subgraph validated.",null)
+                :new ShaderGraphEditorBuildResult(false,Validation.Output,null);
+        }
         var Name=Path.GetFileNameWithoutExtension(GraphPath);
         var OutputDirectory=Path.Combine(RepoRoot,".artifacts","ShaderGraph","Editor");
         Directory.CreateDirectory(OutputDirectory);
         var ArtifactPath=Path.Combine(OutputDirectory,Name+".cgeshaderartifact");
         var HlslPath=Path.Combine(OutputDirectory,Name+".generated.hlsl");
-        var Build=Run(CliPath,$"build \"{GraphPath}\" \"{ArtifactPath}\" \"{HlslPath}\" Debug",RepoRoot);
+        var Build=Run(CliPath,"build "+Quote(GraphPath)+" "+Quote(ArtifactPath)+" "+Quote(HlslPath)+" Debug",RepoRoot);
         if(Build.ExitCode!=0) { return new ShaderGraphEditorBuildResult(false,Build.Output,HlslPath); }
         var Published=0;
         foreach(var Existing in FindExistingRuntimeArtifacts(RepoRoot,Name+".cgeshaderartifact")) {
-            var Publish=Run(CliPath,$"publish \"{ArtifactPath}\" \"{Existing}\"",RepoRoot);
+            var Publish=Run(CliPath,"publish "+Quote(ArtifactPath)+" "+Quote(Existing),RepoRoot);
             if(Publish.ExitCode!=0) { return new ShaderGraphEditorBuildResult(false,Publish.Output,HlslPath); }
             Published++;
         }
@@ -33,8 +42,12 @@ internal static class ShaderGraphEditorBuildService {
     }
     private static string?FindCli(string RepoRoot) {
         foreach(var Configuration in new[]{"Debug","Release"}) {
-            var Candidate=Path.Combine(RepoRoot,"tools","CSharpGameEngine.ShaderGraph.Cli","bin","x64",Configuration,"net10.0-windows10.0.19041.0","CSharpGameEngine.ShaderGraph.Cli.exe");
-            if(File.Exists(Candidate)) { return Candidate; }
+            foreach(var Architecture in new[]{"x64",string.Empty}) {
+                var Candidate=string.IsNullOrEmpty(Architecture)
+                    ?Path.Combine(RepoRoot,"tools","CSharpGameEngine.ShaderGraph.Cli","bin",Configuration,"net10.0-windows10.0.19041.0","CSharpGameEngine.ShaderGraph.Cli.exe")
+                    :Path.Combine(RepoRoot,"tools","CSharpGameEngine.ShaderGraph.Cli","bin",Architecture,Configuration,"net10.0-windows10.0.19041.0","CSharpGameEngine.ShaderGraph.Cli.exe");
+                if(File.Exists(Candidate)) { return Candidate; }
+            }
         }
         return null;
     }
@@ -48,6 +61,7 @@ internal static class ShaderGraphEditorBuildService {
             }
         }
     }
+    private static string Quote(string Value)=>string.Concat((char)34,Value,(char)34);
     private static (int ExitCode,string Output)Run(string Executable,string Arguments,string WorkingDirectory) {
         var StartInfo=new ProcessStartInfo(Executable,Arguments) { WorkingDirectory=WorkingDirectory,UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true };
         using(var ChildProcess=System.Diagnostics.Process.Start(StartInfo)) {

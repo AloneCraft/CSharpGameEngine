@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "cge-vsix-experimental-baseline-v1",
+  "checks": [
+    {
+      "id": "shader-graph-1041",
+      "owner": "vsix-automation",
+      "status": "Pending",
+      "evidencePath": null,
+      "observedUtc": null,
+      "expiresUtc": null
+    },
+    {
+      "id": "shader-graph-1033",
+      "owner": "vsix-automation",
+      "status": "Pending",
+      "evidencePath": null,
+      "observedUtc": null,
+      "expiresUtc": null
+    },
+    {
+      "id": "scene-designer",
+      "owner": "editor-maintainer",
+      "status": "Pending",
+      "evidencePath": null,
+      "observedUtc": null,
+      "expiresUtc": null
+    },
+    {
+      "id": "dpi-scaling",
+      "owner": "editor-maintainer",
+      "status": "Pending",
+      "evidencePath": null,
+      "observedUtc": null,
+      "expiresUtc": null
+    },
+    {
+      "id": "escape-routing",
+      "owner": "editor-maintainer",
+      "status": "Pending",
+      "evidencePath": null,
+      "observedUtc": null,
+      "expiresUtc": null
+    },
+    {
+      "id": "physics-sidebar",
+      "owner": "editor-maintainer",
+      "status": "Pending",
+      "evidencePath": null,
+      "observedUtc": null,
+      "expiresUtc": null
+    },
+    {
+      "id": "startup-layout",
+      "owner": "editor-maintainer",
+      "status": "Pending",
+      "evidencePath": null,
+      "observedUtc": null,
+      "expiresUtc": null
+    },
+    {
+      "id": "preview-render-audio",
+      "owner": "editor-maintainer",
+      "status": "Pending",
+      "evidencePath": null,
+      "observedUtc": null,
+      "expiresUtc": null
+    }
+  ]
+}

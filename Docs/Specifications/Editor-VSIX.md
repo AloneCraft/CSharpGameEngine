@@ -2,7 +2,7 @@
 
 - Status: Specified
 - Parent index: [Roadmap](../Roadmap.md), [Implementation Status](../Implementation-Status.md)
-- Decisions: [ADR-0054](../Decisions/ADR-0054-Editor-Authoring-Host-And-Source-Synchronization.md)
+- Decisions: [ADR-0054](../Decisions/ADR-0054-Editor-Authoring-Host-And-Source-Synchronization.md), [ADR-0061](../Decisions/ADR-0061-Vsix-Experimental-Evidence-And-Automation.md)
 - Related lower specification: [Scene-Editor-Design](Scene-Editor-Design.md)
 - Target layer: L8 over standalone L4/L7 services
 
@@ -60,7 +60,7 @@ Runtime L0-L6 cannot reference Roslyn or Visual Studio SDK. L7 compiler/bake wor
 
 ## Manual and automated evidence
 
-Experimental Instance evidence remains explicit. Required automated cells validate models, protocols, package content, and WARP aliases. The Experimental Instance manual/automation stages have a 3600-second timeout; unrecorded manual checks remain pending and cannot count as passing release evidence.
+Experimental Instance evidence remains explicit. `VSIX-Experimental-Baseline.json` permits Pending but validates owner, evidence existence, observation, and expiry before Passed can count. `CSharpGameEngine.Vsix.Automation` runs only against the exact `CgeAutomation` suffix, classifies exit code 2 as InfrastructureError, records package/build/installed DLL hashes, and never closes a pre-existing PID. The Experimental stages are `vsix` profile only and retain a 3600-second Feature Runner timeout.
 
 ## Stage oracle matrix
 
@@ -77,9 +77,9 @@ Experimental Instance evidence remains explicit. Required automated cells valida
 | F-L8-028 | 6 | `vsix.compatibility` | Headless / VSIX | 3600s | net472/package/VS compatibility evidence. |
 | F-L8-029 | 7 | `vsix.release` | Headless / VSIX | 7200s | Signed inputs, install, run, uninstall. |
 
-All rows are `Specified` and registered as `NotImplemented`. Existing Scene Designer test stages remain executable baseline evidence.
+F-L8-020 and F-L8-021 are Implemented with executable stages. F-L8-022 through F-L8-029 remain Specified and NotImplemented. Existing Scene Designer test stages remain executable baseline evidence.
 
 
 ## Visual Shader Graph editor
 
-F-L8-031 adds an IVsEditorFactory-backed WPF editor for .cgeshadergraph and .cgesubgraph. It uses the existing package, localization, Error List, Save, and native Undo/Redo boundaries. Typed invalid connections are rejected before mutation; save persists canonical source even when compilation fails, while the last-known-good artifact is not overwritten. Localized 1033/1041 item templates include root target selection and Subgraph creation. See [Shader Graph](Shader-Graph.md). External Subgraphs are listed in the editor and open on double-click. Stage templates copy and coherently remap the full dependency bundle. M0062 adds built-in palette creation, exact typed built-in connections, visible If/ForRange regions, bounded LoopIndex creation, typed Return creation, and editable control arguments. Automated Experimental Instance interaction remains partial conformance.
+F-L8-031 adds an IVsEditorFactory-backed WPF editor for .cgeshadergraph and .cgesubgraph. It uses the existing package, localization, Error List, Save, and native Undo/Redo boundaries. Typed invalid connections are rejected before mutation; save persists canonical source even when compilation fails, while the last-known-good artifact is not overwritten. Localized 1033/1041 item templates include root target selection and Subgraph creation. See [Shader Graph](Shader-Graph.md). External Subgraphs are listed in the editor and open on double-click. Stage templates copy and coherently remap the full dependency bundle. M0062 adds structured authoring. M0063 adds stable AutomationIds, TransformPattern layout editing, external-change debounce/retry, and Debug/Release 1041 Experimental evidence; F-L8-031 now Matches this scope.

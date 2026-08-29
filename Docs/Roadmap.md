@@ -4,7 +4,7 @@
 
 This index is the authoritative machine-tracked mapping for the six non-physics tracks. The older narrative tables below remain planning context. Every row has one Feature and one target Stage; `Specified`/`Deferred` target Stages are deliberately `NotImplemented` until their implementation lands.
 
-M0062 completes first-class structured If/ForRange/Return schema, validation, deterministic lowering, and VSIX authoring without adding new Feature IDs. F-L2-005 and F-L7-049 now Match; Experimental Instance automation remains the F-L8-031 follow-up.
+M0063 adds isolated `CgeAutomation` Experimental evidence, stable Shader Graph AutomationIds, and false-pass-safe ledger/Feature Runner contracts. F-L8-020 and F-L8-021 are Implemented/TestVerified, and Debug/Release 1041 evidence closes F-L8-031 as Matches.
 
 Current baseline corrections: point/spot/area/emissive shadows and HDR/ACES/bloom are observed renderer baseline; Scene Designer transform tools are observed baseline and require new visual acceptance; existing ECS phase/structural behavior is a base for the unified target; C# `IScene` remains the only authoring truth. F-L3-020 remains `Deferred` for the future 65-128-type generator path, while 1-64 uses one generation-time `ulong` with no runtime mask penalty.
 
@@ -45,9 +45,9 @@ Current baseline corrections: point/spot/area/emissive shadows and HDR/ACES/bloo
 
 | Level | Feature ID | Status | Summary | Depends on | Specification | Stage |
 |---:|---|---|---|---|---|---|
-| 3 | F-L8-031 | Implemented | Visual Shader Graph editor | F-L7-049 | [Shader Graph](Specifications/Shader-Graph.md) | vsix.shader-graph |
-| 1 | F-L8-020 | Specified | Manual/Experimental baseline | None | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.experimental-smoke` |
-| 2 | F-L8-021 | Specified | Experimental automation | F-L8-020 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.experimental-automation` |
+| 3 | F-L8-031 | Implemented | Visual Shader Graph editor | F-L7-049, F-L8-021 | [Shader Graph](Specifications/Shader-Graph.md) | vsix.shader-graph |
+| 1 | F-L8-020 | Implemented | Manual/Experimental baseline | None | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.experimental-smoke` |
+| 2 | F-L8-021 | Implemented | Experimental automation | F-L8-020 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.experimental-automation` |
 | 3 | F-L8-022 | Specified | Versioned authoring host | F-L8-021 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.host-lifecycle` |
 | 4 | F-L8-023 | Specified | Transform visual conformance | F-L8-022 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.transform-tools` |
 | 4 | F-L8-024 | Specified | Typed inspector and palette | F-L8-022 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.inspector-contracts` |

@@ -56,4 +56,4 @@ Localized 1033/1041 templates create Shader Graph or Shader Subgraph assets. The
 
 ## Known delta
 
-External production Subgraphs and first-class structured If/ForRange/Return authoring/lowering are implemented. F-L2-005 and F-L7-049 Match this specification. Remaining partial conformance is limited to automated Visual Studio Experimental Instance interaction evidence for F-L8-031.
+External production Subgraphs and first-class structured If/ForRange/Return authoring/lowering are implemented. F-L2-005 and F-L7-049 Match this specification. Debug/Release 1041 CgeAutomation evidence now proves the Editor Factory, stable AutomationIds, layout/Undo/Redo/save/reload/diagnostic lifecycle, package identity, and normal shutdown; F-L8-031 Matches this specification.

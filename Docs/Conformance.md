@@ -2988,3 +2988,9 @@ Expハイブのキャッシュより新しくすること」を機序として**
 - Observed: `MaxComponentTypes=64`; SYSGEN026 rejects 65; generator-time subset tests select direct generated Archetype loops, so Runtime performs no mask matching.
 - Verification: existing exactly-64 and over-limit generator tests; future Stage is explicitly `NotImplemented`.
 - Result: `Matches` for the current deferred decision.
+# 2026-08-29 M0063 VSIX Experimental evidence
+
+- Intended specification: ADR-0061, M0063, Editor/VSIX, Shader Graph, and Testing/CI specifications.
+- Implemented evidence: versioned Pending/Passed ledger validation, exact CgeAutomation root-suffix policy, package/build/installed DLL provenance, PID-owned UI Automation, stable Shader Graph IDs and TransformPattern, external reload/dirty dialog/diagnostics, screenshot and ActivityLog capture, and normal shutdown.
+- Automated verification: Debug and Release 1041 scenarios passed 19/19 assertions with `forcedTermination=false`; package/build/installed DLL SHA-256 values matched in each run. Normal Visual Studio PID 41320 and CgeFixed PID 25828 were unchanged. The three VSIX stages passed in both configurations, and sequential full-solution runs passed 1,655 Debug and 1,654 Release tests. 1033 language pack was absent; existing 1033 package/localization tests are the declared fallback.
+- Conformance: F-L8-020 Matches, F-L8-021 Matches, and F-L8-031 Matches.

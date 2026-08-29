@@ -10,7 +10,7 @@
 
 Catalog JSON is `csharp-game-engine-feature-catalog-v2`. Each Feature now publishes `track`, `dependencyLevel`, and `dependsOnFeatureIds` in addition to ID/name/layer/status. Run-result JSON remains `csharp-game-engine-feature-run-result-v1`; this change does not alter a completed run artifact.
 
-The six non-physics tracks have 66 Roadmap rows registered one-to-one as Feature/target-Stage pairs. F-L0-008 and F-L3-019 remain Specified; F-L7-030, F-L3-018, F-L7-022, F-L2-005, F-L7-049, F-L6-004, and F-L8-031 are Implemented with executable target stages; F-L3-020 remains `Deferred`. The remaining target Stages are `NotImplemented` with an oracle and input paths. The two pre-existing stage IDs `foundation.d3d12-compute` and `foundation.deterministic-jobs` are reused; the remaining target Stage IDs are registered in the catalog.
+The six non-physics tracks have 66 Roadmap rows registered one-to-one as Feature/target-Stage pairs. F-L0-008 and F-L3-019 remain Specified; F-L7-030, F-L3-018, F-L7-022, F-L2-005, F-L7-049, F-L6-004, F-L8-020, F-L8-021, and F-L8-031 are Implemented with executable target stages; F-L3-020 remains `Deferred`. The remaining target Stages are `NotImplemented` with an oracle and input paths. Experimental Visual Studio commands run only in the `vsix` profile and map declared exit code 2 to InfrastructureError.
 
 | Track | Specification | Visual Pack policy |
 |---|---|---|

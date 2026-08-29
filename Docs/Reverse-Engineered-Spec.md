@@ -84,3 +84,9 @@
 - Evidence: `GameSystemIndexAssigner`, `GameSystemLoopEmitter`, `SceneArchetypeIntegrationTests`, and generated loop structure.
 - Observed behavior: Component indices 0–63 are represented by one signed 64-bit value during generation. A 65th type emits SYSGEN026. The mask is used to decide which direct Archetype loops to emit and is absent from generated Runtime matching.
 - Result: Matches the current 64-type contract; the two-mask path is deferred.
+# RE-M0063 - VSIX Experimental evidence and Shader Graph UI automation
+
+- Observed implementation: `CSharpGameEngine.Vsix.Automation` enforces the exact `CgeAutomation` suffix, discovers `devenv.exe` through vswhere, verifies package-contained/build/installed DLL hashes, records all three hashes in v1 evidence, drives PID-owned UIA windows, and maps exit 2 to InfrastructureError.
+- Observed editor behavior: stable `Cge.ShaderGraph.*` IDs and TransformPattern move provide layout mutation; canonical save preserves semantic hash; clean external save reloads; dirty save exposes Reload and Keep; invalid Graph diagnostics appear and clear after repair.
+- Observed execution: Debug and Release 1041 each passed 19 assertions, captured screenshots and ActivityLog identity, retained normal VS/CgeFixed PIDs, and exited without forced termination.
+- Result: Matches ADR-0061/M0063. F-L8-020 and F-L8-021 are TestVerified; F-L8-031 is no longer Partial.

@@ -27,13 +27,13 @@ The integration order is Level 1 through Level 7 across tracks. The dependency g
 
 ## CI matrix and evidence separation
 
-Required automated cells are Windows x64 Debug and Release, `net10.0`, Windows target frameworks, and `net472` VSIX. WARP is mandatory for visual certification. Hardware GPU/audio and Visual Studio Experimental Instance runs are supplemental passes with separately recorded evidence; their absence does not convert a failed required headless/WARP cell into success.
+Required automated cells are Windows x64 Debug and Release, `net10.0`, Windows target frameworks, and `net472` VSIX. WARP is mandatory for visual certification. Hardware GPU/audio are supplemental. Visual Studio Experimental runs are selected only by the `vsix` profile and use separately recorded evidence; they are not injected into normal `changed` or `full` headless CI.
 
 Tests are classified as unit, integration, system/visual, artifact, performance, or release. Debug and Release results are separate cells. A clean build validates restore/build/test/artifact results without stale outputs or undeclared local state.
 
 ## Retry, quarantine, and failure policy
 
-Only `InfrastructureError` may retry once. Assertion failures, normal process failures, `NotImplemented`, and timeout never retry into success. Quarantine requires an owner, linked issue/evidence, reason, and expiration no later than fourteen days. Expired quarantine is a normal required failure.
+Only `InfrastructureError` may retry once. A Stage command may declare infrastructure exit codes; `CSharpGameEngine.Vsix.Automation` reserves 2 for missing/unlocked desktop, Visual Studio discovery/install/provenance, or UI Automation infrastructure, while 1 remains an Oracle failure. Assertion failures, normal process failures, `NotImplemented`, and timeout never retry into success. Quarantine requires an owner, linked issue/evidence, reason, and expiration no later than fourteen days. Expired quarantine is a normal required failure.
 
 ## Golden, performance, and stress policy
 

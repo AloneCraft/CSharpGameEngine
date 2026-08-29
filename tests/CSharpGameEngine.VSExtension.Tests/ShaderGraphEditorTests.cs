@@ -195,6 +195,20 @@ public sealed class ShaderGraphEditorTests {
         Assert.Contains(typeof(ShaderGraphTemplateWizard).FullName!,Graph);
         Assert.Contains(typeof(ShaderSubgraphTemplateWizard).FullName!,Subgraph);
     }
+    [Fact]
+    public void AutomationIds_AreStableAndUnique() {
+        var StaticIds=ShaderGraphAutomationIds.StaticIds;
+        Assert.NotEmpty(StaticIds);
+        Assert.Equal(StaticIds.Count,StaticIds.Distinct(StringComparer.Ordinal).Count());
+        Assert.All(StaticIds,Id=>Assert.StartsWith("Cge.ShaderGraph.",Id,StringComparison.Ordinal));
+        var NodeId=StableId.New();
+        Assert.Equal($"Cge.ShaderGraph.Node.{NodeId}",ShaderGraphAutomationIds.Node(NodeId));
+        Assert.Equal($"Cge.ShaderGraph.Argument.{NodeId}.Value",ShaderGraphAutomationIds.Argument(NodeId,"Value"));
+    }
+    [Fact]
+    public void BuildService_ValidatesSubgraphsWithoutPublishingArtifacts() {
+        Assert.Equal(ShaderGraphEditorBuildOperation.ValidateSubgraph,ShaderGraphEditorBuildService.GetOperation(SubgraphPath));
+    }
     private static ShaderGraphDocument BuildStructuredEditorGraph() {
         var RootId=StableId.New();
         var Condition=StableId.New();

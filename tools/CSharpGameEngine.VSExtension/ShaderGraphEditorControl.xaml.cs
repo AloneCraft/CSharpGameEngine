@@ -26,6 +26,7 @@ public partial class ShaderGraphEditorControl:UserControl {
     internal ShaderGraphEditorControl(ShaderGraphEditorDocument Document) {
         this.Document=Document;
         this.InitializeComponent();
+        this.SetAutomationIds();
         this.Document.Changed+=this.OnDocumentChanged;
         this.PreviewKeyDown+=this.OnPreviewKeyDown;
         this.PopulateEntryTabs();
@@ -38,6 +39,21 @@ public partial class ShaderGraphEditorControl:UserControl {
     internal event Action<string>?OpenDependencyRequested;
     internal IReadOnlyList<string>DependencyPaths=>this.Document.Graph.Dependencies.Select(Dependency=>Dependency.Path).ToArray();
     internal void SetStatusText(string Text)=>this.StatusText.Text=Text;
+    private void SetAutomationIds() {
+        System.Windows.Automation.AutomationProperties.SetAutomationId(this,ShaderGraphAutomationIds.Root);
+        System.Windows.Automation.AutomationProperties.SetAutomationId(this.GraphToolbar,ShaderGraphAutomationIds.Toolbar);
+        System.Windows.Automation.AutomationProperties.SetAutomationId(this.UndoButton,ShaderGraphAutomationIds.Undo);
+        System.Windows.Automation.AutomationProperties.SetAutomationId(this.RedoButton,ShaderGraphAutomationIds.Redo);
+        System.Windows.Automation.AutomationProperties.SetAutomationId(this.SaveButton,ShaderGraphAutomationIds.Save);
+        System.Windows.Automation.AutomationProperties.SetAutomationId(this.EntryTabs,ShaderGraphAutomationIds.EntryTabs);
+        System.Windows.Automation.AutomationProperties.SetAutomationId(this.PaletteSearch,ShaderGraphAutomationIds.PaletteSearch);
+        System.Windows.Automation.AutomationProperties.SetAutomationId(this.PaletteList,ShaderGraphAutomationIds.PaletteList);
+        System.Windows.Automation.AutomationProperties.SetAutomationId(this.DependencyList,ShaderGraphAutomationIds.DependencyList);
+        System.Windows.Automation.AutomationProperties.SetAutomationId(this.NodeCanvas,ShaderGraphAutomationIds.Canvas);
+        System.Windows.Automation.AutomationProperties.SetAutomationId(this.PropertyPanel,ShaderGraphAutomationIds.PropertyPanel);
+        System.Windows.Automation.AutomationProperties.SetAutomationId(this.DiagnosticsList,ShaderGraphAutomationIds.Diagnostics);
+        System.Windows.Automation.AutomationProperties.SetAutomationId(this.StatusText,ShaderGraphAutomationIds.Status);
+    }
     private void OnDocumentChanged() {
         this.RefreshAll();
     }
@@ -133,7 +149,15 @@ public partial class ShaderGraphEditorControl:UserControl {
         Panel.Children.Add(new TextBlock { Text=Node.Type,Foreground=new SolidColorBrush(Color.FromRgb(180,180,180)),FontSize=10,Margin=new Thickness(6,0,6,4),TextTrimming=TextTrimming.CharacterEllipsis });
         var Ports=HlslSyntaxGraphContract.GetRequiredChildPorts(Node);
         if(Ports.Count>0) { Panel.Children.Add(new TextBlock { Text=VsixText.Format("ShaderGraphPortSummary",string.Join(", ",Ports.Take(3))+(Ports.Count>3?" …":"")),FontSize=9,Margin=new Thickness(6,0,6,4) }); }
-        var Border=new Border { Width=230,MinHeight=64,Background=new SolidColorBrush(Color.FromRgb(45,45,48)),BorderBrush=this.Selection.Contains(Node.Id)?Brushes.DeepSkyBlue:new SolidColorBrush(Color.FromRgb(90,90,90)),BorderThickness=new Thickness(this.Selection.Contains(Node.Id)?2:1),CornerRadius=new CornerRadius(3),Child=Panel,Tag=Node.Id,ToolTip=Node.Id.ToString() };
+        var Border=new ShaderGraphAutomationBorder { Width=230,MinHeight=64,Background=new SolidColorBrush(Color.FromRgb(45,45,48)),BorderBrush=this.Selection.Contains(Node.Id)?Brushes.DeepSkyBlue:new SolidColorBrush(Color.FromRgb(90,90,90)),BorderThickness=new Thickness(this.Selection.Contains(Node.Id)?2:1),CornerRadius=new CornerRadius(3),Child=Panel,Tag=Node.Id,ToolTip=Node.Id.ToString() };
+        System.Windows.Automation.AutomationProperties.SetAutomationId(Border,ShaderGraphAutomationIds.Node(Node.Id));
+        System.Windows.Automation.AutomationProperties.SetName(Border,Node.Name??Node.Type);
+        Border.AutomationMove=(ScreenX,ScreenY)=>{
+            var ScreenPosition=Border.PointToScreen(new Point(0,0));
+            var Left=Math.Max(0,Canvas.GetLeft(Border)+(ScreenX-ScreenPosition.X));
+            var Top=Math.Max(0,Canvas.GetTop(Border)+(ScreenY-ScreenPosition.Y));
+            this.Document.MoveNode(Node.Id,(float)Left+this.ViewOriginX,(float)Top+this.ViewOriginY);
+        };
         Border.MouseLeftButtonDown+=this.Node_MouseLeftButtonDown;
         Border.MouseMove+=this.Node_MouseMove;
         Border.MouseLeftButtonUp+=this.Node_MouseLeftButtonUp;
@@ -192,6 +216,8 @@ public partial class ShaderGraphEditorControl:UserControl {
             var DisplayName=Argument.Name.StartsWith(HlslSyntaxGraphContract.PropertyPrefix,StringComparison.Ordinal)?Argument.Name.Substring(HlslSyntaxGraphContract.PropertyPrefix.Length):Argument.Name;
             var Label=new TextBlock { Text=DisplayName,Margin=new Thickness(4,4,4,0) };
             var Editor=new TextBox { Text=Argument.Value,Tag=(Node.Id,Argument.Name),Margin=new Thickness(4,0,4,2) };
+            System.Windows.Automation.AutomationProperties.SetAutomationId(Editor,ShaderGraphAutomationIds.Argument(Node.Id,Argument.Name));
+            System.Windows.Automation.AutomationProperties.SetName(Editor,DisplayName);
             Editor.LostKeyboardFocus+=(Sender,Arguments)=>{ var Box=(TextBox)Sender;var Tag=((StableId Id,string Name))Box.Tag;_=this.Document.SetArgument(Tag.Id,Tag.Name,Box.Text); };
             this.PropertyPanel.Children.Add(Label);
             this.PropertyPanel.Children.Add(Editor);

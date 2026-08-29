@@ -2,6 +2,8 @@
 param(
     [ValidateSet('Debug','Release')]
     [string]$Configuration='Debug',
+    [ValidatePattern('^[A-Za-z][A-Za-z0-9]{0,31}$')]
+    [string]$RootSuffix='CgeFixed',
     [string]$VsixPath,
     [switch]$SkipBuild,
     [string]$LogPath
@@ -16,7 +18,6 @@ $PSDefaultParameterValues['Out-File:Encoding']='utf8'
 $PSDefaultParameterValues['Set-Content:Encoding']='utf8'
 $PSDefaultParameterValues['Add-Content:Encoding']='utf8'
 $ExtensionId='CSharpGameEngine.VSExtension.aec17804-e2e4-46e7-b373-de11af816203'
-$RootSuffix='CgeFixed'
 $ScriptDirectory=Split-Path -Parent $PSCommandPath
 $ProjectPath=Join-Path $ScriptDirectory 'CSharpGameEngine.VSExtension.csproj'
 $Timestamp=Get-Date -Format 'yyyyMMdd-HHmmss'
@@ -116,8 +117,9 @@ function Get-VsixInstallerPath{
 }
 
 function Assert-CgeFixedIsNotRunning{
+    $EscapedRootSuffix=[regex]::Escape($RootSuffix)
     $Running=Get-CimInstance Win32_Process -Filter "Name='devenv.exe'" |
-        Where-Object { $_.CommandLine -match '(?i)(?:/|-)(?:rootSuffix|rootsuffix)(?:\s+|:)CgeFixed(?:\s|$)' }
+        Where-Object { $_.CommandLine -match "(?i)(?:/|-)(?:rootSuffix|rootsuffix)(?:\s+|:)$EscapedRootSuffix(?:\s|$)" }
     if($Running){
         $Processes=($Running | ForEach-Object { "PID $($_.ProcessId): $($_.CommandLine)" }) -join [Environment]::NewLine
         throw "Visual Studio /rootSuffix $RootSuffix is running. Close it before updating.`n$Processes"

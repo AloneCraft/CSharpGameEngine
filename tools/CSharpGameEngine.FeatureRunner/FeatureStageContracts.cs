@@ -54,8 +54,10 @@ public enum FeatureStageRunStatus {
     InfrastructureError,
 }
 public sealed record FeatureDefinition(string Id,string Name,string Layer,FeatureLifecycleStatus Status,FeatureRoadmapTrack Track,int DependencyLevel,IReadOnlyList<string>DependsOnFeatureIds);
-public sealed record FeatureStageCommand(string FileName,IReadOnlyList<string>Arguments,IReadOnlyList<string>WarpArguments,IReadOnlyList<string>HardwareArguments){
-    public FeatureStageCommand(string FileName,IReadOnlyList<string>Arguments):this(FileName,Arguments,[],[]){
+public sealed record FeatureStageCommand(string FileName,IReadOnlyList<string>Arguments,IReadOnlyList<string>WarpArguments,IReadOnlyList<string>HardwareArguments,IReadOnlyList<int>InfrastructureErrorExitCodes){
+    public FeatureStageCommand(string FileName,IReadOnlyList<string>Arguments):this(FileName,Arguments,[],[],[]){
+    }
+    public FeatureStageCommand(string FileName,IReadOnlyList<string>Arguments,IReadOnlyList<string>WarpArguments,IReadOnlyList<string>HardwareArguments):this(FileName,Arguments,WarpArguments,HardwareArguments,[]){
     }
 }
 public sealed record FeatureStageDefinition(

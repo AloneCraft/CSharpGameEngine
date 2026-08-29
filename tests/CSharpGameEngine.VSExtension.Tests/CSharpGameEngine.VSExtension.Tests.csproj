@@ -100,6 +100,7 @@
          InternalsVisibleTo - never loads the VSPackage/command types, which require a running VS
          host. -->
     <ProjectReference Include="..\..\tools\CSharpGameEngine.VSExtension\CSharpGameEngine.VSExtension.csproj" />
+    <ProjectReference Include="..\..\tools\CSharpGameEngine.Vsix.Automation\CSharpGameEngine.Vsix.Automation.csproj" />
   </ItemGroup>
 
 </Project>

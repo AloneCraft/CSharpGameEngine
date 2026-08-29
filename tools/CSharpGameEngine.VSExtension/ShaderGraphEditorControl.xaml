@@ -5,7 +5,7 @@
  Background="#1E1E1E" Foreground="#F0F0F0" Focusable="True">
  <Grid>
   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-  <ToolBar Grid.Row="0" Background="#2D2D30">
+  <ToolBar x:Name="GraphToolbar" Grid.Row="0" Background="#2D2D30">
    <Button x:Name="UndoButton" Content="{local:Loc ShaderGraphUndo}" Click="Undo_Click"/>
    <Button x:Name="RedoButton" Content="{local:Loc ShaderGraphRedo}" Click="Redo_Click"/>
    <Button x:Name="SaveButton" Content="{local:Loc ShaderGraphSave}" Click="Save_Click"/>

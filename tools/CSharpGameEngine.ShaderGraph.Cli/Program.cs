@@ -41,7 +41,7 @@ internal static class ShaderGraphCli {
         if(!Validation.IsValid) {
             return 1;
         }
-        _=HlslSyntaxGraphConverter.Export(Document);
+        _=ExportDocument(Document);
         Console.WriteLine($"valid {Resolved.SemanticHash} dependencies={Resolved.DependencyHash}");
         return 0;
     }
@@ -51,6 +51,10 @@ internal static class ShaderGraphCli {
             return 2;
         }
         var GraphPath=Path.GetFullPath(Arguments[1]);
+        if(string.Equals(Path.GetExtension(GraphPath),".cgesubgraph",StringComparison.OrdinalIgnoreCase)) {
+            Console.Error.WriteLine("Subgraph assets are validated but do not produce root shader artifacts. Use validate instead of build.");
+            return 1;
+        }
         var ArtifactPath=Path.GetFullPath(Arguments[2]);
         var HlslPath=Arguments.Length>=4?Path.GetFullPath(Arguments[3]):Path.ChangeExtension(ArtifactPath,"generated.hlsl");
         var Configuration=Arguments.Length==5?Arguments[4]:"Release";
@@ -63,7 +67,7 @@ internal static class ShaderGraphCli {
             }
             return 1;
         }
-        var Export=HlslSyntaxGraphConverter.ExportWithSourceMap(Document);
+        var Export=ExportDocument(Document);
         var Source=Export.Hlsl;
         WriteAtomicText(HlslPath,Source);
         WriteAtomicText(HlslPath+".map.json",JsonSerializer.Serialize(Export.SourceMap,new JsonSerializerOptions { PropertyNamingPolicy=JsonNamingPolicy.CamelCase }));
@@ -143,7 +147,7 @@ internal static class ShaderGraphCli {
             return 2;
         }
         var Resolved=ShaderGraphDependencyComposition.Resolve(Arguments[1]);
-        var Source=HlslSyntaxGraphConverter.Export(Resolved.Composed);
+        var Source=ExportDocument(Resolved.Composed).Hlsl;
         if(Arguments.Length==3) {
             WriteAtomicText(Path.GetFullPath(Arguments[2]),Source);
         } else {
@@ -213,6 +217,17 @@ internal static class ShaderGraphCli {
         var FullPath=Path.GetFullPath(PathValue);
         var Document=ShaderGraphCanonicalization.FromJson(File.ReadAllText(FullPath));
         return Document??throw new InvalidDataException($"Shader Graph '{FullPath}' is empty.");
+    }
+    private static HlslSyntaxGraphExportResult ExportDocument(ShaderGraphDocument Document) {
+        var Root=Document.Subgraphs.Single(Subgraph=>Subgraph.Id==Document.RootSubgraphId);
+        if(Root.Nodes.Any(Node=>Node.GetArgumentValue(HlslSyntaxGraphContract.ClrTypeArgument)=="UnityShaderParser.HLSL.TranslationUnitNode")) {
+            return HlslSyntaxGraphConverter.ExportWithSourceMap(Document);
+        }
+        var Result=ShaderGraphEmitter.Emit(Document);
+        if(!Result.Success) {
+            throw new InvalidDataException(string.Join(Environment.NewLine,Result.Diagnostics.Select(Diagnostic=>Diagnostic.Message)));
+        }
+        return new HlslSyntaxGraphExportResult { Hlsl=Result.Hlsl,SourceMap=Result.SourceMap };
     }
     private static ShaderArtifactTargetKind MapTarget(ShaderGraphTargetKind Target) {
         return Target switch {

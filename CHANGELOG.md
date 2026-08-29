@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added the isolated `CgeAutomation` VSIX Experimental runner, versioned manual-evidence ledger, InfrastructureError exit-code mapping, package-contained/build/installed DLL provenance checks and evidence, screenshot/ActivityLog capture, and owned-PID normal shutdown.
+- Added stable Shader Graph AutomationIds and node TransformPattern movement, hardened external-change reload with burst debounce/retry, fixed Subgraph validate/save behavior, and verified the full editor scenario in Debug and Release 1041.
+
 - Added first-class Shader Graph If/Else, statically bounded ForRange, LoopIndex, and typed Return regions with canonical branch/nesting metadata, escape validation, deterministic HLSL lowering, and source maps.
 - Added VSIX built-in palette creation and visual structured-region authoring with exact typed connections, editable loop arguments, localized commands, and Undo/Redo coverage.
 

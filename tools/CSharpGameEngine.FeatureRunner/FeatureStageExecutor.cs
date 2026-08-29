@@ -33,7 +33,7 @@ public sealed class FeatureStageExecutor:IFeatureStageExecutor {
             var Passed=Execution.ExitCode==0;
             Assertions.Add(new FeatureStageAssertion($"command:{Command.FileName}",$"Exit code {Execution.ExitCode}",Passed));
             if(!Passed){
-                Status=FeatureStageRunStatus.Failed;
+                Status=Command.InfrastructureErrorExitCodes.Contains(Execution.ExitCode)?FeatureStageRunStatus.InfrastructureError:FeatureStageRunStatus.Failed;
                 Errors.Add($"{Command.FileName} exited with code {Execution.ExitCode}.");
                 break;
             }

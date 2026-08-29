@@ -110,6 +110,25 @@ public sealed class ShaderGraphCompilerTests {
             Assert.Contains("recursion",Assert.Throws<InvalidDataException>(()=>ShaderGraphDependencyComposition.Resolve(RecursivePath)).Message,StringComparison.OrdinalIgnoreCase);
         } finally { Directory.Delete(Root,true); }
     }
+    [Fact]
+    public void Subgraph_ValidatesWithoutRequestingARootArtifact() {
+        var DirectoryPath=Path.Combine(Path.GetTempPath(),"CgeShaderGraphSubgraph",Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(DirectoryPath);
+        try {
+            var GraphPath=Path.Combine(DirectoryPath,"Reusable.cgesubgraph");
+            var ArtifactPath=Path.Combine(DirectoryPath,"Reusable.cgeshaderartifact");
+            File.WriteAllText(GraphPath,ShaderGraphCanonicalization.ToCanonicalJson(CreateSubgraph()));
+            Assert.Equal(0,global::ShaderGraphCli.Run(["validate",GraphPath]));
+            var OriginalError=Console.Error;
+            using var Error=new StringWriter();
+            try {
+                Console.SetError(Error);
+                Assert.Equal(1,global::ShaderGraphCli.Run(["build",GraphPath,ArtifactPath]));
+            } finally { Console.SetError(OriginalError); }
+            Assert.Contains("Subgraph",Error.ToString(),StringComparison.OrdinalIgnoreCase);
+            Assert.False(File.Exists(ArtifactPath));
+        } finally { Directory.Delete(DirectoryPath,true); }
+    }
     private static string CopyStageFixture(string DirectoryPath) {
         Directory.CreateDirectory(DirectoryPath);
         var SourceDirectory=Path.GetDirectoryName(GraphPath("Stage"))!;
@@ -119,4 +138,23 @@ public sealed class ShaderGraphCompilerTests {
     }
     private static ShaderGraphDocument ReadGraph(string Name)=>ShaderGraphDependencyComposition.Resolve(GraphPath(Name)).Composed;
     private static string GraphPath(string Name)=>Path.Combine(AppContext.BaseDirectory,"Graphs",Name+".cgeshadergraph");
+    private static ShaderGraphDocument CreateSubgraph() {
+        var RootId=StableId.New();
+        var ValueId=StableId.New();
+        var OutputId=StableId.New();
+        return new ShaderGraphDocument {
+            Target=new ShaderGraphTarget { Kind=ShaderGraphTargetKind.Model,Name="Subgraph" },
+            RootSubgraphId=RootId,
+            Subgraphs={new ShaderGraphSubgraph {
+                Id=RootId,
+                Name="Reusable",
+                Outputs={new ShaderGraphPort { Name="Out",Type=ShaderGraphValueType.Float4 }},
+                Nodes={
+                    new ShaderGraphNode { Id=ValueId,Type="ConstantFloat4",Arguments={new ShaderGraphArgument { Name="Value",Value="0,0,0,1" }}},
+                    new ShaderGraphNode { Id=OutputId,Type="OutputFloat4" }
+                },
+                Edges={new ShaderGraphEdge { Id=StableId.New(),FromNodeId=ValueId,FromPort="Out",ToNodeId=OutputId,ToPort="In" }}
+            }}
+        };
+    }
 }

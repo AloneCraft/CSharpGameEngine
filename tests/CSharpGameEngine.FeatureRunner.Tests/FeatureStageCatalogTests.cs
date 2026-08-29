@@ -37,7 +37,7 @@ public sealed class FeatureStageCatalogTests {
         Assert.Equal(66,Features.Select(static Feature=>Feature.Id).Distinct(StringComparer.Ordinal).Count());
         Assert.All(Features,static Feature=>Assert.NotEqual(FeatureRoadmapTrack.Established,Feature.Track));
         Assert.All(Features,static Feature=>Assert.InRange(Feature.DependencyLevel,1,7));
-        var ImplementedIds=new HashSet<string>(["F-L3-018","F-L7-030","F-L7-022","F-L6-004","F-L2-005","F-L7-049","F-L8-031"],StringComparer.Ordinal);
+        var ImplementedIds=new HashSet<string>(["F-L3-018","F-L7-030","F-L7-022","F-L6-004","F-L2-005","F-L7-049","F-L8-020","F-L8-021","F-L8-031"],StringComparer.Ordinal);
         Assert.All(Features.Where(Feature=>ImplementedIds.Contains(Feature.Id)),static Feature=>Assert.Equal(FeatureLifecycleStatus.Implemented,Feature.Status));
         Assert.All(Features.Where(Feature=>!ImplementedIds.Contains(Feature.Id)),static Feature=>Assert.Equal(FeatureLifecycleStatus.Specified,Feature.Status));
         foreach(var Feature in Features){
@@ -50,9 +50,9 @@ public sealed class FeatureStageCatalogTests {
             });
         }
         var TargetStageIds=Catalog.Stages.Where(Stage=>Stage.Availability==FeatureStageAvailability.NotImplemented&&Stage.FeatureIds.Any(FeatureId=>FeatureStageCatalog.NonPhysicsRoadmapFeatureIds.Contains(FeatureId,StringComparer.Ordinal))).Select(static Stage=>Stage.Id).ToArray();
-        Assert.Equal(59,TargetStageIds.Length);
-        Assert.Equal(57,TargetStageIds.Except(["foundation.d3d12-compute","foundation.deterministic-jobs"],StringComparer.Ordinal).Count());
-        Assert.All(["ecs.baseline","ecs.fixed-tick","rendering.baseline","rendering.shader-artifacts","shadergraph.schema","shadergraph.compiler","vsix.shader-graph"],StageId=>Assert.Equal(FeatureStageAvailability.Executable,Assert.Single(Catalog.Stages,Stage=>Stage.Id==StageId).Availability));
+        Assert.Equal(57,TargetStageIds.Length);
+        Assert.Equal(55,TargetStageIds.Except(["foundation.d3d12-compute","foundation.deterministic-jobs"],StringComparer.Ordinal).Count());
+        Assert.All(["ecs.baseline","ecs.fixed-tick","rendering.baseline","rendering.shader-artifacts","shadergraph.schema","shadergraph.compiler","vsix.shader-graph","vsix.experimental-smoke","vsix.experimental-automation"],StageId=>Assert.Equal(FeatureStageAvailability.Executable,Assert.Single(Catalog.Stages,Stage=>Stage.Id==StageId).Availability));
     }
     [Fact]
     public void RoadmapDependencies_AreKnownAcyclicAndLevelOrdered(){

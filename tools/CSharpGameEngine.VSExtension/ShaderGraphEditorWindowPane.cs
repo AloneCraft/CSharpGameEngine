@@ -2,6 +2,9 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading;
+using System.Text.Json;
+using System.Windows.Threading;
 using Microsoft.VisualStudio;
 using CSharpGameEngine.ShaderGraph;
 using Microsoft.VisualStudio.OLE.Interop;
@@ -15,6 +18,7 @@ internal sealed class ShaderGraphEditorWindowPane:WindowPane,IVsPersistDocData,I
     private readonly ErrorListProvider ErrorList;
     private ShaderGraphEditorDocument Document;
     private bool OwnSave;
+    private int ExternalChangeTicket;
     internal ShaderGraphEditorWindowPane(string FilePath) {
         this.Document=ShaderGraphEditorDocument.Load(FilePath);
         this.Control=new ShaderGraphEditorControl(this.Document);
@@ -73,13 +77,28 @@ internal sealed class ShaderGraphEditorWindowPane:WindowPane,IVsPersistDocData,I
     private void OnExternalChange(object Sender,FileSystemEventArgs Arguments)=>this.HandleExternalChange();
     private void OnExternalRename(object Sender,RenamedEventArgs Arguments)=>this.HandleExternalChange();
     private void HandleExternalChange() {
-        if(this.OwnSave) { return; }
+        if(!File.Exists(this.Document.FilePath)) { return; }
+        var Ticket=Interlocked.Increment(ref this.ExternalChangeTicket);
         _=this.Control.Dispatcher.BeginInvoke(new Action(()=>{
-            if(this.OwnSave||!File.Exists(this.Document.FilePath)) { return; }
-            if(!this.Document.IsDirty) { this.Document.Reload();this.SetStatus(VsixText.Get("ShaderGraphReloaded"));return; }
-            var Result=System.Windows.MessageBox.Show(VsixText.Get("ShaderGraphExternalChangePrompt"),VsixText.Get("ShaderGraphExternalChangeTitle"),System.Windows.MessageBoxButton.YesNo,System.Windows.MessageBoxImage.Warning);
-            if(Result==System.Windows.MessageBoxResult.Yes) { this.Document.Reload(); }
-            else { this.SetStatus(VsixText.Get("ShaderGraphExternalKeep")); }
+            var Timer=new DispatcherTimer(DispatcherPriority.Background,this.Control.Dispatcher) { Interval=TimeSpan.FromMilliseconds(200) };
+            Timer.Tick+=(Sender,Arguments)=>{Timer.Stop();this.QueueExternalChange(Ticket,0);};
+            Timer.Start();
+        }));
+    }
+    private void QueueExternalChange(int Ticket,int Attempt) {
+        _=this.Control.Dispatcher.BeginInvoke(new Action(()=>{
+            if(Ticket!=Volatile.Read(ref this.ExternalChangeTicket)||this.OwnSave||!File.Exists(this.Document.FilePath)) { return; }
+            try {
+                if(!this.Document.IsDirty) { this.Document.Reload();this.SetStatus(VsixText.Get("ShaderGraphReloaded"));return; }
+                var Result=System.Windows.MessageBox.Show(VsixText.Get("ShaderGraphExternalChangePrompt"),VsixText.Get("ShaderGraphExternalChangeTitle"),System.Windows.MessageBoxButton.YesNo,System.Windows.MessageBoxImage.Warning);
+                if(Result==System.Windows.MessageBoxResult.Yes) { this.Document.Reload(); }
+                else { this.SetStatus(VsixText.Get("ShaderGraphExternalKeep")); }
+            } catch(Exception Exception) when(Exception is IOException||Exception is JsonException) {
+                if(Attempt>=20) { this.SetStatus(Exception.Message);return; }
+                var Timer=new DispatcherTimer(DispatcherPriority.Background,this.Control.Dispatcher) { Interval=TimeSpan.FromMilliseconds(100) };
+                Timer.Tick+=(Sender,Arguments)=>{Timer.Stop();this.QueueExternalChange(Ticket,Attempt+1);};
+                Timer.Start();
+            }
         }));
     }
     int IPersist.GetClassID(out Guid ClassId) { ClassId=typeof(ShaderGraphEditorFactory).GUID;return VSConstants.S_OK; }

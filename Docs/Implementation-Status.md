@@ -3756,27 +3756,27 @@ F-L0-008 and F-L3-019 are non-physics Roadmap Features and are `Specified`; the 
 
 - Layer: L8 — Visual Studio Authoring Environment
 - Parent capability: Editor / VSIX
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified
 - Intended specification: `Docs/Specifications/Editor-VSIX.md#manual-and-automated-evidence`
-- Stage: `vsix.experimental-smoke` (`NotImplemented`, Headless / VSIX, 3600s)
+- Stage: `vsix.experimental-smoke` (`Executable`, Headless / VSIX, 3600s)
 - Depends on: None
-- Current delta: The target owned/manual Experimental Instance evidence ledger is not implemented.
-- Conformance: Unknown
-- Next action: Implement owned evidence capture that cannot report pending manual work as pass.
+- Current delta: The versioned ledger and false-pass validator are implemented and executable; legacy manual checks remain explicitly Pending rather than false Passed.
+- Conformance: Matches
+- Next action: Attach fresh evidence before changing an individual ledger item to Passed.
 
 ## F-L8-021 — VSIX Experimental Instance automation
 
 - Layer: L8 — Visual Studio Authoring Environment
 - Parent capability: Editor / VSIX
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified
 - Intended specification: `Docs/Specifications/Editor-VSIX.md#manual-and-automated-evidence`
-- Stage: `vsix.experimental-automation` (`NotImplemented`, Headless / VSIX, 3600s)
+- Stage: `vsix.experimental-automation` (`Executable`, Headless / VSIX, 3600s)
 - Depends on: F-L8-020
-- Current delta: Target Experimental Instance automation is not implemented.
-- Conformance: Unknown
-- Next action: Implement the launch/open/diagnostic/shutdown automation contract.
+- Current delta: The CgeAutomation-only runner, provenance checks, stable AutomationIds, evidence serialization, InfrastructureError mapping, and owned-PID shutdown are implemented. Debug and Release 1041 runs passed 19/19 assertions with normal shutdown.
+- Conformance: Matches
+- Next action: Preserve the isolated-hive and owned-PID contract when extending future VSIX scenarios.
 
 ## F-L8-022 — Versioned authoring host lifecycle
 
@@ -4320,7 +4320,7 @@ F-L0-008 and F-L3-019 are non-physics Roadmap Features and are `Specified`; the 
 - Verification: TestVerified
 - Intended specification: Docs/Specifications/Shader-Graph.md#visual-studio-editor
 - Stage: vsix.shader-graph (Executable, Headless / VSIX, 1800s)
-- Depends on: F-L7-049
-- Current delta: Editor Factory, WPF node canvas, built-in/prototype palette, exact typed connections, If/ForRange/Return region authoring, edit commands, properties, diagnostics, save/build, external-change handling, external Subgraph navigation, localized templates, dependency-bundle copying, and target wizard are implemented.
-- Conformance: Partial
-- Next action: Add automated Experimental Instance open/edit/save/reload interaction evidence.
+- Depends on: F-L7-049, F-L8-021
+- Current delta: Editor Factory, WPF node canvas, built-in/prototype palette, exact typed connections, If/ForRange/Return region authoring, edit commands, properties, diagnostics, save/build, Subgraph validate-only save, external-change handling, stable AutomationIds/TransformPattern, external Subgraph navigation, localized templates, dependency-bundle copying, and target wizard are implemented and experimentally verified.
+- Conformance: Matches
+- Next action: Preserve the fixed ABI and evidence contract while adding future node families.
