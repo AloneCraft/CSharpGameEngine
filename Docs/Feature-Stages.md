@@ -145,3 +145,7 @@ rendering.baseline fixes the WARP visual baseline. shadergraph.schema validates 
 ## M0061 external Subgraph evidence
 
 The existing `shadergraph.schema`, `shadergraph.compiler`, `rendering.shader-artifacts`, and `vsix.shader-graph` stages now include canonical external dependency metadata, exact Stage HLSL composition, dependency-hash artifact reuse, production Subgraph packaging, and template/navigation tests. No new Feature or Stage ID is introduced.
+
+## M0062 structured Region evidence
+
+The existing shadergraph.schema stage now fixes semantic If/ForRange ownership, Then/Else/Body membership, bounded loops, typed Return, LoopIndex scope, branch value isolation, canonical hashing, and source maps. vsix.shader-graph covers built-in palette creation, exact typed connections, structured Region creation, Undo, localization, and VSIX packaging. shadergraph.compiler retains the production nine-entry DXC oracle; no Feature or Stage ID is added.

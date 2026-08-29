@@ -113,13 +113,18 @@ public partial class ShaderGraphEditorControl:UserControl {
         return Visible;
     }
     private void DrawRegions(ShaderGraphSubgraph Root,HashSet<StableId>Visible,IReadOnlyDictionary<StableId,ShaderGraphNodeLayout>Layout) {
-        foreach(var Region in Root.Regions.Where(Region=>Region.NodeIds.Any(Visible.Contains))) {
+        foreach(var Region in Root.Regions.Where(Region=>Region.NodeIds.Concat(Region.ElseNodeIds).Append(Region.ControlNodeId).Any(Visible.Contains))) {
             var RegionLayout=this.Document.Graph.Layout?.Regions.FirstOrDefault(Item=>Item.RegionId==Region.Id);
             if(RegionLayout is null) { continue; }
-            var Rectangle=new Rectangle { Width=RegionLayout.Width,Height=RegionLayout.Height,Fill=new SolidColorBrush(Color.FromArgb(24,86,156,214)),Stroke=new SolidColorBrush(Color.FromRgb(86,156,214)),StrokeThickness=1,IsHitTestVisible=false,ToolTip=Region.Name };
+            var ColorValue=Region.Kind switch { ShaderGraphRegionKind.If=>Color.FromRgb(197,134,192),ShaderGraphRegionKind.ForRange=>Color.FromRgb(78,201,176),_=>Color.FromRgb(86,156,214) };
+            var Rectangle=new Rectangle { Width=RegionLayout.Width,Height=RegionLayout.Height,Fill=new SolidColorBrush(Color.FromArgb(24,ColorValue.R,ColorValue.G,ColorValue.B)),Stroke=new SolidColorBrush(ColorValue),StrokeThickness=1,IsHitTestVisible=false,ToolTip=VsixText.Format("ShaderGraphRegionLabel",Region.Kind,Region.Name) };
             Canvas.SetLeft(Rectangle,RegionLayout.X-this.ViewOriginX);
             Canvas.SetTop(Rectangle,RegionLayout.Y-this.ViewOriginY);
             this.NodeCanvas.Children.Add(Rectangle);
+            var Label=new TextBlock { Text=VsixText.Format("ShaderGraphRegionLabel",Region.Kind,Region.Name),Foreground=new SolidColorBrush(ColorValue),FontWeight=FontWeights.SemiBold,IsHitTestVisible=false };
+            Canvas.SetLeft(Label,RegionLayout.X-this.ViewOriginX+8);
+            Canvas.SetTop(Label,RegionLayout.Y-this.ViewOriginY+6);
+            this.NodeCanvas.Children.Add(Label);
         }
     }
     private Border CreateNodeElement(ShaderGraphNode Node) {
@@ -141,7 +146,7 @@ public partial class ShaderGraphEditorControl:UserControl {
         Source.Click+=(Sender,Arguments)=>{ this.ConnectionSource=(StableId)((MenuItem)Sender).Tag;this.StatusText.Text=VsixText.Get("ShaderGraphConnectionSelected"); };
         Menu.Items.Add(Source);
         if(this.ConnectionSource is { }SourceId&&SourceId!=Node.Id) {
-            foreach(var Port in HlslSyntaxGraphContract.GetRequiredChildPorts(Node)) {
+            foreach(var Port in this.Document.GetInputPortNames(Node.Id)) {
                 var Connect=new MenuItem { Header=VsixText.Format("ShaderGraphConnectSourceTo",Port),Tag=Port };
                 Connect.Click+=(Sender,Arguments)=>{ if(this.Document.TryConnect(SourceId,Node.Id,(string)((MenuItem)Sender).Tag,out var Error)){this.ConnectionSource=null;}else{this.StatusText.Text=Error;} };
                 Menu.Items.Add(Connect);
@@ -183,8 +188,9 @@ public partial class ShaderGraphEditorControl:UserControl {
         var Node=this.Document.GetNodes().FirstOrDefault(Item=>Item.Id==this.Selection.Single());
         if(Node is null) { return; }
         this.PropertyPanel.Children.Add(new TextBlock { Text=Node.Name??Node.Type,FontWeight=FontWeights.Bold,Margin=new Thickness(4) });
-        foreach(var Argument in Node.Arguments.Where(Item=>Item.Name.StartsWith(HlslSyntaxGraphContract.PropertyPrefix,StringComparison.Ordinal))) {
-            var Label=new TextBlock { Text=Argument.Name.Substring(HlslSyntaxGraphContract.PropertyPrefix.Length),Margin=new Thickness(4,4,4,0) };
+        foreach(var Argument in Node.Arguments.Where(Item=>!string.Equals(Item.Name,HlslSyntaxGraphContract.ClrTypeArgument,StringComparison.Ordinal)&&!Item.Name.StartsWith(HlslSyntaxGraphContract.ChildPortPrefix,StringComparison.Ordinal))) {
+            var DisplayName=Argument.Name.StartsWith(HlslSyntaxGraphContract.PropertyPrefix,StringComparison.Ordinal)?Argument.Name.Substring(HlslSyntaxGraphContract.PropertyPrefix.Length):Argument.Name;
+            var Label=new TextBlock { Text=DisplayName,Margin=new Thickness(4,4,4,0) };
             var Editor=new TextBox { Text=Argument.Value,Tag=(Node.Id,Argument.Name),Margin=new Thickness(4,0,4,2) };
             Editor.LostKeyboardFocus+=(Sender,Arguments)=>{ var Box=(TextBox)Sender;var Tag=((StableId Id,string Name))Box.Tag;_=this.Document.SetArgument(Tag.Id,Tag.Name,Box.Text); };
             this.PropertyPanel.Children.Add(Label);
@@ -214,6 +220,33 @@ public partial class ShaderGraphEditorControl:UserControl {
     private void Duplicate_Click(object Sender,RoutedEventArgs Arguments) { var Added=this.Document.Duplicate(this.Selection.ToArray());this.Selection.Clear();foreach(var Id in Added){this.Selection.Add(Id);} }
     private void Delete_Click(object Sender,RoutedEventArgs Arguments) { if(this.Document.Delete(this.Selection.ToArray())){this.Selection.Clear();} }
     private void Frame_Click(object Sender,RoutedEventArgs Arguments)=>_=this.Document.CreateRegion(this.Selection.ToArray(),"Comment");
+    private void IfRegion_Click(object Sender,RoutedEventArgs Arguments) {
+        StableId?Condition=null;
+        foreach(var NodeId in this.Selection) {
+            if(this.Document.TryGetNodeOutput(NodeId,out _,out var Type)&&Type==ShaderGraphValueType.Bool) { Condition=NodeId;break; }
+        }
+        if(Condition is null) { this.StatusText.Text=VsixText.Get("ShaderGraphIfConditionRequired");return; }
+        var Body=this.Selection.Where(Id=>Id!=Condition.Value).ToArray();
+        var TypedValues=Body.Where(Id=>this.Document.TryGetNodeOutput(Id,out _,out _)).ToArray();
+        StableId?RegionId;
+        if(TypedValues.Length==2) {
+            RegionId=this.Document.CreateIfRegion(Condition.Value,new[]{TypedValues[0]},new[]{TypedValues[1]},"If");
+            if(RegionId is not null) { _=this.Document.CreateReturn(TypedValues[0]);_=this.Document.CreateReturn(TypedValues[1]); }
+        } else {
+            RegionId=this.Document.CreateIfRegion(Condition.Value,Body,Array.Empty<StableId>(),"If");
+        }
+        if(RegionId is null) { this.StatusText.Text=VsixText.Get("ShaderGraphRegionCreateFailed"); }
+    }
+    private void ForRangeRegion_Click(object Sender,RoutedEventArgs Arguments) {
+        if(this.Document.CreateForRangeRegion(this.Selection.ToArray(),0,4,4,"index","For Range") is null) { this.StatusText.Text=VsixText.Get("ShaderGraphRegionCreateFailed"); }
+    }
+    private void Return_Click(object Sender,RoutedEventArgs Arguments) {
+        if(this.Selection.Count!=1) { this.StatusText.Text=VsixText.Get("ShaderGraphReturnSourceRequired");return; }
+        var ReturnId=this.Document.CreateReturn(this.Selection.Single());
+        if(ReturnId is null) { this.StatusText.Text=VsixText.Get("ShaderGraphReturnSourceRequired");return; }
+        this.Selection.Clear();
+        this.Selection.Add(ReturnId.Value);
+    }
     private void OnPreviewKeyDown(object Sender,KeyEventArgs Arguments) {
         if((Keyboard.Modifiers&ModifierKeys.Control)!=0&&Arguments.Key==Key.Z){_=this.Document.Undo();Arguments.Handled=true;}
         else if((Keyboard.Modifiers&ModifierKeys.Control)!=0&&Arguments.Key==Key.Y){_=this.Document.Redo();Arguments.Handled=true;}

@@ -77,12 +77,13 @@ public sealed class ShaderGraphTemplateWizard:IWizard {
     }
     private static ShaderGraphDocument Remap(ShaderGraphDocument Source,Dictionary<StableId,StableId>IdMap) {
         StableId Map(StableId Id) { if(!IdMap.TryGetValue(Id,out var Mapped)){Mapped=StableId.New();IdMap.Add(Id,Mapped);}return Mapped; }
+        StableId MapOptional(StableId Id)=>Id.IsEmpty?default:Map(Id);
         var Result=new ShaderGraphDocument { Version=Source.Version,Id=Map(Source.Id),Target=new ShaderGraphTarget { Kind=Source.Target.Kind,Name=Source.Target.Name },EntryPoint=Source.EntryPoint is null?null:new ShaderGraphEntryPointContract { TargetKind=Source.EntryPoint.TargetKind,Name=Source.EntryPoint.Name,ReturnType=Source.EntryPoint.ReturnType,ReturnSemantic=Source.EntryPoint.ReturnSemantic },RootSubgraphId=Map(Source.RootSubgraphId),Dependencies=Source.Dependencies.Select(Dependency=>new ShaderGraphDependency { Id=Map(Dependency.Id),Path=Dependency.Path }).ToList(),Layout=Source.Layout is null?null:new ShaderGraphEditorLayout() };
         foreach(var Subgraph in Source.Subgraphs) {
             var Clone=new ShaderGraphSubgraph { Id=Map(Subgraph.Id),Name=Subgraph.Name,Inputs=Subgraph.Inputs.Select(Port=>new ShaderGraphPort { Name=Port.Name,Type=Port.Type }).ToList(),Outputs=Subgraph.Outputs.Select(Port=>new ShaderGraphPort { Name=Port.Name,Type=Port.Type }).ToList() };
             foreach(var Node in Subgraph.Nodes) { Clone.Nodes.Add(new ShaderGraphNode { Id=Map(Node.Id),Type=Node.Type,Name=Node.Name,Arguments=Node.Arguments.Select(Argument=>new ShaderGraphArgument { Name=Argument.Name,Value=Argument.Value }).ToList() }); }
             foreach(var Edge in Subgraph.Edges) { Clone.Edges.Add(new ShaderGraphEdge { Id=Map(Edge.Id),FromNodeId=Map(Edge.FromNodeId),FromPort=Edge.FromPort,ToNodeId=Map(Edge.ToNodeId),ToPort=Edge.ToPort }); }
-            foreach(var Region in Subgraph.Regions) { Clone.Regions.Add(new ShaderGraphRegion { Id=Map(Region.Id),Name=Region.Name,NodeIds=Region.NodeIds.Select(Map).ToList() }); }
+            foreach(var Region in Subgraph.Regions) { Clone.Regions.Add(new ShaderGraphRegion { Id=Map(Region.Id),Kind=Region.Kind,Name=Region.Name,ControlNodeId=MapOptional(Region.ControlNodeId),ParentRegionId=MapOptional(Region.ParentRegionId),ParentBranch=Region.ParentBranch,NodeIds=Region.NodeIds.Select(Map).ToList(),ElseNodeIds=Region.ElseNodeIds.Select(Map).ToList() }); }
             Result.Subgraphs.Add(Clone);
         }
         if(Source.Layout is not null&&Result.Layout is not null) {

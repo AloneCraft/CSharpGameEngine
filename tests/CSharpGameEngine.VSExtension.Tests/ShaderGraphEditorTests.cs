@@ -40,6 +40,81 @@ public sealed class ShaderGraphEditorTests {
         Assert.NotEmpty(Error);
     }
     [Fact]
+    public void Document_PaletteCreatesBuiltInNodeWithoutPrototype() {
+        var Graph=BuildStructuredEditorGraph();
+        Graph.Subgraphs[0].Nodes.Clear();
+        Graph.Layout!.Nodes.Clear();
+        var Document=new ShaderGraphEditorDocument(Path.Combine(Path.GetTempPath(),Guid.NewGuid()+".cgeshadergraph"),Graph);
+        Assert.Contains("ConstantBool",Document.GetPaletteNodeTypes("Bool"));
+        var NodeId=Document.AddFromPrototype("ConstantBool",100,120);
+        Assert.NotNull(NodeId);
+        var Node=Document.GetNodes().Single();
+        Assert.Equal("ConstantBool",Node.Type);
+        Assert.Equal("false",Node.GetArgumentValue("Value"));
+    }
+    [Fact]
+    public void Document_CreatesTypedIfElseReturns() {
+        var Graph=BuildStructuredEditorGraph();
+        var Root=Graph.Subgraphs.Single();
+        var Condition=Root.Nodes.Single(Node=>Node.Type=="ConstantBool");
+        var Values=Root.Nodes.Where(Node=>Node.Type=="ConstantFloat4").ToArray();
+        var Document=new ShaderGraphEditorDocument(Path.Combine(Path.GetTempPath(),Guid.NewGuid()+".cgeshadergraph"),Graph);
+        var RegionId=Document.CreateIfRegion(Condition.Id,new[]{Values[0].Id},new[]{Values[1].Id},"Choose Color");
+        Assert.NotNull(RegionId);
+        Assert.NotNull(Document.CreateReturn(Values[0].Id));
+        Assert.NotNull(Document.CreateReturn(Values[1].Id));
+        var Region=Root.Regions.Single(Item=>Item.Id==RegionId);
+        Assert.Equal(ShaderGraphRegionKind.If,Region.Kind);
+        Assert.Equal(2,Region.NodeIds.Count);
+        Assert.Equal(2,Region.ElseNodeIds.Count);
+        Assert.True(Document.Validate().IsValid,string.Join(Environment.NewLine,Document.Validate().Diagnostics.Select(Item=>Item.Message)));
+        Assert.True(ShaderGraphEmitter.Emit(Document.Graph).Success);
+        Assert.True(Document.Undo());
+        Assert.Single(Document.Graph.Subgraphs.Single().Regions[0].ElseNodeIds);
+    }
+    [Fact]
+    public void Document_DuplicatesCompleteStructuredRegion() {
+        var Graph=BuildStructuredEditorGraph();
+        var Root=Graph.Subgraphs.Single();
+        var Condition=Root.Nodes.Single(Node=>Node.Type=="ConstantBool");
+        var Values=Root.Nodes.Where(Node=>Node.Type=="ConstantFloat4").ToArray();
+        var Document=new ShaderGraphEditorDocument(Path.Combine(Path.GetTempPath(),Guid.NewGuid()+".cgeshadergraph"),Graph);
+        Assert.NotNull(Document.CreateIfRegion(Condition.Id,new[]{Values[0].Id},new[]{Values[1].Id},"Choose Color"));
+        Assert.NotNull(Document.CreateReturn(Values[0].Id));
+        Assert.NotNull(Document.CreateReturn(Values[1].Id));
+        var OriginalNodeIds=Document.GetNodes().Select(Node=>Node.Id).ToArray();
+        Assert.Equal(OriginalNodeIds.Length,Document.Duplicate(OriginalNodeIds).Count);
+        Assert.Equal(2,Document.Graph.Subgraphs.Single().Regions.Count);
+        Assert.True(Document.Validate().IsValid,string.Join(Environment.NewLine,Document.Validate().Diagnostics.Select(Item=>Item.Message)));
+    }
+    [Fact]
+    public void Document_CreatesBoundedForRangeWithLoopIndex() {
+        var Graph=BuildStructuredEditorGraph();
+        Graph.Subgraphs[0].Nodes.RemoveAll(Node=>Node.Type!="ConstantBool");
+        var Document=new ShaderGraphEditorDocument(Path.Combine(Path.GetTempPath(),Guid.NewGuid()+".cgeshadergraph"),Graph);
+        var RegionId=Document.CreateForRangeRegion(Array.Empty<StableId>(),0,8,8,"sampleIndex","Samples");
+        Assert.NotNull(RegionId);
+        var Root=Document.Graph.Subgraphs.Single();
+        var Region=Root.Regions.Single(Item=>Item.Id==RegionId);
+        Assert.Equal(ShaderGraphRegionKind.ForRange,Region.Kind);
+        Assert.Contains(Root.Nodes,Node=>Node.Type==BuiltInNodeCatalog.LoopIndexType);
+        Assert.True(Document.Validate().IsValid,string.Join(Environment.NewLine,Document.Validate().Diagnostics.Select(Item=>Item.Message)));
+        Assert.Contains("for(int sampleIndex=0;sampleIndex<8&&sampleIndex-0<8;sampleIndex++){",ShaderGraphEmitter.Emit(Document.Graph).Hlsl);
+    }
+    [Fact]
+    public void Document_BuiltInConnectionRequiresExactType() {
+        var Graph=BuildStructuredEditorGraph();
+        var Root=Graph.Subgraphs.Single();
+        var Bool=Root.Nodes.Single(Node=>Node.Type=="ConstantBool");
+        var Float4=Root.Nodes.First(Node=>Node.Type=="ConstantFloat4");
+        var Add=new ShaderGraphNode { Id=StableId.New(),Type="AddFloat4" };
+        Root.Nodes.Add(Add);
+        var Document=new ShaderGraphEditorDocument(Path.Combine(Path.GetTempPath(),Guid.NewGuid()+".cgeshadergraph"),Graph);
+        Assert.False(Document.TryConnect(Bool.Id,Add.Id,"A",out var Error));
+        Assert.Contains("mismatch",Error,StringComparison.OrdinalIgnoreCase);
+        Assert.True(Document.TryConnect(Float4.Id,Add.Id,"A",out Error),Error);
+    }
+    [Fact]
     public void Vsix_ContainsEditorFactoryAndLocalizedGraphTemplates() {
         var VsixPath=Path.Combine(AppContext.BaseDirectory,"TestAssets","CSharpGameEngine.VSExtension.vsix");
         using var Archive=ZipFile.OpenRead(VsixPath);
@@ -74,8 +149,27 @@ public sealed class ShaderGraphEditorTests {
             var Dependency=new ShaderGraphDocument { Id=StableId.New(),RootSubgraphId=DependencyRoot,Subgraphs={new ShaderGraphSubgraph { Id=DependencyRoot,Name="PBR" }} };
             File.WriteAllText(Path.Combine(SourceDirectory,"Pbr.cgesubgraph"),ShaderGraphCanonicalization.ToCanonicalJson(Dependency));
             var GraphRoot=StableId.New();
-            var Graph=new ShaderGraphDocument { Id=StableId.New(),RootSubgraphId=GraphRoot,Subgraphs={new ShaderGraphSubgraph { Id=GraphRoot }},Dependencies={new ShaderGraphDependency { Id=Dependency.Id,Path="Pbr.cgesubgraph" }} };
-            var Destination=Path.Combine(DestinationDirectory,"MyStage.cgeshadergraph");
+            var Condition=StableId.New();
+            var Control=StableId.New();
+            var ThenNode=StableId.New();
+            var ElseNode=StableId.New();
+            var RegionId=StableId.New();
+            var Graph=new ShaderGraphDocument {
+                Id=StableId.New(),
+                RootSubgraphId=GraphRoot,
+                Subgraphs={new ShaderGraphSubgraph {
+                    Id=GraphRoot,
+                    Nodes={
+                        new ShaderGraphNode { Id=Condition,Type="ConstantBool",Arguments={new ShaderGraphArgument { Name="Value",Value="true" }} },
+                        new ShaderGraphNode { Id=Control,Type=BuiltInNodeCatalog.IfRegionType },
+                        new ShaderGraphNode { Id=ThenNode,Type="ConstantFloat",Arguments={new ShaderGraphArgument { Name="Value",Value="1" }} },
+                        new ShaderGraphNode { Id=ElseNode,Type="ConstantFloat",Arguments={new ShaderGraphArgument { Name="Value",Value="0" }} }
+                    },
+                    Edges={new ShaderGraphEdge { Id=StableId.New(),FromNodeId=Condition,FromPort="Out",ToNodeId=Control,ToPort="Condition" }},
+                    Regions={new ShaderGraphRegion { Id=RegionId,Kind=ShaderGraphRegionKind.If,ControlNodeId=Control,NodeIds={ThenNode},ElseNodeIds={ElseNode} }}
+                }},
+                Dependencies={new ShaderGraphDependency { Id=Dependency.Id,Path="Pbr.cgesubgraph" }}
+            };            var Destination=Path.Combine(DestinationDirectory,"MyStage.cgeshadergraph");
             var Created=new List<string>();
             var Remapped=ShaderGraphTemplateWizard.RemapBundle(Graph,SourceDirectory,Destination,Created.Add);
             Assert.Single(Created);
@@ -83,8 +177,17 @@ public sealed class ShaderGraphEditorTests {
             var Copied=ShaderGraphCanonicalization.FromJson(File.ReadAllText(Created.Single()))!;
             Assert.Equal(Remapped.Dependencies.Single().Id,Copied.Id);
             Assert.NotEqual(Dependency.Id,Copied.Id);
+            var RemappedRoot=Remapped.Subgraphs.Single(Subgraph=>Subgraph.Id==Remapped.RootSubgraphId);
+            var RemappedRegion=Assert.Single(RemappedRoot.Regions);
+            Assert.Equal(ShaderGraphRegionKind.If,RemappedRegion.Kind);
+            Assert.NotEqual(RegionId,RemappedRegion.Id);
+            Assert.NotEqual(Control,RemappedRegion.ControlNodeId);
+            Assert.Contains(RemappedRoot.Nodes,Node=>Node.Id==RemappedRegion.ControlNodeId&&Node.Type==BuiltInNodeCatalog.IfRegionType);
+            Assert.Single(RemappedRegion.NodeIds);
+            Assert.Single(RemappedRegion.ElseNodeIds);
         } finally { Directory.Delete(Root,true); }
-    }    [Fact]
+    }
+    [Fact]
     public void Templates_RegisterGraphAndSubgraphWizards() {
         var Root=Path.Combine(AppContext.BaseDirectory,"TestAssets","ItemTemplates","CSharp","GameEngine");
         var Graph=XDocument.Load(Path.Combine(Root,"ShaderGraph","ShaderGraph.vstemplate")).ToString();
@@ -92,4 +195,30 @@ public sealed class ShaderGraphEditorTests {
         Assert.Contains(typeof(ShaderGraphTemplateWizard).FullName!,Graph);
         Assert.Contains(typeof(ShaderSubgraphTemplateWizard).FullName!,Subgraph);
     }
-}
+    private static ShaderGraphDocument BuildStructuredEditorGraph() {
+        var RootId=StableId.New();
+        var Condition=StableId.New();
+        var ThenValue=StableId.New();
+        var ElseValue=StableId.New();
+        return new ShaderGraphDocument {
+            Target=new ShaderGraphTarget { Kind=ShaderGraphTargetKind.Stage },
+            EntryPoint=new ShaderGraphEntryPointContract { TargetKind=ShaderGraphTargetKind.Stage,Name="StageMain",ReturnType=ShaderGraphValueType.Float4 },
+            RootSubgraphId=RootId,
+            Layout=new ShaderGraphEditorLayout { Nodes={
+                new ShaderGraphNodeLayout { NodeId=Condition,X=80,Y=80 },
+                new ShaderGraphNodeLayout { NodeId=ThenValue,X=420,Y=40 },
+                new ShaderGraphNodeLayout { NodeId=ElseValue,X=420,Y=220 }
+            } },
+            Subgraphs={
+                new ShaderGraphSubgraph {
+                    Id=RootId,
+                    Outputs={ new ShaderGraphPort { Name="Out",Type=ShaderGraphValueType.Float4 } },
+                    Nodes={
+                        new ShaderGraphNode { Id=Condition,Type="ConstantBool",Arguments={ new ShaderGraphArgument { Name="Value",Value="true" } } },
+                        new ShaderGraphNode { Id=ThenValue,Type="ConstantFloat4",Arguments={ new ShaderGraphArgument { Name="Value",Value="1,0,0,1" } } },
+                        new ShaderGraphNode { Id=ElseValue,Type="ConstantFloat4",Arguments={ new ShaderGraphArgument { Name="Value",Value="0,0,1,1" } } }
+                    }
+                }
+            }
+        };
+    }}

@@ -480,4 +480,24 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
   <data name="ShaderGraphWizardCreate" xml:space="preserve">
     <value>作成</value>
   </data>
+  <data name="ShaderGraphIfRegion" xml:space="preserve">
+    <value>If 分岐</value>
+  </data>
+  <data name="ShaderGraphForRangeRegion" xml:space="preserve">
+    <value>範囲ループ</value>
+  </data>
+  <data name="ShaderGraphReturn" xml:space="preserve">
+    <value>戻り値</value>
+  </data>
+  <data name="ShaderGraphIfConditionRequired" xml:space="preserve">
+    <value>If 条件として Bool 出力を1つ選択してください。</value>
+  </data>
+  <data name="ShaderGraphRegionCreateFailed" xml:space="preserve">
+    <value>現在の選択から構造化 Region を作成できませんでした。</value>
+  </data>
+  <data name="ShaderGraphReturnSourceRequired" xml:space="preserve">
+    <value>Graph 出力と型が一致する値を1つ選択してください。</value>
+  </data>  <data name="ShaderGraphRegionLabel" xml:space="preserve">
+    <value>{0}：{1}</value>
+  </data>
 </root>

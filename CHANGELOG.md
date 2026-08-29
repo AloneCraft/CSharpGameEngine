@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added first-class Shader Graph If/Else, statically bounded ForRange, LoopIndex, and typed Return regions with canonical branch/nesting metadata, escape validation, deterministic HLSL lowering, and source maps.
+- Added VSIX built-in palette creation and visual structured-region authoring with exact typed connections, editable loop arguments, localized commands, and Undo/Redo coverage.
+
 - Split the production Stage graph into external PBR, Shadow, PCSS, and ACES Subgraphs with recursive identity/hash validation while preserving byte-identical generated HLSL.
 - Added dependency-aware Shader Artifact reuse, explicit MSBuild Subgraph inputs, VSIX dependency navigation, and coherent dependency-bundle copying for new Stage Graph templates.
 

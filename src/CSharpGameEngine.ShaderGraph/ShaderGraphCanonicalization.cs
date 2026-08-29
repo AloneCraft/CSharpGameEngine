@@ -67,8 +67,13 @@ public static class ShaderGraphCanonicalization {
     private static ShaderGraphRegion NormalizeRegion(ShaderGraphRegion Region) {
         return new ShaderGraphRegion {
             Id = Region.Id,
+            Kind = Region.Kind,
             Name = Region.Name,
-            NodeIds = Region.NodeIds.OrderBy(NodeId => NodeId.ToString(), StringComparer.Ordinal).ToList()
+            ControlNodeId = Region.ControlNodeId,
+            ParentRegionId = Region.ParentRegionId,
+            ParentBranch = Region.ParentBranch,
+            NodeIds = Region.NodeIds.OrderBy(NodeId => NodeId.ToString(), StringComparer.Ordinal).ToList(),
+            ElseNodeIds = Region.ElseNodeIds.OrderBy(NodeId => NodeId.ToString(), StringComparer.Ordinal).ToList()
         };
     }
     private static ShaderGraphEditorLayout? NormalizeLayout(ShaderGraphEditorLayout? Layout) {

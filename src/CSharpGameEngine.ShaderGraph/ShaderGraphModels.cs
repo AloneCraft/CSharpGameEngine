@@ -6,9 +6,11 @@ public enum ShaderGraphTargetKind { Stage, Model, Triangle }
 public enum ShaderGraphValueType { Unknown, Float, Float2, Float3, Float4, Int, Bool, Texture2D, SamplerState }
 public enum ShaderGraphPortDirection { Input, Output }
 public enum ShaderGraphDiagnosticSeverity { Error, Warning }
-public enum ShaderGraphDiagnosticCode { UnknownNode, UnknownPort, MissingRequiredPort, TypeMismatch, CycleDetected, SubgraphRecursion, SubgraphMissing, ForRangeForbidden, RegionInvalidNode, MissingEntryPoint, EntryPointMismatch }
-public enum ShaderGraphBuiltInCategory { Constant, Arithmetic, Vector, Output, Utility, Subgraph }
-public enum ShaderGraphOpcode { Constant, Add, Subtract, Multiply, Divide, Lerp, Dot, Length, Normalize, Swizzle, Construct, Output, SubgraphCall }
+public enum ShaderGraphDiagnosticCode { UnknownNode, UnknownPort, MissingRequiredPort, TypeMismatch, CycleDetected, SubgraphRecursion, SubgraphMissing, ForRangeForbidden, ForRangeInvalidBounds, RegionInvalidNode, RegionInvalidControl, RegionOverlap, RegionValueEscape, ReturnInvalidScope, LoopIndexInvalidScope, MissingEntryPoint, EntryPointMismatch }
+public enum ShaderGraphBuiltInCategory { Constant, Arithmetic, Vector, Output, Utility, Control, Subgraph }
+public enum ShaderGraphOpcode { Constant, Add, Subtract, Multiply, Divide, Lerp, Dot, Length, Normalize, Swizzle, Construct, Output, IfRegion, ForRangeRegion, Return, LoopIndex, SubgraphCall }
+public enum ShaderGraphRegionKind { Comment, If, ForRange }
+public enum ShaderGraphRegionBranch { Body, Then, Else }
 public sealed class ShaderGraphEntryPointContract {
     public ShaderGraphTargetKind TargetKind { get; set; }
     public string Name { get; set; } = "Main";
@@ -69,8 +71,13 @@ public sealed class ShaderGraphEdge {
 }
 public sealed class ShaderGraphRegion {
     public StableId Id { get; set; }
+    public ShaderGraphRegionKind Kind { get; set; }
     public string? Name { get; set; }
+    public StableId ControlNodeId { get; set; }
+    public StableId ParentRegionId { get; set; }
+    public ShaderGraphRegionBranch ParentBranch { get; set; }
     public List<StableId> NodeIds { get; set; } = new List<StableId>();
+    public List<StableId> ElseNodeIds { get; set; } = new List<StableId>();
 }
 public sealed class ShaderGraphEditorLayout {
     public List<ShaderGraphNodeLayout> Nodes { get; set; } = new List<ShaderGraphNodeLayout>();
@@ -100,12 +107,14 @@ public sealed class ShaderGraphDiagnostic {
     public string Message { get; }
     public StableId? NodeId { get; }
     public StableId? SubgraphId { get; }
-    public ShaderGraphDiagnostic(ShaderGraphDiagnosticCode Code, ShaderGraphDiagnosticSeverity Severity, string Message, StableId? NodeId = null, StableId? SubgraphId = null) {
+    public StableId? RegionId { get; }
+    public ShaderGraphDiagnostic(ShaderGraphDiagnosticCode Code, ShaderGraphDiagnosticSeverity Severity, string Message, StableId? NodeId = null, StableId? SubgraphId = null, StableId? RegionId = null) {
         this.Code = Code;
         this.Severity = Severity;
         this.Message = Message;
         this.NodeId = NodeId;
         this.SubgraphId = SubgraphId;
+        this.RegionId = RegionId;
     }
 }
 public sealed class ShaderGraphValidationResult {

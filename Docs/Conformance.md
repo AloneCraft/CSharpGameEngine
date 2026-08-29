@@ -1,5 +1,13 @@
 # Conformance
 
+## 2026-08-29 M0062 structured Shader Graph regions
+
+- Intended specification: ADR-0060, M0062, Shader Graph, and Editor/VSIX specifications.
+- Implementation: Canonical regions now own explicit control nodes, parent branches, Then/Else/Body members, and typed Return/LoopIndex nodes. Validation rejects overlap, invalid parents, uncovered/unbounded loops, branch value escape, invalid Return outputs, and LoopIndex outside ForRange. The backend emits deterministic structured HLSL and node source maps.
+- Editor evidence: VSIX palette creation no longer requires an in-document prototype. If/ForRange/Return toolbar operations create typed semantic nodes and layout atomically; built-in connections require exact types and control arguments are editable.
+- Verification: shadergraph.schema, shadergraph.compiler, and vsix.shader-graph passed in Debug and Release. Full solution runs passed 1,641 Debug tests and 1,640 Release tests; focused suites cover canonical/hash, lowering, diagnostics, Undo, localization, and package build.
+- Conformance: F-L2-005 and F-L7-049 Match. F-L8-031 remains Partial only for automated Experimental Instance open/edit/save/reload evidence.
+
 ## 2026-08-29 M0061 external Shader Subgraphs
 
 - Intended specification: ADR-0059, M0061, Shader Graph, Rendering, and Editor/VSIX specifications.

@@ -15,6 +15,9 @@
    <Button Content="{local:Loc ShaderGraphDuplicate}" Click="Duplicate_Click"/>
    <Button Content="{local:Loc ShaderGraphDelete}" Click="Delete_Click"/>
    <Button Content="{local:Loc ShaderGraphFrame}" Click="Frame_Click"/>
+   <Button Content="{local:Loc ShaderGraphIfRegion}" Click="IfRegion_Click"/>
+   <Button Content="{local:Loc ShaderGraphForRangeRegion}" Click="ForRangeRegion_Click"/>
+   <Button Content="{local:Loc ShaderGraphReturn}" Click="Return_Click"/>
    <Separator/>
    <TextBlock Text="{local:Loc ShaderGraphEntry}" VerticalAlignment="Center" Margin="4,0"/>
    <ComboBox x:Name="EntryTabs" Width="210" SelectionChanged="EntryTabs_SelectionChanged"/>

@@ -22,6 +22,10 @@ public sealed class BuiltInNodeDefinition {
 public static class BuiltInNodeCatalog {
     public const string SubgraphCallType = "SubgraphCall";
     public const string ForRangeType = "ForRange";
+    public const string IfRegionType = "IfRegion";
+    public const string ForRangeRegionType = "ForRangeRegion";
+    public const string ReturnType = "Return";
+    public const string LoopIndexType = "LoopIndex";
     private static readonly Dictionary<string, BuiltInNodeDefinition> Definitions = new(StringComparer.Ordinal);
     private static readonly Dictionary<ShaderGraphTargetKind, ShaderGraphEntryPointContract> EntryPointContracts = new Dictionary<ShaderGraphTargetKind, ShaderGraphEntryPointContract>() {
         [ShaderGraphTargetKind.Stage] = new ShaderGraphEntryPointContract { TargetKind = ShaderGraphTargetKind.Stage, Name = "StageMain", ReturnType = ShaderGraphValueType.Float4 },
@@ -40,6 +44,12 @@ public static class BuiltInNodeCatalog {
         ]));
         Register(new("ConstantFloat4", ShaderGraphBuiltInCategory.Constant, ShaderGraphOpcode.Constant, [
             new ShaderGraphPortTemplate { Name = "Out", Direction = ShaderGraphPortDirection.Output, Type = ShaderGraphValueType.Float4, IsRequired = true }
+        ]));
+        Register(new("ConstantInt", ShaderGraphBuiltInCategory.Constant, ShaderGraphOpcode.Constant, [
+            new ShaderGraphPortTemplate { Name = "Out", Direction = ShaderGraphPortDirection.Output, Type = ShaderGraphValueType.Int, IsRequired = true }
+        ]));
+        Register(new("ConstantBool", ShaderGraphBuiltInCategory.Constant, ShaderGraphOpcode.Constant, [
+            new ShaderGraphPortTemplate { Name = "Out", Direction = ShaderGraphPortDirection.Output, Type = ShaderGraphValueType.Bool, IsRequired = true }
         ]));
         Register(new("AddFloat", ShaderGraphBuiltInCategory.Arithmetic, ShaderGraphOpcode.Add, [
             new ShaderGraphPortTemplate { Name = "A", Direction = ShaderGraphPortDirection.Input, Type = ShaderGraphValueType.Float, IsRequired = true },
@@ -127,6 +137,16 @@ public static class BuiltInNodeCatalog {
         Register(new("OutputFloat4", ShaderGraphBuiltInCategory.Output, ShaderGraphOpcode.Output, [
             new ShaderGraphPortTemplate { Name = "In", Direction = ShaderGraphPortDirection.Input, Type = ShaderGraphValueType.Float4, IsRequired = true }
         ], IsOutputNode: true));
+        Register(new(IfRegionType, ShaderGraphBuiltInCategory.Control, ShaderGraphOpcode.IfRegion, [
+            new ShaderGraphPortTemplate { Name = "Condition", Direction = ShaderGraphPortDirection.Input, Type = ShaderGraphValueType.Bool, IsRequired = true }
+        ]));
+        Register(new(ForRangeRegionType, ShaderGraphBuiltInCategory.Control, ShaderGraphOpcode.ForRangeRegion, new List<ShaderGraphPortTemplate>()));
+        Register(new(ReturnType, ShaderGraphBuiltInCategory.Control, ShaderGraphOpcode.Return, [
+            new ShaderGraphPortTemplate { Name = "Value", Direction = ShaderGraphPortDirection.Input, Type = ShaderGraphValueType.Unknown, IsRequired = true }
+        ]));
+        Register(new(LoopIndexType, ShaderGraphBuiltInCategory.Control, ShaderGraphOpcode.LoopIndex, [
+            new ShaderGraphPortTemplate { Name = "Out", Direction = ShaderGraphPortDirection.Output, Type = ShaderGraphValueType.Int, IsRequired = true }
+        ]));
         Register(new("SubgraphCall", ShaderGraphBuiltInCategory.Subgraph, ShaderGraphOpcode.SubgraphCall, new List<ShaderGraphPortTemplate>(), IsSubgraphCall: true));
     }
     private static void Register(BuiltInNodeDefinition Definition) {
@@ -134,6 +154,9 @@ public static class BuiltInNodeCatalog {
     }
     public static bool TryGetDefinition(string Type, out BuiltInNodeDefinition Definition) {
         return Definitions.TryGetValue(Type, out Definition);
+    }
+    public static IReadOnlyList<BuiltInNodeDefinition>GetDefinitions() {
+        return Definitions.Values.OrderBy(Definition=>Definition.Type,StringComparer.Ordinal).ToArray();
     }
     public static BuiltInNodeDefinition? GetDefinition(string Type) {
         if (Definitions.TryGetValue(Type, out var Definition)) {
@@ -152,6 +175,22 @@ public static class BuiltInNodeCatalog {
     }
     public static bool IsForRange(string Type) {
         return string.Equals(Type, ForRangeType, StringComparison.Ordinal);
+    }
+    public static bool IsStructuredRegionControl(string Type) {
+        return string.Equals(Type, IfRegionType, StringComparison.Ordinal)||string.Equals(Type, ForRangeRegionType, StringComparison.Ordinal);
+    }
+    public static bool IsReturn(string Type)=>string.Equals(Type,ReturnType,StringComparison.Ordinal);
+    public static bool IsLoopIndex(string Type)=>string.Equals(Type,LoopIndexType,StringComparison.Ordinal);
+    public static bool TryGetReturnValueType(ShaderGraphNode Node,out ShaderGraphValueType ValueType) {
+        return Enum.TryParse(Node.GetArgumentValue("ValueType"),true,out ValueType)&&ValueType!=ShaderGraphValueType.Unknown;
+    }
+    public static bool TryGetStaticLoopBounds(ShaderGraphNode Node,out int Start,out int EndExclusive,out int MaxIterations) {
+        Start=0;
+        EndExclusive=0;
+        MaxIterations=0;
+        return int.TryParse(Node.GetArgumentValue("Start"),System.Globalization.NumberStyles.Integer,System.Globalization.CultureInfo.InvariantCulture,out Start)
+            &&int.TryParse(Node.GetArgumentValue("EndExclusive"),System.Globalization.NumberStyles.Integer,System.Globalization.CultureInfo.InvariantCulture,out EndExclusive)
+            &&int.TryParse(Node.GetArgumentValue("MaxIterations"),System.Globalization.NumberStyles.Integer,System.Globalization.CultureInfo.InvariantCulture,out MaxIterations);
     }
     public static bool IsOutputNode(BuiltInNodeDefinition Definition) {
         return Definition.IsOutputNode;

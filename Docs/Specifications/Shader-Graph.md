@@ -2,7 +2,7 @@
 
 - Status: Implemented with partial conformance
 - Parent index: [Roadmap](../Roadmap.md), [Implementation Status](../Implementation-Status.md)
-- Decisions: [ADR-0058](../Decisions/ADR-0058-Visual-Shader-Graph-And-Artifact-Runtime.md), [ADR-0059](../Decisions/ADR-0059-External-Shader-Subgraph-Composition.md)
+- Decisions: [ADR-0058](../Decisions/ADR-0058-Visual-Shader-Graph-And-Artifact-Runtime.md), [ADR-0059](../Decisions/ADR-0059-External-Shader-Subgraph-Composition.md), [ADR-0060](../Decisions/ADR-0060-Structured-Shader-Regions.md)
 - Target layers: L2, L6, L7, L8
 
 ## Canonical assets
@@ -19,7 +19,9 @@ Dependencies resolve relative to their owning document and may be recursive. Res
 
 The built-in catalog contains typed constant, arithmetic, vector, utility, output, and Subgraph Call nodes. The production migration additionally represents every parser AST node and typed child relation as visual nodes; no raw HLSL source, code, or token payload is stored.
 
-Validation rejects missing required ports, type mismatch, unknown ports, graph cycles, missing subgraphs, subgraph recursion, invalid region members, missing target entries, and unbounded ForRange. A static maximum is required for loop-region nodes. The deterministic backend emits HLSL plus node-to-line source maps.
+Validation rejects missing required ports, type mismatch, unknown ports, graph cycles, missing subgraphs, subgraph recursion, invalid region ownership/nesting, missing target entries, and unbounded ForRange. If owns explicit Then and Else members. ForRange owns Body members and requires static non-negative bounds plus a maximum in 1..4096 that covers the range. Return must match a named Subgraph output type, and LoopIndex is valid only under a ForRange ancestor. Values may enter a branch from an outer scope but cannot escape or cross sibling branches. Output nodes are not legal inside structured regions.
+
+The deterministic backend emits structured if/else, bounded for, and typed early-return HLSL. Control, value, LoopIndex, and Return nodes retain node-to-line source-map entries.
 
 Custom HLSL and user DLL node providers are outside v1.
 
@@ -39,7 +41,7 @@ D3D12 renderers consume artifacts only and validate them before creating a comma
 
 ## Visual Studio editor
 
-The VSIX registers editor factories for both extensions. The WPF editor supplies canvas pan/zoom, searchable palette, typed connection rejection, multiple selection, copy/paste, duplicate/delete, comments/frames, entry tabs, properties, Error List mapping, save/build, external-change handling, external Subgraph listing/navigation, and Visual Studio Save/Undo/Redo commands.
+The VSIX registers editor factories for both extensions. The WPF editor supplies canvas pan/zoom, a searchable built-in/prototype palette, typed connection rejection, multiple selection, copy/paste, duplicate/delete, comments/frames, structured If/ForRange/Return creation, entry tabs, properties, Error List mapping, save/build, external-change handling, external Subgraph listing/navigation, and Visual Studio Save/Undo/Redo commands. Region kind/name labels and editable control arguments make structured behavior visible without raw HLSL.
 
 Localized 1033/1041 templates create Shader Graph or Shader Subgraph assets. The root wizard selects Stage, Model, or Triangle. A Stage template copies and coherently remaps the complete external dependency bundle using graph-prefixed filenames. Open Generated HLSL opens the semantic/dependency-hash-matched generated source.
 
@@ -54,4 +56,4 @@ Localized 1033/1041 templates create Shader Graph or Shader Subgraph assets. The
 
 ## Known delta
 
-External production Subgraph extraction, recursive dependency hashing, incremental artifact reuse, template copying, and dedicated navigation are implemented. Remaining partial conformance is limited to first-class high-level If/For/Return region authoring/editing and automated Experimental Instance interaction evidence.
+External production Subgraphs and first-class structured If/ForRange/Return authoring/lowering are implemented. F-L2-005 and F-L7-049 Match this specification. Remaining partial conformance is limited to automated Visual Studio Experimental Instance interaction evidence for F-L8-031.

@@ -34,6 +34,23 @@ public static class ShaderGraphEmitter {
         public ShaderGraphValueType Type { get; set; }
         public string Expression { get; set; } = string.Empty;
     }
+    private sealed class StructuredEmitContext {
+        public ShaderGraphSubgraph Subgraph { get; set; } = new ShaderGraphSubgraph();
+        public Dictionary<StableId,ShaderGraphSubgraph> SubgraphById { get; set; } = new Dictionary<StableId,ShaderGraphSubgraph>();
+        public List<ShaderGraphNode> OrderedNodes { get; set; } = new List<ShaderGraphNode>();
+        public Dictionary<StableId,List<ShaderGraphEdge>> InEdges { get; set; } = new Dictionary<StableId,List<ShaderGraphEdge>>();
+        public Dictionary<(StableId,string),TypedValue> ValueMap { get; set; } = new Dictionary<(StableId,string),TypedValue>();
+        public List<OutputCandidate> OutputCandidates { get; set; } = new List<OutputCandidate>();
+        public Dictionary<StableId,ShaderGraphIrInstruction> Instructions { get; set; } = new Dictionary<StableId,ShaderGraphIrInstruction>();
+        public Dictionary<StableId,ShaderGraphRegion> RegionById { get; set; } = new Dictionary<StableId,ShaderGraphRegion>();
+        public Dictionary<StableId,ShaderGraphRegion> RegionByControl { get; set; } = new Dictionary<StableId,ShaderGraphRegion>();
+        public Dictionary<StableId,StableId> Membership { get; set; } = new Dictionary<StableId,StableId>();
+        public Dictionary<StableId,string> LoopIterators { get; set; } = new Dictionary<StableId,string>();
+        public HashSet<StableId> EmittedNodes { get; set; } = new HashSet<StableId>();
+        public List<string> Lines { get; set; } = new List<string>();
+        public ShaderGraphSourceMap SourceMap { get; set; } = new ShaderGraphSourceMap();
+        public int IndentLevel { get; set; } = 1;
+    }
     private const string MainFunctionPrefix = "SG";
     public static ShaderGraphEmitResult Emit(ShaderGraphDocument Document) {
         var Validation = ShaderGraphValidator.Validate(Document);
@@ -100,15 +117,187 @@ public static class ShaderGraphEmitter {
         } else {
             Lines.Add($"void {FunctionName}({string.Join(",", Parameters)}){{");
         }
-        foreach (var Instruction in Instructions.OrderBy(Item => OrderedNodes.IndexOf(Item.Node))) {
-            EmitInstruction(Subgraph, Instruction, SubgraphById, InEdges, ValueMap, OutputCandidates, Lines, SourceMap);
-        }
+        var StructuredRegions=Subgraph.Regions.Where(Region=>Region.Kind!=ShaderGraphRegionKind.Comment).ToArray();
+        var Context=new StructuredEmitContext {
+            Subgraph=Subgraph,
+            SubgraphById=SubgraphById,
+            OrderedNodes=OrderedNodes,
+            InEdges=InEdges,
+            ValueMap=ValueMap,
+            OutputCandidates=OutputCandidates,
+            Instructions=Instructions.ToDictionary(Instruction=>Instruction.NodeId),
+            RegionById=StructuredRegions.ToDictionary(Region=>Region.Id),
+            RegionByControl=StructuredRegions.ToDictionary(Region=>Region.ControlNodeId),
+            Membership=StructuredRegions.SelectMany(Region=>Region.NodeIds.Concat(Region.ElseNodeIds).Select(NodeId=>(NodeId,Region.Id))).ToDictionary(Item=>Item.NodeId,Item=>Item.Id),
+            Lines=Lines,
+            SourceMap=SourceMap,
+        };
+        EmitStructuredSequence(Context,default,ShaderGraphRegionBranch.Body);
         foreach (var Output in Subgraph.Outputs.OrderBy(Port => Port.Name, StringComparer.Ordinal)) {
             var Assignment = ResolveSubgraphOutputExpression(Output, OutputCandidates);
             var ParameterName = GetOutputParameterName(Subgraph.Id, Output.Name);
             AddLine(Lines, SourceMap, string.Empty, $"    {ParameterName}={Assignment};");
         }
         Lines.Add("}");
+    }
+    private static void EmitStructuredSequence(StructuredEmitContext Context,StableId ParentRegionId,ShaderGraphRegionBranch Branch) {
+        foreach(var Node in Context.OrderedNodes) {
+            if(Context.EmittedNodes.Contains(Node.Id)||!BelongsToSequence(Context,Node.Id,ParentRegionId,Branch)) {
+                continue;
+            }
+            if(Context.RegionByControl.TryGetValue(Node.Id,out var Region)) {
+                EmitStructuredRegion(Context,Region);
+            } else {
+                EmitStructuredNode(Context,Node.Id);
+            }
+        }
+    }
+    private static bool BelongsToSequence(StructuredEmitContext Context,StableId NodeId,StableId ParentRegionId,ShaderGraphRegionBranch Branch) {
+        if(Context.RegionByControl.TryGetValue(NodeId,out var ControlledRegion)) {
+            return ControlledRegion.ParentRegionId==ParentRegionId&&ControlledRegion.ParentBranch==Branch;
+        }
+        if(ParentRegionId.IsEmpty) {
+            return !Context.Membership.ContainsKey(NodeId);
+        }
+        if(!Context.RegionById.TryGetValue(ParentRegionId,out var ParentRegion)) {
+            return false;
+        }
+        var Members=Branch==ShaderGraphRegionBranch.Else?ParentRegion.ElseNodeIds:ParentRegion.NodeIds;
+        return Members.Contains(NodeId);
+    }
+    private static void EmitStructuredRegion(StructuredEmitContext Context,ShaderGraphRegion Region) {
+        EmitRegionDependencies(Context,Region);
+        Context.EmittedNodes.Add(Region.ControlNodeId);
+        if(!Context.Instructions.TryGetValue(Region.ControlNodeId,out var Control)) {
+            return;
+        }
+        if(Region.Kind==ShaderGraphRegionKind.If) {
+            var Condition=GetNodeInputValue(Control.NodeId,"Condition",Context.InEdges,Context.ValueMap,ShaderGraphValueType.Bool);
+            AddLine(Context.Lines,Context.SourceMap,Control.NodeId.ToString(),$"{Indent(Context.IndentLevel)}if({Condition.Expression}){{");
+            Context.IndentLevel++;
+            EmitStructuredSequence(Context,Region.Id,ShaderGraphRegionBranch.Then);
+            Context.IndentLevel--;
+            if(Region.ElseNodeIds.Count>0||Context.RegionById.Values.Any(Child=>Child.ParentRegionId==Region.Id&&Child.ParentBranch==ShaderGraphRegionBranch.Else)) {
+                Context.Lines.Add($"{Indent(Context.IndentLevel)}}}else{{");
+                Context.IndentLevel++;
+                EmitStructuredSequence(Context,Region.Id,ShaderGraphRegionBranch.Else);
+                Context.IndentLevel--;
+            }
+            Context.Lines.Add($"{Indent(Context.IndentLevel)}}}");
+            return;
+        }
+        if(Region.Kind==ShaderGraphRegionKind.ForRange&&BuiltInNodeCatalog.TryGetStaticLoopBounds(Control.Node,out var Start,out var EndExclusive,out var MaxIterations)) {
+            var Iterator=SanitizeIdentifier(Control.Node.GetArgumentValue("Iterator")??$"i_{Region.Id.ToString().Replace("-",string.Empty)}");
+            Context.LoopIterators[Region.Id]=Iterator;
+            AddLine(Context.Lines,Context.SourceMap,Control.NodeId.ToString(),$"{Indent(Context.IndentLevel)}for(int {Iterator}={Start.ToString(CultureInfo.InvariantCulture)};{Iterator}<{EndExclusive.ToString(CultureInfo.InvariantCulture)}&&{Iterator}-{Start.ToString(CultureInfo.InvariantCulture)}<{MaxIterations.ToString(CultureInfo.InvariantCulture)};{Iterator}++){{");
+            Context.IndentLevel++;
+            EmitStructuredSequence(Context,Region.Id,ShaderGraphRegionBranch.Body);
+            Context.IndentLevel--;
+            Context.LoopIterators.Remove(Region.Id);
+            Context.Lines.Add($"{Indent(Context.IndentLevel)}}}");
+        }
+    }
+    private static void EmitRegionDependencies(StructuredEmitContext Context,ShaderGraphRegion Region) {
+        var Targets=new HashSet<StableId>{Region.ControlNodeId};
+        AddRegionSubtreeNodes(Context,Region.Id,Targets);
+        foreach(var Target in Targets.OrderBy(Id=>Id.ToString(),StringComparer.Ordinal)) {
+            if(!Context.InEdges.TryGetValue(Target,out var Edges)) {
+                continue;
+            }
+            foreach(var Edge in Edges.OrderBy(Edge=>Edge.Id.ToString(),StringComparer.Ordinal)) {
+                var SourceRegion=GetExecutionRegion(Context,Edge.FromNodeId);
+                if(!IsRegionDescendantOrSame(Context,SourceRegion,Region.Id)) {
+                    EmitStructuredNode(Context,Edge.FromNodeId);
+                }
+            }
+        }
+    }
+    private static void AddRegionSubtreeNodes(StructuredEmitContext Context,StableId RegionId,HashSet<StableId> Nodes) {
+        if(!Context.RegionById.TryGetValue(RegionId,out var Region)) {
+            return;
+        }
+        foreach(var NodeId in Region.NodeIds.Concat(Region.ElseNodeIds)) {
+            Nodes.Add(NodeId);
+        }
+        foreach(var Child in Context.RegionById.Values.Where(Child=>Child.ParentRegionId==RegionId)) {
+            Nodes.Add(Child.ControlNodeId);
+            AddRegionSubtreeNodes(Context,Child.Id,Nodes);
+        }
+    }
+    private static StableId GetExecutionRegion(StructuredEmitContext Context,StableId NodeId) {
+        if(Context.Membership.TryGetValue(NodeId,out var RegionId)) {
+            return RegionId;
+        }
+        if(Context.RegionByControl.TryGetValue(NodeId,out var Region)) {
+            return Region.ParentRegionId;
+        }
+        return default;
+    }
+    private static bool IsRegionDescendantOrSame(StructuredEmitContext Context,StableId Candidate,StableId Ancestor) {
+        if(Candidate.IsEmpty) {
+            return false;
+        }
+        var Seen=new HashSet<StableId>();
+        while(Seen.Add(Candidate)&&Context.RegionById.TryGetValue(Candidate,out var Region)) {
+            if(Candidate==Ancestor) {
+                return true;
+            }
+            Candidate=Region.ParentRegionId;
+        }
+        return false;
+    }
+    private static void EmitStructuredNode(StructuredEmitContext Context,StableId NodeId) {
+        if(Context.EmittedNodes.Contains(NodeId)) {
+            return;
+        }
+        if(Context.RegionByControl.TryGetValue(NodeId,out var Region)) {
+            EmitStructuredRegion(Context,Region);
+            return;
+        }
+        if(!Context.Instructions.TryGetValue(NodeId,out var Instruction)) {
+            return;
+        }
+        if(Context.InEdges.TryGetValue(NodeId,out var Edges)) {
+            foreach(var Edge in Edges.OrderBy(Edge=>Edge.Id.ToString(),StringComparer.Ordinal)) {
+                EmitStructuredNode(Context,Edge.FromNodeId);
+            }
+        }
+        if(BuiltInNodeCatalog.IsLoopIndex(Instruction.Node.Type)) {
+            EmitLoopIndex(Context,Instruction.Node);
+        } else if(BuiltInNodeCatalog.IsReturn(Instruction.Node.Type)) {
+            EmitReturn(Context,Instruction.Node);
+        } else {
+            EmitInstruction(Context.Subgraph,Instruction,Context.SubgraphById,Context.InEdges,Context.ValueMap,Context.OutputCandidates,Context.Lines,Context.SourceMap,Context.IndentLevel);
+        }
+        Context.EmittedNodes.Add(NodeId);
+    }
+    private static void EmitLoopIndex(StructuredEmitContext Context,ShaderGraphNode Node) {
+        var RegionId=Context.Membership.TryGetValue(Node.Id,out var MemberRegionId)?MemberRegionId:default;
+        var Seen=new HashSet<StableId>();
+        while(!RegionId.IsEmpty&&Seen.Add(RegionId)&&Context.RegionById.TryGetValue(RegionId,out var Region)) {
+            if(Region.Kind==ShaderGraphRegionKind.ForRange&&Context.LoopIterators.TryGetValue(Region.Id,out var Iterator)) {
+                var Variable=GetNodeVariableName(Node.Id);
+                AddLine(Context.Lines,Context.SourceMap,Node.Id.ToString(),$"{Indent(Context.IndentLevel)}int {Variable}={Iterator};");
+                Context.ValueMap[(Node.Id,"Out")]=new TypedValue { Type=ShaderGraphValueType.Int,Expression=Variable };
+                return;
+            }
+            RegionId=Region.ParentRegionId;
+        }
+    }
+    private static void EmitReturn(StructuredEmitContext Context,ShaderGraphNode Node) {
+        if(!BuiltInNodeCatalog.TryGetReturnValueType(Node,out var ValueType)) {
+            return;
+        }
+        var Value=GetNodeInputValue(Node.Id,"Value",Context.InEdges,Context.ValueMap,ValueType);
+        var OutputName=Node.GetArgumentValue("OutputName");
+        var Output=Context.Subgraph.Outputs.FirstOrDefault(Item=>string.Equals(Item.Name,OutputName,StringComparison.Ordinal)&&Item.Type==ValueType)
+            ??Context.Subgraph.Outputs.First(Item=>Item.Type==ValueType);
+        var ParameterName=GetOutputParameterName(Context.Subgraph.Id,Output.Name);
+        AddLine(Context.Lines,Context.SourceMap,Node.Id.ToString(),$"{Indent(Context.IndentLevel)}{ParameterName}={Value.Expression};");
+        AddLine(Context.Lines,Context.SourceMap,Node.Id.ToString(),$"{Indent(Context.IndentLevel)}return;");
+    }
+    private static string Indent(int Level) {
+        return new string(' ',Math.Max(0,Level)*4);
     }
     private static void EmitEntryPoint(StableId RootSubgraphId, ShaderGraphSubgraph RootSubgraph, ShaderGraphEntryPointContract Contract, List<string> Lines) {
         var ReturnType = GetTypeName(Contract.ReturnType);
@@ -160,9 +349,9 @@ public static class ShaderGraphEmitter {
         }
         return Instructions;
     }
-    private static void EmitInstruction(ShaderGraphSubgraph Subgraph, ShaderGraphIrInstruction Instruction, Dictionary<StableId, ShaderGraphSubgraph> SubgraphById, Dictionary<StableId, List<ShaderGraphEdge>> InEdges, Dictionary<(StableId, string), TypedValue> ValueMap, List<OutputCandidate> OutputCandidates, List<string> Lines, ShaderGraphSourceMap SourceMap) {
+    private static void EmitInstruction(ShaderGraphSubgraph Subgraph, ShaderGraphIrInstruction Instruction, Dictionary<StableId, ShaderGraphSubgraph> SubgraphById, Dictionary<StableId, List<ShaderGraphEdge>> InEdges, Dictionary<(StableId, string), TypedValue> ValueMap, List<OutputCandidate> OutputCandidates, List<string> Lines, ShaderGraphSourceMap SourceMap,int IndentLevel=1) {
         if (Instruction.Definition.IsSubgraphCall) {
-            EmitSubgraphCall(Instruction.Node, SubgraphById, InEdges, ValueMap, Lines, SourceMap);
+            EmitSubgraphCall(Instruction.Node, SubgraphById, InEdges, ValueMap, Lines, SourceMap,IndentLevel);
             return;
         }
         if (Instruction.Definition.IsOutputNode) {
@@ -178,7 +367,7 @@ public static class ShaderGraphEmitter {
             return;
         }
         var Variable = GetNodeVariableName(Instruction.NodeId);
-        AddLine(Lines, SourceMap, Instruction.NodeId.ToString(), $"    {GetTypeName(Output.Type)} {Variable}={Expression};");
+        AddLine(Lines, SourceMap, Instruction.NodeId.ToString(), $"{Indent(IndentLevel)}{GetTypeName(Output.Type)} {Variable}={Expression};");
         ValueMap[(Instruction.NodeId, Output.Name)] = new TypedValue { Type = Output.Type, Expression = Variable };
     }
     private static void EmitOutputNode(ShaderGraphNode Node, Dictionary<StableId, List<ShaderGraphEdge>> InEdges, Dictionary<(StableId, string), TypedValue> ValueMap, List<OutputCandidate> OutputCandidates) {
@@ -199,7 +388,7 @@ public static class ShaderGraphEmitter {
             Expression = Input.Expression
         });
     }
-    private static void EmitSubgraphCall(ShaderGraphNode Node, Dictionary<StableId, ShaderGraphSubgraph> SubgraphById, Dictionary<StableId, List<ShaderGraphEdge>> InEdges, Dictionary<(StableId, string), TypedValue> ValueMap, List<string> Lines, ShaderGraphSourceMap SourceMap) {
+    private static void EmitSubgraphCall(ShaderGraphNode Node, Dictionary<StableId, ShaderGraphSubgraph> SubgraphById, Dictionary<StableId, List<ShaderGraphEdge>> InEdges, Dictionary<(StableId, string), TypedValue> ValueMap, List<string> Lines, ShaderGraphSourceMap SourceMap,int IndentLevel) {
         if (!StableId.TryParse(Node.GetArgumentValue("SubgraphId"), out var SubgraphId) || !SubgraphById.TryGetValue(SubgraphId, out var Subgraph)) {
             return;
         }
@@ -213,7 +402,7 @@ public static class ShaderGraphEmitter {
             Arguments.Add(OutVar);
             ValueMap[(Node.Id, Output.Name)] = new TypedValue { Type = Output.Type, Expression = OutVar };
         }
-        AddLine(Lines, SourceMap, Node.Id.ToString(), $"    {GetSubgraphFunctionName(SubgraphId)}({string.Join(",", Arguments)});");
+        AddLine(Lines, SourceMap, Node.Id.ToString(), $"{Indent(IndentLevel)}{GetSubgraphFunctionName(SubgraphId)}({string.Join(",", Arguments)});");
     }
     private static string ResolveSubgraphOutputExpression(ShaderGraphPort Output, List<OutputCandidate> OutputCandidates) {
         foreach (var Candidate in OutputCandidates.Where(Candidate => string.Equals(Candidate.NameHint, Output.Name, StringComparison.Ordinal))) {

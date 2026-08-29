@@ -92,7 +92,7 @@ internal static class ShaderGraphDependencyComposition {
                 ToNodeId=DependencyTranslationId,
                 ToPort=Edge.ToPort,
             })).ToList(),
-            Regions=Root.Regions.Where(Region=>Region.NodeIds.All(SelectedNodes.Contains)).Select(CloneRegion).ToList(),
+            Regions=Root.Regions.Where(Region=>Region.NodeIds.Concat(Region.ElseNodeIds).All(SelectedNodes.Contains)&&(Region.ControlNodeId.IsEmpty||SelectedNodes.Contains(Region.ControlNodeId))).Select(CloneRegion).ToList(),
         };
         var DependencyLayout=new ShaderGraphEditorLayout {
             Nodes=Source.Layout?.Nodes.Where(Node=>SelectedNodes.Contains(Node.NodeId)).Select(CloneLayout).Append(new ShaderGraphNodeLayout { NodeId=DependencyTranslationId,X=0,Y=0 }).ToList()??new List<ShaderGraphNodeLayout>(),
@@ -112,8 +112,11 @@ internal static class ShaderGraphDependencyComposition {
         ResultRoot.Nodes.RemoveAll(Node=>SelectedNodes.Contains(Node.Id));
         ResultRoot.Edges.RemoveAll(Edge=>SelectedNodes.Contains(Edge.FromNodeId)||SelectedNodes.Contains(Edge.ToNodeId));
         ResultTranslation.Arguments.RemoveAll(Argument=>Selected.Any(Edge=>Argument.Name==HlslSyntaxGraphContract.ChildPortPrefix+Edge.ToPort));
-        ResultRoot.Regions.ForEach(Region=>Region.NodeIds.RemoveAll(NodeId=>SelectedNodes.Contains(NodeId)));
-        ResultRoot.Regions.RemoveAll(Region=>Region.NodeIds.Count==0);
+        ResultRoot.Regions.ForEach(Region=>{
+            Region.NodeIds.RemoveAll(NodeId=>SelectedNodes.Contains(NodeId));
+            Region.ElseNodeIds.RemoveAll(NodeId=>SelectedNodes.Contains(NodeId));
+        });
+        ResultRoot.Regions.RemoveAll(Region=>(!Region.ControlNodeId.IsEmpty&&SelectedNodes.Contains(Region.ControlNodeId))||(Region.Kind==ShaderGraphRegionKind.Comment&&Region.NodeIds.Count==0&&Region.ElseNodeIds.Count==0));
         Result.Layout?.Nodes.RemoveAll(Node=>SelectedNodes.Contains(Node.NodeId));
         Result.Dependencies.Add(new ShaderGraphDependency { Id=Dependency.Id,Path=NormalizePath(RelativePath) });
         return Result;
@@ -208,7 +211,7 @@ internal static class ShaderGraphDependencyComposition {
     private static ShaderGraphNode CloneNode(ShaderGraphNode Node)=>new(){ Id=Node.Id,Type=Node.Type,Name=Node.Name,Arguments=Node.Arguments.Select(CloneArgument).ToList() };
     private static ShaderGraphArgument CloneArgument(ShaderGraphArgument Argument)=>new(){ Name=Argument.Name,Value=Argument.Value };
     private static ShaderGraphEdge CloneEdge(ShaderGraphEdge Edge)=>new(){ Id=Edge.Id,FromNodeId=Edge.FromNodeId,FromPort=Edge.FromPort,ToNodeId=Edge.ToNodeId,ToPort=Edge.ToPort };
-    private static ShaderGraphRegion CloneRegion(ShaderGraphRegion Region)=>new(){ Id=Region.Id,Name=Region.Name,NodeIds=Region.NodeIds.ToList() };
+    private static ShaderGraphRegion CloneRegion(ShaderGraphRegion Region)=>new(){ Id=Region.Id,Kind=Region.Kind,Name=Region.Name,ControlNodeId=Region.ControlNodeId,ParentRegionId=Region.ParentRegionId,ParentBranch=Region.ParentBranch,NodeIds=Region.NodeIds.ToList(),ElseNodeIds=Region.ElseNodeIds.ToList() };
     private static ShaderGraphNodeLayout CloneLayout(ShaderGraphNodeLayout Node)=>new(){ NodeId=Node.NodeId,X=Node.X,Y=Node.Y };
     private static ShaderGraphRegionLayout CloneRegionLayout(ShaderGraphRegionLayout Region)=>new(){ RegionId=Region.RegionId,X=Region.X,Y=Region.Y,Width=Region.Width,Height=Region.Height };
 }

@@ -1,5 +1,13 @@
 # Reverse-engineered specification
 
+## RE-M0062 - Structured Shader Graph regions
+
+- Confidence: High.
+- Evidence: ShaderGraphRegion schema/canonicalization, BuiltInNodeCatalog, ShaderGraphValidator, ShaderGraphEmitter, VSIX editor document/control, template/dependency clone paths, and focused tests.
+- Observed behavior: Existing regions default to non-semantic comments. If and ForRange require owned control nodes and explicit branch membership; parent-region chains permit structured nesting but reject cycles and invalid parent branches.
+- Observed behavior: Outer values may feed branches, while branch-local values cannot escape or cross siblings. ForRange is statically bounded, LoopIndex resolves the nearest active loop, and Return assigns a compatible Subgraph output before exiting.
+- Result: Matches ADR-0060/M0062 for F-L2-005 and F-L7-049. F-L8-031 remains Partial only for Experimental Instance automation evidence.
+
 ## RE-M0061 - External Shader Subgraph composition
 
 - Confidence: High.
