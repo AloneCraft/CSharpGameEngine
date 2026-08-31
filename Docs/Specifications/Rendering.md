@@ -2,7 +2,7 @@
 
 - Status: Partially implemented
 - Parent index: [Roadmap](../Roadmap.md), [Implementation Status](../Implementation-Status.md)
-- Decisions: [ADR-0052](../Decisions/ADR-0052-Render-Graph-And-Preview-Boundary.md), [ADR-0058](../Decisions/ADR-0058-Visual-Shader-Graph-And-Artifact-Runtime.md)
+- Decisions: [ADR-0052](../Decisions/ADR-0052-Render-Graph-And-Preview-Boundary.md), [ADR-0058](../Decisions/ADR-0058-Visual-Shader-Graph-And-Artifact-Runtime.md), [ADR-0062](../Decisions/ADR-0062-Visible-Engine-Showcase-And-Deterministic-Input.md)
 - Target layers: L0, L4, L6, L7, L8
 
 ## Scope and current baseline
@@ -119,3 +119,9 @@ Stage, Model, and Triangle consume fixed-ABI CGESHDR1 artifacts only. Debug arti
 ## M0061 external Subgraph update
 
 Stage resolves PBR, Shadow, PCSS, and ACES from explicit external `.cgesubgraph` inputs. Recursive dependency hashes participate in Artifact identity while the root semantic hash remains independently observable. Exact HLSL parity preserves the M0060 WARP baseline; Runtime continues to consume the same CGESHDR1 contract.
+
+## M0064 visible Showcase update
+
+The default `UserEcsProject` window contains the existing D3D12 gallery and a 360-DIP double-buffered GDI child dashboard. The child panel changes no GPU Shader ABI. It reports completed simulation state, ECS statistics, Shader Artifact identity/hot-reload diagnostics, Physics state, and separate Feature/Stage progress bars from the generated manifest.
+
+Runtime adapter selection is externally controllable through `CGE_GRAPHICS_ADAPTER=warp|hardware|default`; `CGE_D3D12_DEBUG_LAYER=0|1` controls validation. Normal startup preserves hardware/default selection. The executable `showcase.visible-progress` Visual Stage requires WARP and records the combined 3D/dashboard image plus a machine-readable child-window title.

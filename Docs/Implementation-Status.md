@@ -4004,27 +4004,27 @@ F-L0-008 and F-L3-019 are non-physics Roadmap Features and are `Specified`; the 
 
 - Layer: L1 — Core Kernel
 - Parent capability: Audio / Input / Platform
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified
 - Intended specification: `Docs/Specifications/Audio-Input-Platform.md#l1-value-contracts`
-- Stage: `platform.boundaries` (`NotImplemented`, Headless / Foundation, 900s)
+- Stage: `platform.boundaries` (`Executable`, Headless / Foundation, 900s)
 - Depends on: None
-- Current delta: Portable timestamp/window/device/action/audio contracts are not implemented.
-- Conformance: Unknown
-- Next action: Implement native-free L1 values and contract diagnostics.
+- Current delta: Native-free monotonic timestamp, window/device/context/action IDs, controls, values, raw events, action phases, release reasons, and deterministic name-derived IDs are implemented in Core.
+- Conformance: Matches
+- Next action: Preserve native-type isolation while extending later audio contracts.
 
 ## F-L0-010 — Win32 window and input binding
 
 - Layer: L0 — Platform / Native Backends
 - Parent capability: Audio / Input / Platform
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified
 - Intended specification: `Docs/Specifications/Audio-Input-Platform.md#server-data-flow`
-- Stage: `platform.window-input` (`NotImplemented`, Headless / Foundation, 900s)
+- Stage: `platform.window-input` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L1-008
-- Current delta: Target QPC monotonic input, focus/capture/hotplug release semantics are not implemented.
-- Conformance: Unknown
-- Next action: Implement the Win32 adapter below the portable input contract.
+- Current delta: Win32 keyboard, mouse button/wheel, raw relative mouse, device notification, QPC timestamp, repeat suppression, and forced release on focus/capture/device/window loss are implemented behind `DrainInputEvents()`.
+- Conformance: Matches
+- Next action: Preserve QPC and forced-release behavior while adding future device kinds.
 
 ## F-L4-009 — Audio device lifecycle server
 
@@ -4043,14 +4043,14 @@ F-L0-008 and F-L3-019 are non-physics Roadmap Features and are `Specified`; the 
 
 - Layer: L4 — Domain Servers
 - Parent capability: Audio / Input / Platform
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified
 - Intended specification: `Docs/Specifications/Audio-Input-Platform.md#input-contract`
-- Stage: `input.actions` (`NotImplemented`, Headless / Foundation, 900s)
+- Stage: `input.actions` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L0-010
-- Current delta: Context/chord/dead-zone/rebind deterministic actions are not implemented.
-- Conformance: Unknown
-- Next action: Implement action-map evaluation and stable event ordering.
+- Current delta: Stable raw-event ordering, context priority, chord evaluation, 1D/2D dead-zone, reserved actions, collision-checked rebind, context/device cancellation, and deterministic action frames are implemented.
+- Conformance: Matches
+- Next action: Preserve deterministic trace/action identity while adding future composite bindings.
 
 ## F-L4-011 — Audio mixer and offline oracle
 
@@ -4324,3 +4324,16 @@ F-L0-008 and F-L3-019 are non-physics Roadmap Features and are `Specified`; the 
 - Current delta: Editor Factory, WPF node canvas, built-in/prototype palette, exact typed connections, If/ForRange/Return region authoring, edit commands, properties, diagnostics, save/build, Subgraph validate-only save, external-change handling, stable AutomationIds/TransformPattern, external Subgraph navigation, localized templates, dependency-bundle copying, and target wizard are implemented and experimentally verified.
 - Conformance: Matches
 - Next action: Preserve the fixed ABI and evidence contract while adding future node families.
+
+## F-L9-009 — Engine Showcase and live feature progress
+
+- Layer: L9 — Cross-Domain Orchestration
+- Parent capability: Verification / visible runtime evidence
+- Status: Implemented
+- Verification: TestVerified
+- Intended specification: `Docs/Milestones/M0064-Visible-Engine-Showcase.md`
+- Stage: `showcase.visible-progress` (`Executable`, Visual / Rendering, 900s)
+- Depends on: F-L7-030, F-L3-018, F-L7-022, F-L6-004, F-L4-010, F-L5-003
+- Current delta: The default UserEcsProject starts a fixed-camera ECS/physics/rendering gallery with a 360 DIP localized Win32 dashboard, catalog-derived Feature/Stage progress, deterministic Input Actions, Pause/Step controls, machine-readable child title, and WARP evidence automation.
+- Conformance: Matches
+- Next action: Keep incomplete prefracture/cache demonstrations out of the default gallery until their own Features become implemented.

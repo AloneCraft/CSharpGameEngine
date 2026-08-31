@@ -1,6 +1,7 @@
 using System.Numerics;
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Graphics.D3D12;
+using CSharpGameEngine.Input;
 using CSharpGameEngine.Platform.Windows;
 using RenderCamera=CSharpGameEngine.Graphics.D3D12.Camera;
 using Camera=CSharpGameEngine.Runtime.Windows.Camera;
@@ -100,11 +101,13 @@ internal struct Window:ISystem {
         else if(!this.HostEntity.Equals(Entity)){
             throw new InvalidOperationException("Runtime requires exactly one AppHost.");
         }
+        Runtime.Input??=new InputServer(new InputActionMap([]));
         if(Runtime.Window is not{ }Window){
             Runtime.Window=new Win32Window(new Win32WindowOptions { Title=App.Title,Width=App.Width,Height=App.Height,Visible=true });
             return true;
         }
         Window.PumpEvents();
+        Runtime.Input.ProcessEvents(Window.DrainInputEvents());
         if(Window.IsClosed){
             State.Enabled=false;
             return false;
@@ -188,7 +191,7 @@ internal struct LevelLoad:ISystem {
             this.PendingStaticMeshes??=[],
             this.PendingPrimitives??=[]);
         var Renderer=StageRenderer.Create(
-                                          Window.Handle,Window.ClientWidth,Window.ClientHeight,new GraphicsDeviceOptions(),
+                                          Window.Handle,Window.ClientWidth,Window.ClientHeight,GraphicsDeviceOptionsResolver.FromEnvironment(),
                                           Path.Combine(AppContext.BaseDirectory,Level.ShaderArtifactPath),Scene.Meshes,Scene.Materials,Scene.Objects);
         Window.Resized+=(Width,Height)=>Renderer.Resize(Width,Height);
 

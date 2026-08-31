@@ -1,5 +1,6 @@
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Runtime.Windows;
+using UserEcsProject.Showcase;
 
 namespace UserEcsProject.Scenes;
 
@@ -13,13 +14,14 @@ internal partial class MainScene:IScene {
         Name="Application",
         Components=[
             new AppHost {
-                Title="C# Game Engine - FirstPerson Stage",
-                Width=1280,
-                Height=720,
+                Title="C# Game Engine - Visible Engine Showcase",
+                Width=1440,
+                Height=810,
             },
             new Level {
                 ShaderArtifactPath="Shaders/Stage.cgeshaderartifact",
             },
+            new EngineShowcase(),
         ],
     };
 }

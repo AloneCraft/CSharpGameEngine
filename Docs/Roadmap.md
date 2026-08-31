@@ -6,6 +6,8 @@ This index is the authoritative machine-tracked mapping for the six non-physics 
 
 M0063 adds isolated `CgeAutomation` Experimental evidence, stable Shader Graph AutomationIds, and false-pass-safe ledger/Feature Runner contracts. F-L8-020 and F-L8-021 are Implemented/TestVerified, and Debug/Release 1041 evidence closes F-L8-031 as Matches.
 
+M0064 makes `UserEcsProject` a visible engine Showcase. Portable input events, the Win32 event adapter, deterministic Input Actions, the live feature manifest, and the WARP-verified dashboard are Implemented/TestVerified. F-L9-009 records the cross-track visible-progress vertical slice without claiming unfinished Physics features.
+
 Current baseline corrections: point/spot/area/emissive shadows and HDR/ACES/bloom are observed renderer baseline; Scene Designer transform tools are observed baseline and require new visual acceptance; existing ECS phase/structural behavior is a base for the unified target; C# `IScene` remains the only authoring truth. F-L3-020 remains `Deferred` for the future 65-128-type generator path, while 1-64 uses one generation-time `ulong` with no runtime mask penalty.
 
 ### Rendering
@@ -76,10 +78,10 @@ Current baseline corrections: point/spot/area/emissive shadows and HDR/ACES/bloo
 
 | Level | Feature ID | Status | Summary | Depends on | Specification | Stage |
 |---:|---|---|---|---|---|---|
-| 1 | F-L1-008 | Specified | Platform event/timestamp contracts | None | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `platform.boundaries` |
-| 2 | F-L0-010 | Specified | Win32 window and input binding | F-L1-008 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `platform.window-input` |
+| 1 | F-L1-008 | Implemented | Platform event/timestamp contracts | None | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `platform.boundaries` |
+| 2 | F-L0-010 | Implemented | Win32 window and input binding | F-L1-008 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `platform.window-input` |
 | 2 | F-L4-009 | Specified | Audio device lifecycle | F-L1-008 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `audio.lifecycle` |
-| 3 | F-L4-010 | Specified | Deterministic input actions | F-L0-010 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `input.actions` |
+| 3 | F-L4-010 | Implemented | Deterministic input actions | F-L0-010 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `input.actions` |
 | 3 | F-L4-011 | Specified | Mixer and offline oracle | F-L4-009 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `audio.mixer` |
 | 4 | F-L4-012 | Specified | Spatial audio and recovery | F-L4-010, F-L4-011 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `audio.spatial` |
 | 5 | F-L8-030 | Specified | Platform diagnostics viewer | F-L4-012 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `vsix.platform-debug` |
@@ -90,6 +92,7 @@ Current baseline corrections: point/spot/area/emissive shadows and HDR/ACES/bloo
 
 | Level | Feature ID | Status | Summary | Depends on | Specification | Stage |
 |---:|---|---|---|---|---|---|
+| 4 | F-L9-009 | Implemented | Engine Showcase and live feature progress | F-L7-030, F-L3-018, F-L7-022, F-L6-004, F-L4-010, F-L5-003 | [M0064](Milestones/M0064-Visible-Engine-Showcase.md) | `showcase.visible-progress` |
 | 1 | F-L7-036 | Specified | Coverage and catalog validation | F-L7-021 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.coverage` |
 | 1 | F-L7-037 | Specified | Manual evidence ledger | F-L7-036 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.manual-ledger` |
 | 2 | F-L7-038 | Specified | Changed-path stage selection | F-L7-036 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.changed-selection` |

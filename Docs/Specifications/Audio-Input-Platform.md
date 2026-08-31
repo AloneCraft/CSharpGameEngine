@@ -1,13 +1,13 @@
 # Audio, Input, and Platform specification
 
-- Status: Specified
+- Status: Implemented for portable input, Win32 event adaptation, and deterministic Input Actions; audio remains specified
 - Parent index: [Roadmap](../Roadmap.md), [Implementation Status](../Implementation-Status.md)
 - Decisions: [ADR-0056](../Decisions/ADR-0056-Platform-Input-And-Audio-Server-Boundaries.md)
 - Target layers: L0, L1, L4, L8
 
 ## Scope and observed baseline
 
-Windows/Win32 input, XAudio2 abstractions, and the current Windows runtime are baseline evidence. This target specification defines portable value contracts, deterministic action processing, server ownership, silent/offline audio, stream artifacts, and device recovery. It does not claim that all target contracts are implemented.
+Windows/Win32 input, XAudio2 abstractions, and the current Windows runtime are baseline evidence. M0064 implements the portable value contracts, QPC-stamped Win32 event adaptation, and deterministic action processing. Silent/offline audio, stream artifacts, and audio device recovery remain specified work.
 
 Windows is the first backend: Win32 and XAudio2 live in L0. The corresponding L1/L4 contracts are platform-neutral so another backend can be added without pulling native types above L0.
 
@@ -72,4 +72,10 @@ Headless contract tests use the silent backend and WARP where graphics diagnosti
 | F-L7-034 | 6 | `platform.compatibility` | Headless / Foundation | 3600s | Required Windows cells separate optional hardware. |
 | F-L7-035 | 7 | `platform.release` | Headless / Foundation | 7200s | Scoped platform provenance and closure. |
 
-All rows are `Specified` and registered as `NotImplemented` until their concrete server implementations exist.
+F-L1-008, F-L0-010, and F-L4-010 are Implemented/TestVerified with executable stages. Audio and later compatibility/release rows remain `Specified` and `NotImplemented`.
+
+## M0064 deterministic input vertical slice
+
+`Win32Window.DrainInputEvents()` is the only public raw-input boundary. Keyboard, mouse buttons/wheel, raw relative mouse, focus/capture loss, device removal, and destruction become ordered `InputEvent` values; the removed polling APIs are not retained. `AppHostRuntime` owns one `InputServer`, and the FrameInput phase finalizes exactly one action frame before simulation.
+
+Showcase actions use stable IDs and a dedicated context. Context priority, chords, one/two-dimensional dead zones, reserved actions, rebind collision checks, forced cancellation/release, and canonical action hashing are covered by Debug/Release contract stages.

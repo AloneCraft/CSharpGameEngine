@@ -1,5 +1,13 @@
 # Conformance
 
+## 2026-08-30 M0064 visible Engine Showcase and deterministic input
+
+- Intended specification: ADR-0062, M0064, Audio/Input/Platform, ECS Runtime, Rendering, and Feature Stage specifications.
+- Implementation: portable stable-ID input contracts; QPC-stamped Win32 event draining; deterministic InputServer contexts/chords/dead zones/rebind/cancel; `World.GetStatistics()`; generated canonical Feature progress manifest; fixed-tick gallery; localized 360-DIP child dashboard; WARP-aware Runtime configuration; and owned-PID Showcase automation.
+- Reverse-engineered behavior: raw polling is absent from the public window API. Showcase movement observes only completed FixedTicks; Pause freezes ticks and Step advances exactly one. Feature implementation and Stage executability are displayed as independent measurements. The child title and same-process DIB snapshot prevent a blank-panel false pass.
+- Verification: `platform.boundaries`, `platform.window-input`, `input.actions`, and `showcase.visible-progress` pass sequentially in Debug and Release with WARP and the D3D12 Debug Layer. Full Solution runs pass 1,680 Debug and 1,679 Release tests; solution registration passes 3/3. Japanese/English evidence contains the combined 3D/dashboard screenshot, panel snapshot, machine-readable title, activity log, and normal shutdown result. Two Release manifest exports are byte-identical.
+- Result: `Matches` for F-L1-008, F-L0-010, F-L4-010, and F-L9-009. Unfinished prefracture/cache playback and later audio/physics roadmap items remain explicitly outside the Showcase completion claim.
+
 ## 2026-08-29 M0062 structured Shader Graph regions
 
 - Intended specification: ADR-0060, M0062, Shader Graph, and Editor/VSIX specifications.

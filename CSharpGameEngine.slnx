@@ -88,6 +88,7 @@
     <File Path="Docs/Decisions/ADR-0059-External-Shader-Subgraph-Composition.md" />
     <File Path="Docs/Decisions/ADR-0060-Structured-Shader-Regions.md" />
     <File Path="Docs/Decisions/ADR-0061-Vsix-Experimental-Evidence-And-Automation.md" />
+    <File Path="Docs/Decisions/ADR-0062-Visible-Engine-Showcase-And-Deterministic-Input.md" />
   </Folder>
   <Folder Name="/Docs/Milestones/">
     <File Path="Docs/Milestones/M0001-CodeAnalysis-Foundation.md" />
@@ -117,6 +118,7 @@
     <File Path="Docs/Milestones/M0061-External-Shader-Subgraphs.md" />
     <File Path="Docs/Milestones/M0062-Structured-Shader-Regions.md" />
     <File Path="Docs/Milestones/M0063-Vsix-Experimental-Automation.md" />
+    <File Path="Docs/Milestones/M0064-Visible-Engine-Showcase.md" />
   </Folder>
   <Folder Name="/Docs/Verification/">
     <File Path="Docs/Verification/VSIX-Experimental-Baseline.json" />
@@ -126,6 +128,7 @@
     <File Path="Directory.Build.props" />
     <File Path="Directory.Build.targets" />
     <File Path="build/CSharpGameEngine.ShaderGraph.targets" />
+    <File Path="build/CSharpGameEngine.Showcase.targets" />
     <File Path="global.json" />
     <File Path="README.md" />
   </Folder>
@@ -213,6 +216,7 @@
     <Project Path="tools/CSharpGameEngine.Ecs.Benchmarks/CSharpGameEngine.Ecs.Benchmarks.csproj" />
     <Project Path="tools/CSharpGameEngine.EditorPreview.Host/CSharpGameEngine.EditorPreview.Host.csproj" />
     <Project Path="tools/CSharpGameEngine.Vsix.Automation/CSharpGameEngine.Vsix.Automation.csproj" />
+    <Project Path="tools/CSharpGameEngine.Showcase.Automation/CSharpGameEngine.Showcase.Automation.csproj" />
     <Project Path="tools/CSharpGameEngine.VSExtension/CSharpGameEngine.VSExtension.csproj">
       <Deploy Solution="Debug|*" />
     </Project>

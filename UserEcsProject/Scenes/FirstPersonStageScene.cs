@@ -7,7 +7,6 @@ namespace UserEcsProject.Scenes;
 /// /Game/FirstPerson/Lvl_FirstPersonから一度だけ取り込んだ宣言型ステージ。
 /// このC#を正本として編集する。再取り込みはrun_export.cmd --forceを明示した場合だけ行う。
 /// </summary>
-[StartupScene(Order = 1)]
 internal partial class FirstPersonStageScene : IScene {
     public Node Root => new() {
         Name = "Lvl_FirstPerson",

@@ -1,6 +1,7 @@
 using System.Numerics;
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Graphics.D3D12;
+using CSharpGameEngine.Input;
 using CSharpGameEngine.Platform.Windows;
 using RenderCamera=CSharpGameEngine.Graphics.D3D12.Camera;
 
@@ -282,6 +283,7 @@ public struct FramePresent:IRuntimeComponent {
 /// <summary>WindowSystemが最初のフレームで生成するウィンドウ実体。それまではnull。</summary>
 public struct AppHostRuntime:IRuntimeComponent<AppHost> {
     public Win32Window?Window;
+    public InputServer?Input;
 }
 
 /// <summary>LevelLoadが生成する描画・音響の実体。StageRendererはメッシュ集合を確定させてからしか作れない。</summary>

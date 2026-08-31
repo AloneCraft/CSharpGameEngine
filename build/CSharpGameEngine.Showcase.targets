@@ -1,0 +1,20 @@
+<Project>
+  <PropertyGroup>
+    <CgeFeatureRunnerProject>$(MSBuildThisFileDirectory)..\tools\CSharpGameEngine.FeatureRunner\CSharpGameEngine.FeatureRunner.csproj</CgeFeatureRunnerProject>
+    <CgeFeatureRunnerExe>$(MSBuildThisFileDirectory)..\tools\CSharpGameEngine.FeatureRunner\bin\x64\$(Configuration)\net10.0\CSharpGameEngine.FeatureRunner.exe</CgeFeatureRunnerExe>
+    <CgeShowcaseIntermediateDirectory>$(IntermediateOutputPath)Showcase\</CgeShowcaseIntermediateDirectory>
+    <CgeShowcaseIntermediateManifest>$(CgeShowcaseIntermediateDirectory)feature-progress.json</CgeShowcaseIntermediateManifest>
+  </PropertyGroup>
+  <Target Name="BuildCgeFeatureRunner" BeforeTargets="GenerateCgeShowcaseManifest" Condition="'@(CgeShowcaseManifest)' != ''">
+    <MSBuild Projects="$(CgeFeatureRunnerProject)" Targets="Build" Properties="Configuration=$(Configuration);Platform=x64" BuildInParallel="false" />
+  </Target>
+  <Target Name="GenerateCgeShowcaseManifest" BeforeTargets="PrepareForBuild" DependsOnTargets="BuildCgeFeatureRunner" Condition="'@(CgeShowcaseManifest)' != ''" Inputs="@(CgeShowcaseManifest);$(CgeFeatureRunnerExe)" Outputs="$(CgeShowcaseIntermediateManifest)">
+    <MakeDir Directories="$(CgeShowcaseIntermediateDirectory)" />
+    <Exec Command="&quot;$(CgeFeatureRunnerExe)&quot; export-showcase --output &quot;$(CgeShowcaseIntermediateManifest)&quot;" />
+    <ItemGroup><FileWrites Include="$(CgeShowcaseIntermediateManifest)" /></ItemGroup>
+  </Target>
+  <Target Name="PublishCgeShowcaseManifest" AfterTargets="Build" DependsOnTargets="GenerateCgeShowcaseManifest" Condition="'@(CgeShowcaseManifest)' != ''">
+    <MakeDir Directories="$(TargetDir)Showcase" />
+    <Copy SourceFiles="$(CgeShowcaseIntermediateManifest)" DestinationFiles="$(TargetDir)Showcase\feature-progress.json" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

@@ -1,5 +1,12 @@
 # Reverse-engineered specification
 
+## RE-M0064 - Visible Engine Showcase and deterministic input
+
+- Intended source: ADR-0062, M0064, Audio/Input/Platform, ECS Runtime, Rendering, and Feature Stage specifications.
+- Evidence: portable Core input contracts, Win32InputEventAdapter/Win32Window, InputServer, generated Showcase manifest, EngineShowcaseScene/ShowcaseSystems, Win32DashboardPanel, Showcase Automation, and the four executable M0064 stages.
+- Observed behavior: one QPC-ordered event stream is finalized in FrameInput and drives stable-ID Showcase actions. ECS motion advances only on completed FixedTicks. The same window displays the D3D12 gallery and a localized 360-DIP GDI child dashboard whose title exposes page/tick/playback/manifest hash. Progress reports Feature and Stage ratios separately.
+- Result: Matches ADR-0062/M0064 for F-L1-008, F-L0-010, F-L4-010, and F-L9-009. The gallery labels incomplete prefracture/cache behavior through Catalog status rather than presenting it as completed Physics.
+
 ## RE-M0062 - Structured Shader Graph regions
 
 - Confidence: High.
@@ -31,7 +38,7 @@
 - Evidence: `tools/CSharpGameEngine.FeatureRunner/FeatureStageContracts.cs`, `FeatureStageCatalog.cs`, `FeatureRunnerApplication.cs`, `tests/CSharpGameEngine.FeatureRunner.Tests/`.
 - Observed behavior: The catalog now contains `Specified`, a track enum, dependency Levels, and dependency Feature IDs. It validates unknown/self/cyclic/Level-inverted dependencies and requires an executable Stage for implemented states and a `NotImplemented` Stage for specified/deferred states. `ecs.baseline` and `ecs.fixed-tick` are executable.
 - Observed behavior: `list --json` emits catalog schema v2 metadata. Run-result artifacts remain schema v1. Explicit future `run`/`run-feature` execution returns `NotImplemented` and nonzero; normal suites continue to select executable stages only.
-- Observed behavior: Sixty-three non-physics Roadmap Feature IDs are registered. F-L7-030 and F-L3-018 have executable target stages; remaining future target stages retain explicit NotImplemented or deferred handling. New Rendering/VSIX visual reservations alias existing C# reference scenes.
+- Observed behavior: Sixty-seven non-physics Roadmap Feature IDs are registered. Implemented target stages include ECS/fixed-tick, Shader Graph/artifacts, VSIX Experimental evidence, deterministic input, and the visible Showcase; remaining future target stages retain explicit NotImplemented or deferred handling.
 - Intended behavior: Matches ADR-0057 and [Testing-CI-Release](Specifications/Testing-CI-Release.md) for the registration infrastructure.
 - Result: MatchesWithDocumentedExtension. The target runtime bodies described by the six new specifications are still unimplemented and must not be inferred from the registration.
 

@@ -5,7 +5,6 @@ using CSharpGameEngine.Runtime.Windows;
 namespace UserEcsProject.Scenes;
 
 /// <summary>Deterministic v1 samples: ground, stack, projectile, prefracture wall, and cache marker.</summary>
-[StartupScene(Order=2)]
 internal partial class PhysicsGroundScene:IScene {
     public Node Root=>new(){
         Name="Physics_Ground",
@@ -23,7 +22,6 @@ internal partial class PhysicsGroundScene:IScene {
     };
 }
 
-[StartupScene(Order=3)]
 internal partial class PhysicsStackBottomScene:IScene {
     public Node Root=>new(){
         Name="Physics_Stack_0",
@@ -35,7 +33,6 @@ internal partial class PhysicsStackBottomScene:IScene {
     };
 }
 
-[StartupScene(Order=4)]
 internal partial class PhysicsStackMiddleScene:IScene {
     public Node Root=>new(){
         Name="Physics_Stack_1",
@@ -47,7 +44,6 @@ internal partial class PhysicsStackMiddleScene:IScene {
     };
 }
 
-[StartupScene(Order=5)]
 internal partial class PhysicsStackTopScene:IScene {
     public Node Root=>new(){
         Name="Physics_Stack_2",
@@ -59,7 +55,6 @@ internal partial class PhysicsStackTopScene:IScene {
     };
 }
 
-[StartupScene(Order=6)]
 internal partial class PhysicsProjectileScene:IScene {
     public Node Root=>new(){
         Name="Physics_Projectile",
@@ -74,7 +69,6 @@ internal partial class PhysicsProjectileScene:IScene {
     };
 }
 
-[StartupScene(Order=7)]
 internal partial class PhysicsPrefractureWallScene:IScene {
     public Node Root=>new(){
         Name="Physics_PrefractureWall",
@@ -91,7 +85,6 @@ internal partial class PhysicsPrefractureWallScene:IScene {
     };
 }
 
-[StartupScene(Order=8)]
 internal partial class PhysicsCachePlaybackScene:IScene {
     public Node Root=>new(){
         Name="Physics_CachePlayback",

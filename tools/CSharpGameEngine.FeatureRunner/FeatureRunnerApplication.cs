@@ -23,6 +23,7 @@ public sealed class FeatureRunnerApplication {
         try {
             return Args[0].ToLowerInvariant()switch {
                 "list"=>this.RunList(Args),
+                "export-showcase"=>this.RunExportShowcase(Args),
                 "run"=>await this.RunStageAsync(Args,CancellationToken).ConfigureAwait(false),
                 "run-feature"=>await this.RunFeatureAsync(Args,CancellationToken).ConfigureAwait(false),
                 "suite"=>await this.RunSuiteAsync(Args,CancellationToken).ConfigureAwait(false),
@@ -36,6 +37,12 @@ public sealed class FeatureRunnerApplication {
             await this.Error.WriteLineAsync(Ex.Message).ConfigureAwait(false);
             return 2;
         }
+    }
+    private int RunExportShowcase(string[]Args){
+        if(Args.Length!=3||!Args[1].Equals("--output",StringComparison.OrdinalIgnoreCase)){ throw new ArgumentException("export-showcase requires --output <path>."); }
+        ShowcaseManifestExporter.Export(this.Catalog,Args[2]);
+        this.Output.WriteLine(Path.GetFullPath(Args[2]));
+        return 0;
     }
     private int RunList(string[]Args){
         var Json=Args.Skip(1).Any(static Argument=>Argument.Equals("--json",StringComparison.OrdinalIgnoreCase));
@@ -173,6 +180,7 @@ public sealed class FeatureRunnerApplication {
         this.Output.WriteLine("C# Game Engine Feature Runner");
         this.Output.WriteLine("Usage:");
         this.Output.WriteLine("  list [--json]");
+        this.Output.WriteLine("  export-showcase --output <path>");
         this.Output.WriteLine("  run <stage-id> [options]");
         this.Output.WriteLine("  run-feature <feature-id> [options]");
         this.Output.WriteLine("  suite <changed|smoke|full|stress|vsix> [options]");

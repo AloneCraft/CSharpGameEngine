@@ -10,7 +10,7 @@
 
 Catalog JSON is `csharp-game-engine-feature-catalog-v2`. Each Feature now publishes `track`, `dependencyLevel`, and `dependsOnFeatureIds` in addition to ID/name/layer/status. Run-result JSON remains `csharp-game-engine-feature-run-result-v1`; this change does not alter a completed run artifact.
 
-The six non-physics tracks have 66 Roadmap rows registered one-to-one as Feature/target-Stage pairs. F-L0-008 and F-L3-019 remain Specified; F-L7-030, F-L3-018, F-L7-022, F-L2-005, F-L7-049, F-L6-004, F-L8-020, F-L8-021, and F-L8-031 are Implemented with executable target stages; F-L3-020 remains `Deferred`. The remaining target Stages are `NotImplemented` with an oracle and input paths. Experimental Visual Studio commands run only in the `vsix` profile and map declared exit code 2 to InfrastructureError.
+The six non-physics tracks have 67 Roadmap rows registered one-to-one as Feature/target-Stage pairs. F-L0-008 and F-L3-019 remain Specified; F-L7-030, F-L3-018, F-L7-022, F-L2-005, F-L7-049, F-L6-004, F-L8-020, F-L8-021, F-L8-031, F-L1-008, F-L0-010, F-L4-010, and F-L9-009 are Implemented with executable target stages; F-L3-020 remains `Deferred`. The remaining target Stages are `NotImplemented` with an oracle and input paths. Experimental Visual Studio commands run only in the `vsix` profile and map declared exit code 2 to InfrastructureError.
 
 | Track | Specification | Visual Pack policy |
 |---|---|---|
@@ -31,6 +31,7 @@ Release scope selects tracks and a reached dependency Level. Only executable Fea
 
 ```text
 list [--json]
+export-showcase --output <path>
 run <stage-id> [options]
 run-feature <feature-id> [options]
 suite <changed|smoke|full|stress|vsix> [options]
@@ -149,3 +150,7 @@ The existing `shadergraph.schema`, `shadergraph.compiler`, `rendering.shader-art
 ## M0062 structured Region evidence
 
 The existing shadergraph.schema stage now fixes semantic If/ForRange ownership, Then/Else/Body membership, bounded loops, typed Return, LoopIndex scope, branch value isolation, canonical hashing, and source maps. vsix.shader-graph covers built-in palette creation, exact typed connections, structured Region creation, Undo, localization, and VSIX packaging. shadergraph.compiler retains the production nine-entry DXC oracle; no Feature or Stage ID is added.
+
+## M0064 visible Showcase evidence
+
+`platform.boundaries`, `platform.window-input`, and `input.actions` are executable Foundation stages. `showcase.visible-progress` is an executable Rendering/Visual stage that requires WARP, starts only its owned Showcase PID, verifies four pages plus Pause/Step/progress controls, and records evidence under `.artifacts/Showcase/`. `export-showcase` emits a canonical `csharp-game-engine-showcase-manifest-v1` with separate Feature implementation and Stage executable measurements.

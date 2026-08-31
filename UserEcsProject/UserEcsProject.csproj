@@ -41,6 +41,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <CgeShowcaseManifest Include="..\tools\CSharpGameEngine.FeatureRunner\FeatureStageCatalog.cs" />
+    <CgeShowcaseManifest Include="..\tools\CSharpGameEngine.FeatureRunner\FeatureStageContracts.cs" />
+    <CgeShowcaseManifest Include="..\tools\CSharpGameEngine.FeatureRunner\ShowcaseManifestExporter.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Remove="../src/CSharpGameEngine.Entities/SceneComponentIconAttribute.cs" />
     <Compile Remove="../src/CSharpGameEngine.Entities/SceneComponentOrderAttribute.cs" />
   </ItemGroup>

@@ -18,6 +18,8 @@ public interface IArchetype {
 
 public record struct Entity(int Id);
 
+public readonly record struct WorldStatistics(int AliveEntityCount,int EntitySlotCount,int PendingDestroyCount,int PendingSceneUnloadCount);
+
 public partial struct State(World World){
     public bool Enabled { get; set;}
     public SimulationTiming Timing { get;internal set; }=SimulationTiming.Default;
@@ -90,6 +92,15 @@ public partial struct World {
         }
 
         return this.EntityArchetypeIndices.GetRefUnchecked(Entity.Id).Archetype!=Archetype.None;
+    }
+
+    /// <summary>Returns an O(entity-slot-count) read-only diagnostics snapshot.</summary>
+    public WorldStatistics GetStatistics(){
+        var Alive=0;
+        for(var Index=0;Index<this.EntityArchetypeIndices.Count;Index++){
+            if(this.EntityArchetypeIndices.GetRefUnchecked(Index).Archetype!=Archetype.None){ Alive++; }
+        }
+        return new WorldStatistics(Alive,this.EntityArchetypeIndices.Count,this.DestroyCommands.Count,this.SceneUnloadCommands.Count);
     }
 
     /// <summary>System実行中でも安全な破棄。実際の破棄はフレーム末尾に適用される。</summary>

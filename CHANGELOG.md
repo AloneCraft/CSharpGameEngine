@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Replaced the default `UserEcsProject` startup with a visible Engine Showcase combining a fixed-tick ECS/Physics/PBR gallery and a localized 360-DIP live dashboard with separate Feature and executable-Stage progress.
+- Added portable stable-ID input contracts, QPC-stamped Win32 event draining, deterministic InputServer contexts/actions/rebinds, forced input release, and removed public raw polling APIs.
+- Added canonical Showcase manifest export/build publication, WARP/hardware Runtime environment selection, owned-PID Showcase UI automation, machine-readable dashboard state, and Debug/Release visual evidence.
+
 - Added the isolated `CgeAutomation` VSIX Experimental runner, versioned manual-evidence ledger, InfrastructureError exit-code mapping, package-contained/build/installed DLL provenance checks and evidence, screenshot/ActivityLog capture, and owned-PID normal shutdown.
 - Added stable Shader Graph AutomationIds and node TransformPattern movement, hardened external-change reload with burst debounce/retry, fixed Subgraph validate/save behavior, and verified the full editor scenario in Debug and Release 1041.
 

@@ -8,7 +8,7 @@
 
 ## Scope and observed baseline
 
-The current generated closed-set archetype runtime, SoA storage, deterministic simulation modules, system phases, and `MoveArchetype`/delayed structural behavior are the executable F-L7-030 baseline. F-L3-018 is implemented for the shipping loop: `FixedTickScheduler` supplies 60 Hz fixed updates, at most eight simulation ticks per host frame, retained backlog, pause/step control, and an interpolation boundary. This specification does not claim the remaining unified command buffer, generation, enable/change tracking, job, snapshot, or portable Transform work exists today.
+The current generated closed-set archetype runtime, SoA storage, deterministic simulation modules, system phases, and `MoveArchetype`/delayed structural behavior are the executable F-L7-030 baseline. F-L3-018 is implemented for the shipping loop: `FixedTickScheduler` supplies 60 Hz fixed updates, at most eight simulation ticks per host frame, retained backlog, pause/step control, and an interpolation boundary. M0064 exposes a read-only `World.GetStatistics()` snapshot and demonstrates FixedTick-only motion in the default Showcase. This specification does not claim the remaining unified command buffer, generation, enable/change tracking, job, snapshot, or portable Transform work exists today.
 
 ## Runtime boundaries and shared Transform
 
@@ -82,3 +82,7 @@ ECS performance captures five warm-up plus thirty measured samples and records m
 | F-L6-007 | 5 | `ecs.snapshot` | Headless / Foundation | 900s | Fingerprint and corruption rejection. |
 | F-L7-032 | 6 | `ecs.performance` | Headless / Foundation | 7200s | Thirty-sample no-mask-penalty evidence. |
 | F-L7-033 | 7 | `ecs.release` | Headless / Foundation | 7200s | Schema, schedule, replay, performance release closure. |
+
+## M0064 observable runtime state
+
+`World.GetStatistics()` returns alive entity count, allocated entity slots, pending destroys, and pending scene unloads without exposing mutable storage. The Showcase dashboard reads that snapshot plus completed `State.FixedTick`, playback state, and interpolation alpha. Its triangle-wave entities advance only in FixedSimulation; Pause stops them, and each Step action completes exactly one tick while FrameInput and Presentation continue.

@@ -42,12 +42,27 @@ Feature IDから自動Stageを列挙・実行・再開できます。Visual検�
 
 ```bash
 dotnet run --project tools/CSharpGameEngine.FeatureRunner -- list
+dotnet run --project tools/CSharpGameEngine.FeatureRunner -- export-showcase --output .artifacts/showcase-manifest.json
 dotnet run --project tools/CSharpGameEngine.FeatureRunner -- run-feature F-L7-021
 dotnet run --project tools/CSharpGameEngine.FeatureRunner -- suite changed
 dotnet run --project tools/CSharpGameEngine.FeatureRunner -- resume <run-result.json>
 ```
 
 将来機能もStageとOracleを列挙できますが、実装されるまで明示的な`NotImplemented`となり成功扱いされません。詳細は[Docs/Feature-Stages.md](Docs/Feature-Stages.md)を参照してください。
+
+## Engine Showcase
+
+`UserEcsProject`は、固定tick ECSモーション、Physics stack、PBR/light/shadowと、実測Feature進捗を同じウィンドウで確認できる既定Showcaseです。
+
+```bash
+dotnet run --project UserEcsProject -c Debug
+```
+
+操作は`1`〜`4`でECS/Rendering/Physics/Progress、`P`でPause/Resume、`O`で1 tick Step、`F1`でdashboard表示切替、矢印キーでProgress閲覧です。無操作600 running ticksでページを自動巡回します。自動WARP証跡は次で取得できます。
+
+```bash
+dotnet run --project tools/CSharpGameEngine.Showcase.Automation -- run --configuration Debug --adapter warp --locale auto --timeout-seconds 180 --evidence-dir .artifacts/Showcase/manual
+```
 
 ### Triangle（Windows + Direct3D 12）
 通常起動（ウィンドウを表示し、閉じるまで描画を継続）:
