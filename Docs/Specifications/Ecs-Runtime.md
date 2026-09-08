@@ -1,6 +1,6 @@
 # ECS and Runtime specification
 
-- Status: Implemented for the ECS baseline and fixed-tick shipping loop; later ECS roadmap features remain specified or deferred
+- Status: Implemented through schema-fingerprinted snapshots; performance and release closure remain specified
 - Parent index: [Roadmap](../Roadmap.md), [Implementation Status](../Implementation-Status.md)
 - Decisions: [ADR-0055](../Decisions/ADR-0055-Static-Ecs-VNext-And-Deterministic-Execution.md)
 - Related lower specification: [Ecs-Soa-Systems](Ecs-Soa-Systems.md)
@@ -8,7 +8,7 @@
 
 ## Scope and observed baseline
 
-The current generated closed-set archetype runtime, SoA storage, deterministic simulation modules, system phases, and `MoveArchetype`/delayed structural behavior are the executable F-L7-030 baseline. F-L3-018 is implemented for the shipping loop: `FixedTickScheduler` supplies 60 Hz fixed updates, at most eight simulation ticks per host frame, retained backlog, pause/step control, and an interpolation boundary. M0064 exposes a read-only `World.GetStatistics()` snapshot and demonstrates FixedTick-only motion in the default Showcase. This specification does not claim the remaining unified command buffer, generation, enable/change tracking, job, snapshot, or portable Transform work exists today.
+The generated closed-set archetype runtime now includes generational entities, one structural command barrier, portable Transform, enable/change tracking, deterministic fixed-partition jobs, compile-time schedule diagnostics, and schema-fingerprinted cell-delta snapshots. `FixedTickScheduler` supplies 60 Hz fixed updates, at most eight simulation ticks per host frame, retained backlog, pause/step control, and an interpolation boundary. M0064 exposes a read-only `World.GetStatistics()` snapshot and demonstrates FixedTick-only motion in the default Showcase. Final performance and release evidence remain later work.
 
 ## Runtime boundaries and shared Transform
 
@@ -44,15 +44,21 @@ Worker commands and events are merged under that order. Immediate world mutation
 
 ## Generated storage and scheduling
 
-Enableable components have entity and component enable bits. Each component write increments a generated change version. Changed queries compare caller-visible version tokens without scanning unrelated archetypes.
+Every generated archetype owns entity and component enable bits. Disabled rows remain structurally present but are omitted from generated system dispatch and changed queries. Create, move, component-enable transition, and conservative system `ref` access stamp per-row versions from one World-owned clock. `ChangeVersion.IsNewerThan` defines the wrap-safe half-range ordering; caller-span changed queries compare captured tokens without allocation or scanning unrelated archetypes. Archetype moves preserve entity/common-component enable state and enable only newly added components.
 
-The source generator builds an access graph from component/resource read/write declarations. It reports read/write conflict, ambiguous ordering, and cycles before execution. The runtime only executes the generated schedule; it does not perform dynamic mask matching or dependency solving per frame.
+The 1–64 component compilation emits one low enable word and direct generated calls. The high word and its arguments exist only for 65–128 component compilations, so the extended path does not enter the common generated shape.
 
-For one through sixty-four component types, source generation uses one `ulong` membership mask while compiling code. Generated runtime loops contain direct archetype dispatch and pay no mask or branch penalty. F-L3-020 remains `Deferred`: only a future real need may add the 65-128 two-mask generator path. It must not regress the 1-64 path, and 129+ types produce an explicit diagnostic.
+`ref T` declares component write access. `[ReadOnlyComponent] in T` declares component read access; unannotated `in` values remain contexts. `[ScheduledSystem]` opts a system into static scheduling and `[RunsAfter(typeof(TSystem))]` adds a dependency edge. The source generator emits low/high read and write masks, predecessor indices, and dependency waves. Missing scheduled dependencies, cycles, and unordered read/write or write/write conflicts are build errors. No reflection, dictionary dispatch, or per-frame dependency solving is introduced.
+
+`DeterministicJobRuntime` operates on fixed index partitions with at most the configured number of worker tasks. Every worker receives value-only unmanaged job and state data, writes only its assigned output range, and records events under `(system, partition, worker-local, command)` keys. Results become observable only after all partitions succeed and a stable partition-order merge completes. Failure selects the lowest failed partition after all workers settle; failure and cancellation discard the output and cannot mutate the caller input.
+
+For one through sixty-four component types, source generation evaluates only one low `ulong` membership word. For 65 through 128 types it evaluates low and high words; high indices never alias low indices. Generated runtime loops contain direct archetype dispatch and pay no mask or branch penalty. SYSGEN026 rejects 129 or more types.
 
 ## Snapshot artifact
 
-Snapshots carry a generated schema fingerprint, canonical component ordering, tick, deterministic state/event hashes, byte length, and checksum. Unknown fingerprint, unsupported version, overflow, or checksum failure is rejected before world mutation. Old snapshot readers are not retained; a feature that changes the schema updates all producers/consumers and regenerates fixtures in the same change.
+`World.CaptureSnapshot` serializes only a completed structural barrier. The generated archetype descriptors fingerprint every Component shape and whether it is persistent or transient. Payloads contain canonical `WorldCellId` and `PersistentEntityId` ordering, entity/component enable state, the completed tick, deterministic state/event hashes, byte length, and SHA-256 checksum. Runtime `Entity` handles, `IRuntimeComponent`, `Parent`, `SceneNodeTag`, native resources, and other derived links are never authoritative snapshot state.
+
+`World.UpdateSnapshot` replaces deltas for currently owned cells and retains prior deltas for unloaded cells. Restore validates the entire loaded-cell subset before applying any Component value or tombstone. Missing persistent entities, cell ownership mismatch, archetype mismatch, noncanonical Component payload, unknown fingerprint, unsupported version, invalid length, overflow, or checksum failure therefore leaves the World unchanged. Deltas for unloaded cells remain an explicit `EcsSnapshotPending` and are applied only after their base cell is loaded. Old snapshot readers are not retained; a feature that changes the schema updates all producers/consumers and regenerates fixtures in the same change.
 
 ## Failure diagnostics and migration
 
@@ -66,7 +72,9 @@ Each feature migration removes the previous API/source/artifact reader in its ow
 
 ## Performance and release evidence
 
-ECS performance captures five warm-up plus thirty measured samples and records median/p95/MAD, type count, query shape, worker count, generated-source hash, and machine fingerprint. It explicitly tests 1, 64, and the excluded 65-type boundary. Release evidence contains generated schema and schedule closure, deterministic replay data, and all required Debug/Release results.
+ECS performance builds independent 1, 64, 65, and 128 Component compilations. Each executes its highest-index generated write query over 100,000 live entities for five warm-ups plus thirty measured samples with Tiered JIT disabled and records median/p95/MAD, exact type and mask-word count, query shape, worker count, generated-source hash, deterministic state hash, allocation, Git provenance, and machine fingerprint. The validator independently recomputes the state hash and rehashes/reinspects persisted generated source. One through 64 must contain no high word; 65 and 128 must contain and execute it. Debug elapsed time is entirely diagnostic but exact workloads, source/state integrity, and zero allocation remain mandatory. Release requires 6 ms median, 8.33 ms p95, zero allocation, and no more than 20 percent auxiliary cross-process regression from the one-type to 64-type path.
+
+ECS release evidence reruns deterministic jobs, schedule diagnostics, snapshots, and performance under dedicated profiles. One canonical report binds all four complete Stage results, four raw reports, four common performance reports, twenty-two fixed ECS/generator/toolchain inputs, machine identity, and Git provenance. Generated output is independently rehashed while producing the report, but later validation must succeed after derived `obj` deletion by reopening the retained Stage/raw/performance evidence and generator input closure. The report is an ECS-track input, not a package, SBOM, installer, or product manifest.
 
 ## Stage oracle matrix
 
@@ -80,7 +88,7 @@ ECS performance captures five warm-up plus thirty measured samples and records m
 | F-L3-019 | 4 | `foundation.deterministic-jobs` | Headless / Foundation | 900s | Scheduled and single-thread hashes match. |
 | F-L7-031 | 5 | `ecs.schedule-diagnostics` | Headless / Foundation | 900s | Access conflicts and cycles diagnosed pre-run. |
 | F-L6-007 | 5 | `ecs.snapshot` | Headless / Foundation | 900s | Fingerprint and corruption rejection. |
-| F-L7-032 | 6 | `ecs.performance` | Headless / Foundation | 7200s | Thirty-sample no-mask-penalty evidence. |
+| F-L7-032 | 6 | `ecs.performance` | Headless / Foundation | 7200s | Four 5+30-sample generated boundary reports prove one-word/two-word shape, budget, state, and zero allocation. |
 | F-L7-033 | 7 | `ecs.release` | Headless / Foundation | 7200s | Schema, schedule, replay, performance release closure. |
 
 ## M0064 observable runtime state

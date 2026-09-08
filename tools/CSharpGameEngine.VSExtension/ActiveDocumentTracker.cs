@@ -50,11 +50,27 @@ internal sealed class ActiveDocumentTracker : IVsSelectionEvents,IDisposable {
 
         // Pick up the document that is already open, so opening the tool window on an existing
         // editor does not require touching the file first.
-        if(Selection.GetCurrentElementValue((uint)VSConstants.VSSELELEMID.SEID_DocumentFrame,out var Current)==VSConstants.S_OK){
-            Tracker.UpdateFromFrame(Current as IVsWindowFrame);
-        }
+        Tracker.RefreshCurrentDocument();
 
         return Tracker;
+    }
+
+    /// <summary>
+    /// Re-reads the current frame/view after package startup. Visual Studio can expose the live
+    /// workspace before its first text view is readable, so the one synchronous read in
+    /// <see cref="Start"/> is not sufficient on a cold hive.
+    /// </summary>
+    internal bool RefreshCurrentDocument(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+
+        IVsWindowFrame?Frame=null;
+        if(this.Selection.GetCurrentElementValue(
+            (uint)VSConstants.VSSELELEMID.SEID_DocumentFrame,
+            out var Current)==VSConstants.S_OK){
+            Frame=Current as IVsWindowFrame;
+        }
+        this.UpdateFromFrame(Frame);
+        return this.CurrentFilePath is not null;
     }
 
     public int OnElementValueChanged(uint ElementId,object OldValue,object NewValue){

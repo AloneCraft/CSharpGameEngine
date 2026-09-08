@@ -99,9 +99,9 @@ public struct Camera {
     /// <summary>
     /// An orbit camera framed so the given world-space bounds fit entirely in view, seen from a
     /// fixed elevated diagonal angle. Reuses the exact (1,0.75,1) eye direction and
-    /// Radius/sin(FovY/2)*1.5 distance relationship already used by <c>ModelRenderer</c>'s thumbnail
-    /// camera and the VSIX <c>SceneRenderer</c>/<c>VorticeRenderer</c> preview cameras, instead of
-    /// inventing a differently-angled fifth "frame everything" convention. Since <see cref="Camera"/>
+    /// Radius/sin(FovY/2)*1.5 distance relationship already used by the accepted thumbnail and
+    /// shared Preview Host camera baselines, instead of inventing a differently-angled fifth
+    /// "frame everything" convention. Since <see cref="Camera"/>
     /// has no raw eye-position constructor, the direction is converted into this type's orbit
     /// (<see cref="Target"/>/<see cref="Yaw"/>/<see cref="Pitch"/>/<see cref="Distance"/>)
     /// representation by inverting <see cref="GetForward"/>'s documented
@@ -116,8 +116,8 @@ public struct Camera {
         // (radius=half the AABB diagonal, so it bounds the box from every direction, not just this
         // one) fills the vertical FOV edge-to-edge - true regardless of view direction, since a
         // sphere's silhouette is the same from anywhere outside it. *1.1f only adds a small safety
-        // margin over that exact value, unlike ModelRenderer/VorticeRenderer's *1.5f/*3.0f (tuned for
-        // arbitrary-rotation thumbnail previews); a fixed demo angle can sit close to the tangent
+        // margin over that exact value, unlike the accepted thumbnail/preview *1.5f/*3.0f baselines
+        // (tuned for arbitrary-rotation previews); a fixed demo angle can sit close to the tangent
         // distance and still keep every corner of the level in frame.
         var Distance=Radius/MathF.Sin(FovY/2f)*1.1f;
 

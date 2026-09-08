@@ -138,8 +138,8 @@ internal readonly struct PropertyGizmoFrame {
 
         Vector3 ConeHandle(float Angle,float DistanceFraction){
             var Distance=Math.Max(Value.Range,Value.WorldScale)*DistanceFraction;
-            return Value.Pivot+(Value.Forward*(float)Math.Cos(Angle)*Distance)
-                +(Value.Up*(float)Math.Sin(Angle)*Distance);
+            return Value.Pivot+(Value.Forward*FloatMath.Cos(Angle)*Distance)
+                +(Value.Up*FloatMath.Sin(Angle)*Distance);
         }
     }
 
@@ -210,15 +210,15 @@ internal readonly struct PropertyGizmoFrame {
     internal float GetDisplayHalfHeight(float Distance)=>
         this.Kind==PropertyGizmoKind.CameraOrthographic
         ?Math.Min(Math.Max(this.OrthographicSize*0.5f, this.WorldScale*0.2f), this.WorldScale*3f)
-        :Math.Min((float)Math.Tan(Clamp(this.FovYRadians,Degrees(1f),Degrees(179f))*0.5f)*Distance, this.WorldScale*3f);
+        :Math.Min(FloatMath.Tan(Clamp(this.FovYRadians,Degrees(1f),Degrees(179f))*0.5f)*Distance, this.WorldScale*3f);
 
     private static float SnapPositive(float Value,float Step)=>Math.Max(Step,SnapValue(Value,Step));
 
-    private static float SnapValue(float Value,float Step)=>(float)Math.Round(Value/Step)*Step;
+    private static float SnapValue(float Value,float Step)=>FloatMath.Round(Value/Step)*Step;
 
     private static float Clamp(float Value,float Minimum,float Maximum)=>Math.Max(Minimum,Math.Min(Maximum,Value));
 
-    private static float Degrees(float Value)=>Value*(float)Math.PI/180f;
+    private static float Degrees(float Value)=>Value*FloatMath.Pi/180f;
 
     private static Vector3 NormalizeOr(Vector3 Value,Vector3 Fallback)=>
         Value.LengthSquared()<=1e-10f?Fallback:Vector3.Normalize(Value);
@@ -247,7 +247,7 @@ internal static class PropertyGizmoBinding {
             Frame=new PropertyGizmoFrame(
                 Orthographic?PropertyGizmoKind.CameraOrthographic:PropertyGizmoKind.CameraPerspective,
                 Camera.TypeFullyQualifiedName,Position,Right,Up,Forward,WorldScale,
-                ReadFloat(Camera,"FovYRadians",(float)Math.PI/4f),
+                ReadFloat(Camera,"FovYRadians",FloatMath.Pi/4f),
                 ReadFloat(Camera,"NearZ",0.1f),ReadFloat(Camera,"FarZ",300f),
                 ReadFloat(Camera,"OrthographicSize",10f),0f,0f,0f,
                 Handles.Where(Handle=>CanEdit(Camera,Handle)).ToArray());
@@ -269,9 +269,9 @@ internal static class PropertyGizmoBinding {
             Frame=new PropertyGizmoFrame(
                 PropertyGizmoKind.SpotLight,Spot.TypeFullyQualifiedName,Position,Right,Up,Direction,WorldScale,
                 0f,0f,0f,0f,ReadFloat(Spot,Physical?"RangeMeters":"Range",1f),
-                Physical?ReadFloat(Spot,"InnerConeFullAngleDegrees",30f)*(float)Math.PI/360f
+                Physical?ReadFloat(Spot,"InnerConeFullAngleDegrees",30f)*FloatMath.Pi/360f
                     :ReadFloat(Spot,"InnerConeAngleRadians",Degrees(15f)),
-                Physical?ReadFloat(Spot,"OuterConeFullAngleDegrees",45f)*(float)Math.PI/360f
+                Physical?ReadFloat(Spot,"OuterConeFullAngleDegrees",45f)*FloatMath.Pi/360f
                     :ReadFloat(Spot,"OuterConeAngleRadians",Degrees(30f)),
                 Handles.Where(Handle=>CanEdit(Spot,Handle)).ToArray(),Physical);
             return true;
@@ -354,8 +354,6 @@ internal static class PropertyGizmoBinding {
     private static float ReadFloat(SceneComponent Component,string Name,float Default=0f)=>
         Component.FindMember(Name)?.Value.ConstantValue switch {
             float Float=>Float,
-            double Double=>(float)Double,
-            decimal Decimal=>(float)Decimal,
             int Integer=>Integer,
             long Long=>Long,
             _=>Default,
@@ -367,7 +365,7 @@ internal static class PropertyGizmoBinding {
         return (Right,Vector3.Normalize(Vector3.Cross(Forward,Right)));
     }
 
-    private static float Degrees(float Value)=>Value*(float)Math.PI/180f;
+    private static float Degrees(float Value)=>Value*FloatMath.Pi/180f;
 }
 
 internal static class FrustumGizmo {
@@ -446,14 +444,14 @@ internal static class PropertyGizmo {
 
         void AddCone(float Angle,float Distance,Vector4 ConeColor){
             const int Segments=20;
-            var Radius=(float)Math.Tan(Math.Max(0f,Angle))*Distance;
+            var Radius=FloatMath.Tan(Math.Max(0f,Angle))*Distance;
             var Center=Value.Pivot+(Value.Forward*Distance);
             Vector3?First=null;
             Vector3 Previous=default;
             for(var Index=0;Index<=Segments;Index++){
-                var Radians=Index*(float)(Math.PI*2d/Segments);
-                var Point=Center+(Value.Right*((float)Math.Cos(Radians)*Radius))
-                                +(Value.Up*((float)Math.Sin(Radians)*Radius));
+                var Radians=Index*FloatMath.Pi*2f/Segments;
+                var Point=Center+(Value.Right*(FloatMath.Cos(Radians)*Radius))
+                                +(Value.Up*(FloatMath.Sin(Radians)*Radius));
                 if(Index==0){ First=Point; }
                 else { AddLine(Previous,Point,ConeColor); }
                 if(Index%5==0){ AddLine(Value.Pivot,Point,ConeColor); }
@@ -466,9 +464,9 @@ internal static class PropertyGizmo {
             const int Segments=24;
             var Previous=Center+(AxisA*Radius);
             for(var Index=1;Index<=Segments;Index++){
-                var Radians=Index*(float)(Math.PI*2d/Segments);
-                var Point=Center+(AxisA*((float)Math.Cos(Radians)*Radius))
-                                +(AxisB*((float)Math.Sin(Radians)*Radius));
+                var Radians=Index*FloatMath.Pi*2f/Segments;
+                var Point=Center+(AxisA*(FloatMath.Cos(Radians)*Radius))
+                                +(AxisB*(FloatMath.Sin(Radians)*Radius));
                 AddLine(Previous,Point,RingColor);
                 Previous=Point;
             }
@@ -525,12 +523,12 @@ internal static class PropertyGizmo {
             GizmoHandleId.SpotInnerCone=>[
                 (Frame.UsesPhysicalLightFields?"InnerConeFullAngleDegrees":"InnerConeAngleRadians",
                     Frame.UsesPhysicalLightFields
-                        ?Frame.InnerConeAngleRadians*360f/(float)Math.PI
+                        ?Frame.InnerConeAngleRadians*360f/FloatMath.Pi
                         :Frame.InnerConeAngleRadians)],
             GizmoHandleId.SpotOuterCone=>[
                 (Frame.UsesPhysicalLightFields?"OuterConeFullAngleDegrees":"OuterConeAngleRadians",
                     Frame.UsesPhysicalLightFields
-                        ?Frame.OuterConeAngleRadians*360f/(float)Math.PI
+                        ?Frame.OuterConeAngleRadians*360f/FloatMath.Pi
                         :Frame.OuterConeAngleRadians)],
             GizmoHandleId.DirectionalDirection=>Frame.UsesPhysicalLightFields?[]:DirectionMembers("DirectionTowardLight",Frame.Forward),
             GizmoHandleId.SpotDirection=>Frame.UsesPhysicalLightFields?[]:DirectionMembers("Direction",Frame.Forward),

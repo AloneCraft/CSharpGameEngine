@@ -10,13 +10,13 @@ internal partial class PhysicsGroundScene:IScene {
         Name="Physics_Ground",
         Components=[
             new Transform {
-                Position=new Logical.Vector3(0,-0.25,0),
-                Scale=new Logical.Vector3(20,0.5,20),
+                Position=new LogicalVector3(0,-0.25f,0),
+                Scale=new LogicalVector3(20,0.5f,20),
             },
             new PrimitiveMesh { Type=PrimitiveType.Box },
             new Collider {
                 Shape=ColliderShape.Box,
-                HalfExtents=new PhysicsVector3(10,0.25,10),
+                HalfExtents=new LogicalVector3(10,0.25f,10),
             },
         ],
     };
@@ -26,7 +26,7 @@ internal partial class PhysicsStackBottomScene:IScene {
     public Node Root=>new(){
         Name="Physics_Stack_0",
         Components=[
-            new Transform { Position=new Logical.Vector3(0,1,0) },
+            new Transform { Position=new LogicalVector3(0,1,0) },
             new PrimitiveMesh { Type=PrimitiveType.Box },
             new Collider(),new RigidBody(),new PhysicsRotation(),new PhysicsVelocity(),
         ],
@@ -37,7 +37,7 @@ internal partial class PhysicsStackMiddleScene:IScene {
     public Node Root=>new(){
         Name="Physics_Stack_1",
         Components=[
-            new Transform { Position=new Logical.Vector3(0,2.05,0) },
+            new Transform { Position=new LogicalVector3(0,2.05f,0) },
             new PrimitiveMesh { Type=PrimitiveType.Box },
             new Collider(),new RigidBody(),new PhysicsRotation(),new PhysicsVelocity(),
         ],
@@ -48,7 +48,7 @@ internal partial class PhysicsStackTopScene:IScene {
     public Node Root=>new(){
         Name="Physics_Stack_2",
         Components=[
-            new Transform { Position=new Logical.Vector3(0,3.1,0) },
+            new Transform { Position=new LogicalVector3(0,3.1f,0) },
             new PrimitiveMesh { Type=PrimitiveType.Box },
             new Collider(),new RigidBody(),new PhysicsRotation(),new PhysicsVelocity(),
         ],
@@ -59,12 +59,12 @@ internal partial class PhysicsProjectileScene:IScene {
     public Node Root=>new(){
         Name="Physics_Projectile",
         Components=[
-            new Transform { Position=new Logical.Vector3(-8,1.5,0) },
+            new Transform { Position=new LogicalVector3(-8,1.5f,0) },
             new PrimitiveMesh { Type=PrimitiveType.Sphere },
-            new Collider { Shape=ColliderShape.Sphere,Radius=0.25 },
+            new Collider { Shape=ColliderShape.Sphere,Radius=0.25f },
             new RigidBody { Ccd=PhysicsCcdMode.ContinuousStatic },
             new PhysicsRotation(),
-            new PhysicsVelocity { Linear=new PhysicsVector3(20,2,0) },
+            new PhysicsVelocity { Linear=new LogicalVector3(20,2,0) },
         ],
     };
 }
@@ -73,9 +73,9 @@ internal partial class PhysicsPrefractureWallScene:IScene {
     public Node Root=>new(){
         Name="Physics_PrefractureWall",
         Components=[
-            new Transform { Position=new Logical.Vector3(5,2,0),Scale=new Logical.Vector3(0.5,4,6) },
+            new Transform { Position=new LogicalVector3(5,2,0),Scale=new LogicalVector3(0.5f,4,6) },
             new PrimitiveMesh { Type=PrimitiveType.Box },
-            new Collider { Shape=ColliderShape.Box,HalfExtents=new PhysicsVector3(0.25,2,3) },
+            new Collider { Shape=ColliderShape.Box,HalfExtents=new LogicalVector3(0.25f,2,3) },
             new Destructible {
                 FractureAsset="Physics/PrefractureWall.cgefracture",
                 FractureThreshold=8,

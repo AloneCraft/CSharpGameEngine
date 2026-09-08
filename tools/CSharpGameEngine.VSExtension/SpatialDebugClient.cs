@@ -99,19 +99,15 @@ internal static class SpatialDebugClient {
     private static bool TryConvert(SpatialDebugWireNode Node,out SceneSpatialDebugNode Converted){
         Converted=default;
         if(!IsFinite(Node.MinX)||!IsFinite(Node.MinY)||!IsFinite(Node.MinZ)||!IsFinite(Node.MaxX)||!IsFinite(Node.MaxY)||!IsFinite(Node.MaxZ)
-            ||Node.MinX<float.MinValue||Node.MinY<float.MinValue||Node.MinZ<float.MinValue
-            ||Node.MaxX>float.MaxValue||Node.MaxY>float.MaxValue||Node.MaxZ>float.MaxValue
-            ||Node.MinX>float.MaxValue||Node.MinY>float.MaxValue||Node.MinZ>float.MaxValue
-            ||Node.MaxX<float.MinValue||Node.MaxY<float.MinValue||Node.MaxZ<float.MinValue
             ||Node.MinX>Node.MaxX||Node.MinY>Node.MaxY||Node.MinZ>Node.MaxZ){
             return false;
         }
         Converted=new SceneSpatialDebugNode(
-            new Vector3((float)Node.MinX,(float)Node.MinY,(float)Node.MinZ),
-            new Vector3((float)Node.MaxX,(float)Node.MaxY,(float)Node.MaxZ),Node.Depth,Node.EntryCount,Node.IsRoot);
+            new Vector3(Node.MinX,Node.MinY,Node.MinZ),
+            new Vector3(Node.MaxX,Node.MaxY,Node.MaxZ),Node.Depth,Node.EntryCount,Node.IsRoot);
         return true;
     }
-    private static bool IsFinite(double Value)=>!double.IsNaN(Value)&&!double.IsInfinity(Value);
+    private static bool IsFinite(float Value)=>!float.IsNaN(Value)&&!float.IsInfinity(Value);
     private static byte[]ReadExactly(Stream Stream,int Count){
         byte[]Buffer=new byte[Count];
         int Offset=0;
@@ -137,12 +133,12 @@ internal static class SpatialDebugClient {
         public SpatialDebugWireNode[] Nodes { get; set; }=[];
     }
     private sealed class SpatialDebugWireNode {
-        public double MinX { get; set; }
-        public double MinY { get; set; }
-        public double MinZ { get; set; }
-        public double MaxX { get; set; }
-        public double MaxY { get; set; }
-        public double MaxZ { get; set; }
+        public float MinX { get; set; }
+        public float MinY { get; set; }
+        public float MinZ { get; set; }
+        public float MaxX { get; set; }
+        public float MaxY { get; set; }
+        public float MaxZ { get; set; }
         public int Depth { get; set; }
         public int EntryCount { get; set; }
         public bool IsRoot { get; set; }

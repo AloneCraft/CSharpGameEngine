@@ -1,13 +1,13 @@
 namespace CSharpGameEngine.Entities.Tests;
 
 /// <summary>
-/// Entity破棄(ADR-0040、案A: 墓石のみでIDは再利用しない)。
+/// Entity破棄と世代付きslot再利用。
 ///
 /// <para>
 /// 配列は2種類あり、混同してはならない。<b>位置表</b>(<c>World.EntityArchetypeIndices</c>)は行番号が
 /// そのまま<c>Entity.Id</c>で、追記のみでswap-backしない。<b>ArchetypeのSoA列</b>は行番号が<c>Index</c>で、
-/// swap-backはこちらだけで起きる。破棄したEntityの位置表の行には墓石が残り、そのIdは二度と
-/// 再配布されないため、古いハンドルが<b>別のEntityに化けることは構造的に起こらない</b>。
+/// swap-backはこちらだけで起きる。破棄した位置表slotは再利用されるがGenerationが必ず進むため、
+/// 古いハンドルが<b>別のEntityに化けることは構造的に起こらない</b>。
 /// </para>
 /// </summary>
 public sealed class EntityDestroySpec {
@@ -51,17 +51,40 @@ public sealed class EntityDestroySpec {
     }
 
     [Fact]
-    public void DestroyedIdIsNeverHandedOutAgain(){
-        // これが「世代を持たなくてもstale handleが別Entityに化けない」ことの根拠である。
+    public void DestroyedSlotIsReusedWithANewGeneration(){
         World World=new();
         var First=World.Create(new Position { X=1f });
         World.Destroy(First);
 
         var Second=World.Create(new Position { X=2f });
 
-        Assert.NotEqual(First.Id,Second.Id);
+        Assert.Equal(First.Index,Second.Index);
+        Assert.NotEqual(First.Generation,Second.Generation);
         Assert.False(World.IsAlive(First));
         Assert.True(World.IsAlive(Second));
+    }
+    [Fact]
+    public void StaleGenerationCannotReadMoveOrDestroyTheReplacement(){
+        World World=new();
+        State State=new(World){ Enabled=true };
+        var Stale=World.Create(new Position { X=1f });
+        World.Destroy(Stale);
+        var Current=World.Create(new Position { X=2f });
+        Assert.False(World.TryGetComponent(Stale,out Position _));
+        Assert.False(World.MoveArchetype(Stale,new Position { X=9f },new Velocity(),ref State));
+        Assert.False(World.DestroyDeferred(Stale,ref State));
+        World.Destroy(Stale);
+        Assert.True(World.IsAlive(Current));
+        Assert.True(World.TryGetComponent(Current,out Position Position));
+        Assert.Equal(2f,Position.X);
+    }
+    [Fact]
+    public void DefaultEntityIsNeverAlive(){
+        World World=new();
+        var First=World.Create(new Position());
+        Assert.False(World.IsAlive(default));
+        Assert.True(World.IsAlive(First));
+        Assert.NotEqual(0u,First.Generation);
     }
 
     [Fact]

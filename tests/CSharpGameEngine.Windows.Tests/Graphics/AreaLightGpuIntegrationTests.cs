@@ -5,6 +5,7 @@ using CSharpGameEngine.Platform.Windows;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 
 /// <summary>WARP regressions for the native one-record rectangle Area local-light path.</summary>
+[Collection(D3D12GpuCollection.Name)]
 public sealed class AreaLightGpuIntegrationTests {
     private static readonly string ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact");
 

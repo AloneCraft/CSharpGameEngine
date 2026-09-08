@@ -7,6 +7,8 @@ internal sealed class SceneInstanceSlot {
 
     internal bool Alive;
 
+    internal bool Reserved;
+
     internal Entity Root;
 
     /// <summary>
@@ -30,18 +32,19 @@ internal sealed class SceneInstanceTable {
 
     private readonly Stack<int>FreeSlots=new();
 
-    internal SceneInstance Allocate(){
+    internal SceneInstance Allocate(bool Active=true){
         if(this.FreeSlots.Count>0){
             var ReusedIndex=this.FreeSlots.Pop();
             SceneInstanceSlot Reused=this.Slots[ReusedIndex];
-            Reused.Alive=true;
+            Reused.Alive=Active;
+            Reused.Reserved=!Active;
             Reused.Root=default;
             return new SceneInstance(ReusedIndex,Reused.Version);
         }
 
         // 世代を1から始めることで、default(SceneInstance)(= Slot 0 / Version 0)が
         // 実在するスロット0と一致しなくなる。
-        SceneInstanceSlot Created=new(){ Version=1,Alive=true };
+        SceneInstanceSlot Created=new(){ Version=1,Alive=Active,Reserved=!Active };
         this.Slots.Add(Created);
         return new SceneInstance(this.Slots.Count-1,Created.Version);
     }
@@ -56,12 +59,27 @@ internal sealed class SceneInstanceTable {
         return Slot.Alive&&Slot.Version==Instance.Version?Slot:null;
     }
 
+    internal SceneInstanceSlot?ResolvePending(SceneInstance Instance){
+        if((uint)Instance.Slot>=(uint)this.Slots.Count){ return null; }
+        SceneInstanceSlot Slot=this.Slots[Instance.Slot];
+        return (Slot.Alive||Slot.Reserved)&&Slot.Version==Instance.Version?Slot:null;
+    }
+
+    internal void Activate(SceneInstance Instance){
+        if(this.ResolvePending(Instance)is not { }Slot||!Slot.Reserved){
+            throw new InvalidOperationException("The scene reservation is stale or already active.");
+        }
+        Slot.Reserved=false;
+        Slot.Alive=true;
+    }
+
     internal void Free(SceneInstance Instance){
-        if(this.Resolve(Instance) is not { } Slot){
+        if(this.ResolvePending(Instance) is not { } Slot){
             return;
         }
 
         Slot.Alive=false;
+        Slot.Reserved=false;
         Slot.Version++;
         Slot.Root=default;
         Slot.Entities.Clear();

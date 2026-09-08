@@ -44,14 +44,22 @@ internal static class SceneEditConflictMerger {
         if(Request.DirectOperations.Count>0){
             List<SceneEditOperation>Operations=[];
             foreach(var Operation in Request.DirectOperations){
-                if(Operation is SetComponentMemberOperation Member
-                    &&Member.OriginalValueExpression is not null){
+                if(Operation is SetComponentMemberOperation Member){
+                    // A stale member edit without its observed original value cannot prove that it
+                    // is not overwriting an external edit. Reject it instead of silently choosing
+                    // last-writer-wins. Inspector commits always carry the original expression.
+                    if(Member.OriginalValueExpression is null){
+                        return SceneEditConflictMergeResult.Failure(
+                            VsixText.Format("ConflictMemberExternallyChanged",Member.MemberName));
+                    }
+
                     var Merged=MergeMember(Member,Projection);
                     if(!Merged.Succeeded){ return Merged; }
                     Operations.Add(Merged.Operations[0]);
-                } else {
-                    Operations.Add(Operation);
+                    continue;
                 }
+
+                Operations.Add(Operation);
             }
             return SceneEditConflictMergeResult.Success(Operations);
         }
@@ -155,7 +163,6 @@ internal static class SceneEditConflictMerger {
     }
     private static float ReadFloat(object? Value,float Default)=>Value switch {
         float Float=>Float,
-        double Double=>(float)Double,
         int Integer=>Integer,
         long Long=>Long,
         _=>Default,

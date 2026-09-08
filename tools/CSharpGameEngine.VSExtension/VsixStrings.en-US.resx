@@ -41,13 +41,27 @@
   <data name="PhysicsReset" xml:space="preserve"><value>リセット</value></data>
   <data name="PhysicsBakeSelected" xml:space="preserve"><value>選択項目をBake</value></data>
   <data name="PhysicsBakeAll" xml:space="preserve"><value>すべてBake</value></data>
-  <data name="PhysicsBakeSelectedDeferredToolTip" xml:space="preserve"><value>Simulation Bake HostのScene選択出力はDeferredです。CLI bakeは利用できます。</value></data>
-  <data name="PhysicsBakeAllDeferredToolTip" xml:space="preserve"><value>Simulation Bake HostのScene全体出力はDeferredです。CLI bakeは利用できます。</value></data>
+  <data name="PhysicsBakeCancel" xml:space="preserve"><value>Cancel Bake</value></data>
+  <data name="PhysicsBakeCancelling" xml:space="preserve"><value>Cancelling Physics Bake...</value></data>
+  <data name="PhysicsBakeSelectedToolTip" xml:space="preserve"><value>Build an exact generated Bake Host and atomically bake the selected Scene.</value></data>
+  <data name="PhysicsBakeAllToolTip" xml:space="preserve"><value>Build an exact generated Bake Host and atomically bake every Scene in the current project.</value></data>
+  <data name="PhysicsBakeNoScene" xml:space="preserve"><value>No Scene is available to Bake.</value></data>
+  <data name="PhysicsBakeStarting" xml:space="preserve"><value>Preparing exact Physics Bake Host for {0} Scene(s)...</value></data>
+  <data name="PhysicsBakeSucceeded" xml:space="preserve"><value>Physics Bake completed for {0} Scene(s).</value></data>
+  <data name="PhysicsBakeFailed" xml:space="preserve"><value>Physics Bake failed: {0}</value></data>
+  <data name="PhysicsBakeCancelled" xml:space="preserve"><value>Physics Bake was cancelled.</value></data>
+  <data name="PhysicsBakeOpenArtifact" xml:space="preserve"><value>Open Selected Artifact</value></data>
+  <data name="PhysicsBakeArtifactMissing" xml:space="preserve"><value>Bake artifact no longer exists: {0}</value></data>
+  <data name="PhysicsBakeArtifactOpenFailed" xml:space="preserve"><value>Could not open the Bake artifact: {0}</value></data>
+  <data name="AuthoringOperationProgress" xml:space="preserve"><value>{0} {1}</value></data>
   <data name="PhysicsDebug" xml:space="preserve"><value>デバッグ</value></data>
   <data name="PhysicsColliderAabb" xml:space="preserve"><value>Collider / AABB</value></data>
   <data name="PhysicsVelocity" xml:space="preserve"><value>速度</value></data>
   <data name="PhysicsSleep" xml:space="preserve"><value>スリープ</value></data>
   <data name="PhysicsCenterOfMass" xml:space="preserve"><value>重心</value></data>
+  <data name="PhysicsContacts" xml:space="preserve"><value>Contact Points / Normals</value></data>
+  <data name="PhysicsTree" xml:space="preserve"><value>Physics Broadphase Tree</value></data>
+  <data name="PhysicsBonds" xml:space="preserve"><value>Fracture Bonds</value></data>
   <data name="SceneSelectPrompt" xml:space="preserve"><value>Sceneを選択してください。</value></data>
   <data name="SceneSpatialOff" xml:space="preserve"><value>Global Spatial Octree: オフ</value></data>
   <data name="OptionsNavigationHeader" xml:space="preserve"><value>Scene Viewのナビゲーション</value></data>
@@ -112,7 +126,6 @@
   <data name="WorkspaceLiveDocumentOpenUnavailable" xml:space="preserve"><value>対象SceneのC#文書をlive bufferとして開けません。</value></data>
   <data name="WorkspaceTextBufferUnavailable" xml:space="preserve"><value>対象SceneのVisual Studio text bufferを取得できません。</value></data>
   <data name="WorkspaceSourceChangedDuringEdit" xml:space="preserve"><value>編集中にC#ソースが変化したため上書きを中止しました。</value></data>
-  <data name="WorkspaceSourceMismatchDuringSave" xml:space="preserve"><value>保存の途中（{0}/{1}段目）でC#ソースの状態が想定と食い違ったため中断しました。直前までの変更は適用済みです。Ctrl+Zで戻せます。</value></data>
   <data name="WorkspaceRunningDocumentTableUnavailable" xml:space="preserve"><value>Visual StudioのRunning Document Tableを取得できません。</value></data>
   <data name="WorkspaceSaveDocumentNotOpen" xml:space="preserve"><value>対象Sceneのドキュメントが開かれていないため保存できません。</value></data>
   <data name="WorkspaceSaveFailed" xml:space="preserve"><value>対象Sceneのファイル保存に失敗しました（HRESULT {0}）。</value></data>
@@ -181,6 +194,9 @@
   <data name="Common_ViewerTitle" xml:space="preserve"><value>C# Game Engine ビューアー</value></data>
   <data name="AssetPreview_LoadFailed" xml:space="preserve"><value>アセットのプレビューに失敗しました: {0}</value></data>
   <data name="AssetPreview_Title" xml:space="preserve"><value>C# Game Engine アセット プレビュー</value></data>
+  <data name="AssetPreview_Loading" xml:space="preserve"><value>Importing asset through the authoring host...</value></data>
+  <data name="AssetPreview_PreparingPreview" xml:space="preserve"><value>Preparing the shared Render Server preview...</value></data>
+  <data name="AssetPreview_Ready" xml:space="preserve"><value>Asset preview is ready.</value></data>
   <data name="Bridge_MeshHasNoVertices" xml:space="preserve"><value>インポートされたメッシュに頂点がありません。</value></data>
   <data name="Bridge_OutputNotGenerated" xml:space="preserve"><value>インポートブリッジ({0})が出力ファイルを生成しませんでした。</value></data>
   <data name="Bridge_GeneratedOutputNotGenerated" xml:space="preserve"><value>生成ブリッジ({0})が出力ファイルを生成しませんでした。</value></data>
@@ -366,19 +382,7 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
   <data name="SceneUndoTransaction" xml:space="preserve">
     <value>シーン デザイナー: {0}</value>
   </data>
-  <data name="SceneRendererVertexShaderCompileFailed" xml:space="preserve">
-    <value>Vertex shaderのコンパイルに失敗しました: {0}</value>
-  </data>
-  <data name="SceneRendererPixelShaderCompileFailed" xml:space="preserve">
-    <value>Pixel shaderのコンパイルに失敗しました: {0}</value>
-  </data>
-  <data name="SceneRendererOverlayVertexShaderCompileFailed" xml:space="preserve">
-    <value>Overlay vertex shaderのコンパイルに失敗しました: {0}</value>
-  </data>
-  <data name="SceneRendererOverlayPixelShaderCompileFailed" xml:space="preserve">
-    <value>Overlay pixel shaderのコンパイルに失敗しました: {0}</value>
-  </data>
-  <data name="SceneRendererOverlayVertexLimitExceeded" xml:space="preserve">
+  <data name="ScenePreviewOverlayVertexLimitExceeded" xml:space="preserve">
     <value>overlay頂点数{0}が上限{1}を超えています。</value>
   </data>
   <data name="InspectorUnknownRowType" xml:space="preserve">
@@ -500,4 +504,35 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
   </data>  <data name="ShaderGraphRegionLabel" xml:space="preserve">
     <value>{0}: {1}</value>
   </data>
+  <data name="RuntimeDebugLabel" xml:space="preserve"><value>Runtime Diagnostics</value></data>
+  <data name="RuntimeDebugRefresh" xml:space="preserve"><value>Refresh Snapshot</value></data>
+  <data name="RuntimeDebugRefreshToolTip" xml:space="preserve"><value>Request one immutable read-only snapshot from the existing Render Preview Host session.</value></data>
+  <data name="RuntimeDebugNoSnapshot" xml:space="preserve"><value>No runtime diagnostic snapshot has been requested.</value></data>
+  <data name="RuntimeDebugPreviewUnavailable" xml:space="preserve"><value>The Render Preview Host session is not ready.</value></data>
+  <data name="RuntimeDebugFailed" xml:space="preserve"><value>Runtime diagnostic snapshot failed: {0}</value></data>
+  <data name="RuntimeDebugGraphDeclared" xml:space="preserve"><value>Declared plan (not per-pass GPU execution evidence)</value></data>
+  <data name="RuntimeDebugSummary" xml:space="preserve"><value>Device={0} gen={1} fence={2} frames={3} objects={4} primary draws={5} textures={6} errors={7} adapter={8} WARP={9} graph={10}</value></data>
+  <data name="RuntimeDebugGraphSummary" xml:space="preserve"><value>Declared Render Graph: profile={0}, passes={1}, resources={2}, transitions={3}, surface={4}x{5}</value></data>
+  <data name="RuntimeDebugDiagnosticSummary" xml:space="preserve"><value>Bounded D3D12 diagnostics: shown={0}, truncated={1}</value></data>
+  <data name="RuntimeDebugPass" xml:space="preserve"><value>Pass exec={0} index={1} name={2} queue={3} dependencies={4}</value></data>
+  <data name="RuntimeDebugResource" xml:space="preserve"><value>Resource index={0} name={1} kind={2} shape={3} imported={4} lifetime={5}..{6} alias={7}</value></data>
+  <data name="RuntimeDebugBufferShape" xml:space="preserve"><value>{0} bytes</value></data>
+  <data name="RuntimeDebugTextureShape" xml:space="preserve"><value>{0}x{1} {2}</value></data>
+  <data name="RuntimeDebugTransition" xml:space="preserve"><value>Transition pass={0} resource={1} {2}-&gt;{3} queue={4}-&gt;{5} ownership={6}</value></data>
+  <data name="RuntimeDebugDiagnostic" xml:space="preserve"><value>Diagnostic {0} {1}/{2}: {3}</value></data>
+  <data name="RuntimeDebugNoDiagnostics" xml:space="preserve"><value>No bounded D3D12 diagnostics were reported.</value></data>
+  <data name="RuntimeDebugNoDependencies" xml:space="preserve"><value>none</value></data>
+  <data name="RuntimeDebugPlatformSummary" xml:space="preserve"><value>Platform: OS={0} OS arch={1} process arch={2} runtime={3} PID={4} captured counter={5}/{6}</value></data>
+  <data name="RuntimeDebugInputSummary" xml:space="preserve"><value>Input: state={0} contexts={1} held controls={2} active actions={3} shown actions={4} truncated={5} detail={6}</value></data>
+  <data name="RuntimeDebugInputAction" xml:space="preserve"><value>Input action: timestamp={0} window={1} device={2} sequence={3} context={4} action={5} phase={6} raw=({7},{8}) value=({9},{10}) release={11}</value></data>
+  <data name="RuntimeDebugAudioSummary" xml:space="preserve"><value>Audio: state={0} mode={1} generation={2} voices={3}/{4} buses={5} restored={6} stopped={7} recovery events={8} dropped={9} failure={10} detail={11}</value></data>
+  <data name="RuntimeDebugNoDetail" xml:space="preserve"><value>none</value></data>
+  <data name="AssetAuthoring_State" xml:space="preserve"><value>Metadata state</value></data>
+  <data name="AssetAuthoring_SourceUri" xml:space="preserve"><value>Source URI</value></data>
+  <data name="AssetAuthoring_AssetId" xml:space="preserve"><value>Asset ID</value></data>
+  <data name="AssetAuthoring_AssetUri" xml:space="preserve"><value>Asset URI</value></data>
+  <data name="AssetAuthoring_Importer" xml:space="preserve"><value>Importer</value></data>
+  <data name="AssetAuthoring_MetadataHash" xml:space="preserve"><value>Metadata SHA-256</value></data>
+  <data name="AssetAuthoring_CreateMetadata" xml:space="preserve"><value>Create Metadata</value></data>
+  <data name="AssetAuthoring_Refresh" xml:space="preserve"><value>Refresh</value></data>
 </root>

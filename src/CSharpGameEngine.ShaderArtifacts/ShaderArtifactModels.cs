@@ -4,11 +4,13 @@ public enum ShaderArtifactTargetKind:byte {
     Stage=1,
     Model=2,
     Triangle=3,
+    Compute=4,
 }
 public enum ShaderArtifactEntryStage:byte {
     Unknown=0,
     Vertex=1,
     Pixel=2,
+    Compute=3,
 }
 public sealed class ShaderCompilerProvenance {
     public ShaderCompilerProvenance(string CompilerName,string CompilerVersion,string DxcVersion) {

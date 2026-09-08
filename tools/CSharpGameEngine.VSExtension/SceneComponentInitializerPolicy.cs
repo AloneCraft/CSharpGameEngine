@@ -37,7 +37,7 @@ internal sealed class SceneComponentInitializerPlan {
         this.Members=Members;
     }
 
-    /// <summary>保存時にC#ソースへ書き込むobject creation式。</summary>
+    /// <summary>gesture commit時にC#ソースへ書き込むobject creation式。</summary>
     internal string Expression { get; }
 
     /// <summary>

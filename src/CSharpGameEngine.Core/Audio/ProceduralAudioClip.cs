@@ -28,8 +28,8 @@ public static class ProceduralAudioClip {
         var Samples=new short[SampleCount];
 
         for(var I=0;I<SampleCount;I++){
-            var T=I/(double)SampleRate;
-            Samples[I]=(short)(MathF.Sin(2f*MathF.PI*FrequencyHz*(float)T)*short.MaxValue*AmplitudeScale);
+            var T=I/(float)SampleRate;
+            Samples[I]=(short)(MathF.Sin(2f*MathF.PI*FrequencyHz*T)*short.MaxValue*AmplitudeScale);
         }
 
         return Samples;

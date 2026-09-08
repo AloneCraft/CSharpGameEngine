@@ -1,6 +1,6 @@
 # Asset and Content Pipeline specification
 
-- Status: Specified
+- Status: Partially implemented
 - Parent index: [Roadmap](../Roadmap.md), [Implementation Status](../Implementation-Status.md)
 - Decisions: [ADR-0053](../Decisions/ADR-0053-Asset-Identity-And-Content-Artifacts.md)
 - Target layers: L2, L4, L6, L7, L8
@@ -54,16 +54,18 @@ source + canonical .meta
   -> shipping manifest closure
 ```
 
-The incremental compiler maintains a dependency DAG. Dirty detection follows source, import options, dependencies, and tool provenance. Publication is atomic; restart recovery removes incomplete temporary work, restores last-known-good artifact pointers, and performs reachability GC only from declared roots/manifests.
+The incremental compiler maintains a dependency DAG. Dirty detection follows source, import options, dependencies, tool provenance, and full dependency-envelope CAS addresses. A request compiles only the reachable root closure in dependency waves and bounds concurrency explicitly. Each compiled envelope is validated against the node provenance and ordered dependency references before CAS publication. The last-known-good state document is replaced atomically only after the complete request succeeds.
 
-`AssetHandle<T>` is an asynchronous ownership contract. Retain starts or joins load work; completion exposes an immutable artifact-backed value; release decrements ownership and permits eviction after in-flight users drain. Cancellation detaches a requester but never deletes an artifact used by another requester. Runtime codecs are avoided by converting source to stream artifacts in L7; an optional codec/provider sits behind an L4 adapter.
+Restart recovery removes only compiler/CAS temporary publications. Invalid graphs and corrupt compiler state stop before compiler callbacks execute. Failed or cancelled work may leave immutable orphan objects in CAS, but cannot advance the published state. Reachability collection first atomically narrows state to the declared root closure, then moves validated unreachable objects to an explicit quarantine directory. Quarantine is recoverable and is not an irreversible delete operation.
+
+`AssetHandle<T>` is an asynchronous ownership contract implemented by `RuntimeAssetStore`. The active `ShippingContentManifest` resolves one exact reference and address per key; typed retains join one bounded shared load and retain the dependency-first artifact closure. Completion exposes an immutable artifact-backed value. Final release or host teardown evicts the typed value and its closure exactly once. Caller cancellation detaches only that requester, while store teardown owns the shared cancellation. A candidate manifest becomes active only after every envelope validates; failure or cancellation leaves the previous manifest as the single last-known-good truth. Runtime codecs are avoided by converting source to stream artifacts in L7; an explicit optional `RuntimeAssetCodec<T>` is the only L4 adapter.
 
 ## Failures and diagnostics
 
 - URI parse, unknown identity, duplicate canonical metadata key, and stale schema failures identify the source path and canonical field.
 - Import errors identify provider, source range when available, options hash, and engine-owned conversion phase.
 - Artifact failures identify header/schema/provenance/dependency/content/checksum field; no damaged artifact is published.
-- DAG cycles and unreachable cache roots are reported before GC. GC emits a root set and deletion candidates; it never treats a partially written artifact as reachable.
+- DAG cycles, missing dependencies, corrupt compiler state, and unreachable cache roots are reported before mutation. GC emits the root set and quarantine candidates; it never treats a partially written artifact as reachable.
 - Handle diagnostics include `AssetKey`, retain count, state, dependency chain, cancellation source, and last-known-good fallback status.
 
 ## Immediate migration and compatibility
@@ -72,7 +74,7 @@ Every feature replaces the previous metadata format, artifact format, or loader 
 
 ## Performance and shipping rules
 
-Content performance records five warm-ups plus thirty cold/incremental samples, median/p95/MAD, cache state, dependency count, compiler version, and machine fingerprint. A shipping manifest contains only the reachable closure required by the selected product scope; it includes artifact hashes and provenance and is validated during package install/run/uninstall.
+Content performance records five warm-ups plus thirty cold/incremental samples, median/p95/MAD, cache state, dependency count, compiler version, and machine fingerprint. A canonical shipping manifest contains only the reference-exact closure reachable from the selected product roots. It records content hashes, envelope addresses, provenance, kind, length, and canonical dependencies. Package publication writes a clean sibling temporary directory, validates it, and atomically renames it; envelopes shared by different AssetKeys are stored once by CAS address. Opening a package rejects missing, extra, corrupt, cyclic, non-canonical, or reparse-point state before publishing a runtime reader.
 
 ## Stage oracle matrix
 
@@ -89,4 +91,4 @@ Content performance records five warm-ups plus thirty cold/incremental samples, 
 | F-L7-028 | 6 | `content.performance` | Headless / Foundation | 7200s | Thirty-sample performance evidence. |
 | F-L7-029 | 7 | `content.release` | Headless / Foundation | 7200s | Closure, schema, SBOM input, package evidence. |
 
-All rows are `Specified` and presently return `NotImplemented` when explicitly run.
+F-L2-004, F-L7-025, F-L6-005, F-L7-026, F-L7-027, F-L4-008, F-L6-006, F-L8-019, F-L7-028, and F-L7-029 are `Implemented` with executable stages. `content.release` first produces configuration-qualified F-L7-028 reports, then publishes and reopens a canonical runtime-loadable content package and emits one canonical SHA-bound report over the exact package closure, owned schema sources, bounded project/toolchain SBOM inputs, and those performance reports. It rejects missing, extra, stale, relocated, reparse-point, non-canonical, or modified evidence. It does not duplicate the SPDX/sign/install responsibilities of F-L7-045 or the formal immutable product manifest owned by F-L7-048.

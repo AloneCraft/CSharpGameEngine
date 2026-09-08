@@ -783,29 +783,25 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
             new ComponentRemoveRequest(ViewModel.Group.NodeId,ViewModel.Group.ComponentTypeFullyQualifiedName));
     }
 
-    private void EnumField_DropDownClosed(object Sender,EventArgs Args){
+    private void ChoiceField_DropDownClosed(object Sender,EventArgs Args){
         ThreadHelper.ThrowIfNotOnUIThread();
         if(Sender is not ComboBox Box||Box.DataContext is not InspectorMemberViewModel ViewModel
             ||Box.SelectedItem is not string SelectedName){
             return;
         }
 
-        string?EmitExpression=null;
-        foreach(InspectorEnumCandidate Candidate in ViewModel.Member.EnumCandidates){
-            if(string.Equals(Candidate.Name,SelectedName,StringComparison.Ordinal)){
-                EmitExpression=Candidate.EmitExpression;
-                break;
-            }
-        }
+        if(SceneInspectorCommitPlanner.IsCurrentChoice(ViewModel.Member,SelectedName)){ return; }
 
-        if(EmitExpression is null){
+        if(this.CurrentSnapshot is not { }Snapshot||!SceneInspectorCommitPlanner.TryCreateChoiceCommit(
+            Snapshot.Key,Snapshot.DocumentVersion,ViewModel.Member,SelectedName,out var Request)){
+            SetStatus(VsixText.Format("InspectorValueParseFailed",ViewModel.Member.MemberName));
+            this.TryRefresh(Force:true);
             return;
         }
-
-        this.SubmitCommit(ViewModel.Member,EmitExpression);
+        this.SubmitCommit(Request);
     }
 
-    /// <summary>M0047: Documentへの同期適用なので、非同期の多重発行防止(<c>CommitInProgress</c>)はもう不要。</summary>
+    /// <summary>One completed Inspector gesture is written immediately as one native source Undo unit.</summary>
     private void SubmitCommit(SceneInspectorMember Member,string NewExpression){
         ThreadHelper.ThrowIfNotOnUIThread();
         if(this.Session is not { }Session||this.CurrentSnapshot is not { }Snapshot){
@@ -814,8 +810,25 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
 
         SceneEditCommitRequest Request=SceneInspectorCommitPlanner.CreateCommit(
             Snapshot.Key,Snapshot.DocumentVersion,Member,NewExpression);
-        if(!Session.Apply(Request)){
-            SetStatus(VsixText.Get("InspectorCommitFailed"));
+        this.SubmitCommit(Request);
+    }
+
+    #pragma warning disable VSTHRD100 // Event-handler leaf; exceptions are observed below.
+    private async void SubmitCommit(SceneEditCommitRequest Request){
+    #pragma warning restore VSTHRD100
+        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+        if(this.Session is not { }Session){ return; }
+        SceneEditCommitResult Commit;
+        try {
+            Commit=await Session.CommitAsync(Request,CancellationToken.None);
+        } catch(Exception Ex){
+            ActivityLog.LogError(nameof(InspectorToolWindowControl),Ex.ToString());
+            Commit=new SceneEditCommitResult(
+                false,VsixText.Get("InspectorCommitFailed"),WasRebased:false);
+        }
+        if(this.Disposed||!ReferenceEquals(this.Session,Session)){ return; }
+        if(!Commit.Succeeded){
+            SetStatus(Commit.ErrorMessage??VsixText.Get("InspectorCommitFailed"));
         }
 
         this.TryRefresh(Force:true);

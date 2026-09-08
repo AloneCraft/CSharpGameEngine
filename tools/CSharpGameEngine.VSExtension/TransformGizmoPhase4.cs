@@ -7,7 +7,7 @@ namespace CSharpGameEngine.VSExtension;
 /// <summary>Phase 4のRotate/Scaleハンドル。Moveと同じframe・overlay・解析hit経路を使う。</summary>
 internal static partial class TransformGizmo {
     // M0033: Move/Rotate/Scaleを常時同時表示にするにあたり、半径帯を重ならないよう再設計した
-    // (旧RotateRingRadius=0.9はScaleAxisLength=0.9と完全一致しキューブとリングが同座標に重なり、
+    // (旧RotateRingRadius=0.9fはScaleAxisLength=0.9fと完全一致しキューブとリングが同座標に重なり、
     // またMove平面ハンドルと同一平面上にあるため対角最大到達距離0.68より内側だと平面ハンドルの
     // 当たり判定を貫通していた)。詳細はDocs/Milestones/M0030-SceneView-Gizmo-Transform-Editing.md
     // のM0033追記を参照。TransformGizmo.csのAxisLength/ShaftEnd(Move矢印)も同じ理由で合わせて
@@ -80,10 +80,10 @@ internal static partial class TransformGizmo {
             List<GizmoOverlayVertex>Outline=[];
             List<GizmoOverlayVertex>Band=[];
             for(var Segment=0;Segment<Segments;Segment++){
-                float AngleA=(float)(Segment*Math.PI*2d/Segments);
-                float AngleB=(float)((Segment+1)*Math.PI*2d/Segments);
-                Vector3 DirA=(First*(float)Math.Cos(AngleA))+(Second*(float)Math.Sin(AngleA));
-                Vector3 DirB=(First*(float)Math.Cos(AngleB))+(Second*(float)Math.Sin(AngleB));
+                float AngleA=Segment*FloatMath.Pi*2f/Segments;
+                float AngleB=(Segment+1)*FloatMath.Pi*2f/Segments;
+                Vector3 DirA=(First*FloatMath.Cos(AngleA))+(Second*FloatMath.Sin(AngleA));
+                Vector3 DirB=(First*FloatMath.Cos(AngleB))+(Second*FloatMath.Sin(AngleB));
                 Outline.Add(new GizmoOverlayVertex(Value.Pivot+(DirA*Radius*Value.WorldScale),Color));
                 Outline.Add(new GizmoOverlayVertex(Value.Pivot+(DirB*Radius*Value.WorldScale),Color));
 
@@ -177,10 +177,10 @@ internal static partial class TransformGizmo {
             Vector3 ShaftFinish=Value.Pivot+(Axis*((ScaleAxisLength-ScaleCubeHalfExtent)*Value.WorldScale));
             List<GizmoOverlayVertex>Solid=[];
             for(var Segment=0;Segment<Segments;Segment++){
-                float AngleA=(float)(Segment*Math.PI*2d/Segments);
-                float AngleB=(float)((Segment+1)*Math.PI*2d/Segments);
-                Vector3 RadialA=(SideA*(float)Math.Cos(AngleA))+(SideB*(float)Math.Sin(AngleA));
-                Vector3 RadialB=(SideA*(float)Math.Cos(AngleB))+(SideB*(float)Math.Sin(AngleB));
+                float AngleA=Segment*FloatMath.Pi*2f/Segments;
+                float AngleB=(Segment+1)*FloatMath.Pi*2f/Segments;
+                Vector3 RadialA=(SideA*FloatMath.Cos(AngleA))+(SideB*FloatMath.Sin(AngleA));
+                Vector3 RadialB=(SideA*FloatMath.Cos(AngleB))+(SideB*FloatMath.Sin(AngleB));
                 Vector3 StartA=ShaftStart+(RadialA*(ShaftRadius*Value.WorldScale));
                 Vector3 StartB=ShaftStart+(RadialB*(ShaftRadius*Value.WorldScale));
                 Vector3 FinishA=ShaftFinish+(RadialA*(ShaftRadius*Value.WorldScale));
@@ -301,7 +301,7 @@ internal sealed class RotateGizmoDrag {
         }
 
         Vector3 Current=Vector3.Normalize(Point- this.Frame.Pivot);
-        Radians=(float)Math.Atan2(
+        Radians=FloatMath.Atan2(
             Vector3.Dot(this.Normal,Vector3.Cross(this.StartDirection,Current)),
             Math.Max(-1f,Math.Min(1f,Vector3.Dot(this.StartDirection,Current))));
         Delta=Quaternion.CreateFromAxisAngle(this.Normal,Radians);
@@ -380,7 +380,7 @@ internal sealed class ScaleGizmoDrag {
 
 internal static class TransformSnap {
     internal const float MoveIncrement=1f;
-    internal const float RotationIncrementRadians=(float)(15d*Math.PI/180d);
+    internal const float RotationIncrementRadians=15f*FloatMath.Pi/180f;
     internal const float ScaleIncrement=0.1f;
 
     internal static Vector3 SnapTranslation(
@@ -409,7 +409,7 @@ internal static class TransformSnap {
         _=>Factors,
     };
 
-    private static float Snap(float Value,float Increment)=>(float)Math.Round(Value/Increment,MidpointRounding.AwayFromZero)*Increment;
+    private static float Snap(float Value,float Increment)=>FloatMath.Round(Value/Increment,MidpointRounding.AwayFromZero)*Increment;
 }
 
 /// <summary>
@@ -466,12 +466,12 @@ internal static class TransformSpaceToggleGizmo {
         } else {
             const int Segments=16;
             for(var Segment=0;Segment<Segments;Segment++){
-                float AngleA=(float)(Segment*Math.PI*2d/Segments);
-                float AngleB=(float)((Segment+1)*Math.PI*2d/Segments);
+                float AngleA=Segment*FloatMath.Pi*2f/Segments;
+                float AngleB=(Segment+1)*FloatMath.Pi*2f/Segments;
                 Vertices.Add(new GizmoOverlayVertex(
-                    Position+(((CameraRight*(float)Math.Cos(AngleA))+(CameraUp*(float)Math.Sin(AngleA)))*Size),Color));
+                    Position+(((CameraRight*FloatMath.Cos(AngleA))+(CameraUp*FloatMath.Sin(AngleA)))*Size),Color));
                 Vertices.Add(new GizmoOverlayVertex(
-                    Position+(((CameraRight*(float)Math.Cos(AngleB))+(CameraUp*(float)Math.Sin(AngleB)))*Size),Color));
+                    Position+(((CameraRight*FloatMath.Cos(AngleB))+(CameraUp*FloatMath.Sin(AngleB)))*Size),Color));
             }
         }
 

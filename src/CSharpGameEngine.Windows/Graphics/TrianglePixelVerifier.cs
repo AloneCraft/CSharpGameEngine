@@ -20,7 +20,7 @@ public static class TrianglePixelVerifier {
             return new TriangleVerificationResult(false,default,[],"Readback has no pixels (width or height is zero).");
         }
 
-        const double EdgeInset=0.05;
+        const float EdgeInset=0.05f;
         var InsetX=Math.Max(1,(int)(Readback.Width*EdgeInset));
         var InsetY=Math.Max(1,(int)(Readback.Height*EdgeInset));
 

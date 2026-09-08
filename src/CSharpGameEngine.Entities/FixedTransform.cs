@@ -1,33 +1,9 @@
-using System;
 using System.Collections.Generic;
 using System.Numerics;
 using CSharpGameEngine.Entities;
+using CSharpGameEngine.Numerics;
 
 namespace CSharpGameEngine.Runtime.Windows;
-
-/// <summary>
-/// Scene-user-compilation Transform. Its absolute position and scale use the precision selected
-/// by <c>the Runtime-owned Logical precision library</c>. Rotation is stored as RUF Euler angles
-/// in radians. Coordinates use Unity-compatible RUF (+X right, +Y up, +Z forward).
-/// </summary>
-/// <remarks>
-/// This source is linked into a Scene compilation (rather than the Windows renderer DLL), because
-/// the limb width is selected by that compilation. The renderer receives only camera-relative
-/// matrices converted to float at the final GPU boundary.
-/// </remarks>
-[SceneComponentOrder(SceneComponentCategory.Spatial,0)]
-public struct Transform() {
-    public Logical.Vector3 Position=Logical.Vector3.Zero;
-
-    /// <summary>
-    /// Euler angles in radians. R rotates around right (+X), U around up (+Y), and F around
-    /// forward (+Z). They are applied in the <c>U-R-F</c> order used by
-    /// <see cref="Quaternion.CreateFromYawPitchRoll"/>.
-    /// </summary>
-    public Logical.Vector3 Rotation=Logical.Vector3.Zero;
-
-    public Logical.Vector3 Scale=Logical.Vector3.One;
-}
 
 /// <summary>Result of a fixed Transform operation that cannot silently wrap or lose a GPU pose.</summary>
 public enum FixedTransformStatus {
@@ -42,37 +18,6 @@ public enum FixedTransformStatus {
 /// System.Numerics and the editor contract.
 /// </summary>
 public static class TransformMath {
-    public static Matrix4x4 ToMatrix(in Transform Transform)=>
-        Matrix4x4.CreateScale(Transform.Scale.R,Transform.Scale.U,Transform.Scale.F)
-        *Matrix4x4.CreateFromQuaternion(Quaternion.CreateFromYawPitchRoll(
-            Transform.Rotation.U,Transform.Rotation.R,Transform.Rotation.F))
-        *Matrix4x4.CreateTranslation(
-            Transform.Position.R,Transform.Position.U,Transform.Position.F);
-
-    public static Matrix4x4 ToWorld(in Transform Local,in Matrix4x4 ParentWorld)=>
-        ToMatrix(Local)*ParentWorld;
-
-    /// <summary>
-    /// Recalculates local TRS for reparenting. A non-invertible parent or non-decomposable affine
-    /// transform is reported rather than overwriting the last valid pose.
-    /// </summary>
-    public static bool TryCalculateLocal(
-        in Matrix4x4 World,in Matrix4x4 NewParentWorld,out Transform Local){
-        if(!Matrix4x4.Invert(NewParentWorld,out Matrix4x4 InverseParent)
-            ||!Matrix4x4.Decompose(World*InverseParent,
-                out Vector3 Scale,out Quaternion Rotation,out Vector3 Position)){
-            Local=default;
-            return false;
-        }
-
-        Local=new Transform {
-            Position=new Logical.Vector3(Position.X,Position.Y,Position.Z),
-            Rotation=FixedAffineTransform.ToEulerRuf(Rotation),
-            Scale=new Logical.Vector3(Scale.X,Scale.Y,Scale.Z),
-        };
-        return true;
-    }
-
     /// <summary>
     /// Subtracts the fixed camera world origin before converting the TRS to float. This is the
     /// only conversion used for object, light, picking and gizmo render coordinates.
@@ -94,109 +39,45 @@ public static class TransformMath {
 /// until camera-origin subtraction, so a large absolute translation never crosses a float boundary.
 /// </summary>
 public readonly struct FixedAffineTransform {
-    public Logical.Scalar M11 { get; }
-    public Logical.Scalar M12 { get; }
-    public Logical.Scalar M13 { get; }
-    public Logical.Scalar M21 { get; }
-    public Logical.Scalar M22 { get; }
-    public Logical.Scalar M23 { get; }
-    public Logical.Scalar M31 { get; }
-    public Logical.Scalar M32 { get; }
-    public Logical.Scalar M33 { get; }
-    public Logical.Scalar M41 { get; }
-    public Logical.Scalar M42 { get; }
-    public Logical.Scalar M43 { get; }
-
-    private FixedAffineTransform(
-        Logical.Scalar M11,Logical.Scalar M12,Logical.Scalar M13,
-        Logical.Scalar M21,Logical.Scalar M22,Logical.Scalar M23,
-        Logical.Scalar M31,Logical.Scalar M32,Logical.Scalar M33,
-        Logical.Scalar M41,Logical.Scalar M42,Logical.Scalar M43){
-        this.M11=M11; this.M12=M12; this.M13=M13;
-        this.M21=M21; this.M22=M22; this.M23=M23;
-        this.M31=M31; this.M32=M32; this.M33=M33;
-        this.M41=M41; this.M42=M42; this.M43=M43;
-    }
-
-    public static FixedAffineTransform Identity=>new(
-        Logical.Scalar.One,Logical.Scalar.Zero,Logical.Scalar.Zero,
-        Logical.Scalar.Zero,Logical.Scalar.One,Logical.Scalar.Zero,
-        Logical.Scalar.Zero,Logical.Scalar.Zero,Logical.Scalar.One,
-        Logical.Scalar.Zero,Logical.Scalar.Zero,Logical.Scalar.Zero);
+    private readonly LogicalAffineTransform Value;
+    private FixedAffineTransform(LogicalAffineTransform Value){ this.Value=Value; }
+    public LogicalScalar M11=>this.Value.RAxis.R;
+    public LogicalScalar M12=>this.Value.RAxis.U;
+    public LogicalScalar M13=>this.Value.RAxis.F;
+    public LogicalScalar M21=>this.Value.UAxis.R;
+    public LogicalScalar M22=>this.Value.UAxis.U;
+    public LogicalScalar M23=>this.Value.UAxis.F;
+    public LogicalScalar M31=>this.Value.FAxis.R;
+    public LogicalScalar M32=>this.Value.FAxis.U;
+    public LogicalScalar M33=>this.Value.FAxis.F;
+    public LogicalScalar M41=>this.Value.Translation.R;
+    public LogicalScalar M42=>this.Value.Translation.U;
+    public LogicalScalar M43=>this.Value.Translation.F;
+    public LogicalAffineTransform Logical=>this.Value;
+    public static FixedAffineTransform Identity=>new(LogicalAffineTransform.Identity);
+    public static FixedAffineTransform FromLogical(LogicalAffineTransform Value)=>new(Value);
 
     public static FixedTransformStatus TryFromTransform(
         in Transform Transform,out FixedAffineTransform Matrix){
-        FixedTransformStatus Status=TryGetNormalizedQuaternion(
-            Transform,out Logical.Scalar X,out Logical.Scalar Y,out Logical.Scalar Z,out Logical.Scalar W);
-        if(Status!=FixedTransformStatus.Success){
+        if(!Transform.Rotation.TryNormalize(out _)){
             Matrix=default;
-            return Status;
+            return FixedTransformStatus.NonInvertible;
         }
-
-        if(!TryDoubleProduct(X,X,out Logical.Scalar TwoXX)
-            ||!TryDoubleProduct(Y,Y,out Logical.Scalar TwoYY)
-            ||!TryDoubleProduct(Z,Z,out Logical.Scalar TwoZZ)
-            ||!TryDoubleProduct(X,Y,out Logical.Scalar TwoXY)
-            ||!TryDoubleProduct(X,Z,out Logical.Scalar TwoXZ)
-            ||!TryDoubleProduct(Y,Z,out Logical.Scalar TwoYZ)
-            ||!TryDoubleProduct(X,W,out Logical.Scalar TwoXW)
-            ||!TryDoubleProduct(Y,W,out Logical.Scalar TwoYW)
-            ||!TryDoubleProduct(Z,W,out Logical.Scalar TwoZW)
-            ||!Logical.Scalar.TrySubtract(Logical.Scalar.One,TwoYY,out Logical.Scalar M11)
-            ||!Logical.Scalar.TrySubtract(M11,TwoZZ,out M11)
-            ||!Logical.Scalar.TryAdd(TwoXY,TwoZW,out Logical.Scalar M12)
-            ||!Logical.Scalar.TrySubtract(TwoXZ,TwoYW,out Logical.Scalar M13)
-            ||!Logical.Scalar.TrySubtract(TwoXY,TwoZW,out Logical.Scalar M21)
-            ||!Logical.Scalar.TrySubtract(Logical.Scalar.One,TwoXX,out Logical.Scalar M22)
-            ||!Logical.Scalar.TrySubtract(M22,TwoZZ,out M22)
-            ||!Logical.Scalar.TryAdd(TwoYZ,TwoXW,out Logical.Scalar M23)
-            ||!Logical.Scalar.TryAdd(TwoXZ,TwoYW,out Logical.Scalar M31)
-            ||!Logical.Scalar.TrySubtract(TwoYZ,TwoXW,out Logical.Scalar M32)
-            ||!Logical.Scalar.TrySubtract(Logical.Scalar.One,TwoXX,out Logical.Scalar M33)
-            ||!Logical.Scalar.TrySubtract(M33,TwoYY,out M33)
-            ||!Logical.Scalar.TryMultiply(Transform.Scale.R,M11,out M11)
-            ||!Logical.Scalar.TryMultiply(Transform.Scale.R,M12,out M12)
-            ||!Logical.Scalar.TryMultiply(Transform.Scale.R,M13,out M13)
-            ||!Logical.Scalar.TryMultiply(Transform.Scale.U,M21,out M21)
-            ||!Logical.Scalar.TryMultiply(Transform.Scale.U,M22,out M22)
-            ||!Logical.Scalar.TryMultiply(Transform.Scale.U,M23,out M23)
-            ||!Logical.Scalar.TryMultiply(Transform.Scale.F,M31,out M31)
-            ||!Logical.Scalar.TryMultiply(Transform.Scale.F,M32,out M32)
-            ||!Logical.Scalar.TryMultiply(Transform.Scale.F,M33,out M33)){
+        if(!LogicalAffineTransform.TryCreateTrs(Transform.Position,Transform.Rotation,Transform.Scale,out var Logical)){
             Matrix=default;
             return FixedTransformStatus.NumericOverflow;
         }
-
-        Matrix=new FixedAffineTransform(
-            M11,M12,M13,M21,M22,M23,M31,M32,M33,
-            Transform.Position.R,Transform.Position.U,Transform.Position.F);
+        Matrix=new FixedAffineTransform(Logical);
         return FixedTransformStatus.Success;
     }
 
     public static FixedTransformStatus TryMultiply(
         in FixedAffineTransform Left,in FixedAffineTransform Right,out FixedAffineTransform Result){
-        if(!TryDot3(Left.M11,Left.M12,Left.M13,Right.M11,Right.M21,Right.M31,out Logical.Scalar M11)
-            ||!TryDot3(Left.M11,Left.M12,Left.M13,Right.M12,Right.M22,Right.M32,out Logical.Scalar M12)
-            ||!TryDot3(Left.M11,Left.M12,Left.M13,Right.M13,Right.M23,Right.M33,out Logical.Scalar M13)
-            ||!TryDot3(Left.M21,Left.M22,Left.M23,Right.M11,Right.M21,Right.M31,out Logical.Scalar M21)
-            ||!TryDot3(Left.M21,Left.M22,Left.M23,Right.M12,Right.M22,Right.M32,out Logical.Scalar M22)
-            ||!TryDot3(Left.M21,Left.M22,Left.M23,Right.M13,Right.M23,Right.M33,out Logical.Scalar M23)
-            ||!TryDot3(Left.M31,Left.M32,Left.M33,Right.M11,Right.M21,Right.M31,out Logical.Scalar M31)
-            ||!TryDot3(Left.M31,Left.M32,Left.M33,Right.M12,Right.M22,Right.M32,out Logical.Scalar M32)
-            ||!TryDot3(Left.M31,Left.M32,Left.M33,Right.M13,Right.M23,Right.M33,out Logical.Scalar M33)
-            ||!TryDot3(Left.M41,Left.M42,Left.M43,Right.M11,Right.M21,Right.M31,out Logical.Scalar TranslationX)
-            ||!Logical.Scalar.TryAdd(TranslationX,Right.M41,out TranslationX)
-            ||!TryDot3(Left.M41,Left.M42,Left.M43,Right.M12,Right.M22,Right.M32,out Logical.Scalar TranslationY)
-            ||!Logical.Scalar.TryAdd(TranslationY,Right.M42,out TranslationY)
-            ||!TryDot3(Left.M41,Left.M42,Left.M43,Right.M13,Right.M23,Right.M33,out Logical.Scalar TranslationZ)
-            ||!Logical.Scalar.TryAdd(TranslationZ,Right.M43,out TranslationZ)){
+        if(!LogicalAffineTransform.TryMultiply(Left.Value,Right.Value,out var Logical)){
             Result=default;
             return FixedTransformStatus.NumericOverflow;
         }
-
-        Result=new FixedAffineTransform(
-            M11,M12,M13,M21,M22,M23,M31,M32,M33,
-            TranslationX,TranslationY,TranslationZ);
+        Result=new FixedAffineTransform(Logical);
         return FixedTransformStatus.Success;
     }
 
@@ -217,25 +98,23 @@ public readonly struct FixedAffineTransform {
     /// </summary>
     public FixedTransformStatus TryToCameraRelativeMatrix(
         in FixedAffineTransform CameraWorld,out Matrix4x4 Matrix){
-        if(!Logical.Scalar.TrySubtract(this.M41,CameraWorld.M41,out Logical.Scalar X)
-            ||!Logical.Scalar.TrySubtract(this.M42,CameraWorld.M42,out Logical.Scalar Y)
-            ||!Logical.Scalar.TrySubtract(this.M43,CameraWorld.M43,out Logical.Scalar Z)){
+        if(!LogicalScalar.TrySubtract(this.Value.Translation.R,CameraWorld.Value.Translation.R,out LogicalScalar X)
+            ||!LogicalScalar.TrySubtract(this.Value.Translation.U,CameraWorld.Value.Translation.U,out LogicalScalar Y)
+            ||!LogicalScalar.TrySubtract(this.Value.Translation.F,CameraWorld.Value.Translation.F,out LogicalScalar Z)){
             Matrix=default;
             return FixedTransformStatus.NumericOverflow;
         }
-
-        if(!this.M11.TryToSingle(out float M11)||!this.M12.TryToSingle(out float M12)||!this.M13.TryToSingle(out float M13)
-            ||!this.M21.TryToSingle(out float M21)||!this.M22.TryToSingle(out float M22)||!this.M23.TryToSingle(out float M23)
-            ||!this.M31.TryToSingle(out float M31)||!this.M32.TryToSingle(out float M32)||!this.M33.TryToSingle(out float M33)
+        if(!this.Value.RAxis.TryToSingle(out Vector3 RAxis)
+            ||!this.Value.UAxis.TryToSingle(out Vector3 UAxis)
+            ||!this.Value.FAxis.TryToSingle(out Vector3 FAxis)
             ||!X.TryToSingle(out float M41)||!Y.TryToSingle(out float M42)||!Z.TryToSingle(out float M43)){
             Matrix=default;
             return FixedTransformStatus.FloatConversionOverflow;
         }
-
         Matrix=new Matrix4x4(
-            M11,M12,M13,0f,
-            M21,M22,M23,0f,
-            M31,M32,M33,0f,
+            RAxis.X,RAxis.Y,RAxis.Z,0f,
+            UAxis.X,UAxis.Y,UAxis.Z,0f,
+            FAxis.X,FAxis.Y,FAxis.Z,0f,
             M41,M42,M43,1f);
         return FixedTransformStatus.Success;
     }
@@ -246,19 +125,11 @@ public readonly struct FixedAffineTransform {
     /// boundary; callers normalize them after conversion to remove any inherited scale.
     /// </summary>
     public FixedTransformStatus TryGetCameraBasis(out Vector3 Forward,out Vector3 Up){
-        if(!this.M31.TryToSingle(out float ForwardX)
-            ||!this.M32.TryToSingle(out float ForwardY)
-            ||!this.M33.TryToSingle(out float ForwardZ)
-            ||!this.M21.TryToSingle(out float UpX)
-            ||!this.M22.TryToSingle(out float UpY)
-            ||!this.M23.TryToSingle(out float UpZ)){
+        if(!this.Value.FAxis.TryToSingle(out Forward)||!this.Value.UAxis.TryToSingle(out Up)){
             Forward=default;
             Up=default;
             return FixedTransformStatus.FloatConversionOverflow;
         }
-
-        Forward=new Vector3(ForwardX,ForwardY,ForwardZ);
-        Up=new Vector3(UpX,UpY,UpZ);
         float ForwardLengthSquared=Forward.LengthSquared();
         float UpLengthSquared=Up.LengthSquared();
         if(!float.IsFinite(Forward.X)||!float.IsFinite(Forward.Y)||!float.IsFinite(Forward.Z)
@@ -272,56 +143,6 @@ public readonly struct FixedAffineTransform {
 
         return FixedTransformStatus.Success;
     }
-
-    private static FixedTransformStatus TryGetNormalizedQuaternion(
-        in Transform Transform,
-        out Logical.Scalar X,out Logical.Scalar Y,out Logical.Scalar Z,out Logical.Scalar W){
-        // Euler-angle trigonometry is evaluated only in the normalized orientation range.
-        // Position and hierarchy composition remain in Logical fixed precision.
-        if(!Transform.Rotation.R.TryToSingle(out float R)
-            ||!Transform.Rotation.U.TryToSingle(out float U)
-            ||!Transform.Rotation.F.TryToSingle(out float F)){
-            X=Y=Z=W=default;
-            return FixedTransformStatus.FloatConversionOverflow;
-        }
-        Quaternion Rotation=Quaternion.CreateFromYawPitchRoll(U,R,F);
-        X=Rotation.X;
-        Y=Rotation.Y;
-        Z=Rotation.Z;
-        W=Rotation.W;
-        return FixedTransformStatus.Success;
-    }
-
-    internal static Logical.Vector3 ToEulerRuf(Quaternion Rotation){
-        Rotation=Quaternion.Normalize(Rotation);
-        float Pitch=MathF.Asin(Math.Clamp(2f*(Rotation.W*Rotation.X-Rotation.Y*Rotation.Z),-1f,1f));
-        float Yaw=MathF.Atan2(2f*(Rotation.W*Rotation.Y+Rotation.Z*Rotation.X),
-            1f-2f*(Rotation.X*Rotation.X+Rotation.Y*Rotation.Y));
-        float Roll=MathF.Atan2(2f*(Rotation.W*Rotation.Z+Rotation.X*Rotation.Y),
-            1f-2f*(Rotation.X*Rotation.X+Rotation.Z*Rotation.Z));
-        return new Logical.Vector3(Pitch,Yaw,Roll);
-    }
-
-    private static bool TryDoubleProduct(
-        Logical.Scalar Left,Logical.Scalar Right,out Logical.Scalar Result){
-        Result=default;
-        return Logical.Scalar.TryMultiply(Left,Right,out Logical.Scalar Product)
-            &&Logical.Scalar.TryAdd(Product,Product,out Result);
-    }
-
-    private static bool TryDot3(
-        Logical.Scalar LeftX,Logical.Scalar LeftY,Logical.Scalar LeftZ,
-        Logical.Scalar RightX,Logical.Scalar RightY,Logical.Scalar RightZ,
-        out Logical.Scalar Result){
-        Result=default;
-        if(!Logical.Scalar.TryMultiply(LeftX,RightX,out Logical.Scalar ProductX)
-            ||!Logical.Scalar.TryMultiply(LeftY,RightY,out Logical.Scalar ProductY)
-            ||!Logical.Scalar.TryMultiply(LeftZ,RightZ,out Logical.Scalar ProductZ)
-            ||!Logical.Scalar.TryAdd(ProductX,ProductY,out Logical.Scalar Sum)){
-            return false;
-        }
-        return Logical.Scalar.TryAdd(Sum,ProductZ,out Result);
-    }
 }
 
 /// <summary>Fixed hierarchy resolution status, including arithmetic failure states.</summary>
@@ -332,6 +153,7 @@ public enum FixedTransformResolveStatus {
     Cycle,
     NumericOverflow,
     NonInvertible,
+    FrameMismatch,
 }
 
 /// <summary>
@@ -406,74 +228,5 @@ public sealed class FixedTransformWorldResolver {
     }
 }
 
-/// <summary>Parent hierarchy resolution status.</summary>
-public enum TransformResolveStatus {
-    Success,
-    MissingTransform,
-    DeadParent,
-    Cycle,
-}
-
 public delegate bool TryGetLocalTransform(int EntityId,out Transform Transform);
 public delegate bool TryGetParentEntity(int EntityId,out int ParentEntityId);
-
-/// <summary>
-/// Caches row-vector parent composition for a frame. The caller retains the last valid rendered
-/// matrix if this reports a non-success status.
-/// </summary>
-public sealed class TransformWorldResolver {
-    private readonly Dictionary<int,Matrix4x4>WorldByEntity=[];
-    private readonly Dictionary<int,TransformResolveStatus>StatusByEntity=[];
-    private readonly HashSet<int>Resolving=[];
-
-    public void BeginFrame(){
-        this.WorldByEntity.Clear();
-        this.StatusByEntity.Clear();
-        this.Resolving.Clear();
-    }
-
-    public TransformResolveStatus Resolve(
-        int EntityId,
-        TryGetLocalTransform GetTransform,
-        TryGetParentEntity GetParent,
-        out Matrix4x4 World){
-        if(this.WorldByEntity.TryGetValue(EntityId,out World)){
-            return TransformResolveStatus.Success;
-        }
-        if(this.StatusByEntity.TryGetValue(EntityId,out TransformResolveStatus PreviousStatus)){
-            World=default;
-            return PreviousStatus;
-        }
-        if(!this.Resolving.Add(EntityId)){
-            World=default;
-            return this.StatusByEntity[EntityId]=TransformResolveStatus.Cycle;
-        }
-
-        try {
-            if(!GetTransform(EntityId,out Transform Local)){
-                World=default;
-                return this.StatusByEntity[EntityId]=TransformResolveStatus.MissingTransform;
-            }
-
-            Matrix4x4 LocalWorld=TransformMath.ToMatrix(Local);
-            if(!GetParent(EntityId,out int ParentEntityId)){
-                this.WorldByEntity.Add(EntityId,World=LocalWorld);
-                return TransformResolveStatus.Success;
-            }
-
-            TransformResolveStatus ParentStatus=this.Resolve(
-                ParentEntityId,GetTransform,GetParent,out Matrix4x4 ParentWorld);
-            if(ParentStatus!=TransformResolveStatus.Success){
-                World=default;
-                return this.StatusByEntity[EntityId]=ParentStatus==TransformResolveStatus.MissingTransform
-                    ?TransformResolveStatus.DeadParent
-                    :ParentStatus;
-            }
-
-            this.WorldByEntity.Add(EntityId,World=TransformMath.ToWorld(Local,ParentWorld));
-            return TransformResolveStatus.Success;
-        } finally {
-            this.Resolving.Remove(EntityId);
-        }
-    }
-}

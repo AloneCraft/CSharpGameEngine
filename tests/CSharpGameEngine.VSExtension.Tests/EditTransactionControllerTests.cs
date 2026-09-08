@@ -47,6 +47,25 @@ public sealed class EditTransactionControllerTests {
     }
 
     [Fact]
+    public void RepeatedPreviewUpdates_CreateOneCommitContainingOnlyTheFinalValue(){
+        var Snapshot=CreateSnapshot(DocumentVersion:4);
+        SceneTransformTarget Target=new(new EditorNodeId(2),NodePath.Root.Append(0),
+            Matrix4x4.Identity,Matrix4x4.Identity);
+        EditTransactionController Controller=new();
+        Controller.Begin(Snapshot,[Target]);
+
+        Controller.PreviewTranslation(new Vector3(1f,0f,0f));
+        Controller.PreviewTranslation(new Vector3(2f,0f,0f));
+        Controller.PreviewTranslation(new Vector3(3f,0f,0f));
+
+        Assert.True(Controller.TryCreateCommit("Move Cube",out var Request));
+        SceneTransformChange Change=Assert.Single(Request!.Changes);
+        Assert.Equal(3f,Change.Local.Position.X,4);
+        Assert.Throws<InvalidOperationException>(()=>
+            Controller.TryCreateCommit("Move Cube again",out _));
+    }
+
+    [Fact]
     public void QueueSnapshot_DuringDrag_KeepsOnlyTheLatestSnapshot(){
         var First=CreateSnapshot(DocumentVersion:1);
         var Second=CreateSnapshot(DocumentVersion:2);

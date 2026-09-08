@@ -7,8 +7,8 @@ namespace CSharpGameEngine.Runtime.Physics;
 [SystemOrder(10_000)]
 [ExecuteInEditor(Realtime=true)]
 internal struct PhysicsSyncBegin:IWorldSystem {
-    public bool Update(ref State State){
-        State.World.BeginPhysicsSynchronization();
+    public bool Update(EngineHost Host,ref State State){
+        Host.ActivePhysicsDomain.BeginSynchronization();
         return true;
     }
 }
@@ -21,70 +21,65 @@ internal struct PhysicsBodySync:ISystem {
     public void Spawn(ref PhysicsRotation Rotation){}
     public void Spawn(ref PhysicsStableId StableId){}
 
-    public bool Update(Entity Entity,ref Transform Transform,ref Collider Collider,ref State State){
-        if(State.World.TryGetComponent(Entity,out RigidBody _)){ return true; }
-        if(!TryPosition(Transform.Position,out PhysicsVector3 Position)){
-            State.World.ReportPhysicsSyncFailure(Entity,PhysicsFaultType.NumericOverflow);
+    public bool Update(Entity Entity,ref Transform Transform,ref Collider Collider,EngineHost Host,ref State State){
+        PhysicsDomainRuntime Domain=Host.ActivePhysicsDomain;
+        if(Transform.Frame!=Host.PhysicsFrame){
+            Domain.ReportSyncFailure(Entity,PhysicsFaultType.ReferenceFrameMismatch);
             return true;
         }
+        if(State.World.TryGetComponent(Entity,out RigidBody _)){ return true; }
+        var Position=Transform.Position;
         PhysicsBodyDescription Description=new(
-            Entity,State.World.ResolvePhysicsStableId(Entity),Collider,null,
+            Entity,PhysicsDomainRuntime.ResolveStableId(Entity,State.World),Collider,null,
             Position,ResolveRotation(Entity,ref State),PhysicsVelocity.Zero);
-        State.World.ApplyPhysicsBody(Description);
+        Domain.ApplyBody(Description);
         return true;
     }
 
-    public bool Update(Entity Entity,ref Transform Transform,ref Collider Collider,ref RigidBody RigidBody,ref State State){
+    public bool Update(Entity Entity,ref Transform Transform,ref Collider Collider,ref RigidBody RigidBody,EngineHost Host,ref State State){
+        PhysicsDomainRuntime Domain=Host.ActivePhysicsDomain;
+        if(Transform.Frame!=Host.PhysicsFrame){
+            Domain.ReportSyncFailure(Entity,PhysicsFaultType.ReferenceFrameMismatch);
+            return true;
+        }
         if(RigidBody.MotionType==PhysicsMotionType.Dynamic&&State.World.TryGetComponent(Entity,out Parent Parent)&&State.World.IsAlive(Parent.Value)){
-            State.World.ReportPhysicsSyncFailure(Entity,PhysicsFaultType.InvalidHierarchy);
+            Domain.ReportSyncFailure(Entity,PhysicsFaultType.InvalidHierarchy);
             return true;
         }
-        if(Transform.Scale!=Logical.Vector3.One){
-            State.World.ReportPhysicsSyncFailure(Entity,PhysicsFaultType.InvalidScale);
+        if(Transform.Scale!=LogicalVector3.One){
+            Domain.ReportSyncFailure(Entity,PhysicsFaultType.InvalidScale);
             return true;
         }
-        if(!TryPosition(Transform.Position,out PhysicsVector3 Position)){
-            State.World.ReportPhysicsSyncFailure(Entity,PhysicsFaultType.NumericOverflow);
-            return true;
-        }
+        var Position=Transform.Position;
         State.World.TryGetComponent(Entity,out PhysicsVelocity Velocity);
         PhysicsBodyDescription Description=new(
-            Entity,State.World.ResolvePhysicsStableId(Entity),Collider,RigidBody,
+            Entity,PhysicsDomainRuntime.ResolveStableId(Entity,State.World),Collider,RigidBody,
             Position,ResolveRotation(Entity,ref State),Velocity);
-        State.World.ApplyPhysicsBody(Description);
+        Domain.ApplyBody(Description);
         return true;
     }
 
-    private static PhysicsQuaternion ResolveRotation(Entity Entity,ref State State)=>
-        State.World.TryGetComponent(Entity,out PhysicsRotation Rotation)?Rotation.Value:PhysicsQuaternion.Identity;
+    private static LogicalQuaternion ResolveRotation(Entity Entity,ref State State)=>
+        State.World.TryGetComponent(Entity,out PhysicsRotation Rotation)?Rotation.Value:LogicalQuaternion.Identity;
 
-    private static bool TryPosition(Logical.Vector3 Position,out PhysicsVector3 Result){
-        Result=default;
-        if(!PhysicsScalar.TryFromLogical(Position.R,out PhysicsScalar R)
-            ||!PhysicsScalar.TryFromLogical(Position.U,out PhysicsScalar U)
-            ||!PhysicsScalar.TryFromLogical(Position.F,out PhysicsScalar F)){
-            return false;
-        }
-        Result=new PhysicsVector3(R,U,F);
-        return true;
-    }
 }
 
 [SystemPhase(SystemPhase.PhysicsSimulation)]
 [SystemOrder(10_002)]
 [ExecuteInEditor(Realtime=true)]
 internal struct PhysicsStep:IWorldSystem {
-    public bool Update(ref State State){
-        State.World.EndPhysicsSynchronization();
+    public bool Update(EngineHost Host,ref State State){
+        PhysicsDomainRuntime Domain=Host.ActivePhysicsDomain;
+        Domain.EndSynchronization();
         PhysicsDebugHub.EnsureStarted();
-        PhysicsSimulationControl.Register(State.World.PhysicsWorldDebugId);
-        if(PhysicsSimulationControl.ConsumeReset(State.World.PhysicsWorldDebugId)){
-            State.World.MutablePhysicsWorld.Reset(State.FixedTick);
+        PhysicsSimulationControl.Register(Domain.DebugId);
+        if(PhysicsSimulationControl.ConsumeReset(Domain.DebugId)){
+            Domain.MutableWorld.Reset(State.FixedTick);
         }
-        if(PhysicsSimulationControl.ShouldStep(State.World.PhysicsWorldDebugId)){
-            State.World.MutablePhysicsWorld.Step(State.FixedTick);
+        if(PhysicsSimulationControl.ShouldStep(Domain.DebugId)){
+            if(!Domain.OwnsPlaybackTick(State.FixedTick)){ Domain.MutableWorld.Step(State.FixedTick); }
         }
-        PhysicsDebugHub.PublishIfRequested(State.World.PhysicsWorldDebugId,State.World.MutablePhysicsWorld,State.FixedTick);
+        PhysicsDebugHub.PublishIfRequested(Domain.DebugId,Domain.MutableWorld,State.FixedTick);
         return true;
     }
 }
@@ -93,18 +88,16 @@ internal struct PhysicsStep:IWorldSystem {
 [SystemOrder(10_003)]
 [ExecuteInEditor(Realtime=true)]
 internal struct PhysicsTransformWriteback:ISystem {
-    public bool Update(Entity Entity,ref Transform Transform,ref RigidBody RigidBody,ref State State){
-        if(!State.World.GlobalPhysicsWorld.TryGetBodyState(Entity,out PhysicsBodyState Body)
+    public bool Update(
+        Entity Entity,ref Transform Transform,ref RigidBody RigidBody,ref PhysicsRotation Rotation,
+        EngineHost Host,ref State State){
+        if(Transform.Frame!=Host.PhysicsFrame){ return true; }
+        if(!Host.PhysicsWorld.TryGetBodyState(Entity,out PhysicsBodyState Body)
             ||Body.MotionType is not (PhysicsMotionType.Dynamic or PhysicsMotionType.Kinematic)){
             return true;
         }
-        if(!Body.Position.R.TryToLogical(out Logical.Scalar R)
-            ||!Body.Position.U.TryToLogical(out Logical.Scalar U)
-            ||!Body.Position.F.TryToLogical(out Logical.Scalar F)){
-            State.World.ReportPhysicsSyncFailure(Entity,PhysicsFaultType.NumericOverflow);
-            return true;
-        }
-        Transform.Position=new Logical.Vector3(R,U,F);
+        Transform.Position=Body.Position;
+        Rotation.Value=Body.Rotation;
         return true;
     }
 }

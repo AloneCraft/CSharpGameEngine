@@ -40,7 +40,26 @@ internal static class SceneSaveVerification {
         SceneModel Expected,
         string ClassFullyQualifiedName,
         CancellationToken CancellationToken,
+        out string?ErrorMessage)=>
+        TryVerifyAndAnalyze(
+            EditedRoot,OriginalRoot,OriginalCompilation,Expected,ClassFullyQualifiedName,
+            CancellationToken,out _,out ErrorMessage);
+
+    /// <summary>
+    /// Verifies the edit and returns the model re-derived from the edited C# tree. Callers that
+    /// publish a predicted snapshot must use this canonical model rather than retaining the
+    /// separately mutated verification model.
+    /// </summary>
+    internal static bool TryVerifyAndAnalyze(
+        SyntaxNode EditedRoot,
+        SyntaxNode OriginalRoot,
+        Compilation OriginalCompilation,
+        SceneModel Expected,
+        string ClassFullyQualifiedName,
+        CancellationToken CancellationToken,
+        out SceneModel?Actual,
         out string?ErrorMessage){
+        Actual=null;
         ErrorMessage=null;
 
         var EditedTree=CSharpSyntaxTree.Create(
@@ -68,7 +87,7 @@ internal static class SceneSaveVerification {
             return false;
         }
 
-        var Actual=SceneDeclarationAnalyzer.Analyze(Type,Reanalyzed,CancellationToken);
+        Actual=SceneDeclarationAnalyzer.Analyze(Type,Reanalyzed,CancellationToken);
         if(Actual.HasErrors||Actual.Root is null){
             ErrorMessage=VsixText.Get("SaveVerificationAnalysisErrors");
             return false;

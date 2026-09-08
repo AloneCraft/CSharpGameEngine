@@ -10,9 +10,17 @@
     <PackageReference Include="TerraFX.Interop.Windows" Version="10.0.26100.6" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="../CSharpGameEngine.Audio/CSharpGameEngine.Audio.csproj" />
+    <ProjectReference Include="../CSharpGameEngine.Contracts/CSharpGameEngine.Contracts.csproj" />
     <ProjectReference Include="../CSharpGameEngine.Core/CSharpGameEngine.Core.csproj" />
+    <ProjectReference Include="../CSharpGameEngine.Rendering/CSharpGameEngine.Rendering.csproj" />
     <ProjectReference Include="../CSharpGameEngine.ShaderArtifacts/CSharpGameEngine.ShaderArtifacts.csproj" />
     <Compile Include="../CSharpGameEngine.Entities/SceneComponentIconAttribute.cs" Link="Entities/SceneComponentIconAttribute.cs" />
     <Compile Include="../CSharpGameEngine.Entities/SceneComponentOrderAttribute.cs" Link="Entities/SceneComponentOrderAttribute.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>CSharpGameEngine.Windows.Tests</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 </Project>

@@ -9,14 +9,14 @@ namespace UserEcsProject.Showcase;
 file sealed class Order;
 [SystemPhase(SystemPhase.FrameInput)]
 internal struct ShowcaseControls:ISystem {
-    public bool Update(ref AppHostRuntime AppRuntime,ref EngineShowcaseRuntime Runtime,ref State State){
+    public bool Update(ref AppHostRuntime AppRuntime,ref EngineShowcaseRuntime Runtime,EngineHost Host,ref State State){
         var Session=Runtime.Session??=new ShowcaseSession();
         if(!Session.InputConfigured){
-            AppRuntime.Input=ShowcaseInput.CreateServer();
+            Host.SetInput(ShowcaseInput.CreateServer());
             Session.InputConfigured=true;
             return true;
         }
-        if(AppRuntime.Input is not { }Input){ return true; }
+        InputServer Input=Host.Input;
         foreach(var Action in Input.CurrentFrame.Where(static Action=>Action.Phase==InputActionPhase.Started)){
             if(Action.ActionId==ShowcaseInput.EcsPage){ this.SelectPage(Session,1,State.FixedTick); }
             else if(Action.ActionId==ShowcaseInput.RenderingPage){ this.SelectPage(Session,2,State.FixedTick); }
@@ -72,8 +72,8 @@ internal struct ShowcaseFixedMotion:ISystem {
         var Phase=(int)((State.FixedTick+(ulong)Math.Max(0,Motion.PhaseTicks))%(ulong)Period);
         var Triangle=Phase<=Half?Phase:Period-Phase;
         var CenteredMillimeters=((Triangle*2-Half)*Motion.AmplitudeMillimeters)/Math.Max(1,Half);
-        Transform.Position=new Logical.Vector3(
-            Motion.BaseX+CenteredMillimeters/1000.0,Motion.BaseY,Motion.BaseZ);
+        Transform.Position=new LogicalVector3(
+            Motion.BaseX+LogicalScalar.FromInt64(CenteredMillimeters)/1000,Motion.BaseY,Motion.BaseZ);
         return true;
     }
 }
@@ -81,15 +81,15 @@ internal struct ShowcaseFixedMotion:ISystem {
 internal struct ShowcaseDashboard:ISystem {
     public bool Update(
         ref AppHostRuntime AppRuntime,ref LevelRuntime LevelRuntime,
-        ref EngineShowcaseRuntime Runtime,ref State State){
-        if(AppRuntime.Window is not { }Window){ return true; }
+        ref EngineShowcaseRuntime Runtime,EngineHost Host,ref State State){
+        if(Host.Window is not { }Window){ return true; }
         var Session=Runtime.Session??=new ShowcaseSession();
         Session.Locale=ResolveLocale();
         Session.Manifest??=ShowcaseManifest.Load(Path.Combine(AppContext.BaseDirectory,"Showcase","feature-progress.json"));
         Session.Panel??=new Win32DashboardPanel(Window.Handle);
         Session.Panel.Resize();
         if(Session.Panel.Visible!=Session.PanelVisible){ Session.Panel.SetVisible(Session.PanelVisible); }
-        Session.Panel.Update(BuildDocument(Session,LevelRuntime,State));
+        Session.Panel.Update(BuildDocument(Session,LevelRuntime,Host,State));
         var EvidenceDirectory=Environment.GetEnvironmentVariable("CGE_SHOWCASE_EVIDENCE_DIR");
         if(!string.IsNullOrWhiteSpace(EvidenceDirectory)){
             var Request=Path.Combine(EvidenceDirectory,"dashboard-capture.request");
@@ -104,7 +104,7 @@ internal struct ShowcaseDashboard:ISystem {
         Runtime.Session?.Dispose();
         Runtime.Session=null;
     }
-    private static DashboardDocument BuildDocument(ShowcaseSession Session,LevelRuntime LevelRuntime,State State){
+    private static DashboardDocument BuildDocument(ShowcaseSession Session,LevelRuntime LevelRuntime,EngineHost Host,State State){
         var Japanese=Session.Locale=="ja-JP";
         var Statistics=State.World.GetStatistics();
         var Playback=State.PlaybackState==SimulationPlaybackState.Running?"running":"paused";
@@ -128,9 +128,9 @@ internal struct ShowcaseDashboard:ISystem {
             Lines.Add(new DashboardLine(Japanese?"保留構造変更":"Pending changes",(Statistics.PendingDestroyCount+Statistics.PendingSceneUnloadCount).ToString(CultureInfo.InvariantCulture)));
             Lines.Add(new DashboardLine(Japanese?"動作波形":"Motion wave","integer triangle / 60 Hz"));
         } else if(Session.Page==2){
-            var Renderer=LevelRuntime.Renderer;
-            var Hash=Renderer?.ShaderSemanticHash??string.Empty;
-            Lines.Add(new DashboardLine("Shader artifact",Renderer?.ShaderArtifactLoaded==true?"verified":"loading"));
+            var Renderer=Host.Renderer;
+            var Hash=LevelRuntime.ShaderSemanticHash??string.Empty;
+            Lines.Add(new DashboardLine("Shader artifact",LevelRuntime.ShaderArtifactLoaded?"verified":"loading"));
             Lines.Add(new DashboardLine("Semantic hash",Hash.Length>12?Hash[..12]:Hash));
             Lines.Add(new DashboardLine("Hot reload",CSharpGameEngine.Graphics.D3D12.StageRenderer.ShaderHotReloadEnabled?"enabled":"release/off"));
             Lines.Add(new DashboardLine(Japanese?"診断":"Diagnostics",(Renderer?.ShaderArtifactDiagnostics.Count??0).ToString(CultureInfo.InvariantCulture)));

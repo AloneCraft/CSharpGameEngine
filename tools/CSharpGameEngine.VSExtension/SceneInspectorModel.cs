@@ -13,13 +13,14 @@ internal enum InspectorEditorKind {
     Number,
     Boolean,
     Enum,
+    AssetReference,
     Text,
     ReadOnly,
 }
 
 /// <summary>Enum候補1件。表示名と、commit時にそのままC#式として書き込める完全修飾参照を持つ。</summary>
-internal readonly struct InspectorEnumCandidate {
-    internal InspectorEnumCandidate(string Name,string EmitExpression){
+internal readonly struct InspectorChoiceCandidate {
+    internal InspectorChoiceCandidate(string Name,string EmitExpression){
         this.Name=Name;
         this.EmitExpression=EmitExpression;
     }
@@ -34,7 +35,7 @@ internal sealed class SceneInspectorMember {
     internal SceneInspectorMember(
         EditorNodeId NodeId,string ComponentTypeFullyQualifiedName,string MemberName,string SourceExpression,
         bool IsEditable,InspectorEditorKind EditorKind,object?ConstantValue,SpecialType?NumericType,
-        IReadOnlyList<InspectorEnumCandidate>EnumCandidates,
+        IReadOnlyList<InspectorChoiceCandidate>Candidates,
         IReadOnlyList<string>?DefinitionMemberPath=null){
         this.NodeId=NodeId;
         this.ComponentTypeFullyQualifiedName=ComponentTypeFullyQualifiedName;
@@ -44,7 +45,7 @@ internal sealed class SceneInspectorMember {
         this.EditorKind=EditorKind;
         this.ConstantValue=ConstantValue;
         this.NumericType=NumericType;
-        this.EnumCandidates=EnumCandidates;
+        this.Candidates=Candidates;
         this.DefinitionMemberPath=DefinitionMemberPath is null||DefinitionMemberPath.Count==0
             ?[MemberName]
             :DefinitionMemberPath;
@@ -69,8 +70,8 @@ internal sealed class SceneInspectorMember {
     /// <see cref="SceneInspectorValueFormat.TryFormatNumber"/>へ渡す対象CLR型。</summary>
     internal SpecialType?NumericType { get; }
 
-    /// <summary><see cref="InspectorEditorKind.Enum"/>のときだけ非空。</summary>
-    internal IReadOnlyList<InspectorEnumCandidate>EnumCandidates { get; }
+    /// <summary><see cref="InspectorEditorKind.Enum"/>または<see cref="InspectorEditorKind.AssetReference"/>の候補。</summary>
+    internal IReadOnlyList<InspectorChoiceCandidate>Candidates { get; }
 
     internal IReadOnlyList<string>DefinitionMemberPath { get; }
 }
@@ -258,17 +259,31 @@ internal static class SceneInspectorModelBuilder {
             return Nested;
         }
 
-        var Kind=AllowEdit?DetermineEditorKind(Member.Value):InspectorEditorKind.ReadOnly;
+        ITypeSymbol?DeclaredType=Member.MemberSymbol switch {
+            IFieldSymbol Field=>Field.Type,
+            IPropertySymbol Property=>Property.Type,
+            _=>Member.Value.Type,
+        };
+        var Kind=AllowEdit?DetermineEditorKind(Member.Value,DeclaredType):InspectorEditorKind.ReadOnly;
+        IReadOnlyList<InspectorChoiceCandidate>Candidates=Kind switch {
+            InspectorEditorKind.Enum=>EnumerateEnumCandidates(DeclaredType),
+            InspectorEditorKind.AssetReference=>EnumerateAssetCandidates(Member.Value,DeclaredType),
+            _=>[],
+        };
+        bool IsEditable=AllowEdit&&Kind!=InspectorEditorKind.ReadOnly
+            &&(Kind is InspectorEditorKind.Enum or InspectorEditorKind.AssetReference
+            ?Candidates.Count>0
+            :Member.Value.IsEditable);
         return new SceneInspectorMemberRow(new SceneInspectorMember(
             NodeId,
             ComponentTypeFullyQualifiedName,
             Member.MemberName,
             Member.Value.SourceExpressionText,
-            AllowEdit&&Member.Value.IsEditable,
+            IsEditable,
             Kind,
             Member.Value.ConstantValue,
-            Kind==InspectorEditorKind.Number?Member.Value.Type?.SpecialType:null,
-            EnumerateEnumCandidates(Member.Value.Type),
+            Kind==InspectorEditorKind.Number?DeclaredType?.SpecialType:null,
+            Candidates,
             [..ParentPath,Member.MemberName]));
     }
 
@@ -337,40 +352,58 @@ internal static class SceneInspectorModelBuilder {
     /// <see cref="SceneValue.IsEditable"/>で既に確定しているので、残りの編集可能種別(Literal/
     /// EnumMember/Default)をCLR型からUIの入力コントロールへ振り分けるだけでよい。
     /// </summary>
-    private static InspectorEditorKind DetermineEditorKind(SceneValue Value){
+    private static InspectorEditorKind DetermineEditorKind(SceneValue Value,ITypeSymbol?DeclaredType){
+        if(Value.Kind==SceneValueKind.StaticMemberRef&&Value.ReferencedSymbol?.ContainingType is not null){
+            return InspectorEditorKind.AssetReference;
+        }
         if(!Value.IsEditable){
             return InspectorEditorKind.ReadOnly;
         }
-        if(Value.Type is { TypeKind:TypeKind.Enum }){
+        if(DeclaredType is { TypeKind:TypeKind.Enum }){
             return InspectorEditorKind.Enum;
         }
 
-        return Value.Type?.SpecialType switch {
+        return DeclaredType?.SpecialType switch {
             SpecialType.System_Boolean=>InspectorEditorKind.Boolean,
             SpecialType.System_String=>InspectorEditorKind.Text,
             SpecialType.System_SByte or SpecialType.System_Byte
                 or SpecialType.System_Int16 or SpecialType.System_UInt16
                 or SpecialType.System_Int32 or SpecialType.System_UInt32
                 or SpecialType.System_Int64 or SpecialType.System_UInt64
-                or SpecialType.System_Single or SpecialType.System_Double
-                or SpecialType.System_Decimal=>InspectorEditorKind.Number,
+                or SpecialType.System_Single=>InspectorEditorKind.Number,
             _=>InspectorEditorKind.ReadOnly,
         };
     }
 
-    private static IReadOnlyList<InspectorEnumCandidate>EnumerateEnumCandidates(ITypeSymbol?Type){
+    private static IReadOnlyList<InspectorChoiceCandidate>EnumerateEnumCandidates(ITypeSymbol?Type){
         if(Type is not { TypeKind:TypeKind.Enum }){
             return [];
         }
 
-        List<InspectorEnumCandidate>Candidates=[];
+        List<InspectorChoiceCandidate>Candidates=[];
         foreach(var Member in Type.GetMembers()){
             if(Member is IFieldSymbol { IsConst:true }Field){
-                Candidates.Add(new InspectorEnumCandidate(Field.Name,SceneEmitExpressionWriter.WriteSymbolReference(Field)));
+                Candidates.Add(new InspectorChoiceCandidate(Field.Name,SceneEmitExpressionWriter.WriteSymbolReference(Field)));
             }
         }
 
         return Candidates;
+    }
+
+    private static IReadOnlyList<InspectorChoiceCandidate>EnumerateAssetCandidates(
+        SceneValue Value,ITypeSymbol?DeclaredType){
+        if(Value.ReferencedSymbol?.ContainingType is not { }Container||DeclaredType is null){ return []; }
+        List<InspectorChoiceCandidate>Candidates=[];
+        foreach(var Symbol in Container.GetMembers()){
+            ITypeSymbol?CandidateType=Symbol switch {
+                IFieldSymbol { IsStatic:true }Field when Field.IsConst||Field.IsReadOnly=>Field.Type,
+                IPropertySymbol { IsStatic:true,GetMethod:not null,SetMethod:null }Property=>Property.Type,
+                _=>null,
+            };
+            if(CandidateType is null||!SymbolEqualityComparer.Default.Equals(CandidateType,DeclaredType)){ continue; }
+            Candidates.Add(new InspectorChoiceCandidate(Symbol.Name,SceneEmitExpressionWriter.WriteSymbolReference(Symbol)));
+        }
+        return Candidates.OrderBy(static Candidate=>Candidate.Name,StringComparer.Ordinal).ToArray();
     }
 }
 
@@ -389,20 +422,6 @@ internal static class SceneInspectorValueFormat {
                     return false;
                 }
                 Expression=SingleValue.ToString("R",CultureInfo.InvariantCulture)+"f";
-                return true;
-            case SpecialType.System_Double:
-                if(!double.TryParse(Text,NumberStyles.Float,CultureInfo.InvariantCulture,out var DoubleValue)){
-                    Expression=string.Empty;
-                    return false;
-                }
-                Expression=DoubleValue.ToString("R",CultureInfo.InvariantCulture)+"d";
-                return true;
-            case SpecialType.System_Decimal:
-                if(!decimal.TryParse(Text,NumberStyles.Float,CultureInfo.InvariantCulture,out var DecimalValue)){
-                    Expression=string.Empty;
-                    return false;
-                }
-                Expression=DecimalValue.ToString(CultureInfo.InvariantCulture)+"m";
                 return true;
             case SpecialType.System_Int64:
                 if(!long.TryParse(Text,NumberStyles.Integer,CultureInfo.InvariantCulture,out var Int64Value)){
@@ -498,5 +517,31 @@ internal static class SceneInspectorCommitPlanner {
             SceneKey,DocumentVersion,$"Edit {Member.MemberName}",
             Array.Empty<SceneTransformChange>(),SceneTransformMemberMask.None,
             DirectOperations:[Operation]);
+    }
+
+    internal static bool TryCreateChoiceCommit(
+        SceneKey SceneKey,long DocumentVersion,SceneInspectorMember Member,string SelectedName,
+        out SceneEditCommitRequest Request){
+        Request=null!;
+        if(Member.EditorKind is not(InspectorEditorKind.Enum or InspectorEditorKind.AssetReference)){ return false; }
+        if(IsCurrentChoice(Member,SelectedName)){ return false; }
+        foreach(var Candidate in Member.Candidates){
+            if(!string.Equals(Candidate.Name,SelectedName,StringComparison.Ordinal)){ continue; }
+            Request=CreateCommit(SceneKey,DocumentVersion,Member,Candidate.EmitExpression);
+            return true;
+        }
+        return false;
+    }
+
+    internal static bool IsCurrentChoice(SceneInspectorMember Member,string SelectedName){
+        return string.Equals(GetCurrentChoiceName(Member.SourceExpression),SelectedName,StringComparison.Ordinal);
+    }
+
+    internal static string GetCurrentChoiceName(string SourceExpression){
+        string Expression=SourceExpression.Trim();
+        int Separator=Expression.LastIndexOf('.');
+        string CurrentName=Separator>=0?Expression.Substring(Separator+1):Expression;
+        if(CurrentName.StartsWith("@",StringComparison.Ordinal)){ CurrentName=CurrentName.Substring(1); }
+        return CurrentName;
     }
 }

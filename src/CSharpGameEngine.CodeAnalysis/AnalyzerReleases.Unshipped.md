@@ -32,6 +32,10 @@ SYSGEN025 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SYSGEN026 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SYSGEN027 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SYSGEN028 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
+SYSGEN029 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
+SYSGEN030 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
+SYSGEN031 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
+SYSGEN032 | CSharpGameEngine.Entities.CodeGen | Error | GameSystemDiagnostics
 SCENE100 | CSharpGameEngine.Entities.CodeGen | Error | SceneDslDiagnostics
 SCENE101 | CSharpGameEngine.Entities.CodeGen | Error | SceneDslDiagnostics
 SCENE102 | CSharpGameEngine.Entities.CodeGen | Error | SceneDslDiagnostics
@@ -53,3 +57,4 @@ SCENE117 | CSharpGameEngine.Entities.CodeGen | Error | SceneDslDiagnostics
 SCENE118 | CSharpGameEngine.Entities.CodeGen | Error | SceneDslDiagnostics
 SCENE119 | CSharpGameEngine.Entities.CodeGen | Error | SceneDslDiagnostics
 LGT001 | CSharpGameEngine.Lighting | Error | LightApiMigrationDiagnostics
+NUM001 | CSharpGameEngine.Numerics | Error | CanonicalNumericDiagnostics

@@ -48,6 +48,9 @@ internal static class SceneAnalysisTestHelper {
 
     internal static readonly string SceneNodeTagSource=ReadTestAsset("Entities","SceneNodeTag.cs");
 
+    internal static readonly string SnapshotTransientAttributeSource=
+        ReadTestAsset("Entities","EcsSnapshotTransientAttribute.cs");
+
     internal static readonly string RuntimeComponentSource=ReadTestAsset("Entities","IRuntimeComponent.cs");
 
     internal static readonly string StartupSceneAttributeSource=ReadTestAsset("Entities","StartupSceneAttribute.cs");
@@ -97,6 +100,7 @@ internal static class SceneAnalysisTestHelper {
             NodeSource,
             ParentSource,
             SceneNodeTagSource,
+            SnapshotTransientAttributeSource,
             RuntimeComponentSource,
             StartupSceneAttributeSource,
             SceneFactoryAttributeSource,

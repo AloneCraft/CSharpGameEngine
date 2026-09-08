@@ -91,10 +91,6 @@ internal static class SceneEmitExpressionWriter {
                 return SymbolDisplay.FormatLiteral(CharValue,quote:true);
             case float FloatValue:
                 return WriteSingle(FloatValue);
-            case double DoubleValue:
-                return WriteDouble(DoubleValue);
-            case decimal DecimalValue:
-                return DecimalValue.ToString(CultureInfo.InvariantCulture)+"m";
             case long LongValue:
                 return LongValue.ToString(CultureInfo.InvariantCulture)+"L";
             case ulong UlongValue:
@@ -132,19 +128,4 @@ internal static class SceneEmitExpressionWriter {
         return Value.ToString("G9",CultureInfo.InvariantCulture)+"f";
     }
 
-    private static string WriteDouble(double Value){
-        if(double.IsNaN(Value)){
-            return "global::System.Double.NaN";
-        }
-
-        if(double.IsPositiveInfinity(Value)){
-            return "global::System.Double.PositiveInfinity";
-        }
-
-        if(double.IsNegativeInfinity(Value)){
-            return "global::System.Double.NegativeInfinity";
-        }
-
-        return Value.ToString("G17",CultureInfo.InvariantCulture)+"d";
-    }
 }

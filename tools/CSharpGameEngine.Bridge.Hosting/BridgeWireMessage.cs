@@ -1,18 +1,7 @@
+using System.Buffers.Binary;
 using System.Text.Json;
 
 namespace CSharpGameEngine.Bridge.Hosting;
-
-/// <summary>Request shape for a resident bridge server (ADR-0023) - mirrors a one-shot bridge's <c>args[]</c>.</summary>
-public sealed class BridgeServerRequest {
-    public string[]Args { get; set;}=[];
-}
-
-/// <summary>Response shape for a resident bridge server (ADR-0023) - mirrors a one-shot bridge's exit code + combined stdout/stderr text.</summary>
-public sealed class BridgeServerResponse {
-    public int ExitCode { get; set;}
-
-    public string Output { get; set;}="";
-}
 
 /// <summary>
 /// Length-prefixed UTF-8 JSON framing shared by <see cref="BridgeServerHost"/> (the resident bridge
@@ -24,9 +13,15 @@ public sealed class BridgeServerResponse {
 /// <see cref="MemoryStream"/> without spawning a real pipe or process.
 /// </summary>
 public static class BridgeWireMessage {
+    public const int MaximumPayloadBytes=16*1024*1024;
+
     public static async Task WriteAsync<T>(Stream Stream,T Value,CancellationToken CancellationToken){
         var Payload=JsonSerializer.SerializeToUtf8Bytes(Value);
-        var LengthPrefix=BitConverter.GetBytes(Payload.Length);
+        if(Payload.Length<1||Payload.Length>MaximumPayloadBytes){
+            throw new InvalidDataException($"Bridge payload length {Payload.Length} is outside the supported range.");
+        }
+        var LengthPrefix=new byte[4];
+        BinaryPrimitives.WriteInt32LittleEndian(LengthPrefix,Payload.Length);
         await Stream.WriteAsync(LengthPrefix,CancellationToken);
         await Stream.WriteAsync(Payload,CancellationToken);
         await Stream.FlushAsync(CancellationToken);
@@ -35,7 +30,10 @@ public static class BridgeWireMessage {
     public static async Task<T>ReadAsync<T>(Stream Stream,CancellationToken CancellationToken){
         var LengthPrefix=new byte[4];
         await Stream.ReadExactlyAsync(LengthPrefix,CancellationToken);
-        var Length=BitConverter.ToInt32(LengthPrefix,0);
+        var Length=BinaryPrimitives.ReadInt32LittleEndian(LengthPrefix);
+        if(Length<1||Length>MaximumPayloadBytes){
+            throw new InvalidDataException($"Bridge payload length {Length} is outside the supported range.");
+        }
 
         var Payload=new byte[Length];
         await Stream.ReadExactlyAsync(Payload,CancellationToken);

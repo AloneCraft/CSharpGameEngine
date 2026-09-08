@@ -10,6 +10,22 @@ dotnet restore
 dotnet build
 ```
 
+## Visual Studio VSIX
+
+`CSharpGameEngine.VSExtension`を最新のビルドで起動するには、先に`CgeFixed`実験インスタンスをすべて閉じてから、リポジトリ直下のPowerShellで次を実行します。
+
+```powershell
+.\tools\Start-CSharpGameEngine-Vsix.ps1
+```
+
+このスクリプトはVisual Studio付属のMSBuildでVSIXをDebug/x64構成で再ビルドし、`CgeFixed`へインストールしてから`UserEcsProject.slnx`を開きます。実行ポリシーでブロックされる場合のみ、次を使用します。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\Start-CSharpGameEngine-Vsix.ps1
+```
+
+Visual StudioからF5を実行する場合も、起動構成は`CSharpGameEngine.VSExtension`、ソリューション構成は`Debug|x64`を選択します。BAML生成エラーが表示された場合は、プロジェクトを再ビルドしてからF5を再実行します。
+
 ## Test
 ```bash
 dotnet test

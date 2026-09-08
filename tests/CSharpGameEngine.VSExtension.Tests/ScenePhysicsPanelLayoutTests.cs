@@ -23,4 +23,22 @@ public sealed class ScenePhysicsPanelLayoutTests {
         Assert.Contains("ReadShowPhysicsPanel",Code,StringComparison.Ordinal);
         Assert.Contains("WriteShowPhysicsPanel",Code,StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void PhysicsPanelExposesRealBakeAndProtocolV2DebugOptions(){
+        string Root=VsixBuildIdentity.RepoRoot;
+        string Xaml=File.ReadAllText(Path.Combine(Root,"tools","CSharpGameEngine.VSExtension","SceneDesignerToolWindowControl.xaml"));
+        string Code=File.ReadAllText(Path.Combine(Root,"tools","CSharpGameEngine.VSExtension","SceneDesignerToolWindowControl.xaml.cs"));
+
+        Assert.Contains("x:Name=\"PhysicsBakeSelectedButton\"",Xaml,StringComparison.Ordinal);
+        Assert.Contains("Click=\"OnPhysicsBakeSelected\"",Xaml,StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"PhysicsBakeAllButton\"",Xaml,StringComparison.Ordinal);
+        Assert.Contains("Click=\"OnPhysicsBakeAll\"",Xaml,StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"PhysicsContactsToggle\"",Xaml,StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"PhysicsTreeToggle\"",Xaml,StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"PhysicsBondsToggle\"",Xaml,StringComparison.Ordinal);
+        Assert.Contains("PhysicsSceneBakeService.Bake",Code,StringComparison.Ordinal);
+        Assert.Contains("PrepareForBakeAsync(Entries,Cancellation.Token)",Code,StringComparison.Ordinal);
+        Assert.DoesNotContain("PhysicsBakeSelectedDeferredToolTip}\"",Xaml,StringComparison.Ordinal);
+    }
 }

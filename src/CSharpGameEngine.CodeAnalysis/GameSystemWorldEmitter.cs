@@ -20,9 +20,14 @@ internal static class GameSystemWorldEmitter {
             // Archetypeが無い = Entityも作れないので、破棄は本当に何もしない。
             Lines.Add("public partial struct World() {");
             Lines.Add("    public void Destroy(Entity Entity) {");
+            Lines.Add("        this.AssertDirectStructuralMutationAllowed();");
             Lines.Add("    }");
             Lines.Add("    public void PlaybackStructuralChanges(ref State State) {");
-            Lines.Add("        this.PlaybackSceneCommands();");
+            Lines.Add("        for (int Index = 0; Index < this.Commands.Count; Index++) {");
+            Lines.Add("            ref var Command = ref this.Commands.GetRefUnchecked(Index);");
+            Lines.Add("            this.PlaybackNonMoveStructuralCommand(in Command);");
+            Lines.Add("        }");
+            Lines.Add("        this.Commands.CompletePlayback();");
             Lines.Add("    }");
             Lines.Add("}");
             Context.AddSource(HintName,SourceText.From(string.Join("\n",Lines),Encoding.UTF8));
@@ -58,6 +63,7 @@ internal static class GameSystemWorldEmitter {
             Lines.AddRange(BuildTryGetComponentOverload(ComponentIndex,Registry));
         }
 
+        Lines.AddRange(BuildChangeTracking(Registry));
         Lines.AddRange(BuildDetach(Registry));
         Lines.AddRange(BuildDestroy());
 
@@ -69,6 +75,7 @@ internal static class GameSystemWorldEmitter {
 
         foreach(GameSystemArchetypeInfo Archetype in Registry.Archetypes){
             Lines.AddRange(BuildApplyMoveArchetype(Archetype,Registry));
+            Lines.AddRange(BuildApplyCreateArchetype(Archetype,Registry));
         }
 
         Lines.Add("}");
@@ -92,7 +99,20 @@ internal static class GameSystemWorldEmitter {
         List<(string TypeFullyQualifiedName,string FieldName)>Components=GameSystemTypesEmitter.BuildComponentFields(Archetype,Registry);
         var Parameters=string.Join(", ",Components.Select(C=> $"{C.TypeFullyQualifiedName} {C.FieldName}"));
         var Arguments=string.Join(", ",Components.Select(C=>C.FieldName));
-        return[$"    public Entity Create({Parameters}) {{", $"        return {Archetype.Name}.Create(ref this, {Arguments});","    }"];
+        return[
+            $"    public Entity Create({Parameters}) {{",
+            $"        return {Archetype.Name}.Create(ref this, {Arguments});",
+            "    }",
+            $"    public Entity CreateDeferred({Parameters}) {{",
+            "        Entity Entity = this.ReserveEntity();",
+            $"        int PayloadIndex = this.{Archetype.MoveCommandsFieldName}.Count;",
+            $"        this.{Archetype.MoveCommandsFieldName}.Add(new(Entity, {Arguments}));",
+            "        int MoveIndex = this.MoveCommands.Count;",
+            $"        this.MoveCommands.Add(new(Entity, Archetype.{Archetype.Name}, PayloadIndex));",
+            "        this.Commands.Create(MoveIndex);",
+            "        return Entity;",
+            "    }",
+        ];
     }
 
     private static List<string>BuildTryGetComponentOverload(int ComponentIndex,GameSystemRegistry Registry){
@@ -124,6 +144,112 @@ internal static class GameSystemWorldEmitter {
         return Lines;
     }
 
+    private static List<string>BuildChangeTracking(GameSystemRegistry Registry){
+        List<string>Lines=[
+            "    public bool IsEntityEnabled(Entity Entity) {",
+            "        if (!this.IsAlive(Entity)) return false;",
+            "        ref var Location = ref this.EntityArchetypeIndices.GetRefUnchecked(Entity.Id);",
+            "        return Location.Archetype switch {",
+        ];
+        foreach(GameSystemArchetypeInfo Archetype in Registry.Archetypes){
+            Lines.Add($"            Archetype.{Archetype.Name} => this.{Archetype.Name}.IsEntityEnabledUnchecked(Location.Index),");
+        }
+        Lines.Add("            _ => false,");
+        Lines.Add("        };");
+        Lines.Add("    }");
+        Lines.Add("    public bool SetEntityEnabled(Entity Entity, bool Enabled) {");
+        Lines.Add("        if (!this.IsAlive(Entity)) return false;");
+        Lines.Add("        ref var Location = ref this.EntityArchetypeIndices.GetRefUnchecked(Entity.Id);");
+        Lines.Add("        switch (Location.Archetype) {");
+        foreach(GameSystemArchetypeInfo Archetype in Registry.Archetypes){
+            Lines.Add($"            case Archetype.{Archetype.Name}: this.{Archetype.Name}.SetEntityEnabledUnchecked(Location.Index, Enabled); return true;");
+        }
+        Lines.Add("            default: return false;");
+        Lines.Add("        }");
+        Lines.Add("    }");
+        Lines.Add("    private void GetEffectiveEnableState(in EntityLocation Location, out bool EntityIsEnabled, out ulong Low"+(Registry.ComponentsByIndex.Length>64?", out ulong High":string.Empty)+") {");
+        Lines.Add("        switch (Location.Archetype) {");
+        foreach(GameSystemArchetypeInfo Archetype in Registry.Archetypes){
+            Lines.Add($"            case Archetype.{Archetype.Name}:");
+            Lines.Add($"                EntityIsEnabled = this.{Archetype.Name}.IsEntityEnabledUnchecked(Location.Index);");
+            Lines.Add($"                Low = this.{Archetype.Name}.GetComponentEnabledLowUnchecked(Location.Index) | ~0x{Archetype.MaskLow:X16}UL;");
+            if(Registry.ComponentsByIndex.Length>64){
+                Lines.Add($"                High = this.{Archetype.Name}.GetComponentEnabledHighUnchecked(Location.Index) | ~0x{Archetype.MaskHigh:X16}UL;");
+            }
+            Lines.Add("                return;");
+        }
+        Lines.Add("            default: throw new global::System.ArgumentOutOfRangeException(nameof(Location));");
+        Lines.Add("        }");
+        Lines.Add("    }");
+        Lines.Add("    public bool SetComponentEnabled(Entity Entity, EcsComponentType Component, bool Enabled) {");
+        Lines.Add("        if (!this.IsAlive(Entity)) return false;");
+        Lines.Add("        ref var Location = ref this.EntityArchetypeIndices.GetRefUnchecked(Entity.Id);");
+        Lines.Add("        switch (Component) {");
+        foreach(GameSystemComponentInfo Component in Registry.ComponentsByIndex){
+            Lines.Add($"            case EcsComponentType.{Component.FieldName}:");
+            Lines.Add("                switch (Location.Archetype) {");
+            foreach(GameSystemArchetypeInfo Archetype in Registry.Archetypes.Where(A=>A.ComponentIndices.Contains(Component.Index))){
+                Lines.Add($"                    case Archetype.{Archetype.Name}:");
+                Lines.Add($"                        if (this.{Archetype.Name}.Is{Component.FieldName}EnabledUnchecked(Location.Index) == Enabled) return true;");
+                Lines.Add($"                        this.{Archetype.Name}.Set{Component.FieldName}EnabledUnchecked(Location.Index, Enabled, this.AdvanceChangeVersion());");
+                Lines.Add("                        return true;");
+            }
+            Lines.Add("                    default: return false;");
+            Lines.Add("                }");
+        }
+        Lines.Add("            default: return false;");
+        Lines.Add("        }");
+        Lines.Add("    }");
+        Lines.Add("    public bool IsComponentEnabled(Entity Entity, EcsComponentType Component) {");
+        Lines.Add("        if (!this.IsAlive(Entity)) return false;");
+        Lines.Add("        ref var Location = ref this.EntityArchetypeIndices.GetRefUnchecked(Entity.Id);");
+        Lines.Add("        switch (Component) {");
+        foreach(GameSystemComponentInfo Component in Registry.ComponentsByIndex){
+            Lines.Add($"            case EcsComponentType.{Component.FieldName}:");
+            Lines.Add("                return Location.Archetype switch {");
+            foreach(GameSystemArchetypeInfo Archetype in Registry.Archetypes.Where(A=>A.ComponentIndices.Contains(Component.Index))){
+                Lines.Add($"                    Archetype.{Archetype.Name} => this.{Archetype.Name}.Is{Component.FieldName}EnabledUnchecked(Location.Index),");
+            }
+            Lines.Add("                    _ => false,");
+            Lines.Add("                };");
+        }
+        Lines.Add("            default: return false;");
+        Lines.Add("        }");
+        Lines.Add("    }");
+        Lines.Add("    public bool TryGetComponentChangeVersion(Entity Entity, EcsComponentType Component, out ChangeVersion Version) {");
+        Lines.Add("        Version = default;");
+        Lines.Add("        if (!this.IsAlive(Entity)) return false;");
+        Lines.Add("        ref var Location = ref this.EntityArchetypeIndices.GetRefUnchecked(Entity.Id);");
+        Lines.Add("        switch (Component) {");
+        foreach(GameSystemComponentInfo Component in Registry.ComponentsByIndex){
+            Lines.Add($"            case EcsComponentType.{Component.FieldName}:");
+            Lines.Add("                switch (Location.Archetype) {");
+            foreach(GameSystemArchetypeInfo Archetype in Registry.Archetypes.Where(A=>A.ComponentIndices.Contains(Component.Index))){
+                Lines.Add($"                    case Archetype.{Archetype.Name}: Version = this.{Archetype.Name}.Get{Component.FieldName}ChangeVersionUnchecked(Location.Index); return true;");
+            }
+            Lines.Add("                    default: return false;");
+            Lines.Add("                }");
+        }
+        Lines.Add("            default: return false;");
+        Lines.Add("        }");
+        Lines.Add("    }");
+        Lines.Add("    public int CollectChanged(EcsComponentType Component, ChangeVersion Since, global::System.Span<Entity> Destination) {");
+        Lines.Add("        switch (Component) {");
+        foreach(GameSystemComponentInfo Component in Registry.ComponentsByIndex){
+            Lines.Add($"            case EcsComponentType.{Component.FieldName}: {{");
+            Lines.Add("                var Written = 0;");
+            foreach(GameSystemArchetypeInfo Archetype in Registry.Archetypes.Where(A=>A.ComponentIndices.Contains(Component.Index))){
+                Lines.Add($"                Written += this.{Archetype.Name}.Collect{Component.FieldName}Changed(Since, Destination.Slice(Written));");
+            }
+            Lines.Add("                return Written;");
+            Lines.Add("            }");
+        }
+        Lines.Add("            default: return 0;");
+        Lines.Add("        }");
+        Lines.Add("    }");
+        return Lines;
+    }
+
     private static List<string>BuildDetach(GameSystemRegistry Registry){
         List<string>Lines=["    private void Detach(Entity Entity) {","        ref var EntityArchetypeIndex = ref this.EntityArchetypeIndices.GetRefUnchecked(Entity.Id);","        int Index = EntityArchetypeIndex.Index;","        switch (EntityArchetypeIndex.Archetype) {"];
 
@@ -145,22 +271,18 @@ internal static class GameSystemWorldEmitter {
     }
 
     /// <summary>
-    /// Entityの破棄(ADR-0040、案A: 墓石のみでIDは再利用しない)。SoA列からはswap-backで取り除き、
-    /// 位置表の行には<c>Archetype.None</c>の墓石を書く。そのIdは二度と再配布されないため、
-    /// 古いハンドルが別のEntityに化けることは構造的に起こらない。
+    /// Entityの破棄。SoA列からはswap-backで取り除き、位置表slotはGenerationを進めて
+    /// Worldのfree-listへ戻すため、古いハンドルは再利用後も一致しない。
     /// </summary>
     private static List<string>BuildDestroy(){
         return[
             "    public void Destroy(Entity Entity) {",
+            "        this.AssertDirectStructuralMutationAllowed();",
             "        if (!this.IsAlive(Entity)) {",
             "            return;",
             "        }",
             "        this.Detach(Entity);",
-            // Detachは「移動してきた側」の行を書き換えるため、refはここで取り直す。
-            "        ref var Row = ref this.EntityArchetypeIndices.GetRefUnchecked(Entity.Id);",
-            "        Row.Archetype = Archetype.None;",
-            "        Row.Index = -1;",
-            "        Row.SceneSlot = -1;",
+            "        this.ReleaseEntity(Entity);",
             "    }",
         ];
     }
@@ -169,20 +291,21 @@ internal static class GameSystemWorldEmitter {
         List<(string TypeFullyQualifiedName,string FieldName)>Components=GameSystemTypesEmitter.BuildComponentFields(Archetype,Registry);
         var Parameters=string.Join(", ",Components.Select(C=> $"{C.TypeFullyQualifiedName} {C.FieldName}"));
         var Arguments=string.Join(", ",new[]{ "Entity" }.Concat(Components.Select(C=>C.FieldName)));
-        return[$"    public bool MoveArchetype(Entity Entity, {Parameters}, ref State State) {{", $"        int PayloadIndex = this.{Archetype.MoveCommandsFieldName}.Count;", $"        this.{Archetype.MoveCommandsFieldName}.Add(new({Arguments}));", $"        this.MoveCommands.Add(new(Entity, Archetype.{Archetype.Name}, PayloadIndex));","        return true;","    }"];
+        return[$"    public bool MoveArchetype(Entity Entity, {Parameters}, ref State State) {{","        if (!this.IsAlive(Entity)) { return false; }",$"        int PayloadIndex = this.{Archetype.MoveCommandsFieldName}.Count;", $"        this.{Archetype.MoveCommandsFieldName}.Add(new({Arguments}));", $"        int MoveIndex = this.MoveCommands.Count;",$"        this.MoveCommands.Add(new(Entity, Archetype.{Archetype.Name}, PayloadIndex));","        this.Commands.Move(MoveIndex);","        return true;","    }"];
     }
 
     /// <summary>
-    /// フレーム末尾の唯一のプレイバックバリア。<b>Archetype移動を先に、破棄を後に</b>適用する —
-    /// 同一フレームで「移動してから破棄」したEntityに対して、破棄後の墓石行へ移動を適用してしまうのを
-    /// 防ぐため。破棄側(<c>PlaybackSceneCommands</c>)は手書きで、Archetypeを知らない。
+    /// フレーム末尾の唯一のプレイバックバリア。Create、Move、Destroy、Scene、Cell commandを
+    /// 一つのstreamに記録されたglobal enqueue orderで適用する。Destroy後のMoveは
+    /// <c>ApplyMove*</c>の世代付きliveness検証で安全に棄却される。
     /// </summary>
     private static List<string>BuildPlaybackMoveArchetypes(GameSystemRegistry Registry){
-        List<string>Lines=["    public void PlaybackStructuralChanges(ref State State) {","        for (int Index = 0; Index < this.MoveCommands.Count; Index++) {","            ref var Command = ref this.MoveCommands.GetRefUnchecked(Index);","            switch (Command.Destination) {"];
+        List<string>Lines=["    public void PlaybackStructuralChanges(ref State State) {","        for (int Index = 0; Index < this.Commands.Count; Index++) {","            ref var StructuralCommand = ref this.Commands.GetRefUnchecked(Index);","            if (StructuralCommand.Kind != EntityCommandKind.Move && StructuralCommand.Kind != EntityCommandKind.Create) {","                this.PlaybackNonMoveStructuralCommand(in StructuralCommand);","                continue;","            }","            ref var Command = ref this.MoveCommands.GetRefUnchecked(StructuralCommand.MoveIndex);","            switch (Command.Destination) {"];
 
         foreach(GameSystemArchetypeInfo Archetype in Registry.Archetypes){
             Lines.Add($"                case Archetype.{Archetype.Name}:");
-            Lines.Add($"                    this.ApplyMove{Archetype.Name}(in this.{Archetype.MoveCommandsFieldName}.GetRefUnchecked(Command.PayloadIndex));");
+            Lines.Add($"                    if (StructuralCommand.Kind == EntityCommandKind.Create) this.ApplyCreate{Archetype.Name}(in this.{Archetype.MoveCommandsFieldName}.GetRefUnchecked(Command.PayloadIndex));");
+            Lines.Add($"                    else this.ApplyMove{Archetype.Name}(in this.{Archetype.MoveCommandsFieldName}.GetRefUnchecked(Command.PayloadIndex));");
             Lines.Add("                    break;");
         }
 
@@ -193,7 +316,7 @@ internal static class GameSystemWorldEmitter {
         foreach(GameSystemArchetypeInfo Archetype in Registry.Archetypes){
             Lines.Add($"        this.{Archetype.MoveCommandsFieldName}.Clear();");
         }
-        Lines.Add("        this.PlaybackSceneCommands();");
+        Lines.Add("        this.Commands.CompletePlayback();");
         Lines.Add("    }");
         return Lines;
     }
@@ -209,16 +332,33 @@ internal static class GameSystemWorldEmitter {
             "        }",
             "        ref var Location = ref this.EntityArchetypeIndices.GetRefUnchecked(Command.Entity.Id);",
             $"        if (Location.Archetype == Archetype.{Archetype.Name}) {{",
-            $"            this.{Archetype.Name}.Overwrite(Location.Index, {Parameters});",
+            $"            this.{Archetype.Name}.Overwrite(Location.Index, this.AdvanceChangeVersion(), {Parameters});",
             "            return;",
             "        }",
+            $"        this.GetEffectiveEnableState(in Location, out var EntityIsEnabled, out var EnabledLow{(Registry.ComponentsByIndex.Length>64?", out var EnabledHigh":string.Empty)});",
             $"        int DestinationIndex = this.{Archetype.Name}.Count;",
-            $"        this.{Archetype.Name}.Add(Command.Entity, {Parameters});",
+            $"        this.{Archetype.Name}.Add(Command.Entity, this.AdvanceChangeVersion(), {Parameters});",
+            $"        this.{Archetype.Name}.SetEnableStateUnchecked(DestinationIndex, EntityIsEnabled, EnabledLow & 0x{Archetype.MaskLow:X16}UL{(Registry.ComponentsByIndex.Length>64?$", EnabledHigh & 0x{Archetype.MaskHigh:X16}UL":string.Empty)});",
             "        this.Detach(Command.Entity);",
             // タプルごと代入するとSceneSlotが消えてArchetype移動でScene所有権を失う。必ずフィールド単位で更新する。
             "        ref var Updated = ref this.EntityArchetypeIndices.GetRefUnchecked(Command.Entity.Id);",
             $"        Updated.Archetype = Archetype.{Archetype.Name};",
             "        Updated.Index = DestinationIndex;",
+            "    }",
+        ];
+    }
+
+    private static List<string>BuildApplyCreateArchetype(GameSystemArchetypeInfo Archetype,GameSystemRegistry Registry){
+        List<(string TypeFullyQualifiedName,string FieldName)>Components=GameSystemTypesEmitter.BuildComponentFields(Archetype,Registry);
+        var Parameters=string.Join(", ",Components.Select(C=>$"Command.{C.FieldName}"));
+        return[
+            $"    private void ApplyCreate{Archetype.Name}(in {Archetype.MoveCommandTypeName} Command) {{",
+            "        if (!this.IsReserved(Command.Entity)) { return; }",
+            $"        int DestinationIndex = this.{Archetype.Name}.Count;",
+            $"        this.{Archetype.Name}.Add(Command.Entity, this.AdvanceChangeVersion(), {Parameters});",
+            $"        if (!this.ActivateReservedEntity(Command.Entity, Archetype.{Archetype.Name}, DestinationIndex)) {{",
+            "            throw new global::System.InvalidOperationException();",
+            "        }",
             "    }",
         ];
     }

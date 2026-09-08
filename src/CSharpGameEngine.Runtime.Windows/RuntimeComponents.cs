@@ -1,32 +1,14 @@
 using System.Numerics;
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Graphics.D3D12;
-using CSharpGameEngine.Input;
-using CSharpGameEngine.Platform.Windows;
-using RenderCamera=CSharpGameEngine.Graphics.D3D12.Camera;
 
 namespace CSharpGameEngine.Runtime.Windows;
 
-// ============================================================================
-// エンジンオブジェクト(Win32Window / StageRenderer / AudioEngineHandle)はComponentのフィールドとして持つ。
-//
-// Componentの要件は「非nullableのstructであること」だけなので、参照型フィールドを持つことは制約に
-// 触れない(遅延生成するエンジンオブジェクトをComponentへ保持する既存パターン)。
-// これらをContext引数ではなくComponentにしたことが、Program.csを不要にする鍵になっている:
-// Contextはループ開始前に構築されて`Run`の全期間で固定されるため、生成されたエントリポイントには
-// 渡す値を作る手段が無い。Componentに載せればSystemの中で遅延生成でき、Context引数がゼロになって
-// `GeneratedGameLoop.Run(ref State)`というシグネチャが確定する。
-//
-// 閉集合Archetype方式には「別Entityのコンポーネントを読む」手段が無いため、必要な参照は生成時に
-// コピーして持たせる(Renderable.Renderer / FramePresent.*)。これは回避策ではなく、この方式で
-// 依存関係を明示する唯一の書き方である。
-//
-// このファイルのComponentは全部エンジン側の語彙で、Systems/RuntimeSystem.cs と一緒にランタイムへ
-// 移す対象。ゲーム固有のComponentを足すときは、Scenes/MainScene.cs と対になる別ファイルに置くこと。
-// ============================================================================
+// Components retain portable authoring values, identities, and derived diagnostics only.
+// EngineHost is the generated-loop context and exclusively owns process and native resources.
 
 /// <summary>
-/// アプリケーション本体。ウィンドウの設定値と、WindowSystemが遅延生成したウィンドウ実体を持つ。
+/// Authoring configuration for the process window. EngineHost owns the runtime window.
 /// </summary>
 [SceneComponentIcon("Assets/Editor/ComponentIcons/AppHost.svg")]
 public struct AppHost {
@@ -108,9 +90,6 @@ public struct HeightFog {
 [SceneComponentOrder(SceneComponentCategory.Audio,0)]
 [SceneComponentIcon("Assets/Editor/ComponentIcons/AudioListener.svg")]
 public struct AudioListener {
-    public float PositionX;
-    public float PositionY;
-    public float PositionZ;
 }
 
 /// <summary>
@@ -123,17 +102,17 @@ public struct AudioListener {
 [SceneComponentOrder(SceneComponentCategory.Audio,10)]
 [SceneComponentIcon("Assets/Editor/ComponentIcons/AudioSource.svg")]
 public struct AudioSource {
-    public float PositionX;
-    public float PositionY;
-    public float PositionZ;
-
     public float Volume;
+    public float MinimumDistance;
+    public float MaximumDistance;
     public bool Loop;
 
 
     /// <summary>追加した直後から聞こえる音量。0だと無音で不具合に見える。</summary>
     public AudioSource(){
         this.Volume=1f;
+        this.MinimumDistance=1f;
+        this.MaximumDistance=100f;
     }
 }
 
@@ -144,7 +123,6 @@ public struct AudioSource {
 
 public struct Renderable:IRuntimeComponent {
     /// <summary>このEntityの変換を書き込む先のStageRendererオブジェクト。</summary>
-    public StageRenderer?Renderer;
     public int ObjectIndex;
     public Matrix4x4 MeshLocalTransform;
     /// <summary>Hierarchy を持つ作者 Entity。runtime wrapper 自身の Transform は互換用だけに残す。</summary>
@@ -162,7 +140,6 @@ public struct Renderable:IRuntimeComponent {
 /// this state rebuilds camera-relative direct-light patches whenever its Transform changes.
 /// </summary>
 public struct EmissiveMeshLighting:IRuntimeComponent {
-    public StageRenderer?Renderer;
     public StageMeshCreateInfo Mesh;
     public Vector3 EmissiveNits;
     /// <summary>Mean linear emissive-texture luminance; zero is a fully black supported texture.</summary>
@@ -257,68 +234,26 @@ public struct AreaLight() {
     public float ShadowBiasMeters = 0.005f;
 }
 
-/// <summary>
-/// フレーム末尾のPresentフェーズを表す単独Entity。<b>AppHostとは別のEntityにしている</b>のは
-/// 実行順序のため: 生成ループはArchetype順が外側なので、Presentを担うArchetypeがソース上で
-/// 最後に出現するようにしないと、描画同期より前にPresentしてしまう(Systems/RuntimeSystem.csの
-/// 冒頭コメント参照)。
-/// </summary>
-public struct FramePresent:IRuntimeComponent {
-    public Win32Window?Window;
-    public StageRenderer?Renderer;
-
-    /// <summary>LevelLoadがコピーする。Presentが終了時にここから破棄する(Renderer/Windowと同じ経路)。</summary>
-    public AudioEngineHandle?AudioEngine;
-}
-
-// ============================================================================
-// 実行時Component(IRuntimeComponent)。作者はSceneへ書かず、随伴先の作者Componentを宣言すれば
-// Source Generatorが自動的に付与する(Parent/SceneNodeTagと同じ仕組み)。明示するとSCENE119。
-//
-// エンジンが遅延生成するハンドル(StageRenderer / Win32Window / AudioEngineHandle)を作者データと
-// 同じstructに混ぜると、InspectorやComponentパレットへ「編集可能な値」として並んでしまう。
-// 型を分けることで、作者が設定すべき項目だけが編集面に出る。
-// ============================================================================
-
-/// <summary>WindowSystemが最初のフレームで生成するウィンドウ実体。それまではnull。</summary>
+/// <summary>Runtime marker paired with AppHost; it never owns the window or input server.</summary>
 public struct AppHostRuntime:IRuntimeComponent<AppHost> {
-    public Win32Window?Window;
-    public InputServer?Input;
 }
 
-/// <summary>LevelLoadが生成する描画・音響の実体。StageRendererはメッシュ集合を確定させてからしか作れない。</summary>
+/// <summary>Observable level diagnostics. EngineHost owns the renderer and camera state.</summary>
 public struct LevelRuntime:IRuntimeComponent<Level> {
-    public StageRenderer?Renderer;
-
-    /// <summary>LevelLoadが生成する共有オーディオエンジン。確定前はnull。</summary>
-    public AudioEngineHandle?AudioEngine;
-
-    /// <summary>レンダラー生成時に一度だけ適用し、以後LevelLoadが毎ロード上書きする初期カメラ。</summary>
-    public RenderCamera RenderCamera;
-
-    /// <summary>LevelLoadが一度だけ走ったことの印。</summary>
     /// <summary>Last resolved active Camera hierarchy status.</summary>
     public FixedTransformResolveStatus LastCameraWorldResolveStatus;
     /// <summary>Last active Camera fixed-to-float basis status.</summary>
     public FixedTransformStatus LastCameraTransformStatus;
     /// <summary>Whether a valid Camera origin and view have been established.</summary>
     public bool HasLastCameraWorldPose;
+    public string?ShaderSemanticHash;
+    public bool ShaderArtifactLoaded;
+    public int ShaderArtifactDiagnosticCount;
     public bool Loaded;
-}
-
-/// <summary>AmbientLightSyncが毎フレーム書き込む先。</summary>
-public struct AmbientLightRuntime:IRuntimeComponent<AmbientLight> {
-    public StageRenderer?Renderer;
-}
-
-/// <summary>HeightFogSyncが毎フレーム書き込む先。</summary>
-public struct HeightFogRuntime:IRuntimeComponent<HeightFog> {
-    public StageRenderer?Renderer;
 }
 
 /// <summary>DirectionalLightSyncが毎フレーム書き込む先。LevelLoadがレンダラー生成時に埋める。</summary>
 public struct DirectionalLightRuntime:IRuntimeComponent<DirectionalLight> {
-    public StageRenderer?Renderer;
     public Vector3 LastWorldForward;
     public bool HasLastWorldForward;
     public FixedTransformStatus LastTransformStatus;
@@ -327,7 +262,6 @@ public struct DirectionalLightRuntime:IRuntimeComponent<DirectionalLight> {
 
 /// <summary>PointLightSyncが毎フレーム書き込む先。</summary>
 public struct PointLightRuntime:IRuntimeComponent<PointLight> {
-    public StageRenderer?Renderer;
     public Vector3 LastCameraRelativePosition;
     public bool HasLastCameraRelativePosition;
     public FixedTransformStatus LastTransformStatus;
@@ -336,7 +270,6 @@ public struct PointLightRuntime:IRuntimeComponent<PointLight> {
 
 /// <summary>SpotLightSyncが毎フレーム書き込む先。</summary>
 public struct SpotLightRuntime:IRuntimeComponent<SpotLight> {
-    public StageRenderer?Renderer;
     public Vector3 LastCameraRelativePosition;
     public Vector3 LastWorldForward;
     public bool HasLastCameraRelativePosition;
@@ -347,16 +280,10 @@ public struct SpotLightRuntime:IRuntimeComponent<SpotLight> {
 
 /// <summary>AreaLightSyncが毎フレーム書き込む先。</summary>
 public struct AreaLightRuntime:IRuntimeComponent<AreaLight> {
-    public StageRenderer?Renderer;
     public Vector3 LastCameraRelativePosition;
     public Vector3 LastWorldForward;
     public bool HasLastCameraRelativePosition;
     public bool HasLastWorldForward;
     public FixedTransformStatus LastTransformStatus;
     public FixedTransformResolveStatus LastWorldResolveStatus;
-}
-
-/// <summary>AudioPlaybackが操作する音声。AudioEngine確定後にLevelLoadが埋める。</summary>
-public struct AudioSourceRuntime:IRuntimeComponent<AudioSource> {
-    public AudioVoiceHandle?Voice;
 }

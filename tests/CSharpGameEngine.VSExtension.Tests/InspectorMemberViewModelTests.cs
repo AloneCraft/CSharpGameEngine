@@ -17,8 +17,8 @@ public sealed class InspectorMemberViewModelTests {
     [InlineData(nameof(InspectorMemberViewModel.EditorKind))]
     [InlineData(nameof(InspectorMemberViewModel.DisplayText))]
     [InlineData(nameof(InspectorMemberViewModel.BooleanValue))]
-    [InlineData(nameof(InspectorMemberViewModel.SelectedEnumName))]
-    [InlineData(nameof(InspectorMemberViewModel.EnumCandidateNames))]
+    [InlineData(nameof(InspectorMemberViewModel.SelectedChoiceName))]
+    [InlineData(nameof(InspectorMemberViewModel.ChoiceCandidateNames))]
     public void PropertiesBoundFromXamlArePublicSoWpfCanResolveThem(string PropertyName){
         Assert.NotNull(typeof(InspectorMemberViewModel)
             .GetProperty(PropertyName,BindingFlags.Public|BindingFlags.Instance));
@@ -82,7 +82,7 @@ public sealed class InspectorMemberViewModelTests {
     public void GroupWithRows_HidesThePendingAnalysisMessage(){
         SceneInspectorMember Member=new(
             new EditorNodeId(1),"global::Sample.Label","Text","\"Hi\"",IsEditable:true,
-            InspectorEditorKind.Text,ConstantValue:"Hi",NumericType:null,EnumCandidates:[]);
+            InspectorEditorKind.Text,ConstantValue:"Hi",NumericType:null,Candidates:[]);
         InspectorMemberViewModel RowViewModel=new(Member);
         InspectorComponentGroupViewModel Group=new(
             new SceneInspectorComponentGroup(new EditorNodeId(1),"global::Sample.Label","Label",[
@@ -99,7 +99,7 @@ public sealed class InspectorMemberViewModelTests {
         SceneInspectorMember Member=new(
             new EditorNodeId(1),"global::Sample.DirectionalLight","Intensity","3f",
             IsEditable:true,InspectorEditorKind.Number,ConstantValue:3f,
-            Microsoft.CodeAnalysis.SpecialType.System_Single,EnumCandidates:[]);
+            Microsoft.CodeAnalysis.SpecialType.System_Single,Candidates:[]);
 
         InspectorMemberViewModel ViewModel=new(Member);
 
@@ -112,7 +112,7 @@ public sealed class InspectorMemberViewModelTests {
         SceneInspectorMember Member=new(
             new EditorNodeId(1),"global::Sample.Label","Text","\"Hello\"",
             IsEditable:true,InspectorEditorKind.Text,ConstantValue:"Hello",
-            NumericType:null,EnumCandidates:[]);
+            NumericType:null,Candidates:[]);
 
         InspectorMemberViewModel ViewModel=new(Member);
 
@@ -124,14 +124,27 @@ public sealed class InspectorMemberViewModelTests {
         SceneInspectorMember Member=new(
             new EditorNodeId(1),"global::Sample.PrimitiveMesh","Type","Sample.PrimitiveType.Sphere",
             IsEditable:true,InspectorEditorKind.Enum,ConstantValue:null,NumericType:null,
-            EnumCandidates:[
-                new InspectorEnumCandidate("Cube","global::Sample.PrimitiveType.Cube"),
-                new InspectorEnumCandidate("Sphere","global::Sample.PrimitiveType.Sphere"),
+            Candidates:[
+                new InspectorChoiceCandidate("Cube","global::Sample.PrimitiveType.Cube"),
+                new InspectorChoiceCandidate("Sphere","global::Sample.PrimitiveType.Sphere"),
             ]);
 
         InspectorMemberViewModel ViewModel=new(Member);
 
-        Assert.Equal("Sphere",ViewModel.SelectedEnumName);
-        Assert.Equal(["Cube","Sphere"],ViewModel.EnumCandidateNames);
+        Assert.Equal("Sphere",ViewModel.SelectedChoiceName);
+        Assert.Equal(["Cube","Sphere"],ViewModel.ChoiceCandidateNames);
+    }
+
+    [Fact]
+    public void Constructor_ChoiceMember_UnescapesTheCurrentCSharpIdentifier(){
+        SceneInspectorMember Member=new(
+            new EditorNodeId(1),"global::Sample.AssetComponent","Asset","global::Game.Assets.@event",
+            IsEditable:true,InspectorEditorKind.AssetReference,ConstantValue:null,NumericType:null,
+            Candidates:[new InspectorChoiceCandidate("event","global::Game.Assets.@event")]);
+
+        InspectorMemberViewModel ViewModel=new(Member);
+
+        Assert.Equal("event",ViewModel.SelectedChoiceName);
+        Assert.True(SceneInspectorCommitPlanner.IsCurrentChoice(Member,"event"));
     }
 }

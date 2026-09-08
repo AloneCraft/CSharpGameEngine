@@ -8,22 +8,19 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
+using CSharpGameEngine.Contracts;
 
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
 /// Client half of the resident bridge server (ADR-0023): tries to reuse an already-running bridge
 /// process over a named pipe instead of paying OS-process-creation + .NET runtime startup cost on
-/// every call, the way <see cref="ExternalBridgeProcess"/>'s one-shot mode does. Deliberately hand-
-/// mirrors (rather than shares an assembly with) the wire DTOs/framing that
-/// <c>CSharpGameEngine.Bridge.Hosting</c> (net10.0, server side) uses - this project can't
-/// <c>ProjectReference</c> a net10.0 assembly, matching the same "duplicate now, consolidate later"
-/// approach ADR-0019/ADR-0021 already use across the net472/net10.0 boundary. Every public entry
-/// point here is a pure speed optimization: any failure just returns <see langword="false"/>, and
-/// <see cref="ExternalBridgeProcess.RunProcess"/> falls back to its already-proven one-shot exe
-/// launch - correctness never depends on this class working.
+/// every call. Request and result DTOs come from the netstandard2.0 Contracts assembly shared with
+/// the net10 host. A failure before submission may use a fresh one-shot request; after any request
+/// byte can have been submitted, timeout/crash/protocol failure is terminal and is never retried.
 /// </summary>
 internal static class ResidentBridgeClient {
+    private const int MaximumPayloadBytes=16*1024*1024;
     private static readonly TimeSpan ConnectTimeout=TimeSpan.FromMilliseconds(100);
     private static readonly TimeSpan SpawnMutexTimeout=TimeSpan.FromSeconds(5);
     private static readonly TimeSpan SpawnRetryTimeout=TimeSpan.FromSeconds(10);
@@ -42,52 +39,135 @@ internal static class ResidentBridgeClient {
         return $"CSharpGameEngine.Bridge.{Hex}";
     }
 
-    internal static bool TryRun(string ExecutablePath,string RepoRoot,string BridgeProjectRelativePath,string FirstArg,string OutputPath,TimeSpan RequestTimeout,out int ExitCode,out string Output){
-        var PipeName=ComputePipeName(RepoRoot,BridgeProjectRelativePath);
+    internal static ResidentBridgeAttemptStatus TryRun(string ExecutablePath,string RepoRoot,string BridgeProjectRelativePath,string FirstArg,string OutputPath,TimeSpan RequestTimeout,out int ExitCode,out string Output){
+        return TryRun(ExecutablePath,RepoRoot,BridgeProjectRelativePath,[FirstArg,OutputPath],RequestTimeout,out ExitCode,out Output);
+    }
 
-        if(TryConnectAndRun(PipeName,FirstArg,OutputPath,RequestTimeout,out ExitCode,out Output)){
-            return true;
+    internal static ResidentBridgeAttemptStatus TryRun(string ExecutablePath,string RepoRoot,string BridgeProjectRelativePath,string[]Arguments,TimeSpan RequestTimeout,out int ExitCode,out string Output){
+        return TryRun(
+            ExecutablePath,RepoRoot,BridgeProjectRelativePath,Arguments,RequestTimeout,
+            CancellationToken.None,out ExitCode,out Output);
+    }
+
+    internal static ResidentBridgeAttemptStatus TryRun(
+        string ExecutablePath,string RepoRoot,string BridgeProjectRelativePath,string[]Arguments,
+        TimeSpan RequestTimeout,CancellationToken CancellationToken,out int ExitCode,out string Output){
+        ResidentBridgeAttemptStatus Status=TryRunDetailed(
+            ExecutablePath,RepoRoot,BridgeProjectRelativePath,Arguments,RequestTimeout,
+            CancellationToken,out AuthoringHostResult?Result);
+        ExitCode=Result is null
+            ?0
+            :Result.State==AuthoringHostTerminalState.Succeeded
+                ?Result.ExitCode
+                :Math.Max(1,Result.ExitCode);
+        Output=Result is null?string.Empty:FormatOutput(Result);
+        return Status;
+    }
+
+    internal static ResidentBridgeAttemptStatus TryRunDetailed(
+        string ExecutablePath,string RepoRoot,string BridgeProjectRelativePath,string[]Arguments,
+        TimeSpan RequestTimeout,CancellationToken CancellationToken,
+        out AuthoringHostResult?Result){
+        if(Arguments is null){ throw new ArgumentNullException(nameof(Arguments)); }
+        CancellationToken.ThrowIfCancellationRequested();
+        var PipeName=ComputePipeName(RepoRoot,BridgeProjectRelativePath);
+        var Request=new AuthoringHostRequest {
+            RequestId=Guid.NewGuid(),
+            Operation=ClassifyOperation(BridgeProjectRelativePath),
+            TimeoutMilliseconds=Math.Min(900_000,Math.Max(1,GetTimeoutMilliseconds(RequestTimeout))),
+            Arguments=Arguments,
+        };
+
+        var Status=TryConnectAndRun(
+            PipeName,Request,RequestTimeout,CancellationToken,out Result);
+        if(Status!=ResidentBridgeAttemptStatus.Unavailable){
+            return Status;
         }
 
         if(!TrySpawnServer(ExecutablePath,RepoRoot,PipeName)){
-            return false;
+            return ResidentBridgeAttemptStatus.Unavailable;
         }
 
         var Deadline=DateTime.UtcNow+SpawnRetryTimeout;
         while(DateTime.UtcNow<Deadline){
-            if(TryConnectAndRun(PipeName,FirstArg,OutputPath,RequestTimeout,out ExitCode,out Output)){
-                return true;
+            CancellationToken.ThrowIfCancellationRequested();
+            Status=TryConnectAndRun(
+                PipeName,Request,RequestTimeout,CancellationToken,out Result);
+            if(Status!=ResidentBridgeAttemptStatus.Unavailable){
+                return Status;
             }
 
-            Thread.Sleep(100);
+            if(CancellationToken.WaitHandle.WaitOne(100)){
+                CancellationToken.ThrowIfCancellationRequested();
+            }
         }
 
-        return false;
+        return ResidentBridgeAttemptStatus.Unavailable;
     }
 
-    private static bool TryConnectAndRun(string PipeName,string FirstArg,string OutputPath,TimeSpan RequestTimeout,out int ExitCode,out string Output){
-        ExitCode=0;
-        Output=string.Empty;
+    internal static AuthoringHostOperation ClassifyOperation(string BridgeProjectRelativePath){
+        if(BridgeProjectRelativePath.IndexOf(".Import.",StringComparison.OrdinalIgnoreCase)>=0){
+            return AuthoringHostOperation.Import;
+        }
+        if(BridgeProjectRelativePath.IndexOf("Bake",StringComparison.OrdinalIgnoreCase)>=0||
+            BridgeProjectRelativePath.IndexOf("Physics.Cli",StringComparison.OrdinalIgnoreCase)>=0){
+            return AuthoringHostOperation.Bake;
+        }
+        return AuthoringHostOperation.Preview;
+    }
+
+    internal static ResidentBridgeAttemptStatus ClassifyTransportFailure(bool Submitted,Exception Error){
+        if(!Submitted){ return ResidentBridgeAttemptStatus.Unavailable; }
+        if(Error is TimeoutException){ return ResidentBridgeAttemptStatus.TimedOut; }
+        if(Error is IOException or UnauthorizedAccessException){ return ResidentBridgeAttemptStatus.HostCrashed; }
+        return ResidentBridgeAttemptStatus.ProtocolMismatch;
+    }
+
+    private static ResidentBridgeAttemptStatus TryConnectAndRun(
+        string PipeName,AuthoringHostRequest Request,TimeSpan RequestTimeout,
+        CancellationToken CancellationToken,out AuthoringHostResult?Result){
+        Result=null;
+        var Submitted=false;
 
         try {
             using NamedPipeClientStream Pipe=new(".",PipeName,PipeDirection.InOut,PipeOptions.None);
-            Pipe.Connect((int)ConnectTimeout.TotalMilliseconds);
+            Pipe.Connect(GetTimeoutMilliseconds(ConnectTimeout));
 
-            WriteMessage(Pipe,new ResidentBridgeRequest { Args=[FirstArg,OutputPath]});
-            var Response=ReadMessage<ResidentBridgeResponse>(Pipe,RequestTimeout);
+            Submitted=true;
+            WriteMessage(Pipe,Request);
+            AuthoringHostResult Response=ReadMessage<AuthoringHostResult>(
+                Pipe,RequestTimeout,CancellationToken);
+            Result=Response;
 
-            ExitCode=Response.ExitCode;
-            Output=Response.Output;
-            return true;
-        } catch(Exception Ex) when (Ex is TimeoutException or IOException or UnauthorizedAccessException or InvalidOperationException){
-            return false;
+            if(Response.ProtocolVersion!=AuthoringHostProtocol.CurrentVersion||Response.RequestId!=Request.RequestId){
+                return ResidentBridgeAttemptStatus.ProtocolMismatch;
+            }
+
+            return Response.State switch {
+                AuthoringHostTerminalState.Succeeded or AuthoringHostTerminalState.Failed or AuthoringHostTerminalState.Cancelled=>ResidentBridgeAttemptStatus.Completed,
+                AuthoringHostTerminalState.TimedOut=>ResidentBridgeAttemptStatus.TimedOut,
+                AuthoringHostTerminalState.HostCrashed=>ResidentBridgeAttemptStatus.HostCrashed,
+                AuthoringHostTerminalState.VersionMismatch=>ResidentBridgeAttemptStatus.ProtocolMismatch,
+                _=>ResidentBridgeAttemptStatus.ProtocolMismatch,
+            };
+        } catch(Exception Ex) when (Ex is TimeoutException or IOException or UnauthorizedAccessException or InvalidOperationException or JsonException){
+            return ClassifyTransportFailure(Submitted,Ex);
         }
+    }
+
+    private static string FormatOutput(AuthoringHostResult Response){
+        StringBuilder Builder=new(Response.Output??string.Empty);
+        foreach(var Diagnostic in Response.Diagnostics??Array.Empty<AuthoringHostDiagnostic>()){
+            if(Builder.Length>0){ Builder.AppendLine(); }
+            Builder.Append(Diagnostic.Code).Append(": ").Append(Diagnostic.Message);
+        }
+        return Builder.ToString();
     }
 
     private static bool TryConnectOnly(string PipeName,TimeSpan ConnectTimeout){
         try {
             using NamedPipeClientStream Pipe=new(".",PipeName,PipeDirection.InOut,PipeOptions.None);
-            Pipe.Connect((int)ConnectTimeout.TotalMilliseconds);
+            Pipe.Connect(GetTimeoutMilliseconds(ConnectTimeout));
             return true;
         } catch(Exception Ex) when (Ex is TimeoutException or IOException or UnauthorizedAccessException){
             return false;
@@ -142,8 +222,11 @@ internal static class ResidentBridgeClient {
         }
     }
 
-    private static void WriteMessage<T>(Stream Stream,T Value){
+    internal static void WriteMessage<T>(Stream Stream,T Value){
         var Payload=JsonSerializer.SerializeToUtf8Bytes(Value);
+        if(Payload.Length<1||Payload.Length>MaximumPayloadBytes){
+            throw new InvalidOperationException(VsixText.Get("ResidentBridge_EmptyResponse"));
+        }
         var LengthPrefix=BitConverter.GetBytes(Payload.Length);
         Stream.Write(LengthPrefix,0,LengthPrefix.Length);
         Stream.Write(Payload,0,Payload.Length);
@@ -167,7 +250,8 @@ internal static class ResidentBridgeClient {
     /// so it sidesteps both the deadlock class VSTHRD002 guards against and the JoinableTaskFactory
     /// dependency, without needing an analyzer suppression.
     /// </summary>
-    private static T ReadMessage<T>(Stream Stream,TimeSpan Timeout){
+    internal static T ReadMessage<T>(
+        Stream Stream,TimeSpan Timeout,CancellationToken CancellationToken){
         T?Result=default;
         Exception?Error=null;
         using ManualResetEventSlim Completed=new(initialState:false);
@@ -176,6 +260,9 @@ internal static class ResidentBridgeClient {
             try {
                 var LengthPrefix=ReadExactly(Stream,4);
                 var Length=BitConverter.ToInt32(LengthPrefix,0);
+                if(Length<1||Length>MaximumPayloadBytes){
+                    throw new InvalidOperationException(VsixText.Get("ResidentBridge_EmptyResponse"));
+                }
                 var Payload=ReadExactly(Stream,Length);
 
                 Result=JsonSerializer.Deserialize<T>(Payload)
@@ -188,7 +275,7 @@ internal static class ResidentBridgeClient {
         }){ IsBackground=true };
         ReaderThread.Start();
 
-        if(!Completed.Wait(Timeout)){
+        if(!Completed.Wait(Timeout,CancellationToken)){
             throw new TimeoutException(VsixText.Get("ResidentBridge_ResponseTimedOut"));
         }
 
@@ -215,14 +302,16 @@ internal static class ResidentBridgeClient {
 
         return Buffer;
     }
-
-    private sealed class ResidentBridgeRequest {
-        public string[]Args { get; set;}=[];
+    private static int GetTimeoutMilliseconds(TimeSpan Timeout){
+        var Milliseconds=Math.Min(int.MaxValue,Math.Max(0L,Timeout.Ticks/TimeSpan.TicksPerMillisecond));
+        return(int)Milliseconds;
     }
+}
 
-    private sealed class ResidentBridgeResponse {
-        public int ExitCode { get; set;}
-
-        public string Output { get; set;}="";
-    }
+internal enum ResidentBridgeAttemptStatus:byte {
+    Unavailable,
+    Completed,
+    TimedOut,
+    HostCrashed,
+    ProtocolMismatch,
 }

@@ -7,7 +7,7 @@
 
 ## Scope and current baseline
 
-This specification defines the target rendering contract. The Shader Graph compiler and artifact runtime are implemented; the target Render Graph, recovery state machine, and shared Preview Host remain specified work.
+This specification defines the target rendering contract. The Shader Graph compiler, shader/material/texture artifact runtime, platform-independent Render Graph compiler, canonical RGBA8 D3D12 upload boundary, stable-ID snapshot visibility/LOD/instance batching, Render Graph quality profiles, D3D12 recovery state machine, and shared out-of-process Preview Host are implemented. The D3D12 graph executor remains subsequent work.
 
 The observed baseline is a Windows D3D12 path: `StageRenderer`, `RenderServer`, the WARP triangle stage, directional shadows, HDR, ACES, bloom, and point, spot, area, and emissive lighting/shadow work. Those capabilities are retained as regression baselines. The work tracked here adds graph ownership, artifact provenance, snapshot extraction, cascade/IBL/exposure/AA policy, recovery, and a common preview boundary.
 
@@ -25,7 +25,7 @@ Optional provider APIs remain behind L4 adapters. Native or provider types must 
 
 ## Target public contracts
 
-The following names are target contracts, not present implementation claims.
+The Render Graph, material/texture, instance-visibility, and quality-profile subset of the following target contract is implemented in `CSharpGameEngine.Rendering`. The common Render Server owns the compatibility `RenderQualityPlan` for its configured dimensions and exposes it to protocol-v4 tooling strictly as a `DeclaredPlan`; this is not evidence that the later D3D12 graph executor or per-pass timing exists.
 
 ```csharp
 public readonly record struct RenderPassHandle(uint Value);
@@ -38,7 +38,7 @@ public sealed record RenderQualityProfile;
 
 `RenderGraphBuilder` accepts named pass/resource declarations. A pass declares each resource as read, write, or read-write; compilation topologically sorts the graph, derives resource transitions and queue ownership transfers, verifies lifetime ranges, and permits transient aliasing only for non-overlapping live ranges. L0 translates the compiled graph to D3D12 barriers and command lists.
 
-`RenderWorldSnapshot` is the only rendering extraction input. ECS itself is never traversed by the renderer. Extraction orders renderable records by stable ID, then creates immutable camera, light, material, mesh, and instance data. The visibility path compares frustum, LOD hysteresis, and instance batching with a CPU reference oracle.
+`RenderWorldSnapshot` is the only input to the new visibility path; that path never traverses ECS. The implemented instance slice copies and orders camera-relative renderable records by stable ID, validates finite transforms/bounds and LOD ranges, and exposes immutable spans. Frustum selection and LOD state use caller-owned buffers. Batch construction performs an in-place deterministic heap sort by mesh, material, LOD, and stable ID, so warmed 100,000-instance selection and batching allocate nothing. Shipping Runtime and both VSIX preview callers now enter the engine-owned Render Server boundary; `StageRenderer` remains its private D3D12 backend and regression oracle rather than a VSIX-owned renderer.
 
 ## Data flow
 
@@ -76,7 +76,7 @@ Preview/Import/Bake calls use the versioned host protocol described in [Editor-V
 
 ## Visual and quality policy
 
-The accepted baseline retains existing directional/local/area/emissive shadow behavior. New quality profiles add cascaded directional shadows, image-based lighting, exposure, anti-aliasing, and documented profile settings. A profile is data, not an untracked driver toggle. WARP is the required visual adapter; hardware GPU runs are additional evidence and cannot replace WARP.
+The accepted compatibility profile retains existing directional shadow, bloom, and ACES behavior. Immutable profiles select optional shadow cascades, image-based lighting, bloom, ACES, FXAA, and bounded camera/fixed EV100 exposure. Each selection creates a deterministic Render Graph topology; disabled features create neither pass nor resource. Compatibility, Balanced, and Cinematic are named presets, while the validated factory supports explicit per-feature policy without driver toggles. WARP is the required visual adapter; hardware GPU runs are additional evidence and cannot replace WARP.
 
 ## Immediate migration rule
 
@@ -91,7 +91,7 @@ Each feature implementation cuts over in its own change. It removes the replaced
 
 ## Performance and release evidence
 
-Rendering performance stages use five warm-up iterations and thirty measured samples. They store median, p95, MAD, adapter policy, WARP/hardware choice, build identity, and machine fingerprint. Release evidence includes dependency closure, shader/artifact provenance, required WARP output, and unresolved diagnostic count.
+Rendering performance stages use exactly five warm-up iterations and thirty measured samples in an isolated process whose Tiered JIT mode is explicitly disabled and recorded, preventing compilation transitions from contaminating the sample set. The required WARP pass records a hidden 1280x720 frame, triangle readback oracle, zero debug-layer errors, allocation, median, p95, MAD, build identity, raw-report SHA-256, and machine fingerprint; WARP elapsed time is correctness evidence, not a hardware performance claim. The same run measures camera-relative selection and deterministic batching for 100,000 active instances. Debug records timing but gates correctness and allocation only because its non-optimized code generation is not a shipping-performance oracle. Release gates that CPU workload at median 6 ms, nearest-rank p95 8.33 ms, and allocation p95 zero. An optional Release hardware pass gates 1280x720 presentation p95 at 16.67 ms. Release evidence includes dependency closure, shader/artifact provenance, required WARP output, and unresolved diagnostic count.
 
 ## Stage oracle matrix
 
@@ -106,10 +106,10 @@ Rendering performance stages use five warm-up iterations and thirty measured sam
 | F-L4-007 | 4 | `rendering.quality-profiles` | Visual / Rendering | 1800s | Quality profile reference tolerance holds. |
 | F-L0-009 | 5 | `rendering.device-recovery` | Visual / Rendering | 1800s | Legal state transitions and artifact-only rebuild. |
 | F-L8-018 | 5 | `vsix.rendering-preview` | Visual / VSIX | 1800s | Shared host protocol and no duplicate renderer. |
-| F-L7-023 | 6 | `rendering.performance` | Visual / Rendering | 7200s | Thirty-sample performance evidence. |
-| F-L7-024 | 7 | `rendering.release` | Headless / Foundation | 7200s | Scoped release closure and required evidence. |
+| F-L7-023 | 6 | `rendering.performance` | Visual / Rendering | 7200s | Five warm-ups plus thirty WARP frame and 100,000-instance samples publish SHA-bound correctness/performance evidence. |
+| F-L7-024 | 7 | `rendering.release` | Headless / Foundation | 7200s | Canonical dedicated-profile performance, shared-preview, Shader Artifact, source, and provenance closure. |
 
-F-L7-022 and F-L6-004 are Implemented with executable stages. F-L0-008 remains Specified and is not a dependency of Shader Artifacts. Remaining rows retain their declared target status.
+All Rendering Roadmap rows through F-L7-024 are Implemented with executable stages. Compute HLSL is compiled offline into the same fixed-ABI artifact envelope and runtime code does not load DXC. Material/texture input is checksum/dependency validated, decoded once above L0, and deduplicated by canonical content hash. Recovery owns one device generation, exact applied artifact closure, and reusable completed-frame snapshot; real WARP device removal and minimize/restore reproduce the pixel oracle without reading a corrupted source artifact or rewalking ECS. The VSIX packages the exact Preview Host closure and offline Stage artifact; the packaged apphost renders through WARP while source/package tests reject a duplicate renderer. Performance evidence preserves raw samples and canonical SHA-bound reports while separating WARP correctness from hardware timing claims. The Rendering release report reopens and binds the raw capture, dedicated-profile performance and preview results, both performance reports, one configuration-qualified Shader Artifact SHA-256, and the fixed source/toolchain closure without taking over product-wide packaging or immutable manifest ownership.
 
 
 ## M0060 artifact-only update

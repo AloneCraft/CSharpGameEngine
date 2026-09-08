@@ -4,9 +4,9 @@ namespace UserEcsProject.Showcase;
 public struct EngineShowcase {
 }
 public struct ShowcaseMotion {
-    public double BaseX;
-    public double BaseY;
-    public double BaseZ;
+    public LogicalScalar BaseX;
+    public LogicalScalar BaseY;
+    public LogicalScalar BaseZ;
     public int AmplitudeMillimeters;
     public int PeriodTicks;
     public int PhaseTicks;

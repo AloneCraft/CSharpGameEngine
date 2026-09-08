@@ -48,9 +48,9 @@ public static class UnrealLightSceneEmitter {
 
         Vector3 Euler=CreateEulerRotationForLightTravelDirection(DirectionTowardLight);
         Builder.Append(Indent).AppendLine("new Transform {");
-        Builder.Append(Indent).AppendLine("    Position=new Logical.Vector3(0f,0f,0f),");
-        Builder.Append(Indent).Append("    Rotation=new Logical.Vector3(").Append(FormatFloat(Euler.X)).Append(',').Append(FormatFloat(Euler.Y)).Append(',').Append(FormatFloat(Euler.Z)).AppendLine("),");
-        Builder.Append(Indent).AppendLine("    Scale=new Logical.Vector3(1f,1f,1f),");
+        Builder.Append(Indent).AppendLine("    Position=new LogicalVector3(0f,0f,0f),");
+        Builder.Append(Indent).Append("    Rotation=new LogicalQuaternion(new LogicalVector3(").Append(FormatFloat(Euler.X)).Append(',').Append(FormatFloat(Euler.Y)).Append(',').Append(FormatFloat(Euler.Z)).AppendLine(")),");
+        Builder.Append(Indent).AppendLine("    Scale=new LogicalVector3(1f,1f,1f),");
         Builder.Append(Indent).AppendLine("},");
         Builder.Append(Indent).AppendLine("new DirectionalLight {");
         Builder.Append(Indent).Append("    ColorR=").Append(FormatFloat(LinearRgb.X)).AppendLine(",");

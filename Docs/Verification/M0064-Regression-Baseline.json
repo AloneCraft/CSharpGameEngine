@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "csharp-game-engine-regression-baseline-v1",
+  "baselineId": "M0064",
+  "capturedUtc": "2026-08-29T00:00:00Z",
+  "sourceState": "User-owned dirty worktree including M0064",
+  "authoringEntry": "UserEcsProject/EngineShowcaseScene.cs",
+  "showcaseStage": "showcase.visible-progress",
+  "showcaseManifestSha256": "1C1C80B1D2504B994AF325437D4CABE4FD63F260C67652D19E490FA21E7F29AD",
+  "verification": [
+    {
+      "configuration": "Debug",
+      "command": "dotnet test CSharpGameEngine.slnx -c Debug --no-restore",
+      "passed": 1680,
+      "failed": 0
+    },
+    {
+      "configuration": "Release",
+      "command": "dotnet test CSharpGameEngine.slnx -c Release --no-restore",
+      "passed": 1679,
+      "failed": 0
+    }
+  ],
+  "observableOracles": [
+    "four-page navigation",
+    "pause stability",
+    "single fixed-tick step",
+    "feature progress paging",
+    "panel hide and show",
+    "Japanese and English pixel-diverse dashboard",
+    "D3D12 debug-layer startup",
+    "owned-process normal shutdown",
+    "combined screenshot publication"
+  ],
+  "vsixManualLedger": "Docs/Verification/VSIX-Experimental-Baseline.json"
+}

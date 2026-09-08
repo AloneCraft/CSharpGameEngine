@@ -7,7 +7,6 @@ public enum ColliderShape:byte {
     Sphere,
     Capsule,
     ConvexAsset,
-    Compound,
     StaticTriangleMesh,
 }
 
@@ -31,20 +30,20 @@ public readonly record struct PhysicsLayerMask(ulong Value) {
 }
 
 public struct PhysicsMaterial() {
-    public PhysicsScalar Friction = PhysicsScalar.FromDouble(0.5);
-    public PhysicsScalar Restitution = PhysicsScalar.Zero;
+    public LogicalScalar Friction = LogicalScalar.FromSingle(0.5f);
+    public LogicalScalar Restitution = LogicalScalar.Zero;
 }
 
 [SceneComponentOrder(SceneComponentCategory.Spatial,20)]
 public struct Collider() {
     public ColliderShape Shape = ColliderShape.Box;
-    public PhysicsVector3 Center;
-    public PhysicsVector3 HalfExtents = new(
-                                            PhysicsScalar.FromDouble(0.5),
-                                            PhysicsScalar.FromDouble(0.5),
-                                            PhysicsScalar.FromDouble(0.5));
-    public PhysicsScalar Radius = PhysicsScalar.FromDouble(0.5);
-    public PhysicsScalar HalfHeight = PhysicsScalar.FromDouble(0.5);
+    public LogicalVector3 Center;
+    public LogicalVector3 HalfExtents = new(
+                                            LogicalScalar.FromSingle(0.5f),
+                                            LogicalScalar.FromSingle(0.5f),
+                                            LogicalScalar.FromSingle(0.5f));
+    public LogicalScalar Radius = LogicalScalar.FromSingle(0.5f);
+    public LogicalScalar HalfHeight = LogicalScalar.FromSingle(0.5f);
     public PhysicsMaterial Material = new();
     public PhysicsLayer Layer;
     public PhysicsLayerMask CollidesWith = PhysicsLayerMask.All;
@@ -55,8 +54,8 @@ public struct Collider() {
 [SceneComponentOrder(SceneComponentCategory.Spatial,21)]
 public struct RigidBody() {
     public PhysicsMotionType MotionType = PhysicsMotionType.Dynamic;
-    public PhysicsScalar Mass = PhysicsScalar.One;
-    public PhysicsScalar GravityFactor = PhysicsScalar.One;
+    public LogicalScalar Mass = LogicalScalar.One;
+    public LogicalScalar GravityFactor = LogicalScalar.One;
     public bool AllowSleep = true;
     public PhysicsCcdMode Ccd;
 }
@@ -66,19 +65,19 @@ public struct PhysicsStableId:IRuntimeComponent<Collider> {
 }
 
 public struct PhysicsRotation() {
-    public PhysicsQuaternion Value = PhysicsQuaternion.Identity;
+    public LogicalQuaternion Value = LogicalQuaternion.Identity;
 }
 
 public struct PhysicsVelocity {
-    public PhysicsVector3 Linear;
-    public PhysicsVector3 Angular;
+    public LogicalVector3 Linear;
+    public LogicalVector3 Angular;
     public static PhysicsVelocity Zero=>default;
 }
 
 [SceneComponentOrder(SceneComponentCategory.Spatial,22)]
 public struct Destructible {
     public string FractureAsset;
-    public PhysicsScalar FractureThreshold;
+    public LogicalScalar FractureThreshold;
     public int FragmentBudget;
 }
 

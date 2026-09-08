@@ -27,7 +27,7 @@ public static class ShaderGraphAutomationIds {
     private static string Escape(string Value)=>Value.Replace(" ","_").Replace(".","_");
 }
 internal sealed class ShaderGraphAutomationBorder:Border {
-    internal Action<double,double>?AutomationMove { get; set; }
+    internal Action<float,float>?AutomationMove { get; set; }
     protected override AutomationPeer OnCreateAutomationPeer()=>new ShaderGraphAutomationBorderPeer(this);
 }
 internal sealed class ShaderGraphAutomationBorderPeer:FrameworkElementAutomationPeer,ITransformProvider {
@@ -39,10 +39,13 @@ internal sealed class ShaderGraphAutomationBorderPeer:FrameworkElementAutomation
     bool ITransformProvider.CanResize=>false;
     bool ITransformProvider.CanRotate=>false;
     void ITransformProvider.Move(double X,double Y) {
-        if(this.OwnerBorder.Dispatcher.CheckAccess()) { this.OwnerBorder.AutomationMove?.Invoke(X,Y);return; }
+        if(double.IsNaN(X)||double.IsInfinity(X)||double.IsNaN(Y)||double.IsInfinity(Y)||X<float.MinValue||X>float.MaxValue||Y<float.MinValue||Y>float.MaxValue){ throw new ArgumentOutOfRangeException(); }
+        var ProjectedX=(float)X;
+        var ProjectedY=(float)Y;
+        if(this.OwnerBorder.Dispatcher.CheckAccess()) { this.OwnerBorder.AutomationMove?.Invoke(ProjectedX,ProjectedY);return; }
         this.RunningMove=ThreadHelper.JoinableTaskFactory.RunAsync(async delegate {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-            this.OwnerBorder.AutomationMove?.Invoke(X,Y);
+            this.OwnerBorder.AutomationMove?.Invoke(ProjectedX,ProjectedY);
         });
     }
     void ITransformProvider.Resize(double Width,double Height)=>throw new InvalidOperationException("Shader Graph nodes cannot be resized through UI Automation.");

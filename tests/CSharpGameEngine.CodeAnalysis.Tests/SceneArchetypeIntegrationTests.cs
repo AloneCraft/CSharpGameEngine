@@ -13,6 +13,7 @@ namespace CSharpGameEngine.CodeAnalysis.Tests;
 /// </para>
 /// </summary>
 public sealed class SceneArchetypeIntegrationTests {
+    private static int Occurrences(string Text,string Value)=>(Text.Length-Text.Replace(Value,string.Empty).Length)/Value.Length;
     private const string Components="""
         namespace Sample;
 
@@ -121,6 +122,85 @@ public sealed class SceneArchetypeIntegrationTests {
                                                               "using CSharpGameEngine.Entities;\nusing Sample;\nnamespace Game;\n"+Systems64);
 
         Assert.DoesNotContain(Result.Diagnostics,static D=>D.Id=="SYSGEN026");
+    }
+
+    [Fact]
+    public void Exactly64ComponentTypes_KeepTheSingleMaskPath(){
+        var Components64=string.Join("\n",Enumerable.Range(0,64).Select(static Index=>$"public struct C{Index} {{ public int Value; }}"));
+        var Systems64=string.Join("\n",Enumerable.Range(0,64).Select(static Index=>$"internal struct S{Index} : ISystem {{ public bool Update(ref C{Index} c, ref State state) => true; }}"));
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(
+            "namespace Sample;\n"+Components64,
+            "using CSharpGameEngine.Entities;\nusing Sample;\nnamespace Game;\n"+Systems64);
+        Assert.DoesNotContain(Result.Diagnostics,static D=>D.Id=="SYSGEN026");
+        var Types=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.Types.g.cs");
+        var Loop=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.Loop.g.cs");
+        Assert.DoesNotContain("ComponentEnabledHigh",Types,StringComparison.Ordinal);
+        Assert.DoesNotContain(", 0x0000000000000000UL)) continue;",Loop,StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(65)]
+    [InlineData(128)]
+    public void WideComponentMasksDoNotAliasHighComponentsOntoLowComponents(int ComponentCount){
+        var ComponentSource=string.Join("\n",Enumerable.Range(0,ComponentCount).Select(static Index=>$"public struct C{Index} {{ public int Value; }}"));
+        var CombinedParameters=string.Join(", ",Enumerable.Range(0,ComponentCount).Select(static Index=>$"ref C{Index} c{Index}"));
+        var HighIndex=ComponentCount-1;
+        var SystemSource=$$"""
+            using CSharpGameEngine.Entities;
+            using Sample;
+            namespace Game;
+            internal struct Low : ISystem { public bool Update(ref C0 c, ref State state) => true; }
+            internal struct High : ISystem { public bool Update(ref C{{HighIndex}} c, ref State state) => true; }
+            internal struct Combined : ISystem { public void Spawn({{CombinedParameters}}) { } }
+            """;
+        var Result=GameSystemGeneratorTestHelper.RunGenerator("namespace Sample;\n"+ComponentSource,SystemSource);
+        Assert.Empty(Result.Diagnostics);
+        var Loop=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.Loop.g.cs");
+        var Types=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.Types.g.cs");
+        Assert.Equal(2,Occurrences(Loop,"Systems.Low.Update("));
+        Assert.Equal(2,Occurrences(Loop,"Systems.High.Update("));
+        Assert.Contains("ComponentEnabledHigh",Types,StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(65)]
+    [InlineData(128)]
+    public void WideComponentMasksCompileAndExecuteHighComponentQueries(int ComponentCount){
+        var ComponentSource=string.Join("\n",Enumerable.Range(0,ComponentCount).Select(static Index=>$"public struct C{Index} {{ public int Value; }}"));
+        var CombinedParameters=string.Join(", ",Enumerable.Range(0,ComponentCount).Select(static Index=>$"ref C{Index} c{Index}"));
+        var CreateArguments=string.Join(", ",Enumerable.Range(0,ComponentCount).Select(static Index=>$"new C{Index}()"));
+        var HighIndex=ComponentCount-1;
+        var SystemSource=$$"""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Runtime.Simulation;
+            using Sample;
+            namespace Game;
+            internal struct Combined : ISystem { public void Spawn({{CombinedParameters}}) { } }
+            internal struct High : ISystem {
+                public bool Update(ref C{{HighIndex}} c, ref State state) { c.Value++; return true; }
+            }
+            internal static class TestEntry {
+                internal static int Run() {
+                    World world = new();
+                    Entity entity = world.Create({{CreateArguments}});
+                    State state = new(world) { Enabled = true };
+                    High high = default;
+                    FixedTickScheduler scheduler = new();
+                    if (!world.SetComponentEnabled(entity, EcsComponentType.C{{HighIndex}}, false)) return -2;
+                    CSharpGameEngine.Generated.GeneratedGameLoop.RunFrame(ref state, ref high, ref scheduler, 1, 60);
+                    if (!world.TryGetComponent(entity, out C{{HighIndex}} disabled) || disabled.Value != 0) return -3;
+                    world.SetComponentEnabled(entity, EcsComponentType.C{{HighIndex}}, true);
+                    ChangeVersion beforeWrite = world.CaptureChangeVersion();
+                    CSharpGameEngine.Generated.GeneratedGameLoop.RunFrame(ref state, ref high, ref scheduler, 1, 60);
+                    Span<Entity> changed = stackalloc Entity[1];
+                    int count = world.CollectChanged(EcsComponentType.C{{HighIndex}}, beforeWrite, changed);
+                    return world.TryGetComponent(entity, out C{{HighIndex}} value) ? value.Value * 10 + count : -1;
+                }
+            }
+            """;
+        var Assembly=GameSystemGeneratorTestHelper.CompileAndLoad("namespace Sample;\n"+ComponentSource,SystemSource);
+        var Value=(int)GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.TestEntry","Run")!;
+        Assert.Equal(11,Value);
     }
 
     /// <summary>

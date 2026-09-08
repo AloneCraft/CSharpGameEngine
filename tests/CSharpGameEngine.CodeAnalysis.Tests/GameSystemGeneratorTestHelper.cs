@@ -17,6 +17,9 @@ internal static class GameSystemGeneratorTestHelper {
 
     /// <summary>正本の<c>Runtime.cs</c>(src/CSharpGameEngine.Entities)。テストと実体のドリフトを防ぐためファイルから読む。</summary>
     internal static readonly string RuntimeSource=ReadTestAsset("Runtime.cs");
+    internal static readonly string SnapshotTransientAttributeSource=
+        ReadTestAsset("EcsSnapshotTransientAttribute.cs");
+    internal static readonly string SnapshotSource=ReadTestAsset("Snapshot.cs");
 
     /// <summary>生成されたエントリポイントが作るシードEntityのComponent。全コンパイルに含めても、Systemが宣言しない限りArchetypeにはならない。</summary>
     internal static readonly string BootstrapSource=ReadTestAsset("Bootstrap.cs");
@@ -97,6 +100,9 @@ internal static class GameSystemGeneratorTestHelper {
         .. AppDomain.CurrentDomain.GetAssemblies()
             .Where(static Assembly=>!Assembly.IsDynamic&&!string.IsNullOrEmpty(Assembly.Location))
             .Select(static Assembly=>MetadataReference.CreateFromFile(Assembly.Location)),
+        MetadataReference.CreateFromFile(typeof(CSharpGameEngine.Contracts.WorldCellId).Assembly.Location),
+        MetadataReference.CreateFromFile(typeof(CSharpGameEngine.Numerics.LogicalScalar).Assembly.Location),
+        MetadataReference.CreateFromFile(typeof(System.Text.Json.JsonSerializer).Assembly.Location),
         MetadataReference.CreateFromFile(typeof(Console).Assembly.Location),
     ];
 
@@ -111,7 +117,10 @@ internal static class GameSystemGeneratorTestHelper {
     internal static CSharpCompilation CreateCompilation(IEnumerable<(string?Path,string Source)>ExtraSources){
         List<(string?Path,string Source)>Sources=[
             (null,ImplicitUsingsSource),
+            (null,"global using System.IO;"),
             (null,RuntimeSource),
+            (null,SnapshotTransientAttributeSource),
+            (null,SnapshotSource),
             (null,BootstrapSource),
             (null,SystemOrderAttributeSource),
             (null,SimulationSystemsSource),

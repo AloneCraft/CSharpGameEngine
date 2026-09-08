@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "csharp-game-engine-manual-evidence-v1",
+  "entries": [
+    {
+      "id": "vsix-experimental",
+      "requirement": "Visual Studio Experimental Instance baseline and deterministic UI Automation",
+      "owner": "EditorVsix",
+      "status": "Pending",
+      "reason": "Detailed VSIX release observations are not yet complete."
+    },
+    {
+      "id": "hardware-d3d12",
+      "requirement": "Supplemental hardware D3D12 presentation and device recovery evidence",
+      "owner": "Rendering",
+      "status": "Pending",
+      "reason": "WARP remains the required correctness adapter; the supplemental hardware pass is scheduled for Level 6."
+    },
+    {
+      "id": "hardware-audio",
+      "requirement": "Supplemental hardware audio lifecycle and device recovery evidence",
+      "owner": "AudioInputPlatform",
+      "status": "Pending",
+      "reason": "The required silent backend is automated and complete; XAudio2 hardware remains a supplemental Level 6 compatibility observation and cannot replace it."
+    },
+    {
+      "id": "release-package",
+      "requirement": "Isolated package install, run, uninstall, and immutable manifest evidence",
+      "owner": "TestingCiRelease",
+      "status": "Pending",
+      "reason": "Package and release-candidate gates are scheduled for Levels 6 and 7."
+    }
+  ]
+}

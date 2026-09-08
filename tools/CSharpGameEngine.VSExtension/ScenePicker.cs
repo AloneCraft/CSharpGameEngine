@@ -150,7 +150,7 @@ internal static class ScenePicker {
                 BestScreenDistanceSquared=ScreenDistanceSquared;
                 BestDepth=Depth;
                 Hit=new VertexSnapHit(
-                    Object.NodeId,Vector3.Transform(LocalPosition,Object.World),(float)Math.Sqrt(ScreenDistanceSquared));
+                    Object.NodeId,Vector3.Transform(LocalPosition,Object.World),FloatMath.Sqrt(ScreenDistanceSquared));
             }
         }
         return Found;

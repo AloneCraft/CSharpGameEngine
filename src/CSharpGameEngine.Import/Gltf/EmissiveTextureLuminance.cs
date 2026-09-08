@@ -150,7 +150,7 @@ internal static class EmissiveTextureLuminance {
 
         byte[]PreviousRow=new byte[RowBytes];
         byte[]CurrentRow=new byte[RowBytes];
-        double Sum=0d;
+        float Sum=0f;
         var ScanlineLength=RowBytes+1;
         for(var Row=0;Row<Height;Row++){
             var ScanlineOffset=Row*ScanlineLength;
@@ -163,14 +163,14 @@ internal static class EmissiveTextureLuminance {
                 if(!TryGetSrgb(CurrentRow,Column*BytesPerPixel,ColorType,Palette,out byte Red,out byte Green,out byte Blue)){
                     return false;
                 }
-                Sum+=(0.2126d*SrgbToLinear(Red))
-                    +(0.7152d*SrgbToLinear(Green))
-                    +(0.0722d*SrgbToLinear(Blue));
+                Sum+=(0.2126f*SrgbToLinear(Red))
+                    +(0.7152f*SrgbToLinear(Green))
+                    +(0.0722f*SrgbToLinear(Blue));
             }
             (PreviousRow,CurrentRow)=(CurrentRow,PreviousRow);
         }
 
-        Luminance=(float)Math.Clamp(Sum/((double)Width*Height),0d,1d);
+        Luminance=Math.Clamp(Sum/((float)Width*Height),0f,1f);
         return true;
     }
 
@@ -254,11 +254,11 @@ internal static class EmissiveTextureLuminance {
             :AboveDistance<=UpperLeftDistance?Above:UpperLeft;
     }
 
-    private static double SrgbToLinear(byte Value){
-        double Srgb=Value/255d;
-        return Srgb<=0.04045d
-            ?Srgb/12.92d
-            :Math.Pow((Srgb+0.055d)/1.055d,2.4d);
+    private static float SrgbToLinear(byte Value){
+        float Srgb=Value/255f;
+        return Srgb<=0.04045f
+            ?Srgb/12.92f
+            :MathF.Pow((Srgb+0.055f)/1.055f,2.4f);
     }
 
     private static bool HasPngSignature(IReadOnlyList<byte>Bytes)=>

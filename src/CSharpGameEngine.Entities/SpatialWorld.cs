@@ -95,15 +95,15 @@ public partial struct World {
     };
     private static bool TryTransformBounds(in FixedAffineTransform Transform,in SpatialAabb Bounds,out SpatialAabb Result){
         Result=default;
-        Logical.Vector3 Min=default;
-        Logical.Vector3 Max=default;
+        LogicalVector3 Min=default;
+        LogicalVector3 Max=default;
         bool HasPoint=false;
         for(int Index=0;Index<8;Index++){
-            Logical.Vector3 Point=new(
+            LogicalVector3 Point=new(
                 (Index&1)==0?Bounds.Min.R:Bounds.Max.R,
                 (Index&2)==0?Bounds.Min.U:Bounds.Max.U,
                 (Index&4)==0?Bounds.Min.F:Bounds.Max.F);
-            if(!TryTransformPoint(Transform,Point,out Logical.Vector3 Transformed)){
+            if(!TryTransformPoint(Transform,Point,out LogicalVector3 Transformed)){
                 return false;
             }
             if(!HasPoint){
@@ -111,32 +111,32 @@ public partial struct World {
                 HasPoint=true;
                 continue;
             }
-            Min=new Logical.Vector3(Min.R<Transformed.R?Min.R:Transformed.R,Min.U<Transformed.U?Min.U:Transformed.U,Min.F<Transformed.F?Min.F:Transformed.F);
-            Max=new Logical.Vector3(Max.R>Transformed.R?Max.R:Transformed.R,Max.U>Transformed.U?Max.U:Transformed.U,Max.F>Transformed.F?Max.F:Transformed.F);
+            Min=new LogicalVector3(Min.R<Transformed.R?Min.R:Transformed.R,Min.U<Transformed.U?Min.U:Transformed.U,Min.F<Transformed.F?Min.F:Transformed.F);
+            Max=new LogicalVector3(Max.R>Transformed.R?Max.R:Transformed.R,Max.U>Transformed.U?Max.U:Transformed.U,Max.F>Transformed.F?Max.F:Transformed.F);
         }
         Result=new SpatialAabb(Min,Max);
         return true;
     }
-    private static bool TryTransformPoint(in FixedAffineTransform Transform,Logical.Vector3 Point,out Logical.Vector3 Result){
+    private static bool TryTransformPoint(in FixedAffineTransform Transform,LogicalVector3 Point,out LogicalVector3 Result){
         Result=default;
-        if(!TryDot(Point.R,Point.U,Point.F,Transform.M11,Transform.M21,Transform.M31,out Logical.Scalar R)
-            ||!Logical.Scalar.TryAdd(R,Transform.M41,out R)
-            ||!TryDot(Point.R,Point.U,Point.F,Transform.M12,Transform.M22,Transform.M32,out Logical.Scalar U)
-            ||!Logical.Scalar.TryAdd(U,Transform.M42,out U)
-            ||!TryDot(Point.R,Point.U,Point.F,Transform.M13,Transform.M23,Transform.M33,out Logical.Scalar F)
-            ||!Logical.Scalar.TryAdd(F,Transform.M43,out F)){
+        if(!TryDot(Point.R,Point.U,Point.F,Transform.M11,Transform.M21,Transform.M31,out LogicalScalar R)
+            ||!LogicalScalar.TryAdd(R,Transform.M41,out R)
+            ||!TryDot(Point.R,Point.U,Point.F,Transform.M12,Transform.M22,Transform.M32,out LogicalScalar U)
+            ||!LogicalScalar.TryAdd(U,Transform.M42,out U)
+            ||!TryDot(Point.R,Point.U,Point.F,Transform.M13,Transform.M23,Transform.M33,out LogicalScalar F)
+            ||!LogicalScalar.TryAdd(F,Transform.M43,out F)){
             return false;
         }
-        Result=new Logical.Vector3(R,U,F);
+        Result=new LogicalVector3(R,U,F);
         return true;
     }
-    private static bool TryDot(Logical.Scalar LeftR,Logical.Scalar LeftU,Logical.Scalar LeftF,Logical.Scalar RightR,Logical.Scalar RightU,Logical.Scalar RightF,out Logical.Scalar Result){
+    private static bool TryDot(LogicalScalar LeftR,LogicalScalar LeftU,LogicalScalar LeftF,LogicalScalar RightR,LogicalScalar RightU,LogicalScalar RightF,out LogicalScalar Result){
         Result=default;
-        if(!Logical.Scalar.TryMultiply(LeftR,RightR,out Logical.Scalar ProductR)
-            ||!Logical.Scalar.TryMultiply(LeftU,RightU,out Logical.Scalar ProductU)
-            ||!Logical.Scalar.TryMultiply(LeftF,RightF,out Logical.Scalar ProductF)
-            ||!Logical.Scalar.TryAdd(ProductR,ProductU,out Logical.Scalar Sum)
-            ||!Logical.Scalar.TryAdd(Sum,ProductF,out Result)){
+        if(!LogicalScalar.TryMultiply(LeftR,RightR,out LogicalScalar ProductR)
+            ||!LogicalScalar.TryMultiply(LeftU,RightU,out LogicalScalar ProductU)
+            ||!LogicalScalar.TryMultiply(LeftF,RightF,out LogicalScalar ProductF)
+            ||!LogicalScalar.TryAdd(ProductR,ProductU,out LogicalScalar Sum)
+            ||!LogicalScalar.TryAdd(Sum,ProductF,out Result)){
             return false;
         }
         return true;

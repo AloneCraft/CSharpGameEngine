@@ -16,12 +16,14 @@ public sealed class SimulationCommandBuffer<T> {
     public int Commit(ulong Tick,List<SimulationCommand<T>> Results){
         ArgumentNullException.ThrowIfNull(Results);
         int Start=Results.Count;
-        this.Items.Sort(static(Left,Right)=>{
-            int Result=Left.TargetTick.CompareTo(Right.TargetTick);
-            if(Result!=0){ return Result; }
-            Result=Left.SourceStableId.CompareTo(Right.SourceStableId);
-            return Result!=0?Result:Left.Sequence.CompareTo(Right.Sequence);
-        });
+        if(this.Items.Count>1){
+            this.Items.Sort(static(Left,Right)=>{
+                int Result=Left.TargetTick.CompareTo(Right.TargetTick);
+                if(Result!=0){ return Result; }
+                Result=Left.SourceStableId.CompareTo(Right.SourceStableId);
+                return Result!=0?Result:Left.Sequence.CompareTo(Right.Sequence);
+            });
+        }
         int RemoveCount=0;
         while(RemoveCount<this.Items.Count&&this.Items[RemoveCount].TargetTick<=Tick){
             if(this.Items[RemoveCount].TargetTick==Tick){

@@ -27,9 +27,21 @@ internal static class SceneDesignerDocumentWindowPolicy {
     /// </summary>
     internal static Type HostServiceType=>typeof(SVsExternalFilesManager);
 
-    internal static string PhysicalView=>string.Empty;
+    /// <summary>
+    /// The primary physical view is represented by a null BSTR. An empty BSTR is a named
+    /// physical view and is invalid when no editor factory is registered.
+    /// </summary>
+    internal static string?PhysicalView=>null;
 
     internal static string EditorCaption=>string.Empty;
+
+    /// <summary>
+    /// This fileless pane has no separate persisted model. Registering the pane itself as both
+    /// DocView and DocData prevents the Miscellaneous Files owner from trying to manufacture a
+    /// default DocData through a nonexistent editor factory.
+    /// </summary>
+    internal static IntPtr SelectDocData(IntPtr DocView)=>DocView!=IntPtr.Zero
+        ?DocView:throw new ArgumentException("The Scene Designer DocView is required.",nameof(DocView));
 
     internal static SceneDesignerDocumentWindowRequest CreateRequest(SceneKey Key)=>
         new(CreateMoniker(Key),CreateFlags,EditorTypeGuid,PhysicalView,Guid.Empty,
@@ -70,7 +82,7 @@ internal sealed class SceneDesignerDocumentWindowRequest {
         string Moniker,
         uint Flags,
         Guid EditorTypeGuid,
-        string PhysicalView,
+        string?PhysicalView,
         Guid CommandUiGuid,
         string OwnerCaption,
         string EditorCaption){
@@ -89,7 +101,7 @@ internal sealed class SceneDesignerDocumentWindowRequest {
 
     internal Guid EditorTypeGuid { get; }
 
-    internal string PhysicalView { get; }
+    internal string?PhysicalView { get; }
 
     internal Guid CommandUiGuid { get; }
 

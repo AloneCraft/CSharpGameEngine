@@ -23,6 +23,9 @@ internal static class GameSystemAnalyzer {
     internal const string SystemInterfaceMetadataName="CSharpGameEngine.Entities.ISystem";
     internal const string WorldSystemInterfaceMetadataName="CSharpGameEngine.Entities.IWorldSystem";
     internal const string SystemPhaseAttributeMetadataName="CSharpGameEngine.Entities.SystemPhaseAttribute";
+    internal const string ReadOnlyComponentAttributeMetadataName="CSharpGameEngine.Entities.ReadOnlyComponentAttribute";
+    internal const string ScheduledSystemAttributeMetadataName="CSharpGameEngine.Entities.ScheduledSystemAttribute";
+    internal const string RunsAfterAttributeMetadataName="CSharpGameEngine.Entities.RunsAfterAttribute";
     internal const string EntityFullyQualifiedName="global::CSharpGameEngine.Entities.Entity";
     internal const string StateFullyQualifiedName="global::CSharpGameEngine.Entities.State";
 
@@ -77,11 +80,19 @@ internal static class GameSystemAnalyzer {
         var TypeLocation=SystemSymbol.Locations.FirstOrDefault()??Location.None;
         var ExecuteInEditor=false;
         var RealtimeInEditor=false;
+        var IsScheduled=false;
+        var RunsAfter=ImmutableArray.CreateBuilder<string>();
         foreach(var Attribute in SystemSymbol.GetAttributes()){
             if(Attribute.AttributeClass?.ToDisplayString()=="CSharpGameEngine.Entities.ExecuteInEditorAttribute"){
                 ExecuteInEditor=true;
                 RealtimeInEditor=Attribute.NamedArguments.Any(static A=>A.Key=="Realtime"&&A.Value.Value is true);
-                break;
+            } else if(Attribute.AttributeClass?.ToDisplayString()==ScheduledSystemAttributeMetadataName){
+                IsScheduled=true;
+            } else if(Attribute.AttributeClass?.ToDisplayString()==RunsAfterAttributeMetadataName
+                &&Attribute.ConstructorArguments.Length==1
+                &&Attribute.ConstructorArguments[0].Value is INamedTypeSymbol Dependency){
+                IsScheduled=true;
+                RunsAfter.Add(Dependency.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
             }
         }
 
@@ -114,6 +125,9 @@ internal static class GameSystemAnalyzer {
             RealtimeInEditor,
             Phase,
             IsWorldSystem,
+            IsScheduled,
+            RunsAfter.ToImmutable(),
+            TypeLocation,
             TypeLocation.SourceTree?.FilePath??string.Empty,
             TypeLocation.SourceSpan.Start);
     }
@@ -226,10 +240,31 @@ internal static class GameSystemAnalyzer {
         for(var I=ScanStart;I<ScanEndExclusive;I++){
             var Parameter=Parameters[I];
             var ParameterTypeFqn=TypeFqn(Parameter);
+            var IsReadOnlyComponent=Parameter.GetAttributes().Any(static Attribute=>
+                Attribute.AttributeClass?.ToDisplayString()==ReadOnlyComponentAttributeMetadataName);
 
             if(ParameterTypeFqn==EntityFullyQualifiedName||ParameterTypeFqn==StateFullyQualifiedName){
                 Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.EntityOrStateMustNotBeUsedAsComponent,Parameter.Locations.FirstOrDefault(),Parameter.Name,Method.Name,ParameterTypeFqn));
                 IsValid=false;
+                continue;
+            }
+
+            if(IsReadOnlyComponent){
+                if(Parameter.RefKind!=RefKind.In||!IsNonNullableStruct(Parameter.Type)){
+                    Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.ReadOnlyComponentMustBeInStruct,
+                        Parameter.Locations.FirstOrDefault(),Parameter.Name,Method.Name));
+                    IsValid=false;
+                    continue;
+                }
+
+                if(!SeenComponentTypes.Add(ParameterTypeFqn)){
+                    Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.DuplicateComponentParameter,Parameter.Locations.FirstOrDefault(),Method.Name,ParameterTypeFqn));
+                    IsValid=false;
+                    continue;
+                }
+
+                CallOrder.Add(new GameSystemParameterSlot(GameSystemParameterRole.Component,Components.Count));
+                Components.Add(new GameSystemComponentParameterModel(Parameter.Name,ParameterTypeFqn,IsReadOnly:true));
                 continue;
             }
 
@@ -247,7 +282,7 @@ internal static class GameSystemAnalyzer {
                 }
 
                 CallOrder.Add(new GameSystemParameterSlot(GameSystemParameterRole.Component,Components.Count));
-                Components.Add(new GameSystemComponentParameterModel(Parameter.Name,ParameterTypeFqn));
+                Components.Add(new GameSystemComponentParameterModel(Parameter.Name,ParameterTypeFqn,IsReadOnly:false));
                 continue;
             }
 

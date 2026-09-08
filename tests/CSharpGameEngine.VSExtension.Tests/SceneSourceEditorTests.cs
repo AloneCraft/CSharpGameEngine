@@ -18,6 +18,28 @@ public sealed class SceneSourceEditorTests {
             }
         }
         """;
+    private const string CanonicalTransformTypes="""
+        namespace CSharpGameEngine.Contracts {
+            public readonly record struct ReferenceFrameId(long Value);
+        }
+        namespace CSharpGameEngine.Numerics {
+            public struct LogicalVector3 {
+                public float R; public float U; public float F;
+                public LogicalVector3(float R,float U,float F){ this.R=R;this.U=U;this.F=F; }
+            }
+            public struct LogicalQuaternion {
+                public LogicalQuaternion(LogicalVector3 EulerRuf){ }
+            }
+        }
+        namespace CSharpGameEngine.Entities {
+            public struct Transform {
+                public CSharpGameEngine.Contracts.ReferenceFrameId Frame;
+                public CSharpGameEngine.Numerics.LogicalVector3 Position;
+                public CSharpGameEngine.Numerics.LogicalQuaternion Rotation;
+                public CSharpGameEngine.Numerics.LogicalVector3 Scale;
+            }
+        }
+        """;
     private const string Source="""
         using CSharpGameEngine.Entities;
         using Sample;
@@ -163,6 +185,58 @@ public sealed class SceneSourceEditorTests {
         var Changed=Result.Root!.ToFullString();
         Assert.Contains("Position=new global::CSharpGameEngine.Runtime.Windows.Vector3(3f,2f,0f)",Changed);
         Assert.Contains("// keep",Changed);
+    }
+
+    [Fact]
+    public void SetTransform_CanonicalRotationWritesNestedQuaternionAuthoringValue(){
+        const string TransformSource="""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Contracts;
+            using CSharpGameEngine.Numerics;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() { Children=[new Node {
+                    Name="Cube",Components=[new Transform {
+                        Frame=new ReferenceFrameId(42),
+                        Position=new LogicalVector3(0,0,0),
+                        Rotation=new LogicalQuaternion(new LogicalVector3(0,0,0)),
+                        Scale=new LogicalVector3(1,1,1),
+                    }],
+                }] };
+            }
+            """;
+        var Model=SceneAnalysisTestHelper.Analyze([CanonicalTransformTypes,TransformSource]);
+        var Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        var Cube=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Cube").Id;
+        SceneTransformValue Value=new(
+            System.Numerics.Vector3.Zero,
+            System.Numerics.Quaternion.CreateFromAxisAngle(System.Numerics.Vector3.UnitX,(float)System.Math.PI/2f),
+            System.Numerics.Vector3.One);
+
+        var Result=SceneSourceEditor.Apply(
+            CSharpSyntaxTree.ParseText(TransformSource).GetRoot(),Projection,
+            new SetTransformOperation(Key,Cube,DocumentVersion:1,Value));
+
+        Assert.True(Result.Succeeded,Result.ErrorMessage);
+        string Changed=Result.Root!.ToFullString();
+        Assert.Contains(
+            "Rotation=new global::CSharpGameEngine.Numerics.LogicalQuaternion(new global::CSharpGameEngine.Numerics.LogicalVector3(",
+            Changed);
+        Assert.Contains("Frame=new ReferenceFrameId(42)",Changed);
+        Assert.Equal(1,CountOccurrences(Changed,"Frame=new ReferenceFrameId(42)"));
+        var Reanalyzed=SceneAnalysisTestHelper.Analyze([CanonicalTransformTypes,Changed]);
+        var Node=Assert.Single(Reanalyzed.EnumerateNodes(),static Node=>Node.Name=="Cube");
+        Assert.True(SceneTransformBinding.TryRead(Node,out var RoundTrip));
+        Assert.True(System.Math.Abs(System.Numerics.Quaternion.Dot(Value.Rotation,RoundTrip.Rotation))>0.99999f);
+    }
+
+    private static int CountOccurrences(string Text,string Value){
+        int Count=0;
+        for(int Index=Text.IndexOf(Value,System.StringComparison.Ordinal);Index>=0;
+            Index=Text.IndexOf(Value,Index+Value.Length,System.StringComparison.Ordinal)){
+            Count++;
+        }
+        return Count;
     }
 
     [Fact]

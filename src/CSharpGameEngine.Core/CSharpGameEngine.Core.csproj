@@ -20,6 +20,10 @@
   -->
 
   <ItemGroup>
+    <ProjectReference Include="..\CSharpGameEngine.Contracts\CSharpGameEngine.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- RufVector.RawCross is the only internal member in the merged Spatial surface. The grant
          moved from the former CSharpGameEngine.Spatial.Tests to the merged test assembly. -->
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">

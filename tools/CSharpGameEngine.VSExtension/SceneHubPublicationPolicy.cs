@@ -10,12 +10,8 @@ namespace CSharpGameEngine.VSExtension;
 /// </para>
 ///
 /// <para>
-/// 原因はM0048の配線の取り残し。M0048はDocument更新をHubへ橋渡しする経路
-/// (<c>PinnedSnapshotChanged</c>→<c>PublishSceneModel</c>)を追加したが、それ以前からあった
-/// <c>SceneWorkspaceService.ModelChanged</c>→<c>PublishSceneModel</c>の直接購読を残したため、
-/// 2つの発行元が競合していた。さらに<see cref="SceneExternalChangePolicy"/>が
-/// <c>Ignore</c>(テキストは実際には変わっていない)を返す場合は<c>PublishDocument</c>が
-/// 呼ばれないため、Hubには古いモデルが残り続けた。
+    /// 原因は同じHubにWorkspaceとSessionの2経路から異なる世代のmodelを発行していたこと。
+    /// 現在はSessionだけがpin中sceneのprojectionを発行し、WorkspaceのRoslyn更新をそこで直列化する。
 /// </para>
 ///
 /// <para>

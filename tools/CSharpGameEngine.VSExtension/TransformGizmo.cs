@@ -109,7 +109,7 @@ internal static partial class TransformGizmo {
         SceneProjectionMode ProjectionMode,float DistanceToCamera,float FovYRadians,float OrthographicSize)=>
         ProjectionMode==SceneProjectionMode.Orthographic
             ?Math.Max(OrthographicSize,0.01f)*ScreenFraction
-            :Math.Max(DistanceToCamera,0.01f)*(float)Math.Tan(Math.Max(FovYRadians,0.01f)*0.5f)*ScreenFraction;
+            :Math.Max(DistanceToCamera,0.01f)*FloatMath.Tan(Math.Max(FovYRadians,0.01f)*0.5f)*ScreenFraction;
 
     internal static GizmoHandleId?TryHitMove(
         in MoveGizmoFrame Frame,Vector3 RayOrigin,Vector3 RayDirection,out float BestRayDistance,
@@ -232,10 +232,10 @@ internal static partial class TransformGizmo {
             Vector3 Tip=Value.Pivot+(Axis*(AxisLength*Value.WorldScale));
             List<GizmoOverlayVertex>Solid=[];
             for(var Segment=0;Segment<Segments;Segment++){
-                float AngleA=(float)(Segment*Math.PI*2.0/Segments);
-                float AngleB=(float)((Segment+1)*Math.PI*2.0/Segments);
-                Vector3 RadialA=(SideA*(float)Math.Cos(AngleA))+(SideB*(float)Math.Sin(AngleA));
-                Vector3 RadialB=(SideA*(float)Math.Cos(AngleB))+(SideB*(float)Math.Sin(AngleB));
+                float AngleA=Segment*FloatMath.Pi*2f/Segments;
+                float AngleB=(Segment+1)*FloatMath.Pi*2f/Segments;
+                Vector3 RadialA=(SideA*FloatMath.Cos(AngleA))+(SideB*FloatMath.Sin(AngleA));
+                Vector3 RadialB=(SideA*FloatMath.Cos(AngleB))+(SideB*FloatMath.Sin(AngleB));
                 Vector3 StartA=ShaftStart+(RadialA*(ShaftRadius*Value.WorldScale));
                 Vector3 StartB=ShaftStart+(RadialB*(ShaftRadius*Value.WorldScale));
                 Vector3 FinishA=ShaftFinish+(RadialA*(ShaftRadius*Value.WorldScale));

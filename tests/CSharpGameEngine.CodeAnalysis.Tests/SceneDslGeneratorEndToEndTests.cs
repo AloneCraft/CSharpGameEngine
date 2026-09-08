@@ -67,6 +67,21 @@ public sealed class SceneDslGeneratorEndToEndTests {
                     &&Parent.Value==Root
                     &&!World.TryGetComponent(Child,out Transform _);
             }
+            public static bool CellOwnershipUsesPersistentIdsAndUnloadsAsOneUnit(){
+                World World=new();
+                var Cell=CSharpGameEngine.Contracts.WorldCellId.Parse("9ea8cda6-330c-53c9-909d-e27aedcf7ec2");
+                MainScene.InstantiateCell(ref World,Cell);
+                if(!World.HasOwnedCell(Cell)){ return false; }
+                var Count=0;
+                for(var Index=0;Index<World.EntityArchetypeIndices.Count;Index++){
+                    var Entity=new Entity(Index);
+                    if(!World.IsAlive(Entity)){ continue; }
+                    if(World.GetOwningCell(Entity)!=Cell||!World.GetPersistentEntityId(Entity).IsValid){ return false; }
+                    Count++;
+                }
+                if(Count!=3||!World.UnloadCell(Cell)||World.HasOwnedCell(Cell)){ return false; }
+                return World.GetStatistics().AliveEntityCount==0;
+            }
         }
         """;
 
@@ -149,6 +164,26 @@ public sealed class SceneDslGeneratorEndToEndTests {
                                   """);
 
         Assert.True((bool)Invoke(Assembly,"LooksUpComponentsWithoutReflection")!);
+    }
+
+    [Fact]
+    public void InstantiateCell_AssignsDeterministicPersistentOwnershipAndUnloadsAtomically(){
+        var Assembly=CompileScene("""
+                                  using CSharpGameEngine.Entities;
+                                  using Sample;
+                                  namespace Game;
+                                  public partial class MainScene:IScene {
+                                      public Node Root=>new() {
+                                          Components=[new Transform { X=1f }],
+                                          Children=[
+                                              new Node { Components=[new Light()] },
+                                              new Node { Components=[new Transform { X=2f }] },
+                                          ],
+                                      };
+                                  }
+                                  """);
+
+        Assert.True((bool)Invoke(Assembly,"CellOwnershipUsesPersistentIdsAndUnloadsAsOneUnit")!);
     }
 
     /// <summary>

@@ -163,7 +163,7 @@ public sealed class InspectorRefreshPolicyTests {
             Id,ComponentType,SceneInspectorTypeName.Simplify(ComponentType),
             [..Members.Select(Member=>(SceneInspectorRow)new SceneInspectorMemberRow(new SceneInspectorMember(
                 Id,ComponentType,Member.Name,Member.Expression,IsEditable:true,
-                InspectorEditorKind.Text,ConstantValue:null,NumericType:null,EnumCandidates:[])))]);
+                InspectorEditorKind.Text,ConstantValue:null,NumericType:null,Candidates:[])))]);
     }
 
     private static SceneInspectorComponentGroup GroupWithNested(
@@ -174,7 +174,7 @@ public sealed class InspectorRefreshPolicyTests {
             Id,ComponentType,[NestedName],NestedName,NestedType,
             [..NestedMembers.Select(Member=>(SceneInspectorRow)new SceneInspectorMemberRow(new SceneInspectorMember(
                 Id,ComponentType,Member.Name,Member.Expression,IsEditable:false,
-                InspectorEditorKind.ReadOnly,ConstantValue:null,NumericType:null,EnumCandidates:[])))]);
+                InspectorEditorKind.ReadOnly,ConstantValue:null,NumericType:null,Candidates:[])))]);
         return new SceneInspectorComponentGroup(
             Id,ComponentType,SceneInspectorTypeName.Simplify(ComponentType),[Nested]);
     }

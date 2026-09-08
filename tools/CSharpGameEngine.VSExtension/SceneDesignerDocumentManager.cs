@@ -65,9 +65,9 @@ internal sealed class SceneDesignerDocumentManager:IDisposable {
                 Request.Flags,
                 Request.Moniker,
                 View,
-                IntPtr.Zero,
+                SceneDesignerDocumentWindowPolicy.SelectDocData(View),
                 ref Editor,
-                Request.PhysicalView,
+                Request.PhysicalView!,
                 ref CommandUi,
                 Request.OwnerCaption,
                 Request.EditorCaption,
@@ -85,11 +85,29 @@ internal sealed class SceneDesignerDocumentManager:IDisposable {
         }
     }
     public void Dispose(){
+        ThreadHelper.ThrowIfNotOnUIThread();
         if(this.Disposed){ return; }
         this.Disposed=true;
+        this.CloseAll();
+    }
+
+    internal void CloseAll(){
+        ThreadHelper.ThrowIfNotOnUIThread();
         var OpenPanes=new List<SceneDesignerDocumentPane>(this.Panes.Values);
-        foreach(SceneDesignerDocumentPane Pane in OpenPanes){ Pane.Dispose(); }
+        foreach(SceneDesignerDocumentPane Pane in OpenPanes){ Pane.Close(); }
         this.Panes.Clear();
+    }
+
+    internal void ReleaseRuntimeResourcesForSolutionClose(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        // The shell owns the external document frames and is already closing them. Re-entering
+        // IVsWindowFrame.CloseFrame from a solution-close callback deadlocks that same close.
+        // Release only engine-owned controls/Preview Hosts here and let the shell finish its
+        // frame lifecycle.
+        var OpenPanes=new List<SceneDesignerDocumentPane>(this.Panes.Values);
+        foreach(SceneDesignerDocumentPane Pane in OpenPanes){
+            Pane.ReleaseRuntimeResources();
+        }
     }
 
     private void OnPaneClosed(SceneKey Key)=>this.Panes.Remove(Key);
@@ -122,6 +140,38 @@ internal sealed class SceneDesignerDocumentPane:WindowPane {
         ErrorHandler.ThrowOnFailure(this.Frame.Show());
     }
 
+    internal void Close(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        IVsWindowFrame?OpenFrame=this.Frame;
+        this.Frame=null;
+        try {
+            if(OpenFrame is not null){
+                ActivityLog.LogInformation(
+                    nameof(SceneDesignerDocumentPane),
+                    "Closing Visual Studio-owned Scene document frame.");
+                int HResult=OpenFrame.CloseFrame(
+                    (uint)__FRAMECLOSE.FRAMECLOSE_NoSave);
+                ActivityLog.LogInformation(
+                    nameof(SceneDesignerDocumentPane),
+                    "Scene document frame close returned HRESULT=0x"
+                    +HResult.ToString("X8")+".");
+                ErrorHandler.ThrowOnFailure(HResult);
+            }
+        } finally {
+            // CloseFrame normally calls OnClose. Keep disposal as the idempotent fallback for
+            // incomplete shell teardown and for panes whose frame was never attached.
+            this.Dispose();
+        }
+    }
+
+    internal void ReleaseRuntimeResources(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        ActivityLog.LogInformation(
+            nameof(SceneDesignerDocumentPane),
+            "Releasing Scene document runtime resources before shell frame close.");
+        this.CloseCore();
+    }
+
     internal static string CreateCaption(SceneKey Key){
         string Name=Key.ClassFullyQualifiedName;
         int LastSeparator=Name.LastIndexOf('.');
@@ -129,11 +179,21 @@ internal sealed class SceneDesignerDocumentPane:WindowPane {
     }
 
     protected override void OnClose(){
+        this.Frame=null;
+        this.CloseCore();
+        base.OnClose();
+    }
+
+    protected override void Dispose(bool Disposing){
+        if(Disposing){ this.CloseCore(); }
+        base.Dispose(Disposing);
+    }
+
+    private void CloseCore(){
         if(!this.IsClosed){
             this.IsClosed=true;
             this.Closed(this.Key);
             this.Control.Dispose();
         }
-        base.OnClose();
     }
 }

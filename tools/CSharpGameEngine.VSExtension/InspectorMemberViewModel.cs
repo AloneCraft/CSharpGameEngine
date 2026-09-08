@@ -38,7 +38,7 @@ internal sealed class InspectorMemberViewModel:InspectorSelectableViewModel {
             _=>Member.SourceExpression,
         };
         this.BooleanValue=Member.ConstantValue is bool BoolValue&&BoolValue;
-        this.SelectedEnumName=ExtractTrailingIdentifier(Member.SourceExpression);
+        this.SelectedChoiceName=SceneInspectorCommitPlanner.GetCurrentChoiceName(Member.SourceExpression);
     }
 
     internal SceneInspectorMember Member { get; }
@@ -62,16 +62,10 @@ internal sealed class InspectorMemberViewModel:InspectorSelectableViewModel {
     // これらは初期表示専用のOneWayバインディングで足りる。setterは不要。
     public bool BooleanValue { get; }
 
-    public string?SelectedEnumName { get; }
+    public string?SelectedChoiceName { get; }
 
-    public IReadOnlyList<string>EnumCandidateNames=>this.Member.EnumCandidates.Select(static Candidate=>Candidate.Name).ToArray();
+    public IReadOnlyList<string>ChoiceCandidateNames=>this.Member.Candidates.Select(static Candidate=>Candidate.Name).ToArray();
 
-    /// <summary>"Sample.PrimitiveType.Cube"→"Cube"。Enum候補名との照合はConstantValue(数値)ではなく
-    /// 名前で行う — flags enumの値重複でも取り違えない。</summary>
-    private static string ExtractTrailingIdentifier(string Expression){
-        var LastDot=Expression.LastIndexOf('.');
-        return LastDot>=0?Expression.Substring(LastDot+1):Expression;
-    }
 }
 
 /// <summary>

@@ -3,7 +3,7 @@ using static TerraFX.Interop.DirectX.DXGI_FORMAT;
 
 namespace CSharpGameEngine.Graphics.D3D12;
 
-public sealed record ModelVerificationResult(bool Success,PixelColor CenterColor,double ForegroundRatio,string Details);
+public sealed record ModelVerificationResult(bool Success,PixelColor CenterColor,float ForegroundRatio,string Details);
 
 /// <summary>
 /// Pure, GPU-free pixel checks for the model viewer vertical slice. Unlike
@@ -14,19 +14,19 @@ public sealed record ModelVerificationResult(bool Success,PixelColor CenterColor
 /// </summary>
 public static class ModelPixelVerifier {
     public const byte DefaultTolerance=24;
-    public const double DefaultMinForegroundRatio=0.05;
-    public const double DefaultMaxForegroundRatio=0.98;
+    public const float DefaultMinForegroundRatio=0.05f;
+    public const float DefaultMaxForegroundRatio=0.98f;
 
     public static ModelVerificationResult Verify(
         PixelReadbackResult Readback,
         PixelColor BackgroundColor,
         byte Tolerance=DefaultTolerance,
-        double MinForegroundRatio=DefaultMinForegroundRatio,
-        double MaxForegroundRatio=DefaultMaxForegroundRatio){
+        float MinForegroundRatio=DefaultMinForegroundRatio,
+        float MaxForegroundRatio=DefaultMaxForegroundRatio){
         ArgumentNullException.ThrowIfNull(Readback);
 
         if(Readback.Width<=0||Readback.Height<=0){
-            return new ModelVerificationResult(false,default,0.0,"Readback has no pixels (width or height is zero).");
+            return new ModelVerificationResult(false,default,0f,"Readback has no pixels (width or height is zero).");
         }
 
         var Center=ReadPixel(Readback,Readback.Width/2,Readback.Height/2);
@@ -42,7 +42,7 @@ public static class ModelPixelVerifier {
             }
         }
 
-        var ForegroundRatio=(double)ForegroundCount/TotalCount;
+        var ForegroundRatio=(float)ForegroundCount/TotalCount;
         var CenterDiffersFromBackground=!IsClose(Center,BackgroundColor,Tolerance);
         var RatioInBand=ForegroundRatio>=MinForegroundRatio&&ForegroundRatio<=MaxForegroundRatio;
 
@@ -55,7 +55,7 @@ public static class ModelPixelVerifier {
         return new ModelVerificationResult(Success,Center,ForegroundRatio,Details);
     }
 
-    private static string BuildFailureDetails(bool CenterDiffersFromBackground,bool RatioInBand,PixelColor Center,PixelColor BackgroundColor,double ForegroundRatio,double MinForegroundRatio,double MaxForegroundRatio){
+    private static string BuildFailureDetails(bool CenterDiffersFromBackground,bool RatioInBand,PixelColor Center,PixelColor BackgroundColor,float ForegroundRatio,float MinForegroundRatio,float MaxForegroundRatio){
         List<string>Parts=[];
         if(!CenterDiffersFromBackground){
             Parts.Add($"center={Center} is too close to background={BackgroundColor}; nothing appears to have been drawn there.");

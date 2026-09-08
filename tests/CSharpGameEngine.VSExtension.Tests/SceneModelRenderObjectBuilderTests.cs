@@ -365,7 +365,7 @@ public sealed class SceneModelRenderObjectBuilderTests {
 
     [Fact]
     public void Build_ModelWithoutRoot_ReturnsEmptyList(){
-        // Root を解析できないシーンでは空リストを返す。SceneRenderer/SceneHwndHost が0件を
+        // Root を解析できないシーンでは空リストを返す。Preview Host/SceneHwndHost が0件を
         // 例外にしなくなった(M0020 Phase 0)ことの、GPU 非依存な唯一の証跡。
         var Model=Analyze("""
                           using CSharpGameEngine.Entities;

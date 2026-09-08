@@ -1,6 +1,11 @@
 using System.Numerics;
+using System.Text;
+using CSharpGameEngine.Content;
+using CSharpGameEngine.Contracts;
+using CSharpGameEngine.Core;
 using CSharpGameEngine.Geometry;
 using CSharpGameEngine.Platform.Windows;
+using CSharpGameEngine.Rendering;
 
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 
@@ -10,8 +15,15 @@ namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// buffers). Runs against the WARP software adapter so it is deterministic in CI without
 /// requiring a physical GPU (same rationale as <see cref="ModelGpuIntegrationTests"/>).
 /// </summary>
+[Collection(D3D12GpuCollection.Name)]
 public class StageGpuIntegrationTests {
     private static readonly string ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact");
+    private static readonly StableId MaterialNamespace=
+        StableId.Parse("a19ac848-6ec2-50a2-8333-6e31dbcfc19d");
+    private static readonly ArtifactProvenance MaterialProvenance=new(
+        "test-1","asset://stage-materials",
+        Hash256.Compute(Encoding.UTF8.GetBytes("stage-materials")),
+        "test",Hash256.Compute(Encoding.UTF8.GetBytes("options")));
 
     [Fact]
     public void StageShadowAtlas_DirectionalTileZeroMatchesPhysicalPlan(){
@@ -221,8 +233,11 @@ public class StageGpuIntegrationTests {
         }
 
         StageMeshCreateInfo Mesh=new(){ Positions=Box.Positions,Normals=Box.Normals,Tangents=Tangents,Uvs=Uvs,Indices=Box.Indices };
-        StageMaterialCreateInfo RedMaterial=new(){ BaseColorFactor=new Vector4(1,0,0,1),RoughnessFactor=1f,MetallicFactor=0f };
-        StageMaterialCreateInfo BlueMaterial=new(){ BaseColorFactor=new Vector4(0,0,1,1),RoughnessFactor=1f,MetallicFactor=0f };
+        RenderMaterialCatalog MaterialCatalog=new();
+        StageMaterialCreateInfo RedMaterial=ToStageMaterial(
+            CreateArtifactMaterial(MaterialCatalog,"red",[255,0,0,255]));
+        StageMaterialCreateInfo BlueMaterial=ToStageMaterial(
+            CreateArtifactMaterial(MaterialCatalog,"blue",[0,0,255,255]));
 
         using var Renderer=StageRenderer.Create(
                                                 Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderArtifactPath,
@@ -234,6 +249,7 @@ public class StageGpuIntegrationTests {
                                                 ]);
 
         Assert.True(Renderer.ShaderArtifactLoaded,string.Join(Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
+        Assert.Equal(4,Renderer.ResidentMaterialTextureCount);
 
         Camera Camera=Camera.CreateDefault(Vector3.Zero);
         Renderer.SetCamera(Camera);
@@ -267,6 +283,46 @@ public class StageGpuIntegrationTests {
         Assert.True(FoundBluish,"Expected at least one blue-dominant pixel from the object using materialIndex 1.");
         Assert.Equal(0,Renderer.ErrorOrWorseMessageCount);
     }
+
+    private static RenderMaterialResource CreateArtifactMaterial(
+        RenderMaterialCatalog Catalog,string Name,ReadOnlySpan<byte>BaseColorPixels){
+        AssetKey BaseColorKey=MaterialKey($"{Name}/base-color");
+        AssetKey NormalKey=MaterialKey("shared/normal");
+        AssetKey WhiteKey=MaterialKey("shared/white");
+        RenderTextureResource BaseColor=Catalog.RegisterTexture(
+            BaseColorKey,RenderArtifactCodec.CreateTextureEnvelope(
+                MaterialProvenance,1,1,BaseColorPixels));
+        RenderTextureResource Normal=Catalog.RegisterTexture(
+            NormalKey,RenderArtifactCodec.CreateTextureEnvelope(
+                MaterialProvenance,1,1,[128,128,255,255]));
+        RenderTextureResource White=Catalog.RegisterTexture(
+            WhiteKey,RenderArtifactCodec.CreateTextureEnvelope(
+                MaterialProvenance,1,1,[255,255,255,255]));
+        RenderMaterialArtifactDefinition Definition=new(
+            Vector4.One,1f,0f,Vector3.Zero,1f,
+            new AssetArtifactReference(BaseColorKey,BaseColor.ContentHash),
+            new AssetArtifactReference(NormalKey,Normal.ContentHash),
+            new AssetArtifactReference(WhiteKey,White.ContentHash),
+            new AssetArtifactReference(WhiteKey,White.ContentHash));
+        return Catalog.RegisterMaterial(
+            MaterialKey($"{Name}/material"),
+            RenderArtifactCodec.CreateMaterialEnvelope(MaterialProvenance,Definition));
+    }
+
+    private static StageMaterialCreateInfo ToStageMaterial(RenderMaterialResource Material)=>new(){
+        BaseColorFactor=Material.BaseColorFactor,
+        RoughnessFactor=Material.RoughnessFactor,
+        MetallicFactor=Material.MetallicFactor,
+        EmissiveNits=Material.EmissiveNits,
+        EmissiveTextureLuminanceScale=Material.EmissiveTextureLuminanceScale,
+        BaseColorTexture=Material.BaseColorTexture,
+        NormalTexture=Material.NormalTexture,
+        MetallicRoughnessTexture=Material.MetallicRoughnessTexture,
+        EmissiveTexture=Material.EmissiveTexture,
+    };
+
+    private static AssetKey MaterialKey(string Name)=>new(
+        new AssetId(StableId.FromName(MaterialNamespace,Name)),null);
 
     private static void RunLightingApiScenario(){
         var Ground=ProceduralMeshFactory.CreatePlane(Width:20f,Depth:20f);

@@ -9,13 +9,11 @@ using CSharpGameEngine.SceneAnalysis;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// M0038/M0047: 編集操作をimmutableな<see cref="SceneModel"/>へ関数的に適用する純粋層。
+/// 編集操作をimmutableな<see cref="SceneModel"/>へ関数的に適用する純粋層。
 ///
 /// <para>
-/// M0047で<b>このモデルがセッション中の正本になった</b>(<see cref="SceneEditDocument"/>参照)。
-/// C#ソースへの書き戻しは保存操作でのみ発生し、値編集・構造編集のどちらも、この層の上で
-/// 即時・同期的に完結する。以前(M0038〜M0046)はここが「Roslyn再解析を待つ間の先読み表示」に
-/// すぎなかったが、その位置づけは終わった。
+/// このmodelは1 gestureの予測・検証にだけ使う派生値で、authoring truthは常にC# sourceである。
+/// 適用結果は同じtransaction内でsourceへ変換・再解析検証され、live bufferへcommitされる。
 /// </para>
 ///
 /// <para>
@@ -59,7 +57,7 @@ internal static class SceneModelEditApplier {
             // 素直に再投影すると次の2つでNode(と配下)へ新しいIDが振られてしまう:
             //   - Reparent: 移動先の親の下に旧兄弟が無いのでキーを突き合わせる相手が居ない。
             //   - Component増減: Pathは変わらないが照合キー自体が変わるので一致しない。
-            // どちらも選択・Reveal・未書き出し履歴が持つEditorNodeIdを宙に浮かせる(実機報告:
+            // どちらも選択・Reveal・同じgesture内の後続操作が持つEditorNodeIdを宙に浮かせる(実機報告:
             // パレットからドロップするとノードの選択が外れる)ので、元のIDを明示的に引き継ぐ。
             CurrentProjection=Operation switch {
                 ReparentNodeOperation when MovedToPath is { }NewPath=>
@@ -284,8 +282,8 @@ internal static class SceneModelEditApplier {
     /// <para>
     /// M0051 Step 1-4(バグ修正): 以前は<c>ReferenceEquals</c>で探していたが、直前の
     /// <see cref="TryRemoveChildAt"/>が木を関数的に作り直すため新親は**必ず別インスタンス**になり、
-    /// この関数は常にfalseを返していた。結果、<b>親を跨ぐReparentは
-    /// <see cref="SceneEditDocument.TryApply"/>の時点で必ず失敗し、Hierarchyのドラッグ&amp;ドロップでの
+    /// この関数は常にfalseを返していた。結果、<b>親を跨ぐReparentはmodel適用時に必ず失敗し、
+    /// Hierarchyのドラッグ&amp;ドロップでの
     /// 親子変更が一切効かなかった</b>(実機報告「ヒエラルキーで編集しても取り消される」の一因)。
     /// XMLコメントが記していた本来の意図(Name+Component構成での照合)どおりに実装し直した。
     /// </para>
@@ -532,7 +530,20 @@ internal static class SceneModelEditApplier {
             CreateLiteral(Value.Y,SceneSourceEditor.FormatFloat(Value.Y),Existing,Fallback),
             CreateLiteral(Value.Z,SceneSourceEditor.FormatFloat(Value.Z),Existing,Fallback),
         ];
-        string TypeName=Type?.ToDisplayString(Microsoft.CodeAnalysis.SymbolDisplayFormat.FullyQualifiedFormat)??"Logical.Vector3";
+        string TypeName=Type?.ToDisplayString(Microsoft.CodeAnalysis.SymbolDisplayFormat.FullyQualifiedFormat)??"LogicalVector3";
+        if(Name=="Rotation"&&SceneTransformBinding.IsCanonicalTransform(Component)){
+            const string VectorTypeName="global::CSharpGameEngine.Numerics.LogicalVector3";
+            string VectorText=$"new {VectorTypeName}({SceneSourceEditor.FormatFloat(Value.X)}, {SceneSourceEditor.FormatFloat(Value.Y)}, {SceneSourceEditor.FormatFloat(Value.Z)})";
+            SceneValue EulerValue=new(
+                SceneValueKind.ObjectCreation,Old?.Arguments.FirstOrDefault()?.Type,ConstantValue:null,ReferencedSymbol:null,
+                ImmutableArray<SceneComponentMember>.Empty,Arguments,ImmutableArray<SceneValue>.Empty,
+                VectorText,VectorText,Old?.Location??Fallback);
+            string QuaternionText=$"new {TypeName}({VectorText})";
+            return new SceneValue(
+                SceneValueKind.ObjectCreation,Type,ConstantValue:null,ReferencedSymbol:null,
+                ImmutableArray<SceneComponentMember>.Empty,[EulerValue],ImmutableArray<SceneValue>.Empty,
+                QuaternionText,QuaternionText,Old?.Location??Fallback);
+        }
         string Text=$"new {TypeName}({SceneSourceEditor.FormatFloat(Value.X)}, {SceneSourceEditor.FormatFloat(Value.Y)}, {SceneSourceEditor.FormatFloat(Value.Z)})";
         return new SceneValue(
             SceneValueKind.ObjectCreation,Type,ConstantValue:null,ReferencedSymbol:null,

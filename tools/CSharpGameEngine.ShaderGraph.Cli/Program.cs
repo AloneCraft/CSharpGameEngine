@@ -16,6 +16,7 @@ internal static class ShaderGraphCli {
             return Arguments[0] switch {
                 "validate"=>Validate(Arguments),
                 "build"=>Build(Arguments),
+                "build-compute"=>BuildCompute(Arguments),
                 "dump-hlsl"=>DumpHlsl(Arguments),
                 "publish"=>Publish(Arguments),
                 "extract-subgraph-internal"=>ExtractSubgraphInternal(Arguments),
@@ -26,6 +27,66 @@ internal static class ShaderGraphCli {
             Console.Error.WriteLine(Exception);
             return 1;
         }
+    }
+    private static int BuildCompute(string[]Arguments) {
+        if(Arguments.Length<3||Arguments.Length>4) {
+            WriteUsage();
+            return 2;
+        }
+        string SourcePath=Path.GetFullPath(Arguments[1]);
+        string ArtifactPath=Path.GetFullPath(Arguments[2]);
+        string Configuration=Arguments.Length==4?Arguments[3]:"Release";
+        byte[]SourceBytes=File.ReadAllBytes(SourcePath);
+        string SourceHash=Convert.ToHexString(SHA256.HashData(SourceBytes));
+        const ShaderArtifactTargetKind Target=ShaderArtifactTargetKind.Compute;
+        string CompilerVersion="1.1.0-"+(string.Equals(Configuration,"Debug",StringComparison.OrdinalIgnoreCase)?"Debug":"Release");
+        if(CanReuseArtifact(ArtifactPath,Target,SourceHash,SourceHash,CompilerVersion)) {
+            Console.WriteLine($"up-to-date {ArtifactPath} {SourceHash}");
+            return 0;
+        }
+        List<ShaderArtifactEntry>Entries=[];
+        foreach(var Contract in ShaderArtifactAbi.GetEntries(Target)) {
+            var Compile=HlslCompiler.Compile(new HlslCompileRequest {
+                FilePath=SourcePath,
+                EntryPoint=Contract.LogicalName,
+                TargetProfile=Contract.Profile,
+                EnableDebugInfo=string.Equals(Configuration,"Debug",StringComparison.OrdinalIgnoreCase),
+            });
+            foreach(var Diagnostic in Compile.Diagnostics) { Console.Error.WriteLine(Diagnostic); }
+            if(!Compile.Success) { return 1; }
+            byte[]Reflection=JsonSerializer.SerializeToUtf8Bytes(new {
+                entry=Contract.LogicalName,
+                profile=Contract.Profile,
+                stage=Contract.Stage.ToString(),
+                abi=ShaderArtifactAbi.GetHash(Target),
+            });
+            Entries.Add(new ShaderArtifactEntry {
+                LogicalName=Contract.LogicalName,
+                Profile=Contract.Profile,
+                Stage=Contract.Stage,
+                Dxil=Compile.Bytecode,
+                Reflection=Reflection,
+                PsoKey=ComputePsoKey(Compile.Bytecode,ShaderArtifactAbi.GetHash(Target),Contract.LogicalName),
+            });
+        }
+        ShaderArtifactDocument Artifact=new() {
+            Target=Target,
+            AbiHash=ShaderArtifactAbi.GetHash(Target),
+            SemanticHash=SourceHash,
+            DependencyHash=SourceHash,
+            CompilerProvenance=new ShaderCompilerProvenance(
+                "CSharpGameEngine.ShaderGraph.Cli",CompilerVersion,"1.9.2607.13"),
+            Entries=Entries,
+        };
+        using MemoryStream Buffer=new();
+        ShaderArtifactSerializer.Write(Buffer,in Artifact,out string Error);
+        if(!string.IsNullOrEmpty(Error)) {
+            Console.Error.WriteLine(Error);
+            return 1;
+        }
+        WriteAtomicBytes(ArtifactPath,Buffer.ToArray());
+        Console.WriteLine($"built {ArtifactPath} {SourceHash}");
+        return 0;
     }
     private static int Validate(string[]Arguments) {
         if(Arguments.Length!=2) {
@@ -68,10 +129,10 @@ internal static class ShaderGraphCli {
             return 1;
         }
         var Export=ExportDocument(Document);
-        var Source=Export.Hlsl;
+        var Target=MapTarget(Document.Target.Kind);
+        var Source=ComposeTargetSource(Target,Export.Hlsl);
         WriteAtomicText(HlslPath,Source);
         WriteAtomicText(HlslPath+".map.json",JsonSerializer.Serialize(Export.SourceMap,new JsonSerializerOptions { PropertyNamingPolicy=JsonNamingPolicy.CamelCase }));
-        var Target=MapTarget(Document.Target.Kind);
         var CompilerVersion="1.1.0-"+(string.Equals(Configuration,"Debug",StringComparison.OrdinalIgnoreCase)?"Debug":"Release");
         if(CanReuseArtifact(ArtifactPath,Target,Resolved.SemanticHash,Resolved.DependencyHash,CompilerVersion)) {
             Console.WriteLine($"up-to-date {ArtifactPath} {Resolved.DependencyHash}");
@@ -147,7 +208,8 @@ internal static class ShaderGraphCli {
             return 2;
         }
         var Resolved=ShaderGraphDependencyComposition.Resolve(Arguments[1]);
-        var Source=ExportDocument(Resolved.Composed).Hlsl;
+        var Target=MapTarget(Resolved.Composed.Target.Kind);
+        var Source=ComposeTargetSource(Target,ExportDocument(Resolved.Composed).Hlsl);
         if(Arguments.Length==3) {
             WriteAtomicText(Path.GetFullPath(Arguments[2]),Source);
         } else {
@@ -155,6 +217,10 @@ internal static class ShaderGraphCli {
         }
         return 0;
     }
+    private static string ComposeTargetSource(ShaderArtifactTargetKind Target,string Source)=>
+        Target==ShaderArtifactTargetKind.Stage
+            ?Source+StagePresentationShaderSource.Source
+            :Source;
     private static int ExtractSubgraphInternal(string[]Arguments) {
         if(Arguments.Length!=5) {
             WriteUsage();
@@ -274,6 +340,7 @@ internal static class ShaderGraphCli {
     private static void WriteUsage() {
         Console.Error.WriteLine("validate <graph>");
         Console.Error.WriteLine("build <graph> <artifact> [generated-hlsl] [Debug|Release]");
+        Console.Error.WriteLine("build-compute <hlsl> <artifact> [Debug|Release]");
         Console.Error.WriteLine("dump-hlsl <graph> [output]");
         Console.Error.WriteLine("publish <artifact> <output>");
         Console.Error.WriteLine("extract-subgraph-internal <root-graph> <subgraph> <name> <indices>");

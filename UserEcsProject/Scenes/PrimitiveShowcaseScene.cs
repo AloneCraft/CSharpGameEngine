@@ -25,9 +25,9 @@ internal partial class PrimitiveShowcaseBoxScene:IScene {
         Name="ShowcaseBox",
         Components=[
             new Transform {
-                        Position=new Logical.Vector3(3f,0.5f,0f),
-                        Rotation=new Logical.Vector3(0f,0f,0f),
-                        Scale=new Logical.Vector3(1f,1f,1f),
+                        Position=new LogicalVector3(3f,0.5f,0f),
+                        Rotation=new LogicalQuaternion(new LogicalVector3(0f,0f,0f)),
+                        Scale=new LogicalVector3(1f,1f,1f),
                     },
             new PrimitiveMesh { Type=PrimitiveType.Box },
         ],
@@ -39,9 +39,9 @@ internal partial class PrimitiveShowcaseSphereScene:IScene {
         Name="ShowcaseSphere",
         Components=[
             new Transform {
-                        Position=new Logical.Vector3(5f,0.5f,0f),
-                        Rotation=new Logical.Vector3(0f,0f,0f),
-                        Scale=new Logical.Vector3(1f,1f,1f),
+                        Position=new LogicalVector3(5f,0.5f,0f),
+                        Rotation=new LogicalQuaternion(new LogicalVector3(0f,0f,0f)),
+                        Scale=new LogicalVector3(1f,1f,1f),
                     },
             new PrimitiveMesh { Type=PrimitiveType.Sphere },
         ],

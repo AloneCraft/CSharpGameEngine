@@ -69,8 +69,9 @@ public sealed partial class CSharpGameEngineViewerPackage {
             Snapshot.Key,Snapshot.DocumentVersion,VsixText.Get("UndoCreateEntityWithComponent"),
             Array.Empty<SceneTransformChange>(),SceneTransformMemberMask.None,
             DirectOperations:[Operation]);
-        if(!Session.Apply(CommitRequest)){
-            SetStatusBarText(VsixText.Get("ComponentDropCreateFailed"));
+        SceneEditCommitResult Commit=await Session.CommitAsync(CommitRequest,this.DisposalToken);
+        if(!Commit.Succeeded){
+            SetStatusBarText(Commit.ErrorMessage??VsixText.Get("ComponentDropCreateFailed"));
         }
     }
 
@@ -90,6 +91,13 @@ public sealed partial class CSharpGameEngineViewerPackage {
         }
 
         // R/U/F Euler angles: a positive quarter turn around R maps local +F down to -U.
+        string QuaternionEuler=Regex.Replace(Expression,
+            @"(Rotation\s*=\s*new\s+[^\(]+\(\s*new\s+[^\(]+\(\s*)0(\s*,\s*0\s*,\s*0\s*\)\s*\))",
+            "${1}1.5707964f${2}",RegexOptions.CultureInvariant);
+        if(!string.Equals(QuaternionEuler,Expression,StringComparison.Ordinal)){
+            return QuaternionEuler;
+        }
+
         string Euler=Regex.Replace(Expression,
             @"(Rotation\s*=\s*new\s+[^\(]+\(\s*)0(\s*,\s*0\s*,\s*0\s*\))",
             "${1}1.5707964f${2}",RegexOptions.CultureInvariant);

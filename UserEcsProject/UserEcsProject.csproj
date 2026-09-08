@@ -25,11 +25,19 @@
   </ItemGroup>
 
   <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>CSharpGameEngine.Windows.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Include="..\src\CSharpGameEngine.Entities\*.cs" Link="Entities\%(Filename)%(Extension)" />
-    <ProjectReference Include="..\src\CSharpGameEngine.CodeAnalysis\CSharpGameEngine.CodeAnalysis.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\src\CSharpGameEngine.Contracts\CSharpGameEngine.Contracts.csproj" />
     <ProjectReference Include="..\src\CSharpGameEngine.Windows\CSharpGameEngine.Windows.csproj" />
     <ProjectReference Include="..\src\CSharpGameEngine.Import\CSharpGameEngine.Import.csproj" />
     <ProjectReference Include="..\src\CSharpGameEngine.Core\CSharpGameEngine.Core.csproj" />
+    <ProjectReference Include="..\src\CSharpGameEngine.Numerics\CSharpGameEngine.Numerics.csproj" />
+    <ProjectReference Include="..\src\CSharpGameEngine.World\CSharpGameEngine.World.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,12 +1,11 @@
 namespace CSharpGameEngine.Entities.Tests;
 
 /// <summary>
-/// 案A(墓石のみ・ID再利用なし)の<b>代償を実測で記録する</b>ためのスペック(ADR-0040 リスクO-13)。
+/// 世代付きEntityとfree-listが長時間streamingでもslot数をactive-set上限へ保つスペック。
 ///
 /// <para>
-/// Entity Idを再利用しないため、Scene の load/unload を繰り返すと位置表が単調増加する。この増加が
-/// 実用上どの程度かを数字で押さえておき、閾値を超えたと分かった時点で世代付きEntity + フリーリストへ
-/// 加算的に移行する。ここで固定しているのは「増加が線形であって、それ以上悪化しない」ことである。
+/// Sceneのload/unload回数ではなく同時所有Entity数だけに位置表を比例させ、再利用前のstale Generationが
+/// 新しいEntityへ化けないことを固定する。
 /// </para>
 /// </summary>
 public sealed class SceneInstanceStressSpec {
@@ -25,7 +24,7 @@ public sealed class SceneInstanceStressSpec {
     }
 
     [Fact]
-    public void RepeatedLoadUnload_GrowsThePositionTableLinearlyAndNothingElse(){
+    public void RepeatedLoadUnload_ReusesEntitySlotsAndKeepsThePositionTableBounded(){
         const int Iterations=1000;
         World World=new();
 
@@ -34,8 +33,8 @@ public sealed class SceneInstanceStressSpec {
             World.UnloadScene(Instance);
         }
 
-        // 位置表は単調増加する。これが案Aの唯一の代償である。
-        Assert.Equal(Iterations*EntitiesPerScene,World.EntityArchetypeIndices.Count);
+        Assert.Equal(EntitiesPerScene,World.EntityArchetypeIndices.Count);
+        Assert.Equal(0,World.GetStatistics().AliveEntityCount);
 
         // Archetypeのストレージは一切増えない(swap-backで再利用される)。
         Assert.Equal(0,World.Archetype0.Count);

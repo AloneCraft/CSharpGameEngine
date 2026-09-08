@@ -9,7 +9,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <CgeShaderGraph Include="..\..\assets\Shaders\Triangle.cgeshadergraph" />
+    <CgeShaderGraph Include="..\..\assets\Shaders\Stage.cgeshadergraph" />
   </ItemGroup>
 
   <PropertyGroup>

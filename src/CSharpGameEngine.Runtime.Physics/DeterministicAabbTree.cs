@@ -14,6 +14,8 @@ internal sealed class DeterministicAabbTree {
 
     private readonly Dictionary<ulong,Node> Leaves=[];
     private readonly Stack<Node> QueryStack=[];
+    private readonly Stack<(Node Node,int Depth)>DebugStack=[];
+    private readonly Stack<Node> FreeBranches=[];
     private Node? Root;
 
     internal int Count=>this.Leaves.Count;
@@ -43,6 +45,34 @@ internal sealed class DeterministicAabbTree {
         this.Root=null;
         this.Leaves.Clear();
         this.QueryStack.Clear();
+        this.DebugStack.Clear();
+        this.FreeBranches.Clear();
+    }
+
+    internal int CollectDebugNodes(List<PhysicsDebugTreeNode>Results,int MaximumCount){
+        ArgumentNullException.ThrowIfNull(Results);
+        if(MaximumCount<0){ throw new ArgumentOutOfRangeException(nameof(MaximumCount)); }
+        int Start=Results.Count;
+        if(this.Root is null||MaximumCount==0){ return 0; }
+        this.DebugStack.Clear();
+        this.DebugStack.Push((this.Root,0));
+        while(this.DebugStack.Count>0&&Results.Count-Start<MaximumCount){
+            (Node Node,int Depth)=this.DebugStack.Pop();
+            Results.Add(new PhysicsDebugTreeNode(Node.Bounds,Depth,Node.IsLeaf,Node.StableId));
+            if(Node.IsLeaf){ continue; }
+            Node Left=Node.Left!;
+            Node Right=Node.Right!;
+            if(Left.MinimumStableId<=Right.MinimumStableId){
+                this.DebugStack.Push((Right,checked(Depth+1)));
+                this.DebugStack.Push((Left,checked(Depth+1)));
+            }
+            else {
+                this.DebugStack.Push((Left,checked(Depth+1)));
+                this.DebugStack.Push((Right,checked(Depth+1)));
+            }
+        }
+        this.DebugStack.Clear();
+        return Results.Count-Start;
     }
 
     internal int Query(in PhysicsAabb Bounds,List<ulong> Results){
@@ -69,8 +99,28 @@ internal sealed class DeterministicAabbTree {
             }
         }
         int Count=Results.Count-Start;
-        Results.Sort(Start,Count,Comparer<ulong>.Default);
+        if(Count>1){ SortResults(Results,Start,Count); }
         return Count;
+    }
+
+    private static void SortResults(List<ulong>Results,int Start,int Count){
+        Span<ulong>Values=System.Runtime.InteropServices.CollectionsMarshal.AsSpan(Results).Slice(Start,Count);
+        for(int Root=Count/2-1;Root>=0;Root--){ SiftDown(Values,Root,Count); }
+        for(int End=Count-1;End>0;End--){
+            (Values[0],Values[End])=(Values[End],Values[0]);
+            SiftDown(Values,0,End);
+        }
+    }
+
+    private static void SiftDown(Span<ulong>Values,int Root,int Count){
+        while(true){
+            int Child=checked(Root*2+1);
+            if(Child>=Count){ return; }
+            if(Child+1<Count&&Values[Child]<Values[Child+1]){ Child++; }
+            if(Values[Root]>=Values[Child]){ return; }
+            (Values[Root],Values[Child])=(Values[Child],Values[Root]);
+            Root=Child;
+        }
     }
 
     private void InsertLeaf(Node Leaf){
@@ -85,8 +135,8 @@ internal sealed class DeterministicAabbTree {
             Node Right=Sibling.Right!;
             PhysicsAabb LeftCombined=Combine(Left.Bounds,Leaf.Bounds);
             PhysicsAabb RightCombined=Combine(Right.Bounds,Leaf.Bounds);
-            PhysicsScalar LeftCost=SurfaceArea(LeftCombined)-SurfaceArea(Left.Bounds);
-            PhysicsScalar RightCost=SurfaceArea(RightCombined)-SurfaceArea(Right.Bounds);
+            LogicalScalar LeftCost=SurfaceArea(LeftCombined)-SurfaceArea(Left.Bounds);
+            LogicalScalar RightCost=SurfaceArea(RightCombined)-SurfaceArea(Right.Bounds);
             if(LeftCost<RightCost){
                 Sibling=Left;
             }
@@ -98,13 +148,13 @@ internal sealed class DeterministicAabbTree {
             }
         }
         Node? OldParent=Sibling.Parent;
-        Node Parent=new() {
-            Parent=OldParent,
-            Left=Sibling,
-            Right=Leaf,
-            Bounds=Combine(Sibling.Bounds,Leaf.Bounds),
-            MinimumStableId=Math.Min(Sibling.MinimumStableId,Leaf.StableId),
-        };
+        Node Parent=this.FreeBranches.TryPop(out Node? Reused)?Reused:new Node();
+        Parent.Parent=OldParent;
+        Parent.Left=Sibling;
+        Parent.Right=Leaf;
+        Parent.Bounds=Combine(Sibling.Bounds,Leaf.Bounds);
+        Parent.StableId=0;
+        Parent.MinimumStableId=Math.Min(Sibling.MinimumStableId,Leaf.StableId);
         Sibling.Parent=Parent;
         Leaf.Parent=Parent;
         if(OldParent is null){
@@ -139,6 +189,12 @@ internal sealed class DeterministicAabbTree {
             Refit(GrandParent);
         }
         Leaf.Parent=null;
+        Parent.Parent=null;
+        Parent.Left=null;
+        Parent.Right=null;
+        Parent.StableId=0;
+        Parent.MinimumStableId=0;
+        this.FreeBranches.Push(Parent);
     }
 
     private static void Refit(Node Start){
@@ -154,13 +210,13 @@ internal sealed class DeterministicAabbTree {
     }
 
     private static PhysicsAabb Combine(in PhysicsAabb Left,in PhysicsAabb Right)=>new(
-        new PhysicsVector3(Min(Left.Min.R,Right.Min.R),Min(Left.Min.U,Right.Min.U),Min(Left.Min.F,Right.Min.F)),
-        new PhysicsVector3(Max(Left.Max.R,Right.Max.R),Max(Left.Max.U,Right.Max.U),Max(Left.Max.F,Right.Max.F)));
+        new LogicalVector3(Min(Left.Min.R,Right.Min.R),Min(Left.Min.U,Right.Min.U),Min(Left.Min.F,Right.Min.F)),
+        new LogicalVector3(Max(Left.Max.R,Right.Max.R),Max(Left.Max.U,Right.Max.U),Max(Left.Max.F,Right.Max.F)));
 
-    private static PhysicsScalar SurfaceArea(in PhysicsAabb Bounds){
-        PhysicsVector3 Size=Bounds.Max-Bounds.Min;
+    private static LogicalScalar SurfaceArea(in PhysicsAabb Bounds){
+        LogicalVector3 Size=Bounds.Max-Bounds.Min;
         return 2*(Size.R*Size.U+Size.R*Size.F+Size.U*Size.F);
     }
-    private static PhysicsScalar Min(PhysicsScalar Left,PhysicsScalar Right)=>Left<Right?Left:Right;
-    private static PhysicsScalar Max(PhysicsScalar Left,PhysicsScalar Right)=>Left>Right?Left:Right;
+    private static LogicalScalar Min(LogicalScalar Left,LogicalScalar Right)=>Left<Right?Left:Right;
+    private static LogicalScalar Max(LogicalScalar Left,LogicalScalar Right)=>Left>Right?Left:Right;
 }

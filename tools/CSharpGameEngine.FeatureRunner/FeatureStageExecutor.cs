@@ -14,29 +14,43 @@ public sealed class FeatureStageExecutor:IFeatureStageExecutor {
         var StandardErrors=new List<string>();
         var Status=FeatureStageRunStatus.Passed;
         foreach(var Command in Stage.Commands){
-            ProcessExecutionResult Execution;
-            try {
-                Execution=await RunProcessAsync(Command,Stage,Options,CancellationToken).ConfigureAwait(false);
-            } catch(OperationCanceledException)when(!CancellationToken.IsCancellationRequested){
-                Status=FeatureStageRunStatus.TimedOut;
-                Errors.Add($"Stage exceeded its {Stage.TimeoutSeconds} second timeout.");
-                Assertions.Add(new FeatureStageAssertion($"command:{Command.FileName}","Timed out",false));
-                break;
-            } catch(Exception Ex)when(Ex is not OperationCanceledException){
-                Status=FeatureStageRunStatus.InfrastructureError;
-                Errors.Add(Ex.ToString());
-                Assertions.Add(new FeatureStageAssertion($"command:{Command.FileName}",Ex.Message,false));
-                break;
-            }
-            StandardOutputs.Add(Execution.StandardOutput);
-            StandardErrors.Add(Execution.StandardError);
-            var Passed=Execution.ExitCode==0;
-            Assertions.Add(new FeatureStageAssertion($"command:{Command.FileName}",$"Exit code {Execution.ExitCode}",Passed));
-            if(!Passed){
-                Status=Command.InfrastructureErrorExitCodes.Contains(Execution.ExitCode)?FeatureStageRunStatus.InfrastructureError:FeatureStageRunStatus.Failed;
+            for(int Attempt=1;Attempt<=2;Attempt++){
+                ProcessExecutionResult Execution;
+                try {
+                    Execution=await RunProcessAsync(Command,Stage,Options,CancellationToken).ConfigureAwait(false);
+                } catch(OperationCanceledException)when(!CancellationToken.IsCancellationRequested){
+                    Status=FeatureStageRunStatus.TimedOut;
+                    Errors.Add($"Stage exceeded its {Stage.TimeoutSeconds} second timeout.");
+                    Assertions.Add(new FeatureStageAssertion($"command:{Command.FileName}:attempt:{Attempt}","Timed out; timeout is never retried.",false));
+                    break;
+                } catch(Exception Ex)when(Ex is not OperationCanceledException){
+                    StandardErrors.Add($"attempt {Attempt}: {Ex}");
+                    if(Attempt==1){
+                        Assertions.Add(new FeatureStageAssertion($"retry:{Command.FileName}","Infrastructure exception triggered the one permitted retry.",true));
+                        continue;
+                    }
+                    Status=FeatureStageRunStatus.InfrastructureError;
+                    Errors.Add(Ex.ToString());
+                    Assertions.Add(new FeatureStageAssertion($"command:{Command.FileName}:attempt:{Attempt}",Ex.Message,false));
+                    break;
+                }
+                StandardOutputs.Add($"attempt {Attempt}: {Execution.StandardOutput}");
+                StandardErrors.Add($"attempt {Attempt}: {Execution.StandardError}");
+                if(Execution.ExitCode==0){
+                    Assertions.Add(new FeatureStageAssertion($"command:{Command.FileName}:attempt:{Attempt}",$"Exit code 0 after {Attempt} attempt(s).",true));
+                    break;
+                }
+                bool Infrastructure=Command.InfrastructureErrorExitCodes.Contains(Execution.ExitCode);
+                if(Infrastructure&&Attempt==1){
+                    Assertions.Add(new FeatureStageAssertion($"retry:{Command.FileName}",$"Infrastructure exit code {Execution.ExitCode} triggered the one permitted retry.",true));
+                    continue;
+                }
+                Status=Infrastructure?FeatureStageRunStatus.InfrastructureError:FeatureStageRunStatus.Failed;
                 Errors.Add($"{Command.FileName} exited with code {Execution.ExitCode}.");
+                Assertions.Add(new FeatureStageAssertion($"command:{Command.FileName}:attempt:{Attempt}",$"Exit code {Execution.ExitCode}",false));
                 break;
             }
+            if(Status!=FeatureStageRunStatus.Passed){ break; }
         }
         var StandardOutput=string.Join("\n",StandardOutputs);
         var StandardError=string.Join("\n",StandardErrors);

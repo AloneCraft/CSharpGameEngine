@@ -5,10 +5,21 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <EcsComponentCount Condition="'$(EcsComponentCount)'==''">128</EcsComponentCount>
+    <DefineConstants>$(DefineConstants);ECS_COMPONENT_COUNT_$(EcsComponentCount)</DefineConstants>
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <CompilerGeneratedFilesOutputPath>$(MSBuildProjectDirectory)\obj\$(Configuration)\$(TargetFramework)\generated\ecs-$(EcsComponentCount)</CompilerGeneratedFilesOutputPath>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="..\..\src\CSharpGameEngine.Entities\*.cs" Exclude="..\..\src\CSharpGameEngine.Entities\FixedTransform.cs;..\..\src\CSharpGameEngine.Entities\SpatialPartitioning.cs;..\..\src\CSharpGameEngine.Entities\SpatialWorld.cs;..\..\src\CSharpGameEngine.Entities\SpatialDebug.cs" Link="Entities\%(Filename)%(Extension)" />
+    <ProjectReference Include="..\..\src\CSharpGameEngine.Contracts\CSharpGameEngine.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\CSharpGameEngine.Core\CSharpGameEngine.Core.csproj" />
+    <ProjectReference Include="..\..\src\CSharpGameEngine.Numerics\CSharpGameEngine.Numerics.csproj" />
     <ProjectReference Include="..\..\src\CSharpGameEngine.CodeAnalysis\CSharpGameEngine.CodeAnalysis.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
+  <Target Name="ValidateEcsComponentCount" BeforeTargets="CoreCompile"
+          Condition="'$(EcsComponentCount)'!='1' And '$(EcsComponentCount)'!='64' And '$(EcsComponentCount)'!='65' And '$(EcsComponentCount)'!='128'">
+    <Error Text="EcsComponentCount must be 1, 64, 65, or 128." />
+  </Target>
   <Import Project="..\..\src\CSharpGameEngine.Runtime.Simulation\CSharpGameEngine.Runtime.Simulation.projitems" Label="Shared" />
 </Project>

@@ -8,6 +8,8 @@ public readonly record struct SimulationCacheIdentity(
 
 public static class SimulationCacheHeader {
     private static ReadOnlySpan<byte> Magic=>"CGESIMC1"u8;
+    private static readonly UTF8Encoding StrictUtf8=new(false,true);
+    private const int MaximumStringBytes=4096;
 
     public static void Write(Stream Output,in SimulationCacheIdentity Identity){
         ArgumentNullException.ThrowIfNull(Output);
@@ -31,9 +33,9 @@ public static class SimulationCacheHeader {
             using BinaryReader Reader=new(Input,Encoding.UTF8,true);
             int Schema=Reader.ReadInt32();
             int TickRate=Reader.ReadInt32();
-            string Domain=Reader.ReadString();
-            string Profile=Reader.ReadString();
-            string Hash=Reader.ReadString();
+            string Domain=ReadString(Reader);
+            string Profile=ReadString(Reader);
+            string Hash=ReadString(Reader);
             if(Schema<=0||TickRate<=0||string.IsNullOrWhiteSpace(Domain)||string.IsNullOrWhiteSpace(Profile)||string.IsNullOrWhiteSpace(Hash)){
                 return false;
             }
@@ -46,5 +48,19 @@ public static class SimulationCacheHeader {
         catch(IOException){
             return false;
         }
+        catch(InvalidDataException){
+            return false;
+        }
+        catch(DecoderFallbackException){
+            return false;
+        }
+    }
+
+    private static string ReadString(BinaryReader Reader){
+        int Length=Reader.Read7BitEncodedInt();
+        if(Length is <0 or >MaximumStringBytes){ throw new InvalidDataException(); }
+        byte[]Bytes=Reader.ReadBytes(Length);
+        if(Bytes.Length!=Length){ throw new EndOfStreamException(); }
+        return StrictUtf8.GetString(Bytes);
     }
 }

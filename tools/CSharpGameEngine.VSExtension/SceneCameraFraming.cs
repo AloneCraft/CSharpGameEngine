@@ -5,10 +5,9 @@ using System.Numerics;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Scene デザイナーの視点ポリシー。<see cref="SceneRenderer"/> は編集ビュー状態を一切持たず
-/// (ADR-0041 決定事項1)、view/projection はここで組んで <see cref="SceneRenderer.SetCamera"/> から
-/// 注入する。<see cref="SceneRenderer"/> は再解析のたびに破棄・再生成されるため、カメラ計算を
-/// レンダラーの外へ出しておく必要がある。
+/// Scene デザイナーの視点ポリシー。Preview Hostは編集ビュー状態を一切持たず
+/// (ADR-0041 決定事項1)、view/projection はここで組んでimmutable frame DTOから注入する。
+/// Host process/sessionは再生成され得るため、カメラ計算と正本をVSIX側に置く。
 ///
 /// <para>
 /// 純粋な計算だけなので GPU も HWND も要らず、ユニットテストできる(バウンズ計算がテスト可能に
@@ -23,8 +22,8 @@ namespace CSharpGameEngine.VSExtension;
 /// </para>
 /// </summary>
 internal static class SceneCameraFraming {
-    /// <summary>既定の縦FOV(45°)。現行の <c>SceneRenderer</c> の投影と同じ。</summary>
-    internal const float DefaultFovYRadians=(float)(Math.PI/4.0);
+    /// <summary>既定の縦FOV(45°)。共通Render ServerのScene preview投影と同じ。</summary>
+    internal const float DefaultFovYRadians=FloatMath.Pi/4f;
 
     /// <summary>固定の斜め俯瞰方向。<c>Camera.CreateBoundsFit</c> と同じ <c>normalize(1,0.75,1)</c>。</summary>
     internal static readonly Vector3 ViewDirection=Vector3.Normalize(new Vector3(1f,0.75f,1f));
@@ -40,7 +39,7 @@ internal static class SceneCameraFraming {
     internal const float BaseNearPlane=0.05f;
 
     /// <summary>
-    /// 透視投影で許容する far/near 比の上限。深度バッファは <c>D32_Float</c>(<see cref="SceneRenderer"/>)
+    /// 透視投影で許容する far/near 比の上限。Preview Hostの深度バッファは <c>D32_Float</c>
     /// なので 24bit UNORM より余裕があり、10000:1 で 1/z 分布は破綻しない。この値だと実ステージ規模
     /// (far 8000〜10000)で near が 0.8〜1.0 になり、M0020 残課題 R1 が挙げた推奨値 0.5〜1.0 に収まる。
     /// 小さいシーンでは <see cref="BaseNearPlane"/> が優先されるので、near が不要に遠のいて
@@ -126,7 +125,7 @@ internal static class SceneCameraFraming {
         // 方が狭いため、縦FOVだけで決めると左右にはみ出す(aspect 0.75 という緩い縦長でも実測で
         // NDC x=1.012 と溢れた)。aspect≥1 では実効FOV=縦FOVなので既存の距離は変わらない。
         var HalfFov=ComputeEffectiveFovRadians(FovYRadians,AspectRatio)/2f;
-        return Radius/(float)Math.Sin(HalfFov)*FramingSafetyMargin;
+        return Radius/FloatMath.Sin(HalfFov)*FramingSafetyMargin;
     }
 
     /// <summary>
@@ -142,7 +141,7 @@ internal static class SceneCameraFraming {
             return SafeFovY;
         }
 
-        var HorizontalFov=2f*(float)Math.Atan(Math.Tan(SafeFovY/2f)*SafeAspect);
+        var HorizontalFov=2f*FloatMath.Atan(FloatMath.Tan(SafeFovY/2f)*SafeAspect);
         return Math.Min(SafeFovY,HorizontalFov);
     }
 

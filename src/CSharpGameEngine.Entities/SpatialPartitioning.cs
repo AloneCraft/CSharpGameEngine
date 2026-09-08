@@ -3,17 +3,17 @@ using System.Collections.Generic;
 namespace CSharpGameEngine.Entities;
 /// <summary>Local fixed-point bounds that opt an Entity into World global spatial synchronization.</summary>
 public struct SpatialBounds {
-    public Logical.Vector3 Center;
-    public Logical.Vector3 HalfExtents;
+    public LogicalVector3 Center;
+    public LogicalVector3 HalfExtents;
     public SpatialLayer Layer;
 
     /// <summary>Deterministic unit cube bounds used by generated sample render entities.</summary>
     public static SpatialBounds UnitCube=>new() {
-        Center=Logical.Vector3.Zero,
-        HalfExtents=new Logical.Vector3(
-            Logical.Scalar.FromDouble(0.5),
-            Logical.Scalar.FromDouble(0.5),
-            Logical.Scalar.FromDouble(0.5)),
+        Center=LogicalVector3.Zero,
+        HalfExtents=new LogicalVector3(
+            LogicalScalar.FromSingle(0.5f),
+            LogicalScalar.FromSingle(0.5f),
+            LogicalScalar.FromSingle(0.5f)),
         Layer=new SpatialLayer(0),
     };
 }
@@ -30,37 +30,37 @@ public readonly struct SpatialLayerMask(ulong Value) {
     public static SpatialLayerMask operator |(SpatialLayerMask Left,SpatialLayerMask Right)=>new(Left.Value|Right.Value);
 }
 /// <summary>An axis-aligned world-space fixed-point bounding box.</summary>
-public readonly struct SpatialAabb(Logical.Vector3 Min,Logical.Vector3 Max) {
-    public Logical.Vector3 Min { get; }=Min;
-    public Logical.Vector3 Max { get; }=Max;
-    public static bool TryCreate(Logical.Vector3 Center,Logical.Vector3 HalfExtents,out SpatialAabb Bounds){
+public readonly struct SpatialAabb(LogicalVector3 Min,LogicalVector3 Max) {
+    public LogicalVector3 Min { get; }=Min;
+    public LogicalVector3 Max { get; }=Max;
+    public static bool TryCreate(LogicalVector3 Center,LogicalVector3 HalfExtents,out SpatialAabb Bounds){
         Bounds=default;
-        if(HalfExtents.R<Logical.Scalar.Zero||HalfExtents.U<Logical.Scalar.Zero||HalfExtents.F<Logical.Scalar.Zero
-            ||!Logical.Scalar.TrySubtract(Center.R,HalfExtents.R,out Logical.Scalar MinR)
-            ||!Logical.Scalar.TrySubtract(Center.U,HalfExtents.U,out Logical.Scalar MinU)
-            ||!Logical.Scalar.TrySubtract(Center.F,HalfExtents.F,out Logical.Scalar MinF)
-            ||!Logical.Scalar.TryAdd(Center.R,HalfExtents.R,out Logical.Scalar MaxR)
-            ||!Logical.Scalar.TryAdd(Center.U,HalfExtents.U,out Logical.Scalar MaxU)
-            ||!Logical.Scalar.TryAdd(Center.F,HalfExtents.F,out Logical.Scalar MaxF)){
+        if(HalfExtents.R<LogicalScalar.Zero||HalfExtents.U<LogicalScalar.Zero||HalfExtents.F<LogicalScalar.Zero
+            ||!LogicalScalar.TrySubtract(Center.R,HalfExtents.R,out LogicalScalar MinR)
+            ||!LogicalScalar.TrySubtract(Center.U,HalfExtents.U,out LogicalScalar MinU)
+            ||!LogicalScalar.TrySubtract(Center.F,HalfExtents.F,out LogicalScalar MinF)
+            ||!LogicalScalar.TryAdd(Center.R,HalfExtents.R,out LogicalScalar MaxR)
+            ||!LogicalScalar.TryAdd(Center.U,HalfExtents.U,out LogicalScalar MaxU)
+            ||!LogicalScalar.TryAdd(Center.F,HalfExtents.F,out LogicalScalar MaxF)){
             return false;
         }
-        Bounds=new SpatialAabb(new Logical.Vector3(MinR,MinU,MinF),new Logical.Vector3(MaxR,MaxU,MaxF));
+        Bounds=new SpatialAabb(new LogicalVector3(MinR,MinU,MinF),new LogicalVector3(MaxR,MaxU,MaxF));
         return true;
     }
     public bool Contains(in SpatialAabb Other)=>this.Min.R<=Other.Min.R&&this.Min.U<=Other.Min.U&&this.Min.F<=Other.Min.F
         &&this.Max.R>=Other.Max.R&&this.Max.U>=Other.Max.U&&this.Max.F>=Other.Max.F;
-    public bool Contains(Logical.Vector3 Point)=>Point.R>=this.Min.R&&Point.R<=this.Max.R
+    public bool Contains(LogicalVector3 Point)=>Point.R>=this.Min.R&&Point.R<=this.Max.R
         &&Point.U>=this.Min.U&&Point.U<=this.Max.U&&Point.F>=this.Min.F&&Point.F<=this.Max.F;
     public bool Intersects(in SpatialAabb Other)=>this.Min.R<=Other.Max.R&&this.Max.R>=Other.Min.R
         &&this.Min.U<=Other.Max.U&&this.Max.U>=Other.Min.U&&this.Min.F<=Other.Max.F&&this.Max.F>=Other.Min.F;
 }
 /// <summary>A fixed-point sphere query volume.</summary>
-public readonly struct SpatialSphere(Logical.Vector3 Center,Logical.Scalar Radius) {
-    public Logical.Vector3 Center { get; }=Center;
-    public Logical.Scalar Radius { get; }=Radius;
-    public static bool TryCreate(Logical.Vector3 Center,Logical.Scalar Radius,out SpatialSphere Sphere){
+public readonly struct SpatialSphere(LogicalVector3 Center,LogicalScalar Radius) {
+    public LogicalVector3 Center { get; }=Center;
+    public LogicalScalar Radius { get; }=Radius;
+    public static bool TryCreate(LogicalVector3 Center,LogicalScalar Radius,out SpatialSphere Sphere){
         Sphere=default;
-        if(Radius<Logical.Scalar.Zero){
+        if(Radius<LogicalScalar.Zero){
             return false;
         }
         Sphere=new SpatialSphere(Center,Radius);
@@ -68,13 +68,13 @@ public readonly struct SpatialSphere(Logical.Vector3 Center,Logical.Scalar Radiu
     }
 }
 /// <summary>A normalized fixed-point ray with a non-negative maximum distance.</summary>
-public readonly struct SpatialRay(Logical.Vector3 Origin,Logical.Vector3 Direction,Logical.Scalar MaxDistance) {
-    public Logical.Vector3 Origin { get; }=Origin;
-    public Logical.Vector3 Direction { get; }=Direction;
-    public Logical.Scalar MaxDistance { get; }=MaxDistance;
-    public static bool TryCreate(Logical.Vector3 Origin,Logical.Vector3 Direction,Logical.Scalar MaxDistance,out SpatialRay Ray){
+public readonly struct SpatialRay(LogicalVector3 Origin,LogicalVector3 Direction,LogicalScalar MaxDistance) {
+    public LogicalVector3 Origin { get; }=Origin;
+    public LogicalVector3 Direction { get; }=Direction;
+    public LogicalScalar MaxDistance { get; }=MaxDistance;
+    public static bool TryCreate(LogicalVector3 Origin,LogicalVector3 Direction,LogicalScalar MaxDistance,out SpatialRay Ray){
         Ray=default;
-        if(MaxDistance<Logical.Scalar.Zero||!Direction.TryNormalize(out Logical.Vector3 NormalizedDirection)){
+        if(MaxDistance<LogicalScalar.Zero||!Direction.TryNormalize(out LogicalVector3 NormalizedDirection)){
             return false;
         }
         Ray=new SpatialRay(Origin,NormalizedDirection,MaxDistance);
@@ -82,7 +82,7 @@ public readonly struct SpatialRay(Logical.Vector3 Origin,Logical.Vector3 Directi
     }
 }
 /// <summary>An Entity candidate hit by a spatial ray.</summary>
-public readonly record struct SpatialRayHit(Entity Entity,Logical.Scalar Distance);
+public readonly record struct SpatialRayHit(Entity Entity,LogicalScalar Distance);
 /// <summary>Read-only description of one octree cell for diagnostics and visualization.</summary>
 public readonly record struct SpatialDebugNode(SpatialAabb Bounds,int Depth,int EntryCount,bool IsRoot);
 public enum SpatialQueryStatus {
@@ -101,7 +101,7 @@ public interface IReadOnlyEntitySpatialIndex {
     int Count { get; }
     bool TryGetBounds(Entity Entity,out SpatialAabb Bounds,out SpatialLayer Layer);
     SpatialQueryResult QueryAabb(in SpatialAabb Bounds,SpatialLayerMask Layers,List<Entity> Results);
-    SpatialQueryResult QueryPoint(Logical.Vector3 Point,SpatialLayerMask Layers,List<Entity> Results);
+    SpatialQueryResult QueryPoint(LogicalVector3 Point,SpatialLayerMask Layers,List<Entity> Results);
     SpatialQueryResult QuerySphere(in SpatialSphere Sphere,SpatialLayerMask Layers,List<Entity> Results);
     SpatialQueryResult QueryRay(in SpatialRay Ray,SpatialLayerMask Layers,List<SpatialRayHit> Results);
 }
@@ -113,13 +113,13 @@ public interface IEntitySpatialIndex:IReadOnlyEntitySpatialIndex {
     void Compact();
 }
 /// <summary>Validated loose-octree tuning values for a system-owned index.</summary>
-public readonly struct SpatialIndexSettings(int NodeCapacity,int MaxDepth,Logical.Scalar Looseness,Logical.Scalar MinimumRootHalfExtent) {
+public readonly struct SpatialIndexSettings(int NodeCapacity,int MaxDepth,LogicalScalar Looseness,LogicalScalar MinimumRootHalfExtent) {
     public int NodeCapacity { get; }=NodeCapacity;
     public int MaxDepth { get; }=MaxDepth;
-    public Logical.Scalar Looseness { get; }=Looseness;
-    public Logical.Scalar MinimumRootHalfExtent { get; }=MinimumRootHalfExtent;
-    public static SpatialIndexSettings Default=>new(16,16,Logical.Scalar.FromDouble(1.5),Logical.Scalar.One);
-    internal bool IsValid=>this.NodeCapacity>0&&this.MaxDepth>=0&&this.Looseness>=Logical.Scalar.One&&this.MinimumRootHalfExtent>Logical.Scalar.Zero;
+    public LogicalScalar Looseness { get; }=Looseness;
+    public LogicalScalar MinimumRootHalfExtent { get; }=MinimumRootHalfExtent;
+    public static SpatialIndexSettings Default=>new(16,16,LogicalScalar.FromSingle(1.5f),LogicalScalar.One);
+    internal bool IsValid=>this.NodeCapacity>0&&this.MaxDepth>=0&&this.Looseness>=LogicalScalar.One&&this.MinimumRootHalfExtent>LogicalScalar.Zero;
 }
 /// <summary>
 /// Dynamic loose octree with a single proxy for each Entity. It is deliberately single-writer;
@@ -132,11 +132,11 @@ public sealed class EntityLooseOctree:IEntitySpatialIndex {
         internal SpatialLayer Layer=Layer;
         internal Node? Node;
     }
-    private sealed class Node(Node? Parent,int Depth,Logical.Vector3 Center,Logical.Scalar HalfExtent,SpatialAabb TightBounds,SpatialAabb LooseBounds) {
+    private sealed class Node(Node? Parent,int Depth,LogicalVector3 Center,LogicalScalar HalfExtent,SpatialAabb TightBounds,SpatialAabb LooseBounds) {
         internal readonly Node? Parent=Parent;
         internal readonly int Depth=Depth;
-        internal readonly Logical.Vector3 Center=Center;
-        internal readonly Logical.Scalar HalfExtent=HalfExtent;
+        internal readonly LogicalVector3 Center=Center;
+        internal readonly LogicalScalar HalfExtent=HalfExtent;
         internal readonly SpatialAabb TightBounds=TightBounds;
         internal readonly SpatialAabb LooseBounds=LooseBounds;
         internal readonly List<Entry> Entries=[];
@@ -266,7 +266,7 @@ public sealed class EntityLooseOctree:IEntitySpatialIndex {
         SpatialAabb QueryBounds=Bounds;
         return this.QueryEntities(Layers,Results,NodeBounds=>NodeBounds.Intersects(QueryBounds),EntryBounds=>EntryBounds.Intersects(QueryBounds));
     }
-    public SpatialQueryResult QueryPoint(Logical.Vector3 Point,SpatialLayerMask Layers,List<Entity> Results){
+    public SpatialQueryResult QueryPoint(LogicalVector3 Point,SpatialLayerMask Layers,List<Entity> Results){
         if(Results is null){
             return new(SpatialQueryStatus.InvalidInput,0);
         }
@@ -304,7 +304,7 @@ public sealed class EntityLooseOctree:IEntitySpatialIndex {
                 if(!Layers.Contains(Entry.Layer)){
                     continue;
                 }
-                if(!TryIntersectRay(Entry.Bounds,Ray,out bool EntryIntersects,out Logical.Scalar Distance)){
+                if(!TryIntersectRay(Entry.Bounds,Ray,out bool EntryIntersects,out LogicalScalar Distance)){
                     return CompleteQuery(SpatialQueryStatus.NumericOverflow,Results,InitialCount);
                 }
                 if(EntryIntersects){
@@ -387,33 +387,33 @@ public sealed class EntityLooseOctree:IEntitySpatialIndex {
     }
     private bool TryCreateInitialRoot(in SpatialAabb Bounds,out Node? Root){
         Root=null;
-        if(!Logical.Scalar.TryAdd(Bounds.Min.R,Bounds.Max.R,out Logical.Scalar SumR)
-            ||!Logical.Scalar.TryAdd(Bounds.Min.U,Bounds.Max.U,out Logical.Scalar SumU)
-            ||!Logical.Scalar.TryAdd(Bounds.Min.F,Bounds.Max.F,out Logical.Scalar SumF)
-            ||!Logical.Scalar.TryDivide(SumR,2,out Logical.Scalar CenterR)
-            ||!Logical.Scalar.TryDivide(SumU,2,out Logical.Scalar CenterU)
-            ||!Logical.Scalar.TryDivide(SumF,2,out Logical.Scalar CenterF)
-            ||!Logical.Scalar.TrySubtract(Bounds.Max.R,Bounds.Min.R,out Logical.Scalar SizeR)
-            ||!Logical.Scalar.TrySubtract(Bounds.Max.U,Bounds.Min.U,out Logical.Scalar SizeU)
-            ||!Logical.Scalar.TrySubtract(Bounds.Max.F,Bounds.Min.F,out Logical.Scalar SizeF)
-            ||!Logical.Scalar.TryDivide(SizeR,2,out Logical.Scalar HalfR)
-            ||!Logical.Scalar.TryDivide(SizeU,2,out Logical.Scalar HalfU)
-            ||!Logical.Scalar.TryDivide(SizeF,2,out Logical.Scalar HalfF)){
+        if(!LogicalScalar.TryAdd(Bounds.Min.R,Bounds.Max.R,out LogicalScalar SumR)
+            ||!LogicalScalar.TryAdd(Bounds.Min.U,Bounds.Max.U,out LogicalScalar SumU)
+            ||!LogicalScalar.TryAdd(Bounds.Min.F,Bounds.Max.F,out LogicalScalar SumF)
+            ||!LogicalScalar.TryDivide(SumR,2,out LogicalScalar CenterR)
+            ||!LogicalScalar.TryDivide(SumU,2,out LogicalScalar CenterU)
+            ||!LogicalScalar.TryDivide(SumF,2,out LogicalScalar CenterF)
+            ||!LogicalScalar.TrySubtract(Bounds.Max.R,Bounds.Min.R,out LogicalScalar SizeR)
+            ||!LogicalScalar.TrySubtract(Bounds.Max.U,Bounds.Min.U,out LogicalScalar SizeU)
+            ||!LogicalScalar.TrySubtract(Bounds.Max.F,Bounds.Min.F,out LogicalScalar SizeF)
+            ||!LogicalScalar.TryDivide(SizeR,2,out LogicalScalar HalfR)
+            ||!LogicalScalar.TryDivide(SizeU,2,out LogicalScalar HalfU)
+            ||!LogicalScalar.TryDivide(SizeF,2,out LogicalScalar HalfF)){
             return false;
         }
-        Logical.Scalar HalfExtent=Max(this.Settings.MinimumRootHalfExtent,Max(HalfR,Max(HalfU,HalfF)));
-        return this.TryCreateNode(null,0,new Logical.Vector3(CenterR,CenterU,CenterF),HalfExtent,out Root);
+        LogicalScalar HalfExtent=Max(this.Settings.MinimumRootHalfExtent,Max(HalfR,Max(HalfU,HalfF)));
+        return this.TryCreateNode(null,0,new LogicalVector3(CenterR,CenterU,CenterF),HalfExtent,out Root);
     }
     private bool TryExpandRoot(in SpatialAabb Bounds){
         Node Previous=this.Root!;
-        Logical.Scalar ShiftR=Bounds.Min.R<Previous.TightBounds.Min.R?-Previous.HalfExtent:Bounds.Max.R>Previous.TightBounds.Max.R?Previous.HalfExtent:Logical.Scalar.Zero;
-        Logical.Scalar ShiftU=Bounds.Min.U<Previous.TightBounds.Min.U?-Previous.HalfExtent:Bounds.Max.U>Previous.TightBounds.Max.U?Previous.HalfExtent:Logical.Scalar.Zero;
-        Logical.Scalar ShiftF=Bounds.Min.F<Previous.TightBounds.Min.F?-Previous.HalfExtent:Bounds.Max.F>Previous.TightBounds.Max.F?Previous.HalfExtent:Logical.Scalar.Zero;
-        if(!Logical.Scalar.TryAdd(Previous.Center.R,ShiftR,out Logical.Scalar CenterR)
-            ||!Logical.Scalar.TryAdd(Previous.Center.U,ShiftU,out Logical.Scalar CenterU)
-            ||!Logical.Scalar.TryAdd(Previous.Center.F,ShiftF,out Logical.Scalar CenterF)
-            ||!Logical.Scalar.TryAdd(Previous.HalfExtent,Previous.HalfExtent,out Logical.Scalar HalfExtent)
-            ||!this.TryCreateNode(null,0,new Logical.Vector3(CenterR,CenterU,CenterF),HalfExtent,out Node? Expanded)||Expanded is null){
+        LogicalScalar ShiftR=Bounds.Min.R<Previous.TightBounds.Min.R?-Previous.HalfExtent:Bounds.Max.R>Previous.TightBounds.Max.R?Previous.HalfExtent:LogicalScalar.Zero;
+        LogicalScalar ShiftU=Bounds.Min.U<Previous.TightBounds.Min.U?-Previous.HalfExtent:Bounds.Max.U>Previous.TightBounds.Max.U?Previous.HalfExtent:LogicalScalar.Zero;
+        LogicalScalar ShiftF=Bounds.Min.F<Previous.TightBounds.Min.F?-Previous.HalfExtent:Bounds.Max.F>Previous.TightBounds.Max.F?Previous.HalfExtent:LogicalScalar.Zero;
+        if(!LogicalScalar.TryAdd(Previous.Center.R,ShiftR,out LogicalScalar CenterR)
+            ||!LogicalScalar.TryAdd(Previous.Center.U,ShiftU,out LogicalScalar CenterU)
+            ||!LogicalScalar.TryAdd(Previous.Center.F,ShiftF,out LogicalScalar CenterF)
+            ||!LogicalScalar.TryAdd(Previous.HalfExtent,Previous.HalfExtent,out LogicalScalar HalfExtent)
+            ||!this.TryCreateNode(null,0,new LogicalVector3(CenterR,CenterU,CenterF),HalfExtent,out Node? Expanded)||Expanded is null){
             return false;
         }
         this.Root=Expanded;
@@ -461,18 +461,18 @@ public sealed class EntityLooseOctree:IEntitySpatialIndex {
     }
     private bool TryCreateChildren(Node Parent,out Node[]? Children){
         Children=new Node[8];
-        if(!Logical.Scalar.TryDivide(Parent.HalfExtent,2,out Logical.Scalar ChildHalf)){
+        if(!LogicalScalar.TryDivide(Parent.HalfExtent,2,out LogicalScalar ChildHalf)){
             Children=null;
             return false;
         }
         for(int Index=0;Index<8;Index++){
-            Logical.Scalar OffsetR=(Index&1)==0?-ChildHalf:ChildHalf;
-            Logical.Scalar OffsetU=(Index&2)==0?-ChildHalf:ChildHalf;
-            Logical.Scalar OffsetF=(Index&4)==0?-ChildHalf:ChildHalf;
-            if(!Logical.Scalar.TryAdd(Parent.Center.R,OffsetR,out Logical.Scalar CenterR)
-                ||!Logical.Scalar.TryAdd(Parent.Center.U,OffsetU,out Logical.Scalar CenterU)
-                ||!Logical.Scalar.TryAdd(Parent.Center.F,OffsetF,out Logical.Scalar CenterF)
-                ||!this.TryCreateNode(Parent,Parent.Depth+1,new Logical.Vector3(CenterR,CenterU,CenterF),ChildHalf,out Node? Child)){
+            LogicalScalar OffsetR=(Index&1)==0?-ChildHalf:ChildHalf;
+            LogicalScalar OffsetU=(Index&2)==0?-ChildHalf:ChildHalf;
+            LogicalScalar OffsetF=(Index&4)==0?-ChildHalf:ChildHalf;
+            if(!LogicalScalar.TryAdd(Parent.Center.R,OffsetR,out LogicalScalar CenterR)
+                ||!LogicalScalar.TryAdd(Parent.Center.U,OffsetU,out LogicalScalar CenterU)
+                ||!LogicalScalar.TryAdd(Parent.Center.F,OffsetF,out LogicalScalar CenterF)
+                ||!this.TryCreateNode(Parent,Parent.Depth+1,new LogicalVector3(CenterR,CenterU,CenterF),ChildHalf,out Node? Child)){
                 Children=null;
                 return false;
             }
@@ -493,11 +493,11 @@ public sealed class EntityLooseOctree:IEntitySpatialIndex {
         }
         return false;
     }
-    private bool TryCreateNode(Node? Parent,int Depth,Logical.Vector3 Center,Logical.Scalar HalfExtent,out Node? Node){
+    private bool TryCreateNode(Node? Parent,int Depth,LogicalVector3 Center,LogicalScalar HalfExtent,out Node? Node){
         Node=null;
-        if(!SpatialAabb.TryCreate(Center,new Logical.Vector3(HalfExtent,HalfExtent,HalfExtent),out SpatialAabb TightBounds)
-            ||!Logical.Scalar.TryMultiply(HalfExtent,this.Settings.Looseness,out Logical.Scalar LooseHalf)
-            ||!SpatialAabb.TryCreate(Center,new Logical.Vector3(LooseHalf,LooseHalf,LooseHalf),out SpatialAabb LooseBounds)){
+        if(!SpatialAabb.TryCreate(Center,new LogicalVector3(HalfExtent,HalfExtent,HalfExtent),out SpatialAabb TightBounds)
+            ||!LogicalScalar.TryMultiply(HalfExtent,this.Settings.Looseness,out LogicalScalar LooseHalf)
+            ||!SpatialAabb.TryCreate(Center,new LogicalVector3(LooseHalf,LooseHalf,LooseHalf),out SpatialAabb LooseBounds)){
             return false;
         }
         Node=new Node(Parent,Depth,Center,HalfExtent,TightBounds,LooseBounds);
@@ -534,28 +534,28 @@ public sealed class EntityLooseOctree:IEntitySpatialIndex {
     }
     private static bool TryIntersectsSphere(in SpatialAabb Bounds,in SpatialSphere Sphere,out bool Intersects){
         Intersects=false;
-        Logical.Scalar ClosestR=Clamp(Sphere.Center.R,Bounds.Min.R,Bounds.Max.R);
-        Logical.Scalar ClosestU=Clamp(Sphere.Center.U,Bounds.Min.U,Bounds.Max.U);
-        Logical.Scalar ClosestF=Clamp(Sphere.Center.F,Bounds.Min.F,Bounds.Max.F);
-        if(!Logical.Scalar.TrySubtract(Sphere.Center.R,ClosestR,out Logical.Scalar DeltaR)
-            ||!Logical.Scalar.TrySubtract(Sphere.Center.U,ClosestU,out Logical.Scalar DeltaU)
-            ||!Logical.Scalar.TrySubtract(Sphere.Center.F,ClosestF,out Logical.Scalar DeltaF)
-            ||!Logical.Scalar.TryMultiply(DeltaR,DeltaR,out Logical.Scalar DistanceR)
-            ||!Logical.Scalar.TryMultiply(DeltaU,DeltaU,out Logical.Scalar DistanceU)
-            ||!Logical.Scalar.TryMultiply(DeltaF,DeltaF,out Logical.Scalar DistanceF)
-            ||!Logical.Scalar.TryAdd(DistanceR,DistanceU,out Logical.Scalar DistanceSquared)
-            ||!Logical.Scalar.TryAdd(DistanceSquared,DistanceF,out DistanceSquared)
-            ||!Logical.Scalar.TryMultiply(Sphere.Radius,Sphere.Radius,out Logical.Scalar RadiusSquared)){
+        LogicalScalar ClosestR=Clamp(Sphere.Center.R,Bounds.Min.R,Bounds.Max.R);
+        LogicalScalar ClosestU=Clamp(Sphere.Center.U,Bounds.Min.U,Bounds.Max.U);
+        LogicalScalar ClosestF=Clamp(Sphere.Center.F,Bounds.Min.F,Bounds.Max.F);
+        if(!LogicalScalar.TrySubtract(Sphere.Center.R,ClosestR,out LogicalScalar DeltaR)
+            ||!LogicalScalar.TrySubtract(Sphere.Center.U,ClosestU,out LogicalScalar DeltaU)
+            ||!LogicalScalar.TrySubtract(Sphere.Center.F,ClosestF,out LogicalScalar DeltaF)
+            ||!LogicalScalar.TryMultiply(DeltaR,DeltaR,out LogicalScalar DistanceR)
+            ||!LogicalScalar.TryMultiply(DeltaU,DeltaU,out LogicalScalar DistanceU)
+            ||!LogicalScalar.TryMultiply(DeltaF,DeltaF,out LogicalScalar DistanceF)
+            ||!LogicalScalar.TryAdd(DistanceR,DistanceU,out LogicalScalar DistanceSquared)
+            ||!LogicalScalar.TryAdd(DistanceSquared,DistanceF,out DistanceSquared)
+            ||!LogicalScalar.TryMultiply(Sphere.Radius,Sphere.Radius,out LogicalScalar RadiusSquared)){
             return false;
         }
         Intersects=DistanceSquared<=RadiusSquared;
         return true;
     }
-    private static bool TryIntersectRay(in SpatialAabb Bounds,in SpatialRay Ray,out bool Intersects,out Logical.Scalar Distance){
+    private static bool TryIntersectRay(in SpatialAabb Bounds,in SpatialRay Ray,out bool Intersects,out LogicalScalar Distance){
         Intersects=false;
         Distance=default;
-        Logical.Scalar Near=Logical.Scalar.Zero;
-        Logical.Scalar Far=Ray.MaxDistance;
+        LogicalScalar Near=LogicalScalar.Zero;
+        LogicalScalar Far=Ray.MaxDistance;
         if(!TryIntersectRayAxis(Bounds.Min.R,Bounds.Max.R,Ray.Origin.R,Ray.Direction.R,ref Near,ref Far)
             ||!TryIntersectRayAxis(Bounds.Min.U,Bounds.Max.U,Ray.Origin.U,Ray.Direction.U,ref Near,ref Far)
             ||!TryIntersectRayAxis(Bounds.Min.F,Bounds.Max.F,Ray.Origin.F,Ray.Direction.F,ref Near,ref Far)){
@@ -565,18 +565,18 @@ public sealed class EntityLooseOctree:IEntitySpatialIndex {
         Distance=Near;
         return true;
     }
-    private static bool TryIntersectRayAxis(Logical.Scalar Min,Logical.Scalar Max,Logical.Scalar Origin,Logical.Scalar Direction,ref Logical.Scalar Near,ref Logical.Scalar Far){
+    private static bool TryIntersectRayAxis(LogicalScalar Min,LogicalScalar Max,LogicalScalar Origin,LogicalScalar Direction,ref LogicalScalar Near,ref LogicalScalar Far){
         if(Direction.IsZero){
             return Origin>=Min&&Origin<=Max;
         }
-        if(!Logical.Scalar.TrySubtract(Min,Origin,out Logical.Scalar MinOffset)
-            ||!Logical.Scalar.TrySubtract(Max,Origin,out Logical.Scalar MaxOffset)
-            ||!Logical.Scalar.TryDivide(MinOffset,Direction,out Logical.Scalar First)
-            ||!Logical.Scalar.TryDivide(MaxOffset,Direction,out Logical.Scalar Second)){
+        if(!LogicalScalar.TrySubtract(Min,Origin,out LogicalScalar MinOffset)
+            ||!LogicalScalar.TrySubtract(Max,Origin,out LogicalScalar MaxOffset)
+            ||!LogicalScalar.TryDivide(MinOffset,Direction,out LogicalScalar First)
+            ||!LogicalScalar.TryDivide(MaxOffset,Direction,out LogicalScalar Second)){
             return false;
         }
-        Logical.Scalar AxisNear=First<Second?First:Second;
-        Logical.Scalar AxisFar=First<Second?Second:First;
+        LogicalScalar AxisNear=First<Second?First:Second;
+        LogicalScalar AxisFar=First<Second?Second:First;
         if(AxisNear>Near){
             Near=AxisNear;
         }
@@ -585,8 +585,8 @@ public sealed class EntityLooseOctree:IEntitySpatialIndex {
         }
         return Far>=Near;
     }
-    private static Logical.Scalar Clamp(Logical.Scalar Value,Logical.Scalar Min,Logical.Scalar Max)=>Value<Min?Min:Value>Max?Max:Value;
-    private static Logical.Scalar Max(Logical.Scalar Left,Logical.Scalar Right)=>Left>Right?Left:Right;
+    private static LogicalScalar Clamp(LogicalScalar Value,LogicalScalar Min,LogicalScalar Max)=>Value<Min?Min:Value>Max?Max:Value;
+    private static LogicalScalar Max(LogicalScalar Left,LogicalScalar Right)=>Left>Right?Left:Right;
 }
 
 /// <summary>

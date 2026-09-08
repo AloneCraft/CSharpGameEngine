@@ -4,8 +4,15 @@
     <CgeShaderGraphCliExe>$(MSBuildThisFileDirectory)..\tools\CSharpGameEngine.ShaderGraph.Cli\bin\x64\$(Configuration)\net10.0-windows10.0.19041.0\CSharpGameEngine.ShaderGraph.Cli.exe</CgeShaderGraphCliExe>
     <CgeShaderGraphIntermediateDirectory>$(IntermediateOutputPath)ShaderGraph\</CgeShaderGraphIntermediateDirectory>
   </PropertyGroup>
-  <Target Name="BuildCgeShaderGraphCli" BeforeTargets="CompileCgeShaderGraphs" Condition="'@(CgeShaderGraph)' != ''">
-    <MSBuild Projects="$(CgeShaderGraphCliProject)" Targets="Build" Properties="Configuration=$(Configuration);Platform=x64" BuildInParallel="false" />
+  <Target Name="BuildCgeShaderGraphCli" BeforeTargets="CompileCgeShaderGraphs;CompileCgeComputeShaders" Condition="'@(CgeShaderGraph)' != '' or '@(CgeComputeShader)' != ''">
+    <MSBuild Projects="$(CgeShaderGraphCliProject)" Targets="Build"
+             Properties="Configuration=$(Configuration);Platform=x64"
+             RemoveProperties="RuntimeIdentifier;SelfContained;PublishDir"
+             BuildInParallel="false" />
+  </Target>
+  <Target Name="CompileCgeComputeShaders" BeforeTargets="PrepareForBuild" DependsOnTargets="BuildCgeShaderGraphCli" Condition="'@(CgeComputeShader)' != ''" Inputs="@(CgeComputeShader);$(CgeShaderGraphCliExe)" Outputs="@(CgeComputeShader->'$(CgeShaderGraphIntermediateDirectory)%(Filename).cgeshaderartifact')">
+    <MakeDir Directories="$(CgeShaderGraphIntermediateDirectory)" />
+    <Exec Command="&quot;$(CgeShaderGraphCliExe)&quot; build-compute &quot;%(CgeComputeShader.FullPath)&quot; &quot;$(CgeShaderGraphIntermediateDirectory)%(CgeComputeShader.Filename).cgeshaderartifact&quot; &quot;$(Configuration)&quot;" />
   </Target>
   <Target Name="CompileCgeShaderGraphs" BeforeTargets="PrepareForBuild" DependsOnTargets="BuildCgeShaderGraphCli" Condition="'@(CgeShaderGraph)' != ''" Inputs="@(CgeShaderGraph);@(CgeShaderSubgraph);$(CgeShaderGraphCliExe)" Outputs="@(CgeShaderGraph->'$(CgeShaderGraphIntermediateDirectory)%(Filename).cgeshaderartifact')">
     <MakeDir Directories="$(CgeShaderGraphIntermediateDirectory)" />
@@ -14,5 +21,26 @@
   <Target Name="PublishCgeShaderArtifacts" AfterTargets="Build" DependsOnTargets="CompileCgeShaderGraphs" Condition="'@(CgeShaderGraph)' != ''">
     <MakeDir Directories="$(TargetDir)Shaders" />
     <Exec Command="&quot;$(CgeShaderGraphCliExe)&quot; publish &quot;$(CgeShaderGraphIntermediateDirectory)%(CgeShaderGraph.Filename).cgeshaderartifact&quot; &quot;$(TargetDir)Shaders\%(CgeShaderGraph.Filename).cgeshaderartifact&quot;" />
+  </Target>
+  <Target Name="PublishCgeComputeArtifacts" AfterTargets="Build" DependsOnTargets="CompileCgeComputeShaders" Condition="'@(CgeComputeShader)' != ''">
+    <MakeDir Directories="$(TargetDir)Shaders" />
+    <Exec Command="&quot;$(CgeShaderGraphCliExe)&quot; publish &quot;$(CgeShaderGraphIntermediateDirectory)%(CgeComputeShader.Filename).cgeshaderartifact&quot; &quot;$(TargetDir)Shaders/%(CgeComputeShader.Filename).cgeshaderartifact&quot;" />
+  </Target>
+  <Target Name="CollectCgeShaderArtifactsForPublish"
+          AfterTargets="ComputeFilesToPublish"
+          DependsOnTargets="CompileCgeShaderGraphs;CompileCgeComputeShaders"
+          Condition="'@(CgeShaderGraph)' != '' or '@(CgeComputeShader)' != ''">
+    <ItemGroup>
+      <ResolvedFileToPublish Include="@(CgeShaderGraph->'$(CgeShaderGraphIntermediateDirectory)%(Filename).cgeshaderartifact')"
+                             Condition="'@(CgeShaderGraph)' != ''">
+        <RelativePath>Shaders/%(Filename).cgeshaderartifact</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+      <ResolvedFileToPublish Include="@(CgeComputeShader->'$(CgeShaderGraphIntermediateDirectory)%(Filename).cgeshaderartifact')"
+                             Condition="'@(CgeComputeShader)' != ''">
+        <RelativePath>Shaders/%(Filename).cgeshaderartifact</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
   </Target>
 </Project>

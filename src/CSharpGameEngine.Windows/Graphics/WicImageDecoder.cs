@@ -87,7 +87,7 @@ public static unsafe class WicImageDecoder {
             }
 
             var RgbaFormat=GUID.GUID_WICPixelFormat32bppRGBA;
-            Hr=Converter->Initialize((IWICBitmapSource*)Frame,&RgbaFormat,WICBitmapDitherTypeNone,null,0.0,WICBitmapPaletteTypeCustom);
+            Hr=Converter->Initialize((IWICBitmapSource*)Frame,&RgbaFormat,WICBitmapDitherTypeNone,null,0f,WICBitmapPaletteTypeCustom);
             if(Hr.FAILED){
                 return WicDecodeResult.Failed($"IWICFormatConverter::Initialize failed. HRESULT=0x{Hr.Value:X8}");
             }

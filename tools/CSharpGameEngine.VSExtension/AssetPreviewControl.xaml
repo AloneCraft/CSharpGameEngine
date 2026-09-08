@@ -5,5 +5,54 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              d:DesignHeight="400" d:DesignWidth="600">
-    <Grid x:Name="RootGrid" />
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Grid x:Name="RootGrid" Grid.Row="0" />
+        <Border Grid.Row="1" Padding="8" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource {x:Static SystemColors.ControlDarkBrushKey}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock x:Name="AssetMetadataStateLabel" Grid.Row="0" Margin="0,0,8,2" />
+                <TextBlock x:Name="AssetMetadataStateText" Grid.Row="0" Grid.Column="1" TextWrapping="Wrap" />
+                <TextBlock x:Name="AssetSourceUriLabel" Grid.Row="1" Margin="0,0,8,2" />
+                <TextBlock x:Name="AssetSourceUriText" Grid.Row="1" Grid.Column="1" TextWrapping="Wrap" />
+                <TextBlock x:Name="AssetIdLabel" Grid.Row="2" Margin="0,0,8,2" />
+                <TextBlock x:Name="AssetIdText" Grid.Row="2" Grid.Column="1" TextWrapping="Wrap" />
+                <TextBlock x:Name="AssetUriLabel" Grid.Row="3" Margin="0,0,8,2" />
+                <TextBlock x:Name="AssetUriText" Grid.Row="3" Grid.Column="1" TextWrapping="Wrap" />
+                <TextBlock x:Name="AssetImporterLabel" Grid.Row="4" Margin="0,0,8,2" />
+                <TextBlock x:Name="AssetImporterText" Grid.Row="4" Grid.Column="1" TextWrapping="Wrap" />
+                <TextBlock x:Name="AssetMetadataHashLabel" Grid.Row="5" Margin="0,0,8,2" />
+                <TextBlock x:Name="AssetMetadataHashText" Grid.Row="5" Grid.Column="1" TextWrapping="Wrap" />
+                <TextBlock x:Name="AssetMetadataDiagnosticText" Grid.Row="6" Grid.ColumnSpan="2" Margin="0,4,8,0" TextWrapping="Wrap" />
+                <StackPanel Grid.Row="0" Grid.RowSpan="7" Grid.Column="2" Orientation="Vertical">
+                    <Button x:Name="CreateAssetMetadataButton" Margin="8,0,0,4" Click="OnCreateMetadata" />
+                    <Button x:Name="RefreshAssetMetadataButton" Margin="8,0,0,0" Click="OnRefreshMetadata" />
+                </StackPanel>
+            </Grid>
+        </Border>
+        <Border Grid.Row="2" Padding="8,5" Background="{DynamicResource {x:Static SystemColors.ControlBrushKey}}">
+            <StackPanel>
+                <ProgressBar x:Name="AssetOperationProgressBar" Height="3" Minimum="0" Maximum="1" />
+                <TextBlock x:Name="AssetOperationStatusText" Margin="0,4,0,0" TextWrapping="Wrap" />
+                <TextBlock x:Name="AssetOperationDiagnosticText" Margin="0,3,0,0" TextWrapping="Wrap" Visibility="Collapsed" />
+            </StackPanel>
+        </Border>
+    </Grid>
 </UserControl>

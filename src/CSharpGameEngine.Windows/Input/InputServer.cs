@@ -1,4 +1,5 @@
 using CSharpGameEngine.Core;
+using CSharpGameEngine.Contracts;
 using System.Security.Cryptography;
 using System.Text;
 namespace CSharpGameEngine.Input;
@@ -24,6 +25,61 @@ public sealed class InputServer {
         if(this.Contexts.Count!=Map.Contexts.Count){ throw new ArgumentException("Input context IDs must be unique.",nameof(Map)); }
     }
     public IReadOnlyList<InputActionValue>CurrentFrame=>this.Frame;
+    public PlatformDebugInputSnapshot CaptureDebugSnapshot(){
+        int Capacity=RenderPreviewHostProtocol.MaximumPlatformDebugInputActionCount;
+        int Count=Math.Min(this.Frame.Count,Capacity);
+        int SourceStart=this.Frame.Count-Count;
+        PlatformDebugInputAction[]Actions=new PlatformDebugInputAction[Count];
+        for(int Index=0;Index<Count;Index++){
+            InputActionValue Value=this.Frame[SourceStart+Index];
+            Actions[Index]=new PlatformDebugInputAction {
+                TimestampTicks=Value.Timestamp.Ticks,
+                WindowId=Value.WindowId.ToString(),
+                DeviceId=Value.DeviceId.ToString(),
+                Sequence=Value.Sequence,
+                ContextId=Value.ContextId.ToString(),
+                ActionId=Value.ActionId.ToString(),
+                Phase=ToDebugPhase(Value.Phase),
+                RawX=Value.RawValue.X,
+                RawY=Value.RawValue.Y,
+                ValueX=Value.Value.X,
+                ValueY=Value.Value.Y,
+                ReleaseReason=ToDebugReleaseReason(Value.ReleaseReason),
+            };
+        }
+        return new PlatformDebugInputSnapshot {
+            State=PlatformDebugSubsystemState.Ready,
+            ActiveContextCount=this.ActiveContexts.Count,
+            HeldControlCount=this.ControlValues.Count,
+            ActiveActionCount=this.ActiveActions.Count,
+            Actions=Actions,
+            ActionsTruncated=this.Frame.Count>Capacity,
+        };
+    }
+    private static PlatformDebugInputActionPhase ToDebugPhase(InputActionPhase Phase)=>
+        Phase switch {
+            InputActionPhase.Started=>PlatformDebugInputActionPhase.Started,
+            InputActionPhase.Performed=>PlatformDebugInputActionPhase.Performed,
+            InputActionPhase.Canceled=>PlatformDebugInputActionPhase.Canceled,
+            _=>throw new ArgumentOutOfRangeException(nameof(Phase)),
+        };
+    private static PlatformDebugInputReleaseReason ToDebugReleaseReason(
+        InputReleaseReason Reason)=>Reason switch {
+            InputReleaseReason.None=>PlatformDebugInputReleaseReason.None,
+            InputReleaseReason.PhysicalRelease=>
+                PlatformDebugInputReleaseReason.PhysicalRelease,
+            InputReleaseReason.FocusLost=>PlatformDebugInputReleaseReason.FocusLost,
+            InputReleaseReason.CaptureReleased=>
+                PlatformDebugInputReleaseReason.CaptureReleased,
+            InputReleaseReason.DeviceRemoved=>
+                PlatformDebugInputReleaseReason.DeviceRemoved,
+            InputReleaseReason.WindowDestroyed=>
+                PlatformDebugInputReleaseReason.WindowDestroyed,
+            InputReleaseReason.ContextChanged=>
+                PlatformDebugInputReleaseReason.ContextChanged,
+            InputReleaseReason.Rebound=>PlatformDebugInputReleaseReason.Rebound,
+            _=>throw new ArgumentOutOfRangeException(nameof(Reason)),
+        };
     public static string ComputeActionHash(IEnumerable<InputActionValue>Values){
         ArgumentNullException.ThrowIfNull(Values);
         using var Stream=new MemoryStream();

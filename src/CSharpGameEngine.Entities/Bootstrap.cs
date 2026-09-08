@@ -3,7 +3,7 @@ namespace CSharpGameEngine.Entities;
 /// <summary>
 /// 生成されたエントリポイント(<c>CSharpGameEngine.Generated.GeneratedEntryPoint.Main</c>)が
 /// 起動時に唯一作成するシードEntityのComponent。これを<c>ref</c>で受け取る<c>Update</c>が
-/// 「起動時に一度だけ走る処理」になり、そこから<c>State.World.Create(...)</c>で残りのEntityを
+/// 「起動時に一度だけ走る処理」になり、そこから<c>State.World.CreateDeferred(...)</c>で残りのEntityを
 /// すべて組み立てる。
 ///
 /// <para>

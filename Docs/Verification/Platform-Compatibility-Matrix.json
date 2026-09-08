@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "csharp-game-engine-platform-compatibility-v1",
+  "platform": {
+    "os": "Windows",
+    "minimumVersion": "10.0.19041.0",
+    "architecture": "x64"
+  },
+  "requiredStages": [
+    "platform.boundaries",
+    "platform.window-input",
+    "input.actions",
+    "audio.lifecycle",
+    "audio.mixer",
+    "audio.spatial",
+    "vsix.platform-debug"
+  ],
+  "requiredCells": [
+    { "id": "platform-solution-debug", "configuration": "Debug", "capability": "PortableAndSubsystemContracts", "evidenceMode": "SyntheticAndSilent", "ciCell": "solution-debug" },
+    { "id": "platform-solution-release", "configuration": "Release", "capability": "PortableAndSubsystemContracts", "evidenceMode": "SyntheticAndSilent", "ciCell": "solution-release" },
+    { "id": "platform-windows-debug", "configuration": "Debug", "capability": "WindowsRuntime", "evidenceMode": "SyntheticAndSilent", "ciCell": "windows-tfm-debug" },
+    { "id": "platform-windows-release", "configuration": "Release", "capability": "WindowsRuntime", "evidenceMode": "SyntheticAndSilent", "ciCell": "windows-tfm-release" },
+    { "id": "platform-warp-debug", "configuration": "Debug", "capability": "GraphicsCorrectness", "evidenceMode": "Warp", "ciCell": "warp-debug" },
+    { "id": "platform-warp-release", "configuration": "Release", "capability": "GraphicsCorrectness", "evidenceMode": "Warp", "ciCell": "warp-release" }
+  ],
+  "optionalCells": [
+    { "id": "platform-hardware-audio", "capability": "AudioHardware", "evidenceMode": "XAudio2Hardware", "manualEvidenceId": "hardware-audio" },
+    { "id": "platform-hardware-d3d12", "capability": "GpuHardware", "evidenceMode": "D3D12Hardware", "manualEvidenceId": "hardware-d3d12" }
+  ]
+}

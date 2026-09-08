@@ -7,8 +7,8 @@ namespace CSharpGameEngine.VSExtension;
 
 public sealed class HierarchyIconSizeConverter : IValueConverter {
     public object Convert(object Value,Type TargetType,object Parameter,CultureInfo Culture){
-        var FontSize=Value is double Size&&Size>0d?Size:12d;
-        return Math.Max(12d,Math.Round(FontSize*4d/3d));
+        float FontSize=Value is double Size&&FloatMath.TryFromExternal(Size,out var Projected)&&Projected>0f?Projected:12f;
+        return Math.Max(12f,FloatMath.Round(FontSize*4f/3f));
     }
 
     public object ConvertBack(object Value,Type TargetType,object Parameter,CultureInfo Culture)=>
@@ -24,8 +24,8 @@ public sealed class InverseBooleanToVisibilityConverter : IValueConverter {
 }
 public sealed class HierarchyIndentSizeConverter : IValueConverter {
     public object Convert(object Value,Type TargetType,object Parameter,CultureInfo Culture){
-        var FontSize=Value is double Size&&Size>0d?Size:12d;
-        return new GridLength(Math.Max(18d,Math.Round(FontSize*1.5d)));
+        float FontSize=Value is double Size&&FloatMath.TryFromExternal(Size,out var Projected)&&Projected>0f?Projected:12f;
+        return new GridLength(Math.Max(18f,FloatMath.Round(FontSize*1.5f)));
     }
 
     public object ConvertBack(object Value,Type TargetType,object Parameter,CultureInfo Culture)=>
@@ -34,8 +34,8 @@ public sealed class HierarchyIndentSizeConverter : IValueConverter {
 
 public sealed class HierarchyIndentThicknessConverter : IValueConverter {
     public object Convert(object Value,Type TargetType,object Parameter,CultureInfo Culture){
-        var FontSize=Value is double Size&&Size>0d?Size:12d;
-        return new Thickness(Math.Max(18d,Math.Round(FontSize*1.5d)),0d,0d,0d);
+        float FontSize=Value is double Size&&FloatMath.TryFromExternal(Size,out var Projected)&&Projected>0f?Projected:12f;
+        return new Thickness(Math.Max(18f,FloatMath.Round(FontSize*1.5f)),0f,0f,0f);
     }
 
     public object ConvertBack(object Value,Type TargetType,object Parameter,CultureInfo Culture)=>

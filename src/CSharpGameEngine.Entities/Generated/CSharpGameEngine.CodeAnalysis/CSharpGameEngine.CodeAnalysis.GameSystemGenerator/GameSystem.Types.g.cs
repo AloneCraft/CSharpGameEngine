@@ -4,3 +4,6 @@ namespace CSharpGameEngine.Entities;
 public enum Archetype {
     None = -1,
 }
+public enum EcsComponentType {
+    None = -1,
+}

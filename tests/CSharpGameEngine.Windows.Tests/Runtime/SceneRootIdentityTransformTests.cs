@@ -1,18 +1,17 @@
-using System.Numerics;
+using CSharpGameEngine.Entities;
 using CSharpGameEngine.Runtime.Windows;
-using Logical=CSharpGameEngine.Numerics.Logical256;
 
 namespace CSharpGameEngine.Windows.Tests.Runtime;
 
 public sealed class SceneRootIdentityTransformTests {
     [Fact]
     public void Resolve_ComposesWithIdentitySceneRootThatHasNoAuthoredTransform(){
-        TransformWorldResolver Resolver=new();
+        FixedTransformWorldResolver Resolver=new();
 
         var Status=Resolver.Resolve(2,
             (int Id,out Transform Value)=>{
                 if(Id==2){
-                    Value=new Transform { Position=new Logical.Vector3(0f,3f,0f) };
+                    Value=new Transform { Position=new LogicalVector3(0f,3f,0f) };
                     return true;
                 }
                 if(Id==1){
@@ -26,9 +25,9 @@ public sealed class SceneRootIdentityTransformTests {
             (int Id,out int Parent)=>{
                 Parent=1;
                 return Id==2;
-            },out Matrix4x4 World);
+            },out FixedAffineTransform World);
 
-        Assert.Equal(TransformResolveStatus.Success,Status);
-        Assert.Equal(new Vector3(0f,3f,0f),World.Translation);
+        Assert.Equal(FixedTransformResolveStatus.Success,Status);
+        Assert.Equal(new LogicalVector3(0f,3f,0f),new LogicalVector3(World.M41,World.M42,World.M43));
     }
 }

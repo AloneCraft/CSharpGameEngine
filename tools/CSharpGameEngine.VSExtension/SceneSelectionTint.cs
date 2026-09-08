@@ -7,8 +7,8 @@ namespace CSharpGameEngine.VSExtension;
 /// 選択ハイライトの強さ(シェーダの<c>Selected</c>定数)を決める純粋関数。
 ///
 /// <para>
-/// <see cref="SceneRenderer"/>の定数バッファ更新はGPUリソースを要してユニットテストできないため、
-/// 「どのオブジェクトをどの強さで光らせるか」の判断だけをここへ切り出している(このリポジトリが
+/// Preview HostのGPU実行から「どのオブジェクトをどの強さで光らせるか」の判断を分離し、
+/// provider-neutral frame DTOをGPU無しで検証できるようにしている(このリポジトリが
 /// <c>SceneDesignerContextMenuPolicy</c>等で踏襲している方針)。
 /// </para>
 ///

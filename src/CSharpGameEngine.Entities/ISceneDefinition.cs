@@ -16,6 +16,9 @@ namespace CSharpGameEngine.Entities;
 /// </para>
 /// </summary>
 public interface ISceneDefinition {
+    static abstract CSharpGameEngine.Contracts.AssetKey EntityPayload{get;}
     /// <summary>このScene定義から新しい<see cref="SceneInstance"/>を構築する。</summary>
     static abstract SceneInstance Instantiate(ref World World);
+    static abstract SceneInstance InstantiateDeferred(ref World World);
+    static abstract void InstantiateCell(ref World World,CSharpGameEngine.Contracts.WorldCellId Cell);
 }

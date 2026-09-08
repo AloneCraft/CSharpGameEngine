@@ -285,7 +285,7 @@ public sealed class TransformGizmoTests {
     public void TryHitTransform_RayNearMoveArrowTip_ReturnsAxisX(){
         var Frame=MoveGizmoFrame.Create(
                                         Vector3.Zero,Quaternion.Identity,SceneTransformSpace.World,WorldScale:1f);
-        // M0033のMove矢印先端(AxisLength=1.35)付近。ScaleAxisLength=1.0/RotateRingRadius=0.78
+        // M0033のMove矢印先端(AxisLength=1.35f)付近。ScaleAxisLength=1.0f/RotateRingRadius=0.78f
         // の帯より外側にあるため、Moveだけが応答するはずの領域。
         GizmoHandleId?Hit=TransformGizmo.TryHitTransform(
             Frame,new Vector3(1.3f,0f,-10f),Vector3.UnitZ,

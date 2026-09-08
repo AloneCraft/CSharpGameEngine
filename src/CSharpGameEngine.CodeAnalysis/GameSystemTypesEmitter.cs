@@ -23,6 +23,12 @@ internal static class GameSystemTypesEmitter {
         }
 
         Lines.Add("}");
+        Lines.Add("public enum EcsComponentType {");
+        Lines.Add("    None = -1,");
+        foreach(GameSystemComponentInfo Component in Registry.ComponentsByIndex){
+            Lines.Add($"    {Component.FieldName} = {Component.Index},");
+        }
+        Lines.Add("}");
 
         foreach(GameSystemArchetypeInfo Archetype in Registry.Archetypes){
             Lines.AddRange(BuildArchetypeStorage(Archetype,Registry));
@@ -46,37 +52,50 @@ internal static class GameSystemTypesEmitter {
         List<(string TypeFullyQualifiedName,string FieldName)>Components=BuildComponentFields(Archetype,Registry);
         var Parameters=string.Join(", ",Components.Select(C=> $"{C.TypeFullyQualifiedName} {C.FieldName}"));
         var Arguments=string.Join(", ",Components.Select(C=>C.FieldName));
+        var WideMask=Registry.ComponentsByIndex.Length>64;
 
         List<string>Lines=[
             $"public sealed class {Archetype.Name} : IArchetype {{",
             "    private readonly ChunkList<Entity> Entities = new();",
+            "    private readonly ChunkList<bool> EntityEnabled = new();",
+            "    private readonly ChunkList<ulong> ComponentEnabledLow = new();",
         ];
+        if(WideMask){ Lines.Add("    private readonly ChunkList<ulong> ComponentEnabledHigh = new();"); }
 
         foreach((var TypeFqn,var FieldName)in Components){
             Lines.Add($"    private readonly ChunkList<{TypeFqn}> {ToColumnName(FieldName)} = new();");
+            Lines.Add($"    private readonly ChunkList<ChangeVersion> {ToVersionColumnName(FieldName)} = new();");
         }
 
         Lines.Add("    public int Count { get; private set; }");
         Lines.Add($"    public static Entity Create(ref World World, {Parameters}) {{");
-        Lines.Add("        var Entity = new Entity(World.EntityArchetypeIndices.Count);");
+        Lines.Add($"        var Entity = World.AllocateEntity(Archetype.{Archetype.Name}, World.{Archetype.Name}.Count);");
+        Lines.Add("        var Version = World.AdvanceChangeVersion();");
         // SceneSlotは-1(World直属)で作る。Sceneに帰属させるのは生成されたInstantiateが呼ぶ
         // World.AttachToSceneの役目であり、Create自体はSceneを知らない(既存の全呼び出し側が壊れない)。
-        Lines.Add($"        World.EntityArchetypeIndices.Add((Entity, Archetype.{Archetype.Name}, World.{Archetype.Name}.Count, -1));");
-        Lines.Add($"        World.{Archetype.Name}.Add(Entity, {Arguments});");
+        Lines.Add($"        World.{Archetype.Name}.Add(Entity, Version, {Arguments});");
         Lines.Add("        return Entity;");
         Lines.Add("    }");
         Lines.Add("    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
-        Lines.Add($"    internal void Add(Entity Entity, {Parameters}) {{");
+        Lines.Add($"    internal void Add(Entity Entity, ChangeVersion Version, {Parameters}) {{");
         Lines.Add("        int Index = this.Count;");
         Lines.Add("        this.Entities.EnsureCapacity(Index + 1);");
+        Lines.Add("        this.EntityEnabled.EnsureCapacity(Index + 1);");
+        Lines.Add("        this.ComponentEnabledLow.EnsureCapacity(Index + 1);");
+        if(WideMask){ Lines.Add("        this.ComponentEnabledHigh.EnsureCapacity(Index + 1);"); }
 
         foreach((var _,var FieldName)in Components){
             Lines.Add($"        this.{ToColumnName(FieldName)}.EnsureCapacity(Index + 1);");
+            Lines.Add($"        this.{ToVersionColumnName(FieldName)}.EnsureCapacity(Index + 1);");
         }
 
         Lines.Add("        this.Entities.GetRefUnchecked(Index) = Entity;");
+        Lines.Add("        this.EntityEnabled.GetRefUnchecked(Index) = true;");
+        Lines.Add($"        this.ComponentEnabledLow.GetRefUnchecked(Index) = 0x{Archetype.MaskLow:X16}UL;");
+        if(WideMask){ Lines.Add($"        this.ComponentEnabledHigh.GetRefUnchecked(Index) = 0x{Archetype.MaskHigh:X16}UL;"); }
         foreach((var _,var FieldName)in Components){
             Lines.Add($"        this.{ToColumnName(FieldName)}.GetRefUnchecked(Index) = {FieldName};");
+            Lines.Add($"        this.{ToVersionColumnName(FieldName)}.GetRefUnchecked(Index) = Version;");
         }
 
         Lines.Add("        this.Count = Index + 1;");
@@ -88,9 +107,14 @@ internal static class GameSystemTypesEmitter {
         Lines.Add("        if (Index != Last) {");
         Lines.Add("            MovedEntity = this.Entities.GetRefUnchecked(Last);");
         Lines.Add("            this.Entities.GetRefUnchecked(Index) = MovedEntity;");
+        Lines.Add("            this.EntityEnabled.GetRefUnchecked(Index) = this.EntityEnabled.GetRefUnchecked(Last);");
+        Lines.Add("            this.ComponentEnabledLow.GetRefUnchecked(Index) = this.ComponentEnabledLow.GetRefUnchecked(Last);");
+        if(WideMask){ Lines.Add("            this.ComponentEnabledHigh.GetRefUnchecked(Index) = this.ComponentEnabledHigh.GetRefUnchecked(Last);"); }
         foreach((var _,var FieldName)in Components){
             var Column=ToColumnName(FieldName);
             Lines.Add($"            this.{Column}.GetRefUnchecked(Index) = this.{Column}.GetRefUnchecked(Last);");
+            var VersionColumn=ToVersionColumnName(FieldName);
+            Lines.Add($"            this.{VersionColumn}.GetRefUnchecked(Index) = this.{VersionColumn}.GetRefUnchecked(Last);");
         }
         Lines.Add("            this.ClearLast(Last);");
         Lines.Add("            this.Count = Last;");
@@ -101,10 +125,11 @@ internal static class GameSystemTypesEmitter {
         Lines.Add("        this.Count = Last;");
         Lines.Add("        return false;");
         Lines.Add("    }");
-        Lines.Add("    internal void Overwrite(int Index, "+Parameters+") {");
+        Lines.Add("    internal void Overwrite(int Index, ChangeVersion Version, "+Parameters+") {");
         Lines.Add("        this.AssertIndex(Index);");
         foreach((var _,var FieldName)in Components){
             Lines.Add($"        this.{ToColumnName(FieldName)}.GetRefUnchecked(Index) = {FieldName};");
+            Lines.Add($"        this.{ToVersionColumnName(FieldName)}.GetRefUnchecked(Index) = Version;");
         }
         Lines.Add("    }");
         Lines.Add("    [global::System.Diagnostics.Conditional(\"DEBUG\")]");
@@ -113,19 +138,84 @@ internal static class GameSystemTypesEmitter {
         Lines.Add("    }");
         Lines.Add("    private void ClearLast(int Index) {");
         Lines.Add("        this.Entities.ClearAtUnchecked(Index);");
+        Lines.Add("        this.EntityEnabled.ClearAtUnchecked(Index);");
+        Lines.Add("        this.ComponentEnabledLow.ClearAtUnchecked(Index);");
+        if(WideMask){ Lines.Add("        this.ComponentEnabledHigh.ClearAtUnchecked(Index);"); }
         foreach((var _,var FieldName)in Components){
             Lines.Add($"        this.{ToColumnName(FieldName)}.ClearAtUnchecked(Index);");
+            Lines.Add($"        this.{ToVersionColumnName(FieldName)}.ClearAtUnchecked(Index);");
         }
         Lines.Add("    }");
         Lines.Add("    public ref Entity GetEntityRefUnchecked(int Index) {");
         Lines.Add("        this.AssertIndex(Index);");
         Lines.Add("        return ref this.Entities.GetRefUnchecked(Index);");
         Lines.Add("    }");
+        Lines.Add("    internal bool IsEntityEnabledUnchecked(int Index) {");
+        Lines.Add("        this.AssertIndex(Index);");
+        Lines.Add("        return this.EntityEnabled.GetRefUnchecked(Index);");
+        Lines.Add("    }");
+        Lines.Add("    internal void SetEntityEnabledUnchecked(int Index, bool Enabled) {");
+        Lines.Add("        this.AssertIndex(Index);");
+        Lines.Add("        this.EntityEnabled.GetRefUnchecked(Index) = Enabled;");
+        Lines.Add("    }");
+        Lines.Add("    internal ulong GetComponentEnabledLowUnchecked(int Index) {");
+        Lines.Add("        this.AssertIndex(Index);");
+        Lines.Add("        return this.ComponentEnabledLow.GetRefUnchecked(Index);");
+        Lines.Add("    }");
+        if(WideMask){
+            Lines.Add("    internal ulong GetComponentEnabledHighUnchecked(int Index) {");
+            Lines.Add("        this.AssertIndex(Index);");
+            Lines.Add("        return this.ComponentEnabledHigh.GetRefUnchecked(Index);");
+            Lines.Add("    }");
+        }
+        Lines.Add("    internal void SetEnableStateUnchecked(int Index, bool EntityIsEnabled, ulong Low"+(WideMask?", ulong High":string.Empty)+") {");
+        Lines.Add("        this.AssertIndex(Index);");
+        Lines.Add("        this.EntityEnabled.GetRefUnchecked(Index) = EntityIsEnabled;");
+        Lines.Add("        this.ComponentEnabledLow.GetRefUnchecked(Index) = Low;");
+        if(WideMask){ Lines.Add("        this.ComponentEnabledHigh.GetRefUnchecked(Index) = High;"); }
+        Lines.Add("    }");
+        Lines.Add("    internal bool AreComponentsEnabledUnchecked(int Index, ulong Low"+(WideMask?", ulong High":string.Empty)+") {");
+        Lines.Add("        this.AssertIndex(Index);");
+        Lines.Add("        if ((this.ComponentEnabledLow.GetRefUnchecked(Index) & Low) != Low) return false;");
+        Lines.Add(WideMask
+            ?"        return (this.ComponentEnabledHigh.GetRefUnchecked(Index) & High) == High;"
+            :"        return true;");
+        Lines.Add("    }");
 
         foreach((var TypeFqn,var FieldName)in Components){
+            var Component=Registry.ComponentsByIndex.Single(C=>C.TypeFullyQualifiedName==TypeFqn);
+            var Word=Component.Index<64?"Low":"High";
+            var Bit=Component.Index<64?Component.Index:Component.Index-64;
             Lines.Add($"    public ref {TypeFqn} Get{FieldName}RefUnchecked(int Index) {{");
             Lines.Add("        this.AssertIndex(Index);");
             Lines.Add($"        return ref this.{ToColumnName(FieldName)}.GetRefUnchecked(Index);");
+            Lines.Add("    }");
+            Lines.Add($"    internal bool Is{FieldName}EnabledUnchecked(int Index) {{");
+            Lines.Add("        this.AssertIndex(Index);");
+            Lines.Add($"        return (this.ComponentEnabled{Word}.GetRefUnchecked(Index) & (1UL << {Bit})) != 0;");
+            Lines.Add("    }");
+            Lines.Add($"    internal void Set{FieldName}EnabledUnchecked(int Index, bool Enabled, ChangeVersion Version) {{");
+            Lines.Add("        this.AssertIndex(Index);");
+            Lines.Add($"        if (Enabled) this.ComponentEnabled{Word}.GetRefUnchecked(Index) |= 1UL << {Bit};");
+            Lines.Add($"        else this.ComponentEnabled{Word}.GetRefUnchecked(Index) &= ~(1UL << {Bit});");
+            Lines.Add($"        this.{ToVersionColumnName(FieldName)}.GetRefUnchecked(Index) = Version;");
+            Lines.Add("    }");
+            Lines.Add($"    internal ChangeVersion Get{FieldName}ChangeVersionUnchecked(int Index) {{");
+            Lines.Add("        this.AssertIndex(Index);");
+            Lines.Add($"        return this.{ToVersionColumnName(FieldName)}.GetRefUnchecked(Index);");
+            Lines.Add("    }");
+            Lines.Add($"    internal void Mark{FieldName}ChangedUnchecked(int Index, ChangeVersion Version) {{");
+            Lines.Add("        this.AssertIndex(Index);");
+            Lines.Add($"        this.{ToVersionColumnName(FieldName)}.GetRefUnchecked(Index) = Version;");
+            Lines.Add("    }");
+            Lines.Add($"    internal int Collect{FieldName}Changed(ChangeVersion Since, global::System.Span<Entity> Destination) {{");
+            Lines.Add("        var Written = 0;");
+            Lines.Add("        for (var Index = 0; Index < this.Count && Written < Destination.Length; Index++) {");
+            Lines.Add($"            if (!this.IsEntityEnabledUnchecked(Index) || !this.Is{FieldName}EnabledUnchecked(Index)) continue;");
+            Lines.Add($"            if (!this.{ToVersionColumnName(FieldName)}.GetRefUnchecked(Index).IsNewerThan(Since)) continue;");
+            Lines.Add("            Destination[Written++] = this.Entities.GetRefUnchecked(Index);");
+            Lines.Add("        }");
+            Lines.Add("        return Written;");
             Lines.Add("    }");
         }
 
@@ -134,4 +224,5 @@ internal static class GameSystemTypesEmitter {
     }
 
     private static string ToColumnName(string FieldName)=>char.ToUpperInvariant(FieldName[0])+FieldName.Substring(1)+"s";
+    private static string ToVersionColumnName(string FieldName)=>char.ToUpperInvariant(FieldName[0])+FieldName.Substring(1)+"Versions";
 }

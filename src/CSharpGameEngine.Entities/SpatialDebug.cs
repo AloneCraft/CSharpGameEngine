@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 namespace CSharpGameEngine.Entities;
 /// <summary>One fixed-point-independent wire node used by the Scene View diagnostics channel.</summary>
 public readonly record struct SpatialDebugWireNode(
-    double MinX,double MinY,double MinZ,double MaxX,double MaxY,double MaxZ,
+    float MinX,float MinY,float MinZ,float MaxX,float MaxY,float MaxZ,
     int Depth,int EntryCount,bool IsRoot);
 /// <summary>Immutable global spatial snapshot exposed to the opt-in Scene View diagnostics client.</summary>
 public sealed class SpatialDebugSnapshot {
@@ -47,16 +47,19 @@ internal static class SpatialDebugHub {
         Index.CollectDebugNodes(Nodes);
         bool Truncated=Nodes.Count>MaxWireNodes;
         int Count=Math.Min(Nodes.Count,MaxWireNodes);
-        SpatialDebugWireNode[]WireNodes=new SpatialDebugWireNode[Count];
+        List<SpatialDebugWireNode>WireNodes=new(Count);
         for(int IndexValue=0;IndexValue<Count;IndexValue++){
             SpatialAabb Bounds=Nodes[IndexValue].Bounds;
-            WireNodes[IndexValue]=new SpatialDebugWireNode(
-                Bounds.Min.R.ToDouble(),Bounds.Min.U.ToDouble(),Bounds.Min.F.ToDouble(),
-                Bounds.Max.R.ToDouble(),Bounds.Max.U.ToDouble(),Bounds.Max.F.ToDouble(),
-                Nodes[IndexValue].Depth,Nodes[IndexValue].EntryCount,Nodes[IndexValue].IsRoot);
+            if(!Bounds.Min.TryToSingle(out var Min)||!Bounds.Max.TryToSingle(out var Max)){
+                Truncated=true;
+                continue;
+            }
+            WireNodes.Add(new SpatialDebugWireNode(
+                Min.X,Min.Y,Min.Z,Max.X,Max.Y,Max.Z,
+                Nodes[IndexValue].Depth,Nodes[IndexValue].EntryCount,Nodes[IndexValue].IsRoot));
         }
         long CurrentSequence=Interlocked.Increment(ref Sequence);
-        Snapshots[WorldId]=new SpatialDebugSnapshot(WorldId,CurrentSequence,Truncated,WireNodes);
+        Snapshots[WorldId]=new SpatialDebugSnapshot(WorldId,CurrentSequence,Truncated,[.. WireNodes]);
     }
     private static void CaptureRequestedSnapshots(string?WorldId){
         if(Guid.TryParse(WorldId,out Guid Parsed)&&Indexes.TryGetValue(Parsed,out EntityLooseOctree?Selected)){

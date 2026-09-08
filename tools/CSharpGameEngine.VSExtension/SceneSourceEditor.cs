@@ -151,46 +151,6 @@ internal sealed class SceneSourceEditResult {
     internal static SceneSourceEditResult Failure(string ErrorMessage)=>new(false,Root:null,ErrorMessage,WasRebased:false);
 }
 
-/// <summary>
-/// M0051: <see cref="SceneSourceEditor.ApplyForSaveSteps"/>の結果。履歴エントリ1件ごとの
-/// 中間構文木を、適用順に保持する。
-///
-/// <para>
-/// <b>なぜ中間木を返すのか</b>: 呼び出し側はこれを1件ずつ別々のVS Undoトランザクションとして
-/// 書き戻す。こうするとデザイナーの操作履歴とテキストのUndo履歴が1対1で対応し、どちらのタブで
-/// Ctrl+Zしても同じ粒度で巻き戻る。差分は<c>Steps[i-1]</c>→<c>Steps[i]</c>で直接計算できるため、
-/// 書き戻しのたびにバッファを再パースする必要が無い(各書き込み後のバッファ内容は
-/// <c>Steps[i].ToFullString()</c>に一致する)。
-/// </para>
-/// </summary>
-internal sealed class SceneSourceEditStepsResult {
-    private SceneSourceEditStepsResult(
-        bool Succeeded,IReadOnlyList<SyntaxNode>Steps,IReadOnlyList<string>Labels,string?ErrorMessage){
-        this.Succeeded=Succeeded;
-        this.Steps=Steps;
-        this.Labels=Labels;
-        this.ErrorMessage=ErrorMessage;
-    }
-
-    internal bool Succeeded { get; }
-
-    /// <summary>履歴エントリ1件を適用したあとの構文木。<see cref="Labels"/>と同じ長さ・同じ順序。</summary>
-    internal IReadOnlyList<SyntaxNode>Steps { get; }
-
-    /// <summary>各ステップのUndo表示名(<see cref="SceneUndoEntry.Label"/>)。</summary>
-    internal IReadOnlyList<string>Labels { get; }
-
-    internal string?ErrorMessage { get; }
-
-    /// <summary>最終的な構文木。1件も適用していなければ<see langword="null"/>。</summary>
-    internal SyntaxNode?FinalRoot=>this.Steps.Count>0?this.Steps[this.Steps.Count-1]:null;
-
-    internal static SceneSourceEditStepsResult Success(IReadOnlyList<SyntaxNode>Steps,IReadOnlyList<string>Labels)=>
-        new(true,Steps,Labels,ErrorMessage:null);
-
-    internal static SceneSourceEditStepsResult Failure(string ErrorMessage)=>
-        new(false,[],[],ErrorMessage);
-}
 
 /// <summary>
 /// SceneProjectionのNode IDから対象Syntaxを特定し、該当Expressionだけを置換したRoslyn Rootを返す
@@ -329,183 +289,6 @@ internal static class SceneSourceEditor {
         return SceneSourceEditResult.Success(Result.Root!,WasRebased);
     }
 
-    /// <summary>
-    /// M0047: <see cref="SceneEditDocument"/>のセッション全履歴を、保存時に一度だけ実C#構文へ
-    /// まとめて再生する。<see cref="ApplyBatch"/>と違い、履歴は<b>セッション中に新規追加された
-    /// Node</b>を後続の操作(Rename/Reparent/Reorder/Remove)が参照しうる — そのNodeは保存対象の
-    /// 実構文木にはまだ存在しないため、<paramref name="RealProjection"/>にも入っていない。
-    ///
-    /// <para>
-    /// <see cref="SceneUndoEntry.After"/>スナップショットは、そのEntryが実際にどのID(Documentの
-    /// Reconcilerが払い出した本物のID)を新規Nodeへ割り当てたかを知っている。保存時はこのIDを
-    /// そのまま実側の投影へ登録することで、後続の操作(同じIDを参照している)を正しく解決できる。
-    /// </para>
-    /// </summary>
-    internal static SceneSourceEditResult ApplyForSave(
-        SyntaxNode Root,SceneKey Key,SceneProjection RealProjection,IReadOnlyList<SceneUndoEntry>History){
-        SceneSourceEditStepsResult Steps=ApplyForSaveSteps(Root,Key,RealProjection,History);
-        if(!Steps.Succeeded){
-            return SceneSourceEditResult.Failure(Steps.ErrorMessage??VsixText.Get("SourceSaveReapplyFailed"));
-        }
-
-        return SceneSourceEditResult.Success(Steps.FinalRoot??Root);
-    }
-
-    /// <summary>
-    /// M0051: <see cref="ApplyForSave"/>と同じ再生を行うが、<b>履歴エントリ1件ごとの中間構文木</b>を
-    /// 順に返す(<see cref="SceneSourceEditStepsResult"/>のXMLコメント参照)。呼び出し側がこれを
-    /// 1件ずつ別々のVS Undoトランザクションとして書き戻すことで、デザイナーの操作履歴と
-    /// テキストのUndo履歴が1対1で対応する。
-    /// </summary>
-    internal static SceneSourceEditStepsResult ApplyForSaveSteps(
-        SyntaxNode Root,SceneKey Key,SceneProjection RealProjection,IReadOnlyList<SceneUndoEntry>History){
-        if(History.Count==0){
-            return SceneSourceEditStepsResult.Success([],[]);
-        }
-
-        List<SyntaxNode>Steps=[];
-        List<string>Labels=[];
-        SyntaxNode Current=Root;
-        Dictionary<EditorNodeId,SyntaxAnnotation>Annotations=[];
-        List<SceneProjectionNode>WorkingNodes=RealProjection.Nodes.ToList();
-        SceneProjection WorkingProjection=RealProjection;
-
-        bool TryEnsureAnnotated(EditorNodeId Id){
-            if(Annotations.ContainsKey(Id)){
-                return true;
-            }
-            if(!WorkingProjection.TryGetNode(Id,out SceneProjectionNode Candidate)){
-                return false;
-            }
-            if(FindNodeCreation(Current,Candidate.Node)is not { }Creation){
-                return false;
-            }
-            SyntaxAnnotation Annotation=new($"SceneSaveNode_{Annotations.Count}");
-            Current=Current.ReplaceNode(Creation,Creation.WithAdditionalAnnotations(Annotation));
-            Annotations[Id]=Annotation;
-            return true;
-        }
-
-        // 実在するNode(セッション中に新規追加された分は除く)は、最初の構造編集がテキストを
-        // ずらす前に前もって全てAnnotateしておく — さもないと、後続のEntryで初めて参照される
-        // 実Nodeの、Location.Spanベースの遅延解決が、既に適用済みの前段の編集でずれたSpanを
-        // 掴んで失敗する(ApplyBatchの事前Annotateパスと同じ理由、同じ対策)。
-        foreach(SceneUndoEntry Entry in History){
-            foreach(SceneEditOperation Operation in Entry.Operations){
-                TryEnsureAnnotated(Operation.NodeId);
-
-                // M0051 Step 1-4(バグ修正): 操作対象の「親」も必ず注釈する。
-                // Remove/Reorder/Reparent(旧親)は親の構文を書き換えるため親の解決が要るが、
-                // ここが漏れていたため親はFindNodeCreationのSpan一致フォールバックへ落ち、
-                // 履歴2件目以降(例: 兄弟をRenameしてからDelete)で前段の編集により親のSpanが
-                // ずれて解決できず「削除対象が Children の静的な要素ではありません」で保存が
-                // 中止されていた。ApplyBatchの事前Annotateパスは元から親を注釈しており、
-                // 保存経路だけが取り残されていた。
-                if(WorkingProjection.TryGetNode(Operation.NodeId,out SceneProjectionNode OperationNode)
-                    &&OperationNode.ParentId is { }OperationParentId){
-                    TryEnsureAnnotated(OperationParentId);
-                }
-
-                if(Operation is ReparentNodeOperation ReparentUpfront){
-                    TryEnsureAnnotated(ReparentUpfront.NewParentNodeId);
-                }
-            }
-        }
-
-        foreach(SceneUndoEntry Entry in History){
-            foreach(SceneEditOperation Operation in Entry.Operations){
-                if(!TryEnsureAnnotated(Operation.NodeId)){
-                    return SceneSourceEditStepsResult.Failure(VsixText.Get("SourceSaveNodeSyntaxMissing"));
-                }
-                if(Operation is ReparentNodeOperation Reparent&&!TryEnsureAnnotated(Reparent.NewParentNodeId)){
-                    return SceneSourceEditStepsResult.Failure(VsixText.Get("SourceSaveDestinationNodeSyntaxMissing"));
-                }
-
-                SceneSourceEditResult Result=Apply(Current,WorkingProjection,Operation,Annotations);
-                if(!Result.Succeeded||Result.Root is not { }NewRoot){
-                    return SceneSourceEditStepsResult.Failure(Result.ErrorMessage??VsixText.Get("SourceSaveReapplyFailed"));
-                }
-                Current=NewRoot;
-
-                if(Operation is AddNodeOperation Add
-                    &&!TryRegisterNewNode(
-                        Key,Add,Entry,ref Current,WorkingProjection,Annotations,ref WorkingNodes,out WorkingProjection)){
-                    return SceneSourceEditStepsResult.Failure(VsixText.Get("SourceSaveAddedNodeSyntaxMissing"));
-                }
-            }
-
-            // Entry内の全Operationを適用し終えた時点を1つのUndo単位として記録する
-            // (Entryは Document.TryApply の1回=ユーザーの1操作に対応する)。
-            Steps.Add(Current);
-            Labels.Add(Entry.Label);
-        }
-
-        return SceneSourceEditStepsResult.Success(Steps,Labels);
-    }
-
-    /// <summary>
-    /// <see cref="ApplyForSave"/>から呼ぶ。追加したばかりのNodeを親の子リストの末尾(常に追記)から
-    /// 見つけ出し、Documentのセッション内IDのままAnnotation+投影へ登録して以降の操作から
-    /// 解決可能にする。
-    /// </summary>
-    private static bool TryRegisterNewNode(
-        SceneKey Key,AddNodeOperation Add,SceneUndoEntry Entry,ref SyntaxNode Current,SceneProjection ProjectionBeforeAdd,
-        Dictionary<EditorNodeId,SyntaxAnnotation>Annotations,ref List<SceneProjectionNode>WorkingNodes,
-        out SceneProjection UpdatedProjection){
-        UpdatedProjection=ProjectionBeforeAdd;
-        if(!ProjectionBeforeAdd.TryGetNode(Add.NodeId,out SceneProjectionNode Parent)
-            ||AnnotationFor(Annotations,Parent.Id)is not { }ParentAnnotation){
-            return false;
-        }
-
-        BaseObjectCreationExpressionSyntax?ParentCreation=Current.GetAnnotatedNodes(ParentAnnotation)
-            .OfType<BaseObjectCreationExpressionSyntax>().SingleOrDefault();
-        ExpressionSyntax?Children=ParentCreation is null?null:FindChildrenExpression(ParentCreation);
-        BaseObjectCreationExpressionSyntax?NewChild=Children is null
-            ?null
-            :EnumerateChildCreations(Children).LastOrDefault();
-        if(NewChild is null){
-            return false;
-        }
-
-        // このEntryが実際に払い出した新規IDを、Before/Afterの投影の集合差から特定する。
-        // 同じEntryで複数のAddNodeOperation(複数選択への一括AddChild)がありうるため、
-        // 対応する親IDで絞り込む。
-        HashSet<EditorNodeId>BeforeIds=Entry.Before.Projection.Nodes.Select(static Node=>Node.Id).ToHashSet();
-        EditorNodeId?NewId=Entry.After.Projection.Nodes
-            .Where(Node=>!BeforeIds.Contains(Node.Id)&&Node.ParentId is { }NodeParentId&&NodeParentId.Equals(Parent.Id))
-            .Select(static Node=>(EditorNodeId?)Node.Id)
-            .FirstOrDefault();
-        if(NewId is not { }ResolvedId){
-            return false;
-        }
-
-        SceneNode?PredictedNewNode=Entry.After.Projection.TryGetNode(
-            ResolvedId,out SceneProjectionNode PredictedNode)?PredictedNode.Node:null;
-        SyntaxAnnotation NewAnnotation=new($"SceneSaveNode_{Annotations.Count}");
-        Current=Current.ReplaceNode(NewChild,NewChild.WithAdditionalAnnotations(NewAnnotation));
-        Annotations[ResolvedId]=NewAnnotation;
-
-        // SceneProjectionはIdだけでなくPathでも索引する(IdsByPath)。Rootと同じdefault Pathを
-        // 渡すと索引が衝突する。追加は常に末尾へ追記されるため、現時点で同じ親を持つ既存子の数を
-        // そのままローカルIndexとして使える。
-        int LocalIndex=WorkingNodes.Count(N=>N.ParentId is { }P&&P.Equals(Parent.Id));
-        // NameValueLocationをnullのままにすると、後続のRenameがCreateNodeCreationが書いた
-        // Name="…"へ追記でなく"挿入"してしまい、Name代入が重複する。既存のName式を指す。
-        SceneSourceLocation?NameValueLocation=NewChild.Initializer?.Expressions
-            .OfType<AssignmentExpressionSyntax>()
-            .FirstOrDefault(static Candidate=>Candidate.Left is IdentifierNameSyntax Identifier
-                &&Identifier.Identifier.ValueText=="Name")
-            is { Right:{ }NameValue }?SceneSourceLocation.FromNode(NameValue):null;
-        SceneNode SyntheticContent=new(
-            Parent.Node.Path.Append(LocalIndex),PredictedNewNode?.Name??Add.NodeName,
-            PredictedNewNode?.Components??ImmutableArray<SceneComponent>.Empty,ImmutableArray<SceneNode>.Empty,
-            SceneSourceLocation.FromNode(NewChild),null,NameValueLocation,
-            PredictedNewNode?.ComponentsListLocation,null);
-        WorkingNodes=[..WorkingNodes,new SceneProjectionNode(ResolvedId,Parent.Id,SyntheticContent)];
-        UpdatedProjection=new SceneProjection(Key,WorkingNodes);
-        return true;
-    }
 
     private static SceneSourceEditResult ApplySetComponentMember(
         SyntaxNode Root,SceneProjectionNode Node,SetComponentMemberOperation Operation){
@@ -907,7 +690,7 @@ internal static class SceneSourceEditor {
     /// 「Transformのobject creationがSourceに見つかりません」で保存が失敗していた</b>
     /// (「リネーム→移動」は失敗、「移動→リネーム」「移動→移動」は成功、という非対称な壊れ方をしていた)。
     /// 他の操作は既に<see cref="SyntaxAnnotation"/>で追跡していたのに、ここだけSpan一致のままだったのが原因。
-    /// 保存経路では対象Nodeが必ず事前Annotateされている(<see cref="ApplyForSaveSteps"/>)ので、
+    /// batch commit経路では対象Nodeが事前Annotateされているので、
     /// まずAnnotationでNodeのobject creationを特定し、<b>その内側から</b>Transformを探す。
     /// Annotationが無い経路(単発Apply)では従来どおりSpan一致にフォールバックする。
     /// </summary>
@@ -1027,9 +810,11 @@ internal static class SceneSourceEditor {
 
         SceneComponentMember?Member=Transform.FindMember(Name);
         ITypeSymbol?VectorType=Member?.Value.Type??GetDeclaredMemberType(Transform,Name);
-        string TypeName=VectorType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)??"Logical.Vector3";
-        ExpressionSyntax NewValue=SyntaxFactory.ParseExpression(
-            $"new {TypeName}({FormatFloat(Value.X)},{FormatFloat(Value.Y)},{FormatFloat(Value.Z)})");
+        string TypeName=VectorType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)??"LogicalVector3";
+        string ValueExpression=Name=="Rotation"&&SceneTransformBinding.IsCanonicalTransform(Transform)
+            ?$"new {TypeName}(new global::CSharpGameEngine.Numerics.LogicalVector3({FormatFloat(Value.X)},{FormatFloat(Value.Y)},{FormatFloat(Value.Z)}))"
+            :$"new {TypeName}({FormatFloat(Value.X)},{FormatFloat(Value.Y)},{FormatFloat(Value.Z)})";
+        ExpressionSyntax NewValue=SyntaxFactory.ParseExpression(ValueExpression);
         if(NewValue.ContainsDiagnostics){
             ErrorMessage=VsixText.Format("SourceEditTransformVectorInvalid",Name);
             return false;
@@ -1474,8 +1259,6 @@ internal static class SceneSourceEditor {
     /// <summary>M0038: <see cref="SceneModelEditApplier"/>と共有(<see cref="EnumerateTransformMembers"/>参照)。</summary>
     internal static float ReadFloat(object?Value,float Default)=>Value switch {
         float Float=>Float,
-        double Double=>(float)Double,
-        decimal Decimal=>(float)Decimal,
         int Integer=>Integer,
         long Long=>Long,
         _=>Default,

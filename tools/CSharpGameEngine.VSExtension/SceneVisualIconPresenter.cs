@@ -21,18 +21,29 @@ public sealed class SceneVisualIconPresenter : ContentControl {
         nameof(Icon),typeof(SceneVisualIcon),typeof(SceneVisualIconPresenter),
         new PropertyMetadata(null,OnVisualPropertyChanged));
 
-    public static readonly DependencyProperty IconSizeProperty=DependencyProperty.Register(
-        nameof(IconSize),typeof(double),typeof(SceneVisualIconPresenter),
-        new PropertyMetadata(16d,OnVisualPropertyChanged));
+    public static readonly DependencyProperty IconSizeProperty=CreateIconSizeProperty();
 
     public SceneVisualIcon? Icon {
         get=>(SceneVisualIcon?)this.GetValue(IconProperty);
         set=>this.SetValue(IconProperty,value);
     }
 
+    [CSharpGameEngine.Contracts.ExternalNumericAdapter]
     public double IconSize {
         get=>(double)this.GetValue(IconSizeProperty);
         set=>this.SetValue(IconSizeProperty,value);
+    }
+
+    [CSharpGameEngine.Contracts.ExternalNumericAdapter]
+    private static DependencyProperty CreateIconSizeProperty()=>DependencyProperty.Register(
+        nameof(IconSize),typeof(double),typeof(SceneVisualIconPresenter),
+        new PropertyMetadata(16d,OnVisualPropertyChanged));
+
+    [CSharpGameEngine.Contracts.ExternalNumericAdapter]
+    private float ReadIconSize(){
+        var Value=this.IconSize;
+        if(double.IsNaN(Value)||double.IsInfinity(Value)||Value<float.MinValue||Value>float.MaxValue){ throw new ArithmeticException("The WPF icon size cannot be represented as float."); }
+        return(float)Value;
     }
 
     public SceneVisualIconPresenter(){
@@ -49,7 +60,7 @@ public sealed class SceneVisualIconPresenter : ContentControl {
 
     private void RefreshContent(){
         var Icon=this.Icon??SceneVisualIcon.ComponentDefault();
-        var Size=Math.Max(1d,this.IconSize);
+        float Size=Math.Max(1f,this.ReadIconSize());
         this.Width=Size;
         this.Height=Size;
         this.ToolTip=Icon.ToolTip;

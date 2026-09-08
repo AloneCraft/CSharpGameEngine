@@ -1,4 +1,5 @@
 using System.Numerics;
+using CSharpGameEngine.Rendering;
 using System.Runtime.CompilerServices;
 using CSharpGameEngine.ShaderArtifacts;
 using TerraFX.Interop.DirectX;
@@ -120,15 +121,13 @@ public sealed unsafe class ModelRenderer:IDisposable {
 
     public PixelReadbackResult?LastCapturedFrame { get;private set;}
 
-    /// <summary>False if no base-color texture was supplied, or it failed to decode - in either case a 1x1 white fallback texture is used, see <see cref="TextureLoadError"/>.</summary>
+    /// <summary>False only when no base-color texture was supplied; invalid encoded input is rejected by the import adapter before L0.</summary>
     public bool TextureLoaded { get;private set;}
-
-    public string?TextureLoadError { get;private set;}
 
     public static ModelRenderer Create(
         nint Hwnd,int Width,int Height,GraphicsDeviceOptions DeviceOptions,string ShaderArtifactPath,
         IReadOnlyList<Vector3>Positions,IReadOnlyList<Vector3>Normals,IReadOnlyList<Vector2>Uvs,IReadOnlyList<uint>Indices,
-        byte[]?BaseColorTextureBytes,Vector4 BaseColorFactor,
+        RenderTextureResource?BaseColorTexture,Vector4 BaseColorFactor,
         Vector3 BoundsCenter,float BoundsRadius){
         ArgumentNullException.ThrowIfNull(ShaderArtifactPath);
         ArgumentNullException.ThrowIfNull(Positions);
@@ -153,7 +152,7 @@ public sealed unsafe class ModelRenderer:IDisposable {
 
         var Completed=false;
         try {
-            Renderer.Initialize((HWND)Hwnd,Width,Height,DeviceOptions,ShaderArtifactPath,Positions,Normals,Uvs,Indices,BaseColorTextureBytes);
+            Renderer.Initialize((HWND)Hwnd,Width,Height,DeviceOptions,ShaderArtifactPath,Positions,Normals,Uvs,Indices,BaseColorTexture);
             Completed=true;
             return Renderer;
         } finally {
@@ -168,7 +167,7 @@ public sealed unsafe class ModelRenderer:IDisposable {
 
     private void Initialize(HWND Hwnd,int Width,int Height,GraphicsDeviceOptions DeviceOptions,string ShaderArtifactPath,
         IReadOnlyList<Vector3>Positions,IReadOnlyList<Vector3>Normals,IReadOnlyList<Vector2>Uvs,IReadOnlyList<uint>Indices,
-        byte[]?BaseColorTextureBytes){
+        RenderTextureResource?BaseColorTexture){
         this.Device=GraphicsDevice.Create(DeviceOptions);
 
         this.CreateSwapChain(Hwnd,Width,Height);
@@ -211,7 +210,7 @@ public sealed unsafe class ModelRenderer:IDisposable {
         this.CreateVertexBuffer(Positions,Normals,Uvs);
         this.CreateIndexBuffer(Indices);
         this.CreateConstantBuffer();
-        this.CreateTexture(BaseColorTextureBytes);
+        this.CreateTexture(BaseColorTexture);
         this.UpdateViewportAndScissor(Width,Height);
         this.UpdateTransformConstantBuffer(Width,Height);
     }
@@ -563,10 +562,12 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.ConstantBufferMapped=Mapped;
     }
 
-    private void CreateTexture(byte[]?BaseColorTextureBytes){
-        DecodedImage Image= this.DecodeOrFallback(BaseColorTextureBytes);
+    private void CreateTexture(RenderTextureResource?BaseColorTexture){
+        RenderTextureResource Resource=BaseColorTexture??RenderMaterialDefaults.White;
+        this.TextureLoaded=BaseColorTexture is not null;
 
-        D3D12_RESOURCE_DESC TextureDesc=D3D12_RESOURCE_DESC.Tex2D(DXGI_FORMAT_R8G8B8A8_UNORM,(uint)Image.Width,(uint)Image.Height,mipLevels:1);
+        D3D12_RESOURCE_DESC TextureDesc=D3D12_RESOURCE_DESC.Tex2D(
+            DXGI_FORMAT_R8G8B8A8_UNORM,(uint)Resource.Width,(uint)Resource.Height,mipLevels:1);
 
         D3D12_HEAP_PROPERTIES DefaultHeapProps=new(D3D12_HEAP_TYPE_DEFAULT);
         ID3D12Resource*Texture;
@@ -593,10 +594,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             byte*Mapped;
             D3D12Diagnostics.EnsureSuccess(Staging->Map(0,&NoRead,(void**)&Mapped),"ID3D12Resource::Map","mapping the texture upload staging buffer");
 
-            var SrcRowPitch=(uint)Image.Width*4;
+            var SrcRowPitch=(uint)Resource.Width*4;
             var DstRowPitch=Footprint.Footprint.RowPitch;
-            fixed(byte*PSrc=Image.Pixels){
-                for(uint Y=0;Y<Image.Height;Y++){
+            fixed(byte*PSrc=Resource.Pixels){
+                for(uint Y=0;Y<(uint)Resource.Height;Y++){
                     Unsafe.CopyBlock(Mapped+(Y*DstRowPitch),PSrc+(Y*SrcRowPitch),SrcRowPitch);
                 }
             }
@@ -641,28 +642,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         };
         SrvDesc.Texture2D.MipLevels=1;
         this.Device.Device->CreateShaderResourceView(Texture,&SrvDesc,SrvHeap->GetCPUDescriptorHandleForHeapStart());
-    }
-
-    private DecodedImage DecodeOrFallback(byte[]?BaseColorTextureBytes){
-        // Every mesh gets a real SRV bound, even when there is no source texture (or it fails to
-        // decode) - a procedural 1x1 white texture keeps this a single PSO/shader path with no
-        // branching, and multiplies harmlessly with BaseColorFactor in the pixel shader.
-        static DecodedImage WhiteFallback()=>new(1,1,[255,255,255,255]);
-
-        if(BaseColorTextureBytes is null||BaseColorTextureBytes.Length==0){
-            this.TextureLoaded=false;
-            return WhiteFallback();
-        }
-
-        WicDecodeResult DecodeResult=WicImageDecoder.Decode(BaseColorTextureBytes);
-        if(DecodeResult.Success){
-            this.TextureLoaded=true;
-            return DecodeResult.Image!;
-        }
-
-        this.TextureLoaded=false;
-        this.TextureLoadError=DecodeResult.Error;
-        return WhiteFallback();
     }
 
     private void UpdateTransformConstantBuffer(int Width,int Height){

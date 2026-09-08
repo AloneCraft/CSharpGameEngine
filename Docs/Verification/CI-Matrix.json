@@ -1,0 +1,15 @@
+{
+  "schema": "csharp-game-engine-ci-matrix-v1",
+  "runner": "windows-2022",
+  "architecture": "x64",
+  "cells": [
+    { "id": "solution-debug", "configuration": "Debug", "workload": "solution", "targetFramework": "net10.0", "adapter": "none", "required": true },
+    { "id": "solution-release", "configuration": "Release", "workload": "solution", "targetFramework": "net10.0", "adapter": "none", "required": true },
+    { "id": "windows-tfm-debug", "configuration": "Debug", "workload": "windows-tfm", "targetFramework": "net10.0-windows10.0.19041.0", "adapter": "none", "required": true },
+    { "id": "windows-tfm-release", "configuration": "Release", "workload": "windows-tfm", "targetFramework": "net10.0-windows10.0.19041.0", "adapter": "none", "required": true },
+    { "id": "vsix-debug", "configuration": "Debug", "workload": "vsix", "targetFramework": "net472", "adapter": "none", "required": true },
+    { "id": "vsix-release", "configuration": "Release", "workload": "vsix", "targetFramework": "net472", "adapter": "none", "required": true },
+    { "id": "warp-debug", "configuration": "Debug", "workload": "warp", "targetFramework": "net10.0-windows10.0.19041.0", "adapter": "warp", "required": true },
+    { "id": "warp-release", "configuration": "Release", "workload": "warp", "targetFramework": "net10.0-windows10.0.19041.0", "adapter": "warp", "required": true }
+  ]
+}

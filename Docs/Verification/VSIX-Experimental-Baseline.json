@@ -4,10 +4,10 @@
     {
       "id": "shader-graph-1041",
       "owner": "vsix-automation",
-      "status": "Pending",
-      "evidencePath": null,
-      "observedUtc": null,
-      "expiresUtc": null
+      "status": "Passed",
+      "evidencePath": "../../.artifacts/VsixExperimentalCurrent/20260902-011915-baa8f080/1041/evidence.json",
+      "observedUtc": "2026-09-02T01:19:16.2054749\u002B00:00",
+      "expiresUtc": "2026-09-09T01:20:40.2225119\u002B00:00"
     },
     {
       "id": "shader-graph-1033",
@@ -20,50 +20,50 @@
     {
       "id": "scene-designer",
       "owner": "editor-maintainer",
-      "status": "Pending",
-      "evidencePath": null,
-      "observedUtc": null,
-      "expiresUtc": null
+      "status": "Passed",
+      "evidencePath": "../../.artifacts/VsixObservations/20260902T011230325Z-fc71dce5a08d45488a4a4a0372ca935e/scene-designer.json",
+      "observedUtc": "2026-09-02T01:12:30.3257378\u002B00:00",
+      "expiresUtc": "2026-09-09T01:12:30.3257378\u002B00:00"
     },
     {
       "id": "dpi-scaling",
       "owner": "editor-maintainer",
-      "status": "Pending",
-      "evidencePath": null,
-      "observedUtc": null,
-      "expiresUtc": null
+      "status": "Passed",
+      "evidencePath": "../../.artifacts/VsixObservations/20260902T011237539Z-23c247fa8c9b462f8f5aeebbeeff254b/dpi-scaling.json",
+      "observedUtc": "2026-09-02T01:12:37.5398007\u002B00:00",
+      "expiresUtc": "2026-09-09T01:12:37.5398007\u002B00:00"
     },
     {
       "id": "escape-routing",
       "owner": "editor-maintainer",
-      "status": "Pending",
-      "evidencePath": null,
-      "observedUtc": null,
-      "expiresUtc": null
+      "status": "Passed",
+      "evidencePath": "../../.artifacts/VsixObservations/20260902T011244350Z-dad75bc387b445209863dac015834c33/escape-routing.json",
+      "observedUtc": "2026-09-02T01:12:44.3506159\u002B00:00",
+      "expiresUtc": "2026-09-09T01:12:44.3506159\u002B00:00"
     },
     {
       "id": "physics-sidebar",
       "owner": "editor-maintainer",
-      "status": "Pending",
-      "evidencePath": null,
-      "observedUtc": null,
-      "expiresUtc": null
+      "status": "Passed",
+      "evidencePath": "../../.artifacts/VsixObservations/20260902T011251041Z-b62787d2f12a4bda86bcaf83280228e9/physics-sidebar.json",
+      "observedUtc": "2026-09-02T01:12:51.0415331\u002B00:00",
+      "expiresUtc": "2026-09-09T01:12:51.0415331\u002B00:00"
     },
     {
       "id": "startup-layout",
       "owner": "editor-maintainer",
-      "status": "Pending",
-      "evidencePath": null,
-      "observedUtc": null,
-      "expiresUtc": null
+      "status": "Passed",
+      "evidencePath": "../../.artifacts/VsixObservations/20260902T012400596Z-05a8d05462244436bc06f8b73a3f661c/startup-layout.json",
+      "observedUtc": "2026-09-02T01:24:00.5968282+00:00",
+      "expiresUtc": "2026-09-09T01:24:00.5968282+00:00"
     },
     {
       "id": "preview-render-audio",
       "owner": "editor-maintainer",
-      "status": "Pending",
-      "evidencePath": null,
-      "observedUtc": null,
-      "expiresUtc": null
+      "status": "Passed",
+      "evidencePath": "../../.artifacts/VsixObservations/20260902T011258625Z-41daca5aa95c4c988117345e60fe703b/preview-render-audio.json",
+      "observedUtc": "2026-09-02T01:12:58.625933\u002B00:00",
+      "expiresUtc": "2026-09-09T01:12:58.625933\u002B00:00"
     }
   ]
 }

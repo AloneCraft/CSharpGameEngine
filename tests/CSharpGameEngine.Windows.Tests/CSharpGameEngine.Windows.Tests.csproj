@@ -17,12 +17,14 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <Using Include="CSharpGameEngine.Numerics" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\CSharpGameEngine.Windows\CSharpGameEngine.Windows.csproj" />
     <ProjectReference Include="..\..\UserEcsProject\UserEcsProject.csproj" />
     <ProjectReference Include="..\..\tools\CSharpGameEngine.Showcase.Automation\CSharpGameEngine.Showcase.Automation.csproj" />
+    <ProjectReference Include="../../tools/CSharpGameEngine.EditorPreview.Host/CSharpGameEngine.EditorPreview.Host.csproj" />
     <!-- The authored physical-light API is compiled from the shared Runtime.Windows source inside
          UserEcsProject. Keep a compile-time contract test here so editor-only changes cannot
          reintroduce positional or unitless light fields. -->
@@ -39,6 +41,7 @@
     <CgeShaderGraph Include="..\..\assets\Shaders\Triangle.cgeshadergraph" />
     <CgeShaderGraph Include="..\..\assets\Shaders\Model.cgeshadergraph" />
     <CgeShaderGraph Include="..\..\assets\Shaders\Stage.cgeshadergraph" />
+    <CgeComputeShader Include="../../assets/Shaders/ComputeVector.hlsl" />
     <CgeShaderSubgraph Include="..\..\assets\Shaders\Pbr.cgesubgraph" />
     <CgeShaderSubgraph Include="..\..\assets\Shaders\Shadow.cgesubgraph" />
     <CgeShaderSubgraph Include="..\..\assets\Shaders\Pcss.cgesubgraph" />

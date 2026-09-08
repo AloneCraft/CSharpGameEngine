@@ -33,6 +33,11 @@ public sealed class GameSystemPhaseTests {
         int PerEntity=Text.IndexOf("Systems.PerEntity.Update(",StringComparison.Ordinal);
         int PostPhysics=Text.IndexOf("Systems.OnceAfterPhysics.Update(",StringComparison.Ordinal);
         Assert.True(PerEntity>=0&&PostPhysics>PerEntity);
+        Assert.Contains("RunPhase(global::CSharpGameEngine.Entities.SystemPhase.Presentation",Text);
+        Assert.Contains("SystemPhase.Presentation, ref State, ref Systems, false, false);\n        State.World.PlaybackStructuralChanges(ref State);",Text);
+        Assert.Contains("internal static void Shutdown",Text);
+        Assert.Contains("State.World.BeginSystemExecution();",Text);
+        Assert.Contains("State.World.EndSystemExecution();",Text);
     }
 
     [Fact]

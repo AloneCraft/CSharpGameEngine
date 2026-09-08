@@ -1,20 +1,33 @@
 #if DEBUG
 using System.Diagnostics;
+using System.Numerics;
 using CSharpGameEngine.Platform.Windows;
+using CSharpGameEngine.Rendering;
+using CSharpGameEngine.Runtime.Windows;
 using CSharpGameEngine.ShaderArtifacts;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 public sealed class ShaderArtifactHotReloadTests {
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
-    public void Triangle_DebugHotReload_SwapsSuccessAndRetainsLastKnownGoodOnFailure() {
-        var Source=Path.Combine(AppContext.BaseDirectory,"Shaders","Triangle.cgeshaderartifact");
+    public void RenderServer_DebugHotReload_SwapsSuccessAndRetainsLastKnownGoodOnFailure() {
+        var Source=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact");
         var DirectoryPath=Path.Combine(Path.GetTempPath(),"CgeShaderHotReload",Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(DirectoryPath);
-        var ArtifactPath=Path.Combine(DirectoryPath,"Triangle.cgeshaderartifact");
+        var ArtifactPath=Path.Combine(DirectoryPath,"Stage.cgeshaderartifact");
         File.Copy(Source,ArtifactPath);
         try {
             using Win32Window Window=new(new Win32WindowOptions { Title="CGE Shader Hot Reload Test",Width=128,Height=128,Visible=false });
-            using var Renderer=TriangleRenderer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ArtifactPath);
+            StageMaterialCreateInfo Material=new(){ BaseColorFactor=Vector4.One,RoughnessFactor=1f,MetallicFactor=0f };
+            (StageMeshCreateInfo[]Meshes,StageMaterialCreateInfo[]Materials,
+                StageObjectCreateInfo[]Objects)=RenderServer.BuildSingleMeshRoster(
+                [new Vector3(0f,0.6f,0f),new Vector3(-0.6f,-0.6f,0f),new Vector3(0.6f,-0.6f,0f)],
+                [Vector3.UnitZ,Vector3.UnitZ,Vector3.UnitZ],
+                [new Vector2(0.5f,0f),new Vector2(0f,1f),new Vector2(1f,1f)],
+                [0u,1u,2u],Material);
+            using var Renderer=RenderServer.Create(
+                Window.Handle,Window.ClientWidth,Window.ClientHeight,
+                new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },
+                ArtifactPath,Meshes,Materials,Objects);
             Assert.True(Renderer.ShaderArtifactLoaded);
             var InitialHash=Renderer.ShaderSemanticHash;
             var Artifact=ReadArtifact(ArtifactPath);
@@ -39,7 +52,7 @@ public sealed class ShaderArtifactHotReloadTests {
     }
     private static ShaderArtifactDocument ReadArtifact(string PathValue) {
         using var Stream=File.OpenRead(PathValue);
-        Assert.True(ShaderArtifactSerializer.TryRead(Stream,ShaderArtifactTargetKind.Triangle,ShaderArtifactAbi.GetHash(ShaderArtifactTargetKind.Triangle),out var Artifact,out var Error),Error);
+        Assert.True(ShaderArtifactSerializer.TryRead(Stream,ShaderArtifactTargetKind.Stage,ShaderArtifactAbi.GetHash(ShaderArtifactTargetKind.Stage),out var Artifact,out var Error),Error);
         return Artifact!;
     }
     private static void WriteArtifactAtomic(string PathValue,ShaderArtifactDocument Artifact) {
@@ -53,7 +66,7 @@ public sealed class ShaderArtifactHotReloadTests {
         File.WriteAllBytes(Temporary,Bytes);
         File.Move(Temporary,PathValue,true);
     }
-    private static void RenderUntil(Win32Window Window,TriangleRenderer Renderer,Func<bool>Predicate) {
+    private static void RenderUntil(Win32Window Window,RenderServer Renderer,Func<bool>Predicate) {
         var Timeout=Stopwatch.StartNew();
         while(!Predicate()&&Timeout.Elapsed<TimeSpan.FromSeconds(5)) {
             Window.PumpEvents();

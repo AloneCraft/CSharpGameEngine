@@ -1,0 +1,83 @@
+name: CSharpGameEngine CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  required:
+    name: ${{ matrix.cell }}
+    runs-on: windows-2022
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cell: solution-debug
+            configuration: Debug
+            workload: solution
+            targetFramework: net10.0
+            adapter: none
+          - cell: solution-release
+            configuration: Release
+            workload: solution
+            targetFramework: net10.0
+            adapter: none
+          - cell: windows-tfm-debug
+            configuration: Debug
+            workload: windows-tfm
+            targetFramework: net10.0-windows10.0.19041.0
+            adapter: none
+          - cell: windows-tfm-release
+            configuration: Release
+            workload: windows-tfm
+            targetFramework: net10.0-windows10.0.19041.0
+            adapter: none
+          - cell: vsix-debug
+            configuration: Debug
+            workload: vsix
+            targetFramework: net472
+            adapter: none
+          - cell: vsix-release
+            configuration: Release
+            workload: vsix
+            targetFramework: net472
+            adapter: none
+          - cell: warp-debug
+            configuration: Debug
+            workload: warp
+            targetFramework: net10.0-windows10.0.19041.0
+            adapter: warp
+          - cell: warp-release
+            configuration: Release
+            workload: warp
+            targetFramework: net10.0-windows10.0.19041.0
+            adapter: warp
+    env:
+      DOTNET_NOLOGO: true
+      NUGET_PACKAGES: ${{ runner.temp }}/cge-nuget-packages
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Restore canonical solution
+        run: dotnet restore CSharpGameEngine.slnx --arch x64
+      - name: Verify declared matrix
+        run: dotnet run --project tools/CSharpGameEngine.FeatureRunner/CSharpGameEngine.FeatureRunner.csproj -- verify-ci-matrix
+      - name: Test solution
+        if: matrix.workload == 'solution'
+        run: dotnet test CSharpGameEngine.slnx -c "${{ matrix.configuration }}" --arch x64 --no-restore
+      - name: Test Windows target framework
+        if: matrix.workload == 'windows-tfm'
+        run: dotnet test tests/CSharpGameEngine.Windows.Tests/CSharpGameEngine.Windows.Tests.csproj -c "${{ matrix.configuration }}" -f "${{ matrix.targetFramework }}" --arch x64 --no-restore
+      - name: Build net472 VSIX
+        if: matrix.workload == 'vsix'
+        run: dotnet build tools/CSharpGameEngine.VSExtension/CSharpGameEngine.VSExtension.csproj -c "${{ matrix.configuration }}" -f "${{ matrix.targetFramework }}" --no-restore
+      - name: Certify all implemented Visual Stages with WARP
+        if: matrix.workload == 'warp'
+        run: dotnet run --project tools/CSharpGameEngine.FeatureRunner/CSharpGameEngine.FeatureRunner.csproj -c "${{ matrix.configuration }}" -- suite visual --configuration "${{ matrix.configuration }}" --adapter warp --profile visual

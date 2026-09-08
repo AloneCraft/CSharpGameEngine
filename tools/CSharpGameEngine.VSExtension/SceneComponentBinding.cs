@@ -52,7 +52,8 @@ internal sealed class SceneComponentBinding {
 /// </para>
 /// </summary>
 internal static class SceneComponentBindings {
-    internal const string TransformTypeFullyQualifiedName="global::CSharpGameEngine.Runtime.Windows.Transform";
+    internal const string TransformTypeFullyQualifiedName="global::CSharpGameEngine.Entities.Transform";
+    internal const string LegacyTransformTypeFullyQualifiedName="global::CSharpGameEngine.Runtime.Windows.Transform";
     internal const string PrimitiveMeshTypeFullyQualifiedName="global::CSharpGameEngine.Runtime.Windows.PrimitiveMesh";
     internal const string StaticMeshTypeFullyQualifiedName="global::CSharpGameEngine.Runtime.Windows.StaticMesh";
     internal const string CameraTypeFullyQualifiedName="global::CSharpGameEngine.Runtime.Windows.Camera";
@@ -66,6 +67,7 @@ internal static class SceneComponentBindings {
     // 判定不能になる。
     private static readonly SceneComponentBinding[]Table=[
         new SceneComponentBinding(TransformTypeFullyQualifiedName,SceneComponentRole.LocalTransform),
+        new SceneComponentBinding(LegacyTransformTypeFullyQualifiedName,SceneComponentRole.LocalTransform),
         new SceneComponentBinding(PrimitiveMeshTypeFullyQualifiedName,SceneComponentRole.PrimitiveMesh),
         new SceneComponentBinding(StaticMeshTypeFullyQualifiedName,SceneComponentRole.StaticMesh),
         new SceneComponentBinding(CameraTypeFullyQualifiedName,SceneComponentRole.Camera),

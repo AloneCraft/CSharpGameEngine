@@ -25,6 +25,7 @@ internal static class SceneInstantiateEmitter {
     private const string WorldFullyQualifiedName="global::CSharpGameEngine.Entities.World";
     private const string SceneInstanceFullyQualifiedName="global::CSharpGameEngine.Entities.SceneInstance";
     private const string SceneDefinitionInterfaceFullyQualifiedName="global::CSharpGameEngine.Entities.ISceneDefinition";
+    private const string ScenePayloadNamespace="bf538397-e844-5b55-87ad-05eb497a1271";
     internal const string ParentFullyQualifiedName="global::CSharpGameEngine.Entities.Parent";
     internal const string SceneNodeTagFullyQualifiedName="global::CSharpGameEngine.Entities.SceneNodeTag";
 
@@ -51,16 +52,35 @@ internal static class SceneInstantiateEmitter {
         Lines.Add("    }");
         Lines.Add("    /// <summary>このSceneが生成するEntityの総数。</summary>");
         Lines.Add($"    public const int SceneEntityCount = {Scene.TotalNodeCount};");
+        Lines.Add($"    private static readonly global::CSharpGameEngine.Contracts.AssetKey EntityPayloadValue = new(new global::CSharpGameEngine.Contracts.AssetId(global::CSharpGameEngine.Core.StableId.FromName(global::CSharpGameEngine.Core.StableId.Parse(\"{ScenePayloadNamespace}\"), \"{Scene.ClassFullyQualifiedName}\")), null);");
+        Lines.Add("    public static global::CSharpGameEngine.Contracts.AssetKey EntityPayload => EntityPayloadValue;");
+        Lines.Add("    static global::CSharpGameEngine.Contracts.AssetKey global::CSharpGameEngine.Entities.ISceneDefinition.EntityPayload => EntityPayloadValue;");
         Lines.Add($"    public static {SceneInstanceFullyQualifiedName} Instantiate(ref {WorldFullyQualifiedName} World) {{");
         Lines.Add($"        {SceneInstanceFullyQualifiedName} Instance = World.BeginSceneInstance();");
 
-        EmitNode(Lines,Root,Scene.ClassFullyQualifiedName,ParentLocalName:null,Registry,ComponentIndexByType,RuntimeComponents);
+        EmitNode(Lines,Root,Scene.ClassFullyQualifiedName,ParentLocalName:null,Registry,ComponentIndexByType,RuntimeComponents,Deferred:false);
 
         Lines.Add($"        World.EndSceneInstance(Instance, {Root.LocalName});");
         Lines.Add("        return Instance;");
         Lines.Add("    }");
         Lines.Add($"    static {SceneInstanceFullyQualifiedName} {SceneDefinitionInterfaceFullyQualifiedName}.Instantiate(ref {WorldFullyQualifiedName} World) {{");
         Lines.Add("        return Instantiate(ref World);");
+        Lines.Add("    }");
+        Lines.Add($"    public static {SceneInstanceFullyQualifiedName} InstantiateDeferred(ref {WorldFullyQualifiedName} World) {{");
+        Lines.Add($"        {SceneInstanceFullyQualifiedName} Instance = World.BeginSceneInstanceDeferred();");
+        EmitNode(Lines,Root,Scene.ClassFullyQualifiedName,ParentLocalName:null,Registry,ComponentIndexByType,RuntimeComponents,Deferred:true);
+        Lines.Add($"        World.EndSceneInstanceDeferred(Instance, {Root.LocalName});");
+        Lines.Add("        return Instance;");
+        Lines.Add("    }");
+        Lines.Add($"    static {SceneInstanceFullyQualifiedName} {SceneDefinitionInterfaceFullyQualifiedName}.InstantiateDeferred(ref {WorldFullyQualifiedName} World) {{");
+        Lines.Add("        return InstantiateDeferred(ref World);");
+        Lines.Add("    }");
+        Lines.Add($"    public static void InstantiateCell(ref {WorldFullyQualifiedName} World, global::CSharpGameEngine.Contracts.WorldCellId Cell) {{");
+        Lines.Add("        if (!Cell.IsValid) throw new global::System.ArgumentException(\"A valid world-cell ID is required.\", nameof(Cell));");
+        EmitNode(Lines,Root,Scene.ClassFullyQualifiedName,ParentLocalName:null,Registry,ComponentIndexByType,RuntimeComponents,Deferred:false,Cell:true);
+        Lines.Add("    }");
+        Lines.Add($"    static void {SceneDefinitionInterfaceFullyQualifiedName}.InstantiateCell(ref {WorldFullyQualifiedName} World, global::CSharpGameEngine.Contracts.WorldCellId Cell) {{");
+        Lines.Add("        InstantiateCell(ref World, Cell);");
         Lines.Add("    }");
         Lines.Add("}");
         Lines.Add("");
@@ -117,7 +137,9 @@ internal static class SceneInstantiateEmitter {
         string?ParentLocalName,
         GameSystemRegistry Registry,
         Dictionary<string,int>ComponentIndexByType,
-        SceneRuntimeComponentMap RuntimeComponents){
+        SceneRuntimeComponentMap RuntimeComponents,
+        bool Deferred,
+        bool Cell=false){
         var Components=BuildEffectiveComponents(Node,ParentLocalName,RuntimeComponents);
         for(int Index=0;Index<Components.Count;Index++){
             if(Components[Index].TypeFullyQualifiedName=="global::CSharpGameEngine.Runtime.Physics.PhysicsStableId"){
@@ -144,10 +166,20 @@ internal static class SceneInstantiateEmitter {
         }
 
         var Arguments=string.Join(", ",ArchetypeInfo.ComponentIndices.Select(I=>ExpressionByIndex[I]??"default"));
-        Lines.Add($"        {EntityFullyQualifiedName} {Node.LocalName} = World.AttachToScene(Instance, global::CSharpGameEngine.Entities.{ArchetypeInfo.Name}.Create(ref World, {Arguments}));");
+        var DeferredArguments=string.Join(", ",ArchetypeInfo.ComponentIndices.Select(I=>
+            ExpressionByIndex[I]??$"default({Registry.ComponentsByIndex[I].TypeFullyQualifiedName})"));
+        if(Cell){
+            Lines.Add($"        var {Node.LocalName}Persistent = new global::CSharpGameEngine.Contracts.PersistentEntityId(global::CSharpGameEngine.Core.StableId.FromName(Cell.Value, \"{SceneFullyQualifiedName}/{Node.PathDisplay}\"));");
+            Lines.Add($"        if (!World.CanAttachToCell(Cell, {Node.LocalName}Persistent)) throw new global::System.InvalidOperationException(\"Persistent entity identity is already active.\");");
+            Lines.Add($"        {EntityFullyQualifiedName} {Node.LocalName} = World.AttachToCell(Cell, {Node.LocalName}Persistent, global::CSharpGameEngine.Entities.{ArchetypeInfo.Name}.Create(ref World, {Arguments}));");
+        }else {
+            Lines.Add(Deferred
+                ?$"        {EntityFullyQualifiedName} {Node.LocalName} = World.AttachToSceneDeferred(Instance, World.CreateDeferred({DeferredArguments}));"
+                :$"        {EntityFullyQualifiedName} {Node.LocalName} = World.AttachToScene(Instance, global::CSharpGameEngine.Entities.{ArchetypeInfo.Name}.Create(ref World, {Arguments}));");
+        }
 
         foreach(SceneEmitNode Child in Node.Children){
-            EmitNode(Lines,Child,SceneFullyQualifiedName,Node.LocalName,Registry,ComponentIndexByType,RuntimeComponents);
+            EmitNode(Lines,Child,SceneFullyQualifiedName,Node.LocalName,Registry,ComponentIndexByType,RuntimeComponents,Deferred,Cell);
         }
     }
 

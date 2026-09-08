@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using CSharpGameEngine.Contracts;
 using CSharpGameEngine.SceneAnalysis;
 using CSharpGameEngine.SceneAnalysis.Tests;
 
@@ -191,42 +192,38 @@ public sealed class CameraPreviewDrawPolicyTests {
     }
 }
 
-public sealed class SceneConstantBufferLayoutTests {
-    private const int AlignedSlotSize = 256;
-    private const int CameraPassCount = 4; // 1 main viewport + SceneRenderer.MaxCameraPreviews(3)
-    private const int FrameCount = 2;
+public sealed class SceneCameraPreviewOverlayTests {
+    [Fact]
+    public void Build_ProducesCardBorderAndLabelInMainViewClipSpace(){
+        RenderPreviewCameraPass Pass=new(){
+            X=10,Y=20,Width=30,Height=40,
+            Camera=new RenderPreviewCamera(),
+        };
 
-    [Theory]
-    [InlineData(1)]
-    [InlineData(2)]
-    [InlineData(37)]
-    public void WriteOffsets_StayWithinTheMappedRegion_ForEveryFrameAndPass(int ObjectCount) {
-        int ObjectCapacity = Math.Max(1, ObjectCount * 2);
-        int AllocatedSize = SceneConstantBufferLayout.ComputeAllocatedSize(
-            AlignedSlotSize, ObjectCapacity, CameraPassCount, FrameCount);
+        IReadOnlyList<GizmoOverlayPrimitive>Primitives=
+            SceneCameraPreviewOverlay.Build(
+                [Pass],Matrix4x4.Identity,Matrix4x4.Identity,100,100);
 
-        for (int FrameIndex = 0; FrameIndex < FrameCount; FrameIndex++) {
-            int FrameOffset = SceneConstantBufferLayout.ComputeFrameOffset(
-                FrameIndex, AlignedSlotSize, ObjectCapacity, CameraPassCount);
-            int MapLength = SceneConstantBufferLayout.ComputeMapLength(
-                AlignedSlotSize, ObjectCapacity, CameraPassCount);
+        Assert.NotEmpty(Primitives);
+        GizmoOverlayPrimitive Border=Primitives[0];
+        Assert.Equal(GizmoPrimitiveKind.Line,Border.Kind);
+        Assert.Equal(8,Border.Vertices.Count);
+        AssertVector(new Vector3(-0.8f,0.6f,0f),Border.Vertices[0].Position);
+        AssertVector(new Vector3(-0.2f,0.6f,0f),Border.Vertices[1].Position);
+        Assert.True(Primitives.Sum(static Primitive=>Primitive.Vertices.Count)>8);
+    }
 
-            // Map()に渡す長さそのものが確保済みバッファ内に収まっていること。
-            Assert.True(FrameOffset + MapLength <= AllocatedSize,
-                $"frame={FrameIndex} objects={ObjectCount}: FrameOffset+MapLength={FrameOffset + MapLength} exceeds AllocatedSize={AllocatedSize}");
+    [Fact]
+    public void Build_EmptyOrNonInvertibleViewProducesNoOverlay(){
+        Assert.Empty(SceneCameraPreviewOverlay.Build(
+            [],Matrix4x4.Identity,Matrix4x4.Identity,100,100));
+        Assert.Empty(SceneCameraPreviewOverlay.Build(
+            [new RenderPreviewCameraPass()],new Matrix4x4(),Matrix4x4.Identity,100,100));
+    }
 
-            for (int Pass = 0; Pass < CameraPassCount; Pass++) {
-                for (int ObjectIndex = 0; ObjectIndex < ObjectCount; ObjectIndex++) {
-                    int WriteOffset = SceneConstantBufferLayout.ComputeWriteOffset(
-                        FrameOffset, Pass, ObjectIndex, AlignedSlotSize, ObjectCapacity);
-                    int WriteEnd = WriteOffset + AlignedSlotSize;
-
-                    Assert.True(WriteOffset >= FrameOffset,
-                        $"frame={FrameIndex} pass={Pass} object={ObjectIndex}: WriteOffset={WriteOffset} precedes FrameOffset={FrameOffset}");
-                    Assert.True(WriteEnd <= FrameOffset + MapLength,
-                        $"frame={FrameIndex} pass={Pass} object={ObjectIndex}: WriteEnd={WriteEnd} exceeds mapped region {FrameOffset + MapLength}");
-                }
-            }
-        }
+    private static void AssertVector(Vector3 Expected,Vector3 Actual){
+        Assert.InRange(Math.Abs(Expected.X-Actual.X),0f,1e-6f);
+        Assert.InRange(Math.Abs(Expected.Y-Actual.Y),0f,1e-6f);
+        Assert.InRange(Math.Abs(Expected.Z-Actual.Z),0f,1e-6f);
     }
 }

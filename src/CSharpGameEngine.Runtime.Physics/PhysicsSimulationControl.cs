@@ -12,6 +12,7 @@ internal static class PhysicsSimulationControl {
     private static readonly ConcurrentDictionary<Guid,ControlState> States=[];
 
     internal static void Register(Guid WorldId)=>States.TryAdd(WorldId,new ControlState());
+    internal static void Unregister(Guid WorldId)=>States.TryRemove(WorldId,out _);
 
     internal static string Apply(string? Command,string? WorldId){
         if(!TryResolve(WorldId,out ControlState? State)){ return "world unavailable"; }

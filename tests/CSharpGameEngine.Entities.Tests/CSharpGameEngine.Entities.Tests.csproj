@@ -24,6 +24,9 @@
          behavior is covered by the UserEcs/Windows runtime test compilation, whereas this
          project intentionally exercises the generator-free shared Entity primitives. -->
     <Compile Include="..\..\src\CSharpGameEngine.Entities\*.cs" Exclude="..\..\src\CSharpGameEngine.Entities\FixedTransform.cs;..\..\src\CSharpGameEngine.Entities\SpatialPartitioning.cs;..\..\src\CSharpGameEngine.Entities\SpatialWorld.cs;..\..\src\CSharpGameEngine.Entities\SpatialDebug.cs" Link="Entities\%(Filename)%(Extension)" />
+    <ProjectReference Include="..\..\src\CSharpGameEngine.Contracts\CSharpGameEngine.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\CSharpGameEngine.Core\CSharpGameEngine.Core.csproj" />
+    <ProjectReference Include="..\..\src\CSharpGameEngine.Numerics\CSharpGameEngine.Numerics.csproj" />
     <ProjectReference Include="..\..\src\CSharpGameEngine.CodeAnalysis\CSharpGameEngine.CodeAnalysis.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <Import Project="..\..\src\CSharpGameEngine.Runtime.Simulation\CSharpGameEngine.Runtime.Simulation.projitems" Label="Shared" />

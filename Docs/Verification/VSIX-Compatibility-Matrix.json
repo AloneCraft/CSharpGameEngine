@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "csharp-game-engine-vsix-compatibility-v1",
+  "featureId": "F-L8-028",
+  "package": {
+    "projectPath": "tools/CSharpGameEngine.VSExtension/CSharpGameEngine.VSExtension.csproj",
+    "sourceManifestPath": "tools/CSharpGameEngine.VSExtension/source.extension.vsixmanifest",
+    "targetFramework": "net472",
+    "architecture": "amd64",
+    "neutralLanguage": "en-US",
+    "satelliteCultures": [ "ja-JP" ],
+    "frameworkDependencyId": "Microsoft.Framework.NDP",
+    "frameworkDependencyVersion": "[4.7.2,)"
+  },
+  "visualStudio": {
+    "minimumVersion": "17.14",
+    "installationVersionRange": "[17.14,)",
+    "installationTargetIds": [ "Microsoft.VisualStudio.Community" ],
+    "productArchitecture": "amd64",
+    "coreEditorPrerequisiteId": "Microsoft.VisualStudio.Component.CoreEditor",
+    "coreEditorPrerequisiteVersion": "[17.14,)"
+  },
+  "toolchain": {
+    "visualStudioSdkVersion": "17.14.40265",
+    "roslynVersion": "4.14.0"
+  },
+  "automation": {
+    "projectPath": "tools/CSharpGameEngine.Vsix.Automation/CSharpGameEngine.Vsix.Automation.csproj",
+    "targetFramework": "net472",
+    "developmentRootSuffix": "CgeFixed",
+    "evidenceRootSuffix": "CgeAutomation",
+    "scenario": "shader-graph",
+    "localeMode": "auto",
+    "locales": [ "1033", "1041" ],
+    "experimentalLedgerPath": "Docs/Verification/VSIX-Experimental-Baseline.json",
+    "manualLedgerPath": "Docs/Verification/Manual-Evidence.json",
+    "manualSummaryEntryId": "vsix-experimental",
+    "checks": [
+      { "id": "shader-graph-1041", "owner": "vsix-automation", "kind": "Automated", "configuration": "Release", "locale": "1041", "requiredForRelease": true },
+      { "id": "shader-graph-1033", "owner": "vsix-automation", "kind": "Automated", "configuration": "Release", "locale": "1033", "requiredForRelease": true },
+      { "id": "scene-designer", "owner": "editor-maintainer", "kind": "Manual", "configuration": null, "locale": null, "requiredForRelease": true },
+      { "id": "dpi-scaling", "owner": "editor-maintainer", "kind": "Manual", "configuration": null, "locale": null, "requiredForRelease": true },
+      { "id": "escape-routing", "owner": "editor-maintainer", "kind": "Manual", "configuration": null, "locale": null, "requiredForRelease": true },
+      { "id": "physics-sidebar", "owner": "editor-maintainer", "kind": "Manual", "configuration": null, "locale": null, "requiredForRelease": true },
+      { "id": "startup-layout", "owner": "editor-maintainer", "kind": "Manual", "configuration": null, "locale": null, "requiredForRelease": true },
+      { "id": "preview-render-audio", "owner": "editor-maintainer", "kind": "Manual", "configuration": null, "locale": null, "requiredForRelease": true }
+    ]
+  }
+}

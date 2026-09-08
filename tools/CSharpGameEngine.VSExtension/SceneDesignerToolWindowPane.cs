@@ -24,19 +24,31 @@ public sealed class SceneDesignerToolWindowPane:ToolWindowPane {
     public const string PaneGuidString="6f2c6a0e-6e8a-4a7a-9a3a-3b6f2b8d7c4a";
 
     private static Func<SceneEditorSessionService?>?SessionProvider;
+    private static WeakReference<SceneDesignerToolWindowControl>?RestoredControl;
     private readonly SceneDesignerToolWindowControl Control;
 
     public SceneDesignerToolWindowPane():base(null){
+        ThreadHelper.ThrowIfNotOnUIThread();
         this.Caption=VsixText.Get("PaneSceneDesigner");
         this.Control=new SceneDesignerToolWindowControl();
         this.Content= this.Control;
-        ThreadHelper.ThrowIfNotOnUIThread();
-        if(SessionProvider?.Invoke() is { } Session){
+        RestoredControl=new WeakReference<SceneDesignerToolWindowControl>(this.Control);
+        if(SessionProvider?.Invoke() is { }Session){
             this.Control.SetSession(Session);
         }
     }
 
-    internal static void ConfigureSessionProvider(Func<SceneEditorSessionService?>?Provider)=>SessionProvider=Provider;
+    internal static void ConfigureSessionProvider(Func<SceneEditorSessionService?>Provider){
+        if(Provider is null){ throw new ArgumentNullException(nameof(Provider)); }
+        ThreadHelper.ThrowIfNotOnUIThread();
+        SessionProvider=Provider;
+        if(RestoredControl?.TryGetTarget(out var Control)==true
+            &&SessionProvider?.Invoke() is { }Session){
+            Control.SetSession(Session);
+        }
+    }
+
+    internal static void ClearSessionProvider()=>SessionProvider=null;
 
     internal void SetTarget(SceneEditorSessionService Session,SceneDocumentSnapshot Snapshot){
         ThreadHelper.ThrowIfNotOnUIThread();

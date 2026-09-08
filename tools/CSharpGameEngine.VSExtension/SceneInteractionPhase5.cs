@@ -34,8 +34,8 @@ internal readonly struct SceneViewFollowSnapshot {
         var NewEye=Pivot+Vector3.Transform(OriginalEye-Pivot,Rotation);
         var NewForward=Vector3.Normalize(Vector3.Transform(OriginalForward,Rotation));
         State.FocusDistance=this.FocusDistance;
-        State.Yaw=(float)Math.Atan2(NewForward.X,NewForward.Z);
-        State.Pitch=(float)Math.Asin(Math.Max(-1f,Math.Min(1f,NewForward.Y)));
+        State.Yaw=FloatMath.Atan2(NewForward.X,NewForward.Z);
+        State.Pitch=FloatMath.Asin(Math.Max(-1f,Math.Min(1f,NewForward.Y)));
         State.FocusPosition=NewEye+(NewForward*this.FocusDistance);
     }
 
@@ -60,15 +60,16 @@ internal readonly struct DuplicateNodePlanItem {
 }
 
 internal readonly struct DuplicateRenderPreview {
-    internal DuplicateRenderPreview(NodePath SourcePath,Matrix4x4 OriginalWorld,int Handle){
+    internal DuplicateRenderPreview(
+        NodePath SourcePath,NodePath PreviewPath,Matrix4x4 OriginalWorld){
         this.SourcePath=SourcePath;
+        this.PreviewPath=PreviewPath;
         this.OriginalWorld=OriginalWorld;
-        this.Handle=Handle;
     }
 
     internal NodePath SourcePath { get; }
+    internal NodePath PreviewPath { get; }
     internal Matrix4x4 OriginalWorld { get; }
-    internal int Handle { get; }
 }
 
 /// <summary>構造編集後に選択を復元できるよう、兄弟末尾へ追加されるNodePathをsource変更前に確定する。</summary>

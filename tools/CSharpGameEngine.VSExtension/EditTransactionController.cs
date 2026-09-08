@@ -290,10 +290,10 @@ internal sealed class EditTransactionController {
         if(Dot>=1f-1e-6f){ return Quaternion.Identity; }
         if(Dot<=-1f+1e-6f){
             var Reference=Math.Abs(Vector3.Dot(From,Vector3.UnitX))<0.9f?Vector3.UnitX:Vector3.UnitZ;
-            return Quaternion.CreateFromAxisAngle(Vector3.Normalize(Vector3.Cross(From,Reference)),(float)Math.PI);
+            return Quaternion.CreateFromAxisAngle(Vector3.Normalize(Vector3.Cross(From,Reference)),FloatMath.Pi);
         }
         var Axis=Vector3.Normalize(Vector3.Cross(From,To));
-        return Quaternion.CreateFromAxisAngle(Axis,(float)Math.Acos(Dot));
+        return Quaternion.CreateFromAxisAngle(Axis,FloatMath.Acos(Dot));
     }
 
     internal SceneEditCancellation Cancel(){

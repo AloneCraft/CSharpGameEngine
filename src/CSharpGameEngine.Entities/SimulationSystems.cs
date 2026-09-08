@@ -20,6 +20,22 @@ public sealed class SystemPhaseAttribute(SystemPhase Phase):Attribute {
     public SystemPhase Phase { get; }=Phase;
 }
 
+/// <summary>Marks an <c>in</c> struct parameter as a read-only ECS component access.</summary>
+[AttributeUsage(AttributeTargets.Parameter,AllowMultiple=false,Inherited=false)]
+public sealed class ReadOnlyComponentAttribute:Attribute {
+}
+
+/// <summary>Opts a system into the generated deterministic access schedule.</summary>
+[AttributeUsage(AttributeTargets.Struct,AllowMultiple=false,Inherited=false)]
+public sealed class ScheduledSystemAttribute:Attribute {
+}
+
+/// <summary>Declares a deterministic schedule edge from another system to this system.</summary>
+[AttributeUsage(AttributeTargets.Struct,AllowMultiple=true,Inherited=false)]
+public sealed class RunsAfterAttribute(Type SystemType):Attribute {
+    public Type SystemType{get;}=SystemType??throw new ArgumentNullException(nameof(SystemType));
+}
+
 /// <summary>A world-level system is invoked once per phase rather than once per matching Entity.</summary>
 public interface IWorldSystem:ISystem {
 }

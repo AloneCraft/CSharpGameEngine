@@ -59,12 +59,14 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
     private SceneDesignerDocumentManager?SceneDesignerDocuments;
     private ActiveDocumentTracker?DocumentTracker;
     private SceneSourceMarkerService?SourceMarkerService;
+    private OpenSceneDesignerCommand?SceneDesignerCommand;
     private ExperimentalToolWindowState?ExperimentalToolWindowState;
 
     protected override async Task InitializeAsync(CancellationToken CancellationToken,IProgress<ServiceProgressData>Progress){
         await this.JoinableTaskFactory.SwitchToMainThreadAsync(CancellationToken);
         VsixLocalization.Capture(CultureInfo.CurrentUICulture);
         ActivityLog.LogInformation(nameof(CSharpGameEngineViewerPackage),VsixBuildIdentity.ActivityLogText);
+        await this.InitializeSolutionLifecycleAsync();
 
         await OpenViewerCommand.InitializeAsync(this);
         this.FabWatchCommand= await ToggleFabWatchCommand.InitializeAsync(this);
@@ -78,15 +80,54 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
         this.RegisterEditorFactory(new GlbFbxPreviewEditorFactory());
         this.RegisterEditorFactory(new ShaderGraphEditorFactory());
 
-        // ADR-0040: the Scene editor reads scenes from live Roslyn. Both of these degrade to null
-        // when the managed language service is unavailable, in which case the Hierarchy simply shows
-        // its "open a scene file" message instead of failing package load.
-        this.SceneWorkspace=SceneWorkspaceService.Initialize();
         SceneEditorSettings.ConfigureStoreProvider(
             ()=>new ShellSettingsManager(this).GetWritableSettingsStore(SettingsScope.UserSettings));
         SceneEditorSettings.MigrateNavigationSettingsIfNeeded();
+        await this.TryInitializeSceneSubsystemAsync();
 
-        if(this.SceneWorkspace is not null){
+        this.AssetMetaWatcher=AssetMetaWatcher.StartIfProjectExists();
+        this.ExperimentalToolWindowState=new ExperimentalToolWindowState(this);
+        _=this.JoinableTaskFactory.RunAsync(async()=>{
+            if(await this.WaitForSolutionOpenAsync()){
+                var SceneReady=await SceneSubsystemStartupRetry.WaitAsync(
+                    this.TryInitializeSceneSubsystemAsync,
+                    MaximumAttempts:120,
+                    Delay:TimeSpan.FromMilliseconds(500),
+                    CancellationToken:this.DisposalToken);
+                if(!SceneReady){
+                    ActivityLog.LogWarning(
+                        nameof(CSharpGameEngineViewerPackage),
+                        "The managed language service did not expose VisualStudioWorkspace; "
+                        +"Scene authoring commands remain unavailable for this solution.");
+                }
+                await this.ExperimentalToolWindowState.RestoreAsync(this.DisposalToken);
+                if(SceneReady){
+                    var ActiveDocumentReady=await SceneSubsystemStartupRetry.WaitAsync(
+                        this.TryRefreshActiveDocumentAsync,
+                        MaximumAttempts:120,
+                        Delay:TimeSpan.FromMilliseconds(500),
+                        CancellationToken:this.DisposalToken);
+                    ActivityLog.LogInformation(
+                        nameof(CSharpGameEngineViewerPackage),
+                        ActiveDocumentReady
+                            ?"Active C# document synchronized after Scene subsystem startup: '"
+                                +this.DocumentTracker!.CurrentFilePath+"'."
+                            :"Scene subsystem started without an active C# document.");
+                }
+            }
+        });
+        // Do not create this package's tool windows while AsyncPackage.InitializeAsync is still
+        // running. FindToolWindowAsync can then wait on this package's own load operation and
+        // prevent Visual Studio from completing startup. The existing Apply Game Engine Layout
+        // command remains the explicit, safe way to create the default layout.
+    }
+    private async Task<bool>TryInitializeSceneSubsystemAsync(){
+        await this.JoinableTaskFactory.SwitchToMainThreadAsync(this.DisposalToken);
+        this.SceneWorkspace??=SceneWorkspaceService.Initialize();
+        if(this.SceneWorkspace is null){
+            return false;
+        }
+        if(this.SceneSession is null){
             this.SceneSession=new SceneEditorSessionService(this.SceneWorkspace);
             this.SceneDesignerDocuments=new SceneDesignerDocumentManager(this);
             SceneDesignerToolWindowPane.ConfigureSessionProvider(()=>this.SceneSession);
@@ -103,23 +144,23 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
             this.SceneSession.Selection.SelectionChanged+=this.OnSelectionChangedForHierarchy;
             this.SceneSession.PinnedSnapshotChanged+=this.OnPinnedSnapshotChangedForHub;
             this.SceneWorkspace.ModelChanged+=this.OnWorkspaceModelChangedForHub;
-            this.DocumentTracker=ActiveDocumentTracker.Start(this.SceneWorkspace);
-            if(this.DocumentTracker is not null){
-                await OpenSceneDesignerCommand.InitializeAsync(this,this.SceneSession,this.DocumentTracker,this.SceneDesignerDocuments);
-            }
         }
-
-        this.AssetMetaWatcher=AssetMetaWatcher.StartIfProjectExists();
-        this.ExperimentalToolWindowState=new ExperimentalToolWindowState(this);
-        _=this.JoinableTaskFactory.RunAsync(async()=>{
-            if(await this.WaitForSolutionOpenAsync()){
-                await this.ExperimentalToolWindowState.RestoreAsync(this.DisposalToken);
-            }
-        });
-        // Do not create this package's tool windows while AsyncPackage.InitializeAsync is still
-        // running. FindToolWindowAsync can then wait on this package's own load operation and
-        // prevent Visual Studio from completing startup. The existing Apply Game Engine Layout
-        // command remains the explicit, safe way to create the default layout.
+        this.DocumentTracker??=ActiveDocumentTracker.Start(this.SceneWorkspace);
+        if(this.DocumentTracker is null){
+            return false;
+        }
+        if(this.SceneDesignerCommand is null){
+            this.SceneDesignerCommand=await OpenSceneDesignerCommand.InitializeAsync(
+                this,this.SceneSession,this.DocumentTracker,this.SceneDesignerDocuments!);
+            ActivityLog.LogInformation(
+                nameof(CSharpGameEngineViewerPackage),
+                "Scene authoring subsystem initialized with the live VisualStudioWorkspace.");
+        }
+        return true;
+    }
+    private async Task<bool>TryRefreshActiveDocumentAsync(){
+        await this.JoinableTaskFactory.SwitchToMainThreadAsync(this.DisposalToken);
+        return this.DocumentTracker?.RefreshCurrentDocument()??false;
     }
 
     /// <summary>
@@ -223,8 +264,11 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
             },
             Array.Empty<SceneTransformChange>(),SceneTransformMemberMask.None,
             DirectOperations:Operations);
-        if(!Session.Apply(CommitRequest)){
-            ActivityLog.LogError(nameof(CSharpGameEngineViewerPackage),"Scene hierarchy edit failed.");
+        SceneEditCommitResult Commit=await Session.CommitAsync(CommitRequest,this.DisposalToken);
+        if(!Commit.Succeeded){
+            ActivityLog.LogError(
+                nameof(CSharpGameEngineViewerPackage),
+                Commit.ErrorMessage??"Scene hierarchy edit failed.");
         }
     }
 
@@ -271,27 +315,9 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
     }
 
     /// <summary>
-    /// M0052: <paramref name="Model"/>が既にpin済みならそのSnapshotを、そうでなければ
-    /// <see cref="SceneEditorSessionService.Pin"/>でpinしてから返す。
-    ///
-    /// <para>
-    /// <b>解決する不具合</b>: 以前はpinされていない間、この判定の代わりに
-    /// <see cref="SceneEditorSessionService.GetSnapshotForModel"/>で読み取り専用のSnapshotを作って
-    /// いたが、それは<see cref="SceneEditorSessionService.Apply"/>が要求する
-    /// <c>SceneEditDocument</c>を作らない。そのため<b>Hierarchyの構造編集・Componentの追加は
-    /// シーン デザイナーを一度も開いていないと無言で失敗し続けていた</b>
-    /// (<see cref="SceneEditorSessionService.Apply"/>は<c>Documents</c>辞書に無いキーへは何もしない)。
-    /// Inspectorも同じ理由で選択が届かず、Hierarchyでは選べるのにInspectorだけ永久に空という
-    /// 体験になっていた(実機報告)。
-    /// </para>
-    ///
-    /// <para>
-    /// pinは<see cref="SceneEditDocument"/>を(無ければ)新規作成するだけで、Viewport/シーン
-    /// デザイナーのウィンドウを開いたり、Undo履歴やdirty状態を汚したりはしない
-    /// (<see cref="SceneEditorSessionService.Pin"/>のEnsureDocumentAndPublish参照)。
-    /// 既にそのSceneへpin済みの場合は再pinしない — 呼び出し頻度の高いHierarchy選択のたびに
-    /// 無駄な再publishを起こさないため。
-    /// </para>
+    /// Returns the existing projection when <paramref name="Model"/> is already pinned, or pins the
+    /// Roslyn-derived model first. Pinning selects a source-backed scene; it does not create authoring
+    /// state, mutate source, or add an Undo unit. Reusing the projection also avoids redundant Hub updates.
     /// </summary>
     private SceneDocumentSnapshot? EnsurePinned(SceneEditorSessionService Session,SceneModel Model){
         ThreadHelper.ThrowIfNotOnUIThread();
@@ -358,7 +384,8 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
             Snapshot.Key,Snapshot.DocumentVersion,VsixText.Get("UndoAddComponent"),
             Array.Empty<SceneTransformChange>(),SceneTransformMemberMask.None,
             DirectOperations:[Operation]);
-        if(Session.Apply(CommitRequest)){
+        SceneEditCommitResult Commit=await Session.CommitAsync(CommitRequest,this.DisposalToken);
+        if(Commit.Succeeded){
             SceneEditorHub.RequestComponentReveal(
                 new ComponentRevealRequest(TargetId,Request.ComponentTypeFullyQualifiedName));
             return;
@@ -395,8 +422,9 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
             Snapshot.Key,Snapshot.DocumentVersion,VsixText.Get("UndoRemoveComponent"),
             Array.Empty<SceneTransformChange>(),SceneTransformMemberMask.None,
             DirectOperations:[Operation]);
-        if(!Session.Apply(CommitRequest)){
-            SetStatusBarText(VsixText.Format(
+        SceneEditCommitResult Commit=await Session.CommitAsync(CommitRequest,this.DisposalToken);
+        if(!Commit.Succeeded){
+            SetStatusBarText(Commit.ErrorMessage??VsixText.Format(
                 "StatusComponentRemoveFailed",Request.ComponentTypeFullyQualifiedName));
         }
     }
@@ -425,6 +453,14 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
         this.SourceMarkerService?.Update(
             SceneEditorHub.ActiveSceneModel,Selection.Paths,
             SceneSourceMarkerScrollBehavior.ScrollToSelection);
+        if(Selection.Paths.Count==0){
+            bool Changed=this.SceneSession?.Selection.TryClearCurrent(
+                SceneSelectionOrigin.Hierarchy,Guid.NewGuid())==true;
+            ActivityLog.LogInformation(
+                nameof(CSharpGameEngineViewerPackage),
+                "Hierarchy clear reached canonical Scene selection; changed="+Changed+".");
+            return;
+        }
         // M0052: HierarchyはPinに依存せずActiveSceneModelだけで表示できるため、シーン デザイナーを
         // 一度も開かずにノードを選ぶ経路が普通に起きる。従来はここで素通りしていたため、
         // Hierarchyでは選べるのにInspectorだけ永久に空という体験になっていた
@@ -477,8 +513,20 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
     /// </summary>
     private void OnWorkspaceModelChangedForHub(SceneModel?Model){
         ThreadHelper.ThrowIfNotOnUIThread();
+        // The command is placed both in a context menu and on the persistent product toolbar.
+        // A cold toolbar may not issue another BeforeQueryStatus after asynchronous Roslyn
+        // analysis completes, so update the owned OleMenuCommand from the completed immutable
+        // snapshot before asking the shell to repaint it.
+        this.SceneDesignerCommand?.RefreshStatus();
+        if(GetGlobalService(typeof(SVsUIShell))is IVsUIShell UIShell){
+            // The Scene analysis completes asynchronously after the toolbar's initial QueryStatus.
+            // A deferred refresh can remain queued indefinitely in a cold, otherwise idle hive,
+            // leaving the visible command disabled even though ActiveMenuSnapshot is complete.
+            // We are already on the UI thread and this update only reads the immutable snapshot.
+            ErrorHandler.ThrowOnFailure(UIShell.UpdateCommandUI(1));
+        }
         var Session=this.SceneSession;
-        var HasUnsavedEdits=Session?.PinnedSceneKey is { }Key&&Session.IsDirty(Key);
+        var HasUnsavedEdits=Session?.PinnedSceneKey is { }Key&&Session.IsSaving(Key);
 
         if(!SceneHubPublicationPolicy.ShouldPublishAnalyzedModel(
             Model?.ClassFullyQualifiedName,
@@ -628,7 +676,9 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
     }
 
     protected override void Dispose(bool Disposing){
+        ThreadHelper.ThrowIfNotOnUIThread();
         if(Disposing){
+            this.DisposeSolutionLifecycle();
             this.ExperimentalToolWindowState?.Capture();
             this.ExperimentalToolWindowState=null;
             this.FabWatchCommand?.Dispose();
@@ -653,9 +703,9 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
             this.SceneSession=null;
             this.SceneDesignerDocuments?.Dispose();
             this.SceneDesignerDocuments=null;
-            SceneDesignerToolWindowPane.ConfigureSessionProvider(null);
-            InspectorToolWindowPane.ConfigureSessionProvider(null);
-            ComponentPaletteToolWindowPane.ConfigureSessionProvider(null);
+            SceneDesignerToolWindowPane.ClearSessionProvider();
+            InspectorToolWindowPane.ClearSessionProvider();
+            ComponentPaletteToolWindowPane.ClearSessionProvider();
             SceneEditorSettings.ConfigureStoreProvider(null);
 
             if(this.SceneWorkspace is not null){

@@ -3,8 +3,13 @@
 namespace CSharpGameEngine.Entities;
 public partial struct World() {
     public void Destroy(Entity Entity) {
+        this.AssertDirectStructuralMutationAllowed();
     }
     public void PlaybackStructuralChanges(ref State State) {
-        this.PlaybackSceneCommands();
+        for (int Index = 0; Index < this.Commands.Count; Index++) {
+            ref var Command = ref this.Commands.GetRefUnchecked(Index);
+            this.PlaybackNonMoveStructuralCommand(in Command);
+        }
+        this.Commands.CompletePlayback();
     }
 }

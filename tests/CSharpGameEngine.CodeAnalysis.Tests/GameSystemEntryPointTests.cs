@@ -24,7 +24,7 @@ public sealed class GameSystemEntryPointTests {
             {
                 if (bootstrap.Done) return true;
                 bootstrap.Done = true;
-                state.World.Create(new Position { X = 1f });
+                state.World.CreateDeferred(new Position { X = 1f });
                 return true;
             }
         }
@@ -120,6 +120,49 @@ public sealed class GameSystemEntryPointTests {
     }
 
     [Fact]
+    public void EngineHostContext_IsOwnedAndPassedByTheGeneratedEntryPoint(){
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(
+            GameSystemGeneratorTestHelper.CreateApplicationCompilation(
+                GameSystemGeneratorTestHelper.CommonComponents,
+                """
+                using CSharpGameEngine.Entities;
+                using Sample;
+                using CSharpGameEngine.Runtime.Windows;
+
+                namespace CSharpGameEngine.Runtime.Windows
+                {
+                    public sealed class EngineHost : System.IDisposable
+                    {
+                        private CSharpGameEngine.Entities.World world = new();
+                        public ref CSharpGameEngine.Entities.World World => ref world;
+                        public CSharpGameEngine.Runtime.Simulation.FixedTickScheduler FixedTicks { get; } = new();
+                        public CSharpGameEngine.Entities.State CreateState() => new(world);
+                        public void Dispose() { }
+                    }
+                }
+
+                namespace Game
+                {
+                    internal struct HostedSystem : ISystem
+                    {
+                        public bool Update(ref Position position, EngineHost host, ref State state)
+                        {
+                            state.Enabled = false;
+                            return true;
+                        }
+                    }
+                }
+                """));
+
+        Assert.Empty(Result.Diagnostics);
+        string Text=GameSystemGeneratorTestHelper.GeneratedText(Result,EntryPointHintName);
+        Assert.Contains("using var EngineHost = new global::CSharpGameEngine.Runtime.Windows.EngineHost();",Text);
+        Assert.Contains("ref var World = ref EngineHost.World;",Text);
+        Assert.Contains("var State = EngineHost.CreateState();",Text);
+        Assert.Contains("GeneratedGameLoop.Run(ref State, EngineHost);",Text);
+    }
+
+    [Fact]
     public void BootstrapArchetypeIsNotRegistered_WhenNoEntryPointIsGenerated(){
         // 生成しないコンパイルにまでBootstrapのArchetypeが増えると、Archetype番号がずれるうえに
         // 誰も入らない空ループが出る。注入はエントリポイントを出すと決めた場合だけに限定している。
@@ -186,10 +229,9 @@ public sealed class GameSystemEntryPointTests {
             {
                 internal static int BootstrapTicks;
                 internal static int Spawned;
-                internal static int Frames;
                 internal static int Shutdowns;
 
-                internal static string Result() => Spawned + ":" + Frames + ":" + BootstrapTicks + ":" + Shutdowns;
+                internal static string Result() => Spawned + ":" + BootstrapTicks + ":" + Shutdowns;
             }
 
             internal struct StartupSystem : ISystem
@@ -204,7 +246,7 @@ public sealed class GameSystemEntryPointTests {
                     if (bootstrap.Done) return true;
                     bootstrap.Done = true;
 
-                    state.World.Create(new Position { X = 1f });
+                    state.World.CreateDeferred(new Position { X = 1f });
                     Trace.Spawned++;
                     return true;
                 }
@@ -212,12 +254,7 @@ public sealed class GameSystemEntryPointTests {
 
             internal struct TickSystem : ISystem
             {
-                public bool Update(ref Position position, ref State state)
-                {
-                    Trace.Frames++;
-                    if (Trace.Frames >= 3) state.Enabled = false;
-                    return true;
-                }
+                public bool Update(ref Position position, ref State state) => true;
             }
 
             internal struct ShutdownSystem : IWorldSystem
@@ -234,9 +271,13 @@ public sealed class GameSystemEntryPointTests {
         GameSystemGeneratorTestHelper.Invoke(Assembly,"CSharpGameEngine.Generated.GeneratedEntryPoint","Main");
 
         // Spawned=1: Bootstrapは一度きり。BootstrapTicks=3: 3 host frameで停止する。
-        // FixedSimulationは実時間Schedulerがtickを獲得した場合だけ進むため、短いE2Eでは0でも成立する。
+        // 実時間FixedSimulationを停止条件に混ぜると、全体テストの並列負荷によってhost frame数が変わる。
+        // Fixed tickの進行はFixedTickSchedulerの決定論的テストで独立に検証する。
         var Result=(string)GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.Trace","Result")!;
-        Assert.Equal("1:0:3:1",Result);
+        var Parts=Result.Split(':').Select(int.Parse).ToArray();
+        Assert.Equal(1,Parts[0]);
+        Assert.Equal(3,Parts[1]);
+        Assert.Equal(1,Parts[2]);
     }
 
     private static void AssertNoEntryPoint(GeneratorDriverRunResult Result)=>

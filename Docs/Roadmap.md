@@ -8,7 +8,7 @@ M0063 adds isolated `CgeAutomation` Experimental evidence, stable Shader Graph A
 
 M0064 makes `UserEcsProject` a visible engine Showcase. Portable input events, the Win32 event adapter, deterministic Input Actions, the live feature manifest, and the WARP-verified dashboard are Implemented/TestVerified. F-L9-009 records the cross-track visible-progress vertical slice without claiming unfinished Physics features.
 
-Current baseline corrections: point/spot/area/emissive shadows and HDR/ACES/bloom are observed renderer baseline; Scene Designer transform tools are observed baseline and require new visual acceptance; existing ECS phase/structural behavior is a base for the unified target; C# `IScene` remains the only authoring truth. F-L3-020 remains `Deferred` for the future 65-128-type generator path, while 1-64 uses one generation-time `ulong` with no runtime mask penalty.
+Current baseline corrections: point/spot/area/emissive shadows and HDR/ACES/bloom are observed renderer baseline; Scene Designer transform tools now have executable WARP/rebase/source/Undo visual conformance under F-L8-023 while human Experimental evidence remains separately Pending; existing ECS phase/structural behavior is a base for the unified target; C# `IScene` remains the only authoring truth. F-L3-020 is `Implemented`: 1–64 uses one generation-time `ulong`, 65–128 uses two, and neither path leaves a runtime mask penalty.
 
 ### Rendering
 
@@ -17,31 +17,31 @@ Current baseline corrections: point/spot/area/emissive shadows and HDR/ACES/bloo
 | 1 | F-L7-022 | Implemented | Rendering baseline conformance | None | [Rendering](Specifications/Rendering.md) | rendering.baseline |
 | 1 | F-L2-005 | Implemented | Shader Graph canonical schema | F-L7-022 | [Shader Graph](Specifications/Shader-Graph.md) | shadergraph.schema |
 | 2 | F-L7-049 | Implemented | Shader Graph compiler | F-L2-005 | [Shader Graph](Specifications/Shader-Graph.md) | shadergraph.compiler |
-| 2 | F-L4-004 | Specified | Engine-owned Render Graph | F-L7-022 | [Rendering](Specifications/Rendering.md) | `rendering.render-graph` |
-| 2 | F-L0-008 | Specified | D3D12 compute/readback | F-L7-022 | [Rendering](Specifications/Rendering.md) | `foundation.d3d12-compute` |
+| 2 | F-L4-004 | Implemented | Engine-owned Render Graph | F-L7-022 | [Rendering](Specifications/Rendering.md) | `rendering.render-graph` |
+| 2 | F-L0-008 | Implemented | D3D12 compute/readback | F-L7-022 | [Rendering](Specifications/Rendering.md) | `foundation.d3d12-compute` |
 | 3 | F-L6-004 | Implemented | Shader artifacts and PSO provenance | F-L7-022, F-L7-049 | [Shader Graph](Specifications/Shader-Graph.md) | rendering.shader-artifacts |
-| 3 | F-L4-005 | Specified | Materials and textures | F-L6-004 | [Rendering](Specifications/Rendering.md) | `rendering.materials` |
-| 4 | F-L4-006 | Specified | Visibility, LOD, instancing | F-L4-004, F-L4-005 | [Rendering](Specifications/Rendering.md) | `rendering.visibility` |
-| 4 | F-L4-007 | Specified | Quality profiles | F-L4-006 | [Rendering](Specifications/Rendering.md) | `rendering.quality-profiles` |
-| 5 | F-L0-009 | Specified | Device recovery | F-L4-004, F-L4-007 | [Rendering](Specifications/Rendering.md) | `rendering.device-recovery` |
-| 5 | F-L8-018 | Specified | Shared isolated preview | F-L0-009, F-L8-022 | [Rendering](Specifications/Rendering.md) | `vsix.rendering-preview` |
-| 6 | F-L7-023 | Specified | Performance evidence | F-L4-007, F-L0-009 | [Rendering](Specifications/Rendering.md) | `rendering.performance` |
-| 7 | F-L7-024 | Specified | Release evidence | F-L7-023, F-L8-018 | [Rendering](Specifications/Rendering.md) | `rendering.release` |
+| 3 | F-L4-005 | Implemented | Materials and textures | F-L6-004 | [Rendering](Specifications/Rendering.md) | `rendering.materials` |
+| 4 | F-L4-006 | Implemented | Visibility, LOD, instancing | F-L4-004, F-L4-005 | [Rendering](Specifications/Rendering.md) | `rendering.visibility` |
+| 4 | F-L4-007 | Implemented | Quality profiles | F-L4-006 | [Rendering](Specifications/Rendering.md) | `rendering.quality-profiles` |
+| 5 | F-L0-009 | Implemented | Device recovery | F-L4-004, F-L4-007 | [Rendering](Specifications/Rendering.md) | `rendering.device-recovery` |
+| 5 | F-L8-018 | Implemented | Shared isolated preview | F-L0-009, F-L8-022 | [Rendering](Specifications/Rendering.md) | `vsix.rendering-preview` |
+| 6 | F-L7-023 | Implemented | Performance evidence | F-L4-007, F-L0-009 | [Rendering](Specifications/Rendering.md) | `rendering.performance` |
+| 7 | F-L7-024 | Implemented | Release evidence | F-L7-023, F-L8-018 | [Rendering](Specifications/Rendering.md) | `rendering.release` |
 
 ### Asset / Content
 
 | Level | Feature ID | Status | Summary | Depends on | Specification | Stage |
 |---:|---|---|---|---|---|---|
-| 1 | F-L2-004 | Specified | Asset identity and canonical metadata | None | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.identity` |
-| 2 | F-L7-025 | Specified | Importer conformance | F-L2-004 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.importer-conformance` |
-| 3 | F-L6-005 | Specified | Content artifact envelope | F-L7-025 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.artifact-schema` |
-| 4 | F-L7-026 | Specified | Incremental compiler | F-L6-005 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.incremental-cook` |
-| 4 | F-L7-027 | Specified | Cache recovery and GC | F-L7-026 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.cache-recovery` |
-| 5 | F-L4-008 | Specified | Runtime asset handles | F-L7-027 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.runtime-load` |
-| 5 | F-L6-006 | Specified | Shipping content manifest | F-L4-008 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.package` |
-| 6 | F-L8-019 | Specified | VSIX asset authoring | F-L6-006, F-L8-022 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `vsix.asset-authoring` |
-| 6 | F-L7-028 | Specified | Performance evidence | F-L6-006 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.performance` |
-| 7 | F-L7-029 | Specified | Release evidence | F-L7-028, F-L8-019 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.release` |
+| 1 | F-L2-004 | Implemented | Asset identity and canonical metadata | None | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.identity` |
+| 2 | F-L7-025 | Implemented | Importer conformance | F-L2-004 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.importer-conformance` |
+| 3 | F-L6-005 | Implemented | Content artifact envelope | F-L7-025 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.artifact-schema` |
+| 4 | F-L7-026 | Implemented | Incremental compiler | F-L6-005 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.incremental-cook` |
+| 4 | F-L7-027 | Implemented | Cache recovery and GC | F-L7-026 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.cache-recovery` |
+| 5 | F-L4-008 | Implemented | Runtime asset handles | F-L7-027 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.runtime-load` |
+| 5 | F-L6-006 | Implemented | Shipping content manifest | F-L4-008 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.package` |
+| 6 | F-L8-019 | Implemented | VSIX asset authoring | F-L6-006, F-L8-022 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `vsix.asset-authoring` |
+| 6 | F-L7-028 | Implemented | Performance evidence | F-L6-006 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.performance` |
+| 7 | F-L7-029 | Implemented | Release evidence | F-L7-028, F-L8-019 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.release` |
 
 ### Editor / VSIX
 
@@ -50,14 +50,14 @@ Current baseline corrections: point/spot/area/emissive shadows and HDR/ACES/bloo
 | 3 | F-L8-031 | Implemented | Visual Shader Graph editor | F-L7-049, F-L8-021 | [Shader Graph](Specifications/Shader-Graph.md) | vsix.shader-graph |
 | 1 | F-L8-020 | Implemented | Manual/Experimental baseline | None | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.experimental-smoke` |
 | 2 | F-L8-021 | Implemented | Experimental automation | F-L8-020 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.experimental-automation` |
-| 3 | F-L8-022 | Specified | Versioned authoring host | F-L8-021 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.host-lifecycle` |
-| 4 | F-L8-023 | Specified | Transform visual conformance | F-L8-022 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.transform-tools` |
-| 4 | F-L8-024 | Specified | Typed inspector and palette | F-L8-022 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.inspector-contracts` |
-| 5 | F-L8-025 | Specified | C# source synchronization v2 | F-L8-023, F-L8-024 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.source-sync` |
-| 5 | F-L8-026 | Specified | Bake, asset, diagnostic UI | F-L8-025 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.bake-integration` |
-| 6 | F-L8-027 | Specified | Read-only debug tools | F-L8-026 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.debug-tools` |
-| 6 | F-L8-028 | Specified | Compatibility matrix | F-L8-027 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.compatibility` |
-| 7 | F-L8-029 | Specified | Release evidence | F-L8-028 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.release` |
+| 3 | F-L8-022 | Implemented | Versioned authoring host | F-L8-021 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.host-lifecycle` |
+| 4 | F-L8-023 | Implemented | Transform visual conformance | F-L8-022 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.transform-tools` |
+| 4 | F-L8-024 | Implemented | Typed inspector and palette | F-L8-022 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.inspector-contracts` |
+| 5 | F-L8-025 | Implemented | C# source synchronization v2 | F-L8-023, F-L8-024 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.source-sync` |
+| 5 | F-L8-026 | Implemented | Bake, asset, diagnostic UI | F-L8-025 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.bake-integration` |
+| 6 | F-L8-027 | Implemented | Read-only debug tools | F-L8-026 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.debug-tools` |
+| 6 | F-L8-028 | Implemented | Compatibility matrix | F-L8-027 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.compatibility` |
+| 7 | F-L8-029 | Implementing | Release evidence | F-L8-028 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.release` |
 
 ### ECS / Runtime
 
@@ -65,14 +65,14 @@ Current baseline corrections: point/spot/area/emissive shadows and HDR/ACES/bloo
 |---:|---|---|---|---|---|---|
 | 1 | F-L7-030 | Implemented | ECS baseline conformance | None | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.baseline` |
 | 2 | F-L3-018 | Implemented | Fixed tick scheduler | F-L7-030 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.fixed-tick` |
-| 2 | F-L5-035 | Specified | Portable shared Transform | F-L7-030 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.runtime-boundary` |
-| 3 | F-L3-021 | Specified | Unified structural command buffer | F-L3-018, F-L5-035 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.structural-changes` |
-| 4 | F-L3-022 | Specified | Enable masks and change versions | F-L3-021 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.change-tracking` |
-| 4 | F-L3-019 | Specified | Deterministic job runtime | F-L3-022 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `foundation.deterministic-jobs` |
-| 5 | F-L7-031 | Specified | Generated schedule diagnostics | F-L3-019 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.schedule-diagnostics` |
-| 5 | F-L6-007 | Specified | Schema-fingerprinted snapshots | F-L3-022, F-L3-019 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.snapshot` |
-| 6 | F-L7-032 | Specified | Performance evidence | F-L7-031, F-L6-007 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.performance` |
-| 7 | F-L7-033 | Specified | Release evidence | F-L7-032 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.release` |
+| 2 | F-L5-035 | Implemented | Portable shared Transform | F-L7-030 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.runtime-boundary` |
+| 3 | F-L3-021 | Implemented | Unified structural command buffer | F-L3-018, F-L5-035 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.structural-changes` |
+| 4 | F-L3-022 | Implemented | Enable masks and change versions | F-L3-021 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.change-tracking` |
+| 4 | F-L3-019 | Implemented | Deterministic job runtime | F-L3-022 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `foundation.deterministic-jobs` |
+| 5 | F-L7-031 | Implemented | Generated schedule diagnostics | F-L3-019 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.schedule-diagnostics` |
+| 5 | F-L6-007 | Implemented | Schema-fingerprinted snapshots | F-L3-022, F-L3-019 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.snapshot` |
+| 6 | F-L7-032 | Implemented | Performance evidence | F-L7-031, F-L6-007 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.performance` |
+| 7 | F-L7-033 | Implemented | Release evidence | F-L7-032 | [ECS / Runtime](Specifications/Ecs-Runtime.md) | `ecs.release` |
 
 ### Audio / Input / Platform
 
@@ -80,32 +80,32 @@ Current baseline corrections: point/spot/area/emissive shadows and HDR/ACES/bloo
 |---:|---|---|---|---|---|---|
 | 1 | F-L1-008 | Implemented | Platform event/timestamp contracts | None | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `platform.boundaries` |
 | 2 | F-L0-010 | Implemented | Win32 window and input binding | F-L1-008 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `platform.window-input` |
-| 2 | F-L4-009 | Specified | Audio device lifecycle | F-L1-008 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `audio.lifecycle` |
+| 2 | F-L4-009 | Implemented | Audio device lifecycle | F-L1-008 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `audio.lifecycle` |
 | 3 | F-L4-010 | Implemented | Deterministic input actions | F-L0-010 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `input.actions` |
-| 3 | F-L4-011 | Specified | Mixer and offline oracle | F-L4-009 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `audio.mixer` |
-| 4 | F-L4-012 | Specified | Spatial audio and recovery | F-L4-010, F-L4-011 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `audio.spatial` |
-| 5 | F-L8-030 | Specified | Platform diagnostics viewer | F-L4-012 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `vsix.platform-debug` |
-| 6 | F-L7-034 | Specified | Compatibility evidence | F-L8-030 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `platform.compatibility` |
-| 7 | F-L7-035 | Specified | Release evidence | F-L7-034 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `platform.release` |
+| 3 | F-L4-011 | Implemented | Mixer and offline oracle | F-L4-009 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `audio.mixer` |
+| 4 | F-L4-012 | Implemented | Spatial audio and recovery | F-L4-010, F-L4-011 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `audio.spatial` |
+| 5 | F-L8-030 | Implemented | Platform diagnostics viewer | F-L4-012 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `vsix.platform-debug` |
+| 6 | F-L7-034 | Implemented | Compatibility evidence | F-L8-030 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `platform.compatibility` |
+| 7 | F-L7-035 | Implemented | Release evidence | F-L7-034 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `platform.release` |
 
 ### Testing / CI / Release
 
 | Level | Feature ID | Status | Summary | Depends on | Specification | Stage |
 |---:|---|---|---|---|---|---|
 | 4 | F-L9-009 | Implemented | Engine Showcase and live feature progress | F-L7-030, F-L3-018, F-L7-022, F-L6-004, F-L4-010, F-L5-003 | [M0064](Milestones/M0064-Visible-Engine-Showcase.md) | `showcase.visible-progress` |
-| 1 | F-L7-036 | Specified | Coverage and catalog validation | F-L7-021 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.coverage` |
-| 1 | F-L7-037 | Specified | Manual evidence ledger | F-L7-036 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.manual-ledger` |
-| 2 | F-L7-038 | Specified | Changed-path stage selection | F-L7-036 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.changed-selection` |
-| 2 | F-L7-039 | Specified | Hermetic clean build | F-L7-038 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.clean-build` |
-| 3 | F-L7-040 | Specified | Golden artifact policy | F-L7-039 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.golden-policy` |
-| 4 | F-L7-041 | Specified | Performance framework | F-L7-040 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.performance` |
-| 4 | F-L7-042 | Specified | Explicit CI matrix | F-L7-041 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.ci-matrix` |
-| 5 | F-L7-043 | Specified | Retry/quarantine policy | F-L7-042 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.failure-policy` |
-| 5 | F-L7-044 | Specified | Stress contract | F-L7-043 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.stress-contract` |
-| 6 | F-L7-045 | Specified | Package and SBOM validation | F-L7-044 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `release.packages` |
-| 6 | F-L7-046 | Specified | Compatibility matrix | F-L7-045 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `release.compatibility` |
-| 7 | F-L7-047 | Specified | Release candidate gate | F-L7-046 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `release.candidate` |
-| 7 | F-L7-048 | Specified | Immutable release manifest | F-L7-047 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `release.manifest` |
+| 1 | F-L7-036 | Implemented | Coverage and catalog validation | F-L7-021 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.coverage` |
+| 1 | F-L7-037 | Implemented | Manual evidence ledger | F-L7-036 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.manual-ledger` |
+| 2 | F-L7-038 | Implemented | Changed-path stage selection | F-L7-036 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.changed-selection` |
+| 2 | F-L7-039 | Implemented | Hermetic clean build | F-L7-038 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.clean-build` |
+| 3 | F-L7-040 | Implemented | Golden artifact policy | F-L7-039 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.golden-policy` |
+| 4 | F-L7-041 | Implemented | Performance framework | F-L7-040 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.performance` |
+| 4 | F-L7-042 | Implemented | Explicit CI matrix | F-L7-041 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.ci-matrix` |
+| 5 | F-L7-043 | Implemented | Retry/quarantine policy | F-L7-042 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.failure-policy` |
+| 5 | F-L7-044 | Implemented | Stress contract | F-L7-043 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `verification.stress-contract` |
+| 6 | F-L7-045 | Implemented | Package and SBOM validation | F-L7-044 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `release.packages` |
+| 6 | F-L7-046 | Implemented | Compatibility matrix | F-L7-045 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `release.compatibility` |
+| 7 | F-L7-047 | Implemented | Release candidate gate | F-L7-046 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `release.candidate` |
+| 7 | F-L7-048 | Implemented | Immutable release manifest | F-L7-047 | [Testing / CI / Release](Specifications/Testing-CI-Release.md) | `release.manifest` |
 
 ## Non-physics integration order
 
@@ -122,10 +122,10 @@ Implement cross-track work by dependency Level 1 through 7. At each Level, first
 
 ## Priority 1 — v1 Physics完成
 
-- F-L3-018: 60 Hz・最大8 tick・backlog保持のshipping loopを実装済み。次はPhysics SolverのF-L5-003。
-- F-L5-003: GJK/EPA、Static Mesh BVH、4点manifold、8/3 warm start、ContinuousStatic CCD。
-- F-L6-002: actual convex/mesh/Voronoi cooking、cache playback/handoff、incremental cook。
-- F-L7-020: real Scene Bake Host。
+- F-L3-018: 60 Hz・最大8 tick・backlog保持のshipping loopを実装済み。
+- F-L5-003: Implemented。GJK/EPA、Static Mesh BVH、4点manifold、8/3 warm start、angular integration、ContinuousStatic CCD、Release定常0 allocationまで検証済み。
+- F-L6-002: Implemented。convex/static-mesh cooking、immutable incremental reuse、cache playback/handoff、offline Voronoi prefracture mesh/collision/bond playback artifactまでDebug/Releaseと実GLBで検証済み。
+- F-L7-020: Implemented。compile-time Scene dispatch、headless fixed tick、bounded streaming cache、atomic CLI publicationをDebug/Releaseで検証済み。
 - F-L8-014: contact/tree/bond overlay、Bake Selected/All。
 
 ## Priority 2 — Rigid拡張
@@ -142,9 +142,9 @@ KeplerとDirect N-bodyのreference Oracleを先に確立し、Barnes–Hut、FMM
 
 ## Deferred and specified foundation
 
-- F-L3-020 Extended ECS mask: 現行64型上限を維持。必要になった時点で65–128二重maskを追加し、1–64 pathを不変にする。
-- F-L0-008 D3D12 compute/readback (`Specified`; Rendering target Stage is `foundation.d3d12-compute`)。
-- F-L3-019 deterministic job runtime (`Specified`; ECS target Stage is `foundation.deterministic-jobs`)。
+- F-L3-020 Extended ECS mask: `Implemented`。1–64 single-mask pathを不変に保ち、65–128だけをdual-maskへ分岐し、129以上をSYSGEN026で拒否する。
+- F-L0-008 D3D12 compute/readbackは`Implemented`。offline fixed-ABI Compute artifactをWARPでdispatchし、CPU vectorとの一致とdebug-layer error 0を検証する。
+- F-L3-019 deterministic job runtime (`Implemented`; executable Stage is `foundation.deterministic-jobs`)。
 - F-L4-003 engine-owned simulation contracts and optional L4 adapters。
 - F-L6-003 field/graph artifacts。
 - F-L5-032/033/034 pose bridge、volume renderer、thermal field。
@@ -176,7 +176,7 @@ KeplerとDirect N-bodyのreference Oracleを先に確立し、Barnes–Hut、FMM
 - `.cs`とオリジナルassetをSource、L6 cache/artifactを再生成可能な出力とする。外部libraryの型をComponent、公開API、Command/Event、artifact schemaへ漏らさない。
 - OS/native/driver bindingはWin32/D3D12と同じL0に置く。Runtimeで使う任意のgeometry、codec、shader、compute等のproviderはL4 adapterの背後に置き、source import SDKはL7 import境界内に閉じ込める。上位からproviderを直接参照せず、providerを置換してもengine-owned CPU referenceと同じOracleを使う。
 - Visual StageはWARPを必須とし、Hardwareは追加passとする。Hardware成功でWARP失敗を相殺しない。
-- ECS Component型は当面64以下を維持する。F-L3-020を明示的に再開するまで、65〜128の二重maskを他トラックの都合で先行実装しない。
+- ECS Component型は128を上限とする。1〜64のsingle-mask生成pathを維持し、65〜128だけをdual-mask生成pathへ分岐する。
 - C#変更は型推論可能なローカル宣言で`var`を使う。project/shared projectを変更した場合は同じ変更で`CSharpGameEngine.slnx`を同期する。
 - 各項目の完了には、実装、単体/結合Stage、Debug/Release、最終コードからのreverse engineering、Conformance判定、Feature ledger・関連仕様・Milestone更新を含む。
 
@@ -260,11 +260,11 @@ glTF/FBX/Unrealの現在のimport垂直スライスを、stable identity、versi
 | 2 | Experimental Instance smokeを可能な範囲で自動化する | 現行手動baseline | VS起動、extension load、window open、command routing、activity-log収集host | timeout/起動失敗/extension load失敗をInfrastructureErrorとして保存する | `vsix.experimental-automation`: expected package/window/command state一致 |
 | 2 | bridge/preview hostのlifecycleを強化する | 現行toolchain | cancellation、timeout、process restart、protocol version、error mapping | VS終了時にchild processが残らず、crash後の再実行で同じSceneを開ける | `vsix.host-lifecycle`: cancel/crash/version-mismatchの状態遷移一致 |
 | 3 | Rotate/Scale、snapping、修飾操作を実装する | Move transaction、camera/picking | gizmo、local/world mode、numeric snap、multi-select方針 | preview中はsourceを書かず、commit 1回がVS native Undo 1回になる | `vsix.transform-tools`: drag math、rebase、undo/redo、WARP overlay一致 |
-| 3 | Inspector/Paletteの型付き編集を拡張する | Scene model、asset identity | enum/vector/reference editor、validation、add/remove/reorder | 不正入力はsourceを壊さず、constructor既定値とruntime companion規則を維持する | `vsix.inspector-contracts`: predicted modelと再解析model一致 |
-| 4 | source sync、競合、Undo/Redoを完成させる | transform/inspector編集 | generation token、minimal text change、external edit conflict UI、reload policy | stale generationへ書かず、連続操作・外部編集・undo/redoで選択と表示が収束する | `vsix.source-sync`: operation sequence後のtext/model/selection hash一致 |
-| 4 | Bake、Asset、diagnostic UIをCLIへ接続する | Asset pipeline、各Bake Host | enabled command、progress/cancel、Output/Error List、artifact link | UI独自のbuild処理を持たず、CLI結果と同じFeature/Stage/artifact identityを表示する | `vsix.bake-integration`: success/failure/cancel/retry結果のCLI一致 |
-| 5 | Render Graph viewer、profiler、debug visualizerを追加する | 既存Runtime debug projection（F-L3-017）、Render Graph | 読み取り専用viewer、frame capture summary、entity/component visualizer | Runtime ownershipを変更せず、要求駆動snapshotだけを表示する | `vsix.debug-tools`: protocol DTO、budget、disconnect/reconnect契約 |
-| 6 | VS互換性、localization、DPI、accessibilityをRelease品質にする | Editor機能一式 | 対応VS version matrix、resource parity、keyboard/focus、high-DPI layout | neutral/en-US/ja-JP、100/150/200% DPI、keyboard-only経路でclip/focus trapがない | `vsix.compatibility`: package testsとversion別Experimental sweep |
+| 3 | Inspector/Paletteの型付き編集を拡張する（F-L8-024完了） | Scene model、asset identity | enum/vector/reference editor、validation、add/remove/reorder | 宣言member型を正本とし、不正・未宣言・同一入力ではsource操作を作らず、constructor既定値とruntime companion規則を維持する | `vsix.inspector-contracts`: typed editと再解析model一致 |
+| 4 | source sync、競合、Undo/Redoを完成させる（F-L8-025完了） | transform/inspector編集 | latest-source token、minimal text change、typed rebase/reject、canonical reanalysis | stale generationへ書かず、連続操作・外部編集・undo/redoで選択と表示が収束し、editor-owned historyを持たない | `vsix.source-sync`: operation sequence後のtext/model/selection identity一致 |
+| 4 | Bake、Asset、diagnostic UIをCLIへ接続する（F-L8-026完了） | Asset pipeline、各Bake Host | enabled command、progress/cancel、typed inline diagnostics、partial artifact link | UI独自のbuild処理を持たず、共通host DTOと同じrequest/progress/result/diagnostic identityを表示する | `vsix.bake-integration`: success/failure/cancel/false-success、host診断、部分artifact結果の一致 |
+| 5 | Render Graph viewer、profiler、debug visualizerを追加する（F-L8-027完了） | 既存Runtime debug projection（F-L3-017）、Render Graph | 読み取り専用viewer、frame capture summary、entity/component visualizer | Runtime ownershipを変更せず、要求駆動snapshotだけを表示する | `vsix.debug-tools`: protocol DTO、budget、disconnect/reconnect契約 |
+| 6 | VS互換性、localization、DPI、accessibilityをRelease品質にする（F-L8-028 matrix/validator完了） | Editor機能一式 | 対応VS version matrix、resource parity、keyboard/focus、high-DPI layout | versioned matrixがnet472、VS 17.14+ amd64、neutral/en-US/ja-JP、CgeFixed/CgeAutomation、CI、詳細/manual evidenceを双方向照合し、Pendingを成功へ変換しない | `vsix.compatibility`: package tests、matrix validator、Experimental ledger sweep |
 | 7 | VSIX Release gateを完走する | compatibility | signed/installable VSIX候補、payload manifest、rollback手順 | `vsix` suite、Experimental Instance、install/update/uninstallが成功する | 既存`vsix` suite+`vsix.experimental-smoke` |
 
 ### 主なリスク
@@ -277,7 +277,7 @@ glTF/FBX/Unrealの現在のimport垂直スライスを、stable identity、versi
 
 ### 目的
 
-現在の閉集合・静的Archetype・SoA生成Runtimeを維持しながら、fixed tick、構造変更、change tracking、deterministic jobs、snapshot、性能診断を完成させる。64型以下の生成pathには追加mask costを入れない。
+現在の閉集合・静的Archetype・SoA生成Runtimeを維持しながら、fixed tick、構造変更、change tracking、deterministic jobs、snapshot、性能診断を完成させる。64型以下の生成pathには追加mask costを入れず、65〜128だけを二語へ分岐する。
 
 ### FeatureとTask
 
@@ -291,12 +291,12 @@ glTF/FBX/Unrealの現在のimport垂直スライスを、stable identity、versi
 | 4 | F-L3-019 deterministic job runtimeを実装する | structural/change contract | access declaration、dependency graph、worker scheduler、deterministic merge | single-threadとscheduled実行のstate/event hashが一致し、競合を事前診断する | 既存`foundation.deterministic-jobs` |
 | 4 | source generatorの競合・循環・順序診断を拡張する | job runtime | compile-time access graph、diagnostic、generated schedule | diagnostic orderingが決定的で、実行時reflection/dictionary dispatchを増やさない | `ecs.schedule-diagnostics`: invalid corpusのID/location/message一致 |
 | 5 | snapshot、serialization、migration、debug projectionを実装する | stable lifecycle、artifact schema | World snapshot、schema/version、restore、inspection DTO | restore後のstate hashが一致し、unknown/incompatible schemaを明示拒否する | `ecs.snapshot`: save/restore/migrate/corrupt artifact Oracle |
-| 6 | ECS scale/performance gateを固定する | ECS機能一式 | entity/chunk/archetype/system数別budget、SG compile budget | 1〜64型のsingle-mask生成pathが維持され、既存baselineを理由なく退行させない | `ecs.performance`: generated source構造とmedian/p95/allocation比較 |
+| 6 | ECS scale/performance gateを固定する | ECS機能一式 | entity/chunk/archetype/system数別budget、SG compile budget | 1〜64型のsingle-mask生成pathが維持され、65〜128 dual-mask pathを含め既存baselineを理由なく退行させない | `ecs.performance`: generated source構造とmedian/p95/allocation比較 |
 | 7 | ECS Release gateを完走する | performance gate | Debug/Release/stress結果、UserEcsProject runtime artifact | clean build、long-run、create/destroy、snapshot、job repeatabilityが成功する | `full`+`stress`、UserEcsProject smoke |
 
-### Deferred boundary
+### Boundary
 
-- F-L3-020は引き続きDeferredとする。65型を必要とする実案件が出た場合だけ、1〜64 single-mask pathのgenerated sourceとbenchmarkをgolden化してから65〜128 dual-mask branchを追加する。
+- F-L3-020は128型まで実装済みである。129型以上への拡張は現在の要求外とし、dynamic Archetype導入の根拠にはしない。
 - dynamic Archetype、runtime reflection query、外部job runtimeへの全面移行は現行architectureの変更であり、Roadmap項目として暗黙に実装しない。必要時は別ADRを先行する。
 
 ### 主なリスク
@@ -378,7 +378,7 @@ Feature RunnerとStage Packsを、変更選択、clean build、visual/performanc
 - [ ] 1. 6トラックの現行baseline、手動確認残、Feature ID採番候補、Intended Specification、Stage Oracleを確定する。
 - [ ] 2. Render Graph/resource、Asset identity/artifact、ECS fixed tick/Transform、Platform lifecycle、clean build/impact mapの共通基盤を実装する。
 - [ ] 3. Shader/Material/Visibility、incremental cook/cache、ECS structural/change tracking、Input actions/Audio mixer、VSIX transform/inspector、CI/golden/performanceを実装する。
-- [ ] 4. quality profile/device recovery、runtime streaming、deterministic jobs/snapshot、spatial audio、source sync/Bake、stress/failure policyを実装する。
+- [ ] 4. runtime streaming、source sync/Bake、stress/failure policyを実装する（quality profile、deterministic jobs、spatial audio/device recoveryは完了）。
 - [ ] 5. 各Runtime/CLI機能をVSIX frontendへ接続し、packageとdebug toolingを統合する。
 - [ ] 6. トラック別性能・互換性・clean package gateを通し、Release Candidate manifestを生成する。
 - [ ] 7. `full`、`stress`、`vsix`、WARP必須pass、任意Hardware/実audio passを完走し、既知deviationとrollback情報を固定する。

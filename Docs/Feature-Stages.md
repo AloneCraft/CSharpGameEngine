@@ -10,7 +10,15 @@
 
 Catalog JSON is `csharp-game-engine-feature-catalog-v2`. Each Feature now publishes `track`, `dependencyLevel`, and `dependsOnFeatureIds` in addition to ID/name/layer/status. Run-result JSON remains `csharp-game-engine-feature-run-result-v1`; this change does not alter a completed run artifact.
 
-The six non-physics tracks have 67 Roadmap rows registered one-to-one as Feature/target-Stage pairs. F-L0-008 and F-L3-019 remain Specified; F-L7-030, F-L3-018, F-L7-022, F-L2-005, F-L7-049, F-L6-004, F-L8-020, F-L8-021, F-L8-031, F-L1-008, F-L0-010, F-L4-010, and F-L9-009 are Implemented with executable target stages; F-L3-020 remains `Deferred`. The remaining target Stages are `NotImplemented` with an oracle and input paths. Experimental Visual Studio commands run only in the `vsix` profile and map declared exit code 2 to InfrastructureError.
+The six non-physics tracks have 67 Roadmap rows registered one-to-one as Feature/target-Stage pairs. Every target now has an executable Stage; F-L8-029 remains explicitly `Implementing` until its environment evidence passes, while no non-physics target remains `NotImplemented`. `rendering.performance` records five warm-ups and thirty isolated frame plus 100,000-instance samples, treats WARP as correctness, and applies shipping timing gates only to Release. `vsix.host-lifecycle` executes the shared host/session tests and the net472 resident-client submission-boundary tests. `vsix.inspector-contracts` executes declared-type editor, typed choice, component palette/mutation, and source-reparse contracts. `vsix.source-sync` executes the latest-source one-shot planner, canonical verification reanalysis, Scene-scoped semantic-generation landing, stable identity, typed stale rebase/reject, native Undo routing, source-only Save, product-caller, and no-private-history architecture contracts. `vsix.bake-integration` executes immutable Import/Bake presentation, request/progress/result correlation, cancellation, typed host diagnostics, partial artifact links, localization, and false-success rejection together with the shared host session/wire/server contracts. `vsix.debug-tools` executes the common on-demand Render snapshot, while `vsix.platform-debug` additionally verifies protocol-v5 Platform/Input/Audio bounds, owned runtime copies, typed Preview Host `NotOwned`, Host/client fail-close, real WARP non-mutation, net472 presentation, architecture, and localization. `platform.compatibility` validates the exact executable prerequisite closure against mandatory Debug/Release solution, Windows-TFM, and WARP CI cells while hardware Audio/GPU stay optional ledger references. `vsix.compatibility` executes the versioned matrix validator plus focused manifest/package/localization/layout/automation tests; normal validation preserves explicit Pending evidence, while the separate release mode rejects it. Experimental Visual Studio commands run only in the `vsix` profile and map declared exit code 2 to InfrastructureError.
+
+`platform.release` re-executes `platform.compatibility` with a release-only prerequisite profile and emits a configuration/Git/Warp-matched canonical Platform closure report; it does not create a product package or immutable product manifest.
+
+`rendering.release` re-executes `rendering.performance` and `vsix.rendering-preview` under dedicated profiles and emits one configuration/Git/Warp-matched canonical report over the actual raw capture, both performance reports, the configuration-qualified Shader Artifact, and fixed Rendering source/toolchain closure. It is a track input, not a package or product manifest.
+
+`ecs.performance` builds four isolated generated compilations at 1, 64, 65, and 128 Component types. Each performs exactly five warm-ups and thirty generated write-query samples over 100,000 live entities with Tiered JIT disabled. Independent validation recomputes the deterministic state hash and rehashes/reinspects persisted generated source, fixes the one-word/two-word boundary, and requires zero allocation. Release gates 6 ms median and 8.33 ms p95; the separately compiled 64-type path also has a 20-percent cross-process regression ceiling from the one-type direct path.
+
+`ecs.release` reruns `foundation.deterministic-jobs`, `ecs.schedule-diagnostics`, `ecs.snapshot`, and `ecs.performance` under four dedicated profiles and emits one configuration/Git/Warp-matched canonical ECS-track report over their results, all raw/common performance evidence, and a fixed twenty-two-input source/toolchain closure. Creation independently verifies generated output; later report validation does not promote derived `obj` to retained truth. It is not a package or product manifest.
 
 | Track | Specification | Visual Pack policy |
 |---|---|---|
@@ -32,6 +40,10 @@ Release scope selects tracks and a reached dependency Level. Only executable Fea
 ```text
 list [--json]
 export-showcase --output <path>
+verify-platform-compatibility [--repository-root <path>]
+verify-platform-release [--repository-root <path>] [--configuration Debug|Release]
+verify-rendering-performance [--repository-root <path>] [--configuration Debug|Release] [--adapter warp|hardware]
+verify-rendering-release [--repository-root <path>] [--configuration Debug|Release]
 run <stage-id> [options]
 run-feature <feature-id> [options]
 suite <changed|smoke|full|stress|vsix> [options]
@@ -76,11 +88,12 @@ resume <run-result.json> [options]
 | `ecs.scene` | Foundation | F-L3-011/012/013 | 生成Archetype・Scene・起動lifecycle契約が成功 |
 | `ecs.baseline` | Foundation | F-L7-030 | Entities/CodeAnalysis全テストで閉集合Archetype、Scene lifecycle、system-major、遅延構造変更のbaselineが成功 |
 | `ecs.fixed-tick` | Foundation | F-L3-018 | 60 Hz、最大8 tick、backlog保持、pause/step、補間境界のScheduler/生成E2Eが成功 |
+| `ecs.snapshot` | Foundation | F-L6-007 | schema fingerprint、canonical cell delta、atomic restore、corruption/transient rejectionが成功 |
 | `audio.windows` | Foundation | F-L1-007, F-L4-001 | Audio abstraction/XAudio2契約が成功 |
 | `vsix.toolchain` | VSIX | F-L8-001/002/005/008 | command/package/bridgeテストが成功 |
 | `vsix.scene-editor` | VSIX | F-L8-010/011/012/015/016/017 | 編集・同期・localization・routing契約が成功 |
 | `spatial.runtime` | Foundation | F-L3-015/016/017 | Octree・snapshot・debug projection契約が成功 |
-| `rigid.physics` | Rigid | F-L5-001/002/003, F-L3-018, F-L6-002, F-L7-020, F-L8-014 | deterministic state/message/physics/artifact/debug契約が成功 |
+| `rigid.physics` | Rigid | F-L5-001/002/003, F-L3-018, F-L6-002, F-L7-020, F-L8-014 | deterministic state/message/physics/artifact、generated headless Scene Bake、debug契約が成功 |
 | `runner.contract` | Foundation | F-L7-021 | catalog・CLI選択・結果schemaテストが成功 |
 | `stage-packs.contract` | Foundation | F-L9-008 | 10個の独立PackがC# `IScene`を生成・実体化・unloadし、安定state hashを出力 |
 
@@ -111,7 +124,7 @@ resume <run-result.json> [options]
 | F-L5-024 | `celestial.direct-nbody` | Celestial | 2/3体referenceのenergy・momentum誤差 |
 | F-L5-025 | `celestial.barnes-hut` | Celestial | Direct N-bodyに対するtheta依存誤差 |
 | F-L5-026 | `celestial.fmm` | Celestial | Direct N-bodyに対するorder依存field誤差 |
-| F-L5-027 | `celestial.hierarchical-frames` | Celestial | frame往復とrebaseのscale別精度 |
+| F-L5-027 | `celestial.frame-relative-runtime` | Celestial | frame往復とrebaseのscale別精度 |
 | F-L5-028 | `probability.gameplay` | ProbabilityQuantum | seed付きevent列と分布検定 |
 | F-L5-029 | `probability.wavefunction-grid` | ProbabilityQuantum | norm、phase、解析解に対する誤差 |
 | F-L5-030 | `probability.monte-carlo-quantum` | ProbabilityQuantum | provenance、再現性、信頼区間 |
@@ -119,11 +132,11 @@ resume <run-result.json> [options]
 
 科学計算Stageは再現可能なreference実装と明記した誤差予算を検証する。研究成果、認証、現実世界での安全性を主張しない。
 
-## 基盤Stageと64型上限
+## 基盤Stageと128型上限
 
-- `foundation.extended-ecs-mask` / F-L3-020は`Deferred`である。現行は1–64 Component型をSource Generator内の単一`long` maskで処理し、65型目でSYSGEN026を出す。生成Runtimeへmask照合は残らないため、64型以下に実行時penaltyはない。
-- 将来実装は1–64を単一`ulong` path、65–128を二重`ulong` path、129以上を明示診断とする。既存1–64生成コードを変えないことを性能Oracleに含める。
-- D3D12 compute/readback、deterministic job runtime、L4 adapter、field/graph artifact、pose bridge、volume renderer、thermal fieldにも独立Stageを予約する。
+- `foundation.extended-ecs-mask` / F-L3-020は`Executable`である。1–64 Component型はSource Generator内のlow `ulong`だけで処理し、65–128はlow/high二語へ分岐する。生成Runtimeへmask照合は残らない。
+- Stageは64、65、128型境界の生成と65/128 high-component queryの実行、129型のSYSGEN026を検証する。
+- D3D12 compute/readback と deterministic job runtime は独立 executable Stage で検証する。L4 adapter、field/graph artifact、pose bridge、volume renderer、thermal field は予約済み NotImplemented Stage を維持する。
 
 ## 外部ライブラリ境界
 
@@ -141,6 +154,11 @@ PackはFoundation、Rendering、Rigid、Deformable、Fluid、Destruction、Celes
 
 ## M0060 executable shader stages
 
+## Level 5 executable Content ownership stages
+
+- `content.runtime-load` / F-L4-008 verifies typed shared retain/load/release, bounded dependency reads, caller-cancellation isolation, atomic last-known-good manifest updates, fault cleanup, and teardown races.
+- `content.package` / F-L6-006 verifies deterministic exact root closure, deep non-recursive graph validation, hash/provenance binding, CAS-address deduplication, atomic clean publication, and rejection of missing, extra, corrupt, cyclic, or non-canonical package state.
+
 rendering.baseline fixes the WARP visual baseline. shadergraph.schema validates canonical graph contracts, shadergraph.compiler compiles all fixed entries, rendering.shader-artifacts validates the container and artifact-only Runtime, and vsix.shader-graph validates the editor/package surface. All commands run sequentially through Feature Runner in the requested configuration.
 
 ## M0061 external Subgraph evidence
@@ -154,3 +172,39 @@ The existing shadergraph.schema stage now fixes semantic If/ForRange ownership, 
 ## M0064 visible Showcase evidence
 
 `platform.boundaries`, `platform.window-input`, and `input.actions` are executable Foundation stages. `showcase.visible-progress` is an executable Rendering/Visual stage that requires WARP, starts only its owned Showcase PID, verifies four pages plus Pause/Step/progress controls, and records evidence under `.artifacts/Showcase/`. `export-showcase` emits a canonical `csharp-game-engine-showcase-manifest-v1` with separate Feature implementation and Stage executable measurements.
+
+## M0066 shared Preview Host evidence
+
+`vsix.rendering-preview` / F-L8-018 is executable Visual/VSIX evidence. It runs the bound C# VSIX reference Scene, the versioned Preview protocol, common Render Server/session/process/pipe tests, Scene/Asset Preview client and fresh-HWND recovery tests, package-closure/legacy-removal tests, and the package-extracted apphost on WARP with the D3D12 debug layer. Neither this Stage nor the later automated F-L8-023 Stage converts the Pending Experimental Instance `scene-designer` ledger entry into a human-observed pass.
+
+## M0067 canonical numeric adversarial evidence
+
+`world.logical-scalar` / F-L1-009 runs the independent fixed-width arithmetic/text/serialization oracle and the canonical numeric analyzer suite. Debug and Release executions include oversized decimal wraparound rejection, member-scoped adapter enforcement, inferred external-result rejection, full-width ties-to-even property coverage, and zero-allocation multiply/divide hot-path checks. Full solution builds remain the repository-wide proof that every product compilation runs NUM001 enforcement.
+
+## M0068 typed Inspector and Component Palette evidence
+
+`vsix.inspector-contracts` / F-L8-024 is executable Headless/VSIX evidence. Its single filtered VSIX command covers declared-type editor selection; enum and compatible immutable `[SceneAssets]` choices; canonical `float`/integer formatting; read-only `double`/`decimal`; nested vectors; text and boolean controls; component catalog, initializer, add, remove, reorder, and drop policy; source editing; and Roslyn reparse convergence. Unknown and unchanged choices return without a `SceneEditCommitRequest`, so they cannot mutate C# or add a native Undo unit.
+
+## M0069 Transform visual conformance evidence
+
+`vsix.transform-tools` / F-L8-023 is executable Visual/VSIX evidence with WARP required and hardware optional. It runs the bound C# VSIX reference Scene, Move/Rotate/Scale/Snap and surface-snap mathematics, the edit transaction and conflict/rebase state machines, one-history-step source writing and reparse verification, Preview Scene overlay transport, and the common Render Server session. The dedicated WARP oracle holds camera/object state constant, proves that overlay geometry alone changes captured pixels, then clears the overlay and requires the exact baseline frame hash to return. Canonical Transform source editing also proves that `ReferenceFrameId` remains unchanged.
+
+## M0071 Bake, asset, and diagnostic UI evidence
+
+`vsix.bake-integration` / F-L8-026 is executable Headless/VSIX evidence. Its net472 command verifies the immutable presentation state, Physics Bake request/progress/cancel/failure/partial-output orchestration, Asset Preview inline progress/diagnostics, artifact links, resident-client typed result preservation, architecture boundaries, and localization parity. Its net10 command verifies the shared authoring-host session, wire message, bounded framing, server cancellation, and terminal result contracts. A successful UI state requires a correlated 100% terminal progress item newer than the last observed progress, exit code zero, and no error diagnostic.
+
+## M0084 product package and SBOM evidence
+
+`release.packages` / F-L7-045 is executable Headless/Foundation evidence. It publishes one deterministic Windows x64 portable archive, independently reopens its exact manifest and canonical SPDX 2.3 dependency/file closure, verifies restored NuGet package bytes and external signing inputs, safely extracts the package to a unique directory, executes the packaged viewer for one hidden WARP readback frame with zero D3D12 validation errors, recomputes the installed byte closure, and uninstalls with zero residue. The Stage consumes the exact prebuilt localized VSIX without rebuilding or repacking it; F-L7-046 through F-L7-048 retain compatibility, RC, and immutable-manifest ownership.
+
+## M0085 product release compatibility evidence
+
+`release.compatibility` / F-L7-046 is executable Headless/Foundation evidence. It validates one strict Windows 10 2004+ x64/.NET 10/net472/WARP scope over the exact CI, Platform, VSIX, optional-hardware, and executable contract-Stage references, then runs four focused fail-closed tests in a Stage-isolated build root. The aggregate deliberately stores no dynamic evidence status; detailed matrices, ledgers, and configuration-qualified Stage results remain the only owners of observations and verdicts.
+
+## M0086 Level-gated Release Candidate evidence
+
+`release.candidate` / F-L7-047 is executable Release-only Headless/Foundation evidence. `run-release-candidate` derives the exact product Feature and Stage closure from Catalog track, reached Level, lifecycle, and dependency edges, then executes every prerequisite under one dedicated Release/WARP/current-Git profile. The canonical RC report binds every complete Stage result by run-result file SHA-256 and artifact SHA-256. Specified, Deferred, F-L7-047, and F-L7-048 cannot satisfy the prerequisite closure.
+
+## M0087 immutable formal release evidence
+
+`release.manifest` / F-L7-048 is executable Release-only Headless/Foundation evidence. It binds a passing RC Stage/report, validated Rendering/Content/ECS/Platform/VSIX reports, and the exact package archive, signing inputs, inner package manifest, and SPDX hashes. Publication is an atomic SHA-256 content-addressed FormalRelease directory with non-expiring retention and rollback identity. Same-identity publication preserves the original bytes and timestamp; invalid existing or partial output is never overwritten into success.

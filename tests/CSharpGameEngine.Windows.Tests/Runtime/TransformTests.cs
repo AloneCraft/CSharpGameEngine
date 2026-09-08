@@ -1,7 +1,9 @@
 using System.Numerics;
+using CSharpGameEngine.Contracts;
+using CSharpGameEngine.Core;
 using CSharpGameEngine.Entities;
-using Logical=CSharpGameEngine.Numerics.Logical256;
 using CSharpGameEngine.Runtime.Windows;
+using CSharpGameEngine.World;
 using RenderCamera=CSharpGameEngine.Graphics.D3D12.Camera;
 
 namespace CSharpGameEngine.Runtime.Windows.Tests;
@@ -11,58 +13,22 @@ public sealed class TransformTests {
     public void NewTransform_IsIdentity(){
         Transform Transform=new();
 
-        Assert.Equal(0f,(float)Transform.Position.R);
-        Assert.Equal(0f,(float)Transform.Position.U);
-        Assert.Equal(0f,(float)Transform.Position.F);
-        Assert.Equal(0f,(float)Transform.Rotation.R);
-        Assert.Equal(0f,(float)Transform.Rotation.U);
-        Assert.Equal(0f,(float)Transform.Rotation.F);
-        Assert.Equal(1f,(float)Transform.Scale.R);
-        Assert.Equal(1f,(float)Transform.Scale.U);
-        Assert.Equal(1f,(float)Transform.Scale.F);
-    }
-
-    [Fact]
-    public void ToWorld_ComposesChildLocalTransformWithParentWorldTransform(){
-        Transform Parent=new() { Position=new Logical.Vector3(10f,0f,0f),Scale=new Logical.Vector3(2f,2f,2f) };
-        Transform Child=new() { Position=new Logical.Vector3(3f,1f,0f) };
-
-        var World=TransformMath.ToWorld(Child,TransformMath.ToMatrix(Parent));
-
-        Assert.True(Matrix4x4.Decompose(World,out var Scale,out var Rotation,out var Position));
-        Assert.Equal(new Vector3(2f),Scale);
-        Assert.Equal(Quaternion.Identity,Rotation);
-        Assert.Equal(new Vector3(16f,2f,0f),Position);
-    }
-
-    [Fact]
-    public void TryCalculateLocal_PreservesWorldTransformWhenReparented(){
-        Transform OldParent=new() { Position=new Logical.Vector3(10f,0f,0f),Scale=new Logical.Vector3(2f,2f,2f) };
-        Transform Child=new() { Position=new Logical.Vector3(3f,1f,0f) };
-        var World=TransformMath.ToWorld(Child,TransformMath.ToMatrix(OldParent));
-        Transform NewParent=new() { Position=new Logical.Vector3(-4f,2f,0f),Scale=new Logical.Vector3(0.5f,0.5f,0.5f) };
-
-        Assert.True(TransformMath.TryCalculateLocal(World,TransformMath.ToMatrix(NewParent),out var Local));
-        Assert.Equal(World,TransformMath.ToWorld(Local,TransformMath.ToMatrix(NewParent)));
-    }
-
-    [Fact]
-    public void TryCalculateLocal_RejectsNonInvertibleParent(){
-        Transform Parent=new() { Scale=new Logical.Vector3(0f,1f,1f) };
-
-        Assert.False(TransformMath.TryCalculateLocal(Matrix4x4.Identity,TransformMath.ToMatrix(Parent),out _));
+        Assert.Equal(ReferenceFrameId.Root,Transform.Frame);
+        Assert.Equal(LogicalVector3.Zero,Transform.Position);
+        Assert.Equal(LogicalQuaternion.Identity,Transform.Rotation);
+        Assert.Equal(LogicalVector3.One,Transform.Scale);
     }
 
     [Fact]
     public void TryToCameraRelativeMatrix_SubtractsFixedOriginBeforeFloatConversion(){
-        Logical.Scalar LargeOrigin=Logical.Scalar.ParseInvariant("1000000000000000000000000000000");
-        Assert.True(Logical.Scalar.TryAdd(
+        LogicalScalar LargeOrigin=LogicalScalar.ParseInvariant("8000000000000000000");
+        Assert.True(LogicalScalar.TryAdd(
             LargeOrigin,
-            Logical.Scalar.ParseInvariant("0.125"),
-            out Logical.Scalar NearbyPosition));
+            LogicalScalar.ParseInvariant("0.125"),
+            out LogicalScalar NearbyPosition));
 
-        Transform Camera=new() { Position=new Logical.Vector3(LargeOrigin,0f,0f) };
-        Transform Object=new() { Position=new Logical.Vector3(NearbyPosition,0f,0f) };
+        Transform Camera=new() { Position=new LogicalVector3(LargeOrigin,0f,0f) };
+        Transform Object=new() { Position=new LogicalVector3(NearbyPosition,0f,0f) };
 
         FixedTransformStatus Status=TransformMath.TryToCameraRelativeMatrix(
             Object,Camera,out Matrix4x4 Matrix);
@@ -73,11 +39,100 @@ public sealed class TransformTests {
         Assert.Equal(0f,Matrix.M43);
     }
     [Fact]
+    public void FrameRelativeRendererBoundaryStopsAtLcaBeforeRemoteRootOffsetCanOverflow(){
+        var Root=new ReferenceFrameId(StableId.FromName(StableId.Parse("5a60c273-cbba-553a-8889-98771b38fa9d"),"root"));
+        var Planet=new ReferenceFrameId(StableId.FromName(Root.Value,"planet"));
+        var ObjectFrame=new ReferenceFrameId(StableId.FromName(Root.Value,"object"));
+        var CameraFrame=new ReferenceFrameId(StableId.FromName(Root.Value,"camera"));
+        var Frames=new ReferenceFrameGraph(Root);
+        Frames.Add(Planet,Root,new FramePose(new LogicalVector3(LogicalScalar.MaxValue-1,0,0),LogicalQuaternion.Identity,LogicalVector3.One));
+        Frames.Add(ObjectFrame,Planet,new FramePose(new LogicalVector3(10,0,0),LogicalQuaternion.Identity,LogicalVector3.One));
+        Frames.Add(CameraFrame,Planet,new FramePose(new LogicalVector3(12,0,0),LogicalQuaternion.Identity,LogicalVector3.One));
+        Assert.True(Frames.TryCommit(1,out var Snapshot,out var FrameError),FrameError.Message);
+        Transform Object=new() { Frame=ObjectFrame,Position=new LogicalVector3(5,0,0) };
+        Transform Camera=new() { Frame=CameraFrame,Position=new LogicalVector3(1,0,0) };
+        Assert.Equal(FixedTransformStatus.Success,FixedAffineTransform.TryFromTransform(Object,out var ObjectWorld));
+        Assert.Equal(FixedTransformStatus.Success,FixedAffineTransform.TryFromTransform(Camera,out var CameraWorld));
+        var Status=RuntimeWorldTransform.TryToCameraRelativeMatrix(ObjectWorld,Object.Frame,CameraWorld,Camera.Frame,Snapshot,out var Relative);
+        Assert.Equal(FixedTransformStatus.Success,Status);
+        Assert.Equal(2f,Relative.M41);
+        Assert.Equal(0f,Relative.M42);
+        Assert.Equal(0f,Relative.M43);
+        Assert.False(Snapshot.TryTransformAffine(ObjectWorld.Logical,Object.Frame,Root,out _));
+    }
+
+    [Fact]
+    public void RuntimeRenderExtraction_UsesHostOwnedFrameSnapshotAndCameraPose(){
+        ReferenceFrameId Root=ReferenceFrameId.Root;
+        var Planet=new ReferenceFrameId(StableId.FromName(Root.Value,"runtime-planet"));
+        var ObjectFrame=new ReferenceFrameId(StableId.FromName(Root.Value,"runtime-object"));
+        var CameraFrame=new ReferenceFrameId(StableId.FromName(Root.Value,"runtime-camera"));
+        using EngineHost Host=new();
+        Host.ReferenceFrames.Add(Planet,Root,new FramePose(
+            new LogicalVector3(LogicalScalar.MaxValue-1,0,0),LogicalQuaternion.Identity,LogicalVector3.One));
+        Host.ReferenceFrames.Add(ObjectFrame,Planet,new FramePose(
+            new LogicalVector3(10,0,0),LogicalQuaternion.Identity,LogicalVector3.One));
+        Host.ReferenceFrames.Add(CameraFrame,Planet,new FramePose(
+            new LogicalVector3(12,0,0),LogicalQuaternion.Identity,LogicalVector3.One));
+        Assert.True(Host.ReferenceFrames.TryCommit(1,out _,out var Error),Error.Message);
+
+        CSharpGameEngine.Entities.World EcsWorld=new();
+        Entity ObjectEntity=EcsWorld.Create(
+            new Transform { Frame=ObjectFrame,Position=new LogicalVector3(5,0,0) },
+            new PrimitiveMesh());
+        Transform CameraTransform=new() { Frame=CameraFrame,Position=new LogicalVector3(1,0,0) };
+        Assert.Equal(FixedTransformStatus.Success,
+            FixedAffineTransform.TryFromTransform(CameraTransform,out var CameraWorld));
+        Host.SetCameraPose(CameraWorld,CameraFrame);
+
+        FixedTransformStatus Status=RuntimeWorldTransform.TryGetCameraRelativeMatrix(
+            ObjectEntity,EcsWorld,Host,out Matrix4x4 Relative,out var ResolveStatus);
+
+        Assert.Equal(FixedTransformResolveStatus.Success,ResolveStatus);
+        Assert.Equal(FixedTransformStatus.Success,Status);
+        Assert.Equal(2f,Relative.M41);
+        Assert.Equal(0f,Relative.M42);
+        Assert.Equal(0f,Relative.M43);
+    }
+
+    [Fact]
+    public void RuntimeAudioExtraction_ProducesOnlyListenerRelativeFloatSnapshot(){
+        ReferenceFrameId Root=ReferenceFrameId.Root;
+        var Planet=new ReferenceFrameId(StableId.FromName(Root.Value,"audio-planet"));
+        var SourceFrame=new ReferenceFrameId(StableId.FromName(Root.Value,"audio-source"));
+        var ListenerFrame=new ReferenceFrameId(StableId.FromName(Root.Value,"audio-listener"));
+        using EngineHost Host=new();
+        Host.ReferenceFrames.Add(Planet,Root,new FramePose(
+            new LogicalVector3(LogicalScalar.MaxValue-1,0,0),LogicalQuaternion.Identity,LogicalVector3.One));
+        Host.ReferenceFrames.Add(SourceFrame,Planet,new FramePose(
+            new LogicalVector3(10,0,0),LogicalQuaternion.Identity,LogicalVector3.One));
+        Host.ReferenceFrames.Add(ListenerFrame,Planet,new FramePose(
+            new LogicalVector3(12,0,0),LogicalQuaternion.Identity,LogicalVector3.One));
+        Assert.True(Host.ReferenceFrames.TryCommit(1,out _,out var Error),Error.Message);
+        Transform Source=new() { Frame=SourceFrame,Position=new LogicalVector3(5,0,0) };
+        Transform Listener=new() { Frame=ListenerFrame,Position=new LogicalVector3(1,0,0) };
+        Assert.Equal(FixedTransformStatus.Success,FixedAffineTransform.TryFromTransform(Source,out var SourcePose));
+        Assert.Equal(FixedTransformStatus.Success,FixedAffineTransform.TryFromTransform(Listener,out var ListenerPose));
+        Host.BeginAudioFrame();
+        Host.SetAudioListener(new Entity(1),ListenerPose,ListenerFrame);
+
+        Assert.True(Host.TrySubmitAudioSource(
+            new Entity(2),SourcePose,SourceFrame,0.5f,1f,10f,true));
+
+        AudioSourceSnapshot Snapshot=Assert.Single(Host.AudioSources);
+        Assert.Equal(new Vector3(2f,0f,0f),Snapshot.ListenerRelativePosition);
+        Assert.Equal(0.5f,Snapshot.Volume);
+        Assert.Equal(1f,Snapshot.SpatialMix.Pan);
+        Assert.Equal(8f/9f,Snapshot.SpatialMix.Attenuation,5);
+        Assert.Equal(4f/9f,Snapshot.EffectiveGain,5);
+        Assert.True(Snapshot.Loop);
+    }
+    [Fact]
     public void FixedTransformWorldResolver_ComposesHierarchyBeforeCameraRelativeFloatConversion(){
-        Logical.Scalar LargeOrigin=Logical.Scalar.ParseInvariant("1000000000000000000000000000000");
-        Transform Parent=new() { Position=new Logical.Vector3(LargeOrigin,0f,0f) };
+        LogicalScalar LargeOrigin=LogicalScalar.ParseInvariant("8000000000000000000");
+        Transform Parent=new() { Position=new LogicalVector3(LargeOrigin,0f,0f) };
         Transform Child=new() {
-            Position=new Logical.Vector3(Logical.Scalar.ParseInvariant("0.125"),2f,0f),
+            Position=new LogicalVector3(LogicalScalar.ParseInvariant("0.125"),2f,0f),
         };
         FixedTransformWorldResolver Resolver=new();
 
@@ -113,10 +168,10 @@ public sealed class TransformTests {
 
     [Fact]
     public void FixedTransformWorldResolver_UsesParentedCameraWorldBeforeFloatConversion(){
-        Logical.Scalar LargeOrigin=Logical.Scalar.ParseInvariant("1000000000000000000000000000000");
-        Transform Root=new() { Position=new Logical.Vector3(LargeOrigin,0f,0f) };
-        Transform Camera=new() { Position=new Logical.Vector3(2f,3f,0f) };
-        Transform Object=new() { Position=new Logical.Vector3(2.125f,4f,0f) };
+        LogicalScalar LargeOrigin=LogicalScalar.ParseInvariant("8000000000000000000");
+        Transform Root=new() { Position=new LogicalVector3(LargeOrigin,0f,0f) };
+        Transform Camera=new() { Position=new LogicalVector3(2f,3f,0f) };
+        Transform Object=new() { Position=new LogicalVector3(2.125f,4f,0f) };
         FixedTransformWorldResolver Resolver=new();
 
         Assert.Equal(
@@ -159,10 +214,10 @@ public sealed class TransformTests {
 
     [Fact]
     public void FixedTransformWorldResolver_UsesParentedCameraLocalPositiveZForViewAtLargeCoordinates(){
-        Logical.Scalar LargeOrigin=Logical.Scalar.ParseInvariant("1000000000000000000000000000000");
-        Transform Root=new() { Position=new Logical.Vector3(LargeOrigin,0f,0f) };
+        LogicalScalar LargeOrigin=LogicalScalar.ParseInvariant("8000000000000000000");
+        Transform Root=new() { Position=new LogicalVector3(LargeOrigin,0f,0f) };
         Transform Parent=new() {
-            Rotation=new Logical.Vector3(0f,MathF.PI/2f,0f),
+            Rotation=LogicalQuaternion.FromEulerRuf(new LogicalVector3(0f,MathF.PI/2f,0f)),
         };
         Transform Camera=new();
         FixedTransformWorldResolver Resolver=new();

@@ -14,14 +14,29 @@ public sealed class ComponentPaletteToolWindowPane:ToolWindowPane {
     public const string PaneGuidString="0a5a7d16-9b0e-4a4a-9a4a-2c2f4e51a7b3";
 
     private static Func<SceneEditorSessionService?>?SessionProvider;
+    private static WeakReference<ComponentPaletteToolWindowControl>?RestoredControl;
+    private readonly ComponentPaletteToolWindowControl Control;
 
     public ComponentPaletteToolWindowPane():base(null){
+        ThreadHelper.ThrowIfNotOnUIThread();
         this.Caption=VsixText.Get("PaneComponentPalette");
-        this.Content=new ComponentPaletteToolWindowControl();
-        if(SessionProvider?.Invoke() is { } Session&& this.Content is ComponentPaletteToolWindowControl Control){
+        this.Control=new ComponentPaletteToolWindowControl();
+        this.Content=this.Control;
+        RestoredControl=new WeakReference<ComponentPaletteToolWindowControl>(this.Control);
+        if(SessionProvider?.Invoke() is { }Session){
+            this.Control.SetSession(Session);
+        }
+    }
+
+    internal static void ConfigureSessionProvider(Func<SceneEditorSessionService?>Provider){
+        if(Provider is null){ throw new ArgumentNullException(nameof(Provider)); }
+        ThreadHelper.ThrowIfNotOnUIThread();
+        SessionProvider=Provider;
+        if(RestoredControl?.TryGetTarget(out var Control)==true
+            &&SessionProvider?.Invoke() is { }Session){
             Control.SetSession(Session);
         }
     }
 
-    internal static void ConfigureSessionProvider(Func<SceneEditorSessionService?>?Provider)=>SessionProvider=Provider;
+    internal static void ClearSessionProvider()=>SessionProvider=null;
 }

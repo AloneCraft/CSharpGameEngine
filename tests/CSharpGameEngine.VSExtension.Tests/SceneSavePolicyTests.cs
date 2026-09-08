@@ -145,42 +145,4 @@ public sealed class SceneSavePolicyTests {
             PinnedDocumentHasUnsavedEdits:false));
     }
 
-    // ---- 再解析が「自分の保存の着地」か ----
-
-    /// <summary>
-    /// M0051 Step 1-5: 保存したSceneの再解析だけを TrustOwnSave として扱う。
-    /// </summary>
-    [Fact]
-    public void OwnSaveLanding_MatchesTheSavedScene(){
-        SceneKey Key=new("project-a","Game.MainScene");
-
-        Assert.True(SceneOwnSaveLandingPolicy.IsOwnSaveLanding(Key,Key));
-    }
-
-    /// <summary>
-    /// 潜在バグの本体。再解析イベントは1回で複数のSceneModelを運ぶため、boolフラグだと
-    /// 保存した1つと同じイベントに乗った無関係なSceneまで TrustOwnSave と誤判定され、
-    /// ResetTo で未保存の編集とUndo履歴が消えていた。
-    /// </summary>
-    [Fact]
-    public void OwnSaveLanding_DoesNotMatchADifferentScene(){
-        Assert.False(SceneOwnSaveLandingPolicy.IsOwnSaveLanding(
-            new SceneKey("project-a","Game.MainScene"),
-            new SceneKey("project-a","Game.OtherScene")));
-    }
-
-    /// <summary>同名クラスが別プロジェクトにある場合も別Sceneとして扱う。</summary>
-    [Fact]
-    public void OwnSaveLanding_DoesNotMatchTheSameClassInAnotherProject(){
-        Assert.False(SceneOwnSaveLandingPolicy.IsOwnSaveLanding(
-            new SceneKey("project-a","Game.MainScene"),
-            new SceneKey("project-b","Game.MainScene")));
-    }
-
-    /// <summary>保存を待っていないときの再解析は、常に外部変更として扱う。</summary>
-    [Fact]
-    public void OwnSaveLanding_IsFalseWhenNoSaveIsAwaited(){
-        Assert.False(SceneOwnSaveLandingPolicy.IsOwnSaveLanding(
-            null,new SceneKey("project-a","Game.MainScene")));
-    }
 }

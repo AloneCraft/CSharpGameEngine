@@ -1,13 +1,13 @@
 # Audio, Input, and Platform specification
 
-- Status: Implemented for portable input, Win32 event adaptation, and deterministic Input Actions; audio remains specified
+- Status: Implemented for portable input, Win32 event adaptation, deterministic Input Actions, audio device lifecycle, offline mixing, listener-relative spatial audio, artifact-backed voice recovery, and read-only Platform/Input/Audio diagnostics
 - Parent index: [Roadmap](../Roadmap.md), [Implementation Status](../Implementation-Status.md)
 - Decisions: [ADR-0056](../Decisions/ADR-0056-Platform-Input-And-Audio-Server-Boundaries.md)
 - Target layers: L0, L1, L4, L8
 
 ## Scope and observed baseline
 
-Windows/Win32 input, XAudio2 abstractions, and the current Windows runtime are baseline evidence. M0064 implements the portable value contracts, QPC-stamped Win32 event adaptation, and deterministic action processing. Silent/offline audio, stream artifacts, and audio device recovery remain specified work.
+Windows/Win32 input, XAudio2 abstractions, and the current Windows runtime are baseline evidence. M0064 implements the portable value contracts, QPC-stamped Win32 event adaptation, and deterministic action processing. The EngineHost-owned audio device server implements native creation, operational silent fallback, explicit recreation, and disposal. Its portable mixer owns immutable PCM clips and decoded stream artifacts, buses, voice cursors, spatial gain/pan, looping, limits, typed underrun policy, and typed recovery decisions. Protocol v5/debug snapshot v2 copies bounded Platform/Input/Audio diagnostics into the existing Preview Host request without transferring service or native ownership.
 
 Windows is the first backend: Win32 and XAudio2 live in L0. The corresponding L1/L4 contracts are platform-neutral so another backend can be added without pulling native types above L0.
 
@@ -44,11 +44,11 @@ Action maps declare context priority, chord predicates, normalization, dead zone
 
 ## Audio contract and recovery
 
-The Audio Server owns mixer graph, buses, voice limits, gain/pan/spatial parameters, loop points, stream buffering, and source lifetime. The silent/offline backend is required and renders deterministic PCM buffers for test oracles. Hardware/XAudio2 is optional additional evidence and cannot be a required headless test result.
+The Audio Server owns mixer graph, buses, voice limits, gain/pan/spatial parameters, loop points, decoded stream artifacts, and source lifetime. The silent/offline backend is required and renders deterministic PCM buffers for test oracles. Hardware/XAudio2 is optional additional evidence and cannot be a required headless test result. Spatialization accepts only a listener-local `Vector3` produced after the Q64.64 reference-frame transform; it derives linear range attenuation and stereo pan and never creates a global float coordinate.
 
 Runtime codec dependency is avoided by converting source into stream artifacts in L7. An optional codec or provider is behind an L4 adapter and cannot leak types into artifacts/public APIs. An underrun increments a typed counter and follows an explicit silence/stop policy.
 
-Audio device state is `Unavailable`, `Creating`, `Ready`, `Recovering`, `Faulted`, `Disposed`. On device loss the server stops submission, records voice restoration eligibility, recreates the backend, then either restores artifact-backed loop/stream state at a defined logical frame or emits a stop event. Restoration never relies on a live native pointer.
+Audio device state is `Unavailable`, `Creating`, `Ready`, `Recovering`, `Faulted`, `Disposed`; backend mode is independently `None`, `XAudio2`, or `Silent`. On device loss the server stops submission, releases the old native generation exactly once, and recreates the backend. A successful hardware or silent generation restores only `RestoreFromArtifact` voices at the mixer-owned logical frame; all other voices emit `StoppedNotEligible`. A failed recreation without fallback leaves logical voice state unchanged for an explicit retry. Restoration uses `AssetArtifactReference` and never a live native pointer.
 
 ## Immediate migration and failure policy
 
@@ -57,6 +57,8 @@ When a target feature lands, it replaces the affected native facade, input abstr
 ## Performance and compatibility
 
 Headless contract tests use the silent backend and WARP where graphics diagnostics are involved. Windows x64 Debug/Release are mandatory; actual audio hardware, GPU hardware, and Experimental Instance are supplemental evidence. Performance stores five warm-ups plus thirty samples, median/p95/MAD, backend mode, buffer configuration, and machine fingerprint.
+
+One explicitly requested diagnostic capture records the process monotonic counter and frequency, OS/runtime/process architecture, process ID, Input server state and at most 64 current action values, plus Audio device/backend generation, mixer counts, recovery counts, failure, and typed availability. Each subsystem copies its own current truth. The isolated Render Preview Host does not own runtime Input or Audio and must report `NotOwned` with zero owned counters. The existing Scene Designer Runtime Diagnostics view may project this envelope but cannot poll, retain a service, expose a native handle, synthesize elapsed timing, or turn `Unavailable`/`Faulted` into success. Host and client both validate bounds; malformed or generation/fence-inconsistent data fails closed.
 
 ## Stage oracle matrix
 
@@ -72,7 +74,7 @@ Headless contract tests use the silent backend and WARP where graphics diagnosti
 | F-L7-034 | 6 | `platform.compatibility` | Headless / Foundation | 3600s | Required Windows cells separate optional hardware. |
 | F-L7-035 | 7 | `platform.release` | Headless / Foundation | 7200s | Scoped platform provenance and closure. |
 
-F-L1-008, F-L0-010, and F-L4-010 are Implemented/TestVerified with executable stages. Audio and later compatibility/release rows remain `Specified` and `NotImplemented`.
+All rows are Implemented/TestVerified with executable stages. `Platform-Compatibility-Matrix.json` references the required Debug/Release solution, Windows-TFM, and WARP CI cells and the executable prerequisite Stage closure; hardware Audio/GPU are optional Manual Evidence references and never substitute for required correctness. `platform.release` re-executes that prerequisite and binds its recent configuration/Git-matched result, the exact Platform source/verification closure, required adapter modes, optional hardware snapshot, and machine/timestamp provenance into one canonical SHA report. Product packaging, signing, SBOM, and the immutable product release manifest remain owned by F-L7-045/F-L7-048.
 
 ## M0064 deterministic input vertical slice
 

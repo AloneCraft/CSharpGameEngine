@@ -1,5 +1,6 @@
 using System.IO.Pipes;
 using CSharpGameEngine.Bridge.Hosting;
+using CSharpGameEngine.Contracts;
 
 namespace CSharpGameEngine.Bridge.Hosting.Tests;
 
@@ -19,10 +20,73 @@ public class BridgeServerHostTests {
         var PipeName=UniquePipeName();
         _=BridgeServerHost.RunAsync(PipeName,(FirstArg,OutputPath)=>(0, $"{FirstArg}|{OutputPath}"),TimeSpan.FromSeconds(5));
 
-        BridgeServerResponse Response= await SendRequestAsync(PipeName,"input.glb","output.json");
+        AuthoringHostResult Response=await SendRequestAsync(PipeName,"input.glb","output.json");
 
+        Assert.Equal(AuthoringHostTerminalState.Succeeded,Response.State);
         Assert.Equal(0,Response.ExitCode);
         Assert.Equal("input.glb|output.json",Response.Output);
+    }
+
+    [Fact]
+    public async Task VariableArgumentRequest_PreservesEveryArgument(){
+        var PipeName=UniquePipeName();
+        _=BridgeServerHost.RunArgumentsAsync(
+            PipeName,(Arguments,_)=>(0,string.Join("|",Arguments)),TimeSpan.FromSeconds(5));
+        AuthoringHostRequest Request=CreateRequest("bake","Scene.Type");
+        Request.Operation=AuthoringHostOperation.Bake;
+        Request.Arguments=["bake","Scene.Type","output.cgephyscache","120","HASH"];
+
+        AuthoringHostResult Response=await SendRequestAsync(PipeName,Request);
+
+        Assert.Equal(AuthoringHostTerminalState.Succeeded,Response.State);
+        Assert.Equal("bake|Scene.Type|output.cgephyscache|120|HASH",Response.Output);
+    }
+
+    [Fact]
+    public async Task VariableArgumentHandler_ReceivesTimeoutCancellation(){
+        var PipeName=UniquePipeName();
+        _=BridgeServerHost.RunArgumentsAsync(
+            PipeName,
+            (Arguments,Cancellation)=>{
+                Assert.Equal("wait",Arguments[0]);
+                Cancellation.WaitHandle.WaitOne();
+                Cancellation.ThrowIfCancellationRequested();
+                return(0,"unexpected");
+            },
+            TimeSpan.FromSeconds(5));
+        AuthoringHostRequest Request=CreateRequest("wait","unused");
+        Request.TimeoutMilliseconds=50;
+
+        AuthoringHostResult Response=await SendRequestAsync(PipeName,Request);
+
+        Assert.Equal(AuthoringHostTerminalState.TimedOut,Response.State);
+    }
+
+    [Fact]
+    public async Task ClientDisconnect_CancelsSubmittedHandler(){
+        string PipeName=UniquePipeName();
+        using ManualResetEventSlim Started=new();
+        using ManualResetEventSlim Cancelled=new();
+        _=BridgeServerHost.RunArgumentsAsync(
+            PipeName,
+            (_,Cancellation)=>{
+                Started.Set();
+                Cancellation.WaitHandle.WaitOne();
+                Cancelled.Set();
+                Cancellation.ThrowIfCancellationRequested();
+                return(0,"unexpected");
+            },
+            TimeSpan.FromSeconds(5));
+
+        using(NamedPipeClientStream Client=new(
+            ".",PipeName,PipeDirection.InOut,PipeOptions.Asynchronous)){
+            await Client.ConnectAsync((int)TimeSpan.FromSeconds(5).TotalMilliseconds);
+            await BridgeWireMessage.WriteAsync(
+                Client,CreateRequest("wait","unused"),CancellationToken.None);
+            Assert.True(Started.Wait(TimeSpan.FromSeconds(5)));
+        }
+
+        Assert.True(Cancelled.Wait(TimeSpan.FromSeconds(5)));
     }
 
     [Fact]
@@ -36,10 +100,10 @@ public class BridgeServerHostTests {
             },
             TimeSpan.FromSeconds(5));
 
-        Task<BridgeServerResponse>[]Requests=[
+        Task<AuthoringHostResult>[]Requests=[
             .. Enumerable.Range(0,8).Select(I=>SendRequestAsync(PipeName, $"mesh-{I}.glb","out.json"))
         ];
-        BridgeServerResponse[]Responses= await Task.WhenAll(Requests);
+        AuthoringHostResult[]Responses=await Task.WhenAll(Requests);
 
         for(var I=0;I<Responses.Length;I++){
             Assert.Equal($"handled:mesh-{I}.glb",Responses[I].Output);
@@ -56,11 +120,12 @@ public class BridgeServerHostTests {
                 :(0,"ok"),
             TimeSpan.FromSeconds(5));
 
-        BridgeServerResponse Failure= await SendRequestAsync(PipeName,"bad.fbx","out.json");
+        AuthoringHostResult Failure=await SendRequestAsync(PipeName,"bad.fbx","out.json");
+        Assert.Equal(AuthoringHostTerminalState.Failed,Failure.State);
         Assert.Equal(1,Failure.ExitCode);
         Assert.Contains("corrupt file",Failure.Output);
 
-        BridgeServerResponse Success= await SendRequestAsync(PipeName,"good.fbx","out.json");
+        AuthoringHostResult Success=await SendRequestAsync(PipeName,"good.fbx","out.json");
         Assert.Equal(0,Success.ExitCode);
         Assert.Equal("ok",Success.Output);
     }
@@ -73,11 +138,59 @@ public class BridgeServerHostTests {
         await ServerTask.WaitAsync(TimeSpan.FromSeconds(10));
     }
 
-    private static async Task<BridgeServerResponse>SendRequestAsync(string PipeName,string FirstArg,string OutputPath){
+    [Fact]
+    public async Task IdleTimeout_DrainsAcceptedRequestBeforeExit(){
+        var PipeName=UniquePipeName();
+        using ManualResetEventSlim Started=new();
+        using ManualResetEventSlim Release=new();
+        Task ServerTask=BridgeServerHost.RunAsync(
+            PipeName,
+            (_,_)=>{
+                Started.Set();
+                Release.Wait(TimeSpan.FromSeconds(5));
+                return(0,"done");
+            },
+            TimeSpan.FromMilliseconds(50));
+        Task<AuthoringHostResult>RequestTask=SendRequestAsync(PipeName,"input","output");
+
+        Assert.True(Started.Wait(TimeSpan.FromSeconds(5)));
+        await Task.Delay(150);
+        Assert.False(ServerTask.IsCompleted);
+        Release.Set();
+
+        Assert.Equal(AuthoringHostTerminalState.Succeeded,(await RequestTask).State);
+        await ServerTask.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public async Task VersionMismatch_DoesNotInvokeHandler(){
+        var PipeName=UniquePipeName();
+        var HandlerCalls=0;
+        _=BridgeServerHost.RunAsync(PipeName,(_,_)=>{ HandlerCalls++;return(0,"unexpected");},TimeSpan.FromSeconds(5));
+
+        var Request=CreateRequest("input.glb","output.json");
+        Request.ProtocolVersion=AuthoringHostProtocol.CurrentVersion+1;
+        var Response=await SendRequestAsync(PipeName,Request);
+
+        Assert.Equal(AuthoringHostTerminalState.VersionMismatch,Response.State);
+        Assert.Equal(0,HandlerCalls);
+    }
+
+    private static Task<AuthoringHostResult>SendRequestAsync(string PipeName,string FirstArg,string OutputPath)=>
+        SendRequestAsync(PipeName,CreateRequest(FirstArg,OutputPath));
+
+    private static async Task<AuthoringHostResult>SendRequestAsync(string PipeName,AuthoringHostRequest Request){
         using NamedPipeClientStream Client=new(".",PipeName,PipeDirection.InOut,PipeOptions.Asynchronous);
         await Client.ConnectAsync((int)TimeSpan.FromSeconds(5).TotalMilliseconds);
 
-        await BridgeWireMessage.WriteAsync(Client,new BridgeServerRequest { Args=[FirstArg,OutputPath]},CancellationToken.None);
-        return await BridgeWireMessage.ReadAsync<BridgeServerResponse>(Client,CancellationToken.None);
+        await BridgeWireMessage.WriteAsync(Client,Request,CancellationToken.None);
+        return await BridgeWireMessage.ReadAsync<AuthoringHostResult>(Client,CancellationToken.None);
     }
+
+    private static AuthoringHostRequest CreateRequest(string FirstArg,string OutputPath)=>new(){
+        RequestId=Guid.NewGuid(),
+        Operation=AuthoringHostOperation.Import,
+        TimeoutMilliseconds=5_000,
+        Arguments=[FirstArg,OutputPath],
+    };
 }

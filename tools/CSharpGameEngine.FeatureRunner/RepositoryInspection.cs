@@ -2,17 +2,29 @@ using System.Diagnostics;
 namespace CSharpGameEngine.FeatureStages;
 public sealed class GitChangedPathProvider:IChangedPathProvider {
     public async Task<IReadOnlyList<string>>GetChangedPathsAsync(string RepositoryRoot,CancellationToken CancellationToken){
-        var Result=await RunGitAsync(RepositoryRoot,["status","--porcelain=v1","--untracked-files=all"],CancellationToken).ConfigureAwait(false);
+        var Result=await RunGitAsync(RepositoryRoot,["status","--porcelain=v1","-z","--untracked-files=all"],CancellationToken).ConfigureAwait(false);
         if(Result.ExitCode!=0){ throw new InvalidOperationException($"git status failed: {Result.StandardError}"); }
+        return ParsePorcelainZ(Result.StandardOutput);
+    }
+    public static IReadOnlyList<string>ParsePorcelainZ(string Output){
         var Paths=new List<string>();
-        foreach(var Line in Result.StandardOutput.Split(['\r','\n'],StringSplitOptions.RemoveEmptyEntries)){
-            if(Line.Length<4){ continue; }
-            var PathValue=Line.Substring(3);
-            var RenameSeparator=PathValue.LastIndexOf(" -> ",StringComparison.Ordinal);
-            if(RenameSeparator>=0){ PathValue=PathValue.Substring(RenameSeparator+4); }
-            Paths.Add(PathValue.Trim('"').Replace('\\','/'));
+        string[]Entries=Output.Split((char)0,StringSplitOptions.RemoveEmptyEntries);
+        for(int Index=0;Index<Entries.Length;Index++){
+            string Entry=Entries[Index];
+            if(Entry.Length<4||Entry[2]!=' '){ continue; }
+            string Status=Entry[..2];
+            AddPath(Entry[3..]);
+            if((Status.Contains('R')||Status.Contains('C'))&&Index+1<Entries.Length){
+                AddPath(Entries[++Index]);
+            }
         }
-        return Paths.Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(static PathValue=>PathValue,StringComparer.OrdinalIgnoreCase).ToArray();
+        return Paths.Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static PathValue=>PathValue,StringComparer.OrdinalIgnoreCase).ToArray();
+
+        void AddPath(string PathValue){
+            string Path=PathValue.Replace((char)92,'/').Trim('/');
+            if(Path.Length>0){ Paths.Add(Path); }
+        }
     }
     internal static async Task<(string Commit,bool IsDirty)>ReadProvenanceAsync(string RepositoryRoot,CancellationToken CancellationToken){
         var CommitResult=await RunGitAsync(RepositoryRoot,["rev-parse","HEAD"],CancellationToken).ConfigureAwait(false);

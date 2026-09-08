@@ -1,4 +1,5 @@
 using CSharpGameEngine.Bridge.Hosting;
+using CSharpGameEngine.Contracts;
 
 namespace CSharpGameEngine.Bridge.Hosting.Tests;
 
@@ -7,23 +8,29 @@ public class BridgeWireMessageTests {
     [Fact]
     public async Task WriteThenRead_RoundTripsRequest(){
         using MemoryStream Stream=new();
-        BridgeServerRequest Original=new(){ Args=["input.glb","output.json"]};
+        AuthoringHostRequest Original=new(){
+            RequestId=Guid.NewGuid(),Operation=AuthoringHostOperation.Import,Arguments=["input.glb","output.json"]
+        };
 
         await BridgeWireMessage.WriteAsync(Stream,Original,CancellationToken.None);
         Stream.Position=0;
-        var RoundTripped= await BridgeWireMessage.ReadAsync<BridgeServerRequest>(Stream,CancellationToken.None);
+        var RoundTripped=await BridgeWireMessage.ReadAsync<AuthoringHostRequest>(Stream,CancellationToken.None);
 
-        Assert.Equal(Original.Args,RoundTripped.Args);
+        Assert.Equal(Original.RequestId,RoundTripped.RequestId);
+        Assert.Equal(Original.Arguments,RoundTripped.Arguments);
     }
 
     [Fact]
     public async Task WriteThenRead_RoundTripsResponse(){
         using MemoryStream Stream=new();
-        BridgeServerResponse Original=new(){ ExitCode=1,Output="Failed to parse FBX file 'bad.fbx': corrupt header" };
+        AuthoringHostResult Original=new(){
+            RequestId=Guid.NewGuid(),State=AuthoringHostTerminalState.Failed,ExitCode=1,
+            Output="Failed to parse FBX file 'bad.fbx': corrupt header"
+        };
 
         await BridgeWireMessage.WriteAsync(Stream,Original,CancellationToken.None);
         Stream.Position=0;
-        var RoundTripped= await BridgeWireMessage.ReadAsync<BridgeServerResponse>(Stream,CancellationToken.None);
+        var RoundTripped=await BridgeWireMessage.ReadAsync<AuthoringHostResult>(Stream,CancellationToken.None);
 
         Assert.Equal(Original.ExitCode,RoundTripped.ExitCode);
         Assert.Equal(Original.Output,RoundTripped.Output);
@@ -32,12 +39,12 @@ public class BridgeWireMessageTests {
     [Fact]
     public async Task WriteThenRead_MultipleMessagesOnSameStream_ReadBackInOrder(){
         using MemoryStream Stream=new();
-        await BridgeWireMessage.WriteAsync(Stream,new BridgeServerResponse { ExitCode=0,Output="first" },CancellationToken.None);
-        await BridgeWireMessage.WriteAsync(Stream,new BridgeServerResponse { ExitCode=0,Output="second" },CancellationToken.None);
+        await BridgeWireMessage.WriteAsync(Stream,new AuthoringHostResult { ExitCode=0,Output="first" },CancellationToken.None);
+        await BridgeWireMessage.WriteAsync(Stream,new AuthoringHostResult { ExitCode=0,Output="second" },CancellationToken.None);
         Stream.Position=0;
 
-        var First= await BridgeWireMessage.ReadAsync<BridgeServerResponse>(Stream,CancellationToken.None);
-        var Second= await BridgeWireMessage.ReadAsync<BridgeServerResponse>(Stream,CancellationToken.None);
+        var First=await BridgeWireMessage.ReadAsync<AuthoringHostResult>(Stream,CancellationToken.None);
+        var Second=await BridgeWireMessage.ReadAsync<AuthoringHostResult>(Stream,CancellationToken.None);
 
         Assert.Equal("first",First.Output);
         Assert.Equal("second",Second.Output);
@@ -48,6 +55,17 @@ public class BridgeWireMessageTests {
         using MemoryStream Stream=new([0x01,0x00]);
 
         await Assert.ThrowsAsync<EndOfStreamException>(
-            ()=>BridgeWireMessage.ReadAsync<BridgeServerResponse>(Stream,CancellationToken.None));
+            ()=>BridgeWireMessage.ReadAsync<AuthoringHostResult>(Stream,CancellationToken.None));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    [InlineData(16*1024*1024+1)]
+    public async Task Read_InvalidPayloadLength_RejectsBeforeAllocation(int Length){
+        using MemoryStream Stream=new(BitConverter.GetBytes(Length));
+
+        await Assert.ThrowsAsync<InvalidDataException>(
+            ()=>BridgeWireMessage.ReadAsync<AuthoringHostResult>(Stream,CancellationToken.None));
     }
 }

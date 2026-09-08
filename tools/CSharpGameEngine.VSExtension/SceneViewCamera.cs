@@ -28,24 +28,24 @@ internal static class SceneViewCamera {
     // Pitchの意味が不連続になるのを避けるため。CreateFirstPerson用の±85°
     // (legacy Camera.MinPitchRadiansFirstPerson)は無関係なプレイヤー一人称カメラのものであり、
     // このエディタカメラには適用しない。
-    internal const float MinPitchRadians=-80f*(float)(Math.PI/180.0);
-    internal const float MaxPitchRadians=40f*(float)(Math.PI/180.0);
+    internal const float MinPitchRadians=-80f*FloatMath.Pi/180f;
+    internal const float MaxPitchRadians=40f*FloatMath.Pi/180f;
 
     /// <summary>
     /// ピッチを含む完全な前方向。CameraTests.GetForward_MatchesLegacyTrigFormula_AcrossYawPitchSweep
     /// が固定する閉形式 Forward=normalize(cosPitch*sinYaw, sinPitch, cosPitch*cosYaw) と同一。
     /// </summary>
     internal static Vector3 GetForward(float Yaw,float Pitch){
-        var CosPitch=(float)Math.Cos(Pitch);
+        var CosPitch=FloatMath.Cos(Pitch);
         return Vector3.Normalize(new Vector3(
-            CosPitch*(float)Math.Sin(Yaw),
-            (float)Math.Sin(Pitch),
-            CosPitch*(float)Math.Cos(Yaw)));
+            CosPitch*FloatMath.Sin(Yaw),
+            FloatMath.Sin(Pitch),
+            CosPitch*FloatMath.Cos(Yaw)));
     }
 
     /// <summary>ピッチを除いたXZ平面上の前方向(Fly移動の水平基準)。</summary>
     internal static Vector3 GetFlatForward(float Yaw)=>
-        Vector3.Normalize(new Vector3((float)Math.Sin(Yaw),0f,(float)Math.Cos(Yaw)));
+        Vector3.Normalize(new Vector3(FloatMath.Sin(Yaw),0f,FloatMath.Cos(Yaw)));
 
     /// <summary>
     /// 水平右方向。CameraTests.GetFlatRight_MatchesLegacyCrossProductFormula_AcrossYawSweep が
@@ -185,36 +185,36 @@ internal static class SceneViewCamera {
         Vector3 LocalAxes,Vector3 TargetWorldDirection,float PreviousYaw,float PreviousPitch){
         float Lx=LocalAxes.X,Ly=LocalAxes.Y,Lz=LocalAxes.Z;
 
-        float R=(float)Math.Sqrt(Ly*Ly+Lz*Lz);
+        float R=FloatMath.Sqrt(Ly*Ly+Lz*Lz);
         if(R<1e-6f){
             // ローカルレイがほぼFlatRight軸(画面の端も端、実運用では起こらない)。解けないので
             // 直前の向きを維持する。
             return(PreviousYaw,PreviousPitch);
         }
 
-        float Phi=(float)Math.Atan2(Lz,Ly);
+        float Phi=FloatMath.Atan2(Lz,Ly);
         float Ratio=Math.Min(Math.Max(TargetWorldDirection.Y/R,-1f),1f);
-        float AcosValue=(float)Math.Acos(Ratio);
+        float AcosValue=FloatMath.Acos(Ratio);
         float CandidateA=Phi+AcosValue;
         float CandidateB=Phi-AcosValue;
         float Pitch=AngularDistance(CandidateA,PreviousPitch)<=AngularDistance(CandidateB,PreviousPitch)
             ?CandidateA:CandidateB;
         Pitch=Math.Min(Math.Max(Pitch,MinPitchRadians),MaxPitchRadians);
 
-        float K=Lz*(float)Math.Cos(Pitch)-Ly*(float)Math.Sin(Pitch);
+        float K=Lz*FloatMath.Cos(Pitch)-Ly*FloatMath.Sin(Pitch);
         if(Math.Abs(Lx)<1e-6f&&Math.Abs(K)<1e-6f){
             return(PreviousYaw,Pitch);
         }
 
-        float Yaw=(float)Math.Atan2(K,Lx)-(float)Math.Atan2(TargetWorldDirection.Z,TargetWorldDirection.X);
+        float Yaw=FloatMath.Atan2(K,Lx)-FloatMath.Atan2(TargetWorldDirection.Z,TargetWorldDirection.X);
         return(Yaw,Pitch);
     }
 
     private static float AngularDistance(float A,float B){
-        const float TwoPi=(float)(2.0*Math.PI);
+        const float TwoPi=2f*FloatMath.Pi;
         float Delta=A-B;
-        while(Delta>Math.PI){ Delta-=TwoPi; }
-        while(Delta<-Math.PI){ Delta+=TwoPi; }
+        while(Delta>FloatMath.Pi){ Delta-=TwoPi; }
+        while(Delta<-FloatMath.Pi){ Delta+=TwoPi; }
         return Math.Abs(Delta);
     }
 

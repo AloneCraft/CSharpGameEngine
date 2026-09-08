@@ -263,7 +263,7 @@ private static void ResetCollectionProperties(IEnumerable<HLSLSyntaxNode> Instan
     }
     private static bool IsScalarType(Type Type) {
         var Effective=Nullable.GetUnderlyingType(Type)??Type;
-        return Effective.IsEnum||Effective==typeof(string)||Effective==typeof(bool)||Effective==typeof(byte)||Effective==typeof(int)||Effective==typeof(uint)||Effective==typeof(float)||Effective==typeof(double);
+        return Effective.IsEnum||Effective==typeof(string)||Effective==typeof(bool)||Effective==typeof(byte)||Effective==typeof(int)||Effective==typeof(uint)||Effective==typeof(float);
     }
     private static bool TryGetSyntaxElementType(Type Type,out Type ElementType) {
         return TryGetElementType(Type,typeof(HLSLSyntaxNode),out ElementType);
@@ -317,9 +317,6 @@ private static void ResetCollectionProperties(IEnumerable<HLSLSyntaxNode> Instan
         }
         if(Effective==typeof(float)) {
             return float.Parse(Value,CultureInfo.InvariantCulture);
-        }
-        if(Effective==typeof(double)) {
-            return double.Parse(Value,CultureInfo.InvariantCulture);
         }
         return null;
     }

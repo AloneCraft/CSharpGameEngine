@@ -103,8 +103,18 @@
            再利用しないこと (既にインストール済みの VS がキーバインドやカスタマイズを保持している)。 -->
       <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerCommandId" priority="0x0100" type="Button">
         <Parent guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" />
+        <Icon guid="ImageCatalogGuid" id="OpenFolder" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
         <CommandFlag>DynamicVisibility</CommandFlag>
         <CommandFlag>TextChanges</CommandFlag>
+        <Strings>
+          <ButtonText>シーン デザイナーで開く</ButtonText>
+        </Strings>
+      </Button>
+      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneDesignerToolbarCommandId" priority="0x0000" type="Button">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarGroup" />
+        <Icon guid="ImageCatalogGuid" id="OpenFolder" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
         <Strings>
           <ButtonText>シーン デザイナーで開く</ButtonText>
         </Strings>
@@ -504,6 +514,7 @@
            再利用しないこと。 -->
       <!-- ADR-0040 Phase 9. -->
       <IDSymbol name="OpenSceneDesignerCommandId" value="0x0109" />
+      <IDSymbol name="OpenSceneDesignerToolbarCommandId" value="0x0131" />
       <IDSymbol name="SceneDesignerContextMenuGroup" value="0x1024" />
       <IDSymbol name="OpenSceneDesignerSceneItem00" value="0x0110" />
       <IDSymbol name="OpenSceneDesignerSceneItem01" value="0x0111" />

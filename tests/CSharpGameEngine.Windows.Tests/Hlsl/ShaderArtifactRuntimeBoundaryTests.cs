@@ -1,21 +1,21 @@
-using CSharpGameEngine.Graphics.D3D12;
+using CSharpGameEngine.Runtime.Windows;
 namespace CSharpGameEngine.ShaderArtifacts.Tests;
 public sealed class ShaderArtifactRuntimeBoundaryTests {
     [Fact]
     public void WindowsRuntimeDoesNotContainHlslCompiler() {
-        var Assembly=typeof(TriangleRenderer).Assembly;
+        var Assembly=typeof(RenderServer).Assembly;
         Assert.Null(Assembly.GetType("CSharpGameEngine.Compiler.Hlsl.HlslCompiler",false));
     }
     [Fact]
     public void HotReloadIsCompiledOnlyInDebug() {
 #if DEBUG
-        Assert.True(TriangleRenderer.ShaderHotReloadEnabled);
+        Assert.True(RenderServer.ShaderHotReloadEnabled);
 #else
-        Assert.False(TriangleRenderer.ShaderHotReloadEnabled);
+        Assert.False(RenderServer.ShaderHotReloadEnabled);
 #endif
     }    [Fact]
     public void WindowsRuntimeDoesNotReferenceDxcAssembly() {
-        var References=typeof(TriangleRenderer).Assembly.GetReferencedAssemblies();
+        var References=typeof(RenderServer).Assembly.GetReferencedAssemblies();
         Assert.DoesNotContain(References,Reference=>Reference.Name?.Contains("DXC",StringComparison.OrdinalIgnoreCase)==true);
     }
 }

@@ -45,4 +45,7 @@
     <None Include="..\..\src\CSharpGameEngine.Core\Authoring\SceneAssetsAttribute.cs" Link="TestAssets\Core\SceneAssetsAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="../../src/CSharpGameEngine.Entities/EcsSnapshotTransientAttribute.cs" Link="TestAssets/Entities/EcsSnapshotTransientAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

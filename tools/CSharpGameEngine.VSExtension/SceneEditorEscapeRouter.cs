@@ -20,6 +20,7 @@ internal sealed class SceneEditorEscapeRouter:IDisposable {
         this.Owner.Loaded+=this.OnLoaded;
         this.Owner.Unloaded+=this.OnUnloaded;
         this.Owner.LostKeyboardFocus+=this.OnLostKeyboardFocus;
+        InputManager.Current.PreProcessInput+=this.OnPreProcessInput;
         this.Owner.AddHandler(Keyboard.PreviewKeyDownEvent,new KeyEventHandler(this.OnPreviewKeyDown),true);
         this.Owner.AddHandler(Keyboard.PreviewKeyUpEvent,new KeyEventHandler(this.OnPreviewKeyUp),true);
     }
@@ -29,6 +30,22 @@ internal sealed class SceneEditorEscapeRouter:IDisposable {
         this.DetachSource();
     }
     private void OnLostKeyboardFocus(object Sender,KeyboardFocusChangedEventArgs Args)=>this.EscapePressed=false;
+    private void OnPreProcessInput(object Sender,PreProcessInputEventArgs Args){
+        if(Args.StagingItem.Input is not KeyEventArgs KeyArgs){
+            return;
+        }
+        if(KeyArgs.RoutedEvent==Keyboard.PreviewKeyDownEvent
+            &&SceneEditorEscapeRoutingPolicy.ShouldConsume(
+                this.Owner.IsKeyboardFocusWithin,KeyArgs.Key==Key.Escape)){
+            this.HandleInitialEscape();
+            KeyArgs.Handled=true;
+        } else if(KeyArgs.RoutedEvent==Keyboard.PreviewKeyUpEvent
+            &&SceneEditorEscapeRoutingPolicy.ShouldConsume(
+                this.Owner.IsKeyboardFocusWithin,KeyArgs.Key==Key.Escape)){
+            this.EscapePressed=false;
+            KeyArgs.Handled=true;
+        }
+    }
     private void AttachSource(){
         if(this.Disposed||this.Source is not null){
             return;
@@ -87,6 +104,7 @@ internal sealed class SceneEditorEscapeRouter:IDisposable {
         this.Owner.Loaded-=this.OnLoaded;
         this.Owner.Unloaded-=this.OnUnloaded;
         this.Owner.LostKeyboardFocus-=this.OnLostKeyboardFocus;
+        InputManager.Current.PreProcessInput-=this.OnPreProcessInput;
         this.Owner.RemoveHandler(Keyboard.PreviewKeyDownEvent,new KeyEventHandler(this.OnPreviewKeyDown));
         this.Owner.RemoveHandler(Keyboard.PreviewKeyUpEvent,new KeyEventHandler(this.OnPreviewKeyUp));
     }

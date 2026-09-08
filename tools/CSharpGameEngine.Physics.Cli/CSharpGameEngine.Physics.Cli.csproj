@@ -8,6 +8,8 @@
     <Platforms>x64</Platforms>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../../src/CSharpGameEngine.Import/CSharpGameEngine.Import.csproj" />
+    <ProjectReference Include="../CSharpGameEngine.Bridge.Hosting/CSharpGameEngine.Bridge.Hosting.csproj" />
     <ProjectReference Include="..\..\UserEcsProject\UserEcsProject.csproj" />
   </ItemGroup>
 </Project>

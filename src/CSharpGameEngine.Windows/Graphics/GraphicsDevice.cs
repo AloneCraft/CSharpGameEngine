@@ -48,6 +48,26 @@ public sealed unsafe class GraphicsDevice:IDisposable {
 
     public ID3D12CommandQueue*CommandQueue=> this.CommandQueueHandle;
 
+    /// <summary>For executable fault-injection tests only; invokes the real D3D12 removal path.</summary>
+    internal void RemoveDeviceForTesting(){
+        ObjectDisposedException.ThrowIf(this.Disposed,this);
+        if(!OperatingSystem.IsWindowsVersionAtLeast(10,0,19043)){
+            throw new PlatformNotSupportedException(
+                "D3D12 device-removal fault injection requires Windows build 19043 or later.");
+        }
+        ID3D12Device5*Device5;
+        D3D12Diagnostics.EnsureSuccess(
+            this.DeviceHandle->QueryInterface(
+                __uuidof<ID3D12Device5>(),(void**)&Device5),
+            "ID3D12Device::QueryInterface",
+            "acquiring ID3D12Device5 for device-removal fault injection");
+        try {
+            Device5->RemoveDevice();
+        } finally {
+            _=Device5->Release();
+        }
+    }
+
     public static GraphicsDevice Create(GraphicsDeviceOptions Options){
         ArgumentNullException.ThrowIfNull(Options);
 

@@ -42,7 +42,7 @@ public sealed class SceneInspectorModelTests {
         var Member=BuildSingleMember(CreateSnapshot(),"Light","Intensity");
 
         Assert.Equal(InspectorEditorKind.Number,Member.EditorKind);
-        Assert.Empty(Member.EnumCandidates);
+        Assert.Empty(Member.Candidates);
     }
 
     [Fact]
@@ -51,8 +51,59 @@ public sealed class SceneInspectorModelTests {
         var Member=BuildSingleMember(Snapshot,"Box","Type");
 
         Assert.Equal(InspectorEditorKind.Enum,Member.EditorKind);
-        Assert.Equal(["Cube","Sphere","Plane"],Member.EnumCandidates.Select(static C=>C.Name));
-        Assert.Contains(Member.EnumCandidates,static C=>C.EmitExpression.EndsWith("PrimitiveType.Cube",StringComparison.Ordinal));
+        Assert.Equal(["Cube","Sphere","Plane"],Member.Candidates.Select(static C=>C.Name));
+        Assert.Contains(Member.Candidates,static C=>C.EmitExpression.EndsWith("PrimitiveType.Cube",StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Build_SceneAssetReference_ListsOnlyCompatibleReadOnlyAssetSymbols(){
+        var Snapshot=CreateAssetReferenceSnapshot();
+        var Member=BuildSingleMember(Snapshot,"Mesh","AssetPath");
+
+        Assert.True(Member.IsEditable);
+        Assert.Equal(InspectorEditorKind.AssetReference,Member.EditorKind);
+        Assert.Equal(["Floor","Wall"],Member.Candidates.Select(static Candidate=>Candidate.Name));
+        Assert.All(Member.Candidates,static Candidate=>Assert.StartsWith("global::Game.Assets.",Candidate.EmitExpression));
+    }
+
+    [Fact]
+    public void ChoiceCommit_AcceptsDeclaredAssetAndRejectsUndeclaredAssetWithoutAnOperation(){
+        var Snapshot=CreateAssetReferenceSnapshot();
+        var Member=BuildSingleMember(Snapshot,"Mesh","AssetPath");
+
+        Assert.True(SceneInspectorCommitPlanner.TryCreateChoiceCommit(
+            Key,Snapshot.DocumentVersion,Member,"Wall",out var Request));
+        var Operation=Assert.IsType<SetComponentMemberOperation>(Assert.Single(Request.DirectOperations));
+        Assert.EndsWith("Assets.Wall",Operation.ValueExpression,StringComparison.Ordinal);
+        Assert.False(SceneInspectorCommitPlanner.TryCreateChoiceCommit(
+            Key,Snapshot.DocumentVersion,Member,"Missing",out _));
+        Assert.True(SceneInspectorCommitPlanner.IsCurrentChoice(Member,"Floor"));
+        Assert.False(SceneInspectorCommitPlanner.TryCreateChoiceCommit(
+            Key,Snapshot.DocumentVersion,Member,"Floor",out _));
+    }
+
+    [Theory]
+    [InlineData("double")]
+    [InlineData("decimal")]
+    public void Build_NonCanonicalRealMember_IsReadOnly(string TypeName){
+        var Model=SceneAnalysisTestHelper.Analyze([
+            $"namespace Sample {{ public struct Legacy {{ public {TypeName} Value; }} }}",
+            """
+            using CSharpGameEngine.Entities;
+            using Sample;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() { Children=[new Node { Name="Legacy",Components=[new Legacy { Value=1 }] }] };
+            }
+            """,
+        ]);
+        var Snapshot=SceneDocumentSnapshot.Create(
+            Key,"document-a",1,1,Model,false,null,new SceneProjectionReconciler());
+        var Member=BuildSingleMember(Snapshot,"Legacy","Value");
+
+        Assert.Null(Member.NumericType);
+        Assert.False(Member.IsEditable);
+        Assert.Equal(InspectorEditorKind.ReadOnly,Member.EditorKind);
     }
 
     [Fact]
@@ -85,15 +136,20 @@ public sealed class SceneInspectorModelTests {
     [Theory]
     [InlineData("5",Microsoft.CodeAnalysis.SpecialType.System_Single,"5f")]
     [InlineData("-1.5",Microsoft.CodeAnalysis.SpecialType.System_Single,"-1.5f")]
-    [InlineData("5",Microsoft.CodeAnalysis.SpecialType.System_Double,"5d")]
     [InlineData("3",Microsoft.CodeAnalysis.SpecialType.System_Int32,"3")]
     [InlineData("-3",Microsoft.CodeAnalysis.SpecialType.System_Int32,"-3")]
     [InlineData("4",Microsoft.CodeAnalysis.SpecialType.System_Int64,"4L")]
-    [InlineData("4",Microsoft.CodeAnalysis.SpecialType.System_Decimal,"4m")]
     public void TryFormatNumber_ValidInput_ProducesTypeCorrectLiteral(
         string Text,Microsoft.CodeAnalysis.SpecialType Type,string Expected){
         Assert.True(SceneInspectorValueFormat.TryFormatNumber(Type,Text,out var Expression));
         Assert.Equal(Expected,Expression);
+    }
+
+    [Theory]
+    [InlineData(Microsoft.CodeAnalysis.SpecialType.System_Double)]
+    [InlineData(Microsoft.CodeAnalysis.SpecialType.System_Decimal)]
+    public void TryFormatNumber_NonCanonicalRealType_IsRejected(Microsoft.CodeAnalysis.SpecialType Type){
+        Assert.False(SceneInspectorValueFormat.TryFormatNumber(Type,"5",out _));
     }
 
     [Fact]
@@ -407,6 +463,33 @@ public sealed class SceneInspectorModelTests {
                                                       public Node Root=>new() { Children=[new Node { Name="Box",Components=[new PrimitiveMesh { Type=PrimitiveType.Cube }] }] };
                                                   }
                                                   """);
+        return SceneDocumentSnapshot.Create(
+            Key,"document-a",DocumentVersion:1,AnalysisGeneration:1,Model,HasBlockingErrors:false,Previous:null,new SceneProjectionReconciler());
+    }
+
+    private static SceneDocumentSnapshot CreateAssetReferenceSnapshot(){
+        var Model=SceneAnalysisTestHelper.Analyze([
+            """
+            using CSharpGameEngine.Authoring;
+            namespace Game;
+            [SceneAssets]
+            public static class Assets {
+                public const string Floor="Assets/Floor.glb";
+                public const string Wall="Assets/Wall.glb";
+                public static string Mutable="Assets/Mutable.glb";
+                public const int WrongType=1;
+            }
+            """,
+            "namespace Sample { public struct StaticMesh { public string AssetPath; } }",
+            """
+            using CSharpGameEngine.Entities;
+            using Sample;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() { Children=[new Node { Name="Mesh",Components=[new StaticMesh { AssetPath=Assets.Floor }] }] };
+            }
+            """,
+        ]);
         return SceneDocumentSnapshot.Create(
             Key,"document-a",DocumentVersion:1,AnalysisGeneration:1,Model,HasBlockingErrors:false,Previous:null,new SceneProjectionReconciler());
     }

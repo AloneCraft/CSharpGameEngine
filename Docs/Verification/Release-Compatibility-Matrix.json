@@ -1,0 +1,57 @@
+{
+  "schemaVersion": "csharp-game-engine-release-compatibility-v1",
+  "featureId": "F-L7-046",
+  "scope": {
+    "id": "windows-x64-product",
+    "operatingSystem": "Windows",
+    "minimumVersion": "10.0.19041.0",
+    "architecture": "x64",
+    "dotnetRuntime": "10.0",
+    "vsixTargetFramework": "net472",
+    "visualCertificationAdapter": "warp"
+  },
+  "sources": {
+    "ciMatrix": "Docs/Verification/CI-Matrix.json",
+    "platformMatrix": "Docs/Verification/Platform-Compatibility-Matrix.json",
+    "vsixMatrix": "Docs/Verification/VSIX-Compatibility-Matrix.json",
+    "manualEvidence": "Docs/Verification/Manual-Evidence.json"
+  },
+  "requiredStages": [
+    "verification.ci-matrix",
+    "platform.compatibility",
+    "vsix.compatibility",
+    "release.packages"
+  ],
+  "requiredCiCells": [
+    "solution-debug",
+    "solution-release",
+    "windows-tfm-debug",
+    "windows-tfm-release",
+    "vsix-debug",
+    "vsix-release",
+    "warp-debug",
+    "warp-release"
+  ],
+  "requiredPlatformCells": [
+    "platform-solution-debug",
+    "platform-solution-release",
+    "platform-windows-debug",
+    "platform-windows-release",
+    "platform-warp-debug",
+    "platform-warp-release"
+  ],
+  "requiredVsixChecks": [
+    "shader-graph-1041",
+    "shader-graph-1033",
+    "scene-designer",
+    "dpi-scaling",
+    "escape-routing",
+    "physics-sidebar",
+    "startup-layout",
+    "preview-render-audio"
+  ],
+  "optionalHardwareCells": [
+    "platform-hardware-audio",
+    "platform-hardware-d3d12"
+  ]
+}

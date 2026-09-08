@@ -6,7 +6,7 @@ namespace CSharpGameEngine.VSExtension.Tests;
 
 /// <summary>
 /// <see cref="SceneCameraFraming"/> の視点ポリシー。M0020 Phase 0 でバウンズ計算を
-/// <see cref="SceneRenderer"/> から移設したことで、GPU も HWND も無しに検証できるようになった。
+/// 旧in-process rendererから移設したことで、GPU も HWND も無しに検証できるようになった。
 /// </summary>
 public sealed class SceneCameraFramingTests {
     private const float Tolerance=1e-3f;
@@ -141,7 +141,7 @@ public sealed class SceneCameraFramingTests {
     [Fact]
     public void ComputeDistance_AtFortyFiveDegrees_StaysWithinFivePercentOfTheLegacyThreeRadiusFraming(){
         // M0020 Phase 0 までは距離が固定の 3.0*Radius だった。FOV 導出形に替えても見た目が実質
-        // 変わらないことを固定する(実測 2.874*Radius = -4.2%)。
+        // 変わらないことを固定する(実測 2.874f*Radius = -4.2f%)。
         const float Radius=12f;
 
         var Distance=SceneCameraFraming.ComputeDistance(Radius,SceneCameraFraming.DefaultFovYRadians,AspectRatio:1f);

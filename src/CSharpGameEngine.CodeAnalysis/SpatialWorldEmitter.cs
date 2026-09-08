@@ -6,7 +6,7 @@ namespace CSharpGameEngine.CodeAnalysis;
 internal static class SpatialWorldEmitter {
     private const string HintName="SpatialWorld.g.cs";
     private const string SpatialBoundsFullyQualifiedName="global::CSharpGameEngine.Entities.SpatialBounds";
-    private const string TransformFullyQualifiedName="global::CSharpGameEngine.Runtime.Windows.Transform";
+    private const string TransformFullyQualifiedName="global::CSharpGameEngine.Entities.Transform";
     private const string ParentFullyQualifiedName="global::CSharpGameEngine.Entities.Parent";
     internal static bool ShouldEmit(GameSystemRegistry Registry)=>FindComponentIndex(Registry,SpatialBoundsFullyQualifiedName)>=0
         &&FindComponentIndex(Registry,TransformFullyQualifiedName)>=0

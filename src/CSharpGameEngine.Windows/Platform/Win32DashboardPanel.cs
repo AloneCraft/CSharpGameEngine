@@ -130,7 +130,7 @@ public sealed class Win32DashboardPanel:IDisposable {
                         SuccessfulTextDraws+=Draw(MemoryDc,$"{Bar.Label}  {Bar.Value}/{Bar.Maximum}",Padding,ref Y,Width-Padding*2,(int)(22*Scale),BodyFont,Rgb(203,213,225));
                         var Track=new NativeRect(Padding,Y,Width-Padding,Math.Min(Height,Y+(int)(8*Scale)));
                         Fill(MemoryDc,Track,Rgb(51,65,85));
-                        var Ratio=Bar.Maximum<=0?0:Math.Clamp((double)Bar.Value/Bar.Maximum,0,1);
+                        var Ratio=Bar.Maximum<=0?0f:Math.Clamp((float)Bar.Value/Bar.Maximum,0f,1f);
                         Fill(MemoryDc,new NativeRect(Track.Left,Track.Top,Track.Left+(int)((Track.Right-Track.Left)*Ratio),Track.Bottom),Rgb(56,189,248));
                         Y=Track.Bottom;
                     }

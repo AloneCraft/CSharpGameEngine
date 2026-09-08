@@ -160,7 +160,7 @@ UserEcsProject remains an L9 composition root for scenes, gameplay components, a
 
 ## Deterministic Simulation / Physics domains
 
-`CSharpGameEngine.Runtime.Simulation`(L3/L5共通実行契約)は整数tick、phase、Domain command/event、cache identityを所有する。`CSharpGameEngine.Runtime.Physics`(L5)はユーザー選択Logical profileと同じCompilation内でQ32.32局所剛体を実行し、Physics専用Dynamic AABB Treeを使う。Global Loose Octreeは一般空間Query/表示のままである。Cooking/CacheはL6 artifact、CLI/将来Bake HostはL7、Scene ViewはL8 frontendとする。異種Simulationは翌tick Bridgeだけを共有しsolverを共有しない。
+`CSharpGameEngine.Runtime.Simulation`(L3/L5共通実行契約)は整数tick、phase、Domain command/event、cache identityを所有する。`CSharpGameEngine.Runtime.Physics`(L5)はユーザーCompilation内でQ64.64 `LogicalScalar`局所剛体を実行し、Physics専用Dynamic AABB Treeを使う。Global Loose Octreeは一般空間Query/表示のままである。Cooking/CacheはL6 artifact、CLIと生成Scene Bake HostはL7、Scene ViewはL8 frontendとする。RuntimeとBakeは同じ生成System setとsolverを使い、BakeだけがFrameInput/Presentationを除外してcanonical frameを逐次出力する。異種Simulationは翌tick Bridgeだけを共有しsolverを共有しない。
 
 ### VSIX localization boundary
 
@@ -176,7 +176,7 @@ The Rendering, Asset/Content, Editor/VSIX, ECS/Runtime, Audio/Input/Platform, an
 
 The target keeps Win32/D3D12/XAudio2 binding at L0, portable values at L1-L5, engine-owned runtime servers at L4, artifacts at L6, static compilers/bake at L7, and Visual Studio only at L8. Runtime L0-L6 must not reference Roslyn or Visual Studio SDK. C# `IScene` remains source of truth; artifacts/caches are reproducible and old readers are removed with an immediate feature cutover.
 
-ECS vNext preserves the generated one-to-sixty-four-component single-`ulong` generator path with no runtime mask cost. F-L3-020 remains a future two-mask design, not an active runtime dependency. The currently implemented machine behavior is the Feature catalog v2: tracks, dependency Levels, dependency IDs, oracle-bearing target Stages, and Visual alias registration. It does not implement the six subsystem target bodies.
+ECS preserves the generated one-to-sixty-four-component single-`ulong` generator path with no runtime mask cost. F-L3-020 extends only the Source Generator subset test to a second `ulong` for 65–128 Component types; generated Runtime dispatch remains direct Archetype loops. The Feature catalog v2 records this as an executable foundation Stage alongside tracks, dependency Levels, dependency IDs, oracle-bearing target Stages, and Visual alias registration.
 
 ## Autonomous Feature verification
 
@@ -191,4 +191,4 @@ ECS vNext preserves the generated one-to-sixty-four-component single-`ulong` gen
 
 ### Static ECS mask boundary
 
-現行のComponent型上限は64である。単一`long` maskはSource GeneratorのArchetype部分集合判定だけに使われ、生成Runtimeにはmask判定が残らない。65型以上はF-L3-020へ延期し、将来も1–64の単一mask pathを不変にしたまま65–128だけを二重maskへ分岐する。
+現行のComponent型上限は128である。Source GeneratorのArchetype部分集合判定は1–64型ではlow `ulong`だけを使い、65–128型でlow/high二語へ分岐する。生成Runtimeにはmask判定が残らず、129型以上はSYSGEN026で拒否する。

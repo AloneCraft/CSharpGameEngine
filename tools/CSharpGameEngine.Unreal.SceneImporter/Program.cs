@@ -166,9 +166,9 @@ static void AppendFog(StringBuilder Builder,ImportFog Fog){
 static void AppendTransform(StringBuilder Builder,Vector3 Translation,Quaternion Rotation,Vector3 Scale,string Indent){
     Vector3 Euler=ToEulerRuf(Rotation);
     Builder.Append(Indent).AppendLine("new Transform {");
-    Builder.Append(Indent).Append("    Position=new Logical.Vector3(").Append(F(Translation.X)).Append(',').Append(F(Translation.Y)).Append(',').Append(F(Translation.Z)).AppendLine("),");
-    Builder.Append(Indent).Append("    Rotation=new Logical.Vector3(").Append(F(Euler.X)).Append(',').Append(F(Euler.Y)).Append(',').Append(F(Euler.Z)).AppendLine("),");
-    Builder.Append(Indent).Append("    Scale=new Logical.Vector3(").Append(F(Scale.X)).Append(',').Append(F(Scale.Y)).Append(',').Append(F(Scale.Z)).AppendLine("),");
+    Builder.Append(Indent).Append("    Position=new LogicalVector3(").Append(F(Translation.X)).Append(',').Append(F(Translation.Y)).Append(',').Append(F(Translation.Z)).AppendLine("),");
+    Builder.Append(Indent).Append("    Rotation=new LogicalQuaternion(new LogicalVector3(").Append(F(Euler.X)).Append(',').Append(F(Euler.Y)).Append(',').Append(F(Euler.Z)).AppendLine(")),");
+    Builder.Append(Indent).Append("    Scale=new LogicalVector3(").Append(F(Scale.X)).Append(',').Append(F(Scale.Y)).Append(',').Append(F(Scale.Z)).AppendLine("),");
     Builder.Append(Indent).AppendLine("},");
 }
 

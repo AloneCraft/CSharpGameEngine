@@ -9,6 +9,7 @@ namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// source on its -Y center axis so an off-axis projection error cannot be mistaken for a PCSS
 /// penumbra failure.
 /// </summary>
+[Collection(D3D12GpuCollection.Name)]
 public sealed class AreaEmissiveShadowGpuIntegrationTests {
     private static readonly string ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact");
     private static readonly Vector3 AreaSourcePosition=new(0f,8f,0f);

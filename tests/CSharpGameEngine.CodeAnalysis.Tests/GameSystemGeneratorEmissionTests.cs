@@ -58,9 +58,13 @@ public sealed class GameSystemGeneratorEmissionTests {
 
         Assert.Contains("public Entity Create(global::Sample.Position Position)",Text);
         Assert.Contains("public Entity Create(global::Sample.Position Position, global::Sample.Velocity Velocity)",Text);
+        Assert.Contains("public Entity CreateDeferred(global::Sample.Position Position)",Text);
         Assert.Contains("public bool MoveArchetype(Entity Entity, global::Sample.Position Position, ref State State)",Text);
         Assert.Contains("public void PlaybackStructuralChanges(ref State State)",Text);
         Assert.Contains("public void Destroy(Entity Entity)",Text);
+        Assert.Contains("this.Commands.Move(MoveIndex);",Text);
+        Assert.Contains("StructuralCommand.Kind != EntityCommandKind.Move",Text);
+        Assert.DoesNotContain("this.PlaybackSceneCommands();",Text);
     }
 
     [Fact]
@@ -91,6 +95,9 @@ public sealed class GameSystemGeneratorEmissionTests {
 
         Assert.True(First>=0&&Second>=0,"both systems must be dispatched");
         Assert.True(First<Second,"declaration order must be preserved");
+        Assert.Contains("State.World.BeginSystemExecution();",Text);
+        Assert.Contains("State.World.EndSystemExecution();",Text);
+        Assert.Contains("} finally {",Text);
     }
 
     [Fact]

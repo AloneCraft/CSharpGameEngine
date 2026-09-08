@@ -13,4 +13,15 @@ public sealed class SceneEditorEscapeRoutingPolicyTests {
         Assert.True(SceneEditorEscapeRoutingPolicy.ShouldInvoke(EscapeAlreadyPressed:false));
         Assert.False(SceneEditorEscapeRoutingPolicy.ShouldInvoke(EscapeAlreadyPressed:true));
     }
+    [Theory]
+    [InlineData(NativeMethods.WM_KEYDOWN,NativeMethods.VK_ESCAPE,true)]
+    [InlineData(NativeMethods.WM_KEYUP,NativeMethods.VK_ESCAPE,false)]
+    [InlineData(NativeMethods.WM_KEYDOWN,NativeMethods.VK_S,false)]
+    public void VisualStudioMessageBoundary_ConsumesOnlyEscapeKeyDown(
+        int Message,int VirtualKey,bool Expected){
+        Assert.Equal(
+            Expected,
+            SceneEditorEscapeRoutingPolicy.IsVisualStudioEscapeKeyDown(
+                Message,VirtualKey));
+    }
 }

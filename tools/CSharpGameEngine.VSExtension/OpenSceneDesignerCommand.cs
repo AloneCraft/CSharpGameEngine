@@ -16,6 +16,7 @@ namespace CSharpGameEngine.VSExtension;
 /// </summary>
 internal sealed class OpenSceneDesignerCommand {
     public const int CommandId=0x0109;
+    public const int ToolbarCommandId=0x0131;
 
     // 複数Sceneの一覧は、固有IDを持つスロットを.vsctに固定で並べて表現する(0x0110〜0x012F)。
     // VSのDynamicItemStart(可変長)は使わない: root ID(先頭項目)だけはOleMenuCommandServiceが
@@ -60,6 +61,13 @@ internal sealed class OpenSceneDesignerCommand {
         this.DirectCommand.BeforeQueryStatus+=this.UpdateMenuCommands;
         CommandService.AddCommand(this.DirectCommand);
 
+        // The persistent toolbar must not inherit the context menu's transient Analyzing status.
+        // It delegates to the same immutable snapshot and OpenScene path, but has its own command
+        // identity so Visual Studio cannot cache the context placement's startup-disabled state.
+        OleMenuCommand ToolbarCommand=new(
+            this.ExecuteToolbar,new CommandID(CommandSet,ToolbarCommandId));
+        CommandService.AddCommand(ToolbarCommand);
+
         for(var Slot=0;Slot<SceneItemCommandCount;Slot++){
             // ループ変数をそのままクロージャへ取り込むと全スロットが最後のindexを指す。必ずコピーする。
             var ItemIndex=Slot;
@@ -85,7 +93,7 @@ internal sealed class OpenSceneDesignerCommand {
         CommandService.AddCommand(this.OverflowCommand);
     }
 
-    public static async Task InitializeAsync(
+    public static async Task<OpenSceneDesignerCommand>InitializeAsync(
         AsyncPackage Package,
         SceneEditorSessionService Session,
         ActiveDocumentTracker DocumentTracker,
@@ -96,17 +104,35 @@ internal sealed class OpenSceneDesignerCommand {
             throw new InvalidOperationException($"{nameof(IMenuCommandService)} is not available from the VS shell.");
         }
 
-        _=new OpenSceneDesignerCommand(Package,CommandService,Session,DocumentTracker,Documents);
+        return new OpenSceneDesignerCommand(
+            Package,CommandService,Session,DocumentTracker,Documents);
+    }
+
+    internal void RefreshStatus(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        var Presentation=this.RefreshPresentation();
+        this.ApplyDirectPresentation(Presentation);
+        ActivityLog.LogInformation(
+            nameof(OpenSceneDesignerCommand),
+            $"Refreshed Scene Designer command from analyzed snapshot; "
+            +$"file='{this.DocumentTracker.CurrentFilePath??"<none>"}'; "
+            +$"mode='{Presentation.Mode}'; items={Presentation.Items.Count}; "
+            +$"enabled={this.DirectCommand.Enabled}; visible={this.DirectCommand.Visible}.");
     }
 
     private void UpdateMenuCommands(object Sender,EventArgs E){
         ThreadHelper.ThrowIfNotOnUIThread();
 
         var Presentation=this.RefreshPresentation();
+        this.ApplyDirectPresentation(Presentation);
+    }
+
+    private void ApplyDirectPresentation(SceneDesignerCommandPresentation Presentation){
+        ThreadHelper.ThrowIfNotOnUIThread();
+
         this.DirectCommand.Visible=Presentation.Mode is SceneDesignerMenuMode.Direct or SceneDesignerMenuMode.Disabled;
         this.DirectCommand.Enabled=Presentation.Mode==SceneDesignerMenuMode.Direct;
         this.DirectCommand.Text=Presentation.Text;
-
     }
 
     /// <summary>
@@ -179,8 +205,11 @@ internal sealed class OpenSceneDesignerCommand {
         }
 
         if(!this.DocumentTracker.TryCaptureActiveCaretPosition(FilePath,out var CaretPosition)){
-            this.CurrentInvocation=null;
-            return SceneDesignerContextMenuPolicy.Create(FilePath,SceneDesignerTargetState.Unavailable,[]);
+            // Toolbar and command-search invocation need a file-level target, not a text caret.
+            // A position outside every declaration preserves the context-menu rule: one Scene is
+            // direct, multiple Scenes remain a context-menu choice, and non-Scene files stay
+            // disabled. The snapshot is already immutable and contains no live Roslyn work.
+            return this.BuildPresentation(FilePath,CaretPosition:-1);
         }
 
         return this.BuildPresentation(FilePath,CaretPosition);
@@ -221,6 +250,20 @@ internal sealed class OpenSceneDesignerCommand {
         }
 
         this.OpenScene(Invocation,Invocation.Items[0].FullyQualifiedName);
+    }
+
+    private void ExecuteToolbar(object Sender,EventArgs E){
+        ThreadHelper.ThrowIfNotOnUIThread();
+
+        var Presentation=this.RefreshPresentation();
+        if(Presentation.Mode==SceneDesignerMenuMode.Direct
+            &&this.CurrentInvocation is { }Invocation
+            &&Invocation.Items.Count==1){
+            this.OpenScene(Invocation,Invocation.Items[0].FullyQualifiedName);
+            return;
+        }
+
+        this.SetStatusBarText(Presentation.Text);
     }
 
     /// <summary>

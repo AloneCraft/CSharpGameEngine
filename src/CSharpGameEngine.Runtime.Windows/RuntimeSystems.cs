@@ -1,69 +1,25 @@
 using System.Numerics;
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Graphics.D3D12;
-using CSharpGameEngine.Input;
 using CSharpGameEngine.Platform.Windows;
 using RenderCamera=CSharpGameEngine.Graphics.D3D12.Camera;
 using Camera=CSharpGameEngine.Runtime.Windows.Camera;
+using EcsWorld=CSharpGameEngine.Entities.World;
 
 namespace CSharpGameEngine.Runtime.Windows;
 
 [SystemOrder(1)]
 file sealed class Order;
 
-/// <summary>LevelLoadが確定したRendererを、Scene由来Runtime Componentへ遅延で接続する。</summary>
-internal static class RuntimeRendererBinding {
-    private static StageRenderer?ActiveRenderer;
-    private static FixedAffineTransform CameraWorldOrigin;
-    private static bool HasCameraWorldOrigin;
-
-    public static void SetActive(StageRenderer Renderer,in FixedAffineTransform CameraOrigin){
-        ActiveRenderer=Renderer;
-        SetCameraWorldOrigin(CameraOrigin);
-    }
-
-    public static void SetCameraWorldOrigin(in FixedAffineTransform CameraOrigin){
-        CameraWorldOrigin=CameraOrigin;
-        HasCameraWorldOrigin=true;
-    }
-
-    public static void Clear(StageRenderer Renderer){
-        if(ReferenceEquals(ActiveRenderer,Renderer)){
-            ActiveRenderer=null;
-            CameraWorldOrigin=default;
-            HasCameraWorldOrigin=false;
-        }
-    }
-
-    public static StageRenderer?Resolve(ref StageRenderer? RuntimeRenderer){
-        if(RuntimeRenderer is { IsDisposed:true }){
-            RuntimeRenderer=null;
-        }
-
-        if(ActiveRenderer is { IsDisposed:true }){
-            ActiveRenderer=null;
-            CameraWorldOrigin=default;
-            HasCameraWorldOrigin=false;
-        }
-
-        return RuntimeRenderer??=ActiveRenderer;
-    }
-
-    public static bool TryGetCameraWorldOrigin(out FixedAffineTransform CameraOrigin){
-        CameraOrigin=CameraWorldOrigin;
-        return HasCameraWorldOrigin;
-    }
-}
-
 /// <summary>Transformの位置とローカル+Zを、ライト用のScale非依存なワールド入力へ写像する。</summary>
 internal static class LightTransform {
     public static FixedTransformStatus TryGetCameraRelativePose(
-        Entity Entity,World EcsWorld,
+        Entity Entity,EcsWorld EcsWorld,EngineHost Host,
         out Vector3 Position,
         out Vector3 Forward,
         out FixedTransformResolveStatus ResolveStatus)=>
         RuntimeWorldTransform.TryGetCameraRelativePose(
-            Entity,EcsWorld,out Position,out Forward,out ResolveStatus);
+            Entity,EcsWorld,Host,out Position,out Forward,out ResolveStatus);
 }
 
 /// <summary>
@@ -96,18 +52,18 @@ internal struct Window:ISystem {
     private Entity HostEntity;
     private bool HasHostEntity;
 
-    public bool Update(Entity Entity,ref AppHost App,ref AppHostRuntime Runtime,ref State State){
+    public bool Update(Entity Entity,ref AppHost App,ref AppHostRuntime Runtime,EngineHost Host,ref State State){
         if(!this.HasHostEntity){this.HostEntity=Entity;this.HasHostEntity=true;}
         else if(!this.HostEntity.Equals(Entity)){
             throw new InvalidOperationException("Runtime requires exactly one AppHost.");
         }
-        Runtime.Input??=new InputServer(new InputActionMap([]));
-        if(Runtime.Window is not{ }Window){
-            Runtime.Window=new Win32Window(new Win32WindowOptions { Title=App.Title,Width=App.Width,Height=App.Height,Visible=true });
+        if(Host.Window is null){
+            Host.EnsureWindow(App);
             return true;
         }
+        Win32Window Window=Host.Window;
         Window.PumpEvents();
-        Runtime.Input.ProcessEvents(Window.DrainInputEvents());
+        Host.Input.ProcessEvents(Window.DrainInputEvents());
         if(Window.IsClosed){
             State.Enabled=false;
             return false;
@@ -152,33 +108,43 @@ internal struct LevelLoad:ISystem {
         }
         return true;
     }
-    public bool Update(Entity Entity,ref AppHost App,ref AppHostRuntime AppRuntime,ref Level Level,ref LevelRuntime LevelRuntime,ref State State){
+    public bool Update(Entity Entity,ref AppHost App,ref AppHostRuntime AppRuntime,ref Level Level,ref LevelRuntime LevelRuntime,EngineHost Host,ref State State){
         if(!this.HasLevelEntity){this.LevelEntity=Entity;this.HasLevelEntity=true;}
         else if(!this.LevelEntity.Equals(Entity)){
             throw new InvalidOperationException("Runtime requires exactly one Level.");
         }
         if(LevelRuntime.Loaded){
             FixedTransformResolveStatus CameraResolveStatus=RuntimeWorldTransform.TryResolveWorld(
-                this.PendingCameraEntity,State.World,out FixedAffineTransform CameraWorld);
+                this.PendingCameraEntity,State.World,out FixedAffineTransform CameraWorld,out var CameraFrame);
             LevelRuntime.LastCameraWorldResolveStatus=CameraResolveStatus;
             if(CameraResolveStatus==FixedTransformResolveStatus.Success){
+                RenderCamera ActiveRenderCamera=Host.RenderCamera;
                 FixedTransformStatus CameraStatus=CameraTransform.TryApplyWorldOrientation(
-                    CameraWorld,ref LevelRuntime.RenderCamera,out _);
+                    CameraWorld,ref ActiveRenderCamera,out _);
                 LevelRuntime.LastCameraTransformStatus=CameraStatus;
                 if(CameraStatus==FixedTransformStatus.Success){
                     // Presentation runs system-major. Refresh before later Renderable/light
                     // archetype executes so every GPU submission in this frame uses one camera origin.
-                    RuntimeRendererBinding.SetCameraWorldOrigin(CameraWorld);
+                    Host.RenderCamera=ActiveRenderCamera;
+                    Host.SetCameraPose(CameraWorld,CameraFrame);
                     LevelRuntime.HasLastCameraWorldPose=true;
                 }
             } else {
                 LevelRuntime.LastCameraTransformStatus=RuntimeWorldTransform.ToTransformStatus(
                     CameraResolveStatus);
             }
-            LevelRuntime.Renderer?.SetCamera(LevelRuntime.RenderCamera);
+            Host.Renderer?.SetCamera(Host.RenderCamera);
             return true;
         }
-        if(AppRuntime.Window is not{ }Window)return true;
+        if(Host.Window is not{ }Window){
+            // Windowが未生成のフレームで集めたロースターは次フレームと二重集計されるため破棄する。
+            this.PendingStaticMeshes=null;
+            this.PendingPrimitives=null;
+            this.PendingCameraEntity=default;
+            this.PendingCamera=default;
+            this.ActiveCameraCount=0;
+            return true;
+        }
         this.RosterCaptured=true;
         if(this.ActiveCameraCount==0){
             throw new InvalidOperationException("Runtime requires exactly one active Camera, but none was found.");
@@ -190,14 +156,15 @@ internal struct LevelLoad:ISystem {
         var Scene=StageSceneDataBuilder.Build(
             this.PendingStaticMeshes??=[],
             this.PendingPrimitives??=[]);
-        var Renderer=StageRenderer.Create(
+        var Renderer=RenderServer.Create(
                                           Window.Handle,Window.ClientWidth,Window.ClientHeight,GraphicsDeviceOptionsResolver.FromEnvironment(),
                                           Path.Combine(AppContext.BaseDirectory,Level.ShaderArtifactPath),Scene.Meshes,Scene.Materials,Scene.Objects);
+        Host.OwnRenderer(Renderer);
         Window.Resized+=(Width,Height)=>Renderer.Resize(Width,Height);
 
         var Camera=RenderCamera.CreateFirstPerson(Vector3.Zero);
         FixedTransformResolveStatus InitialCameraResolveStatus=RuntimeWorldTransform.TryResolveWorld(
-            this.PendingCameraEntity,State.World,out FixedAffineTransform InitialCameraWorld);
+            this.PendingCameraEntity,State.World,out FixedAffineTransform InitialCameraWorld,out var InitialCameraFrame);
         LevelRuntime.LastCameraWorldResolveStatus=InitialCameraResolveStatus;
         if(InitialCameraResolveStatus!=FixedTransformResolveStatus.Success){
             throw new InvalidOperationException(
@@ -216,17 +183,18 @@ internal struct LevelLoad:ISystem {
         Camera.NearZ= this.PendingCamera.NearZ;
         Camera.FarZ= this.PendingCamera.FarZ;
         Camera.ExposureEv100=this.PendingCamera.ExposureEv100;
-        LevelRuntime.RenderCamera=Camera;
-        LevelRuntime.Renderer=Renderer;
-        RuntimeRendererBinding.SetActive(Renderer,InitialCameraWorld);
+        Host.AttachRenderer(Renderer,Camera,InitialCameraWorld,InitialCameraFrame);
         LevelRuntime.HasLastCameraWorldPose=true;
         LevelRuntime.Loaded=true;
+        LevelRuntime.ShaderSemanticHash=Renderer.ShaderSemanticHash;
+        LevelRuntime.ShaderArtifactLoaded=Renderer.ShaderArtifactLoaded;
+        LevelRuntime.ShaderArtifactDiagnosticCount=Renderer.ShaderArtifactDiagnostics.Count;
         Renderer.SetCamera(Camera);
 
 
         for(var ObjectIndex=0;ObjectIndex<Scene.Objects.Length;ObjectIndex++){
             FixedTransformStatus Status=RuntimeWorldTransform.TryGetCameraRelativeMatrix(
-                Scene.SourceEntities[ObjectIndex],State.World,
+                Scene.SourceEntities[ObjectIndex],State.World,Host,
                 out Matrix4x4 CameraRelativeWorld,
                 out FixedTransformResolveStatus ResolveStatus);
             if(Status!=FixedTransformStatus.Success){
@@ -236,10 +204,9 @@ internal struct LevelLoad:ISystem {
             Renderer.SetObjectTransform(
                 ObjectIndex,
                 Scene.ObjectLocalTransforms[ObjectIndex]*CameraRelativeWorld);
-            State.World.Create(
+            State.World.CreateDeferred(
                 Scene.ObjectTransforms[ObjectIndex],
                 new Renderable {
-                    Renderer=Renderer,
                     ObjectIndex=ObjectIndex,
                     SourceEntity=Scene.SourceEntities[ObjectIndex],
                     HasSourceEntity=true,
@@ -256,10 +223,9 @@ internal struct LevelLoad:ISystem {
                 ?Material.EmissiveNits
                 :Material.EmissiveFactor*100f;
             if(EmissiveNits.X>0f||EmissiveNits.Y>0f||EmissiveNits.Z>0f){
-                State.World.Create(
+                State.World.CreateDeferred(
                     Scene.ObjectTransforms[ObjectIndex],
                     new EmissiveMeshLighting {
-                        Renderer=Renderer,
                         Mesh=Scene.Meshes[Scene.Objects[ObjectIndex].MeshIndex],
                         EmissiveNits=EmissiveNits,
                         EmissiveTextureLuminanceScale=Material.EmissiveTextureLuminanceScale,
@@ -281,22 +247,21 @@ internal struct LevelLoad:ISystem {
         this.RosterCaptured=true;
         this.PendingStaticMeshes=null;
         this.PendingPrimitives=null;
-        State.World.Create(new FramePresent { Window=Window,Renderer=Renderer,AudioEngine=null });
         return true;
     }
 }
 
 [SystemPhase(SystemPhase.Presentation)]
 internal struct CameraOriginSync:ISystem {
-    public bool Update(Entity Entity,ref Transform Transform,ref Camera Camera,ref State State){
+    public bool Update(Entity Entity,ref Transform Transform,ref Camera Camera,EngineHost Host,ref State State){
         if(Camera.Active
-            &&RuntimeWorldTransform.TryResolveWorld(Entity,State.World,out FixedAffineTransform CameraWorld)
+            &&RuntimeWorldTransform.TryResolveWorld(Entity,State.World,out FixedAffineTransform CameraWorld,out var CameraFrame)
                 ==FixedTransformResolveStatus.Success
             &&CameraWorld.TryGetCameraBasis(out Vector3 Forward,out Vector3 Up)
                 ==FixedTransformStatus.Success
             &&RenderCamera.TryNormalizeOrientation(Forward,Up,
                 out _,out _)){
-            RuntimeRendererBinding.SetCameraWorldOrigin(CameraWorld);
+            Host.SetCameraPose(CameraWorld,CameraFrame);
         }
         return true;
     }
@@ -304,10 +269,10 @@ internal struct CameraOriginSync:ISystem {
 
 [SystemPhase(SystemPhase.Presentation)]
 internal struct DirectionalLightSync:ISystem {
-    public bool Update(Entity Entity,ref Transform Transform,ref DirectionalLight Light,ref DirectionalLightRuntime Runtime,ref State State){
-        if(RuntimeRendererBinding.Resolve(ref Runtime.Renderer) is { }Renderer){
+    public bool Update(Entity Entity,ref Transform Transform,ref DirectionalLight Light,ref DirectionalLightRuntime Runtime,EngineHost Host,ref State State){
+        if(Host.Renderer is { }Renderer){
             FixedTransformStatus Status=LightTransform.TryGetCameraRelativePose(
-                Entity,State.World,out _,out Vector3 Forward,out FixedTransformResolveStatus ResolveStatus);
+                Entity,State.World,Host,out _,out Vector3 Forward,out FixedTransformResolveStatus ResolveStatus);
             Runtime.LastTransformStatus=Status;
             Runtime.LastWorldResolveStatus=ResolveStatus;
             if(Status==FixedTransformStatus.Success){
@@ -326,8 +291,8 @@ internal struct DirectionalLightSync:ISystem {
 
 [SystemPhase(SystemPhase.Presentation)]
 internal struct AmbientLightSync:ISystem {
-    public bool Update(ref AmbientLight Light,ref AmbientLightRuntime Runtime,ref State State){
-        RuntimeRendererBinding.Resolve(ref Runtime.Renderer)?.SetAmbientLight(
+    public bool Update(ref AmbientLight Light,EngineHost Host,ref State State){
+        Host.Renderer?.SetAmbientLight(
             new Vector3(Light.ColorR,Light.ColorG,Light.ColorB)*Light.Intensity);
         return true;
     }
@@ -335,8 +300,8 @@ internal struct AmbientLightSync:ISystem {
 
 [SystemPhase(SystemPhase.Presentation)]
 internal struct HeightFogSync:ISystem {
-    public bool Update(ref HeightFog Fog,ref HeightFogRuntime Runtime,ref State State){
-        RuntimeRendererBinding.Resolve(ref Runtime.Renderer)?.SetFog(
+    public bool Update(ref HeightFog Fog,EngineHost Host,ref State State){
+        Host.Renderer?.SetFog(
             new FogParams(Fog.Density,Fog.HeightFalloff,new Vector3(Fog.ColorR,Fog.ColorG,Fog.ColorB)));
         return true;
     }
@@ -344,10 +309,10 @@ internal struct HeightFogSync:ISystem {
 
 [SystemPhase(SystemPhase.Presentation)]
 internal struct PointLightSync:ISystem {
-    public bool Update(Entity Entity,ref Transform Transform,ref PointLight Light,ref PointLightRuntime Runtime,ref State State){
-        if(RuntimeRendererBinding.Resolve(ref Runtime.Renderer) is { }Renderer){
+    public bool Update(Entity Entity,ref Transform Transform,ref PointLight Light,ref PointLightRuntime Runtime,EngineHost Host,ref State State){
+        if(Host.Renderer is { }Renderer){
             FixedTransformStatus Status=LightTransform.TryGetCameraRelativePose(
-                Entity,State.World,out Vector3 Position,out _,out FixedTransformResolveStatus ResolveStatus);
+                Entity,State.World,Host,out Vector3 Position,out _,out FixedTransformResolveStatus ResolveStatus);
             Runtime.LastTransformStatus=Status;
             Runtime.LastWorldResolveStatus=ResolveStatus;
             if(Status==FixedTransformStatus.Success){
@@ -367,10 +332,10 @@ internal struct PointLightSync:ISystem {
 
 [SystemPhase(SystemPhase.Presentation)]
 internal struct SpotLightSync:ISystem {
-    public bool Update(Entity Entity,ref Transform Transform,ref SpotLight Light,ref SpotLightRuntime Runtime,ref State State){
-        if(RuntimeRendererBinding.Resolve(ref Runtime.Renderer) is { }Renderer){
+    public bool Update(Entity Entity,ref Transform Transform,ref SpotLight Light,ref SpotLightRuntime Runtime,EngineHost Host,ref State State){
+        if(Host.Renderer is { }Renderer){
             FixedTransformStatus Status=LightTransform.TryGetCameraRelativePose(
-                Entity,State.World,out Vector3 Position,out Vector3 Forward,out FixedTransformResolveStatus ResolveStatus);
+                Entity,State.World,Host,out Vector3 Position,out Vector3 Forward,out FixedTransformResolveStatus ResolveStatus);
             Runtime.LastTransformStatus=Status;
             Runtime.LastWorldResolveStatus=ResolveStatus;
             if(Status==FixedTransformStatus.Success){
@@ -392,10 +357,10 @@ internal struct SpotLightSync:ISystem {
 
 [SystemPhase(SystemPhase.Presentation)]
 internal struct AreaLightSync:ISystem {
-    public bool Update(Entity Entity,ref Transform Transform,ref AreaLight Light,ref AreaLightRuntime Runtime,ref State State){
-        if(RuntimeRendererBinding.Resolve(ref Runtime.Renderer) is { }Renderer){
+    public bool Update(Entity Entity,ref Transform Transform,ref AreaLight Light,ref AreaLightRuntime Runtime,EngineHost Host,ref State State){
+        if(Host.Renderer is { }Renderer){
             FixedTransformStatus Status=LightTransform.TryGetCameraRelativePose(
-                Entity,State.World,out Vector3 Position,out Vector3 Forward,out FixedTransformResolveStatus ResolveStatus);
+                Entity,State.World,Host,out Vector3 Position,out Vector3 Forward,out FixedTransformResolveStatus ResolveStatus);
             Runtime.LastTransformStatus=Status;
             Runtime.LastWorldResolveStatus=ResolveStatus;
             if(Status==FixedTransformStatus.Success){
@@ -417,11 +382,11 @@ internal struct AreaLightSync:ISystem {
 
 [SystemPhase(SystemPhase.Presentation)]
 internal struct TransformSync:ISystem {
-    public bool Update(Entity Entity,ref Transform Transform,ref Renderable Renderable,ref State State){
-        if(Renderable.Renderer is{ }Renderer){
+    public bool Update(Entity Entity,ref Transform Transform,ref Renderable Renderable,EngineHost Host,ref State State){
+        if(Host.Renderer is{ }Renderer){
             Entity SourceEntity=Renderable.HasSourceEntity?Renderable.SourceEntity:Entity;
             FixedTransformStatus Status=RuntimeWorldTransform.TryGetCameraRelativeMatrix(
-                SourceEntity,State.World,out Matrix4x4 CameraRelativeWorld,
+                SourceEntity,State.World,Host,out Matrix4x4 CameraRelativeWorld,
                 out FixedTransformResolveStatus ResolveStatus);
             Renderable.LastTransformStatus=Status;
             Renderable.LastWorldResolveStatus=ResolveStatus;
@@ -448,11 +413,12 @@ internal struct EmissiveMeshLightSync:ISystem {
         Entity Entity,
         ref Transform Transform,
         ref EmissiveMeshLighting Lighting,
+        EngineHost Host,
         ref State State){
-        if(RuntimeRendererBinding.Resolve(ref Lighting.Renderer) is { }Renderer){
+        if(Host.Renderer is { }Renderer){
             Entity SourceEntity=Lighting.HasSourceEntity?Lighting.SourceEntity:Entity;
             FixedTransformStatus Status=RuntimeWorldTransform.TryGetCameraRelativeMatrix(
-                SourceEntity,State.World,out Matrix4x4 CameraRelativeWorld,
+                SourceEntity,State.World,Host,out Matrix4x4 CameraRelativeWorld,
                 out FixedTransformResolveStatus ResolveStatus);
             Lighting.LastTransformStatus=Status;
             Lighting.LastWorldResolveStatus=ResolveStatus;
@@ -482,47 +448,52 @@ internal struct EmissiveMeshLightSync:ISystem {
     }
 }
 
-internal struct AudioListenerSpawn:ISystem { public void Spawn(ref AudioListener Listener){} }
 /// <summary>
 /// Registers Parent with the generated World lookup surface even for a Scene that contains only
 /// roots today. RuntimeWorldTransform resolves arbitrary future reparenting through this API.
 /// </summary>
 internal struct HierarchyQueryRegistration:ISystem { public void Spawn(ref Parent Parent){} }
 
-
 [SystemPhase(SystemPhase.Presentation)]
-internal struct AudioPlayback:ISystem {
-    public bool Update(ref AudioSource Source,ref AudioSourceRuntime Runtime,ref State State){
-        if(Runtime.Voice is not{ }Voice)return true;
-        if(!State.Enabled){ WindowsAudio.Stop(Voice);WindowsAudio.DestroyVoice(Voice);return true; }
-        WindowsAudio.SetVolume(Voice,Source.Volume);
+[SystemOrder(20_000)]
+internal struct AudioFrameBegin:ISystem {
+    public bool Update(ref AppHostRuntime Runtime,EngineHost Host,ref State State){
+        Host.BeginAudioFrame();
         return true;
     }
 }
 
 [SystemPhase(SystemPhase.Presentation)]
-internal struct Present:ISystem {
-    public bool Update(ref FramePresent Present,ref State State){
-        if(!State.Enabled||Present.Window is not{ }Window||Present.Renderer is not{ }Renderer)return true;
-        if(!Window.IsMinimized)Renderer.RenderFrame();
+[SystemOrder(20_001)]
+internal struct AudioListenerSync:ISystem {
+    public bool Update(Entity Entity,ref Transform Transform,ref AudioListener Listener,EngineHost Host,ref State State){
+        FixedTransformResolveStatus Status=RuntimeWorldTransform.TryResolveWorld(
+            Entity,State.World,out FixedAffineTransform Pose,out var Frame);
+        if(Status==FixedTransformResolveStatus.Success){ Host.SetAudioListener(Entity,Pose,Frame); }
         return true;
     }
+}
 
-    public void Shutdown(ref FramePresent Present,ref State State){
-        if(Present.Renderer is{ }Renderer){
-            RuntimeRendererBinding.Clear(Renderer);
-            Renderer.Dispose();
-            Present.Renderer=null;
+[SystemPhase(SystemPhase.Presentation)]
+[SystemOrder(20_002)]
+internal struct AudioSourceSync:ISystem {
+    public bool Update(Entity Entity,ref Transform Transform,ref AudioSource Source,EngineHost Host,ref State State){
+        FixedTransformResolveStatus Status=RuntimeWorldTransform.TryResolveWorld(
+            Entity,State.World,out FixedAffineTransform Pose,out var Frame);
+        if(Status==FixedTransformResolveStatus.Success){
+            Host.TrySubmitAudioSource(
+                Entity,Pose,Frame,Source.Volume,Source.MinimumDistance,Source.MaximumDistance,Source.Loop);
         }
+        return true;
+    }
+}
 
-        if(Present.Window is{ }Window){
-            Window.Dispose();
-            Present.Window=null;
-        }
 
-        if(Present.AudioEngine is{ }AudioEngine){
-            WindowsAudio.DestroyEngine(AudioEngine);
-            Present.AudioEngine=null;
-        }
+[SystemPhase(SystemPhase.Presentation)]
+[SystemOrder(30_000)]
+internal struct Present:ISystem {
+    public bool Update(ref LevelRuntime Runtime,EngineHost Host,ref State State){
+        if(State.Enabled){ Host.Present(); }
+        return true;
     }
 }

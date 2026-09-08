@@ -24,15 +24,15 @@ internal static class HierarchyInsertionPolicy {
     /// <see cref="HierarchyInsertionKind.After"/>、中央50%(および高さが0以下の異常値)では
     /// <see cref="HierarchyInsertionKind.Into"/>を返す。
     /// </summary>
-    internal static HierarchyInsertionKind Resolve(double RelativeY,double Height){
-        if(Height<=0d){
+    internal static HierarchyInsertionKind Resolve(float RelativeY,float Height){
+        if(Height<=0f){
             return HierarchyInsertionKind.Into;
         }
 
-        if(RelativeY<Height*.25d){
+        if(RelativeY<Height*.25f){
             return HierarchyInsertionKind.Before;
         }
 
-        return RelativeY>Height*.75d?HierarchyInsertionKind.After:HierarchyInsertionKind.Into;
+        return RelativeY>Height*.75f?HierarchyInsertionKind.After:HierarchyInsertionKind.Into;
     }
 }

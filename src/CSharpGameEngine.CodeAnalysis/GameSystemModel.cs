@@ -36,9 +36,10 @@ internal readonly struct GameSystemParameterSlot(GameSystemParameterRole Role,in
     internal readonly int Index=Index;
 }
 
-internal readonly struct GameSystemComponentParameterModel(string ParameterName,string TypeFullyQualifiedName) {
+internal readonly struct GameSystemComponentParameterModel(string ParameterName,string TypeFullyQualifiedName,bool IsReadOnly) {
     internal readonly string ParameterName=ParameterName;
     internal readonly string TypeFullyQualifiedName=TypeFullyQualifiedName;
+    internal readonly bool IsReadOnly=IsReadOnly;
 }
 
 /// <summary>Context引数(Query無関係、ゲームループの引数としてそのまま転送される)。値型は<c>in</c>、参照型は値渡し。</summary>
@@ -77,6 +78,9 @@ internal readonly struct GameSystemResult(
         bool RealtimeInEditor,
         int Phase,
         bool IsWorldSystem,
+        bool IsScheduled,
+        ImmutableArray<string>RunsAfterSystemFullyQualifiedNames,
+        Location DeclarationLocation,
         string FilePath,
         int DeclarationPosition) {
     internal readonly string?Namespace=Namespace;
@@ -87,6 +91,9 @@ internal readonly struct GameSystemResult(
     internal readonly bool RealtimeInEditor=RealtimeInEditor;
     internal readonly int Phase=Phase;
     internal readonly bool IsWorldSystem=IsWorldSystem;
+    internal readonly bool IsScheduled=IsScheduled;
+    internal readonly ImmutableArray<string>RunsAfterSystemFullyQualifiedNames=RunsAfterSystemFullyQualifiedNames;
+    internal readonly Location DeclarationLocation=DeclarationLocation;
 
     /// <summary>
     /// 実行順序の決定に使う宣言位置。ADR-0033決定事項1により、実行順は「ソース上の記述順」。
@@ -114,10 +121,11 @@ internal readonly struct GameSystemComponentInfo(int Index,string TypeFullyQuali
 /// <c>World.Create</c>/<c>MoveArchetype</c>のパラメータ順もこれに従うため、呼び出し側は自分が
 /// 宣言したとおりの順序で引数を渡せる(内部インデックスの並びを知る必要がない)。
 /// </summary>
-internal readonly struct GameSystemArchetypeInfo(string Name,ImmutableArray<int>ComponentIndices,long Mask) {
+internal readonly struct GameSystemArchetypeInfo(string Name,ImmutableArray<int>ComponentIndices,ulong MaskLow,ulong MaskHigh) {
     internal readonly string Name=Name;
     internal readonly ImmutableArray<int>ComponentIndices=ComponentIndices;
-    internal readonly long Mask=Mask;
+    internal readonly ulong MaskLow=MaskLow;
+    internal readonly ulong MaskHigh=MaskHigh;
 
     internal string ListFieldName=> $"List{this.Name}";
 

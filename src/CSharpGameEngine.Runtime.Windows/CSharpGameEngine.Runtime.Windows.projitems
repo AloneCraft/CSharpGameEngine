@@ -9,9 +9,9 @@
     <Import_RootNamespace>CSharpGameEngine.Runtime.Windows</Import_RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)EngineHost.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)RuntimeComponents.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)StageSceneDataBuilder.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)WindowsAudioRuntime.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)RuntimeWorldTransform.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)RuntimeSystems.cs" />
   </ItemGroup>
@@ -22,7 +22,6 @@
     <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\AudioListener.svg" />
     <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\AudioSource.svg" />
     <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\DirectionalLight.svg" />
-    <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\FramePresent.svg" />
     <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\HeightFog.svg" />
     <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\Level.svg" />
     <None Include="$(MSBuildThisFileDirectory)Assets\Editor\ComponentIcons\PlayerStart.svg" />

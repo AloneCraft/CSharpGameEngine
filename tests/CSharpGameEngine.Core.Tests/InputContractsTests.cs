@@ -13,7 +13,7 @@ public sealed class InputContractsTests {
     }
     [Fact]
     public void PortableContracts_ContainNoNativeTypes(){
-        Type[]Types=[typeof(MonotonicTimestamp),typeof(WindowId),typeof(InputDeviceId),typeof(InputContextId),typeof(InputActionId),typeof(InputControl),typeof(InputValue),typeof(InputEvent),typeof(InputActionValue)];
+        Type[]Types=[typeof(MonotonicTimestamp),typeof(WindowId),typeof(InputDeviceId),typeof(InputContextId),typeof(InputActionId),typeof(AudioBusId),typeof(AudioVoiceId),typeof(InputControl),typeof(InputValue),typeof(InputEvent),typeof(InputActionValue)];
         foreach(var TypeValue in Types){
             Assert.DoesNotContain(TypeValue.GetProperties(BindingFlags.Public|BindingFlags.Instance),static Property=>Property.PropertyType==typeof(nint)||Property.PropertyType==typeof(nuint));
             Assert.DoesNotContain(TypeValue.GetFields(BindingFlags.Public|BindingFlags.Instance),static Field=>Field.FieldType==typeof(nint)||Field.FieldType==typeof(nuint));

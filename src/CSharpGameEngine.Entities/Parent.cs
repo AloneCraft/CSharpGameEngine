@@ -12,6 +12,7 @@ namespace CSharpGameEngine.Entities;
 /// Systemは必ず<c>World.IsAlive(Parent.Value)</c>でガードすること(ADR-0040 既知の制約)。
 /// </para>
 /// </summary>
+[EcsSnapshotTransient]
 public struct Parent {
     public Entity Value;
 }

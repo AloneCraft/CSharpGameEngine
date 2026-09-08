@@ -1,6 +1,10 @@
+using System.Numerics;
 using CSharpGameEngine.Core;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Platform.Windows;
+using CSharpGameEngine.Rendering;
+using CSharpGameEngine.Runtime.Windows;
+using Camera=CSharpGameEngine.Graphics.D3D12.Camera;
 
 const string ProductDisplayName="C# Game Engine";
 const string InternalName="CSharpGameEngine";
@@ -13,6 +17,7 @@ if(args.Length==0||IsHelp(args[0])){
 var ExitCode=args[0]switch {
     "self-test"=>RunSelfTest(),
     "triangle"=>RunTriangle(args[1..]),
+    "rendering-performance"=>RenderingPerformanceRawCapture.Run(args[1..]),
     _ =>RunUnknownCommand(args[0]),
 };
 
@@ -57,7 +62,7 @@ static int RunTriangle(string[]TriangleArgs){
     }
 
     var Options=ParseResult.Options!;
-    var ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Triangle.cgeshaderartifact");
+    var ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact");
 
     Console.WriteLine($"Product: {ProductDisplayName} ({InternalName})");
     Console.WriteLine($"Mode: {(Options.Hidden?"hidden":"windowed")}, frames={(Options.Frames is int F?F.ToString():"until closed")}, verify={Options.Verify}");
@@ -75,9 +80,15 @@ static int RunTriangle(string[]TriangleArgs){
         EnableGpuBasedValidation=Options.EnableGpuValidation,
     };
 
-    TriangleRenderer Renderer;
+    RenderServer Renderer;
     try {
-        Renderer=TriangleRenderer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderArtifactPath);
+        (StageMeshCreateInfo[]Meshes,StageMaterialCreateInfo[]Materials,
+            StageObjectCreateInfo[]Objects)=BuildTriangleRoster();
+        Renderer=RenderServer.Create(
+            Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,
+            ShaderArtifactPath,Meshes,Materials,Objects);
+        Renderer.SetCamera(Camera.CreateDefault(Vector3.Zero));
+        Renderer.SetAmbientLight(Vector3.One);
     } catch(Exception Ex){
         Console.WriteLine($"FAILED: could not initialize the D3D12 renderer: {Ex.Message}");
         return 1;
@@ -87,7 +98,7 @@ static int RunTriangle(string[]TriangleArgs){
 
     Console.WriteLine($"Adapter: {Renderer.AdapterDescription} ({(Renderer.IsWarp?"WARP":"Hardware")})");
     Console.WriteLine($"Feature level: {GraphicsDevice.RequiredFeatureLevel}");
-    Console.WriteLine($"Back buffer format: {TriangleRenderer.BackBufferFormat}, {Options.Width}x{Options.Height}");
+    Console.WriteLine($"Back buffer format: R8G8B8A8_UNORM, {Options.Width}x{Options.Height}");
     Console.WriteLine($"Debug layer: {(Renderer.DebugLayerEnabled?"enabled":"disabled")}{(Renderer.GpuBasedValidationEnabled?" (+GPU-based validation)":string.Empty)}");
     Console.WriteLine($"Shader compilation: {(Renderer.ShaderArtifactLoaded?"OK":"FAILED")} ({Renderer.ShaderArtifactDiagnostics.Count} diagnostic(s))");
     foreach(var Diagnostic in Renderer.ShaderArtifactDiagnostics){
@@ -122,7 +133,7 @@ static int RunTriangle(string[]TriangleArgs){
                 Console.WriteLine("Verification: FAILED (no frame was captured for readback).");
                 ExitCode=1;
             } else {
-                var Verification=TrianglePixelVerifier.Verify(Renderer.LastCapturedFrame,TriangleRenderer.ClearColor);
+                var Verification=TrianglePixelVerifier.Verify(Renderer.LastCapturedFrame,RenderServer.ClearColor);
                 Console.WriteLine($"Verification: {(Verification.Success?"PASSED":"FAILED")} - {Verification.Details}");
                 if(!Verification.Success){
                     ExitCode=1;
@@ -152,6 +163,23 @@ static int RunTriangle(string[]TriangleArgs){
     return ExitCode;
 }
 
+static (StageMeshCreateInfo[]Meshes,StageMaterialCreateInfo[]Materials,
+    StageObjectCreateInfo[]Objects)BuildTriangleRoster(){
+    Vector3[]Positions=[
+        new(0f,0.6f,0f),new(-0.6f,-0.6f,0f),new(0.6f,-0.6f,0f),
+    ];
+    Vector3[]Normals=[Vector3.UnitZ,Vector3.UnitZ,Vector3.UnitZ];
+    Vector2[]Uvs=[new(0.5f,0f),new(0f,1f),new(1f,1f)];
+    uint[]Indices=[0,1,2];
+    StageMaterialCreateInfo Material=new(){
+        BaseColorFactor=new Vector4(0.9f,0.25f,0.15f,1f),
+        RoughnessFactor=1f,
+        MetallicFactor=0f,
+    };
+    return RenderServer.BuildSingleMeshRoster(
+        Positions,Normals,Uvs,Indices,Material);
+}
+
 static int RunUnknownCommand(string Command){
     Console.WriteLine($"Unknown command: {Command}");
     PrintHelp();
@@ -164,6 +192,7 @@ static void PrintHelp(){
     Console.WriteLine("  --help                Show this help.");
     Console.WriteLine("  self-test             Run minimal core self-test.");
     Console.WriteLine("  triangle [options]    Run the Windows + Direct3D 12 triangle vertical slice.");
+    Console.WriteLine("  rendering-performance --configuration Debug|Release --adapter warp|hardware --output <path>");
     Console.WriteLine();
     Console.WriteLine("triangle options:");
     Console.WriteLine("  --frames <count>      Render exactly <count> frames, then exit.");

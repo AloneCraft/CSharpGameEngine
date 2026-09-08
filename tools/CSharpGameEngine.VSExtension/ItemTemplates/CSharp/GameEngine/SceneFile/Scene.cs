@@ -20,8 +20,8 @@ internal partial class $safeitemname$ : IScene {
                 Name="Floor",
                 Components=[
                     new Transform {
-                        Position=new Logical.Vector3(0f,-0.5f,0f),
-                        Scale=new Logical.Vector3(10f,1f,10f),
+                        Position=new LogicalVector3(0f,-0.5f,0f),
+                        Scale=new LogicalVector3(10f,1f,10f),
                     },
                     new PrimitiveMesh { Type=PrimitiveType.Box },
                 ],
@@ -30,7 +30,7 @@ internal partial class $safeitemname$ : IScene {
                 Name="PlayerStart",
                 Components=[
                     new Transform {
-                        Position=new Logical.Vector3(0f,1.7f,-4f),
+                        Position=new LogicalVector3(0f,1.7f,-4f),
                     },
                     new PlayerStart(),
                 ],

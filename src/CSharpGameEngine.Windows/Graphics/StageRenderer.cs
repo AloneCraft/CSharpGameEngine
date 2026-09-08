@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using CSharpGameEngine.Contracts;
+using CSharpGameEngine.Rendering;
 using System.Runtime.CompilerServices;
 using CSharpGameEngine.ShaderArtifacts;
 using TerraFX.Interop.DirectX;
@@ -56,6 +58,7 @@ public readonly struct MeshCreateInfo {
 /// </summary>
 public sealed unsafe class StageRenderer:IDisposable {
     public const int FrameCount=2;
+    private const int CameraPassCount=1+RenderCameraPreview.MaximumCount;
     public const DXGI_FORMAT BackBufferFormat=DXGI_FORMAT_R8G8B8A8_UNORM;
     public const DXGI_FORMAT DepthBufferFormat=DXGI_FORMAT_D32_FLOAT;
     private const DXGI_FORMAT HdrColorFormat=DXGI_FORMAT_R16G16B16A16_FLOAT;
@@ -76,6 +79,7 @@ public sealed unsafe class StageRenderer:IDisposable {
 
     /// <summary>Maximum local lights accepted per frame across point and spot submissions.</summary>
     public const int MaxLocalLights=1024;
+    public const int MaxOverlayVertices=32_768;
 
     /// <summary>Legacy public cap retained for source compatibility. Point and spot now share the 1024-light StructuredBuffer.</summary>
     public const int MaxPointLights=MaxLocalLights;
@@ -141,8 +145,8 @@ public sealed unsafe class StageRenderer:IDisposable {
     // ObjectCB (b1) byte layout - see Stage shader ABI.
     private const uint ObjectWorldOffset=0;            // float4x4, 64 bytes
     private const uint ObjectBaseColorFactorOffset=64; // float4
-    private const uint ObjectMaterialParamsOffset=80;  // float4: x=roughness, y=metallic
-    private const uint ObjectEmissiveFactorOffset=96;  // float4: xyz = emissive HDR factor
+    private const uint ObjectMaterialParamsOffset=80;  // float4: x=roughness, y=metallic, z=presentation mode
+    private const uint ObjectEmissiveFactorOffset=96;  // float4: xyz=emissive HDR, w=selection weight
 
     // HDR clear values are the inverse ACES values for the public LDR ClearColor. This keeps the
     // empty-scene background stable across the new post-process pass while geometry still benefits
@@ -161,6 +165,11 @@ public sealed unsafe class StageRenderer:IDisposable {
         public Vector3 Normal;
         public Vector4 Tangent;
         public Vector2 Uv;
+    }
+
+    private struct OverlayVertexGpu {
+        public Vector3 Position;
+        public Vector4 Color;
     }
 
     private enum LocalLightType {
@@ -282,6 +291,12 @@ public sealed unsafe class StageRenderer:IDisposable {
     private HANDLE FenceEvent;
     private ID3D12RootSignature*RootSignature;
     private ID3D12PipelineState*PipelineState;
+    private ID3D12PipelineState*PresentationPipelineState;
+    private ID3D12PipelineState*WireframePipelineState;
+    private ID3D12PipelineState*CameraPreviewPipelineState;
+    private ID3D12PipelineState*CameraPreviewWireframePipelineState;
+    private ID3D12PipelineState*OverlayTrianglePipelineState;
+    private ID3D12PipelineState*OverlayLinePipelineState;
     private ID3D12RootSignature*ShadowRootSignature;
     private ID3D12PipelineState*ShadowPipelineState;
     private ID3D12RootSignature*PostProcessRootSignature;
@@ -289,6 +304,10 @@ public sealed unsafe class StageRenderer:IDisposable {
     private byte[]ShadowVertexShaderBytecode=[];
     private byte[]FullscreenVertexShaderBytecode=[];
     private byte[]PostProcessPixelShaderBytecode=[];
+    private byte[]PreviewPixelShaderBytecode=[];
+    private byte[]PreviewCleanPixelShaderBytecode=[];
+    private byte[]OverlayVertexShaderBytecode=[];
+    private byte[]OverlayPixelShaderBytecode=[];
 
     // Per-mesh (indexed by meshIndex).
     private int MeshCount;
@@ -301,6 +320,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     // Per-material (indexed by materialIndex). Four material textures plus one shared shadow SRV.
     private int MaterialCount;
     private ID3D12Resource*[]MaterialTextures=[];
+    private ID3D12Resource*[]OwnedMaterialTextures=[];
     private ID3D12DescriptorHeap*SrvHeap;
     private uint SrvDescriptorSize;
     private Vector4[]MaterialBaseColorFactors=[];
@@ -313,6 +333,18 @@ public sealed unsafe class StageRenderer:IDisposable {
     private int[]ObjectMeshIndices=[];
     private int[]ObjectMaterialIndices=[];
     private Matrix4x4[]ObjectTransforms=[];
+    private float[]ObjectSelectionWeights=[];
+    private RenderPresentationMode PresentationMode;
+    private int SelectedObjectCount;
+    private readonly RenderCameraPreview[]RequestedCameraPreviews=
+        new RenderCameraPreview[RenderCameraPreview.MaximumCount];
+    private readonly RenderCameraPreview[]EffectiveCameraPreviews=
+        new RenderCameraPreview[RenderCameraPreview.MaximumCount];
+    private readonly RenderCameraPreviewDiagnostics[]CameraPreviewDiagnostics=
+        new RenderCameraPreviewDiagnostics[RenderCameraPreview.MaximumCount];
+    private int RequestedCameraPreviewCount;
+    private int CameraPreviewCount;
+    private bool CameraPreviewDiagnosticsDirty;
 
     private ID3D12Resource*FrameConstantsBuffer;
     private byte*FrameConstantsMapped;
@@ -325,6 +357,10 @@ public sealed unsafe class StageRenderer:IDisposable {
     private int ForwardPlusTileCountY;
     private ID3D12Resource*ObjectConstantsBuffer;
     private byte*ObjectConstantsMapped;
+    private ID3D12Resource*OverlayVertexBuffer;
+    private byte*OverlayVertexMapped;
+    private int OverlayTriangleVertexCount;
+    private int OverlayLineVertexCount;
     private ID3D12Resource*ShadowConstantsBuffer;
     private byte*ShadowConstantsMapped;
     private ID3D12Resource*SpotShadowProjectionBuffer;
@@ -391,6 +427,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     private bool Disposed;
     private string ShaderArtifactPath=string.Empty;
     private ShaderArtifactMonitor?ShaderArtifactMonitor;
+    private ShaderArtifactPackage?LastKnownGoodShaderPackage;
 
     private D3D12_VIEWPORT Viewport;
     private RECT ScissorRect;
@@ -418,8 +455,19 @@ public sealed unsafe class StageRenderer:IDisposable {
     public IReadOnlyList<string>ShaderArtifactDiagnostics { get;private set;}=[];
 
     public uint FramesRendered { get;private set;}
+    public int ResidentMaterialTextureCount=>this.OwnedMaterialTextures.Length;
+    internal ulong CompletedFence=>this.Fence==null?0:this.Fence->GetCompletedValue();
 
     public PixelReadbackResult?LastCapturedFrame { get;private set;}
+
+    internal ShaderArtifactPackage LastKnownGoodShaderArtifact=>
+        this.LastKnownGoodShaderPackage
+        ??throw new InvalidOperationException("The renderer has no validated shader artifact.");
+
+    internal void RemoveDeviceForTesting(){
+        this.ThrowIfDisposed();
+        this.Device!.RemoveDeviceForTesting();
+    }
 
     public static StageRenderer Create(
         nint Hwnd,int Width,int Height,GraphicsDeviceOptions DeviceOptions,string ShaderArtifactPath,
@@ -476,6 +524,41 @@ public sealed unsafe class StageRenderer:IDisposable {
         }
     }
 
+    /// <summary>
+    /// Recreates one native device generation from the shader package already validated and
+    /// successfully applied by the prior generation. The path is retained only for subsequent
+    /// Debug hot reload; recovery does not reread it.
+    /// </summary>
+    internal static StageRenderer CreateFromLastKnownGood(
+        nint Hwnd,int Width,int Height,GraphicsDeviceOptions DeviceOptions,string ShaderArtifactPath,
+        ShaderArtifactPackage ShaderPackage,
+        IReadOnlyList<StageMeshCreateInfo>Meshes,
+        IReadOnlyList<StageMaterialCreateInfo>Materials,
+        IReadOnlyList<StageObjectCreateInfo>Objects){
+        ArgumentNullException.ThrowIfNull(DeviceOptions);
+        ArgumentNullException.ThrowIfNull(ShaderArtifactPath);
+        ArgumentNullException.ThrowIfNull(ShaderPackage);
+        ArgumentNullException.ThrowIfNull(Meshes);
+        ArgumentNullException.ThrowIfNull(Materials);
+        ArgumentNullException.ThrowIfNull(Objects);
+        if(Width<=0||Height<=0){
+            throw new ArgumentOutOfRangeException(nameof(Width),
+                "Recovery width/height must both be positive.");
+        }
+
+        StageRenderer Renderer=new(){ Width=Width,Height=Height };
+        var Completed=false;
+        try {
+            Renderer.Initialize(
+                (HWND)Hwnd,Width,Height,DeviceOptions,ShaderArtifactPath,
+                Meshes,Materials,Objects,ShaderPackage);
+            Completed=true;
+            return Renderer;
+        } finally {
+            if(!Completed){ Renderer.Dispose(); }
+        }
+    }
+
     /// <summary>Legacy adapter (pre-ADR-0018): one untextured solid-color mesh per object, exactly reproducing the old 1:1 mesh/material/object indexing so existing callers (and <c>StageGpuIntegrationTests</c>) keep working unchanged. Synthesized UVs/tangents never matter visually here since every material falls back to its 1x1 default textures.</summary>
     public static StageRenderer Create(
         nint Hwnd,int Width,int Height,GraphicsDeviceOptions DeviceOptions,string ShaderArtifactPath,
@@ -514,7 +597,9 @@ public sealed unsafe class StageRenderer:IDisposable {
     }
 
     private void Initialize(HWND Hwnd,int Width,int Height,GraphicsDeviceOptions DeviceOptions,string ShaderArtifactPath,
-        IReadOnlyList<StageMeshCreateInfo>Meshes,IReadOnlyList<StageMaterialCreateInfo>Materials,IReadOnlyList<StageObjectCreateInfo>Objects){
+        IReadOnlyList<StageMeshCreateInfo>Meshes,IReadOnlyList<StageMaterialCreateInfo>Materials,
+        IReadOnlyList<StageObjectCreateInfo>Objects,
+        ShaderArtifactPackage?ValidatedShaderPackage=null){
         this.Device=GraphicsDevice.Create(DeviceOptions);
 
         this.CreateSwapChain(Hwnd,Width,Height);
@@ -552,7 +637,12 @@ public sealed unsafe class StageRenderer:IDisposable {
         this.FenceValues[this.FrameIndex]=1;
 
         this.ShaderArtifactPath=Path.GetFullPath(ShaderArtifactPath);
-        this.LoadShaderArtifact(this.ShaderArtifactPath);
+        if(ValidatedShaderPackage is null){
+            this.LoadShaderArtifact(this.ShaderArtifactPath);
+        } else {
+            this.ApplyShaderArtifact(ValidatedShaderPackage);
+            this.CommitShaderArtifact(ValidatedShaderPackage);
+        }
         this.CreateRootSignature();
         this.CreateShadowRootSignature();
         this.CreatePostProcessRootSignature();
@@ -715,16 +805,24 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             throw new InvalidOperationException($"Shader artifact load failed for '{ShaderArtifactPath}':{Environment.NewLine}{Error}");
         }
         this.ApplyShaderArtifact(Package);
-        this.ShaderArtifactLoaded=true;
-        this.ShaderSemanticHash=Package.Document.SemanticHash;
-        this.ShaderArtifactDiagnostics=[];
+        this.CommitShaderArtifact(Package);
     }
     private void ApplyShaderArtifact(ShaderArtifactPackage Package){
         this.VertexShaderBytecode=Package.GetBytecode("VSMain");
         this.PixelShaderBytecode=Package.GetBytecode("PSMain");
+        this.PreviewPixelShaderBytecode=Package.GetBytecode("PreviewPSMain");
+        this.PreviewCleanPixelShaderBytecode=Package.GetBytecode("PreviewCleanPSMain");
+        this.OverlayVertexShaderBytecode=Package.GetBytecode("OverlayVSMain");
+        this.OverlayPixelShaderBytecode=Package.GetBytecode("OverlayPSMain");
         this.FullscreenVertexShaderBytecode=Package.GetBytecode("FullscreenVS");
         this.PostProcessPixelShaderBytecode=Package.GetBytecode("PostProcessPS");
         this.ShadowVertexShaderBytecode=Package.GetBytecode("VSShadowMain");
+    }
+    private void CommitShaderArtifact(ShaderArtifactPackage Package){
+        this.LastKnownGoodShaderPackage=Package;
+        this.ShaderArtifactLoaded=true;
+        this.ShaderSemanticHash=Package.Document.SemanticHash;
+        this.ShaderArtifactDiagnostics=[];
     }
     private void TryReloadShaderArtifact(){
         if(this.ShaderArtifactMonitor?.ConsumeReloadRequest()!=true){
@@ -736,10 +834,21 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
         var OldVertexShader=this.VertexShaderBytecode;
         var OldPixelShader=this.PixelShaderBytecode;
+        var OldPreviewPixelShader=this.PreviewPixelShaderBytecode;
+        var OldPreviewCleanPixelShader=this.PreviewCleanPixelShaderBytecode;
+        var OldOverlayVertexShader=this.OverlayVertexShaderBytecode;
+        var OldOverlayPixelShader=this.OverlayPixelShaderBytecode;
         var OldFullscreenVertexShader=this.FullscreenVertexShaderBytecode;
         var OldPostProcessPixelShader=this.PostProcessPixelShaderBytecode;
         var OldShadowVertexShader=this.ShadowVertexShaderBytecode;
         var OldPipelineState=this.PipelineState;
+        var OldPresentationPipelineState=this.PresentationPipelineState;
+        var OldWireframePipelineState=this.WireframePipelineState;
+        var OldCameraPreviewPipelineState=this.CameraPreviewPipelineState;
+        var OldCameraPreviewWireframePipelineState=
+            this.CameraPreviewWireframePipelineState;
+        var OldOverlayTrianglePipelineState=this.OverlayTrianglePipelineState;
+        var OldOverlayLinePipelineState=this.OverlayLinePipelineState;
         var OldShadowPipelineState=this.ShadowPipelineState;
         var OldPostProcessPipelineState=this.PostProcessPipelineState;
         try{
@@ -749,18 +858,32 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.CreatePostProcessPipelineState();
             this.WaitForGpuIdle();
             if(OldPipelineState!=null){ _=OldPipelineState->Release(); }
+            if(OldPresentationPipelineState!=null){ _=OldPresentationPipelineState->Release(); }
+            if(OldWireframePipelineState!=null){ _=OldWireframePipelineState->Release(); }
+            if(OldCameraPreviewPipelineState!=null){ _=OldCameraPreviewPipelineState->Release(); }
+            if(OldCameraPreviewWireframePipelineState!=null){ _=OldCameraPreviewWireframePipelineState->Release(); }
+            if(OldOverlayTrianglePipelineState!=null){ _=OldOverlayTrianglePipelineState->Release(); }
+            if(OldOverlayLinePipelineState!=null){ _=OldOverlayLinePipelineState->Release(); }
             if(OldShadowPipelineState!=null){ _=OldShadowPipelineState->Release(); }
             if(OldPostProcessPipelineState!=null){ _=OldPostProcessPipelineState->Release(); }
-            this.ShaderArtifactLoaded=true;
-            this.ShaderSemanticHash=Package.Document.SemanticHash;
-            this.ShaderArtifactDiagnostics=[];
+            this.CommitShaderArtifact(Package);
         }catch(Exception Exception){
             this.VertexShaderBytecode=OldVertexShader;
             this.PixelShaderBytecode=OldPixelShader;
+            this.PreviewPixelShaderBytecode=OldPreviewPixelShader;
+            this.PreviewCleanPixelShaderBytecode=OldPreviewCleanPixelShader;
+            this.OverlayVertexShaderBytecode=OldOverlayVertexShader;
+            this.OverlayPixelShaderBytecode=OldOverlayPixelShader;
             this.FullscreenVertexShaderBytecode=OldFullscreenVertexShader;
             this.PostProcessPixelShaderBytecode=OldPostProcessPixelShader;
             this.ShadowVertexShaderBytecode=OldShadowVertexShader;
             if(this.PipelineState!=OldPipelineState){ _=this.PipelineState->Release();this.PipelineState=OldPipelineState; }
+            if(this.PresentationPipelineState!=OldPresentationPipelineState){ _=this.PresentationPipelineState->Release();this.PresentationPipelineState=OldPresentationPipelineState; }
+            if(this.WireframePipelineState!=OldWireframePipelineState){ _=this.WireframePipelineState->Release();this.WireframePipelineState=OldWireframePipelineState; }
+            if(this.CameraPreviewPipelineState!=OldCameraPreviewPipelineState){ _=this.CameraPreviewPipelineState->Release();this.CameraPreviewPipelineState=OldCameraPreviewPipelineState; }
+            if(this.CameraPreviewWireframePipelineState!=OldCameraPreviewWireframePipelineState){ _=this.CameraPreviewWireframePipelineState->Release();this.CameraPreviewWireframePipelineState=OldCameraPreviewWireframePipelineState; }
+            if(this.OverlayTrianglePipelineState!=OldOverlayTrianglePipelineState){ _=this.OverlayTrianglePipelineState->Release();this.OverlayTrianglePipelineState=OldOverlayTrianglePipelineState; }
+            if(this.OverlayLinePipelineState!=OldOverlayLinePipelineState){ _=this.OverlayLinePipelineState->Release();this.OverlayLinePipelineState=OldOverlayLinePipelineState; }
             if(this.ShadowPipelineState!=OldShadowPipelineState){ _=this.ShadowPipelineState->Release();this.ShadowPipelineState=OldShadowPipelineState; }
             if(this.PostProcessPipelineState!=OldPostProcessPipelineState){ _=this.PostProcessPipelineState->Release();this.PostProcessPipelineState=OldPostProcessPipelineState; }
             this.ShaderArtifactDiagnostics=[Exception.Message];
@@ -974,12 +1097,55 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     private void CreatePipelineState(){
+        ID3D12PipelineState*Standard=null;
+        ID3D12PipelineState*Presentation=null;
+        ID3D12PipelineState*Wireframe=null;
+        ID3D12PipelineState*CameraPreview=null;
+        ID3D12PipelineState*CameraPreviewWireframe=null;
+        ID3D12PipelineState*OverlayTriangles=null;
+        ID3D12PipelineState*OverlayLines=null;
+        try {
+            Standard=this.CreateMeshPipelineState(
+                this.PixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID);
+            Presentation=this.CreateMeshPipelineState(
+                this.PreviewPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID);
+            Wireframe=this.CreateMeshPipelineState(
+                this.PreviewPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_WIREFRAME);
+            CameraPreview=this.CreateMeshPipelineState(
+                this.PreviewCleanPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID);
+            CameraPreviewWireframe=this.CreateMeshPipelineState(
+                this.PreviewCleanPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_WIREFRAME);
+            OverlayTriangles=this.CreateOverlayPipelineState(
+                D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
+            OverlayLines=this.CreateOverlayPipelineState(
+                D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE);
+            this.PipelineState=Standard;
+            this.PresentationPipelineState=Presentation;
+            this.WireframePipelineState=Wireframe;
+            this.CameraPreviewPipelineState=CameraPreview;
+            this.CameraPreviewWireframePipelineState=CameraPreviewWireframe;
+            this.OverlayTrianglePipelineState=OverlayTriangles;
+            this.OverlayLinePipelineState=OverlayLines;
+        } catch {
+            if(Standard!=null){ _=Standard->Release(); }
+            if(Presentation!=null){ _=Presentation->Release(); }
+            if(Wireframe!=null){ _=Wireframe->Release(); }
+            if(CameraPreview!=null){ _=CameraPreview->Release(); }
+            if(CameraPreviewWireframe!=null){ _=CameraPreviewWireframe->Release(); }
+            if(OverlayTriangles!=null){ _=OverlayTriangles->Release(); }
+            if(OverlayLines!=null){ _=OverlayLines->Release(); }
+            throw;
+        }
+    }
+
+    private ID3D12PipelineState*CreateMeshPipelineState(
+        byte[]PixelShaderBytecode,D3D12_FILL_MODE FillMode){
         fixed(byte*PPosition="POSITION\0"u8)
         fixed(byte*PNormal="NORMAL\0"u8)
         fixed(byte*PTangent="TANGENT\0"u8)
         fixed(byte*PTexCoord="TEXCOORD\0"u8)
         fixed(byte*PVertexShader= this.VertexShaderBytecode)
-        fixed(byte*PPixelShader= this.PixelShaderBytecode){
+        fixed(byte*PPixelShader=PixelShaderBytecode){
             D3D12_INPUT_ELEMENT_DESC*InputElements=stackalloc D3D12_INPUT_ELEMENT_DESC[4]{
                 new D3D12_INPUT_ELEMENT_DESC {
                     SemanticName=(sbyte*)PPosition,
@@ -1013,7 +1179,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 },
                 pRootSignature= this.RootSignature,
                 VS=new D3D12_SHADER_BYTECODE { pShaderBytecode=PVertexShader,BytecodeLength=(nuint)this.VertexShaderBytecode.Length },
-                PS=new D3D12_SHADER_BYTECODE { pShaderBytecode=PPixelShader,BytecodeLength=(nuint)this.PixelShaderBytecode.Length },
+                PS=new D3D12_SHADER_BYTECODE { pShaderBytecode=PPixelShader,BytecodeLength=(nuint)PixelShaderBytecode.Length },
                 RasterizerState=D3D12_RASTERIZER_DESC.DEFAULT,
                 BlendState=D3D12_BLEND_DESC.DEFAULT,
                 DepthStencilState=D3D12_DEPTH_STENCIL_DESC.DEFAULT,
@@ -1025,12 +1191,99 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             };
             // Real backface culling is deferred, same rationale as ModelRenderer (ADR-0004).
             PsoDesc.RasterizerState.CullMode=D3D12_CULL_MODE_NONE;
+            PsoDesc.RasterizerState.FillMode=FillMode;
             PsoDesc.RTVFormats[0]=HdrColorFormat;
 
             ID3D12PipelineState*PipelineState;
             D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateGraphicsPipelineState(&PsoDesc,__uuidof<ID3D12PipelineState>(),(void**)&PipelineState),
                 "ID3D12Device::CreateGraphicsPipelineState","creating the stage pipeline state");
-            this.PipelineState=PipelineState;
+            return PipelineState;
+        }
+    }
+
+    private ID3D12PipelineState*CreateOverlayPipelineState(
+        D3D12_PRIMITIVE_TOPOLOGY_TYPE TopologyType){
+        byte*PPositionSemantic=stackalloc byte[]{
+            (byte)'P',(byte)'O',(byte)'S',(byte)'I',
+            (byte)'T',(byte)'I',(byte)'O',(byte)'N',0,
+        };
+        byte*PColorSemantic=stackalloc byte[]{
+            (byte)'C',(byte)'O',(byte)'L',(byte)'O',(byte)'R',0,
+        };
+        fixed(byte*PPosition="POSITION\\0"u8)
+        fixed(byte*PColor="COLOR\\0"u8)
+        fixed(byte*PVertexShader=this.OverlayVertexShaderBytecode)
+        fixed(byte*PPixelShader=this.OverlayPixelShaderBytecode){
+            D3D12_INPUT_ELEMENT_DESC*InputElements=
+                stackalloc D3D12_INPUT_ELEMENT_DESC[2]{
+                    new D3D12_INPUT_ELEMENT_DESC {
+                        SemanticName=(sbyte*)PPositionSemantic,
+                        Format=DXGI_FORMAT_R32G32B32_FLOAT,
+                        InputSlotClass=D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+                    },
+                    new D3D12_INPUT_ELEMENT_DESC {
+                        SemanticName=(sbyte*)PColorSemantic,
+                        Format=DXGI_FORMAT_R32G32B32A32_FLOAT,
+                        AlignedByteOffset=12,
+                        InputSlotClass=D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+                    },
+                };
+            D3D12_GRAPHICS_PIPELINE_STATE_DESC PsoDesc=new(){
+                InputLayout=new D3D12_INPUT_LAYOUT_DESC {
+                    pInputElementDescs=InputElements,
+                    NumElements=2,
+                },
+                pRootSignature=this.RootSignature,
+                VS=new D3D12_SHADER_BYTECODE {
+                    pShaderBytecode=PVertexShader,
+                    BytecodeLength=(nuint)this.OverlayVertexShaderBytecode.Length,
+                },
+                PS=new D3D12_SHADER_BYTECODE {
+                    pShaderBytecode=PPixelShader,
+                    BytecodeLength=(nuint)this.OverlayPixelShaderBytecode.Length,
+                },
+                RasterizerState=D3D12_RASTERIZER_DESC.DEFAULT,
+                BlendState=D3D12_BLEND_DESC.DEFAULT,
+                DepthStencilState=D3D12_DEPTH_STENCIL_DESC.DEFAULT,
+                SampleMask=uint.MaxValue,
+                PrimitiveTopologyType=TopologyType,
+                NumRenderTargets=1,
+                DSVFormat=DepthBufferFormat,
+                SampleDesc=new DXGI_SAMPLE_DESC(1,0),
+            };
+            PsoDesc.RasterizerState.CullMode=D3D12_CULL_MODE_NONE;
+            PsoDesc.DepthStencilState.DepthEnable=FALSE;
+            PsoDesc.DepthStencilState.StencilEnable=FALSE;
+            PsoDesc.BlendState.RenderTarget[0]=
+                new D3D12_RENDER_TARGET_BLEND_DESC {
+                    BlendEnable=TRUE,
+                    LogicOpEnable=FALSE,
+                    SrcBlend=D3D12_BLEND.D3D12_BLEND_SRC_ALPHA,
+                    DestBlend=D3D12_BLEND.D3D12_BLEND_INV_SRC_ALPHA,
+                    BlendOp=D3D12_BLEND_OP.D3D12_BLEND_OP_ADD,
+                    SrcBlendAlpha=D3D12_BLEND.D3D12_BLEND_ONE,
+                    DestBlendAlpha=D3D12_BLEND.D3D12_BLEND_INV_SRC_ALPHA,
+                    BlendOpAlpha=D3D12_BLEND_OP.D3D12_BLEND_OP_ADD,
+                    LogicOp=D3D12_LOGIC_OP.D3D12_LOGIC_OP_NOOP,
+                    RenderTargetWriteMask=(byte)
+                        D3D12_COLOR_WRITE_ENABLE.D3D12_COLOR_WRITE_ENABLE_ALL,
+                };
+            PsoDesc.RTVFormats[0]=BackBufferFormat;
+            ID3D12PipelineState*PipelineState;
+            HRESULT Result=this.Device!.Device->CreateGraphicsPipelineState(
+                &PsoDesc,__uuidof<ID3D12PipelineState>(),
+                (void**)&PipelineState);
+            if(Result.FAILED){ this.Device.PollDebugMessages(); }
+            string DebugContext=Result.FAILED
+                ?string.Join(Environment.NewLine,this.Device.CollectedMessages)
+                :string.Empty;
+            D3D12Diagnostics.EnsureSuccess(
+                Result,"ID3D12Device::CreateGraphicsPipelineState",
+                string.IsNullOrEmpty(DebugContext)
+                    ?"creating the Stage overlay pipeline state"
+                    :"creating the Stage overlay pipeline state"
+                        +Environment.NewLine+DebugContext);
+            return PipelineState;
         }
     }
 
@@ -1177,20 +1430,36 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.MaterialRoughnessFactors=new float[this.MaterialCount];
         this.MaterialMetallicFactors=new float[this.MaterialCount];
         this.MaterialEmissiveNits=new Vector3[this.MaterialCount];
+        Dictionary<Hash256,nint>ResidentTextures=[];
+        List<nint>OwnedTextures=[];
 
-        for(var I=0;I< this.MaterialCount;I++){
-            StageMaterialCreateInfo Material=Materials[I];
-            this.MaterialBaseColorFactors[I]=Material.BaseColorFactor;
-            this.MaterialRoughnessFactors[I]=Material.RoughnessFactor;
-            this.MaterialMetallicFactors[I]=Material.MetallicFactor;
-            this.MaterialEmissiveNits[I]=Material.EmissiveNits!=Vector3.Zero
-                ?Material.EmissiveNits
-                :Material.EmissiveFactor*GltfImportEmissiveDefaultNits;
+        try {
+            for(var I=0;I< this.MaterialCount;I++){
+                StageMaterialCreateInfo Material=Materials[I];
+                this.MaterialBaseColorFactors[I]=Material.BaseColorFactor;
+                this.MaterialRoughnessFactors[I]=Material.RoughnessFactor;
+                this.MaterialMetallicFactors[I]=Material.MetallicFactor;
+                this.MaterialEmissiveNits[I]=Material.EmissiveNits!=Vector3.Zero
+                    ?Material.EmissiveNits
+                    :Material.EmissiveFactor*GltfImportEmissiveDefaultNits;
 
-            this.MaterialTextures[(I*4)+0]= this.CreateTextureResource(Material.BaseColorTextureBytes,WhiteFallback());
-            this.MaterialTextures[(I*4)+1]= this.CreateTextureResource(Material.NormalTextureBytes,FlatNormalFallback());
-            this.MaterialTextures[(I*4)+2]= this.CreateTextureResource(Material.MetallicRoughnessTextureBytes,WhiteFallback());
-            this.MaterialTextures[(I*4)+3]= this.CreateTextureResource(Material.EmissiveTextureBytes,WhiteFallback());
+                this.MaterialTextures[(I*4)+0]=GetOrCreateTexture(
+                    Material.BaseColorTexture??RenderMaterialDefaults.White);
+                this.MaterialTextures[(I*4)+1]=GetOrCreateTexture(
+                    Material.NormalTexture??RenderMaterialDefaults.FlatNormal);
+                this.MaterialTextures[(I*4)+2]=GetOrCreateTexture(
+                    Material.MetallicRoughnessTexture??RenderMaterialDefaults.White);
+                this.MaterialTextures[(I*4)+3]=GetOrCreateTexture(
+                    Material.EmissiveTexture??RenderMaterialDefaults.White);
+            }
+        } catch {
+            foreach(nint Pointer in OwnedTextures){ _=((ID3D12Resource*)Pointer)->Release(); }
+            Array.Clear(this.MaterialTextures);
+            throw;
+        }
+        this.OwnedMaterialTextures=new ID3D12Resource*[OwnedTextures.Count];
+        for(int Index=0;Index<OwnedTextures.Count;Index++){
+            this.OwnedMaterialTextures[Index]=(ID3D12Resource*)OwnedTextures[Index];
         }
 
         D3D12_DESCRIPTOR_HEAP_DESC SrvHeapDesc=new(){
@@ -1227,22 +1496,26 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             D3D12_CPU_DESCRIPTOR_HANDLE Handle=new(SrvHeapStart,(I*5)+4, this.SrvDescriptorSize);
             this.Device.Device->CreateShaderResourceView(this.ShadowAtlas,&ShadowSrvDesc,Handle);
         }
+
+        ID3D12Resource*GetOrCreateTexture(RenderTextureResource Texture){
+            if(ResidentTextures.TryGetValue(Texture.ContentHash,out nint Existing)){
+                return(ID3D12Resource*)Existing;
+            }
+            ID3D12Resource*Created=this.CreateTextureResource(Texture);
+            ResidentTextures.Add(Texture.ContentHash,(nint)Created);
+            OwnedTextures.Add((nint)Created);
+            return Created;
+        }
     }
 
-    private static DecodedImage WhiteFallback()=>new(1,1,[255,255,255,255]);
-
-    /// <summary>Flat tangent-space normal (0,0,1) encoded as RGB(128,128,255), so an unmapped surface's TBN-transformed normal is exactly its own vertex normal regardless of the (possibly arbitrary) tangent.</summary>
-    private static DecodedImage FlatNormalFallback()=>new(1,1,[128,128,255,255]);
-
-    /// <summary>Decodes (or falls back to a procedural default, mirroring <see cref="ModelRenderer"/>'s "every mesh gets a real SRV" rationale) and uploads one material texture slot.</summary>
-    private ID3D12Resource*CreateTextureResource(byte[]?EncodedBytes,DecodedImage Fallback){
-        DecodedImage Image=DecodeOrFallback(EncodedBytes,Fallback);
-
-        D3D12_RESOURCE_DESC TextureDesc=D3D12_RESOURCE_DESC.Tex2D(MaterialTextureFormat,(uint)Image.Width,(uint)Image.Height,mipLevels:1);
+    /// <summary>Uploads one already-validated canonical RGBA8 texture. Decode/fallback policy lives above L0.</summary>
+    private ID3D12Resource*CreateTextureResource(RenderTextureResource Texture){
+        D3D12_RESOURCE_DESC TextureDesc=D3D12_RESOURCE_DESC.Tex2D(
+            MaterialTextureFormat,(uint)Texture.Width,(uint)Texture.Height,mipLevels:1);
 
         D3D12_HEAP_PROPERTIES DefaultHeapProps=new(D3D12_HEAP_TYPE_DEFAULT);
-        ID3D12Resource*Texture;
-        D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateCommittedResource(&DefaultHeapProps,D3D12_HEAP_FLAG_NONE,&TextureDesc,D3D12_RESOURCE_STATE_COPY_DEST,pOptimizedClearValue:null,__uuidof<ID3D12Resource>(),(void**)&Texture),
+        ID3D12Resource*GpuTexture;
+        D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateCommittedResource(&DefaultHeapProps,D3D12_HEAP_FLAG_NONE,&TextureDesc,D3D12_RESOURCE_STATE_COPY_DEST,pOptimizedClearValue:null,__uuidof<ID3D12Resource>(),(void**)&GpuTexture),
             "ID3D12Device::CreateCommittedResource","creating a material texture");
 
         D3D12_PLACED_SUBRESOURCE_FOOTPRINT Footprint;
@@ -1252,11 +1525,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         D3D12_HEAP_PROPERTIES UploadHeapProps=new(D3D12_HEAP_TYPE_UPLOAD);
         D3D12_RESOURCE_DESC StagingDesc=D3D12_RESOURCE_DESC.Buffer(TotalBytes);
 
-        ID3D12Resource*Staging;
-        D3D12Diagnostics.EnsureSuccess(this.Device.Device->CreateCommittedResource(&UploadHeapProps,D3D12_HEAP_FLAG_NONE,&StagingDesc,D3D12_RESOURCE_STATE_GENERIC_READ,pOptimizedClearValue:null,__uuidof<ID3D12Resource>(),(void**)&Staging),
-            "ID3D12Device::CreateCommittedResource","creating a material texture upload staging buffer");
-
+        ID3D12Resource*Staging=null;
         try {
+            D3D12Diagnostics.EnsureSuccess(this.Device.Device->CreateCommittedResource(&UploadHeapProps,D3D12_HEAP_FLAG_NONE,&StagingDesc,D3D12_RESOURCE_STATE_GENERIC_READ,pOptimizedClearValue:null,__uuidof<ID3D12Resource>(),(void**)&Staging),
+                "ID3D12Device::CreateCommittedResource","creating a material texture upload staging buffer");
             // GetCopyableFootprints' RowPitch is 256-byte aligned; the decoded image is tightly
             // packed (stride = Width*4). These differ whenever Width*4 isn't already a multiple of
             // 256, so this must be a per-row copy, not one bulk CopyBlock (same as ModelRenderer).
@@ -1264,10 +1536,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             byte*Mapped;
             D3D12Diagnostics.EnsureSuccess(Staging->Map(0,&NoRead,(void**)&Mapped),"ID3D12Resource::Map","mapping a material texture upload staging buffer");
 
-            var SrcRowPitch=(uint)Image.Width*4;
+            var SrcRowPitch=(uint)Texture.Width*4;
             var DstRowPitch=Footprint.Footprint.RowPitch;
-            fixed(byte*PSrc=Image.Pixels){
-                for(uint Y=0;Y<Image.Height;Y++){
+            fixed(byte*PSrc=Texture.Pixels){
+                for(uint Y=0;Y<(uint)Texture.Height;Y++){
                     Unsafe.CopyBlock(Mapped+(Y*DstRowPitch),PSrc+(Y*SrcRowPitch),SrcRowPitch);
                 }
             }
@@ -1276,13 +1548,13 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             D3D12Diagnostics.EnsureSuccess(this.CommandAllocators[0]->Reset(),"ID3D12CommandAllocator::Reset","resetting the allocator for a material texture upload");
             D3D12Diagnostics.EnsureSuccess(this.CommandList->Reset(this.CommandAllocators[0],null),"ID3D12GraphicsCommandList::Reset","resetting the command list for a material texture upload");
 
-            D3D12_TEXTURE_COPY_LOCATION Dst=new(){ pResource=Texture,Type=D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX };
+            D3D12_TEXTURE_COPY_LOCATION Dst=new(){ pResource=GpuTexture,Type=D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX };
             Dst.SubresourceIndex=0;
             D3D12_TEXTURE_COPY_LOCATION Src=new(){ pResource=Staging,Type=D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT };
             Src.PlacedFootprint=Footprint;
             this.CommandList->CopyTextureRegion(&Dst,0,0,0,&Src,null);
 
-            D3D12_RESOURCE_BARRIER ToShaderResource=D3D12_RESOURCE_BARRIER.InitTransition(Texture,D3D12_RESOURCE_STATE_COPY_DEST,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+            D3D12_RESOURCE_BARRIER ToShaderResource=D3D12_RESOURCE_BARRIER.InitTransition(GpuTexture,D3D12_RESOURCE_STATE_COPY_DEST,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
             this.CommandList->ResourceBarrier(1,&ToShaderResource);
 
             D3D12Diagnostics.EnsureSuccess(this.CommandList->Close(),"ID3D12GraphicsCommandList::Close","closing a material texture upload command list");
@@ -1291,20 +1563,14 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.Device.CommandQueue->ExecuteCommandLists(1,&CommandListBase);
 
             this.WaitForGpuIdle();
+        } catch {
+            _=GpuTexture->Release();
+            throw;
         } finally {
-            _=Staging->Release();
+            if(Staging!=null){ _=Staging->Release(); }
         }
 
-        return Texture;
-    }
-
-    private static DecodedImage DecodeOrFallback(byte[]?EncodedBytes,DecodedImage Fallback){
-        if(EncodedBytes is null||EncodedBytes.Length==0){
-            return Fallback;
-        }
-
-        WicDecodeResult DecodeResult=WicImageDecoder.Decode(EncodedBytes);
-        return DecodeResult.Success?DecodeResult.Image!:Fallback;
+        return GpuTexture;
     }
 
     private void CreateObjectMappings(IReadOnlyList<StageObjectCreateInfo>Objects){
@@ -1312,6 +1578,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.ObjectMeshIndices=new int[this.ObjectCount];
         this.ObjectMaterialIndices=new int[this.ObjectCount];
         this.ObjectTransforms=new Matrix4x4[this.ObjectCount];
+        this.ObjectSelectionWeights=new float[this.ObjectCount];
 
         for(var I=0;I< this.ObjectCount;I++){
             this.ObjectMeshIndices[I]=Objects[I].MeshIndex;
@@ -1321,7 +1588,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     private void CreateConstantBuffers(){
-        var FrameBufferSize=FrameConstantsStride*FrameCount;
+        var FrameBufferSize=checked(
+            FrameConstantsStride*(uint)FrameCount*(uint)CameraPassCount);
         this.CreateUploadBuffer(FrameBufferSize,out this.FrameConstantsBuffer,out this.FrameConstantsMapped,"creating the frame constant buffer");
 
         var LocalLightBufferSize=LocalLightStride*(uint)MaxLocalLights*FrameCount;
@@ -1345,6 +1613,12 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
         var ObjectBufferSize=ConstantAlignment*(uint)this.ObjectCount*FrameCount;
         this.CreateUploadBuffer(ObjectBufferSize,out this.ObjectConstantsBuffer,out this.ObjectConstantsMapped,"creating the object constant buffer");
+
+        uint OverlayBufferSize=checked(
+            (uint)(Unsafe.SizeOf<OverlayVertexGpu>()*MaxOverlayVertices*FrameCount));
+        this.CreateUploadBuffer(
+            OverlayBufferSize,out this.OverlayVertexBuffer,
+            out this.OverlayVertexMapped,"creating the overlay vertex buffer");
     }
 
     private void CreateForwardPlusTileBuffer(int Width,int Height){
@@ -1430,6 +1704,35 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.WriteViewProjection(this.FrameIndex,Camera.GetView()*Camera.GetProjection(AspectRatio));
         this.WriteCameraPosition(this.FrameIndex,Camera.GetEyePosition());
         this.WriteExposure(this.FrameIndex,Camera.ExposureEv100);
+    }
+
+    /// <summary>
+    /// Accepts an already camera-relative preview matrix through the owning Render Server.
+    /// Internal visibility prevents L8 clients from acquiring the native backend directly.
+    /// </summary>
+    internal void SetViewProjection(in Matrix4x4 ViewProjection){
+        this.SetViewProjection(ViewProjection,Vector3.Zero);
+    }
+
+    internal void SetViewProjection(
+        in Matrix4x4 ViewProjection,in Vector3 CameraPosition){
+        this.ThrowIfDisposed();
+        if(!float.IsFinite(ViewProjection.M11)||!float.IsFinite(ViewProjection.M12)
+            ||!float.IsFinite(ViewProjection.M13)||!float.IsFinite(ViewProjection.M14)
+            ||!float.IsFinite(ViewProjection.M21)||!float.IsFinite(ViewProjection.M22)
+            ||!float.IsFinite(ViewProjection.M23)||!float.IsFinite(ViewProjection.M24)
+            ||!float.IsFinite(ViewProjection.M31)||!float.IsFinite(ViewProjection.M32)
+            ||!float.IsFinite(ViewProjection.M33)||!float.IsFinite(ViewProjection.M34)
+            ||!float.IsFinite(ViewProjection.M41)||!float.IsFinite(ViewProjection.M42)
+            ||!float.IsFinite(ViewProjection.M43)||!float.IsFinite(ViewProjection.M44)){
+            throw new ArgumentException("View-projection matrix must be finite.",nameof(ViewProjection));
+        }
+        if(!IsFinite(CameraPosition)){
+            throw new ArgumentException("Camera position must be finite.",nameof(CameraPosition));
+        }
+        this.WriteViewProjection(this.FrameIndex,ViewProjection);
+        this.WriteCameraPosition(this.FrameIndex,CameraPosition);
+        this.WriteExposure(this.FrameIndex,0f);
     }
 
     /// <summary>
@@ -1727,7 +2030,217 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
 
         this.ObjectTransforms[ObjectIndex]=World;
+        this.CameraPreviewDiagnosticsDirty=true;
         this.WriteObjectConstants(this.FrameIndex,ObjectIndex);
+    }
+
+    public void SetPresentationMode(RenderPresentationMode Mode){
+        this.ThrowIfDisposed();
+        if(!Enum.IsDefined(Mode)){ throw new ArgumentOutOfRangeException(nameof(Mode)); }
+        this.PresentationMode=Mode;
+        for(int ObjectIndex=0;ObjectIndex<this.ObjectCount;ObjectIndex++){
+            this.WriteObjectConstants(this.FrameIndex,ObjectIndex);
+        }
+    }
+
+    public void SetObjectSelectionWeight(int ObjectIndex,float Weight){
+        this.ThrowIfDisposed();
+        if((uint)ObjectIndex>=(uint)this.ObjectCount){
+            throw new ArgumentOutOfRangeException(nameof(ObjectIndex));
+        }
+        if(!float.IsFinite(Weight)||Weight<0f||Weight>1f){
+            throw new ArgumentOutOfRangeException(
+                nameof(Weight),"Selection weight must be finite and between zero and one.");
+        }
+        float Previous=this.ObjectSelectionWeights[ObjectIndex];
+        if(Previous<=0f&&Weight>0f){ this.SelectedObjectCount++; }
+        if(Previous>0f&&Weight<=0f){ this.SelectedObjectCount--; }
+        this.ObjectSelectionWeights[ObjectIndex]=Weight;
+        this.WriteObjectConstants(this.FrameIndex,ObjectIndex);
+    }
+
+    public void SetOverlay(
+        ReadOnlySpan<RenderOverlayVertex>Triangles,
+        ReadOnlySpan<RenderOverlayVertex>Lines){
+        this.ThrowIfDisposed();
+        int TotalCount=checked(Triangles.Length+Lines.Length);
+        if(TotalCount>MaxOverlayVertices){
+            throw new ArgumentOutOfRangeException(
+                nameof(Triangles),$"Overlay exceeds {MaxOverlayVertices} vertices.");
+        }
+        if(Triangles.Length%3!=0){
+            throw new ArgumentException(
+                "Overlay triangle vertices must form complete triangles.",
+                nameof(Triangles));
+        }
+        if(Lines.Length%2!=0){
+            throw new ArgumentException(
+                "Overlay line vertices must form complete lines.",nameof(Lines));
+        }
+        int Stride=Unsafe.SizeOf<OverlayVertexGpu>();
+        byte*Destination=this.OverlayVertexMapped+
+            ((nuint)this.FrameIndex*(nuint)MaxOverlayVertices*(nuint)Stride);
+        int OutputIndex=0;
+        foreach(RenderOverlayVertex Vertex in Triangles){
+            WriteOverlayVertex(Destination,Stride,OutputIndex++,Vertex);
+        }
+        foreach(RenderOverlayVertex Vertex in Lines){
+            WriteOverlayVertex(Destination,Stride,OutputIndex++,Vertex);
+        }
+        this.OverlayTriangleVertexCount=Triangles.Length;
+        this.OverlayLineVertexCount=Lines.Length;
+    }
+
+    internal void SetCameraPreviews(ReadOnlySpan<RenderCameraPreview>Previews){
+        this.ThrowIfDisposed();
+        if(Previews.Length>RenderCameraPreview.MaximumCount){
+            throw new ArgumentOutOfRangeException(
+                nameof(Previews),
+                $"At most {RenderCameraPreview.MaximumCount} camera previews are supported.");
+        }
+        for(int Index=0;Index<Previews.Length;Index++){
+            RenderCameraPreview Preview=Previews[Index];
+            ValidateCameraPreview(Preview,Index,this.ObjectCount);
+            this.RequestedCameraPreviews[Index]=Preview;
+        }
+        Array.Clear(
+            this.RequestedCameraPreviews,Previews.Length,
+            this.RequestedCameraPreviews.Length-Previews.Length);
+        this.RequestedCameraPreviewCount=Previews.Length;
+        this.RebuildEffectiveCameraPreviews();
+    }
+
+    internal RenderCameraPreviewDiagnostics[]GetCameraPreviewDiagnostics(){
+        this.ThrowIfDisposed();
+        this.RefreshCameraPreviewDiagnostics();
+        RenderCameraPreviewDiagnostics[]Result=
+            new RenderCameraPreviewDiagnostics[this.CameraPreviewCount];
+        Array.Copy(this.CameraPreviewDiagnostics,Result,this.CameraPreviewCount);
+        return Result;
+    }
+
+    private static void ValidateCameraPreview(
+        in RenderCameraPreview Preview,int PreviewIndex,int ObjectCount){
+        if(!IsFiniteMatrix(Preview.ViewProjection)){
+            throw new ArgumentException(
+                $"Camera preview {PreviewIndex} view-projection must be finite.",
+                nameof(Preview));
+        }
+        if(!IsFinite(Preview.CameraPosition)){
+            throw new ArgumentException(
+                $"Camera preview {PreviewIndex} position must be finite.",
+                nameof(Preview));
+        }
+        if(Preview.ExcludedObjectIndex<-1
+            ||Preview.ExcludedObjectIndex>=ObjectCount){
+            throw new ArgumentOutOfRangeException(
+                nameof(Preview),
+                $"Camera preview {PreviewIndex} excluded object is outside the roster.");
+        }
+    }
+
+    private static bool IsFiniteMatrix(in Matrix4x4 Value)=>
+        float.IsFinite(Value.M11)&&float.IsFinite(Value.M12)
+        &&float.IsFinite(Value.M13)&&float.IsFinite(Value.M14)
+        &&float.IsFinite(Value.M21)&&float.IsFinite(Value.M22)
+        &&float.IsFinite(Value.M23)&&float.IsFinite(Value.M24)
+        &&float.IsFinite(Value.M31)&&float.IsFinite(Value.M32)
+        &&float.IsFinite(Value.M33)&&float.IsFinite(Value.M34)
+        &&float.IsFinite(Value.M41)&&float.IsFinite(Value.M42)
+        &&float.IsFinite(Value.M43)&&float.IsFinite(Value.M44);
+
+    private void RebuildEffectiveCameraPreviews(){
+        int Count=0;
+        for(int Index=0;Index<this.RequestedCameraPreviewCount;Index++){
+            RenderCameraPreview Preview=this.RequestedCameraPreviews[Index];
+            if(Preview.Width<=0||Preview.Height<=0){ continue; }
+            int Left=ClampToSurface(Preview.X,this.Width);
+            int Top=ClampToSurface(Preview.Y,this.Height);
+            int Right=ClampToSurface((long)Preview.X+Preview.Width,this.Width);
+            int Bottom=ClampToSurface((long)Preview.Y+Preview.Height,this.Height);
+            if(Right<=Left||Bottom<=Top){ continue; }
+            this.EffectiveCameraPreviews[Count++]=Preview with {
+                X=Left,Y=Top,Width=Right-Left,Height=Bottom-Top,
+            };
+        }
+        Array.Clear(
+            this.EffectiveCameraPreviews,Count,
+            this.EffectiveCameraPreviews.Length-Count);
+        this.CameraPreviewCount=Count;
+        this.CameraPreviewDiagnosticsDirty=true;
+    }
+
+    private static int ClampToSurface(long Value,int Maximum)=>
+        (int)Math.Min(Math.Max(Value,0L),Maximum);
+
+    private void RefreshCameraPreviewDiagnostics(){
+        if(!this.CameraPreviewDiagnosticsDirty){ return; }
+        for(int PreviewIndex=0;PreviewIndex<this.CameraPreviewCount;PreviewIndex++){
+            RenderCameraPreview Preview=this.EffectiveCameraPreviews[PreviewIndex];
+            int Candidates=0;
+            for(int ObjectIndex=0;ObjectIndex<this.ObjectCount;ObjectIndex++){
+                Vector3 Position=Vector3.Transform(
+                    Vector3.Zero,this.ObjectTransforms[ObjectIndex]);
+                Vector4 Clip=Vector4.Transform(
+                    new Vector4(Position,1f),Preview.ViewProjection);
+                if(Clip.W>1e-5f&&MathF.Abs(Clip.X)<=Clip.W
+                    &&MathF.Abs(Clip.Y)<=Clip.W&&Clip.Z>=0f&&Clip.Z<=Clip.W){
+                    Candidates++;
+                }
+            }
+            int DrawCalls=this.ObjectCount-
+                (Preview.ExcludedObjectIndex>=0?1:0);
+            this.CameraPreviewDiagnostics[PreviewIndex]=
+                new RenderCameraPreviewDiagnostics(
+                    this.ObjectCount,Candidates,DrawCalls,
+                    ComputeMatrixHash(Preview.ViewProjection));
+        }
+        Array.Clear(
+            this.CameraPreviewDiagnostics,this.CameraPreviewCount,
+            this.CameraPreviewDiagnostics.Length-this.CameraPreviewCount);
+        this.CameraPreviewDiagnosticsDirty=false;
+    }
+
+    private static uint ComputeMatrixHash(in Matrix4x4 Value){
+        unchecked {
+            uint Hash=2166136261;
+            Hash=(Hash^(uint)Value.M11.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M12.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M13.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M14.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M21.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M22.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M23.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M24.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M31.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M32.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M33.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M34.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M41.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M42.GetHashCode())*16777619;
+            Hash=(Hash^(uint)Value.M43.GetHashCode())*16777619;
+            return(Hash^(uint)Value.M44.GetHashCode())*16777619;
+        }
+    }
+
+    private static void WriteOverlayVertex(
+        byte*Destination,int Stride,int Index,RenderOverlayVertex Vertex){
+        if(!IsFinite(Vertex.Position)
+            ||!float.IsFinite(Vertex.Color.X)
+            ||!float.IsFinite(Vertex.Color.Y)
+            ||!float.IsFinite(Vertex.Color.Z)
+            ||!float.IsFinite(Vertex.Color.W)
+            ||Vertex.Color.W<0f||Vertex.Color.W>1f){
+            throw new ArgumentException(
+                "Overlay vertices require finite positions/colors and alpha between zero and one.",
+                nameof(Vertex));
+        }
+        OverlayVertexGpu Packed=new(){
+            Position=Vertex.Position,
+            Color=Vertex.Color,
+        };
+        Unsafe.CopyBlock(
+            Destination+(Index*Stride),&Packed,(uint)Stride);
     }
 
     private void ThrowIfDisposed(){
@@ -1736,7 +2249,13 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
     }
 
-    private byte*FrameSlot(uint FrameIndex)=> this.FrameConstantsMapped+(FrameIndex*FrameConstantsStride);
+    private byte*FrameSlot(uint FrameIndex,int PassIndex=0){
+        if((uint)PassIndex>=(uint)CameraPassCount){
+            throw new ArgumentOutOfRangeException(nameof(PassIndex));
+        }
+        uint LinearSlot=checked((FrameIndex*(uint)CameraPassCount)+(uint)PassIndex);
+        return this.FrameConstantsMapped+(LinearSlot*FrameConstantsStride);
+    }
 
     private void WriteViewProjection(uint FrameIndex,Matrix4x4 ViewProjection){
         this.FrameViewProjections[FrameIndex]=ViewProjection;
@@ -2373,15 +2892,22 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         Vector4 BaseColorFactor= this.MaterialBaseColorFactors[MaterialIndex];
         Unsafe.CopyBlock(Destination+ObjectBaseColorFactorOffset,&BaseColorFactor,(uint)sizeof(Vector4));
 
-        Vector4 MaterialParams=new(this.MaterialRoughnessFactors[MaterialIndex], this.MaterialMetallicFactors[MaterialIndex],0f,0f);
+        Vector4 MaterialParams=new(
+            this.MaterialRoughnessFactors[MaterialIndex],
+            this.MaterialMetallicFactors[MaterialIndex],
+            (float)this.PresentationMode,0f);
         Unsafe.CopyBlock(Destination+ObjectMaterialParamsOffset,&MaterialParams,(uint)sizeof(Vector4));
 
-        Vector4 EmissiveNits=new(this.MaterialEmissiveNits[MaterialIndex],1f);
+        Vector4 EmissiveNits=new(
+            this.MaterialEmissiveNits[MaterialIndex],
+            this.ObjectSelectionWeights[ObjectIndex]);
         Unsafe.CopyBlock(Destination+ObjectEmissiveFactorOffset,&EmissiveNits,(uint)sizeof(Vector4));
     }
 
-    private ulong GetFrameConstantsAddress(uint FrameIndex){
-        return this.FrameConstantsBuffer->GetGPUVirtualAddress()+(FrameIndex*FrameConstantsStride);
+    private ulong GetFrameConstantsAddress(uint FrameIndex,int PassIndex=0){
+        uint LinearSlot=checked((FrameIndex*(uint)CameraPassCount)+(uint)PassIndex);
+        return this.FrameConstantsBuffer->GetGPUVirtualAddress()
+            +(LinearSlot*FrameConstantsStride);
     }
 
     private ulong GetLocalLightsAddress(uint FrameIndex)=>
@@ -2486,6 +3012,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CreateForwardPlusTileBuffer(Width,Height);
         this.FrameIndex= this.SwapChain->GetCurrentBackBufferIndex();
         this.UpdateViewportAndScissor(Width,Height);
+        this.RebuildEffectiveCameraPreviews();
     }
 
     /// <summary>Renders the selected directional and Spot projection tiles in one Atlas transition pair.</summary>
@@ -2543,6 +3070,133 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
     }
 
+    private void RenderOverlay(){
+        int TotalCount=
+            this.OverlayTriangleVertexCount+this.OverlayLineVertexCount;
+        if(TotalCount==0){ return; }
+        int Stride=Unsafe.SizeOf<OverlayVertexGpu>();
+        ulong FrameOffset=checked(
+            (ulong)this.FrameIndex*(ulong)MaxOverlayVertices*(ulong)Stride);
+        ulong BaseAddress=this.OverlayVertexBuffer->GetGPUVirtualAddress()+FrameOffset;
+        this.CommandList->SetGraphicsRootSignature(this.RootSignature);
+        this.CommandList->SetGraphicsRootConstantBufferView(
+            0,this.GetFrameConstantsAddress(this.FrameIndex));
+        fixed(D3D12_VIEWPORT*PViewport=&this.Viewport)
+        fixed(RECT*PScissorRect=&this.ScissorRect){
+            this.CommandList->RSSetViewports(1,PViewport);
+            this.CommandList->RSSetScissorRects(1,PScissorRect);
+        }
+        if(this.OverlayTriangleVertexCount>0){
+            D3D12_VERTEX_BUFFER_VIEW View=new(){
+                BufferLocation=BaseAddress,
+                SizeInBytes=checked(
+                    (uint)(this.OverlayTriangleVertexCount*Stride)),
+                StrideInBytes=(uint)Stride,
+            };
+            this.CommandList->SetPipelineState(
+                this.OverlayTrianglePipelineState);
+            this.CommandList->IASetPrimitiveTopology(
+                D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+            this.CommandList->IASetVertexBuffers(0,1,&View);
+            this.CommandList->DrawInstanced(
+                (uint)this.OverlayTriangleVertexCount,1,0,0);
+        }
+        if(this.OverlayLineVertexCount>0){
+            D3D12_VERTEX_BUFFER_VIEW View=new(){
+                BufferLocation=BaseAddress+
+                    (ulong)(this.OverlayTriangleVertexCount*Stride),
+                SizeInBytes=checked(
+                    (uint)(this.OverlayLineVertexCount*Stride)),
+                StrideInBytes=(uint)Stride,
+            };
+            this.CommandList->SetPipelineState(this.OverlayLinePipelineState);
+            this.CommandList->IASetPrimitiveTopology(
+                D3D_PRIMITIVE_TOPOLOGY_LINELIST);
+            this.CommandList->IASetVertexBuffers(0,1,&View);
+            this.CommandList->DrawInstanced(
+                (uint)this.OverlayLineVertexCount,1,0,0);
+        }
+    }
+
+    private void PrepareCameraPreviewConstants(uint FrameIndex){
+        this.RefreshCameraPreviewDiagnostics();
+        byte*Source=this.FrameSlot(FrameIndex);
+        for(int PreviewIndex=0;PreviewIndex<this.CameraPreviewCount;PreviewIndex++){
+            RenderCameraPreview Preview=this.EffectiveCameraPreviews[PreviewIndex];
+            byte*Destination=this.FrameSlot(FrameIndex,PreviewIndex+1);
+            Unsafe.CopyBlock(Destination,Source,FrameConstantsSize);
+            Matrix4x4 ViewProjection=Preview.ViewProjection;
+            Unsafe.CopyBlock(
+                Destination+FrameViewProjectionOffset,&ViewProjection,
+                (uint)sizeof(Matrix4x4));
+            Vector4 CameraPosition=new(Preview.CameraPosition,0f);
+            Unsafe.CopyBlock(
+                Destination+FrameCameraPositionOffset,&CameraPosition,
+                (uint)sizeof(Vector4));
+            // Forward+ tile lists were prepared for the primary camera. Preview passes retain
+            // directional/ambient light but disable local lights rather than sampling a stale
+            // camera-dependent active set.
+            int*LightCounts=(int*)(Destination+FrameLightCountsOffset);
+            LightCounts[0]=0;
+        }
+    }
+
+    private void DrawObjects(int ExcludedObjectIndex){
+        for(int ObjectIndex=0;ObjectIndex<this.ObjectCount;ObjectIndex++){
+            if(ObjectIndex==ExcludedObjectIndex){ continue; }
+            int MeshIndex=this.ObjectMeshIndices[ObjectIndex];
+            this.CommandList->SetGraphicsRootConstantBufferView(
+                1,this.GetObjectConstantsAddress(this.FrameIndex,ObjectIndex));
+            this.CommandList->SetGraphicsRootDescriptorTable(
+                2,this.GetMaterialDescriptorTable(
+                    this.ObjectMaterialIndices[ObjectIndex]));
+            fixed(D3D12_VERTEX_BUFFER_VIEW*PVertexBufferView=
+                &this.VertexBufferViews[MeshIndex])
+            fixed(D3D12_INDEX_BUFFER_VIEW*PIndexBufferView=
+                &this.IndexBufferViews[MeshIndex]){
+                this.CommandList->IASetVertexBuffers(0,1,PVertexBufferView);
+                this.CommandList->IASetIndexBuffer(PIndexBufferView);
+                this.CommandList->DrawIndexedInstanced(
+                    this.IndexCounts[MeshIndex],1,0,0,0);
+            }
+        }
+    }
+
+    private void RenderCameraPreviews(
+        D3D12_CPU_DESCRIPTOR_HANDLE HdrRtvHandle,
+        D3D12_CPU_DESCRIPTOR_HANDLE DsvHandle){
+        if(this.CameraPreviewCount==0){ return; }
+        ID3D12PipelineState*Pipeline=
+            this.PresentationMode==RenderPresentationMode.Wireframe
+                ?this.CameraPreviewWireframePipelineState
+                :this.CameraPreviewPipelineState;
+        Vector4 ClearColor=ClearColorVector;
+        for(int PreviewIndex=0;PreviewIndex<this.CameraPreviewCount;PreviewIndex++){
+            RenderCameraPreview Preview=this.EffectiveCameraPreviews[PreviewIndex];
+            RECT Rect=new(){
+                left=Preview.X,top=Preview.Y,
+                right=Preview.X+Preview.Width,bottom=Preview.Y+Preview.Height,
+            };
+            D3D12_VIEWPORT Viewport=new(){
+                TopLeftX=Preview.X,TopLeftY=Preview.Y,
+                Width=Preview.Width,Height=Preview.Height,
+                MinDepth=0f,MaxDepth=1f,
+            };
+            this.CommandList->ClearRenderTargetView(
+                HdrRtvHandle,(float*)&ClearColor,1,&Rect);
+            this.CommandList->ClearDepthStencilView(
+                DsvHandle,D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH,
+                1f,0,1,&Rect);
+            this.CommandList->SetPipelineState(Pipeline);
+            this.CommandList->SetGraphicsRootConstantBufferView(
+                0,this.GetFrameConstantsAddress(
+                    this.FrameIndex,PreviewIndex+1));
+            this.CommandList->RSSetViewports(1,&Viewport);
+            this.CommandList->RSSetScissorRects(1,&Rect);
+            this.DrawObjects(Preview.ExcludedObjectIndex);
+        }
+    }
+
     public void RenderFrame(bool CaptureForVerification=false){
         this.ThrowIfDisposed();
         this.TryReloadShaderArtifact();
@@ -2550,14 +3204,21 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             return;
         }
 
+        ID3D12PipelineState*ActivePipelineState=
+            this.PresentationMode==RenderPresentationMode.Wireframe
+                ?this.WireframePipelineState
+                :this.PresentationMode!=RenderPresentationMode.Lit||this.SelectedObjectCount>0
+                    ?this.PresentationPipelineState
+                    :this.PipelineState;
         ID3D12CommandAllocator*Allocator= this.CommandAllocators[this.FrameIndex];
         D3D12Diagnostics.EnsureSuccess(Allocator->Reset(),"ID3D12CommandAllocator::Reset","resetting the frame command allocator");
-        D3D12Diagnostics.EnsureSuccess(this.CommandList->Reset(Allocator, this.PipelineState),"ID3D12GraphicsCommandList::Reset","resetting the graphics command list");
+        D3D12Diagnostics.EnsureSuccess(this.CommandList->Reset(Allocator,ActivePipelineState),"ID3D12GraphicsCommandList::Reset","resetting the graphics command list");
         this.PrepareDirectionalLights(this.FrameIndex);
         this.PrepareForwardPlusLocalLights(this.FrameIndex);
 
         this.PrepareLocalShadowAtlasProjections(this.FrameIndex);
         this.RenderShadowAtlasProjections();
+        this.PrepareCameraPreviewConstants(this.FrameIndex);
 
         ID3D12Resource*BackBuffer= this.BackBuffers[this.FrameIndex];
 
@@ -2573,7 +3234,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CommandList->ClearDepthStencilView(DsvHandle,D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH,1.0f,0,0,null);
 
         this.CommandList->SetGraphicsRootSignature(this.RootSignature);
-        this.CommandList->SetPipelineState(this.PipelineState);
+        this.CommandList->SetPipelineState(ActivePipelineState);
 
         ID3D12DescriptorHeap*SrvHeap=this.SrvHeap;
         this.CommandList->SetDescriptorHeaps(1,&SrvHeap);
@@ -2593,18 +3254,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
         this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-        for(var I=0;I< this.ObjectCount;I++){
-            var MeshIndex= this.ObjectMeshIndices[I];
-            this.CommandList->SetGraphicsRootConstantBufferView(1, this.GetObjectConstantsAddress(this.FrameIndex,I));
-            this.CommandList->SetGraphicsRootDescriptorTable(2, this.GetMaterialDescriptorTable(this.ObjectMaterialIndices[I]));
-
-            fixed(D3D12_VERTEX_BUFFER_VIEW*PVertexBufferView=&this.VertexBufferViews[MeshIndex])
-            fixed(D3D12_INDEX_BUFFER_VIEW*PIndexBufferView=&this.IndexBufferViews[MeshIndex]){
-                this.CommandList->IASetVertexBuffers(0,1,PVertexBufferView);
-                this.CommandList->IASetIndexBuffer(PIndexBufferView);
-                this.CommandList->DrawIndexedInstanced(this.IndexCounts[MeshIndex],1,0,0,0);
-            }
-        }
+        this.DrawObjects(ExcludedObjectIndex:-1);
+        this.RenderCameraPreviews(HdrRtvHandle,DsvHandle);
 
         D3D12_RESOURCE_BARRIER ToHdrShaderResource=D3D12_RESOURCE_BARRIER.InitTransition(this.HdrColorBuffer,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
         this.CommandList->ResourceBarrier(1,&ToHdrShaderResource);
@@ -2626,6 +3277,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
         this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         this.CommandList->DrawInstanced(3,1,0,0);
+        this.RenderOverlay();
 
         if(CaptureForVerification){
             this.EnsureReadbackBuffer();
@@ -2777,7 +3429,12 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.ShaderArtifactMonitor?.Dispose();
         this.ShaderArtifactMonitor=null;
 
-        this.WaitForGpuIdle();
+        try {
+            this.WaitForGpuIdle();
+        } catch(D3D12Exception){
+            // A removed/reset device cannot signal its fence. Native objects still have to be
+            // released so the Render Server can create the next generation.
+        }
 
         this.ReleaseReadbackBuffer();
         this.ReleaseForwardPlusTileBuffer();
@@ -2830,6 +3487,12 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             _= this.ObjectConstantsBuffer->Release();
             this.ObjectConstantsBuffer=null;
         }
+        if(this.OverlayVertexBuffer!=null){
+            this.OverlayVertexBuffer->Unmap(0,null);
+            this.OverlayVertexMapped=null;
+            _=this.OverlayVertexBuffer->Release();
+            this.OverlayVertexBuffer=null;
+        }
 
         if(this.ShadowConstantsBuffer!=null){
             this.ShadowConstantsBuffer->Unmap(0,null);
@@ -2853,12 +3516,14 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.SrvHeap=null;
         }
 
-        for(var I=0;I< this.MaterialTextures.Length;I++){
-            if(this.MaterialTextures[I]!=null){
-                _= this.MaterialTextures[I]->Release();
-                this.MaterialTextures[I]=null;
+        for(var I=0;I< this.OwnedMaterialTextures.Length;I++){
+            if(this.OwnedMaterialTextures[I]!=null){
+                _= this.OwnedMaterialTextures[I]->Release();
+                this.OwnedMaterialTextures[I]=null;
             }
         }
+        this.OwnedMaterialTextures=[];
+        this.MaterialTextures=[];
 
         for(var I=0;I< this.IndexBuffers.Length;I++){
             if(this.IndexBuffers[I]!=null){
@@ -2877,6 +3542,30 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         if(this.PipelineState!=null){
             _= this.PipelineState->Release();
             this.PipelineState=null;
+        }
+        if(this.PresentationPipelineState!=null){
+            _=this.PresentationPipelineState->Release();
+            this.PresentationPipelineState=null;
+        }
+        if(this.WireframePipelineState!=null){
+            _=this.WireframePipelineState->Release();
+            this.WireframePipelineState=null;
+        }
+        if(this.CameraPreviewPipelineState!=null){
+            _=this.CameraPreviewPipelineState->Release();
+            this.CameraPreviewPipelineState=null;
+        }
+        if(this.CameraPreviewWireframePipelineState!=null){
+            _=this.CameraPreviewWireframePipelineState->Release();
+            this.CameraPreviewWireframePipelineState=null;
+        }
+        if(this.OverlayTrianglePipelineState!=null){
+            _=this.OverlayTrianglePipelineState->Release();
+            this.OverlayTrianglePipelineState=null;
+        }
+        if(this.OverlayLinePipelineState!=null){
+            _=this.OverlayLinePipelineState->Release();
+            this.OverlayLinePipelineState=null;
         }
 
         if(this.ShadowPipelineState!=null){

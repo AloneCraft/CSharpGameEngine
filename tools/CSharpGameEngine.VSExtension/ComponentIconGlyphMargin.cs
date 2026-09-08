@@ -386,17 +386,17 @@ internal sealed class ComponentIconGlyphFactory : IGlyphFactory {
         }
 
         var Button=new Button {
-                                  Width=16d,
-                                  Height=16d,
-                                  Padding=new Thickness(0d),
-                                  BorderThickness=new Thickness(0d),
+                                  Width=16f,
+                                  Height=16f,
+                                  Padding=new Thickness(0f),
+                                  BorderThickness=new Thickness(0f),
                                   Background=System.Windows.Media.Brushes.Transparent,
                                   Focusable=false,
                                   IsTabStop=false,
                                   ToolTip=ComponentTag.Target.Icon.ToolTip,
                                   Content=new SceneVisualIconPresenter {
                                                                            Icon=ComponentTag.Target.Icon,
-                                                                           IconSize=16d,
+                                                                           IconSize=16f,
                                                                        },
                               };
         Button.Click+=(Sender,Args)=>this.ShowPicker(Button,ComponentTag.Target);

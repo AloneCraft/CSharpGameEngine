@@ -7,7 +7,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <CgeShaderGraph Include="..\..\assets\Shaders\Model.cgeshadergraph" />
+    <CgeShaderGraph Include="..\..\assets\Shaders\Stage.cgeshadergraph" />
     <None Include="..\..\assets\TestFixtures\Gltf\Box.glb" Link="Samples\Box.glb" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\TestFixtures\Gltf\BoxTextured.glb" Link="Samples\BoxTextured.glb" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\assets\TestFixtures\Fbx\Box.fbx" Link="Samples\Box.fbx" CopyToOutputDirectory="PreserveNewest" />

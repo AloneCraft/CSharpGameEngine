@@ -15,14 +15,29 @@ public sealed class InspectorToolWindowPane:ToolWindowPane {
     public const string PaneGuidString="7ca25df1-0dbf-4b49-9c12-fed543543e26";
 
     private static Func<SceneEditorSessionService?>?SessionProvider;
+    private static WeakReference<InspectorToolWindowControl>?RestoredControl;
+    private readonly InspectorToolWindowControl Control;
 
     public InspectorToolWindowPane():base(null){
+        ThreadHelper.ThrowIfNotOnUIThread();
         this.Caption=VsixText.Get("PaneInspector");
-        this.Content=new InspectorToolWindowControl();
-        if(SessionProvider?.Invoke() is { } Session&& this.Content is InspectorToolWindowControl Control){
+        this.Control=new InspectorToolWindowControl();
+        this.Content=this.Control;
+        RestoredControl=new WeakReference<InspectorToolWindowControl>(this.Control);
+        if(SessionProvider?.Invoke() is { }Session){
+            this.Control.SetSession(Session);
+        }
+    }
+
+    internal static void ConfigureSessionProvider(Func<SceneEditorSessionService?>Provider){
+        if(Provider is null){ throw new ArgumentNullException(nameof(Provider)); }
+        ThreadHelper.ThrowIfNotOnUIThread();
+        SessionProvider=Provider;
+        if(RestoredControl?.TryGetTarget(out var Control)==true
+            &&SessionProvider?.Invoke() is { }Session){
             Control.SetSession(Session);
         }
     }
 
-    internal static void ConfigureSessionProvider(Func<SceneEditorSessionService?>?Provider)=>SessionProvider=Provider;
+    internal static void ClearSessionProvider()=>SessionProvider=null;
 }

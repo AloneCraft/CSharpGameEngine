@@ -79,6 +79,62 @@ public sealed class GameSystemGeneratorEndToEndTests {
         Assert.Equal("OK",Result);
     }
 
+    [Fact]
+    public void EnableFilteringAndSystemWritesAdvanceGeneratedChangeQueries(){
+        var Source="""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Generated;
+            using Sample;
+
+            namespace Game;
+
+            internal struct MoveSystem : ISystem
+            {
+                public int Calls;
+                public bool Update(ref Position position, ref State state)
+                {
+                    Calls++;
+                    position.X += 1f;
+                    return true;
+                }
+            }
+
+            internal static class TestEntry
+            {
+                internal static string RunScenario()
+                {
+                    World world = new();
+                    State state = new(world) { Enabled = true };
+                    Entity entityDisabled = world.Create(new Position());
+                    Entity componentDisabled = world.Create(new Position());
+                    world.SetEntityEnabled(entityDisabled, false);
+                    world.SetComponentEnabled(componentDisabled, EcsComponentType.Position, false);
+
+                    MoveSystem system = new();
+                    var scheduler = new global::CSharpGameEngine.Runtime.Simulation.FixedTickScheduler();
+                    GeneratedGameLoop.RunFrame(ref state, ref system, ref scheduler, 1_000, 60_000);
+                    if (system.Calls != 0) return "FAIL:disabledCalls=" + system.Calls;
+
+                    world.SetComponentEnabled(componentDisabled, EcsComponentType.Position, true);
+                    ChangeVersion beforeWrite = world.CaptureChangeVersion();
+                    GeneratedGameLoop.RunFrame(ref state, ref system, ref scheduler, 1_000, 60_000);
+                    if (system.Calls != 1) return "FAIL:enabledCalls=" + system.Calls;
+                    if (!world.TryGetComponent(componentDisabled, out Position position) || position.X != 1f) return "FAIL:write";
+
+                    Span<Entity> changed = stackalloc Entity[4];
+                    int count = world.CollectChanged(EcsComponentType.Position, beforeWrite, changed);
+                    if (count != 1 || changed[0] != componentDisabled) return "FAIL:changed=" + count;
+                    return "OK";
+                }
+            }
+            """;
+
+        var Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
+        var Result=GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.TestEntry","RunScenario");
+
+        Assert.Equal("OK",Result);
+    }
+
     /// <summary>
     /// ADR-0040 Phase 6のLevelLoadアキュムレータ(RuntimeSystem.cs)が依拠する核心契約: 同一struct内で
     /// 先に宣言したUpdateオーバーロードのArchetypeは、後に宣言した(互いに部分集合関係にない)

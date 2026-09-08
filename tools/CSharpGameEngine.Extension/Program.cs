@@ -1,6 +1,9 @@
 using System.Numerics;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Platform.Windows;
+using CSharpGameEngine.Rendering;
+using CSharpGameEngine.Runtime.Windows;
+using Camera=CSharpGameEngine.Graphics.D3D12.Camera;
 using FbxImporter=CSharpGameEngine.Import.Fbx.FbxImporter;
 using GltfImporter=CSharpGameEngine.Import.Gltf.GltfImporter;
 
@@ -85,8 +88,16 @@ static int RunViewer(string[]Args){
     }
 
     Console.WriteLine($"Mesh: {Positions.Count} vertices, {Indices.Count/3} triangles, bounds radius={BoundsRadius:F3}");
+    RenderTextureResource?BaseColorTexture;
+    try {
+        BaseColorTexture=RenderTextureArtifactAdapter.DecodeOptional(
+            BaseColorTextureBytes??[]);
+    } catch(InvalidDataException Exception){
+        Console.WriteLine($"FAILED: could not decode the base-color texture: {Exception.Message}");
+        return 1;
+    }
 
-    var ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Model.cgeshaderartifact");
+    var ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact");
     Console.WriteLine($"Mode: {(Options.Hidden?"hidden":"windowed")}, frames={(Options.Frames is int F?F.ToString():"until closed")}, verify={Options.Verify}");
 
     using Win32Window Window=new(new Win32WindowOptions {
@@ -102,12 +113,26 @@ static int RunViewer(string[]Args){
         EnableGpuBasedValidation=Options.EnableGpuValidation,
     };
 
-    ModelRenderer Renderer;
+    RenderServer Renderer;
     try {
-        Renderer=ModelRenderer.Create(
-            Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderArtifactPath,
-            Positions,Normals,Uvs,Indices,BaseColorTextureBytes,BaseColorFactor,
-            BoundsCenter,BoundsRadius);
+        StageMaterialCreateInfo Material=new(){
+            BaseColorFactor=BaseColorFactor,
+            RoughnessFactor=1f,
+            MetallicFactor=0f,
+            BaseColorTexture=BaseColorTexture,
+        };
+        (StageMeshCreateInfo[]Meshes,StageMaterialCreateInfo[]Materials,
+            StageObjectCreateInfo[]Objects)=RenderServer.BuildSingleMeshRoster(
+            Positions,Normals,Uvs,Indices,Material);
+        Renderer=RenderServer.Create(
+            Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,
+            ShaderArtifactPath,Meshes,Materials,Objects);
+        Vector3 Extent=new(BoundsRadius);
+        Renderer.SetCamera(Camera.CreateBoundsFit(
+            BoundsCenter-Extent,BoundsCenter+Extent));
+        Renderer.SetAmbientLight(new Vector3(0.35f));
+        Renderer.SetDirectionalLight(
+            Vector3.Normalize(new Vector3(1f,-1f,1f)),Vector3.One,50_000f);
     } catch(Exception Ex){
         Console.WriteLine($"FAILED: could not initialize the D3D12 renderer: {Ex.Message}");
         return 1;
@@ -117,14 +142,14 @@ static int RunViewer(string[]Args){
 
     Console.WriteLine($"Adapter: {Renderer.AdapterDescription} ({(Renderer.IsWarp?"WARP":"Hardware")})");
     Console.WriteLine($"Feature level: {GraphicsDevice.RequiredFeatureLevel}");
-    Console.WriteLine($"Back buffer format: {ModelRenderer.BackBufferFormat}, depth format: {ModelRenderer.DepthBufferFormat}, {Options.Width}x{Options.Height}");
+    Console.WriteLine($"Back buffer format: R8G8B8A8_UNORM, depth format: D32_FLOAT, {Options.Width}x{Options.Height}");
     Console.WriteLine($"Debug layer: {(Renderer.DebugLayerEnabled?"enabled":"disabled")}{(Renderer.GpuBasedValidationEnabled?" (+GPU-based validation)":string.Empty)}");
     Console.WriteLine($"Shader compilation: {(Renderer.ShaderArtifactLoaded?"OK":"FAILED")} ({Renderer.ShaderArtifactDiagnostics.Count} diagnostic(s))");
     foreach(var Diagnostic in Renderer.ShaderArtifactDiagnostics){
         Console.WriteLine($"  {Diagnostic}");
     }
 
-    Console.WriteLine($"Base color texture: {(Renderer.TextureLoaded?"loaded":"fallback (white 1x1)")}{(Renderer.TextureLoadError is string Error? $" - {Error}" :string.Empty)}");
+    Console.WriteLine($"Base color texture: {(BaseColorTexture is not null?"loaded":"fallback (white 1x1)")}");
 
     var ExitCode=0;
     try {
@@ -154,7 +179,7 @@ static int RunViewer(string[]Args){
                 Console.WriteLine("Verification: FAILED (no frame was captured for readback).");
                 ExitCode=1;
             } else {
-                var Verification=ModelPixelVerifier.Verify(Renderer.LastCapturedFrame,ModelRenderer.ClearColor);
+                var Verification=ModelPixelVerifier.Verify(Renderer.LastCapturedFrame,RenderServer.ClearColor);
                 Console.WriteLine($"Verification: {(Verification.Success?"PASSED":"FAILED")} - {Verification.Details}");
                 if(!Verification.Success){
                     ExitCode=1;

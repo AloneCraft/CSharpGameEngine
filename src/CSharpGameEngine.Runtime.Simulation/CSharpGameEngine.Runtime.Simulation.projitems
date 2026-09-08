@@ -9,7 +9,6 @@
     <Import_RootNamespace>CSharpGameEngine.Runtime.Simulation</Import_RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="$(MSBuildThisFileDirectory)FixedTickScheduler.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)SimulationMessages.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)SimulationCache.cs" />
   </ItemGroup>

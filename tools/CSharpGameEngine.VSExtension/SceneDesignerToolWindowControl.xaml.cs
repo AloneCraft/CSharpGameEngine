@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using CSharpGameEngine.Contracts;
 using CSharpGameEngine.SceneAnalysis;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
@@ -21,6 +23,8 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     private SceneHwndHost?Host;
     private SceneEditorSessionService?Session;
     private CancellationTokenSource?CatalogCancellation;
+    private CancellationTokenSource?PhysicsBakeCancellation;
+    private AuthoringOperationSnapshot?PhysicsBakeOperation;
     private long CatalogGeneration;
     private bool UpdatingSelector;
     private bool UpdatingSpatialDebugProcessSelector;
@@ -191,7 +195,6 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         Session.PinnedSnapshotChanged+=this.OnPinnedSnapshotChanged;
         Session.Selection.SelectionChanged+=this.OnSelectionChanged;
         Session.ActiveDocumentModelsChanged+=this.OnActiveDocumentModelsChanged;
-        Session.ExternalChangeDetected+=this.OnExternalChangeDetected;
 
         if(Session.PinnedSnapshot is { } Snapshot){
             this.ShowSnapshot(Snapshot);
@@ -317,6 +320,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         }
 
         this.Host=null;
+        this.ClearRuntimeDebugPresentation();
         this.RenderHostGrid.Children.Remove(Host);
         Host.StatusChanged-=this.OnStatusChanged;
         Host.SpatialDebugStatusChanged-=this.OnSpatialDebugStatusChanged;
@@ -361,6 +365,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             }
 
             await this.Dispatcher.InvokeAsync(()=>{
+                ThreadHelper.ThrowIfNotOnUIThread();
                 if(this.Disposed||!ReferenceEquals(this.Session,Session)||Generation!=this.CatalogGeneration){
                     return;
                 }
@@ -369,6 +374,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
                 try {
                     this.SceneSelector.ItemsSource=Catalog?.Entries;
                     this.SceneSelector.IsEnabled=Catalog is { Entries.Count:>0 };
+                    this.UpdatePhysicsBakeButtons();
                 } finally {
                     this.UpdatingSelector=false;
                 }
@@ -388,9 +394,11 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         } catch(Exception Ex){
             ActivityLog.LogError(nameof(SceneDesignerToolWindowControl),Ex.ToString());
             this.DispatchToUi(()=>{
+                ThreadHelper.ThrowIfNotOnUIThread();
                 if(!this.Disposed&&Generation==this.CatalogGeneration){
                     this.SceneSelector.ItemsSource=null;
                     this.SceneSelector.IsEnabled=false;
+                    this.UpdatePhysicsBakeButtons();
                     if(!SceneCatalogTargetPolicy.KeepsPresentedScene(
                         Session.PinnedSnapshot is not null,HasCatalog:false)){
                         this.ShowEmpty(VsixText.Get("SceneDesigner_CatalogFailed"));
@@ -409,6 +417,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     /// いる場合はfalse)。
     /// </summary>
     private bool TrySyncSelectorToPinnedScene(){
+        ThreadHelper.ThrowIfNotOnUIThread();
         if(this.Disposed
             ||this.Session is not { } Session
             || this.SceneSelector.ItemsSource is not IEnumerable<ProjectSceneCatalogEntry>Entries){
@@ -426,17 +435,20 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         } finally {
             this.UpdatingSelector=false;
         }
+        this.UpdatePhysicsBakeButtons();
 
         return Match is not null;
     }
 
     private void OnSceneSelectionChanged(object Sender,SelectionChangedEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
         if(this.UpdatingSelector||this.Disposed||this.Session is not { } Session
             || this.SceneSelector.SelectedItem is not ProjectSceneCatalogEntry Entry){
             return;
         }
 
         _=this.SelectSceneAsync(Session,Entry.Key);
+        this.UpdatePhysicsBakeButtons();
     }
 
     private async Task SelectSceneAsync(SceneEditorSessionService Session,SceneKey Key){
@@ -475,28 +487,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         this.Session.PinnedSnapshotChanged-=this.OnPinnedSnapshotChanged;
         this.Session.Selection.SelectionChanged-=this.OnSelectionChanged;
         this.Session.ActiveDocumentModelsChanged-=this.OnActiveDocumentModelsChanged;
-        this.Session.ExternalChangeDetected-=this.OnExternalChangeDetected;
         this.Session=null;
-    }
-
-    /// <summary>
-    /// M0047: 未保存の編集がある間に対象C#が外部(コードエディタでの直接編集等)で変化したときに発火する。
-    /// 破棄して読み込み直すか確認し、Yesならpin中Sceneの未保存編集を捨てて実解析へ同期し直す。
-    /// </summary>
-    private void OnExternalChangeDetected(SceneKey Key){
-        this.DispatchToUi(()=>{
-            ThreadHelper.ThrowIfNotOnUIThread();
-            if(this.Disposed||this.Session is not { }Session||!Key.Equals(Session.PinnedSceneKey)){
-                return;
-            }
-
-            MessageBoxResult Choice=MessageBox.Show(
-                VsixText.Get("SceneDesigner_ExternalChangePrompt"),
-                VsixText.Get("PaneSceneDesigner"),MessageBoxButton.YesNo,MessageBoxImage.Warning);
-            if(Choice==MessageBoxResult.Yes){
-                Session.DiscardUnsavedChanges(Key);
-            }
-        });
     }
 
     public void Dispose(){
@@ -509,6 +500,9 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         this.CatalogCancellation?.Cancel();
         this.CatalogCancellation?.Dispose();
         this.CatalogCancellation=null;
+        this.PhysicsBakeCancellation?.Cancel();
+        this.PhysicsBakeCancellation?.Dispose();
+        this.PhysicsBakeCancellation=null;
         this.Loaded-=this.OnLoaded;
         this.DetachSession();
         this.DetachHost();
@@ -558,12 +552,226 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             Bounds:this.PhysicsBoundsToggle.IsChecked==true,
             Velocity:this.PhysicsVelocityToggle.IsChecked==true,
             CenterOfMass:this.PhysicsCenterOfMassToggle.IsChecked==true,
-            Sleep:this.PhysicsSleepToggle.IsChecked==true));
+            Sleep:this.PhysicsSleepToggle.IsChecked==true,
+            Contacts:this.PhysicsContactsToggle.IsChecked==true,
+            Tree:this.PhysicsTreeToggle.IsChecked==true,
+            Bonds:this.PhysicsBondsToggle.IsChecked==true));
     }
     private void OnPhysicsSimulate(object Sender,RoutedEventArgs Args){ ThreadHelper.ThrowIfNotOnUIThread();this.Host?.RequestPhysicsControl("simulate"); }
     private void OnPhysicsPause(object Sender,RoutedEventArgs Args){ ThreadHelper.ThrowIfNotOnUIThread();this.Host?.RequestPhysicsControl("pause"); }
     private void OnPhysicsStep(object Sender,RoutedEventArgs Args){ ThreadHelper.ThrowIfNotOnUIThread();this.Host?.RequestPhysicsControl("step"); }
     private void OnPhysicsReset(object Sender,RoutedEventArgs Args){ ThreadHelper.ThrowIfNotOnUIThread();this.Host?.RequestPhysicsControl("reset"); }
+    private void OnPhysicsBakeSelected(object Sender,RoutedEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        this.StartPhysicsBake(BakeAll:false);
+    }
+    private void OnRuntimeDebugRefresh(object Sender,RoutedEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(this.Host is not { }Host){
+            this.ClearRuntimeDebugPresentation();
+            return;
+        }
+        try {
+            RuntimeDebugSnapshotPresentation Presentation=
+                RuntimeDebugSnapshotPresentation.Create(
+                    Host.CaptureRuntimeDebugSnapshot());
+            this.RuntimeDebugSummaryText.Text=Presentation.Summary;
+            this.RuntimeDebugRows.ItemsSource=Presentation.Rows;
+        } catch(Exception Error){
+            this.RuntimeDebugRows.ItemsSource=null;
+            this.RuntimeDebugSummaryText.Text=
+                VsixText.Format("RuntimeDebugFailed",Error.Message);
+        }
+    }
+    private void ClearRuntimeDebugPresentation(){
+        this.RuntimeDebugRows.ItemsSource=null;
+        this.RuntimeDebugSummaryText.Text=VsixText.Get("RuntimeDebugNoSnapshot");
+    }
+    private void OnPhysicsBakeAll(object Sender,RoutedEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        this.StartPhysicsBake(BakeAll:true);
+    }
+    private void OnPhysicsBakeCancel(object Sender,RoutedEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(this.PhysicsBakeCancellation is not { }Cancellation
+            ||this.PhysicsBakeOperation is not { CanCancel:true }Operation){ return; }
+        this.PhysicsBakeOperation=Operation.RequestCancellation(
+            VsixText.Get("PhysicsBakeCancelling"));
+        this.ApplyPhysicsBakePresentation(this.PhysicsBakeOperation);
+        Cancellation.Cancel();
+    }
+    private void StartPhysicsBake(bool BakeAll){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(this.PhysicsBakeOperation is { IsTerminal:false }
+            ||this.SceneSelector.ItemsSource is not IEnumerable<ProjectSceneCatalogEntry>Source){ return; }
+        ProjectSceneCatalogEntry[]Entries=BakeAll
+            ?Source.ToArray()
+            :this.SceneSelector.SelectedItem is ProjectSceneCatalogEntry Selected?[Selected]:[];
+        if(Entries.Length==0){ this.StatusText.Text=VsixText.Get("PhysicsBakeNoScene");return; }
+        string?RepoRoot=RepoLocator.ResolveRepoRoot();
+        if(RepoRoot is null){ this.StatusText.Text=VsixText.Format("Common_RepoRootNotFound",RepoLocator.RepoMarkerFileName);return; }
+        this.PhysicsBakeCancellation?.Dispose();
+        CancellationTokenSource Cancellation=new();
+        this.PhysicsBakeCancellation=Cancellation;
+        Guid RequestId=Guid.NewGuid();
+        this.PhysicsBakeOperation=AuthoringOperationSnapshot.Start(
+            RequestId,AuthoringHostOperation.Bake,"Preparing",
+            VsixText.Format("PhysicsBakeStarting",Entries.Length));
+        this.PhysicsBakeArtifactList.ItemsSource=null;
+        this.PhysicsBakeArtifactList.Visibility=Visibility.Collapsed;
+        this.PhysicsBakeOpenArtifactButton.Visibility=Visibility.Collapsed;
+        this.PhysicsBakeOpenArtifactButton.IsEnabled=false;
+        this.UpdatePhysicsBakeButtons();
+        this.ApplyPhysicsBakePresentation(this.PhysicsBakeOperation);
+        _=this.RunPhysicsBakeAsync(RepoRoot,Entries,RequestId,Cancellation);
+    }
+
+    private async Task RunPhysicsBakeAsync(
+        string RepoRoot,ProjectSceneCatalogEntry[]Entries,Guid RequestId,
+        CancellationTokenSource Cancellation){
+        PhysicsSceneBakeBatchResult Result;
+        try {
+            if(this.Session is not { }Session){
+                Result=CreatePhysicsBakeFailure(
+                    RequestId,"BAKE_SESSION_ENDED",VsixText.Get("SessionEnded"));
+            } else {
+                SceneEditCommitResult Prepared=await Session
+                    .PrepareForBakeAsync(Entries,Cancellation.Token)
+                    .ConfigureAwait(false);
+                Result=Prepared.Succeeded
+                    ?await Task.Run(
+                        ()=>PhysicsSceneBakeService.Bake(
+                            RepoRoot,Entries,RequestId,
+                            Progress=>this.OnPhysicsBakeProgress(Cancellation,Progress),
+                            Cancellation.Token),
+                        Cancellation.Token).ConfigureAwait(false)
+                    :CreatePhysicsBakeFailure(
+                        RequestId,"BAKE_SOURCE_SAVE_FAILED",
+                        Prepared.ErrorMessage??VsixText.Get("SessionSaveFailed"));
+            }
+        } catch(OperationCanceledException){
+            Result=CreatePhysicsBakeCancellation(RequestId);
+        } catch(Exception Exception){
+            ActivityLog.LogError(nameof(SceneDesignerToolWindowControl),Exception.ToString());
+            Result=CreatePhysicsBakeFailure(RequestId,"BAKE_UI_EXCEPTION",Exception.Message);
+        }
+        this.DispatchToUi(()=>{
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if(!ReferenceEquals(this.PhysicsBakeCancellation,Cancellation)){ return; }
+            this.PhysicsBakeCancellation=null;
+            Cancellation.Dispose();
+            this.PhysicsBakeOperation=Result.Operation;
+            this.UpdatePhysicsBakeButtons();
+            this.ApplyPhysicsBakePresentation(Result.Operation);
+            string[]Artifacts=[..Result.OutputPaths];
+            this.PhysicsBakeArtifactList.ItemsSource=Artifacts;
+            this.PhysicsBakeArtifactList.Visibility=Artifacts.Length==0
+                ?Visibility.Collapsed
+                :Visibility.Visible;
+            this.PhysicsBakeOpenArtifactButton.Visibility=Artifacts.Length==0
+                ?Visibility.Collapsed
+                :Visibility.Visible;
+            if(Artifacts.Length>0){ this.PhysicsBakeArtifactList.SelectedIndex=0; }
+            this.StatusText.Text=Result.Operation.State switch {
+                AuthoringOperationUiState.Succeeded=>
+                    VsixText.Format("PhysicsBakeSucceeded",Result.CompletedCount),
+                AuthoringOperationUiState.Cancelled=>VsixText.Get("PhysicsBakeCancelled"),
+                _=>VsixText.Format("PhysicsBakeFailed",Result.Message),
+            };
+            if(Package.GetGlobalService(typeof(SVsStatusbar))is IVsStatusbar StatusBar){
+                StatusBar.SetText(this.StatusText.Text);
+            }
+        });
+    }
+
+    private void UpdatePhysicsBakeButtons(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        bool HasEntries=this.SceneSelector.ItemsSource is IEnumerable<ProjectSceneCatalogEntry>Entries&&Entries.Any();
+        bool Running=this.PhysicsBakeOperation is { IsTerminal:false };
+        this.PhysicsBakeAllButton.IsEnabled=!Running&&HasEntries;
+        this.PhysicsBakeSelectedButton.IsEnabled=!Running
+            &&this.SceneSelector.SelectedItem is ProjectSceneCatalogEntry;
+        this.PhysicsBakeCancelButton.Visibility=Running?Visibility.Visible:Visibility.Collapsed;
+        this.PhysicsBakeCancelButton.IsEnabled=this.PhysicsBakeOperation?.CanCancel==true;
+    }
+
+    private void OnPhysicsBakeProgress(
+        CancellationTokenSource Cancellation,AuthoringHostProgress Progress){
+        this.DispatchToUi(()=>{
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if(!ReferenceEquals(this.PhysicsBakeCancellation,Cancellation)
+                ||this.PhysicsBakeOperation is not {
+                    State:AuthoringOperationUiState.Running,
+                }Operation){ return; }
+            this.PhysicsBakeOperation=Operation.ApplyProgress(Progress,Progress.Phase);
+            this.ApplyPhysicsBakePresentation(this.PhysicsBakeOperation);
+        });
+    }
+
+    private void OnPhysicsBakeArtifactSelectionChanged(
+        object Sender,SelectionChangedEventArgs Args){
+        this.PhysicsBakeOpenArtifactButton.IsEnabled=
+            this.PhysicsBakeArtifactList.SelectedItem is string;
+    }
+
+    private void OnPhysicsBakeOpenArtifact(object Sender,RoutedEventArgs Args){
+        if(this.PhysicsBakeArtifactList.SelectedItem is not string ArtifactPath
+            ||string.IsNullOrWhiteSpace(ArtifactPath)){ return; }
+        string FullPath=System.IO.Path.GetFullPath(ArtifactPath);
+        if(!System.IO.File.Exists(FullPath)){
+            this.StatusText.Text=VsixText.Format("PhysicsBakeArtifactMissing",FullPath);
+            return;
+        }
+        try {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo {
+                FileName="explorer.exe",Arguments="/select,"+(char)34+FullPath+(char)34,
+                UseShellExecute=true,
+            })?.Dispose();
+        } catch(Exception Exception)when(Exception is InvalidOperationException
+            or System.ComponentModel.Win32Exception){
+            this.StatusText.Text=VsixText.Format(
+                "PhysicsBakeArtifactOpenFailed",Exception.Message);
+        }
+    }
+
+    private void ApplyPhysicsBakePresentation(AuthoringOperationSnapshot Operation){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        this.PhysicsBakeProgressBar.Visibility=Visibility.Visible;
+        this.PhysicsBakeProgressBar.Value=Operation.Fraction;
+        this.PhysicsBakePhaseText.Visibility=Visibility.Visible;
+        this.PhysicsBakePhaseText.Text=VsixText.Format(
+            "AuthoringOperationProgress",Operation.Phase,
+            Operation.Fraction.ToString("P0",CultureInfo.CurrentCulture));
+        string Diagnostics=string.Join(Environment.NewLine,Operation.Diagnostics.Select(
+            static Diagnostic=>$"{Diagnostic.Code}: {Diagnostic.Message}"));
+        this.PhysicsBakeDiagnosticText.Text=Diagnostics;
+        this.PhysicsBakeDiagnosticText.Visibility=string.IsNullOrEmpty(Diagnostics)
+            ?Visibility.Collapsed
+            :Visibility.Visible;
+        this.StatusText.Text=Operation.Summary;
+    }
+
+    private static PhysicsSceneBakeBatchResult CreatePhysicsBakeFailure(
+        Guid RequestId,string Code,string Message){
+        AuthoringOperationSnapshot Operation=AuthoringOperationSnapshot.Start(
+            RequestId,AuthoringHostOperation.Bake,"Preparing",Message).Fail(Code,Message);
+        return new PhysicsSceneBakeBatchResult(false,0,Message,[],Operation);
+    }
+
+    private static PhysicsSceneBakeBatchResult CreatePhysicsBakeCancellation(Guid RequestId){
+        string Message=VsixText.Get("PhysicsBakeCancelled");
+        AuthoringOperationSnapshot Started=AuthoringOperationSnapshot.Start(
+            RequestId,AuthoringHostOperation.Bake,"Cancelling",Message);
+        AuthoringOperationSnapshot Operation=Started.Complete(new AuthoringHostResult {
+            RequestId=RequestId,State=AuthoringHostTerminalState.Cancelled,ExitCode=1,
+            Output=Message,
+            Diagnostics=[new AuthoringHostDiagnostic {
+                Severity=AuthoringHostDiagnosticSeverity.Error,
+                Code="HOST_CANCELLED",Message=Message,
+            }],
+        });
+        return new PhysicsSceneBakeBatchResult(false,0,Message,[],Operation);
+    }
     private void OnGlobalSpatialOctreeChanged(object Sender,RoutedEventArgs Args){
         ThreadHelper.ThrowIfNotOnUIThread();
         bool Enabled=this.GlobalSpatialOctreeToggle.IsChecked==true;
@@ -707,14 +915,11 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             ComponentType:null,MemberName:null,SceneSelectionOrigin.Viewport,Guid.NewGuid());
     }
 
-    /// <summary>
-    /// M0047: <see cref="SceneEditorSessionService.Apply"/>はメモリ内Documentへ同期で適用するだけで、
-    /// C#ソースへは一切書き込まない(書き込みは明示的な保存操作でのみ発生する)。M0038〜M0046にあった
-    /// 「予測を先に配信してトランザクションを閉じ、書き戻しは背後で直列継続する」という二段構えは
-    /// 不要になった — 待つものが無いので、常にこの場で完結する。
-    /// </summary>
-    private void OnEditCommitRequested(SceneEditCommitRequest Request){
-        ThreadHelper.ThrowIfNotOnUIThread();
+    /// <summary>Commits the final preview to the live C# buffer before closing the transaction.</summary>
+    #pragma warning disable VSTHRD100 // SceneHwndHost event handler; exceptions are observed below.
+    private async void OnEditCommitRequested(SceneEditCommitRequest Request){
+    #pragma warning restore VSTHRD100
+        await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
         SceneEditorSessionService?Session=this.Session;
         SceneHwndHost?Host=this.Host;
         if(Session is null||Host is null){
@@ -727,13 +932,23 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
                 Request.SceneKey,Request.DuplicateResultPaths.ToArray());
         }
 
-        bool Applied=Session.Apply(Request);
-        if(!Applied){
+        SceneEditCommitResult Commit;
+        try {
+            Commit=await Session.CommitAsync(Request,CancellationToken.None);
+        } catch(Exception Ex){
+            ActivityLog.LogError(nameof(SceneDesignerToolWindowControl),Ex.ToString());
+            Commit=new SceneEditCommitResult(
+                false,VsixText.Get("SceneDesigner_EditApplyFailed"),WasRebased:false);
+        }
+        if(this.Disposed||!ReferenceEquals(this.Session,Session)||!ReferenceEquals(this.Host,Host)){
+            return;
+        }
+        if(!Commit.Succeeded){
             this.PendingDuplicateSelectionRestore=null;
         }
-        Host.CompleteEditCommit(Applied,Applied?null:VsixText.Get("SceneDesigner_EditUnsupported"));
-        if(!Applied&&Package.GetGlobalService(typeof(SVsStatusbar))is IVsStatusbar StatusBar){
-            StatusBar.SetText(VsixText.Get("SceneDesigner_EditApplyFailed"));
+        Host.CompleteEditCommit(Commit.Succeeded,Commit.ErrorMessage);
+        if(!Commit.Succeeded&&Package.GetGlobalService(typeof(SVsStatusbar))is IVsStatusbar StatusBar){
+            StatusBar.SetText(Commit.ErrorMessage??VsixText.Get("SceneDesigner_EditApplyFailed"));
         }
     }
 

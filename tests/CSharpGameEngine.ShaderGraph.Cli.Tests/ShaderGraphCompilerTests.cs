@@ -3,7 +3,7 @@ using CSharpGameEngine.ShaderGraph;
 using CSharpGameEngine.ShaderGraph.Cli;
 namespace CSharpGameEngine.ShaderGraph.Cli.Tests;
 public sealed class ShaderGraphCompilerTests {
-    public static TheoryData<string,ShaderArtifactTargetKind,int>ProductionGraphs=>new() { { "Triangle",ShaderArtifactTargetKind.Triangle,2 },{ "Model",ShaderArtifactTargetKind.Model,2 },{ "Stage",ShaderArtifactTargetKind.Stage,5 } };
+    public static TheoryData<string,ShaderArtifactTargetKind,int>ProductionGraphs=>new() { { "Triangle",ShaderArtifactTargetKind.Triangle,2 },{ "Model",ShaderArtifactTargetKind.Model,2 },{ "Stage",ShaderArtifactTargetKind.Stage,9 } };
     [Theory]
     [MemberData(nameof(ProductionGraphs))]
     public void ProductionGraph_ExportsDeterministicallyWithNodeSourceMap(string Name,ShaderArtifactTargetKind Target,int EntryCount) {
@@ -39,6 +39,17 @@ public sealed class ShaderGraphCompilerTests {
             Assert.NotNull(Artifact);
             Assert.Equal(EntryCount,Artifact!.Entries.Count);
             Assert.All(Artifact.Entries,Entry=>{Assert.NotEmpty(Entry.Dxil);Assert.NotEmpty(Entry.Reflection);Assert.NotEmpty(Entry.PsoKey);});
+            if(Target==ShaderArtifactTargetKind.Stage) {
+                string BuiltSource=File.ReadAllText(HlslPath);
+                Assert.Contains("PreviewPSMain",BuiltSource,StringComparison.Ordinal);
+                Assert.Contains("PreviewCleanPSMain",BuiltSource,StringComparison.Ordinal);
+                Assert.Contains("OverlayVSMain",BuiltSource,StringComparison.Ordinal);
+                Assert.Contains("OverlayPSMain",BuiltSource,StringComparison.Ordinal);
+                Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="PreviewPSMain");
+                Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="PreviewCleanPSMain");
+                Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="OverlayVSMain");
+                Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="OverlayPSMain");
+            }
         } finally { Directory.Delete(DirectoryPath,true); }
     }
     [Theory]

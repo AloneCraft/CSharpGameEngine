@@ -5,10 +5,8 @@ namespace CSharpGameEngine.Entities;
 /// instantiateでき、それぞれ独立した<see cref="SceneInstance"/>になる。
 ///
 /// <para>
-/// <b><see cref="Entity"/>と違って世代(<see cref="Version"/>)を持つ。</b>Entityは案Aにより
-/// IDを再利用しないので世代が不要だが、Sceneスロットは再利用する — エディターでのリロードを繰り返しても
-/// スロットが無限に増えないようにするため。再利用する以上、古いハンドルが新しいSceneを指してしまう
-/// ABA問題を防ぐ世代が必要になる。世代はEntityでの「再利用しない」という選択と同じ論理の裏返しである。
+/// <see cref="Entity"/>と同様に世代(<see cref="Version"/>)を持つ。Sceneスロットを再利用しても、
+/// 古いハンドルが新しいSceneを指すABA問題を防ぐ。
 /// </para>
 /// </summary>
 public readonly record struct SceneInstance(int Slot,int Version) {

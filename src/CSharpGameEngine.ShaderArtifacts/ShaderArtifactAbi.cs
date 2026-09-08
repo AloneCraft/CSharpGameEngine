@@ -20,6 +20,10 @@ public static class ShaderArtifactAbi {
         new ShaderArtifactEntryContract("VSShadowMain","vs_6_0",ShaderArtifactEntryStage.Vertex),
         new ShaderArtifactEntryContract("FullscreenVS","vs_6_0",ShaderArtifactEntryStage.Vertex),
         new ShaderArtifactEntryContract("PostProcessPS","ps_6_0",ShaderArtifactEntryStage.Pixel),
+        new ShaderArtifactEntryContract("PreviewPSMain","ps_6_0",ShaderArtifactEntryStage.Pixel),
+        new ShaderArtifactEntryContract("PreviewCleanPSMain","ps_6_0",ShaderArtifactEntryStage.Pixel),
+        new ShaderArtifactEntryContract("OverlayVSMain","vs_6_0",ShaderArtifactEntryStage.Vertex),
+        new ShaderArtifactEntryContract("OverlayPSMain","ps_6_0",ShaderArtifactEntryStage.Pixel),
     };
     private static readonly IReadOnlyList<ShaderArtifactEntryContract>ModelEntries=new[] {
         new ShaderArtifactEntryContract("VSMain","vs_6_0",ShaderArtifactEntryStage.Vertex),
@@ -29,11 +33,18 @@ public static class ShaderArtifactAbi {
         new ShaderArtifactEntryContract("VSMain","vs_6_0",ShaderArtifactEntryStage.Vertex),
         new ShaderArtifactEntryContract("PSMain","ps_6_0",ShaderArtifactEntryStage.Pixel),
     };
+    private static readonly IReadOnlyList<ShaderArtifactEntryContract>ComputeEntries=new[] {
+        new ShaderArtifactEntryContract("CSMain","cs_6_0",ShaderArtifactEntryStage.Compute),
+    };
     public static string GetHash(ShaderArtifactTargetKind Target) {
         var Contract=Target switch {
-            ShaderArtifactTargetKind.Stage=>"stage-v1:b0-frame,b1-object,t0-base,t1-normal,t2-metalrough,t3-emissive,t4-shadow,t5-lights,t6-tiles,t7-spot,t8-point,t9-area-meta,t10-area-projection,s0-linear,s1-shadow:VSMain,PSMain,VSShadowMain,FullscreenVS,PostProcessPS",
+            ShaderArtifactTargetKind.Stage=>
+                "stage-v3:b0-frame,b1-object,t0-base,t1-normal,t2-metalrough,t3-emissive,t4-shadow,t5-lights,t6-tiles,t7-spot,t8-point,t9-area-meta,t10-area-projection,s0-linear,s1-shadow:"
+                +"VSMain,PSMain,VSShadowMain,FullscreenVS,PostProcessPS,PreviewPSMain,PreviewCleanPSMain,OverlayVSMain,OverlayPSMain:"
+                +ComputeHash(StagePresentationShaderSource.Source),
             ShaderArtifactTargetKind.Model=>"model-v1:b0-transform,t0-base,s0-base:VSMain,PSMain",
             ShaderArtifactTargetKind.Triangle=>"triangle-v1:no-resources:VSMain,PSMain",
+            ShaderArtifactTargetKind.Compute=>"compute-v1:t0-structured-float,u0-rw-structured-float:CSMain",
             _=>throw new ArgumentOutOfRangeException(nameof(Target)),
         };
         using(var Hash=SHA256.Create()) {
@@ -45,7 +56,13 @@ public static class ShaderArtifactAbi {
             ShaderArtifactTargetKind.Stage=>StageEntries,
             ShaderArtifactTargetKind.Model=>ModelEntries,
             ShaderArtifactTargetKind.Triangle=>TriangleEntries,
+            ShaderArtifactTargetKind.Compute=>ComputeEntries,
             _=>throw new ArgumentOutOfRangeException(nameof(Target)),
         };
+    }
+    private static string ComputeHash(string Value) {
+        using(var Hash=SHA256.Create()) {
+            return BitConverter.ToString(Hash.ComputeHash(Encoding.UTF8.GetBytes(Value))).Replace("-","");
+        }
     }
 }

@@ -24,6 +24,32 @@ public sealed class FeatureRunnerApplication {
             return Args[0].ToLowerInvariant()switch {
                 "list"=>this.RunList(Args),
                 "export-showcase"=>this.RunExportShowcase(Args),
+                "verify-coverage"=>this.RunVerifyCoverage(Args),
+                "verify-manual-ledger"=>this.RunVerifyManualLedger(Args),
+                "verify-goldens"=>this.RunVerifyGoldens(Args),
+                "verify-performance-framework"=>await this.RunVerifyPerformanceFrameworkAsync(Args,CancellationToken).ConfigureAwait(false),
+                "verify-rendering-performance"=>await this.RunVerifyRenderingPerformanceAsync(Args,CancellationToken).ConfigureAwait(false),
+                "verify-rendering-release"=>await this.RunVerifyRenderingReleaseAsync(Args,CancellationToken).ConfigureAwait(false),
+                "verify-content-performance"=>await this.RunVerifyContentPerformanceAsync(Args,CancellationToken).ConfigureAwait(false),
+                "verify-ecs-performance"=>await this.RunVerifyEcsPerformanceAsync(Args,CancellationToken).ConfigureAwait(false),
+                "verify-ecs-release"=>await this.RunVerifyEcsReleaseAsync(Args,CancellationToken).ConfigureAwait(false),
+                "verify-content-release"=>await this.RunVerifyContentReleaseAsync(Args,CancellationToken).ConfigureAwait(false),
+                "verify-release-package"=>await this.RunVerifyReleasePackageAsync(Args,CancellationToken).ConfigureAwait(false),
+                "verify-release-candidate"=>await this.RunVerifyReleaseCandidateAsync(Args,CancellationToken).ConfigureAwait(false),
+                "run-release-candidate"=>await this.RunReleaseCandidateAsync(Args,CancellationToken).ConfigureAwait(false),
+                "verify-release-manifest"=>await this.RunVerifyReleaseManifestAsync(Args,CancellationToken).ConfigureAwait(false),
+                "verify-ci-matrix"=>this.RunVerifyCiMatrix(Args),
+                "verify-release-compatibility"=>this.RunVerifyReleaseCompatibility(Args),
+                "verify-platform-compatibility"=>this.RunVerifyPlatformCompatibility(Args),
+                "verify-platform-release"=>await this.RunVerifyPlatformReleaseAsync(Args,CancellationToken).ConfigureAwait(false),
+                "verify-vsix-compatibility"=>this.RunVerifyVsixCompatibility(Args),
+                "verify-vsix-release"=>await this.RunVerifyVsixReleaseAsync(Args,CancellationToken).ConfigureAwait(false),
+                "register-vsix-automated-evidence"=>await this.RunRegisterVsixAutomatedEvidenceAsync(Args,CancellationToken).ConfigureAwait(false),
+                "record-vsix-manual-evidence"=>await this.RunRecordVsixManualEvidenceAsync(Args,CancellationToken).ConfigureAwait(false),
+                "freeze-vsix-release-input"=>await this.RunFreezeVsixReleaseInputAsync(Args,CancellationToken).ConfigureAwait(false),
+                "verify-failure-policy"=>this.RunVerifyFailurePolicy(Args),
+                "verify-stress-contract"=>await this.RunVerifyStressContractAsync(Args,CancellationToken).ConfigureAwait(false),
+                "verify-clean-build"=>await this.RunVerifyCleanBuildAsync(Args,CancellationToken).ConfigureAwait(false),
                 "run"=>await this.RunStageAsync(Args,CancellationToken).ConfigureAwait(false),
                 "run-feature"=>await this.RunFeatureAsync(Args,CancellationToken).ConfigureAwait(false),
                 "suite"=>await this.RunSuiteAsync(Args,CancellationToken).ConfigureAwait(false),
@@ -43,6 +69,424 @@ public sealed class FeatureRunnerApplication {
         ShowcaseManifestExporter.Export(this.Catalog,Args[2]);
         this.Output.WriteLine(Path.GetFullPath(Args[2]));
         return 0;
+    }
+    private int RunVerifyCoverage(string[]Args){
+        var Options=ParseVerificationOptions(Args,false);
+        var Errors=FeatureCoverageValidator.Validate(Options.RepositoryRoot,this.Catalog);
+        return this.WriteVerificationResult("Feature coverage",Errors);
+    }
+    private int RunVerifyManualLedger(string[]Args){
+        var Options=ParseVerificationOptions(Args,true);
+        var Errors=ManualEvidenceLedgerValidator.Validate(Options.RepositoryRoot,Options.RequirePassing,DateTimeOffset.UtcNow);
+        return this.WriteVerificationResult(Options.RequirePassing?"Release manual evidence":"Manual evidence ledger",Errors);
+    }
+    private int RunVerifyGoldens(string[]Args){
+        var Options=ParseVerificationOptions(Args,false);
+        var Errors=GoldenArtifactPolicyValidator.Validate(Options.RepositoryRoot);
+        return this.WriteVerificationResult("Golden artifact policy",Errors);
+    }
+    private Task<int>RunVerifyPerformanceFrameworkAsync(string[]Args,CancellationToken CancellationToken){
+        string RepositoryRoot=FeatureStageRepositoryLocator.Find();
+        string Configuration="Debug";
+        for(int Index=1;Index<Args.Length;Index++){
+            string Argument=Args[Index];
+            if(Index+1>=Args.Length){ throw new ArgumentException($"Missing value for {Argument}."); }
+            string Value=Args[++Index];
+            switch(Argument.ToLowerInvariant()){
+                case "--repository-root": RepositoryRoot=FeatureStageRepositoryLocator.Find(Value);break;
+                case "--configuration" when Value is "Debug" or "Release": Configuration=Value;break;
+                case "--configuration": throw new ArgumentException("Configuration must be Debug or Release.");
+                default: throw new ArgumentException($"Unknown option: {Argument}");
+            }
+        }
+        return PerformanceFrameworkProbe.RunAsync(RepositoryRoot,Configuration,this.Output,this.Error,CancellationToken);
+    }
+    private Task<int>RunVerifyContentPerformanceAsync(string[]Args,CancellationToken CancellationToken){
+        string RepositoryRoot=FeatureStageRepositoryLocator.Find();
+        string Configuration="Debug";
+        for(int Index=1;Index<Args.Length;Index++){
+            string Argument=Args[Index];
+            if(Index+1>=Args.Length){ throw new ArgumentException($"Missing value for {Argument}."); }
+            string Value=Args[++Index];
+            switch(Argument.ToLowerInvariant()){
+                case "--repository-root": RepositoryRoot=FeatureStageRepositoryLocator.Find(Value);break;
+                case "--configuration" when Value is "Debug" or "Release": Configuration=Value;break;
+                case "--configuration": throw new ArgumentException("Configuration must be Debug or Release.");
+                default: throw new ArgumentException($"Unknown option: {Argument}");
+            }
+        }
+        return ContentPerformanceProbe.RunAsync(
+            RepositoryRoot,Configuration,this.Output,this.Error,CancellationToken);
+    }
+    private Task<int>RunVerifyEcsPerformanceAsync(string[]Args,CancellationToken CancellationToken){
+        string RepositoryRoot=FeatureStageRepositoryLocator.Find();
+        string Configuration="Debug";
+        for(int Index=1;Index<Args.Length;Index++){
+            string Argument=Args[Index];
+            if(Index+1>=Args.Length){ throw new ArgumentException($"Missing value for {Argument}."); }
+            string Value=Args[++Index];
+            switch(Argument.ToLowerInvariant()){
+                case "--repository-root": RepositoryRoot=FeatureStageRepositoryLocator.Find(Value);break;
+                case "--configuration" when Value is "Debug" or "Release": Configuration=Value;break;
+                case "--configuration": throw new ArgumentException("Configuration must be Debug or Release.");
+                default: throw new ArgumentException($"Unknown option: {Argument}");
+            }
+        }
+        return EcsPerformanceProbe.RunAsync(
+            RepositoryRoot,Configuration,this.Output,this.Error,CancellationToken);
+    }
+    private Task<int>RunVerifyEcsReleaseAsync(string[]Args,CancellationToken CancellationToken){
+        string RepositoryRoot=FeatureStageRepositoryLocator.Find();
+        string Configuration="Debug";
+        for(int Index=1;Index<Args.Length;Index++){
+            string Argument=Args[Index];
+            if(Index+1>=Args.Length){ throw new ArgumentException($"Missing value for {Argument}."); }
+            string Value=Args[++Index];
+            switch(Argument.ToLowerInvariant()){
+                case "--repository-root": RepositoryRoot=FeatureStageRepositoryLocator.Find(Value);break;
+                case "--configuration" when Value is "Debug" or "Release": Configuration=Value;break;
+                case "--configuration": throw new ArgumentException("Configuration must be Debug or Release.");
+                default: throw new ArgumentException($"Unknown option: {Argument}");
+            }
+        }
+        return EcsReleaseEvidence.RunAsync(
+            RepositoryRoot,Configuration,this.Output,this.Error,CancellationToken);
+    }
+    private Task<int>RunVerifyRenderingPerformanceAsync(string[]Args,CancellationToken CancellationToken){
+        string RepositoryRoot=FeatureStageRepositoryLocator.Find();
+        string Configuration="Debug";
+        string Adapter="warp";
+        for(int Index=1;Index<Args.Length;Index++){
+            string Argument=Args[Index];
+            if(Index+1>=Args.Length){ throw new ArgumentException($"Missing value for {Argument}."); }
+            string Value=Args[++Index];
+            switch(Argument.ToLowerInvariant()){
+                case "--repository-root": RepositoryRoot=FeatureStageRepositoryLocator.Find(Value);break;
+                case "--configuration" when Value is "Debug" or "Release": Configuration=Value;break;
+                case "--configuration": throw new ArgumentException("Configuration must be Debug or Release.");
+                case "--adapter" when Value is "warp" or "hardware": Adapter=Value;break;
+                case "--adapter": throw new ArgumentException("Adapter must be warp or hardware.");
+                default: throw new ArgumentException($"Unknown option: {Argument}");
+            }
+        }
+        return RenderingPerformanceProbe.RunAsync(
+            RepositoryRoot,Configuration,Adapter,this.Output,this.Error,CancellationToken);
+    }
+    private Task<int>RunVerifyRenderingReleaseAsync(string[]Args,CancellationToken CancellationToken){
+        string RepositoryRoot=FeatureStageRepositoryLocator.Find();
+        string Configuration="Debug";
+        for(int Index=1;Index<Args.Length;Index++){
+            string Argument=Args[Index];
+            if(Index+1>=Args.Length){ throw new ArgumentException($"Missing value for {Argument}."); }
+            string Value=Args[++Index];
+            switch(Argument.ToLowerInvariant()){
+                case "--repository-root": RepositoryRoot=FeatureStageRepositoryLocator.Find(Value);break;
+                case "--configuration" when Value is "Debug" or "Release": Configuration=Value;break;
+                case "--configuration": throw new ArgumentException("Configuration must be Debug or Release.");
+                default: throw new ArgumentException($"Unknown option: {Argument}");
+            }
+        }
+        return RenderingReleaseEvidence.RunAsync(
+            RepositoryRoot,Configuration,this.Output,this.Error,CancellationToken);
+    }
+    private Task<int>RunVerifyContentReleaseAsync(string[]Args,CancellationToken CancellationToken){
+        string RepositoryRoot=FeatureStageRepositoryLocator.Find();
+        string Configuration="Debug";
+        for(int Index=1;Index<Args.Length;Index++){
+            string Argument=Args[Index];
+            if(Index+1>=Args.Length){ throw new ArgumentException($"Missing value for {Argument}."); }
+            string Value=Args[++Index];
+            switch(Argument.ToLowerInvariant()){
+                case "--repository-root": RepositoryRoot=FeatureStageRepositoryLocator.Find(Value);break;
+                case "--configuration" when Value is "Debug" or "Release": Configuration=Value;break;
+                case "--configuration": throw new ArgumentException("Configuration must be Debug or Release.");
+                default: throw new ArgumentException($"Unknown option: {Argument}");
+            }
+        }
+        return ContentReleaseEvidence.RunAsync(
+            RepositoryRoot,Configuration,this.Output,this.Error,CancellationToken);
+    }
+    private Task<int>RunVerifyReleasePackageAsync(string[]Args,CancellationToken CancellationToken){
+        string RepositoryRoot=FeatureStageRepositoryLocator.Find();
+        string Configuration="Debug";
+        for(int Index=1;Index<Args.Length;Index++){
+            string Argument=Args[Index];
+            if(Index+1>=Args.Length){ throw new ArgumentException($"Missing value for {Argument}."); }
+            string Value=Args[++Index];
+            switch(Argument.ToLowerInvariant()){
+                case "--repository-root": RepositoryRoot=FeatureStageRepositoryLocator.Find(Value);break;
+                case "--configuration" when Value is "Debug" or "Release": Configuration=Value;break;
+                case "--configuration": throw new ArgumentException("Configuration must be Debug or Release.");
+                default: throw new ArgumentException($"Unknown option: {Argument}");
+            }
+        }
+        return ReleasePackageEvidence.RunAsync(
+            RepositoryRoot,Configuration,this.Output,this.Error,CancellationToken);
+    }
+    private Task<int>RunVerifyReleaseCandidateAsync(
+        string[]Args,CancellationToken CancellationToken){
+        ReleaseCandidateOptions Options=ParseReleaseCandidateOptions(Args);
+        return ReleaseCandidateEvidence.RunAsync(
+            Options.RepositoryRoot,this.Catalog,Options.ReachedLevel,
+            ReleaseCandidateEvidence.ProductTracks,this.Output,this.Error,CancellationToken);
+    }
+    private async Task<int>RunReleaseCandidateAsync(
+        string[]Args,CancellationToken CancellationToken){
+        ReleaseCandidateOptions Options=ParseReleaseCandidateOptions(Args);
+        ReleaseCandidateScope Scope=ReleaseCandidateEvidence.SelectScope(
+            this.Catalog,Options.ReachedLevel,ReleaseCandidateEvidence.ProductTracks);
+        FeatureStageDefinition[]Stages=[.. Scope.RequiredStageIds
+            .Select(this.Catalog.GetStage)
+            .OrderBy(Stage=>Stage.FeatureIds
+                .Where(Scope.RequiredFeatureIds.Contains)
+                .Select(FeatureId=>this.Catalog.GetFeature(FeatureId).DependencyLevel)
+                .DefaultIfEmpty(0).Max())
+            .ThenBy(static Stage=>Stage.Id,StringComparer.Ordinal)];
+        var Parsed=new ParsedExecutionOptions(
+            Options.RepositoryRoot,"Release",
+            ReleaseCandidateEvidence.PrerequisiteProfile,FeatureAdapter.Warp,null,null);
+        int PrerequisiteExitCode=await this.ExecuteAndStoreAsync(
+            Stages,Parsed,CancellationToken).ConfigureAwait(false);
+        if(PrerequisiteExitCode!=0){ return PrerequisiteExitCode; }
+        return await ReleaseCandidateEvidence.RunAsync(
+            Options.RepositoryRoot,this.Catalog,Options.ReachedLevel,
+            ReleaseCandidateEvidence.ProductTracks,this.Output,this.Error,CancellationToken)
+            .ConfigureAwait(false);
+    }
+    private Task<int>RunVerifyReleaseManifestAsync(
+        string[]Args,CancellationToken CancellationToken){
+        string RepositoryRoot=FeatureStageRepositoryLocator.Find();
+        for(int Index=1;Index<Args.Length;Index++){
+            string Argument=Args[Index];
+            if(Index+1>=Args.Length){
+                throw new ArgumentException($"Missing value for {Argument}.");
+            }
+            string Value=Args[++Index];
+            switch(Argument.ToLowerInvariant()){
+                case "--repository-root":
+                    RepositoryRoot=FeatureStageRepositoryLocator.Find(Value);
+                    break;
+                case "--configuration" when Value=="Release":
+                    break;
+                case "--configuration":
+                    throw new ArgumentException(
+                        "Formal release configuration must be Release.");
+                default:
+                    throw new ArgumentException($"Unknown option: {Argument}");
+            }
+        }
+        return ReleaseManifestEvidence.RunAsync(
+            RepositoryRoot,this.Catalog,this.Output,this.Error,CancellationToken);
+    }
+    private int RunVerifyCiMatrix(string[]Args){
+        var Options=ParseVerificationOptions(Args,false);
+        var Errors=CiMatrixValidator.Validate(Options.RepositoryRoot,this.Catalog);
+        return this.WriteVerificationResult("CI matrix",Errors);
+    }
+    private int RunVerifyReleaseCompatibility(string[]Args){
+        var Options=ParseVerificationOptions(Args,false);
+        var Errors=ReleaseCompatibilityMatrixValidator.Validate(
+            Options.RepositoryRoot,this.Catalog,DateTimeOffset.UtcNow);
+        return this.WriteVerificationResult("Release compatibility matrix",Errors);
+    }
+    private int RunVerifyPlatformCompatibility(string[]Args){
+        var Options=ParseVerificationOptions(Args,false);
+        var Errors=PlatformCompatibilityMatrixValidator.Validate(Options.RepositoryRoot,this.Catalog);
+        return this.WriteVerificationResult("Platform compatibility matrix",Errors);
+    }
+    private Task<int>RunVerifyPlatformReleaseAsync(string[]Args,CancellationToken CancellationToken){
+        string RepositoryRoot=FeatureStageRepositoryLocator.Find();
+        string Configuration="Debug";
+        for(int Index=1;Index<Args.Length;Index++){
+            string Argument=Args[Index];
+            if(Index+1>=Args.Length){ throw new ArgumentException($"Missing value for {Argument}."); }
+            string Value=Args[++Index];
+            switch(Argument.ToLowerInvariant()){
+                case "--repository-root": RepositoryRoot=FeatureStageRepositoryLocator.Find(Value);break;
+                case "--configuration" when Value is "Debug" or "Release": Configuration=Value;break;
+                case "--configuration": throw new ArgumentException("Configuration must be Debug or Release.");
+                default: throw new ArgumentException($"Unknown option: {Argument}");
+            }
+        }
+        return PlatformReleaseEvidence.RunAsync(RepositoryRoot,Configuration,this.Output,this.Error,CancellationToken);
+    }
+    private int RunVerifyVsixCompatibility(string[]Args){
+        string RepositoryRoot=FeatureStageRepositoryLocator.Find();
+        string Configuration="Debug";
+        bool RequirePassingEvidence=false;
+        for(int Index=1;Index<Args.Length;Index++){
+            string Argument=Args[Index];
+            if(Argument.Equals("--require-passing-evidence",StringComparison.OrdinalIgnoreCase)){
+                RequirePassingEvidence=true;
+                continue;
+            }
+            if(Index+1>=Args.Length){ throw new ArgumentException($"Missing value for {Argument}."); }
+            string Value=Args[++Index];
+            switch(Argument.ToLowerInvariant()){
+                case "--repository-root": RepositoryRoot=FeatureStageRepositoryLocator.Find(Value);break;
+                case "--configuration" when Value is "Debug" or "Release": Configuration=Value;break;
+                case "--configuration": throw new ArgumentException("Configuration must be Debug or Release.");
+                default: throw new ArgumentException($"Unknown option: {Argument}");
+            }
+        }
+        var Errors=VsixCompatibilityMatrixValidator.Validate(RepositoryRoot,this.Catalog,Configuration,RequirePassingEvidence,DateTimeOffset.UtcNow);
+        return this.WriteVerificationResult(RequirePassingEvidence?"Release VSIX compatibility":"VSIX compatibility matrix",Errors);
+    }
+    private Task<int>RunVerifyVsixReleaseAsync(string[]Args,CancellationToken CancellationToken){
+        string RepositoryRoot=FeatureStageRepositoryLocator.Find();
+        string Configuration="Release";
+        for(int Index=1;Index<Args.Length;Index++){
+            string Argument=Args[Index];
+            if(Index+1>=Args.Length){ throw new ArgumentException($"Missing value for {Argument}."); }
+            string Value=Args[++Index];
+            switch(Argument.ToLowerInvariant()){
+                case "--repository-root": RepositoryRoot=FeatureStageRepositoryLocator.Find(Value);break;
+                case "--configuration" when Value=="Release": Configuration=Value;break;
+                case "--configuration": throw new ArgumentException("VSIX release configuration must be Release.");
+                default: throw new ArgumentException($"Unknown option: {Argument}");
+            }
+        }
+        return VsixReleaseEvidence.RunAsync(
+            RepositoryRoot,Configuration,this.Output,this.Error,CancellationToken);
+    }
+    private async Task<int>RunRegisterVsixAutomatedEvidenceAsync(
+        string[]Args,CancellationToken CancellationToken){
+        string RepositoryRoot=FeatureStageRepositoryLocator.Find();
+        string?CheckId=null;
+        string?EvidencePath=null;
+        int ValidDays=7;
+        for(int Index=1;Index<Args.Length;Index++){
+            string Argument=Args[Index];
+            if(Index+1>=Args.Length){ throw new ArgumentException($"Missing value for {Argument}."); }
+            string Value=Args[++Index];
+            switch(Argument.ToLowerInvariant()){
+                case "--repository-root": RepositoryRoot=FeatureStageRepositoryLocator.Find(Value);break;
+                case "--check": CheckId=Value;break;
+                case "--evidence": EvidencePath=Value;break;
+                case "--valid-days" when int.TryParse(Value,out int Days)
+                    &&Days is>=1 and<=14: ValidDays=Days;break;
+                case "--valid-days": throw new ArgumentException("Validity must be 1 through 14 days.");
+                default: throw new ArgumentException($"Unknown option: {Argument}");
+            }
+        }
+        if(string.IsNullOrWhiteSpace(CheckId)||string.IsNullOrWhiteSpace(EvidencePath)){
+            throw new ArgumentException("--check and --evidence are required.");
+        }
+        DateTimeOffset NowUtc=DateTimeOffset.UtcNow;
+        string Registered=await VsixObservationLedger.RegisterAutomatedAsync(
+            RepositoryRoot,CheckId,EvidencePath,NowUtc.AddDays(ValidDays),
+            NowUtc,CancellationToken).ConfigureAwait(false);
+        await this.Output.WriteLineAsync(
+            $"Registered automated VSIX evidence: {Registered}").ConfigureAwait(false);
+        return 0;
+    }
+    private async Task<int>RunRecordVsixManualEvidenceAsync(
+        string[]Args,CancellationToken CancellationToken){
+        string RepositoryRoot=FeatureStageRepositoryLocator.Find();
+        string?CheckId=null;
+        string?InstalledDllPath=null;
+        int ValidDays=7;
+        var Assertions=new List<VsixObservationAssertion>();
+        for(int Index=1;Index<Args.Length;Index++){
+            string Argument=Args[Index];
+            if(Index+1>=Args.Length){ throw new ArgumentException($"Missing value for {Argument}."); }
+            string Value=Args[++Index];
+            switch(Argument.ToLowerInvariant()){
+                case "--repository-root": RepositoryRoot=FeatureStageRepositoryLocator.Find(Value);break;
+                case "--check": CheckId=Value;break;
+                case "--installed-dll": InstalledDllPath=Value;break;
+                case "--assert":{
+                    int Separator=Value.IndexOf('=');
+                    if(Separator<=0||Separator==Value.Length-1){
+                        throw new ArgumentException("Assertions must use <id>=<observed detail>.");
+                    }
+                    Assertions.Add(new VsixObservationAssertion(
+                        Value[..Separator],Value[(Separator+1)..]));
+                    break;
+                }
+                case "--valid-days" when int.TryParse(Value,out int Days)
+                    &&Days is>=1 and<=14: ValidDays=Days;break;
+                case "--valid-days": throw new ArgumentException("Validity must be 1 through 14 days.");
+                default: throw new ArgumentException($"Unknown option: {Argument}");
+            }
+        }
+        if(string.IsNullOrWhiteSpace(CheckId)||string.IsNullOrWhiteSpace(InstalledDllPath)){
+            throw new ArgumentException("--check and --installed-dll are required.");
+        }
+        DateTimeOffset ObservedUtc=DateTimeOffset.UtcNow;
+        string Recorded=await VsixObservationLedger.RecordManualAsync(
+            RepositoryRoot,CheckId,InstalledDllPath,Assertions,
+            ObservedUtc,ObservedUtc.AddDays(ValidDays),CancellationToken)
+            .ConfigureAwait(false);
+        await this.Output.WriteLineAsync(
+            $"Recorded manual VSIX evidence: {Recorded}").ConfigureAwait(false);
+        return 0;
+    }
+    private async Task<int>RunFreezeVsixReleaseInputAsync(
+        string[]Args,CancellationToken CancellationToken){
+        string RepositoryRoot=FeatureStageRepositoryLocator.Find();
+        string?ProductArchive=null;
+        for(int Index=1;Index<Args.Length;Index++){
+            string Argument=Args[Index];
+            if(Index+1>=Args.Length){ throw new ArgumentException($"Missing value for {Argument}."); }
+            string Value=Args[++Index];
+            switch(Argument.ToLowerInvariant()){
+                case "--repository-root": RepositoryRoot=FeatureStageRepositoryLocator.Find(Value);break;
+                case "--product-archive": ProductArchive=Value;break;
+                default: throw new ArgumentException($"Unknown option: {Argument}");
+            }
+        }
+        DateTimeOffset CreatedUtc=DateTimeOffset.UtcNow;
+        VsixReleaseInputDocument Document=string.IsNullOrWhiteSpace(ProductArchive)
+            ?await VsixReleaseInputStore.PublishCurrentAsync(
+                RepositoryRoot,CreatedUtc,CancellationToken).ConfigureAwait(false)
+            :await VsixReleaseInputStore.PublishProductArchiveAsync(
+                RepositoryRoot,ProductArchive,CreatedUtc,CancellationToken)
+                .ConfigureAwait(false);
+        await this.Output.WriteLineAsync(
+            $"Frozen VSIX release input: {Document.PackagePath} "
+            +$"sha256={Document.PackageSha256}").ConfigureAwait(false);
+        return 0;
+    }
+    private int RunVerifyFailurePolicy(string[]Args){
+        var Options=ParseVerificationOptions(Args,false);
+        var Errors=QuarantineLedgerValidator.Validate(Options.RepositoryRoot,this.Catalog,DateTimeOffset.UtcNow);
+        return this.WriteVerificationResult("Failure and quarantine policy",Errors);
+    }
+    private Task<int>RunVerifyStressContractAsync(string[]Args,CancellationToken CancellationToken){
+        string RepositoryRoot=FeatureStageRepositoryLocator.Find();
+        string Configuration="Debug";
+        uint Seed=5489;
+        int Ticks=600;
+        for(int Index=1;Index<Args.Length;Index++){
+            string Argument=Args[Index];
+            if(Index+1>=Args.Length){ throw new ArgumentException($"Missing value for {Argument}."); }
+            string Value=Args[++Index];
+            switch(Argument.ToLowerInvariant()){
+                case "--repository-root": RepositoryRoot=FeatureStageRepositoryLocator.Find(Value);break;
+                case "--configuration" when Value is "Debug" or "Release": Configuration=Value;break;
+                case "--configuration": throw new ArgumentException("Configuration must be Debug or Release.");
+                case "--seed" when uint.TryParse(Value,System.Globalization.NumberStyles.None,System.Globalization.CultureInfo.InvariantCulture,out uint ParsedSeed)&&ParsedSeed!=0: Seed=ParsedSeed;break;
+                case "--seed": throw new FormatException("Seed must be a positive UInt32.");
+                case "--ticks" when int.TryParse(Value,System.Globalization.NumberStyles.None,System.Globalization.CultureInfo.InvariantCulture,out int ParsedTicks)&&ParsedTicks>0: Ticks=ParsedTicks;break;
+                case "--ticks": throw new FormatException("Ticks must be a positive Int32.");
+                default: throw new ArgumentException($"Unknown option: {Argument}");
+            }
+        }
+        return StressFrameworkProbe.RunAsync(RepositoryRoot,Configuration,Seed,Ticks,this.Output,this.Error,CancellationToken);
+    }
+    private Task<int>RunVerifyCleanBuildAsync(string[]Args,CancellationToken CancellationToken){
+        var Options=ParseVerificationOptions(Args,false);
+        return HermeticBuildVerifier.RunAsync(
+            Options.RepositoryRoot,this.Output,this.Error,CancellationToken);
+    }
+    private int WriteVerificationResult(string Name,IReadOnlyList<string>Errors){
+        if(Errors.Count==0){
+            this.Output.WriteLine($"{Name} verification passed.");
+            return 0;
+        }
+        foreach(var ValidationError in Errors){ this.Error.WriteLine(ValidationError); }
+        return 1;
     }
     private int RunList(string[]Args){
         var Json=Args.Skip(1).Any(static Argument=>Argument.Equals("--json",StringComparison.OrdinalIgnoreCase));
@@ -70,15 +514,16 @@ public sealed class FeatureRunnerApplication {
         return await this.ExecuteAndStoreAsync(Stages,Parsed,CancellationToken).ConfigureAwait(false);
     }
     private async Task<int>RunSuiteAsync(string[]Args,CancellationToken CancellationToken){
-        if(Args.Length<2){ throw new ArgumentException("suite requires changed, smoke, full, stress, or vsix."); }
+        if(Args.Length<2){ throw new ArgumentException("suite requires changed, smoke, full, stress, visual, or vsix."); }
         var Suite=Args[1].ToLowerInvariant();
-        if(Suite is not("changed" or "smoke" or "full" or "stress" or "vsix")){ throw new ArgumentException($"Unknown suite: {Args[1]}"); }
+        if(Suite is not("changed" or "smoke" or "full" or "stress" or "visual" or "vsix")){ throw new ArgumentException($"Unknown suite: {Args[1]}"); }
         var Parsed=ParseOptions(Args,2,Suite);
         FeatureStageDefinition[]Stages;
         if(Suite=="changed"){
             var ChangedPaths=await this.ChangedPathProvider.GetChangedPathsAsync(Parsed.RepositoryRoot,CancellationToken).ConfigureAwait(false);
-            Stages=[.. this.Catalog.Stages.Where(static Stage=>Stage.Availability==FeatureStageAvailability.Executable).Where(Stage=>MatchesChangedPath(Stage,ChangedPaths))];
-            if(Stages.Length==0){ Stages=[this.Catalog.GetStage("runner.contract")]; }
+            Stages=[.. ChangedStageSelector.Select(this.Catalog,ChangedPaths)];
+        } else if(Suite=="visual"){
+            Stages=[.. this.Catalog.Stages.Where(static Stage=>Stage.Availability==FeatureStageAvailability.Executable&&Stage.Mode==FeatureStageMode.Visual)];
         } else {
             Stages=[.. this.Catalog.Stages.Where(static Stage=>Stage.Availability==FeatureStageAvailability.Executable).Where(Stage=>Stage.Profiles.Contains(Suite,StringComparer.OrdinalIgnoreCase))];
         }
@@ -123,7 +568,6 @@ public sealed class FeatureRunnerApplication {
         await this.Output.WriteLineAsync($"Result: {ResultPath}").ConfigureAwait(false);
         return ExitCode(Results);
     }
-    private static bool MatchesChangedPath(FeatureStageDefinition Stage,IReadOnlyList<string>ChangedPaths)=>ChangedPaths.Any(PathValue=>Stage.InputPaths.Any(Prefix=>PathValue.StartsWith(Prefix,StringComparison.OrdinalIgnoreCase)));
     private static int ExitCode(IReadOnlyList<FeatureStageRunResult>Results){
         if(Results.All(static Result=>Result.Status==FeatureStageRunStatus.Passed)){ return 0; }
         if(Results.Any(static Result=>Result.Status==FeatureStageRunStatus.TimedOut)){ return 4; }
@@ -170,6 +614,54 @@ public sealed class FeatureRunnerApplication {
         }
         return new ParsedExecutionOptions(RepositoryRoot,Configuration,Profile,Adapter,Seed,Ticks);
     }
+    private static VerificationOptions ParseVerificationOptions(string[]Args,bool AllowRelease){
+        var RepositoryRoot=FeatureStageRepositoryLocator.Find();
+        var RequirePassing=false;
+        for(var Index=1;Index<Args.Length;Index++){
+            var Argument=Args[Index];
+            if(AllowRelease&&Argument.Equals("--release",StringComparison.OrdinalIgnoreCase)){
+                RequirePassing=true;
+                continue;
+            }
+            if(!Argument.Equals("--repository-root",StringComparison.OrdinalIgnoreCase)){ throw new ArgumentException($"Unknown option: {Argument}"); }
+            if(Index+1>=Args.Length){ throw new ArgumentException("Missing value for --repository-root."); }
+            RepositoryRoot=Path.GetFullPath(Args[++Index]);
+        }
+        return new VerificationOptions(RepositoryRoot,RequirePassing);
+    }
+    private static ReleaseCandidateOptions ParseReleaseCandidateOptions(string[]Args){
+        string RepositoryRoot=FeatureStageRepositoryLocator.Find();
+        int ReachedLevel=7;
+        for(int Index=1;Index<Args.Length;Index++){
+            string Argument=Args[Index];
+            if(Index+1>=Args.Length){
+                throw new ArgumentException($"Missing value for {Argument}.");
+            }
+            string Value=Args[++Index];
+            switch(Argument.ToLowerInvariant()){
+                case "--repository-root":
+                    RepositoryRoot=FeatureStageRepositoryLocator.Find(Value);
+                    break;
+                case "--configuration" when Value=="Release":
+                    break;
+                case "--configuration":
+                    throw new ArgumentException(
+                        "Release candidate configuration must be Release.");
+                case "--level" when int.TryParse(
+                    Value,System.Globalization.NumberStyles.None,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out int ParsedLevel)&&ParsedLevel is>=0 and<=7:
+                    ReachedLevel=ParsedLevel;
+                    break;
+                case "--level":
+                    throw new FormatException(
+                        "Reached Level must be between zero and seven.");
+                default:
+                    throw new ArgumentException($"Unknown option: {Argument}");
+            }
+        }
+        return new ReleaseCandidateOptions(RepositoryRoot,ReachedLevel);
+    }
     private static bool IsHelp(string Argument)=>Argument is "help" or "--help" or "-h";
     private int UnknownCommand(string Command){
         this.Error.WriteLine($"Unknown command: {Command}");
@@ -181,12 +673,40 @@ public sealed class FeatureRunnerApplication {
         this.Output.WriteLine("Usage:");
         this.Output.WriteLine("  list [--json]");
         this.Output.WriteLine("  export-showcase --output <path>");
+        this.Output.WriteLine("  verify-coverage [--repository-root <path>]");
+        this.Output.WriteLine("  verify-manual-ledger [--repository-root <path>] [--release]");
+        this.Output.WriteLine("  verify-goldens [--repository-root <path>]");
+        this.Output.WriteLine("  verify-performance-framework [--repository-root <path>] [--configuration Debug|Release]");
+        this.Output.WriteLine("  verify-rendering-performance [--repository-root <path>] [--configuration Debug|Release] [--adapter warp|hardware]");
+        this.Output.WriteLine("  verify-rendering-release [--repository-root <path>] [--configuration Debug|Release]");
+        this.Output.WriteLine("  verify-content-performance [--repository-root <path>] [--configuration Debug|Release]");
+        this.Output.WriteLine("  verify-ecs-performance [--repository-root <path>] [--configuration Debug|Release]");
+        this.Output.WriteLine("  verify-ecs-release [--repository-root <path>] [--configuration Debug|Release]");
+        this.Output.WriteLine("  verify-content-release [--repository-root <path>] [--configuration Debug|Release]");
+        this.Output.WriteLine("  verify-release-package [--repository-root <path>] [--configuration Debug|Release]");
+        this.Output.WriteLine("  verify-release-candidate [--repository-root <path>] [--configuration Release] [--level 0..7]");
+        this.Output.WriteLine("  run-release-candidate [--repository-root <path>] [--configuration Release] [--level 0..7]");
+        this.Output.WriteLine("  verify-release-manifest [--repository-root <path>] [--configuration Release]");
+        this.Output.WriteLine("  verify-ci-matrix [--repository-root <path>]");
+        this.Output.WriteLine("  verify-release-compatibility [--repository-root <path>]");
+        this.Output.WriteLine("  verify-platform-compatibility [--repository-root <path>]");
+        this.Output.WriteLine("  verify-platform-release [--repository-root <path>] [--configuration Debug|Release]");
+         this.Output.WriteLine("  verify-vsix-compatibility [--repository-root <path>] [--configuration Debug|Release] [--require-passing-evidence]");
+         this.Output.WriteLine("  verify-vsix-release [--repository-root <path>] [--configuration Release]");
+         this.Output.WriteLine("  register-vsix-automated-evidence --check <id> --evidence <path> [--valid-days 1..14]");
+         this.Output.WriteLine("  record-vsix-manual-evidence --check <id> --installed-dll <path> --assert <id>=<detail> [--assert ...] [--valid-days 1..14]");
+         this.Output.WriteLine("  freeze-vsix-release-input [--product-archive <release.zip>]");
+        this.Output.WriteLine("  verify-failure-policy [--repository-root <path>]");
+        this.Output.WriteLine("  verify-stress-contract [--repository-root <path>] [--configuration Debug|Release] [--seed <uint>] [--ticks <int>]");
+        this.Output.WriteLine("  verify-clean-build [--repository-root <path>]");
         this.Output.WriteLine("  run <stage-id> [options]");
         this.Output.WriteLine("  run-feature <feature-id> [options]");
-        this.Output.WriteLine("  suite <changed|smoke|full|stress|vsix> [options]");
+        this.Output.WriteLine("  suite <changed|smoke|full|stress|visual|vsix> [options]");
         this.Output.WriteLine("  resume <run-result.json> [options]");
         this.Output.WriteLine("Options: --configuration Debug|Release --profile <name> --adapter warp|hardware --seed <uint> --ticks <int> --repository-root <path>");
         this.Output.WriteLine("Visual certification uses WARP by default; hardware is an optional additional adapter pass.");
     }
     private sealed record ParsedExecutionOptions(string RepositoryRoot,string Configuration,string Profile,FeatureAdapter Adapter,uint?Seed,int?Ticks);
+    private sealed record VerificationOptions(string RepositoryRoot,bool RequirePassing);
+    private sealed record ReleaseCandidateOptions(string RepositoryRoot,int ReachedLevel);
 }

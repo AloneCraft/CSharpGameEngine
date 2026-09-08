@@ -5,63 +5,125 @@ namespace CSharpGameEngine.Runtime.Physics;
 
 /// <summary>Deterministic single-writer sequential rigid-body world for a local meter domain.</summary>
 public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
-    private sealed class Body(in PhysicsBodyDescription Description) {
+    private sealed class Body(in PhysicsBodyDescription Description,PhysicsShapeAsset? Asset) {
         internal readonly Entity Entity=Description.Entity;
         internal readonly ulong StableId=Description.StableId;
         internal Collider Collider=Description.Collider;
+        internal PhysicsShapeAsset? Asset=Asset;
         internal RigidBody? RigidBody=Description.RigidBody;
-        internal PhysicsVector3 Position=Description.Position;
-        internal PhysicsQuaternion Rotation=Description.Rotation;
+        internal LogicalVector3 Position=Description.Position;
+        internal LogicalQuaternion Rotation=Description.Rotation;
         internal PhysicsVelocity Velocity=Description.Velocity;
-        internal readonly PhysicsVector3 InitialPosition=Description.Position;
-        internal readonly PhysicsQuaternion InitialRotation=Description.Rotation;
-        internal readonly PhysicsVelocity InitialVelocity=Description.Velocity;
+        internal LogicalVector3 InitialPosition=Description.Position;
+        internal LogicalQuaternion InitialRotation=Description.Rotation;
+        internal PhysicsVelocity InitialVelocity=Description.Velocity;
         internal bool IsSleeping;
         internal ushort SleepTicks;
         internal bool Faulted;
     }
 
-    private static readonly PhysicsScalar FixedDelta=PhysicsScalar.FromDouble(1d/60d);
-    private static readonly PhysicsVector3 Gravity=new(0,PhysicsScalar.FromDouble(-9.80665),0);
-    private static readonly PhysicsScalar SleepLinearSquared=PhysicsScalar.FromDouble(0.0001);
-    private readonly SortedDictionary<ulong,Body> Bodies=[];
+    private struct CachedPoint {
+        internal LogicalVector3 Position;
+        internal LogicalScalar Penetration;
+        internal LogicalScalar NormalImpulse;
+        internal LogicalScalar TangentImpulse;
+        internal LogicalVector3 Tangent;
+    }
+
+    private sealed class CachedContact(Body First,Body Second) {
+        internal readonly Body First=First;
+        internal readonly Body Second=Second;
+        internal LogicalVector3 Normal;
+        internal readonly CachedPoint[] Points=new CachedPoint[4];
+        internal int PointCount;
+        internal uint FeatureId;
+        internal bool Active;
+        internal bool WasActive;
+        internal bool IsTrigger;
+        internal LogicalScalar MaximumPenetration {
+            get {
+                LogicalScalar Result=LogicalScalar.Zero;
+                for(int Index=0;Index<this.PointCount;Index++){
+                    if(this.Points[Index].Penetration>Result){ Result=this.Points[Index].Penetration; }
+                }
+                return Result;
+            }
+        }
+        internal LogicalScalar TotalNormalImpulse {
+            get {
+                LogicalScalar Result=LogicalScalar.Zero;
+                for(int Index=0;Index<this.PointCount;Index++){ Result+=this.Points[Index].NormalImpulse; }
+                return Result;
+            }
+        }
+    }
+
+    private sealed class PairKeyComparer:IComparer<(ulong First,ulong Second)> {
+        internal static readonly PairKeyComparer Instance=new();
+        public int Compare((ulong First,ulong Second) Left,(ulong First,ulong Second) Right){
+            int Result=Left.First.CompareTo(Right.First);
+            return Result!=0?Result:Left.Second.CompareTo(Right.Second);
+        }
+    }
+
+    private readonly record struct CcdContact(ulong First,ulong Second,PhysicsContactCandidate Contact);
+
+    private static readonly LogicalScalar FixedDelta=LogicalScalar.FromSingle(1f/60f);
+    private static readonly LogicalVector3 Gravity=new(0,LogicalScalar.FromSingle(-9.80665f),0);
+    private static readonly LogicalScalar SleepLinearSquared=LogicalScalar.FromSingle(0.0001f);
+    private static readonly LogicalScalar RestitutionVelocityThreshold=LogicalScalar.FromSingle(0.5f);
+    private static readonly LogicalScalar PositionCorrection=LogicalScalar.FromSingle(0.8f);
+    private static readonly LogicalScalar ContactSlop=LogicalScalar.FromSingle(0.0001f);
+    private readonly SortedList<ulong,Body> Bodies=[];
     private readonly Dictionary<Entity,ulong> StableIdByEntity=[];
     private readonly DeterministicAabbTree Broadphase=new();
+    private readonly PhysicsNarrowPhase NarrowPhase=new();
+    private readonly SortedList<(ulong First,ulong Second),CachedContact> ContactCache=new(PairKeyComparer.Instance);
     private readonly List<ulong> QueryCandidates=[];
     private readonly List<SimulationCommand> CommittedCommands=[];
     private readonly List<PhysicsRayHit> SweepRayHits=[];
     private readonly List<PhysicsEvent> MutableEvents=[];
+    private readonly List<(ulong First,ulong Second)> ContactRemovalScratch=[];
+    private readonly List<CcdContact> CcdContacts=[];
+    private readonly HashSet<ulong> CacheValidationIds=[];
 
     public int BodyCount=>this.Bodies.Count;
     public IReadOnlyList<PhysicsEvent> Events=>this.MutableEvents;
     public PhysicsCommands Commands { get; }=new();
-    public Logical.Vector3 DomainOrigin { get;set; }=Logical.Vector3.Zero;
+    public PhysicsShapeCatalog Shapes { get; }=new();
+    public LogicalVector3 DomainOrigin { get;set; }=LogicalVector3.Zero;
 
     public PhysicsUpdateStatus Upsert(in PhysicsBodyDescription Description){
-        PhysicsUpdateStatus Status=Validate(Description);
+        PhysicsUpdateStatus Status=this.ValidateAndCalculateBounds(Description,out PhysicsAabb Bounds,out PhysicsShapeAsset? Asset);
         if(Status!=PhysicsUpdateStatus.Success){ return Status; }
         if(this.StableIdByEntity.TryGetValue(Description.Entity,out ulong OldStableId)&&OldStableId!=Description.StableId){
             this.Remove(Description.Entity);
         }
         if(this.Bodies.TryGetValue(Description.StableId,out Body? Body)){
+            if(Body.Entity!=Description.Entity){ return PhysicsUpdateStatus.InvalidInput; }
             Body.Collider=Description.Collider;
+            Body.Asset=Asset;
             Body.RigidBody=Description.RigidBody;
             Body.Position=Description.Position;
             Body.Rotation=Description.Rotation;
             Body.Velocity=Description.Velocity;
+            Body.InitialPosition=Description.Position;
+            Body.InitialRotation=Description.Rotation;
+            Body.InitialVelocity=Description.Velocity;
             Body.Faulted=false;
         }
         else {
-            Body=new Body(Description);
+            Body=new Body(Description,Asset);
             this.Bodies.Add(Description.StableId,Body);
         }
         this.StableIdByEntity[Description.Entity]=Description.StableId;
-        this.Broadphase.Upsert(Description.StableId,CalculateBounds(Body));
+        this.RemoveContactsFor(Description.StableId);
+        this.Broadphase.Upsert(Description.StableId,Bounds);
         return PhysicsUpdateStatus.Success;
     }
 
     internal PhysicsUpdateStatus Synchronize(in PhysicsBodyDescription Description){
-        PhysicsUpdateStatus Status=Validate(Description);
+        PhysicsUpdateStatus Status=this.ValidateAndCalculateBounds(Description,out PhysicsAabb Bounds,out PhysicsShapeAsset? Asset);
         if(Status!=PhysicsUpdateStatus.Success){ return Status; }
         if(this.StableIdByEntity.TryGetValue(Description.Entity,out ulong OldStableId)&&OldStableId!=Description.StableId){
             this.Remove(Description.Entity);
@@ -72,7 +134,10 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         if(Body.Entity!=Description.Entity){ return PhysicsUpdateStatus.InvalidInput; }
         PhysicsMotionType? PreviousMotionType=Body.RigidBody?.MotionType;
         PhysicsMotionType? CurrentMotionType=Description.RigidBody?.MotionType;
+        bool ShapeChanged=!EqualityComparer<Collider>.Default.Equals(Body.Collider,Description.Collider)
+            ||!ReferenceEquals(Body.Asset,Asset);
         Body.Collider=Description.Collider;
+        Body.Asset=Asset;
         Body.RigidBody=Description.RigidBody;
         if(CurrentMotionType is null||CurrentMotionType!=PreviousMotionType){
             Body.Position=Description.Position;
@@ -82,8 +147,9 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
             Body.SleepTicks=0;
         }
         Body.Faulted=false;
+        if(ShapeChanged){ this.RemoveContactsFor(Description.StableId); }
         this.StableIdByEntity[Description.Entity]=Description.StableId;
-        this.Broadphase.Upsert(Description.StableId,CalculateBounds(Body));
+        this.Broadphase.Upsert(Description.StableId,Bounds);
         return PhysicsUpdateStatus.Success;
     }
 
@@ -91,6 +157,7 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         if(!this.StableIdByEntity.Remove(Entity,out ulong StableId)){ return false; }
         this.Broadphase.Remove(StableId);
         this.Bodies.Remove(StableId);
+        this.RemoveContactsFor(StableId);
         return true;
     }
 
@@ -98,6 +165,8 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         this.Bodies.Clear();
         this.StableIdByEntity.Clear();
         this.Broadphase.Clear();
+        this.ContactCache.Clear();
+        this.CcdContacts.Clear();
         this.MutableEvents.Clear();
     }
 
@@ -111,56 +180,77 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
             Body.IsSleeping=false;
             Body.SleepTicks=0;
             Body.Faulted=false;
-            this.Broadphase.Upsert(Body.StableId,CalculateBounds(Body));
+            this.Broadphase.Upsert(Body.StableId,this.CalculateBounds(Body));
         }
+        this.ContactCache.Clear();
+        this.CcdContacts.Clear();
     }
     public void Step(ulong Tick){
         this.MutableEvents.Clear();
+        this.CcdContacts.Clear();
+        for(int ContactIndex=0;ContactIndex<this.ContactCache.Count;ContactIndex++){
+            CachedContact Contact=this.ContactCache.Values[ContactIndex];
+            Contact.WasActive=Contact.Active;
+            Contact.Active=false;
+        }
         this.ApplyCommands(Tick);
-        foreach(KeyValuePair<ulong,Body> Pair in this.Bodies){
-            Body Body=Pair.Value;
+        for(int BodyIndex=0;BodyIndex<this.Bodies.Count;BodyIndex++){
+            Body Body=this.Bodies.Values[BodyIndex];
             if(Body.Faulted||Body.IsSleeping||Body.RigidBody is not { MotionType:PhysicsMotionType.Dynamic } RigidBody){ continue; }
-            PhysicsVector3 PreviousPosition=Body.Position;
+            LogicalVector3 PreviousPosition=Body.Position;
+            LogicalQuaternion PreviousRotation=Body.Rotation;
             PhysicsVelocity PreviousVelocity=Body.Velocity;
             try {
-                PhysicsVector3 Acceleration=Gravity*RigidBody.GravityFactor;
+                LogicalVector3 Acceleration=Gravity*RigidBody.GravityFactor;
                 Body.Velocity.Linear+=Acceleration*FixedDelta;
-                Body.Position+=Body.Velocity.Linear*FixedDelta;
-                this.UpdateSleep(Body,Tick);
-                this.Broadphase.Upsert(Body.StableId,CalculateBounds(Body));
+                Body.Position=this.IntegratePositionWithCcd(Body,PreviousPosition,Body.Position+Body.Velocity.Linear*FixedDelta);
+                Body.Rotation=IntegrateRotation(Body.Rotation,Body.Velocity.Angular);
+                this.Broadphase.Upsert(Body.StableId,this.CalculateBounds(Body));
             }
             catch(OverflowException){
                 Body.Position=PreviousPosition;
+                Body.Rotation=PreviousRotation;
                 Body.Velocity=PreviousVelocity;
                 this.FaultBody(Body,Tick,PhysicsFaultType.NumericOverflow);
             }
         }
-        this.SolveBoxContacts(Tick);
-        this.MutableEvents.Sort(static(Left,Right)=>{
-            int Result=Left.Tick.CompareTo(Right.Tick);
-            if(Result!=0){ return Result; }
-            Result=Left.PairId.CompareTo(Right.PairId);
-            return Result!=0?Result:Left.Type.CompareTo(Right.Type);
-        });
+        this.BuildContacts();
+        this.SolveContacts();
+        this.PublishContactEvents(Tick);
+        for(int BodyIndex=0;BodyIndex<this.Bodies.Count;BodyIndex++){
+            Body Body=this.Bodies.Values[BodyIndex];
+            if(!Body.Faulted&&Body.RigidBody is { MotionType:PhysicsMotionType.Dynamic }){ this.UpdateSleep(Body,Tick); }
+            this.Broadphase.Upsert(Body.StableId,this.CalculateBounds(Body));
+        }
+        if(this.MutableEvents.Count>1){
+        if(this.MutableEvents.Count>1){
+            this.MutableEvents.Sort(static(Left,Right)=>{
+                int Result=Left.Tick.CompareTo(Right.Tick);
+                if(Result!=0){ return Result; }
+                Result=Left.PairId.CompareTo(Right.PairId);
+                return Result!=0?Result:Left.Type.CompareTo(Right.Type);
+            });
+        }
+        }
     }
 
     public PhysicsQueryResult Raycast(in PhysicsRay Ray,PhysicsLayerMask Layers,List<PhysicsRayHit> Results){
         ArgumentNullException.ThrowIfNull(Results);
-        if(Ray.MaxDistance<PhysicsScalar.Zero||Ray.Direction.LengthSquared.IsZero){
+        if(Ray.MaxDistance<LogicalScalar.Zero||Ray.Direction.LengthSquared.IsZero){
             return new PhysicsQueryResult(PhysicsQueryStatus.InvalidInput,0);
         }
         int Start=Results.Count;
         try {
-            PhysicsVector3 End=Ray.Origin+Ray.Direction*Ray.MaxDistance;
+            LogicalVector3 End=Ray.Origin+Ray.Direction*Ray.MaxDistance;
             PhysicsAabb RayBounds=new(
-                new PhysicsVector3(Min(Ray.Origin.R,End.R),Min(Ray.Origin.U,End.U),Min(Ray.Origin.F,End.F)),
-                new PhysicsVector3(Max(Ray.Origin.R,End.R),Max(Ray.Origin.U,End.U),Max(Ray.Origin.F,End.F)));
+                new LogicalVector3(Min(Ray.Origin.R,End.R),Min(Ray.Origin.U,End.U),Min(Ray.Origin.F,End.F)),
+                new LogicalVector3(Max(Ray.Origin.R,End.R),Max(Ray.Origin.U,End.U),Max(Ray.Origin.F,End.F)));
             this.QueryCandidates.Clear();
             this.Broadphase.Query(RayBounds,this.QueryCandidates);
             foreach(ulong StableId in this.QueryCandidates){
                 Body Body=this.Bodies[StableId];
                 if(!Layers.Contains(Body.Collider.Layer)){ continue; }
-                if(TryRayAabb(Ray,CalculateBounds(Body),out PhysicsScalar Distance,out PhysicsVector3 Normal)){
+                if(TryRayAabb(Ray,CalculateBounds(Body),out LogicalScalar Distance,out LogicalVector3 Normal)){
                     Results.Add(new PhysicsRayHit(Body.Entity,StableId,Distance,Ray.Origin+Ray.Direction*Distance,Normal));
                 }
             }
@@ -173,19 +263,19 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         }
     }
 
-    public PhysicsQueryResult Sweep(in Collider Shape,in PhysicsVector3 Origin,in PhysicsVector3 Direction,PhysicsScalar Distance,PhysicsLayerMask Layers,List<PhysicsSweepHit> Results){
+    public PhysicsQueryResult Sweep(in Collider Shape,in LogicalVector3 Origin,in LogicalVector3 Direction,LogicalScalar Distance,PhysicsLayerMask Layers,List<PhysicsSweepHit> Results){
         ArgumentNullException.ThrowIfNull(Results);
-        if(Distance<PhysicsScalar.Zero||Direction.LengthSquared.IsZero||Shape.Shape is ColliderShape.StaticTriangleMesh or ColliderShape.Compound){
+        if(Distance<LogicalScalar.Zero||Direction.LengthSquared.IsZero||Shape.Shape==ColliderShape.StaticTriangleMesh){
             return new PhysicsQueryResult(PhysicsQueryStatus.InvalidInput,0);
         }
         int Start=Results.Count;
-        PhysicsVector3 HalfExtents=ShapeHalfExtents(Shape);
+        LogicalVector3 HalfExtents=ShapeHalfExtents(Shape);
         PhysicsRay Ray=new(Origin,Direction,Distance);
         this.SweepRayHits.Clear();
         PhysicsQueryResult RayResult=this.Raycast(Ray,Layers,this.SweepRayHits);
         if(RayResult.Status!=PhysicsQueryStatus.Success){ return new PhysicsQueryResult(RayResult.Status,0); }
         foreach(PhysicsRayHit Hit in this.SweepRayHits){
-            PhysicsScalar ExpandedDistance=Max(PhysicsScalar.Zero,Hit.Distance-Max(HalfExtents.R,Max(HalfExtents.U,HalfExtents.F)));
+            LogicalScalar ExpandedDistance=Max(LogicalScalar.Zero,Hit.Distance-Max(HalfExtents.R,Max(HalfExtents.U,HalfExtents.F)));
             Results.Add(new PhysicsSweepHit(Hit.Entity,Hit.StableId,ExpandedDistance,Ray.Origin+Ray.Direction*ExpandedDistance,Hit.Normal));
         }
         return new PhysicsQueryResult(PhysicsQueryStatus.Success,Results.Count-Start);
@@ -226,6 +316,28 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         return Results.Count-Start;
     }
 
+    public int CollectContactManifolds(List<PhysicsContactManifold> Results,int MaximumCount=int.MaxValue){
+        ArgumentNullException.ThrowIfNull(Results);
+        if(MaximumCount<0){ throw new ArgumentOutOfRangeException(nameof(MaximumCount)); }
+        int Start=Results.Count;
+        foreach(KeyValuePair<(ulong First,ulong Second),CachedContact> Pair in this.ContactCache){
+            if(Results.Count-Start>=MaximumCount){ break; }
+            CachedContact Contact=Pair.Value;
+            if(!Contact.Active||Contact.IsTrigger){ continue; }
+            List<PhysicsContactPoint> Points=new(Contact.PointCount);
+            for(int Index=0;Index<Contact.PointCount;Index++){
+                CachedPoint Point=Contact.Points[Index];
+                Points.Add(new PhysicsContactPoint(Point.Position,Contact.Normal,Point.Penetration,Point.NormalImpulse));
+            }
+            Results.Add(new PhysicsContactManifold(
+                BuildPairId(Pair.Key.First,Pair.Key.Second),Contact.First.Entity,Contact.Second.Entity,Points));
+        }
+        return Results.Count-Start;
+    }
+
+    internal int CollectBroadphaseDebugNodes(List<PhysicsDebugTreeNode>Results,int MaximumCount)=>
+        this.Broadphase.CollectDebugNodes(Results,MaximumCount);
+
     internal int CollectBodyStates(List<PhysicsBodyState> Results){
         int Start=Results.Count;
         foreach(KeyValuePair<ulong,Body> Pair in this.Bodies){
@@ -235,6 +347,49 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         return Results.Count-Start;
     }
 
+    internal bool TryApplyCacheFrame(in PhysicsCacheFrame Frame,out string Error){
+        Error=string.Empty;
+        if(Frame.Bodies.Count!=this.Bodies.Count){
+            Error="Physics cache body set does not match the active world.";
+            return false;
+        }
+        this.CacheValidationIds.Clear();
+        foreach(PhysicsBodyState State in Frame.Bodies){
+            if(!this.CacheValidationIds.Add(State.StableId)||!this.Bodies.TryGetValue(State.StableId,out Body? Body)
+                ||Body.Entity!=State.Entity||Body.RigidBody?.MotionType!=State.MotionType
+                ||!State.Rotation.TryNormalize(out _)){
+                Error="Physics cache body identity or shape does not match the active world.";
+                return false;
+            }
+            try { _=this.NarrowPhase.CalculateBounds(this.CreateShape(Body,State.Position,State.Rotation)); }
+            catch(OverflowException){
+                Error="Physics cache body pose exceeds the logical domain.";
+                return false;
+            }
+        }
+        foreach(PhysicsEvent Event in Frame.Events){
+            if(Event.Tick!=Frame.Tick){
+                Error="Physics cache event tick does not match its frame.";
+                return false;
+            }
+        }
+        foreach(PhysicsBodyState State in Frame.Bodies){
+            Body Body=this.Bodies[State.StableId];
+            Body.Position=State.Position;
+            Body.Rotation=State.Rotation;
+            Body.Velocity=State.Velocity;
+            Body.IsSleeping=State.IsSleeping;
+            Body.SleepTicks=State.SleepTicks;
+            Body.Faulted=false;
+            this.Broadphase.Upsert(Body.StableId,this.CalculateBounds(Body));
+        }
+        this.ContactCache.Clear();
+        this.CcdContacts.Clear();
+        this.MutableEvents.Clear();
+        this.MutableEvents.AddRange(Frame.Events);
+        return true;
+    }
+
     public ulong ComputeStateHash(){
         const ulong Offset=14695981039346656037UL;
         const ulong Prime=1099511628211UL;
@@ -242,15 +397,21 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         foreach(KeyValuePair<ulong,Body> Pair in this.Bodies){
             Body Body=Pair.Value;
             Hash=(Hash^Pair.Key)*Prime;
-            Hash=(Hash^(ulong)Body.Position.R.RawValue)*Prime;
-            Hash=(Hash^(ulong)Body.Position.U.RawValue)*Prime;
-            Hash=(Hash^(ulong)Body.Position.F.RawValue)*Prime;
-            Hash=(Hash^(ulong)Body.Velocity.Linear.R.RawValue)*Prime;
-            Hash=(Hash^(ulong)Body.Velocity.Linear.U.RawValue)*Prime;
-            Hash=(Hash^(ulong)Body.Velocity.Linear.F.RawValue)*Prime;
+            Hash=HashScalar(Hash,Body.Position.R,Prime);
+            Hash=HashScalar(Hash,Body.Position.U,Prime);
+            Hash=HashScalar(Hash,Body.Position.F,Prime);
+            Hash=HashScalar(Hash,Body.Velocity.Linear.R,Prime);
+            Hash=HashScalar(Hash,Body.Velocity.Linear.U,Prime);
+            Hash=HashScalar(Hash,Body.Velocity.Linear.F,Prime);
             Hash=(Hash^(Body.IsSleeping?1UL:0UL))*Prime;
         }
         return Hash;
+    }
+
+    private static ulong HashScalar(ulong Hash,LogicalScalar Value,ulong Prime){
+        var Bits=unchecked((UInt128)Value.Raw);
+        Hash=(Hash^(ulong)Bits)*Prime;
+        return (Hash^(ulong)(Bits>>64))*Prime;
     }
 
     private void ApplyCommands(ulong Tick){
@@ -259,59 +420,323 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         foreach(SimulationCommand Envelope in this.CommittedCommands){
             PhysicsCommand Command=Envelope.Payload;
             if(!this.StableIdByEntity.TryGetValue(Command.Entity,out ulong StableId)||!this.Bodies.TryGetValue(StableId,out Body? Body)){ continue; }
-            switch(Command.Type){
-                case PhysicsCommandType.Force when Body.RigidBody is { MotionType:PhysicsMotionType.Dynamic } RigidBody:
-                    Body.Velocity.Linear+=Command.Vector/RigidBody.Mass*FixedDelta;
-                    Wake(Body,Tick,this.MutableEvents);
-                    break;
-                case PhysicsCommandType.Impulse when Body.RigidBody is { MotionType:PhysicsMotionType.Dynamic } RigidBody:
-                    Body.Velocity.Linear+=Command.Vector/RigidBody.Mass;
-                    Wake(Body,Tick,this.MutableEvents);
-                    break;
-                case PhysicsCommandType.Teleport when Body.RigidBody is { MotionType:PhysicsMotionType.Dynamic }:
-                case PhysicsCommandType.KinematicTarget when Body.RigidBody is { MotionType:PhysicsMotionType.Kinematic }:
-                    if(Command.Rotation.TryNormalize(out PhysicsQuaternion Rotation)){
-                        Body.Position=Command.Vector;
-                        Body.Rotation=Rotation;
+            LogicalVector3 PreviousPosition=Body.Position;
+            LogicalQuaternion PreviousRotation=Body.Rotation;
+            PhysicsVelocity PreviousVelocity=Body.Velocity;
+            try {
+                switch(Command.Type){
+                    case PhysicsCommandType.Force when Body.RigidBody is { MotionType:PhysicsMotionType.Dynamic } RigidBody:
+                        Body.Velocity.Linear+=Command.Vector/RigidBody.Mass*FixedDelta;
                         Wake(Body,Tick,this.MutableEvents);
-                        this.Broadphase.Upsert(Body.StableId,CalculateBounds(Body));
-                    }
-                    else {
-                        this.FaultBody(Body,Tick,PhysicsFaultType.InvalidQuaternion);
-                    }
-                    break;
+                        break;
+                    case PhysicsCommandType.Impulse when Body.RigidBody is { MotionType:PhysicsMotionType.Dynamic } RigidBody:
+                        Body.Velocity.Linear+=Command.Vector/RigidBody.Mass;
+                        Wake(Body,Tick,this.MutableEvents);
+                        break;
+                    case PhysicsCommandType.Teleport when Body.RigidBody is { MotionType:PhysicsMotionType.Dynamic }:
+                    case PhysicsCommandType.KinematicTarget when Body.RigidBody is { MotionType:PhysicsMotionType.Kinematic }:
+                        if(Command.Rotation.TryNormalize(out LogicalQuaternion Rotation)){
+                            Body.Position=Command.Vector;
+                            Body.Rotation=Rotation;
+                            Wake(Body,Tick,this.MutableEvents);
+                            this.Broadphase.Upsert(Body.StableId,this.CalculateBounds(Body));
+                        }
+                        else {
+                            this.FaultBody(Body,Tick,PhysicsFaultType.InvalidQuaternion);
+                        }
+                        break;
+                }
+            }
+            catch(OverflowException){
+                Body.Position=PreviousPosition;
+                Body.Rotation=PreviousRotation;
+                Body.Velocity=PreviousVelocity;
+                this.FaultBody(Body,Tick,PhysicsFaultType.NumericOverflow);
             }
         }
     }
 
-    private void SolveBoxContacts(ulong Tick){
+    private LogicalVector3 IntegratePositionWithCcd(Body Body,LogicalVector3 Previous,LogicalVector3 Predicted){
+        if(Body.RigidBody is not { Ccd:PhysicsCcdMode.ContinuousStatic }||Predicted==Previous){ return Predicted; }
+        LogicalVector3 Displacement=Predicted-Previous;
+        if(!LogicalScalar.TrySquareRoot(Displacement.LengthSquared,out LogicalScalar Distance)||Distance.IsZero
+            ||!Displacement.TryNormalize(out LogicalVector3 Direction)){ return Predicted; }
+        PhysicsAabb StartBounds=this.CalculateBounds(Body,Previous);
+        PhysicsAabb EndBounds=this.CalculateBounds(Body,Predicted);
+        PhysicsAabb Swept=Combine(StartBounds,EndBounds);
+        LogicalVector3 StartCenter=(StartBounds.Min+StartBounds.Max)/LogicalScalar.FromInt64(2);
+        LogicalVector3 HalfExtents=(StartBounds.Max-StartBounds.Min)/LogicalScalar.FromInt64(2);
+        PhysicsRay Ray=new(StartCenter,Direction,Distance);
         this.QueryCandidates.Clear();
-        foreach(KeyValuePair<ulong,Body> Pair in this.Bodies){
-            Body Dynamic=Pair.Value;
+        this.Broadphase.Query(Swept,this.QueryCandidates);
+        bool Found=false;
+        LogicalScalar Earliest=Distance;
+        LogicalVector3 HitNormal=default;
+        Body? HitBody=null;
+        foreach(ulong StableId in this.QueryCandidates){
+            if(StableId==Body.StableId){ continue; }
+            Body Other=this.Bodies[StableId];
+            if(Other.RigidBody is not null||Other.Faulted||!CanCollide(Body,Other)){ continue; }
+            PhysicsAabb Bounds=this.CalculateBounds(Other);
+            PhysicsAabb Expanded=new(Bounds.Min-HalfExtents,Bounds.Max+HalfExtents);
+            if(TryRayAabb(Ray,Expanded,out LogicalScalar HitDistance,out LogicalVector3 RayNormal)
+                &&HitDistance<=Earliest){
+                if(!Found||HitDistance<Earliest||StableId<HitBody!.StableId){
+                    Found=true;
+                    Earliest=HitDistance;
+                    HitNormal=RayNormal;
+                    HitBody=Other;
+                }
+            }
+        }
+        if(!Found||HitBody is null){ return Predicted; }
+        LogicalScalar Travel=Max(LogicalScalar.Zero,Earliest-ContactSlop);
+        LogicalVector3 Result=Previous+Direction*Travel;
+        Body First=Body.StableId<HitBody.StableId?Body:HitBody;
+        Body Second=ReferenceEquals(First,Body)?HitBody:Body;
+        LogicalVector3 Normal=ReferenceEquals(First,Body)?-HitNormal:HitNormal;
+        PhysicsContactCandidate Contact=new(
+            StartCenter+Direction*Earliest,Normal,ContactSlop,uint.MaxValue);
+        this.CcdContacts.Add(new CcdContact(First.StableId,Second.StableId,Contact));
+        return Result;
+    }
+
+    private void BuildContacts(){
+        foreach(CcdContact Contact in this.CcdContacts){
+            if(this.Bodies.TryGetValue(Contact.First,out Body? First)&&this.Bodies.TryGetValue(Contact.Second,out Body? Second)){
+                this.AddContact(First,Second,Contact.Contact);
+            }
+        }
+        for(int BodyIndex=0;BodyIndex<this.Bodies.Count;BodyIndex++){
+            Body Dynamic=this.Bodies.Values[BodyIndex];
             if(Dynamic.RigidBody is not { MotionType:PhysicsMotionType.Dynamic }||Dynamic.Faulted){ continue; }
-            PhysicsAabb DynamicBounds=CalculateBounds(Dynamic);
+            PhysicsAabb DynamicBounds=this.CalculateBounds(Dynamic);
             this.QueryCandidates.Clear();
             this.Broadphase.Query(DynamicBounds,this.QueryCandidates);
             foreach(ulong OtherId in this.QueryCandidates){
                 if(OtherId==Dynamic.StableId){ continue; }
                 Body Other=this.Bodies[OtherId];
-                if(Other.RigidBody is { MotionType:PhysicsMotionType.Dynamic }&&Other.StableId<Dynamic.StableId){ continue; }
-                if(Dynamic.Collider.IsTrigger||Other.Collider.IsTrigger){ continue; }
-                PhysicsAabb OtherBounds=CalculateBounds(Other);
-                if(!DynamicBounds.Intersects(OtherBounds)){ continue; }
-                PhysicsScalar UpPenetration=OtherBounds.Max.U-DynamicBounds.Min.U;
-                PhysicsScalar DownPenetration=DynamicBounds.Max.U-OtherBounds.Min.U;
-                if(UpPenetration<=DownPenetration&&Dynamic.Velocity.Linear.U<PhysicsScalar.Zero){
-                    Dynamic.Position=new PhysicsVector3(Dynamic.Position.R,Dynamic.Position.U+UpPenetration,Dynamic.Position.F);
-                    Dynamic.Velocity.Linear=new PhysicsVector3(Dynamic.Velocity.Linear.R,-Dynamic.Velocity.Linear.U*Dynamic.Collider.Material.Restitution,Dynamic.Velocity.Linear.F);
-                    this.Broadphase.Upsert(Dynamic.StableId,CalculateBounds(Dynamic));
-                    ulong PairId=BuildPairId(Dynamic.StableId,Other.StableId);
-                    this.MutableEvents.Add(new PhysicsEvent(Tick,PairId,PhysicsEventType.ContactPersist,Dynamic.Entity,Other.Entity,PhysicsScalar.Zero,default));
-                    Wake(Dynamic,Tick,this.MutableEvents);
-                    DynamicBounds=CalculateBounds(Dynamic);
+                if(Other.Faulted||Other.RigidBody is { MotionType:PhysicsMotionType.Dynamic }&&Other.StableId<Dynamic.StableId
+                    ||!CanCollide(Dynamic,Other)){ continue; }
+                Body First=Dynamic.StableId<Other.StableId?Dynamic:Other;
+                Body Second=ReferenceEquals(First,Dynamic)?Other:Dynamic;
+                if(this.NarrowPhase.TryCreateContact(this.CreateShape(First),this.CreateShape(Second),out PhysicsContactCandidate Contact)){
+                    this.AddContact(First,Second,Contact);
                 }
             }
         }
+    }
+
+    private void AddContact(Body First,Body Second,in PhysicsContactCandidate Candidate){
+        (ulong First,ulong Second) Key=(First.StableId,Second.StableId);
+        if(!this.TryGetContact(Key,out CachedContact Contact)){
+            Contact=new CachedContact(First,Second);
+            this.ContactCache.Add(Key,Contact);
+        }
+        if(Contact.Active&&Contact.MaximumPenetration>=Candidate.Penetration){ return; }
+        LogicalVector3 Normal=Candidate.Normal.TryNormalize(out LogicalVector3 Unit)?Unit:LogicalVector3.UnitU;
+        if(Contact.FeatureId!=Candidate.FeatureId||LogicalVector3.Dot(Contact.Normal,Normal)<LogicalScalar.FromSingle(0.95f)){
+            Array.Clear(Contact.Points);
+        }
+        Contact.Normal=Normal;
+        Contact.PointCount=Candidate.Count;
+        for(int Index=0;Index<Candidate.Count;Index++){
+            ref CachedPoint Point=ref Contact.Points[Index];
+            Point.Position=Candidate.GetPosition(Index);
+            Point.Penetration=Candidate.GetPenetration(Index);
+        }
+        for(int Index=Candidate.Count;Index<Contact.Points.Length;Index++){ Contact.Points[Index]=default; }
+        Contact.FeatureId=Candidate.FeatureId;
+        Contact.IsTrigger=First.Collider.IsTrigger||Second.Collider.IsTrigger;
+        Contact.Active=true;
+    }
+
+    private void SolveContacts(){
+        for(int ContactIndex=0;ContactIndex<this.ContactCache.Count;ContactIndex++){
+            CachedContact Contact=this.ContactCache.Values[ContactIndex];
+            if(!Contact.Active||Contact.IsTrigger){ continue; }
+            for(int PointIndex=0;PointIndex<Contact.PointCount;PointIndex++){
+                CachedPoint Point=Contact.Points[PointIndex];
+                LogicalVector3 WarmImpulse=Contact.Normal*Point.NormalImpulse+Point.Tangent*Point.TangentImpulse;
+                ApplyImpulse(Contact,Point,WarmImpulse);
+            }
+        }
+        for(int Iteration=0;Iteration<8;Iteration++){
+            for(int ContactIndex=0;ContactIndex<this.ContactCache.Count;ContactIndex++){
+                CachedContact Contact=this.ContactCache.Values[ContactIndex];
+                if(!Contact.Active||Contact.IsTrigger){ continue; }
+                for(int PointIndex=0;PointIndex<Contact.PointCount;PointIndex++){
+                    SolveVelocity(Contact,PointIndex,Iteration==0);
+                }
+            }
+        }
+        for(int Iteration=0;Iteration<3;Iteration++){
+            for(int ContactIndex=0;ContactIndex<this.ContactCache.Count;ContactIndex++){
+                CachedContact Contact=this.ContactCache.Values[ContactIndex];
+                if(!Contact.Active||Contact.IsTrigger){ continue; }
+                for(int PointIndex=0;PointIndex<Contact.PointCount;PointIndex++){ SolvePosition(Contact,PointIndex); }
+            }
+        }
+    }
+
+    private static void SolveVelocity(CachedContact Contact,int PointIndex,bool ApplyRestitution){
+        ref CachedPoint Point=ref Contact.Points[PointIndex];
+        LogicalVector3 Relative=PointVelocity(Contact.Second,Point.Position)-PointVelocity(Contact.First,Point.Position);
+        LogicalScalar NormalVelocity=LogicalVector3.Dot(Relative,Contact.Normal);
+        LogicalScalar Restitution=Min(Contact.First.Collider.Material.Restitution,Contact.Second.Collider.Material.Restitution);
+        LogicalScalar Target=ApplyRestitution&&NormalVelocity<-RestitutionVelocityThreshold?-NormalVelocity*Restitution:LogicalScalar.Zero;
+        LogicalScalar Effective=EffectiveMass(Contact,Point,Contact.Normal);
+        if(Effective<=LogicalScalar.Zero){ return; }
+        LogicalScalar Delta=(Target-NormalVelocity)/Effective;
+        LogicalScalar Previous=Point.NormalImpulse;
+        Point.NormalImpulse=Max(LogicalScalar.Zero,Previous+Delta);
+        ApplyImpulse(Contact,Point,Contact.Normal*(Point.NormalImpulse-Previous));
+
+        Relative=PointVelocity(Contact.Second,Point.Position)-PointVelocity(Contact.First,Point.Position);
+        LogicalVector3 TangentVelocity=Relative-Contact.Normal*LogicalVector3.Dot(Relative,Contact.Normal);
+        if(!TangentVelocity.TryNormalize(out LogicalVector3 Tangent)){ return; }
+        if(Point.Tangent.LengthSquared.IsZero||LogicalVector3.Dot(Point.Tangent,Tangent)<LogicalScalar.Zero){
+            Point.Tangent=Tangent;
+            Point.TangentImpulse=LogicalScalar.Zero;
+        }
+        LogicalScalar TangentEffective=EffectiveMass(Contact,Point,Point.Tangent);
+        if(TangentEffective<=LogicalScalar.Zero){ return; }
+        LogicalScalar Friction=Min(Contact.First.Collider.Material.Friction,Contact.Second.Collider.Material.Friction);
+        LogicalScalar Maximum=Friction*Point.NormalImpulse;
+        LogicalScalar TangentDelta=-LogicalVector3.Dot(Relative,Point.Tangent)/TangentEffective;
+        LogicalScalar OldTangent=Point.TangentImpulse;
+        Point.TangentImpulse=Clamp(OldTangent+TangentDelta,-Maximum,Maximum);
+        ApplyImpulse(Contact,Point,Point.Tangent*(Point.TangentImpulse-OldTangent));
+    }
+
+    private static void SolvePosition(CachedContact Contact,int PointIndex){
+        ref CachedPoint Point=ref Contact.Points[PointIndex];
+        LogicalScalar Penetration=Max(LogicalScalar.Zero,Point.Penetration-ContactSlop);
+        if(Penetration.IsZero){ return; }
+        LogicalScalar FirstInverse=InverseMass(Contact.First);
+        LogicalScalar SecondInverse=InverseMass(Contact.Second);
+        LogicalScalar Total=FirstInverse+SecondInverse;
+        if(Total.IsZero){ return; }
+        LogicalScalar Correction=Penetration*PositionCorrection
+            /LogicalScalar.FromInt64(checked(3*Contact.PointCount));
+        LogicalVector3 Offset=Contact.Normal*(Correction/Total);
+        if(!FirstInverse.IsZero){ Contact.First.Position-=Offset*FirstInverse;WakeForContact(Contact.First); }
+        if(!SecondInverse.IsZero){ Contact.Second.Position+=Offset*SecondInverse;WakeForContact(Contact.Second); }
+        Point.Penetration=Max(ContactSlop,Point.Penetration-Correction);
+    }
+
+    private void PublishContactEvents(ulong Tick){
+        this.ContactRemovalScratch.Clear();
+        for(int ContactIndex=0;ContactIndex<this.ContactCache.Count;ContactIndex++){
+            CachedContact Contact=this.ContactCache.Values[ContactIndex];
+            (ulong First,ulong Second) Key=this.ContactCache.Keys[ContactIndex];
+            ulong PairId=BuildPairId(Key.First,Key.Second);
+            if(Contact.Active){
+                if(Contact.IsTrigger){
+                    if(!Contact.WasActive){ this.MutableEvents.Add(new PhysicsEvent(Tick,PairId,PhysicsEventType.TriggerBegin,Contact.First.Entity,Contact.Second.Entity,default,default)); }
+                }
+                else {
+                    PhysicsEventType Type=Contact.WasActive?PhysicsEventType.ContactPersist:PhysicsEventType.ContactBegin;
+                    this.MutableEvents.Add(new PhysicsEvent(Tick,PairId,Type,Contact.First.Entity,Contact.Second.Entity,Contact.TotalNormalImpulse,default));
+                }
+            }
+            else {
+                if(Contact.WasActive){
+                    PhysicsEventType Type=Contact.IsTrigger?PhysicsEventType.TriggerEnd:PhysicsEventType.ContactEnd;
+                    this.MutableEvents.Add(new PhysicsEvent(Tick,PairId,Type,Contact.First.Entity,Contact.Second.Entity,default,default));
+                }
+                this.ContactRemovalScratch.Add(Key);
+            }
+        }
+        foreach((ulong First,ulong Second) Key in this.ContactRemovalScratch){ this.ContactCache.Remove(Key); }
+    }
+
+    private static void ApplyImpulse(CachedContact Contact,in CachedPoint Point,LogicalVector3 Impulse){
+        LogicalScalar FirstInverse=InverseMass(Contact.First);
+        if(!FirstInverse.IsZero){
+            Contact.First.Velocity.Linear-=Impulse*FirstInverse;
+            Contact.First.Velocity.Angular-=ApplyInverseInertia(Contact.First,LogicalVector3.Cross(Point.Position-Contact.First.Position,Impulse));
+        }
+        LogicalScalar SecondInverse=InverseMass(Contact.Second);
+        if(!SecondInverse.IsZero){
+            Contact.Second.Velocity.Linear+=Impulse*SecondInverse;
+            Contact.Second.Velocity.Angular+=ApplyInverseInertia(Contact.Second,LogicalVector3.Cross(Point.Position-Contact.Second.Position,Impulse));
+        }
+    }
+
+    private static LogicalScalar EffectiveMass(CachedContact Contact,in CachedPoint Point,LogicalVector3 Direction){
+        LogicalScalar Result=InverseMass(Contact.First)+InverseMass(Contact.Second);
+        LogicalVector3 FirstArm=Point.Position-Contact.First.Position;
+        LogicalVector3 SecondArm=Point.Position-Contact.Second.Position;
+        if(!InverseMass(Contact.First).IsZero){
+            LogicalVector3 Angular=ApplyInverseInertia(Contact.First,LogicalVector3.Cross(FirstArm,Direction));
+            Result+=LogicalVector3.Dot(LogicalVector3.Cross(Angular,FirstArm),Direction);
+        }
+        if(!InverseMass(Contact.Second).IsZero){
+            LogicalVector3 Angular=ApplyInverseInertia(Contact.Second,LogicalVector3.Cross(SecondArm,Direction));
+            Result+=LogicalVector3.Dot(LogicalVector3.Cross(Angular,SecondArm),Direction);
+        }
+        return Result;
+    }
+
+    private static LogicalVector3 ApplyInverseInertia(Body Body,LogicalVector3 WorldTorque){
+        if(Body.RigidBody is not { MotionType:PhysicsMotionType.Dynamic,Mass:var Mass }){ return LogicalVector3.Zero; }
+        LogicalVector3 Inertia=CalculateInertia(Body,Mass);
+        LogicalQuaternion InverseRotation=Body.Rotation.Conjugate();
+        if(!InverseRotation.TryRotate(WorldTorque,out LogicalVector3 Local)){ throw new OverflowException(); }
+        Local=new LogicalVector3(
+            Inertia.R.IsZero?LogicalScalar.Zero:Local.R/Inertia.R,
+            Inertia.U.IsZero?LogicalScalar.Zero:Local.U/Inertia.U,
+            Inertia.F.IsZero?LogicalScalar.Zero:Local.F/Inertia.F);
+        return Body.Rotation.TryRotate(Local,out LogicalVector3 World)?World:throw new OverflowException();
+    }
+
+    private static LogicalVector3 CalculateInertia(Body Body,LogicalScalar Mass){
+        if(Body.Collider.Shape==ColliderShape.Sphere){
+            LogicalScalar Value=LogicalScalar.FromSingle(0.4f)*Mass*Body.Collider.Radius*Body.Collider.Radius;
+            return new LogicalVector3(Value,Value,Value);
+        }
+        if(Body.Collider.Shape==ColliderShape.Capsule){
+            LogicalScalar Radius=Body.Collider.Radius;
+            LogicalScalar HalfHeight=Body.Collider.HalfHeight;
+            LogicalScalar CylinderWeight=LogicalScalar.FromInt64(2)*Radius*Radius*HalfHeight;
+            LogicalScalar SphereWeight=LogicalScalar.FromSingle(4f/3f)*Radius*Radius*Radius;
+            LogicalScalar TotalWeight=CylinderWeight+SphereWeight;
+            LogicalScalar CylinderMass=TotalWeight.IsZero?LogicalScalar.Zero:Mass*CylinderWeight/TotalWeight;
+            LogicalScalar SphereMass=Mass-CylinderMass;
+            LogicalScalar RadiusSquared=Radius*Radius;
+            LogicalScalar Height=LogicalScalar.FromInt64(2)*HalfHeight;
+            LogicalScalar Axis=LogicalScalar.FromSingle(0.5f)*CylinderMass*RadiusSquared
+                +LogicalScalar.FromSingle(0.4f)*SphereMass*RadiusSquared;
+            LogicalScalar Transverse=CylinderMass*(LogicalScalar.FromInt64(3)*RadiusSquared+Height*Height)
+                /LogicalScalar.FromInt64(12)
+                +LogicalScalar.FromSingle(0.4f)*SphereMass*RadiusSquared+SphereMass*HalfHeight*HalfHeight;
+            return new LogicalVector3(Transverse,Axis,Transverse);
+        }
+        LogicalVector3 Half=Body.Asset is null
+            ?Body.Collider.HalfExtents
+            :(Body.Asset.Bounds.Max-Body.Asset.Bounds.Min)/LogicalScalar.FromInt64(2);
+        LogicalScalar Third=LogicalScalar.One/LogicalScalar.FromInt64(3);
+        return new LogicalVector3(
+            Mass*Third*(Half.U*Half.U+Half.F*Half.F),
+            Mass*Third*(Half.R*Half.R+Half.F*Half.F),
+            Mass*Third*(Half.R*Half.R+Half.U*Half.U));
+    }
+
+    private static LogicalVector3 PointVelocity(Body Body,LogicalVector3 Point)=>
+        Body.Velocity.Linear+LogicalVector3.Cross(Body.Velocity.Angular,Point-Body.Position);
+
+    private static LogicalScalar InverseMass(Body Body)=>
+        Body.RigidBody is { MotionType:PhysicsMotionType.Dynamic,Mass:var Mass }?LogicalScalar.One/Mass:LogicalScalar.Zero;
+
+    private static LogicalQuaternion IntegrateRotation(LogicalQuaternion Rotation,LogicalVector3 AngularVelocity){
+        if(AngularVelocity.LengthSquared.IsZero){ return Rotation; }
+        if(!LogicalScalar.TrySquareRoot(AngularVelocity.LengthSquared,out LogicalScalar Speed)
+            ||!AngularVelocity.TryNormalize(out LogicalVector3 Axis)
+            ||!LogicalQuaternion.TryCreateAxisAngle(Axis,Speed*FixedDelta,out LogicalQuaternion Delta)
+            ||!LogicalQuaternion.TryMultiply(Delta,Rotation,out LogicalQuaternion Candidate)
+            ||!Candidate.TryNormalize(out LogicalQuaternion Result)){ throw new OverflowException(); }
+        return Result;
     }
 
     private void UpdateSleep(Body Body,ulong Tick){
@@ -343,31 +768,109 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         Events.Add(new PhysicsEvent(Tick,BuildPairId(Body.StableId,Body.StableId),PhysicsEventType.Wake,Body.Entity,default,default,default));
     }
 
-    private static PhysicsUpdateStatus Validate(in PhysicsBodyDescription Description){
+    private static void WakeForContact(Body Body){
+        Body.IsSleeping=false;
+        Body.SleepTicks=0;
+    }
+
+    private PhysicsUpdateStatus ValidateAndCalculateBounds(
+        in PhysicsBodyDescription Description,out PhysicsAabb Bounds,out PhysicsShapeAsset? Asset){
+        Bounds=default;
+        Asset=null;
         if(Description.StableId==0||Description.Collider.Layer.Value>=64){ return PhysicsUpdateStatus.InvalidInput; }
         if(!Description.Rotation.TryNormalize(out _)){ return PhysicsUpdateStatus.InvalidInput; }
         if(Description.Collider.Shape==ColliderShape.StaticTriangleMesh&&Description.RigidBody is not null){ return PhysicsUpdateStatus.InvalidShape; }
-        if(Description.Collider.Shape is ColliderShape.ConvexAsset or ColliderShape.Compound or ColliderShape.StaticTriangleMesh
-            &&string.IsNullOrWhiteSpace(Description.Collider.Asset)){ return PhysicsUpdateStatus.InvalidShape; }
-        if(Description.RigidBody is { Mass:var Mass }&&Mass<=PhysicsScalar.Zero){ return PhysicsUpdateStatus.InvalidMass; }
-        PhysicsVector3 Extents=ShapeHalfExtents(Description.Collider);
-        return Extents.R<PhysicsScalar.Zero||Extents.U<PhysicsScalar.Zero||Extents.F<PhysicsScalar.Zero?PhysicsUpdateStatus.InvalidShape:PhysicsUpdateStatus.Success;
+        if(Description.RigidBody is { Mass:var Mass }
+            &&(Mass<=LogicalScalar.Zero||!LogicalScalar.TryDivide(LogicalScalar.One,Mass,out _))){
+            return PhysicsUpdateStatus.InvalidMass;
+        }
+        if(!this.TryResolveAsset(Description.Collider,out Asset)){ return PhysicsUpdateStatus.InvalidShape; }
+        if(Description.Collider.Shape==ColliderShape.Box
+            &&(Description.Collider.HalfExtents.R<=LogicalScalar.Zero
+                ||Description.Collider.HalfExtents.U<=LogicalScalar.Zero
+                ||Description.Collider.HalfExtents.F<=LogicalScalar.Zero)
+            ||Description.Collider.Shape==ColliderShape.Sphere&&Description.Collider.Radius<=LogicalScalar.Zero
+            ||Description.Collider.Shape==ColliderShape.Capsule
+                &&(Description.Collider.Radius<=LogicalScalar.Zero||Description.Collider.HalfHeight<LogicalScalar.Zero)){
+            return PhysicsUpdateStatus.InvalidShape;
+        }
+        try {
+            Bounds=this.NarrowPhase.CalculateBounds(new PhysicsCollisionShape(
+                Description.Collider,Description.Position,Description.Rotation,Asset));
+            return PhysicsUpdateStatus.Success;
+        }
+        catch(OverflowException){ return PhysicsUpdateStatus.NumericOverflow; }
     }
 
-    private static PhysicsAabb CalculateBounds(Body Body)=>PhysicsAabb.FromCenterHalfExtents(Body.Position+Body.Collider.Center,ShapeHalfExtents(Body.Collider));
-    private static PhysicsVector3 ShapeHalfExtents(in Collider Collider)=>Collider.Shape switch {
-        ColliderShape.Sphere=>new PhysicsVector3(Collider.Radius,Collider.Radius,Collider.Radius),
-        ColliderShape.Capsule=>new PhysicsVector3(Collider.Radius,Collider.Radius+Collider.HalfHeight,Collider.Radius),
+    private bool TryResolveAsset(in Collider Collider,out PhysicsShapeAsset? Asset){
+        Asset=null;
+        if(Collider.Shape is not (ColliderShape.ConvexAsset or ColliderShape.StaticTriangleMesh)){ return true; }
+        if(string.IsNullOrWhiteSpace(Collider.Asset)||!this.Shapes.TryGet(Collider.Asset,out PhysicsShapeAsset Resolved)){ return false; }
+        if(Collider.Shape==ColliderShape.ConvexAsset&&Resolved.Kind!=PhysicsShapeAssetKind.Convex
+            ||Collider.Shape==ColliderShape.StaticTriangleMesh&&Resolved.Kind!=PhysicsShapeAssetKind.StaticTriangleMesh){ return false; }
+        Asset=Resolved;
+        return true;
+    }
+
+    private PhysicsCollisionShape CreateShape(Body Body)=>this.CreateShape(Body,Body.Position);
+
+    private PhysicsCollisionShape CreateShape(Body Body,LogicalVector3 Position)=>this.CreateShape(Body,Position,Body.Rotation);
+
+    private PhysicsCollisionShape CreateShape(Body Body,LogicalVector3 Position,LogicalQuaternion Rotation)=>
+        new(Body.Collider,Position,Rotation,Body.Asset);
+
+    private PhysicsAabb CalculateBounds(Body Body)=>this.NarrowPhase.CalculateBounds(this.CreateShape(Body));
+    private PhysicsAabb CalculateBounds(Body Body,LogicalVector3 Position)=>this.NarrowPhase.CalculateBounds(this.CreateShape(Body,Position));
+
+    private static LogicalVector3 ShapeHalfExtents(in Collider Collider)=>Collider.Shape switch {
+        ColliderShape.Sphere=>new LogicalVector3(Collider.Radius,Collider.Radius,Collider.Radius),
+        ColliderShape.Capsule=>new LogicalVector3(Collider.Radius,Collider.Radius+Collider.HalfHeight,Collider.Radius),
         _=>Collider.HalfExtents,
     };
 
-    private static bool TryRayAabb(in PhysicsRay Ray,in PhysicsAabb Bounds,out PhysicsScalar Distance,out PhysicsVector3 Normal){
-        PhysicsScalar Near=PhysicsScalar.Zero;
-        PhysicsScalar Far=Ray.MaxDistance;
+    private void RemoveContactsFor(ulong StableId){
+        this.ContactRemovalScratch.Clear();
+        foreach(KeyValuePair<(ulong First,ulong Second),CachedContact> Pair in this.ContactCache){
+            if(Pair.Key.First==StableId||Pair.Key.Second==StableId){ this.ContactRemovalScratch.Add(Pair.Key); }
+        }
+        foreach((ulong First,ulong Second) Key in this.ContactRemovalScratch){ this.ContactCache.Remove(Key); }
+        this.ContactRemovalScratch.Clear();
+    }
+
+    private static bool CanCollide(Body First,Body Second)=>
+        First.Collider.CollidesWith.Contains(Second.Collider.Layer)
+        &&Second.Collider.CollidesWith.Contains(First.Collider.Layer);
+
+    private bool TryGetContact((ulong First,ulong Second) Key,out CachedContact Contact){
+        int Minimum=0;
+        int Maximum=this.ContactCache.Count-1;
+        while(Minimum<=Maximum){
+            int Index=Minimum+(Maximum-Minimum)/2;
+            (ulong First,ulong Second) Candidate=this.ContactCache.Keys[Index];
+            int Result=Candidate.First.CompareTo(Key.First);
+            if(Result==0){ Result=Candidate.Second.CompareTo(Key.Second); }
+            if(Result==0){
+                Contact=this.ContactCache.Values[Index];
+                return true;
+            }
+            if(Result<0){ Minimum=Index+1; }
+            else { Maximum=Index-1; }
+        }
+        Contact=null!;
+        return false;
+    }
+
+    private static PhysicsAabb Combine(in PhysicsAabb Left,in PhysicsAabb Right)=>new(
+        new LogicalVector3(Min(Left.Min.R,Right.Min.R),Min(Left.Min.U,Right.Min.U),Min(Left.Min.F,Right.Min.F)),
+        new LogicalVector3(Max(Left.Max.R,Right.Max.R),Max(Left.Max.U,Right.Max.U),Max(Left.Max.F,Right.Max.F)));
+
+    private static bool TryRayAabb(in PhysicsRay Ray,in PhysicsAabb Bounds,out LogicalScalar Distance,out LogicalVector3 Normal){
+        LogicalScalar Near=LogicalScalar.Zero;
+        LogicalScalar Far=Ray.MaxDistance;
         Normal=default;
-        if(!ClipAxis(Ray.Origin.R,Ray.Direction.R,Bounds.Min.R,Bounds.Max.R,PhysicsVector3.UnitR,ref Near,ref Far,ref Normal)
-            ||!ClipAxis(Ray.Origin.U,Ray.Direction.U,Bounds.Min.U,Bounds.Max.U,PhysicsVector3.UnitU,ref Near,ref Far,ref Normal)
-            ||!ClipAxis(Ray.Origin.F,Ray.Direction.F,Bounds.Min.F,Bounds.Max.F,PhysicsVector3.UnitF,ref Near,ref Far,ref Normal)){
+        if(!ClipAxis(Ray.Origin.R,Ray.Direction.R,Bounds.Min.R,Bounds.Max.R,LogicalVector3.UnitR,ref Near,ref Far,ref Normal)
+            ||!ClipAxis(Ray.Origin.U,Ray.Direction.U,Bounds.Min.U,Bounds.Max.U,LogicalVector3.UnitU,ref Near,ref Far,ref Normal)
+            ||!ClipAxis(Ray.Origin.F,Ray.Direction.F,Bounds.Min.F,Bounds.Max.F,LogicalVector3.UnitF,ref Near,ref Far,ref Normal)){
             Distance=default;
             return false;
         }
@@ -375,15 +878,15 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         return true;
     }
 
-    private static bool ClipAxis(PhysicsScalar Origin,PhysicsScalar Direction,PhysicsScalar Minimum,PhysicsScalar Maximum,PhysicsVector3 Axis,ref PhysicsScalar Near,ref PhysicsScalar Far,ref PhysicsVector3 Normal){
+    private static bool ClipAxis(LogicalScalar Origin,LogicalScalar Direction,LogicalScalar Minimum,LogicalScalar Maximum,LogicalVector3 Axis,ref LogicalScalar Near,ref LogicalScalar Far,ref LogicalVector3 Normal){
         if(Direction.IsZero){ return Origin>=Minimum&&Origin<=Maximum; }
-        PhysicsScalar First=(Minimum-Origin)/Direction;
-        PhysicsScalar Second=(Maximum-Origin)/Direction;
-        PhysicsVector3 CandidateNormal=Direction>PhysicsScalar.Zero?-Axis:Axis;
+        LogicalScalar First=(Minimum-Origin)/Direction;
+        LogicalScalar Second=(Maximum-Origin)/Direction;
+        LogicalVector3 CandidateNormal=Direction>LogicalScalar.Zero?-Axis:Axis;
         if(First>Second){ (First,Second)=(Second,First); }
         if(First>Near){ Near=First; Normal=CandidateNormal; }
         if(Second<Far){ Far=Second; }
-        return Near<=Far&&Far>=PhysicsScalar.Zero;
+        return Near<=Far&&Far>=LogicalScalar.Zero;
     }
 
     private static ulong BuildPairId(ulong First,ulong Second){
@@ -392,8 +895,10 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
         Hash=(Hash^First)*1099511628211UL;
         return (Hash^Second)*1099511628211UL;
     }
-    private static PhysicsScalar Min(PhysicsScalar Left,PhysicsScalar Right)=>Left<Right?Left:Right;
-    private static PhysicsScalar Max(PhysicsScalar Left,PhysicsScalar Right)=>Left>Right?Left:Right;
+    private static LogicalScalar Min(LogicalScalar Left,LogicalScalar Right)=>Left<Right?Left:Right;
+    private static LogicalScalar Max(LogicalScalar Left,LogicalScalar Right)=>Left>Right?Left:Right;
+    private static LogicalScalar Clamp(LogicalScalar Value,LogicalScalar Minimum,LogicalScalar Maximum)=>
+        Value<Minimum?Minimum:Value>Maximum?Maximum:Value;
 
     private sealed class PhysicsRayHitComparer:IComparer<PhysicsRayHit> {
         internal static readonly PhysicsRayHitComparer Instance=new();

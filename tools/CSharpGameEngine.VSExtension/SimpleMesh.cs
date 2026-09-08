@@ -4,10 +4,10 @@ using System.Numerics;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Bare vertex/index data for the VSIX in-process renderer (ADR-0008) - no UVs/texture. Shared by
+/// Provider-neutral CPU vertex/index payload for preview scene construction - no UVs/texture. Shared by
 /// <see cref="ExternalGltfLoader"/> (glTF, ADR-0019) and <see cref="ExternalFbxLoader"/> (FBX,
 /// ADR-0010) - both parsed out-of-process via <see cref="ExternalBridgeProcess"/> - so
-/// <see cref="VorticeRenderer"/> stays format-agnostic.
+/// <see cref="RenderPreviewSceneBuilder"/> stays format-agnostic.
 /// </summary>
 internal sealed class SimpleMesh {
     public required Vector3[]Positions { get; init;}

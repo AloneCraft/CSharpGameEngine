@@ -20,6 +20,7 @@
     <File Path="Docs/Architecture.md" />
   </Folder>
   <Folder Name="/Docs/Specifications/">
+    <File Path="Docs/Specifications/World-Scale-Runtime.md" />
     <File Path="Docs/Specifications/Generated-Entity-Storage.md" />
     <File Path="Docs/Specifications/Spatial-RUF.md" />
     <File Path="Docs/Specifications/Physics.md" />
@@ -34,6 +35,7 @@
     <File Path="Docs/Specifications/Shader-Graph.md" />
   </Folder>
   <Folder Name="/Docs/Decisions/">
+    <File Path="Docs/Decisions/ADR-0063-Canonical-Numerics-And-Hierarchical-World.md" />
     <File Path="Docs/Decisions/ADR-0001-Layered-Architecture.md" />
     <File Path="Docs/Decisions/ADR-0002-Source-And-Artifact.md" />
     <File Path="Docs/Decisions/ADR-0003-Windows-D3D12-Vertical-Slice.md" />
@@ -91,6 +93,9 @@
     <File Path="Docs/Decisions/ADR-0062-Visible-Engine-Showcase-And-Deterministic-Input.md" />
   </Folder>
   <Folder Name="/Docs/Milestones/">
+    <File Path="Docs/Milestones/M0065-World-Scale-Architecture-Contract.md" />
+    <File Path="Docs/Milestones/M0074-VSIX-Asset-Authoring.md" />
+    <File Path="Docs/Milestones/M0075-Content-Performance-Evidence.md" />
     <File Path="Docs/Milestones/M0001-CodeAnalysis-Foundation.md" />
     <File Path="Docs/Milestones/M0002-Archetype-Ecs-Foundation.md" />
     <File Path="Docs/Milestones/M0003-Ecs-Driven-Stage-Vertical-Slice.md" />
@@ -121,6 +126,8 @@
     <File Path="Docs/Milestones/M0064-Visible-Engine-Showcase.md" />
   </Folder>
   <Folder Name="/Docs/Verification/">
+    <File Path="Docs/Verification/M0064-Regression-Baseline.json" />
+    <File Path="Docs/Verification/Manual-Evidence.json" />
     <File Path="Docs/Verification/VSIX-Experimental-Baseline.json" />
   </Folder>
   <Folder Name="/Solution Items/">
@@ -150,10 +157,15 @@
     <File Path="assets/TestFixtures/Fbx/NOTICE.md" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/CSharpGameEngine.Audio/CSharpGameEngine.Audio.csproj" />
+    <Project Path="src/CSharpGameEngine.Content/CSharpGameEngine.Content.csproj" />
+    <Project Path="src/CSharpGameEngine.World/CSharpGameEngine.World.csproj" />
+    <Project Path="src/CSharpGameEngine.Contracts/CSharpGameEngine.Contracts.csproj" />
     <Project Path="src/CSharpGameEngine.Core/CSharpGameEngine.Core.csproj" />
     <Project Path="src/CSharpGameEngine.CodeAnalysis/CSharpGameEngine.CodeAnalysis.csproj" />
     <Project Path="src/CSharpGameEngine.Entities/CSharpGameEngine.Entities.csproj" />
     <Project Path="src/CSharpGameEngine.Numerics/CSharpGameEngine.Numerics.csproj" />
+    <Project Path="src/CSharpGameEngine.Rendering/CSharpGameEngine.Rendering.csproj" />
     <Project Path="src/CSharpGameEngine.Import/CSharpGameEngine.Import.csproj" />
     <Project Path="src/CSharpGameEngine.SceneModel/CSharpGameEngine.SceneModel.csproj" />
     <Project Path="src/CSharpGameEngine.Windows/CSharpGameEngine.Windows.csproj" />
@@ -183,9 +195,15 @@
     <Project Path="stages/CSharpGameEngine.FeatureStages.Vsix/CSharpGameEngine.FeatureStages.Vsix.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/CSharpGameEngine.Audio.Tests/CSharpGameEngine.Audio.Tests.csproj" />
+    <Project Path="tests/CSharpGameEngine.Content.Tests/CSharpGameEngine.Content.Tests.csproj" />
+    <Project Path="tests/CSharpGameEngine.ContentCompiler.Tests/CSharpGameEngine.ContentCompiler.Tests.csproj" />
+    <Project Path="tests/CSharpGameEngine.World.Tests/CSharpGameEngine.World.Tests.csproj" />
+    <Project Path="tests/CSharpGameEngine.Contracts.Tests/CSharpGameEngine.Contracts.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Core.Tests/CSharpGameEngine.Core.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Bridge.Hosting.Tests/CSharpGameEngine.Bridge.Hosting.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Numerics.Tests/CSharpGameEngine.Numerics.Tests.csproj" />
+    <Project Path="tests/CSharpGameEngine.Rendering.Tests/CSharpGameEngine.Rendering.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.VSExtension.Tests/CSharpGameEngine.VSExtension.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.CodeAnalysis.Tests/CSharpGameEngine.CodeAnalysis.Tests.csproj" />
     <Project Path="tests/CSharpGameEngine.Entities.Tests/CSharpGameEngine.Entities.Tests.csproj" />
@@ -204,10 +222,12 @@
     <Project Path="tools/CSharpGameEngine.TestHost/CSharpGameEngine.TestHost.csproj" />
     <Project Path="tools/CSharpGameEngine.Extension/CSharpGameEngine.Extension.csproj" />
     <Project Path="tools/CSharpGameEngine.Bridge.Hosting/CSharpGameEngine.Bridge.Hosting.csproj" />
+    <Project Path="tools/CSharpGameEngine.ContentCompiler/CSharpGameEngine.ContentCompiler.csproj" />
     <Project Path="tools/CSharpGameEngine.FeatureRunner/CSharpGameEngine.FeatureRunner.csproj">
       <Platform Project="x64" />
     </Project>
     <Project Path="tools/CSharpGameEngine.Import.Fbx.Cli/CSharpGameEngine.Import.Fbx.Cli.csproj" />
+    <Project Path="tools/CSharpGameEngine.Import.AssetAuthoring.Cli/CSharpGameEngine.Import.AssetAuthoring.Cli.csproj" />
     <Project Path="tools/CSharpGameEngine.Import.Gltf.Cli/CSharpGameEngine.Import.Gltf.Cli.csproj" />
     <Project Path="tools/CSharpGameEngine.Primitive.Cli/CSharpGameEngine.Primitive.Cli.csproj" />
     <Project Path="tools/CSharpGameEngine.Physics.Cli/CSharpGameEngine.Physics.Cli.csproj" />

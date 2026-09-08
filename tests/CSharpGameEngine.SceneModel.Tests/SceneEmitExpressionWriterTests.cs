@@ -16,9 +16,9 @@ public sealed class SceneEmitExpressionWriterTests {
     }
 
     [Fact]
-    public void DoubleValues_AlwaysCarryTheDoubleSuffix(){
-        Assert.Equal("1.5d",SceneEmitExpressionWriter.WriteConstant(1.5d));
-        Assert.Equal("0d",SceneEmitExpressionWriter.WriteConstant(0d));
+    public void NonCanonicalRealValues_AreRejectedByTheEmitterBoundary(){
+        Assert.Equal(SceneEmitExpressionWriter.DefaultExpression,SceneEmitExpressionWriter.WriteConstant(1.5d));
+        Assert.Equal(SceneEmitExpressionWriter.DefaultExpression,SceneEmitExpressionWriter.WriteConstant(1.5m));
     }
 
     [Fact]
@@ -37,7 +37,6 @@ public sealed class SceneEmitExpressionWriterTests {
         Assert.Equal("global::System.Single.NaN",SceneEmitExpressionWriter.WriteConstant(float.NaN));
         Assert.Equal("global::System.Single.PositiveInfinity",SceneEmitExpressionWriter.WriteConstant(float.PositiveInfinity));
         Assert.Equal("global::System.Single.NegativeInfinity",SceneEmitExpressionWriter.WriteConstant(float.NegativeInfinity));
-        Assert.Equal("global::System.Double.NaN",SceneEmitExpressionWriter.WriteConstant(double.NaN));
     }
 
     [Fact]
@@ -46,7 +45,6 @@ public sealed class SceneEmitExpressionWriterTests {
         Assert.Equal("42L",SceneEmitExpressionWriter.WriteConstant(42L));
         Assert.Equal("42UL",SceneEmitExpressionWriter.WriteConstant(42UL));
         Assert.Equal("42U",SceneEmitExpressionWriter.WriteConstant(42U));
-        Assert.Equal("42m",SceneEmitExpressionWriter.WriteConstant(42m));
     }
 
     [Fact]

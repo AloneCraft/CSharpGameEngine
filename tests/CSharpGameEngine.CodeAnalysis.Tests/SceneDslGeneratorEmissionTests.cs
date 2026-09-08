@@ -72,7 +72,16 @@ public sealed class SceneDslGeneratorEmissionTests {
         Assert.Contains(".Create(ref World, new global::Sample.Transform() { X = 1f })",Text);
         Assert.Contains("World.AttachToScene(Instance, ",Text);
         Assert.Contains("World.EndSceneInstance(Instance, Node);",Text);
+        Assert.Contains("public static global::CSharpGameEngine.Entities.SceneInstance InstantiateDeferred",Text);
+        Assert.Contains("World.BeginSceneInstanceDeferred();",Text);
+        Assert.Contains("World.AttachToSceneDeferred(Instance, World.CreateDeferred(",Text);
+        Assert.Contains("World.EndSceneInstanceDeferred(Instance, Node);",Text);
         Assert.Contains("return Instance;",Text);
+        Assert.Contains("public static global::CSharpGameEngine.Contracts.AssetKey EntityPayload",Text);
+        Assert.Contains("public static void InstantiateCell",Text);
+        Assert.Contains("new global::CSharpGameEngine.Contracts.PersistentEntityId",Text);
+        Assert.Contains("World.CanAttachToCell(Cell,",Text);
+        Assert.Contains("World.AttachToCell(Cell,",Text);
     }
 
     [Fact]
@@ -222,10 +231,8 @@ public sealed class SceneDslGeneratorEmissionTests {
         var Result=GameSystemGeneratorTestHelper.RunGenerator([
             .. GameSystemGeneratorTestHelper.SceneDslSources,
             """
-            using CSharpGameEngine.Entities;
-            namespace CSharpGameEngine.Runtime.Windows;
-            public struct Transform { }
-            public struct StaticMesh { }
+            namespace CSharpGameEngine.Entities { public struct Transform { } }
+            namespace CSharpGameEngine.Runtime.Windows { public struct StaticMesh { } }
             """,
             """
             using CSharpGameEngine.Entities;
@@ -239,7 +246,7 @@ public sealed class SceneDslGeneratorEmissionTests {
         var Text=GameSystemGeneratorTestHelper.GeneratedText(Result,"UserEcsProject.Scenes.SampleScene.Scene.g.cs");
 
         Assert.Contains("global::CSharpGameEngine.Entities.SpatialBounds.UnitCube",Text);
-        Assert.Contains("global::CSharpGameEngine.Runtime.Windows.Transform",Text);
+        Assert.Contains("global::CSharpGameEngine.Entities.Transform",Text);
         Assert.Contains("global::CSharpGameEngine.Runtime.Windows.StaticMesh",Text);
     }
 }

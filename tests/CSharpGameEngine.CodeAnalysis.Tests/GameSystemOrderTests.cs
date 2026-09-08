@@ -33,7 +33,7 @@ public sealed class GameSystemOrderTests {
             {
                 if (bootstrap.Done) return true;
                 bootstrap.Done = true;
-                state.World.Create(new Position { X = 0f });
+                state.World.CreateDeferred(new Position { X = 0f });
                 return true;
             }
         }
@@ -140,7 +140,7 @@ public sealed class GameSystemOrderTests {
                 {
                     if (bootstrap.Done) return true;
                     bootstrap.Done = true;
-                    state.World.Create(new Position { X = 0f });
+                    state.World.CreateDeferred(new Position { X = 0f });
                     return true;
                 }
             }
@@ -204,7 +204,7 @@ public sealed class GameSystemOrderTests {
                 {
                     if (bootstrap.Done) return true;
                     bootstrap.Done = true;
-                    state.World.Create(new Position { X = 0f });
+                    state.World.CreateDeferred(new Position { X = 0f });
                     return true;
                 }
             }

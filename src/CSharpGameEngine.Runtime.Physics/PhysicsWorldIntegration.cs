@@ -1,62 +1,125 @@
-using CSharpGameEngine.Runtime.Physics;
+using CSharpGameEngine.Contracts;
+using CSharpGameEngine.Entities;
 
-namespace CSharpGameEngine.Entities;
+namespace CSharpGameEngine.Runtime.Physics;
 
-public partial struct World {
-    private readonly DeterministicPhysicsWorld PhysicsWorldStorage=new();
-    private readonly Guid PhysicsDebugWorldId=Guid.NewGuid();
-    private readonly HashSet<Entity> PhysicsSeenEntities=[];
-    private readonly List<Entity> PhysicsRemovalScratch=[];
-    private readonly List<PhysicsBodyState> PhysicsStateScratch=[];
-    private readonly Dictionary<Entity,PhysicsFaultType> PhysicsSyncFailures=[];
+/// <summary>Host-owned solver state for exactly one reference-frame domain.</summary>
+internal sealed class PhysicsDomainRuntime:IDisposable {
+    private readonly DeterministicPhysicsWorld WorldStorage=new();
+    private readonly HashSet<Entity>SeenEntities=[];
+    private readonly List<Entity>RemovalScratch=[];
+    private readonly List<PhysicsBodyState>StateScratch=[];
+    private readonly Dictionary<Entity,PhysicsFaultType>SyncFailures=[];
+    private PhysicsCachePlayer?CachePlayer;
+    private bool Disposed;
 
-    public IReadOnlyPhysicsWorld GlobalPhysicsWorld=>this.PhysicsWorldStorage;
-    public PhysicsCommands PhysicsCommands=>this.PhysicsWorldStorage.Commands;
-    internal DeterministicPhysicsWorld MutablePhysicsWorld=>this.PhysicsWorldStorage;
-    internal Guid PhysicsWorldDebugId=>this.PhysicsDebugWorldId;
+    internal PhysicsDomainRuntime(ReferenceFrameId Frame){
+        if(!Frame.IsValid){ throw new ArgumentException("A valid physics frame is required.",nameof(Frame)); }
+        this.Frame=Frame;
+    }
 
-    public bool TryGetPhysicsSyncFailure(Entity Entity,out PhysicsFaultType Failure)=>this.PhysicsSyncFailures.TryGetValue(Entity,out Failure);
+    internal ReferenceFrameId Frame { get; }
+    internal Guid DebugId { get; }=Guid.NewGuid();
+    internal IReadOnlyPhysicsWorld World=>this.WorldStorage;
+    internal PhysicsCommands Commands=>this.WorldStorage.Commands;
+    internal DeterministicPhysicsWorld MutableWorld=>this.WorldStorage;
+    internal PhysicsCachePlaybackState CacheState=>this.CachePlayer?.State??PhysicsCachePlaybackState.Stopped;
 
-    internal void BeginPhysicsSynchronization()=>this.PhysicsSeenEntities.Clear();
+    internal bool TryLoadCache(
+        Stream Input,in CSharpGameEngine.Runtime.Simulation.SimulationCacheIdentity Identity,
+        bool AllowRealtimeHandoff,out string Error){
+        ObjectDisposedException.ThrowIf(this.Disposed,this);
+        if(!PhysicsCachePlayer.TryLoad(Input,Identity,AllowRealtimeHandoff,out PhysicsCachePlayer? Candidate,out Error)){ return false; }
+        this.CachePlayer?.Dispose();
+        this.CachePlayer=Candidate;
+        return true;
+    }
 
-    internal ulong ResolvePhysicsStableId(Entity Entity){
-        if(this.TryGetComponent(Entity,out PhysicsStableId StableId)&&StableId.Value!=0){ return StableId.Value; }
-        // Runtime spawn fallback. Baking requires an authored stable ID and rejects this fallback.
+    internal bool OwnsPlaybackTick(ulong Tick){
+        ObjectDisposedException.ThrowIf(this.Disposed,this);
+        if(this.CachePlayer is null||this.CachePlayer.State is PhysicsCachePlaybackState.Stopped or PhysicsCachePlaybackState.HandedOffToRealtime){
+            return false;
+        }
+        if(this.CachePlayer.State==PhysicsCachePlaybackState.Playing){ this.CachePlayer.TryApply(Tick,this.WorldStorage); }
+        return true;
+    }
+
+    internal bool TryHandoffCache(ulong NextTick)=>
+        this.CachePlayer is not null&&this.CachePlayer.TryHandoffToRealtime(NextTick);
+
+    internal bool TryGetSyncFailure(Entity Entity,out PhysicsFaultType Failure)=>
+        this.SyncFailures.TryGetValue(Entity,out Failure);
+
+    internal void WriteCacheFrame(PhysicsCacheStreamWriter Writer,ulong Tick){
+        ObjectDisposedException.ThrowIf(this.Disposed,this);
+        ArgumentNullException.ThrowIfNull(Writer);
+        this.StateScratch.Clear();
+        try {
+            this.WorldStorage.CollectBodyStates(this.StateScratch);
+            Writer.WriteFrame(new PhysicsCacheFrame(Tick,this.StateScratch,this.WorldStorage.Events));
+        }
+        finally { this.StateScratch.Clear(); }
+    }
+
+    internal void BeginSynchronization(){
+        ObjectDisposedException.ThrowIf(this.Disposed,this);
+        this.SeenEntities.Clear();
+    }
+
+    internal static ulong ResolveStableId(Entity Entity,CSharpGameEngine.Entities.World EcsWorld){
+        if(EcsWorld.TryGetComponent(Entity,out PhysicsStableId StableId)&&StableId.Value!=0){ return StableId.Value; }
         return checked((ulong)Entity.Id+1UL);
     }
 
-    internal void ApplyPhysicsBody(in PhysicsBodyDescription Description){
-        PhysicsUpdateStatus Status=this.PhysicsWorldStorage.Synchronize(Description);
+    internal void ApplyBody(in PhysicsBodyDescription Description){
+        ObjectDisposedException.ThrowIf(this.Disposed,this);
+        PhysicsUpdateStatus Status=this.WorldStorage.Synchronize(Description);
         if(Status==PhysicsUpdateStatus.Success){
-            this.PhysicsSeenEntities.Add(Description.Entity);
-            this.PhysicsSyncFailures.Remove(Description.Entity);
+            this.SeenEntities.Add(Description.Entity);
+            this.SyncFailures.Remove(Description.Entity);
             return;
         }
-        this.PhysicsWorldStorage.Remove(Description.Entity);
-        this.PhysicsSyncFailures[Description.Entity]=Status switch {
+        this.WorldStorage.Remove(Description.Entity);
+        this.SyncFailures[Description.Entity]=Status switch {
             PhysicsUpdateStatus.InvalidMass=>PhysicsFaultType.InvalidMass,
             PhysicsUpdateStatus.NumericOverflow=>PhysicsFaultType.NumericOverflow,
             _=>PhysicsFaultType.InvalidScale,
         };
     }
 
-    internal void ReportPhysicsSyncFailure(Entity Entity,PhysicsFaultType Failure){
-        this.PhysicsWorldStorage.Remove(Entity);
-        this.PhysicsSyncFailures[Entity]=Failure;
+    internal void ReportSyncFailure(Entity Entity,PhysicsFaultType Failure){
+        ObjectDisposedException.ThrowIf(this.Disposed,this);
+        this.WorldStorage.Remove(Entity);
+        this.SyncFailures[Entity]=Failure;
     }
 
-    internal void EndPhysicsSynchronization(){
-        this.PhysicsRemovalScratch.Clear();
-        this.PhysicsStateScratch.Clear();
-        this.PhysicsWorldStorage.CollectBodyStates(this.PhysicsStateScratch);
-        foreach(PhysicsBodyState Body in this.PhysicsStateScratch){
-            if(!this.PhysicsSeenEntities.Contains(Body.Entity)){ this.PhysicsRemovalScratch.Add(Body.Entity); }
+    internal void EndSynchronization(){
+        ObjectDisposedException.ThrowIf(this.Disposed,this);
+        this.RemovalScratch.Clear();
+        this.StateScratch.Clear();
+        this.WorldStorage.CollectBodyStates(this.StateScratch);
+        foreach(PhysicsBodyState Body in this.StateScratch){
+            if(!this.SeenEntities.Contains(Body.Entity)){ this.RemovalScratch.Add(Body.Entity); }
         }
-        foreach(Entity Entity in this.PhysicsRemovalScratch){
-            this.PhysicsWorldStorage.Remove(Entity);
-            this.PhysicsSyncFailures.Remove(Entity);
+        foreach(Entity Entity in this.RemovalScratch){
+            this.WorldStorage.Remove(Entity);
+            this.SyncFailures.Remove(Entity);
         }
-        this.PhysicsRemovalScratch.Clear();
-        this.PhysicsStateScratch.Clear();
+        this.RemovalScratch.Clear();
+        this.StateScratch.Clear();
+    }
+
+    public void Dispose(){
+        if(this.Disposed){ return; }
+        this.Disposed=true;
+        PhysicsSimulationControl.Unregister(this.DebugId);
+        PhysicsDebugHub.Remove(this.DebugId);
+        this.WorldStorage.Reset(0);
+        this.SeenEntities.Clear();
+        this.RemovalScratch.Clear();
+        this.StateScratch.Clear();
+        this.SyncFailures.Clear();
+        this.CachePlayer?.Dispose();
+        this.CachePlayer=null;
     }
 }

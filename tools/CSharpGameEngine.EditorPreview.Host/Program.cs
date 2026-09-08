@@ -2,19 +2,45 @@ using System.Reflection;
 using System.Runtime.Loader;
 using System.IO.Pipes;
 using System.Text;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using CSharpGameEngine.EditorPreview.Host;
+
+string? parentProcessText=ReadOption(args,"--parent-process-id");
+int parsedParentProcessId=0;
+if(parentProcessText is not null
+    &&(!int.TryParse(parentProcessText,out parsedParentProcessId)
+        ||parsedParentProcessId<=0)){
+    return;
+}
+int? parentProcessId=parentProcessText is null?null:parsedParentProcessId;
+using var hostCancellation=new CancellationTokenSource();
+using ParentProcessLifetime? parentLifetime=ParentProcessLifetime.Attach(
+    parentProcessId,hostCancellation);
+Console.CancelKeyPress+=(sender,eventArgs)=>{
+    eventArgs.Cancel=true;
+    hostCancellation.Cancel();
+};
+
+string? renderServerPipe=ReadOption(args,"--render-server");
+if(renderServerPipe is not null){
+    try{
+        await RenderPreviewHostServer.RunAsync(renderServerPipe,hostCancellation.Token);
+    }catch(OperationCanceledException) when(hostCancellation.IsCancellationRequested){
+    }
+    return;
+}
 
 if(args.Length==0){
     return;
 }
-string? assemblyPath=null;
-string? sceneName=null;
-for(var index=0;index<args.Length;index++){
-    if(args[index]=="--assembly"&&index+1<args.Length) assemblyPath=args[++index];
-    else if(args[index]=="--scene"&&index+1<args.Length) sceneName=args[++index];
-}
+string? assemblyPath=ReadOption(args,"--assembly");
+string? sceneName=ReadOption(args,"--scene");
 if(string.IsNullOrWhiteSpace(assemblyPath)||!File.Exists(assemblyPath)){
+    return;
+}
+if(hostCancellation.IsCancellationRequested){
     return;
 }
 AssemblyLoadContext.Default.Resolving+=(context,name)=>{
@@ -42,19 +68,17 @@ try{
 }catch{
     return;
 }
-using var cancellation=new CancellationTokenSource();
-Console.CancelKeyPress+=(sender,eventArgs)=>{ eventArgs.Cancel=true; cancellation.Cancel(); };
 var controlPipeName=$"CSharpGameEngine.EditorPreview.{Environment.ProcessId}";
 var controlTask=Task.Run(async()=>{
-    while(!cancellation.IsCancellationRequested){
+    while(!hostCancellation.IsCancellationRequested){
         try{
             using var pipe=new NamedPipeServerStream(controlPipeName,PipeDirection.InOut,1,PipeTransmissionMode.Byte,PipeOptions.Asynchronous);
-            await pipe.WaitForConnectionAsync(cancellation.Token);
+            await pipe.WaitForConnectionAsync(hostCancellation.Token);
             using var reader=new StreamReader(pipe,Encoding.UTF8,leaveOpen:true);
             using var writer=new StreamWriter(pipe,Encoding.UTF8,leaveOpen:true){AutoFlush=true};
-            var command=await reader.ReadLineAsync(cancellation.Token);
+            var command=await reader.ReadLineAsync(hostCancellation.Token);
             if(command=="shutdown"){
-                cancellation.Cancel();
+                hostCancellation.Cancel();
                 await writer.WriteLineAsync("ok");
             }else if(command=="tick"){
                 tickChange.Invoke(null,null);
@@ -67,18 +91,78 @@ var controlTask=Task.Run(async()=>{
         }catch(OperationCanceledException){
             break;
         }catch{
-            if(!cancellation.IsCancellationRequested) await Task.Delay(100,cancellation.Token);
+            if(!hostCancellation.IsCancellationRequested) await Task.Delay(100,hostCancellation.Token);
         }
     }
-},cancellation.Token);
+},hostCancellation.Token);
 try{
-    while(!cancellation.IsCancellationRequested){
+    while(!hostCancellation.IsCancellationRequested){
         tickRealtime.Invoke(null,null);
-        await Task.Delay(TimeSpan.FromMilliseconds(1000.0/15.0),cancellation.Token);
+        await Task.Delay(TimeSpan.FromTicks(TimeSpan.TicksPerSecond/15),hostCancellation.Token);
     }
 }catch(OperationCanceledException){
 }finally{
     try{ shutdown.Invoke(null,null); }catch{}
-    cancellation.Cancel();
+    hostCancellation.Cancel();
     try{ await controlTask; }catch{}
+}
+
+static string? ReadOption(string[] Arguments,string Name){
+    for(int Index=0;Index+1<Arguments.Length;Index++){
+        if(string.Equals(Arguments[Index],Name,StringComparison.Ordinal)){
+            return Arguments[Index+1];
+        }
+    }
+    return null;
+}
+
+internal sealed class ParentProcessLifetime:IDisposable {
+    private readonly Process Parent;
+    private readonly CancellationTokenSource Cancellation;
+    private bool Disposed;
+
+    private ParentProcessLifetime(Process Parent,CancellationTokenSource Cancellation){
+        this.Parent=Parent;
+        this.Cancellation=Cancellation;
+        this.Parent.EnableRaisingEvents=true;
+        this.Parent.Exited+=this.OnParentExited;
+        if(this.Parent.HasExited){
+            this.Cancellation.Cancel();
+        }
+    }
+
+    internal static ParentProcessLifetime?Attach(
+        int?ParentProcessId,CancellationTokenSource Cancellation){
+        if(ParentProcessId is null){
+            return null;
+        }
+        Process? Parent=null;
+        try{
+            Parent=Process.GetProcessById(ParentProcessId.Value);
+            return new ParentProcessLifetime(Parent,Cancellation);
+        }catch(ArgumentException){
+            Parent?.Dispose();
+            Cancellation.Cancel();
+            return null;
+        }catch(InvalidOperationException){
+            Parent?.Dispose();
+            Cancellation.Cancel();
+            return null;
+        }catch(System.ComponentModel.Win32Exception){
+            Parent?.Dispose();
+            Cancellation.Cancel();
+            return null;
+        }
+    }
+
+    public void Dispose(){
+        if(this.Disposed){
+            return;
+        }
+        this.Disposed=true;
+        this.Parent.Exited-=this.OnParentExited;
+        this.Parent.Dispose();
+    }
+
+    private void OnParentExited(object?Sender,EventArgs Args)=>this.Cancellation.Cancel();
 }

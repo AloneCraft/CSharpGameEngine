@@ -1,4 +1,5 @@
 using System.Numerics;
+using CSharpGameEngine.Rendering;
 
 namespace CSharpGameEngine.Graphics.D3D12;
 
@@ -15,10 +16,8 @@ public readonly struct StageMeshCreateInfo {
 }
 
 /// <summary>
-/// One glTF-metallic-roughness-style material. Each texture slot is optional raw encoded
-/// (PNG/JPEG) bytes, undecoded - a material baked to a flat factor (no spatial variation, the
-/// common case for this engine's baked UE content) supplies null and relies on the factor alone,
-/// mirroring <see cref="ModelRenderer"/>'s 1x1-fallback-texture pattern.
+/// L0 adapter for one validated glTF-metallic-roughness-style material. Texture slots contain
+/// immutable canonical RGBA8 resources; encoded PNG/JPEG bytes never cross this boundary.
 /// </summary>
 public readonly struct StageMaterialCreateInfo() {
 
@@ -36,14 +35,14 @@ public readonly struct StageMaterialCreateInfo() {
     public float EmissiveTextureLuminanceScale { get; init;}=1f;
 
 
-    public byte[]?BaseColorTextureBytes { get; init;}
-    public byte[]?NormalTextureBytes { get; init;}
+    public RenderTextureResource?BaseColorTexture { get; init;}
+    public RenderTextureResource?NormalTexture { get; init;}
 
     /// <summary>Optional raw glTF emissive texture. It modulates both visible self-emission and emission patches.</summary>
-    public byte[]?EmissiveTextureBytes { get; init;}
+    public RenderTextureResource?EmissiveTexture { get; init;}
 
     /// <summary>glTF-standard packed texture: G = roughness, B = metallic.</summary>
-    public byte[]?MetallicRoughnessTextureBytes { get; init;}
+    public RenderTextureResource?MetallicRoughnessTexture { get; init;}
 }
 
 /// <summary>One drawable: a (mesh, material) pair. Multiple objects may reference the same mesh and/or material index - e.g. twenty cubes sharing one baked mesh, or two different-shaped props sharing one flat-color material.</summary>

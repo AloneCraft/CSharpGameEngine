@@ -1,4 +1,5 @@
 using System.Xml.Linq;
+using System.IO.Compression;
 
 namespace CSharpGameEngine.VSExtension.Tests;
 
@@ -71,5 +72,50 @@ public sealed class VsixManifestTests {
         Assert.Contains("<DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>",Project);
         Assert.Contains("BeforeTargets=\"CoreCompile\"",Project);
         Assert.Contains("AssemblyMetadata Remove=\"CSharpGameEngineBuildUtc\"",Project);
+    }
+
+    [Fact]
+    public void VsixProject_UsesPreviewHostBoundaryWithoutNativeRendererPackages(){
+        string ProjectRoot=VsixBuildIdentity.RepoRoot;
+        string ProjectPath=Path.Combine(
+            ProjectRoot,"tools","CSharpGameEngine.VSExtension",
+            "CSharpGameEngine.VSExtension.csproj");
+        string Project=File.ReadAllText(ProjectPath);
+
+        Assert.Contains("CSharpGameEngine.Contracts.csproj",Project);
+        Assert.Contains("PackageReference Include=\"PolySharp\"",Project);
+        Assert.Contains("PackageReference Include=\"Microsoft.Bcl.HashCode\"",Project);
+        Assert.DoesNotContain("PackageReference Include=\"Vortice.",Project);
+        Assert.False(File.Exists(Path.Combine(
+            ProjectRoot,"tools","CSharpGameEngine.VSExtension","SceneRenderer.cs")));
+        Assert.False(File.Exists(Path.Combine(
+            ProjectRoot,"tools","CSharpGameEngine.VSExtension","VorticeRenderer.cs")));
+        Assert.False(File.Exists(Path.Combine(
+            ProjectRoot,"tools","CSharpGameEngine.VSExtension","NativeEvent.cs")));
+    }
+
+    [Fact]
+    public void VsixPackage_ContainsPreviewContractsWithoutNativeRendererAssemblies(){
+        string VsixPath=Path.Combine(
+            AppContext.BaseDirectory,"TestAssets","CSharpGameEngine.VSExtension.vsix");
+        using ZipArchive Archive=ZipFile.OpenRead(VsixPath);
+        string[]Entries=Archive.Entries.Select(static Entry=>Entry.FullName).ToArray();
+
+        Assert.Contains("CSharpGameEngine.Contracts.dll",Entries);
+        Assert.Contains("Microsoft.Bcl.HashCode.dll",Entries);
+        Assert.Contains("PreviewHost/CSharpGameEngine.EditorPreview.Host.exe",Entries);
+        Assert.Contains("PreviewHost/CSharpGameEngine.EditorPreview.Host.dll",Entries);
+        Assert.Contains("PreviewHost/CSharpGameEngine.EditorPreview.Host.deps.json",Entries);
+        Assert.Contains("PreviewHost/CSharpGameEngine.EditorPreview.Host.runtimeconfig.json",Entries);
+        Assert.Contains("PreviewHost/Shaders/Stage.cgeshaderartifact",Entries);
+        Assert.DoesNotContain(Entries,static Entry=>Entry.StartsWith(
+            "Vortice.",StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(Entries,static Entry=>Entry.StartsWith(
+            "SharpGen.",StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(Entries,static Entry=>Entry.StartsWith(
+            "PolySharp.",StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(Entries,static Entry=>Entry.StartsWith(
+            "PreviewHost/",StringComparison.OrdinalIgnoreCase)
+            &&Entry.EndsWith(".pdb",StringComparison.OrdinalIgnoreCase));
     }
 }

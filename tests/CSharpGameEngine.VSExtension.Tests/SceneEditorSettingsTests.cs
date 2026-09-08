@@ -22,7 +22,7 @@ public sealed class MockedVsFixture:IDisposable {
 }
 
 /// <summary><see cref="MockedVsFixture"/>を共有する全テストクラスが<c>[Collection(Name)]</c>で参照する。</summary>
-[CollectionDefinition(Name)]
+[CollectionDefinition(Name,DisableParallelization=true)]
 public sealed class MockedVsCollection:ICollectionFixture<MockedVsFixture> {
     internal const string Name="MockedVS";
 }

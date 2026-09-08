@@ -27,6 +27,7 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// </summary>
 internal static class GameSystemEntryPointEmitter {
     private const string HintName="GameSystem.EntryPoint.g.cs";
+    private const string EngineHostFullyQualifiedName="global::CSharpGameEngine.Runtime.Windows.EngineHost";
 
     /// <summary>生成されたMainが唯一作成するシードEntityのComponent(<c>Entities/Bootstrap.cs</c>)。</summary>
     internal const string BootstrapComponentFullyQualifiedName="global::CSharpGameEngine.Entities.Bootstrap";
@@ -64,7 +65,7 @@ internal static class GameSystemEntryPointEmitter {
             return new Plan(false,null);
         }
 
-        if(FindFirstContextParameter(Systems,OrderContext)is { } Offending){
+        if(FindFirstUnsupportedContextParameter(Systems,OrderContext)is { } Offending){
             return new Plan(false,Diagnostic.Create(
                 GameSystemDiagnostics.EntryPointCannotSupplyContext,
                 Location.None,
@@ -79,7 +80,7 @@ internal static class GameSystemEntryPointEmitter {
     /// 最初に見つかったContext引数(宣言順で決定的)。Contextは<c>Run</c>の引数になるため、生成された
     /// Mainには渡す値を作る手段が無い。
     /// </summary>
-    private static(string SystemName,string TypeFullyQualifiedName)?FindFirstContextParameter(
+    private static(string SystemName,string TypeFullyQualifiedName)?FindFirstUnsupportedContextParameter(
         ImmutableArray<GameSystemResult>Systems,
         GameSystemOrderContext OrderContext){
         List<GameSystemResult>Ordered=[.. Systems.Where(static S=>S.Diagnostics.Length==0)];
@@ -91,7 +92,11 @@ internal static class GameSystemEntryPointEmitter {
                     continue;
                 }
 
-                return(System.ClassFullyQualifiedName,Method.Contexts[0].TypeFullyQualifiedName);
+                foreach(var Context in Method.Contexts){
+                    if(Context.TypeFullyQualifiedName!=EngineHostFullyQualifiedName){
+                        return(System.ClassFullyQualifiedName,Context.TypeFullyQualifiedName);
+                    }
+                }
             }
         }
 
@@ -119,8 +124,8 @@ internal static class GameSystemEntryPointEmitter {
             "#nullable enable",
             "namespace CSharpGameEngine.Generated;",
             "/// <summary>",
-            "/// 起動処理はすべてSystemが行う。ここが作るのはWorld・State・シードEntityの3つだけで、",
-            "/// ウィンドウやレンダラーの生成はBootstrapを受け取るSystemの仕事になる。",
+            "/// Creates the ECS world and the single generated host context. Systems configure",
+            "/// host-owned services; ECS components never own native resources.",
             "/// </summary>",
             "internal static class GeneratedEntryPoint {",
             "    private static void Main() {",
@@ -131,6 +136,20 @@ internal static class GameSystemEntryPointEmitter {
             "    }",
             "}",
         ];
+
+        bool HasEngineHost=Registry.ValidSystems.SelectMany(static System=>System.Methods)
+            .SelectMany(static Method=>Method.Contexts)
+            .Any(static Context=>Context.TypeFullyQualifiedName==EngineHostFullyQualifiedName);
+        if(HasEngineHost){
+            int WorldIndex=Lines.IndexOf("        var World = new global::CSharpGameEngine.Entities.World();");
+            Lines[WorldIndex]=$"        using var EngineHost = new {EngineHostFullyQualifiedName}();";
+            Lines.Insert(WorldIndex+1,"        ref var World = ref EngineHost.World;");
+            int StateIndex=Lines.IndexOf("        var State = new global::CSharpGameEngine.Entities.State(World) { Enabled = true };");
+            Lines[StateIndex]="        var State = EngineHost.CreateState();";
+            Lines.Insert(StateIndex+1,"        State.Enabled = true;");
+            int RunIndex=Lines.IndexOf("        GeneratedGameLoop.Run(ref State);");
+            Lines[RunIndex]="        GeneratedGameLoop.Run(ref State, EngineHost);";
+        }
 
         if(SpatialWorldEmitter.ShouldEmit(Registry)) {
             Lines.Insert(Lines.Count-3,"        State.World.RefreshGlobalSpatialIndex();");

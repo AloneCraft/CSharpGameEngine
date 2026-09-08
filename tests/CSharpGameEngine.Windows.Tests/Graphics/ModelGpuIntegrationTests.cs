@@ -1,5 +1,8 @@
+using System.Numerics;
 using CSharpGameEngine.Import.Gltf;
 using CSharpGameEngine.Platform.Windows;
+using CSharpGameEngine.Rendering;
+using CSharpGameEngine.Runtime.Windows;
 
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 
@@ -10,8 +13,9 @@ namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// run (same rationale as <see cref="TriangleGpuIntegrationTests"/>: xunit's own Timeout cannot
 /// abort a hung CoreCLR thread).
 /// </summary>
+[Collection(D3D12GpuCollection.Name)]
 public class ModelGpuIntegrationTests {
-    private static readonly string ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Model.cgeshaderartifact");
+    private static readonly string ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact");
     private static readonly string BoxPath=Path.Combine(AppContext.BaseDirectory,"Fixtures","Box.glb");
     private static readonly string BoxTexturedPath=Path.Combine(AppContext.BaseDirectory,"Fixtures","BoxTextured.glb");
 
@@ -40,6 +44,8 @@ public class ModelGpuIntegrationTests {
         var ImportResult=GltfImporter.Import(ModelPath);
         Assert.True(ImportResult.Success,string.Join(Environment.NewLine,ImportResult.Diagnostics));
         var Mesh=ImportResult.Mesh!;
+        RenderTextureResource?BaseColorTexture=
+            RenderTextureArtifactAdapter.DecodeOptional(Mesh.BaseColorTextureBytes??[]);
 
         using Win32Window Window=new(new Win32WindowOptions {
             Title="CSharpGameEngine Model GPU Test",
@@ -53,10 +59,24 @@ public class ModelGpuIntegrationTests {
             EnableDebugLayer=true,
         };
 
-        using var Renderer=ModelRenderer.Create(
-                                                Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderArtifactPath,
-                                                Mesh.Positions,Mesh.Normals,Mesh.Uvs,Mesh.Indices,Mesh.BaseColorTextureBytes,Mesh.BaseColorFactor,
-                                                Mesh.Bounds.Center,Mesh.Bounds.BoundingSphereRadius);
+        StageMaterialCreateInfo Material=new(){
+            BaseColorFactor=Mesh.BaseColorFactor,
+            RoughnessFactor=1f,
+            MetallicFactor=0f,
+            BaseColorTexture=BaseColorTexture,
+        };
+        (StageMeshCreateInfo[]Meshes,StageMaterialCreateInfo[]Materials,
+            StageObjectCreateInfo[]Objects)=RenderServer.BuildSingleMeshRoster(
+            Mesh.Positions,Mesh.Normals,Mesh.Uvs,Mesh.Indices,Material);
+        using var Renderer=RenderServer.Create(
+            Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,
+            ShaderArtifactPath,Meshes,Materials,Objects);
+        Vector3 Extent=new(Mesh.Bounds.BoundingSphereRadius);
+        Renderer.SetCamera(Camera.CreateBoundsFit(
+            Mesh.Bounds.Center-Extent,Mesh.Bounds.Center+Extent));
+        Renderer.SetAmbientLight(new Vector3(0.35f));
+        Renderer.SetDirectionalLight(
+            Vector3.Normalize(new Vector3(1f,-1f,1f)),Vector3.One,50_000f);
 
         Assert.True(Renderer.ShaderArtifactLoaded,string.Join(Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
         Assert.Equal(UseWarp,Renderer.IsWarp);
@@ -71,7 +91,7 @@ public class ModelGpuIntegrationTests {
         Assert.Equal((uint)TotalFrames,Renderer.FramesRendered);
         Assert.NotNull(Renderer.LastCapturedFrame);
 
-        var Verification=ModelPixelVerifier.Verify(Renderer.LastCapturedFrame!,ModelRenderer.ClearColor);
+        var Verification=ModelPixelVerifier.Verify(Renderer.LastCapturedFrame!,RenderServer.ClearColor);
         Assert.True(Verification.Success,Verification.Details);
 
         Assert.Equal(0,Renderer.ErrorOrWorseMessageCount);
@@ -83,7 +103,7 @@ public class ModelGpuIntegrationTests {
 
         Assert.NotNull(Renderer.LastCapturedFrame);
         Assert.Equal(128,Renderer.LastCapturedFrame!.Width);
-        var ResizedVerification=ModelPixelVerifier.Verify(Renderer.LastCapturedFrame,ModelRenderer.ClearColor);
+        var ResizedVerification=ModelPixelVerifier.Verify(Renderer.LastCapturedFrame,RenderServer.ClearColor);
         Assert.True(ResizedVerification.Success,ResizedVerification.Details);
 
         Assert.Equal(0,Renderer.ErrorOrWorseMessageCount);

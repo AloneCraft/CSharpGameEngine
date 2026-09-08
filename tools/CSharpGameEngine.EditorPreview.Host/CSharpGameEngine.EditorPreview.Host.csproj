@@ -1,9 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <Platforms>x64</Platforms>
   </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/CSharpGameEngine.Contracts/CSharpGameEngine.Contracts.csproj" />
+    <ProjectReference Include="../../src/CSharpGameEngine.Windows/CSharpGameEngine.Windows.csproj" />
+    <ProjectReference Include="../CSharpGameEngine.Bridge.Hosting/CSharpGameEngine.Bridge.Hosting.csproj" />
+  </ItemGroup>
 </Project>

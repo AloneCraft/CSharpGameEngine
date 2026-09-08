@@ -214,14 +214,30 @@ public partial class HierarchyToolWindowControl:UserControl {
             this.ReleaseDeferredPopulate();
             return;
         }
-        if(this.CurrentSelection.Paths.Count==0){
-            return;
-        }
+
+        // CurrentSelection mirrors the Tree presentation and can legitimately lag behind the
+        // session selection (for example while the pane is restored or repopulated). Escape is
+        // an explicit request to clear the canonical selection, so never gate publication on
+        // that derived cache.
         this.CurrentSelection=HierarchyNodeSelection.Empty;
+        ActivityLog.LogInformation(
+            nameof(HierarchyToolWindowControl),
+            "Hierarchy Escape requested canonical selection clear.");
         this.PublishCurrentSelection();
     }
+    internal void HandleVisualStudioEscape(){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        this.HandleEscape();
+    }
     private void Tree_PreviewKeyDown(object Sender,KeyEventArgs Args){
+        ThreadHelper.ThrowIfNotOnUIThread();
         if(Args.OriginalSource is TextBox){
+            return;
+        }
+
+        if(Args.Key==Key.Escape){
+            this.HandleEscape();
+            Args.Handled=true;
             return;
         }
 
@@ -460,7 +476,7 @@ public partial class HierarchyToolWindowControl:UserControl {
         Args.Effects=DragDropEffects.Move;
         Args.Handled=true;
         var Position=Args.GetPosition(Container);
-        var Kind=HierarchyInsertionPolicy.Resolve(Position.Y,Container.ActualHeight);
+        var Kind=HierarchyInsertionPolicy.Resolve((float)Position.Y,(float)Container.ActualHeight);
         this.UpdateReorderDropFeedback(Container,Kind);
     }
 
@@ -516,7 +532,7 @@ public partial class HierarchyToolWindowControl:UserControl {
         }
 
         var Position=Args.GetPosition(Container);
-        var Kind=HierarchyInsertionPolicy.Resolve(Position.Y,Container.ActualHeight);
+        var Kind=HierarchyInsertionPolicy.Resolve((float)Position.Y,(float)Container.ActualHeight);
         if(Kind==HierarchyInsertionKind.Before&&Target.Path.Parent is { } Parent){
             SceneEditorHub.RequestHierarchyEdit(new HierarchyEditRequest(
                 HierarchyEditKind.Reparent,Payload.Paths,TargetPath:Parent,

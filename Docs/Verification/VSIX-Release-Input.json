@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "csharp-game-engine-vsix-release-input-v1",
+  "createdUtc": "2026-09-02T01:03:32.4208915+00:00",
+  "configuration": "Release",
+  "packagePath": ".artifacts/VsixReleaseInputs/66a14fb37872b16a8321ebef8e25f1f59730fa74b81c8a4a1ad53d900518ddee/CSharpGameEngine.VSExtension.vsix",
+  "packageSha256": "66a14fb37872b16a8321ebef8e25f1f59730fa74b81c8a4a1ad53d900518ddee",
+  "packageByteLength": 17454344,
+  "buildDllPath": ".artifacts/VsixReleaseInputs/66a14fb37872b16a8321ebef8e25f1f59730fa74b81c8a4a1ad53d900518ddee/CSharpGameEngine.VSExtension.dll",
+  "buildDllSha256": "395d989378dc2edfaef426e1e21367a3bad3865da5f5de7eb12e2c998ca826e5",
+  "packageDllSha256": "395d989378dc2edfaef426e1e21367a3bad3865da5f5de7eb12e2c998ca826e5",
+  "extensionId": "CSharpGameEngine.VSExtension.aec17804-e2e4-46e7-b373-de11af816203",
+  "version": "0.1.7",
+  "entryCount": 65,
+  "contentClosureSha256": "4f7d71354a53d7f42a1bedba19af5a914041ac9eb7de09d870995521cee97004",
+  "sourcePath": "tools/CSharpGameEngine.VSExtension/bin/Release/net472/CSharpGameEngine.VSExtension.vsix",
+  "sourceSha256": "66a14fb37872b16a8321ebef8e25f1f59730fa74b81c8a4a1ad53d900518ddee"
+}

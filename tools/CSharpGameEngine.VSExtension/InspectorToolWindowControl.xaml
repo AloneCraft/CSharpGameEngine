@@ -94,10 +94,10 @@
                                   IsChecked="{Binding BooleanValue, Mode=OneWay}"
                                   Visibility="{Binding EditorKind, Converter={StaticResource EditorKindVisibilityConverter}, ConverterParameter=Boolean}"
                                   Click="BooleanField_Click" PreviewKeyDown="InspectorRow_PreviewKeyDown" />
-                        <ComboBox ItemsSource="{Binding EnumCandidateNames}"
-                                  SelectedItem="{Binding SelectedEnumName, Mode=OneWay}"
-                                  Visibility="{Binding EditorKind, Converter={StaticResource EditorKindVisibilityConverter}, ConverterParameter=Enum}"
-                                  DropDownClosed="EnumField_DropDownClosed" PreviewKeyDown="InspectorRow_PreviewKeyDown" />
+                        <ComboBox ItemsSource="{Binding ChoiceCandidateNames}"
+                                  SelectedItem="{Binding SelectedChoiceName, Mode=OneWay}"
+                                  Visibility="{Binding EditorKind, Converter={StaticResource EditorKindVisibilityConverter}, ConverterParameter='Enum,AssetReference'}"
+                                  DropDownClosed="ChoiceField_DropDownClosed" PreviewKeyDown="InspectorRow_PreviewKeyDown" />
                         <TextBlock Text="{Binding DisplayText, Mode=OneTime}" VerticalAlignment="Center"
                                    TextTrimming="CharacterEllipsis"
                                    Foreground="{DynamicResource {x:Static vsshell:VsBrushes.GrayTextKey}}"

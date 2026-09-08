@@ -26,8 +26,8 @@ internal enum SceneNavigationPreset { Default, Custom }
 internal enum NavigationKey { W, A, S, D, Q, E }
 
 /// <summary>
-/// Scene View の編集ビュー状態。所有者は<c>SceneHwndHost</c> — <c>SceneRenderer</c>は再解析のたびに
-/// 破棄・再生成されるため、視点とツール状態はここに置く(ADR-0041 決定事項1)。
+/// Scene View の編集ビュー状態。所有者は<c>SceneHwndHost</c> — Preview Host process/sessionは
+/// 再生成され得るため、視点とツール状態はここに置く(ADR-0041 決定事項1)。
 ///
 /// <para>
 /// 永続する8項目(<see cref="TransformSpace"/>/<see cref="ProjectionMode"/>/
@@ -97,7 +97,7 @@ internal sealed class SceneViewState {
 
     // 実機検証(M0020 Phase 2): SceneCameraFraming.ComputeDistanceの1.1倍余白はシーン全体を収める
     // 前提でチューニングされており、シーン全体よりずっと小さい単一オブジェクトへのFocusSelectionに
-    // そのまま使うと視野の約84%を占めるほど窮屈に寄ってしまう(実測 Radius=3.5 → 約10.1ユニット、
+    // そのまま使うと視野の約84%を占めるほど窮屈に寄ってしまう(実測 Radius=3.5f → 約10.1fユニット、
     // FovY=45°時カバー率cos(FovY/2)/1.1)。ComputeDistance自体は初期シーンフレーミングの既存テストで
     // 固定済みのため変更せず、FocusSelection側だけ追加の余白を掛けて約50%カバー率に緩める。
     private const float FocusSelectionExtraMargin=1.7f;
@@ -165,8 +165,8 @@ internal sealed class SceneViewState {
 
         // Camera.CreateBoundsFitと同じ符号関係(Forward = -ViewDirection)。
         var Forward=-ViewDirection;
-        this.Yaw=(float)Math.Atan2(Forward.X,Forward.Z);
-        this.Pitch=(float)Math.Asin(Clamp(Forward.Y,-1f,1f));
+        this.Yaw=FloatMath.Atan2(Forward.X,Forward.Z);
+        this.Pitch=FloatMath.Asin(Clamp(Forward.Y,-1f,1f));
     }
 
     /// <summary>
@@ -286,12 +286,12 @@ internal sealed class SceneViewState {
         this.FocusPosition+=((DeltaX*Right)+(DeltaY*Up))*Scale;
     }
 
-    internal void ApplyDolly(int WheelNotches)=> this.FocusDistance=Math.Max(this.FocusDistance*(float)Math.Pow(DollyNotchFactor,WheelNotches),MinFocusDistance);
+    internal void ApplyDolly(int WheelNotches)=> this.FocusDistance=Math.Max(this.FocusDistance*FloatMath.Pow(DollyNotchFactor,WheelNotches),MinFocusDistance);
 
-    internal void ApplyZoom(int WheelNotches)=> this.OrthographicSize=Math.Max(this.OrthographicSize*(float)Math.Pow(DollyNotchFactor,WheelNotches),MinFocusDistance);
+    internal void ApplyZoom(int WheelNotches)=> this.OrthographicSize=Math.Max(this.OrthographicSize*FloatMath.Pow(DollyNotchFactor,WheelNotches),MinFocusDistance);
 
     internal void ApplyNavigationSpeedAdjust(int WheelNotches)=>
-        this.NavigationSpeedMultiplier=Clamp(this.NavigationSpeedMultiplier*(float)Math.Pow(SpeedAdjustNotchFactor,WheelNotches),
+        this.NavigationSpeedMultiplier=Clamp(this.NavigationSpeedMultiplier*FloatMath.Pow(SpeedAdjustNotchFactor,WheelNotches),
                                              MinNavigationSpeedMultiplier,MaxNavigationSpeedMultiplier);
 
     // net472にMath.Clampが無いための自前実装(Camera.cs移植時の定番の落とし穴)。

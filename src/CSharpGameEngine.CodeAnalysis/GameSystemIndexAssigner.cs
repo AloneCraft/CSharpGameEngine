@@ -28,8 +28,8 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// </para>
 /// </summary>
 internal static class GameSystemIndexAssigner {
-    /// <summary>Archetypeマスクが<c>long</c>であることに由来する上限(SYSGEN026)。</summary>
-    internal const int MaxComponentTypes=64;
+    /// <summary>二語のArchetypeマスクで表現できるComponent型数の上限(SYSGEN026)。</summary>
+    internal const int MaxComponentTypes=128;
 
     internal static GameSystemRegistry Assign(
         ImmutableArray<GameSystemResult>AllSystems,
@@ -81,7 +81,7 @@ internal static class GameSystemIndexAssigner {
 
         var Diagnostics=ImmutableArray.CreateBuilder<Diagnostic>();
 
-        // マスクは long なので65個目以降のビットが溢れ、部分集合判定が静かに誤り始める。
+        // 129個目以降は二語のマスクで表現できないため、生成を明示的に拒否する。
         if(ComponentTypesByIndex.Count>MaxComponentTypes){
             Diagnostics.Add(Diagnostic.Create(
                 GameSystemDiagnostics.TooManyComponentTypes,
@@ -97,13 +97,15 @@ internal static class GameSystemIndexAssigner {
 
         for(var ArchetypeIndex=0;ArchetypeIndex<CombosInDiscoveryOrder.Count;ArchetypeIndex++){
             var Combo=CombosInDiscoveryOrder[ArchetypeIndex];
-            long Mask=0;
+            ulong MaskLow=0;
+            ulong MaskHigh=0;
 
             foreach(var Index in Combo){
-                Mask|=1L<<Index;
+                if(Index<64){ MaskLow|=1UL<<Index; }
+                else { MaskHigh|=1UL<<(Index-64); }
             }
 
-            Archetypes.Add(new GameSystemArchetypeInfo($"Archetype{ArchetypeIndex}",[.. Combo],Mask));
+            Archetypes.Add(new GameSystemArchetypeInfo($"Archetype{ArchetypeIndex}",[.. Combo],MaskLow,MaskHigh));
         }
 
         return new GameSystemRegistry(ComponentsByIndex,[.. Archetypes],[.. ValidSystems],Diagnostics.ToImmutable());

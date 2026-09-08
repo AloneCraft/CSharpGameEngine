@@ -90,5 +90,8 @@ public sealed class SceneEmitModelEqualityTests {
         Assert.Equal(Left,Right);
         Assert.Equal(Left.GetHashCode(),Right.GetHashCode());
         Assert.NotEqual(Left,new GenerationGate(HasRuntimeMarker:false,Microsoft.CodeAnalysis.OutputKind.ConsoleApplication,HasUserEntryPoint:false));
+        Assert.NotEqual(Left,new GenerationGate(
+            HasRuntimeMarker:true,Microsoft.CodeAnalysis.OutputKind.ConsoleApplication,
+            HasUserEntryPoint:false,HasSceneBakeContract:true));
     }
 }

@@ -5,7 +5,8 @@ public sealed class SpatialWorldGeneratorCompilationTests {
         _=GameSystemGeneratorTestHelper.CompileAndLoad("""
             namespace CSharpGameEngine.Entities {
                 public struct SpatialBounds { }
-                public delegate bool TryGetLocalTransform(int EntityId,out CSharpGameEngine.Runtime.Windows.Transform Transform);
+                public struct Transform { }
+                public delegate bool TryGetLocalTransform(int EntityId,out Transform Transform);
                 public delegate bool TryGetParentEntity(int EntityId,out int ParentEntityId);
                 public partial struct World {
                     partial void SynchronizeGlobalSpatialIndexCore();
@@ -13,10 +14,9 @@ public sealed class SpatialWorldGeneratorCompilationTests {
                     private void SynchronizeGlobalSpatialEntity(Entity Entity,SpatialBounds Bounds,TryGetLocalTransform GetTransform,TryGetParentEntity GetParent) { }
                 }
             }
-            namespace CSharpGameEngine.Runtime.Windows { public struct Transform { } }
             namespace Sample {
                 public struct SpatialSystem : CSharpGameEngine.Entities.ISystem {
-                    public bool Update(ref CSharpGameEngine.Runtime.Windows.Transform Transform,ref CSharpGameEngine.Entities.SpatialBounds Bounds,ref CSharpGameEngine.Entities.State State) => false;
+                    public bool Update(ref CSharpGameEngine.Entities.Transform Transform,ref CSharpGameEngine.Entities.SpatialBounds Bounds,ref CSharpGameEngine.Entities.State State) => false;
                 }
             }
             """);

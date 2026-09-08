@@ -1,4 +1,5 @@
 using CSharpGameEngine.VSExtension;
+using CSharpGameEngine.Contracts;
 using Xunit;
 
 namespace CSharpGameEngine.VSExtension.Tests;
@@ -34,5 +35,35 @@ public class ResidentBridgeClientTests {
         var Fbx=ResidentBridgeClient.ComputePipeName(@"G:\repo",@"tools\CSharpGameEngine.Import.Fbx.Cli");
 
         Assert.NotEqual(Gltf,Fbx);
+    }
+
+    [Theory]
+    [InlineData(@"tools\CSharpGameEngine.Import.Gltf.Cli",AuthoringHostOperation.Import)]
+    [InlineData(@"tools\CSharpGameEngine.Import.Fbx.Cli",AuthoringHostOperation.Import)]
+    [InlineData(@"tools\CSharpGameEngine.Primitive.Cli",AuthoringHostOperation.Preview)]
+    [InlineData(@"tools\CSharpGameEngine.Scene.Bake.Cli",AuthoringHostOperation.Bake)]
+    public void ClassifyOperation_UsesAuthoringBoundary(string Project,AuthoringHostOperation Expected){
+        Assert.Equal(Expected,ResidentBridgeClient.ClassifyOperation(Project));
+    }
+
+    [Fact]
+    public void ClassifyTransportFailure_BeforeSubmission_IsUnavailable(){
+        Assert.Equal(
+            ResidentBridgeAttemptStatus.Unavailable,
+            ResidentBridgeClient.ClassifyTransportFailure(false,new TimeoutException()));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    public void ClassifyTransportFailure_AfterSubmission_IsTerminal(bool Submitted){
+        Assert.Equal(
+            ResidentBridgeAttemptStatus.TimedOut,
+            ResidentBridgeClient.ClassifyTransportFailure(Submitted,new TimeoutException()));
+        Assert.Equal(
+            ResidentBridgeAttemptStatus.HostCrashed,
+            ResidentBridgeClient.ClassifyTransportFailure(Submitted,new IOException()));
+        Assert.Equal(
+            ResidentBridgeAttemptStatus.ProtocolMismatch,
+            ResidentBridgeClient.ClassifyTransportFailure(Submitted,new InvalidOperationException()));
     }
 }

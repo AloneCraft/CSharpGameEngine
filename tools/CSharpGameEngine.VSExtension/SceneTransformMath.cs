@@ -67,10 +67,10 @@ internal static class SceneTransformMath {
         Rotation=NormalizeRotation(Rotation);
         float SinR=2f*(Rotation.W*Rotation.X-Rotation.Y*Rotation.Z);
         SinR=SinR>1f?1f:SinR<-1f?-1f:SinR;
-        float R=(float)Math.Asin(SinR);
-        float U=(float)Math.Atan2(2f*(Rotation.W*Rotation.Y+Rotation.Z*Rotation.X),
+        float R=FloatMath.Asin(SinR);
+        float U=FloatMath.Atan2(2f*(Rotation.W*Rotation.Y+Rotation.Z*Rotation.X),
             1f-2f*(Rotation.X*Rotation.X+Rotation.Y*Rotation.Y));
-        float F=(float)Math.Atan2(2f*(Rotation.W*Rotation.Z+Rotation.X*Rotation.Y),
+        float F=FloatMath.Atan2(2f*(Rotation.W*Rotation.Z+Rotation.X*Rotation.Y),
             1f-2f*(Rotation.X*Rotation.X+Rotation.Z*Rotation.Z));
         return new Vector3(R,U,F);
     }
@@ -169,6 +169,9 @@ internal static class SceneTransformBinding {
     }
 
     internal static Vector3 ReadVector(SceneComponent Component,string Name,Vector3 Default){
+        if(Name=="Rotation"&&IsCanonicalTransform(Component)){
+            return ReadCanonicalRotation(Component,Default);
+        }
         if(IsLegacyFlat(Component)){
             return new Vector3(
                 ReadLegacyFloat(Component,Name+"X",Default.X),
@@ -189,6 +192,9 @@ internal static class SceneTransformBinding {
     }
 
     internal static bool CanEditVector(SceneComponent Component,string Name,int Index){
+        if(Name=="Rotation"&&IsCanonicalTransform(Component)){
+            return CanEditCanonicalRotation(Component,Index);
+        }
         if(IsLegacyFlat(Component)){
             string LegacyName=Name+(Index==0?"X":Index==1?"Y":"Z");
             return Component.FindMember(LegacyName)?.Value.IsEditable??true;
@@ -199,6 +205,45 @@ internal static class SceneTransformBinding {
         if(Value.Members.Length>Index){ return Value.Members[Index].Value.IsEditable; }
         return Value.Arguments.Length>Index&&Value.Arguments[Index].IsEditable;
     }
+
+    internal static bool IsCanonicalTransform(SceneComponent Component)=>
+        string.Equals(Component.TypeFullyQualifiedName,SceneComponentBindings.TransformTypeFullyQualifiedName,StringComparison.Ordinal);
+
+    private static Vector3 ReadCanonicalRotation(SceneComponent Component,Vector3 Default){
+        SceneValue?Value=Component.FindMember("Rotation")?.Value;
+        if(Value is null||Value.Kind==SceneValueKind.Default){ return Default; }
+        if(Value.Kind!=SceneValueKind.ObjectCreation){ return Default; }
+        if(Value.Arguments.Length==1&&Value.Arguments[0] is { Kind:SceneValueKind.ObjectCreation }Euler){
+            return ReadValueVector(Euler,Default);
+        }
+        if(Value.Arguments.Length>=4){
+            var Rotation=new Quaternion(
+                ReadFloat(Value.Arguments[0].ConstantValue,0f),
+                ReadFloat(Value.Arguments[1].ConstantValue,0f),
+                ReadFloat(Value.Arguments[2].ConstantValue,0f),
+                ReadFloat(Value.Arguments[3].ConstantValue,1f));
+            return SceneTransformMath.ToEulerRuf(Rotation);
+        }
+        return Default;
+    }
+
+    private static bool CanEditCanonicalRotation(SceneComponent Component,int Index){
+        if(Index<0||Index>2){ return false; }
+        SceneValue?Value=Component.FindMember("Rotation")?.Value;
+        if(Value is null||Value.Kind==SceneValueKind.Default){ return true; }
+        if(Value.Kind!=SceneValueKind.ObjectCreation){ return false; }
+        if(Value.Arguments.Length==1&&Value.Arguments[0] is { Kind:SceneValueKind.ObjectCreation }Euler){
+            return Euler.Arguments.Length>Index&&Euler.Arguments[Index].IsEditable;
+        }
+        return Value.Arguments.Length>=4
+            &&Value.Arguments[0].IsEditable&&Value.Arguments[1].IsEditable
+            &&Value.Arguments[2].IsEditable&&Value.Arguments[3].IsEditable;
+    }
+
+    private static Vector3 ReadValueVector(SceneValue Value,Vector3 Default)=>new(
+        Value.Arguments.Length>0?ReadFloat(Value.Arguments[0].ConstantValue,Default.X):Default.X,
+        Value.Arguments.Length>1?ReadFloat(Value.Arguments[1].ConstantValue,Default.Y):Default.Y,
+        Value.Arguments.Length>2?ReadFloat(Value.Arguments[2].ConstantValue,Default.Z):Default.Z);
 
     // Existing hand-written scenes can be displayed once and are rewritten to the public RUF vectors on edit.
     private static bool IsLegacyFlat(SceneComponent Component)=>
@@ -214,7 +259,7 @@ internal static class SceneTransformBinding {
     private static float ReadLegacyFloat(SceneComponent Component,string Name,float Default=0f)=>
         ReadFloat(Component.FindMember(Name)?.Value.ConstantValue,Default);
     private static float ReadFloat(object? Value,float Default)=>Value switch {
-        float Float=>Float, double Double=>(float)Double, decimal Decimal=>(float)Decimal,
+        float Float=>Float,
         int Integer=>Integer, long Long=>Long, _=>Default,
     };
 }

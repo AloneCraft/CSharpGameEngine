@@ -17,6 +17,7 @@ public sealed class SceneDocumentMenuSnapshotTests {
 
         Assert.Equal(SceneDesignerTargetState.SceneType,Snapshot.GetTargetState(20));
         Assert.Equal(SceneDesignerTargetState.NonSceneType,Snapshot.GetTargetState(40));
+        Assert.Equal(SceneDesignerTargetState.OutsideType,Snapshot.GetTargetState(-1));
         Assert.Equal(SceneDesignerTargetState.OutsideType,Snapshot.GetTargetState(220));
     }
 

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.IO;
+using System.IO.Pipes;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -11,24 +12,23 @@ using System.Windows.Interop;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using CSharpGameEngine.Contracts;
 using CSharpGameEngine.SceneAnalysis;
 using Microsoft.VisualStudio.Shell;
 
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// In-process D3D12 embedding (same pattern as <see cref="AssetPreviewHwndHost"/>, ADR-0013) for the
-/// Scene Designer tool window (ADR-0040 Phase 9). Targets a specific <c>IScene</c>-implementing class
+/// Scene Designer tool window host (ADR-0040 Phase 9). Targets a specific <c>IScene</c>-implementing class
 /// via <see cref="SetTarget"/>, which receives the <see cref="SceneDocumentSnapshot"/> that
 /// <see cref="SceneEditorSessionService"/> publishes from live Roslyn (no build step), converts it via
-/// <see cref="SceneModelRenderObjectBuilder"/> and renders every node via
-/// <see cref="SceneRenderer"/>. Replaces the earlier <c>.scene</c>-JSON-based version of this class
+/// <see cref="SceneModelRenderObjectBuilder"/> and sends the resulting immutable scene/frame DTOs to
+/// the out-of-process Preview Host. Replaces the earlier <c>.scene</c>-JSON-based version of this class
 /// (ADR-0020/ADR-0021), whose remaining write path was deleted in M0020 Phase 0.
 ///
 /// <para>
-/// This host owns the editing view state that must survive renderer re-creation: the
-/// <see cref="SceneRenderer"/> is disposed and rebuilt for mesh/structural changes, so the camera lives here
-/// and is pushed in through <see cref="SceneRenderer.SetCamera"/> (ADR-0041 decision 1). It is also
+/// This host owns the editing view state that must survive Preview Host session replacement. Camera and
+/// authoring state live here and are replayed to a fresh host/surface generation (ADR-0041 decision 1). It is also
 /// the only place that learns the real surface size, via <c>Surface.Resized</c>.
 /// </para>
 /// </summary>
@@ -42,8 +42,8 @@ internal sealed class SceneHwndHost:HwndHost {
     private SceneDocumentSnapshot?TargetSnapshot;
     private long RenderedAnalysisGeneration=-1;
     private NodePath?SelectedNodePath;
-    private RenderSurfaceWindow?Surface;
-    private SceneRenderer?Renderer;
+    private RenderSurfaceHostWindow?SurfaceHost;
+    private RenderPreviewHostClient?PreviewClient;
     private LatestOnlyThreadWorker<SceneRenderBuildRequest,SceneRenderBuildResult>?BuildWorker;
     private readonly SceneRenderBuildLifecycle BuildLifecycle=new();
     private EventHandler?RenderingHandler;
@@ -58,7 +58,16 @@ internal sealed class SceneHwndHost:HwndHost {
     // M0020 Phase 2: ピッキング用。RenderObjectsはOnBuildCompletedのローカル変数だったが、
     // クリックのたびに参照する必要があるためフィールドへ格納する(事前調査事実2)。
     private IReadOnlyList<SceneRenderObject>CurrentRenderObjects=[];
+    private IReadOnlyList<SceneRenderObject>CurrentPreviewRenderObjects=[];
     private IReadOnlyList<NodePath>SelectedNodePaths=[];
+    private IReadOnlyList<NodePath>PreviewSelectedNodePaths=[];
+    private IReadOnlyList<GizmoOverlayPrimitive>CurrentOverlayPrimitives=[];
+    private IReadOnlyList<RenderPreviewCameraPass>CurrentCameraPreviewPasses=[];
+    private Matrix4x4 CurrentView=Matrix4x4.Identity;
+    private Matrix4x4 CurrentProjection=Matrix4x4.Identity;
+    private Vector3 CurrentCameraPosition;
+    private bool PreviewFrameDirty;
+    private bool HostCrashRecoveryUsed;
     private SceneSelection?CurrentSelection;
     private bool CameraPreviewEnabled=true;
     private IReadOnlyList<SceneCameraPreviewLayoutItem>CameraPreviewLayout=[];
@@ -66,9 +75,11 @@ internal sealed class SceneHwndHost:HwndHost {
     private SceneSpatialDebugSnapshot?CurrentSpatialDebugSnapshot;
     private IReadOnlyList<GizmoOverlayPrimitive>CurrentPhysicsDebugOverlay=[];
     private ScenePhysicsDebugSnapshot?CurrentPhysicsDebugSnapshot;
+    private IReadOnlyList<ScenePhysicsFractureBond>CurrentPhysicsFractureBonds=[];
+    private CancellationTokenSource?PhysicsFractureCancellation;
     private int PhysicsDebugRequestInFlight;
     private bool PhysicsDebugEnabled;
-    private PhysicsDebugOverlayOptions PhysicsDebugOptions=new(Bounds:true,Velocity:false,CenterOfMass:false,Sleep:true);
+    private PhysicsDebugOverlayOptions PhysicsDebugOptions=new(Bounds:true,Velocity:false,CenterOfMass:false,Sleep:true,Contacts:false,Tree:false,Bonds:false);
     private string LastPhysicsDebugStatus="";
     private DispatcherTimer?SpatialDebugTimer;
     private int SpatialDebugRequestInFlight;
@@ -143,10 +154,25 @@ internal sealed class SceneHwndHost:HwndHost {
     private ScreenRectangle?ActiveMarqueeRectangle;
 
     private float AspectRatio=> this.SurfaceWidth/(float)this.SurfaceHeight;
+    private RenderSurfaceWindow?Surface=>this.SurfaceHost?.Surface;
 
     internal event Action<string>?StatusChanged;
     internal event Action<string>?SpatialDebugStatusChanged;
     internal event Action<IReadOnlyList<int>,int?>?SpatialDebugProcessCandidatesChanged;
+
+    internal RenderPreviewDebugSnapshot CaptureRuntimeDebugSnapshot(){
+        RenderPreviewHostClient Client=this.PreviewClient
+            ??throw new InvalidOperationException(
+                VsixText.Get("RuntimeDebugPreviewUnavailable"));
+        try {
+            return Client.GetDebugSnapshot();
+        } catch(RenderPreviewHostException Error)when(!Error.SessionTerminated){
+            throw;
+        } catch(Exception Error){
+            this.HandleRenderFailure(Error);
+            throw;
+        }
+    }
 
     /// <summary>Pointerの<c>Down</c>で発火。WPF側は購読して<c>Keyboard.Focus</c>をここでだけ呼ぶ(ADR-0041 決定事項2)。</summary>
     internal event Action?ViewportActivated;
@@ -192,12 +218,14 @@ internal sealed class SceneHwndHost:HwndHost {
 
         // Rendererが最初のPresentを行えるまで子HWNDを隠す。NOREDIRECTIONBITMAPの空Surfaceを
         // 表示すると、ドッキング前に同じ領域にいたSolution Explorerが残像のように露出する。
-        this.Surface=new RenderSurfaceWindow(HwndParent.Handle,800,600,InitiallyVisible:false);
+        this.SurfaceHost=new RenderSurfaceHostWindow(
+            HwndParent.Handle,800,600,InitiallyVisible:false);
+        RenderSurfaceWindow Surface=this.SurfaceHost.Surface;
         this.ViewState=SceneViewState.CreateFromSettings();
         this.InputMachine=new SceneInputStateMachine();
         SceneEditorSettings.SettingsChanged+=this.OnSettingsChanged;
-        this.Surface.PointerInput+= this.OnPointerInput;
-        this.Surface.WheelInput+= this.HandleWheel;
+        Surface.PointerInput+= this.OnPointerInput;
+        Surface.WheelInput+= this.HandleWheel;
         SynchronizationContext UiContext=SynchronizationContext.Current
             ??new DispatcherSynchronizationContext(this.Dispatcher);
 #pragma warning disable VSTHRD001 // 生workerの完了を非同期Postするだけで、同期wait/message pumpは行わない。
@@ -212,11 +240,13 @@ internal sealed class SceneHwndHost:HwndHost {
         this.SpatialDebugTimer.Tick+=this.PollSpatialDebug;
         this.SpatialDebugTimer.Tick+=this.PollPhysicsDebug;
         this.SpatialDebugTimer.Start();
-        return new HandleRef(this, this.Surface.Handle);
+        return new HandleRef(this, this.SurfaceHost.Handle);
     }
 
     protected override void DestroyWindowCore(HandleRef Hwnd){
         ThreadHelper.ThrowIfNotOnUIThread();
+        ActivityLog.LogInformation(
+            nameof(SceneHwndHost),"Scene HWND teardown started.");
 
         this.BuildLifecycle.Invalidate();
         if(this.SpatialDebugTimer is not null){
@@ -227,11 +257,17 @@ internal sealed class SceneHwndHost:HwndHost {
         }
         this.BuildWorker?.Dispose();
         this.BuildWorker=null;
-        this.StopEditorPreviewHost();
+        this.PhysicsFractureCancellation?.Cancel();
+        this.PhysicsFractureCancellation?.Dispose();
+        this.PhysicsFractureCancellation=null;
+        this.StopEditorPreviewHost(WaitForExit:false);
         this.CancelEditTransaction();
         SceneEditorSettings.SettingsChanged-=this.OnSettingsChanged;
         this.DetachSubscriptions();
-        this.DisposeRenderer();
+        this.DisposePreviewClient(ClearScene:true,DisposeInBackground:true);
+        ActivityLog.LogInformation(
+            nameof(SceneHwndHost),
+            "Preview Host cleanup transferred off the Visual Studio UI thread.");
 
         if(this.Surface is not null){
             this.Surface.PointerInput-= this.OnPointerInput;
@@ -246,8 +282,10 @@ internal sealed class SceneHwndHost:HwndHost {
         this.InputMachine=null;
         this.ViewState=null;
 
-        this.Surface?.Dispose();
-        this.Surface=null;
+        this.SurfaceHost?.Dispose();
+        this.SurfaceHost=null;
+        ActivityLog.LogInformation(
+            nameof(SceneHwndHost),"Scene HWND teardown completed.");
     }
 
     /// <summary>
@@ -299,12 +337,13 @@ internal sealed class SceneHwndHost:HwndHost {
             this.TargetFilePath=Model.FilePath;
             this.TargetClassName=Model.ClassName;
             this.TargetModel=Model;
+            this.QueuePhysicsFractureRefresh();
         }
 
         if(this.Surface is not null
             &&SameScene
             &&PreviousSnapshot is not null
-            && this.Renderer is not null
+            && this.PreviewClient is not null
             && this.RenderedAnalysisGeneration==PreviousSnapshot.AnalysisGeneration
             && this.TryApplyIncrementalSnapshot(Snapshot,Model)){
             return;
@@ -326,17 +365,14 @@ internal sealed class SceneHwndHost:HwndHost {
             this.UpdateMoveGizmo();
             return true;
         }
-        if(Model is null|| this.Renderer is not { }Active
+        if(Model is null|| this.PreviewClient is null
             ||!SceneRenderIncrementalUpdater.TryUpdateTransforms(
                 Model, this.CurrentRenderObjects,out IReadOnlyList<SceneRenderObject>Updated)){
             return false;
         }
 
-        foreach(SceneRenderObject Object in Updated){
-            if(!Active.UpdateObjectTransform(Object.NodeId,Object.World)){ return false; }
-        }
-
         this.CurrentRenderObjects=Updated;
+        this.PreviewFrameDirty=true;
         (this.SceneBoundsCenter,this.SceneBoundsRadius)=SceneCameraFraming.ComputeBounds(Updated);
         if(this.ViewState is { }State){
             State.LastKnownBoundsRadius=this.SceneBoundsRadius;
@@ -374,7 +410,8 @@ internal sealed class SceneHwndHost:HwndHost {
         }
 
         this.SelectedNodePaths=ResolvedPaths;
-        this.Renderer?.SetSelectedNode(this.SelectedNodePath,ResolvedPaths);
+        this.PreviewSelectedNodePaths=[];
+        this.PreviewFrameDirty=true;
         this.RefreshCameraPreviews();
         this.UpdateMoveGizmo();
     }
@@ -396,7 +433,7 @@ internal sealed class SceneHwndHost:HwndHost {
         }
         State.RenderMode=Mode;
         SceneEditorSettings.WriteRenderMode(Mode);
-        this.Renderer?.SetRenderMode(Mode);
+        this.PreviewFrameDirty=true;
     }
 
     internal void SetGlobalSpatialOctreeEnabled(bool Enabled){
@@ -419,15 +456,59 @@ internal sealed class SceneHwndHost:HwndHost {
     internal void SetPhysicsDebugEnabled(bool Enabled){
         ThreadHelper.ThrowIfNotOnUIThread();
         this.PhysicsDebugEnabled=Enabled;
-        if(!Enabled){ this.CurrentPhysicsDebugSnapshot=null;this.CurrentPhysicsDebugOverlay=[]; }
+        if(!Enabled){
+            this.CurrentPhysicsDebugSnapshot=null;this.CurrentPhysicsDebugOverlay=[];
+            this.CurrentPhysicsFractureBonds=[];
+            this.PhysicsFractureCancellation?.Cancel();
+        } else { this.QueuePhysicsFractureRefresh(); }
         this.RefreshOverlay();
     }
 
     internal void SetPhysicsDebugOptions(in PhysicsDebugOverlayOptions Options){
         ThreadHelper.ThrowIfNotOnUIThread();
         this.PhysicsDebugOptions=Options;
+        this.QueuePhysicsFractureRefresh();
         this.RefreshOverlay();
     }
+
+    private void QueuePhysicsFractureRefresh(){
+        this.PhysicsFractureCancellation?.Cancel();
+        this.PhysicsFractureCancellation=null;
+        this.CurrentPhysicsFractureBonds=[];
+        if(!this.PhysicsDebugEnabled||!this.PhysicsDebugOptions.Bonds||this.TargetModel is not { }Model){ return; }
+        string?Root=this.RepoRoot??RepoLocator.ResolveRepoRoot();
+        if(Root is null){ this.SetStatus(VsixText.Format("Common_RepoRootNotFound",RepoLocator.RepoMarkerFileName));return; }
+        this.RepoRoot=Root;
+        CancellationTokenSource Cancellation=new();
+        this.PhysicsFractureCancellation=Cancellation;
+        this.LoadPhysicsFractureDebug(Model,Root,Cancellation);
+    }
+
+#pragma warning disable VSTHRD100,VSTHRD109
+    private async void LoadPhysicsFractureDebug(
+        SceneModel Model,string Root,CancellationTokenSource Cancellation){
+        try {
+            PrefractureDebugLoadResult Result=await Task.Run(
+                ()=>PrefractureDebugService.Load(Model,Root,Cancellation.Token));
+            if(!ReferenceEquals(this.PhysicsFractureCancellation,Cancellation)){ return; }
+            this.PhysicsFractureCancellation=null;
+            this.CurrentPhysicsFractureBonds=Result.Bonds;
+            if(Result.Diagnostic is { Length:>0 }Diagnostic){ this.SetStatus(Diagnostic); }
+            this.RefreshOverlay();
+        }
+        catch(OperationCanceledException){ }
+        catch(Exception Exception){
+            ActivityLog.LogError(nameof(SceneHwndHost),Exception.ToString());
+            if(ReferenceEquals(this.PhysicsFractureCancellation,Cancellation)){
+                this.PhysicsFractureCancellation=null;
+                this.CurrentPhysicsFractureBonds=[];
+                this.SetStatus(Exception.Message);
+                this.RefreshOverlay();
+            }
+        }
+        finally { Cancellation.Dispose(); }
+    }
+#pragma warning restore VSTHRD100,VSTHRD109
 
 #pragma warning disable VSTHRD100,VSTHRD109
     internal async void RequestPhysicsControl(string Command){
@@ -483,20 +564,19 @@ internal sealed class SceneHwndHost:HwndHost {
             }
         }
         assemblyPath??=Path.Combine(root,"UserEcsProject","bin","Debug","net10.0-windows10.0.19041.0","win-x64","UserEcsProject.dll");
-        string hostPath=Environment.GetEnvironmentVariable("CGE_EDITOR_PREVIEW_HOST")
-            ??Path.Combine(root,"tools","CSharpGameEngine.EditorPreview.Host","bin","Debug","net10.0","CSharpGameEngine.EditorPreview.Host.dll");
-        if(!File.Exists(assemblyPath)||!File.Exists(hostPath)){
+        string hostPath;
+        try { hostPath=RenderPreviewSceneBuilder.ResolveHostPath(root); }
+        catch(FileNotFoundException){ return; }
+        if(!File.Exists(assemblyPath)){
             return;
         }
         try{
             assemblyPath=this.PrepareEditorPreviewAssembly(assemblyPath);
-            var StartInfo=new ProcessStartInfo{
-                FileName="dotnet",
-                Arguments=string.Format("\"{0}\" --assembly \"{1}\" --scene \"{2}\"",hostPath,assemblyPath,sceneName),
-                UseShellExecute=false,
-                CreateNoWindow=true,
-                WorkingDirectory=Path.GetDirectoryName(assemblyPath)??root,
-            };
+            ProcessStartInfo StartInfo=PreviewHostProcessStartInfo.Create(
+                hostPath,
+                $"--assembly {PreviewHostProcessStartInfo.Quote(assemblyPath)} "
+                +$"--scene {PreviewHostProcessStartInfo.Quote(sceneName!)}",
+                Path.GetDirectoryName(assemblyPath)??root);
             this.EditorPreviewProcess=Process.Start(StartInfo);
             this.EditorPreviewSceneName=sceneName;
         }catch(Exception Ex) when(Ex is IOException or InvalidOperationException or System.ComponentModel.Win32Exception){
@@ -521,27 +601,62 @@ internal sealed class SceneHwndHost:HwndHost {
         this.EditorPreviewTempDirectory=TempDirectory;
         return Path.Combine(TempDirectory,Path.GetFileName(AssemblyPath));
     }
-    private void StopEditorPreviewHost(){
+    private void StopEditorPreviewHost(bool WaitForExit=true){
         Process? process=this.EditorPreviewProcess;
         this.EditorPreviewProcess=null;
         this.EditorPreviewSceneName=null;
+        string? tempDirectory=this.EditorPreviewTempDirectory;
+        this.EditorPreviewTempDirectory=null;
         if(process is null){
+            DeleteEditorPreviewTempDirectory(tempDirectory);
             return;
         }
+
+        if(WaitForExit){
+            CleanupEditorPreviewHost(process,tempDirectory);
+            return;
+        }
+        _=ThreadPool.QueueUserWorkItem(
+            _=>CleanupEditorPreviewHost(process,tempDirectory));
+    }
+
+    private static void CleanupEditorPreviewHost(
+        Process ProcessValue,string?TempDirectory){
         try{
-            if(!process.HasExited){
-                process.Kill();
-                process.WaitForExit(500);
+            if(!ProcessValue.HasExited){
+                TryRequestEditorPreviewShutdown(ProcessValue.Id);
+                if(!ProcessValue.WaitForExit(2_000)){
+                    ProcessValue.Kill();
+                    ProcessValue.WaitForExit(1_000);
+                }
             }
         }catch(InvalidOperationException){
         }catch(System.ComponentModel.Win32Exception){
         }finally{
-            process.Dispose();
-            string? tempDirectory=this.EditorPreviewTempDirectory;
-            this.EditorPreviewTempDirectory=null;
-            if(tempDirectory is not null){
-                try{ Directory.Delete(tempDirectory,recursive:true); }catch(IOException){}catch(UnauthorizedAccessException){}
-            }
+            ProcessValue.Dispose();
+            DeleteEditorPreviewTempDirectory(TempDirectory);
+        }
+    }
+
+    private static void DeleteEditorPreviewTempDirectory(string?TempDirectory){
+        if(TempDirectory is not null){
+            try{ Directory.Delete(TempDirectory,recursive:true); }
+            catch(IOException){}
+            catch(UnauthorizedAccessException){}
+        }
+    }
+
+    private static void TryRequestEditorPreviewShutdown(int ProcessId){
+        try{
+            using NamedPipeClientStream Pipe=new(
+                ".",$"CSharpGameEngine.EditorPreview.{ProcessId}",
+                PipeDirection.Out,PipeOptions.None);
+            Pipe.Connect(500);
+            using StreamWriter Writer=new(Pipe){AutoFlush=true};
+            Writer.WriteLine("shutdown");
+        }catch(TimeoutException){
+        }catch(IOException){
+        }catch(UnauthorizedAccessException){
         }
     }
     #pragma warning disable VSTHRD100
@@ -666,19 +781,21 @@ internal sealed class SceneHwndHost:HwndHost {
         this.SpatialDebugStatusChanged?.Invoke(Status);
     }
     private void RefreshCameraPreviews(){
-        if(this.Renderer is not { }Active||!this.CameraPreviewEnabled
+        if(this.PreviewClient is null||!this.CameraPreviewEnabled
             ||this.TargetModel is not { }Model||this.SelectedNodePaths.Count==0){
             this.CameraPreviewLayout=[];
-            this.Renderer?.ClearCameraPreviews();
+            this.CurrentCameraPreviewPasses=[];
+            this.PreviewFrameDirty=true;
             return;
         }
 
         IReadOnlyList<SceneCameraPreview>Cameras=SceneCameraPreviewBinding.Build(
-            Model,this.SelectedNodePaths,this.AspectRatio,SceneRenderer.MaxCameraPreviews);
+            Model,this.SelectedNodePaths,this.AspectRatio,
+            RenderPreviewHostProtocol.MaximumCameraPreviewCount);
         IReadOnlyList<SceneCameraPreviewLayoutItem>Layout=CameraPreviewLayoutPolicy.Build(
             this.SurfaceWidth,this.SurfaceHeight,Cameras);
         List<SceneCameraPreviewLayoutItem>EffectiveLayout=[];
-        List<SceneCameraPreviewPass>Passes=[];
+        List<RenderPreviewCameraPass>Passes=[];
         foreach(SceneCameraPreviewLayoutItem Item in Layout){
             if(!Item.Camera.IsAvailable){
                 EffectiveLayout.Add(Item);
@@ -689,22 +806,28 @@ internal sealed class SceneHwndHost:HwndHost {
             float CardAspect=Rect.Width/Math.Max(Rect.Height,1f);
             SceneCameraPreview Camera=Item.Camera.WithAspectRatio(CardAspect);
             EffectiveLayout.Add(new SceneCameraPreviewLayoutItem(Camera,Rect,Item.Index));
-            Passes.Add(new SceneCameraPreviewPass(
-                (int)Math.Round(Rect.X),(int)Math.Round(Rect.Y),
-                Math.Max(1,(int)Math.Round(Rect.Width)),Math.Max(1,(int)Math.Round(Rect.Height)),
-                Camera.View,Camera.Projection,Camera.NodePath));
+            string CameraObjectId=Camera.NodePath.ToDisplayString();
+            Passes.Add(new RenderPreviewCameraPass {
+                X=(int)FloatMath.Round(Rect.X),Y=(int)FloatMath.Round(Rect.Y),
+                Width=Math.Max(1,(int)FloatMath.Round(Rect.Width)),
+                Height=Math.Max(1,(int)FloatMath.Round(Rect.Height)),
+                Camera=new RenderPreviewCamera {
+                    ViewProjection=RenderPreviewSceneBuilder.Matrix(Camera.View*Camera.Projection),
+                    Position=[Camera.World.M41,Camera.World.M42,Camera.World.M43],
+                },
+                ExcludedObjectId=this.GetPreviewRoster().Any(
+                    Object=>Object.NodeId.Equals(Camera.NodePath))
+                    ?CameraObjectId
+                    :string.Empty,
+            });
         }
 
         this.CameraPreviewLayout=EffectiveLayout;
-        Active.SetCameraPreviews(Passes);
+        this.CurrentCameraPreviewPasses=Passes;
+        this.PreviewFrameDirty=true;
         SceneCameraPreviewLayoutItem?Unavailable=EffectiveLayout.FirstOrDefault(static Item=>!Item.Camera.IsAvailable);
-        IReadOnlyList<SceneCameraPreviewDiagnostics> Diagnostics=Active.GetCameraPreviewDiagnostics();
         if(Unavailable is { }UnavailableItem){
             this.SetStatus(UnavailableItem.Camera.ErrorMessage??UnavailableItem.Camera.DisplayName);
-        }
-        if(Unavailable is null&&Diagnostics.Count>0){
-            var First=Diagnostics[0];
-            this.SetStatus(VsixText.Format("SceneCameraDiagnostics",First.SceneObjectCount,First.FrustumCandidateCount,First.DrawCallCount,First.ViewProjectionHash.ToString("X8",System.Globalization.CultureInfo.InvariantCulture)));
         }
     }
 
@@ -731,7 +854,9 @@ internal sealed class SceneHwndHost:HwndHost {
                                    try {
                                        this.SurfaceWidth=Math.Max(1,W);
                                        this.SurfaceHeight=Math.Max(1,H);
-                                       this.Renderer?.Resize(W,H);
+                                       this.PreviewClient?.Resize(
+                                           W<=0||H<=0?0:W,
+                                           W<=0||H<=0?0:H);
                                        this.ApplyCamera();
                                        this.RefreshCameraPreviews();
                                        this.RefreshOverlay();
@@ -746,16 +871,20 @@ internal sealed class SceneHwndHost:HwndHost {
     }
 
     /// <summary>
-    /// 現在の<see cref="ViewState"/>を<see cref="Renderer"/>へ注入する(ADR-0041 決定事項1、
-    /// M0020 Phase 1)。値が変わらなければ<see cref="SceneRenderer.SetCamera"/>は何もしないので
-    /// 毎フレーム呼んで構わない。
+    /// 現在の<see cref="ViewState"/>をauthoring-owned frame stateへ反映する(ADR-0041 決定事項1、
+    /// M0020 Phase 1)。値が変わらない場合はdirtyにならないため、毎フレーム呼んで構わない。
     /// </summary>
     private void RenderSurfaceFrame(){
-        if(this.Renderer is null){
+        if(this.PreviewClient is null||!this.PreviewFrameDirty){
             return;
         }
         try {
-            this.Renderer.RenderFrame();
+            this.PreviewClient.UpdateFrame(this.CreateCurrentFrame());
+            RenderPreviewHostResponse Response=
+                this.PreviewClient.Render(captureForVerification:false);
+            this.PreviewFrameDirty=false;
+            this.UpdateCameraPreviewDiagnostics(Response);
+            this.Surface?.SetVisible(true);
         } catch(Exception Ex){
             this.HandleRenderFailure(Ex);
         }
@@ -768,20 +897,54 @@ internal sealed class SceneHwndHost:HwndHost {
         this.BuildLifecycle.Invalidate();
         this.HasFatalRenderFailure=true;
         ActivityLog.LogError(nameof(SceneHwndHost),Error.ToString());
-        if(this.Renderer is not null){
-            this.DisposeRenderer();
-        } else {
-            this.Surface?.SetVisible(false);
+        bool RequiresFreshSurface=Error is RenderPreviewHostException HostError
+            &&HostError.RequiresFreshSurfaceGeneration;
+        this.DisposePreviewClient(ClearScene:false);
+        if(RequiresFreshSurface&&!this.HostCrashRecoveryUsed
+            &&this.SurfaceHost is { }Host){
+            this.HostCrashRecoveryUsed=true;
+            try {
+                RenderSurfaceWindow OldSurface=Host.Surface;
+                OldSurface.PointerInput-=this.OnPointerInput;
+                OldSurface.WheelInput-=this.HandleWheel;
+                if(this.ResizeHandler is not null){
+                    OldSurface.Resized-=this.ResizeHandler;
+                }
+                RenderSurfaceWindow NewSurface=Host.RecreateSurface(InitiallyVisible:false);
+                NewSurface.PointerInput+=this.OnPointerInput;
+                NewSurface.WheelInput+=this.HandleWheel;
+                if(this.ResizeHandler is not null){
+                    NewSurface.Resized+=this.ResizeHandler;
+                }
+                this.OpenOrReplacePreviewScene();
+                this.PreviewFrameDirty=true;
+                this.HasFatalRenderFailure=false;
+                return;
+            } catch(Exception RecoveryError){
+                ActivityLog.LogError(nameof(SceneHwndHost),RecoveryError.ToString());
+                this.DisposePreviewClient(ClearScene:false);
+            }
         }
+        this.Surface?.SetVisible(false);
         this.SetStatus(VsixText.Get("SceneRenderFailed"));
     }
 
     private void ApplyCamera(){
-        if(this.Renderer is not { } Active|| this.ViewState is not { } State){
+        if(this.PreviewClient is null||this.ViewState is not { }State){
             return;
         }
 
-        Active.SetCamera(State.GetView(),State.GetProjection(this.AspectRatio));
+        Matrix4x4 View=State.GetView();
+        Matrix4x4 Projection=State.GetProjection(this.AspectRatio);
+        Vector3 Position=State.GetEyePosition();
+        if(!this.CurrentView.Equals(View)
+            ||!this.CurrentProjection.Equals(Projection)
+            ||!this.CurrentCameraPosition.Equals(Position)){
+            this.CurrentView=View;
+            this.CurrentProjection=Projection;
+            this.CurrentCameraPosition=Position;
+            this.PreviewFrameDirty=true;
+        }
         this.UpdateMoveGizmo();
     }
 
@@ -864,16 +1027,17 @@ internal sealed class SceneHwndHost:HwndHost {
         }
     }
 
+    [CSharpGameEngine.Contracts.ExternalNumericAdapter]
     private void TickFlyIfNeeded(EventArgs Args){
         if(this.InputMachine is not { } Machine|| this.ViewState is not { } State||Machine.State!=SceneNavState.Flying){
             this.LastFlyTickTime=null; // Fly再突入時に古い時刻からの巨大なDeltaTimeが出ないようにする。
             return;
         }
 
-        double DeltaSeconds=0;
+        float DeltaSeconds=0f;
         if(Args is RenderingEventArgs RenderArgs){
             if(this.LastFlyTickTime is { } Previous){
-                DeltaSeconds=(RenderArgs.RenderingTime-Previous).TotalSeconds;
+                DeltaSeconds=(float)(RenderArgs.RenderingTime-Previous).TotalSeconds;
             }
 
             this.LastFlyTickTime=RenderArgs.RenderingTime;
@@ -885,11 +1049,11 @@ internal sealed class SceneHwndHost:HwndHost {
         // ピクセル完全一致中は回転をムーブイベントごとに即時確定済み(OnPointerInput参照)なので、
         // ここではWASDQEの移動だけを現在のYaw/Pitchで適用する。
         if(this.LookUsesPixelLock){
-            State.TickFlyMovementOnly(Machine.FlyHeldKeys,(float)DeltaSeconds,Shift,Ctrl);
+            State.TickFlyMovementOnly(Machine.FlyHeldKeys,DeltaSeconds,Shift,Ctrl);
             return;
         }
 
-        State.TickFly(Machine.FlyHeldKeys, this.PendingLookDeltaX, this.PendingLookDeltaY,(float)DeltaSeconds,Shift,Ctrl);
+        State.TickFly(Machine.FlyHeldKeys, this.PendingLookDeltaX, this.PendingLookDeltaY,DeltaSeconds,Shift,Ctrl);
         this.PendingLookDeltaX=0f;
         this.PendingLookDeltaY=0f;
     }
@@ -1088,7 +1252,7 @@ internal sealed class SceneHwndHost:HwndHost {
     }
 
     private void UpdateMoveGizmo(){
-        if(this.Renderer is null|| this.ViewState is not { }State
+        if(this.PreviewClient is null|| this.ViewState is not { }State
                                 || this.SelectedNodePath is not { }PrimaryPath
                                 || this.TargetSnapshot?.Projection is not { }Projection
                                 ||!Projection.TryGetId(PrimaryPath,out EditorNodeId PrimaryId)
@@ -1143,7 +1307,7 @@ internal sealed class SceneHwndHost:HwndHost {
 
     /// <summary>Transformギズモと矩形選択をPhase Aの同じoverlay PSO入力へ合成する。</summary>
     private void RefreshOverlay(){
-        if(this.Renderer is not { }Active){
+        if(this.PreviewClient is null){
             return;
         }
 
@@ -1184,12 +1348,15 @@ internal sealed class SceneHwndHost:HwndHost {
                 HudState,HudViewState.GetView(),HudViewState.GetProjection(this.AspectRatio), this.SurfaceWidth, this.SurfaceHeight);
             int ExistingVertices=Primitives.Sum(static Primitive=>Primitive.Vertices.Count);
             int HudVertices=Hud.Sum(static Primitive=>Primitive.Vertices.Count);
-            // M0037: SceneRenderer.SetOverlayは頂点予算超過で例外を投げる。HUDは表示専用の付加情報
+            // M0037: Preview protocolはoverlay頂点予算超過を拒否する。HUDは表示専用の付加情報
             // なので、超過するくらいならギズモ本体を守るためHUDだけを落とす。
-            if(ExistingVertices+HudVertices<=SceneRenderer.MaxOverlayVertices){
+            if(ExistingVertices+HudVertices<=RenderPreviewHostProtocol.MaximumOverlayVertexCount){
                 Primitives.AddRange(Hud);
             }
         }
+        Primitives.AddRange(SceneCameraPreviewOverlay.Build(
+            this.CurrentCameraPreviewPasses,this.CurrentView,this.CurrentProjection,
+            this.SurfaceWidth,this.SurfaceHeight));
 
         if(this.GlobalSpatialOctreeEnabled&&this.CurrentSpatialDebugSnapshot is { }SpatialSnapshot&&this.ViewState is { }SpatialState){
             Matrix4x4 ViewProjection=SpatialState.GetView()*SpatialState.GetProjection(this.AspectRatio);
@@ -1197,15 +1364,25 @@ internal sealed class SceneHwndHost:HwndHost {
         } else {
             this.CurrentSpatialDebugOverlay=[];
         }
-        if(this.PhysicsDebugEnabled&&this.CurrentPhysicsDebugSnapshot is { }PhysicsSnapshot){
-            this.CurrentPhysicsDebugOverlay=PhysicsDebugOverlay.Build(PhysicsSnapshot,this.PhysicsDebugOptions);
+        if(this.PhysicsDebugEnabled
+            &&(this.CurrentPhysicsDebugSnapshot is not null||this.CurrentPhysicsFractureBonds.Count>0)){
+            this.CurrentPhysicsDebugOverlay=PhysicsDebugOverlay.Build(
+                this.CurrentPhysicsDebugSnapshot,this.PhysicsDebugOptions,this.CurrentPhysicsFractureBonds);
         } else {
             this.CurrentPhysicsDebugOverlay=[];
         }
-        Active.SetOverlay(
-            Primitives.Count==0?null:Primitives,
-            this.CurrentSpatialDebugOverlay.Count==0?null:this.CurrentSpatialDebugOverlay,
-            this.CurrentPhysicsDebugOverlay.Count==0?null:this.CurrentPhysicsDebugOverlay);
+        Primitives.AddRange(this.CurrentSpatialDebugOverlay);
+        Primitives.AddRange(this.CurrentPhysicsDebugOverlay);
+        int TotalVertices=Primitives.Sum(static Primitive=>Primitive.Vertices.Count);
+        if(TotalVertices>RenderPreviewHostProtocol.MaximumOverlayVertexCount){
+            throw new ArgumentOutOfRangeException(
+                nameof(Primitives),
+                VsixText.Format(
+                    "ScenePreviewOverlayVertexLimitExceeded",TotalVertices,
+                    RenderPreviewHostProtocol.MaximumOverlayVertexCount));
+        }
+        this.CurrentOverlayPrimitives=Primitives;
+        this.PreviewFrameDirty=true;
     }
 
     private void PublishMarqueeSelection(ScreenRectangle Rectangle,bool CtrlHeld){
@@ -1362,10 +1539,10 @@ internal sealed class SceneHwndHost:HwndHost {
     }
 
     private bool TryStartDuplicatePreview(IReadOnlyList<DuplicateNodePlanItem>Plan){
-        if(this.Renderer is not { }Active){ return false; }
+        if(this.PreviewClient is null){ return false; }
 
         List<SceneRenderObject>RenderObjects=[];
-        List<(NodePath SourcePath,Matrix4x4 OriginalWorld)>Sources=[];
+        List<(NodePath SourcePath,NodePath PreviewPath,Matrix4x4 OriginalWorld)>Sources=[];
         foreach(SceneRenderObject Object in this.CurrentRenderObjects){
             foreach(DuplicateNodePlanItem Item in Plan){
                 if(!Object.NodeId.Equals(Item.SourcePath)&&!Object.NodeId.IsDescendantOf(Item.SourcePath)){
@@ -1380,32 +1557,35 @@ internal sealed class SceneHwndHost:HwndHost {
                     IncludeInBounds=Object.IncludeInBounds,
                     IsPickable=Object.IsPickable,
                 });
-                Sources.Add((Object.NodeId,Object.World));
+                Sources.Add((Object.NodeId,ResultPath,Object.World));
                 break;
             }
         }
 
-        if(RenderObjects.Count==0||!Active.TryAddPreviewObjects(RenderObjects,out IReadOnlyList<int>Handles)){
+        if(RenderObjects.Count==0){
             return false;
         }
 
-        this.DuplicateRenderPreviews=Sources.Select((Source,Index)=>new DuplicateRenderPreview(
-                                                     Source.SourcePath,Source.OriginalWorld,Handles[Index])).ToArray();
+        this.CurrentPreviewRenderObjects=RenderObjects;
+        this.DuplicateRenderPreviews=Sources.Select(Source=>new DuplicateRenderPreview(
+            Source.SourcePath,Source.PreviewPath,Source.OriginalWorld)).ToArray();
         this.ActiveDuplicatePlan=Plan.ToArray();
-        DuplicateNodePlanItem PrimaryItem=Plan.FirstOrDefault(Item=> this.SelectedNodePath is { }Selected&&Item.SourcePath.Equals(Selected));
-        NodePath PrimaryResult=PrimaryItem.ResultPath.Equals(default(NodePath))
-            ?Plan[^1].ResultPath
-            :PrimaryItem.ResultPath;
-        Active.SetSelectedNode(PrimaryResult,Plan.Select(static Item=>Item.ResultPath).ToArray());
+        this.PreviewSelectedNodePaths=Plan.Select(static Item=>Item.ResultPath).ToArray();
+        if(!this.TryReplacePreviewScene()){
+            this.CurrentPreviewRenderObjects=[];
+            this.DuplicateRenderPreviews=[];
+            this.ActiveDuplicatePlan=[];
+            this.PreviewSelectedNodePaths=[];
+            return false;
+        }
         return true;
     }
 
-    private void RemoveDuplicatePreview(bool RestoreOriginalSelection){
-        if(this.DuplicateRenderPreviews.Count>0&& this.Renderer is { }Active){
-            Active.RemovePreviewObjects(this.DuplicateRenderPreviews.Select(static Item=>Item.Handle).ToArray());
-            if(RestoreOriginalSelection){
-                Active.SetSelectedNode(this.SelectedNodePath, this.SelectedNodePaths);
-            }
+    private void RemoveDuplicatePreview(){
+        if(this.DuplicateRenderPreviews.Count>0){
+            this.CurrentPreviewRenderObjects=[];
+            this.PreviewSelectedNodePaths=[];
+            _=this.TryReplacePreviewScene();
         }
 
         this.DuplicateRenderPreviews=[];
@@ -1484,14 +1664,16 @@ internal sealed class SceneHwndHost:HwndHost {
                 Matrix4x4 World=RootPreview is { }Matched
                     ?Matched.World
                     :DuplicatePreview.OriginalWorld* this.EditTransaction.CurrentWorldDelta;
-                this.Renderer?.UpdatePreviewObjectTransform(DuplicatePreview.Handle,World);
+                this.UpdatePreviewObjectTransform(DuplicatePreview.PreviewPath,World);
             }
         } else {
             foreach(SceneTransformPreview Preview in Previews){
-                this.Renderer?.UpdateObjectTransform(Preview.NodePath,Preview.World);
+                this.UpdateCurrentObjectTransform(Preview.NodePath,Preview.World);
             }
             foreach(SceneTransformPreview Descendant in this.PreviewDescendantOriginals){
-                this.Renderer?.UpdateObjectTransform(Descendant.NodePath,Descendant.World* this.EditTransaction.CurrentWorldDelta);
+                this.UpdateCurrentObjectTransform(
+                    Descendant.NodePath,
+                    Descendant.World*this.EditTransaction.CurrentWorldDelta);
             }
         }
 
@@ -1505,7 +1687,7 @@ internal sealed class SceneHwndHost:HwndHost {
             }
 
             this.FollowViewApplied=true;
-            this.Renderer?.SetCamera(State.GetView(),State.GetProjection(this.AspectRatio));
+            this.UpdatePreviewCamera(State);
         }
         SceneTransformPreview?Primary=null;
         foreach(SceneTransformPreview Preview in Previews){
@@ -1641,18 +1823,18 @@ internal sealed class SceneHwndHost:HwndHost {
             return;
         }
         if(WasDuplicate){
-            this.RemoveDuplicatePreview(RestoreOriginalSelection:true);
+            this.RemoveDuplicatePreview();
         } else {
             foreach(SceneTransformPreview Original in Cancellation.RestoredTransforms){
-                this.Renderer?.UpdateObjectTransform(Original.NodePath,Original.World);
+                this.UpdateCurrentObjectTransform(Original.NodePath,Original.World);
             }
             foreach(SceneTransformPreview Descendant in this.PreviewDescendantOriginals){
-                this.Renderer?.UpdateObjectTransform(Descendant.NodePath,Descendant.World);
+                this.UpdateCurrentObjectTransform(Descendant.NodePath,Descendant.World);
             }
         }
         if(this.FollowViewApplied&& this.HasActiveFollowViewSnapshot&& this.ViewState is { }State){
             this.ActiveFollowViewSnapshot.Restore(State);
-            this.Renderer?.SetCamera(State.GetView(),State.GetProjection(this.AspectRatio));
+            this.UpdatePreviewCamera(State);
         }
 
         this.PreviewDescendantOriginals=[];
@@ -1744,7 +1926,7 @@ internal sealed class SceneHwndHost:HwndHost {
             return;
         }
 
-        this.RemoveDuplicatePreview(RestoreOriginalSelection:false);
+        this.RemoveDuplicatePreview();
         // M0036: 直近コミットを先読みUndo用に記録する(複製はNodePathが新規のため対象外、
         // Transform自体が変わらないケースはFinalPreviews.Count==0で自然に除外される)。新しい
         // コミットが起きたのでredo系列は破棄する(標準的なUndo/Redoの慣習)。
@@ -1815,7 +1997,8 @@ internal sealed class SceneHwndHost:HwndHost {
                                                                             ?new SceneRenderObject {
                                                                                  Mesh=Object.Mesh,World=FinalWorld,NodeId=Object.NodeId,
                                                                                  IncludeInBounds=Object.IncludeInBounds,IsPickable=Object.IsPickable }
-                                                                            :Object).ToArray();
+                                                                             :Object).ToArray();
+        this.PreviewFrameDirty=true;
     }
 
     /// <summary>
@@ -2014,7 +2197,7 @@ internal sealed class SceneHwndHost:HwndHost {
 
         if(Model.Root is null){
             this.HasFatalRenderFailure=true;
-            this.DisposeRenderer();
+            this.DisposePreviewClient(ClearScene:true);
             Microsoft.CodeAnalysis.Diagnostic?Diagnostic=Model.Diagnostics.FirstOrDefault();
             string Detail=Diagnostic is null
                 ?"Scene Root could not be analyzed."
@@ -2031,7 +2214,7 @@ internal sealed class SceneHwndHost:HwndHost {
         // するデッドロックを避けるため、生ThreadへI/Oを隔離してからUI側でJoinしていた。
         // Scene DSL版ではさらに一歩進め、Primitive.Cli生成と後続のGLTF MeshLoaderを含む
         // Build全体をこの単一workerへ渡し、UIスレッドではJoin/Waitを一切行わない。完了後の
-        // SceneRenderer生成だけをDispatcherへ戻す。live解析が連続してもworkerはlatest-winsで
+        // Preview Host session更新だけをDispatcherへ戻す。live解析が連続してもworkerはlatest-winsで
         // 未処理要求を置換するため、ブリッジプロセスが無制限に増えることもない。
         if(this.BuildWorker is not { } Worker){
             this.HasFatalRenderFailure=true;
@@ -2077,7 +2260,7 @@ internal sealed class SceneHwndHost:HwndHost {
         if(Error is not null){
             this.HasFatalRenderFailure=true;
             ActivityLog.LogError(nameof(SceneHwndHost),Error.ToString());
-            if(this.Renderer is null){
+            if(this.PreviewClient is null){
                 this.Surface.SetVisible(false);
             }
 
@@ -2093,9 +2276,10 @@ internal sealed class SceneHwndHost:HwndHost {
         // M0020 Phase 0/Phase 3)。ここでサーフェスを隠すと前フレームの残像や背面ペインの露出を
         // 招くだけで、0件でも RenderFrame は clear + Present を行う。
         try {
-            this.DisposeRenderer();
             (this.SceneBoundsCenter,this.SceneBoundsRadius)=SceneCameraFraming.ComputeBounds(Result.RenderObjects);
             this.CurrentRenderObjects=Result.RenderObjects;
+            this.CurrentPreviewRenderObjects=[];
+            this.PreviewSelectedNodePaths=[];
 
             Matrix4x4 View;
             Matrix4x4 Projection;
@@ -2119,31 +2303,159 @@ internal sealed class SceneHwndHost:HwndHost {
             }
 
             // 実サイズは Surface.Resized で既に届いているので、800x600 のハードコードは使わない。
-            this.Renderer=new SceneRenderer(this.Surface.Handle, this.SurfaceWidth, this.SurfaceHeight,Result.RenderObjects,View,Projection);
-            this.Renderer.SetRenderMode(this.ViewState?.RenderMode??SceneViewRenderMode.Lit);
+            this.CurrentView=View;
+            this.CurrentProjection=Projection;
+            this.CurrentCameraPosition=this.ViewState?.GetEyePosition()
+                ??GetCameraPosition(View);
+            this.OpenOrReplacePreviewScene();
             this.HasFatalRenderFailure=false;
             this.RenderedAnalysisGeneration=Request.AnalysisGeneration;
-            // 再解析でRendererを作り直しても選択の見た目を保つ。複数選択(SelectedNodePaths)も
+            // 再解析でPreview Host sceneを置き換えても選択の見た目を保つ。複数選択(SelectedNodePaths)も
             // 一緒に渡さないと、primary以外のハイライトだけが再ビルドで消える。
-            this.Renderer.SetSelectedNode(this.SelectedNodePath,this.SelectedNodePaths);
+            this.PreviewFrameDirty=true;
             this.RefreshCameraPreviews();
             this.UpdateMoveGizmo();
-            this.Surface.SetVisible(true);
             this.SetStatus(VsixText.Format("SceneStatusDisplayed",Result.Request.ClassName));
         } catch(Exception Ex){
             this.HasFatalRenderFailure=true;
             ActivityLog.LogError(nameof(SceneHwndHost),Ex.ToString());
-            this.DisposeRenderer();
+            this.DisposePreviewClient(ClearScene:true);
             this.SetStatus(VsixText.Get("SceneRenderFailed"));
         }
     }
 
-    private void DisposeRenderer(){
-        this.Renderer?.Dispose();
-        this.Renderer=null;
+    private void DisposePreviewClient(bool ClearScene,bool DisposeInBackground=false){
+        RenderPreviewHostClient?Client=this.PreviewClient;
+        this.PreviewClient=null;
+        if(Client is not null){
+            if(DisposeInBackground){
+                _=ThreadPool.QueueUserWorkItem(_=>Client.Dispose());
+            }else{
+                Client.Dispose();
+            }
+        }
         this.RenderedAnalysisGeneration=-1;
-        this.CurrentRenderObjects=[];
+        this.PreviewFrameDirty=false;
+        if(ClearScene){
+            this.CurrentRenderObjects=[];
+            this.CurrentPreviewRenderObjects=[];
+            this.CurrentOverlayPrimitives=[];
+            this.CurrentCameraPreviewPasses=[];
+            this.PreviewSelectedNodePaths=[];
+        }
         this.Surface?.SetVisible(false);
+    }
+
+    private void OpenOrReplacePreviewScene(){
+        RenderSurfaceWindow Surface=this.Surface
+            ??throw new InvalidOperationException("Scene preview surface is unavailable.");
+        RenderPreviewScene Scene=RenderPreviewSceneBuilder.FromScene(
+            this.GetPreviewRoster(),this.CurrentView,this.CurrentProjection,
+            this.CurrentCameraPosition);
+        if(this.PreviewClient is not null){
+            this.PreviewClient.ReplaceScene(Scene);
+            return;
+        }
+
+        this.RepoRoot??=RepoLocator.ResolveRepoRoot();
+        if(this.RepoRoot is null){
+            throw new InvalidOperationException(
+                VsixText.Format("Common_RepoRootNotFound",RepoLocator.RepoMarkerFileName));
+        }
+        string HostPath=RenderPreviewSceneBuilder.ResolveHostPath(this.RepoRoot);
+        string ShaderArtifactPath=
+            RenderPreviewSceneBuilder.ResolveShaderArtifactPath(this.RepoRoot);
+        RenderPreviewHostClient Client=RenderPreviewHostClient.Start(HostPath);
+        try {
+            Client.Open(
+                Surface.Handle.ToInt64(),this.SurfaceWidth,this.SurfaceHeight,
+                ShaderArtifactPath,Scene);
+            this.PreviewClient=Client;
+        } catch {
+            Client.Dispose();
+            throw;
+        }
+    }
+
+    private bool TryReplacePreviewScene(){
+        try {
+            this.OpenOrReplacePreviewScene();
+            this.PreviewFrameDirty=true;
+            return true;
+        } catch(Exception Error){
+            this.HandleRenderFailure(Error);
+            return this.PreviewClient is not null&&!this.HasFatalRenderFailure;
+        }
+    }
+
+    private RenderPreviewFrame CreateCurrentFrame()=>
+        RenderPreviewSceneBuilder.CreateFrame(
+            this.GetPreviewRoster(),this.CurrentView,this.CurrentProjection,
+            this.CurrentCameraPosition,
+            this.ViewState?.RenderMode??SceneViewRenderMode.Lit,
+            this.PreviewSelectedNodePaths.Count>0
+                ?this.PreviewSelectedNodePaths
+                :this.SelectedNodePaths,
+            this.CurrentOverlayPrimitives,this.CurrentCameraPreviewPasses);
+
+    private IReadOnlyList<SceneRenderObject>GetPreviewRoster(){
+        if(this.CurrentPreviewRenderObjects.Count==0){
+            return this.CurrentRenderObjects;
+        }
+        return [..this.CurrentRenderObjects,..this.CurrentPreviewRenderObjects];
+    }
+
+    private void UpdateCameraPreviewDiagnostics(RenderPreviewHostResponse Response){
+        if(Response.CameraPreviews.Length==0){ return; }
+        RenderPreviewCameraDiagnostics First=Response.CameraPreviews[0];
+        this.SetStatus(VsixText.Format(
+            "SceneCameraDiagnostics",First.SceneObjectCount,
+            First.FrustumCandidateCount,First.DrawCallCount,
+            First.ViewProjectionHash.ToString(
+                "X8",System.Globalization.CultureInfo.InvariantCulture)));
+    }
+
+    private bool UpdateCurrentObjectTransform(NodePath Path,in Matrix4x4 World){
+        return this.UpdateObjectTransform(
+            this.CurrentRenderObjects,Path,World,
+            Updated=>this.CurrentRenderObjects=Updated);
+    }
+
+    private bool UpdatePreviewObjectTransform(NodePath Path,in Matrix4x4 World){
+        return this.UpdateObjectTransform(
+            this.CurrentPreviewRenderObjects,Path,World,
+            Updated=>this.CurrentPreviewRenderObjects=Updated);
+    }
+
+    private bool UpdateObjectTransform(
+        IReadOnlyList<SceneRenderObject>Objects,NodePath Path,in Matrix4x4 World,
+        Action<IReadOnlyList<SceneRenderObject>>Commit){
+        SceneRenderObject[]Updated=Objects.ToArray();
+        for(int Index=0;Index<Updated.Length;Index++){
+            SceneRenderObject Object=Updated[Index];
+            if(!Object.NodeId.Equals(Path)){ continue; }
+            Updated[Index]=new SceneRenderObject {
+                Mesh=Object.Mesh,World=World,NodeId=Object.NodeId,
+                IncludeInBounds=Object.IncludeInBounds,IsPickable=Object.IsPickable,
+            };
+            Commit(Updated);
+            this.PreviewFrameDirty=true;
+            return true;
+        }
+        return false;
+    }
+
+    private void UpdatePreviewCamera(SceneViewState State){
+        this.CurrentView=State.GetView();
+        this.CurrentProjection=State.GetProjection(this.AspectRatio);
+        this.CurrentCameraPosition=State.GetEyePosition();
+        this.PreviewFrameDirty=true;
+    }
+
+    private static Vector3 GetCameraPosition(in Matrix4x4 View){
+        return Matrix4x4.Invert(View,out Matrix4x4 CameraWorld)
+            ?new Vector3(CameraWorld.M41,CameraWorld.M42,CameraWorld.M43)
+            :Vector3.Zero;
     }
 
     /// <summary>

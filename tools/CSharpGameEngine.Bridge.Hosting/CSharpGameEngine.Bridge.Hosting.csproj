@@ -5,5 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
-
+  <ItemGroup>
+    <ProjectReference Include="../../src/CSharpGameEngine.Contracts/CSharpGameEngine.Contracts.csproj" />
+  </ItemGroup>
 </Project>

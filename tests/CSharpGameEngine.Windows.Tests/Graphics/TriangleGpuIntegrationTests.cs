@@ -1,4 +1,7 @@
+using System.Numerics;
 using CSharpGameEngine.Platform.Windows;
+using CSharpGameEngine.Rendering;
+using CSharpGameEngine.Runtime.Windows;
 
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 
@@ -7,8 +10,9 @@ namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// adapter so it is deterministic in CI without requiring a physical GPU. Guarded by an explicit
 /// timeout so a driver/GPU hang fails the test instead of hanging the run.
 /// </summary>
+[Collection(D3D12GpuCollection.Name)]
 public class TriangleGpuIntegrationTests {
-    private static readonly string ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Triangle.cgeshaderartifact");
+    private static readonly string ShaderArtifactPath=Path.Combine(AppContext.BaseDirectory,"Shaders","Stage.cgeshaderartifact");
 
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
@@ -36,7 +40,22 @@ public class TriangleGpuIntegrationTests {
             EnableDebugLayer=true,
         };
 
-        using var Renderer=TriangleRenderer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,ShaderArtifactPath);
+        StageMaterialCreateInfo Material=new(){
+            BaseColorFactor=new Vector4(0.9f,0.25f,0.15f,1f),
+            RoughnessFactor=1f,
+            MetallicFactor=0f,
+        };
+        (StageMeshCreateInfo[]Meshes,StageMaterialCreateInfo[]Materials,
+            StageObjectCreateInfo[]Objects)=RenderServer.BuildSingleMeshRoster(
+            [new Vector3(0f,0.6f,0f),new Vector3(-0.6f,-0.6f,0f),new Vector3(0.6f,-0.6f,0f)],
+            [Vector3.UnitZ,Vector3.UnitZ,Vector3.UnitZ],
+            [new Vector2(0.5f,0f),new Vector2(0f,1f),new Vector2(1f,1f)],
+            [0u,1u,2u],Material);
+        using var Renderer=RenderServer.Create(
+            Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,
+            ShaderArtifactPath,Meshes,Materials,Objects);
+        Renderer.SetCamera(Camera.CreateDefault(Vector3.Zero));
+        Renderer.SetAmbientLight(Vector3.One);
 
         Assert.True(Renderer.ShaderArtifactLoaded,string.Join(Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
         Assert.Equal(UseWarp,Renderer.IsWarp);
@@ -51,7 +70,7 @@ public class TriangleGpuIntegrationTests {
         Assert.Equal((uint)TotalFrames,Renderer.FramesRendered);
         Assert.NotNull(Renderer.LastCapturedFrame);
 
-        var Verification=TrianglePixelVerifier.Verify(Renderer.LastCapturedFrame!,TriangleRenderer.ClearColor);
+        var Verification=TrianglePixelVerifier.Verify(Renderer.LastCapturedFrame!,RenderServer.ClearColor);
         Assert.True(Verification.Success,Verification.Details);
 
         Assert.Equal(0,Renderer.ErrorOrWorseMessageCount);
@@ -62,7 +81,7 @@ public class TriangleGpuIntegrationTests {
 
         Assert.NotNull(Renderer.LastCapturedFrame);
         Assert.Equal(128,Renderer.LastCapturedFrame!.Width);
-        var ResizedVerification=TrianglePixelVerifier.Verify(Renderer.LastCapturedFrame,TriangleRenderer.ClearColor);
+        var ResizedVerification=TrianglePixelVerifier.Verify(Renderer.LastCapturedFrame,RenderServer.ClearColor);
         Assert.True(ResizedVerification.Success,ResizedVerification.Details);
 
         Assert.Equal(0,Renderer.ErrorOrWorseMessageCount);

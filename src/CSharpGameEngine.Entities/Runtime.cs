@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using CSharpGameEngine.Contracts;
 
 namespace CSharpGameEngine.Entities;
 
@@ -16,15 +17,119 @@ public enum EngineExecutionMode {
 public interface IArchetype {
 }
 
-public record struct Entity(int Id);
+public readonly record struct Entity(int Index,uint Generation) {
+    public Entity(int Index):this(Index,1){}
+    public int Id=>this.Index;
+}
 
-public readonly record struct WorldStatistics(int AliveEntityCount,int EntitySlotCount,int PendingDestroyCount,int PendingSceneUnloadCount);
+/// <summary>A caller-visible token for generated component-change queries.</summary>
+public readonly record struct ChangeVersion(uint Value) {
+    public bool IsNewerThan(ChangeVersion Baseline){
+        var Difference=unchecked(this.Value-Baseline.Value);
+        return Difference!=0&&Difference<0x80000000u;
+    }
+}
+
+public readonly record struct WorldStatistics(int AliveEntityCount,int EntitySlotCount,int PendingDestroyCount,int PendingSceneUnloadCount,int PendingCellUnloadCount=0);
+
+internal enum EntityCommandKind:byte {
+    Create,
+    Move,
+    Destroy,
+    SceneBegin,
+    SceneAttach,
+    SceneEnd,
+    SceneUnload,
+    CellUnload,
+}
+
+internal readonly record struct EntityCommand(EntityCommandKind Kind,int MoveIndex,Entity Entity,SceneInstance Scene,WorldCellId Cell);
+
+/// <summary>The single ordered structural-command stream for a world.</summary>
+public sealed class EntityCommandBuffer {
+    private readonly ChunkBuffer<EntityCommand>Items=new();
+    private int PendingDestroyCount;
+    private int PendingSceneUnloadCount;
+    private int PendingCellUnloadCount;
+    private int SystemExecutionDepth;
+    internal int Count=>this.Items.Count;
+    internal bool IsSystemExecuting=>this.SystemExecutionDepth>0;
+    internal int Destroys=>this.PendingDestroyCount;
+    internal int SceneUnloads=>this.PendingSceneUnloadCount;
+    internal int CellUnloads=>this.PendingCellUnloadCount;
+    public void Destroy(Entity Entity){
+        this.Items.Add(new(EntityCommandKind.Destroy,-1,Entity,default,default));
+        this.PendingDestroyCount=checked(this.PendingDestroyCount+1);
+    }
+    public void UnloadScene(SceneInstance Scene){
+        this.Items.Add(new(EntityCommandKind.SceneUnload,-1,default,Scene,default));
+        this.PendingSceneUnloadCount=checked(this.PendingSceneUnloadCount+1);
+    }
+    public void UnloadCell(WorldCellId Cell){
+        if(!Cell.IsValid){ throw new ArgumentException("A valid world-cell ID is required.",nameof(Cell)); }
+        this.Items.Add(new(EntityCommandKind.CellUnload,-1,default,default,Cell));
+        this.PendingCellUnloadCount=checked(this.PendingCellUnloadCount+1);
+    }
+    internal void Create(int MoveIndex)=>this.Items.Add(new(EntityCommandKind.Create,MoveIndex,default,default,default));
+    internal void Move(int MoveIndex)=>this.Items.Add(new(EntityCommandKind.Move,MoveIndex,default,default,default));
+    internal void BeginScene(SceneInstance Scene)=>this.Items.Add(new(EntityCommandKind.SceneBegin,-1,default,Scene,default));
+    internal void AttachScene(SceneInstance Scene,Entity Entity)=>this.Items.Add(new(EntityCommandKind.SceneAttach,-1,Entity,Scene,default));
+    internal void EndScene(SceneInstance Scene,Entity Root)=>this.Items.Add(new(EntityCommandKind.SceneEnd,-1,Root,Scene,default));
+    internal ref EntityCommand GetRefUnchecked(int Index)=>ref this.Items.GetRefUnchecked(Index);
+    internal void BeginSystemExecution()=>this.SystemExecutionDepth=checked(this.SystemExecutionDepth+1);
+    internal void EndSystemExecution(){
+        if(this.SystemExecutionDepth<=0){ throw new InvalidOperationException("System execution is not active."); }
+        this.SystemExecutionDepth--;
+    }
+    internal void CompletePlayback(){
+        this.Items.Clear();
+        this.PendingDestroyCount=0;
+        this.PendingSceneUnloadCount=0;
+        this.PendingCellUnloadCount=0;
+    }
+}
+
+internal struct EntityLocation(Entity Entity,Archetype Archetype,int Index) {
+    internal Entity Entity=Entity;
+    internal Archetype Archetype=Archetype;
+    internal int Index=Index;
+    internal int SceneSlot=-1;
+    internal WorldCellId Cell;
+    internal PersistentEntityId Persistent;
+    internal bool Reserved;
+}
+
+internal sealed class WorldRuntimeState {
+    internal int AliveEntityCount;
+    internal uint ChangeVersion;
+}
+
+/// <summary>Owns one ECS World storage location so copied State values never fork mutable World state.</summary>
+public sealed class WorldOwner:IDisposable {
+    private World Value;
+    private bool Disposed;
+    public WorldOwner(){ this.Value=new World(); }
+    public WorldOwner(World World){ this.Value=World; }
+    public ref World World {
+        get {
+            ObjectDisposedException.ThrowIf(this.Disposed,this);
+            return ref this.Value;
+        }
+    }
+    public State CreateState()=>new(this);
+    public void Dispose(){
+        if(this.Disposed){ return; }
+        this.Disposed=true;
+        this.Value=default;
+    }
+}
 
 public partial struct State(World World){
+    private readonly WorldOwner Owner=new(World);
     public bool Enabled { get; set;}
     public SimulationTiming Timing { get;internal set; }=SimulationTiming.Default;
     public SimulationPlaybackState PlaybackState { get;private set; }=SimulationPlaybackState.Running;
-    public double InterpolationAlpha { get;internal set; }
+    public float InterpolationAlpha { get;internal set; }
     private int PendingSimulationSteps;
     public ulong FixedTick=>this.Timing.Tick;
     public int FixedTickRate=>this.Timing.TickRate;
@@ -58,7 +163,12 @@ public partial struct State(World World){
 
     public bool IsEditorPreview => this.ExecutionMode==EngineExecutionMode.EditorPreview;
 
-    public World World { get;}=World;
+    internal State(WorldOwner Owner):this(default(World)){
+        this.Owner=Owner??throw new ArgumentNullException(nameof(Owner));
+        this.Timing=SimulationTiming.Default;
+    }
+
+    public ref World World=>ref this.Owner.World;
 }
 
 [StructLayout(LayoutKind.Auto)]
@@ -70,48 +180,126 @@ public partial struct World {
     /// どのSceneにも属さないEntityは-1(ADR-0040)。<b>Component構成に一切影響しない</b>のが要点で、
     /// 所有権をComponentとして持たせるとあらゆる構成が「Scene所属版/非所属版」の2倍に増えてしまう。
     /// </summary>
-    internal readonly ChunkBuffer<(Entity Entity,Archetype Archetype,int Index,int SceneSlot)>EntityArchetypeIndices=new();
+    internal readonly ChunkBuffer<EntityLocation>EntityArchetypeIndices=new();
+    internal readonly ChunkBuffer<int>FreeEntityIndices=new();
+    private readonly WorldRuntimeState RuntimeState=new();
 
     internal readonly SceneInstanceTable SceneInstances=new();
+    private readonly Dictionary<WorldCellId,ChunkBuffer<Entity>>CellEntities=new();
+    private readonly Dictionary<PersistentEntityId,Entity>PersistentEntities=new();
+    public EntityCommandBuffer Commands{get;}=new();
 
     /// <summary>
     /// System実行中に積まれた破棄要求。<see cref="ChunkList{T}"/>のrefを無効化しないよう、
     /// 適用はフレーム末尾の<c>PlaybackStructuralChanges</c>まで遅延する。
     /// </summary>
-    internal readonly ChunkBuffer<Entity>DestroyCommands=new();
-
-    internal readonly ChunkBuffer<SceneInstance>SceneUnloadCommands=new();
-
     /// <summary>
     /// 生きているEntityかどうか。破棄されたEntityの行には<see cref="Archetype"/>の墓石が書かれ、
-    /// そのIdは<b>二度と再配布されない</b>ため、古いハンドルが別のEntityに化けることは構造的に起こらない。
+    /// slot再利用時にはGenerationが進むため、古いハンドルが別のEntityに化けることは構造的に起こらない。
     /// </summary>
     public bool IsAlive(Entity Entity){
-        if((uint)Entity.Id>=(uint)this.EntityArchetypeIndices.Count){
+        if((uint)Entity.Index>=(uint)this.EntityArchetypeIndices.Count||Entity.Generation==0){
             return false;
         }
 
-        return this.EntityArchetypeIndices.GetRefUnchecked(Entity.Id).Archetype!=Archetype.None;
+        ref var Row=ref this.EntityArchetypeIndices.GetRefUnchecked(Entity.Index);
+        return Row.Archetype!=Archetype.None&&Row.Entity==Entity;
     }
 
-    /// <summary>Returns an O(entity-slot-count) read-only diagnostics snapshot.</summary>
-    public WorldStatistics GetStatistics(){
-        var Alive=0;
-        for(var Index=0;Index<this.EntityArchetypeIndices.Count;Index++){
-            if(this.EntityArchetypeIndices.GetRefUnchecked(Index).Archetype!=Archetype.None){ Alive++; }
+    internal bool IsReserved(Entity Entity){
+        if((uint)Entity.Index>=(uint)this.EntityArchetypeIndices.Count||Entity.Generation==0){ return false; }
+        ref var Row=ref this.EntityArchetypeIndices.GetRefUnchecked(Entity.Index);
+        return Row.Reserved&&Row.Entity==Entity;
+    }
+
+    /// <summary>Returns an O(1) read-only diagnostics snapshot.</summary>
+    public WorldStatistics GetStatistics()=>new(this.RuntimeState.AliveEntityCount,this.EntityArchetypeIndices.Count,this.Commands.Destroys,this.Commands.SceneUnloads,this.Commands.CellUnloads);
+
+    /// <summary>Captures the completed component-write boundary for a later generated changed query.</summary>
+    public ChangeVersion CaptureChangeVersion()=>new(this.RuntimeState.ChangeVersion);
+
+    internal ChangeVersion AdvanceChangeVersion(){
+        this.RuntimeState.ChangeVersion=unchecked(this.RuntimeState.ChangeVersion+1);
+        if(this.RuntimeState.ChangeVersion==0){ this.RuntimeState.ChangeVersion=1; }
+        return new ChangeVersion(this.RuntimeState.ChangeVersion);
+    }
+
+    internal Entity AllocateEntity(Archetype Archetype,int ArchetypeIndex){
+        this.AssertDirectStructuralMutationAllowed();
+        Entity Entity;
+        if(this.FreeEntityIndices.TryRemoveLast(out var SlotIndex)){
+            ref var Row=ref this.EntityArchetypeIndices.GetRefUnchecked(SlotIndex);
+            Entity=Row.Entity;
+            Row=new EntityLocation(Entity,Archetype,ArchetypeIndex);
+        } else {
+            Entity=new Entity(this.EntityArchetypeIndices.Count,1);
+            this.EntityArchetypeIndices.Add(new EntityLocation(Entity,Archetype,ArchetypeIndex));
         }
-        return new WorldStatistics(Alive,this.EntityArchetypeIndices.Count,this.DestroyCommands.Count,this.SceneUnloadCommands.Count);
+        this.RuntimeState.AliveEntityCount=checked(this.RuntimeState.AliveEntityCount+1);
+        return Entity;
+    }
+
+    internal Entity ReserveEntity(){
+        Entity Entity;
+        if(this.FreeEntityIndices.TryRemoveLast(out var SlotIndex)){
+            ref var Row=ref this.EntityArchetypeIndices.GetRefUnchecked(SlotIndex);
+            Entity=Row.Entity;
+            Row=new EntityLocation(Entity,Archetype.None,-1){ Reserved=true };
+        } else {
+            Entity=new Entity(this.EntityArchetypeIndices.Count,1);
+            this.EntityArchetypeIndices.Add(new EntityLocation(Entity,Archetype.None,-1){ Reserved=true });
+        }
+        return Entity;
+    }
+
+    internal bool ActivateReservedEntity(Entity Entity,Archetype Archetype,int ArchetypeIndex){
+        if(!this.IsReserved(Entity)){ return false; }
+        ref var Row=ref this.EntityArchetypeIndices.GetRefUnchecked(Entity.Index);
+        Row.Archetype=Archetype;
+        Row.Index=ArchetypeIndex;
+        Row.Reserved=false;
+        this.RuntimeState.AliveEntityCount=checked(this.RuntimeState.AliveEntityCount+1);
+        return true;
+    }
+
+    internal void ReleaseEntity(Entity Entity){
+        ref var Row=ref this.EntityArchetypeIndices.GetRefUnchecked(Entity.Index);
+        if(Row.Persistent.IsValid&&this.PersistentEntities.TryGetValue(Row.Persistent,out var Registered)&&Registered==Entity){
+            this.PersistentEntities.Remove(Row.Persistent);
+        }
+        var NextGeneration=Entity.Generation+1;
+        Row=new EntityLocation(new Entity(Entity.Index,NextGeneration),Archetype.None,-1);
+        this.RuntimeState.AliveEntityCount--;
+        if(NextGeneration!=0){ this.FreeEntityIndices.Add(Entity.Index); }
     }
 
     /// <summary>System実行中でも安全な破棄。実際の破棄はフレーム末尾に適用される。</summary>
     public bool DestroyDeferred(Entity Entity,ref State State){
-        this.DestroyCommands.Add(Entity);
+        if(!this.IsAlive(Entity)){ return false; }
+        this.Commands.Destroy(Entity);
         return true;
     }
 
+    internal void AssertDirectStructuralMutationAllowed(){
+        if(this.Commands.IsSystemExecuting){
+            throw new InvalidOperationException("Direct structural mutation is forbidden during system execution. Queue it through World.Commands.");
+        }
+    }
+
+    internal void BeginSystemExecution()=>this.Commands.BeginSystemExecution();
+
+    internal void EndSystemExecution()=>this.Commands.EndSystemExecution();
+
     /// <summary>新しいSceneインスタンスを確保する。生成された<c>Instantiate</c>だけが呼ぶ。</summary>
     public SceneInstance BeginSceneInstance(){
+        this.AssertDirectStructuralMutationAllowed();
         return this.SceneInstances.Allocate();
+    }
+
+    public SceneInstance BeginSceneInstanceDeferred(){
+        var Instance=this.SceneInstances.Allocate(Active:false);
+        this.Commands.BeginScene(Instance);
+        return Instance;
     }
 
     /// <summary>
@@ -120,19 +308,38 @@ public partial struct World {
     /// ゲームプレイが実行時に作ったEntityを後からSceneへ加えることもできる。
     /// </summary>
     public Entity AttachToScene(SceneInstance Instance,Entity Entity){
+        this.AssertDirectStructuralMutationAllowed();
         if(this.SceneInstances.Resolve(Instance) is not { } Slot||!this.IsAlive(Entity)){
             return Entity;
         }
 
-        this.EntityArchetypeIndices.GetRefUnchecked(Entity.Id).SceneSlot=Instance.Slot;
+        ref var Location=ref this.EntityArchetypeIndices.GetRefUnchecked(Entity.Id);
+        Location.Cell=default;
+        Location.SceneSlot=Instance.Slot;
         Slot.Entities.Add(Entity);
         return Entity;
     }
 
+    public Entity AttachToSceneDeferred(SceneInstance Instance,Entity Entity){
+        if(this.SceneInstances.ResolvePending(Instance)is null||(!this.IsAlive(Entity)&&!this.IsReserved(Entity))){
+            throw new InvalidOperationException("A deferred scene attachment requires matching pending handles.");
+        }
+        this.Commands.AttachScene(Instance,Entity);
+        return Entity;
+    }
+
     public void EndSceneInstance(SceneInstance Instance,Entity Root){
+        this.AssertDirectStructuralMutationAllowed();
         if(this.SceneInstances.Resolve(Instance) is { } Slot){
             Slot.Root=Root;
         }
+    }
+
+    public void EndSceneInstanceDeferred(SceneInstance Instance,Entity Root){
+        if(this.SceneInstances.ResolvePending(Instance)is null||(!this.IsAlive(Root)&&!this.IsReserved(Root))){
+            throw new InvalidOperationException("A deferred scene root requires matching pending handles.");
+        }
+        this.Commands.EndScene(Instance,Root);
     }
 
     public bool IsSceneAlive(SceneInstance Instance){
@@ -158,6 +365,7 @@ public partial struct World {
     /// <see cref="UnloadSceneDeferred"/>を使うこと(実行中かどうかを知る手段が無いのでアサートは置けない)。
     /// </summary>
     public void UnloadScene(SceneInstance Instance){
+        this.AssertDirectStructuralMutationAllowed();
         if(this.SceneInstances.Resolve(Instance) is not { } Slot){
             return;
         }
@@ -177,7 +385,65 @@ public partial struct World {
     }
 
     public bool UnloadSceneDeferred(SceneInstance Instance,ref State State){
-        this.SceneUnloadCommands.Add(Instance);
+        this.Commands.UnloadScene(Instance);
+        return true;
+    }
+
+    /// <summary>Assigns exclusive cell ownership and a stable identity to a live entity.</summary>
+    public Entity AttachToCell(WorldCellId Cell,PersistentEntityId Persistent,Entity Entity){
+        this.AssertDirectStructuralMutationAllowed();
+        if(!Cell.IsValid){ throw new ArgumentException("A valid world-cell ID is required.",nameof(Cell)); }
+        if(!Persistent.IsValid){ throw new ArgumentException("A valid persistent entity ID is required.",nameof(Persistent)); }
+        if(!this.IsAlive(Entity)){ throw new InvalidOperationException("A stale entity cannot be attached to a world cell."); }
+        ref var Location=ref this.EntityArchetypeIndices.GetRefUnchecked(Entity.Id);
+        if(Location.Persistent.IsValid&&Location.Persistent!=Persistent){
+            throw new InvalidOperationException("A live entity cannot change its persistent identity.");
+        }
+        if(this.PersistentEntities.TryGetValue(Persistent,out var Existing)&&Existing!=Entity&&this.IsAlive(Existing)){
+            throw new InvalidOperationException("The persistent entity ID already belongs to another live entity.");
+        }
+        if(Location.Cell==Cell&&Location.Persistent==Persistent){ return Entity; }
+        if(!this.CellEntities.TryGetValue(Cell,out var Owned)){
+            Owned=new ChunkBuffer<Entity>();
+            this.CellEntities.Add(Cell,Owned);
+        }
+        Location.SceneSlot=-1;
+        Location.Cell=Cell;
+        Location.Persistent=Persistent;
+        this.PersistentEntities[Persistent]=Entity;
+        Owned.Add(Entity);
+        return Entity;
+    }
+
+    public WorldCellId GetOwningCell(Entity Entity)=>this.IsAlive(Entity)?this.EntityArchetypeIndices.GetRefUnchecked(Entity.Id).Cell:default;
+
+    public PersistentEntityId GetPersistentEntityId(Entity Entity)=>this.IsAlive(Entity)?this.EntityArchetypeIndices.GetRefUnchecked(Entity.Id).Persistent:default;
+
+    public bool TryResolve(PersistentEntityId Persistent,out Entity Entity){
+        if(Persistent.IsValid&&this.PersistentEntities.TryGetValue(Persistent,out Entity)&&this.IsAlive(Entity)){
+            return true;
+        }
+        Entity=default;
+        return false;
+    }
+
+    public bool HasOwnedCell(WorldCellId Cell)=>Cell.IsValid&&this.CellEntities.ContainsKey(Cell);
+
+    public bool CanAttachToCell(WorldCellId Cell,PersistentEntityId Persistent){
+        if(!Cell.IsValid||!Persistent.IsValid){ return false; }
+        return !this.PersistentEntities.TryGetValue(Persistent,out var Existing)||!this.IsAlive(Existing);
+    }
+
+    public bool UnloadCell(WorldCellId Cell){
+        this.AssertDirectStructuralMutationAllowed();
+        if(!this.CellEntities.TryGetValue(Cell,out var Owned)){ return false; }
+        for(var Index=Owned.Count-1;Index>=0;Index--){
+            var Entity=Owned.GetRefUnchecked(Index);
+            if(this.IsAlive(Entity)&&this.EntityArchetypeIndices.GetRefUnchecked(Entity.Id).Cell==Cell){
+                this.Destroy(Entity);
+            }
+        }
+        this.CellEntities.Remove(Cell);
         return true;
     }
 
@@ -191,23 +457,28 @@ public partial struct World {
         return TScene.Instantiate(ref this);
     }
 
+    public SceneInstance InstantiateSceneDeferred<TScene>()where TScene:IScene,ISceneDefinition{
+        return TScene.InstantiateDeferred(ref this);
+    }
+
+    public void InstantiateCell<TScene>(WorldCellId Cell)where TScene:IScene,ISceneDefinition{
+        TScene.InstantiateCell(ref this,Cell);
+    }
+
     /// <summary>
-    /// 遅延された破棄要求を適用する。生成された<c>PlaybackStructuralChanges</c>が、Archetype移動の
-    /// 適用を終えたあとに呼ぶ(移動してから破棄したEntityへ、破棄後の墓石行に対して移動を適用して
-    /// しまわないようにするため)。<see cref="Destroy"/>は冪等なので二重破棄も安全。
+    /// 生成された<c>PlaybackStructuralChanges</c>からglobal enqueue orderで呼ばれる非Move command。
+    /// <see cref="Destroy"/>は冪等なので二重破棄も安全。
     /// </summary>
-    internal void PlaybackSceneCommands(){
-        for(var Index=0;Index<this.DestroyCommands.Count;Index++){
-            this.Destroy(this.DestroyCommands.GetRefUnchecked(Index));
+    internal void PlaybackNonMoveStructuralCommand(in EntityCommand Command){
+        switch(Command.Kind){
+            case EntityCommandKind.Destroy:this.Destroy(Command.Entity);break;
+            case EntityCommandKind.SceneBegin:this.SceneInstances.Activate(Command.Scene);break;
+            case EntityCommandKind.SceneAttach:this.AttachToScene(Command.Scene,Command.Entity);break;
+            case EntityCommandKind.SceneEnd:this.EndSceneInstance(Command.Scene,Command.Entity);break;
+            case EntityCommandKind.SceneUnload:this.UnloadScene(Command.Scene);break;
+            case EntityCommandKind.CellUnload:this.UnloadCell(Command.Cell);break;
+            default:throw new ArgumentOutOfRangeException(nameof(Command));
         }
-
-        this.DestroyCommands.Clear();
-
-        for(var Index=0;Index<this.SceneUnloadCommands.Count;Index++){
-            this.UnloadScene(this.SceneUnloadCommands.GetRefUnchecked(Index));
-        }
-
-        this.SceneUnloadCommands.Clear();
     }
 }
 
@@ -284,5 +555,13 @@ internal sealed class ChunkBuffer<T>{
         }
 
         this.Count=0;
+    }
+
+    internal bool TryRemoveLast(out T Item){
+        if(this.Count==0){ Item=default!;return false; }
+        var Index=--this.Count;
+        Item=this.Items.GetRefUnchecked(Index);
+        this.Items.ClearAtUnchecked(Index);
+        return true;
     }
 }

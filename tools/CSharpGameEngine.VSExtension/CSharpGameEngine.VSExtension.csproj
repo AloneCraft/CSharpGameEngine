@@ -47,6 +47,7 @@
     <CSharpGameEngineVsixVersion>0.1.7</CSharpGameEngineVsixVersion>
     <CSharpGameEngineBuildUtc>$([System.DateTime]::UtcNow.ToString('O'))</CSharpGameEngineBuildUtc>
     <CSharpGameEngineGitRevision>unknown</CSharpGameEngineGitRevision>
+    <CgeEditorPreviewHostProject>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../CSharpGameEngine.EditorPreview.Host/CSharpGameEngine.EditorPreview.Host.csproj'))</CgeEditorPreviewHostProject>
 
     <!-- Release tracking for the Scene DSL descriptors is owned by CSharpGameEngine.CodeAnalysis,
          which is where they actually ship as an analyzer. Tracking them again here would create a
@@ -56,6 +57,7 @@
 
   <ItemGroup>
     <ProjectCapability Include="CreateVsixContainer" />
+    <ProjectReference Include="..\..\src\CSharpGameEngine.Contracts\CSharpGameEngine.Contracts.csproj" />
     <ProjectReference Include="..\..\src\CSharpGameEngine.ShaderGraph\CSharpGameEngine.ShaderGraph.csproj" />
   </ItemGroup>
 
@@ -64,6 +66,16 @@
     <PackageReference Include="Microsoft.VisualStudio.TemplateWizardInterface" Version="17.10.40170" ExcludeAssets="runtime" />
     <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="18.8.739" />
 
+    <!-- The net472 compiler does not provide the runtime-agnostic C# language feature types used
+         by this project. These polyfills previously arrived accidentally through the removed
+         Vortice/SharpGen renderer dependency; keep the actual build requirement explicit and
+         prevent the source generator from becoming a VSIX runtime asset. -->
+    <PackageReference Include="PolySharp" Version="1.10.0" PrivateAssets="all" />
+
+    <!-- System.HashCode is not part of net472. This was also hidden behind the old
+         Vortice.Mathematics dependency and remains an explicit copy-local runtime requirement. -->
+    <PackageReference Include="Microsoft.Bcl.HashCode" Version="1.1.1" />
+
     <!-- ADR-0021: GameEngineLayout casts EnvDTE.DTE.CommandBars (typed as plain System.Object)
          to this strongly-typed interface to show the "C# Game Engine" toolbar programmatically -
          no .vsct flag makes a new toolbar visible by default (confirmed against VSCT.xsd and
@@ -71,16 +83,6 @@
          shown-vs-hidden). ExcludeAssets="runtime" matches the SDK metapackage above - the real DLL
          is supplied by devenv.exe itself at load time. -->
     <PackageReference Include="Microsoft.VisualStudio.CommandBars" Version="17.14.40260" ExcludeAssets="runtime" />
-
-    <!-- In-process D3D12 rendering (ADR-0008): TerraFX.Interop.Windows (used by the net10.0
-         Graphics.D3D12 project) targets net5.0+ only and cannot be referenced from this net472
-         project. Vortice.Windows 2.4.2 is the last version series that still targets
-         netstandard2.0, so it's usable here - confirmed against real NuGet package metadata
-         before adding. Deliberately not shared with Graphics.D3D12: this stays its own
-         self-contained net472 rendering path. -->
-    <PackageReference Include="Vortice.Direct3D12" Version="2.4.2" />
-    <PackageReference Include="Vortice.DXGI" Version="2.4.2" />
-    <PackageReference Include="Vortice.D3DCompiler" Version="2.4.2" />
 
     <!-- ADR-0010/ADR-0019: deserializes the JSON produced by both out-of-process import bridges
          (CSharpGameEngine.Import.Fbx.Cli and CSharpGameEngine.Import.Gltf.Cli). Neither AssimpNet
@@ -128,6 +130,9 @@
          default for SDK-style net472 projects. -->
     <Reference Include="System.Design" />
     <Reference Include="System.ComponentModel.Composition" />
+    <!-- WindowPane.PreProcessMessage is the VS TranslateAccelerator boundary and its public
+         contract uses System.Windows.Forms.Message even for WPF-hosted panes. -->
+    <Reference Include="System.Windows.Forms" />
   </ItemGroup>
 
   <ItemGroup>
@@ -187,6 +192,11 @@
     <Content Include="..\..\assets\Shaders\Aces.cgesubgraph" Link="ShaderGraphTemplates\Aces.cgesubgraph"><IncludeInVSIX>true</IncludeInVSIX><VSIXSubPath>ShaderGraphTemplates</VSIXSubPath></Content>
     <Content Include="..\..\assets\Shaders\Model.cgeshadergraph" Link="ShaderGraphTemplates\Model.cgeshadergraph"><IncludeInVSIX>true</IncludeInVSIX><VSIXSubPath>ShaderGraphTemplates</VSIXSubPath></Content>
     <Content Include="..\..\assets\Shaders\Triangle.cgeshadergraph" Link="ShaderGraphTemplates\Triangle.cgeshadergraph"><IncludeInVSIX>true</IncludeInVSIX><VSIXSubPath>ShaderGraphTemplates</VSIXSubPath></Content>
+    <CgeShaderGraph Include="../../assets/Shaders/Stage.cgeshadergraph" />
+    <CgeShaderSubgraph Include="../../assets/Shaders/Pbr.cgesubgraph" />
+    <CgeShaderSubgraph Include="../../assets/Shaders/Shadow.cgesubgraph" />
+    <CgeShaderSubgraph Include="../../assets/Shaders/Pcss.cgesubgraph" />
+    <CgeShaderSubgraph Include="../../assets/Shaders/Aces.cgesubgraph" />
   </ItemGroup>
   <ItemGroup>
     <AssemblyMetadata Include="CSharpGameEngineRepoRoot" Value="$(CSharpGameEngineRepoRoot)" />
@@ -263,23 +273,56 @@
     </ItemGroup>
   </Target>
 
-  <!--
-    WPF's incremental markup compiler can leave the generated .g.cs files in place while dropping
-    one or more BAML files (for example after a control is renamed).  A normal Visual Studio F5
-    build must repair that state automatically; otherwise the deployment target would install an
-    assembly whose g.resources is incomplete.  Touching the Page inputs is enough to invalidate the
-    markup compiler without deleting obj/project.assets.json or any user source file content.
-  -->
+  <!-- F-L8-018: the VSIX is only a client. Publish the exact same-configuration x64 Preview Host
+       into an owned staging directory and package its complete framework-dependent closure with
+       the compiled Stage artifact. No native renderer assembly is loaded into devenv.exe. -->
+  <Target Name="StageEditorPreviewHostForVsix"
+          BeforeTargets="GetVsixSourceItems"
+          DependsOnTargets="CompileCgeShaderGraphs">
+    <PropertyGroup>
+      <CgeEditorPreviewHostStageDirectory Condition="$([System.IO.Path]::IsPathRooted('$(IntermediateOutputPath)'))">$(IntermediateOutputPath)PreviewHost\</CgeEditorPreviewHostStageDirectory>
+      <CgeEditorPreviewHostStageDirectory Condition="'$(CgeEditorPreviewHostStageDirectory)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/$(IntermediateOutputPath)PreviewHost/'))</CgeEditorPreviewHostStageDirectory>
+    </PropertyGroup>
+    <RemoveDir Directories="$(CgeEditorPreviewHostStageDirectory)" />
+    <MakeDir Directories="$(CgeEditorPreviewHostStageDirectory)" />
+    <MSBuild Projects="$(CgeEditorPreviewHostProject)"
+             Targets="Publish"
+             Properties="Configuration=$(Configuration);Platform=x64;SelfContained=false;PublishDir=$(CgeEditorPreviewHostStageDirectory)"
+             BuildInParallel="false" />
+    <MakeDir Directories="$(CgeEditorPreviewHostStageDirectory)Shaders" />
+    <Copy SourceFiles="$(CgeShaderGraphIntermediateDirectory)Stage.cgeshaderartifact"
+          DestinationFolder="$(CgeEditorPreviewHostStageDirectory)Shaders" />
+    <ItemGroup>
+      <_CgeEditorPreviewHostPayload Include="$(CgeEditorPreviewHostStageDirectory)**/*"
+                                    Exclude="$(CgeEditorPreviewHostStageDirectory)**/*.pdb" />
+      <VSIXSourceItem Include="@(_CgeEditorPreviewHostPayload)">
+        <VSIXSubPath>PreviewHost/%(RecursiveDir)</VSIXSubPath>
+      </VSIXSourceItem>
+    </ItemGroup>
+  </Target>
+
+   <!--
+     WPF's incremental markup compiler can leave the generated .g.cs files in place while dropping
+     one or more BAML files (for example after a control is renamed). A normal Visual Studio F5
+     build must repair that state automatically; otherwise the deployment target would install an
+     assembly whose g.resources is incomplete. Remove only the markup compiler cache and generated
+     Page outputs when a BAML is missing so MarkupCompilePass1/2 must regenerate them. Do not remove
+     obj/project.assets.json or any user source file content.
+   -->
   <Target Name="RepairIncompleteWpfBamlResources"
           BeforeTargets="MarkupCompilePass1"
           Condition="'$(DesignTimeBuild)' != 'true'">
     <ItemGroup>
       <_ExpectedWpfBamlForRepair Include="@(Page->'$(IntermediateOutputPath)%(Filename).baml')" />
       <_MissingWpfBamlForRepair Include="@(_ExpectedWpfBamlForRepair)" Condition="!Exists('%(Identity)')" />
+       <_GeneratedWpfPageOutputForRepair Include="@(Page->'$(IntermediateOutputPath)%(Filename).g.cs')" />
+       <_GeneratedWpfPageOutputForRepair Include="@(Page->'$(IntermediateOutputPath)%(Filename).g.i.cs')" />
+       <_GeneratedWpfPageOutputForRepair Include="@(_ExpectedWpfBamlForRepair)" />
+       <_WpfMarkupCacheForRepair Include="$(IntermediateOutputPath)$(AssemblyName)_MarkupCompile.cache" />
+       <_WpfMarkupCacheForRepair Include="$(IntermediateOutputPath)$(AssemblyName)_MarkupCompile.lref" />
     </ItemGroup>
-    <Touch Files="@(Page)"
-           AlwaysCreate="true"
-           Condition="'@(_MissingWpfBamlForRepair)' != ''" />
+     <Delete Files="@(_GeneratedWpfPageOutputForRepair);@(_WpfMarkupCacheForRepair)"
+             Condition="'@(_MissingWpfBamlForRepair)' != ''" />
   </Target>
 
   <!-- A stale WPF incremental-build cache can produce the generated .g.cs files while omitting

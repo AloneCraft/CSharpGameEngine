@@ -3334,34 +3334,34 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 ## F-L5-003 — Deterministic local rigid-body Physics Runtime
 
 - Layer: L5 — Runtime Feature Modules
-- Status: PartiallyImplemented
-- Verification: TestVerified for Q32.32, Logical conversion, AABB broadphase/basic body/query/sleep; UserEcsProject Runtime smoke verified for the current startup scenes.
+- Status: Implemented
+- Verification: TestVerified in Debug and Release for LogicalScalar domain-local simulation, rotated analytic primitive contacts, support-mapped GJK/EPA, cooked static-mesh BVH, four-point manifolds, 8/3 sequential impulses, warm start, sleep/wake, trigger/event lifecycle, angular integration, ContinuousStatic CCD, overflow fault isolation, deterministic insertion order, and zero managed allocation in warmed contact ticks.
 - Evidence: `src/CSharpGameEngine.Runtime.Physics/`, `tests/CSharpGameEngine.Windows.Tests/Physics/`.
-- Conformance: Partial. GJK/EPA, mesh BVH, full manifold/warm start iteration solver and ContinuousStatic CCD remain missing.
+- Conformance: Matches the required local rigid-body scope. Dynamic-dynamic CCD, joints, deformables, GPU/parallel solvers, and runtime destruction remain separate Deferred features.
 
 ## F-L6-002 — Physics Cooking and Simulation Cache artifacts
 
 - Layer: L6 — Runtime Artifacts
-- Status: PartiallyImplemented
-- Verification: TestVerified for key identity, serialization rejection, stable bond order.
-- Evidence: `PhysicsCooking.cs`, `PhysicsCache.cs`, `PhysicsBakeTests.cs`.
-- Conformance: Partial. Actual convex/mesh/Voronoi cooking, playback/handoff, and incremental build copy are missing.
+- Status: Implemented
+- Verification: TestVerified in Debug and Release for canonical convex/static-mesh artifacts, deterministic BVH, immutable cook identity, atomic publish/reuse, concurrent convergence, corruption and path-boundary rejection, strict cache serialization, transactional playback, explicit realtime handoff, engine-owned sequential spool lifecycle, and Q64.64 offline Voronoi prefracture artifacts. Prefracture coverage includes deterministic seeds, 2-16 fragments, 1/16-1024 scale, volume conservation, bond connectivity, closed consistently-wound single-shell meshes, mesh/collision identity, strict serialization, atomic publication, corrupt immutable entry rejection, and real GLB CLI cooking.
+- Evidence: PhysicsCooking.cs, PhysicsCache.cs, PrefractureCooking.cs, PhysicsBakeTests.cs, tools/CSharpGameEngine.Physics.Cli/.
+- Conformance: Matches. The playback artifact contains the closed render mesh, local convex collision shape, center, mass, stable fragment index, and ordered adjacency bonds for every fragment. Runtime topology mutation remains the separately Deferred destruction domain rather than an L6 artifact responsibility.
 
 ## F-L7-020 — Physics CLI and Bake Host
 
 - Layer: L7 — Static Compiler / Bake
-- Status: PartiallyImplemented
-- Verification: CodeVerified; CLI Debug build.
-- Evidence: `tools/CSharpGameEngine.Physics.Cli/`.
-- Conformance: Partial. CLI emits identity artifacts, but does not yet instantiate and simulate a Scene; VSIX Bake buttons remain disabled rather than generating a false successful cache.
+- Status: Implemented
+- Verification: TestVerified in Debug and Release. The `rigid.physics` Stage passes 48/48 tests in both configurations; the Release CLI build and real GLB static-mesh/convex/prefracture cook smoke pass.
+- Evidence: `GeneratedSceneBakeHostEmitter.cs`, `GameSystemLoopEmitter.cs`, `PhysicsCache.cs`, `PhysicsWorldIntegration.cs`, `EngineHost.cs`, `tools/CSharpGameEngine.Physics.Cli/`, `GeneratedSceneBakeHostTests.cs`, and `PhysicsBakeTests.cs`.
+- Conformance: Matches. The source generator emits an exact fully-qualified C# Scene switch and a headless Fixed/Physics/PostPhysics tick path. The host streams canonical frames through bounded host-owned scratch storage, rejects cancellation/unknown scenes/early loop termination, and the CLI publishes through a same-directory temporary file so failure preserves the prior cache. VSIX Bake commands remain the separate F-L8-014 scope.
 
 ## F-L8-014 — Scene View Physics control and debug overlay
 
 - Layer: L8 — Visual Studio Authoring Environment
-- Status: PartiallyImplemented
-- Verification: TestVerified for overlay generation and VSIX Debug/Release builds; Experimental Instance visual smoke pending.
-- Evidence: `PhysicsDebugClient.cs`, `PhysicsDebugOverlay.cs`, `SceneHwndHost.cs`, `SceneDesignerToolWindowControl.xaml`.
-- Conformance: Partial. AABB/velocity/sleep/COM and simulate/pause/step/reset exist; contact/tree/fracture bond and Bake execution remain missing.
+- Status: Implemented
+- Verification: TestVerified in Debug and Release for protocol-v2 validation, bounded body/contact/tree/bond overlay generation, canonical `global::` Destructible discovery, exact-host identity, source-closure hashing, target-local cache paths, live Scene commit before disk Bake, variable-argument versioned requests, timeout and client-disconnect cancellation, and Bake button wiring. Experimental Instance visual certification remains manual evidence rather than an implementation dependency.
+- Evidence: `PhysicsDebugClient.cs`, `PhysicsDebugOverlay.cs`, `PrefractureDebugService.cs`, `PhysicsSceneBakeService.cs`, `SceneHwndHost.cs`, `SceneDesignerToolWindowControl.xaml`, `ResidentBridgeClient.cs`, `BridgeServerHost.cs`, `PhysicsDebugOverlayTests.cs`, `PrefractureDebugServiceTests.cs`, `PhysicsSceneBakeServiceTests.cs`, and `BridgeServerHostTests.cs`.
+- Conformance: Matches. AABB/velocity/sleep/COM/contact/tree/fracture bond overlays and simulate/pause/step/reset are available. Bake Selected/All commits only requested Scene edits to their C# authoring source, saves only the requested open source files, builds/reuses a source-fingerprinted exact host, publishes atomically, and propagates cancellation through the resident connection to the host handler.
 
 ## F-L8-015 — VSIX English/Japanese localization
 
@@ -3424,13 +3424,123 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 ## F-L3-020 — Extended static ECS component mask
 
 - Layer: L3 — ECS / Job Runtime
-- Status: Deferred
-- Verification: Unverified; future Stage `foundation.extended-ecs-mask` is registered as `NotImplemented`
+- Parent capability: ECS Runtime / Planetary World
+- Status: Implemented
+- Verification: Automated; `foundation.extended-ecs-mask` executes the 64/65/128 boundaries and 129-type diagnostic
 - Intended specification: `Docs/Feature-Stages.md#基盤stageと64型上限`
-- Current behavior: `GameSystemIndexAssigner.MaxComponentTypes` remains 64. Mask matching occurs only while generating source; generated Runtime dispatch contains direct Archetype loops and pays no mask cost.
-- Target behavior: preserve the 1–64 single-mask generator path, use two masks for 65–128, and emit an explicit diagnostic for 129 or more.
-- Conformance: Matches the current decision to retain the 64-type limit.
-- Next action: implement only when a real stage composition requires more than 64 Component types.
+- Stage: `foundation.extended-ecs-mask` (`Executable`, Headless / Foundation, 900s)
+- Depends on: F-L3-021
+- Current behavior: `GameSystemIndexAssigner.MaxComponentTypes` is 128. Generator-time subset selection uses only the low word for 1–64 types and low/high words for 65–128; generated Runtime dispatch remains direct Archetype loops with no runtime mask matching.
+- Target behavior: preserve the 1–64 low-word path, execute 65–128 without high/low aliasing, and emit SYSGEN026 for 129 or more.
+- Conformance: Matches the required 128-type planetary workload; 65 and 128 compile and execute high-component queries in the automated oracle.
+- Next action: include the executable Stage in clean Debug/Release and stress closure.
+
+## F-L1-009 — Canonical LogicalScalar and float boundary
+
+- Layer: L1 — Core Contracts
+- Parent capability: World Scale
+- Status: Implemented
+- Verification: TestVerified
+- Intended specification: `Docs/Specifications/World-Scale-Runtime.md#canonical-numeric-model`
+- Stage: `world.logical-scalar` (`Executable`, Headless / Foundation, 900s)
+- Depends on: None
+- Current delta: None in the canonical numeric contract. Engine-owned authoritative values use Q64.64 `LogicalScalar`; relative rendering/UI values use `float`. Framework-required `double` is confined to a marked method/property or an external interface signature and is validated/projected to `float` without engine-owned storage. Type/class-wide adapter exemptions are rejected.
+- Adversarial corrections: decimal parsing now rejects every integer magnitude above the signed Q64.64 range before the 64-bit scale shift, preventing `2^64`-class inputs from wrapping to an unrelated raw value. The numeric analyzer no longer lets a class-level adapter marker or `DependencyObject` inheritance hide forbidden fields, and an external `double` member may not remain in an inferred `var`; WPF/UI Automation sites project to `float` at their boundary.
+- Conformance: `CSharpGameEngine.Numerics.Tests` (10), `CSharpGameEngine.CodeAnalysis.Tests` (146), Debug/Release `world.logical-scalar`, full Debug solution tests (2,038), and full Release solution tests (2,037).
+- Next action: Keep the analyzer and property oracle in every Debug/Release closure while migrating later subsystems.
+
+## F-L2-006 — Persistent world identity contracts
+
+- Layer: L2 — Asset Schemas
+- Parent capability: World Scale
+- Status: Implemented
+- Verification: Automated
+- Intended specification: `Docs/Specifications/World-Scale-Runtime.md#identity-and-source-of-truth`
+- Stage: `world.identity` (`Executable`, Headless / Foundation, 900s)
+- Depends on: None
+- Current delta: None. Runtime `Entity(Index,Generation)` is recyclable and process-local, while frame, cell, asset, and authored entity identities are typed persistent `StableId` values.
+- Conformance: `WorldIdentityTests` and `CellUnloadAtPlaybackInvalidatesRuntimeAndPersistentHandles` verify canonical round-trip and slot-reuse separation.
+- Next action: keep persistent IDs as the only cross-cell and serialized reference representation.
+
+## F-L4-013 — Engine host resource ownership
+
+- Layer: L4 — Domain Servers
+- Parent capability: World Scale
+- Status: Implemented
+- Verification: TestVerified (generated runtime build, ownership/clock/streaming tests and executable Stage)
+- Intended specification: `Docs/Specifications/World-Scale-Runtime.md#ownership-and-lifecycle`
+- Stage: `world.host-ownership` (`Executable`, Headless / Foundation, 900s)
+- Depends on: F-L2-006
+- Current delta: None. Async loading policy and spatial active-set selection remain F-L5-037/F-L4-006 responsibilities, not ownership gaps.
+- Evidence: `EngineHost` owns one `WorldOwner`, Core fixed-tick clock, ReferenceFrameGraph, optional WorldCellStreamingService, per-frame physics runtimes, audio server/mixer, renderer, input, and window. Generated runtime and preview entrypoints borrow this tree; host disposal unloads/releases streaming data and invalidates the World lease.
+- Conformance: Matches. Generator tests, real UserEcsProject build, World/clock/streaming ownership tests, Component reflection scan, and `world.host-ownership` prove one owner and reverse-order release.
+- Next action: Preserve this ownership boundary while later render visibility and shipping-content Features consume the completed active-cell snapshot.
+
+## F-L5-036 — Hierarchical reference frame graph
+
+- Layer: L5 — Integrated Runtime
+- Parent capability: World Scale
+- Status: Implemented
+- Verification: Automated
+- Intended specification: `Docs/Specifications/World-Scale-Runtime.md#reference-frame-graph`
+- Stage: `celestial.hierarchical-frames` (`Executable`, Visual / Celestial, 1800s)
+- Depends on: F-L1-009, F-L2-006, F-L5-035
+- Current delta: None for the bounded-depth frame tree, command-buffered mutations, and immutable fixed-tick snapshots.
+- Conformance: `ReferenceFrameGraphTests` cover cycle and missing-parent rejection, depth bounds, reparenting, deterministic command application, and snapshot publication.
+- Next action: consume the immutable snapshots through F-L5-027 frame-relative rendering, physics, and audio extraction.
+
+## F-L6-008 — World cell partition artifacts
+
+- Layer: L6 — Runtime Artifacts
+- Parent capability: World Scale
+- Status: Implemented
+- Verification: Automated
+- Intended specification: `Docs/Specifications/World-Scale-Runtime.md#world-cell-artifacts`
+- Stage: `world.cell-artifacts` (`Executable`, Headless / Foundation, 900s)
+- Depends on: F-L2-006, F-L5-036, F-L6-005
+- Current delta: None for the canonical sparse cell schema and deterministic artifact envelope. Runtime activation is implemented by F-L5-037.
+- Conformance: `WorldCellArtifactTests` cover deterministic round-trip, exact Q64.64 bounds, closure validation, corruption rejection, and canonical dependency ordering.
+- Next action: compile authoring definitions incrementally through F-L7-026 without changing the runtime artifact schema.
+
+## F-L5-023 — Kepler frame pose provider
+
+- Layer: L5 — Integrated Runtime
+- Parent capability: World Scale
+- Status: Implemented
+- Verification: Automated
+- Intended specification: `Docs/Specifications/World-Scale-Runtime.md#kepler-frame-provider`
+- Stage: `celestial.kepler` (`Executable`, Visual / Celestial, 1800s)
+- Depends on: F-L1-009, F-L5-036
+- Current delta: None. Immutable orbital elements and integer/domain time deterministically produce Q64.64 frame pose commands and velocity without entering the rigid-body solver.
+- Conformance: `KeplerFramePoseProviderTests` cover one-period closure, independent specific-energy error, high eccentricity, full-`ulong` ticks, domain time scale, command publication, explicit failure, and zero allocation.
+- Next action: consume published orbital frame snapshots through F-L5-027 frame-relative subsystem extraction.
+
+## F-L5-027 — Hierarchical celestial coordinates
+
+- Layer: L5 — Integrated Runtime
+- Parent capability: World Scale
+- Status: Implemented
+- Verification: TestVerified (Debug/Release subsystem tests and Celestial/WARP Stage)
+- Intended specification: `Docs/Specifications/World-Scale-Runtime.md#reference-frame-graph`
+- Stage: `celestial.frame-relative-runtime` (`Executable`, Visual / Celestial, 1800s)
+- Depends on: F-L5-036
+- Current delta: None. Visibility partitioning and cell selection are owned by F-L5-037/F-L4-006, not this coordinate contract.
+- Evidence: Runtime render and audio extraction compose source/listener/camera affines through the immutable host snapshot, stop at the least common ancestor, and convert only the final relative result to `float`. Physics uses host-owned per-frame solver/command/query state and rejects cross-domain bodies before mutation.
+- Conformance: Matches. Remote-root overflow, listener/camera-relative extraction, cross-domain rejection, and solver-state isolation are covered by Debug/Release subsystem tests and `celestial.frame-relative-runtime`.
+- Next action: Preserve the `LogicalScalar` authoritative/frame-relative `float` boundary while active-cell and visibility systems consume these snapshots.
+
+## F-L5-037 — Active-set world cell streaming
+
+- Layer: L5 — Integrated Runtime
+- Parent capability: World Scale
+- Status: Implemented
+- Verification: Automated
+- Intended specification: `Docs/Specifications/World-Scale-Runtime.md#cell-state-model`
+- Stage: `world.cell-streaming` (`Executable`, Headless / Foundation, 1800s)
+- Depends on: F-L3-021, F-L6-008
+- Current delta: None. Frame-local selection, canonical CAS resolution/retention, bounded dependency-wave prefetch, generated C# Scene payload activation, persistent cell ownership, rollback, unload, and last-known-good failure behavior are implemented.
+- Conformance: `ContentAddressedStoreTests`, `WorldCellRuntimeTests`, `WorldCellStreamingTests`, `WorldCellSpatialIndexTests`, `WorldCellEntityPayloadTests`, `CellUnloadAtPlaybackInvalidatesRuntimeAndPersistentHandles`, Scene generator E2E, and `GeneratedWorldCellActivationTests`.
+- Next action: consume the published active-cell snapshot from F-L4-006 visibility and package the reachable CAS closure in F-L6-006.
 
 ## Deferred Simulation/Physics features with designed Stages
 
@@ -3457,11 +3567,9 @@ All entries below remain `Deferred / Unverified`. Their intended behavior and de
 | F-L5-020 | Eulerian Grid | `fluid.eulerian-grid` | Unknown |
 | F-L5-021 | Runtime Voronoi / Boolean | `destruction.runtime-topology` | Unknown |
 | F-L5-022 | Voxel / SDF destruction | `destruction.voxel-sdf` | Unknown |
-| F-L5-023 | Kepler orbit | `celestial.kepler` | Unknown |
 | F-L5-024 | Direct N-body | `celestial.direct-nbody` | Unknown |
 | F-L5-025 | Barnes–Hut | `celestial.barnes-hut` | Unknown |
 | F-L5-026 | FMM | `celestial.fmm` | Unknown |
-| F-L5-027 | Hierarchical celestial coordinates | `celestial.hierarchical-frames` | Unknown |
 | F-L5-028 | Gameplay probability Domain | `probability.gameplay` | Unknown |
 | F-L5-029 | Wavefunction Grid | `probability.wavefunction-grid` | Unknown |
 | F-L5-030 | Monte Carlo scientific quantum Domain | `probability.monte-carlo-quantum` | Unknown |
@@ -3469,12 +3577,12 @@ All entries below remain `Deferred / Unverified`. Their intended behavior and de
 
 ## Deferred Simulation infrastructure and specified non-physics overrides
 
-F-L0-008 and F-L3-019 are non-physics Roadmap Features and are `Specified`; the remaining rows in this table remain Deferred simulation infrastructure.
+F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remaining rows in this table remain Deferred simulation infrastructure.
 
 | Feature ID | Capability | Stage ID | Status |
 |---|---|---|---|
-| F-L0-008 | D3D12 compute/readback | `foundation.d3d12-compute` | Specified |
-| F-L3-019 | Deterministic Job Runtime | `foundation.deterministic-jobs` | Specified |
+| F-L0-008 | D3D12 compute/readback | `foundation.d3d12-compute` | Implemented |
+| F-L3-019 | Deterministic Job Runtime | `foundation.deterministic-jobs` | Implemented |
 | F-L4-003 | Simulation backend contracts/adapters | `foundation.simulation-adapters` | Deferred |
 | F-L6-003 | Field/graph artifacts | `foundation.field-artifacts` | Deferred |
 | F-L5-032 | Animation/Physics pose bridge | `deformable.pose-bridge` | Deferred |
@@ -3488,7 +3596,7 @@ F-L0-008 and F-L3-019 are non-physics Roadmap Features and are `Specified`; the 
 - Status: Implemented
 - Verification: TestVerified
 - Intended specification: Docs/Specifications/Rendering.md#scope-and-current-baseline
-- Stage: rendering.baseline (Executable, Visual / Rendering, 1800s)
+- Stage: `rendering.baseline` (Executable, Visual / Rendering, 1800s)
 - Depends on: None
 - Current delta: Triangle, Model, Stage, lights, shadows, HDR, bloom, and ACES run from Shader Artifacts and retain WARP golden/readback and debug-layer oracles.
 - Conformance: Matches
@@ -3497,27 +3605,29 @@ F-L0-008 and F-L3-019 are non-physics Roadmap Features and are `Specified`; the 
 
 - Layer: L4 — Domain Servers
 - Parent capability: Rendering Roadmap
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified (topology, hazards, barriers, queue ownership, alias lifetime, invalid paths)
 - Intended specification: `Docs/Specifications/Rendering.md#target-public-contracts`
-- Stage: `rendering.render-graph` (`NotImplemented`, Headless / Foundation, 900s)
+- Stage: `rendering.render-graph` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L7-022
-- Current delta: No engine-owned graph compiler, hazard model, or transient alias contract exists.
-- Conformance: Unknown
-- Next action: Implement graph declaration/compile and remove the replaced ad-hoc pass lifetime path.
+- Current delta: none for the L4 graph compile contract. Existing D3D12 renderers still require migration to the graph executor under later rendering features.
+- Evidence: `src/CSharpGameEngine.Rendering/RenderGraph.cs`, `tests/CSharpGameEngine.Rendering.Tests/RenderGraphTests.cs`.
+- Conformance: Matches. Typed handles, stable topological order, RAW/WAR/WAW dependencies, resource transitions, cross-queue ownership, cycle/invalid-use rejection, and non-overlapping transient aliases are compiled without native types.
+- Next action: make the L0 D3D12 backend consume compiled transitions while implementing snapshot visibility in F-L4-006.
 
 ## F-L0-008 — D3D12 compute and readback
 
 - Layer: L0 — Platform / Native Backends
 - Parent capability: Rendering Roadmap
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified (WARP fixed-ABI compute/readback and D3D12 debug layer)
 - Intended specification: `Docs/Specifications/Rendering.md#stage-oracle-matrix`
-- Stage: `foundation.d3d12-compute` (`NotImplemented`, Visual / Rendering, 1800s)
+- Stage: `foundation.d3d12-compute` (`Executable`, Visual / Rendering, 1800s)
 - Depends on: F-L7-022
-- Current delta: The target compute/readback contract and CPU comparison oracle are not implemented.
-- Conformance: Unknown
-- Next action: Implement the private L0 compute path and keep D3D12 types below the Render Server boundary.
+- Current delta: none for the private compute/readback primitive.
+- Evidence: `assets/Shaders/ComputeVector.hlsl`, Compute `CGESHDR1` ABI/compiler path, `D3D12ComputeReadback`, and WARP tests.
+- Conformance: Matches. Runtime loads offline DXIL, uses upload/UAV/readback buffers and a completion fence, exposes only float arrays, rejects a wrong artifact before device creation, and reports zero debug-layer errors.
+- Next action: consume the compiled L4 Render Graph transitions from the D3D12 executor while migrating material and texture ownership.
 
 ## F-L6-004 — Shader artifact compiler and PSO provenance
 
@@ -3526,7 +3636,7 @@ F-L0-008 and F-L3-019 are non-physics Roadmap Features and are `Specified`; the 
 - Status: Implemented
 - Verification: TestVerified
 - Intended specification: Docs/Specifications/Rendering.md#data-flow and Docs/Specifications/Shader-Graph.md
-- Stage: rendering.shader-artifacts (Executable, Headless / Foundation, 1800s)
+- Stage: `rendering.shader-artifacts` (Executable, Headless / Foundation, 1800s)
 - Depends on: F-L7-022, F-L7-049
 - Current delta: CGESHDR1 records fixed target ABI, semantic/dependency hashes, compiler provenance, nine entry DXIL payloads, reflection, PSO key, and checksum. Runtime DXC is removed.
 - Conformance: Matches
@@ -3535,222 +3645,225 @@ F-L0-008 and F-L3-019 are non-physics Roadmap Features and are `Specified`; the 
 
 - Layer: L4 — Domain Servers
 - Parent capability: Rendering Roadmap
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified (canonical envelopes, dependency hashes, CPU sampling, runtime bake, WARP image, residency, corruption/lifecycle paths)
 - Intended specification: `Docs/Specifications/Rendering.md#target-public-contracts`
-- Stage: `rendering.materials` (`NotImplemented`, Visual / Rendering, 1800s)
+- Stage: `rendering.materials` (`Executable`, Visual / Rendering, 1800s)
 - Depends on: F-L6-004
-- Current delta: The target artifact-backed material/texture ownership model is not implemented.
-- Conformance: Unknown
-- Next action: Implement material/resource handles and retire the replaced direct binding path.
+- Current delta: none for synchronous material/texture resolution. Asynchronous retain/load/release handles remain F-L4-008.
+- Evidence: `RenderArtifactCodec`, `RenderMaterialCatalog`, immutable RGBA8 resources, source-hash runtime bake adapter, CPU reference shading, Stage/Model raw-byte API removal, content-hash GPU dedup, and WARP red/blue material readback.
+- Conformance: Matches. Content envelope checksum and exact dependency hashes are validated before L0; invalid encoded images fail explicitly, canonical negative zero has one representation, duplicate texture content has one CPU/GPU residency owner, and upload failure releases partial native resources.
+- Next action: Preserve artifact identity while the later shared Render Server consumes F-L4-006 batches.
 
 ## F-L4-006 — Visibility, LOD, and instancing
 
 - Layer: L4 — Domain Servers
 - Parent capability: Rendering Roadmap
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: Automated
 - Intended specification: `Docs/Specifications/Rendering.md#data-flow`
-- Stage: `rendering.visibility` (`NotImplemented`, Visual / Rendering, 1800s)
+- Stage: `rendering.visibility` (`Executable`, Visual / Rendering, 1800s)
 - Depends on: F-L4-004, F-L4-005
-- Current delta: Immutable RenderWorldSnapshot extraction and CPU-checked visibility are not implemented.
-- Conformance: Unknown
-- Next action: Implement stable-ID snapshot extraction, culling, LOD hysteresis, and instance batching.
+- Current delta: None for the platform-independent instance visibility contract. Stable-ID snapshots, finite camera-relative bounds, frustum selection, hysteretic LOD state, deterministic instance batches, and caller-buffer execution are implemented.
+- Conformance: `RenderWorldSnapshotTests` covers immutable canonical extraction, duplicate/invalid rejection, camera movement without stale visibility, both LOD hysteresis directions, canonical batch grouping, invalid frusta/state overlap, and warmed 100,000-instance zero allocation.
+- Next action: The later shared Render Server consumes F-L4-007 quality plans without changing this snapshot contract.
 
 ## F-L4-007 — Rendering quality profiles
 
 - Layer: L4 — Domain Servers
 - Parent capability: Rendering Roadmap
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: Automated
 - Intended specification: `Docs/Specifications/Rendering.md#visual-and-quality-policy`
-- Stage: `rendering.quality-profiles` (`NotImplemented`, Visual / Rendering, 1800s)
+- Stage: `rendering.quality-profiles` (`Executable`, Visual / Rendering, 1800s)
 - Depends on: F-L4-006
-- Current delta: Existing lighting/shadow baseline lacks the target profile/cascade/IBL/exposure/AA contract.
-- Conformance: Unknown
-- Next action: Implement data-driven profiles while retaining the observed local-light baseline.
+- Current delta: None for the platform-independent quality policy. Immutable profiles deterministically add or omit shadow cascade, IBL, bloom, ACES, FXAA, and exposure topology in the Render Graph.
+- Conformance: `RenderQualityProfileTests` verify the compatibility baseline, Balanced/Cinematic scaling, all-features-disabled graph, deterministic independent builds, bounded one-stop EV100 behavior, and invalid cascade/resolution/exposure/AA rejection.
+- Next action: F-L8-018 moves the VSIX preview onto the same recovered Render Server boundary.
 
 ## F-L0-009 — D3D12 device recovery
 
 - Layer: L0 — Platform / Native Backends
 - Parent capability: Rendering Roadmap
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: Automated
 - Intended specification: `Docs/Specifications/Rendering.md#device-and-preview-state-machines`
-- Stage: `rendering.device-recovery` (`NotImplemented`, Visual / Rendering, 1800s)
+- Stage: `rendering.device-recovery` (`Executable`, Visual / Rendering, 1800s)
 - Depends on: F-L4-004, F-L4-007
-- Current delta: The fixed Ready/Suspended/Recovering/Faulted/Disposed state machine is not implemented.
-- Conformance: Unknown
-- Next action: Implement artifact-only resource rebuild and typed state diagnostics.
+- Current delta: `RenderDeviceLifecycle` is the provider-neutral state source. `RenderServer` owns one D3D12 generation, an exact shader/mesh/material/roster artifact closure, and reusable completed/pending frame snapshots. Minimize/restore and real `ID3D12Device5.RemoveDevice` rebuild from the applied last-known-good package and completed snapshot without ECS resubmission; invalid or partial closures never publish Ready.
+- Conformance: Eight lifecycle tests cover every legal/illegal state and closure replacement. The WARP integration removes the real device, corrupts the disk artifact, recreates generations, reproduces the pixel oracle without command resubmission, and reports zero debug-layer errors. Runtime ownership reflection rejects Render Server or native resource fields in ECS Components.
+- Next action: F-L8-018 reuses this server through the versioned Preview Host and removes the VSIX renderers.
 
 ## F-L8-018 — Shared isolated rendering preview
 
 - Layer: L8 — Visual Studio Authoring Environment
 - Parent capability: Rendering Roadmap
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified
 - Intended specification: `Docs/Specifications/Rendering.md#device-and-preview-state-machines`
-- Stage: `vsix.rendering-preview` (`NotImplemented`, Visual / VSIX, 1800s)
+- Stage: `vsix.rendering-preview` (`Executable`, Visual / VSIX, 1800s)
 - Depends on: F-L0-009, F-L8-022
-- Current delta: The target shared Render Server Preview Host has not replaced the VSIX renderer path.
-- Conformance: Unknown
-- Next action: Implement the versioned Preview Host client and remove the VSIX-specific renderer.
+- Current delta: None in the automated shared-preview contract. Asset Preview and Scene View are clients of one out-of-process Windows x64 Preview Host that owns common recovered `RenderServer` sessions. The provider-neutral protocol carries bounded scene/frame state, selection weights, Lit/BaseColor/Normal/Wireframe mode, transparent overlay geometry, up to three camera previews, stable correlation, monotonic sequences, current device generation/fence diagnostics, and opt-in capture. A WPF container retains its HWND while a failed process generation is replaced together with its DXGI child surface, after which source-derived state is replayed once.
+- Implementation evidence: `src/CSharpGameEngine.Contracts/RenderPreviewHostContracts.cs`; `src/CSharpGameEngine.Windows/Runtime/RenderServer.cs`; `tools/CSharpGameEngine.EditorPreview.Host/`; `tools/CSharpGameEngine.VSExtension/RenderPreviewHostClient.cs`; `RenderPreviewSceneBuilder.cs`; `RenderSurfaceHostWindow.cs`; `AssetPreviewHwndHost.cs`; `SceneHwndHost.cs`; `CSharpGameEngine.VSExtension.csproj`.
+- Tests: `RenderPreviewHostProtocolTests`; `RenderPreviewRenderSessionTests`; `RenderPreviewHostProcessTests`; `RenderPreviewHostPipeTests`; `RenderPreviewHostSessionTableTests`; `RenderPreviewHostClientTests`; `RenderPreviewSceneBuilderTests`; `RenderSurfaceHostWindowTests`; `PackagedRenderPreviewHostTests`; `VsixManifestTests`; `RenderServerTests`.
+- Conformance: Matches for the automated F-L8-018 contract. The built VSIX contains the same-configuration framework-dependent apphost closure and offline Stage shader artifact, its apphost renders a real WARP frame with the D3D12 debug layer, and package/source tests reject `SceneRenderer`, `VorticeRenderer`, `NativeEvent`, Vortice, and SharpGen. Debug and Release VSIX suites pass 1,017 tests; focused common Render Server/Preview Host suites pass 13 in each configuration. Experimental Instance Scene Designer observation remains Pending, so this Feature is not `Verified` or `RuntimeVerified`.
+- Next action: F-L7-024 consumes the completed rendering performance reports in the scoped release closure. F-L8-023 owns executable transform/WARP/rebase/Undo conformance without reintroducing a renderer; the separate Experimental Instance `scene-designer` row remains Pending manual evidence.
 
 ## F-L7-023 — Rendering performance evidence
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Rendering Roadmap
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified
 - Intended specification: `Docs/Specifications/Rendering.md#performance-and-release-evidence`
-- Stage: `rendering.performance` (`NotImplemented`, Visual / Rendering, 7200s)
+- Stage: `rendering.performance` (`Executable`, Visual / Rendering, 7200s)
 - Depends on: F-L4-007, F-L0-009
-- Current delta: The required warm-up/sample/MAD evidence contract is not implemented.
-- Conformance: Unknown
-- Next action: Implement the rendering measurement harness and provenance artifact.
+- Current delta: None in the automated performance contract. One isolated TestHost process records exactly five warm-ups and thirty samples for a hidden 1280x720 D3D12 frame and 100,000-instance visibility/batching. Its runtime mode disables Tiered JIT so compilation transitions cannot contaminate measured samples; the raw artifact records adapter, runtime mode, debug-layer errors, pixel verification, and per-sample allocation/time before two canonical SHA-bound performance reports are published.
+- Conformance: WARP is the required correctness pass and must reproduce the triangle pixel oracle with zero debug-layer errors. Debug timing is recorded but only correctness and allocation are gated because non-optimized code generation is not a shipping-performance oracle. Release visibility gates median at 6 ms, nearest-rank p95 at 8.33 ms, and allocation p95 at zero. WARP elapsed time is not used as a hardware performance claim; an optional Release hardware pass gates 1280x720 presentation at 16.67 ms.
+- Next action: F-L7-024 binds current Debug/Release reports, WARP evidence, shader/artifact provenance, and dependency closure into the rendering release manifest.
 
 ## F-L7-024 — Rendering release evidence
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Rendering Roadmap
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified
 - Intended specification: `Docs/Specifications/Rendering.md#performance-and-release-evidence`
-- Stage: `rendering.release` (`NotImplemented`, Headless / Foundation, 7200s)
+- Stage: `rendering.release` (`Executable`, Headless / Foundation, 7200s)
 - Depends on: F-L7-023, F-L8-018
-- Current delta: No scoped rendering release closure/manifest gate exists.
-- Conformance: Unknown
-- Next action: Implement release-scope rendering evidence and immutable manifest integration.
+- Current delta: None in the automated Rendering track closure. The Stage re-executes `rendering.performance` and `vsix.rendering-preview` under dedicated release profiles, accepts only recent configuration/Git/WARP-matched complete results, reopens the raw capture and both SHA-bound performance reports, and publishes one canonical report over the raw path/hash/schema/adapter/runtime/pixel/debug state, exact Shader Artifact identity, and fixed Rendering source/toolchain closure.
+- Conformance: The report is self-validating, Windows x64 and machine-bound, and fails for missing, ordinary-profile, stale, modified, escaped, reparse, non-canonical, partial, or extra evidence. It is a bounded Rendering input to F-L7-048, not a package, installer, signature, SBOM, or competing product release manifest.
+- Next action: Product-wide package, compatibility, RC, and immutable manifest stages consume this completed Rendering track closure.
 
 ## F-L2-004 — Asset identity and canonical metadata
 
 - Layer: L2 — Type Schema / Identity
 - Parent capability: Asset / Content Pipeline
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: Automated
 - Intended specification: `Docs/Specifications/Asset-Content-Pipeline.md#identity-and-canonical-metadata`
-- Stage: `content.identity` (`NotImplemented`, Headless / Foundation, 900s)
+- Stage: `content.identity` (`Executable`, Headless / Foundation, 900s)
 - Depends on: None
-- Current delta: AssetId, SubAssetId, canonical URI, and canonical JSON metadata are not implemented.
-- Conformance: Unknown
-- Next action: Implement identity values and one-shot metadata migration without an old reader.
+- Current delta: None in the scoped identity contract. AssetId, SHA-256 SubAssetId, canonical asset URI, and deterministic UTF-8 JSON metadata are implemented.
+- Conformance: `CSharpGameEngine.Content.Tests.AssetIdentityTests`
+- Next action: Consume canonical metadata from the incremental compiler without adding a legacy reader.
 
 ## F-L7-025 — Importer conformance
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Asset / Content Pipeline
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: Automated
 - Intended specification: `Docs/Specifications/Asset-Content-Pipeline.md#import-boundary-and-artifact-envelope`
-- Stage: `content.importer-conformance` (`NotImplemented`, Headless / Foundation, 900s)
+- Stage: `content.importer-conformance` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L2-004
-- Current delta: Provider-independent engine IR conformance is not implemented.
-- Conformance: Unknown
-- Next action: Implement importer adapters and fixtures without exposing provider types.
+- Current delta: None for mesh import conformance. glTF and FBX adapters converge on immutable engine-owned geometry/material IR and provider-neutral diagnostics.
+- Conformance: `CSharpGameEngine.Import.Tests.ProviderNeutralImportTests`
+- Next action: Make the incremental compiler consume this IR and publish canonical artifacts.
 
 ## F-L6-005 — Content artifact envelope
 
 - Layer: L6 — Runtime Artifacts
 - Parent capability: Asset / Content Pipeline
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: Automated
 - Intended specification: `Docs/Specifications/Asset-Content-Pipeline.md#import-boundary-and-artifact-envelope`
-- Stage: `content.artifact-schema` (`NotImplemented`, Headless / Foundation, 900s)
+- Stage: `content.artifact-schema` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L7-025
-- Current delta: Canonical little-endian CAS header, provenance, and checksum are not implemented.
-- Conformance: Unknown
-- Next action: Implement the artifact envelope and corruption rejection.
+- Current delta: None in the envelope contract. Fixed little-endian schema, provenance, ordered dependencies, payload hash, checksum, and bounded corruption rejection are implemented.
+- Conformance: `CSharpGameEngine.Content.Tests.ContentArtifactTests`
+- Next action: Publish validated envelopes atomically through the incremental compiler.
 
 ## F-L7-026 — Incremental content compiler
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Asset / Content Pipeline
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: Automated
 - Intended specification: `Docs/Specifications/Asset-Content-Pipeline.md#data-flow-and-state`
-- Stage: `content.incremental-cook` (`NotImplemented`, Headless / Foundation, 900s)
+- Stage: `content.incremental-cook` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L6-005
-- Current delta: Dependency DAG dirty propagation and atomic publication are not implemented.
-- Conformance: Unknown
-- Next action: Implement DAG compilation and atomic CAS publishing.
+- Current delta: None in the compiler core. Reachable closure selection, cycle/missing-dependency rejection, dependency-wave concurrency bounds, source/options/tool/dependency-address fingerprints, canonical envelope validation, CAS publication, and all-or-nothing state publication are implemented.
+- Conformance: `IncrementalContentCompilerTests.ColdWarmAndLeafChangeRebuildExactlyTheReachableDirtyClosure`, `IndependentNodesCompileWithinTheDeclaredConcurrencyBound`, and `InvalidGraphDoesNotCompileOrPublishState`.
+- Next action: Consume the published immutable index through F-L4-008 runtime asset handles.
 
 ## F-L7-027 — Content cache recovery and GC
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Asset / Content Pipeline
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: Automated
 - Intended specification: `Docs/Specifications/Asset-Content-Pipeline.md#data-flow-and-state`
-- Stage: `content.cache-recovery` (`NotImplemented`, Headless / Foundation, 900s)
+- Stage: `content.cache-recovery` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L7-026
-- Current delta: Last-known-good recovery and reachability GC are not implemented.
-- Conformance: Unknown
-- Next action: Implement interruption recovery and root-safe GC.
+- Current delta: None in the recovery contract. Failed/cancelled compilation preserves exact state bytes, restart removes only temporary publications, corrupt state stops before compilation, and root-safe GC atomically publishes retained state before recoverably quarantining unreachable validated CAS envelopes.
+- Conformance: `IncrementalContentCompilerTests.FailedDependentKeepsLastKnownGoodStateAndOrphanIsRecoverablyQuarantined`, `RestartRecoveryRemovesOnlyIncompleteTemporaryPublications`, and `CorruptCompilerStateDoesNotCompileOrReplaceTheState`.
+- Next action: Feed the immutable shipping manifest into F-L8-019 authoring and F-L7-028 performance evidence.
 
 ## F-L4-008 — Asynchronous runtime asset handles
 
 - Layer: L4 — Domain Servers
 - Parent capability: Asset / Content Pipeline
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: Automated
 - Intended specification: `Docs/Specifications/Asset-Content-Pipeline.md#data-flow-and-state`
-- Stage: `content.runtime-load` (`NotImplemented`, Headless / Foundation, 900s)
+- Stage: `content.runtime-load` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L7-027
-- Current delta: `AssetHandle<T>` retain/release/load ownership is not implemented.
-- Conformance: Unknown
-- Next action: Implement asynchronous handle state and cancellation ownership rules.
+- Current delta: None. `RuntimeAssetStore` resolves the active immutable manifest, shares typed loads and dependency artifact ownership, bounds concurrent reads, detaches caller cancellation, releases the final lease exactly once, rejects handles after host teardown, and atomically retains the last-known-good manifest when a candidate fails or is cancelled.
+- Conformance: `RuntimeAssetStoreTests` covers joined retains, final release, dependency closure, cancellation isolation and eviction, manifest failure/cancellation/success, unsupported codecs, decode failure, IO concurrency bounds, and teardown/load races.
+- Next action: Consume the same manifest/handle boundary from F-L8-019 and record F-L7-028 performance evidence.
 
 ## F-L6-006 — Shipping content manifest
 
 - Layer: L6 — Runtime Artifacts
 - Parent capability: Asset / Content Pipeline
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: Automated
 - Intended specification: `Docs/Specifications/Asset-Content-Pipeline.md#performance-and-shipping-rules`
-- Stage: `content.package` (`NotImplemented`, Headless / Foundation, 900s)
+- Stage: `content.package` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L4-008
-- Current delta: Reachable artifact closure manifests are not implemented.
-- Conformance: Unknown
-- Next action: Implement manifest generation and closure verification.
+- Current delta: None. `ShippingContentManifestBuilder` derives only the exact root-reachable closure from published references and validated CAS envelopes. Canonical manifest bytes include hashes, addresses, provenance, kind, length, and dependencies. `ShippingContentPackage` atomically publishes deduplicated address objects and rejects missing, extra, corrupt, cyclic, non-canonical, or reparse-point package state.
+- Conformance: `ShippingContentManifestTests` covers deterministic round-trip, exact closure, missing dependency, deep non-recursive traversal, cycle rejection, CAS-address deduplication, atomic package open, and missing/extra/corrupt artifact rejection.
+- Next action: Use the canonical manifest as the package/SBOM input for F-L7-029 after F-L7-028 and F-L8-019.
 
 ## F-L8-019 — VSIX asset authoring
 
 - Layer: L8 — Visual Studio Authoring Environment
 - Parent capability: Asset / Content Pipeline
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: Automated
 - Intended specification: `Docs/Specifications/Asset-Content-Pipeline.md#stage-oracle-matrix`
-- Stage: `vsix.asset-authoring` (`NotImplemented`, Visual / VSIX, 1800s)
+- Stage: `vsix.asset-authoring` (`Executable`, Visual / VSIX, 1800s)
 - Depends on: F-L6-006, F-L8-022
-- Current delta: Typed asset metadata/import authoring through the target host is not implemented.
-- Conformance: Unknown
-- Next action: Implement VSIX authoring backed by the versioned content host.
+- Current delta: None. The net472 VSIX sends typed correlated inspect/save requests to one resident-or-one-shot net10 host. `AssetAuthoringService` alone validates source identity, canonical metadata, importer ownership, immutable `AssetId`, and optimistic SHA-256 concurrency before same-directory atomic publication. The VSIX displays the returned identity and diagnostics and cannot parse or write `.meta` itself.
+- Conformance: `AssetAuthoringProtocolTests`, `AssetAuthoringServiceTests`, `AssetAuthoringBridgeWorkerTests`, `AssetAuthoringPresentationTests`, and `BakeIntegrationArchitectureTests` cover bounded/correlated DTOs, missing/create/refresh, canonical encoding, conflict/invalid-source byte preservation, worker transport, thin-client ownership, and UI failure projection; the Visual Stage adds shared Preview Host WARP evidence.
+- Next action: Record F-L7-028 content performance evidence without adding another authoring or metadata path.
 
 ## F-L7-028 — Content pipeline performance evidence
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Asset / Content Pipeline
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: Automated
 - Intended specification: `Docs/Specifications/Asset-Content-Pipeline.md#performance-and-shipping-rules`
-- Stage: `content.performance` (`NotImplemented`, Headless / Foundation, 7200s)
+- Stage: `content.performance` (`Executable`, Headless / Foundation, 7200s)
 - Depends on: F-L6-006
-- Current delta: Cold/incremental performance evidence is not implemented.
-- Conformance: Unknown
-- Next action: Implement the content measurement harness and provenance artifact.
+- Current delta: None. `ContentPerformanceProbe` runs the real `IncrementalContentCompiler` for five warm-ups plus thirty cold 32-root samples and thirty one-leaf-change 33-node samples. Every iteration asserts the exact rebuilt/reused closure; reports include median, nearest-rank p95, MAD, allocation p95, explicit budgets, machine fingerprint, git provenance, payload SHA-256, and independently recomputed statistics/verdicts.
+- Conformance: `verify-content-performance`, `PerformanceMeasurementFrameworkTests`, and `IncrementalContentCompilerTests` reject wrong sample counts, invalid statistics, corrupt reports, budget failures, and non-incremental rebuild behavior.
+- Next action: Keep its configuration-qualified reports bound into the F-L7-029 release closure.
 
 ## F-L7-029 — Content pipeline release evidence
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Asset / Content Pipeline
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: Automated
 - Intended specification: `Docs/Specifications/Asset-Content-Pipeline.md#performance-and-shipping-rules`
-- Stage: `content.release` (`NotImplemented`, Headless / Foundation, 7200s)
+- Stage: `content.release` (`Executable`, Headless / Foundation, 7200s)
 - Depends on: F-L7-028, F-L8-019
-- Current delta: Content release closure and package evidence are not implemented.
-- Conformance: Unknown
-- Next action: Implement scoped release validation and immutable manifest evidence.
+- Current delta: None. `ContentReleaseEvidence` publishes one seven-kind canonical runtime-loadable `ShippingContentPackage`, then binds its exact file closure and manifest fingerprint together with the owned metadata/artifact/manifest schema sources, a bounded project/toolchain SBOM input set, matching Git provenance, and recent passing configuration-matched cold/incremental performance reports into one canonical SHA-256 report. Validation reopens the package, recomputes every byte length and hash, and rejects path escape, reparse points, missing, extra, stale, relocated, non-canonical, or modified evidence. SPDX generation, signing, install/run/uninstall, and the formal immutable product release manifest remain owned by F-L7-045 and F-L7-048.
+- Conformance: `verify-content-release`, `ContentReleaseEvidenceTests`, and `ShippingContentManifestTests` cover package reopen, exact closure, source/SBOM input mutation, performance mutation or absence, report canonicality, and extra evidence rejection.
+- Next action: Keep this content-scoped evidence as an input to F-L7-045 without turning it into a second product release manifest.
 
 ## F-L8-020 — VSIX manual and Experimental Instance baseline
 
@@ -3782,105 +3895,121 @@ F-L0-008 and F-L3-019 are non-physics Roadmap Features and are `Specified`; the 
 
 - Layer: L8 — Visual Studio Authoring Environment
 - Parent capability: Editor / VSIX
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified (shared netstandard2.0 protocol, real named pipe, terminal-state/session and net472 client tests)
 - Intended specification: `Docs/Specifications/Editor-VSIX.md#host-boundary-and-protocol`
-- Stage: `vsix.host-lifecycle` (`NotImplemented`, Headless / VSIX, 1800s)
+- Stage: `vsix.host-lifecycle` (`Executable`, Headless / VSIX, 1800s)
 - Depends on: F-L8-021
-- Current delta: Preview, Import, and Bake have not been unified under the target versioned state machine.
-- Conformance: Unknown
-- Next action: Implement the out-of-process protocol and terminal failure behavior.
+- Current delta: Live multi-message progress streaming is intentionally not owned by this Level; the terminal result carries the last validated progress and F-L8-026 owns UI presentation.
+- Evidence: `AuthoringHostRequest`/`Progress`/`Result` are shared by net472 and net10 through Contracts; request ID, protocol, timeout, diagnostics, bounded framing, active-request drain, cancellation, crash, and mismatch are executable contracts.
+- Conformance: Matches. Only pre-submission unavailability permits a fresh one-shot request; timeout, disconnect, and protocol mismatch after submission are terminal and cannot duplicate an authoring mutation.
+- Next action: Preserve this single protocol while F-L8-026 adds Bake/import progress presentation and actionable UI diagnostics.
 
 ## F-L8-023 — Transform tool visual conformance
 
 - Layer: L8 — Visual Studio Authoring Environment
 - Parent capability: Editor / VSIX
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified (2,047/2,047 Debug; 2,046/2,046 Release; Debug/Release solution builds and executable Stage passed)
 - Intended specification: `Docs/Specifications/Editor-VSIX.md#editing-contracts`
-- Stage: `vsix.transform-tools` (`NotImplemented`, Visual / VSIX, 1800s)
+- Stage: `vsix.transform-tools` (`Executable`, Visual / VSIX, 1800s)
 - Depends on: F-L8-022
-- Current delta: Existing transform editing lacks the target WARP/rebase/acceptance Stage proof.
-- Conformance: Unknown
-- Next action: Implement the visual conformance oracle without replacing established editing behavior.
+- Current delta: none for the automated contract. Move, Rotate, Scale, local/world mode, numeric/vertex/surface snap, and repeated drag previews remain float-relative derived UI state and do not touch C# until one final commit. Canonical Transform edits change only local Logical position/rotation/scale members and preserve `ReferenceFrameId`; conflict landing either keeps the predicted document after equivalent Roslyn reparse or explicitly rebases. The common Preview Host/Render Server now has an isolated WARP pixel oracle proving overlay appearance and removal without a VSIX-owned renderer.
+- Evidence: `TransformGizmo.cs`; `TransformGizmoPhase4.cs`; `EditTransactionController.cs`; `SceneTransformMath.cs`; `SceneEditConflictMerger.cs`; `SceneSourceCommitPlanner.cs`; `SceneSourceEditor.cs`; `SceneTextBufferWriter.cs`; `RenderPreviewSceneBuilder.cs`; `RenderPreviewRenderSession.cs`; `VsixReferenceScene.cs`.
+- Tests: `TransformGizmoTests`; `SurfaceSnapGizmoTests`; `EditTransactionControllerTests`; `SceneTransformMathTests`; `SceneEditConflictMergerTests`; `SceneSourceCommitPlannerTests`; `SceneSourceEditorTests`; `SceneSaveVerificationTests`; `RenderPreviewSceneBuilderTests`; `SceneDesignerUndoCommandPolicyTests`; `RenderPreviewRenderSessionTests`; `FeatureStageCatalogTests`.
+- Conformance: Matches for the automated F-L8-023 contract. Repeated preview updates produce one final source change, one history step is routed through the single `ITextUndoTransaction` writer, canonical frame identity survives edits, reparse/rebase decisions are explicit, and an actual D3D12 WARP frame changes only while overlay geometry exists. The Experimental Instance `scene-designer` observation remains Pending and is not represented as `RuntimeVerified`.
+- Next action: Keep the completed gesture boundary in `vsix.transform-tools`; F-L8-025 now owns the source-commit convergence contract.
 
 ## F-L8-024 — Typed inspector and component palette
 
 - Layer: L8 — Visual Studio Authoring Environment
 - Parent capability: Editor / VSIX
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified
 - Intended specification: `Docs/Specifications/Editor-VSIX.md#editing-contracts`
-- Stage: `vsix.inspector-contracts` (`NotImplemented`, Headless / VSIX, 1800s)
+- Stage: `vsix.inspector-contracts` (`Executable`, Headless / VSIX, 1800s)
 - Depends on: F-L8-022
-- Current delta: Target enum/vector/asset/add/remove/reorder schema coverage is not implemented.
-- Conformance: Unknown
-- Next action: Implement typed edit schemas and no-invalid-source-mutation guarantees.
+- Current delta: none. Inspector control selection is derived from the declared component-member type; enum and compatible immutable `[SceneAssets]` members use one typed choice contract, canonical `float` and integer members retain validated numeric editing, and noncanonical `double`/`decimal` members are read-only. Invalid or unchanged choices create no source operation. Existing vector, add, remove, reorder, component-initializer, and reparse behavior is covered by the same executable Stage.
+- Conformance: Matches
+- Next action: Keep `vsix.inspector-contracts` in changed/full/VSIX suites; F-L8-025 now commits its typed operations through the common source transaction.
 
 ## F-L8-025 — C# source synchronization v2
 
 - Layer: L8 — Visual Studio Authoring Environment
 - Parent capability: Editor / VSIX
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified (95/95 focused and 950/950 complete VSIX tests in both Debug and Release; `vsix.source-sync` Passed in both configurations)
 - Intended specification: `Docs/Specifications/Editor-VSIX.md#authoring-model`
-- Stage: `vsix.source-sync` (`NotImplemented`, Headless / VSIX, 1800s)
+- Stage: `vsix.source-sync` (`Executable`, Headless / VSIX, 1800s)
 - Depends on: F-L8-023, F-L8-024
-- Current delta: The target one-gesture/one-native-Undo/reparse convergence contract is not implemented.
-- Conformance: Unknown
-- Next action: Implement v2 synchronization and remove superseded writeback behavior.
+- Current delta: none for the automated contract. Each completed gesture resolves the latest Roslyn context, explicitly rebases or rejects stale input, applies the immutable operation batch, produces a minimal source edit, verifies it by recompiling and reanalyzing the edited C# tree, then writes the live buffer once. The published predicted snapshot is the canonical reanalysis result, with the operation projection used only as an identity basis for newly created nodes. Save persists the live C# document and never replays editor history.
+- Source of truth and ownership: C# `IScene` source and Visual Studio native text history are the only authoring and Undo truths. `SceneEditorSessionService` owns only immutable real/predicted projections, a transient pending-landing identity basis keyed by Scene and canonical semantic signature, and one in-flight write guard per Scene. It owns no editable document, mirrored Undo stack, text watermark, or save-time history.
+- Conflict and lifecycle: transform deltas rebase onto the latest source; stale member edits without an observed original value reject instead of overwriting; live-buffer mismatch writes nothing; cancellation/failure clears pending landing state; an older analysis cannot consume another generation's identity; a completed mismatching landing is discarded as a superseding external edit; post-write closure is non-cancellable; Undo/Redo delegates to native text history and schedules Roslyn analysis.
+- Evidence: `SceneSourceCommitPlanner.cs`; `SceneSaveVerification.cs`; `SceneEditorSessionService.cs`; `SceneWorkspaceService.cs`; `SceneTextBufferWriter.cs`; `SceneEditConflictMerger.cs`; all Hierarchy/Inspector/Viewport callers. Removed legacy includes `SceneEditDocument`, `SceneTextUndoLedger`, text watermark policies, external landing policy, own-save landing policy, multi-step save writer, and their implementation-detail tests.
+- Tests: `PendingSourceLandingTests`; `SceneSourceCommitPlannerTests`; `SceneSourceTruthArchitectureTests`; `SceneEditConflictMergerTests`; `SceneSaveVerificationTests`; `SceneTextChangePlannerTests`; `SceneUndoRoutingPolicyTests`; `SceneDesignerUndoCommandPolicyTests`; `SceneUndoRedoKeyPolicyTests`; `SceneSavePolicyTests`; `SceneProjectionIdentityTests`; `SceneSourceEditorTests`; complete VSIX Debug/Release suites.
+- Conformance: Matches. One gesture maps to at most one native Undo transaction; consecutive gestures before/after Roslyn landing retain NodeId and avoid self-rebase; external stale input is rebased or rejected; source, model, selection identity, and Hub projection converge without a second authoring state.
+- Next action: Keep `vsix.source-sync` in changed/full/VSIX suites while F-L8-026 consumes this source and diagnostic boundary.
 
 ## F-L8-026 — Bake, asset, and diagnostic UI
 
 - Layer: L8 — Visual Studio Authoring Environment
 - Parent capability: Editor / VSIX
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified (963/963 VSIX and 71/71 FeatureRunner in Debug/Release; shared host 22/22 and registration 3/3 in both; executable Stage passed in both configurations)
 - Intended specification: `Docs/Specifications/Editor-VSIX.md#editing-contracts`
-- Stage: `vsix.bake-integration` (`NotImplemented`, Headless / VSIX, 1800s)
+- Stage: `vsix.bake-integration` (`Executable`, Headless / VSIX, 1800s)
 - Depends on: F-L8-025
-- Current delta: Target host-backed bake/import progress and failure UI is not implemented.
-- Conformance: Unknown
-- Next action: Implement protocol-backed progress and actionable diagnostic surfaces.
+- Current delta: none for the automated contract. Import and Bake expose one immutable request-correlated UI projection; Physics Bake reports monotonic progress, supports cancellation, keeps completed outputs after a later failure/cancel, and opens a selected artifact from the result projection. Asset Preview presents Import and recovered Render Server status inline.
+- Source of truth and ownership: the versioned `AuthoringHostRequest`/`Progress`/`Result`/`Diagnostic` envelope and each operation's terminal result are the only execution truth. `AuthoringOperationSnapshot` is an immutable validated UI projection, not another job, build, artifact, or retry state. C# source remains owned by F-L8-025 and exact host/artifact execution remains owned by the existing bridge and Bake services.
+- Error and lifecycle contract: request/protocol mismatch, non-monotonic or non-finite progress, invalid terminal progress, nonzero exit, and error diagnostics cannot become success. Cancelling ignores late progress until the terminal result. Host diagnostic codes remain typed through resident client and bridge exceptions. Partial output paths survive failure/cancel; the UI never infers completion from file names or button state.
+- Evidence: `AuthoringOperationPresentation`; typed `ResidentBridgeClient.TryRunDetailed` and `AuthoringHostOperationException`; `PhysicsSceneBakeService`; Scene Designer Bake progress/cancel/diagnostic/artifact surfaces; Asset Preview inline progress/diagnostic surface; focused presentation/orchestration/architecture/localization and shared host tests.
+- Conformance: Matches F-L8-026 without adding another source writer, build implementation, mutable operation Manager, retry layer, or renderer.
+- Next action: Keep `vsix.bake-integration` in changed/full/VSIX suites while F-L8-027 consumes only immutable on-demand runtime snapshots.
 
 ## F-L8-027 — Read-only runtime debug tools
 
 - Layer: L8 — Visual Studio Authoring Environment
 - Parent capability: Editor / VSIX
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: Automated Debug/Release stage evidence
 - Intended specification: `Docs/Specifications/Editor-VSIX.md#editing-contracts`
-- Stage: `vsix.debug-tools` (`NotImplemented`, Headless / VSIX, 1800s)
+- Stage: `vsix.debug-tools` (`Executable`, Headless / VSIX, 1800s)
 - Depends on: F-L8-026
-- Current delta: On-demand immutable Render Graph/profiler/debug snapshots are not implemented.
-- Conformance: Unknown
-- Next action: Implement read-only snapshot viewers through the host protocol.
+- Current delta: none for the automated contract. Protocol v4 adds one bounded `Snapshot` query to the existing Preview Host session. It reports immutable device/fence/frame/object/texture/error counters, bounded D3D12 diagnostics, and the canonical L4 Render Graph declaration. The graph is explicitly marked `DeclaredPlan`; no per-pass GPU execution or timing is fabricated while the D3D12 graph executor remains future work.
+- Source of truth and ownership: the existing `RenderServer` remains the only renderer/device owner. Its device lifecycle and counters are observed on demand. `RenderQualityPlan` is the engine-owned declared topology. The VSIX owns only one validated immutable presentation and creates no timer, renderer, host session, profiler clock, runtime handle, or editable state.
+- Error and lifecycle contract: snapshot requests carry protocol/request/session/monotonic sequence identity and a two-second response budget. A capture failure consumes its sequence but leaves the runtime session usable. Null, oversized, malformed, version-mismatched, or envelope-inconsistent data is rejected. Transport loss or malformed successful data faults the client and uses the existing fresh-surface recovery path. Diagnostic truncation is explicit.
+- Evidence: protocol boundary tests; same-session/non-terminal Host table and Named Pipe tests; real common Render Server WARP non-mutation tests; net472 client correlation/failure tests; presentation/architecture/localization tests; existing Physics and Spatial read-only visualizers. `vsix.debug-tools` passed Debug (`20260901T111335750Z-single-29723561406e411ab222de69f27fc5f2`) and Release (`20260901T111501042Z-single-6dab6c9310fc4412a2ea5c1232d0f70a`).
+- Conformance: Matches F-L8-027 without adding a second renderer, polling loop, mutable debug Manager, fictitious timing, control command, or runtime ownership path.
+- Next action: Keep `vsix.debug-tools` in changed/full/VSIX suites as an input to the executable F-L8-028 compatibility contract.
 
 ## F-L8-028 — VSIX compatibility matrix
 
 - Layer: L8 — Visual Studio Authoring Environment
 - Parent capability: Editor / VSIX
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified in Debug and Release
 - Intended specification: `Docs/Specifications/Editor-VSIX.md#manual-and-automated-evidence`
-- Stage: `vsix.compatibility` (`NotImplemented`, Headless / VSIX, 3600s)
+- Stage: `vsix.compatibility` (`Executable`, Headless / VSIX, 3600s)
 - Depends on: F-L8-027
-- Current delta: Target net472/Visual Studio compatibility manifest evidence is not implemented.
-- Conformance: Unknown
-- Next action: Implement compatibility matrix collection and validation.
+- Current delta: `Docs/Verification/VSIX-Compatibility-Matrix.json` is the single versioned compatibility contract. The validator checks the net472 VSIX and automation projects, amd64 Visual Studio 17.14+ installation/prerequisite manifest, .NET Framework 4.7.2 dependency, pinned VS SDK/Roslyn versions, neutral en-US plus ja-JP satellite/template packaging, CgeFixed development hive, isolated CgeAutomation evidence hive, Debug/Release CI cells, exact Experimental checks/owners, and the aggregate manual entry.
+- Evidence semantics: pre-release validation accepts a structurally valid explicit Pending state and never turns it into compatibility success. Passed automated rows additionally prove configuration, locale, CgeAutomation suffix, Visual Studio minimum version, four SHA-256 provenance fields, all-passing assertions, observation, and freshness. `--require-passing-evidence` fails every required Pending/Failed/expired row and the manual summary; F-L8-029 must use that mode.
+- Evidence: repository/mutation/release-fail-closed tests in `VsixCompatibilityMatrixValidatorTests`, existing manifest/package/localization/layout/Experimental automation tests, and build-time validator execution. Full FeatureRunner tests pass 76/76 and full net472 VSIX tests pass 970/970 in both Debug and Release. `vsix.compatibility` passed Debug (`20260901T114505804Z-vsix-a650a39f789646f1b6369d30e7bd6c87`) and Release (`20260901T114546489Z-vsix-609836b366cc4b7c8a3d67cae87be3fd`).
+- Conformance: Matches the F-L8-028 matrix/validation boundary without claiming that currently Pending human Experimental/DPI/accessibility observations have passed.
+- Next action: Run Debug/Release `vsix.compatibility`, then consume its strict release mode from F-L8-029 after actual Experimental/manual evidence is recorded.
 
 ## F-L8-029 — VSIX release evidence
 
 - Layer: L8 — Visual Studio Authoring Environment
 - Parent capability: Editor / VSIX
-- Status: Specified
-- Verification: Unverified
+- Status: Implementing
+- Verification: TestVerified for the report/lifecycle contract; RuntimeVerified for current-package 1041 and isolated install/uninstall; 1033 and six manual observations remain incomplete
 - Intended specification: `Docs/Specifications/Editor-VSIX.md#stage-oracle-matrix`
-- Stage: `vsix.release` (`NotImplemented`, Headless / VSIX, 7200s)
+- Stage: `vsix.release` (`Executable`, Headless / VSIX, 7200s)
 - Depends on: F-L8-028
-- Current delta: Signed install/run/uninstall release evidence is not implemented.
-- Conformance: Unknown
-- Next action: Implement the VSIX package release gate and immutable evidence manifest.
+- Current delta: The canonical exact-package report, strict observation binding, and isolated CgeRelease lifecycle are implemented. The required 1033 host observation cannot pass until the en-US Visual Studio language pack is installed with elevation; six manual rows are still Pending and the Stage therefore fails closed.
+- Evidence: `tools/CSharpGameEngine.FeatureRunner/VsixReleaseEvidence.cs`, `tools/CSharpGameEngine.VSExtension/Capture-CgeVsixReleaseLifecycle.ps1`, `tests/CSharpGameEngine.FeatureRunner.Tests/VsixReleaseEvidenceTests.cs`; current exact-package 1041 evidence under `.artifacts/VsixExperimental/20260901-163257-d99bdf74/1041/` and zero-residue lifecycle under `.artifacts/VsixReleaseLifecycle/20260901T163427704Z-e484c31087294d19ad8e6074794d30c0/` share package SHA-256 `1e89e9f29011d83c7c337259b501aa024c57622c8ef8bfe4887e93539429fe00`.
+- Conformance: Partial. Source/package/install/uninstall ownership now Matches; launch/localization/manual release closure remains incomplete and cannot produce a passing report.
+- Next action: install the en-US Visual Studio language pack with user-approved elevation, capture 1033 against the unchanged package, record the six current-package manual observations, then run Debug/Release outer `vsix.release` evidence without rebuilding the VSIX.
 
 ## F-L7-030 — ECS runtime baseline conformance
 
@@ -3900,105 +4029,110 @@ F-L0-008 and F-L3-019 are non-physics Roadmap Features and are `Specified`; the 
 
 - Layer: L5 — Runtime Feature Modules
 - Parent capability: ECS / Runtime
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified (portable contract, render/physics/audio consumption)
 - Intended specification: `Docs/Specifications/Ecs-Runtime.md#runtime-boundaries-and-shared-transform`
-- Stage: `ecs.runtime-boundary` (`NotImplemented`, Headless / Foundation, 900s)
+- Stage: `ecs.runtime-boundary` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L7-030
-- Current delta: Transform remains in the Windows runtime namespace rather than a portable L5 shared module.
-- Conformance: Unknown
-- Next action: Move Transform source and remove the Windows-namespaced predecessor in the same change.
+- Current delta: none for the portable frame-local Transform contract.
+- Evidence: `src/CSharpGameEngine.Entities/Transform.cs`, `src/CSharpGameEngine.Entities/FixedTransform.cs`, and render/physics/audio extraction tests.
+- Conformance: Matches. Authoritative fields are `ReferenceFrameId`, `LogicalVector3`, and `LogicalQuaternion`; float exists only after domain/camera/listener-relative projection.
+- Next action: preserve this boundary while adding change tracking and deterministic jobs.
 
 ## F-L3-021 — Unified structural command buffer
 
 - Layer: L3 — ECS / Job Runtime
 - Parent capability: ECS / Runtime
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified (global ordering, mutation guard, scene/cell ownership, stale generation)
 - Intended specification: `Docs/Specifications/Ecs-Runtime.md#tick-state-and-structural-changes`
-- Stage: `ecs.structural-changes` (`NotImplemented`, Headless / Foundation, 900s)
+- Stage: `ecs.structural-changes` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L3-018, F-L5-035
-- Current delta: Existing movement/delayed changes are not the unified Create/Destroy/Add/Remove/Move deterministic buffer.
-- Conformance: Unknown
-- Next action: Implement tick-end command replay and retire replaced structural mutation APIs.
+- Current delta: none for the single-thread structural barrier contract.
+- Evidence: `EntityCommandBuffer` is the only ordered stream for Create/Move/Destroy/Scene/Cell changes; generated playback applies global enqueue order and direct mutation is rejected during system execution.
+- Conformance: Matches for Level 3. Add/remove are generated full-archetype Move payloads rather than a second mutation path.
+- Next action: extend command production to deterministic worker partitions in F-L3-019 without introducing another source of truth.
 
 ## F-L3-022 — Enable masks and change versions
 
 - Layer: L3 — ECS / Job Runtime
 - Parent capability: ECS / Runtime
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified
 - Intended specification: `Docs/Specifications/Ecs-Runtime.md#generated-storage-and-scheduling`
-- Stage: `ecs.change-tracking` (`NotImplemented`, Headless / Foundation, 900s)
+- Stage: `ecs.change-tracking` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L3-021
-- Current delta: Generated enableable component/change-version query contracts are not implemented.
-- Conformance: Unknown
-- Next action: Implement generated enable bits and changed queries without runtime mask penalty.
+- Current delta: None. Every generated archetype stores entity and component enable bits plus per-row component versions. Create, move, enable transitions, and generated system ref access advance one World-owned wrap-safe version source; caller-span queries visit only archetypes containing the selected component.
+- Conformance: `ChangeTrackingSpec`, generated dispatch E2E, 65/128 high-word E2E, and the exactly-64 single-word emission boundary.
+- Next action: Preserve the single clock while snapshots serialize only completed barriers.
 
 ## F-L3-019 — Deterministic job runtime
 
 - Layer: L3 — ECS / Job Runtime
 - Parent capability: ECS / Runtime
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: Automated
 - Intended specification: `Docs/Specifications/Ecs-Runtime.md#generated-storage-and-scheduling`
-- Stage: `foundation.deterministic-jobs` (`NotImplemented`, Headless / Foundation, 900s)
+- Stage: `foundation.deterministic-jobs` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L3-022
-- Current delta: Target generated access graph and stable worker merge runtime are not implemented.
-- Conformance: Unknown
-- Next action: Implement deterministic scheduled execution and remove superseded job paths.
+- Current delta: None. Fixed partitions run through a bounded worker set, unmanaged job/state isolation prevents hidden shared mutable state, and outputs/events publish only after a stable successful merge.
+- Conformance: Debug/Release `DeterministicJobRuntimeSpec` proves single/scheduled state-event hash identity, worker bounds, deterministic lowest-partition failure, invalid-mode rejection, cancellation, and unchanged caller input.
+- Next action: Consume only completed job results when F-L6-007 snapshots are produced.
 
 ## F-L7-031 — Generated schedule diagnostics
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: ECS / Runtime
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: Automated
 - Intended specification: `Docs/Specifications/Ecs-Runtime.md#generated-storage-and-scheduling`
-- Stage: `ecs.schedule-diagnostics` (`NotImplemented`, Headless / Foundation, 900s)
+- Stage: `ecs.schedule-diagnostics` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L3-019
-- Current delta: Pre-execution conflict/cycle diagnostics are not implemented.
-- Conformance: Unknown
-- Next action: Implement source-generator access graph diagnostics and deterministic schedule output.
+- Current delta: None. Explicit read/write declarations generate static low/high masks, predecessor lists, and dependency waves. Missing targets, phase contradictions, cycles, and unordered write conflicts fail generation before execution.
+- Conformance: `GameSystemScheduleTests` covers read-only dispatch/change stamping, same-wave reads, ordered waves, missing dependencies, cycles, conflict messages, and reflection/dictionary-free output.
+- Next action: Preserve the generated schema and schedule hash in F-L6-007 snapshots.
 
 ## F-L6-007 — Schema-fingerprinted ECS snapshots
 
 - Layer: L6 — Runtime Artifacts
 - Parent capability: ECS / Runtime
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: Automated
 - Intended specification: `Docs/Specifications/Ecs-Runtime.md#snapshot-artifact`
-- Stage: `ecs.snapshot` (`NotImplemented`, Headless / Foundation, 900s)
+- Stage: `ecs.snapshot` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L3-022, F-L3-019
-- Current delta: Fingerprinted snapshot serialization and corruption rejection are not implemented.
-- Conformance: Unknown
-- Next action: Implement schema fingerprint/checksum snapshots with no legacy reader.
+- Current delta: None. Generated archetype/Component schemas, canonical checksummed cell deltas, completed-tick capture, atomic loaded-cell restore, tombstones, and unloaded-cell pending deltas are implemented without a legacy reader.
+- Conformance: `WorldSnapshotSpec` covers exact round-trip, corruption/schema rejection, canonical-payload validation, tombstones, unloaded-cell merge/pending restore, transient derived links, archetype/entity mismatch, and structural-barrier atomicity. `SnapshotGeneratorTests` fixes the generated boundary including zero-archetype compilations, and `GeneratedWorldCellActivationTests` validates the shipping Scene/cell path and `IRuntimeComponent` exclusion.
+- Next action: Bind the stable schema/source hashes and ECS performance reports into F-L7-033 release closure.
 
 ## F-L7-032 — ECS runtime performance evidence
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: ECS / Runtime
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified
 - Intended specification: `Docs/Specifications/Ecs-Runtime.md#performance-and-release-evidence`
-- Stage: `ecs.performance` (`NotImplemented`, Headless / Foundation, 7200s)
+- Stage: `ecs.performance` (`Executable`, Headless / Foundation, 7200s)
 - Depends on: F-L7-031, F-L6-007
-- Current delta: The 1/64-type no-runtime-mask-penalty performance evidence is not implemented.
-- Conformance: Unknown
-- Next action: Implement benchmark evidence with generated-source provenance.
+- Current delta: None. Independent 1, 64, 65, and 128 Component compilations execute the generated query over 100,000 active entities for exactly five warm-ups and thirty samples with Tiered JIT disabled. Raw and common reports bind the exact one-word/two-word source shape, generated-source SHA-256, deterministic state SHA-256, query, worker count, timing, and zero allocation.
+- Conformance: Debug records diagnostic timing without treating non-optimized code as a shipping oracle. Release gates median at 6 ms, p95 at 8.33 ms, and allocation p95 at zero; the separately compiled 64-type single-word path additionally fails if its median or nearest-rank p95 regresses more than 20 percent from the one-type direct path. Missing, duplicate, extra, malformed, aliased, or tampered boundary evidence fails closed.
+- Evidence: current Debug Stage `20260901T155813468Z-ecs-release-performance-920d1c8ed90d477288a1349f15c72996`; current Release Stage `20260901T160004976Z-ecs-release-performance-9358908023fa4e8386adbfd9b7b67e3b`. Release 1/64/65/128 medians are 484,600/526,750/638,900/563,850 ns, p95 values are 645,700/695,600/929,600/646,500 ns, and allocation p95 is zero for every boundary.
+- Next action: Use these four raw captures and reports in F-L7-033 canonical ECS release evidence.
 
 ## F-L7-033 — ECS runtime release evidence
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: ECS / Runtime
 - Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: Automated
 - Intended specification: `Docs/Specifications/Ecs-Runtime.md#performance-and-release-evidence`
-- Stage: `ecs.release` (`NotImplemented`, Headless / Foundation, 7200s)
+- Stage: `ecs.release` (`Executable`, Headless / Foundation, 7200s)
 - Depends on: F-L7-032
-- Current delta: ECS schema/schedule/replay release closure is not implemented.
-- Conformance: Unknown
-- Next action: Implement scoped release evidence and immutable manifest integration.
+- Current delta: None. The Stage reruns deterministic replay, generated schedule diagnostics, schema-fingerprinted snapshot, and four-boundary performance under dedicated profiles, then emits one canonical ECS-track report over their complete Stage results, four raw captures, four common performance reports, twenty-two ordered source/toolchain inputs, Windows x64 machine identity, and Git provenance.
+- Conformance: The validator reopens and hashes every bound Stage/raw/performance/input file, recomputes Stage artifacts, performance statistics/verdicts, machine fingerprint, generated source shape/hash, deterministic final state, and report payload hash. Stale, ordinary-profile, wrong-configuration/Git/adapter, incomplete, modified, escaped, reparse, noncanonical, or extra evidence fails closed without leaving a partial directory. This report owns no package, SBOM, installer, signature, or product manifest.
+- Evidence: final-specification Debug Stage `20260901T155824288Z-ecs-release-closure-final-docs-9decb27cb9594bab977e17954337c348` with report SHA-256 `6c5e522848b335b271653ddd3550a6de097ddb13268f993608499e257f2b0ead`; final-specification Release Stage `20260901T160015524Z-ecs-release-closure-final-docs-79075f8a369741f0b9895e55380cadfb` with report SHA-256 `adae41f5bded563b12f6ac447b48f12237f80a5a8ffe2ae155fe2bec490bb02c`. Focused performance/release contracts pass 8/8 and report validation passes after deleting derived generated `obj`.
+- Next action: Consume the canonical ECS track report in F-L7-047/F-L7-048 product release aggregation.
 
 ## F-L1-008 — Platform event and timestamp contracts
 
@@ -4030,14 +4164,15 @@ F-L0-008 and F-L3-019 are non-physics Roadmap Features and are `Specified`; the 
 
 - Layer: L4 — Domain Servers
 - Parent capability: Audio / Input / Platform
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified (state/mode transitions, silent fallback, explicit recovery, host ownership, XAudio2 smoke)
 - Intended specification: `Docs/Specifications/Audio-Input-Platform.md#audio-contract-and-recovery`
-- Stage: `audio.lifecycle` (`NotImplemented`, Headless / Foundation, 900s)
+- Stage: `audio.lifecycle` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L1-008
-- Current delta: Target Audio Server state/ownership lifecycle is not implemented.
-- Conformance: Unknown
-- Next action: Implement server/device state transitions with silent fallback.
+- Current delta: none for device creation and ownership. Voice restoration after device loss is implemented by F-L4-012 without adding another device owner.
+- Evidence: `AudioDeviceServer`, lazy `EngineHost.EnsureAudioDevice`, fault-injection tests, and real XAudio2 lifecycle tests.
+- Conformance: Matches. State and backend mode are separate; failed or invalid native creation becomes Ready/Silent or Faulted/None, explicit recovery never retains a stale native handle, and disposal releases one engine generation once.
+- Next action: Preserve the one-generation ownership contract through platform compatibility evidence in F-L7-034.
 
 ## F-L4-010 — Deterministic input action server
 
@@ -4056,235 +4191,249 @@ F-L0-008 and F-L3-019 are non-physics Roadmap Features and are `Specified`; the 
 
 - Layer: L4 — Domain Servers
 - Parent capability: Audio / Input / Platform
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified (fixed PCM hash, bus/gain/pan, loop, voice limit, underrun policy, ownership, allocation)
 - Intended specification: `Docs/Specifications/Audio-Input-Platform.md#audio-contract-and-recovery`
-- Stage: `audio.mixer` (`NotImplemented`, Headless / Foundation, 900s)
+- Stage: `audio.mixer` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L4-009
-- Current delta: Mandatory silent/offline PCM mixer oracle is not implemented.
-- Conformance: Unknown
-- Next action: Implement bus/voice/mixer/underrun behavior against deterministic PCM reference.
+- Current delta: none for offline mixing. Immutable decoded stream artifacts and device-recovery restoration are implemented by F-L4-012.
+- Evidence: portable `AudioMixer`, immutable owned `PcmAudioClip`/`PcmAudioStreamArtifact`, EngineHost/device-server ownership, fixed little-endian PCM16 SHA-256 oracle, and zero-allocation steady-state loop test.
+- Conformance: Matches. Mixer state owns buses and voice cursors; voice limit rejects without implicit stealing, loop bounds require available data, and underrun uses explicit `Silence` or `Stop` policy with typed evidence.
+- Next action: Preserve the offline oracle while later content work adds asynchronous artifact loading outside the mixer.
 
 ## F-L4-012 — Spatial audio and recovery
 
 - Layer: L4 — Domain Servers
 - Parent capability: Audio / Input / Platform
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified (listener-local attenuation/pan, boundary rejection, artifact ownership, logical-frame restore, typed stop, failed-recreate preservation, frame-relative runtime extraction)
 - Intended specification: `Docs/Specifications/Audio-Input-Platform.md#audio-contract-and-recovery`
-- Stage: `audio.spatial` (`NotImplemented`, Headless / Foundation, 900s)
+- Stage: `audio.spatial` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L4-010, F-L4-011
-- Current delta: Stream artifacts, spatial state, and device recreation restore policy are not implemented.
-- Conformance: Unknown
-- Next action: Implement artifact-backed voice recovery and typed stop decisions.
+- Current delta: none. Spatial inputs are derived only from listener-relative float coordinates, decoded PCM artifacts own their samples and canonical `AssetArtifactReference`, and the mixer remains the sole voice/cursor truth across device generations.
+- Evidence: `AudioSpatializer`, `PcmAudioStreamArtifact`, mutable per-voice derived gain/pan, `AudioVoiceRecoveryReport`, `AudioDeviceSnapshot.LastRecovery`, runtime listener-relative extraction, and fault-injection tests.
+- Conformance: Matches. Successful XAudio2 or Silent recreation restores only explicitly eligible artifact voices at a defined logical frame and stops non-eligible voices with typed decisions; failed recreation preserves logical state for retry and never retains a native pointer.
+- Next action: Preserve the immutable audio/device recovery snapshot contract through F-L7-034 compatibility evidence.
 
 ## F-L8-030 — Platform diagnostics viewer
 
 - Layer: L8 — Visual Studio Authoring Environment
 - Parent capability: Audio / Input / Platform
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified (Protocol v5 bounds, Input/Audio owned copies, Preview Host NotOwned state, Host/client fail-close, WARP, net472 presentation/localization)
 - Intended specification: `Docs/Specifications/Audio-Input-Platform.md#performance-and-compatibility`
-- Stage: `vsix.platform-debug` (`NotImplemented`, Headless / VSIX, 1800s)
+- Stage: `vsix.platform-debug` (`Executable`, Headless / VSIX, 1800s)
 - Depends on: F-L4-012
-- Current delta: Read-only platform/input/audio diagnostics snapshots are not implemented.
-- Conformance: Unknown
-- Next action: Implement the VSIX diagnostics viewer over immutable server snapshots.
+- Current delta: none. Protocol v5/debug snapshot v2 carries a bounded process envelope, at most 64 current input actions, and audio lifecycle/mixer/recovery counters. Runtime services copy their own truth; the isolated Preview Host reports typed `NotOwned` for Input/Audio rather than fabricating state.
+- Evidence: `RenderPreviewHostProtocol`, `InputServer.CaptureDebugSnapshot`, `AudioDeviceServer.CaptureDebugSnapshot`, `EngineHost.CapturePlatformDebugSnapshot`, `PlatformDebugSnapshotCapture`, Host/client validation, the existing localized Scene Designer Runtime Diagnostics presentation, and focused Contracts/Windows/WARP/net472 tests.
+- Conformance: Matches. One explicit refresh uses the existing Preview Host session, contains no native handle or engine-owned authoritative numeric state, does not render or poll, and malformed schema or generation/fence mismatch fails closed without creating a second runtime owner.
+- Next action: Preserve the validated compatibility matrix through F-L7-035 platform release closure.
 
 ## F-L7-034 — Platform compatibility evidence
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Audio / Input / Platform
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified (versioned matrix, CI/workflow agreement, executable prerequisite closure, optional hardware ledger separation, Debug/Release Stage)
 - Intended specification: `Docs/Specifications/Audio-Input-Platform.md#performance-and-compatibility`
-- Stage: `platform.compatibility` (`NotImplemented`, Headless / Foundation, 3600s)
+- Stage: `platform.compatibility` (`Executable`, Headless / Foundation, 3600s)
 - Depends on: F-L8-030
-- Current delta: Required Windows vs optional hardware compatibility evidence is not implemented.
-- Conformance: Unknown
-- Next action: Implement the platform matrix and provenance capture.
+- Current delta: none. `Platform-Compatibility-Matrix.json` binds the exact Input, Audio, and diagnostics prerequisite Stages to mandatory Windows x64 Debug/Release solution, Windows-TFM, and WARP CI cells without copying their dynamic result state.
+- Evidence: `PlatformCompatibilityMatrixValidator`, CI/workflow bidirectional validation, focused synthetic/silent runtime tests, explicit `hardware-audio`/`hardware-d3d12` Manual Evidence references, and passing Debug (`20260901T134331089Z-full-eda58875a7414b48b8919b4233ae5ceb`) / Release (`20260901T134337227Z-full-22bf326925d14baea1832fce1751c8cf`) Stage results.
+- Conformance: Matches. Hardware observations remain supplemental and cannot replace synthetic Input, Silent Audio, or WARP correctness; missing, duplicated, promoted, mismatched, or non-executable references fail closed.
+- Next action: Aggregate configuration, adapter, device, and Stage provenance into F-L7-035 platform release evidence.
 
 ## F-L7-035 — Platform release evidence
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Audio / Input / Platform
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified (canonical report/hash, exact source closure, matching compatibility result, environment/mode/manual provenance, Debug/Release Stage)
 - Intended specification: `Docs/Specifications/Audio-Input-Platform.md#stage-oracle-matrix`
-- Stage: `platform.release` (`NotImplemented`, Headless / Foundation, 7200s)
+- Stage: `platform.release` (`Executable`, Headless / Foundation, 7200s)
 - Depends on: F-L7-034
-- Current delta: Scoped platform release closure is not implemented.
-- Conformance: Unknown
-- Next action: Implement release gate evidence and immutable manifest integration.
+- Current delta: none. One Platform-scoped report binds a recent configuration/Git-matched F-L7-034 result, exact source and verification inputs, Windows target, machine/timestamp fingerprint, required modes, and optional hardware ledger snapshot.
+- Evidence: `PlatformReleaseEvidence`, canonical report validation, tamper/extra/missing/wrong-profile prerequisite regressions, Debug Stage `20260901T135955088Z-full-dbd3216597ae47fc9accafb6fa8d5bf9` with report SHA `822f1feb7633f7ce2fcd9ef74ee0a45f27f0f28106788e70b6c23f9bbb1f9901`, and Release Stage `20260901T135955011Z-full-a0dae41606384a91a49b3fc0d67a9752` with report SHA `2b26dc75d215bf15f36dc89c790c0bb9b897767a66337b8a7160592e63bfe4d1`.
+- Conformance: Matches without creating a product package, signing format, SBOM, or second release manifest.
+- Next action: Consume this bounded track report from the later product-wide F-L7-045/F-L7-048 release closure.
 
 ## F-L7-036 — Feature coverage and catalog validation
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Testing / CI / Release
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified in Debug through `RepositoryVerificationTests` and the `verify-coverage` CLI
 - Intended specification: `Docs/Specifications/Testing-CI-Release.md#catalog-and-feature-metadata`
-- Stage: `verification.coverage` (`NotImplemented`, Headless / Foundation, 900s)
+- Stage: `verification.coverage` (Executable, Headless / Foundation, 900s)
 - Depends on: F-L7-021
-- Current delta: Full ledger/Catalog/Stage/Visual binding validation is not implemented.
-- Conformance: Unknown
-- Next action: Implement machine-readable coverage validation and release evidence.
+- Current delta: None at Level 1. The validator rejects missing Feature entries, Status/Stage/dependency disagreement, invalid Catalog graphs, and missing Visual Scene bindings.
+- Conformance: Matches the Level 1 coverage contract.
+- Next action: Keep the validator in the build gate while later Features move from Specified to Implemented.
 
 ## F-L7-037 — Manual verification ledger
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Testing / CI / Release
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified in Debug through `RepositoryVerificationTests` and the `verify-manual-ledger` CLI
 - Intended specification: `Docs/Specifications/Testing-CI-Release.md#ci-matrix-and-evidence-separation`
-- Stage: `verification.manual-ledger` (`NotImplemented`, Headless / Foundation, 900s)
+- Stage: `verification.manual-ledger` (Executable, Headless / Foundation, 900s)
 - Depends on: F-L7-036
-- Current delta: Owned and expiring manual evidence tracking is not implemented.
-- Conformance: Unknown
-- Next action: Implement a ledger that cannot treat missing manual evidence as pass.
+- Current delta: None at Level 1. `Docs/Verification/Manual-Evidence.json` records owner and explicit state; Passed evidence requires an existing link and future expiry, and `--release` rejects Pending or Failed entries.
+- Conformance: Matches the Level 1 manual evidence contract.
+- Next action: Replace Pending rows with time-bounded Passed evidence only when the corresponding Level 6/7 manual run is performed.
 
 ## F-L7-038 — Changed-path stage selection
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Testing / CI / Release
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified (path-boundary matching, global build closure, rename/copy source and destination, literal spaces, executable/profile filtering, runner fallback)
 - Intended specification: `Docs/Specifications/Testing-CI-Release.md#catalog-and-feature-metadata`
-- Stage: `verification.changed-selection` (`NotImplemented`, Headless / Foundation, 900s)
+- Stage: `verification.changed-selection` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L7-036
-- Current delta: Target affected executable-stage selection is not implemented.
-- Conformance: Unknown
-- Next action: Implement changed selection excluding future NotImplemented stages.
+- Current delta: none. `ChangedStageSelector` is the single selection policy; Git porcelain parsing provides normalized old/new rename paths without shell quoting ambiguity.
+- Evidence: selector/parser contract tests and FeatureRunner changed-suite integration.
+- Conformance: Matches. Only executable stages declaring the `changed` profile are selected, path prefixes require a segment boundary, global build inputs select the full changed closure, and no match runs only `runner.contract`.
+- Next action: Use the exact changed closure as an input to hermetic Debug/Release verification in F-L7-039.
 
 ## F-L7-039 — Hermetic clean-build verification
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Testing / CI / Release
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified (isolated restore, no-incremental Debug/Release builds, no-build Debug/Release full tests, artifact counts/hashes, cleanup, stale-output regression)
 - Intended specification: `Docs/Specifications/Testing-CI-Release.md#ci-matrix-and-evidence-separation`
-- Stage: `verification.clean-build` (`NotImplemented`, Headless / Foundation, 900s)
+- Stage: `verification.clean-build` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L7-038
-- Current delta: Explicit clean restore/build/test/artifact cell is not implemented.
-- Conformance: Unknown
-- Next action: Implement hermetic Debug/Release clean-build verification.
+- Current delta: none. Each run owns a unique `.artifacts/CleanBuild/work` subtree and isolated NuGet package/artifact roots; normal `bin/obj` outputs are neither cleaned nor consumed.
+- Evidence: versioned clean-build JSON, restore/build/test output hashes, managed assembly count, Debug/Release full-suite results, owned-root cleanup, and the isolated-output VSIX regression fix.
+- Conformance: Matches. Restore, no-incremental Debug/Release solution build, and no-build Debug/Release full tests run in one isolated graph. The first adversarial run exposed a stale normal-bin VSIX copy; the test project now selects the active `ArtifactsPath`, and the repeated full matrix passes.
+- Next action: Apply the same provenance contract to governed golden updates in F-L7-040.
 
 ## F-L7-040 — Golden artifact policy
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Testing / CI / Release
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified
 - Intended specification: `Docs/Specifications/Testing-CI-Release.md#golden-performance-and-stress-policy`
-- Stage: `verification.golden-policy` (`NotImplemented`, Headless / Foundation, 900s)
+- Stage: `verification.golden-policy` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L7-039
-- Current delta: Provenance/review/regeneration tolerance policy is not implemented.
-- Conformance: Unknown
-- Next action: Implement governed golden artifact updates and oracle provenance.
+- Current delta: none. `Docs/Verification/Golden-Artifacts.json` is the only registry; conventional golden paths fail closed when unregistered.
+- Evidence: repository and synthetic-manifest contract tests cover unmanaged discovery, exact-byte registration, payload/source/review/diff hash drift, stale review rejection, deterministic generator metadata, reviewable diff metadata, and tolerance ceiling rejection.
+- Conformance: Matches. The build invokes `verify-goldens`; all governed payloads must pin source and review provenance, and numeric tolerance is compared as canonical decimal text without introducing engine-owned `double` state.
+- Next action: Reuse the versioned evidence/report conventions in the F-L7-041 performance measurement framework.
 
 ## F-L7-041 — Performance measurement framework
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Testing / CI / Release
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified
 - Intended specification: `Docs/Specifications/Testing-CI-Release.md#golden-performance-and-stress-policy`
-- Stage: `verification.performance` (`NotImplemented`, Headless / Foundation, 7200s)
+- Stage: `verification.performance` (`Executable`, Headless / Foundation, 7200s)
 - Depends on: F-L7-040
-- Current delta: Shared five-warm-up/thirty-sample evidence framework is not implemented.
-- Conformance: Unknown
-- Next action: Implement versioned performance results and machine fingerprint capture.
+- Current delta: none. One shared integer measurement/statistics/gate implementation owns the sample and report contract.
+- Evidence: deterministic statistics, synthetic regression, missing-measurement, execution-count, report tamper, and fingerprint contract tests plus versioned Debug/Release probe reports.
+- Conformance: Matches. Exactly 5+30 executions produce median, nearest-rank p95, MAD, process-wide allocation p95, workload/configuration, Git provenance, and machine fingerprint; report payload/statistics/fingerprint integrity is revalidated, absolute and baseline verdicts remain independent, and unavailable measurement fails closed.
+- Next action: Make the required Windows/TFM/WARP cells explicit and executable in F-L7-042.
 
 ## F-L7-042 — Explicit CI matrix
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Testing / CI / Release
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: RuntimeVerified
 - Intended specification: `Docs/Specifications/Testing-CI-Release.md#ci-matrix-and-evidence-separation`
-- Stage: `verification.ci-matrix` (`NotImplemented`, Headless / Foundation, 7200s)
+- Stage: `verification.ci-matrix` (`Executable`, Headless / Foundation, 7200s)
 - Depends on: F-L7-041
-- Current delta: Required Windows/TFM/WARP explicit matrix is not implemented.
-- Conformance: Unknown
-- Next action: Implement the CI matrix with separate Debug/Release and optional hardware passes.
+- Current delta: none. One manifest owns eight required windows-2022 x64 cells and the checked-in workflow is its executable projection.
+- Evidence: repository contract, missing required Release cell, workflow field drift, continue-on-error rejection, and complete Visual Stage selection tests.
+- Conformance: Matches. Debug/Release solution, Windows TFM, net472 VSIX, and WARP visual workloads are explicit; the build and workflow self-validate matrix agreement, WARP cannot be replaced by hardware, and external artifact publication remains outside this feature.
+- Next action: Apply explicit failure classes, one infrastructure-only retry, and expiring quarantine in F-L7-043.
 
 ## F-L7-043 — Failure, retry, and quarantine policy
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Testing / CI / Release
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified
 - Intended specification: `Docs/Specifications/Testing-CI-Release.md#retry-quarantine-and-failure-policy`
-- Stage: `verification.failure-policy` (`NotImplemented`, Headless / Foundation, 900s)
+- Stage: `verification.failure-policy` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L7-042
-- Current delta: Infrastructure-only retry and expiring quarantine enforcement are not implemented.
-- Conformance: Unknown
-- Next action: Implement deterministic failure classification and quarantine expiry checks.
+- Current delta: none. `FeatureStageExecutor` owns retry classification and `Docs/Verification/Quarantines.json` is the only quarantine ledger.
+- Evidence: persistent infrastructure failure, one-attempt recovery, oracle non-retry, empty repository ledger, valid scoped entry, expiry, duration, owner/evidence/signature, and Stage identity tests.
+- Conformance: Matches. Only declared infrastructure exits and process exceptions retry once; timeout, cancellation, oracle failure, and NotImplemented do not. Quarantines are scoped, owned, linked, limited to fourteen days, validated at build, and never mutate result status.
+- Next action: Reuse the terminal failure envelope and fixed time limits for F-L7-044 stress evidence.
 
 ## F-L7-044 — Stress contract
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Testing / CI / Release
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified
 - Intended specification: `Docs/Specifications/Testing-CI-Release.md#golden-performance-and-stress-policy`
-- Stage: `verification.stress-contract` (`NotImplemented`, Headless / Foundation, 28800s)
+- Stage: `verification.stress-contract` (`Executable`, Headless / Foundation, 28800s)
 - Depends on: F-L7-043
-- Current delta: Reproducible stress execution/envelope contract is not implemented.
-- Conformance: Unknown
-- Next action: Implement long-run stress evidence with deterministic reproduction data.
+- Current delta: none. One bounded execution framework and one versioned report own deterministic stress and fault-injection evidence.
+- Evidence: plan-bound validation, repeated-seed aggregate equality, first-failure termination, invalid workload contract, deadline, report tamper, and Debug/Release executable Stage probes.
+- Conformance: Matches. Seed, ticks, workload/fault metadata, configuration, adapter, Git provenance, machine fingerprint, first-failure boundary, reproduction command, and rolling state/event hashes are bound into an atomically written report under the 28,800-second maximum.
+- Next action: Reuse the same provenance and integrity rules for F-L7-045 package and SBOM validation after its required packaging inputs exist.
 
 ## F-L7-045 — Package install and SBOM validation
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Testing / CI / Release
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: RuntimeVerified
 - Intended specification: `Docs/Specifications/Testing-CI-Release.md#artifact-retention-and-package-gate`
-- Stage: `release.packages` (`NotImplemented`, Headless / Foundation, 7200s)
+- Stage: `release.packages` (Executable, Headless / Foundation, 7200s)
 - Depends on: F-L7-044
-- Current delta: Package closure, SPDX JSON SBOM, signing inputs, install/run/uninstall gate is not implemented.
-- Conformance: Unknown
-- Next action: Implement package validation from actual release payloads.
+- Current delta: none. `ReleasePackageEvidence` builds one exact Windows x64 archive from the published viewer CLI, the sole packable analyzer NuGet, the prebuilt exact VSIX, its localized templates and Preview Host, and the native Assimp payload. It writes an exact file manifest, canonical SPDX 2.3 file/dependency SBOM, and signing-input closure; safely extracts into a unique isolated directory, executes one hidden WARP readback smoke run, deletes the installation on success or failure, and records zero residue.
+- Evidence: nine focused Debug/Release tests cover the exact archive/SPDX/signing closure, archive mutation, missing native payload, missing ja-JP template, canonical host-tool/publish boundaries, isolated Stage test builds, successful isolated execution, oracle failure cleanup, and unowned-directory rejection. Frozen-input Debug Stage `20260901T172840773Z-full-87f7e27773a1446190e6dd29b01ecffd` and Release Stage `20260901T172932938Z-full-f538f59fd0674eecb58162a02999158d` each closed 17 restored NuGet dependencies and completed the extracted WARP readback with zero residue.
+- Conformance: Matches. Validation recomputes the archive, manifest, SBOM, installed byte closure, restored NuGet package bytes, repository inputs, signing inputs, install evidence, and complete evidence-directory closure. Missing, extra, changed, escaped, reordered, non-reproducible, development-path, noncanonical, partial, or stale evidence fails closed.
+- Next action: Consume the canonical Debug/Release package reports from F-L7-046 compatibility aggregation and the later F-L7-047/F-L7-048 product release closure.
 
 ## F-L7-046 — Release compatibility matrix
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Testing / CI / Release
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified
 - Intended specification: `Docs/Specifications/Testing-CI-Release.md#ci-matrix-and-evidence-separation`
-- Stage: `release.compatibility` (`NotImplemented`, Headless / Foundation, 7200s)
+- Stage: `release.compatibility` (Executable, Headless / Foundation, 7200s)
 - Depends on: F-L7-045
-- Current delta: Scoped compatibility matrix aggregation is not implemented.
-- Conformance: Unknown
-- Next action: Implement required/optional compatibility evidence collection.
+- Current delta: none. `Release-Compatibility-Matrix.json` records one Windows 10 2004+ x64/.NET 10/net472/WARP product scope by reference: eight required CI cells, six required Platform cells, eight required VSIX release checks, two supplemental hardware cells, and four executable contract Stages. It stores no Passed/Pending state, evidence path, observation time, or expiry.
+- Evidence: `ReleaseCompatibilityMatrixValidator` delegates each source to its existing validator, then requires exact bidirectional aggregate references and executable Catalog Stages. Four focused tests cover the repository contract, missing/duplicate/promoted hardware references, source drift, and the no-copied-status invariant. Debug Stage `20260901T173856314Z-full-1602a39885a44e6db299e37d3b812804` passed with artifact SHA-256 `10bcefd6f08e66c8c5f991cc98cdbc1fdcfd7ec9ceadfb181cce4f82eccff80c`; Release Stage `20260901T173928467Z-full-cfaf190a66164a62a8d9a17f4b0f80a1` passed with artifact SHA-256 `b0ed419887e0f0b6b8274bed89de1fb213756a4a3b0d7b072f16f7f33ee49756`.
+- Conformance: Matches. CI, Platform, VSIX, manual evidence, and Feature Stage results remain independent sources of truth; F-L7-046 owns only product-scope membership.
+- Next action: Consume this static scope from F-L7-047 while evaluating actual configuration-qualified Stage results.
 
 ## F-L7-047 — Release candidate gate
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Testing / CI / Release
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified
 - Intended specification: `Docs/Specifications/Testing-CI-Release.md#release-scope-and-level-gates`
-- Stage: `release.candidate` (`NotImplemented`, Headless / Foundation, 7200s)
+- Stage: `release.candidate` (Executable, Headless / Foundation, 7200s)
 - Depends on: F-L7-046
-- Current delta: Track/Level scoped executable gate is not implemented.
-- Conformance: Unknown
-- Next action: Implement RC gate selection and failure reporting.
+- Current delta: Catalog-derived product track/Level/dependency closure, recent Release/WARP/current-Git prerequisite selection, canonical SHA-bound RC report, and fail-closed revalidation are implemented. Formal RuntimeVerified evidence remains pending on F-L8-029 and the resulting complete prerequisite run.
+- Conformance: Matches the implemented contract.
+- Next action: Complete F-L8-029, execute `run-release-candidate --configuration Release --level 7`, and record the final Stage evidence.
 
 ## F-L7-048 — Immutable release manifest
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Testing / CI / Release
-- Status: Specified
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified
 - Intended specification: `Docs/Specifications/Testing-CI-Release.md#artifact-retention-and-package-gate`
-- Stage: `release.manifest` (`NotImplemented`, Headless / Foundation, 7200s)
+- Stage: `release.manifest` (Executable, Headless / Foundation, 7200s)
 - Depends on: F-L7-047
-- Current delta: Formal immutable release manifests and retention policy are not implemented.
-- Conformance: Unknown
-- Next action: Implement final manifest publication with hashes, SBOM, provenance, and retention class.
+- Current delta: The formal release publisher binds one passing RC Stage/report, the validated Rendering/Content/ECS/Platform/VSIX reports, and the exact package archive/signing/package-manifest/SPDX identities into an atomic SHA-256 content-addressed directory. The FormalRelease retention class is immutable and non-expiring; repeated publication is byte-preserving and an invalid existing identity is never overwritten.
+- Conformance: Matches the implemented contract.
+- Next action: Complete F-L8-029, execute the full RC prerequisite closure, and publish/revalidate the final formal release.
 
 ## F-L2-005 — Shader Graph canonical schema
 
@@ -4293,7 +4442,7 @@ F-L0-008 and F-L3-019 are non-physics Roadmap Features and are `Specified`; the 
 - Status: Implemented
 - Verification: TestVerified
 - Intended specification: Docs/Specifications/Shader-Graph.md#canonical-assets
-- Stage: shadergraph.schema (Executable, Headless / Foundation, 900s)
+- Stage: `shadergraph.schema` (Executable, Headless / Foundation, 900s)
 - Depends on: F-L7-022
 - Current delta: Canonical UTF-8 JSON, stable IDs, typed ports, semantic hashing, internal/external Subgraphs, recursive dependency identity/hash, and first-class If/ForRange/Return region ownership, branches, nesting, and validation are implemented.
 - Conformance: Matches
@@ -4306,7 +4455,7 @@ F-L0-008 and F-L3-019 are non-physics Roadmap Features and are `Specified`; the 
 - Status: Implemented
 - Verification: TestVerified
 - Intended specification: Docs/Specifications/Shader-Graph.md#compiler-cli
-- Stage: shadergraph.compiler (Executable, Headless / Foundation, 1800s)
+- Stage: `shadergraph.compiler` (Executable, Headless / Foundation, 1800s)
 - Depends on: F-L2-005
 - Current delta: Typed syntax-node graphs and recursive external production Subgraphs deterministically regenerate production HLSL, while high-level If/Else, statically bounded ForRange, LoopIndex, and typed Return lower with source mapping. All nine fixed-ABI entries compile and dependency-identical artifacts are reused.
 - Conformance: Matches
@@ -4319,7 +4468,7 @@ F-L0-008 and F-L3-019 are non-physics Roadmap Features and are `Specified`; the 
 - Status: Implemented
 - Verification: TestVerified
 - Intended specification: Docs/Specifications/Shader-Graph.md#visual-studio-editor
-- Stage: vsix.shader-graph (Executable, Headless / VSIX, 1800s)
+- Stage: `vsix.shader-graph` (Executable, Headless / VSIX, 1800s)
 - Depends on: F-L7-049, F-L8-021
 - Current delta: Editor Factory, WPF node canvas, built-in/prototype palette, exact typed connections, If/ForRange/Return region authoring, edit commands, properties, diagnostics, save/build, Subgraph validate-only save, external-change handling, stable AutomationIds/TransformPattern, external Subgraph navigation, localized templates, dependency-bundle copying, and target wizard are implemented and experimentally verified.
 - Conformance: Matches
@@ -4336,4 +4485,4 @@ F-L0-008 and F-L3-019 are non-physics Roadmap Features and are `Specified`; the 
 - Depends on: F-L7-030, F-L3-018, F-L7-022, F-L6-004, F-L4-010, F-L5-003
 - Current delta: The default UserEcsProject starts a fixed-camera ECS/physics/rendering gallery with a 360 DIP localized Win32 dashboard, catalog-derived Feature/Stage progress, deterministic Input Actions, Pause/Step controls, machine-readable child title, and WARP evidence automation.
 - Conformance: Matches
-- Next action: Keep incomplete prefracture/cache demonstrations out of the default gallery until their own Features become implemented.
+- Next action: Optional showcase playback may consume the canonical `.cgephyscache` output; the editor-triggered Bake path itself is complete under F-L8-014.

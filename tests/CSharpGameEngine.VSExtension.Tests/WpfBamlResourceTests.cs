@@ -12,7 +12,13 @@ public sealed class WpfBamlResourceTests {
         string BuildAssembly=VsixBuildIdentity.BuildOutputPath;
         Assert.True(File.Exists(BuildAssembly),$"Build assembly was not found: {BuildAssembly}");
 
-        Assembly Assembly=Assembly.LoadFrom(BuildAssembly);
+        // Loading the same assembly identity from the mutable build directory puts it in the
+        // AppDomain load-from context. Generated WPF constructors later resolve their pack URI
+        // through the default context and can then fail to find BAML even though it is embedded.
+        // The ProjectReference copy is the assembly the tests actually execute; prove its bytes
+        // match the build output before inspecting that already-loaded assembly.
+        Assembly Assembly=typeof(SceneDesignerToolWindowControl).Assembly;
+        Assert.Equal(ToHex(HashFile(BuildAssembly)),ToHex(HashFile(Assembly.Location)));
         string ResourceName=Assembly.GetManifestResourceNames()
             .Single(Name=>Name.EndsWith(".g.resources",StringComparison.OrdinalIgnoreCase));
         using Stream ResourceStream=Assembly.GetManifestResourceStream(ResourceName)!;

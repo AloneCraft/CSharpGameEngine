@@ -39,7 +39,7 @@ internal static class SceneStartupSystemEmitter {
     /// <see cref="GameSystemEntryPointEmitter"/>はいずれもこの型と実際に検出されたSystemを区別しない。
     /// </summary>
     internal static GameSystemResult BuildSyntheticSystemResult(SceneEmitModel Scene){
-        ImmutableArray<GameSystemComponentParameterModel>Components=[new GameSystemComponentParameterModel("Bootstrap",BootstrapComponentFullyQualifiedName)];
+        ImmutableArray<GameSystemComponentParameterModel>Components=[new GameSystemComponentParameterModel("Bootstrap",BootstrapComponentFullyQualifiedName,IsReadOnly:false)];
 
         ImmutableArray<GameSystemParameterSlot>CallOrder=[
             new GameSystemParameterSlot(GameSystemParameterRole.Component,0),
@@ -63,6 +63,9 @@ internal static class SceneStartupSystemEmitter {
             RealtimeInEditor:false,
             Phase:0,
             IsWorldSystem:false,
+            IsScheduled:false,
+            RunsAfterSystemFullyQualifiedNames:[],
+            DeclarationLocation:Location.None,
             Scene.FilePath,
             Scene.DeclarationPosition);
     }
@@ -103,8 +106,8 @@ internal static class SceneStartupSystemEmitter {
         // State.Worldはget-onlyプロパティなのでrefを取れない。InstantiateScene<TScene>()は
         // Worldのインスタンスメソッドなのでプロパティの値に対して呼べる。Worldのフィールドはすべて
         // 参照型(ChunkBuffer/SceneInstanceTable/ArchetypeNN)なので、structのコピー越しでも
-        // 同じ実体を更新する — これは既存のState.World.Create(...)と同じ仕組みである。
-        Lines.Add($"        State.World.InstantiateScene<{Scene.GlobalQualifiedName}>();");
+        // 同じ実体を更新する。構造変更そのものは統一command bufferのbarrierまで遅延される。
+        Lines.Add($"        State.World.InstantiateSceneDeferred<{Scene.GlobalQualifiedName}>();");
         Lines.Add("        return true;");
         Lines.Add("    }");
         Lines.Add("}");

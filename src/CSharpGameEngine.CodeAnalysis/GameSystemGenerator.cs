@@ -166,11 +166,22 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
                 Spc.ReportDiagnostic(Diagnostic);
             }
 
+            var Schedule=GameSystemScheduleAnalyzer.Build(Registry);
+            foreach(var Diagnostic in Schedule.Diagnostics){
+                Spc.ReportDiagnostic(Diagnostic);
+            }
+
             GameSystemTypesEmitter.Emit(Spc,Registry);
             GameSystemWorldEmitter.Emit(Spc,Registry);
+            GameSystemSnapshotEmitter.Emit(Spc,Registry);
             SpatialWorldEmitter.Emit(Spc,Registry);
             GameSystemLoopEmitter.Emit(Spc,Registry);
-            GeneratedEditorPreviewBridgeEmitter.Emit(Spc,ValidSceneDeclarations,Registry,Source.Gate.LogicalSpatialProfile);
+            GameSystemScheduleEmitter.Emit(Spc,Schedule);
+            GeneratedEditorPreviewBridgeEmitter.Emit(Spc,ValidSceneDeclarations,Registry);
+            GeneratedSceneBakeHostEmitter.Emit(Spc,ValidSceneDeclarations,Registry,Source.Gate);
+            if(Source.Gate.HasWorldCellActivationContract){
+                GeneratedWorldCellActivationSinkEmitter.Emit(Spc,ValidSceneDeclarations);
+            }
 
             if(EntryPointPlan.Emit){
                 GameSystemEntryPointEmitter.Emit(Spc,Registry);

@@ -85,7 +85,7 @@ internal readonly struct SceneCameraPreview {
 internal static class SceneCameraPreviewBinding {
     internal const int DefaultMaximumPreviewCount = 3;
     internal const float DefaultAspectRatio = 16f / 9f;
-    internal const float DefaultFovYRadians = (float)(Math.PI / 4d);
+    internal const float DefaultFovYRadians = FloatMath.Pi / 4f;
     internal const float DefaultNearZ = 0.1f;
     internal const float DefaultFarZ = 300f;
     internal const float DefaultOrthographicSize = 10f;
@@ -205,8 +205,6 @@ internal static class SceneCameraPreviewBinding {
         object? Value = Component.FindMember(Name)?.Value.ConstantValue;
         float Result = Value switch {
             float Float => Float,
-            double Double => (float)Double,
-            decimal Decimal => (float)Decimal,
             int Integer => Integer,
             long Long => Long,
             uint UnsignedInteger => UnsignedInteger,
@@ -241,7 +239,7 @@ internal static class SceneCameraPreviewBinding {
         }
 
         if (ProjectionMode == SceneProjectionMode.Perspective &&
-            (!IsFinite(FovY) || FovY <= 0f || FovY >= Math.PI)) {
+            (!IsFinite(FovY) || FovY <= 0f || FovY >= FloatMath.Pi)) {
             return VsixText.Get("SceneCameraFovInvalid",Culture);
         }
 

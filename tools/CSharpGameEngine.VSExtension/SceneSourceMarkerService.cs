@@ -133,7 +133,7 @@ internal sealed class SceneSourceMarkerService : IDisposable {
             }
 
             WpfView.DisplayTextLineContainingBufferPosition(
-                new SnapshotPoint(Snapshot,Position),0.0,ViewRelativePosition.Top);
+                new SnapshotPoint(Snapshot,Position),0f,ViewRelativePosition.Top);
         }
     }
 

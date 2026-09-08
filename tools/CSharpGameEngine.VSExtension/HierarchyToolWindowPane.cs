@@ -16,4 +16,19 @@ public sealed class HierarchyToolWindowPane:ToolWindowPane {
         this.Caption=VsixText.Get("PaneHierarchy");
         this.Content=new HierarchyToolWindowControl();
     }
+
+    protected override bool PreProcessMessage(
+        ref System.Windows.Forms.Message Message){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        // ToolWindowPane.TranslateAccelerator is the first Visual Studio-owned keyboard
+        // boundary. Escape can be consumed by shell command routing before WPF raises a
+        // KeyEvent, so handle it here when this pane owns the accelerator.
+        if(SceneEditorEscapeRoutingPolicy.IsVisualStudioEscapeKeyDown(
+                Message.Msg,Message.WParam.ToInt64())
+            &&this.Content is HierarchyToolWindowControl Hierarchy){
+            Hierarchy.HandleVisualStudioEscape();
+            return true;
+        }
+        return base.PreProcessMessage(ref Message);
+    }
 }

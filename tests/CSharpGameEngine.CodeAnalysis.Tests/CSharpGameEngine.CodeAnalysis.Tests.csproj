@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\CSharpGameEngine.CodeAnalysis\CSharpGameEngine.CodeAnalysis.csproj" />
+    <ProjectReference Include="..\..\src\CSharpGameEngine.Contracts\CSharpGameEngine.Contracts.csproj" />
     <ProjectReference Include="..\..\src\CSharpGameEngine.Entities\CSharpGameEngine.Entities.csproj" />
   </ItemGroup>
 
@@ -28,12 +29,13 @@
          tests exercise the literal promoted sample content with zero drift risk (ADR-0032). -->
     <!-- The real runtime source the generator completes, read as text by GameSystemGeneratorTestHelper
          so every generator test compiles against exactly what ships (ADR-0033). -->
+    <None Include="../../src/CSharpGameEngine.Entities/Snapshot.cs" Link="TestAssets/Entities/Snapshot.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Entities\Runtime.cs" Link="TestAssets\Entities\Runtime.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Entities\Bootstrap.cs" Link="TestAssets\Entities\Bootstrap.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Entities\SystemOrderAttribute.cs" Link="TestAssets\Entities\SystemOrderAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Entities\SimulationSystems.cs" Link="TestAssets\Entities\SimulationSystems.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Entities\ExecuteInEditorAttribute.cs" Link="TestAssets\Entities\ExecuteInEditorAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\src\CSharpGameEngine.Runtime.Simulation\FixedTickScheduler.cs" Link="TestAssets\Simulation\FixedTickScheduler.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\CSharpGameEngine.Core\FixedTickScheduler.cs" Link="TestAssets\Simulation\FixedTickScheduler.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Entities\Parent.cs" Link="TestAssets\Entities\Parent.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Entities\SceneNodeTag.cs" Link="TestAssets\Entities\SceneNodeTag.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\CSharpGameEngine.Entities\IRuntimeComponent.cs" Link="TestAssets\Entities\IRuntimeComponent.cs" CopyToOutputDirectory="PreserveNewest" />
@@ -50,4 +52,7 @@
     <None Include="..\..\src\CSharpGameEngine.Core\Authoring\SceneAssetsAttribute.cs" Link="TestAssets\Core\SceneAssetsAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="../../src/CSharpGameEngine.Entities/EcsSnapshotTransientAttribute.cs" Link="TestAssets/Entities/EcsSnapshotTransientAttribute.cs" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

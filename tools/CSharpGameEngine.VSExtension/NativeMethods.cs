@@ -123,6 +123,12 @@ internal static class NativeMethods {
     [return:MarshalAs(UnmanagedType.Bool)]
     public static extern bool ShowWindow(IntPtr HWnd,int NCmdShow);
 
+    [DllImport("user32.dll",SetLastError=true)]
+    [return:MarshalAs(UnmanagedType.Bool)]
+    public static extern bool MoveWindow(
+        IntPtr HWnd,int X,int Y,int Width,int Height,
+        [MarshalAs(UnmanagedType.Bool)]bool Repaint);
+
     [DllImport("user32.dll")]
     public static extern IntPtr SetCapture(IntPtr HWnd);
 

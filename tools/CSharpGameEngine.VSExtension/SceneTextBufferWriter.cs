@@ -95,8 +95,7 @@ internal sealed class SceneTextBufferWriter {
 
     // M0036: シーンビューのCtrl+Z/Yから呼ばれる。Undo/Redoの唯一の実体は引き続きVSの
     // ITextUndoHistoryであり(ADR-0040、SceneModel自体は編集履歴を持たない)、ここは対象バッファの
-    // 履歴を直接叩くだけの薄いラッパー。呼び出し元(SceneHwndHost)は成功時だけ表示の先読みパッチを
-    // 行う。
+    // 履歴を直接叩くだけの薄いラッパー。Sessionは成功時だけRoslyn再解析をscheduleする。
     internal bool TryUndo(ITextBuffer Buffer){
         var History=this.UndoHistoryRegistry.RegisterHistory(Buffer);
         if(!History.CanUndo){
@@ -117,17 +116,4 @@ internal sealed class SceneTextBufferWriter {
         return true;
     }
 
-    /// <summary>
-    /// M0051 Step 1-5(実機修正): バッファの版番号。単調増加するので、自分の書き込み直後に記録した値と
-    /// 現在値が一致することが「以降だれもバッファを触っていない」ことの証明になる
-    /// (<see cref="SceneTextUndoLedgerPolicy"/>)。
-    ///
-    /// <para>
-    /// 当初はここで<c>ITextUndoHistory.LastUndoTransaction.Description</c>を読んで所有を判定して
-    /// いたが、VSの実装(<c>VsUndoHistory</c>)は<c>LastUndoTransaction</c>/<c>UndoStack</c>等を
-    /// 実装しておらず<see cref="System.NotSupportedException"/>を投げる。このシムで使えるのは
-    /// <c>CanUndo</c>/<c>CanRedo</c>/<c>Undo(n)</c>/<c>Redo(n)</c>/<c>CreateTransaction</c>だけ。
-    /// </para>
-    /// </summary>
-    internal static int GetVersionNumber(ITextBuffer Buffer)=>Buffer.CurrentSnapshot.Version.VersionNumber;
 }

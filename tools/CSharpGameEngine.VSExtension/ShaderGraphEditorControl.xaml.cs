@@ -103,7 +103,7 @@ public partial class ShaderGraphEditorControl:UserControl {
         this.DrawRegions(Root,Visible,Layout);
         foreach(var Edge in Root.Edges.Where(Edge=>Visible.Contains(Edge.FromNodeId)&&Visible.Contains(Edge.ToNodeId))) {
             if(!Layout.TryGetValue(Edge.FromNodeId,out var From)||!Layout.TryGetValue(Edge.ToNodeId,out var To)) { continue; }
-            this.NodeCanvas.Children.Add(new Line { X1=From.X-this.ViewOriginX+220,Y1=From.Y-this.ViewOriginY+34,X2=To.X-this.ViewOriginX,Y2=To.Y-this.ViewOriginY+34,Stroke=new SolidColorBrush(Color.FromRgb(74,156,211)),StrokeThickness=1.5,IsHitTestVisible=false });
+            this.NodeCanvas.Children.Add(new Line { X1=From.X-this.ViewOriginX+220,Y1=From.Y-this.ViewOriginY+34,X2=To.X-this.ViewOriginX,Y2=To.Y-this.ViewOriginY+34,Stroke=new SolidColorBrush(Color.FromRgb(74,156,211)),StrokeThickness=1.5f,IsHitTestVisible=false });
         }
         foreach(var Node in Root.Nodes.Where(Node=>Visible.Contains(Node.Id))) {
             var Position=Layout.TryGetValue(Node.Id,out var Item)?Item:new ShaderGraphNodeLayout { NodeId=Node.Id,X=0,Y=0 };
@@ -113,7 +113,8 @@ public partial class ShaderGraphEditorControl:UserControl {
             this.NodeCanvas.Children.Add(Border);
             this.NodeElements[Node.Id]=Border;
         }
-        this.NodeCanvas.LayoutTransform=new ScaleTransform(this.ZoomSlider.Value,this.ZoomSlider.Value);
+        var Zoom=FloatMath.FromExternal(this.ZoomSlider.Value);
+        this.NodeCanvas.LayoutTransform=new ScaleTransform(Zoom,Zoom);
         this.StatusText.Text=VsixText.Format("ShaderGraphStatus",this.Document.Graph.Target.Kind,Visible.Count,Root.Nodes.Count,ShaderGraphCanonicalization.ComputeSemanticHash(this.Document.Graph).Substring(0,12));
     }
     private HashSet<StableId>GetVisibleNodeIds(ShaderGraphSubgraph Root) {
@@ -154,9 +155,13 @@ public partial class ShaderGraphEditorControl:UserControl {
         System.Windows.Automation.AutomationProperties.SetName(Border,Node.Name??Node.Type);
         Border.AutomationMove=(ScreenX,ScreenY)=>{
             var ScreenPosition=Border.PointToScreen(new Point(0,0));
-            var Left=Math.Max(0,Canvas.GetLeft(Border)+(ScreenX-ScreenPosition.X));
-            var Top=Math.Max(0,Canvas.GetTop(Border)+(ScreenY-ScreenPosition.Y));
-            this.Document.MoveNode(Node.Id,(float)Left+this.ViewOriginX,(float)Top+this.ViewOriginY);
+            var CanvasLeft=(float)Canvas.GetLeft(Border);
+            var CanvasTop=(float)Canvas.GetTop(Border);
+            var ScreenLeft=(float)ScreenPosition.X;
+            var ScreenTop=(float)ScreenPosition.Y;
+            float Left=Math.Max(0f,CanvasLeft+(ScreenX-ScreenLeft));
+            float Top=Math.Max(0f,CanvasTop+(ScreenY-ScreenTop));
+            this.Document.MoveNode(Node.Id,Left+this.ViewOriginX,Top+this.ViewOriginY);
         };
         Border.MouseLeftButtonDown+=this.Node_MouseLeftButtonDown;
         Border.MouseMove+=this.Node_MouseMove;
@@ -232,10 +237,10 @@ public partial class ShaderGraphEditorControl:UserControl {
         if(this.DependencyList.SelectedItem is string PathValue) { this.OpenDependencyRequested?.Invoke(PathValue); }
     }
     private void PaletteList_MouseDoubleClick(object Sender,MouseButtonEventArgs Arguments) {
-        if(this.PaletteList.SelectedItem is string Type) { _=this.Document.AddFromPrototype(Type,(float)this.CanvasScroll.HorizontalOffset+80+this.ViewOriginX,(float)this.CanvasScroll.VerticalOffset+80+this.ViewOriginY); }
+        if(this.PaletteList.SelectedItem is string Type) { _=this.Document.AddFromPrototype(Type,FloatMath.FromExternal(this.CanvasScroll.HorizontalOffset)+80+this.ViewOriginX,FloatMath.FromExternal(this.CanvasScroll.VerticalOffset)+80+this.ViewOriginY); }
     }
     private void EntryTabs_SelectionChanged(object Sender,SelectionChangedEventArgs Arguments)=>this.RefreshCanvas();
-    private void ZoomSlider_ValueChanged(object Sender,RoutedPropertyChangedEventArgs<double>Arguments) { if(this.NodeCanvas is not null) { this.NodeCanvas.LayoutTransform=new ScaleTransform(Arguments.NewValue,Arguments.NewValue); } }
+    private void ZoomSlider_ValueChanged(object Sender,RoutedPropertyChangedEventArgs<double>Arguments) { if(this.NodeCanvas is not null) { var Zoom=FloatMath.FromExternal(Arguments.NewValue);this.NodeCanvas.LayoutTransform=new ScaleTransform(Zoom,Zoom); } }
     private void CanvasScroll_PreviewMouseWheel(object Sender,MouseWheelEventArgs Arguments) { if((Keyboard.Modifiers&ModifierKeys.Control)==0){return;}this.ZoomSlider.Value=Math.Max(this.ZoomSlider.Minimum,Math.Min(this.ZoomSlider.Maximum,this.ZoomSlider.Value+(Arguments.Delta>0?0.1:-0.1)));Arguments.Handled=true; }
     private void Undo_Click(object Sender,RoutedEventArgs Arguments)=>_=this.Document.Undo();
     private void Redo_Click(object Sender,RoutedEventArgs Arguments)=>_=this.Document.Redo();

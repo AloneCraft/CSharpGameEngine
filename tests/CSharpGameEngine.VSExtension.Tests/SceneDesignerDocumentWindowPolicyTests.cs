@@ -40,7 +40,7 @@ public sealed class SceneDesignerDocumentWindowPolicyTests {
         Assert.Equal(SceneDesignerDocumentWindowPolicy.CreateFlags,Request.Flags);
         Assert.Equal(Guid.Empty,Request.EditorTypeGuid);
         Assert.Equal(Guid.Empty,Request.CommandUiGuid);
-        Assert.Equal(string.Empty,Request.PhysicalView);
+        Assert.Null(Request.PhysicalView);
         Assert.Equal(string.Empty,Request.EditorCaption);
         Assert.Equal("FirstPersonStageScene [Scene]",Request.OwnerCaption);
     }
@@ -56,6 +56,15 @@ public sealed class SceneDesignerDocumentWindowPolicyTests {
             SceneDesignerDocumentWindowPolicy.EnsureAddDocumentSucceeded(Request,0,Frame:null));
         Assert.Equal(unchecked((int)0x8000FFFF),MissingFrame.ErrorCode);
         Assert.Equal("IVsExternalFilesManager.AddDocument returned no frame",MissingFrame.Operation);
+    }
+
+    [Fact]
+    public void FilelessPane_IsItsOwnNonNullDocData(){
+        var View=new IntPtr(42);
+
+        Assert.Equal(View,SceneDesignerDocumentWindowPolicy.SelectDocData(View));
+        Assert.Throws<ArgumentException>(()=>
+            SceneDesignerDocumentWindowPolicy.SelectDocData(IntPtr.Zero));
     }
 
     [Fact]

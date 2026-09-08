@@ -26,6 +26,7 @@ public sealed class AutomationOptions {
     public int TimeoutSeconds { get; private set; }
     public string EvidenceDirectory { get; private set; }=string.Empty;
     public string Locale { get; private set; }="auto";
+    public bool SkipBuild { get; private set; }
     public static AutomationParseResult Parse(IReadOnlyList<string>Arguments) {
         if(Arguments.Count==0) { return Fail("A command is required."); }
         var Values=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
@@ -44,14 +45,26 @@ public sealed class AutomationOptions {
         Values.TryGetValue("timeout-seconds",out var Timeout);
         Values.TryGetValue("evidence-dir",out var EvidenceDirectory);
         Values.TryGetValue("locale",out var Locale);
-        if(!string.Equals(Scenario,"shader-graph",StringComparison.Ordinal)) { return Fail("Only the shader-graph scenario is supported."); }
+        Values.TryGetValue("skip-build",out var SkipBuildText);
+        if(Scenario!="shader-graph"&&Scenario!="scene-observation") {
+            return Fail("Scenario must be shader-graph or scene-observation.");
+        }
         if(Configuration!="Debug"&&Configuration!="Release") { return Fail("--configuration must be Debug or Release."); }
-        if(!string.Equals(RootSuffix,"CgeAutomation",StringComparison.Ordinal)) { return Fail("Automation is restricted to the CgeAutomation root suffix."); }
+        if(Scenario=="shader-graph"
+            &&!string.Equals(RootSuffix,"CgeAutomation",StringComparison.Ordinal)) {
+            return Fail("Shader Graph automation is restricted to the CgeAutomation root suffix.");
+        }
+        if(Scenario=="scene-observation"
+            &&!string.Equals(RootSuffix,"CgeFixed",StringComparison.Ordinal)) {
+            return Fail("Scene observation is restricted to the CgeFixed root suffix.");
+        }
         if(!int.TryParse(Timeout,NumberStyles.None,CultureInfo.InvariantCulture,out var TimeoutSeconds)||TimeoutSeconds<30||TimeoutSeconds>7200) { return Fail("--timeout-seconds must be from 30 through 7200."); }
         if(string.IsNullOrWhiteSpace(EvidenceDirectory)) { return Fail("--evidence-dir is required."); }
         if(string.IsNullOrWhiteSpace(Locale)) { Locale="auto"; }
         if(Locale!="auto"&&Locale!="1033"&&Locale!="1041") { return Fail("--locale must be auto, 1033, or 1041."); }
-        return Success(new AutomationOptions { Command=AutomationCommand.Run,Scenario=Scenario!,Configuration=Configuration!,RootSuffix=RootSuffix!,TimeoutSeconds=TimeoutSeconds,EvidenceDirectory=EvidenceDirectory!,Locale=Locale! });
+        var SkipBuild=false;
+        if(!string.IsNullOrWhiteSpace(SkipBuildText)&&!bool.TryParse(SkipBuildText,out SkipBuild)) { return Fail("--skip-build must be true or false."); }
+        return Success(new AutomationOptions { Command=AutomationCommand.Run,Scenario=Scenario!,Configuration=Configuration!,RootSuffix=RootSuffix!,TimeoutSeconds=TimeoutSeconds,EvidenceDirectory=EvidenceDirectory!,Locale=Locale!,SkipBuild=SkipBuild });
     }
     private static AutomationParseResult Fail(string Error)=>new AutomationParseResult(null,Error);
     private static AutomationParseResult Success(AutomationOptions Options)=>new AutomationParseResult(Options,string.Empty);

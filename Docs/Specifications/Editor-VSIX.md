@@ -24,7 +24,7 @@ C# IScene source
   -> converged immutable projection for hierarchy, inspector, and viewport
 ```
 
-The predicted model is transient UI state only. It is never an alternative source of truth and never avoids a reparse. If parsing, conflict resolution, or writeback fails, the source is unchanged and the prediction rolls back to the last reparse result with an actionable diagnostic.
+The predicted operation model is transient gesture state only. It is never an alternative source of truth and never avoids a reparse. Before the live-buffer write, the edited C# tree is compiled and reanalyzed; the canonical reanalysis model, not the separately mutated operation model, is published as the temporary landing projection. If parsing, conflict resolution, verification, or writeback fails, the source is unchanged and the prediction rolls back to the last reparse result with an actionable diagnostic.
 
 Scene Designer is a Visual Studio multi-view document: document, hierarchy, inspector, palette, and viewport project the same snapshot/session identity. Visual hierarchies are projections rather than runtime ownership graphs.
 
@@ -44,11 +44,12 @@ Protocol version mismatch fails before source mutation. Host crash and timeout a
 
 ## Editing contracts
 
-- Rotate, Scale, snap, rebase, WARP display, and Undo/Redo are acceptance requirements layered on the existing transform baseline.
-- Inspector and palette use schema-aware editors for enums, vectors, asset references, add/remove, and reorder. Invalid text, missing assets, or illegal component topology produce diagnostics and leave C# source unchanged.
-- Source synchronization batches one completed gesture into one Visual Studio native Undo unit and must converge to the Roslyn result even when external edits arrive.
+- Rotate, Scale, snap, rebase, WARP display, and Undo/Redo are acceptance requirements layered on the existing transform baseline. Transform preview matrices are camera/frame-relative `float` UI projections only; the C# authoring source is unchanged until commit. A canonical Transform commit updates only local Logical position/rotation/scale members and must preserve its `ReferenceFrameId` member exactly.
+- Inspector and palette use schema-aware editors for enums, vectors, asset references, add/remove, and reorder. The declared component-member type, not the right-hand expression type, selects the editor. Asset choices are limited to compatible immutable members of the referenced `[SceneAssets]` container. `double` and `decimal` remain read-only at the engine-owned authoring boundary; canonical real editing uses `float`. Invalid text, an undeclared/missing asset symbol, illegal topology, and unchanged choices create no source operation or native Undo entry. Physical asset discovery/import/existence belongs to F-L8-019 and is not duplicated in this Inspector contract.
+- Source synchronization resolves the latest Roslyn context for every completed gesture, explicitly rebases supported stale deltas or rejects the operation, verifies one minimal C# edit by compile/reanalysis, and opens at most one Visual Studio native Undo transaction. Consecutive gestures may use a transient projection only as the stable-ID landing basis; C# and native text history remain the only authoring/Undo truths. Save persists the current live document and never performs deferred writeback.
 - Bake/import UI reports the actual host result and artifact provenance. It may not enable a false “completed” state when a backend is unavailable.
-- Render graph, profiler, and debug viewers request read-only versioned snapshots only on demand. They do not attach a second renderer or mutate runtime state.
+- Asset Preview transports only bounded `AssetAuthoringRequest`/`AssetAuthoringResult` DTOs to the versioned net10 Content host. Only that host may validate or atomically publish canonical `<source>.meta`; the net472 VSIX may display identity/options/diagnostics and request save with the inspected SHA-256, but it may not parse metadata, change an existing `AssetId`, overwrite a concurrent edit, or create a second metadata truth.
+- Render graph, profiler, and debug viewers request protocol-v5/debug-snapshot-v2 bounded read-only snapshots only on demand from the existing Preview Host session. Device generation, fence, frame/object/texture/error counters, bounded D3D12 diagnostics, process identity, bounded Input actions, and Audio lifecycle/mixer/recovery counters are observed copies. The isolated Preview Host reports `NotOwned` for runtime Input/Audio it does not own. The L4 graph is labeled `DeclaredPlan`, not executed-pass or timing evidence. A capture error leaves the session usable; malformed/correlated transport failure uses existing recovery. The viewers do not poll, attach a second renderer, acquire Input/Audio services, expose native handles, issue control commands, synthesize timings, or mutate runtime state.
 
 ## Failure diagnostics
 
@@ -66,6 +67,7 @@ Experimental Instance evidence remains explicit. `VSIX-Experimental-Baseline.jso
 
 | Feature | Level | Stage | Mode | Timeout | Oracle |
 |---|---:|---|---|---:|---|
+| F-L8-018 | 5 | `vsix.rendering-preview` | Visual / VSIX | 1800s | Packaged WARP Preview Host, common Render Server presentation/recovery, and no VSIX renderer duplication. |
 | F-L8-020 | 1 | `vsix.experimental-smoke` | Headless / VSIX | 3600s | Explicit pending/recorded Experimental Instance evidence. |
 | F-L8-021 | 2 | `vsix.experimental-automation` | Headless / VSIX | 3600s | Launch, open, diagnostics, shutdown automation. |
 | F-L8-022 | 3 | `vsix.host-lifecycle` | Headless / VSIX | 1800s | Protocol state machine, cancel, crash, mismatch. |
@@ -77,7 +79,7 @@ Experimental Instance evidence remains explicit. `VSIX-Experimental-Baseline.jso
 | F-L8-028 | 6 | `vsix.compatibility` | Headless / VSIX | 3600s | net472/package/VS compatibility evidence. |
 | F-L8-029 | 7 | `vsix.release` | Headless / VSIX | 7200s | Signed inputs, install, run, uninstall. |
 
-F-L8-020 and F-L8-021 are Implemented with executable stages. F-L8-022 through F-L8-029 remain Specified and NotImplemented. Existing Scene Designer test stages remain executable baseline evidence.
+F-L8-018 and F-L8-020 through F-L8-028 are Implemented with executable stages. F-L8-029 is Implementing with a fail-closed executable Stage. Its Release package is built once before observation and is never repacked afterward: strict 1033/1041 automated rows, six manual rows, package/build/installed DLL hashes, a dedicated `CgeRelease` install/uninstall lifecycle with zero residue, a recent `vsix.compatibility` prerequisite, and the canonical report must all bind the same package SHA-256. `vsix.transform-tools` binds the C# VSIX reference Scene, the transform/transaction/rebase/source contracts, and an isolated common Render Server WARP overlay pixel oracle. `vsix.inspector-contracts` fixes declared-type editor selection, compatible immutable asset choices, invalid/no-op non-mutation, vector/component structural edits, and source reparse behavior. `vsix.source-sync` fixes the one-shot latest-source planner, canonical verification reanalysis, Scene-scoped semantic-generation landing identity, native Undo routing, post-write non-cancellable closure, and absence of editor-owned authoring history. `vsix.bake-integration` fixes one request-correlated immutable presentation for Import/Bake, monotonic progress, cancellation, typed host diagnostics, partial output links, and false-success rejection. `vsix.debug-tools` fixes one bounded read-only query on the existing Preview Host session, typed/correlated validation, explicit declared-graph semantics, measured counters, non-terminal capture failures, and no polling or second runtime owner. `vsix.compatibility` makes `Docs/Verification/VSIX-Compatibility-Matrix.json` the immutable compatibility contract and validates it bidirectionally against the net472 project, amd64 Visual Studio 17.14+ source manifest, SDK/Roslyn pins, en-US/ja-JP package cultures, CgeFixed development hive, isolated CgeAutomation evidence hive, CI cells, detailed Experimental ledger, and manual summary. Pending evidence remains explicit and is accepted only for pre-release matrix validation; `--require-passing-evidence` fails every required non-passing or expired check. Automated WARP/package tests therefore cannot be misreported as human-observed Visual Studio, DPI, focus, or lifecycle evidence.
 
 
 ## Visual Shader Graph editor

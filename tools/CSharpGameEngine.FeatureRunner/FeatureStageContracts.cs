@@ -14,6 +14,7 @@ public enum FeatureRoadmapTrack {
     AssetContent,
     EditorVsix,
     EcsRuntime,
+    WorldScale,
     AudioInputPlatform,
     TestingCiRelease,
 }
@@ -116,7 +117,8 @@ public sealed record FeatureStageRunResult(
         var ResolvedErrors=Errors??[];
         var Evidence=string.Join("\n",[Stage.Id,Status.ToString(),Summary,StateHash??string.Empty,EventHash??string.Empty,StandardOutput,StandardError,.. Assertions.Select(static Assertion=>$"{Assertion.Name}:{Assertion.Passed}:{Assertion.Details}"),.. ResolvedErrors]);
         var ArtifactSha256=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Evidence))).ToLowerInvariant();
-        return new FeatureStageRunResult(Stage.Id,Stage.FeatureIds,Stage.Pack.ToString(),Options.Configuration,Options.Profile,Options.Adapter.ToString(),Options.Seed,Options.Ticks,Options.GitCommit,Options.IsDirty,Started,Finished,(long)Math.Max(0,(Finished-Started).TotalMilliseconds),StateHash,EventHash,Assertions,ResolvedErrors,ArtifactSha256,Status,Summary,StandardOutput,StandardError);
+        var DurationMilliseconds=Math.Max(0L,(Finished-Started).Ticks/TimeSpan.TicksPerMillisecond);
+        return new FeatureStageRunResult(Stage.Id,Stage.FeatureIds,Stage.Pack.ToString(),Options.Configuration,Options.Profile,Options.Adapter.ToString(),Options.Seed,Options.Ticks,Options.GitCommit,Options.IsDirty,Started,Finished,DurationMilliseconds,StateHash,EventHash,Assertions,ResolvedErrors,ArtifactSha256,Status,Summary,StandardOutput,StandardError);
     }
 }
 public sealed record FeatureRunResultDocument(string SchemaVersion,string Profile,DateTimeOffset CreatedUtc,IReadOnlyList<FeatureStageRunResult>Results){
