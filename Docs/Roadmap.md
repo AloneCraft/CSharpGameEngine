@@ -1,5 +1,8 @@
 # Roadmap
 
+## Current typed-light contract update
+M0088/ADR-0064 refines existing F-L5-001, F-L8-024, F-L8-025, F-L4-002, F-L0-005 and F-L0-009 without adding a new feature identity. See [Typed Lighting](Specifications/Typed-Lighting.md) and [verification milestone](Milestones/M0088-Typed-Lighting.md).
+
 ## Non-physics Feature index (authoritative)
 
 This index is the authoritative machine-tracked mapping for the six non-physics tracks. The older narrative tables below remain planning context. Every row has one Feature and one target Stage; `Specified`/`Deferred` target Stages are deliberately `NotImplemented` until their implementation lands.

@@ -1,5 +1,8 @@
 # Asset and Content Pipeline specification
 
+## Typed imported lighting
+ImportedLight is a color-only abstract base with directional illuminance and point/spot luminous-intensity variants. Missing range remains null. ImportedSpotCone preserves source half radians, including glTF's legal zero inner angle; conversion to the stricter authored cone requires explicit resolution for that case. See [Typed Lighting](Typed-Lighting.md). The Unreal directional emitter preserves lux/color and emits a separate LightShadow.
+
 - Status: Partially implemented
 - Parent index: [Roadmap](../Roadmap.md), [Implementation Status](../Implementation-Status.md)
 - Decisions: [ADR-0053](../Decisions/ADR-0053-Asset-Identity-And-Content-Artifacts.md)

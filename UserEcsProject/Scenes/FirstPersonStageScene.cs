@@ -643,14 +643,10 @@ internal partial class FirstPersonStageScene : IScene {
                         Scale=new LogicalVector3(1f,1f,1f),
                     },
                     new DirectionalLight {
-                        ColorR=1f,
-                        ColorG=1f,
-                        ColorB=1f,
-                        IlluminanceLux=100_000f,
-                        CastsShadows=true,
-                        ShadowPriority=100,
-                        ShadowBiasMeters=0.005f,
+                        Color=new LinearLightColor(1f,1f,1f),
+                        Illuminance=new Illuminance(100_000f),
                     },
+                    new LightShadow { Priority=100,Bias=new ShadowBias(0.005f) },
                 ],
             },
             new Node {

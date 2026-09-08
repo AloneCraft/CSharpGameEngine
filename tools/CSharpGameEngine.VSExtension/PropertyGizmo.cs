@@ -13,6 +13,7 @@ internal enum PropertyGizmoKind {
     DirectionalLight,
     PointLight,
     SpotLight,
+    RectAreaLight,
 }
 
 internal readonly struct PropertyGizmoModifierApplicability {
@@ -44,7 +45,9 @@ internal readonly struct PropertyGizmoFrame {
         float FovYRadians,float NearZ,float FarZ,float OrthographicSize,
         float Range,float InnerConeAngleRadians,float OuterConeAngleRadians,
         IReadOnlyList<GizmoHandleId>EditableHandles,
-        bool UsesPhysicalLightFields=false){
+        bool UsesPhysicalLightFields=true,float Width=1f,float Height=1f){
+        this.Width=Width;
+        this.Height=Height;
         this.Kind=Kind;
         this.ComponentTypeFullyQualifiedName=ComponentTypeFullyQualifiedName;
         this.Pivot=Pivot;
@@ -63,6 +66,8 @@ internal readonly struct PropertyGizmoFrame {
         this.UsesPhysicalLightFields=UsesPhysicalLightFields;
     }
 
+    internal float Width { get; }
+    internal float Height { get; }
     internal PropertyGizmoKind Kind { get; }
 
     internal string ComponentTypeFullyQualifiedName { get; }
@@ -97,15 +102,10 @@ internal readonly struct PropertyGizmoFrame {
             [GizmoHandleId.CameraFov,GizmoHandleId.CameraNear,GizmoHandleId.CameraFar],
         PropertyGizmoKind.CameraOrthographic=>
             [GizmoHandleId.CameraOrthographicSize,GizmoHandleId.CameraNear,GizmoHandleId.CameraFar],
-        PropertyGizmoKind.DirectionalLight=>this.UsesPhysicalLightFields
-            ?Array.Empty<GizmoHandleId>()
-            :[GizmoHandleId.DirectionalDirection],
+        PropertyGizmoKind.DirectionalLight=>Array.Empty<GizmoHandleId>(),
         PropertyGizmoKind.PointLight=>[GizmoHandleId.PointRange],
-        PropertyGizmoKind.SpotLight=>this.UsesPhysicalLightFields
-            ?[GizmoHandleId.SpotInnerCone,GizmoHandleId.SpotOuterCone,GizmoHandleId.SpotRange]
-            :[
-                GizmoHandleId.SpotDirection,GizmoHandleId.SpotInnerCone,
-                GizmoHandleId.SpotOuterCone,GizmoHandleId.SpotRange],
+        PropertyGizmoKind.SpotLight=>[GizmoHandleId.SpotInnerCone,GizmoHandleId.SpotOuterCone,GizmoHandleId.SpotRange],
+        PropertyGizmoKind.RectAreaLight=>[GizmoHandleId.RectRange,GizmoHandleId.RectWidth,GizmoHandleId.RectHeight],
         _=>Array.Empty<GizmoHandleId>(),
     };
 
@@ -132,6 +132,9 @@ internal readonly struct PropertyGizmoFrame {
             GizmoHandleId.SpotDirection=> this.Pivot+(this.Forward*Math.Max(this.WorldScale*0.55f, this.Range*0.45f)),
             GizmoHandleId.SpotInnerCone=>ConeHandle(this.InnerConeAngleRadians,0.72f),
             GizmoHandleId.SpotOuterCone=>ConeHandle(this.OuterConeAngleRadians,0.9f),
+            GizmoHandleId.RectWidth=>this.Pivot+this.Right*(this.Width*0.5f),
+            GizmoHandleId.RectHeight=>this.Pivot+this.Up*(this.Height*0.5f),
+            GizmoHandleId.RectRange=>this.Pivot+this.Forward*this.Range,
             GizmoHandleId.SpotRange=> this.Pivot+(this.Forward*Math.Max(this.Range, this.WorldScale*0.2f)),
             _=> this.Pivot,
         };
@@ -149,6 +152,8 @@ internal readonly struct PropertyGizmoFrame {
         var Far= this.FarZ;
         var Ortho= this.OrthographicSize;
         var NewRange= this.Range;
+        var Width=this.Width;
+        var Height=this.Height;
         var Inner= this.InnerConeAngleRadians;
         var Outer= this.OuterConeAngleRadians;
         var NewForward= this.Forward;
@@ -171,18 +176,27 @@ internal readonly struct PropertyGizmoFrame {
                 Ortho=Math.Max(0.01f,Ortho+(Vertical*Math.Max(Ortho,1f)*0.01f));
                 if(Snap){ Ortho=SnapPositive(Ortho,1f); }
                 break;
+            case GizmoHandleId.RectWidth:
+                Width=Math.Max(0.01f,Width+Vertical*Math.Max(Width,1f)*0.01f);
+                if(Snap){ Width=SnapPositive(Width,0.1f); }
+                break;
+            case GizmoHandleId.RectHeight:
+                Height=Math.Max(0.01f,Height+Vertical*Math.Max(Height,1f)*0.01f);
+                if(Snap){ Height=SnapPositive(Height,0.1f); }
+                break;
+            case GizmoHandleId.RectRange:
             case GizmoHandleId.PointRange:
             case GizmoHandleId.SpotRange:
                 NewRange=Math.Max(0.01f,NewRange+(Vertical*Math.Max(NewRange,1f)*0.01f));
                 if(Snap){ NewRange=SnapPositive(NewRange,1f); }
                 break;
             case GizmoHandleId.SpotInnerCone:
-                Inner=Clamp(Inner+(Vertical*0.01f),0f,Outer);
-                if(Snap){ Inner=Clamp(SnapValue(Inner,Degrees(5f)),0f,Outer); }
+                Inner=Clamp(Inner+(Vertical*0.01f),Degrees(0.001f),Outer);
+                if(Snap){ Inner=Clamp(SnapValue(Inner,Degrees(5f)),Degrees(0.001f),Outer); }
                 break;
             case GizmoHandleId.SpotOuterCone:
-                Outer=Clamp(Outer+(Vertical*0.01f),Inner,Degrees(89f));
-                if(Snap){ Outer=Clamp(SnapValue(Outer,Degrees(5f)),Inner,Degrees(89f)); }
+                Outer=Clamp(Outer+(Vertical*0.01f),Inner,Degrees(90f));
+                if(Snap){ Outer=Clamp(SnapValue(Outer,Degrees(5f)),Inner,Degrees(90f)); }
                 break;
             case GizmoHandleId.DirectionalDirection:
             case GizmoHandleId.SpotDirection:
@@ -200,7 +214,7 @@ internal readonly struct PropertyGizmoFrame {
 
         (var NewRight,var NewUp)=CreatePerpendicularAxes(NewForward, this.Up);
         return new PropertyGizmoFrame(this.Kind, this.ComponentTypeFullyQualifiedName, this.Pivot,NewRight,NewUp,NewForward, this.WorldScale,
-            Fov,Near,Far,Ortho,NewRange,Inner,Outer, this.EditableHandles,this.UsesPhysicalLightFields);
+            Fov,Near,Far,Ortho,NewRange,Inner,Outer, this.EditableHandles,true,Width,Height);
     }
 
     internal float GetDisplayNearDistance()=>Math.Max(this.NearZ, this.WorldScale*0.15f);
@@ -254,62 +268,47 @@ internal static class PropertyGizmoBinding {
             return true;
         }
 
-        if(SceneComponentBindings.FindComponent(Node,SceneComponentRole.SpotLight)is{ }Spot){
-            SceneTransformMath.TryDecompose(NodeWorld,out var Transform);
-            bool Physical=Spot.FindMember("RangeMeters") is not null;
-            var Position=Physical?Transform.Position:ReadPosition(Spot);
-            var Direction=Physical
-                ?Vector3.Transform(Vector3.UnitZ,Transform.Rotation)
-                :ReadDirection(Spot,"Direction",Vector3.UnitZ);
-            (var Right,var Up)=CreateAxes(Direction);
-            GizmoHandleId[]Handles=Physical
-                ?[GizmoHandleId.SpotInnerCone,GizmoHandleId.SpotOuterCone,GizmoHandleId.SpotRange]
-                :[GizmoHandleId.SpotDirection,GizmoHandleId.SpotInnerCone,
-                    GizmoHandleId.SpotOuterCone,GizmoHandleId.SpotRange];
-            Frame=new PropertyGizmoFrame(
-                PropertyGizmoKind.SpotLight,Spot.TypeFullyQualifiedName,Position,Right,Up,Direction,WorldScale,
-                0f,0f,0f,0f,ReadFloat(Spot,Physical?"RangeMeters":"Range",1f),
-                Physical?ReadFloat(Spot,"InnerConeFullAngleDegrees",30f)*FloatMath.Pi/360f
-                    :ReadFloat(Spot,"InnerConeAngleRadians",Degrees(15f)),
-                Physical?ReadFloat(Spot,"OuterConeFullAngleDegrees",45f)*FloatMath.Pi/360f
-                    :ReadFloat(Spot,"OuterConeAngleRadians",Degrees(30f)),
-                Handles.Where(Handle=>CanEdit(Spot,Handle)).ToArray(),Physical);
+        SceneTransformMath.TryDecompose(NodeWorld,out var Transform);
+        var Direction=Vector3.Transform(Vector3.UnitZ,Transform.Rotation);
+        var LightRight=Vector3.Transform(Vector3.UnitX,Transform.Rotation);
+        var LightUp=Vector3.Transform(Vector3.UnitY,Transform.Rotation);
+        foreach(var Component in Node.Components){
+            if(!LightComponentContract.IsLight(Component.TypeFullyQualifiedName)){ continue; }
+            var Kind=Component.TypeFullyQualifiedName.Substring(LightComponentContract.Prefix.Length) switch {
+                "DirectionalLight"=>PropertyGizmoKind.DirectionalLight,
+                "PointLight"=>PropertyGizmoKind.PointLight,
+                "SpotLight"=>PropertyGizmoKind.SpotLight,
+                _=>PropertyGizmoKind.RectAreaLight,
+            };
+            var Range=ReadPhysical(Component,"Range","LightRange",[10f]);
+            var Cone=ReadPhysical(Component,"Cone","SpotConeAngles",[30f,45f]);
+            var Size=ReadPhysical(Component,"Size","RectangleSize",[1f,1f]);
+            var Candidate=new PropertyGizmoFrame(Kind,Component.TypeFullyQualifiedName,
+                Transform.Position,LightRight,LightUp,Direction,WorldScale,0f,0f,0f,0f,
+                Range[0],Cone[0]*FloatMath.Pi/360f,Cone[1]*FloatMath.Pi/360f,
+                Array.Empty<GizmoHandleId>(),true,Size[0],Size[1]);
+            Frame=new PropertyGizmoFrame(Kind,Component.TypeFullyQualifiedName,
+                Transform.Position,LightRight,LightUp,Direction,WorldScale,0f,0f,0f,0f,
+                Candidate.Range,Candidate.InnerConeAngleRadians,Candidate.OuterConeAngleRadians,
+                Candidate.Handles.Where(Handle=>CanEdit(Component,Handle)).ToArray(),true,Size[0],Size[1]);
             return true;
         }
-
-        if(SceneComponentBindings.FindComponent(Node,SceneComponentRole.PointLight)is{ }Point){
-            SceneTransformMath.TryDecompose(NodeWorld,out var Transform);
-            bool Physical=Point.FindMember("RangeMeters") is not null;
-            Frame=new PropertyGizmoFrame(
-                PropertyGizmoKind.PointLight,Point.TypeFullyQualifiedName,
-                Physical?Transform.Position:ReadPosition(Point),
-                Vector3.UnitX,Vector3.UnitY,Vector3.UnitZ,WorldScale,
-                0f,0f,0f,0f,ReadFloat(Point,Physical?"RangeMeters":"Range",1f),0f,0f,
-                CanEdit(Point,GizmoHandleId.PointRange)?[GizmoHandleId.PointRange]:Array.Empty<GizmoHandleId>(),
-                Physical);
-            return true;
-        }
-
-        if(SceneComponentBindings.FindComponent(Node,SceneComponentRole.DirectionalLight)is{ }Directional){
-            SceneTransformMath.TryDecompose(NodeWorld,out var Transform);
-            bool Physical=Directional.FindMember("IlluminanceLux") is not null;
-            var Direction=Physical
-                ?Vector3.Transform(Vector3.UnitZ,Transform.Rotation)
-                :ReadDirection(Directional,"DirectionTowardLight",Vector3.UnitZ);
-            (var Right,var Up)=CreateAxes(Direction);
-            Frame=new PropertyGizmoFrame(
-                PropertyGizmoKind.DirectionalLight,Directional.TypeFullyQualifiedName,Transform.Position,
-                Right,Up,Direction,WorldScale,0f,0f,0f,0f,0f,0f,0f,
-                !Physical&&CanEdit(Directional,GizmoHandleId.DirectionalDirection)
-                    ?[GizmoHandleId.DirectionalDirection]:Array.Empty<GizmoHandleId>(),
-                Physical);
-            return true;
-        }
-
         Frame=default;
         return false;
     }
 
+    private static float[]ReadPhysical(SceneComponent Component,string Name,string Type,float[]Fallback){
+        var Value=Component.FindMember(Name)?.Value;
+        var Contract=LightValueContract.Find("global::CSharpGameEngine.Lighting."+Type)!;
+        return Value is not null&&Contract.TryRead(Value,out var Numbers,out _)&&Contract.Validate(Numbers)
+            ?Numbers:Fallback;
+    }
+    private static bool CanEditPhysical(SceneComponent Component,string Name,string Type){
+        var Value=Component.FindMember(Name)?.Value;
+        if(Value is null){ return true; }
+        var Contract=LightValueContract.Find("global::CSharpGameEngine.Lighting."+Type)!;
+        return Contract.TryRead(Value,out var Numbers,out var Editable)&&Editable&&Contract.Validate(Numbers);
+    }
     private static bool ReadProjection(SceneComponent Component)=>
         Component.FindMember("Projection")?.Value.SourceExpressionText.IndexOf(
             "Orthographic",StringComparison.Ordinal)>=0;
@@ -330,18 +329,9 @@ internal static class PropertyGizmoBinding {
         GizmoHandleId.CameraNear=>CanEdit(Component,"NearZ"),
         GizmoHandleId.CameraFar=>CanEdit(Component,"FarZ"),
         GizmoHandleId.CameraOrthographicSize=>CanEdit(Component,"OrthographicSize"),
-        GizmoHandleId.DirectionalDirection=>CanEditVector(Component,"DirectionTowardLight"),
-        GizmoHandleId.PointRange=>CanEdit(Component,
-            Component.FindMember("RangeMeters") is not null?"RangeMeters":"Range"),
-        GizmoHandleId.SpotDirection=>CanEditVector(Component,"Direction"),
-        GizmoHandleId.SpotInnerCone=>CanEdit(Component,
-            Component.FindMember("InnerConeFullAngleDegrees") is not null
-                ?"InnerConeFullAngleDegrees":"InnerConeAngleRadians"),
-        GizmoHandleId.SpotOuterCone=>CanEdit(Component,
-            Component.FindMember("OuterConeFullAngleDegrees") is not null
-                ?"OuterConeFullAngleDegrees":"OuterConeAngleRadians"),
-        GizmoHandleId.SpotRange=>CanEdit(Component,
-            Component.FindMember("RangeMeters") is not null?"RangeMeters":"Range"),
+        GizmoHandleId.PointRange or GizmoHandleId.SpotRange or GizmoHandleId.RectRange=>CanEditPhysical(Component,"Range","LightRange"),
+        GizmoHandleId.SpotInnerCone or GizmoHandleId.SpotOuterCone=>CanEditPhysical(Component,"Cone","SpotConeAngles"),
+        GizmoHandleId.RectWidth or GizmoHandleId.RectHeight=>CanEditPhysical(Component,"Size","RectangleSize"),
         _=>false,
     };
 
@@ -416,6 +406,7 @@ internal static class PropertyGizmo {
         GizmoHandleId.CameraOrthographicSize,GizmoHandleId.DirectionalDirection,
         GizmoHandleId.PointRange,GizmoHandleId.SpotDirection,GizmoHandleId.SpotInnerCone,
         GizmoHandleId.SpotOuterCone,GizmoHandleId.SpotRange,
+        GizmoHandleId.RectRange,GizmoHandleId.RectWidth,GizmoHandleId.RectHeight,
     ];
 
     internal static bool IsPropertyHandle(GizmoHandleId Handle)=>PropertyHandles.Contains(Handle);
@@ -431,6 +422,18 @@ internal static class PropertyGizmo {
         Vector4 Color=new(1f,0.72f,0.18f,0.9f);
         if(Value.Kind==PropertyGizmoKind.PointLight){
             AddRing(Value.Pivot,Value.Right,Value.Up,Math.Max(Value.Range,0.01f),Color);
+        } else if(Value.Kind==PropertyGizmoKind.RectAreaLight){
+            var X=Value.Right*(Value.Width*0.5f);
+            var Y=Value.Up*(Value.Height*0.5f);
+            var A=Value.Pivot-X-Y;
+            var B=Value.Pivot+X-Y;
+            var C=Value.Pivot+X+Y;
+            var D=Value.Pivot-X+Y;
+            AddLine(A,B,Color);
+            AddLine(B,C,Color);
+            AddLine(C,D,Color);
+            AddLine(D,A,Color);
+            AddLine(Value.Pivot,Value.Pivot+Value.Forward*Value.Range,Color);
         } else if(Value.Kind==PropertyGizmoKind.DirectionalLight){
             AddLine(Value.Pivot,Value.Pivot+(Value.Forward*Value.WorldScale),Color);
         } else {
@@ -444,8 +447,8 @@ internal static class PropertyGizmo {
 
         void AddCone(float Angle,float Distance,Vector4 ConeColor){
             const int Segments=20;
-            var Radius=FloatMath.Tan(Math.Max(0f,Angle))*Distance;
-            var Center=Value.Pivot+(Value.Forward*Distance);
+            var Radius=FloatMath.Sin(Math.Max(0f,Angle))*Distance;
+            var Center=Value.Pivot+(Value.Forward*(FloatMath.Cos(Angle)*Distance));
             Vector3?First=null;
             Vector3 Previous=default;
             for(var Index=0;Index<=Segments;Index++){
@@ -501,6 +504,19 @@ internal static class PropertyGizmo {
         in PropertyGizmoFrame Frame,GizmoHandleId Handle,SceneKey SceneKey,
         EditorNodeId NodeId,long DocumentVersion,PropertyGizmoFrame? OriginalFrame=null){
         var ComponentTypeFullyQualifiedName=Frame.ComponentTypeFullyQualifiedName;
+        if(LightComponentContract.IsLight(ComponentTypeFullyQualifiedName)){
+            var Member=Handle switch {
+                GizmoHandleId.PointRange or GizmoHandleId.SpotRange or GizmoHandleId.RectRange=>"Range",
+                GizmoHandleId.SpotInnerCone or GizmoHandleId.SpotOuterCone=>"Cone",
+                GizmoHandleId.RectWidth or GizmoHandleId.RectHeight=>"Size",
+                _=>null,
+            };
+            if(Member is null){ return []; }
+            var Expression=PhysicalExpression(Frame,Member);
+            if(OriginalFrame is { }Before&&PhysicalExpression(Before,Member)==Expression){ return []; }
+            return [new SetComponentMemberOperation(SceneKey,NodeId,DocumentVersion,
+                ComponentTypeFullyQualifiedName,Member,Expression)];
+        }
         var Members=GetMembers(Frame,Handle);
         var OriginalMembers=OriginalFrame is { }Original
                                ?GetMembers(Original,Handle).ToDictionary(static Member=>Member.Name,static Member=>Member.Value)
@@ -512,26 +528,20 @@ internal static class PropertyGizmo {
                 ?FormatFloat(OriginalValue):null)).ToArray();
     }
 
+    private static string PhysicalExpression(in PropertyGizmoFrame Frame,string Member){
+        var Type=Member=="Range"?"LightRange":Member=="Cone"?"SpotConeAngles":"RectangleSize";
+        var Contract=LightValueContract.Find("global::CSharpGameEngine.Lighting."+Type)!;
+        float[]Values=Member=="Range"?[Frame.Range]:Member=="Cone"
+            ?[Frame.InnerConeAngleRadians*360f/FloatMath.Pi,Frame.OuterConeAngleRadians*360f/FloatMath.Pi]
+            :[Frame.Width,Frame.Height];
+        return Contract.Format(Values);
+    }
     private static List<(string Name,float Value)>GetMembers(
         in PropertyGizmoFrame Frame,GizmoHandleId Handle)=>Handle switch {
             GizmoHandleId.CameraFov=>[("FovYRadians",Frame.FovYRadians)],
             GizmoHandleId.CameraNear=>[("NearZ",Frame.NearZ)],
             GizmoHandleId.CameraFar=>[("FarZ",Frame.FarZ)],
             GizmoHandleId.CameraOrthographicSize=>[("OrthographicSize",Frame.OrthographicSize)],
-            GizmoHandleId.PointRange or GizmoHandleId.SpotRange=>[
-                (Frame.UsesPhysicalLightFields?"RangeMeters":"Range",Frame.Range)],
-            GizmoHandleId.SpotInnerCone=>[
-                (Frame.UsesPhysicalLightFields?"InnerConeFullAngleDegrees":"InnerConeAngleRadians",
-                    Frame.UsesPhysicalLightFields
-                        ?Frame.InnerConeAngleRadians*360f/FloatMath.Pi
-                        :Frame.InnerConeAngleRadians)],
-            GizmoHandleId.SpotOuterCone=>[
-                (Frame.UsesPhysicalLightFields?"OuterConeFullAngleDegrees":"OuterConeAngleRadians",
-                    Frame.UsesPhysicalLightFields
-                        ?Frame.OuterConeAngleRadians*360f/FloatMath.Pi
-                        :Frame.OuterConeAngleRadians)],
-            GizmoHandleId.DirectionalDirection=>Frame.UsesPhysicalLightFields?[]:DirectionMembers("DirectionTowardLight",Frame.Forward),
-            GizmoHandleId.SpotDirection=>Frame.UsesPhysicalLightFields?[]:DirectionMembers("Direction",Frame.Forward),
             _=>[],
         };
 

@@ -1,3 +1,4 @@
+using CSharpGameEngine.Lighting;
 using System.Numerics;
 using SharpGLTF.Schema2;
 
@@ -320,15 +321,16 @@ public static class GltfImporter {
     private static byte[]?ExtractTextureBytes(MaterialChannel?Channel)=>
         Channel?.Texture?.PrimaryImage is Image Image?Image.Content.Content.ToArray():null;
 
-    private static ImportedLight ImportLight(PunctualLight Light)=>new(){
-        LightType=Light.LightType switch {
-            PunctualLightType.Point=>ImportedLightType.Point,
-            PunctualLightType.Spot=>ImportedLightType.Spot,
-            _ =>ImportedLightType.Directional,
-        },
-        Color=Light.Color,
-        Intensity=Light.Intensity,
-    };
+    private static ImportedLight ImportLight(PunctualLight Light){
+        var Color=new LinearLightColor(Light.Color.X,Light.Color.Y,Light.Color.Z);
+        LightRange? Range=Light.Range is float Distance&&float.IsFinite(Distance)?new LightRange(Distance):null;
+        return Light.LightType switch {
+            PunctualLightType.Directional=>new ImportedDirectionalLight(Color,new Illuminance(Light.Intensity)),
+            PunctualLightType.Point=>new ImportedPointLight(Color,new LuminousIntensity(Light.Intensity),Range),
+            PunctualLightType.Spot=>new ImportedSpotLight(Color,new LuminousIntensity(Light.Intensity),Range,new ImportedSpotCone(Light.InnerConeAngle,Light.OuterConeAngle)),
+            _=>throw new NotSupportedException("Unsupported punctual light kind."),
+        };
+    }
 
     /// <summary>Builds one drawable's geometry from a single glTF primitive, applying the same missing-NORMAL/TEXCOORD_0 fallbacks as <see cref="Import(string)"/> plus TANGENT generation (not needed by the single-mesh preview path). Returns null (with a diagnostic) only when POSITION or triangle data is entirely absent.</summary>
     private static ImportedMeshData?ImportPrimitiveGeometry(MeshPrimitive Primitive,List<GltfImportDiagnostic>Diagnostics,string Context){

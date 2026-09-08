@@ -63,28 +63,32 @@ internal partial class EngineShowcaseScene:IScene {
                 Name="Sun",
                 Components=[
                     new Transform { Rotation=new LogicalQuaternion(new LogicalVector3(-0.75f,-0.6f,0)) },
-                    new DirectionalLight { IlluminanceLux=65_000f,CastsShadows=true,ShadowPriority=100 },
+                    new DirectionalLight { Illuminance=new Illuminance(65_000f) },
+                    new LightShadow { Priority=100 },
                 ],
             },
             new Node {
                 Name="WarmPoint",
                 Components=[
                     new Transform { Position=new LogicalVector3(2,3.5f,7) },
-                    new PointLight { ColorR=1f,ColorG=0.45f,ColorB=0.2f,LuminousFluxLumens=1800f,RangeMeters=9f,CastsShadows=true,ShadowPriority=30 },
+                    new PointLight { Color=new LinearLightColor(1f,0.45f,0.2f),Flux=new LuminousFlux(1800f),Range=new LightRange(9f) },
+                    new LightShadow { Priority=30 },
                 ],
             },
             new Node {
                 Name="CoolSpot",
                 Components=[
                     new Transform { Position=new LogicalVector3(5,5,5),Rotation=new LogicalQuaternion(new LogicalVector3(0.75f,2.75f,0)) },
-                    new SpotLight { ColorR=0.25f,ColorG=0.55f,ColorB=1f,LuminousFluxLumens=2400f,RangeMeters=14f,CastsShadows=true,ShadowPriority=20 },
+                    new SpotLight { Color=new LinearLightColor(0.25f,0.55f,1f),Flux=new LuminousFlux(2400f),Range=new LightRange(14f) },
+                    new LightShadow { Priority=20 },
                 ],
             },
             new Node {
                 Name="AreaFill",
                 Components=[
                     new Transform { Position=new LogicalVector3(0,4,11),Rotation=new LogicalQuaternion(new LogicalVector3(1.2f,0,0)) },
-                    new AreaLight { ColorR=0.45f,ColorG=0.8f,ColorB=1f,LuminanceNits=450f,WidthMeters=3f,HeightMeters=2f,RangeMeters=10f,CastsShadows=true,ShadowPriority=10 },
+                    new RectAreaLight { Color=new LinearLightColor(0.45f,0.8f,1f),Luminance=new Luminance(450f),Size=new RectangleSize(3f,2f),Range=new LightRange(10f) },
+                    new LightShadow { Priority=10 },
                 ],
             },
         ],

@@ -56,6 +56,7 @@ public sealed class LightApiMigrationAnalyzer:DiagnosticAnalyzer {
             ||Type is null
             ||MemberName is null
             ||!TryGetLightName(Type,out var LightName)
+            ||(Type.ContainingNamespace.ToDisplayString()=="CSharpGameEngine.Runtime.Lighting"&&MemberName=="Range")
             ||!TryGetGuidance(LightName,MemberName,out var Guidance)){
             return;
         }
@@ -110,6 +111,10 @@ public sealed class LightApiMigrationAnalyzer:DiagnosticAnalyzer {
 
     private static bool TryGetLightName(INamedTypeSymbol Type,out string LightName){
         LightName=Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) switch {
+            "global::CSharpGameEngine.Runtime.Lighting.DirectionalLight"=>"DirectionalLight",
+            "global::CSharpGameEngine.Runtime.Lighting.PointLight"=>"PointLight",
+            "global::CSharpGameEngine.Runtime.Lighting.SpotLight"=>"SpotLight",
+            "global::CSharpGameEngine.Runtime.Lighting.RectAreaLight"=>"AreaLight",
             "global::CSharpGameEngine.Runtime.Windows.DirectionalLight"=>"DirectionalLight",
             "global::UserEcsProject.DirectionalLight"=>"DirectionalLight",
             "global::CSharpGameEngine.Runtime.Windows.PointLight"=>"PointLight",
@@ -138,33 +143,41 @@ public sealed class LightApiMigrationAnalyzer:DiagnosticAnalyzer {
             return true;
         }
 
+        if(MemberName is "CastsShadows" or "ShadowPriority" or "ShadowBiasMeters"){
+            Guidance="Use the optional Runtime.Lighting.LightShadow component with Priority and Bias=new ShadowBias(meters); omit it when shadows are not requested.";
+            return true;
+        }
+        if(MemberName is "IlluminanceLux" or "LuminousFluxLumens" or "LuminanceNits" or "RangeMeters" or "WidthMeters" or "HeightMeters" or "InnerConeFullAngleDegrees" or "OuterConeFullAngleDegrees"){
+            Guidance="Use Runtime.Lighting typed lights and Lighting value constructors: Illuminance, LuminousFlux, Luminance, LightRange, RectangleSize or SpotConeAngles.";
+            return true;
+        }
         switch(LightName){
         case "DirectionalLight" when MemberName=="Intensity":
-            Guidance="Use IlluminanceLux in lux; choose the authored lux value explicitly because unitless Intensity has no safe automatic conversion.";
+            Guidance="Use Illuminance=new Illuminance(lux); choose the authored lux value explicitly because unitless Intensity has no safe automatic conversion.";
             return true;
         case "PointLight" when MemberName=="Intensity":
         case "SpotLight" when MemberName=="Intensity":
-            Guidance="Use LuminousFluxLumens in lumens; choose the authored flux explicitly because unitless Intensity has no safe automatic conversion.";
+            Guidance="Use Flux=new LuminousFlux(lumens); choose the authored flux explicitly because unitless Intensity has no safe automatic conversion.";
             return true;
         case "AreaLight" when MemberName=="Intensity":
-            Guidance="Use LuminanceNits in cd/m^2 (nits); choose the authored luminance explicitly because unitless Intensity has no safe automatic conversion.";
+            Guidance="Use RectAreaLight.Luminance=new Luminance(nits); choose the authored luminance explicitly because unitless Intensity has no safe automatic conversion.";
             return true;
         case "PointLight" when MemberName=="Range":
         case "SpotLight" when MemberName=="Range":
         case "AreaLight" when MemberName=="Range":
-            Guidance="Use RangeMeters in meters.";
+            Guidance="Use Range=new LightRange(meters).";
             return true;
         case "SpotLight" when MemberName=="InnerConeAngleRadians":
-            Guidance="Use InnerConeFullAngleDegrees; convert the old half-angle with fullDegrees = radians * 360 / Math.PI.";
+            Guidance="Use Cone=new SpotConeAngles(innerFullDegrees, outerFullDegrees); convert the old half-angle with fullDegrees = radians * 360 / Math.PI.";
             return true;
         case "SpotLight" when MemberName=="OuterConeAngleRadians":
-            Guidance="Use OuterConeFullAngleDegrees; convert the old half-angle with fullDegrees = radians * 360 / Math.PI.";
+            Guidance="Use Cone=new SpotConeAngles(innerFullDegrees, outerFullDegrees); convert the old half-angle with fullDegrees = radians * 360 / Math.PI.";
             return true;
         case "AreaLight" when MemberName=="Width":
-            Guidance="Use WidthMeters in meters; Transform.Scale does not change physical area size.";
+            Guidance="Use RectAreaLight.Size=new RectangleSize(widthMeters, heightMeters); Transform.Scale does not change physical area size.";
             return true;
         case "AreaLight" when MemberName=="Height":
-            Guidance="Use HeightMeters in meters; Transform.Scale does not change physical area size.";
+            Guidance="Use RectAreaLight.Size=new RectangleSize(widthMeters, heightMeters); Transform.Scale does not change physical area size.";
             return true;
         default:
             return false;

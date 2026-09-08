@@ -139,7 +139,7 @@ internal sealed class SceneValueReader(
             SceneValueKind.ObjectCreation,
             ResolvedType,
             ConstantValue:null,
-            ReferencedSymbol:null,
+            ReferencedSymbol:this.SemanticModel.GetSymbolInfo(Expression,this.CancellationToken).Symbol,
             Members,
             Arguments,
             ImmutableArray<SceneValue>.Empty,

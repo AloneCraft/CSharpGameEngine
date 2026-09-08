@@ -535,4 +535,13 @@ Discard unsaved edits and reload it?</value></data>
   <data name="AssetAuthoring_MetadataHash" xml:space="preserve"><value>Metadata SHA-256</value></data>
   <data name="AssetAuthoring_CreateMetadata" xml:space="preserve"><value>Create Metadata</value></data>
   <data name="AssetAuthoring_Refresh" xml:space="preserve"><value>Refresh</value></data>
+  <data name="LightConversionTitle" xml:space="preserve"><value>Convert light</value></data>
+  <data name="LightConversionApply" xml:space="preserve"><value>Convert</value></data>
+  <data name="LightConversionCancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="LightConversionInstructions" xml:space="preserve"><value>Review the new light. Preserved and computed values are read-only. Enter missing values explicitly; position, identity and shadow settings are preserved.</value></data>
+  <data name="LightConversionReview" xml:space="preserve"><value>{0} → {1}. Removed properties: {2}. New shape properties use the target defaults.</value></data>
+  <data name="LightConversionInputRequired" xml:space="preserve"><value>Enter valid physical values in all empty fields. Brightness in a different unit requires explicit input.</value></data>
+  <data name="LightConversionConflict" xml:space="preserve"><value>The light changed or cannot be converted. Refresh and try again.</value></data>
+  <data name="LightPhysicalValueLabel" xml:space="preserve"><value>{0} ({1}; {2})</value></data>
+  <data name="LightConversionDefault" xml:space="preserve"><value>Suggested default: {0}. Enter the value explicitly to accept it.</value></data>
 </root>

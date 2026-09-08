@@ -184,9 +184,9 @@ public class GltfImporterSceneTests {
             Assert.Null(Node.MeshIndex);
 
             var ImportedLight=Result.Scene.Lights[Node.LightIndex!.Value];
-            Assert.Equal(ImportedLightType.Directional,ImportedLight.LightType);
-            Assert.Equal(6f,ImportedLight.Intensity,precision:3);
-            Assert.Equal(new Vector3(1,0,0),ImportedLight.Color);
+            var Directional=Assert.IsType<ImportedDirectionalLight>(ImportedLight);
+            Assert.Equal(6f,Directional.Illuminance.Lux,precision:3);
+            Assert.Equal(new CSharpGameEngine.Lighting.LinearLightColor(1,0,0),ImportedLight.Color);
 
             // node.WorldTransform is already engine-space (ADR-0027): local Forward there is +Z, not
             // glTF's own local -Z, so the direction must come from ImportedLightDirection.WorldForward
@@ -216,5 +216,33 @@ public class GltfImporterSceneTests {
         public bool Equals(Vector3 X,Vector3 Y)=>Vector3.Distance(X,Y)<=Tolerance;
 
         public int GetHashCode(Vector3 Obj)=>0;
+    }
+    [Fact]
+    public void ImportScene_PointAndSpot_PreserveCandelaConeAndOptionalRange(){
+        var Scene=new SceneBuilder();
+        Scene.AddLight(new LightBuilder.Point { Color=Vector3.One,Intensity=25f },new NodeBuilder("Point"));
+        Scene.AddLight(new LightBuilder.Spot { Color=Vector3.One,Intensity=50f,Range=12f,InnerConeAngle=0.2f,OuterConeAngle=0.5f },new NodeBuilder("Spot"));
+        var Path=SaveToTempGlb(Scene);
+        try{
+            var Result=GltfImporter.ImportScene(Path);
+            Assert.True(Result.Success,string.Join(Environment.NewLine,Result.Diagnostics));
+            var Point=Assert.Single(Result.Scene!.Lights.OfType<ImportedPointLight>());
+            Assert.Equal(25f,Point.Intensity.Candela);
+            Assert.Null(Point.Range);
+            var Spot=Assert.Single(Result.Scene.Lights.OfType<ImportedSpotLight>());
+            Assert.Equal(50f,Spot.Intensity.Candela);
+            Assert.Equal(12f,Spot.Range!.Value.Meters);
+            Assert.Equal(0.2f,Spot.Cone.InnerHalfAngleRadians);
+            Assert.Equal(0.5f,Spot.Cone.OuterHalfAngleRadians);
+            var Cone=Spot.Cone.ToAuthoredCone();
+            var Flux=CSharpGameEngine.Lighting.LightPhotometry.SpotFlux(Spot.Intensity,Cone);
+            Assert.Equal(50f,CSharpGameEngine.Lighting.LightPhotometry.SpotIntensity(Flux,Cone).Candela,3);
+        }finally{ File.Delete(Path); }
+    }
+    [Fact]
+    public void ImportedZeroInnerCone_IsPreservedButNeedsExplicitAuthoredResolution(){
+        var Cone=new ImportedSpotCone(0f,0.5f);
+        Assert.Equal(0f,Cone.InnerHalfAngleRadians);
+        Assert.Throws<ArgumentOutOfRangeException>(()=>Cone.ToAuthoredCone());
     }
 }

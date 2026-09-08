@@ -411,6 +411,12 @@ internal static class SceneDeclarationAnalyzer {
                 continue;
             }
 
+            foreach(var Member in Value.Members){
+                var Contract=LightValueContract.Find(Member.Value.Type);
+                if(Contract is not null&&Contract.TryRead(Member.Value,out var Values,out _)&&!Contract.Validate(Values)){
+                    Diagnostics.Add(Diagnostic.Create(SceneDslDiagnostics.UnsupportedExpression,Element.GetLocation(),Member.MemberName,"invalid physical light value "+Contract.Name));
+                }
+            }
             Components.Add(new SceneComponent(
                 Type as INamedTypeSymbol,
                 TypeFullyQualifiedName,
@@ -420,6 +426,11 @@ internal static class SceneDeclarationAnalyzer {
                 Value.Location));
         }
 
+        var LightCount=Components.Count(Component=>LightComponentContract.IsLight(Component.TypeFullyQualifiedName));
+        var HasShadow=Components.Any(Component=>Component.TypeFullyQualifiedName==LightComponentContract.ShadowType);
+        if(LightCount>1||HasShadow&&LightCount!=1||LightCount>0&&!Components.Any(Component=>Component.TypeFullyQualifiedName=="global::CSharpGameEngine.Entities.Transform")){
+            Diagnostics.Add(Diagnostic.Create(SceneDslDiagnostics.UnsupportedExpression,CollectionExpression.GetLocation(),Path.ToDisplayString(),"a light requires its Transform; exactly one light must own each LightShadow"));
+        }
         return Components.ToImmutable();
     }
 

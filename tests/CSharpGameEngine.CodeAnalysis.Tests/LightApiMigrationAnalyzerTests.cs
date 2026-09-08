@@ -31,9 +31,9 @@ public sealed class LightApiMigrationAnalyzerTests {
             """);
 
         Assert.Equal(14,Diagnostics.Count(static Diagnostic=>Diagnostic.Id=="LGT001"));
-        Assert.Contains(Diagnostics,static Diagnostic=>Diagnostic.GetMessage().Contains("IlluminanceLux",StringComparison.Ordinal));
-        Assert.Contains(Diagnostics,static Diagnostic=>Diagnostic.GetMessage().Contains("LuminousFluxLumens",StringComparison.Ordinal));
-        Assert.Contains(Diagnostics,static Diagnostic=>Diagnostic.GetMessage().Contains("LuminanceNits",StringComparison.Ordinal));
+        Assert.Contains(Diagnostics,static Diagnostic=>Diagnostic.GetMessage().Contains("Illuminance=new Illuminance",StringComparison.Ordinal));
+        Assert.Contains(Diagnostics,static Diagnostic=>Diagnostic.GetMessage().Contains("Flux=new LuminousFlux",StringComparison.Ordinal));
+        Assert.Contains(Diagnostics,static Diagnostic=>Diagnostic.GetMessage().Contains("Luminance=new Luminance",StringComparison.Ordinal));
         Assert.Contains(Diagnostics,static Diagnostic=>Diagnostic.GetMessage().Contains("fullDegrees = radians * 360 / Math.PI",StringComparison.Ordinal));
         Assert.Contains(Diagnostics,static Diagnostic=>Diagnostic.GetMessage().Contains("Transform.Rotation",StringComparison.Ordinal));
     }
@@ -71,11 +71,11 @@ public sealed class LightApiMigrationAnalyzerTests {
 
         Assert.Equal(2,LegacyDiagnostics.Length);
         Assert.All(LegacyDiagnostics,static Diagnostic=>
-            Assert.Contains("LuminousFluxLumens",Diagnostic.GetMessage(),StringComparison.Ordinal));
+            Assert.Contains("Flux=new LuminousFlux",Diagnostic.GetMessage(),StringComparison.Ordinal));
     }
 
     [Fact]
-    public void PhysicalVocabulary_IsAccepted(){
+    public void PreviousScalarVocabulary_RequiresTypedValues(){
         var Diagnostics=Analyze(Preamble+"""
             namespace Game;
             public static class Scene {
@@ -88,11 +88,11 @@ public sealed class LightApiMigrationAnalyzerTests {
             }
             """);
 
-        Assert.Empty(Diagnostics);
+        Assert.Equal(4,Diagnostics.Length);
     }
 
     [Fact]
-    public void RuntimePhysicalVocabulary_IsAccepted(){
+    public void PreviousWindowsVocabulary_RequiresTypedValues(){
         var Diagnostics=Analyze(Preamble+"""
             namespace CSharpGameEngine.Runtime.Windows {
                 public struct PointLight {
@@ -108,7 +108,7 @@ public sealed class LightApiMigrationAnalyzerTests {
             }
             """);
 
-        Assert.Empty(Diagnostics);
+        Assert.Equal(2,Diagnostics.Length);
     }
     [Fact]
     public void ProjectWithoutTransformPrecisionContract_IsNotAnalyzed(){

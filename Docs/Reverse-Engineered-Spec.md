@@ -1,5 +1,14 @@
 # Reverse-engineered specification
 
+## RE-M0088 — Typed lighting and shadow ownership
+- Confidence: High for automated code, static editing and WARP behavior; no interactive Visual Studio session is claimed.
+- Evidence: LightValues/LightPhotometry, Runtime.Lighting/LightComponents, RuntimeSystems, LightSubmissions, RenderFrameState, ImportedLight, LightValueContract and LightConversionPlanner.
+- Observed: physical values are validated readonly floats; only applicable fields exist on four ECS structs; optional LightShadow owns shadow requests; invalid extraction records an Entity-local companion property.
+- Observed authoring: exact Roslyn constructor matching reads named/target-typed literal values without executing code. Constructor and field initializers supply palette defaults. 12 conversions preserve local flux, require explicit directional quantities, retain Node/shadow ownership, reject expression/default-contract conflicts and pass canonical source verification.
+- Observed rendering: typed reusable buffers retain mixed submission order (including directional replacement) and separate emissive records. Rectangle forward/up retains roll without multiplying dimensions by Scale. WARP pixels match after two device recoveries. Warm recording of 10000 batches allocates zero bytes.
+- Import: glTF cd/lux, optional range and source cone boundaries are preserved; zero-inner conversion is explicitly rejected by the stricter authored value type.
+- Verification commands/results: [M0088](Milestones/M0088-Typed-Lighting.md). Intended contract: [Typed Lighting](Specifications/Typed-Lighting.md).
+
 ## RE-M0087 - Immutable formal release
 
 - Confidence: High for implementation and focused evidence; final environment publication is pending F-L8-029.

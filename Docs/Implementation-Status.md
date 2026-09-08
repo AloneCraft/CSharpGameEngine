@@ -465,6 +465,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 
 ## F-L0-005 — `GltfImporter.ImportScene`(ノードグラフ/PBRマテリアル/ライトのインポート)
 
+- M0088: ImportedLight is color-only with directional lux and point/spot cd variants, nullable range and lossless half-radian cones. GltfImporterSceneTests and UnrealLightSceneEmitterTests verify typed output; zero-inner imported cones need explicit authored resolution.
+
 - Layer: L0 — Platform / Native Backends
 - Parent capability: UE5.8 FirstPersonステージ移植
 - Status: Implemented
@@ -2431,6 +2433,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 
 ## F-L4-002 — `CSharpGameEngine.Runtime.Windows`(`PrimitiveMesh`/`PrimitiveType`/`RenderServer`)
 
+- M0088: RenderServer accepts four typed submissions (rectangle includes forward/up), optional shadows and ordered reusable typed frame records with separate emissive payloads. TypedLightFrameTests verifies generated diagnostics, exact WARP recovery pixels and warm-buffer allocation.
+
 - Layer: L4 — Domain Servers
 - Parent capability: Scene DSL(ADR-0040 / M0019 Phase 6)
 - Status: Implemented
@@ -3302,6 +3306,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 
 ## F-L5-001 — Shared Windows ECS Runtime
 
+- M0088: portable Runtime.Lighting owns the four typed analytic components and optional LightShadow; Contracts owns validated physical units, Windows owns extraction. The old Windows light contracts are removed. See ADR-0064 and Docs/Specifications/Typed-Lighting.md.
+
 - Layer: L5 — Runtime Feature Modules
 - Status: Implemented
 - Verification: TestVerified (Debug/Release solution build and test, UserEcsProject build, Windows light contract, VSIX binding, analyzer migration)
@@ -3922,6 +3928,8 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 
 ## F-L8-024 — Typed inspector and component palette
 
+- M0088: LightValueContract and TypedLightEditingTests cover exact constructor-symbol matching, physical quantities/RGB/cone/size, field-initializer defaults and atomic light/Transform/shadow palette batches. Verification is recorded in Docs/Milestones/M0088-Typed-Lighting.md.
+
 - Layer: L8 — Visual Studio Authoring Environment
 - Parent capability: Editor / VSIX
 - Status: Implemented
@@ -3934,6 +3942,8 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Next action: Keep `vsix.inspector-contracts` in changed/full/VSIX suites; F-L8-025 now commits its typed operations through the common source transaction.
 
 ## F-L8-025 — C# source synchronization v2
+
+- M0088: 12 source-only ConvertLightOperation paths retain Node and shadow ownership, preserve local flux, require explicit directional quantities, reject source/default-contract conflicts and pass canonical verification through one native text write. No private Undo or runtime kind replacement.
 
 - Layer: L8 — Visual Studio Authoring Environment
 - Parent capability: Editor / VSIX

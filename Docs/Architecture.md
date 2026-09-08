@@ -1,5 +1,8 @@
 # アーキテクチャ
 
+## Typed lighting boundary (ADR-0064, M0088)
+The current analytic-light contract is [Typed Lighting](Specifications/Typed-Lighting.md). Contracts owns validated physical quantities; portable Runtime.Lighting shared source owns Directional/Point/Spot/RectArea and optional LightShadow; Runtime.Windows owns fixed-transform extraction; Rendering owns applicable-only submissions; RenderServer owns ordered typed frame replay. C# IScene and native text Undo are the only authoring/history truth. Earlier light vocabulary below is historical where it conflicts with ADR-0064.
+
 ## プロダクト
 - 表示名: `C# Game Engine`
 - 内部名: `CSharpGameEngine`

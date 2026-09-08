@@ -535,4 +535,13 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
   <data name="AssetAuthoring_MetadataHash" xml:space="preserve"><value>メタデータ SHA-256</value></data>
   <data name="AssetAuthoring_CreateMetadata" xml:space="preserve"><value>メタデータを作成</value></data>
   <data name="AssetAuthoring_Refresh" xml:space="preserve"><value>更新</value></data>
+  <data name="LightConversionTitle" xml:space="preserve"><value>ライトの変換</value></data>
+  <data name="LightConversionApply" xml:space="preserve"><value>変換</value></data>
+  <data name="LightConversionCancel" xml:space="preserve"><value>キャンセル</value></data>
+  <data name="LightConversionInstructions" xml:space="preserve"><value>変換後のライトを確認してください。引継ぎ・計算済みの値は読み取り専用です。未確定の値を入力してください。位置・識別・影設定は保持されます。</value></data>
+  <data name="LightConversionReview" xml:space="preserve"><value>{0} → {1}。削除されるプロパティ: {2}。新しい形状プロパティは変換先の既定値です。</value></data>
+  <data name="LightConversionInputRequired" xml:space="preserve"><value>空欄に有効な物理値を入力してください。単位が異なる明るさは明示入力が必要です。</value></data>
+  <data name="LightConversionConflict" xml:space="preserve"><value>ライトが変更されたか、変換できません。表示を更新して再実行してください。</value></data>
+  <data name="LightPhysicalValueLabel" xml:space="preserve"><value>{0}（{1}・{2}）</value></data>
+  <data name="LightConversionDefault" xml:space="preserve"><value>既定値の候補: {0}。採用する値を明示入力してください。</value></data>
 </root>

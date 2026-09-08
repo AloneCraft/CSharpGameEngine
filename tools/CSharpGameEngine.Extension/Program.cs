@@ -132,7 +132,7 @@ static int RunViewer(string[]Args){
             BoundsCenter-Extent,BoundsCenter+Extent));
         Renderer.SetAmbientLight(new Vector3(0.35f));
         Renderer.SetDirectionalLight(
-            Vector3.Normalize(new Vector3(1f,-1f,1f)),Vector3.One,50_000f);
+            new CSharpGameEngine.Rendering.DirectionalLightSubmission(Vector3.Normalize(new Vector3(1f,-1f,1f)),new CSharpGameEngine.Lighting.LinearLightColor(1f,1f,1f),new CSharpGameEngine.Lighting.Illuminance(50_000f),new CSharpGameEngine.Lighting.LightShadowSettings(0,new CSharpGameEngine.Lighting.ShadowBias(0.0015f))));
     } catch(Exception Ex){
         Console.WriteLine($"FAILED: could not initialize the D3D12 renderer: {Ex.Message}");
         return 1;

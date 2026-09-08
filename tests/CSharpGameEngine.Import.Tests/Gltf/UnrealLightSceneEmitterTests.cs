@@ -25,8 +25,9 @@ public sealed class UnrealLightSceneEmitterTests {
 
         string Source=Builder.ToString();
         Assert.Contains("new Transform {",Source);
-        Assert.Contains("IlluminanceLux=6f",Source);
-        Assert.Contains("CastsShadows=true",Source);
+        Assert.Contains("Illuminance=new global::CSharpGameEngine.Lighting.Illuminance(6f)",Source);
+        Assert.Contains("Runtime.Lighting.LightShadow",Source);
+        Assert.DoesNotContain("CastsShadows=",Source);
         Assert.DoesNotContain("DirectionTowardLight",Source);
         Assert.DoesNotContain("Intensity=",Source);
     }

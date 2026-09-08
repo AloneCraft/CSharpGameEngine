@@ -41,6 +41,10 @@ internal sealed record AddComponentOperation(
     ImmutableArray<SceneComponentMember>Members=default,
     SceneComponentOrderKey?OrderKey=null) : SceneEditOperation(SceneKey,NodeId,DocumentVersion);
 
+internal sealed record ConvertLightOperation(
+    SceneKey SceneKey,EditorNodeId NodeId,long DocumentVersion,
+    string SourceType,string OriginalExpression,SceneComponent Replacement,string DefaultsFingerprint)
+    :SceneEditOperation(SceneKey,NodeId,DocumentVersion);
 internal sealed record RemoveComponentOperation(
     SceneKey SceneKey,
     EditorNodeId NodeId,
@@ -173,6 +177,7 @@ internal static class SceneSourceEditor {
 
         return Operation switch {
             SetComponentMemberOperation SetMember=>ApplySetComponentMember(Root,Node,SetMember),
+            ConvertLightOperation Convert=>ApplyConvertLight(Root,Node,Convert),
             AddComponentOperation AddComponent=>ApplyAddComponent(Root,Node,AddComponent,Annotations),
             RemoveComponentOperation RemoveComponent=>ApplyRemoveComponent(Root,Node,RemoveComponent,Annotations),
             NormalizeComponentsOperation Normalize=>ApplyNormalizeComponents(Root,Node,Normalize,Annotations),
@@ -290,6 +295,22 @@ internal static class SceneSourceEditor {
     }
 
 
+    private static SceneSourceEditResult ApplyConvertLight(SyntaxNode Root,SceneProjectionNode Node,ConvertLightOperation Operation){
+        var Source=Node.Node.FindComponent(Operation.SourceType);
+        if(Source is null||!LightComponentContract.IsLight(Operation.SourceType)
+            ||!LightComponentContract.IsLight(Operation.Replacement.TypeFullyQualifiedName)
+            ||Operation.SourceType==Operation.Replacement.TypeFullyQualifiedName
+            ||Node.Node.Components.Count(Component=>LightComponentContract.IsLight(Component.TypeFullyQualifiedName))!=1
+            ||Source.EmitExpressionText!=Operation.OriginalExpression||!LightConversionPlanner.MatchesLatest(Source,Operation)){
+            return SceneSourceEditResult.Failure(VsixText.Get("LightConversionConflict"));
+        }
+        var Original=FindExpression(Root,Source.Location.Span);
+        var Replacement=SyntaxFactory.ParseExpression(Operation.Replacement.EmitExpressionText);
+        if(Original is null||Replacement.ContainsDiagnostics){
+            return SceneSourceEditResult.Failure(VsixText.Get("SourceEditInvalidCSharpExpression"));
+        }
+        return SceneSourceEditResult.Success(Root.ReplaceNode(Original,Replacement.WithTriviaFrom(Original)));
+    }
     private static SceneSourceEditResult ApplySetComponentMember(
         SyntaxNode Root,SceneProjectionNode Node,SetComponentMemberOperation Operation){
         SceneComponent?Component=Node.Node.FindComponent(Operation.ComponentTypeFullyQualifiedName);

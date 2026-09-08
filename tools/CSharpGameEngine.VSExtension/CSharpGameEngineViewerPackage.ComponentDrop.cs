@@ -59,6 +59,13 @@ public sealed partial class CSharpGameEngineViewerPackage {
             SceneComponentOrdering.GetSortKey(
                 DroppedType.Symbol,Request.ComponentTypeFullyQualifiedName)));
 
+        if(LightComponentContract.IsLight(Request.ComponentTypeFullyQualifiedName)){
+            var Shadow=await Session.ResolveComponentTypeAsync(LightComponentContract.ShadowType,this.DisposalToken);
+            await this.JoinableTaskFactory.SwitchToMainThreadAsync(this.DisposalToken);
+            if(Shadow is not { }Value){SetStatusBarText(VsixText.Get("ComponentDropTypeResolveFailed"));return;}
+            var ShadowPlan=SceneComponentInitializerPolicy.CreatePlan(Value.Symbol,LightComponentContract.ShadowType,Value.Compilation);
+            InitialComponents.Add(new NewNodeComponent(LightComponentContract.ShadowType,ShadowPlan.Expression,ShadowPlan.Members,SceneComponentOrdering.GetSortKey(Value.Symbol,LightComponentContract.ShadowType)));
+        }
         string Name=string.IsNullOrWhiteSpace(Request.NewEntityName)
             ?SimpleName(Request.ComponentTypeFullyQualifiedName)
             :Request.NewEntityName!.Trim();

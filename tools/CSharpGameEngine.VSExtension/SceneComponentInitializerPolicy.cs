@@ -104,13 +104,26 @@ internal static class SceneComponentInitializerPolicy {
     /// 先回りして組み立てる。<b>種別を揃えるのが要点</b> — <see cref="SceneValue.IsEditable"/>は
     /// Literal/EnumMember/Defaultだけを真とするので、ここを外すとInspectorが読み取り専用になる。
     /// </summary>
-    private static SceneValue CreateValue(
+    internal static SceneValue CreateValue(
         ISymbol Member,string ValueText,bool HasDefault,Compilation?Compilation){
         var MemberType=Member switch {
             IFieldSymbol Field=>Field.Type,
             IPropertySymbol Property=>Property.Type,
             _=>null,
         };
+        var Physical=LightValueContract.Find(MemberType);
+        if(Physical is not null&&Physical.TryReadExpression(ValueText,out var PhysicalValues)){
+            var Canonical=Physical.Format(PhysicalValues);
+            var Arguments=PhysicalValues.Select(Value=>new SceneValue(
+                SceneValueKind.Literal,Compilation?.GetSpecialType(SpecialType.System_Single),Value,null,
+                ImmutableArray<SceneComponentMember>.Empty,ImmutableArray<SceneValue>.Empty,ImmutableArray<SceneValue>.Empty,
+                Value.ToString("R",System.Globalization.CultureInfo.InvariantCulture)+"f",
+                Value.ToString("R",System.Globalization.CultureInfo.InvariantCulture)+"f",SceneSourceLocation.None)).ToImmutableArray();
+            var Constructor=(MemberType as INamedTypeSymbol)?.InstanceConstructors.FirstOrDefault(Physical.MatchesConstructor);
+            return new SceneValue(SceneValueKind.ObjectCreation,MemberType,null,Constructor,
+                ImmutableArray<SceneComponentMember>.Empty,Arguments,ImmutableArray<SceneValue>.Empty,
+                Canonical,Canonical,SceneSourceLocation.None);
+        }
         var Kind=!HasDefault
                      ?SceneValueKind.Default
                      :MemberType is { TypeKind:TypeKind.Enum }
@@ -256,14 +269,24 @@ internal static class SceneComponentInitializerPolicy {
     /// </summary>
     private static IReadOnlyDictionary<string,string>ReadParameterlessConstructorDefaults(INamedTypeSymbol Type){
         Dictionary<string,string>Empty=[];
+        Dictionary<string,string>Defaults=[];
+        foreach(var Member in EnumerateWritableMembers(Type)){
+            var DeclarationSyntax=Member.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax();
+            var Initializer=DeclarationSyntax switch {
+                VariableDeclaratorSyntax Variable=>Variable.Initializer?.Value,
+                PropertyDeclarationSyntax Property=>Property.Initializer?.Value,
+                _=>null,
+            };
+            if(Initializer is not null){ Defaults[Member.Name]=Initializer.ToString(); }
+        }
         var Constructor=Type.InstanceConstructors.FirstOrDefault(static Candidate=>Candidate.Parameters.Length==0);
         if(Constructor is null||Constructor.IsImplicitlyDeclared){
-            return Empty;
+            return Defaults;
         }
 
         var Reference=Constructor.DeclaringSyntaxReferences.FirstOrDefault();
         if(Reference?.GetSyntax()is not ConstructorDeclarationSyntax Declaration){
-            return Empty;
+            return Defaults;
         }
 
         var Statements=Declaration.Body?.Statements;
@@ -271,7 +294,6 @@ internal static class SceneComponentInitializerPolicy {
             return Empty;
         }
 
-        Dictionary<string,string>Defaults=[];
         foreach(var Statement in Statements){
             if(Statement is not ExpressionStatementSyntax { Expression:AssignmentExpressionSyntax Assignment }
                 ||!Assignment.IsKind(Microsoft.CodeAnalysis.CSharp.SyntaxKind.SimpleAssignmentExpression)

@@ -1,3 +1,4 @@
+using CSharpGameEngine.Lighting;
 using System.Numerics;
 using CSharpGameEngine.Import.Gltf;
 using CSharpGameEngine.Platform.Windows;
@@ -75,8 +76,8 @@ public class ModelGpuIntegrationTests {
         Renderer.SetCamera(Camera.CreateBoundsFit(
             Mesh.Bounds.Center-Extent,Mesh.Bounds.Center+Extent));
         Renderer.SetAmbientLight(new Vector3(0.35f));
-        Renderer.SetDirectionalLight(
-            Vector3.Normalize(new Vector3(1f,-1f,1f)),Vector3.One,50_000f);
+        Renderer.SetDirectionalLight(new DirectionalLightSubmission(
+            Vector3.Normalize(new Vector3(1f,-1f,1f)),new LinearLightColor(1f,1f,1f),new Illuminance(50_000f),new LightShadowSettings(0,new ShadowBias(0.0015f))));
 
         Assert.True(Renderer.ShaderArtifactLoaded,string.Join(Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
         Assert.Equal(UseWarp,Renderer.IsWarp);

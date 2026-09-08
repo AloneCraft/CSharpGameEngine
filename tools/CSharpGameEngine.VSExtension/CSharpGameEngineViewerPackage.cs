@@ -380,10 +380,25 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
             Plan?.Members??default,
             Resolved is { } ResolvedSymbol?SceneComponentOrdering.GetSortKey(
                 ResolvedSymbol.Symbol,Request.ComponentTypeFullyQualifiedName):null);
+        var Operations=new List<SceneEditOperation>();
+        if(LightComponentContract.IsLight(Request.ComponentTypeFullyQualifiedName)&&Projection.TryGetNode(TargetId,out var TargetNode)){
+            if(TargetNode.Node.Components.Any(Component=>LightComponentContract.IsLight(Component.TypeFullyQualifiedName))){
+                SetStatusBarText(VsixText.Get("SourceEditDuplicateComponent"));return;
+            }
+            foreach(var Required in new[]{SceneComponentBindings.TransformTypeFullyQualifiedName,LightComponentContract.ShadowType}){
+                if(TargetNode.Node.FindComponent(Required)is not null){continue;}
+                var Dependency=await Session.ResolveComponentTypeAsync(Required,this.DisposalToken);
+                await this.JoinableTaskFactory.SwitchToMainThreadAsync(this.DisposalToken);
+                if(Dependency is not { }Value){SetStatusBarText(VsixText.Get("ComponentDropTypeResolveFailed"));return;}
+                var Initializer=SceneComponentInitializerPolicy.CreatePlan(Value.Symbol,Required,Value.Compilation);
+                Operations.Add(new AddComponentOperation(Snapshot.Key,TargetId,Snapshot.DocumentVersion,Required,Initializer.Expression,Initializer.Members,SceneComponentOrdering.GetSortKey(Value.Symbol,Required)));
+            }
+        }
+        Operations.Add(Operation);
         SceneEditCommitRequest CommitRequest=new(
             Snapshot.Key,Snapshot.DocumentVersion,VsixText.Get("UndoAddComponent"),
             Array.Empty<SceneTransformChange>(),SceneTransformMemberMask.None,
-            DirectOperations:[Operation]);
+            DirectOperations:Operations);
         SceneEditCommitResult Commit=await Session.CommitAsync(CommitRequest,this.DisposalToken);
         if(Commit.Succeeded){
             SceneEditorHub.RequestComponentReveal(
@@ -418,10 +433,17 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
 
         RemoveComponentOperation Operation=new(
             Snapshot.Key,Request.NodeId,Snapshot.DocumentVersion,Request.ComponentTypeFullyQualifiedName);
+        var Operations=new List<SceneEditOperation>();
+        if(LightComponentContract.IsLight(Request.ComponentTypeFullyQualifiedName)
+            &&Snapshot.Projection?.TryGetNode(Request.NodeId,out var TargetNode)==true
+            &&TargetNode.Node.FindComponent(LightComponentContract.ShadowType)is not null){
+            Operations.Add(new RemoveComponentOperation(Snapshot.Key,Request.NodeId,Snapshot.DocumentVersion,LightComponentContract.ShadowType));
+        }
+        Operations.Add(Operation);
         SceneEditCommitRequest CommitRequest=new(
             Snapshot.Key,Snapshot.DocumentVersion,VsixText.Get("UndoRemoveComponent"),
             Array.Empty<SceneTransformChange>(),SceneTransformMemberMask.None,
-            DirectOperations:[Operation]);
+            DirectOperations:Operations);
         SceneEditCommitResult Commit=await Session.CommitAsync(CommitRequest,this.DisposalToken);
         if(!Commit.Succeeded){
             SetStatusBarText(Commit.ErrorMessage??VsixText.Format(

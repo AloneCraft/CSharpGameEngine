@@ -7,27 +7,6 @@ using CSharpGameEngine.SceneAnalysis.Tests;
 namespace CSharpGameEngine.VSExtension.Tests;
 
 public sealed class PropertyGizmoTests {
-    private const string Components="""
-        namespace CSharpGameEngine.Runtime.Windows {
-            public enum CameraProjection { Perspective, Orthographic }
-            public struct Camera {
-                public bool Active; public CameraProjection Projection;
-                public float FovYRadians; public float NearZ; public float FarZ; public float OrthographicSize;
-            }
-        }
-        namespace CSharpGameEngine.Runtime.Windows {
-            public struct DirectionalLight {
-                public float DirectionTowardLightX; public float DirectionTowardLightY; public float DirectionTowardLightZ;
-            }
-            public struct PointLight { public float PositionX; public float PositionY; public float PositionZ; public float Range; }
-            public struct SpotLight {
-                public float PositionX; public float PositionY; public float PositionZ;
-                public float DirectionX; public float DirectionY; public float DirectionZ;
-                public float Range; public float InnerConeAngleRadians; public float OuterConeAngleRadians;
-            }
-        }
-        """;
-
     [Fact]
     public void CameraPerspective_BuildsFovNearAndFarFrustumHandles(){
         var Node=AnalyzeNode("new Camera { FovYRadians=1f,NearZ=0.2f,FarZ=20f,OrthographicSize=5f }");
@@ -57,7 +36,7 @@ public sealed class PropertyGizmoTests {
     public void CompoundGizmo_ComposesActiveTransformAndPropertyPrimitives(){
         var TransformFrame=MoveGizmoFrame.Create(
                                                  Vector3.Zero,Quaternion.Identity,SceneTransformSpace.World,WorldScale:1f);
-        var Node=AnalyzeNode("new PointLight { PositionX=2f,Range=4f }");
+        var Node=AnalyzeNode("new PointLight { Range=new(4f) }");
         Assert.True(PropertyGizmoBinding.TryCreate(Node,Matrix4x4.Identity,WorldScale:1f,out PropertyGizmoFrame PropertyFrame));
 
         IReadOnlyList<GizmoOverlayPrimitive> Combined=CompoundGizmo.Compose(
@@ -96,9 +75,8 @@ public sealed class PropertyGizmoTests {
     }
 
     [Theory]
-    [InlineData("new DirectionalLight { DirectionTowardLightZ=1f }",(int)PropertyGizmoKind.DirectionalLight,(int)GizmoHandleId.DirectionalDirection)]
-    [InlineData("new PointLight { Range=3f }",(int)PropertyGizmoKind.PointLight,(int)GizmoHandleId.PointRange)]
-    [InlineData("new SpotLight { DirectionZ=1f,Range=5f,InnerConeAngleRadians=0.2f,OuterConeAngleRadians=0.4f }",(int)PropertyGizmoKind.SpotLight,(int)GizmoHandleId.SpotOuterCone)]
+    [InlineData("new PointLight { Range=new(3f) }",(int)PropertyGizmoKind.PointLight,(int)GizmoHandleId.PointRange)]
+    [InlineData("new SpotLight { Range=new(5f),Cone=new(30f,45f) }",(int)PropertyGizmoKind.SpotLight,(int)GizmoHandleId.SpotOuterCone)]
     public void CurrentLightVocabulary_BuildsItsPropertyHandles(
         string ComponentExpression,int ExpectedKindValue,int ExpectedHandleValue){
         var Node=AnalyzeNode(ComponentExpression);
@@ -110,7 +88,7 @@ public sealed class PropertyGizmoTests {
     [Fact]
     public void PhysicalSpotLight_UsesTransformPoseAndFullDegreeMembers(){
         var Node=AnalyzePhysicalNode(
-            "new SpotLight { RangeMeters=12f,InnerConeFullAngleDegrees=30f,OuterConeFullAngleDegrees=50f }");
+            "new SpotLight { Range=new(12f),Cone=new(30f,50f) }");
         var Rotation=Quaternion.CreateFromAxisAngle(Vector3.UnitY,(float)Math.PI/2f);
         var NodeWorld=Matrix4x4.CreateFromQuaternion(Rotation)*Matrix4x4.CreateTranslation(2f,3f,4f);
 
@@ -128,13 +106,13 @@ public sealed class PropertyGizmoTests {
         var Operations=PropertyGizmo.CreateOperations(
             Frame,GizmoHandleId.SpotOuterCone,default,default,DocumentVersion:1);
         var Operation=Assert.IsType<SetComponentMemberOperation>(Assert.Single(Operations));
-        Assert.Equal("OuterConeFullAngleDegrees",Operation.MemberName);
-        Assert.Equal("50f",Operation.ValueExpression);
+        Assert.Equal("Cone",Operation.MemberName);
+        Assert.Equal("new global::CSharpGameEngine.Lighting.SpotConeAngles(30f, 50f)",Operation.ValueExpression);
     }
 
     [Fact]
     public void PhysicalDirectionalLight_UsesTransformDirectionWithoutLegacyDirectionHandle(){
-        var Node=AnalyzePhysicalNode("new DirectionalLight { IlluminanceLux=1000f }");
+        var Node=AnalyzePhysicalNode("new DirectionalLight { Illuminance=new(1000f) }");
         var Rotation=Quaternion.CreateFromAxisAngle(Vector3.UnitX,-(float)Math.PI/2f);
         var NodeWorld=Matrix4x4.CreateFromQuaternion(Rotation)*Matrix4x4.CreateTranslation(1f,2f,3f);
 
@@ -146,44 +124,9 @@ public sealed class PropertyGizmoTests {
         Assert.DoesNotContain(GizmoHandleId.DirectionalDirection,Frame.Handles);
     }
 
-    private static SceneNode AnalyzePhysicalNode(string ComponentExpression){
-        var SceneSource=$$"""
-                          using CSharpGameEngine.Entities;
-                          using CSharpGameEngine.Runtime.Windows;
-                          namespace Game;
-                          public partial class MainScene:IScene {
-                              public Node Root=>new() { Components=[{{ComponentExpression}}] };
-                          }
-                          """;
-        var Model=SceneAnalysisTestHelper.Analyze([PhysicalComponents,SceneSource]);
-        Assert.NotNull(Model.Root);
-        return Model.Root!;
-    }
-
-    private const string PhysicalComponents="""
-        namespace CSharpGameEngine.Runtime.Windows {
-            public struct DirectionalLight { public float IlluminanceLux; }
-            public struct SpotLight {
-                public float RangeMeters;
-                public float InnerConeFullAngleDegrees;
-                public float OuterConeFullAngleDegrees;
-            }
-        }
-        """;
-
-
-
+    private static SceneNode AnalyzePhysicalNode(string ComponentExpression)=>AnalyzeNode(ComponentExpression);
     private static SceneNode AnalyzeNode(string ComponentExpression){
-        var SceneSource=$$"""
-                          using CSharpGameEngine.Entities;
-                          using CSharpGameEngine.Runtime.Windows;
-                          namespace Game;
-                          public partial class MainScene:IScene {
-                              public Node Root=>new() { Components=[{{ComponentExpression}}] };
-                          }
-                          """;
-        var Model=SceneAnalysisTestHelper.Analyze([Components,SceneSource]);
-        Assert.NotNull(Model.Root);
-        return Model.Root!;
+        var Data=TypedLightTestScene.Analyze(ComponentExpression);
+        return Data.Model.Root!;
     }
 }

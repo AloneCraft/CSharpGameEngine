@@ -1,5 +1,8 @@
 # Editor and VSIX specification
 
+## Typed light authoring
+F-L8-024/025 now include [Typed Lighting](Typed-Lighting.md): symbol-checked physical-value controls, atomic range/cone/rectangle gizmos, light/Transform/shadow palette batches and 12 edit-time light conversions. The source and source/target default-contract fingerprint must still match at commit; dimension-changing conversions require explicit quantity input. One verified source write uses existing native Undo. No runtime type replacement or private history is introduced.
+
 - Status: Specified
 - Parent index: [Roadmap](../Roadmap.md), [Implementation Status](../Implementation-Status.md)
 - Decisions: [ADR-0054](../Decisions/ADR-0054-Editor-Authoring-Host-And-Source-Synchronization.md), [ADR-0061](../Decisions/ADR-0061-Vsix-Experimental-Evidence-And-Automation.md)

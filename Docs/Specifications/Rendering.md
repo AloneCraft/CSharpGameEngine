@@ -1,5 +1,8 @@
 # Rendering specification
 
+## Typed light submissions
+[Typed Lighting](Typed-Lighting.md) and ADR-0064 replace unitless/kind-dependent public light payloads with DirectionalLightSubmission, PointLightSubmission, SpotLightSubmission and RectAreaLightSubmission. Rectangle submissions include forward and up so Transform roll is retained independently of physical width/height. Optional LightShadowSettings is a request; budget and GPU implementation remain backend-owned. Ordered reusable buffers, separate emissive records and completed-frame ownership are verified by TypedLightFrameTests, including exact WARP pixels after two device recoveries.
+
 - Status: Partially implemented
 - Parent index: [Roadmap](../Roadmap.md), [Implementation Status](../Implementation-Status.md)
 - Decisions: [ADR-0052](../Decisions/ADR-0052-Render-Graph-And-Preview-Boundary.md), [ADR-0058](../Decisions/ADR-0058-Visual-Shader-Graph-And-Artifact-Runtime.md), [ADR-0062](../Decisions/ADR-0062-Visible-Engine-Showcase-And-Deterministic-Input.md)

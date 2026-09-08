@@ -1,5 +1,6 @@
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Runtime.Windows;
+using CSharpGameEngine.Runtime.Lighting;
 
 namespace $rootnamespace$;
 
@@ -13,6 +14,7 @@ internal partial class $safeitemname$ : IScene {
             new AmbientLight(),
             new Transform(),
             new DirectionalLight(),
+            new LightShadow(),
             new HeightFog(),
         ],
         Children=[

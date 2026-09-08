@@ -40,7 +40,7 @@ foreach(ImportActor Actor in Manifest.Actors){
     }
 }
 
-ImportedSceneNode[]DirectionalNodes=[.. Scene.Nodes.Where(Node=>Node.LightIndex is int Index&&Scene.Lights[Index].LightType==ImportedLightType.Directional)];
+ImportedSceneNode[]DirectionalNodes=[.. Scene.Nodes.Where(Node=>Node.LightIndex is int Index&&Scene.Lights[Index] is ImportedDirectionalLight)];
 if(DirectionalNodes.Length!=1){
     throw new InvalidOperationException($"Expected one directional light node, found {DirectionalNodes.Length}.");
 }
@@ -80,7 +80,7 @@ static string BuildSceneSource(
     ImportedScene Scene,
     IReadOnlyDictionary<string,ImportedSceneNode>MeshNodeByName,
     ImportedSceneNode DirectionalNode){
-    var Light=Scene.Lights[DirectionalNode.LightIndex!.Value];
+    var Light=(ImportedDirectionalLight)Scene.Lights[DirectionalNode.LightIndex!.Value];
     var DirectionTowardLight=ImportedLightDirection.WorldForward(DirectionalNode.WorldTransform);
     ImportEnvironment Environment=Manifest.Environment;
 
@@ -124,7 +124,7 @@ static string BuildSceneSource(
     Builder.AppendLine("                Name=\"DirectionalLight\",");
     Builder.AppendLine("                Components=[");
     UnrealLightSceneEmitter.AppendDirectionalLightComponents(
-        Builder,DirectionTowardLight,Light.Color,Light.Intensity,"                    ");
+        Builder,DirectionTowardLight,new Vector3(Light.Color.R,Light.Color.G,Light.Color.B),Light.Illuminance.Lux,"                    ");
     Builder.AppendLine("                ],");
     Builder.AppendLine("            },");
 

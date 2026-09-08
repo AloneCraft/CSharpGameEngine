@@ -1,25 +1,18 @@
-using System.Numerics;
-
+using CSharpGameEngine.Lighting;
 namespace CSharpGameEngine.Import.Gltf;
-
-public enum ImportedLightType {
-    Directional,
-    Point,
-    Spot,
-}
-
-/// <summary>
-/// A KHR_lights_punctual light definition. Direction is not stored here - it is derived from the
-/// owning <see cref="ImportedSceneNode.WorldTransform"/> via <see cref="ImportedLightDirection.WorldForward"/>.
-/// A punctual light points along its node's local -Z axis per the KHR_lights_punctual spec, but
-/// <see cref="ImportedSceneNode.WorldTransform"/> is already converted into this engine's own
-/// (Unity-compatible) space by the time it leaves <see cref="GltfImporter"/> (ADR-0027), where local
-/// Forward is <c>+Z</c>, not glTF's own local <c>-Z</c> - do not apply <c>-Vector3.UnitZ</c> directly.
-/// </summary>
-public sealed class ImportedLight {
-    public required ImportedLightType LightType { get; init;}
-
-    public required Vector3 Color { get; init;}
-
-    public required float Intensity { get; init;}
+/// <summary>Imported emission; pose belongs to the owning scene node.</summary>
+public abstract record ImportedLight(LinearLightColor Color);
+public sealed record ImportedDirectionalLight(LinearLightColor Color,Illuminance Illuminance):ImportedLight(Color);
+public sealed record ImportedPointLight(LinearLightColor Color,LuminousIntensity Intensity,LightRange? Range):ImportedLight(Color);
+public sealed record ImportedSpotLight(LinearLightColor Color,LuminousIntensity Intensity,LightRange? Range,ImportedSpotCone Cone):ImportedLight(Color);
+/// <summary>Lossless glTF cone; its zero inner angle is legal in glTF even though authored engine cones require a positive inner angle.</summary>
+public readonly record struct ImportedSpotCone {
+    public ImportedSpotCone(float InnerHalfAngleRadians,float OuterHalfAngleRadians){
+        LightValueValidation.Require(LightValueValidation.NonNegative(InnerHalfAngleRadians),nameof(InnerHalfAngleRadians));
+        LightValueValidation.Require(LightValueValidation.Positive(OuterHalfAngleRadians)&&OuterHalfAngleRadians<=LightPhotometry.Pi/2f&&InnerHalfAngleRadians<OuterHalfAngleRadians,nameof(OuterHalfAngleRadians));
+        this.InnerHalfAngleRadians=InnerHalfAngleRadians;this.OuterHalfAngleRadians=OuterHalfAngleRadians;
+    }
+    public float InnerHalfAngleRadians{get;}
+    public float OuterHalfAngleRadians{get;}
+    public SpotConeAngles ToAuthoredCone()=>new(this.InnerHalfAngleRadians*360f/LightPhotometry.Pi,this.OuterHalfAngleRadians*360f/LightPhotometry.Pi);
 }

@@ -151,28 +151,16 @@ public sealed class RenderServer:IDisposable {
         this.PendingFrame.RecordViewProjection(ViewProjection,CameraPosition);
     }
 
-    public void SetDirectionalLight(
-        Vector3 LightForward,Vector3 LinearRgb,float IlluminanceLux,
-        bool CastsShadows=true,int ShadowPriority=0,float ShadowBiasMeters=0.0015f){
-        this.Backend.SetDirectionalLight(
-            LightForward,LinearRgb,IlluminanceLux,CastsShadows,ShadowPriority,
-            ShadowBiasMeters);
-        this.PendingFrame.RecordSetDirectional(
-            LightForward,LinearRgb,IlluminanceLux,CastsShadows,ShadowPriority,
-            ShadowBiasMeters);
+    public void SetDirectionalLight(in DirectionalLightSubmission Value){
+        Value.Validate();
+        this.Backend.SetLight(Value);
+        this.PendingFrame.RecordSetDirectional(Value);
     }
-
-    public void AddDirectionalLight(
-        Vector3 LightForward,Vector3 LinearRgb,float IlluminanceLux,
-        bool CastsShadows,int ShadowPriority,float ShadowBiasMeters){
-        this.Backend.AddDirectionalLight(
-            LightForward,LinearRgb,IlluminanceLux,CastsShadows,ShadowPriority,
-            ShadowBiasMeters);
-        this.PendingFrame.RecordAddDirectional(
-            LightForward,LinearRgb,IlluminanceLux,CastsShadows,ShadowPriority,
-            ShadowBiasMeters);
+    public void AddDirectionalLight(in DirectionalLightSubmission Value){
+        Value.Validate();
+        this.Backend.Submit(Value);
+        this.PendingFrame.RecordAddDirectional(Value);
     }
-
     public void SetAmbientLight(Vector3 Color){
         this.Backend.SetAmbientLight(Color);
         this.PendingFrame.RecordAmbient(Color);
@@ -182,44 +170,21 @@ public sealed class RenderServer:IDisposable {
         this.PendingFrame.RecordFog(Fog);
     }
 
-    public void AddPointLight(
-        Vector3 Position,Vector3 LinearRgb,float LuminousFluxLumens,
-        float RangeMeters,bool CastsShadows,int ShadowPriority,float ShadowBiasMeters){
-        this.Backend.AddPointLight(
-            Position,LinearRgb,LuminousFluxLumens,RangeMeters,CastsShadows,
-            ShadowPriority,ShadowBiasMeters);
-        this.PendingFrame.RecordPoint(
-            Position,LinearRgb,LuminousFluxLumens,RangeMeters,CastsShadows,
-            ShadowPriority,ShadowBiasMeters);
+    public void AddPointLight(in PointLightSubmission Value){
+        Value.Validate();
+        this.Backend.Submit(Value);
+        this.PendingFrame.RecordPoint(Value);
     }
-
-    public void AddSpotLight(
-        Vector3 Position,Vector3 LightForward,Vector3 LinearRgb,
-        float LuminousFluxLumens,float RangeMeters,
-        float InnerConeFullAngleDegrees,float OuterConeFullAngleDegrees,
-        bool CastsShadows,int ShadowPriority,float ShadowBiasMeters){
-        this.Backend.AddSpotLight(
-            Position,LightForward,LinearRgb,LuminousFluxLumens,RangeMeters,
-            InnerConeFullAngleDegrees,OuterConeFullAngleDegrees,
-            CastsShadows,ShadowPriority,ShadowBiasMeters);
-        this.PendingFrame.RecordSpot(
-            Position,LightForward,LinearRgb,LuminousFluxLumens,RangeMeters,
-            InnerConeFullAngleDegrees,OuterConeFullAngleDegrees,
-            CastsShadows,ShadowPriority,ShadowBiasMeters);
+    public void AddSpotLight(in SpotLightSubmission Value){
+        Value.Validate();
+        this.Backend.Submit(Value);
+        this.PendingFrame.RecordSpot(Value);
     }
-
-    public void AddAreaLight(
-        Vector3 Position,Vector3 LightForward,Vector3 LinearRgb,
-        float LuminanceNits,float WidthMeters,float HeightMeters,float RangeMeters,
-        bool CastsShadows,int ShadowPriority,float ShadowBiasMeters){
-        this.Backend.AddAreaLight(
-            Position,LightForward,LinearRgb,LuminanceNits,WidthMeters,HeightMeters,
-            RangeMeters,CastsShadows,ShadowPriority,ShadowBiasMeters);
-        this.PendingFrame.RecordArea(
-            Position,LightForward,LinearRgb,LuminanceNits,WidthMeters,HeightMeters,
-            RangeMeters,CastsShadows,ShadowPriority,ShadowBiasMeters);
+    public void AddRectAreaLight(in RectAreaLightSubmission Value){
+        Value.Validate();
+        this.Backend.Submit(Value);
+        this.PendingFrame.RecordArea(Value);
     }
-
     public void SubmitDirectLighting(
         IReadOnlyList<EmissivePatch>Patches,float RangeMeters,
         bool CastsShadows,int ShadowPriority,float ShadowBiasMeters){

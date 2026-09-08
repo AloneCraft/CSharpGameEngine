@@ -1,3 +1,4 @@
+using CSharpGameEngine.SceneAnalysis;
 using System.Collections.Generic;
 using System.Linq;
 using System.ComponentModel;
@@ -33,6 +34,7 @@ internal sealed class InspectorMemberViewModel:InspectorSelectableViewModel {
     internal InspectorMemberViewModel(SceneInspectorMember Member){
         this.Member=Member;
         this.DisplayText=Member.EditorKind switch {
+            InspectorEditorKind.PhysicalValue=>Member.ConstantValue as string??Member.SourceExpression,
             InspectorEditorKind.Text=>Member.ConstantValue as string??string.Empty,
             InspectorEditorKind.Number=>SceneInspectorValueFormat.RemoveFloatSuffix(Member.SourceExpression),
             _=>Member.SourceExpression,
@@ -51,7 +53,7 @@ internal sealed class InspectorMemberViewModel:InspectorSelectableViewModel {
 
     /// <summary>グルーピング表示での行ラベル。Component名はExpanderのヘッダ側が出すので重ねない
     /// (<see cref="Label"/>は引き続きツールチップで完全な位置を示すために使う)。</summary>
-    public string MemberName=>this.Member.MemberName;
+    public string MemberName=>this.Member.PhysicalContract is { }Physical?this.Member.MemberName+" ("+Physical.Unit+"; "+string.Join(", ",Physical.Parameters)+")":this.Member.MemberName;
 
     public InspectorEditorKind EditorKind=>this.Member.EditorKind;
 
@@ -119,6 +121,7 @@ internal sealed class InspectorComponentGroupViewModel:InspectorSelectableViewMo
     /// Componentを追加した直後はmemberが空で、Roslynの再解析が着地するまで値を設定できない。
     /// その空白を「解析待ち」として明示する(空のまま何も出さないと追加が失敗したように見える)。
     /// </summary>
+    public Visibility LightConversionVisibility=>LightComponentContract.IsLight(this.Group.ComponentTypeFullyQualifiedName)?Visibility.Visible:Visibility.Collapsed;
     public Visibility PendingMessageVisibility=>
         this.Rows.Count==0?Visibility.Visible:Visibility.Collapsed;
 }

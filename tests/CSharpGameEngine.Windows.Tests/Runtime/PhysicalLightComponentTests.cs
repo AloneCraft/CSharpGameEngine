@@ -1,61 +1,31 @@
 using System.Reflection;
-using CSharpGameEngine.Runtime.Windows;
-
+using CSharpGameEngine.Runtime.Lighting;
 namespace CSharpGameEngine.Runtime.Windows.Tests;
-
 public sealed class PhysicalLightComponentTests {
     [Fact]
-    public void DirectionalLight_Default_UsesLuxAndShadowSettings(){
-        DirectionalLight Light=new();
-
-        Assert.Equal(100_000f,Light.IlluminanceLux);
-        Assert.Equal(1f,Light.ColorR);
-        Assert.Equal(1f,Light.ColorG);
-        Assert.Equal(1f,Light.ColorB);
-        Assert.True(Light.CastsShadows);
-        Assert.Equal(0,Light.ShadowPriority);
-        Assert.Equal(0.005f,Light.ShadowBiasMeters);
-        Assert.DoesNotContain("Intensity",GetPublicFieldNames<DirectionalLight>());
-        Assert.DoesNotContain("DirectionTowardLightX",GetPublicFieldNames<DirectionalLight>());
+    public void Defaults_PreservePhysicalBrightnessAndGeometry(){
+        Assert.Equal(100_000f,new DirectionalLight().Illuminance.Lux);
+        Assert.Equal(800f,new PointLight().Flux.Lumens);
+        Assert.Equal(10f,new PointLight().Range.Meters);
+        Assert.Equal(30f,new SpotLight().Cone.InnerFullAngleDegrees);
+        Assert.Equal(45f,new SpotLight().Cone.OuterFullAngleDegrees);
+        Assert.Equal(100f,new RectAreaLight().Luminance.Nits);
+        Assert.Equal(1f,new RectAreaLight().Size.WidthMeters);
+        Assert.Equal(0.005f,new LightShadow().Bias.Meters);
     }
-
     [Fact]
-    public void PointLight_Default_UsesLumensAndTransformOwnsPosition(){
-        PointLight Light=new();
-
-        Assert.Equal(800f,Light.LuminousFluxLumens);
-        Assert.Equal(10f,Light.RangeMeters);
-        Assert.True(Light.CastsShadows);
-        Assert.DoesNotContain("PositionX",GetPublicFieldNames<PointLight>());
-        Assert.DoesNotContain("Intensity",GetPublicFieldNames<PointLight>());
+    public void Components_ExposeOnlyApplicableProperties(){
+        Assert.DoesNotContain("Cone",Fields<PointLight>());
+        Assert.DoesNotContain("Range",Fields<DirectionalLight>());
+        Assert.DoesNotContain("Size",Fields<SpotLight>());
+        foreach(var Type in new[]{typeof(PointLight),typeof(SpotLight),typeof(DirectionalLight),typeof(RectAreaLight)}){
+            var Names=Type.GetFields(BindingFlags.Public|BindingFlags.Instance).Select(Field=>Field.Name).ToArray();
+            Assert.DoesNotContain("Type",Names);
+            Assert.DoesNotContain("Intensity",Names);
+            Assert.DoesNotContain("CastsShadows",Names);
+            Assert.DoesNotContain("ShadowPriority",Names);
+            Assert.DoesNotContain("Position",Names);
+        }
     }
-
-    [Fact]
-    public void SpotLight_Default_UsesFullConeAnglesInDegreesAndTransformOwnsPose(){
-        SpotLight Light=new();
-
-        Assert.Equal(800f,Light.LuminousFluxLumens);
-        Assert.Equal(30f,Light.InnerConeFullAngleDegrees);
-        Assert.Equal(45f,Light.OuterConeFullAngleDegrees);
-        Assert.Equal(10f,Light.RangeMeters);
-        Assert.DoesNotContain("PositionX",GetPublicFieldNames<SpotLight>());
-        Assert.DoesNotContain("DirectionX",GetPublicFieldNames<SpotLight>());
-        Assert.DoesNotContain("InnerConeAngleRadians",GetPublicFieldNames<SpotLight>());
-    }
-
-    [Fact]
-    public void AreaLight_Default_UsesNitsAndRectangleDimensions(){
-        AreaLight Light=new();
-
-        Assert.Equal(100f,Light.LuminanceNits);
-        Assert.Equal(1f,Light.WidthMeters);
-        Assert.Equal(1f,Light.HeightMeters);
-        Assert.Equal(10f,Light.RangeMeters);
-        Assert.True(Light.CastsShadows);
-        Assert.DoesNotContain("PositionX",GetPublicFieldNames<AreaLight>());
-        Assert.DoesNotContain("DirectionX",GetPublicFieldNames<AreaLight>());
-    }
-
-    private static IReadOnlyList<string>GetPublicFieldNames<T>()where T:struct =>
-        typeof(T).GetFields(BindingFlags.Instance|BindingFlags.Public).Select(static Field=>Field.Name).ToArray();
+    private static string[]Fields<T>()=>typeof(T).GetFields(BindingFlags.Public|BindingFlags.Instance).Select(Field=>Field.Name).ToArray();
 }

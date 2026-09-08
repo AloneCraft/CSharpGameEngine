@@ -11,6 +11,7 @@ internal enum GizmoHandleId {
     CameraFov, CameraNear, CameraFar, CameraOrthographicSize,
     DirectionalDirection, PointRange,
     SpotDirection, SpotInnerCone, SpotOuterCone, SpotRange,
+    RectRange, RectWidth, RectHeight,
     TransformSpaceToggle,
     SurfaceSnapPlane,
 }

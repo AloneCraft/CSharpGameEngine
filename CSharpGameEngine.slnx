@@ -176,6 +176,8 @@
     <Project Path="src/CSharpGameEngine.Runtime.Physics/CSharpGameEngine.Runtime.Physics.shproj" />
     <File Path="src/CSharpGameEngine.Runtime.Physics/CSharpGameEngine.Runtime.Physics.projitems" />
     <Project Path="src/CSharpGameEngine.Runtime.Windows/CSharpGameEngine.Runtime.Windows.shproj" />
+    <Project Path="src/CSharpGameEngine.Runtime.Lighting/CSharpGameEngine.Runtime.Lighting.shproj" />
+    <File Path="src/CSharpGameEngine.Runtime.Lighting/CSharpGameEngine.Runtime.Lighting.projitems" />
     <File Path="src/CSharpGameEngine.Runtime.Windows/CSharpGameEngine.Runtime.Windows.projitems" />
   </Folder>
   <Folder Name="/stages/">

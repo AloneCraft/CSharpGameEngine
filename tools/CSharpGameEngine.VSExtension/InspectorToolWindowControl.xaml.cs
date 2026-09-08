@@ -24,6 +24,7 @@ namespace CSharpGameEngine.VSExtension;
 /// Selection.SelectionChanged)をそのまま踏襲する。
 /// </summary>
 public partial class InspectorToolWindowControl:UserControl,IDisposable {
+    public static readonly RoutedUICommand ConvertLightCommand=new();
     private SceneEditorSessionService?Session;
     private SceneDocumentSnapshot?CurrentSnapshot;
     private SceneSelection?CurrentSelection;
@@ -57,6 +58,7 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
 
     public InspectorToolWindowControl(){
         this.InitializeComponent();
+        this.CommandBindings.Add(new CommandBinding(ConvertLightCommand,this.ConvertLight_Executed,this.ConvertLight_CanExecute));
         this.EscapeRouter=new(this,this.HandleEscape);
         // TextBox / ComboBox / Expander may mark their mouse and key events handled before
         // an instance handler declared in the template observes them. Select the logical
@@ -735,6 +737,7 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
         string?NewExpression=Member.EditorKind switch {
             InspectorEditorKind.Number when Member.NumericType is { }Type
                 &&SceneInspectorValueFormat.TryFormatNumber(Type,Text,out string Formatted)=>Formatted,
+            InspectorEditorKind.PhysicalValue when Member.PhysicalContract?.TryFormatInput(Text,out string PhysicalExpression)==true=>PhysicalExpression,
             InspectorEditorKind.Text=>SceneInspectorValueFormat.FormatText(Text),
             _=>null,
         };
@@ -744,6 +747,8 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
             return;
         }
 
+        if(Member.PhysicalContract is { }Contract&&Contract.TryReadExpression(Member.SourceExpression,out var Before)
+            &&Contract.TryReadExpression(NewExpression,out var After)&&Before.SequenceEqual(After)){return;}
         this.SubmitCommit(Member,NewExpression);
     }
 
@@ -756,6 +761,45 @@ public partial class InspectorToolWindowControl:UserControl,IDisposable {
         this.SubmitCommit(ViewModel.Member,SceneInspectorValueFormat.FormatBoolean(Box.IsChecked==true));
     }
 
+    private bool IsGameRunning(){
+        var Name=this.CurrentSnapshot is { }Snapshot?this.Session?.TryGetRuntimeProcessName(Snapshot.Key):null;
+        return !string.IsNullOrWhiteSpace(Name)&&SpatialDebugClient.FindProcessIds(Name!).Count!=0;
+    }
+    private void ConvertLight_CanExecute(object Sender,CanExecuteRoutedEventArgs Args){
+        Args.CanExecute=Args.Parameter is InspectorComponentGroupViewModel Group
+            &&LightComponentContract.IsLight(Group.Group.ComponentTypeFullyQualifiedName)
+            &&this.CurrentSnapshot?.HasBlockingErrors==false&&!this.IsGameRunning();
+        Args.Handled=true;
+    }
+    #pragma warning disable VSTHRD100
+    private async void ConvertLight_Executed(object Sender,ExecutedRoutedEventArgs Args){
+        try{
+            if(Args.Parameter is not InspectorComponentGroupViewModel Group||this.Session is not { }Session
+                ||this.CurrentSnapshot is not { }Snapshot||this.IsGameRunning()
+                ||Snapshot.Projection?.TryGetNode(Group.Group.NodeId,out var Node)!=true
+                ||Node.Node.FindComponent(Group.Group.ComponentTypeFullyQualifiedName) is not { }Source){return;}
+            var Targets=new List<Microsoft.CodeAnalysis.INamedTypeSymbol>();
+            Microsoft.CodeAnalysis.Compilation?Compilation=null;
+            foreach(var Type in LightComponentContract.Types.Where(Type=>Type!=Source.TypeFullyQualifiedName)){
+                var Resolved=await Session.ResolveComponentTypeAsync(Type,CancellationToken.None);
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                if(Resolved is not { }Value){SetStatus(VsixText.Get("LightConversionConflict"));return;}
+                Targets.Add(Value.Symbol);Compilation=Value.Compilation;
+            }
+            if(Compilation is null||this.IsGameRunning()){return;}
+            var Dialog=new LightConversionDialog(Source,Targets,Compilation){Owner=Window.GetWindow(this)};
+            if(Dialog.ShowDialog()!=true||Dialog.Replacement is not { }Replacement||this.IsGameRunning()){return;}
+            var Operation=new ConvertLightOperation(Snapshot.Key,Group.Group.NodeId,Snapshot.DocumentVersion,
+                Source.TypeFullyQualifiedName,Source.EmitExpressionText,Replacement,
+                LightConversionPlanner.ContractFingerprint(Source,Replacement.TypeSymbol!));
+            this.SubmitCommit(new SceneEditCommitRequest(Snapshot.Key,Snapshot.DocumentVersion,VsixText.Get("LightConversionTitle"),
+                Array.Empty<SceneTransformChange>(),SceneTransformMemberMask.None,DirectOperations:[Operation]));
+        }catch(Exception Error){
+            ActivityLog.LogError(nameof(InspectorToolWindowControl),Error.ToString());
+            SetStatus(VsixText.Get("LightConversionConflict"));
+        }
+    }
+    #pragma warning restore VSTHRD100
     private void RemoveComponentButton_Click(object Sender,RoutedEventArgs Args){
         ThreadHelper.ThrowIfNotOnUIThread();
         Args.Handled=true;

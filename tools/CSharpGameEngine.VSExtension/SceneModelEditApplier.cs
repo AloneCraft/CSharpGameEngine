@@ -62,7 +62,7 @@ internal static class SceneModelEditApplier {
             CurrentProjection=Operation switch {
                 ReparentNodeOperation when MovedToPath is { }NewPath=>
                     PreserveNodeIdentity(Key,ProjectionBeforeOp,Naive,TargetNode.Node,NewPath),
-                AddComponentOperation or RemoveComponentOperation or NormalizeComponentsOperation=>
+                AddComponentOperation or RemoveComponentOperation or NormalizeComponentsOperation or ConvertLightOperation=>
                     PreserveNodeIdentity(Key,ProjectionBeforeOp,Naive,TargetNode.Node,TargetNode.Node.Path),
                 _=>Naive,
             };
@@ -112,7 +112,7 @@ internal static class SceneModelEditApplier {
         Operation is SetTransformOperation or SetComponentMemberOperation
             or RenameNodeOperation or AddNodeOperation or RemoveNodeOperation
             or ReparentNodeOperation or ReorderNodeOperation or DuplicateNodeOperation
-            or AddComponentOperation or RemoveComponentOperation or NormalizeComponentsOperation;
+            or AddComponentOperation or RemoveComponentOperation or NormalizeComponentsOperation or ConvertLightOperation;
 
     private static bool TryApplyOne(
         SceneNode Root,SceneProjection Projection,SceneProjectionNode TargetNode,SceneEditOperation Operation,
@@ -136,6 +136,17 @@ internal static class SceneModelEditApplier {
                     return false;
                 }
                 Updated=ReplaceAtPath(Root,TargetPath,_=>NewLive);
+                return true;
+            }
+            case ConvertLightOperation Convert: {
+                var Live=GetAtPath(Root,TargetPath);
+                var Source=Live.FindComponent(Convert.SourceType);
+                if(Source is null||Source.EmitExpressionText!=Convert.OriginalExpression||!LightConversionPlanner.MatchesLatest(Source,Convert)
+                    ||!LightComponentContract.IsLight(Convert.Replacement.TypeFullyQualifiedName)
+                    ||Live.Components.Count(Component=>LightComponentContract.IsLight(Component.TypeFullyQualifiedName))!=1){
+                    Updated=Root;return false;
+                }
+                Updated=ReplaceAtPath(Root,TargetPath,_=>ReplaceComponent(Live,Source,Convert.Replacement));
                 return true;
             }
             case AddComponentOperation AddComponent: {
@@ -566,6 +577,15 @@ internal static class SceneModelEditApplier {
             return TryApplyNestedSetMember(Node,Component,Path,Operation,out Updated);
         }
         var Existing=FindMember(Component.Members,Operation.MemberName);
+        var Symbol=Existing?.MemberSymbol??Component.TypeSymbol?.GetMembers(Operation.MemberName).FirstOrDefault();
+        var Contract=LightValueContract.Find(GetDeclaredMemberType(Component,Operation.MemberName)??Existing?.Value.Type);
+        if(Contract is not null&&Symbol is not null){
+            if(Existing is not null&&(!Contract.TryRead(Existing.Value,out _,out var Editable)||!Editable)){return false;}
+            if(!Contract.TryReadExpression(Operation.ValueExpression,out var Values)){return false;}
+            var Physical=SceneComponentInitializerPolicy.CreateValue(Symbol,Contract.Format(Values),true,null);
+            Updated=ReplaceComponent(Node,Component,WithMembers(Component,SetMember(Component.Members,Existing,Operation.MemberName,Physical,Component.Location)));
+            return true;
+        }
         if(Existing is not null&&!Existing.Value.IsEditable){
             return false;
         }

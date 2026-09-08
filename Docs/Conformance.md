@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-09-08 M0088 — Typed lighting
+- Intended: applicable-only light/physical-unit/optional-shadow contracts through source editing, importing, renderer submission and recovery.
+- Observed: portable typed ECS components, validated value structs, typed imports/submissions, reusable ordered replay, static physical-value editors and explicit source conversions follow ADR-0064.
+- Automated evidence: invalid member/unit compilation, default/boundary validation, 12 conversion/source-verification paths, Node/shadow retention, source/default-contract conflict rejection, generated-runtime diagnostics, exact WARP recovery readback and zero-allocation warmed frame recording.
+- Result: automated contract matches; final configuration/Stage results are maintained in [M0088](Milestones/M0088-Typed-Lighting.md).
+- Verification limit: native Undo routing and one-write semantics are contract-tested, not an interactive installed-Visual-Studio UI certification. No hardware-GPU claim is inferred from WARP.
+
 ## 2026-09-02 M0087 Immutable formal release
 
 - Intended specification: F-L7-048 publishes one immutable formal product identity after a passing Level-gated RC.

@@ -1,3 +1,4 @@
+using CSharpGameEngine.Runtime.Lighting;
 using System.Numerics;
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Graphics.D3D12;
@@ -135,6 +136,10 @@ public struct Renderable:IRuntimeComponent {
     public FixedTransformResolveStatus LastWorldResolveStatus;
 }
 
+public struct LightShadowRuntime:IRuntimeComponent<LightShadow> {
+    public string?InvalidProperty;
+}
+
 /// <summary>
 /// Runtime-only emissive mesh binding. The source material remains the visual emission authority;
 /// this state rebuilds camera-relative direct-light patches whenever its Transform changes.
@@ -158,82 +163,6 @@ public struct EmissiveMeshLighting:IRuntimeComponent {
     public FixedTransformResolveStatus LastWorldResolveStatus;
 }
 
-/// <summary>
-/// 無限遠の平行光。向きは同一Entityの<see cref="Transform"/>のローカル+Z（光の進行方向）から得る。
-/// <see cref="IlluminanceLux"/>は照度[lux]であり、単位のないIntensityは持たない。
-/// </summary>
-[SceneComponentOrder(SceneComponentCategory.LightingEnvironment,10)]
-[SceneComponentIcon("Assets/Editor/ComponentIcons/DirectionalLight.svg")]
-public struct DirectionalLight() {
-    /// <summary>Linear RGBの発光色。</summary>
-    public float ColorR = 1f;
-    public float ColorG = 1f;
-    public float ColorB = 1f;
-
-    /// <summary>照度[lux]。</summary>
-    public float IlluminanceLux = 100_000f;
-    public bool CastsShadows = true;
-    public int ShadowPriority = 0;
-    /// <summary>シャドウ深度比較の物理バイアス[m]。</summary>
-    public float ShadowBiasMeters = 0.005f;
-}
-
-/// <summary>
-/// 全方向へ放射する点光源。位置は同一Entityの<see cref="Transform"/>から得る。
-/// <see cref="LuminousFluxLumens"/>は全光束[lm]、<see cref="RangeMeters"/>は打ち切り距離[m]。
-/// </summary>
-[SceneComponentOrder(SceneComponentCategory.LightingEnvironment,20)]
-[SceneComponentIcon("Assets/Editor/ComponentIcons/PointLight.svg")]
-public struct PointLight() {
-    public float ColorR = 1f;
-    public float ColorG = 1f;
-    public float ColorB = 1f;
-    public float LuminousFluxLumens = 800f;
-    public float RangeMeters = 10f;
-    public bool CastsShadows = true;
-    public int ShadowPriority = 0;
-    public float ShadowBiasMeters = 0.005f;
-}
-
-/// <summary>
-/// 円錐状の点光源。位置とローカル+Zの進行方向は同一Entityの<see cref="Transform"/>から得る。
-/// 円錐角は半角/radianではなく全角[degree]で保持する。
-/// </summary>
-[SceneComponentOrder(SceneComponentCategory.LightingEnvironment,30)]
-[SceneComponentIcon("Assets/Editor/ComponentIcons/SpotLight.svg")]
-public struct SpotLight() {
-    public float ColorR = 1f;
-    public float ColorG = 1f;
-    public float ColorB = 1f;
-    public float LuminousFluxLumens = 800f;
-    public float RangeMeters = 10f;
-    public float InnerConeFullAngleDegrees = 30f;
-    public float OuterConeFullAngleDegrees = 45f;
-    public bool CastsShadows = true;
-    public int ShadowPriority = 0;
-    public float ShadowBiasMeters = 0.005f;
-}
-
-/// <summary>
-/// ローカル+Z側だけが発光する片面矩形Area Light。位置と向きは同一Entityの<see cref="Transform"/>、
-/// 物理サイズは<see cref="WidthMeters"/>/<see cref="HeightMeters"/>から得る（Transform Scaleは適用しない）。
-/// </summary>
-[SceneComponentOrder(SceneComponentCategory.LightingEnvironment,40)]
-[SceneComponentIcon("Assets/Editor/ComponentIcons/AreaLight.svg")]
-public struct AreaLight() {
-    public float ColorR = 1f;
-    public float ColorG = 1f;
-    public float ColorB = 1f;
-    /// <summary>輝度[cd/m²]（nit）。</summary>
-    public float LuminanceNits = 100f;
-    public float WidthMeters = 1f;
-    public float HeightMeters = 1f;
-    public float RangeMeters = 10f;
-    public bool CastsShadows = true;
-    public int ShadowPriority = 0;
-    public float ShadowBiasMeters = 0.005f;
-}
-
 /// <summary>Runtime marker paired with AppHost; it never owns the window or input server.</summary>
 public struct AppHostRuntime:IRuntimeComponent<AppHost> {
 }
@@ -254,6 +183,7 @@ public struct LevelRuntime:IRuntimeComponent<Level> {
 
 /// <summary>DirectionalLightSyncが毎フレーム書き込む先。LevelLoadがレンダラー生成時に埋める。</summary>
 public struct DirectionalLightRuntime:IRuntimeComponent<DirectionalLight> {
+    public string?InvalidProperty;
     public Vector3 LastWorldForward;
     public bool HasLastWorldForward;
     public FixedTransformStatus LastTransformStatus;
@@ -262,6 +192,7 @@ public struct DirectionalLightRuntime:IRuntimeComponent<DirectionalLight> {
 
 /// <summary>PointLightSyncが毎フレーム書き込む先。</summary>
 public struct PointLightRuntime:IRuntimeComponent<PointLight> {
+    public string?InvalidProperty;
     public Vector3 LastCameraRelativePosition;
     public bool HasLastCameraRelativePosition;
     public FixedTransformStatus LastTransformStatus;
@@ -270,6 +201,7 @@ public struct PointLightRuntime:IRuntimeComponent<PointLight> {
 
 /// <summary>SpotLightSyncが毎フレーム書き込む先。</summary>
 public struct SpotLightRuntime:IRuntimeComponent<SpotLight> {
+    public string?InvalidProperty;
     public Vector3 LastCameraRelativePosition;
     public Vector3 LastWorldForward;
     public bool HasLastCameraRelativePosition;
@@ -279,9 +211,11 @@ public struct SpotLightRuntime:IRuntimeComponent<SpotLight> {
 }
 
 /// <summary>AreaLightSyncが毎フレーム書き込む先。</summary>
-public struct AreaLightRuntime:IRuntimeComponent<AreaLight> {
+public struct RectAreaLightRuntime:IRuntimeComponent<RectAreaLight> {
+    public string?InvalidProperty;
     public Vector3 LastCameraRelativePosition;
     public Vector3 LastWorldForward;
+    public Vector3 LastWorldUp;
     public bool HasLastCameraRelativePosition;
     public bool HasLastWorldForward;
     public FixedTransformStatus LastTransformStatus;

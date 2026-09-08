@@ -375,7 +375,7 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
             Server.SetViewProjection(
                 ToMatrix(Scene.Camera!.ViewProjection),ToVector3(Scene.Camera.Position));
             Server.SetAmbientLight(new Vector3(0.4f));
-            Server.SetDirectionalLight(Vector3.UnitY,Vector3.One,2f);
+            Server.SetDirectionalLight(new CSharpGameEngine.Rendering.DirectionalLightSubmission(Vector3.UnitY,new CSharpGameEngine.Lighting.LinearLightColor(1f,1f,1f),new CSharpGameEngine.Lighting.Illuminance(2f),new CSharpGameEngine.Lighting.LightShadowSettings(0,new CSharpGameEngine.Lighting.ShadowBias(0.0015f))));
             for(int Index=0;Index<Scene.Objects.Length;Index++){
                 Server.SetObjectTransform(Index,ToMatrix(Scene.Objects[Index].World));
             }

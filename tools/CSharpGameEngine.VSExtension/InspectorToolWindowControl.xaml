@@ -72,7 +72,7 @@
 
                     <Grid Grid.Column="1">
                         <TextBox Text="{Binding DisplayText, Mode=OneTime}"
-                                 Visibility="{Binding EditorKind, Converter={StaticResource EditorKindVisibilityConverter}, ConverterParameter='Number,Text'}"
+                                 Visibility="{Binding EditorKind, Converter={StaticResource EditorKindVisibilityConverter}, ConverterParameter='Number,Text,PhysicalValue'}"
                                  PreviewKeyDown="InspectorRow_PreviewKeyDown" KeyDown="EditableField_KeyDown" LostFocus="EditableField_LostFocus">
                             <TextBox.Style>
                                 <Style TargetType="TextBox">
@@ -194,10 +194,14 @@
                                         <TextBlock Grid.Column="0" Text="{Binding Header}" FontWeight="Bold"
                                                Foreground="{DynamicResource {x:Static vsshell:VsBrushes.WindowTextKey}}"
                                                TextTrimming="CharacterEllipsis" />
-                                        <Button Grid.Column="1" Style="{StaticResource InspectorRemoveButtonStyle}"
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                        <Button Content="{local:Loc LightConversionApply}" Margin="4,0,0,0"
+                                                Visibility="{Binding LightConversionVisibility}" Command="{x:Static local:InspectorToolWindowControl.ConvertLightCommand}" CommandParameter="{Binding}" />
+                                        <Button Style="{StaticResource InspectorRemoveButtonStyle}"
                                                 Margin="4,0,0,0"
                                                 ToolTip="{local:Loc InspectorRemoveComponentToolTip}"
                                                 Click="RemoveComponentButton_Click" />
+                                        </StackPanel>
                                     </Grid>
                                                         </Border>
                             </Expander.Header>

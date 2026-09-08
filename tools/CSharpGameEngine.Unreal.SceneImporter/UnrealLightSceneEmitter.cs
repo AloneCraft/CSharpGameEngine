@@ -52,15 +52,11 @@ public static class UnrealLightSceneEmitter {
         Builder.Append(Indent).Append("    Rotation=new LogicalQuaternion(new LogicalVector3(").Append(FormatFloat(Euler.X)).Append(',').Append(FormatFloat(Euler.Y)).Append(',').Append(FormatFloat(Euler.Z)).AppendLine(")),");
         Builder.Append(Indent).AppendLine("    Scale=new LogicalVector3(1f,1f,1f),");
         Builder.Append(Indent).AppendLine("},");
-        Builder.Append(Indent).AppendLine("new DirectionalLight {");
-        Builder.Append(Indent).Append("    ColorR=").Append(FormatFloat(LinearRgb.X)).AppendLine(",");
-        Builder.Append(Indent).Append("    ColorG=").Append(FormatFloat(LinearRgb.Y)).AppendLine(",");
-        Builder.Append(Indent).Append("    ColorB=").Append(FormatFloat(LinearRgb.Z)).AppendLine(",");
-        Builder.Append(Indent).Append("    IlluminanceLux=").Append(FormatFloat(IlluminanceLux)).AppendLine(",");
-        Builder.Append(Indent).AppendLine("    CastsShadows=true,");
-        Builder.Append(Indent).AppendLine("    ShadowPriority=100,");
-        Builder.Append(Indent).AppendLine("    ShadowBiasMeters=0.005f,");
+        Builder.Append(Indent).AppendLine("new global::CSharpGameEngine.Runtime.Lighting.DirectionalLight {");
+        Builder.Append(Indent).Append("    Color=new global::CSharpGameEngine.Lighting.LinearLightColor(").Append(FormatFloat(LinearRgb.X)).Append(',').Append(FormatFloat(LinearRgb.Y)).Append(',').Append(FormatFloat(LinearRgb.Z)).AppendLine("),");
+        Builder.Append(Indent).Append("    Illuminance=new global::CSharpGameEngine.Lighting.Illuminance(").Append(FormatFloat(IlluminanceLux)).AppendLine("),");
         Builder.Append(Indent).AppendLine("},");
+        Builder.Append(Indent).AppendLine("new global::CSharpGameEngine.Runtime.Lighting.LightShadow { Priority=100,Bias=new global::CSharpGameEngine.Lighting.ShadowBias(0.005f) },");
     }
 
     private static Vector3 ToEulerRuf(Quaternion Rotation){

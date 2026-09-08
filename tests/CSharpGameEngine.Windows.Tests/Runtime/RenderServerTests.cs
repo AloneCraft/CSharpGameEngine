@@ -1,3 +1,4 @@
+using CSharpGameEngine.Lighting;
 using System.Numerics;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Graphics.D3D12.Tests;
@@ -110,7 +111,7 @@ public class RenderServerTests {
             var Camera=CSharpGameEngine.Graphics.D3D12.Camera.CreateDefault(Vector3.Zero);
             Renderer.SetCamera(Camera);
             Renderer.SetAmbientLight(new Vector3(0.4f));
-            Renderer.SetDirectionalLight(Vector3.UnitY,Vector3.One,2f);
+            Renderer.SetDirectionalLight(new DirectionalLightSubmission(Vector3.UnitY,new LinearLightColor(1f,1f,1f),new Illuminance(2f),new LightShadowSettings(0,new ShadowBias(0.0015f))));
             Renderer.SetObjectTransform(0,Matrix4x4.Identity);
             Renderer.SetPresentationMode(Mode);
             Renderer.SetObjectSelectionWeight(0,SelectionWeight);
@@ -189,7 +190,7 @@ public class RenderServerTests {
             RenderCameraPreview Preview,float SelectionWeight){
             Renderer.SetCamera(Camera,1f);
             Renderer.SetAmbientLight(new Vector3(0.4f));
-            Renderer.SetDirectionalLight(Vector3.UnitY,Vector3.One,2f);
+            Renderer.SetDirectionalLight(new DirectionalLightSubmission(Vector3.UnitY,new LinearLightColor(1f,1f,1f),new Illuminance(2f),new LightShadowSettings(0,new ShadowBias(0.0015f))));
             Renderer.SetObjectTransform(0,Matrix4x4.Identity);
             Renderer.SetPresentationMode(RenderPresentationMode.BaseColor);
             Renderer.SetObjectSelectionWeight(0,SelectionWeight);
@@ -268,7 +269,7 @@ public class RenderServerTests {
         var Camera=CSharpGameEngine.Graphics.D3D12.Camera.CreateDefault(Vector3.Zero);
         Renderer.SetCamera(Camera);
         Renderer.SetAmbientLight(new Vector3(0.4f,0.4f,0.4f));
-        Renderer.SetDirectionalLight(Vector3.UnitY,Vector3.One,2f);
+        Renderer.SetDirectionalLight(new DirectionalLightSubmission(Vector3.UnitY,new LinearLightColor(1f,1f,1f),new Illuminance(2f),new LightShadowSettings(0,new ShadowBias(0.0015f))));
         Renderer.SetObjectTransform(0,Matrix4x4.Identity);
 
         for(var I=0;I<3;I++){

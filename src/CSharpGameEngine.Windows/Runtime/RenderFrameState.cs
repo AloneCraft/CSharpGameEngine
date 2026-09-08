@@ -17,8 +17,12 @@ internal sealed class RenderFrameState {
     private readonly float[]ObjectSelectionWeights;
     private readonly bool[]ObjectSelectionWeightSet;
     private readonly List<int>TouchedSelectionIndices=[];
-    private readonly List<DirectionalCommand>DirectionalLights=[];
-    private readonly List<LocalLightCommand>LocalLights=[];
+    private readonly List<DirectionalLightSubmission>DirectionalLights=[];
+    private readonly List<PointLightSubmission>PointLights=[];
+    private readonly List<SpotLightSubmission>SpotLights=[];
+    private readonly List<RectAreaLightSubmission>RectLights=[];
+    private readonly List<EmissiveCommand>EmissiveLights=[];
+    private readonly List<LightCommandIndex>LightOrder=[];
     private RenderCamera Camera;
     private Matrix4x4 ViewProjection;
     private Vector3 ViewProjectionCameraPosition;
@@ -53,7 +57,7 @@ internal sealed class RenderFrameState {
         &&!this.HasPresentationMode
         &&!this.HasOverlay
         &&!this.HasCameraPreviews
-        &&this.DirectionalLights.Count==0&&this.LocalLights.Count==0
+        &&this.LightOrder.Count==0
         &&this.TouchedObjectIndices.Count==0&&this.TouchedSelectionIndices.Count==0;
 
     public void RecordCamera(in RenderCamera Camera,float AspectRatioOverride){
@@ -71,22 +75,14 @@ internal sealed class RenderFrameState {
         this.HasCamera=false;
     }
 
-    public void RecordSetDirectional(
-        Vector3 LightForward,Vector3 LinearRgb,float IlluminanceLux,
-        bool CastsShadows,int ShadowPriority,float ShadowBiasMeters){
-        this.DirectionalLights.Clear();
-        this.DirectionalLights.Add(new DirectionalCommand(
-            IsSet:true,LightForward,LinearRgb,IlluminanceLux,
-            CastsShadows,ShadowPriority,ShadowBiasMeters));
+    public void RecordSetDirectional(in DirectionalLightSubmission Value){
+        this.LightOrder.Add(new(LightCommandKind.SetDirectional,this.DirectionalLights.Count));
+        this.DirectionalLights.Add(Value);
     }
-
-    public void RecordAddDirectional(
-        Vector3 LightForward,Vector3 LinearRgb,float IlluminanceLux,
-        bool CastsShadows,int ShadowPriority,float ShadowBiasMeters)=>
-        this.DirectionalLights.Add(new DirectionalCommand(
-            IsSet:false,LightForward,LinearRgb,IlluminanceLux,
-            CastsShadows,ShadowPriority,ShadowBiasMeters));
-
+    public void RecordAddDirectional(in DirectionalLightSubmission Value){
+        this.LightOrder.Add(new(LightCommandKind.Directional,this.DirectionalLights.Count));
+        this.DirectionalLights.Add(Value);
+    }
     public void RecordAmbient(Vector3 Color){
         this.AmbientLight=Color;
         this.HasAmbientLight=true;
@@ -97,40 +93,25 @@ internal sealed class RenderFrameState {
         this.HasFog=true;
     }
 
-    public void RecordPoint(
-        Vector3 Position,Vector3 LinearRgb,float LuminousFluxLumens,
-        float RangeMeters,bool CastsShadows,int ShadowPriority,float ShadowBiasMeters)=>
-        this.LocalLights.Add(LocalLightCommand.Point(
-            Position,LinearRgb,LuminousFluxLumens,RangeMeters,
-            CastsShadows,ShadowPriority,ShadowBiasMeters));
-
-    public void RecordSpot(
-        Vector3 Position,Vector3 LightForward,Vector3 LinearRgb,
-        float LuminousFluxLumens,float RangeMeters,
-        float InnerConeFullAngleDegrees,float OuterConeFullAngleDegrees,
-        bool CastsShadows,int ShadowPriority,float ShadowBiasMeters)=>
-        this.LocalLights.Add(LocalLightCommand.Spot(
-            Position,LightForward,LinearRgb,LuminousFluxLumens,RangeMeters,
-            InnerConeFullAngleDegrees,OuterConeFullAngleDegrees,
-            CastsShadows,ShadowPriority,ShadowBiasMeters));
-
-    public void RecordArea(
-        Vector3 Position,Vector3 LightForward,Vector3 LinearRgb,
-        float LuminanceNits,float WidthMeters,float HeightMeters,float RangeMeters,
-        bool CastsShadows,int ShadowPriority,float ShadowBiasMeters)=>
-        this.LocalLights.Add(LocalLightCommand.Area(
-            Position,LightForward,LinearRgb,LuminanceNits,WidthMeters,HeightMeters,
-            RangeMeters,CastsShadows,ShadowPriority,ShadowBiasMeters));
-
-    public void RecordEmissive(
-        IReadOnlyList<EmissivePatch>Patches,float RangeMeters,
-        bool CastsShadows,int ShadowPriority,float ShadowBiasMeters){
-        foreach(EmissivePatch Patch in Patches){
-            this.LocalLights.Add(LocalLightCommand.Emissive(
-                Patch,RangeMeters,CastsShadows,ShadowPriority,ShadowBiasMeters));
+    public void RecordPoint(in PointLightSubmission Value){
+        this.LightOrder.Add(new(LightCommandKind.Point,this.PointLights.Count));
+        this.PointLights.Add(Value);
+    }
+    public void RecordSpot(in SpotLightSubmission Value){
+        this.LightOrder.Add(new(LightCommandKind.Spot,this.SpotLights.Count));
+        this.SpotLights.Add(Value);
+    }
+    public void RecordArea(in RectAreaLightSubmission Value){
+        this.LightOrder.Add(new(LightCommandKind.Rect,this.RectLights.Count));
+        this.RectLights.Add(Value);
+    }
+    public void RecordEmissive(IReadOnlyList<EmissivePatch>Patches,float RangeMeters,bool CastsShadows,int ShadowPriority,float ShadowBiasMeters){
+        for(var Index=0;Index<Patches.Count;Index++){
+            var Patch=Patches[Index];
+            this.LightOrder.Add(new(LightCommandKind.Emissive,this.EmissiveLights.Count));
+            this.EmissiveLights.Add(new(Patch,RangeMeters,CastsShadows,ShadowPriority,ShadowBiasMeters));
         }
     }
-
     public void RecordObjectTransform(int ObjectIndex,in Matrix4x4 Transform){
         if((uint)ObjectIndex>=(uint)this.ObjectTransforms.Length){
             throw new ArgumentOutOfRangeException(nameof(ObjectIndex));
@@ -191,19 +172,16 @@ internal sealed class RenderFrameState {
         }
         if(this.HasAmbientLight){ Renderer.SetAmbientLight(this.AmbientLight); }
         if(this.HasFog){ Renderer.SetFog(this.Fog); }
-        foreach(DirectionalCommand Command in this.DirectionalLights){
-            if(Command.IsSet){
-                Renderer.SetDirectionalLight(
-                    Command.LightForward,Command.LinearRgb,Command.IlluminanceLux,
-                    Command.CastsShadows,Command.ShadowPriority,Command.ShadowBiasMeters);
-            } else {
-                Renderer.AddDirectionalLight(
-                    Command.LightForward,Command.LinearRgb,Command.IlluminanceLux,
-                    Command.CastsShadows,Command.ShadowPriority,Command.ShadowBiasMeters);
+        foreach(var Command in this.LightOrder){
+            switch(Command.Kind){
+                case LightCommandKind.SetDirectional:Renderer.SetLight(this.DirectionalLights[Command.Index]);break;
+                case LightCommandKind.Directional:Renderer.Submit(this.DirectionalLights[Command.Index]);break;
+                case LightCommandKind.Point:Renderer.Submit(this.PointLights[Command.Index]);break;
+                case LightCommandKind.Spot:Renderer.Submit(this.SpotLights[Command.Index]);break;
+                case LightCommandKind.Rect:Renderer.Submit(this.RectLights[Command.Index]);break;
+                case LightCommandKind.Emissive:this.EmissiveLights[Command.Index].Replay(Renderer);break;
+                default:throw new InvalidOperationException("Unknown light command.");
             }
-        }
-        foreach(LocalLightCommand Command in this.LocalLights){
-            Command.Replay(Renderer);
         }
         foreach(int ObjectIndex in this.TouchedObjectIndices){
             Renderer.SetObjectTransform(ObjectIndex,this.ObjectTransforms[ObjectIndex]);
@@ -238,7 +216,11 @@ internal sealed class RenderFrameState {
         this.OverlayLineCount=0;
         this.CameraPreviewCount=0;
         this.DirectionalLights.Clear();
-        this.LocalLights.Clear();
+        this.PointLights.Clear();
+        this.SpotLights.Clear();
+        this.RectLights.Clear();
+        this.EmissiveLights.Clear();
+        this.LightOrder.Clear();
         foreach(int ObjectIndex in this.TouchedObjectIndices){
             this.ObjectTransformSet[ObjectIndex]=false;
         }
@@ -249,86 +231,13 @@ internal sealed class RenderFrameState {
         this.TouchedSelectionIndices.Clear();
     }
 
-    private readonly record struct DirectionalCommand(
-        bool IsSet,Vector3 LightForward,Vector3 LinearRgb,float IlluminanceLux,
-        bool CastsShadows,int ShadowPriority,float ShadowBiasMeters);
-
-    private enum LocalLightKind:byte {
-        Point,
-        Spot,
-        Area,
-        Emissive,
-    }
-
-    private readonly record struct LocalLightCommand(
-        LocalLightKind Kind,Vector3 Position,Vector3 LightForward,Vector3 LinearRgb,
-        EmissivePatch EmissivePatch,float Intensity,float RangeMeters,
-        float ShapeA,float ShapeB,bool CastsShadows,int ShadowPriority,
-        float ShadowBiasMeters){
-        public static LocalLightCommand Point(
-            Vector3 Position,Vector3 LinearRgb,float LuminousFluxLumens,
-            float RangeMeters,bool CastsShadows,int ShadowPriority,float ShadowBiasMeters)=>
-            new(LocalLightKind.Point,Position,default,LinearRgb,default,
-                LuminousFluxLumens,RangeMeters,0f,0f,
-                CastsShadows,ShadowPriority,ShadowBiasMeters);
-
-        public static LocalLightCommand Spot(
-            Vector3 Position,Vector3 LightForward,Vector3 LinearRgb,
-            float LuminousFluxLumens,float RangeMeters,
-            float InnerConeFullAngleDegrees,float OuterConeFullAngleDegrees,
-            bool CastsShadows,int ShadowPriority,float ShadowBiasMeters)=>
-            new(LocalLightKind.Spot,Position,LightForward,LinearRgb,default,
-                LuminousFluxLumens,RangeMeters,
-                InnerConeFullAngleDegrees,OuterConeFullAngleDegrees,
-                CastsShadows,ShadowPriority,ShadowBiasMeters);
-
-        public static LocalLightCommand Area(
-            Vector3 Position,Vector3 LightForward,Vector3 LinearRgb,
-            float LuminanceNits,float WidthMeters,float HeightMeters,float RangeMeters,
-            bool CastsShadows,int ShadowPriority,float ShadowBiasMeters)=>
-            new(LocalLightKind.Area,Position,LightForward,LinearRgb,default,
-                LuminanceNits,RangeMeters,WidthMeters,HeightMeters,
-                CastsShadows,ShadowPriority,ShadowBiasMeters);
-
-        public static LocalLightCommand Emissive(
-            EmissivePatch Patch,float RangeMeters,
-            bool CastsShadows,int ShadowPriority,float ShadowBiasMeters)=>
-            new(LocalLightKind.Emissive,default,default,default,Patch,
-                0f,RangeMeters,0f,0f,
-                CastsShadows,ShadowPriority,ShadowBiasMeters);
-
+    private enum LightCommandKind:byte {SetDirectional,Directional,Point,Spot,Rect,Emissive}
+    private readonly record struct LightCommandIndex(LightCommandKind Kind,int Index);
+    private readonly record struct EmissiveCommand(EmissivePatch Patch,float RangeMeters,bool CastsShadows,int ShadowPriority,float ShadowBiasMeters){
         public void Replay(StageRenderer Renderer){
-            switch(this.Kind){
-                case LocalLightKind.Point:
-                    Renderer.AddPointLight(
-                        this.Position,this.LinearRgb,this.Intensity,this.RangeMeters,
-                        this.CastsShadows,this.ShadowPriority,this.ShadowBiasMeters);
-                    break;
-                case LocalLightKind.Spot:
-                    Renderer.AddSpotLight(
-                        this.Position,this.LightForward,this.LinearRgb,
-                        this.Intensity,this.RangeMeters,this.ShapeA,this.ShapeB,
-                        this.CastsShadows,this.ShadowPriority,this.ShadowBiasMeters);
-                    break;
-                case LocalLightKind.Area:
-                    Renderer.AddAreaLight(
-                        this.Position,this.LightForward,this.LinearRgb,
-                        this.Intensity,this.ShapeA,this.ShapeB,this.RangeMeters,
-                        this.CastsShadows,this.ShadowPriority,this.ShadowBiasMeters);
-                    break;
-                case LocalLightKind.Emissive:
-                    Renderer.AddAreaLight(
-                        this.EmissivePatch.Center,this.EmissivePatch.Forward,
-                        this.EmissivePatch.Right,this.EmissivePatch.Up,
-                        this.EmissivePatch.LinearRgb,this.EmissivePatch.LuminanceNits,
-                        this.EmissivePatch.WidthMeters,this.EmissivePatch.HeightMeters,
-                        this.RangeMeters,this.ShadowPriority,this.CastsShadows,
-                        this.ShadowBiasMeters,PhysicalLightKind.Emissive);
-                    break;
-                default:
-                    throw new InvalidOperationException(
-                        $"Unknown local light command {this.Kind}.");
-            }
+            Renderer.AddAreaLight(this.Patch.Center,this.Patch.Forward,this.Patch.Right,this.Patch.Up,
+                this.Patch.LinearRgb,this.Patch.LuminanceNits,this.Patch.WidthMeters,this.Patch.HeightMeters,
+                this.RangeMeters,this.ShadowPriority,this.CastsShadows,this.ShadowBiasMeters,PhysicalLightKind.Emissive);
         }
     }
 }

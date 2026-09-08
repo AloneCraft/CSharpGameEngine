@@ -11,6 +11,7 @@ namespace CSharpGameEngine.VSExtension;
 /// <summary>Inspectorが1つのMemberへ提供すべき編集UIの種類。</summary>
 internal enum InspectorEditorKind {
     Number,
+    PhysicalValue,
     Boolean,
     Enum,
     AssetReference,
@@ -36,7 +37,8 @@ internal sealed class SceneInspectorMember {
         EditorNodeId NodeId,string ComponentTypeFullyQualifiedName,string MemberName,string SourceExpression,
         bool IsEditable,InspectorEditorKind EditorKind,object?ConstantValue,SpecialType?NumericType,
         IReadOnlyList<InspectorChoiceCandidate>Candidates,
-        IReadOnlyList<string>?DefinitionMemberPath=null){
+        IReadOnlyList<string>?DefinitionMemberPath=null,LightValueContract?PhysicalContract=null){
+        this.PhysicalContract=PhysicalContract;
         this.NodeId=NodeId;
         this.ComponentTypeFullyQualifiedName=ComponentTypeFullyQualifiedName;
         this.MemberName=MemberName;
@@ -51,6 +53,7 @@ internal sealed class SceneInspectorMember {
             :DefinitionMemberPath;
     }
 
+    internal LightValueContract?PhysicalContract{get;}
     internal EditorNodeId NodeId { get; }
 
     internal string ComponentTypeFullyQualifiedName { get; }
@@ -255,6 +258,15 @@ internal static class SceneInspectorModelBuilder {
     private static SceneInspectorRow BuildRow(
         EditorNodeId NodeId,string ComponentTypeFullyQualifiedName,IReadOnlyList<string>ParentPath,
         SceneComponentMember Member,bool AllowEdit){
+        var Physical=LightValueContract.Find(Member.Value.Type);
+        if(Physical is not null&&Physical.TryRead(Member.Value,out var Values,out var Editable)){
+            var CanEdit=AllowEdit&&Editable&&Physical.Validate(Values);
+            return new SceneInspectorMemberRow(new SceneInspectorMember(
+                NodeId,ComponentTypeFullyQualifiedName,Member.MemberName,Member.Value.SourceExpressionText,
+                CanEdit,CanEdit?InspectorEditorKind.PhysicalValue:InspectorEditorKind.ReadOnly,
+                string.Join(", ",Values.Select(Value=>Value.ToString("R",CultureInfo.InvariantCulture))),null,[],
+                [..ParentPath,Member.MemberName],Physical));
+        }
         if(TryBuildNested(NodeId,ComponentTypeFullyQualifiedName,ParentPath,Member.MemberName,Member.Value,AllowEdit)is { }Nested){
             return Nested;
         }
