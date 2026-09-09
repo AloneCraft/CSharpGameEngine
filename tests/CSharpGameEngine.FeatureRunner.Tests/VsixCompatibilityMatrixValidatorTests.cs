@@ -51,6 +51,46 @@ public sealed class VsixCompatibilityMatrixValidatorTests {
     }
 
     [Fact]
+    public void PreReleaseValidationAcceptsExpiredExperimentalEvidence(){
+        string Root=CopyContractFilesWithExpiredSceneDesignerEvidence();
+        try {
+            IReadOnlyList<string>Errors=VsixCompatibilityMatrixValidator.Validate(
+                Root,FeatureStageCatalog.CreateDefault(),"Release",false,
+                new DateTimeOffset(2026,9,1,0,0,0,TimeSpan.Zero));
+
+            Assert.DoesNotContain(Errors,Error=>Error.Contains(
+                "unexpired evidence",StringComparison.Ordinal));
+        } finally { Directory.Delete(Root,true); }
+    }
+
+    [Fact]
+    public void ReleaseValidationFailsClosedWhileExperimentalEvidenceIsExpired(){
+        string Root=CopyContractFilesWithExpiredSceneDesignerEvidence();
+        try {
+            IReadOnlyList<string>Errors=VsixCompatibilityMatrixValidator.Validate(
+                Root,FeatureStageCatalog.CreateDefault(),"Release",true,
+                new DateTimeOffset(2026,9,1,0,0,0,TimeSpan.Zero));
+
+            Assert.Contains(Errors,Error=>Error.Contains(
+                "requires unexpired evidence for check scene-designer",StringComparison.Ordinal));
+        } finally { Directory.Delete(Root,true); }
+    }
+
+    private static string CopyContractFilesWithExpiredSceneDesignerEvidence(){
+        string Root=CopyContractFiles();
+        string ExperimentalPath=Path.Combine(Root,"Docs","Verification","VSIX-Experimental-Baseline.json");
+        JsonNode Experimental=JsonNode.Parse(File.ReadAllText(ExperimentalPath))!;
+        JsonNode Check=Experimental["checks"]!.AsArray().Single(Item=>
+            Item!["id"]!.GetValue<string>()=="scene-designer")!;
+        Check["evidencePath"]="scene-designer-evidence.json";
+        Check["observedUtc"]="2026-08-20T00:00:00+00:00";
+        Check["expiresUtc"]="2026-08-27T00:00:00+00:00";
+        File.WriteAllText(ExperimentalPath,Experimental.ToJsonString());
+        File.WriteAllText(Path.Combine(Root,"Docs","Verification","scene-designer-evidence.json"),"{}");
+        return Root;
+    }
+
+    [Fact]
     public void ProjectManifestAndCiDriftAreRejectedBidirectionally(){
         string Root=CopyContractFiles();
         try {

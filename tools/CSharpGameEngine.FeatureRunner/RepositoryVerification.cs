@@ -108,7 +108,7 @@ public static class ManualEvidenceLedgerValidator {
             if(string.IsNullOrWhiteSpace(Entry.EvidencePath)){ Errors.Add($"Passed manual evidence entry {Entry.Id} has no evidence path."); }
             else if(!Uri.TryCreate(Entry.EvidencePath,UriKind.Absolute,out _)&&!File.Exists(Path.Combine(RepositoryRoot,Entry.EvidencePath.Replace('/',Path.DirectorySeparatorChar)))){ Errors.Add($"Passed manual evidence entry {Entry.Id} references missing evidence {Entry.EvidencePath}."); }
             if(Entry.ExpiresUtc is null){ Errors.Add($"Passed manual evidence entry {Entry.Id} has no expiry."); }
-            else if(Entry.ExpiresUtc<=NowUtc){ Errors.Add($"Passed manual evidence entry {Entry.Id} is expired."); }
+            else if(RequirePassing&&Entry.ExpiresUtc<=NowUtc){ Errors.Add($"Manual evidence entry {Entry.Id} cannot pass release with expired evidence."); }
         } else if(string.IsNullOrWhiteSpace(Entry.Reason)){
             Errors.Add($"Manual evidence entry {Entry.Id} with status {Status} has no reason.");
         }

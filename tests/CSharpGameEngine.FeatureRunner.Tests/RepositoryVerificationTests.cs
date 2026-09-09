@@ -42,6 +42,24 @@ public sealed class RepositoryVerificationTests {
         Assert.Contains(Errors,Error=>Error.Contains("hardware-d3d12",StringComparison.Ordinal)&&Error.Contains("release",StringComparison.OrdinalIgnoreCase));
     }
     [Fact]
+    public void ManualEvidenceLedgerAcceptsExpiredEvidenceOutsideRelease(){
+        using var Repository=new TemporaryRepository();
+        Repository.Write("Docs/Verification/Manual-Evidence.json","""
+        {
+          "schemaVersion": "csharp-game-engine-manual-evidence-v1",
+          "entries": [
+            { "id": "vsix-experimental", "requirement": "VSIX", "owner": "Editor", "status": "Passed", "evidencePath": "evidence.json", "expiresUtc": "2026-08-30T00:00:00Z" },
+            { "id": "hardware-d3d12", "requirement": "GPU", "owner": "Rendering", "status": "Pending", "reason": "Not run" },
+            { "id": "hardware-audio", "requirement": "Audio", "owner": "Audio", "status": "Pending", "reason": "Not run" },
+            { "id": "release-package", "requirement": "Package", "owner": "Release", "status": "Pending", "reason": "Not run" }
+          ]
+        }
+        """);
+        Repository.Write("evidence.json","{}");
+        var Errors=ManualEvidenceLedgerValidator.Validate(Repository.Root,false,new DateTimeOffset(2026,8,31,0,0,0,TimeSpan.Zero));
+        Assert.Empty(Errors);
+    }
+    [Fact]
     public void ManualEvidenceLedgerRejectsDuplicateAndUnknownEntries(){
         using var Repository=new TemporaryRepository();
         Repository.Write("Docs/Verification/Manual-Evidence.json","""
