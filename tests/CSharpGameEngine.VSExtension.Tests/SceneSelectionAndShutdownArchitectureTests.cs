@@ -2,6 +2,30 @@ namespace CSharpGameEngine.VSExtension.Tests;
 
 public sealed class SceneSelectionAndShutdownArchitectureTests {
     [Fact]
+    public void SceneSelector_UsesOneLatestWinsCompletionPath(){
+        string Designer=ReadSource("SceneDesignerToolWindowControl.xaml.cs");
+        int Handler=Designer.IndexOf("private async Task SelectSceneAsync",StringComparison.Ordinal);
+        int End=Designer.IndexOf("private void DetachSession",Handler,StringComparison.Ordinal);
+        string Body=Designer.Substring(Handler,End-Handler);
+        Assert.Contains("SelectionRequestLifecycle.TryComplete",Body,StringComparison.Ordinal);
+        Assert.Contains("ResolveSceneAsync(Key,CancellationToken)",Body,StringComparison.Ordinal);
+        Assert.Contains("Session.Pin(Model);",Body,StringComparison.Ordinal);
+        Assert.DoesNotContain("ShowSnapshot(Session.Pin(Model))",Body,StringComparison.Ordinal);
+        Assert.Contains("catch(OperationCanceledException)",Body,StringComparison.Ordinal);
+    }
+    [Fact]
+    public void PreviewHost_PresentsReplacementBeforePublishingIt(){
+        string Session=ReadSource("RenderPreviewRenderSession.cs");
+        int Method=Session.IndexOf("public void ReplaceScene",StringComparison.Ordinal);
+        int Replacement=Session.IndexOf("RenderServer Replacement=CreateServer",Method,StringComparison.Ordinal);
+        int Present=Session.IndexOf("Replacement.RenderFrame(CaptureForVerification:false)",Replacement,StringComparison.Ordinal);
+        int Publish=Session.IndexOf("this.Server=Replacement",Method,StringComparison.Ordinal);
+        Assert.True(Method>=0);
+        Assert.True(Replacement>Method);
+        Assert.True(Present>Replacement);
+        Assert.True(Publish>Present);
+    }
+    [Fact]
     public void HierarchyClear_DoesNotRequireAModelOrPinnedProjection(){
         string Package=ReadSource("CSharpGameEngineViewerPackage.cs");
         int Handler=Package.IndexOf(

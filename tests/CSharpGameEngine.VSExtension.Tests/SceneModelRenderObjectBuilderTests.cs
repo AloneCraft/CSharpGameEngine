@@ -165,7 +165,7 @@ public sealed class SceneModelRenderObjectBuilderTests {
     }
 
     [Fact]
-    public void Build_ResolverReturnsNull_FallsBackToGizmo(){
+    public void Build_PrimitiveResolverReturnsNull_RejectsTheDeclaredMesh(){
         var Model=Analyze("""
                           using CSharpGameEngine.Entities;
                           using CSharpGameEngine.Runtime.Windows;
@@ -175,9 +175,27 @@ public sealed class SceneModelRenderObjectBuilderTests {
                           }
                           """);
 
-        var Result=SceneModelRenderObjectBuilder.Build(Model,static _=>null);
+        var Exception=Assert.Throws<InvalidOperationException>(
+            ()=>SceneModelRenderObjectBuilder.Build(Model,static _=>null));
 
-        Assert.Equal(GizmoTint,Assert.Single(Result).Mesh.BaseColorFactor);
+        Assert.Contains("Box",Exception.Message,StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Build_StaticMeshResolverReturnsNull_RejectsTheDeclaredAsset(){
+        var Model=Analyze("""
+                          using CSharpGameEngine.Entities;
+                          using CSharpGameEngine.Runtime.Windows;
+                          namespace Game;
+                          public partial class MainScene:IScene {
+                              public Node Root=>new() { Components=[new StaticMesh { AssetPath=Assets.Stage }] };
+                          }
+                          """);
+
+        var Exception=Assert.Throws<FileNotFoundException>(()=>
+            SceneModelRenderObjectBuilder.Build(Model,static _=>null,static _=>null));
+
+        Assert.Equal("Assets/Stage/Test.glb",Exception.FileName);
     }
 
     [Fact]
@@ -326,7 +344,8 @@ public sealed class SceneModelRenderObjectBuilderTests {
                           }
                           """);
 
-        var Result=SceneModelRenderObjectBuilder.Build(Model,static _=>null,static _=>null);
+        var Result=SceneModelRenderObjectBuilder.Build(
+            Model,static _=>null,static _=>GizmoMeshFactory.Create());
 
         Assert.False(Result[1].IncludeInBounds);
         Assert.True(Result[2].IncludeInBounds);
@@ -356,7 +375,8 @@ public sealed class SceneModelRenderObjectBuilderTests {
                           }
                           """);
 
-        var Result=SceneModelRenderObjectBuilder.Build(Model,static _=>null,static _=>null);
+        var Result=SceneModelRenderObjectBuilder.Build(
+            Model,static _=>null,static _=>GizmoMeshFactory.Create());
 
         Assert.False(Result[0].IsPickable); // Root自身。
         Assert.False(Result[1].IsPickable); // EmptyGroup(メッシュ未宣言)。

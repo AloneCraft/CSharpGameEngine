@@ -91,6 +91,7 @@
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\RuntimeDebugSnapshotPresentation.cs" Link="TestAssets\Source\RuntimeDebugSnapshotPresentation.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\SceneHwndHost.cs" Link="TestAssets\Source\SceneHwndHost.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\CSharpGameEngine.EditorPreview.Host\RenderPreviewHostSessionTable.cs" Link="TestAssets\Source\RenderPreviewHostSessionTable.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\CSharpGameEngine.EditorPreview.Host\RenderPreviewRenderSession.cs" Link="TestAssets\Source\RenderPreviewRenderSession.cs" CopyToOutputDirectory="PreserveNewest" />
 
     <!-- M0051 Step 1-8: デバウンス状態がポリシー経由でのみ遷移することを検査するためのソース。
          直接代入へ戻すと「シーンが開けなくなる」ライブロックが再発する。 -->

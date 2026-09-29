@@ -23,6 +23,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     private SceneHwndHost?Host;
     private SceneEditorSessionService?Session;
     private CancellationTokenSource?CatalogCancellation;
+    private CancellationTokenSource?SceneSelectionCancellation;
     private CancellationTokenSource?PhysicsBakeCancellation;
     private AuthoringOperationSnapshot?PhysicsBakeOperation;
     private long CatalogGeneration;
@@ -31,6 +32,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     private PendingDuplicateSelection?PendingDuplicateSelectionRestore;
     private bool Disposed;
     private readonly SceneEditorEscapeRouter EscapeRouter;
+    private readonly SceneSelectionRequestLifecycle SelectionRequestLifecycle=new();
 
     public SceneDesignerToolWindowControl(){
         ThreadHelper.ThrowIfNotOnUIThread();
@@ -208,6 +210,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     internal void SetTarget(SceneEditorSessionService Session,SceneDocumentSnapshot Snapshot){
         ThreadHelper.ThrowIfNotOnUIThread();
         this.SetSession(Session);
+        this.CancelSceneSelectionRequest();
         this.ShowSnapshot(Snapshot);
 
         // SetSessionは同一セッションだと早期returnするため、Designerが既に開いている状態で
@@ -230,6 +233,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         this.DispatchToUi(()=>{
             ThreadHelper.ThrowIfNotOnUIThread();
             if(Snapshot is null){
+                this.CancelSceneSelectionRequest();
                 this.ShowEmpty(VsixText.Get("SceneDesigner_SelectedSceneMissing"));
             } else {
                 this.ShowSnapshot(Snapshot);
@@ -308,6 +312,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
 
     private void ShowEmpty(string Message){
         this.DetachHost();
+        System.Windows.Automation.AutomationProperties.SetHelpText(this.SceneSelector,string.Empty);
         this.StatusText.Text=Message;
         this.EmptyStateText.Text=Message;
         this.EmptyStateText.Visibility=Visibility.Visible;
@@ -447,39 +452,76 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             return;
         }
 
-        _=this.SelectSceneAsync(Session,Entry.Key);
+        this.CancelSceneSelectionRequest();
+        CancellationTokenSource Cancellation=new();
+        this.SceneSelectionCancellation=Cancellation;
+        long Epoch=this.SelectionRequestLifecycle.Begin();
+        ActivityLog.LogInformation(nameof(SceneDesignerToolWindowControl),
+            $"Scene selection request {Epoch} started for {Entry.Key}.");
+        _=this.SelectSceneAsync(Session,Entry.Key,Epoch,Cancellation,Cancellation.Token);
         this.UpdatePhysicsBakeButtons();
     }
 
-    private async Task SelectSceneAsync(SceneEditorSessionService Session,SceneKey Key){
+    private async Task SelectSceneAsync(SceneEditorSessionService Session,SceneKey Key,long Epoch,
+        CancellationTokenSource CancellationSource,CancellationToken CancellationToken){
         try {
             this.StatusText.Text=VsixText.Get("SceneDesigner_Analyzing");
-            SceneModel?Model=await Session.ResolveSceneAsync(Key,CancellationToken.None).ConfigureAwait(true);
-            if(this.Disposed||!ReferenceEquals(this.Session,Session)){
+            SceneModel?Model=await Session.ResolveSceneAsync(Key,CancellationToken).ConfigureAwait(true);
+            if(CancellationToken.IsCancellationRequested||this.Disposed
+                ||!ReferenceEquals(this.Session,Session)||!this.SelectionRequestLifecycle.IsCurrent(Epoch)){
                 return;
             }
-
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            if(!this.TryCompleteSceneSelection(Epoch,CancellationSource)){
+                return;
+            }
             if(Model?.Root is null){
-                Session.ClearPin();
-                this.ShowEmpty(VsixText.Get("SceneDesigner_SelectedSceneUnresolved"));
+                this.StatusText.Text=VsixText.Get("SceneDesigner_SelectedSceneUnresolved");
+                this.TrySyncSelectorToPinnedScene();
                 return;
             }
-
             // Pin is Designer 内だけの切替であり、DTE/TextView を操作しない。コードエディタの
             // キャレット、タブ、キーボードフォーカスはこの選択では移動しない。
-            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
-            this.ShowSnapshot(Session.Pin(Model));
+            ActivityLog.LogInformation(nameof(SceneDesignerToolWindowControl),
+                $"Scene selection request {Epoch} completed for {Key}.");
+            Session.Pin(Model);
+        } catch(OperationCanceledException)when(CancellationToken.IsCancellationRequested){
+            ActivityLog.LogInformation(nameof(SceneDesignerToolWindowControl),
+                $"Scene selection request {Epoch} was superseded for {Key}.");
         } catch(Exception Ex){
             ActivityLog.LogError(nameof(SceneDesignerToolWindowControl),Ex.ToString());
-            if(!this.Disposed){
-                Session.ClearPin();
-                this.ShowEmpty(VsixText.Get("SceneDesigner_SelectFailed"));
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            if(!this.Disposed&&ReferenceEquals(this.Session,Session)
+                &&this.TryCompleteSceneSelection(Epoch,CancellationSource)){
+                this.StatusText.Text=VsixText.Get("SceneDesigner_SelectFailed");
+                this.TrySyncSelectorToPinnedScene();
             }
         }
     }
 
+    private bool TryCompleteSceneSelection(long Epoch,CancellationTokenSource Cancellation){
+        ThreadHelper.ThrowIfNotOnUIThread();
+        if(!this.SelectionRequestLifecycle.TryComplete(Epoch)){
+            return false;
+        }
+        if(ReferenceEquals(this.SceneSelectionCancellation,Cancellation)){
+            this.SceneSelectionCancellation=null;
+        }
+        Cancellation.Dispose();
+        return true;
+    }
+
+    private void CancelSceneSelectionRequest(){
+        this.SelectionRequestLifecycle.Invalidate();
+        CancellationTokenSource?Cancellation=this.SceneSelectionCancellation;
+        this.SceneSelectionCancellation=null;
+        Cancellation?.Cancel();
+        Cancellation?.Dispose();
+    }
+
     private void DetachSession(){
         this.PendingDuplicateSelectionRestore=null;
+        this.CancelSceneSelectionRequest();
         if(this.Session is null){
             return;
         }
@@ -510,6 +552,11 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
 
     private void OnStatusChanged(string Status){
         this.StatusText.Text=Status;
+        if(this.Host is { HasFatalRenderFailure:false,IsBuildPending:false }
+            &&this.Session?.PinnedSceneKey is { }DisplayedKey){
+            System.Windows.Automation.AutomationProperties.SetHelpText(
+                this.SceneSelector,DisplayedKey.ClassFullyQualifiedName);
+        }
         if(this.Host is { }Host
             &&SceneRenderFailurePolicy.ShouldShowFailure(Host.HasFatalRenderFailure,Host.IsBuildPending)){
             // A failed build/Present leaves an invisible child HWND behind. Remove it so the WPF

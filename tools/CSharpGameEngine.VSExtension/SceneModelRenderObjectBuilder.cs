@@ -36,10 +36,18 @@ internal static class SceneModelRenderObjectBuilder {
             var AssetPath=ExtractStaticMeshAssetPath(Node);
             var PrimitiveMeshEnumMemberName=ExtractPrimitiveMeshEnumMemberName(Node);
             SimpleMesh Mesh;
-            if(AssetPath is not null&&ResolveStaticMesh is not null){
-                Mesh=ResolveStaticMesh(AssetPath)??GizmoMeshFactory.Create();
+            if(AssetPath is not null){
+                if(ResolveStaticMesh is null){
+                    throw new InvalidOperationException(
+                        $"Static mesh resolver is unavailable for declared asset '{AssetPath}'.");
+                }
+                Mesh=ResolveStaticMesh(AssetPath)
+                    ??throw new FileNotFoundException(
+                        $"Declared static mesh asset could not be resolved: {AssetPath}",AssetPath);
             } else if(PrimitiveMeshEnumMemberName is not null){
-                Mesh=ResolvePrimitiveMesh(PrimitiveMeshEnumMemberName)??GizmoMeshFactory.Create();
+                Mesh=ResolvePrimitiveMesh(PrimitiveMeshEnumMemberName)
+                    ??throw new InvalidOperationException(
+                        $"Declared primitive mesh could not be resolved: {PrimitiveMeshEnumMemberName}");
             } else {
                 Mesh=GizmoMeshFactory.Create();
             }

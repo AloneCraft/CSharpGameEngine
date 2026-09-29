@@ -55,8 +55,8 @@ public sealed class AutomationOptions {
             return Fail("Shader Graph automation is restricted to the CgeAutomation root suffix.");
         }
         if(Scenario=="scene-observation"
-            &&!string.Equals(RootSuffix,"CgeFixed",StringComparison.Ordinal)) {
-            return Fail("Scene observation is restricted to the CgeFixed root suffix.");
+            &&!string.Equals(RootSuffix,"CgeAutomation",StringComparison.Ordinal)) {
+            return Fail("Scene observation is restricted to the CgeAutomation root suffix.");
         }
         if(!int.TryParse(Timeout,NumberStyles.None,CultureInfo.InvariantCulture,out var TimeoutSeconds)||TimeoutSeconds<30||TimeoutSeconds>7200) { return Fail("--timeout-seconds must be from 30 through 7200."); }
         if(string.IsNullOrWhiteSpace(EvidenceDirectory)) { return Fail("--evidence-dir is required."); }

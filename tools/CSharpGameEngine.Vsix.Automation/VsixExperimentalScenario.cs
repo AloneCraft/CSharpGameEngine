@@ -18,6 +18,24 @@ namespace CSharpGameEngine.Vsix.Automation;
 internal sealed class VsixExperimentalScenario {
     private const string EditorRootAutomationId="Cge.ShaderGraph.Root";
     private const string NodeAutomationIdPrefix="Cge.ShaderGraph.Node.";
+    private static readonly SceneObservationTarget[]SceneObservationTargets=[
+        new("EngineShowcaseScene","EngineShowcaseGallery"),
+        new("EngineShowcaseRigidBottomScene","Physics_Stack_0"),
+        new("EngineShowcaseRigidMiddleScene","Physics_Stack_1"),
+        new("EngineShowcaseRigidTopScene","Physics_Stack_2"),
+        new("EngineShowcaseProjectileScene","Physics_CCD_Projectile"),
+        new("FirstPersonStageScene","Lvl_FirstPerson"),
+        new("MainScene","Application"),
+        new("PhysicsGroundScene","Physics_Ground"),
+        new("PhysicsStackBottomScene","Physics_Stack_0"),
+        new("PhysicsStackMiddleScene","Physics_Stack_1"),
+        new("PhysicsStackTopScene","Physics_Stack_2"),
+        new("PhysicsProjectileScene","Physics_Projectile"),
+        new("PhysicsPrefractureWallScene","Physics_PrefractureWall"),
+        new("PhysicsCachePlaybackScene","Physics_CachePlayback"),
+        new("PrimitiveShowcaseBoxScene","ShowcaseBox"),
+        new("PrimitiveShowcaseSphereScene","ShowcaseSphere"),
+    ];
     internal AutomationExitCode Run(AutomationOptions Options) {
         if(Options.Scenario=="scene-observation") {
             return this.RunSceneObservation(Options);
@@ -86,11 +104,24 @@ internal sealed class VsixExperimentalScenario {
         var RunRoot=Path.GetFullPath(Path.Combine(
             RepoRoot,Options.EvidenceDirectory,RunId,"scene-observation"));
         Directory.CreateDirectory(RunRoot);
+        var BuildLog=Path.Combine(RunRoot,"build.log");
+        if(!Options.SkipBuild){
+            RunProcess("dotnet","build "+Quote(Path.Combine(RepoRoot,"tools","CSharpGameEngine.VSExtension","CSharpGameEngine.VSExtension.csproj"))+" -c "+Options.Configuration+" --nologo",RepoRoot,Options.TimeoutSeconds,BuildLog);
+        } else {
+            File.WriteAllText(BuildLog,"Skipped: observation consumes the prebuilt package without repacking."+Environment.NewLine);
+        }
         var Artifacts=ResolveArtifactPaths(RepoRoot,Options.Configuration);
         var VsixPath=Artifacts.VsixPath;
         var BuildDllPath=Artifacts.BuildDllPath;
         RequireFile(VsixPath,"VSIX output");
         RequireFile(BuildDllPath,"VSIX build DLL");
+        var InstallLog=Path.Combine(RunRoot,"install.log");
+        var InstallScript=Path.Combine(RepoRoot,"tools","CSharpGameEngine.VSExtension","Reinstall-CgeFixedVsix.ps1");
+        var InstallArguments="-NoProfile -ExecutionPolicy Bypass -File "+Quote(InstallScript)
+            +" -Configuration "+Options.Configuration+" -RootSuffix "+Options.RootSuffix
+            +" -VsixPath "+Quote(VsixPath)+" -SkipBuild -LogPath "+Quote(InstallLog);
+        RunProcess("powershell.exe",InstallArguments,RepoRoot,Options.TimeoutSeconds,
+            Path.Combine(RunRoot,"install-process.log"));
         var PackageDllHash=ComputeVsixDllHash(VsixPath);
         var BuildDllHash=VsixEvidenceWriter.ComputeSha256(BuildDllPath);
         var InstalledDll=FindInstalledDll(Options.RootSuffix);
@@ -208,6 +239,9 @@ internal sealed class VsixExperimentalScenario {
                 Passed=FindTabContaining(Window,"MainScene [Scene]") is not null,
                 Detail="The Scene Designer document was present in the Visual Studio Document Well."
             });
+            ExerciseAllSceneObservations(
+                VisualStudioProcess.Id,Window,Evidence,RunRoot);
+            Window=FindTopLevelWindow(VisualStudioProcess.Id)!;
             ExerciseSceneManualObservations(
                 VisualStudioProcess.Id,Window,Evidence,RuntimeScreenshot,
                 PhysicsScreenshot,SelectionScreenshot,ResizedScreenshot,
@@ -305,6 +339,190 @@ internal sealed class VsixExperimentalScenario {
         }
         return Evidence.Status=="Passed"
             ?AutomationExitCode.Success:AutomationExitCode.OracleMismatch;
+    }
+    private static void ExerciseAllSceneObservations(
+        int ProcessId,AutomationElement Window,VsixSceneObservationEvidence Evidence,
+        string RunRoot){
+        string[]CatalogNames=GetSceneCatalogNames(ProcessId,Window);
+        string[]ExpectedNames=SceneObservationTargets
+            .Select(Target=>Target.SceneName)
+            .OrderBy(Name=>Name,StringComparer.Ordinal)
+            .ToArray();
+        Observe(Evidence,"all-scenes-catalogued",
+            CatalogNames.SequenceEqual(ExpectedNames,StringComparer.Ordinal),
+            $"Scene catalog expected {ExpectedNames.Length} entries and exposed "
+                +$"{CatalogNames.Length}: {string.Join(",",CatalogNames)}");
+        foreach(SceneObservationTarget Target in SceneObservationTargets){
+            Window=FindTopLevelWindow(ProcessId)
+                ??throw new OracleMismatchException("Visual Studio window disappeared during Scene traversal.");
+            IntPtr Surface=SceneFrameCaptureSession.FindRenderSurface(
+                Window.Current.NativeWindowHandle);
+            if(Surface==IntPtr.Zero){
+                throw new OracleMismatchException("The native Scene render surface was not found.");
+            }
+            string SceneRoot=Path.Combine(RunRoot,"scene-frames",Target.SceneName);
+            using SceneFrameCaptureSession Capture=new(Surface,SceneRoot,Target.SceneName);
+            Capture.Start();
+            SelectSceneByName(ProcessId,Target.SceneName);
+            WaitUntil(()=>IsScenePresented(ProcessId,Target),TimeSpan.FromSeconds(90),
+                $"{Target.SceneName} did not become the presented Scene with root {Target.RootName}.");
+            Thread.Sleep(1000);
+            Capture.MarkReady();
+            Thread.Sleep(10250);
+            SceneFrameCaptureResult Result=Capture.StopAndAnalyze(10000);
+            Evidence.SceneFrames.Add(new SceneFrameObservationEvidence {
+                SceneName=Target.SceneName,
+                RootName=Target.RootName,
+                TimelinePath=Result.TimelinePath,
+                Passed=Result.Analysis.Passed,
+                Detail=Result.Analysis.Detail,
+            });
+            Evidence.ScreenshotPaths=[..Evidence.ScreenshotPaths,..Result.RepresentativePaths];
+            Observe(Evidence,"scene-sequence-"+Target.SceneName,Result.Analysis.Passed,
+                Result.Analysis.Detail);
+            VerifySceneDisplayToggles(ProcessId,Surface,Target.SceneName,Evidence,SceneRoot);
+        }
+        for(int Index=SceneObservationTargets.Length-1;Index>=0;Index--){
+            SceneObservationTarget Target=SceneObservationTargets[Index];
+            SelectSceneByName(ProcessId,Target.SceneName);
+            WaitUntil(()=>IsScenePresented(ProcessId,Target),TimeSpan.FromSeconds(90),
+                $"Reverse traversal did not present {Target.SceneName}.");
+        }
+        DateTime RapidEnd=DateTime.UtcNow+TimeSpan.FromSeconds(60);
+        int RapidIndex=0;
+        SceneObservationTarget[]RapidTargets=[
+            SceneObservationTargets.First(Target=>Target.SceneName=="EngineShowcaseScene"),
+            SceneObservationTargets.First(Target=>Target.SceneName=="PrimitiveShowcaseBoxScene")
+        ];
+        while(DateTime.UtcNow<RapidEnd){
+            SelectSceneByName(ProcessId,RapidTargets[RapidIndex%RapidTargets.Length].SceneName);
+            RapidIndex++;
+            Thread.Sleep(100);
+        }
+        SceneObservationTarget Final=SceneObservationTargets.First(
+            Target=>Target.SceneName=="MainScene");
+        SelectSceneByName(ProcessId,Final.SceneName);
+        WaitUntil(()=>IsScenePresented(ProcessId,Final),TimeSpan.FromSeconds(90),
+            "Rapid selection did not converge on the final MainScene request.");
+        Observe(Evidence,"latest-scene-wins",true,
+            $"{RapidIndex} rapid selections converged on MainScene after a 60-second stress interval.");
+    }
+    private static string[]GetSceneCatalogNames(int ProcessId,AutomationElement Window){
+        ExpandSceneSelector(Window);
+        AutomationElement[]Items=FindSceneCatalogItems(ProcessId);
+        CollapseSceneSelector(Window);
+        return Items.Select(Item=>Item.Current.Name)
+            .Where(Name=>SceneObservationTargets.Any(
+                Target=>string.Equals(Target.SceneName,Name,StringComparison.Ordinal)))
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(Name=>Name,StringComparer.Ordinal)
+            .ToArray();
+    }
+    private static void SelectSceneByName(int ProcessId,string SceneName){
+        AutomationElement Window=FindTopLevelWindow(ProcessId)
+            ??throw new OracleMismatchException("Visual Studio window disappeared during Scene selection.");
+        if(string.Equals(GetSelectedSceneName(Window),SceneName,StringComparison.Ordinal)){
+            return;
+        }
+        ExpandSceneSelector(Window);
+        AutomationElement?Item=null;
+        WaitUntil(()=>{
+            Item=FindSceneCatalogItems(ProcessId).FirstOrDefault(Candidate=>
+                string.Equals(Candidate.Current.Name,SceneName,StringComparison.Ordinal));
+            return Item is not null;
+        },TimeSpan.FromSeconds(10),SceneName+" was not exposed by the Scene selector.");
+        if(!Item!.TryGetCurrentPattern(SelectionItemPattern.Pattern,out var Pattern)){
+            throw new OracleMismatchException(SceneName+" exposed no SelectionItemPattern.");
+        }
+        ((SelectionItemPattern)Pattern).Select();
+    }
+    private static void ExpandSceneSelector(AutomationElement Window){
+        AutomationElement Selector=RequireElement(Window,"SceneSelector");
+        if(!Selector.TryGetCurrentPattern(ExpandCollapsePattern.Pattern,out var Pattern)){
+            throw new OracleMismatchException("SceneSelector exposed no ExpandCollapsePattern.");
+        }
+        ExpandCollapsePattern Expand=(ExpandCollapsePattern)Pattern;
+        if(Expand.Current.ExpandCollapseState!=ExpandCollapseState.Expanded){
+            Expand.Expand();
+        }
+        Thread.Sleep(250);
+    }
+    private static void CollapseSceneSelector(AutomationElement Window){
+        AutomationElement Selector=RequireElement(Window,"SceneSelector");
+        if(!Selector.TryGetCurrentPattern(ExpandCollapsePattern.Pattern,out var Pattern)){
+            throw new OracleMismatchException("SceneSelector exposed no ExpandCollapsePattern.");
+        }
+        ExpandCollapsePattern Expand=(ExpandCollapsePattern)Pattern;
+        if(Expand.Current.ExpandCollapseState==ExpandCollapseState.Expanded){
+            Expand.Collapse();
+        }
+        Thread.Sleep(100);
+    }
+    private static AutomationElement[]FindSceneCatalogItems(int ProcessId){
+        Condition ConditionValue=new AndCondition(
+            new PropertyCondition(AutomationElement.ProcessIdProperty,ProcessId),
+            new PropertyCondition(AutomationElement.ControlTypeProperty,ControlType.ListItem));
+        AutomationElementCollection Items=AutomationElement.RootElement.FindAll(
+            TreeScope.Descendants,ConditionValue);
+        List<AutomationElement>Result=[];
+        for(int Index=0;Index<Items.Count;Index++){
+            string Name=Items[Index].Current.Name;
+            if(SceneObservationTargets.Any(Target=>
+                string.Equals(Target.SceneName,Name,StringComparison.Ordinal))){
+                Result.Add(Items[Index]);
+            }
+        }
+        return [..Result];
+    }
+    private static string GetSelectedSceneName(AutomationElement Window){
+        AutomationElement Selector=RequireElement(Window,"SceneSelector");
+        if(!Selector.TryGetCurrentPattern(SelectionPattern.Pattern,out var Pattern)){
+            return string.Empty;
+        }
+        AutomationElement[]Selection=((SelectionPattern)Pattern).Current.GetSelection();
+        return Selection.Length==1?Selection[0].Current.Name:string.Empty;
+    }
+    private static bool IsScenePresented(int ProcessId,SceneObservationTarget Target){
+        AutomationElement?Window=FindTopLevelWindow(ProcessId);
+        if(Window is null){ return false; }
+        AutomationElement?Selector=FindById(Window,"SceneSelector");
+        AutomationElement?Hierarchy=FindNamedPane(Window,["Hierarchy","ヒエラルキー"]);
+        AutomationElement?Tree=Hierarchy is null?null:FindById(Hierarchy,"Tree");
+        AutomationElement?Empty=FindById(Window,"EmptyStateText");
+        string Presented=Selector?.Current.HelpText??string.Empty;
+        return string.Equals(GetSelectedSceneName(Window),Target.SceneName,StringComparison.Ordinal)
+            &&Presented.EndsWith("."+Target.SceneName,StringComparison.Ordinal)
+            &&GetElementText(Tree).IndexOf(Target.RootName,StringComparison.Ordinal)>=0
+            &&!IsVisible(Empty)
+            &&SceneFrameCaptureSession.FindRenderSurface(Window.Current.NativeWindowHandle)!=IntPtr.Zero;
+    }
+    private static void VerifySceneDisplayToggles(int ProcessId,IntPtr Surface,
+        string SceneName,VsixSceneObservationEvidence Evidence,string SceneRoot){
+        string CameraOff=Path.Combine(SceneRoot,"camera-preview-off.png");
+        string PhysicsOn=Path.Combine(SceneRoot,"physics-debug-on.png");
+        SetToggleState(ProcessId,"CameraPreviewToggle",false);
+        Thread.Sleep(500);
+        CaptureWindow(unchecked((int)Surface.ToInt64()),CameraOff);
+        SetToggleState(ProcessId,"CameraPreviewToggle",true);
+        SetToggleState(ProcessId,"PhysicsDebugToggle",true);
+        Thread.Sleep(500);
+        CaptureWindow(unchecked((int)Surface.ToInt64()),PhysicsOn);
+        SetToggleState(ProcessId,"PhysicsDebugToggle",false);
+        Evidence.ScreenshotPaths=[..Evidence.ScreenshotPaths,CameraOff,PhysicsOn];
+        Observe(Evidence,"scene-toggles-"+SceneName,
+            HasRenderedSceneVariation(CameraOff)&&HasRenderedSceneVariation(PhysicsOn),
+            "Camera Preview and Physics Debug toggles retained a rendered Scene surface.");
+    }
+    private static void SetToggleState(int ProcessId,string AutomationId,bool Enabled){
+        AutomationElement Window=FindTopLevelWindow(ProcessId)
+            ??throw new OracleMismatchException("Visual Studio window disappeared during toggle verification.");
+        AutomationElement Element=RequireElement(Window,AutomationId);
+        if(!Element.TryGetCurrentPattern(TogglePattern.Pattern,out var Pattern)){
+            throw new OracleMismatchException(AutomationId+" exposed no TogglePattern.");
+        }
+        TogglePattern Toggle=(TogglePattern)Pattern;
+        bool Current=Toggle.Current.ToggleState==ToggleState.On;
+        if(Current!=Enabled){ Toggle.Toggle(); }
     }
     private static void ExerciseSceneManualObservations(
         int ProcessId,AutomationElement Window,VsixSceneObservationEvidence Evidence,
@@ -1508,7 +1726,7 @@ internal sealed class SceneDesignerToolbarClickTarget {
 
 internal sealed class VsixSceneObservationEvidence {
     public string SchemaVersion { get; set; }=
-        "cge-vsix-scene-observation-v1";
+        "cge-vsix-scene-observation-v2";
     public string RunId { get; set; }=string.Empty;
     public DateTimeOffset ObservedUtc { get; set; }=DateTimeOffset.UtcNow;
     public string Configuration { get; set; }=string.Empty;
@@ -1525,5 +1743,21 @@ internal sealed class VsixSceneObservationEvidence {
     public string ActivityLogPath { get; set; }=string.Empty;
     public IReadOnlyList<string>ScreenshotPaths { get; set; }=[];
     public IReadOnlyList<string>TreePaths { get; set; }=[];
+    public List<SceneFrameObservationEvidence>SceneFrames { get; set; }=[];
     public List<VsixEvidenceAssertion>Assertions { get; set; }=[];
+}
+internal readonly struct SceneObservationTarget {
+    internal SceneObservationTarget(string SceneName,string RootName){
+        this.SceneName=SceneName;
+        this.RootName=RootName;
+    }
+    internal string SceneName { get; }
+    internal string RootName { get; }
+}
+internal sealed class SceneFrameObservationEvidence {
+    public string SceneName { get; set; }=string.Empty;
+    public string RootName { get; set; }=string.Empty;
+    public string TimelinePath { get; set; }=string.Empty;
+    public bool Passed { get; set; }
+    public string Detail { get; set; }=string.Empty;
 }

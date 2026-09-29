@@ -20,17 +20,17 @@ public sealed class VsixExperimentalAutomationContractTests {
         Assert.False(Invalid.Success);
     }
     [Fact]
-    public void Parse_SceneObservationRequiresCgeFixed() {
+    public void Parse_SceneObservationRequiresCgeAutomation() {
         var Valid=AutomationOptions.Parse([
             "run","--scenario","scene-observation","--configuration","Release",
-            "--root-suffix","CgeFixed","--timeout-seconds","1800",
+            "--root-suffix","CgeAutomation","--timeout-seconds","1800",
             "--evidence-dir","evidence","--locale","1041","--skip-build","true"
         ]);
         Assert.True(Valid.Success);
         Assert.Equal("scene-observation",Valid.Options!.Scenario);
         var Invalid=AutomationOptions.Parse([
             "run","--scenario","scene-observation","--configuration","Release",
-            "--root-suffix","CgeAutomation","--timeout-seconds","1800",
+            "--root-suffix","CgeFixed","--timeout-seconds","1800",
             "--evidence-dir","evidence","--locale","1041"
         ]);
         Assert.False(Invalid.Success);

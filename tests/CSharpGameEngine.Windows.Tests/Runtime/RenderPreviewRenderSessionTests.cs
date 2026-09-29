@@ -120,6 +120,7 @@ public sealed class RenderPreviewRenderSessionTests {
         Session.ReplaceScene(Request.Scene);
         Assert.Empty(Session.CameraPreviewDiagnostics);
         Assert.Equal(string.Empty,Session.LastFrameHash);
+        Assert.Equal(1u,Session.CaptureDebugSnapshot().FramesRendered);
     }
 
     [Fact]

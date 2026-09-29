@@ -89,11 +89,19 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
         Prior.Dispose();
         this.LastFrameHash=string.Empty;
         this.CameraPreviewDiagnosticsValue=[];
-
         RenderServer Replacement=CreateServer(
             this.SurfaceHandle,this.Width,this.Height,this.DeviceOptions,
             this.ShaderArtifactPath,Scene);
-        this.Server=Replacement;
+        try {
+            // StageRenderer construction may clear its swap chain. Present the complete replacement
+            // before publishing it to the session so the HWND never waits a later WPF render tick
+            // while showing that initialization clear.
+            Replacement.RenderFrame(CaptureForVerification:false);
+            this.Server=Replacement;
+        } catch {
+            Replacement.Dispose();
+            throw;
+        }
         this.ObjectIndices=ReplacementIndices;
     }
 
