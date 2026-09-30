@@ -140,6 +140,19 @@ public sealed class PhysicsWorldTests {
     }
 
     [Fact]
+    public void ConvexAssets_SideBySideOverlap_ResolvesAlongTheSeparatingAxis(){
+        PhysicsShapeAsset Cube=PhysicsShapeAsset.CreateConvex("cube",[
+            new(-1,-1,-1),new(1,-1,-1),new(1,1,-1),new(-1,1,-1),new(-1,-1,1),new(1,-1,1),new(1,1,1),new(-1,1,1)]);
+        Collider Convex=new() { Shape=ColliderShape.ConvexAsset,Asset="cube" };
+        Assert.True(new PhysicsNarrowPhase().TryCreateContact(
+            new PhysicsCollisionShape(Convex,LogicalVector3.Zero,LogicalQuaternion.Identity,Cube),
+            new PhysicsCollisionShape(Convex,new LogicalVector3(1.9f,0,0),LogicalQuaternion.Identity,Cube),
+            out PhysicsContactCandidate Contact));
+        Assert.True(Contact.Normal.R>LogicalScalar.FromSingle(0.999f),$"normal {Contact.Normal}");
+        Assert.True(Contact.Penetration>LogicalScalar.FromSingle(0.099f)&&Contact.Penetration<LogicalScalar.FromSingle(0.101f),$"penetration {Contact.Penetration}");
+    }
+
+    [Fact]
     public void MissingCookedAsset_IsRejectedWithoutMutatingWorld(){
         DeterministicPhysicsWorld World=new();
         PhysicsBodyDescription Description=new(

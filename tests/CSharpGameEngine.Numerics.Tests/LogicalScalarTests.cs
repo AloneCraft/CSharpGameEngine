@@ -41,6 +41,15 @@ public sealed class LogicalScalarTests {
         Assert.Equal(new LogicalVector3(-3,6,-3),LogicalVector3.Cross(new(1,2,3),new(4,5,6)));
     }
     [Fact]
+    public void TryNormalizeAcceptsTheReceiverAsItsOwnOutput(){
+        var Direction=new LogicalVector3(3,0,4);
+        Assert.True(Direction.TryNormalize(out Direction));
+        Assert.Equal(LogicalScalar.FromInt64(3)/LogicalScalar.FromInt64(5),Direction.R);
+        var Rotation=new LogicalQuaternion(LogicalScalar.Zero,LogicalScalar.FromInt64(3),LogicalScalar.Zero,LogicalScalar.FromInt64(4));
+        Assert.True(Rotation.TryNormalize(out Rotation));
+        Assert.Equal(LogicalScalar.FromInt64(4)/LogicalScalar.FromInt64(5),Rotation.W);
+    }
+    [Fact]
     public void EulerAuthoringConvertsOnceToANormalizedLogicalQuaternion(){
         var Rotation=LogicalQuaternion.FromEulerRuf(new LogicalVector3(0,MathF.PI/2f,0));
 

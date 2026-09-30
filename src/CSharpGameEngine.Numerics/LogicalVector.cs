@@ -6,13 +6,17 @@ public readonly record struct LogicalVector3(LogicalScalar R,LogicalScalar U,Log
     public static LogicalVector3 UnitU=>new(LogicalScalar.Zero,LogicalScalar.One,LogicalScalar.Zero);
     public static LogicalVector3 UnitF=>new(LogicalScalar.Zero,LogicalScalar.Zero,LogicalScalar.One);
     public LogicalScalar LengthSquared=>Dot(this,this);
+    /// <summary>Unit vector; <c>V.TryNormalize(out V)</c> is allowed because the receiver is read before <paramref name="Result"/> is written.</summary>
     public bool TryNormalize(out LogicalVector3 Result){
-        Result=default;
-        return LogicalScalar.TrySquareRoot(this.LengthSquared,out var Length)&&!Length.IsZero
+        if(LogicalScalar.TrySquareRoot(this.LengthSquared,out var Length)&&!Length.IsZero
             &&LogicalScalar.TryDivide(this.R,Length,out var R)
             &&LogicalScalar.TryDivide(this.U,Length,out var U)
-            &&LogicalScalar.TryDivide(this.F,Length,out var F)
-            &&((Result=new LogicalVector3(R,U,F))==Result);
+            &&LogicalScalar.TryDivide(this.F,Length,out var F)){
+            Result=new LogicalVector3(R,U,F);
+            return true;
+        }
+        Result=default;
+        return false;
     }
     public LogicalVector3 Normalize()=>this.TryNormalize(out var Result)?Result:throw new InvalidOperationException("The vector cannot be normalized.");
     public bool TryToSingle(out System.Numerics.Vector3 Result){
@@ -35,14 +39,18 @@ public readonly record struct LogicalQuaternion(LogicalScalar R,LogicalScalar U,
     private LogicalQuaternion(LogicalQuaternion Value,byte _):this(Value.R,Value.U,Value.F,Value.W){ }
     public static LogicalQuaternion Identity=>new(LogicalScalar.Zero,LogicalScalar.Zero,LogicalScalar.Zero,LogicalScalar.One);
     public LogicalScalar LengthSquared=>this.R*this.R+this.U*this.U+this.F*this.F+this.W*this.W;
+    /// <summary>Unit quaternion; <c>Q.TryNormalize(out Q)</c> is allowed because the receiver is read before <paramref name="Result"/> is written.</summary>
     public bool TryNormalize(out LogicalQuaternion Result){
-        Result=default;
-        return LogicalScalar.TrySquareRoot(this.LengthSquared,out var Length)&&!Length.IsZero
+        if(LogicalScalar.TrySquareRoot(this.LengthSquared,out var Length)&&!Length.IsZero
             &&LogicalScalar.TryDivide(this.R,Length,out var R)
             &&LogicalScalar.TryDivide(this.U,Length,out var U)
             &&LogicalScalar.TryDivide(this.F,Length,out var F)
-            &&LogicalScalar.TryDivide(this.W,Length,out var W)
-            &&((Result=new LogicalQuaternion(R,U,F,W))==Result);
+            &&LogicalScalar.TryDivide(this.W,Length,out var W)){
+            Result=new LogicalQuaternion(R,U,F,W);
+            return true;
+        }
+        Result=default;
+        return false;
     }
     public LogicalQuaternion Conjugate()=>new(-this.R,-this.U,-this.F,this.W);
     public bool TryToSingle(out System.Numerics.Quaternion Result){
