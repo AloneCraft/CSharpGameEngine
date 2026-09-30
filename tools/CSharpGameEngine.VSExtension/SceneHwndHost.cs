@@ -1204,7 +1204,7 @@ internal sealed class SceneHwndHost:HwndHost {
     /// 十分(<see cref="SceneViewCamera.SolveLookOrientation"/>参照、ヒットテスト不要)。
     /// </summary>
     private void CaptureLookAnchor(int X,int Y){
-        this.LookUsesPixelLock= this.ViewState is { InvertLookX:false,InvertLookY:false };
+        this.LookUsesPixelLock= this.ViewState is { LookUsesPixelLock:true };
         if(!this.LookUsesPixelLock|| this.ViewState is not { } State){
             return;
         }

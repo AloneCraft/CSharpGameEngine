@@ -186,6 +186,50 @@ public sealed class SceneViewStateTests {
         Assert.NotEqual(0.1f,State.Yaw);
     }
 
+    /// <summary>
+    /// 反転スイッチがすべてオフのときの基準(2026-10-01にユーザー確認): RMB/Alt+RMBのLookは右ドラッグで
+    /// Yawが減り、下ドラッグでPitchが上がる。Alt+LMBのOrbitも同じ向きになる。
+    /// </summary>
+    [Fact]
+    public void Look_WithSwitchesOff_UsesTheConfirmedBaselineDirections(){
+        SceneViewState Right=new(){ Yaw=0f,Pitch=0f };
+        Right.TickFly([],DeltaX:10f,DeltaY:0f,DeltaTime:0f,Shift:false,Ctrl:false);
+        Assert.True(Right.Yaw<0f,$"yaw {Right.Yaw}");
+
+        SceneViewState Down=new(){ Yaw=0f,Pitch=0f };
+        Down.TickFly([],DeltaX:0f,DeltaY:10f,DeltaTime:0f,Shift:false,Ctrl:false);
+        Assert.True(Down.Pitch>0f,$"pitch {Down.Pitch}");
+    }
+
+    [Fact]
+    public void Orbit_WithSwitchesOff_UsesTheSameBaselineDirectionsAsLook(){
+        SceneViewState Right=new(){ Yaw=0f,Pitch=0f };
+        Right.ApplyOrbit(10f,0f);
+        Assert.True(Right.Yaw<0f,$"yaw {Right.Yaw}");
+
+        SceneViewState Down=new(){ Yaw=0f,Pitch=0f };
+        Down.ApplyOrbit(0f,10f);
+        Assert.True(Down.Pitch>0f,$"pitch {Down.Pitch}");
+    }
+
+    [Fact]
+    public void Look_InvertSwitches_NegateTheBaselineDeltas(){
+        SceneViewState Normal=new();
+        Normal.TickFly([],10f,6f,0f,false,false);
+        SceneViewState Inverted=new(){ InvertLookX=true,InvertLookY=true };
+        Inverted.TickFly([],10f,6f,0f,false,false);
+        Assert.Equal(-Normal.Yaw,Inverted.Yaw,Precision);
+        Assert.Equal(-Normal.Pitch,Inverted.Pitch,Precision);
+    }
+
+    /// <summary>ピクセル完全一致ドラッグは「右ドラッグでYaw増・下ドラッグでPitch増」の向きのときだけ成立する。</summary>
+    [Fact]
+    public void LookUsesPixelLock_OnlyForTheGrabTheWorldDirections(){
+        Assert.False(new SceneViewState().LookUsesPixelLock);
+        Assert.True(new SceneViewState(){ InvertLookX=true }.LookUsesPixelLock);
+        Assert.False(new SceneViewState(){ InvertLookX=true,InvertLookY=true }.LookUsesPixelLock);
+    }
+
     /// <summary>OrbitはこれまでInvertX:false,InvertY:false固定だった。M0020でLookと同じく独立して反転可能にした。</summary>
     [Fact]
     public void Orbit_InvertOrbitX_NegatesYawDelta(){

@@ -109,18 +109,18 @@ aspect≥1では実効FOV=FovYとなり、横長・正方形の距離はPhase 0�
 
 | 概念操作 | 計算 |
 |---|---|
-| `Look`(RMB+Mouse) | 既定: `Yaw += Δx * 感度 * (InvertLookX ? -1 : 1)`、`Pitch += Δy * 感度 * (InvertLookY ? -1 : 1)`。位置固定。**反転がOFFの間はピクセル完全一致(下記)を使い、この式は反転ON時のみ使う** |
+| `Look`(RMB+Mouse、Alt+RMBも同じ) | 基準(反転スイッチOFF、2026-10-01にユーザー確認): 右ドラッグで`Yaw`が減り、下ドラッグで`Pitch`が上がる。`Yaw -= Δx * 感度 * (InvertLookX ? -1 : 1)`、`Pitch += Δy * 感度 * (InvertLookY ? -1 : 1)`。位置固定。`InvertLookX=ON`かつ`InvertLookY=OFF`のとき(右ドラッグでYaw増・下ドラッグでPitch増)はピクセル完全一致(下記)を使う |
 | `Fly`(RMB+WASDQE) | `位置 += (前後A/D左右Q/E上下の合成方向) * 速度 * Δt`。速度 = 基準 × `NavigationSpeedMultiplier` × (Shift: ×4 / Ctrl: ×0.25) |
 | `Pan`(MMB Drag) | 視線を変えずカメラの右・上ベクトル方向へ`FocusPosition`と視点を平行移動。移動量はNavigationScale比例 |
-| `Orbit`(Alt+LMB) | 既定: `Yaw`/`Pitch`を回し、視点位置を導出式で再計算(`FocusPosition`固定)。反転は`InvertOrbitX`/`InvertOrbitY`(Lookとは独立)。Orbitは常にドラッグ量ベースで更新し、クリック位置のピクセル固定は行わない。 |
+| `Orbit`(Alt+LMB) | `Yaw`/`Pitch`を回し、視点位置を導出式で再計算(`FocusPosition`固定)。基準はLookと同じ向きで、反転は`InvertOrbitX`/`InvertOrbitY`(Lookとは独立)。Orbitは常にドラッグ量ベースで更新し、クリック位置のピクセル固定は行わない。 |
 
-**ピクセル完全一致ドラッグ**(2026-08追加): RMBでクリックした点(方向)が、反転設定OFFの
-間はドラッグ中カーソル先端に一致し続ける。Alt+LMB Orbitには適用しない。
+**ピクセル完全一致ドラッグ**(2026-08追加): RMBでクリックした点(方向)が、Lookの向きが
+「右ドラッグでYaw増・下ドラッグでPitch増」(`InvertLookX=ON`、`InvertLookY=OFF`)の間は
+ドラッグ中カーソル先端に一致し続ける。Alt+LMB Orbitには適用しない。
 - Look: Eyeが回転中固定なので、クリック時の方向だけから`atan2`/`acos`のみで厳密な閉形式が
   導ける(`SceneViewCamera.SolveLookOrientation`)。
 - Orbit: ピクセル固定は行わず、マウスのフレーム差分をそのままYaw/Pitchへ適用する。
-- 反転がONの間はどちらも上表の`delta*sensitivity`式のまま(反転しながらの完全一致は定義上
-  不可能)。
+- それ以外の向きでは上表の`delta*sensitivity`式のまま(向きが逆の完全一致は定義上不可能)。
 | `Dolly`(Wheel、透視) | `FocusDistance *= pow(0.9, ホイールノッチ)`(下限クランプ) |
 | `Zoom`(Wheel、平行) | `OrthographicSize *= pow(0.9, ホイールノッチ)` |
 | `AdjustNavigationSpeed`(RMB+Wheel) | `NavigationSpeedMultiplier *= pow(1.2, ノッチ)`(上下限クランプ) |
@@ -436,15 +436,18 @@ enumメンバー名は`Transform`ではなく`LocalTransform`にしてある(`Tr
 | `ProjectionMode` | string | `Perspective` |
 | `NavigationPreset` | string | `Default` |
 | `NavigationSpeedMultiplier` | float(文字列格納) | `1.0` |
-| `InvertLookX` / `InvertLookY` | bool | `true` |
-| `InvertOrbitX` / `InvertOrbitY` | bool | `true`(Lookと独立) |
+| `InvertLookX` / `InvertLookY` | bool | `false`(基準に対する反転) |
+| `InvertOrbitX` / `InvertOrbitY` | bool | `false`(基準に対する反転、Lookと独立) |
 
 `InvertLookX`/`InvertLookY`/`InvertOrbitX`/`InvertOrbitY`/`NavigationSpeedMultiplier`の5項目は
 Tools>Options > C# Game Engine > Scene Editor から編集できる(2026-08追加、
 `SceneEditorOptionsPage`)。残る4項目は現在状態(ツールバー相当)またはプリセット未実装のため
 非公開。
 
-ナビゲーション反転の既定変更時は、VS user settingsの移行バージョンを確認し、未移行プロファイルの4軸を一度だけ`true`へ更新する。移行後にユーザーがOptionsで変更した値は保持する。
+ナビゲーション反転の基準を変えたときは、VS user settingsの移行バージョン(`NavigationSettingsMigrationVersion`)を上げ、既存プロファイルを一度だけ変換する。
+- 版1: 未移行プロファイルの4軸を旧既定(`true`)へ揃えた。
+- 版2(2026-10-01): 基準を「旧既定の水平・Orbit」と「旧既定の逆の垂直Look」へ移し、スイッチの既定をOFFにした。未移行プロファイルは既定(OFF)を書く。版1のプロファイルは4値を反転する。水平とOrbitは式の基準も反転したので見た目の向きが保たれ、垂直Lookは式が同じなのでユーザーの依頼どおり実際の向きが一度だけ反転する。
+- 移行後にユーザーがOptionsで変更した値は保持する。
 
 保存はツールウィンドウ非表示時と値変更時(デバウンス)。カメラ姿勢・`FocusPosition`・選択・
 ギズモ表示はセッション内のみ。**`SceneDeclaration`へSceneView状態を書くことは構造的に不可能**

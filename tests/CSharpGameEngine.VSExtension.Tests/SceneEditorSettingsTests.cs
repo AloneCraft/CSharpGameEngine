@@ -91,20 +91,19 @@ public sealed class SceneEditorSettingsTests {
     });
 
     /// <summary>
-    /// 実機確認(2026-08): 一時的にRMBドラッグ(Look)の既定を反転側(true)へ変更したが、実機で
-    /// 試した結果、反転しない側(false)を既定として維持することにした
-    /// (SceneEditorSettings.DefaultInvertLookX/Y参照)。
+    /// 2026-10-01: 反転スイッチは基準(SceneViewState.TickFly/ApplyOrbit)に対する反転になり、
+    /// 既定はすべてオフ(基準そのもの)。
     /// </summary>
     [Fact]
     public void ReadInvertLookX_NoStoredValue_ReturnsTheConfiguredDefault(){
-        Assert.True(SceneEditorSettings.DefaultInvertLookX);
-        RunOnUiThread(()=>Assert.True(SceneEditorSettings.ReadInvertLookX()));
+        Assert.False(SceneEditorSettings.DefaultInvertLookX);
+        RunOnUiThread(()=>Assert.False(SceneEditorSettings.ReadInvertLookX()));
     }
 
     [Fact]
     public void ReadInvertLookY_NoStoredValue_ReturnsTheConfiguredDefault(){
-        Assert.True(SceneEditorSettings.DefaultInvertLookY);
-        RunOnUiThread(()=>Assert.True(SceneEditorSettings.ReadInvertLookY()));
+        Assert.False(SceneEditorSettings.DefaultInvertLookY);
+        RunOnUiThread(()=>Assert.False(SceneEditorSettings.ReadInvertLookY()));
     }
 
     [Fact]
@@ -121,17 +120,16 @@ public sealed class SceneEditorSettingsTests {
         Assert.True(SceneEditorSettings.ReadInvertLookY());
     });
 
-    /// <summary>Orbit(Alt+LMB)にはこれまで反転設定が存在せず、常にfalse,false固定だった。</summary>
     [Fact]
     public void ReadInvertOrbitX_NoStoredValue_ReturnsTheConfiguredDefault(){
-        Assert.True(SceneEditorSettings.DefaultInvertOrbitX);
-        RunOnUiThread(()=>Assert.True(SceneEditorSettings.ReadInvertOrbitX()));
+        Assert.False(SceneEditorSettings.DefaultInvertOrbitX);
+        RunOnUiThread(()=>Assert.False(SceneEditorSettings.ReadInvertOrbitX()));
     }
 
     [Fact]
     public void ReadInvertOrbitY_NoStoredValue_ReturnsTheConfiguredDefault(){
-        Assert.True(SceneEditorSettings.DefaultInvertOrbitY);
-        RunOnUiThread(()=>Assert.True(SceneEditorSettings.ReadInvertOrbitY()));
+        Assert.False(SceneEditorSettings.DefaultInvertOrbitY);
+        RunOnUiThread(()=>Assert.False(SceneEditorSettings.ReadInvertOrbitY()));
     }
 
     [Fact]
@@ -226,7 +224,7 @@ public sealed class SceneEditorSettingsTests {
         SceneEditorSettings.ConfigureStoreProvider(null);
 
         Assert.Equal(1.0f,SceneEditorSettings.ReadNavigationSpeedMultiplier());
-        Assert.True(SceneEditorSettings.ReadInvertLookX());
+        Assert.Equal(SceneEditorSettings.DefaultInvertLookX,SceneEditorSettings.ReadInvertLookX());
     });
 
     [Fact]
@@ -238,24 +236,46 @@ public sealed class SceneEditorSettingsTests {
     });
 
     [Fact]
-    public void MigrateNavigationSettingsIfNeeded_UpdatesLegacyValuesOnce()=>RunOnUiThread(()=>{
+    public void MigrateNavigationSettingsIfNeeded_NeverMigratedStore_StartsAtTheBaseline()=>RunOnUiThread(()=>{
         var Store=new FakeWritableSettingsStore();
         SceneEditorSettings.ConfigureStoreProvider(()=>Store);
-        SceneEditorSettings.WriteInvertLookX(false);
-        SceneEditorSettings.WriteInvertLookY(false);
-        SceneEditorSettings.WriteInvertOrbitX(false);
-        SceneEditorSettings.WriteInvertOrbitY(false);
+        SceneEditorSettings.WriteInvertLookX(true);
+        SceneEditorSettings.WriteInvertOrbitY(true);
 
         SceneEditorSettings.MigrateNavigationSettingsIfNeeded();
 
-        Assert.True(SceneEditorSettings.ReadInvertLookX());
-        Assert.True(SceneEditorSettings.ReadInvertLookY());
-        Assert.True(SceneEditorSettings.ReadInvertOrbitX());
-        Assert.True(SceneEditorSettings.ReadInvertOrbitY());
-
-        SceneEditorSettings.WriteInvertLookX(false);
-        SceneEditorSettings.MigrateNavigationSettingsIfNeeded();
         Assert.False(SceneEditorSettings.ReadInvertLookX());
+        Assert.False(SceneEditorSettings.ReadInvertLookY());
+        Assert.False(SceneEditorSettings.ReadInvertOrbitX());
+        Assert.False(SceneEditorSettings.ReadInvertOrbitY());
+    });
+
+    /// <summary>
+    /// 版1の値は旧基準に対する反転だった。版2で基準を「旧既定の水平」「旧既定の逆の垂直」に移し、4値とも反転する。
+    /// 水平とOrbitは式の基準も反転したので見た目の向きが保たれ、Lookの垂直は式が同じなので
+    /// ユーザーの依頼どおり実際の向きが1回だけ反転する。
+    /// </summary>
+    [Fact]
+    public void MigrateNavigationSettingsIfNeeded_FromVersionOne_KeepsHorizontalAndOrbitAndFlipsVerticalLookOnce()=>RunOnUiThread(()=>{
+        var Store=new FakeWritableSettingsStore();
+        SceneEditorSettings.ConfigureStoreProvider(()=>Store);
+        Store.CreateCollection(@"CSharpGameEngine\SceneEditor");
+        Store.SetString(@"CSharpGameEngine\SceneEditor","NavigationSettingsMigrationVersion","1");
+        SceneEditorSettings.WriteInvertLookX(true);
+        SceneEditorSettings.WriteInvertLookY(true);
+        SceneEditorSettings.WriteInvertOrbitX(false);
+        SceneEditorSettings.WriteInvertOrbitY(true);
+
+        SceneEditorSettings.MigrateNavigationSettingsIfNeeded();
+
+        Assert.False(SceneEditorSettings.ReadInvertLookX());
+        Assert.False(SceneEditorSettings.ReadInvertLookY());
+        Assert.True(SceneEditorSettings.ReadInvertOrbitX());
+        Assert.False(SceneEditorSettings.ReadInvertOrbitY());
+
+        SceneEditorSettings.WriteInvertLookX(true);
+        SceneEditorSettings.MigrateNavigationSettingsIfNeeded();
+        Assert.True(SceneEditorSettings.ReadInvertLookX());
     });
 
     [Fact]

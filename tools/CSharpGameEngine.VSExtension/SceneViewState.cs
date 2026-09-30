@@ -67,6 +67,11 @@ internal sealed class SceneViewState {
     internal float NavigationSpeedMultiplier=1f;
     internal bool InvertLookX;
     internal bool InvertLookY;
+    /// <summary>
+    /// ピクセル完全一致ドラッグは「右ドラッグでYaw増・下ドラッグでPitch増」の向きでしか成立しない。
+    /// 基準(スイッチ無し)は水平が逆向きなので、水平だけ反転しているときに使える。
+    /// </summary>
+    internal bool LookUsesPixelLock=>this.InvertLookX&&!this.InvertLookY;
     internal bool InvertOrbitX;
     internal bool InvertOrbitY;
 
@@ -191,10 +196,9 @@ internal sealed class SceneViewState {
         IReadOnlyCollection<NavigationKey>HeldKeys,float DeltaX,float DeltaY,float DeltaTime,bool Shift,bool Ctrl){
         var Eye= this.GetEyePosition(); // 更新前のYaw/Pitch/FocusPosition/FocusDistanceから導出
 
-        // 実機検証(M0020 Phase 1): Pitch(上下)の既定挙動が仕様と逆だったため、Orbit(ApplyOrbit、
-        // こちらは実機確認済みで正しい)と共有する ApplyLookDelta 自体は変えず、Fly/Look側の
-        // DeltaYだけ符号反転して渡す。InvertLookYはこの訂正後の既定に対する追加反転として機能する。
-        (this.Yaw, this.Pitch)=SceneViewCamera.ApplyLookDelta(this.Yaw, this.Pitch,DeltaX,-DeltaY,LookSensitivity,LookSensitivity, this.InvertLookX, this.InvertLookY);
+        // 反転スイッチ無しの基準(2026-10-01にユーザー確認): 右ドラッグでYawが減り、下ドラッグでPitchが上がる。
+        // InvertLookX/Yはこの基準に対する反転。
+        (this.Yaw, this.Pitch)=SceneViewCamera.ApplyLookDelta(this.Yaw, this.Pitch,-DeltaX,-DeltaY,LookSensitivity,LookSensitivity, this.InvertLookX, this.InvertLookY);
 
         this.ApplyFlyMovement(HeldKeys,Eye,DeltaTime,Shift,Ctrl);
     }
@@ -252,9 +256,12 @@ internal sealed class SceneViewState {
     internal void ApplyLookPixelLock(Vector3 AnchorWorldDirection,Vector3 CurrentLocalAxes)=>
         (this.Yaw, this.Pitch)=SceneViewCamera.SolveLookOrientation(CurrentLocalAxes,AnchorWorldDirection, this.Yaw, this.Pitch);
 
-    /// <summary>FocusPositionは変更しない。EyeはGetEyePosition()が自動的に再導出する。</summary>
+    /// <summary>
+    /// FocusPositionは変更しない。EyeはGetEyePosition()が自動的に再導出する。基準はLookと同じ向き
+    /// (右ドラッグでYaw減・下ドラッグでPitch増)で、InvertOrbitX/Yはこの基準に対する反転。
+    /// </summary>
     internal void ApplyOrbit(float DeltaX,float DeltaY)=>
-        (this.Yaw, this.Pitch)=SceneViewCamera.ApplyLookDelta(this.Yaw, this.Pitch,DeltaX,DeltaY,OrbitSensitivity,OrbitSensitivity, this.InvertOrbitX, this.InvertOrbitY);
+        (this.Yaw, this.Pitch)=SceneViewCamera.ApplyLookDelta(this.Yaw, this.Pitch,-DeltaX,-DeltaY,OrbitSensitivity,OrbitSensitivity, this.InvertOrbitX, this.InvertOrbitY);
 
 
     /// <summary>
