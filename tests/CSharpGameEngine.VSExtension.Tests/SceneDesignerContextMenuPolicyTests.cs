@@ -90,6 +90,17 @@ public sealed class SceneDesignerContextMenuPolicyTests {
     }
 
     [Fact]
+    public void JsonSceneDocument_OffersItsScene(){
+        var Presentation=SceneDesignerContextMenuPolicy.Create(Japanese,
+                                                               @"G:\Project\Scenes\MainScene.scene.json",
+                                                               SceneDesignerTargetState.SceneType,
+                                                               [new SceneDesignerMenuItem("MainScene","Project.MainScene")]);
+
+        Assert.True(Presentation.Visible);
+        Assert.Equal(SceneDesignerMenuMode.Direct,Presentation.Mode);
+    }
+
+    [Fact]
     public void NonCSharpDocument_IsHidden(){
         var Presentation=SceneDesignerContextMenuPolicy.Create(Japanese,
                                                                @"G:\Project\Readme.md",

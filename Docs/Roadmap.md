@@ -9,6 +9,9 @@ M0089/ADR-0069 adds F-L4-014 (physical sky, sky light, exposure, cascaded sun sh
 ## Current character-movement update
 M0090/ADR-0067 implements F-L5-006. It adds kinematic character movement on the deterministic physics world, StaticMesh triangle collision, a spring-arm follow camera, and Enhanced Input value composition with XInput. It refines F-L4-010 and F-L0-010. The ThirdPerson template is playable. See the [verification milestone](Milestones/M0090-ThirdPerson-Character-Movement.md).
 
+## Current scene JSON and editor world update (in progress)
+M0093/ADR-0070 refines F-L7-012, F-L7-013 and F-L8-011. Scenes can be `*.scene.json` documents, which are checked against a per-project schema, turned into C# at build time, and edited in memory by the Scene Designer until Save. The remaining steps are converting the repository scenes and removing the C# scene path (C3), then drawing the Scene view with the game runtime (B1, B2). See the [verification milestone](Milestones/M0093-Scene-Json-And-Editor-World.md).
+
 ## Current SDK package and project template update
 M0092/ADR-0065/ADR-0068 add F-L6-009 and F-L8-032. Games build from the `CSharpGameEngine.Sdk` NuGet package anywhere; the VSIX finds the game project from the open solution and ships its bridges. Visual Studio's New Project dialog offers "Third Person / 三人称", which creates the ported Unreal template. See the [verification milestone](Milestones/M0092-Sdk-Package-And-Project-Template.md).
 

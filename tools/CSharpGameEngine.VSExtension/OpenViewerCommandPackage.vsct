@@ -491,8 +491,8 @@
     <!-- M0020: ソリューションエクスプローラーの単一項目右クリックにも同じ34個のボタン
          (SceneDesignerContextMenuGroup配下、Direct/32スロット/Overflow)をそのまま出す。新しい
          ID/ボタンは追加しない。コードウィンドウの右クリックとSEの項目右クリックは同時に出ないため、
-         以前修正した「シーン デザイナーで開くが2つ並ぶ」問題は再発しない。フォルダや.cs以外の項目は
-         OpenSceneDesignerCommand側の既存の.cs限定ゲートで非表示になる。 -->
+         以前修正した「シーン デザイナーで開くが2つ並ぶ」問題は再発しない。フォルダやシーンを宣言できない項目(.csと*.scene.json以外)は
+         SceneDesignerContextMenuPolicyのゲートで非表示になる。 -->
     <CommandPlacement guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" priority="0x0600">
       <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_ITEMNODE" />
     </CommandPlacement>

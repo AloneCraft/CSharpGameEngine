@@ -118,7 +118,7 @@ internal sealed class ActiveDocumentTracker : IVsSelectionEvents,IDisposable {
 
         this.SolutionExplorerFilePath=NewHierarchy is not null
             &&NewHierarchy.GetCanonicalName(NewItemId,out var CanonicalName)==VSConstants.S_OK
-            &&CanonicalName.EndsWith(".cs",StringComparison.OrdinalIgnoreCase)
+            &&SceneJsonWorkspaceSource.IsSceneSourcePath(CanonicalName)
             ?CanonicalName
             :null;
         this.Service.SetSolutionExplorerSelection(this.SolutionExplorerFilePath);
@@ -147,7 +147,7 @@ internal sealed class ActiveDocumentTracker : IVsSelectionEvents,IDisposable {
     private void SetDocumentPath(string DocumentPath){
         ThreadHelper.ThrowIfNotOnUIThread();
 
-        this.CurrentFilePath=DocumentPath.EndsWith(".cs",StringComparison.OrdinalIgnoreCase)
+        this.CurrentFilePath=SceneJsonWorkspaceSource.IsSceneSourcePath(DocumentPath)
                                  ?DocumentPath
                                  :null;
         this.Service.SetActiveDocument(this.CurrentFilePath);
@@ -224,14 +224,14 @@ internal sealed class ActiveDocumentTracker : IVsSelectionEvents,IDisposable {
     internal string?CurrentFilePath { get;private set;}
 
     /// <summary>直近の<see cref="OnSelectionChanged"/>が解決した、ソリューションエクスプローラー等の
-    /// 階層選択上のファイルパス(.cs以外やハンドル不能な選択はnull)。</summary>
+    /// 階層選択上のファイルパス(.csと*.scene.json以外やハンドル不能な選択はnull)。</summary>
     internal string?SolutionExplorerFilePath { get;private set;}
 
     /// <summary>
     /// 現在フォーカスしているウィンドウフレームがソリューションエクスプローラーかどうかで、今回の
     /// メニュー要求がSE起点かを判定する。パスの一致だけで判定すると、コードエディタで別ファイルを
     /// 編集中でもSEが以前選んでいたファイルの残骸を誤って使ってしまう恐れがあるため、フォーカス先で
-    /// 判定する。真を返すときの<paramref name="FilePath"/>は.cs以外や未解決ならnull
+    /// 判定する。真を返すときの<paramref name="FilePath"/>は.csと*.scene.json以外や未解決ならnull
     /// (呼び出し元はnullを「このファイルは対象外」として扱う)。
     ///
     /// <para>

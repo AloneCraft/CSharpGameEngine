@@ -10,7 +10,8 @@ using Microsoft.VisualStudio.Shell;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Owns one Scene Designer session while C# remains the only authoring source of truth.
+/// Owns one Scene Designer session. The live text buffer of the scene document (C#, or a
+/// *.scene.json scene per ADR-0070) is the only authoring copy.
 /// Completed gestures are planned against one latest Roslyn generation, written to the live
 /// buffer as one native Undo unit, and replaced by the authoritative reparse.
 /// </summary>
@@ -134,7 +135,7 @@ internal sealed class SceneEditorSessionService : IDisposable {
     internal bool IsSaving(SceneKey Key)=>this.SourceWritesInFlight.Contains(Key);
 
     /// <summary>
-    /// Commits one completed gesture directly to the latest live C# buffer. A stale request is
+    /// Commits one completed gesture directly to the latest live scene buffer. A stale request is
     /// explicitly rebased or rejected before the native Undo transaction is opened.
     /// </summary>
     internal async Task<SceneEditCommitResult>CommitAsync(
@@ -247,7 +248,7 @@ internal sealed class SceneEditorSessionService : IDisposable {
         return true;
     }
 
-    /// <summary>Persists the authoritative live C# buffer; it never performs edit writeback.</summary>
+    /// <summary>Persists the authoritative live scene buffer; it never performs edit writeback.</summary>
     internal async Task<SceneEditCommitResult>SaveAsync(
         SceneKey Key,CancellationToken CancellationToken){
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(CancellationToken);

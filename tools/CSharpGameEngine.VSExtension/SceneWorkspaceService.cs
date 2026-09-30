@@ -330,8 +330,8 @@ internal sealed class SceneWorkspaceService : IDisposable {
     /// </summary>
     internal SceneKey?TryCreateSceneKey(SceneModel Model){
         DocumentId?DocumentId=this.FindDocument(Model.FilePath);
-        Document?Document=DocumentId is { } Id
-            ?this.Workspace.CurrentSolution.GetDocument(Id)
+        TextDocument?Document=DocumentId is { } Id
+            ?GetTextDocument(this.Workspace.CurrentSolution,Id)
             :null;
         if(Document is null){
             return null;
@@ -375,7 +375,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
         }
 
         string?ActiveProjectId=ActiveId is { } Id
-            ?this.Workspace.CurrentSolution.GetDocument(Id)?.Project.Id.Id.ToString("N")
+            ?GetTextDocument(this.Workspace.CurrentSolution,Id)?.Project.Id.Id.ToString("N")
             :null;
         string?ProjectId=SceneCatalogTargetPolicy.SelectProjectId(PreferredSceneKey,ActiveProjectId);
         Project?Project=ProjectId is null?null:this.Workspace.CurrentSolution.Projects.FirstOrDefault(Candidate=>
@@ -423,6 +423,19 @@ internal sealed class SceneWorkspaceService : IDisposable {
                 Declaration.SpanStart));
         }
 
+        foreach(TextDocument JsonScene in SceneJsonWorkspaceSource.JsonScenes(Project)){
+            SourceText JsonText=await JsonScene.GetTextAsync(CancellationToken).ConfigureAwait(false);
+            if(SceneJsonWorkspaceSource.TryReadClassFullyQualifiedName(JsonText.ToString())is not { }ClassName
+                ||string.IsNullOrWhiteSpace(JsonScene.FilePath)){
+                continue;
+            }
+            Entries.Add(new ProjectSceneCatalogEntry(
+                new SceneKey(ProjectKey,ClassName),
+                ClassName.Substring(ClassName.LastIndexOf('.')+1),
+                JsonScene.FilePath!,
+                0));
+        }
+
         ProjectSceneCatalog Catalog=new(ProjectKey,ProjectSceneCatalogPresentation.Create(ProjectKey,Entries));
         lock(this.Gate){
             if(!this.Disposed){
@@ -452,7 +465,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
         }
 
         string?ActiveProjectId=ActiveId is { } Id
-            ?this.Workspace.CurrentSolution.GetDocument(Id)?.Project.Id.Id.ToString("N")
+            ?GetTextDocument(this.Workspace.CurrentSolution,Id)?.Project.Id.Id.ToString("N")
             :null;
         string?ProjectId=SceneCatalogTargetPolicy.SelectProjectId(PreferredSceneKey,ActiveProjectId);
         Project?Project=ProjectId is null?null:this.Workspace.CurrentSolution.Projects.FirstOrDefault(Candidate=>
@@ -521,7 +534,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
         }
 
         string?ActiveProjectId=ActiveId is { } Id
-            ?this.Workspace.CurrentSolution.GetDocument(Id)?.Project.Id.Id.ToString("N")
+            ?GetTextDocument(this.Workspace.CurrentSolution,Id)?.Project.Id.Id.ToString("N")
             :null;
         string?ProjectId=SceneCatalogTargetPolicy.SelectProjectId(PreferredSceneKey,ActiveProjectId);
         Project?Project=ProjectId is null?null:this.Workspace.CurrentSolution.Projects.FirstOrDefault(Candidate=>
@@ -552,6 +565,9 @@ internal sealed class SceneWorkspaceService : IDisposable {
         if(Compilation is null){
             return null;
         }
+        if(await SceneJsonWorkspaceSource.FindAsync(Project,Key.ClassFullyQualifiedName,CancellationToken).ConfigureAwait(false)is { }JsonScene){
+            return (await ResolveJsonSceneAsync(Project,Compilation,JsonScene,Key.ClassFullyQualifiedName,CancellationToken).ConfigureAwait(false))?.Model;
+        }
 
         INamedTypeSymbol?Type=EnumerateTypes(Compilation.Assembly.GlobalNamespace).FirstOrDefault(Candidate=>
             string.Equals(SceneDeclarationAnalyzer.ComputeClassFullyQualifiedName(Candidate),Key.ClassFullyQualifiedName,StringComparison.Ordinal));
@@ -572,6 +588,16 @@ internal sealed class SceneWorkspaceService : IDisposable {
         Compilation?Compilation=await Project.GetCompilationAsync(CancellationToken).ConfigureAwait(false);
         if(Compilation is null){
             return null;
+        }
+        if(await SceneJsonWorkspaceSource.FindAsync(Project,Key.ClassFullyQualifiedName,CancellationToken).ConfigureAwait(false)is { }JsonScene){
+            if(await ResolveJsonSceneAsync(Project,Compilation,JsonScene,Key.ClassFullyQualifiedName,CancellationToken).ConfigureAwait(false)
+                is not { }Resolved){
+                return null;
+            }
+            SourceText JsonText=await JsonScene.GetTextAsync(CancellationToken).ConfigureAwait(false);
+            return new SceneWorkspaceEditContext(
+                JsonScene.Id,JsonScene.FilePath!,Resolved.Model,
+                await Resolved.Tree.GetRootAsync(CancellationToken).ConfigureAwait(false),JsonText,Resolved.Compilation);
         }
         INamedTypeSymbol?Type=EnumerateTypes(Compilation.Assembly.GlobalNamespace).FirstOrDefault(Candidate=>
             string.Equals(
@@ -605,6 +631,24 @@ internal sealed class SceneWorkspaceService : IDisposable {
     }
 
     /// <summary>
+    /// ADR-0070: analyzes a JSON scene through its designer tree. <c>null</c> when the live JSON is not a
+    /// valid scene or does not declare <paramref name="ClassFullyQualifiedName"/>.
+    /// </summary>
+    private static async Task<(SceneModel Model,SyntaxTree Tree,Compilation Compilation)?>ResolveJsonSceneAsync(
+        Project Project,Compilation Compilation,TextDocument JsonScene,string ClassFullyQualifiedName,
+        CancellationToken CancellationToken){
+        if(await SceneJsonWorkspaceSource.AddDesignerTreeAsync(Project,Compilation,JsonScene,CancellationToken).ConfigureAwait(false)
+            is not { }Added){
+            return null;
+        }
+        INamedTypeSymbol?Type=Added.Compilation.GetTypeByMetadataName(ClassFullyQualifiedName);
+        if(Type is null||!SceneTypePredicates.ImplementsSceneInterface(Type)){
+            return null;
+        }
+        return (SceneDeclarationAnalyzer.Analyze(Type,Added.Compilation,CancellationToken),Added.Tree,Added.Compilation);
+    }
+
+    /// <summary>
     /// Applies one verified source gesture to the live C# buffer as one native VS Undo unit.
     /// <see cref="SceneWorkspaceEditContext.Text"/> is the optimistic-concurrency precondition.
     /// </summary>
@@ -619,7 +663,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
             if(!this.Workspace.CanOpenDocuments){
                 return new SceneLiveBufferWriteResult(false,VsixText.Get("WorkspaceLiveDocumentOpenUnavailable"));
             }
-            this.Workspace.OpenDocument(Context.DocumentId,activate:false);
+            this.OpenWithoutActivating(Context.DocumentId);
         }
         if(!this.TryGetLiveBuffer(
                                   Context.FilePath,out ITextBuffer?Buffer,
@@ -684,7 +728,20 @@ internal sealed class SceneWorkspaceService : IDisposable {
             return;
         }
 
-        this.Workspace.OpenDocument(DocumentId,activate:false);
+        this.OpenWithoutActivating(DocumentId);
+    }
+
+    /// <summary>A C# document or, for a JSON scene (ADR-0070), an additional document.</summary>
+    private static TextDocument?GetTextDocument(Solution Solution,DocumentId Id)=>
+        (TextDocument?)Solution.GetDocument(Id)??Solution.GetAdditionalDocument(Id);
+
+    /// <summary>A JSON scene is an additional document, which Roslyn opens through its own entry point.</summary>
+    private void OpenWithoutActivating(DocumentId DocumentId){
+        if(this.Workspace.CurrentSolution.GetAdditionalDocument(DocumentId)is not null){
+            this.Workspace.OpenAdditionalDocument(DocumentId,activate:false);
+        } else {
+            this.Workspace.OpenDocument(DocumentId,activate:false);
+        }
     }
 
     /// <summary>
@@ -852,6 +909,10 @@ internal sealed class SceneWorkspaceService : IDisposable {
             case WorkspaceChangeKind.DocumentAdded:
             case WorkspaceChangeKind.DocumentRemoved:
             case WorkspaceChangeKind.DocumentReloaded:
+            case WorkspaceChangeKind.AdditionalDocumentChanged:
+            case WorkspaceChangeKind.AdditionalDocumentAdded:
+            case WorkspaceChangeKind.AdditionalDocumentRemoved:
+            case WorkspaceChangeKind.AdditionalDocumentReloaded:
             case WorkspaceChangeKind.ProjectChanged:
             case WorkspaceChangeKind.ProjectReloaded:
             case WorkspaceChangeKind.SolutionReloaded:
@@ -978,6 +1039,10 @@ internal sealed class SceneWorkspaceService : IDisposable {
             return new([],new SceneDocumentMenuSnapshot(SceneDesignerTargetState.Unavailable,[],[]));
         }
 
+        if(this.Workspace.CurrentSolution.GetAdditionalDocument(DocumentId)is { }JsonScene){
+            return await AnalyzeJsonSceneAsync(JsonScene,CancellationToken).ConfigureAwait(false);
+        }
+
         Document?Document=this.Workspace.CurrentSolution.GetDocument(DocumentId);
         if(Document is null){
             throw new InvalidOperationException(VsixText.Format("WorkspaceDocumentMissing",DocumentId.ToString()));
@@ -1017,6 +1082,31 @@ internal sealed class SceneWorkspaceService : IDisposable {
         return new(
             Models,
             new SceneDocumentMenuSnapshot(SceneDesignerTargetState.SceneType,TypeRanges,Items));
+    }
+
+    /// <summary>
+    /// ADR-0070: a <c>*.scene.json</c> document declares at most one scene, which spans the whole file
+    /// for the code-window menu. Any other additional document declares none.
+    /// </summary>
+    private static async Task<SceneDocumentAnalysisResult>AnalyzeJsonSceneAsync(
+        TextDocument JsonScene,CancellationToken CancellationToken){
+        SourceText Text=await JsonScene.GetTextAsync(CancellationToken).ConfigureAwait(false);
+        Compilation?Compilation=SceneJsonCommitPlanner.IsJsonScene(JsonScene.FilePath)
+            ?await JsonScene.Project.GetCompilationAsync(CancellationToken).ConfigureAwait(false)
+            :null;
+        if(Compilation is null
+            ||SceneJsonWorkspaceSource.TryReadClassFullyQualifiedName(Text.ToString())is not { }ClassName
+            ||await ResolveJsonSceneAsync(JsonScene.Project,Compilation,JsonScene,ClassName,CancellationToken).ConfigureAwait(false)
+                is not { }Resolved){
+            return new([],new SceneDocumentMenuSnapshot(
+                SceneDesignerTargetState.SceneType,[new SceneDocumentTypeRange(0,Text.Length,false,null)],[]));
+        }
+        return new(
+            [Resolved.Model],
+            new SceneDocumentMenuSnapshot(
+                SceneDesignerTargetState.SceneType,
+                [new SceneDocumentTypeRange(0,Text.Length,true,Resolved.Model.ClassFullyQualifiedName)],
+                [new SceneDesignerMenuItem(Resolved.Model.ClassName,Resolved.Model.ClassFullyQualifiedName)]));
     }
     public void Dispose(){
         lock(this.Gate){
