@@ -38,7 +38,7 @@ public struct AppHost {
 /// </summary>
 [SceneComponentIcon("Assets/Editor/ComponentIcons/Level.svg")]
 public struct Level {
-    /// <summary>シェーダーのパス。アプリのベースディレクトリ(<c>AppContext.BaseDirectory</c>)からの相対。</summary>
+    /// <summary>シェーダーのパス。ゲームのディレクトリ(<see cref="ContentRoot"/>)からの相対。</summary>
     public string ShaderArtifactPath;
 }
 

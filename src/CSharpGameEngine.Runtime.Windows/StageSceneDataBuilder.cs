@@ -58,7 +58,7 @@ internal sealed class StageSceneDataBuilder {
         Dictionary<string,AssetTemplate>Templates=new(StringComparer.OrdinalIgnoreCase);
 
         foreach(var Placement in StaticMeshes){
-            var FullPath=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,Placement.Mesh.AssetPath));
+            var FullPath=ContentRoot.Resolve(Placement.Mesh.AssetPath);
             if(!Templates.TryGetValue(FullPath,out AssetTemplate?Template)){
                 Template=LoadAsset(FullPath,Meshes,Materials);
                 Templates.Add(FullPath,Template);

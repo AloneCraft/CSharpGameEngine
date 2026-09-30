@@ -3,14 +3,14 @@ namespace CSharpGameEngine.Runtime.Animation;
 /// <summary>
 /// Imports each skeletal glTF and clip once per process (ADR-0066). The renderer roster and the
 /// animation systems read the same imported skin, so joint order and palette size always agree.
-/// Paths are resolved against <see cref="AppContext.BaseDirectory"/>, as for StaticMesh.
+/// Paths are resolved against <see cref="CSharpGameEngine.Entities.ContentRoot"/>, as for StaticMesh.
 /// </summary>
 public static class SkeletalAssetCache {
     private static readonly Lock Gate=new();
     private static readonly Dictionary<string,ImportedScene>Scenes=new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string,Skeleton>Skeletons=new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<(string Path,Skeleton Skeleton),AnimationClip>Clips=[];
-    public static string ResolvePath(string AssetPath)=>Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,AssetPath));
+    public static string ResolvePath(string AssetPath)=>CSharpGameEngine.Entities.ContentRoot.Resolve(AssetPath);
     /// <summary>The imported scene of a skeletal mesh asset; it must contain exactly one skin.</summary>
     public static ImportedScene Scene(string AssetPath){
         var FullPath=ResolvePath(AssetPath);

@@ -10,7 +10,13 @@ namespace CSharpGameEngine.EditorPreview.Host;
 /// </summary>
 public static class RenderPreviewHostServer {
     public static Task RunAsync(string PipeName,CancellationToken CancellationToken=default)=>
-        RunAsync(PipeName,Request=>RenderPreviewRenderSession.Open(Request),CancellationToken);
+        RunAsync(PipeName,Open,CancellationToken);
+
+    /// <summary>A runtime view (ADR-0070 B1) when the Open request asks for one, otherwise the scene preview.</summary>
+    public static IRenderPreviewSession Open(RenderPreviewHostRequest Request)=>
+        Request.RuntimeView is null
+            ?RenderPreviewRenderSession.Open(Request)
+            :RenderPreviewRuntimeSession.Open(Request);
 
     public static async Task RunAsync(
         string PipeName,Func<RenderPreviewHostRequest,IRenderPreviewSession>Factory,

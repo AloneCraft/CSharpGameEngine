@@ -18,9 +18,9 @@ public sealed class EditorRuntimeViewBridgeTests {
         using var Surface=new Win32Window(new Win32WindowOptions {
             Title="CSharpGameEngine Editor Runtime View Bridge Test",Width=160,Height=120,Visible=false,
         });
-        Assert.False(PreviewBridge.InitializeRuntimeView("UserEcsProject.Scenes.NoSuchScene",Surface.Handle,160,120,UseWarp:true));
+        Assert.False(PreviewBridge.InitializeRuntimeView("UserEcsProject.Scenes.NoSuchScene",AppContext.BaseDirectory,Surface.Handle,160,120,UseWarp:true));
         try {
-            Assert.True(PreviewBridge.InitializeRuntimeView(EditedScene,Surface.Handle,160,120,UseWarp:true));
+            Assert.True(PreviewBridge.InitializeRuntimeView(EditedScene,AppContext.BaseDirectory,Surface.Handle,160,120,UseWarp:true));
 
             Assert.True(PreviewBridge.RenderRuntimeView(3f,0.5f,-4f,0f,0f,0f,1f,MathF.PI/4f,0.1f,300f));
             var Front=PreviewBridge.CaptureRuntimeView();

@@ -219,10 +219,10 @@ internal struct LevelLoad:ISystem {
         var Renderer=Host.ExternalSurface is { }Surface
             ?RenderServer.Create(
                                   Surface.Handle,Surface.Width,Surface.Height,Surface.DeviceOptions,
-                                  Path.Combine(AppContext.BaseDirectory,Level.ShaderArtifactPath),Scene.Meshes,Scene.Materials,Scene.Objects)
+                                  ContentRoot.Resolve(Level.ShaderArtifactPath),Scene.Meshes,Scene.Materials,Scene.Objects)
             :RenderServer.Create(
                                   Window!.Handle,Window.ClientWidth,Window.ClientHeight,GraphicsDeviceOptionsResolver.FromEnvironment(),
-                                  Path.Combine(AppContext.BaseDirectory,Level.ShaderArtifactPath),Scene.Meshes,Scene.Materials,Scene.Objects);
+                                  ContentRoot.Resolve(Level.ShaderArtifactPath),Scene.Meshes,Scene.Materials,Scene.Objects);
         Host.OwnRenderer(Renderer);
         if(Window is not null){
             Window.Resized+=(Width,Height)=>Renderer.Resize(Width,Height);

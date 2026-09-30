@@ -131,8 +131,10 @@ internal static class GeneratedEditorPreviewBridgeEmitter {
         Lines.Add($"    private static {Host}? ViewHost;");
         Lines.Add("    private static global::CSharpGameEngine.Entities.State ViewState;");
         Lines.Add("    private static GeneratedSystemSet ViewSystems;");
-        Lines.Add("    internal static bool InitializeRuntimeView(string? SceneName, nint Surface, int Width, int Height, bool UseWarp) {");
+        Lines.Add("    /// <summary><paramref name=\"ContentDirectory\"/> is the game build's directory, which its content paths are relative to.</summary>");
+        Lines.Add("    internal static bool InitializeRuntimeView(string? SceneName, string ContentDirectory, nint Surface, int Width, int Height, bool UseWarp) {");
         Lines.Add("        ShutdownRuntimeView();");
+        Lines.Add("        global::CSharpGameEngine.Entities.ContentRoot.Use(ContentDirectory);");
         Lines.Add($"        var Host = new {Host}();");
         Lines.Add("        try {");
         Lines.Add("            Host.UseExternalSurface(Surface, Width, Height, new global::CSharpGameEngine.Graphics.D3D12.GraphicsDeviceOptions { UseWarp = UseWarp });");

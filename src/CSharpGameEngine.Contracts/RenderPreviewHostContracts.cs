@@ -6,7 +6,7 @@ namespace CSharpGameEngine.Contracts;
 /// native graphics objects and engine-owned authoritative state never do.
 /// </summary>
 public static class RenderPreviewHostProtocol {
-    public const int CurrentVersion=5;
+    public const int CurrentVersion=6;
     public const int CurrentDebugSnapshotVersion=2;
     public const int MaximumDimension=16_384;
     public const int MaximumMeshCount=4_096;
@@ -33,6 +33,9 @@ public static class RenderPreviewHostProtocol {
         if(Request.Sequence==0){ return "Sequence must be greater than zero."; }
         if(!Enum.IsDefined(typeof(RenderPreviewHostCommand),Request.Command)){
             return "Render preview host command is unknown.";
+        }
+        if(Request.RuntimeView is not null&&Request.Command!=RenderPreviewHostCommand.Open){
+            return "Only Open may request a runtime view.";
         }
 
         return Request.Command switch {
@@ -314,6 +317,13 @@ public static class RenderPreviewHostProtocol {
         }
         if(string.IsNullOrWhiteSpace(Request.ShaderArtifactPath)){ return "Open requires a shader artifact path."; }
         if(Request.Scene is null){ return "Open requires a scene."; }
+        if(Request.RuntimeView is { }RuntimeView){
+            if(string.IsNullOrWhiteSpace(RuntimeView.AssemblyPath)
+                ||!RuntimeView.AssemblyPath.EndsWith(".dll",StringComparison.OrdinalIgnoreCase)){
+                return "A runtime view requires the game assembly path.";
+            }
+            if(string.IsNullOrWhiteSpace(RuntimeView.SceneName)){ return "A runtime view requires the scene name."; }
+        }
         return ValidateScene(Request.Scene);
     }
 
@@ -546,6 +556,16 @@ public static class RenderPreviewHostProtocol {
         foreach(float Value in Camera.Position){
             if(!IsFinite(Value)){ return $"{Name} position must be finite."; }
         }
+        if(Camera.Rotation is null||Camera.Rotation.Length!=4){
+            return $"{Name} rotation must contain four values.";
+        }
+        foreach(float Value in Camera.Rotation){
+            if(!IsFinite(Value)){ return $"{Name} rotation must be finite."; }
+        }
+        if(!IsFinite(Camera.FovYRadians)||!IsFinite(Camera.NearZ)||!IsFinite(Camera.FarZ)
+            ||Camera.FovYRadians<0f||Camera.NearZ<0f||Camera.FarZ<Camera.NearZ){
+            return $"{Name} projection must be finite, non-negative and ordered.";
+        }
         return null;
     }
 
@@ -614,6 +634,20 @@ public sealed class RenderPreviewHostRequest {
     public bool CaptureForVerification { get;set; }
     public RenderPreviewScene?Scene { get;set; }
     public RenderPreviewFrame?Frame { get;set; }
+    /// <summary>
+    /// ADR-0070 B1: on Open, render the built game's own world with its runtime (the game's startup
+    /// scenes plus <see cref="RenderPreviewRuntimeView.SceneName"/>) instead of <see cref="Scene"/>.
+    /// </summary>
+    public RenderPreviewRuntimeView?RuntimeView { get;set; }
+}
+
+public sealed class RenderPreviewRuntimeView {
+    /// <summary>The built game assembly, usually a copy so that the build output stays writable.</summary>
+    public string AssemblyPath { get;set; }=string.Empty;
+    /// <summary>The game build's directory, which its content paths are relative to; empty means the assembly's.</summary>
+    public string ContentDirectory { get;set; }=string.Empty;
+    public string SceneName { get;set; }=string.Empty;
+    public bool UseWarp { get;set; }
 }
 
 public sealed class RenderPreviewHostResponse {
@@ -865,6 +899,11 @@ public sealed class RenderPreviewObjectTransform {
 public sealed class RenderPreviewCamera {
     public RenderPreviewMatrix4x4 ViewProjection { get;set; }=RenderPreviewMatrix4x4.Identity;
     public float[]Position { get;set; }=[0f,0f,0f];
+    /// <summary>The camera's world rotation as an RUF quaternion (R, U, F, W); a runtime view uses it with the projection below.</summary>
+    public float[]Rotation { get;set; }=[0f,0f,0f,1f];
+    public float FovYRadians { get;set; }
+    public float NearZ { get;set; }
+    public float FarZ { get;set; }
 }
 
 public sealed class RenderPreviewMesh {

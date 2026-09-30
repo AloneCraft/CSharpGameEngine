@@ -40,7 +40,7 @@ internal sealed class StaticMeshCollisionCooker {
         return true;
     }
     private bool TryEnsureByPlacement(PhysicsShapeCatalog Shapes,string AssetPath,in LogicalAffineTransform World,out string Id,out string Error){
-        var FullPath=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,AssetPath));
+        var FullPath=CSharpGameEngine.Entities.ContentRoot.Resolve(AssetPath);
         var Placement=FullPath+"|"+World;
         Error=string.Empty;
         if(this.ShapeIdByPlacement.TryGetValue(Placement,out Id!)){
