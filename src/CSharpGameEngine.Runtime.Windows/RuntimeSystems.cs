@@ -75,6 +75,10 @@ internal struct Window:ISystem {
         else if(!this.HostEntity.Equals(Entity)){
             throw new InvalidOperationException("Runtime requires exactly one AppHost.");
         }
+        if(Host.ExternalSurface is not null){
+            // ADR-0070 B1: the editor owns the surface and its input.
+            return true;
+        }
         if(Host.Window is null){
             Host.EnsureWindow(App);
             return true;
@@ -162,14 +166,19 @@ internal struct LevelLoad:ISystem {
             throw new InvalidOperationException("Runtime requires exactly one Level.");
         }
         if(LevelRuntime.Loaded){
-            FixedTransformResolveStatus CameraResolveStatus=RuntimeWorldTransform.TryResolveWorld(
-                this.PendingCameraEntity,State.World,out FixedAffineTransform CameraWorld,out var CameraFrame);
+            FixedTransformResolveStatus CameraResolveStatus=ResolveCamera(
+                Host,this.PendingCameraEntity,State.World,out FixedAffineTransform CameraWorld,out var CameraFrame);
             LevelRuntime.LastCameraWorldResolveStatus=CameraResolveStatus;
             if(CameraResolveStatus==FixedTransformResolveStatus.Success){
                 RenderCamera ActiveRenderCamera=Host.RenderCamera;
                 FixedTransformStatus CameraStatus=CameraTransform.TryApplyWorldOrientation(
                     CameraWorld,ref ActiveRenderCamera,out _);
                 LevelRuntime.LastCameraTransformStatus=CameraStatus;
+                if(Host.EditorCamera is { }Editor){
+                    ActiveRenderCamera.FovYRadians=Editor.FovYRadians;
+                    ActiveRenderCamera.NearZ=Editor.NearZ;
+                    ActiveRenderCamera.FarZ=Editor.FarZ;
+                }
                 if(CameraStatus==FixedTransformStatus.Success){
                     // Presentation runs system-major. Refresh before later Renderable/light
                     // archetype executes so every GPU submission in this frame uses one camera origin.
@@ -184,7 +193,8 @@ internal struct LevelLoad:ISystem {
             Host.Renderer?.SetCamera(Host.RenderCamera);
             return true;
         }
-        if(Host.Window is not{ }Window){
+        Win32Window?Window=Host.Window;
+        if(Host.ExternalSurface is null&&Window is null){
             // Windowが未生成のフレームで集めたロースターは次フレームと二重集計されるため破棄する。
             this.PendingStaticMeshes=null;
             this.PendingPrimitives=null;
@@ -195,7 +205,7 @@ internal struct LevelLoad:ISystem {
             return true;
         }
         this.RosterCaptured=true;
-        if(this.ActiveCameraCount==0){
+        if(this.ActiveCameraCount==0&&Host.EditorCamera is null){
             throw new InvalidOperationException("Runtime requires exactly one active Camera, but none was found.");
         }
         if(this.ActiveCameraCount>1){
@@ -206,15 +216,21 @@ internal struct LevelLoad:ISystem {
             this.PendingStaticMeshes??=[],
             this.PendingPrimitives??=[],
             this.PendingSkeletalMeshes??=[]);
-        var Renderer=RenderServer.Create(
-                                          Window.Handle,Window.ClientWidth,Window.ClientHeight,GraphicsDeviceOptionsResolver.FromEnvironment(),
-                                          Path.Combine(AppContext.BaseDirectory,Level.ShaderArtifactPath),Scene.Meshes,Scene.Materials,Scene.Objects);
+        var Renderer=Host.ExternalSurface is { }Surface
+            ?RenderServer.Create(
+                                  Surface.Handle,Surface.Width,Surface.Height,Surface.DeviceOptions,
+                                  Path.Combine(AppContext.BaseDirectory,Level.ShaderArtifactPath),Scene.Meshes,Scene.Materials,Scene.Objects)
+            :RenderServer.Create(
+                                  Window!.Handle,Window.ClientWidth,Window.ClientHeight,GraphicsDeviceOptionsResolver.FromEnvironment(),
+                                  Path.Combine(AppContext.BaseDirectory,Level.ShaderArtifactPath),Scene.Meshes,Scene.Materials,Scene.Objects);
         Host.OwnRenderer(Renderer);
-        Window.Resized+=(Width,Height)=>Renderer.Resize(Width,Height);
+        if(Window is not null){
+            Window.Resized+=(Width,Height)=>Renderer.Resize(Width,Height);
+        }
 
         var Camera=RenderCamera.CreateFirstPerson(Vector3.Zero);
-        FixedTransformResolveStatus InitialCameraResolveStatus=RuntimeWorldTransform.TryResolveWorld(
-            this.PendingCameraEntity,State.World,out FixedAffineTransform InitialCameraWorld,out var InitialCameraFrame);
+        FixedTransformResolveStatus InitialCameraResolveStatus=ResolveCamera(
+            Host,this.PendingCameraEntity,State.World,out FixedAffineTransform InitialCameraWorld,out var InitialCameraFrame);
         LevelRuntime.LastCameraWorldResolveStatus=InitialCameraResolveStatus;
         if(InitialCameraResolveStatus!=FixedTransformResolveStatus.Success){
             throw new InvalidOperationException(
@@ -229,10 +245,17 @@ internal struct LevelLoad:ISystem {
                 $"The active camera Transform basis cannot produce a renderer view: {InitialCameraStatus}.");
         }
 
-        Camera.FovYRadians= this.PendingCamera.FovYRadians;
-        Camera.NearZ= this.PendingCamera.NearZ;
-        Camera.FarZ= this.PendingCamera.FarZ;
-        Camera.ExposureEv100=this.PendingCamera.ExposureEv100;
+        if(Host.EditorCamera is { }EditorCamera){
+            Camera.FovYRadians=EditorCamera.FovYRadians;
+            Camera.NearZ=EditorCamera.NearZ;
+            Camera.FarZ=EditorCamera.FarZ;
+        } else {
+            Camera.FovYRadians= this.PendingCamera.FovYRadians;
+            Camera.NearZ= this.PendingCamera.NearZ;
+            Camera.FarZ= this.PendingCamera.FarZ;
+        }
+        // Exposure is the scene's in the editor too: the view must look like the game.
+        Camera.ExposureEv100=this.ActiveCameraCount>0?this.PendingCamera.ExposureEv100:new Camera().ExposureEv100;
         Host.AttachRenderer(Renderer,Camera,InitialCameraWorld,InitialCameraFrame);
         LevelRuntime.HasLastCameraWorldPose=true;
         LevelRuntime.Loaded=true;
@@ -303,6 +326,23 @@ internal struct LevelLoad:ISystem {
         this.PendingPrimitives=null;
         this.PendingSkeletalMeshes=null;
         return true;
+    }
+
+    /// <summary>
+    /// The camera the frame is seen from: the editor camera when the Scene Designer supplies one
+    /// (ADR-0070 B1), otherwise the scene's active camera.
+    /// </summary>
+    private static FixedTransformResolveStatus ResolveCamera(
+        EngineHost Host,Entity SceneCamera,EcsWorld World,out FixedAffineTransform CameraWorld,out CSharpGameEngine.Contracts.ReferenceFrameId Frame){
+        if(Host.EditorCamera is not { }Editor){
+            return RuntimeWorldTransform.TryResolveWorld(SceneCamera,World,out CameraWorld,out Frame);
+        }
+        Frame=CSharpGameEngine.Contracts.ReferenceFrameId.Root;
+        return FixedAffineTransform.TryFromTransform(Editor.Pose,out CameraWorld) switch {
+            FixedTransformStatus.Success=>FixedTransformResolveStatus.Success,
+            FixedTransformStatus.NumericOverflow=>FixedTransformResolveStatus.NumericOverflow,
+            _=>FixedTransformResolveStatus.NonInvertible,
+        };
     }
 }
 

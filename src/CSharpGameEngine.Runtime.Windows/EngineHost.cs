@@ -14,6 +14,18 @@ using EcsWorld=CSharpGameEngine.Entities.World;
 
 namespace CSharpGameEngine.Runtime.Windows;
 
+/// <summary>
+/// ADR-0070 B1: a window the host renders into instead of creating its own, such as the Scene
+/// Designer's view in another process. The host never pumps or destroys it.
+/// </summary>
+internal readonly record struct ExternalRenderSurface(nint Handle,int Width,int Height,GraphicsDeviceOptions DeviceOptions);
+
+/// <summary>
+/// ADR-0070 B1: the Scene Designer's camera. It replaces the scene's active camera where the runtime
+/// applies it, so the view goes through the same camera-relative path as the game's camera.
+/// </summary>
+public readonly record struct EditorCameraPose(Transform Pose,float FovYRadians,float NearZ,float FarZ);
+
 public readonly record struct AudioSourceSnapshot(
     Entity Entity,Vector3 ListenerRelativePosition,float Volume,
     AudioSpatialMix SpatialMix,bool Loop){
@@ -38,6 +50,8 @@ public sealed class EngineHost:IDisposable {
     private readonly Dictionary<Entity,int[]>SkinnedMeshIndices=[];
 
     internal Win32Window?Window { get;private set; }
+    internal ExternalRenderSurface?ExternalSurface { get;private set; }
+    internal EditorCameraPose?EditorCamera { get;private set; }
     internal RenderServer?Renderer { get;private set; }
     internal InputServer Input { get;private set; }=new(new InputActionMap([]));
     internal RenderCamera RenderCamera { get;set; }
@@ -116,6 +130,36 @@ public sealed class EngineHost:IDisposable {
         this.Input=Input??throw new ArgumentNullException(nameof(Input));
     }
 
+    /// <summary>
+    /// Renders into <paramref name="Handle"/> instead of a window of the host's own. Call before the
+    /// first frame; the level then loads into this surface and input is not read.
+    /// </summary>
+    public void UseExternalSurface(nint Handle,int Width,int Height,GraphicsDeviceOptions DeviceOptions){
+        ObjectDisposedException.ThrowIf(this.Disposed,this);
+        ArgumentNullException.ThrowIfNull(DeviceOptions);
+        if(Handle==0){ throw new ArgumentException("The surface handle is null.",nameof(Handle)); }
+        if(this.Window is not null||this.Renderer is not null){
+            throw new InvalidOperationException("The external surface must be set before the level loads.");
+        }
+        this.ExternalSurface=new ExternalRenderSurface(Handle,Width,Height,DeviceOptions);
+    }
+
+    public void ResizeExternalSurface(int Width,int Height){
+        ObjectDisposedException.ThrowIf(this.Disposed,this);
+        if(this.ExternalSurface is not { }Surface){
+            throw new InvalidOperationException("The host does not render into an external surface.");
+        }
+        this.ExternalSurface=Surface with { Width=Width,Height=Height };
+        this.Renderer?.Resize(Width,Height);
+    }
+
+    public void SetEditorCamera(in EditorCameraPose Camera){
+        ObjectDisposedException.ThrowIf(this.Disposed,this);
+        this.EditorCamera=Camera;
+    }
+
+    public void ClearEditorCamera()=>this.EditorCamera=null;
+
     internal Win32Window EnsureWindow(in AppHost App){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
         return this.Window??=new Win32Window(new Win32WindowOptions {
@@ -174,7 +218,7 @@ public sealed class EngineHost:IDisposable {
     /// <summary>1フレームを表示する。自動検証が規定フレーム数に達したらfalseを返し、ループ終了を要求する。</summary>
     internal bool Present(){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
-        if(this.Window is { IsMinimized:false }&&this.Renderer is { } Renderer){
+        if((this.ExternalSurface is not null||this.Window is { IsMinimized:false })&&this.Renderer is { } Renderer){
             this.SubmitEnvironment(Renderer);
             Renderer.RenderFrame(this.Automation?.CapturesNextFrame??false);
             this.Automation?.RecordPresented(Renderer,this.AutomationCameraPosition());
@@ -278,6 +322,8 @@ public sealed class EngineHost:IDisposable {
                     try { this.Window?.Dispose(); }
                     finally {
                         this.Window=null;
+                        this.ExternalSurface=null;
+                        this.EditorCamera=null;
                         this.HasCameraPose=false;
                         this.HasAudioListener=false;
                         this.AudioSourcesStorage.Clear();
