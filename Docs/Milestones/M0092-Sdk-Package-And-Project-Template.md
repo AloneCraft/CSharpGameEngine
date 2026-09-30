@@ -17,6 +17,7 @@ Changed features: F-L6-009 (new), F-L8-032 (new), F-L8-018 (bundling now also co
   - After that, the VSSDK's `GetVSTemplateItems` still collected only `<ProjectItem>` children, not the `<Project File>` of a childless `<Project>`.
   - Stale archives were also not rebuilt incrementally, which masked the change.
   - With a `ReadMe.md` item the archive and its manifests are complete.
+- **Wizard assembly.** The first manual run in the Experimental instance failed on "Create" with "this template tried to load component assembly 'CSharpGameEngine.VSExtension'". The vstemplates name their wizard by simple assembly name, and the package declared no `BindingPaths`, so Visual Studio could not resolve the assembly. The package now carries `[ProvideBindingPath]`, and `VsixManifestTests` checks the packaged pkgdef for the entry.
 - **Repository paths.** The first package game ran with the repository removed from its build inputs. The Stage checks this on every run: `obj/*.nuget.g.*`, `project.assets.json` and `*.deps.json` must not mention the repository root.
 ## Commands and results
 Commands executed from the repository root:

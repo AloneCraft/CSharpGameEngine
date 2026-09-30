@@ -129,4 +129,19 @@ public sealed class VsixManifestTests {
             "PreviewHost/",StringComparison.OrdinalIgnoreCase)
             &&Entry.EndsWith(".pdb",StringComparison.OrdinalIgnoreCase));
     }
+
+    [Fact]
+    public void BuiltVsix_PutsTheExtensionFolderOnTheTemplateWizardProbingPath(){
+        // The vstemplates name their IWizard by the simple assembly name, which Visual Studio
+        // resolves only through the package's BindingPaths; without it creating a project from
+        // the Third Person template fails with "tried to load component assembly".
+        var VsixPath=Path.Combine(AppContext.BaseDirectory,"TestAssets","CSharpGameEngine.VSExtension.vsix");
+        using var Archive=ZipFile.OpenRead(VsixPath);
+        var Entry=Archive.GetEntry("CSharpGameEngine.VSExtension.pkgdef");
+        Assert.NotNull(Entry);
+        using var Reader=new StreamReader(Entry!.Open());
+        var Pkgdef=Reader.ReadToEnd();
+        Assert.Contains(@"[$RootKey$\BindingPaths\{"+CSharpGameEngineViewerPackage.PackageGuidString,Pkgdef,StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"$PackageFolder$\"=\"\"",Pkgdef);
+    }
 }

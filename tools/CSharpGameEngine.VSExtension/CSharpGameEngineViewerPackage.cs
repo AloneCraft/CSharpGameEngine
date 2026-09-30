@@ -20,6 +20,8 @@ namespace CSharpGameEngine.VSExtension;
 [PackageRegistration(UseManagedResourcesOnly=true,AllowsBackgroundLoading=true)]
 [Guid(PackageGuidString)]
 [ProvideMenuResource("Menus.ctmenu",1)]
+// Template wizards are named by simple assembly name in the vstemplates; this probing path lets VS resolve them.
+[ProvideBindingPath]
 [ProvideToolWindow(typeof(HierarchyToolWindowPane),
     Style=VsDockStyle.Linked,Window=ToolWindowGuids80.SolutionExplorer,
     Orientation=ToolWindowOrientation.Left,DockedWidth=300)]
