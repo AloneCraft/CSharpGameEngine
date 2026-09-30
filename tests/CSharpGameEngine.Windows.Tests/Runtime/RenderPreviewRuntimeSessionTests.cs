@@ -85,6 +85,31 @@ public sealed class RenderPreviewRuntimeSessionTests {
         Assert.False(Session.BuildRequired);
     }
 
+    /// <summary>
+    /// The Scene view's wheel moves the designer camera between frames. The runtime image follows
+    /// it, and returning to the first pose restores the first image (observed 2026-10-01: after one
+    /// wheel step the view showed only sky and never came back).
+    /// </summary>
+    [WindowsOnlyFact]
+    public void CameraMovesBetweenFrames_AreFollowedAndReversible(){
+        using var Surface=CreateSurface();
+        var Open=CreateOpen(Surface,GameAssembly,EditedScene);
+        Open.SceneJson=File.ReadAllText(Path.Combine(RepositoryRoot(),"UserEcsProject","Scenes","PrimitiveShowcaseBoxScene.json"));
+        using var Session=RenderPreviewRuntimeSession.Open(Open);
+        string Frame(RenderPreviewCamera Camera){
+            Session.UpdateFrame(new RenderPreviewFrame { Camera=Camera });
+            Session.Render(CaptureForVerification:false);
+            Session.Render(CaptureForVerification:true);
+            return Session.LastFrameHash;
+        }
+        var Far=Frame(Camera(3f,0.5f,-4f));
+        var Near=Frame(Camera(3f,0.5f,-2.5f));
+        var FarAgain=Frame(Camera(3f,0.5f,-4f));
+
+        Assert.NotEqual(Far,Near);
+        Assert.Equal(Far,FarAgain);
+    }
+
     [WindowsOnlyFact]
     public void SelectionAndGizmos_AreDrawnOverTheRuntimeImage(){
         using var Surface=CreateSurface();

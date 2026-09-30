@@ -365,6 +365,12 @@ internal struct SkinnedMeshSync:ISystem {
 [SystemPhase(SystemPhase.Presentation)]
 internal struct CameraOriginSync:ISystem {
     public bool Update(Entity Entity,ref Transform Transform,ref Camera Camera,EngineHost Host,ref State State){
+        // ADR-0070 B1: the Scene Designer's camera replaces the scene camera. LevelLoad already set
+        // its pose this frame; taking the scene camera's here would draw every object relative to a
+        // camera the view is not seen from (the view then ignored the designer's wheel and orbit).
+        if(Host.EditorCamera is not null){
+            return true;
+        }
         if(Camera.Active
             &&RuntimeWorldTransform.TryResolveWorld(Entity,State.World,out FixedAffineTransform CameraWorld,out var CameraFrame)
                 ==FixedTransformResolveStatus.Success
