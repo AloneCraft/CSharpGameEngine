@@ -36,12 +36,13 @@ internal static class ThirdPersonGameplayEmitter {
         var Pivot=Character.SpringArm.RelativeLocationCm;
         var Builder=new StringBuilder();
         Builder.AppendLine("using CSharpGameEngine.Entities;");
+        Builder.AppendLine("using CSharpGameEngine.Runtime.Animation;");
         Builder.AppendLine("using CSharpGameEngine.Runtime.Character;");
         Builder.AppendLine("using CSharpGameEngine.Runtime.Windows;");
         Builder.AppendLine("namespace "+ThirdPersonTemplateImporter.Namespace+";");
         Builder.AppendLine("/// <summary>");
         Builder.AppendLine("/// UEの"+Character.Blueprint+"の移植。PlayerStartの位置に置く。値はBlueprintのCDO実値をmへ換算したもの。");
-        Builder.AppendLine("/// 見た目はスケルタルメッシュ対応(ADR-0066)までの仮のカプセル。カメラの水平FOV "+Character.Camera.FieldOfViewDegrees.ToString(System.Globalization.CultureInfo.InvariantCulture)+"°は16:9での垂直FOVへ換算している。");
+        Builder.AppendLine("/// 見た目はQuinnとABP_Unarmed相当のロコモーション(ADR-0066)。カメラの水平FOV "+Character.Camera.FieldOfViewDegrees.ToString(System.Globalization.CultureInfo.InvariantCulture)+"°は16:9での垂直FOVへ換算している。");
         Builder.AppendLine("/// </summary>");
         Builder.AppendLine("[StartupScene(Order=2)]");
         Builder.AppendLine("internal partial class ThirdPersonCharacter:IScene {");
@@ -65,19 +66,24 @@ internal static class ThirdPersonGameplayEmitter {
         Builder.Append("            new PlayerController { ControlYawDegrees=").Append(F(FacingYawRadians(Player)*180f/MathF.PI)).AppendLine(" },");
         Builder.AppendLine("        ],");
         Builder.AppendLine("        Children=[");
+        var Mesh=Character.Mesh;
+        if(Mesh.RelativeRotation.Pitch!=0f||Mesh.RelativeRotation.Roll!=0f){
+            throw new NotSupportedException("The character mesh may only be yawed relative to the capsule.");
+        }
         Builder.AppendLine("            new Node {");
-        Builder.AppendLine("                Name=\"CapsuleVisual\",");
+        Builder.AppendLine("                Name=\"Mesh\",");
         Builder.AppendLine("                Components=[");
-        // The unit capsule primitive has radius 0.5 and total height 2.
-        Builder.Append("                    new Transform { Scale=new LogicalVector3(").Append(F(Character.CapsuleRadiusCm/50f)).Append(',').Append(F(Character.CapsuleHalfHeightCm/100f)).Append(',').Append(F(Character.CapsuleRadiusCm/50f)).AppendLine(") },");
-        Builder.AppendLine("                    new PrimitiveMesh { Type=PrimitiveType.Capsule },");
-        Builder.AppendLine("                ],");
-        Builder.AppendLine("            },");
-        Builder.AppendLine("            new Node {");
-        Builder.AppendLine("                Name=\"FacingIndicator\",");
-        Builder.AppendLine("                Components=[");
-        Builder.Append("                    new Transform { Position=new LogicalVector3(0f,").Append(F(Character.CapsuleHalfHeightCm/200f)).Append(',').Append(F(Character.CapsuleRadiusCm/100f)).AppendLine("),Scale=new LogicalVector3(0.1f,0.1f,0.3f) },");
-        Builder.AppendLine("                    new PrimitiveMesh { Type=PrimitiveType.Box },");
+        // Unreal's actor frame (X forward, Y right, Z up) is the character's (+F, +R, +U) frame, and the
+        // character faces +F where the Unreal actor faces +X: a relative Unreal yaw ψ is an engine yaw ψ - 90°.
+        Builder.Append("                    new Transform { Position=new LogicalVector3(").Append(F(Mesh.RelativeLocationCm[1]/100f)).Append(',').Append(F(Mesh.RelativeLocationCm[2]/100f)).Append(',').Append(F(Mesh.RelativeLocationCm[0]/100f))
+            .Append("),Rotation=new LogicalQuaternion(new LogicalVector3(0f,").Append(F(MeshYawRadians(Mesh.RelativeRotation.Yaw))).AppendLine(",0f)) },");
+        Builder.Append("                    new SkeletalMesh { AssetPath=ThirdPersonAssets.").Append(AssetMemberName(Mesh.AssetPath)).AppendLine(" },");
+        var (WalkSpeed,JogSpeed)=ForwardSampleSpeeds(Character);
+        Builder.AppendLine("                    new LocomotionAnimator {");
+        Builder.Append("                        IdleClip=ThirdPersonAssets.").Append(ClipMember(Character,"Idle")).Append(",WalkClip=ThirdPersonAssets.").Append(ClipMember(Character,"WalkForward")).Append(",JogClip=ThirdPersonAssets.").Append(ClipMember(Character,"JogForward")).AppendLine(",");
+        Builder.Append("                        JumpClip=ThirdPersonAssets.").Append(ClipMember(Character,"Jump")).Append(",FallClip=ThirdPersonAssets.").Append(ClipMember(Character,"FallLoop")).Append(",LandClip=ThirdPersonAssets.").Append(ClipMember(Character,"Land")).AppendLine(",");
+        Builder.Append("                        WalkSpeed=").Append(F(WalkSpeed)).Append(",JogSpeed=").Append(F(JogSpeed)).AppendLine(",");
+        Builder.AppendLine("                    },");
         Builder.AppendLine("                ],");
         Builder.AppendLine("            },");
         Builder.AppendLine("            new Node {");
@@ -194,6 +200,27 @@ internal static class ThirdPersonGameplayEmitter {
     }
     /// <summary>LogicalScalar fields take float literals through the implicit conversion the Scene DSL allows.</summary>
     private static string L(float Value)=>F(Value);
+    /// <summary>Engine yaw of the mesh relative to the character for an Unreal relative yaw in degrees.</summary>
+    internal static float MeshYawRadians(float UnrealYawDegrees){
+        var Degrees=(UnrealYawDegrees-90f)%360f;
+        Degrees=Degrees>180f?Degrees-360f:Degrees<=-180f?Degrees+360f:Degrees;
+        return Degrees*MathF.PI/180f;
+    }
+    private static string ClipMember(ThirdPersonCharacterManifest Character,string Name)=>
+        AssetMemberName(Character.Animations.SingleOrDefault(Clip=>Clip.Name==Name)?.AssetPath??throw new InvalidOperationException($"The manifest has no '{Name}' animation."));
+    /// <summary>
+    /// Walk and jog speeds (m/s) of BS_Idle_Walk_Run's forward column (direction 0), the only column a
+    /// character that turns toward its movement uses.
+    /// </summary>
+    internal static (float Walk,float Jog)ForwardSampleSpeeds(ThirdPersonCharacterManifest Character){
+        float Speed(string Clip){
+            var Name=Path.GetFileNameWithoutExtension(Character.Animations.Single(Item=>Item.Name==Clip).AssetPath);
+            var Sample=Character.BlendSpace.Samples.SingleOrDefault(Item=>Item.X==0f&&Item.Animation.EndsWith("."+Name,StringComparison.Ordinal))
+                ??throw new InvalidOperationException($"BS_Idle_Walk_Run has no forward sample for {Name}.");
+            return Sample.Y/100f;
+        }
+        return (Speed("WalkForward"),Speed("JogForward"));
+    }
     /// <summary>
     /// Engine yaw (turning +F toward +R) that faces an Unreal actor's forward. The level convention
     /// maps Unreal (X, Y, Z) to engine (R, U, -F): Unreal's forward +X is engine +R, and an Unreal
@@ -208,9 +235,23 @@ internal sealed class ThirdPersonCharacterManifest {
     public float CapsuleHalfHeightCm { get; set; }
     public ThirdPersonMovementManifest Movement { get; set; }=new();
     public ThirdPersonMeshManifest Mesh { get; set; }=new();
+    public ThirdPersonBlendSpaceManifest BlendSpace { get; set; }=new();
     public ThirdPersonSpringArmManifest SpringArm { get; set; }=new();
     public ThirdPersonCameraManifest Camera { get; set; }=new();
     public List<ThirdPersonAnimationManifest>Animations { get; set; }=[];
+}
+internal sealed class ThirdPersonBlendSpaceManifest {
+    public List<ThirdPersonBlendSampleManifest>Samples { get; set; }=[];
+}
+internal sealed class ThirdPersonBlendSampleManifest {
+    public string Animation { get; set; }=string.Empty;
+    public float X { get; set; }
+    public float Y { get; set; }
+}
+internal sealed class ThirdPersonRotatorManifest {
+    public float Pitch { get; set; }
+    public float Yaw { get; set; }
+    public float Roll { get; set; }
 }
 internal sealed class ThirdPersonMovementManifest {
     public bool OrientRotationToMovement { get; set; }

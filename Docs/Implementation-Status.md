@@ -3562,7 +3562,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Stage: `rigid.character-controller` (`Executable`, Visual / Rigid, 1800s)
 - Depends on: F-L5-003, F-L4-010, F-L3-018
 - Implementation evidence: `src/CSharpGameEngine.Runtime.Character/{CharacterComponents,CharacterMotor,CharacterSystems,PlayerCamera,PlayerCameraComponents}.cs`, `src/CSharpGameEngine.Runtime.Physics/{StaticMeshCollision,PhysicsNarrowPhase}.cs`, `templates/CSharpGameEngine.Templates.ThirdPerson/{Scenes/ThirdPersonCharacter,Input/ThirdPersonInput,Gameplay/ThirdPersonControls}.cs`, `tools/CSharpGameEngine.FeatureRunner/ThirdPersonCharacterVerification.cs`
-- Current delta: Walking and falling only; there is no swimming, flying, crouching, moving-platform basing, root motion, or network prediction. Collision uses the rendered triangles of StaticMesh colliders, not Unreal's simple collision. The spring arm has no camera lag. The template character is a capsule until skeletal meshes land (ADR-0066).
+- Current delta: Walking and falling only; there is no swimming, flying, crouching, moving-platform basing, root motion, or network prediction. Collision uses the rendered triangles of StaticMesh colliders, not Unreal's simple collision. The spring arm has no camera lag. The template character is Unreal's Quinn, animated by F-L4-015 (ADR-0066).
 - Conformance: CharacterMotorTests, SpringArmTests, PhysicsCapsuleContactTests, StaticMeshCollisionTests, InputServerTests, Win32InputEventAdapterTests, Win32WindowMouseCaptureTests, RuntimeAutomationTests, and ThirdPersonCharacterVerificationTests. The ThirdPerson template runs on WARP with scripted W then Space; see [M0090](Milestones/M0090-ThirdPerson-Character-Movement.md).
 - Next action: drive the Quinn skeletal mesh and locomotion animation from `CharacterMovementState` (ADR-0066).
 
@@ -3717,6 +3717,28 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Current delta: volumetric clouds, reflection probes and texture mipmaps are not implemented; local lights do not contribute to GI; probes inside geometry are not relocated.
 - Conformance: AtmosphereGpuIntegrationTests, DirectionalShadowCascadesTests, DirectionalShadowGpuTests, GlobalIlluminationGpuIntegrationTests, GlobalIlluminationSettingsTests, AmbientOcclusionGpuIntegrationTests, AutoExposureGpuIntegrationTests and EnvironmentComponentTests on WARP; the ThirdPerson template capture is compared with Unreal in [M0089](Milestones/M0089-Physically-Based-Environment-Lighting.md).
 - Next action: texture mipmaps for baked Unreal atlases; volumetric clouds if they are brought into scope.
+
+## F-L4-015 — Skeletal meshes and animation
+
+- Layer: L4 — Domain Servers
+- Parent capability: Rendering Roadmap
+- Status: Implemented
+- Verification: TestVerified, RuntimeVerified (WARP)
+- Intended specification: `Docs/Specifications/Rendering.md#skeletal-meshes-and-animation`, `Docs/Decisions/ADR-0066-Skeletal-Meshes-And-Animation.md`
+- Stage: `rendering.skeletal-animation` (`Executable`, Visual / Rendering, 1800s)
+- Depends on: F-L4-007, F-L0-008
+- Implementation evidence:
+  - `src/CSharpGameEngine.Import/Gltf/{ImportedSkin,ImportedAnimationClip,GltfImporter}.cs`
+  - `src/CSharpGameEngine.Windows/Graphics/StageSkinning.cs` and `assets/Shaders/Skinning.hlsl`
+  - `src/CSharpGameEngine.Runtime.Animation/`
+  - `src/CSharpGameEngine.Runtime.Windows/StageSceneDataBuilder.cs`
+  - the ThirdPerson template's `Mesh` node
+- Current delta:
+  - Only linear blend skinning.
+  - No retargeting, root motion, additive layers, IK, montages, or skinned-bound culling.
+  - The locomotion graph is the fixed ABP_Unarmed shape, not a general animation graph.
+- Conformance: GltfSkinAnimationImportTests, AnimationRuntimeTests and SkinningGpuIntegrationTests. The template shows Quinn idling and walking; see [M0091](Milestones/M0091-Skeletal-Animation.md).
+- Next action: direction-aware blending for strafing controls, and a general animation graph if more templates need one.
 
 ## F-L0-009 — D3D12 device recovery
 

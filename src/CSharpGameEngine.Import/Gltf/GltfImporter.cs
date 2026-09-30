@@ -184,6 +184,8 @@ public static class GltfImporter {
         List<ImportedLight>Lights=[];
         var LightIndexByGltfLight=new Dictionary<PunctualLight,int>();
         List<ImportedSceneNode>Nodes=[];
+        List<ImportedSkin>Skins=[];
+        var SkinIndexByGltfSkin=new Dictionary<Skin,int>();
 
         foreach(Node Node in Flatten(Model.DefaultScene.VisualChildren)){
             Mesh?Mesh=Node.Mesh;
@@ -227,6 +229,16 @@ public static class GltfImporter {
                 MeshIndexByGltfMesh[Mesh]=PrimitiveMeshIndices;
             }
 
+            int?SkinIndex=null;
+            if(Node.Skin is{ }GltfSkin){
+                if(!SkinIndexByGltfSkin.TryGetValue(GltfSkin,out var ExistingSkinIndex)){
+                    ExistingSkinIndex=Skins.Count;
+                    Skins.Add(ImportSkin(GltfSkin,Diagnostics));
+                    SkinIndexByGltfSkin[GltfSkin]=ExistingSkinIndex;
+                }
+                SkinIndex=ExistingSkinIndex;
+            }
+
             foreach((var PrimitiveIndex,var MeshIndex)in PrimitiveMeshIndices){
                 MeshPrimitive Primitive=Mesh.Primitives[PrimitiveIndex];
                 Material?Material=Primitive.Material;
@@ -246,6 +258,7 @@ public static class GltfImporter {
                     MeshIndex=MeshIndex,
                     MaterialIndex=MaterialIndex,
                     LightIndex=LightIndex,
+                    SkinIndex=SkinIndex,
                 });
             }
         }
@@ -255,6 +268,7 @@ public static class GltfImporter {
             Meshes=Meshes,
             Materials=Materials,
             Lights=Lights,
+            Skins=Skins,
         };
 
         return GltfSceneImportResult.Succeeded(Scene,Diagnostics);
@@ -395,11 +409,13 @@ public static class GltfImporter {
             Diagnostics.Add(new GltfImportDiagnostic(GltfImportDiagnosticSeverity.Warning, $"'{Context}': primitive has no triangles; skipped."));
             return null;
         }
+        var RawInfluences=ReadInfluences(Primitive,RawPositions.Length,Diagnostics,Context);
 
         Vector3[]Positions;
         Vector3[]Normals;
         Vector2[]Uvs;
         uint[]Indices;
+        int[]SourceVertices;
 
         if(!UvsUsable){
             Diagnostics.Add(new GltfImportDiagnostic(GltfImportDiagnosticSeverity.Warning, $"'{Context}': TEXCOORD_0 attribute missing or inconsistent; synthesized (0,0) UV for every vertex."));
@@ -412,6 +428,7 @@ public static class GltfImporter {
             Normals=RawNormals!;
             Uvs=UvsUsable?RawUvs!:new Vector2[RawPositions.Length];
             Indices=new uint[Triangles.Count*3];
+            SourceVertices=[.. Enumerable.Range(0,RawPositions.Length)];
 
             for(var I=0;I<Triangles.Count;I++){
                 Indices[(I*3)+0]=(uint)Triangles[I].A;
@@ -425,9 +442,13 @@ public static class GltfImporter {
             Normals=new Vector3[Triangles.Count*3];
             Uvs=new Vector2[Triangles.Count*3];
             Indices=new uint[Triangles.Count*3];
+            SourceVertices=new int[Triangles.Count*3];
 
             for(var I=0;I<Triangles.Count;I++){
                 (var A,var B,var C)=Triangles[I];
+                SourceVertices[(I*3)+0]=A;
+                SourceVertices[(I*3)+1]=B;
+                SourceVertices[(I*3)+2]=C;
                 Vector3 Pa=RawPositions[A];
                 Vector3 Pb=RawPositions[B];
                 Vector3 Pc=RawPositions[C];
@@ -489,6 +510,180 @@ public static class GltfImporter {
             Tangents=Tangents,
             Uvs=Uvs,
             Indices=Indices,
+            Influences=RawInfluences is null?null:RemapInfluences(RawInfluences,SourceVertices),
+        };
+    }
+
+    /// <summary>
+    /// Reads JOINTS_n/WEIGHTS_n pairs into <see cref="ImportedSkinInfluences.InfluencesPerVertex"/>
+    /// slots per source vertex and normalizes the weights. Returns null for a rigid primitive.
+    /// </summary>
+    private static ImportedSkinInfluences?ReadInfluences(MeshPrimitive Primitive,int VertexCount,List<GltfImportDiagnostic>Diagnostics,string Context){
+        const int Slots=ImportedSkinInfluences.InfluencesPerVertex;
+        var Joints=new ushort[VertexCount*Slots];
+        var Weights=new float[VertexCount*Slots];
+        var Sets=0;
+        for(var Set=0;Primitive.GetVertexAccessor($"JOINTS_{Set}") is{ }JointAccessor;Set++){
+            if(Primitive.GetVertexAccessor($"WEIGHTS_{Set}") is not{ }WeightAccessor||JointAccessor.Count!=VertexCount||WeightAccessor.Count!=VertexCount){
+                Diagnostics.Add(new GltfImportDiagnostic(GltfImportDiagnosticSeverity.Warning,$"'{Context}': JOINTS_{Set} has no matching WEIGHTS_{Set}; the set is ignored."));
+                break;
+            }
+            if(Set*4>=Slots){
+                Diagnostics.Add(new GltfImportDiagnostic(GltfImportDiagnosticSeverity.Warning,$"'{Context}': JOINTS_{Set} exceeds {Slots} influences per vertex; the remaining weights are renormalized."));
+                break;
+            }
+            var JointValues=JointAccessor.AsVector4Array();
+            var WeightValues=WeightAccessor.AsVector4Array();
+            for(var Vertex=0;Vertex<VertexCount;Vertex++){
+                var J=JointValues[Vertex];
+                var W=WeightValues[Vertex];
+                var Base=(Vertex*Slots)+(Set*4);
+                Joints[Base+0]=(ushort)J.X;
+                Joints[Base+1]=(ushort)J.Y;
+                Joints[Base+2]=(ushort)J.Z;
+                Joints[Base+3]=(ushort)J.W;
+                Weights[Base+0]=W.X;
+                Weights[Base+1]=W.Y;
+                Weights[Base+2]=W.Z;
+                Weights[Base+3]=W.W;
+            }
+            Sets++;
+        }
+        if(Sets==0){
+            return null;
+        }
+        for(var Vertex=0;Vertex<VertexCount;Vertex++){
+            var Sum=0f;
+            for(var Slot=0;Slot<Slots;Slot++){
+                Sum+=Weights[(Vertex*Slots)+Slot];
+            }
+            if(Sum<=0f){
+                Weights[Vertex*Slots]=1f;
+                continue;
+            }
+            for(var Slot=0;Slot<Slots;Slot++){
+                Weights[(Vertex*Slots)+Slot]/=Sum;
+            }
+        }
+        return new ImportedSkinInfluences { JointIndices=Joints,Weights=Weights };
+    }
+
+    private static ImportedSkinInfluences RemapInfluences(ImportedSkinInfluences Source,int[]SourceVertices){
+        const int Slots=ImportedSkinInfluences.InfluencesPerVertex;
+        var Joints=new ushort[SourceVertices.Length*Slots];
+        var Weights=new float[SourceVertices.Length*Slots];
+        for(var Vertex=0;Vertex<SourceVertices.Length;Vertex++){
+            for(var Slot=0;Slot<Slots;Slot++){
+                Joints[(Vertex*Slots)+Slot]=Source.JointIndices[(SourceVertices[Vertex]*Slots)+Slot];
+                Weights[(Vertex*Slots)+Slot]=Source.Weights[(SourceVertices[Vertex]*Slots)+Slot];
+            }
+        }
+        return new ImportedSkinInfluences { JointIndices=Joints,Weights=Weights };
+    }
+
+    private static ImportedSkin ImportSkin(Skin Skin,List<GltfImportDiagnostic>Diagnostics){
+        var Count=Skin.JointsCount;
+        var Joints=Skin.Joints;
+        var InverseBind=Skin.InverseBindMatrices;
+        var IndexByNode=new Dictionary<Node,int>();
+        for(var Index=0;Index<Count;Index++){
+            IndexByNode[Joints[Index]]=Index;
+        }
+        var Names=new string[Count];
+        var Parents=new int[Count];
+        var Translations=new Vector3[Count];
+        var Rotations=new Quaternion[Count];
+        var Scales=new Vector3[Count];
+        var Matrices=new Matrix4x4[Count];
+        Node?RootParent=null;
+        var RootParentSet=false;
+        for(var Index=0;Index<Count;Index++){
+            var Joint=Joints[Index];
+            Names[Index]=Joint.Name??$"joint{Index}";
+            Parents[Index]=Joint.VisualParent is{ }Parent&&IndexByNode.TryGetValue(Parent,out var ParentIndex)?ParentIndex:-1;
+            if(Parents[Index]<0){
+                if(RootParentSet&&!ReferenceEquals(RootParent,Joint.VisualParent)){
+                    Diagnostics.Add(new GltfImportDiagnostic(GltfImportDiagnosticSeverity.Warning,$"Skin '{Skin.Name}': root joints have different parents; the first root's parent places the skeleton."));
+                }
+                if(!RootParentSet){
+                    RootParent=Joint.VisualParent;
+                    RootParentSet=true;
+                }
+            }
+            if(!Matrix4x4.Decompose(Joint.LocalMatrix,out var Scale,out var Rotation,out var Translation)){
+                Diagnostics.Add(new GltfImportDiagnostic(GltfImportDiagnosticSeverity.Warning,$"Skin '{Skin.Name}': joint '{Names[Index]}' has a non-decomposable rest transform; identity is used."));
+                (Scale,Rotation,Translation)=(Vector3.One,Quaternion.Identity,Vector3.Zero);
+            }
+            Translations[Index]=GltfAxisConversion.ConvertVector(Translation);
+            Rotations[Index]=GltfAxisConversion.ConvertRotation(Rotation);
+            Scales[Index]=Scale;
+            Matrices[Index]=GltfAxisConversion.ConvertMatrix(Index<InverseBind.Count?InverseBind[Index]:Matrix4x4.Identity);
+        }
+        return new ImportedSkin {
+            JointNames=Names,
+            ParentIndices=Parents,
+            RestTranslations=Translations,
+            RestRotations=Rotations,
+            RestScales=Scales,
+            InverseBindMatrices=Matrices,
+            SkeletonTransform=RootParent is null?Matrix4x4.Identity:GltfAxisConversion.ConvertMatrix(RootParent.WorldMatrix),
+        };
+    }
+
+    /// <summary>
+    /// Imports every animation of a glTF file as engine-space joint tracks (ADR-0066). Translation,
+    /// rotation and scale channels are supported; LINEAR and STEP keep their meaning, and CUBICSPLINE
+    /// keeps only its key values with a warning.
+    /// </summary>
+    public static GltfAnimationImportResult ImportAnimations(string FilePath){
+        ArgumentException.ThrowIfNullOrWhiteSpace(FilePath);
+        var FullPath=Path.GetFullPath(FilePath);
+        List<GltfImportDiagnostic>Diagnostics=[];
+        if(!File.Exists(FullPath)){
+            return GltfAnimationImportResult.Failed([new GltfImportDiagnostic(GltfImportDiagnosticSeverity.Error,$"glTF file not found: {FullPath}")]);
+        }
+        ModelRoot Model;
+        try {
+            Model=ModelRoot.Load(FullPath);
+        } catch(Exception Ex){
+            return GltfAnimationImportResult.Failed([new GltfImportDiagnostic(GltfImportDiagnosticSeverity.Error,$"Failed to parse glTF file '{FullPath}': {Ex.Message}")]);
+        }
+        List<ImportedAnimationClip>Clips=[];
+        foreach(var Animation in Model.LogicalAnimations){
+            List<ImportedJointTrack>Tracks=[];
+            var Duration=0f;
+            foreach(var Node in Animation.Channels.Select(static Channel=>Channel.TargetNode).Where(static Node=>Node is not null).Distinct()){
+                var Translation=ToKeys(Animation.FindTranslationChannel(Node)?.GetTranslationSampler(),GltfAxisConversion.ConvertVector,Diagnostics,Animation.Name);
+                var Rotation=ToKeys(Animation.FindRotationChannel(Node)?.GetRotationSampler(),GltfAxisConversion.ConvertRotation,Diagnostics,Animation.Name);
+                var Scale=ToKeys(Animation.FindScaleChannel(Node)?.GetScaleSampler(),static Value=>Value,Diagnostics,Animation.Name);
+                if(Translation is null&&Rotation is null&&Scale is null){
+                    continue;
+                }
+                Duration=MathF.Max(Duration,MathF.Max(LastTime(Translation),MathF.Max(LastTime(Rotation),LastTime(Scale))));
+                Tracks.Add(new ImportedJointTrack { JointName=Node.Name??string.Empty,Translation=Translation,Rotation=Rotation,Scale=Scale });
+            }
+            Clips.Add(new ImportedAnimationClip { Name=Animation.Name??$"animation{Clips.Count}",DurationSeconds=Duration,Tracks=Tracks });
+        }
+        return GltfAnimationImportResult.Succeeded(Clips,Diagnostics);
+    }
+
+    private static float LastTime<T>(ImportedKeys<T>?Keys) where T:struct=>Keys is{ Times.Count:>0 }?Keys.Times[^1]:0f;
+
+    private static ImportedKeys<T>?ToKeys<T>(IAnimationSampler<T>?Sampler,Func<T,T>Convert,List<GltfImportDiagnostic>Diagnostics,string?Clip) where T:struct{
+        if(Sampler is null){
+            return null;
+        }
+        List<(float Time,T Value)>Keys;
+        if(Sampler.InterpolationMode==AnimationInterpolationMode.CUBICSPLINE){
+            Diagnostics.Add(new GltfImportDiagnostic(GltfImportDiagnosticSeverity.Warning,$"Animation '{Clip}': cubic-spline keys are imported as linear key values."));
+            Keys=[.. Sampler.GetCubicKeys().Select(static Key=>(Key.Key,Key.Value.Value))];
+        } else {
+            Keys=[.. Sampler.GetLinearKeys()];
+        }
+        return new ImportedKeys<T> {
+            Times=[.. Keys.Select(static Key=>Key.Time)],
+            Values=[.. Keys.Select(Key=>Convert(Key.Value))],
+            Step=Sampler.InterpolationMode==AnimationInterpolationMode.STEP,
         };
     }
 

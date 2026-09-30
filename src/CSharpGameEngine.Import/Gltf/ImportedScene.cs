@@ -8,4 +8,6 @@ public sealed class ImportedScene {
     public required IReadOnlyList<ImportedPbrMaterial>Materials { get; init;}
 
     public required IReadOnlyList<ImportedLight>Lights { get; init;}
+
+    public IReadOnlyList<ImportedSkin>Skins { get; init;}=[];
 }

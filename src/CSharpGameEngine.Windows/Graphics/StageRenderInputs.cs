@@ -13,6 +13,16 @@ public readonly struct StageMeshCreateInfo {
 
     public required IReadOnlyList<Vector2>Uvs { get; init;}
     public required IReadOnlyList<uint>Indices { get; init;}
+
+    /// <summary>Skin influences of a skinned mesh (ADR-0066); null for rigid geometry. Each skinned mesh is skinned on its own, so instances need their own mesh.</summary>
+    public StageSkinCreateInfo?Skin { get; init;}
+}
+
+/// <summary>Eight joint indices and weights per vertex into a palette of <see cref="JointCount"/> matrices.</summary>
+public sealed class StageSkinCreateInfo {
+    public required int JointCount { get; init;}
+    public required IReadOnlyList<ushort>JointIndices { get; init;}
+    public required IReadOnlyList<float>Weights { get; init;}
 }
 
 /// <summary>

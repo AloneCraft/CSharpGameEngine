@@ -111,6 +111,20 @@ Each feature implementation cuts over in its own change. It removes the replaced
 
 Rendering performance stages use exactly five warm-up iterations and thirty measured samples in an isolated process whose Tiered JIT mode is explicitly disabled and recorded, preventing compilation transitions from contaminating the sample set. The required WARP pass records a hidden 1280x720 frame, triangle readback oracle, zero debug-layer errors, allocation, median, p95, MAD, build identity, raw-report SHA-256, and machine fingerprint; WARP elapsed time is correctness evidence, not a hardware performance claim. The same run measures camera-relative selection and deterministic batching for 100,000 active instances. Debug records timing but gates correctness and allocation only because its non-optimized code generation is not a shipping-performance oracle. Release gates that CPU workload at median 6 ms, nearest-rank p95 8.33 ms, and allocation p95 zero. An optional Release hardware pass gates 1280x720 presentation p95 at 16.67 ms. Release evidence includes dependency closure, shader/artifact provenance, required WARP output, and unresolved diagnostic count.
 
+## Skeletal meshes and animation
+ADR-0066 adds skinned meshes. A `SkeletalMesh` Component names a glTF with exactly one skin. The roster gives each placement its own copy of the meshes, and `StageMeshCreateInfo.Skin` carries eight 16-bit joint/weight pairs per vertex.
+
+At the start of every frame, `Skinning.hlsl` rewrites each skinned mesh's default-heap vertex buffer from the latest palette. The palette is `InverseBind × JointModel` in row vectors and goes through a per-frame-slot upload ring. The shadow, GI-capture, AO and main passes then all draw the same pose. `RenderServer.SetSkinPalette` records the palette for device-recovery replay.
+
+`Runtime.Animation` evaluates `LocomotionAnimator` (Unreal's ABP_Unarmed graph) on the CPU in the Presentation phase.
+
+Invariants:
+- The rest palette is identity.
+- The quantized weights of a vertex sum to one.
+- A mesh keeps its bind pose until a palette arrives.
+
+Verified by Stage `rendering.skeletal-animation` ([M0091](../Milestones/M0091-Skeletal-Animation.md)).
+
 ## Stage oracle matrix
 
 | Feature | Level | Stage | Mode | Timeout | Oracle |
@@ -122,6 +136,7 @@ Rendering performance stages use exactly five warm-up iterations and thirty meas
 | F-L4-005 | 3 | `rendering.materials` | Visual / Rendering | 1800s | Material and texture result matches reference. |
 | F-L4-006 | 4 | `rendering.visibility` | Visual / Rendering | 1800s | Snapshot/visibility/LOD/instance oracle matches. |
 | F-L4-007 | 4 | `rendering.quality-profiles` | Visual / Rendering | 1800s | Quality profile reference tolerance holds. |
+| F-L4-015 | 5 | `rendering.skeletal-animation` | Visual / Rendering | 1800s | Skin/clip import in engine space, locomotion graph, and WARP compute skinning match analytic poses without debug-layer errors. |
 | F-L0-009 | 5 | `rendering.device-recovery` | Visual / Rendering | 1800s | Legal state transitions and artifact-only rebuild. |
 | F-L8-018 | 5 | `vsix.rendering-preview` | Visual / VSIX | 1800s | Shared host protocol and no duplicate renderer. |
 | F-L7-023 | 6 | `rendering.performance` | Visual / Rendering | 7200s | Five warm-ups plus thirty WARP frame and 100,000-instance samples publish SHA-bound correctness/performance evidence. |

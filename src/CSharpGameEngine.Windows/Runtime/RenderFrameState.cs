@@ -17,6 +17,9 @@ internal sealed class RenderFrameState {
     private readonly float[]ObjectSelectionWeights;
     private readonly bool[]ObjectSelectionWeightSet;
     private readonly List<int>TouchedSelectionIndices=[];
+    private readonly Dictionary<int,Matrix4x4[]>SkinPalettes=[];
+    private readonly Dictionary<int,int>SkinPaletteLengths=[];
+    private readonly List<int>TouchedSkinMeshes=[];
     private readonly List<DirectionalLightSubmission>DirectionalLights=[];
     private readonly List<PointLightSubmission>PointLights=[];
     private readonly List<SpotLightSubmission>SpotLights=[];
@@ -63,7 +66,8 @@ internal sealed class RenderFrameState {
         &&!this.HasOverlay
         &&!this.HasCameraPreviews
         &&this.LightOrder.Count==0
-        &&this.TouchedObjectIndices.Count==0&&this.TouchedSelectionIndices.Count==0;
+        &&this.TouchedObjectIndices.Count==0&&this.TouchedSelectionIndices.Count==0
+        &&this.TouchedSkinMeshes.Count==0;
 
     public void RecordCamera(in RenderCamera Camera,float AspectRatioOverride){
         this.Camera=Camera;
@@ -137,6 +141,18 @@ internal sealed class RenderFrameState {
         this.TouchedObjectIndices.Add(ObjectIndex);
     }
 
+    public void RecordSkinPalette(int MeshIndex,ReadOnlySpan<Matrix4x4>Palette){
+        if(!this.SkinPalettes.TryGetValue(MeshIndex,out var Stored)||Stored.Length<Palette.Length){
+            Stored=new Matrix4x4[Palette.Length];
+            this.SkinPalettes[MeshIndex]=Stored;
+        }
+        Palette.CopyTo(Stored);
+        if(!this.SkinPaletteLengths.ContainsKey(MeshIndex)){
+            this.TouchedSkinMeshes.Add(MeshIndex);
+        }
+        this.SkinPaletteLengths[MeshIndex]=Palette.Length;
+    }
+
     public void RecordPresentationMode(RenderPresentationMode Mode){
         this.PresentationMode=Mode;
         this.HasPresentationMode=true;
@@ -203,6 +219,9 @@ internal sealed class RenderFrameState {
         foreach(int ObjectIndex in this.TouchedObjectIndices){
             Renderer.SetObjectTransform(ObjectIndex,this.ObjectTransforms[ObjectIndex]);
         }
+        foreach(int MeshIndex in this.TouchedSkinMeshes){
+            Renderer.SetSkinPalette(MeshIndex,this.SkinPalettes[MeshIndex].AsSpan(0,this.SkinPaletteLengths[MeshIndex]));
+        }
         if(this.HasPresentationMode){
             Renderer.SetPresentationMode(this.PresentationMode);
         }
@@ -222,6 +241,8 @@ internal sealed class RenderFrameState {
     }
 
     public void Reset(){
+        this.TouchedSkinMeshes.Clear();
+        this.SkinPaletteLengths.Clear();
         this.HasCamera=false;
         this.HasViewProjection=false;
         this.HasAmbientLight=false;

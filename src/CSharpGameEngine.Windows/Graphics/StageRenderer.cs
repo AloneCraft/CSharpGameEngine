@@ -328,6 +328,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     private StageGlobalIllumination?GlobalIllumination;
     private StageAmbientOcclusion?AmbientOcclusion;
     private StageAutoExposure?AutoExposureStage;
+    private StageSkinning?Skinning;
     private bool AutoExposureInitialized;
     private readonly Stopwatch AutoExposureClock=Stopwatch.StartNew();
     private TimeSpan LastAutoExposureTime;
@@ -711,6 +712,7 @@ public sealed unsafe class StageRenderer:IDisposable {
         this.AmbientOcclusion=new StageAmbientOcclusion(this.Device,this.ShaderArtifactPath,FrameCount);
         this.AutoExposureStage=new StageAutoExposure(this.Device,this.ShaderArtifactPath,FrameCount);
         this.Atmosphere.ExposureStateAddress=this.AutoExposureStage.StateAddress;
+        this.Skinning=new StageSkinning(this.Device,this.ShaderArtifactPath,FrameCount);
         if(ValidatedShaderPackage is null){
             this.LoadShaderArtifact(this.ShaderArtifactPath);
         } else {
@@ -1461,6 +1463,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             StageMeshCreateInfo Mesh=Meshes[I];
             this.CreateVertexBuffer(I,Mesh.Positions,Mesh.Normals,Mesh.Tangents,Mesh.Uvs);
             this.CreateIndexBuffer(I,Mesh.Indices);
+            if(Mesh.Skin is{ }Skin){
+                // Every pass draws the skinned copy; the upload-heap buffer stays the rest pose it is skinned from.
+                this.VertexBufferViews[I]=this.Skinning!.AddMesh(I,this.VertexBuffers[I],(uint)Mesh.Positions.Count,(uint)sizeof(Vertex),Skin.JointCount,Skin.JointIndices,Skin.Weights);
+            }
         }
     }
 
@@ -3545,6 +3551,18 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
     }
 
+    /// <summary>Sets the skin palette (inverse bind * joint model per joint, row-vector convention) of a skinned mesh from the next frame on.</summary>
+    public void SetSkinPalette(int MeshIndex,ReadOnlySpan<Matrix4x4>Palette){
+        this.ThrowIfDisposed();
+        this.Skinning!.SetPalette(MeshIndex,Palette);
+    }
+
+    /// <summary>Test-only copy of a skinned mesh's current vertices (position, normal, tangent, uv; 48 bytes each).</summary>
+    internal byte[]ReadSkinnedVerticesForTesting(int MeshIndex){
+        this.WaitForGpuIdle();
+        return this.Skinning!.ReadSkinnedVerticesForTesting(MeshIndex);
+    }
+
     public void RenderFrame(bool CaptureForVerification=false){
         this.ThrowIfDisposed();
         this.TryReloadShaderArtifact();
@@ -3561,6 +3579,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         ID3D12CommandAllocator*Allocator= this.CommandAllocators[this.FrameIndex];
         D3D12Diagnostics.EnsureSuccess(Allocator->Reset(),"ID3D12CommandAllocator::Reset","resetting the frame command allocator");
         D3D12Diagnostics.EnsureSuccess(this.CommandList->Reset(Allocator,ActivePipelineState),"ID3D12GraphicsCommandList::Reset","resetting the graphics command list");
+        if(this.Skinning is{ HasMeshes:true }){
+            this.Skinning.Record(this.CommandList,this.FrameIndex);
+            this.CommandList->SetPipelineState(ActivePipelineState);
+        }
         this.PrepareDirectionalLights(this.FrameIndex);
         this.PrepareForwardPlusLocalLights(this.FrameIndex);
 
@@ -3819,6 +3841,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.AmbientOcclusion=null;
         this.AutoExposureStage?.Dispose();
         this.AutoExposureStage=null;
+        this.Skinning?.Dispose();
+        this.Skinning=null;
 
         if(this.FrameConstantsBuffer!=null){
             this.FrameConstantsBuffer->Unmap(0,null);

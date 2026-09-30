@@ -66,6 +66,15 @@ public static class GltfAxisConversion {
         return StandardTransformConvention.Compose(TranslationRuf,RotationRuf,ScaleRuf);
     }
 
+    /// <summary>Converts a glTF-space rotation: the mirror <c>C * R * C</c> with <c>C = diag(1, 1, -1)</c> keeps the angle and maps the axis to (-x, -y, z).</summary>
+    public static Quaternion ConvertRotation(Quaternion GltfSpaceRotation)=>new(-GltfSpaceRotation.X,-GltfSpaceRotation.Y,GltfSpaceRotation.Z,GltfSpaceRotation.W);
+
+    /// <summary>Converts any glTF-space affine matrix (row-vector convention), including non-decomposable ones such as inverse bind matrices: <c>C * M * C</c>.</summary>
+    public static Matrix4x4 ConvertMatrix(Matrix4x4 GltfSpaceMatrix){
+        var C=Matrix4x4.CreateScale(1f,1f,-1f);
+        return C*GltfSpaceMatrix*C;
+    }
+
     /// <summary>Swaps two indices of each triangle so front-facing winding is preserved after a single-axis position mirror (which otherwise inverts every triangle's chirality). No visible effect today (every consumer disables backface culling), but keeps winding correct if that ever changes, and keeps triangle orientation consistent with the (already-flipped) tangent/normal data.</summary>
     public static void FlipTriangleWinding(uint[]Indices){
         for(var I=0;I+2<Indices.Length;I+=3){

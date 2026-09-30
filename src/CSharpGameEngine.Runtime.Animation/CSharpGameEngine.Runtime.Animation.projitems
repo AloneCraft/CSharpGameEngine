@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Label="Configuration">
+    <HasSharedItems>true</HasSharedItems>
+    <Import_RootNamespace>CSharpGameEngine.Runtime.Animation</Import_RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)AnimationClip.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)AnimationComponents.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)AnimationSystems.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)LocomotionStateMachine.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)SkeletalAssetCache.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Skeleton.cs" />
+    <Using Include="CSharpGameEngine.Runtime.Animation" />
+  </ItemGroup>
+</Project>

@@ -35,6 +35,7 @@ public sealed class EngineHost:IDisposable {
     private ReferenceFrameId AudioListenerFrame;
     private Entity AudioListenerEntity;
     private bool HasAudioListener;
+    private readonly Dictionary<Entity,int[]>SkinnedMeshIndices=[];
 
     internal Win32Window?Window { get;private set; }
     internal RenderServer?Renderer { get;private set; }
@@ -153,6 +154,10 @@ public sealed class EngineHost:IDisposable {
         this.CameraFrame=CameraFrame;
         this.HasCameraPose=true;
     }
+
+    /// <summary>Records which renderer meshes a SkeletalMesh entity skins (ADR-0066).</summary>
+    internal void RegisterSkinnedMeshes(Entity Entity,int[]MeshIndices)=>this.SkinnedMeshIndices[Entity]=MeshIndices;
+    internal bool TryGetSkinnedMeshes(Entity Entity,out int[]MeshIndices)=>this.SkinnedMeshIndices.TryGetValue(Entity,out MeshIndices!);
 
     internal bool TryGetCameraPose(out FixedAffineTransform Origin,out ReferenceFrameId Frame){
         Origin=this.CameraFrameLocalOrigin;

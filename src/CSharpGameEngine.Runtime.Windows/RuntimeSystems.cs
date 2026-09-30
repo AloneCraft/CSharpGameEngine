@@ -125,6 +125,7 @@ internal struct LevelLoad:ISystem {
     private bool HasLevelEntity;
     private List<(Entity Entity,Transform Transform,StaticMesh Mesh)>?PendingStaticMeshes;
     private List<(Entity Entity,Transform Transform,PrimitiveMesh Mesh)>?PendingPrimitives;
+    private List<(Entity Entity,Transform Transform,SkeletalMesh Mesh)>?PendingSkeletalMeshes;
     private Entity PendingCameraEntity;
     private Camera PendingCamera;
     private int ActiveCameraCount;
@@ -137,6 +138,11 @@ internal struct LevelLoad:ISystem {
 
     public bool Update(Entity Entity,ref Transform Transform,ref PrimitiveMesh Mesh,ref State State){
         if(!this.RosterCaptured)(this.PendingPrimitives??=[]).Add((Entity,Transform,Mesh));
+        return true;
+    }
+
+    public bool Update(Entity Entity,ref Transform Transform,ref SkeletalMesh Mesh,ref State State){
+        if(!this.RosterCaptured)(this.PendingSkeletalMeshes??=[]).Add((Entity,Transform,Mesh));
         return true;
     }
 
@@ -182,6 +188,7 @@ internal struct LevelLoad:ISystem {
             // Windowが未生成のフレームで集めたロースターは次フレームと二重集計されるため破棄する。
             this.PendingStaticMeshes=null;
             this.PendingPrimitives=null;
+            this.PendingSkeletalMeshes=null;
             this.PendingCameraEntity=default;
             this.PendingCamera=default;
             this.ActiveCameraCount=0;
@@ -197,7 +204,8 @@ internal struct LevelLoad:ISystem {
 
         var Scene=StageSceneDataBuilder.Build(
             this.PendingStaticMeshes??=[],
-            this.PendingPrimitives??=[]);
+            this.PendingPrimitives??=[],
+            this.PendingSkeletalMeshes??=[]);
         var Renderer=RenderServer.Create(
                                           Window.Handle,Window.ClientWidth,Window.ClientHeight,GraphicsDeviceOptionsResolver.FromEnvironment(),
                                           Path.Combine(AppContext.BaseDirectory,Level.ShaderArtifactPath),Scene.Meshes,Scene.Materials,Scene.Objects);
@@ -286,9 +294,29 @@ internal struct LevelLoad:ISystem {
             }
         }
 
+        foreach(var (SkinnedEntity,MeshIndices) in Scene.SkinnedMeshes){
+            Host.RegisterSkinnedMeshes(SkinnedEntity,MeshIndices);
+        }
+
         this.RosterCaptured=true;
         this.PendingStaticMeshes=null;
         this.PendingPrimitives=null;
+        this.PendingSkeletalMeshes=null;
+        return true;
+    }
+}
+
+/// <summary>Hands each SkeletalMesh's palette to the renderer after the animators ran (ADR-0066). Submitted every frame so device recovery replays the current pose.</summary>
+[SystemPhase(SystemPhase.Presentation)]
+[SystemOrder(13)]
+internal struct SkinnedMeshSync:ISystem {
+    public bool Update(Entity Entity,ref SkeletalMeshRuntime Runtime,EngineHost Host,ref State State){
+        if(Runtime.Palette is not{ }Palette||Host.Renderer is not{ }Renderer||!Host.TryGetSkinnedMeshes(Entity,out var MeshIndices)){
+            return true;
+        }
+        foreach(var MeshIndex in MeshIndices){
+            Renderer.SetSkinPalette(MeshIndex,Palette);
+        }
         return true;
     }
 }

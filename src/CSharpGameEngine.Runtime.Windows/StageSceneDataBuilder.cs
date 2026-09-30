@@ -7,6 +7,7 @@ using CSharpGameEngine.Entities;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Import.Gltf;
 using CSharpGameEngine.Rendering;
+using CSharpGameEngine.Runtime.Animation;
 
 namespace CSharpGameEngine.Runtime.Windows;
 
@@ -22,7 +23,9 @@ internal sealed class StageSceneDataBuilder {
         StageObjectCreateInfo[]Objects,
         Transform[]ObjectTransforms,
         Matrix4x4[]ObjectLocalTransforms,
-        Entity[]SourceEntities){
+        Entity[]SourceEntities,
+        (Entity Entity,int[]MeshIndices)[]SkinnedMeshes){
+        this.SkinnedMeshes=SkinnedMeshes;
         this.Meshes=Meshes;
         this.Materials=Materials;
         this.Objects=Objects;
@@ -38,11 +41,15 @@ internal sealed class StageSceneDataBuilder {
     public Matrix4x4[]ObjectLocalTransforms { get;}
     /// <summary>Authoring Entity whose fixed hierarchy owns each renderer object.</summary>
     public Entity[]SourceEntities { get;}
+    /// <summary>The renderer meshes each SkeletalMesh entity skins with its palette.</summary>
+    public (Entity Entity,int[]MeshIndices)[]SkinnedMeshes { get;}
 
     public static StageSceneDataBuilder Build(
         IReadOnlyList<(Entity Entity,Transform Transform,StaticMesh Mesh)>StaticMeshes,
-        IReadOnlyList<(Entity Entity,Transform Transform,PrimitiveMesh Mesh)>Primitives){
+        IReadOnlyList<(Entity Entity,Transform Transform,PrimitiveMesh Mesh)>Primitives,
+        IReadOnlyList<(Entity Entity,Transform Transform,SkeletalMesh Mesh)>?SkeletalMeshes=null){
         List<StageMeshCreateInfo>Meshes=[];
+        List<(Entity Entity,int[]MeshIndices)>SkinnedMeshes=[];
         List<StageMaterialCreateInfo>Materials=[];
         List<StageObjectCreateInfo>Objects=[];
         List<Transform>ObjectTransforms=[];
@@ -65,6 +72,49 @@ internal sealed class StageSceneDataBuilder {
             }
         }
 
+        foreach(var Placement in SkeletalMeshes??[]){
+            // Each placement skins its own copy of the meshes, so two characters can hold different poses.
+            var Imported=SkeletalAssetCache.Scene(Placement.Mesh.AssetPath??string.Empty);
+            var Skin=Imported.Skins[0];
+            var MeshOffset=Meshes.Count;
+            var MaterialOffset=Materials.Count;
+            List<int>Skinned=[];
+            for(var Index=0;Index<Imported.Meshes.Count;Index++){
+                var Mesh=Imported.Meshes[Index];
+                var IsSkinned=Imported.Nodes.Any(Node=>Node.MeshIndex==Index&&Node.SkinIndex is not null);
+                if(IsSkinned&&Mesh.Influences is null){
+                    throw new InvalidDataException($"SkeletalMesh '{Placement.Mesh.AssetPath}' has a skinned primitive without JOINTS/WEIGHTS.");
+                }
+                if(IsSkinned){
+                    Skinned.Add(Meshes.Count);
+                }
+                Meshes.Add(new StageMeshCreateInfo {
+                    Positions=Mesh.Positions,
+                    Normals=Mesh.Normals,
+                    Tangents=Mesh.Tangents,
+                    Uvs=Mesh.Uvs,
+                    Indices=Mesh.Indices,
+                    Skin=IsSkinned?new StageSkinCreateInfo { JointCount=Skin.JointNames.Count,JointIndices=Mesh.Influences!.JointIndices,Weights=Mesh.Influences.Weights }:null,
+                });
+            }
+            var FullPath=SkeletalAssetCache.ResolvePath(Placement.Mesh.AssetPath??string.Empty);
+            var SourceHash=Hash256.Compute(File.ReadAllBytes(FullPath));
+            RenderMaterialCatalog MaterialCatalog=new();
+            for(var Index=0;Index<Imported.Materials.Count;Index++){
+                Materials.Add(BakeMaterial(MaterialCatalog,Imported.Materials[Index],SourceHash,Index));
+            }
+            foreach(var Node in Imported.Nodes){
+                if(Node.MeshIndex is int MeshIndex&&Node.MaterialIndex is int MaterialIndex){
+                    Objects.Add(new StageObjectCreateInfo { MeshIndex=MeshOffset+MeshIndex,MaterialIndex=MaterialOffset+MaterialIndex });
+                    ObjectTransforms.Add(Placement.Transform);
+                    // The skin places skinned geometry (glTF ignores a skinned node's own transform).
+                    ObjectLocalTransforms.Add(Node.SkinIndex is null?Node.WorldTransform:Matrix4x4.Identity);
+                    SourceEntities.Add(Placement.Entity);
+                }
+            }
+            SkinnedMeshes.Add((Placement.Entity,[.. Skinned]));
+        }
+
         if(Primitives.Count>0){
             (var PrimitiveMeshes,var PrimitiveMaterials,var PrimitiveObjects)=
                 RenderServer.BuildPrimitiveRoster([.. Primitives.Select(Item=>Item.Mesh.Type)],Meshes.Count,Materials.Count);
@@ -83,7 +133,7 @@ internal sealed class StageSceneDataBuilder {
         }
 
         return new StageSceneDataBuilder([.. Meshes],[.. Materials],[.. Objects],
-            [.. ObjectTransforms],[.. ObjectLocalTransforms],[.. SourceEntities]);
+            [.. ObjectTransforms],[.. ObjectLocalTransforms],[.. SourceEntities],[.. SkinnedMeshes]);
     }
 
     private static AssetTemplate LoadAsset(string FullPath,List<StageMeshCreateInfo>Meshes,List<StageMaterialCreateInfo>Materials){

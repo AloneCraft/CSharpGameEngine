@@ -209,6 +209,12 @@ public sealed class RenderServer:IDisposable {
         this.PendingFrame.RecordObjectTransform(ObjectIndex,World);
     }
 
+    /// <summary>Sets a skinned mesh's palette (ADR-0066); recorded so device recovery replays the current pose.</summary>
+    public void SetSkinPalette(int MeshIndex,ReadOnlySpan<Matrix4x4>Palette){
+        this.Backend.SetSkinPalette(MeshIndex,Palette);
+        this.PendingFrame.RecordSkinPalette(MeshIndex,Palette);
+    }
+
     public void SetPresentationMode(RenderPresentationMode Mode){
         if(!Enum.IsDefined(Mode)){ throw new ArgumentOutOfRangeException(nameof(Mode)); }
         this.Backend.SetPresentationMode(Mode);
@@ -394,6 +400,7 @@ public sealed class RenderServer:IDisposable {
                 Tangents=[.. Mesh.Tangents],
                 Uvs=[.. Mesh.Uvs],
                 Indices=[.. Mesh.Indices],
+                Skin=Mesh.Skin is{ }Skin?new StageSkinCreateInfo { JointCount=Skin.JointCount,JointIndices=[.. Skin.JointIndices],Weights=[.. Skin.Weights] }:null,
             };
         }
         return Result;
@@ -465,6 +472,11 @@ public sealed class RenderServer:IDisposable {
         }
         Writer.Write(Mesh.Indices.Count);
         foreach(uint Value in Mesh.Indices){ Writer.Write(Value); }
+        Writer.Write(Mesh.Skin?.JointCount??0);
+        if(Mesh.Skin is{ }Skin){
+            foreach(ushort Value in Skin.JointIndices){ Writer.Write(Value); }
+            foreach(float Value in Skin.Weights){ Writer.Write(Value); }
+        }
     }
 
     private static void WriteMaterial(

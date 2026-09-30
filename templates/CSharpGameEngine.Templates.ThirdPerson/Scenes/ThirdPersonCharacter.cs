@@ -1,10 +1,11 @@
 using CSharpGameEngine.Entities;
+using CSharpGameEngine.Runtime.Animation;
 using CSharpGameEngine.Runtime.Character;
 using CSharpGameEngine.Runtime.Windows;
 namespace CgeThirdPerson.Scenes;
 /// <summary>
 /// UEの/Game/ThirdPerson/Blueprints/BP_ThirdPersonCharacter.BP_ThirdPersonCharacter_Cの移植。PlayerStartの位置に置く。値はBlueprintのCDO実値をmへ換算したもの。
-/// 見た目はスケルタルメッシュ対応(ADR-0066)までの仮のカプセル。カメラの水平FOV 90°は16:9での垂直FOVへ換算している。
+/// 見た目はQuinnとABP_Unarmed相当のロコモーション(ADR-0066)。カメラの水平FOV 90°は16:9での垂直FOVへ換算している。
 /// </summary>
 [StartupScene(Order=2)]
 internal partial class ThirdPersonCharacter:IScene {
@@ -26,17 +27,15 @@ internal partial class ThirdPersonCharacter:IScene {
         ],
         Children=[
             new Node {
-                Name="CapsuleVisual",
+                Name="Mesh",
                 Components=[
-                    new Transform { Scale=new LogicalVector3(0.7f,0.9f,0.7f) },
-                    new PrimitiveMesh { Type=PrimitiveType.Capsule },
-                ],
-            },
-            new Node {
-                Name="FacingIndicator",
-                Components=[
-                    new Transform { Position=new LogicalVector3(0f,0.45f,0.35f),Scale=new LogicalVector3(0.1f,0.1f,0.3f) },
-                    new PrimitiveMesh { Type=PrimitiveType.Box },
+                    new Transform { Position=new LogicalVector3(0f,-0.89f,0f),Rotation=new LogicalQuaternion(new LogicalVector3(0f,3.1415927f,0f)) },
+                    new SkeletalMesh { AssetPath=ThirdPersonAssets.SKM_Quinn_Simple },
+                    new LocomotionAnimator {
+                        IdleClip=ThirdPersonAssets.MM_Idle,WalkClip=ThirdPersonAssets.MF_Unarmed_Walk_Fwd,JogClip=ThirdPersonAssets.MF_Unarmed_Jog_Fwd,
+                        JumpClip=ThirdPersonAssets.MM_Jump,FallClip=ThirdPersonAssets.MM_Fall_Loop,LandClip=ThirdPersonAssets.MM_Land,
+                        WalkSpeed=3f,JogSpeed=6f,
+                    },
                 ],
             },
             new Node {

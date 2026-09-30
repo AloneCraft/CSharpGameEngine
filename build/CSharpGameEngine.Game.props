@@ -28,6 +28,7 @@
 
   <Import Project="$(CgeEngineSourceRoot)CSharpGameEngine.Runtime.Simulation\CSharpGameEngine.Runtime.Simulation.projitems" Label="Shared" />
   <Import Project="$(CgeEngineSourceRoot)CSharpGameEngine.Runtime.Physics\CSharpGameEngine.Runtime.Physics.projitems" Label="Shared" />
+  <Import Project="$(CgeEngineSourceRoot)CSharpGameEngine.Runtime.Animation\CSharpGameEngine.Runtime.Animation.projitems" Label="Shared" />
   <Import Project="$(CgeEngineSourceRoot)CSharpGameEngine.Runtime.Character\CSharpGameEngine.Runtime.Character.projitems" Label="Shared" />
   <Import Project="$(CgeEngineSourceRoot)CSharpGameEngine.Runtime.Windows\CSharpGameEngine.Runtime.Windows.projitems" Label="Shared" />
 
@@ -58,6 +59,7 @@
     <CgeComputeShader Include="$(CgeEngineShaderRoot)GlobalIllumination.hlsl" />
     <CgeComputeShader Include="$(CgeEngineShaderRoot)AmbientOcclusion.hlsl" />
     <CgeComputeShader Include="$(CgeEngineShaderRoot)LuminanceHistogram.hlsl" />
+    <CgeComputeShader Include="$(CgeEngineShaderRoot)Skinning.hlsl" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(CgeCopyAssets)' == 'true'">

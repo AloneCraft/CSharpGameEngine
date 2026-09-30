@@ -259,6 +259,8 @@ internal sealed class ThirdPersonManifest {
 }
 internal sealed class ThirdPersonMeshManifest {
     public string AssetPath { get; set; }=string.Empty;
+    public float[]RelativeLocationCm { get; set; }=[0f,0f,0f];
+    public ThirdPersonRotatorManifest RelativeRotation { get; set; }=new();
 }
 internal sealed class ThirdPersonAnimationManifest {
     public string Name { get; set; }=string.Empty;

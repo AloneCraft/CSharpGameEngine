@@ -7,7 +7,10 @@ M0088/ADR-0064 refines existing F-L5-001, F-L8-024, F-L8-025, F-L4-002, F-L0-005
 M0089/ADR-0069 adds F-L4-014 (physical sky, sky light, exposure, cascaded sun shadows, dynamic GI and ambient occlusion) and refines F-L5-001 and F-L0-005. See [Rendering](Specifications/Rendering.md#environment-lighting) and the [verification milestone](Milestones/M0089-Physically-Based-Environment-Lighting.md).
 
 ## Current character-movement update
-M0090/ADR-0067 implements F-L5-006. It adds kinematic character movement on the deterministic physics world, StaticMesh triangle collision, a spring-arm follow camera, and Enhanced Input value composition with XInput. It refines F-L4-010 and F-L0-010. The ThirdPerson template is now playable with a capsule stand-in. See the [verification milestone](Milestones/M0090-ThirdPerson-Character-Movement.md).
+M0090/ADR-0067 implements F-L5-006. It adds kinematic character movement on the deterministic physics world, StaticMesh triangle collision, a spring-arm follow camera, and Enhanced Input value composition with XInput. It refines F-L4-010 and F-L0-010. The ThirdPerson template is playable. See the [verification milestone](Milestones/M0090-ThirdPerson-Character-Movement.md).
+
+## Current skeletal-animation update
+M0091/ADR-0066 adds F-L4-015. It adds glTF skins and clips, GPU compute skinning, and Unreal's ABP_Unarmed locomotion graph. The ThirdPerson template now shows Quinn idling, walking, jogging, jumping and landing. See [Rendering](Specifications/Rendering.md#skeletal-meshes-and-animation) and the [verification milestone](Milestones/M0091-Skeletal-Animation.md).
 
 ## Non-physics Feature index (authoritative)
 
@@ -33,6 +36,7 @@ Current baseline corrections: point/spot/area/emissive shadows and HDR/ACES/bloo
 | 4 | F-L4-006 | Implemented | Visibility, LOD, instancing | F-L4-004, F-L4-005 | [Rendering](Specifications/Rendering.md) | `rendering.visibility` |
 | 4 | F-L4-007 | Implemented | Quality profiles | F-L4-006 | [Rendering](Specifications/Rendering.md) | `rendering.quality-profiles` |
 | 5 | F-L4-014 | Implemented | Physically based environment lighting | F-L4-007, F-L0-008 | [Rendering](Specifications/Rendering.md#environment-lighting) | `rendering.environment-lighting` |
+| 5 | F-L4-015 | Implemented | Skeletal meshes and animation | F-L4-007, F-L0-008 | [Rendering](Specifications/Rendering.md#skeletal-meshes-and-animation) | `rendering.skeletal-animation` |
 | 5 | F-L0-009 | Implemented | Device recovery | F-L4-004, F-L4-007 | [Rendering](Specifications/Rendering.md) | `rendering.device-recovery` |
 | 5 | F-L8-018 | Implemented | Shared isolated preview | F-L0-009, F-L8-022 | [Rendering](Specifications/Rendering.md) | `vsix.rendering-preview` |
 | 6 | F-L7-023 | Implemented | Performance evidence | F-L4-007, F-L0-009 | [Rendering](Specifications/Rendering.md) | `rendering.performance` |

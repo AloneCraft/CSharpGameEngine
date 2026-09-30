@@ -23,4 +23,7 @@ public sealed class ImportedSceneNode {
 
     /// <summary>Index into <see cref="ImportedScene.Lights"/>. Null for mesh nodes.</summary>
     public int?LightIndex { get; init;}
+
+    /// <summary>Index into <see cref="ImportedScene.Skins"/> for a skinned mesh node. Its geometry is placed by the skin, so <see cref="WorldTransform"/> does not apply to it (glTF 2.0 skinning).</summary>
+    public int?SkinIndex { get; init;}
 }
