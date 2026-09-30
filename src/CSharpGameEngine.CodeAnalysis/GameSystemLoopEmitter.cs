@@ -105,6 +105,16 @@ internal static class GameSystemLoopEmitter {
         Lines.Add("        }");
         Lines.Add("    }");
 
+        // ADR-0070 B1: the Scene Designer's runtime view. It shows the world as the game presents it
+        // (every Presentation system) without input, simulation or physics advancing it.
+        Lines.Add($"    internal static void RunPresentationFrame(ref global::CSharpGameEngine.Entities.State State, ref GeneratedSystemSet Systems{BuildContextParameterSuffix(Contexts)}) {{");
+        Lines.Add("        if (!State.Enabled) return;");
+        Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
+        if(SpatialWorldEmitter.ShouldEmit(Registry)){ Lines.Add("        State.World.RefreshGlobalSpatialIndex();"); }
+        Lines.Add($"        RunPhase(global::CSharpGameEngine.Entities.SystemPhase.Presentation, ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, false, false);");
+        Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
+        Lines.Add("    }");
+
         bool HasEditorSystems=Systems.Any(static Binding=>Binding.System.ExecuteInEditor);
         bool HasRealtimeEditorSystems=Systems.Any(static Binding=>Binding.System.ExecuteInEditor&&Binding.System.RealtimeInEditor);
         if(HasEditorSystems){

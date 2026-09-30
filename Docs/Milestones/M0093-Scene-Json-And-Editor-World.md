@@ -19,7 +19,7 @@ The steps are ordered so the Scene Designer keeps working at every commit. Repos
 | C2 | The Scene Designer opens, edits and saves `*.scene.json` (ADR-0070 decision 5): the designer view of the live JSON (`SceneJsonDesignerSource`, `SceneJsonWorkspaceSource`), gestures committed as minimal JSON changes in one VS Undo unit (`SceneJsonCommitPlanner`), the scene catalog, the code-window and Solution Explorer menus, and source markers on the JSON node | Done (fb75f59, eb35738); a manual VS check is pending |
 | C3a | Convert UserEcsProject (16 scenes), the ThirdPerson template (3) and the FeatureStages (10) with `CSharpGameEngine.SceneJson.Cli convert --write --delete-source`. The export scripts convert the UE importer's output, the project generator and the VSIX carry `*.scene.json`, and "Add New Item > Scene" creates a `*.scene.json` whose schema path a wizard fills in | Done (a186050) |
 | C3b | Remove the user-authored C# `IScene` path: the generator reads scenes only from JSON, a C# scene class is SCENE206, and JSON `startupOrder` conflicts are SCENE118. The VSIX discovers, opens and writes only `*.scene.json`, and the C# scene writer is removed. Tests keep writing scenes in the C# DSL; their helpers convert them the way the CLI does. Model predictions are checked by writing JSON and reading it back | Done (this commit) |
-| B1 | Preview host instantiates the editor world from the in-memory JSON inside the game assembly and renders it with the runtime's Presentation systems (steps below) | In progress: step 1 done (this commit) |
+| B1 | Preview host instantiates the editor world from the in-memory JSON inside the game assembly and renders it with the runtime's Presentation systems (steps below) | In progress: steps 1 (f38e9f4) and 2 (this commit) done |
 | B2 | Keep the device and swap chain across edits; exposure/GI history survives edits | Planned |
 
 ## B1 design (2026-10-01)
@@ -33,6 +33,9 @@ Steps, each verified before the next:
    - **Oracle:** on WARP, the editor camera renders the same pixels as a scene camera placed at the same pose.
    - **Result:** `EngineHost.UseExternalSurface` and `SetEditorCamera`. `EditorRuntimeViewTests` passes, and fails with the override disabled.
 2. **Generated presentation frame.** The generated loop gains a presentation-only frame: scene instantiation and Presentation-phase systems, but no input, simulation or physics. The bridge exposes a runtime view: initialize with a surface, render with a camera, resize, shut down.
+   - **Result:** `GeneratedGameLoop.RunPresentationFrame` and `GeneratedEditorPreviewBridge.InitializeRuntimeView`, `RenderRuntimeView`, `ResizeRuntimeView`, `CaptureRuntimeView` and `ShutdownRuntimeView`, emitted for games that use `EngineHost`.
+   - The view's world is every startup scene in order plus the edited scene.
+   - `EditorRuntimeViewBridgeTests` renders UserEcsProject's world on WARP with the runtime sky from two designer cameras, and after a resize.
 3. **Preview host runtime session.** It implements the existing session contract (camera, overlay, selection and resize per frame) on the runtime's `RenderServer`. The VSIX opens it for the pinned scene's project when the game assembly is built.
 4. **Edits.** Value edits (transforms, members) go to the running world. A structural edit that needs an archetype the build does not have is reported as "build to see this change", never drawn wrong.
 

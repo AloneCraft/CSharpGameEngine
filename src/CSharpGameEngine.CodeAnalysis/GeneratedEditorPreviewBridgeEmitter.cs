@@ -104,6 +104,9 @@ internal static class GeneratedEditorPreviewBridgeEmitter {
         } else {
             Lines.Add("    internal static void TickRealtime() { }");
         }
+        if(HasEngineHost){
+            AddRuntimeView(Lines,Scenes);
+        }
         Lines.Add("    internal static void Shutdown() {");
         if(HasEditorSystems){
             Lines.Add($"        if (Initialized) GeneratedGameLoop.ShutdownEditor(ref PreviewState, ref PreviewSystems{HostArgument});");
@@ -117,6 +120,75 @@ internal static class GeneratedEditorPreviewBridgeEmitter {
         Lines.Add("    }");
         Lines.Add("}");
         Context.AddSource(HintName,SourceText.From(string.Join("\n",Lines),Encoding.UTF8));
+    }
+    /// <summary>
+    /// ADR-0070 B1: the Scene Designer's runtime view. The world is what the game starts with (every
+    /// startup scene in order) plus the scene being edited, rendered by the game's own Presentation
+    /// systems into the designer's surface from the designer's camera.
+    /// </summary>
+    private static void AddRuntimeView(List<string> Lines,IReadOnlyList<SceneEmitModel> Scenes){
+        const string Host="global::CSharpGameEngine.Runtime.Windows.EngineHost";
+        Lines.Add($"    private static {Host}? ViewHost;");
+        Lines.Add("    private static global::CSharpGameEngine.Entities.State ViewState;");
+        Lines.Add("    private static GeneratedSystemSet ViewSystems;");
+        Lines.Add("    internal static bool InitializeRuntimeView(string? SceneName, nint Surface, int Width, int Height, bool UseWarp) {");
+        Lines.Add("        ShutdownRuntimeView();");
+        Lines.Add($"        var Host = new {Host}();");
+        Lines.Add("        try {");
+        Lines.Add("            Host.UseExternalSurface(Surface, Width, Height, new global::CSharpGameEngine.Graphics.D3D12.GraphicsDeviceOptions { UseWarp = UseWarp });");
+        Lines.Add("            ViewState = Host.CreateState();");
+        Lines.Add("            ViewSystems = default;");
+        Lines.Add("            bool Matched = SceneName is null;");
+        foreach(var Scene in Scenes.Where(static S=>S.IsStartupScene).OrderBy(static S=>S.StartupOrder).ThenBy(static S=>S.ClassFullyQualifiedName,StringComparer.Ordinal)){
+            Lines.Add($"            ViewState.World.InstantiateScene<global::{Scene.ClassFullyQualifiedName}>();");
+            Lines.Add($"            if (SceneName == \"{Escape(Scene.ClassFullyQualifiedName)}\") Matched = true;");
+        }
+        var Others=Scenes.Where(static S=>!S.IsStartupScene).OrderBy(static S=>S.ClassFullyQualifiedName,StringComparer.Ordinal).ToList();
+        if(Others.Count>0){
+            Lines.Add("            switch (SceneName) {");
+            foreach(var Scene in Others){
+                Lines.Add($"                case \"{Escape(Scene.ClassFullyQualifiedName)}\": ViewState.World.InstantiateScene<global::{Scene.ClassFullyQualifiedName}>(); Matched = true; break;");
+            }
+            Lines.Add("            }");
+        }
+        Lines.Add("            if (!Matched) { Host.Dispose(); return false; }");
+        Lines.Add("            ViewState.Enabled = true;");
+        Lines.Add("            ViewState.ExecutionMode = global::CSharpGameEngine.Entities.EngineExecutionMode.EditorPreview;");
+        Lines.Add("            ViewHost = Host;");
+        Lines.Add("            return true;");
+        Lines.Add("        } catch {");
+        Lines.Add("            Host.Dispose();");
+        Lines.Add("            throw;");
+        Lines.Add("        }");
+        Lines.Add("    }");
+        Lines.Add("    /// <summary>One frame seen from the designer's camera: a world position and a unit RUF rotation.</summary>");
+        Lines.Add("    internal static bool RenderRuntimeView(float PositionR, float PositionU, float PositionF, float RotationR, float RotationU, float RotationF, float RotationW, float FovYRadians, float NearZ, float FarZ) {");
+        Lines.Add("        if (ViewHost is null || !ViewState.Enabled) return false;");
+        Lines.Add("        var Pose = new global::CSharpGameEngine.Entities.Transform {");
+        Lines.Add("            Position = new global::CSharpGameEngine.Numerics.LogicalVector3(PositionR, PositionU, PositionF),");
+        Lines.Add("            Rotation = new global::CSharpGameEngine.Numerics.LogicalQuaternion(RotationR, RotationU, RotationF, RotationW),");
+        Lines.Add("        };");
+        Lines.Add("        ViewHost.SetEditorCamera(new global::CSharpGameEngine.Runtime.Windows.EditorCameraPose(Pose, FovYRadians, NearZ, FarZ));");
+        Lines.Add("        GeneratedGameLoop.RunPresentationFrame(ref ViewState, ref ViewSystems, ViewHost);");
+        Lines.Add("        return ViewState.Enabled;");
+        Lines.Add("    }");
+        Lines.Add("    internal static void ResizeRuntimeView(int Width, int Height) => ViewHost?.ResizeExternalSurface(Width, Height);");
+        Lines.Add("    /// <summary>Renders and reads back one frame for verification; null before the level has loaded.</summary>");
+        Lines.Add("    internal static global::CSharpGameEngine.Graphics.D3D12.PixelReadbackResult? CaptureRuntimeView() {");
+        Lines.Add("        if (ViewHost?.Renderer is not { } Renderer) return null;");
+        Lines.Add("        Renderer.RenderFrame(CaptureForVerification: true);");
+        Lines.Add("        return Renderer.LastCapturedFrame;");
+        Lines.Add("    }");
+        Lines.Add("    internal static void ShutdownRuntimeView() {");
+        Lines.Add("        if (ViewHost is null) return;");
+        Lines.Add("        try {");
+        Lines.Add("            GeneratedGameLoop.Shutdown(ref ViewState, ref ViewSystems, ViewHost);");
+        Lines.Add("        } finally {");
+        Lines.Add("            ViewHost.Dispose();");
+        Lines.Add("            ViewHost = null;");
+        Lines.Add("            ViewState.Enabled = false;");
+        Lines.Add("        }");
+        Lines.Add("    }");
     }
     private static string Escape(string Value)=>Value.Replace("\\","\\\\").Replace("\"","\\\"");
 }
