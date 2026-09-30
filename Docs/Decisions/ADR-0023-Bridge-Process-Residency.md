@@ -49,9 +49,20 @@ ADR-0010追記(本ADRの直前の変更)で、`ExternalBridgeProcess.RunProcess`
 起きるため、診断テキストを戻り値として返すようにした(一発モードでは`Program.cs`が最後に
 まとめて出力する形に変わった - 進行に伴う逐次出力から完了後の一括出力への軽微な変更)。
 
-`Program.cs`は`args is ["--serve", var pipeName]`で常駐サーバーモードに分岐し、
-`BridgeServerHost.RunAsync(pipeName, XyzBridgeWorker.Run, TimeSpan.FromMinutes(15))`を呼ぶ。
-それ以外は既存の2引数モードのまま。
+`Program.cs`は`BridgeServeCommand.TryParse`で`--serve <pipe> [--parent-process-id <pid>]`を
+受け取ると常駐サーバーモードに分岐し、
+`BridgeServerHost.RunAsync(pipeName, XyzBridgeWorker.Run, TimeSpan.FromMinutes(15), OwnerProcessId: pid)`
+を呼ぶ。それ以外は既存の2引数モードのまま。
+
+**寿命は起動したVisual Studioに従う(2026-10-01追記)**: 常駐ブリッジは拡張のインストール先から
+起動されるため、終了したVSより長く残ると、次のF5デプロイで拡張フォルダーのDLLがロックされて
+失敗した(実験用ハイブで観測)。そこで次のようにした。
+- `ResidentBridgeClient`は自分のプロセスIDを`--parent-process-id`で渡す。
+- `BridgeServerHost`は`ParentProcessLifetime`(プレビューホストと共通、`Bridge.Hosting`)で所有者を監視し、
+  所有者が終了するとアイドルタイムアウトと同じ経路で受け付けを止め、処理中の要求を片付けて終了する。
+- パイプ名とスポーン用Mutexは所有者のプロセスIDも含めて決める。別のVS(別のインストール先・別の
+  バージョン)が起動したブリッジには接続しない。
+- アイドルタイムアウト(15分)はそのまま残る。
 
 **`FbxBridgeWorker`のみ`SemaphoreSlim(1, 1)`で`FbxImporter.Import`呼び出しを排他する**:
 `FbxImporter.Import`(`src/CSharpGameEngine.Import.Fbx/FbxImporter.cs`)は呼び出しのたびに

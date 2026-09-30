@@ -1038,14 +1038,17 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
     同一プロセス内・子プロセス起動なし: 単発往復・8件並行リクエストの無混線・ハンドラ例外後の
     継続動作・アイドルタイムアウトでのループ終了)
   - tests/CSharpGameEngine.VSExtension.Tests/ResidentBridgeClientTests.cs(`ComputePipeName`の
-    決定性・repoRoot/ブリッジ違いでの別名)
+    決定性・repoRoot/ブリッジ/所有者違いでの別名、`--parent-process-id`付きの起動引数)
+  - tests/CSharpGameEngine.Bridge.Hosting.Tests/BridgeServerHostTests.cs(2026-10-01: 所有者の
+    終了・最初から存在しない所有者で、アイドルタイムアウトを待たずに終了する。`--serve`の引数解釈)
 - Reverse-engineered behavior:
   - 1リクエスト=1接続(パイプの多重化なし)。`BridgeServerHost`は接続ごとに独立した`Task`へ
     ディスパッチし、`SceneHwndHost`の並列メッシュロードにそのまま対応できる。
   - `ResidentBridgeClient`は`--serve`常駐サーバーへの接続を最初に試み、失敗時のみ`Mutex`
     (`Global\...`)経由で新規起動する。パイプ名は`ComputePipeName`が`repoRoot`+ブリッジ
-    フォルダ名からSHA256で決定的に生成する(`GetHashCode()`はプロセスごとにランダム化される
-    ため使用不可)。
+    フォルダ名+所有者のVSのプロセスIDからSHA256で決定的に生成する(`GetHashCode()`はプロセス
+    ごとにランダム化されるため使用不可)。常駐ブリッジは`--parent-process-id`の所有者が終了すると
+    終わる(拡張フォルダーをロックしたまま残らない、ADR-0023追記)。
   - **設計変更を要した実機検証結果**: 応答待機に当初`ThreadHelper.JoinableTaskFactory.Run`
     (VS threading analyzer VSTHRD002が推奨する、Task同期待機の標準的な回避策)を使ったところ、
     xunitテストから実行した際に毎回約10秒かかり常駐パスが常に失敗してtier2(直接exe起動)に

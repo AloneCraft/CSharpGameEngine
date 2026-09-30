@@ -139,6 +139,49 @@ public class BridgeServerHostTests {
     }
 
     [Fact]
+    public async Task OwnerExit_ExitsAcceptLoopLongBeforeTheIdleTimeout(){
+        using var Owner=System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+            "cmd.exe","/c ping -n 60 127.0.0.1 >nul"){ UseShellExecute=false,CreateNoWindow=true })!;
+        Task ServerTask=BridgeServerHost.RunAsync(
+            UniquePipeName(),(_,_)=>(0,""),TimeSpan.FromMinutes(15),OwnerProcessId:Owner.Id);
+        await Task.Delay(200);
+        Assert.False(ServerTask.IsCompleted);
+
+        Owner.Kill(entireProcessTree:true);
+
+        await ServerTask.WaitAsync(TimeSpan.FromSeconds(10));
+    }
+
+    [Fact]
+    public async Task OwnerAlreadyGone_ExitsAtOnce(){
+        using var Owner=System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+            "cmd.exe","/c exit 0"){ UseShellExecute=false,CreateNoWindow=true })!;
+        Owner.WaitForExit();
+
+        await BridgeServerHost.RunAsync(
+            UniquePipeName(),(_,_)=>(0,""),TimeSpan.FromMinutes(15),OwnerProcessId:Owner.Id)
+            .WaitAsync(TimeSpan.FromSeconds(10));
+    }
+
+    [Theory]
+    [InlineData(new[]{ "--serve","Pipe" },"Pipe",null)]
+    [InlineData(new[]{ "--serve","Pipe","--parent-process-id","4242" },"Pipe",4242)]
+    public void ServeCommand_ReadsThePipeAndTheOwner(string[]Arguments,string Pipe,int?Owner){
+        Assert.True(BridgeServeCommand.TryParse(Arguments,out var PipeName,out var OwnerProcessId));
+        Assert.Equal(Pipe,PipeName);
+        Assert.Equal(Owner,OwnerProcessId);
+    }
+
+    [Theory]
+    [InlineData("input.glb output.json")]
+    [InlineData("--serve")]
+    [InlineData("--serve Pipe --parent-process-id -1")]
+    [InlineData("--serve Pipe --parent-process-id x")]
+    public void ServeCommand_RejectsOtherCommandLines(string CommandLine){
+        Assert.False(BridgeServeCommand.TryParse(CommandLine.Split(' '),out _,out _));
+    }
+
+    [Fact]
     public async Task IdleTimeout_DrainsAcceptedRequestBeforeExit(){
         var PipeName=UniquePipeName();
         using ManualResetEventSlim Started=new();

@@ -5,6 +5,7 @@ using System.Text;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using CSharpGameEngine.Bridge.Hosting;
 using CSharpGameEngine.EditorPreview.Host;
 
 string? parentProcessText=ReadOption(args,"--parent-process-id");
@@ -114,55 +115,4 @@ static string? ReadOption(string[] Arguments,string Name){
         }
     }
     return null;
-}
-
-internal sealed class ParentProcessLifetime:IDisposable {
-    private readonly Process Parent;
-    private readonly CancellationTokenSource Cancellation;
-    private bool Disposed;
-
-    private ParentProcessLifetime(Process Parent,CancellationTokenSource Cancellation){
-        this.Parent=Parent;
-        this.Cancellation=Cancellation;
-        this.Parent.EnableRaisingEvents=true;
-        this.Parent.Exited+=this.OnParentExited;
-        if(this.Parent.HasExited){
-            this.Cancellation.Cancel();
-        }
-    }
-
-    internal static ParentProcessLifetime?Attach(
-        int?ParentProcessId,CancellationTokenSource Cancellation){
-        if(ParentProcessId is null){
-            return null;
-        }
-        Process? Parent=null;
-        try{
-            Parent=Process.GetProcessById(ParentProcessId.Value);
-            return new ParentProcessLifetime(Parent,Cancellation);
-        }catch(ArgumentException){
-            Parent?.Dispose();
-            Cancellation.Cancel();
-            return null;
-        }catch(InvalidOperationException){
-            Parent?.Dispose();
-            Cancellation.Cancel();
-            return null;
-        }catch(System.ComponentModel.Win32Exception){
-            Parent?.Dispose();
-            Cancellation.Cancel();
-            return null;
-        }
-    }
-
-    public void Dispose(){
-        if(this.Disposed){
-            return;
-        }
-        this.Disposed=true;
-        this.Parent.Exited-=this.OnParentExited;
-        this.Parent.Dispose();
-    }
-
-    private void OnParentExited(object?Sender,EventArgs Args)=>this.Cancellation.Cancel();
 }

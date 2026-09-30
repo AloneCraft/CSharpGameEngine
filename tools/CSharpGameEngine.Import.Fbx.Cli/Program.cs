@@ -1,8 +1,8 @@
 using CSharpGameEngine.Bridge.Hosting;
 using CSharpGameEngine.Import.Fbx.Cli;
 
-if(args is["--serve", var PipeName]){
-    await BridgeServerHost.RunAsync(PipeName,FbxBridgeWorker.Run,TimeSpan.FromMinutes(15));
+if(BridgeServeCommand.TryParse(args,out var PipeName,out var OwnerProcessId)){
+    await BridgeServerHost.RunAsync(PipeName,FbxBridgeWorker.Run,TimeSpan.FromMinutes(15),OwnerProcessId:OwnerProcessId);
     return 0;
 }
 

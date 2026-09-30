@@ -16,25 +16,32 @@ namespace CSharpGameEngine.Bridge.Hosting;
 /// Stops accepting after <paramref name="idleTimeout"/> with no new connections and drains accepted
 /// requests before exiting. The client distinguishes unavailability before request submission from
 /// timeout or crash after submission; only the former may start a fresh one-shot request.
+///
+/// With an owner process (the Visual Studio that started the bridge) it also stops, the same way,
+/// when the owner exits: a bridge that outlives its Visual Studio would keep the extension's files
+/// locked against the next deployment.
 /// </summary>
 public static class BridgeServerHost {
     public static Task RunAsync(
         string PipeName,
         Func<string,string,(int ExitCode,string Output)>Handler,
         TimeSpan IdleTimeout,
-        CancellationToken CancellationToken=default)=>RunArgumentsAsync(
+        CancellationToken CancellationToken=default,
+        int?OwnerProcessId=null)=>RunArgumentsAsync(
             PipeName,
             (Arguments,_)=>Handler(
                 Arguments.Length>0?Arguments[0]:string.Empty,
                 Arguments.Length>1?Arguments[1]:string.Empty),
-            IdleTimeout,CancellationToken);
+            IdleTimeout,CancellationToken,OwnerProcessId);
 
     public static async Task RunArgumentsAsync(
         string PipeName,
         Func<string[],CancellationToken,(int ExitCode,string Output)>Handler,
         TimeSpan IdleTimeout,
-        CancellationToken CancellationToken=default){
+        CancellationToken CancellationToken=default,
+        int?OwnerProcessId=null){
         using var IdleCts=CancellationTokenSource.CreateLinkedTokenSource(CancellationToken);
+        using var Owner=ParentProcessLifetime.Attach(OwnerProcessId,IdleCts);
         IdleCts.CancelAfter(IdleTimeout);
         ConcurrentDictionary<Task,byte> ActiveRequests=new();
 

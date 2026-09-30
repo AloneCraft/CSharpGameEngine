@@ -46,6 +46,8 @@ Preview, Import, and Bake use a single versioned out-of-process protocol. The VS
 
 Protocol version mismatch fails before source mutation. Host crash and timeout are not auto-successfully retried. A fresh request may start after terminal cleanup.
 
+Every helper process the VSIX starts (the Preview Host and the resident bridges) is owned by the Visual Studio process that started it. It receives `--parent-process-id` and exits when that process exits, so it never keeps the extension's install folder locked against the next deployment. Resident bridge pipes are per owner: a Visual Studio never connects to another instance's bridges.
+
 ## Editing contracts
 
 - Rotate, Scale, snap, rebase, WARP display, and Undo/Redo are acceptance requirements layered on the existing transform baseline. Transform preview matrices are camera/frame-relative `float` UI projections only; the scene document is unchanged until commit. A canonical Transform commit updates only local Logical position/rotation/scale members and must preserve its `ReferenceFrameId` member exactly.

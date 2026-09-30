@@ -7,9 +7,9 @@ using CSharpGameEngine.Runtime.Physics;
 using CSharpGameEngine.Runtime.Simulation;
 using System.Globalization;
 
-if(args is ["--serve",var PipeName]){
+if(BridgeServeCommand.TryParse(args,out var PipeName,out var OwnerProcessId)){
     await BridgeServerHost.RunArgumentsAsync(
-        PipeName,PhysicsBridgeWorker.Run,TimeSpan.FromMinutes(15));
+        PipeName,PhysicsBridgeWorker.Run,TimeSpan.FromMinutes(15),OwnerProcessId:OwnerProcessId);
     return 0;
 }
 
