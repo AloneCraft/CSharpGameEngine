@@ -6,6 +6,9 @@ M0088/ADR-0064 refines existing F-L5-001, F-L8-024, F-L8-025, F-L4-002, F-L0-005
 ## Current environment-lighting update
 M0089/ADR-0069 adds F-L4-014 (physical sky, sky light, exposure, cascaded sun shadows, dynamic GI and ambient occlusion) and refines F-L5-001 and F-L0-005. See [Rendering](Specifications/Rendering.md#environment-lighting) and the [verification milestone](Milestones/M0089-Physically-Based-Environment-Lighting.md).
 
+## Current character-movement update
+M0090/ADR-0067 implements F-L5-006. It adds kinematic character movement on the deterministic physics world, StaticMesh triangle collision, a spring-arm follow camera, and Enhanced Input value composition with XInput. It refines F-L4-010 and F-L0-010. The ThirdPerson template is now playable with a capsule stand-in. See the [verification milestone](Milestones/M0090-ThirdPerson-Character-Movement.md).
+
 ## Non-physics Feature index (authoritative)
 
 This index is the authoritative machine-tracked mapping for the six non-physics tracks. The older narrative tables below remain planning context. Every row has one Feature and one target Stage; `Specified`/`Deferred` target Stages are deliberately `NotImplemented` until their implementation lands.
@@ -138,6 +141,8 @@ Implement cross-track work by dependency Level 1 through 7. At each Level, first
 ## Priority 2 — Rigid拡張
 
 F-L5-004 Joints → 005 Ragdoll/006 Character/007 Vehicle → 008 Dynamic CCD → 009 Parallel → 010 GPU → 011 Rollback。
+
+- F-L5-006: Implemented（M0090/ADR-0067）。walking/falling、壁滑り、坂・段差、SpringArm、ThirdPersonテンプレートのWARP実走まで検証済み。rigid bodyとの押し合いは未対応。
 
 ## Priority 3 — Deformable / Fluid / Destruction
 

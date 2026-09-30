@@ -125,6 +125,12 @@ public sealed unsafe class Win32Window:IDisposable {
 
     public bool IsMouseCaptured=> this.MouseCaptured;
 
+    /// <summary>Records a keyboard key as if this window had received it (scripted automation input).</summary>
+    public void InjectKey(string Code,bool Pressed){
+        ObjectDisposedException.ThrowIf(this.Disposed,this);
+        this.InputAdapter.RecordKeyCode(Code,Pressed);
+    }
+
     /// <summary>
     /// Hides the cursor and clips it to this window (mouse-look style capture), or releases it.
     /// Relative motion is delivered through timestamped input events while capture owns the cursor.

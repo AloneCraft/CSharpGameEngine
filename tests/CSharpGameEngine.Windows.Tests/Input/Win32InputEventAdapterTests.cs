@@ -57,4 +57,10 @@ public sealed class Win32InputEventAdapterTests {
         Assert.Equal(InputControlKind.RelativeAxis2D,Events[0].Control.Kind);
         Assert.True(Win32InputEventAdapter.TimestampFrequency>0);
     }
+    [Fact]
+    public void KeyCodes_UseUnrealNamesForNamedKeys(){
+        Assert.Equal("SpaceBar",Win32InputEventAdapter.KeyCode(0x20));
+        Assert.Equal("W",Win32InputEventAdapter.KeyCode(0x57));
+        Assert.Equal("Left",Win32InputEventAdapter.KeyCode(0x25));
+    }
 }

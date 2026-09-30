@@ -431,14 +431,14 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Verification: NotApplicable(削除前はTestVerified)
 - Intended specification: Docs/Decisions/ADR-0016-Ecs-Driven-Stage-And-ThirdPerson-Controller.md
 - Removal evidence: 旧L9アプリケーションの`PlayerController.cs`と`CharacterMotionTests.cs`は
-  `40f08e4`で削除済み。現行ツリーに同等の移動・重力・Jump処理は無い。
+  `40f08e4`で削除済み。旧実装のコードは残っていない。
 - Historical behavior:
   - `CharacterMotion.Compute`はWorld/Window/GPUに一切依存しない純粋関数。カメラ基準の
     WASD移動、重力減算、Y<=0での接地クランプ、接地時のみJump可、を行う。`LerpAngle`は
     最短経路で角度を補間する。
 - Conformance: NotApplicable(旧実装は存在しない)
 - Known deviations: 衝突判定・本格物理エンジンは無し(Y<=0の簡易接地クランプのみ)。
-- Next action: キャラクター操作が必要になった時点で現行`ISystem`上へ新規実装する。
+- Next action: なし。後継はF-L5-006(ADR-0067、`Runtime.Character`)として現行`ISystem`上へ新規実装済み。
 
 ## F-L8-001 — `OpenGameCommand`
 
@@ -3552,6 +3552,20 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Conformance: `ContentAddressedStoreTests`, `WorldCellRuntimeTests`, `WorldCellStreamingTests`, `WorldCellSpatialIndexTests`, `WorldCellEntityPayloadTests`, `CellUnloadAtPlaybackInvalidatesRuntimeAndPersistentHandles`, Scene generator E2E, and `GeneratedWorldCellActivationTests`.
 - Next action: consume the published active-cell snapshot from F-L4-006 visibility and package the reachable CAS closure in F-L6-006.
 
+## F-L5-006 — Character Controller
+
+- Layer: L5 — Integrated Runtime
+- Parent capability: Rigid
+- Status: Implemented
+- Verification: TestVerified, RuntimeVerified (WARP)
+- Intended specification: `Docs/Decisions/ADR-0067-Kinematic-Character-Movement-And-Spring-Arm-Camera.md`
+- Stage: `rigid.character-controller` (`Executable`, Visual / Rigid, 1800s)
+- Depends on: F-L5-003, F-L4-010, F-L3-018
+- Implementation evidence: `src/CSharpGameEngine.Runtime.Character/{CharacterComponents,CharacterMotor,CharacterSystems,PlayerCamera,PlayerCameraComponents}.cs`, `src/CSharpGameEngine.Runtime.Physics/{StaticMeshCollision,PhysicsNarrowPhase}.cs`, `templates/CSharpGameEngine.Templates.ThirdPerson/{Scenes/ThirdPersonCharacter,Input/ThirdPersonInput,Gameplay/ThirdPersonControls}.cs`, `tools/CSharpGameEngine.FeatureRunner/ThirdPersonCharacterVerification.cs`
+- Current delta: Walking and falling only; there is no swimming, flying, crouching, moving-platform basing, root motion, or network prediction. Collision uses the rendered triangles of StaticMesh colliders, not Unreal's simple collision. The spring arm has no camera lag. The template character is a capsule until skeletal meshes land (ADR-0066).
+- Conformance: CharacterMotorTests, SpringArmTests, PhysicsCapsuleContactTests, StaticMeshCollisionTests, InputServerTests, Win32InputEventAdapterTests, Win32WindowMouseCaptureTests, RuntimeAutomationTests, and ThirdPersonCharacterVerificationTests. The ThirdPerson template runs on WARP with scripted W then Space; see [M0090](Milestones/M0090-ThirdPerson-Character-Movement.md).
+- Next action: drive the Quinn skeletal mesh and locomotion animation from `CharacterMovementState` (ADR-0066).
+
 ## Deferred Simulation/Physics features with designed Stages
 
 All entries below remain `Deferred / Unverified`. Their intended behavior and deterministic Oracle are specified in `Docs/Feature-Stages.md`; implementation evidence does not yet exist, and explicit execution returns `NotImplemented`.
@@ -3560,7 +3574,6 @@ All entries below remain `Deferred / Unverified`. Their intended behavior and de
 |---|---|---|---|
 | F-L5-004 | Joints | `rigid.joints` | Unknown |
 | F-L5-005 | Ragdoll | `rigid.ragdoll` | Unknown |
-| F-L5-006 | Character Controller | `rigid.character-controller` | Unknown |
 | F-L5-007 | Vehicle | `rigid.vehicle` | Unknown |
 | F-L5-008 | Dynamic-Dynamic CCD | `rigid.dynamic-ccd` | Unknown |
 | F-L5-009 | Parallel Solver | `rigid.parallel-solver` | Unknown |
@@ -4184,7 +4197,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Intended specification: `Docs/Specifications/Audio-Input-Platform.md#server-data-flow`
 - Stage: `platform.window-input` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L1-008
-- Current delta: Win32 keyboard, mouse button/wheel, raw relative mouse, device notification, QPC timestamp, repeat suppression, and forced release on focus/capture/device/window loss are implemented behind `DrainInputEvents()`.
+- Current delta: Win32 keyboard, mouse button/wheel, raw relative mouse, XInput pad 0 (Unreal key names), device notification, QPC timestamp, repeat suppression, and forced release on focus/capture/device/window loss are implemented behind `DrainInputEvents()`. Mouse-look capture clips the cursor only while the window has focus. Automation can inject scheduled keys (ADR-0067).
 - Conformance: Matches
 - Next action: Preserve QPC and forced-release behavior while adding future device kinds.
 
@@ -4211,7 +4224,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Intended specification: `Docs/Specifications/Audio-Input-Platform.md#input-contract`
 - Stage: `input.actions` (`Executable`, Headless / Foundation, 900s)
 - Depends on: F-L0-010
-- Current delta: Stable raw-event ordering, context priority, chord evaluation, 1D/2D dead-zone, reserved actions, collision-checked rebind, context/device cancellation, and deterministic action frames are implemented.
+- Current delta: Stable raw-event ordering, context priority, chord evaluation, 1D/2D dead-zone, reserved actions, collision-checked rebind, context/device cancellation, and deterministic action frames are implemented. `ReadValue` sums an action's bindings after ordered Negate/Swizzle modifiers, and relative mouse axes accumulate per processed frame (Enhanced Input semantics, ADR-0067).
 - Conformance: Matches
 - Next action: Preserve deterministic trace/action identity while adding future composite bindings.
 

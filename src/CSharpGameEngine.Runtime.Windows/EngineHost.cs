@@ -170,10 +170,14 @@ public sealed class EngineHost:IDisposable {
         if(this.Window is { IsMinimized:false }&&this.Renderer is { } Renderer){
             this.SubmitEnvironment(Renderer);
             Renderer.RenderFrame(this.Automation?.CapturesNextFrame??false);
-            this.Automation?.RecordPresented(Renderer);
+            this.Automation?.RecordPresented(Renderer,this.AutomationCameraPosition());
         }
         return this.Automation is not { Completed:true };
     }
+
+    private Vector3? AutomationCameraPosition()=>
+        this.HasCameraPose&&this.CameraFrameLocalOrigin.M41.TryToSingle(out var R)&&this.CameraFrameLocalOrigin.M42.TryToSingle(out var U)&&this.CameraFrameLocalOrigin.M43.TryToSingle(out var F)
+            ?new Vector3(R,U,F):null;
 
     private void SubmitEnvironment(RenderServer Renderer){
         var Collected=this.Environment;

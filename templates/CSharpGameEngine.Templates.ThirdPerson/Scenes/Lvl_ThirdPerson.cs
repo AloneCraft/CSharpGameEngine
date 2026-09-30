@@ -1,9 +1,11 @@
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Runtime.Lighting;
+using CSharpGameEngine.Runtime.Physics;
 using CSharpGameEngine.Runtime.Windows;
 namespace CgeThirdPerson.Scenes;
 /// <summary>
 /// UE5.8 ThirdPersonテンプレートの/Game/ThirdPerson/Lvl_ThirdPersonから取り込んだ宣言型レベル。
+/// 各メッシュは描画三角形をそのまま静的コリジョンにする(UEの簡易コリジョン形状は移植しない)。
 /// このC#を正本として編集する。再取り込みはtools/UnrealExport/run_export_thirdperson.cmd --forceを明示した場合だけ行う。
 /// </summary>
 [StartupScene(Order=1)]
@@ -38,6 +40,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(4f,1f,4f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Template_Map_Floor_78eccfff4a,Mobility=MeshMobility.Movable },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -49,6 +52,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(6f,2f,3f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Cube_913717f394,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -60,6 +64,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(6f,2f,3f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Cube_913717f394,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -71,6 +76,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(2.9999995f,2f,2.9999995f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Cube_913717f394,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -82,6 +88,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(5.999999f,2f,2.9999995f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Cube_913717f394,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -93,6 +100,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(7.000001f,2f,4.100001f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Cube_bfe650e90f,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -104,6 +112,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(3f,2f,4f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Cube_bfe650e90f,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -115,6 +124,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(3f,2f,4f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Cube_bfe650e90f,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -126,6 +136,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(3f,2f,4.1f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Cube_bfe650e90f,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -137,6 +148,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(1f,2f,40f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Cube_bfe650e90f,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -148,6 +160,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(1f,2f,38f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Cube_bfe650e90f,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -159,6 +172,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(1f,2f,38f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Cube_bfe650e90f,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -170,6 +184,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(2f,2f,40f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Cube_bfe650e90f,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -181,6 +196,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(1f,2f,40f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Cube_bfe650e90f,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -192,6 +208,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(2f,2f,40f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Cube_bfe650e90f,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -203,6 +220,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(2f,2f,36f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Cube_bfe650e90f,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -214,6 +232,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(2f,2f,36f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Cube_bfe650e90f,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -225,6 +244,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(3f,2f,3f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Cube_913717f394,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -236,6 +256,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(3f,2f,3f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Cube_913717f394,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -247,6 +268,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(6f,2f,3f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Cube_913717f394,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -258,6 +280,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(3f,2f,3f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Cube_913717f394,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -269,6 +292,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(7f,0.1f,7f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Cylinder_e89d7d5009,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -280,6 +304,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(5.000005f,4f,5.000005f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_QuarterCylinder_8c7c560cd3,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -291,6 +316,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(5.000005f,4f,5.000005f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_QuarterCylinder_8c7c560cd3,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -302,6 +328,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(5f,4f,5f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_QuarterCylinder_8c7c560cd3,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -313,6 +340,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(5f,4f,5f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_QuarterCylinder_8c7c560cd3,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -324,6 +352,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(5f,4f,5f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_QuarterCylinder_8c7c560cd3,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -335,6 +364,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(5f,4f,5f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_QuarterCylinder_8c7c560cd3,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -346,6 +376,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(5f,4f,5f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_QuarterCylinder_8c7c560cd3,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -357,6 +388,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(5f,4f,5f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_QuarterCylinder_8c7c560cd3,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -368,6 +400,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(6f,2f,6f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_QuarterCylinder_8c7c560cd3,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -379,6 +412,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(6.499999f,2f,6.499999f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_QuarterCylinder_8c7c560cd3,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -390,6 +424,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(6.5f,2f,6.5f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_QuarterCylinder_8c7c560cd3,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -401,6 +436,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(6.499999f,2f,6.499999f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_QuarterCylinder_8c7c560cd3,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -412,6 +448,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(6f,2f,6f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_QuarterCylinder_8c7c560cd3,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -423,6 +460,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(6f,2f,6f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_QuarterCylinder_8c7c560cd3,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -434,6 +472,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(5.999999f,2f,5.999999f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_QuarterCylinder_8c7c560cd3,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -445,6 +484,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(6f,2f,6f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_QuarterCylinder_75b03732c6,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -456,6 +496,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(5.999999f,2f,5.999999f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_QuarterCylinder_75b03732c6,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -467,6 +508,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(5.999999f,2f,5.999999f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_QuarterCylinder_75b03732c6,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -478,6 +520,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(6f,2f,6f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_QuarterCylinder_75b03732c6,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -489,6 +532,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(6.5f,2f,6.5f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_QuarterCylinder_8c7c560cd3,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -500,6 +544,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(3f,2f,4f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Ramp_8bc3259d14,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -511,6 +556,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(4.000001f,2f,4f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Ramp_3808c5dfe2,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -522,6 +568,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(4.000001f,2f,4f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Ramp_3808c5dfe2,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -533,6 +580,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(4.000001f,2f,3.9f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Ramp_3808c5dfe2,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -544,6 +592,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(3f,2f,4f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Ramp_8bc3259d14,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -555,6 +604,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(3f,2f,4f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Ramp_8bc3259d14,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -566,6 +616,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(3f,2f,4f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Ramp_8bc3259d14,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -577,6 +628,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(3f,2f,4f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Ramp_8bc3259d14,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -588,6 +640,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(2.9999995f,2f,3.9999995f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Ramp_8bc3259d14,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -599,6 +652,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(2.9999995f,2f,3.9999995f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Ramp_8bc3259d14,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -610,6 +664,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(3f,2f,4f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Ramp_8bc3259d14,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {
@@ -621,6 +676,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                         Scale=new LogicalVector3(4.000001f,2f,4f),
                     },
                     new StaticMesh { AssetPath=ThirdPersonAssets.SM_Ramp_3808c5dfe2,Mobility=MeshMobility.Static },
+                    new StaticMeshCollider(),
                 ],
             },
             new Node {

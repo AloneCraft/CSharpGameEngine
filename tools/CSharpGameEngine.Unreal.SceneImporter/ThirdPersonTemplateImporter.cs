@@ -7,7 +7,8 @@ using static CSharpGameEngine.Unreal.SceneImporter.SceneSourceFormatting;
 namespace CSharpGameEngine.Unreal.SceneImporter;
 /// <summary>
 /// UE5.8 ThirdPersonテンプレートのmanifest(version 3)から、テンプレート原本プロジェクトのC#を生成する。
-/// 生成物はLvl_ThirdPerson(レベル配置)とThirdPersonAssets(資産カタログ)。アニメーションglbは
+/// 生成物はLvl_ThirdPerson(レベル配置とコリジョン)、ThirdPersonAssets(資産カタログ)、ThirdPersonCharacter
+/// (キャラクター)、Input/ThirdPersonInput(入力マップ)。アニメーションglbは
 /// ジョイント階層とアニメーションだけを残す形へ縮約し、UEが同梱した重複メッシュ・テクスチャを除く。
 /// </summary>
 internal static class ThirdPersonTemplateImporter {
@@ -60,6 +61,10 @@ internal static class ThirdPersonTemplateImporter {
         }
         File.WriteAllText(Path.Combine(ScenesDirectory,"ThirdPersonAssets.cs"),BuildAssetsSource(Manifest,SkyDomeAssets),Utf8);
         File.WriteAllText(Path.Combine(ScenesDirectory,"Lvl_ThirdPerson.cs"),BuildLevelSource(Manifest,Scene,MeshNodeByName,DirectionalNodes[0],SkyDomeActors),Utf8);
+        File.WriteAllText(Path.Combine(ScenesDirectory,"ThirdPersonCharacter.cs"),ThirdPersonGameplayEmitter.BuildCharacterSource(Manifest.Character,Manifest.Environment.PlayerStart),Utf8);
+        var InputDirectory=Path.Combine(TemplateDirectory,"Input");
+        Directory.CreateDirectory(InputDirectory);
+        File.WriteAllText(Path.Combine(InputDirectory,"ThirdPersonInput.cs"),ThirdPersonGameplayEmitter.BuildInputSource(Manifest.Input),Utf8);
         Console.WriteLine($"Generated {Manifest.Actors.Count-SkyDomeActors.Count} StaticMesh nodes from {Manifest.RenderVariants.Count-SkyDomeAssets.Count} render variants; {SkyDomeActors.Count} sky dome actor(s) replaced by SkyAtmosphere.");
         return 0;
     }
@@ -128,10 +133,12 @@ internal static class ThirdPersonTemplateImporter {
         var Builder=new StringBuilder();
         Builder.AppendLine("using CSharpGameEngine.Entities;");
         Builder.AppendLine("using CSharpGameEngine.Runtime.Lighting;");
+        Builder.AppendLine("using CSharpGameEngine.Runtime.Physics;");
         Builder.AppendLine("using CSharpGameEngine.Runtime.Windows;");
         Builder.AppendLine("namespace "+Namespace+";");
         Builder.AppendLine("/// <summary>");
         Builder.AppendLine("/// UE5.8 ThirdPersonテンプレートの"+Manifest.LevelAssetPath+"から取り込んだ宣言型レベル。");
+        Builder.AppendLine("/// 各メッシュは描画三角形をそのまま静的コリジョンにする(UEの簡易コリジョン形状は移植しない)。");
         Builder.AppendLine("/// このC#を正本として編集する。再取り込みはtools/UnrealExport/run_export_thirdperson.cmd --forceを明示した場合だけ行う。");
         Builder.AppendLine("/// </summary>");
         Builder.AppendLine("[StartupScene(Order=1)]");
@@ -151,6 +158,7 @@ internal static class ThirdPersonTemplateImporter {
             Builder.AppendLine("                Components=[");
             AppendTransform(Builder,Translation,Rotation,Scale,"                    ");
             Builder.Append("                    new StaticMesh { AssetPath=ThirdPersonAssets.").Append(AssetMemberName(Actor.AssetPath)).Append(",Mobility=MeshMobility.").Append(Actor.Mobility).AppendLine(" },");
+            Builder.AppendLine("                    new StaticMeshCollider(),");
             Builder.AppendLine("                ],");
             Builder.AppendLine("            },");
         }
@@ -248,10 +256,6 @@ internal sealed class ThirdPersonManifest {
     public ThirdPersonCharacterManifest Character { get; set; }=new();
     public ThirdPersonLightingManifest?Lighting { get; set; }
     public JsonElement Input { get; set; }
-}
-internal sealed class ThirdPersonCharacterManifest {
-    public ThirdPersonMeshManifest Mesh { get; set; }=new();
-    public List<ThirdPersonAnimationManifest>Animations { get; set; }=[];
 }
 internal sealed class ThirdPersonMeshManifest {
     public string AssetPath { get; set; }=string.Empty;

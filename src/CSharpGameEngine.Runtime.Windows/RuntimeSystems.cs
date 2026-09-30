@@ -81,6 +81,7 @@ internal struct Window:ISystem {
         }
         Win32Window Window=Host.Window;
         Window.PumpEvents();
+        Host.Automation?.ApplyInput(Window);
         Host.Input.ProcessEvents(Window.DrainInputEvents());
         if(Window.IsClosed){
             State.Enabled=false;

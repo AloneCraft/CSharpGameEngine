@@ -41,6 +41,21 @@ Focus loss, pointer capture release, window destruction, and hotplug force relea
 ## Input contract
 
 Action maps declare context priority, chord predicates, normalization, dead zones, and rebind policy. Rebind validates collision and reserved actions before it becomes active. A context transition emits releases for controls no longer valid; it cannot leave stale pressed state in gameplay. Diagnostics include timestamp, window/device/action IDs, context, raw value, transformed value, and release reason.
+### Value reads and modifiers (ADR-0067)
+
+Gameplay reads an action's current value with `InputServer.ReadValue`. The highest-priority active context that binds the action answers, and the value is the sum of all its bindings. This is how Unreal's Enhanced Input combines W/A/S/D into one 2D move.
+
+A binding transforms its raw value in a fixed order. The dead zone and scale apply first. The ordered `InputModifier` list follows: `InputNegateModifier` per axis, and `InputSwizzleModifier` for Unreal's YXZ swizzle.
+
+Relative controls are `RelativeAxis1D` and `RelativeAxis2D`: raw mouse movement and the wheel. They hold no state. The events of one `ProcessEvents` call are accumulated, and the sum is readable until the next call.
+
+Keyboard, mouse, and gamepad controls use Unreal key names (for example `SpaceBar`, `Gamepad_Left2D`, and `Gamepad_FaceButton_Bottom`), so imported mappings bind without translation. Raw mouse movement is `Delta`, which corresponds to Unreal's `Mouse2D`.
+
+XInput pad 0 is polled once per `DrainInputEvents()`. It emits button, stick, and trigger changes, plus Connected and Disconnected events; a disconnect releases every held control.
+
+Mouse-look capture hides and clips the cursor only while the window owns focus. `ClipCursor` is system-wide, so a background or hidden window applies the capture when it receives focus.
+
+Automation input (`CGE_AUTOMATION_INPUT`, e.g. `W@20-40;SpaceBar@50-51`) presses keys by presented frame through the same adapter path as the window procedure.
 
 ## Audio contract and recovery
 

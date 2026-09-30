@@ -53,7 +53,9 @@ public sealed class Win32InputEventAdapter {
     public InputDeviceId KeyboardDevice { get;}
     public InputDeviceId MouseDevice { get;}
     public InputDeviceId GamepadDevice { get;}
-    public void RecordKey(int VirtualKeyCode,bool Pressed)=>this.RecordButton(this.KeyboardDevice,new InputControl(InputDeviceKind.Keyboard,KeyCode(VirtualKeyCode)),Pressed);
+    public void RecordKey(int VirtualKeyCode,bool Pressed)=>this.RecordKeyCode(KeyCode(VirtualKeyCode),Pressed);
+    /// <summary>Records a keyboard key by its control code (<see cref="KeyCode"/>); repeated presses are collapsed.</summary>
+    public void RecordKeyCode(string Code,bool Pressed)=>this.RecordButton(this.KeyboardDevice,new InputControl(InputDeviceKind.Keyboard,Code),Pressed);
     public void RecordMouseButton(string Code,bool Pressed)=>this.RecordButton(this.MouseDevice,new InputControl(InputDeviceKind.Mouse,Code),Pressed);
     public void RecordMouseDelta(float DeltaX,float DeltaY){
         if(DeltaX==0&&DeltaY==0){ return; }
@@ -70,8 +72,9 @@ public sealed class Win32InputEventAdapter {
         this.Pending.Clear();
         return Result;
     }
+    /// <summary>Unreal key names for letters, digits and the named keys; other virtual keys are VK_xx.</summary>
     public static string KeyCode(int VirtualKeyCode)=>VirtualKeyCode switch {
-        0x25=>"Left",0x26=>"Up",0x27=>"Right",0x28=>"Down",0x70=>"F1",
+        0x20=>"SpaceBar",0x25=>"Left",0x26=>"Up",0x27=>"Right",0x28=>"Down",0x70=>"F1",
         >=0x30 and <=0x39=>((char)VirtualKeyCode).ToString(),
         >=0x41 and <=0x5A=>((char)VirtualKeyCode).ToString(),
         _=>$"VK_{VirtualKeyCode:X2}",

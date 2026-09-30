@@ -28,3 +28,43 @@ tools\UnrealExport\run_export.cmd --force
 
 現在の受け入れ基準はStaticMeshActor 55体、DirectionalLight 1体、SkyLight／Fog／PlayerStart各1体です。
 SkyAtmosphere、VolumetricCloud、Brush、Blueprint、GameMode、アニメーションは対象外です。
+
+# Unreal ThirdPerson Template Import
+
+UE5.8の`Templates\TP_ThirdPersonBP`と共有Content Pack(LevelPrototyping/Characters/Input)から、`templates/CSharpGameEngine.Templates.ThirdPerson`のC#と資産を生成する開発用ツールです(ADR-0067/0068/0069)。
+
+- `Program Files`配下のUEには書き込みません。
+- `prepare_thirdperson_project.ps1`が`.artifacts/UnrealExport/TP_ThirdPerson/`へステージング用プロジェクトを組み立て、そこで書き出します。
+
+## 実行
+
+初回:
+
+```cmd
+tools\UnrealExport\run_export_thirdperson.cmd
+```
+
+生成済みの資産とC#を明示的に置き換える場合だけ:
+
+```cmd
+tools\UnrealExport\run_export_thirdperson.cmd --force
+```
+
+取り込み後はテンプレートのC#が正本です。UEとの同期は行いません。
+
+## 出力
+
+- `Assets/Stage/Lvl_ThirdPerson/Meshes/*.glb`: レベルの描画資産。
+- `Assets/Characters/Mannequins/`: SKM_Quinn_Simpleとアニメーション6本。アニメーションはジョイント階層とアニメーションだけへ縮約します。
+- `Scenes/Lvl_ThirdPerson.cs`: 次を宣言します。
+  - 環境ライティング
+  - 各メッシュの`StaticMesh`と`StaticMeshCollider`
+  - 太陽
+  - GIボリューム
+  - PlayerStart
+- `Scenes/ThirdPersonAssets.cs`: `[SceneAssets]`資産カタログ。
+- `Scenes/ThirdPersonCharacter.cs`: BP_ThirdPersonCharacterの実値をmへ換算した移動設定、PlayerController、SpringArmカメラ。
+- `Input/ThirdPersonInput.cs`: IMC_Default/IMC_MouseLookの入力マップ。
+- `.artifacts/UnrealExport/Lvl_ThirdPerson/manifest.json`: 取り込み元の実値。Git／ランタイムの対象外です。
+
+移植先の無いUEの機能が有効な値で来た場合、取り込みは黙って捨てずに失敗します。対象はカメララグ、SpringArmのオフセット、未対応の入力modifierなどです。

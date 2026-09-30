@@ -94,6 +94,7 @@ resume <run-result.json> [options]
 | `vsix.scene-editor` | VSIX | F-L8-010/011/012/015/016/017 | 編集・同期・localization・routing契約が成功 |
 | `spatial.runtime` | Foundation | F-L3-015/016/017 | Octree・snapshot・debug projection契約が成功 |
 | `rigid.physics` | Rigid | F-L5-001/002/003, F-L3-018, F-L6-002, F-L7-020, F-L8-014 | deterministic state/message/physics/artifact、generated headless Scene Bake、debug契約が成功 |
+| `rigid.character-controller` | Rigid | F-L5-006 | 休止・ジャンプ頂点・6 m/s歩行と制動・壁滑り・30°坂/40 cm段の登坂と50°/50 cmの拒否・完全再現、SpringArmの壁/床での短縮、ThirdPersonテンプレートのWARP実走(W→Spaceでカメラが1 m以上前進、0.5 m以上上昇して着地、床抜けとD3D12エラーなし) |
 | `runner.contract` | Foundation | F-L7-021 | catalog・CLI選択・結果schemaテストが成功 |
 | `stage-packs.contract` | Foundation | F-L9-008 | 10個の独立PackがC# `IScene`を生成・実体化・unloadし、安定state hashを出力 |
 
@@ -103,7 +104,6 @@ resume <run-result.json> [options]
 |---|---|---|---|
 | F-L5-004 | `rigid.joints` | Rigid | pendulumとlocked jointの拘束drift |
 | F-L5-005 | `rigid.ragdoll` | Rigid | pose handoff、joint limit、最終state hash |
-| F-L5-006 | `rigid.character-controller` | Rigid | stair/slope sweep、penetration 0 |
 | F-L5-007 | `rigid.vehicle` | Rigid | acceleration、brake、suspension、lap state |
 | F-L5-008 | `rigid.dynamic-ccd` | Rigid | 高速対向BodyのTOI contactと非tunneling |
 | F-L5-009 | `rigid.parallel-solver` | Rigid | single-threadとgraph-coloringのhash一致 |
