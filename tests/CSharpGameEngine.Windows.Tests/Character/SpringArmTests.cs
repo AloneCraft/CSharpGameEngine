@@ -1,3 +1,4 @@
+using System.Numerics;
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Numerics;
 using CSharpGameEngine.Runtime.Character;
@@ -42,10 +43,10 @@ public sealed class SpringArmTests {
         PlayerController Controller=new();
         PlayerControl.AddLook(ref Controller,170f,120f);
         PlayerControl.AddLook(ref Controller,30f,0f);
-        Assert.Equal(-160f,Controller.ControlYawDegrees,3);
+        Assert.Equal(160f,Controller.ControlYawDegrees,3);
         Assert.Equal(89f,Controller.ControlPitchDegrees);
         PlayerControl.AddLook(ref Controller,float.NaN,-500f);
-        Assert.Equal(-160f,Controller.ControlYawDegrees,3);
+        Assert.Equal(160f,Controller.ControlYawDegrees,3);
         Assert.Equal(-89f,Controller.ControlPitchDegrees);
     }
     [Fact]
@@ -54,9 +55,33 @@ public sealed class SpringArmTests {
         Assert.InRange(ToSingle(Forward.R),0.9999f,1.0001f);
         Assert.Equal(LogicalScalar.Zero,Forward.U);
         var Diagonal=PlayerControl.MoveDirection(new PlayerController(),1f,1f);
-        Assert.InRange(ToSingle(Diagonal.R),0.7071f,0.7072f);
+        Assert.InRange(ToSingle(Diagonal.R),-0.7072f,-0.7071f);
         Assert.InRange(ToSingle(Diagonal.F),0.7071f,0.7072f);
     }
+    /// <summary>
+    /// The renderer's view is Matrix4x4.CreateLookAt (right-handed), so a camera looking along F with
+    /// up U sees Forward x Up on its right. Right input must move toward it and positive yaw input
+    /// (Unreal's AddControllerYawInput) must turn toward it; the ThirdPerson template had both mirrored.
+    /// </summary>
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(90f)]
+    [InlineData(-135f)]
+    public void RightInputAndPositiveYaw_GoTowardTheScreenRight(float YawDegrees){
+        var Controller=new PlayerController { ControlYawDegrees=YawDegrees };
+        var View=ViewBasis(Controller);
+        var Right=PlayerControl.MoveDirection(Controller,1f,0f);
+        Assert.True(Vector3.Dot(ToVector(Right),View.ScreenRight)>0.999f,$"right move {ToVector(Right)} vs screen right {View.ScreenRight}");
+        PlayerControl.AddLook(ref Controller,10f,0f);
+        Assert.True(Vector3.Dot(ViewBasis(Controller).Forward,View.ScreenRight)>0.1f,"positive yaw turned away from the screen right");
+    }
+    private static (Vector3 Forward,Vector3 ScreenRight)ViewBasis(in PlayerController Controller){
+        Assert.True(PlayerControl.ControlRotation(Controller).TryRotate(LogicalVector3.UnitF,out var Forward));
+        var View=Matrix4x4.CreateLookAt(Vector3.Zero,ToVector(Forward),Vector3.UnitY);
+        // Row-vector view matrix: the first column is the camera's screen-right axis in world space.
+        return (ToVector(Forward),new Vector3(View.M11,View.M21,View.M31));
+    }
+    private static Vector3 ToVector(LogicalVector3 Value)=>new(ToSingle(Value.R),ToSingle(Value.U),ToSingle(Value.F));
     [Fact]
     public void ArmReachesItsTargetLengthInTheOpen(){
         var Length=Solve(WorldWith(Floor),new PlayerController(),out var Camera);

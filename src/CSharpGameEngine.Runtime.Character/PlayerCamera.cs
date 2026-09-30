@@ -2,10 +2,15 @@ using CSharpGameEngine.Runtime.Physics;
 namespace CSharpGameEngine.Runtime.Character;
 /// <summary>Control-rotation helpers for gameplay input code (Unreal's AddControllerYaw/PitchInput and DoMove).</summary>
 public static class PlayerControl {
-    /// <summary>Adds look input in degrees; yaw wraps into [-180, 180) and pitch is clamped to the controller's range.</summary>
+    /// <summary>
+    /// Adds look input in degrees like Unreal's AddControllerYaw/PitchInput: positive yaw turns toward
+    /// the screen right. <see cref="PlayerController.ControlYawDegrees"/> turns +F toward +R, which a
+    /// right-handed view (Matrix4x4.CreateLookAt) shows on the left, so the yaw input is subtracted.
+    /// Yaw wraps into [-180, 180) and pitch is clamped to the controller's range.
+    /// </summary>
     public static void AddLook(ref PlayerController Controller,float YawDegrees,float PitchDegrees){
         if(float.IsFinite(YawDegrees)){
-            var Yaw=(Controller.ControlYawDegrees+YawDegrees)%360f;
+            var Yaw=(Controller.ControlYawDegrees-YawDegrees)%360f;
             Controller.ControlYawDegrees=Yaw>=180f?Yaw-360f:Yaw<-180f?Yaw+360f:Yaw;
         }
         if(float.IsFinite(PitchDegrees)){
@@ -37,8 +42,9 @@ public static class PlayerControl {
         var Yaw=Controller.ControlYawDegrees*MathF.PI/180f;
         var Sin=MathF.Sin(Yaw);
         var Cos=MathF.Cos(Yaw);
-        // Yaw turns +F toward +R: forward is (sin, 0, cos) and right is (cos, 0, -sin).
-        return new LogicalVector3(LogicalScalar.FromSingle(Forward*Sin+Right*Cos),LogicalScalar.Zero,LogicalScalar.FromSingle(Forward*Cos-Right*Sin));
+        // Yaw turns +F toward +R: forward is (sin, 0, cos). The screen right of a right-handed view is
+        // Forward x Up = (-cos, 0, sin).
+        return new LogicalVector3(LogicalScalar.FromSingle(Forward*Sin-Right*Cos),LogicalScalar.Zero,LogicalScalar.FromSingle(Forward*Cos+Right*Sin));
     }
 }
 /// <summary>
