@@ -7,7 +7,7 @@ using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.TemplateWizard;
 namespace CSharpGameEngine.VSExtension;
 /// <summary>
-/// Completes a new <c>*.scene.json</c> item (ADR-0070): its <c>"$schema"</c> must point at the project's
+/// Completes a new scene JSON item (ADR-0070): its <c>"$schema"</c> must point at the project's
 /// generated <c>.cge/scene.schema.json</c> from wherever the item was added, which the template cannot know.
 /// </summary>
 public sealed class SceneFileTemplateWizard:IWizard {

@@ -11,12 +11,13 @@ using IOleServiceProvider=Microsoft.VisualStudio.OLE.Interop.IServiceProvider;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// ADR-0071: the Scene Editor, opened by double-clicking a <c>*.scene.json</c>. One tab with a Design
+/// ADR-0071: the Scene Editor, opened by double-clicking a scene JSON (a <c>*.json</c> under the
+/// project's <c>Scenes</c> folder). One tab with a Design
 /// view (the Scene Designer) and a JSON view (the Visual Studio JSON editor), like the XAML editor.
 ///
 /// <para>
-/// Registered for <c>.json</c> above the JSON editor, because Visual Studio does not match the
-/// two-dot extension <c>.scene.json</c> (ADR-0021). Any other JSON file is declined with
+/// Registered for <c>.json</c> above the JSON editor, since a scene is an ordinary <c>.json</c> file
+/// told apart by its folder. Any other JSON file is declined with
 /// <c>VS_E_UNSUPPORTEDFORMAT</c>, and Visual Studio opens it with the next editor.
 /// </para>
 ///
@@ -83,7 +84,7 @@ internal sealed class SceneJsonEditorFactory:IVsEditorFactory {
         }
     }
 
-    /// <summary>Only a <c>*.scene.json</c>; every other JSON file goes to the next editor.</summary>
+    /// <summary>Only a scene JSON; every other JSON file goes to the next editor.</summary>
     internal static bool Accepts(string?DocumentPath)=>SceneJsonCommitPlanner.IsJsonScene(DocumentPath);
 
     /// <summary>

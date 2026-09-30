@@ -629,7 +629,7 @@ internal sealed class SceneHwndHost:HwndHost {
     private RenderPreviewRuntimeView?TryCreateRuntimeView(){
         this.WatchedBuild=null;
         this.ShownBuildTime=DateTime.MinValue;
-        if(!SceneJsonCommitPlanner.IsJsonScene(this.TargetFilePath)
+        if(!SceneJsonCommitPlanner.IsJsonDocument(this.TargetFilePath)
             ||this.TargetModel?.ClassFullyQualifiedName is not { Length:>0 }SceneName){
             return null;
         }

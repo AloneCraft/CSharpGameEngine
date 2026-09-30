@@ -9,16 +9,44 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
 namespace CSharpGameEngine.VSExtension;
 /// <summary>
-/// Commits one gesture to a <c>*.scene.json</c> document (ADR-0070). The edit is applied to the scene
+/// Commits one gesture to a scene JSON document (ADR-0070). The edit is applied to the scene
 /// model with the same <see cref="SceneModelEditApplier"/> as C# scenes, written back with
 /// <see cref="SceneJsonConverter"/> (whose canonical layout keeps untouched values byte-identical, so
 /// the change is the edited lines only) and re-read to verify it. Node ids survive through the
 /// projection: each predicted node keeps the JSON id of the node it was before the edit.
 /// </summary>
 internal static class SceneJsonCommitPlanner {
-    internal const string SceneFileSuffix=".scene.json";
+    /// <summary>
+    /// Whether a file is a scene: a <c>*.json</c> under its project's <c>Scenes</c> folder
+    /// (<see cref="SceneFiles"/>). With only a path, the project is the nearest folder holding a
+    /// <c>*.csproj</c>, as the build that includes <c>Scenes\**\*.json</c> sees it.
+    /// </summary>
     internal static bool IsJsonScene(string?FilePath)=>
-        FilePath is not null&&FilePath.EndsWith(SceneFileSuffix,StringComparison.OrdinalIgnoreCase);
+        SceneFiles.IsScene(FilePath,FindProjectDirectory(FilePath));
+
+    /// <summary>The same rule with the project known (a Roslyn project's file path).</summary>
+    internal static bool IsJsonScene(string?FilePath,string?ProjectFilePath)=>
+        SceneFiles.IsScene(FilePath,string.IsNullOrEmpty(ProjectFilePath)?null:System.IO.Path.GetDirectoryName(ProjectFilePath));
+
+    /// <summary>
+    /// Whether a scene model was read from a JSON document, so the JSON writer can commit to it. A
+    /// model's file is a scene already; this only tells the JSON form from any other.
+    /// </summary>
+    internal static bool IsJsonDocument(string?FilePath)=>
+        FilePath is not null&&FilePath.EndsWith(SceneFiles.Extension,StringComparison.OrdinalIgnoreCase);
+
+    private static string?FindProjectDirectory(string?FilePath){
+        if(string.IsNullOrEmpty(FilePath)){ return null; }
+        try {
+            for(var Directory=System.IO.Path.GetDirectoryName(FilePath);!string.IsNullOrEmpty(Directory);Directory=System.IO.Path.GetDirectoryName(Directory)){
+                if(System.IO.Directory.Exists(Directory)&&System.IO.Directory.EnumerateFiles(Directory!,"*.csproj").Any()){
+                    return Directory;
+                }
+            }
+        } catch(Exception Error)when(Error is ArgumentException or System.IO.IOException or UnauthorizedAccessException or NotSupportedException){
+        }
+        return null;
+    }
     /// <param name="Context">
     /// <see cref="SceneSourceCommitContext.Text"/> is the JSON text, <see cref="SceneSourceCommitContext.Root"/>
     /// the root of its designer C# tree and <see cref="SceneSourceCommitContext.Compilation"/> the analysis

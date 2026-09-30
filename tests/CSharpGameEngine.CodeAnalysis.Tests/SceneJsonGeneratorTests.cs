@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 /// <summary>
-/// ADR-0070: <c>*.scene.json</c> documents are compiled to the same scenes as C# scene classes, and
+/// ADR-0070: scene JSON documents (<c>Scenes\**\*.json</c>) are compiled to the same scenes as C# scene classes, and
 /// undefined types, members and values fail the build with errors at the JSON line and column.
 /// </summary>
 public sealed class SceneJsonGeneratorTests {
@@ -100,9 +100,25 @@ public sealed class SceneJsonGeneratorTests {
             GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components,CSharpScene,Driver]));
         var FromJson=GameSystemGeneratorTestHelper.CompileAndLoad(
             GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components,Driver]),
-            [new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.scene.json",JsonScene)]);
+            [new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.json",JsonScene)]);
         Assert.Equal("1.5|-2|0.2|3|Bright|a \"b\"|True|7|-5|-3.25",Describe(FromCSharp));
         Assert.Equal(Describe(FromCSharp),Describe(FromJson));
+    }
+    /// <summary>
+    /// A scene is a JSON file under the project's Scenes folder (ADR-0070, revised 2026-10-01): the
+    /// same document elsewhere, or with the old <c>.scene.json</c> name outside Scenes, is not built.
+    /// </summary>
+    [Theory]
+    [InlineData(@"C:\Game\Scenes\MainScene.json",true)]
+    [InlineData(@"C:\Game\Scenes\Levels\MainScene.json",true)]
+    [InlineData(@"C:\Game\Assets\MainScene.json",false)]
+    [InlineData(@"C:\Game\MainScene.scene.json",false)]
+    public void OnlyJsonUnderScenes_IsBuiltAsAScene(string Path,bool Built){
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(
+            GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components]),
+            [new InMemoryAdditionalText(Path,JsonScene)]);
+        var Generated=string.Join("\n",Result.GeneratedTrees.Select(static Tree=>Tree.ToString()));
+        Assert.Equal(Built,Generated.Contains("MainScene",StringComparison.Ordinal));
     }
     [Fact]
     public void JsonWithoutProblems_ReportsNoDiagnostics(){
@@ -123,7 +139,7 @@ public sealed class SceneJsonGeneratorTests {
         Assert.Equal(DiagnosticSeverity.Error,Diagnostic.Severity);
         var Position=Diagnostic.Location.GetLineSpan().StartLinePosition;
         Assert.Equal((Line,Column),(Position.Line+1,Position.Character+1));
-        Assert.EndsWith("MainScene.scene.json",Diagnostic.Location.GetLineSpan().Path);
+        Assert.EndsWith(@"Scenes\MainScene.json",Diagnostic.Location.GetLineSpan().Path);
     }
     [Fact]
     public void MissingConstructorArgument_NamesTheMissingParameterAndTheUnknownKey(){
@@ -138,7 +154,7 @@ public sealed class SceneJsonGeneratorTests {
         var Diagnostic=Assert.Single(Analyze(Broken));
         Assert.Equal("SCENE204",Diagnostic.Id);
         var Result=GameSystemGeneratorTestHelper.RunGenerator(GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components]),
-            [new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.scene.json",Broken)]);
+            [new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.json",Broken)]);
         Assert.DoesNotContain(Result.Results[0].GeneratedSources,Source=>Source.HintName.Contains("MainScene"));
     }
     [Fact]
@@ -211,7 +227,7 @@ public sealed class SceneJsonGeneratorTests {
         Assert.Empty(Analyze(Json));
         var FromJson=GameSystemGeneratorTestHelper.CompileAndLoad(
             GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components,Driver]),
-            [new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.scene.json",Json)]);
+            [new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.json",Json)]);
         Assert.Equal(Describe(GameSystemGeneratorTestHelper.CompileAndLoad(CSharpCompilation)),Describe(FromJson));
         Assert.Equal(Json,CSharpGameEngine.SceneAnalysis.Json.SceneJsonConverter.Convert(Model,"../.cge/scene.schema.json").Text);
     }
@@ -264,7 +280,7 @@ public sealed class SceneJsonGeneratorTests {
         var Json=CSharpGameEngine.SceneAnalysis.Json.SceneJsonConverter.Convert(CSharpModel,"../.cge/scene.schema.json").Text!;
         var Scene=CSharpGameEngine.SceneAnalysis.Json.SceneJsonSceneAnalyzer.Analyze(Json,Base);
         var Source=CSharpGameEngine.SceneAnalysis.Json.SceneJsonDesignerSource.Build(Scene)!;
-        const string JsonPath=@"C:\Game\Scenes\MainScene.scene.json";
+        const string JsonPath=@"C:\Game\Scenes\MainScene.json";
         var WithDesigner=Base.AddSyntaxTrees(Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(Source,(Microsoft.CodeAnalysis.CSharp.CSharpParseOptions)Base.SyntaxTrees.First().Options,JsonPath));
         var Model=CSharpGameEngine.SceneAnalysis.SceneDeclarationAnalyzer.Analyze(WithDesigner.GetTypeByMetadataName("Game.MainScene")!,WithDesigner,CancellationToken.None);
         Assert.False(Model.HasErrors,string.Join("\n",Model.Diagnostics));
@@ -296,7 +312,7 @@ public sealed class SceneJsonGeneratorTests {
     }
     private static ImmutableArray<Diagnostic>Analyze(string Json){
         var Compilation=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components]);
-        var Options=new AnalyzerOptions([new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.scene.json",Json)]);
+        var Options=SceneProjectOptions.Analyzer([new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.json",Json)]);
         return Compilation.WithAnalyzers([new SceneJsonDslAnalyzer()],Options).GetAnalyzerDiagnosticsAsync().GetAwaiter().GetResult();
     }
 }

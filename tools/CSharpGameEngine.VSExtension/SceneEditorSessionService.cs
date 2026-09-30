@@ -11,7 +11,7 @@ namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
 /// Owns one Scene Designer session. The live text buffer of the scene document (C#, or a
-/// *.scene.json scene per ADR-0070) is the only authoring copy.
+/// scene JSON per ADR-0070) is the only authoring copy.
 /// Completed gestures are planned against one latest Roslyn generation, written to the live
 /// buffer as one native Undo unit, and replaced by the authoritative reparse.
 /// </summary>

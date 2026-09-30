@@ -8,7 +8,7 @@ using Microsoft.CodeAnalysis.Operations;
 namespace CSharpGameEngine.CodeAnalysis;
 
 /// <summary>
-/// The C# side of the scene boundary (ADR-0070). Scenes are <c>*.scene.json</c> documents, reported by
+/// The C# side of the scene boundary (ADR-0070). Scenes are JSON documents under <c>Scenes</c>, reported by
 /// <see cref="SceneJsonDslAnalyzer"/>; in C# this analyzer reports only what must not remain there:
 /// a C# scene class or <c>[StartupScene]</c> (SCENE206, with the converter to run), and code that
 /// builds or reads scene <c>Node</c> trees (SCENE114, see below).
@@ -48,7 +48,7 @@ public sealed class SceneDslAnalyzer:DiagnosticAnalyzer {
     }
 
     /// <summary>
-    /// ADR-0070: scenes are built only from <c>*.scene.json</c>. A C# scene class, or a class that still
+    /// ADR-0070: scenes are built only from scene JSON. A C# scene class, or a class that still
     /// carries <c>[StartupScene]</c>, is SCENE206 so an unconverted scene cannot silently disappear from
     /// the game. The Scene Designer still reads JSON scenes through the same C# DSL internally; that
     /// designer view never enters the build.

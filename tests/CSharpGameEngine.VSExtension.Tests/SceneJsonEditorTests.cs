@@ -5,19 +5,37 @@ using Microsoft.VisualStudio.Shell;
 namespace CSharpGameEngine.VSExtension.Tests;
 
 /// <summary>
-/// ADR-0071: <c>*.scene.json</c> opens in the Scene Editor (Design / JSON); every other JSON file goes
+/// ADR-0071: a scene JSON (a <c>*.json</c> under the project's <c>Scenes</c> folder) opens in the Scene Editor (Design / JSON); every other JSON file goes
 /// to the next editor. The views map onto one window's tabs, and each tab shows only its own scene.
 /// </summary>
 public sealed class SceneJsonEditorTests {
+    /// <summary>
+    /// A double-click gives the editor only a path: the project is the nearest folder with a
+    /// <c>*.csproj</c>, and a scene is a <c>*.json</c> under its <c>Scenes</c> folder.
+    /// </summary>
     [Theory]
-    [InlineData(@"G:\Game\Scenes\Main.scene.json",true)]
-    [InlineData(@"G:\Game\Scenes\Main.SCENE.JSON",true)]
-    [InlineData(@"G:\Game\appsettings.json",false)]
-    [InlineData(@"G:\Game\global.json",false)]
-    [InlineData(@"G:\Game\Scenes\scene.json",false)]
-    [InlineData(null,false)]
-    public void Factory_AcceptsOnlySceneJson(string?Path,bool Expected){
-        Assert.Equal(Expected,SceneJsonEditorFactory.Accepts(Path));
+    [InlineData(@"Scenes\Main.json",true)]
+    [InlineData(@"Scenes\Levels\Lvl_ThirdPerson.json",true)]
+    [InlineData(@"appsettings.json",false)]
+    [InlineData(@"Assets\Data.json",false)]
+    [InlineData(@"Main.scene.json",false)]
+    [InlineData(@"Scenes\Main.cs",false)]
+    public void Factory_AcceptsOnlyJsonUnderTheProjectsScenesFolder(string RelativePath,bool Expected){
+        string Root=Path.Combine(Path.GetTempPath(),"cge-scene-editor-"+Guid.NewGuid().ToString("N"));
+        try {
+            Directory.CreateDirectory(Path.Combine(Root,"Scenes","Levels"));
+            Directory.CreateDirectory(Path.Combine(Root,"Assets"));
+            File.WriteAllText(Path.Combine(Root,"Game.csproj"),"<Project />");
+            Assert.Equal(Expected,SceneJsonEditorFactory.Accepts(Path.Combine(Root,RelativePath)));
+        } finally {
+            Directory.Delete(Root,recursive:true);
+        }
+    }
+
+    [Fact]
+    public void Factory_DeclinesJsonOutsideAnyProject(){
+        Assert.False(SceneJsonEditorFactory.Accepts(null));
+        Assert.False(SceneJsonEditorFactory.Accepts(Path.Combine(Path.GetTempPath(),"cge-no-project-"+Guid.NewGuid().ToString("N"),"Scenes","Main.json")));
     }
 
     [Fact]

@@ -234,7 +234,7 @@
   <data name="OpenViewer_RepoRootNotFound" xml:space="preserve"><value>リポジトリルート({0})が見つかりませんでした。このVSIXは開発中のスケルトンであり、ビルド時に埋め込んだパスでのみ動作します。詳細はADR-0006を参照してください。</value></data>
   <data name="OpenViewer_LaunchFailed" xml:space="preserve"><value>ビューアの起動に失敗しました: {0}</value></data>
   <data name="SceneDesigner_OpenSceneJsonFirst" xml:space="preserve">
-    <value>Open a *.scene.json to show it in the Scene Designer.</value>
+    <value>Open a scene JSON (Scenes\*.json) to show it in the Scene Designer.</value>
   </data>
   <data name="SceneEditorDesignTab" xml:space="preserve">
     <value>Design</value>

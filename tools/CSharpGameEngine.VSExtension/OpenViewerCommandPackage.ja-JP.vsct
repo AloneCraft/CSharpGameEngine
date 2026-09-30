@@ -195,7 +195,7 @@
       <IDSymbol name="OpenSceneDesignerToolbarCommandId" value="0x0131" />
       <!-- ADR-0071: 0x0109 (OpenSceneDesignerCommandId), 0x0110-0x012F (the 32 scene slots),
            0x0130 (overflow) and 0x1024 (SceneDesignerContextMenuGroup) are retired with the code-editor
-           and Solution Explorer context menus: a *.scene.json opens in the Scene Editor by double-click.
+           and Solution Explorer context menus: a scene JSON opens in the Scene Editor by double-click.
            Do not reuse them (installed Visual Studio instances keep key bindings and customizations). -->
       <!-- 2026-10-01: Extensions > C# Game Engine menu. The next free command ID is 0x0133. -->
       <IDSymbol name="CSharpGameEngineMenu" value="0x1027" />

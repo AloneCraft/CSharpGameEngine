@@ -47,8 +47,8 @@ namespace CSharpGameEngine.VSExtension;
 [ProvideEditorLogicalView(typeof(ShaderGraphEditorFactory),VSConstants.LOGVIEWID.Designer_string)]
 [ProvideEditorExtension(typeof(ShaderGraphEditorFactory),".cgeshadergraph",60)]
 [ProvideEditorExtension(typeof(ShaderGraphEditorFactory),".cgesubgraph",60)]
-// ADR-0071: *.scene.json opens in the Scene Editor (Design / JSON). Registered for .json above the
-// JSON editor because Visual Studio does not match the two-dot extension; other JSON is declined.
+// ADR-0071: a scene JSON (Scenes\**\*.json) opens in the Scene Editor (Design / JSON). Registered
+// for .json above the JSON editor; other JSON is declined.
 [ProvideEditorFactory(typeof(SceneJsonEditorFactory),112,TrustLevel=__VSEDITORTRUSTLEVEL.ETL_AlwaysTrusted)]
 [ProvideEditorLogicalView(typeof(SceneJsonEditorFactory),VSConstants.LOGVIEWID.Designer_string)]
 [ProvideEditorLogicalView(typeof(SceneJsonEditorFactory),VSConstants.LOGVIEWID.TextView_string)]

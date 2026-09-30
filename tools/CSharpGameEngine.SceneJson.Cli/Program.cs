@@ -6,8 +6,9 @@ using Microsoft.CodeAnalysis.MSBuild;
 namespace CSharpGameEngine.SceneJson.Cli;
 /// <summary>
 /// <c>CSharpGameEngine.SceneJson.Cli convert &lt;game .csproj&gt; [--write] [--delete-source]</c> (ADR-0070).
-/// Prints each C# scene's conversion; <c>--write</c> writes <c>&lt;ClassName&gt;.scene.json</c> next to
-/// the scene's source file. <c>--delete-source</c> also removes the scene classes from their source files,
+/// Prints each C# scene's conversion; <c>--write</c> writes <c>&lt;ClassName&gt;.json</c> into the
+/// project's <c>Scenes</c> folder, where a scene file must be (ADR-0070): next to the source when that is
+/// already under <c>Scenes</c>, otherwise directly in <c>Scenes</c>. <c>--delete-source</c> also removes the scene classes from their source files,
 /// deleting a file that declares nothing else. Nothing is written for a project with any unconvertible
 /// scene.
 /// </summary>
@@ -23,6 +24,13 @@ internal static class Program {
         MSBuildLocator.RegisterDefaults();
         return await Convert(ProjectPath,Write,DeleteSource);
     }
+    /// <summary>Where a converted scene goes: a scene file is a <c>*.json</c> under the project's Scenes folder.</summary>
+    internal static string SceneJsonPath(string ProjectDirectory,string SourcePath,string SceneName){
+        var Beside=Path.Combine(Path.GetDirectoryName(SourcePath)!,SceneName+SceneFiles.Extension);
+        return SceneFiles.IsScene(Beside,ProjectDirectory)
+            ?Beside
+            :Path.Combine(ProjectDirectory,SceneFiles.FolderName,SceneName+SceneFiles.Extension);
+    }
     private static async Task<int>Convert(string ProjectPath,bool Write,bool DeleteSource){
         using var Workspace=MSBuildWorkspace.Create();
         var Project=await Workspace.OpenProjectAsync(ProjectPath);
@@ -36,7 +44,7 @@ internal static class Program {
             var Declaration=Scene.DeclaringSyntaxReferences.FirstOrDefault();
             if(Declaration is null||!Declaration.SyntaxTree.FilePath.StartsWith(ProjectDirectory,StringComparison.OrdinalIgnoreCase)){ continue; }
             var SourcePath=Declaration.SyntaxTree.FilePath;
-            var JsonPath=Path.Combine(Path.GetDirectoryName(SourcePath)!,Scene.Name+".scene.json");
+            var JsonPath=SceneJsonPath(ProjectDirectory,SourcePath,Scene.Name);
             var Model=SceneDeclarationAnalyzer.Analyze(Scene,Compilation,CancellationToken.None);
             if(Model.HasErrors){
                 Console.Error.WriteLine($"{SourcePath}: the C# scene has errors; fix them before converting.");
@@ -67,7 +75,10 @@ internal static class Program {
             return 1;
         }
         if(!Write){ return 0; }
-        foreach(var Output in Outputs){ File.WriteAllText(Output.JsonPath,Output.Text); }
+        foreach(var Output in Outputs){
+            Directory.CreateDirectory(Path.GetDirectoryName(Output.JsonPath)!);
+            File.WriteAllText(Output.JsonPath,Output.Text);
+        }
         if(!DeleteSource){ return 0; }
         foreach(var Pair in SceneDeclarations){
             var Root=await Pair.Key.GetRootAsync();

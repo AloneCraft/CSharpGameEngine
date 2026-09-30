@@ -7,4 +7,4 @@ A C# Game Engine game created from the Third Person template (a port of Unreal E
 - Look: the mouse, or the right stick.
 - Jump: Space, or the bottom face button.
 
-The level is `Scenes/Lvl_ThirdPerson.scene.json` and the character is `Scenes/ThirdPersonCharacter.scene.json`; open them in the Scene Designer or edit the JSON. The input map is `Input/ThirdPersonInput.cs`, and the game logic is in `Gameplay/`. The engine comes from the `CSharpGameEngine.Sdk` package.
+The level is `Scenes/Lvl_ThirdPerson.json` and the character is `Scenes/ThirdPersonCharacter.json`; open them in the Scene Designer or edit the JSON. The input map is `Input/ThirdPersonInput.cs`, and the game logic is in `Gameplay/`. The engine comes from the `CSharpGameEngine.Sdk` package.

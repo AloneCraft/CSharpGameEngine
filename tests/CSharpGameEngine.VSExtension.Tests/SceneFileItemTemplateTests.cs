@@ -35,7 +35,7 @@ public sealed class SceneFileItemTemplateTests {
 
     [Fact]
     public void Template_CreatesBasicStageSceneJsonAndUsesVisualStudioReplacementTokens(){
-        var Source=File.ReadAllText(Path.Combine(TemplateDirectory,"Scene.scene.json"));
+        var Source=File.ReadAllText(Path.Combine(TemplateDirectory,"Scene.json"));
         var Template=XDocument.Load(Path.Combine(TemplateDirectory,"SceneFile.vstemplate"));
         XNamespace TemplateNamespace="http://schemas.microsoft.com/developer/vstemplate/2005";
 
@@ -49,7 +49,7 @@ public sealed class SceneFileItemTemplateTests {
         Assert.Contains("\"Position\": { \"R\": 0, \"U\": -0.5, \"F\": 0 }",Source);
         Assert.Contains("\"Scale\": { \"R\": 10, \"U\": 1, \"F\": 10 }",Source);
         var Item=Assert.Single(Template.Root!.Element(TemplateNamespace+"TemplateContent")!.Elements(TemplateNamespace+"ProjectItem"));
-        Assert.Equal("$fileinputname$.scene.json",(string?)Item.Attribute("TargetFileName"));
+        Assert.Equal("$fileinputname$.json",(string?)Item.Attribute("TargetFileName"));
         Assert.Equal("true",(string?)Item.Attribute("ReplaceParameters"));
         Assert.Equal(typeof(SceneFileTemplateWizard).FullName,Template.Root.Element(TemplateNamespace+"WizardExtension")?.Element(TemplateNamespace+"FullClassName")?.Value);
     }
@@ -84,10 +84,10 @@ public sealed class SceneFileItemTemplateTests {
         var TemplateManifest=Archive.GetEntry("ItemTemplates/templateManifest0.1033.vstman");
         Assert.NotNull(TemplateManifest);
         Assert.NotNull(Archive.GetEntry("ItemTemplates/CSharp/GameEngine/1033/SceneFile/SceneFile.vstemplate"));
-        Assert.NotNull(Archive.GetEntry("ItemTemplates/CSharp/GameEngine/1033/SceneFile/Scene.scene.json"));
+        Assert.NotNull(Archive.GetEntry("ItemTemplates/CSharp/GameEngine/1033/SceneFile/Scene.json"));
         Assert.NotNull(Archive.GetEntry("ItemTemplates/CSharp/GameEngine/1033/SceneFile/__TemplateIcon.ico"));
         Assert.NotNull(Archive.GetEntry("ItemTemplates/CSharp/GameEngine/1041/SceneFile/SceneFile.vstemplate"));
-        Assert.NotNull(Archive.GetEntry("ItemTemplates/CSharp/GameEngine/1041/SceneFile/Scene.scene.json"));
+        Assert.NotNull(Archive.GetEntry("ItemTemplates/CSharp/GameEngine/1041/SceneFile/Scene.json"));
         Assert.NotNull(Archive.GetEntry("ItemTemplates/CSharp/GameEngine/1041/SceneFile/__TemplateIcon.ico"));
         Assert.DoesNotContain(Archive.Entries,Entry=>Entry.FullName.StartsWith("CSharp/GameEngine/",StringComparison.Ordinal));
 

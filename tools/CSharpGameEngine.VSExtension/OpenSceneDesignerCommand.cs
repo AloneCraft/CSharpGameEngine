@@ -9,7 +9,7 @@ using Microsoft.VisualStudio.Shell.Interop;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// The C# Game Engine toolbar's "Open in Scene Designer": shows the active <c>*.scene.json</c> in
+/// The C# Game Engine toolbar's "Open in Scene Designer": shows the active scene JSON in
 /// the Scene Editor's Design view (ADR-0071), the editor a double-click opens. The code-editor and
 /// Solution Explorer context menus that used to carry this command are retired.
 /// </summary>
@@ -58,7 +58,7 @@ internal sealed class OpenSceneDesignerCommand {
 
     private void Execute(object Sender,EventArgs E){
         ThreadHelper.ThrowIfNotOnUIThread();
-        // The tracker keeps only a *.scene.json as the current document.
+        // The tracker keeps only a scene JSON as the current document.
         if(this.DocumentTracker.CurrentFilePath is not { }FilePath){
             this.SetStatusBarText(VsixText.Get("SceneDesigner_OpenSceneJsonFirst"));
             return;

@@ -2,7 +2,7 @@ using System.Text;
 using Microsoft.CodeAnalysis.CSharp;
 namespace CSharpGameEngine.SceneAnalysis.Json;
 /// <summary>
-/// The C# scene class equivalent to a <c>*.scene.json</c> document (ADR-0070). The Scene Designer adds
+/// The C# scene class equivalent to a scene JSON document (ADR-0070). The Scene Designer adds
 /// it to its analysis compilation, with the JSON file as its path, so the existing Scene DSL analyzer
 /// yields the same <see cref="SceneModel"/> (types, member symbols, constant values) for the
 /// Hierarchy, Inspector and Scene view as a C# scene class would. It is never written to disk.

@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
-    ADR-0070 cutover: converts a game project's C# IScene classes into *.scene.json documents.
+    ADR-0070 cutover: converts a game project's C# IScene classes into scene JSON documents (Scenes/*.json).
     It opens the project with MSBuildWorkspace so the engine's shared sources that Game.props adds
     are part of the compilation, then uses the shared SceneModel analyzer and SceneJsonConverter.
   -->

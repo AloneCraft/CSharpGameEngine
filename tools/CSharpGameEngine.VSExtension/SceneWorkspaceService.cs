@@ -283,7 +283,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
             }
         }
 
-        // ADR-0070: scenes are the project's *.scene.json documents; their headers name the classes.
+        // ADR-0070: scenes are the project's Scenes\**\*.json documents; their headers name the classes.
         string ProjectKey=Project.Id.Id.ToString("N");
         List<ProjectSceneCatalogEntry>Entries=[];
         foreach(TextDocument JsonScene in SceneJsonWorkspaceSource.JsonScenes(Project)){
@@ -855,18 +855,18 @@ internal sealed class SceneWorkspaceService : IDisposable {
     }
 
     /// <summary>
-    /// The scene an active document declares. Only <c>*.scene.json</c> documents declare scenes (ADR-0070);
+    /// The scene an active document declares. Only scene JSON documents (<c>Scenes\**\*.json</c>) declare scenes (ADR-0070);
     /// every other document has none.
     /// </summary>
     private async Task<IReadOnlyList<SceneModel>>AnalyzeAllAsync(DocumentId?DocumentId,CancellationToken CancellationToken){
         if(DocumentId is not null&&this.Workspace.CurrentSolution.GetAdditionalDocument(DocumentId)is { }JsonScene
-            &&SceneJsonCommitPlanner.IsJsonScene(JsonScene.FilePath)){
+            &&SceneJsonCommitPlanner.IsJsonScene(JsonScene.FilePath,JsonScene.Project.FilePath)){
             return await AnalyzeJsonSceneAsync(JsonScene,CancellationToken).ConfigureAwait(false);
         }
         return [];
     }
 
-    /// <summary>ADR-0070: a <c>*.scene.json</c> document declares at most one scene.</summary>
+    /// <summary>ADR-0070: a scene JSON document declares at most one scene.</summary>
     private static async Task<IReadOnlyList<SceneModel>>AnalyzeJsonSceneAsync(
         TextDocument JsonScene,CancellationToken CancellationToken){
         SourceText Text=await JsonScene.GetTextAsync(CancellationToken).ConfigureAwait(false);

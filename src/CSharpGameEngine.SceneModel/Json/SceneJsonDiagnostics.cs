@@ -1,7 +1,7 @@
 using Microsoft.CodeAnalysis;
 namespace CSharpGameEngine.SceneAnalysis.Json;
 /// <summary>
-/// Diagnostics for <c>*.scene.json</c> documents (ADR-0070). They are errors: a scene that cannot be
+/// Diagnostics for scene JSON documents (ADR-0070). They are errors: a scene that cannot be
 /// generated must not build with values silently dropped (user choice, 2026-10-01). Only the
 /// analyzer reports them; the generator runs the same analysis to decide whether it can emit.
 /// </summary>
@@ -45,8 +45,8 @@ internal static class SceneJsonDiagnostics {
     /// <summary>ADR-0070 cutover: a C# scene class is no longer built, so it must not pass silently.</summary>
     internal static readonly DiagnosticDescriptor CSharpSceneNotBuilt=new(
         id:"SCENE206",
-        title:"C# scene classes are not built; scenes are *.scene.json documents",
-        messageFormat:"'{0}' is a C# scene class, which is no longer built; convert it to a *.scene.json scene with 'CSharpGameEngine.SceneJson.Cli convert <project> --write --delete-source'",
+        title:"C# scene classes are not built; scenes are JSON documents under Scenes",
+        messageFormat:"'{0}' is a C# scene class, which is no longer built; convert it to a scene JSON (Scenes/*.json) with 'CSharpGameEngine.SceneJson.Cli convert <project> --write --delete-source'",
         category:Category,
         defaultSeverity:DiagnosticSeverity.Error,
         isEnabledByDefault:true);

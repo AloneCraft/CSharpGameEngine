@@ -52,7 +52,7 @@ public sealed class RenderPreviewRuntimeSessionTests {
     [WindowsOnlyFact]
     public void SceneDocument_EditsValuesLiveAndFlagsStructureForABuild(){
         using var Surface=CreateSurface();
-        var Original=File.ReadAllText(Path.Combine(RepositoryRoot(),"UserEcsProject","Scenes","PrimitiveShowcaseBoxScene.scene.json"));
+        var Original=File.ReadAllText(Path.Combine(RepositoryRoot(),"UserEcsProject","Scenes","PrimitiveShowcaseBoxScene.json"));
         var Moved=Original.Replace("\"Position\": { \"R\": 3, \"U\": 0.5, \"F\": 0 }","\"Position\": { \"R\": 3, \"U\": 0.5, \"F\": 3 }");
         Assert.NotEqual(Original,Moved);
         var Open=CreateOpen(Surface,GameAssembly,EditedScene);
@@ -89,7 +89,7 @@ public sealed class RenderPreviewRuntimeSessionTests {
     public void SelectionAndGizmos_AreDrawnOverTheRuntimeImage(){
         using var Surface=CreateSurface();
         var Open=CreateOpen(Surface,GameAssembly,EditedScene);
-        Open.SceneJson=File.ReadAllText(Path.Combine(RepositoryRoot(),"UserEcsProject","Scenes","PrimitiveShowcaseBoxScene.scene.json"));
+        Open.SceneJson=File.ReadAllText(Path.Combine(RepositoryRoot(),"UserEcsProject","Scenes","PrimitiveShowcaseBoxScene.json"));
         using var Session=RenderPreviewRuntimeSession.Open(Open);
         string Frame(RenderPreviewFrame Update){
             Session.UpdateFrame(Update);

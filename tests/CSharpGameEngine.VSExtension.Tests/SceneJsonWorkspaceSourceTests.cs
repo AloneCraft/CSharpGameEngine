@@ -5,11 +5,12 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 namespace CSharpGameEngine.VSExtension.Tests;
 /// <summary>
-/// ADR-0070: a <c>*.scene.json</c> additional document of a Roslyn project is found by its class name
+/// ADR-0070: a scene JSON additional document (<c>Scenes\**\*.json</c>) of a Roslyn project is found by its class name
 /// and read into the designer's model from its live text, with the JSON path as the model's file.
 /// </summary>
 public sealed class SceneJsonWorkspaceSourceTests {
-    private const string JsonPath=@"C:\Game\Scenes\MainScene.scene.json";
+    private const string ProjectPath=@"C:\Game\Game.csproj";
+    private const string JsonPath=@"C:\Game\Scenes\MainScene.json";
     private const string Json="""
         {
           "schemaVersion": 1,
@@ -30,7 +31,7 @@ public sealed class SceneJsonWorkspaceSourceTests {
     [InlineData(@"C:\Game\appsettings.json",false)]
     [InlineData(null,false)]
     public void SceneDocuments_AreSceneJsonOnly(string?Path,bool Expected){
-        Assert.Equal(Expected,SceneJsonCommitPlanner.IsJsonScene(Path));
+        Assert.Equal(Expected,SceneJsonCommitPlanner.IsJsonScene(Path,ProjectPath));
     }
     [Theory]
     [InlineData("""{ "namespace": "Game", "className": "MainScene" }""","Game.MainScene")]
@@ -78,13 +79,13 @@ public sealed class SceneJsonWorkspaceSourceTests {
             DocumentId.CreateNewId(ProjectId),$"Source{Index}.cs",
             loader:TextLoader.From(TextAndVersion.Create(Tree.GetText(),VersionStamp.Create()))));
         var Additional=new[]{
-            DocumentInfo.Create(DocumentId.CreateNewId(ProjectId),"MainScene.scene.json",filePath:JsonPath,
+            DocumentInfo.Create(DocumentId.CreateNewId(ProjectId),"MainScene.json",filePath:JsonPath,
                 loader:TextLoader.From(TextAndVersion.Create(SourceText.From(SceneJson),VersionStamp.Create()))),
             DocumentInfo.Create(DocumentId.CreateNewId(ProjectId),"appsettings.json",filePath:@"C:\Game\appsettings.json",
                 loader:TextLoader.From(TextAndVersion.Create(SourceText.From("{}"),VersionStamp.Create()))),
         };
         return Workspace.AddProject(ProjectInfo.Create(
-            ProjectId,VersionStamp.Create(),"Game","Game",LanguageNames.CSharp,
+            ProjectId,VersionStamp.Create(),"Game","Game",LanguageNames.CSharp,filePath:ProjectPath,
             compilationOptions:Compilation.Options,parseOptions:Compilation.SyntaxTrees.First().Options,
             documents:Documents,metadataReferences:Compilation.References,additionalDocuments:Additional));
     }

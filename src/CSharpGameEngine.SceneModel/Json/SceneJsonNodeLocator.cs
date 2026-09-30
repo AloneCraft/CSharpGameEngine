@@ -1,7 +1,7 @@
 using Microsoft.CodeAnalysis.Text;
 namespace CSharpGameEngine.SceneAnalysis.Json;
 /// <summary>
-/// The span of a node's object in a <c>*.scene.json</c> text (ADR-0070). The designer model's
+/// The span of a node's object in a scene JSON text (ADR-0070). The designer model's
 /// locations point into its generated C# view, so the Scene Designer asks here where a node is in the
 /// JSON the user sees. Only the document structure is read; no compilation is needed.
 /// </summary>

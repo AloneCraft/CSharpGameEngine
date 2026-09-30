@@ -24,7 +24,9 @@ The user asked for an Unreal/Unity-like editor:
 
 ## Decision
 
-1. **Scenes are `*.scene.json` documents.**
+1. **Scenes are JSON documents under the project's `Scenes` folder: `Scenes\**\*.json`.** (Revised 2026-10-01 at the user's request: the files were `*.scene.json` until then.)
+   - A scene file needs no special extension. Which `.json` is a scene is decided by its folder, relative to the project: `SceneFiles.IsScene` in the shared SceneModel sources is the one rule. The build includes exactly `Scenes\**\*.json`; the generator applies the rule with the build's `ProjectDir` (a `CompilerVisibleProperty`), and the Visual Studio extension with the project's file or, given only a path, the nearest folder with a `*.csproj`. JSON elsewhere (`appsettings.json`, assets) is never a scene.
+   - A converted C# scene goes to `Scenes/<ClassName>.json`, next to its source when that is already under `Scenes`.
    - Each file declares `"$schema"` pointing at `schemas/cge-scene.schema.json`, so the VS JSON editor completes and validates it. Its `schemaVersion` is 1.
    - It holds the scene's namespace, class name, optional startup order and a node tree.
    - Each node has a stable `id`, a `name`, `components` and `children`.
@@ -34,10 +36,10 @@ The user asked for an Unreal/Unity-like editor:
    - A struct value is a JSON object. The object's keys are either settable members (an object initializer) or the parameter names of a public constructor.
    - Floats are written in their shortest round-trip form. The writer changes only the values that were edited and keeps key order, so one edit is a one-line diff.
 3. **C# is generated at build time.**
-   - `GameSystemGenerator` reads `*.scene.json` from `AdditionalFiles` and builds the existing `SceneEmitModel`. The emitters are unchanged, and the generated C# is compiled in the same build.
+   - `GameSystemGenerator` reads the scene files from `AdditionalFiles` and builds the existing `SceneEmitModel`. The emitters are unchanged, and the generated C# is compiled in the same build.
    - With `EmitCompilerGeneratedFiles` the C# is also written to `obj/Generated` for inspection.
    - Type and value errors are compiler diagnostics (`SCENE2xx`) on the JSON file.
-   - `Game.props` and the SDK package include `**/*.scene.json` by default.
+   - `Game.props` and the SDK package include `Scenes\**\*.json` by default.
 4. **Undefined types and members are caught while typing and fail the build.** (User choice, 2026-10-01.)
    - **While typing:** the generator builds a per-project JSON Schema from the same Roslyn component rules. It lists every usable component type, and for each type its settable members and constructor parameters with their value shapes; `additionalProperties` is false. The schema is embedded as a generated constant. A post-build step writes it to `.cge/scene.schema.json`, and scene files point `"$schema"` at it. The VS JSON editor then warns about unknown types, unknown members and wrong value kinds as the user types, and completes names.
    - **At build:** the generator reports errors at the JSON line and column. SCENE201 is an unknown type, SCENE202 an unknown member or constructor parameter, SCENE203 a value of the wrong kind, SCENE204 a missing key or malformed JSON, and SCENE205 a duplicate component. A scene that cannot be generated is never built with values silently dropped.
@@ -55,10 +57,10 @@ The user asked for an Unreal/Unity-like editor:
    - Edits are sent as the editor's in-memory JSON. Its component values are applied to the running world by reflection, with the same schema rules as the generator. A structural change (a node, or a component type the node was not built with) needs a build, as Unity scripts do, and the Scene view says so; it is never drawn wrong. A new build reopens the view.
    - Until the game is first built, or if the runtime view cannot open, the Scene view shows the simplified scene preview.
 7. **Cutover.** A converter (`CSharpGameEngine.SceneJson.Cli convert`) turns the existing C# scenes into JSON. The C# `IScene` scene path is then removed; there are no parallel readers after the milestone, as [Editor-VSIX](../Specifications/Editor-VSIX.md) already requires for format changes.
-   - The generator builds scenes only from `*.scene.json`.
+   - The generator builds scenes only from scene JSON.
    - A C# scene class, or a leftover `[StartupScene]`, is error SCENE206, whose message names the converter command. An unconverted scene therefore cannot silently disappear from the game.
    - Two JSON startup scenes with the same `startupOrder` are SCENE118, reported at the later document's value.
-   - The Scene Designer opens and writes only `*.scene.json`. The C# scene writer (`SceneSourceEditor`) and its save verification are removed.
+   - The Scene Designer opens and writes only scene JSON. The C# scene writer (`SceneSourceEditor`) and its save verification are removed.
    - The C# scene DSL stays as the designer's internal reading of a JSON scene (its equivalent class, `SceneJsonDesignerSource`), which never enters the build.
 
 ## Consequences

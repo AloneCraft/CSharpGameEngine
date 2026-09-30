@@ -150,7 +150,7 @@ internal sealed class VsixExperimentalScenario {
         var EvidencePath=Path.Combine(RunRoot,"observation.json");
         var SolutionPath=Path.Combine(RepoRoot,"UserEcsProject.slnx");
         var ScenePath=Path.Combine(
-            RepoRoot,"UserEcsProject","Scenes","MainScene.scene.json");
+            RepoRoot,"UserEcsProject","Scenes","MainScene.json");
         RequireFile(SolutionPath,"User ECS solution");
         RequireFile(ScenePath,"Main Scene source");
         var Evidence=new VsixSceneObservationEvidence {
@@ -192,7 +192,7 @@ internal sealed class VsixExperimentalScenario {
                 TimeSpan.FromSeconds(Math.Min(600,Options.TimeoutSeconds)));
             CompleteFirstLaunch(Window);
             ActivateDocumentTab(
-                VisualStudioProcess.Id,"MainScene.scene.json",
+                VisualStudioProcess.Id,"MainScene.json",
                 TimeSpan.FromSeconds(Math.Min(600,Options.TimeoutSeconds)));
             DismissLineEndingDialog(VisualStudioProcess.Id);
             Window=WaitForTopLevelWindow(
@@ -205,7 +205,7 @@ internal sealed class VsixExperimentalScenario {
             Evidence.Assertions.Add(new VsixEvidenceAssertion {
                 Id="main-scene-open",
                 Passed=true,
-                Detail="MainScene.scene.json opened in the owned CgeFixed process."
+                Detail="MainScene.json opened in the owned CgeFixed process."
             });
             var EditorSurface=FindLargestEditorSurface(Window)
                 ??throw new OracleMismatchException(

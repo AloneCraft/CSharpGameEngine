@@ -3,22 +3,22 @@ using System.Linq;
 using CSharpGameEngine.SceneAnalysis.Json;
 namespace CSharpGameEngine.VSExtension.Tests;
 /// <summary>
-/// ADR-0070: "Add New Item > Scene" creates a <c>*.scene.json</c> document whose schema reference fits
+/// ADR-0070: "Add New Item > Scene" creates a scene JSON document whose schema reference fits
 /// the folder it was added to and whose tokens make a complete scene.
 /// </summary>
 public sealed class SceneFileTemplateWizardTests {
     private const string Project=@"C:\Games\My Game\My Game.csproj";
     [Theory]
-    [InlineData(@"C:\Games\My Game\Level.scene.json",".cge/scene.schema.json")]
-    [InlineData(@"C:\Games\My Game\Scenes\Level.scene.json","../.cge/scene.schema.json")]
-    [InlineData(@"C:\Games\My Game\Scenes\Stages\Level.scene.json","../../.cge/scene.schema.json")]
+    [InlineData(@"C:\Games\My Game\Level.json",".cge/scene.schema.json")]
+    [InlineData(@"C:\Games\My Game\Scenes\Level.json","../.cge/scene.schema.json")]
+    [InlineData(@"C:\Games\My Game\Scenes\Stages\Level.json","../../.cge/scene.schema.json")]
     public void SchemaReference_IsRelativeToTheItemFolder(string ItemPath,string Expected){
         Assert.Equal(Expected,SceneFileTemplateWizard.SchemaReference(ItemPath,Project));
     }
     [Fact]
     public void Template_WithItsTokensReplaced_IsACompleteSceneDocument(){
-        var Template=File.ReadAllText(Path.Combine(RepositoryRoot(),"tools","CSharpGameEngine.VSExtension","ItemTemplates","CSharp","GameEngine","SceneFile","Scene.scene.json"));
-        var Text=SceneFileTemplateWizard.Complete(Template,@"C:\Games\My Game\Scenes\Level.scene.json",Project)
+        var Template=File.ReadAllText(Path.Combine(RepositoryRoot(),"tools","CSharpGameEngine.VSExtension","ItemTemplates","CSharp","GameEngine","SceneFile","Scene.json"));
+        var Text=SceneFileTemplateWizard.Complete(Template,@"C:\Games\My Game\Scenes\Level.json",Project)
             .Replace("$rootnamespace$","My_Game.Scenes").Replace("$safeitemname$","Level")
             .Replace("$guid1$","7b1c2f4e-0d3a-4c7e-9f1b-2a6d8e5c3b10").Replace("$guid2$","9e4d1a6b-3c2f-4b8a-8d7e-1f0c5a2b6e93");
         Assert.DoesNotContain("$",Text.Replace("\"$schema\"",string.Empty));

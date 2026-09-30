@@ -15,7 +15,7 @@
     <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <CgeSkipEngineAnalyzerReference>true</CgeSkipEngineAnalyzerReference>
     <PackageId>CSharpGameEngine.Sdk</PackageId>
-    <Version Condition="'$(Version)' == ''">0.1.0</Version>
+    <Version Condition="'$(Version)' == ''">0.1.1</Version>
     <Authors>CSharpGameEngine</Authors>
     <Description>C# Game Engine SDK: runtime libraries, ECS source generator, shared runtime sources, default shaders and the shader compiler for game projects.</Description>
     <PackageTags>gamedev;ecs;direct3d12</PackageTags>

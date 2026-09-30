@@ -23,7 +23,7 @@ if not exist "%MANIFEST%" (
 )
 
 rem The importer writes the scene as a C# class; the converter turns it into the scene JSON (ADR-0070).
-if exist "%REPO_ROOT%\UserEcsProject\Scenes\FirstPersonStageScene.scene.json" del /q "%REPO_ROOT%\UserEcsProject\Scenes\FirstPersonStageScene.scene.json"
+if exist "%REPO_ROOT%\UserEcsProject\Scenes\FirstPersonStageScene.json" del /q "%REPO_ROOT%\UserEcsProject\Scenes\FirstPersonStageScene.json"
 dotnet run --project "%SCRIPT_DIR%..\CSharpGameEngine.Unreal.SceneImporter\CSharpGameEngine.Unreal.SceneImporter.csproj" -- ^
   "%MANIFEST%" ^
   "%REPO_ROOT%\UserEcsProject\Scenes\FirstPersonStageScene.cs" ^

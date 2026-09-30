@@ -1833,7 +1833,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
     unloadと世代検証を担う。安定Node IDはRuntime型ではなくSceneModel側の`NodePath`で管理する。
 - Conformance: Matches
 - Known deviations: **(2026-08、M0049)** `IScene`/`Node`はファイル自体は削除していないが、
-  実際のScene(`UserEcsProject/Scenes/*.scene.json`)はどれもこの型を実装しなくなった
+  実際のScene(`UserEcsProject/Scenes/*.json`)はどれもこの型を実装しなくなった
   ([[M0049-Scene-Json-Persistence]])。Scene検知は`*.scene.json`ファイルの存在のみで行う
   (F-L7-019)。ファイルを残した理由は3テストプロジェクトの`.csproj`が直接リンクしていることと、
   VSIX側の解析器(F-L7-012)がM0050までこの型名を前提にしているため。
@@ -1841,7 +1841,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 
 ## F-L7-012 — Scene DSL解析・Runtime生成(`SceneDslAnalyzer`/`SceneInstantiateEmitter`)
 
-- **M0093/ADR-0070 (2026-10-01):** Sceneの正本は`*.scene.json`になった。生成器はJSONからだけSceneを作り、C#のSceneクラスはSCENE206(ビルドエラー、変換コマンドを案内)。`SceneInstantiateEmitter`以降の生成は不変で、C# Scene DSLの解析はScene DesignerがJSONを読む内部表現(`SceneJsonDesignerSource`)としてだけ残る。
+- **M0093/ADR-0070 (2026-10-01):** Sceneの正本はシーン JSON になった（2026-10-01 からは `Scenes\**\*.json`、それまでは `*.scene.json`）。生成器はJSONからだけSceneを作り、C#のSceneクラスはSCENE206(ビルドエラー、変換コマンドを案内)。`SceneInstantiateEmitter`以降の生成は不変で、C# Scene DSLの解析はScene DesignerがJSONを読む内部表現(`SceneJsonDesignerSource`)としてだけ残る。
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Scene Authoring(C#コードをSceneの正本にする、Phase A)
 - Status: Implemented
@@ -2325,9 +2325,9 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - src/CSharpGameEngine.SceneModel/SceneDslDiagnostics.cs(SCENE200〜204)
   - src/CSharpGameEngine.Entities/Runtime.cs(`InstantiateScene<TScene>`の制約を
     `where TScene:IScene,ISceneDefinition`から`where TScene:ISceneDefinition`へ緩和)
-  - UserEcsProject/UserEcsProject.csproj(`<AdditionalFiles Include="Scenes/*.scene.json" />`)
-  - UserEcsProject/Scenes/MainScene.scene.json、FirstPersonStageScene.scene.json、
-    PrimitiveShowcaseBoxScene.scene.json、PrimitiveShowcaseSphereScene.scene.json
+  - UserEcsProject/UserEcsProject.csproj(`<AdditionalFiles Include="Scenes/**/*.json" />`、2026-10-01からGame.props経由)
+  - UserEcsProject/Scenes/MainScene.json、FirstPersonStageScene.json、
+    PrimitiveShowcaseBoxScene.json、PrimitiveShowcaseSphereScene.json
 - Tests:
   - tests/CSharpGameEngine.CodeAnalysis.Tests/SceneJsonAnalyzerTests.cs(新規11件。リテラル値の
     宣言型別解決、enumメンバー名解決、複数子ノードの再帰的走査、SCENE200/201/202/203の各診断)
@@ -4023,7 +4023,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 
 ## F-L8-025 — Scene document synchronization
 
-- M0094/ADR-0071 (2026-10-01): the Scene Designer's document is the Scene Editor, opened by double-clicking a `*.scene.json`. Its Design and JSON views share the JSON text buffer as the document data, so this synchronization contract is unchanged; the code-editor/Solution Explorer context menus and the external `.cgescene` virtual document are removed. Tests: `SceneJsonEditorTests`, `VsixMenuPlacementTests`.
+- M0094/ADR-0071 (2026-10-01): the Scene Designer's document is the Scene Editor, opened by double-clicking a scene JSON (`Scenes\**\*.json`; `*.scene.json` until the same day). Its Design and JSON views share the JSON text buffer as the document data, so this synchronization contract is unchanged; the code-editor/Solution Explorer context menus and the external `.cgescene` virtual document are removed. Tests: `SceneJsonEditorTests`, `VsixMenuPlacementTests`.
 
 - M0088: 12 source-only ConvertLightOperation paths retain Node and shadow ownership, preserve local flux, require explicit directional quantities, reject source/default-contract conflicts and pass canonical verification through one native text write. No private Undo or runtime kind replacement.
 
@@ -4035,7 +4035,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Stage: `vsix.source-sync` (`Executable`, Headless / VSIX, 1800s)
 - Depends on: F-L8-023, F-L8-024
 - Current delta: interactive use in Visual Studio (JSON editor and Scene Designer side by side) is a pending manual check. Each completed gesture resolves the latest Roslyn context, explicitly rebases or rejects stale input, applies the immutable operation batch to the scene model, writes the model as canonical scene JSON with its node ids kept, re-reads it through the designer view, and writes only the changed lines to the live buffer once (ADR-0070 decision 5). The published predicted snapshot is the canonical re-read result, with the operation projection used only as an identity basis for newly created nodes. Save persists the live `*.scene.json` document and never replays editor history.
-- Source of truth and ownership: the `*.scene.json` buffer and Visual Studio native text history are the only authoring and Undo truths. `SceneEditorSessionService` owns only immutable real/predicted projections, a transient pending-landing identity basis keyed by Scene and canonical semantic signature, and one in-flight write guard per Scene. It owns no editable document, mirrored Undo stack, text watermark, or save-time history.
+- Source of truth and ownership: the scene JSON (`Scenes\**\*.json`) buffer and Visual Studio native text history are the only authoring and Undo truths. `SceneEditorSessionService` owns only immutable real/predicted projections, a transient pending-landing identity basis keyed by Scene and canonical semantic signature, and one in-flight write guard per Scene. It owns no editable document, mirrored Undo stack, text watermark, or save-time history.
 - Conflict and lifecycle: transform deltas rebase onto the latest source; stale member edits without an observed original value reject instead of overwriting; live-buffer mismatch writes nothing; cancellation/failure clears pending landing state; an older analysis cannot consume another generation's identity; a completed mismatching landing is discarded as a superseding external edit; post-write closure is non-cancellable; Undo/Redo delegates to native text history and schedules Roslyn analysis.
 - Evidence: `SceneSourceCommitPlanner.cs`; `SceneJsonCommitPlanner.cs`; `SceneJsonWorkspaceSource.cs`; `SceneEditorSessionService.cs`; `SceneWorkspaceService.cs`; `SceneTextBufferWriter.cs`; `SceneEditConflictMerger.cs`; all Hierarchy/Inspector/Viewport callers. Removed legacy includes `SceneEditDocument`, `SceneTextUndoLedger`, text watermark policies, external landing policy, own-save landing policy, multi-step save writer, and their implementation-detail tests; M0093 removed the C# scene writer (`SceneSourceEditor`) and `SceneSaveVerification`.
 - Tests: `PendingSourceLandingTests`; `SceneJsonCommitPlannerTests`; `SceneJsonWorkspaceSourceTests`; `SceneSourceTruthArchitectureTests`; `SceneEditConflictMergerTests`; `SceneModelEditApplierTests` (predictions checked by writing and re-reading scene JSON); `SceneTextChangePlannerTests`; `SceneUndoRoutingPolicyTests`; `SceneDesignerUndoCommandPolicyTests`; `SceneUndoRedoKeyPolicyTests`; `SceneSavePolicyTests`; `SceneProjectionIdentityTests`; `HierarchySourceSyncTests`; complete VSIX suites.

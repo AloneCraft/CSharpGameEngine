@@ -8,7 +8,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 namespace CSharpGameEngine.VSExtension;
 /// <summary>
-/// The Scene Designer's view of the <c>*.scene.json</c> additional documents of a Roslyn project
+/// The Scene Designer's view of the scene JSON additional documents (<c>Scenes\**\*.json</c>) of a Roslyn project
 /// (ADR-0070). A JSON scene enters the analysis compilation as its equivalent C# class
 /// (<see cref="SceneJsonDesignerSource"/>) whose syntax tree carries the JSON path, so every consumer
 /// of <see cref="CSharpGameEngine.SceneAnalysis.SceneModel"/> reads it exactly like a C# scene. The
@@ -16,7 +16,7 @@ namespace CSharpGameEngine.VSExtension;
 /// </summary>
 internal static class SceneJsonWorkspaceSource {
     internal static IEnumerable<TextDocument>JsonScenes(Project Project)=>
-        Project.AdditionalDocuments.Where(static Document=>SceneJsonCommitPlanner.IsJsonScene(Document.FilePath));
+        Project.AdditionalDocuments.Where(Document=>SceneJsonCommitPlanner.IsJsonScene(Document.FilePath,Project.FilePath));
     /// <summary>The <c>namespace.className</c> a document declares; <c>null</c> when it cannot be read.</summary>
     internal static string?TryReadClassFullyQualifiedName(string JsonText){
         try {

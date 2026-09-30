@@ -78,7 +78,7 @@ public sealed class GameProjectGeneratorTests:IDisposable {
         var Level=File.ReadAllText(Path.Combine(Project,GameProjectGenerator.StartupScenePath));
         Assert.Contains("\"namespace\": \"My_Game.Scenes\"",Level);
         Assert.DoesNotContain(GameProjectGenerator.TemplateNamespace,string.Concat(Directory.EnumerateFiles(Project,"*.cs",SearchOption.AllDirectories).Select(File.ReadAllText)));
-        Assert.DoesNotContain(GameProjectGenerator.TemplateNamespace,string.Concat(Directory.EnumerateFiles(Project,"*.scene.json",SearchOption.AllDirectories).Select(File.ReadAllText)));
+        Assert.DoesNotContain(GameProjectGenerator.TemplateNamespace,string.Concat(Directory.EnumerateFiles(Project,"*.json",SearchOption.AllDirectories).Select(File.ReadAllText)));
         Assert.False(Directory.Exists(Path.Combine(Project,".cge")));
         Assert.True(File.Exists(Path.Combine(Project,"Assets","Characters","Mannequins","SKM_Quinn_Simple.glb")));
     }
@@ -90,7 +90,7 @@ public sealed class GameProjectGeneratorTests:IDisposable {
         File.WriteAllText(Path.Combine(Extension,GameProjectTemplateWizard.PackagesFolder,"CSharpGameEngine.Sdk.9.8.7.nupkg"),"package");
         var Sources=Path.Combine(Extension,GameProjectTemplateWizard.TemplateSourceFolder,"ThirdPerson","Scenes");
         Directory.CreateDirectory(Sources);
-        File.WriteAllText(Path.Combine(Sources,"Lvl_ThirdPerson.scene.json"),"{ \"namespace\": \"CgeThirdPerson.Scenes\" }");
+        File.WriteAllText(Path.Combine(Sources,"Lvl_ThirdPerson.json"),"{ \"namespace\": \"CgeThirdPerson.Scenes\" }");
         var Project=Path.Combine(this.Root,"Created");
         var FeedRoot=Path.Combine(this.Root,"feeds");
 

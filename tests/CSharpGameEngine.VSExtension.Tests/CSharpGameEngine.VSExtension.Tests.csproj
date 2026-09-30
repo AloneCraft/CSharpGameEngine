@@ -22,7 +22,7 @@
     <!-- Unlike the VSIX itself (which must bind to the Roslyn that Visual Studio hosts), this test
          process runs standalone, so it needs the Roslyn runtime assemblies. -->
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
-    <!-- SceneJsonWorkspaceSourceTests reads *.scene.json additional documents from an AdhocWorkspace. -->
+    <!-- SceneJsonWorkspaceSourceTests reads scene JSON additional documents from an AdhocWorkspace. -->
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
     <!-- Same reasoning as Microsoft.CodeAnalysis.CSharp above: the VSIX excludes this package's
          runtime assets (devenv.exe supplies Microsoft.VisualStudio.Shell.15.0.dll etc. itself), but

@@ -51,11 +51,13 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
                   .Where(static Result=>Result.HasValue)
                   .Select(static(Result,_)=>Result!.Value);
 
-        // ADR-0070: scenes are *.scene.json AdditionalFiles; C# scene classes are not built (SCENE206).
+        // ADR-0070: scenes are the Scenes\**\*.json AdditionalFiles (SceneFiles); C# scene classes are not built (SCENE206).
         // Their diagnostics belong to SceneJsonDslAnalyzer; here they only decide whether to emit.
         // Only symbol-free SceneEmitModels flow on (see SceneModelBridge).
         var JsonSceneDeclarations=Context.AdditionalTextsProvider
-                                         .Where(static File=>SceneJsonDslAnalyzer.IsSceneFile(File.Path))
+                                         .Combine(Context.AnalyzerConfigOptionsProvider)
+                                         .Where(static Pair=>SceneJsonDslAnalyzer.IsSceneFile(Pair.Left.Path,Pair.Right.GlobalOptions))
+                                         .Select(static(Pair,_)=>Pair.Left)
                                          .Combine(Context.CompilationProvider)
                                          .Select(static(Pair,Ct)=>SceneModelBridge.TryAnalyzeJson(Pair.Left,Pair.Right,Ct))
                                          .Where(static Result=>Result.HasValue)

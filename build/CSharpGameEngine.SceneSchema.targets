@@ -1,7 +1,7 @@
 <Project>
   <!--
     ADR-0070: after a game project builds, write the scene JSON Schema that GameSystemGenerator embedded
-    in the assembly to .cge/scene.schema.json, so *.scene.json files that point "$schema" at it get
+    in the assembly to .cge/scene.schema.json, so scene JSON files (Scenes\**\*.json) that point "$schema" at it get
     warnings and completion in the VS JSON editor. Only projects that consume the engine's game props
     (CgeGameProject) run it.
   -->

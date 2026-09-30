@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 /// <summary>
-/// ADR-0070: the generator builds scenes only from <c>*.scene.json</c>. Tests keep writing their scenes in
+/// ADR-0070: the generator builds scenes only from scene JSON (<c>Scenes\**\*.json</c>). Tests keep writing their scenes in
 /// the C# scene DSL because it is short and type-checked; before the generator runs, each scene class is
 /// turned into its scene JSON exactly as <c>CSharpGameEngine.SceneJson.Cli convert --delete-source</c>
 /// does (the same analyzer and converter), and the class is removed from the compilation. A scene the
@@ -21,7 +21,7 @@ internal static class SceneTestJson {
             var Model=SceneDeclarationAnalyzer.Analyze(Type,Compilation,CancellationToken.None);
             if(Model.HasErrors||SceneJsonConverter.Convert(Model,null).Text is not { }Json){ continue; }
             // Numbered paths keep the scenes in their C# declaration order, which fixes archetype order.
-            Scenes.Add(new InMemoryAdditionalText($"/Scenes/{Index++:D3}.{Type.Name}.scene.json",Json));
+            Scenes.Add(new InMemoryAdditionalText($@"{SceneProjectOptions.ScenesDirectory}{Index++:D3}.{Type.Name}.json",Json));
             foreach(var Reference in Type.DeclaringSyntaxReferences){
                 if(!Declarations.TryGetValue(Reference.SyntaxTree,out var Nodes)){ Declarations[Reference.SyntaxTree]=Nodes=[]; }
                 Nodes.Add(Reference.GetSyntax());

@@ -90,8 +90,8 @@ internal static class SceneSourceCommitPlanner {
         if(Request is null){ throw new ArgumentNullException(nameof(Request)); }
         if(Reconciler is null){ throw new ArgumentNullException(nameof(Reconciler)); }
         CancellationToken.ThrowIfCancellationRequested();
-        // ADR-0070: only *.scene.json scenes are authored; a gesture is written back from the edited model.
-        return SceneJsonCommitPlanner.IsJsonScene(Context.Model.FilePath)
+        // ADR-0070: scenes are authored only as JSON; a gesture is written back from the edited model.
+        return SceneJsonCommitPlanner.IsJsonDocument(Context.Model.FilePath)
             ?SceneJsonCommitPlanner.Plan(Context,Latest,Request,Reconciler,CancellationToken)
             :SceneSourceCommitPlan.Failure(VsixText.Get("SessionSaveSourceUnavailable"));
     }

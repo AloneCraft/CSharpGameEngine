@@ -116,7 +116,7 @@ public sealed class VsixManifestTests {
         Assert.Single(Entries,static Entry=>Entry.StartsWith("Packages/CSharpGameEngine.Sdk.",StringComparison.Ordinal)&&Entry.EndsWith(".nupkg",StringComparison.Ordinal));
         Assert.Contains("ProjectTemplates/CSharp/GameEngine/1033/ThirdPerson/ThirdPerson.vstemplate",Entries);
         Assert.Contains("ProjectTemplates/CSharp/GameEngine/1041/ThirdPerson/ThirdPerson.csproj.template",Entries);
-        Assert.Contains("ProjectTemplateSources/ThirdPerson/Scenes/Lvl_ThirdPerson.scene.json",Entries);
+        Assert.Contains("ProjectTemplateSources/ThirdPerson/Scenes/Lvl_ThirdPerson.json",Entries);
         Assert.Contains("ProjectTemplateSources/ThirdPerson/Assets/Characters/Mannequins/SKM_Quinn_Simple.glb",Entries);
         Assert.DoesNotContain(Entries,static Entry=>Entry.StartsWith("ProjectTemplateSources/",StringComparison.Ordinal)&&(Entry.Contains("/bin/")||Entry.Contains("/obj/")||Entry.EndsWith(".csproj",StringComparison.Ordinal)));
         Assert.DoesNotContain(Entries,static Entry=>Entry.StartsWith(

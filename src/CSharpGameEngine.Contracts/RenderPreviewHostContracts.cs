@@ -643,7 +643,7 @@ public sealed class RenderPreviewHostRequest {
     /// </summary>
     public RenderPreviewRuntimeView?RuntimeView { get;set; }
     /// <summary>
-    /// On Open and ReplaceScene of a runtime view: the edited scene's current <c>*.scene.json</c>
+    /// On Open and ReplaceScene of a runtime view: the edited scene's current scene JSON
     /// document. Its values are applied to the running world without a build.
     /// </summary>
     public string SceneJson { get;set; }=string.Empty;

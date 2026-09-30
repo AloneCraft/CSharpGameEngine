@@ -70,7 +70,7 @@ internal sealed class SceneJsonScene {
     }
 }
 /// <summary>
-/// Reads a <c>*.scene.json</c> document against a <see cref="Compilation"/> (ADR-0070). Values follow
+/// Reads a scene JSON document against a <see cref="Compilation"/> (ADR-0070). Values follow
 /// the member's declared C# type; there are no tags in the JSON:
 /// <list type="bullet">
 /// <item>enums are member-name strings; bool, string and numeric members use JSON literals, and a

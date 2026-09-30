@@ -6,7 +6,7 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace CSharpGameEngine.CodeAnalysis.Tests;
 
 /// <summary>
-/// The scene boundary in C# (ADR-0070): scenes are <c>*.scene.json</c> documents, so a C# scene class
+/// The scene boundary in C# (ADR-0070): scenes are JSON documents under <c>Scenes</c>, so a C# scene class
 /// or <c>[StartupScene]</c> left in the code is SCENE206 rather than a scene that silently disappears;
 /// code that builds or reads <c>Node</c> trees is still SCENE114; and two JSON startup scenes with the
 /// same order are SCENE118 at the later document's value.
@@ -29,7 +29,7 @@ public sealed class SceneDslAnalyzerTests {
     private static ImmutableArray<Diagnostic>RunAnalyzers(CSharpCompilation Compilation,ImmutableArray<AdditionalText>AdditionalFiles){
         var WithAnalyzers=Compilation.WithAnalyzers(
                                                     ImmutableArray.Create<DiagnosticAnalyzer>(new SceneDslAnalyzer(),new SceneJsonDslAnalyzer()),
-                                                    new AnalyzerOptions(AdditionalFiles));
+                                                    SceneProjectOptions.Analyzer(AdditionalFiles));
         return WithAnalyzers.GetAnalyzerDiagnosticsAsync().GetAwaiter().GetResult();
     }
 
@@ -94,7 +94,7 @@ public sealed class SceneDslAnalyzerTests {
                                                  [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)],
                                                  new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
-        Assert.Empty(RunAnalyzers(Compilation,[JsonScene("/Scenes/A.scene.json","A",0),JsonScene("/Scenes/B.scene.json","B",0)]));
+        Assert.Empty(RunAnalyzers(Compilation,[JsonScene(SceneProjectOptions.ScenesDirectory+"A.json","A",0),JsonScene(SceneProjectOptions.ScenesDirectory+"B.json","B",0)]));
     }
 
     [Fact]
@@ -127,15 +127,15 @@ public sealed class SceneDslAnalyzerTests {
     public void JsonStartupScenesSharingAnOrder_AreScene118AtTheLaterDocumentsValue(){
         var Compilation=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources]);
         var Diagnostics=RunAnalyzers(Compilation,[
-            JsonScene("/Scenes/B.scene.json","SecondScene",0),
-            JsonScene("/Scenes/A.scene.json","FirstScene",0),
-            JsonScene("/Scenes/C.scene.json","ThirdScene",1),
-            JsonScene("/Scenes/D.scene.json","Level",null),
+            JsonScene(SceneProjectOptions.ScenesDirectory+"B.json","SecondScene",0),
+            JsonScene(SceneProjectOptions.ScenesDirectory+"A.json","FirstScene",0),
+            JsonScene(SceneProjectOptions.ScenesDirectory+"C.json","ThirdScene",1),
+            JsonScene(SceneProjectOptions.ScenesDirectory+"D.json","Level",null),
         ]);
 
         var Diagnostic=Assert.Single(Diagnostics);
         Assert.Equal("SCENE118",Diagnostic.Id);
-        Assert.Equal("/Scenes/B.scene.json",Diagnostic.Location.GetLineSpan().Path);
+        Assert.Equal(SceneProjectOptions.ScenesDirectory+"B.json",Diagnostic.Location.GetLineSpan().Path);
         Assert.Equal(4,Diagnostic.Location.GetLineSpan().StartLinePosition.Line);
         Assert.Contains("Game.FirstScene",Diagnostic.GetMessage(),StringComparison.Ordinal);
         Assert.Contains("Game.SecondScene",Diagnostic.GetMessage(),StringComparison.Ordinal);

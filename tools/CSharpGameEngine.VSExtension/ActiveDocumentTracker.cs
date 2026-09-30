@@ -9,7 +9,7 @@ namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
 /// Points <see cref="SceneWorkspaceService"/> at whichever document the user is looking at
-/// (ADR-0040). Hierarchy follows the scene of the active <c>*.scene.json</c> (ADR-0070), so it has to
+/// (ADR-0040). Hierarchy follows the scene of the active scene JSON (<c>Scenes\**\*.json</c>, ADR-0070), so it has to
 /// follow the document frame rather than the solution.
 ///
 /// <para>

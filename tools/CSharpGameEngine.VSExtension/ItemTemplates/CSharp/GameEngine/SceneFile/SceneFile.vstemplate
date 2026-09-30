@@ -8,13 +8,14 @@
     <ShowByDefault>true</ShowByDefault>
     <TemplateID>CSharpGameEngine.SceneFile</TemplateID>
     <!-- Visual Studio takes the extension after the last dot, so the name the user types becomes
-         $fileinputname$ and the item is written as <name>.scene.json (ADR-0070). -->
+         $fileinputname$ and the item is written as <name>.json; it is a scene when it is added under the
+         project's Scenes folder (ADR-0070). -->
     <DefaultName>Scene.json</DefaultName>
     <SortOrder>10</SortOrder>
     <NumberOfParentCategoriesToRollUp>1</NumberOfParentCategoriesToRollUp>
   </TemplateData>
   <TemplateContent>
-    <ProjectItem ReplaceParameters="true" TargetFileName="$fileinputname$.scene.json">Scene.scene.json</ProjectItem>
+    <ProjectItem ReplaceParameters="true" TargetFileName="$fileinputname$.json">Scene.json</ProjectItem>
   </TemplateContent>
   <WizardExtension>
     <Assembly>CSharpGameEngine.VSExtension</Assembly>

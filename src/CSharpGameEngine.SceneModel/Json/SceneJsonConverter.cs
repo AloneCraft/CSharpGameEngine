@@ -7,7 +7,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 namespace CSharpGameEngine.SceneAnalysis.Json;
 /// <summary>
-/// Converts a C# <c>IScene</c> class (its analyzed <see cref="SceneModel"/>) into a <c>*.scene.json</c>
+/// Converts a C# <c>IScene</c> class (its analyzed <see cref="SceneModel"/>) into a scene JSON
 /// document (ADR-0070 cutover). The document compiles to the same scene: a constructor call becomes an
 /// object keyed by the constructor's parameter names, member assignments add their member names, and
 /// constants, enum members and collections become JSON values. Values JSON cannot hold (non-constant

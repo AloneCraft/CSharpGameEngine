@@ -6,7 +6,7 @@ using Microsoft.CodeAnalysis;
 namespace CSharpGameEngine.CodeAnalysis;
 
 /// <summary>
-/// Turns a <c>*.scene.json</c> document into a <see cref="SceneEmitModel"/> (ADR-0070): the only
+/// Turns a scene JSON document into a <see cref="SceneEmitModel"/> (ADR-0070): the only
 /// boundary between scene analysis and generation.
 ///
 /// <para>
@@ -21,7 +21,7 @@ namespace CSharpGameEngine.CodeAnalysis;
 /// </para>
 /// </summary>
 internal static class SceneModelBridge {
-    /// <summary>ADR-0070: a <c>*.scene.json</c> document; <c>null</c> outside engine projects or without text.</summary>
+    /// <summary>ADR-0070: a scene JSON document; <c>null</c> outside engine projects or without text.</summary>
     internal static SceneEmitModel?TryAnalyzeJson(AdditionalText File,Compilation Compilation,CancellationToken CancellationToken){
         if(Compilation.GetTypeByMetadataName(SceneDslWellKnownNames.SceneInterfaceMetadataName) is null
             ||File.GetText(CancellationToken) is not { }Text){

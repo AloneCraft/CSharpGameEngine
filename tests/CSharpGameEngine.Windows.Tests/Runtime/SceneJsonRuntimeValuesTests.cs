@@ -35,7 +35,7 @@ public sealed class SceneJsonRuntimeValuesTests {
     [InlineData("EngineShowcaseScene")]
     [InlineData("PhysicsProjectileScene")]
     public void EveryComponent_EqualsWhatTheGeneratedSceneCreated(string SceneName){
-        var Json=SceneJsonReader.Parse(File.ReadAllText(Path.Combine(VsixRepositoryRoot(),"UserEcsProject","Scenes",SceneName+".scene.json")));
+        var Json=SceneJsonReader.Parse(File.ReadAllText(Path.Combine(VsixRepositoryRoot(),"UserEcsProject","Scenes",SceneName+".json")));
         var World=new EcsWorld();
         var Instance=(SceneInstance)typeof(EcsWorld).GetMethod(nameof(EcsWorld.InstantiateScene))!
             .MakeGenericMethod(typeof(EcsWorld).Assembly.GetType("UserEcsProject.Scenes."+SceneName,throwOnError:true)!)

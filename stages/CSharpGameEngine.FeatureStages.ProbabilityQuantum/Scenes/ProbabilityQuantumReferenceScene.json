@@ -1,5 +1,5 @@
 {
-  "$schema": ".cge/scene.schema.json",
+  "$schema": "../.cge/scene.schema.json",
   "schemaVersion": 1,
   "namespace": "CSharpGameEngine.FeatureStages.ProbabilityQuantum",
   "className": "ProbabilityQuantumReferenceScene",

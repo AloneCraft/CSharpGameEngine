@@ -11,14 +11,14 @@ F-L8-024/025 now include [Typed Lighting](Typed-Lighting.md): symbol-checked phy
 
 ## Scope and observed baseline
 
-A scene's `*.scene.json` document (ADR-0070) is the sole authoring truth; C# scene classes are no longer built. The current Scene Designer implements a substantial baseline: live Roslyn scene projection, navigation/picking, Move/Rotate/Scale/Snap, predicted editing, source synchronization, native Undo/Redo integration, and typed inspector work. This specification does not downgrade that evidence; it defines the next acceptance contracts for WARP display, rebase, robust host lifecycle, typed asset workflows, and release verification.
+A scene's JSON document (`Scenes\**\*.json`, ADR-0070) is the sole authoring truth; C# scene classes are no longer built. The current Scene Designer implements a substantial baseline: live Roslyn scene projection, navigation/picking, Move/Rotate/Scale/Snap, predicted editing, source synchronization, native Undo/Redo integration, and typed inspector work. This specification does not downgrade that evidence; it defines the next acceptance contracts for WARP display, rebase, robust host lifecycle, typed asset workflows, and release verification.
 
 The JSON Scene experiments of M0049/M0050 are not a supported compatibility path. The ADR-0070 move from C# scene classes to scene JSON was an immediate cutover (M0093): `CSharpGameEngine.SceneJson.Cli convert` rewrote every scene, and a remaining C# scene class is a build error (SCENE206) pointing at that converter. Any future persistence or protocol migration follows the same immediate cutover: write the new canonical form, regenerate derived data, and remove the old reader/writer in the same feature change.
 
 ## Authoring model
 
 ```text
-*.scene.json live text buffer
+Scenes/*.json live text buffer
   -> designer view: the equivalent C# class, analyzed in the project's Roslyn compilation
      (SceneJsonDesignerSource) -> SceneDocumentSnapshot
   -> predicted edit model while interaction is active
@@ -30,7 +30,7 @@ The JSON Scene experiments of M0049/M0050 are not a supported compatibility path
 
 The predicted operation model is transient gesture state only. It is never an alternative source of truth and never avoids a reparse. Before the live-buffer write, the new JSON is read back through the designer view; that canonical model, not the separately mutated operation model, is published as the temporary landing projection. If parsing, conflict resolution, verification, or writeback fails, the source is unchanged and the prediction rolls back to the last reparse result with an actionable diagnostic.
 
-Scene Designer is a Visual Studio multi-view document: document, hierarchy, inspector, palette, and viewport project the same snapshot/session identity. A `*.scene.json` opens by double-click in the Scene Editor (ADR-0071): one tab with a Design view (the Scene Designer) and a JSON view (the Visual Studio JSON editor over the same text buffer), switched by tabs at the bottom. The extension adds nothing to the code-editor or Solution Explorer context menus. Visual hierarchies are projections rather than runtime ownership graphs.
+Scene Designer is a Visual Studio multi-view document: document, hierarchy, inspector, palette, and viewport project the same snapshot/session identity. A scene JSON (`Scenes\**\*.json`) opens by double-click in the Scene Editor (ADR-0071): one tab with a Design view (the Scene Designer) and a JSON view (the Visual Studio JSON editor over the same text buffer), switched by tabs at the bottom. The extension adds nothing to the code-editor or Solution Explorer context menus. Visual hierarchies are projections rather than runtime ownership graphs.
 
 ## Host boundary and protocol
 
@@ -86,7 +86,7 @@ Runtime L0-L6 cannot reference Roslyn or Visual Studio SDK. L7 compiler/bake wor
 **New game.** The Third Person template creates a PackageMode game through `GameProjectTemplateWizard`:
 - The bundled package goes to `%LOCALAPPDATA%\CSharpGameEngine\packages\<version>`.
 - The wizard writes the sources with the new namespace and a `nuget.config`.
-- `Scenes/Lvl_ThirdPerson.scene.json` opens after creation.
+- `Scenes/Lvl_ThirdPerson.json` opens after creation.
 
 ## Manual and automated evidence
 

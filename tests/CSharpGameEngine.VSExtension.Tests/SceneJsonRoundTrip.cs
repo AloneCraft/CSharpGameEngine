@@ -24,7 +24,7 @@ internal static class SceneJsonRoundTrip {
         return (Json,Analyze(Json,Model.ClassName,Model.ClassFullyQualifiedName,Base),Base);
     }
     internal static SceneSourceCommitContext Analyze(string Json,string ClassName,string ClassFullyQualifiedName,Compilation Base){
-        Assert.True(SceneJsonCommitPlanner.TryAnalyze(Json,@"C:\Game\Scenes\"+ClassName+".scene.json",Base,
+        Assert.True(SceneJsonCommitPlanner.TryAnalyze(Json,@"C:\Game\Scenes\"+ClassName+".json",Base,
             ClassFullyQualifiedName,CancellationToken.None,out var Model,out var Root,out var AnalysisCompilation,out var Error),Error);
         return new SceneSourceCommitContext(Model!,Root!,Microsoft.CodeAnalysis.Text.SourceText.From(Json),AnalysisCompilation!);
     }

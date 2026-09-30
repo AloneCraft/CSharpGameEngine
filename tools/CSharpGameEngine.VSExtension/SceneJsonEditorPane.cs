@@ -25,7 +25,7 @@ internal enum SceneJsonEditorView {
 
 /// <summary>
 /// The Scene Editor's document pane (ADR-0071): the Scene Designer and the JSON text of one
-/// <c>*.scene.json</c>, switched by tabs at the bottom like the XAML editor. Both views show the one
+/// scene JSON, switched by tabs at the bottom like the XAML editor. Both views show the one
 /// JSON text buffer: the designer writes its gestures into it (SceneTextBufferWriter), and the JSON
 /// view is a Visual Studio code window over it, so Save, the dirty mark and Undo are Visual Studio's.
 ///

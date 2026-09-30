@@ -17,7 +17,7 @@ internal static class GameProjectGenerator {
     internal const string TemplateNamespace="CgeThirdPerson";
     internal const string SdkPackageId="CSharpGameEngine.Sdk";
     internal const string EngineVersionToken="$cgeengineversion$";
-    internal const string StartupScenePath="Scenes/Lvl_ThirdPerson.scene.json";
+    internal const string StartupScenePath="Scenes/Lvl_ThirdPerson.json";
     // .cge holds the scene schema that each build writes for its own project (ADR-0070).
     private static readonly string[]SkippedDirectories=["bin","obj",".vs",".cge"];
 
@@ -47,6 +47,10 @@ internal static class GameProjectGenerator {
         if(!Directory.Exists(Source)){
             throw new DirectoryNotFoundException($"The template source was not found: {Source}");
         }
+        // A scene file is a *.json under Scenes (ADR-0070); it declares the template's namespace too.
+        static bool IsSceneFile(string[]Segments)=>
+            Segments.Length>1&&string.Equals(Segments[0],"Scenes",StringComparison.OrdinalIgnoreCase)
+            &&Segments[Segments.Length-1].EndsWith(".json",StringComparison.OrdinalIgnoreCase);
         List<string>Created=[];
         foreach(var File in Directory.EnumerateFiles(Source,"*",SearchOption.AllDirectories).OrderBy(static Item=>Item,StringComparer.OrdinalIgnoreCase)){
             var Relative=File.Substring(Source.Length+1);
@@ -58,7 +62,7 @@ internal static class GameProjectGenerator {
             var Destination=Path.Combine(ProjectDirectory,Relative);
             Directory.CreateDirectory(Path.GetDirectoryName(Destination)!);
             if(string.Equals(Path.GetExtension(File),".cs",StringComparison.OrdinalIgnoreCase)
-                ||File.EndsWith(".scene.json",StringComparison.OrdinalIgnoreCase)){
+                ||IsSceneFile(Segments)){
                 System.IO.File.WriteAllText(Destination,System.IO.File.ReadAllText(File).Replace(TemplateNamespace,RootNamespace),new UTF8Encoding(false));
             }
             else {

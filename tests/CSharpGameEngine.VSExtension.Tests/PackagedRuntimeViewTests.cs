@@ -17,7 +17,7 @@ public sealed class PackagedRuntimeViewTests {
         string Game=typeof(PackagedRuntimeViewTests).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
             .Single(static Attribute=>Attribute.Key=="CgeRuntimeViewGame").Value!;
         Assert.True(File.Exists(Game),Game);
-        string Original=File.ReadAllText(Path.Combine(RepositoryRoot(),"UserEcsProject","Scenes","PrimitiveShowcaseBoxScene.scene.json"));
+        string Original=File.ReadAllText(Path.Combine(RepositoryRoot(),"UserEcsProject","Scenes","PrimitiveShowcaseBoxScene.json"));
         string Moved=Original.Replace("\"Position\": { \"R\": 3, \"U\": 0.5, \"F\": 0 }","\"Position\": { \"R\": 3, \"U\": 0.5, \"F\": 3 }");
         string AddedChild=Original.Replace("\"children\": []","\"children\": [ { \"id\": \"7b1c2f4e-0d3a-4c7e-9f1b-2a6d8e5c3b10\", \"components\": [], \"children\": [] } ]");
         Assert.NotEqual(Original,Moved);

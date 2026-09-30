@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 namespace CSharpGameEngine.SceneAnalysis.Json;
 /// <summary>
-/// Builds the per-project JSON Schema for <c>*.scene.json</c> (ADR-0070) from the same Roslyn rules as
+/// Builds the per-project JSON Schema for scene JSON (ADR-0070) from the same Roslyn rules as
 /// <see cref="SceneJsonSceneAnalyzer"/>. The VS JSON editor uses it to warn about undefined component
 /// types, members and value kinds while the user types, and to complete names. The build still
 /// reports the authoritative SCENE2xx errors.

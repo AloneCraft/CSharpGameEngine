@@ -180,7 +180,7 @@ internal sealed class SceneSourceMarkerService : IDisposable {
     }
     /// <summary>ADR-0070: a JSON scene's nodes are located in its live JSON text.</summary>
     private static string? JsonTextOf(SceneModel Model,ITextBuffer Buffer)=>
-        SceneJsonCommitPlanner.IsJsonScene(Model.FilePath)?Buffer.CurrentSnapshot.GetText():null;
+        SceneJsonCommitPlanner.IsJsonDocument(Model.FilePath)?Buffer.CurrentSnapshot.GetText():null;
     internal void Navigate(SceneModel? Model,NodePath Path){
         ThreadHelper.ThrowIfNotOnUIThread();
         if(this.Disposed||Model is null||!this.TryGetOpenBuffer(Model.FilePath,out var FoundBuffer,out _)

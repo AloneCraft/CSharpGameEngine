@@ -30,7 +30,7 @@ public sealed class SceneJsonCommitPlannerTests {
             public struct Light { public float Intensity; }
         }
         """;
-    private const string JsonPath=@"C:\Game\Scenes\MainScene.scene.json";
+    private const string JsonPath=@"C:\Game\Scenes\MainScene.json";
     private const string CubeId="0f3c6c7a-0000-4000-8000-000000000002";
     private const string LampId="0f3c6c7a-0000-4000-8000-000000000003";
     private static readonly SceneKey Key=new("project-a","Game.MainScene");

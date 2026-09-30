@@ -3,7 +3,7 @@ using System.Collections.Generic;
 namespace CSharpGameEngine.SceneAnalysis.Json;
 internal enum SceneJsonKind { Object,Array,String,Number,True,False,Null }
 /// <summary>
-/// One parsed JSON value of a <c>*.scene.json</c> document (ADR-0070). The DOM is dependency-free so
+/// One parsed JSON value of a scene JSON document (ADR-0070). The DOM is dependency-free so
 /// the same code runs in the source generator (netstandard2.0), the VSIX (net472) and the tools.
 /// Every value keeps its source span and numbers keep their original text, so the generator emits
 /// the author's literal unchanged and an edit can replace exactly one value's text.
