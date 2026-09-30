@@ -76,7 +76,11 @@ public sealed class PhysicsShapeAsset {
         return new PhysicsShapeAsset(Id,PhysicsShapeAssetKind.StaticTriangleMesh,VertexCopy,IndexCopy);
     }
 
+    /// <summary>Number of full vertex scans by <see cref="Support"/>; lets tests hold steady-state bounds queries off the vertex array.</summary>
+    internal long SupportScanCount;
+
     internal LogicalVector3 Support(LogicalVector3 Direction){
+        this.SupportScanCount++;
         int BestIndex=0;
         LogicalScalar Best=LogicalVector3.Dot(this.VertexStorage[0],Direction);
         for(int Index=1;Index<this.VertexStorage.Length;Index++){

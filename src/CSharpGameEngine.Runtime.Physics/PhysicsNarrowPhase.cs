@@ -80,6 +80,12 @@ internal sealed class PhysicsNarrowPhase {
     private static readonly LogicalScalar EpaTolerance=LogicalScalar.FromSingle(0.0001f);
     private static readonly LogicalScalar TriangleHalfThickness=LogicalScalar.FromSingle(0.0005f);
     private readonly List<int> TriangleCandidates=[];
+    private readonly Dictionary<PhysicsShapeAsset,AssetBoundsEntry> AssetBounds=new(ReferenceEqualityComparer.Instance);
+
+    private readonly record struct AssetBoundsEntry(
+        LogicalQuaternion Rotation,LogicalVector3 ColliderCenter,
+        LogicalVector3 PositiveR,LogicalVector3 PositiveU,LogicalVector3 PositiveF,
+        LogicalVector3 NegativeR,LogicalVector3 NegativeU,LogicalVector3 NegativeF);
 
     private readonly record struct SupportPoint(LogicalVector3 Difference,LogicalVector3 First,LogicalVector3 Second);
     private readonly record struct EpaFace(int A,int B,int C,LogicalVector3 Normal,LogicalScalar Distance,bool Active);
@@ -101,6 +107,28 @@ internal sealed class PhysicsNarrowPhase {
     }
 
     internal PhysicsAabb CalculateBounds(in PhysicsCollisionShape Shape){
+        if(Shape.Collider.Shape is not (ColliderShape.ConvexAsset or ColliderShape.StaticTriangleMesh)){
+            return CalculateBoundsUncached(Shape);
+        }
+        if(Shape.Asset is null){ throw new InvalidOperationException("Cooked shape asset is unavailable."); }
+        // Asset supports scan every vertex, and static meshes are re-bounded several times per tick
+        // without moving. The six support points relative to the proxy centre depend only on the
+        // asset, rotation and collider centre, and the translation is an exact addition, so a cached
+        // entry reproduces CalculateBoundsUncached bit for bit.
+        ShapeProxy Proxy=new(Shape);
+        if(!this.AssetBounds.TryGetValue(Shape.Asset,out AssetBoundsEntry Entry)
+            ||Entry.Rotation!=Shape.Rotation||Entry.ColliderCenter!=Shape.Collider.Center){
+            Entry=new AssetBoundsEntry(Shape.Rotation,Shape.Collider.Center,
+                Proxy.Support(LogicalVector3.UnitR)-Proxy.Center,Proxy.Support(LogicalVector3.UnitU)-Proxy.Center,Proxy.Support(LogicalVector3.UnitF)-Proxy.Center,
+                Proxy.Support(-LogicalVector3.UnitR)-Proxy.Center,Proxy.Support(-LogicalVector3.UnitU)-Proxy.Center,Proxy.Support(-LogicalVector3.UnitF)-Proxy.Center);
+            this.AssetBounds[Shape.Asset]=Entry;
+        }
+        return new PhysicsAabb(
+            new LogicalVector3((Proxy.Center+Entry.NegativeR).R,(Proxy.Center+Entry.NegativeU).U,(Proxy.Center+Entry.NegativeF).F),
+            new LogicalVector3((Proxy.Center+Entry.PositiveR).R,(Proxy.Center+Entry.PositiveU).U,(Proxy.Center+Entry.PositiveF).F));
+    }
+
+    internal static PhysicsAabb CalculateBoundsUncached(in PhysicsCollisionShape Shape){
         if(Shape.Collider.Shape is ColliderShape.ConvexAsset or ColliderShape.StaticTriangleMesh){
             if(Shape.Asset is null){ throw new InvalidOperationException("Cooked shape asset is unavailable."); }
         }
