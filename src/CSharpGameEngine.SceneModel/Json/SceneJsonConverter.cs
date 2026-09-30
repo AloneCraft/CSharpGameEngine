@@ -25,14 +25,14 @@ internal static class SceneJsonConverter {
     }
     /// <param name="SchemaReference">The <c>"$schema"</c> path relative to the scene file.</param>
     /// <param name="IdFor">The existing id of the node at a path (the editor keeps ids across edits); <c>null</c> derives one.</param>
-    internal static Result Convert(SceneModel Model,string SchemaReference,Func<NodePath,string?>?IdFor=null){
+    internal static Result Convert(SceneModel Model,string?SchemaReference,Func<NodePath,string?>?IdFor=null){
         List<string>Problems=[];
         if(Model.Root is null){
             return new Result(null,["The scene has no root node."]);
         }
-        var Document=SceneJsonOut.Object(Multiline:true)
-            .Add("$schema",SceneJsonOut.String(SchemaReference))
-            .Add("schemaVersion",SceneJsonOut.Number("1"));
+        var Document=SceneJsonOut.Object(Multiline:true);
+        if(SchemaReference is not null){ Document.Add("$schema",SceneJsonOut.String(SchemaReference)); }
+        Document.Add("schemaVersion",SceneJsonOut.Number("1"));
         if(Model.Namespace is not null){ Document.Add("namespace",SceneJsonOut.String(Model.Namespace)); }
         Document.Add("className",SceneJsonOut.String(Model.ClassName));
         if(Model.IsStartupScene){ Document.Add("startupOrder",SceneJsonOut.Number(Model.StartupOrder.ToString(CultureInfo.InvariantCulture))); }

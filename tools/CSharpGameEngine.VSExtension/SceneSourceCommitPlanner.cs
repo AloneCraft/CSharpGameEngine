@@ -90,6 +90,10 @@ internal static class SceneSourceCommitPlanner {
         if(Request is null){ throw new ArgumentNullException(nameof(Request)); }
         if(Reconciler is null){ throw new ArgumentNullException(nameof(Reconciler)); }
         CancellationToken.ThrowIfCancellationRequested();
+        if(SceneJsonCommitPlanner.IsJsonScene(Context.Model.FilePath)){
+            // ADR-0070: a JSON scene is written back from the edited model, not by C# syntax edits.
+            return SceneJsonCommitPlanner.Plan(Context,Latest,Request,Reconciler,CancellationToken);
+        }
 
         if(Context.Model.HasErrors||Context.Model.Root is null||Latest.HasBlockingErrors
             ||Latest.Projection is null){
