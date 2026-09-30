@@ -58,6 +58,16 @@ internal sealed class SceneJsonScene {
     internal SceneJsonNode?Root { get; }
     internal ImmutableArray<SceneJsonProblem>Problems { get; }
     internal bool HasErrors=>!this.Problems.IsEmpty||this.Root is null;
+    /// <summary>Each node's id by its path; the editor carries ids across edits with it.</summary>
+    internal Dictionary<NodePath,string>NodeIdsByPath(){
+        var Result=new Dictionary<NodePath,string>();
+        void Walk(SceneJsonNode Node){
+            if(Node.Id is { Length:>0 }Id){ Result[new NodePath(Node.Path)]=Id; }
+            foreach(var Child in Node.Children){ Walk(Child); }
+        }
+        if(this.Root is not null){ Walk(this.Root); }
+        return Result;
+    }
 }
 /// <summary>
 /// Reads a <c>*.scene.json</c> document against a <see cref="Compilation"/> (ADR-0070). Values follow
@@ -334,8 +344,11 @@ internal static class SceneJsonSceneAnalyzer {
         }
         if(Value.Kind==SceneJsonKind.Number){
             var Single=Compilation.GetSpecialType(SpecialType.System_Single);
+            // Every emitted position (named argument, initializer, array or collection element) is
+            // target-typed, so the implicit conversion applies without a cast. A cast would also make
+            // the value unreadable to the Scene DSL analyzer that the editor runs over this text.
             return Compilation.ClassifyConversion(Single,Type).IsImplicit
-                ?"(("+SceneTypePredicates.ToFullyQualifiedName(Type)+")("+Value.Text+"f))"
+                ?Value.Text+"f"
                 :Mismatch("a number needs a numeric member or a type convertible from float");
         }
         if(Value.Kind==SceneJsonKind.Array){

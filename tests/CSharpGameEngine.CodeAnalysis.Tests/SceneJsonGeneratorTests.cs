@@ -215,6 +215,48 @@ public sealed class SceneJsonGeneratorTests {
         Assert.Equal(Describe(GameSystemGeneratorTestHelper.CompileAndLoad(CSharpCompilation)),Describe(FromJson));
         Assert.Equal(Json,CSharpGameEngine.SceneAnalysis.Json.SceneJsonConverter.Convert(Model,"../.cge/scene.schema.json").Text);
     }
+    /// <summary>
+    /// The Scene Designer reads a JSON scene through the C# class it is equivalent to, and writes it back
+    /// with the converter: the model matches the C# scene's and the round trip is byte-identical.
+    /// </summary>
+    [Fact]
+    public void DesignerSource_YieldsTheCSharpScenesModelAndConvertsBackByteIdentically(){
+        var Base=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components]);
+        var CSharpCompilation=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components,CSharpScene]);
+        var CSharpModel=CSharpGameEngine.SceneAnalysis.SceneDeclarationAnalyzer.Analyze(CSharpCompilation.GetTypeByMetadataName("Game.MainScene")!,CSharpCompilation,CancellationToken.None);
+        var Json=CSharpGameEngine.SceneAnalysis.Json.SceneJsonConverter.Convert(CSharpModel,"../.cge/scene.schema.json").Text!;
+        var Scene=CSharpGameEngine.SceneAnalysis.Json.SceneJsonSceneAnalyzer.Analyze(Json,Base);
+        var Source=CSharpGameEngine.SceneAnalysis.Json.SceneJsonDesignerSource.Build(Scene)!;
+        const string JsonPath=@"C:\Game\Scenes\MainScene.scene.json";
+        var WithDesigner=Base.AddSyntaxTrees(Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(Source,(Microsoft.CodeAnalysis.CSharp.CSharpParseOptions)Base.SyntaxTrees.First().Options,JsonPath));
+        var Model=CSharpGameEngine.SceneAnalysis.SceneDeclarationAnalyzer.Analyze(WithDesigner.GetTypeByMetadataName("Game.MainScene")!,WithDesigner,CancellationToken.None);
+        Assert.False(Model.HasErrors,string.Join("\n",Model.Diagnostics));
+        Assert.Equal(JsonPath,Model.FilePath);
+        Assert.Equal(Semantic(CSharpModel),Semantic(Model));
+        var Ids=Scene.NodeIdsByPath();
+        Assert.Equal(Json,CSharpGameEngine.SceneAnalysis.Json.SceneJsonConverter.Convert(Model,"../.cge/scene.schema.json",Path=>Ids.TryGetValue(Path,out var Id)?Id:null).Text);
+    }
+    /// <summary>Node names, component types and member values, independent of how the source was written.</summary>
+    private static string Semantic(CSharpGameEngine.SceneAnalysis.SceneModel Model){
+        var Builder=new System.Text.StringBuilder();
+        string Dump(CSharpGameEngine.SceneAnalysis.SceneValue Item)=>Item.Kind switch {
+            CSharpGameEngine.SceneAnalysis.SceneValueKind.EnumMember=>Item.ReferencedSymbol!.Name,
+            CSharpGameEngine.SceneAnalysis.SceneValueKind.ObjectCreation=>"("+string.Join(",",Item.Arguments.Select(Dump))+"){"+string.Join(",",Item.Members.Select(Member=>Member.MemberName+"="+Dump(Member.Value)))+"}",
+            CSharpGameEngine.SceneAnalysis.SceneValueKind.Collection=>"["+string.Join(",",Item.Elements.Select(Dump))+"]",
+            _=>Convert.ToString(Item.ConstantValue,System.Globalization.CultureInfo.InvariantCulture)??"null",
+        };
+        void Walk(CSharpGameEngine.SceneAnalysis.SceneNode Node){
+            Builder.Append(Node.Path.ToDisplayString()).Append(' ').AppendLine(Node.Name);
+            foreach(var Component in Node.Components){
+                Builder.Append("  ").Append(Component.TypeFullyQualifiedName).Append('(').Append(string.Join(",",Component.ConstructorArguments.Select(Dump))).Append(')');
+                foreach(var Member in Component.Members){ Builder.Append(' ').Append(Member.MemberName).Append('=').Append(Dump(Member.Value)); }
+                Builder.AppendLine();
+            }
+            foreach(var Child in Node.Children){ Walk(Child); }
+        }
+        Walk(Model.Root!);
+        return Builder.ToString();
+    }
     private static ImmutableArray<Diagnostic>Analyze(string Json){
         var Compilation=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components]);
         var Options=new AnalyzerOptions([new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.scene.json",Json)]);

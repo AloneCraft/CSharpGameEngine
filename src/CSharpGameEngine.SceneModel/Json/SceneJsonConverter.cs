@@ -24,7 +24,8 @@ internal static class SceneJsonConverter {
         internal IReadOnlyList<string>Problems { get; }
     }
     /// <param name="SchemaReference">The <c>"$schema"</c> path relative to the scene file.</param>
-    internal static Result Convert(SceneModel Model,string SchemaReference){
+    /// <param name="IdFor">The existing id of the node at a path (the editor keeps ids across edits); <c>null</c> derives one.</param>
+    internal static Result Convert(SceneModel Model,string SchemaReference,Func<NodePath,string?>?IdFor=null){
         List<string>Problems=[];
         if(Model.Root is null){
             return new Result(null,["The scene has no root node."]);
@@ -35,7 +36,7 @@ internal static class SceneJsonConverter {
         if(Model.Namespace is not null){ Document.Add("namespace",SceneJsonOut.String(Model.Namespace)); }
         Document.Add("className",SceneJsonOut.String(Model.ClassName));
         if(Model.IsStartupScene){ Document.Add("startupOrder",SceneJsonOut.Number(Model.StartupOrder.ToString(CultureInfo.InvariantCulture))); }
-        Document.Add("root",ConvertNode(Model.Root,Model.ClassFullyQualifiedName,Problems));
+        Document.Add("root",ConvertNode(Model.Root,Model.ClassFullyQualifiedName,IdFor,Problems));
         return new Result(Problems.Count==0?SceneJsonWriter.Write(Document):null,Problems);
     }
     /// <summary>A stable node id derived from the scene and the node path, so conversion is reproducible.</summary>
@@ -48,8 +49,8 @@ internal static class SceneJsonConverter {
         GuidBytes[8]=(byte)((GuidBytes[8]&0x3F)|0x80);
         return new Guid(GuidBytes).ToString("D");
     }
-    private static SceneJsonOut ConvertNode(SceneNode Node,string SceneFullName,List<string>Problems){
-        var Result=SceneJsonOut.Object(Multiline:true).Add("id",SceneJsonOut.String(NodeId(SceneFullName,Node.Path)));
+    private static SceneJsonOut ConvertNode(SceneNode Node,string SceneFullName,Func<NodePath,string?>?IdFor,List<string>Problems){
+        var Result=SceneJsonOut.Object(Multiline:true).Add("id",SceneJsonOut.String(IdFor?.Invoke(Node.Path)??NodeId(SceneFullName,Node.Path)));
         if(Node.Name is not null){ Result.Add("name",SceneJsonOut.String(Node.Name)); }
         var Components=SceneJsonOut.Array(Multiline:true);
         foreach(var Component in Node.Components){
@@ -61,7 +62,7 @@ internal static class SceneJsonConverter {
         }
         Result.Add("components",Components);
         var Children=SceneJsonOut.Array(Multiline:true);
-        foreach(var Child in Node.Children){ Children.Add(ConvertNode(Child,SceneFullName,Problems)); }
+        foreach(var Child in Node.Children){ Children.Add(ConvertNode(Child,SceneFullName,IdFor,Problems)); }
         Result.Add("children",Children);
         return Result;
     }
