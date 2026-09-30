@@ -87,13 +87,65 @@ public readonly record struct EnvironmentLightingSettings(
     ExposureSettings Exposure,
     ToneMapper ToneMapper,
     float BloomIntensity,
-    float SunAngularRadiusRadians){
+    float SunAngularRadiusRadians,
+    GlobalIlluminationSettings?GlobalIllumination=null){
     public static EnvironmentLightingSettings Legacy=>new(null,null,null,ExposureSettings.Legacy,ToneMapper.LegacyAces,1.8f,0.00465f);
     public bool IsValid=>(this.Atmosphere is null||this.Atmosphere.Value.IsValid)
         &&(this.SkyLight is null||this.SkyLight.Value.IsValid)
         &&(this.Fog is null||this.Fog.Value.IsValid)
+        &&(this.GlobalIllumination is null||this.GlobalIllumination.Value.IsValid)
         &&this.Exposure.IsValid&&float.IsFinite(this.BloomIntensity)&&this.BloomIntensity>=0f
         &&float.IsFinite(this.SunAngularRadiusRadians)&&this.SunAngularRadiusRadians>0f&&this.SunAngularRadiusRadians<0.5f;
+}
+/// <summary>
+/// Dynamic diffuse global illumination probe volume (ADR-0069). <see cref="Center"/> is in the
+/// renderer's camera-relative space of the current frame, so it moves with the camera origin
+/// exactly like every object transform; the other members describe the grid layout. Probes sit on
+/// a regular grid spanning the box, at least two per axis, and the renderer re-captures
+/// <see cref="ProbesPerFrame"/> of them each frame (round robin).
+/// </summary>
+public readonly record struct GlobalIlluminationSettings(
+    Vector3 Center,
+    Vector3 HalfExtent,
+    float ProbeSpacingMeters,
+    int ProbesPerFrame,
+    float Hysteresis,
+    float Intensity){
+    /// <summary>Probe capacity of the fixed-size irradiance and distance atlases.</summary>
+    public const int MaxProbeCount=4096;
+    public const int MaxProbesPerFrame=64;
+    public bool IsValid=>
+        SkyAtmosphereSettings.IsFiniteNonNegative(this.HalfExtent)&&this.HalfExtent.X>0f&&this.HalfExtent.Y>0f&&this.HalfExtent.Z>0f
+        &&float.IsFinite(this.Center.X)&&float.IsFinite(this.Center.Y)&&float.IsFinite(this.Center.Z)
+        &&float.IsFinite(this.ProbeSpacingMeters)&&this.ProbeSpacingMeters>0f
+        &&this.ProbesPerFrame is>0 and<=MaxProbesPerFrame
+        &&float.IsFinite(this.Hysteresis)&&this.Hysteresis>=0f&&this.Hysteresis<1f
+        &&float.IsFinite(this.Intensity)&&this.Intensity>=0f
+        &&ProbeCountFor(this.HalfExtent,this.ProbeSpacingMeters)<=MaxProbeCount;
+    /// <summary>Probes along each axis: the box edge divided by the spacing, plus one, and at least two.</summary>
+    public (int X,int Y,int Z) ProbeCounts=>(AxisCount(this.HalfExtent.X,this.ProbeSpacingMeters),AxisCount(this.HalfExtent.Y,this.ProbeSpacingMeters),AxisCount(this.HalfExtent.Z,this.ProbeSpacingMeters));
+    public int ProbeCount=>(int)Math.Min(ProbeCountFor(this.HalfExtent,this.ProbeSpacingMeters),int.MaxValue);
+    /// <summary>Actual distance between neighbouring probes per axis; the grid spans the box exactly.</summary>
+    public Vector3 GridSpacing{
+        get {
+            var Counts=this.ProbeCounts;
+            return this.HalfExtent*2f/new Vector3(Counts.X-1,Counts.Y-1,Counts.Z-1);
+        }
+    }
+    public Vector3 GridOrigin=>this.Center-this.HalfExtent;
+    public Vector3 ProbePosition(int Index){
+        var Counts=this.ProbeCounts;
+        var X=Index%Counts.X;
+        var Y=Index/Counts.X%Counts.Y;
+        var Z=Index/(Counts.X*Counts.Y);
+        return this.GridOrigin+new Vector3(X,Y,Z)*this.GridSpacing;
+    }
+    private static int AxisCount(float HalfExtent,float Spacing){
+        var Count=MathF.Floor(2f*HalfExtent/Spacing)+1f;
+        return float.IsFinite(Count)?(int)Math.Clamp(Count,2f,MaxProbeCount):MaxProbeCount+1;
+    }
+    private static long ProbeCountFor(Vector3 HalfExtent,float Spacing)=>
+        (long)AxisCount(HalfExtent.X,Spacing)*AxisCount(HalfExtent.Y,Spacing)*AxisCount(HalfExtent.Z,Spacing);
 }
 /// <summary>
 /// CPU reference for the atmosphere's transmittance. The renderer attenuates directional lights

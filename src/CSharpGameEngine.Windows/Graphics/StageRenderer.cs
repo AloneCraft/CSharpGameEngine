@@ -147,7 +147,11 @@ public sealed unsafe class StageRenderer:IDisposable {
     private const uint FrameCascadeSpheresOffset=FrameCascadeViewProjectionOffset+(64*DirectionalShadowCascades.Count); // float4: xyz centre, w radius
     private const uint FrameCascadeUvScaleOffsetsOffset=FrameCascadeSpheresOffset+(16*DirectionalShadowCascades.Count); // float4 atlas quadrant per cascade
     private const uint FrameCascadeDepthRangesOffset=FrameCascadeUvScaleOffsetsOffset+(16*DirectionalShadowCascades.Count); // float4: projection depth range metres
-    private const uint FrameConstantsSize=FrameCascadeDepthRangesOffset+16;
+    private const uint FrameGiGridOriginOffset=FrameCascadeDepthRangesOffset+16; // float4: xyz render-space position of probe (0,0,0)
+    private const uint FrameGiGridSpacingOffset=FrameGiGridOriginOffset+16; // float4: xyz metres between probes, w intensity
+    private const uint FrameGiGridCountsOffset=FrameGiGridSpacingOffset+16; // uint4: xyz probe counts, w probes per atlas row (0 = GI off)
+    private const uint FrameGiAtlasSizeOffset=FrameGiGridCountsOffset+16; // float4: irradiance atlas texels, distance atlas texels
+    private const uint FrameConstantsSize=FrameGiAtlasSizeOffset+16;
 
     /// <summary>
     /// FrameConstantsBuffer専用のフレームスロット幅。FrameConstantsSize以上、かつD3D12のroot CBV
@@ -317,6 +321,8 @@ public sealed unsafe class StageRenderer:IDisposable {
     private ID3D12PipelineState*ShadowPipelineState;
     private ID3D12RootSignature*PostProcessRootSignature;
     private StageAtmosphere?Atmosphere;
+    private StageGlobalIllumination?GlobalIllumination;
+    private bool GlobalIlluminationDescriptorsLive;
     private EnvironmentLightingSettings EnvironmentSettings=EnvironmentLightingSettings.Legacy;
     private AtmosphereFrame CurrentAtmosphereFrame;
     private float CameraAltitudeMeters;
@@ -495,6 +501,12 @@ public sealed unsafe class StageRenderer:IDisposable {
         return this.Atmosphere!.ReadbackForTesting();
     }
 
+    internal GlobalIlluminationReadback ReadGlobalIlluminationForTesting(){
+        this.ThrowIfDisposed();
+        this.WaitForGpuIdle();
+        return this.GlobalIllumination!.ReadbackForTesting();
+    }
+
     internal void RemoveDeviceForTesting(){
         this.ThrowIfDisposed();
         this.Device!.RemoveDeviceForTesting();
@@ -669,6 +681,7 @@ public sealed unsafe class StageRenderer:IDisposable {
 
         this.ShaderArtifactPath=Path.GetFullPath(ShaderArtifactPath);
         this.Atmosphere=new StageAtmosphere(this.Device,this.ShaderArtifactPath,FrameCount);
+        this.GlobalIllumination=new StageGlobalIllumination(this.Device,this.ShaderArtifactPath,FrameCount,FrameConstantsStride);
         if(ValidatedShaderPackage is null){
             this.LoadShaderArtifact(this.ShaderArtifactPath);
         } else {
@@ -1015,7 +1028,19 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         };
         SkyIrradianceParam.Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=11,RegisterSpace=0 };
 
-        D3D12_ROOT_PARAMETER*RootParams=stackalloc D3D12_ROOT_PARAMETER[10];
+        D3D12_DESCRIPTOR_RANGE GlobalIlluminationRange=new(){
+            RangeType=D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+            NumDescriptors=2,
+            BaseShaderRegister=12,
+        };
+
+        D3D12_ROOT_PARAMETER GlobalIlluminationParam=new(){
+            ParameterType=D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE,
+            ShaderVisibility=D3D12_SHADER_VISIBILITY_PIXEL,
+        };
+        GlobalIlluminationParam.DescriptorTable=new D3D12_ROOT_DESCRIPTOR_TABLE { NumDescriptorRanges=1,pDescriptorRanges=&GlobalIlluminationRange };
+
+        D3D12_ROOT_PARAMETER*RootParams=stackalloc D3D12_ROOT_PARAMETER[11];
         RootParams[0]=FrameParam;
         RootParams[1]=ObjectParam;
         RootParams[2]=TextureParam;
@@ -1027,12 +1052,13 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         RootParams[7]=AreaShadowMetadataParam;
         RootParams[8]=AreaShadowProjectionsParam;
         RootParams[9]=SkyIrradianceParam;
+        RootParams[10]=GlobalIlluminationParam;
         D3D12_STATIC_SAMPLER_DESC*StaticSamplers=stackalloc D3D12_STATIC_SAMPLER_DESC[2];
         StaticSamplers[0]=StaticSampler;
         StaticSamplers[1]=ShadowSampler;
 
         D3D12_ROOT_SIGNATURE_DESC RootSignatureDesc=new(){
-            NumParameters=10,
+            NumParameters=11,
             pParameters=RootParams,
             NumStaticSamplers=2,
             pStaticSamplers=StaticSamplers,
@@ -1511,7 +1537,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
         D3D12_DESCRIPTOR_HEAP_DESC SrvHeapDesc=new(){
             Type=D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-            NumDescriptors=(uint)(this.MaterialCount*5),
+            NumDescriptors=(uint)(this.MaterialCount*5+2),
             Flags=D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
         };
         ID3D12DescriptorHeap*SrvHeap;
@@ -1546,6 +1572,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             D3D12_CPU_DESCRIPTOR_HANDLE Handle=new(SrvHeapStart,(I*5)+4, this.SrvDescriptorSize);
             this.Device.Device->CreateShaderResourceView(this.ShadowAtlas,&ShadowSrvDesc,Handle);
         }
+        this.WriteGlobalIlluminationDescriptors();
 
         ID3D12Resource*GetOrCreateTexture(RenderTextureResource Texture){
             if(ResidentTextures.TryGetValue(Texture.ContentHash,out nint Existing)){
@@ -2024,14 +2051,104 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         Unsafe.CopyBlock(Slot+FrameSkyLightParamsOffset,&SkyLightParams,(uint)sizeof(Vector4));
         Unsafe.CopyBlock(Slot+FramePhysicalFogParamsOffset,&FogParams,(uint)sizeof(Vector4));
         Unsafe.CopyBlock(Slot+FramePhysicalFogColorOffset,&FogColor,(uint)sizeof(Vector4));
+        this.WriteGlobalIlluminationConstants(Slot);
     }
 
-    private void BindMainPassState(ID3D12PipelineState*ActivePipelineState){
+    private bool GlobalIlluminationActive=>
+        this.EnvironmentSettings.GlobalIllumination is not null&&this.GlobalIllumination!.IsSupported;
+
+    private void WriteGlobalIlluminationConstants(byte*Slot){
+        var Origin=Vector4.Zero;
+        var Spacing=Vector4.Zero;
+        uint*Counts=stackalloc uint[4]{ 0,0,0,0 };
+        if(this.GlobalIlluminationActive&&this.EnvironmentSettings.GlobalIllumination is GlobalIlluminationSettings Settings){
+            var ProbeCounts=Settings.ProbeCounts;
+            Origin=new Vector4(Settings.GridOrigin,0f);
+            Spacing=new Vector4(Settings.GridSpacing,Settings.Intensity);
+            Counts[0]=(uint)ProbeCounts.X;
+            Counts[1]=(uint)ProbeCounts.Y;
+            Counts[2]=(uint)ProbeCounts.Z;
+            Counts[3]=StageGlobalIllumination.ProbesPerAtlasRow;
+        }
+        var AtlasSize=new Vector4(
+            StageGlobalIllumination.IrradianceAtlasWidth,StageGlobalIllumination.IrradianceAtlasHeight,
+            StageGlobalIllumination.DistanceAtlasWidth,StageGlobalIllumination.DistanceAtlasHeight);
+        Unsafe.CopyBlock(Slot+FrameGiGridOriginOffset,&Origin,(uint)sizeof(Vector4));
+        Unsafe.CopyBlock(Slot+FrameGiGridSpacingOffset,&Spacing,(uint)sizeof(Vector4));
+        Unsafe.CopyBlock(Slot+FrameGiGridCountsOffset,Counts,16);
+        Unsafe.CopyBlock(Slot+FrameGiAtlasSizeOffset,&AtlasSize,(uint)sizeof(Vector4));
+    }
+
+    /// <summary>
+    /// Re-captures this frame's scheduled GI probes (ADR-0069). Every face is drawn with the lit
+    /// Stage pipeline from a copy of the frame constants: the probe is the camera, exposure is 1 so
+    /// the capture holds scene radiance, fog is off, and local lights are off because the Forward+
+    /// tile lists belong to the main camera. The previous GI result stays bound, so every refresh
+    /// adds one more bounce.
+    /// </summary>
+    private void RenderGlobalIlluminationProbes(){
+        if(!this.GlobalIlluminationActive||this.EnvironmentSettings.GlobalIllumination is not GlobalIlluminationSettings Settings){
+            return;
+        }
+        var GlobalIllumination=this.GlobalIllumination!;
+        GlobalIllumination.Schedule(Settings);
+        if(!this.GlobalIlluminationDescriptorsLive){
+            this.WriteGlobalIlluminationDescriptors();
+        }
+        var Source=this.FrameSlot(this.FrameIndex);
+        GlobalIllumination.BeginCapture(this.CommandList);
+        this.BindMainPassState(this.PipelineState);
+        this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        D3D12_VIEWPORT Viewport=new(){ Width=StageGlobalIllumination.CaptureResolution,Height=StageGlobalIllumination.CaptureResolution,MaxDepth=1f };
+        RECT Scissor=new(){ right=StageGlobalIllumination.CaptureResolution,bottom=StageGlobalIllumination.CaptureResolution };
+        this.CommandList->RSSetViewports(1,&Viewport);
+        this.CommandList->RSSetScissorRects(1,&Scissor);
+        Vector4 ClearColor=Vector4.Zero;
+        for(var Index=0;Index<GlobalIllumination.ScheduledCount;Index++){
+            var ProbePosition=Settings.ProbePosition(GlobalIllumination.ScheduledProbe(Index));
+            for(var Face=0;Face<6;Face++){
+                var Capture=Index*6+Face;
+                var Destination=GlobalIllumination.CaptureFrameSlot(this.FrameIndex,Capture);
+                Unsafe.CopyBlock(Destination,Source,FrameConstantsSize);
+                var ViewProjection=StageGlobalIllumination.FaceViewProjection(ProbePosition,Face);
+                Unsafe.CopyBlock(Destination+FrameViewProjectionOffset,&ViewProjection,(uint)sizeof(Matrix4x4));
+                var CameraPosition=new Vector4(ProbePosition,0f);
+                Unsafe.CopyBlock(Destination+FrameCameraPositionOffset,&CameraPosition,(uint)sizeof(Vector4));
+                ((float*)(Destination+FrameExposureOffset))[0]=1f;
+                ((float*)(Destination+FrameFogParamsOffset))[0]=0f;
+                ((float*)(Destination+FrameSkyLightParamsOffset))[1]=0f;
+                ((int*)(Destination+FrameLightCountsOffset))[0]=0;
+                var Rtv=GlobalIllumination.CaptureRtv(Capture);
+                var Dsv=GlobalIllumination.CaptureDsv(Capture);
+                this.CommandList->OMSetRenderTargets(1,&Rtv,FALSE,&Dsv);
+                this.CommandList->ClearRenderTargetView(Rtv,(float*)&ClearColor,0,null);
+                this.CommandList->ClearDepthStencilView(Dsv,D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH,1f,0,0,null);
+                this.CommandList->SetGraphicsRootConstantBufferView(0,GlobalIllumination.CaptureFrameAddress(this.FrameIndex,Capture));
+                this.DrawObjects(ExcludedObjectIndex:-1);
+            }
+        }
+        GlobalIllumination.RecordConvolution(this.CommandList,this.FrameIndex,Settings,this.Atmosphere!.ShBufferAddress,
+            this.EnvironmentSettings.SkyLight is not null&&this.EnvironmentSettings.Atmosphere is not null);
+    }
+
+    private void WriteGlobalIlluminationDescriptors(){
+        var Start=this.SrvHeap->GetCPUDescriptorHandleForHeapStart();
+        this.GlobalIllumination!.WriteShadingDescriptors(
+            new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCount*5,this.SrvDescriptorSize),
+            new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCount*5+1,this.SrvDescriptorSize));
+        this.GlobalIlluminationDescriptorsLive=this.GlobalIllumination.HasResources;
+    }
+
+    private D3D12_GPU_DESCRIPTOR_HANDLE GetGlobalIlluminationDescriptorTable()=>
+        new(this.SrvHeap->GetGPUDescriptorHandleForHeapStart(),this.MaterialCount*5,this.SrvDescriptorSize);
+
+    private void BindMainPassState(ID3D12PipelineState*ActivePipelineState,ulong FrameConstantsAddress=0){
         this.CommandList->SetGraphicsRootSignature(this.RootSignature);
         this.CommandList->SetPipelineState(ActivePipelineState);
         ID3D12DescriptorHeap*SrvHeap=this.SrvHeap;
         this.CommandList->SetDescriptorHeaps(1,&SrvHeap);
-        this.CommandList->SetGraphicsRootConstantBufferView(0, this.GetFrameConstantsAddress(this.FrameIndex));
+        this.CommandList->SetGraphicsRootConstantBufferView(0,FrameConstantsAddress!=0?FrameConstantsAddress:this.GetFrameConstantsAddress(this.FrameIndex));
+        this.CommandList->SetGraphicsRootDescriptorTable(10,this.GetGlobalIlluminationDescriptorTable());
         this.CommandList->SetGraphicsRootShaderResourceView(3,this.GetLocalLightsAddress(this.FrameIndex));
         this.CommandList->SetGraphicsRootShaderResourceView(4,this.GetForwardPlusTileListAddress(this.FrameIndex));
         this.CommandList->SetGraphicsRootShaderResourceView(5,this.GetSpotShadowProjectionAddress(this.FrameIndex));
@@ -3361,6 +3478,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.RenderShadowAtlasProjections();
         this.PrepareCameraPreviewConstants(this.FrameIndex);
         this.PrepareEnvironment(this.FrameIndex);
+        this.RenderGlobalIlluminationProbes();
 
         ID3D12Resource*BackBuffer= this.BackBuffers[this.FrameIndex];
 
@@ -3587,6 +3705,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.ReleaseForwardPlusTileBuffer();
         this.Atmosphere?.Dispose();
         this.Atmosphere=null;
+        this.GlobalIllumination?.Dispose();
+        this.GlobalIllumination=null;
 
         if(this.FrameConstantsBuffer!=null){
             this.FrameConstantsBuffer->Unmap(0,null);

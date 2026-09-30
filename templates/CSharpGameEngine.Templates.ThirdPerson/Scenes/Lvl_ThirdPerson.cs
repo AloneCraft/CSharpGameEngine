@@ -639,6 +639,17 @@ internal partial class Lvl_ThirdPerson:IScene {
                 ],
             },
             new Node {
+                Name="GlobalIlluminationVolume",
+                Components=[
+                    new Transform {
+                        Position=new LogicalVector3(-5.722046E-06f,2.15f,-9.536743E-07f),
+                        Rotation=new LogicalQuaternion(new LogicalVector3(0f,0f,0f)),
+                        Scale=new LogicalVector3(1f,1f,1f),
+                    },
+                    new GlobalIlluminationVolume { HalfExtentX=20.000006f,HalfExtentY=1.85f,HalfExtentZ=20f,ProbeSpacingMeters=2.5f },
+                ],
+            },
+            new Node {
                 Name="PlayerStart",
                 Components=[
                     new Transform {

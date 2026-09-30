@@ -89,3 +89,23 @@ public struct ExponentialHeightFog() {
     public float InscatteringLuminanceB=0f;
     public float SkyAtmosphereAmbientContributionScale=1f;
 }
+/// <summary>
+/// Dynamic diffuse global illumination probe volume (ADR-0069): an axis-aligned box centred on the
+/// entity's Transform position (rotation and scale are ignored). Probes sit on a regular grid inside
+/// the box and are re-captured round robin with the lit Stage pipeline, so indirect light follows
+/// the sun, the sky and moving objects over a few frames. Surfaces outside the box keep the sky light.
+/// </summary>
+[SceneComponentOrder(SceneComponentCategory.LightingEnvironment,64)]
+[SceneComponentIcon("Assets/Editor/ComponentIcons/GlobalIlluminationVolume.svg")]
+public struct GlobalIlluminationVolume() {
+    public float HalfExtentX=16f;
+    public float HalfExtentY=4f;
+    public float HalfExtentZ=16f;
+    /// <summary>Target distance between probes in metres; the grid spans the box exactly.</summary>
+    public float ProbeSpacingMeters=2.5f;
+    /// <summary>Probes re-captured each frame (1-64).</summary>
+    public int ProbesPerFrame=32;
+    /// <summary>Weight of the previous result when a probe is refreshed (0 = replace).</summary>
+    public float Hysteresis=0.5f;
+    public float Intensity=1f;
+}

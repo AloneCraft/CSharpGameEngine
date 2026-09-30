@@ -365,6 +365,17 @@ internal struct EnvironmentCollect:ISystem {
         Host.Environment.Fog=Value;
         return true;
     }
+    public bool Update(Entity Entity,ref GlobalIlluminationVolume Value,EngineHost Host,ref State State){
+        // The probe grid is placed in the renderer's camera-relative space like every object, so the
+        // absolute volume position never crosses a float boundary.
+        if(RuntimeWorldTransform.TryGetCameraRelativeMatrix(Entity,State.World,Host,out var Matrix,out _)!=FixedTransformStatus.Success){
+            Host.Environment.InvalidReason="GlobalIlluminationVolume.Transform";
+            return true;
+        }
+        Host.Environment.GlobalIllumination=Value;
+        Host.Environment.GlobalIlluminationCenter=Matrix.Translation;
+        return true;
+    }
 }
 
 [SystemPhase(SystemPhase.Presentation)]

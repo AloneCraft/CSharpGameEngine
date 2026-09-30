@@ -157,6 +157,19 @@ internal static class ThirdPersonTemplateImporter {
         UnrealLightSceneEmitter.AppendDirectionalLightComponentsFromTravelDirection(Builder,TravelDirection,new Vector3(Light.Color.R,Light.Color.G,Light.Color.B),Light.Illuminance.Lux,"                    ");
         Builder.AppendLine("                ],");
         Builder.AppendLine("            },");
+        var Volume=GlobalIlluminationVolumeFitter.Fit(Manifest.Actors.Where(Item=>!SkyDomeActors.Contains(Item.Label)).Select(Item=>{
+            var Node=MeshNodeByName[Item.Label];
+            var Mesh=Scene.Meshes[Node.MeshIndex!.Value];
+            return (Node.WorldTransform,Mesh.Positions,Mesh.Indices);
+        }));
+        Builder.AppendLine("            new Node {");
+        Builder.AppendLine("                Name=\"GlobalIlluminationVolume\",");
+        Builder.AppendLine("                Components=[");
+        AppendTransform(Builder,Volume.Center,Quaternion.Identity,Vector3.One,"                    ");
+        Builder.Append("                    new GlobalIlluminationVolume { HalfExtentX=").Append(F(Volume.HalfExtent.X)).Append(",HalfExtentY=").Append(F(Volume.HalfExtent.Y))
+            .Append(",HalfExtentZ=").Append(F(Volume.HalfExtent.Z)).Append(",ProbeSpacingMeters=").Append(F(Volume.SpacingMeters)).AppendLine(" },");
+        Builder.AppendLine("                ],");
+        Builder.AppendLine("            },");
         var Player=Manifest.Environment.PlayerStart;
         Builder.AppendLine("            new Node {");
         Builder.Append("                Name=\"").Append(Escape(Player.Name)).AppendLine("\",");

@@ -12,6 +12,9 @@ internal sealed class EnvironmentCollection {
     internal SkyLight?SkyLight;
     internal PostProcessVolume?PostProcess;
     internal ExponentialHeightFog?Fog;
+    internal GlobalIlluminationVolume?GlobalIllumination;
+    /// <summary>Camera-relative centre of <see cref="GlobalIllumination"/> for this frame.</summary>
+    internal Vector3 GlobalIlluminationCenter;
     internal bool AmbientSubmitted;
     internal string?InvalidReason;
     internal void Reset(){
@@ -19,6 +22,8 @@ internal sealed class EnvironmentCollection {
         this.SkyLight=null;
         this.PostProcess=null;
         this.Fog=null;
+        this.GlobalIllumination=null;
+        this.GlobalIlluminationCenter=Vector3.Zero;
         this.AmbientSubmitted=false;
     }
     internal EnvironmentLightingSettings Build(){
@@ -48,6 +53,15 @@ internal sealed class EnvironmentCollection {
         var ToneMapperValue=Post?.ToneMapper==ToneMapperKind.UnrealFilmic?ToneMapper.UnrealFilmicSrgb:ToneMapper.LegacyAces;
         var Bloom=Post?.BloomIntensity??EnvironmentLightingSettings.Legacy.BloomIntensity;
         var SunRadius=(this.Atmosphere?.SunDiskAngleDegrees??0.5357f)*MathF.PI/360f;
-        return new EnvironmentLightingSettings(Atmosphere,Sky,Fog,Exposure,ToneMapperValue,Bloom,SunRadius);
+        GlobalIlluminationSettings?GlobalIllumination=this.GlobalIllumination is GlobalIlluminationVolume G
+            ?new GlobalIlluminationSettings(this.GlobalIlluminationCenter,new Vector3(G.HalfExtentX,G.HalfExtentY,G.HalfExtentZ),
+                G.ProbeSpacingMeters,G.ProbesPerFrame,G.Hysteresis,G.Intensity)
+            :null;
+        if(GlobalIllumination is { IsValid:false }){
+            // An oversized or malformed probe volume only disables GI; the sky and exposure stay.
+            this.InvalidReason="GlobalIlluminationVolume";
+            GlobalIllumination=null;
+        }
+        return new EnvironmentLightingSettings(Atmosphere,Sky,Fog,Exposure,ToneMapperValue,Bloom,SunRadius,GlobalIllumination);
     }
 }
