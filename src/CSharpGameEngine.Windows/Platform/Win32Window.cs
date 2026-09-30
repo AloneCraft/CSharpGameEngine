@@ -97,7 +97,11 @@ public sealed unsafe class Win32Window:IDisposable {
 
     public long InputTimestampFrequency=>Win32InputEventAdapter.TimestampFrequency;
 
-    public IReadOnlyList<InputEvent>DrainInputEvents()=>this.InputAdapter.Drain();
+    /// <summary>Polls the gamepad, then returns and clears every input event recorded since the last call.</summary>
+    public IReadOnlyList<InputEvent>DrainInputEvents(){
+        this.InputAdapter.RecordGamepad(XInputGamepad.Poll());
+        return this.InputAdapter.Drain();
+    }
 
     public void SetTitle(string Title){
         ObjectDisposedException.ThrowIf(this.Disposed,this);

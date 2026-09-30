@@ -24,7 +24,11 @@ public readonly record struct InputActionId(StableId Value) {
     public override string ToString()=>this.Value.ToString();
 }
 public enum InputDeviceKind { Keyboard,Mouse,Gamepad }
-public enum InputControlKind { Button,Axis1D,Axis2D }
+/// <summary>
+/// Relative kinds (mouse delta, wheel) report a per-event increment rather than a held value: the
+/// input server accumulates them for the processed frame and never keeps them as held state.
+/// </summary>
+public enum InputControlKind { Button,Axis1D,Axis2D,RelativeAxis1D,RelativeAxis2D }
 public readonly record struct InputControl(InputDeviceKind DeviceKind,string Code,InputControlKind Kind=InputControlKind.Button) {
     public bool IsValid=>!string.IsNullOrWhiteSpace(this.Code);
 }
