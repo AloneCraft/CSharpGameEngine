@@ -125,7 +125,21 @@
          host. -->
     <ProjectReference Include="..\..\tools\CSharpGameEngine.VSExtension\CSharpGameEngine.VSExtension.csproj" />
     <ProjectReference Include="..\..\tools\CSharpGameEngine.Vsix.Automation\CSharpGameEngine.Vsix.Automation.csproj" />
+    <!-- ADR-0070 B1: a built game for the packaged preview host's runtime view. Built, not referenced;
+         its output path reaches the tests as assembly metadata. -->
+    <ProjectReference Include="..\..\UserEcsProject\UserEcsProject.csproj"
+                      ReferenceOutputAssembly="false"
+                      SkipGetTargetFrameworkProperties="true"
+                      OutputItemType="CgeRuntimeViewGame" />
   </ItemGroup>
+  <Target Name="RecordRuntimeViewGameForTests" AfterTargets="ResolveProjectReferences" BeforeTargets="GetAssemblyAttributes">
+    <ItemGroup>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>CgeRuntimeViewGame</_Parameter1>
+        <_Parameter2>@(CgeRuntimeViewGame->'%(FullPath)')</_Parameter2>
+      </AssemblyAttribute>
+    </ItemGroup>
+  </Target>
 
   <!-- The SDK's ArtifactsPath relocates every project output. Replace the legacy normal-bin
        package item before target paths are assigned so isolated builds copy the VSIX produced by

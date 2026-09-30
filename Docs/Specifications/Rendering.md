@@ -95,6 +95,8 @@ The device state set is fixed: `Ready`, `Suspended`, `Recovering`, `Faulted`, an
 - **Replay:** `RenderServer`'s recovery replay state carries these forward from earlier frames, so a value set once survives device recovery.
 - **Per frame:** additive lights (`AddDirectionalLight`, point, spot, rect, emissive) are submitted every frame. Nothing is lit before the first submission; the renderer does not start from a default light.
 
+**Scene view runtime view (ADR-0070).** For a built game the Scene view is drawn by the game's own `EngineHost` and `RenderServer` inside the preview host, so it uses the runtime's environment, lights, materials, skinning, exposure and GI. One session keeps its device and swap chain from Open to Close: an edit changes component values in the running world and never rebuilds device state. The editor camera replaces the scene camera at the point where `LevelLoad` applies it, and the designer's selection and gizmos are drawn over the image.
+
 Preview/Import/Bake calls use the versioned host protocol described in [Editor-VSIX](Editor-VSIX.md). Cancellation, timeout, host crash, and version mismatch are visible state transitions, not retries that can appear successful.
 
 ## Visual and quality policy

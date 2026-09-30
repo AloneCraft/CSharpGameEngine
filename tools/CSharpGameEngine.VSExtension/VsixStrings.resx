@@ -255,6 +255,8 @@ Sign-in and downloads from Fab are not performed in this window. Always perform 
   <data name="FabWatch_Error" xml:space="preserve"><value>Fab download watch error: {0}</value></data>
   <data name="SceneStatusDisplayed" xml:space="preserve"><value>Displaying: {0}</value></data>
   <data name="SceneCameraDiagnostics" xml:space="preserve"><value>Camera Preview: objects={0}, frustum={1}, draws={2}, VP={3}</value></data>
+  <data name="SceneRuntimeViewUnavailable" xml:space="preserve"><value>The game runtime view is unavailable ({0}); showing the scene preview.</value></data>
+  <data name="SceneRuntimeViewBuildRequired" xml:space="preserve"><value>Build the project to see this structural change in the game runtime view.</value></data>
   <data name="SceneRenderFailed" xml:space="preserve"><value>Scene rendering failed. See ActivityLog.xml for details.</value></data>
   <data name="ScenePropertyEditing" xml:space="preserve"><value>Editing properties: {0}</value></data>
   <data name="SceneDuplicateUnsupported" xml:space="preserve"><value>A Scene Root or a Node whose parent Children cannot be resolved cannot be duplicated.</value></data>

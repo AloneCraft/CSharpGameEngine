@@ -90,6 +90,16 @@ internal sealed class SceneHwndHost:HwndHost {
     private Process?EditorPreviewProcess;
     private string?EditorPreviewSceneName;
     private string?EditorPreviewTempDirectory;
+    private bool PreviewIsRuntime;
+    // The game build a JSON scene's runtime view is made from, and the write time of the one shown
+    // (MinValue when the scene preview stands in for it): a newer build replaces the view.
+    private string?WatchedBuild;
+    private DateTime ShownBuildTime;
+    private DateTime PendingBuildTime;
+    private DateTime NextBuildCheck;
+    private string?RuntimeViewTempDirectory;
+    // Why the Scene view is not showing the current edit in the game's runtime, kept over "displayed".
+    private string?RuntimeViewNote;
 
     // M0020 Phase 1: ナビゲーション状態機械とカメラ/永続ツール状態(ADR-0041 決定事項1)。
     private SceneViewState?ViewState;
@@ -549,6 +559,31 @@ internal sealed class SceneHwndHost:HwndHost {
             return;
         }
         string root=this.RepoRoot??context.WorkspaceRoot;
+        string? assemblyPath=this.ResolveBuiltGameAssembly(context);
+        string hostPath;
+        try { hostPath=RenderPreviewSceneBuilder.ResolveHostPath(root); }
+        catch(FileNotFoundException){ return; }
+        if(assemblyPath is null||!File.Exists(assemblyPath)){
+            return;
+        }
+        try{
+            assemblyPath=CopyGameBuild(assemblyPath,out string TempDirectory);
+            this.EditorPreviewTempDirectory=TempDirectory;
+            ProcessStartInfo StartInfo=PreviewHostProcessStartInfo.Create(
+                hostPath,
+                $"--assembly {PreviewHostProcessStartInfo.Quote(assemblyPath)} "
+                +$"--scene {PreviewHostProcessStartInfo.Quote(sceneName!)}",
+                Path.GetDirectoryName(assemblyPath)??root);
+            this.EditorPreviewProcess=Process.Start(StartInfo);
+            this.EditorPreviewSceneName=sceneName;
+        }catch(Exception Ex) when(Ex is IOException or InvalidOperationException or System.ComponentModel.Win32Exception){
+            this.EditorPreviewProcess=null;
+            this.EditorPreviewSceneName=null;
+        }
+    }
+
+    /// <summary>The built game assembly of the target scene's project (Debug), or the override in CGE_EDITOR_PREVIEW_ASSEMBLY.</summary>
+    private string?ResolveBuiltGameAssembly(CgeProjectContext context){
         string? assemblyPath=Environment.GetEnvironmentVariable("CGE_EDITOR_PREVIEW_ASSEMBLY");
         if(assemblyPath is null){
             string assemblyName=Path.GetFileNameWithoutExtension(this.SpatialDebugRuntimeProcessName??context.AssemblyName);
@@ -564,31 +599,16 @@ internal sealed class SceneHwndHost:HwndHost {
                 }
             }
         }
-        assemblyPath??=context.OutputAssemblyPath("Debug");
-        string hostPath;
-        try { hostPath=RenderPreviewSceneBuilder.ResolveHostPath(root); }
-        catch(FileNotFoundException){ return; }
-        if(!File.Exists(assemblyPath)){
-            return;
-        }
-        try{
-            assemblyPath=this.PrepareEditorPreviewAssembly(assemblyPath);
-            ProcessStartInfo StartInfo=PreviewHostProcessStartInfo.Create(
-                hostPath,
-                $"--assembly {PreviewHostProcessStartInfo.Quote(assemblyPath)} "
-                +$"--scene {PreviewHostProcessStartInfo.Quote(sceneName!)}",
-                Path.GetDirectoryName(assemblyPath)??root);
-            this.EditorPreviewProcess=Process.Start(StartInfo);
-            this.EditorPreviewSceneName=sceneName;
-        }catch(Exception Ex) when(Ex is IOException or InvalidOperationException or System.ComponentModel.Win32Exception){
-            this.EditorPreviewProcess=null;
-            this.EditorPreviewSceneName=null;
-        }
+        return assemblyPath??context.OutputAssemblyPath("Debug");
     }
 
-    private string PrepareEditorPreviewAssembly(string AssemblyPath){
+    /// <summary>
+    /// Copies a game build's assemblies to a temporary folder and returns the copied assembly, so the
+    /// preview host never locks the build output a rebuild writes.
+    /// </summary>
+    private static string CopyGameBuild(string AssemblyPath,out string TempDirectory){
         string SourceDirectory=Path.GetDirectoryName(AssemblyPath)??throw new DirectoryNotFoundException();
-        string TempDirectory=Path.Combine(Path.GetTempPath(),"CSharpGameEngine.EditorPreview",Guid.NewGuid().ToString("N"));
+        TempDirectory=Path.Combine(Path.GetTempPath(),"CSharpGameEngine.EditorPreview",Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(TempDirectory);
         foreach(string FilePath in Directory.GetFiles(SourceDirectory)){
             string Extension=Path.GetExtension(FilePath);
@@ -599,8 +619,86 @@ internal sealed class SceneHwndHost:HwndHost {
             }
             File.Copy(FilePath,Path.Combine(TempDirectory,Path.GetFileName(FilePath)),overwrite:true);
         }
-        this.EditorPreviewTempDirectory=TempDirectory;
         return Path.Combine(TempDirectory,Path.GetFileName(AssemblyPath));
+    }
+
+    /// <summary>
+    /// ADR-0070 B1: a runtime view of the built game for a JSON scene, so the Scene view shows what
+    /// the game renders. Null (the scene preview) when the scene is not JSON or the game is not built.
+    /// </summary>
+    private RenderPreviewRuntimeView?TryCreateRuntimeView(){
+        this.WatchedBuild=null;
+        this.ShownBuildTime=DateTime.MinValue;
+        if(!SceneJsonCommitPlanner.IsJsonScene(this.TargetFilePath)
+            ||this.TargetModel?.ClassFullyQualifiedName is not { Length:>0 }SceneName){
+            return null;
+        }
+        CgeProjectContext? Context;
+        try{ Context=CgeProjectContext.Resolve(this.TargetFilePath); }catch{ Context=null; }
+        if(Context is null||this.ResolveBuiltGameAssembly(Context) is not { }Build){
+            return null;
+        }
+        this.WatchedBuild=Build;
+        if(!File.Exists(Build)){
+            return null;
+        }
+        DateTime BuildTime=File.GetLastWriteTimeUtc(Build);
+        string Copy;
+        string?TempDirectory=null;
+        try{
+            Copy=CopyGameBuild(Build,out string CopyDirectory);
+            TempDirectory=CopyDirectory;
+        }catch(Exception Error)when(Error is IOException or UnauthorizedAccessException){
+            // A build still writing its output: the scene preview until the build settles.
+            DeleteEditorPreviewTempDirectory(TempDirectory);
+            return null;
+        }
+        this.RuntimeViewTempDirectory=TempDirectory;
+        this.ShownBuildTime=BuildTime;
+        return new RenderPreviewRuntimeView {
+            AssemblyPath=Copy,
+            ContentDirectory=Path.GetDirectoryName(Build)!,
+            SceneName=SceneName,
+            UseWarp=string.Equals(Environment.GetEnvironmentVariable("CGE_GRAPHICS_ADAPTER"),"warp",StringComparison.OrdinalIgnoreCase),
+        };
+    }
+
+    /// <summary>
+    /// Once a second: when the game build differs from the one shown (a first build included) and has
+    /// kept its write time for a check, the view reopens on it, so a build shows without another edit.
+    /// </summary>
+    private void ReopenOnNewBuild(){
+        if(this.WatchedBuild is not { }Build||this.PreviewClient is null||DateTime.UtcNow<this.NextBuildCheck){
+            return;
+        }
+        this.NextBuildCheck=DateTime.UtcNow.AddSeconds(1);
+        DateTime BuildTime=File.Exists(Build)?File.GetLastWriteTimeUtc(Build):DateTime.MinValue;
+        bool Settled=BuildTime==this.PendingBuildTime;
+        this.PendingBuildTime=BuildTime;
+        if(BuildTime==DateTime.MinValue||BuildTime==this.ShownBuildTime||!Settled){
+            return;
+        }
+        try {
+            this.DisposePreviewClient(ClearScene:false);
+            this.OpenOrReplacePreviewScene();
+            this.PreviewFrameDirty=true;
+        } catch(Exception Error){
+            this.HandleRenderFailure(Error);
+        }
+    }
+
+    private string LiveSceneJson()=>
+        this.TargetFilePath is { }Path
+            ?SceneWorkspaceService.Instance?.TryGetLiveText(Path)??(File.Exists(Path)?File.ReadAllText(Path):string.Empty)
+            :string.Empty;
+
+    private void ShowRuntimeViewState(RenderPreviewHostResponse Response){
+        this.ShowRuntimeViewNote(Response.BuildRequired?VsixText.Get("SceneRuntimeViewBuildRequired"):null);
+    }
+
+    private void ShowRuntimeViewNote(string?Note){
+        this.RuntimeViewNote=Note;
+        if(Note is not null){ this.SetStatus(Note); }
     }
     private void StopEditorPreviewHost(bool WaitForExit=true){
         Process? process=this.EditorPreviewProcess;
@@ -843,6 +941,7 @@ internal sealed class SceneHwndHost:HwndHost {
                                       this.TickUndoRedoIfNeeded();
                                       this.UpdateSurfaceSnapArmed();
                                       this.ApplyCamera();
+                                      this.ReopenOnNewBuild();
                                       this.RenderSurfaceFrame();
                                    };
             CompositionTarget.Rendering+= this.RenderingHandler;
@@ -2318,7 +2417,7 @@ internal sealed class SceneHwndHost:HwndHost {
             this.PreviewFrameDirty=true;
             this.RefreshCameraPreviews();
             this.UpdateMoveGizmo();
-            this.SetStatus(VsixText.Format("SceneStatusDisplayed",Result.Request.ClassName));
+            this.SetStatus(this.RuntimeViewNote??VsixText.Format("SceneStatusDisplayed",Result.Request.ClassName));
         } catch(Exception Ex){
             this.HasFatalRenderFailure=true;
             ActivityLog.LogError(nameof(SceneHwndHost),Ex.ToString());
@@ -2330,12 +2429,21 @@ internal sealed class SceneHwndHost:HwndHost {
     private void DisposePreviewClient(bool ClearScene,bool DisposeInBackground=false){
         RenderPreviewHostClient?Client=this.PreviewClient;
         this.PreviewClient=null;
+        string?RuntimeTemp=this.RuntimeViewTempDirectory;
+        this.RuntimeViewTempDirectory=null;
+        this.PreviewIsRuntime=false;
         if(Client is not null){
             if(DisposeInBackground){
-                _=ThreadPool.QueueUserWorkItem(_=>Client.Dispose());
+                _=ThreadPool.QueueUserWorkItem(_=>{
+                    Client.Dispose();
+                    DeleteEditorPreviewTempDirectory(RuntimeTemp);
+                });
             }else{
                 Client.Dispose();
+                DeleteEditorPreviewTempDirectory(RuntimeTemp);
             }
+        }else{
+            DeleteEditorPreviewTempDirectory(RuntimeTemp);
         }
         this.RenderedAnalysisGeneration=-1;
         this.PreviewFrameDirty=false;
@@ -2354,9 +2462,9 @@ internal sealed class SceneHwndHost:HwndHost {
             ??throw new InvalidOperationException("Scene preview surface is unavailable.");
         RenderPreviewScene Scene=RenderPreviewSceneBuilder.FromScene(
             this.GetPreviewRoster(),this.CurrentView,this.CurrentProjection,
-            this.CurrentCameraPosition);
+            this.CurrentCameraPosition,this.ViewState?.FovYRadians??SceneCameraFraming.DefaultFovYRadians);
         if(this.PreviewClient is not null){
-            this.PreviewClient.ReplaceScene(Scene);
+            this.ShowRuntimeViewState(this.PreviewClient.ReplaceScene(Scene,this.PreviewIsRuntime?this.LiveSceneJson():string.Empty));
             return;
         }
 
@@ -2367,6 +2475,26 @@ internal sealed class SceneHwndHost:HwndHost {
         string HostPath=RenderPreviewSceneBuilder.ResolveHostPath(this.RepoRoot);
         string ShaderArtifactPath=
             RenderPreviewSceneBuilder.ResolveShaderArtifactPath(this.RepoRoot);
+        // ADR-0070 B1: the game's own runtime when the game is built; the scene preview otherwise.
+        this.RuntimeViewNote=null;
+        if(this.TryCreateRuntimeView() is { }RuntimeView){
+            RenderPreviewHostClient Runtime=RenderPreviewHostClient.Start(HostPath,TimeSpan.FromSeconds(120));
+            try {
+                RenderPreviewHostResponse Opened=Runtime.Open(
+                    Surface.Handle.ToInt64(),this.SurfaceWidth,this.SurfaceHeight,
+                    ShaderArtifactPath,Scene,RuntimeView,this.LiveSceneJson());
+                this.PreviewClient=Runtime;
+                this.PreviewIsRuntime=true;
+                this.ShowRuntimeViewState(Opened);
+                return;
+            } catch(Exception Error)when(Error is RenderPreviewHostException or IOException or InvalidOperationException or TimeoutException){
+                Runtime.Dispose();
+                DeleteEditorPreviewTempDirectory(this.RuntimeViewTempDirectory);
+                this.RuntimeViewTempDirectory=null;
+                ActivityLog.LogWarning(nameof(SceneHwndHost),Error.ToString());
+                this.ShowRuntimeViewNote(VsixText.Format("SceneRuntimeViewUnavailable",Error.Message));
+            }
+        }
         RenderPreviewHostClient Client=RenderPreviewHostClient.Start(HostPath);
         try {
             Client.Open(
@@ -2398,7 +2526,8 @@ internal sealed class SceneHwndHost:HwndHost {
             this.PreviewSelectedNodePaths.Count>0
                 ?this.PreviewSelectedNodePaths
                 :this.SelectedNodePaths,
-            this.CurrentOverlayPrimitives,this.CurrentCameraPreviewPasses);
+            this.CurrentOverlayPrimitives,this.CurrentCameraPreviewPasses,
+            this.ViewState?.FovYRadians??SceneCameraFraming.DefaultFovYRadians);
 
     private IReadOnlyList<SceneRenderObject>GetPreviewRoster(){
         if(this.CurrentPreviewRenderObjects.Count==0){

@@ -51,8 +51,12 @@ internal sealed class RenderPreviewHostClient:IDisposable {
 
     internal RenderPreviewHostClientState State{get;private set;}=RenderPreviewHostClientState.Created;
 
-    internal static RenderPreviewHostClient Start(string HostPath){
-        RenderPreviewHostProcessTransport Transport=new(HostPath);
+    /// <param name="ResponseTimeout">
+    /// How long one request may take; a runtime view (ADR-0070 B1) loads the game's level, which takes
+    /// as long as the game's own startup. 15 seconds when omitted.
+    /// </param>
+    internal static RenderPreviewHostClient Start(string HostPath,TimeSpan?ResponseTimeout=null){
+        RenderPreviewHostProcessTransport Transport=new(HostPath,ResponseTimeout??TimeSpan.FromSeconds(15));
         try {
             return new RenderPreviewHostClient(
                 Guid.NewGuid(),Transport.Send,Transport.Dispose);
@@ -62,8 +66,11 @@ internal sealed class RenderPreviewHostClient:IDisposable {
         }
     }
 
+    /// <param name="RuntimeView">ADR-0070 B1: render the built game's world instead of <paramref name="Scene"/>.</param>
+    /// <param name="SceneJson">The edited scene's document, whose values a runtime view applies.</param>
     internal RenderPreviewHostResponse Open(
-        long SurfaceHandle,int Width,int Height,string ShaderArtifactPath,RenderPreviewScene Scene){
+        long SurfaceHandle,int Width,int Height,string ShaderArtifactPath,RenderPreviewScene Scene,
+        RenderPreviewRuntimeView?RuntimeView=null,string SceneJson=""){
         if(this.State!=RenderPreviewHostClientState.Created){
             throw new InvalidOperationException("Preview client can only be opened once.");
         }
@@ -77,12 +84,14 @@ internal sealed class RenderPreviewHostClient:IDisposable {
             Height=Height,
             ShaderArtifactPath=ShaderArtifactPath??string.Empty,
             Scene=Scene,
+            RuntimeView=RuntimeView,
+            SceneJson=SceneJson??string.Empty,
         });
         this.State=RenderPreviewHostClientState.Ready;
         return Response;
     }
 
-    internal RenderPreviewHostResponse ReplaceScene(RenderPreviewScene Scene){
+    internal RenderPreviewHostResponse ReplaceScene(RenderPreviewScene Scene,string SceneJson=""){
         this.EnsureReady();
         return this.Send(new RenderPreviewHostRequest {
             RequestId=Guid.NewGuid(),
@@ -90,6 +99,7 @@ internal sealed class RenderPreviewHostClient:IDisposable {
             Sequence=++this.Sequence,
             Command=RenderPreviewHostCommand.ReplaceScene,
             Scene=Scene,
+            SceneJson=SceneJson??string.Empty,
         });
     }
 
@@ -272,8 +282,10 @@ internal sealed class RenderPreviewHostProcessTransport:IDisposable {
     private readonly Process Process;
     private bool Disposed;
     private bool ConnectedOnce;
+    private readonly TimeSpan ResponseTimeout;
 
-    internal RenderPreviewHostProcessTransport(string HostPath){
+    internal RenderPreviewHostProcessTransport(string HostPath,TimeSpan ResponseTimeout){
+        this.ResponseTimeout=ResponseTimeout;
         ProcessStartInfo StartInfo=PreviewHostProcessStartInfo.Create(
             HostPath,$"--render-server {PreviewHostProcessStartInfo.Quote(this.PipeName)}");
         this.Process=Process.Start(StartInfo)
@@ -291,7 +303,7 @@ internal sealed class RenderPreviewHostProcessTransport:IDisposable {
         this.ConnectedOnce=true;
         ResidentBridgeClient.WriteMessage(Pipe,Request);
         return ResidentBridgeClient.ReadMessage<RenderPreviewHostResponse>(
-            Pipe,Snapshot?TimeSpan.FromSeconds(2):TimeSpan.FromSeconds(15),
+            Pipe,Snapshot?TimeSpan.FromSeconds(2):this.ResponseTimeout,
             CancellationToken.None);
     }
 

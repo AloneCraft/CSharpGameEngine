@@ -4,8 +4,8 @@ namespace CSharpGameEngine.Contracts.Tests;
 
 public sealed class RenderPreviewHostProtocolTests {
     [Fact]
-    public void ProtocolV5_ValidatesPresentationModeAndSelectionWeight(){
-        Assert.Equal(5,RenderPreviewHostProtocol.CurrentVersion);
+    public void ProtocolV6_ValidatesPresentationModeSelectionWeightAndCameraPose(){
+        Assert.Equal(6,RenderPreviewHostProtocol.CurrentVersion);
         RenderPreviewHostRequest Request=CreateCommand(
             RenderPreviewHostCommand.UpdateFrame);
         Request.Frame=new RenderPreviewFrame {
@@ -32,6 +32,19 @@ public sealed class RenderPreviewHostProtocolTests {
         Request.Frame.Objects[0].SelectionWeight=0f;
         Request.Frame.PresentationMode=(RenderPreviewPresentationMode)255;
         Assert.Contains("presentation",Assert.IsType<string>(
+            RenderPreviewHostProtocol.Validate(Request)),
+            StringComparison.OrdinalIgnoreCase);
+
+        // Protocol 6 (ADR-0070 B1): the runtime view's camera carries its rotation and projection.
+        Request.Frame.PresentationMode=RenderPreviewPresentationMode.Wireframe;
+        Request.Frame.Camera.Rotation=[0f,0f,0f];
+        Assert.Contains("rotation",Assert.IsType<string>(
+            RenderPreviewHostProtocol.Validate(Request)),
+            StringComparison.OrdinalIgnoreCase);
+        Request.Frame.Camera.Rotation=[0f,0f,0f,1f];
+        Request.Frame.Camera.NearZ=10f;
+        Request.Frame.Camera.FarZ=1f;
+        Assert.Contains("projection",Assert.IsType<string>(
             RenderPreviewHostProtocol.Validate(Request)),
             StringComparison.OrdinalIgnoreCase);
     }

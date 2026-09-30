@@ -255,6 +255,8 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
   <data name="FabWatch_Error" xml:space="preserve"><value>Fabダウンロード監視でエラー: {0}</value></data>
   <data name="SceneStatusDisplayed" xml:space="preserve"><value>表示中: {0}</value></data>
   <data name="SceneCameraDiagnostics" xml:space="preserve"><value>Cameraプレビュー: オブジェクト={0}, 視錐台={1}, 描画={2}, VP={3}</value></data>
+  <data name="SceneRuntimeViewUnavailable" xml:space="preserve"><value>ゲームのランタイム表示を開けないため({0})、シーンのプレビューを表示しています。</value></data>
+  <data name="SceneRuntimeViewBuildRequired" xml:space="preserve"><value>この構造の変更をゲームのランタイム表示で見るには、プロジェクトをビルドしてください。</value></data>
   <data name="SceneRenderFailed" xml:space="preserve"><value>Sceneの表示に失敗しました。詳細はActivityLog.xmlを確認してください。</value></data>
   <data name="ScenePropertyEditing" xml:space="preserve"><value>プロパティ編集中: {0}</value></data>
   <data name="SceneDuplicateUnsupported" xml:space="preserve"><value>Scene Rootまたは親Childrenを解決できないNodeは複製できません。</value></data>

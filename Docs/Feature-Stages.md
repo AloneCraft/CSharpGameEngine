@@ -175,7 +175,7 @@ The existing shadergraph.schema stage now fixes semantic If/ForRange ownership, 
 
 ## M0066 shared Preview Host evidence
 
-`vsix.rendering-preview` / F-L8-018 is executable Visual/VSIX evidence. It runs the bound C# VSIX reference Scene, the versioned Preview protocol, common Render Server/session/process/pipe tests, Scene/Asset Preview client and fresh-HWND recovery tests, package-closure/legacy-removal tests, and the package-extracted apphost on WARP with the D3D12 debug layer. Neither this Stage nor the later automated F-L8-023 Stage converts the Pending Experimental Instance `scene-designer` ledger entry into a human-observed pass.
+`vsix.rendering-preview` / F-L8-018 is executable Visual/VSIX evidence. It runs the bound C# VSIX reference Scene, the versioned Preview protocol, common Render Server/session/process/pipe tests, Scene/Asset Preview client and fresh-HWND recovery tests, package-closure/legacy-removal tests, and the package-extracted apphost on WARP with the D3D12 debug layer. Since ADR-0070 it also runs the runtime view: the game bridge, the host's runtime session, the editor camera conversion, and the packaged host opening UserEcsProject's world and applying live scene JSON. Neither this Stage nor the later automated F-L8-023 Stage converts the Pending Experimental Instance `scene-designer` ledger entry into a human-observed pass.
 
 ## M0067 canonical numeric adversarial evidence
 

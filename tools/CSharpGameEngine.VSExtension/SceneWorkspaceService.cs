@@ -666,6 +666,14 @@ internal sealed class SceneWorkspaceService : IDisposable {
         this.OpenWithoutActivating(DocumentId);
     }
 
+    /// <summary>The live text of a solution document (a scene JSON's unsaved edits included); null when it is not loaded.</summary>
+    internal string?TryGetLiveText(string FilePath){
+        DocumentId?Id=this.FindDocument(FilePath);
+        return Id is not null&&GetTextDocument(this.Workspace.CurrentSolution,Id) is { }Document&&Document.TryGetText(out SourceText?Text)
+            ?Text.ToString()
+            :null;
+    }
+
     /// <summary>A C# document or, for a JSON scene (ADR-0070), an additional document.</summary>
     private static TextDocument?GetTextDocument(Solution Solution,DocumentId Id)=>
         (TextDocument?)Solution.GetDocument(Id)??Solution.GetAdditionalDocument(Id);

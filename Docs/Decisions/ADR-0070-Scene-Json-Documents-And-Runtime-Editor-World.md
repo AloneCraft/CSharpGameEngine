@@ -49,9 +49,10 @@ The user asked for an Unreal/Unity-like editor:
    - No project compile is on the gesture path. A gesture parses one generated class, and the full re-analysis runs in the background afterwards.
    - **Why not a custom `IVsPersistDocData` editor with its own Undo stack** (the first plan): a second in-memory copy next to the text buffer brings back M0047's two-owner problems (watermarks, landing states, replay on save). With the buffer as the only copy, the JSON editor and the Scene Designer always show the same document, and Save, dirty state, reload and Undo come from VS.
 6. **The editor world renders with the game runtime.**
-   - The preview host loads the built game assembly and instantiates the world from the editor's in-memory JSON by reflection, with the same schema rules as the generator.
+   - The preview host loads the built game assembly and instantiates its world with the generated code: the startup scenes and the edited scene, as the game would.
    - It runs the game's Presentation-phase systems, then `EngineHost` and `RenderServer` draw into the Scene view surface. Environment, lights, materials, skinning, exposure and GI are therefore the runtime's own.
-   - Edits are sent as document updates. New component types need a build, as Unity scripts do.
+   - Edits are sent as the editor's in-memory JSON. Its component values are applied to the running world by reflection, with the same schema rules as the generator. A structural change (a node, or a component type the node was not built with) needs a build, as Unity scripts do, and the Scene view says so; it is never drawn wrong. A new build reopens the view.
+   - Until the game is first built, or if the runtime view cannot open, the Scene view shows the simplified scene preview.
 7. **Cutover.** A converter (`CSharpGameEngine.SceneJson.Cli convert`) turns the existing C# scenes into JSON. The C# `IScene` scene path is then removed; there are no parallel readers after the milestone, as [Editor-VSIX](../Specifications/Editor-VSIX.md) already requires for format changes.
    - The generator builds scenes only from `*.scene.json`.
    - A C# scene class, or a leftover `[StartupScene]`, is error SCENE206, whose message names the converter command. An unconverted scene therefore cannot silently disappear from the game.
