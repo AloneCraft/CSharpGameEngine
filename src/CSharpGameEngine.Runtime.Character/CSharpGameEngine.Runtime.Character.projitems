@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Label="Configuration">
+    <HasSharedItems>true</HasSharedItems>
+    <Import_RootNamespace>CSharpGameEngine.Runtime.Character</Import_RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)CharacterComponents.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)CharacterMotor.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)CharacterSystems.cs" />
+    <Using Include="CSharpGameEngine.Runtime.Character" />
+  </ItemGroup>
+</Project>

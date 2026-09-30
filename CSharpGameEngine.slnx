@@ -184,6 +184,8 @@
     <Project Path="src/CSharpGameEngine.Runtime.Windows/CSharpGameEngine.Runtime.Windows.shproj" />
     <Project Path="src/CSharpGameEngine.Runtime.Lighting/CSharpGameEngine.Runtime.Lighting.shproj" />
     <File Path="src/CSharpGameEngine.Runtime.Lighting/CSharpGameEngine.Runtime.Lighting.projitems" />
+    <Project Path="src/CSharpGameEngine.Runtime.Character/CSharpGameEngine.Runtime.Character.shproj" />
+    <File Path="src/CSharpGameEngine.Runtime.Character/CSharpGameEngine.Runtime.Character.projitems" />
     <File Path="src/CSharpGameEngine.Runtime.Windows/CSharpGameEngine.Runtime.Windows.projitems" />
   </Folder>
   <Folder Name="/stages/">

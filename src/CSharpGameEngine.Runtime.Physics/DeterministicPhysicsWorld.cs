@@ -307,11 +307,12 @@ public sealed class DeterministicPhysicsWorld:IReadOnlyPhysicsWorld {
                     this.ContactScratch.Clear();
                     this.NarrowPhase.CollectMeshContacts(Query,Target,this.ContactScratch);
                     foreach(PhysicsContactCandidate Contact in this.ContactScratch){
-                        Results.Add(new PhysicsShapeContact(Body.Entity,StableId,Contact.Position,Contact.Normal,Contact.Penetration));
+                        Results.Add(new PhysicsShapeContact(Body.Entity,StableId,Contact.Position,Contact.Normal,Contact.Penetration,
+                            Contact.SurfaceNormal.LengthSquared.IsZero?-Contact.Normal:Contact.SurfaceNormal));
                     }
                 }
                 else if(this.NarrowPhase.TryCreateContact(Query,Target,out PhysicsContactCandidate Contact)){
-                    Results.Add(new PhysicsShapeContact(Body.Entity,StableId,Contact.Position,Contact.Normal,Contact.Penetration));
+                    Results.Add(new PhysicsShapeContact(Body.Entity,StableId,Contact.Position,Contact.Normal,Contact.Penetration,-Contact.Normal));
                 }
             }
             return new PhysicsQueryResult(PhysicsQueryStatus.Success,Results.Count-Start);

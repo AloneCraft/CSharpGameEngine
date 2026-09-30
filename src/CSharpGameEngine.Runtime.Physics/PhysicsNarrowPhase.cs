@@ -46,6 +46,8 @@ internal readonly struct PhysicsContactCandidate {
     }
 
     internal LogicalVector3 Normal { get; }
+    /// <summary>Face normal of the touched triangle, pointing toward the other shape; zero for contacts without a single face.</summary>
+    internal LogicalVector3 SurfaceNormal { get;init; }
     internal uint FeatureId { get; }
     internal int Count { get; }
     internal LogicalVector3 Position=>this.Point0;
@@ -210,7 +212,7 @@ internal sealed class PhysicsNarrowPhase {
             Penetration=Radius-Distance;
         }
         if(MeshIsFirst){ Normal=-Normal; }
-        Contact=new PhysicsContactCandidate(OnTriangle,Normal,Penetration,Feature);
+        Contact=new PhysicsContactCandidate(OnTriangle,Normal,Penetration,Feature) { SurfaceNormal=FaceToward(A,B,C,Center) };
         return true;
     }
 
@@ -568,8 +570,14 @@ internal sealed class PhysicsNarrowPhase {
         }
         else if(!LogicalScalar.TrySquareRoot(DistanceSquared,out Distance)||!Delta.TryNormalize(out Normal)){ return false; }
         if(MeshIsFirst){ Normal=-Normal; }
-        Contact=new PhysicsContactCandidate(Closest,Normal,Radius-Distance,Feature);
+        Contact=new PhysicsContactCandidate(Closest,Normal,Radius-Distance,Feature) { SurfaceNormal=FaceToward(A,B,C,Center) };
         return true;
+    }
+
+    /// <summary>Unit face normal of triangle ABC on the side of <paramref name="Point"/>; zero for a degenerate triangle.</summary>
+    private static LogicalVector3 FaceToward(LogicalVector3 A,LogicalVector3 B,LogicalVector3 C,LogicalVector3 Point){
+        if(!LogicalVector3.Cross(B-A,C-A).TryNormalize(out LogicalVector3 Face)){ return LogicalVector3.Zero; }
+        return LogicalVector3.Dot(Face,Point-A)>=LogicalScalar.Zero?Face:-Face;
     }
 
     private static LogicalVector3 ClosestPointOnTriangle(
