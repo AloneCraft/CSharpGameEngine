@@ -15,13 +15,13 @@ ADR-0069 adds an opt-in physically based environment path driven by `SkyAtmosphe
 |---|---|
 | Sky | Hillaire transmittance/multi-scattering/sky-view LUTs (`Atmosphere.hlsl`); far-plane composite; the brightest directional light is the sun and is attenuated by transmittance at the camera altitude. |
 | Sky light | SH9 irradiance of the sky, scaled by `SkyLight.Intensity`, with a lower-hemisphere colour; diffuse plus an analytic-BRDF rough reflection. |
-| Exposure/output | Physical camera `2^c / (1.2 * 2^EV100)` at a fixed EV100; Unreal filmic in AP1 plus sRGB OETF; bloom intensity. |
+| Exposure/output | Physical camera `2^c / (1.2 * 2^EV100)` at a fixed EV100 or by GPU histogram auto exposure (10–90 % average, EV100 = log2 L + 3, clamped, SpeedUp/SpeedDown adaptation, state read at t15); Unreal filmic in AP1 plus sRGB OETF; bloom intensity. |
 | Fog | Unreal exponential height fog, closed form, per-metre density and falloff. |
 | Sun shadows | Four cascades (exponent-3 splits to 200 m), sphere-fit and texel-snapped, 512 px quadrants of atlas tile 0. |
 | Dynamic GI | Camera-relative probe grid (≤ 4096); round-robin six-face captures with the lit Stage pipeline; octahedral irradiance (8×8) and distance moments (16×16) with hysteresis; Chebyshev-weighted eight-probe sampling at t12/t13. |
 | Ambient occlusion | Half-resolution depth prepass, SAO plus depth-aware blur (`AmbientOcclusion.hlsl`) at t14; multiplies indirect light only. |
 
-Invariants: open-sky GI probes reproduce the SH irradiance, AO leaves direct light bit-identical, an invalid GI volume disables only GI, and GI requires typed UAV loads of RGBA16F/RG16F. Verified by Stage `rendering.environment-lighting` ([M0089](../Milestones/M0089-Physically-Based-Environment-Lighting.md)). Not implemented: volumetric clouds, histogram auto exposure, reflection probes, texture mipmaps.
+Invariants: open-sky GI probes reproduce the SH irradiance, AO leaves direct light bit-identical, histogram exposure with MinEv100 == MaxEv100 equals the fixed camera bit for bit, an invalid GI volume disables only GI, GI requires typed UAV loads of RGBA16F/RG16F, and no shader-visible descriptor that an in-flight frame may read is rewritten. Verified by Stage `rendering.environment-lighting` ([M0089](../Milestones/M0089-Physically-Based-Environment-Lighting.md)). Not implemented: volumetric clouds, reflection probes, texture mipmaps.
 
 ## Scope and current baseline
 

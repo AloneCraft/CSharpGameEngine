@@ -44,6 +44,11 @@ public enum ExposureMode {
     Legacy,
     /// <summary>Scale = 2^Compensation / (1.2 * 2^EV100), the physical camera model used by Unreal Engine.</summary>
     PhysicalCamera,
+    /// <summary>
+    /// Unreal's histogram auto exposure: the physical camera at an EV100 metered from the scene
+    /// (<c>LuminanceHistogram.hlsl</c>, metered on the GPU), clamped to [<see cref="ExposureSettings.Ev100"/>, <see cref="ExposureSettings.MaxEv100"/>].
+    /// </summary>
+    AutoHistogram,
 }
 public enum ToneMapper {
     /// <summary>Narkowicz ACES fit written to a linear UNORM target (the renderer's original behaviour).</summary>
@@ -51,13 +56,24 @@ public enum ToneMapper {
     /// <summary>Unreal Engine's filmic curve in AP1 followed by the sRGB transfer function.</summary>
     UnrealFilmicSrgb,
 }
-public readonly record struct ExposureSettings(ExposureMode Mode,float Ev100,float Compensation){
+/// <summary>
+/// Exposure model. <see cref="Ev100"/> is the fixed EV100 of <see cref="ExposureMode.PhysicalCamera"/>
+/// and the minimum of <see cref="ExposureMode.AutoHistogram"/>; <see cref="MaxEv100"/>,
+/// <see cref="SpeedUp"/> and <see cref="SpeedDown"/> (adaptation rates per second toward a
+/// brighter / darker scene) apply only to the histogram mode. Unreal's defaults are 3 and 1.
+/// </summary>
+public readonly record struct ExposureSettings(ExposureMode Mode,float Ev100,float Compensation,float MaxEv100=0f,float SpeedUp=3f,float SpeedDown=1f){
     public static ExposureSettings Legacy=>new(ExposureMode.Legacy,0f,0f);
-    public bool IsValid=>float.IsFinite(this.Ev100)&&float.IsFinite(this.Compensation);
-    /// <summary>Linear multiplier applied to scene luminance before tone mapping.</summary>
-    public float Scale(float CameraEv100)=>this.Mode==ExposureMode.PhysicalCamera
-        ?MathF.Pow(2f,this.Compensation)/(1.2f*MathF.Pow(2f,this.Ev100))
-        :PhysicalLightUnits.Ev100ToExposureScale(CameraEv100);
+    public bool IsValid=>float.IsFinite(this.Ev100)&&float.IsFinite(this.Compensation)
+        &&(this.Mode!=ExposureMode.AutoHistogram
+            ||(float.IsFinite(this.MaxEv100)&&this.MaxEv100>=this.Ev100
+                &&float.IsFinite(this.SpeedUp)&&this.SpeedUp>0f&&float.IsFinite(this.SpeedDown)&&this.SpeedDown>0f));
+    /// <summary>Linear multiplier applied to scene luminance before tone mapping; the histogram mode starts at its minimum EV100.</summary>
+    public float Scale(float CameraEv100)=>this.Mode==ExposureMode.Legacy
+        ?PhysicalLightUnits.Ev100ToExposureScale(CameraEv100)
+        :this.PhysicalScale(this.Ev100);
+    /// <summary>2^Compensation / (1.2 * 2^EV100).</summary>
+    public float PhysicalScale(float MeteredEv100)=>MathF.Pow(2f,this.Compensation)/(1.2f*MathF.Pow(2f,MeteredEv100));
 }
 /// <summary>
 /// Exponential height fog in the Unreal Engine formulation: fog amount along a ray is

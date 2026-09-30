@@ -327,6 +327,10 @@ public sealed unsafe class StageRenderer:IDisposable {
     private StageAtmosphere?Atmosphere;
     private StageGlobalIllumination?GlobalIllumination;
     private StageAmbientOcclusion?AmbientOcclusion;
+    private StageAutoExposure?AutoExposureStage;
+    private bool AutoExposureInitialized;
+    private readonly Stopwatch AutoExposureClock=Stopwatch.StartNew();
+    private TimeSpan LastAutoExposureTime;
     private bool GlobalIlluminationDescriptorsLive;
     private int AmbientOcclusionDescriptorGeneration;
     private EnvironmentLightingSettings EnvironmentSettings=EnvironmentLightingSettings.Legacy;
@@ -506,6 +510,16 @@ public sealed unsafe class StageRenderer:IDisposable {
         this.WaitForGpuIdle();
         return this.Atmosphere!.ReadbackForTesting();
     }
+
+    /// <summary>Test-only read of the GPU auto exposure state (EV100, scale, settled, valid); waits for the GPU.</summary>
+    internal Vector4 ReadAutoExposureStateForTesting(){
+        this.ThrowIfDisposed();
+        this.WaitForGpuIdle();
+        return this.AutoExposureStage!.ReadStateForTesting();
+    }
+
+    /// <summary>Fixed adaptation step for deterministic tests; null measures wall-clock time between frames.</summary>
+    internal float?AutoExposureDeltaSecondsForTesting { get;set; }
 
     internal (float[]Values,int Width,int Height) ReadAmbientOcclusionForTesting(){
         this.ThrowIfDisposed();
@@ -695,6 +709,8 @@ public sealed unsafe class StageRenderer:IDisposable {
         this.Atmosphere=new StageAtmosphere(this.Device,this.ShaderArtifactPath,FrameCount);
         this.GlobalIllumination=new StageGlobalIllumination(this.Device,this.ShaderArtifactPath,FrameCount,FrameConstantsStride);
         this.AmbientOcclusion=new StageAmbientOcclusion(this.Device,this.ShaderArtifactPath,FrameCount);
+        this.AutoExposureStage=new StageAutoExposure(this.Device,this.ShaderArtifactPath,FrameCount);
+        this.Atmosphere.ExposureStateAddress=this.AutoExposureStage.StateAddress;
         if(ValidatedShaderPackage is null){
             this.LoadShaderArtifact(this.ShaderArtifactPath);
         } else {
@@ -1043,7 +1059,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
         D3D12_DESCRIPTOR_RANGE GlobalIlluminationRange=new(){
             RangeType=D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
-            NumDescriptors=3,
+            NumDescriptors=4,
             BaseShaderRegister=12,
         };
 
@@ -1550,7 +1566,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
         D3D12_DESCRIPTOR_HEAP_DESC SrvHeapDesc=new(){
             Type=D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-            NumDescriptors=(uint)(this.MaterialCount*5+3),
+            NumDescriptors=(uint)(this.MaterialCount*5+4),
             Flags=D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
         };
         ID3D12DescriptorHeap*SrvHeap;
@@ -2051,7 +2067,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.CurrentAtmosphereFrame=new AtmosphereFrame(
                 Atmosphere,Settings.SkyLight??new SkyLightSettings(0f,Vector3.Zero),Settings.Fog,
                 this.AtmosphereSunDirection,this.AtmosphereSunIlluminance,Settings.SunAngularRadiusRadians,
-                this.CameraAltitudeMeters,Settings.Exposure.Scale(this.CurrentCameraEv100),Inverse);
+                this.CameraAltitudeMeters,this.CurrentExposureScale(),Inverse);
             this.Atmosphere!.Update(this.CommandList,FrameIndex,this.CurrentAtmosphereFrame);
             SkyLightEnabled=Settings.SkyLight is null?0f:1f;
         }
@@ -2097,6 +2113,23 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         this.RenderShadowAtlasProjection(new ShadowAtlasProjection(new ShadowAtlasTile(-1,0,0,AmbientOcclusion.Width,AmbientOcclusion.Height),AmbientOcclusionPrepassConstantSlot),Dsv);
         AmbientOcclusion.RecordCompute(this.CommandList,this.FrameIndex,ViewProjection,this.CurrentCameraPosition,Settings);
+    }
+
+    private bool AutoExposureActive=>this.EnvironmentSettings.Exposure.Mode==ExposureMode.AutoHistogram;
+
+    /// <summary>
+    /// The CPU-side exposure scale. In histogram mode the Stage program and the sky composite read
+    /// the GPU-metered scale instead (ExposureParams.z); this nominal minimum-EV100 value remains for
+    /// consumers without access to the GPU state.
+    /// </summary>
+    private float CurrentExposureScale()=>this.EnvironmentSettings.Exposure.Scale(this.CurrentCameraEv100);
+
+    /// <summary>Seconds since the previous frame for exposure adaptation, clamped against stalls.</summary>
+    private float NextAutoExposureDeltaSeconds(){
+        var Now=this.AutoExposureClock.Elapsed;
+        var DeltaSeconds=this.AutoExposureDeltaSecondsForTesting??Math.Clamp((Now-this.LastAutoExposureTime).Ticks/(float)TimeSpan.TicksPerSecond,0f,0.25f);
+        this.LastAutoExposureTime=Now;
+        return DeltaSeconds;
     }
 
     private bool GlobalIlluminationActive=>
@@ -2160,6 +2193,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 var CameraPosition=new Vector4(ProbePosition,0f);
                 Unsafe.CopyBlock(Destination+FrameCameraPositionOffset,&CameraPosition,(uint)sizeof(Vector4));
                 ((float*)(Destination+FrameExposureOffset))[0]=1f;
+                ((float*)(Destination+FrameExposureOffset))[2]=0f;
                 ((float*)(Destination+FrameFogParamsOffset))[0]=0f;
                 ((float*)(Destination+FrameSkyLightParamsOffset))[1]=0f;
                 ((int*)(Destination+FrameLightCountsOffset))[0]=0;
@@ -2177,13 +2211,14 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.EnvironmentSettings.SkyLight is not null&&this.EnvironmentSettings.Atmosphere is not null);
     }
 
-    /// <summary>Writes the Stage t12-t14 views (GI irradiance, GI distance, ambient occlusion) after the material views.</summary>
+    /// <summary>Writes the Stage t12-t15 views (GI irradiance, GI distance, ambient occlusion, exposure state) after the material views.</summary>
     private void WriteEnvironmentDescriptors(){
         var Start=this.SrvHeap->GetCPUDescriptorHandleForHeapStart();
         this.GlobalIllumination!.WriteShadingDescriptors(
             new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCount*5,this.SrvDescriptorSize),
             new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCount*5+1,this.SrvDescriptorSize));
         this.AmbientOcclusion!.WriteShadingDescriptor(new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCount*5+2,this.SrvDescriptorSize));
+        this.AutoExposureStage!.WriteShadingDescriptor(new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCount*5+3,this.SrvDescriptorSize));
         this.GlobalIlluminationDescriptorsLive=this.GlobalIllumination.HasResources;
         this.AmbientOcclusionDescriptorGeneration=this.AmbientOcclusion.Generation;
     }
@@ -2591,7 +2626,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         // Legacy: EV100 is one stop per integer (+1 halves the HDR signal). PhysicalCamera mode
         // replaces the camera EV with the environment's exposure settings (ADR-0069).
         this.CurrentCameraEv100=ExposureEv100;
-        Vector4 Packed=new(this.EnvironmentSettings.Exposure.Scale(ExposureEv100),ExposureEv100,0f,0f);
+        Vector4 Packed=new(this.CurrentExposureScale(),ExposureEv100,this.AutoExposureActive?1f:0f,0f);
         Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameExposureOffset,&Packed,(uint)sizeof(Vector4));
     }
 
@@ -3315,6 +3350,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CreateDepthBuffer(Width,Height);
         this.CreateHdrColorBuffer(Width,Height);
         this.CreateForwardPlusTileBuffer(Width,Height);
+        this.Atmosphere?.InvalidateSceneDescriptors();
         if(this.AmbientOcclusion is { Generation:>0 }){
             this.AmbientOcclusion.EnsureSize(Width,Height);
         }
@@ -3531,7 +3567,15 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.PrepareLocalShadowAtlasProjections(this.FrameIndex);
         this.RenderShadowAtlasProjections();
         this.PrepareCameraPreviewConstants(this.FrameIndex);
+        this.WriteExposure(this.FrameIndex,this.CurrentCameraEv100);
         this.PrepareEnvironment(this.FrameIndex);
+        var AutoExposureDeltaSeconds=this.NextAutoExposureDeltaSeconds();
+        if(!this.AutoExposureActive){
+            this.AutoExposureInitialized=false;
+        } else if(!this.AutoExposureInitialized){
+            this.AutoExposureStage!.RecordInitialize(this.CommandList,this.EnvironmentSettings.Exposure);
+            this.AutoExposureInitialized=true;
+        }
         this.RenderGlobalIlluminationProbes();
         this.RenderAmbientOcclusion();
 
@@ -3559,10 +3603,19 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
         this.DrawObjects(ExcludedObjectIndex:-1);
+        var RanComputeAfterMainPass=false;
         if(this.EnvironmentSettings.Atmosphere is not null){
+            this.Atmosphere!.CompositeSky(this.CommandList,this.FrameIndex,this.CurrentAtmosphereFrame,this.DepthBuffer,this.HdrColorBuffer,this.Width,this.Height,this.AutoExposureActive);
+            RanComputeAfterMainPass=true;
+        }
+        if(this.AutoExposureActive){
+            // Metered before camera previews draw into the same target.
+            this.AutoExposureStage!.RecordMetering(this.CommandList,this.FrameIndex,this.HdrColorBuffer,this.Width,this.Height,this.EnvironmentSettings.Exposure,AutoExposureDeltaSeconds);
+            RanComputeAfterMainPass=true;
+        }
+        if(RanComputeAfterMainPass){
             // Compute replaces the graphics PSO and descriptor heap, so the main-pass bindings are
             // restored before camera previews draw with the Stage pipeline again.
-            this.Atmosphere!.CompositeSky(this.CommandList,this.FrameIndex,this.CurrentAtmosphereFrame,this.DepthBuffer,this.HdrColorBuffer,this.Width,this.Height);
             this.BindMainPassState(ActivePipelineState);
             fixed(D3D12_VIEWPORT*PViewport=&this.Viewport)
             fixed(RECT*PScissorRect=&this.ScissorRect){
@@ -3764,6 +3817,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.GlobalIllumination=null;
         this.AmbientOcclusion?.Dispose();
         this.AmbientOcclusion=null;
+        this.AutoExposureStage?.Dispose();
+        this.AutoExposureStage=null;
 
         if(this.FrameConstantsBuffer!=null){
             this.FrameConstantsBuffer->Unmap(0,null);

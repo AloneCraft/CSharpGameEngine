@@ -10,8 +10,17 @@ public sealed class EnvironmentComponentTests {
         AssertRoundTrip(new SkyAtmosphere { BottomRadiusKm=6000f,MieAnisotropy=0.7f,SunDiskAngleDegrees=0.7357f });
         AssertRoundTrip(new SkyLight { Intensity=2f,LowerHemisphereG=0.25f });
         AssertRoundTrip(new PostProcessVolume { ExposureMethod=ExposureMethod.Legacy,MinEv100=3f,ToneMapper=ToneMapperKind.Legacy });
+        AssertRoundTrip(new PostProcessVolume { ExposureMethod=ExposureMethod.AutoHistogram,MinEv100=-2f,MaxEv100=12f,AutoExposureSpeedUp=2f,AutoExposureSpeedDown=0.5f });
         AssertRoundTrip(new ExponentialHeightFog { FogDensity=0.0436f,FogHeight=-68.5f,InscatteringLuminanceB=0.5f });
         AssertRoundTrip(new GlobalIlluminationVolume { HalfExtentX=20f,ProbeSpacingMeters=3f,ProbesPerFrame=48,Hysteresis=0.75f });
+    }
+    [Fact]
+    public void PostProcessVolume_MapsEachExposureMethod(){
+        ExposureSettings Build(PostProcessVolume Volume)=>new EnvironmentCollection { PostProcess=Volume }.Build().Exposure;
+        Assert.Equal(new ExposureSettings(ExposureMode.PhysicalCamera,2f,1f),Build(new PostProcessVolume { ExposureMethod=ExposureMethod.Manual,MinEv100=2f,MaxEv100=9f }));
+        Assert.Equal(new ExposureSettings(ExposureMode.AutoHistogram,2f,1f,9f,3f,1f),Build(new PostProcessVolume { ExposureMethod=ExposureMethod.AutoHistogram,MinEv100=2f,MaxEv100=9f }));
+        Assert.Equal(ExposureSettings.Legacy,Build(new PostProcessVolume { ExposureMethod=ExposureMethod.Legacy }));
+        Assert.False(new EnvironmentCollection { PostProcess=new PostProcessVolume { ExposureMethod=ExposureMethod.AutoHistogram,MinEv100=9f,MaxEv100=2f } }.Build().IsValid);
     }
     [Fact]
     public void GlobalIlluminationVolume_BuildsCameraRelativeProbeSettings(){

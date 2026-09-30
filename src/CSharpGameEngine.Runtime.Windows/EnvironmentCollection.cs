@@ -47,9 +47,11 @@ internal sealed class EnvironmentCollection {
                 F.SkyAtmosphereAmbientContributionScale,F.FogMaxOpacity)
             :null;
         var Post=this.PostProcess;
-        var Exposure=Post is PostProcessVolume P&&P.ExposureMethod!=ExposureMethod.Legacy
-            ?new ExposureSettings(ExposureMode.PhysicalCamera,P.MinEv100,P.ExposureCompensation)
-            :ExposureSettings.Legacy;
+        var Exposure=Post switch {
+            PostProcessVolume { ExposureMethod:ExposureMethod.Manual } P=>new ExposureSettings(ExposureMode.PhysicalCamera,P.MinEv100,P.ExposureCompensation),
+            PostProcessVolume { ExposureMethod:ExposureMethod.AutoHistogram } P=>new ExposureSettings(ExposureMode.AutoHistogram,P.MinEv100,P.ExposureCompensation,P.MaxEv100,P.AutoExposureSpeedUp,P.AutoExposureSpeedDown),
+            _=>ExposureSettings.Legacy,
+        };
         var ToneMapperValue=Post?.ToneMapper==ToneMapperKind.UnrealFilmic?ToneMapper.UnrealFilmicSrgb:ToneMapper.LegacyAces;
         var Bloom=Post?.BloomIntensity??EnvironmentLightingSettings.Legacy.BloomIntensity;
         var SunRadius=(this.Atmosphere?.SunDiskAngleDegrees??0.5357f)*MathF.PI/360f;

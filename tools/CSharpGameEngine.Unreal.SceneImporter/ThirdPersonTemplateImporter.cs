@@ -108,11 +108,13 @@ internal static class ThirdPersonTemplateImporter {
         var Post=Lighting.PostProcess;
         // Unreal's histogram auto exposure with equal min/max brightness is a fixed exposure; a
         // min/max range needs the AutoHistogram method, which this importer rejects until it exists.
-        if(Post.MinEv100!=Post.MaxEv100){
-            throw new NotSupportedException($"Auto exposure range {Post.MinEv100}..{Post.MaxEv100} EV100 is not supported yet.");
-        }
-        const string Method="Manual";
+        var Method=Post.AutoExposureMethod switch {
+            "AEM_HISTOGRAM"=>"AutoHistogram",
+            "AEM_MANUAL"=>"Manual",
+            _=>throw new NotSupportedException($"Unreal auto exposure method '{Post.AutoExposureMethod}' is not supported; only AEM_HISTOGRAM and AEM_MANUAL are."),
+        };
         Builder.Append("            new PostProcessVolume { ExposureMethod=ExposureMethod.").Append(Method).Append(",MinEv100=").Append(F(Post.MinEv100)).Append(",MaxEv100=").Append(F(Post.MaxEv100))
+            .Append(",AutoExposureSpeedUp=").Append(F(Post.AutoExposureSpeedUp)).Append(",AutoExposureSpeedDown=").Append(F(Post.AutoExposureSpeedDown))
             .Append(",ExposureCompensation=").Append(F(Post.ExposureCompensation)).Append(",ToneMapper=ToneMapperKind.UnrealFilmic,BloomIntensity=").Append(F(Post.BloomIntensity))
             .Append(",AmbientOcclusionIntensity=").Append(F(Post.AmbientOcclusionIntensity)).Append(",AmbientOcclusionRadiusMeters=").Append(F(Post.AmbientOcclusionRadiusCm*0.01f)).AppendLine(" },");
     }
@@ -305,7 +307,11 @@ internal sealed class ThirdPersonHeightFogManifest {
     public float SkyAtmosphereAmbientContributionScale { get; set; }
 }
 internal sealed class ThirdPersonPostProcessManifest {
+    public string AutoExposureMethod { get; set; }="AEM_HISTOGRAM";
     public float MinEv100 { get; set; }
+    /// <summary>Unreal's defaults when the manifest predates exporting the adaptation speeds.</summary>
+    public float AutoExposureSpeedUp { get; set; }=3f;
+    public float AutoExposureSpeedDown { get; set; }=1f;
     public float MaxEv100 { get; set; }
     public float ExposureCompensation { get; set; }
     public float BloomIntensity { get; set; }

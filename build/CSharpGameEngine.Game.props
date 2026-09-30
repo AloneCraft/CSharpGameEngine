@@ -56,6 +56,7 @@
     <CgeComputeShader Include="$(CgeEngineShaderRoot)Atmosphere.hlsl" />
     <CgeComputeShader Include="$(CgeEngineShaderRoot)GlobalIllumination.hlsl" />
     <CgeComputeShader Include="$(CgeEngineShaderRoot)AmbientOcclusion.hlsl" />
+    <CgeComputeShader Include="$(CgeEngineShaderRoot)LuminanceHistogram.hlsl" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(CgeCopyAssets)' == 'true'">

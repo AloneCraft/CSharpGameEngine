@@ -21,7 +21,7 @@ namespace CSharpGameEngine.Graphics.D3D12;
 /// single Atmosphere.hlsl compute artifact. Root signature (host-owned, see ShaderArtifactAbi):
 /// 0 = root CBV b0 AtmosphereCB, 1 = SRV table t0-t3 (transmittance, multi-scattering, sky view,
 /// scene depth), 2 = UAV table u0 (the pass output texture), 3 = root UAV u1 (irradiance SH),
-/// s0 = linear clamp.
+/// 4 = root SRV t4 (auto exposure state, read by the sky composite in histogram mode), s0 = linear clamp.
 /// </summary>
 internal sealed unsafe class StageAtmosphere:IDisposable {
     internal const string ArtifactFileName="Atmosphere.cgeshaderartifact";
@@ -64,6 +64,8 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
     private ID3D12PipelineState*PipelineState;
     private SkyAtmosphereSettings?LutSettings;
     private SkyViewKey?SkyViewState;
+    private nint DescribedDepth;
+    private nint DescribedSceneColor;
     private bool Disposed;
     internal StageAtmosphere(GraphicsDevice Device,string StageArtifactPath,uint FrameCount){
         this.Device=Device;
@@ -74,6 +76,8 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
     /// <summary>GPU address of the 9 float4 irradiance SH coefficients (Stage t11).</summary>
     internal ulong ShBufferAddress=>this.ShBuffer->GetGPUVirtualAddress();
     internal bool HasValidSkyLight { get;private set; }
+    /// <summary>GPU address of StageAutoExposure's state; always bound so every root parameter is set.</summary>
+    internal ulong ExposureStateAddress { get;set; }
     internal Vector3 LastSunDirection { get;private set; }
     /// <summary>Records the LUT and sky light passes. Leaves every LUT and the SH buffer readable by shaders.</summary>
     internal void Update(ID3D12GraphicsCommandList*CommandList,uint FrameIndex,in AtmosphereFrame Frame){
@@ -97,7 +101,7 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
         this.LastSunDirection=Frame.SunDirection;
     }
     /// <summary>Writes the sky into every far-plane pixel. Expects depth in DEPTH_WRITE and colour in RENDER_TARGET and restores both.</summary>
-    internal void CompositeSky(ID3D12GraphicsCommandList*CommandList,uint FrameIndex,in AtmosphereFrame Frame,ID3D12Resource*Depth,ID3D12Resource*SceneColor,int Width,int Height){
+    internal void CompositeSky(ID3D12GraphicsCommandList*CommandList,uint FrameIndex,in AtmosphereFrame Frame,ID3D12Resource*Depth,ID3D12Resource*SceneColor,int Width,int Height,bool UseExposureState){
         this.EnsurePipeline();
         this.EnsureLuts();
         this.WriteSceneDescriptors(Depth,SceneColor);
@@ -106,7 +110,7 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
         Before[1]=D3D12_RESOURCE_BARRIER.InitTransition(SceneColor,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         Before[2]=D3D12_RESOURCE_BARRIER.InitTransition(this.ShBuffer,ShaderResourceState,D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         CommandList->ResourceBarrier(3,Before);
-        this.BindAndDispatch(CommandList,FrameIndex,PassSkyBackground,Frame,UavSceneColor,(uint)Width,(uint)Height);
+        this.BindAndDispatch(CommandList,FrameIndex,PassSkyBackground,Frame,UavSceneColor,(uint)Width,(uint)Height,UseExposureState);
         D3D12_RESOURCE_BARRIER*After=stackalloc D3D12_RESOURCE_BARRIER[3];
         After[0]=D3D12_RESOURCE_BARRIER.InitTransition(Depth,D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,D3D12_RESOURCE_STATE_DEPTH_WRITE);
         After[1]=D3D12_RESOURCE_BARRIER.InitTransition(SceneColor,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -127,9 +131,9 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
         D3D12_RESOURCE_BARRIER ToSrv=D3D12_RESOURCE_BARRIER.InitTransition(this.ShBuffer,D3D12_RESOURCE_STATE_UNORDERED_ACCESS,ShaderResourceState);
         CommandList->ResourceBarrier(1,&ToSrv);
     }
-    private void BindAndDispatch(ID3D12GraphicsCommandList*CommandList,uint FrameIndex,uint Pass,in AtmosphereFrame Frame,uint UavSlot,uint Width,uint Height){
+    private void BindAndDispatch(ID3D12GraphicsCommandList*CommandList,uint FrameIndex,uint Pass,in AtmosphereFrame Frame,uint UavSlot,uint Width,uint Height,bool UseExposureState=false){
         var Slot=FrameIndex*PassCount+Pass;
-        this.WriteConstants(Slot,Pass,Frame,Width,Height);
+        this.WriteConstants(Slot,Pass,Frame,Width,Height,UseExposureState);
         CommandList->SetComputeRootSignature(this.RootSignature);
         CommandList->SetPipelineState(this.PipelineState);
         ID3D12DescriptorHeap*Heap=this.DescriptorHeap;
@@ -139,9 +143,10 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
         CommandList->SetComputeRootDescriptorTable(1,new D3D12_GPU_DESCRIPTOR_HANDLE(Start,(int)SrvTransmittance,this.DescriptorSize));
         CommandList->SetComputeRootDescriptorTable(2,new D3D12_GPU_DESCRIPTOR_HANDLE(Start,(int)UavSlot,this.DescriptorSize));
         CommandList->SetComputeRootUnorderedAccessView(3,this.ShBuffer->GetGPUVirtualAddress());
+        CommandList->SetComputeRootShaderResourceView(4,this.ExposureStateAddress);
         CommandList->Dispatch(Pass==PassSkyLightSh?1u:(Width+7u)/8u,Pass==PassSkyLightSh?1u:(Height+7u)/8u,1);
     }
-    private void WriteConstants(uint Slot,uint Pass,in AtmosphereFrame Frame,uint Width,uint Height){
+    private void WriteConstants(uint Slot,uint Pass,in AtmosphereFrame Frame,uint Width,uint Height,bool UseExposureState){
         var Atmosphere=Frame.Atmosphere;
         var Target=(float*)(this.MappedConstants+Slot*ConstantsStride);
         void Write(int Index,Vector3 Value,float W){
@@ -168,7 +173,7 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
         Pass4[0]=Pass;
         Pass4[1]=Width;
         Pass4[2]=Height;
-        Pass4[3]=0;
+        Pass4[3]=UseExposureState?1u:0u;
     }
     private void EnsurePipeline(){
         if(this.PipelineState!=null){
@@ -194,7 +199,7 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
     private ID3D12RootSignature*CreateRootSignature(){
         D3D12_DESCRIPTOR_RANGE SrvRange=new(){ RangeType=D3D12_DESCRIPTOR_RANGE_TYPE_SRV,NumDescriptors=4,BaseShaderRegister=0 };
         D3D12_DESCRIPTOR_RANGE UavRange=new(){ RangeType=D3D12_DESCRIPTOR_RANGE_TYPE_UAV,NumDescriptors=1,BaseShaderRegister=0 };
-        D3D12_ROOT_PARAMETER*Parameters=stackalloc D3D12_ROOT_PARAMETER[4];
+        D3D12_ROOT_PARAMETER*Parameters=stackalloc D3D12_ROOT_PARAMETER[5];
         Parameters[0]=new D3D12_ROOT_PARAMETER { ParameterType=D3D12_ROOT_PARAMETER_TYPE_CBV,ShaderVisibility=D3D12_SHADER_VISIBILITY_ALL };
         Parameters[0].Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=0 };
         Parameters[1]=new D3D12_ROOT_PARAMETER { ParameterType=D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE,ShaderVisibility=D3D12_SHADER_VISIBILITY_ALL };
@@ -203,6 +208,8 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
         Parameters[2].DescriptorTable=new D3D12_ROOT_DESCRIPTOR_TABLE { NumDescriptorRanges=1,pDescriptorRanges=&UavRange };
         Parameters[3]=new D3D12_ROOT_PARAMETER { ParameterType=D3D12_ROOT_PARAMETER_TYPE_UAV,ShaderVisibility=D3D12_SHADER_VISIBILITY_ALL };
         Parameters[3].Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=1 };
+        Parameters[4]=new D3D12_ROOT_PARAMETER { ParameterType=D3D12_ROOT_PARAMETER_TYPE_SRV,ShaderVisibility=D3D12_SHADER_VISIBILITY_ALL };
+        Parameters[4].Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=4 };
         D3D12_STATIC_SAMPLER_DESC Sampler=new(){
             Filter=D3D12_FILTER.D3D12_FILTER_MIN_MAG_MIP_LINEAR,
             AddressU=D3D12_TEXTURE_ADDRESS_MODE.D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
@@ -213,7 +220,7 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
             ShaderRegister=0,
             ShaderVisibility=D3D12_SHADER_VISIBILITY_ALL,
         };
-        D3D12_ROOT_SIGNATURE_DESC Desc=new(){ NumParameters=4,pParameters=Parameters,NumStaticSamplers=1,pStaticSamplers=&Sampler };
+        D3D12_ROOT_SIGNATURE_DESC Desc=new(){ NumParameters=5,pParameters=Parameters,NumStaticSamplers=1,pStaticSamplers=&Sampler };
         ID3DBlob*Signature=null;
         ID3DBlob*Error=null;
         try {
@@ -273,7 +280,20 @@ internal sealed unsafe class StageAtmosphere:IDisposable {
         this.Device.Device->CreateUnorderedAccessView(Resource,null,&Uav,this.CpuHandle(UavSlot));
         return Resource;
     }
+    /// <summary>Forces the next composite to rewrite its target views; call after the depth or HDR target is recreated.</summary>
+    internal void InvalidateSceneDescriptors(){
+        this.DescribedDepth=0;
+        this.DescribedSceneColor=0;
+    }
     private void WriteSceneDescriptors(ID3D12Resource*Depth,ID3D12Resource*SceneColor){
+        // The previous frame's composite may still be reading these shader-visible descriptors, so
+        // they are written only when the targets change; Resize recreates them with the GPU idle and
+        // calls InvalidateSceneDescriptors, because a new target can reuse the old one's address.
+        if(this.DescribedDepth==(nint)Depth&&this.DescribedSceneColor==(nint)SceneColor){
+            return;
+        }
+        this.DescribedDepth=(nint)Depth;
+        this.DescribedSceneColor=(nint)SceneColor;
         D3D12_SHADER_RESOURCE_VIEW_DESC DepthSrv=new(){
             Format=DXGI_FORMAT_R32_FLOAT,
             ViewDimension=D3D12_SRV_DIMENSION.D3D12_SRV_DIMENSION_TEXTURE2D,

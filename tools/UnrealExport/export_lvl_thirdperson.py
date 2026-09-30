@@ -261,6 +261,8 @@ def build_lighting(actors: list) -> dict:
             "minEv100": float(post_process_value(settings, "auto_exposure_min_brightness", -10.0)),
             "maxEv100": float(post_process_value(settings, "auto_exposure_max_brightness", 20.0)),
             "exposureCompensation": float(post_process_value(settings, "auto_exposure_bias", 1.0)),
+            "autoExposureSpeedUp": float(post_process_value(settings, "auto_exposure_speed_up", 3.0)),
+            "autoExposureSpeedDown": float(post_process_value(settings, "auto_exposure_speed_down", 1.0)),
             "bloomIntensity": float(post_process_value(settings, "bloom_intensity", 0.675)),
             "ambientOcclusionIntensity": float(post_process_value(settings, "ambient_occlusion_intensity", 0.5)),
             "ambientOcclusionRadiusCm": float(post_process_value(settings, "ambient_occlusion_radius", 200.0)),

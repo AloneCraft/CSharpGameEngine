@@ -3700,10 +3700,10 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Intended specification: `Docs/Specifications/Rendering.md#environment-lighting`, `Docs/Decisions/ADR-0069-Physical-Sky-Exposure-Shadows-And-Dynamic-GI.md`
 - Stage: `rendering.environment-lighting` (`Executable`, Visual / Rendering, 1800s)
 - Depends on: F-L4-007, F-L0-008
-- Implementation evidence: `src/CSharpGameEngine.Windows/Graphics/{StageAtmosphere,StageGlobalIllumination,StageAmbientOcclusion,DirectionalShadowCascades,EnvironmentLighting}.cs`, `StageRenderer.cs`, `assets/Shaders/{Atmosphere,GlobalIllumination,AmbientOcclusion}.hlsl`, the Stage graph (ABI `stage-v6`), `src/CSharpGameEngine.Runtime.Lighting/EnvironmentComponents.cs`, `src/CSharpGameEngine.Runtime.Windows/EnvironmentCollection.cs`
-- Current delta: volumetric clouds, histogram auto exposure, reflection probes and texture mipmaps are not implemented; local lights do not contribute to GI; probes inside geometry are not relocated.
-- Conformance: AtmosphereGpuIntegrationTests, DirectionalShadowCascadesTests, DirectionalShadowGpuTests, GlobalIlluminationGpuIntegrationTests, GlobalIlluminationSettingsTests, AmbientOcclusionGpuIntegrationTests and EnvironmentComponentTests on WARP; the ThirdPerson template capture is compared with Unreal in [M0089](Milestones/M0089-Physically-Based-Environment-Lighting.md).
-- Next action: volumetric clouds and histogram auto exposure; texture mipmaps for baked Unreal atlases.
+- Implementation evidence: `src/CSharpGameEngine.Windows/Graphics/{StageAtmosphere,StageGlobalIllumination,StageAmbientOcclusion,StageAutoExposure,DirectionalShadowCascades,EnvironmentLighting}.cs`, `StageRenderer.cs`, `assets/Shaders/{Atmosphere,GlobalIllumination,AmbientOcclusion,LuminanceHistogram}.hlsl`, the Stage graph (ABI `stage-v7`), `src/CSharpGameEngine.Runtime.Lighting/EnvironmentComponents.cs`, `src/CSharpGameEngine.Runtime.Windows/EnvironmentCollection.cs`
+- Current delta: volumetric clouds, reflection probes and texture mipmaps are not implemented; local lights do not contribute to GI; probes inside geometry are not relocated.
+- Conformance: AtmosphereGpuIntegrationTests, DirectionalShadowCascadesTests, DirectionalShadowGpuTests, GlobalIlluminationGpuIntegrationTests, GlobalIlluminationSettingsTests, AmbientOcclusionGpuIntegrationTests, AutoExposureGpuIntegrationTests and EnvironmentComponentTests on WARP; the ThirdPerson template capture is compared with Unreal in [M0089](Milestones/M0089-Physically-Based-Environment-Lighting.md).
+- Next action: texture mipmaps for baked Unreal atlases; volumetric clouds if they are brought into scope.
 
 ## F-L0-009 — D3D12 device recovery
 

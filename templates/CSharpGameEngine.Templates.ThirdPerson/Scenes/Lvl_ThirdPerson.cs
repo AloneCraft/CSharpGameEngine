@@ -26,7 +26,7 @@ internal partial class Lvl_ThirdPerson:IScene {
             },
             new SkyLight { Intensity=1f,LowerHemisphereR=0f,LowerHemisphereG=0f,LowerHemisphereB=0f },
             new ExponentialHeightFog { FogDensity=0.0436f,FogHeightFalloff=0.2f,FogHeight=-68.5f,FogMaxOpacity=1f,InscatteringLuminanceR=0f,InscatteringLuminanceG=0f,InscatteringLuminanceB=0f,SkyAtmosphereAmbientContributionScale=1f },
-            new PostProcessVolume { ExposureMethod=ExposureMethod.Manual,MinEv100=0f,MaxEv100=0f,ExposureCompensation=1f,ToneMapper=ToneMapperKind.UnrealFilmic,BloomIntensity=0.675f,AmbientOcclusionIntensity=0.5f,AmbientOcclusionRadiusMeters=2f },
+            new PostProcessVolume { ExposureMethod=ExposureMethod.AutoHistogram,MinEv100=0f,MaxEv100=0f,AutoExposureSpeedUp=3f,AutoExposureSpeedDown=1f,ExposureCompensation=1f,ToneMapper=ToneMapperKind.UnrealFilmic,BloomIntensity=0.675f,AmbientOcclusionIntensity=0.5f,AmbientOcclusionRadiusMeters=2f },
         ],
         Children=[
             new Node {

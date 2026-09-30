@@ -17,7 +17,7 @@ cbuffer AtmosphereCB : register(b0)
     float4 FogParams;            // x ray origin terms, y falloff per metre, z minimum transmittance, w fog enabled
     float4 FogColor;             // rgb inscattering luminance, w sky-atmosphere ambient contribution scale
     row_major float4x4 InverseViewProjection; // camera-relative clip -> world
-    uint4 Pass;                  // x pass, y output width, z output height
+    uint4 Pass;                  // x pass, y output width, z output height, w 1 = exposure from ExposureState (histogram auto exposure)
 };
 Texture2D<float4> TransmittanceLut : register(t0);
 Texture2D<float4> MultiScatteringLut : register(t1);
@@ -25,6 +25,7 @@ Texture2D<float4> SkyViewLut : register(t2);
 Texture2D<float> SceneDepth : register(t3);
 RWTexture2D<float4> OutputTexture : register(u0);
 RWStructuredBuffer<float4> ShOutput : register(u1);
+StructuredBuffer<float4> ExposureState : register(t4);
 SamplerState LinearClamp : register(s0);
 
 static const float PI = 3.14159265359;
@@ -507,7 +508,12 @@ void CSMain(uint3 dispatchThreadId : SV_DispatchThreadID, uint groupIndex : SV_G
         // same SH value so sky and surfaces fade into one colour.
         float3 skyAmbient = EvaluateShIrradiance(float3(0.0, 1.0, 0.0)) / PI;
         luminance = ApplyHeightFog(luminance, worldDir * 1000000.0, skyAmbient);
-        OutputTexture[pixel] = float4(luminance * LowerHemisphere.w, 1.0);
+        float exposure = LowerHemisphere.w;
+        if (Pass.w != 0u)
+        {
+            exposure = ExposureState[0].y;
+        }
+        OutputTexture[pixel] = float4(luminance * exposure, 1.0);
         return;
     }
 }

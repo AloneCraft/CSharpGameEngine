@@ -53,6 +53,8 @@ public enum ExposureMethod {
     Legacy,
     /// <summary>Fixed physical camera exposure at <see cref="PostProcessVolume.MinEv100"/>.</summary>
     Manual,
+    /// <summary>Unreal's histogram auto exposure, metered between <see cref="PostProcessVolume.MinEv100"/> and <see cref="PostProcessVolume.MaxEv100"/>.</summary>
+    AutoHistogram,
 }
 /// <summary>Output transform. Legacy keeps the original linear ACES fit.</summary>
 public enum ToneMapperKind {
@@ -67,6 +69,10 @@ public struct PostProcessVolume() {
     public ExposureMethod ExposureMethod=ExposureMethod.Manual;
     public float MinEv100=0f;
     public float MaxEv100=0f;
+    /// <summary>Histogram adaptation rate per second toward a brighter scene (Unreal's default 3).</summary>
+    public float AutoExposureSpeedUp=3f;
+    /// <summary>Histogram adaptation rate per second toward a darker scene (Unreal's default 1).</summary>
+    public float AutoExposureSpeedDown=1f;
     /// <summary>Exposure compensation in stops (Unreal's Exposure Compensation / AutoExposureBias).</summary>
     public float ExposureCompensation=1f;
     public ToneMapperKind ToneMapper=ToneMapperKind.UnrealFilmic;
