@@ -214,7 +214,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         this.ShowSnapshot(Snapshot);
 
         // SetSessionは同一セッションだと早期returnするため、Designerが既に開いている状態で
-        // コンテキストメニュー(OpenSceneDesignerCommand)から開くとカタログ再取得が走らず、
+        // 別の経路(ツールバーのOpenSceneDesignerCommand等)から開くとカタログ再取得が走らず、
         // SceneSelectorが表示中のシーンと食い違ったままになる(空欄のまま、あるいは直前に
         // 選んだ別シーンのまま)。Pinは呼び出し側で既に済んでいるのでここで選択を合わせ、
         // カタログが未取得のときだけ取得し直して完了時に反映させる。

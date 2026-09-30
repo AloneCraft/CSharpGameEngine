@@ -123,17 +123,6 @@ internal sealed class SceneWorkspaceService : IDisposable {
 
     private DocumentId?ActiveDocumentId;
     private string?ActiveDocumentPath;
-    private SceneDocumentMenuSnapshot ActiveMenuSnapshot=new(SceneDesignerTargetState.Unavailable,[],[]);
-
-    // ソリューションエクスプローラーで選択中のファイル用、アクティブ文書とは独立した解析スロット
-    // (ADR-0041 / M0020: SEの右クリックはアクティブなコードエディタ文書と一致するとは限らないため、
-    // Hierarchy/ModelChanged が依存するアクティブ文書側の状態には一切触れない別系統を持つ)。
-    private DocumentId?SolutionExplorerDocumentId;
-    private string?SolutionExplorerDocumentPath;
-    private SceneDocumentMenuSnapshot SolutionExplorerMenuSnapshot=new(SceneDesignerTargetState.Unavailable,[],[]);
-    private readonly SceneAnalysisGenerationGate<DocumentId>SolutionExplorerAnalysisGeneration=new();
-    private CancellationTokenSource?PendingSolutionExplorerAnalysis;
-    private JoinableTask?RunningSolutionExplorerAnalysis;
 
     private bool Disposed;
 
@@ -164,101 +153,6 @@ internal sealed class SceneWorkspaceService : IDisposable {
     internal IReadOnlyList<SceneModel>AllModels { get;private set;}=[];
 
     internal event Action<IReadOnlyList<SceneModel>>?AllModelsChanged;
-    /// <summary>
-    /// UIコマンド状態判定専用の解析済みスナップショット。Roslyn処理を開始・待機しない。
-    /// </summary>
-    internal SceneDocumentMenuSnapshot GetMenuSnapshot(string FilePath){
-        ThreadHelper.ThrowIfNotOnUIThread();
-        lock(this.Gate){
-            if(string.Equals(this.ActiveDocumentPath,FilePath,StringComparison.OrdinalIgnoreCase)){
-                return this.ActiveMenuSnapshot;
-            }
-
-            return string.Equals(this.SolutionExplorerDocumentPath,FilePath,StringComparison.OrdinalIgnoreCase)
-                ?this.SolutionExplorerMenuSnapshot
-                :new SceneDocumentMenuSnapshot(SceneDesignerTargetState.Unavailable,[],[]);
-        }
-    }
-
-    /// <summary>
-    /// ソリューションエクスプローラーの選択が変わるたびに<see cref="ActiveDocumentTracker"/>から
-    /// 呼ばれる。アクティブ文書(<see cref="SetActiveDocument"/>)とは完全に独立しており、
-    /// <see cref="CurrentModel"/>/<see cref="AllModels"/>やそのイベントには触れない
-    /// (Hierarchy等の既存の消費者に一切影響を与えないため)。
-    /// </summary>
-    internal void SetSolutionExplorerSelection(string?FilePath){
-        ThreadHelper.ThrowIfNotOnUIThread();
-
-        DocumentId?DocumentId=FilePath is null?null:this.FindDocument(FilePath);
-        ScheduledSolutionExplorerAnalysis?Scheduled=null;
-        lock(this.Gate){
-            if(string.Equals(this.SolutionExplorerDocumentPath,FilePath,StringComparison.OrdinalIgnoreCase)
-                &&Equals(this.SolutionExplorerDocumentId,DocumentId)){
-                return;
-            }
-
-            this.SolutionExplorerDocumentPath=FilePath;
-            this.SolutionExplorerDocumentId=DocumentId;
-            SceneAnalysisRequest<DocumentId>Request=this.SolutionExplorerAnalysisGeneration.ActivateDocument(DocumentId);
-            this.CancelPendingSolutionExplorerAnalysisNoLock();
-            this.SolutionExplorerMenuSnapshot=new(
-                DocumentId is null?SceneDesignerTargetState.Unavailable:SceneDesignerTargetState.Analyzing,[],[]);
-
-            if(DocumentId is not null){
-                CancellationTokenSource Source=new();
-                this.PendingSolutionExplorerAnalysis=Source;
-                Scheduled=new ScheduledSolutionExplorerAnalysis(this,Request,Source);
-            }
-        }
-
-        // アクティブ文書側のScheduleAnalysisはタイピングの連打を吸収するために250msデバウンスするが、
-        // ソリューションエクスプローラーの選択変更は「選択→即座に右クリックでメニュー表示」という
-        // 単発操作であり、デバウンスするとBeforeQueryStatusが呼ばれる時点で解析がまだ始まって
-        // すらいない(実機確認で、Scene実装クラスが複数あるファイルでも汎用的な単一項目しか
-        // 出ない不具合として顕在化した)。連打耐性は上のAnalysisGeneration+CancellationTokenSource
-        // のキャンセル機構が担うため、遅延を挟まず選択変更を検知した直後に解析を開始する。
-        if(Scheduled is not null){
-            this.StartSolutionExplorerAnalysis(Scheduled);
-        }
-    }
-
-    private void StartSolutionExplorerAnalysis(ScheduledSolutionExplorerAnalysis Scheduled){
-        this.RunningSolutionExplorerAnalysis=this.TaskFactory.RunAsync(async ()=>{
-            try {
-                SceneDocumentAnalysisResult Result=await this.AnalyzeAllAsync(
-                    Scheduled.Request.Document,
-                    Scheduled.Token).ConfigureAwait(false);
-
-                if(Scheduled.Token.IsCancellationRequested){
-                    return;
-                }
-
-                await this.TaskFactory.SwitchToMainThreadAsync(Scheduled.Token);
-                lock(this.Gate){
-                    if(this.Disposed
-                        ||Scheduled.Token.IsCancellationRequested
-                        ||!this.SolutionExplorerAnalysisGeneration.IsCurrent(Scheduled.Request)){
-                        return;
-                    }
-
-                    this.SolutionExplorerMenuSnapshot=Result.MenuSnapshot;
-                }
-            } catch(OperationCanceledException){
-                // Superseded by a newer selection.
-            } catch(Exception Ex){
-                ActivityLog.LogError(nameof(SceneWorkspaceService),Ex.ToString());
-                await this.TaskFactory.SwitchToMainThreadAsync();
-                lock(this.Gate){
-                    if(this.Disposed||!this.SolutionExplorerAnalysisGeneration.IsCurrent(Scheduled.Request)){
-                        return;
-                    }
-
-                    this.SolutionExplorerMenuSnapshot=new(SceneDesignerTargetState.Failed,[],[]);
-                }
-            }
-        });
-    }
-
     /// <summary>
     /// Acquires the workspace through <c>SComponentModel</c> rather than exporting a MEF part - this
     /// VSIX has no MEF components and adding one just to pull a service would be a larger change
@@ -305,7 +199,6 @@ internal sealed class SceneWorkspaceService : IDisposable {
             this.ActiveDocumentId=DocumentId;
             this.AnalysisGeneration.ActivateDocument(DocumentId);
             this.CancelPendingAnalysisNoLock();
-            this.ActiveMenuSnapshot=new(this.ActiveDocumentPath is null?SceneDesignerTargetState.Unavailable:SceneDesignerTargetState.Analyzing,[],[]);
         }
 
         // A document switch invalidates the old tree immediately. The command no longer consumes
@@ -354,8 +247,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
             throw new InvalidOperationException(VsixText.Format("WorkspaceFileMissing",FilePath));
         }
 
-        SceneDocumentAnalysisResult Result=await this.AnalyzeAllAsync(DocumentId,CancellationToken).ConfigureAwait(false);
-        return Result.Models;
+        return await this.AnalyzeAllAsync(DocumentId,CancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -886,8 +778,6 @@ internal sealed class SceneWorkspaceService : IDisposable {
             TimeSpan Delay=Outcome.Delay;
 
             this.CancelPendingAnalysisNoLock();
-            this.ActiveMenuSnapshot=new(
-                SceneAnalysisDebouncePolicy.PendingMenuState(this.ActiveDocumentPath),[],[]);
             DocumentId?ResolvedDocumentId=this.ActiveDocumentPath is null
                 ?null
                 :this.FindDocument(this.ActiveDocumentPath);
@@ -931,7 +821,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
         // work joinable, and the handle is stored so VS can still block on it during shutdown.
         this.RunningAnalysis=this.TaskFactory.RunAsync(async ()=>{
             try {
-                SceneDocumentAnalysisResult Result=await this.AnalyzeAllAsync(
+                IReadOnlyList<SceneModel>Models=await this.AnalyzeAllAsync(
                     Scheduled.Request.Document,
                     Scheduled.Token).ConfigureAwait(false);
 
@@ -941,7 +831,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
                 }
 
                 await this.TaskFactory.SwitchToMainThreadAsync(Scheduled.Token);
-                SceneModel?First=Result.Models.Count>0?Result.Models[0]:null;
+                SceneModel?First=Models.Count>0?Models[0]:null;
                 lock(this.Gate){
                     if(this.Disposed
                         ||Scheduled.Token.IsCancellationRequested
@@ -950,45 +840,34 @@ internal sealed class SceneWorkspaceService : IDisposable {
                     }
 
                     this.CurrentModel=First;
-                    this.AllModels=Result.Models;
-                    this.ActiveMenuSnapshot=Result.MenuSnapshot;
+                    this.AllModels=Models;
                 }
 
                 this.ModelChanged?.Invoke(First);
-                this.AllModelsChanged?.Invoke(Result.Models);
+                this.AllModelsChanged?.Invoke(Models);
             } catch(OperationCanceledException){
                 // Superseded by a newer analysis.
             } catch(Exception Ex){
+                // The last successful model stays; a transient failure never blanks the UI.
                 ActivityLog.LogError(nameof(SceneWorkspaceService),Ex.ToString());
-                await this.TaskFactory.SwitchToMainThreadAsync();
-                lock(this.Gate){
-                    if(this.Disposed||!this.AnalysisGeneration.IsCurrent(Scheduled.Request)){
-                        return;
-                    }
-
-                    this.ActiveMenuSnapshot=new(SceneDesignerTargetState.Failed,[],[]);
-                }
             }
         });
     }
 
     /// <summary>
     /// The scene an active document declares. Only <c>*.scene.json</c> documents declare scenes (ADR-0070);
-    /// every other document has none, so the Scene Designer menu stays hidden for it.
+    /// every other document has none.
     /// </summary>
-    private async Task<SceneDocumentAnalysisResult>AnalyzeAllAsync(DocumentId?DocumentId,CancellationToken CancellationToken){
+    private async Task<IReadOnlyList<SceneModel>>AnalyzeAllAsync(DocumentId?DocumentId,CancellationToken CancellationToken){
         if(DocumentId is not null&&this.Workspace.CurrentSolution.GetAdditionalDocument(DocumentId)is { }JsonScene
             &&SceneJsonCommitPlanner.IsJsonScene(JsonScene.FilePath)){
             return await AnalyzeJsonSceneAsync(JsonScene,CancellationToken).ConfigureAwait(false);
         }
-        return new([],new SceneDocumentMenuSnapshot(SceneDesignerTargetState.Unavailable,[],[]));
+        return [];
     }
 
-    /// <summary>
-    /// ADR-0070: a <c>*.scene.json</c> document declares at most one scene, which spans the whole file
-    /// for the code-window menu.
-    /// </summary>
-    private static async Task<SceneDocumentAnalysisResult>AnalyzeJsonSceneAsync(
+    /// <summary>ADR-0070: a <c>*.scene.json</c> document declares at most one scene.</summary>
+    private static async Task<IReadOnlyList<SceneModel>>AnalyzeJsonSceneAsync(
         TextDocument JsonScene,CancellationToken CancellationToken){
         SourceText Text=await JsonScene.GetTextAsync(CancellationToken).ConfigureAwait(false);
         Compilation?Compilation=await JsonScene.Project.GetCompilationAsync(CancellationToken).ConfigureAwait(false);
@@ -996,15 +875,9 @@ internal sealed class SceneWorkspaceService : IDisposable {
             ||SceneJsonWorkspaceSource.TryReadClassFullyQualifiedName(Text.ToString())is not { }ClassName
             ||await ResolveJsonSceneAsync(JsonScene.Project,Compilation,JsonScene,ClassName,CancellationToken).ConfigureAwait(false)
                 is not { }Resolved){
-            return new([],new SceneDocumentMenuSnapshot(
-                SceneDesignerTargetState.SceneType,[new SceneDocumentTypeRange(0,Text.Length,false,null)],[]));
+            return [];
         }
-        return new(
-            [Resolved.Model],
-            new SceneDocumentMenuSnapshot(
-                SceneDesignerTargetState.SceneType,
-                [new SceneDocumentTypeRange(0,Text.Length,true,Resolved.Model.ClassFullyQualifiedName)],
-                [new SceneDesignerMenuItem(Resolved.Model.ClassName,Resolved.Model.ClassFullyQualifiedName)]));
+        return [Resolved.Model];
     }
     public void Dispose(){
         lock(this.Gate){
@@ -1014,7 +887,6 @@ internal sealed class SceneWorkspaceService : IDisposable {
 
             this.Disposed=true;
             this.CancelPendingAnalysisNoLock();
-            this.CancelPendingSolutionExplorerAnalysisNoLock();
         }
 
         this.Workspace.WorkspaceChanged-=this.OnWorkspaceChanged;
@@ -1049,29 +921,6 @@ internal sealed class SceneWorkspaceService : IDisposable {
         this.PendingAnalysis?.Cancel();
         this.PendingAnalysis?.Dispose();
         this.PendingAnalysis=null;
-    }
-
-    private void CancelPendingSolutionExplorerAnalysisNoLock(){
-        this.PendingSolutionExplorerAnalysis?.Cancel();
-        this.PendingSolutionExplorerAnalysis?.Dispose();
-        this.PendingSolutionExplorerAnalysis=null;
-    }
-
-    private sealed class ScheduledSolutionExplorerAnalysis {
-        internal ScheduledSolutionExplorerAnalysis(
-            SceneWorkspaceService Service,
-            SceneAnalysisRequest<DocumentId>Request,
-            CancellationTokenSource Source){
-            this.Service=Service;
-            this.Request=Request;
-            this.Token=Source.Token;
-        }
-
-        internal SceneWorkspaceService Service { get;}
-
-        internal SceneAnalysisRequest<DocumentId>Request { get;}
-
-        internal CancellationToken Token { get;}
     }
 
     private sealed class ScheduledAnalysis {

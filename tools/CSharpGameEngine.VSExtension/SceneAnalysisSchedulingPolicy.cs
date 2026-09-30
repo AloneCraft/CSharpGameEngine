@@ -100,14 +100,4 @@ internal static class SceneAnalysisDebouncePolicy {
         var Remaining=MaxDelay-ElapsedSinceFirstPending;
         return Remaining<Delay?Remaining:Delay;
     }
-
-    /// <summary>
-    /// 解析を保留した時点で見せるメニュー状態。以前はここで
-    /// <c>Unavailable</c>を代入した直後に無条件で<c>Analyzing</c>を再代入しており、
-    /// アクティブ文書が無いときの表示が一瞬誤っていた。
-    /// </summary>
-    internal static SceneDesignerTargetState PendingMenuState(string?ActiveDocumentPath)=>
-        ActiveDocumentPath is null
-            ?SceneDesignerTargetState.Unavailable
-            :SceneDesignerTargetState.Analyzing;
 }

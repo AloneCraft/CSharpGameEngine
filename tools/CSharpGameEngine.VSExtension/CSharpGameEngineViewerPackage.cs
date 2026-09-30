@@ -538,18 +538,6 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
     /// </summary>
     private void OnWorkspaceModelChangedForHub(SceneModel?Model){
         ThreadHelper.ThrowIfNotOnUIThread();
-        // The command is placed both in a context menu and on the persistent product toolbar.
-        // A cold toolbar may not issue another BeforeQueryStatus after asynchronous Roslyn
-        // analysis completes, so update the owned OleMenuCommand from the completed immutable
-        // snapshot before asking the shell to repaint it.
-        this.SceneDesignerCommand?.RefreshStatus();
-        if(GetGlobalService(typeof(SVsUIShell))is IVsUIShell UIShell){
-            // The Scene analysis completes asynchronously after the toolbar's initial QueryStatus.
-            // A deferred refresh can remain queued indefinitely in a cold, otherwise idle hive,
-            // leaving the visible command disabled even though ActiveMenuSnapshot is complete.
-            // We are already on the UI thread and this update only reads the immutable snapshot.
-            ErrorHandler.ThrowOnFailure(UIShell.UpdateCommandUI(1));
-        }
         var Session=this.SceneSession;
         var HasUnsavedEdits=Session?.PinnedSceneKey is { }Key&&Session.IsSaving(Key);
 

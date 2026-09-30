@@ -34,6 +34,25 @@ public sealed class VsixMenuPlacementTests {
             Assert.Equal("OpenViewerMenuGroup",(string?)Parent(ById(Document,"Button",Command)).Attribute("id"));
         }
     }
+    /// <summary>
+    /// ADR-0071: scenes open by double-click, so the extension adds nothing to the code editor's or
+    /// Solution Explorer's context menus. (Before the package loads, Visual Studio shows context-menu
+    /// commands with their .vsct defaults, which put "Open in Scene Designer" and 32 "Scene" rows on
+    /// every C# file.)
+    /// </summary>
+    [Theory]
+    [InlineData("OpenViewerCommandPackage.vsct")]
+    [InlineData("OpenViewerCommandPackage.en-US.vsct")]
+    [InlineData("OpenViewerCommandPackage.ja-JP.vsct")]
+    public void NothingIsPlacedOnEditorOrSolutionExplorerContextMenus(string File){
+        var ContextMenuParents=Load(File).Descendants(Vsct+"Parent")
+            .Where(static Element=>((string?)Element.Attribute("id")??string.Empty).StartsWith("IDM_VS_CTXT_",StringComparison.Ordinal))
+            .Select(static Element=>(string?)Element.Parent!.Attribute("id"))
+            .ToList();
+
+        Assert.Empty(ContextMenuParents);
+    }
+
     [Fact]
     public void OptionsCommand_OpensFromTheEngineMenuWithLocalizedText(){
         var Document=Load("OpenViewerCommandPackage.vsct");

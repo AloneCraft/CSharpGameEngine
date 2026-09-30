@@ -49,7 +49,7 @@ public sealed class InitialLayoutToolWindowPlanTests {
             ShowInspectorToolWindowCommand.CommandId,
             ShowComponentPaletteToolWindowCommand.CommandId,
             ApplyGameEngineLayoutCommand.CommandId,
-            OpenSceneDesignerCommand.CommandId,
+            OpenSceneDesignerCommand.ToolbarCommandId,
         ];
 
         Assert.Equal(Ids.Length,Ids.Distinct().Count());
@@ -57,8 +57,8 @@ public sealed class InitialLayoutToolWindowPlanTests {
         Assert.DoesNotContain(0x0107,Ids);
         Assert.DoesNotContain(0x0108,Ids);
 
-        // Scene一覧のスロットとも重ならないこと。
-        Assert.DoesNotContain(Ids,static Id=>Id>=OpenSceneDesignerCommand.SceneItemCommandIdFirst);
+        // 右クリックメニューと一緒に退役した ID (ADR-0071) も再利用しないこと。
+        Assert.Empty(Ids.Intersect(OpenSceneDesignerCommand.RetiredCommandIds));
     }
 
     [Fact]

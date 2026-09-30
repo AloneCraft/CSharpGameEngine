@@ -42,8 +42,6 @@ public sealed class VsixUiLiteralGuardTests {
         "Label",
         "MenuItem",
         "SceneCameraPreview",
-        "SceneDesignerCommandPresentation",
-        "SceneDesignerMenuItem",
         "SceneEditCommitResult",
         "TextBlock",
         "ToolTip",

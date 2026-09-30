@@ -233,6 +233,9 @@
   <data name="OpenGame_LaunchFailed" xml:space="preserve"><value>UserEcsProjectの起動に失敗しました: {0}</value></data>
   <data name="OpenViewer_RepoRootNotFound" xml:space="preserve"><value>リポジトリルート({0})が見つかりませんでした。このVSIXは開発中のスケルトンであり、ビルド時に埋め込んだパスでのみ動作します。詳細はADR-0006を参照してください。</value></data>
   <data name="OpenViewer_LaunchFailed" xml:space="preserve"><value>ビューアの起動に失敗しました: {0}</value></data>
+  <data name="SceneDesigner_OpenSceneJsonFirst" xml:space="preserve">
+    <value>Open a *.scene.json to show it in the Scene Designer.</value>
+  </data>
   <data name="SceneDesigner_Analyzing" xml:space="preserve"><value>Sceneを解析しています...</value></data>
   <data name="SceneDesigner_SelectedSceneMissing" xml:space="preserve"><value>選択したIScene実装クラスは編集後に見つからなくなりました。</value></data>
   <data name="SceneDesigner_OpenedInDocumentWell" xml:space="preserve"><value>{0} [Scene] をDocument Wellで開きました。</value></data>
@@ -349,30 +352,6 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
   </data>
   <data name="SceneCameraOrthographicSizeInvalid" xml:space="preserve">
     <value>CameraのOrthographicSizeは正の値である必要があります。</value>
-  </data>
-  <data name="SceneDesignerMenuOpen" xml:space="preserve">
-    <value>シーン デザイナーで開く</value>
-  </data>
-  <data name="SceneDesignerMenuAnalyzingDisabled" xml:space="preserve">
-    <value>シーン デザイナーで開く（Sceneを解析中）</value>
-  </data>
-  <data name="SceneDesignerMenuAnalysisFailedDisabled" xml:space="preserve">
-    <value>シーン デザイナーで開く（Scene解析に失敗）</value>
-  </data>
-  <data name="SceneDesignerMenuNoSceneDisabled" xml:space="preserve">
-    <value>シーン デザイナーで開く（このファイルには IScene 実装クラスがありません）</value>
-  </data>
-  <data name="SceneDesignerMenuNonSceneTypeDisabled" xml:space="preserve">
-    <value>シーン デザイナーで開く（このクラスは IScene を実装していません）</value>
-  </data>
-  <data name="SceneDesignerMenuItemOpen" xml:space="preserve">
-    <value>{0} をシーン デザイナーで開く</value>
-  </data>
-  <data name="SceneDesignerMenuItemOpenAtCaret" xml:space="preserve">
-    <value>{0} をシーン デザイナーで開く（カーソル位置）</value>
-  </data>
-  <data name="SceneDesignerMenuOverflow" xml:space="preserve">
-    <value>他 {0} 件はシーン デザイナーのコンボボックスから選択してください</value>
   </data>
   <data name="SceneProjectionNodeCountMismatch" xml:space="preserve">
     <value>ノード数が違います（{0} / {1}）。</value>

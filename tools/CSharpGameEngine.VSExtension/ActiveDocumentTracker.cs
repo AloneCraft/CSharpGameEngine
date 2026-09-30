@@ -9,7 +9,7 @@ namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
 /// Points <see cref="SceneWorkspaceService"/> at whichever document the user is looking at
-/// (ADR-0040). The Scene editor shows the scene declared by the active <c>.cs</c> file, so it has to
+/// (ADR-0040). Hierarchy follows the scene of the active <c>*.scene.json</c> (ADR-0070), so it has to
 /// follow the document frame rather than the solution.
 ///
 /// <para>
@@ -26,7 +26,6 @@ internal sealed class ActiveDocumentTracker : IVsSelectionEvents,IDisposable {
     private readonly SceneWorkspaceService Service;
     private uint Cookie;
     private bool Disposed;
-    private IVsWindowFrame?SolutionExplorerFrame;
 
     private ActiveDocumentTracker(
         IVsMonitorSelection Selection,IVsTextManager TextManager,IVsUIShell UIShell,SceneWorkspaceService Service){
@@ -83,22 +82,7 @@ internal sealed class ActiveDocumentTracker : IVsSelectionEvents,IDisposable {
         return VSConstants.S_OK;
     }
 
-    /// <summary>
-    /// ソリューションエクスプローラー等、階層ベースの選択が変わるたびに発火する。単一選択のみ
-    /// 対応(実際に複数選択されている場合のみ無視、今回のスコープ外)。ここで解決した
-    /// パスは<see cref="CurrentFilePath"/>(アクティブなコードエディタ文書)とは別に保持し、
-    /// <see cref="SceneWorkspaceService.SetSolutionExplorerSelection"/>へ転送するだけで、
-    /// コードエディタ側の状態には一切触れない。
-    ///
-    /// <para>
-    /// 実機不具合(2026-08): <paramref name="NewMultiItemSelect"/>を「非nullなら複数選択」と
-    /// 誤判定していたため、ソリューションエクスプローラーで別ファイルを右クリックしても
-    /// <see cref="SolutionExplorerFilePath"/>が更新されず、直前に選択していたファイルの
-    /// メニューが表示され続けるバグがあった。<c>IVsMultiItemSelect</c>は複数選択に対応する
-    /// 階層では**単一選択時にも非nullで渡されることがある**(VS SDKの既知の仕様)ため、
-    /// 参照のnullチェックではなく<c>GetSelectionInfo</c>の実際の選択件数で判定する。
-    /// </para>
-    /// </summary>
+    /// <summary>Solution Explorer selection does not target a scene (ADR-0071: scenes open by double-click).</summary>
     public int OnSelectionChanged(
         IVsHierarchy OldHierarchy,
         uint OldItemId,
@@ -107,23 +91,7 @@ internal sealed class ActiveDocumentTracker : IVsSelectionEvents,IDisposable {
         IVsHierarchy NewHierarchy,
         uint NewItemId,
         IVsMultiItemSelect NewMultiItemSelect,
-        ISelectionContainer NewSelectionContainer){
-        ThreadHelper.ThrowIfNotOnUIThread();
-
-        if(NewMultiItemSelect is not null
-            &&NewMultiItemSelect.GetSelectionInfo(out var ItemCount,out _)==VSConstants.S_OK
-            &&ItemCount>1){
-            return VSConstants.S_OK;
-        }
-
-        this.SolutionExplorerFilePath=NewHierarchy is not null
-            &&NewHierarchy.GetCanonicalName(NewItemId,out var CanonicalName)==VSConstants.S_OK
-            &&SceneJsonCommitPlanner.IsJsonScene(CanonicalName)
-            ?CanonicalName
-            :null;
-        this.Service.SetSolutionExplorerSelection(this.SolutionExplorerFilePath);
-        return VSConstants.S_OK;
-    }
+        ISelectionContainer NewSelectionContainer)=>VSConstants.S_OK;
 
     public int OnCmdUIContextChanged(uint CmdUICookie,int Active)=>VSConstants.S_OK;
 
@@ -174,36 +142,6 @@ internal sealed class ActiveDocumentTracker : IVsSelectionEvents,IDisposable {
         return this.TryGetActiveTextView(out _,out DocumentPath);
     }
 
-    /// <summary>
-    /// コマンド起動元のテキストビューを固定します。ToolWindow表示後にGetActiveViewを呼ぶと、
-    /// 既にVSシェルへフォーカスが移った後なので、右クリック元を確実に復元できません。
-    /// </summary>
-    internal IVsTextView? CaptureActiveTextView(string ExpectedFilePath){
-        ThreadHelper.ThrowIfNotOnUIThread();
-
-        return this.TryGetActiveTextView(out var View,out var DocumentPath)
-            &&string.Equals(DocumentPath,ExpectedFilePath,StringComparison.OrdinalIgnoreCase)
-            ?View
-            :null;
-    }
-
-    /// <summary>
-    /// 右クリックコマンドの型境界にはキャレット位置を使う。既にアクティブなテキストバッファだけを
-    /// 同期的に読み、ここからRoslyn解析を開始してはならない。
-    /// </summary>
-    internal bool TryCaptureActiveCaretPosition(string ExpectedFilePath,out int Position){
-        ThreadHelper.ThrowIfNotOnUIThread();
-
-        Position=0;
-        if(!this.TryGetActiveTextView(out var View,out var DocumentPath)
-            ||!string.Equals(DocumentPath,ExpectedFilePath,StringComparison.OrdinalIgnoreCase)
-            ||View.GetCaretPos(out var Line,out var Column)!=VSConstants.S_OK
-            ||View.GetBuffer(out var Buffer)!=VSConstants.S_OK){
-            return false;
-        }
-
-        return Buffer.GetPositionOfLineIndex(Line,Column,out Position)==VSConstants.S_OK;
-    }
     private bool TryGetActiveTextView(out IVsTextView View,out string DocumentPath){
         ThreadHelper.ThrowIfNotOnUIThread();
 
@@ -222,79 +160,6 @@ internal sealed class ActiveDocumentTracker : IVsSelectionEvents,IDisposable {
     }
 
     internal string?CurrentFilePath { get;private set;}
-
-    /// <summary>直近の<see cref="OnSelectionChanged"/>が解決した、ソリューションエクスプローラー等の
-    /// 階層選択上のファイルパス(*.scene.json以外やハンドル不能な選択はnull)。</summary>
-    internal string?SolutionExplorerFilePath { get;private set;}
-
-    /// <summary>
-    /// 現在フォーカスしているウィンドウフレームがソリューションエクスプローラーかどうかで、今回の
-    /// メニュー要求がSE起点かを判定する。パスの一致だけで判定すると、コードエディタで別ファイルを
-    /// 編集中でもSEが以前選んでいたファイルの残骸を誤って使ってしまう恐れがあるため、フォーカス先で
-    /// 判定する。真を返すときの<paramref name="FilePath"/>は*.scene.json以外や未解決ならnull
-    /// (呼び出し元はnullを「このファイルは対象外」として扱う)。
-    ///
-    /// <para>
-    /// 実機不具合(2026-08): 当初は<c>Frame.GetProperty(VSFPROPID_GuidPersistenceSlot)</c>で
-    /// フレームの識別GUIDを読んで比較していたが、実機ログで**この呼び出しが常に
-    /// `DISP_E_MEMBERNOTFOUND`(0x80020003)で失敗し、一度も成功していなかった**ことが判明した
-    /// (この関数は常にfalseを返し、呼び出し元は常にコードエディタ経路にフォールバックしていた —
-    /// 「たまたまアクティブタブ=右クリック対象」の時だけ正しく見えていた)。
-    /// <c>GetProperty</c>によるプロパティ照会をやめ、<c>IVsUIShell.FindToolWindow</c>で
-    /// ソリューションエクスプローラー自身の<see cref="IVsWindowFrame"/>を一度取得してキャッシュし、
-    /// 現在アクティブなフレームとの参照同一性で比較する方式へ作り直した(in-process拡張機能では
-    /// 同一のネイティブCOMオブジェクトは同一のRCWインスタンスに解決されるため、
-    /// <c>ReferenceEquals</c>で確実に判定できる)。
-    /// </para>
-    /// </summary>
-    internal bool TryGetSolutionExplorerInvocationFilePath(out string?FilePath){
-        ThreadHelper.ThrowIfNotOnUIThread();
-
-        FilePath=null;
-        if(this.Selection.GetCurrentElementValue((uint)VSConstants.VSSELELEMID.SEID_WindowFrame,out var FrameObj)!=VSConstants.S_OK
-            ||FrameObj is not IVsWindowFrame CurrentFrame
-            ||!this.TryGetSolutionExplorerFrame(out var SeFrame)
-            ||SeFrame is null
-            ||!IsSameComObject(CurrentFrame,SeFrame)){
-            return false;
-        }
-
-        FilePath=this.SolutionExplorerFilePath;
-        return true;
-    }
-
-    private static bool IsSameComObject(object Left,object Right){
-        IntPtr LeftUnknown=IntPtr.Zero;
-        IntPtr RightUnknown=IntPtr.Zero;
-        try {
-            LeftUnknown=Marshal.GetIUnknownForObject(Left);
-            RightUnknown=Marshal.GetIUnknownForObject(Right);
-            return LeftUnknown==RightUnknown;
-        } finally {
-            if(LeftUnknown!=IntPtr.Zero){ Marshal.Release(LeftUnknown); }
-            if(RightUnknown!=IntPtr.Zero){ Marshal.Release(RightUnknown); }
-        }
-    }
-
-    private bool TryGetSolutionExplorerFrame(out IVsWindowFrame?Frame){
-        ThreadHelper.ThrowIfNotOnUIThread();
-
-        if(this.SolutionExplorerFrame is not null){
-            Frame=this.SolutionExplorerFrame;
-            return true;
-        }
-
-        Guid SolutionExplorerGuid=new(ToolWindowGuids80.SolutionExplorer);
-        if(this.UIShell.FindToolWindow(0,ref SolutionExplorerGuid,out var Found)==VSConstants.S_OK
-            &&Found is not null){
-            this.SolutionExplorerFrame=Found;
-            Frame=Found;
-            return true;
-        }
-
-        Frame=null;
-        return false;
-    }
 
     public void Dispose(){
         if(this.Disposed){

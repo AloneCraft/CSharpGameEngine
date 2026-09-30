@@ -8,29 +8,6 @@ public sealed class ScenePolicyLocalizationTests {
     private static readonly CultureInfo English=CultureInfo.GetCultureInfo("en-US");
     private static readonly CultureInfo Japanese=CultureInfo.GetCultureInfo("ja-JP");
     [Fact]
-    public void ContextMenu_UsesTheRequestedCultureWithoutTranslatingSceneNames(){
-        SceneDesignerMenuItem Item=new("SampleScene","Game.SampleScene");
-        var EnglishText=SceneDesignerContextMenuPolicy.ItemText(English,Item,IsAtCaret:true);
-        var JapaneseText=SceneDesignerContextMenuPolicy.ItemText(Japanese,Item,IsAtCaret:true);
-        Assert.Equal("Open SampleScene in Scene Designer (caret position)",EnglishText);
-        Assert.Equal("SampleScene をシーン デザイナーで開く（カーソル位置）",JapaneseText);
-    }
-    [Fact]
-    public void ContextMenu_DisabledReasonAndOverflowUseTheRequestedCulture(){
-        var EnglishPresentation=SceneDesignerContextMenuPolicy.Create(
-            English,@"G:\Project\Components.scene.json",SceneDesignerTargetState.NonSceneType,[]);
-        var JapanesePresentation=SceneDesignerContextMenuPolicy.Create(
-            Japanese,@"G:\Project\Components.scene.json",SceneDesignerTargetState.NonSceneType,[]);
-        Assert.Equal("Open in Scene Designer (this class does not implement IScene)",EnglishPresentation.Text);
-        Assert.Equal("シーン デザイナーで開く（このクラスは IScene を実装していません）",JapanesePresentation.Text);
-        Assert.Equal(
-            "Select 5 more Scenes from the combo box in Scene Designer.",
-            SceneDesignerContextMenuPolicy.OverflowText(English,HiddenCount:5));
-        Assert.Equal(
-            "他 5 件はシーン デザイナーのコンボボックスから選択してください",
-            SceneDesignerContextMenuPolicy.OverflowText(Japanese,HiddenCount:5));
-    }
-    [Fact]
     public void CameraValidation_UsesTheRequestedCultureAndKeepsMemberNamesInvariant(){
         SceneModel Model=SceneAnalysisTestHelper.Analyze([CameraComponents,"""
             using CSharpGameEngine.Entities;

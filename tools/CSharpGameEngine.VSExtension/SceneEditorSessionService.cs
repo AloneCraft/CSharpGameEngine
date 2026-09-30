@@ -287,11 +287,6 @@ internal sealed class SceneEditorSessionService : IDisposable {
                 Request.Members)).ToArray();
     }
 
-    internal SceneDocumentMenuSnapshot GetMenuSnapshot(string FilePath){
-        ThreadHelper.ThrowIfNotOnUIThread();
-        return this.Workspace.GetMenuSnapshot(FilePath);
-    }
-
     private SceneDocumentSnapshot BuildCommitSnapshot(SceneKey Key,SceneModel Model){
         SceneProjectionReconciler Reconciler=this.GetOrCreateReconciler(Key);
         this.Snapshots.TryGetValue(Key,out SceneDocumentSnapshot?Previous);
