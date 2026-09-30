@@ -198,6 +198,23 @@ public sealed class SceneJsonGeneratorTests {
             System.IO.Directory.Delete(Directory,recursive:true);
         }
     }
+    [Fact]
+    public void Converter_TurnsTheCSharpSceneIntoJsonThatBuildsTheSameWorld(){
+        var CSharpCompilation=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components,CSharpScene,Driver]);
+        var SceneType=CSharpCompilation.GetTypeByMetadataName("Game.MainScene")!;
+        var Model=CSharpGameEngine.SceneAnalysis.SceneDeclarationAnalyzer.Analyze(SceneType,CSharpCompilation,CancellationToken.None);
+        var Converted=CSharpGameEngine.SceneAnalysis.Json.SceneJsonConverter.Convert(Model,"../.cge/scene.schema.json");
+        Assert.Empty(Converted.Problems);
+        var Json=Converted.Text!;
+        Assert.Contains("\"Position\": { \"X\": 1.5, \"Y\": -2 }",Json);
+        Assert.Contains("\"Mode\": \"Bright\"",Json);
+        Assert.Empty(Analyze(Json));
+        var FromJson=GameSystemGeneratorTestHelper.CompileAndLoad(
+            GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components,Driver]),
+            [new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.scene.json",Json)]);
+        Assert.Equal(Describe(GameSystemGeneratorTestHelper.CompileAndLoad(CSharpCompilation)),Describe(FromJson));
+        Assert.Equal(Json,CSharpGameEngine.SceneAnalysis.Json.SceneJsonConverter.Convert(Model,"../.cge/scene.schema.json").Text);
+    }
     private static ImmutableArray<Diagnostic>Analyze(string Json){
         var Compilation=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components]);
         var Options=new AnalyzerOptions([new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.scene.json",Json)]);

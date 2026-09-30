@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    ADR-0070 cutover: converts a game project's C# IScene classes into *.scene.json documents.
+    It opens the project with MSBuildWorkspace so the engine's shared sources that Game.props adds
+    are part of the compilation, then uses the shared SceneModel analyzer and SceneJsonConverter.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- MSBuildWorkspace loads MSBuild from the installed SDK; do not ship MSBuild assemblies. -->
+    <CgeSkipEngineAnalyzerReference>true</CgeSkipEngineAnalyzerReference>
+    <!-- Release tracking of the linked SceneDsl/SceneJson descriptors belongs to CSharpGameEngine.CodeAnalysis. -->
+    <NoWarn>$(NoWarn);RS2008</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Build.Locator" Version="1.9.1" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="4.14.0" />
+    <!-- Workspaces.MSBuild pulls Microsoft.Build.Tasks.Core 17.7.2 (GHSA-h4j7-5rxr-p4wc). Pin a patched
+         17.x for compile time; at run time MSBuildLocator loads the installed SDK's MSBuild instead. -->
+    <PackageReference Include="Microsoft.Build.Tasks.Core" Version="17.14.28" ExcludeAssets="runtime" />
+    <!-- Tasks.Core in turn pulls System.Security.Cryptography.Xml 9.0.0 (several high advisories). -->
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.12" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\..\src\CSharpGameEngine.SceneModel\**\*.cs"
+             Exclude="..\..\src\CSharpGameEngine.SceneModel\obj\**\*.cs;..\..\src\CSharpGameEngine.SceneModel\bin\**\*.cs"
+             Link="SceneModel\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

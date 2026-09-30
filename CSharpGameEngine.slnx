@@ -261,6 +261,7 @@
     <Project Path="tools/CSharpGameEngine.Physics.Cli/CSharpGameEngine.Physics.Cli.csproj">
       <Platform Project="x64" />
     </Project>
+    <Project Path="tools/CSharpGameEngine.SceneJson.Cli/CSharpGameEngine.SceneJson.Cli.csproj" />
     <Project Path="tools/CSharpGameEngine.SceneSchema.Cli/CSharpGameEngine.SceneSchema.Cli.csproj" />
     <Project Path="tools/CSharpGameEngine.ShaderGraph.Cli/CSharpGameEngine.ShaderGraph.Cli.csproj">
       <Platform Project="x64" />
