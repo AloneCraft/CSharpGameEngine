@@ -63,6 +63,12 @@ public sealed unsafe class StageRenderer:IDisposable {
     public const DXGI_FORMAT DepthBufferFormat=DXGI_FORMAT_D32_FLOAT;
     private const DXGI_FORMAT HdrColorFormat=DXGI_FORMAT_R16G16B16A16_FLOAT;
     private const DXGI_FORMAT MaterialTextureFormat=DXGI_FORMAT_R8G8B8A8_UNORM;
+    /// <summary>
+    /// Material textures are typeless so one resident texture can be read through the view its slot
+    /// requires: glTF base colour and emissive are sRGB-encoded, normal and metallic-roughness are linear.
+    /// </summary>
+    private const DXGI_FORMAT MaterialTextureResourceFormat=DXGI_FORMAT_R8G8B8A8_TYPELESS;
+    private const DXGI_FORMAT MaterialColorTextureViewFormat=DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
     private const float GltfImportEmissiveDefaultNits=100f;
     private const DXGI_FORMAT ShadowAtlasResourceFormat=DXGI_FORMAT_R32_TYPELESS;
     private const DXGI_FORMAT ShadowAtlasDsvFormat=DXGI_FORMAT_D32_FLOAT;
@@ -113,8 +119,11 @@ public sealed unsafe class StageRenderer:IDisposable {
     private const int PointShadowProjectionConstantSlotOffset=1+MaxSpotShadowProjections;
     private const int AreaShadowProjectionConstantSlotOffset=
         PointShadowProjectionConstantSlotOffset+MaxPointShadowProjections;
-    private const int ShadowAtlasProjectionConstantSlotCount=
+    /// <summary>Cascade 0 keeps slot 0; cascades 1-3 follow every local-light projection slot.</summary>
+    private const int CascadeShadowConstantSlotOffset=
         AreaShadowProjectionConstantSlotOffset+MaxAreaAndEmissiveShadowProjections;
+    private const int ShadowAtlasProjectionConstantSlotCount=
+        CascadeShadowConstantSlotOffset+DirectionalShadowCascades.Count-1;
     private const uint ForwardPlusTileRecordUIntCount=1u+(uint)MaxLightsPerForwardPlusTile;
     private const uint ForwardPlusTileRecordStride=sizeof(uint)*ForwardPlusTileRecordUIntCount;
 
@@ -134,7 +143,11 @@ public sealed unsafe class StageRenderer:IDisposable {
     private const uint FrameSkyLightParamsOffset=FrameDirectionalShadowAtlasUvScaleOffset+16; // float4: x=sky light, y=physical fog, z=camera altitude m
     private const uint FramePhysicalFogParamsOffset=FrameSkyLightParamsOffset+16; // float4: x=ray origin terms, y=falloff per metre, z=minimum transmittance, w=sky contribution
     private const uint FramePhysicalFogColorOffset=FramePhysicalFogParamsOffset+16; // float4: rgb inscattering luminance
-    private const uint FrameConstantsSize=FramePhysicalFogColorOffset+16;
+    private const uint FrameCascadeViewProjectionOffset=FramePhysicalFogColorOffset+16; // 4 x float4x4 directional cascades
+    private const uint FrameCascadeSpheresOffset=FrameCascadeViewProjectionOffset+(64*DirectionalShadowCascades.Count); // float4: xyz centre, w radius
+    private const uint FrameCascadeUvScaleOffsetsOffset=FrameCascadeSpheresOffset+(16*DirectionalShadowCascades.Count); // float4 atlas quadrant per cascade
+    private const uint FrameCascadeDepthRangesOffset=FrameCascadeUvScaleOffsetsOffset+(16*DirectionalShadowCascades.Count); // float4: projection depth range metres
+    private const uint FrameConstantsSize=FrameCascadeDepthRangesOffset+16;
 
     /// <summary>
     /// FrameConstantsBuffer専用のフレームスロット幅。FrameConstantsSize以上、かつD3D12のroot CBV
@@ -310,6 +323,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     private float CurrentCameraEv100;
     private Matrix4x4 CurrentViewProjection=Matrix4x4.Identity;
     private Vector3 AtmosphereSunDirection=Vector3.UnitY;
+    private Vector3 CurrentCameraPosition;
     private Vector3 AtmosphereSunIlluminance;
     private ID3D12PipelineState*PostProcessPipelineState;
     private byte[]ShadowVertexShaderBytecode=[];
@@ -1516,6 +1530,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
         for(var I=0;I< this.MaterialTextures.Length;I++){
             D3D12_CPU_DESCRIPTOR_HANDLE Handle=new(SrvHeapStart,(I/4)*5+(I%4), this.SrvDescriptorSize);
+            // Slots 0 (base colour) and 3 (emissive) hold colour data; 1 (normal) and 2
+            // (metallic-roughness) hold linear data.
+            SrvDesc.Format=I%4 is 0 or 3?MaterialColorTextureViewFormat:MaterialTextureFormat;
             this.Device.Device->CreateShaderResourceView(this.MaterialTextures[I],&SrvDesc,Handle);
         }
 
@@ -1544,7 +1561,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     /// <summary>Uploads one already-validated canonical RGBA8 texture. Decode/fallback policy lives above L0.</summary>
     private ID3D12Resource*CreateTextureResource(RenderTextureResource Texture){
         D3D12_RESOURCE_DESC TextureDesc=D3D12_RESOURCE_DESC.Tex2D(
-            MaterialTextureFormat,(uint)Texture.Width,(uint)Texture.Height,mipLevels:1);
+            MaterialTextureResourceFormat,(uint)Texture.Width,(uint)Texture.Height,mipLevels:1);
 
         D3D12_HEAP_PROPERTIES DefaultHeapProps=new(D3D12_HEAP_TYPE_DEFAULT);
         ID3D12Resource*GpuTexture;
@@ -1716,7 +1733,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.WriteAmbientLight(Frame,DefaultAmbientColor);
             this.WriteFog(Frame,FogParams.None);
             this.WriteExposure(Frame,DefaultCamera.ExposureEv100);
-            this.WriteShadowViewProjection(Frame,BuildShadowViewProjection(DefaultLightDirectionTowardLight));
+            this.WriteDirectionalCascades(Frame,DefaultLightDirectionTowardLight);
             this.WriteLightCounts(Frame); // D3D12 does not guarantee zero-initialized upload-heap memory; without this the very first frame could loop over garbage PointLights/SpotLights entries.
             this.WriteAreaShadowDefaults(Frame);
 
@@ -1846,8 +1863,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         if(SelectedShadowIndex!=this.DirectionalShadowIndex){
             this.DirectionalShadowIndex=SelectedShadowIndex;
             if(SelectedShadowIndex>=0){
-                this.WriteShadowViewProjection(
-                    this.FrameIndex,BuildShadowViewProjection(DirectionTowardLight));
+                this.WriteDirectionalCascades(this.FrameIndex,DirectionTowardLight);
             }
         }
         this.WriteLightCounts(this.FrameIndex);
@@ -1886,8 +1902,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 this.DirectionalShadowCandidates.Add(Candidate);
                 this.DirectionalShadowIndex=0;
                 this.SelectedDirectionalShadowAtlasCandidate=Candidate;
-                this.WriteShadowViewProjection(
-                    FrameIndex,BuildShadowViewProjection(Submission.DirectionTowardLight));
+                this.WriteDirectionalCascades(FrameIndex,Submission.DirectionTowardLight);
             }
             this.WriteLightCounts(FrameIndex);
             return;
@@ -1937,8 +1952,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 }
                 this.DirectionalShadowIndex=Index;
                 this.SelectedDirectionalShadowAtlasCandidate=this.DirectionalShadowCandidates[Index];
-                this.WriteShadowViewProjection(
-                    FrameIndex,BuildShadowViewProjection(Ranked[Index].Submission.DirectionTowardLight));
+                this.WriteDirectionalCascades(FrameIndex,Ranked[Index].Submission.DirectionTowardLight);
                 break;
             }
         }
@@ -2376,6 +2390,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     private void WriteCameraPosition(uint FrameIndex,Vector3 CameraPosition){
+        this.CurrentCameraPosition=CameraPosition;
         Vector4 Packed=new(CameraPosition,0f);
         Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameCameraPositionOffset,&Packed,(uint)sizeof(Vector4));
     }
@@ -2414,20 +2429,33 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameExposureOffset,&Packed,(uint)sizeof(Vector4));
     }
 
-    private static Matrix4x4 BuildShadowViewProjection(Vector3 DirectionTowardLight){
-        Vector3 Direction=Vector3.Normalize(DirectionTowardLight);
-        // The shadow camera sits on the light's side of the scene and looks along the light's
-        // travel direction; nearest depth is then the occluder, not the underside of the receiver.
-        Vector3 Up=MathF.Abs(Direction.Y)>0.99f?Vector3.UnitZ:Vector3.UnitY;
-        Matrix4x4 View=Matrix4x4.CreateLookAt(Direction*35f,Vector3.Zero,Up);
-        return View*Matrix4x4.CreateOrthographic(40f,40f,0.1f,80f);
+    /// <summary>
+    /// Fits the four directional cascades to the current camera (ADR-0069) and writes their
+    /// projections for both the shadow pass and the Stage program. Cascade 0 also fills the
+    /// single-projection fields that the preview shaders still sample.
+    /// </summary>
+    private void WriteDirectionalCascades(uint FrameIndex,Vector3 DirectionTowardLight){
+        var Cascades=DirectionalShadowCascades.Build(this.CurrentViewProjection,this.CurrentCameraPosition,DirectionTowardLight);
+        var Slot=this.FrameSlot(FrameIndex);
+        var DepthRanges=Vector4.Zero;
+        for(var Cascade=0;Cascade<Cascades.Length;Cascade++){
+            var ViewProjection=Cascades[Cascade].ViewProjection;
+            var Sphere=new Vector4(Cascades[Cascade].Center,Cascades[Cascade].Radius);
+            var UvScaleOffset=Cascades[Cascade].Tile.UvScaleOffset;
+            Unsafe.CopyBlock(Slot+FrameCascadeViewProjectionOffset+(uint)(Cascade*64),&ViewProjection,(uint)sizeof(Matrix4x4));
+            Unsafe.CopyBlock(Slot+FrameCascadeSpheresOffset+(uint)(Cascade*16),&Sphere,(uint)sizeof(Vector4));
+            Unsafe.CopyBlock(Slot+FrameCascadeUvScaleOffsetsOffset+(uint)(Cascade*16),&UvScaleOffset,(uint)sizeof(Vector4));
+            Unsafe.CopyBlock(this.ShadowConstantsSlot(FrameIndex,CascadeConstantSlot(Cascade)),&ViewProjection,(uint)sizeof(Matrix4x4));
+            DepthRanges[Cascade]=Cascades[Cascade].DepthRangeMeters;
+        }
+        Unsafe.CopyBlock(Slot+FrameCascadeDepthRangesOffset,&DepthRanges,(uint)sizeof(Vector4));
+        var First=Cascades[0].ViewProjection;
+        var FirstUv=Cascades[0].Tile.UvScaleOffset;
+        Unsafe.CopyBlock(Slot+FrameShadowViewProjectionOffset,&First,(uint)sizeof(Matrix4x4));
+        Unsafe.CopyBlock(Slot+FrameDirectionalShadowAtlasUvScaleOffset,&FirstUv,(uint)sizeof(Vector4));
     }
 
-    private void WriteShadowViewProjection(uint FrameIndex,Matrix4x4 ShadowViewProjection){
-        Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameShadowViewProjectionOffset,&ShadowViewProjection,(uint)sizeof(Matrix4x4));
-        Unsafe.CopyBlock(this.ShadowConstantsSlot(FrameIndex,0),&ShadowViewProjection,(uint)sizeof(Matrix4x4));
-        this.WriteDirectionalShadowAtlasUvScaleOffset(FrameIndex);
-    }
+    private static int CascadeConstantSlot(int Cascade)=>Cascade==0?0:CascadeShadowConstantSlotOffset+Cascade-1;
 
     private byte*ShadowConstantsSlot(uint FrameIndex,int Slot){
         if((uint)Slot>=(uint)ShadowAtlasProjectionConstantSlotCount){
@@ -2435,13 +2463,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
         uint LinearSlot=(FrameIndex*(uint)ShadowAtlasProjectionConstantSlotCount)+(uint)Slot;
         return this.ShadowConstantsMapped+(LinearSlot*ConstantAlignment);
-    }
-
-    /// <summary>Writes the PhysicalShadowAtlasPlan tile-0 rectangle used by the directional shadow pass.</summary>
-    private void WriteDirectionalShadowAtlasUvScaleOffset(uint FrameIndex){
-        Vector4 UvScaleOffset=DirectionalShadowAtlasTile.UvScaleOffset;
-        Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameDirectionalShadowAtlasUvScaleOffset,
-            &UvScaleOffset,(uint)sizeof(Vector4));
     }
 
     private byte*LocalLightsFrameSlot(uint FrameIndex)=>this.LocalLightsMapped+(FrameIndex*(LocalLightStride*(uint)MaxLocalLights));
@@ -3148,7 +3169,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CommandList->SetPipelineState(this.ShadowPipelineState);
         this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         if(this.DirectionalShadowIndex>=0){
-            this.RenderShadowAtlasProjection(new ShadowAtlasProjection(DirectionalShadowAtlasTile,0),ShadowDsv);
+            for(var Cascade=0;Cascade<DirectionalShadowCascades.Count;Cascade++){
+                this.RenderShadowAtlasProjection(new ShadowAtlasProjection(DirectionalShadowCascades.TileFor(Cascade),CascadeConstantSlot(Cascade)),ShadowDsv);
+            }
         }
         foreach(ShadowAtlasProjection Projection in this.PointShadowAtlasProjections){
             this.RenderShadowAtlasProjection(Projection,ShadowDsv);
