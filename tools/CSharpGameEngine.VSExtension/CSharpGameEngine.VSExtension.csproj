@@ -383,10 +383,14 @@
 
   <!-- A stale WPF incremental-build cache can produce the generated .g.cs files while omitting
        the corresponding BAML from g.resources. Never allow that incomplete assembly to reach F5
-       deployment: validate every Page item after Compile and before the VSIX deployment target. -->
+       deployment: validate every Page item after Compile and before the VSIX deployment target.
+       Not in design-time builds: Visual Studio's background CompileDesignTime runs MarkupCompilePass1
+       without Pass2 and produces no BAML, so checking there reported this error on every F5 (the
+       real build that follows regenerates the BAML through RepairIncompleteWpfBamlResources). -->
   <Target Name="ValidateWpfBamlResources"
           AfterTargets="MarkupCompilePass2;Compile"
-          BeforeTargets="DeployVsixExtensionFiles">
+          BeforeTargets="DeployVsixExtensionFiles"
+          Condition="'$(DesignTimeBuild)' != 'true'">
     <ItemGroup>
       <_ExpectedWpfBaml Include="@(Page->'$(IntermediateOutputPath)%(Filename).baml')" />
       <_MissingWpfBaml Include="@(_ExpectedWpfBaml)" Condition="!Exists('%(Identity)')" />
