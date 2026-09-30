@@ -373,6 +373,7 @@ public sealed class RenderServer:IDisposable {
 
     private void CommitPendingFrame(){
         if(this.PendingFrame.IsEmpty){ return; }
+        this.PendingFrame.InheritPersistentSettings(this.CompletedFrame);
         RenderFrameState PreviousCompleted=this.CompletedFrame;
         this.CompletedFrame=this.PendingFrame;
         this.PendingFrame=PreviousCompleted;

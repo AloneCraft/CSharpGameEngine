@@ -90,6 +90,11 @@ The device state set is fixed: `Ready`, `Suspended`, `Recovering`, `Faulted`, an
 | Ready or Recovering | unrecoverable native failure | Faulted | Reject new work with a typed diagnostic. |
 | any non-Disposed | disposal | Disposed | Release queues, fences, and descriptors once. |
 
+**Persistent versus per-frame inputs.** Frame constants are double-buffered per frame in flight, and every frame must render identically whichever slot it uses.
+- **Persistent until changed:** ambient light, simplified fog, environment lighting, camera altitude, presentation mode and the `SetDirectionalLight` singleton. `RenderFrame` writes them into the slot it records.
+- **Replay:** `RenderServer`'s recovery replay state carries these forward from earlier frames, so a value set once survives device recovery.
+- **Per frame:** additive lights (`AddDirectionalLight`, point, spot, rect, emissive) are submitted every frame. Nothing is lit before the first submission; the renderer does not start from a default light.
+
 Preview/Import/Bake calls use the versioned host protocol described in [Editor-VSIX](Editor-VSIX.md). Cancellation, timeout, host crash, and version mismatch are visible state transitions, not retries that can appear successful.
 
 ## Visual and quality policy

@@ -38,6 +38,30 @@ internal sealed class GizmoOverlayPrimitive {
     internal GizmoPrimitiveKind Kind { get; }
 
     internal IReadOnlyList<GizmoOverlayVertex>Vertices { get; }
+
+    /// <summary>
+    /// True when both overlays draw exactly the same primitives. The Scene view rebuilds its overlay
+    /// on every UI tick; comparing lets it request a new preview frame only when the overlay changed.
+    /// </summary>
+    internal static bool SameContent(IReadOnlyList<GizmoOverlayPrimitive>Left,IReadOnlyList<GizmoOverlayPrimitive>Right){
+        if(Left.Count!=Right.Count){
+            return false;
+        }
+        for(int Index=0;Index<Left.Count;Index++){
+            GizmoOverlayPrimitive First=Left[Index];
+            GizmoOverlayPrimitive Second=Right[Index];
+            if(First.Kind!=Second.Kind||First.Vertices.Count!=Second.Vertices.Count){
+                return false;
+            }
+            for(int Vertex=0;Vertex<First.Vertices.Count;Vertex++){
+                if(!First.Vertices[Vertex].Position.Equals(Second.Vertices[Vertex].Position)
+                    ||!First.Vertices[Vertex].Color.Equals(Second.Vertices[Vertex].Color)){
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
 }
 
 internal readonly struct MoveGizmoFrame {

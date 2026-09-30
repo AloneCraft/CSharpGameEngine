@@ -338,6 +338,8 @@ public sealed unsafe class StageRenderer:IDisposable {
     private AtmosphereFrame CurrentAtmosphereFrame;
     private float CameraAltitudeMeters;
     private float CurrentCameraEv100;
+    private Vector3 CurrentAmbientColor=DefaultAmbientColor;
+    private FogParams CurrentFog=FogParams.None;
     private Matrix4x4 CurrentViewProjection=Matrix4x4.Identity;
     private Vector3 AtmosphereSunDirection=Vector3.UnitY;
     private Vector3 CurrentCameraPosition;
@@ -417,9 +419,11 @@ public sealed unsafe class StageRenderer:IDisposable {
     // AddDirectionalLightTowardLight/point/spot lights are additive per frame. The legacy
     // SetDirectionalLight singleton is rewritten into every swap-chain frame slot until it is
     // replaced, matching the original setter's behaviour; additive counts reset so removed
-    // owning entities do not linger.
-    private int DirectionalLightCount=1;
-    private int DirectionalShadowIndex;
+    // owning entities do not linger. Nothing is lit before a light is submitted: starting at one
+    // (the default light written by InitializeConstantsToDefaults) lit only the first frame, and
+    // the end-of-frame reset then dropped it, so an unlit scene changed after one present.
+    private int DirectionalLightCount;
+    private int DirectionalShadowIndex=-1;
     private bool DirectionalLightsExplicitThisFrame;
     private bool DirectionalLightsPersistAcrossFrames;
     private readonly List<PhysicalLightCandidate>DirectionalShadowCandidates=[];
@@ -2248,15 +2252,21 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CommandList->SetGraphicsRootShaderResourceView(9,this.Atmosphere!.ShBufferAddress);
     }
 
-    /// <summary>Sets the flat ambient term (a stand-in for sky/indirect lighting) for the frame currently being built.</summary>
+    /// <summary>
+    /// Sets the flat ambient term (a stand-in for sky/indirect lighting). It persists until changed:
+    /// <see cref="RenderFrame"/> writes it into whichever frame slot it records, like the directional
+    /// lights and exposure, so a value set once never alternates with the other slot's contents.
+    /// </summary>
     public void SetAmbientLight(Vector3 Color){
         this.ThrowIfDisposed();
+        this.CurrentAmbientColor=Color;
         this.WriteAmbientLight(this.FrameIndex,Color);
     }
 
-    /// <summary>Sets the simplified exponential height fog for the frame currently being built. Pass <see cref="FogParams.None"/> to disable it (zero density).</summary>
+    /// <summary>Sets the simplified exponential height fog; persists like <see cref="SetAmbientLight"/>. Pass <see cref="FogParams.None"/> to disable it (zero density).</summary>
     public void SetFog(FogParams Fog){
         this.ThrowIfDisposed();
+        this.CurrentFog=Fog;
         this.WriteFog(this.FrameIndex,Fog);
     }
 
@@ -3588,6 +3598,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
         this.PrepareLocalShadowAtlasProjections(this.FrameIndex);
         this.RenderShadowAtlasProjections();
+        this.WriteAmbientLight(this.FrameIndex,this.CurrentAmbientColor);
+        this.WriteFog(this.FrameIndex,this.CurrentFog);
         this.PrepareCameraPreviewConstants(this.FrameIndex);
         this.WriteExposure(this.FrameIndex,this.CurrentCameraEv100);
         this.PrepareEnvironment(this.FrameIndex);

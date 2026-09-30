@@ -1382,6 +1382,11 @@ internal sealed class SceneHwndHost:HwndHost {
                     "ScenePreviewOverlayVertexLimitExceeded",TotalVertices,
                     RenderPreviewHostProtocol.MaximumOverlayVertexCount));
         }
+        // ApplyCamera refreshes the overlay on every UI tick; an unchanged overlay must not request a
+        // frame, or the idle view re-renders at the display rate.
+        if(GizmoOverlayPrimitive.SameContent(this.CurrentOverlayPrimitives,Primitives)){
+            return;
+        }
         this.CurrentOverlayPrimitives=Primitives;
         this.PreviewFrameDirty=true;
     }

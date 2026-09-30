@@ -193,6 +193,31 @@ internal sealed class RenderFrameState {
         this.HasCameraPreviews=true;
     }
 
+    /// <summary>
+    /// Carries the renderer's persistent settings forward from the previous completed frame when this
+    /// frame did not set them. StageRenderer keeps ambient, fog, environment, camera altitude and
+    /// presentation mode until they change, so a recovery replay must restore a value set once (the
+    /// Scene view sets its ambient only when the preview is created) and not only the last frame's.
+    /// </summary>
+    public void InheritPersistentSettings(RenderFrameState Previous){
+        ArgumentNullException.ThrowIfNull(Previous);
+        if(!this.HasAmbientLight&&Previous.HasAmbientLight){ this.RecordAmbient(Previous.AmbientLight); }
+        if(!this.HasFog&&Previous.HasFog){ this.RecordFog(Previous.Fog); }
+        if(!this.HasEnvironment&&Previous.HasEnvironment){ this.RecordEnvironment(Previous.Environment); }
+        if(!this.HasCameraAltitude&&Previous.HasCameraAltitude){ this.RecordCameraAltitude(Previous.CameraAltitude); }
+        if(!this.HasPresentationMode&&Previous.HasPresentationMode){ this.RecordPresentationMode(Previous.PresentationMode); }
+    }
+
+    internal bool TryGetAmbientLight(out Vector3 Color){
+        Color=this.AmbientLight;
+        return this.HasAmbientLight;
+    }
+
+    internal bool TryGetFog(out FogParams Fog){
+        Fog=this.Fog;
+        return this.HasFog;
+    }
+
     public void Replay(StageRenderer Renderer){
         ArgumentNullException.ThrowIfNull(Renderer);
         if(this.HasViewProjection){

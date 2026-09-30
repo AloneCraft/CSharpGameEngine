@@ -44,6 +44,28 @@ public sealed class SceneFrameSequenceAnalyzerTests {
         Assert.Equal(1,Result.UnstableFrameCount);
     }
     [Fact]
+    public void UniformBrightnessAlternationAfterReady_Fails(){
+        // Two frame slots with different ambient light: every cell brightens and darkens together, so
+        // the relative 8x8 signature never changes; only the absolute luminance reveals the flicker.
+        SceneFrameSample[]Samples=Enumerable.Range(0,700)
+            .Select(Index=>new SceneFrameSample(Index*16,true,0xA55AA55AA55AA55AUL,Index%2==0?120f:60f))
+            .ToArray();
+        SceneFrameSequenceAnalysis Result=SceneFrameSequenceAnalyzer.Analyze(
+            Samples,ReadyElapsedMilliseconds:1000,RequiredStableMilliseconds:10000);
+        Assert.False(Result.Passed,Result.Detail);
+        Assert.True(Result.BrightnessUnstableFrameCount>300,Result.Detail);
+    }
+    [Fact]
+    public void SmallCaptureNoiseInBrightness_Passes(){
+        SceneFrameSample[]Samples=Enumerable.Range(0,700)
+            .Select(Index=>new SceneFrameSample(Index*16,true,0xA55AA55AA55AA55AUL,100f+(Index%3)))
+            .ToArray();
+        SceneFrameSequenceAnalysis Result=SceneFrameSequenceAnalyzer.Analyze(
+            Samples,ReadyElapsedMilliseconds:1000,RequiredStableMilliseconds:10000);
+        Assert.True(Result.Passed,Result.Detail);
+        Assert.Equal(0,Result.BrightnessUnstableFrameCount);
+    }
+    [Fact]
     public void CaptureGapLongerThanOneHundredMilliseconds_Fails(){
         SceneFrameSample[]Samples=Enumerable.Range(0,700)
             .Select(Index=>new SceneFrameSample(Index*16+(Index>=350?120:0),true,7UL))

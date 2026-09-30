@@ -92,7 +92,7 @@ internal sealed class SceneFrameCaptureSession:IDisposable {
                 using(Bitmap?Frame=CaptureSurface(this.SurfaceHandle)){
                     Sample=Frame is null
                         ?new SceneFrameSample(Elapsed,false,0)
-                        :new SceneFrameSample(Elapsed,HasRenderedVariation(Frame),ComputeSignature(Frame));
+                        :new SceneFrameSample(Elapsed,HasRenderedVariation(Frame),ComputeSignature(Frame,out float AverageLuminance),AverageLuminance);
                     if(Frame is not null&&Elapsed>=NextRepresentative){
                         string PathValue=Path.Combine(this.EvidenceDirectory,
                             $"frame-{Elapsed:D8}.png");
@@ -154,7 +154,7 @@ internal sealed class SceneFrameCaptureSession:IDisposable {
         }
         return false;
     }
-    private static ulong ComputeSignature(Bitmap Frame){
+    private static ulong ComputeSignature(Bitmap Frame,out float AverageLuminance){
         int[]Luminance=new int[64];
         int Sum=0;
         for(int Y=0;Y<8;Y++){
@@ -168,6 +168,8 @@ internal sealed class SceneFrameCaptureSession:IDisposable {
             }
         }
         int Average=Sum/Luminance.Length;
+        // R*3+G*6+B spans 0-2550; report the mean on the 0-255 scale.
+        AverageLuminance=Sum/(float)Luminance.Length/10f;
         ulong Signature=0;
         for(int Index=0;Index<Luminance.Length;Index++){
             if(Luminance[Index]>=Average){ Signature|=1UL<<Index; }
