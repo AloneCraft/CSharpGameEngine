@@ -277,6 +277,7 @@ internal struct LevelLoad:ISystem {
             Renderer.SetObjectTransform(
                 ObjectIndex,
                 Scene.ObjectLocalTransforms[ObjectIndex]*CameraRelativeWorld);
+            Host.RegisterRenderObject(Scene.SourceEntities[ObjectIndex],ObjectIndex);
             State.World.CreateDeferred(
                 Scene.ObjectTransforms[ObjectIndex],
                 new Renderable {

@@ -40,7 +40,8 @@ internal static class RenderPreviewSceneBuilder {
 
     internal static RenderPreviewScene FromScene(
         IReadOnlyList<SceneRenderObject>Objects,
-        in Matrix4x4 View,in Matrix4x4 Projection,in Vector3 CameraPosition){
+        in Matrix4x4 View,in Matrix4x4 Projection,in Vector3 CameraPosition,
+        float FovYRadians=SceneCameraFraming.DefaultFovYRadians){
         if(Objects is null){ throw new ArgumentNullException(nameof(Objects)); }
         Dictionary<SimpleMesh,int>MeshIndices=[];
         List<RenderPreviewMesh>Meshes=[];
@@ -73,7 +74,7 @@ internal static class RenderPreviewSceneBuilder {
             };
         }
         return new RenderPreviewScene {
-            Camera=Camera(View,Projection,CameraPosition),
+            Camera=Camera(View,Projection,CameraPosition,FovYRadians),
             Meshes=[..Meshes],
             Materials=[..Materials],
             Objects=WireObjects,
@@ -85,7 +86,8 @@ internal static class RenderPreviewSceneBuilder {
         in Matrix4x4 View,in Matrix4x4 Projection,in Vector3 CameraPosition,
         SceneViewRenderMode RenderMode,IReadOnlyCollection<NodePath>SelectedPaths,
         IReadOnlyList<GizmoOverlayPrimitive>Overlay,
-        IReadOnlyList<RenderPreviewCameraPass>CameraPreviews){
+        IReadOnlyList<RenderPreviewCameraPass>CameraPreviews,
+        float FovYRadians=SceneCameraFraming.DefaultFovYRadians){
         if(Objects is null){ throw new ArgumentNullException(nameof(Objects)); }
         if(SelectedPaths is null){ throw new ArgumentNullException(nameof(SelectedPaths)); }
         if(Overlay is null){ throw new ArgumentNullException(nameof(Overlay)); }
@@ -113,7 +115,7 @@ internal static class RenderPreviewSceneBuilder {
             }
         }
         return new RenderPreviewFrame {
-            Camera=Camera(View,Projection,CameraPosition),
+            Camera=Camera(View,Projection,CameraPosition,FovYRadians),
             PresentationMode=RenderMode switch {
                 SceneViewRenderMode.Lit=>RenderPreviewPresentationMode.Lit,
                 SceneViewRenderMode.BaseColor=>RenderPreviewPresentationMode.BaseColor,
@@ -195,10 +197,36 @@ internal static class RenderPreviewSceneBuilder {
     };
 
     private static RenderPreviewCamera Camera(
-        in Matrix4x4 View,in Matrix4x4 Projection,in Vector3 Position)=>new(){
+        in Matrix4x4 View,in Matrix4x4 Projection,in Vector3 Position,float FovYRadians=SceneCameraFraming.DefaultFovYRadians){
+        RenderPreviewCamera Camera=new(){
             ViewProjection=Matrix(View*Projection),
             Position=[Position.X,Position.Y,Position.Z],
         };
+        DescribePose(Camera,View,Projection,FovYRadians);
+        return Camera;
+    }
+
+    /// <summary>
+    /// ADR-0070 B1: the pose and projection a runtime view needs, read back from the Scene view's
+    /// matrices. The view is a right-handed <see cref="Matrix4x4.CreateLookAt"/>, so its columns hold the
+    /// camera's right, up and backward axes; the runtime camera takes its forward (local +F) and up (+U)
+    /// from an RUF rotation whose rows are right, up and forward.
+    /// </summary>
+    internal static void DescribePose(RenderPreviewCamera Camera,in Matrix4x4 View,in Matrix4x4 Projection,float FovYRadians){
+        Vector3 Up=Vector3.Normalize(new Vector3(View.M12,View.M22,View.M32));
+        Vector3 Forward=-Vector3.Normalize(new Vector3(View.M13,View.M23,View.M33));
+        Vector3 Right=Vector3.Cross(Up,Forward);
+        Quaternion Rotation=Quaternion.Normalize(Quaternion.CreateFromRotationMatrix(new Matrix4x4(
+            Right.X,Right.Y,Right.Z,0f,
+            Up.X,Up.Y,Up.Z,0f,
+            Forward.X,Forward.Y,Forward.Z,0f,
+            0f,0f,0f,1f)));
+        Camera.Rotation=[Rotation.X,Rotation.Y,Rotation.Z,Rotation.W];
+        Camera.FovYRadians=FovYRadians;
+        // Perspective (M34=-1): M33=f/(n-f), M43=nf/(n-f). Orthographic (M34=0): M33=1/(n-f), M43=n/(n-f).
+        Camera.NearZ=Projection.M43/Projection.M33;
+        Camera.FarZ=Projection.M34==0f?(Projection.M43-1f)/Projection.M33:Projection.M43/(Projection.M33+1f);
+    }
 
     private static RenderPreviewOverlayVertex OverlayVertex(in GizmoOverlayVertex Vertex)=>new(){
         Position=[Vertex.Position.X,Vertex.Position.Y,Vertex.Position.Z],

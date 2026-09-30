@@ -48,6 +48,7 @@ public sealed class EngineHost:IDisposable {
     private Entity AudioListenerEntity;
     private bool HasAudioListener;
     private readonly Dictionary<Entity,int[]>SkinnedMeshIndices=[];
+    private readonly Dictionary<Entity,List<int>>RenderObjectsBySource=[];
 
     internal Win32Window?Window { get;private set; }
     internal ExternalRenderSurface?ExternalSurface { get;private set; }
@@ -197,6 +198,31 @@ public sealed class EngineHost:IDisposable {
         this.CameraFrameLocalOrigin=CameraFrameLocalOrigin;
         this.CameraFrame=CameraFrame;
         this.HasCameraPose=true;
+    }
+
+    /// <summary>Records which renderer object an authored entity's mesh became, for the editor's selection.</summary>
+    internal void RegisterRenderObject(Entity Source,int ObjectIndex){
+        if(!this.RenderObjectsBySource.TryGetValue(Source,out var Objects)){
+            this.RenderObjectsBySource[Source]=Objects=[];
+        }
+        Objects.Add(ObjectIndex);
+    }
+
+    /// <summary>ADR-0070 B1: highlights the renderer objects of the Scene Designer's selected entities.</summary>
+    public void SetEditorSelection(IReadOnlyCollection<Entity>Selected){
+        ObjectDisposedException.ThrowIf(this.Disposed,this);
+        ArgumentNullException.ThrowIfNull(Selected);
+        if(this.Renderer is not { }Renderer){ return; }
+        foreach(var (Source,Objects) in this.RenderObjectsBySource){
+            var Weight=Selected.Contains(Source)?1f:0f;
+            foreach(var Object in Objects){ Renderer.SetObjectSelectionWeight(Object,Weight); }
+        }
+    }
+
+    /// <summary>ADR-0070 B1: the Scene Designer's gizmos, in camera-relative render space.</summary>
+    public void SetEditorOverlay(ReadOnlySpan<CSharpGameEngine.Rendering.RenderOverlayVertex>Triangles,ReadOnlySpan<CSharpGameEngine.Rendering.RenderOverlayVertex>Lines){
+        ObjectDisposedException.ThrowIf(this.Disposed,this);
+        this.Renderer?.SetOverlay(Triangles,Lines);
     }
 
     /// <summary>Records which renderer meshes a SkeletalMesh entity skins (ADR-0066).</summary>

@@ -22,12 +22,19 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
     private readonly MethodInfo ShutdownMethod;
     private readonly MethodInfo NodeCountMethod;
     private readonly MethodInfo SetComponentMethod;
+    private readonly MethodInfo OverlayMethod;
+    private readonly MethodInfo SelectionMethod;
+    private Dictionary<string,int>NodeIndexByPath=new(StringComparer.Ordinal){ ["(root)"]=0 };
+    private float[]OverlayTriangles=[];
+    private float[]OverlayLines=[];
+    private int[]Selection=[];
     private RenderPreviewCamera Camera;
     private bool Disposed;
 
     private RenderPreviewRuntimeSession(
         GameLoadContext Context,MethodInfo RenderMethod,MethodInfo ResizeMethod,MethodInfo CaptureMethod,
-        MethodInfo ShutdownMethod,MethodInfo NodeCountMethod,MethodInfo SetComponentMethod,RenderPreviewCamera Camera){
+        MethodInfo ShutdownMethod,MethodInfo NodeCountMethod,MethodInfo SetComponentMethod,MethodInfo OverlayMethod,
+        MethodInfo SelectionMethod,RenderPreviewCamera Camera){
         this.Context=Context;
         this.RenderMethod=RenderMethod;
         this.ResizeMethod=ResizeMethod;
@@ -35,6 +42,8 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
         this.ShutdownMethod=ShutdownMethod;
         this.NodeCountMethod=NodeCountMethod;
         this.SetComponentMethod=SetComponentMethod;
+        this.OverlayMethod=OverlayMethod;
+        this.SelectionMethod=SelectionMethod;
         this.Camera=Camera;
     }
 
@@ -64,7 +73,8 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
             MethodInfo Initialize=Find("InitializeRuntimeView");
             RenderPreviewRuntimeSession Session=new(
                 Context,Find("RenderRuntimeView"),Find("ResizeRuntimeView"),Find("CaptureRuntimeView"),Find("ShutdownRuntimeView"),
-                Find("RuntimeViewNodeCount"),Find("TrySetRuntimeViewComponent"),Request.Scene!.Camera!);
+                Find("RuntimeViewNodeCount"),Find("TrySetRuntimeViewComponent"),Find("SetRuntimeViewOverlay"),
+                Find("SetRuntimeViewSelection"),Request.Scene!.Camera!);
             // A false result has already released the game's host, so only the context remains to unload.
             if(Invoke(Initialize,[View.SceneName,ContentDirectory,(nint)Request.SurfaceHandle,Request.Width,Request.Height,View.UseWarp]) is not true){
                 throw new InvalidOperationException($"The game build does not contain the scene '{View.SceneName}'; build the project to show it.");
@@ -95,6 +105,7 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
         } catch(SceneJsonException){
             return;
         }
+        this.NodeIndexByPath=NodePaths(Nodes.Length>0?Nodes[0]:null);
         var Stale=Nodes.Length!=(int)Invoke(this.NodeCountMethod,[])!;
         for(var Index=0;Index<Nodes.Length&&!Stale;Index++){
             foreach(var Component in Nodes[Index].Get("components")?.Items??[]){
@@ -127,6 +138,20 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
         return null;
     }
 
+    /// <summary>The designer's node paths ("(root)", "0", "0/1") mapped to their pre-order index.</summary>
+    private static Dictionary<string,int>NodePaths(SceneJsonValue?Root){
+        Dictionary<string,int>Paths=new(StringComparer.Ordinal);
+        void Visit(SceneJsonValue Node,string Path){
+            Paths[Path.Length==0?"(root)":Path]=Paths.Count;
+            var Children=Node.Get("children")?.Items??[];
+            for(var Index=0;Index<Children.Count;Index++){
+                Visit(Children[Index],Path.Length==0?Index.ToString(System.Globalization.CultureInfo.InvariantCulture):Path+"/"+Index.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            }
+        }
+        if(Root is not null){ Visit(Root,string.Empty); }
+        return Paths;
+    }
+
     private static IEnumerable<SceneJsonValue>PreOrder(SceneJsonValue Node){
         yield return Node;
         foreach(var Child in Node.Get("children")?.Items??[]){
@@ -134,10 +159,35 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
         }
     }
 
+    /// <summary>
+    /// The designer's camera, gizmos and selection. The runtime renders relative to its camera, so the
+    /// gizmos (in world space) are shifted by the camera position; selection maps node paths to the
+    /// document's node order.
+    /// </summary>
     public void UpdateFrame(RenderPreviewFrame Frame){
         ArgumentNullException.ThrowIfNull(Frame);
         this.Camera=Frame.Camera??throw new ArgumentException("A frame requires a camera.",nameof(Frame));
+        this.OverlayTriangles=CameraRelative(Frame.OverlayTriangles,this.Camera.Position);
+        this.OverlayLines=CameraRelative(Frame.OverlayLines,this.Camera.Position);
+        this.Selection=[.. Frame.Objects
+            .Where(static Object=>Object.SelectionWeight>0f)
+            .Select(Object=>this.NodeIndexByPath.TryGetValue(Object.ObjectId,out var Index)?Index:-1)
+            .Where(static Index=>Index>=0)
+            .Distinct()
+            .Order()];
         this.LastFrameHash=string.Empty;
+    }
+
+    private static float[]CameraRelative(RenderPreviewOverlayVertex[]Vertices,float[]Camera){
+        var Values=new float[Vertices.Length*7];
+        for(var Index=0;Index<Vertices.Length;Index++){
+            var At=Index*7;
+            Values[At]=Vertices[Index].Position[0]-Camera[0];
+            Values[At+1]=Vertices[Index].Position[1]-Camera[1];
+            Values[At+2]=Vertices[Index].Position[2]-Camera[2];
+            Vertices[Index].Color.AsSpan(0,4).CopyTo(Values.AsSpan(At+3,4));
+        }
+        return Values;
     }
 
     public void Resize(int Width,int Height){
@@ -149,6 +199,9 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
     public void Render(bool CaptureForVerification){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
         RenderPreviewCamera Camera=this.Camera;
+        // Before the level has loaded (the first frame) there is no renderer yet; the next frame shows them.
+        Invoke(this.OverlayMethod,[this.OverlayTriangles,this.OverlayLines]);
+        Invoke(this.SelectionMethod,[this.Selection]);
         if(Invoke(this.RenderMethod,[
             Camera.Position[0],Camera.Position[1],Camera.Position[2],
             Camera.Rotation[0],Camera.Rotation[1],Camera.Rotation[2],Camera.Rotation[3],

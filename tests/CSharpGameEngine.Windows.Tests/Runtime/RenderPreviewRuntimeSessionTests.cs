@@ -86,6 +86,40 @@ public sealed class RenderPreviewRuntimeSessionTests {
     }
 
     [WindowsOnlyFact]
+    public void SelectionAndGizmos_AreDrawnOverTheRuntimeImage(){
+        using var Surface=CreateSurface();
+        var Open=CreateOpen(Surface,GameAssembly,EditedScene);
+        Open.SceneJson=File.ReadAllText(Path.Combine(RepositoryRoot(),"UserEcsProject","Scenes","PrimitiveShowcaseBoxScene.scene.json"));
+        using var Session=RenderPreviewRuntimeSession.Open(Open);
+        string Frame(RenderPreviewFrame Update){
+            Session.UpdateFrame(Update);
+            Session.Render(CaptureForVerification:false);
+            Session.Render(CaptureForVerification:true);
+            return Session.LastFrameHash;
+        }
+        var Plain=Frame(new RenderPreviewFrame { Camera=Camera(3f,0.5f,-4f) });
+
+        var Selected=Frame(new RenderPreviewFrame {
+            Camera=Camera(3f,0.5f,-4f),
+            Objects=[new RenderPreviewObjectTransform { ObjectId="(root)",SelectionWeight=1f }],
+        });
+        // A green triangle in world space, just in front of the camera at (3, 0.5, -4).
+        var Gizmo=Frame(new RenderPreviewFrame {
+            Camera=Camera(3f,0.5f,-4f),
+            OverlayTriangles=[
+                new RenderPreviewOverlayVertex { Position=[2.9f,0.4f,-3f],Color=[0f,1f,0f,1f] },
+                new RenderPreviewOverlayVertex { Position=[3.1f,0.4f,-3f],Color=[0f,1f,0f,1f] },
+                new RenderPreviewOverlayVertex { Position=[3f,0.6f,-3f],Color=[0f,1f,0f,1f] },
+            ],
+        });
+        var Cleared=Frame(new RenderPreviewFrame { Camera=Camera(3f,0.5f,-4f) });
+
+        Assert.NotEqual(Plain,Selected);
+        Assert.NotEqual(Plain,Gizmo);
+        Assert.Equal(Plain,Cleared);
+    }
+
+    [WindowsOnlyFact]
     public void RuntimeSession_ExplainsAMissingSceneOrAGameWithoutARuntimeView(){
         using var Surface=CreateSurface();
         var MissingScene=Assert.Throws<InvalidOperationException>(()=>
