@@ -1,0 +1,168 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+namespace CSharpGameEngine.SceneAnalysis.Json;
+/// <summary>
+/// Builds the per-project JSON Schema for <c>*.scene.json</c> (ADR-0070) from the same Roslyn rules as
+/// <see cref="SceneJsonSceneAnalyzer"/>. The VS JSON editor uses it to warn about undefined component
+/// types, members and value kinds while the user types, and to complete names. The build still
+/// reports the authoritative SCENE2xx errors.
+/// </summary>
+internal static class SceneJsonSchemaBuilder {
+    internal const string FileName="scene.schema.json";
+    internal static string Build(Compilation Compilation){
+        var Definitions=SceneJsonOut.Object(Multiline:true);
+        var Defined=new HashSet<string>(StringComparer.Ordinal);
+        var ComponentTypes=EnumerateComponentTypes(Compilation).OrderBy(static Type=>MetadataName(Type),StringComparer.Ordinal).ToArray();
+        var TypeNames=SceneJsonOut.Array();
+        var Conditions=SceneJsonOut.Array(Multiline:true);
+        foreach(var Type in ComponentTypes){
+            var Name=MetadataName(Type);
+            TypeNames.Add(SceneJsonOut.String(Name));
+            Conditions.Add(SceneJsonOut.Object()
+                .Add("if",SceneJsonOut.Object().Add("properties",SceneJsonOut.Object().Add("type",SceneJsonOut.Object().Add("const",SceneJsonOut.String(Name)))))
+                .Add("then",SceneJsonOut.Object().Add("properties",SceneJsonOut.Object().Add("members",Reference(Type,Compilation,Definitions,Defined)))));
+        }
+        Definitions.Add("node",SceneJsonOut.Object(Multiline:true)
+            .Add("type",SceneJsonOut.String("object"))
+            .Add("additionalProperties",SceneJsonOut.Boolean(false))
+            .Add("properties",SceneJsonOut.Object(Multiline:true)
+                .Add("id",Described(SceneJsonOut.Object().Add("type",SceneJsonOut.String("string")),"Stable node identity used by the editor."))
+                .Add("name",SceneJsonOut.Object().Add("type",SceneJsonOut.String("string")))
+                .Add("components",SceneJsonOut.Object().Add("type",SceneJsonOut.String("array")).Add("items",SceneJsonOut.Object().Add("$ref",SceneJsonOut.String("#/definitions/component"))))
+                .Add("children",SceneJsonOut.Object().Add("type",SceneJsonOut.String("array")).Add("items",SceneJsonOut.Object().Add("$ref",SceneJsonOut.String("#/definitions/node"))))));
+        Definitions.Add("component",SceneJsonOut.Object(Multiline:true)
+            .Add("type",SceneJsonOut.String("object"))
+            .Add("required",SceneJsonOut.Array().Add(SceneJsonOut.String("type")))
+            .Add("additionalProperties",SceneJsonOut.Boolean(false))
+            .Add("properties",SceneJsonOut.Object(Multiline:true)
+                .Add("type",Described(SceneJsonOut.Object().Add("enum",TypeNames),"Full name of the component's C# type."))
+                .Add("members",SceneJsonOut.Object().Add("type",SceneJsonOut.String("object"))))
+            .Add("allOf",Conditions));
+        var Document=SceneJsonOut.Object(Multiline:true)
+            .Add("$schema",SceneJsonOut.String("http://json-schema.org/draft-07/schema#"))
+            .Add("title",SceneJsonOut.String("C# Game Engine scene ("+Compilation.AssemblyName+")"))
+            .Add("type",SceneJsonOut.String("object"))
+            .Add("required",SceneJsonOut.Array().Add(SceneJsonOut.String("schemaVersion")).Add(SceneJsonOut.String("className")).Add(SceneJsonOut.String("root")))
+            .Add("additionalProperties",SceneJsonOut.Boolean(false))
+            .Add("properties",SceneJsonOut.Object(Multiline:true)
+                .Add("$schema",SceneJsonOut.Object().Add("type",SceneJsonOut.String("string")))
+                .Add("schemaVersion",SceneJsonOut.Object().Add("const",SceneJsonOut.Number("1")))
+                .Add("namespace",SceneJsonOut.Object().Add("type",SceneJsonOut.String("string")))
+                .Add("className",SceneJsonOut.Object().Add("type",SceneJsonOut.String("string")))
+                .Add("startupOrder",SceneJsonOut.Object().Add("type",SceneJsonOut.String("integer")))
+                .Add("root",SceneJsonOut.Object().Add("$ref",SceneJsonOut.String("#/definitions/node"))))
+            .Add("definitions",Definitions);
+        return SceneJsonWriter.Write(Document);
+    }
+    /// <summary>
+    /// Component candidates: non-generic structs that the scene JSON check accepts, declared in the
+    /// game's compilation (including the engine's shared runtime sources) or in the engine's
+    /// assemblies (StaticMesh, Camera and PrimitiveMesh live in CSharpGameEngine.Windows).
+    /// </summary>
+    internal static IEnumerable<INamedTypeSymbol>EnumerateComponentTypes(Compilation Compilation){
+        var Assemblies=new List<IAssemblySymbol>{ Compilation.Assembly };
+        Assemblies.AddRange(Compilation.SourceModule.ReferencedAssemblySymbols.Where(static Assembly=>Assembly.Name.StartsWith("CSharpGameEngine",StringComparison.Ordinal)));
+        foreach(var Assembly in Assemblies){
+            foreach(var Type in EnumerateTypes(Assembly.GlobalNamespace)){
+                if(Type.TypeKind!=TypeKind.Struct||Type.IsGenericType||!IsVisibleTo(Type,Compilation)){ continue; }
+                if(SceneJsonSceneAnalyzer.TryResolveComponentType(MetadataName(Type),Compilation,out var Resolved,out _)
+                    &&SymbolEqualityComparer.Default.Equals(Resolved,Type)){
+                    yield return Type;
+                }
+            }
+        }
+    }
+    private static IEnumerable<INamedTypeSymbol>EnumerateTypes(INamespaceSymbol Namespace){
+        foreach(var Member in Namespace.GetMembers()){
+            if(Member is INamespaceSymbol Child){
+                foreach(var Type in EnumerateTypes(Child)){ yield return Type; }
+            } else if(Member is INamedTypeSymbol Type){
+                yield return Type;
+                foreach(var Nested in Type.GetTypeMembers()){ yield return Nested; }
+            }
+        }
+    }
+    private static bool IsVisibleTo(INamedTypeSymbol Type,Compilation Compilation)=>
+        Compilation.IsSymbolAccessibleWithin(Type,Compilation.Assembly);
+    internal static string MetadataName(INamedTypeSymbol Type)=>
+        SceneTypePredicates.ToFullyQualifiedName(Type).Replace("global::",string.Empty);
+    private static SceneJsonOut Reference(INamedTypeSymbol Type,Compilation Compilation,SceneJsonOut Definitions,HashSet<string>Defined){
+        var Key="type:"+MetadataName(Type);
+        if(Defined.Add(Key)){
+            var Properties=SceneJsonOut.Object(Multiline:true);
+            var Names=new HashSet<string>(StringComparer.Ordinal);
+            foreach(var Constructor in Type.InstanceConstructors.Where(static Candidate=>Candidate.DeclaredAccessibility==Accessibility.Public)){
+                foreach(var Parameter in Constructor.Parameters){
+                    if(Names.Add(Parameter.Name)){
+                        Properties.Add(Parameter.Name,Described(ValueSchema(Parameter.Type,Compilation,Definitions,Defined),"Constructor parameter of "+Type.Name+"."));
+                    }
+                }
+            }
+            foreach(var Member in SettableMembers(Type)){
+                if(Names.Add(Member.Name)){ Properties.Add(Member.Name,ValueSchema(Member.Type,Compilation,Definitions,Defined)); }
+            }
+            Definitions.Add(Key,SceneJsonOut.Object(Multiline:true)
+                .Add("type",SceneJsonOut.String("object"))
+                .Add("additionalProperties",SceneJsonOut.Boolean(false))
+                .Add("properties",Properties));
+        }
+        return SceneJsonOut.Object().Add("$ref",SceneJsonOut.String("#/definitions/"+Key));
+    }
+    private static IEnumerable<(string Name,ITypeSymbol Type)>SettableMembers(INamedTypeSymbol Type){
+        for(ITypeSymbol?Current=Type;Current is not null&&Current.SpecialType!=SpecialType.System_ValueType&&Current.SpecialType!=SpecialType.System_Object;Current=Current.BaseType){
+            foreach(var Member in Current.GetMembers()){
+                if(Member.DeclaredAccessibility!=Accessibility.Public||Member.IsStatic||Member.IsImplicitlyDeclared){ continue; }
+                if(Member is IFieldSymbol{ IsReadOnly:false,IsConst:false }Field){ yield return (Field.Name,Field.Type); }
+                if(Member is IPropertySymbol{ SetMethod:{ DeclaredAccessibility:Accessibility.Public },IsIndexer:false }Property){ yield return (Property.Name,Property.Type); }
+            }
+        }
+    }
+    private static SceneJsonOut ValueSchema(ITypeSymbol Type,Compilation Compilation,SceneJsonOut Definitions,HashSet<string>Defined){
+        if(Type is INamedTypeSymbol{ OriginalDefinition.SpecialType:SpecialType.System_Nullable_T }Nullable){
+            return SceneJsonOut.Object().Add("anyOf",SceneJsonOut.Array().Add(ValueSchema(Nullable.TypeArguments[0],Compilation,Definitions,Defined)).Add(SceneJsonOut.Object().Add("type",SceneJsonOut.String("null"))));
+        }
+        if(Type.TypeKind==TypeKind.Enum){
+            var Names=SceneJsonOut.Array();
+            foreach(var Field in Type.GetMembers().OfType<IFieldSymbol>().Where(static Field=>Field.HasConstantValue)){ Names.Add(SceneJsonOut.String(Field.Name)); }
+            return SceneJsonOut.Object().Add("enum",Names);
+        }
+        switch(Type.SpecialType){
+            case SpecialType.System_Boolean:return Typed("boolean");
+            case SpecialType.System_String:return SceneJsonOut.Object().Add("type",SceneJsonOut.Array().Add(SceneJsonOut.String("string")).Add(SceneJsonOut.String("null")));
+            case SpecialType.System_Single:
+            case SpecialType.System_Double:
+            case SpecialType.System_Decimal:return Typed("number");
+            case SpecialType.System_SByte:
+            case SpecialType.System_Byte:
+            case SpecialType.System_Int16:
+            case SpecialType.System_UInt16:
+            case SpecialType.System_Int32:
+            case SpecialType.System_UInt32:
+            case SpecialType.System_Int64:return Typed("integer");
+        }
+        if(Type is IArrayTypeSymbol Array){
+            return SceneJsonOut.Object().Add("type",SceneJsonOut.String("array")).Add("items",ValueSchema(Array.ElementType,Compilation,Definitions,Defined));
+        }
+        if(Type.SpecialType==SpecialType.None&&CollectionElement(Type,Compilation) is { }Element){
+            return SceneJsonOut.Object().Add("type",SceneJsonOut.String("array")).Add("items",ValueSchema(Element,Compilation,Definitions,Defined));
+        }
+        var AcceptsNumber=Compilation.ClassifyConversion(Compilation.GetSpecialType(SpecialType.System_Single),Type).IsImplicit;
+        if(Type is INamedTypeSymbol Named&&Named.TypeKind is TypeKind.Struct or TypeKind.Class&&Named.SpecialType==SpecialType.None){
+            var Object=Reference(Named,Compilation,Definitions,Defined);
+            return AcceptsNumber?SceneJsonOut.Object().Add("anyOf",SceneJsonOut.Array().Add(Typed("number")).Add(Object)):Object;
+        }
+        return AcceptsNumber?Typed("number"):SceneJsonOut.Object();
+    }
+    private static ITypeSymbol?CollectionElement(ITypeSymbol Type,Compilation Compilation){
+        var Enumerable=Compilation.GetSpecialType(SpecialType.System_Collections_Generic_IEnumerable_T);
+        foreach(var Interface in Type.AllInterfaces){
+            if(SymbolEqualityComparer.Default.Equals(Interface.OriginalDefinition,Enumerable)){ return Interface.TypeArguments[0]; }
+        }
+        return null;
+    }
+    private static SceneJsonOut Typed(string Name)=>SceneJsonOut.Object().Add("type",SceneJsonOut.String(Name));
+    private static SceneJsonOut Described(SceneJsonOut Schema,string Description)=>Schema.Add("description",SceneJsonOut.String(Description));
+}

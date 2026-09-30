@@ -141,6 +141,63 @@ public sealed class SceneJsonGeneratorTests {
             [new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.scene.json",Broken)]);
         Assert.DoesNotContain(Result.Results[0].GeneratedSources,Source=>Source.HintName.Contains("MainScene"));
     }
+    [Fact]
+    public void GeneratedSchema_ListsComponentTypesAndTheirMembersForEditorWarnings(){
+        var Compilation=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components]);
+        var Schema=CSharpGameEngine.SceneAnalysis.Json.SceneJsonReader.Parse(CSharpGameEngine.SceneAnalysis.Json.SceneJsonSchemaBuilder.Build(Compilation));
+        var Definitions=Schema.Get("definitions")!;
+        var TypeNames=Definitions.Get("component")!.Get("properties")!.Get("type")!.Get("enum")!.Items.Select(static Item=>Item.Text).ToArray();
+        Assert.Contains("Sample.Transform",TypeNames);
+        Assert.Contains("Sample.Light",TypeNames);
+        Assert.Contains("Sample.Tag",TypeNames);
+        Assert.DoesNotContain("Sample.Mode",TypeNames);
+        var Light=Definitions.Get("type:Sample.Light")!;
+        Assert.Equal(CSharpGameEngine.SceneAnalysis.Json.SceneJsonKind.False,Light.Get("additionalProperties")!.Kind);
+        var LightMembers=Light.Get("properties")!;
+        Assert.Equal("number",LightMembers.Get("Intensity")!.Get("type")!.Text);
+        Assert.Equal(["Off","Bright"],LightMembers.Get("Mode")!.Get("enum")!.Items.Select(static Item=>Item.Text));
+        Assert.Equal("boolean",LightMembers.Get("Enabled")!.Get("type")!.Text);
+        var Vec=Definitions.Get("type:Sample.Vec")!.Get("properties")!;
+        Assert.Equal(["X","Y"],Vec.Properties.Select(static Property=>Property.Name));
+        var Offset=Definitions.Get("type:Sample.Tag")!.Get("properties")!.Get("Offset")!.Get("anyOf")!;
+        Assert.Equal("number",Offset.Items[0].Get("type")!.Text);
+        // Each component's members are tied to its type with if/then so unknown members warn.
+        Assert.Contains(Definitions.Get("component")!.Get("allOf")!.Items,Condition=>
+            Condition.Get("if")!.Get("properties")!.Get("type")!.Get("const")!.Text=="Sample.Light"
+            &&Condition.Get("then")!.Get("properties")!.Get("members")!.Get("$ref")!.Text=="#/definitions/type:Sample.Light");
+    }
+    [Fact]
+    public void Generator_EmbedsTheSchemaAsAConstant(){
+        var Result=GameSystemGeneratorTestHelper.RunGenerator(GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components]),[]);
+        var Text=GameSystemGeneratorTestHelper.GeneratedText(Result,"GameSystem.SceneSchema.g.cs");
+        Assert.Contains("internal static class CgeGeneratedSceneSchema",Text);
+        Assert.Contains("type:Sample.Light",Text);
+    }
+    [Fact]
+    public void SchemaTool_CopiesTheEmbeddedSchemaFromMetadataAndSkipsUnchangedWrites(){
+        var Compilation=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components]);
+        Microsoft.CodeAnalysis.CSharp.CSharpGeneratorDriver.Create(new GameSystemGenerator()).RunGeneratorsAndUpdateCompilation(Compilation,out var Output,out _);
+        var Directory=Path.Combine(Path.GetTempPath(),"cge-scene-schema-"+Guid.NewGuid().ToString("N"));
+        System.IO.Directory.CreateDirectory(Directory);
+        try {
+            var AssemblyPath=Path.Combine(Directory,"Game.dll");
+            var Emit=Output.Emit(AssemblyPath);
+            Assert.True(Emit.Success,string.Join("\n",Emit.Diagnostics));
+            Assert.True(CSharpGameEngine.SceneSchema.Cli.SceneSchemaExtractor.TryRead(AssemblyPath,out var Schema));
+            Assert.Equal(CSharpGameEngine.SceneAnalysis.Json.SceneJsonSchemaBuilder.Build(Compilation),Schema);
+            var SchemaPath=Path.Combine(Directory,".cge","scene.schema.json");
+            Assert.True(CSharpGameEngine.SceneSchema.Cli.SceneSchemaExtractor.WriteIfChanged(SchemaPath,Schema));
+            var WriteTime=File.GetLastWriteTimeUtc(SchemaPath);
+            Assert.False(CSharpGameEngine.SceneSchema.Cli.SceneSchemaExtractor.WriteIfChanged(SchemaPath,Schema));
+            Assert.Equal(WriteTime,File.GetLastWriteTimeUtc(SchemaPath));
+            var Plain=Path.Combine(Directory,"Plain.dll");
+            Assert.True(Microsoft.CodeAnalysis.CSharp.CSharpCompilation.Create("Plain",[Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText("class A{}")],GameSystemGeneratorTestHelper.References,
+                new Microsoft.CodeAnalysis.CSharp.CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)).Emit(Plain).Success);
+            Assert.False(CSharpGameEngine.SceneSchema.Cli.SceneSchemaExtractor.TryRead(Plain,out _));
+        } finally {
+            System.IO.Directory.Delete(Directory,recursive:true);
+        }
+    }
     private static ImmutableArray<Diagnostic>Analyze(string Json){
         var Compilation=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components]);
         var Options=new AnalyzerOptions([new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.scene.json",Json)]);

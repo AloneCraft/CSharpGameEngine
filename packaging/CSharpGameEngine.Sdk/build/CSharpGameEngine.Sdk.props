@@ -8,6 +8,7 @@
     <CgeEngineMode>Package</CgeEngineMode>
     <CgeEngineRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..'))\</CgeEngineRoot>
     <CgeShaderGraphCliExe>$(CgeEngineRoot)tools\ShaderGraph\CSharpGameEngine.ShaderGraph.Cli.exe</CgeShaderGraphCliExe>
+    <CgeSceneSchemaCli>$(CgeEngineRoot)tools\SceneSchema\CSharpGameEngine.SceneSchema.Cli.dll</CgeSceneSchemaCli>
   </PropertyGroup>
   <Import Project="$(MSBuildThisFileDirectory)CSharpGameEngine.Game.props" />
 </Project>

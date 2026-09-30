@@ -10,6 +10,7 @@
   </ItemGroup>
 
   <Import Project="$(MSBuildThisFileDirectory)build\CSharpGameEngine.ShaderGraph.targets" />
+  <Import Project="$(MSBuildThisFileDirectory)build\CSharpGameEngine.SceneSchema.targets" />
   <Import Project="$(MSBuildThisFileDirectory)build\CSharpGameEngine.Showcase.targets" />
 </Project>
 

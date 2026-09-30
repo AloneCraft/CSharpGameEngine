@@ -56,6 +56,51 @@ internal static class SceneTypePredicates {
             ||TypeFullyQualifiedName==SceneDslWellKnownNames.SceneNodeTagFullyQualifiedName;
     }
 
+    /// <summary>
+    /// A type the user can add to a scene node: the Component palette, the scene JSON Schema and the
+    /// scene JSON check all use this one rule (ADR-0070). Non-generic check only; the palette closes
+    /// generic definitions separately.
+    /// </summary>
+    internal static bool IsAddableComponent(INamedTypeSymbol Type,Compilation Compilation){
+        if(!IsNonNullableStruct(Type)
+            ||Type.IsRefLikeType
+            ||Type.IsImplicitlyDeclared
+            ||IsReservedComponent(ToFullyQualifiedName(Type))
+            ||IsEngineInfrastructure(ToFullyQualifiedName(Type))
+            ||ImplementsSystemInterface(Type)
+            // エンジンが実行時に埋めるComponent。作者が宣言するものではなく、随伴先を宣言すれば
+            // SGが自動付与する(SCENE119)。パレットへ出すと「追加しても中身が永久に空」になる。
+            ||ImplementsRuntimeComponentInterface(Type,Compilation)){
+            return false;
+        }
+
+        // 引数なしのdefault構築で追加できる型だけを許可する。C# required memberはobject initializerでの
+        // 明示指定を強制するため、requiredを持つ型はAddComponent operationの対象から除外する。
+        foreach(var Member in Type.GetMembers()){
+            if(Member is IPropertySymbol { IsRequired:true }||Member is IFieldSymbol { IsRequired:true }){
+                return false;
+            }
+        }
+
+        // The engine compiles many helper value types (queries, reports, events) into every game. Its
+        // scene components carry the palette attributes; a game's own structs are always candidates.
+        var Namespace=Type.ContainingNamespace?.ToDisplayString()??string.Empty;
+        return !(Namespace=="CSharpGameEngine"||Namespace.StartsWith("CSharpGameEngine.",StringComparison.Ordinal))
+            ||HasAttribute(Type,"CSharpGameEngine.Entities.SceneComponentOrderAttribute")
+            ||HasAttribute(Type,"CSharpGameEngine.Entities.SceneComponentIconAttribute");
+    }
+
+    /// <summary>
+    /// Engine value types compiled into every game that are the ECS itself, not per-entity data:
+    /// they satisfy the struct shape but adding them to a node is meaningless.
+    /// </summary>
+    internal static bool IsEngineInfrastructure(string TypeFullyQualifiedName)=>
+        TypeFullyQualifiedName is "global::CSharpGameEngine.Entities.World"
+            or "global::CSharpGameEngine.Entities.State"
+            or "global::CSharpGameEngine.Entities.Bootstrap"
+            or "global::CSharpGameEngine.Entities.Entity"
+            or "global::CSharpGameEngine.Entities.SceneInstance";
+
     /// <summary>この型が<c>IScene</c>を実装しているか。</summary>
     internal static bool ImplementsSceneInterface(INamedTypeSymbol Type){
         foreach(var Interface in Type.AllInterfaces){

@@ -208,6 +208,10 @@ internal static class SceneJsonSceneAnalyzer {
             Reason="runtime component types are attached automatically; declare the authored component instead";
             return false;
         }
+        if(!SceneTypePredicates.IsAddableComponent(Type,Compilation)){
+            Reason="this type is not a scene component (it is engine infrastructure, a system, or has required members)";
+            return false;
+        }
         Reason=string.Empty;
         return true;
     }
@@ -320,13 +324,13 @@ internal static class SceneJsonSceneAnalyzer {
             case SpecialType.System_Single:return RealLiteral(Value,"f",Mismatch);
             case SpecialType.System_Double:return RealLiteral(Value,"d",Mismatch);
             case SpecialType.System_Decimal:return RealLiteral(Value,"m",Mismatch);
-            case SpecialType.System_SByte:return IntegerLiteral(Value,sbyte.MinValue,sbyte.MaxValue,"(sbyte)",Mismatch);
+            case SpecialType.System_SByte:return IntegerLiteral(Value,sbyte.MinValue,(ulong)sbyte.MaxValue,"(sbyte)",Mismatch);
             case SpecialType.System_Byte:return IntegerLiteral(Value,byte.MinValue,byte.MaxValue,"(byte)",Mismatch);
-            case SpecialType.System_Int16:return IntegerLiteral(Value,short.MinValue,short.MaxValue,"(short)",Mismatch);
+            case SpecialType.System_Int16:return IntegerLiteral(Value,short.MinValue,(ulong)short.MaxValue,"(short)",Mismatch);
             case SpecialType.System_UInt16:return IntegerLiteral(Value,ushort.MinValue,ushort.MaxValue,"(ushort)",Mismatch);
-            case SpecialType.System_Int32:return IntegerLiteral(Value,int.MinValue,int.MaxValue,string.Empty,Mismatch);
+            case SpecialType.System_Int32:return IntegerLiteral(Value,int.MinValue,(ulong)int.MaxValue,string.Empty,Mismatch);
             case SpecialType.System_UInt32:return IntegerLiteral(Value,uint.MinValue,uint.MaxValue,"(uint)",Mismatch);
-            case SpecialType.System_Int64:return IntegerLiteral(Value,long.MinValue,long.MaxValue,"(long)",Mismatch);
+            case SpecialType.System_Int64:return IntegerLiteral(Value,long.MinValue,(ulong)long.MaxValue,"(long)",Mismatch);
         }
         if(Value.Kind==SceneJsonKind.Number){
             var Single=Compilation.GetSpecialType(SpecialType.System_Single);
@@ -356,13 +360,17 @@ internal static class SceneJsonSceneAnalyzer {
     }
     private static string RealLiteral(SceneJsonValue Value,string Suffix,Func<string,string>Mismatch)=>
         Value.Kind==SceneJsonKind.Number?Value.Text+Suffix:Mismatch("expected a number");
-    private static string IntegerLiteral(SceneJsonValue Value,decimal Minimum,decimal Maximum,string Cast,Func<string,string>Mismatch){
+    private static string IntegerLiteral(SceneJsonValue Value,long Minimum,ulong Maximum,string Cast,Func<string,string>Mismatch){
         if(Value.Kind!=SceneJsonKind.Number){ return Mismatch("expected an integer"); }
-        if(!long.TryParse(Value.Text,NumberStyles.AllowLeadingSign,CultureInfo.InvariantCulture,out var Parsed)&&!ulong.TryParse(Value.Text,NumberStyles.None,CultureInfo.InvariantCulture,out _)){
+        bool InRange;
+        if(long.TryParse(Value.Text,NumberStyles.AllowLeadingSign,CultureInfo.InvariantCulture,out var Signed)){
+            InRange=Signed>=Minimum&&(Signed<0||(ulong)Signed<=Maximum);
+        } else if(ulong.TryParse(Value.Text,NumberStyles.None,CultureInfo.InvariantCulture,out var Unsigned)){
+            InRange=Unsigned<=Maximum;
+        } else {
             return Mismatch("expected an integer without a fraction or exponent");
         }
-        var Number=decimal.Parse(Value.Text,NumberStyles.AllowLeadingSign,CultureInfo.InvariantCulture);
-        if(Number<Minimum||Number>Maximum){ return Mismatch("the integer is out of range"); }
+        if(!InRange){ return Mismatch("the integer is out of range"); }
         // A cast needs parentheses around a negative literal: (short)(-5), not (short)-5.
         return Cast.Length==0?Value.Text!:Cast+"("+Value.Text+")";
     }

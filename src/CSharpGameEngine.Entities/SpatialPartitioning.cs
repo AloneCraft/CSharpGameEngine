@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 namespace CSharpGameEngine.Entities;
 /// <summary>Local fixed-point bounds that opt an Entity into World global spatial synchronization.</summary>
+[SceneComponentOrder(SceneComponentCategory.Spatial,30)]
 public struct SpatialBounds {
     public LogicalVector3 Center;
     public LogicalVector3 HalfExtents;

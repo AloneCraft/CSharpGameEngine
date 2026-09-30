@@ -44,7 +44,7 @@
     <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\CSharpGameEngine.Rendering\CSharpGameEngine.Rendering.csproj" />
     <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\CSharpGameEngine.ShaderArtifacts\CSharpGameEngine.ShaderArtifacts.csproj" />
     <None Include="build\CSharpGameEngine.Sdk.props;build\CSharpGameEngine.Sdk.targets" Pack="true" PackagePath="build\" />
-    <None Include="$(CgeRepositoryRoot)build\CSharpGameEngine.Game.props;$(CgeRepositoryRoot)build\CSharpGameEngine.ShaderGraph.targets" Pack="true" PackagePath="build\" />
+    <None Include="$(CgeRepositoryRoot)build\CSharpGameEngine.Game.props;$(CgeRepositoryRoot)build\CSharpGameEngine.ShaderGraph.targets;$(CgeRepositoryRoot)build\CSharpGameEngine.SceneSchema.targets" Pack="true" PackagePath="build\" />
     <None Include="$(CgeRepositoryRoot)assets\Shaders\*.cgeshadergraph;$(CgeRepositoryRoot)assets\Shaders\*.cgesubgraph;$(CgeRepositoryRoot)assets\Shaders\*.hlsl;$(CgeRepositoryRoot)assets\Shaders\*.hlsli" Pack="true" PackagePath="assets\Shaders\" />
   </ItemGroup>
   <!-- Builds the engine libraries, the analyzer and the shader compiler, then adds their outputs to the package. -->
@@ -58,13 +58,18 @@
     <MSBuild Projects="$(CgeRepositoryRoot)tools\CSharpGameEngine.ShaderGraph.Cli\CSharpGameEngine.ShaderGraph.Cli.csproj" Targets="Build" Properties="Configuration=$(Configuration);Platform=x64">
       <Output TaskParameter="TargetOutputs" ItemName="_CgeShaderCli" />
     </MSBuild>
+    <MSBuild Projects="$(CgeRepositoryRoot)tools\CSharpGameEngine.SceneSchema.Cli\CSharpGameEngine.SceneSchema.Cli.csproj" Targets="Build" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_CgeSceneSchemaCli" />
+    </MSBuild>
     <PropertyGroup>
       <_CgeShaderCliDirectory>@(_CgeShaderCli->'%(RootDir)%(Directory)')</_CgeShaderCliDirectory>
+      <_CgeSceneSchemaCliDirectory>@(_CgeSceneSchemaCli->'%(RootDir)%(Directory)')</_CgeSceneSchemaCliDirectory>
     </PropertyGroup>
     <ItemGroup>
       <None Include="@(_CgeEngineAssembly)" Pack="true" PackagePath="lib\$(TargetFramework)\" />
       <None Include="@(_CgeAnalyzerAssembly)" Pack="true" PackagePath="analyzers\dotnet\cs\" />
       <None Include="$(_CgeShaderCliDirectory)**\*" Exclude="$(_CgeShaderCliDirectory)**\*.pdb" Pack="true" PackagePath="tools\ShaderGraph\%(RecursiveDir)" />
+      <None Include="$(_CgeSceneSchemaCliDirectory)**\*" Exclude="$(_CgeSceneSchemaCliDirectory)**\*.pdb" Pack="true" PackagePath="tools\SceneSchema\%(RecursiveDir)" />
       <None Include="$(CgeRepositoryRoot)src\CSharpGameEngine.Entities\*.cs" Pack="true" PackagePath="src\CSharpGameEngine.Entities\" />
       <None Include="$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Simulation\**\*" Exclude="$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Simulation\bin\**;$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Simulation\obj\**" Pack="true" PackagePath="src\CSharpGameEngine.Runtime.Simulation\%(RecursiveDir)" />
       <None Include="$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Physics\**\*" Exclude="$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Physics\bin\**;$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Physics\obj\**" Pack="true" PackagePath="src\CSharpGameEngine.Runtime.Physics\%(RecursiveDir)" />
