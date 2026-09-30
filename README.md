@@ -2,7 +2,7 @@
 
 - 製品表示名: `C# Game Engine`
 - 内部名: `CSharpGameEngine`
-- 現在の段階: 第3マイルストーン（glTFアセットのインポートと最小Viewer）
+- 現在の段階: SDKパッケージとVisual Studioの三人称テンプレート（M0092）
 
 ## Build
 ```bash
@@ -65,6 +65,41 @@ dotnet run --project tools/CSharpGameEngine.FeatureRunner -- resume <run-result.
 ```
 
 将来機能もStageとOracleを列挙できますが、実装されるまで明示的な`NotImplemented`となり成功扱いされません。詳細は[Docs/Feature-Stages.md](Docs/Feature-Stages.md)を参照してください。
+
+## 新しいゲームを作る（三人称テンプレート）
+
+VSIXを入れたVisual Studioで「新しいプロジェクトの作成」を開き、「三人称」（英語UIでは「Third Person」）を選びます。作成先はリポジトリの外でも構いません。
+
+- 作成されるのは、Unreal EngineのThird Personテンプレートの移植です。レベル、ライティング、キャラクター移動、SpringArmカメラ、入力、Quinnのアニメーションを含みます。
+- 移動はWASD（または左スティック）、視点はマウス（または右スティック）、ジャンプはSpace（またはAボタン）です。
+- エンジンは`CSharpGameEngine.Sdk` NuGetパッケージから参照されます。VSIXに同梱のパッケージを、ウィザードが`%LOCALAPPDATA%\CSharpGameEngine\packages\<version>`へ配置します。
+- 同梱のUnreal Engineコンテンツの条件は[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)を参照してください。
+
+リポジトリ内のテンプレート原本は`templates/CSharpGameEngine.Templates.ThirdPerson`です。次のコマンドで直接実行できます。
+
+```bash
+dotnet run --project templates/CSharpGameEngine.Templates.ThirdPerson -c Debug
+```
+
+## エンジンSDKパッケージ
+
+```bash
+dotnet pack packaging/CSharpGameEngine.Sdk -c Release
+```
+
+`.artifacts/packages/CSharpGameEngine.Sdk.<version>.nupkg`が出力されます。パッケージの構成は[ADR-0065](Docs/Decisions/ADR-0065-Engine-Sdk-Package-And-Project-Context.md)を参照してください。
+
+ゲームのcsprojには次の3つを書きます。
+
+- `TargetFramework`（`net10.0-windows10.0.19041.0`）
+- `RuntimeIdentifier`（`win-x64`）
+- `PackageReference Include="CSharpGameEngine.Sdk"`
+
+リポジトリ外で生成・ビルド・実走までを検証するには、次を実行します。
+
+```bash
+dotnet run --project tools/CSharpGameEngine.FeatureRunner -- run vsix.project-template --adapter warp
+```
 
 ## Engine Showcase
 

@@ -82,6 +82,27 @@ public sealed class GameProjectGeneratorTests:IDisposable {
     }
 
     [Fact]
+    public void Wizard_CreatesTheProjectFromTheBundledSourcesAndPackage(){
+        var Extension=Path.Combine(this.Root,"extension");
+        Directory.CreateDirectory(Path.Combine(Extension,GameProjectTemplateWizard.PackagesFolder));
+        File.WriteAllText(Path.Combine(Extension,GameProjectTemplateWizard.PackagesFolder,"CSharpGameEngine.Sdk.9.8.7.nupkg"),"package");
+        var Sources=Path.Combine(Extension,GameProjectTemplateWizard.TemplateSourceFolder,"ThirdPerson","Scenes");
+        Directory.CreateDirectory(Sources);
+        File.WriteAllText(Path.Combine(Sources,"Lvl_ThirdPerson.cs"),"namespace CgeThirdPerson.Scenes;");
+        var Project=Path.Combine(this.Root,"Created");
+        var FeedRoot=Path.Combine(this.Root,"feeds");
+
+        var Version=GameProjectTemplateWizard.CreateProject(Extension,"ThirdPerson",Project,"Created",FeedRoot);
+
+        Assert.Equal("9.8.7",Version);
+        Assert.True(File.Exists(Path.Combine(FeedRoot,"9.8.7","CSharpGameEngine.Sdk.9.8.7.nupkg")));
+        Assert.Equal("namespace Created.Scenes;",File.ReadAllText(Path.Combine(Project,GameProjectGenerator.StartupScenePath)));
+        Assert.Contains(Path.Combine(FeedRoot,"9.8.7"),File.ReadAllText(Path.Combine(Project,"nuget.config")));
+        File.WriteAllText(Path.Combine(Extension,GameProjectTemplateWizard.PackagesFolder,"CSharpGameEngine.Sdk.9.9.0.nupkg"),"second");
+        Assert.Throws<InvalidOperationException>(()=>GameProjectTemplateWizard.PrepareFeed(Extension,FeedRoot));
+    }
+
+    [Fact]
     public void VersionOfPackage_ReadsTheSdkPackageFileName(){
         Assert.Equal("0.1.0",GameProjectGenerator.VersionOfPackage(@"C:\x\CSharpGameEngine.Sdk.0.1.0.nupkg"));
         Assert.Equal("1.0.0-preview.2",GameProjectGenerator.VersionOfPackage("CSharpGameEngine.Sdk.1.0.0-preview.2.nupkg"));

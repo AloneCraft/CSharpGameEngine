@@ -43,5 +43,5 @@ In the Experimental instance, press F5:
 3. Check that the package restores and `Scenes/Lvl_ThirdPerson.cs` opens.
 4. Press F5 in the new solution, then walk, look around and jump.
 ## Remaining uncertainty
-- The dialog flow (template listing, wizard, restore, opening the level) has only been exercised through the shared generator and the VSIX contents, not in Visual Studio itself.
+- The wizard's file work (publishing the bundled package to the feed, writing the renamed sources and nuget.config) is unit-tested through `GameProjectTemplateWizard.CreateProject`. The dialog itself (template listing, the replacement dictionary, restore, opening the level) has not run in Visual Studio.
 - The engine's dependencies restore from the user's NuGet sources. A machine without nuget.org access needs its own mirror.

@@ -22,24 +22,31 @@ public sealed class GameProjectTemplateWizard:IWizard {
     public void RunStarted(object AutomationObject,Dictionary<string,string>ReplacementsDictionary,WizardRunKind RunKind,object[]CustomParams){
         ThreadHelper.ThrowIfNotOnUIThread();
         this.Dte=AutomationObject as DTE;
-        var ExtensionDirectory=Path.GetDirectoryName(typeof(GameProjectTemplateWizard).Assembly.Location)!;
         var TemplateName=CustomParams?.OfType<string>().Where(static Parameter=>Parameter.EndsWith(".vstemplate",StringComparison.OrdinalIgnoreCase)).Select(Path.GetFileNameWithoutExtension).FirstOrDefault()??"ThirdPerson";
         var ProjectDirectory=ReplacementsDictionary["$destinationdirectory$"];
-        var RootNamespace=ReplacementsDictionary["$safeprojectname$"];
-        var (EngineVersion,FeedDirectory)=PrepareFeed(ExtensionDirectory);
-        ReplacementsDictionary[GameProjectGenerator.EngineVersionToken]=EngineVersion;
-        GameProjectGenerator.CopySources(Path.Combine(ExtensionDirectory,TemplateSourceFolder,TemplateName),ProjectDirectory,RootNamespace);
-        File.WriteAllText(Path.Combine(ProjectDirectory,"nuget.config"),GameProjectGenerator.NuGetConfig(FeedDirectory));
+        var ExtensionDirectory=Path.GetDirectoryName(typeof(GameProjectTemplateWizard).Assembly.Location)!;
+        ReplacementsDictionary[GameProjectGenerator.EngineVersionToken]=CreateProject(ExtensionDirectory,TemplateName,ProjectDirectory,ReplacementsDictionary["$safeprojectname$"],null);
         this.StartupScene=Path.Combine(ProjectDirectory,GameProjectGenerator.StartupScenePath);
     }
+    /// <summary>
+    /// Publishes the bundled package to the local feed (under <paramref name="FeedRoot"/>, by default
+    /// %LOCALAPPDATA%\CSharpGameEngine\packages), writes the template sources and nuget.config into
+    /// <paramref name="ProjectDirectory"/>, and returns the engine version for the project file.
+    /// </summary>
+    internal static string CreateProject(string ExtensionDirectory,string TemplateName,string ProjectDirectory,string RootNamespace,string?FeedRoot){
+        var (EngineVersion,FeedDirectory)=PrepareFeed(ExtensionDirectory,FeedRoot);
+        GameProjectGenerator.CopySources(Path.Combine(ExtensionDirectory,TemplateSourceFolder,TemplateName),ProjectDirectory,RootNamespace);
+        File.WriteAllText(Path.Combine(ProjectDirectory,"nuget.config"),GameProjectGenerator.NuGetConfig(FeedDirectory));
+        return EngineVersion;
+    }
     /// <summary>Copies the bundled engine package into the per-version local feed and returns its version and feed.</summary>
-    internal static (string Version,string Feed)PrepareFeed(string ExtensionDirectory){
+    internal static (string Version,string Feed)PrepareFeed(string ExtensionDirectory,string?FeedRoot){
         var Packages=Directory.GetFiles(Path.Combine(ExtensionDirectory,PackagesFolder),GameProjectGenerator.SdkPackageId+".*.nupkg");
         if(Packages.Length!=1){
             throw new InvalidOperationException($"The extension must carry exactly one {GameProjectGenerator.SdkPackageId} package, found {Packages.Length}.");
         }
         var Version=GameProjectGenerator.VersionOfPackage(Packages[0]);
-        var Feed=GameProjectGenerator.DefaultFeedDirectory(Version);
+        var Feed=FeedRoot is null?GameProjectGenerator.DefaultFeedDirectory(Version):Path.Combine(FeedRoot,Version);
         GameProjectGenerator.PublishToFeed(Packages[0],Feed);
         return (Version,Feed);
     }

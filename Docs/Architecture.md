@@ -161,6 +161,10 @@ Editor PreviewはVSIX内の複製実装ではなく、生成済みRuntimeアセ�
 
 UserEcsProject remains an L9 composition root for scenes, gameplay components, assets, and precision selection. Runtime systems do not depend on a scene class name or on `PlayerStart`; one active Camera is required and its Transform is authoritative.
 
+**Other source-shared L5 modules.** `CSharpGameEngine.Runtime.Character` (kinematic character, controller and spring arm; ADR-0067) and `CSharpGameEngine.Runtime.Animation` (skeletons, clips and the locomotion graph; ADR-0066) are compiled into each game in the same way.
+
+**How a game project gets the engine.** Every game project takes the engine through `build/CSharpGameEngine.Game.props`. In the repository (SourceMode), `UserEcsProject` and `templates/CSharpGameEngine.Templates.ThirdPerson` import it by relative path. Elsewhere (PackageMode), it arrives through the `CSharpGameEngine.Sdk` NuGet package, whose layout mirrors the repository (ADR-0065). The Visual Studio extension finds the game project through `CgeProjectContext` rather than a fixed repository path.
+
 ## Deterministic Simulation / Physics domains
 
 `CSharpGameEngine.Runtime.Simulation`(L3/L5共通実行契約)は整数tick、phase、Domain command/event、cache identityを所有する。`CSharpGameEngine.Runtime.Physics`(L5)はユーザーCompilation内でQ64.64 `LogicalScalar`局所剛体を実行し、Physics専用Dynamic AABB Treeを使う。Global Loose Octreeは一般空間Query/表示のままである。Cooking/CacheはL6 artifact、CLIと生成Scene Bake HostはL7、Scene ViewはL8 frontendとする。RuntimeとBakeは同じ生成System setとsolverを使い、BakeだけがFrameInput/Presentationを除外してcanonical frameを逐次出力する。異種Simulationは翌tick Bridgeだけを共有しsolverを共有しない。
