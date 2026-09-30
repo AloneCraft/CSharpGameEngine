@@ -42,6 +42,8 @@
     <Compile Remove="$(CgeEngineSourceRoot)CSharpGameEngine.Entities\SceneComponentIconAttribute.cs" />
     <Compile Remove="$(CgeEngineSourceRoot)CSharpGameEngine.Entities\SceneComponentOrderAttribute.cs" />
     <Compile Remove="Generated\**\*.cs" />
+    <!-- ADR-0070: scene documents are compiled to C# by GameSystemGenerator in the same build. -->
+    <AdditionalFiles Include="**\*.scene.json" Exclude="bin\**;obj\**;$(BaseIntermediateOutputPath)**;$(BaseOutputPath)**" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(CgeEngineMode)' == 'Source'">

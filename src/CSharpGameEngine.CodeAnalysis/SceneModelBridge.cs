@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using CSharpGameEngine.SceneAnalysis;
+using CSharpGameEngine.SceneAnalysis.Json;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -51,14 +52,70 @@ internal static class SceneModelBridge {
             Model.DeclarationPosition);
     }
 
+    /// <summary>ADR-0070: a <c>*.scene.json</c> document; <c>null</c> outside engine projects or without text.</summary>
+    internal static SceneEmitModel?TryAnalyzeJson(AdditionalText File,Compilation Compilation,CancellationToken CancellationToken){
+        if(Compilation.GetTypeByMetadataName(SceneDslWellKnownNames.SceneInterfaceMetadataName) is null
+            ||File.GetText(CancellationToken) is not { }Text){
+            return null;
+        }
+        var Scene=SceneJsonSceneAnalyzer.Analyze(Text.ToString(),Compilation);
+        var AddSampleSpatialBounds=string.Equals(Scene.Namespace,"UserEcsProject.Scenes",StringComparison.Ordinal);
+        SceneEmitNode?Root=Scene.Root is { }JsonRoot?ToEmitNode(JsonRoot,AddSampleSpatialBounds):null;
+        return new SceneEmitModel(
+            Scene.Namespace,
+            Scene.ClassName,
+            Scene.Namespace is null?Scene.ClassName:Scene.Namespace+"."+Scene.ClassName,
+            Root,
+            Root is { }Emitted?CountNodes(Emitted):0,
+            Scene.StartupOrder.HasValue,
+            Scene.StartupOrder??0,
+            Scene.HasErrors,
+            File.Path,
+            DeclarationPosition:0);
+    }
+
+    private static int CountNodes(SceneEmitNode Node){
+        var Count=1;
+        foreach(var Child in Node.Children){ Count+=CountNodes(Child); }
+        return Count;
+    }
+
+    private static SceneEmitNode ToEmitNode(SceneJsonNode Node,bool AddSampleSpatialBounds){
+        var Components=WithGeneratedComponents(Node.Components.Select(static Component=>new SceneEmitComponent(Component.TypeFullyQualifiedName,Component.EmitExpressionText)),AddSampleSpatialBounds);
+        var Children=ImmutableArray.CreateBuilder<SceneEmitNode>(Node.Children.Length);
+        foreach(var Child in Node.Children){
+            Children.Add(ToEmitNode(Child,AddSampleSpatialBounds));
+        }
+        var Path=new NodePath(Node.Path);
+        return new SceneEmitNode(BuildLocalName(Path),Path.ToDisplayString(),Node.Name,Components,Children.ToImmutable());
+    }
+
     private static SceneEmitNode ToEmitNode(SceneNode Node,bool AddSampleSpatialBounds){
-        var Components=ImmutableArray.CreateBuilder<SceneEmitComponent>(Node.Components.Length+1);
+        var Components=WithGeneratedComponents(Node.Components.Select(static Component=>new SceneEmitComponent(Component.TypeFullyQualifiedName,Component.EmitExpressionText)),AddSampleSpatialBounds);
+
+        var Children=ImmutableArray.CreateBuilder<SceneEmitNode>(Node.Children.Length);
+
+        foreach(var Child in Node.Children){
+            Children.Add(ToEmitNode(Child,AddSampleSpatialBounds));
+        }
+
+        return new SceneEmitNode(
+            BuildLocalName(Node.Path),
+            Node.Path.ToDisplayString(),
+            Node.Name,
+            Components,
+            Children.ToImmutable());
+    }
+
+    /// <summary>The declared components plus the ones generation adds; shared by C# and JSON scenes.</summary>
+    private static ImmutableArray<SceneEmitComponent>WithGeneratedComponents(IEnumerable<SceneEmitComponent>Declared,bool AddSampleSpatialBounds){
+        var Components=ImmutableArray.CreateBuilder<SceneEmitComponent>();
 
         bool HasTransform=false;
         bool HasRenderableMesh=false;
         bool HasSpatialBounds=false;
-        foreach(var Component in Node.Components){
-            Components.Add(new SceneEmitComponent(Component.TypeFullyQualifiedName,Component.EmitExpressionText));
+        foreach(var Component in Declared){
+            Components.Add(Component);
             HasTransform|=string.Equals(Component.TypeFullyQualifiedName,"global::CSharpGameEngine.Entities.Transform",StringComparison.Ordinal);
             HasRenderableMesh|=string.Equals(Component.TypeFullyQualifiedName,"global::CSharpGameEngine.Runtime.Windows.StaticMesh",StringComparison.Ordinal)
                 ||string.Equals(Component.TypeFullyQualifiedName,"global::CSharpGameEngine.Runtime.Windows.PrimitiveMesh",StringComparison.Ordinal);
@@ -73,18 +130,7 @@ internal static class SceneModelBridge {
                 "global::CSharpGameEngine.Entities.SpatialBounds.UnitCube"));
         }
 
-        var Children=ImmutableArray.CreateBuilder<SceneEmitNode>(Node.Children.Length);
-
-        foreach(var Child in Node.Children){
-            Children.Add(ToEmitNode(Child,AddSampleSpatialBounds));
-        }
-
-        return new SceneEmitNode(
-            BuildLocalName(Node.Path),
-            Node.Path.ToDisplayString(),
-            Node.Name,
-            Components.ToImmutable(),
-            Children.ToImmutable());
+        return Components.ToImmutable();
     }
 
     /// <summary>

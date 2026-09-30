@@ -58,6 +58,18 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
                                     .Where(static Result=>Result.HasValue)
                                     .Select(static(Result,_)=>Result!.Value);
 
+        // ADR-0070: *.scene.json scenes arrive as AdditionalFiles and become the same SceneEmitModel.
+        // Their diagnostics belong to SceneJsonDslAnalyzer; here they only decide whether to emit.
+        var JsonSceneDeclarations=Context.AdditionalTextsProvider
+                                         .Where(static File=>SceneJsonDslAnalyzer.IsSceneFile(File.Path))
+                                         .Combine(Context.CompilationProvider)
+                                         .Select(static(Pair,Ct)=>SceneModelBridge.TryAnalyzeJson(Pair.Left,Pair.Right,Ct))
+                                         .Where(static Result=>Result.HasValue)
+                                         .Select(static(Result,_)=>Result!.Value);
+        var AllSceneDeclarations=SceneDeclarations.Collect()
+                                                  .Combine(JsonSceneDeclarations.Collect())
+                                                  .Select(static(Pair,_)=>Pair.Left.AddRange(Pair.Right));
+
         // IRuntimeComponent<TAuthored>の実装。作者Componentに随伴して自動付与する対応表を作るために
         // 拾う。ISystem/IScene と同じく属性が無いのでForAttributeWithMetadataNameは使えず、
         // base listを持つstruct宣言を安価に絞ってから意味解析で確認する。流れるのは文字列ペアだけ。
@@ -85,7 +97,7 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
         IncrementalValueProvider<((ImmutableArray<GameSystemResult>Systems,ImmutableArray<GameSystemOrderResult>SystemOrders,ImmutableArray<SceneEmitModel>SceneDeclarations,ImmutableArray<SceneRuntimeComponentPair>RuntimeComponentPairs)Sources,GenerationGate Gate)>Combined=
             Systems.Collect()
                 .Combine(SystemOrders.Collect())
-                .Combine(SceneDeclarations.Collect())
+                .Combine(AllSceneDeclarations)
                 .Combine(RuntimeComponentPairs.Collect())
                 .Select(static(Data,_)=>(Data.Left.Left.Left,Data.Left.Left.Right,Data.Left.Right,Data.Right))
                 .Combine(Gate);

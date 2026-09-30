@@ -153,6 +153,9 @@ internal static class GameSystemGeneratorTestHelper {
         return Driver.GetRunResult();
     }
 
+    internal static GeneratorDriverRunResult RunGenerator(CSharpCompilation Compilation,IEnumerable<AdditionalText>AdditionalTexts)=>
+        CSharpGeneratorDriver.Create([new GameSystemGenerator().AsSourceGenerator()],AdditionalTexts).RunGenerators(Compilation).GetRunResult();
+
     internal static GeneratorDriverRunResult RunGenerator(params string[]ExtraSources)=>
         RunGenerator(CreateCompilation(ExtraSources));
 
@@ -163,8 +166,14 @@ internal static class GameSystemGeneratorTestHelper {
     internal static Assembly CompileAndLoad(params string[]ExtraSources)=>
         CompileAndLoad(CreateCompilation(ExtraSources));
 
-    internal static Assembly CompileAndLoad(CSharpCompilation Compilation){
-        GeneratorDriver Driver=CSharpGeneratorDriver.Create(new GameSystemGenerator());
+    /// <summary>ADR-0070: the generator also reads <c>*.scene.json</c> additional files.</summary>
+    internal static Assembly CompileAndLoad(CSharpCompilation Compilation,IEnumerable<AdditionalText>AdditionalTexts)=>
+        CompileAndLoad(Compilation,CSharpGeneratorDriver.Create([new GameSystemGenerator().AsSourceGenerator()],AdditionalTexts));
+
+    internal static Assembly CompileAndLoad(CSharpCompilation Compilation)=>
+        CompileAndLoad(Compilation,CSharpGeneratorDriver.Create(new GameSystemGenerator()));
+
+    private static Assembly CompileAndLoad(CSharpCompilation Compilation,GeneratorDriver Driver){
         Driver=Driver.RunGeneratorsAndUpdateCompilation(Compilation,out var OutputCompilation,out var GeneratorDiagnostics);
 
         if(!GeneratorDiagnostics.IsEmpty){
