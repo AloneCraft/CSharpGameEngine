@@ -14,8 +14,8 @@ The steps are ordered so the Scene Designer keeps working at every commit. Repos
 
 | Step | Content | Status |
 |---|---|---|
-| C1 | JSON DOM, reader and span-preserving writer in the shared SceneModel sources; `schemas/cge-scene.schema.json`; the generator reads `*.scene.json` from `AdditionalFiles`; `Game.props`/SDK include them; a C#-scene → JSON converter | In progress |
-| C1b | Per-project JSON Schema from the generator (embedded constant, written to `.cge/scene.schema.json` after build) for editor warnings and completion; build errors SCENE201-205 at JSON positions | Planned |
+| C1 | JSON DOM, reader and span-preserving writer in the shared SceneModel sources; `schemas/cge-scene.schema.json`; the generator reads `*.scene.json` from `AdditionalFiles`; `Game.props`/SDK include them; a C#-scene → JSON converter | Done (d004b06, f38ec04, d9464bd) |
+| C1b | Per-project JSON Schema from the generator (embedded constant, written to `.cge/scene.schema.json` after build) for editor warnings and completion; build errors SCENE201-205 at JSON positions | Done (ee9b235) |
 | C2 | `*.scene.json` editor: in-memory model, command Undo/Redo, dirty state, Save/Save All, reload on external change; Inspector/Hierarchy/gizmo on the model | Planned |
 | C3 | Convert UserEcsProject, the ThirdPerson template, FeatureStages and the UE importer output; remove the C# `IScene` scene path and its guard tests | Planned |
 | B1 | Preview host instantiates the editor world from the in-memory JSON inside the game assembly and renders it with the runtime's Presentation systems | Planned |
