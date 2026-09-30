@@ -200,9 +200,7 @@
     <Project Path="stages/CSharpGameEngine.FeatureStages.ProbabilityQuantum/CSharpGameEngine.FeatureStages.ProbabilityQuantum.csproj" />
     <Project Path="stages/CSharpGameEngine.FeatureStages.Rendering/CSharpGameEngine.FeatureStages.Rendering.csproj" />
     <Project Path="stages/CSharpGameEngine.FeatureStages.Rigid/CSharpGameEngine.FeatureStages.Rigid.csproj" />
-    <Project Path="stages/CSharpGameEngine.FeatureStages.Shared/CSharpGameEngine.FeatureStages.Shared.shproj">
-      <Platform Project="AnyCPU" />
-    </Project>
+    <Project Path="stages/CSharpGameEngine.FeatureStages.Shared/CSharpGameEngine.FeatureStages.Shared.shproj" />
     <File Path="stages/CSharpGameEngine.FeatureStages.Shared/CSharpGameEngine.FeatureStages.Shared.projitems" />
     <Project Path="stages/CSharpGameEngine.FeatureStages.Vsix/CSharpGameEngine.FeatureStages.Vsix.csproj" />
   </Folder>
