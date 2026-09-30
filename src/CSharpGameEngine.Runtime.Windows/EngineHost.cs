@@ -158,9 +158,39 @@ public sealed class EngineHost:IDisposable {
         return this.HasCameraPose;
     }
 
-    internal void Present(){
+    /// <summary>このフレームにPresentation Systemが集めた環境ライティングComponent(ADR-0069)。</summary>
+    internal EnvironmentCollection Environment { get; }=new();
+
+    /// <summary>環境変数で要求された自動検証。未設定ならnull(<see cref="RuntimeAutomation"/>)。</summary>
+    public RuntimeAutomation?Automation { get; }=RuntimeAutomation.FromEnvironment();
+
+    /// <summary>1フレームを表示する。自動検証が規定フレーム数に達したらfalseを返し、ループ終了を要求する。</summary>
+    internal bool Present(){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
-        if(this.Window is { IsMinimized:false }&&this.Renderer is { } Renderer){ Renderer.RenderFrame(); }
+        if(this.Window is { IsMinimized:false }&&this.Renderer is { } Renderer){
+            this.SubmitEnvironment(Renderer);
+            Renderer.RenderFrame(this.Automation?.CapturesNextFrame??false);
+            this.Automation?.RecordPresented(Renderer);
+        }
+        return this.Automation is not { Completed:true };
+    }
+
+    private void SubmitEnvironment(RenderServer Renderer){
+        var Collected=this.Environment;
+        var Settings=Collected.Build();
+        if(!Settings.IsValid){
+            Collected.InvalidReason="EnvironmentLightingSettings";
+            Settings=EnvironmentLightingSettings.Legacy;
+        }
+        Renderer.SetEnvironmentLighting(Settings);
+        if(this.HasCameraPose&&this.CameraFrameLocalOrigin.M42.TryToSingle(out var Altitude)){
+            Renderer.SetCameraAltitude(Altitude);
+        }
+        if(Settings.SkyLight is not null&&!Collected.AmbientSubmitted){
+            // The flat ambient term is a stand-in for sky light; a captured sky light replaces it.
+            Renderer.SetAmbientLight(Vector3.Zero);
+        }
+        Collected.Reset();
     }
 
     internal void BeginAudioFrame(){

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    UE5.8 ThirdPersonテンプレートの移植(ADR-0068)。このプロジェクトがVS新規プロジェクトテンプレートの原本であり、
+    リポジトリ内ではSourceModeでビルド・検証する。名前空間CgeThirdPersonはテンプレート作成時にWizardが置換する。
+  -->
+  <Import Project="..\..\build\CSharpGameEngine.Game.props" />
+
+  <PropertyGroup>
+    <RootNamespace>CgeThirdPerson</RootNamespace>
+    <AssemblyName>CgeThirdPerson</AssemblyName>
+  </PropertyGroup>
+</Project>

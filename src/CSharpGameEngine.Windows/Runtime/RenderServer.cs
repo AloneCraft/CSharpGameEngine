@@ -169,6 +169,16 @@ public sealed class RenderServer:IDisposable {
         this.Backend.SetFog(Fog);
         this.PendingFrame.RecordFog(Fog);
     }
+    /// <summary>Scene environment (ADR-0069): physical sky, sky light, physical fog, exposure and tone mapper.</summary>
+    public void SetEnvironmentLighting(in EnvironmentLightingSettings Settings){
+        this.Backend.SetEnvironmentLighting(Settings);
+        this.PendingFrame.RecordEnvironment(Settings);
+    }
+    /// <summary>Absolute camera height above the world origin in metres for the atmosphere and height fog.</summary>
+    public void SetCameraAltitude(float Meters){
+        this.Backend.SetCameraAltitude(Meters);
+        this.PendingFrame.RecordCameraAltitude(Meters);
+    }
 
     public void AddPointLight(in PointLightSubmission Value){
         Value.Validate();

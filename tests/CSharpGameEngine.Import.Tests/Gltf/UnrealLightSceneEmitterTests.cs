@@ -33,6 +33,21 @@ public sealed class UnrealLightSceneEmitterTests {
     }
 
     [Fact]
+    public void AppendDirectionalLightComponentsFromTravelDirection_PointsTransformForwardAlongTravel(){
+        // UE5.8 Lvl_ThirdPerson's sun travels down into the level (engine axes); the importer passes
+        // ImportedLightDirection.WorldForward, which is this travel direction.
+        Vector3 Travel=Vector3.Normalize(new Vector3(0.4716f,-0.8727f,0.1262f));
+        var Builder=new StringBuilder();
+        UnrealLightSceneEmitter.AppendDirectionalLightComponentsFromTravelDirection(Builder,Travel,Vector3.One,3f,"");
+        var Match=System.Text.RegularExpressions.Regex.Match(Builder.ToString(),@"Rotation=new LogicalQuaternion\(new LogicalVector3\(([^,]+),([^,]+),([^)]+)\)\)");
+        Assert.True(Match.Success,Builder.ToString());
+        float Parse(int Index)=>float.Parse(Match.Groups[Index].Value.TrimEnd('f'),System.Globalization.CultureInfo.InvariantCulture);
+        Vector3 Forward=Vector3.Transform(Vector3.UnitZ,Quaternion.CreateFromYawPitchRoll(Parse(2),Parse(1),Parse(3)));
+        Assert.InRange(Vector3.Distance(Travel,Forward),0f,0.0001f);
+        Assert.True(Forward.Y<0f,"A sun above the horizon must travel downward.");
+    }
+
+    [Fact]
     public void CreateEulerRotationForLightTravelDirection_RejectsZeroDirection(){
         Assert.Throws<ArgumentOutOfRangeException>(()=>
             UnrealLightSceneEmitter.CreateEulerRotationForLightTravelDirection(Vector3.Zero));

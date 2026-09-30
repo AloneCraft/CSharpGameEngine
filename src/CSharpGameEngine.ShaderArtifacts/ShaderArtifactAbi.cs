@@ -39,12 +39,14 @@ public static class ShaderArtifactAbi {
     public static string GetHash(ShaderArtifactTargetKind Target) {
         var Contract=Target switch {
             ShaderArtifactTargetKind.Stage=>
-                "stage-v3:b0-frame,b1-object,t0-base,t1-normal,t2-metalrough,t3-emissive,t4-shadow,t5-lights,t6-tiles,t7-spot,t8-point,t9-area-meta,t10-area-projection,s0-linear,s1-shadow:"
+                "stage-v4:b0-frame,b1-object,t0-base,t1-normal,t2-metalrough,t3-emissive,t4-shadow,t5-lights,t6-tiles,t7-spot,t8-point,t9-area-meta,t10-area-projection,t11-sky-irradiance-sh,s0-linear,s1-shadow,post-b0-params:"
                 +"VSMain,PSMain,VSShadowMain,FullscreenVS,PostProcessPS,PreviewPSMain,PreviewCleanPSMain,OverlayVSMain,OverlayPSMain:"
                 +ComputeHash(StagePresentationShaderSource.Source),
             ShaderArtifactTargetKind.Model=>"model-v1:b0-transform,t0-base,s0-base:VSMain,PSMain",
             ShaderArtifactTargetKind.Triangle=>"triangle-v1:no-resources:VSMain,PSMain",
-            ShaderArtifactTargetKind.Compute=>"compute-v1:t0-structured-float,u0-rw-structured-float:CSMain",
+            // Compute artifacts share one entry contract; every host that dispatches one owns and documents
+            // its root signature next to the HLSL (for example Atmosphere.hlsl and StageAtmosphere).
+            ShaderArtifactTargetKind.Compute=>"compute-v2:CSMain:host-owned-root-signature",
             _=>throw new ArgumentOutOfRangeException(nameof(Target)),
         };
         using(var Hash=SHA256.Create()) {

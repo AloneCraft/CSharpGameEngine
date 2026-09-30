@@ -639,7 +639,7 @@ internal partial class FirstPersonStageScene : IScene {
                 Components=[
                     new Transform {
                         Position=new LogicalVector3(0f,0f,0f),
-                        Rotation=new LogicalQuaternion(new LogicalVector3(-0.864236759f,-1.75071599f,1.00973235f)),
+                        Rotation=new LogicalQuaternion(new LogicalVector3(0.864236759f,1.39087666f,1.00973235f)),
                         Scale=new LogicalVector3(1f,1f,1f),
                     },
                     new DirectionalLight {

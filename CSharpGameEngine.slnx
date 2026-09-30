@@ -137,6 +137,7 @@
     <File Path="Directory.Build.targets" />
     <File Path="build/CSharpGameEngine.ShaderGraph.targets" />
     <File Path="build/CSharpGameEngine.Showcase.targets" />
+    <File Path="build/CSharpGameEngine.Game.props" />
     <File Path="global.json" />
     <File Path="README.md" />
   </Folder>
@@ -229,6 +230,9 @@
     <Project Path="tests/CSharpGameEngine.ShaderGraph.Cli.Tests/CSharpGameEngine.ShaderGraph.Cli.Tests.csproj">
       <Platform Project="x64" />
     </Project>
+  </Folder>
+  <Folder Name="/templates/">
+    <Project Path="templates/CSharpGameEngine.Templates.ThirdPerson/CSharpGameEngine.Templates.ThirdPerson.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <File Path="tools/UnrealExport/export_lvl_firstperson.py" />

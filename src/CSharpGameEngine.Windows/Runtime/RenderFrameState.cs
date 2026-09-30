@@ -29,6 +29,10 @@ internal sealed class RenderFrameState {
     private float CameraAspectRatioOverride;
     private Vector3 AmbientLight;
     private FogParams Fog;
+    private EnvironmentLightingSettings Environment;
+    private float CameraAltitude;
+    private bool HasEnvironment;
+    private bool HasCameraAltitude;
     private RenderPresentationMode PresentationMode;
     private bool HasCamera;
     private bool HasViewProjection;
@@ -54,6 +58,7 @@ internal sealed class RenderFrameState {
 
     public bool IsEmpty=>
         !this.HasCamera&&!this.HasViewProjection&&!this.HasAmbientLight&&!this.HasFog
+        &&!this.HasEnvironment&&!this.HasCameraAltitude
         &&!this.HasPresentationMode
         &&!this.HasOverlay
         &&!this.HasCameraPreviews
@@ -91,6 +96,16 @@ internal sealed class RenderFrameState {
     public void RecordFog(FogParams Fog){
         this.Fog=Fog;
         this.HasFog=true;
+    }
+
+    public void RecordEnvironment(in EnvironmentLightingSettings Settings){
+        this.Environment=Settings;
+        this.HasEnvironment=true;
+    }
+
+    public void RecordCameraAltitude(float Meters){
+        this.CameraAltitude=Meters;
+        this.HasCameraAltitude=true;
     }
 
     public void RecordPoint(in PointLightSubmission Value){
@@ -172,6 +187,8 @@ internal sealed class RenderFrameState {
         }
         if(this.HasAmbientLight){ Renderer.SetAmbientLight(this.AmbientLight); }
         if(this.HasFog){ Renderer.SetFog(this.Fog); }
+        if(this.HasEnvironment){ Renderer.SetEnvironmentLighting(this.Environment); }
+        if(this.HasCameraAltitude){ Renderer.SetCameraAltitude(this.CameraAltitude); }
         foreach(var Command in this.LightOrder){
             switch(Command.Kind){
                 case LightCommandKind.SetDirectional:Renderer.SetLight(this.DirectionalLights[Command.Index]);break;
@@ -209,6 +226,8 @@ internal sealed class RenderFrameState {
         this.HasViewProjection=false;
         this.HasAmbientLight=false;
         this.HasFog=false;
+        this.HasEnvironment=false;
+        this.HasCameraAltitude=false;
         this.HasPresentationMode=false;
         this.HasOverlay=false;
         this.HasCameraPreviews=false;

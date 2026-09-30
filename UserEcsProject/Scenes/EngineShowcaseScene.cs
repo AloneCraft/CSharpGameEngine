@@ -62,8 +62,10 @@ internal partial class EngineShowcaseScene:IScene {
             new Node {
                 Name="Sun",
                 Components=[
-                    new Transform { Rotation=new LogicalQuaternion(new LogicalVector3(-0.75f,-0.6f,0)) },
-                    new DirectionalLight { Illuminance=new Illuminance(65_000f) },
+                    new Transform { Rotation=new LogicalQuaternion(new LogicalVector3(0.75f,2.5415926f,0)) },
+                    // Balanced with the showcase's EV100 0.5 camera and ~10 lux local lights; the former
+                    // 65,000 lux only looked usable while the sun pointed into the sky (ADR-0069).
+                    new DirectionalLight { Illuminance=new Illuminance(6f) },
                     new LightShadow { Priority=100 },
                 ],
             },

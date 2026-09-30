@@ -341,6 +341,28 @@ internal struct AmbientLightSync:ISystem {
     public bool Update(ref AmbientLight Light,EngineHost Host,ref State State){
         Host.Renderer?.SetAmbientLight(
             new Vector3(Light.ColorR,Light.ColorG,Light.ColorB)*Light.Intensity);
+        Host.Environment.AmbientSubmitted=true;
+        return true;
+    }
+}
+
+/// <summary>Collects the environment Components (ADR-0069); EngineHost submits them once before rendering.</summary>
+[SystemPhase(SystemPhase.Presentation)]
+internal struct EnvironmentCollect:ISystem {
+    public bool Update(ref SkyAtmosphere Value,EngineHost Host,ref State State){
+        Host.Environment.Atmosphere=Value;
+        return true;
+    }
+    public bool Update(ref SkyLight Value,EngineHost Host,ref State State){
+        Host.Environment.SkyLight=Value;
+        return true;
+    }
+    public bool Update(ref PostProcessVolume Value,EngineHost Host,ref State State){
+        Host.Environment.PostProcess=Value;
+        return true;
+    }
+    public bool Update(ref ExponentialHeightFog Value,EngineHost Host,ref State State){
+        Host.Environment.Fog=Value;
         return true;
     }
 }
@@ -561,7 +583,7 @@ internal struct AudioSourceSync:ISystem {
 [SystemOrder(30_000)]
 internal struct Present:ISystem {
     public bool Update(ref LevelRuntime Runtime,EngineHost Host,ref State State){
-        if(State.Enabled){ Host.Present(); }
+        if(State.Enabled&&!Host.Present()){ State.Enabled=false; }
         return true;
     }
 }

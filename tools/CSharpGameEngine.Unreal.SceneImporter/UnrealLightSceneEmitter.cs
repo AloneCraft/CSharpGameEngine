@@ -59,6 +59,16 @@ public static class UnrealLightSceneEmitter {
         Builder.Append(Indent).AppendLine("new global::CSharpGameEngine.Runtime.Lighting.LightShadow { Priority=100,Bias=new global::CSharpGameEngine.Lighting.ShadowBias(0.005f) },");
     }
 
+    /// <summary>
+    /// Appends a directional light from its source node's world forward, which is the direction
+    /// light travels (<c>ImportedLightDirection.WorldForward</c>). Importers must use this overload:
+    /// passing the travel direction to <see cref="AppendDirectionalLightComponents"/> as a
+    /// surface-to-light vector points the sun into the sky.
+    /// </summary>
+    public static void AppendDirectionalLightComponentsFromTravelDirection(
+        StringBuilder Builder,Vector3 TravelDirection,Vector3 LinearRgb,float IlluminanceLux,string Indent)=>
+        AppendDirectionalLightComponents(Builder,-TravelDirection,LinearRgb,IlluminanceLux,Indent);
+
     private static Vector3 ToEulerRuf(Quaternion Rotation){
         Rotation=Quaternion.Normalize(Rotation);
         float Pitch=MathF.Asin(Math.Clamp(2f*(Rotation.W*Rotation.X-Rotation.Y*Rotation.Z),-1f,1f));

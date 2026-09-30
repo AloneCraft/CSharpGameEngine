@@ -1,0 +1,62 @@
+<Project>
+  <!--
+    C# Game Engineのゲームプロジェクト取り込み規約(ADR-0065)。
+    ゲームプロジェクトはこのファイルを1つImportするだけで、生成World/ループ/Mainに必要な共有ソース、
+    Runtime Library、Analyzer、既定Stageシェーダーを得る。
+    SourceMode: CgeEngineRootがエンジンのソースツリーを指す(このリポジトリ内のUserEcsProject/テンプレート原本)。
+    PackageMode: CSharpGameEngine.Sdkパッケージが同じ規約をパッケージ内パスで提供する(ADR-0065 Phase 5)。
+  -->
+  <PropertyGroup>
+    <CgeGameProject>true</CgeGameProject>
+    <CgeEngineMode Condition="'$(CgeEngineMode)' == ''">Source</CgeEngineMode>
+    <CgeEngineRoot Condition="'$(CgeEngineRoot)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..'))\</CgeEngineRoot>
+    <CgeEngineSourceRoot Condition="'$(CgeEngineSourceRoot)' == ''">$(CgeEngineRoot)src\</CgeEngineSourceRoot>
+    <CgeEngineShaderRoot Condition="'$(CgeEngineShaderRoot)' == ''">$(CgeEngineRoot)assets\Shaders\</CgeEngineShaderRoot>
+    <!-- Microsoft.NET.Sdk.propsがOutputType=Library/Platforms=AnyCPUを先に既定するため、条件なしで設定する。 -->
+    <OutputType>Exe</OutputType>
+    <TargetFramework Condition="'$(TargetFramework)' == ''">net10.0-windows10.0.19041.0</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Platforms>AnyCPU;x64</Platforms>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
+    <SelfContained Condition="'$(SelfContained)' == ''">false</SelfContained>
+    <IsPackable>false</IsPackable>
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <CompilerGeneratedFilesOutputPath Condition="'$(CompilerGeneratedFilesOutputPath)' == ''">$(BaseIntermediateOutputPath)Generated</CompilerGeneratedFilesOutputPath>
+    <CgeIncludeDefaultStageShaders Condition="'$(CgeIncludeDefaultStageShaders)' == ''">true</CgeIncludeDefaultStageShaders>
+    <CgeCopyAssets Condition="'$(CgeCopyAssets)' == ''">true</CgeCopyAssets>
+  </PropertyGroup>
+
+  <Import Project="$(CgeEngineSourceRoot)CSharpGameEngine.Runtime.Simulation\CSharpGameEngine.Runtime.Simulation.projitems" Label="Shared" />
+  <Import Project="$(CgeEngineSourceRoot)CSharpGameEngine.Runtime.Physics\CSharpGameEngine.Runtime.Physics.projitems" Label="Shared" />
+  <Import Project="$(CgeEngineSourceRoot)CSharpGameEngine.Runtime.Windows\CSharpGameEngine.Runtime.Windows.projitems" Label="Shared" />
+
+  <ItemGroup>
+    <!-- World/Stateはpartial structで、GameSystemGeneratorが同じコンパイル内で完成させる(ADR-0033)。 -->
+    <Compile Include="$(CgeEngineSourceRoot)CSharpGameEngine.Entities\*.cs" Link="Entities\%(Filename)%(Extension)" />
+    <Compile Remove="$(CgeEngineSourceRoot)CSharpGameEngine.Entities\SceneComponentIconAttribute.cs" />
+    <Compile Remove="$(CgeEngineSourceRoot)CSharpGameEngine.Entities\SceneComponentOrderAttribute.cs" />
+    <Compile Remove="Generated\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(CgeEngineMode)' == 'Source'">
+    <ProjectReference Include="$(CgeEngineSourceRoot)CSharpGameEngine.Contracts\CSharpGameEngine.Contracts.csproj" />
+    <ProjectReference Include="$(CgeEngineSourceRoot)CSharpGameEngine.Windows\CSharpGameEngine.Windows.csproj" />
+    <ProjectReference Include="$(CgeEngineSourceRoot)CSharpGameEngine.Import\CSharpGameEngine.Import.csproj" />
+    <ProjectReference Include="$(CgeEngineSourceRoot)CSharpGameEngine.Core\CSharpGameEngine.Core.csproj" />
+    <ProjectReference Include="$(CgeEngineSourceRoot)CSharpGameEngine.Numerics\CSharpGameEngine.Numerics.csproj" />
+    <ProjectReference Include="$(CgeEngineSourceRoot)CSharpGameEngine.World\CSharpGameEngine.World.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(CgeIncludeDefaultStageShaders)' == 'true'">
+    <CgeShaderGraph Include="$(CgeEngineShaderRoot)Stage.cgeshadergraph" />
+    <CgeShaderSubgraph Include="$(CgeEngineShaderRoot)Pbr.cgesubgraph" />
+    <CgeShaderSubgraph Include="$(CgeEngineShaderRoot)Shadow.cgesubgraph" />
+    <CgeShaderSubgraph Include="$(CgeEngineShaderRoot)Pcss.cgesubgraph" />
+    <CgeShaderSubgraph Include="$(CgeEngineShaderRoot)Aces.cgesubgraph" />
+    <CgeComputeShader Include="$(CgeEngineShaderRoot)Atmosphere.hlsl" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(CgeCopyAssets)' == 'true'">
+    <None Include="Assets\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

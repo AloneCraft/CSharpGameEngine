@@ -131,7 +131,10 @@ public sealed unsafe class StageRenderer:IDisposable {
     private const uint FrameForwardPlusGridOffset=FrameLightCountsOffset+16; // uint4: tile count X/Y, tile edge, tile cap
     private const uint FrameShadowViewProjectionOffset=FrameForwardPlusGridOffset+16;
     private const uint FrameDirectionalShadowAtlasUvScaleOffset=FrameShadowViewProjectionOffset+64;
-    private const uint FrameConstantsSize=FrameDirectionalShadowAtlasUvScaleOffset+16;
+    private const uint FrameSkyLightParamsOffset=FrameDirectionalShadowAtlasUvScaleOffset+16; // float4: x=sky light, y=physical fog, z=camera altitude m
+    private const uint FramePhysicalFogParamsOffset=FrameSkyLightParamsOffset+16; // float4: x=ray origin terms, y=falloff per metre, z=minimum transmittance, w=sky contribution
+    private const uint FramePhysicalFogColorOffset=FramePhysicalFogParamsOffset+16; // float4: rgb inscattering luminance
+    private const uint FrameConstantsSize=FramePhysicalFogColorOffset+16;
 
     /// <summary>
     /// FrameConstantsBuffer専用のフレームスロット幅。FrameConstantsSize以上、かつD3D12のroot CBV
@@ -300,6 +303,14 @@ public sealed unsafe class StageRenderer:IDisposable {
     private ID3D12RootSignature*ShadowRootSignature;
     private ID3D12PipelineState*ShadowPipelineState;
     private ID3D12RootSignature*PostProcessRootSignature;
+    private StageAtmosphere?Atmosphere;
+    private EnvironmentLightingSettings EnvironmentSettings=EnvironmentLightingSettings.Legacy;
+    private AtmosphereFrame CurrentAtmosphereFrame;
+    private float CameraAltitudeMeters;
+    private float CurrentCameraEv100;
+    private Matrix4x4 CurrentViewProjection=Matrix4x4.Identity;
+    private Vector3 AtmosphereSunDirection=Vector3.UnitY;
+    private Vector3 AtmosphereSunIlluminance;
     private ID3D12PipelineState*PostProcessPipelineState;
     private byte[]ShadowVertexShaderBytecode=[];
     private byte[]FullscreenVertexShaderBytecode=[];
@@ -463,6 +474,12 @@ public sealed unsafe class StageRenderer:IDisposable {
     internal ShaderArtifactPackage LastKnownGoodShaderArtifact=>
         this.LastKnownGoodShaderPackage
         ??throw new InvalidOperationException("The renderer has no validated shader artifact.");
+
+    internal AtmosphereReadback ReadAtmosphereForTesting(){
+        this.ThrowIfDisposed();
+        this.WaitForGpuIdle();
+        return this.Atmosphere!.ReadbackForTesting();
+    }
 
     internal void RemoveDeviceForTesting(){
         this.ThrowIfDisposed();
@@ -637,6 +654,7 @@ public sealed unsafe class StageRenderer:IDisposable {
         this.FenceValues[this.FrameIndex]=1;
 
         this.ShaderArtifactPath=Path.GetFullPath(ShaderArtifactPath);
+        this.Atmosphere=new StageAtmosphere(this.Device,this.ShaderArtifactPath,FrameCount);
         if(ValidatedShaderPackage is null){
             this.LoadShaderArtifact(this.ShaderArtifactPath);
         } else {
@@ -733,7 +751,8 @@ public sealed unsafe class StageRenderer:IDisposable {
     }
 
     private void CreateDepthBuffer(int Width,int Height){
-        D3D12_RESOURCE_DESC ResourceDesc=D3D12_RESOURCE_DESC.Tex2D(DepthBufferFormat,(uint)Width,(uint)Height,mipLevels:1);
+        // Typeless so the sky composite can read depth as R32_FLOAT while the DSV stays D32_FLOAT.
+        D3D12_RESOURCE_DESC ResourceDesc=D3D12_RESOURCE_DESC.Tex2D(DXGI_FORMAT_R32_TYPELESS,(uint)Width,(uint)Height,mipLevels:1);
         ResourceDesc.Flags|=D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
         D3D12_HEAP_PROPERTIES HeapProps=new(D3D12_HEAP_TYPE_DEFAULT);
@@ -754,7 +773,7 @@ public sealed unsafe class StageRenderer:IDisposable {
 
     private void CreateHdrColorBuffer(int Width,int Height){
         D3D12_RESOURCE_DESC ResourceDesc=D3D12_RESOURCE_DESC.Tex2D(HdrColorFormat,(uint)Width,(uint)Height,mipLevels:1);
-        ResourceDesc.Flags|=D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+        ResourceDesc.Flags|=D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET|D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
         D3D12_HEAP_PROPERTIES HeapProps=new(D3D12_HEAP_TYPE_DEFAULT);
         D3D12_CLEAR_VALUE ClearValue=new(HdrColorFormat,0f,0);
         ID3D12Resource*Resource;
@@ -976,7 +995,13 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         };
         AreaShadowProjectionsParam.Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=10,RegisterSpace=0 };
 
-        D3D12_ROOT_PARAMETER*RootParams=stackalloc D3D12_ROOT_PARAMETER[9];
+        D3D12_ROOT_PARAMETER SkyIrradianceParam=new(){
+            ParameterType=D3D12_ROOT_PARAMETER_TYPE_SRV,
+            ShaderVisibility=D3D12_SHADER_VISIBILITY_PIXEL,
+        };
+        SkyIrradianceParam.Descriptor=new D3D12_ROOT_DESCRIPTOR { ShaderRegister=11,RegisterSpace=0 };
+
+        D3D12_ROOT_PARAMETER*RootParams=stackalloc D3D12_ROOT_PARAMETER[10];
         RootParams[0]=FrameParam;
         RootParams[1]=ObjectParam;
         RootParams[2]=TextureParam;
@@ -987,12 +1012,13 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         RootParams[6]=PointShadowProjectionsParam;
         RootParams[7]=AreaShadowMetadataParam;
         RootParams[8]=AreaShadowProjectionsParam;
+        RootParams[9]=SkyIrradianceParam;
         D3D12_STATIC_SAMPLER_DESC*StaticSamplers=stackalloc D3D12_STATIC_SAMPLER_DESC[2];
         StaticSamplers[0]=StaticSampler;
         StaticSamplers[1]=ShadowSampler;
 
         D3D12_ROOT_SIGNATURE_DESC RootSignatureDesc=new(){
-            NumParameters=9,
+            NumParameters=10,
             pParameters=RootParams,
             NumStaticSamplers=2,
             pStaticSamplers=StaticSamplers,
@@ -1071,10 +1097,17 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             ShaderVisibility=D3D12_SHADER_VISIBILITY_PIXEL,
         };
 
-        D3D12_ROOT_PARAMETER*RootParams=stackalloc D3D12_ROOT_PARAMETER[1];
+        D3D12_ROOT_PARAMETER PostProcessParams=new(){
+            ParameterType=D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS,
+            ShaderVisibility=D3D12_SHADER_VISIBILITY_PIXEL,
+        };
+        PostProcessParams.Constants=new D3D12_ROOT_CONSTANTS { ShaderRegister=0,RegisterSpace=0,Num32BitValues=4 };
+
+        D3D12_ROOT_PARAMETER*RootParams=stackalloc D3D12_ROOT_PARAMETER[2];
         RootParams[0]=SceneParam;
+        RootParams[1]=PostProcessParams;
         D3D12_ROOT_SIGNATURE_DESC RootSignatureDesc=new(){
-            NumParameters=1,
+            NumParameters=2,
             pParameters=RootParams,
             NumStaticSamplers=1,
             pStaticSamplers=&Sampler,
@@ -1840,8 +1873,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.DirectionalShadowIndex=-1;
             this.SelectedDirectionalShadowAtlasCandidate=null;
             this.DirectionalShadowCandidates.Clear();
+            this.RecordAtmosphereSun(Submission.DirectionTowardLight,Submission.ColorTimesIntensity);
             this.WriteDirectionalLight(
-                FrameIndex,0,Submission.DirectionTowardLight,Submission.ColorTimesIntensity,
+                FrameIndex,0,Submission.DirectionTowardLight,
+                this.AttenuateForAtmosphere(Submission.DirectionTowardLight,Submission.ColorTimesIntensity),
                 Submission.ShadowBiasMeters);
             if(Submission.CastsShadows){
                 var Candidate=new PhysicalLightCandidate(
@@ -1879,10 +1914,14 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.DirectionalShadowIndex=-1;
         this.SelectedDirectionalShadowAtlasCandidate=null;
         this.DirectionalShadowCandidates.Clear();
+        if(this.DirectionalLightCount>0){
+            this.RecordAtmosphereSun(Ranked[0].Submission.DirectionTowardLight,Ranked[0].Submission.ColorTimesIntensity);
+        }
         for(int Index=0;Index<this.DirectionalLightCount;Index++){
             DirectionalLightSubmission Submission=Ranked[Index].Submission;
             this.WriteDirectionalLight(
-                FrameIndex,Index,Submission.DirectionTowardLight,Submission.ColorTimesIntensity,
+                FrameIndex,Index,Submission.DirectionTowardLight,
+                this.AttenuateForAtmosphere(Submission.DirectionTowardLight,Submission.ColorTimesIntensity),
                 Submission.ShadowBiasMeters);
             this.DirectionalShadowCandidates.Add(new PhysicalLightCandidate(
                 Submission.StableSubmissionOrder,PhysicalLightKind.Directional,
@@ -1913,6 +1952,79 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             return float.MaxValue;
         }
         return MathF.Max(0f,Contribution);
+    }
+
+    /// <summary>
+    /// Replaces the persistent scene environment (ADR-0069): physical sky, sky light, physical fog,
+    /// exposure model and tone mapper. <see cref="EnvironmentLightingSettings.Legacy"/> restores the
+    /// original clear-colour, flat-ambient, legacy-fog and linear ACES output path.
+    /// </summary>
+    public void SetEnvironmentLighting(in EnvironmentLightingSettings Settings){
+        this.ThrowIfDisposed();
+        if(!Settings.IsValid){
+            throw new ArgumentException("Environment lighting settings must be finite and physically valid.",nameof(Settings));
+        }
+        this.EnvironmentSettings=Settings;
+        this.WriteExposure(this.FrameIndex,this.CurrentCameraEv100);
+    }
+
+    /// <summary>Absolute camera height above the world origin in metres, used by the atmosphere and height fog.</summary>
+    public void SetCameraAltitude(float Meters){
+        this.ThrowIfDisposed();
+        if(!float.IsFinite(Meters)){
+            throw new ArgumentOutOfRangeException(nameof(Meters),"The camera altitude must be finite.");
+        }
+        this.CameraAltitudeMeters=Meters;
+    }
+
+    private Vector3 AttenuateForAtmosphere(Vector3 DirectionTowardLight,Vector3 ColorTimesIntensity)=>
+        this.EnvironmentSettings.Atmosphere is SkyAtmosphereSettings Atmosphere
+            ?ColorTimesIntensity*AtmosphereTransmittance.Evaluate(Atmosphere,this.CameraAltitudeMeters,DirectionTowardLight)
+            :ColorTimesIntensity;
+
+    private void RecordAtmosphereSun(Vector3 DirectionTowardLight,Vector3 ColorTimesIntensity){
+        this.AtmosphereSunDirection=Vector3.Normalize(DirectionTowardLight);
+        this.AtmosphereSunIlluminance=ColorTimesIntensity;
+    }
+
+    private void PrepareEnvironment(uint FrameIndex){
+        var Settings=this.EnvironmentSettings;
+        var SkyLightEnabled=0f;
+        if(Settings.Atmosphere is SkyAtmosphereSettings Atmosphere){
+            if(!Matrix4x4.Invert(this.CurrentViewProjection,out var Inverse)){
+                Inverse=Matrix4x4.Identity;
+            }
+            this.CurrentAtmosphereFrame=new AtmosphereFrame(
+                Atmosphere,Settings.SkyLight??new SkyLightSettings(0f,Vector3.Zero),Settings.Fog,
+                this.AtmosphereSunDirection,this.AtmosphereSunIlluminance,Settings.SunAngularRadiusRadians,
+                this.CameraAltitudeMeters,Settings.Exposure.Scale(this.CurrentCameraEv100),Inverse);
+            this.Atmosphere!.Update(this.CommandList,FrameIndex,this.CurrentAtmosphereFrame);
+            SkyLightEnabled=Settings.SkyLight is null?0f:1f;
+        }
+        Vector4 SkyLightParams=new(SkyLightEnabled,Settings.Fog is null?0f:1f,this.CameraAltitudeMeters,0f);
+        Vector4 FogParams=Settings.Fog is PhysicalHeightFogSettings Fog
+            ?new(Fog.RayOriginTerms(this.CameraAltitudeMeters),Fog.HeightFalloffPerMeter,1f-Fog.MaxOpacity,Fog.SkyAtmosphereContributionScale)
+            :Vector4.Zero;
+        Vector4 FogColor=Settings.Fog is PhysicalHeightFogSettings ColoredFog?new(ColoredFog.InscatteringLuminance,0f):Vector4.Zero;
+        var Slot=this.FrameSlot(FrameIndex);
+        Unsafe.CopyBlock(Slot+FrameSkyLightParamsOffset,&SkyLightParams,(uint)sizeof(Vector4));
+        Unsafe.CopyBlock(Slot+FramePhysicalFogParamsOffset,&FogParams,(uint)sizeof(Vector4));
+        Unsafe.CopyBlock(Slot+FramePhysicalFogColorOffset,&FogColor,(uint)sizeof(Vector4));
+    }
+
+    private void BindMainPassState(ID3D12PipelineState*ActivePipelineState){
+        this.CommandList->SetGraphicsRootSignature(this.RootSignature);
+        this.CommandList->SetPipelineState(ActivePipelineState);
+        ID3D12DescriptorHeap*SrvHeap=this.SrvHeap;
+        this.CommandList->SetDescriptorHeaps(1,&SrvHeap);
+        this.CommandList->SetGraphicsRootConstantBufferView(0, this.GetFrameConstantsAddress(this.FrameIndex));
+        this.CommandList->SetGraphicsRootShaderResourceView(3,this.GetLocalLightsAddress(this.FrameIndex));
+        this.CommandList->SetGraphicsRootShaderResourceView(4,this.GetForwardPlusTileListAddress(this.FrameIndex));
+        this.CommandList->SetGraphicsRootShaderResourceView(5,this.GetSpotShadowProjectionAddress(this.FrameIndex));
+        this.CommandList->SetGraphicsRootShaderResourceView(6,this.GetPointShadowProjectionAddress(this.FrameIndex));
+        this.CommandList->SetGraphicsRootShaderResourceView(7,this.GetAreaShadowMetadataAddress(this.FrameIndex));
+        this.CommandList->SetGraphicsRootShaderResourceView(8,this.GetAreaShadowProjectionAddress(this.FrameIndex));
+        this.CommandList->SetGraphicsRootShaderResourceView(9,this.Atmosphere!.ShBufferAddress);
     }
 
     /// <summary>Sets the flat ambient term (a stand-in for sky/indirect lighting) for the frame currently being built.</summary>
@@ -2258,6 +2370,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     private void WriteViewProjection(uint FrameIndex,Matrix4x4 ViewProjection){
+        this.CurrentViewProjection=ViewProjection;
         this.FrameViewProjections[FrameIndex]=ViewProjection;
         Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameViewProjectionOffset,&ViewProjection,(uint)sizeof(Matrix4x4));
     }
@@ -2294,14 +2407,19 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         if(!float.IsFinite(ExposureEv100)){
             throw new ArgumentOutOfRangeException(nameof(ExposureEv100),"Camera exposure must be finite.");
         }
-        // EV100 is one stop per integer: +1 halves the HDR signal before ACES.
-        Vector4 Packed=new(PhysicalLightUnits.Ev100ToExposureScale(ExposureEv100),ExposureEv100,0f,0f);
+        // Legacy: EV100 is one stop per integer (+1 halves the HDR signal). PhysicalCamera mode
+        // replaces the camera EV with the environment's exposure settings (ADR-0069).
+        this.CurrentCameraEv100=ExposureEv100;
+        Vector4 Packed=new(this.EnvironmentSettings.Exposure.Scale(ExposureEv100),ExposureEv100,0f,0f);
         Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameExposureOffset,&Packed,(uint)sizeof(Vector4));
     }
 
     private static Matrix4x4 BuildShadowViewProjection(Vector3 DirectionTowardLight){
         Vector3 Direction=Vector3.Normalize(DirectionTowardLight);
-        Matrix4x4 View=Matrix4x4.CreateLookAt(-(Direction*35f),Vector3.Zero,Vector3.UnitY);
+        // The shadow camera sits on the light's side of the scene and looks along the light's
+        // travel direction; nearest depth is then the occluder, not the underside of the receiver.
+        Vector3 Up=MathF.Abs(Direction.Y)>0.99f?Vector3.UnitZ:Vector3.UnitY;
+        Matrix4x4 View=Matrix4x4.CreateLookAt(Direction*35f,Vector3.Zero,Up);
         return View*Matrix4x4.CreateOrthographic(40f,40f,0.1f,80f);
     }
 
@@ -3219,6 +3337,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.PrepareLocalShadowAtlasProjections(this.FrameIndex);
         this.RenderShadowAtlasProjections();
         this.PrepareCameraPreviewConstants(this.FrameIndex);
+        this.PrepareEnvironment(this.FrameIndex);
 
         ID3D12Resource*BackBuffer= this.BackBuffers[this.FrameIndex];
 
@@ -3233,18 +3352,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CommandList->ClearRenderTargetView(HdrRtvHandle,(float*)&ClearColor,0,null);
         this.CommandList->ClearDepthStencilView(DsvHandle,D3D12_CLEAR_FLAGS.D3D12_CLEAR_FLAG_DEPTH,1.0f,0,0,null);
 
-        this.CommandList->SetGraphicsRootSignature(this.RootSignature);
-        this.CommandList->SetPipelineState(ActivePipelineState);
-
-        ID3D12DescriptorHeap*SrvHeap=this.SrvHeap;
-        this.CommandList->SetDescriptorHeaps(1,&SrvHeap);
-        this.CommandList->SetGraphicsRootConstantBufferView(0, this.GetFrameConstantsAddress(this.FrameIndex));
-        this.CommandList->SetGraphicsRootShaderResourceView(3,this.GetLocalLightsAddress(this.FrameIndex));
-        this.CommandList->SetGraphicsRootShaderResourceView(4,this.GetForwardPlusTileListAddress(this.FrameIndex));
-        this.CommandList->SetGraphicsRootShaderResourceView(5,this.GetSpotShadowProjectionAddress(this.FrameIndex));
-        this.CommandList->SetGraphicsRootShaderResourceView(6,this.GetPointShadowProjectionAddress(this.FrameIndex));
-        this.CommandList->SetGraphicsRootShaderResourceView(7,this.GetAreaShadowMetadataAddress(this.FrameIndex));
-        this.CommandList->SetGraphicsRootShaderResourceView(8,this.GetAreaShadowProjectionAddress(this.FrameIndex));
+        this.BindMainPassState(ActivePipelineState);
 
         fixed(D3D12_VIEWPORT*PViewport=&this.Viewport)
         fixed(RECT*PScissorRect=&this.ScissorRect){
@@ -3255,6 +3363,17 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
         this.DrawObjects(ExcludedObjectIndex:-1);
+        if(this.EnvironmentSettings.Atmosphere is not null){
+            // Compute replaces the graphics PSO and descriptor heap, so the main-pass bindings are
+            // restored before camera previews draw with the Stage pipeline again.
+            this.Atmosphere!.CompositeSky(this.CommandList,this.FrameIndex,this.CurrentAtmosphereFrame,this.DepthBuffer,this.HdrColorBuffer,this.Width,this.Height);
+            this.BindMainPassState(ActivePipelineState);
+            fixed(D3D12_VIEWPORT*PViewport=&this.Viewport)
+            fixed(RECT*PScissorRect=&this.ScissorRect){
+                this.CommandList->RSSetViewports(1,PViewport);
+                this.CommandList->RSSetScissorRects(1,PScissorRect);
+            }
+        }
         this.RenderCameraPreviews(HdrRtvHandle,DsvHandle);
 
         D3D12_RESOURCE_BARRIER ToHdrShaderResource=D3D12_RESOURCE_BARRIER.InitTransition(this.HdrColorBuffer,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
@@ -3269,6 +3388,11 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         ID3D12DescriptorHeap*PostSrvHeap= this.HdrSrvHeap;
         this.CommandList->SetDescriptorHeaps(1,&PostSrvHeap);
         this.CommandList->SetGraphicsRootDescriptorTable(0, this.HdrSrvHeap->GetGPUDescriptorHandleForHeapStart());
+        float*PostProcessConstants=stackalloc float[4]{
+            this.EnvironmentSettings.ToneMapper==ToneMapper.UnrealFilmicSrgb?1f:0f,
+            this.EnvironmentSettings.BloomIntensity,0f,0f,
+        };
+        this.CommandList->SetGraphicsRoot32BitConstants(1,4,PostProcessConstants,0);
         fixed(D3D12_VIEWPORT*PViewport=&this.Viewport)
         fixed(RECT*PScissorRect=&this.ScissorRect){
             this.CommandList->RSSetViewports(1,PViewport);
@@ -3438,6 +3562,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
         this.ReleaseReadbackBuffer();
         this.ReleaseForwardPlusTileBuffer();
+        this.Atmosphere?.Dispose();
+        this.Atmosphere=null;
 
         if(this.FrameConstantsBuffer!=null){
             this.FrameConstantsBuffer->Unmap(0,null);

@@ -47,3 +47,6 @@ Thumbs.db
 # Claude Code session state
 .claude/scheduled_tasks.lock
 /VSIXProject1
+
+# Python bytecode (tools/UnrealExport)
+__pycache__/
