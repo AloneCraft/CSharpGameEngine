@@ -9,7 +9,7 @@ M0089/ADR-0069 adds F-L4-014 (physical sky, sky light, exposure, cascaded sun sh
 ## Current character-movement update
 M0090/ADR-0067 implements F-L5-006. It adds kinematic character movement on the deterministic physics world, StaticMesh triangle collision, a spring-arm follow camera, and Enhanced Input value composition with XInput. It refines F-L4-010 and F-L0-010. The ThirdPerson template is playable. See the [verification milestone](Milestones/M0090-ThirdPerson-Character-Movement.md).
 
-## Current scene JSON and editor world update (in progress)
+## Current scene JSON and editor world update
 M0093/ADR-0070 refines F-L7-012, F-L7-013, F-L8-011 and F-L8-025. Scenes are `*.scene.json` documents. They are checked against a per-project schema, turned into C# at build time, and edited in memory by the Scene Designer until Save. Every repository scene is converted, and a C# scene class is a build error (SCENE206). For a built game the Scene view is drawn by the game runtime, and value edits show without a build; a structural edit asks for one. A manual Visual Studio check remains. See the [verification milestone](Milestones/M0093-Scene-Json-And-Editor-World.md).
 
 ## Current SDK package and project template update

@@ -1,7 +1,7 @@
 # M0093 — Scene JSON documents, editor Undo/Save and the runtime editor world
 - Date: 2026-10-01
 - Decision: [ADR-0070](../Decisions/ADR-0070-Scene-Json-Documents-And-Runtime-Editor-World.md)
-- Implementation: In progress
+- Implementation: Done (automated); the manual Visual Studio check is pending
 
 ## Goal
 Make the Scene Designer behave like Unreal's and Unity's editors, as the user asked on 2026-10-01:
