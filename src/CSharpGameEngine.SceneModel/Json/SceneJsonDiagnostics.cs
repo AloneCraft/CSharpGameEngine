@@ -42,5 +42,13 @@ internal static class SceneJsonDiagnostics {
         category:Category,
         defaultSeverity:DiagnosticSeverity.Error,
         isEnabledByDefault:true);
-    internal static readonly DiagnosticDescriptor[]All=[UnknownComponentType,UnknownMember,ValueMismatch,InvalidDocument,DuplicateComponent];
+    /// <summary>ADR-0070 cutover: a C# scene class is no longer built, so it must not pass silently.</summary>
+    internal static readonly DiagnosticDescriptor CSharpSceneNotBuilt=new(
+        id:"SCENE206",
+        title:"C# scene classes are not built; scenes are *.scene.json documents",
+        messageFormat:"'{0}' is a C# scene class, which is no longer built; convert it to a *.scene.json scene with 'CSharpGameEngine.SceneJson.Cli convert <project> --write --delete-source'",
+        category:Category,
+        defaultSeverity:DiagnosticSeverity.Error,
+        isEnabledByDefault:true);
+    internal static readonly DiagnosticDescriptor[]All=[UnknownComponentType,UnknownMember,ValueMismatch,InvalidDocument,DuplicateComponent,CSharpSceneNotBuilt];
 }

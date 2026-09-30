@@ -84,7 +84,7 @@ public sealed class FeatureStageCatalogTests {
         Assert.Contains(Command.Arguments,Argument=>Argument.Contains("SceneInspectorModelTests",StringComparison.Ordinal));
         Assert.Contains(Command.Arguments,Argument=>Argument.Contains("HierarchyComponentMutationTests",StringComparison.Ordinal));
         Assert.Contains(Command.Arguments,Argument=>Argument.Contains("ComponentPaletteFilterPolicyTests",StringComparison.Ordinal));
-        Assert.Contains(Command.Arguments,Argument=>Argument.Contains("SceneSourceEditorTests",StringComparison.Ordinal));
+        Assert.Contains(Command.Arguments,Argument=>Argument.Contains("SceneJsonCommitPlannerTests",StringComparison.Ordinal));
     }
     [Fact]
     public void SourceSynchronizationHasAnExecutableSourceTruthStage(){
@@ -97,7 +97,7 @@ public sealed class FeatureStageCatalogTests {
         var Command=Assert.Single(Stage.Commands);
         Assert.Contains(Command.Arguments,Argument=>
             Argument.Contains("PendingSourceLandingTests",StringComparison.Ordinal)
-            &&Argument.Contains("SceneSourceCommitPlannerTests",StringComparison.Ordinal)
+            &&Argument.Contains("SceneJsonCommitPlannerTests",StringComparison.Ordinal)
             &&Argument.Contains("SceneSourceTruthArchitectureTests",StringComparison.Ordinal)
             &&Argument.Contains("SceneEditConflictMergerTests",StringComparison.Ordinal)
             &&Argument.Contains("SceneUndoRoutingPolicyTests",StringComparison.Ordinal));
@@ -117,7 +117,7 @@ public sealed class FeatureStageCatalogTests {
         Assert.Contains(Stage.Commands,Command=>Command.Arguments.Any(Argument=>
             Argument.Contains("TransformGizmoTests",StringComparison.Ordinal)
             &&Argument.Contains("EditTransactionControllerTests",StringComparison.Ordinal)
-            &&Argument.Contains("SceneSaveVerificationTests",StringComparison.Ordinal)));
+            &&Argument.Contains("SceneJsonCommitPlannerTests",StringComparison.Ordinal)));
         Assert.Contains(Stage.Commands,Command=>Command.Arguments.Any(Argument=>
             Argument.Contains("RenderPreviewRenderSessionTests",StringComparison.Ordinal)));
     }

@@ -96,7 +96,7 @@ internal static class SceneJsonConverter {
             case SceneValueKind.EnumMember:
                 return SceneJsonOut.String(Value.ReferencedSymbol!.Name);
             case SceneValueKind.Default:
-                return Value.Type is { IsValueType:true }?SceneJsonOut.Object():SceneJsonOut.Null();
+                return DefaultValue(Value.Type,Where,Problems);
             case SceneValueKind.ObjectCreation:{
                 var Inline=ObjectValue(Value.Type,Value.Arguments,Value.Members,Value.ReferencedSymbol,Where,Problems);
                 return Inline.Properties!.Count==0?SceneJsonOut.Object():RebuildInline(Inline);
@@ -128,6 +128,37 @@ internal static class SceneJsonConverter {
         var Inline=SceneJsonOut.Object();
         foreach(var Property in Multiline.Properties!){ Inline.Add(Property.Key,Property.Value); }
         return Inline;
+    }
+    /// <summary>
+    /// <c>default</c> in the member type's JSON form. A struct is an empty object (every member default);
+    /// <c>bool</c>, numbers and enums have their own zero value, which an empty object would not fit.
+    /// </summary>
+    private static SceneJsonOut DefaultValue(ITypeSymbol?Type,string Where,List<string>Problems){
+        if(Type is null){ return SceneJsonOut.Null(); }
+        if(Type.TypeKind==TypeKind.Enum){
+            var Zero=Type.GetMembers().OfType<IFieldSymbol>().FirstOrDefault(static Field=>
+                Field.HasConstantValue&&System.Convert.ToString(Field.ConstantValue,CultureInfo.InvariantCulture)=="0");
+            if(Zero is not null){ return SceneJsonOut.String(Zero.Name); }
+            Problems.Add($"{Where}: default of {Type.Name} has no member with the value 0; write a member name.");
+            return SceneJsonOut.Null();
+        }
+        switch(Type.SpecialType){
+            case SpecialType.System_Boolean:
+                return SceneJsonOut.Boolean(false);
+            case SpecialType.System_SByte:
+            case SpecialType.System_Byte:
+            case SpecialType.System_Int16:
+            case SpecialType.System_UInt16:
+            case SpecialType.System_Int32:
+            case SpecialType.System_UInt32:
+            case SpecialType.System_Int64:
+            case SpecialType.System_UInt64:
+            case SpecialType.System_Single:
+            case SpecialType.System_Double:
+            case SpecialType.System_Decimal:
+                return SceneJsonOut.Number("0");
+        }
+        return Type.IsValueType?SceneJsonOut.Object():SceneJsonOut.Null();
     }
     private static SceneJsonOut Constant(object?Value,string Where,List<string>Problems){
         switch(Value){

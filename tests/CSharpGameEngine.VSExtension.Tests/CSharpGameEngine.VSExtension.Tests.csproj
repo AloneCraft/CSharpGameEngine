@@ -79,6 +79,7 @@
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\SceneDesignerToolWindowControl.xaml.cs" Link="TestAssets\Source\SceneDesignerToolWindowControl.xaml.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\SceneEditorSessionService.cs" Link="TestAssets\Source\SceneEditorSessionService.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\SceneSourceCommitPlanner.cs" Link="TestAssets\Source\SceneSourceCommitPlanner.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\CSharpGameEngine.VSExtension\SceneJsonCommitPlanner.cs" Link="TestAssets\Source\SceneJsonCommitPlanner.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\SceneTextBufferWriter.cs" Link="TestAssets\Source\SceneTextBufferWriter.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\AuthoringOperationPresentation.cs" Link="TestAssets\Source\AuthoringOperationPresentation.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\PhysicsSceneBakeService.cs" Link="TestAssets\Source\PhysicsSceneBakeService.cs" CopyToOutputDirectory="PreserveNewest" />

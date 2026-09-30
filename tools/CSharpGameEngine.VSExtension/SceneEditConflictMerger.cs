@@ -151,7 +151,7 @@ internal static class SceneEditConflictMerger {
             return false;
         }
         foreach((string Name,Vector3 _,Vector3 _) in
-            SceneSourceEditor.EnumerateTransformVectors(SceneTransformValue.Identity,Members)){
+            SceneEditValues.EnumerateTransformVectors(SceneTransformValue.Identity,Members)){
             for(int Index=0;Index<3;Index++){
                 if(SceneTransformBinding.CanEditVector(Transform,Name,Index)){ continue; }
                 ErrorMessage=VsixText.Format("ConflictTransformMemberNotEditable",Name);

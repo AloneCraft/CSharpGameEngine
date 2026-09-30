@@ -119,7 +119,7 @@ internal readonly struct SceneEmitNode(
 /// <para>
 /// <b><c>ISymbol</c>を絶対に含めてはならない。</b>シンボルは<c>Compilation</c>をルート保持し値等価性も
 /// 持たないため、<c>IncrementalValuesProvider</c>へ流すとキャッシュが常時無効化されメモリをリークさせる。
-/// シンボルを持つ<c>SceneModel</c>は<c>SceneModelBridge.TryAnalyze</c>の中だけで生き、その場でこの型へ
+/// シンボルを使う解析は<c>SceneModelBridge.TryAnalyzeJson</c>の中だけで行い、その場でこの型へ
 /// 変換されて捨てられる。
 /// </para>
 /// </summary>

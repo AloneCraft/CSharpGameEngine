@@ -63,3 +63,4 @@ SCENE202 | CSharpGameEngine.Entities.CodeGen | Error | SceneJsonDiagnostics
 SCENE203 | CSharpGameEngine.Entities.CodeGen | Error | SceneJsonDiagnostics
 SCENE204 | CSharpGameEngine.Entities.CodeGen | Error | SceneJsonDiagnostics
 SCENE205 | CSharpGameEngine.Entities.CodeGen | Error | SceneJsonDiagnostics
+SCENE206 | CSharpGameEngine.Entities.CodeGen | Error | SceneJsonDiagnostics

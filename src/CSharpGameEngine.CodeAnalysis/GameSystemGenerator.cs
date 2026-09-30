@@ -51,17 +51,9 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
                   .Where(static Result=>Result.HasValue)
                   .Select(static(Result,_)=>Result!.Value);
 
-        // ADR-0040のScene DSL。`IScene`には属性が無いためForAttributeWithMetadataNameが使えず、
-        // ISystemと同じく安価な構文プレディケートで絞ってから意味解析で確認する。
-        // 流れるのはシンボルを持たないSceneEmitModelだけ(SceneModelBridgeのXMLコメント参照)。
-        var SceneDeclarations=Context.SyntaxProvider.CreateSyntaxProvider(
-                                                                         static(Node,_)=>SceneModelBridge.IsSceneCandidate(Node),
-                                                                         static(Ctx,Ct)=>SceneModelBridge.TryAnalyze(Ctx,Ct))
-                                    .Where(static Result=>Result.HasValue)
-                                    .Select(static(Result,_)=>Result!.Value);
-
-        // ADR-0070: *.scene.json scenes arrive as AdditionalFiles and become the same SceneEmitModel.
+        // ADR-0070: scenes are *.scene.json AdditionalFiles; C# scene classes are not built (SCENE206).
         // Their diagnostics belong to SceneJsonDslAnalyzer; here they only decide whether to emit.
+        // Only symbol-free SceneEmitModels flow on (see SceneModelBridge).
         var JsonSceneDeclarations=Context.AdditionalTextsProvider
                                          .Where(static File=>SceneJsonDslAnalyzer.IsSceneFile(File.Path))
                                          .Combine(Context.CompilationProvider)
@@ -84,9 +76,7 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
                 +"    internal const string Json = "+Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(Schema,quote:true)+";\n"
                 +"}\n");
         });
-        var AllSceneDeclarations=SceneDeclarations.Collect()
-                                                  .Combine(JsonSceneDeclarations.Collect())
-                                                  .Select(static(Pair,_)=>Pair.Left.AddRange(Pair.Right));
+        var AllSceneDeclarations=JsonSceneDeclarations.Collect();
 
         // IRuntimeComponent<TAuthored>の実装。作者Componentに随伴して自動付与する対応表を作るために
         // 拾う。ISystem/IScene と同じく属性が無いのでForAttributeWithMetadataNameは使えず、

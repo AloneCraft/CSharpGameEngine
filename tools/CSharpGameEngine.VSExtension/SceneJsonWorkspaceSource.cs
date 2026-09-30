@@ -15,10 +15,6 @@ namespace CSharpGameEngine.VSExtension;
 /// text is the live one: an unsaved edit in the JSON buffer is what the designer shows.
 /// </summary>
 internal static class SceneJsonWorkspaceSource {
-    /// <summary>A document that can declare a scene: a C# file or a <c>*.scene.json</c> scene.</summary>
-    internal static bool IsSceneSourcePath(string?FilePath)=>
-        FilePath is not null
-        &&(FilePath.EndsWith(".cs",StringComparison.OrdinalIgnoreCase)||SceneJsonCommitPlanner.IsJsonScene(FilePath));
     internal static IEnumerable<TextDocument>JsonScenes(Project Project)=>
         Project.AdditionalDocuments.Where(static Document=>SceneJsonCommitPlanner.IsJsonScene(Document.FilePath));
     /// <summary>The <c>namespace.className</c> a document declares; <c>null</c> when it cannot be read.</summary>

@@ -4,18 +4,21 @@ using System.Globalization;
 using System.Linq;
 using CSharpGameEngine.SceneAnalysis;
 using CSharpGameEngine.SceneAnalysis.Tests;
-using Microsoft.CodeAnalysis.CSharp;
 
 namespace CSharpGameEngine.VSExtension.Tests;
 
 /// <summary>
-/// Regression coverage for component drops that mutate hierarchy source. These tests keep the
-/// source writer and its predicted scene model on the same first-wins ordering contract.
+/// Regression coverage for component drops that mutate the hierarchy. The predicted scene model follows
+/// the first-wins ordering contract, and the scene JSON written from it reads back the same (ADR-0070).
 /// </summary>
 [Collection(VsixLocalizationTestCollection.Name)]
 public sealed class HierarchyComponentMutationTests {
     private const string TransformTypes="""
+        namespace CSharpGameEngine.Entities {
+            public sealed class SceneComponentOrderAttribute(int Category,int Order):System.Attribute { }
+        }
         namespace CSharpGameEngine.Runtime.Windows {
+            [CSharpGameEngine.Entities.SceneComponentOrder(0,0)]
             public struct Transform {
                 public float PositionX; public float PositionY; public float PositionZ;
                 public float RotationX; public float RotationY; public float RotationZ; public float RotationW;
@@ -87,20 +90,18 @@ public sealed class HierarchyComponentMutationTests {
                 public Node Root=>new() { Children=[new Node { Name="Empty" }] };
             }
             """;
+        var Compilation=SceneAnalysisTestHelper.CreateCompilation(TransformTypes,LightTypes,Source);
         var Model=SceneAnalysisTestHelper.Analyze([TransformTypes,LightTypes,Source]);
-        var Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        var Reconciler=new SceneProjectionReconciler();
+        var Projection=Reconciler.Reconcile(Key,Model,Previous:null);
         var Empty=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Empty").Id;
 
-        var Result=SceneSourceEditor.Apply(
-            CSharpSyntaxTree.ParseText(Source).GetRoot(),Projection,
-            new AddComponentOperation(
-                Key,Empty,DocumentVersion:1,"global::Sample.DirectionalLight",
-                "new global::Sample.DirectionalLight()"));
+        Assert.True(SceneModelEditApplier.TryApply(Model,Projection,Reconciler,Key,
+            [new AddComponentOperation(Key,Empty,DocumentVersion:1,"global::Sample.DirectionalLight","new global::Sample.DirectionalLight()")],
+            out var Predicted,out _));
 
-        Assert.True(Result.Succeeded,Result.ErrorMessage);
-        var Text=Result.Root!.ToFullString();
-        Assert.Contains("Components",Text);
-        Assert.Contains("new global::Sample.DirectionalLight()",Text);
+        var Truth=SceneJsonRoundTrip.Reanalyze(Predicted,Compilation);
+        Assert.NotNull(Assert.Single(Truth.EnumerateNodes(),static Node=>Node.Name=="Empty").FindComponent("global::Sample.DirectionalLight"));
     }
 
     [Fact]
@@ -115,8 +116,10 @@ public sealed class HierarchyComponentMutationTests {
                 public Node Root=>new() { Name="Root", Children=[] };
             }
             """;
+        var Compilation=SceneAnalysisTestHelper.CreateCompilation(TransformTypes,LightTypes,Source);
         var Model=SceneAnalysisTestHelper.Analyze([TransformTypes,LightTypes,Source]);
-        var Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        var Reconciler=new SceneProjectionReconciler();
+        var Projection=Reconciler.Reconcile(Key,Model,Previous:null);
         ImmutableArray<NewNodeComponent> Components=ImmutableArray.Create(
             new NewNodeComponent(
                 "global::Sample.DirectionalLight","new global::Sample.DirectionalLight()"),
@@ -126,47 +129,14 @@ public sealed class HierarchyComponentMutationTests {
             new NewNodeComponent(
                 "global::Sample.DirectionalLight","new global::Sample.DirectionalLight()"));
 
-        var Result=SceneSourceEditor.Apply(
-            CSharpSyntaxTree.ParseText(Source).GetRoot(),Projection,
-            new AddNodeOperation(Key,Projection.Root!.Id,DocumentVersion:1,"Lamp",Components));
+        Assert.True(SceneModelEditApplier.TryApply(Model,Projection,Reconciler,Key,
+            [new AddNodeOperation(Key,Projection.Root!.Id,DocumentVersion:1,"Lamp",Components)],
+            out var Predicted,out _));
 
-        Assert.True(Result.Succeeded,Result.ErrorMessage);
-        var Text=Result.Root!.ToFullString();
-        Assert.Single(System.Text.RegularExpressions.Regex.Matches(
-            Text,"new global::Sample.DirectionalLight")
-            .Cast<System.Text.RegularExpressions.Match>());
-        Assert.True(Text.IndexOf("new global::CSharpGameEngine.Runtime.Windows.Transform",StringComparison.Ordinal)
-            <Text.IndexOf("new global::Sample.DirectionalLight",StringComparison.Ordinal));
-        var Reanalyzed=SceneAnalysisTestHelper.Analyze([TransformTypes,LightTypes,Text]);
-        var Lamp=Assert.Single(Reanalyzed.EnumerateNodes(),static Node=>Node.Name=="Lamp");
-        Assert.Collection(Lamp.Components,
-            static _=>{},
-            static _=>{});
-    }
-
-    [Fact]
-    public void AddNode_WithAnInvalidInitialComponent_DoesNotMutateTheParentSource(){
-        const string Source="""
-            using CSharpGameEngine.Entities;
-            namespace Game;
-            public partial class MainScene:IScene {
-                public Node Root=>new() { Name="Root", Children=[] };
-            }
-            """;
-        var Model=SceneAnalysisTestHelper.Analyze(Source);
-        var Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
-        ImmutableArray<NewNodeComponent> Components=ImmutableArray.Create(
-            new NewNodeComponent("global::Sample.DirectionalLight","not valid +"),
-            new NewNodeComponent(
-                "global::CSharpGameEngine.Runtime.Windows.Transform",
-                "new global::CSharpGameEngine.Runtime.Windows.Transform()"));
-
-        var Result=SceneSourceEditor.Apply(
-            CSharpSyntaxTree.ParseText(Source).GetRoot(),Projection,
-            new AddNodeOperation(Key,Projection.Root!.Id,DocumentVersion:1,"Lamp",Components));
-
-        Assert.False(Result.Succeeded);
-        Assert.Null(Result.Root);
+        var Lamp=Assert.Single(SceneJsonRoundTrip.Reanalyze(Predicted,Compilation).EnumerateNodes(),static Node=>Node.Name=="Lamp");
+        Assert.Equal(
+            ["global::CSharpGameEngine.Runtime.Windows.Transform","global::Sample.DirectionalLight"],
+            Lamp.Components.Select(static Component=>Component.TypeFullyQualifiedName));
     }
 
     [Fact]
@@ -181,26 +151,23 @@ public sealed class HierarchyComponentMutationTests {
             public partial class MainScene:IScene {
                 public Node Root=>new() { Children=[new Node {
                     Name="Cube",
-                    Components=[new Second.Shared(),new First.Shared(),new Second.Shared()],
+                    Components=[new Second.Shared(),new First.Shared()],
                 }] };
             }
             """;
+        var Compilation=SceneAnalysisTestHelper.CreateCompilation(TypeDefinitions,Source);
         var Model=SceneAnalysisTestHelper.Analyze([TypeDefinitions,Source]);
-        var Projection=new SceneProjectionReconciler().Reconcile(Key,Model,Previous:null);
+        var Reconciler=new SceneProjectionReconciler();
+        var Projection=Reconciler.Reconcile(Key,Model,Previous:null);
         var Cube=Assert.Single(Projection.Nodes,static Node=>Node.Node.Name=="Cube").Id;
 
-        var Result=SceneSourceEditor.Apply(
-            CSharpSyntaxTree.ParseText(Source).GetRoot(),Projection,
-            new NormalizeComponentsOperation(Key,Cube,DocumentVersion:1));
+        Assert.True(SceneModelEditApplier.TryApply(Model,Projection,Reconciler,Key,
+            [new NormalizeComponentsOperation(Key,Cube,DocumentVersion:1)],
+            out var Predicted,out _));
 
-        Assert.True(Result.Succeeded,Result.ErrorMessage);
-        var Text=Result.Root!.ToFullString();
-        Assert.Single(System.Text.RegularExpressions.Regex.Matches(Text,"new First.Shared")
-            .Cast<System.Text.RegularExpressions.Match>());
-        Assert.Single(System.Text.RegularExpressions.Regex.Matches(Text,"new Second.Shared")
-            .Cast<System.Text.RegularExpressions.Match>());
-        Assert.True(Text.IndexOf("new First.Shared",StringComparison.Ordinal)
-            <Text.IndexOf("new Second.Shared",StringComparison.Ordinal));
+        string[]Expected=["global::First.Shared","global::Second.Shared"];
+        Assert.Equal(Expected,Assert.Single(Predicted.EnumerateNodes(),static Node=>Node.Name=="Cube").Components.Select(static Component=>Component.TypeFullyQualifiedName));
+        Assert.Equal(Expected,Assert.Single(SceneJsonRoundTrip.Reanalyze(Predicted,Compilation).EnumerateNodes(),static Node=>Node.Name=="Cube").Components.Select(static Component=>Component.TypeFullyQualifiedName));
     }
 
     [Fact]

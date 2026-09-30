@@ -25,12 +25,12 @@ public sealed class SceneJsonWorkspaceSourceTests {
         }
         """;
     [Theory]
-    [InlineData(@"C:\Game\Player.cs",true)]
+    [InlineData(@"C:\Game\Player.cs",false)]
     [InlineData(JsonPath,true)]
     [InlineData(@"C:\Game\appsettings.json",false)]
     [InlineData(null,false)]
-    public void SceneSourcePaths_AreCSharpFilesAndSceneJson(string?Path,bool Expected){
-        Assert.Equal(Expected,SceneJsonWorkspaceSource.IsSceneSourcePath(Path));
+    public void SceneDocuments_AreSceneJsonOnly(string?Path,bool Expected){
+        Assert.Equal(Expected,SceneJsonCommitPlanner.IsJsonScene(Path));
     }
     [Theory]
     [InlineData("""{ "namespace": "Game", "className": "MainScene" }""","Game.MainScene")]

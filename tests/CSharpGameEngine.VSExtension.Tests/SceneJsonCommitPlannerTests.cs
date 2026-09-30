@@ -130,6 +130,19 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.True(Guid.TryParse(Ids[2],out _));
         Assert.Equal("Empty",Scene.Get("children")!.Items[2].Get("name")!.Text);
     }
+    [Fact]
+    public void AddNodeWithAComponentTheSceneCannotHold_FailsAndWritesNothing(){
+        var Seed=CreateSeed(Document("1"),Version:1,Previous:null,new SceneProjectionReconciler());
+        var Root=Seed.Snapshot.Projection!.Nodes.Single(static Node=>Node.ParentId is null).Id;
+        var Add=new AddNodeOperation(Key,Root,Seed.Snapshot.DocumentVersion,"Lamp",
+            [new NewNodeComponent("global::Sample.Missing","new global::Sample.Missing()")]);
+        var Plan=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,
+            new SceneEditCommitRequest(Key,Seed.Snapshot.DocumentVersion,"Add",[],SceneTransformMemberMask.None,DirectOperations:[Add]),
+            Seed.Reconciler,CancellationToken.None);
+        Assert.False(Plan.Succeeded);
+        Assert.Null(Plan.WriteStep);
+        Assert.Contains("SCENE201",Plan.ErrorMessage,StringComparison.Ordinal);
+    }
     private static string[]ChangedLines(string Before,string After){
         var Old=Before.Split('\n');
         var New=After.Split('\n');

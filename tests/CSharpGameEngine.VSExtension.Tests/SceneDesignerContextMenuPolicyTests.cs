@@ -52,7 +52,7 @@ public sealed class SceneDesignerContextMenuPolicyTests {
     [Fact]
     public void NonSceneType_IsDisabledWithAnInlineReason(){
         var Presentation=SceneDesignerContextMenuPolicy.Create(Japanese,
-                                                               @"G:\Project\Components.cs",
+                                                               @"G:\Project\Components.scene.json",
                                                                SceneDesignerTargetState.NonSceneType,
                                                                []);
 
@@ -65,7 +65,7 @@ public sealed class SceneDesignerContextMenuPolicyTests {
     [Fact]
     public void PositionOutsideAType_IsDisabledWithAnInlineReason(){
         var Presentation=SceneDesignerContextMenuPolicy.Create(Japanese,
-                                                               @"G:\Project\Scenes.cs",
+                                                               @"G:\Project\Scenes.scene.json",
                                                                SceneDesignerTargetState.OutsideType,
                                                                []);
 
@@ -77,7 +77,7 @@ public sealed class SceneDesignerContextMenuPolicyTests {
     [Fact]
     public void PositionOutsideAType_InASceneFileUsesTheSceneSelector(){
         var Presentation=SceneDesignerContextMenuPolicy.Create(Japanese,
-                                                               @"G:\Project\PrimitiveShowcaseScene.cs",
+                                                               @"G:\Project\PrimitiveShowcaseScene.scene.json",
                                                                SceneDesignerTargetState.OutsideType,
                                                                [
                                                                    new SceneDesignerMenuItem("BoxScene","Project.BoxScene"),
@@ -101,6 +101,17 @@ public sealed class SceneDesignerContextMenuPolicyTests {
     }
 
     [Fact]
+    public void CSharpDocument_IsHiddenBecauseOnlySceneJsonDeclaresScenes(){
+        var Presentation=SceneDesignerContextMenuPolicy.Create(Japanese,
+                                                               @"G:\Project\Scenes\MainScene.cs",
+                                                               SceneDesignerTargetState.SceneType,
+                                                               [new SceneDesignerMenuItem("MainScene","Project.MainScene")]);
+
+        Assert.False(Presentation.Visible);
+        Assert.Equal(SceneDesignerMenuMode.Hidden,Presentation.Mode);
+    }
+
+    [Fact]
     public void NonCSharpDocument_IsHidden(){
         var Presentation=SceneDesignerContextMenuPolicy.Create(Japanese,
                                                                @"G:\Project\Readme.md",
@@ -114,7 +125,7 @@ public sealed class SceneDesignerContextMenuPolicyTests {
     [Fact]
     public void OneScene_UsesTheDirectCommand(){
         var Presentation=SceneDesignerContextMenuPolicy.Create(Japanese,
-                                                               @"G:\Project\MainScene.cs",
+                                                               @"G:\Project\MainScene.scene.json",
                                                                SceneDesignerTargetState.SceneType,
                                                                [new SceneDesignerMenuItem("MainScene","Project.MainScene")]);
 
@@ -127,7 +138,7 @@ public sealed class SceneDesignerContextMenuPolicyTests {
     [Fact]
     public void MultipleScenes_UseAFlatSceneListInDeclarationOrder(){
         var Presentation=SceneDesignerContextMenuPolicy.Create(Japanese,
-                                                               @"G:\Project\PrimitiveShowcaseScene.cs",
+                                                               @"G:\Project\PrimitiveShowcaseScene.scene.json",
                                                                SceneDesignerTargetState.SceneType,
                                                                [
                                                                    new SceneDesignerMenuItem("PrimitiveShowcaseBoxScene","Project.PrimitiveShowcaseBoxScene"),
@@ -225,7 +236,7 @@ public sealed class SceneDesignerContextMenuPolicyTests {
         string StateName,string ExpectedReason){
         var State=(SceneDesignerTargetState)System.Enum.Parse(typeof(SceneDesignerTargetState),StateName);
         var Presentation=SceneDesignerContextMenuPolicy.Create(Japanese,
-                                                               @"G:\Project\MainScene.cs",
+                                                               @"G:\Project\MainScene.scene.json",
                                                                State,
                                                                []);
 

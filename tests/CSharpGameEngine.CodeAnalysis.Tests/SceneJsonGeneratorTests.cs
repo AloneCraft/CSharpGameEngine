@@ -216,6 +216,43 @@ public sealed class SceneJsonGeneratorTests {
         Assert.Equal(Json,CSharpGameEngine.SceneAnalysis.Json.SceneJsonConverter.Convert(Model,"../.cge/scene.schema.json").Text);
     }
     /// <summary>
+    /// <c>default</c> is written as the member type's own JSON form: <c>false</c>, <c>0</c>, the enum member
+    /// whose value is zero, an empty object for a struct and <c>null</c> for a reference.
+    /// </summary>
+    [Fact]
+    public void Converter_WritesDefaultValuesInTheirMemberTypesJsonForm(){
+        const string DefaultsComponent="""
+            namespace Sample {
+                public enum Shade { Dark,Bright }
+                public struct Pair { public float X; public float Y; }
+                public struct Defaults { public bool Enabled; public int Count; public float Scale; public Shade Mode; public Pair Offset; public string? Label; }
+            }
+            """;
+        const string Scene="""
+            using CSharpGameEngine.Entities;
+            namespace Game;
+            public partial class DefaultsScene:IScene {
+                public Node Root=>new() { Components=[new Sample.Defaults { Enabled=default,Count=default,Scale=default,Mode=default,Offset=default,Label=default }] };
+            }
+            """;
+        var Compilation=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,DefaultsComponent,Scene]);
+        var Model=CSharpGameEngine.SceneAnalysis.SceneDeclarationAnalyzer.Analyze(Compilation.GetTypeByMetadataName("Game.DefaultsScene")!,Compilation,CancellationToken.None);
+        Assert.False(Model.HasErrors,string.Join("\n",Model.Diagnostics));
+
+        var Converted=CSharpGameEngine.SceneAnalysis.Json.SceneJsonConverter.Convert(Model,null);
+
+        Assert.Empty(Converted.Problems);
+        var Json=Converted.Text!;
+        Assert.Contains("\"Enabled\": false",Json);
+        Assert.Contains("\"Count\": 0",Json);
+        Assert.Contains("\"Scale\": 0",Json);
+        Assert.Contains("\"Mode\": \"Dark\"",Json);
+        Assert.Contains("\"Offset\": {}",Json);
+        Assert.Contains("\"Label\": null",Json);
+        var Base=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,DefaultsComponent]);
+        Assert.Empty(CSharpGameEngine.SceneAnalysis.Json.SceneJsonSceneAnalyzer.Analyze(Json,Base).Problems);
+    }
+    /// <summary>
     /// The Scene Designer reads a JSON scene through the C# class it is equivalent to, and writes it back
     /// with the converter: the model matches the C# scene's and the round trip is byte-identical.
     /// </summary>

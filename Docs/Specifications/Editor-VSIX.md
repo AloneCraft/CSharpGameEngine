@@ -11,23 +11,24 @@ F-L8-024/025 now include [Typed Lighting](Typed-Lighting.md): symbol-checked phy
 
 ## Scope and observed baseline
 
-The C# `IScene` source remains the sole authoring truth. The current Scene Designer implements a substantial baseline: live Roslyn scene projection, navigation/picking, Move/Rotate/Scale/Snap, predicted editing, source synchronization, native Undo/Redo integration, and typed inspector work. This specification does not downgrade that evidence; it defines the next acceptance contracts for WARP display, rebase, robust host lifecycle, typed asset workflows, and release verification.
+A scene's `*.scene.json` document (ADR-0070) is the sole authoring truth; C# scene classes are no longer built. The current Scene Designer implements a substantial baseline: live Roslyn scene projection, navigation/picking, Move/Rotate/Scale/Snap, predicted editing, source synchronization, native Undo/Redo integration, and typed inspector work. This specification does not downgrade that evidence; it defines the next acceptance contracts for WARP display, rebase, robust host lifecycle, typed asset workflows, and release verification.
 
-Historical JSON Scene experiments are not a supported compatibility path. Any future persistence or protocol migration follows immediate cutover: write the new canonical form, regenerate derived data, and remove the old reader/writer in the same feature change.
+The JSON Scene experiments of M0049/M0050 are not a supported compatibility path. The ADR-0070 move from C# scene classes to scene JSON was an immediate cutover (M0093): `CSharpGameEngine.SceneJson.Cli convert` rewrote every scene, and a remaining C# scene class is a build error (SCENE206) pointing at that converter. Any future persistence or protocol migration follows the same immediate cutover: write the new canonical form, regenerate derived data, and remove the old reader/writer in the same feature change.
 
 ## Authoring model
 
 ```text
-C# IScene source
-  -> Roslyn parse and SceneDocumentSnapshot
+*.scene.json live text buffer
+  -> designer view: the equivalent C# class, analyzed in the project's Roslyn compilation
+     (SceneJsonDesignerSource) -> SceneDocumentSnapshot
   -> predicted edit model while interaction is active
-  -> exactly one native Visual Studio Undo transaction on commit
-  -> minimal source edit
-  -> Roslyn reparse
+  -> edited model written back as canonical scene JSON (SceneJsonConverter, node ids kept)
+  -> re-read and verified, then the changed lines only, as exactly one native Visual Studio Undo transaction
+  -> Roslyn reanalysis of the buffer
   -> converged immutable projection for hierarchy, inspector, and viewport
 ```
 
-The predicted operation model is transient gesture state only. It is never an alternative source of truth and never avoids a reparse. Before the live-buffer write, the edited C# tree is compiled and reanalyzed; the canonical reanalysis model, not the separately mutated operation model, is published as the temporary landing projection. If parsing, conflict resolution, verification, or writeback fails, the source is unchanged and the prediction rolls back to the last reparse result with an actionable diagnostic.
+The predicted operation model is transient gesture state only. It is never an alternative source of truth and never avoids a reparse. Before the live-buffer write, the new JSON is read back through the designer view; that canonical model, not the separately mutated operation model, is published as the temporary landing projection. If parsing, conflict resolution, verification, or writeback fails, the source is unchanged and the prediction rolls back to the last reparse result with an actionable diagnostic.
 
 Scene Designer is a Visual Studio multi-view document: document, hierarchy, inspector, palette, and viewport project the same snapshot/session identity. Visual hierarchies are projections rather than runtime ownership graphs.
 
@@ -47,9 +48,9 @@ Protocol version mismatch fails before source mutation. Host crash and timeout a
 
 ## Editing contracts
 
-- Rotate, Scale, snap, rebase, WARP display, and Undo/Redo are acceptance requirements layered on the existing transform baseline. Transform preview matrices are camera/frame-relative `float` UI projections only; the C# authoring source is unchanged until commit. A canonical Transform commit updates only local Logical position/rotation/scale members and must preserve its `ReferenceFrameId` member exactly.
+- Rotate, Scale, snap, rebase, WARP display, and Undo/Redo are acceptance requirements layered on the existing transform baseline. Transform preview matrices are camera/frame-relative `float` UI projections only; the scene document is unchanged until commit. A canonical Transform commit updates only local Logical position/rotation/scale members and must preserve its `ReferenceFrameId` member exactly.
 - Inspector and palette use schema-aware editors for enums, vectors, asset references, add/remove, and reorder. The declared component-member type, not the right-hand expression type, selects the editor. Asset choices are limited to compatible immutable members of the referenced `[SceneAssets]` container. `double` and `decimal` remain read-only at the engine-owned authoring boundary; canonical real editing uses `float`. Invalid text, an undeclared/missing asset symbol, illegal topology, and unchanged choices create no source operation or native Undo entry. Physical asset discovery/import/existence belongs to F-L8-019 and is not duplicated in this Inspector contract.
-- Source synchronization resolves the latest Roslyn context for every completed gesture, explicitly rebases supported stale deltas or rejects the operation, verifies one minimal C# edit by compile/reanalysis, and opens at most one Visual Studio native Undo transaction. Consecutive gestures may use a transient projection only as the stable-ID landing basis; C# and native text history remain the only authoring/Undo truths. Save persists the current live document and never performs deferred writeback.
+- Source synchronization resolves the latest Roslyn context for every completed gesture, explicitly rebases supported stale deltas or rejects the operation, verifies one minimal JSON edit by re-reading it, and opens at most one Visual Studio native Undo transaction. No project compile is on the gesture path. Consecutive gestures may use a transient projection only as the stable-ID landing basis; the JSON buffer and its native text history remain the only authoring/Undo truths. Nothing is written to disk per gesture: Save persists the current live document and never performs deferred writeback.
 - Bake/import UI reports the actual host result and artifact provenance. It may not enable a false “completed” state when a backend is unavailable.
 - Asset Preview transports only bounded `AssetAuthoringRequest`/`AssetAuthoringResult` DTOs to the versioned net10 Content host. Only that host may validate or atomically publish canonical `<source>.meta`; the net472 VSIX may display identity/options/diagnostics and request save with the inspected SHA-256, but it may not parse metadata, change an existing `AssetId`, overwrite a concurrent edit, or create a second metadata truth.
 - Render graph, profiler, and debug viewers request protocol-v5/debug-snapshot-v2 bounded read-only snapshots only on demand from the existing Preview Host session. Device generation, fence, frame/object/texture/error counters, bounded D3D12 diagnostics, process identity, bounded Input actions, and Audio lifecycle/mixer/recovery counters are observed copies. The isolated Preview Host reports `NotOwned` for runtime Input/Audio it does not own. The L4 graph is labeled `DeclaredPlan`, not executed-pass or timing evidence. A capture error leaves the session usable; malformed/correlated transport failure uses existing recovery. The viewers do not poll, attach a second renderer, acquire Input/Audio services, expose native handles, issue control commands, synthesize timings, or mutate runtime state.
@@ -82,7 +83,7 @@ Runtime L0-L6 cannot reference Roslyn or Visual Studio SDK. L7 compiler/bake wor
 **New game.** The Third Person template creates a PackageMode game through `GameProjectTemplateWizard`:
 - The bundled package goes to `%LOCALAPPDATA%\CSharpGameEngine\packages\<version>`.
 - The wizard writes the sources with the new namespace and a `nuget.config`.
-- `Scenes/Lvl_ThirdPerson.cs` opens after creation.
+- `Scenes/Lvl_ThirdPerson.scene.json` opens after creation.
 
 ## Manual and automated evidence
 

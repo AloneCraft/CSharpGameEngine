@@ -210,7 +210,7 @@ internal static class SceneModelEditApplier {
     }
 
     /// <summary>
-    /// M0036/M0038由来の複製(Alt+ドラッグ)。<see cref="SceneSourceEditor.ApplyDuplicateNode"/>と同じ方針:
+    /// M0036/M0038由来の複製(Alt+ドラッグ)。
     /// 元Nodeの構成をそのまま複製し、Transformだけ指定値へ差し替える。新しい兄弟として末尾に追記する
     /// (<see cref="TryAddNode"/>と同じ挿入位置)。
     /// </summary>
@@ -224,7 +224,7 @@ internal static class SceneModelEditApplier {
 
         var Source=GetAtPath(Root,TargetPath);
         var Transform=SceneComponentBindings.FindComponent(Source,SceneComponentRole.LocalTransform);
-        if(Transform is null||SceneSourceEditor.IsGenerated(Transform.Location.FilePath)){
+        if(Transform is null||SceneEditValues.IsGenerated(Transform.Location.FilePath)){
             return false;
         }
 
@@ -395,7 +395,7 @@ internal static class SceneModelEditApplier {
     private static bool TryAddNode(SceneNode Root,NodePath ParentPath,AddNodeOperation Operation,out SceneNode NewRoot){
         NewRoot=Root;
         var Parent=GetAtPath(Root,ParentPath);
-        if(SceneSourceEditor.IsGenerated(Parent.Location.FilePath)){
+        if(SceneEditValues.IsGenerated(Parent.Location.FilePath)){
             return false;
         }
 
@@ -436,7 +436,7 @@ internal static class SceneModelEditApplier {
         NewRoot=Root;
         var Parent=GetAtPath(Root,ParentPath);
         if(LocalIndex<0||LocalIndex>=Parent.Children.Length
-            ||SceneSourceEditor.IsGenerated(Parent.Children[LocalIndex].Location.FilePath)){
+            ||SceneEditValues.IsGenerated(Parent.Children[LocalIndex].Location.FilePath)){
             return false;
         }
 
@@ -468,7 +468,7 @@ internal static class SceneModelEditApplier {
         return true;
     }
 
-    /// <summary><see cref="SceneSourceEditor"/>の<c>CreateUniqueNodeName</c>と同じ規則(重複時は " (N)" を付与)。</summary>
+    /// <summary>兄弟と重複しない名前(重複時は " (N)" を付与)。</summary>
     private static string CreateUniqueNodeName(SceneNode Parent,string RequestedName){
         var BaseName=string.IsNullOrWhiteSpace(RequestedName)?"Node":RequestedName.Trim();
         var Names=Parent.Children
@@ -494,7 +494,7 @@ internal static class SceneModelEditApplier {
         SceneNode Node,SetTransformOperation Operation,out SceneNode Updated){
         Updated=Node;
         var Transform=SceneComponentBindings.FindComponent(Node,SceneComponentRole.LocalTransform);
-        if(Transform is null||SceneSourceEditor.IsGenerated(Transform.Location.FilePath)){
+        if(Transform is null||SceneEditValues.IsGenerated(Transform.Location.FilePath)){
             return false;
         }
 
@@ -513,7 +513,7 @@ internal static class SceneModelEditApplier {
         SceneComponent Transform,SceneTransformValue Value,SceneTransformMemberMask Mask,
         out ImmutableArray<SceneComponentMember> Members){
         Members=Transform.Members;
-        foreach((string Name,Vector3 Vector,Vector3 Default)in SceneSourceEditor.EnumerateTransformVectors(Value,Mask)){
+        foreach((string Name,Vector3 Vector,Vector3 Default)in SceneEditValues.EnumerateTransformVectors(Value,Mask)){
             Vector3 Current=SceneTransformBinding.ReadVector(Transform,Name,Default);
             if(SceneTransformMath.NearlyEqual(Current.X,Vector.X)
                 &&SceneTransformMath.NearlyEqual(Current.Y,Vector.Y)
@@ -537,14 +537,14 @@ internal static class SceneModelEditApplier {
         SceneValue?Old=Existing?.Value;
         Microsoft.CodeAnalysis.ITypeSymbol?Type=Old?.Type??GetDeclaredMemberType(Component,Name);
         ImmutableArray<SceneValue>Arguments=[
-            CreateLiteral(Value.X,SceneSourceEditor.FormatFloat(Value.X),Existing,Fallback),
-            CreateLiteral(Value.Y,SceneSourceEditor.FormatFloat(Value.Y),Existing,Fallback),
-            CreateLiteral(Value.Z,SceneSourceEditor.FormatFloat(Value.Z),Existing,Fallback),
+            CreateLiteral(Value.X,SceneEditValues.FormatFloat(Value.X),Existing,Fallback),
+            CreateLiteral(Value.Y,SceneEditValues.FormatFloat(Value.Y),Existing,Fallback),
+            CreateLiteral(Value.Z,SceneEditValues.FormatFloat(Value.Z),Existing,Fallback),
         ];
         string TypeName=Type?.ToDisplayString(Microsoft.CodeAnalysis.SymbolDisplayFormat.FullyQualifiedFormat)??"LogicalVector3";
         if(Name=="Rotation"&&SceneTransformBinding.IsCanonicalTransform(Component)){
             const string VectorTypeName="global::CSharpGameEngine.Numerics.LogicalVector3";
-            string VectorText=$"new {VectorTypeName}({SceneSourceEditor.FormatFloat(Value.X)}, {SceneSourceEditor.FormatFloat(Value.Y)}, {SceneSourceEditor.FormatFloat(Value.Z)})";
+            string VectorText=$"new {VectorTypeName}({SceneEditValues.FormatFloat(Value.X)}, {SceneEditValues.FormatFloat(Value.Y)}, {SceneEditValues.FormatFloat(Value.Z)})";
             SceneValue EulerValue=new(
                 SceneValueKind.ObjectCreation,Old?.Arguments.FirstOrDefault()?.Type,ConstantValue:null,ReferencedSymbol:null,
                 ImmutableArray<SceneComponentMember>.Empty,Arguments,ImmutableArray<SceneValue>.Empty,
@@ -555,7 +555,7 @@ internal static class SceneModelEditApplier {
                 ImmutableArray<SceneComponentMember>.Empty,[EulerValue],ImmutableArray<SceneValue>.Empty,
                 QuaternionText,QuaternionText,Old?.Location??Fallback);
         }
-        string Text=$"new {TypeName}({SceneSourceEditor.FormatFloat(Value.X)}, {SceneSourceEditor.FormatFloat(Value.Y)}, {SceneSourceEditor.FormatFloat(Value.Z)})";
+        string Text=$"new {TypeName}({SceneEditValues.FormatFloat(Value.X)}, {SceneEditValues.FormatFloat(Value.Y)}, {SceneEditValues.FormatFloat(Value.Z)})";
         return new SceneValue(
             SceneValueKind.ObjectCreation,Type,ConstantValue:null,ReferencedSymbol:null,
             ImmutableArray<SceneComponentMember>.Empty,Arguments,ImmutableArray<SceneValue>.Empty,
@@ -566,7 +566,7 @@ internal static class SceneModelEditApplier {
         SceneNode Node,SetComponentMemberOperation Operation,out SceneNode Updated){
         Updated=Node;
         var Component=Node.FindComponent(Operation.ComponentTypeFullyQualifiedName);
-        if(Component is null||SceneSourceEditor.IsGenerated(Component.Location.FilePath)){
+        if(Component is null||SceneEditValues.IsGenerated(Component.Location.FilePath)){
             return false;
         }
 
@@ -635,9 +635,8 @@ internal static class SceneModelEditApplier {
         }
     }
     /// <summary>
-    /// M0051: <c>SceneComponentCatalog</c>由来のComponent追加。<see cref="SceneSourceEditor.ApplyAddComponent"/>
-    /// と同じ2つの前提を、書き戻し(保存)より前のこの層で確かめる — ここで弾いておけば、
-    /// 保存時になって初めて失敗するという体験を避けられる。
+    /// M0051: <c>SceneComponentCatalog</c>由来のComponent追加。書き戻しが成立する2つの前提を
+    /// この層で確かめる — ここで弾いておけば、書き戻しの時点で初めて失敗するという体験を避けられる。
     ///
     /// <para>
     /// 追加するComponentは<see cref="SceneSourceLocation.None"/>で構築する。<see cref="TryAddNode"/>が
@@ -651,14 +650,12 @@ internal static class SceneModelEditApplier {
         SceneNode Node,AddComponentOperation Operation,out SceneNode Updated){
         Updated=Node;
         if(Node.FindComponent(Operation.ComponentTypeFullyQualifiedName)is not null){
-            // SceneSourceEditor.ApplyAddComponentの「同じ型のComponentは既にNodeへ追加されています。」と
-            // 同じ判定。保存時になって初めて失敗させず、その場で弾く。
+            // 同じ型のComponentを1つのNodeへ2つ持てない(シーンJSONではSCENE205)。書き戻しの時点で
+            // 初めて失敗させず、その場で弾く。
             return false;
         }
-        if(SceneSourceEditor.IsGenerated(Node.Location.FilePath)){
-            // ComponentsListLocationが無い(Components=[…]が未記述の)Nodeへの追加は、
-            // SceneSourceEditor.ApplyAddComponent側がまだ対応していない(「Nodeに編集可能な
-            // Componentsコレクションがありません。」)。保存時に必ず失敗するので、ここで揃えて弾く。
+        if(SceneEditValues.IsGenerated(Node.Location.FilePath)){
+            // 生成コードに宣言されたNodeは作者が編集できる文書を持たない。
             return false;
         }
 
@@ -682,12 +679,12 @@ internal static class SceneModelEditApplier {
         return true;
     }
 
-    /// <summary>M0051: <see cref="SceneSourceEditor.ApplyRemoveComponent"/>と対になる、予測モデル側のComponent削除。</summary>
+    /// <summary>M0051: 予測モデル側のComponent削除。</summary>
     private static bool TryApplyRemoveComponent(
         SceneNode Node,RemoveComponentOperation Operation,out SceneNode Updated){
         Updated=Node;
         var Component=Node.FindComponent(Operation.ComponentTypeFullyQualifiedName);
-        if(Component is null||SceneSourceEditor.IsGenerated(Component.Location.FilePath)){
+        if(Component is null||SceneEditValues.IsGenerated(Component.Location.FilePath)){
             return false;
         }
 
@@ -702,7 +699,7 @@ internal static class SceneModelEditApplier {
 
     private static bool TryApplyNormalizeComponents(SceneNode Node,out SceneNode Updated){
         Updated=Node;
-        if(SceneSourceEditor.IsGenerated(Node.Location.FilePath)){
+        if(SceneEditValues.IsGenerated(Node.Location.FilePath)){
             return false;
         }
         ImmutableArray<SceneComponent>Components=SceneComponentOrdering.Normalize(Node.Components);
@@ -755,7 +752,7 @@ internal static class SceneModelEditApplier {
     private static ImmutableArray<SceneComponentMember>SetFloatMember(
         ImmutableArray<SceneComponentMember>Members,SceneComponentMember?Existing,
         string Name,float Value,SceneSourceLocation Fallback){
-        var Text=SceneSourceEditor.FormatFloat(Value);
+        var Text=SceneEditValues.FormatFloat(Value);
         var NewValue=CreateLiteral(Value,Text,Existing,Fallback);
         return SetMember(Members,Existing,Name,NewValue,Fallback);
     }

@@ -6,7 +6,7 @@ namespace CSharpGameEngine.SceneAnalysis;
 /// <summary>
 /// SceneModel上の要素が由来するソース位置。<b>ナビゲーションと書き換えのためだけに使い、ノードの同一性には
 /// 決して使わない</b>(同一性は<see cref="NodePath"/>)。<see cref="Span"/>は<b>それを生成した解析結果の中
-/// でのみ有効</b>であり、解析を跨いで保持してはならない(ADR-0040、SceneSourceEditorは書き換え直前に必ず
+/// でのみ有効</b>であり、解析を跨いで保持してはならない(ADR-0040。書き戻しは直前に必ず
 /// 再解析する)。
 /// </summary>
 internal readonly struct SceneSourceLocation(string FilePath,TextSpan Span,LinePositionSpan LineSpan) : IEquatable<SceneSourceLocation> {

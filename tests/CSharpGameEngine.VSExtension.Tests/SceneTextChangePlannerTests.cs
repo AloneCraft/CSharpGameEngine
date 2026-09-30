@@ -108,7 +108,7 @@ public sealed class SceneTextChangePlannerTests {
         Assert.Equal(After.ToFullString(),Applied.ToString());
     }
 
-    /// <summary>SceneSourceEditorと同じく、元rootへ<c>ReplaceNode</c>して新rootを得る。</summary>
+    /// <summary>元rootへ<c>ReplaceNode</c>して新rootを得る(構文木どうしの差分を作るため)。</summary>
     private static SyntaxNode ReplaceLiterals(SyntaxNode Root,params (string Old,string New)[]Edits){
         var Current=Root;
         foreach(var Edit in Edits){

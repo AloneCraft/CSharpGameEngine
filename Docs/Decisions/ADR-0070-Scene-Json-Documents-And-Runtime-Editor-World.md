@@ -52,14 +52,19 @@ The user asked for an Unreal/Unity-like editor:
    - The preview host loads the built game assembly and instantiates the world from the editor's in-memory JSON by reflection, with the same schema rules as the generator.
    - It runs the game's Presentation-phase systems, then `EngineHost` and `RenderServer` draw into the Scene view surface. Environment, lights, materials, skinning, exposure and GI are therefore the runtime's own.
    - Edits are sent as document updates. New component types need a build, as Unity scripts do.
-7. **Cutover.** A converter turns the existing C# scenes into JSON. The C# `IScene` scene path is then removed; there are no parallel readers after the milestone, as [Editor-VSIX](../Specifications/Editor-VSIX.md) already requires for format changes.
+7. **Cutover.** A converter (`CSharpGameEngine.SceneJson.Cli convert`) turns the existing C# scenes into JSON. The C# `IScene` scene path is then removed; there are no parallel readers after the milestone, as [Editor-VSIX](../Specifications/Editor-VSIX.md) already requires for format changes.
+   - The generator builds scenes only from `*.scene.json`.
+   - A C# scene class, or a leftover `[StartupScene]`, is error SCENE206, whose message names the converter command. An unconverted scene therefore cannot silently disappear from the game.
+   - Two JSON startup scenes with the same `startupOrder` are SCENE118, reported at the later document's value.
+   - The Scene Designer opens and writes only `*.scene.json`. The C# scene writer (`SceneSourceEditor`) and its save verification are removed.
+   - The C# scene DSL stays as the designer's internal reading of a JSON scene (its equivalent class, `SceneJsonDesignerSource`), which never enters the build.
 
 ## Consequences
 
 - Editing no longer compiles the project per gesture, and Undo works on scene operations.
 - A scene can no longer be written as C# code. Gameplay stays in C#, and scene values are validated at build time.
 - The design-time image is the runtime image. New runtime rendering features reach the editor without editor work.
-- `SceneSourceTruthArchitectureTests` and the `vsix.source-sync` stage are replaced by tests of the JSON document, the Undo stack and the editor world.
+- `SceneSourceTruthArchitectureTests` stays: its invariants (one authoring copy, no mirrored Undo ledger, one native Undo unit, canonical re-read) now guard the JSON buffer. The `vsix.source-sync` stage runs the JSON commit and workspace tests in place of the C# writer's.
 - The UE importer (`tools/CSharpGameEngine.Unreal.SceneImporter`) still writes C# scene classes as an intermediate. Its export scripts convert them to JSON with `CSharpGameEngine.SceneJson.Cli convert` in the same run.
 - Each scene is its own file, and scene archetypes are registered in scene file order. Archetype numbers and component indices can therefore differ from the old C# layout, where several scenes shared one file. Nodes, components and values are unchanged; this was checked for every converted scene (M0093 C3a).
 - The Scene palette and schema list an engine struct only when it carries `[SceneComponentOrder]` or `[SceneComponentIcon]`. Engine types that scenes author directly must be marked; `PhysicsRotation`, `PhysicsVelocity` and `PhysicsCachePlayback` gained the marker in C3a.

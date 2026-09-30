@@ -69,7 +69,7 @@ internal static class SceneDesignerContextMenuPolicy {
         CultureInfo Culture,string? FilePath,
         SceneDesignerTargetState TargetState,
         IReadOnlyList<SceneDesignerMenuItem> Items){
-        if(!SceneJsonWorkspaceSource.IsSceneSourcePath(FilePath)
+        if(!SceneJsonCommitPlanner.IsJsonScene(FilePath)
             ||TargetState==SceneDesignerTargetState.Unavailable){
             return new(SceneDesignerMenuMode.Hidden,GetOpenText(Culture),[]);
         }

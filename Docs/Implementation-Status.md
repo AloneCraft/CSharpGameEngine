@@ -1838,6 +1838,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 
 ## F-L7-012 — Scene DSL解析・Runtime生成(`SceneDslAnalyzer`/`SceneInstantiateEmitter`)
 
+- **M0093/ADR-0070 (2026-10-01):** Sceneの正本は`*.scene.json`になった。生成器はJSONからだけSceneを作り、C#のSceneクラスはSCENE206(ビルドエラー、変換コマンドを案内)。`SceneInstantiateEmitter`以降の生成は不変で、C# Scene DSLの解析はScene DesignerがJSONを読む内部表現(`SceneJsonDesignerSource`)としてだけ残る。
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Scene Authoring(C#コードをSceneの正本にする、Phase A)
 - Status: Implemented
@@ -1874,6 +1875,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 
 ## F-L7-013 — Scene DSL診断(SCENE100〜118)
 
+- **M0093/ADR-0070 (2026-10-01):** ビルドが報告するのはSCENE114(Scene外での`Node`構築・`Root`読み取り)と、JSONの`startupOrder`重複に対するSCENE118(後のJSONの値の位置)だけになった。ほかのSCENE1xxはScene Designerの内部解析の診断として残り、シーンJSONの誤りはSCENE201〜205が報告する。
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: Scene Authoring(C#コードをSceneの正本にする、Phase A)
 - Status: Implemented
@@ -4015,22 +4017,22 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Conformance: Matches
 - Next action: Keep `vsix.inspector-contracts` in changed/full/VSIX suites; F-L8-025 now commits its typed operations through the common source transaction.
 
-## F-L8-025 — C# source synchronization v2
+## F-L8-025 — Scene document synchronization
 
 - M0088: 12 source-only ConvertLightOperation paths retain Node and shadow ownership, preserve local flux, require explicit directional quantities, reject source/default-contract conflicts and pass canonical verification through one native text write. No private Undo or runtime kind replacement.
 
 - Layer: L8 — Visual Studio Authoring Environment
 - Parent capability: Editor / VSIX
 - Status: Implemented
-- Verification: TestVerified (95/95 focused and 950/950 complete VSIX tests in both Debug and Release; `vsix.source-sync` Passed in both configurations)
+- Verification: TestVerified (M0093 C3b: complete VSIX suite in Debug; the M0070 C# evidence below is historical)
 - Intended specification: `Docs/Specifications/Editor-VSIX.md#authoring-model`
 - Stage: `vsix.source-sync` (`Executable`, Headless / VSIX, 1800s)
 - Depends on: F-L8-023, F-L8-024
-- Current delta: none for the automated contract. Each completed gesture resolves the latest Roslyn context, explicitly rebases or rejects stale input, applies the immutable operation batch, produces a minimal source edit, verifies it by recompiling and reanalyzing the edited C# tree, then writes the live buffer once. The published predicted snapshot is the canonical reanalysis result, with the operation projection used only as an identity basis for newly created nodes. Save persists the live C# document and never replays editor history.
-- Source of truth and ownership: C# `IScene` source and Visual Studio native text history are the only authoring and Undo truths. `SceneEditorSessionService` owns only immutable real/predicted projections, a transient pending-landing identity basis keyed by Scene and canonical semantic signature, and one in-flight write guard per Scene. It owns no editable document, mirrored Undo stack, text watermark, or save-time history.
+- Current delta: interactive use in Visual Studio (JSON editor and Scene Designer side by side) is a pending manual check. Each completed gesture resolves the latest Roslyn context, explicitly rebases or rejects stale input, applies the immutable operation batch to the scene model, writes the model as canonical scene JSON with its node ids kept, re-reads it through the designer view, and writes only the changed lines to the live buffer once (ADR-0070 decision 5). The published predicted snapshot is the canonical re-read result, with the operation projection used only as an identity basis for newly created nodes. Save persists the live `*.scene.json` document and never replays editor history.
+- Source of truth and ownership: the `*.scene.json` buffer and Visual Studio native text history are the only authoring and Undo truths. `SceneEditorSessionService` owns only immutable real/predicted projections, a transient pending-landing identity basis keyed by Scene and canonical semantic signature, and one in-flight write guard per Scene. It owns no editable document, mirrored Undo stack, text watermark, or save-time history.
 - Conflict and lifecycle: transform deltas rebase onto the latest source; stale member edits without an observed original value reject instead of overwriting; live-buffer mismatch writes nothing; cancellation/failure clears pending landing state; an older analysis cannot consume another generation's identity; a completed mismatching landing is discarded as a superseding external edit; post-write closure is non-cancellable; Undo/Redo delegates to native text history and schedules Roslyn analysis.
-- Evidence: `SceneSourceCommitPlanner.cs`; `SceneSaveVerification.cs`; `SceneEditorSessionService.cs`; `SceneWorkspaceService.cs`; `SceneTextBufferWriter.cs`; `SceneEditConflictMerger.cs`; all Hierarchy/Inspector/Viewport callers. Removed legacy includes `SceneEditDocument`, `SceneTextUndoLedger`, text watermark policies, external landing policy, own-save landing policy, multi-step save writer, and their implementation-detail tests.
-- Tests: `PendingSourceLandingTests`; `SceneSourceCommitPlannerTests`; `SceneSourceTruthArchitectureTests`; `SceneEditConflictMergerTests`; `SceneSaveVerificationTests`; `SceneTextChangePlannerTests`; `SceneUndoRoutingPolicyTests`; `SceneDesignerUndoCommandPolicyTests`; `SceneUndoRedoKeyPolicyTests`; `SceneSavePolicyTests`; `SceneProjectionIdentityTests`; `SceneSourceEditorTests`; complete VSIX Debug/Release suites.
+- Evidence: `SceneSourceCommitPlanner.cs`; `SceneJsonCommitPlanner.cs`; `SceneJsonWorkspaceSource.cs`; `SceneEditorSessionService.cs`; `SceneWorkspaceService.cs`; `SceneTextBufferWriter.cs`; `SceneEditConflictMerger.cs`; all Hierarchy/Inspector/Viewport callers. Removed legacy includes `SceneEditDocument`, `SceneTextUndoLedger`, text watermark policies, external landing policy, own-save landing policy, multi-step save writer, and their implementation-detail tests; M0093 removed the C# scene writer (`SceneSourceEditor`) and `SceneSaveVerification`.
+- Tests: `PendingSourceLandingTests`; `SceneJsonCommitPlannerTests`; `SceneJsonWorkspaceSourceTests`; `SceneSourceTruthArchitectureTests`; `SceneEditConflictMergerTests`; `SceneModelEditApplierTests` (predictions checked by writing and re-reading scene JSON); `SceneTextChangePlannerTests`; `SceneUndoRoutingPolicyTests`; `SceneDesignerUndoCommandPolicyTests`; `SceneUndoRedoKeyPolicyTests`; `SceneSavePolicyTests`; `SceneProjectionIdentityTests`; `HierarchySourceSyncTests`; complete VSIX suites.
 - Conformance: Matches. One gesture maps to at most one native Undo transaction; consecutive gestures before/after Roslyn landing retain NodeId and avoid self-rebase; external stale input is rebased or rejected; source, model, selection identity, and Hub projection converge without a second authoring state.
 - Next action: Keep `vsix.source-sync` in changed/full/VSIX suites while F-L8-026 consumes this source and diagnostic boundary.
 

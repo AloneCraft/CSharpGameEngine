@@ -39,16 +39,14 @@ public sealed class TypedLightEditingTests {
         Assert.Equal(Id,Assert.Single(Next.Nodes).Id);
         Assert.Equal("Lamp",Predicted.Root!.Name);
         Assert.Same(Data.Model.Root.FindComponent(LightComponentContract.ShadowType),Predicted.Root.FindComponent(LightComponentContract.ShadowType));
-        var OriginalRoot=Data.Compilation.SyntaxTrees.Single(Tree=>Tree.GetText().ToString()==Data.Source).GetRoot();
-        var Edited=SceneSourceEditor.Apply(OriginalRoot,Projection,Operation);
-        Assert.True(Edited.Succeeded,Edited.ErrorMessage);
-        Assert.True(SceneSaveVerification.TryVerifyAndAnalyze(Edited.Root!,OriginalRoot,Data.Compilation,Predicted,"Game.MainScene",CancellationToken.None,out _,out var VerificationError),VerificationError);
-        var Truth=TypedLightTestScene.AnalyzeSource(Edited.Root!.ToFullString());
-        SceneAnalysisTestHelper.AssertNoDiagnostics(Truth.Model);
-        Assert.Empty(Truth.Compilation.GetDiagnostics().Where(D=>D.Severity==DiagnosticSeverity.Error));
-        Assert.Equal(Replacement.Members.Select(M=>M.Value.EmitExpressionText),Truth.Model.Root!.FindComponent(TargetName)!.Members.Select(M=>M.Value.EmitExpressionText));
+        var Truth=SceneJsonRoundTrip.Reanalyze(Predicted,Data.Compilation);
+        SceneAnalysisTestHelper.AssertNoDiagnostics(Truth);
+        Assert.Equal(
+            Predicted.Root.FindComponent(TargetName)!.Members.Select(M=>(M.MemberName,M.Value.ConstantValue)),
+            Truth.Root!.FindComponent(TargetName)!.Members.Select(M=>(M.MemberName,M.Value.ConstantValue)));
+        Assert.NotNull(Truth.Root.FindComponent(LightComponentContract.ShadowType));
         var Conflicting=new ConvertLightOperation(TypedLightTestScene.Key,Id,1,SourceName,"changed source",Replacement,LightConversionPlanner.ContractFingerprint(Source,Target));
-        Assert.False(SceneSourceEditor.Apply(CSharpSyntaxTree.ParseText(Data.Source).GetRoot(),Projection,Conflicting).Succeeded);
+        Assert.False(SceneModelEditApplier.TryApply(Data.Model,Projection,Reconciler,TypedLightTestScene.Key,[Conflicting],out _,out _));
     }
     [Theory]
     [InlineData("new(800f)",true)]
@@ -72,11 +70,11 @@ public sealed class TypedLightEditingTests {
         var Type=LightComponentContract.Prefix+"SpotLight";
         var Operation=new SetComponentMemberOperation(TypedLightTestScene.Key,Id,1,Type,"Cone","new global::CSharpGameEngine.Lighting.SpotConeAngles(25f,70f)");
         Assert.True(SceneModelEditApplier.TryApply(Data.Model,Projection,Reconciler,TypedLightTestScene.Key,[Operation],out var Predicted,out _));
-        var Edited=SceneSourceEditor.Apply(CSharpSyntaxTree.ParseText(Data.Source).GetRoot(),Projection,Operation);
-        Assert.True(Edited.Succeeded,Edited.ErrorMessage);
-        var Truth=TypedLightTestScene.AnalyzeSource(Edited.Root!.ToFullString());
-        SceneAnalysisTestHelper.AssertNoDiagnostics(Truth.Model);
-        Assert.Equal(Predicted.Root!.FindComponent(Type)!.FindMember("Cone")!.Value.EmitExpressionText,Truth.Model.Root!.FindComponent(Type)!.FindMember("Cone")!.Value.EmitExpressionText);
+        var Truth=SceneJsonRoundTrip.Reanalyze(Predicted,Data.Compilation);
+        SceneAnalysisTestHelper.AssertNoDiagnostics(Truth);
+        Assert.Equal(
+            SceneJsonRoundTrip.Signature(Predicted.Root!.FindComponent(Type)!.FindMember("Cone")!.Value),
+            SceneJsonRoundTrip.Signature(Truth.Root!.FindComponent(Type)!.FindMember("Cone")!.Value));
         var Invalid=new SetComponentMemberOperation(TypedLightTestScene.Key,Id,1,Type,"Cone","new SpotConeAngles(90f,20f)");
         Assert.False(SceneModelEditApplier.TryApply(Data.Model,Projection,Reconciler,TypedLightTestScene.Key,[Invalid],out _,out _));
     }
@@ -113,29 +111,30 @@ public sealed class TypedLightEditingTests {
     [Fact]
     public void ConversionCommit_IsOneNativeWriteAndRejectsChangedContract(){
         var Data=TypedLightTestScene.Analyze("new SpotLight { Flux=new(1234f),Cone=new(20f,70f) },new LightShadow()");
+        // ADR-0070: the scene is committed as its scene JSON document.
+        var (Json,Context,Base)=SceneJsonRoundTrip.ToJsonScene(Data.Model,Data.Compilation);
         var Reconciler=new SceneProjectionReconciler();
-        var Snapshot=SceneDocumentSnapshot.Create(TypedLightTestScene.Key,"scene",1,1,Data.Model,false,null,Reconciler);
-        var Source=Data.Model.Root!.FindComponent(LightComponentContract.Prefix+"SpotLight")!;
-        var Target=Data.Compilation.GetTypeByMetadataName("CSharpGameEngine.Runtime.Lighting.PointLight")!;
-        Assert.True(LightConversionPlanner.TryBuild(Source,Target,Data.Compilation,LightConversionPlanner.Suggest(Source,Target,Data.Compilation),out var Replacement));
+        var Snapshot=SceneDocumentSnapshot.Create(TypedLightTestScene.Key,"scene",1,1,Context.Model,false,null,Reconciler);
+        var Source=Context.Model.Root!.FindComponent(LightComponentContract.Prefix+"SpotLight")!;
+        var Target=Context.Compilation.GetTypeByMetadataName("CSharpGameEngine.Runtime.Lighting.PointLight")!;
+        Assert.True(LightConversionPlanner.TryBuild(Source,Target,Context.Compilation,LightConversionPlanner.Suggest(Source,Target,Context.Compilation),out var Replacement));
         var Id=Assert.Single(Snapshot.Projection!.Nodes).Id;
         var Operation=new ConvertLightOperation(TypedLightTestScene.Key,Id,1,Source.TypeFullyQualifiedName,Source.EmitExpressionText,Replacement,LightConversionPlanner.ContractFingerprint(Source,Target));
-        var Root=Data.Compilation.SyntaxTrees.Single(Tree=>Tree.GetText().ToString()==Data.Source).GetRoot();
-        var Context=new SceneSourceCommitContext(Data.Model,Root,Root.SyntaxTree.GetText(),Data.Compilation);
         SceneSourceCommitPlan Commit(ConvertLightOperation Convert)=>SceneSourceCommitPlanner.Plan(Context,Snapshot,
             new SceneEditCommitRequest(TypedLightTestScene.Key,1,"Convert light",[],SceneTransformMemberMask.None,DirectOperations:[Convert]),Reconciler,CancellationToken.None);
         var Plan=Commit(Operation);
         Assert.True(Plan.Succeeded,Plan.ErrorMessage);
         Assert.NotNull(Plan.WriteStep);
         var After=Plan.WriteStep!.Before.WithChanges(Plan.WriteStep.Changes).ToString();
-        Assert.Equal(Plan.FinalRoot!.ToFullString(),After);
         // The native writer owns this single before/after transaction; no light-owned history exists.
-        var Undo=TypedLightTestScene.AnalyzeSource(Plan.WriteStep.Before.ToString());
-        Assert.Equal(Source.EmitExpressionText,Undo.Model.Root!.FindComponent(Source.TypeFullyQualifiedName)!.EmitExpressionText);
-        var Redo=TypedLightTestScene.AnalyzeSource(After);
-        Assert.NotNull(Redo.Model.Root!.FindComponent(Replacement.TypeFullyQualifiedName));
+        Assert.Equal(Json,Plan.WriteStep.Before.ToString());
+        var Undo=SceneJsonRoundTrip.Analyze(Plan.WriteStep.Before.ToString(),"MainScene","Game.MainScene",Base).Model;
+        Assert.NotNull(Undo.Root!.FindComponent(Source.TypeFullyQualifiedName));
+        var Redo=SceneJsonRoundTrip.Analyze(After,"MainScene","Game.MainScene",Base).Model;
+        Assert.NotNull(Redo.Root!.FindComponent(Replacement.TypeFullyQualifiedName));
+        Assert.Null(Redo.Root.FindComponent(Source.TypeFullyQualifiedName));
         Assert.False(Commit(Operation with { DefaultsFingerprint="obsolete semantic generation" }).Succeeded);
-        Assert.False(LightConversionPlanner.TryBuild(Source,Source.TypeSymbol!,Data.Compilation,new Dictionary<string,string>(),out _));
+        Assert.False(LightConversionPlanner.TryBuild(Source,Source.TypeSymbol!,Context.Compilation,new Dictionary<string,string>(),out _));
     }
     private static SceneComponent WithDefaults(SceneComponent Source,Compilation Compilation){
         var Plan=SceneComponentInitializerPolicy.CreatePlan(Source.TypeSymbol!,Source.TypeFullyQualifiedName,Compilation);

@@ -18,9 +18,9 @@ public sealed class ScenePolicyLocalizationTests {
     [Fact]
     public void ContextMenu_DisabledReasonAndOverflowUseTheRequestedCulture(){
         var EnglishPresentation=SceneDesignerContextMenuPolicy.Create(
-            English,@"G:\Project\Components.cs",SceneDesignerTargetState.NonSceneType,[]);
+            English,@"G:\Project\Components.scene.json",SceneDesignerTargetState.NonSceneType,[]);
         var JapanesePresentation=SceneDesignerContextMenuPolicy.Create(
-            Japanese,@"G:\Project\Components.cs",SceneDesignerTargetState.NonSceneType,[]);
+            Japanese,@"G:\Project\Components.scene.json",SceneDesignerTargetState.NonSceneType,[]);
         Assert.Equal("Open in Scene Designer (this class does not implement IScene)",EnglishPresentation.Text);
         Assert.Equal("シーン デザイナーで開く（このクラスは IScene を実装していません）",JapanesePresentation.Text);
         Assert.Equal(
