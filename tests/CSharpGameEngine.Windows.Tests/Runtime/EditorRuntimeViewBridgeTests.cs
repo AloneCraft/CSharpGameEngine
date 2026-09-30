@@ -34,6 +34,16 @@ public sealed class EditorRuntimeViewBridgeTests {
             var Side=PreviewBridge.CaptureRuntimeView()!;
             Assert.NotEqual(FrontHash,Convert.ToHexString(SHA256.HashData(Side.Pixels)));
 
+            // A value edit reaches the running world without a rebuild; a component the node lacks does not.
+            Assert.Equal(1,PreviewBridge.RuntimeViewNodeCount());
+            Assert.True(PreviewBridge.RenderRuntimeView(3f,0.5f,-4f,0f,0f,0f,1f,MathF.PI/4f,0.1f,300f));
+            var BeforeMove=Convert.ToHexString(SHA256.HashData(PreviewBridge.CaptureRuntimeView()!.Pixels));
+            Assert.True(PreviewBridge.TrySetRuntimeViewComponent(0,new CSharpGameEngine.Entities.Transform { Position=new LogicalVector3(3f,0.5f,3f) }));
+            Assert.True(PreviewBridge.RenderRuntimeView(3f,0.5f,-4f,0f,0f,0f,1f,MathF.PI/4f,0.1f,300f));
+            Assert.NotEqual(BeforeMove,Convert.ToHexString(SHA256.HashData(PreviewBridge.CaptureRuntimeView()!.Pixels)));
+            Assert.False(PreviewBridge.TrySetRuntimeViewComponent(0,new Camera()));
+            Assert.False(PreviewBridge.TrySetRuntimeViewComponent(1,new CSharpGameEngine.Entities.Transform()));
+
             PreviewBridge.ResizeRuntimeView(96,64);
             Assert.True(PreviewBridge.RenderRuntimeView(0f,1.5f,-8f,0f,0f,0f,1f,MathF.PI/4f,0.1f,300f));
             var Resized=PreviewBridge.CaptureRuntimeView()!;

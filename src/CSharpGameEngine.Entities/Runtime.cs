@@ -350,6 +350,21 @@ public partial struct World {
         return this.SceneInstances.Resolve(Instance) is { } Slot?Slot.Root:default;
     }
 
+    /// <summary>
+    /// The entities this scene instance attached, in attach order. For a generated scene that is its
+    /// node order (pre-order: a node, then its children), so index N is the scene's N-th node.
+    /// </summary>
+    public Entity[]GetSceneEntities(SceneInstance Instance){
+        if(this.SceneInstances.Resolve(Instance) is not { } Slot){
+            return [];
+        }
+        var Entities=new Entity[Slot.Entities.Count];
+        for(var Index=0;Index<Entities.Length;Index++){
+            Entities[Index]=Slot.Entities.GetRefUnchecked(Index);
+        }
+        return Entities;
+    }
+
     /// <summary>このEntityを生成したScene。Scene直属でなければ<see cref="SceneInstance.None"/>。</summary>
     public SceneInstance GetOwningScene(Entity Entity){
         if(!this.IsAlive(Entity)){

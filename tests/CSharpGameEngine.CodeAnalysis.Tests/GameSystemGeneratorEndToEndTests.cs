@@ -23,6 +23,49 @@ public sealed class GameSystemGeneratorEndToEndTests {
         }
         """;
 
+    /// <summary>
+    /// ADR-0070 B1: <c>TrySetComponent</c> replaces a value in place like a system write (the change
+    /// version advances, the archetype stays) and refuses an entity without the component.
+    /// </summary>
+    [Fact]
+    public void TrySetComponent_ReplacesTheValueInPlaceAndMarksItChanged(){
+        var Source="""
+            using CSharpGameEngine.Entities;
+            using Sample;
+
+            namespace Game;
+
+            internal struct Mover : ISystem
+            {
+                public bool Update(ref Position position, ref Velocity velocity, ref State state) => true;
+                public bool Update(ref Health health, ref State state) => true;
+            }
+
+            internal static class TestEntry
+            {
+                internal static string RunScenario()
+                {
+                    World world = new();
+                    var moving = world.Create(new Position { X = 1f }, new Velocity { X = 2f });
+                    var healthy = world.Create(new Health { Value = 3 });
+                    world.TryGetComponentChangeVersion(moving, EcsComponentType.Position, out var before);
+                    if (!world.TrySetComponent(moving, new Position { X = 5f })) return "FAIL:set";
+                    world.TryGetComponent(moving, out Position position);
+                    world.TryGetComponent(moving, out Velocity velocity);
+                    world.TryGetComponentChangeVersion(moving, EcsComponentType.Position, out var after);
+                    if (position.X != 5f || velocity.X != 2f) return "FAIL:values " + position.X + " " + velocity.X;
+                    if (!(after.Value > before.Value)) return "FAIL:version";
+                    if (world.TrySetComponent(healthy, new Position { X = 9f })) return "FAIL:missing component";
+                    world.Destroy(moving);
+                    if (world.TrySetComponent(moving, new Position { X = 9f })) return "FAIL:dead entity";
+                    return "OK";
+                }
+            }
+            """;
+        var Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
+        Assert.Equal("OK",GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.TestEntry","RunScenario"));
+    }
+
     [Fact]
     public void SubsetDispatch_FiresEveryMatchingOverloadOncePerEntity(){
         var Source="""

@@ -105,7 +105,7 @@ internal static class GeneratedEditorPreviewBridgeEmitter {
             Lines.Add("    internal static void TickRealtime() { }");
         }
         if(HasEngineHost){
-            AddRuntimeView(Lines,Scenes);
+            AddRuntimeView(Lines,Scenes,Registry);
         }
         Lines.Add("    internal static void Shutdown() {");
         if(HasEditorSystems){
@@ -126,11 +126,12 @@ internal static class GeneratedEditorPreviewBridgeEmitter {
     /// startup scene in order) plus the scene being edited, rendered by the game's own Presentation
     /// systems into the designer's surface from the designer's camera.
     /// </summary>
-    private static void AddRuntimeView(List<string> Lines,IReadOnlyList<SceneEmitModel> Scenes){
+    private static void AddRuntimeView(List<string> Lines,IReadOnlyList<SceneEmitModel> Scenes,GameSystemRegistry Registry){
         const string Host="global::CSharpGameEngine.Runtime.Windows.EngineHost";
         Lines.Add($"    private static {Host}? ViewHost;");
         Lines.Add("    private static global::CSharpGameEngine.Entities.State ViewState;");
         Lines.Add("    private static GeneratedSystemSet ViewSystems;");
+        Lines.Add("    private static global::CSharpGameEngine.Entities.SceneInstance ViewEditedScene;");
         Lines.Add("    /// <summary><paramref name=\"ContentDirectory\"/> is the game build's directory, which its content paths are relative to.</summary>");
         Lines.Add("    internal static bool InitializeRuntimeView(string? SceneName, string ContentDirectory, nint Surface, int Width, int Height, bool UseWarp) {");
         Lines.Add("        ShutdownRuntimeView();");
@@ -141,15 +142,18 @@ internal static class GeneratedEditorPreviewBridgeEmitter {
         Lines.Add("            ViewState = Host.CreateState();");
         Lines.Add("            ViewSystems = default;");
         Lines.Add("            bool Matched = SceneName is null;");
+        Lines.Add("            ViewEditedScene = global::CSharpGameEngine.Entities.SceneInstance.None;");
         foreach(var Scene in Scenes.Where(static S=>S.IsStartupScene).OrderBy(static S=>S.StartupOrder).ThenBy(static S=>S.ClassFullyQualifiedName,StringComparer.Ordinal)){
-            Lines.Add($"            ViewState.World.InstantiateScene<global::{Scene.ClassFullyQualifiedName}>();");
-            Lines.Add($"            if (SceneName == \"{Escape(Scene.ClassFullyQualifiedName)}\") Matched = true;");
+            Lines.Add("            {");
+            Lines.Add($"                var Instance = ViewState.World.InstantiateScene<global::{Scene.ClassFullyQualifiedName}>();");
+            Lines.Add($"                if (SceneName == \"{Escape(Scene.ClassFullyQualifiedName)}\") {{ Matched = true; ViewEditedScene = Instance; }}");
+            Lines.Add("            }");
         }
         var Others=Scenes.Where(static S=>!S.IsStartupScene).OrderBy(static S=>S.ClassFullyQualifiedName,StringComparer.Ordinal).ToList();
         if(Others.Count>0){
             Lines.Add("            switch (SceneName) {");
             foreach(var Scene in Others){
-                Lines.Add($"                case \"{Escape(Scene.ClassFullyQualifiedName)}\": ViewState.World.InstantiateScene<global::{Scene.ClassFullyQualifiedName}>(); Matched = true; break;");
+                Lines.Add($"                case \"{Escape(Scene.ClassFullyQualifiedName)}\": ViewEditedScene = ViewState.World.InstantiateScene<global::{Scene.ClassFullyQualifiedName}>(); Matched = true; break;");
             }
             Lines.Add("            }");
         }
@@ -175,6 +179,21 @@ internal static class GeneratedEditorPreviewBridgeEmitter {
         Lines.Add("        return ViewState.Enabled;");
         Lines.Add("    }");
         Lines.Add("    internal static void ResizeRuntimeView(int Width, int Height) => ViewHost?.ResizeExternalSurface(Width, Height);");
+        Lines.Add("    /// <summary>The edited scene's node count in the running world: its entities, in node pre-order.</summary>");
+        Lines.Add("    internal static int RuntimeViewNodeCount() => ViewHost is null ? 0 : ViewState.World.GetSceneEntities(ViewEditedScene).Length;");
+        Lines.Add("    /// <summary>A value edit: replaces the component of <paramref name=\"Value\"/>'s type on the edited scene's node. False when the built world does not have that component there.</summary>");
+        Lines.Add("    internal static bool TrySetRuntimeViewComponent(int NodeIndex, object Value) {");
+        Lines.Add("        if (ViewHost is null) return false;");
+        Lines.Add("        var Entities = ViewState.World.GetSceneEntities(ViewEditedScene);");
+        Lines.Add("        if ((uint)NodeIndex >= (uint)Entities.Length) return false;");
+        Lines.Add("        var Entity = Entities[NodeIndex];");
+        Lines.Add("        switch (Value) {");
+        for(var Index=0;Index<Registry.ComponentsByIndex.Length;Index++){
+            Lines.Add($"            case {Registry.ComponentsByIndex[Index].TypeFullyQualifiedName} Value{Index}: return ViewState.World.TrySetComponent(Entity, Value{Index});");
+        }
+        Lines.Add("            default: return false;");
+        Lines.Add("        }");
+        Lines.Add("    }");
         Lines.Add("    /// <summary>Renders and reads back one frame for verification; null before the level has loaded.</summary>");
         Lines.Add("    internal static global::CSharpGameEngine.Graphics.D3D12.PixelReadbackResult? CaptureRuntimeView() {");
         Lines.Add("        if (ViewHost?.Renderer is not { } Renderer) return null;");
