@@ -36,3 +36,41 @@ internal struct CharacterMovementUpdate:ISystem {
         return true;
     }
 }
+/// <summary>Registers PlayerController with the generated World lookup surface that SpringArmUpdate reads through the parent.</summary>
+internal struct PlayerControllerQueryRegistration:ISystem { public void Spawn(ref PlayerController Controller){} }
+/// <summary>
+/// Places spring-arm cameras after the fixed ticks and before the renderer takes the camera pose
+/// (CameraOriginSync, order 1). The arm's entity must be a direct child of a character root with a
+/// <see cref="PlayerController"/>; its local Transform is rewritten so the world pose is the control
+/// rotation at the arm's end.
+/// </summary>
+[SystemPhase(SystemPhase.Presentation)]
+[SystemOrder(0)]
+internal struct SpringArmUpdate:ISystem {
+    private static readonly ConditionalWeakTable<DeterministicPhysicsWorld,SpringArmSolver>Solvers=[];
+    public bool Update(Entity Entity,ref Transform Transform,ref SpringArm Arm,EngineHost Host,ref State State){
+        if(!State.World.TryGetComponent(Entity,out Parent Parent)
+            ||!State.World.TryGetComponent(Parent.Value,out Transform Owner)
+            ||!State.World.TryGetComponent(Parent.Value,out PlayerController Controller)
+            ||Owner.Frame!=Host.PhysicsFrame){
+            return true;
+        }
+        var Solver=Solvers.GetValue(Host.ActivePhysicsDomain.MutableWorld,static Key=>new SpringArmSolver(Key));
+        var Control=PlayerControl.ControlRotation(Controller);
+        var Inverse=Owner.Rotation.Conjugate();
+        try {
+            if(!Solver.TrySolve(Arm,Owner.Position,Owner.Rotation,Control,out var CameraPosition,out _)
+                ||!Inverse.TryRotate(CameraPosition-Owner.Position,out var Local)
+                ||!LogicalQuaternion.TryMultiply(Inverse,Control,out var LocalRotation)
+                ||Owner.Scale.R.IsZero||Owner.Scale.U.IsZero||Owner.Scale.F.IsZero){
+                return true;
+            }
+            Transform.Position=new LogicalVector3(Local.R/Owner.Scale.R,Local.U/Owner.Scale.U,Local.F/Owner.Scale.F);
+            Transform.Rotation=LocalRotation;
+        }
+        catch(OverflowException){
+            // An unrepresentable placement keeps last frame's camera.
+        }
+        return true;
+    }
+}
