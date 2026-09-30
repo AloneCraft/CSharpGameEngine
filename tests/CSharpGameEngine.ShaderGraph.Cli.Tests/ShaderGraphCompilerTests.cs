@@ -80,7 +80,7 @@ public sealed class ShaderGraphCompilerTests {
         var Hash=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(Export.Hlsl)));
         // ADR-0069 (sky light SH, physical fog, Unreal filmic output, cascaded sun shadows) intentionally changed the Stage
         // program; the migrate/extract round trip was verified byte-identical before that edit.
-        Assert.Equal("8CBC0BD15E5261748A14155176AD38F8C7A28CC092713A4C636D03D844056AF1",Hash);
+        Assert.Equal("7BAD8828B6EA987C8A2C292A7E539467A7C204FDAF9AA6DC7DE83D7B842E451B",Hash);
     }
     [Fact]
     public void DependencySemanticChange_ChangesOnlyDependencyHash() {

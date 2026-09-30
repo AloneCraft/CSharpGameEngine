@@ -88,14 +88,25 @@ public readonly record struct EnvironmentLightingSettings(
     ToneMapper ToneMapper,
     float BloomIntensity,
     float SunAngularRadiusRadians,
-    GlobalIlluminationSettings?GlobalIllumination=null){
+    GlobalIlluminationSettings?GlobalIllumination=null,
+    AmbientOcclusionSettings?AmbientOcclusion=null){
     public static EnvironmentLightingSettings Legacy=>new(null,null,null,ExposureSettings.Legacy,ToneMapper.LegacyAces,1.8f,0.00465f);
     public bool IsValid=>(this.Atmosphere is null||this.Atmosphere.Value.IsValid)
         &&(this.SkyLight is null||this.SkyLight.Value.IsValid)
         &&(this.Fog is null||this.Fog.Value.IsValid)
         &&(this.GlobalIllumination is null||this.GlobalIllumination.Value.IsValid)
+        &&(this.AmbientOcclusion is null||this.AmbientOcclusion.Value.IsValid)
         &&this.Exposure.IsValid&&float.IsFinite(this.BloomIntensity)&&this.BloomIntensity>=0f
         &&float.IsFinite(this.SunAngularRadiusRadians)&&this.SunAngularRadiusRadians>0f&&this.SunAngularRadiusRadians<0.5f;
+}
+/// <summary>
+/// Screen-space ambient occlusion of indirect light (ADR-0069), in Unreal Engine's terms:
+/// <see cref="Intensity"/> blends between no occlusion (0) and the full obscurance (1) and
+/// <see cref="RadiusMeters"/> is the world-space sampling radius.
+/// </summary>
+public readonly record struct AmbientOcclusionSettings(float Intensity,float RadiusMeters){
+    public bool IsValid=>float.IsFinite(this.Intensity)&&this.Intensity>=0f&&this.Intensity<=1f
+        &&float.IsFinite(this.RadiusMeters)&&this.RadiusMeters>0f;
 }
 /// <summary>
 /// Dynamic diffuse global illumination probe volume (ADR-0069). <see cref="Center"/> is in the

@@ -57,11 +57,14 @@ internal sealed class EnvironmentCollection {
             ?new GlobalIlluminationSettings(this.GlobalIlluminationCenter,new Vector3(G.HalfExtentX,G.HalfExtentY,G.HalfExtentZ),
                 G.ProbeSpacingMeters,G.ProbesPerFrame,G.Hysteresis,G.Intensity)
             :null;
+        AmbientOcclusionSettings?AmbientOcclusion=Post is PostProcessVolume Occlusion&&Occlusion.AmbientOcclusionIntensity>0f
+            ?new AmbientOcclusionSettings(Occlusion.AmbientOcclusionIntensity,Occlusion.AmbientOcclusionRadiusMeters)
+            :null;
         if(GlobalIllumination is { IsValid:false }){
             // An oversized or malformed probe volume only disables GI; the sky and exposure stay.
             this.InvalidReason="GlobalIlluminationVolume";
             GlobalIllumination=null;
         }
-        return new EnvironmentLightingSettings(Atmosphere,Sky,Fog,Exposure,ToneMapperValue,Bloom,SunRadius,GlobalIllumination);
+        return new EnvironmentLightingSettings(Atmosphere,Sky,Fog,Exposure,ToneMapperValue,Bloom,SunRadius,GlobalIllumination,AmbientOcclusion);
     }
 }

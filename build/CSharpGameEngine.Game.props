@@ -55,6 +55,7 @@
     <CgeShaderSubgraph Include="$(CgeEngineShaderRoot)Aces.cgesubgraph" />
     <CgeComputeShader Include="$(CgeEngineShaderRoot)Atmosphere.hlsl" />
     <CgeComputeShader Include="$(CgeEngineShaderRoot)GlobalIllumination.hlsl" />
+    <CgeComputeShader Include="$(CgeEngineShaderRoot)AmbientOcclusion.hlsl" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(CgeCopyAssets)' == 'true'">

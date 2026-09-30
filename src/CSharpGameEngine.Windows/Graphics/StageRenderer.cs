@@ -122,8 +122,11 @@ public sealed unsafe class StageRenderer:IDisposable {
     /// <summary>Cascade 0 keeps slot 0; cascades 1-3 follow every local-light projection slot.</summary>
     private const int CascadeShadowConstantSlotOffset=
         AreaShadowProjectionConstantSlotOffset+MaxAreaAndEmissiveShadowProjections;
-    private const int ShadowAtlasProjectionConstantSlotCount=
+    /// <summary>The camera view-projection of the ambient occlusion depth prepass (same depth-only pipeline).</summary>
+    private const int AmbientOcclusionPrepassConstantSlot=
         CascadeShadowConstantSlotOffset+DirectionalShadowCascades.Count-1;
+    private const int ShadowAtlasProjectionConstantSlotCount=
+        AmbientOcclusionPrepassConstantSlot+1;
     private const uint ForwardPlusTileRecordUIntCount=1u+(uint)MaxLightsPerForwardPlusTile;
     private const uint ForwardPlusTileRecordStride=sizeof(uint)*ForwardPlusTileRecordUIntCount;
 
@@ -151,7 +154,8 @@ public sealed unsafe class StageRenderer:IDisposable {
     private const uint FrameGiGridSpacingOffset=FrameGiGridOriginOffset+16; // float4: xyz metres between probes, w intensity
     private const uint FrameGiGridCountsOffset=FrameGiGridSpacingOffset+16; // uint4: xyz probe counts, w probes per atlas row (0 = GI off)
     private const uint FrameGiAtlasSizeOffset=FrameGiGridCountsOffset+16; // float4: irradiance atlas texels, distance atlas texels
-    private const uint FrameConstantsSize=FrameGiAtlasSizeOffset+16;
+    private const uint FrameAmbientOcclusionOffset=FrameGiAtlasSizeOffset+16; // float4: x enabled, y intensity, zw = 1 / viewport size
+    private const uint FrameConstantsSize=FrameAmbientOcclusionOffset+16;
 
     /// <summary>
     /// FrameConstantsBuffer専用のフレームスロット幅。FrameConstantsSize以上、かつD3D12のroot CBV
@@ -322,7 +326,9 @@ public sealed unsafe class StageRenderer:IDisposable {
     private ID3D12RootSignature*PostProcessRootSignature;
     private StageAtmosphere?Atmosphere;
     private StageGlobalIllumination?GlobalIllumination;
+    private StageAmbientOcclusion?AmbientOcclusion;
     private bool GlobalIlluminationDescriptorsLive;
+    private int AmbientOcclusionDescriptorGeneration;
     private EnvironmentLightingSettings EnvironmentSettings=EnvironmentLightingSettings.Legacy;
     private AtmosphereFrame CurrentAtmosphereFrame;
     private float CameraAltitudeMeters;
@@ -499,6 +505,12 @@ public sealed unsafe class StageRenderer:IDisposable {
         this.ThrowIfDisposed();
         this.WaitForGpuIdle();
         return this.Atmosphere!.ReadbackForTesting();
+    }
+
+    internal (float[]Values,int Width,int Height) ReadAmbientOcclusionForTesting(){
+        this.ThrowIfDisposed();
+        this.WaitForGpuIdle();
+        return (this.AmbientOcclusion!.ReadbackForTesting(),this.AmbientOcclusion.Width,this.AmbientOcclusion.Height);
     }
 
     internal GlobalIlluminationReadback ReadGlobalIlluminationForTesting(){
@@ -682,6 +694,7 @@ public sealed unsafe class StageRenderer:IDisposable {
         this.ShaderArtifactPath=Path.GetFullPath(ShaderArtifactPath);
         this.Atmosphere=new StageAtmosphere(this.Device,this.ShaderArtifactPath,FrameCount);
         this.GlobalIllumination=new StageGlobalIllumination(this.Device,this.ShaderArtifactPath,FrameCount,FrameConstantsStride);
+        this.AmbientOcclusion=new StageAmbientOcclusion(this.Device,this.ShaderArtifactPath,FrameCount);
         if(ValidatedShaderPackage is null){
             this.LoadShaderArtifact(this.ShaderArtifactPath);
         } else {
@@ -1030,7 +1043,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
         D3D12_DESCRIPTOR_RANGE GlobalIlluminationRange=new(){
             RangeType=D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
-            NumDescriptors=2,
+            NumDescriptors=3,
             BaseShaderRegister=12,
         };
 
@@ -1537,7 +1550,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
         D3D12_DESCRIPTOR_HEAP_DESC SrvHeapDesc=new(){
             Type=D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-            NumDescriptors=(uint)(this.MaterialCount*5+2),
+            NumDescriptors=(uint)(this.MaterialCount*5+3),
             Flags=D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
         };
         ID3D12DescriptorHeap*SrvHeap;
@@ -1572,7 +1585,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             D3D12_CPU_DESCRIPTOR_HANDLE Handle=new(SrvHeapStart,(I*5)+4, this.SrvDescriptorSize);
             this.Device.Device->CreateShaderResourceView(this.ShadowAtlas,&ShadowSrvDesc,Handle);
         }
-        this.WriteGlobalIlluminationDescriptors();
+        this.WriteEnvironmentDescriptors();
 
         ID3D12Resource*GetOrCreateTexture(RenderTextureResource Texture){
             if(ResidentTextures.TryGetValue(Texture.ContentHash,out nint Existing)){
@@ -2052,6 +2065,38 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         Unsafe.CopyBlock(Slot+FramePhysicalFogParamsOffset,&FogParams,(uint)sizeof(Vector4));
         Unsafe.CopyBlock(Slot+FramePhysicalFogColorOffset,&FogColor,(uint)sizeof(Vector4));
         this.WriteGlobalIlluminationConstants(Slot);
+        var AmbientOcclusion=Settings.AmbientOcclusion is AmbientOcclusionSettings Occlusion
+            ?new Vector4(1f,Occlusion.Intensity,1f/this.Width,1f/this.Height)
+            :Vector4.Zero;
+        Unsafe.CopyBlock(Slot+FrameAmbientOcclusionOffset,&AmbientOcclusion,(uint)sizeof(Vector4));
+    }
+
+    /// <summary>
+    /// Ambient occlusion of indirect light (ADR-0069): a half-resolution camera depth prepass with
+    /// the depth-only shadow pipeline, then StageAmbientOcclusion's obscurance and blur passes.
+    /// </summary>
+    private void RenderAmbientOcclusion(){
+        if(this.EnvironmentSettings.AmbientOcclusion is not AmbientOcclusionSettings Settings){
+            return;
+        }
+        var AmbientOcclusion=this.AmbientOcclusion!;
+        if(AmbientOcclusion.Generation==0){
+            // First use only: later size changes happen in Resize after the GPU is idle.
+            AmbientOcclusion.EnsureSize(this.Width,this.Height);
+        }
+        if(this.AmbientOcclusionDescriptorGeneration!=AmbientOcclusion.Generation){
+            this.WriteEnvironmentDescriptors();
+        }
+        var ViewProjection=this.CurrentViewProjection;
+        Unsafe.CopyBlock(this.ShadowConstantsSlot(this.FrameIndex,AmbientOcclusionPrepassConstantSlot),&ViewProjection,(uint)sizeof(Matrix4x4));
+        AmbientOcclusion.BeginPrepass(this.CommandList);
+        var Dsv=AmbientOcclusion.PrepassDsv;
+        this.CommandList->OMSetRenderTargets(0,null,FALSE,&Dsv);
+        this.CommandList->SetGraphicsRootSignature(this.ShadowRootSignature);
+        this.CommandList->SetPipelineState(this.ShadowPipelineState);
+        this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        this.RenderShadowAtlasProjection(new ShadowAtlasProjection(new ShadowAtlasTile(-1,0,0,AmbientOcclusion.Width,AmbientOcclusion.Height),AmbientOcclusionPrepassConstantSlot),Dsv);
+        AmbientOcclusion.RecordCompute(this.CommandList,this.FrameIndex,ViewProjection,this.CurrentCameraPosition,Settings);
     }
 
     private bool GlobalIlluminationActive=>
@@ -2093,7 +2138,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         var GlobalIllumination=this.GlobalIllumination!;
         GlobalIllumination.Schedule(Settings);
         if(!this.GlobalIlluminationDescriptorsLive){
-            this.WriteGlobalIlluminationDescriptors();
+            this.WriteEnvironmentDescriptors();
         }
         var Source=this.FrameSlot(this.FrameIndex);
         GlobalIllumination.BeginCapture(this.CommandList);
@@ -2118,6 +2163,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 ((float*)(Destination+FrameFogParamsOffset))[0]=0f;
                 ((float*)(Destination+FrameSkyLightParamsOffset))[1]=0f;
                 ((int*)(Destination+FrameLightCountsOffset))[0]=0;
+                ((float*)(Destination+FrameAmbientOcclusionOffset))[0]=0f;
                 var Rtv=GlobalIllumination.CaptureRtv(Capture);
                 var Dsv=GlobalIllumination.CaptureDsv(Capture);
                 this.CommandList->OMSetRenderTargets(1,&Rtv,FALSE,&Dsv);
@@ -2131,12 +2177,15 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.EnvironmentSettings.SkyLight is not null&&this.EnvironmentSettings.Atmosphere is not null);
     }
 
-    private void WriteGlobalIlluminationDescriptors(){
+    /// <summary>Writes the Stage t12-t14 views (GI irradiance, GI distance, ambient occlusion) after the material views.</summary>
+    private void WriteEnvironmentDescriptors(){
         var Start=this.SrvHeap->GetCPUDescriptorHandleForHeapStart();
         this.GlobalIllumination!.WriteShadingDescriptors(
             new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCount*5,this.SrvDescriptorSize),
             new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCount*5+1,this.SrvDescriptorSize));
+        this.AmbientOcclusion!.WriteShadingDescriptor(new D3D12_CPU_DESCRIPTOR_HANDLE(Start,this.MaterialCount*5+2,this.SrvDescriptorSize));
         this.GlobalIlluminationDescriptorsLive=this.GlobalIllumination.HasResources;
+        this.AmbientOcclusionDescriptorGeneration=this.AmbientOcclusion.Generation;
     }
 
     private D3D12_GPU_DESCRIPTOR_HANDLE GetGlobalIlluminationDescriptorTable()=>
@@ -3266,6 +3315,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CreateDepthBuffer(Width,Height);
         this.CreateHdrColorBuffer(Width,Height);
         this.CreateForwardPlusTileBuffer(Width,Height);
+        if(this.AmbientOcclusion is { Generation:>0 }){
+            this.AmbientOcclusion.EnsureSize(Width,Height);
+        }
         this.FrameIndex= this.SwapChain->GetCurrentBackBufferIndex();
         this.UpdateViewportAndScissor(Width,Height);
         this.RebuildEffectiveCameraPreviews();
@@ -3396,6 +3448,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             // camera-dependent active set.
             int*LightCounts=(int*)(Destination+FrameLightCountsOffset);
             LightCounts[0]=0;
+            // Screen-space occlusion belongs to the primary camera's pixels.
+            ((float*)(Destination+FrameAmbientOcclusionOffset))[0]=0f;
         }
     }
 
@@ -3479,6 +3533,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.PrepareCameraPreviewConstants(this.FrameIndex);
         this.PrepareEnvironment(this.FrameIndex);
         this.RenderGlobalIlluminationProbes();
+        this.RenderAmbientOcclusion();
 
         ID3D12Resource*BackBuffer= this.BackBuffers[this.FrameIndex];
 
@@ -3707,6 +3762,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.Atmosphere=null;
         this.GlobalIllumination?.Dispose();
         this.GlobalIllumination=null;
+        this.AmbientOcclusion?.Dispose();
+        this.AmbientOcclusion=null;
 
         if(this.FrameConstantsBuffer!=null){
             this.FrameConstantsBuffer->Unmap(0,null);

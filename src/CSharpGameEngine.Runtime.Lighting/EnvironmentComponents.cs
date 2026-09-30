@@ -71,6 +71,10 @@ public struct PostProcessVolume() {
     public float ExposureCompensation=1f;
     public ToneMapperKind ToneMapper=ToneMapperKind.UnrealFilmic;
     public float BloomIntensity=0.675f;
+    /// <summary>Strength of screen-space ambient occlusion on indirect light, 0 (off) to 1 (Unreal's default 0.5).</summary>
+    public float AmbientOcclusionIntensity=0.5f;
+    /// <summary>World-space ambient occlusion radius in metres (Unreal's 200 cm).</summary>
+    public float AmbientOcclusionRadiusMeters=2f;
 }
 /// <summary>
 /// Unreal Engine's exponential height fog. <see cref="FogDensity"/> and <see cref="FogHeightFalloff"/>

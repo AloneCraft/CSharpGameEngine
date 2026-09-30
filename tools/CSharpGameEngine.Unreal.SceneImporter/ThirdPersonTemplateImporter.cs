@@ -113,7 +113,8 @@ internal static class ThirdPersonTemplateImporter {
         }
         const string Method="Manual";
         Builder.Append("            new PostProcessVolume { ExposureMethod=ExposureMethod.").Append(Method).Append(",MinEv100=").Append(F(Post.MinEv100)).Append(",MaxEv100=").Append(F(Post.MaxEv100))
-            .Append(",ExposureCompensation=").Append(F(Post.ExposureCompensation)).Append(",ToneMapper=ToneMapperKind.UnrealFilmic,BloomIntensity=").Append(F(Post.BloomIntensity)).AppendLine(" },");
+            .Append(",ExposureCompensation=").Append(F(Post.ExposureCompensation)).Append(",ToneMapper=ToneMapperKind.UnrealFilmic,BloomIntensity=").Append(F(Post.BloomIntensity))
+            .Append(",AmbientOcclusionIntensity=").Append(F(Post.AmbientOcclusionIntensity)).Append(",AmbientOcclusionRadiusMeters=").Append(F(Post.AmbientOcclusionRadiusCm*0.01f)).AppendLine(" },");
     }
     private static void AppendRgb(StringBuilder Builder,string Name,float[]Value)=>
         Builder.Append("                ").Append(Name).Append("R=").Append(F(Value[0])).Append(',').Append(Name).Append("G=").Append(F(Value[1])).Append(',').Append(Name).Append("B=").Append(F(Value[2])).AppendLine(",");
@@ -308,4 +309,6 @@ internal sealed class ThirdPersonPostProcessManifest {
     public float MaxEv100 { get; set; }
     public float ExposureCompensation { get; set; }
     public float BloomIntensity { get; set; }
+    public float AmbientOcclusionIntensity { get; set; }
+    public float AmbientOcclusionRadiusCm { get; set; }
 }
