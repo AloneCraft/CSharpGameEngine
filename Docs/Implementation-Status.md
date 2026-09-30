@@ -465,6 +465,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 
 ## F-L0-005 — `GltfImporter.ImportScene`(ノードグラフ/PBRマテリアル/ライトのインポート)
 
+- M0089: base-colour/emissive textures use sRGB views, and `KHR_texture_transform` is baked into `TEXCOORD_0` (base colour wins; a differing channel is reported; source tangents are re-derived when the transform rotates or mirrors). GltfTextureTransformImportTests.
+
 - M0088: ImportedLight is color-only with directional lux and point/spot cd variants, nullable range and lossless half-radian cones. GltfImporterSceneTests and UnrealLightSceneEmitterTests verify typed output; zero-inner imported cones need explicit authored resolution.
 
 - Layer: L0 — Platform / Native Backends
@@ -3306,6 +3308,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 
 ## F-L5-001 — Shared Windows ECS Runtime
 
+- M0089: Runtime.Lighting also owns the ADR-0069 environment Components (SkyAtmosphere, SkyLight, PostProcessVolume, ExponentialHeightFog, GlobalIlluminationVolume); Runtime.Windows collects them in EnvironmentCollect/EnvironmentCollection. EnvironmentComponentTests round-trip the snapshot codec.
+
 - M0088: portable Runtime.Lighting owns the four typed analytic components and optional LightShadow; Contracts owns validated physical units, Windows owns extraction. The old Windows light contracts are removed. See ADR-0064 and Docs/Specifications/Typed-Lighting.md.
 
 - Layer: L5 — Runtime Feature Modules
@@ -3686,6 +3690,20 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Current delta: None for the platform-independent quality policy. Immutable profiles deterministically add or omit shadow cascade, IBL, bloom, ACES, FXAA, and exposure topology in the Render Graph.
 - Conformance: `RenderQualityProfileTests` verify the compatibility baseline, Balanced/Cinematic scaling, all-features-disabled graph, deterministic independent builds, bounded one-stop EV100 behavior, and invalid cascade/resolution/exposure/AA rejection.
 - Next action: F-L8-018 moves the VSIX preview onto the same recovered Render Server boundary.
+
+## F-L4-014 — Physically based environment lighting
+
+- Layer: L4 — Domain Servers
+- Parent capability: Rendering Roadmap
+- Status: Implemented
+- Verification: TestVerified, RuntimeVerified (WARP)
+- Intended specification: `Docs/Specifications/Rendering.md#environment-lighting`, `Docs/Decisions/ADR-0069-Physical-Sky-Exposure-Shadows-And-Dynamic-GI.md`
+- Stage: `rendering.environment-lighting` (`Executable`, Visual / Rendering, 1800s)
+- Depends on: F-L4-007, F-L0-008
+- Implementation evidence: `src/CSharpGameEngine.Windows/Graphics/{StageAtmosphere,StageGlobalIllumination,StageAmbientOcclusion,DirectionalShadowCascades,EnvironmentLighting}.cs`, `StageRenderer.cs`, `assets/Shaders/{Atmosphere,GlobalIllumination,AmbientOcclusion}.hlsl`, the Stage graph (ABI `stage-v6`), `src/CSharpGameEngine.Runtime.Lighting/EnvironmentComponents.cs`, `src/CSharpGameEngine.Runtime.Windows/EnvironmentCollection.cs`
+- Current delta: volumetric clouds, histogram auto exposure, reflection probes and texture mipmaps are not implemented; local lights do not contribute to GI; probes inside geometry are not relocated.
+- Conformance: AtmosphereGpuIntegrationTests, DirectionalShadowCascadesTests, DirectionalShadowGpuTests, GlobalIlluminationGpuIntegrationTests, GlobalIlluminationSettingsTests, AmbientOcclusionGpuIntegrationTests and EnvironmentComponentTests on WARP; the ThirdPerson template capture is compared with Unreal in [M0089](Milestones/M0089-Physically-Based-Environment-Lighting.md).
+- Next action: volumetric clouds and histogram auto exposure; texture mipmaps for baked Unreal atlases.
 
 ## F-L0-009 — D3D12 device recovery
 

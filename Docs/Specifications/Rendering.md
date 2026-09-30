@@ -5,14 +5,29 @@
 
 - Status: Partially implemented
 - Parent index: [Roadmap](../Roadmap.md), [Implementation Status](../Implementation-Status.md)
-- Decisions: [ADR-0052](../Decisions/ADR-0052-Render-Graph-And-Preview-Boundary.md), [ADR-0058](../Decisions/ADR-0058-Visual-Shader-Graph-And-Artifact-Runtime.md), [ADR-0062](../Decisions/ADR-0062-Visible-Engine-Showcase-And-Deterministic-Input.md)
+- Decisions: [ADR-0052](../Decisions/ADR-0052-Render-Graph-And-Preview-Boundary.md), [ADR-0058](../Decisions/ADR-0058-Visual-Shader-Graph-And-Artifact-Runtime.md), [ADR-0062](../Decisions/ADR-0062-Visible-Engine-Showcase-And-Deterministic-Input.md), [ADR-0069](../Decisions/ADR-0069-Physical-Sky-Exposure-Shadows-And-Dynamic-GI.md)
 - Target layers: L0, L4, L6, L7, L8
+
+## Environment lighting
+ADR-0069 adds an opt-in physically based environment path driven by `SkyAtmosphere`, `SkyLight`, `PostProcessVolume`, `ExponentialHeightFog` and `GlobalIlluminationVolume` Components. `EngineHost` converts them once per frame into `EnvironmentLightingSettings`. A missing Component keeps the compatibility behavior (clear colour, flat ambient, legacy fog, `2^-EV100`, linear ACES).
+
+| Capability | Contract |
+|---|---|
+| Sky | Hillaire transmittance/multi-scattering/sky-view LUTs (`Atmosphere.hlsl`); far-plane composite; the brightest directional light is the sun and is attenuated by transmittance at the camera altitude. |
+| Sky light | SH9 irradiance of the sky, scaled by `SkyLight.Intensity`, with a lower-hemisphere colour; diffuse plus an analytic-BRDF rough reflection. |
+| Exposure/output | Physical camera `2^c / (1.2 * 2^EV100)` at a fixed EV100; Unreal filmic in AP1 plus sRGB OETF; bloom intensity. |
+| Fog | Unreal exponential height fog, closed form, per-metre density and falloff. |
+| Sun shadows | Four cascades (exponent-3 splits to 200 m), sphere-fit and texel-snapped, 512 px quadrants of atlas tile 0. |
+| Dynamic GI | Camera-relative probe grid (≤ 4096); round-robin six-face captures with the lit Stage pipeline; octahedral irradiance (8×8) and distance moments (16×16) with hysteresis; Chebyshev-weighted eight-probe sampling at t12/t13. |
+| Ambient occlusion | Half-resolution depth prepass, SAO plus depth-aware blur (`AmbientOcclusion.hlsl`) at t14; multiplies indirect light only. |
+
+Invariants: open-sky GI probes reproduce the SH irradiance, AO leaves direct light bit-identical, an invalid GI volume disables only GI, and GI requires typed UAV loads of RGBA16F/RG16F. Verified by Stage `rendering.environment-lighting` ([M0089](../Milestones/M0089-Physically-Based-Environment-Lighting.md)). Not implemented: volumetric clouds, histogram auto exposure, reflection probes, texture mipmaps.
 
 ## Scope and current baseline
 
 This specification defines the target rendering contract. The Shader Graph compiler, shader/material/texture artifact runtime, platform-independent Render Graph compiler, canonical RGBA8 D3D12 upload boundary, stable-ID snapshot visibility/LOD/instance batching, Render Graph quality profiles, D3D12 recovery state machine, and shared out-of-process Preview Host are implemented. The D3D12 graph executor remains subsequent work.
 
-The observed baseline is a Windows D3D12 path: `StageRenderer`, `RenderServer`, the WARP triangle stage, directional shadows, HDR, ACES, bloom, and point, spot, area, and emissive lighting/shadow work. Those capabilities are retained as regression baselines. The work tracked here adds graph ownership, artifact provenance, snapshot extraction, cascade/IBL/exposure/AA policy, recovery, and a common preview boundary.
+The observed baseline is a Windows D3D12 path: `StageRenderer`, `RenderServer`, the WARP triangle stage, directional shadows, HDR, ACES, bloom, and point, spot, area, and emissive lighting/shadow work. The opt-in environment path above (ADR-0069) adds a physical sky, sky light, cascaded sun shadows, dynamic GI and ambient occlusion. Those capabilities are retained as regression baselines. The work tracked here adds graph ownership, artifact provenance, snapshot extraction, cascade/IBL/exposure/AA policy, recovery, and a common preview boundary.
 
 ## Ownership and boundaries
 

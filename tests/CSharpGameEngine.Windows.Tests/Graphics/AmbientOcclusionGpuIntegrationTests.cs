@@ -23,6 +23,7 @@ public sealed class AmbientOcclusionGpuIntegrationTests {
         var Diagnostic=$"crease {CreaseWithout}->{CreaseWith}, open {OpenWithout}->{OpenWith}";
         Assert.True(CreaseWith.R+CreaseWith.G+CreaseWith.B+3<CreaseWithout.R+CreaseWithout.G+CreaseWithout.B,Diagnostic);
         Assert.InRange(OpenWith.G-OpenWithout.G,-1,1);
+        Scene.AssertNoDebugLayerErrors();
     }
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
@@ -50,6 +51,7 @@ public sealed class AmbientOcclusionGpuIntegrationTests {
         Assert.True(FaceHigh>0.97f,Diagnostic);
         Assert.True(OpenFloor>0.97f,Diagnostic);
         Assert.Equal(1f,Sky);
+        Scene.AssertNoDebugLayerErrors();
     }
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
@@ -61,6 +63,7 @@ public sealed class AmbientOcclusionGpuIntegrationTests {
         Scene.Render(SkyLight:false,Occlusion:FullOcclusion);
         var With=Scene.Renderer.LastCapturedFrame!.Pixels;
         Assert.Equal(Without,With);
+        Scene.AssertNoDebugLayerErrors();
     }
     private sealed class AoScene:IDisposable {
         private AoScene(Win32Window Window,StageRenderer Renderer){
@@ -109,6 +112,8 @@ public sealed class AmbientOcclusionGpuIntegrationTests {
             var Offset=(int)(Y*Frame.RowPitch)+X*4;
             return new PixelColor(Frame.Pixels[Offset],Frame.Pixels[Offset+1],Frame.Pixels[Offset+2],Frame.Pixels[Offset+3]);
         }
+        public void AssertNoDebugLayerErrors()=>
+            Assert.DoesNotContain(this.Renderer.DebugMessages,static Message=>Message.IsErrorOrWorse);
         public void Dispose(){
             this.Renderer.Dispose();
             this.Window.Dispose();

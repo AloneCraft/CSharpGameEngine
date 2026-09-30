@@ -3,6 +3,9 @@
 ## Current typed-light contract update
 M0088/ADR-0064 refines existing F-L5-001, F-L8-024, F-L8-025, F-L4-002, F-L0-005 and F-L0-009 without adding a new feature identity. See [Typed Lighting](Specifications/Typed-Lighting.md) and [verification milestone](Milestones/M0088-Typed-Lighting.md).
 
+## Current environment-lighting update
+M0089/ADR-0069 adds F-L4-014 (physical sky, sky light, exposure, cascaded sun shadows, dynamic GI and ambient occlusion) and refines F-L5-001 and F-L0-005. See [Rendering](Specifications/Rendering.md#environment-lighting) and the [verification milestone](Milestones/M0089-Physically-Based-Environment-Lighting.md).
+
 ## Non-physics Feature index (authoritative)
 
 This index is the authoritative machine-tracked mapping for the six non-physics tracks. The older narrative tables below remain planning context. Every row has one Feature and one target Stage; `Specified`/`Deferred` target Stages are deliberately `NotImplemented` until their implementation lands.
@@ -26,6 +29,7 @@ Current baseline corrections: point/spot/area/emissive shadows and HDR/ACES/bloo
 | 3 | F-L4-005 | Implemented | Materials and textures | F-L6-004 | [Rendering](Specifications/Rendering.md) | `rendering.materials` |
 | 4 | F-L4-006 | Implemented | Visibility, LOD, instancing | F-L4-004, F-L4-005 | [Rendering](Specifications/Rendering.md) | `rendering.visibility` |
 | 4 | F-L4-007 | Implemented | Quality profiles | F-L4-006 | [Rendering](Specifications/Rendering.md) | `rendering.quality-profiles` |
+| 5 | F-L4-014 | Implemented | Physically based environment lighting | F-L4-007, F-L0-008 | [Rendering](Specifications/Rendering.md#environment-lighting) | `rendering.environment-lighting` |
 | 5 | F-L0-009 | Implemented | Device recovery | F-L4-004, F-L4-007 | [Rendering](Specifications/Rendering.md) | `rendering.device-recovery` |
 | 5 | F-L8-018 | Implemented | Shared isolated preview | F-L0-009, F-L8-022 | [Rendering](Specifications/Rendering.md) | `vsix.rendering-preview` |
 | 6 | F-L7-023 | Implemented | Performance evidence | F-L4-007, F-L0-009 | [Rendering](Specifications/Rendering.md) | `rendering.performance` |

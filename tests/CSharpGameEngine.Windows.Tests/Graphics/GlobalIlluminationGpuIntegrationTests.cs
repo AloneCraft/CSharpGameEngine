@@ -32,6 +32,7 @@ public sealed class GlobalIlluminationGpuIntegrationTests {
         }
         var SkyDistance=Readback.ProbeDistance(0,Vector3.UnitX);
         Assert.InRange(SkyDistance.X,15.9f,16.1f);
+        Scene.AssertNoDebugLayerErrors();
     }
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
@@ -49,6 +50,7 @@ public sealed class GlobalIlluminationGpuIntegrationTests {
         Assert.InRange(Toward.X,1.9f-Position.Z-0.15f,1.9f-Position.Z+0.15f);
         var WallIrradiance=Readback.ProbeIrradiance(Probe,Vector3.UnitZ);
         Assert.True(WallIrradiance.X>1.5f*WallIrradiance.Y&&WallIrradiance.X>1.5f*WallIrradiance.Z,$"The lit red wall must dominate +Z irradiance: {WallIrradiance}");
+        Scene.AssertNoDebugLayerErrors();
     }
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
@@ -63,6 +65,7 @@ public sealed class GlobalIlluminationGpuIntegrationTests {
         var RatioWithout=(Without.R+1f)/(Without.G+1f);
         var RatioWith=(With.R+1f)/(With.G+1f);
         Assert.True(RatioWith>RatioWithout*1.1f,$"GI must tint the floor next to the lit red wall: without={Without} with={With}");
+        Scene.AssertNoDebugLayerErrors();
     }
     private static Vector3 EvaluateSh(Vector3[]Sh,Vector3 N)=>
         Sh[0]*0.282095f
@@ -126,6 +129,8 @@ public sealed class GlobalIlluminationGpuIntegrationTests {
             var Offset=(int)(Y*Frame.RowPitch)+X*4;
             return new PixelColor(Frame.Pixels[Offset],Frame.Pixels[Offset+1],Frame.Pixels[Offset+2],Frame.Pixels[Offset+3]);
         }
+        public void AssertNoDebugLayerErrors()=>
+            Assert.DoesNotContain(this.Renderer.DebugMessages,static Message=>Message.IsErrorOrWorse);
         public void Dispose(){
             this.Renderer.Dispose();
             this.Window.Dispose();
