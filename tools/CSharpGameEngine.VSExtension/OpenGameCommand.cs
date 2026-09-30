@@ -8,7 +8,7 @@ using Microsoft.VisualStudio.Shell.Interop;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Tools-menu command that launches UserEcsProject as a separate top-level window.
+/// Extensions > C# Game Engine menu command that launches UserEcsProject as a separate top-level window.
 /// The VSIX remains a .NET Framework process, so the net10.0 ECS application is intentionally
 /// started out of process rather than referenced or executed in-process.
 /// </summary>

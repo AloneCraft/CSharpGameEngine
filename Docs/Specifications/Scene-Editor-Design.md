@@ -440,7 +440,7 @@ enumメンバー名は`Transform`ではなく`LocalTransform`にしてある(`Tr
 | `InvertOrbitX` / `InvertOrbitY` | bool | `false`(基準に対する反転、Lookと独立) |
 
 `InvertLookX`/`InvertLookY`/`InvertOrbitX`/`InvertOrbitY`/`NavigationSpeedMultiplier`の5項目は
-Tools>Options > C# Game Engine > Scene Editor から編集できる(2026-08追加、
+拡張機能 > C# Game Engine > オプション...(2026-10-01追加)、または Tools>Options > C# Game Engine > Scene Editor から編集できる(2026-08追加、
 `SceneEditorOptionsPage`)。残る4項目は現在状態(ツールバー相当)またはプリセット未実装のため
 非公開。
 

@@ -14,17 +14,31 @@
           <CommandName>C# Game Engine</CommandName>
         </Strings>
       </Menu>
+      <!-- 2026-10-01: the engine's commands moved from the Tools menu to Extensions > C# Game Engine. -->
+      <Menu guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineMenu" priority="0x0100" type="Menu">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineExtensionsGroup" />
+        <Strings>
+          <ButtonText>C# Game Engine</ButtonText>
+          <CommandName>C# Game Engine</CommandName>
+        </Strings>
+      </Menu>
     </Menus>
 
     <Groups>
-      <Group guid="guidOpenViewerCommandPackageCmdSet" id="OpenViewerMenuGroup" priority="0x0600">
-        <Parent guid="guidSHLMainMenu" id="IDM_VS_MENU_TOOLS" />
+      <Group guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineExtensionsGroup" priority="0x0600">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_MENU_EXTENSIONS" />
+      </Group>
+      <Group guid="guidOpenViewerCommandPackageCmdSet" id="OpenViewerMenuGroup" priority="0x0100">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineMenu" />
+      </Group>
+      <Group guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineOptionsGroup" priority="0x0F00">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineMenu" />
       </Group>
       <Group guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarGroup" priority="0x0000">
         <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbar" />
       </Group>
       <!-- ADR-0040 Phase 9: code-editor context menu only - deliberately not also placed on the
-           Tools menu / toolbar like every other command here, since it only makes sense for the file
+           engine menu / toolbar like every other command here, since it only makes sense for the file
            currently being edited. Does not reuse the retired ADR-0031 group (see the Symbols
            section). -->
       <Group guid="guidOpenViewerCommandPackageCmdSet" id="SceneDesignerContextMenuGroup" priority="0x0600">
@@ -33,6 +47,14 @@
     </Groups>
 
     <Buttons>
+      <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneEditorOptionsCommandId" priority="0x0100" type="Button">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineOptionsGroup" />
+        <Icon guid="ImageCatalogGuid" id="Settings" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>Options...</ButtonText>
+        </Strings>
+      </Button>
       <Button guid="guidOpenViewerCommandPackageCmdSet" id="OpenViewerCommandId" priority="0x0100" type="Button">
         <Parent guid="guidOpenViewerCommandPackageCmdSet" id="OpenViewerMenuGroup" />
         <Icon guid="ImageCatalogGuid" id="OpenFolder" />
@@ -549,6 +571,11 @@
       <IDSymbol name="OpenSceneDesignerSceneItem30" value="0x012E" />
       <IDSymbol name="OpenSceneDesignerSceneItem31" value="0x012F" />
       <IDSymbol name="OpenSceneDesignerOverflowCommandId" value="0x0130" />
+      <!-- 2026-10-01: Extensions > C# Game Engine menu. The next free command ID is 0x0133. -->
+      <IDSymbol name="CSharpGameEngineMenu" value="0x1027" />
+      <IDSymbol name="CSharpGameEngineExtensionsGroup" value="0x1028" />
+      <IDSymbol name="CSharpGameEngineOptionsGroup" value="0x1029" />
+      <IDSymbol name="OpenSceneEditorOptionsCommandId" value="0x0132" />
       <!-- 0x010A (OpenSceneDesignerSubmenuCommandId) / 0x1026 (SceneDesignerDynamicItemsGroup) /
            0x1025 (SceneDesignerSubmenu、宣言のみで未使用のまま残っていた) は「複数 Scene を入れ子の
            サブメニューで見せる」設計と一緒に退役した。<Menu> の可視性は QueryStatus に応答する

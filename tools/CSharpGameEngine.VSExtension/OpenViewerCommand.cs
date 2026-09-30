@@ -8,7 +8,7 @@ using Microsoft.VisualStudio.Shell.Interop;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Tools-menu command that launches the existing, already-verified
+/// Extensions > C# Game Engine menu command that launches the existing, already-verified
 /// <c>CSharpGameEngine.Extension</c> viewer as a separate top-level window (ADR-0006). Contains no
 /// rendering/engine logic itself. See <see cref="ShowViewerToolWindowCommand"/>/
 /// <see cref="ViewerHwndHost"/> (ADR-0007) for the embedded-in-VS alternative.

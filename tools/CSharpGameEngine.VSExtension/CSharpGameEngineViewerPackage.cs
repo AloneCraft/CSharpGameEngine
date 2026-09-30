@@ -78,6 +78,7 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
         await ApplyGameEngineLayoutCommand.InitializeAsync(this);
         await ShowInspectorToolWindowCommand.InitializeAsync(this);
         await ShowComponentPaletteToolWindowCommand.InitializeAsync(this);
+        await OpenSceneEditorOptionsCommand.InitializeAsync(this);
 
         this.RegisterEditorFactory(new GlbFbxPreviewEditorFactory());
         this.RegisterEditorFactory(new ShaderGraphEditorFactory());

@@ -8,7 +8,7 @@ using Microsoft.VisualStudio.Shell.Interop;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// Tools-menu command that (re)applies the "GameEngine" default panel arrangement (<see cref="GameEngineLayout"/>,
+/// Extensions > C# Game Engine menu command that (re)applies the "GameEngine" default panel arrangement (<see cref="GameEngineLayout"/>,
 /// ADR-0021) on demand. Necessary because VS's own "Window &gt; Apply Window Layout" mechanism has
 /// no public SDK API to register a named entry, and because a tool window's
 /// <c>[ProvideToolWindow]</c> default docking only ever applies the very first time that window is
