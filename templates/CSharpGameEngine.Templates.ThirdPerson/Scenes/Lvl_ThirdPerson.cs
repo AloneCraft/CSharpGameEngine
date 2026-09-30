@@ -710,7 +710,7 @@ internal partial class Lvl_ThirdPerson:IScene {
                 Components=[
                     new Transform {
                         Position=new LogicalVector3(0f,3.0201263f,0f),
-                        Rotation=new LogicalQuaternion(new LogicalVector3(0f,0f,0f)),
+                        Rotation=new LogicalQuaternion(new LogicalVector3(0f,1.5707965f,0f)),
                         Scale=new LogicalVector3(1f,1f,1f),
                     },
                     new PlayerStart(),

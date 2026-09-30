@@ -49,7 +49,7 @@ internal static class ThirdPersonGameplayEmitter {
         Builder.AppendLine("        Name=\"BP_ThirdPersonCharacter\",");
         Builder.AppendLine("        Components=[");
         Builder.Append("            new Transform { Position=new LogicalVector3(").Append(F(Player.Translation[0])).Append(',').Append(F(Player.Translation[1])).Append(',').Append(F(Player.Translation[2]))
-            .Append("),Rotation=new LogicalQuaternion(new LogicalVector3(0f,").Append(F(Player.YawRadians)).AppendLine(",0f)) },");
+            .Append("),Rotation=new LogicalQuaternion(new LogicalVector3(0f,").Append(F(FacingYawRadians(Player))).AppendLine(",0f)) },");
         Builder.AppendLine("            new CharacterMovement {");
         Builder.Append("                CapsuleRadius=").Append(L(Character.CapsuleRadiusCm/100f)).Append(",CapsuleHalfHeight=").Append(L(Character.CapsuleHalfHeightCm/100f)).AppendLine(",");
         Builder.Append("                MaxWalkSpeed=").Append(L(Movement.MaxWalkSpeedCm/100f)).Append(",MinAnalogWalkSpeed=").Append(L(Movement.MinAnalogWalkSpeedCm/100f)).Append(",MaxAcceleration=").Append(L(Movement.MaxAccelerationCm/100f)).AppendLine(",");
@@ -62,7 +62,7 @@ internal static class ThirdPersonGameplayEmitter {
         Builder.AppendLine("            },");
         Builder.AppendLine("            new CharacterMovementState(),");
         Builder.AppendLine("            new CharacterInput(),");
-        Builder.Append("            new PlayerController { ControlYawDegrees=").Append(F(Player.YawRadians*180f/MathF.PI)).AppendLine(" },");
+        Builder.Append("            new PlayerController { ControlYawDegrees=").Append(F(FacingYawRadians(Player)*180f/MathF.PI)).AppendLine(" },");
         Builder.AppendLine("        ],");
         Builder.AppendLine("        Children=[");
         Builder.AppendLine("            new Node {");
@@ -194,6 +194,13 @@ internal static class ThirdPersonGameplayEmitter {
     }
     /// <summary>LogicalScalar fields take float literals through the implicit conversion the Scene DSL allows.</summary>
     private static string L(float Value)=>F(Value);
+    /// <summary>
+    /// Engine yaw (turning +F toward +R) that faces an Unreal actor's forward. The level convention
+    /// maps Unreal (X, Y, Z) to engine (R, U, -F): Unreal's forward +X is engine +R, and an Unreal
+    /// yaw ψ turns the same way as an engine yaw ψ. The manifest's yawRadians is -ψ, so the facing
+    /// yaw is ψ + 90° = 90° - yawRadians.
+    /// </summary>
+    internal static float FacingYawRadians(ImportPlayerStart Player)=>MathF.PI/2f-Player.YawRadians;
 }
 internal sealed class ThirdPersonCharacterManifest {
     public string Blueprint { get; set; }=string.Empty;

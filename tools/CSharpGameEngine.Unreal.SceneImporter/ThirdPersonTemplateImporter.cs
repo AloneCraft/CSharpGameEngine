@@ -185,7 +185,7 @@ internal static class ThirdPersonTemplateImporter {
         Builder.AppendLine("            new Node {");
         Builder.Append("                Name=\"").Append(Escape(Player.Name)).AppendLine("\",");
         Builder.AppendLine("                Components=[");
-        AppendTransform(Builder,new Vector3(Player.Translation[0],Player.Translation[1],Player.Translation[2]),Quaternion.CreateFromAxisAngle(Vector3.UnitY,Player.YawRadians),Vector3.One,"                    ");
+        AppendTransform(Builder,new Vector3(Player.Translation[0],Player.Translation[1],Player.Translation[2]),Quaternion.CreateFromAxisAngle(Vector3.UnitY,ThirdPersonGameplayEmitter.FacingYawRadians(Player)),Vector3.One,"                    ");
         Builder.AppendLine("                    new PlayerStart(),");
         Builder.AppendLine("                ],");
         Builder.AppendLine("            },");

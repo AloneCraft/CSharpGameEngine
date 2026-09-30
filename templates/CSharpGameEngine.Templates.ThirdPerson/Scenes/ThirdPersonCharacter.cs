@@ -11,7 +11,7 @@ internal partial class ThirdPersonCharacter:IScene {
     public Node Root=>new(){
         Name="BP_ThirdPersonCharacter",
         Components=[
-            new Transform { Position=new LogicalVector3(0f,3.0201263f,0f),Rotation=new LogicalQuaternion(new LogicalVector3(0f,0f,0f)) },
+            new Transform { Position=new LogicalVector3(0f,3.0201263f,0f),Rotation=new LogicalQuaternion(new LogicalVector3(0f,1.5707964f,0f)) },
             new CharacterMovement {
                 CapsuleRadius=0.35f,CapsuleHalfHeight=0.9f,
                 MaxWalkSpeed=6f,MinAnalogWalkSpeed=0.2f,MaxAcceleration=15f,
@@ -22,7 +22,7 @@ internal partial class ThirdPersonCharacter:IScene {
             },
             new CharacterMovementState(),
             new CharacterInput(),
-            new PlayerController { ControlYawDegrees=0f },
+            new PlayerController { ControlYawDegrees=90f },
         ],
         Children=[
             new Node {

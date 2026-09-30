@@ -74,6 +74,6 @@ Observed engine facts: the deterministic physics world answers ray and sweep que
   - stopping a probe radius before a wall behind, without tunnelling;
   - shortening against the floor when looking up;
   - collapsing when the pivot is inside geometry.
-- The `rigid.character-controller` Stage runs these tests. It then runs the built template on WARP with `W@20-40;SpaceBar@50-51`. The follow camera must move at least 1 m forward, rise at least 0.5 m, and come back down, without dropping through the floor and without D3D12 debug-layer errors. See [M0090](../Milestones/M0090-ThirdPerson-Character-Movement.md).
+- The `rigid.character-controller` Stage runs these tests. It then runs the built template on WARP with `W@20-40;SpaceBar@50-51`. The follow camera must move at least 1 m horizontally, rise at least 0.5 m, and come back down, without dropping through the floor and without D3D12 debug-layer errors. See [M0090](../Milestones/M0090-ThirdPerson-Character-Movement.md).
 ## Related features
 F-L5-006 (character controller, this ADR), F-L5-003 (physics runtime), F-L4-010 (input actions), F-L0-010 (Win32 input). See [M0090](../Milestones/M0090-ThirdPerson-Character-Movement.md).

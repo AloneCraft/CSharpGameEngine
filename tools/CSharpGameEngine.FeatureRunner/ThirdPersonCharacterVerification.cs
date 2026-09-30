@@ -79,14 +79,15 @@ public static class ThirdPersonCharacterVerification {
         }
         var BeforeWalk=Positions[WalkStartFrame-1]!;
         var AfterWalk=Positions[JumpFrame-1]!;
-        var Walk=AfterWalk[2]-BeforeWalk[2];
+        // The camera follows the character, so its horizontal travel is the character's walk in any facing.
+        var Walk=MathF.Sqrt(((AfterWalk[0]-BeforeWalk[0])*(AfterWalk[0]-BeforeWalk[0]))+((AfterWalk[2]-BeforeWalk[2])*(AfterWalk[2]-BeforeWalk[2])));
         var Apex=Positions.Skip(JumpFrame).Max(static Position=>Position![1]);
         var Rise=Apex-AfterWalk[1];
         var Descent=Apex-Positions[^1]![1];
         var Lowest=Positions.Skip(WalkStartFrame-1).Min(static Position=>Position![1]);
         Summary=string.Create(CultureInfo.InvariantCulture,$"walk={Walk:F3} rise={Rise:F3} descent={Descent:F3} lowest={Lowest:F3} d3d12Errors={Errors}");
         if(Walk<MinimumWalkMeters){
-            Failures.Add(string.Create(CultureInfo.InvariantCulture,$"Holding W moved the camera {Walk:F3} m along +F; expected at least {MinimumWalkMeters} m."));
+            Failures.Add(string.Create(CultureInfo.InvariantCulture,$"Holding W moved the camera {Walk:F3} m horizontally; expected at least {MinimumWalkMeters} m."));
         }
         if(Rise<MinimumJumpMeters){
             Failures.Add(string.Create(CultureInfo.InvariantCulture,$"The jump raised the camera {Rise:F3} m; expected at least {MinimumJumpMeters} m."));
