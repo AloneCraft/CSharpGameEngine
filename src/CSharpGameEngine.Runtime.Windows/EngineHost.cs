@@ -119,6 +119,8 @@ public sealed class EngineHost:IDisposable {
         ObjectDisposedException.ThrowIf(this.Disposed,this);
         return this.Window??=new Win32Window(new Win32WindowOptions {
             Title=App.Title,Width=App.Width,Height=App.Height,Visible=true,
+            // An automation run is driven only by its scripted keys (CGE_AUTOMATION_INPUT).
+            IgnoreDeviceInput=this.Automation is not null,
         });
     }
 

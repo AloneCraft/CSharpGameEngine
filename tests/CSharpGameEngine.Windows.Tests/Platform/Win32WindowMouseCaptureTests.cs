@@ -27,4 +27,17 @@ public sealed class Win32WindowMouseCaptureTests {
             _=ClipCursor(null);
         }
     }
+    [WindowsOnlyFact]
+    public void KeyMessages_AreRecordedByDefault()=>AssertKeyMessageEvents(false,1);
+    [WindowsOnlyFact]
+    public void KeyMessages_AreIgnoredWhenDeviceInputIsOff()=>AssertKeyMessageEvents(true,0);
+    /// <summary>A posted W key reaches the input stream unless device input is off; injected keys always do.</summary>
+    private static void AssertKeyMessageEvents(bool IgnoreDeviceInput,int ExpectedEvents){
+        using var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine Device Input Test",Width=64,Height=64,Visible=false,IgnoreDeviceInput=IgnoreDeviceInput });
+        _=Window.DrainInputEvents();
+        _=SendMessageW((HWND)Window.Handle,WM.WM_KEYDOWN,0x57,1);
+        Assert.Equal(ExpectedEvents,Window.DrainInputEvents().Count(static Event=>Event.Control.Code=="W"));
+        Window.InjectKey("Q",true);
+        Assert.Contains(Window.DrainInputEvents(),static Event=>Event.Control.Code=="Q");
+    }
 }

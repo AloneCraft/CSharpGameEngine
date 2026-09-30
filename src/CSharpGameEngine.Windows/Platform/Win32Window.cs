@@ -31,12 +31,14 @@ public sealed unsafe class Win32Window:IDisposable {
     private readonly Win32InputEventAdapter InputAdapter;
     private bool MouseCaptured;
     private bool CaptureApplied;
+    private readonly bool IgnoreDeviceInput;
 
     public event Action<int,int>?Resized;
 
     public Win32Window(Win32WindowOptions Options){
         ArgumentNullException.ThrowIfNull(Options);
         this.InputAdapter=new Win32InputEventAdapter(Options.WindowId.IsValid?Options.WindowId:WindowId.Primary);
+        this.IgnoreDeviceInput=Options.IgnoreDeviceInput;
 
         EnsureDpiAwareness();
         EnsureClassRegistered();
@@ -100,7 +102,9 @@ public sealed unsafe class Win32Window:IDisposable {
 
     /// <summary>Polls the gamepad, then returns and clears every input event recorded since the last call.</summary>
     public IReadOnlyList<InputEvent>DrainInputEvents(){
-        this.InputAdapter.RecordGamepad(XInputGamepad.Poll());
+        if(!this.IgnoreDeviceInput){
+            this.InputAdapter.RecordGamepad(XInputGamepad.Poll());
+        }
         return this.InputAdapter.Drain();
     }
 
@@ -202,6 +206,9 @@ public sealed unsafe class Win32Window:IDisposable {
     }
 
     private void HandleRawInput(nint RawInputHandle){
+        if(this.IgnoreDeviceInput){
+            return;
+        }
         uint Size=0;
         if(NativeGetRawInputData(RawInputHandle,RidInput,null,&Size,(uint)sizeof(NativeRawInputHeader))==uint.MaxValue||Size<(uint)sizeof(NativeRawInputHeader)){ return; }
         var Buffer=stackalloc byte[(int)Size];
@@ -264,7 +271,9 @@ public sealed unsafe class Win32Window:IDisposable {
             case WM_KEYDOWN:
             case WM_SYSKEYDOWN:{
                     var VirtualKeyCode=(int)WParam.Value.ToUInt64();
-                    this.InputAdapter.RecordKey(VirtualKeyCode,true);
+                    if(!this.IgnoreDeviceInput){
+                        this.InputAdapter.RecordKey(VirtualKeyCode,true);
+                    }
                     // SYSKEY must still reach DefWindowProcW (Alt+F4, the system menu, etc.); plain
                     // WM_KEYDOWN is fully consumed since this is a game window with no default text
                     // input/accelerator behavior to preserve.
@@ -274,14 +283,19 @@ public sealed unsafe class Win32Window:IDisposable {
             case WM_KEYUP:
             case WM_SYSKEYUP:{
                     var VirtualKeyCode=(int)WParam.Value.ToUInt64();
-                    this.InputAdapter.RecordKey(VirtualKeyCode,false);
+                    if(!this.IgnoreDeviceInput){
+                        this.InputAdapter.RecordKey(VirtualKeyCode,false);
+                    }
                     return Msg==WM_SYSKEYUP?DefWindowProcW(Hwnd,Msg,WParam,LParam):0;
                 }
 
             case WM_KILLFOCUS:
                 // Keys can't be reliably tracked once another window owns input focus - clear all
                 // state so a key held down during an Alt-Tab doesn't appear "stuck" on return.
-                this.InputAdapter.RecordFocusLost();
+                // Injected keys do not belong to a physical device, so focus changes leave them held.
+                if(!this.IgnoreDeviceInput){
+                    this.InputAdapter.RecordFocusLost();
+                }
                 this.ApplyCapture(false);
                 return DefWindowProcW(Hwnd,Msg,WParam,LParam);
 
