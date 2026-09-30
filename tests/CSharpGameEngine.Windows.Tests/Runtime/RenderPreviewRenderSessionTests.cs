@@ -117,7 +117,7 @@ public sealed class RenderPreviewRenderSessionTests {
         Assert.True(ModelPixelVerifier.Verify(
             Session.LastCapturedFrame!,CSharpGameEngine.Runtime.Windows.RenderServer.ClearColor).Success);
 
-        Session.ReplaceScene(Request.Scene);
+        Session.ReplaceScene(Request.Scene,string.Empty);
         Assert.Empty(Session.CameraPreviewDiagnostics);
         Assert.Equal(string.Empty,Session.LastFrameHash);
         Assert.Equal(1u,Session.CaptureDebugSnapshot().FramesRendered);

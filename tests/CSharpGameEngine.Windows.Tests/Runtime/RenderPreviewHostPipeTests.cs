@@ -64,7 +64,7 @@ public sealed class RenderPreviewHostPipeTests {
         public int RenderCalls{get;private set;}
         public int SnapshotCalls{get;private set;}
         public bool Disposed{get;private set;}
-        public void ReplaceScene(RenderPreviewScene Scene){ }
+        public void ReplaceScene(RenderPreviewScene Scene,string SceneJson){ }
         public void UpdateFrame(RenderPreviewFrame Frame){ }
         public void Resize(int Width,int Height){ }
         public void Render(bool CaptureForVerification){ this.RenderCalls++; }

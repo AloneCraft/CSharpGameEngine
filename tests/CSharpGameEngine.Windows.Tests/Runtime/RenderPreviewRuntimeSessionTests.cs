@@ -50,6 +50,42 @@ public sealed class RenderPreviewRuntimeSessionTests {
     }
 
     [WindowsOnlyFact]
+    public void SceneDocument_EditsValuesLiveAndFlagsStructureForABuild(){
+        using var Surface=CreateSurface();
+        var Original=File.ReadAllText(Path.Combine(RepositoryRoot(),"UserEcsProject","Scenes","PrimitiveShowcaseBoxScene.scene.json"));
+        var Moved=Original.Replace("\"Position\": { \"R\": 3, \"U\": 0.5, \"F\": 0 }","\"Position\": { \"R\": 3, \"U\": 0.5, \"F\": 3 }");
+        Assert.NotEqual(Original,Moved);
+        var Open=CreateOpen(Surface,GameAssembly,EditedScene);
+        Open.SceneJson=Original;
+        using var Session=RenderPreviewRuntimeSession.Open(Open);
+        Session.UpdateFrame(new RenderPreviewFrame { Camera=Camera(3f,0.5f,-4f) });
+        string Frame(){
+            Session.Render(CaptureForVerification:true);
+            return Session.LastFrameHash;
+        }
+        Frame();
+        var Before=Frame();
+        Assert.Equal(Before,Frame());
+        Assert.False(Session.BuildRequired);
+
+        Session.ReplaceScene(Open.Scene!,Moved);
+        var AfterMove=Frame();
+        Session.ReplaceScene(Open.Scene!,Original);
+        var Restored=Frame();
+
+        Assert.False(Session.BuildRequired);
+        Assert.NotEqual(Before,AfterMove);
+        Assert.Equal(Before,Restored);
+        var AddedChild=Original.Replace("\"children\": []","\"children\": [ { \"id\": \"7b1c2f4e-0d3a-4c7e-9f1b-2a6d8e5c3b10\", \"components\": [], \"children\": [] } ]");
+        Session.ReplaceScene(Open.Scene!,AddedChild);
+        Assert.True(Session.BuildRequired);
+        Session.ReplaceScene(Open.Scene!,Original);
+        Assert.False(Session.BuildRequired);
+        Session.ReplaceScene(Open.Scene!,"{ not json");
+        Assert.False(Session.BuildRequired);
+    }
+
+    [WindowsOnlyFact]
     public void RuntimeSession_ExplainsAMissingSceneOrAGameWithoutARuntimeView(){
         using var Surface=CreateSurface();
         var MissingScene=Assert.Throws<InvalidOperationException>(()=>
@@ -72,6 +108,12 @@ public sealed class RenderPreviewRuntimeSessionTests {
             RequestId=Guid.NewGuid(),SessionId=Guid.NewGuid(),Sequence=2,Command=RenderPreviewHostCommand.Render,
             RuntimeView=new RenderPreviewRuntimeView { AssemblyPath=GameAssembly,SceneName=EditedScene },
         }));
+    }
+
+    private static string RepositoryRoot(){
+        var Directory=new DirectoryInfo(AppContext.BaseDirectory);
+        while(Directory is not null&&!File.Exists(Path.Combine(Directory.FullName,"CSharpGameEngine.slnx"))){ Directory=Directory.Parent; }
+        return Directory?.FullName??throw new DirectoryNotFoundException();
     }
 
     private static Win32Window CreateSurface()=>new(new Win32WindowOptions {

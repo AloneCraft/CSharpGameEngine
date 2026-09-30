@@ -12,4 +12,12 @@
     <ProjectReference Include="../../src/CSharpGameEngine.Windows/CSharpGameEngine.Windows.csproj" />
     <ProjectReference Include="../CSharpGameEngine.Bridge.Hosting/CSharpGameEngine.Bridge.Hosting.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="CSharpGameEngine.Windows.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- ADR-0070 B1: the runtime view reads the editor's scene JSON with the generator's own reader. -->
+    <Compile Include="../../src/CSharpGameEngine.SceneModel/Json/SceneJson.cs" Link="SceneJson/SceneJson.cs" />
+    <Compile Include="../../src/CSharpGameEngine.SceneModel/Json/SceneJsonReader.cs" Link="SceneJson/SceneJsonReader.cs" />
+  </ItemGroup>
 </Project>

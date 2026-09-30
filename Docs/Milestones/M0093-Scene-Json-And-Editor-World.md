@@ -19,7 +19,7 @@ The steps are ordered so the Scene Designer keeps working at every commit. Repos
 | C2 | The Scene Designer opens, edits and saves `*.scene.json` (ADR-0070 decision 5): the designer view of the live JSON (`SceneJsonDesignerSource`, `SceneJsonWorkspaceSource`), gestures committed as minimal JSON changes in one VS Undo unit (`SceneJsonCommitPlanner`), the scene catalog, the code-window and Solution Explorer menus, and source markers on the JSON node | Done (fb75f59, eb35738); a manual VS check is pending |
 | C3a | Convert UserEcsProject (16 scenes), the ThirdPerson template (3) and the FeatureStages (10) with `CSharpGameEngine.SceneJson.Cli convert --write --delete-source`. The export scripts convert the UE importer's output, the project generator and the VSIX carry `*.scene.json`, and "Add New Item > Scene" creates a `*.scene.json` whose schema path a wizard fills in | Done (a186050) |
 | C3b | Remove the user-authored C# `IScene` path: the generator reads scenes only from JSON, a C# scene class is SCENE206, and JSON `startupOrder` conflicts are SCENE118. The VSIX discovers, opens and writes only `*.scene.json`, and the C# scene writer is removed. Tests keep writing scenes in the C# DSL; their helpers convert them the way the CLI does. Model predictions are checked by writing JSON and reading it back | Done (this commit) |
-| B1 | Preview host instantiates the editor world from the in-memory JSON inside the game assembly and renders it with the runtime's Presentation systems (steps below) | In progress: steps 1 (f38e9f4), 2 (a6a1e55) and 3a (this commit) done |
+| B1 | Preview host instantiates the editor world from the in-memory JSON inside the game assembly and renders it with the runtime's Presentation systems (steps below) | In progress: steps 1 (f38e9f4), 2 (a6a1e55), 3a (aaa81f2), 4a (81e8a4e) and 4b (this commit) done; 3b (VSIX) remains |
 | B2 | Keep the device and swap chain across edits; exposure/GI history survives edits | Planned |
 
 ## B1 design (2026-10-01)
@@ -44,6 +44,13 @@ Steps, each verified before the next:
      - `RenderPreviewRuntimeSessionTests`: over the protocol the session renders exactly the bridge's pixels, and it explains a scene missing from the build and a build without a runtime view.
    - **3b:** the VSIX opens the runtime view when the pinned scene's game is built.
 4. **Edits.** Value edits (transforms, members) go to the running world. A structural edit that needs an archetype the build does not have is reported as "build to see this change", never drawn wrong.
+   - **4a result:** the generated `World.TrySetComponent` replaces a value in place and marks it changed. `World.GetSceneEntities` lists a scene instance's entities in node pre-order. The bridge's `TrySetRuntimeViewComponent` applies a value to a node of the edited scene.
+   - **4b result:**
+     - Open and ReplaceScene carry the edited scene's JSON (`SceneJson`).
+     - `SceneJsonRuntimeValues` turns each component's members into the game's own type by reflection with the generator's rules. For every component of three UserEcsProject scenes it equals what the generated code created.
+     - The session applies the values. A node count or component type the build does not have sets `BuildRequired` in the response, and an unreadable document changes nothing.
+     - `SceneDocument_EditsValuesLiveAndFlagsStructureForABuild`: moving the box changes the image, and restoring the document restores the exact pixels.
+     - **Known gap:** a component removed in the document stays in the running world until the next build, and it does not set `BuildRequired`.
 
 ## Oracles
 - **One-line diffs:** one gizmo or Inspector edit changes only the edited value's text.

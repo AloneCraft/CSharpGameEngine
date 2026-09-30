@@ -67,7 +67,7 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
             BuildObjectIndices(Request.Scene!));
     }
 
-    public void ReplaceScene(RenderPreviewScene Scene){
+    public void ReplaceScene(RenderPreviewScene Scene,string SceneJson){
         ArgumentNullException.ThrowIfNull(Scene);
         RenderPreviewHostRequest ValidationRequest=new(){
             RequestId=Guid.NewGuid(),

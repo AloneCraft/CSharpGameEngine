@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Runtime.Loader;
 using System.Security.Cryptography;
 using CSharpGameEngine.Contracts;
+using CSharpGameEngine.SceneAnalysis.Json;
 
 namespace CSharpGameEngine.EditorPreview.Host;
 
@@ -19,17 +20,21 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
     private readonly MethodInfo ResizeMethod;
     private readonly MethodInfo CaptureMethod;
     private readonly MethodInfo ShutdownMethod;
+    private readonly MethodInfo NodeCountMethod;
+    private readonly MethodInfo SetComponentMethod;
     private RenderPreviewCamera Camera;
     private bool Disposed;
 
     private RenderPreviewRuntimeSession(
         GameLoadContext Context,MethodInfo RenderMethod,MethodInfo ResizeMethod,MethodInfo CaptureMethod,
-        MethodInfo ShutdownMethod,RenderPreviewCamera Camera){
+        MethodInfo ShutdownMethod,MethodInfo NodeCountMethod,MethodInfo SetComponentMethod,RenderPreviewCamera Camera){
         this.Context=Context;
         this.RenderMethod=RenderMethod;
         this.ResizeMethod=ResizeMethod;
         this.CaptureMethod=CaptureMethod;
         this.ShutdownMethod=ShutdownMethod;
+        this.NodeCountMethod=NodeCountMethod;
+        this.SetComponentMethod=SetComponentMethod;
         this.Camera=Camera;
     }
 
@@ -37,6 +42,7 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
     public ulong CompletedFence{get;private set;}
     public string LastFrameHash{get;private set;}=string.Empty;
     public RenderPreviewCameraDiagnostics[]CameraPreviewDiagnostics=>[];
+    public bool BuildRequired{get;private set;}
 
     /// <summary>Opens <paramref name="Request"/>'s runtime view; it must carry one (see <see cref="RenderPreviewHostRequest.RuntimeView"/>).</summary>
     public static RenderPreviewRuntimeSession Open(RenderPreviewHostRequest Request){
@@ -58,11 +64,12 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
             MethodInfo Initialize=Find("InitializeRuntimeView");
             RenderPreviewRuntimeSession Session=new(
                 Context,Find("RenderRuntimeView"),Find("ResizeRuntimeView"),Find("CaptureRuntimeView"),Find("ShutdownRuntimeView"),
-                Request.Scene!.Camera!);
+                Find("RuntimeViewNodeCount"),Find("TrySetRuntimeViewComponent"),Request.Scene!.Camera!);
             // A false result has already released the game's host, so only the context remains to unload.
             if(Invoke(Initialize,[View.SceneName,ContentDirectory,(nint)Request.SurfaceHandle,Request.Width,Request.Height,View.UseWarp]) is not true){
                 throw new InvalidOperationException($"The game build does not contain the scene '{View.SceneName}'; build the project to show it.");
             }
+            if(Request.SceneJson.Length>0){ Session.ApplySceneDocument(Request.SceneJson); }
             return Session;
         } catch {
             Context.Unload();
@@ -70,8 +77,61 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
         }
     }
 
-    public void ReplaceScene(RenderPreviewScene Scene){
-        // The runtime view shows the build's world; a new structure appears after the next build.
+    /// <summary>
+    /// Applies the edited document's values to the running world. The world keeps the build's
+    /// structure: a node or component the build does not have sets <see cref="BuildRequired"/>, and
+    /// its values wait for the next build. A document that cannot be read changes nothing.
+    /// </summary>
+    public void ReplaceScene(RenderPreviewScene Scene,string SceneJson){
+        if(SceneJson.Length>0){ this.ApplySceneDocument(SceneJson); }
+    }
+
+    private void ApplySceneDocument(string SceneJson){
+        ObjectDisposedException.ThrowIf(this.Disposed,this);
+        SceneJsonValue[]Nodes;
+        try {
+            Nodes=[.. PreOrder(SceneJsonReader.Parse(SceneJson).Get("root")
+                ??throw new SceneJsonException("The scene document has no root.",0))];
+        } catch(SceneJsonException){
+            return;
+        }
+        var Stale=Nodes.Length!=(int)Invoke(this.NodeCountMethod,[])!;
+        for(var Index=0;Index<Nodes.Length&&!Stale;Index++){
+            foreach(var Component in Nodes[Index].Get("components")?.Items??[]){
+                var TypeName=Component.Get("type")?.Text??string.Empty;
+                if(this.FindType(TypeName) is not { }Type){
+                    Stale=true;
+                    break;
+                }
+                object Value;
+                try {
+                    Value=SceneJsonRuntimeValues.Component(Type,Component.Get("members")??SceneJsonReader.Parse("{}"),Type.Name);
+                } catch(InvalidOperationException){
+                    // The generator reports the document's errors; the view keeps the last good values.
+                    continue;
+                }
+                if(Invoke(this.SetComponentMethod,[Index,Value]) is not true){
+                    Stale=true;
+                    break;
+                }
+            }
+        }
+        this.BuildRequired=Stale;
+    }
+
+    /// <summary>A component type as the game build sees it: from the assemblies of the game's own context.</summary>
+    private Type?FindType(string FullName){
+        foreach(var Assembly in this.Context.Assemblies){
+            if(Assembly.GetType(FullName,throwOnError:false) is { }Type){ return Type; }
+        }
+        return null;
+    }
+
+    private static IEnumerable<SceneJsonValue>PreOrder(SceneJsonValue Node){
+        yield return Node;
+        foreach(var Child in Node.Get("children")?.Items??[]){
+            foreach(var Descendant in PreOrder(Child)){ yield return Descendant; }
+        }
     }
 
     public void UpdateFrame(RenderPreviewFrame Frame){

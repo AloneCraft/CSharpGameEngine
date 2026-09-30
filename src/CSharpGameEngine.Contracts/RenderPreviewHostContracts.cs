@@ -37,6 +37,9 @@ public static class RenderPreviewHostProtocol {
         if(Request.RuntimeView is not null&&Request.Command!=RenderPreviewHostCommand.Open){
             return "Only Open may request a runtime view.";
         }
+        if(Request.SceneJson.Length>0&&Request.Command is not (RenderPreviewHostCommand.Open or RenderPreviewHostCommand.ReplaceScene)){
+            return "Only Open and ReplaceScene carry a scene document.";
+        }
 
         return Request.Command switch {
             RenderPreviewHostCommand.Open=>ValidateOpen(Request),
@@ -639,6 +642,11 @@ public sealed class RenderPreviewHostRequest {
     /// scenes plus <see cref="RenderPreviewRuntimeView.SceneName"/>) instead of <see cref="Scene"/>.
     /// </summary>
     public RenderPreviewRuntimeView?RuntimeView { get;set; }
+    /// <summary>
+    /// On Open and ReplaceScene of a runtime view: the edited scene's current <c>*.scene.json</c>
+    /// document. Its values are applied to the running world without a build.
+    /// </summary>
+    public string SceneJson { get;set; }=string.Empty;
 }
 
 public sealed class RenderPreviewRuntimeView {
@@ -663,6 +671,11 @@ public sealed class RenderPreviewHostResponse {
     public string Message { get;set; }=string.Empty;
     public RenderPreviewCameraDiagnostics[]CameraPreviews { get;set; }=[];
     public RenderPreviewDebugSnapshot?DebugSnapshot { get;set; }
+    /// <summary>
+    /// A runtime view whose scene document changed its structure (nodes or component types) since the
+    /// build it runs; the view shows the build's structure with the document's values until the next build.
+    /// </summary>
+    public bool BuildRequired { get;set; }
 }
 
 public enum RenderPreviewDebugGraphKind:byte {

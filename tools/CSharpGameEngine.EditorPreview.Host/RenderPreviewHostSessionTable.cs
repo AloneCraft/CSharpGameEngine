@@ -8,7 +8,10 @@ public interface IRenderPreviewSession:IDisposable {
     string LastFrameHash{get;}
     RenderPreviewCameraDiagnostics[]CameraPreviewDiagnostics{get;}
     RenderPreviewDebugSnapshot CaptureDebugSnapshot();
-    void ReplaceScene(RenderPreviewScene Scene);
+    /// <summary><paramref name="SceneJson"/> is the edited scene's document for a runtime view; other sessions ignore it.</summary>
+    void ReplaceScene(RenderPreviewScene Scene,string SceneJson);
+    /// <summary>A runtime view that shows the build's structure because the document changed it (ADR-0070 B1).</summary>
+    bool BuildRequired=>false;
     void UpdateFrame(RenderPreviewFrame Frame);
     void Resize(int Width,int Height);
     void Render(bool CaptureForVerification);
@@ -62,7 +65,7 @@ public sealed class RenderPreviewHostSessionTable:IDisposable {
             RenderPreviewDebugSnapshot?DebugSnapshot=null;
             switch(Request.Command){
                 case RenderPreviewHostCommand.ReplaceScene:
-                    Current.Session.ReplaceScene(Request.Scene!);
+                    Current.Session.ReplaceScene(Request.Scene!,Request.SceneJson);
                     break;
                 case RenderPreviewHostCommand.UpdateFrame:
                     Current.Session.UpdateFrame(Request.Frame!);
@@ -155,6 +158,7 @@ public sealed class RenderPreviewHostSessionTable:IDisposable {
             FrameHash=Session.LastFrameHash,
             CameraPreviews=Session.CameraPreviewDiagnostics,
             DebugSnapshot=DebugSnapshot,
+            BuildRequired=Session.BuildRequired,
         };
 
     private static RenderPreviewHostResponse Success(

@@ -163,7 +163,7 @@ public sealed class RenderPreviewHostSessionTableTests {
         public bool ThrowOnSnapshot{get;set;}
         public bool ReturnMalformedSnapshot{get;set;}
 
-        public void ReplaceScene(RenderPreviewScene Scene){
+        public void ReplaceScene(RenderPreviewScene Scene,string SceneJson){
             if(this.ThrowOnReplace){ throw new InvalidOperationException("fault"); }
         }
         public void UpdateFrame(RenderPreviewFrame Frame){ }
