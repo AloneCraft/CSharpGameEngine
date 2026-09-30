@@ -18,6 +18,7 @@ Changed features: F-L6-009 (new), F-L8-032 (new), F-L8-018 (bundling now also co
   - Stale archives were also not rebuilt incrementally, which masked the change.
   - With a `ReadMe.md` item the archive and its manifests are complete.
 - **Wizard assembly.** The first manual run in the Experimental instance failed on "Create" with "this template tried to load component assembly 'CSharpGameEngine.VSExtension'". The vstemplates name their wizard by simple assembly name, and the package declared no `BindingPaths`, so Visual Studio could not resolve the assembly. The package now carries `[ProvideBindingPath]`, and `VsixManifestTests` checks the packaged pkgdef for the entry.
+- **Stale New Project dialog cache.** A second dialog attempt failed with STG_E_FILENOTFOUND and an empty file name. The Experimental hive's `NpdProjectTemplateCache_ja-JP` (written 21:44) still pointed at the previous F5 deployment folder (`Extensions\a22iltlo.rz2\...\ThirdPerson.vstemplate`). That folder had been removed by the 21:56 redeploy to a new random folder. This only affects F5 development deployments, whose folder name changes each time; an installed VSIX keeps a stable path. Deleting the cache file lets Visual Studio rebuild it. The same template, run through DTE `Solution.AddFromTemplate` against the current deployment, created the project.
 - **Repository paths.** The first package game ran with the repository removed from its build inputs. The Stage checks this on every run: `obj/*.nuget.g.*`, `project.assets.json` and `*.deps.json` must not mention the repository root.
 ## Commands and results
 Commands executed from the repository root:
@@ -37,12 +38,17 @@ dotnet test CSharpGameEngine.slnx -c Release
 | `verify-template-package`, hardware | Generated "My ThirdPerson" in %TEMP%; walk 15.700 m, rise 1.228 m, landed, 0 D3D12 errors, no repository path in the build inputs |
 | Stage `vsix.project-template`, Debug, WARP | Passed |
 | VSIX contents | Five `Bridges/*` executables with runtimeconfig, `Packages/CSharpGameEngine.Sdk.0.1.0.nupkg`, the ThirdPerson template for 1033 and 1041 with manifests, and `ProjectTemplateSources/ThirdPerson` without bin, obj or csproj |
-## Manual check (pending)
-In the Experimental instance, press F5:
-1. Choose New Project, then "Third Person" (English) or "三人称" (Japanese).
-2. Create the project in any folder outside the repository.
-3. Check that the package restores and `Scenes/Lvl_ThirdPerson.cs` opens.
-4. Press F5 in the new solution, then walk, look around and jump.
+## Creation through Visual Studio
+Visual Studio was started as `devenv /rootsuffix CgeFixed /log`. DTE `Solution.AddFromTemplate` then ran the deployed 1041 `ThirdPerson.vstemplate` into `G:\GitHub\GameEngineで作ったゲーム\MyGame3`.
+- The wizard loaded and published `CSharpGameEngine.Sdk.0.1.0.nupkg` to `%LOCALAPPDATA%\CSharpGameEngine\packages\0.1.0`.
+- It wrote the sources with the `MyGame3` namespace, `nuget.config`, `MyGame3.csproj` (PackageReference only) and `MyGame3.slnx`, and the package restored.
+- `dotnet build MyGame3.slnx -c Debug` reported 0 warnings and 0 errors.
+- An automation run (`W@20-40;SpaceBar@50-51`, 110 frames) walked the camera from x = -4 to 11.7 m, rendered the level and Quinn with 0 D3D12 errors, and exited 0.
+
+Still manual:
+- Clicking "Create" in the dialog after the cache refresh.
+- Interactive play with mouse and gamepad.
+
 ## Remaining uncertainty
-- The wizard's file work (publishing the bundled package to the feed, writing the renamed sources and nuget.config) is unit-tested through `GameProjectTemplateWizard.CreateProject`. The dialog itself (template listing, the replacement dictionary, restore, opening the level) has not run in Visual Studio.
+- The wizard's file work is unit-tested through `GameProjectTemplateWizard.CreateProject`, and the whole template ran inside Visual Studio through DTE. The dialog's own path (listing through its cache, then "Create") has only failed for the stale-cache reason above and has not yet been rerun.
 - The engine's dependencies restore from the user's NuGet sources. A machine without nuget.org access needs its own mirror.
