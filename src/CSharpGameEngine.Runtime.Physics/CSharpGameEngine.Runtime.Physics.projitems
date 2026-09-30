@@ -15,6 +15,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)PhysicsNarrowPhase.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PhysicsWorldIntegration.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PhysicsSystems.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)StaticMeshCollision.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)DeterministicAabbTree.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)DeterministicPhysicsWorld.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PhysicsCache.cs" />

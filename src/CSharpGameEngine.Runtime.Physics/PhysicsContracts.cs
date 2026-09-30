@@ -16,6 +16,8 @@ public readonly record struct PhysicsRay(LogicalVector3 Origin,LogicalVector3 Di
 
 public readonly record struct PhysicsRayHit(Entity Entity,ulong StableId,LogicalScalar Distance,LogicalVector3 Point,LogicalVector3 Normal);
 public readonly record struct PhysicsOverlapHit(Entity Entity,ulong StableId);
+/// <summary>A penetration of a query shape into a body; <see cref="Normal"/> points from the query shape into the body.</summary>
+public readonly record struct PhysicsShapeContact(Entity Entity,ulong StableId,LogicalVector3 Point,LogicalVector3 Normal,LogicalScalar Penetration);
 public readonly record struct PhysicsSweepHit(Entity Entity,ulong StableId,LogicalScalar Distance,LogicalVector3 Point,LogicalVector3 Normal);
 public readonly record struct PhysicsContactPoint(
     LogicalVector3 Position,LogicalVector3 Normal,LogicalScalar Penetration,
@@ -47,6 +49,7 @@ public enum PhysicsFaultType:ushort {
     InvalidScale,
     ReferenceFrameMismatch,
     CacheMismatch,
+    InvalidShape,
 }
 
 public enum PhysicsEventType:ushort {
