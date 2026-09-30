@@ -85,7 +85,7 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
         SceneEditorSettings.MigrateNavigationSettingsIfNeeded();
         await this.TryInitializeSceneSubsystemAsync();
 
-        this.AssetMetaWatcher=AssetMetaWatcher.StartIfProjectExists();
+        this.RestartAssetMetaWatcher();
         this.ExperimentalToolWindowState=new ExperimentalToolWindowState(this);
         _=this.JoinableTaskFactory.RunAsync(async()=>{
             if(await this.WaitForSolutionOpenAsync()){
@@ -695,6 +695,12 @@ public sealed partial class CSharpGameEngineViewerPackage:AsyncPackage {
         return ErrorHandler.Succeeded(Solution.GetSolutionInfo(out _,out var SolutionFile,out _))
             ?SolutionFile
             :null;
+    }
+
+    /// <summary>Watches the Assets folder of the current game project, replacing any previous watcher.</summary>
+    private void RestartAssetMetaWatcher(){
+        this.AssetMetaWatcher?.Dispose();
+        this.AssetMetaWatcher=AssetMetaWatcher.StartIfProjectExists();
     }
 
     protected override void Dispose(bool Disposing){

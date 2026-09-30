@@ -1,0 +1,13 @@
+<Project>
+  <!--
+    NuGet entry point of the engine SDK package (ADR-0065). It selects PackageMode and applies the same
+    game-project conventions as a repository build: the package root mirrors the repository, so
+    CSharpGameEngine.Game.props resolves the shared sources and shaders inside the package.
+  -->
+  <PropertyGroup>
+    <CgeEngineMode>Package</CgeEngineMode>
+    <CgeEngineRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..'))\</CgeEngineRoot>
+    <CgeShaderGraphCliExe>$(CgeEngineRoot)tools\ShaderGraph\CSharpGameEngine.ShaderGraph.Cli.exe</CgeShaderGraphCliExe>
+  </PropertyGroup>
+  <Import Project="$(MSBuildThisFileDirectory)CSharpGameEngine.Game.props" />
+</Project>

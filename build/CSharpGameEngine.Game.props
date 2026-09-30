@@ -24,6 +24,10 @@
     <CompilerGeneratedFilesOutputPath Condition="'$(CompilerGeneratedFilesOutputPath)' == ''">$(BaseIntermediateOutputPath)Generated</CompilerGeneratedFilesOutputPath>
     <CgeIncludeDefaultStageShaders Condition="'$(CgeIncludeDefaultStageShaders)' == ''">true</CgeIncludeDefaultStageShaders>
     <CgeCopyAssets Condition="'$(CgeCopyAssets)' == ''">true</CgeCopyAssets>
+    <!-- The shared engine sources need these outside the repository, where Directory.Build.props does not apply. -->
+    <LangVersion Condition="'$(LangVersion)' == ''">14</LangVersion>
+    <Nullable Condition="'$(Nullable)' == ''">enable</Nullable>
+    <ImplicitUsings Condition="'$(ImplicitUsings)' == ''">enable</ImplicitUsings>
   </PropertyGroup>
 
   <Import Project="$(CgeEngineSourceRoot)CSharpGameEngine.Runtime.Simulation\CSharpGameEngine.Runtime.Simulation.projitems" Label="Shared" />

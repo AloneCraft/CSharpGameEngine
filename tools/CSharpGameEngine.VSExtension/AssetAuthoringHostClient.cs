@@ -15,7 +15,7 @@ internal static class AssetAuthoringHostClient {
     private static readonly JsonSerializerOptions JsonOptions=new(){ PropertyNameCaseInsensitive=false };
 
     public static AssetAuthoringResult Inspect(string SourcePath){
-        string RepoRoot=ResolveRepoRoot();
+        string RepoRoot=ResolveWorkspaceRoot(SourcePath);
         return Execute(new AssetAuthoringRequest {
             RequestId=Guid.NewGuid(),Command=AssetAuthoringCommand.Inspect,
             RepositoryRoot=RepoRoot,SourcePath=SourcePath,
@@ -25,7 +25,7 @@ internal static class AssetAuthoringHostClient {
     public static AssetAuthoringResult SaveMetadata(
         string SourcePath,AssetAuthoringResult Snapshot){
         if(Snapshot is null){ throw new ArgumentNullException(nameof(Snapshot)); }
-        string RepoRoot=ResolveRepoRoot();
+        string RepoRoot=ResolveWorkspaceRoot(SourcePath);
         return Execute(new AssetAuthoringRequest {
             RequestId=Guid.NewGuid(),Command=AssetAuthoringCommand.SaveMetadata,
             RepositoryRoot=RepoRoot,SourcePath=SourcePath,
@@ -64,9 +64,9 @@ internal static class AssetAuthoringHostClient {
         }
     }
 
-    private static string ResolveRepoRoot()=>RepoLocator.ResolveRepoRoot()
-        ??throw new InvalidOperationException(
-            VsixText.Format("Common_RepoRootNotFound",RepoLocator.RepoMarkerFileName));
+    /// <summary>The workspace of the game project that owns <paramref name="SourcePath"/> (ADR-0065).</summary>
+    private static string ResolveWorkspaceRoot(string SourcePath)=>CgeProjectContext.Resolve(SourcePath)?.WorkspaceRoot
+        ??throw new InvalidOperationException(VsixText.Get("Common_GameProjectNotFound"));
 
     private static AssetAuthoringOption[]CloneOptions(AssetAuthoringOption[]?Options){
         AssetAuthoringOption[]Source=Options??Array.Empty<AssetAuthoringOption>();

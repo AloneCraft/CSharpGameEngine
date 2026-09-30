@@ -9,6 +9,9 @@ M0089/ADR-0069 adds F-L4-014 (physical sky, sky light, exposure, cascaded sun sh
 ## Current character-movement update
 M0090/ADR-0067 implements F-L5-006. It adds kinematic character movement on the deterministic physics world, StaticMesh triangle collision, a spring-arm follow camera, and Enhanced Input value composition with XInput. It refines F-L4-010 and F-L0-010. The ThirdPerson template is playable. See the [verification milestone](Milestones/M0090-ThirdPerson-Character-Movement.md).
 
+## Current SDK package and project template update
+M0092/ADR-0065/ADR-0068 add F-L6-009 and F-L8-032. Games build from the `CSharpGameEngine.Sdk` NuGet package anywhere; the VSIX finds the game project from the open solution and ships its bridges. Visual Studio's New Project dialog offers "Third Person / 三人称", which creates the ported Unreal template. See the [verification milestone](Milestones/M0092-Sdk-Package-And-Project-Template.md).
+
 ## Current skeletal-animation update
 M0091/ADR-0066 adds F-L4-015. It adds glTF skins and clips, GPU compute skinning, and Unreal's ABP_Unarmed locomotion graph. The ThirdPerson template now shows Quinn idling, walking, jogging, jumping and landing. See [Rendering](Specifications/Rendering.md#skeletal-meshes-and-animation) and the [verification milestone](Milestones/M0091-Skeletal-Animation.md).
 
@@ -53,6 +56,7 @@ Current baseline corrections: point/spot/area/emissive shadows and HDR/ACES/bloo
 | 4 | F-L7-027 | Implemented | Cache recovery and GC | F-L7-026 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.cache-recovery` |
 | 5 | F-L4-008 | Implemented | Runtime asset handles | F-L7-027 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.runtime-load` |
 | 5 | F-L6-006 | Implemented | Shipping content manifest | F-L4-008 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.package` |
+| 6 | F-L6-009 | Implemented | Engine SDK package and game project context | F-L6-006 | [ADR-0065](Decisions/ADR-0065-Engine-Sdk-Package-And-Project-Context.md) | `vsix.project-template` |
 | 6 | F-L8-019 | Implemented | VSIX asset authoring | F-L6-006, F-L8-022 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `vsix.asset-authoring` |
 | 6 | F-L7-028 | Implemented | Performance evidence | F-L6-006 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.performance` |
 | 7 | F-L7-029 | Implemented | Release evidence | F-L7-028, F-L8-019 | [Asset / Content](Specifications/Asset-Content-Pipeline.md) | `content.release` |
@@ -72,6 +76,7 @@ Current baseline corrections: point/spot/area/emissive shadows and HDR/ACES/bloo
 | 6 | F-L8-027 | Implemented | Read-only debug tools | F-L8-026 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.debug-tools` |
 | 6 | F-L8-028 | Implemented | Compatibility matrix | F-L8-027 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.compatibility` |
 | 7 | F-L8-029 | Implementing | Release evidence | F-L8-028 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.release` |
+| 7 | F-L8-032 | Implemented | ThirdPerson Visual Studio project template | F-L6-009, F-L8-031 | [ADR-0068](Decisions/ADR-0068-ThirdPerson-Project-Template.md) | `vsix.project-template` |
 
 ### ECS / Runtime
 

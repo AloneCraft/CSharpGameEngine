@@ -159,6 +159,7 @@
   <!-- Template source is copied into an item-template archive; it is not source for this VSIX. -->
   <ItemGroup>
     <Compile Remove="ItemTemplates\**\*.cs" />
+    <Compile Include="..\CSharpGameEngine.ProjectTemplates\GameProjectGenerator.cs" Link="ProjectTemplates\GameProjectGenerator.cs" />
   </ItemGroup>
   <!--
     Item templates are authored as ordinary source files and zipped by the VSSDK's ZipItems target.
@@ -182,6 +183,8 @@
     <VSTemplate Include="ItemTemplates\CSharp\GameEngine\ShaderGraph\ShaderGraph.vstemplate"><TemplateType>Item</TemplateType><Language>CSharp</Language><OutputSubPath>GameEngine</OutputSubPath><Culture>1041</Culture></VSTemplate>
     <VSTemplate Include="ItemTemplates\CSharp\GameEngine\ShaderSubgraph\ShaderSubgraph.vstemplate"><TemplateType>Item</TemplateType><Language>CSharp</Language><OutputSubPath>GameEngine</OutputSubPath><Culture>1033</Culture></VSTemplate>
     <VSTemplate Include="ItemTemplates\CSharp\GameEngine\ShaderSubgraph\ShaderSubgraph.vstemplate"><TemplateType>Item</TemplateType><Language>CSharp</Language><OutputSubPath>GameEngine</OutputSubPath><Culture>1041</Culture></VSTemplate>
+    <VSTemplate Include="ProjectTemplates\CSharp\GameEngine\ThirdPerson\ThirdPerson.vstemplate"><TemplateType>Project</TemplateType><Language>CSharp</Language><OutputSubPath>GameEngine</OutputSubPath><Culture>1033</Culture></VSTemplate>
+    <VSTemplate Include="ProjectTemplates\CSharp\GameEngine\ThirdPerson\ThirdPerson.vstemplate"><TemplateType>Project</TemplateType><Language>CSharp</Language><OutputSubPath>GameEngine</OutputSubPath><Culture>1041</Culture></VSTemplate>
   </ItemGroup>
 
   <ItemGroup>
@@ -270,6 +273,8 @@
       <VSIXSourceItem Include="$(OutDir)ItemTemplates\CSharp\GameEngine\1041\ShaderGraph.zip"><VSIXSubPath>ItemTemplates\CSharp\GameEngine\1041</VSIXSubPath></VSIXSourceItem>
       <VSIXSourceItem Include="$(OutDir)ItemTemplates\CSharp\GameEngine\1033\ShaderSubgraph.zip"><VSIXSubPath>ItemTemplates\CSharp\GameEngine\1033</VSIXSubPath></VSIXSourceItem>
       <VSIXSourceItem Include="$(OutDir)ItemTemplates\CSharp\GameEngine\1041\ShaderSubgraph.zip"><VSIXSubPath>ItemTemplates\CSharp\GameEngine\1041</VSIXSubPath></VSIXSourceItem>
+      <VSIXSourceItem Include="$(OutDir)ProjectTemplates\CSharp\GameEngine\1033\ThirdPerson.zip"><VSIXSubPath>ProjectTemplates\CSharp\GameEngine\1033</VSIXSubPath></VSIXSourceItem>
+      <VSIXSourceItem Include="$(OutDir)ProjectTemplates\CSharp\GameEngine\1041\ThirdPerson.zip"><VSIXSubPath>ProjectTemplates\CSharp\GameEngine\1041</VSIXSubPath></VSIXSourceItem>
     </ItemGroup>
   </Target>
 
@@ -297,6 +302,57 @@
                                     Exclude="$(CgeEditorPreviewHostStageDirectory)**/*.pdb" />
       <VSIXSourceItem Include="@(_CgeEditorPreviewHostPayload)">
         <VSIXSubPath>PreviewHost/%(RecursiveDir)</VSIXSubPath>
+      </VSIXSourceItem>
+    </ItemGroup>
+  </Target>
+
+  <!-- ADR-0065: the authoring bridges and the shader compiler ship inside the VSIX (Bridges/<name>/),
+       so the editor works for game projects outside the engine repository. Each is published
+       framework-dependent into an owned staging directory, like the Preview Host. -->
+  <ItemGroup>
+    <CgeVsixBridge Include="$(MSBuildProjectDirectory)/../CSharpGameEngine.Import.Gltf.Cli/CSharpGameEngine.Import.Gltf.Cli.csproj" Platform="AnyCPU" />
+    <CgeVsixBridge Include="$(MSBuildProjectDirectory)/../CSharpGameEngine.Import.Fbx.Cli/CSharpGameEngine.Import.Fbx.Cli.csproj" Platform="AnyCPU" />
+    <CgeVsixBridge Include="$(MSBuildProjectDirectory)/../CSharpGameEngine.Import.AssetAuthoring.Cli/CSharpGameEngine.Import.AssetAuthoring.Cli.csproj" Platform="AnyCPU" />
+    <CgeVsixBridge Include="$(MSBuildProjectDirectory)/../CSharpGameEngine.Primitive.Cli/CSharpGameEngine.Primitive.Cli.csproj" Platform="AnyCPU" />
+    <CgeVsixBridge Include="$(MSBuildProjectDirectory)/../CSharpGameEngine.ShaderGraph.Cli/CSharpGameEngine.ShaderGraph.Cli.csproj" Platform="x64" />
+  </ItemGroup>
+  <!-- ADR-0068: the ThirdPerson project template needs its source project and the engine SDK package it restores from. -->
+  <PropertyGroup>
+    <CgeTemplateSourceDirectory>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../../templates/CSharpGameEngine.Templates.ThirdPerson/'))</CgeTemplateSourceDirectory>
+    <CgeSdkPackageProject>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../../packaging/CSharpGameEngine.Sdk/CSharpGameEngine.Sdk.csproj'))</CgeSdkPackageProject>
+  </PropertyGroup>
+  <Target Name="StageProjectTemplateContentForVsix" BeforeTargets="GetVsixSourceItems">
+    <PropertyGroup>
+      <CgeSdkPackageStageDirectory>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/$(IntermediateOutputPath)Packages/'))</CgeSdkPackageStageDirectory>
+    </PropertyGroup>
+    <RemoveDir Directories="$(CgeSdkPackageStageDirectory)" />
+    <MSBuild Projects="$(CgeSdkPackageProject)" Targets="Restore;Pack" Properties="Configuration=$(Configuration);PackageOutputPath=$(CgeSdkPackageStageDirectory)" BuildInParallel="false" />
+    <ItemGroup>
+      <_CgeSdkPackage Include="$(CgeSdkPackageStageDirectory)*.nupkg" />
+      <VSIXSourceItem Include="@(_CgeSdkPackage)">
+        <VSIXSubPath>Packages</VSIXSubPath>
+      </VSIXSourceItem>
+      <_CgeTemplateSource Include="$(CgeTemplateSourceDirectory)**/*" Exclude="$(CgeTemplateSourceDirectory)bin/**;$(CgeTemplateSourceDirectory)obj/**;$(CgeTemplateSourceDirectory)*.csproj" />
+      <VSIXSourceItem Include="@(_CgeTemplateSource)">
+        <VSIXSubPath>ProjectTemplateSources/ThirdPerson/%(RecursiveDir)</VSIXSubPath>
+      </VSIXSourceItem>
+    </ItemGroup>
+  </Target>
+
+  <Target Name="StageBridgesForVsix" BeforeTargets="GetVsixSourceItems">
+    <PropertyGroup>
+      <CgeBridgeStageDirectory Condition="$([System.IO.Path]::IsPathRooted('$(IntermediateOutputPath)'))">$(IntermediateOutputPath)Bridges\</CgeBridgeStageDirectory>
+      <CgeBridgeStageDirectory Condition="'$(CgeBridgeStageDirectory)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/$(IntermediateOutputPath)Bridges/'))</CgeBridgeStageDirectory>
+    </PropertyGroup>
+    <RemoveDir Directories="$(CgeBridgeStageDirectory)" />
+    <MSBuild Projects="@(CgeVsixBridge)"
+             Targets="Publish"
+             Properties="Configuration=$(Configuration);Platform=%(CgeVsixBridge.Platform);SelfContained=false;PublishDir=$(CgeBridgeStageDirectory)%(CgeVsixBridge.Filename)\"
+             BuildInParallel="false" />
+    <ItemGroup>
+      <_CgeBridgePayload Include="$(CgeBridgeStageDirectory)**/*" Exclude="$(CgeBridgeStageDirectory)**/*.pdb" />
+      <VSIXSourceItem Include="@(_CgeBridgePayload)">
+        <VSIXSubPath>Bridges/%(RecursiveDir)</VSIXSubPath>
       </VSIXSourceItem>
     </ItemGroup>
   </Target>

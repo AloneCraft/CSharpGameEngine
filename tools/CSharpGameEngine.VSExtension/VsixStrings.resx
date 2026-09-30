@@ -189,6 +189,8 @@
   <data name="SourceEditNodeNameEmpty" xml:space="preserve"><value>A Node name cannot be empty.</value></data>
   <data name="SourceEditRenameSyntaxMissing" xml:space="preserve"><value>The syntax required for Rename was not found.</value></data>
   <data name="SourceEditNonFiniteTransform" xml:space="preserve"><value>A non-finite value cannot be written to a Transform.</value></data>
+  <data name="Common_GameProjectNotFound" xml:space="preserve"><value>No C# Game Engine game project was found. Open a solution with a project that references CSharpGameEngine.Sdk.</value></data>
+  <data name="PhysicsBake_RequiresEngineSource" xml:space="preserve"><value>Physics Bake builds its host from the engine sources and is only available for projects inside the engine repository.</value></data>
   <data name="Common_RepoRootNotFound" xml:space="preserve"><value>Repository root ({0}) was not found.</value></data>
   <data name="Common_ProductTitle" xml:space="preserve"><value>C# Game Engine</value></data>
   <data name="Common_ViewerTitle" xml:space="preserve"><value>C# Game Engine Viewer</value></data>

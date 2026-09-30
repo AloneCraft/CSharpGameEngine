@@ -9,6 +9,10 @@
     <ProjectReference Include="../CSharpGameEngine.ContentCompiler/CSharpGameEngine.ContentCompiler.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The same project generator the Visual Studio template wizard uses (ADR-0068). -->
+    <Compile Include="../CSharpGameEngine.ProjectTemplates/GameProjectGenerator.cs" Link="ProjectTemplates/GameProjectGenerator.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
       <_Parameter1>CSharpGameEngine.FeatureRunner.Tests</_Parameter1>
     </AssemblyAttribute>

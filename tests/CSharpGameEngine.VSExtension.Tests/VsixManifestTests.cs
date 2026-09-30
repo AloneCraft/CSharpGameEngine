@@ -108,6 +108,17 @@ public sealed class VsixManifestTests {
         Assert.Contains("PreviewHost/CSharpGameEngine.EditorPreview.Host.deps.json",Entries);
         Assert.Contains("PreviewHost/CSharpGameEngine.EditorPreview.Host.runtimeconfig.json",Entries);
         Assert.Contains("PreviewHost/Shaders/Stage.cgeshaderartifact",Entries);
+        // ADR-0065/0068: bridges, the engine SDK package and the ThirdPerson template make the VSIX work outside the repository.
+        foreach(var Bridge in new[]{"CSharpGameEngine.Import.Gltf.Cli","CSharpGameEngine.Import.Fbx.Cli","CSharpGameEngine.Import.AssetAuthoring.Cli","CSharpGameEngine.Primitive.Cli","CSharpGameEngine.ShaderGraph.Cli"}){
+            Assert.Contains($"Bridges/{Bridge}/{Bridge}.exe",Entries);
+            Assert.Contains($"Bridges/{Bridge}/{Bridge}.runtimeconfig.json",Entries);
+        }
+        Assert.Single(Entries,static Entry=>Entry.StartsWith("Packages/CSharpGameEngine.Sdk.",StringComparison.Ordinal)&&Entry.EndsWith(".nupkg",StringComparison.Ordinal));
+        Assert.Contains("ProjectTemplates/CSharp/GameEngine/1033/ThirdPerson/ThirdPerson.vstemplate",Entries);
+        Assert.Contains("ProjectTemplates/CSharp/GameEngine/1041/ThirdPerson/ThirdPerson.csproj.template",Entries);
+        Assert.Contains("ProjectTemplateSources/ThirdPerson/Scenes/Lvl_ThirdPerson.cs",Entries);
+        Assert.Contains("ProjectTemplateSources/ThirdPerson/Assets/Characters/Mannequins/SKM_Quinn_Simple.glb",Entries);
+        Assert.DoesNotContain(Entries,static Entry=>Entry.StartsWith("ProjectTemplateSources/",StringComparison.Ordinal)&&(Entry.Contains("/bin/")||Entry.Contains("/obj/")||Entry.EndsWith(".csproj",StringComparison.Ordinal)));
         Assert.DoesNotContain(Entries,static Entry=>Entry.StartsWith(
             "Vortice.",StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(Entries,static Entry=>Entry.StartsWith(

@@ -62,6 +62,28 @@ Every visible failure includes a source/document identity, operation/request ID,
 
 Runtime L0-L6 cannot reference Roslyn or Visual Studio SDK. L7 compiler/bake work runs outside Visual Studio. L8 is a frontend over those services. The renderer used by Preview is the Render Server from [Rendering](Rendering.md); VSIX-specific rendering code is removed when F-L8-018 is implemented.
 
+## Game project context and bundled tools (ADR-0065, ADR-0068)
+
+**Game project.** The editor works on a game project: a csproj that imports `CSharpGameEngine.Game.props` (SourceMode) or references the `CSharpGameEngine.Sdk` package (PackageMode). `CgeProjectContext` resolves it in this order:
+1. From the Scene, model or asset being edited.
+2. From the open solution, which the package records on solution events.
+3. From the repository the VSIX was built from (development only).
+
+**Paths.** Scene asset paths, `Assets/`, primitives, Fab downloads and the game assembly (`bin/<Configuration>/net10.0-windows10.0.19041.0/win-x64/<Assembly>.dll`) are relative to the project directory. Bridges run in the engine repository when there is one, otherwise in the project directory.
+
+**Bundled tools.** The VSIX carries its tools and a bridge built into the VSIX takes precedence over a repository build:
+- `Bridges/` holds the glTF, FBX, asset-authoring, primitive and shader-compiler bridges.
+- `PreviewHost/` holds the Preview Host.
+- `Packages/` holds the engine SDK package.
+- `ProjectTemplates/` holds the Third Person template, and `ProjectTemplateSources/` its sources.
+
+**SourceMode-only features.** Physics Scene Bake and the legacy model viewer need the engine repository. Physics Bake reports this instead of failing.
+
+**New game.** The Third Person template creates a PackageMode game through `GameProjectTemplateWizard`:
+- The bundled package goes to `%LOCALAPPDATA%\CSharpGameEngine\packages\<version>`.
+- The wizard writes the sources with the new namespace and a `nuget.config`.
+- `Scenes/Lvl_ThirdPerson.cs` opens after creation.
+
 ## Manual and automated evidence
 
 Experimental Instance evidence remains explicit. `VSIX-Experimental-Baseline.json` permits Pending but validates owner, evidence existence, observation, and expiry before Passed can count. `CSharpGameEngine.Vsix.Automation` runs only against the exact `CgeAutomation` suffix, classifies exit code 2 as InfrastructureError, records package/build/installed DLL hashes, and never closes a pre-existing PID. The Experimental stages are `vsix` profile only and retain a 3600-second Feature Runner timeout.

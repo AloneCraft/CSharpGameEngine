@@ -1,10 +1,11 @@
 <Project>
   <PropertyGroup>
     <CgeShaderGraphCliProject>$(MSBuildThisFileDirectory)..\tools\CSharpGameEngine.ShaderGraph.Cli\CSharpGameEngine.ShaderGraph.Cli.csproj</CgeShaderGraphCliProject>
-    <CgeShaderGraphCliExe>$(MSBuildThisFileDirectory)..\tools\CSharpGameEngine.ShaderGraph.Cli\bin\x64\$(Configuration)\net10.0-windows10.0.19041.0\CSharpGameEngine.ShaderGraph.Cli.exe</CgeShaderGraphCliExe>
+    <!-- PackageMode (ADR-0065) predefines the CLI shipped in the SDK package; SourceMode builds it from the repository. -->
+    <CgeShaderGraphCliExe Condition="'$(CgeShaderGraphCliExe)' == ''">$(MSBuildThisFileDirectory)..\tools\CSharpGameEngine.ShaderGraph.Cli\bin\x64\$(Configuration)\net10.0-windows10.0.19041.0\CSharpGameEngine.ShaderGraph.Cli.exe</CgeShaderGraphCliExe>
     <CgeShaderGraphIntermediateDirectory>$(IntermediateOutputPath)ShaderGraph\</CgeShaderGraphIntermediateDirectory>
   </PropertyGroup>
-  <Target Name="BuildCgeShaderGraphCli" BeforeTargets="CompileCgeShaderGraphs;CompileCgeComputeShaders" Condition="'@(CgeShaderGraph)' != '' or '@(CgeComputeShader)' != ''">
+  <Target Name="BuildCgeShaderGraphCli" BeforeTargets="CompileCgeShaderGraphs;CompileCgeComputeShaders" Condition="('@(CgeShaderGraph)' != '' or '@(CgeComputeShader)' != '') and '$(CgeEngineMode)' != 'Package'">
     <MSBuild Projects="$(CgeShaderGraphCliProject)" Targets="Build"
              Properties="Configuration=$(Configuration);Platform=x64"
              RemoveProperties="RuntimeIdentifier;SelfContained;PublishDir"

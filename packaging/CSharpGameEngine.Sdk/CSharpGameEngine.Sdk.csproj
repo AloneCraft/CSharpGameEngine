@@ -1,0 +1,77 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The engine SDK package (ADR-0065). A game project references only this package: its layout mirrors
+    the repository (build/, src/, assets/Shaders/, tools/), so build/CSharpGameEngine.Game.props applies
+    the same conventions in PackageMode as in SourceMode. The package carries:
+    - build/: CSharpGameEngine.Sdk.props/.targets (NuGet entry points), Game.props and ShaderGraph.targets;
+    - lib/: the engine libraries a game compiles against;
+    - analyzers/: the ECS source generator and analyzers;
+    - src/: the shared runtime sources the generator completes inside each game (ADR-0033);
+    - assets/Shaders/: the default Stage shader graph and compute shaders;
+    - tools/ShaderGraph/: the offline shader compiler the build invokes.
+    External libraries are NuGet dependencies of this package.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <CgeSkipEngineAnalyzerReference>true</CgeSkipEngineAnalyzerReference>
+    <PackageId>CSharpGameEngine.Sdk</PackageId>
+    <Version Condition="'$(Version)' == ''">0.1.0</Version>
+    <Authors>CSharpGameEngine</Authors>
+    <Description>C# Game Engine SDK: runtime libraries, ECS source generator, shared runtime sources, default shaders and the shader compiler for game projects.</Description>
+    <PackageTags>gamedev;ecs;direct3d12</PackageTags>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <IncludeSymbols>false</IncludeSymbols>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <NoWarn>$(NoWarn);NU5100;NU5128;NU5127</NoWarn>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)..\..\.artifacts\packages\</PackageOutputPath>
+    <CgeRepositoryRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..'))\</CgeRepositoryRoot>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="AssimpNet" Version="4.1.0" />
+    <PackageReference Include="SharpGLTF.Core" Version="1.0.6" />
+    <PackageReference Include="TerraFX.Interop.Windows" Version="10.0.26100.6" />
+  </ItemGroup>
+  <ItemGroup>
+    <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\CSharpGameEngine.Contracts\CSharpGameEngine.Contracts.csproj" />
+    <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\CSharpGameEngine.Windows\CSharpGameEngine.Windows.csproj" />
+    <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\CSharpGameEngine.Import\CSharpGameEngine.Import.csproj" />
+    <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\CSharpGameEngine.Core\CSharpGameEngine.Core.csproj" />
+    <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\CSharpGameEngine.Numerics\CSharpGameEngine.Numerics.csproj" />
+    <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\CSharpGameEngine.World\CSharpGameEngine.World.csproj" />
+    <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\CSharpGameEngine.Audio\CSharpGameEngine.Audio.csproj" />
+    <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\CSharpGameEngine.Content\CSharpGameEngine.Content.csproj" />
+    <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\CSharpGameEngine.Rendering\CSharpGameEngine.Rendering.csproj" />
+    <CgeEngineLibrary Include="$(CgeRepositoryRoot)src\CSharpGameEngine.ShaderArtifacts\CSharpGameEngine.ShaderArtifacts.csproj" />
+    <None Include="build\CSharpGameEngine.Sdk.props;build\CSharpGameEngine.Sdk.targets" Pack="true" PackagePath="build\" />
+    <None Include="$(CgeRepositoryRoot)build\CSharpGameEngine.Game.props;$(CgeRepositoryRoot)build\CSharpGameEngine.ShaderGraph.targets" Pack="true" PackagePath="build\" />
+    <None Include="$(CgeRepositoryRoot)assets\Shaders\*.cgeshadergraph;$(CgeRepositoryRoot)assets\Shaders\*.cgesubgraph;$(CgeRepositoryRoot)assets\Shaders\*.hlsl;$(CgeRepositoryRoot)assets\Shaders\*.hlsli" Pack="true" PackagePath="assets\Shaders\" />
+  </ItemGroup>
+  <!-- Builds the engine libraries, the analyzer and the shader compiler, then adds their outputs to the package. -->
+  <Target Name="CgeCollectEnginePayload" BeforeTargets="_GetPackageFiles">
+    <MSBuild Projects="@(CgeEngineLibrary)" Targets="Build" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_CgeEngineAssembly" />
+    </MSBuild>
+    <MSBuild Projects="$(CgeRepositoryRoot)src\CSharpGameEngine.CodeAnalysis\CSharpGameEngine.CodeAnalysis.csproj" Targets="Build" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_CgeAnalyzerAssembly" />
+    </MSBuild>
+    <MSBuild Projects="$(CgeRepositoryRoot)tools\CSharpGameEngine.ShaderGraph.Cli\CSharpGameEngine.ShaderGraph.Cli.csproj" Targets="Build" Properties="Configuration=$(Configuration);Platform=x64">
+      <Output TaskParameter="TargetOutputs" ItemName="_CgeShaderCli" />
+    </MSBuild>
+    <PropertyGroup>
+      <_CgeShaderCliDirectory>@(_CgeShaderCli->'%(RootDir)%(Directory)')</_CgeShaderCliDirectory>
+    </PropertyGroup>
+    <ItemGroup>
+      <None Include="@(_CgeEngineAssembly)" Pack="true" PackagePath="lib\$(TargetFramework)\" />
+      <None Include="@(_CgeAnalyzerAssembly)" Pack="true" PackagePath="analyzers\dotnet\cs\" />
+      <None Include="$(_CgeShaderCliDirectory)**\*" Exclude="$(_CgeShaderCliDirectory)**\*.pdb" Pack="true" PackagePath="tools\ShaderGraph\%(RecursiveDir)" />
+      <None Include="$(CgeRepositoryRoot)src\CSharpGameEngine.Entities\*.cs" Pack="true" PackagePath="src\CSharpGameEngine.Entities\" />
+      <None Include="$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Simulation\**\*" Exclude="$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Simulation\bin\**;$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Simulation\obj\**" Pack="true" PackagePath="src\CSharpGameEngine.Runtime.Simulation\%(RecursiveDir)" />
+      <None Include="$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Physics\**\*" Exclude="$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Physics\bin\**;$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Physics\obj\**" Pack="true" PackagePath="src\CSharpGameEngine.Runtime.Physics\%(RecursiveDir)" />
+      <None Include="$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Animation\**\*" Exclude="$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Animation\bin\**;$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Animation\obj\**" Pack="true" PackagePath="src\CSharpGameEngine.Runtime.Animation\%(RecursiveDir)" />
+      <None Include="$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Character\**\*" Exclude="$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Character\bin\**;$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Character\obj\**" Pack="true" PackagePath="src\CSharpGameEngine.Runtime.Character\%(RecursiveDir)" />
+      <None Include="$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Lighting\**\*" Exclude="$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Lighting\bin\**;$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Lighting\obj\**" Pack="true" PackagePath="src\CSharpGameEngine.Runtime.Lighting\%(RecursiveDir)" />
+      <None Include="$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Windows\**\*" Exclude="$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Windows\bin\**;$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Windows\obj\**" Pack="true" PackagePath="src\CSharpGameEngine.Runtime.Windows\%(RecursiveDir)" />
+    </ItemGroup>
+  </Target>
+</Project>

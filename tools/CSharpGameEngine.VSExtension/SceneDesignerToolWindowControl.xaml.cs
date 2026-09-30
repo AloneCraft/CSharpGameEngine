@@ -655,8 +655,9 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             ?Source.ToArray()
             :this.SceneSelector.SelectedItem is ProjectSceneCatalogEntry Selected?[Selected]:[];
         if(Entries.Length==0){ this.StatusText.Text=VsixText.Get("PhysicsBakeNoScene");return; }
-        string?RepoRoot=RepoLocator.ResolveRepoRoot();
-        if(RepoRoot is null){ this.StatusText.Text=VsixText.Format("Common_RepoRootNotFound",RepoLocator.RepoMarkerFileName);return; }
+        // The exact Bake Host is built from the engine sources (ADR-0065): SourceMode projects only.
+        string?RepoRoot=CgeProjectContext.Resolve(Entries[0].FilePath)?.EngineRoot;
+        if(RepoRoot is null){ this.StatusText.Text=VsixText.Get("PhysicsBake_RequiresEngineSource");return; }
         this.PhysicsBakeCancellation?.Dispose();
         CancellationTokenSource Cancellation=new();
         this.PhysicsBakeCancellation=Cancellation;

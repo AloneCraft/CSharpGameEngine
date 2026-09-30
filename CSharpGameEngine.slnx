@@ -235,6 +235,9 @@
       <Platform Project="x64" />
     </Project>
   </Folder>
+  <Folder Name="/packaging/">
+    <Project Path="packaging/CSharpGameEngine.Sdk/CSharpGameEngine.Sdk.csproj" />
+  </Folder>
   <Folder Name="/templates/">
     <Project Path="templates/CSharpGameEngine.Templates.ThirdPerson/CSharpGameEngine.Templates.ThirdPerson.csproj" />
   </Folder>

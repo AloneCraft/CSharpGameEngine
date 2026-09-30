@@ -3872,6 +3872,27 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Conformance: `RuntimeAssetStoreTests` covers joined retains, final release, dependency closure, cancellation isolation and eviction, manifest failure/cancellation/success, unsupported codecs, decode failure, IO concurrency bounds, and teardown/load races.
 - Next action: Consume the same manifest/handle boundary from F-L8-019 and record F-L7-028 performance evidence.
 
+## F-L6-009 — Engine SDK package and game project context
+
+- Layer: L6 — Content / Packaging
+- Parent capability: Asset / Content Pipeline
+- Status: Implemented
+- Verification: TestVerified, RuntimeVerified (WARP)
+- Intended specification: `Docs/Decisions/ADR-0065-Engine-Sdk-Package-And-Project-Context.md`
+- Stage: `vsix.project-template` (`Executable`, Visual / VSIX, 2400s)
+- Depends on: F-L6-006
+- Implementation evidence:
+  - `packaging/CSharpGameEngine.Sdk/` (package layout and NuGet entry points)
+  - `build/CSharpGameEngine.Game.props` and `build/CSharpGameEngine.ShaderGraph.targets` (Source and Package modes)
+  - `tools/CSharpGameEngine.VSExtension/CgeProjectContext.cs`
+  - the VSIX `Bridges/` payload
+  - `BridgeExecutableLocator`
+- Current delta:
+  - Physics Scene Bake and the legacy model viewer still need the engine repository.
+  - The package version is fixed at 0.1.0 until a release process assigns versions.
+- Conformance: `CgeProjectContextTests`, `BridgeExecutableLocatorTests` and `VsixManifestTests`. The Stage builds a project generated outside the repository from the package alone, with no restore or build input pointing into the repository, and plays it on WARP.
+- Next action: a dynamic-assembly Physics Bake Host for PackageMode projects, and versioned releases of the package.
+
 ## F-L6-006 — Shipping content manifest
 
 - Layer: L6 — Runtime Artifacts
@@ -4523,6 +4544,29 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Current delta: Typed syntax-node graphs and recursive external production Subgraphs deterministically regenerate production HLSL, while high-level If/Else, statically bounded ForRange, LoopIndex, and typed Return lower with source mapping. All nine fixed-ABI entries compile and dependency-identical artifacts are reused.
 - Conformance: Matches
 - Next action: Extend the typed node catalog only with explicit ABI-compatible nodes.
+
+## F-L8-032 — ThirdPerson Visual Studio project template
+
+- Layer: L8 — Visual Studio Authoring Environment
+- Parent capability: Editor / VSIX Roadmap
+- Status: Implemented
+- Verification: TestVerified, RuntimeVerified (WARP); interactive VS dialog creation is a manual check
+- Intended specification: `Docs/Decisions/ADR-0068-ThirdPerson-Project-Template.md`
+- Stage: `vsix.project-template` (`Executable`, Visual / VSIX, 2400s)
+- Depends on: F-L6-009, F-L8-031
+- Implementation evidence:
+  - `tools/CSharpGameEngine.ProjectTemplates/GameProjectGenerator.cs`
+  - `tools/CSharpGameEngine.VSExtension/GameProjectTemplateWizard.cs`
+  - `tools/CSharpGameEngine.VSExtension/ProjectTemplates/CSharp/GameEngine/ThirdPerson/`
+  - the VSIX `ProjectTemplateSources/` and `Packages/` payloads
+  - `tools/CSharpGameEngine.FeatureRunner/TemplatePackageVerification.cs`
+  - `THIRD_PARTY_NOTICES.md`
+- Current delta:
+  - Only the base Third Person template.
+  - No Combat, Platforming or SideScroller variants and no touch controls.
+  - Creation from the dialog has not been observed in an Experimental instance yet.
+- Conformance: `GameProjectGeneratorTests` and `VsixManifestTests`. The Stage generates "My ThirdPerson" in %TEMP%, builds it from the package, and plays it on WARP; see [M0092](Milestones/M0092-Sdk-Package-And-Project-Template.md).
+- Next action: record the interactive creation in the Experimental instance, and consider more template variants.
 
 ## F-L8-031 — Visual Shader Graph editor
 

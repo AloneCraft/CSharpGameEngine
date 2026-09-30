@@ -1,5 +1,5 @@
 <Project>
-  <ItemGroup Condition="'$(MSBuildProjectName)' != 'CSharpGameEngine.CodeAnalysis' and !$([System.String]::Copy('$(MSBuildProjectName)').EndsWith('.Tests')) and !$([System.String]::Copy('$(MSBuildProjectName)').EndsWith('.Benchmarks'))">
+  <ItemGroup Condition="'$(CgeSkipEngineAnalyzerReference)' != 'true' and '$(MSBuildProjectName)' != 'CSharpGameEngine.CodeAnalysis' and !$([System.String]::Copy('$(MSBuildProjectName)').EndsWith('.Tests')) and !$([System.String]::Copy('$(MSBuildProjectName)').EndsWith('.Benchmarks'))">
     <ProjectReference Include="$(MSBuildThisFileDirectory)src\CSharpGameEngine.CodeAnalysis\CSharpGameEngine.CodeAnalysis.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <!-- Logical numeric formats are runtime-owned. Game projects receive the reference from

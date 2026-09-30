@@ -15,10 +15,11 @@ internal static class ShaderGraphEditorBuildService {
     internal static ShaderGraphEditorBuildOperation GetOperation(string GraphPath)=>
         string.Equals(Path.GetExtension(GraphPath),".cgesubgraph",StringComparison.OrdinalIgnoreCase)?ShaderGraphEditorBuildOperation.ValidateSubgraph:ShaderGraphEditorBuildOperation.BuildRoot;
     internal static ShaderGraphEditorBuildResult BuildAndPublish(string GraphPath) {
-        var RepoRoot=RepoLocator.ResolveRepoRoot();
-        if(RepoRoot is null) { return new ShaderGraphEditorBuildResult(false,"Repository root is unavailable.",null); }
-        var CliPath=FindCli(RepoRoot);
-        if(CliPath is null) { return new ShaderGraphEditorBuildResult(false,"Shader Graph CLI is not built. Build CSharpGameEngine.ShaderGraph.Cli first.",null); }
+        // The graph's game project decides where outputs go (ADR-0065); a graph outside any project builds beside itself.
+        var Context=CgeProjectContext.Resolve(GraphPath);
+        var RepoRoot=Context?.WorkspaceRoot??Path.GetDirectoryName(Path.GetFullPath(GraphPath))!;
+        var CliPath=FindCli(Context?.EngineRoot);
+        if(CliPath is null) { return new ShaderGraphEditorBuildResult(false,"Shader Graph CLI is not available. Reinstall the extension or build CSharpGameEngine.ShaderGraph.Cli.",null); }
         if(GetOperation(GraphPath)==ShaderGraphEditorBuildOperation.ValidateSubgraph) {
             var Validation=Run(CliPath,"validate "+Quote(GraphPath),RepoRoot);
             return Validation.ExitCode==0
@@ -33,14 +34,19 @@ internal static class ShaderGraphEditorBuildService {
         var Build=Run(CliPath,"build "+Quote(GraphPath)+" "+Quote(ArtifactPath)+" "+Quote(HlslPath)+" Debug",RepoRoot);
         if(Build.ExitCode!=0) { return new ShaderGraphEditorBuildResult(false,Build.Output,HlslPath); }
         var Published=0;
-        foreach(var Existing in FindExistingRuntimeArtifacts(RepoRoot,Name+".cgeshaderartifact")) {
+        foreach(var Existing in FindExistingRuntimeArtifacts(Context,Name+".cgeshaderartifact")) {
             var Publish=Run(CliPath,"publish "+Quote(ArtifactPath)+" "+Quote(Existing),RepoRoot);
             if(Publish.ExitCode!=0) { return new ShaderGraphEditorBuildResult(false,Publish.Output,HlslPath); }
             Published++;
         }
         return new ShaderGraphEditorBuildResult(true,$"Shader artifact built; published to {Published} active output(s).",HlslPath);
     }
-    private static string?FindCli(string RepoRoot) {
+    /// <summary>The compiler shipped with the extension, else a repository build (SourceMode development).</summary>
+    private static string?FindCli(string?EngineRoot) {
+        var Bundled=Path.Combine(BridgeExecutableLocator.ExtensionDirectory,"Bridges","CSharpGameEngine.ShaderGraph.Cli","CSharpGameEngine.ShaderGraph.Cli.exe");
+        if(File.Exists(Bundled)) { return Bundled; }
+        if(EngineRoot is null) { return null; }
+        var RepoRoot=EngineRoot;
         foreach(var Configuration in new[]{"Debug","Release"}) {
             foreach(var Architecture in new[]{"x64",string.Empty}) {
                 var Candidate=string.IsNullOrEmpty(Architecture)
@@ -51,9 +57,12 @@ internal static class ShaderGraphEditorBuildService {
         }
         return null;
     }
-    private static IEnumerable<string>FindExistingRuntimeArtifacts(string RepoRoot,string FileName) {
-        foreach(var RootName in new[]{"UserEcsProject","tests","tools"}) {
-            var Root=Path.Combine(RepoRoot,RootName);
+    /// <summary>Published copies in the game project's outputs, plus the engine repository's tests and tools in SourceMode.</summary>
+    private static IEnumerable<string>FindExistingRuntimeArtifacts(CgeProjectContext?Context,string FileName) {
+        if(Context is null) { yield break; }
+        List<string>Roots=[Context.ProjectDirectory];
+        if(Context.EngineRoot is{ }EngineRoot) { Roots.Add(Path.Combine(EngineRoot,"tests"));Roots.Add(Path.Combine(EngineRoot,"tools")); }
+        foreach(var Root in Roots) {
             if(!Directory.Exists(Root)) { continue; }
             foreach(var Candidate in Directory.EnumerateFiles(Root,FileName,SearchOption.AllDirectories)) {
                 var Segments=Candidate.Split(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar);

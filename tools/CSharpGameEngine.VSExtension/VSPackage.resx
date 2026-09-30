@@ -67,4 +67,10 @@
   <data name="135" xml:space="preserve">
     <value>Creates a reusable typed visual Shader Subgraph.</value>
   </data>
+  <data name="136" xml:space="preserve">
+    <value>Third Person</value>
+  </data>
+  <data name="137" xml:space="preserve">
+    <value>A playable character with an over-the-shoulder camera, ported from Unreal Engine's Third Person template. Move and look around with the keyboard, mouse or a gamepad.</value>
+  </data>
 </root>

@@ -189,6 +189,8 @@
   <data name="SourceEditNodeNameEmpty" xml:space="preserve"><value>Node名は空にできません。</value></data>
   <data name="SourceEditRenameSyntaxMissing" xml:space="preserve"><value>Rename対象の構文が見つかりません。</value></data>
   <data name="SourceEditNonFiniteTransform" xml:space="preserve"><value>Transformへ非有限値は書き込めません。</value></data>
+  <data name="Common_GameProjectNotFound" xml:space="preserve"><value>C# Game Engineのゲームプロジェクトが見つかりませんでした。CSharpGameEngine.Sdkを参照するプロジェクトを含むソリューションを開いてください。</value></data>
+  <data name="PhysicsBake_RequiresEngineSource" xml:space="preserve"><value>物理ベイクはエンジンのソースからホストをビルドするため、エンジンリポジトリ内のプロジェクトでのみ使用できます。</value></data>
   <data name="Common_RepoRootNotFound" xml:space="preserve"><value>リポジトリルート({0})が見つかりませんでした。</value></data>
   <data name="Common_ProductTitle" xml:space="preserve"><value>C# Game Engine</value></data>
   <data name="Common_ViewerTitle" xml:space="preserve"><value>C# Game Engine ビューアー</value></data>

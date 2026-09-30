@@ -476,8 +476,8 @@ internal sealed class SceneHwndHost:HwndHost {
         this.PhysicsFractureCancellation=null;
         this.CurrentPhysicsFractureBonds=[];
         if(!this.PhysicsDebugEnabled||!this.PhysicsDebugOptions.Bonds||this.TargetModel is not { }Model){ return; }
-        string?Root=this.RepoRoot??RepoLocator.ResolveRepoRoot();
-        if(Root is null){ this.SetStatus(VsixText.Format("Common_RepoRootNotFound",RepoLocator.RepoMarkerFileName));return; }
+        string?Root=this.RepoRoot??CgeProjectContext.Resolve(this.TargetFilePath)?.WorkspaceRoot;
+        if(Root is null){ this.SetStatus(VsixText.Get("Common_GameProjectNotFound"));return; }
         this.RepoRoot=Root;
         CancellationTokenSource Cancellation=new();
         this.PhysicsFractureCancellation=Cancellation;
@@ -543,14 +543,15 @@ internal sealed class SceneHwndHost:HwndHost {
             return;
         }
         this.StopEditorPreviewHost();
-        string? root=this.RepoRoot;
-        try{ root??=RepoLocator.ResolveRepoRoot(); }catch{ root=null; }
-        if(root is null){
+        CgeProjectContext? context;
+        try{ context=CgeProjectContext.Resolve(this.TargetFilePath); }catch{ context=null; }
+        if(context is null){
             return;
         }
+        string root=this.RepoRoot??context.WorkspaceRoot;
         string? assemblyPath=Environment.GetEnvironmentVariable("CGE_EDITOR_PREVIEW_ASSEMBLY");
         if(assemblyPath is null){
-            string assemblyName=Path.GetFileNameWithoutExtension(this.SpatialDebugRuntimeProcessName??"UserEcsProject");
+            string assemblyName=Path.GetFileNameWithoutExtension(this.SpatialDebugRuntimeProcessName??context.AssemblyName);
             string? projectDirectory=Path.GetDirectoryName(this.TargetFilePath??string.Empty);
             while(projectDirectory is not null&&!Directory.GetFiles(projectDirectory,"*.csproj").Any()){
                 projectDirectory=Directory.GetParent(projectDirectory)?.FullName;
@@ -563,7 +564,7 @@ internal sealed class SceneHwndHost:HwndHost {
                 }
             }
         }
-        assemblyPath??=Path.Combine(root,"UserEcsProject","bin","Debug","net10.0-windows10.0.19041.0","win-x64","UserEcsProject.dll");
+        assemblyPath??=context.OutputAssemblyPath("Debug");
         string hostPath;
         try { hostPath=RenderPreviewSceneBuilder.ResolveHostPath(root); }
         catch(FileNotFoundException){ return; }
@@ -2229,16 +2230,13 @@ internal sealed class SceneHwndHost:HwndHost {
     }
 
     private SceneRenderBuildResult BuildRenderObjects(SceneRenderBuildRequest Request){
-        this.RepoRoot??=RepoLocator.ResolveRepoRoot();
-        if(this.RepoRoot is null){
-            throw new InvalidOperationException(VsixText.Format("Common_RepoRootNotFound",RepoLocator.RepoMarkerFileName));
-        }
-
-        string RepoRoot=this.RepoRoot;
+        CgeProjectContext Context=CgeProjectContext.Resolve(Request.FilePath)
+            ??throw new InvalidOperationException(VsixText.Get("Common_GameProjectNotFound"));
+        this.RepoRoot??=Context.WorkspaceRoot;
         IReadOnlyList<SceneRenderObject>RenderObjects=SceneModelRenderObjectBuilder.Build(
             Request.Model,
-            EnumMemberName=>SceneModelRenderObjectBuilder.ResolveViaBridge(EnumMemberName,RepoRoot),
-            AssetPath=>SceneModelRenderObjectBuilder.ResolveStaticMeshViaBridge(AssetPath,RepoRoot));
+            EnumMemberName=>SceneModelRenderObjectBuilder.ResolveViaBridge(EnumMemberName,Context),
+            AssetPath=>SceneModelRenderObjectBuilder.ResolveStaticMeshViaBridge(AssetPath,Context));
         return new SceneRenderBuildResult(Request,RenderObjects);
     }
 
@@ -2357,10 +2355,9 @@ internal sealed class SceneHwndHost:HwndHost {
             return;
         }
 
-        this.RepoRoot??=RepoLocator.ResolveRepoRoot();
+        this.RepoRoot??=CgeProjectContext.Resolve(this.TargetFilePath)?.WorkspaceRoot;
         if(this.RepoRoot is null){
-            throw new InvalidOperationException(
-                VsixText.Format("Common_RepoRootNotFound",RepoLocator.RepoMarkerFileName));
+            throw new InvalidOperationException(VsixText.Get("Common_GameProjectNotFound"));
         }
         string HostPath=RenderPreviewSceneBuilder.ResolveHostPath(this.RepoRoot);
         string ShaderArtifactPath=

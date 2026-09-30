@@ -232,8 +232,22 @@ internal static class ExternalBridgeProcess {
 internal static class BridgeExecutableLocator {
     private static readonly string[]Configurations=["Release","Debug"];
 
-    public static string?FindExecutable(string RepoRoot,string BridgeProjectRelativePath){
+    /// <summary>Folder of this extension, where the VSIX ships each bridge under <c>Bridges/&lt;name&gt;/</c> (ADR-0065).</summary>
+    internal static string ExtensionDirectory=>Path.GetDirectoryName(typeof(BridgeExecutableLocator).Assembly.Location)??AppDomain.CurrentDomain.BaseDirectory;
+
+    public static string?FindExecutable(string RepoRoot,string BridgeProjectRelativePath)=>
+        FindExecutable(ExtensionDirectory,RepoRoot,BridgeProjectRelativePath);
+
+    /// <summary>
+    /// The bridge shipped with the extension when present; otherwise the newest runnable build in the
+    /// engine repository (development only). Null when neither exists.
+    /// </summary>
+    public static string?FindExecutable(string ExtensionDirectory,string RepoRoot,string BridgeProjectRelativePath){
         var ExeFileName=Path.GetFileName(BridgeProjectRelativePath)+".exe";
+        var Bundled=Path.Combine(ExtensionDirectory,"Bridges",Path.GetFileName(BridgeProjectRelativePath),ExeFileName);
+        if(File.Exists(Bundled)&&File.Exists(Path.ChangeExtension(Bundled,".runtimeconfig.json"))){
+            return Bundled;
+        }
         var BinDirectory=Path.Combine(RepoRoot,BridgeProjectRelativePath,"bin");
 
         string?Best=null;

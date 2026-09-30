@@ -31,6 +31,7 @@ public sealed class FeatureRunnerApplication {
                 "verify-rendering-performance"=>await this.RunVerifyRenderingPerformanceAsync(Args,CancellationToken).ConfigureAwait(false),
                 "verify-rendering-release"=>await this.RunVerifyRenderingReleaseAsync(Args,CancellationToken).ConfigureAwait(false),
                 "verify-thirdperson-character"=>await this.RunVerifyThirdPersonCharacterAsync(Args,CancellationToken).ConfigureAwait(false),
+                "verify-template-package"=>await this.RunVerifyTemplatePackageAsync(Args,CancellationToken).ConfigureAwait(false),
                 "verify-content-performance"=>await this.RunVerifyContentPerformanceAsync(Args,CancellationToken).ConfigureAwait(false),
                 "verify-ecs-performance"=>await this.RunVerifyEcsPerformanceAsync(Args,CancellationToken).ConfigureAwait(false),
                 "verify-ecs-release"=>await this.RunVerifyEcsReleaseAsync(Args,CancellationToken).ConfigureAwait(false),
@@ -189,6 +190,29 @@ public sealed class FeatureRunnerApplication {
         }
         return RenderingReleaseEvidence.RunAsync(
             RepositoryRoot,Configuration,this.Output,this.Error,CancellationToken);
+    }
+    private Task<int>RunVerifyTemplatePackageAsync(string[]Args,CancellationToken CancellationToken){
+        var (RepositoryRoot,Configuration,Adapter)=ParseTemplateRunArguments(Args);
+        return TemplatePackageVerification.RunAsync(RepositoryRoot,Configuration,Adapter,this.Output,this.Error,CancellationToken);
+    }
+    private static (string RepositoryRoot,string Configuration,string Adapter)ParseTemplateRunArguments(string[]Args){
+        string RepositoryRoot=FeatureStageRepositoryLocator.Find();
+        string Configuration="Debug";
+        string Adapter="warp";
+        for(int Index=1;Index<Args.Length;Index++){
+            string Argument=Args[Index];
+            if(Index+1>=Args.Length){ throw new ArgumentException($"Missing value for {Argument}."); }
+            string Value=Args[++Index];
+            switch(Argument.ToLowerInvariant()){
+                case "--repository-root": RepositoryRoot=FeatureStageRepositoryLocator.Find(Value);break;
+                case "--configuration" when Value is "Debug" or "Release": Configuration=Value;break;
+                case "--configuration": throw new ArgumentException("Configuration must be Debug or Release.");
+                case "--adapter" when Value is "warp" or "hardware": Adapter=Value;break;
+                case "--adapter": throw new ArgumentException("Adapter must be warp or hardware.");
+                default: throw new ArgumentException($"Unknown option: {Argument}");
+            }
+        }
+        return (RepositoryRoot,Configuration,Adapter);
     }
     private Task<int>RunVerifyThirdPersonCharacterAsync(string[]Args,CancellationToken CancellationToken){
         string RepositoryRoot=FeatureStageRepositoryLocator.Find();
@@ -701,6 +725,7 @@ public sealed class FeatureRunnerApplication {
         this.Output.WriteLine("  verify-rendering-performance [--repository-root <path>] [--configuration Debug|Release] [--adapter warp|hardware]");
         this.Output.WriteLine("  verify-rendering-release [--repository-root <path>] [--configuration Debug|Release]");
         this.Output.WriteLine("  verify-thirdperson-character [--repository-root <path>] [--configuration Debug|Release] [--adapter warp|hardware]");
+        this.Output.WriteLine("  verify-template-package [--repository-root <path>] [--configuration Debug|Release] [--adapter warp|hardware]");
         this.Output.WriteLine("  verify-content-performance [--repository-root <path>] [--configuration Debug|Release]");
         this.Output.WriteLine("  verify-ecs-performance [--repository-root <path>] [--configuration Debug|Release]");
         this.Output.WriteLine("  verify-ecs-release [--repository-root <path>] [--configuration Debug|Release]");

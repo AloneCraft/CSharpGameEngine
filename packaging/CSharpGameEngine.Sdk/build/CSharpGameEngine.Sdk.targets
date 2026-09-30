@@ -1,0 +1,4 @@
+<Project>
+  <!-- Offline shader compilation with the compiler shipped in the package (ADR-0065). -->
+  <Import Project="$(MSBuildThisFileDirectory)CSharpGameEngine.ShaderGraph.targets" />
+</Project>

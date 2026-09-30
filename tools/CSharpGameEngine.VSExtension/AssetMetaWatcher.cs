@@ -34,17 +34,18 @@ internal sealed class AssetMetaWatcher:IDisposable {
     }
 
     /// <summary>
-    /// Resolves the repo root and starts watching <c>UserEcsProject/Assets</c> if it exists.
-    /// Returns <see langword="null"/> (does nothing) if the repo root or Assets folder can't be
-    /// found - never throws, since this runs unconditionally on package load.
+    /// Resolves the game project (<see cref="CgeProjectContext"/>) and starts watching its
+    /// <c>Assets</c> folder if it exists. Returns <see langword="null"/> (does nothing) if no game
+    /// project or Assets folder can be found - never throws, since this runs on package load and
+    /// again whenever a solution opens.
     /// </summary>
     public static AssetMetaWatcher?StartIfProjectExists(){
-        var RepoRoot=RepoLocator.ResolveRepoRoot();
-        if(RepoRoot is null){
+        var Context=CgeProjectContext.Resolve();
+        if(Context is null){
             return null;
         }
 
-        var AssetsRoot=Path.Combine(RepoRoot,"UserEcsProject","Assets");
+        var AssetsRoot=Context.AssetsDirectory;
         return Directory.Exists(AssetsRoot)?new AssetMetaWatcher(AssetsRoot):null;
     }
 

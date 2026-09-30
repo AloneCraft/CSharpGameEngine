@@ -27,7 +27,10 @@ public static class ThirdPersonCharacterVerification {
             await Error.WriteLineAsync($"The ThirdPerson template is not built: {Executable}").ConfigureAwait(false);
             return 2;
         }
-        var Evidence=Path.Combine(RepositoryRoot,".artifacts","feature-evidence","rigid.character-controller",Adapter);
+        return await RunGameAsync(Executable,Path.Combine(RepositoryRoot,".artifacts","feature-evidence","rigid.character-controller",Adapter),Adapter,Output,Error,CancellationToken).ConfigureAwait(false);
+    }
+    /// <summary>Runs a built ThirdPerson game with the scripted input and judges its report (<see cref="Evaluate"/>).</summary>
+    public static async Task<int>RunGameAsync(string Executable,string Evidence,string Adapter,TextWriter Output,TextWriter Error,CancellationToken CancellationToken){
         Directory.CreateDirectory(Evidence);
         var ReportPath=Path.Combine(Evidence,"report.json");
         File.Delete(ReportPath);
