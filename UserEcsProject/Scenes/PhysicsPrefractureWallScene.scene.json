@@ -1,0 +1,41 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 1,
+  "namespace": "UserEcsProject.Scenes",
+  "className": "PhysicsPrefractureWallScene",
+  "root": {
+    "id": "5ec8f7ef-fd8c-5d5c-9045-92157158aa28",
+    "name": "Physics_PrefractureWall",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Entities.Transform",
+        "members": {
+          "Position": { "R": 5, "U": 2, "F": 0 },
+          "Scale": { "R": 0.5, "U": 4, "F": 6 }
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+        "members": {
+          "Type": "Box"
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.Collider",
+        "members": {
+          "Shape": "Box",
+          "HalfExtents": { "R": 0.25, "U": 2, "F": 3 }
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.Destructible",
+        "members": {
+          "FractureAsset": "Physics/PrefractureWall.cgefracture",
+          "FractureThreshold": 8,
+          "FragmentBudget": 64
+        }
+      }
+    ],
+    "children": []
+  }
+}

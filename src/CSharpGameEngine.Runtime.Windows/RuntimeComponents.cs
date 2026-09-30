@@ -32,7 +32,7 @@ public struct AppHost {
 ///
 /// <para>
 /// <b>どの</b>レベルをどのシェーダーでどのカメラから見るかは全部ゲーム側の決定なので、値はすべて
-/// <c>MainScene</c>(Scenes/MainScene.cs)の<c>[SceneEntity]</c>宣言が入れる。LevelLoadはここに
+/// <c>MainScene</c>(Scenes/MainScene.scene.json)の<c>[SceneEntity]</c>宣言が入れる。LevelLoadはここに
 /// 入っているものを読むだけで、リテラルを1つも持たない。
 /// </para>
 /// </summary>

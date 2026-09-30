@@ -1,0 +1,76 @@
+{
+  "$schema": ".cge/scene.schema.json",
+  "schemaVersion": 1,
+  "namespace": "CSharpGameEngine.FeatureStages.Rendering",
+  "className": "RenderingReferenceScene",
+  "root": {
+    "id": "b48446e1-ba94-50d3-bebd-0740a5da009e",
+    "name": "Rendering_Root",
+    "components": [
+      {
+        "type": "CSharpGameEngine.FeatureStages.StageScenario",
+        "members": {
+          "Domain": 2,
+          "Case": 1
+        }
+      }
+    ],
+    "children": [
+      {
+        "id": "22accfa8-16d3-506f-a932-1a298d93b0a8",
+        "name": "Camera",
+        "components": [
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageVisual",
+            "members": {
+              "Primitive": 0,
+              "Z": -6,
+              "ScaleX": 0.25,
+              "ScaleY": 0.25,
+              "ScaleZ": 0.25,
+              "Color": 4294967295
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "341a912e-74ff-58bb-995c-6775fa026519",
+        "name": "Triangle",
+        "components": [
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageVisual",
+            "members": {
+              "Primitive": 3,
+              "ScaleX": 2,
+              "ScaleY": 2,
+              "ScaleZ": 2,
+              "Color": 4294934592
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "b8c85c78-ab3f-5491-bbd5-3cd65ce4dbf2",
+        "name": "KeyLight",
+        "components": [
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageVisual",
+            "members": {
+              "Primitive": 2,
+              "X": 3,
+              "Y": 4,
+              "Z": -2,
+              "ScaleX": 0.35,
+              "ScaleY": 0.35,
+              "ScaleZ": 0.35,
+              "Color": 4294967232
+            }
+          }
+        ],
+        "children": []
+      }
+    ]
+  }
+}

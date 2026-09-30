@@ -1,0 +1,71 @@
+{
+  "$schema": ".cge/scene.schema.json",
+  "schemaVersion": 1,
+  "namespace": "CSharpGameEngine.FeatureStages.Destruction",
+  "className": "DestructionReferenceScene",
+  "root": {
+    "id": "bb3a989b-9ff4-50f9-bf7d-4f519545be8d",
+    "name": "Destruction_Wall",
+    "components": [
+      {
+        "type": "CSharpGameEngine.FeatureStages.StageScenario",
+        "members": {
+          "Domain": 6,
+          "Case": 1
+        }
+      },
+      {
+        "type": "CSharpGameEngine.FeatureStages.StageVisual",
+        "members": {
+          "Primitive": 1,
+          "X": 2,
+          "Y": 2,
+          "ScaleX": 0.5,
+          "ScaleY": 4,
+          "ScaleZ": 6,
+          "Color": 4287458915
+        }
+      }
+    ],
+    "children": [
+      {
+        "id": "070f5719-39f0-5804-b866-9054c64afe62",
+        "name": "CutVolume",
+        "components": [
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageVisual",
+            "members": {
+              "Primitive": 2,
+              "X": 2,
+              "Y": 2,
+              "ScaleX": 1.5,
+              "ScaleY": 1.5,
+              "ScaleZ": 1.5,
+              "Color": 1626297168
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "f6f25b33-e019-5b70-9635-9a991a8e5f8d",
+        "name": "Impact",
+        "components": [
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageVisual",
+            "members": {
+              "Primitive": 2,
+              "X": -4,
+              "Y": 2,
+              "ScaleX": 0.4,
+              "ScaleY": 0.4,
+              "ScaleZ": 0.4,
+              "Color": 4294953512
+            }
+          }
+        ],
+        "children": []
+      }
+    ]
+  }
+}

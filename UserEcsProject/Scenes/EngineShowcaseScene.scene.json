@@ -1,0 +1,377 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 1,
+  "namespace": "UserEcsProject.Scenes",
+  "className": "EngineShowcaseScene",
+  "startupOrder": 1,
+  "root": {
+    "id": "606034db-71c0-5722-a036-16270f986847",
+    "name": "EngineShowcaseGallery",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Entities.Transform",
+        "members": {}
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.AmbientLight",
+        "members": {
+          "ColorR": 0.32,
+          "ColorG": 0.38,
+          "ColorB": 0.5,
+          "Intensity": 0.35
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.HeightFog",
+        "members": {
+          "Density": 0.008,
+          "HeightFalloff": 0.16,
+          "ColorR": 0.11,
+          "ColorG": 0.16,
+          "ColorB": 0.24
+        }
+      }
+    ],
+    "children": [
+      {
+        "id": "5a89d1a9-67cb-5d3c-89ec-2b52fb8c39f4",
+        "name": "ShowcaseCamera",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -2.5, "U": 6.5, "F": -18 },
+              "Rotation": { "EulerRuf": { "R": 0.14, "U": 0, "F": 0 } }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.Camera",
+            "members": {
+              "Active": true,
+              "FarZ": 200,
+              "ExposureEv100": 0.5
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "bc2e8a5b-c11a-57a2-ac40-3993c8db3785",
+        "name": "GalleryGround",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -2, "U": -0.3, "F": 8 },
+              "Scale": { "R": 22, "U": 0.6, "F": 18 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Physics.Collider",
+            "members": {
+              "Shape": "Box",
+              "HalfExtents": { "R": 11, "U": 0.3, "F": 9 }
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "618f65de-f7ac-525f-b36b-aff4d27c3167",
+        "name": "ECS_Motion_0",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -8, "U": 0.65, "F": 5 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Sphere"
+            }
+          },
+          {
+            "type": "UserEcsProject.Showcase.ShowcaseMotion",
+            "members": {
+              "BaseX": -8,
+              "BaseY": 0.65,
+              "BaseZ": 5,
+              "AmplitudeMillimeters": 900,
+              "PeriodTicks": 240,
+              "PhaseTicks": 0
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "ac0adf91-1af5-5351-b4e5-c07e953e523a",
+        "name": "ECS_Motion_1",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -7, "U": 1.6, "F": 7 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Sphere"
+            }
+          },
+          {
+            "type": "UserEcsProject.Showcase.ShowcaseMotion",
+            "members": {
+              "BaseX": -7,
+              "BaseY": 1.6,
+              "BaseZ": 7,
+              "AmplitudeMillimeters": 900,
+              "PeriodTicks": 240,
+              "PhaseTicks": 40
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "6c2c62ad-550c-51c8-bd96-8d68f655c818",
+        "name": "ECS_Motion_2",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -8, "U": 2.55, "F": 9 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Sphere"
+            }
+          },
+          {
+            "type": "UserEcsProject.Showcase.ShowcaseMotion",
+            "members": {
+              "BaseX": -8,
+              "BaseY": 2.55,
+              "BaseZ": 9,
+              "AmplitudeMillimeters": 900,
+              "PeriodTicks": 240,
+              "PhaseTicks": 80
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "41e674ad-655b-5b3b-af24-89e70ef1f8ed",
+        "name": "ECS_Motion_3",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": -6, "U": 3.5, "F": 11 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Sphere"
+            }
+          },
+          {
+            "type": "UserEcsProject.Showcase.ShowcaseMotion",
+            "members": {
+              "BaseX": -6,
+              "BaseY": 3.5,
+              "BaseZ": 11,
+              "AmplitudeMillimeters": 900,
+              "PeriodTicks": 240,
+              "PhaseTicks": 120
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "75d87a19-671b-573a-b6ae-143411d98af8",
+        "name": "PBR_Box",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 2, "U": 0.7, "F": 6 },
+              "Scale": { "R": 1.4, "U": 1.4, "F": 1.4 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Box"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "3931656d-5b72-50c4-93d7-1bce4312e50b",
+        "name": "PBR_Sphere",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 4, "U": 1, "F": 8 },
+              "Scale": { "R": 2, "U": 2, "F": 2 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Sphere"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "e48ed8bb-94e2-5e3d-ada4-601b96ec2173",
+        "name": "PBR_Torus",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 2.5, "U": 1.1, "F": 11 },
+              "Rotation": { "EulerRuf": { "R": 1.2, "U": 0.3, "F": 0 } },
+              "Scale": { "R": 2.4, "U": 2.4, "F": 2.4 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+            "members": {
+              "Type": "Torus"
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "b081a74e-7075-5382-a0b5-05d6f21e16d1",
+        "name": "Sun",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Rotation": { "EulerRuf": { "R": 0.75, "U": 2.5415926, "F": 0 } }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Lighting.DirectionalLight",
+            "members": {
+              "Illuminance": { "Lux": 6 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Lighting.LightShadow",
+            "members": {
+              "Priority": 100
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "d0047095-e035-5ebd-829b-f7f252cabe34",
+        "name": "WarmPoint",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 2, "U": 3.5, "F": 7 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Lighting.PointLight",
+            "members": {
+              "Color": { "R": 1, "G": 0.45, "B": 0.2 },
+              "Flux": { "Lumens": 1800 },
+              "Range": { "Meters": 9 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Lighting.LightShadow",
+            "members": {
+              "Priority": 30
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "e4743dcc-15d4-531d-a2a3-5a878f7cd19b",
+        "name": "CoolSpot",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 5, "U": 5, "F": 5 },
+              "Rotation": { "EulerRuf": { "R": 0.75, "U": 2.75, "F": 0 } }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Lighting.SpotLight",
+            "members": {
+              "Color": { "R": 0.25, "G": 0.55, "B": 1 },
+              "Flux": { "Lumens": 2400 },
+              "Range": { "Meters": 14 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Lighting.LightShadow",
+            "members": {
+              "Priority": 20
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "17f422cb-4e23-5a19-8058-0249a62b88ab",
+        "name": "AreaFill",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 0, "U": 4, "F": 11 },
+              "Rotation": { "EulerRuf": { "R": 1.2, "U": 0, "F": 0 } }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Lighting.RectAreaLight",
+            "members": {
+              "Color": { "R": 0.45, "G": 0.8, "B": 1 },
+              "Luminance": { "Nits": 450 },
+              "Size": { "WidthMeters": 3, "HeightMeters": 2 },
+              "Range": { "Meters": 10 }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Lighting.LightShadow",
+            "members": {
+              "Priority": 10
+            }
+          }
+        ],
+        "children": []
+      }
+    ]
+  }
+}

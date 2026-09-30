@@ -1,0 +1,92 @@
+{
+  "$schema": ".cge/scene.schema.json",
+  "schemaVersion": 1,
+  "namespace": "CSharpGameEngine.FeatureStages.Vsix",
+  "className": "VsixReferenceScene",
+  "root": {
+    "id": "f29ba19f-28bb-51cf-ad0e-b7e3bf6d7a04",
+    "name": "VSIX_SceneEditor",
+    "components": [
+      {
+        "type": "CSharpGameEngine.FeatureStages.StageScenario",
+        "members": {
+          "Domain": 10,
+          "Case": 1
+        }
+      }
+    ],
+    "children": [
+      {
+        "id": "cb9ff57f-d714-5b16-a0f2-4ba563313584",
+        "name": "SelectedNode",
+        "components": [
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageVisual",
+            "members": {
+              "Primitive": 1,
+              "ScaleX": 1,
+              "ScaleY": 1,
+              "ScaleZ": 1,
+              "Color": 4294944550
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "e0b591fa-c262-5b78-9aa6-de8d2ad20481",
+        "name": "GizmoX",
+        "components": [
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageVisual",
+            "members": {
+              "Primitive": 5,
+              "X": 2,
+              "ScaleX": 2,
+              "ScaleY": 0.1,
+              "ScaleZ": 0.1,
+              "Color": 4293874512
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "6608f5a4-7131-5058-a763-eae9287df8c7",
+        "name": "GizmoY",
+        "components": [
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageVisual",
+            "members": {
+              "Primitive": 5,
+              "Y": 2,
+              "ScaleX": 0.1,
+              "ScaleY": 2,
+              "ScaleZ": 0.1,
+              "Color": 4284922730
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "266f8627-c5ec-50fc-b5ca-5039c37c54a3",
+        "name": "GizmoZ",
+        "components": [
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageVisual",
+            "members": {
+              "Primitive": 5,
+              "Z": 2,
+              "ScaleX": 0.1,
+              "ScaleY": 0.1,
+              "ScaleZ": 2,
+              "Color": 4282557941
+            }
+          }
+        ],
+        "children": []
+      }
+    ]
+  }
+}

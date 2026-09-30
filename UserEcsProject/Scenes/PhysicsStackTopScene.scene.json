@@ -1,0 +1,41 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 1,
+  "namespace": "UserEcsProject.Scenes",
+  "className": "PhysicsStackTopScene",
+  "root": {
+    "id": "50d69211-ccae-57ee-828d-6cd78aaa7df4",
+    "name": "Physics_Stack_2",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Entities.Transform",
+        "members": {
+          "Position": { "R": 0, "U": 3.1, "F": 0 }
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+        "members": {
+          "Type": "Box"
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.Collider",
+        "members": {}
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.RigidBody",
+        "members": {}
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.PhysicsRotation",
+        "members": {}
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.PhysicsVelocity",
+        "members": {}
+      }
+    ],
+    "children": []
+  }
+}

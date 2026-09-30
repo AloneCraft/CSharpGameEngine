@@ -17,8 +17,9 @@ internal static class GameProjectGenerator {
     internal const string TemplateNamespace="CgeThirdPerson";
     internal const string SdkPackageId="CSharpGameEngine.Sdk";
     internal const string EngineVersionToken="$cgeengineversion$";
-    internal const string StartupScenePath="Scenes/Lvl_ThirdPerson.cs";
-    private static readonly string[]SkippedDirectories=["bin","obj",".vs"];
+    internal const string StartupScenePath="Scenes/Lvl_ThirdPerson.scene.json";
+    // .cge holds the scene schema that each build writes for its own project (ADR-0070).
+    private static readonly string[]SkippedDirectories=["bin","obj",".vs",".cge"];
 
     /// <summary>A C# identifier for <paramref name="ProjectName"/>, as Visual Studio forms $safeprojectname$.</summary>
     internal static string SafeIdentifier(string ProjectName){
@@ -37,7 +38,8 @@ internal static class GameProjectGenerator {
 
     /// <summary>
     /// Copies the template source into <paramref name="ProjectDirectory"/>, skipping build outputs and
-    /// the template's own project file, and renames the template namespace in C# sources.
+    /// the template's own project file, and renames the template namespace in C# sources and scene
+    /// JSON documents (their <c>namespace</c> and game type names).
     /// Returns the created files.
     /// </summary>
     internal static IReadOnlyList<string>CopySources(string TemplateDirectory,string ProjectDirectory,string RootNamespace){
@@ -55,7 +57,8 @@ internal static class GameProjectGenerator {
             }
             var Destination=Path.Combine(ProjectDirectory,Relative);
             Directory.CreateDirectory(Path.GetDirectoryName(Destination)!);
-            if(string.Equals(Path.GetExtension(File),".cs",StringComparison.OrdinalIgnoreCase)){
+            if(string.Equals(Path.GetExtension(File),".cs",StringComparison.OrdinalIgnoreCase)
+                ||File.EndsWith(".scene.json",StringComparison.OrdinalIgnoreCase)){
                 System.IO.File.WriteAllText(Destination,System.IO.File.ReadAllText(File).Replace(TemplateNamespace,RootNamespace),new UTF8Encoding(false));
             }
             else {

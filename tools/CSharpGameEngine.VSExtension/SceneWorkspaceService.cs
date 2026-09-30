@@ -157,7 +157,7 @@ internal sealed class SceneWorkspaceService : IDisposable {
     /// <summary>
     /// Every <c>IScene</c> implementation found in the active document (ADR-0040 Phase 9), not just
     /// the first - Scene Designer needs to target one specific class by name when a file declares
-    /// several (e.g. PrimitiveShowcaseScene.cs). <see cref="CurrentModel"/>/<see cref="ModelChanged"/>
+    /// several. <see cref="CurrentModel"/>/<see cref="ModelChanged"/>
     /// stay unchanged (still "the first one found") so Hierarchy's existing behavior is untouched;
     /// this is computed in the same analysis pass, not a second one.
     /// </summary>

@@ -1,0 +1,83 @@
+{
+  "$schema": ".cge/scene.schema.json",
+  "schemaVersion": 1,
+  "namespace": "CSharpGameEngine.FeatureStages.Celestial",
+  "className": "CelestialReferenceScene",
+  "root": {
+    "id": "d889501d-d966-513e-97d5-8c4e6621f64c",
+    "name": "Celestial_Star",
+    "components": [
+      {
+        "type": "CSharpGameEngine.FeatureStages.StageScenario",
+        "members": {
+          "Domain": 7,
+          "Case": 1
+        }
+      },
+      {
+        "type": "CSharpGameEngine.FeatureStages.StageVisual",
+        "members": {
+          "Primitive": 2,
+          "ScaleX": 2,
+          "ScaleY": 2,
+          "ScaleZ": 2,
+          "Color": 4294953512
+        }
+      }
+    ],
+    "children": [
+      {
+        "id": "827942a0-7319-57ac-882a-ea8f00d3876d",
+        "name": "Planet",
+        "components": [
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageVisual",
+            "members": {
+              "Primitive": 2,
+              "X": 8,
+              "ScaleX": 1,
+              "ScaleY": 1,
+              "ScaleZ": 1,
+              "Color": 4282557941
+            }
+          },
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageLink",
+            "members": {
+              "Source": 1,
+              "Target": 0,
+              "Kind": 2
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "e64d65cb-b017-598b-a5ac-aff7be0356f0",
+        "name": "Moon",
+        "components": [
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageVisual",
+            "members": {
+              "Primitive": 2,
+              "X": 10,
+              "ScaleX": 0.35,
+              "ScaleY": 0.35,
+              "ScaleZ": 0.35,
+              "Color": 4289773253
+            }
+          },
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageLink",
+            "members": {
+              "Source": 2,
+              "Target": 1,
+              "Kind": 2
+            }
+          }
+        ],
+        "children": []
+      }
+    ]
+  }
+}

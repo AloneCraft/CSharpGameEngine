@@ -1,0 +1,120 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 1,
+  "namespace": "CgeThirdPerson.Scenes",
+  "className": "ThirdPersonCharacter",
+  "startupOrder": 2,
+  "root": {
+    "id": "b6f3a59a-51ec-52b8-9758-b42170f7a6b7",
+    "name": "BP_ThirdPersonCharacter",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Entities.Transform",
+        "members": {
+          "Position": { "R": 0, "U": 3.0201263, "F": 0 },
+          "Rotation": { "EulerRuf": { "R": 0, "U": 1.5707964, "F": 0 } }
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Character.CharacterMovement",
+        "members": {
+          "CapsuleRadius": 0.35,
+          "CapsuleHalfHeight": 0.9,
+          "MaxWalkSpeed": 6,
+          "MinAnalogWalkSpeed": 0.2,
+          "MaxAcceleration": 15,
+          "BrakingDecelerationWalking": 20,
+          "BrakingDecelerationFalling": 15,
+          "GroundFriction": 8,
+          "BrakingFriction": 0,
+          "JumpZVelocity": 5,
+          "AirControl": 0.35,
+          "AirControlBoostMultiplier": 2,
+          "AirControlBoostVelocityThreshold": 0.25,
+          "GravityScale": 1,
+          "MaxStepHeight": 0.45,
+          "WalkableFloorAngleDegrees": 44.765083,
+          "RotationRateDegrees": 500,
+          "OrientRotationToMovement": true
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Character.CharacterMovementState",
+        "members": {}
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Character.CharacterInput",
+        "members": {}
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Character.PlayerController",
+        "members": {
+          "ControlYawDegrees": 90
+        }
+      }
+    ],
+    "children": [
+      {
+        "id": "bc718b48-7c9a-5d10-9da7-31b2485d2a5d",
+        "name": "Mesh",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {
+              "Position": { "R": 0, "U": -0.89, "F": 0 },
+              "Rotation": { "EulerRuf": { "R": 0, "U": 3.1415927, "F": 0 } }
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Animation.SkeletalMesh",
+            "members": {
+              "AssetPath": "Assets/Characters/Mannequins/SKM_Quinn_Simple.glb"
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Animation.LocomotionAnimator",
+            "members": {
+              "IdleClip": "Assets/Characters/Mannequins/Anims/MM_Idle.glb",
+              "WalkClip": "Assets/Characters/Mannequins/Anims/MF_Unarmed_Walk_Fwd.glb",
+              "JogClip": "Assets/Characters/Mannequins/Anims/MF_Unarmed_Jog_Fwd.glb",
+              "JumpClip": "Assets/Characters/Mannequins/Anims/MM_Jump.glb",
+              "FallClip": "Assets/Characters/Mannequins/Anims/MM_Fall_Loop.glb",
+              "LandClip": "Assets/Characters/Mannequins/Anims/MM_Land.glb",
+              "WalkSpeed": 3,
+              "JogSpeed": 6
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "f4f5e799-cf41-59c8-be52-232293ccfcb8",
+        "name": "FollowCamera",
+        "components": [
+          {
+            "type": "CSharpGameEngine.Entities.Transform",
+            "members": {}
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Character.SpringArm",
+            "members": {
+              "PivotOffset": { "R": 0, "U": 0.08492264, "F": 0 },
+              "TargetArmLength": 4,
+              "ProbeRadius": 0.12,
+              "DoCollisionTest": true
+            }
+          },
+          {
+            "type": "CSharpGameEngine.Runtime.Windows.Camera",
+            "members": {
+              "Active": true,
+              "FovYRadians": 1.024779,
+              "FarZ": 1000
+            }
+          }
+        ],
+        "children": []
+      }
+    ]
+  }
+}

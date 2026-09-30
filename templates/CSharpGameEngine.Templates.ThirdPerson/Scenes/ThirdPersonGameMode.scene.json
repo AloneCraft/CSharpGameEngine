@@ -1,0 +1,28 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 1,
+  "namespace": "CgeThirdPerson.Scenes",
+  "className": "ThirdPersonGameMode",
+  "startupOrder": 0,
+  "root": {
+    "id": "5eb8b3b9-3c2c-5e51-a053-eb0b2f20bcb4",
+    "name": "GameMode",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.AppHost",
+        "members": {
+          "Title": "Third Person",
+          "Width": 1280,
+          "Height": 720
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.Level",
+        "members": {
+          "ShaderArtifactPath": "Shaders/Stage.cgeshaderartifact"
+        }
+      }
+    ],
+    "children": []
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "$schema": ".cge/scene.schema.json",
+  "schemaVersion": 1,
+  "namespace": "CSharpGameEngine.FeatureStages.ProbabilityQuantum",
+  "className": "ProbabilityQuantumReferenceScene",
+  "root": {
+    "id": "17f54cc6-e187-5726-a44b-f08a1cc56bac",
+    "name": "ProbabilityQuantum_Root",
+    "components": [
+      {
+        "type": "CSharpGameEngine.FeatureStages.StageScenario",
+        "members": {
+          "Domain": 8,
+          "Case": 1
+        }
+      }
+    ],
+    "children": [
+      {
+        "id": "ff84d798-5191-5d09-8319-3b8af7bd8a0c",
+        "name": "State_A",
+        "components": [
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageVisual",
+            "members": {
+              "Primitive": 2,
+              "X": -2,
+              "ScaleX": 0.8,
+              "ScaleY": 0.8,
+              "ScaleZ": 0.8,
+              "Color": 4286470082
+            }
+          },
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageLink",
+            "members": {
+              "Source": 0,
+              "Target": 1,
+              "Kind": 3
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "af6f2780-8ba5-574a-aefd-2d1b5b8b7e0f",
+        "name": "State_B",
+        "components": [
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageVisual",
+            "members": {
+              "Primitive": 2,
+              "X": 2,
+              "ScaleX": 0.8,
+              "ScaleY": 0.8,
+              "ScaleZ": 0.8,
+              "Color": 4280731354
+            }
+          },
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageLink",
+            "members": {
+              "Source": 1,
+              "Target": 0,
+              "Kind": 3
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "a803a894-7da4-5b56-b545-7eec9d32f4fd",
+        "name": "WaveGrid",
+        "components": [
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageVisual",
+            "members": {
+              "Primitive": 4,
+              "Y": -2,
+              "ScaleX": 6,
+              "ScaleY": 0.1,
+              "ScaleZ": 4,
+              "Color": 1619928234
+            }
+          }
+        ],
+        "children": []
+      }
+    ]
+  }
+}

@@ -7,11 +7,17 @@
     <ProjectType>CSharp</ProjectType>
     <ShowByDefault>true</ShowByDefault>
     <TemplateID>CSharpGameEngine.SceneFile</TemplateID>
-    <DefaultName>Scene.cs</DefaultName>
+    <!-- Visual Studio takes the extension after the last dot, so the name the user types becomes
+         $fileinputname$ and the item is written as <name>.scene.json (ADR-0070). -->
+    <DefaultName>Scene.json</DefaultName>
     <SortOrder>10</SortOrder>
     <NumberOfParentCategoriesToRollUp>1</NumberOfParentCategoriesToRollUp>
   </TemplateData>
   <TemplateContent>
-    <ProjectItem ReplaceParameters="true">Scene.cs</ProjectItem>
+    <ProjectItem ReplaceParameters="true" TargetFileName="$fileinputname$.scene.json">Scene.scene.json</ProjectItem>
   </TemplateContent>
+  <WizardExtension>
+    <Assembly>CSharpGameEngine.VSExtension</Assembly>
+    <FullClassName>CSharpGameEngine.VSExtension.SceneFileTemplateWizard</FullClassName>
+  </WizardExtension>
 </VSTemplate>

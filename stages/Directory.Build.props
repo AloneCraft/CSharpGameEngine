@@ -9,6 +9,8 @@
   <Import Project="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Runtime.Simulation\CSharpGameEngine.Runtime.Simulation.projitems" Label="Shared" />
   <ItemGroup>
     <Compile Remove="Generated\**\*.cs" />
+    <!-- ADR-0070: stage scenes are *.scene.json documents compiled by GameSystemGenerator. -->
+    <AdditionalFiles Include="**\*.scene.json" Exclude="bin\**;obj\**" />
     <Compile Include="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Entities\*.cs" Link="Entities\%(Filename)%(Extension)" />
     <Compile Remove="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Entities\FixedTransform.cs" />
     <Compile Remove="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Entities\SpatialPartitioning.cs" />

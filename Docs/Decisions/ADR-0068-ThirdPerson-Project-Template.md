@@ -34,7 +34,7 @@ The user decided (2026-09-30) on three points:
    - Copies the bundled `Packages/CSharpGameEngine.Sdk.<version>.nupkg` into `%LOCALAPPDATA%\CSharpGameEngine\packages\<version>`, unless it is already there.
    - Supplies `$cgeengineversion$`.
    - Writes the sources from `ProjectTemplateSources/ThirdPerson` and the `nuget.config`.
-   - After creation, opens `Scenes/Lvl_ThirdPerson.cs`.
+   - After creation, opens `Scenes/Lvl_ThirdPerson.scene.json` (a C# scene class before ADR-0070).
 5. **Unreal assets** are bundled unchanged under the Unreal Engine EULA, as the user decided. `THIRD_PARTY_NOTICES.md` records their origin and terms.
 
 ## Alternatives considered

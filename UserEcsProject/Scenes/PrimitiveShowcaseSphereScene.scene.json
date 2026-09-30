@@ -1,0 +1,27 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 1,
+  "namespace": "UserEcsProject.Scenes",
+  "className": "PrimitiveShowcaseSphereScene",
+  "root": {
+    "id": "7363f21e-469d-56f3-9482-d40ce97f4662",
+    "name": "ShowcaseSphere",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Entities.Transform",
+        "members": {
+          "Position": { "R": 5, "U": 0.5, "F": 0 },
+          "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+          "Scale": { "R": 1, "U": 1, "F": 1 }
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+        "members": {
+          "Type": "Sphere"
+        }
+      }
+    ],
+    "children": []
+  }
+}

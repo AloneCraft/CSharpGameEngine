@@ -1,0 +1,33 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 1,
+  "namespace": "UserEcsProject.Scenes",
+  "className": "PhysicsGroundScene",
+  "root": {
+    "id": "c283c421-4960-5bf0-9d85-5ec37cde091f",
+    "name": "Physics_Ground",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Entities.Transform",
+        "members": {
+          "Position": { "R": 0, "U": -0.25, "F": 0 },
+          "Scale": { "R": 20, "U": 0.5, "F": 20 }
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+        "members": {
+          "Type": "Box"
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.Collider",
+        "members": {
+          "Shape": "Box",
+          "HalfExtents": { "R": 10, "U": 0.25, "F": 10 }
+        }
+      }
+    ],
+    "children": []
+  }
+}

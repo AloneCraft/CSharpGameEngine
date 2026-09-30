@@ -332,7 +332,7 @@
       <VSIXSourceItem Include="@(_CgeSdkPackage)">
         <VSIXSubPath>Packages</VSIXSubPath>
       </VSIXSourceItem>
-      <_CgeTemplateSource Include="$(CgeTemplateSourceDirectory)**/*" Exclude="$(CgeTemplateSourceDirectory)bin/**;$(CgeTemplateSourceDirectory)obj/**;$(CgeTemplateSourceDirectory)*.csproj" />
+      <_CgeTemplateSource Include="$(CgeTemplateSourceDirectory)**/*" Exclude="$(CgeTemplateSourceDirectory)bin/**;$(CgeTemplateSourceDirectory)obj/**;$(CgeTemplateSourceDirectory).cge/**;$(CgeTemplateSourceDirectory)*.csproj" />
       <VSIXSourceItem Include="@(_CgeTemplateSource)">
         <VSIXSubPath>ProjectTemplateSources/ThirdPerson/%(RecursiveDir)</VSIXSubPath>
       </VSIXSourceItem>

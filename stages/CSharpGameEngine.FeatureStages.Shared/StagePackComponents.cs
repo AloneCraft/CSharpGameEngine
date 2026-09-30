@@ -1,10 +1,12 @@
 using CSharpGameEngine.Entities;
 namespace CSharpGameEngine.FeatureStages;
+[SceneComponentOrder(SceneComponentCategory.Gameplay,0)]
 public struct StageScenario {
     public int Domain;
     public int Case;
     public int Flags;
 }
+[SceneComponentOrder(SceneComponentCategory.Gameplay,0)]
 public struct StageVisual {
     public int Primitive;
     public float X;
@@ -15,6 +17,7 @@ public struct StageVisual {
     public float ScaleZ;
     public uint Color;
 }
+[SceneComponentOrder(SceneComponentCategory.Gameplay,0)]
 public struct StageLink {
     public int Source;
     public int Target;

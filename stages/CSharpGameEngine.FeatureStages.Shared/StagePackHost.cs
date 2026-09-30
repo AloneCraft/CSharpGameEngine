@@ -7,7 +7,7 @@ public readonly record struct StageSceneRegistration(string Id,Func<StageSceneRu
 public sealed record StageSceneRunResult(string Schema,string Pack,string SceneId,string SceneType,int EntityCount,string StateHash,IReadOnlyList<string>Assertions,bool Passed);
 public static class StagePackHost {
     private static readonly JsonSerializerOptions JsonOptions=new(){PropertyNamingPolicy=JsonNamingPolicy.CamelCase,WriteIndented=true};
-    public static StageSceneRegistration Scene<TScene>(string Id)where TScene:IScene,ISceneDefinition=>new(Id,static()=>RunScene<TScene>());
+    public static StageSceneRegistration Scene<TScene>(string Id)where TScene:ISceneDefinition=>new(Id,static()=>RunScene<TScene>());
     public static int Run(string Pack,string[]Args,IReadOnlyList<StageSceneRegistration>Scenes){
         if(Args.Length==0||Args[0] is "list" or "--help" or "-h"){
             Console.WriteLine(JsonSerializer.Serialize(new {schema="csharp-game-engine-stage-pack-v1",pack=Pack,scenes=Scenes.Select(static Scene=>Scene.Id)},JsonOptions));
@@ -31,7 +31,7 @@ public static class StagePackHost {
             return 1;
         }
     }
-    private static StageSceneRunResult RunScene<TScene>()where TScene:IScene,ISceneDefinition{
+    private static StageSceneRunResult RunScene<TScene>()where TScene:ISceneDefinition{
         var World=new World();
         var Instance=World.InstantiateScene<TScene>();
         var Slot=World.SceneInstances.Resolve(Instance);

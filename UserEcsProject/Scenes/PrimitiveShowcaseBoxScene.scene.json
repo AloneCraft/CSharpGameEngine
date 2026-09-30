@@ -1,0 +1,27 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 1,
+  "namespace": "UserEcsProject.Scenes",
+  "className": "PrimitiveShowcaseBoxScene",
+  "root": {
+    "id": "eafea198-3495-5e46-ba53-c031f4dacce5",
+    "name": "ShowcaseBox",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Entities.Transform",
+        "members": {
+          "Position": { "R": 3, "U": 0.5, "F": 0 },
+          "Rotation": { "EulerRuf": { "R": 0, "U": 0, "F": 0 } },
+          "Scale": { "R": 1, "U": 1, "F": 1 }
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+        "members": {
+          "Type": "Box"
+        }
+      }
+    ],
+    "children": []
+  }
+}

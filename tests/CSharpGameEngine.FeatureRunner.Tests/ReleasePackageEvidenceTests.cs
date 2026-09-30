@@ -195,9 +195,9 @@ public sealed class ReleasePackageEvidenceTests:IDisposable {
             ["extension.vsixmanifest"]="""<PackageManifest><Metadata><Identity Id="CSharpGameEngine.VSExtension.aec17804-e2e4-46e7-b373-de11af816203" Version="0.1.7" /></Metadata></PackageManifest>""",
             ["CSharpGameEngine.VSExtension.dll"]="fixture-vsix",
             ["PreviewHost/CSharpGameEngine.EditorPreview.Host.exe"]="fixture-preview",
-            ["ItemTemplates/CSharp/GameEngine/1033/SceneFile/Scene.cs"]="fixture-en",
+            ["ItemTemplates/CSharp/GameEngine/1033/SceneFile/Scene.scene.json"]="fixture-en",
             [includeJapaneseTemplate
-                ?"ItemTemplates/CSharp/GameEngine/1041/SceneFile/Scene.cs"
+                ?"ItemTemplates/CSharp/GameEngine/1041/SceneFile/Scene.scene.json"
                 :"ItemTemplates/CSharp/GameEngine/1041/SceneFile/missing.txt"]="fixture-ja",
         });
         string Nuget=Path.Combine(Input,"CSharpGameEngine.CodeAnalysis.0.1.7.nupkg");

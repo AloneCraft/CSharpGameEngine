@@ -60,7 +60,9 @@ The user asked for an Unreal/Unity-like editor:
 - A scene can no longer be written as C# code. Gameplay stays in C#, and scene values are validated at build time.
 - The design-time image is the runtime image. New runtime rendering features reach the editor without editor work.
 - `SceneSourceTruthArchitectureTests` and the `vsix.source-sync` stage are replaced by tests of the JSON document, the Undo stack and the editor world.
-- The UE importer (`tools/CSharpGameEngine.Unreal.SceneImporter`) emits JSON scenes.
+- The UE importer (`tools/CSharpGameEngine.Unreal.SceneImporter`) still writes C# scene classes as an intermediate. Its export scripts convert them to JSON with `CSharpGameEngine.SceneJson.Cli convert` in the same run.
+- Each scene is its own file, and scene archetypes are registered in scene file order. Archetype numbers and component indices can therefore differ from the old C# layout, where several scenes shared one file. Nodes, components and values are unchanged; this was checked for every converted scene (M0093 C3a).
+- The Scene palette and schema list an engine struct only when it carries `[SceneComponentOrder]` or `[SceneComponentIcon]`. Engine types that scenes author directly must be marked; `PhysicsRotation`, `PhysicsVelocity` and `PhysicsCachePlayback` gained the marker in C3a.
 
 ## Verification
 

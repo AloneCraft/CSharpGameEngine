@@ -132,7 +132,7 @@ file sealed class Order
 
 属性を付けなければ従来どおりファイルパスのOrdinal順にフォールバックする(後方互換)。
 `UserGameProject/Systems/Systems.cs`(単一ファイル集約)と`UserEcsProject/`
-(`Scenes/MainScene.cs`=`[StartupScene(Order = 0)]`から合成されるSystem、`Systems/RuntimeSystem.cs`=
+(`Scenes/MainScene.scene.json`=`"startupOrder": 0`から合成されるSystem、`Systems/RuntimeSystem.cs`=
 fileマーカーに`[SystemOrder(1)]`)がその実例。
 
 > 実行順序の正しさは記述する人間の責任になった。順序を誤ってもビルドは通り、症状(例: カメラが1フレーム
@@ -233,7 +233,7 @@ internal static partial class MainScene
   黙って無視する)。どのSystemの引数にも現れない集合の場合だけ、既存System由来のArchetypeの後ろへ
   追加される。
 - 診断IDは`STARTUP001`〜`010`(下記診断セクション参照)。
-- 実例は`UserEcsProject/Scenes/MainScene.cs`(旧`GameStartup : ISystem`からの移行)。
+- 実例は`UserEcsProject/Scenes/MainScene.scene.json`(旧`GameStartup : ISystem`からの移行。ADR-0070でC#のSceneクラスからJSONへ変換)。
 
 ## Scene Authoringとの統合
 

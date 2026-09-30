@@ -33,7 +33,13 @@ if not exist "%MANIFEST%" (
   exit /b 1
 )
 
+rem The importer writes the scenes as C# classes; the converter turns them into scene JSON (ADR-0070).
+for %%S in (Lvl_ThirdPerson ThirdPersonCharacter) do if exist "%TEMPLATE_DIR%\Scenes\%%S.scene.json" del /q "%TEMPLATE_DIR%\Scenes\%%S.scene.json"
 dotnet run --project "%SCRIPT_DIR%..\CSharpGameEngine.Unreal.SceneImporter\CSharpGameEngine.Unreal.SceneImporter.csproj" -- ^
   thirdperson "%MANIFEST%" "%TEMPLATE_DIR%"
+if errorlevel 1 exit /b %errorlevel%
+dotnet run --project "%SCRIPT_DIR%..\CSharpGameEngine.SceneJson.Cli\CSharpGameEngine.SceneJson.Cli.csproj" -- ^
+  convert "%TEMPLATE_DIR%\CSharpGameEngine.Templates.ThirdPerson.csproj" --write --delete-source
+if errorlevel 1 exit /b %errorlevel%
 
 endlocal

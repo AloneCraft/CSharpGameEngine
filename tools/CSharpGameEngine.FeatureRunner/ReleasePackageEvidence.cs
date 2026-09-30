@@ -129,8 +129,8 @@ public static class ReleasePackageEvidence {
         "extension.vsixmanifest",
         "CSharpGameEngine.VSExtension.dll",
         "PreviewHost/CSharpGameEngine.EditorPreview.Host.exe",
-        "ItemTemplates/CSharp/GameEngine/1033/SceneFile/Scene.cs",
-        "ItemTemplates/CSharp/GameEngine/1041/SceneFile/Scene.cs",
+        "ItemTemplates/CSharp/GameEngine/1033/SceneFile/Scene.scene.json",
+        "ItemTemplates/CSharp/GameEngine/1041/SceneFile/Scene.scene.json",
     ];
 
     public static IEnumerable<string>RequiredRepositoryInputPaths=>

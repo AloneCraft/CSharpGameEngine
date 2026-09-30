@@ -150,7 +150,7 @@ internal sealed class VsixExperimentalScenario {
         var EvidencePath=Path.Combine(RunRoot,"observation.json");
         var SolutionPath=Path.Combine(RepoRoot,"UserEcsProject.slnx");
         var ScenePath=Path.Combine(
-            RepoRoot,"UserEcsProject","Scenes","MainScene.cs");
+            RepoRoot,"UserEcsProject","Scenes","MainScene.scene.json");
         RequireFile(SolutionPath,"User ECS solution");
         RequireFile(ScenePath,"Main Scene source");
         var Evidence=new VsixSceneObservationEvidence {
@@ -192,7 +192,7 @@ internal sealed class VsixExperimentalScenario {
                 TimeSpan.FromSeconds(Math.Min(600,Options.TimeoutSeconds)));
             CompleteFirstLaunch(Window);
             ActivateDocumentTab(
-                VisualStudioProcess.Id,"MainScene.cs",
+                VisualStudioProcess.Id,"MainScene.scene.json",
                 TimeSpan.FromSeconds(Math.Min(600,Options.TimeoutSeconds)));
             DismissLineEndingDialog(VisualStudioProcess.Id);
             Window=WaitForTopLevelWindow(
@@ -205,11 +205,11 @@ internal sealed class VsixExperimentalScenario {
             Evidence.Assertions.Add(new VsixEvidenceAssertion {
                 Id="main-scene-open",
                 Passed=true,
-                Detail="MainScene.cs opened in the owned CgeFixed process."
+                Detail="MainScene.scene.json opened in the owned CgeFixed process."
             });
             var EditorSurface=FindLargestEditorSurface(Window)
                 ??throw new OracleMismatchException(
-                    "The MainScene code editor surface was not exposed by UI Automation.");
+                    "The MainScene JSON editor surface was not exposed by UI Automation.");
             // Visual Studio can surface its line-ending prompt asynchronously after the document
             // tab is already active. Reject normalization before sending the real toolbar click;
             // otherwise the modal disables the owned main window and silently consumes the click.

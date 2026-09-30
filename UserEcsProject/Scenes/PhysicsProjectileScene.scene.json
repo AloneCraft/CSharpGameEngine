@@ -1,0 +1,48 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 1,
+  "namespace": "UserEcsProject.Scenes",
+  "className": "PhysicsProjectileScene",
+  "root": {
+    "id": "d01e9f64-913b-5c3c-854b-2ca044cee818",
+    "name": "Physics_Projectile",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Entities.Transform",
+        "members": {
+          "Position": { "R": -8, "U": 1.5, "F": 0 }
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Windows.PrimitiveMesh",
+        "members": {
+          "Type": "Sphere"
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.Collider",
+        "members": {
+          "Shape": "Sphere",
+          "Radius": 0.25
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.RigidBody",
+        "members": {
+          "Ccd": "ContinuousStatic"
+        }
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.PhysicsRotation",
+        "members": {}
+      },
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.PhysicsVelocity",
+        "members": {
+          "Linear": { "R": 20, "U": 2, "F": 0 }
+        }
+      }
+    ],
+    "children": []
+  }
+}

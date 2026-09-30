@@ -7,8 +7,9 @@ namespace CSharpGameEngine.SceneJson.Cli;
 /// <summary>
 /// <c>CSharpGameEngine.SceneJson.Cli convert &lt;game .csproj&gt; [--write] [--delete-source]</c> (ADR-0070).
 /// Prints each C# scene's conversion; <c>--write</c> writes <c>&lt;ClassName&gt;.scene.json</c> next to
-/// the scene's source file and <c>--delete-source</c> also deletes that file when it declares only the
-/// scene. Nothing is written for a project with any unconvertible scene.
+/// the scene's source file. <c>--delete-source</c> also removes the scene classes from their source files,
+/// deleting a file that declares nothing else. Nothing is written for a project with any unconvertible
+/// scene.
 /// </summary>
 internal static class Program {
     private static async Task<int>Main(string[] Arguments){
@@ -28,7 +29,8 @@ internal static class Program {
         var Compilation=await Project.GetCompilationAsync()??throw new InvalidOperationException("The project has no compilation.");
         var ProjectDirectory=Path.GetDirectoryName(ProjectPath)!;
         var SchemaPath=Path.Combine(ProjectDirectory,".cge",SceneJsonSchemaBuilder.FileName);
-        List<(string SourcePath,string JsonPath,string Text,bool SceneOnlyFile)>Outputs=[];
+        List<(string JsonPath,string Text)>Outputs=[];
+        Dictionary<SyntaxTree,List<SyntaxNode>>SceneDeclarations=[];
         var Failed=false;
         foreach(var Scene in EnumerateScenes(Compilation.Assembly.GlobalNamespace)){
             var Declaration=Scene.DeclaringSyntaxReferences.FirstOrDefault();
@@ -48,9 +50,16 @@ internal static class Program {
                 Failed=true;
                 continue;
             }
-            var Root=await Declaration.SyntaxTree.GetRootAsync();
-            var SceneOnlyFile=Root.DescendantNodes().OfType<Microsoft.CodeAnalysis.CSharp.Syntax.BaseTypeDeclarationSyntax>().Count()==1;
-            Outputs.Add((SourcePath,JsonPath,Result.Text,SceneOnlyFile));
+            // The build must accept the document: read it back with the generator's rules.
+            foreach(var Problem in SceneJsonSceneAnalyzer.Analyze(Result.Text,Compilation).Problems){
+                Console.Error.WriteLine($"{JsonPath}: {Problem.Descriptor.Id} {string.Format(Problem.Descriptor.MessageFormat.ToString(),Problem.Arguments)}");
+                Failed=true;
+            }
+            foreach(var Part in Scene.DeclaringSyntaxReferences.Where(static Part=>File.Exists(Part.SyntaxTree.FilePath)&&!Part.SyntaxTree.FilePath.EndsWith(".g.cs",StringComparison.OrdinalIgnoreCase))){
+                if(!SceneDeclarations.TryGetValue(Part.SyntaxTree,out var Nodes)){ SceneDeclarations[Part.SyntaxTree]=Nodes=[]; }
+                Nodes.Add(await Part.GetSyntaxAsync());
+            }
+            Outputs.Add((JsonPath,Result.Text));
             Console.WriteLine($"CGE-SCENE-JSON {Scene.ToDisplayString()} -> {JsonPath} ({Result.Text.Length} chars)");
         }
         if(Failed){
@@ -58,14 +67,17 @@ internal static class Program {
             return 1;
         }
         if(!Write){ return 0; }
-        foreach(var Output in Outputs){
-            File.WriteAllText(Output.JsonPath,Output.Text);
-            if(DeleteSource){
-                if(Output.SceneOnlyFile){
-                    File.Delete(Output.SourcePath);
-                } else {
-                    Console.Error.WriteLine($"{Output.SourcePath}: kept, it declares more than the scene.");
-                }
+        foreach(var Output in Outputs){ File.WriteAllText(Output.JsonPath,Output.Text); }
+        if(!DeleteSource){ return 0; }
+        foreach(var Pair in SceneDeclarations){
+            var Root=await Pair.Key.GetRootAsync();
+            var Remaining=Root.RemoveNodes(Pair.Value,SyntaxRemoveOptions.KeepNoTrivia)!;
+            if(!Remaining.DescendantNodes().OfType<Microsoft.CodeAnalysis.CSharp.Syntax.BaseTypeDeclarationSyntax>().Any()){
+                File.Delete(Pair.Key.FilePath);
+                Console.WriteLine($"CGE-SCENE-JSON deleted {Pair.Key.FilePath}");
+            } else {
+                File.WriteAllText(Pair.Key.FilePath,Remaining.ToFullString());
+                Console.WriteLine($"CGE-SCENE-JSON removed the scene classes from {Pair.Key.FilePath}");
             }
         }
         return 0;

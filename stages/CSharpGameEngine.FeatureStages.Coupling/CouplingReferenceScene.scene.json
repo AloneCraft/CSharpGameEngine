@@ -1,0 +1,98 @@
+{
+  "$schema": ".cge/scene.schema.json",
+  "schemaVersion": 1,
+  "namespace": "CSharpGameEngine.FeatureStages.Coupling",
+  "className": "CouplingReferenceScene",
+  "root": {
+    "id": "fb463e4e-33fe-5931-8fa5-427a5dfe013a",
+    "name": "Coupling_Root",
+    "components": [
+      {
+        "type": "CSharpGameEngine.FeatureStages.StageScenario",
+        "members": {
+          "Domain": 9,
+          "Case": 1
+        }
+      }
+    ],
+    "children": [
+      {
+        "id": "d96122d5-3a48-5af6-9b0c-eb4d81de3caa",
+        "name": "RigidDomain",
+        "components": [
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageVisual",
+            "members": {
+              "Primitive": 1,
+              "X": -3,
+              "ScaleX": 2,
+              "ScaleY": 2,
+              "ScaleZ": 2,
+              "Color": 4293874512
+            }
+          },
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageLink",
+            "members": {
+              "Source": 0,
+              "Target": 1,
+              "Kind": 4
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "32e12a80-7764-5bb8-8050-f130a5dc48d0",
+        "name": "FluidDomain",
+        "components": [
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageVisual",
+            "members": {
+              "Primitive": 1,
+              "ScaleX": 2,
+              "ScaleY": 2,
+              "ScaleZ": 2,
+              "Color": 4282557941
+            }
+          },
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageLink",
+            "members": {
+              "Source": 1,
+              "Target": 2,
+              "Kind": 4
+            }
+          }
+        ],
+        "children": []
+      },
+      {
+        "id": "73af9e0f-32a3-5126-9867-a42d0457b1a6",
+        "name": "ThermalDomain",
+        "components": [
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageVisual",
+            "members": {
+              "Primitive": 1,
+              "X": 3,
+              "ScaleX": 2,
+              "ScaleY": 2,
+              "ScaleZ": 2,
+              "Color": 4294930499
+            }
+          },
+          {
+            "type": "CSharpGameEngine.FeatureStages.StageLink",
+            "members": {
+              "Source": 2,
+              "Target": 0,
+              "Kind": 4
+            }
+          }
+        ],
+        "children": []
+      }
+    ]
+  }
+}

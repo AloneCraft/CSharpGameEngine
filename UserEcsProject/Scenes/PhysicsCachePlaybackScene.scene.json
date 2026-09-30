@@ -1,0 +1,21 @@
+{
+  "$schema": "../.cge/scene.schema.json",
+  "schemaVersion": 1,
+  "namespace": "UserEcsProject.Scenes",
+  "className": "PhysicsCachePlaybackScene",
+  "root": {
+    "id": "99c652ab-8c91-5b5a-a049-15f0c5d10ca7",
+    "name": "Physics_CachePlayback",
+    "components": [
+      {
+        "type": "CSharpGameEngine.Runtime.Physics.PhysicsCachePlayback",
+        "members": {
+          "Cache": "Physics/Showcase.cgephyscache",
+          "State": "Stopped",
+          "AllowRealtimeHandoff": true
+        }
+      }
+    ],
+    "children": []
+  }
+}
