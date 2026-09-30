@@ -79,8 +79,15 @@ internal sealed class PhysicsNarrowPhase {
     private const int MaximumEpaFaces=128;
     private static readonly LogicalScalar EpaTolerance=LogicalScalar.FromSingle(0.0001f);
     private static readonly LogicalScalar TriangleHalfThickness=LogicalScalar.FromSingle(0.0005f);
+    // Contact slack plus a margin for the support-mapped query bounds' rounding.
+    private static readonly LogicalScalar TriangleCullSlack=TriangleHalfThickness+LogicalScalar.FromSingle(0.001f);
     private readonly List<int> TriangleCandidates=[];
     private readonly Dictionary<PhysicsShapeAsset,AssetBoundsEntry> AssetBounds=new(ReferenceEqualityComparer.Instance);
+    private const int MaximumPrimitiveBoundsEntries=256;
+    private readonly Dictionary<PrimitiveBoundsKey,AssetBoundsEntry> PrimitiveBounds=[];
+
+    private readonly record struct PrimitiveBoundsKey(
+        ColliderShape Shape,LogicalVector3 Center,LogicalVector3 HalfExtents,LogicalScalar Radius,LogicalScalar HalfHeight,LogicalQuaternion Rotation);
 
     private readonly record struct AssetBoundsEntry(
         LogicalQuaternion Rotation,LogicalVector3 ColliderCenter,
@@ -108,7 +115,16 @@ internal sealed class PhysicsNarrowPhase {
 
     internal PhysicsAabb CalculateBounds(in PhysicsCollisionShape Shape){
         if(Shape.Collider.Shape is not (ColliderShape.ConvexAsset or ColliderShape.StaticTriangleMesh)){
-            return CalculateBoundsUncached(Shape);
+            // Character and spring-arm queries bound the same capsule dozens of times per tick; its
+            // support offsets depend only on the primitive's dimensions and rotation.
+            ShapeProxy PrimitiveProxy=new(Shape);
+            PrimitiveBoundsKey Key=new(Shape.Collider.Shape,Shape.Collider.Center,Shape.Collider.HalfExtents,Shape.Collider.Radius,Shape.Collider.HalfHeight,Shape.Rotation);
+            if(!this.PrimitiveBounds.TryGetValue(Key,out AssetBoundsEntry Primitive)){
+                if(this.PrimitiveBounds.Count>=MaximumPrimitiveBoundsEntries){ this.PrimitiveBounds.Clear(); }
+                Primitive=CreateBoundsEntry(PrimitiveProxy,Shape.Rotation,Shape.Collider.Center);
+                this.PrimitiveBounds.Add(Key,Primitive);
+            }
+            return OffsetBounds(PrimitiveProxy.Center,Primitive);
         }
         if(Shape.Asset is null){ throw new InvalidOperationException("Cooked shape asset is unavailable."); }
         // Asset supports scan every vertex, and static meshes are re-bounded several times per tick
@@ -118,15 +134,20 @@ internal sealed class PhysicsNarrowPhase {
         ShapeProxy Proxy=new(Shape);
         if(!this.AssetBounds.TryGetValue(Shape.Asset,out AssetBoundsEntry Entry)
             ||Entry.Rotation!=Shape.Rotation||Entry.ColliderCenter!=Shape.Collider.Center){
-            Entry=new AssetBoundsEntry(Shape.Rotation,Shape.Collider.Center,
-                Proxy.Support(LogicalVector3.UnitR)-Proxy.Center,Proxy.Support(LogicalVector3.UnitU)-Proxy.Center,Proxy.Support(LogicalVector3.UnitF)-Proxy.Center,
-                Proxy.Support(-LogicalVector3.UnitR)-Proxy.Center,Proxy.Support(-LogicalVector3.UnitU)-Proxy.Center,Proxy.Support(-LogicalVector3.UnitF)-Proxy.Center);
+            Entry=CreateBoundsEntry(Proxy,Shape.Rotation,Shape.Collider.Center);
             this.AssetBounds[Shape.Asset]=Entry;
         }
-        return new PhysicsAabb(
-            new LogicalVector3((Proxy.Center+Entry.NegativeR).R,(Proxy.Center+Entry.NegativeU).U,(Proxy.Center+Entry.NegativeF).F),
-            new LogicalVector3((Proxy.Center+Entry.PositiveR).R,(Proxy.Center+Entry.PositiveU).U,(Proxy.Center+Entry.PositiveF).F));
+        return OffsetBounds(Proxy.Center,Entry);
     }
+
+    private static AssetBoundsEntry CreateBoundsEntry(in ShapeProxy Proxy,LogicalQuaternion Rotation,LogicalVector3 ColliderCenter)=>new(
+        Rotation,ColliderCenter,
+        Proxy.Support(LogicalVector3.UnitR)-Proxy.Center,Proxy.Support(LogicalVector3.UnitU)-Proxy.Center,Proxy.Support(LogicalVector3.UnitF)-Proxy.Center,
+        Proxy.Support(-LogicalVector3.UnitR)-Proxy.Center,Proxy.Support(-LogicalVector3.UnitU)-Proxy.Center,Proxy.Support(-LogicalVector3.UnitF)-Proxy.Center);
+
+    private static PhysicsAabb OffsetBounds(LogicalVector3 Center,in AssetBoundsEntry Entry)=>new(
+        new LogicalVector3((Center+Entry.NegativeR).R,(Center+Entry.NegativeU).U,(Center+Entry.NegativeF).F),
+        new LogicalVector3((Center+Entry.PositiveR).R,(Center+Entry.PositiveU).U,(Center+Entry.PositiveF).F));
 
     internal static PhysicsAabb CalculateBoundsUncached(in PhysicsCollisionShape Shape){
         if(Shape.Collider.Shape is ColliderShape.ConvexAsset or ColliderShape.StaticTriangleMesh){
@@ -186,22 +207,48 @@ internal sealed class PhysicsNarrowPhase {
     /// triangle order, with normals pointing from the query shape into the mesh. Character
     /// movement needs all of them (a floor and a wall at once), not only the deepest.
     /// </summary>
-    internal int CollectMeshContacts(in PhysicsCollisionShape Query,in PhysicsCollisionShape Mesh,List<PhysicsContactCandidate> Results){
+    internal int CollectMeshContacts(in PhysicsCollisionShape Query,in PhysicsCollisionShape Mesh,List<PhysicsContactCandidate> Results)=>
+        this.CollectMeshContacts(Query,Mesh,Results,true);
+
+    /// <param name="CullTriangles">
+    /// Skips leaf triangles whose bounds miss the query bounds widened by the contact slack. A
+    /// triangle within the contact radius has a point inside the swept query volume, so culling never
+    /// changes the result; tests compare against <see langword="false"/>.
+    /// </param>
+    internal int CollectMeshContacts(in PhysicsCollisionShape Query,in PhysicsCollisionShape Mesh,List<PhysicsContactCandidate> Results,bool CullTriangles){
         if(Query.Collider.Shape is not (ColliderShape.Sphere or ColliderShape.Capsule)
             ||Mesh.Asset is not { Kind:PhysicsShapeAssetKind.StaticTriangleMesh } Asset){ return 0; }
         PhysicsAabb WorldBounds=this.CalculateBounds(Query);
         if(!TryTransformBoundsToLocal(WorldBounds,Mesh.Position,Mesh.Rotation,out PhysicsAabb LocalBounds)){ return 0; }
         this.TriangleCandidates.Clear();
         Asset.QueryTriangles(LocalBounds,this.TriangleCandidates);
+        LogicalVector3 Slack=new(TriangleCullSlack,TriangleCullSlack,TriangleCullSlack);
+        PhysicsAabb CullBounds=new(LocalBounds.Min-Slack,LocalBounds.Max+Slack);
         int Start=Results.Count;
         foreach(int Triangle in this.TriangleCandidates){
             Asset.GetTriangle(Triangle,out LogicalVector3 A,out LogicalVector3 B,out LogicalVector3 C);
+            if(CullTriangles&&!TriangleTouches(CullBounds,A,B,C)){ continue; }
             bool Hit=Query.Collider.Shape==ColliderShape.Sphere
                 ?TrySphereTriangleContact(Query,Mesh,A,B,C,false,checked((uint)Triangle),out PhysicsContactCandidate Contact)
                 :TryCapsuleTriangleContact(Query,Mesh,A,B,C,false,checked((uint)Triangle),out Contact);
             if(Hit){ Results.Add(Contact); }
         }
         return Results.Count-Start;
+    }
+
+    private static bool TriangleTouches(in PhysicsAabb Bounds,LogicalVector3 A,LogicalVector3 B,LogicalVector3 C)=>
+        Max3(A.R,B.R,C.R)>=Bounds.Min.R&&Min3(A.R,B.R,C.R)<=Bounds.Max.R
+        &&Max3(A.U,B.U,C.U)>=Bounds.Min.U&&Min3(A.U,B.U,C.U)<=Bounds.Max.U
+        &&Max3(A.F,B.F,C.F)>=Bounds.Min.F&&Min3(A.F,B.F,C.F)<=Bounds.Max.F;
+
+    private static LogicalScalar Max3(LogicalScalar A,LogicalScalar B,LogicalScalar C){
+        LogicalScalar Result=A>B?A:B;
+        return Result>C?Result:C;
+    }
+
+    private static LogicalScalar Min3(LogicalScalar A,LogicalScalar B,LogicalScalar C){
+        LogicalScalar Result=A<B?A:B;
+        return Result<C?Result:C;
     }
 
     /// <summary>

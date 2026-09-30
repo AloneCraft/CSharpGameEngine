@@ -99,6 +99,12 @@ public readonly record struct LogicalQuaternion(LogicalScalar R,LogicalScalar U,
         return new LogicalQuaternion(R,U,F,Cos).TryNormalize(out Result);
     }
     public bool TryRotate(LogicalVector3 Value,out LogicalVector3 Result){
+        // The identity product only multiplies by one and adds zeros, which is exact in Q64.64;
+        // static meshes and axis-aligned queries rotate by it on every contact test.
+        if(this==Identity){
+            Result=Value;
+            return true;
+        }
         Result=default;
         var Point=new LogicalQuaternion(Value.R,Value.U,Value.F,LogicalScalar.Zero);
         if(!TryMultiply(this,Point,out var Rotated)||!TryMultiply(Rotated,this.Conjugate(),out Rotated)){ return false; }

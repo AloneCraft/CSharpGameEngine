@@ -20,12 +20,26 @@ public struct StaticMeshCollider() {
 internal sealed class StaticMeshCollisionCooker {
     private readonly Dictionary<string,(Vector3[]Positions,int[]Indices)>Imported=new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string,string>ShapeIdByPlacement=[];
+    private readonly Dictionary<(string AssetPath,LogicalAffineTransform World),string>ShapeIdByTransform=[];
     /// <summary>
     /// Returns the id of a triangle-mesh asset in <paramref name="Shapes"/> holding the mesh placed by
     /// <paramref name="World"/>, cooking it on first use. False when the asset cannot be read or has
     /// no usable triangle.
     /// </summary>
     internal bool TryEnsure(PhysicsShapeCatalog Shapes,string AssetPath,in LogicalAffineTransform World,out string Id,out string Error){
+        // Every tick re-ensures every static mesh; formatting the placement string expands twelve
+        // Q64.64 values to decimal, so repeat placements are found by value first.
+        if(this.ShapeIdByTransform.TryGetValue((AssetPath,World),out Id!)){
+            Error=string.Empty;
+            return true;
+        }
+        if(!this.TryEnsureByPlacement(Shapes,AssetPath,World,out Id,out Error)){
+            return false;
+        }
+        this.ShapeIdByTransform[(AssetPath,World)]=Id;
+        return true;
+    }
+    private bool TryEnsureByPlacement(PhysicsShapeCatalog Shapes,string AssetPath,in LogicalAffineTransform World,out string Id,out string Error){
         var FullPath=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,AssetPath));
         var Placement=FullPath+"|"+World;
         Error=string.Empty;
