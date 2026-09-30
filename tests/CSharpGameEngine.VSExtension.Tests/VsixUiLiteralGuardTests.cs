@@ -47,8 +47,6 @@ public sealed class VsixUiLiteralGuardTests {
         "ToolTip",
     };
     private static readonly HashSet<string>InvariantReturnMembers=new(StringComparer.Ordinal){
-        "SceneDesignerDocumentWindowException.DiagnosticText",
-        "SceneDesignerDocumentWindowException.CreateMessage",
         "VsixBuildIdentity.ActivityLogText",
         "VsixBuildIdentity.DisplayText",
     };

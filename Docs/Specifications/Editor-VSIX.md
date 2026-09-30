@@ -30,7 +30,7 @@ The JSON Scene experiments of M0049/M0050 are not a supported compatibility path
 
 The predicted operation model is transient gesture state only. It is never an alternative source of truth and never avoids a reparse. Before the live-buffer write, the new JSON is read back through the designer view; that canonical model, not the separately mutated operation model, is published as the temporary landing projection. If parsing, conflict resolution, verification, or writeback fails, the source is unchanged and the prediction rolls back to the last reparse result with an actionable diagnostic.
 
-Scene Designer is a Visual Studio multi-view document: document, hierarchy, inspector, palette, and viewport project the same snapshot/session identity. Visual hierarchies are projections rather than runtime ownership graphs.
+Scene Designer is a Visual Studio multi-view document: document, hierarchy, inspector, palette, and viewport project the same snapshot/session identity. A `*.scene.json` opens by double-click in the Scene Editor (ADR-0071): one tab with a Design view (the Scene Designer) and a JSON view (the Visual Studio JSON editor over the same text buffer), switched by tabs at the bottom. The extension adds nothing to the code-editor or Solution Explorer context menus. Visual hierarchies are projections rather than runtime ownership graphs.
 
 ## Host boundary and protocol
 

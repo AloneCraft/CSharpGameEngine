@@ -53,7 +53,7 @@ public sealed partial class CSharpGameEngineViewerPackage:IVsSolutionEvents {
         // Scene documents are projections of C# authoring state. Release them before project
         // unload starts; waiting until package disposal can leave VisualStudioWorkspace and a
         // Preview Host alive while the shell is trying to unload their owning project.
-        this.SceneDesignerDocuments?.ReleaseRuntimeResourcesForSolutionClose();
+        SceneJsonEditorPane.ReleaseRuntimeResourcesForSolutionClose();
         this.SceneSession?.ClearPin();
         ActivityLog.LogInformation(
             nameof(CSharpGameEngineViewerPackage),

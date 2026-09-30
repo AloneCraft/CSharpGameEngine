@@ -74,7 +74,7 @@ public sealed class SceneSelectionAndShutdownArchitectureTests {
     public void SolutionShutdown_ReleasesRuntimeWithoutReenteringShellFrameClose(){
         string Lifecycle=ReadSource(
             "CSharpGameEngineViewerPackage.SolutionLifecycle.cs");
-        string Documents=ReadSource("SceneDesignerDocumentManager.cs");
+        string Documents=ReadSource("SceneJsonEditorPane.cs");
         int Query=Lifecycle.IndexOf(
             "OnQueryCloseSolution",StringComparison.Ordinal);
         int Prepare=Lifecycle.IndexOf(
@@ -85,8 +85,7 @@ public sealed class SceneSelectionAndShutdownArchitectureTests {
         Assert.Contains(
             "ReleaseRuntimeResourcesForSolutionClose",Lifecycle,
             StringComparison.Ordinal);
-        Assert.Contains("Pane.ReleaseRuntimeResources()",Documents,StringComparison.Ordinal);
-        Assert.Contains("this.CloseCore()",Documents,StringComparison.Ordinal);
+        Assert.Contains("Pane.ReleaseDesigner()",Documents,StringComparison.Ordinal);
         string PrepareBody=Lifecycle.Substring(
             Lifecycle.IndexOf("private void PrepareForSolutionClose",StringComparison.Ordinal),
             Lifecycle.IndexOf(

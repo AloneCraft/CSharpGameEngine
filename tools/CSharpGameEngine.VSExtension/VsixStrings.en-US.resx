@@ -236,11 +236,19 @@
   <data name="SceneDesigner_OpenSceneJsonFirst" xml:space="preserve">
     <value>Open a *.scene.json to show it in the Scene Designer.</value>
   </data>
+  <data name="SceneEditorDesignTab" xml:space="preserve">
+    <value>Design</value>
+  </data>
+  <data name="SceneEditorJsonTab" xml:space="preserve">
+    <value>JSON</value>
+  </data>
+  <data name="SceneEditorStarting" xml:space="preserve">
+    <value>Starting the scene system...</value>
+  </data>
   <data name="SceneDesigner_Analyzing" xml:space="preserve"><value>Sceneを解析しています...</value></data>
   <data name="SceneDesigner_SelectedSceneMissing" xml:space="preserve"><value>選択したIScene実装クラスは編集後に見つからなくなりました。</value></data>
-  <data name="SceneDesigner_OpenedInDocumentWell" xml:space="preserve"><value>{0} [Scene] をDocument Wellで開きました。</value></data>
-  <data name="SceneDesigner_FallbackOpened" xml:space="preserve"><value>{0} [Scene] のDocument Well作成に失敗しました ({1})。Scene Designerパネルへフォールバックしました。ログ: {2}</value></data>
-  <data name="SceneDesigner_OpenFailed" xml:space="preserve"><value>{0} をDocument Wellで開けませんでした ({1}: {2})。詳細はActivityLog.xmlを確認してください。</value></data>
+  <data name="SceneDesigner_FallbackOpened" xml:space="preserve"><value>{0} could not be opened in the Scene Editor ({1}). The Scene Designer panel was opened instead.</value></data>
+  <data name="SceneDesigner_OpenFailed" xml:space="preserve"><value>{0} could not be opened ({1}: {2}). See ActivityLog.xml for details.</value></data>
   <data name="SceneDesigner_FallbackWindowUnavailable" xml:space="preserve"><value>Scene DesignerのフォールバックToolWindowを作成できませんでした。</value></data>
   <data name="FabWatch_StopCommand" xml:space="preserve"><value>Fabダウンロード監視を停止</value></data>
   <data name="FabWatch_StartCommand" xml:space="preserve"><value>Fabダウンロード監視を開始</value></data>

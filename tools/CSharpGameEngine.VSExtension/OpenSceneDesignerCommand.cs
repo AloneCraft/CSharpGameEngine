@@ -2,7 +2,6 @@ using System;
 using System.ComponentModel.Design;
 using System.Linq;
 using System.Threading.Tasks;
-using CSharpGameEngine.SceneAnalysis;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Shell.Interop;
@@ -10,9 +9,9 @@ using Microsoft.VisualStudio.Shell.Interop;
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// The C# Game Engine toolbar's "Open in Scene Designer": opens the scene of the active
-/// <c>*.scene.json</c> in the Scene Designer. Scenes also open by double-click (ADR-0071); the
-/// code-editor and Solution Explorer context menus that used to carry this command are retired.
+/// The C# Game Engine toolbar's "Open in Scene Designer": shows the active <c>*.scene.json</c> in
+/// the Scene Editor's Design view (ADR-0071), the editor a double-click opens. The code-editor and
+/// Solution Explorer context menus that used to carry this command are retired.
 /// </summary>
 internal sealed class OpenSceneDesignerCommand {
     public const int ToolbarCommandId=0x0131;
@@ -29,18 +28,15 @@ internal sealed class OpenSceneDesignerCommand {
     private readonly AsyncPackage Package;
     private readonly SceneEditorSessionService Session;
     private readonly ActiveDocumentTracker DocumentTracker;
-    private readonly SceneDesignerDocumentManager Documents;
 
     private OpenSceneDesignerCommand(
         AsyncPackage Package,
         OleMenuCommandService CommandService,
         SceneEditorSessionService Session,
-        ActiveDocumentTracker DocumentTracker,
-        SceneDesignerDocumentManager Documents){
+        ActiveDocumentTracker DocumentTracker){
         this.Package=Package??throw new ArgumentNullException(nameof(Package));
         this.Session=Session??throw new ArgumentNullException(nameof(Session));
         this.DocumentTracker=DocumentTracker??throw new ArgumentNullException(nameof(DocumentTracker));
-        this.Documents=Documents??throw new ArgumentNullException(nameof(Documents));
         if(CommandService is null){
             throw new ArgumentNullException(nameof(CommandService));
         }
@@ -50,16 +46,14 @@ internal sealed class OpenSceneDesignerCommand {
     public static async Task<OpenSceneDesignerCommand>InitializeAsync(
         AsyncPackage Package,
         SceneEditorSessionService Session,
-        ActiveDocumentTracker DocumentTracker,
-        SceneDesignerDocumentManager Documents){
+        ActiveDocumentTracker DocumentTracker){
         await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(Package.DisposalToken);
         var Service=await Package.GetServiceAsync(typeof(IMenuCommandService));
         if(Service is not OleMenuCommandService CommandService){
             throw new InvalidOperationException($"{nameof(IMenuCommandService)} is not available from the VS shell.");
         }
 
-        return new OpenSceneDesignerCommand(
-            Package,CommandService,Session,DocumentTracker,Documents);
+        return new OpenSceneDesignerCommand(Package,CommandService,Session,DocumentTracker);
     }
 
     private void Execute(object Sender,EventArgs E){
@@ -69,65 +63,54 @@ internal sealed class OpenSceneDesignerCommand {
             this.SetStatusBarText(VsixText.Get("SceneDesigner_OpenSceneJsonFirst"));
             return;
         }
-        this.OpenScene(FilePath);
+        try {
+            VsShellUtilities.OpenDocumentWithSpecificEditor(
+                this.Package,FilePath,new Guid(SceneJsonEditorFactory.FactoryGuidString),VSConstants.LOGVIEWID_Designer,
+                out _,out _,out IVsWindowFrame Frame);
+            ErrorHandler.ThrowOnFailure(Frame.Show());
+        } catch(Exception Error){
+            ActivityLog.LogWarning(
+                nameof(OpenSceneDesignerCommand),
+                $"Scene Editor failed to open '{FilePath}': {Error}. Falling back to the Scene Designer tool window.");
+            this.OpenToolWindowFallback(FilePath,Error);
+        }
     }
 
-    private void OpenScene(string FilePath){
+    /// <summary>Recovery path only: the Scene Designer tool window, pinned to the file's scene.</summary>
+    private void OpenToolWindowFallback(string FilePath,Exception EditorError){
         ThreadHelper.ThrowIfNotOnUIThread();
         this.SetStatusBarText(VsixText.Get("SceneDesigner_Analyzing"));
-
         _=this.Package.JoinableTaskFactory.RunAsync(async delegate {
             try {
-                var Models=await this.Session.AnalyzeFileNowAsync(
-                                                                 FilePath,
-                                                                 this.Package.DisposalToken).ConfigureAwait(false);
+                var Models=await this.Session.AnalyzeFileNowAsync(FilePath,this.Package.DisposalToken).ConfigureAwait(false);
                 await this.Package.JoinableTaskFactory.SwitchToMainThreadAsync(this.Package.DisposalToken);
-
                 // A scene JSON declares exactly one scene.
                 if(Models.Count!=1){
                     this.SetStatusBarText(VsixText.Get("SceneDesigner_SelectedSceneMissing"));
                     return;
                 }
-                var Chosen=Models[0];
-                var Snapshot=this.Session.Pin(Chosen);
-                try {
-                    this.Documents.Open(this.Session,Snapshot);
-                    this.SetStatusBarText(VsixText.Format("SceneDesigner_OpenedInDocumentWell",Chosen.ClassName));
-                } catch(Exception DocumentWellException){
-                    SceneDesignerDocumentWindowDiagnostics.ReportFailure(DocumentWellException);
-                    ActivityLog.LogWarning(
-                        nameof(OpenSceneDesignerCommand),
-                        $"Document Well failed; source='{FilePath}'; scene='{Chosen.ClassFullyQualifiedName}'; exception='{DocumentWellException.GetType().FullName}'; message='{DocumentWellException.Message}'. Falling back to Scene Designer tool window.");
-                    await this.OpenToolWindowFallbackAsync(Snapshot);
-                    string Diagnostic=SceneDesignerDocumentWindowDiagnostics.CompactDiagnostic(DocumentWellException);
-                    this.SetStatusBarText(
-                        VsixText.Format("SceneDesigner_FallbackOpened",Chosen.ClassName,Diagnostic,SceneDesignerDocumentWindowDiagnostics.PersistentLogPath));
-                    ActivityLog.LogInformation(nameof(OpenSceneDesignerCommand),$"Scene Designer tool window fallback opened; scene='{Chosen.ClassFullyQualifiedName}'.");
+                var Snapshot=this.Session.Pin(Models[0]);
+                var Window=await this.Package.FindToolWindowAsync(
+                    typeof(SceneDesignerToolWindowPane),0,true,this.Package.DisposalToken);
+                await this.Package.JoinableTaskFactory.SwitchToMainThreadAsync(this.Package.DisposalToken);
+                if(Window is not SceneDesignerToolWindowPane Pane||Pane.Frame is not IVsWindowFrame Frame){
+                    throw new NotSupportedException(VsixText.Get("SceneDesigner_FallbackWindowUnavailable"));
                 }
+                Pane.SetTarget(this.Session,Snapshot);
+                ErrorHandler.ThrowOnFailure(Frame.Show());
+                this.SetStatusBarText(VsixText.Format(
+                    "SceneDesigner_FallbackOpened",Models[0].ClassName,$"{EditorError.GetType().Name}, HRESULT 0x{EditorError.HResult:X8}"));
             } catch(OperationCanceledException) when(this.Package.DisposalToken.IsCancellationRequested){
                 // Package shutdown.
             } catch(Exception Ex){
                 await this.Package.JoinableTaskFactory.SwitchToMainThreadAsync();
                 ActivityLog.LogError(
                     nameof(OpenSceneDesignerCommand),
-                    $"Scene Designer document open failed; source='{FilePath}'; exception='{Ex.GetType().FullName}'; message='{Ex.Message}'{Environment.NewLine}{Ex}");
+                    $"Scene Designer open failed; source='{FilePath}'; exception='{Ex.GetType().FullName}'; message='{Ex.Message}'{Environment.NewLine}{Ex}");
                 this.SetStatusBarText(
                     VsixText.Format("SceneDesigner_OpenFailed",FilePath,Ex.GetType().Name,Ex.Message));
             }
         });
-    }
-
-    private async Task OpenToolWindowFallbackAsync(SceneDocumentSnapshot Snapshot){
-        await this.Package.JoinableTaskFactory.SwitchToMainThreadAsync(this.Package.DisposalToken);
-        var Window=await this.Package.FindToolWindowAsync(
-            typeof(SceneDesignerToolWindowPane),0,true,this.Package.DisposalToken);
-        if(Window is not SceneDesignerToolWindowPane Pane||Pane.Frame is not IVsWindowFrame Frame){
-            throw new NotSupportedException(VsixText.Get("SceneDesigner_FallbackWindowUnavailable"));
-        }
-
-        await this.Package.JoinableTaskFactory.SwitchToMainThreadAsync(this.Package.DisposalToken);
-        Pane.SetTarget(this.Session,Snapshot);
-        ErrorHandler.ThrowOnFailure(Frame.Show());
     }
 
     private void SetStatusBarText(string Text){

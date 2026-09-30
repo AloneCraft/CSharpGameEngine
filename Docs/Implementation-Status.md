@@ -4023,6 +4023,8 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 
 ## F-L8-025 — Scene document synchronization
 
+- M0094/ADR-0071 (2026-10-01): the Scene Designer's document is the Scene Editor, opened by double-clicking a `*.scene.json`. Its Design and JSON views share the JSON text buffer as the document data, so this synchronization contract is unchanged; the code-editor/Solution Explorer context menus and the external `.cgescene` virtual document are removed. Tests: `SceneJsonEditorTests`, `VsixMenuPlacementTests`.
+
 - M0088: 12 source-only ConvertLightOperation paths retain Node and shadow ownership, preserve local flux, require explicit directional quantities, reject source/default-contract conflicts and pass canonical verification through one native text write. No private Undo or runtime kind replacement.
 
 - Layer: L8 — Visual Studio Authoring Environment

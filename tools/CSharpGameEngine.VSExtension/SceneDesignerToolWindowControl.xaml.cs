@@ -186,6 +186,18 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         });
     }
 
+    /// <summary>
+    /// ADR-0071: a Scene Editor tab shows only its own file's scene. The session pins one scene at a
+    /// time, so a tab ignores the pins and selections of other scenes (another tab brought to front).
+    /// </summary>
+    internal SceneKey?FixedSceneKey { get;set;}
+
+    /// <summary>A Scene Editor tab has one scene per file and hides the scene switcher.</summary>
+    internal bool ShowsSceneSelector {
+        get=>this.SceneSelector.Visibility==Visibility.Visible;
+        set=>this.SceneSelector.Visibility=value?Visibility.Visible:Visibility.Collapsed;
+    }
+
     internal void SetSession(SceneEditorSessionService Session){
         ThreadHelper.ThrowIfNotOnUIThread();
         if(this.Disposed||ReferenceEquals(this.Session,Session)){
@@ -198,7 +210,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         Session.Selection.SelectionChanged+=this.OnSelectionChanged;
         Session.ActiveDocumentModelsChanged+=this.OnActiveDocumentModelsChanged;
 
-        if(Session.PinnedSnapshot is { } Snapshot){
+        if(Session.PinnedSnapshot is { } Snapshot&&SceneDesignerTargetFilter.Accepts(this.FixedSceneKey,Snapshot.Key)){
             this.ShowSnapshot(Snapshot);
         } else {
             this.ShowEmpty(VsixText.Get("SceneSelectPrompt"));
@@ -232,6 +244,9 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     private void OnPinnedSnapshotChanged(SceneDocumentSnapshot?Snapshot){
         this.DispatchToUi(()=>{
             ThreadHelper.ThrowIfNotOnUIThread();
+            if(this.FixedSceneKey is not null&&!SceneDesignerTargetFilter.Accepts(this.FixedSceneKey,Snapshot?.Key)){
+                return;
+            }
             if(Snapshot is null){
                 this.CancelSceneSelectionRequest();
                 this.ShowEmpty(VsixText.Get("SceneDesigner_SelectedSceneMissing"));
@@ -251,7 +266,8 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
 
     private void OnSelectionChanged(SceneSelection Selection){
         this.DispatchToUi(()=>{
-            if(this.Session?.PinnedSnapshot is { } Snapshot&&Snapshot.Key.Equals(Selection.Key)){
+            if(this.Session?.PinnedSnapshot is { } Snapshot&&Snapshot.Key.Equals(Selection.Key)
+                &&SceneDesignerTargetFilter.Accepts(this.FixedSceneKey,Snapshot.Key)){
                 this.Host?.SetSelection(Snapshot,Selection);
             }
         });

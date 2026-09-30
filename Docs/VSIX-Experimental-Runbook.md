@@ -17,9 +17,14 @@ Studio プロファイルや `.vs` を消すと、ウィンドウ状態の再現
    - `Loaded VSIX DLL matches the local build output.`
    - `loadedSha256` と `buildSha256` が一致する
 
-ログは `%LOCALAPPDATA%\CSharpGameEngine\Logs` に出力される。Document Well の生成失敗は
-`SceneDesignerDocumentWindow.log`、拡張のロードと DLL 同一性は `CgeFixed-ActivityLog-*.xml`
-と `CgeFixed-VsixMaintenance-*.log` を見る。
+ログは `%LOCALAPPDATA%\CSharpGameEngine\Logs` に出力される。拡張のロードと DLL 同一性は
+`CgeFixed-ActivityLog-*.xml` と `CgeFixed-VsixMaintenance-*.log` を見る。シーン エディター
+(ADR-0071) を開けなかった場合は ActivityLog の `SceneJsonEditorFactory` /
+`OpenSceneDesignerCommand` の記録を見る。
+
+自動確認で実験用 VS を起動するときは、ユーザーの F5 と衝突しないよう `CgeFixed` ではなく
+`CgeAutomation` ハイブを使う。`CgeFixed` の VS が起動中にデプロイすると展開が失敗し、
+拡張フォルダーに 0 バイトのファイル（`extension.vsixmanifest` や `catalog.json`）が残る。
 
 ## ウィンドウ状態の復元契約
 
@@ -42,7 +47,7 @@ Studio プロファイルや `.vs` を消すと、ウィンドウ状態の再現
   Visual Studio を選択すること。
 - PowerShell の単一結果を `.Count` で判定するときは `@(...)` で配列化すること。
 - `CgeFixed` 以外の root suffix の拡張やユーザー作業を自動削除しないこと。
-- 失敗時はまず VSIX のロード同一性、次に Document Well の HRESULT、最後に Scene Renderer
+- 失敗時はまず VSIX のロード同一性、次にシーン エディターの ActivityLog、最後に Scene Renderer
   の診断を確認し、推測でキャッシュを削除しないこと。
 
 ## PowerShell UTF-8

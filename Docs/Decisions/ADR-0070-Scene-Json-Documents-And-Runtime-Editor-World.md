@@ -47,6 +47,7 @@ The user asked for an Unreal/Unity-like editor:
    - Each completed gizmo, Inspector or Hierarchy gesture is applied to the scene model and written back with `SceneJsonConverter` (`SceneJsonCommitPlanner`). Node ids are kept, the result is re-read to verify it, and only the changed lines go into the buffer. The write is one VS Undo unit.
    - Nothing is written to disk per gesture. The buffer is the in-memory document: the tab shows `*`, and Ctrl+S, Save All and the Scene Designer's Save write the file. Undo/Redo steps one gesture at a time, from the Scene view or the JSON editor. A change on disk while the file is open uses VS's own reload prompt.
    - No project compile is on the gesture path. A gesture parses one generated class, and the full re-analysis runs in the background afterwards.
+   - The Scene Designer's document window is the Scene Editor (ADR-0071), whose document data is this buffer; its JSON view is the JSON editor over it.
    - **Why not a custom `IVsPersistDocData` editor with its own Undo stack** (the first plan): a second in-memory copy next to the text buffer brings back M0047's two-owner problems (watermarks, landing states, replay on save). With the buffer as the only copy, the JSON editor and the Scene Designer always show the same document, and Save, dirty state, reload and Undo come from VS.
 6. **The editor world renders with the game runtime.**
    - The preview host loads the built game assembly and instantiates its world with the generated code: the startup scenes and the edited scene, as the game would.

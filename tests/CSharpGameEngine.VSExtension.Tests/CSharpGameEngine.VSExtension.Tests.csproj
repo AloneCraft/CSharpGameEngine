@@ -73,7 +73,7 @@
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\CSharpGameEngineViewerPackage.SolutionLifecycle.cs" Link="TestAssets\Source\CSharpGameEngineViewerPackage.SolutionLifecycle.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\HierarchyToolWindowControl.xaml.cs" Link="TestAssets\Source\HierarchyToolWindowControl.xaml.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\HierarchyToolWindowPane.cs" Link="TestAssets\Source\HierarchyToolWindowPane.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\SceneDesignerDocumentManager.cs" Link="TestAssets\Source\SceneDesignerDocumentManager.cs" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tools\CSharpGameEngine.VSExtension\SceneJsonEditorPane.cs" Link="TestAssets\Source\SceneJsonEditorPane.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\CSharpGameEngineViewerPackage.ComponentDrop.cs" Link="TestAssets\Source\CSharpGameEngineViewerPackage.ComponentDrop.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\InspectorToolWindowControl.xaml.cs" Link="TestAssets\Source\InspectorToolWindowControl.xaml.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\SceneDesignerToolWindowControl.xaml.cs" Link="TestAssets\Source\SceneDesignerToolWindowControl.xaml.cs" CopyToOutputDirectory="PreserveNewest" />

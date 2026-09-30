@@ -19,6 +19,8 @@ public sealed class VsixLocalizationTests {
         "SceneRenderModeLit",
         "SceneRenderModeNormal",
         "SceneRenderModeWireframe",
+        // The Scene Editor's JSON tab is named after the format, as the XAML editor's tab is.
+        "SceneEditorJsonTab",
         "SceneToolTransform",
     };
     [Fact]
