@@ -75,6 +75,7 @@ public static class GltfImporter {
             Diagnostics.Add(new GltfImportDiagnostic(GltfImportDiagnosticSeverity.Warning,
                 "TEXCOORD_0 attribute missing or inconsistent; synthesized (0,0) UV for every vertex."));
         }
+        ApplyUvTransform(RawUvs,UvsUsable,ResolveUvTransform(Material,Diagnostics,"glTF primitive"));
 
         if(NormalsUsable){
             Positions=RawPositions;
@@ -318,6 +319,45 @@ public static class GltfImporter {
         };
     }
 
+    /// <summary>
+    /// The engine has one UV set per vertex, so KHR_texture_transform is baked into TEXCOORD_0 at
+    /// import. The base colour texture's transform wins (or the first textured channel's when there
+    /// is no base colour texture); a channel whose transform differs is reported because it will be
+    /// sampled with that mapping.
+    /// </summary>
+    private static GltfUvTransform?ResolveUvTransform(Material?Material,List<GltfImportDiagnostic>Diagnostics,string Context){
+        if(Material is null){
+            return null;
+        }
+        MaterialChannel[]Textured=[.. new[]{"BaseColor","Normal","MetallicRoughness","Emissive","Occlusion"}
+            .Select(Material.FindChannel).Where(static Channel=>Channel?.Texture is not null).Select(static Channel=>Channel!.Value)];
+        if(Textured.Length==0){
+            return null;
+        }
+        GltfUvTransform?Transform=ToUvTransform(Textured[0]);
+        foreach(MaterialChannel Channel in Textured.Skip(1)){
+            if(ToUvTransform(Channel)!=Transform){
+                Diagnostics.Add(new GltfImportDiagnostic(GltfImportDiagnosticSeverity.Warning,
+                    $"'{Context}': the {Channel.Key} texture's KHR_texture_transform differs from the {Textured[0].Key} texture's; it is sampled with the {Textured[0].Key} mapping because meshes carry one UV set."));
+            }
+        }
+        return Transform;
+    }
+
+    private static GltfUvTransform?ToUvTransform(MaterialChannel Channel)=>
+        Channel.TextureTransform is TextureTransform Transform
+            ?new GltfUvTransform(Transform.Offset,Transform.Scale,Transform.Rotation)
+            :null;
+
+    private static void ApplyUvTransform(Vector2[]?Uvs,bool UvsUsable,GltfUvTransform?Transform){
+        if(!UvsUsable||Uvs is null||Transform is not GltfUvTransform Value){
+            return;
+        }
+        for(var I=0;I<Uvs.Length;I++){
+            Uvs[I]=Value.Apply(Uvs[I]);
+        }
+    }
+
     private static byte[]?ExtractTextureBytes(MaterialChannel?Channel)=>
         Channel?.Texture?.PrimaryImage is Image Image?Image.Content.Content.ToArray():null;
 
@@ -364,6 +404,8 @@ public static class GltfImporter {
         if(!UvsUsable){
             Diagnostics.Add(new GltfImportDiagnostic(GltfImportDiagnosticSeverity.Warning, $"'{Context}': TEXCOORD_0 attribute missing or inconsistent; synthesized (0,0) UV for every vertex."));
         }
+        GltfUvTransform?UvTransform=ResolveUvTransform(Primitive.Material,Diagnostics,Context);
+        ApplyUvTransform(RawUvs,UvsUsable,UvTransform);
 
         if(NormalsUsable){
             Positions=RawPositions;
@@ -426,9 +468,10 @@ public static class GltfImporter {
         Accessor?TangentAccessor=Primitive.GetVertexAccessor("TANGENT");
         Vector4[]?RawTangents=TangentAccessor is null?null:[.. TangentAccessor.AsVector4Array()];
         Vector4[]Tangents;
-        if(RawTangents is not null&&RawTangents.Length==Positions.Length){
+        if(RawTangents is not null&&RawTangents.Length==Positions.Length&&UvTransform?.PreservesTangentFrame!=false){
             // A source-provided TANGENT accessor is glTF-space data and must be converted
             // explicitly (xyz direction plus a handedness-sign flip - see GltfAxisConversion.ConvertTangent).
+            // It follows the untransformed +u axis, so a rotating or mirroring UV transform re-derives it below.
             Tangents=new Vector4[RawTangents.Length];
             for(var I=0;I<RawTangents.Length;I++){
                 Tangents[I]=GltfAxisConversion.ConvertTangent(RawTangents[I]);

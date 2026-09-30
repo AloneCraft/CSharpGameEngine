@@ -103,7 +103,7 @@ public class GltfEmissiveTextureLuminanceTests {
         return Result;
     }
 
-    private static byte[] CreateRgbaPng(int Width,int Height,byte[] RgbaPixels){
+    internal static byte[] CreateRgbaPng(int Width,int Height,byte[] RgbaPixels){
         Assert.Equal(Width*Height*4,RgbaPixels.Length);
         byte[] Scanlines=new byte[(Width*4+1)*Height];
         for(var Row=0;Row<Height;Row++){
