@@ -30,6 +30,7 @@ public sealed unsafe class Win32Window:IDisposable {
 
     private readonly Win32InputEventAdapter InputAdapter;
     private bool MouseCaptured;
+    private bool CaptureApplied;
 
     public event Action<int,int>?Resized;
 
@@ -138,12 +139,26 @@ public sealed unsafe class Win32Window:IDisposable {
         this.MouseCaptured=Captured;
 
         if(Captured){
+            // The cursor clip is system-wide: an unfocused window applies it on WM_SETFOCUS instead.
+            this.ApplyCapture(GetFocus()==this.Hwnd);
+        } else {
+            this.ApplyCapture(false);
+            this.InputAdapter.RecordCaptureReleased();
+        }
+    }
+
+    /// <summary>Hides and clips the cursor, or restores it, keeping ShowCursor calls balanced.</summary>
+    private void ApplyCapture(bool Apply){
+        if(Apply==this.CaptureApplied){
+            return;
+        }
+        this.CaptureApplied=Apply;
+        if(Apply){
             _=ShowCursor(FALSE);
             this.ClipCursorToClientArea();
         } else {
             _=ShowCursor(TRUE);
             _=ClipCursor(null);
-            this.InputAdapter.RecordCaptureReleased();
         }
     }
 
@@ -261,16 +276,12 @@ public sealed unsafe class Win32Window:IDisposable {
                 // Keys can't be reliably tracked once another window owns input focus - clear all
                 // state so a key held down during an Alt-Tab doesn't appear "stuck" on return.
                 this.InputAdapter.RecordFocusLost();
-                if(this.MouseCaptured){
-                    _=ShowCursor(TRUE);
-                    _=ClipCursor(null);
-                }
+                this.ApplyCapture(false);
                 return DefWindowProcW(Hwnd,Msg,WParam,LParam);
 
             case WM_SETFOCUS:
                 if(this.MouseCaptured){
-                    _=ShowCursor(FALSE);
-                    this.ClipCursorToClientArea();
+                    this.ApplyCapture(true);
                 }
                 return DefWindowProcW(Hwnd,Msg,WParam,LParam);
 
@@ -294,11 +305,8 @@ public sealed unsafe class Win32Window:IDisposable {
 
         this.Disposed=true;
 
-        if(this.MouseCaptured){
-            _=ShowCursor(TRUE);
-            _=ClipCursor(null);
-            this.MouseCaptured=false;
-        }
+        this.ApplyCapture(false);
+        this.MouseCaptured=false;
 
         if(!this.Destroyed&& this.Hwnd!=HWND.NULL){
             _=DestroyWindow(this.Hwnd);
