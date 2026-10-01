@@ -27,6 +27,37 @@ public sealed class GameProjectGeneratorTests:IDisposable {
         return Path.Combine(new[]{Directory!.FullName}.Concat(Parts).ToArray());
     }
 
+    /// <summary>
+    /// CopySources renames the template namespace as plain text, so in the real template source it may
+    /// only appear as the namespace itself: an identifier such as CgeThirdPersonCharacter would be renamed too.
+    /// </summary>
+    [Fact]
+    public void TemplateSource_UsesItsNamespaceOnlyAsTheNamespace(){
+        var Template=RepositoryFile("templates","CSharpGameEngine.Templates.ThirdPerson");
+        var Whole=new System.Text.RegularExpressions.Regex(@"(?<![A-Za-z0-9_])"+GameProjectGenerator.TemplateNamespace+@"(?![A-Za-z0-9_])");
+        var Files=Directory.EnumerateFiles(Template,"*",SearchOption.AllDirectories)
+            .Where(static File=>File.EndsWith(".cs",StringComparison.OrdinalIgnoreCase)||File.EndsWith(".json",StringComparison.OrdinalIgnoreCase))
+            .Where(static File=>!File.Contains(Path.DirectorySeparatorChar+"bin"+Path.DirectorySeparatorChar)&&!File.Contains(Path.DirectorySeparatorChar+"obj"+Path.DirectorySeparatorChar))
+            .ToArray();
+        Assert.NotEmpty(Files);
+        foreach(var File in Files){
+            var Text=System.IO.File.ReadAllText(File);
+            var All=Text.Split([GameProjectGenerator.TemplateNamespace],StringSplitOptions.None).Length-1;
+            Assert.True(All==Whole.Matches(Text).Count,$"{File} uses '{GameProjectGenerator.TemplateNamespace}' inside another identifier.");
+        }
+    }
+
+    /// <summary>The wizard opens <see cref="GameProjectGenerator.StartupScenePath"/> after creation: it exists and is a scene by the build's rule (ADR-0070).</summary>
+    [Fact]
+    public void GeneratedProject_StartupSceneIsASceneOfTheProject(){
+        var Project=Path.Combine(this.Root,"My Game");
+        var Created=GameProjectGenerator.CopySources(RepositoryFile("templates","CSharpGameEngine.Templates.ThirdPerson"),Project,"My_Game");
+        var Startup=Path.GetFullPath(Path.Combine(Project,GameProjectGenerator.StartupScenePath));
+        Assert.Contains(Startup,Created.Select(Path.GetFullPath));
+        Assert.True(CSharpGameEngine.SceneAnalysis.Json.SceneFiles.IsScene(Startup,Project));
+        Assert.Contains("\"namespace\": \"My_Game.Scenes\"",File.ReadAllText(Startup));
+    }
+
     [Theory]
     [InlineData("MyGame","MyGame")]
     [InlineData("My Game-2","My_Game_2")]

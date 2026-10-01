@@ -9,8 +9,9 @@ namespace CSharpGameEngine.ProjectTemplates;
 /// <summary>
 /// Turns the template source project (templates/CSharpGameEngine.Templates.ThirdPerson) into a new
 /// game project that builds from the CSharpGameEngine.Sdk package (ADR-0065, ADR-0068). Shared by the
-/// Visual Studio project-template wizard and the package end-to-end Stage, so both create exactly the
-/// same project. The template source stays an ordinary compilable project; its namespace
+/// Visual Studio project-template wizard and the package end-to-end Stage, so both create the same
+/// project; only the Visual Studio template adds a ReadMe.md, the item that makes the VSSDK archive the
+/// template's project file (ADR-0068). The template source stays an ordinary compilable project; its namespace
 /// <see cref="TemplateNamespace"/> is replaced here rather than through template tokens.
 /// </summary>
 internal static class GameProjectGenerator {
