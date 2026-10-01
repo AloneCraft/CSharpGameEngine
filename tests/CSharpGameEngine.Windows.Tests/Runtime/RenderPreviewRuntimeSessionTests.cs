@@ -110,6 +110,25 @@ public sealed class RenderPreviewRuntimeSessionTests {
         Assert.Equal(Far,FarAgain);
     }
 
+    /// <summary>
+    /// The view's world is the startup scenes plus the edited scene, and more than one of them may
+    /// carry an active camera (EngineShowcaseScene and FirstPersonStageScene do). The designer camera
+    /// replaces them all, so their count is not the game's "exactly one active camera" rule
+    /// (observed 2026-10-01: FirstPersonStageScene failed with "2 were found").
+    /// </summary>
+    [WindowsOnlyFact]
+    public void EditedSceneWithItsOwnCamera_RendersUnderTheDesignerCamera(){
+        using var Surface=CreateSurface();
+        var Open=CreateOpen(Surface,GameAssembly,"UserEcsProject.Scenes.FirstPersonStageScene");
+        using var Session=RenderPreviewRuntimeSession.Open(Open);
+        Session.UpdateFrame(new RenderPreviewFrame { Camera=Camera(0f,2f,-10f) });
+
+        Session.Render(CaptureForVerification:false);
+        Session.Render(CaptureForVerification:true);
+
+        Assert.False(string.IsNullOrEmpty(Session.LastFrameHash));
+    }
+
     [WindowsOnlyFact]
     public void SelectionAndGizmos_AreDrawnOverTheRuntimeImage(){
         using var Surface=CreateSurface();

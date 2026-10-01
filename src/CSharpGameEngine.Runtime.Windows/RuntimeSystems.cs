@@ -208,7 +208,9 @@ internal struct LevelLoad:ISystem {
         if(this.ActiveCameraCount==0&&Host.EditorCamera is null){
             throw new InvalidOperationException("Runtime requires exactly one active Camera, but none was found.");
         }
-        if(this.ActiveCameraCount>1){
+        // ADR-0070 B1: the editor camera replaces every scene camera, and the editor's world (startup
+        // scenes plus the edited scene) may hold several, so only a game must have exactly one.
+        if(this.ActiveCameraCount>1&&Host.EditorCamera is null){
             throw new InvalidOperationException($"Runtime requires exactly one active Camera, but {this.ActiveCameraCount} were found.");
         }
 
