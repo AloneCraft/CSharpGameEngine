@@ -52,6 +52,8 @@ internal sealed class SceneJsonEditorPane:WindowPane,IOleCommandTarget,IVsWindow
     private IOleCommandTarget?TextViewCommands;
     private IWpfTextViewHost?TextViewHost;
     private JoinableTask?LoadingTask;
+    /// <summary>Cancels a Design view still waiting for its project to load when the tab closes.</summary>
+    private readonly System.Threading.CancellationTokenSource Closing=new();
     private bool Closed;
     private bool Switching;
 
@@ -207,7 +209,11 @@ internal sealed class SceneJsonEditorPane:WindowPane,IOleCommandTarget,IVsWindow
         if(this.Designer?.FixedSceneKey is { }Key&&Key.Equals(Session.PinnedSceneKey)){ return; }
         this.LoadingTask=ThreadHelper.JoinableTaskFactory.RunAsync(async ()=>{
             try {
-                var Models=await Session.AnalyzeFileNowAsync(this.FilePath,System.Threading.CancellationToken.None).ConfigureAwait(false);
+                // M0095 3-7: while the solution loads, the project may not be in the workspace yet.
+                this.DesignMessage.Text=VsixText.Get("SceneEditorStarting");
+                this.DesignHost.Content??=this.DesignMessage;
+                await Session.WaitForDocumentAsync(this.FilePath,this.Closing.Token).ConfigureAwait(false);
+                var Models=await Session.AnalyzeFileNowAsync(this.FilePath,this.Closing.Token).ConfigureAwait(false);
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                 if(this.Closed){ return; }
                 if(Models.Count!=1){
@@ -220,6 +226,8 @@ internal sealed class SceneJsonEditorPane:WindowPane,IOleCommandTarget,IVsWindow
                 this.Designer.FixedSceneKey=Snapshot.Key;
                 this.DesignHost.Content=this.Designer;
                 this.Designer.SetTarget(Session,Snapshot);
+            } catch(OperationCanceledException)when(this.Closing.IsCancellationRequested){
+                // The tab closed while it waited for its project.
             } catch(Exception Error){
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
                 ActivityLog.LogError(nameof(SceneJsonEditorPane),$"Scene Editor design view failed for '{this.FilePath}': {Error}");
@@ -298,6 +306,7 @@ internal sealed class SceneJsonEditorPane:WindowPane,IOleCommandTarget,IVsWindow
     protected override void OnClose(){
         ThreadHelper.ThrowIfNotOnUIThread();
         this.Closed=true;
+        this.Closing.Cancel();
         if(SessionProvider?.Invoke() is { }Session
             &&SceneDesignerTargetFilter.ReleasesPinOnClose(this.Designer?.FixedSceneKey,Session.PinnedSceneKey)){
             Session.ClearPin();

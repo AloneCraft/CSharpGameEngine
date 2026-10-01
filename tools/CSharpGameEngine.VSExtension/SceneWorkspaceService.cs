@@ -217,6 +217,31 @@ internal sealed class SceneWorkspaceService : IDisposable {
     internal DocumentId?FindDocument(string FilePath){
         return this.Workspace.CurrentSolution.GetDocumentIdsWithFilePath(FilePath).FirstOrDefault();
     }
+
+    /// <summary>
+    /// M0095 3-7: completes when <paramref name="FilePath"/> is in the Roslyn workspace. While Visual Studio
+    /// loads a solution (a NuGet restore included) a scene tab can show before its project is there; the
+    /// Scene Editor waits for it instead of failing, and is never left on the error.
+    /// </summary>
+    internal Task WaitForDocumentAsync(string FilePath,CancellationToken CancellationToken){
+        if(this.FindDocument(FilePath) is not null){ return Task.CompletedTask; }
+        var Completion=new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        EventHandler<WorkspaceChangeEventArgs>?Handler=null;
+        CancellationTokenRegistration Registration=default;
+        void Finish(bool Cancelled){
+            this.Workspace.WorkspaceChanged-=Handler;
+            Registration.Dispose();
+            if(Cancelled){ Completion.TrySetCanceled(); } else { Completion.TrySetResult(true); }
+        }
+        Handler=(_,_)=>{
+            if(this.FindDocument(FilePath) is not null){ Finish(Cancelled:false); }
+        };
+        this.Workspace.WorkspaceChanged+=Handler;
+        Registration=CancellationToken.Register(()=>Finish(Cancelled:true));
+        // The document may have arrived between the first look and the subscription.
+        if(this.FindDocument(FilePath) is not null){ Finish(Cancelled:false); }
+        return Completion.Task;
+    }
     /// <summary>
     /// Roslyn の実 ProjectId と完全修飾 Scene 名から、Designer session 用の不変キーを作成します。
     /// ファイルパスや単純クラス名をキーにすると、同名 partial/別プロジェクトの Scene を誤って結合する

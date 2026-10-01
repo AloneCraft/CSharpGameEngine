@@ -82,6 +82,9 @@ internal sealed class SceneEditorSessionService : IDisposable {
         string FilePath,CancellationToken CancellationToken)=>
         this.Workspace.AnalyzeFileNowAsync(FilePath,CancellationToken);
 
+    internal Task WaitForDocumentAsync(string FilePath,CancellationToken CancellationToken)=>
+        this.Workspace.WaitForDocumentAsync(FilePath,CancellationToken);
+
     internal Task<ProjectSceneCatalog?>GetActiveProjectSceneCatalogAsync(
         CancellationToken CancellationToken)=>
         this.Workspace.GetActiveProjectSceneCatalogAsync(CancellationToken);
