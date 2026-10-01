@@ -5,4 +5,6 @@
   <ItemGroup>
     <Compile Remove="$(MSBuildProjectDirectory)\Generated\**\*.cs" />
   </ItemGroup>
+  <!-- Stages do not import the root Directory.Build.targets; the scene schema target is imported here. -->
+  <Import Project="$(MSBuildThisFileDirectory)..\build\CSharpGameEngine.SceneSchema.targets" />
 </Project>

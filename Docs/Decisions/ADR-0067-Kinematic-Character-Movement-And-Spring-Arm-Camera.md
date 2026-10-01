@@ -39,7 +39,7 @@ Observed engine facts: the deterministic physics world answers ray and sweep que
 6. **Template.** The ThirdPerson importer generates the gameplay setup from the manifest.
    - It emits `StaticMeshCollider` on every level mesh.
    - It emits `Input/ThirdPersonInput.cs` from IMC_Default and IMC_MouseLook. Stable IDs are derived from the context and action names.
-   - It emits the `ThirdPersonCharacter` scene (since ADR-0070 converted to `Scenes/ThirdPersonCharacter.scene.json`) at the PlayerStart, converted to metres: the Blueprint's movement values, the PlayerController, a `FollowCamera` child with the SpringArm and Camera, and (since ADR-0066) the animated `Mesh` child that replaced the first capsule and facing-box visual.
+   - It emits the `ThirdPersonCharacter` scene (since ADR-0070 converted to `Scenes/ThirdPersonCharacter.json`) at the PlayerStart, converted to metres: the Blueprint's movement values, the PlayerController, a `FollowCamera` child with the SpringArm and Camera, and (since ADR-0066) the animated `Mesh` child that replaced the first capsule and facing-box visual.
    - Unreal's horizontal FOV of 90° becomes the vertical FOV at the template's 16:9 window.
    - Features without a port are rejected by the importer, not dropped: camera lag, socket or target offsets, FallingLateralFriction, non-radial or trailing dead zones, and swizzles other than YXZ.
    - The hand-written `Gameplay/ThirdPersonControls` system (DoMove/DoLook/DoJump) installs the input map and captures the mouse, except in automation runs. It applies mouse look at 0.175°/count, which is inferred from Unreal's 0.07 axis sensitivity × 2.5 legacy input scale and not measured in Unreal. It applies gamepad look at 150°/s, Unreal's 2.5° per frame at 60 Hz.

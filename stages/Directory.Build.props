@@ -5,6 +5,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <!-- ADR-0070: write .cge/scene.schema.json after the build, the target of the stage scenes' "$schema". -->
+    <CgeGameProject>true</CgeGameProject>
   </PropertyGroup>
   <Import Project="$(MSBuildThisFileDirectory)..\src\CSharpGameEngine.Runtime.Simulation\CSharpGameEngine.Runtime.Simulation.projitems" Label="Shared" />
   <ItemGroup>
