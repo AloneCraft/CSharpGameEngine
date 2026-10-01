@@ -263,6 +263,26 @@ internal sealed class SceneViewState {
     internal void ApplyOrbit(float DeltaX,float DeltaY)=>
         (this.Yaw, this.Pitch)=SceneViewCamera.ApplyLookDelta(this.Yaw, this.Pitch,-DeltaX,-DeltaY,OrbitSensitivity,OrbitSensitivity, this.InvertOrbitX, this.InvertOrbitY);
 
+    /// <summary>
+    /// M0095: orbits around <paramref name="Pivot"/> (the selection's center) and keeps it where it is on
+    /// screen. The camera turns as <see cref="ApplyOrbit(float,float)"/> does, and the eye then moves so the
+    /// pivot has the same camera-space coordinates as before, which is a rigid turn about the pivot: its
+    /// screen point and distance stay, so a sphere there draws exactly the same while orbiting.
+    /// </summary>
+    internal void ApplyOrbit(float DeltaX,float DeltaY,Vector3 Pivot){
+        var Offset=Pivot-this.GetEyePosition();
+        var Right=SceneViewCamera.GetFlatRight(this.Yaw);
+        var Up=SceneViewCamera.GetUp(this.Yaw,this.Pitch);
+        var Forward=SceneViewCamera.GetForward(this.Yaw,this.Pitch);
+        var Local=new Vector3(Vector3.Dot(Offset,Right),Vector3.Dot(Offset,Up),Vector3.Dot(Offset,Forward));
+        this.ApplyOrbit(DeltaX,DeltaY);
+        Right=SceneViewCamera.GetFlatRight(this.Yaw);
+        Up=SceneViewCamera.GetUp(this.Yaw,this.Pitch);
+        Forward=SceneViewCamera.GetForward(this.Yaw,this.Pitch);
+        var Eye=Pivot-(Local.X*Right+Local.Y*Up+Local.Z*Forward);
+        this.FocusPosition=Eye+Forward*this.FocusDistance;
+    }
+
 
     /// <summary>
     /// Alt+LMBドラッグのピクセル完全一致(M0020追加、ベストエフォート)。<paramref name="AnchorWorldPoint"/>

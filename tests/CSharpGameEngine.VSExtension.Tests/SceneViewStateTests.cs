@@ -467,4 +467,39 @@ public sealed class SceneViewStateTests {
         Assert.Equal(ViaTickFly.Yaw,ViaMovementOnly.Yaw,Precision);
         Assert.Equal(ViaTickFly.Pitch,ViaMovementOnly.Pitch,Precision);
     }
+
+    /// <summary>
+    /// M0095 (user request 2026-10-01): Alt+LMB orbit around the selection keeps the selection's center
+    /// where it is on screen, even off the view's center, and at the same distance, so a sphere there
+    /// draws exactly the same while the camera goes around it. The turn equals the plain orbit's.
+    /// </summary>
+    [Theory]
+    [InlineData(40f,0f)]
+    [InlineData(0f,-30f)]
+    [InlineData(-25f,35f)]
+    [InlineData(0f,900f)]
+    public void OrbitAroundAPivot_KeepsThePivotsScreenPointAndDistance(float DeltaX,float DeltaY){
+        SceneViewState State=new(){ FocusPosition=new Vector3(0f,0.5f,0f),FocusDistance=8f,Yaw=0.4f,Pitch=-0.3f };
+        SceneViewState Plain=new(){ FocusPosition=State.FocusPosition,FocusDistance=State.FocusDistance,Yaw=State.Yaw,Pitch=State.Pitch };
+        var Pivot=new Vector3(2.5f,1f,-1.5f);
+        var Before=Project(State,Pivot);
+        var DistanceBefore=Vector3.Distance(State.GetEyePosition(),Pivot);
+        Assert.True(Math.Abs(Before.X)>0.1f||Math.Abs(Before.Y)>0.1f,"the pivot must start off the view's center");
+
+        State.ApplyOrbit(DeltaX,DeltaY,Pivot);
+        Plain.ApplyOrbit(DeltaX,DeltaY);
+
+        var After=Project(State,Pivot);
+        Assert.Equal(Before.X,After.X,4);
+        Assert.Equal(Before.Y,After.Y,4);
+        Assert.Equal(DistanceBefore,Vector3.Distance(State.GetEyePosition(),Pivot),4);
+        Assert.Equal(Plain.Yaw,State.Yaw,5);
+        Assert.Equal(Plain.Pitch,State.Pitch,5);
+        Assert.Equal(8f,State.FocusDistance,5);
+    }
+
+    private static Vector2 Project(SceneViewState State,Vector3 Point){
+        var Clip=Vector4.Transform(new Vector4(Point,1f),State.GetView()*State.GetProjection(16f/9f));
+        return new Vector2(Clip.X/Clip.W,Clip.Y/Clip.W);
+    }
 }

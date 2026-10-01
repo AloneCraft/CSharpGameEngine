@@ -114,6 +114,8 @@ internal sealed class SceneHwndHost:HwndHost {
     // 知らない純粋な状態機械のままにするため、この管理はSceneHwndHostに閉じる。
     private bool LookUsesPixelLock;
     private Vector3 LookAnchorWorldDirection;
+    /// <summary>M0095: the selection's center captured when an Alt+LMB orbit begins; null orbits around the focus.</summary>
+    private Vector3?OrbitPivot;
 
     // M0020 Phase 3: Moveギズモと1操作=1編集トランザクション。
     private readonly EditTransactionController EditTransaction=new();
@@ -1221,6 +1223,8 @@ internal sealed class SceneHwndHost:HwndHost {
         if(Result.Capture==SceneCaptureAction.Begin){
             if(Result.State==SceneNavState.Flying){
                 this.CaptureLookAnchor(Event.X,Event.Y); }
+            if(Result.State==SceneNavState.Orbiting){
+                this.OrbitPivot=this.SelectionCenter(); }
         }
 
         switch(Result.Capture){
@@ -1283,7 +1287,11 @@ internal sealed class SceneHwndHost:HwndHost {
                 }
                 break;
             case SceneNavState.Orbiting:
-                this.ViewState?.ApplyOrbit(Result.DeltaX,Result.DeltaY);
+                if(this.OrbitPivot is { }Pivot){
+                    this.ViewState?.ApplyOrbit(Result.DeltaX,Result.DeltaY,Pivot);
+                } else {
+                    this.ViewState?.ApplyOrbit(Result.DeltaX,Result.DeltaY);
+                }
                 break;
             case SceneNavState.Panning:
                 this.ViewState?.ApplyPan(Result.DeltaX,Result.DeltaY);
@@ -1305,11 +1313,7 @@ internal sealed class SceneHwndHost:HwndHost {
                                                                             State.GetView(),State.GetProjection(this.AspectRatio),X,Y, this.SurfaceWidth, this.SurfaceHeight);
     }
 
-    /// <summary>
-    /// Alt+LMB Down時のアンカー捕捉。Orbitはカメラ位置自体が動くため、世界座標の点(距離込み)が
-    /// 必要(<see cref="SceneViewCamera.TrySolveOrbitYawPitch"/>参照)。何もヒットしなければ
-    /// 現在の注視平面との交点を仮のアンカーにする。
-    /// </summary>
+    /// <summary>LMB Down(Alt無し)のクリック選択用に、カーソル下のオブジェクトを拾う。</summary>
     private NodePath?TryPickAt(int X,int Y){
         if(this.ViewState is not { } State|| this.CurrentRenderObjects.Count==0){
             return null;
@@ -2190,6 +2194,21 @@ internal sealed class SceneHwndHost:HwndHost {
 
         (Vector3 Center,float Radius)=SceneCameraFraming.ComputeSelectionBounds(Selected);
         State.FocusOnBounds(Center,Radius,this.AspectRatio);
+    }
+
+    /// <summary>
+    /// The center of the selection, as Focus Selection frames it: the bounds of the selected objects' meshes,
+    /// or the gizmo's pivot for a selection without one (an empty node, a light). Null without a selection.
+    /// </summary>
+    private Vector3?SelectionCenter(){
+        if(this.SelectedNodePaths.Count==0){
+            return null;
+        }
+        List<SceneRenderObject>Selected=[..this.CurrentRenderObjects.Where(Object=> this.SelectedNodePaths.Contains(Object.NodeId))];
+        if(Selected.Count>0){
+            return SceneCameraFraming.ComputeSelectionBounds(Selected).Center;
+        }
+        return this.CurrentMoveGizmo is { }Gizmo?Gizmo.Pivot:null;
     }
 
     /// <summary>(Re)builds <see cref="Renderer"/> from the pin 済み <see cref="SceneDocumentSnapshot"/>.</summary>
