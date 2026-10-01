@@ -143,6 +143,23 @@ public sealed class SceneJsonCommitPlannerTests {
         Assert.Null(Plan.WriteStep);
         Assert.Contains("SCENE201",Plan.ErrorMessage,StringComparison.Ordinal);
     }
+    /// <summary>
+    /// ADR-0070 (revised by M0095): the Scene Designer analyzes a scene with the build's rules, so a document
+    /// the build rejects (an unknown key, member or type) is not analyzed and nothing is written to it; it is
+    /// fixed in the JSON view, where the same errors show.
+    /// </summary>
+    [Theory]
+    [InlineData("  \"schemaVersion\": 1,\n","  \"schemaVersion\": 1,\n  \"editorNote\": \"x\",\n","SCENE204")]
+    [InlineData("              \"RotationW\": 1,\n","              \"RotationW\": 1,\n              \"Bogus\": 1,\n","SCENE202")]
+    [InlineData("CSharpGameEngine.Runtime.Windows.Light","CSharpGameEngine.Runtime.Windows.Missing","SCENE201")]
+    public void DocumentTheBuildRejects_IsNotAnalyzed(string Find,string Replace,string Diagnostic){
+        var Json=Document("1").Replace(Find,Replace);
+        Assert.NotEqual(Document("1"),Json);
+        var Base=SceneAnalysisTestHelper.CreateCompilation(TransformTypes);
+        Assert.False(SceneJsonCommitPlanner.TryAnalyze(Json,JsonPath,Base,"Game.MainScene",CancellationToken.None,
+            out _,out _,out _,out var Error));
+        Assert.Contains(Diagnostic,Error,StringComparison.Ordinal);
+    }
     private static string[]ChangedLines(string Before,string After){
         var Old=Before.Split('\n');
         var New=After.Split('\n');
