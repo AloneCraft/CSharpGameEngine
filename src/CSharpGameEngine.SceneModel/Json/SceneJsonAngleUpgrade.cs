@@ -6,9 +6,10 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 namespace CSharpGameEngine.SceneAnalysis.Json;
 /// <summary>
-/// ADR-0074: rewrites a schema version 1 scene document as version 2. Each number an angle member holds becomes
-/// turns and <c>schemaVersion</c> becomes 2; every other character of the author's text stays. The result is read
-/// back and must give the same component values as the original, so an upgrade never changes the scene.
+/// ADR-0074: rewrites a schema version 1 or 2 scene document as the current version (3). A version 1 document's
+/// angle numbers become turns, every angle key that uses the C# name becomes its unit-free key, and
+/// <c>schemaVersion</c> becomes 3; every other character of the author's text stays. The result is read back and must
+/// give the same component values as the original, so an upgrade never changes the scene.
 /// </summary>
 internal static class SceneJsonAngleUpgrade {
     internal sealed class Result {
@@ -17,7 +18,7 @@ internal static class SceneJsonAngleUpgrade {
             this.Changed=Changed;
             this.Problems=Problems;
         }
-        /// <summary>The upgraded text (the original when it is already version 2), or <c>null</c> on a problem.</summary>
+        /// <summary>The upgraded text (the original when it is already the current version), or <c>null</c> on a problem.</summary>
         internal string?Text { get; }
         internal bool Changed { get; }
         internal IReadOnlyList<string>Problems { get; }
@@ -27,12 +28,20 @@ internal static class SceneJsonAngleUpgrade {
         if(!Before.Problems.IsEmpty||Before.Root is null){
             return new Result(null,false,[.. Before.Problems.Select(Describe)]);
         }
-        if(Before.SchemaVersion>=SceneJsonAngles.TurnsSchemaVersion){ return new Result(Text,false,[]); }
+        if(Before.SchemaVersion>=SceneJsonSceneAnalyzer.SchemaVersion){ return new Result(Text,false,[]); }
         var Version=SceneJsonReader.Parse(Text).Get("schemaVersion")!;
-        List<(int Start,int End,string Text)>Edits=[(Version.Start,Version.End,SceneJsonAngles.TurnsSchemaVersion.ToString(CultureInfo.InvariantCulture))];
-        foreach(var Angle in Before.AngleValues){
-            var Value=float.Parse(Angle.Text,NumberStyles.Float,CultureInfo.InvariantCulture);
-            Edits.Add((Angle.Start,Angle.End,SceneJsonAngles.FormatTurns(Value,Angle.Unit)));
+        List<(int Start,int End,string Text)>Edits=[(Version.Start,Version.End,SceneJsonSceneAnalyzer.SchemaVersion.ToString(CultureInfo.InvariantCulture))];
+        if(Before.SchemaVersion<SceneJsonAngles.TurnsSchemaVersion){
+            foreach(var Angle in Before.AngleValues){
+                var Value=float.Parse(Angle.Text,NumberStyles.Float,CultureInfo.InvariantCulture);
+                Edits.Add((Angle.Start,Angle.End,SceneJsonAngles.FormatTurns(Value,Angle.Unit)));
+            }
+        }
+        foreach(var Rename in Before.KeyRenames){
+            if(!string.Equals(Text.Substring(Rename.Start,Rename.End-Rename.Start),"\""+Rename.Name+"\"",StringComparison.Ordinal)){
+                return new Result(null,false,[$"the key '{Rename.Name}' at {Rename.Start.ToString(CultureInfo.InvariantCulture)} is escaped; rename it to '{Rename.Key}' by hand."]);
+            }
+            Edits.Add((Rename.Start,Rename.End,"\""+Rename.Key+"\""));
         }
         var Builder=new StringBuilder(Text);
         foreach(var Edit in Edits.OrderByDescending(static Edit=>Edit.Start)){

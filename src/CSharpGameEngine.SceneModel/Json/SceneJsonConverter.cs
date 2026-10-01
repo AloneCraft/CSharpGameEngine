@@ -12,7 +12,8 @@ namespace CSharpGameEngine.SceneAnalysis.Json;
 /// object keyed by the constructor's parameter names, member assignments add their member names, and
 /// constants, enum members and collections become JSON values. Values JSON cannot hold (non-constant
 /// static members, factory calls, unsupported syntax) are reported instead of guessed. The document is schema
-/// version 2: every number inside an <c>[Angle]</c> member is written in turns (ADR-0074).
+/// version 3: every number inside an <c>[Angle]</c> member is written in turns, under the member's key without its
+/// C# unit word (ADR-0074).
 /// </summary>
 internal static class SceneJsonConverter {
     internal sealed class Result {
@@ -81,7 +82,8 @@ internal static class SceneJsonConverter {
             for(var Index=0;Index<Arguments.Count;Index++){
                 var Name=Method.Parameters[Index].Name;
                 Names.Add(Name);
-                Result.Add(Name,Value(Arguments[Index],$"{Where}.{Name}",Problems,Unit??SceneJsonSceneAnalyzer.AngleUnitOf(Method.Parameters[Index])));
+                Result.Add(SceneJsonSceneAnalyzer.KeyOf(Method.Parameters[Index]),
+                    Value(Arguments[Index],$"{Where}.{Name}",Problems,Unit??SceneJsonSceneAnalyzer.AngleUnitOf(Method.Parameters[Index])));
             }
         }
         foreach(var Member in Members){
@@ -90,7 +92,8 @@ internal static class SceneJsonConverter {
                 continue;
             }
             var MemberSymbol=Member.MemberSymbol??(Type as INamedTypeSymbol is { }Named?SceneJsonSceneAnalyzer.FindSettableMemberSymbol(Named,Member.MemberName):null);
-            Result.Add(Member.MemberName,Value(Member.Value,$"{Where}.{Member.MemberName}",Problems,Unit??SceneJsonSceneAnalyzer.AngleUnitOf(MemberSymbol)));
+            Result.Add(MemberSymbol is null?Member.MemberName:SceneJsonSceneAnalyzer.KeyOf(MemberSymbol),
+                Value(Member.Value,$"{Where}.{Member.MemberName}",Problems,Unit??SceneJsonSceneAnalyzer.AngleUnitOf(MemberSymbol)));
         }
         return Result;
     }

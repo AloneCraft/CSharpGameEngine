@@ -10,6 +10,7 @@
   - E: シーン JSON の角度を schemaVersion 2 の turns で保存する。
   - F: ランタイムビューのホストが編集ワールドも動かし、Scene ビューのホストは 1 プロセスになった。
   - G: 物理と Character が `IPhysicsHost` を通るようにした。Physics.Cli はゲームを参照せず、シーンのゲームのビルドを読み込んで bake する。
+  - H: 角度の JSON のキーから C# の単位の語を外した（`FovYRadians` → `FovY`、schemaVersion 3。ユーザーの判断「JSON のキーだけ別名」）。
 - 自動化された証拠: 各項目に、修正前に失敗するテストを追加した。全 19 テストプロジェクトが成功した。テスト:
   - ドラッグの上書きと取り消し
   - 反転の基準の向きと設定の移行
@@ -18,6 +19,7 @@
   - 編集ワールドの 15Hz と停止
   - 層の境界（`EngineLayerSpec`）
   - プロジェクトごとの依存ハッシュ
+  - 角度のキーの別名（生成器・ホスト・Inspector・移行）
 - 実機・実行の証拠:
   - CgeAutomation ハイブで、`PostMessage` のドラッグ中と確定後のランタイム画像を確かめた。Scene ビューのホストは 1 プロセスになり、Spatial のパイプが応答した。
   - CLI で UserEcsProject と ThirdPerson テンプレートのシーンを bake した。
@@ -27,7 +29,6 @@
   - 実機で R 軸の矢印の先端を掴めなかった（未解決）。
   - `HostCrash` のテストの後にスワップチェーンの作成が `E_ACCESSDENIED` になる（統合とは無関係、別タスク）。
   - キーボードを伴う確認は手動に残す。
-  - JSON のキー名（`FovYRadians` などが turns の値を持つ）はユーザーの判断待ち。
 
 ## 2026-10-01 M0095 — テンプレート・シーンエディター・プログラミングモデルの探索的改善
 - 意図: テンプレート、編集フロー、シーンエディター、ゲームコード API の不具合と設計負債を、再現 → 最小修正 → 回帰確認の順に解消する（[M0095](Milestones/M0095-Editor-And-Programming-Model-Hardening.md)、[ADR-0072](Decisions/ADR-0072-Game-Code-Api-Simplification.md)）。

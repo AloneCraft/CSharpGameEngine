@@ -44,6 +44,20 @@ internal sealed class SceneJsonNode {
     internal ImmutableArray<SceneJsonComponent>Components { get; }
     internal ImmutableArray<SceneJsonNode>Children { get; }
 }
+/// <summary>A key that names an angle by its C# name where the current schema writes <see cref="Key"/> (ADR-0074).</summary>
+internal readonly struct SceneJsonKeyRename {
+    internal SceneJsonKeyRename(int Start,int End,string Name,string Key){
+        this.Start=Start;
+        this.End=End;
+        this.Name=Name;
+        this.Key=Key;
+    }
+    /// <summary>The offsets of the key's text, quotes included.</summary>
+    internal int Start { get; }
+    internal int End { get; }
+    internal string Name { get; }
+    internal string Key { get; }
+}
 /// <summary>A number in the document that an angle member holds (ADR-0074), with the member's C# unit.</summary>
 internal readonly struct SceneJsonAngleValue {
     internal SceneJsonAngleValue(int Start,int End,string Text,SceneAngleUnit Unit){
@@ -59,7 +73,8 @@ internal readonly struct SceneJsonAngleValue {
 }
 internal sealed class SceneJsonScene {
     internal SceneJsonScene(string?Namespace,string ClassName,int?StartupOrder,SceneJsonNode?Root,ImmutableArray<SceneJsonProblem>Problems,
-        int SchemaVersion=SceneJsonSceneAnalyzer.SchemaVersion,ImmutableArray<SceneJsonAngleValue>AngleValues=default){
+        int SchemaVersion=SceneJsonSceneAnalyzer.SchemaVersion,ImmutableArray<SceneJsonAngleValue>AngleValues=default,
+        ImmutableArray<SceneJsonKeyRename>KeyRenames=default){
         this.Namespace=Namespace;
         this.ClassName=ClassName;
         this.StartupOrder=StartupOrder;
@@ -67,9 +82,15 @@ internal sealed class SceneJsonScene {
         this.Problems=Problems;
         this.SchemaVersion=SchemaVersion;
         this.AngleValues=AngleValues.IsDefault?ImmutableArray<SceneJsonAngleValue>.Empty:AngleValues;
+        this.KeyRenames=KeyRenames.IsDefault?ImmutableArray<SceneJsonKeyRename>.Empty:KeyRenames;
     }
-    /// <summary>The document's <c>schemaVersion</c>: 2 stores angles in turns, 1 in each member's own unit.</summary>
+    /// <summary>
+    /// The document's <c>schemaVersion</c>: 3 writes angle keys without the C# unit word, 2 and 3 store angles in
+    /// turns, and 1 holds each member's own unit.
+    /// </summary>
     internal int SchemaVersion { get; }
+    /// <summary>Every angle key that uses the C# name where the current schema writes the unit-free key.</summary>
+    internal ImmutableArray<SceneJsonKeyRename>KeyRenames { get; }
     /// <summary>Every number an angle member holds, in document order.</summary>
     internal ImmutableArray<SceneJsonAngleValue>AngleValues { get; }
     internal string?Namespace { get; }
@@ -100,13 +121,14 @@ internal sealed class SceneJsonScene {
 /// <item>a number may also fill a type with an implicit conversion from <c>float</c>
 /// (for example <c>LogicalScalar</c>).</item>
 /// <item>every number inside a member or constructor parameter marked <c>[Angle]</c> is in turns from schema
-/// version 2 on and becomes the member's unit in the emitted literal (ADR-0074); version 1 holds the unit itself.</item>
+/// version 2 on and becomes the member's unit in the emitted literal (ADR-0074); version 1 holds the unit itself.
+/// Its key may leave out the C# unit word (<see cref="KeyOf"/>), which version 3 writes; the C# name still reads.</item>
 /// </list>
 /// Every rejected entry becomes a <see cref="SceneJsonProblem"/> so the whole document is reported at once.
 /// </summary>
 internal static class SceneJsonSceneAnalyzer {
-    /// <summary>The version this code writes (ADR-0074: angles in turns). Version 1 is still read.</summary>
-    internal const int SchemaVersion=SceneJsonAngles.TurnsSchemaVersion;
+    /// <summary>The version this code writes (ADR-0074: angles in turns under unit-free keys). Versions 1 and 2 are still read.</summary>
+    internal const int SchemaVersion=SceneJsonAngles.UnitFreeKeysSchemaVersion;
     /// <summary>How the numbers of angle members read: in turns or in the member's unit, collected for an upgrade.</summary>
     private sealed class AngleReading {
         internal AngleReading(bool Turns){
@@ -114,6 +136,7 @@ internal static class SceneJsonSceneAnalyzer {
         }
         internal bool Turns { get; }
         internal List<SceneJsonAngleValue>Values { get; }=[];
+        internal List<SceneJsonKeyRename>KeyRenames { get; }=[];
     }
     private static readonly string[]DocumentKeys=["$schema","schemaVersion","namespace","className","startupOrder","root"];
     private static readonly string[]NodeKeys=["id","name","components","children"];
@@ -134,10 +157,10 @@ internal static class SceneJsonSceneAnalyzer {
         RejectUnknownKeys(Document,DocumentKeys,"document",Problems);
         var Version=Document.Get("schemaVersion");
         var DocumentVersion=SchemaVersion;
-        if(Version is { Kind:SceneJsonKind.Number,Text:"1" or "2" }){
-            DocumentVersion=Version.Text=="1"?1:2;
+        if(Version is { Kind:SceneJsonKind.Number,Text:"1" or "2" or "3" }){
+            DocumentVersion=int.Parse(Version.Text!,CultureInfo.InvariantCulture);
         } else {
-            Problems.Add(Invalid(Version??Document,$"'schemaVersion' must be 1 or {SchemaVersion}."));
+            Problems.Add(Invalid(Version??Document,$"'schemaVersion' must be 1, 2 or {SchemaVersion}."));
         }
         var Angles=new AngleReading(DocumentVersion>=SceneJsonAngles.TurnsSchemaVersion);
         var Namespace=OptionalString(Document,"namespace",Problems);
@@ -165,7 +188,8 @@ internal static class SceneJsonSceneAnalyzer {
         } else {
             Problems.Add(Invalid(Document,"'root' is required."));
         }
-        return new SceneJsonScene(Namespace,ClassName,StartupOrder,Root,Problems.ToImmutableArray(),DocumentVersion,Angles.Values.ToImmutableArray());
+        return new SceneJsonScene(Namespace,ClassName,StartupOrder,Root,Problems.ToImmutableArray(),DocumentVersion,Angles.Values.ToImmutableArray(),
+            Angles.KeyRenames.ToImmutableArray());
     }
     private static SceneJsonNode?AnalyzeNode(SceneJsonValue Node,ImmutableArray<int>Path,Compilation Compilation,List<SceneJsonProblem>Problems,AngleReading Angles){
         if(Node.Kind!=SceneJsonKind.Object){
@@ -268,27 +292,43 @@ internal static class SceneJsonSceneAnalyzer {
         var Constructor=ChooseConstructor(Type,Keys);
         var Arguments=new List<string>();
         var Consumed=new HashSet<string>(StringComparer.Ordinal);
+        // An angle named by both its C# name and its unit-free key is reported and set from the first of the two.
+        void ReportSameTarget(string Earlier,SceneJsonProperty Later,string Target)=>
+            Problems.Add(new SceneJsonProblem(SceneJsonDiagnostics.InvalidDocument,Later.NameStart,Later.NameStart+Later.Name.Length+2,
+                $"'{Earlier}' and '{Later.Name}' name the same member '{Target}' of {TypeText.Replace("global::",string.Empty)}; keep one."));
+        void RecordKey(SceneJsonProperty Property,string Key){
+            if(Property.Name!=Key){
+                Angles.KeyRenames.Add(new SceneJsonKeyRename(Property.NameStart,Property.NameStart+Property.Name.Length+2,Property.Name,Key));
+            }
+        }
         if(Constructor is not null){
             foreach(var Parameter in Constructor.Parameters){
-                var Property=Properties.FirstOrDefault(Candidate=>Candidate.Name==Parameter.Name);
+                var Key=KeyOf(Parameter);
+                var Property=Properties.FirstOrDefault(Candidate=>Candidate.Name==Parameter.Name||Candidate.Name==Key);
                 if(Property is null){ continue; }
+                if(Properties.FirstOrDefault(Candidate=>Candidate!=Property&&(Candidate.Name==Parameter.Name||Candidate.Name==Key)) is { }Other){
+                    Consumed.Add(Other.Name);
+                    ReportSameTarget(Property.Name,Other,Parameter.Name);
+                }
                 Consumed.Add(Property.Name);
+                RecordKey(Property,Key);
                 Arguments.Add(Parameter.Name+": "+ValueExpression(Parameter.Type,Property.Value,DisplayName+"."+Property.Name,Compilation,Problems,
                     Angles,Unit??AngleUnitOf(Parameter)));
             }
         }
         var Assignments=new List<string>();
         var IncompleteConstructorReported=false;
+        var SeenMembers=new Dictionary<string,string>(StringComparer.Ordinal);
         foreach(var Property in Properties){
             if(Consumed.Contains(Property.Name)){ continue; }
-            var MemberSymbol=FindSettableMemberSymbol(Type,Property.Name);
+            var MemberSymbol=FindSettableMemberSymbol(Type,Property.Name)??FindSettableAngleByKey(Type,Property.Name);
             if(TypeOf(MemberSymbol) is not { }MemberType){
                 // A constructor parameter name that no usable constructor consumed means the other
                 // required arguments are missing; say which, once, instead of "no such member".
                 if(IncompleteConstructorFor(Type,Keys,Property.Name) is { }Incomplete){
                     if(!IncompleteConstructorReported&&Value is not null){
                         IncompleteConstructorReported=true;
-                        var Missing=Incomplete.Parameters.Where(Parameter=>!Keys.Contains(Parameter.Name)&&!Parameter.HasExplicitDefaultValue).Select(static Parameter=>"'"+Parameter.Name+"'");
+                        var Missing=Incomplete.Parameters.Where(Parameter=>!NamesParameter(Keys,Parameter)&&!Parameter.HasExplicitDefaultValue).Select(static Parameter=>"'"+KeyOf(Parameter)+"'");
                         var Signature=Type.Name+"("+string.Join(", ",Incomplete.Parameters.Select(static Parameter=>Parameter.Name))+")";
                         Problems.Add(new SceneJsonProblem(SceneJsonDiagnostics.ValueMismatch,Value.Start,Value.End,DisplayName,Type.ToDisplayString(),
                             $"the constructor {Signature} also needs {string.Join(", ",Missing)}"));
@@ -299,7 +339,13 @@ internal static class SceneJsonSceneAnalyzer {
                 Problems.Add(new SceneJsonProblem(SceneJsonDiagnostics.UnknownMember,NameStart,NameStart+Property.Name.Length+2,SceneTypePredicates.ToFullyQualifiedName(Type).Replace("global::",string.Empty),Property.Name));
                 continue;
             }
-            Assignments.Add(Property.Name+" = "+ValueExpression(MemberType,Property.Value,DisplayName+"."+Property.Name,Compilation,Problems,
+            if(SeenMembers.TryGetValue(MemberSymbol!.Name,out var Earlier)){
+                ReportSameTarget(Earlier,Property,MemberSymbol.Name);
+                continue;
+            }
+            SeenMembers.Add(MemberSymbol.Name,Property.Name);
+            RecordKey(Property,KeyOf(MemberSymbol));
+            Assignments.Add(MemberSymbol.Name+" = "+ValueExpression(MemberType,Property.Value,DisplayName+"."+Property.Name,Compilation,Problems,
                 Angles,Unit??AngleUnitOf(MemberSymbol)));
         }
         var Builder=new StringBuilder("new ").Append(TypeText).Append('(').Append(string.Join(", ",Arguments)).Append(')');
@@ -318,7 +364,7 @@ internal static class SceneJsonSceneAnalyzer {
             var Count=0;
             var Usable=true;
             foreach(var Parameter in Candidate.Parameters){
-                if(Keys.Contains(Parameter.Name)){
+                if(NamesParameter(Keys,Parameter)){
                     Count++;
                 } else if(!Parameter.HasExplicitDefaultValue){
                     Usable=false;
@@ -336,9 +382,37 @@ internal static class SceneJsonSceneAnalyzer {
     private static IMethodSymbol?IncompleteConstructorFor(INamedTypeSymbol Type,HashSet<string>Keys,string Name)=>
         Type.InstanceConstructors
             .Where(static Candidate=>Candidate.DeclaredAccessibility==Accessibility.Public)
-            .Where(Candidate=>Candidate.Parameters.Any(Parameter=>Parameter.Name==Name))
-            .OrderByDescending(Candidate=>Candidate.Parameters.Count(Parameter=>Keys.Contains(Parameter.Name)))
+            .Where(Candidate=>Candidate.Parameters.Any(Parameter=>Parameter.Name==Name||KeyOf(Parameter)==Name))
+            .OrderByDescending(Candidate=>Candidate.Parameters.Count(Parameter=>NamesParameter(Keys,Parameter)))
             .FirstOrDefault();
+    private static bool NamesParameter(HashSet<string>Keys,IParameterSymbol Parameter)=>
+        Keys.Contains(Parameter.Name)||Keys.Contains(KeyOf(Parameter));
+    /// <summary>
+    /// The key a member or constructor parameter has in the document: an <c>[Angle]</c>'s name without its C# unit
+    /// word (ADR-0074, schema version 3), any other name as it is. The C# name of an angle still reads.
+    /// </summary>
+    internal static string KeyOf(ISymbol Symbol){
+        if(AngleUnitOf(Symbol) is null){ return Symbol.Name; }
+        var Type=Symbol is IParameterSymbol{ ContainingSymbol:IMethodSymbol Method }?Method.ContainingType:Symbol.ContainingType;
+        return SceneJsonAngles.KeyFor(Symbol.Name,Key=>IsNameTaken(Type,Key));
+    }
+    /// <summary>Whether a type has a member, or a public constructor a parameter, with this name.</summary>
+    private static bool IsNameTaken(INamedTypeSymbol?Type,string Name){
+        for(ITypeSymbol?Current=Type;Current is not null;Current=Current.BaseType){
+            if(!Current.GetMembers(Name).IsEmpty){ return true; }
+        }
+        return Type is not null&&Type.InstanceConstructors.Any(Constructor=>
+            Constructor.DeclaredAccessibility==Accessibility.Public&&Constructor.Parameters.Any(Parameter=>Parameter.Name==Name));
+    }
+    /// <summary>The settable angle member whose unit-free key is <paramref name="Key"/>.</summary>
+    private static ISymbol?FindSettableAngleByKey(INamedTypeSymbol Type,string Key){
+        for(ITypeSymbol?Current=Type;Current is not null;Current=Current.BaseType){
+            foreach(var Member in Current.GetMembers()){
+                if(Member.Name!=Key&&KeyOf(Member)==Key&&FindSettableMemberSymbol(Type,Member.Name) is { }Settable){ return Settable; }
+            }
+        }
+        return null;
+    }
     internal static ITypeSymbol?FindSettableMember(INamedTypeSymbol Type,string Name)=>TypeOf(FindSettableMemberSymbol(Type,Name));
     /// <summary>The public instance field or settable property a JSON key assigns.</summary>
     internal static ISymbol?FindSettableMemberSymbol(INamedTypeSymbol Type,string Name){

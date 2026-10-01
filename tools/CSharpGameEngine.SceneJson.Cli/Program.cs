@@ -12,8 +12,9 @@ namespace CSharpGameEngine.SceneJson.Cli;
 /// deleting a file that declares nothing else. Nothing is written for a project with any unconvertible
 /// scene.
 /// <para>
-/// <c>upgrade &lt;game .csproj&gt; [--write]</c> (ADR-0074) rewrites every scene file of schema version 1 as version 2:
-/// angles become turns and the rest of the text stays. Nothing is written when any file has a problem.
+/// <c>upgrade &lt;game .csproj&gt; [--write]</c> (ADR-0074) rewrites every scene file of schema version 1 or 2 as the
+/// current version 3: angles become turns, angle keys leave out the C# unit word, and the rest of the text stays.
+/// Nothing is written when any file has a problem.
 /// </para>
 /// </summary>
 internal static class Program {
@@ -45,7 +46,7 @@ internal static class Program {
                 Failed=true;
                 continue;
             }
-            Console.WriteLine($"CGE-SCENE-JSON {(Result.Changed?"upgraded":"already version 2")} {ScenePath}");
+            Console.WriteLine($"CGE-SCENE-JSON {(Result.Changed?"upgraded":"already version "+SceneJsonSceneAnalyzer.SchemaVersion.ToString(System.Globalization.CultureInfo.InvariantCulture))} {ScenePath}");
             if(Result.Changed){ Outputs.Add((ScenePath,Result.Text!)); }
         }
         if(Failed){

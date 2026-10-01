@@ -11,7 +11,8 @@ namespace CSharpGameEngine.EditorPreview.Host;
 /// fill numeric members or types with an implicit conversion from <c>float</c>, and objects use the
 /// public constructor that consumes the most keys and then settable members. The runtime view uses it
 /// to apply the editor's values to the running world; the generator has already checked the document.
-/// In a schema version 2 document every number inside an <c>[Angle]</c> member is in turns (ADR-0074).
+/// In a schema version 2 or later document every number inside an <c>[Angle]</c> member is in turns, and an angle's key
+/// may leave out the C# unit word (ADR-0074, <see cref="SceneJsonAngles.KeyFor"/>).
 /// </summary>
 internal static class SceneJsonRuntimeValues {
     internal static object?Create(Type Type,SceneJsonValue Value,string Where)=>Create(Type,Value,Where,new Reading(Turns:false),null);
@@ -125,8 +126,10 @@ internal static class SceneJsonRuntimeValues {
         object Instance;
         if(Constructor is not null){
             var Arguments=Constructor.GetParameters().Select(Parameter=>{
-                if(Value.Get(Parameter.Name!) is { }Argument){
+                var Key=KeyOf(Type,Parameter.Name!,Parameter.CustomAttributes);
+                if((Value.Get(Parameter.Name!)??Value.Get(Key)) is { }Argument){
                     Consumed.Add(Parameter.Name!);
+                    Consumed.Add(Key);
                     return Create(Parameter.ParameterType,Argument,Where+"."+Parameter.Name,Reading,Unit??AngleUnitOf(Parameter.CustomAttributes));
                 }
                 return Parameter.DefaultValue;
@@ -161,7 +164,7 @@ internal static class SceneJsonRuntimeValues {
             var Count=0;
             var Usable=true;
             foreach(var Parameter in Candidate.GetParameters()){
-                if(Keys.Contains(Parameter.Name!)){
+                if(Keys.Contains(Parameter.Name!)||Keys.Contains(KeyOf(Type,Parameter.Name!,Parameter.CustomAttributes))){
                     Count++;
                 } else if(!Parameter.HasDefaultValue){
                     Usable=false;
@@ -176,10 +179,27 @@ internal static class SceneJsonRuntimeValues {
         return BestCount>0?Best:null;
     }
 
+    /// <summary>The settable member a key names: by its C# name, or an angle by its unit-free key.</summary>
     private static MemberInfo?FindSettableMember(Type Type,string Name){
+        if(FindSettableMemberNamed(Type,Name) is { }Named){ return Named; }
+        foreach(var Member in Type.GetMembers(BindingFlags.Public|BindingFlags.Instance)){
+            if(Member.Name!=Name&&KeyOf(Type,Member.Name,Member.CustomAttributes)==Name&&FindSettableMemberNamed(Type,Member.Name) is { }Angle){
+                return Angle;
+            }
+        }
+        return null;
+    }
+
+    private static MemberInfo?FindSettableMemberNamed(Type Type,string Name){
         if(Type.GetField(Name,BindingFlags.Public|BindingFlags.Instance) is { IsInitOnly:false,IsLiteral:false }Field){ return Field; }
         return Type.GetProperty(Name,BindingFlags.Public|BindingFlags.Instance) is { SetMethod.IsPublic:true }Property?Property:null;
     }
+
+    /// <summary>The key of a member or constructor parameter, by the generator's rule (<c>SceneJsonSceneAnalyzer.KeyOf</c>).</summary>
+    private static string KeyOf(Type Type,string Name,IEnumerable<CustomAttributeData>Attributes)=>
+        AngleUnitOf(Attributes) is null?Name:SceneJsonAngles.KeyFor(Name,Key=>
+            Type.GetMember(Key,BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Instance|BindingFlags.Static).Length>0
+            ||Type.GetConstructors(BindingFlags.Public|BindingFlags.Instance).Any(Constructor=>Constructor.GetParameters().Any(Parameter=>Parameter.Name==Key)));
 
     private static InvalidOperationException Mismatch(string Where,Type Type,string Reason)=>
         new($"The value for '{Where}' does not fit '{Type.FullName}': {Reason}.");

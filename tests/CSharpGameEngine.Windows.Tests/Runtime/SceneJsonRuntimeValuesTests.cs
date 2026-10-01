@@ -29,6 +29,15 @@ public sealed class SceneJsonRuntimeValuesTests {
         public List<float>List=[];
         public ImmutableArray<Shade>Shades=[];
     }
+    public struct Aim {
+        [CSharpGameEngine.Contracts.Angle(CSharpGameEngine.Contracts.AngleUnit.Degrees)] public float YawDegrees;
+        [CSharpGameEngine.Contracts.Angle(CSharpGameEngine.Contracts.AngleUnit.Radians)] public float FovRadians;
+        [CSharpGameEngine.Contracts.Angle(CSharpGameEngine.Contracts.AngleUnit.Degrees)] public float PitchDegrees;
+        public float Pitch;
+    }
+    public readonly struct Cone([CSharpGameEngine.Contracts.Angle(CSharpGameEngine.Contracts.AngleUnit.Degrees)]float OuterDegrees) {
+        public float OuterDegrees { get; }=OuterDegrees;
+    }
 
     [Theory]
     [InlineData("PrimitiveShowcaseBoxScene")]
@@ -82,6 +91,19 @@ public sealed class SceneJsonRuntimeValuesTests {
         Assert.Throws<InvalidOperationException>(()=>SceneJsonRuntimeValues.Component(typeof(Sample),SceneJsonReader.Parse("""{ "Mode": "Dim" }"""),"Sample"));
         Assert.Throws<InvalidOperationException>(()=>SceneJsonRuntimeValues.Component(typeof(Sample),SceneJsonReader.Parse("""{ "Small": 300 }"""),"Sample"));
         Assert.Throws<InvalidOperationException>(()=>SceneJsonRuntimeValues.Component(typeof(Sample),SceneJsonReader.Parse("""{ "Missing": 1 }"""),"Sample"));
+    }
+
+    /// <summary>ADR-0074 version 3: an angle's key may leave out the C# unit word, as the generator reads it.</summary>
+    [Fact]
+    public void AngleKeys_ReadWithoutTheUnitWordAndByTheCSharpName(){
+        var Unitless=(Aim)SceneJsonRuntimeValues.Component(typeof(Aim),
+            SceneJsonReader.Parse("""{ "Yaw": 0.25, "Fov": 0.25, "PitchDegrees": 0.125, "Pitch": 7 }"""),"Aim",Turns:true);
+        Assert.Equal((90f,1.5707964f,45f,7f),(Unitless.YawDegrees,Unitless.FovRadians,Unitless.PitchDegrees,Unitless.Pitch));
+        var Named=(Aim)SceneJsonRuntimeValues.Component(typeof(Aim),
+            SceneJsonReader.Parse("""{ "YawDegrees": 0.25, "FovRadians": 0.25 }"""),"Aim",Turns:true);
+        Assert.Equal((90f,1.5707964f),(Named.YawDegrees,Named.FovRadians));
+        var Cone=(Cone)SceneJsonRuntimeValues.Component(typeof(Cone),SceneJsonReader.Parse("""{ "Outer": 0.25 }"""),"Cone",Turns:true);
+        Assert.Equal(90f,Cone.OuterDegrees);
     }
 
     private static IEnumerable<SceneJsonValue>PreOrder(SceneJsonValue Node){

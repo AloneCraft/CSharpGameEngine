@@ -15,6 +15,7 @@ M0095 の後にユーザーから受けた不具合報告と設計判断を、M0
 | E | シーン JSON の角度を turns（1 = 1 回転）で保存し、Inspector は度で表示 | 完了（d63ef02、ADR-0074、SDK 0.1.7 は 21e9b6f） |
 | F | Scene ビューの 2 プロセス（ランタイムビューと編集ワールド）の統合 | 完了（9b17de6、ADR-0047 に追記、SDK 0.1.8 は 1688528） |
 | G | Runtime.Physics / Character の Windows 依存の解消と、`Physics.Cli` の UserEcsProject 依存の除去 | 完了（6f8b056、SDK 0.1.9 は b22dcdd） |
+| H | 角度の JSON のキーから C# の単位の語を外す（ユーザー判断「JSON のキーだけ別名」） | 完了（本コミット、ADR-0074 決定 5） |
 
 ## A. ギズモ操作をランタイムビューに反映
 - 原因: ドラッグ中、VSIX は動かしたオブジェクトの行列を `RenderPreviewFrame.Objects[].World` で送るが、ランタイムビュー（`RenderPreviewRuntimeSession.UpdateFrame`）は `Objects` を選択表示にしか使わない。ゲームのワールドは文書の値で描くので、テキストに書き込まれる確定までオブジェクトは動かず、ギズモだけが動いていた。
@@ -43,7 +44,7 @@ M0095 の後にユーザーから受けた不具合報告と設計判断を、M0
 
 ## C. 削除
 - `VsixStrings.en-US.resx`: 中身は日本語で、実行時には使われていなかった。アセンブリの `NeutralLanguage` が en-US なので、`ResourceManager` は en-US を要求されても本体の既定リソース（`VsixStrings.resx`、英語）を返し、en-US のサテライトを参照しない。参照箇所もテストも無い。
-- obj だけ残った旧ディレクトリ: 承認時は 16 個と数えていたが、同じ基準（追跡ファイルなし、中身は 2026-08-21 の NuGet 復元の中間ファイル 5 個だけ、gitignore 対象）で 24 個あった。数え違いと判断し、24 個とも削除した。
+- obj だけ残った旧ディレクトリ: 承認時は 16 個と数えていたが、同じ基準（追跡ファイルなし、中身は 2026-08-21 の NuGet 復元の中間ファイル 5 個だけ、gitignore 対象）で 24 個あった。数え違いと判断し、24 個とも削除した。報告の後、ユーザーが 24 個の削除を承認した（2026-10-01「削除していい」）。
   - `src/` の `Compiler.Hlsl`、`Geometry`、`Graphics.D3D12`、`Import.Fbx`、`Import.Gltf`、`Platform.Windows`、`Scene`、`Spatial.Abstractions`、`Spatial.Blender`、`Spatial.Fbx`、`Spatial.Gltf`、`Spatial.Unity`、`Spatial.Unreal`
   - `tests/` の `Compiler.Hlsl.Tests`、`Geometry.Tests`、`Graphics.D3D12.Tests`、`Import.Fbx.Tests`、`Import.Gltf.Tests`、`Scene.Tests`、`SceneAuthoring.Cli.Tests`、`Spatial.Tests`、`UserGameProject.Tests`
   - `tools/CSharpGameEngine.SceneAuthoring.Cli`、`UserGameProject/`
@@ -91,7 +92,7 @@ M0095 の後にユーザーから受けた不具合報告と設計判断を、M0
   - `SceneJsonAnglesTests`（SceneModel）: 表記の最短性と、2 万個の float の往復。
   - `SceneInspectorModelTests.Build_AngleMembers_ShowAndTakeDegrees`（VSExtension）。
   - 既存の `SceneJsonRuntimeValuesTests` は、プレビューホストが turns の文書から生成器と同じ値を作ることを確かめる（文書の版を渡すように直した）。
-- ユーザーの判断事項: JSON のキーは C# のメンバー名のままなので、`FovYRadians` や `SunDiskAngleDegrees` のキーに turns の値が入る。メンバー名から単位を外すか、JSON のキーだけ別名にするか。
+- ユーザーの判断事項だったもの: JSON のキーが C# のメンバー名のままで、`FovYRadians` や `SunDiskAngleDegrees` のキーに turns の値が入っていた。ユーザーは「JSON のキーだけ別名」を選んだ（H で実施）。
 
 ## F. プレビューの 2 プロセスを 1 つに（ADR-0047 に追記）
 - ランタイムビューのレンダーサーバが、同じ ALC・同じブリッジで編集ワールドも動かす。`Initialize(scene)` をビューの後に呼び、15Hz の `TickRealtime` はセッションのタイマーで回し、`Dispose` で `Shutdown` する。2 つの World は分けたまま。tick と全ての要求は同じロックで直列化した。
@@ -134,3 +135,28 @@ M0095 の後にユーザーから受けた不具合報告と設計判断を、M0
   - ThirdPerson テンプレート（`CgeThirdPerson`）の `Lvl_ThirdPerson` も bake できた。Assets ありは 1.48MB、Assets を除いたコピーは 1.9KB になった。衝突メッシュはゲームのビルドのフォルダから読まれている。
   - VSIX のサービスを既定の経路（ホストのビルド → テンプレートのゲームのビルド → 常駐ブリッジで bake）で一度実行し、成功した（37 秒、一時テストで確認し、出力とテストは削除した）。成果物のビルドと VS のビルドで bake の結果はバイト単位で同一だった。
 - 残り: リポジトリの外（SDK パッケージのワークスペース）では、これまでどおり Bake にはエンジンのソースが必要。ホストがゲームに依存しなくなったので、パッケージに同梱したホストを使う形にできる（未実施）。
+
+## H. 角度のキーの別名（ADR-0074 決定 5）
+- ユーザーの判断（2026-10-01）: C# のメンバー名は変えず、JSON のキーだけを別名にする。
+- 規則: 角度（`[Angle]`）のメンバーとコンストラクタ引数のキーは、C# の名前の末尾の `Radians` / `Degrees` を外したもの。外した名前が空のとき、または同じ型の別のメンバーか public コンストラクタの引数が使っているときは、C# の名前のまま。規則は `SceneJsonAngles.KeyFor` の 1 か所にある。
+- 規則を各メンバーに書く属性ではなく、規則にした理由: 新しい角度のメンバーで別名の付け忘れが起きず、「JSON のキーは turns 以外の単位を名乗らない」が常に成り立つ。
+- 変更:
+  - 生成器（`SceneJsonSceneAnalyzer`）は、別名と C# の名前のどちらでも読む。同じメンバーを両方で書くと SCENE204 になる。生成する C# は C# のメンバー名で書く。
+  - 変換器はキーを別名で書く。スキーマは別名で載せ、説明に C# のメンバー名を書く。
+  - プレビューホスト（`SceneJsonRuntimeValues`）も、リフレクションで同じ規則を使う。
+  - Inspector の行の名前は別名（`Fov (°)`）にした。編集の対象とツールチップは C# の名前のまま。
+  - `schemaVersion` を 3 にした。別名を知らない古い生成器に「版が対応外」と報告させるため。版 1 と 2 も読む。
+  - 移行コマンド（`upgrade`）は、版 1 と 2 を版 3 にする（版 1 は数値も turns にする）。キーの名前の範囲だけを書き換え、書き換えた後に読み直して値が同じことを確かめる。
+- 移行: リポジトリの 29 シーン（UserEcsProject 16、ThirdPerson テンプレート 3、stages 10）を版 3 にした。全ファイルで移行の検証が通った。変わったのは版の行と、テンプレートの 5 つのキー（`SunDiskAngle`、`WalkableFloorAngle`、`RotationRate`、`ControlYaw`、`FovY`）だけ。新規シーンの項目テンプレートも版 3 にした。
+- テスト（修正前に失敗することを確認）:
+  - `SceneJsonAngleTests`（CodeAnalysis）の 7 件:
+    - 別名と C# の名前で同じ値になる
+    - コンストラクタ引数の別名と、名前が使われているときの扱い
+    - 両方のキーの拒否
+    - 変換器の版 3 と別名
+    - 版 1 と 2 からの移行
+    - スキーマ
+  - `SceneJsonRuntimeValuesTests.AngleKeys_ReadWithoutTheUnitWordAndByTheCSharpName`: ホストの変更を退避すると「'Yaw' is not a settable member」で失敗した。
+  - `SceneInspectorModelTests.Build_AngleMembers_ShowAndTakeDegrees`: 行の名前を `Fov (°)` に変更した。
+  - 追加: 版 2 の文書への編集のマージ結果が、版 3 の正準形で同じ値になる（`EditMerge_OverAVersionTwoDocumentWritesTheCurrentForm`）。
+- 既存のテストの更新: 対応しない版の例を 3 から 4 にした。コミット計画のテストのひな形を版 3 にした。版 2 の文書を編集すると版の行も 3 になるためで、上の追加テストで確かめている。

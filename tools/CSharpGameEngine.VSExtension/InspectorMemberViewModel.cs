@@ -55,9 +55,9 @@ internal sealed class InspectorMemberViewModel:InspectorSelectableViewModel {
 
     /// <summary>グルーピング表示での行ラベル。Component名はExpanderのヘッダ側が出すので重ねない
     /// (<see cref="Label"/>は引き続きツールチップで完全な位置を示すために使う)。</summary>
-    public string MemberName=>this.Member.PhysicalContract is { }Physical?this.Member.MemberName+" ("+Physical.Unit+"; "+string.Join(", ",Physical.Parameters)+")"
-        :this.Member.AngleUnit is not null?this.Member.MemberName+" (°)"
-        :this.Member.MemberName;
+    public string MemberName=>this.Member.PhysicalContract is { }Physical?this.Member.DisplayName+" ("+Physical.Unit+"; "+string.Join(", ",Physical.Parameters)+")"
+        :this.Member.AngleUnit is not null?this.Member.DisplayName+" (°)"
+        :this.Member.DisplayName;
 
     public InspectorEditorKind EditorKind=>this.Member.EditorKind;
 

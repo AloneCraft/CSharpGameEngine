@@ -16,6 +16,9 @@ internal enum SceneAngleUnit:byte {
 internal static class SceneJsonAngles {
     /// <summary>The first schema version whose angles are turns; version 1 holds each member's own unit.</summary>
     internal const int TurnsSchemaVersion=2;
+    /// <summary>The first schema version whose angle keys leave out the C# unit word (<see cref="KeyFor"/>).</summary>
+    internal const int UnitFreeKeysSchemaVersion=3;
+    private static readonly string[]UnitWords=["Radians","Degrees"];
     /// <summary>The full name of the attribute that declares an angle member.</summary>
     internal const string AttributeFullName="CSharpGameEngine.Contracts.AngleAttribute";
     private enum Factor:byte {
@@ -30,6 +33,21 @@ internal static class SceneJsonAngles {
     internal static float FromDegrees(string Text,SceneAngleUnit Unit)=>Multiply(Text,Unit==SceneAngleUnit.Radians?Factor.DegreesToRadians:Factor.One);
     internal static string FormatTurns(float Value,SceneAngleUnit Unit)=>Shortest(Value,Unit==SceneAngleUnit.Radians?Factor.TurnsToRadians:Factor.TurnsToDegrees);
     internal static string FormatDegrees(float Value,SceneAngleUnit Unit)=>Shortest(Value,Unit==SceneAngleUnit.Radians?Factor.DegreesToRadians:Factor.One);
+    /// <summary>
+    /// The JSON key of an angle member or constructor parameter named <paramref name="Name"/>: the name without its
+    /// trailing unit word, because the document holds turns (<c>FovYRadians</c> is <c>FovY</c>; user choice,
+    /// 2026-10-01: the C# names stay). A name that would become empty, or whose key the type already uses for another
+    /// member or parameter, keeps its name.
+    /// </summary>
+    internal static string KeyFor(string Name,Func<string,bool>IsTaken){
+        foreach(var Word in UnitWords){
+            if(Name.Length>Word.Length&&Name.EndsWith(Word,StringComparison.Ordinal)){
+                var Key=Name.Substring(0,Name.Length-Word.Length);
+                return IsTaken(Key)?Name:Key;
+            }
+        }
+        return Name;
+    }
     /// <summary>Whether a text is a finite JSON number this class can convert.</summary>
     internal static bool IsNumber(string?Text)=>
         Text is { Length:>0 }&&float.TryParse(Text,NumberStyles.Float,CultureInfo.InvariantCulture,out var Value)&&!float.IsInfinity(Value)&&!float.IsNaN(Value);

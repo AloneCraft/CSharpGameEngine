@@ -1,6 +1,6 @@
 {
   "$schema": "../.cge/scene.schema.json",
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "namespace": "CSharpGameEngine.FeatureStages.Coupling",
   "className": "CouplingReferenceScene",
   "root": {

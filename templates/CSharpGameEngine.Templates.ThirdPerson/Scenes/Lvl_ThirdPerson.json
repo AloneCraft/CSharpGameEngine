@@ -1,6 +1,6 @@
 {
   "$schema": "../.cge/scene.schema.json",
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "namespace": "CgeThirdPerson.Scenes",
   "className": "Lvl_ThirdPerson",
   "startupOrder": 1,
@@ -38,7 +38,7 @@
           "OtherTentTipAltitudeKm": 25,
           "OtherTentWidthKm": 30,
           "MultiScatteringFactor": 1,
-          "SunDiskAngleDegrees": 0.0020436111
+          "SunDiskAngle": 0.0020436111
         }
       },
       {

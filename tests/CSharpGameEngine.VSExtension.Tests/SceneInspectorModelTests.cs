@@ -454,7 +454,9 @@ public sealed class SceneInspectorModelTests {
         Assert.Equal(SceneAngleUnit.Radians,Fov.AngleUnit);
         var FovRow=new InspectorMemberViewModel(Fov);
         Assert.Equal("90",FovRow.DisplayText);
-        Assert.Equal("FovRadians (°)",FovRow.MemberName);
+        // The label is the scene JSON key, which leaves out the C# unit word (ADR-0074); edits still name the C# member.
+        Assert.Equal("Fov (°)",FovRow.MemberName);
+        Assert.Equal("FovRadians",Fov.MemberName);
         Assert.True(SceneInspectorValueFormat.TryFormatAngle(Fov.NumericType!.Value,"45",Fov.AngleUnit!.Value,out var Expression));
         Assert.Equal("0.7853982f",Expression);
         Assert.Null(BuildSingleMember(Snapshot,"Eye","Plain").AngleUnit);

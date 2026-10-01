@@ -27,7 +27,7 @@ The user asked for an Unreal/Unity-like editor:
 1. **Scenes are JSON documents under the project's `Scenes` folder: `Scenes\**\*.json`.** (Revised 2026-10-01 at the user's request: the files were `*.scene.json` until then.)
    - A scene file needs no special extension. Which `.json` is a scene is decided by its folder, relative to the project: `SceneFiles.IsScene` in the shared SceneModel sources is the one rule. The build includes exactly `Scenes\**\*.json`; the generator applies the rule with the build's `ProjectDir` (a `CompilerVisibleProperty`), and the Visual Studio extension with the project's file or, given only a path, the nearest folder with a `*.csproj`. JSON elsewhere (`appsettings.json`, assets) is never a scene.
    - A converted C# scene goes to `Scenes/<ClassName>.json`, next to its source when that is already under `Scenes`.
-   - Each file declares `"$schema"` pointing at `schemas/cge-scene.schema.json`, so the VS JSON editor completes and validates it. Its `schemaVersion` is 2: every number inside an `[Angle]` member is in turns (ADR-0074). Version 1, with each member's own unit, is still read and `SceneJson.Cli upgrade` rewrites it.
+   - Each file declares `"$schema"` pointing at `schemas/cge-scene.schema.json`, so the VS JSON editor completes and validates it. Its `schemaVersion` is 3: every number inside an `[Angle]` member is in turns, under a key without the C# unit word (ADR-0074). Versions 1 (each member's own unit) and 2 (C# names as keys) are still read, and `SceneJson.Cli upgrade` rewrites them.
    - It holds the scene's namespace, class name, optional startup order and a node tree.
    - Each node has a stable `id`, a `name`, `components` and `children`.
    - A component is its C# type's full name plus member values.

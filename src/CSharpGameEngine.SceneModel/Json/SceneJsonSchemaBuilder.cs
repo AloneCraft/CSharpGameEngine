@@ -49,8 +49,8 @@ internal static class SceneJsonSchemaBuilder {
             .Add("additionalProperties",SceneJsonOut.Boolean(false))
             .Add("properties",SceneJsonOut.Object(Multiline:true)
                 .Add("$schema",SceneJsonOut.Object().Add("type",SceneJsonOut.String("string")))
-                .Add("schemaVersion",Described(SceneJsonOut.Object().Add("enum",SceneJsonOut.Array().Add(SceneJsonOut.Number("1")).Add(SceneJsonOut.Number("2"))),
-                    "2 stores every angle in turns (1 = one full rotation); 1 holds each member's own unit and is still read."))
+                .Add("schemaVersion",Described(SceneJsonOut.Object().Add("enum",SceneJsonOut.Array().Add(SceneJsonOut.Number("1")).Add(SceneJsonOut.Number("2")).Add(SceneJsonOut.Number("3"))),
+                    "3 stores every angle in turns (1 = one full rotation) under a key without the C# unit word; 2 uses the C# names; 1 holds each member's own unit. All are read."))
                 .Add("namespace",SceneJsonOut.Object().Add("type",SceneJsonOut.String("string")))
                 .Add("className",SceneJsonOut.Object().Add("type",SceneJsonOut.String("string")))
                 .Add("startupOrder",SceneJsonOut.Object().Add("type",SceneJsonOut.String("integer")))
@@ -97,16 +97,18 @@ internal static class SceneJsonSchemaBuilder {
             var Names=new HashSet<string>(StringComparer.Ordinal);
             foreach(var Constructor in Type.InstanceConstructors.Where(static Candidate=>Candidate.DeclaredAccessibility==Accessibility.Public)){
                 foreach(var Parameter in Constructor.Parameters){
-                    if(Names.Add(Parameter.Name)){
-                        Properties.Add(Parameter.Name,Described(ValueSchema(Parameter.Type,Compilation,Definitions,Defined),
+                    var ParameterKey=SceneJsonSceneAnalyzer.KeyOf(Parameter);
+                    if(Names.Add(ParameterKey)){
+                        Properties.Add(ParameterKey,Described(ValueSchema(Parameter.Type,Compilation,Definitions,Defined),
                             AngleNote(Parameter)+"Constructor parameter of "+Type.Name+"."));
                     }
                 }
             }
             foreach(var Member in SettableMembers(Type)){
-                if(!Names.Add(Member.Name)){ continue; }
+                var MemberKey=SceneJsonSceneAnalyzer.KeyOf(Member.Symbol);
+                if(!Names.Add(MemberKey)){ continue; }
                 var Schema=ValueSchema(Member.Type,Compilation,Definitions,Defined);
-                Properties.Add(Member.Name,AngleNote(Member.Symbol) is { Length:>0 }Note?Described(Schema,Note.TrimEnd()):Schema);
+                Properties.Add(MemberKey,AngleNote(Member.Symbol) is { Length:>0 }Note?Described(Schema,Note.TrimEnd()):Schema);
             }
             Definitions.Add(Key,SceneJsonOut.Object(Multiline:true)
                 .Add("type",SceneJsonOut.String("object"))
@@ -118,7 +120,7 @@ internal static class SceneJsonSchemaBuilder {
     /// <summary>ADR-0074: an angle member's numbers are turns in the document, whatever its C# unit.</summary>
     private static string AngleNote(ISymbol Symbol)=>
         SceneJsonSceneAnalyzer.AngleUnitOf(Symbol) is { }Unit
-            ?"Angle in turns (1 = one full rotation; the C# member is in "+(Unit==SceneAngleUnit.Radians?"radians":"degrees")+"). "
+            ?"Angle in turns (1 = one full rotation; the C# member "+Symbol.Name+" is in "+(Unit==SceneAngleUnit.Radians?"radians":"degrees")+"). "
             :string.Empty;
     private static IEnumerable<(string Name,ITypeSymbol Type,ISymbol Symbol)>SettableMembers(INamedTypeSymbol Type){
         for(ITypeSymbol?Current=Type;Current is not null&&Current.SpecialType!=SpecialType.System_ValueType&&Current.SpecialType!=SpecialType.System_Object;Current=Current.BaseType){
