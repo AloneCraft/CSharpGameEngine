@@ -584,11 +584,14 @@ internal sealed class SceneWorkspaceService : IDisposable {
         this.OpenWithoutActivating(DocumentId);
     }
 
-    /// <summary>The live text of a solution document (a scene JSON's unsaved edits included); null when it is not loaded.</summary>
+    /// <summary>
+    /// The live text of a solution document (a scene JSON's unsaved edits included); null when it is not loaded.
+    /// The text's container is the open editor buffer, which a gizmo commit writes before Roslyn's solution follows.
+    /// </summary>
     internal string?TryGetLiveText(string FilePath){
         DocumentId?Id=this.FindDocument(FilePath);
         return Id is not null&&GetTextDocument(this.Workspace.CurrentSolution,Id) is { }Document&&Document.TryGetText(out SourceText?Text)
-            ?Text.ToString()
+            ?Text.Container.CurrentText.ToString()
             :null;
     }
 

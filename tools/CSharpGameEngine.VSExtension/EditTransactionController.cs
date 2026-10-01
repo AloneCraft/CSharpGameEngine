@@ -136,6 +136,9 @@ internal sealed class EditTransactionController {
     /// </summary>
     internal IReadOnlyList<SceneTransformPreview>CurrentPreviews=>this.Previews;
 
+    /// <summary>The drag's roots with their parents' world, paired by index with <see cref="CurrentPreviews"/>.</summary>
+    internal IReadOnlyList<SceneTransformTarget>CurrentTargets=>this.Targets;
+
     internal void Begin(SceneDocumentSnapshot Snapshot,IReadOnlyList<SceneTransformTarget>Targets){
         if(this.State!=EditTransactionState.Idle){
             throw new InvalidOperationException(VsixText.Get("EditTransactionAlreadyActive"));

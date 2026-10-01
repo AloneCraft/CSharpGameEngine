@@ -87,7 +87,8 @@ internal static class RenderPreviewSceneBuilder {
         SceneViewRenderMode RenderMode,IReadOnlyCollection<NodePath>SelectedPaths,
         IReadOnlyList<GizmoOverlayPrimitive>Overlay,
         IReadOnlyList<RenderPreviewCameraPass>CameraPreviews,
-        float FovYRadians=SceneCameraFraming.DefaultFovYRadians){
+        float FovYRadians=SceneCameraFraming.DefaultFovYRadians,
+        IReadOnlyList<RenderPreviewTransformOverride>?TransformOverrides=null){
         if(Objects is null){ throw new ArgumentNullException(nameof(Objects)); }
         if(SelectedPaths is null){ throw new ArgumentNullException(nameof(SelectedPaths)); }
         if(Overlay is null){ throw new ArgumentNullException(nameof(Overlay)); }
@@ -127,7 +128,28 @@ internal static class RenderPreviewSceneBuilder {
             OverlayTriangles=[..Triangles],
             OverlayLines=[..Lines],
             CameraPreviews=[..CameraPreviews],
+            TransformOverrides=TransformOverrides is null?[]:[..TransformOverrides],
         };
+    }
+
+    /// <summary>
+    /// M0096: a runtime view draws the game's own world, so a gizmo drag sends each dragged root's
+    /// parent-relative transform (as the commit will write it) instead of the designer's world matrices.
+    /// The designer's X, Y, Z are R, U, F, and its quaternion is the engine's EulerRuf convention.
+    /// </summary>
+    internal static RenderPreviewTransformOverride[]DragOverrides(
+        IReadOnlyList<SceneTransformTarget>Targets,IReadOnlyList<SceneTransformPreview>Previews){
+        List<RenderPreviewTransformOverride>Overrides=[];
+        for(var Index=0;Index<Targets.Count&&Index<Previews.Count;Index++){
+            if(!SceneTransformMath.TryCalculateLocal(Previews[Index].World,Targets[Index].ParentWorld,out var Local)){ continue; }
+            Overrides.Add(new RenderPreviewTransformOverride {
+                ObjectId=Targets[Index].NodePath.ToDisplayString(),
+                Position=[Local.Position.X,Local.Position.Y,Local.Position.Z],
+                Rotation=[Local.Rotation.X,Local.Rotation.Y,Local.Rotation.Z,Local.Rotation.W],
+                Scale=[Local.Scale.X,Local.Scale.Y,Local.Scale.Z],
+            });
+        }
+        return [..Overrides];
     }
 
     internal static string ResolveHostPath(string RepoRoot)=>ResolveHostPath(

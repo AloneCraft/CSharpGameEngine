@@ -385,6 +385,19 @@ public static class RenderPreviewHostProtocol {
         if(Request.Frame.OverlayTriangles is null||Request.Frame.OverlayLines is null){
             return "Frame overlay arrays are required.";
         }
+        if(Request.Frame.TransformOverrides is null||Request.Frame.TransformOverrides.Length>MaximumObjectCount){
+            return $"Frame transform override count must be between 0 and {MaximumObjectCount}.";
+        }
+        for(int Index=0;Index<Request.Frame.TransformOverrides.Length;Index++){
+            RenderPreviewTransformOverride?Override=Request.Frame.TransformOverrides[Index];
+            if(Override is null||string.IsNullOrWhiteSpace(Override.ObjectId)){
+                return $"Frame transform override {Index} needs an object identity.";
+            }
+            if(Override.Position is not { Length:3 }||Override.Rotation is not { Length:4 }||Override.Scale is not { Length:3 }
+                ||!Override.Position.All(IsFinite)||!Override.Rotation.All(IsFinite)||!Override.Scale.All(IsFinite)){
+                return $"Frame transform override {Index} needs a finite position (3), rotation (4) and scale (3).";
+            }
+        }
         if(Request.Frame.CameraPreviews is null
             ||Request.Frame.CameraPreviews.Length>MaximumCameraPreviewCount){
             return $"Frame camera preview count must be between 0 and {MaximumCameraPreviewCount}.";
@@ -880,6 +893,20 @@ public sealed class RenderPreviewFrame {
     public RenderPreviewOverlayVertex[]OverlayTriangles { get;set; }=[];
     public RenderPreviewOverlayVertex[]OverlayLines { get;set; }=[];
     public RenderPreviewCameraPass[]CameraPreviews { get;set; }=[];
+    /// <summary>
+    /// M0096: a runtime view draws the game's own world, not <see cref="Objects"/>, so a gizmo drag sends
+    /// the dragged nodes' parent-relative transforms here and the view applies them until the document
+    /// catches up (the commit's ReplaceScene, or a cancel's).
+    /// </summary>
+    public RenderPreviewTransformOverride[]TransformOverrides { get;set; }=[];
+}
+
+/// <summary>A node's parent-relative transform in RUF: Position (3), Rotation quaternion R, U, F, W (4), Scale (3).</summary>
+public sealed class RenderPreviewTransformOverride {
+    public string ObjectId { get;set; }=string.Empty;
+    public float[]Position { get;set; }=[0f,0f,0f];
+    public float[]Rotation { get;set; }=[0f,0f,0f,1f];
+    public float[]Scale { get;set; }=[1f,1f,1f];
 }
 
 public sealed class RenderPreviewCameraPass {

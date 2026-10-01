@@ -108,6 +108,8 @@ internal sealed class SceneHwndHost:HwndHost {
     private string?RuntimeViewTempDirectory;
     // Why the Scene view is not showing the current edit in the game's runtime, kept over "displayed".
     private string?RuntimeViewNote;
+    /// <summary>The scene JSON the runtime view last received; the document text it must keep matching.</summary>
+    private string?RuntimeViewSentSceneJson;
 
     // M0020 Phase 1: ナビゲーション状態機械とカメラ/永続ツール状態(ADR-0041 決定事項1)。
     private SceneViewState?ViewState;
@@ -368,6 +370,12 @@ internal sealed class SceneHwndHost:HwndHost {
         SceneRenderUpdateKind UpdateKind=SceneIncrementalUpdatePolicy.Classify(Snapshot.Diff);
         if(UpdateKind==SceneRenderUpdateKind.Rebuild){ return false; }
         if(UpdateKind==SceneRenderUpdateKind.None){
+            // The model diff only sees what the designer models; the runtime view draws the whole document.
+            if(this.PreviewIsRuntime&&this.RuntimeViewSentSceneJson is { }Sent
+                &&!string.Equals(Sent,this.LiveSceneJson(),StringComparison.Ordinal)
+                &&!this.TryReplacePreviewScene()){
+                return false;
+            }
             this.RenderedAnalysisGeneration=Snapshot.AnalysisGeneration;
             this.RefreshCameraPreviews();
             this.UpdateMoveGizmo();
@@ -676,6 +684,7 @@ internal sealed class SceneHwndHost:HwndHost {
         int Width=this.SurfaceWidth;
         int Height=this.SurfaceHeight;
         string SceneJson=this.LiveSceneJson();
+        this.RuntimeViewSentSceneJson=SceneJson;
         this.RuntimeOpenTask=ThreadHelper.JoinableTaskFactory.RunAsync(async ()=>{
             RuntimeViewOpening Opening=await Task.Run(()=>OpenRuntimeView(Plan,SurfaceHandle,Width,Height,HostPath,ShaderArtifactPath,Scene,SceneJson));
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
@@ -2006,6 +2015,10 @@ internal sealed class SceneHwndHost:HwndHost {
             foreach(SceneTransformPreview Descendant in this.PreviewDescendantOriginals){
                 this.UpdateCurrentObjectTransform(Descendant.NodePath,Descendant.World);
             }
+            // A runtime view kept the drag's last transforms; the unchanged document puts them back.
+            if(this.PreviewIsRuntime){
+                _=this.TryReplacePreviewScene();
+            }
         }
         if(this.FollowViewApplied&& this.HasActiveFollowViewSnapshot&& this.ViewState is { }State){
             this.ActiveFollowViewSnapshot.Restore(State);
@@ -2475,7 +2488,9 @@ internal sealed class SceneHwndHost:HwndHost {
             this.GetPreviewRoster(),this.CurrentView,this.CurrentProjection,
             this.CurrentCameraPosition,this.ViewState?.FovYRadians??SceneCameraFraming.DefaultFovYRadians);
         if(this.PreviewClient is not null){
-            this.ShowRuntimeViewState(this.PreviewClient.ReplaceScene(Scene,this.PreviewIsRuntime?this.LiveSceneJson():string.Empty));
+            string SceneJson=this.PreviewIsRuntime?this.LiveSceneJson():string.Empty;
+            this.ShowRuntimeViewState(this.PreviewClient.ReplaceScene(Scene,SceneJson));
+            this.RuntimeViewSentSceneJson=this.PreviewIsRuntime?SceneJson:null;
             return;
         }
         if(this.RuntimeOpenPending){
@@ -2540,7 +2555,19 @@ internal sealed class SceneHwndHost:HwndHost {
                 ?this.PreviewSelectedNodePaths
                 :this.SelectedNodePaths,
             this.CurrentOverlayPrimitives,this.CurrentCameraPreviewPasses,
-            this.ViewState?.FovYRadians??SceneCameraFraming.DefaultFovYRadians);
+            this.ViewState?.FovYRadians??SceneCameraFraming.DefaultFovYRadians,
+            this.RuntimeViewDragOverrides());
+
+    /// <summary>
+    /// M0096: during a transform gizmo drag a runtime view gets the dragged roots' transforms with every
+    /// frame; it ignores the designer's render objects, so the object would otherwise stand still until
+    /// the commit. Property drags and duplicate previews are not transforms of existing nodes.
+    /// </summary>
+    private RenderPreviewTransformOverride[]?RuntimeViewDragOverrides()=>
+        this.PreviewIsRuntime&&this.EditTransaction.State==EditTransactionState.Dragging
+            &&this.ActivePropertyDrag is null&&this.ActiveDuplicatePlan.Count==0
+            ?RenderPreviewSceneBuilder.DragOverrides(this.EditTransaction.CurrentTargets,this.EditTransaction.CurrentPreviews)
+            :null;
 
     private IReadOnlyList<SceneRenderObject>GetPreviewRoster(){
         if(this.CurrentPreviewRenderObjects.Count==0){

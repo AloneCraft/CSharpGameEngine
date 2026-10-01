@@ -5,6 +5,28 @@ using CSharpGameEngine.SceneAnalysis;
 namespace CSharpGameEngine.VSExtension.Tests;
 
 public sealed class RenderPreviewSceneBuilderTests {
+    /// <summary>
+    /// M0096: a runtime view gets a drag as each root's parent-relative transform, the value the commit
+    /// writes, keyed like the runtime view's node paths. Here the parent sits at R=1 and is turned a quarter
+    /// turn about U, so a world position of (1, 0.5, -2) is (2, 0.5, 0) relative to it.
+    /// </summary>
+    [Fact]
+    public void DragOverrides_AreParentRelativeAndKeyedByNodePath(){
+        var Parent=Matrix4x4.CreateRotationY((float)(Math.PI/2))*Matrix4x4.CreateTranslation(1f,0f,0f);
+        var Child=NodePath.Root.Append(0);
+        var World=Matrix4x4.CreateTranslation(2f,0.5f,0f)*Parent;
+        var Overrides=RenderPreviewSceneBuilder.DragOverrides(
+            [new SceneTransformTarget(new EditorNodeId(7),Child,Parent,Parent)],
+            [new SceneTransformPreview(new EditorNodeId(7),Child,World)]);
+        var Override=Assert.Single(Overrides);
+        Assert.Equal("0",Override.ObjectId);
+        Assert.Equal(2f,Override.Position[0],4);
+        Assert.Equal(0.5f,Override.Position[1],4);
+        Assert.Equal(0f,Override.Position[2],4);
+        Assert.Equal([0f,0f,0f,1f],Override.Rotation.Select(static Value=>(float)Math.Round(Value,4)).ToArray());
+        Assert.Equal([1f,1f,1f],Override.Scale.Select(static Value=>(float)Math.Round(Value,4)).ToArray());
+    }
+
     [Fact]
     public void FromScene_PreservesStableIdentityRosterAndDeduplicatesSharedMesh(){
         SimpleMesh Mesh=CreateMesh();

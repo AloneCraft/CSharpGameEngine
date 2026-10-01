@@ -24,7 +24,11 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
     private readonly MethodInfo SetComponentMethod;
     private readonly MethodInfo OverlayMethod;
     private readonly MethodInfo SelectionMethod;
+    private const string TransformTypeName="CSharpGameEngine.Entities.Transform";
     private Dictionary<string,int>NodeIndexByPath=new(StringComparer.Ordinal){ ["(root)"]=0 };
+    /// <summary>The last applied document and its nodes in pre-order, the base of a drag's transform overrides.</summary>
+    private string DocumentText=string.Empty;
+    private SceneJsonValue[]DocumentNodes=[];
     private float[]OverlayTriangles=[];
     private float[]OverlayLines=[];
     private int[]Selection=[];
@@ -106,6 +110,8 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
             return;
         }
         this.NodeIndexByPath=NodePaths(Nodes.Length>0?Nodes[0]:null);
+        this.DocumentText=SceneJson;
+        this.DocumentNodes=Nodes;
         var Stale=Nodes.Length!=(int)Invoke(this.NodeCountMethod,[])!;
         for(var Index=0;Index<Nodes.Length&&!Stale;Index++){
             foreach(var Component in Nodes[Index].Get("components")?.Items??[]){
@@ -175,7 +181,43 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
             .Where(static Index=>Index>=0)
             .Distinct()
             .Order()];
+        this.ApplyTransformOverrides(Frame.TransformOverrides??[]);
         this.LastFrameHash=string.Empty;
+    }
+
+    /// <summary>
+    /// M0096: a gizmo drag's transforms, applied to the running world as the document's Transform with
+    /// only Position, Rotation and Scale replaced (its frame and other members stay). The game's
+    /// Presentation systems carry them to the renderer like any value edit.
+    /// </summary>
+    private void ApplyTransformOverrides(RenderPreviewTransformOverride[]Overrides){
+        if(Overrides.Length==0||this.FindType(TransformTypeName) is not { }Type){ return; }
+        foreach(var Override in Overrides){
+            if(!this.NodeIndexByPath.TryGetValue(Override.ObjectId,out var Index)||Index>=this.DocumentNodes.Length){ continue; }
+            var Component=(this.DocumentNodes[Index].Get("components")?.Items??[])
+                .FirstOrDefault(static Item=>string.Equals(Item.Get("type")?.Text,TransformTypeName,StringComparison.Ordinal));
+            if(Component is null){ continue; }
+            object Value;
+            try {
+                Value=SceneJsonRuntimeValues.Component(Type,this.OverriddenMembers(Component.Get("members"),Override),Type.Name);
+            } catch(Exception Error)when(Error is InvalidOperationException or SceneJsonException){
+                continue;
+            }
+            Invoke(this.SetComponentMethod,[Index,Value]);
+        }
+    }
+
+    private SceneJsonValue OverriddenMembers(SceneJsonValue?Members,RenderPreviewTransformOverride Override){
+        static string Number(float Value)=>Value.ToString("R",System.Globalization.CultureInfo.InvariantCulture);
+        var Text=new System.Text.StringBuilder("{");
+        foreach(var Member in Members?.Properties??[]){
+            if(Member.Name is "Position" or "Rotation" or "Scale"){ continue; }
+            Text.Append('"').Append(Member.Name).Append("\":").Append(this.DocumentText,Member.Value.Start,Member.Value.End-Member.Value.Start).Append(',');
+        }
+        Text.Append("\"Position\":{\"R\":").Append(Number(Override.Position[0])).Append(",\"U\":").Append(Number(Override.Position[1])).Append(",\"F\":").Append(Number(Override.Position[2])).Append("},");
+        Text.Append("\"Rotation\":{\"R\":").Append(Number(Override.Rotation[0])).Append(",\"U\":").Append(Number(Override.Rotation[1])).Append(",\"F\":").Append(Number(Override.Rotation[2])).Append(",\"W\":").Append(Number(Override.Rotation[3])).Append("},");
+        Text.Append("\"Scale\":{\"R\":").Append(Number(Override.Scale[0])).Append(",\"U\":").Append(Number(Override.Scale[1])).Append(",\"F\":").Append(Number(Override.Scale[2])).Append("}}");
+        return SceneJsonReader.Parse(Text.ToString());
     }
 
     private static float[]CameraRelative(RenderPreviewOverlayVertex[]Vertices,float[]Camera){

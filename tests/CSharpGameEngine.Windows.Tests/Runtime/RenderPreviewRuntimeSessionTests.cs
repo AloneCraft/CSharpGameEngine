@@ -86,6 +86,41 @@ public sealed class RenderPreviewRuntimeSessionTests {
     }
 
     /// <summary>
+    /// M0096: a gizmo drag sends the dragged node's parent-relative transform with each frame. The runtime
+    /// image follows it during the drag, a cancel's resent document puts it back, and the committed document
+    /// with the same value draws the same image (the user could not see a drag in the runtime view, 2026-10-01).
+    /// </summary>
+    [WindowsOnlyFact]
+    public void DragTransformOverrides_MoveTheObjectUntilTheDocumentIsResent(){
+        using var Surface=CreateSurface();
+        var Original=File.ReadAllText(Path.Combine(RepositoryRoot(),"UserEcsProject","Scenes","PrimitiveShowcaseBoxScene.json"));
+        var Moved=Original.Replace("\"Position\": { \"R\": 3, \"U\": 0.5, \"F\": 0 }","\"Position\": { \"R\": 3, \"U\": 0.5, \"F\": 3 }");
+        Assert.NotEqual(Original,Moved);
+        var Open=CreateOpen(Surface,GameAssembly,EditedScene);
+        Open.SceneJson=Original;
+        using var Session=RenderPreviewRuntimeSession.Open(Open);
+        string Frame(RenderPreviewFrame Value){
+            Session.UpdateFrame(Value);
+            Session.Render(CaptureForVerification:false);
+            Session.Render(CaptureForVerification:true);
+            return Session.LastFrameHash;
+        }
+        var Before=Frame(new RenderPreviewFrame { Camera=Camera(3f,0.5f,-4f) });
+        var Dragged=Frame(new RenderPreviewFrame {
+            Camera=Camera(3f,0.5f,-4f),
+            TransformOverrides=[new RenderPreviewTransformOverride { ObjectId="(root)",Position=[3f,0.5f,3f],Rotation=[0f,0f,0f,1f],Scale=[1f,1f,1f] }],
+        });
+        Session.ReplaceScene(Open.Scene!,Original);
+        var Canceled=Frame(new RenderPreviewFrame { Camera=Camera(3f,0.5f,-4f) });
+        Session.ReplaceScene(Open.Scene!,Moved);
+        var Committed=Frame(new RenderPreviewFrame { Camera=Camera(3f,0.5f,-4f) });
+
+        Assert.NotEqual(Before,Dragged);
+        Assert.Equal(Before,Canceled);
+        Assert.Equal(Committed,Dragged);
+    }
+
+    /// <summary>
     /// The Scene view's wheel moves the designer camera between frames. The runtime image follows
     /// it, and returning to the first pose restores the first image (observed 2026-10-01: after one
     /// wheel step the view showed only sky and never came back).
