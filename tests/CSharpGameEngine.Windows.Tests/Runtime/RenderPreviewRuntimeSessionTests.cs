@@ -229,6 +229,32 @@ public sealed class RenderPreviewRuntimeSessionTests {
         return Directory?.FullName??throw new DirectoryNotFoundException();
     }
 
+    /// <summary>
+    /// M0096 (ADR-0047): the runtime view's session also runs the editor world, whose realtime systems tick at
+    /// 15 Hz beside the view and stop with the session. It replaced the preview host's separate --assembly process.
+    /// </summary>
+    [WindowsOnlyFact]
+    public void Open_RunsTheEditorWorldBesideTheViewUntilDisposed(){
+        using var Surface=CreateSurface();
+        var Session=RenderPreviewRuntimeSession.Open(CreateOpen(Surface,GameAssembly,EditedScene));
+        try {
+            Assert.True(Session.EditorWorldRunning);
+            Assert.NotEqual(Guid.Empty,Session.EditorSpatialWorldId);
+            var Deadline=DateTime.UtcNow.AddSeconds(5);
+            while(Session.EditorWorldTicks<3&&DateTime.UtcNow<Deadline){ Thread.Sleep(50); }
+            Assert.True(Session.EditorWorldTicks>=3,$"ticks {Session.EditorWorldTicks}");
+            Session.UpdateFrame(new RenderPreviewFrame { Camera=Camera(3f,0.5f,-4f) });
+            Session.Render(CaptureForVerification:false);
+        } finally {
+            Session.Dispose();
+        }
+        var Stopped=Session.EditorWorldTicks;
+        Thread.Sleep(300);
+        Assert.Equal(Stopped,Session.EditorWorldTicks);
+    }
+
+    internal static RenderPreviewHostRequest CreateRuntimeOpen(Win32Window Surface)=>CreateOpen(Surface,GameAssembly,EditedScene);
+
     private static Win32Window CreateSurface()=>new(new Win32WindowOptions {
         Title="CSharpGameEngine Runtime Preview Session Test",Width=160,Height=120,Visible=false,
     });

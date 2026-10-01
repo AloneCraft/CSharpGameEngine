@@ -26,6 +26,10 @@ public partial struct World {
         return new GlobalSpatialState();
     }
     public IReadOnlyEntitySpatialIndex GlobalSpatialIndex=>this.SpatialState.Index;
+    /// <summary>The id this world's spatial snapshots carry on the debug pipe.</summary>
+    internal Guid GlobalSpatialDebugWorldId=>this.SpatialState.DebugWorldId;
+    /// <summary>Makes this world the one a debug request without a world id gets (M0096, the Scene view's editor world).</summary>
+    internal void PreferForSpatialDebug()=>SpatialDebugHub.Prefer(this.SpatialState.DebugWorldId);
     public GlobalSpatialSyncReport LastGlobalSpatialSync=>this.SpatialState.Report;
     public bool TryGetGlobalSpatialFailure(Entity Entity,out SpatialSyncFailure Failure)=>this.SpatialState.Failures.TryGetValue(Entity,out Failure);
     /// <summary>Rebuilds the current World snapshot immediately. Calls are single-writer only.</summary>

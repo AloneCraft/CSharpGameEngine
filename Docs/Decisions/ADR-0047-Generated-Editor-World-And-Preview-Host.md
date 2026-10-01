@@ -19,3 +19,19 @@ the same overlay renderer.
 
 Compilation, host, dependency, and packet failures never stop Visual Studio or the game. The last known good
 snapshot or static Scene rendering remains visible. Dependencies are resolved from the generated assembly output folder.
+## One process per Scene view (M0096, 2026-10-01)
+
+At the user's request the editor world no longer has a process of its own. The runtime view's render server
+(ADR-0070 B1) loads the game once and holds two worlds through the same generated bridge: the view world, which
+runs only Presentation systems into the Scene view's surface, and the editor world described above
+(`Initialize`, the 15 Hz `TickRealtime`, `Shutdown`). The worlds stay separate. The ticks run under the session's
+lock, so they never overlap a request.
+
+- The Spatial and Physics debug overlays ask the render server's process. Both worlds publish spatial snapshots
+  there; a request without a world id gets the editor world, which the bridge marks as preferred, so the overlay
+  shows the same world as before.
+- The preview host's `--assembly` mode and the extension's separate editor-world process are removed. One copy of
+  the game build serves both worlds.
+- Costs the user accepted: a crash in either world ends the whole Scene view process, so the image and the debug
+  overlays stop together; there is no editor world without a runtime view, so a scene the build does not contain has
+  no editor-world overlays until it is built.

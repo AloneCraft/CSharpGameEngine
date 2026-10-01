@@ -87,12 +87,6 @@ internal sealed class SceneHwndHost:HwndHost {
     private string LastSpatialDebugStatus="";
     private IReadOnlyList<int>SpatialDebugProcessIds=[];
     private int?SelectedSpatialDebugProcessId;
-    private Process?EditorPreviewProcess;
-    private string?EditorPreviewSceneName;
-    private string?EditorPreviewTempDirectory;
-    /// <summary>The game build the editor world runs a copy of, and its write time when it started.</summary>
-    private string?EditorPreviewBuild;
-    private DateTime EditorPreviewBuildTime;
     private bool PreviewIsRuntime;
     /// <summary>M0095 3-4: the runtime view open in flight off the UI thread; a newer request or a disposal bumps the generation.</summary>
     private long RuntimeOpenGeneration;
@@ -273,7 +267,6 @@ internal sealed class SceneHwndHost:HwndHost {
         this.PhysicsFractureCancellation?.Cancel();
         this.PhysicsFractureCancellation?.Dispose();
         this.PhysicsFractureCancellation=null;
-        this.StopEditorPreviewHost(WaitForExit:false);
         this.CancelEditTransaction();
         SceneEditorSettings.SettingsChanged-=this.OnSettingsChanged;
         this.DetachSubscriptions();
@@ -358,8 +351,6 @@ internal sealed class SceneHwndHost:HwndHost {
             && this.TryApplyIncrementalSnapshot(Snapshot,Model)){
             return;
         }
-
-        this.EnsureEditorPreviewHost();
 
         if(this.Surface is not null){
             this.Rebuild();
@@ -555,53 +546,6 @@ internal sealed class SceneHwndHost:HwndHost {
         this.RefreshOverlay();
     }
 
-    private void EnsureEditorPreviewHost(){
-        var sceneName=this.TargetModel?.ClassFullyQualifiedName;
-        if(string.IsNullOrWhiteSpace(sceneName)){
-            return;
-        }
-        if(this.EditorPreviewProcess is { HasExited:false }&&string.Equals(this.EditorPreviewSceneName,sceneName,StringComparison.Ordinal)){
-            // M0095 3-6: the editor world runs a copy of the game build, so a new build restarts it;
-            // the old process is stopped off the UI thread.
-            if(this.EditorPreviewBuild is not { }Build||File.GetLastWriteTimeUtc(Build)==this.EditorPreviewBuildTime){
-                return;
-            }
-            ActivityLog.LogInformation(nameof(SceneHwndHost),$"The game build changed; restarting the editor world (pid {this.EditorPreviewProcess.Id}).");
-            this.StopEditorPreviewHost(WaitForExit:false);
-        }
-        this.StopEditorPreviewHost();
-        CgeProjectContext? context;
-        try{ context=CgeProjectContext.Resolve(this.TargetFilePath); }catch{ context=null; }
-        if(context is null){
-            return;
-        }
-        string root=this.RepoRoot??context.WorkspaceRoot;
-        string? assemblyPath=this.ResolveBuiltGameAssembly(context);
-        string hostPath;
-        try { hostPath=RenderPreviewSceneBuilder.ResolveHostPath(root); }
-        catch(FileNotFoundException){ return; }
-        if(assemblyPath is null||!File.Exists(assemblyPath)){
-            return;
-        }
-        try{
-            this.EditorPreviewBuild=assemblyPath;
-            this.EditorPreviewBuildTime=File.GetLastWriteTimeUtc(assemblyPath);
-            assemblyPath=CopyGameBuild(assemblyPath,out string TempDirectory);
-            this.EditorPreviewTempDirectory=TempDirectory;
-            ProcessStartInfo StartInfo=PreviewHostProcessStartInfo.Create(
-                hostPath,
-                $"--assembly {PreviewHostProcessStartInfo.Quote(assemblyPath)} "
-                +$"--scene {PreviewHostProcessStartInfo.Quote(sceneName!)}",
-                Path.GetDirectoryName(assemblyPath)??root);
-            this.EditorPreviewProcess=Process.Start(StartInfo);
-            this.EditorPreviewSceneName=sceneName;
-            ActivityLog.LogInformation(nameof(SceneHwndHost),$"Editor world of '{sceneName}' started (pid {this.EditorPreviewProcess?.Id}).");
-        }catch(Exception Ex) when(Ex is IOException or InvalidOperationException or System.ComponentModel.Win32Exception){
-            this.EditorPreviewProcess=null;
-            this.EditorPreviewSceneName=null;
-        }
-    }
-
     /// <summary>The built game assembly of the target scene's project (Debug), or the override in CGE_EDITOR_PREVIEW_ASSEMBLY.</summary>
     private string?ResolveBuiltGameAssembly(CgeProjectContext context){
         string? assemblyPath=Environment.GetEnvironmentVariable("CGE_EDITOR_PREVIEW_ASSEMBLY");
@@ -783,7 +727,6 @@ internal sealed class SceneHwndHost:HwndHost {
             this.DisposePreviewClient(ClearScene:false);
             this.OpenOrReplacePreviewScene();
             this.PreviewFrameDirty=true;
-            this.EnsureEditorPreviewHost();
         } catch(Exception Error){
             this.HandleRenderFailure(Error);
         }
@@ -802,35 +745,6 @@ internal sealed class SceneHwndHost:HwndHost {
         this.RuntimeViewNote=Note;
         if(Note is not null){ this.SetStatus(Note); }
     }
-    private void StopEditorPreviewHost(bool WaitForExit=true){
-        Process? process=this.EditorPreviewProcess;
-        this.EditorPreviewProcess=null;
-        this.EditorPreviewSceneName=null;
-        string? tempDirectory=this.EditorPreviewTempDirectory;
-        this.EditorPreviewTempDirectory=null;
-        if(process is null){
-            DeleteEditorPreviewTempDirectory(tempDirectory);
-            return;
-        }
-
-        if(WaitForExit){
-            CleanupEditorPreviewHost(process,tempDirectory);
-            return;
-        }
-        _=ThreadPool.QueueUserWorkItem(
-            _=>CleanupEditorPreviewHost(process,tempDirectory));
-    }
-
-    private static void CleanupEditorPreviewHost(
-        Process ProcessValue,string?TempDirectory){
-        try{
-            EditorWorldProcess.Stop(ProcessValue);
-        }finally{
-            ProcessValue.Dispose();
-            DeleteEditorPreviewTempDirectory(TempDirectory);
-        }
-    }
-
     private static void DeleteEditorPreviewTempDirectory(string?TempDirectory){
         if(TempDirectory is not null){
             try{ Directory.Delete(TempDirectory,recursive:true); }
@@ -858,11 +772,17 @@ internal sealed class SceneHwndHost:HwndHost {
         finally { Interlocked.Exchange(ref this.PhysicsDebugRequestInFlight,0); }
     }
 
+    /// <summary>
+    /// M0096 (ADR-0047): the editor world runs in the runtime view's render server, so its debug pipes are that
+    /// process's. Null without a runtime view.
+    /// </summary>
+    private int?EditorWorldProcessId=>this.PreviewIsRuntime?this.PreviewClient?.ProcessId:null;
+
     private int? ResolveDebugProcessId(out bool UseEditorPreview){
         IReadOnlyList<int> RuntimeIds=string.IsNullOrWhiteSpace(this.SpatialDebugRuntimeProcessName)?[]:SpatialDebugClient.FindProcessIds(this.SpatialDebugRuntimeProcessName);
         int? ProcessId=SpatialDebugProcessSelectionPolicy.Resolve(RuntimeIds,this.SelectedSpatialDebugProcessId);
         UseEditorPreview=false;
-        if((RuntimeIds.Count==0||ProcessId is null)&&this.EditorPreviewProcess is { HasExited:false }){ ProcessId=this.EditorPreviewProcess.Id;UseEditorPreview=true; }
+        if((RuntimeIds.Count==0||ProcessId is null)&&this.EditorWorldProcessId is { }EditorWorld){ ProcessId=EditorWorld;UseEditorPreview=true; }
         this.UpdateSpatialDebugProcessCandidates(RuntimeIds,UseEditorPreview?null:ProcessId);
         return ProcessId;
     }
@@ -886,7 +806,7 @@ internal sealed class SceneHwndHost:HwndHost {
         if(!this.GlobalSpatialOctreeEnabled||this.SpatialDebugRequestInFlight!=0){
             return;
         }
-        if(string.IsNullOrWhiteSpace(this.SpatialDebugRuntimeProcessName)&&this.EditorPreviewProcess is not { HasExited:false }){
+        if(string.IsNullOrWhiteSpace(this.SpatialDebugRuntimeProcessName)&&this.EditorWorldProcessId is null){
             this.UpdateSpatialDebugProcessCandidates([],null);
             this.ApplySpatialDebugResult(null,VsixText.Get("SceneSpatialRuntimeProjectUnavailable"));
             return;
@@ -894,8 +814,8 @@ internal sealed class SceneHwndHost:HwndHost {
         IReadOnlyList<int>RuntimeCandidateIds=string.IsNullOrWhiteSpace(this.SpatialDebugRuntimeProcessName)?[]:SpatialDebugClient.FindProcessIds(this.SpatialDebugRuntimeProcessName);
         int?ProcessId=SpatialDebugProcessSelectionPolicy.Resolve(RuntimeCandidateIds,this.SelectedSpatialDebugProcessId);
         bool UseEditorPreview=false;
-        if((RuntimeCandidateIds.Count==0||ProcessId is null)&&this.EditorPreviewProcess is { HasExited:false }){
-            ProcessId=this.EditorPreviewProcess.Id;
+        if((RuntimeCandidateIds.Count==0||ProcessId is null)&&this.EditorWorldProcessId is { }EditorWorld){
+            ProcessId=EditorWorld;
             UseEditorPreview=true;
         }
         this.UpdateSpatialDebugProcessCandidates(RuntimeCandidateIds,UseEditorPreview?null:ProcessId);

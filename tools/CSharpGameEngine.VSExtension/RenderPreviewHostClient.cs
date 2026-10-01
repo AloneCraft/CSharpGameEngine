@@ -42,14 +42,19 @@ internal sealed class RenderPreviewHostClient:IDisposable {
     internal RenderPreviewHostClient(
         Guid SessionId,
         Func<RenderPreviewHostRequest,RenderPreviewHostResponse>SendRequest,
-        Action DisposeTransport){
+        Action DisposeTransport,
+        int?ProcessId=null){
         if(SessionId==Guid.Empty){ throw new ArgumentException("Session ID is required.",nameof(SessionId)); }
+        this.ProcessId=ProcessId;
         this.SessionId=SessionId;
         this.SendRequest=SendRequest??throw new ArgumentNullException(nameof(SendRequest));
         this.DisposeTransport=DisposeTransport??throw new ArgumentNullException(nameof(DisposeTransport));
     }
 
     internal RenderPreviewHostClientState State{get;private set;}=RenderPreviewHostClientState.Created;
+
+    /// <summary>The host process: a runtime view's render server also runs the editor world and serves its debug pipes (M0096).</summary>
+    internal int?ProcessId { get; }
 
     /// <param name="ResponseTimeout">
     /// How long one request may take; a runtime view (ADR-0070 B1) loads the game's level, which takes
@@ -59,7 +64,7 @@ internal sealed class RenderPreviewHostClient:IDisposable {
         RenderPreviewHostProcessTransport Transport=new(HostPath,ResponseTimeout??TimeSpan.FromSeconds(15));
         try {
             return new RenderPreviewHostClient(
-                Guid.NewGuid(),Transport.Send,Transport.Dispose);
+                Guid.NewGuid(),Transport.Send,Transport.Dispose,Transport.ProcessId);
         } catch {
             Transport.Dispose();
             throw;
@@ -291,6 +296,8 @@ internal sealed class RenderPreviewHostProcessTransport:IDisposable {
         this.Process=Process.Start(StartInfo)
             ??throw new InvalidOperationException("Render Preview Host did not start.");
     }
+
+    internal int ProcessId=>this.Process.Id;
 
     internal RenderPreviewHostResponse Send(RenderPreviewHostRequest Request){
         if(this.Disposed){ throw new ObjectDisposedException(nameof(RenderPreviewHostProcessTransport)); }

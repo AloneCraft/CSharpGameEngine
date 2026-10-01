@@ -12,8 +12,8 @@ M0095 の後にユーザーから受けた不具合報告と設計判断を、M0
 | B | Options の上下反転（Look / Orbit）: チェックを入れたときの今の挙動を、チェックなしの既定にする | 完了（8589960） |
 | C | 実行時に使われない `VsixStrings.en-US.resx`、obj だけ残った旧ディレクトリ、`UserEcsProject/Generated/` の削除 | 完了（dbb9fc1） |
 | D | 整数 `[SystemOrder]` を廃止し `[RunsAfter]` の相対順序に一本化（同着は完全修飾名順） | 完了（122e316、ADR-0073、SDK 0.1.6 は 24bd2d3）。`[RunsBefore]` を追加した（下記） |
-| E | シーン JSON の角度を turns（1 = 1 回転）で保存し、Inspector は度で表示 | 完了（本コミット、ADR-0074） |
-| F | Scene ビューの 2 プロセス（ランタイムビューと編集ワールド）の統合 | 未着手 |
+| E | シーン JSON の角度を turns（1 = 1 回転）で保存し、Inspector は度で表示 | 完了（d63ef02、ADR-0074、SDK 0.1.7 は 21e9b6f） |
+| F | Scene ビューの 2 プロセス（ランタイムビューと編集ワールド）の統合 | 完了（本コミット、ADR-0047 に追記） |
 | G | Runtime.Physics / Character の Windows 依存の解消と、`Physics.Cli` の UserEcsProject 依存の除去 | 未着手 |
 
 ## A. ギズモ操作をランタイムビューに反映
@@ -92,3 +92,18 @@ M0095 の後にユーザーから受けた不具合報告と設計判断を、M0
   - `SceneInspectorModelTests.Build_AngleMembers_ShowAndTakeDegrees`（VSExtension）。
   - 既存の `SceneJsonRuntimeValuesTests` は、プレビューホストが turns の文書から生成器と同じ値を作ることを確かめる（文書の版を渡すように直した）。
 - ユーザーの判断事項: JSON のキーは C# のメンバー名のままなので、`FovYRadians` や `SunDiskAngleDegrees` のキーに turns の値が入る。メンバー名から単位を外すか、JSON のキーだけ別名にするか。
+
+## F. プレビューの 2 プロセスを 1 つに（ADR-0047 に追記）
+- ランタイムビューのレンダーサーバが、同じ ALC・同じブリッジで編集ワールドも動かす。`Initialize(scene)` をビューの後に呼び、15Hz の `TickRealtime` はセッションのタイマーで回し、`Dispose` で `Shutdown` する。2 つの World は分けたまま。tick と全ての要求は同じロックで直列化した。
+- 編集ワールドが起動できない（ビルドにシーンが無い等）ときも、ビューはそのまま動く。tick 中の例外は編集ワールドだけを止める。
+- Spatial / Physics のデバッグの問い合わせ先を、VSIX が保持するレンダーサーバのプロセス ID（`RenderPreviewHostClient.ProcessId`）にした。
+- 同じプロセスでビューの World も Spatial のスナップショットを公開するので、World を指定しない問い合わせには編集ワールドを返す（ブリッジが `PreferForSpatialDebug` で既定にする）。Open の応答に編集ワールドの ID（`EditorSpatialWorldId`）を載せた（省略可能な項目なので、プロトコルの版は据え置き）。
+- 削除: ホストの `--assembly` モード、VSIX の `EnsureEditorPreviewHost`・`EditorWorldProcess`・別プロセスの停止処理、`EditorWorldShutdownTests`（対象のプロセスが無くなった）。
+- テスト:
+  - `Open_RunsTheEditorWorldBesideTheViewUntilDisposed`: 編集ワールドが 15Hz で tick し、Dispose で止まる。
+  - `RuntimeViewHost_AnswersSpatialDebugWithTheEditorWorld`: 実際のホストプロセスの Spatial のパイプが、編集ワールドの ID で答える。
+- 実機（CgeAutomation）: `PrimitiveShowcaseBoxScene` を開くと、Visual Studio の子のホストプロセスは 1 つになった（統合前は同じ操作で 2 つ）。そのプロセスの Spatial のパイプは `ok` とノードを返した。
+- 別の現象として見つけたもの（未解決、別タスクに切り出した）: テストプロセスの中で `HostCrash` のテストがホストを強制終了した後、新しいホストでランタイムビューを描画すると、スワップチェーンの作成が `E_ACCESSDENIED`（0x80070005）で失敗する。
+  - 編集ワールドを止めても起きるので、統合とは無関係。
+  - 別の新しいウィンドウハンドルでも起きるので、ハンドルの再利用ではない。
+  - このため、上のプロセスのテストは描画を含めない。描画後にビューの World と並んで公開される状況での既定の World の選択は、自動テストで確かめていない。

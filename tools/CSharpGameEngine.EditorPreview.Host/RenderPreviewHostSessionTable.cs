@@ -12,6 +12,8 @@ public interface IRenderPreviewSession:IDisposable {
     void ReplaceScene(RenderPreviewScene Scene,string SceneJson);
     /// <summary>A runtime view that shows the build's structure because the document changed it (ADR-0070 B1).</summary>
     bool BuildRequired=>false;
+    /// <summary>The editor world's id on the Spatial debug pipe (M0096); empty for a session without one.</summary>
+    Guid EditorSpatialWorldId=>Guid.Empty;
     void UpdateFrame(RenderPreviewFrame Frame);
     void Resize(int Width,int Height);
     void Render(bool CaptureForVerification);
@@ -159,6 +161,7 @@ public sealed class RenderPreviewHostSessionTable:IDisposable {
             CameraPreviews=Session.CameraPreviewDiagnostics,
             DebugSnapshot=DebugSnapshot,
             BuildRequired=Session.BuildRequired,
+            EditorSpatialWorldId=Session.EditorSpatialWorldId,
         };
 
     private static RenderPreviewHostResponse Success(

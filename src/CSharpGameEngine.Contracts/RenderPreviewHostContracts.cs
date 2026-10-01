@@ -689,6 +689,11 @@ public sealed class RenderPreviewHostResponse {
     /// build it runs; the view shows the build's structure with the document's values until the next build.
     /// </summary>
     public bool BuildRequired { get;set; }
+    /// <summary>
+    /// M0096 (ADR-0047): the id the runtime view's editor world carries on the host process's Spatial debug pipe;
+    /// empty without one. A Spatial request without a world id already gets this world.
+    /// </summary>
+    public Guid EditorSpatialWorldId { get;set; }
 }
 
 public enum RenderPreviewDebugGraphKind:byte {

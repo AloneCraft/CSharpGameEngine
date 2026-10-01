@@ -12,6 +12,11 @@ namespace CSharpGameEngine.EditorPreview.Host;
 /// runtime view) belong to this session and a later build loads fresh. The game's generated
 /// <c>GeneratedEditorPreviewBridge</c> instantiates the world and runs its Presentation systems into
 /// the Scene view's surface from the designer's camera.
+/// <para>
+/// M0096 (ADR-0047): the same bridge also runs the editor world, a second world of the edited scene whose
+/// <c>[ExecuteInEditor(Realtime=true)]</c> systems tick at 15 Hz for the Spatial and Physics debug overlays. The
+/// ticks and every request run under one lock, so the bridge never sees two calls at once.
+/// </para>
 /// </summary>
 public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
     private const string BridgeTypeName="CSharpGameEngine.Generated.GeneratedEditorPreviewBridge";
@@ -36,6 +41,28 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
     private int[]Selection=[];
     private RenderPreviewCamera Camera;
     private bool Disposed;
+    private readonly object Gate=new();
+    private MethodInfo?EditorShutdownMethod;
+    private MethodInfo?EditorTickMethod;
+    private MethodInfo?EditorSpatialWorldIdMethod;
+    private Timer?EditorTimer;
+    private long EditorTicks;
+    /// <summary>ADR-0047: the editor world's realtime systems tick at 15 Hz.</summary>
+    private static readonly TimeSpan EditorTickPeriod=TimeSpan.FromTicks(TimeSpan.TicksPerSecond/15);
+
+    /// <summary>Whether the editor world runs beside the view (it does unless the build lacks the scene or its bridge).</summary>
+    public bool EditorWorldRunning=>this.EditorTimer is not null;
+
+    /// <summary>How many 15 Hz ticks the editor world has run.</summary>
+    public long EditorWorldTicks=>Interlocked.Read(ref this.EditorTicks);
+
+    public Guid EditorSpatialWorldId{
+        get {
+            lock(this.Gate){
+                return !this.Disposed&&this.EditorSpatialWorldIdMethod is { }Method&&Invoke(Method,[]) is Guid Id?Id:Guid.Empty;
+            }
+        }
+    }
 
     private RenderPreviewRuntimeSession(
         GameLoadContext Context,MethodInfo RenderMethod,MethodInfo ResizeMethod,MethodInfo CaptureMethod,
@@ -86,10 +113,48 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
                 throw new InvalidOperationException($"The game build does not contain the scene '{View.SceneName}'; build the project to show it.");
             }
             if(Request.SceneJson.Length>0){ Session.ApplySceneDocument(Request.SceneJson); }
+            Session.StartEditorWorld(Bridge,View.SceneName);
             return Session;
         } catch {
             Context.Unload();
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Starts the editor world of <paramref name="SceneName"/>. A failure leaves the view running without it: the
+    /// overlays lose their source, the image does not.
+    /// </summary>
+    private void StartEditorWorld(Type Bridge,string?SceneName){
+        const BindingFlags Static=BindingFlags.Static|BindingFlags.NonPublic|BindingFlags.Public;
+        if(Bridge.GetMethod("Initialize",Static) is not { }Initialize
+            ||Bridge.GetMethod("TickRealtime",Static) is not { }Tick
+            ||Bridge.GetMethod("Shutdown",Static) is not { }Shutdown){
+            return;
+        }
+        try {
+            if(Invoke(Initialize,[SceneName]) is not true){ return; }
+        } catch(Exception Error){
+            Console.Error.WriteLine($"The editor world did not start: {Error.Message}");
+            return;
+        }
+        this.EditorTickMethod=Tick;
+        this.EditorShutdownMethod=Shutdown;
+        this.EditorSpatialWorldIdMethod=Bridge.GetMethod("EditorSpatialWorldId",Static);
+        this.EditorTimer=new Timer(this.TickEditorWorld,null,EditorTickPeriod,EditorTickPeriod);
+    }
+
+    private void TickEditorWorld(object?_){
+        lock(this.Gate){
+            if(this.Disposed||this.EditorTickMethod is not { }Tick){ return; }
+            try {
+                Invoke(Tick,[]);
+                Interlocked.Increment(ref this.EditorTicks);
+            } catch(Exception Error){
+                // A faulted editor world stops ticking; the view keeps running.
+                Console.Error.WriteLine($"The editor world stopped: {Error.Message}");
+                this.EditorTickMethod=null;
+            }
         }
     }
 
@@ -99,7 +164,9 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
     /// its values wait for the next build. A document that cannot be read changes nothing.
     /// </summary>
     public void ReplaceScene(RenderPreviewScene Scene,string SceneJson){
-        if(SceneJson.Length>0){ this.ApplySceneDocument(SceneJson); }
+        lock(this.Gate){
+            if(SceneJson.Length>0){ this.ApplySceneDocument(SceneJson); }
+        }
     }
 
     private void ApplySceneDocument(string SceneJson){
@@ -178,6 +245,10 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
     /// </summary>
     public void UpdateFrame(RenderPreviewFrame Frame){
         ArgumentNullException.ThrowIfNull(Frame);
+        lock(this.Gate){ this.UpdateFrameLocked(Frame); }
+    }
+
+    private void UpdateFrameLocked(RenderPreviewFrame Frame){
         this.Camera=Frame.Camera??throw new ArgumentException("A frame requires a camera.",nameof(Frame));
         this.OverlayTriangles=CameraRelative(Frame.OverlayTriangles,this.Camera.Position);
         this.OverlayLines=CameraRelative(Frame.OverlayLines,this.Camera.Position);
@@ -240,11 +311,17 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
 
     public void Resize(int Width,int Height){
         if(Width==0&&Height==0){ return; }
-        Invoke(this.ResizeMethod,[Width,Height]);
-        this.LastFrameHash=string.Empty;
+        lock(this.Gate){
+            Invoke(this.ResizeMethod,[Width,Height]);
+            this.LastFrameHash=string.Empty;
+        }
     }
 
     public void Render(bool CaptureForVerification){
+        lock(this.Gate){ this.RenderLocked(CaptureForVerification); }
+    }
+
+    private void RenderLocked(bool CaptureForVerification){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
         RenderPreviewCamera Camera=this.Camera;
         // Before the level has loaded (the first frame) there is no renderer yet; the next frame shows them.
@@ -269,10 +346,23 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
         throw new InvalidOperationException("The runtime view does not capture debug snapshots yet.");
 
     public void Dispose(){
-        if(this.Disposed){ return; }
-        this.Disposed=true;
-        try { Invoke(this.ShutdownMethod,[]); }
-        finally { this.Context.Unload(); }
+        lock(this.Gate){
+            if(this.Disposed){ return; }
+            this.Disposed=true;
+        }
+        // Waits for a tick in flight; the Disposed flag stops the next one.
+        using(var Stopped=new ManualResetEvent(false)){
+            if(this.EditorTimer?.Dispose(Stopped)==true){ Stopped.WaitOne(TimeSpan.FromSeconds(5)); }
+        }
+        lock(this.Gate){
+            try {
+                if(this.EditorShutdownMethod is { }EditorShutdown){
+                    try { Invoke(EditorShutdown,[]); } catch(Exception Error){ Console.Error.WriteLine($"The editor world did not shut down: {Error.Message}"); }
+                }
+                Invoke(this.ShutdownMethod,[]);
+            }
+            finally { this.Context.Unload(); }
+        }
     }
 
     /// <summary>Unwraps the game code's own exception so the designer sees its message.</summary>

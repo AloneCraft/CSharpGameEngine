@@ -77,6 +77,10 @@ internal static class GeneratedEditorPreviewBridgeEmitter {
             Lines.Add("        PreviewState.World.PlaybackStructuralChanges(ref PreviewState);");
             if(HasSpatialIndex){ Lines.Add("        PreviewState.World.RefreshGlobalSpatialIndex();"); }
         }
+        if(HasSpatialIndex){
+            // M0096: the render server also holds the view world; the debug overlay shows this one.
+            Lines.Add("        PreviewState.World.PreferForSpatialDebug();");
+        }
         Lines.Add("        Initialized = true;");
         Lines.Add("        return true;");
         if(HasEngineHost){
@@ -88,6 +92,9 @@ internal static class GeneratedEditorPreviewBridgeEmitter {
             Lines.Add("        }");
         }
         Lines.Add("    }");
+        Lines.Add(HasSpatialIndex
+            ?"    internal static global::System.Guid EditorSpatialWorldId() => Initialized ? PreviewState.World.GlobalSpatialDebugWorldId : global::System.Guid.Empty;"
+            :"    internal static global::System.Guid EditorSpatialWorldId() => global::System.Guid.Empty;");
         Lines.Add("    internal static void TickOnChange() {");
         Lines.Add("        if (!Initialized || !PreviewState.Enabled) return;");
         if(HasEditorSystems){
