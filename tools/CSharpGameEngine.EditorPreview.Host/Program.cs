@@ -105,7 +105,8 @@ try{
 }finally{
     try{ shutdown.Invoke(null,null); }catch{}
     hostCancellation.Cancel();
-    try{ await controlTask; }catch{}
+    // M0095 3-6: a client that never reads the answer must not keep the editor world alive.
+    try{ await Task.WhenAny(controlTask,Task.Delay(TimeSpan.FromSeconds(1))); }catch{}
 }
 
 static string? ReadOption(string[] Arguments,string Name){
