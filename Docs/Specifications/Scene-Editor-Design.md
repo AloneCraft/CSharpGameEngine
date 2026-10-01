@@ -109,13 +109,13 @@ aspect≥1では実効FOV=FovYとなり、横長・正方形の距離はPhase 0�
 
 | 概念操作 | 計算 |
 |---|---|
-| `Look`(RMB+Mouse、Alt+RMBも同じ) | 基準(反転スイッチOFF、2026-10-01にユーザー確認): 右ドラッグで`Yaw`が減り、下ドラッグで`Pitch`が上がる。`Yaw -= Δx * 感度 * (InvertLookX ? -1 : 1)`、`Pitch += Δy * 感度 * (InvertLookY ? -1 : 1)`。位置固定。`InvertLookX=ON`かつ`InvertLookY=OFF`のとき(右ドラッグでYaw増・下ドラッグでPitch増)はピクセル完全一致(下記)を使う |
+| `Look`(RMB+Mouse、Alt+RMBも同じ) | 基準(反転スイッチOFF): 右ドラッグで`Yaw`が減り、下ドラッグで`Pitch`が下がる(水平は2026-10-01にユーザー確認、垂直はM0096でユーザーの依頼により、それまでチェックを入れたときの向きを既定にした)。`Yaw -= Δx * 感度 * (InvertLookX ? -1 : 1)`、`Pitch -= Δy * 感度 * (InvertLookY ? -1 : 1)`。位置固定。`InvertLookX=ON`かつ`InvertLookY=ON`のとき(右ドラッグでYaw増・下ドラッグでPitch増)はピクセル完全一致(下記)を使う |
 | `Fly`(RMB+WASDQE) | `位置 += (前後A/D左右Q/E上下の合成方向) * 速度 * Δt`。速度 = 基準 × `NavigationSpeedMultiplier` × (Shift: ×4 / Ctrl: ×0.25) |
 | `Pan`(MMB Drag) | 視線を変えずカメラの右・上ベクトル方向へ`FocusPosition`と視点を平行移動。移動量はNavigationScale比例 |
 | `Orbit`(Alt+LMB) | `Yaw`/`Pitch`を回す。選択があればドラッグ開始時の選択中心(Focus Selectionと同じメッシュ境界の中心、メッシュが無ければギズモのピボット)を回転中心にし、その点のカメラ座標が変わらないよう視点を移す — 選択中心は画面上の同じ位置・同じ距離に留まり、そこにある真球は描画が変わらない(M0095、2026-10-01ユーザー要望)。選択が無ければ`FocusPosition`固定で旋回する。旋回中は選択のギズモを隠し、終われば戻す(Altを押しただけでは隠さないので、§6.2のAlt+ハンドルのDuplicateは使える)。基準はLookと同じ向きで、反転は`InvertOrbitX`/`InvertOrbitY`(Lookとは独立)。Orbitは常にドラッグ量ベースで更新し、クリック位置のピクセル固定は行わない。 |
 
 **ピクセル完全一致ドラッグ**(2026-08追加): RMBでクリックした点(方向)が、Lookの向きが
-「右ドラッグでYaw増・下ドラッグでPitch増」(`InvertLookX=ON`、`InvertLookY=OFF`)の間は
+「右ドラッグでYaw増・下ドラッグでPitch増」(`InvertLookX=ON`、`InvertLookY=ON`)の間は
 ドラッグ中カーソル先端に一致し続ける。Alt+LMB Orbitには適用しない。
 - Look: Eyeが回転中固定なので、クリック時の方向だけから`atan2`/`acos`のみで厳密な閉形式が
   導ける(`SceneViewCamera.SolveLookOrientation`)。
@@ -447,6 +447,7 @@ enumメンバー名は`Transform`ではなく`LocalTransform`にしてある(`Tr
 ナビゲーション反転の基準を変えたときは、VS user settingsの移行バージョン(`NavigationSettingsMigrationVersion`)を上げ、既存プロファイルを一度だけ変換する。
 - 版1: 未移行プロファイルの4軸を旧既定(`true`)へ揃えた。
 - 版2(2026-10-01): 基準を「旧既定の水平・Orbit」と「旧既定の逆の垂直Look」へ移し、スイッチの既定をOFFにした。未移行プロファイルは既定(OFF)を書く。版1のプロファイルは4値を反転する。水平とOrbitは式の基準も反転したので見た目の向きが保たれ、垂直Lookは式が同じなのでユーザーの依頼どおり実際の向きが一度だけ反転する。
+- 版3(M0096): Look・Orbitの垂直の基準を反転した(それまでチェックを入れたときの向きが既定)。値は基準に対する反転のまま変換しないので、チェックの無いプロファイルは新しい既定の向きに、チェックを入れていたプロファイルはそれまでの既定の向きになる。
 - 移行後にユーザーがOptionsで変更した値は保持する。
 
 保存はツールウィンドウ非表示時と値変更時(デバウンス)。カメラ姿勢・`FocusPosition`・選択・

@@ -278,6 +278,27 @@ public sealed class SceneEditorSettingsTests {
         Assert.True(SceneEditorSettings.ReadInvertLookX());
     });
 
+    /// <summary>
+    /// 版3は垂直の基準だけを反転した(M0096)。値は基準に対する反転のままなので変換しない: チェックの無い
+    /// 利用者は新しい既定の向きに、チェックを入れていた利用者はそれまでの既定の向きになる。
+    /// </summary>
+    [Fact]
+    public void MigrateNavigationSettingsIfNeeded_FromVersionTwo_KeepsTheStoredSwitches()=>RunOnUiThread(()=>{
+        var Store=new FakeWritableSettingsStore();
+        SceneEditorSettings.ConfigureStoreProvider(()=>Store);
+        Store.CreateCollection(@"CSharpGameEngine\SceneEditor");
+        Store.SetString(@"CSharpGameEngine\SceneEditor","NavigationSettingsMigrationVersion","2");
+        SceneEditorSettings.WriteInvertLookX(true);
+        SceneEditorSettings.WriteInvertLookY(false);
+        SceneEditorSettings.WriteInvertOrbitX(false);
+        SceneEditorSettings.WriteInvertOrbitY(true);
+        SceneEditorSettings.MigrateNavigationSettingsIfNeeded();
+        Assert.True(SceneEditorSettings.ReadInvertLookX());
+        Assert.False(SceneEditorSettings.ReadInvertLookY());
+        Assert.False(SceneEditorSettings.ReadInvertOrbitX());
+        Assert.True(SceneEditorSettings.ReadInvertOrbitY());
+    });
+
     [Fact]
     public void ReadShowPhysicsPanel_NoStoredValue_ReturnsClosedDefault()=>RunOnUiThread(()=>{
         Assert.False(SceneEditorSettings.DefaultShowPhysicsPanel);

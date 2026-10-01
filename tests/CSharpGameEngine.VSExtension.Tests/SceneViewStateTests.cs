@@ -187,8 +187,9 @@ public sealed class SceneViewStateTests {
     }
 
     /// <summary>
-    /// 反転スイッチがすべてオフのときの基準(2026-10-01にユーザー確認): RMB/Alt+RMBのLookは右ドラッグで
-    /// Yawが減り、下ドラッグでPitchが上がる。Alt+LMBのOrbitも同じ向きになる。
+    /// 反転スイッチがすべてオフのときの基準: RMB/Alt+RMBのLookは右ドラッグでYawが減り、下ドラッグでPitchが
+    /// 下がる。Alt+LMBのOrbitも同じ向きになる(M0096: 垂直はユーザーの依頼で、それまでチェックを入れたときの
+    /// 向きを既定にした)。
     /// </summary>
     [Fact]
     public void Look_WithSwitchesOff_UsesTheConfirmedBaselineDirections(){
@@ -198,7 +199,7 @@ public sealed class SceneViewStateTests {
 
         SceneViewState Down=new(){ Yaw=0f,Pitch=0f };
         Down.TickFly([],DeltaX:0f,DeltaY:10f,DeltaTime:0f,Shift:false,Ctrl:false);
-        Assert.True(Down.Pitch>0f,$"pitch {Down.Pitch}");
+        Assert.True(Down.Pitch<0f,$"pitch {Down.Pitch}");
     }
 
     [Fact]
@@ -209,7 +210,7 @@ public sealed class SceneViewStateTests {
 
         SceneViewState Down=new(){ Yaw=0f,Pitch=0f };
         Down.ApplyOrbit(0f,10f);
-        Assert.True(Down.Pitch>0f,$"pitch {Down.Pitch}");
+        Assert.True(Down.Pitch<0f,$"pitch {Down.Pitch}");
     }
 
     [Fact]
@@ -226,8 +227,9 @@ public sealed class SceneViewStateTests {
     [Fact]
     public void LookUsesPixelLock_OnlyForTheGrabTheWorldDirections(){
         Assert.False(new SceneViewState().LookUsesPixelLock);
-        Assert.True(new SceneViewState(){ InvertLookX=true }.LookUsesPixelLock);
-        Assert.False(new SceneViewState(){ InvertLookX=true,InvertLookY=true }.LookUsesPixelLock);
+        Assert.False(new SceneViewState(){ InvertLookX=true }.LookUsesPixelLock);
+        Assert.False(new SceneViewState(){ InvertLookY=true }.LookUsesPixelLock);
+        Assert.True(new SceneViewState(){ InvertLookX=true,InvertLookY=true }.LookUsesPixelLock);
     }
 
     /// <summary>OrbitはこれまでInvertX:false,InvertY:false固定だった。M0020でLookと同じく独立して反転可能にした。</summary>
