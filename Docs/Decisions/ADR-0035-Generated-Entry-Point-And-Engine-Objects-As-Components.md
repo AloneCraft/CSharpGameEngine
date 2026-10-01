@@ -212,6 +212,8 @@ Present」が`Program.cs`なしで通っている。立方体が暗く見える�
   `file`スコープの専用マーカークラスに付ける(ファイル既定値)かを選べる。任意個のSystem・ファイルへ
   全順序を与えられる点でinterfaceの「先頭/末尾」2値より表現力が高い。`UserEcsProject`の
   `GameSystems.cs`/`RuntimeSystem.cs`にこれを適用し、偶然のファイル名依存を解消した。
+  → その後[[ADR-0073-Relative-System-Order]]で`[SystemOrder]`を廃止し、`[RunsAfter]`/`[RunsBefore]`の相対指定と
+  完全修飾名順に置き換えた。
 - **エンジン側システムの置き場**: `CSharpGameEngine.Entities`ではあり得ない。net10.0・
   ProjectReferenceゼロのプラットフォーム非依存ソースであり、`StageRenderer`/`Win32Window`を
   参照した瞬間に単体ビルドと[[ADR-0001-Layered-Architecture]]の階層が壊れる。`Entities`と同じ理由で

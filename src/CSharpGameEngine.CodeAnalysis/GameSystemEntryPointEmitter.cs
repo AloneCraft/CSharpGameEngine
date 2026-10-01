@@ -49,8 +49,7 @@ internal static class GameSystemEntryPointEmitter {
     /// </summary>
     internal static Plan ShouldEmitPlan(
         GenerationGate Gate,
-        ImmutableArray<GameSystemResult>Systems,
-        GameSystemOrderContext OrderContext){
+        ImmutableArray<GameSystemResult>Systems){
         if(Gate.OutputKind is not (OutputKind.ConsoleApplication or OutputKind.WindowsApplication)){
             return new Plan(false,null);
         }
@@ -65,7 +64,7 @@ internal static class GameSystemEntryPointEmitter {
             return new Plan(false,null);
         }
 
-        if(FindFirstUnsupportedContextParameter(Systems,OrderContext)is { } Offending){
+        if(FindFirstUnsupportedContextParameter(Systems)is { } Offending){
             return new Plan(false,Diagnostic.Create(
                 GameSystemDiagnostics.EntryPointCannotSupplyContext,
                 Location.None,
@@ -81,10 +80,8 @@ internal static class GameSystemEntryPointEmitter {
     /// Mainには渡す値を作る手段が無い。
     /// </summary>
     private static(string SystemName,string TypeFullyQualifiedName)?FindFirstUnsupportedContextParameter(
-        ImmutableArray<GameSystemResult>Systems,
-        GameSystemOrderContext OrderContext){
-        List<GameSystemResult>Ordered=[.. Systems.Where(static S=>S.Diagnostics.Length==0)];
-        Ordered.Sort((A,B)=>GameSystemExecutionOrder.Compare(A,B,OrderContext));
+        ImmutableArray<GameSystemResult>Systems){
+        List<GameSystemResult>Ordered=GameSystemExecutionOrder.Order(Systems.Where(static S=>S.Diagnostics.Length==0));
 
         foreach(var System in Ordered){
             foreach(var Method in System.Methods){

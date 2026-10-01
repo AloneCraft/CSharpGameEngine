@@ -3,7 +3,6 @@ using CSharpGameEngine.Entities;
 namespace CSharpGameEngine.Runtime.Animation;
 /// <summary>Loads each SkeletalMesh's skeleton and starts it in the bind pose (identity palette).</summary>
 [SystemPhase(SystemPhase.Presentation)]
-[SystemOrder(11)]
 internal struct SkeletalMeshSetup:ISystem {
     public void Update(ref SkeletalMesh Mesh,ref SkeletalMeshRuntime Runtime,ref State State){
         if(Runtime.Skeleton is not null||Runtime.Error is not null){
@@ -26,7 +25,7 @@ internal struct SkeletalMeshSetup:ISystem {
 /// the skinning palette. Presentation data: the pose never feeds back into the simulation.
 /// </summary>
 [SystemPhase(SystemPhase.Presentation)]
-[SystemOrder(12)]
+[RunsAfter(typeof(SkeletalMeshSetup))]
 internal struct LocomotionAnimation:ISystem {
     /// <summary>Longest step one frame may advance the animation, so a hitch does not skip whole states.</summary>
     private const float MaximumDeltaSeconds=0.1f;

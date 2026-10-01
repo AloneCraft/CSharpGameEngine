@@ -192,54 +192,6 @@ internal static class GameSystemDiagnostics {
         isEnabledByDefault:true);
 
     /// <summary>
-    /// <c>[SystemOrder]</c>(ADR-0036)をファイル既定値として使う場合、`file`スコープのマーカークラス
-    /// 専用に限定している。通常のクラスに付けると、そのクラス名がファイルの外へ漏れる
-    /// (=マーカーのつもりが公開APIの一部になる)ため、意図を強制する。ISystem実装struct自身に
-    /// 直接付ける場合(そのSystem1つだけの順序)はこの制約を受けない。
-    /// </summary>
-    internal static readonly DiagnosticDescriptor SystemOrderMarkerMustBeFileScoped=new(
-        id:"SYSGEN022",
-        title:"A [SystemOrder] file marker must be a file-scoped ('file') class",
-        messageFormat:"'{0}' is decorated with [SystemOrder] as a file-default marker but is not declared with the 'file' modifier; add 'file' so the marker does not leak outside its file",
-        category:Category,
-        defaultSeverity:DiagnosticSeverity.Error,
-        isEnabledByDefault:true);
-
-    /// <summary>1ファイルの既定順序は一意でなければならない。2つ以上のマーカーがあると、そのファイルの既定値が定まらない。</summary>
-    internal static readonly DiagnosticDescriptor DuplicateFileOrderInOneFile=new(
-        id:"SYSGEN023",
-        title:"A file must declare at most one [SystemOrder] file marker",
-        messageFormat:"File '{0}' declares a [SystemOrder] file marker on more than one class ('{1}' and '{2}'); only one marker is allowed per file",
-        category:Category,
-        defaultSeverity:DiagnosticSeverity.Error,
-        isEnabledByDefault:true);
-
-    /// <summary>
-    /// 2つの異なるファイルが同じ明示的なファイル既定値を宣言すると、その2ファイル間の相対順序が
-    /// 未定義に戻ってしまう(この属性を導入した目的そのものが達成できなくなる)。System単体に直接
-    /// 付けた明示値同士が重複するのは「意図的な同着」でありうるため対象外(ファイル既定値だけの規則)。
-    /// </summary>
-    internal static readonly DiagnosticDescriptor DuplicateFileOrderValue=new(
-        id:"SYSGEN024",
-        title:"Two files must not declare the same explicit [SystemOrder] file-default value",
-        messageFormat:"Files '{0}' and '{1}' both declare a [SystemOrder({2})] file marker; give them different values so their relative order is unambiguous",
-        category:Category,
-        defaultSeverity:DiagnosticSeverity.Error,
-        isEnabledByDefault:true);
-
-    /// <summary>
-    /// <c>[SystemOrder]</c>をstructに付けたが<c>ISystem</c>を実装していない場合、その値はどこからも
-    /// 参照されず静かに無視される。付け間違いに気づけるよう報告する。
-    /// </summary>
-    internal static readonly DiagnosticDescriptor SystemOrderOnNonSystemStruct=new(
-        id:"SYSGEN025",
-        title:"[SystemOrder] on a struct has no effect unless the struct implements ISystem",
-        messageFormat:"'{0}' is decorated with [SystemOrder] but does not implement ISystem, so this value is never used",
-        category:Category,
-        defaultSeverity:DiagnosticSeverity.Error,
-        isEnabledByDefault:true);
-
-    /// <summary>
     /// Archetypeの一致判定はSource Generator内の二語の<c>ulong</c>マスクで行う。
     /// 1–64型はlow wordだけ、65–128型はlow/high wordを使い、生成Runtimeへmask照合を残さない。
     /// 129型目は表現できないため、ビットの折り返しで部分集合判定が壊れる前に明示的に拒否する。
@@ -274,26 +226,41 @@ internal static class GameSystemDiagnostics {
         defaultSeverity:DiagnosticSeverity.Error,
         isEnabledByDefault:true);
 
-    internal static readonly DiagnosticDescriptor ScheduledDependencyMustExist=new(
-        id:"SYSGEN030",
-        title:"A scheduled dependency must identify another scheduled system",
-        messageFormat:"Scheduled system '{0}' runs after '{1}', but that target is not a scheduled system in this compilation",
-        category:Category,
-        defaultSeverity:DiagnosticSeverity.Error,
-        isEnabledByDefault:true);
-
-    internal static readonly DiagnosticDescriptor ScheduledDependencyCycle=new(
-        id:"SYSGEN031",
-        title:"Scheduled system dependencies must be acyclic",
-        messageFormat:"Scheduled system dependency cycle: {0}",
-        category:Category,
-        defaultSeverity:DiagnosticSeverity.Error,
-        isEnabledByDefault:true);
 
     internal static readonly DiagnosticDescriptor AmbiguousScheduledAccessConflict=new(
         id:"SYSGEN032",
         title:"Conflicting scheduled component access must be explicitly ordered",
-        messageFormat:"Scheduled systems '{0}' and '{1}' have an unordered write conflict on '{2}'; add RunsAfter to establish one order",
+        messageFormat:"Scheduled systems '{0}' and '{1}' have an unordered write conflict on '{2}'; add RunsAfter or RunsBefore to establish one order",
+        category:Category,
+        defaultSeverity:DiagnosticSeverity.Error,
+        isEnabledByDefault:true);
+
+    /// <summary>ADR-0073: <c>[RunsAfter]</c>/<c>[RunsBefore]</c>の対象は、このコンパイルのSystemでなければならない。</summary>
+    internal static readonly DiagnosticDescriptor SystemOrderTargetMustBeSystem=new(
+        id:"SYSGEN033",
+        title:"A RunsAfter or RunsBefore target must be a system in this compilation",
+        messageFormat:"'{0}' declares [{1}] on '{2}', which is not a system in this compilation",
+        category:Category,
+        defaultSeverity:DiagnosticSeverity.Error,
+        isEnabledByDefault:true);
+
+    /// <summary>ADR-0073: 同じPhaseの中の<c>[RunsAfter]</c>/<c>[RunsBefore]</c>は循環してはならない。</summary>
+    internal static readonly DiagnosticDescriptor SystemOrderCycle=new(
+        id:"SYSGEN034",
+        title:"System order declarations must not form a cycle",
+        messageFormat:"System order cycle: {0}",
+        category:Category,
+        defaultSeverity:DiagnosticSeverity.Error,
+        isEnabledByDefault:true);
+
+    /// <summary>
+    /// ADR-0073: Phaseの順は固定なので、後のPhaseのSystemの後・前のPhaseのSystemの前には置けない
+    /// (逆向きの宣言は常に満たされるので何もしない)。
+    /// </summary>
+    internal static readonly DiagnosticDescriptor SystemOrderAgainstPhaseOrder=new(
+        id:"SYSGEN035",
+        title:"A system cannot be ordered against the phase order",
+        messageFormat:"'{0}' declares [{1}] on '{2}', but '{0}' runs in the {3} phase and '{2}' in the {4} phase, so the phase order already decides the opposite",
         category:Category,
         defaultSeverity:DiagnosticSeverity.Error,
         isEnabledByDefault:true);

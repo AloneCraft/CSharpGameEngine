@@ -23,7 +23,10 @@ public struct DisabledTag {
 /// Archetypeは<c>Update</c>/<c>Spawn</c>の引数からのみ導出されるため(ADR-0033)、テストが使う構成は
 /// ここで宣言しておく必要がある。<c>Update</c>を持つものはメインループのディスパッチ対象にもなるが、
 /// このテストプロジェクトは<c>GeneratedGameLoop</c>を呼ばないので副作用は無い。
+/// Archetypeの番号はSystemの順に振られ、テストは<c>Archetype0</c>={Position}、<c>Archetype1</c>={Position, Velocity}、
+/// <c>Archetype2</c>={Position, Parent}を名指しする。順序の無いSystemは名前順になる(ADR-0073)ので、この順を辺で固定する。
 /// </summary>
+[RunsBefore(typeof(SceneShapeSpawn))]
 internal struct TestSystem:ISystem {
     /// <summary>移動元Archetype: <c>{Position}</c>。</summary>
     public bool Update(Entity Entity,ref Position Position,ref State State){
@@ -37,6 +40,7 @@ internal struct TestSystem:ISystem {
 }
 
 /// <summary>Scene Authoringが使う構成(親子リンクと空ノード)を宣言する。</summary>
+[RunsBefore(typeof(HealthSpawn))]
 internal struct SceneShapeSpawn:ISystem {
     public void Spawn(ref Position Position,ref Parent Parent){
     }

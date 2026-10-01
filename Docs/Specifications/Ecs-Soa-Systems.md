@@ -103,39 +103,36 @@ Componentは`ref`必須・Contextは`ref`禁止なので、ref-kindだけで曖�
 
 ## 実行順序
 
-**ソース上の記述順**がそのまま実行順になる。`Update`引数がすべて`ref`になったことでRead/Writeの区別が
-無くなり、旧設計のWrite→Read自動トポロジカルソートは原理的に成立しないため、この単純な規則を採用した
-(ADR-0033決定事項3)。
+ADR-0073。順序は`GameSystemExecutionOrder`だけが決める。
 
-- Systemの実効的な順序値(`GameSystemExecutionOrder.OrderOf`): ①`[SystemOrder]`をSystem自身に
-  直接付けた明示値 ②`[SystemOrder]`をfileマーカーへ付けたファイル既定値(いずれもADR-0036、
-  宣言が無ければ0、①が②より優先)
-- 整列キー(`GameSystemExecutionOrder.Compare`): ①上記の実効値 ②`SyntaxTree.FilePath`のOrdinal順
-  (既存タイブレーク) ③`Location.SourceSpan.Start`
-- 同一struct内の`Update`オーバーロード: 宣言順
-
-Roslynがファイルを渡す順序は保証されないため、**順序が意味を持つSystemは1ファイルへ集約すること**が
-基本だが、それが難しい場合は`[SystemOrder(int)]`(ADR-0036)で明示できる。2通りの付け方がある:
+- Phaseの順(FrameInput → FixedSimulation → PhysicsSimulation → PostPhysics → Presentation)は固定。
+- 同じPhaseの中は、`[RunsAfter(typeof(X))]`(Xの後)と`[RunsBefore(typeof(X))]`(Xの前)の辺を守る
+  トポロジカル順。辺でつながらないSystem同士は、実行できるもののうち完全修飾名(Ordinal)が最も小さいものから。
+- 起動シーン(`"startupOrder"`のあるシーン JSON)の合成SystemはFrameInputの先頭に、`startupOrder` →
+  完全修飾名の順で並ぶ。
+- 同一struct内の`Update`オーバーロード: 宣言順。
 
 ```csharp
-// ①ISystem実装struct自身に直接 — そのSystemだけの順序
-[SystemOrder(0)]
-internal struct FooSystem : ISystem { ... }
+// ゲームのSystemをエンジンのSystemの前に置くには[RunsBefore]を使う(エンジンはゲームの型を参照できない)
+[SystemPhase(SystemPhase.Presentation)]
+[RunsBefore(typeof(LocomotionAnimation))]
+internal struct ThirdPersonAnimation : ISystem { ... }
 
-// ②fileスコープのマーカークラスに — ファイル内で自分の順序を持たない全Systemの既定値
-[SystemOrder(1)]
-file sealed class Order
-{
-}
+[SystemPhase(SystemPhase.FrameInput)]
+[RunsAfter(typeof(Window))]
+internal struct ShowcaseControls : ISystem { ... }
 ```
 
-属性を付けなければ従来どおりファイルパスのOrdinal順にフォールバックする(後方互換)。
-`UserGameProject/Systems/Systems.cs`(単一ファイル集約)と`UserEcsProject/`
-(`Scenes/MainScene.json`=`"startupOrder": 0`から合成されるSystem、`Systems/RuntimeSystem.cs`=
-fileマーカーに`[SystemOrder(1)]`)がその実例。
+- 名前順は「辺の無いものの並べ方」であって順序の保証ではない。型や名前空間の名前を変えると前後が変わりうるので、
+  順序に意味があるなら辺を書く。ファイルの場所や宣言の位置は順序に関係しない。
+- 前のPhaseのSystemへの`[RunsAfter]`と後のPhaseのSystemへの`[RunsBefore]`は常に満たされるので何もしない。
+  逆はSYSGEN035、対象がSystemでなければSYSGEN033、同じPhaseの中の循環はSYSGEN034。
+- エンジンのSystemは、`[SystemOrder]`の時代の実効順序を鎖として保存している(`RuntimeSystems.cs`の
+  Presentationは宣言順の鎖)。UserEcsProjectのPhaseごとの順序は`GeneratedSystemOrderTests`が固定する。
+- `[SystemOrder]`(ADR-0036)は廃止し、使うとCS0619(メッセージが置き換えを案内する)。
 
-> 実行順序の正しさは記述する人間の責任になった。順序を誤ってもビルドは通り、症状(例: カメラが1フレーム
-> 遅れる)は実行時にしか現れない。
+> 実行順序の正しさは記述する人間の責任である。辺を書き忘れてもビルドは通り、症状(例: アニメーションが
+> 1フレーム遅れる)は実行時にしか現れない。
 
 ## ディスパッチ(部分集合一致)
 
@@ -215,9 +212,8 @@ internal static partial class MainScene
 }
 ```
 
-- `[StartupScene]`は`static partial class`が対象。`Order`は合成Systemの実効的な順序値で、
-  `[SystemOrder]`をSystem自身へ直接付けた場合と同じ優先度(`GameSystemOrderContext.SystemOrderByFqn`)
-  で扱われる。
+- `[StartupScene]`は`static partial class`が対象。`Order`は起動シーン同士の順序で、合成Systemは
+  FrameInputの先頭に`Order` → 完全修飾名の順で並ぶ(ADR-0073)。
 - `[SceneEntity]`は`static`・getter付き・非indexer・非ref返しのプロパティが対象。戻り値が単一の
   非nullable structなら1 Componentのみのentity、`ValueTuple`(要素名必須)ならその各要素を持つentity。
 - 1クラスにつき`Query = {Bootstrap}`・`Order = 属性値`の合成`ISystem`が1つ生成される
@@ -288,7 +284,6 @@ Generatorは`CSharpGameEngine.Entities.ISystem`型がコンパイル内に実在
 | SYSGEN018〜019 | Context引数(`in`(struct)または値渡し(参照型)、同一メソッド内での型重複禁止) |
 | SYSGEN020 | 異なるComponent型が同じ単純名を持つ(生成フィールド名が衝突する) |
 | SYSGEN021 | Context引数があるためエントリポイントを生成できない(ADR-0035) |
-| SYSGEN022〜025 | `[SystemOrder]`の誤用(fileマーカーが`file`スコープでない、1ファイル複数マーカー、複数ファイルが同一のファイル既定値、非ISystem structへの付与。ADR-0036) |
 | SYSGEN026 | 1コンパイルのComponent型が上限128を超える |
 | SYSGEN027 | 同じ作者Componentを複数のRuntime companion Componentが主張する |
 
@@ -323,8 +318,7 @@ Scene Authoringの診断は`SCENE001`〜`008`(`SCENE009`はADR-0033で削除。�
 - F-L3-020は実装済みであり、129型以上はSYSGEN026で明示的に拒否する。
 - Archetype名は出現順の連番なので、Systemを増減すると既存Archetypeの番号がずれる(ユーザーコードは
   Archetype名を参照しないため実害は無いが、生成コードを名指しするテストは影響を受ける)。
-- 実行順序は記述順依存。複数ファイルへ分割した場合、`[SystemOrder]`(ADR-0036)を使わなければ
-  ファイルパスのOrdinal順に依存する。
+- 辺の無いSystem同士の順序は完全修飾名に依存する(ADR-0073)。順序に意味があるなら`[RunsAfter]`/`[RunsBefore]`を書く。
 - 汎用の`Add<T>`/`Remove<T>`/`Destroy`(旧`EntityCommandBuffer`)と除外条件(旧`[Without]`)は未実装。
 - `ISystem`の検出に属性ベースの高速パス(`ForAttributeWithMetadataName`)が使えず、base listを持つ全型宣言に
   対して意味解析を行う。

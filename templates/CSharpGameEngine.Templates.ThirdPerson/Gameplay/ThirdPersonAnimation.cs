@@ -7,7 +7,7 @@ namespace CgeThirdPerson.Gameplay;
 /// メッシュのLocomotionAnimatorへ毎フレーム渡す。アニメーションの評価はエンジン(LocomotionAnimation)が行う。
 /// </summary>
 [SystemPhase(SystemPhase.Presentation)]
-[SystemOrder(10)]
+[RunsBefore(typeof(LocomotionAnimation))]
 internal struct ThirdPersonAnimation:ISystem {
     public void Update(Entity Entity,ref LocomotionAnimator Animator,ref State State){
         if(!State.World.TryGetComponent(Entity,out Parent Parent)||!State.World.TryGetComponent(Parent.Value,out CharacterMovementState Movement)){

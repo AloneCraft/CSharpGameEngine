@@ -9,7 +9,7 @@ namespace CSharpGameEngine.Runtime.Character;
 /// the physics frame.
 /// </summary>
 [SystemPhase(SystemPhase.PhysicsSimulation)]
-[SystemOrder(10_010)]
+[RunsAfter(typeof(PhysicsTransformWriteback))]
 internal struct CharacterMovementUpdate:ISystem {
     private static readonly ConditionalWeakTable<DeterministicPhysicsWorld,CharacterMotor>Motors=[];
     public void Update(ref Transform Transform,ref CharacterMovement Movement,ref CharacterMovementState MovementState,ref CharacterInput Input,EngineHost Host,ref State State){
@@ -44,7 +44,6 @@ internal struct PlayerControllerQueryRegistration:ISystem { public void Spawn(re
 /// rotation at the arm's end.
 /// </summary>
 [SystemPhase(SystemPhase.Presentation)]
-[SystemOrder(0)]
 internal struct SpringArmUpdate:ISystem {
     private static readonly ConditionalWeakTable<DeterministicPhysicsWorld,SpringArmSolver>Solvers=[];
     public void Update(Entity Entity,ref Transform Transform,ref SpringArm Arm,EngineHost Host,ref State State){

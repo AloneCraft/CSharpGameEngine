@@ -4,7 +4,7 @@
 
 Editor Preview does not implement a second spatial index inside the VSIX. The Source Generator emits
 GeneratedEditorPreviewBridge and a hidden net10 Preview Host invokes it. Runtime and Editor use the same ECS
-World, SystemOrder, World.RefreshGlobalSpatialIndex, EntityLooseOctree and SpatialDebugHub.
+World, system order (ADR-0073), World.RefreshGlobalSpatialIndex, EntityLooseOctree and SpatialDebugHub.
 
 Only systems marked with [ExecuteInEditor] run in editor mode. Without Realtime they run after Scene/Project
 changes; Realtime=true adds a 15 Hz tick. Preview World changes are temporary and are never saved automatically.

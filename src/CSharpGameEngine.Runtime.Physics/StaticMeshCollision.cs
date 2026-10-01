@@ -113,8 +113,8 @@ internal sealed class StaticMeshCollisionCooker {
     }
 }
 [SystemPhase(SystemPhase.PhysicsSimulation)]
-[SystemOrder(10_001)]
 [ExecuteInEditor(Realtime=true)]
+[RunsAfter(typeof(PhysicsBodySync))]
 internal struct StaticMeshColliderSync:ISystem {
     public void Update(Entity Entity,ref Transform Transform,ref StaticMesh Mesh,ref StaticMeshCollider MeshCollider,EngineHost Host,ref State State){
         PhysicsDomainRuntime Domain=Host.ActivePhysicsDomain;

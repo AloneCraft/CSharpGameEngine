@@ -10,8 +10,8 @@ M0095 の後にユーザーから受けた不具合報告と設計判断を、M0
 |---|---|---|
 | A | ランタイムビューで、選択したギズモを操作しても確定まで画面のオブジェクトが動かない | 完了（82bf9b0、SDK 0.1.5 は d3b6c4e） |
 | B | Options の上下反転（Look / Orbit）: チェックを入れたときの今の挙動を、チェックなしの既定にする | 完了（8589960） |
-| C | 実行時に使われない `VsixStrings.en-US.resx`、obj だけ残った旧ディレクトリ、`UserEcsProject/Generated/` の削除 | 完了（本コミット） |
-| D | 整数 `[SystemOrder]` を廃止し `[RunsAfter]` の相対順序に一本化（同着は完全修飾名順） | 未着手 |
+| C | 実行時に使われない `VsixStrings.en-US.resx`、obj だけ残った旧ディレクトリ、`UserEcsProject/Generated/` の削除 | 完了（dbb9fc1） |
+| D | 整数 `[SystemOrder]` を廃止し `[RunsAfter]` の相対順序に一本化（同着は完全修飾名順） | 完了（本コミット、ADR-0073）。`[RunsBefore]` を追加した（下記） |
 | E | シーン JSON の角度を turns（1 = 1 回転）で保存し、Inspector は度で表示 | 未着手 |
 | F | Scene ビューの 2 プロセス（ランタイムビューと編集ワールド）の統合 | 未着手 |
 | G | Runtime.Physics / Character の Windows 依存の解消と、`Physics.Cli` の UserEcsProject 依存の除去 | 未着手 |
@@ -50,3 +50,25 @@ M0095 の後にユーザーから受けた不具合報告と設計判断を、M0
 - `UserEcsProject/Generated/`: 2026-08-21 の生成物（存在しない `TransformPrecisionGenerator` の出力を含む）。プロジェクトはここへ出力していない。
 - 文書: `Architecture.md` が `UserGameProject/` を実在の `.csproj`、`SceneAuthoring.Cli` を現役のブリッジとして書いていたので、現在のもの（`UserEcsProject/`、ThirdPerson テンプレート、現在の CLI ブリッジ）に直した。`UserEcsProject/README.md` の `Generated/` への参照も直した。README の他の部分は以前から古い（別タスクとして提案）。
 - 全テスト成功。ビルド後も削除したディレクトリは再作成されない。
+
+## D. 実行順序を相対指定に（ADR-0073）
+- 移行前の実効順序を、生成されたループ（UserEcsProject、ThirdPerson テンプレート、stages 10 個）から Phase ごとに抽出して記録し、移行後と比べた。
+- 規則: Phase の順は固定。Phase の中は `[RunsAfter]` / `[RunsBefore]` の辺を守るトポロジカル順、辺の無いもの同士は完全修飾名順。起動シーンは FrameInput の先頭に `startupOrder` → 完全修飾名の順。
+- **`[RunsBefore]` を追加した（指示は `[RunsAfter]` だったが、それだけでは書けない順序があった）**:
+  - ThirdPerson テンプレートの `ThirdPersonAnimation` は `LocomotionAnimator` を書き、エンジンの `LocomotionAnimation` がそれを読む。エンジンはゲームの型を参照できないので、ゲーム側から「前」と書くしかない。名前順では `CSharpGameEngine.…` が `CgeThirdPerson.…` より前になり、1 フレーム遅れる。
+  - Runtime.Physics / Character / Animation から Runtime.Windows の型を参照しないため（G）。
+  - 代わりの案（`ThirdPersonAnimation` を PostPhysics に移す）は、この例では同じ結果になるが一般的な手段にならない。不要なら `[RunsBefore]` を外してこの案に戻せる。
+- 移行:
+  - エンジンは移行前の順序を鎖として書いた。物理: `PhysicsSyncBegin` → `PhysicsBodySync` → `StaticMeshColliderSync` → `PhysicsStep` → `PhysicsTransformWriteback` → `CharacterMovementUpdate`。Presentation: `SpringArmUpdate` → `RuntimeSystems.cs` の宣言順 → `SkeletalMeshSetup` → `LocomotionAnimation` → `SkinnedMeshSync` → 音 → `Present`。
+  - ゲームは実際の依存を書いた: `ShowcaseControls` / `ThirdPersonControls` は `Window` の後、`ThirdPersonAnimation` は `LocomotionAnimation` の前、`ShowcaseDashboard` は `LevelLoad` の後。
+- 実効順序の変化（意図したもの）:
+  - FrameInput: 起動シーンがすべて先頭に来た。以前は `startupOrder` と整数の順序値の比較で、`Window` や `ShowcaseControls` が起動シーンの間に挟まっていた。
+  - Presentation: `ShowcaseDashboard` は `Present` の後（描画先は Win32 の別パネルで、D3D のフレームとは無関係）。`ThirdPersonAnimation` は `SkeletalMeshSetup` の後（`LocomotionAnimation` の前は保たれる）。
+  - 物理と、他のエンジンの順序は変わらない。
+- 診断: SYSGEN033（対象が System でない）、SYSGEN034（循環）、SYSGEN035（Phase の順と矛盾）。`[SystemOrder]` は `[Obsolete(error: true)]`（CS0619）。SystemOrder 専用の SYSGEN022〜025 と、スケジュール専用の SYSGEN030 / 031 は削除した。
+- `[RunsAfter]` は `[ScheduledSystem]` を暗黙に付けない。書き込み競合の検査（SYSGEN032）は、スケジュール外の System を経由する経路も順序として数える。
+- テスト:
+  - `GameSystemOrderTests` を書き直した（辺が名前より優先、辺の無いものは名前順、起動シーンが先頭、SYSGEN033〜035、`[SystemOrder]` が CS0619）。`GameSystemScheduleTests` に 3 件追加・2 件更新。修正前の生成器では 16 件中 11 件が失敗する。
+  - `GeneratedSystemOrderTests`（Windows.Tests）: UserEcsProject の生成された System 集合から、Phase ごとの実行順序を固定した。
+  - 生成された `RunFrame` の引数順や Archetype の番号を直接書いていた既存テスト 3 件を、新しい順序に合わせた。
+- 調査中の誤り: 移行前の順序の抽出で、テンプレートと stages の生成物が「無い」と出た。`-p:Platform=x64` の違いを疑ったが、実際は抽出スクリプトが Windows のパス長制限（260 文字）でファイルを読めていなかっただけだった。

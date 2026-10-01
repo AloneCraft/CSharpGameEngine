@@ -66,9 +66,11 @@ internal static class SceneStartupSystemEmitter {
             IsWorldSystem:false,
             IsScheduled:false,
             RunsAfterSystemFullyQualifiedNames:[],
+            RunsBeforeSystemFullyQualifiedNames:[],
             DeclarationLocation:Location.None,
             Scene.FilePath,
-            Scene.DeclarationPosition);
+            Scene.DeclarationPosition,
+            Scene.StartupOrder);
     }
 
     /// <summary>

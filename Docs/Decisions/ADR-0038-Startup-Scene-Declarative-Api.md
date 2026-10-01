@@ -7,6 +7,9 @@
 属性を許す」基準に沿って、起動時Entity生成を宣言的に書けるAPIを追加する。既存の`GeneratedGameLoop.Run(ref State)`
 シグネチャ・閉集合Archetype・実行順序モデル・Runtime Systemの責務分担は一切変更しない。
 
+起動シーンの順序の扱い(下の`SystemOrderByFqn`への合流)は[[ADR-0073-Relative-System-Order]]で置き換えた:
+合成SystemはFrameInputの先頭に`Order` → 完全修飾名の順で並ぶ。
+
 ## 背景
 
 [[ADR-0035-Generated-Entry-Point-And-Engine-Objects-As-Components]]により、生成された`Main`は

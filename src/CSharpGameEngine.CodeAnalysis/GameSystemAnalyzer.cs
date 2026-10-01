@@ -26,6 +26,7 @@ internal static class GameSystemAnalyzer {
     internal const string ReadOnlyComponentAttributeMetadataName="CSharpGameEngine.Entities.ReadOnlyComponentAttribute";
     internal const string ScheduledSystemAttributeMetadataName="CSharpGameEngine.Entities.ScheduledSystemAttribute";
     internal const string RunsAfterAttributeMetadataName="CSharpGameEngine.Entities.RunsAfterAttribute";
+    internal const string RunsBeforeAttributeMetadataName="CSharpGameEngine.Entities.RunsBeforeAttribute";
     internal const string EntityFullyQualifiedName="global::CSharpGameEngine.Entities.Entity";
     internal const string StateFullyQualifiedName="global::CSharpGameEngine.Entities.State";
 
@@ -82,6 +83,7 @@ internal static class GameSystemAnalyzer {
         var RealtimeInEditor=false;
         var IsScheduled=false;
         var RunsAfter=ImmutableArray.CreateBuilder<string>();
+        var RunsBefore=ImmutableArray.CreateBuilder<string>();
         foreach(var Attribute in SystemSymbol.GetAttributes()){
             if(Attribute.AttributeClass?.ToDisplayString()=="CSharpGameEngine.Entities.ExecuteInEditorAttribute"){
                 ExecuteInEditor=true;
@@ -90,9 +92,12 @@ internal static class GameSystemAnalyzer {
                 IsScheduled=true;
             } else if(Attribute.AttributeClass?.ToDisplayString()==RunsAfterAttributeMetadataName
                 &&Attribute.ConstructorArguments.Length==1
-                &&Attribute.ConstructorArguments[0].Value is INamedTypeSymbol Dependency){
-                IsScheduled=true;
-                RunsAfter.Add(Dependency.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+                &&Attribute.ConstructorArguments[0].Value is INamedTypeSymbol Earlier){
+                RunsAfter.Add(Earlier.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+            } else if(Attribute.AttributeClass?.ToDisplayString()==RunsBeforeAttributeMetadataName
+                &&Attribute.ConstructorArguments.Length==1
+                &&Attribute.ConstructorArguments[0].Value is INamedTypeSymbol Later){
+                RunsBefore.Add(Later.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
             }
         }
 
@@ -127,21 +132,11 @@ internal static class GameSystemAnalyzer {
             IsWorldSystem,
             IsScheduled,
             RunsAfter.ToImmutable(),
+            RunsBefore.ToImmutable(),
             TypeLocation,
             TypeLocation.SourceTree?.FilePath??string.Empty,
             TypeLocation.SourceSpan.Start);
     }
-
-    /// <summary>
-    /// <see cref="GameSystemResult.ClassFullyQualifiedName"/>と同じ規則(名前空間.型名、グローバル
-    /// 名前空間ならglobal::無しの型名のみ)で完全修飾名を作る。<see cref="GameSystemOrderAnalyzer"/>が
-    /// <c>[SystemOrder]</c>を直接付けられたSystemを、<see cref="GameSystemResult"/>側と同じキーで
-    /// 引き当てるために必要(2箇所が別々の規則で名前を作るとキーがズレて対応付けが失敗する)。
-    /// </summary>
-    internal static string ComputeClassFullyQualifiedName(INamedTypeSymbol Symbol)=>
-        Symbol.ContainingNamespace.IsGlobalNamespace
-            ?Symbol.Name
-            : $"{Symbol.ContainingNamespace.ToDisplayString()}.{Symbol.Name}";
 
     private static int GetDeclarationPosition(ISymbol Symbol){
         Location Location=Symbol.Locations.FirstOrDefault()??Location.None;

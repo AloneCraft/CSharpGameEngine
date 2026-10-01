@@ -91,14 +91,6 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
                                        .Where(static Result=>Result.HasValue)
                                        .Select(static(Result,_)=>Result!.Value);
 
-        // ADR-0036: ファイル横断・System横断の実行順序を宣言する唯一の属性。ISystem実装struct自身に
-        // 直接付けるか、`file`スコープのマーカークラスへ付けてファイル既定値にするかのいずれか
-        // (GameSystemOrderAnalyzer.Analyzeがどちらかを判別する)。
-        var SystemOrders=Context.SyntaxProvider.ForAttributeWithMetadataName(
-                                                                            GameSystemOrderAnalyzer.SystemOrderAttributeFullyQualifiedName,
-                                                                            static(Node,_)=>Node is TypeDeclarationSyntax,
-                                                                            static(Ctx,_)=>GameSystemOrderAnalyzer.Analyze(Ctx));
-
         Context.RegisterSourceOutput(Systems,static(Spc,Result)=>GameSystemDiagnostics.ReportAll(Spc,Result));
 
         // Compilationそのものをキャッシュキーに含めると、キーストロークのたびに重い生成段が丸ごと
@@ -106,12 +98,11 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
         var Gate=Context.CompilationProvider.Select(
                                                    static(Compilation,Ct)=>GenerationGate.FromCompilation(Compilation,Ct));
 
-        IncrementalValueProvider<((ImmutableArray<GameSystemResult>Systems,ImmutableArray<GameSystemOrderResult>SystemOrders,ImmutableArray<SceneEmitModel>SceneDeclarations,ImmutableArray<SceneRuntimeComponentPair>RuntimeComponentPairs)Sources,GenerationGate Gate)>Combined=
+        IncrementalValueProvider<((ImmutableArray<GameSystemResult>Systems,ImmutableArray<SceneEmitModel>SceneDeclarations,ImmutableArray<SceneRuntimeComponentPair>RuntimeComponentPairs)Sources,GenerationGate Gate)>Combined=
             Systems.Collect()
-                .Combine(SystemOrders.Collect())
                 .Combine(AllSceneDeclarations)
                 .Combine(RuntimeComponentPairs.Collect())
-                .Select(static(Data,_)=>(Data.Left.Left.Left,Data.Left.Left.Right,Data.Left.Right,Data.Right))
+                .Select(static(Data,_)=>(Data.Left.Left,Data.Left.Right,Data.Right))
                 .Combine(Gate);
 
         Context.RegisterSourceOutput(Combined,static(Spc,Source)=>{
@@ -121,13 +112,6 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
 
             var SystemResults=Source.Sources.Systems;
 
-            (var OrderContext,var SystemOrderDiagnostics)=
-                GameSystemOrderAnalyzer.BuildMap(Source.Sources.SystemOrders);
-
-            foreach(var SystemOrderDiagnostic in SystemOrderDiagnostics){
-                Spc.ReportDiagnostic(SystemOrderDiagnostic);
-            }
-
             // ADR-0040のScene DSL。Collect()の順序に依存しないよう必ず整列してから使う
             // (決定論性テストが両方の実行で同じ出力になることを要求している)。
             List<SceneEmitModel>ValidSceneDeclarations=[.. Source.Sources.SceneDeclarations.Where(static S=>S.CanEmit)];
@@ -136,26 +120,20 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
                 return ByFile!=0?ByFile:A.DeclarationPosition.CompareTo(B.DeclarationPosition);
             });
 
-            // [StartupScene]が付いたSceneは「Order = Nのクエリ{Bootstrap}を持つ合成System」として、実際に
-            // 検出されたSystemと同じモデル・同じ実行順序比較(GameSystemExecutionOrder)へ合流する
-            // (理由はSceneStartupSystemEmitterのXMLコメント参照)。[StartupScene(Order = N)]の明示値は、
-            // [SystemOrder]をSystem自身へ直接付けた場合と同じ優先度で扱うため、実際に検出されたSystemの
-            // SystemOrderByFqnマップへ合成Systemの完全修飾名を追加登録したコピーを作る。
+            // 起動シーンは「クエリ{Bootstrap}を持つ合成System」として、実際に検出されたSystemと同じモデル・同じ
+            // 実行順序(GameSystemExecutionOrder)へ合流する(理由はSceneStartupSystemEmitterのXMLコメント参照)。
+            // 合成SystemはstartupOrderを持ち、FrameInputの先頭に並ぶ(ADR-0073決定事項4)。
             List<GameSystemResult>ValidStartupSystems=[];
-            Dictionary<string,int>MergedSystemOrderByFqn=new(StringComparer.Ordinal);
-
-            foreach(var ExistingOrder in OrderContext.SystemOrderByFqn){
-                MergedSystemOrderByFqn[ExistingOrder.Key]=ExistingOrder.Value;
-            }
 
             foreach(var StartupScene in ValidSceneDeclarations.Where(static S=>S.IsStartupScene)){
-                var SyntheticSystem=SceneStartupSystemEmitter.BuildSyntheticSystemResult(StartupScene);
-                ValidStartupSystems.Add(SyntheticSystem);
-                MergedSystemOrderByFqn[SyntheticSystem.ClassFullyQualifiedName]=StartupScene.StartupOrder;
+                ValidStartupSystems.Add(SceneStartupSystemEmitter.BuildSyntheticSystemResult(StartupScene));
             }
 
-            GameSystemOrderContext MergedOrderContext=new(MergedSystemOrderByFqn,OrderContext.FileOrderByPath);
             ImmutableArray<GameSystemResult>AllSystemResults=[.. SystemResults,.. ValidStartupSystems];
+
+            foreach(var OrderDiagnostic in GameSystemExecutionOrder.Validate(AllSystemResults)){
+                Spc.ReportDiagnostic(OrderDiagnostic);
+            }
 
             // 随伴付与の索引。ArchetypeのCollectとEmitが必ず同じ集合を導出するよう、以降の両方へ
             // 同じインスタンスを渡す(引数なので渡し忘れはコンパイルエラーになる)。
@@ -174,7 +152,7 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
             // エントリポイントを出すかどうかはレジストリ構築の前に決める。生成する場合にだけ
             // Bootstrapの形状を登録し、出さないコンパイルへ余計なArchetypeが増えないようにする。
             var EntryPointPlan=
-                GameSystemEntryPointEmitter.ShouldEmitPlan(Source.Gate,AllSystemResults,MergedOrderContext);
+                GameSystemEntryPointEmitter.ShouldEmitPlan(Source.Gate,AllSystemResults);
 
             if(EntryPointPlan.Diagnostic is { } EntryPointDiagnostic){
                 Spc.ReportDiagnostic(EntryPointDiagnostic);
@@ -184,7 +162,7 @@ public sealed class GameSystemGenerator:IIncrementalGenerator {
                 AdditionalComponentSets.Add([GameSystemEntryPointEmitter.BootstrapComponentFullyQualifiedName]);
             }
 
-            var Registry=GameSystemIndexAssigner.Assign(AllSystemResults,AdditionalComponentSets,MergedOrderContext);
+            var Registry=GameSystemIndexAssigner.Assign(AllSystemResults,AdditionalComponentSets);
 
             foreach(var Diagnostic in Registry.Diagnostics){
                 Spc.ReportDiagnostic(Diagnostic);

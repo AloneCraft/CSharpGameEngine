@@ -11,7 +11,7 @@ namespace CgeThirdPerson.Gameplay;
 /// 視点のY入力は正で見上げる(マウスはIMC_MouseLookのNegate Yで上移動が正になる)。
 /// </summary>
 [SystemPhase(SystemPhase.FrameInput)]
-[SystemOrder(2)]
+[RunsAfter(typeof(Window))]
 internal struct ThirdPersonControls:ISystem {
     /// <summary>
     /// マウス1カウントあたりの回転角。UEの既定値(MouseX/YのAxisConfig感度0.07と、旧来の入力スケール2.5)の

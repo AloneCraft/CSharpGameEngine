@@ -27,94 +27,68 @@ internal readonly struct GameSystemScheduleModel(
     internal bool CanEmit=>this.Diagnostics.IsEmpty;
 }
 
-/// <summary>Builds the compile-time access DAG for systems which explicitly opt into scheduling.</summary>
+/// <summary>
+/// Builds the compile-time access DAG for systems which explicitly opt into scheduling. Their order comes from
+/// the same per-phase graph as execution order (ADR-0073): an unscheduled system in between still orders them.
+/// </summary>
 internal static class GameSystemScheduleAnalyzer {
     internal static GameSystemScheduleModel Build(GameSystemRegistry Registry){
-        GameSystemResult[]Systems=[.. Registry.ValidSystems.Where(static System=>System.IsScheduled)];
-        Dictionary<string,int>IndexByName=new(StringComparer.Ordinal);
-        for(var Index=0;Index<Systems.Length;Index++){
-            IndexByName[Systems[Index].GlobalQualifiedName]=Index;
+        GameSystemResult[]All=[.. Registry.ValidSystems];
+        List<int>[]AllDependents=GameSystemExecutionOrder.SamePhaseDependents(All);
+        // A cycle is SYSGEN034 (GameSystemExecutionOrder.Validate); there is no schedule to build.
+        if(HasCycle(AllDependents)){ return new([],[]); }
+        int[]Scheduled=[.. Enumerable.Range(0,All.Length).Where(Index=>All[Index].IsScheduled)];
+        Dictionary<int,int>ScheduledIndexByAllIndex=new();
+        for(var Index=0;Index<Scheduled.Length;Index++){ ScheduledIndexByAllIndex[Scheduled[Index]]=Index; }
+        List<int>[]AllPredecessors=new List<int>[All.Length];
+        for(var Index=0;Index<All.Length;Index++){ AllPredecessors[Index]=[]; }
+        for(var Index=0;Index<All.Length;Index++){
+            foreach(var Next in AllDependents[Index]){ AllPredecessors[Next].Add(Index); }
         }
-
-        List<int>[]Predecessors=CreateLists(Systems.Length);
-        List<int>[]Dependents=CreateLists(Systems.Length);
-        List<Diagnostic>Diagnostics=[];
-
-        int[]DiagnosticOrder=[.. Enumerable.Range(0,Systems.Length)
-            .OrderBy(Index=>Systems[Index].GlobalQualifiedName,StringComparer.Ordinal)];
-        foreach(var SystemIndex in DiagnosticOrder){
-            GameSystemResult System=Systems[SystemIndex];
-            foreach(var DependencyName in System.RunsAfterSystemFullyQualifiedNames
-                .Distinct(StringComparer.Ordinal)
-                .OrderBy(static Name=>Name,StringComparer.Ordinal)){
-                if(!IndexByName.TryGetValue(DependencyName,out var DependencyIndex)){
-                    Diagnostics.Add(Diagnostic.Create(
-                        GameSystemDiagnostics.ScheduledDependencyMustExist,System.DeclarationLocation,
-                        System.GlobalQualifiedName,DependencyName));
-                    continue;
-                }
-                if(System.Phase<Systems[DependencyIndex].Phase){
-                    Diagnostics.Add(Diagnostic.Create(
-                        GameSystemDiagnostics.ScheduledDependencyCycle,System.DeclarationLocation,
-                        $"{System.GlobalQualifiedName} -> {DependencyName} -> {System.GlobalQualifiedName} (phase order)"));
-                    continue;
-                }
-                Predecessors[SystemIndex].Add(DependencyIndex);
-                Dependents[DependencyIndex].Add(SystemIndex);
-            }
-        }
-
-        SortEdges(Predecessors,Systems);
-        SortEdges(Dependents,Systems);
-        if(TryFindCycle(Dependents,Systems,out var Cycle)){
-            GameSystemResult System=Systems[Cycle[0]];
-            Diagnostics.Add(Diagnostic.Create(
-                GameSystemDiagnostics.ScheduledDependencyCycle,System.DeclarationLocation,
-                string.Join(" -> ",Cycle.Select(Index=>Systems[Index].GlobalQualifiedName))));
-        }
-
         var ComponentIndexByType=Registry.ComponentsByIndex.ToDictionary(
             static Component=>Component.TypeFullyQualifiedName,
             static Component=>Component.Index,
             StringComparer.Ordinal);
-        AccessMask[]Accesses=new AccessMask[Systems.Length];
-        for(var Index=0;Index<Systems.Length;Index++){
-            Accesses[Index]=BuildAccessMask(Systems[Index],ComponentIndexByType);
-        }
-
-        if(!Diagnostics.Any(static Diagnostic=>Diagnostic.Id==GameSystemDiagnostics.ScheduledDependencyCycle.Id)){
-            AddConflictDiagnostics(Systems,Dependents,Accesses,Registry.ComponentsByIndex,Diagnostics);
-        }
-
+        AccessMask[]Accesses=[.. Scheduled.Select(Index=>BuildAccessMask(All[Index],ComponentIndexByType))];
+        List<Diagnostic>Diagnostics=[];
+        AddConflictDiagnostics(All,Scheduled,AllDependents,Accesses,Registry.ComponentsByIndex,Diagnostics);
         if(Diagnostics.Count>0){
             return new([], [.. Diagnostics]);
         }
-
-        int[]Waves=new int[Systems.Length];
-        bool[]WaveKnown=new bool[Systems.Length];
+        int[][]Predecessors=[.. Scheduled.Select(Index=>NearestScheduledPredecessors(Index,AllPredecessors,ScheduledIndexByAllIndex))];
+        int[]Waves=new int[Scheduled.Length];
+        bool[]WaveKnown=new bool[Scheduled.Length];
         List<GameSystemScheduleEntryModel>Entries=[];
-        for(var Index=0;Index<Systems.Length;Index++){
-            var Wave=ComputeWave(Index,Systems,Predecessors,Waves,WaveKnown);
+        for(var Index=0;Index<Scheduled.Length;Index++){
+            var Wave=ComputeWave(Index,Predecessors,Waves,WaveKnown);
             AccessMask Access=Accesses[Index];
             Entries.Add(new(
-                Index,Systems[Index],Wave,
+                Index,All[Scheduled[Index]],Wave,
                 Access.ReadLow,Access.ReadHigh,Access.WriteLow,Access.WriteHigh,
                 [.. Predecessors[Index]]));
         }
         return new([.. Entries],[]);
     }
 
-    private static List<int>[]CreateLists(int Count){
-        List<int>[]Result=new List<int>[Count];
-        for(var Index=0;Index<Count;Index++){ Result[Index]=[]; }
-        return Result;
-    }
-
-    private static void SortEdges(List<int>[]Edges,GameSystemResult[]Systems){
-        foreach(List<int>EdgeList in Edges){
-            EdgeList.Sort((Left,Right)=>string.CompareOrdinal(
-                Systems[Left].GlobalQualifiedName,Systems[Right].GlobalQualifiedName));
+    /// <summary>
+    /// The scheduled systems that must finish before <paramref name="AllIndex"/>: each path back through
+    /// unscheduled systems ends at the first scheduled one. Returned as schedule indices in ascending order.
+    /// </summary>
+    private static int[]NearestScheduledPredecessors(
+        int AllIndex,List<int>[]AllPredecessors,IReadOnlyDictionary<int,int>ScheduledIndexByAllIndex){
+        SortedSet<int>Result=[];
+        HashSet<int>Visited=[];
+        Stack<int>Pending=new(AllPredecessors[AllIndex]);
+        while(Pending.Count>0){
+            var Current=Pending.Pop();
+            if(!Visited.Add(Current)){ continue; }
+            if(ScheduledIndexByAllIndex.TryGetValue(Current,out var ScheduledIndex)){
+                Result.Add(ScheduledIndex);
+                continue;
+            }
+            foreach(var Previous in AllPredecessors[Current]){ Pending.Push(Previous); }
         }
+        return [.. Result];
     }
 
     private static AccessMask BuildAccessMask(
@@ -139,21 +113,27 @@ internal static class GameSystemScheduleAnalyzer {
         return new(ReadLow,ReadHigh,WriteLow,WriteHigh);
     }
 
+    /// <summary>
+    /// Two scheduled systems of one phase that touch the same component, one of them writing, must be ordered
+    /// by a declared path. The name order of unrelated systems is deterministic but is not a declared order.
+    /// </summary>
     private static void AddConflictDiagnostics(
-        GameSystemResult[]Systems,List<int>[]Dependents,AccessMask[]Accesses,
+        GameSystemResult[]All,int[]Scheduled,List<int>[]AllDependents,AccessMask[]Accesses,
         ImmutableArray<GameSystemComponentInfo>Components,List<Diagnostic>Diagnostics){
-        int[]Order=[.. Enumerable.Range(0,Systems.Length)
-            .OrderBy(Index=>Systems[Index].GlobalQualifiedName,StringComparer.Ordinal)];
+        int[]Order=[.. Enumerable.Range(0,Scheduled.Length)
+            .OrderBy(Index=>All[Scheduled[Index]].GlobalQualifiedName,StringComparer.Ordinal)];
         for(var LeftOrder=0;LeftOrder<Order.Length;LeftOrder++){
             var Left=Order[LeftOrder];
             for(var RightOrder=LeftOrder+1;RightOrder<Order.Length;RightOrder++){
                 var Right=Order[RightOrder];
-                if(Systems[Left].Phase!=Systems[Right].Phase){ continue; }
-                if(HasPath(Left,Right,Dependents)||HasPath(Right,Left,Dependents)){ continue; }
+                GameSystemResult LeftSystem=All[Scheduled[Left]];
+                GameSystemResult RightSystem=All[Scheduled[Right]];
+                if(LeftSystem.Phase!=RightSystem.Phase){ continue; }
+                if(HasPath(Scheduled[Left],Scheduled[Right],AllDependents)||HasPath(Scheduled[Right],Scheduled[Left],AllDependents)){ continue; }
                 if(!TryFindConflict(Accesses[Left],Accesses[Right],Components,out var ComponentName)){ continue; }
                 Diagnostics.Add(Diagnostic.Create(
-                    GameSystemDiagnostics.AmbiguousScheduledAccessConflict,Systems[Left].DeclarationLocation,
-                    Systems[Left].GlobalQualifiedName,Systems[Right].GlobalQualifiedName,ComponentName));
+                    GameSystemDiagnostics.AmbiguousScheduledAccessConflict,LeftSystem.DeclarationLocation,
+                    LeftSystem.GlobalQualifiedName,RightSystem.GlobalQualifiedName,ComponentName));
             }
         }
     }
@@ -193,48 +173,28 @@ internal static class GameSystemScheduleAnalyzer {
         return false;
     }
 
-    private static bool TryFindCycle(
-        List<int>[]Dependents,GameSystemResult[]Systems,out ImmutableArray<int>Cycle){
-        byte[]States=new byte[Systems.Length];
-        List<int>Stack=[];
-        ImmutableArray<int>FoundCycle=[];
-        int[]Order=[.. Enumerable.Range(0,Systems.Length)
-            .OrderBy(Index=>Systems[Index].GlobalQualifiedName,StringComparer.Ordinal)];
-        foreach(var Index in Order){
-            if(States[Index]==0&&Visit(Index)){
-                Cycle=FoundCycle;
-                return true;
-            }
+    private static bool HasCycle(List<int>[]Dependents){
+        byte[]States=new byte[Dependents.Length];
+        for(var Index=0;Index<Dependents.Length;Index++){
+            if(States[Index]==0&&Visit(Index)){ return true; }
         }
-        Cycle=[];
         return false;
 
         bool Visit(int Current){
             States[Current]=1;
-            Stack.Add(Current);
             foreach(var Next in Dependents[Current]){
-                if(States[Next]==0){
-                    if(Visit(Next)){ return true; }
-                } else if(States[Next]==1){
-                    var Start=Stack.IndexOf(Next);
-                    FoundCycle=[.. Stack.Skip(Start),Next];
-                    return true;
-                }
+                if(States[Next]==1||(States[Next]==0&&Visit(Next))){ return true; }
             }
-            Stack.RemoveAt(Stack.Count-1);
             States[Current]=2;
             return false;
         }
     }
 
-    private static int ComputeWave(
-        int Index,GameSystemResult[]Systems,List<int>[]Predecessors,int[]Waves,bool[]Known){
+    private static int ComputeWave(int Index,int[][]Predecessors,int[]Waves,bool[]Known){
         if(Known[Index]){ return Waves[Index]; }
         var Wave=0;
         foreach(var Predecessor in Predecessors[Index]){
-            if(Systems[Predecessor].Phase==Systems[Index].Phase){
-                Wave=Math.Max(Wave,checked(ComputeWave(Predecessor,Systems,Predecessors,Waves,Known)+1));
-            }
+            Wave=Math.Max(Wave,checked(ComputeWave(Predecessor,Predecessors,Waves,Known)+1));
         }
         Known[Index]=true;
         Waves[Index]=Wave;

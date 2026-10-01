@@ -4,7 +4,6 @@ using CSharpGameEngine.Runtime.Windows;
 namespace CSharpGameEngine.Runtime.Physics;
 
 [SystemPhase(SystemPhase.PhysicsSimulation)]
-[SystemOrder(10_000)]
 [ExecuteInEditor(Realtime=true)]
 internal struct PhysicsSyncBegin:IWorldSystem {
     public void Update(EngineHost Host,ref State State){
@@ -13,8 +12,8 @@ internal struct PhysicsSyncBegin:IWorldSystem {
 }
 
 [SystemPhase(SystemPhase.PhysicsSimulation)]
-[SystemOrder(10_001)]
 [ExecuteInEditor(Realtime=true)]
+[RunsAfter(typeof(PhysicsSyncBegin))]
 internal struct PhysicsBodySync:ISystem {
     public void Spawn(ref PhysicsVelocity Velocity){}
     public void Spawn(ref PhysicsRotation Rotation){}
@@ -62,8 +61,8 @@ internal struct PhysicsBodySync:ISystem {
 }
 
 [SystemPhase(SystemPhase.PhysicsSimulation)]
-[SystemOrder(10_002)]
 [ExecuteInEditor(Realtime=true)]
+[RunsAfter(typeof(StaticMeshColliderSync))]
 internal struct PhysicsStep:IWorldSystem {
     public void Update(EngineHost Host,ref State State){
         PhysicsDomainRuntime Domain=Host.ActivePhysicsDomain;
@@ -81,8 +80,8 @@ internal struct PhysicsStep:IWorldSystem {
 }
 
 [SystemPhase(SystemPhase.PhysicsSimulation)]
-[SystemOrder(10_003)]
 [ExecuteInEditor(Realtime=true)]
+[RunsAfter(typeof(PhysicsStep))]
 internal struct PhysicsTransformWriteback:ISystem {
     public void Update(
         Entity Entity,ref Transform Transform,ref RigidBody RigidBody,ref PhysicsRotation Rotation,

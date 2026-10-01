@@ -6,15 +6,12 @@ namespace CSharpGameEngine.Entities;
 /// ユーザーが書く代わりに、Component初期値だけを宣言すればよいようにするためのAPI。
 ///
 /// <para>
-/// 生成側は<c>Order = 0</c>の<c>{Bootstrap}</c>を対象とする合成Systemとして、既存の
-/// <c>[SystemOrder]</c>(<see cref="SystemOrderAttribute"/>)と同じ実行順序モデルへ合流する。
+/// 生成側は<c>{Bootstrap}</c>を対象とする合成Systemを作り、FrameInputの他のSystemより前に、
+/// <see cref="Order"/>→完全修飾名の順で動かす(ADR-0073決定事項4)。
 /// </para>
 /// </summary>
 [AttributeUsage(AttributeTargets.Class,AllowMultiple=false,Inherited=false)]
 public sealed class StartupSceneAttribute:Attribute {
-    /// <summary>
-    /// この宣言から合成される起動Systemの実行順序。<see cref="SystemOrderAttribute"/>を
-    /// <c>ISystem</c>実装struct自身へ直接付けた場合と同じ優先度で扱われる。
-    /// </summary>
+    /// <summary>起動シーン同士の順序(シーン JSON の<c>startupOrder</c>)。小さいほうが先に動く。</summary>
     public int Order { get; init;}
 }

@@ -11,9 +11,6 @@ using EcsWorld=CSharpGameEngine.Entities.World;
 
 namespace CSharpGameEngine.Runtime.Windows;
 
-[SystemOrder(1)]
-file sealed class Order;
-
 /// <summary>Transformの位置とローカル+Zを、ライト用のScale非依存なワールド入力へ写像する。</summary>
 internal static class LightTransform {
     internal static FixedTransformStatus TryGetRectanglePose(Entity Entity,EcsWorld World,EngineHost Host,
@@ -109,7 +106,11 @@ internal static class LightValidation {
     internal static LightShadowSettings? Shadow(Entity Entity,EcsWorld World)=>
         World.TryGetComponent(Entity,out LightShadow Value)?new LightShadowSettings(Value.Priority,Value.Bias):null;
 }
+// ADR-0073: the Presentation systems keep the order they had under [SystemOrder] as one chain:
+// SpringArmUpdate, this file's systems in declaration order, the animation systems, SkinnedMeshSync,
+// audio, Present. Edges between systems with no data dependency could be relaxed after analysis.
 [SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(CSharpGameEngine.Runtime.Character.SpringArmUpdate))]
 internal struct LightShadowValidation:ISystem {
     public void Update(Entity Entity,ref LightShadow Shadow,ref LightShadowRuntime Runtime,ref State State){
         Runtime.InvalidProperty=LightValidation.SceneFailure(Entity,State.World);
@@ -122,6 +123,7 @@ internal struct LightShadowValidation:ISystem {
 /// {AppHost,Level}より後ろへ登録されるため、同一フレームで確定してはならない。
 /// </summary>
 [SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(LightShadowValidation))]
 internal struct LevelLoad:ISystem {
     private Entity LevelEntity;
     private bool HasLevelEntity;
@@ -344,7 +346,7 @@ internal struct LevelLoad:ISystem {
 
 /// <summary>Hands each SkeletalMesh's palette to the renderer after the animators ran (ADR-0066). Submitted every frame so device recovery replays the current pose.</summary>
 [SystemPhase(SystemPhase.Presentation)]
-[SystemOrder(13)]
+[RunsAfter(typeof(CSharpGameEngine.Runtime.Animation.LocomotionAnimation))]
 internal struct SkinnedMeshSync:ISystem {
     public void Update(Entity Entity,ref SkeletalMeshRuntime Runtime,EngineHost Host,ref State State){
         if(Runtime.Palette is not{ }Palette||Host.Renderer is not{ }Renderer||!Host.TryGetSkinnedMeshes(Entity,out var MeshIndices)){
@@ -357,6 +359,7 @@ internal struct SkinnedMeshSync:ISystem {
 }
 
 [SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(LevelLoad))]
 internal struct CameraOriginSync:ISystem {
     public void Update(Entity Entity,ref Transform Transform,ref Camera Camera,EngineHost Host,ref State State){
         // ADR-0070 B1: the Scene Designer's camera replaces the scene camera. LevelLoad already set
@@ -378,6 +381,7 @@ internal struct CameraOriginSync:ISystem {
 }
 
 [SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(CameraOriginSync))]
 internal struct DirectionalLightSync:ISystem {
     public void Update(Entity Entity,ref DirectionalLight Light,ref DirectionalLightRuntime Runtime,EngineHost Host,ref State State){
         Runtime.InvalidProperty=LightValidation.SceneFailure(Entity,State.World);
@@ -405,6 +409,7 @@ internal struct DirectionalLightSync:ISystem {
 }
 
 [SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(DirectionalLightSync))]
 internal struct AmbientLightSync:ISystem {
     public void Update(ref AmbientLight Light,EngineHost Host,ref State State){
         Host.Renderer?.SetAmbientLight(
@@ -415,6 +420,7 @@ internal struct AmbientLightSync:ISystem {
 
 /// <summary>Collects the environment Components (ADR-0069); EngineHost submits them once before rendering.</summary>
 [SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(AmbientLightSync))]
 internal struct EnvironmentCollect:ISystem {
     public void Update(ref SkyAtmosphere Value,EngineHost Host,ref State State){
         Host.Environment.Atmosphere=Value;
@@ -441,6 +447,7 @@ internal struct EnvironmentCollect:ISystem {
 }
 
 [SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(EnvironmentCollect))]
 internal struct HeightFogSync:ISystem {
     public void Update(ref HeightFog Fog,EngineHost Host,ref State State){
         Host.Renderer?.SetFog(
@@ -449,6 +456,7 @@ internal struct HeightFogSync:ISystem {
 }
 
 [SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(HeightFogSync))]
 internal struct PointLightSync:ISystem {
     public void Update(Entity Entity,ref PointLight Light,ref PointLightRuntime Runtime,EngineHost Host,ref State State){
         Runtime.InvalidProperty=LightValidation.SceneFailure(Entity,State.World);
@@ -477,6 +485,7 @@ internal struct PointLightSync:ISystem {
 }
 
 [SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(PointLightSync))]
 internal struct SpotLightSync:ISystem {
     public void Update(Entity Entity,ref SpotLight Light,ref SpotLightRuntime Runtime,EngineHost Host,ref State State){
         Runtime.InvalidProperty=LightValidation.SceneFailure(Entity,State.World);
@@ -508,6 +517,7 @@ internal struct SpotLightSync:ISystem {
 }
 
 [SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(SpotLightSync))]
 internal struct RectAreaLightSync:ISystem {
     public void Update(Entity Entity,ref RectAreaLight Light,ref RectAreaLightRuntime Runtime,EngineHost Host,ref State State){
         Runtime.InvalidProperty=LightValidation.SceneFailure(Entity,State.World);
@@ -540,6 +550,7 @@ internal struct RectAreaLightSync:ISystem {
 }
 
 [SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(RectAreaLightSync))]
 internal struct TransformSync:ISystem {
     public void Update(Entity Entity,ref Transform Transform,ref Renderable Renderable,EngineHost Host,ref State State){
         if(Host.Renderer is{ }Renderer){
@@ -566,6 +577,8 @@ internal struct TransformSync:ISystem {
 }
 
 [SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(TransformSync))]
+[RunsBefore(typeof(CSharpGameEngine.Runtime.Animation.SkeletalMeshSetup))]
 internal struct EmissiveMeshLightSync:ISystem {
     public void Update(
         Entity Entity,
@@ -612,7 +625,7 @@ internal struct EmissiveMeshLightSync:ISystem {
 internal struct HierarchyQueryRegistration:ISystem { public void Spawn(ref Parent Parent){} }
 
 [SystemPhase(SystemPhase.Presentation)]
-[SystemOrder(20_000)]
+[RunsAfter(typeof(SkinnedMeshSync))]
 internal struct AudioFrameBegin:ISystem {
     public void Update(ref AppHostRuntime Runtime,EngineHost Host,ref State State){
         Host.BeginAudioFrame();
@@ -620,7 +633,7 @@ internal struct AudioFrameBegin:ISystem {
 }
 
 [SystemPhase(SystemPhase.Presentation)]
-[SystemOrder(20_001)]
+[RunsAfter(typeof(AudioFrameBegin))]
 internal struct AudioListenerSync:ISystem {
     public void Update(Entity Entity,ref Transform Transform,ref AudioListener Listener,EngineHost Host,ref State State){
         FixedTransformResolveStatus Status=RuntimeWorldTransform.TryResolveWorld(
@@ -630,7 +643,7 @@ internal struct AudioListenerSync:ISystem {
 }
 
 [SystemPhase(SystemPhase.Presentation)]
-[SystemOrder(20_002)]
+[RunsAfter(typeof(AudioListenerSync))]
 internal struct AudioSourceSync:ISystem {
     public void Update(Entity Entity,ref Transform Transform,ref AudioSource Source,EngineHost Host,ref State State){
         FixedTransformResolveStatus Status=RuntimeWorldTransform.TryResolveWorld(
@@ -644,7 +657,7 @@ internal struct AudioSourceSync:ISystem {
 
 
 [SystemPhase(SystemPhase.Presentation)]
-[SystemOrder(30_000)]
+[RunsAfter(typeof(AudioSourceSync))]
 internal struct Present:ISystem {
     public void Update(ref LevelRuntime Runtime,EngineHost Host,ref State State){
         if(State.Enabled&&!Host.Present()){ State.Enabled=false; }

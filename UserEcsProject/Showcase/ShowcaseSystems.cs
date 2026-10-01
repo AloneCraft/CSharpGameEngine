@@ -5,9 +5,8 @@ using CSharpGameEngine.Input;
 using CSharpGameEngine.Platform.Windows;
 using CSharpGameEngine.Runtime.Windows;
 namespace UserEcsProject.Showcase;
-[SystemOrder(2)]
-file sealed class Order;
 [SystemPhase(SystemPhase.FrameInput)]
+[RunsAfter(typeof(Window))]
 internal struct ShowcaseControls:ISystem {
     public void Update(ref AppHostRuntime AppRuntime,ref EngineShowcaseRuntime Runtime,EngineHost Host,ref State State){
         var Session=Runtime.Session??=new ShowcaseSession();
@@ -76,6 +75,7 @@ internal struct ShowcaseFixedMotion:ISystem {
     }
 }
 [SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(LevelLoad))]
 internal struct ShowcaseDashboard:ISystem {
     public void Update(
         ref AppHostRuntime AppRuntime,ref LevelRuntime LevelRuntime,

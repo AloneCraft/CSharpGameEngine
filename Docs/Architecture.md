@@ -85,7 +85,8 @@ Roslynにロードされない。
   オーバーロード・`GeneratedGameLoop`を生成する(ADR-0033、[[Ecs-Soa-Systems]]参照)。
   ユーザーはQuery・foreach・Chunk走査・ゲームループ・起動時のエンティティ生成を書かない。
   `Update`は`void`が標準で、経過時間は`State.FrameDeltaSeconds`/`FixedDeltaSeconds`から読む(ADR-0072)。
-  Phaseと順序は属性で受け取る(`[SystemPhase]`、`[SystemOrder]`。同じ値はファイルパス順→記述順)。
+  Phaseは`[SystemPhase]`、Phaseの中の順序は`[RunsAfter]`/`[RunsBefore]`で受け取り、辺の無いもの同士は
+  完全修飾名順(ADR-0073)。
   歴史: `src/CSharpGameEngine.Ecs`(コンパイル時アーキタイプ型、ADR-0015)と
   `Generation.Abstractions`/`GenerateEntityGenerator`(AoS/SoA選択生成、ADR-0024)はADR-0029で、
   動的Archetype方式(ADR-0029)はADR-0033で、それぞれ削除済み(いずれもSuperseded)。

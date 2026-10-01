@@ -227,7 +227,7 @@ public sealed class SceneDslGeneratorEndToEndTests {
                                                                                var SceneBStartup = new SceneB__StartupSystem();
                                                                                var KeepAlive = new KeepGeneratorAlive();
                                                                                var Scheduler = new global::CSharpGameEngine.Runtime.Simulation.FixedTickScheduler();
-                                                                               GeneratedGameLoop.RunFrame(ref State, ref KeepAlive, ref SceneAStartup, ref SceneBStartup, ref Scheduler, 1_000, 60_000);
+                                                                               GeneratedGameLoop.RunFrame(ref State, ref SceneAStartup, ref SceneBStartup, ref KeepAlive, ref Scheduler, 1_000, 60_000);
 
                                                                               var Count = 0;
                                                                               for (var Index = 0; Index < World.EntityArchetypeIndices.Count; Index++)
