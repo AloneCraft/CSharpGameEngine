@@ -1411,7 +1411,8 @@ internal sealed class SceneHwndHost:HwndHost {
         List<GizmoOverlayPrimitive>Primitives=[];
         IReadOnlyList<GizmoOverlayPrimitive>TransformPrimitives=Array.Empty<GizmoOverlayPrimitive>();
         IReadOnlyList<GizmoOverlayPrimitive>PropertyPrimitives=Array.Empty<GizmoOverlayPrimitive>();
-        if(this.CurrentMoveGizmo is { }Frame&& this.ViewState is { }GizmoState){
+        bool ShowsGizmos=SceneGizmoVisibilityPolicy.ShowsGizmos(this.InputMachine?.State??SceneNavState.Idle);
+        if(ShowsGizmos&& this.CurrentMoveGizmo is { }Frame&& this.ViewState is { }GizmoState){
             Vector3 CameraForward=SceneViewCamera.GetForward(GizmoState.Yaw,GizmoState.Pitch);
             Vector3 CameraRight=SceneViewCamera.GetFlatRight(GizmoState.Yaw);
             Vector3 CameraUp=SceneViewCamera.GetUp(GizmoState.Yaw,GizmoState.Pitch);
@@ -1431,7 +1432,7 @@ internal sealed class SceneHwndHost:HwndHost {
             }
             TransformPrimitives=Combined;
         }
-        if(this.CurrentPropertyGizmo is { }PropertyFrame){
+        if(ShowsGizmos&& this.CurrentPropertyGizmo is { }PropertyFrame){
             PropertyPrimitives=PropertyGizmo.BuildOverlay(
                 PropertyFrame, this.HoveredGizmoHandle, this.ActiveGizmoHandle);
         }

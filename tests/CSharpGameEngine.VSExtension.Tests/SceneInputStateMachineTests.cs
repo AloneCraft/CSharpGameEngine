@@ -43,6 +43,22 @@ public sealed class SceneInputStateMachineTests {
         Assert.Equal(SceneCaptureAction.Begin,Result.Capture);
     }
 
+    /// <summary>
+    /// M0095 (user request 2026-10-01): the selection's gizmos are hidden while an Alt+LMB orbit drags and
+    /// come back when it ends. Holding Alt alone keeps them, so Alt on a handle still duplicates (§6.2).
+    /// </summary>
+    [Fact]
+    public void Gizmos_AreHiddenOnlyWhileOrbiting(){
+        SceneInputStateMachine Machine=new();
+        Assert.True(SceneGizmoVisibilityPolicy.ShowsGizmos(Machine.State));
+        Machine.Handle(new PointerEvent(PointerEventKind.Move,PointerButton.None,5,5,AltModifiers));
+        Assert.True(SceneGizmoVisibilityPolicy.ShowsGizmos(Machine.State));
+        Machine.Handle(new PointerEvent(PointerEventKind.Down,PointerButton.Left,5,5,AltModifiers));
+        Assert.False(SceneGizmoVisibilityPolicy.ShowsGizmos(Machine.State));
+        Machine.Handle(new PointerEvent(PointerEventKind.Up,PointerButton.Left,40,5,AltModifiers));
+        Assert.True(SceneGizmoVisibilityPolicy.ShowsGizmos(Machine.State));
+    }
+
     [Fact]
     public void Idle_AltLeftButtonOnGizmo_BeginsDuplicateGizmoInsteadOfOrbit(){
         SceneInputStateMachine Machine=new();
