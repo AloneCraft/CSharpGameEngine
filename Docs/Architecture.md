@@ -47,8 +47,14 @@ ADR-0034で決めた中核の5つは次のとおり。
 その後に加わったもの: `Audio`、`Content`、`Contracts`、`Numerics`、`Rendering`、`SceneModel`(シーン解析の共有ソース、
 netstandard2.0)、`ShaderArtifacts`、`ShaderGraph`、`World`の各csprojと、ゲームのコンパイルへソースとして入る共有プロジェクト
 `Runtime.Animation`/`Runtime.Character`/`Runtime.Lighting`/`Runtime.Physics`/`Runtime.Simulation`/`Runtime.Windows`。
-既知の層の逸脱(M0095で確認): 移植可能とされる`Runtime.Physics`/`Runtime.Character`がWindows専用の`EngineHost`/`StaticMesh`に、
-`tools/CSharpGameEngine.Physics.Cli`(L7)が`UserEcsProject`(L9)に依存している。
+層の境界(M0096 G、`EngineLayerSpec`で検証):
+- `Runtime.Physics`/`Runtime.Character`はWindows専用の型を名指ししない。ホストの物理ドメインは`IPhysicsHost`
+  (`PhysicsDomainRegistry`)として受け取り、`EngineHost`がそれを実装する。`StaticMesh`/`MeshMobility`と、World変換の解決
+  (`RuntimeWorldTransform.TryResolveWorld`)はEntitiesの共有ソースにある(名前空間`CSharpGameEngine.Runtime.Windows`はシーン
+  JSONの互換のため維持)。
+- `tools/CSharpGameEngine.Physics.Cli`(L7)はゲームを参照しない。cook/inspectはECSを使わない物理ソースを取り込み、
+  Bakeは渡されたゲームのビルドを`bake --assembly <game.dll>`で収集可能なALCへ読み込み、生成された
+  `GeneratedSceneBakeHost.TryBake`を呼ぶ。
 
 **アセンブリ名と名前空間は一致しない**。これは意図的である(ADR-0034決定事項2)。
 `CSharpGameEngine.Core.dll`は`CSharpGameEngine.Core`/`.Spatial.Abstractions`/`.Spatial.Unity`/

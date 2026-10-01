@@ -36,11 +36,10 @@ public readonly record struct AudioSourceSnapshot(
 /// Owns process-local runtime resources for one game loop. ECS state borrows this context; no
 /// native window, renderer, audio voice, or host lease is stored in a component.
 /// </summary>
-public sealed class EngineHost:IDisposable {
+public sealed class EngineHost:IDisposable,IPhysicsHost {
     private readonly ReferenceFrameGraph FrameGraphStorage=new(ReferenceFrameId.Root);
     private readonly WorldOwner WorldStorage=new();
     private readonly List<AudioSourceSnapshot>AudioSourcesStorage=[];
-    private readonly Dictionary<ReferenceFrameId,PhysicsDomainRuntime>PhysicsDomains=[];
     private AudioDeviceServer?AudioDevice;
     private bool Disposed;
     private FixedAffineTransform AudioListenerFrameLocalPose;
@@ -58,7 +57,7 @@ public sealed class EngineHost:IDisposable {
     internal RenderCamera RenderCamera { get;set; }
     internal FixedAffineTransform CameraFrameLocalOrigin { get;private set; }
     internal ReferenceFrameId CameraFrame { get;private set; }=ReferenceFrameId.Root;
-    internal ReferenceFrameId PhysicsFrame { get;private set; }=ReferenceFrameId.Root;
+    internal ReferenceFrameId PhysicsFrame=>this.Physics.Frame;
     internal bool HasCameraPose { get;private set; }
     public ReferenceFrameGraph ReferenceFrames=>this.FrameGraphStorage;
     public ref EcsWorld World=>ref this.WorldStorage.World;
@@ -68,9 +67,15 @@ public sealed class EngineHost:IDisposable {
     public ReferenceFrameSnapshot FrameSnapshot=>this.FrameGraphStorage.Current;
     public IReadOnlyList<AudioSourceSnapshot>AudioSources=>this.AudioSourcesStorage;
     public AudioMixer Audio=>this.EnsureAudioDevice().Mixer;
-    public IReadOnlyPhysicsWorld PhysicsWorld=>this.GetPhysicsDomain(this.PhysicsFrame).World;
-    public PhysicsCommands PhysicsCommands=>this.GetPhysicsDomain(this.PhysicsFrame).Commands;
-    public PhysicsCachePlaybackState PhysicsCacheState=>this.GetPhysicsDomain(this.PhysicsFrame).CacheState;
+    /// <summary>M0096 G: the physics domains, which the physics and character systems reach through <see cref="IPhysicsHost"/>.</summary>
+    public PhysicsDomainRegistry Physics { get; }
+    public IReadOnlyPhysicsWorld PhysicsWorld=>this.Physics.Active.World;
+    public PhysicsCommands PhysicsCommands=>this.Physics.Active.Commands;
+    public PhysicsCachePlaybackState PhysicsCacheState=>this.Physics.Active.CacheState;
+
+    public EngineHost(){
+        this.Physics=new PhysicsDomainRegistry(Frame=>this.FrameSnapshot.Contains(Frame));
+    }
 
     public PlatformDebugSnapshot CapturePlatformDebugSnapshot(){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
@@ -85,18 +90,18 @@ public sealed class EngineHost:IDisposable {
     public bool TryLoadPhysicsCache(
         Stream Input,in SimulationCacheIdentity Identity,bool AllowRealtimeHandoff,out string Error){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
-        return this.GetPhysicsDomain(this.PhysicsFrame).TryLoadCache(Input,Identity,AllowRealtimeHandoff,out Error);
+        return this.Physics.Active.TryLoadCache(Input,Identity,AllowRealtimeHandoff,out Error);
     }
 
     public bool TryHandoffPhysicsCache(ulong NextTick){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
-        return this.GetPhysicsDomain(this.PhysicsFrame).TryHandoffCache(NextTick);
+        return this.Physics.Active.TryHandoffCache(NextTick);
     }
 
     /// <summary>Streams one completed fixed tick through host-owned bounded scratch storage.</summary>
     public void WritePhysicsCacheFrame(PhysicsCacheStreamWriter Writer,ulong CompletedTick){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
-        this.GetPhysicsDomain(this.PhysicsFrame).WriteCacheFrame(Writer,CompletedTick);
+        this.Physics.Active.WriteCacheFrame(Writer,CompletedTick);
     }
 
     public void OwnWorldStreaming(WorldCellStreamingService Streaming){
@@ -110,17 +115,13 @@ public sealed class EngineHost:IDisposable {
 
     public void SetPhysicsFrame(ReferenceFrameId Frame){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
-        if(!this.FrameSnapshot.Contains(Frame)){
-            throw new ArgumentException($"The physics reference frame is not active: {Frame}.",nameof(Frame));
-        }
-        this.PhysicsFrame=Frame;
-        this.GetPhysicsDomain(Frame);
+        this.Physics.SetFrame(Frame);
     }
 
-    public IReadOnlyPhysicsWorld GetPhysicsWorld(ReferenceFrameId Frame)=>this.GetPhysicsDomain(Frame).World;
+    public IReadOnlyPhysicsWorld GetPhysicsWorld(ReferenceFrameId Frame)=>this.Physics.World(Frame);
     public bool TryGetPhysicsSyncFailure(Entity Entity,out PhysicsFaultType Failure)=>
-        this.GetPhysicsDomain(this.PhysicsFrame).TryGetSyncFailure(Entity,out Failure);
-    internal PhysicsDomainRuntime ActivePhysicsDomain=>this.GetPhysicsDomain(this.PhysicsFrame);
+        this.Physics.Active.TryGetSyncFailure(Entity,out Failure);
+    internal PhysicsDomainRuntime ActivePhysicsDomain=>this.Physics.Active;
     internal AudioDeviceServer EnsureAudioDevice(){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
         return this.AudioDevice??=new AudioDeviceServer(AllowSilentFallback:true);
@@ -316,18 +317,6 @@ public sealed class EngineHost:IDisposable {
         return true;
     }
 
-    private PhysicsDomainRuntime GetPhysicsDomain(ReferenceFrameId Frame){
-        ObjectDisposedException.ThrowIf(this.Disposed,this);
-        if(!this.FrameSnapshot.Contains(Frame)){
-            throw new ArgumentException($"The physics reference frame is not active: {Frame}.",nameof(Frame));
-        }
-        if(!this.PhysicsDomains.TryGetValue(Frame,out PhysicsDomainRuntime? Domain)){
-            Domain=new PhysicsDomainRuntime(Frame);
-            this.PhysicsDomains.Add(Frame,Domain);
-        }
-        return Domain;
-    }
-
     public void Dispose(){
         if(this.Disposed){ return; }
         this.Disposed=true;
@@ -338,10 +327,9 @@ public sealed class EngineHost:IDisposable {
             this.WorldStreaming=null;
             this.AudioDevice=null;
             try {
-                foreach(PhysicsDomainRuntime Domain in this.PhysicsDomains.Values){ Domain.Dispose(); }
+                this.Physics.Dispose();
             }
             finally {
-                this.PhysicsDomains.Clear();
                 try { this.Renderer?.Dispose(); }
                 finally {
                     this.Renderer=null;

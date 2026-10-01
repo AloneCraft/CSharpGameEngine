@@ -61,7 +61,7 @@ internal static class SceneJsonSchemaBuilder {
     /// <summary>
     /// Component candidates: non-generic structs that the scene JSON check accepts, declared in the
     /// game's compilation (including the engine's shared runtime sources) or in the engine's
-    /// assemblies (StaticMesh, Camera and PrimitiveMesh live in CSharpGameEngine.Windows).
+    /// assemblies (Camera and PrimitiveMesh live in CSharpGameEngine.Windows; StaticMesh is in the Entities sources).
     /// </summary>
     internal static IEnumerable<INamedTypeSymbol>EnumerateComponentTypes(Compilation Compilation){
         var Assemblies=new List<IAssemblySymbol>{ Compilation.Assembly };

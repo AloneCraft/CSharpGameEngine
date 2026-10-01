@@ -3367,8 +3367,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Layer: L7 — Static Compiler / Bake
 - Status: Implemented
 - Verification: TestVerified in Debug and Release. The `rigid.physics` Stage passes 48/48 tests in both configurations; the Release CLI build and real GLB static-mesh/convex/prefracture cook smoke pass.
-- Evidence: `GeneratedSceneBakeHostEmitter.cs`, `GameSystemLoopEmitter.cs`, `PhysicsCache.cs`, `PhysicsWorldIntegration.cs`, `EngineHost.cs`, `tools/CSharpGameEngine.Physics.Cli/`, `GeneratedSceneBakeHostTests.cs`, and `PhysicsBakeTests.cs`.
-- Conformance: Matches. The source generator emits an exact fully-qualified C# Scene switch and a headless Fixed/Physics/PostPhysics tick path. The host streams canonical frames through bounded host-owned scratch storage, rejects cancellation/unknown scenes/early loop termination, and the CLI publishes through a same-directory temporary file so failure preserves the prior cache. VSIX Bake commands remain the separate F-L8-014 scope.
+- Evidence: `GeneratedSceneBakeHostEmitter.cs`, `GameSystemLoopEmitter.cs`, `PhysicsCache.cs`, `PhysicsWorldIntegration.cs`, `EngineHost.cs`, `tools/CSharpGameEngine.Physics.Cli/` (`GameBake.cs`), `GeneratedSceneBakeHostTests.cs`, `PhysicsBakeTests.cs`, and `EngineLayerSpec.cs`.
+- Conformance: Matches. The source generator emits an exact fully-qualified C# Scene switch and a headless Fixed/Physics/PostPhysics tick path. The host streams canonical frames through bounded host-owned scratch storage, rejects cancellation/unknown scenes/early loop termination, and the CLI publishes through a same-directory temporary file so failure preserves the prior cache. M0096 G: the CLI references no game; `bake --assembly <game.dll>` loads the game build into a collectible load context, points the game's content root at that build, and calls its generated `TryBake`. VSIX Bake commands remain the separate F-L8-014 scope.
 
 ## F-L8-014 — Scene View Physics control and debug overlay
 
@@ -3376,7 +3376,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Status: Implemented
 - Verification: TestVerified in Debug and Release for protocol-v2 validation, bounded body/contact/tree/bond overlay generation, canonical `global::` Destructible discovery, exact-host identity, source-closure hashing, target-local cache paths, live Scene commit before disk Bake, variable-argument versioned requests, timeout and client-disconnect cancellation, and Bake button wiring. Experimental Instance visual certification remains manual evidence rather than an implementation dependency.
 - Evidence: `PhysicsDebugClient.cs`, `PhysicsDebugOverlay.cs`, `PrefractureDebugService.cs`, `PhysicsSceneBakeService.cs`, `SceneHwndHost.cs`, `SceneDesignerToolWindowControl.xaml`, `ResidentBridgeClient.cs`, `BridgeServerHost.cs`, `PhysicsDebugOverlayTests.cs`, `PrefractureDebugServiceTests.cs`, `PhysicsSceneBakeServiceTests.cs`, and `BridgeServerHostTests.cs`.
-- Conformance: Matches. AABB/velocity/sleep/COM/contact/tree/fracture bond overlays and simulate/pause/step/reset are available. Bake Selected/All commits only requested Scene edits to their C# authoring source, saves only the requested open source files, builds/reuses a source-fingerprinted exact host, publishes atomically, and propagates cancellation through the resident connection to the host handler.
+- Conformance: Matches. AABB/velocity/sleep/COM/contact/tree/fracture bond overlays and simulate/pause/step/reset are available. Bake Selected/All commits only requested Scene edits to their C# authoring source, saves only the requested open source files, builds/reuses an engine-fingerprinted exact host and, per scene project, a source-fingerprinted game build that the host loads (M0096 G), publishes atomically, and propagates cancellation through the resident connection to the host handler.
 
 ## F-L8-015 — VSIX English/Japanese localization
 

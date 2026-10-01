@@ -161,6 +161,9 @@ internal static class GeneratedGameLoop
 - System実体は`ref`で受け取る(可変structのフィールドがフレーム間で保持されるようにするため)。
 - Context引数はコンパイル内で使われている型を重複排除し、FQN Ordinal順に並べる。パラメータ名は単純型名の
   先頭を小文字化したもの(衝突時は連番、C#予約語なら`@`エスケープ)。
+- Contextの型がインターフェイスで、同じコンパイルの`CSharpGameEngine.Runtime.Windows.EngineHost`がそれを実装する場合、
+  生成器はそのContextを`EngineHost`として扱い、ループは同じホストを渡す(M0096 G)。移植可能な共有ソースのSystemは
+  この形(`IPhysicsHost`)でホストを受け取り、Windows専用の型を名指ししない。
 - `RunFrame`はFrameInputを1回実行し、Schedulerが返す0〜8回のsimulation tickごとにFixedSimulation、PhysicsSimulation、PostPhysicsを順番に実行する。その後、global spatial refreshとPresentationを各1回実行する。
 - `State.FixedTick`は完了したsimulation tickの末尾でだけ進み、Presentationは完了tickと`InterpolationAlpha`を観測する。既存の遅延構造変更は各simulation phaseのbarrierでplaybackされる。
 - `Run`は`while(State.Enabled)`でRunFrameを回し、`Stopwatch`から取得したcounterを渡す。Pause中は時間を蓄積せず、Stepは1 host frameにつき1 tickだけ実行する。

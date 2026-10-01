@@ -1,13 +1,12 @@
 using CSharpGameEngine.Entities;
-using CSharpGameEngine.Runtime.Windows;
 
 namespace CSharpGameEngine.Runtime.Physics;
 
 [SystemPhase(SystemPhase.PhysicsSimulation)]
 [ExecuteInEditor(Realtime=true)]
 internal struct PhysicsSyncBegin:IWorldSystem {
-    public void Update(EngineHost Host,ref State State){
-        Host.ActivePhysicsDomain.BeginSynchronization();
+    public void Update(IPhysicsHost Host,ref State State){
+        Host.Physics.Active.BeginSynchronization();
     }
 }
 
@@ -19,9 +18,9 @@ internal struct PhysicsBodySync:ISystem {
     public void Spawn(ref PhysicsRotation Rotation){}
     public void Spawn(ref PhysicsStableId StableId){}
 
-    public void Update(Entity Entity,ref Transform Transform,ref Collider Collider,EngineHost Host,ref State State){
-        PhysicsDomainRuntime Domain=Host.ActivePhysicsDomain;
-        if(Transform.Frame!=Host.PhysicsFrame){
+    public void Update(Entity Entity,ref Transform Transform,ref Collider Collider,IPhysicsHost Host,ref State State){
+        PhysicsDomainRuntime Domain=Host.Physics.Active;
+        if(Transform.Frame!=Host.Physics.Frame){
             Domain.ReportSyncFailure(Entity,PhysicsFaultType.ReferenceFrameMismatch);
             return;
         }
@@ -33,9 +32,9 @@ internal struct PhysicsBodySync:ISystem {
         Domain.ApplyBody(Description);
     }
 
-    public void Update(Entity Entity,ref Transform Transform,ref Collider Collider,ref RigidBody RigidBody,EngineHost Host,ref State State){
-        PhysicsDomainRuntime Domain=Host.ActivePhysicsDomain;
-        if(Transform.Frame!=Host.PhysicsFrame){
+    public void Update(Entity Entity,ref Transform Transform,ref Collider Collider,ref RigidBody RigidBody,IPhysicsHost Host,ref State State){
+        PhysicsDomainRuntime Domain=Host.Physics.Active;
+        if(Transform.Frame!=Host.Physics.Frame){
             Domain.ReportSyncFailure(Entity,PhysicsFaultType.ReferenceFrameMismatch);
             return;
         }
@@ -64,8 +63,8 @@ internal struct PhysicsBodySync:ISystem {
 [ExecuteInEditor(Realtime=true)]
 [RunsAfter(typeof(StaticMeshColliderSync))]
 internal struct PhysicsStep:IWorldSystem {
-    public void Update(EngineHost Host,ref State State){
-        PhysicsDomainRuntime Domain=Host.ActivePhysicsDomain;
+    public void Update(IPhysicsHost Host,ref State State){
+        PhysicsDomainRuntime Domain=Host.Physics.Active;
         Domain.EndSynchronization();
         PhysicsDebugHub.EnsureStarted();
         PhysicsSimulationControl.Register(Domain.DebugId);
@@ -85,9 +84,9 @@ internal struct PhysicsStep:IWorldSystem {
 internal struct PhysicsTransformWriteback:ISystem {
     public void Update(
         Entity Entity,ref Transform Transform,ref RigidBody RigidBody,ref PhysicsRotation Rotation,
-        EngineHost Host,ref State State){
-        if(Transform.Frame!=Host.PhysicsFrame){ return; }
-        if(!Host.PhysicsWorld.TryGetBodyState(Entity,out PhysicsBodyState Body)
+        IPhysicsHost Host,ref State State){
+        if(Transform.Frame!=Host.Physics.Frame){ return; }
+        if(!Host.Physics.Active.World.TryGetBodyState(Entity,out PhysicsBodyState Body)
             ||Body.MotionType is not (PhysicsMotionType.Dynamic or PhysicsMotionType.Kinematic)){
             return;
         }

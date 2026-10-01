@@ -41,15 +41,16 @@ internal static class PrefractureDebugService {
             return new PrefractureDebugLoadResult([],Diagnostics.Count==0?null:string.Join(Environment.NewLine,Diagnostics));
         }
         CancellationToken.ThrowIfCancellationRequested();
-        string DependencyHash=PhysicsSceneBakeService.ComputeDependencyHash(RepoRoot);
-        string Host=PhysicsSceneBakeService.PrepareExactHost(RepoRoot,DependencyHash,CancellationToken);
+        // Inspection reads the artifact alone, so it needs the host but no game (M0096 G).
+        string HostHash=PhysicsSceneBakeService.ComputeHostHash(RepoRoot);
+        string Host=PhysicsSceneBakeService.PrepareExactHost(RepoRoot,HostHash,CancellationToken);
         Dictionary<string,PrefractureInspectionDocument>Documents=new(StringComparer.OrdinalIgnoreCase);
         foreach(string ArtifactPath in References.Select(static Reference=>Reference.ArtifactPath).Distinct(StringComparer.OrdinalIgnoreCase)){
             CancellationToken.ThrowIfCancellationRequested();
             string Temporary=Path.Combine(Path.GetTempPath(),$"cge-prefracture-{Guid.NewGuid():N}.json");
             try {
                 ExternalBridgeProcess.RunExecutableCommandProducingFile(
-                    Host,$"tools/CSharpGameEngine.Physics.Cli/{DependencyHash}",
+                    Host,$"tools/CSharpGameEngine.Physics.Cli/{HostHash}",
                     ["inspect-prefracture",ArtifactPath,Temporary],Temporary,RepoRoot,InspectTimeout,
                     UseResidentServer:true,CancellationToken);
                 PrefractureInspectionDocument?Document=JsonSerializer.Deserialize<PrefractureInspectionDocument>(File.ReadAllText(Temporary));

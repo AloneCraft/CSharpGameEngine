@@ -116,9 +116,9 @@ internal sealed class StaticMeshCollisionCooker {
 [ExecuteInEditor(Realtime=true)]
 [RunsAfter(typeof(PhysicsBodySync))]
 internal struct StaticMeshColliderSync:ISystem {
-    public void Update(Entity Entity,ref Transform Transform,ref StaticMesh Mesh,ref StaticMeshCollider MeshCollider,EngineHost Host,ref State State){
-        PhysicsDomainRuntime Domain=Host.ActivePhysicsDomain;
-        if(Transform.Frame!=Host.PhysicsFrame){
+    public void Update(Entity Entity,ref Transform Transform,ref StaticMesh Mesh,ref StaticMeshCollider MeshCollider,IPhysicsHost Host,ref State State){
+        PhysicsDomainRuntime Domain=Host.Physics.Active;
+        if(Transform.Frame!=Host.Physics.Frame){
             Domain.ReportSyncFailure(Entity,PhysicsFaultType.ReferenceFrameMismatch);
             return;
         }

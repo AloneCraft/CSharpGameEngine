@@ -7,9 +7,20 @@
     <IsPackable>false</IsPackable>
     <Platforms>x64</Platforms>
   </PropertyGroup>
+  <!--
+    M0096 G: the host does not reference a game. Cooking and prefracture inspection compile the ECS-free physics
+    sources here; Bake loads the game build named on its command line and runs the game's own generated Bake host.
+  -->
+  <ItemGroup>
+    <Compile Include="..\..\src\CSharpGameEngine.Runtime.Physics\PhysicsShapeAssets.cs" Link="Physics\PhysicsShapeAssets.cs" />
+    <Compile Include="..\..\src\CSharpGameEngine.Runtime.Physics\PhysicsCooking.cs" Link="Physics\PhysicsCooking.cs" />
+    <Compile Include="..\..\src\CSharpGameEngine.Runtime.Physics\PrefractureCooking.cs" Link="Physics\PrefractureCooking.cs" />
+    <Compile Include="..\..\src\CSharpGameEngine.Runtime.Physics\PhysicsAabb.cs" Link="Physics\PhysicsAabb.cs" />
+    <Using Include="CSharpGameEngine.Numerics" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/CSharpGameEngine.Import/CSharpGameEngine.Import.csproj" />
+    <ProjectReference Include="../../src/CSharpGameEngine.Numerics/CSharpGameEngine.Numerics.csproj" />
     <ProjectReference Include="../CSharpGameEngine.Bridge.Hosting/CSharpGameEngine.Bridge.Hosting.csproj" />
-    <ProjectReference Include="..\..\UserEcsProject\UserEcsProject.csproj" />
   </ItemGroup>
 </Project>

@@ -7,12 +7,10 @@ using EcsWorld=CSharpGameEngine.Entities.World;
 namespace CSharpGameEngine.Runtime.Windows;
 
 /// <summary>
-/// Bridges the generated ECS hierarchy to the scene-selected fixed-point Transform implementation.
-/// Each top-level resolution starts with a fresh resolver so structural edits and reparenting made
-/// in the previous ECS frame cannot reuse a stale parent chain. The resolver still caches every
-/// ancestor during the one resolution, which keeps the affine composition entirely fixed-point.
+/// The camera-relative half of the fixed-point world transform, which needs the host's camera and frames. The world
+/// resolution itself is portable and lives with the resolver (Entities' FixedTransform.cs, M0096 G).
 /// </summary>
-internal static class RuntimeWorldTransform {
+internal static partial class RuntimeWorldTransform {
     public static FixedTransformStatus TryToCameraRelativeMatrix(
         in FixedAffineTransform ObjectWorld,ReferenceFrameId ObjectFrame,
         in FixedAffineTransform CameraWorld,ReferenceFrameId CameraFrame,
@@ -24,48 +22,6 @@ internal static class RuntimeWorldTransform {
         }
         return FixedAffineTransform.FromLogical(ObjectInCameraFrame).TryToCameraRelativeMatrix(CameraWorld,out Matrix);
     }
-    public static FixedTransformResolveStatus TryResolveWorld(
-        Entity Entity,EcsWorld EcsWorld,out FixedAffineTransform World)=>
-        TryResolveWorld(Entity,EcsWorld,out World,out _);
-
-    public static FixedTransformResolveStatus TryResolveWorld(
-        Entity Entity,EcsWorld EcsWorld,out FixedAffineTransform World,out ReferenceFrameId Frame){
-        FixedTransformWorldResolver Resolver=new();
-        FixedTransformResolveStatus Status=Resolver.Resolve(
-            Entity.Id,
-            (int EntityId,out Transform Transform)=>{
-                Entity Candidate=new(EntityId);
-                if(EcsWorld.TryGetComponent(Candidate,out Transform)){
-                    return true;
-                }
-                // A scene root may be a logical node that owns environment/components but no
-                // spatial Transform. Only the actual live scene root gets this identity fallback;
-                // an arbitrary live entity without Transform remains a malformed parent.
-                SceneInstance OwningScene=EcsWorld.GetOwningScene(Candidate);
-                if(EcsWorld.IsAlive(Candidate)&&!OwningScene.IsNone
-                    &&EcsWorld.GetSceneRoot(OwningScene).Equals(Candidate)){
-                    Transform=new global::CSharpGameEngine.Entities.Transform();
-                    return true;
-                }
-                Transform=default;
-                return false;
-            },
-            (int EntityId,out int ParentEntityId)=>{
-                if(EcsWorld.TryGetComponent(new Entity(EntityId),out Parent Parent)){
-                    ParentEntityId=Parent.Value.Id;
-                    return true;
-                }
-                ParentEntityId=default;
-                return false;
-            },out World);
-        if(Status!=FixedTransformResolveStatus.Success){ Frame=default;return Status; }
-        if(!TryResolveFrame(Entity,EcsWorld,out Frame)){
-            World=default;
-            return FixedTransformResolveStatus.FrameMismatch;
-        }
-        return FixedTransformResolveStatus.Success;
-    }
-
     /// <summary>
     /// Resolves an entity's complete fixed world transform, subtracts the complete fixed camera
     /// world origin, then converts the relative affine matrix to float exactly once.
@@ -119,20 +75,6 @@ internal static class RuntimeWorldTransform {
 
         Forward=Vector3.Normalize(WorldForward);
         return FixedTransformStatus.Success;
-    }
-
-    private static bool TryResolveFrame(Entity Entity,EcsWorld EcsWorld,out ReferenceFrameId Frame){
-        Frame=ReferenceFrameId.Root;
-        bool HasFrame=false;
-        Entity Current=Entity;
-        while(true){
-            if(EcsWorld.TryGetComponent(Current,out Transform Transform)){
-                if(!HasFrame){ Frame=Transform.Frame;HasFrame=true; }
-                else if(Frame!=Transform.Frame){ return false; }
-            }
-            if(!EcsWorld.TryGetComponent(Current,out Parent Parent)){ return Frame.IsValid; }
-            Current=Parent.Value;
-        }
     }
 
     public static FixedTransformStatus ToTransformStatus(FixedTransformResolveStatus Status)=>Status switch {

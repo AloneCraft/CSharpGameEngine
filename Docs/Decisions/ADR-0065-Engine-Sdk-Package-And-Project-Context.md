@@ -51,7 +51,8 @@ The repository's `Directory.Build.targets` also adds the analyzer and the shader
    - `BridgeExecutableLocator` prefers them. Repository builds remain a development fallback.
    - The VSIX also carries the SDK package (`Packages/`) and the ThirdPerson template (ADR-0068).
 5. **SourceMode-only features.**
-   - Physics Scene Bake builds its exact host from the repository sources, and that host references the game project. Outside the repository it reports that it needs the engine sources.
+   - Physics Scene Bake builds its exact host from the repository's engine sources. Outside the repository it reports that it needs the engine sources.
+   - M0096 G: the host no longer references a game. The Bake builds the scene's own game project separately and the host loads that build (`bake --assembly`), so any game project in the repository can bake, not only UserEcsProject.
    - The legacy model viewer command stays repository-only.
 
 ## Alternatives considered

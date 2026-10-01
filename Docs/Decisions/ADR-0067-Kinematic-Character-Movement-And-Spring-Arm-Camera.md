@@ -55,6 +55,7 @@ Observed engine facts: the deterministic physics world answers ray and sweep que
 - Root motion, crouch, swimming, networking/prediction and moving platforms are out of scope.
 - Collision uses the rendered triangles, not Unreal's simple collision primitives, so contact shapes can differ slightly from Unreal on bevelled meshes.
 - Mouse and stick look use the wall clock of the presentation frame, so camera turn speed does not depend on the fixed tick. The resulting move direction only reaches the simulation through `CharacterInput`.
+- `Runtime.Character` is portable in fact since M0096 G. Its systems take the host as `IPhysicsHost` rather than the Windows `EngineHost`, and `StaticMesh` and the world-transform resolution are in the Entities sources. `EngineLayerSpec` checks this.
 - The fixed-tick scheduler retains its backlog (ADR-0055). The long first frame of level loading is therefore replayed at up to eight ticks per frame right after startup. This is observed and tracked separately, and is not decided here.
 ## Verification
 - Deterministic unit tests:

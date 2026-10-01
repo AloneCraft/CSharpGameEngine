@@ -1,7 +1,6 @@
 using System.Runtime.CompilerServices;
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Runtime.Physics;
-using CSharpGameEngine.Runtime.Windows;
 namespace CSharpGameEngine.Runtime.Character;
 /// <summary>
 /// Moves every character once per fixed tick, after the physics step so static geometry is
@@ -12,11 +11,11 @@ namespace CSharpGameEngine.Runtime.Character;
 [RunsAfter(typeof(PhysicsTransformWriteback))]
 internal struct CharacterMovementUpdate:ISystem {
     private static readonly ConditionalWeakTable<DeterministicPhysicsWorld,CharacterMotor>Motors=[];
-    public void Update(ref Transform Transform,ref CharacterMovement Movement,ref CharacterMovementState MovementState,ref CharacterInput Input,EngineHost Host,ref State State){
-        if(Transform.Frame!=Host.PhysicsFrame){
+    public void Update(ref Transform Transform,ref CharacterMovement Movement,ref CharacterMovementState MovementState,ref CharacterInput Input,IPhysicsHost Host,ref State State){
+        if(Transform.Frame!=Host.Physics.Frame){
             return;
         }
-        var World=Host.ActivePhysicsDomain.MutableWorld;
+        var World=Host.Physics.Active.MutableWorld;
         var Motor=Motors.GetValue(World,static Key=>new CharacterMotor(Key));
         if(MovementState.Facing.LengthSquared.IsZero){
             MovementState.Facing=CharacterMotor.FacingOf(Transform.Rotation);
@@ -46,14 +45,14 @@ internal struct PlayerControllerQueryRegistration:ISystem { public void Spawn(re
 [SystemPhase(SystemPhase.Presentation)]
 internal struct SpringArmUpdate:ISystem {
     private static readonly ConditionalWeakTable<DeterministicPhysicsWorld,SpringArmSolver>Solvers=[];
-    public void Update(Entity Entity,ref Transform Transform,ref SpringArm Arm,EngineHost Host,ref State State){
+    public void Update(Entity Entity,ref Transform Transform,ref SpringArm Arm,IPhysicsHost Host,ref State State){
         if(!State.World.TryGetComponent(Entity,out Parent Parent)
             ||!State.World.TryGetComponent(Parent.Value,out Transform Owner)
             ||!State.World.TryGetComponent(Parent.Value,out PlayerController Controller)
-            ||Owner.Frame!=Host.PhysicsFrame){
+            ||Owner.Frame!=Host.Physics.Frame){
             return;
         }
-        var Solver=Solvers.GetValue(Host.ActivePhysicsDomain.MutableWorld,static Key=>new SpringArmSolver(Key));
+        var Solver=Solvers.GetValue(Host.Physics.Active.MutableWorld,static Key=>new SpringArmSolver(Key));
         var Control=PlayerControl.ControlRotation(Controller);
         var Inverse=Owner.Rotation.Conjugate();
         try {

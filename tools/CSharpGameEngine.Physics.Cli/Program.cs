@@ -191,7 +191,7 @@ static int Usage(){
     Console.Error.WriteLine("CSharpGameEngine.Physics.Cli cook <sourceAsset> <repositoryRoot> <assetGuid> [static-mesh|convex] [seed]");
     Console.Error.WriteLine("CSharpGameEngine.Physics.Cli prefracture <sourceAsset> <repositoryRoot> <assetGuid> <fragmentCount> [seed] [density] [bondStrengthPerArea]");
     Console.Error.WriteLine("CSharpGameEngine.Physics.Cli inspect-prefracture <artifact.cgefracture> <output.json>");
-    Console.Error.WriteLine("CSharpGameEngine.Physics.Cli bake <fullyQualifiedSceneType> <output.cgephyscache> <tickCount> <dependencyHash>");
+    Console.Error.WriteLine("CSharpGameEngine.Physics.Cli bake --assembly <game.dll> <fullyQualifiedSceneType> <output.cgephyscache> <tickCount> <dependencyHash>");
     Console.Error.WriteLine("CSharpGameEngine.Physics.Cli --serve <pipeName>");
     return 1;
 }

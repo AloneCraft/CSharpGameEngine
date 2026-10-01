@@ -27,6 +27,7 @@ internal static class GameSystemAnalyzer {
     internal const string ScheduledSystemAttributeMetadataName="CSharpGameEngine.Entities.ScheduledSystemAttribute";
     internal const string RunsAfterAttributeMetadataName="CSharpGameEngine.Entities.RunsAfterAttribute";
     internal const string RunsBeforeAttributeMetadataName="CSharpGameEngine.Entities.RunsBeforeAttribute";
+    private const string EngineHostMetadataName="CSharpGameEngine.Runtime.Windows.EngineHost";
     internal const string EntityFullyQualifiedName="global::CSharpGameEngine.Entities.Entity";
     internal const string StateFullyQualifiedName="global::CSharpGameEngine.Entities.State";
 
@@ -291,14 +292,21 @@ internal static class GameSystemAnalyzer {
                 continue;
             }
 
-            if(!SeenContextTypes.Add(ParameterTypeFqn)){
-                Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.DuplicateContextParameter,Parameter.Locations.FirstOrDefault(),Method.Name,ParameterTypeFqn));
+            // M0096 G: an interface the engine host implements (IPhysicsHost) is the host itself, so a portable
+            // system can take it and the loop passes the one host it already has.
+            var ContextTypeFqn=Parameter.Type.TypeKind==TypeKind.Interface
+                &&Method.ContainingAssembly.GetTypeByMetadataName(EngineHostMetadataName) is { }EngineHost
+                &&EngineHost.AllInterfaces.Contains(Parameter.Type,SymbolEqualityComparer.Default)
+                    ?EngineHost.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+                    :ParameterTypeFqn;
+            if(!SeenContextTypes.Add(ContextTypeFqn)){
+                Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.DuplicateContextParameter,Parameter.Locations.FirstOrDefault(),Method.Name,ContextTypeFqn));
                 IsValid=false;
                 continue;
             }
 
             CallOrder.Add(new GameSystemParameterSlot(GameSystemParameterRole.Context,Contexts.Count));
-            Contexts.Add(new GameSystemContextParameterModel(Parameter.Name,ParameterTypeFqn,IsReferenceType));
+            Contexts.Add(new GameSystemContextParameterModel(Parameter.Name,ContextTypeFqn,IsReferenceType));
         }
 
         if(HasTrailingState&&!IsSpawn){

@@ -8,23 +8,28 @@ namespace CSharpGameEngine.Physics.Cli;
 internal static class PhysicsBridgeWorker {
     internal static(int ExitCode,string Output)Run(string[]Arguments,CancellationToken CancellationToken){
         return Arguments switch {
-            ["bake",_,_,_,_]=>Bake(Arguments,CancellationToken),
+            ["bake","--assembly",_,_,_,_,_]=>Bake(Arguments,CancellationToken),
             ["inspect-prefracture",_,_]=>InspectPrefracture(Arguments,CancellationToken),
             _=>(1,"Physics resident host accepts Bake and prefracture inspection requests."),
         };
     }
 
     internal static(int ExitCode,string Output)Bake(string[]Arguments,CancellationToken CancellationToken){
-        if(Arguments.Length!=5){ return(1,"Physics bake requires exactly four arguments."); }
-        string SceneName=Arguments[1];
+        if(Arguments is not ["bake","--assembly",var AssemblyArgument,var SceneName,var OutputArgument,var TickArgument,var DependencyHash]){
+            return(1,"Physics bake requires --assembly <game.dll> and four arguments.");
+        }
+        string GameAssembly;
         string Output;
-        try { Output=Path.GetFullPath(Arguments[2]); }
+        try {
+            GameAssembly=Path.GetFullPath(AssemblyArgument);
+            Output=Path.GetFullPath(OutputArgument);
+        }
         catch(Exception Exception)when(Exception is ArgumentException or NotSupportedException){ return(2,Exception.Message); }
-        if(!int.TryParse(Arguments[3],NumberStyles.Integer,CultureInfo.InvariantCulture,out int TickCount)
-            ||TickCount is <1 or >PhysicsCacheSerializer.MaximumFrameCount){
+        if(!File.Exists(GameAssembly)){ return(2,$"The game assembly was not found: {GameAssembly}"); }
+        // The upper bound is the game's physics cache limit, which the game's generated TryBake checks.
+        if(!int.TryParse(TickArgument,NumberStyles.Integer,CultureInfo.InvariantCulture,out int TickCount)||TickCount<1){
             return(2,"Tick count is outside the supported physics cache range.");
         }
-        string DependencyHash=Arguments[4];
         if(string.IsNullOrWhiteSpace(SceneName)||string.IsNullOrWhiteSpace(DependencyHash)){
             return(2,"A fully-qualified scene name and dependency hash are required.");
         }
@@ -39,8 +44,8 @@ internal static class PhysicsBridgeWorker {
             using(FileStream Stream=new(
                 TemporaryPath,FileMode.CreateNew,FileAccess.Write,FileShare.None,65_536,
                 FileOptions.SequentialScan|FileOptions.WriteThrough)){
-                if(!CSharpGameEngine.Generated.GeneratedSceneBakeHost.TryBake(
-                    SceneName,TickCount,DependencyHash,Stream,CancellationToken,out string Error)){
+                if(!GameBake.TryBake(
+                    GameAssembly,SceneName,TickCount,DependencyHash,Stream,CancellationToken,out string Error)){
                     return(CancellationToken.IsCancellationRequested?130:4,Error);
                 }
                 Stream.Flush(true);

@@ -11,9 +11,11 @@
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)PhysicsComponents.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PhysicsContracts.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PhysicsAabb.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PhysicsShapeAssets.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PhysicsNarrowPhase.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PhysicsWorldIntegration.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)PhysicsDomainRegistry.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PhysicsSystems.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)StaticMeshCollision.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)DeterministicAabbTree.cs" />

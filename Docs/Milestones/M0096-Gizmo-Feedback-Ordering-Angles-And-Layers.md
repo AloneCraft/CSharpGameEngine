@@ -13,8 +13,8 @@ M0095 の後にユーザーから受けた不具合報告と設計判断を、M0
 | C | 実行時に使われない `VsixStrings.en-US.resx`、obj だけ残った旧ディレクトリ、`UserEcsProject/Generated/` の削除 | 完了（dbb9fc1） |
 | D | 整数 `[SystemOrder]` を廃止し `[RunsAfter]` の相対順序に一本化（同着は完全修飾名順） | 完了（122e316、ADR-0073、SDK 0.1.6 は 24bd2d3）。`[RunsBefore]` を追加した（下記） |
 | E | シーン JSON の角度を turns（1 = 1 回転）で保存し、Inspector は度で表示 | 完了（d63ef02、ADR-0074、SDK 0.1.7 は 21e9b6f） |
-| F | Scene ビューの 2 プロセス（ランタイムビューと編集ワールド）の統合 | 完了（本コミット、ADR-0047 に追記） |
-| G | Runtime.Physics / Character の Windows 依存の解消と、`Physics.Cli` の UserEcsProject 依存の除去 | 未着手 |
+| F | Scene ビューの 2 プロセス（ランタイムビューと編集ワールド）の統合 | 完了（9b17de6、ADR-0047 に追記、SDK 0.1.8 は 1688528） |
+| G | Runtime.Physics / Character の Windows 依存の解消と、`Physics.Cli` の UserEcsProject 依存の除去 | 完了（本コミット） |
 
 ## A. ギズモ操作をランタイムビューに反映
 - 原因: ドラッグ中、VSIX は動かしたオブジェクトの行列を `RenderPreviewFrame.Objects[].World` で送るが、ランタイムビュー（`RenderPreviewRuntimeSession.UpdateFrame`）は `Objects` を選択表示にしか使わない。ゲームのワールドは文書の値で描くので、テキストに書き込まれる確定までオブジェクトは動かず、ギズモだけが動いていた。
@@ -107,3 +107,30 @@ M0095 の後にユーザーから受けた不具合報告と設計判断を、M0
   - 編集ワールドを止めても起きるので、統合とは無関係。
   - 別の新しいウィンドウハンドルでも起きるので、ハンドルの再利用ではない。
   - このため、上のプロセスのテストは描画を含めない。描画後にビューの World と並んで公開される状況での既定の World の選択は、自動テストで確かめていない。
+
+## G. 層の修正（Windows 依存と Physics.Cli のゲーム依存の解消）
+- 物理ドメイン:
+  - フレームごとのドメインの表とアクティブなフレームを `PhysicsDomainRegistry`（Runtime.Physics）に移した。`EngineHost` はそれを持って `IPhysicsHost` を実装するだけになった。
+  - 物理と Character の System は Context として `IPhysicsHost` を受け取る。
+  - 生成器の規則を足した: Context の型が、同じコンパイルの `EngineHost` が実装するインターフェイスなら、`EngineHost` として扱う。これでループの引数も Bake ホストの条件（Context は EngineHost だけ）も変わらない。
+- `StaticMesh` と `MeshMobility` を Entities の共有ソースへ移した。名前空間 `CSharpGameEngine.Runtime.Windows` は、シーン JSON の完全修飾名を壊さないため維持した。
+- `RuntimeWorldTransform` を 2 つに分けた。World の解決（`TryResolveWorld` / `TryResolveFrame`）は Entities の `FixedTransform.cs` に置いた。カメラ相対の部分は Runtime.Windows に残した。
+- `PhysicsAabb` を ECS に依存しない `PhysicsAabb.cs` に分けた。
+- `Physics.Cli`:
+  - UserEcsProject を参照しなくなった。cook / prefracture / inspect は、ECS を使わない物理ソース（`PhysicsShapeAssets` / `PhysicsCooking` / `PrefractureCooking` / `PhysicsAabb`）を直接取り込む。
+  - `bake --assembly <game.dll> <scene> <output> <ticks> <hash>` は、ゲームのビルドを収集可能な ALC に読み込む（`GameBake`）。そのゲームの `ContentRoot` をビルドのフォルダに向けてから、生成された `GeneratedSceneBakeHost.TryBake` を呼ぶ。tick 数の上限はゲームの `TryBake` が確かめる。
+- VSIX（`PhysicsSceneBakeService`）:
+  - ホストはエンジンだけのハッシュ（src、Physics.Cli、Bridge.Hosting、ルートのファイル）でビルドする。
+  - シーンのゲームプロジェクトは、プロジェクトごとのハッシュ（エンジン、build、そのプロジェクトと Assets。Bake の出力は除く）で `.artifacts/PhysicsBakeGame/<hash>` にビルドする。このハッシュが cache の dependency hash になる。
+  - ゲームのビルドは、ShaderGraph.Cli のように MSBuild タスクでビルドされるツールのために、ホストと同じくソリューションを復元してから行う。ビルド後に `-getProperty:TargetPath` でアセンブリを得る。
+  - プレフラクチャの inspect はホストだけを使う。
+- これまでの不具合（修正で解消）: 依存ハッシュは UserEcsProject に固定されていた。そのため、他のプロジェクトのシーンでは、そのプロジェクトの変更がハッシュに入らなかった。また、ホストは UserEcsProject の生成コードしか持たないので、他のゲームのシーンは「not part of this compilation」で失敗する構成だった。
+- テスト（修正前に失敗することを確認）:
+  - `CreateRequests_HashesTheScenesOwnProjectNotUserEcsProject`: 修正前は、UserEcsProject の変更が別プロジェクトのハッシュを変えて失敗した。
+  - `EngineLayerSpec`: HEAD では、物理と Character の System の 6 か所が `EngineHost` を名指しし、Physics.Cli が UserEcsProject を参照していた。
+  - 追加したテスト: `HostHash_CoversTheEngineButNoGame`、`Bake_BuildsEachGameOnceAndBakesWithItsBuild`。
+- 実行で確かめたこと:
+  - CLI で UserEcsProject の `PhysicsGroundScene` を bake した（exit 0）。存在しないシーンは exit 4、存在しないアセンブリは exit 2、`--assembly` なしは exit 1 になった。
+  - ThirdPerson テンプレート（`CgeThirdPerson`）の `Lvl_ThirdPerson` も bake できた。Assets ありは 1.48MB、Assets を除いたコピーは 1.9KB になった。衝突メッシュはゲームのビルドのフォルダから読まれている。
+  - VSIX のサービスを既定の経路（ホストのビルド → テンプレートのゲームのビルド → 常駐ブリッジで bake）で一度実行し、成功した（37 秒、一時テストで確認し、出力とテストは削除した）。成果物のビルドと VS のビルドで bake の結果はバイト単位で同一だった。
+- 残り: リポジトリの外（SDK パッケージのワークスペース）では、これまでどおり Bake にはエンジンのソースが必要。ホストがゲームに依存しなくなったので、パッケージに同梱したホストを使う形にできる（未実施）。
