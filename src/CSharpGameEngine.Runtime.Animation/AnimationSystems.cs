@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Numerics;
 using CSharpGameEngine.Entities;
 namespace CSharpGameEngine.Runtime.Animation;
@@ -43,7 +42,6 @@ internal struct LocomotionAnimation:ISystem {
                     SkeletalAssetCache.Clip(Animator.JumpClip,Skeleton),SkeletalAssetCache.Clip(Animator.FallClip,Skeleton),SkeletalAssetCache.Clip(Animator.LandClip,Skeleton));
                 Runtime.Machine=new LocomotionStateMachine(Skeleton,Clips,Animator.WalkSpeed,Animator.JogSpeed,Animator.BlendSeconds);
                 Runtime.Pose=new JointPose[Skeleton.JointCount];
-                Runtime.LastTimestamp=Stopwatch.GetTimestamp();
             }
             catch(Exception Ex) when(Ex is InvalidDataException or IOException or ArgumentException or UnauthorizedAccessException){
                 Runtime.Error=Ex.Message;
@@ -53,9 +51,7 @@ internal struct LocomotionAnimation:ISystem {
         if(Runtime.Machine is not{ }Machine||Runtime.Pose is not{ }Pose){
             return true;
         }
-        var Now=Stopwatch.GetTimestamp();
-        var DeltaSeconds=Math.Min((Now-Runtime.LastTimestamp)/(float)Stopwatch.Frequency,MaximumDeltaSeconds);
-        Runtime.LastTimestamp=Now;
+        var DeltaSeconds=Math.Min(State.FrameDeltaSeconds,MaximumDeltaSeconds);
         Machine.Update(DeltaSeconds,Animator.Speed,Animator.Falling,Animator.VerticalSpeed,Pose);
         Skeleton.ComputePalette(Pose,Mesh.Model,Mesh.Palette);
         return true;

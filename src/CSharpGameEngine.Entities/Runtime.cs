@@ -131,8 +131,24 @@ public partial struct State(World World){
     public SimulationPlaybackState PlaybackState { get;private set; }=SimulationPlaybackState.Running;
     public float InterpolationAlpha { get;internal set; }
     private int PendingSimulationSteps;
+    private long LastFrameTimestamp;
     public ulong FixedTick=>this.Timing.Tick;
     public int FixedTickRate=>this.Timing.TickRate;
+    /// <summary>ADR-0072: real seconds since the previous frame, set by the generated loop before the frame's systems run.</summary>
+    public float FrameDeltaSeconds { get;internal set; }
+    /// <summary>ADR-0072: seconds of one fixed simulation tick.</summary>
+    public float FixedDeltaSeconds=>1f/this.FixedTickRate;
+    /// <summary>A frame the caller timed (the game loop, with the same counter its fixed-tick scheduler uses).</summary>
+    internal void SetFrameDelta(long ElapsedCounter,long CounterFrequency){
+        this.FrameDeltaSeconds=CounterFrequency>0&&ElapsedCounter>0?(float)ElapsedCounter/CounterFrequency:0f;
+        this.LastFrameTimestamp=System.Diagnostics.Stopwatch.GetTimestamp();
+    }
+    /// <summary>A frame timed from the previous one (editor frames, which the editor drives on its own clock); the first is 0.</summary>
+    internal void MeasureFrameDelta(){
+        var Now=System.Diagnostics.Stopwatch.GetTimestamp();
+        this.FrameDeltaSeconds=this.LastFrameTimestamp==0?0f:(float)(Now-this.LastFrameTimestamp)/System.Diagnostics.Stopwatch.Frequency;
+        this.LastFrameTimestamp=Now;
+    }
     public SystemPhase Phase=>this.Timing.Phase;
 
     public void SetSimulationTiming(ulong Tick,int TickRate,SystemPhase Phase){

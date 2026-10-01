@@ -66,6 +66,53 @@ public sealed class GameSystemGeneratorEndToEndTests {
         Assert.Equal("OK",GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.TestEntry","RunScenario"));
     }
 
+    /// <summary>
+    /// ADR-0072: the frame's elapsed time reaches every system through State, the counter the loop's
+    /// fixed-tick scheduler also uses, so no system needs a Stopwatch of its own.
+    /// </summary>
+    [Fact]
+    public void FrameDeltaSeconds_IsTheElapsedTimeTheLoopWasGiven(){
+        var Source="""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Generated;
+            using Sample;
+
+            namespace Game;
+
+            internal struct TimeProbe : ISystem
+            {
+                public float Seen;
+                public float Fixed;
+                public bool Update(ref Position position, ref State state)
+                {
+                    Seen = state.FrameDeltaSeconds;
+                    Fixed = state.FixedDeltaSeconds;
+                    return true;
+                }
+            }
+
+            internal static class TestEntry
+            {
+                internal static string RunScenario()
+                {
+                    World world = new();
+                    State state = new(world) { Enabled = true };
+                    world.Create(new Position());
+                    TimeProbe probe = new();
+                    var scheduler = new global::CSharpGameEngine.Runtime.Simulation.FixedTickScheduler();
+                    GeneratedGameLoop.RunFrame(ref state, ref probe, ref scheduler, 1_000, 60_000);
+                    if (probe.Seen != 1_000f / 60_000f) return "FAIL:first " + probe.Seen;
+                    GeneratedGameLoop.RunFrame(ref state, ref probe, ref scheduler, 3_000, 60_000);
+                    if (probe.Seen != 3_000f / 60_000f) return "FAIL:second " + probe.Seen;
+                    if (probe.Fixed != 1f / state.FixedTickRate) return "FAIL:fixed " + probe.Fixed;
+                    return "OK";
+                }
+            }
+            """;
+        var Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
+        Assert.Equal("OK",GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.TestEntry","RunScenario"));
+    }
+
     [Fact]
     public void SubsetDispatch_FiresEveryMatchingOverloadOncePerEntity(){
         var Source="""

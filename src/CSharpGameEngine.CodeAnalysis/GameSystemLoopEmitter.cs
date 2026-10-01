@@ -56,6 +56,7 @@ internal static class GameSystemLoopEmitter {
         Lines.Add("    }");
         Lines.Add($"    internal static void RunFrame({BuildSystemSetFrameParameterList(Contexts)}) {{");
         Lines.Add("        if (!State.Enabled) return;");
+        Lines.Add("        State.SetFrameDelta(ElapsedCounter, CounterFrequency);");
         Lines.Add($"        RunPhase(global::CSharpGameEngine.Entities.SystemPhase.FrameInput, ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, false, false);");
         Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
         Lines.Add("        if (!State.Enabled) return;");
@@ -109,6 +110,7 @@ internal static class GameSystemLoopEmitter {
         // (every Presentation system) without input, simulation or physics advancing it.
         Lines.Add($"    internal static void RunPresentationFrame(ref global::CSharpGameEngine.Entities.State State, ref GeneratedSystemSet Systems{BuildContextParameterSuffix(Contexts)}) {{");
         Lines.Add("        if (!State.Enabled) return;");
+        Lines.Add("        State.MeasureFrameDelta();");
         Lines.Add("        State.World.PlaybackStructuralChanges(ref State);");
         if(SpatialWorldEmitter.ShouldEmit(Registry)){ Lines.Add("        State.World.RefreshGlobalSpatialIndex();"); }
         Lines.Add($"        RunPhase(global::CSharpGameEngine.Entities.SystemPhase.Presentation, ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, false, false);");
@@ -119,11 +121,13 @@ internal static class GameSystemLoopEmitter {
         bool HasRealtimeEditorSystems=Systems.Any(static Binding=>Binding.System.ExecuteInEditor&&Binding.System.RealtimeInEditor);
         if(HasEditorSystems){
             Lines.Add($"    internal static void RunEditorFrame(ref global::CSharpGameEngine.Entities.State State, ref GeneratedSystemSet Systems{BuildContextParameterSuffix(Contexts)}) {{");
+            Lines.Add("        State.MeasureFrameDelta();");
             Lines.Add($"        RunSimulationTick(ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, true, false);");
             if(SpatialWorldEmitter.ShouldEmit(Registry)){ Lines.Add("        State.World.RefreshGlobalSpatialIndex();"); }
             Lines.Add("    }");
             if(HasRealtimeEditorSystems){
                 Lines.Add($"    internal static void RunEditorRealtimeFrame(ref global::CSharpGameEngine.Entities.State State, ref GeneratedSystemSet Systems{BuildContextParameterSuffix(Contexts)}) {{");
+                Lines.Add("        State.MeasureFrameDelta();");
                 Lines.Add($"        RunSimulationTick(ref State, ref Systems{BuildContextArgumentSuffix(Contexts)}, true, true);");
                 if(SpatialWorldEmitter.ShouldEmit(Registry)){ Lines.Add("        State.World.RefreshGlobalSpatialIndex();"); }
                 Lines.Add("    }");

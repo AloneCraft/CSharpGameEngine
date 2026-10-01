@@ -43,6 +43,5 @@ public struct LocomotionAnimator() {
 public struct LocomotionAnimatorRuntime:IRuntimeComponent<LocomotionAnimator> {
     public LocomotionStateMachine?Machine;
     public JointPose[]?Pose;
-    public long LastTimestamp;
     public string?Error;
 }
