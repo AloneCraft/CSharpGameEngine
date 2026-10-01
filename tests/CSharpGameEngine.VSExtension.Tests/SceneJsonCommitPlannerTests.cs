@@ -160,6 +160,20 @@ public sealed class SceneJsonCommitPlannerTests {
             out _,out _,out _,out var Error));
         Assert.Contains(Diagnostic,Error,StringComparison.Ordinal);
     }
+    /// <summary>M0095 3-5: a gesture on a hand-formatted document changes the edited value only.</summary>
+    [Fact]
+    public void Move_KeepsHandFormatting(){
+        var Before=Document("1")
+            .Replace("              \"ScaleX\": 1,\n","              \"ScaleX\":1,\n")
+            .Replace("              \"ScaleY\": 1,\n              \"ScaleZ\": 1\n","              \"ScaleY\": 1, \"ScaleZ\": 1\n");
+        var Seed=CreateSeed(Before,Version:1,Previous:null,new SceneProjectionReconciler());
+        var Plan=SceneSourceCommitPlanner.Plan(Seed.Context,Seed.Snapshot,
+            new SceneEditCommitRequest(Key,Seed.Snapshot.DocumentVersion,"Move Cube",[new SceneTransformChange(Find(Seed.Snapshot,"Cube"),At(1f),At(3f))],SceneTransformMemberMask.Position),
+            Seed.Reconciler,CancellationToken.None);
+        Assert.True(Plan.Succeeded,Plan.ErrorMessage);
+        var After=Plan.WriteStep!.Before.WithChanges(Plan.WriteStep.Changes).ToString();
+        Assert.Equal(Before.Replace("\"R\": 1,","\"R\": 3,"),After);
+    }
     private static string[]ChangedLines(string Before,string After){
         var Old=Before.Split('\n');
         var New=After.Split('\n');

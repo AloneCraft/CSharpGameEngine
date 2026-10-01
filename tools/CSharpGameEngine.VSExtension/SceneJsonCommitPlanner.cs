@@ -84,7 +84,8 @@ internal static class SceneJsonCommitPlanner {
         if(Converted.Text is null){
             return SceneSourceCommitPlan.Failure(string.Join(Environment.NewLine,Converted.Problems));
         }
-        var NewText=MatchLineEndings(Converted.Text,OldText);
+        // M0095: the canonical text is merged into the author's, so only the changed values change.
+        var NewText=SceneJsonTextMerge.Merge(OldText,MatchLineEndings(Converted.Text,OldText));
         if(!TryAnalyze(NewText,Context.Model.FilePath,BaseCompilation,Request.SceneKey.ClassFullyQualifiedName,CancellationToken,
             out var Canonical,out var FinalRoot,out _,out var Error)){
             return SceneSourceCommitPlan.Failure(Error);
