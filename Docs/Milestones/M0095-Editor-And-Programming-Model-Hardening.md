@@ -13,7 +13,8 @@
 | 0-2 | `dotnet test CSharpGameEngine.slnx --arch x64` の後、SceneSchema.Cli の出力下に `win-x64\` が残り、SDK パッケージの再帰 glob が二重に取り込んで NU5118 で VSIX ビルドが失敗した | 完了（c23c7f4） |
 | 1-1 | ランタイムビューで値の編集（ギズモ、Inspector、JSON テキスト）が画像に反映されない | 完了（b7765c1） |
 | 1-2 | シーンタブを複数開き Hierarchy / Inspector にフォーカスがあると、1回の Ctrl+Z / Ctrl+Y / Ctrl+S がタブの数だけ実行されうる | 完了（40e1f11）。キー操作の実機確認は未実施 |
-| 1-4 | シーンのタブを閉じても、次に前面へ来たのがシーン以外の文書だとピンが残り、Hierarchy / Inspector が閉じた文書を表示・編集し続ける | 完了（本コミット） |
+| 1-4 | シーンのタブを閉じても、次に前面へ来たのがシーン以外の文書だとピンが残り、Hierarchy / Inspector が閉じた文書を表示・編集し続ける | 完了（472c8c9）。空の Hierarchy の案内文が C# `IScene` 前提のままだったので JSON シーンの説明に直した（95c70e8） |
+| 1-5 | `SceneWorkspaceService.Dispose` が実行中の解析を join しない | 不具合ではなかった（本コミットでコメントを修正） |
 
 ## 1-1 ランタイムビューへの値編集
 - 原因: 変換だけの差分は `SceneHwndHost.TryApplyIncrementalSnapshot` が設計用の描画オブジェクトだけを更新し、`ReplaceScene` を送らなかった。ランタイムビュー（`RenderPreviewRuntimeSession`）はフレームの描画オブジェクトの変換を使わず、文書の JSON からだけ値を受け取る。
@@ -43,3 +44,7 @@
 |---|---|---|
 | 修正前 | 表示 | 表示されたまま |
 | 修正後 | 表示 | 消える（空の状態） |
+
+## 1-5 解析中の Dispose（仮説を否定）
+- 仮説: `Dispose` が実行中の解析を join しないため、破棄後にコールバックが走る。
+- 結果: 解析は配信の直前にロック内で `Disposed` を確認して抜けるため、破棄後の配信は起きない。UI スレッドの `Dispose` で join すると、コンパイル完了までソリューションのクローズが止まる。誤っていたのは「Dispose が join する」というコメントで、コードは変更していない。

@@ -116,8 +116,9 @@ internal sealed class SceneWorkspaceService : IDisposable {
 
     /// <summary>
     /// The in-flight analysis. Held rather than discarded so the fire-and-forget stays observable
-    /// (VSTHRD110) and so <see cref="Dispose"/> can join it instead of letting a callback run
-    /// against a disposed service.
+    /// (VSTHRD110) and joinable by Visual Studio's shutdown. <see cref="Dispose"/> does not join it,
+    /// which would block the UI thread until a compilation finished: it cancels the analysis, and the
+    /// analysis checks <see cref="Disposed"/> under the gate before it publishes anything.
     /// </summary>
     private JoinableTask?RunningAnalysis;
 
