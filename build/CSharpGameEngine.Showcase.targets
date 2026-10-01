@@ -6,7 +6,8 @@
     <CgeShowcaseIntermediateManifest>$(CgeShowcaseIntermediateDirectory)feature-progress.json</CgeShowcaseIntermediateManifest>
   </PropertyGroup>
   <Target Name="BuildCgeFeatureRunner" BeforeTargets="GenerateCgeShowcaseManifest" Condition="'@(CgeShowcaseManifest)' != ''">
-    <MSBuild Projects="$(CgeFeatureRunnerProject)" Targets="Build" Properties="Configuration=$(Configuration);Platform=x64" BuildInParallel="false" />
+    <!-- CgeFeatureRunnerExe is the RID-less output; a game's RuntimeIdentifier (an x64 test run of the solution, say) must not move it to win-x64\ and leave a stale exe there. -->
+    <MSBuild Projects="$(CgeFeatureRunnerProject)" Targets="Build" Properties="Configuration=$(Configuration);Platform=x64" RemoveProperties="RuntimeIdentifier;SelfContained" BuildInParallel="false" />
   </Target>
   <Target Name="GenerateCgeShowcaseManifest" BeforeTargets="PrepareForBuild" DependsOnTargets="BuildCgeFeatureRunner" Condition="'@(CgeShowcaseManifest)' != ''" Inputs="@(CgeShowcaseManifest);$(CgeFeatureRunnerExe)" Outputs="$(CgeShowcaseIntermediateManifest)">
     <MakeDir Directories="$(CgeShowcaseIntermediateDirectory)" />
