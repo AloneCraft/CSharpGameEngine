@@ -133,14 +133,17 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     /// <summary>M0045: <see cref="SceneHwndHost.UndoRequested"/>の購読先。</summary>
     private void OnUndoKeyRequested(){
         ThreadHelper.ThrowIfNotOnUIThread();
-        this.TryUndoFromCommand();
+        if(this.OwnsKeyboard){ this.TryUndoFromCommand(); }
     }
 
     /// <summary>M0045: <see cref="SceneHwndHost.RedoRequested"/>の購読先。</summary>
     private void OnRedoKeyRequested(){
         ThreadHelper.ThrowIfNotOnUIThread();
-        this.TryRedoFromCommand();
+        if(this.OwnsKeyboard){ this.TryRedoFromCommand(); }
     }
+
+    /// <summary>M0095 1-2: of all open scene tabs, only the one showing the pinned scene acts on a key press.</summary>
+    private bool OwnsKeyboard=>SceneDesignerUndoCommandPolicy.IsKeyboardOwner(this.FixedSceneKey,this.Session?.PinnedSceneKey);
 
     /// <summary>
     /// M0047: <see cref="SceneHwndHost.SaveRequested"/>の購読先。Documentのセッション全履歴を
@@ -148,7 +151,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     /// </summary>
     private void OnSaveKeyRequested(){
         ThreadHelper.ThrowIfNotOnUIThread();
-        if(this.Session is not { }Session||Session.PinnedSceneKey is not { }Key){
+        if(!this.OwnsKeyboard||this.Session is not { }Session||Session.PinnedSceneKey is not { }Key){
             return;
         }
 

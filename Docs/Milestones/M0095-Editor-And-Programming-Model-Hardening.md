@@ -11,7 +11,8 @@
 |---|---|---|
 | 0-1 | FeatureStages のシーンが `$schema` に指す `.cge/scene.schema.json` が生成されなかった（stages は独自の `Directory.Build.targets` を持ち、スキーマ書き出しターゲットを取り込んでいなかった） | 完了（6584ad5） |
 | 0-2 | `dotnet test CSharpGameEngine.slnx --arch x64` の後、SceneSchema.Cli の出力下に `win-x64\` が残り、SDK パッケージの再帰 glob が二重に取り込んで NU5118 で VSIX ビルドが失敗した | 完了（c23c7f4） |
-| 1-1 | ランタイムビューで値の編集（ギズモ、Inspector、JSON テキスト）が画像に反映されない | 完了（本コミット） |
+| 1-1 | ランタイムビューで値の編集（ギズモ、Inspector、JSON テキスト）が画像に反映されない | 完了（b7765c1） |
+| 1-2 | シーンタブを複数開き Hierarchy / Inspector にフォーカスがあると、1回の Ctrl+Z / Ctrl+Y / Ctrl+S がタブの数だけ実行されうる | 完了（本コミット）。キー操作の実機確認は未実施 |
 
 ## 1-1 ランタイムビューへの値編集
 - 原因: 変換だけの差分は `SceneHwndHost.TryApplyIncrementalSnapshot` が設計用の描画オブジェクトだけを更新し、`ReplaceScene` を送らなかった。ランタイムビュー（`RenderPreviewRuntimeSession`）はフレームの描画オブジェクトの変換を使わず、文書の JSON からだけ値を受け取る。
@@ -24,3 +25,9 @@
 | 修正後 | 0 px | 334,711 px | 移動する |
 
 `SceneHwndHost` は WPF の HwndHost のため単体テストを置けず、確認はこの実機比較で行った。
+
+## 1-2 キーボードの Undo / Redo / Save の持ち主
+- 原因（コード経路）: 各シーンタブの `SceneHwndHost` は `BuildWindowCore` から `DestroyWindowCore` まで `CompositionTarget.Rendering` でキーをポーリングする。背面のタブも含め、Hierarchy / Inspector のフォーカスは全タブで「デザイナーにフォーカスあり」と判定され、各タブがグローバルなピン中シーンに対して `TryUndo` を呼んでいた。
+- 修正: `SceneDesignerUndoCommandPolicy.IsKeyboardOwner` で、ピン中シーンを表示しているタブ（固定シーンを持たないツールウィンドウはピンに追従するので常に対象）だけがキー入力を処理する。
+- テスト: `KeyboardOwner_IsExactlyTheTabShowingThePinnedScene`、`KeyboardOwner_DesignerWithoutAFixedScene_OwnsThePinnedScene`（ポリシーがない修正前はビルドエラー）。
+- 未確認: 実際にキーを押す確認は、ユーザーのフォーカスを奪わない方針のため行っていない。手動確認項目「シーンタブ2枚 + Hierarchy フォーカスで Ctrl+Z を1回押し、1段だけ戻る」。
