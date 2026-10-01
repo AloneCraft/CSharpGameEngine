@@ -99,14 +99,6 @@
                         </Grid>
                         <ScrollViewer Padding="8,4,8,8" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                             <StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                    <Button Content="{local:Loc PhysicsSimulate}" Margin="0,0,4,0" Padding="7,1" Click="OnPhysicsSimulate" />
-                                    <Button Content="{local:Loc PhysicsPause}" Padding="7,1" Click="OnPhysicsPause" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                    <Button Content="{local:Loc PhysicsStep}" Margin="0,0,4,0" Padding="7,1" Click="OnPhysicsStep" />
-                                    <Button Content="{local:Loc PhysicsReset}" Padding="7,1" Click="OnPhysicsReset" />
-                                </StackPanel>
                                 <Button x:Name="PhysicsBakeSelectedButton" Content="{local:Loc PhysicsBakeSelected}" HorizontalAlignment="Left" Margin="0,0,0,4" Padding="7,1" IsEnabled="False" ToolTip="{local:Loc PhysicsBakeSelectedToolTip}" Click="OnPhysicsBakeSelected" />
                                 <Button x:Name="PhysicsBakeAllButton" Content="{local:Loc PhysicsBakeAll}" HorizontalAlignment="Left" Margin="0,0,0,4" Padding="7,1" IsEnabled="False" ToolTip="{local:Loc PhysicsBakeAllToolTip}" Click="OnPhysicsBakeAll" />
                                 <Button x:Name="PhysicsBakeCancelButton" Content="{local:Loc PhysicsBakeCancel}" HorizontalAlignment="Left" Margin="0,0,0,4" Padding="7,1" Visibility="Collapsed" Click="OnPhysicsBakeCancel" />

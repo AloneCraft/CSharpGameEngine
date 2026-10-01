@@ -521,18 +521,6 @@ internal sealed class SceneHwndHost:HwndHost {
         finally { Cancellation.Dispose(); }
     }
 #pragma warning restore VSTHRD100,VSTHRD109
-
-#pragma warning disable VSTHRD100,VSTHRD109
-    internal async void RequestPhysicsControl(string Command){
-        ThreadHelper.ThrowIfNotOnUIThread();
-        int? ProcessId=this.ResolveDebugProcessId(out _);
-        if(ProcessId is null){ this.SetStatus(DebugStatusText.PhysicsProcessUnavailable());return; }
-        Guid? WorldId=this.CurrentPhysicsDebugSnapshot?.WorldId;
-        DebugClientStatus Status=DebugClientStatus.TransportFailure(DebugStatusReason.Disconnected);
-        await Task.Run(()=>PhysicsDebugClient.TryControl(ProcessId.Value,Command,WorldId,out Status));
-        this.SetStatus(DebugStatusText.Physics(Status));
-    }
-#pragma warning restore VSTHRD100,VSTHRD109
     internal void SetSpatialDebugProcessId(int?ProcessId){
         ThreadHelper.ThrowIfNotOnUIThread();
         int?ResolvedProcessId=ProcessId is { }Requested&&this.SpatialDebugProcessIds.Contains(Requested)?Requested:null;

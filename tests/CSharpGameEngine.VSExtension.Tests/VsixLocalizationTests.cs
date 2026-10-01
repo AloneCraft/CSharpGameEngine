@@ -67,8 +67,7 @@ public sealed class VsixLocalizationTests {
             .OrderBy(Key=>Key,StringComparer.Ordinal)
             .ToArray();
         Assert.Equal(IntentionalEnglishJapaneseValues.OrderBy(Key=>Key,StringComparer.Ordinal),EqualValues);
-        Assert.Equal("シミュレート",Japanese["PhysicsSimulate"]);
-        Assert.Equal("一時停止",Japanese["PhysicsPause"]);
+        Assert.Equal("重心",Japanese["PhysicsCenterOfMass"]);
         Assert.Equal("表示",Japanese["SceneViewLabel"]);
     }
     [Fact]

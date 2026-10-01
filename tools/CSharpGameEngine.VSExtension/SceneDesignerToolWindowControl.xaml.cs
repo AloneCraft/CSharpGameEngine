@@ -622,10 +622,6 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             Tree:this.PhysicsTreeToggle.IsChecked==true,
             Bonds:this.PhysicsBondsToggle.IsChecked==true));
     }
-    private void OnPhysicsSimulate(object Sender,RoutedEventArgs Args){ ThreadHelper.ThrowIfNotOnUIThread();this.Host?.RequestPhysicsControl("simulate"); }
-    private void OnPhysicsPause(object Sender,RoutedEventArgs Args){ ThreadHelper.ThrowIfNotOnUIThread();this.Host?.RequestPhysicsControl("pause"); }
-    private void OnPhysicsStep(object Sender,RoutedEventArgs Args){ ThreadHelper.ThrowIfNotOnUIThread();this.Host?.RequestPhysicsControl("step"); }
-    private void OnPhysicsReset(object Sender,RoutedEventArgs Args){ ThreadHelper.ThrowIfNotOnUIThread();this.Host?.RequestPhysicsControl("reset"); }
     private void OnPhysicsBakeSelected(object Sender,RoutedEventArgs Args){
         ThreadHelper.ThrowIfNotOnUIThread();
         this.StartPhysicsBake(BakeAll:false);

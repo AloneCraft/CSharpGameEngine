@@ -24,6 +24,5 @@
     <Compile Include="$(MSBuildThisFileDirectory)PhysicsCooking.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PrefractureCooking.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)PhysicsDebug.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)PhysicsSimulationControl.cs" />
   </ItemGroup>
 </Project>

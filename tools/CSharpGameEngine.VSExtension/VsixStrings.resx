@@ -35,10 +35,6 @@
   <data name="PhysicsPanelOpenToolTip" xml:space="preserve"><value>Open the Physics panel (N)</value></data>
   <data name="PhysicsPanelCloseToolTip" xml:space="preserve"><value>Close the Physics panel (N)</value></data>
   <data name="PhysicsLabel" xml:space="preserve"><value>Physics</value></data>
-  <data name="PhysicsSimulate" xml:space="preserve"><value>Simulate</value></data>
-  <data name="PhysicsPause" xml:space="preserve"><value>Pause</value></data>
-  <data name="PhysicsStep" xml:space="preserve"><value>Step</value></data>
-  <data name="PhysicsReset" xml:space="preserve"><value>Reset</value></data>
   <data name="PhysicsBakeSelected" xml:space="preserve"><value>Bake Selected</value></data>
   <data name="PhysicsBakeAll" xml:space="preserve"><value>Bake All</value></data>
   <data name="PhysicsBakeCancel" xml:space="preserve"><value>Cancel Bake</value></data>

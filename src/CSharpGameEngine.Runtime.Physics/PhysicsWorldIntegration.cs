@@ -115,7 +115,6 @@ internal sealed class PhysicsDomainRuntime:IDisposable {
     public void Dispose(){
         if(this.Disposed){ return; }
         this.Disposed=true;
-        PhysicsSimulationControl.Unregister(this.DebugId);
         PhysicsDebugHub.Remove(this.DebugId);
         this.WorldStorage.Reset(0);
         this.SeenEntities.Clear();

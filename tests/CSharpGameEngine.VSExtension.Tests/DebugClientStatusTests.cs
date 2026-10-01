@@ -41,8 +41,9 @@ public sealed class DebugClientStatusTests {
         Assert.Contains(typeof(PhysicsDebugClient).GetMethods(
             System.Reflection.BindingFlags.Static|System.Reflection.BindingFlags.NonPublic),
             Method=>Method.Name=="TryGetSnapshot"&&Method.GetParameters()[3].ParameterType==ByRefStatus);
-        Assert.Contains(typeof(PhysicsDebugClient).GetMethods(
+        // M0097: the editor no longer drives the simulation, so the client has no control request.
+        Assert.DoesNotContain(typeof(PhysicsDebugClient).GetMethods(
             System.Reflection.BindingFlags.Static|System.Reflection.BindingFlags.NonPublic),
-            Method=>Method.Name=="TryControl"&&Method.GetParameters()[3].ParameterType==ByRefStatus);
+            static Method=>Method.Name=="TryControl");
     }
 }

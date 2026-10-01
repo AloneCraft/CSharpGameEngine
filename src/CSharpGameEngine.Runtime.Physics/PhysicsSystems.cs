@@ -59,6 +59,10 @@ internal struct PhysicsBodySync:ISystem {
 
 }
 
+/// <summary>
+/// Steps the physics world in the running game. M0097: the editor world only registers the scene's bodies, so the
+/// physics debug overlay matches the objects the Scene view draws; it never advances time.
+/// </summary>
 [SystemPhase(SystemPhase.PhysicsSimulation)]
 [ExecuteInEditor(Realtime=true)]
 [RunsAfter(typeof(StaticMeshColliderSync))]
@@ -67,12 +71,8 @@ internal struct PhysicsStep:IWorldSystem {
         PhysicsDomainRuntime Domain=Host.Physics.Active;
         Domain.EndSynchronization();
         PhysicsDebugHub.EnsureStarted();
-        PhysicsSimulationControl.Register(Domain.DebugId);
-        if(PhysicsSimulationControl.ConsumeReset(Domain.DebugId)){
-            Domain.MutableWorld.Reset(State.FixedTick);
-        }
-        if(PhysicsSimulationControl.ShouldStep(Domain.DebugId)){
-            if(!Domain.OwnsPlaybackTick(State.FixedTick)){ Domain.MutableWorld.Step(State.FixedTick); }
+        if(State.ExecutionMode==EngineExecutionMode.Runtime&&!Domain.OwnsPlaybackTick(State.FixedTick)){
+            Domain.MutableWorld.Step(State.FixedTick);
         }
         PhysicsDebugHub.PublishIfRequested(Domain.DebugId,Domain.MutableWorld,State.FixedTick);
     }

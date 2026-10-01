@@ -69,11 +69,6 @@ internal static class PhysicsDebugClient {
         return true;
     }
 
-    internal static bool TryControl(int ProcessId,string Command,Guid? WorldId,out DebugClientStatus Status){
-        if(!TryRequest(ProcessId,Command,WorldId,out _,out Status)){ return false; }
-        return Status.Reason==DebugStatusReason.Connected;
-    }
-
     private static bool TryRequest(int ProcessId,string Command,Guid? WorldId,out PhysicsDebugResponse? Response,out DebugClientStatus Status){
         Response=null;Status=DebugClientStatus.TransportFailure(DebugStatusReason.Disconnected);
         try {
