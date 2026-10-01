@@ -298,6 +298,10 @@ internal sealed class SceneJsonEditorPane:WindowPane,IOleCommandTarget,IVsWindow
     protected override void OnClose(){
         ThreadHelper.ThrowIfNotOnUIThread();
         this.Closed=true;
+        if(SessionProvider?.Invoke() is { }Session
+            &&SceneDesignerTargetFilter.ReleasesPinOnClose(this.Designer?.FixedSceneKey,Session.PinnedSceneKey)){
+            Session.ClearPin();
+        }
         this.ReleaseDesigner();
         if(this.TextView is { }View){
             this.JsonHost.Content=null;

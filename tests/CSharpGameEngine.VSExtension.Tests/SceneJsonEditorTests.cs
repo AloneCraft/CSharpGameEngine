@@ -75,4 +75,18 @@ public sealed class SceneJsonEditorTests {
         Assert.False(SceneDesignerTargetFilter.Accepts(Own,Other));
         Assert.False(SceneDesignerTargetFilter.Accepts(Own,null));
     }
+    /// <summary>
+    /// M0095 1-4: closing the tab of the pinned scene unpins it, so Hierarchy and Inspector stop showing
+    /// (and editing) a closed document; closing another tab leaves that pin alone.
+    /// </summary>
+    [Fact]
+    public void ClosingATab_ReleasesThePinOnlyWhenItShowsThePinnedScene(){
+        var Own=new SceneKey("Project","Game.Scenes.Main");
+        var Other=new SceneKey(Own.ProjectId,"Game.Scenes.Other");
+        Assert.True(SceneDesignerTargetFilter.ReleasesPinOnClose(Own,Own));
+        Assert.False(SceneDesignerTargetFilter.ReleasesPinOnClose(Own,Other));
+        Assert.False(SceneDesignerTargetFilter.ReleasesPinOnClose(Own,null));
+        // A tab that never showed its Design view has no scene and pins nothing.
+        Assert.False(SceneDesignerTargetFilter.ReleasesPinOnClose(null,Other));
+    }
 }
