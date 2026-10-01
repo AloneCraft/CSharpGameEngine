@@ -35,29 +35,39 @@
   <data name="PhysicsPanelOpenToolTip" xml:space="preserve"><value>Open the Physics panel (N)</value></data>
   <data name="PhysicsPanelCloseToolTip" xml:space="preserve"><value>Close the Physics panel (N)</value></data>
   <data name="PhysicsLabel" xml:space="preserve"><value>Physics</value></data>
-  <data name="PhysicsBakeSelected" xml:space="preserve"><value>Bake Selected</value></data>
-  <data name="PhysicsBakeAll" xml:space="preserve"><value>Bake All</value></data>
+  <data name="PhysicsBakeSelected" xml:space="preserve"><value>Bake the selected scene</value></data>
+  <data name="PhysicsBakeAll" xml:space="preserve"><value>Bake every scene in the project</value></data>
   <data name="PhysicsBakeCancel" xml:space="preserve"><value>Cancel Bake</value></data>
   <data name="PhysicsBakeCancelling" xml:space="preserve"><value>Cancelling Physics Bake...</value></data>
-  <data name="PhysicsBakeSelectedToolTip" xml:space="preserve"><value>Build an exact generated Bake Host and atomically bake the selected Scene.</value></data>
-  <data name="PhysicsBakeAllToolTip" xml:space="preserve"><value>Build an exact generated Bake Host and atomically bake every Scene in the current project.</value></data>
+  <data name="PhysicsBakeSelectedToolTip" xml:space="preserve"><value>Saves the selected scene, builds its game, and records the scene's physics.</value></data>
+  <data name="PhysicsBakeAllToolTip" xml:space="preserve"><value>Does the same for every scene in the current project.</value></data>
   <data name="PhysicsBakeNoScene" xml:space="preserve"><value>No Scene is available to Bake.</value></data>
   <data name="PhysicsBakeStarting" xml:space="preserve"><value>Preparing exact Physics Bake Host for {0} Scene(s)...</value></data>
   <data name="PhysicsBakeSucceeded" xml:space="preserve"><value>Physics Bake completed for {0} Scene(s).</value></data>
   <data name="PhysicsBakeFailed" xml:space="preserve"><value>Physics Bake failed: {0}</value></data>
   <data name="PhysicsBakeCancelled" xml:space="preserve"><value>Physics Bake was cancelled.</value></data>
-  <data name="PhysicsBakeOpenArtifact" xml:space="preserve"><value>Open Selected Artifact</value></data>
+  <data name="PhysicsBakeOpenArtifact" xml:space="preserve"><value>Open the selected file</value></data>
   <data name="PhysicsBakeArtifactMissing" xml:space="preserve"><value>Bake artifact no longer exists: {0}</value></data>
   <data name="PhysicsBakeArtifactOpenFailed" xml:space="preserve"><value>Could not open the Bake artifact: {0}</value></data>
   <data name="AuthoringOperationProgress" xml:space="preserve"><value>{0} {1}</value></data>
-  <data name="PhysicsDebug" xml:space="preserve"><value>Debug</value></data>
-  <data name="PhysicsColliderAabb" xml:space="preserve"><value>Collider / AABB</value></data>
+  <data name="PhysicsDebug" xml:space="preserve"><value>Show the physics debug overlay</value></data>
+  <data name="PhysicsColliderAabb" xml:space="preserve"><value>Collision bounds (Collider / AABB)</value></data>
   <data name="PhysicsVelocity" xml:space="preserve"><value>Velocity</value></data>
-  <data name="PhysicsSleep" xml:space="preserve"><value>Sleep</value></data>
-  <data name="PhysicsCenterOfMass" xml:space="preserve"><value>Center of Mass</value></data>
-  <data name="PhysicsContacts" xml:space="preserve"><value>Contact Points / Normals</value></data>
-  <data name="PhysicsTree" xml:space="preserve"><value>Physics Broadphase Tree</value></data>
-  <data name="PhysicsBonds" xml:space="preserve"><value>Fracture Bonds</value></data>
+  <data name="PhysicsSleep" xml:space="preserve"><value>Sleeping bodies</value></data>
+  <data name="PhysicsCenterOfMass" xml:space="preserve"><value>Center of mass</value></data>
+  <data name="PhysicsContacts" xml:space="preserve"><value>Contact points and normals</value></data>
+  <data name="PhysicsTree" xml:space="preserve"><value>Collision partition tree (broadphase)</value></data>
+  <data name="PhysicsBonds" xml:space="preserve"><value>Fracture bonds</value></data>
+  <data name="PhysicsBakeDescription" xml:space="preserve"><value>Computes {0} ticks of a scene's physics and records them to a file the game can play back. Files go to the project's Assets/Physics/Bakes.</value></data>
+  <data name="PhysicsBakeHeading" xml:space="preserve"><value>Bake (precomputed physics)</value></data>
+  <data name="PhysicsBondsToolTip" xml:space="preserve"><value>Draws the links between the pieces of pre-fractured objects.</value></data>
+  <data name="PhysicsTreeToolTip" xml:space="preserve"><value>Draws the space partition the physics uses to find which bodies might collide.</value></data>
+  <data name="PhysicsContactsToolTip" xml:space="preserve"><value>Draws where bodies touch and the direction they push apart. Meaningful while the game runs.</value></data>
+  <data name="PhysicsCenterOfMassToolTip" xml:space="preserve"><value>Draws each rigid body's center of mass.</value></data>
+  <data name="PhysicsSleepToolTip" xml:space="preserve"><value>Marks bodies that have come to rest and stopped simulating. Meaningful while the game runs.</value></data>
+  <data name="PhysicsVelocityToolTip" xml:space="preserve"><value>Draws each moving body's velocity as an arrow. Time does not advance while editing, so this shows something while the game runs.</value></data>
+  <data name="PhysicsColliderAabbToolTip" xml:space="preserve"><value>Draws the box around each body's collider.</value></data>
+  <data name="PhysicsDebugDescription" xml:space="preserve"><value>Draws physics over the Scene view: the running game's physics while it runs, otherwise the edited scene's bodies where they are placed. Time does not advance while editing.</value></data>
   <data name="SceneSelectPrompt" xml:space="preserve"><value>Select a Scene.</value></data>
   <data name="SceneSpatialOff" xml:space="preserve"><value>Global Spatial Octree: off</value></data>
   <data name="OptionsNavigationHeader" xml:space="preserve"><value>Scene View navigation</value></data>

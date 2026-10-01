@@ -35,29 +35,39 @@
   <data name="PhysicsPanelOpenToolTip" xml:space="preserve"><value>Physicsパネルを開く (N)</value></data>
   <data name="PhysicsPanelCloseToolTip" xml:space="preserve"><value>Physicsパネルを閉じる (N)</value></data>
   <data name="PhysicsLabel" xml:space="preserve"><value>Physics</value></data>
-  <data name="PhysicsBakeSelected" xml:space="preserve"><value>選択項目をBake</value></data>
-  <data name="PhysicsBakeAll" xml:space="preserve"><value>すべてBake</value></data>
+  <data name="PhysicsBakeSelected" xml:space="preserve"><value>選択中のシーンを Bake</value></data>
+  <data name="PhysicsBakeAll" xml:space="preserve"><value>プロジェクトの全シーンを Bake</value></data>
   <data name="PhysicsBakeCancel" xml:space="preserve"><value>Bakeをキャンセル</value></data>
   <data name="PhysicsBakeCancelling" xml:space="preserve"><value>Physics Bakeをキャンセルしています...</value></data>
-  <data name="PhysicsBakeSelectedToolTip" xml:space="preserve"><value>選択Sceneと同じソースからBake Hostをビルドし、atomicにPhysics cacheを生成します。</value></data>
-  <data name="PhysicsBakeAllToolTip" xml:space="preserve"><value>現在のprojectにある全Sceneを、同じexact Bake HostでatomicにBakeします。</value></data>
+  <data name="PhysicsBakeSelectedToolTip" xml:space="preserve"><value>選択中のシーンを保存し、そのゲームをビルドしてから、シーンの物理を記録します。</value></data>
+  <data name="PhysicsBakeAllToolTip" xml:space="preserve"><value>今のプロジェクトのすべてのシーンについて、同じように記録します。</value></data>
   <data name="PhysicsBakeNoScene" xml:space="preserve"><value>BakeできるSceneがありません。</value></data>
   <data name="PhysicsBakeStarting" xml:space="preserve"><value>{0} Scene用のexact Physics Bake Hostを準備しています...</value></data>
   <data name="PhysicsBakeSucceeded" xml:space="preserve"><value>{0} SceneのPhysics Bakeが完了しました。</value></data>
   <data name="PhysicsBakeFailed" xml:space="preserve"><value>Physics Bakeに失敗しました: {0}</value></data>
   <data name="PhysicsBakeCancelled" xml:space="preserve"><value>Physics Bakeをキャンセルしました。</value></data>
-  <data name="PhysicsBakeOpenArtifact" xml:space="preserve"><value>選択したartifactを開く</value></data>
+  <data name="PhysicsBakeOpenArtifact" xml:space="preserve"><value>選択したファイルを開く</value></data>
   <data name="PhysicsBakeArtifactMissing" xml:space="preserve"><value>Bake artifactが存在しません: {0}</value></data>
   <data name="PhysicsBakeArtifactOpenFailed" xml:space="preserve"><value>Bake artifactを開けませんでした: {0}</value></data>
   <data name="AuthoringOperationProgress" xml:space="preserve"><value>{0}：{1}</value></data>
-  <data name="PhysicsDebug" xml:space="preserve"><value>デバッグ</value></data>
-  <data name="PhysicsColliderAabb" xml:space="preserve"><value>Collider / AABB</value></data>
+  <data name="PhysicsDebug" xml:space="preserve"><value>物理のデバッグ表示</value></data>
+  <data name="PhysicsColliderAabb" xml:space="preserve"><value>当たり判定の範囲 (Collider / AABB)</value></data>
   <data name="PhysicsVelocity" xml:space="preserve"><value>速度</value></data>
-  <data name="PhysicsSleep" xml:space="preserve"><value>スリープ</value></data>
+  <data name="PhysicsSleep" xml:space="preserve"><value>スリープ中の物体</value></data>
   <data name="PhysicsCenterOfMass" xml:space="preserve"><value>重心</value></data>
-  <data name="PhysicsContacts" xml:space="preserve"><value>接触点 / 法線</value></data>
-  <data name="PhysicsTree" xml:space="preserve"><value>Physics broadphase tree</value></data>
-  <data name="PhysicsBonds" xml:space="preserve"><value>破砕 bond</value></data>
+  <data name="PhysicsContacts" xml:space="preserve"><value>接触点と法線</value></data>
+  <data name="PhysicsTree" xml:space="preserve"><value>当たり判定の分割木 (broadphase)</value></data>
+  <data name="PhysicsBonds" xml:space="preserve"><value>破砕のつながり (bond)</value></data>
+  <data name="PhysicsBakeDescription" xml:space="preserve"><value>シーンの物理を {0} ティック分計算して、ゲームが再生できるファイルに記録します。出力先はプロジェクトの Assets/Physics/Bakes です。</value></data>
+  <data name="PhysicsBakeHeading" xml:space="preserve"><value>Bake（物理の事前計算）</value></data>
+  <data name="PhysicsBondsToolTip" xml:space="preserve"><value>事前に割った物体の破片同士のつながりを表示します。</value></data>
+  <data name="PhysicsTreeToolTip" xml:space="preserve"><value>衝突しそうな物体を絞り込むための空間の分割を表示します。</value></data>
+  <data name="PhysicsContactsToolTip" xml:space="preserve"><value>物体同士が触れている点と、押し返す向きを表示します。ゲームの実行中に意味があります。</value></data>
+  <data name="PhysicsCenterOfMassToolTip" xml:space="preserve"><value>剛体の重心を点で表示します。</value></data>
+  <data name="PhysicsSleepToolTip" xml:space="preserve"><value>止まって計算を休んでいる物体を区別して表示します。ゲームの実行中に意味があります。</value></data>
+  <data name="PhysicsVelocityToolTip" xml:space="preserve"><value>動いている物体の速度を矢印で表示します。編集中は時間が進まないので、ゲームの実行中に意味があります。</value></data>
+  <data name="PhysicsColliderAabbToolTip" xml:space="preserve"><value>各物体の当たり判定を囲む箱を表示します。</value></data>
+  <data name="PhysicsDebugDescription" xml:space="preserve"><value>Scene ビューに物理の情報を重ねて表示します。ゲームを実行中はそのゲームの物理を、実行していないときは編集中のシーンの物体を置いた位置で表示します。編集中は時間を進めません。</value></data>
   <data name="SceneSelectPrompt" xml:space="preserve"><value>Sceneを選択してください。</value></data>
   <data name="SceneSpatialOff" xml:space="preserve"><value>Global Spatial Octree: オフ</value></data>
   <data name="OptionsNavigationHeader" xml:space="preserve"><value>Scene Viewのナビゲーション</value></data>

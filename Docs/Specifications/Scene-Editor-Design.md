@@ -584,4 +584,7 @@ Scene View、Hierarchy、Inspector、Component Palette、Options、ダイアロ�
 
 Physicsの操作とデバッグ表示設定はScene Viewヘッダーから分離し、ビューポート右端の専用サイドバーへ配置する。既定は閉じた状態で、閉じているときは幅24 DIPの`<`タブだけを表示する。タブをクリックすると幅280 DIPのパネルを開き、パネル見出し右側の`>`で閉じる。パネルはネイティブ`HwndHost`の上へ重ねず、右列としてレイアウトするため、開閉時はビューポート幅も更新する。
 
-Scene Viewのビューポートがキーボードフォーカスを持つとき、`N`で同じ開閉操作を行う。`N`はVisual Studio全体のコマンドには登録せず、Scene Viewの入力処理だけで消費する。パネルの開閉状態は`SceneEditorSettings.ShowPhysicsPanel`へ保存し、未保存・不正値は閉じた状態へフォールバックする。`Simulate`、`Pause`、`Step`、`Reset`、Bake（Deferred）、Collider/AABB、Velocity、Sleep、Center of Massの既存処理とPhysics/Runtime・Editor Previewのデータ経路は変更しない。
+Scene Viewのビューポートがキーボードフォーカスを持つとき、`N`で同じ開閉操作を行う。`N`はVisual Studio全体のコマンドには登録せず、Scene Viewの入力処理だけで消費する。パネルの開閉状態は`SceneEditorSettings.ShowPhysicsPanel`へ保存し、未保存・不正値は閉じた状態へフォールバックする。パネルは2つの区画からなる(M0097)。
+- **物理のデバッグ表示**: 親のチェックと1行の説明、その下に字下げした7項目(当たり判定の範囲、速度、スリープ中の物体、重心、接触点と法線、当たり判定の分割木、破砕のつながり)。7項目は親のチェックが外れている間は無効(グレー)で、それぞれツールチップで何を描くかを説明する。ゲームの実行中はそのゲームの物理を、それ以外は編集用ワールドの物体を置いた位置で描く。編集用ワールドは時間を進めない。
+- **Bake(物理の事前計算)**: 何をするか(既定600ティックを記録し、ゲームが再生できる)と出力先(`Assets/Physics/Bakes`)の説明、選択中のシーン/全シーンのBake、進捗・キャンセル・成果物の一覧。
+- シミュレートの操作(Simulate/Pause/Step/Reset)とランタイム診断はM0097で削除した。診断にはVisual Studioのデバッガーとプロファイラーを使う(拡張機能メニューとツールバーの「診断ツール」)。

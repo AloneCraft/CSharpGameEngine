@@ -11,7 +11,6 @@ public sealed class VsixLocalizationTests {
     private static readonly HashSet<string>IntentionalEnglishJapaneseValues=new(StringComparer.Ordinal){
         "Common_ProductTitle",
         "DefinitionInputGesture",
-        "PhysicsColliderAabb",
         "PhysicsLabel",
         "PhysicsPanelOpenGlyph",
         "PhysicsPanelCloseGlyph",

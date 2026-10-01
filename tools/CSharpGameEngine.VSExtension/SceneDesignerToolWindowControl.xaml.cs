@@ -37,6 +37,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     public SceneDesignerToolWindowControl(){
         ThreadHelper.ThrowIfNotOnUIThread();
         this.InitializeComponent();
+        this.PhysicsBakeDescriptionText.Text=VsixText.Format("PhysicsBakeDescription",PhysicsSceneBakeService.DefaultTickCount);
         this.EscapeRouter=new(this,this.HandleEscape);
         this.VsixIdentityText.Text=VsixBuildIdentity.DisplayText;
         this.VsixIdentityText.ToolTip=VsixBuildIdentity.ToolTipText;
