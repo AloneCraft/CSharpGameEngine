@@ -14,7 +14,11 @@
 | 1-1 | ランタイムビューで値の編集（ギズモ、Inspector、JSON テキスト）が画像に反映されない | 完了（b7765c1） |
 | 1-2 | シーンタブを複数開き Hierarchy / Inspector にフォーカスがあると、1回の Ctrl+Z / Ctrl+Y / Ctrl+S がタブの数だけ実行されうる | 完了（40e1f11）。キー操作の実機確認は未実施 |
 | 1-4 | シーンのタブを閉じても、次に前面へ来たのがシーン以外の文書だとピンが残り、Hierarchy / Inspector が閉じた文書を表示・編集し続ける | 完了（472c8c9）。空の Hierarchy の案内文が C# `IScene` 前提のままだったので JSON シーンの説明に直した（95c70e8） |
-| 1-5 | `SceneWorkspaceService.Dispose` が実行中の解析を join しない | 不具合ではなかった（本コミットでコメントを修正） |
+| 1-5 | `SceneWorkspaceService.Dispose` が実行中の解析を join しない | 不具合ではなかった（b692dbe でコメントを修正） |
+| 1-3 | Design ビューで VS 標準の Undo とキーポーリングの Undo が二重に走る疑い | 未確認（キー入力が必要なため手動確認に残す） |
+| 2-1 | ThirdPerson テンプレートの名前空間置換が別の識別子を壊さないこと、起動シーンが生成プロジェクトのシーンであること | テストで固定（11e9d5d）。現状のテンプレートに壊れる箇所はなかった |
+| 2-2 | Scenes フォルダーの外に追加したシーン項目が、何の表示もなくシーンとして扱われない | ステータスバーで警告（758a80b） |
+| 2-3 | VSIX がテンプレート原本の `.vs` や入れ子の `obj` を同梱する | 生成器と同じ除外に揃えた（b2c6297） |
 
 ## 1-1 ランタイムビューへの値編集
 - 原因: 変換だけの差分は `SceneHwndHost.TryApplyIncrementalSnapshot` が設計用の描画オブジェクトだけを更新し、`ReplaceScene` を送らなかった。ランタイムビュー（`RenderPreviewRuntimeSession`）はフレームの描画オブジェクトの変換を使わず、文書の JSON からだけ値を受け取る。
@@ -48,3 +52,13 @@
 ## 1-5 解析中の Dispose（仮説を否定）
 - 仮説: `Dispose` が実行中の解析を join しないため、破棄後にコールバックが走る。
 - 結果: 解析は配信の直前にロック内で `Disposed` を確認して抜けるため、破棄後の配信は起きない。UI スレッドの `Dispose` で join すると、コンパイル完了までソリューションのクローズが止まる。誤っていたのは「Dispose が join する」というコメントで、コードは変更していない。
+
+## Phase 2 で否定・保留した仮説
+- 「VS 経由と E2E 経由の出力差（ReadMe.md）を無くす」: ADR-0068 により、vstemplate の ReadMe は VSSDK にプロジェクトファイルをアーカイブさせるための項目で、外せない。差は ReadMe だけでビルドに影響しないため、生成器のコメントに例外として明記した。
+- 「`ThirdPerson.csproj.template` と `GameProjectGenerator.ProjectFile` の二重管理」: 一致は既存の `GameProjectGeneratorTests` が守っており、現状維持。
+- 「`PublishToFeed` が同サイズのパッケージを同一とみなすため古い中身が残る」: 起こりうるが、NuGet のグローバルキャッシュも同じバージョンを再利用するため、運用は修正ごとのバージョン更新で回っている。未対応。
+
+## 未解決: VSIX ビルドの nupkg ロック
+- 観測: VSIX をビルドした直後の次のビルドで、`obj\Debug\net472\Packages\CSharpGameEngine.Sdk.*.nupkg` の削除または書き込みが「別プロセスが使用中」で失敗することがある（このセッションで 5 回）。すぐに再実行すると成功する。
+- 否定: dotnet の常駐ビルドサーバー（`dotnet build-server shutdown` 後も再発）、同一ビルド内での Pack の二重実行（詳細ログで 1 回だけ）。失敗後に Restart Manager で調べても保持プロセスはいなかった。
+- 仮説（未確認）: 書き出した直後の大きな nupkg をウイルス対策などが一時的に開いている。
