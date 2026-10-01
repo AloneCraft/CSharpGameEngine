@@ -116,28 +116,27 @@ internal sealed class StaticMeshCollisionCooker {
 [SystemOrder(10_001)]
 [ExecuteInEditor(Realtime=true)]
 internal struct StaticMeshColliderSync:ISystem {
-    public bool Update(Entity Entity,ref Transform Transform,ref StaticMesh Mesh,ref StaticMeshCollider MeshCollider,EngineHost Host,ref State State){
+    public void Update(Entity Entity,ref Transform Transform,ref StaticMesh Mesh,ref StaticMeshCollider MeshCollider,EngineHost Host,ref State State){
         PhysicsDomainRuntime Domain=Host.ActivePhysicsDomain;
         if(Transform.Frame!=Host.PhysicsFrame){
             Domain.ReportSyncFailure(Entity,PhysicsFaultType.ReferenceFrameMismatch);
-            return true;
+            return;
         }
         if(State.World.TryGetComponent(Entity,out Collider _)){
             Domain.ReportSyncFailure(Entity,PhysicsFaultType.InvalidShape);
-            return true;
+            return;
         }
         if(RuntimeWorldTransform.TryResolveWorld(Entity,State.World,out FixedAffineTransform World)!=FixedTransformResolveStatus.Success){
             Domain.ReportSyncFailure(Entity,PhysicsFaultType.InvalidHierarchy);
-            return true;
+            return;
         }
         if(!Domain.StaticMeshes.TryEnsure(Domain.MutableWorld.Shapes,Mesh.AssetPath,World.Logical,out string Id,out _)){
             Domain.ReportSyncFailure(Entity,PhysicsFaultType.InvalidShape);
-            return true;
+            return;
         }
         Domain.ApplyBody(new PhysicsBodyDescription(
             Entity,PhysicsDomainRuntime.ResolveStableId(Entity,State.World),
             new Collider { Shape=ColliderShape.StaticTriangleMesh,Asset=Id,Layer=MeshCollider.Layer },null,
             LogicalVector3.Zero,LogicalQuaternion.Identity,PhysicsVelocity.Zero));
-        return true;
     }
 }

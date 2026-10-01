@@ -52,7 +52,8 @@ internal static class SceneStartupSystemEmitter {
             Components,
             Contexts:[],
             CallOrder,
-            Scene.DeclarationPosition);
+            Scene.DeclarationPosition,
+            ReturnsBool:false);
 
         return new GameSystemResult(
             Scene.Namespace,
@@ -97,9 +98,9 @@ internal static class SceneStartupSystemEmitter {
 
         Lines.Add($"internal struct {HiddenTypeName} : {SystemInterfaceFullyQualifiedName} {{");
         Lines.Add("    private bool Done;");
-        Lines.Add($"    public bool Update(ref {BootstrapComponentFullyQualifiedName} Bootstrap, ref {StateFullyQualifiedName} State) {{");
+        Lines.Add($"    public void Update(ref {BootstrapComponentFullyQualifiedName} Bootstrap, ref {StateFullyQualifiedName} State) {{");
         Lines.Add("        if (Done) {");
-        Lines.Add("            return true;");
+        Lines.Add("            return;");
         Lines.Add("        }");
         Lines.Add("        Done = true;");
 
@@ -108,7 +109,6 @@ internal static class SceneStartupSystemEmitter {
         // 参照型(ChunkBuffer/SceneInstanceTable/ArchetypeNN)なので、structのコピー越しでも
         // 同じ実体を更新する。構造変更そのものは統一command bufferのbarrierまで遅延される。
         Lines.Add($"        State.World.InstantiateSceneDeferred<{Scene.GlobalQualifiedName}>();");
-        Lines.Add("        return true;");
         Lines.Add("    }");
         Lines.Add("}");
 

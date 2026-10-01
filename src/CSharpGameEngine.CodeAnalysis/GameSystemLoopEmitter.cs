@@ -183,7 +183,9 @@ internal static class GameSystemLoopEmitter {
             if(Method.Role!=GameSystemMethodRole.Dispatch){ continue; }
             if(Binding.System.IsWorldSystem&&Method.Components.Length==0){
                 Lines.Add("            if (!State.Enabled) return;");
-                Lines.Add($"            if (!Systems.{Binding.VariableName}.Update({BuildCallArguments(Method,null,ContextNameByFqn,FieldNameByComponentFqn)})) return;");
+                Lines.Add(Method.ReturnsBool
+                    ?$"            if (!Systems.{Binding.VariableName}.Update({BuildCallArguments(Method,null,ContextNameByFqn,FieldNameByComponentFqn)})) return;"
+                    :$"            Systems.{Binding.VariableName}.Update({BuildCallArguments(Method,null,ContextNameByFqn,FieldNameByComponentFqn)});");
                 continue;
             }
             MethodComponentMask MethodMask=BuildMethodMask(Method,ComponentIndexByType);
@@ -198,7 +200,10 @@ internal static class GameSystemLoopEmitter {
                 foreach(GameSystemComponentParameterModel Component in Method.Components.Where(static Component=>!Component.IsReadOnly)){
                     Lines.Add($"                State.World.{Archetype.Name}.Mark{FieldNameByComponentFqn[Component.TypeFullyQualifiedName]}ChangedUnchecked(Index, Version);");
                 }
-                Lines.Add($"                if (!Systems.{Binding.VariableName}.Update({BuildCallArguments(Method,Archetype,ContextNameByFqn,FieldNameByComponentFqn)})) continue;");
+                // ADR-0072: an entity system's result has no effect (this is the loop's last statement), so a bool is discarded.
+                Lines.Add(Method.ReturnsBool
+                    ?$"                _ = Systems.{Binding.VariableName}.Update({BuildCallArguments(Method,Archetype,ContextNameByFqn,FieldNameByComponentFqn)});"
+                    :$"                Systems.{Binding.VariableName}.Update({BuildCallArguments(Method,Archetype,ContextNameByFqn,FieldNameByComponentFqn)});");
                 Lines.Add("            }");
             }
         }

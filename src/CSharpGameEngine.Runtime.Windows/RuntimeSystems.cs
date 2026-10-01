@@ -70,18 +70,18 @@ internal struct Window:ISystem {
     private Entity HostEntity;
     private bool HasHostEntity;
 
-    public bool Update(Entity Entity,ref AppHost App,ref AppHostRuntime Runtime,EngineHost Host,ref State State){
+    public void Update(Entity Entity,ref AppHost App,ref AppHostRuntime Runtime,EngineHost Host,ref State State){
         if(!this.HasHostEntity){this.HostEntity=Entity;this.HasHostEntity=true;}
         else if(!this.HostEntity.Equals(Entity)){
             throw new InvalidOperationException("Runtime requires exactly one AppHost.");
         }
         if(Host.ExternalSurface is not null){
             // ADR-0070 B1: the editor owns the surface and its input.
-            return true;
+            return;
         }
         if(Host.Window is null){
             Host.EnsureWindow(App);
-            return true;
+            return;
         }
         Win32Window Window=Host.Window;
         Window.PumpEvents();
@@ -89,9 +89,8 @@ internal struct Window:ISystem {
         Host.Input.ProcessEvents(Window.DrainInputEvents());
         if(Window.IsClosed){
             State.Enabled=false;
-            return false;
+            return;
         }
-        return true;
     }
 }
 
@@ -112,9 +111,8 @@ internal static class LightValidation {
 }
 [SystemPhase(SystemPhase.Presentation)]
 internal struct LightShadowValidation:ISystem {
-    public bool Update(Entity Entity,ref LightShadow Shadow,ref LightShadowRuntime Runtime,ref State State){
+    public void Update(Entity Entity,ref LightShadow Shadow,ref LightShadowRuntime Runtime,ref State State){
         Runtime.InvalidProperty=LightValidation.SceneFailure(Entity,State.World);
-        return true;
     }
 }
 
@@ -135,22 +133,19 @@ internal struct LevelLoad:ISystem {
     private int ActiveCameraCount;
     private bool RosterCaptured;
 
-    public bool Update(Entity Entity,ref Transform Transform,ref StaticMesh Mesh,ref State State){
+    public void Update(Entity Entity,ref Transform Transform,ref StaticMesh Mesh,ref State State){
         if(!this.RosterCaptured)(this.PendingStaticMeshes??=[]).Add((Entity,Transform,Mesh));
-        return true;
     }
 
-    public bool Update(Entity Entity,ref Transform Transform,ref PrimitiveMesh Mesh,ref State State){
+    public void Update(Entity Entity,ref Transform Transform,ref PrimitiveMesh Mesh,ref State State){
         if(!this.RosterCaptured)(this.PendingPrimitives??=[]).Add((Entity,Transform,Mesh));
-        return true;
     }
 
-    public bool Update(Entity Entity,ref Transform Transform,ref SkeletalMesh Mesh,ref State State){
+    public void Update(Entity Entity,ref Transform Transform,ref SkeletalMesh Mesh,ref State State){
         if(!this.RosterCaptured)(this.PendingSkeletalMeshes??=[]).Add((Entity,Transform,Mesh));
-        return true;
     }
 
-    public bool Update(Entity Entity,ref Transform Transform,ref Camera Camera,ref State State){
+    public void Update(Entity Entity,ref Transform Transform,ref Camera Camera,ref State State){
         if(!this.RosterCaptured&&Camera.Active){
             this.ActiveCameraCount++;
             if(this.ActiveCameraCount==1){
@@ -158,9 +153,8 @@ internal struct LevelLoad:ISystem {
                 this.PendingCamera=Camera;
             }
         }
-        return true;
     }
-    public bool Update(Entity Entity,ref AppHost App,ref AppHostRuntime AppRuntime,ref Level Level,ref LevelRuntime LevelRuntime,EngineHost Host,ref State State){
+    public void Update(Entity Entity,ref AppHost App,ref AppHostRuntime AppRuntime,ref Level Level,ref LevelRuntime LevelRuntime,EngineHost Host,ref State State){
         if(!this.HasLevelEntity){this.LevelEntity=Entity;this.HasLevelEntity=true;}
         else if(!this.LevelEntity.Equals(Entity)){
             throw new InvalidOperationException("Runtime requires exactly one Level.");
@@ -191,7 +185,7 @@ internal struct LevelLoad:ISystem {
                     CameraResolveStatus);
             }
             Host.Renderer?.SetCamera(Host.RenderCamera);
-            return true;
+            return;
         }
         Win32Window?Window=Host.Window;
         if(Host.ExternalSurface is null&&Window is null){
@@ -202,7 +196,7 @@ internal struct LevelLoad:ISystem {
             this.PendingCameraEntity=default;
             this.PendingCamera=default;
             this.ActiveCameraCount=0;
-            return true;
+            return;
         }
         this.RosterCaptured=true;
         if(this.ActiveCameraCount==0&&Host.EditorCamera is null){
@@ -328,7 +322,6 @@ internal struct LevelLoad:ISystem {
         this.PendingStaticMeshes=null;
         this.PendingPrimitives=null;
         this.PendingSkeletalMeshes=null;
-        return true;
     }
 
     /// <summary>
@@ -353,25 +346,24 @@ internal struct LevelLoad:ISystem {
 [SystemPhase(SystemPhase.Presentation)]
 [SystemOrder(13)]
 internal struct SkinnedMeshSync:ISystem {
-    public bool Update(Entity Entity,ref SkeletalMeshRuntime Runtime,EngineHost Host,ref State State){
+    public void Update(Entity Entity,ref SkeletalMeshRuntime Runtime,EngineHost Host,ref State State){
         if(Runtime.Palette is not{ }Palette||Host.Renderer is not{ }Renderer||!Host.TryGetSkinnedMeshes(Entity,out var MeshIndices)){
-            return true;
+            return;
         }
         foreach(var MeshIndex in MeshIndices){
             Renderer.SetSkinPalette(MeshIndex,Palette);
         }
-        return true;
     }
 }
 
 [SystemPhase(SystemPhase.Presentation)]
 internal struct CameraOriginSync:ISystem {
-    public bool Update(Entity Entity,ref Transform Transform,ref Camera Camera,EngineHost Host,ref State State){
+    public void Update(Entity Entity,ref Transform Transform,ref Camera Camera,EngineHost Host,ref State State){
         // ADR-0070 B1: the Scene Designer's camera replaces the scene camera. LevelLoad already set
         // its pose this frame; taking the scene camera's here would draw every object relative to a
         // camera the view is not seen from (the view then ignored the designer's wheel and orbit).
         if(Host.EditorCamera is not null){
-            return true;
+            return;
         }
         if(Camera.Active
             &&RuntimeWorldTransform.TryResolveWorld(Entity,State.World,out FixedAffineTransform CameraWorld,out var CameraFrame)
@@ -382,17 +374,16 @@ internal struct CameraOriginSync:ISystem {
                 out _,out _)){
             Host.SetCameraPose(CameraWorld,CameraFrame);
         }
-        return true;
     }
 }
 
 [SystemPhase(SystemPhase.Presentation)]
 internal struct DirectionalLightSync:ISystem {
-    public bool Update(Entity Entity,ref DirectionalLight Light,ref DirectionalLightRuntime Runtime,EngineHost Host,ref State State){
+    public void Update(Entity Entity,ref DirectionalLight Light,ref DirectionalLightRuntime Runtime,EngineHost Host,ref State State){
         Runtime.InvalidProperty=LightValidation.SceneFailure(Entity,State.World);
-        if(Runtime.InvalidProperty is not null){return true;}
-        if(!Light.Color.IsValid){Runtime.InvalidProperty="Color";return true;}
-        if(!Light.Illuminance.IsValid){Runtime.InvalidProperty="Illuminance";return true;}
+        if(Runtime.InvalidProperty is not null){return;}
+        if(!Light.Color.IsValid){Runtime.InvalidProperty="Color";return;}
+        if(!Light.Illuminance.IsValid){Runtime.InvalidProperty="Illuminance";return;}
         var Shadow=LightValidation.Shadow(Entity,State.World);
         if(Host.Renderer is { }Renderer){
             FixedTransformStatus Status=LightTransform.TryGetCameraRelativePose(
@@ -403,76 +394,68 @@ internal struct DirectionalLightSync:ISystem {
                 Runtime.LastWorldForward=Forward;
                 Runtime.HasLastWorldForward=true;
             } else if(!Runtime.HasLastWorldForward){
-                return true;
+                return;
             }
             var Submission=new DirectionalLightSubmission(Runtime.LastWorldForward,Light.Color,Light.Illuminance,Shadow);
-            if(!Submission.IsValid){Runtime.InvalidProperty="Submission";return true;}
+            if(!Submission.IsValid){Runtime.InvalidProperty="Submission";return;}
             try{ Renderer.AddDirectionalLight(Submission); }
             catch(ArgumentException Error){ Runtime.InvalidProperty=Error is ArgumentOutOfRangeException RangeError?RangeError.ParamName??"Submission":"Submission"; }
         }
-        return true;
     }
 }
 
 [SystemPhase(SystemPhase.Presentation)]
 internal struct AmbientLightSync:ISystem {
-    public bool Update(ref AmbientLight Light,EngineHost Host,ref State State){
+    public void Update(ref AmbientLight Light,EngineHost Host,ref State State){
         Host.Renderer?.SetAmbientLight(
             new Vector3(Light.ColorR,Light.ColorG,Light.ColorB)*Light.Intensity);
         Host.Environment.AmbientSubmitted=true;
-        return true;
     }
 }
 
 /// <summary>Collects the environment Components (ADR-0069); EngineHost submits them once before rendering.</summary>
 [SystemPhase(SystemPhase.Presentation)]
 internal struct EnvironmentCollect:ISystem {
-    public bool Update(ref SkyAtmosphere Value,EngineHost Host,ref State State){
+    public void Update(ref SkyAtmosphere Value,EngineHost Host,ref State State){
         Host.Environment.Atmosphere=Value;
-        return true;
     }
-    public bool Update(ref SkyLight Value,EngineHost Host,ref State State){
+    public void Update(ref SkyLight Value,EngineHost Host,ref State State){
         Host.Environment.SkyLight=Value;
-        return true;
     }
-    public bool Update(ref PostProcessVolume Value,EngineHost Host,ref State State){
+    public void Update(ref PostProcessVolume Value,EngineHost Host,ref State State){
         Host.Environment.PostProcess=Value;
-        return true;
     }
-    public bool Update(ref ExponentialHeightFog Value,EngineHost Host,ref State State){
+    public void Update(ref ExponentialHeightFog Value,EngineHost Host,ref State State){
         Host.Environment.Fog=Value;
-        return true;
     }
-    public bool Update(Entity Entity,ref GlobalIlluminationVolume Value,EngineHost Host,ref State State){
+    public void Update(Entity Entity,ref GlobalIlluminationVolume Value,EngineHost Host,ref State State){
         // The probe grid is placed in the renderer's camera-relative space like every object, so the
         // absolute volume position never crosses a float boundary.
         if(RuntimeWorldTransform.TryGetCameraRelativeMatrix(Entity,State.World,Host,out var Matrix,out _)!=FixedTransformStatus.Success){
             Host.Environment.InvalidReason="GlobalIlluminationVolume.Transform";
-            return true;
+            return;
         }
         Host.Environment.GlobalIllumination=Value;
         Host.Environment.GlobalIlluminationCenter=Matrix.Translation;
-        return true;
     }
 }
 
 [SystemPhase(SystemPhase.Presentation)]
 internal struct HeightFogSync:ISystem {
-    public bool Update(ref HeightFog Fog,EngineHost Host,ref State State){
+    public void Update(ref HeightFog Fog,EngineHost Host,ref State State){
         Host.Renderer?.SetFog(
             new FogParams(Fog.Density,Fog.HeightFalloff,new Vector3(Fog.ColorR,Fog.ColorG,Fog.ColorB)));
-        return true;
     }
 }
 
 [SystemPhase(SystemPhase.Presentation)]
 internal struct PointLightSync:ISystem {
-    public bool Update(Entity Entity,ref PointLight Light,ref PointLightRuntime Runtime,EngineHost Host,ref State State){
+    public void Update(Entity Entity,ref PointLight Light,ref PointLightRuntime Runtime,EngineHost Host,ref State State){
         Runtime.InvalidProperty=LightValidation.SceneFailure(Entity,State.World);
-        if(Runtime.InvalidProperty is not null){return true;}
-        if(!Light.Color.IsValid){Runtime.InvalidProperty="Color";return true;}
-        if(!Light.Flux.IsValid){Runtime.InvalidProperty="Flux";return true;}
-        if(!Light.Range.IsValid){Runtime.InvalidProperty="Range";return true;}
+        if(Runtime.InvalidProperty is not null){return;}
+        if(!Light.Color.IsValid){Runtime.InvalidProperty="Color";return;}
+        if(!Light.Flux.IsValid){Runtime.InvalidProperty="Flux";return;}
+        if(!Light.Range.IsValid){Runtime.InvalidProperty="Range";return;}
         var Shadow=LightValidation.Shadow(Entity,State.World);
         if(Host.Renderer is { }Renderer){
             FixedTransformStatus Status=LightTransform.TryGetCameraRelativePose(
@@ -483,26 +466,25 @@ internal struct PointLightSync:ISystem {
                 Runtime.LastCameraRelativePosition=Position;
                 Runtime.HasLastCameraRelativePosition=true;
             } else if(!Runtime.HasLastCameraRelativePosition){
-                return true;
+                return;
             }
             var Submission=new PointLightSubmission(Runtime.LastCameraRelativePosition,Light.Color,Light.Flux,Light.Range,Shadow);
-            if(!Submission.IsValid){Runtime.InvalidProperty="Submission";return true;}
+            if(!Submission.IsValid){Runtime.InvalidProperty="Submission";return;}
             try{ Renderer.AddPointLight(Submission); }
             catch(ArgumentException Error){ Runtime.InvalidProperty=Error is ArgumentOutOfRangeException RangeError?RangeError.ParamName??"Submission":"Submission"; }
         }
-        return true;
     }
 }
 
 [SystemPhase(SystemPhase.Presentation)]
 internal struct SpotLightSync:ISystem {
-    public bool Update(Entity Entity,ref SpotLight Light,ref SpotLightRuntime Runtime,EngineHost Host,ref State State){
+    public void Update(Entity Entity,ref SpotLight Light,ref SpotLightRuntime Runtime,EngineHost Host,ref State State){
         Runtime.InvalidProperty=LightValidation.SceneFailure(Entity,State.World);
-        if(Runtime.InvalidProperty is not null){return true;}
-        if(!Light.Color.IsValid){Runtime.InvalidProperty="Color";return true;}
-        if(!Light.Flux.IsValid){Runtime.InvalidProperty="Flux";return true;}
-        if(!Light.Range.IsValid){Runtime.InvalidProperty="Range";return true;}
-        if(!Light.Cone.IsValid){Runtime.InvalidProperty="Cone";return true;}
+        if(Runtime.InvalidProperty is not null){return;}
+        if(!Light.Color.IsValid){Runtime.InvalidProperty="Color";return;}
+        if(!Light.Flux.IsValid){Runtime.InvalidProperty="Flux";return;}
+        if(!Light.Range.IsValid){Runtime.InvalidProperty="Range";return;}
+        if(!Light.Cone.IsValid){Runtime.InvalidProperty="Cone";return;}
         var Shadow=LightValidation.Shadow(Entity,State.World);
         if(Host.Renderer is { }Renderer){
             FixedTransformStatus Status=LightTransform.TryGetCameraRelativePose(
@@ -515,26 +497,25 @@ internal struct SpotLightSync:ISystem {
                 Runtime.HasLastCameraRelativePosition=true;
                 Runtime.HasLastWorldForward=true;
             } else if(!Runtime.HasLastCameraRelativePosition||!Runtime.HasLastWorldForward){
-                return true;
+                return;
             }
             var Submission=new SpotLightSubmission(Runtime.LastCameraRelativePosition,Runtime.LastWorldForward,Light.Color,Light.Flux,Light.Range,Light.Cone,Shadow);
-            if(!Submission.IsValid){Runtime.InvalidProperty="Submission";return true;}
+            if(!Submission.IsValid){Runtime.InvalidProperty="Submission";return;}
             try{ Renderer.AddSpotLight(Submission); }
             catch(ArgumentException Error){ Runtime.InvalidProperty=Error is ArgumentOutOfRangeException RangeError?RangeError.ParamName??"Submission":"Submission"; }
         }
-        return true;
     }
 }
 
 [SystemPhase(SystemPhase.Presentation)]
 internal struct RectAreaLightSync:ISystem {
-    public bool Update(Entity Entity,ref RectAreaLight Light,ref RectAreaLightRuntime Runtime,EngineHost Host,ref State State){
+    public void Update(Entity Entity,ref RectAreaLight Light,ref RectAreaLightRuntime Runtime,EngineHost Host,ref State State){
         Runtime.InvalidProperty=LightValidation.SceneFailure(Entity,State.World);
-        if(Runtime.InvalidProperty is not null){return true;}
-        if(!Light.Color.IsValid){Runtime.InvalidProperty="Color";return true;}
-        if(!Light.Luminance.IsValid){Runtime.InvalidProperty="Luminance";return true;}
-        if(!Light.Size.IsValid){Runtime.InvalidProperty="Size";return true;}
-        if(!Light.Range.IsValid){Runtime.InvalidProperty="Range";return true;}
+        if(Runtime.InvalidProperty is not null){return;}
+        if(!Light.Color.IsValid){Runtime.InvalidProperty="Color";return;}
+        if(!Light.Luminance.IsValid){Runtime.InvalidProperty="Luminance";return;}
+        if(!Light.Size.IsValid){Runtime.InvalidProperty="Size";return;}
+        if(!Light.Range.IsValid){Runtime.InvalidProperty="Range";return;}
         var Shadow=LightValidation.Shadow(Entity,State.World);
         if(Host.Renderer is { }Renderer){
             FixedTransformStatus Status=LightTransform.TryGetRectanglePose(
@@ -548,20 +529,19 @@ internal struct RectAreaLightSync:ISystem {
                 Runtime.HasLastCameraRelativePosition=true;
                 Runtime.HasLastWorldForward=true;
             } else if(!Runtime.HasLastCameraRelativePosition||!Runtime.HasLastWorldForward){
-                return true;
+                return;
             }
             var Submission=new RectAreaLightSubmission(Runtime.LastCameraRelativePosition,Runtime.LastWorldForward,Runtime.LastWorldUp,Light.Color,Light.Luminance,Light.Size,Light.Range,Shadow);
-            if(!Submission.IsValid){Runtime.InvalidProperty="Submission";return true;}
+            if(!Submission.IsValid){Runtime.InvalidProperty="Submission";return;}
             try{ Renderer.AddRectAreaLight(Submission); }
             catch(ArgumentException Error){ Runtime.InvalidProperty=Error is ArgumentOutOfRangeException RangeError?RangeError.ParamName??"Submission":"Submission"; }
         }
-        return true;
     }
 }
 
 [SystemPhase(SystemPhase.Presentation)]
 internal struct TransformSync:ISystem {
-    public bool Update(Entity Entity,ref Transform Transform,ref Renderable Renderable,EngineHost Host,ref State State){
+    public void Update(Entity Entity,ref Transform Transform,ref Renderable Renderable,EngineHost Host,ref State State){
         if(Host.Renderer is{ }Renderer){
             Entity SourceEntity=Renderable.HasSourceEntity?Renderable.SourceEntity:Entity;
             FixedTransformStatus Status=RuntimeWorldTransform.TryGetCameraRelativeMatrix(
@@ -573,7 +553,7 @@ internal struct TransformSync:ISystem {
                 Renderable.LastCameraRelativeWorld=CameraRelativeWorld;
                 Renderable.HasLastCameraRelativeWorld=true;
             } else if(!Renderable.HasLastCameraRelativeWorld){
-                return true;
+                return;
             }
 
             Matrix4x4 Local=Renderable.HasMeshLocalTransform
@@ -582,13 +562,12 @@ internal struct TransformSync:ISystem {
             Renderer.SetObjectTransform(
                 Renderable.ObjectIndex,Local*Renderable.LastCameraRelativeWorld);
         }
-        return true;
     }
 }
 
 [SystemPhase(SystemPhase.Presentation)]
 internal struct EmissiveMeshLightSync:ISystem {
-    public bool Update(
+    public void Update(
         Entity Entity,
         ref Transform Transform,
         ref EmissiveMeshLighting Lighting,
@@ -605,7 +584,7 @@ internal struct EmissiveMeshLightSync:ISystem {
                 Lighting.LastCameraRelativeWorld=CameraRelativeWorld;
                 Lighting.HasLastCameraRelativeWorld=true;
             } else if(!Lighting.HasLastCameraRelativeWorld){
-                return true;
+                return;
             }
 
             IReadOnlyList<EmissivePatch> Patches=EmissivePatchBuilder.Build(
@@ -623,7 +602,6 @@ internal struct EmissiveMeshLightSync:ISystem {
                 Lighting.ShadowPriority,
                 Lighting.ShadowBiasMeters);
         }
-        return true;
     }
 }
 
@@ -636,34 +614,31 @@ internal struct HierarchyQueryRegistration:ISystem { public void Spawn(ref Paren
 [SystemPhase(SystemPhase.Presentation)]
 [SystemOrder(20_000)]
 internal struct AudioFrameBegin:ISystem {
-    public bool Update(ref AppHostRuntime Runtime,EngineHost Host,ref State State){
+    public void Update(ref AppHostRuntime Runtime,EngineHost Host,ref State State){
         Host.BeginAudioFrame();
-        return true;
     }
 }
 
 [SystemPhase(SystemPhase.Presentation)]
 [SystemOrder(20_001)]
 internal struct AudioListenerSync:ISystem {
-    public bool Update(Entity Entity,ref Transform Transform,ref AudioListener Listener,EngineHost Host,ref State State){
+    public void Update(Entity Entity,ref Transform Transform,ref AudioListener Listener,EngineHost Host,ref State State){
         FixedTransformResolveStatus Status=RuntimeWorldTransform.TryResolveWorld(
             Entity,State.World,out FixedAffineTransform Pose,out var Frame);
         if(Status==FixedTransformResolveStatus.Success){ Host.SetAudioListener(Entity,Pose,Frame); }
-        return true;
     }
 }
 
 [SystemPhase(SystemPhase.Presentation)]
 [SystemOrder(20_002)]
 internal struct AudioSourceSync:ISystem {
-    public bool Update(Entity Entity,ref Transform Transform,ref AudioSource Source,EngineHost Host,ref State State){
+    public void Update(Entity Entity,ref Transform Transform,ref AudioSource Source,EngineHost Host,ref State State){
         FixedTransformResolveStatus Status=RuntimeWorldTransform.TryResolveWorld(
             Entity,State.World,out FixedAffineTransform Pose,out var Frame);
         if(Status==FixedTransformResolveStatus.Success){
             Host.TrySubmitAudioSource(
                 Entity,Pose,Frame,Source.Volume,Source.MinimumDistance,Source.MaximumDistance,Source.Loop);
         }
-        return true;
     }
 }
 
@@ -671,8 +646,7 @@ internal struct AudioSourceSync:ISystem {
 [SystemPhase(SystemPhase.Presentation)]
 [SystemOrder(30_000)]
 internal struct Present:ISystem {
-    public bool Update(ref LevelRuntime Runtime,EngineHost Host,ref State State){
+    public void Update(ref LevelRuntime Runtime,EngineHost Host,ref State State){
         if(State.Enabled&&!Host.Present()){ State.Enabled=false; }
-        return true;
     }
 }

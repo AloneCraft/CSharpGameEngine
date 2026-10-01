@@ -12,9 +12,9 @@ namespace CSharpGameEngine.Runtime.Character;
 [SystemOrder(10_010)]
 internal struct CharacterMovementUpdate:ISystem {
     private static readonly ConditionalWeakTable<DeterministicPhysicsWorld,CharacterMotor>Motors=[];
-    public bool Update(ref Transform Transform,ref CharacterMovement Movement,ref CharacterMovementState MovementState,ref CharacterInput Input,EngineHost Host,ref State State){
+    public void Update(ref Transform Transform,ref CharacterMovement Movement,ref CharacterMovementState MovementState,ref CharacterInput Input,EngineHost Host,ref State State){
         if(Transform.Frame!=Host.PhysicsFrame){
-            return true;
+            return;
         }
         var World=Host.ActivePhysicsDomain.MutableWorld;
         var Motor=Motors.GetValue(World,static Key=>new CharacterMotor(Key));
@@ -27,13 +27,12 @@ internal struct CharacterMovementUpdate:ISystem {
         }
         catch(OverflowException){
             // A numerically invalid configuration leaves the character where it was this tick.
-            return true;
+            return;
         }
         Transform.Position=Position;
         if(Movement.OrientRotationToMovement){
             Transform.Rotation=CharacterMotor.FacingRotation(MovementState.Facing);
         }
-        return true;
     }
 }
 /// <summary>Registers PlayerController with the generated World lookup surface that SpringArmUpdate reads through the parent.</summary>
@@ -48,12 +47,12 @@ internal struct PlayerControllerQueryRegistration:ISystem { public void Spawn(re
 [SystemOrder(0)]
 internal struct SpringArmUpdate:ISystem {
     private static readonly ConditionalWeakTable<DeterministicPhysicsWorld,SpringArmSolver>Solvers=[];
-    public bool Update(Entity Entity,ref Transform Transform,ref SpringArm Arm,EngineHost Host,ref State State){
+    public void Update(Entity Entity,ref Transform Transform,ref SpringArm Arm,EngineHost Host,ref State State){
         if(!State.World.TryGetComponent(Entity,out Parent Parent)
             ||!State.World.TryGetComponent(Parent.Value,out Transform Owner)
             ||!State.World.TryGetComponent(Parent.Value,out PlayerController Controller)
             ||Owner.Frame!=Host.PhysicsFrame){
-            return true;
+            return;
         }
         var Solver=Solvers.GetValue(Host.ActivePhysicsDomain.MutableWorld,static Key=>new SpringArmSolver(Key));
         var Control=PlayerControl.ControlRotation(Controller);
@@ -63,7 +62,7 @@ internal struct SpringArmUpdate:ISystem {
                 ||!Inverse.TryRotate(CameraPosition-Owner.Position,out var Local)
                 ||!LogicalQuaternion.TryMultiply(Inverse,Control,out var LocalRotation)
                 ||Owner.Scale.R.IsZero||Owner.Scale.U.IsZero||Owner.Scale.F.IsZero){
-                return true;
+                return;
             }
             Transform.Position=new LogicalVector3(Local.R/Owner.Scale.R,Local.U/Owner.Scale.U,Local.F/Owner.Scale.F);
             Transform.Rotation=LocalRotation;
@@ -71,6 +70,5 @@ internal struct SpringArmUpdate:ISystem {
         catch(OverflowException){
             // An unrepresentable placement keeps last frame's camera.
         }
-        return true;
     }
 }

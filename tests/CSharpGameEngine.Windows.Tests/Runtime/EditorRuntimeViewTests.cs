@@ -92,7 +92,7 @@ public sealed class EditorRuntimeViewTests {
             var CameraEntity=World.Create(CameraTransform,Camera);
             Load.Update(CameraEntity,ref CameraTransform,ref Camera,ref State);
         }
-        Assert.True(Load.Update(LevelEntity,ref App,ref AppRuntime,ref Level,ref LevelRuntime,Host,ref State));
+        Load.Update(LevelEntity,ref App,ref AppRuntime,ref Level,ref LevelRuntime,Host,ref State);
         Assert.True(LevelRuntime.Loaded);
         Host.Present();
         Host.Renderer!.RenderFrame(CaptureForVerification:true);

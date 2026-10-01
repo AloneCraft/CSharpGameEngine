@@ -54,8 +54,8 @@ internal static class GameSystemDiagnostics {
 
     internal static readonly DiagnosticDescriptor UpdateMethodMustReturnBool=new(
         id:"SYSGEN006",
-        title:"Update method must return bool",
-        messageFormat:"Method '{0}' returns '{1}' instead of bool",
+        title:"Update method must return void or bool",
+        messageFormat:"Method '{0}' returns '{1}'; an Update returns void (ADR-0072), or bool where false ends a world system's frame",
         category:Category,
         defaultSeverity:DiagnosticSeverity.Error,
         isEnabledByDefault:true);

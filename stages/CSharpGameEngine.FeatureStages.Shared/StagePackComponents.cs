@@ -25,5 +25,5 @@ public struct StageLink {
 }
 [ExecuteInEditor]
 internal struct StageLifecycleSystem:ISystem {
-    public bool Update(ref StageScenario Scenario,ref State State)=>true;
+    public void Update(ref StageScenario Scenario,ref State State){ }
 }

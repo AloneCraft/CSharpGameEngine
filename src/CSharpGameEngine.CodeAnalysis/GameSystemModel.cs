@@ -56,13 +56,19 @@ internal readonly struct GameSystemMethodModel(
         ImmutableArray<GameSystemComponentParameterModel>Components,
         ImmutableArray<GameSystemContextParameterModel>Contexts,
         ImmutableArray<GameSystemParameterSlot>CallOrder,
-        int DeclarationPosition) {
+        int DeclarationPosition,
+        bool ReturnsBool) {
     internal readonly GameSystemMethodRole Role=Role;
     internal readonly bool HasLeadingEntityParameter=HasLeadingEntityParameter;
     internal readonly ImmutableArray<GameSystemComponentParameterModel>Components=Components;
     internal readonly ImmutableArray<GameSystemContextParameterModel>Contexts=Contexts;
     internal readonly ImmutableArray<GameSystemParameterSlot>CallOrder=CallOrder;
     internal readonly int DeclarationPosition=DeclarationPosition;
+    /// <summary>
+    /// ADR-0072: an Update returns void (the standard) or bool. Only a world system's false has an
+    /// effect (it ends the frame's remaining systems); an entity system's false never did anything.
+    /// </summary>
+    internal readonly bool ReturnsBool=ReturnsBool;
 }
 
 /// <summary>

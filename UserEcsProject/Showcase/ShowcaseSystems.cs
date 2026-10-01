@@ -9,12 +9,12 @@ namespace UserEcsProject.Showcase;
 file sealed class Order;
 [SystemPhase(SystemPhase.FrameInput)]
 internal struct ShowcaseControls:ISystem {
-    public bool Update(ref AppHostRuntime AppRuntime,ref EngineShowcaseRuntime Runtime,EngineHost Host,ref State State){
+    public void Update(ref AppHostRuntime AppRuntime,ref EngineShowcaseRuntime Runtime,EngineHost Host,ref State State){
         var Session=Runtime.Session??=new ShowcaseSession();
         if(!Session.InputConfigured){
             Host.SetInput(ShowcaseInput.CreateServer());
             Session.InputConfigured=true;
-            return true;
+            return;
         }
         InputServer Input=Host.Input;
         foreach(var Action in Input.CurrentFrame.Where(static Action=>Action.Phase==InputActionPhase.Started)){
@@ -57,7 +57,6 @@ internal struct ShowcaseControls:ISystem {
             Session.Page=Session.Page%4+1;
             Session.NextAutomaticPageTick=State.FixedTick+600;
         }
-        return true;
     }
     private void SelectPage(ShowcaseSession Session,int Page,ulong Tick){
         Session.Page=Page;
@@ -66,7 +65,7 @@ internal struct ShowcaseControls:ISystem {
 }
 [SystemPhase(SystemPhase.FixedSimulation)]
 internal struct ShowcaseFixedMotion:ISystem {
-    public bool Update(ref Transform Transform,ref ShowcaseMotion Motion,ref State State){
+    public void Update(ref Transform Transform,ref ShowcaseMotion Motion,ref State State){
         var Period=Math.Max(4,Motion.PeriodTicks);
         var Half=Period/2;
         var Phase=(int)((State.FixedTick+(ulong)Math.Max(0,Motion.PhaseTicks))%(ulong)Period);
@@ -74,15 +73,14 @@ internal struct ShowcaseFixedMotion:ISystem {
         var CenteredMillimeters=((Triangle*2-Half)*Motion.AmplitudeMillimeters)/Math.Max(1,Half);
         Transform.Position=new LogicalVector3(
             Motion.BaseX+LogicalScalar.FromInt64(CenteredMillimeters)/1000,Motion.BaseY,Motion.BaseZ);
-        return true;
     }
 }
 [SystemPhase(SystemPhase.Presentation)]
 internal struct ShowcaseDashboard:ISystem {
-    public bool Update(
+    public void Update(
         ref AppHostRuntime AppRuntime,ref LevelRuntime LevelRuntime,
         ref EngineShowcaseRuntime Runtime,EngineHost Host,ref State State){
-        if(Host.Window is not { }Window){ return true; }
+        if(Host.Window is not { }Window){ return; }
         var Session=Runtime.Session??=new ShowcaseSession();
         Session.Locale=ResolveLocale();
         Session.Manifest??=ShowcaseManifest.Load(Path.Combine(AppContext.BaseDirectory,"Showcase","feature-progress.json"));
@@ -98,7 +96,6 @@ internal struct ShowcaseDashboard:ISystem {
                 File.Move(Request,Request+".done",true);
             }
         }
-        return true;
     }
     public void Shutdown(ref EngineShowcaseRuntime Runtime,ref State State){
         Runtime.Session?.Dispose();

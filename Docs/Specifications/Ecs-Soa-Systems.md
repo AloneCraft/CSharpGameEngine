@@ -32,10 +32,9 @@ public readonly struct FrameContext
 
 internal struct MovementSystem : ISystem
 {
-    public bool Update(ref Position position, ref Velocity velocity, ref MovableTag _, in FrameContext frame, ref State state)
+    public void Update(ref Position position, ref Velocity velocity, ref MovableTag _, in FrameContext frame, ref State state)
     {
         position.X += velocity.X * frame.DeltaTime;
-        return true;
     }
 }
 ```
@@ -63,7 +62,7 @@ Componentは`ref`必須・Contextは`ref`禁止なので、ref-kindだけで曖�
 
 | メソッド名 | 役割 |
 |---|---|
-| `Update` | Archetypeを登録し、該当phaseのディスパッチ対象になる。戻り値`bool`、末尾に`ref State`必須 |
+| `Update` | Archetypeを登録し、該当phaseのディスパッチ対象になる。戻り値は`void`(ADR-0072。`bool`も受け付ける)、末尾に`ref State`必須。経過時間は`State.FrameDeltaSeconds`/`State.FixedDeltaSeconds` |
 | `Spawn` | **Archetype形状の宣言のみ**。ディスパッチされない。戻り値`void`、`ref` Component引数のみ(Entity/State不可) |
 
 `Spawn`は「どの`Update`オーバーロードとも一致しない構成」を成立させるために使う。実例:
@@ -148,7 +147,7 @@ fileマーカーに`[SystemOrder(1)]`)がその実例。
 RenderObjectRef}`を要求するメソッドは、静的プロップ(その構成そのもの)と可動プロップ(それに
 `MovableTag`を加えた上位集合)の**両方**で呼ばれる。旧設計のQuery一致と同じ効果が、特別扱い無しで得られる。
 
-戻り値が`false`のときは`continue`し、同じArchetype行に対する後続のオーバーロードをスキップする。
+`Update`の戻り値は`void`が標準(ADR-0072)。`bool`を返す場合、エンティティごとのSystemでは結果に効果がなく(オーバーロードごとに別のループで、`false`は後続を何もスキップしない)、Componentを持たないWorld Systemの`false`だけがそのフレームの残りのSystemを打ち切る。
 
 ## 生成されるゲームループ
 
@@ -277,7 +276,7 @@ Generatorは`CSharpGameEngine.Entities.ISystem`型がコンパイル内に実在
 | ID | 内容 |
 |---|---|
 | SYSGEN001〜003 | `ISystem`実装型(struct/非ジェネリック/非ネスト) |
-| SYSGEN004〜007 | `Update`/`Spawn`メソッド自体(インスタンス/非private/`Update`は`bool`/非ジェネリック) |
+| SYSGEN004〜007 | `Update`/`Spawn`メソッド自体(インスタンス/非private/`Update`は`void`か`bool`/非ジェネリック) |
 | SYSGEN008 | Componentパラメータが1つ以上必要 |
 | SYSGEN009 | **欠番**(到達不能。`ref`でないパラメータは壊れたComponentではなく正当なContextになるため) |
 | SYSGEN010〜011 | Component型(非nullable struct必須、同一メソッド内での型重複禁止) |

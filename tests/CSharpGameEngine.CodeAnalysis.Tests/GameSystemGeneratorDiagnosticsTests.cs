@@ -77,12 +77,13 @@ public sealed class GameSystemGeneratorDiagnosticsTests {
     }
 
     [Fact]
-    public void NonBoolUpdateMethod_ReportsSysgen006(){
+    public void UpdateReturningNeitherVoidNorBool_ReportsSysgen006(){
+        // ADR-0072: void is the standard Update and bool is still accepted; any other type is an error.
         AssertHasDiagnostic(
             """
-            internal struct VoidUpdateSystem : ISystem
+            internal struct IntUpdateSystem : ISystem
             {
-                public void Update(ref Position position, ref State state) { }
+                public int Update(ref Position position, ref State state) => 0;
             }
             """,
             "SYSGEN006");

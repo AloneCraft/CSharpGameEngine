@@ -180,7 +180,7 @@ internal static class GameSystemAnalyzer {
                 Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.ShutdownMethodMustReturnVoid,MethodLocation,Method.Name,Method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
                 IsValid=false;
             }
-        } else if(Method.ReturnType.SpecialType!=SpecialType.System_Boolean){
+        } else if(!Method.ReturnsVoid&&Method.ReturnType.SpecialType!=SpecialType.System_Boolean){
             Diagnostics.Add(Diagnostic.Create(GameSystemDiagnostics.UpdateMethodMustReturnBool,MethodLocation,Method.Name,Method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
             IsValid=false;
         }
@@ -319,7 +319,8 @@ internal static class GameSystemAnalyzer {
             return null;
         }
 
-        return new GameSystemMethodModel(Role,HasLeadingEntity,[.. Components],[.. Contexts],[.. CallOrder],GetDeclarationPosition(Method));
+        return new GameSystemMethodModel(Role,HasLeadingEntity,[.. Components],[.. Contexts],[.. CallOrder],GetDeclarationPosition(Method),
+            ReturnsBool:Role==GameSystemMethodRole.Dispatch&&!Method.ReturnsVoid);
     }
 
     private static string TypeFqn(IParameterSymbol Parameter)=>

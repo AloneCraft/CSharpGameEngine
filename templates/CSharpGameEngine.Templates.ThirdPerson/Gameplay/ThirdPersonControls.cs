@@ -21,11 +21,11 @@ internal struct ThirdPersonControls:ISystem {
     /// <summary>スティック全倒しの回転速度。UEは毎フレーム2.5°(60 Hzで150°/s)を足すので、その60 Hz相当を時間基準にした。</summary>
     private const float GamepadDegreesPerSecond=150f;
     private bool InputInstalled;
-    public bool Update(ref PlayerController Controller,ref CharacterInput Input,EngineHost Host,ref State State){
+    public void Update(ref PlayerController Controller,ref CharacterInput Input,EngineHost Host,ref State State){
         if(!this.InputInstalled){
             Host.SetInput(ThirdPersonInput.CreateServer());
             this.InputInstalled=true;
-            return true;
+            return;
         }
         // An automation run never captures the user's cursor.
         if(Host.Automation is null&&Host.Window is{ IsMouseCaptured:false }Window){
@@ -45,6 +45,5 @@ internal struct ThirdPersonControls:ISystem {
                 Input.Jump=true;
             }
         }
-        return true;
     }
 }

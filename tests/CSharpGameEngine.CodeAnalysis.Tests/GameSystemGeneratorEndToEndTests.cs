@@ -113,6 +113,60 @@ public sealed class GameSystemGeneratorEndToEndTests {
         Assert.Equal("OK",GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.TestEntry","RunScenario"));
     }
 
+    /// <summary>
+    /// ADR-0072: an Update returns void. An entity system and a world system written that way both run
+    /// every frame, and a bool Update still compiles beside them.
+    /// </summary>
+    [Fact]
+    public void VoidUpdate_RunsForEntityAndWorldSystems(){
+        var Source="""
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Generated;
+            using Sample;
+
+            namespace Game;
+
+            internal struct Mover : ISystem
+            {
+                public void Update(ref Position position, ref State state) { position.X += 1f; }
+            }
+
+            internal struct FrameCounter : IWorldSystem
+            {
+                public int Frames;
+                public void Update(ref State state) { Frames++; }
+            }
+
+            internal struct Legacy : ISystem
+            {
+                public int Calls;
+                public bool Update(ref Velocity velocity, ref State state) { Calls++; return true; }
+            }
+
+            internal static class TestEntry
+            {
+                internal static string RunScenario()
+                {
+                    World world = new();
+                    State state = new(world) { Enabled = true };
+                    var moving = world.Create(new Position());
+                    world.Create(new Velocity());
+                    GeneratedSystemSet systems = default;
+                    var scheduler = new global::CSharpGameEngine.Runtime.Simulation.FixedTickScheduler();
+                    GeneratedGameLoop.RunFrame(ref state, ref systems, ref scheduler, 1_000, 60_000);
+                    GeneratedGameLoop.RunFrame(ref state, ref systems, ref scheduler, 1_000, 60_000);
+                    world.TryGetComponent(moving, out Position position);
+                    if (position.X != 2f) return "FAIL:entity " + position.X;
+                    if (systems.FrameCounter.Frames != 2) return "FAIL:world " + systems.FrameCounter.Frames;
+                    if (systems.Legacy.Calls != 2) return "FAIL:bool " + systems.Legacy.Calls;
+                    return "OK";
+                }
+            }
+            """;
+        var Assembly=GameSystemGeneratorTestHelper.CompileAndLoad(Components,Source);
+        Assert.Equal("OK",GameSystemGeneratorTestHelper.Invoke(Assembly,"Game.TestEntry","RunScenario"));
+    }
+
     [Fact]
     public void SubsetDispatch_FiresEveryMatchingOverloadOncePerEntity(){
         var Source="""

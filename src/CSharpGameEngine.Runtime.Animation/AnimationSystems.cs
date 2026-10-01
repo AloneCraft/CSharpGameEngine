@@ -5,9 +5,9 @@ namespace CSharpGameEngine.Runtime.Animation;
 [SystemPhase(SystemPhase.Presentation)]
 [SystemOrder(11)]
 internal struct SkeletalMeshSetup:ISystem {
-    public bool Update(ref SkeletalMesh Mesh,ref SkeletalMeshRuntime Runtime,ref State State){
+    public void Update(ref SkeletalMesh Mesh,ref SkeletalMeshRuntime Runtime,ref State State){
         if(Runtime.Skeleton is not null||Runtime.Error is not null){
-            return true;
+            return;
         }
         try {
             var Skeleton=SkeletalAssetCache.Skeleton(Mesh.AssetPath??string.Empty);
@@ -19,7 +19,6 @@ internal struct SkeletalMeshSetup:ISystem {
             // A broken asset is reported on the component; the mesh keeps drawing its bind pose.
             Runtime.Error=Ex.Message;
         }
-        return true;
     }
 }
 /// <summary>
@@ -31,9 +30,9 @@ internal struct SkeletalMeshSetup:ISystem {
 internal struct LocomotionAnimation:ISystem {
     /// <summary>Longest step one frame may advance the animation, so a hitch does not skip whole states.</summary>
     private const float MaximumDeltaSeconds=0.1f;
-    public bool Update(ref SkeletalMeshRuntime Mesh,ref LocomotionAnimator Animator,ref LocomotionAnimatorRuntime Runtime,ref State State){
+    public void Update(ref SkeletalMeshRuntime Mesh,ref LocomotionAnimator Animator,ref LocomotionAnimatorRuntime Runtime,ref State State){
         if(Mesh.Skeleton is not{ }Skeleton||Mesh.Palette is null||Mesh.Model is null||Runtime.Error is not null){
-            return true;
+            return;
         }
         if(Runtime.Machine is null){
             try {
@@ -45,15 +44,14 @@ internal struct LocomotionAnimation:ISystem {
             }
             catch(Exception Ex) when(Ex is InvalidDataException or IOException or ArgumentException or UnauthorizedAccessException){
                 Runtime.Error=Ex.Message;
-                return true;
+                return;
             }
         }
         if(Runtime.Machine is not{ }Machine||Runtime.Pose is not{ }Pose){
-            return true;
+            return;
         }
         var DeltaSeconds=Math.Min(State.FrameDeltaSeconds,MaximumDeltaSeconds);
         Machine.Update(DeltaSeconds,Animator.Speed,Animator.Falling,Animator.VerticalSpeed,Pose);
         Skeleton.ComputePalette(Pose,Mesh.Model,Mesh.Palette);
-        return true;
     }
 }

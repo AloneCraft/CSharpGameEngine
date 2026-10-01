@@ -397,7 +397,7 @@ public sealed class PhysicsWorldTests {
         State State=new(EcsWorld);
         PhysicsBodySync System=new();
 
-        Assert.True(System.Update(Entity,ref Transform,ref Collider,Host,ref State));
+        System.Update(Entity,ref Transform,ref Collider,Host,ref State);
 
         Assert.True(Host.TryGetPhysicsSyncFailure(Entity,out var Fault));
         Assert.Equal(PhysicsFaultType.ReferenceFrameMismatch,Fault);
@@ -421,8 +421,8 @@ public sealed class PhysicsWorldTests {
         State State=new(EcsWorld);
         PhysicsSyncBegin Begin=new();
         PhysicsBodySync Sync=new();
-        Assert.True(Begin.Update(Host,ref State));
-        Assert.True(Sync.Update(Entity,ref Transform,ref Collider,Host,ref State));
+        Begin.Update(Host,ref State);
+        Sync.Update(Entity,ref Transform,ref Collider,Host,ref State);
         IReadOnlyPhysicsWorld FirstWorld=Host.PhysicsWorld;
 
         Host.SetPhysicsFrame(SecondFrame);

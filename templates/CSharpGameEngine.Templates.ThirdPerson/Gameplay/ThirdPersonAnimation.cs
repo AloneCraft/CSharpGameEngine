@@ -9,9 +9,9 @@ namespace CgeThirdPerson.Gameplay;
 [SystemPhase(SystemPhase.Presentation)]
 [SystemOrder(10)]
 internal struct ThirdPersonAnimation:ISystem {
-    public bool Update(Entity Entity,ref LocomotionAnimator Animator,ref State State){
+    public void Update(Entity Entity,ref LocomotionAnimator Animator,ref State State){
         if(!State.World.TryGetComponent(Entity,out Parent Parent)||!State.World.TryGetComponent(Parent.Value,out CharacterMovementState Movement)){
-            return true;
+            return;
         }
         var Velocity=Movement.Velocity;
         if(Velocity.R.TryToSingle(out var Right)&&Velocity.U.TryToSingle(out var Up)&&Velocity.F.TryToSingle(out var Forward)){
@@ -19,6 +19,5 @@ internal struct ThirdPersonAnimation:ISystem {
             Animator.VerticalSpeed=Up;
         }
         Animator.Falling=Movement.Mode==CharacterMovementMode.Falling;
-        return true;
     }
 }
