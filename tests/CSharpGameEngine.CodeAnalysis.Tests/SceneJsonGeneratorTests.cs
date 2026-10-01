@@ -131,7 +131,7 @@ public sealed class SceneJsonGeneratorTests {
     [InlineData("\"Count\": 7","\"Count\": 7.5","SCENE203",24,57)]
     [InlineData("\"className\": \"MainScene\"","\"className\": \"MainScene\", \"extra\": 1","SCENE204",5,29)]
     [InlineData("\"Offset\": -3.25 } }","\"Offset\": -3.25 } }, { \"type\": \"Sample.Tag\" }","SCENE205",24,104)]
-    [InlineData("\"schemaVersion\": 1","\"schemaVersion\": 2","SCENE204",3,20)]
+    [InlineData("\"schemaVersion\": 1","\"schemaVersion\": 3","SCENE204",3,20)]
     public void EachKindOfProblem_IsAnErrorAtItsJsonPosition(string Original,string Replacement,string ExpectedId,int Line,int Column){
         Assert.Contains(Original,JsonScene);
         var Diagnostic=Assert.Single(Analyze(JsonScene.Replace(Original,Replacement)));

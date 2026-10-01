@@ -11,15 +11,30 @@ namespace CSharpGameEngine.EditorPreview.Host;
 /// fill numeric members or types with an implicit conversion from <c>float</c>, and objects use the
 /// public constructor that consumes the most keys and then settable members. The runtime view uses it
 /// to apply the editor's values to the running world; the generator has already checked the document.
+/// In a schema version 2 document every number inside an <c>[Angle]</c> member is in turns (ADR-0074).
 /// </summary>
 internal static class SceneJsonRuntimeValues {
-    internal static object?Create(Type Type,SceneJsonValue Value,string Where){
+    internal static object?Create(Type Type,SceneJsonValue Value,string Where)=>Create(Type,Value,Where,new Reading(Turns:false),null);
+
+    /// <summary>A component: its members object, read as the component type's object value.</summary>
+    internal static object Component(Type Type,SceneJsonValue Members,string Where,bool Turns=false)=>
+        Object(Type,Members,Where,new Reading(Turns),null);
+
+    /// <summary>Whether the document's angles are turns: <c>schemaVersion</c> 2 or later.</summary>
+    internal static bool UsesTurns(SceneJsonValue Document)=>
+        Document.Get("schemaVersion") is { Kind:SceneJsonKind.Number }Version
+        &&int.TryParse(Version.Text,NumberStyles.Integer,CultureInfo.InvariantCulture,out var Number)
+        &&Number>=SceneJsonAngles.TurnsSchemaVersion;
+
+    private sealed record Reading(bool Turns);
+
+    private static object?Create(Type Type,SceneJsonValue Value,string Where,Reading Reading,SceneAngleUnit?Unit){
         if(Value.Kind==SceneJsonKind.Null){
             return !Type.IsValueType||Nullable.GetUnderlyingType(Type) is not null
                 ?null
                 :throw Mismatch(Where,Type,"null is only valid for reference and nullable types");
         }
-        if(Nullable.GetUnderlyingType(Type) is { }Underlying){ return Create(Underlying,Value,Where); }
+        if(Nullable.GetUnderlyingType(Type) is { }Underlying){ return Create(Underlying,Value,Where,Reading,Unit); }
         if(Type.IsEnum){
             return Value.Kind==SceneJsonKind.String&&Enum.GetNames(Type).Contains(Value.Text,StringComparer.Ordinal)
                 ?Enum.Parse(Type,Value.Text!)
@@ -35,15 +50,27 @@ internal static class SceneJsonRuntimeValues {
         if(Type==typeof(string)){
             return Value.Kind==SceneJsonKind.String?Value.Text!:throw Mismatch(Where,Type,"expected a string");
         }
-        if(Value.Kind==SceneJsonKind.Number){ return Number(Type,Value.Text!,Where); }
-        if(Value.Kind==SceneJsonKind.Array){ return Collection(Type,Value,Where); }
-        if(Value.Kind==SceneJsonKind.Object&&(Type.IsValueType||Type.IsClass)){ return Object(Type,Value,Where); }
+        if(Value.Kind==SceneJsonKind.Number){
+            // An angle in turns becomes the member's unit; the rest of the number rules then apply unchanged.
+            var Text=Unit is { }AngleUnit&&Reading.Turns&&SceneJsonAngles.IsNumber(Value.Text)
+                ?SceneJsonAngles.FromTurns(Value.Text!,AngleUnit).ToString("R",CultureInfo.InvariantCulture)
+                :Value.Text!;
+            return Number(Type,Text,Where);
+        }
+        if(Value.Kind==SceneJsonKind.Array){ return Collection(Type,Value,Where,Reading,Unit); }
+        if(Value.Kind==SceneJsonKind.Object&&(Type.IsValueType||Type.IsClass)){ return Object(Type,Value,Where,Reading,Unit); }
         throw Mismatch(Where,Type,"this JSON value cannot be converted to the member's type");
     }
 
-    /// <summary>A component: its members object, read as the component type's object value.</summary>
-    internal static object Component(Type Type,SceneJsonValue Members,string Where)=>
-        Object(Type,Members,Where);
+    /// <summary>The unit an <c>[Angle]</c> attribute declares, matched by name so the game's own load of Contracts counts.</summary>
+    private static SceneAngleUnit?AngleUnitOf(IEnumerable<CustomAttributeData>Attributes){
+        foreach(var Attribute in Attributes){
+            if(Attribute.AttributeType.FullName==SceneJsonAngles.AttributeFullName&&Attribute.ConstructorArguments is [{ }Argument]){
+                return SceneJsonAngles.UnitFromArgument(Argument.Value);
+            }
+        }
+        return null;
+    }
 
     private static object Number(Type Type,string Text,string Where){
         IFormatProvider Culture=CultureInfo.InvariantCulture;
@@ -66,12 +93,12 @@ internal static class SceneJsonRuntimeValues {
         throw Mismatch(Where,Type,"a number needs a numeric member or a type convertible from float");
     }
 
-    private static object Collection(Type Type,SceneJsonValue Value,string Where){
+    private static object Collection(Type Type,SceneJsonValue Value,string Where,Reading Reading,SceneAngleUnit?Unit){
         var Element=Type.IsArray?Type.GetElementType():ElementType(Type);
         if(Element is null){ throw Mismatch(Where,Type,"an array needs an array or collection member"); }
         var Items=Array.CreateInstance(Element,Value.Items.Count);
         for(var Index=0;Index<Items.Length;Index++){
-            Items.SetValue(Create(Element,Value.Items[Index],Where+"["+Index.ToString(CultureInfo.InvariantCulture)+"]"),Index);
+            Items.SetValue(Create(Element,Value.Items[Index],Where+"["+Index.ToString(CultureInfo.InvariantCulture)+"]",Reading,Unit),Index);
         }
         if(Type.IsAssignableFrom(Items.GetType())){ return Items; }
         if(Type.IsGenericType&&Type.GetGenericTypeDefinition().FullName=="System.Collections.Immutable.ImmutableArray`1"){
@@ -91,7 +118,7 @@ internal static class SceneJsonRuntimeValues {
             .FirstOrDefault(static Interface=>Interface.IsGenericType&&Interface.GetGenericTypeDefinition()==typeof(IEnumerable<>))
             ?.GetGenericArguments()[0];
 
-    private static object Object(Type Type,SceneJsonValue Value,string Where){
+    private static object Object(Type Type,SceneJsonValue Value,string Where,Reading Reading,SceneAngleUnit?Unit){
         var Keys=Value.Properties.Select(static Property=>Property.Name).ToHashSet(StringComparer.Ordinal);
         var Constructor=ChooseConstructor(Type,Keys);
         HashSet<string>Consumed=new(StringComparer.Ordinal);
@@ -100,7 +127,7 @@ internal static class SceneJsonRuntimeValues {
             var Arguments=Constructor.GetParameters().Select(Parameter=>{
                 if(Value.Get(Parameter.Name!) is { }Argument){
                     Consumed.Add(Parameter.Name!);
-                    return Create(Parameter.ParameterType,Argument,Where+"."+Parameter.Name);
+                    return Create(Parameter.ParameterType,Argument,Where+"."+Parameter.Name,Reading,Unit??AngleUnitOf(Parameter.CustomAttributes));
                 }
                 return Parameter.DefaultValue;
             }).ToArray();
@@ -114,10 +141,10 @@ internal static class SceneJsonRuntimeValues {
             if(Consumed.Contains(Property.Name)){ continue; }
             switch(FindSettableMember(Type,Property.Name)){
                 case FieldInfo Field:
-                    Field.SetValue(Instance,Create(Field.FieldType,Property.Value,Where+"."+Property.Name));
+                    Field.SetValue(Instance,Create(Field.FieldType,Property.Value,Where+"."+Property.Name,Reading,Unit??AngleUnitOf(Field.CustomAttributes)));
                     break;
                 case PropertyInfo Member:
-                    Member.SetValue(Instance,Create(Member.PropertyType,Property.Value,Where+"."+Property.Name));
+                    Member.SetValue(Instance,Create(Member.PropertyType,Property.Value,Where+"."+Property.Name,Reading,Unit??AngleUnitOf(Member.CustomAttributes)));
                     break;
                 default:
                     throw Mismatch(Where,Type,$"'{Property.Name}' is not a settable member or constructor parameter");

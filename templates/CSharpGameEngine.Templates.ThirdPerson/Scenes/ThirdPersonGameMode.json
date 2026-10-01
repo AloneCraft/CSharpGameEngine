@@ -1,6 +1,6 @@
 {
   "$schema": "../.cge/scene.schema.json",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "namespace": "CgeThirdPerson.Scenes",
   "className": "ThirdPersonGameMode",
   "startupOrder": 0,

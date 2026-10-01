@@ -11,8 +11,8 @@ M0095 の後にユーザーから受けた不具合報告と設計判断を、M0
 | A | ランタイムビューで、選択したギズモを操作しても確定まで画面のオブジェクトが動かない | 完了（82bf9b0、SDK 0.1.5 は d3b6c4e） |
 | B | Options の上下反転（Look / Orbit）: チェックを入れたときの今の挙動を、チェックなしの既定にする | 完了（8589960） |
 | C | 実行時に使われない `VsixStrings.en-US.resx`、obj だけ残った旧ディレクトリ、`UserEcsProject/Generated/` の削除 | 完了（dbb9fc1） |
-| D | 整数 `[SystemOrder]` を廃止し `[RunsAfter]` の相対順序に一本化（同着は完全修飾名順） | 完了（本コミット、ADR-0073）。`[RunsBefore]` を追加した（下記） |
-| E | シーン JSON の角度を turns（1 = 1 回転）で保存し、Inspector は度で表示 | 未着手 |
+| D | 整数 `[SystemOrder]` を廃止し `[RunsAfter]` の相対順序に一本化（同着は完全修飾名順） | 完了（122e316、ADR-0073、SDK 0.1.6 は 24bd2d3）。`[RunsBefore]` を追加した（下記） |
+| E | シーン JSON の角度を turns（1 = 1 回転）で保存し、Inspector は度で表示 | 完了（本コミット、ADR-0074） |
 | F | Scene ビューの 2 プロセス（ランタイムビューと編集ワールド）の統合 | 未着手 |
 | G | Runtime.Physics / Character の Windows 依存の解消と、`Physics.Cli` の UserEcsProject 依存の除去 | 未着手 |
 
@@ -72,3 +72,23 @@ M0095 の後にユーザーから受けた不具合報告と設計判断を、M0
   - `GeneratedSystemOrderTests`（Windows.Tests）: UserEcsProject の生成された System 集合から、Phase ごとの実行順序を固定した。
   - 生成された `RunFrame` の引数順や Archetype の番号を直接書いていた既存テスト 3 件を、新しい順序に合わせた。
 - 調査中の誤り: 移行前の順序の抽出で、テンプレートと stages の生成物が「無い」と出た。`-p:Platform=x64` の違いを疑ったが、実際は抽出スクリプトが Windows のパス長制限（260 文字）でファイルを読めていなかっただけだった。
+
+## E. シーン JSON の角度を turns で保存（ADR-0074）
+- 角度のメンバーとコンストラクタ引数に `[Angle(AngleUnit)]`（Contracts）を付けた。Numerics が Contracts を参照するようにした。
+- `schemaVersion` 2 = turns。読み込み（生成器・プレビューホスト）は版 1 と 2 を受け付け、書き出し（変換器）は常に版 2。生成されるコードとゲームの値は、今までどおりメンバーの単位。
+- 数値は、読み戻して同じ float になる最短の表記で書く。
+- 調査中の誤りと修正:
+  - 最初は float だけで変換したが、テンプレートの移行で 2 ファイルが「値が変わる」として止まった。float の turns に 2π や 360 を掛けても、元の単位の float に届かない値がある（`RotationRateDegrees` の 500、`1.5707965` ラジアン）。変換の 2 メソッドだけを double にし、NUM001 の例外（`[ExternalNumericAdapter]`）とした。
+  - 共有ソースは Contracts を参照しないコンパイル（生成器、CLI）にも入る。そこで属性は、`CGE_NUMERIC_ADAPTER` を定義したコンパイル（SceneModel 本体、VSIX、プレビューホスト）だけで付ける。
+  - 度の表示で `90` が `9E+01` になる不具合をテストで見つけて直した。
+- 移行: `SceneJson.Cli upgrade <game .csproj> [--write]` を追加した。角度の数値と版だけを置き換え、読み直して全 Component の値が元と同じでなければ書かない。
+  - リポジトリの全シーン（UserEcsProject 16、ThirdPerson テンプレート 3、stages 10）と新規シーンの項目テンプレートを版 2 にした。
+  - 角度を含むのは 6 ファイルで、`EulerRuf` 123 か所とほかの角度 5 か所。値は 1 ビットも変わっていない。
+- Inspector: 角度の数値は度で表示・入力し、行の名前に ` (°)` を付ける。読み取り専用の角度（`EulerRuf` の R / U / F など）も度で表示する。ギズモの HUD は以前から度。
+- Designer で版 1 の文書を編集すると、その編集で版 2 になる（版番号と角度の数値が変わった値として書き戻される）。
+- テスト:
+  - `SceneJsonAngleTests`（CodeAnalysis）: 版 1 と版 2 の同じ値、変換器の版 2・turns、移行が数値と版だけを書き換えること、float だけでは届かない値も移行で変わらないこと、スキーマの説明。
+  - `SceneJsonAnglesTests`（SceneModel）: 表記の最短性と、2 万個の float の往復。
+  - `SceneInspectorModelTests.Build_AngleMembers_ShowAndTakeDegrees`（VSExtension）。
+  - 既存の `SceneJsonRuntimeValuesTests` は、プレビューホストが turns の文書から生成器と同じ値を作ることを確かめる（文書の版を渡すように直した）。
+- ユーザーの判断事項: JSON のキーは C# のメンバー名のままなので、`FovYRadians` や `SunDiskAngleDegrees` のキーに turns の値が入る。メンバー名から単位を外すか、JSON のキーだけ別名にするか。

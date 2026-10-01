@@ -11,7 +11,8 @@ namespace CSharpGameEngine.SceneAnalysis.Json;
 /// document (ADR-0070 cutover). The document compiles to the same scene: a constructor call becomes an
 /// object keyed by the constructor's parameter names, member assignments add their member names, and
 /// constants, enum members and collections become JSON values. Values JSON cannot hold (non-constant
-/// static members, factory calls, unsupported syntax) are reported instead of guessed.
+/// static members, factory calls, unsupported syntax) are reported instead of guessed. The document is schema
+/// version 2: every number inside an <c>[Angle]</c> member is written in turns (ADR-0074).
 /// </summary>
 internal static class SceneJsonConverter {
     internal sealed class Result {
@@ -32,7 +33,7 @@ internal static class SceneJsonConverter {
         }
         var Document=SceneJsonOut.Object(Multiline:true);
         if(SchemaReference is not null){ Document.Add("$schema",SceneJsonOut.String(SchemaReference)); }
-        Document.Add("schemaVersion",SceneJsonOut.Number("1"));
+        Document.Add("schemaVersion",SceneJsonOut.Number(SceneJsonSceneAnalyzer.SchemaVersion.ToString(CultureInfo.InvariantCulture)));
         if(Model.Namespace is not null){ Document.Add("namespace",SceneJsonOut.String(Model.Namespace)); }
         Document.Add("className",SceneJsonOut.String(Model.ClassName));
         if(Model.IsStartupScene){ Document.Add("startupOrder",SceneJsonOut.Number(Model.StartupOrder.ToString(CultureInfo.InvariantCulture))); }
@@ -55,7 +56,7 @@ internal static class SceneJsonConverter {
         var Components=SceneJsonOut.Array(Multiline:true);
         foreach(var Component in Node.Components){
             var Where=$"{Node.Path.ToDisplayString()} {Component.TypeFullyQualifiedName}";
-            var Members=ObjectValue(Component.TypeSymbol,Component.ConstructorArguments,Component.Members,null,Where,Problems);
+            var Members=ObjectValue(Component.TypeSymbol,Component.ConstructorArguments,Component.Members,null,Where,Problems,null);
             Components.Add(SceneJsonOut.Object(Multiline:true)
                 .Add("type",SceneJsonOut.String(Component.TypeFullyQualifiedName.Replace("global::",string.Empty)))
                 .Add("members",Members));
@@ -66,7 +67,8 @@ internal static class SceneJsonConverter {
         Result.Add("children",Children);
         return Result;
     }
-    private static SceneJsonOut ObjectValue(ITypeSymbol?Type,IReadOnlyList<SceneValue>Arguments,IReadOnlyList<SceneComponentMember>Members,ISymbol?Constructor,string Where,List<string>Problems){
+    private static SceneJsonOut ObjectValue(ITypeSymbol?Type,IReadOnlyList<SceneValue>Arguments,IReadOnlyList<SceneComponentMember>Members,ISymbol?Constructor,string Where,List<string>Problems,
+        SceneAngleUnit?Unit){
         var Result=SceneJsonOut.Object(Multiline:true);
         var Names=new HashSet<string>(StringComparer.Ordinal);
         if(Arguments.Count>0){
@@ -79,7 +81,7 @@ internal static class SceneJsonConverter {
             for(var Index=0;Index<Arguments.Count;Index++){
                 var Name=Method.Parameters[Index].Name;
                 Names.Add(Name);
-                Result.Add(Name,Value(Arguments[Index],$"{Where}.{Name}",Problems));
+                Result.Add(Name,Value(Arguments[Index],$"{Where}.{Name}",Problems,Unit??SceneJsonSceneAnalyzer.AngleUnitOf(Method.Parameters[Index])));
             }
         }
         foreach(var Member in Members){
@@ -87,24 +89,25 @@ internal static class SceneJsonConverter {
                 Problems.Add($"{Where}: '{Member.MemberName}' is both a constructor argument and a member assignment.");
                 continue;
             }
-            Result.Add(Member.MemberName,Value(Member.Value,$"{Where}.{Member.MemberName}",Problems));
+            var MemberSymbol=Member.MemberSymbol??(Type as INamedTypeSymbol is { }Named?SceneJsonSceneAnalyzer.FindSettableMemberSymbol(Named,Member.MemberName):null);
+            Result.Add(Member.MemberName,Value(Member.Value,$"{Where}.{Member.MemberName}",Problems,Unit??SceneJsonSceneAnalyzer.AngleUnitOf(MemberSymbol)));
         }
         return Result;
     }
-    private static SceneJsonOut Value(SceneValue Value,string Where,List<string>Problems){
+    private static SceneJsonOut Value(SceneValue Value,string Where,List<string>Problems,SceneAngleUnit?Unit){
         switch(Value.Kind){
             case SceneValueKind.EnumMember:
                 return SceneJsonOut.String(Value.ReferencedSymbol!.Name);
             case SceneValueKind.Default:
                 return DefaultValue(Value.Type,Where,Problems);
             case SceneValueKind.ObjectCreation:{
-                var Inline=ObjectValue(Value.Type,Value.Arguments,Value.Members,Value.ReferencedSymbol,Where,Problems);
+                var Inline=ObjectValue(Value.Type,Value.Arguments,Value.Members,Value.ReferencedSymbol,Where,Problems,Unit);
                 return Inline.Properties!.Count==0?SceneJsonOut.Object():RebuildInline(Inline);
             }
             case SceneValueKind.Collection:{
                 var Array=SceneJsonOut.Array();
                 for(var Index=0;Index<Value.Elements.Length;Index++){
-                    Array.Add(SceneJsonConverter.Value(Value.Elements[Index],$"{Where}[{Index}]",Problems));
+                    Array.Add(SceneJsonConverter.Value(Value.Elements[Index],$"{Where}[{Index}]",Problems,Unit));
                 }
                 return Array;
             }
@@ -118,7 +121,9 @@ internal static class SceneJsonConverter {
                     var Member=Value.Type.GetMembers().OfType<IFieldSymbol>().FirstOrDefault(Field=>Field.HasConstantValue&&Equals(Field.ConstantValue,Value.ConstantValue));
                     if(Member is not null){ return SceneJsonOut.String(Member.Name); }
                 }
-                return Constant(Value.ConstantValue,Where,Problems);
+                return Unit is { }AngleUnit&&Value.ConstantValue is float Angle
+                    ?SceneJsonOut.Number(SceneJsonAngles.FormatTurns(Angle,AngleUnit))
+                    :Constant(Value.ConstantValue,Where,Problems);
         }
         Problems.Add($"{Where}: '{Value.SourceExpressionText}' ({Value.Kind}) has no JSON form; write the value itself.");
         return SceneJsonOut.Null();

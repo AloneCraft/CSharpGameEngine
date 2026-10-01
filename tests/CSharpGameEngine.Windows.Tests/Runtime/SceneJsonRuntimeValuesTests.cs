@@ -47,7 +47,7 @@ public sealed class SceneJsonRuntimeValuesTests {
         for(var Index=0;Index<Nodes.Length;Index++){
             foreach(var Component in Nodes[Index].Get("components")!.Items){
                 var Type=ResolveType(Component.Get("type")!.Text!);
-                var Made=SceneJsonRuntimeValues.Component(Type,Component.Get("members")!,Type.Name);
+                var Made=SceneJsonRuntimeValues.Component(Type,Component.Get("members")!,Type.Name,SceneJsonRuntimeValues.UsesTurns(Json));
                 var Getter=typeof(EcsWorld).GetMethods().Single(Method=>Method.Name==nameof(EcsWorld.TryGetComponent)
                     &&Method.GetParameters() is [_,{ }Out]&&Out.ParameterType.GetElementType()==Type);
                 object?[]Arguments=[Entities[Index],null];

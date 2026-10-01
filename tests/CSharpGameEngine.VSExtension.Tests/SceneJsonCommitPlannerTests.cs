@@ -37,7 +37,7 @@ public sealed class SceneJsonCommitPlannerTests {
     private static string Document(string PositionX)=>
         "{\n"
         +"  \"$schema\": \"../.cge/scene.schema.json\",\n"
-        +"  \"schemaVersion\": 1,\n"
+        +"  \"schemaVersion\": 2,\n"
         +"  \"namespace\": \"Game\",\n"
         +"  \"className\": \"MainScene\",\n"
         +"  \"root\": {\n"
@@ -149,7 +149,7 @@ public sealed class SceneJsonCommitPlannerTests {
     /// fixed in the JSON view, where the same errors show.
     /// </summary>
     [Theory]
-    [InlineData("  \"schemaVersion\": 1,\n","  \"schemaVersion\": 1,\n  \"editorNote\": \"x\",\n","SCENE204")]
+    [InlineData("  \"schemaVersion\": 2,\n","  \"schemaVersion\": 2,\n  \"editorNote\": \"x\",\n","SCENE204")]
     [InlineData("              \"RotationW\": 1,\n","              \"RotationW\": 1,\n              \"Bogus\": 1,\n","SCENE202")]
     [InlineData("CSharpGameEngine.Runtime.Windows.Light","CSharpGameEngine.Runtime.Windows.Missing","SCENE201")]
     public void DocumentTheBuildRejects_IsNotAnalyzed(string Find,string Replace,string Diagnostic){

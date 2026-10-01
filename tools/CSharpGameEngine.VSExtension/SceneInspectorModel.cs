@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using CSharpGameEngine.SceneAnalysis;
+using CSharpGameEngine.SceneAnalysis.Json;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
@@ -37,8 +38,9 @@ internal sealed class SceneInspectorMember {
         EditorNodeId NodeId,string ComponentTypeFullyQualifiedName,string MemberName,string SourceExpression,
         bool IsEditable,InspectorEditorKind EditorKind,object?ConstantValue,SpecialType?NumericType,
         IReadOnlyList<InspectorChoiceCandidate>Candidates,
-        IReadOnlyList<string>?DefinitionMemberPath=null,LightValueContract?PhysicalContract=null){
+        IReadOnlyList<string>?DefinitionMemberPath=null,LightValueContract?PhysicalContract=null,SceneAngleUnit?AngleUnit=null){
         this.PhysicalContract=PhysicalContract;
+        this.AngleUnit=AngleUnit;
         this.NodeId=NodeId;
         this.ComponentTypeFullyQualifiedName=ComponentTypeFullyQualifiedName;
         this.MemberName=MemberName;
@@ -54,6 +56,11 @@ internal sealed class SceneInspectorMember {
     }
 
     internal LightValueContract?PhysicalContract{get;}
+    /// <summary>
+    /// ADR-0074: set for a number inside an <c>[Angle]</c> member. The row shows and takes degrees; the source keeps
+    /// this unit (<see cref="SceneInspectorValueFormat.FormatAngle"/>, <see cref="SceneInspectorValueFormat.TryFormatAngle"/>).
+    /// </summary>
+    internal SceneAngleUnit?AngleUnit { get; }
     internal EditorNodeId NodeId { get; }
 
     internal string ComponentTypeFullyQualifiedName { get; }
@@ -257,7 +264,8 @@ internal static class SceneInspectorModelBuilder {
     /// </summary>
     private static SceneInspectorRow BuildRow(
         EditorNodeId NodeId,string ComponentTypeFullyQualifiedName,IReadOnlyList<string>ParentPath,
-        SceneComponentMember Member,bool AllowEdit){
+        SceneComponentMember Member,bool AllowEdit,SceneAngleUnit?InheritedAngle=null){
+        var Angle=InheritedAngle??SceneJsonSceneAnalyzer.AngleUnitOf(Member.MemberSymbol);
         var Physical=LightValueContract.Find(Member.Value.Type);
         if(Physical is not null&&Physical.TryRead(Member.Value,out var Values,out var Editable)){
             var CanEdit=AllowEdit&&Editable&&Physical.Validate(Values);
@@ -267,7 +275,7 @@ internal static class SceneInspectorModelBuilder {
                 string.Join(", ",Values.Select(Value=>Value.ToString("R",CultureInfo.InvariantCulture))),null,[],
                 [..ParentPath,Member.MemberName],Physical));
         }
-        if(TryBuildNested(NodeId,ComponentTypeFullyQualifiedName,ParentPath,Member.MemberName,Member.Value,AllowEdit)is { }Nested){
+        if(TryBuildNested(NodeId,ComponentTypeFullyQualifiedName,ParentPath,Member.MemberName,Member.Value,AllowEdit,Angle)is { }Nested){
             return Nested;
         }
 
@@ -296,7 +304,8 @@ internal static class SceneInspectorModelBuilder {
             Member.Value.ConstantValue,
             Kind==InspectorEditorKind.Number?DeclaredType?.SpecialType:null,
             Candidates,
-            [..ParentPath,Member.MemberName]));
+            [..ParentPath,Member.MemberName],
+            AngleUnit:Angle));
     }
 
     /// <summary>
@@ -306,25 +315,26 @@ internal static class SceneInspectorModelBuilder {
     /// </summary>
     private static SceneInspectorNestedRow?TryBuildNested(
         EditorNodeId NodeId,string ComponentTypeFullyQualifiedName,IReadOnlyList<string>ParentPath,
-        string MemberName,SceneValue Value,bool AllowEdit){
+        string MemberName,SceneValue Value,bool AllowEdit,SceneAngleUnit?Angle){
         if(Value.Kind!=SceneValueKind.ObjectCreation||(Value.Members.IsEmpty&&Value.Arguments.IsEmpty)){
             return null;
         }
 
         IReadOnlyList<string>Path=[..ParentPath,MemberName];
-        var ArgumentLabels=ResolveArgumentLabels(Value.Type,Value.Arguments.Length);
+        var ArgumentLabels=ResolveArgumentLabels(Value.Type,Value.Arguments.Length,out var ArgumentParameters);
         bool AllowRufEdit=AllowEdit
             &&(ArgumentLabels.SequenceEqual(["R","U","F"],StringComparer.Ordinal)
                 ||Value.Members.Select(static Member=>Member.MemberName).SequenceEqual(["R","U","F"],StringComparer.Ordinal));
         List<SceneInspectorRow>Rows=[];
         foreach(var Member in Value.Members){
-            Rows.Add(BuildRow(NodeId,ComponentTypeFullyQualifiedName,Path,Member,AllowRufEdit));
+            Rows.Add(BuildRow(NodeId,ComponentTypeFullyQualifiedName,Path,Member,AllowRufEdit,Angle));
         }
 
         for(var Index=0;Index<Value.Arguments.Length;Index++){
             var Argument=Value.Arguments[Index];
             SceneComponentMember Synthetic=new(ArgumentLabels[Index],MemberSymbol:null,Argument,Argument.Location);
-            Rows.Add(BuildRow(NodeId,ComponentTypeFullyQualifiedName,Path,Synthetic,AllowRufEdit));
+            Rows.Add(BuildRow(NodeId,ComponentTypeFullyQualifiedName,Path,Synthetic,AllowRufEdit,
+                Angle??(ArgumentParameters.Count>Index?SceneJsonSceneAnalyzer.AngleUnitOf(ArgumentParameters[Index]):null)));
         }
 
         return new SceneInspectorNestedRow(
@@ -342,7 +352,8 @@ internal static class SceneInspectorModelBuilder {
     /// 引数の個数だけで探す。1つに絞れなければ(オーバーロードが複数、または型が未解決)、
     /// <c>[0]</c>のような合成ラベルへ縮退する。
     /// </summary>
-    private static IReadOnlyList<string>ResolveArgumentLabels(ITypeSymbol?Type,int ArgumentCount){
+    private static IReadOnlyList<string>ResolveArgumentLabels(ITypeSymbol?Type,int ArgumentCount,out IReadOnlyList<IParameterSymbol>Parameters){
+        Parameters=[];
         if(ArgumentCount==0){
             return [];
         }
@@ -350,6 +361,7 @@ internal static class SceneInspectorModelBuilder {
         if(Type is INamedTypeSymbol Named){
             var Matches=Named.Constructors.Where(Constructor=>Constructor.Parameters.Length==ArgumentCount).ToArray();
             if(Matches.Length==1){
+                Parameters=Matches[0].Parameters;
                 return Matches[0].Parameters.Select(static Parameter=>Parameter.Name).ToArray();
             }
         }
@@ -506,6 +518,24 @@ internal static class SceneInspectorValueFormat {
             :Expression;
 
     internal static string FormatText(string Value)=>SymbolDisplay.FormatLiteral(Value,quote:true);
+
+    /// <summary>ADR-0074: an angle number shown in degrees, whatever unit the source holds.</summary>
+    internal static string FormatAngle(string Expression,SceneAngleUnit Unit){
+        var Number=RemoveFloatSuffix(Expression);
+        return float.TryParse(Number,NumberStyles.Float,CultureInfo.InvariantCulture,out var Value)
+            ?SceneJsonAngles.FormatDegrees(Value,Unit)
+            :Number;
+    }
+
+    /// <summary>ADR-0074: degrees typed into an angle row, as the source expression in the member's unit.</summary>
+    internal static bool TryFormatAngle(SpecialType Type,string Degrees,SceneAngleUnit Unit,out string Expression){
+        Degrees=Degrees.Trim();
+        if(Type!=SpecialType.System_Single||!SceneJsonAngles.IsNumber(Degrees)){
+            Expression=string.Empty;
+            return false;
+        }
+        return TryFormatNumber(Type,SceneJsonAngles.FromDegrees(Degrees,Unit).ToString("R",CultureInfo.InvariantCulture),out Expression);
+    }
 }
 
 /// <summary>

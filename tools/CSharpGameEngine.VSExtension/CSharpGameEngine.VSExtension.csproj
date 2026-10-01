@@ -53,6 +53,8 @@
          which is where they actually ship as an analyzer. Tracking them again here would create a
          second list to keep in sync. -->
     <NoWarn>$(NoWarn);RS2008</NoWarn>
+    <!-- The shared SceneJsonAngles marks its double boundary with Contracts' ExternalNumericAdapter (NUM001). -->
+    <DefineConstants>$(DefineConstants);CGE_NUMERIC_ADAPTER</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

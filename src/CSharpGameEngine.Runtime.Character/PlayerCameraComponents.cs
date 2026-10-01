@@ -1,3 +1,4 @@
+using CSharpGameEngine.Contracts;
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Runtime.Physics;
 namespace CSharpGameEngine.Runtime.Character;
@@ -8,9 +9,13 @@ namespace CSharpGameEngine.Runtime.Character;
 /// </summary>
 [SceneComponentOrder(SceneComponentCategory.Gameplay,13)]
 public struct PlayerController() {
+    [Angle(AngleUnit.Degrees)]
     public float ControlYawDegrees=0f;
+    [Angle(AngleUnit.Degrees)]
     public float ControlPitchDegrees=0f;
+    [Angle(AngleUnit.Degrees)]
     public float MinPitchDegrees=-89f;
+    [Angle(AngleUnit.Degrees)]
     public float MaxPitchDegrees=89f;
 }
 /// <summary>

@@ -1,6 +1,6 @@
 {
   "$schema": "$cgesceneschema$",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "namespace": "$rootnamespace$",
   "className": "$safeitemname$",
   "root": {

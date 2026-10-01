@@ -1,3 +1,4 @@
+using CSharpGameEngine.Contracts;
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Runtime.Physics;
 namespace CSharpGameEngine.Runtime.Character;
@@ -29,7 +30,9 @@ public struct CharacterMovement() {
     public LogicalScalar AirControlBoostVelocityThreshold=LogicalScalar.FromSingle(0.25f);
     public LogicalScalar GravityScale=LogicalScalar.One;
     public LogicalScalar MaxStepHeight=LogicalScalar.FromSingle(0.45f);
+    [Angle(AngleUnit.Degrees)]
     public LogicalScalar WalkableFloorAngleDegrees=LogicalScalar.FromSingle(44.765083f);
+    [Angle(AngleUnit.Degrees)]
     public LogicalScalar RotationRateDegrees=LogicalScalar.FromSingle(500f);
     public bool OrientRotationToMovement=true;
     public PhysicsLayerMask CollidesWith=PhysicsLayerMask.All;

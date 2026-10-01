@@ -11,18 +11,51 @@ namespace CSharpGameEngine.SceneJson.Cli;
 /// already under <c>Scenes</c>, otherwise directly in <c>Scenes</c>. <c>--delete-source</c> also removes the scene classes from their source files,
 /// deleting a file that declares nothing else. Nothing is written for a project with any unconvertible
 /// scene.
+/// <para>
+/// <c>upgrade &lt;game .csproj&gt; [--write]</c> (ADR-0074) rewrites every scene file of schema version 1 as version 2:
+/// angles become turns and the rest of the text stays. Nothing is written when any file has a problem.
+/// </para>
 /// </summary>
 internal static class Program {
     private static async Task<int>Main(string[] Arguments){
-        if(Arguments.Length<2||Arguments[0]!="convert"){
+        if(Arguments.Length<2||Arguments[0] is not("convert" or "upgrade")){
             Console.Error.WriteLine("usage: CSharpGameEngine.SceneJson.Cli convert <game .csproj> [--write] [--delete-source]");
+            Console.Error.WriteLine("       CSharpGameEngine.SceneJson.Cli upgrade <game .csproj> [--write]");
             return 2;
         }
         var ProjectPath=Path.GetFullPath(Arguments[1]);
         var Write=Arguments.Contains("--write");
         var DeleteSource=Arguments.Contains("--delete-source");
         MSBuildLocator.RegisterDefaults();
-        return await Convert(ProjectPath,Write,DeleteSource);
+        return Arguments[0]=="upgrade"?await Upgrade(ProjectPath,Write):await Convert(ProjectPath,Write,DeleteSource);
+    }
+    private static async Task<int>Upgrade(string ProjectPath,bool Write){
+        using var Workspace=MSBuildWorkspace.Create();
+        var Project=await Workspace.OpenProjectAsync(ProjectPath);
+        var Compilation=await Project.GetCompilationAsync()??throw new InvalidOperationException("The project has no compilation.");
+        var ProjectDirectory=Path.GetDirectoryName(ProjectPath)!;
+        var Scenes=Path.Combine(ProjectDirectory,SceneFiles.FolderName);
+        List<(string Path,string Text)>Outputs=[];
+        var Failed=false;
+        IEnumerable<string>Files=Directory.Exists(Scenes)?Directory.EnumerateFiles(Scenes,"*"+SceneFiles.Extension,SearchOption.AllDirectories).Order(StringComparer.Ordinal):[];
+        foreach(var ScenePath in Files){
+            var Result=SceneJsonAngleUpgrade.Upgrade(File.ReadAllText(ScenePath),Compilation);
+            foreach(var Problem in Result.Problems){ Console.Error.WriteLine($"{ScenePath}: {Problem}"); }
+            if(Result.Text is null){
+                Failed=true;
+                continue;
+            }
+            Console.WriteLine($"CGE-SCENE-JSON {(Result.Changed?"upgraded":"already version 2")} {ScenePath}");
+            if(Result.Changed){ Outputs.Add((ScenePath,Result.Text!)); }
+        }
+        if(Failed){
+            Console.Error.WriteLine("Nothing was written: fix the problems above and run again.");
+            return 1;
+        }
+        if(Write){
+            foreach(var Output in Outputs){ File.WriteAllText(Output.Path,Output.Text); }
+        }
+        return 0;
     }
     /// <summary>Where a converted scene goes: a scene file is a <c>*.json</c> under the project's Scenes folder.</summary>
     internal static string SceneJsonPath(string ProjectDirectory,string SourcePath,string SceneName){

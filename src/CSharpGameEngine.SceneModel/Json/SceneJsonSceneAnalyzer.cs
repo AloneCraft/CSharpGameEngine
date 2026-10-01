@@ -44,14 +44,34 @@ internal sealed class SceneJsonNode {
     internal ImmutableArray<SceneJsonComponent>Components { get; }
     internal ImmutableArray<SceneJsonNode>Children { get; }
 }
+/// <summary>A number in the document that an angle member holds (ADR-0074), with the member's C# unit.</summary>
+internal readonly struct SceneJsonAngleValue {
+    internal SceneJsonAngleValue(int Start,int End,string Text,SceneAngleUnit Unit){
+        this.Start=Start;
+        this.End=End;
+        this.Text=Text;
+        this.Unit=Unit;
+    }
+    internal int Start { get; }
+    internal int End { get; }
+    internal string Text { get; }
+    internal SceneAngleUnit Unit { get; }
+}
 internal sealed class SceneJsonScene {
-    internal SceneJsonScene(string?Namespace,string ClassName,int?StartupOrder,SceneJsonNode?Root,ImmutableArray<SceneJsonProblem>Problems){
+    internal SceneJsonScene(string?Namespace,string ClassName,int?StartupOrder,SceneJsonNode?Root,ImmutableArray<SceneJsonProblem>Problems,
+        int SchemaVersion=SceneJsonSceneAnalyzer.SchemaVersion,ImmutableArray<SceneJsonAngleValue>AngleValues=default){
         this.Namespace=Namespace;
         this.ClassName=ClassName;
         this.StartupOrder=StartupOrder;
         this.Root=Root;
         this.Problems=Problems;
+        this.SchemaVersion=SchemaVersion;
+        this.AngleValues=AngleValues.IsDefault?ImmutableArray<SceneJsonAngleValue>.Empty:AngleValues;
     }
+    /// <summary>The document's <c>schemaVersion</c>: 2 stores angles in turns, 1 in each member's own unit.</summary>
+    internal int SchemaVersion { get; }
+    /// <summary>Every number an angle member holds, in document order.</summary>
+    internal ImmutableArray<SceneJsonAngleValue>AngleValues { get; }
     internal string?Namespace { get; }
     internal string ClassName { get; }
     internal int?StartupOrder { get; }
@@ -79,11 +99,22 @@ internal sealed class SceneJsonScene {
 /// constructor consuming the most keys wins) followed by settable members;</item>
 /// <item>a number may also fill a type with an implicit conversion from <c>float</c>
 /// (for example <c>LogicalScalar</c>).</item>
+/// <item>every number inside a member or constructor parameter marked <c>[Angle]</c> is in turns from schema
+/// version 2 on and becomes the member's unit in the emitted literal (ADR-0074); version 1 holds the unit itself.</item>
 /// </list>
 /// Every rejected entry becomes a <see cref="SceneJsonProblem"/> so the whole document is reported at once.
 /// </summary>
 internal static class SceneJsonSceneAnalyzer {
-    internal const int SchemaVersion=1;
+    /// <summary>The version this code writes (ADR-0074: angles in turns). Version 1 is still read.</summary>
+    internal const int SchemaVersion=SceneJsonAngles.TurnsSchemaVersion;
+    /// <summary>How the numbers of angle members read: in turns or in the member's unit, collected for an upgrade.</summary>
+    private sealed class AngleReading {
+        internal AngleReading(bool Turns){
+            this.Turns=Turns;
+        }
+        internal bool Turns { get; }
+        internal List<SceneJsonAngleValue>Values { get; }=[];
+    }
     private static readonly string[]DocumentKeys=["$schema","schemaVersion","namespace","className","startupOrder","root"];
     private static readonly string[]NodeKeys=["id","name","components","children"];
     private static readonly string[]ComponentKeys=["type","members"];
@@ -102,9 +133,13 @@ internal static class SceneJsonSceneAnalyzer {
         }
         RejectUnknownKeys(Document,DocumentKeys,"document",Problems);
         var Version=Document.Get("schemaVersion");
-        if(Version is null||Version.Kind!=SceneJsonKind.Number||Version.Text!="1"){
-            Problems.Add(Invalid(Version??Document,$"'schemaVersion' must be {SchemaVersion}."));
+        var DocumentVersion=SchemaVersion;
+        if(Version is { Kind:SceneJsonKind.Number,Text:"1" or "2" }){
+            DocumentVersion=Version.Text=="1"?1:2;
+        } else {
+            Problems.Add(Invalid(Version??Document,$"'schemaVersion' must be 1 or {SchemaVersion}."));
         }
+        var Angles=new AngleReading(DocumentVersion>=SceneJsonAngles.TurnsSchemaVersion);
         var Namespace=OptionalString(Document,"namespace",Problems);
         if(Namespace is not null&&!Namespace.Split('.').All(IsIdentifier)){
             Problems.Add(Invalid(Document.Get("namespace")!,$"'{Namespace}' is not a namespace name."));
@@ -126,13 +161,13 @@ internal static class SceneJsonSceneAnalyzer {
         }
         SceneJsonNode?Root=null;
         if(Document.Get("root") is { }RootValue){
-            Root=AnalyzeNode(RootValue,ImmutableArray<int>.Empty,Compilation,Problems);
+            Root=AnalyzeNode(RootValue,ImmutableArray<int>.Empty,Compilation,Problems,Angles);
         } else {
             Problems.Add(Invalid(Document,"'root' is required."));
         }
-        return new SceneJsonScene(Namespace,ClassName,StartupOrder,Root,Problems.ToImmutableArray());
+        return new SceneJsonScene(Namespace,ClassName,StartupOrder,Root,Problems.ToImmutableArray(),DocumentVersion,Angles.Values.ToImmutableArray());
     }
-    private static SceneJsonNode?AnalyzeNode(SceneJsonValue Node,ImmutableArray<int>Path,Compilation Compilation,List<SceneJsonProblem>Problems){
+    private static SceneJsonNode?AnalyzeNode(SceneJsonValue Node,ImmutableArray<int>Path,Compilation Compilation,List<SceneJsonProblem>Problems,AngleReading Angles){
         if(Node.Kind!=SceneJsonKind.Object){
             Problems.Add(Invalid(Node,"A node must be a JSON object."));
             return null;
@@ -147,7 +182,7 @@ internal static class SceneJsonSceneAnalyzer {
             } else {
                 HashSet<string>Seen=new(StringComparer.Ordinal);
                 foreach(var Item in ComponentList.Items){
-                    if(AnalyzeComponent(Item,Compilation,Problems) is not { }Component){ continue; }
+                    if(AnalyzeComponent(Item,Compilation,Problems,Angles) is not { }Component){ continue; }
                     if(!Seen.Add(Component.TypeFullyQualifiedName)){
                         var Type=Item.Get("type")!;
                         Problems.Add(new SceneJsonProblem(SceneJsonDiagnostics.DuplicateComponent,Type.Start,Type.End,Type.Text!));
@@ -163,13 +198,13 @@ internal static class SceneJsonSceneAnalyzer {
                 Problems.Add(Invalid(ChildList,"'children' must be an array."));
             } else {
                 for(var Index=0;Index<ChildList.Items.Count;Index++){
-                    if(AnalyzeNode(ChildList.Items[Index],Path.Add(Index),Compilation,Problems) is { }Child){ Children.Add(Child); }
+                    if(AnalyzeNode(ChildList.Items[Index],Path.Add(Index),Compilation,Problems,Angles) is { }Child){ Children.Add(Child); }
                 }
             }
         }
         return new SceneJsonNode(Id,Name,Path,Components.ToImmutable(),Children.ToImmutable());
     }
-    private static SceneJsonComponent?AnalyzeComponent(SceneJsonValue Component,Compilation Compilation,List<SceneJsonProblem>Problems){
+    private static SceneJsonComponent?AnalyzeComponent(SceneJsonValue Component,Compilation Compilation,List<SceneJsonProblem>Problems,AngleReading Angles){
         if(Component.Kind!=SceneJsonKind.Object){
             Problems.Add(Invalid(Component,"A component must be a JSON object."));
             return null;
@@ -191,7 +226,7 @@ internal static class SceneJsonSceneAnalyzer {
             return null;
         }
         var ProblemCount=Problems.Count;
-        var Expression=ObjectExpression(Type!,Members,TypeName,Compilation,Problems);
+        var Expression=ObjectExpression(Type!,Members,TypeName,Compilation,Problems,Angles,null);
         if(Problems.Count!=ProblemCount){ return null; }
         return new SceneJsonComponent(SceneTypePredicates.ToFullyQualifiedName(Type!),Expression);
     }
@@ -225,7 +260,8 @@ internal static class SceneJsonSceneAnalyzer {
         Reason=string.Empty;
         return true;
     }
-    private static string ObjectExpression(INamedTypeSymbol Type,SceneJsonValue?Value,string DisplayName,Compilation Compilation,List<SceneJsonProblem>Problems){
+    private static string ObjectExpression(INamedTypeSymbol Type,SceneJsonValue?Value,string DisplayName,Compilation Compilation,List<SceneJsonProblem>Problems,
+        AngleReading Angles,SceneAngleUnit?Unit){
         var TypeText=SceneTypePredicates.ToFullyQualifiedName(Type);
         var Properties=Value?.Properties??Array.Empty<SceneJsonProperty>();
         var Keys=new HashSet<string>(Properties.Select(static Property=>Property.Name),StringComparer.Ordinal);
@@ -237,14 +273,16 @@ internal static class SceneJsonSceneAnalyzer {
                 var Property=Properties.FirstOrDefault(Candidate=>Candidate.Name==Parameter.Name);
                 if(Property is null){ continue; }
                 Consumed.Add(Property.Name);
-                Arguments.Add(Parameter.Name+": "+ValueExpression(Parameter.Type,Property.Value,DisplayName+"."+Property.Name,Compilation,Problems));
+                Arguments.Add(Parameter.Name+": "+ValueExpression(Parameter.Type,Property.Value,DisplayName+"."+Property.Name,Compilation,Problems,
+                    Angles,Unit??AngleUnitOf(Parameter)));
             }
         }
         var Assignments=new List<string>();
         var IncompleteConstructorReported=false;
         foreach(var Property in Properties){
             if(Consumed.Contains(Property.Name)){ continue; }
-            if(FindSettableMember(Type,Property.Name) is not { }MemberType){
+            var MemberSymbol=FindSettableMemberSymbol(Type,Property.Name);
+            if(TypeOf(MemberSymbol) is not { }MemberType){
                 // A constructor parameter name that no usable constructor consumed means the other
                 // required arguments are missing; say which, once, instead of "no such member".
                 if(IncompleteConstructorFor(Type,Keys,Property.Name) is { }Incomplete){
@@ -261,7 +299,8 @@ internal static class SceneJsonSceneAnalyzer {
                 Problems.Add(new SceneJsonProblem(SceneJsonDiagnostics.UnknownMember,NameStart,NameStart+Property.Name.Length+2,SceneTypePredicates.ToFullyQualifiedName(Type).Replace("global::",string.Empty),Property.Name));
                 continue;
             }
-            Assignments.Add(Property.Name+" = "+ValueExpression(MemberType,Property.Value,DisplayName+"."+Property.Name,Compilation,Problems));
+            Assignments.Add(Property.Name+" = "+ValueExpression(MemberType,Property.Value,DisplayName+"."+Property.Name,Compilation,Problems,
+                Angles,Unit??AngleUnitOf(MemberSymbol)));
         }
         var Builder=new StringBuilder("new ").Append(TypeText).Append('(').Append(string.Join(", ",Arguments)).Append(')');
         if(Assignments.Count>0){ Builder.Append(" { ").Append(string.Join(", ",Assignments)).Append(" }"); }
@@ -300,17 +339,35 @@ internal static class SceneJsonSceneAnalyzer {
             .Where(Candidate=>Candidate.Parameters.Any(Parameter=>Parameter.Name==Name))
             .OrderByDescending(Candidate=>Candidate.Parameters.Count(Parameter=>Keys.Contains(Parameter.Name)))
             .FirstOrDefault();
-    internal static ITypeSymbol?FindSettableMember(INamedTypeSymbol Type,string Name){
+    internal static ITypeSymbol?FindSettableMember(INamedTypeSymbol Type,string Name)=>TypeOf(FindSettableMemberSymbol(Type,Name));
+    /// <summary>The public instance field or settable property a JSON key assigns.</summary>
+    internal static ISymbol?FindSettableMemberSymbol(INamedTypeSymbol Type,string Name){
         for(ITypeSymbol?Current=Type;Current is not null;Current=Current.BaseType){
             foreach(var Member in Current.GetMembers(Name)){
                 if(Member.DeclaredAccessibility!=Accessibility.Public||Member.IsStatic){ continue; }
-                if(Member is IFieldSymbol{ IsReadOnly:false,IsConst:false }Field){ return Field.Type; }
-                if(Member is IPropertySymbol{ SetMethod:{ DeclaredAccessibility:Accessibility.Public } }Property){ return Property.Type; }
+                if(Member is IFieldSymbol{ IsReadOnly:false,IsConst:false }){ return Member; }
+                if(Member is IPropertySymbol{ SetMethod:{ DeclaredAccessibility:Accessibility.Public } }){ return Member; }
             }
         }
         return null;
     }
-    private static string ValueExpression(ITypeSymbol Type,SceneJsonValue Value,string MemberName,Compilation Compilation,List<SceneJsonProblem>Problems){
+    private static ITypeSymbol?TypeOf(ISymbol?Member)=>Member switch {
+        IFieldSymbol Field=>Field.Type,
+        IPropertySymbol Property=>Property.Type,
+        _=>null,
+    };
+    /// <summary>The unit an <c>[Angle]</c> attribute declares on a field, property or parameter (ADR-0074).</summary>
+    internal static SceneAngleUnit?AngleUnitOf(ISymbol?Symbol){
+        if(Symbol is null){ return null; }
+        foreach(var Attribute in Symbol.GetAttributes()){
+            if(Attribute.AttributeClass?.ToDisplayString()==SceneJsonAngles.AttributeFullName&&Attribute.ConstructorArguments.Length==1){
+                return SceneJsonAngles.UnitFromArgument(Attribute.ConstructorArguments[0].Value);
+            }
+        }
+        return null;
+    }
+    private static string ValueExpression(ITypeSymbol Type,SceneJsonValue Value,string MemberName,Compilation Compilation,List<SceneJsonProblem>Problems,
+        AngleReading Angles,SceneAngleUnit?Unit){
         string Mismatch(string Reason){
             Problems.Add(new SceneJsonProblem(SceneJsonDiagnostics.ValueMismatch,Value.Start,Value.End,MemberName,Type.ToDisplayString(),Reason));
             return "default";
@@ -319,7 +376,7 @@ internal static class SceneJsonSceneAnalyzer {
             return Type.IsReferenceType||Type.OriginalDefinition.SpecialType==SpecialType.System_Nullable_T?"null":Mismatch("null is only valid for reference and nullable types");
         }
         if(Type is INamedTypeSymbol{ OriginalDefinition.SpecialType:SpecialType.System_Nullable_T }Nullable){
-            return ValueExpression(Nullable.TypeArguments[0],Value,MemberName,Compilation,Problems);
+            return ValueExpression(Nullable.TypeArguments[0],Value,MemberName,Compilation,Problems,Angles,Unit);
         }
         if(Type.TypeKind==TypeKind.Enum){
             if(Value.Kind!=SceneJsonKind.String){ return Mismatch("an enum value is written as the member name string"); }
@@ -331,9 +388,9 @@ internal static class SceneJsonSceneAnalyzer {
                 return Value.Kind==SceneJsonKind.True?"true":Value.Kind==SceneJsonKind.False?"false":Mismatch("expected true or false");
             case SpecialType.System_String:
                 return Value.Kind==SceneJsonKind.String?SymbolDisplay.FormatLiteral(Value.Text!,quote:true):Mismatch("expected a string");
-            case SpecialType.System_Single:return RealLiteral(Value,"f",Mismatch);
-            case SpecialType.System_Double:return RealLiteral(Value,"d",Mismatch);
-            case SpecialType.System_Decimal:return RealLiteral(Value,"m",Mismatch);
+            case SpecialType.System_Single:return RealLiteral(AngleText(Value,Angles,Unit),Value,"f",Mismatch);
+            case SpecialType.System_Double:return RealLiteral(AngleText(Value,Angles,Unit),Value,"d",Mismatch);
+            case SpecialType.System_Decimal:return RealLiteral(AngleText(Value,Angles,Unit),Value,"m",Mismatch);
             case SpecialType.System_SByte:return IntegerLiteral(Value,sbyte.MinValue,(ulong)sbyte.MaxValue,"(sbyte)",Mismatch);
             case SpecialType.System_Byte:return IntegerLiteral(Value,byte.MinValue,byte.MaxValue,"(byte)",Mismatch);
             case SpecialType.System_Int16:return IntegerLiteral(Value,short.MinValue,(ulong)short.MaxValue,"(short)",Mismatch);
@@ -348,21 +405,34 @@ internal static class SceneJsonSceneAnalyzer {
             // target-typed, so the implicit conversion applies without a cast. A cast would also make
             // the value unreadable to the Scene DSL analyzer that the editor runs over this text.
             return Compilation.ClassifyConversion(Single,Type).IsImplicit
-                ?Value.Text+"f"
+                ?AngleText(Value,Angles,Unit)+"f"
                 :Mismatch("a number needs a numeric member or a type convertible from float");
         }
         if(Value.Kind==SceneJsonKind.Array){
             var Element=Type is IArrayTypeSymbol Array?Array.ElementType:ElementTypeOf(Type,Compilation);
             if(Element is null){ return Mismatch("an array needs an array or collection member"); }
-            var Items=Value.Items.Select((Item,Index)=>ValueExpression(Element,Item,MemberName+"["+Index.ToString(CultureInfo.InvariantCulture)+"]",Compilation,Problems));
+            var Items=Value.Items.Select((Item,Index)=>ValueExpression(Element,Item,MemberName+"["+Index.ToString(CultureInfo.InvariantCulture)+"]",Compilation,Problems,Angles,Unit));
             return Type is IArrayTypeSymbol
                 ?"new "+SceneTypePredicates.ToFullyQualifiedName(Element)+"[] { "+string.Join(", ",Items)+" }"
                 :"["+string.Join(", ",Items)+"]";
         }
         if(Value.Kind==SceneJsonKind.Object&&Type is INamedTypeSymbol Named&&Named.TypeKind is TypeKind.Struct or TypeKind.Class){
-            return ObjectExpression(Named,Value,MemberName,Compilation,Problems);
+            return ObjectExpression(Named,Value,MemberName,Compilation,Problems,Angles,Unit);
         }
         return Mismatch("this JSON value cannot be converted to the member's type");
+    }
+    /// <summary>
+    /// A number's literal text. Inside an angle member it is recorded, and a turns document's value becomes the
+    /// member's unit (ADR-0074). The literal is the shortest text of that float in either version, so a version 1
+    /// document and its upgrade emit the same text.
+    /// </summary>
+    private static string AngleText(SceneJsonValue Value,AngleReading Angles,SceneAngleUnit?Unit){
+        if(Unit is not { }AngleUnit||Value.Kind!=SceneJsonKind.Number){ return Value.Text??string.Empty; }
+        Angles.Values.Add(new SceneJsonAngleValue(Value.Start,Value.End,Value.Text!,AngleUnit));
+        if(!SceneJsonAngles.IsNumber(Value.Text)){ return Value.Text!; }
+        return SceneJsonNumbers.FormatSingle(Angles.Turns
+            ?SceneJsonAngles.FromTurns(Value.Text!,AngleUnit)
+            :float.Parse(Value.Text!,NumberStyles.Float,CultureInfo.InvariantCulture));
     }
     private static ITypeSymbol?ElementTypeOf(ITypeSymbol Type,Compilation Compilation){
         var Enumerable=Compilation.GetSpecialType(SpecialType.System_Collections_Generic_IEnumerable_T);
@@ -371,8 +441,8 @@ internal static class SceneJsonSceneAnalyzer {
         }
         return null;
     }
-    private static string RealLiteral(SceneJsonValue Value,string Suffix,Func<string,string>Mismatch)=>
-        Value.Kind==SceneJsonKind.Number?Value.Text+Suffix:Mismatch("expected a number");
+    private static string RealLiteral(string Text,SceneJsonValue Value,string Suffix,Func<string,string>Mismatch)=>
+        Value.Kind==SceneJsonKind.Number?Text+Suffix:Mismatch("expected a number");
     private static string IntegerLiteral(SceneJsonValue Value,long Minimum,ulong Maximum,string Cast,Func<string,string>Mismatch){
         if(Value.Kind!=SceneJsonKind.Number){ return Mismatch("expected an integer"); }
         bool InRange;

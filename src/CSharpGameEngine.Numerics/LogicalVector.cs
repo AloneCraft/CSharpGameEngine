@@ -35,7 +35,7 @@ public readonly record struct LogicalVector3(LogicalScalar R,LogicalScalar U,Log
     public static LogicalVector3 operator /(LogicalVector3 Value,LogicalScalar Factor)=>new(Value.R/Factor,Value.U/Factor,Value.F/Factor);
 }
 public readonly record struct LogicalQuaternion(LogicalScalar R,LogicalScalar U,LogicalScalar F,LogicalScalar W) {
-    public LogicalQuaternion(LogicalVector3 EulerRuf):this(FromEulerRuf(EulerRuf),0){ }
+    public LogicalQuaternion([CSharpGameEngine.Contracts.Angle(CSharpGameEngine.Contracts.AngleUnit.Radians)]LogicalVector3 EulerRuf):this(FromEulerRuf(EulerRuf),0){ }
     private LogicalQuaternion(LogicalQuaternion Value,byte _):this(Value.R,Value.U,Value.F,Value.W){ }
     public static LogicalQuaternion Identity=>new(LogicalScalar.Zero,LogicalScalar.Zero,LogicalScalar.Zero,LogicalScalar.One);
     public LogicalScalar LengthSquared=>this.R*this.R+this.U*this.U+this.F*this.F+this.W*this.W;

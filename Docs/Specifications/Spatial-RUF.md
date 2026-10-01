@@ -116,7 +116,8 @@ Screen/Texture Spaceは、既存Rendering/Scene層(`CSharpGameEngine.Scene.Trans
 
 ## Units
 
-Runtime単位は距離=メートル、角度API=ラジアン、時間=秒、スケール=無次元。`UnitConversion`は
+Runtime単位は距離=メートル、角度API=ラジアン、時間=秒、スケール=無次元。シーン JSON は角度を turns(1 = 1回転)で
+保存し、エディタは度で表示する。C#のメンバーはそれぞれの単位(`[Angle]`で宣言)を保つ(ADR-0074)。`UnitConversion`は
 Authoring/Import境界専用のヘルパー(メートル/センチメートル、ラジアン/度)であり、Runtime内部の
 正とはしない。軸変換(`ICoordinateConvention`)と単位変換(`UnitConversion`)は独立した処理段階であり、
 順序を入れ替えても結果が変わらないこと(線形写像同士の可換性)を`ImportAxisConversionTests`で

@@ -36,7 +36,9 @@ internal sealed class InspectorMemberViewModel:InspectorSelectableViewModel {
         this.DisplayText=Member.EditorKind switch {
             InspectorEditorKind.PhysicalValue=>Member.ConstantValue as string??Member.SourceExpression,
             InspectorEditorKind.Text=>Member.ConstantValue as string??string.Empty,
+            InspectorEditorKind.Number when Member.AngleUnit is { }Unit=>SceneInspectorValueFormat.FormatAngle(Member.SourceExpression,Unit),
             InspectorEditorKind.Number=>SceneInspectorValueFormat.RemoveFloatSuffix(Member.SourceExpression),
+            InspectorEditorKind.ReadOnly when Member.AngleUnit is { }ReadOnlyUnit=>SceneInspectorValueFormat.FormatAngle(Member.SourceExpression,ReadOnlyUnit),
             _=>Member.SourceExpression,
         };
         this.BooleanValue=Member.ConstantValue is bool BoolValue&&BoolValue;
@@ -53,7 +55,9 @@ internal sealed class InspectorMemberViewModel:InspectorSelectableViewModel {
 
     /// <summary>グルーピング表示での行ラベル。Component名はExpanderのヘッダ側が出すので重ねない
     /// (<see cref="Label"/>は引き続きツールチップで完全な位置を示すために使う)。</summary>
-    public string MemberName=>this.Member.PhysicalContract is { }Physical?this.Member.MemberName+" ("+Physical.Unit+"; "+string.Join(", ",Physical.Parameters)+")":this.Member.MemberName;
+    public string MemberName=>this.Member.PhysicalContract is { }Physical?this.Member.MemberName+" ("+Physical.Unit+"; "+string.Join(", ",Physical.Parameters)+")"
+        :this.Member.AngleUnit is not null?this.Member.MemberName+" (°)"
+        :this.Member.MemberName;
 
     public InspectorEditorKind EditorKind=>this.Member.EditorKind;
 

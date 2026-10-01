@@ -1,3 +1,4 @@
+using CSharpGameEngine.Contracts;
 using CSharpGameEngine.Entities;
 namespace CSharpGameEngine.Runtime.Lighting;
 /// <summary>
@@ -37,6 +38,7 @@ public struct SkyAtmosphere() {
     public float OtherTentWidthKm=30f;
     public float MultiScatteringFactor=1f;
     /// <summary>Full angular diameter of the sun disk in degrees (Unreal's DirectionalLight Source Angle).</summary>
+    [Angle(AngleUnit.Degrees)]
     public float SunDiskAngleDegrees=0.5357f;
 }
 /// <summary>Sky light captured from <see cref="SkyAtmosphere"/>. <see cref="Intensity"/> multiplies the captured sky radiance.</summary>

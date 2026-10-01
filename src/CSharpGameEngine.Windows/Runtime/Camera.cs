@@ -1,3 +1,4 @@
+using CSharpGameEngine.Contracts;
 using CSharpGameEngine.Entities;
 namespace CSharpGameEngine.Runtime.Windows;
 
@@ -16,6 +17,7 @@ public enum CameraProjection {
 public struct Camera() {
     public bool Active=true;
     public CameraProjection Projection=CameraProjection.Perspective;
+    [Angle(AngleUnit.Radians)]
     public float FovYRadians=System.MathF.PI/4f;
     public float NearZ=0.1f;
     public float FarZ=300f;

@@ -1,4 +1,5 @@
 using System;
+using CSharpGameEngine.Contracts;
 namespace CSharpGameEngine.Lighting;
 /// <summary>Shared validation of physical light quantities; independent of rendering and authoring.</summary>
 public static class LightValueValidation {
@@ -116,7 +117,7 @@ public readonly struct RectangleSize {
     public bool IsValid=>LightValueValidation.Positive(this.WidthMeters)&&LightValueValidation.Positive(this.HeightMeters);
 }
 public readonly struct SpotConeAngles {
-    public SpotConeAngles(float InnerFullAngleDegrees,float OuterFullAngleDegrees){
+    public SpotConeAngles([Angle(AngleUnit.Degrees)]float InnerFullAngleDegrees,[Angle(AngleUnit.Degrees)]float OuterFullAngleDegrees){
         LightValueValidation.Require(LightValueValidation.Positive(OuterFullAngleDegrees)&&OuterFullAngleDegrees<=180f,nameof(OuterFullAngleDegrees));
         LightValueValidation.Require(LightValueValidation.Positive(InnerFullAngleDegrees)&&InnerFullAngleDegrees<=OuterFullAngleDegrees,nameof(InnerFullAngleDegrees));
         this.InnerFullAngleDegrees=InnerFullAngleDegrees;this.OuterFullAngleDegrees=OuterFullAngleDegrees;

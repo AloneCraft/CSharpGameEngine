@@ -29,6 +29,8 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
     /// <summary>The last applied document and its nodes in pre-order, the base of a drag's transform overrides.</summary>
     private string DocumentText=string.Empty;
     private SceneJsonValue[]DocumentNodes=[];
+    /// <summary>Whether the document's angles are turns (schema version 2, ADR-0074); the override keeps the other members' text.</summary>
+    private bool DocumentTurns;
     private float[]OverlayTriangles=[];
     private float[]OverlayLines=[];
     private int[]Selection=[];
@@ -103,14 +105,18 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
     private void ApplySceneDocument(string SceneJson){
         ObjectDisposedException.ThrowIf(this.Disposed,this);
         SceneJsonValue[]Nodes;
+        bool Turns;
         try {
-            Nodes=[.. PreOrder(SceneJsonReader.Parse(SceneJson).Get("root")
+            var Document=SceneJsonReader.Parse(SceneJson);
+            Turns=SceneJsonRuntimeValues.UsesTurns(Document);
+            Nodes=[.. PreOrder(Document.Get("root")
                 ??throw new SceneJsonException("The scene document has no root.",0))];
         } catch(SceneJsonException){
             return;
         }
         this.NodeIndexByPath=NodePaths(Nodes.Length>0?Nodes[0]:null);
         this.DocumentText=SceneJson;
+        this.DocumentTurns=Turns;
         this.DocumentNodes=Nodes;
         var Stale=Nodes.Length!=(int)Invoke(this.NodeCountMethod,[])!;
         for(var Index=0;Index<Nodes.Length&&!Stale;Index++){
@@ -122,7 +128,7 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
                 }
                 object Value;
                 try {
-                    Value=SceneJsonRuntimeValues.Component(Type,Component.Get("members")??SceneJsonReader.Parse("{}"),Type.Name);
+                    Value=SceneJsonRuntimeValues.Component(Type,Component.Get("members")??SceneJsonReader.Parse("{}"),Type.Name,Turns);
                 } catch(InvalidOperationException){
                     // The generator reports the document's errors; the view keeps the last good values.
                     continue;
@@ -199,7 +205,7 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
             if(Component is null){ continue; }
             object Value;
             try {
-                Value=SceneJsonRuntimeValues.Component(Type,this.OverriddenMembers(Component.Get("members"),Override),Type.Name);
+                Value=SceneJsonRuntimeValues.Component(Type,this.OverriddenMembers(Component.Get("members"),Override),Type.Name,this.DocumentTurns);
             } catch(Exception Error)when(Error is InvalidOperationException or SceneJsonException){
                 continue;
             }

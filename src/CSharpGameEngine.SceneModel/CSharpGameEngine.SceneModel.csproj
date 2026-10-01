@@ -14,6 +14,8 @@
       「片方だけ更新した」というズレが必ず起きる。追跡の実効性は出荷側で担保される。
     -->
     <NoWarn>$(NoWarn);RS2008</NoWarn>
+    <!-- SceneJsonAngles marks its double boundary with Contracts' ExternalNumericAdapter where NUM001 runs. -->
+    <DefineConstants>$(DefineConstants);CGE_NUMERIC_ADAPTER</DefineConstants>
   </PropertyGroup>
 
   <!--
@@ -34,4 +36,7 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\CSharpGameEngine.Contracts\CSharpGameEngine.Contracts.csproj" />
+  </ItemGroup>
 </Project>
