@@ -343,7 +343,6 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
         }
 
         this.Host=null;
-        this.ClearRuntimeDebugPresentation();
         this.RenderHostGrid.Children.Remove(Host);
         Host.StatusChanged-=this.OnStatusChanged;
         Host.SpatialDebugStatusChanged-=this.OnSpatialDebugStatusChanged;
@@ -625,28 +624,6 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     private void OnPhysicsBakeSelected(object Sender,RoutedEventArgs Args){
         ThreadHelper.ThrowIfNotOnUIThread();
         this.StartPhysicsBake(BakeAll:false);
-    }
-    private void OnRuntimeDebugRefresh(object Sender,RoutedEventArgs Args){
-        ThreadHelper.ThrowIfNotOnUIThread();
-        if(this.Host is not { }Host){
-            this.ClearRuntimeDebugPresentation();
-            return;
-        }
-        try {
-            RuntimeDebugSnapshotPresentation Presentation=
-                RuntimeDebugSnapshotPresentation.Create(
-                    Host.CaptureRuntimeDebugSnapshot());
-            this.RuntimeDebugSummaryText.Text=Presentation.Summary;
-            this.RuntimeDebugRows.ItemsSource=Presentation.Rows;
-        } catch(Exception Error){
-            this.RuntimeDebugRows.ItemsSource=null;
-            this.RuntimeDebugSummaryText.Text=
-                VsixText.Format("RuntimeDebugFailed",Error.Message);
-        }
-    }
-    private void ClearRuntimeDebugPresentation(){
-        this.RuntimeDebugRows.ItemsSource=null;
-        this.RuntimeDebugSummaryText.Text=VsixText.Get("RuntimeDebugNoSnapshot");
     }
     private void OnPhysicsBakeAll(object Sender,RoutedEventArgs Args){
         ThreadHelper.ThrowIfNotOnUIThread();

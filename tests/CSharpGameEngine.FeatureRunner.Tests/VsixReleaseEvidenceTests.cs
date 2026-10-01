@@ -32,9 +32,9 @@ public sealed class VsixReleaseEvidenceTests:IDisposable {
 
         Assert.Empty(await VsixReleaseEvidence.ValidateAsync(this.Root,ReportPath));
         Assert.Equal("Release",Report.Configuration);
-        Assert.Equal(8,Report.Observations.Count);
+        Assert.Equal(7,Report.Observations.Count);
         Assert.Equal(2,Report.Observations.Count(static Item=>Item.Kind=="Automated"));
-        Assert.Equal(6,Report.Observations.Count(static Item=>Item.Kind=="Manual"));
+        Assert.Equal(5,Report.Observations.Count(static Item=>Item.Kind=="Manual"));
         Assert.All(Report.Observations,Item=>
             Assert.Equal(Report.Package.PackageSha256,Item.PackageSha256));
         Assert.Equal("CgeRelease",Report.Lifecycle.RootSuffix);

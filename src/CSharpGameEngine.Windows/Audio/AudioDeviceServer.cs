@@ -54,40 +54,6 @@ public sealed class AudioDeviceServer:IDisposable {
 
     public AudioDeviceSnapshot Snapshot=>new(
         this.State,this.Mode,this.Generation,this.LastFailure,this.LastRecovery);
-    public PlatformDebugAudioSnapshot CaptureDebugSnapshot(){
-        AudioDeviceSnapshot Device=this.Snapshot;
-        global::CSharpGameEngine.Audio.AudioVoiceRecoveryReport Recovery=Device.LastRecovery;
-        return new PlatformDebugAudioSnapshot {
-            State=ToDebugState(Device.State),
-            Mode=ToDebugMode(Device.Mode),
-            Generation=Device.Generation,
-            ActiveVoiceCount=this.Mixer.ActiveVoiceCount,
-            MaximumVoiceCount=this.Mixer.MaximumVoices,
-            BusCount=this.Mixer.BusCount,
-            RestoredVoiceCount=Recovery.RestoredVoiceCount,
-            StoppedVoiceCount=Recovery.StoppedVoiceCount,
-            RecoveryEventCount=Recovery.EventCount,
-            DroppedRecoveryEventCount=Recovery.DroppedEventCount,
-            LastFailure=Device.LastFailure,
-        };
-    }
-
-    private static PlatformDebugSubsystemState ToDebugState(AudioDeviceState State)=>State switch {
-        AudioDeviceState.Unavailable=>PlatformDebugSubsystemState.Unavailable,
-        AudioDeviceState.Creating=>PlatformDebugSubsystemState.Creating,
-        AudioDeviceState.Ready=>PlatformDebugSubsystemState.Ready,
-        AudioDeviceState.Recovering=>PlatformDebugSubsystemState.Recovering,
-        AudioDeviceState.Faulted=>PlatformDebugSubsystemState.Faulted,
-        AudioDeviceState.Disposed=>PlatformDebugSubsystemState.Disposed,
-        _=>throw new ArgumentOutOfRangeException(nameof(State)),
-    };
-
-    private static PlatformDebugAudioBackendMode ToDebugMode(AudioBackendMode Mode)=>Mode switch {
-        AudioBackendMode.None=>PlatformDebugAudioBackendMode.None,
-        AudioBackendMode.XAudio2=>PlatformDebugAudioBackendMode.XAudio2,
-        AudioBackendMode.Silent=>PlatformDebugAudioBackendMode.Silent,
-        _=>throw new ArgumentOutOfRangeException(nameof(Mode)),
-    };
     public AudioDeviceState State { get;private set; }=AudioDeviceState.Unavailable;
     public AudioBackendMode Mode { get;private set; }
     public uint Generation { get;private set; }

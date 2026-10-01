@@ -65,56 +65,6 @@ public sealed class RenderPreviewHostSessionTableTests {
             Table.Handle(Command(Open,RenderPreviewHostCommand.Render,3)).State);
     }
 
-    [Fact]
-    public void Snapshot_IsReadOnlyAndItsCaptureFailureDoesNotDisposeSession(){
-        FakeSession?Owned=null;
-        using RenderPreviewHostSessionTable Table=new(_=>Owned=new FakeSession());
-        RenderPreviewHostRequest Open=CreateOpen();
-        Assert.Equal(RenderPreviewHostResultState.Succeeded,Table.Handle(Open).State);
-
-        RenderPreviewHostResponse Captured=Table.Handle(
-            Command(Open,RenderPreviewHostCommand.Snapshot,2));
-
-        Assert.Equal(RenderPreviewHostResultState.Succeeded,Captured.State);
-        Assert.NotNull(Captured.DebugSnapshot);
-        Assert.Null(RenderPreviewHostProtocol.ValidateDebugSnapshot(
-            Captured.DebugSnapshot));
-        Assert.Equal(1,Owned!.SnapshotCalls);
-        Assert.Equal(0,Owned.RenderCalls);
-        Assert.False(Owned.Disposed);
-
-        Owned.ThrowOnSnapshot=true;
-        RenderPreviewHostResponse Failed=Table.Handle(
-            Command(Open,RenderPreviewHostCommand.Snapshot,3));
-
-        Assert.Equal(RenderPreviewHostResultState.Failed,Failed.State);
-        Assert.Equal("PREVIEW_SNAPSHOT_FAILED",Failed.DiagnosticCode);
-        Assert.False(Owned.Disposed);
-        Assert.Equal(RenderPreviewHostResultState.Succeeded,
-            Table.Handle(Command(Open,RenderPreviewHostCommand.Render,4)).State);
-        Assert.Equal(1,Owned.RenderCalls);
-    }
-
-    [Fact]
-    public void MalformedSnapshot_FailsClosedWithoutDisposingSession(){
-        FakeSession?Owned=null;
-        using RenderPreviewHostSessionTable Table=new(_=>Owned=new FakeSession());
-        RenderPreviewHostRequest Open=CreateOpen();
-        Assert.Equal(RenderPreviewHostResultState.Succeeded,Table.Handle(Open).State);
-        Owned!.ReturnMalformedSnapshot=true;
-
-        RenderPreviewHostResponse Failed=Table.Handle(
-            Command(Open,RenderPreviewHostCommand.Snapshot,2));
-
-        Assert.Equal(RenderPreviewHostResultState.Failed,Failed.State);
-        Assert.Equal("PREVIEW_SNAPSHOT_FAILED",Failed.DiagnosticCode);
-        Assert.Contains("invalid debug snapshot",Failed.Message,
-            StringComparison.OrdinalIgnoreCase);
-        Assert.False(Owned.Disposed);
-        Assert.Equal(RenderPreviewHostResultState.Succeeded,
-            Table.Handle(Command(Open,RenderPreviewHostCommand.Render,3)).State);
-    }
-
     internal static RenderPreviewHostRequest CreateOpenForPipe()=>CreateOpen();
 
     private static RenderPreviewHostRequest CreateOpen()=>new(){
@@ -157,11 +107,8 @@ public sealed class RenderPreviewHostSessionTableTests {
             new(){ SceneObjectCount=3,FrustumCandidateCount=3,DrawCallCount=2,ViewProjectionHash=17 },
         ];
         public int RenderCalls{get;private set;}
-        public int SnapshotCalls{get;private set;}
         public bool Disposed{get;private set;}
         public bool ThrowOnReplace{get;init;}
-        public bool ThrowOnSnapshot{get;set;}
-        public bool ReturnMalformedSnapshot{get;set;}
 
         public void ReplaceScene(RenderPreviewScene Scene,string SceneJson){
             if(this.ThrowOnReplace){ throw new InvalidOperationException("fault"); }
@@ -169,32 +116,6 @@ public sealed class RenderPreviewHostSessionTableTests {
         public void UpdateFrame(RenderPreviewFrame Frame){ }
         public void Resize(int Width,int Height){ }
         public void Render(bool CaptureForVerification){ this.RenderCalls++; }
-        public RenderPreviewDebugSnapshot CaptureDebugSnapshot(){
-            this.SnapshotCalls++;
-            if(this.ThrowOnSnapshot){ throw new InvalidOperationException("snapshot fault"); }
-            if(this.ReturnMalformedSnapshot){ return new RenderPreviewDebugSnapshot(); }
-            return new RenderPreviewDebugSnapshot {
-                DeviceState=RenderPreviewDebugDeviceState.Ready,
-                DeviceGeneration=7,CompletedFence=11,
-                SurfaceWidth=64,SurfaceHeight=64,
-                AdapterDescription="Fake",QualityProfile="Compatibility",
-                Passes=[new RenderPreviewDebugPass {
-                    Index=0,Name="Present",Queue=RenderPreviewDebugQueue.Graphics,
-                    ExecutionIndex=0,
-                }],
-                Resources=[new RenderPreviewDebugResource {
-                    Index=0,Name="BackBuffer",
-                    Kind=RenderPreviewDebugResourceKind.Texture,
-                    Width=64,Height=64,Format="rgba8",Imported=true,
-                    FirstUse=0,LastUse=0,AliasSlot=-1,
-                }],
-                Platform=PlatformDebugSnapshotCapture.Capture(
-                    PlatformDebugSnapshotCapture.NotOwnedInput(
-                        "Test session owns no input."),
-                    PlatformDebugSnapshotCapture.NotOwnedAudio(
-                        "Test session owns no audio.")),
-            };
-        }
         public void Dispose(){ this.Disposed=true; }
     }
 }

@@ -142,39 +142,6 @@ internal sealed class RenderPreviewHostClient:IDisposable {
         });
     }
 
-    internal RenderPreviewDebugSnapshot GetDebugSnapshot(){
-        this.EnsureReady();
-        RenderPreviewHostResponse Response=this.Send(new RenderPreviewHostRequest {
-            RequestId=Guid.NewGuid(),
-            SessionId=this.SessionId,
-            Sequence=++this.Sequence,
-            Command=RenderPreviewHostCommand.Snapshot,
-        },responseFailureIsTerminal:false);
-        RenderPreviewDebugSnapshot?Snapshot=Response.DebugSnapshot;
-        string?ValidationError;
-        try {
-            ValidationError=RenderPreviewHostProtocol.ValidateDebugSnapshot(Snapshot);
-            if(ValidationError is null&&Snapshot is not null
-                &&(Snapshot.DeviceGeneration!=Response.DeviceGeneration
-                    ||Snapshot.CompletedFence!=Response.CompletedFence)){
-                ValidationError=
-                    "Render debug snapshot generation or fence does not match its response envelope.";
-            }
-        } catch(Exception Error){
-            this.Fault();
-            throw new RenderPreviewHostException(
-                $"Preview host debug snapshot validation failed: {Error.Message}",
-                RequiresFreshSurfaceGeneration:true,Error);
-        }
-        if(ValidationError is not null){
-            this.Fault();
-            throw new RenderPreviewHostException(
-                $"Preview host returned an invalid debug snapshot: {ValidationError}",
-                RequiresFreshSurfaceGeneration:true);
-        }
-        return Snapshot!;
-    }
-
     internal void Close(){
         if(this.State==RenderPreviewHostClientState.Disposed){ return; }
         if(this.State==RenderPreviewHostClientState.Ready){
@@ -303,15 +270,11 @@ internal sealed class RenderPreviewHostProcessTransport:IDisposable {
         if(this.Disposed){ throw new ObjectDisposedException(nameof(RenderPreviewHostProcessTransport)); }
         using NamedPipeClientStream Pipe=new(
             ".",this.PipeName,PipeDirection.InOut,PipeOptions.None);
-        bool Snapshot=Request.Command==RenderPreviewHostCommand.Snapshot;
-        Connect(Pipe,this.Process,Snapshot
-            ?TimeSpan.FromSeconds(1)
-            :this.ConnectedOnce?TimeSpan.FromSeconds(2):TimeSpan.FromSeconds(10));
+        Connect(Pipe,this.Process,this.ConnectedOnce?TimeSpan.FromSeconds(2):TimeSpan.FromSeconds(10));
         this.ConnectedOnce=true;
         ResidentBridgeClient.WriteMessage(Pipe,Request);
         return ResidentBridgeClient.ReadMessage<RenderPreviewHostResponse>(
-            Pipe,Snapshot?TimeSpan.FromSeconds(2):this.ResponseTimeout,
-            CancellationToken.None);
+            Pipe,this.ResponseTimeout,CancellationToken.None);
     }
 
     public void Dispose(){

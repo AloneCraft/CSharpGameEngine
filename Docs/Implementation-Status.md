@@ -4056,23 +4056,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Error and lifecycle contract: request/protocol mismatch, non-monotonic or non-finite progress, invalid terminal progress, nonzero exit, and error diagnostics cannot become success. Cancelling ignores late progress until the terminal result. Host diagnostic codes remain typed through resident client and bridge exceptions. Partial output paths survive failure/cancel; the UI never infers completion from file names or button state.
 - Evidence: `AuthoringOperationPresentation`; typed `ResidentBridgeClient.TryRunDetailed` and `AuthoringHostOperationException`; `PhysicsSceneBakeService`; Scene Designer Bake progress/cancel/diagnostic/artifact surfaces; Asset Preview inline progress/diagnostic surface; focused presentation/orchestration/architecture/localization and shared host tests.
 - Conformance: Matches F-L8-026 without adding another source writer, build implementation, mutable operation Manager, retry layer, or renderer.
-- Next action: Keep `vsix.bake-integration` in changed/full/VSIX suites while F-L8-027 consumes only immutable on-demand runtime snapshots.
-
-## F-L8-027 — Read-only runtime debug tools
-
-- Layer: L8 — Visual Studio Authoring Environment
-- Parent capability: Editor / VSIX
-- Status: Implemented
-- Verification: Automated Debug/Release stage evidence
-- Intended specification: `Docs/Specifications/Editor-VSIX.md#editing-contracts`
-- Stage: `vsix.debug-tools` (`Executable`, Headless / VSIX, 1800s)
-- Depends on: F-L8-026
-- Current delta: none for the automated contract. Protocol v4 adds one bounded `Snapshot` query to the existing Preview Host session. It reports immutable device/fence/frame/object/texture/error counters, bounded D3D12 diagnostics, and the canonical L4 Render Graph declaration. The graph is explicitly marked `DeclaredPlan`; no per-pass GPU execution or timing is fabricated while the D3D12 graph executor remains future work.
-- Source of truth and ownership: the existing `RenderServer` remains the only renderer/device owner. Its device lifecycle and counters are observed on demand. `RenderQualityPlan` is the engine-owned declared topology. The VSIX owns only one validated immutable presentation and creates no timer, renderer, host session, profiler clock, runtime handle, or editable state.
-- Error and lifecycle contract: snapshot requests carry protocol/request/session/monotonic sequence identity and a two-second response budget. A capture failure consumes its sequence but leaves the runtime session usable. Null, oversized, malformed, version-mismatched, or envelope-inconsistent data is rejected. Transport loss or malformed successful data faults the client and uses the existing fresh-surface recovery path. Diagnostic truncation is explicit.
-- Evidence: protocol boundary tests; same-session/non-terminal Host table and Named Pipe tests; real common Render Server WARP non-mutation tests; net472 client correlation/failure tests; presentation/architecture/localization tests; existing Physics and Spatial read-only visualizers. `vsix.debug-tools` passed Debug (`20260901T111335750Z-single-29723561406e411ab222de69f27fc5f2`) and Release (`20260901T111501042Z-single-6dab6c9310fc4412a2ea5c1232d0f70a`).
-- Conformance: Matches F-L8-027 without adding a second renderer, polling loop, mutable debug Manager, fictitious timing, control command, or runtime ownership path.
-- Next action: Keep `vsix.debug-tools` in changed/full/VSIX suites as an input to the executable F-L8-028 compatibility contract.
+- Next action: Keep `vsix.bake-integration` in changed/full/VSIX suites.
 
 ## F-L8-028 — VSIX compatibility matrix
 
@@ -4082,7 +4066,7 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Verification: TestVerified in Debug and Release
 - Intended specification: `Docs/Specifications/Editor-VSIX.md#manual-and-automated-evidence`
 - Stage: `vsix.compatibility` (`Executable`, Headless / VSIX, 3600s)
-- Depends on: F-L8-027
+- Depends on: F-L8-026
 - Current delta: `Docs/Verification/VSIX-Compatibility-Matrix.json` is the single versioned compatibility contract. The validator checks the net472 VSIX and automation projects, amd64 Visual Studio 17.14+ installation/prerequisite manifest, .NET Framework 4.7.2 dependency, pinned VS SDK/Roslyn versions, neutral en-US plus ja-JP satellite/template packaging, CgeFixed development hive, isolated CgeAutomation evidence hive, Debug/Release CI cells, exact Experimental checks/owners, and the aggregate manual entry.
 - Evidence semantics: pre-release validation accepts a structurally valid explicit Pending state and never turns it into compatibility success. It also accepts a structurally valid Passed row whose observation has aged past its expiry, because the expiry window is a time-based approximation of source drift rather than a measurement of it, and an ordinary build must not be blocked by it. Passed automated rows additionally prove configuration, locale, CgeAutomation suffix, Visual Studio minimum version, four SHA-256 provenance fields, all-passing assertions, and observation. `--require-passing-evidence` fails every required Pending/Failed/expired row and the manual summary, so freshness is a release requirement; F-L8-029 must use that mode.
 - Evidence: repository/mutation/release-fail-closed tests in `VsixCompatibilityMatrixValidatorTests`, existing manifest/package/localization/layout/Experimental automation tests, and build-time validator execution. Full FeatureRunner tests pass 76/76 and full net472 VSIX tests pass 970/970 in both Debug and Release. `vsix.compatibility` passed Debug (`20260901T114505804Z-vsix-a650a39f789646f1b6369d30e7bd6c87`) and Release (`20260901T114546489Z-vsix-609836b366cc4b7c8a3d67cae87be3fd`).
@@ -4307,20 +4291,6 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Conformance: Matches. Successful XAudio2 or Silent recreation restores only explicitly eligible artifact voices at a defined logical frame and stops non-eligible voices with typed decisions; failed recreation preserves logical state for retry and never retains a native pointer.
 - Next action: Preserve the immutable audio/device recovery snapshot contract through F-L7-034 compatibility evidence.
 
-## F-L8-030 — Platform diagnostics viewer
-
-- Layer: L8 — Visual Studio Authoring Environment
-- Parent capability: Audio / Input / Platform
-- Status: Implemented
-- Verification: TestVerified (Protocol v5 bounds, Input/Audio owned copies, Preview Host NotOwned state, Host/client fail-close, WARP, net472 presentation/localization)
-- Intended specification: `Docs/Specifications/Audio-Input-Platform.md#performance-and-compatibility`
-- Stage: `vsix.platform-debug` (`Executable`, Headless / VSIX, 1800s)
-- Depends on: F-L4-012
-- Current delta: none. Protocol v5/debug snapshot v2 carries a bounded process envelope, at most 64 current input actions, and audio lifecycle/mixer/recovery counters. Runtime services copy their own truth; the isolated Preview Host reports typed `NotOwned` for Input/Audio rather than fabricating state.
-- Evidence: `RenderPreviewHostProtocol`, `InputServer.CaptureDebugSnapshot`, `AudioDeviceServer.CaptureDebugSnapshot`, `EngineHost.CapturePlatformDebugSnapshot`, `PlatformDebugSnapshotCapture`, Host/client validation, the existing localized Scene Designer Runtime Diagnostics presentation, and focused Contracts/Windows/WARP/net472 tests.
-- Conformance: Matches. One explicit refresh uses the existing Preview Host session, contains no native handle or engine-owned authoritative numeric state, does not render or poll, and malformed schema or generation/fence mismatch fails closed without creating a second runtime owner.
-- Next action: Preserve the validated compatibility matrix through F-L7-035 platform release closure.
-
 ## F-L7-034 — Platform compatibility evidence
 
 - Layer: L7 — Static Compiler / Bake
@@ -4329,8 +4299,8 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Verification: TestVerified (versioned matrix, CI/workflow agreement, executable prerequisite closure, optional hardware ledger separation, Debug/Release Stage)
 - Intended specification: `Docs/Specifications/Audio-Input-Platform.md#performance-and-compatibility`
 - Stage: `platform.compatibility` (`Executable`, Headless / Foundation, 3600s)
-- Depends on: F-L8-030
-- Current delta: none. `Platform-Compatibility-Matrix.json` binds the exact Input, Audio, and diagnostics prerequisite Stages to mandatory Windows x64 Debug/Release solution, Windows-TFM, and WARP CI cells without copying their dynamic result state.
+- Depends on: F-L4-012
+- Current delta: none. `Platform-Compatibility-Matrix.json` binds the exact Input and Audio prerequisite Stages to mandatory Windows x64 Debug/Release solution, Windows-TFM, and WARP CI cells without copying their dynamic result state.
 - Evidence: `PlatformCompatibilityMatrixValidator`, CI/workflow bidirectional validation, focused synthetic/silent runtime tests, explicit `hardware-audio`/`hardware-d3d12` Manual Evidence references, and passing Debug (`20260901T134331089Z-full-eda58875a7414b48b8919b4233ae5ceb`) / Release (`20260901T134337227Z-full-22bf326925d14baea1832fce1751c8cf`) Stage results.
 - Conformance: Matches. Hardware observations remain supplemental and cannot replace synthetic Input, Silent Audio, or WARP correctness; missing, duplicated, promoted, mismatched, or non-executable references fail closed.
 - Next action: Aggregate configuration, adapter, device, and Stage provenance into F-L7-035 platform release evidence.

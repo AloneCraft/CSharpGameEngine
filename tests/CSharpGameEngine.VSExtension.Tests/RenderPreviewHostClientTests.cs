@@ -65,7 +65,6 @@ public sealed class RenderPreviewHostClientTests {
         Client.Resize(32,24);
         Client.ReplaceScene(Scene());
         Client.Render(captureForVerification:true);
-        RenderPreviewDebugSnapshot Snapshot=Client.GetDebugSnapshot();
         Client.Close();
 
         Assert.Equal(
@@ -74,14 +73,12 @@ public sealed class RenderPreviewHostClientTests {
                 RenderPreviewHostCommand.Resize,
                 RenderPreviewHostCommand.ReplaceScene,
                 RenderPreviewHostCommand.Render,
-                RenderPreviewHostCommand.Snapshot,
                 RenderPreviewHostCommand.Close,
             },
             Requests.ConvertAll(static Request=>Request.Command));
-        Assert.Equal(new ulong[]{1,2,3,4,5,6},Requests.ConvertAll(static Request=>Request.Sequence));
+        Assert.Equal(new ulong[]{1,2,3,4,5},Requests.ConvertAll(static Request=>Request.Sequence));
         Assert.All(Requests,Request=>Assert.Equal(SessionId,Request.SessionId));
         Assert.True(Requests[3].CaptureForVerification);
-        Assert.Equal(4u,Snapshot.FramesRendered);
         Assert.Equal(RenderPreviewHostClientState.Disposed,Client.State);
     }
 
@@ -109,125 +106,12 @@ public sealed class RenderPreviewHostClientTests {
         Assert.Equal(2,Calls);
     }
 
-    [Fact]
-    public void SnapshotCaptureFailure_IsNonTerminalAndConsumesItsSequence(){
-        List<RenderPreviewHostRequest>Requests=[];
-        using RenderPreviewHostClient Client=new(
-            Guid.NewGuid(),
-            Request=>{
-                Requests.Add(Request);
-                if(Request.Command==RenderPreviewHostCommand.Snapshot){
-                    return new RenderPreviewHostResponse {
-                        RequestId=Request.RequestId,SessionId=Request.SessionId,
-                        Sequence=Request.Sequence,State=RenderPreviewHostResultState.Failed,
-                        DiagnosticCode="PREVIEW_SNAPSHOT_FAILED",Message="capture fault",
-                    };
-                }
-                return Success(Request);
-            },
-            ()=>{});
-        Client.Open(123,64,48,"Stage.cgeshaderartifact",Scene());
-
-        RenderPreviewHostException Error=Assert.Throws<RenderPreviewHostException>(
-            ()=>Client.GetDebugSnapshot());
-
-        Assert.False(Error.SessionTerminated);
-        Assert.False(Error.RequiresFreshSurfaceGeneration);
-        Assert.Equal(RenderPreviewHostClientState.Ready,Client.State);
-        Client.Render(captureForVerification:false);
-        Assert.Equal(new ulong[]{1,2,3},
-            Requests.ConvertAll(static Request=>Request.Sequence));
-    }
-
-    [Fact]
-    public void MalformedSuccessfulSnapshot_IsTerminalProtocolFailure(){
-        using RenderPreviewHostClient Client=new(
-            Guid.NewGuid(),
-            Request=>new RenderPreviewHostResponse {
-                RequestId=Request.RequestId,SessionId=Request.SessionId,
-                Sequence=Request.Sequence,State=RenderPreviewHostResultState.Succeeded,
-                DebugSnapshot=null,
-            },
-            ()=>{});
-        Client.Open(123,64,48,"Stage.cgeshaderartifact",Scene());
-
-        RenderPreviewHostException Error=Assert.Throws<RenderPreviewHostException>(
-            ()=>Client.GetDebugSnapshot());
-
-        Assert.True(Error.SessionTerminated);
-        Assert.True(Error.RequiresFreshSurfaceGeneration);
-        Assert.Equal(RenderPreviewHostClientState.Faulted,Client.State);
-    }
-
-    [Fact]
-    public void SnapshotEnvelopeMismatch_IsTerminalProtocolFailure(){
-        using RenderPreviewHostClient Client=new(
-            Guid.NewGuid(),
-            Request=>new RenderPreviewHostResponse {
-                RequestId=Request.RequestId,SessionId=Request.SessionId,
-                Sequence=Request.Sequence,State=RenderPreviewHostResultState.Succeeded,
-                DeviceGeneration=1,CompletedFence=8,
-                DebugSnapshot=Request.Command==RenderPreviewHostCommand.Snapshot
-                    ?DebugSnapshot():null,
-            },
-            ()=>{});
-        Client.Open(123,64,48,"Stage.cgeshaderartifact",Scene());
-
-        RenderPreviewHostException Error=Assert.Throws<RenderPreviewHostException>(
-            ()=>Client.GetDebugSnapshot());
-
-        Assert.True(Error.SessionTerminated);
-        Assert.Contains("generation or fence",Error.Message,StringComparison.Ordinal);
-        Assert.Equal(RenderPreviewHostClientState.Faulted,Client.State);
-    }
-
     private static RenderPreviewHostResponse Success(RenderPreviewHostRequest Request)=>new(){
         RequestId=Request.RequestId,
         SessionId=Request.SessionId,
         Sequence=Request.Sequence,
         State=RenderPreviewHostResultState.Succeeded,
         DeviceGeneration=1,
-        CompletedFence=Request.Command==RenderPreviewHostCommand.Snapshot?9ul:0ul,
-        DebugSnapshot=Request.Command==RenderPreviewHostCommand.Snapshot
-            ?DebugSnapshot():null,
-    };
-
-    private static RenderPreviewDebugSnapshot DebugSnapshot()=>new(){
-        DeviceState=RenderPreviewDebugDeviceState.Ready,
-        DeviceGeneration=1,
-        CompletedFence=9,
-        FramesRendered=4,
-        SurfaceWidth=64,
-        SurfaceHeight=48,
-        SceneObjectCount=1,
-        PrimaryObjectDrawCount=1,
-        ResidentMaterialTextureCount=1,
-        AdapterDescription="WARP",
-        IsWarp=true,
-        QualityProfile="Compatibility",
-        Passes=[new RenderPreviewDebugPass {
-            Index=0,Name="Present",Queue=RenderPreviewDebugQueue.Graphics,
-            ExecutionIndex=0,
-        }],
-        Resources=[new RenderPreviewDebugResource {
-            Index=0,Name="BackBuffer",Kind=RenderPreviewDebugResourceKind.Texture,
-            Width=64,Height=48,Format="rgba8",Imported=true,
-            FirstUse=0,LastUse=0,AliasSlot=-1,
-        }],
-        Platform=new PlatformDebugSnapshot {
-            CapturedCounter=123,CounterFrequency=10_000_000,
-            OsDescription="Windows",OsArchitecture="X64",
-            ProcessArchitecture="X64",RuntimeDescription=".NET 10",ProcessId=42,
-            Input=new PlatformDebugInputSnapshot {
-                State=PlatformDebugSubsystemState.NotOwned,
-                Detail="The test host owns no input.",
-            },
-            Audio=new PlatformDebugAudioSnapshot {
-                State=PlatformDebugSubsystemState.NotOwned,
-                Mode=PlatformDebugAudioBackendMode.NotOwned,
-                Detail="The test host owns no audio.",
-            },
-        },
     };
 
     private static RenderPreviewScene Scene()=>new(){

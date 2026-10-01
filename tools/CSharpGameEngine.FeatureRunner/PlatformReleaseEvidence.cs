@@ -33,8 +33,6 @@ public static class PlatformReleaseEvidence {
         new("audio.mixer","src/CSharpGameEngine.Audio/AudioMixer.cs"),
         new("audio.spatial","src/CSharpGameEngine.Audio/AudioSpatialization.cs"),
         new("audio.device","src/CSharpGameEngine.Windows/Audio/AudioDeviceServer.cs"),
-        new("diagnostics.contract","src/CSharpGameEngine.Contracts/RenderPreviewHostContracts.cs"),
-        new("diagnostics.capture","src/CSharpGameEngine.Windows/Runtime/PlatformDebugSnapshotCapture.cs"),
         new("runtime.host","src/CSharpGameEngine.Runtime.Windows/EngineHost.cs"),
         new("compatibility.validator","tools/CSharpGameEngine.FeatureRunner/PlatformCompatibilityMatrixValidator.cs"),
         new("release.evidence","tools/CSharpGameEngine.FeatureRunner/PlatformReleaseEvidence.cs"),

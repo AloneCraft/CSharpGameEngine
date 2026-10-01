@@ -7,7 +7,6 @@ public interface IRenderPreviewSession:IDisposable {
     ulong CompletedFence{get;}
     string LastFrameHash{get;}
     RenderPreviewCameraDiagnostics[]CameraPreviewDiagnostics{get;}
-    RenderPreviewDebugSnapshot CaptureDebugSnapshot();
     /// <summary><paramref name="SceneJson"/> is the edited scene's document for a runtime view; other sessions ignore it.</summary>
     void ReplaceScene(RenderPreviewScene Scene,string SceneJson);
     /// <summary>A runtime view that shows the build's structure because the document changed it (ADR-0070 B1).</summary>
@@ -64,7 +63,6 @@ public sealed class RenderPreviewHostSessionTable:IDisposable {
         }
 
         try {
-            RenderPreviewDebugSnapshot?DebugSnapshot=null;
             switch(Request.Command){
                 case RenderPreviewHostCommand.ReplaceScene:
                     Current.Session.ReplaceScene(Request.Scene!,Request.SceneJson);
@@ -78,20 +76,6 @@ public sealed class RenderPreviewHostSessionTable:IDisposable {
                 case RenderPreviewHostCommand.Render:
                     Current.Session.Render(Request.CaptureForVerification);
                     break;
-                case RenderPreviewHostCommand.Snapshot:
-                    DebugSnapshot=Current.Session.CaptureDebugSnapshot();
-                    string?SnapshotError=
-                        RenderPreviewHostProtocol.ValidateDebugSnapshot(DebugSnapshot);
-                    if(SnapshotError is not null){
-                        throw new InvalidOperationException(
-                            $"Preview session produced an invalid debug snapshot: {SnapshotError}");
-                    }
-                    if(DebugSnapshot.DeviceGeneration!=Current.Session.DeviceGeneration
-                        ||DebugSnapshot.CompletedFence!=Current.Session.CompletedFence){
-                        throw new InvalidOperationException(
-                            "Preview debug snapshot generation or fence does not match its session.");
-                    }
-                    break;
                 case RenderPreviewHostCommand.Close:
                     uint Generation=Current.Session.DeviceGeneration;
                     ulong Fence=Current.Session.CompletedFence;
@@ -102,13 +86,8 @@ public sealed class RenderPreviewHostSessionTable:IDisposable {
                     throw new InvalidOperationException($"Unsupported preview command {Request.Command}.");
             }
             Current.LastSequence=Request.Sequence;
-            return Success(Request,Current.Session,DebugSnapshot);
+            return Success(Request,Current.Session);
         } catch(Exception Error){
-            if(Request.Command==RenderPreviewHostCommand.Snapshot){
-                Current.LastSequence=Request.Sequence;
-                return Failure(Request,RenderPreviewHostResultState.Failed,
-                    "PREVIEW_SNAPSHOT_FAILED",Error.Message,Current.Session);
-            }
             this.Sessions.Remove(Request.SessionId);
             try { Current.Session.Dispose(); } catch { }
             return Failure(Request,RenderPreviewHostResultState.Failed,
@@ -149,8 +128,7 @@ public sealed class RenderPreviewHostSessionTable:IDisposable {
     }
 
     private static RenderPreviewHostResponse Success(
-        RenderPreviewHostRequest Request,IRenderPreviewSession Session,
-        RenderPreviewDebugSnapshot?DebugSnapshot=null)=>new(){
+        RenderPreviewHostRequest Request,IRenderPreviewSession Session)=>new(){
             RequestId=Request.RequestId,
             SessionId=Request.SessionId,
             Sequence=Request.Sequence,
@@ -159,7 +137,6 @@ public sealed class RenderPreviewHostSessionTable:IDisposable {
             CompletedFence=Session.CompletedFence,
             FrameHash=Session.LastFrameHash,
             CameraPreviews=Session.CameraPreviewDiagnostics,
-            DebugSnapshot=DebugSnapshot,
             BuildRequired=Session.BuildRequired,
             EditorSpatialWorldId=Session.EditorSpatialWorldId,
         };

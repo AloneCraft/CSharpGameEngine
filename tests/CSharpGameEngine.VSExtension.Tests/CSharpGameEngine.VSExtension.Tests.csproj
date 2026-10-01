@@ -91,7 +91,6 @@
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\AssetAuthoringHostClient.cs" Link="TestAssets\Source\AssetAuthoringHostClient.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\AssetAuthoringPresentation.cs" Link="TestAssets\Source\AssetAuthoringPresentation.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\RenderPreviewHostClient.cs" Link="TestAssets\Source\RenderPreviewHostClient.cs" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\tools\CSharpGameEngine.VSExtension\RuntimeDebugSnapshotPresentation.cs" Link="TestAssets\Source\RuntimeDebugSnapshotPresentation.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\CSharpGameEngine.VSExtension\SceneHwndHost.cs" Link="TestAssets\Source\SceneHwndHost.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\CSharpGameEngine.EditorPreview.Host\RenderPreviewHostSessionTable.cs" Link="TestAssets\Source\RenderPreviewHostSessionTable.cs" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\tools\CSharpGameEngine.EditorPreview.Host\RenderPreviewRenderSession.cs" Link="TestAssets\Source\RenderPreviewRenderSession.cs" CopyToOutputDirectory="PreserveNewest" />

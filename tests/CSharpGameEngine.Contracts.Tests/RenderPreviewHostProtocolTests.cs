@@ -3,9 +3,21 @@ using CSharpGameEngine.Contracts;
 namespace CSharpGameEngine.Contracts.Tests;
 
 public sealed class RenderPreviewHostProtocolTests {
+    /// <summary>
+    /// M0097: version 7 removed the runtime diagnostics snapshot. The command is gone, so a request that still
+    /// carries its old value is an unknown command.
+    /// </summary>
     [Fact]
-    public void ProtocolV6_ValidatesPresentationModeSelectionWeightAndCameraPose(){
-        Assert.Equal(6,RenderPreviewHostProtocol.CurrentVersion);
+    public void ProtocolV7_HasNoDiagnosticsSnapshotCommand(){
+        Assert.Equal(7,RenderPreviewHostProtocol.CurrentVersion);
+        Assert.DoesNotContain("Snapshot",Enum.GetNames(typeof(RenderPreviewHostCommand)));
+        Assert.Null(typeof(RenderPreviewHostResponse).GetProperty("DebugSnapshot"));
+        RenderPreviewHostRequest Request=CreateCommand((RenderPreviewHostCommand)6);
+        Assert.Contains("unknown",Assert.IsType<string>(RenderPreviewHostProtocol.Validate(Request)),StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Protocol_ValidatesPresentationModeSelectionWeightAndCameraPose(){
         RenderPreviewHostRequest Request=CreateCommand(
             RenderPreviewHostCommand.UpdateFrame);
         Request.Frame=new RenderPreviewFrame {
@@ -179,104 +191,11 @@ public sealed class RenderPreviewHostProtocolTests {
         Request=CreateCommand(RenderPreviewHostCommand.ReplaceScene);
         Assert.Contains("requires",Assert.IsType<string>(RenderPreviewHostProtocol.Validate(Request)),StringComparison.OrdinalIgnoreCase);
 
-        Request=CreateCommand(RenderPreviewHostCommand.Snapshot);
+        Request=CreateCommand(RenderPreviewHostCommand.Close);
         Assert.Null(RenderPreviewHostProtocol.Validate(Request));
         Request.Width=1;
         Assert.Contains("must not include",Assert.IsType<string>(
             RenderPreviewHostProtocol.Validate(Request)),
-            StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void DebugSnapshot_ValidatesVersionBoundsTopologyAndDiagnostics(){
-        RenderPreviewDebugSnapshot Snapshot=CreateDebugSnapshot();
-
-        Assert.Null(RenderPreviewHostProtocol.ValidateDebugSnapshot(Snapshot));
-
-        Snapshot.SnapshotVersion++;
-        Assert.Contains("Unsupported",Assert.IsType<string>(
-            RenderPreviewHostProtocol.ValidateDebugSnapshot(Snapshot)),
-            StringComparison.Ordinal);
-        Snapshot.SnapshotVersion=RenderPreviewHostProtocol.CurrentDebugSnapshotVersion;
-
-        Snapshot.Passes[0].Dependencies=[0];
-        Assert.Contains("dependency",Assert.IsType<string>(
-            RenderPreviewHostProtocol.ValidateDebugSnapshot(Snapshot)),
-            StringComparison.OrdinalIgnoreCase);
-        Snapshot.Passes[0].Dependencies=[];
-
-        Snapshot.Resources[0].AliasSlot=0;
-        Assert.Contains("lifetime",Assert.IsType<string>(
-            RenderPreviewHostProtocol.ValidateDebugSnapshot(Snapshot)),
-            StringComparison.OrdinalIgnoreCase);
-        Snapshot.Resources[0].AliasSlot=-1;
-
-        Snapshot.Diagnostics[0].Description=new string(
-            'x',RenderPreviewHostProtocol.MaximumDebugDiagnosticDescriptionLength+1);
-        Assert.Contains("description",Assert.IsType<string>(
-            RenderPreviewHostProtocol.ValidateDebugSnapshot(Snapshot)),
-            StringComparison.OrdinalIgnoreCase);
-
-        Snapshot=CreateDebugSnapshot();
-        Snapshot.Resources[0].Format=null!;
-        Assert.Contains("descriptor",Assert.IsType<string>(
-            RenderPreviewHostProtocol.ValidateDebugSnapshot(Snapshot)),
-            StringComparison.OrdinalIgnoreCase);
-
-        Snapshot=CreateDebugSnapshot();
-        Snapshot.DiagnosticsTruncated=true;
-        Assert.Contains("capacity",Assert.IsType<string>(
-            RenderPreviewHostProtocol.ValidateDebugSnapshot(Snapshot)),
-            StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void PlatformDebugSnapshot_RejectsMalformedOwnedAndNotOwnedState(){
-        RenderPreviewDebugSnapshot Snapshot=CreateDebugSnapshot();
-        Assert.Equal(2,Snapshot.SnapshotVersion);
-        Assert.Null(RenderPreviewHostProtocol.ValidatePlatformDebugSnapshot(
-            Snapshot.Platform));
-
-        Snapshot.Platform.CounterFrequency=0;
-        Assert.Contains("counter",Assert.IsType<string>(
-            RenderPreviewHostProtocol.ValidatePlatformDebugSnapshot(Snapshot.Platform)),
-            StringComparison.OrdinalIgnoreCase);
-
-        Snapshot=CreateDebugSnapshot();
-        Snapshot.Platform.Input.Actions[0].ValueX=float.NaN;
-        Assert.Contains("invalid",Assert.IsType<string>(
-            RenderPreviewHostProtocol.ValidatePlatformDebugSnapshot(Snapshot.Platform)),
-            StringComparison.OrdinalIgnoreCase);
-
-        Snapshot=CreateDebugSnapshot();
-        Snapshot.Platform.Input.State=PlatformDebugSubsystemState.NotOwned;
-        Assert.Contains("not-owned",Assert.IsType<string>(
-            RenderPreviewHostProtocol.ValidatePlatformDebugSnapshot(Snapshot.Platform)),
-            StringComparison.OrdinalIgnoreCase);
-
-        Snapshot=CreateDebugSnapshot();
-        Snapshot.Platform.Audio.Mode=PlatformDebugAudioBackendMode.NotOwned;
-        Assert.Contains("owned",Assert.IsType<string>(
-            RenderPreviewHostProtocol.ValidatePlatformDebugSnapshot(Snapshot.Platform)),
-            StringComparison.OrdinalIgnoreCase);
-
-        Snapshot=CreateDebugSnapshot();
-        Snapshot.Platform.Input=new PlatformDebugInputSnapshot {
-            State=PlatformDebugSubsystemState.NotOwned,
-            ActionsTruncated=true,
-        };
-        Snapshot.Platform.Audio=new PlatformDebugAudioSnapshot {
-            State=PlatformDebugSubsystemState.NotOwned,
-            Mode=PlatformDebugAudioBackendMode.NotOwned,
-        };
-        Assert.Contains("not-owned",Assert.IsType<string>(
-            RenderPreviewHostProtocol.ValidatePlatformDebugSnapshot(Snapshot.Platform)),
-            StringComparison.OrdinalIgnoreCase);
-
-        Snapshot.Platform.Input.ActionsTruncated=false;
-        Snapshot.Platform.Audio.LastFailure="fabricated failure";
-        Assert.Contains("not-owned",Assert.IsType<string>(
-            RenderPreviewHostProtocol.ValidatePlatformDebugSnapshot(Snapshot.Platform)),
             StringComparison.OrdinalIgnoreCase);
     }
 
@@ -376,75 +295,6 @@ public sealed class RenderPreviewHostProtocolTests {
                     World=RenderPreviewMatrix4x4.Identity,
                 },
             ],
-        },
-    };
-
-    internal static RenderPreviewDebugSnapshot CreateDebugSnapshot()=>new(){
-        GraphKind=RenderPreviewDebugGraphKind.DeclaredPlan,
-        DeviceState=RenderPreviewDebugDeviceState.Ready,
-        DeviceGeneration=2,
-        CompletedFence=8,
-        FramesRendered=3,
-        SurfaceWidth=64,
-        SurfaceHeight=48,
-        SceneObjectCount=1,
-        PrimaryObjectDrawCount=1,
-        ResidentMaterialTextureCount=1,
-        AdapterDescription="WARP",
-        IsWarp=true,
-        QualityProfile="Compatibility",
-        Passes=[new RenderPreviewDebugPass {
-            Index=0,Name="Present",Queue=RenderPreviewDebugQueue.Graphics,
-            ExecutionIndex=0,
-        }],
-        Resources=[new RenderPreviewDebugResource {
-            Index=0,Name="BackBuffer",Kind=RenderPreviewDebugResourceKind.Texture,
-            Width=64,Height=48,Format="rgba8",Imported=true,
-            FirstUse=0,LastUse=0,AliasSlot=-1,
-        }],
-        Transitions=[new RenderPreviewDebugTransition {
-            ResourceIndex=0,PassIndex=0,
-            Before=RenderPreviewDebugResourceState.External,
-            After=RenderPreviewDebugResourceState.Write,
-            SourceQueue=RenderPreviewDebugQueue.Graphics,
-            DestinationQueue=RenderPreviewDebugQueue.Graphics,
-        }],
-        Diagnostics=[new RenderPreviewDebugDiagnostic {
-            Severity=RenderPreviewDebugSeverity.Warning,
-            Category="Execution",Id="Example",Description="Bounded message",
-        }],
-        Platform=new PlatformDebugSnapshot {
-            CapturedCounter=123,
-            CounterFrequency=10_000_000,
-            OsDescription="Windows",
-            OsArchitecture="X64",
-            ProcessArchitecture="X64",
-            RuntimeDescription=".NET 10",
-            ProcessId=42,
-            Input=new PlatformDebugInputSnapshot {
-                State=PlatformDebugSubsystemState.Ready,
-                ActiveContextCount=1,
-                HeldControlCount=1,
-                ActiveActionCount=1,
-                Actions=[new PlatformDebugInputAction {
-                    TimestampTicks=120,
-                    WindowId="window",
-                    DeviceId="keyboard",
-                    Sequence=4,
-                    ContextId="gameplay",
-                    ActionId="jump",
-                    Phase=PlatformDebugInputActionPhase.Started,
-                    RawX=1f,
-                    ValueX=1f,
-                }],
-            },
-            Audio=new PlatformDebugAudioSnapshot {
-                State=PlatformDebugSubsystemState.Ready,
-                Mode=PlatformDebugAudioBackendMode.Silent,
-                Generation=1,
-                MaximumVoiceCount=128,
-                BusCount=1,
-            },
         },
     };
 

@@ -108,16 +108,6 @@
                                 <ListBox x:Name="PhysicsBakeArtifactList" MaxHeight="96" Margin="0,0,0,4" Visibility="Collapsed" SelectionChanged="OnPhysicsBakeArtifactSelectionChanged" />
                                 <Button x:Name="PhysicsBakeOpenArtifactButton" Content="{local:Loc PhysicsBakeOpenArtifact}" HorizontalAlignment="Left" Margin="0,0,0,12" Padding="7,1" Visibility="Collapsed" IsEnabled="False" Click="OnPhysicsBakeOpenArtifact" />
                                 <Separator Margin="0,0,0,8" />
-                                <TextBlock Text="{local:Loc RuntimeDebugLabel}" FontWeight="SemiBold" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" Margin="0,0,0,4" />
-                                <Button x:Name="RuntimeDebugRefreshButton" Content="{local:Loc RuntimeDebugRefresh}" HorizontalAlignment="Left" Margin="0,0,0,4" Padding="7,1" ToolTip="{local:Loc RuntimeDebugRefreshToolTip}" Click="OnRuntimeDebugRefresh" />
-                                <TextBlock x:Name="RuntimeDebugSummaryText" Text="{local:Loc RuntimeDebugNoSnapshot}" TextWrapping="Wrap" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" Margin="0,0,0,4" />
-                                <ListBox x:Name="RuntimeDebugRows" MaxHeight="240" Margin="0,0,0,12" HorizontalContentAlignment="Stretch">
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding}" TextWrapping="Wrap" />
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
                                 <CheckBox x:Name="PhysicsDebugToggle" Content="{local:Loc PhysicsDebug}" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" Margin="0,0,0,8" Checked="OnPhysicsDebugChanged" Unchecked="OnPhysicsDebugChanged" />
                                 <CheckBox x:Name="PhysicsBoundsToggle" Content="{local:Loc PhysicsColliderAabb}" IsChecked="True" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" Margin="0,0,0,8" Checked="OnPhysicsDebugOptionsChanged" Unchecked="OnPhysicsDebugOptionsChanged" />
                                 <CheckBox x:Name="PhysicsVelocityToggle" Content="{local:Loc PhysicsVelocity}" Foreground="{DynamicResource {x:Static vsshell:VsBrushes.ToolWindowTextKey}}" Margin="0,0,0,8" Checked="OnPhysicsDebugOptionsChanged" Unchecked="OnPhysicsDebugOptionsChanged" />

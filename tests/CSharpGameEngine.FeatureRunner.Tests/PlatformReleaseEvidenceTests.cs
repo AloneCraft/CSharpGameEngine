@@ -16,7 +16,7 @@ public sealed class PlatformReleaseEvidenceTests:IDisposable {
         Assert.Empty(await PlatformReleaseEvidence.ValidateAsync(this.Root,ReportPath));
         Assert.Equal("Debug",Report.Configuration);
         Assert.Equal("Warp",Report.Compatibility.Adapter);
-        Assert.Equal(18,Report.Inputs.Count);
+        Assert.Equal(16,Report.Inputs.Count);
         Assert.Equal(["hardware-audio","hardware-d3d12"],Report.OptionalHardware.Select(static Entry=>Entry.Id));
         Assert.Equal("Silent",Report.RequiredModes.Audio);
     }

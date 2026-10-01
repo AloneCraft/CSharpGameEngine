@@ -11,8 +11,7 @@
     "input.actions",
     "audio.lifecycle",
     "audio.mixer",
-    "audio.spatial",
-    "vsix.platform-debug"
+    "audio.spatial"
   ],
   "requiredCells": [
     { "id": "platform-solution-debug", "configuration": "Debug", "capability": "PortableAndSubsystemContracts", "evidenceMode": "SyntheticAndSilent", "ciCell": "solution-debug" },

@@ -73,7 +73,6 @@ When a target feature lands, it replaces the affected native facade, input abstr
 
 Headless contract tests use the silent backend and WARP where graphics diagnostics are involved. Windows x64 Debug/Release are mandatory; actual audio hardware, GPU hardware, and Experimental Instance are supplemental evidence. Performance stores five warm-ups plus thirty samples, median/p95/MAD, backend mode, buffer configuration, and machine fingerprint.
 
-One explicitly requested diagnostic capture records the process monotonic counter and frequency, OS/runtime/process architecture, process ID, Input server state and at most 64 current action values, plus Audio device/backend generation, mixer counts, recovery counts, failure, and typed availability. Each subsystem copies its own current truth. The isolated Render Preview Host does not own runtime Input or Audio and must report `NotOwned` with zero owned counters. The existing Scene Designer Runtime Diagnostics view may project this envelope but cannot poll, retain a service, expose a native handle, synthesize elapsed timing, or turn `Unavailable`/`Faulted` into success. Host and client both validate bounds; malformed or generation/fence-inconsistent data fails closed.
 
 ## Stage oracle matrix
 
@@ -85,7 +84,6 @@ One explicitly requested diagnostic capture records the process monotonic counte
 | F-L4-010 | 3 | `input.actions` | Headless / Foundation | 900s | Deterministic actions for contexts/chords/rebind. |
 | F-L4-011 | 3 | `audio.mixer` | Headless / Foundation | 900s | Offline PCM mixer/voice/underrun oracle. |
 | F-L4-012 | 4 | `audio.spatial` | Headless / Foundation | 900s | Spatial/stream/device recovery policy. |
-| F-L8-030 | 5 | `vsix.platform-debug` | Headless / VSIX | 1800s | Read-only diagnostics snapshots. |
 | F-L7-034 | 6 | `platform.compatibility` | Headless / Foundation | 3600s | Required Windows cells separate optional hardware. |
 | F-L7-035 | 7 | `platform.release` | Headless / Foundation | 7200s | Scoped platform provenance and closure. |
 

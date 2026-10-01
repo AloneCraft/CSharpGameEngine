@@ -25,26 +25,6 @@ public sealed class RuntimeOwnershipTests {
     }
 
     [Fact]
-    public void EngineHost_CapturesOwnedInputAndExplicitUninitializedAudioState(){
-        using EngineHost Host=new();
-
-        PlatformDebugSnapshot BeforeAudio=Host.CapturePlatformDebugSnapshot();
-
-        Assert.Null(RenderPreviewHostProtocol.ValidatePlatformDebugSnapshot(BeforeAudio));
-        Assert.Equal(PlatformDebugSubsystemState.Ready,BeforeAudio.Input.State);
-        Assert.Equal(PlatformDebugSubsystemState.Unavailable,BeforeAudio.Audio.State);
-        Assert.Equal(PlatformDebugAudioBackendMode.None,BeforeAudio.Audio.Mode);
-
-        _=Host.Audio;
-        PlatformDebugSnapshot AfterAudio=Host.CapturePlatformDebugSnapshot();
-        Assert.Null(RenderPreviewHostProtocol.ValidatePlatformDebugSnapshot(AfterAudio));
-        Assert.Equal(PlatformDebugSubsystemState.Ready,AfterAudio.Audio.State);
-        Assert.True(AfterAudio.Audio.Mode is PlatformDebugAudioBackendMode.XAudio2
-            or PlatformDebugAudioBackendMode.Silent);
-        Assert.True(AfterAudio.Audio.Generation>0);
-    }
-
-    [Fact]
     public void EngineHost_DisposeInvalidatesWorldLease(){
         EngineHost Host=new();
         State State=Host.CreateState();

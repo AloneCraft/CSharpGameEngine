@@ -488,29 +488,6 @@ Discard unsaved edits and reload it?</value></data>
   </data>  <data name="ShaderGraphRegionLabel" xml:space="preserve">
     <value>{0}: {1}</value>
   </data>
-  <data name="RuntimeDebugLabel" xml:space="preserve"><value>Runtime Diagnostics</value></data>
-  <data name="RuntimeDebugRefresh" xml:space="preserve"><value>Refresh Snapshot</value></data>
-  <data name="RuntimeDebugRefreshToolTip" xml:space="preserve"><value>Request one immutable read-only snapshot from the existing Render Preview Host session.</value></data>
-  <data name="RuntimeDebugNoSnapshot" xml:space="preserve"><value>No runtime diagnostic snapshot has been requested.</value></data>
-  <data name="RuntimeDebugPreviewUnavailable" xml:space="preserve"><value>The Render Preview Host session is not ready.</value></data>
-  <data name="RuntimeDebugFailed" xml:space="preserve"><value>Runtime diagnostic snapshot failed: {0}</value></data>
-  <data name="RuntimeDebugGraphDeclared" xml:space="preserve"><value>Declared plan (not per-pass GPU execution evidence)</value></data>
-  <data name="RuntimeDebugSummary" xml:space="preserve"><value>Device={0} gen={1} fence={2} frames={3} objects={4} primary draws={5} textures={6} errors={7} adapter={8} WARP={9} graph={10}</value></data>
-  <data name="RuntimeDebugGraphSummary" xml:space="preserve"><value>Declared Render Graph: profile={0}, passes={1}, resources={2}, transitions={3}, surface={4}x{5}</value></data>
-  <data name="RuntimeDebugDiagnosticSummary" xml:space="preserve"><value>Bounded D3D12 diagnostics: shown={0}, truncated={1}</value></data>
-  <data name="RuntimeDebugPass" xml:space="preserve"><value>Pass exec={0} index={1} name={2} queue={3} dependencies={4}</value></data>
-  <data name="RuntimeDebugResource" xml:space="preserve"><value>Resource index={0} name={1} kind={2} shape={3} imported={4} lifetime={5}..{6} alias={7}</value></data>
-  <data name="RuntimeDebugBufferShape" xml:space="preserve"><value>{0} bytes</value></data>
-  <data name="RuntimeDebugTextureShape" xml:space="preserve"><value>{0}x{1} {2}</value></data>
-  <data name="RuntimeDebugTransition" xml:space="preserve"><value>Transition pass={0} resource={1} {2}-&gt;{3} queue={4}-&gt;{5} ownership={6}</value></data>
-  <data name="RuntimeDebugDiagnostic" xml:space="preserve"><value>Diagnostic {0} {1}/{2}: {3}</value></data>
-  <data name="RuntimeDebugNoDiagnostics" xml:space="preserve"><value>No bounded D3D12 diagnostics were reported.</value></data>
-  <data name="RuntimeDebugNoDependencies" xml:space="preserve"><value>none</value></data>
-  <data name="RuntimeDebugPlatformSummary" xml:space="preserve"><value>Platform: OS={0} OS arch={1} process arch={2} runtime={3} PID={4} captured counter={5}/{6}</value></data>
-  <data name="RuntimeDebugInputSummary" xml:space="preserve"><value>Input: state={0} contexts={1} held controls={2} active actions={3} shown actions={4} truncated={5} detail={6}</value></data>
-  <data name="RuntimeDebugInputAction" xml:space="preserve"><value>Input action: timestamp={0} window={1} device={2} sequence={3} context={4} action={5} phase={6} raw=({7},{8}) value=({9},{10}) release={11}</value></data>
-  <data name="RuntimeDebugAudioSummary" xml:space="preserve"><value>Audio: state={0} mode={1} generation={2} voices={3}/{4} buses={5} restored={6} stopped={7} recovery events={8} dropped={9} failure={10} detail={11}</value></data>
-  <data name="RuntimeDebugNoDetail" xml:space="preserve"><value>none</value></data>
   <data name="AssetAuthoring_State" xml:space="preserve"><value>Metadata state</value></data>
   <data name="AssetAuthoring_SourceUri" xml:space="preserve"><value>Source URI</value></data>
   <data name="AssetAuthoring_AssetId" xml:space="preserve"><value>Asset ID</value></data>

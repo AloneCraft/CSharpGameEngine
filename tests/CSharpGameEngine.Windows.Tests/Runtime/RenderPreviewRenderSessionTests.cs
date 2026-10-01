@@ -36,27 +36,6 @@ public sealed class RenderPreviewRenderSessionTests {
         Assert.Equal(0,Session.ErrorOrWorseMessageCount);
 
         string CapturedHash=Session.LastFrameHash;
-        RenderPreviewDebugSnapshot FirstDebug=Session.CaptureDebugSnapshot();
-        RenderPreviewDebugSnapshot SecondDebug=Session.CaptureDebugSnapshot();
-        Assert.Null(RenderPreviewHostProtocol.ValidateDebugSnapshot(FirstDebug));
-        Assert.Equal(RenderPreviewDebugGraphKind.DeclaredPlan,FirstDebug.GraphKind);
-        Assert.Equal(RenderPreviewDebugDeviceState.Ready,FirstDebug.DeviceState);
-        Assert.True(FirstDebug.IsWarp);
-        Assert.Equal("Compatibility",FirstDebug.QualityProfile);
-        Assert.Equal(1,FirstDebug.SceneObjectCount);
-        Assert.Equal(1,FirstDebug.PrimaryObjectDrawCount);
-        Assert.Contains(FirstDebug.Passes,Pass=>Pass.Name=="Present");
-        Assert.True(FirstDebug.Platform.CapturedCounter>0);
-        Assert.Equal(PlatformDebugSubsystemState.NotOwned,FirstDebug.Platform.Input.State);
-        Assert.Equal(PlatformDebugSubsystemState.NotOwned,FirstDebug.Platform.Audio.State);
-        Assert.Equal(PlatformDebugAudioBackendMode.NotOwned,FirstDebug.Platform.Audio.Mode);
-        Assert.Contains("does not own",FirstDebug.Platform.Input.Detail,
-            StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("does not own",FirstDebug.Platform.Audio.Detail,
-            StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(FirstDebug.DeviceGeneration,SecondDebug.DeviceGeneration);
-        Assert.Equal(FirstDebug.CompletedFence,SecondDebug.CompletedFence);
-        Assert.Equal(FirstDebug.FramesRendered,SecondDebug.FramesRendered);
         Assert.Equal(CapturedHash,Session.LastFrameHash);
 
         string LitHash=Session.LastFrameHash;
@@ -120,7 +99,6 @@ public sealed class RenderPreviewRenderSessionTests {
         Session.ReplaceScene(Request.Scene,string.Empty);
         Assert.Empty(Session.CameraPreviewDiagnostics);
         Assert.Equal(string.Empty,Session.LastFrameHash);
-        Assert.Equal(1u,Session.CaptureDebugSnapshot().FramesRendered);
     }
 
     [Fact]

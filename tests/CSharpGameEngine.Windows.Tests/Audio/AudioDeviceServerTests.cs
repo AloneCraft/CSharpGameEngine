@@ -24,25 +24,12 @@ public sealed class AudioDeviceServerTests {
         Assert.Equal(AudioBackendMode.Silent,Server.Mode);
         Assert.Equal(1u,Server.Generation);
         Assert.NotNull(Server.LastFailure);
-        PlatformDebugAudioSnapshot Silent=Server.CaptureDebugSnapshot();
-        Assert.Equal(PlatformDebugSubsystemState.Ready,Silent.State);
-        Assert.Equal(PlatformDebugAudioBackendMode.Silent,Silent.Mode);
-        Assert.Equal(1u,Silent.Generation);
-        Assert.NotNull(Silent.LastFailure);
-        Assert.Equal(Server.Mixer.MaximumVoices,Silent.MaximumVoiceCount);
-        Assert.Equal(Server.Mixer.BusCount,Silent.BusCount);
 
         Assert.True(Server.TryRecreateHardware());
         Assert.Equal(AudioDeviceState.Ready,Server.State);
         Assert.Equal(AudioBackendMode.XAudio2,Server.Mode);
         Assert.Equal(2u,Server.Generation);
         Assert.Null(Server.LastFailure);
-        PlatformDebugAudioSnapshot Hardware=Server.CaptureDebugSnapshot();
-        Assert.Equal(PlatformDebugAudioBackendMode.XAudio2,Hardware.Mode);
-        Assert.Equal(2u,Hardware.Generation);
-        Assert.Null(Hardware.LastFailure);
-        Assert.Equal(PlatformDebugAudioBackendMode.Silent,Silent.Mode);
-        Assert.Equal(1u,Silent.Generation);
 
         Server.Dispose();
         Server.Dispose();

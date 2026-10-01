@@ -115,15 +115,6 @@
 - Observed failure behavior: missing, extra, duplicate, empty, mismatched, optional-promoted, wrong-owner, wrong-adapter, or non-executable references fail closed with validation errors. Optional hardware cannot replace required synthetic, Silent, or WARP correctness.
 - Result: Matches F-L7-034 without a hardware probe, second CI description, dynamic compatibility database, or premature product-wide release aggregation.
 
-## RE-M0077 - Platform diagnostics viewer
-
-- Intended source: F-L8-030 in Audio/Input/Platform, composed through the existing F-L8-027 Preview Host snapshot and Scene Designer Runtime Diagnostics surface.
-- Evidence: protocol-v5/debug-snapshot-v2 DTO validation, `InputServer.CaptureDebugSnapshot`, `AudioDeviceServer.CaptureDebugSnapshot`, `EngineHost.CapturePlatformDebugSnapshot`, `PlatformDebugSnapshotCapture`, Host/client validation, localized presentation tests, real WARP session tests, and Debug/Release Stage results.
-- Observed behavior: one explicit request returns process counter/frequency and identity, up to 64 latest current-frame Input actions with IDs/raw/transformed/release fields, and Audio state/mode/generation/mixer/recovery counters. Captured arrays and DTOs do not alias the mutable source services.
-- Observed ownership: EngineHost reports its owned Input and initialized-or-unavailable Audio state. The isolated Preview Host reports `NotOwned` for services it does not own and never creates them to satisfy inspection. The VSIX retains only presentation strings for the selected response.
-- Observed failure behavior: invalid bounds, non-finite action values, impossible availability, invalid generation/mode, producer schema errors, and generation/fence mismatch fail closed. Capture failure is non-terminal for the existing session; malformed success is terminal at the client protocol boundary.
-- Result: Matches F-L8-030 without polling, another host, another ToolWindow, native handles, simulated values, control commands, or a duplicate runtime truth.
-
 ## RE-M0076 - Content release evidence
 
 - Confidence: High.
@@ -149,21 +140,13 @@
 - Observed lifecycle: the VSIX owns no metadata codec or Content state. Resident and one-shot paths run the same worker. Request/result correlation and bounded collections fail closed. Model switches use operation generations so late results cannot overwrite the active asset presentation.
 - Result: Matches F-L8-019 without a second metadata source, compatibility reader, in-process provider SDK, or VSIX-owned renderer.
 
-## RE-M0072 - Read-only runtime debug snapshots
-
-- Intended source: F-L8-027 in the Editor/VSIX specification; the common Render Server and its device lifecycle remain the runtime truth.
-- Evidence: protocol-v4 `Snapshot` DTO and validation, `RenderPreviewHostSessionTable`, `RenderPreviewRenderSession.CaptureDebugSnapshot`, net472 `RenderPreviewHostClient`, Scene Designer Runtime Diagnostics, existing Spatial/Physics overlays, and executable focused Contracts/Windows/WARP/VSIX tests.
-- Observed behavior: one explicit UI action asks the already-open Preview Host session for one bounded snapshot. It reports measured device/fence/frame/object/texture/error counters, bounded diagnostics with truncation state, and the canonical compatibility Render Graph as `DeclaredPlan`. It contains no invented per-pass timings.
-- Observed lifecycle: capture itself does not render or change device generation, completed fence, frame hash, or ownership. Capture failure consumes sequence but keeps the session usable. Malformed or envelope-inconsistent success is rejected as a terminal protocol fault; disconnect uses the existing Preview Host/fresh-surface recovery boundary.
-- Result: Matches F-L8-027 without a polling timer, second renderer, debug Manager, runtime control command, or mutable debug truth.
-
 ## RE-M0071 - Bake, asset, and diagnostic UI
 
 - Intended source: F-L8-026 in the Editor/VSIX specification; the versioned authoring-host DTOs and terminal result are the execution truth, while C# source remains the authoring truth.
 - Evidence: `AuthoringOperationSnapshot`, `ResidentBridgeClient.TryRunDetailed`, `AuthoringHostOperationException`, `PhysicsSceneBakeService`, the Scene Designer Bake surface, Asset Preview inline operation surface, focused VSIX tests, common host tests, and executable `vsix.bake-integration` Debug/Release results.
 - Observed behavior: Import and Bake publish request-correlated monotonic progress and typed diagnostics through one immutable UI projection. Physics Bake can cancel, preserves completed output paths after later failure/cancel, and exposes selected artifacts without owning a second build implementation. Asset Preview retains typed external-host diagnostics and recovered Render Server lifecycle state inline.
 - Observed validation: protocol/request mismatch, backward or non-finite progress, invalid terminal progress, nonzero exit, or an error diagnostic cannot become success. Late progress is ignored after cancellation begins.
-- Result: Matches F-L8-026. Read-only runtime debug snapshots are completed separately by RE-M0072/F-L8-027.
+- Result: Matches F-L8-026.
 
 ## RE-M0070 - C# source synchronization v2
 

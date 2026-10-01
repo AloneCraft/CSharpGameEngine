@@ -136,43 +136,6 @@ public sealed class InputServerTests {
         Assert.Equal(InputActionPhase.Canceled,Value.Phase);
         Assert.Equal(InputReleaseReason.DeviceRemoved,Value.ReleaseReason);
     }
-    [Fact]
-    public void DebugSnapshot_IsBoundedImmutableCopyOfCurrentOwnedState(){
-        InputBinding[]Bindings=Enumerable.Range(0,65)
-            .Select(Index=>new InputBinding(
-                new InputActionId(StableId.FromName(
-                    StableId.Parse("ab0e711b-738b-5f0a-bb8b-c400e5d2e663"),
-                    $"diagnostic-action/{Index}")),Space))
-            .ToArray();
-        var Server=new InputServer(new InputActionMap([
-            new InputContext(Context,"Diagnostics",10,Bindings),
-        ]));
-        Server.SetContextActive(Context,true,new MonotonicTimestamp(1));
-        Server.ProcessEvents([Event(2,1,Space,InputEventKind.Pressed,InputValue.Pressed)]);
-
-        PlatformDebugInputSnapshot Snapshot=Server.CaptureDebugSnapshot();
-
-        Assert.Equal(PlatformDebugSubsystemState.Ready,Snapshot.State);
-        Assert.Equal(1,Snapshot.ActiveContextCount);
-        Assert.Equal(1,Snapshot.HeldControlCount);
-        Assert.Equal(65,Snapshot.ActiveActionCount);
-        Assert.True(Snapshot.ActionsTruncated);
-        Assert.Equal(RenderPreviewHostProtocol.MaximumPlatformDebugInputActionCount,
-            Snapshot.Actions.Length);
-        Assert.All(Snapshot.Actions,Action=>{
-            Assert.Equal(Window.ToString(),Action.WindowId);
-            Assert.Equal(Keyboard.ToString(),Action.DeviceId);
-            Assert.Equal(Context.ToString(),Action.ContextId);
-            Assert.Equal(PlatformDebugInputActionPhase.Started,Action.Phase);
-            Assert.Equal(1f,Action.RawX);
-            Assert.Equal(1f,Action.ValueX);
-        });
-
-        Server.ProcessEvents([Event(3,2,Space,InputEventKind.Released,InputValue.Zero)]);
-        Assert.All(Snapshot.Actions,Action=>
-            Assert.Equal(PlatformDebugInputActionPhase.Started,Action.Phase));
-        Assert.Equal(65,Snapshot.ActiveActionCount);
-    }
     private static InputActionValue[]RunTrace(){
         var Server=CreateServer();
         var Results=new List<InputActionValue>();

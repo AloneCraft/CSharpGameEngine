@@ -6,7 +6,7 @@ public static class PlatformCompatibilityMatrixValidator {
     public const string Schema="csharp-game-engine-platform-compatibility-v1";
     private static readonly JsonSerializerOptions JsonOptions=new(){PropertyNameCaseInsensitive=true};
     private static readonly string[]ExpectedStages=[
-        "platform.boundaries","platform.window-input","input.actions","audio.lifecycle","audio.mixer","audio.spatial","vsix.platform-debug",
+        "platform.boundaries","platform.window-input","input.actions","audio.lifecycle","audio.mixer","audio.spatial",
     ];
     private static readonly IReadOnlyDictionary<string,(string Configuration,string Capability,string EvidenceMode,string CiCell)>ExpectedRequiredCells=
         new Dictionary<string,(string,string,string,string)>(StringComparer.Ordinal){

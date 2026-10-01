@@ -31,18 +31,6 @@ public sealed class RenderPreviewHostPipeTests {
             (await SendAsync(PipeName,Render)).State);
         Assert.Equal(1,Owned!.RenderCalls);
 
-        RenderPreviewHostRequest SnapshotRequest=new(){
-            RequestId=Guid.NewGuid(),SessionId=Open.SessionId,Sequence=3,
-            Command=RenderPreviewHostCommand.Snapshot,
-        };
-        RenderPreviewHostResponse SnapshotResponse=
-            await SendAsync(PipeName,SnapshotRequest);
-        Assert.Equal(RenderPreviewHostResultState.Succeeded,SnapshotResponse.State);
-        Assert.Null(RenderPreviewHostProtocol.ValidateDebugSnapshot(
-            SnapshotResponse.DebugSnapshot));
-        Assert.Equal(1,Owned.SnapshotCalls);
-        Assert.Equal(1,Owned.RenderCalls);
-
         Stop.Cancel();
         await Server.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.True(Owned.Disposed);
@@ -62,34 +50,11 @@ public sealed class RenderPreviewHostPipeTests {
         public string LastFrameHash=>string.Empty;
         public RenderPreviewCameraDiagnostics[]CameraPreviewDiagnostics{get;}=[];
         public int RenderCalls{get;private set;}
-        public int SnapshotCalls{get;private set;}
         public bool Disposed{get;private set;}
         public void ReplaceScene(RenderPreviewScene Scene,string SceneJson){ }
         public void UpdateFrame(RenderPreviewFrame Frame){ }
         public void Resize(int Width,int Height){ }
         public void Render(bool CaptureForVerification){ this.RenderCalls++; }
-        public RenderPreviewDebugSnapshot CaptureDebugSnapshot(){
-            this.SnapshotCalls++;
-            return new RenderPreviewDebugSnapshot {
-                DeviceState=RenderPreviewDebugDeviceState.Ready,
-                DeviceGeneration=3,CompletedFence=5,
-                SurfaceWidth=64,SurfaceHeight=64,
-                AdapterDescription="Fake",QualityProfile="Compatibility",
-                Passes=[new RenderPreviewDebugPass {
-                    Index=0,Name="Present",Queue=RenderPreviewDebugQueue.Graphics,
-                    ExecutionIndex=0,
-                }],
-                Resources=[new RenderPreviewDebugResource {
-                    Index=0,Name="BackBuffer",
-                    Kind=RenderPreviewDebugResourceKind.Texture,
-                    Width=64,Height=64,Format="rgba8",Imported=true,
-                    FirstUse=0,LastUse=0,AliasSlot=-1,
-                }],
-                Platform=PlatformDebugSnapshotCapture.Capture(
-                    PlatformDebugSnapshotCapture.NotOwnedInput("Test host owns no input."),
-                    PlatformDebugSnapshotCapture.NotOwnedAudio("Test host owns no audio.")),
-            };
-        }
         public void Dispose(){ this.Disposed=true; }
     }
 }

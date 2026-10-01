@@ -342,9 +342,6 @@ public sealed class RenderPreviewRuntimeSession:IRenderPreviewSession {
         }
     }
 
-    public RenderPreviewDebugSnapshot CaptureDebugSnapshot()=>
-        throw new InvalidOperationException("The runtime view does not capture debug snapshots yet.");
-
     public void Dispose(){
         lock(this.Gate){
             if(this.Disposed){ return; }

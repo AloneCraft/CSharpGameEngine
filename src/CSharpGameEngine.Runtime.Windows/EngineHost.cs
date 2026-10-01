@@ -77,16 +77,6 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
         this.Physics=new PhysicsDomainRegistry(Frame=>this.FrameSnapshot.Contains(Frame));
     }
 
-    public PlatformDebugSnapshot CapturePlatformDebugSnapshot(){
-        ObjectDisposedException.ThrowIf(this.Disposed,this);
-        PlatformDebugAudioSnapshot AudioSnapshot=this.AudioDevice is null
-            ?PlatformDebugSnapshotCapture.UnavailableAudio(
-                "The runtime audio device has not been initialized.")
-            :this.AudioDevice.CaptureDebugSnapshot();
-        return PlatformDebugSnapshotCapture.Capture(
-            this.Input.CaptureDebugSnapshot(),AudioSnapshot);
-    }
-
     public bool TryLoadPhysicsCache(
         Stream Input,in SimulationCacheIdentity Identity,bool AllowRealtimeHandoff,out string Error){
         ObjectDisposedException.ThrowIf(this.Disposed,this);

@@ -39,9 +39,6 @@ public static class VsixObservationLedger {
             ["startup-layout"]=[
                 "placement-preserved","no-focus-theft","normal-restart",
             ],
-            ["preview-render-audio"]=[
-                "warp-rendered","audio-lifecycle-observed","host-ownership-confirmed",
-            ],
         };
 
     public static IReadOnlyList<string>GetRequiredManualAssertionIds(string CheckId){

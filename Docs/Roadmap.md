@@ -76,8 +76,7 @@ Current baseline corrections: point/spot/area/emissive shadows and HDR/ACES/bloo
 | 4 | F-L8-024 | Implemented | Typed inspector and palette | F-L8-022 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.inspector-contracts` |
 | 5 | F-L8-025 | Implemented | Scene document synchronization | F-L8-023, F-L8-024 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.source-sync` |
 | 5 | F-L8-026 | Implemented | Bake, asset, diagnostic UI | F-L8-025 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.bake-integration` |
-| 6 | F-L8-027 | Implemented | Read-only debug tools | F-L8-026 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.debug-tools` |
-| 6 | F-L8-028 | Implemented | Compatibility matrix | F-L8-027 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.compatibility` |
+| 6 | F-L8-028 | Implemented | Compatibility matrix | F-L8-026 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.compatibility` |
 | 7 | F-L8-029 | Implementing | Release evidence | F-L8-028 | [Editor / VSIX](Specifications/Editor-VSIX.md) | `vsix.release` |
 | 7 | F-L8-032 | Implemented | ThirdPerson Visual Studio project template | F-L6-009, F-L8-031 | [ADR-0068](Decisions/ADR-0068-ThirdPerson-Project-Template.md) | `vsix.project-template` |
 
@@ -106,8 +105,7 @@ Current baseline corrections: point/spot/area/emissive shadows and HDR/ACES/bloo
 | 3 | F-L4-010 | Implemented | Deterministic input actions | F-L0-010 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `input.actions` |
 | 3 | F-L4-011 | Implemented | Mixer and offline oracle | F-L4-009 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `audio.mixer` |
 | 4 | F-L4-012 | Implemented | Spatial audio and recovery | F-L4-010, F-L4-011 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `audio.spatial` |
-| 5 | F-L8-030 | Implemented | Platform diagnostics viewer | F-L4-012 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `vsix.platform-debug` |
-| 6 | F-L7-034 | Implemented | Compatibility evidence | F-L8-030 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `platform.compatibility` |
+| 6 | F-L7-034 | Implemented | Compatibility evidence | F-L4-012 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `platform.compatibility` |
 | 7 | F-L7-035 | Implemented | Release evidence | F-L7-034 | [Audio / Input / Platform](Specifications/Audio-Input-Platform.md) | `platform.release` |
 
 ### Testing / CI / Release
@@ -287,7 +285,7 @@ glTF/FBX/Unrealの現在のimport垂直スライスを、stable identity、versi
 | 3 | Inspector/Paletteの型付き編集を拡張する（F-L8-024完了） | Scene model、asset identity | enum/vector/reference editor、validation、add/remove/reorder | 宣言member型を正本とし、不正・未宣言・同一入力ではsource操作を作らず、constructor既定値とruntime companion規則を維持する | `vsix.inspector-contracts`: typed editと再解析model一致 |
 | 4 | source sync、競合、Undo/Redoを完成させる（F-L8-025完了） | transform/inspector編集 | latest-source token、minimal text change、typed rebase/reject、canonical reanalysis | stale generationへ書かず、連続操作・外部編集・undo/redoで選択と表示が収束し、editor-owned historyを持たない | `vsix.source-sync`: operation sequence後のtext/model/selection identity一致 |
 | 4 | Bake、Asset、diagnostic UIをCLIへ接続する（F-L8-026完了） | Asset pipeline、各Bake Host | enabled command、progress/cancel、typed inline diagnostics、partial artifact link | UI独自のbuild処理を持たず、共通host DTOと同じrequest/progress/result/diagnostic identityを表示する | `vsix.bake-integration`: success/failure/cancel/false-success、host診断、部分artifact結果の一致 |
-| 5 | Render Graph viewer、profiler、debug visualizerを追加する（F-L8-027完了） | 既存Runtime debug projection（F-L3-017）、Render Graph | 読み取り専用viewer、frame capture summary、entity/component visualizer | Runtime ownershipを変更せず、要求駆動snapshotだけを表示する | `vsix.debug-tools`: protocol DTO、budget、disconnect/reconnect契約 |
+| 5 | Render Graph viewer、profiler、debug visualizerを追加する（F-L8-027 はM0097 で廃止。Scene Designer の診断の代わりに、VS のデバッガーとプロファイラーを拡張機能メニューから呼び出す） | 既存Runtime debug projection（F-L3-017）、Render Graph | 読み取り専用viewer、frame capture summary、entity/component visualizer | Runtime ownershipを変更せず、要求駆動snapshotだけを表示する | `vsix.debug-tools`: protocol DTO、budget、disconnect/reconnect契約 |
 | 6 | VS互換性、localization、DPI、accessibilityをRelease品質にする（F-L8-028 matrix/validator完了） | Editor機能一式 | 対応VS version matrix、resource parity、keyboard/focus、high-DPI layout | versioned matrixがnet472、VS 17.14+ amd64、neutral/en-US/ja-JP、CgeFixed/CgeAutomation、CI、詳細/manual evidenceを双方向照合し、Pendingを成功へ変換しない | `vsix.compatibility`: package tests、matrix validator、Experimental ledger sweep |
 | 7 | VSIX Release gateを完走する | compatibility | signed/installable VSIX候補、payload manifest、rollback手順 | `vsix` suite、Experimental Instance、install/update/uninstallが成功する | 既存`vsix` suite+`vsix.experimental-smoke` |
 
@@ -345,7 +343,7 @@ Win32 inputとXAudio2垂直スライスを、window/time/device lifecycle、acti
 | 3 | action mapping、rebind、device hotplugを実装する | input lifecycle | action/axis/chord schema、context、dead zone、rebind、gamepad adapter | 同じraw event列から同じaction列を生成し、disconnect時に入力がreleaseされる | `input.actions`: keyboard/mouse/gamepad traceとaction hash一致 |
 | 3 | mixer、bus、voiceを実装する | Audio lifecycle | bus graph、gain/pan、voice limit、offline buffer、underrun診断 | offline/silent referenceでsample数、gain、routing、loop境界が一致する | `audio.mixer`: offline PCM hash/peak/RMSとvoice lifecycle一致 |
 | 4 | streaming、spatial audio、device recoveryを実装する | mixer、Transform contract、artifact loader | decode/stream buffer、listener/source transform、attenuation、doppler policy、device change/recreate | coordinate conventionがRendering/Physicsと一致し、device再作成でvoice状態を規定通り復元する | `audio.spatial`: offline channel energy/attenuation、stream/recovery trace一致 |
-| 5 | Input/Audio diagnosticsとVSIX frontendを追加する | runtime contracts | device/voice/action inspector、meter、capture、設定UI | UIなしでもCLI/runtime APIが完結し、表示snapshotがruntimeを所有しない | `vsix.platform-debug`: disconnect/reconnect、snapshot budget、localization契約 |
+| 5 | Input/Audio diagnosticsとVSIX frontendを追加する（F-L8-030 はM0097 で廃止。Scene Designer の診断の代わりに、VS のデバッガーとプロファイラーを拡張機能メニューから呼び出す） | runtime contracts | device/voice/action inspector、meter、capture、設定UI | UIなしでもCLI/runtime APIが完結し、表示snapshotがruntimeを所有しない | `vsix.platform-debug`: disconnect/reconnect、snapshot budget、localization契約 |
 | 6 | Windows構成と実機matrixを検証する | Platform機能一式 | Debug/Release、device有無、DPI、keyboard layout、audio format別結果 | headless必須passが常に成功し、実機依存passは環境情報付きで分離保存される | `platform.compatibility`: synthetic必須pass+Hardware追加pass |
 | 7 | Platform Release gateを完走する | compatibility | native dependency/payload manifest、crash log、rollback情報 | clean machine相当で起動・入力・silent audio・実audio追加確認が成功する | `full`+`stress`+実機追加pass |
 

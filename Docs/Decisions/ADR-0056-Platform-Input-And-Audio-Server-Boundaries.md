@@ -24,4 +24,4 @@ Target features remove superseded facades/readers in the same change. `platform.
 
 ## Related features
 
-F-L1-008, F-L0-010, F-L4-009 through F-L4-012, F-L8-030, F-L7-034, F-L7-035.
+F-L1-008, F-L0-010, F-L4-009 through F-L4-012, F-L8-030 (retired in M0097), F-L7-034, F-L7-035.

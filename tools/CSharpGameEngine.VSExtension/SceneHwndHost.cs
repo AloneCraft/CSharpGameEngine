@@ -167,20 +167,6 @@ internal sealed class SceneHwndHost:HwndHost {
     internal event Action<string>?SpatialDebugStatusChanged;
     internal event Action<IReadOnlyList<int>,int?>?SpatialDebugProcessCandidatesChanged;
 
-    internal RenderPreviewDebugSnapshot CaptureRuntimeDebugSnapshot(){
-        RenderPreviewHostClient Client=this.PreviewClient
-            ??throw new InvalidOperationException(
-                VsixText.Get("RuntimeDebugPreviewUnavailable"));
-        try {
-            return Client.GetDebugSnapshot();
-        } catch(RenderPreviewHostException Error)when(!Error.SessionTerminated){
-            throw;
-        } catch(Exception Error){
-            this.HandleRenderFailure(Error);
-            throw;
-        }
-    }
-
     /// <summary>Pointerの<c>Down</c>で発火。WPF側は購読して<c>Keyboard.Focus</c>をここでだけ呼ぶ(ADR-0041 決定事項2)。</summary>
     internal event Action?ViewportActivated;
 
