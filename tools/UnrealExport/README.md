@@ -54,7 +54,7 @@ tools\UnrealExport\run_export_thirdperson.cmd --force
 
 ## 出力
 
-- `Assets/Stage/Lvl_ThirdPerson/Meshes/*.glb`: レベルの描画資産。
+- `Assets/Stage/Lvl_ThirdPerson/Meshes/*.glb`: レベルの描画資産。`M_PrototypeGrid`系のマテリアルは焼き付けず、ワールド空間のグリッド(`material.extras.CGE_world_grid`)へ書き換える(ADR-0075、下の「プロトタイプグリッド」)。
 - `Assets/Characters/Mannequins/`: SKM_Quinn_Simpleとアニメーション6本。アニメーションはジョイント階層とアニメーションだけへ縮約します。
 - `Scenes/Lvl_ThirdPerson.json`: 次を宣言します。
   - 環境ライティング
@@ -68,3 +68,19 @@ tools\UnrealExport\run_export_thirdperson.cmd --force
 - `.artifacts/UnrealExport/Lvl_ThirdPerson/manifest.json`: 取り込み元の実値。Git／ランタイムの対象外です。
 
 移植先の無いUEの機能が有効な値で来た場合、取り込みは黙って捨てずに失敗します。対象はカメララグ、SpringArmのオフセット、未対応の入力modifierなどです。
+
+## プロトタイプグリッド(ADR-0075)
+
+UEの`M_PrototypeGrid`(`MI_PrototypeGrid_Gray`など)は、ワールド座標へ投影した線テクスチャで床と壁にグリッドを描く。glTF書き出しの焼き付けでは再現できないため、エンジンはワールド空間で描き直す。
+
+- 書き出し(`export_lvl_*.py`)がマニフェストの`materialGrids`へ材質のパラメーターを記録する。対応するのはGrid=真・ObjectAligned=偽・TopSurfaceColor=偽の構成だけで、それ以外は書き出しが失敗する。
+- 取り込み後に`CSharpGameEngine.Unreal.SceneImporter worldgrid <manifest.json> <project-directory>`が、対象のglbを書き換える(両方の`run_export*.cmd`が自動で実行する)。焼き付けテクスチャを外し、`baseColorFactor`をSurfaceColorへ戻し、グリッドの値を`material.extras.CGE_world_grid`へ置く。書き換え済みのglbに再実行しても結果は同じ。
+- UEを再実行せずに既存のglbへ適用するには、マニフェストへ`materialGrids`を追記してから`worldgrid`を実行する。
+
+```cmd
+set CSGE_GRID_LEVEL=/Game/ThirdPerson/Lvl_ThirdPerson
+set CSGE_GRID_MANIFEST=%CD%\.artifacts\UnrealExport\Lvl_ThirdPerson\manifest.json
+"C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" <staging.uproject> -ExecutePythonScript="%CD%\tools\UnrealExport\add_material_grids_to_manifest.py" -EnablePlugins=PythonScriptPlugin -stdout -unattended -NoSplash -nosound
+```
+
+- `inspect_prototype_grid.py`は、UE側の材質(インスタンスのパラメーター、親材質と関数の式、`T_GridChecker_A`のPNG)を`.artifacts/UnrealExport/Lvl_ThirdPerson/prototype_grid.json`へ書き出す調査用スクリプト。

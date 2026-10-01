@@ -40,4 +40,7 @@ public sealed class ImportedPbrMaterial {
 
     /// <summary>glTF-standard packed texture: G = roughness, B = metallic (R is often occlusion, unused here).</summary>
     public byte[]?MetallicRoughnessTextureBytes { get; init;}
+
+    /// <summary>A world-space procedural grid drawn over <see cref="BaseColorFactor"/>, or null for an ordinary material (M0098).</summary>
+    public ImportedWorldGrid?WorldGrid { get; init;}
 }

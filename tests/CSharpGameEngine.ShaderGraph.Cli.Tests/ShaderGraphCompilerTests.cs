@@ -78,9 +78,10 @@ public sealed class ShaderGraphCompilerTests {
         var PbrDeclarationId=PbrRoot.Edges.First(Edge=>Edge.ToNodeId==PbrTranslation.Id).FromNodeId;
         Assert.Contains(Export.SourceMap.Entries,Entry=>Entry.NodeId==PbrDeclarationId.ToString());
         var Hash=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(Export.Hlsl)));
-        // ADR-0069 (sky light SH, physical fog, Unreal filmic output, cascaded sun shadows) intentionally changed the Stage
-        // program; the migrate/extract round trip was verified byte-identical before that edit.
-        Assert.Equal("635C13C7FEB912CAE07A2AA4D323BA0F664A398E1B678ACC3C729D83CC615ACE",Hash);
+        // ADR-0069 (sky light SH, physical fog, Unreal filmic output, cascaded sun shadows) and ADR-0075 (world-space
+        // procedural grid) intentionally changed the Stage program; the migrate/extract round trip was verified
+        // byte-identical before those edits.
+        Assert.Equal("8F515FB8B840D89DB4D49211F813DFBB25324FC8856781C78FA29C707B6BB9E2",Hash);
     }
     [Fact]
     public void DependencySemanticChange_ChangesOnlyDependencyHash() {

@@ -23,6 +23,7 @@ from unreal_export_common import (  # noqa: E402 - UE runs this file as a script
     load_level,
     log,
     log_error,
+    prototype_grid_materials,
 )
 
 LEVEL_ASSET_PATH = "/Game/ThirdPerson/Lvl_ThirdPerson"
@@ -365,6 +366,7 @@ def main() -> None:
         "stagingGlb": STAGING_GLB_PATH,
         "actors": actor_entries,
         "renderVariants": render_variants,
+        "materialGrids": prototype_grid_materials(mesh_actors),
         "environment": build_environment(actors),
         "character": character,
         "input": build_input(),

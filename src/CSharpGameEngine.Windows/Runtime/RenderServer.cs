@@ -499,6 +499,14 @@ public sealed class RenderServer:IDisposable {
         WriteTexture(Writer,Material.NormalTexture);
         WriteTexture(Writer,Material.EmissiveTexture);
         WriteTexture(Writer,Material.MetallicRoughnessTexture);
+        Writer.Write(Material.WorldGrid is not null);
+        if(Material.WorldGrid is{ }Grid){
+            Writer.Write(Grid.GridSizeMeters);
+            Writer.Write(Grid.SubGridDivisions);
+            Writer.Write(Grid.WireHalfWidth);
+            Writer.Write(Grid.GridColor.X); Writer.Write(Grid.GridColor.Y); Writer.Write(Grid.GridColor.Z);
+            Writer.Write(Grid.SubGridColor.X); Writer.Write(Grid.SubGridColor.Y); Writer.Write(Grid.SubGridColor.Z);
+        }
     }
 
     private static void WriteTexture(

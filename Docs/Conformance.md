@@ -1,5 +1,17 @@
 # Conformance
 
+## 2026-10-02 M0098 — ThirdPerson の地面のグリッドを UE と同じにする
+- 意図: ユーザーのスクリーンショット（床に崩れた模様）を受け、UE の参照画像と同じ 1m グリッドにする（[M0098](Milestones/M0098-ThirdPerson-World-Grid.md)、[ADR-0075](Decisions/ADR-0075-World-Space-Procedural-Grid-Material.md)）。
+- 観測した原因: UE の `M_PrototypeGrid` の焼き付け（4 つの GLB）。床の GLB は TEXCOORD_1 用の画像で、インポーターが TEXCOORD_0 で読んでいた。1024px の焼き付けでは UV1 で読めても床全体がぼやける。
+- 実装:
+  - UE の材質を実測し（`inspect_prototype_grid.py`）、同じ式をワールド空間の手続き的グリッドとして Stage シェーダーに加えた。
+  - 取り込みで GLB を `extras.CGE_world_grid` の材質へ書き換える。ThirdPerson と FirstPerson の両方に適用した。
+  - `texCoord` が 0 以外のテクスチャは、警告を出して読み込まない。
+- 自動化された証拠: 修正前に失敗するテストを追加した（インポーター 7、変換 4、材質の接続 1、WARP の描画 4）。ゴールデンの Stage HLSL ハッシュを更新した。
+- 実機の証拠: ThirdPerson テンプレートを WARP で起動して撮影し、UE の参照画像と見比べた。壁・床・段差のグリッドの間隔と色が揃っている。参照画像にはキャラクターが無い点だけが違う。
+- 結果: 意図と実装は一致する（MatchesWithDocumentedExtension: グリッドは描画の材質アーティファクトの外に添える）。
+- 既知の差: 斜めから見たときの線のフィルターは、UE の異方性フィルターと同じではない。Round / TopDark などの別のインスタンスは未対応（書き出しが失敗する）。
+
 ## 2026-10-02 M0097 — Physics パネルを分かりやすくする
 - 意図: ユーザーの「意味が分からない。わかりやすくして」を受け、Physics パネルの分かりにくさの原因を直す（[M0097](Milestones/M0097-Physics-Panel-Clarity.md)）。
 - 観測と修正:

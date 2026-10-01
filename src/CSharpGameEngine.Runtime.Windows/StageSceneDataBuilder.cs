@@ -209,6 +209,11 @@ internal sealed class StageSceneDataBuilder {
             NormalTexture=Resource.NormalTexture,
             MetallicRoughnessTexture=Resource.MetallicRoughnessTexture,
             EmissiveTexture=Resource.EmissiveTexture,
+            // The procedural grid is not part of the render-material artifact (a texture-based PBR record);
+            // it rides beside it so the artifact schema stays unchanged (ADR-0075).
+            WorldGrid=Material.WorldGrid is{ }Grid
+                ?new StageWorldGrid(Grid.GridSizeMeters,Grid.SubGridDivisions,Grid.WireHalfWidth,Grid.GridColor,Grid.SubGridColor)
+                :null,
         };
     }
 

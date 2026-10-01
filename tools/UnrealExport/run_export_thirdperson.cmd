@@ -42,4 +42,9 @@ dotnet run --project "%SCRIPT_DIR%..\CSharpGameEngine.SceneJson.Cli\CSharpGameEn
   convert "%TEMPLATE_DIR%\CSharpGameEngine.Templates.ThirdPerson.csproj" --write --delete-source
 if errorlevel 1 exit /b %errorlevel%
 
+rem The prototype grid materials are drawn procedurally in world space, not from the baked textures (ADR-0075).
+dotnet run --project "%SCRIPT_DIR%..\CSharpGameEngine.Unreal.SceneImporter\CSharpGameEngine.Unreal.SceneImporter.csproj" -- ^
+  worldgrid "%MANIFEST%" "%TEMPLATE_DIR%"
+if errorlevel 1 exit /b %errorlevel%
+
 endlocal

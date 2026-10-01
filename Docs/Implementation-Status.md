@@ -265,6 +265,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 
 ## F-L0-002 — `StageRenderer`(複数オブジェクト・テクスチャ付きPBR・データ駆動ライティング)
 
+- M0098: a material may carry a `StageWorldGrid` (main/sub grid lines drawn per pixel from the world position, projected along the dominant world axes; ADR-0075). `ObjectCB` grew 112 → 160 bytes (`WorldGridParams`, `WorldGridColor`, `WorldSubGridColor`; the slot stride is 512) and materials without a grid keep their output. WorldGridGpuIntegrationTests (WARP: floor main/sub line hierarchy, independence from mesh UVs, no grid means one flat colour, wall lines).
+
 - Layer: L0 — Platform / Native Backends
 - Parent capability: ECS駆動ステージ
 - Status: Implemented
@@ -465,6 +467,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 
 ## F-L0-005 — `GltfImporter.ImportScene`(ノードグラフ/PBRマテリアル/ライトのインポート)
 
+- M0098: `materials[].extras.CGE_world_grid` is read into `ImportedPbrMaterial.WorldGrid` (invalid values are reported and dropped), and a texture bound to a UV set other than TEXCOORD_0 is reported and left out instead of being sampled through TEXCOORD_0 (the engine has one UV set per vertex). GltfWorldGridImportTests.
+
 - M0089: base-colour/emissive textures use sRGB views, and `KHR_texture_transform` is baked into `TEXCOORD_0` (base colour wins; a differing channel is reported; source tangents are re-derived when the transform rotates or mirrors). GltfTextureTransformImportTests.
 
 - M0088: ImportedLight is color-only with directional lux and point/spot cd variants, nullable range and lossless half-radian cones. GltfImporterSceneTests and UnrealLightSceneEmitterTests verify typed output; zero-inner imported cones need explicit authored resolution.
@@ -536,6 +540,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   またがる差分スキャン方式のQuery基盤で、当時の「再検討する」次アクションに対応)。
 
 ## F-L7-005 — UEレベル取り込みパイプライン
+
+- M0098 / ADR-0075: `M_PrototypeGrid`系の材質は焼き付けない。書き出しがマニフェストの`materialGrids`へパラメーターを記録し(対応外の構成は失敗)、`CSharpGameEngine.Unreal.SceneImporter worldgrid`(`WorldGridGlbConverter`)がGLBの材質を`baseColorFactor`+`extras.CGE_world_grid`へ書き換える(ジオメトリは複製、冪等)。ThirdPersonテンプレートとFirstPersonの両方へ適用済み。`inspect_prototype_grid.py`はUE側の材質の実測用。WorldGridGlbConverterTests。
 
 - Layer: L7 — Static Compiler / Bake
 - Parent capability: UE5.8 FirstPersonステージ移植
@@ -4524,6 +4530,8 @@ F-L0-008 and F-L3-019 are implemented non-physics Roadmap Features; the remainin
 - Next action: Extend the typed node catalog only with explicit ABI-compatible nodes.
 
 ## F-L8-032 — ThirdPerson Visual Studio project template
+
+- M0098: the template's floor, walls and steps (the four `MI_PrototypeGrid_Gray` meshes) now draw Unreal's 1 m grid with 20 cm sub lines in world space instead of the baked textures that rendered as scrambled triangles (ADR-0075). Observed by launching the template on WARP and comparing the spawn view with the Unreal reference capture.
 
 - Layer: L8 — Visual Studio Authoring Environment
 - Parent capability: Editor / VSIX Roadmap

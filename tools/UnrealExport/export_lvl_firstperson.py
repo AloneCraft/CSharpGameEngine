@@ -20,6 +20,7 @@ from unreal_export_common import (  # noqa: E402 - UE runs this file as a script
     log,
     log_error,
     all_level_actors,
+    prototype_grid_materials,
     load_level as load_level_at,
 )
 
@@ -73,6 +74,7 @@ def main() -> None:
         "stagingGlb": STAGING_GLB_PATH,
         "actors": actor_entries,
         "renderVariants": render_variants,
+        "materialGrids": prototype_grid_materials(mesh_actors),
         "environment": build_environment(actors),
     }
     with open(MANIFEST_PATH, "w", encoding="utf-8", newline="\n") as output:

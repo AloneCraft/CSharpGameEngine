@@ -171,6 +171,9 @@ public sealed unsafe class StageRenderer:IDisposable {
     private const uint ObjectBaseColorFactorOffset=64; // float4
     private const uint ObjectMaterialParamsOffset=80;  // float4: x=roughness, y=metallic, z=presentation mode
     private const uint ObjectEmissiveFactorOffset=96;  // float4: xyz=emissive HDR, w=selection weight
+    private const uint ObjectWorldGridParamsOffset=112; // float4: x=grid size (m, 0 = no grid), y=sub grid divisions, z=wire half width
+    private const uint ObjectWorldGridColorOffset=128;  // float4: xyz=main grid line colour
+    private const uint ObjectWorldSubGridColorOffset=144; // float4: xyz=sub grid line colour
 
     // HDR clear values are the inverse ACES values for the public LDR ClearColor. This keeps the
     // empty-scene background stable across the new post-process pass while geometry still benefits
@@ -371,6 +374,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     private float[]MaterialRoughnessFactors=[];
     private float[]MaterialMetallicFactors=[];
     private Vector3[]MaterialEmissiveNits=[];
+    private StageWorldGrid?[]MaterialWorldGrids=[];
 
     // Per-object (indexed by objectIndex).
     private int ObjectCount;
@@ -1542,6 +1546,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.MaterialRoughnessFactors=new float[this.MaterialCount];
         this.MaterialMetallicFactors=new float[this.MaterialCount];
         this.MaterialEmissiveNits=new Vector3[this.MaterialCount];
+        this.MaterialWorldGrids=new StageWorldGrid?[this.MaterialCount];
         Dictionary<Hash256,nint>ResidentTextures=[];
         List<nint>OwnedTextures=[];
 
@@ -1551,6 +1556,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 this.MaterialBaseColorFactors[I]=Material.BaseColorFactor;
                 this.MaterialRoughnessFactors[I]=Material.RoughnessFactor;
                 this.MaterialMetallicFactors[I]=Material.MetallicFactor;
+                this.MaterialWorldGrids[I]=Material.WorldGrid;
                 this.MaterialEmissiveNits[I]=Material.EmissiveNits!=Vector3.Zero
                     ?Material.EmissiveNits
                     :Material.EmissiveFactor*GltfImportEmissiveDefaultNits;
@@ -3258,6 +3264,15 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.MaterialEmissiveNits[MaterialIndex],
             this.ObjectSelectionWeights[ObjectIndex]);
         Unsafe.CopyBlock(Destination+ObjectEmissiveFactorOffset,&EmissiveNits,(uint)sizeof(Vector4));
+
+        // A zero grid size means "no grid": the shader keeps the plain base colour.
+        var WorldGrid=this.MaterialWorldGrids[MaterialIndex];
+        Vector4 WorldGridParams=WorldGrid is{ }Grid?new Vector4(Grid.GridSizeMeters,Grid.SubGridDivisions,Grid.WireHalfWidth,0f):Vector4.Zero;
+        Vector4 WorldGridColor=WorldGrid is{ }MainGrid?new Vector4(MainGrid.GridColor,0f):Vector4.Zero;
+        Vector4 WorldSubGridColor=WorldGrid is{ }SubGrid?new Vector4(SubGrid.SubGridColor,0f):Vector4.Zero;
+        Unsafe.CopyBlock(Destination+ObjectWorldGridParamsOffset,&WorldGridParams,(uint)sizeof(Vector4));
+        Unsafe.CopyBlock(Destination+ObjectWorldGridColorOffset,&WorldGridColor,(uint)sizeof(Vector4));
+        Unsafe.CopyBlock(Destination+ObjectWorldSubGridColorOffset,&WorldSubGridColor,(uint)sizeof(Vector4));
     }
 
     private ulong GetFrameConstantsAddress(uint FrameIndex,int PassIndex=0){

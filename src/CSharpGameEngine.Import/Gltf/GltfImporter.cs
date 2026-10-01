@@ -1,5 +1,7 @@
 using CSharpGameEngine.Lighting;
 using System.Numerics;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using SharpGLTF.Schema2;
 
 namespace CSharpGameEngine.Import.Gltf;
@@ -56,9 +58,6 @@ public static class GltfImporter {
         Material?Material=Primitive.Material;
         MaterialChannel?BaseColorChannel=Material?.FindChannel("BaseColor");
         Vector4 BaseColorFactor=BaseColorChannel?.Color??new Vector4(1f,1f,1f,1f);
-        var BaseColorTextureBytes=BaseColorChannel?.Texture?.PrimaryImage is Image Image
-            ?Image.Content.Content.ToArray()
-            :null;
 
         List<(int A,int B,int C)>Triangles=[.. Primitive.GetTriangleIndices()];
         if(Triangles.Count==0){
@@ -66,6 +65,7 @@ public static class GltfImporter {
         }
 
         List<GltfImportDiagnostic>Diagnostics=[];
+        var BaseColorTextureBytes=ExtractTextureBytes(BaseColorChannel,Diagnostics,"glTF primitive");
         Vector3[]Positions;
         Vector3[]Normals;
         Vector2[]Uvs;
@@ -248,7 +248,7 @@ public static class GltfImporter {
                     MaterialIndex=GetOrAddDefaultMaterial(Materials,MaterialIndexByGltfMaterial);
                 } else if(!MaterialIndexByGltfMaterial.TryGetValue(Material,out MaterialIndex)){
                     MaterialIndex=Materials.Count;
-                    Materials.Add(ImportMaterial(Material,Options));
+                    Materials.Add(ImportMaterial(Material,Options,Diagnostics));
                     MaterialIndexByGltfMaterial[Material]=MaterialIndex;
                 }
 
@@ -304,19 +304,19 @@ public static class GltfImporter {
         return Materials.Count-1;
     }
 
-    private static ImportedPbrMaterial ImportMaterial(Material Material,GltfImportOptions Options){
+    private static ImportedPbrMaterial ImportMaterial(Material Material,GltfImportOptions Options,List<GltfImportDiagnostic>Diagnostics){
         MaterialChannel?BaseColorChannel=Material.FindChannel("BaseColor");
         MaterialChannel?NormalChannel=Material.FindChannel("Normal");
         MaterialChannel?MetallicRoughnessChannel=Material.FindChannel("MetallicRoughness");
         MaterialChannel?EmissiveChannel=Material.FindChannel("Emissive");
+        var Context=$"material '{Material.Name??"(unnamed)"}'";
 
         Vector3 EmissiveFactor=EmissiveChannel is { Color: var EmissiveColor }
             ?new Vector3(EmissiveColor.X,EmissiveColor.Y,EmissiveColor.Z)
             :Vector3.Zero;
         var EmissiveStrength=EmissiveChannel?.GetFactor("EmissiveStrength")??1f;
-        byte[]?EmissiveTextureBytes=ExtractTextureBytes(EmissiveChannel);
+        byte[]?EmissiveTextureBytes=ExtractTextureBytes(EmissiveChannel,Diagnostics,Context);
         float EmissiveTextureLuminanceScale=EmissiveTextureLuminance.CalculateOrIdentity(EmissiveTextureBytes);
-
 
         return new ImportedPbrMaterial {
             BaseColorFactor=BaseColorChannel?.Color??new Vector4(1f,1f,1f,1f),
@@ -325,12 +325,58 @@ public static class GltfImporter {
             EmissiveFactor=EmissiveFactor,
             EmissiveStrength=EmissiveStrength,
             EmissiveNits=EmissiveFactor*EmissiveStrength*Options.EmissiveNitsPerUnit,
-            BaseColorTextureBytes=ExtractTextureBytes(BaseColorChannel),
-            NormalTextureBytes=ExtractTextureBytes(NormalChannel),
-            MetallicRoughnessTextureBytes=ExtractTextureBytes(MetallicRoughnessChannel),
+            BaseColorTextureBytes=ExtractTextureBytes(BaseColorChannel,Diagnostics,Context),
+            NormalTextureBytes=ExtractTextureBytes(NormalChannel,Diagnostics,Context),
+            MetallicRoughnessTextureBytes=ExtractTextureBytes(MetallicRoughnessChannel,Diagnostics,Context),
             EmissiveTextureLuminanceScale=EmissiveTextureLuminanceScale,
             EmissiveTextureBytes=EmissiveTextureBytes,
+            WorldGrid=ReadWorldGrid(Material,Diagnostics,Context),
         };
+    }
+
+    /// <summary>
+    /// Reads <c>extras.CGE_world_grid</c>. A malformed grid is reported and left out so the material falls
+    /// back to its plain surface colour instead of rendering an arbitrary pattern.
+    /// </summary>
+    private static ImportedWorldGrid?ReadWorldGrid(Material Material,List<GltfImportDiagnostic>Diagnostics,string Context){
+        if(Material.Extras is not JsonObject Extras||!Extras.TryGetPropertyValue(ImportedWorldGrid.ExtrasKey,out var Node)){
+            return null;
+        }
+        try {
+            if(Node is not JsonObject Grid){
+                throw new FormatException("it must be an object");
+            }
+            var GridSizeMeters=Grid["gridSizeMeters"]?.GetValue<float>()??throw new FormatException("gridSizeMeters is missing");
+            var SubGridDivisions=Grid["subGridDivisions"]?.GetValue<int>()??throw new FormatException("subGridDivisions is missing");
+            var WireHalfWidth=Grid["wireHalfWidth"]?.GetValue<float>()??throw new FormatException("wireHalfWidth is missing");
+            var GridColor=ReadColor(Grid,"gridColor");
+            var SubGridColor=ReadColor(Grid,"subGridColor");
+            if(!float.IsFinite(GridSizeMeters)||GridSizeMeters<=0f){
+                throw new FormatException("gridSizeMeters must be a positive number");
+            }
+            if(SubGridDivisions<1){
+                throw new FormatException("subGridDivisions must be at least 1");
+            }
+            if(!float.IsFinite(WireHalfWidth)||WireHalfWidth<=0f||WireHalfWidth>=0.5f){
+                throw new FormatException("wireHalfWidth must be greater than 0 and less than 0.5");
+            }
+            return new ImportedWorldGrid(GridSizeMeters,SubGridDivisions,WireHalfWidth,GridColor,SubGridColor);
+        } catch(Exception Ex) when(Ex is FormatException or InvalidOperationException or JsonException){
+            Diagnostics.Add(new GltfImportDiagnostic(GltfImportDiagnosticSeverity.Warning,
+                $"'{Context}': {ImportedWorldGrid.ExtrasKey} is invalid ({Ex.Message}); the material is imported without a world grid."));
+            return null;
+        }
+    }
+
+    private static Vector3 ReadColor(JsonObject Grid,string Name){
+        if(Grid[Name] is not JsonArray Values||Values.Count!=3){
+            throw new FormatException($"{Name} must be three numbers");
+        }
+        var Color=new Vector3(Values[0]!.GetValue<float>(),Values[1]!.GetValue<float>(),Values[2]!.GetValue<float>());
+        if(!float.IsFinite(Color.X)||!float.IsFinite(Color.Y)||!float.IsFinite(Color.Z)||Color.X<0f||Color.Y<0f||Color.Z<0f){
+            throw new FormatException($"{Name} must be finite and not negative");
+        }
+        return Color;
     }
 
     /// <summary>
@@ -344,7 +390,7 @@ public static class GltfImporter {
             return null;
         }
         MaterialChannel[]Textured=[.. new[]{"BaseColor","Normal","MetallicRoughness","Emissive","Occlusion"}
-            .Select(Material.FindChannel).Where(static Channel=>Channel?.Texture is not null).Select(static Channel=>Channel!.Value)];
+            .Select(Material.FindChannel).Where(static Channel=>Channel?.Texture is not null&&Channel.Value.TextureCoordinate==0).Select(static Channel=>Channel!.Value)];
         if(Textured.Length==0){
             return null;
         }
@@ -372,8 +418,22 @@ public static class GltfImporter {
         }
     }
 
-    private static byte[]?ExtractTextureBytes(MaterialChannel?Channel)=>
-        Channel?.Texture?.PrimaryImage is Image Image?Image.Content.Content.ToArray():null;
+    /// <summary>
+    /// The encoded bytes of a channel's texture. The engine samples every texture with the vertex's single
+    /// UV set, so a texture bound to another set (<c>texCoord</c> above 0) is reported and left out instead
+    /// of being sampled through the wrong coordinates.
+    /// </summary>
+    private static byte[]?ExtractTextureBytes(MaterialChannel?Channel,List<GltfImportDiagnostic>Diagnostics,string Context){
+        if(Channel?.Texture?.PrimaryImage is not Image Image){
+            return null;
+        }
+        if(Channel.Value.TextureCoordinate!=0){
+            Diagnostics.Add(new GltfImportDiagnostic(GltfImportDiagnosticSeverity.Warning,
+                $"'{Context}': the {Channel.Value.Key} texture uses TEXCOORD_{Channel.Value.TextureCoordinate}, but meshes carry one UV set (TEXCOORD_0); the texture is ignored."));
+            return null;
+        }
+        return Image.Content.Content.ToArray();
+    }
 
     private static ImportedLight ImportLight(PunctualLight Light){
         var Color=new LinearLightColor(Light.Color.X,Light.Color.Y,Light.Color.Z);

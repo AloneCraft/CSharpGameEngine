@@ -93,6 +93,66 @@ def safe_asset_stem(source_mesh_path: str, material_paths: tuple) -> str:
     return f"{sanitized}_{digest}"
 
 
+PROTOTYPE_GRID_MATERIAL = "/Game/LevelPrototyping/Materials/M_PrototypeGrid"
+# MF_ProcGrid projects the R channel of T_GridChecker_A (one 512 px tile whose four borders carry a 5 px
+# wire, measured from the exported PNG) along the world axes; the wire spans 5/512 of the tile on each
+# side of a grid line. See tools/UnrealExport/inspect_prototype_grid.py and ADR-0075.
+PROTOTYPE_GRID_WIRE_HALF_WIDTH = 5.0 / 512.0
+
+
+def prototype_grid_parameters(material) -> dict:
+    """The world-aligned prototype grid parameters of a M_PrototypeGrid material instance, or None.
+
+    Only the configuration the engine reproduces is accepted: the main grid on, world aligned, no
+    top-surface colour. Anything else fails loudly instead of being silently dropped.
+    """
+    base = material
+    while isinstance(base, unreal.MaterialInstanceConstant):
+        base = base.get_editor_property("parent")
+    if base is None or base.get_path_name().split(".")[0] != PROTOTYPE_GRID_MATERIAL:
+        return None
+    editing = unreal.MaterialEditingLibrary
+
+    def scalar(name: str) -> float:
+        return float(editing.get_material_instance_scalar_parameter_value(material, name))
+
+    def color(name: str) -> list:
+        value = editing.get_material_instance_vector_parameter_value(material, name)
+        return [float(value.r), float(value.g), float(value.b)]
+
+    def switch(name: str) -> bool:
+        return bool(editing.get_material_instance_static_switch_parameter_value(material, name))
+
+    name = material.get_path_name()
+    if not switch("Grid"):
+        raise RuntimeError(f"{name}: the Grid switch is off (the round-grid variant) and has no engine equivalent")
+    if switch("ObjectAligned"):
+        raise RuntimeError(f"{name}: ObjectAligned grids have no engine equivalent")
+    if switch("TopSurfaceColor"):
+        raise RuntimeError(f"{name}: TopSurfaceColor has no engine equivalent")
+    return {
+        "gridSizeCm": scalar("Grid Size"),
+        "subGridDivisions": int(round(scalar("Sub Grid Number"))),
+        "wireHalfWidth": PROTOTYPE_GRID_WIRE_HALF_WIDTH,
+        "roughness": scalar("Roughness"),
+        "surfaceColor": color("SurfaceColor"),
+        "gridColor": color("GridColor"),
+        "subGridColor": color("SubGridColor"),
+    }
+
+
+def prototype_grid_materials(mesh_actors: list) -> dict:
+    """Material path -> prototype grid parameters for every distinct grid material the actors use."""
+    result = {}
+    for actor in mesh_actors:
+        for path in render_variant(actor)[1]:
+            if path and path not in result:
+                grid = prototype_grid_parameters(unreal.load_asset(path.split(".")[0]))
+                if grid is not None:
+                    result[path] = grid
+    return result
+
+
 def mobility(actor: unreal.StaticMeshActor) -> str:
     component = static_mesh_component(actor)
     return "Movable" if component.mobility == unreal.ComponentMobility.MOVABLE else "Static"
