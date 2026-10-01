@@ -92,8 +92,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
     /// <summary>
     /// M0047: <see cref="SceneEditorSessionService.TryUndo"/>はDocumentを同期で戻し、その場で
     /// 正しい状態を配信する(<see cref="SceneEditorSessionService.PinnedSnapshotChanged"/>)ため、
-    /// M0036由来の先読みプレビュー(<c>Host.TryFastUndo</c>)はもう不要 — 正本の配信自体が
-    /// 既に即時なので、先読みを重ねると構造編集で古いTransformプレビューを誤って被せかねない。
+    /// 表示だけを先に戻す先読みは持たない。
     /// </summary>
     internal bool TryUndoFromCommand(){
         ThreadHelper.ThrowIfNotOnUIThread();

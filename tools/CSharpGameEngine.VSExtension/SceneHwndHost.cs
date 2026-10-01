@@ -145,15 +145,6 @@ internal sealed class SceneHwndHost:HwndHost {
     private float ActiveRotateAccumulatedRadians;
     private float ActiveRotatePreviousRadians;
 
-    // M0036: シーンビューのCtrl+Z/Yで、実際のC#ソースUndo/Redo(唯一の編集履歴、ADR-0040)を待たず
-    // 3Dビューを即座にパッチするための軽量キャッシュ。どこにも書き込みを行わない表示の先読みで、
-    // 外れても実害は無い(Roslyn再解析が終われば必ず正しい状態へ収束する)。対象はMove/Rotate/Scale/
-    // SurfaceSnapのTransformコミットのみ(CompleteEditCommitの!WasProperty&&!WasDuplicateと同じ絞り)。
-    private IReadOnlyList<SceneTransformPreview>ActiveDragOriginalRoots=[];
-    private Stack<TransformUndoRecord>RecentTransformCommits=new();
-    private Stack<TransformUndoRecord>RecentTransformUndone=new();
-    private const int MaxRecentTransformCommits=20;
-
     // M0034: Shift+Ctrl押下中(マウス静止中でも1フレーム以内に四角を出すため、Renderingティックで
     // GetKeyStateポーリングする。既存のFly Fast/Precisionポーリングと同じ方式)。
     private bool SurfaceSnapArmed;
@@ -335,9 +326,6 @@ internal sealed class SceneHwndHost:HwndHost {
         bool SameScene=this.TargetKey is { }PreviousKey&&PreviousKey.Equals(Snapshot.Key);
         if(!SameScene){
             this.PendingCameraReset=true;
-            // M0036: 別Sceneへ切り替えたら、先読みUndoキャッシュ(NodePathが別ファイルのものになる)を破棄する。
-            this.RecentTransformCommits.Clear();
-            this.RecentTransformUndone.Clear();
         }
 
         this.TargetKey=Snapshot.Key;
@@ -1579,11 +1567,6 @@ internal sealed class SceneHwndHost:HwndHost {
             return false;
         }
 
-        // M0036: コミット前のRoot Worldを退避しておく。Ctrl+Zの表示先読みパッチ(TryFastUndo)専用で、
-        // EditTransactionController.Targets(private)には外部からアクセスできないためここで複製する。
-        this.ActiveDragOriginalRoots=Targets
-                                    .Select(static Target=>new SceneTransformPreview(default,Target.NodePath,Target.OriginalWorld))
-                                    .ToArray();
         // M0037: 角度累積をドラッグ開始時にリセットする(Rotate以外では未使用のまま無害)。
         this.ActiveRotateAccumulatedRadians=0f;
         this.ActiveRotatePreviousRadians=0f;
@@ -1949,7 +1932,6 @@ internal sealed class SceneHwndHost:HwndHost {
 
         this.PreviewDescendantOriginals=[];
         this.ActiveDraggedRootPaths=[];
-        this.ActiveDragOriginalRoots=[];
         this.ActiveGizmoStartFrame=null;
         this.HasActiveFollowViewSnapshot=false;
         this.FollowViewApplied=false;
@@ -1971,29 +1953,6 @@ internal sealed class SceneHwndHost:HwndHost {
         }
     }
 
-    /// <summary>
-    /// M0038: 予測でトランザクションを閉じた後にソース書き戻しが失敗したときの通知専用。
-    /// 表示の同期自体は<see cref="ResyncAfterCommitFailure"/>が別途行う(呼び出し側が両方呼ぶ)。
-    /// </summary>
-    internal void ReportCommitFailure(string?ErrorMessage){
-        ThreadHelper.ThrowIfNotOnUIThread();
-        this.SetStatus(ErrorMessage??VsixText.Get("SceneCommitFailedRollback"));
-    }
-
-    /// <summary>
-    /// M0039: 直列の書き戻しチェーンのどこかが失敗したとき、呼び出し側
-    /// (<see cref="SceneDesignerToolWindowControl"/>)が
-    /// <c>Session.RefreshPinnedSnapshotFromSourceAsync</c>で画面をソースの真実へ強制同期した直後に
-    /// 呼ぶ。失敗より後の編集は「本当は起きていない前段の編集」を前提に予測されていた可能性があり
-    /// 信用できないため、先読みUndo/Redoスタックを丸ごと破棄する — 既存のProperty編集・複製・
-    /// 別Scene切替時のClearと同じ確立済みのidiom(このメソッド自体は表示の再構築は行わない。
-    /// それは<c>SetTarget</c>経由で<c>PinnedSnapshotChanged</c>が届いたときに起きる)。
-    /// </summary>
-    internal void ResyncAfterCommitFailure(){
-        ThreadHelper.ThrowIfNotOnUIThread();
-        this.RecentTransformCommits.Clear();
-        this.RecentTransformUndone.Clear();
-    }
 
     internal void CompleteEditCommit(bool Succeeded,string?ErrorMessage){
         if(this.EditTransaction.State!=EditTransactionState.Committing){
@@ -2022,10 +1981,6 @@ internal sealed class SceneHwndHost:HwndHost {
             this.ActiveGizmoHandle=null;
             this.HoveredGizmoHandle=null;
             this.CurrentPropertyGizmo=null;
-            // M0036: プロパティ編集はTransform用の先読みキャッシュの対象外。古い記録を残すと
-            // 別コミット種別のUndoに誤って使われかねないので丸ごと破棄する。
-            this.RecentTransformCommits.Clear();
-            this.RecentTransformUndone.Clear();
             if(Pending is not null){
                 this.SetTarget(Pending);
             } else {
@@ -2037,22 +1992,6 @@ internal sealed class SceneHwndHost:HwndHost {
         }
 
         this.RemoveDuplicatePreview();
-        // M0036: 直近コミットを先読みUndo用に記録する(複製はNodePathが新規のため対象外、
-        // Transform自体が変わらないケースはFinalPreviews.Count==0で自然に除外される)。新しい
-        // コミットが起きたのでredo系列は破棄する(標準的なUndo/Redoの慣習)。
-        if(WasDuplicate){
-            this.RecentTransformCommits.Clear();
-            this.RecentTransformUndone.Clear();
-        } else if(FinalPreviews.Count>0){
-            this.RecentTransformCommits.Push(new TransformUndoRecord(this.ActiveDragOriginalRoots,FinalPreviews,FinalDescendants,FinalWorldDelta));
-            while(this.RecentTransformCommits.Count>MaxRecentTransformCommits){
-                this.RecentTransformCommits=new Stack<TransformUndoRecord>(this.RecentTransformCommits.Reverse().Skip(1));
-            }
-
-            this.RecentTransformUndone.Clear();
-        }
-
-        this.ActiveDragOriginalRoots=[];
         this.PreviewDescendantOriginals=[];
         this.ActiveDraggedRootPaths=[];
         this.ActiveGizmoStartFrame=null;
@@ -2083,7 +2022,7 @@ internal sealed class SceneHwndHost:HwndHost {
     }
 
     /// <summary>
-    /// <see cref="CompleteEditCommit"/>・<see cref="TryFastUndo"/>・<see cref="TryFastRedo"/>専用。
+    /// <see cref="CompleteEditCommit"/>専用。
     /// 指定したNodePathのRenderObjectだけを、指定のWorld行列へ差し替える(<see cref="SceneRenderObject"/>は
     /// initプロパティのみのクラスのため複製が必要)。対象が無ければ何もしない。
     /// </summary>
@@ -2109,41 +2048,6 @@ internal sealed class SceneHwndHost:HwndHost {
                                                                                  IncludeInBounds=Object.IncludeInBounds,IsPickable=Object.IsPickable }
                                                                              :Object).ToArray();
         this.PreviewFrameDirty=true;
-    }
-
-    /// <summary>
-    /// M0036: シーンビューのCtrl+Zから呼ばれる。実際のC#ソースUndoが成功した後に呼び出し側が呼ぶ想定
-    /// (<see cref="SceneDesignerToolWindowControl"/>参照)。直近のTransformコミットを、Roslyn再解析を
-    /// 待たずに3Dビューへ即座に巻き戻す表示専用の先読みパッチ。対応する記録が無ければ何もしない
-    /// (この場合は通常どおりRoslyn再解析待ちで反映される)。
-    /// </summary>
-    internal bool TryFastUndo(){
-        ThreadHelper.ThrowIfNotOnUIThread();
-        if(this.InputMachine is not { State:SceneNavState.Idle}|| this.RecentTransformCommits.Count==0){
-            return false;
-        }
-
-        TransformUndoRecord Record= this.RecentTransformCommits.Pop();
-        this.RecentTransformUndone.Push(Record);
-        this.ApplyFinalTransformsToRenderObjects(Record.RootsBefore,Record.Descendants,Matrix4x4.Identity);
-        this.CurrentMoveGizmo=null;
-        this.UpdateMoveGizmo();
-        return true;
-    }
-
-    /// <summary><see cref="TryFastUndo"/>の逆。元のコミットと同じ引数で<see cref="ApplyFinalTransformsToRenderObjects"/>を再生するだけ。</summary>
-    internal bool TryFastRedo(){
-        ThreadHelper.ThrowIfNotOnUIThread();
-        if(this.InputMachine is not { State:SceneNavState.Idle}|| this.RecentTransformUndone.Count==0){
-            return false;
-        }
-
-        TransformUndoRecord Record= this.RecentTransformUndone.Pop();
-        this.RecentTransformCommits.Push(Record);
-        this.ApplyFinalTransformsToRenderObjects(Record.RootsAfter,Record.Descendants,Record.WorldDelta);
-        this.CurrentMoveGizmo=null;
-        this.UpdateMoveGizmo();
-        return true;
     }
 
     /// <summary>
@@ -2648,14 +2552,4 @@ internal sealed class SceneHwndHost:HwndHost {
     private sealed record SceneRenderBuildResult(
         SceneRenderBuildRequest Request,
         IReadOnlyList<SceneRenderObject>RenderObjects);
-
-    /// <summary>M0036: <see cref="RecentTransformCommits"/>/<see cref="RecentTransformUndone"/>の1件分。</summary>
-    private readonly struct TransformUndoRecord(
-        IReadOnlyList<SceneTransformPreview>RootsBefore,IReadOnlyList<SceneTransformPreview>RootsAfter,
-        IReadOnlyList<SceneTransformPreview>Descendants,Matrix4x4 WorldDelta){
-        internal IReadOnlyList<SceneTransformPreview>RootsBefore { get; }=RootsBefore;
-        internal IReadOnlyList<SceneTransformPreview>RootsAfter { get; }=RootsAfter;
-        internal IReadOnlyList<SceneTransformPreview>Descendants { get; }=Descendants;
-        internal Matrix4x4 WorldDelta { get; }=WorldDelta;
-    }
 }

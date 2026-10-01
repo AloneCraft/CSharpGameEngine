@@ -28,9 +28,6 @@ internal sealed class SceneSourceCommitContext {
     internal SourceText Text { get; }
 
     internal Compilation Compilation { get; }
-
-    internal static SceneSourceCommitContext FromWorkspace(SceneWorkspaceEditContext Context)=>
-        new(Context.Model,Context.Root,Context.Text,Context.Compilation);
 }
 
 /// <summary>

@@ -133,7 +133,6 @@
   <data name="WorkspaceAnalysisDataUnavailable" xml:space="preserve"><value>The information required for Roslyn analysis is unavailable: {0}</value></data>
   <data name="SourceEditSceneKeyMismatch" xml:space="preserve"><value>The target Scene does not match the operation SceneKey.</value></data>
   <data name="SourceEditNodeNotFound" xml:space="preserve"><value>The target Node was not found in the current Scene.</value></data>
-  <data name="SourceEditGeneratedSceneReadOnly" xml:space="preserve"><value>Generated .g.cs files cannot be edited from Scene Designer.</value></data>
   <data name="SourceEditOperationUnsupported" xml:space="preserve"><value>This Scene edit operation is not implemented by Source Editor.</value></data>
   <data name="SourceEditProjectionTargetMissing" xml:space="preserve"><value>The target Scene or Node was not found in the current projection.</value></data>
   <data name="SourceEditOperationFailed" xml:space="preserve"><value>The Scene edit operation failed.</value></data>
@@ -160,7 +159,6 @@
   <data name="SourceEditAddTargetCreationMissing" xml:space="preserve"><value>The target Node object creation expression was not found in source.</value></data>
   <data name="SourceEditComponentCollectionToRemoveMissing" xml:space="preserve"><value>The Components collection containing the Component to remove was not found in source.</value></data>
   <data name="SourceEditTargetTransformMissing" xml:space="preserve"><value>The target Node has no editable Transform Component.</value></data>
-  <data name="SourceEditGeneratedTransformReadOnly" xml:space="preserve"><value>A Transform in a generated .g.cs file cannot be edited.</value></data>
   <data name="SourceEditTransformCreationMissing" xml:space="preserve"><value>The Transform object creation expression was not found in source.</value></data>
   <data name="SourceEditTransformUpdateFailed" xml:space="preserve"><value>The Transform could not be updated.</value></data>
   <data name="SourceEditNodeCannotDuplicate" xml:space="preserve"><value>A Scene Root or a Node outside a Children list cannot be duplicated.</value></data>
@@ -171,12 +169,10 @@
   <data name="SourceEditDuplicateInsertionFailed" xml:space="preserve"><value>The duplicate could not be added to the parent Node Children syntax.</value></data>
   <data name="SourceEditTransformVectorNotLiteral" xml:space="preserve"><value>Transform.{0} is not a literal Vector3 and cannot be edited by the gizmo.</value></data>
   <data name="SourceEditTransformVectorInvalid" xml:space="preserve"><value>Transform.{0} has an invalid Vector3 expression.</value></data>
-  <data name="SourceEditGeneratedNodeAddReadOnly" xml:space="preserve"><value>Nodes cannot be added to a generated .g.cs file.</value></data>
   <data name="SourceEditAddTargetSyntaxMissing" xml:space="preserve"><value>The destination Node syntax was not found.</value></data>
   <data name="SourceEditInitialComponentsFailed" xml:space="preserve"><value>The initial Components for the new Node could not be created.</value></data>
   <data name="SourceEditChildrenExpressionUnsupported" xml:space="preserve"><value>The Children expression cannot be edited.</value></data>
   <data name="SourceEditRootCannotRemove" xml:space="preserve"><value>The Scene Root cannot be removed.</value></data>
-  <data name="SourceEditGeneratedNodeRemoveReadOnly" xml:space="preserve"><value>Nodes cannot be removed from a generated .g.cs file.</value></data>
   <data name="SourceEditRemoveTargetNotStaticChild" xml:space="preserve"><value>The removal target is not a static Children element.</value></data>
   <data name="SourceEditReparentParentMissing" xml:space="preserve"><value>A parent Node required for Reparent was not found.</value></data>
   <data name="SourceEditReparentCycle" xml:space="preserve"><value>A Node cannot be moved under itself or one of its descendants.</value></data>
@@ -279,7 +275,6 @@ Sign-in and downloads from Fab are not performed in this window. Always perform 
   <data name="ScenePropertyApplying" xml:space="preserve"><value>Applying the property edit to the C# source...</value></data>
   <data name="SceneToolCommitDiscarded" xml:space="preserve"><value>{0} could not be committed, so the change was discarded.</value></data>
   <data name="SceneToolApplying" xml:space="preserve"><value>Applying {0} to the C# source...</value></data>
-  <data name="SceneCommitFailedRollback" xml:space="preserve"><value>Applying the edit to the C# source failed. The edit will be rolled back.</value></data>
   <data name="SceneCommitFailed" xml:space="preserve"><value>Applying the edit to the C# source failed.</value></data>
   <data name="ScenePropertyApplied" xml:space="preserve"><value>The property was applied to the C# source. Press Ctrl+Z to undo.</value></data>
   <data name="SceneTransformApplied" xml:space="preserve"><value>Transform was applied to the C# source. Press Ctrl+Z to undo.</value></data>

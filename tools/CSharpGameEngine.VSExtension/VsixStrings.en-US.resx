@@ -133,7 +133,6 @@
   <data name="WorkspaceAnalysisDataUnavailable" xml:space="preserve"><value>Roslyn解析に必要な情報を取得できませんでした: {0}</value></data>
   <data name="SourceEditSceneKeyMismatch" xml:space="preserve"><value>対象Sceneと操作のSceneKeyが一致しません。</value></data>
   <data name="SourceEditNodeNotFound" xml:space="preserve"><value>対象Nodeが現在のSceneに見つかりません。</value></data>
-  <data name="SourceEditGeneratedSceneReadOnly" xml:space="preserve"><value>生成された.g.csはScene Designerから編集できません。</value></data>
   <data name="SourceEditOperationUnsupported" xml:space="preserve"><value>このScene編集操作はSource Editorで未実装です。</value></data>
   <data name="SourceEditProjectionTargetMissing" xml:space="preserve"><value>対象SceneまたはNodeが現在の投影に見つかりません。</value></data>
   <data name="SourceEditOperationFailed" xml:space="preserve"><value>Scene編集操作に失敗しました。</value></data>
@@ -160,7 +159,6 @@
   <data name="SourceEditAddTargetCreationMissing" xml:space="preserve"><value>追加先Nodeのobject creation式がソースに見つかりません。</value></data>
   <data name="SourceEditComponentCollectionToRemoveMissing" xml:space="preserve"><value>削除するComponentのComponentsコレクションがソースに見つかりません。</value></data>
   <data name="SourceEditTargetTransformMissing" xml:space="preserve"><value>対象Nodeに編集可能なTransform Componentがありません。</value></data>
-  <data name="SourceEditGeneratedTransformReadOnly" xml:space="preserve"><value>生成された.g.csのTransformは編集できません。</value></data>
   <data name="SourceEditTransformCreationMissing" xml:space="preserve"><value>Transformのobject creation式がソースに見つかりません。</value></data>
   <data name="SourceEditTransformUpdateFailed" xml:space="preserve"><value>Transformを更新できません。</value></data>
   <data name="SourceEditNodeCannotDuplicate" xml:space="preserve"><value>Scene RootまたはChildrenリスト外のNodeは複製できません。</value></data>
@@ -171,12 +169,10 @@
   <data name="SourceEditDuplicateInsertionFailed" xml:space="preserve"><value>親NodeのChildren構文へ複製を追加できません。</value></data>
   <data name="SourceEditTransformVectorNotLiteral" xml:space="preserve"><value>Transform.{0}はリテラルVector3ではないためギズモで編集できません。</value></data>
   <data name="SourceEditTransformVectorInvalid" xml:space="preserve"><value>Transform.{0}のVector3式が無効です。</value></data>
-  <data name="SourceEditGeneratedNodeAddReadOnly" xml:space="preserve"><value>生成された.g.csにはNodeを追加できません。</value></data>
   <data name="SourceEditAddTargetSyntaxMissing" xml:space="preserve"><value>追加先Nodeの構文が見つかりません。</value></data>
   <data name="SourceEditInitialComponentsFailed" xml:space="preserve"><value>新規Nodeの初期Componentを生成できません。</value></data>
   <data name="SourceEditChildrenExpressionUnsupported" xml:space="preserve"><value>Childrenの式を編集できません。</value></data>
   <data name="SourceEditRootCannotRemove" xml:space="preserve"><value>Scene Rootは削除できません。</value></data>
-  <data name="SourceEditGeneratedNodeRemoveReadOnly" xml:space="preserve"><value>生成された.g.csからはNodeを削除できません。</value></data>
   <data name="SourceEditRemoveTargetNotStaticChild" xml:space="preserve"><value>削除対象がChildrenの静的な要素ではありません。</value></data>
   <data name="SourceEditReparentParentMissing" xml:space="preserve"><value>Reparentに必要な親Nodeが見つかりません。</value></data>
   <data name="SourceEditReparentCycle" xml:space="preserve"><value>自身または子孫へは移動できません。</value></data>
@@ -279,7 +275,6 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
   <data name="ScenePropertyApplying" xml:space="preserve"><value>C#ソースへプロパティ編集を反映しています...</value></data>
   <data name="SceneToolCommitDiscarded" xml:space="preserve"><value>{0}を確定できなかったため変更を破棄しました。</value></data>
   <data name="SceneToolApplying" xml:space="preserve"><value>C#ソースへ{0}を反映しています...</value></data>
-  <data name="SceneCommitFailedRollback" xml:space="preserve"><value>C#ソースへの反映に失敗しました。編集は取り消されます。</value></data>
   <data name="SceneCommitFailed" xml:space="preserve"><value>C#ソースへの反映に失敗しました。</value></data>
   <data name="ScenePropertyApplied" xml:space="preserve"><value>プロパティをC#ソースへ反映しました。Ctrl+Zで元に戻せます。</value></data>
   <data name="SceneTransformApplied" xml:space="preserve"><value>TransformをC#ソースへ反映しました。Ctrl+Zで元に戻せます。</value></data>
