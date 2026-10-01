@@ -332,7 +332,8 @@
       <VSIXSourceItem Include="@(_CgeSdkPackage)">
         <VSIXSubPath>Packages</VSIXSubPath>
       </VSIXSourceItem>
-      <_CgeTemplateSource Include="$(CgeTemplateSourceDirectory)**/*" Exclude="$(CgeTemplateSourceDirectory)bin/**;$(CgeTemplateSourceDirectory)obj/**;$(CgeTemplateSourceDirectory).cge/**;$(CgeTemplateSourceDirectory)*.csproj" />
+      <!-- The same folders GameProjectGenerator.CopySources skips at any depth, so the VSIX carries only what a new project receives. -->
+      <_CgeTemplateSource Include="$(CgeTemplateSourceDirectory)**/*" Exclude="$(CgeTemplateSourceDirectory)**/bin/**;$(CgeTemplateSourceDirectory)**/obj/**;$(CgeTemplateSourceDirectory)**/.vs/**;$(CgeTemplateSourceDirectory)**/.cge/**;$(CgeTemplateSourceDirectory)*.csproj" />
       <VSIXSourceItem Include="@(_CgeTemplateSource)">
         <VSIXSubPath>ProjectTemplateSources/ThirdPerson/%(RecursiveDir)</VSIXSubPath>
       </VSIXSourceItem>
