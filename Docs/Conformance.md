@@ -1,5 +1,34 @@
 # Conformance
 
+## 2026-10-01 M0096 — ギズモの反映・上下反転の既定・RunsAfter 順序・角度の turns・プレビュー統合・層の修正
+- 意図: M0095 の後のユーザーの報告と判断を、修正前に失敗するテスト → 最小修正 → 全テスト → 文書の整合の順に実装する（[M0096](Milestones/M0096-Gizmo-Feedback-Ordering-Angles-And-Layers.md)、[ADR-0073](Decisions/ADR-0073-Relative-System-Order.md)、[ADR-0074](Decisions/ADR-0074-Scene-Json-Angles-In-Turns.md)）。
+- 観測と修正:
+  - A: ドラッグ中の値がランタイムビューに届かず、ギズモだけが動いていた。ドラッグの根ノードの値を `TransformOverrides` で送るようにした。
+  - B: Options の上下反転の既定を入れ替えた。設定の版は 3。
+  - C: 使われていないファイルとディレクトリを削除した。
+  - D: `[SystemOrder]` を廃止し、`[RunsAfter]` / `[RunsBefore]` と完全修飾名順の順序にした。
+  - E: シーン JSON の角度を schemaVersion 2 の turns で保存する。
+  - F: ランタイムビューのホストが編集ワールドも動かし、Scene ビューのホストは 1 プロセスになった。
+  - G: 物理と Character が `IPhysicsHost` を通るようにした。Physics.Cli はゲームを参照せず、シーンのゲームのビルドを読み込んで bake する。
+- 自動化された証拠: 各項目に、修正前に失敗するテストを追加した。全 19 テストプロジェクトが成功した。テスト:
+  - ドラッグの上書きと取り消し
+  - 反転の基準の向きと設定の移行
+  - 順序（DAG、名前順、循環、欠落、エンジンの実効順）
+  - 角度（版 1 と版 2 の同等性、往復、Inspector の度）
+  - 編集ワールドの 15Hz と停止
+  - 層の境界（`EngineLayerSpec`）
+  - プロジェクトごとの依存ハッシュ
+- 実機・実行の証拠:
+  - CgeAutomation ハイブで、`PostMessage` のドラッグ中と確定後のランタイム画像を確かめた。Scene ビューのホストは 1 プロセスになり、Spatial のパイプが応答した。
+  - CLI で UserEcsProject と ThirdPerson テンプレートのシーンを bake した。
+  - VSIX のサービスの既定の経路で、テンプレートのシーンを bake した。
+- 結果: 自動化された契約と実装は一致する。
+- 検証の限界:
+  - 実機で R 軸の矢印の先端を掴めなかった（未解決）。
+  - `HostCrash` のテストの後にスワップチェーンの作成が `E_ACCESSDENIED` になる（統合とは無関係、別タスク）。
+  - キーボードを伴う確認は手動に残す。
+  - JSON のキー名（`FovYRadians` などが turns の値を持つ）はユーザーの判断待ち。
+
 ## 2026-10-01 M0095 — テンプレート・シーンエディター・プログラミングモデルの探索的改善
 - 意図: テンプレート、編集フロー、シーンエディター、ゲームコード API の不具合と設計負債を、再現 → 最小修正 → 回帰確認の順に解消する（[M0095](Milestones/M0095-Editor-And-Programming-Model-Hardening.md)、[ADR-0072](Decisions/ADR-0072-Game-Code-Api-Simplification.md)）。
 - 観測: ランタイムビューへの値編集、複数タブでの Ctrl+Z / Ctrl+Y / Ctrl+S、閉じたタブのピン、手書き JSON の書式、起動時の Design ビュー、ランタイムビューを開く処理の UI スレッド占有、編集ワールドの再ビルド追従と停止の不具合を修正した。`void Update` と `State.FrameDeltaSeconds` を導入した。
