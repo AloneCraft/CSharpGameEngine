@@ -515,4 +515,29 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
   <data name="LightConversionConflict" xml:space="preserve"><value>ライトが変更されたか、変換できません。表示を更新して再実行してください。</value></data>
   <data name="LightPhysicalValueLabel" xml:space="preserve"><value>{0}（{1}・{2}）</value></data>
   <data name="LightConversionDefault" xml:space="preserve"><value>既定値の候補: {0}。採用する値を明示入力してください。</value></data>
+  <data name="Diagnostics_Title" xml:space="preserve"><value>C# Game Engine 診断ツール</value></data>
+  <data name="Diagnostics_NoGameProject" xml:space="preserve"><value>開いているソリューションにゲームのプロジェクトが見つかりません。</value></data>
+  <data name="Diagnostics_AlreadyDebugged" xml:space="preserve"><value>実行中のゲームは、この Visual Studio で既にデバッグ中です。ビルドして実行したゲームには、既定でデバッガーがアタッチされています。</value></data>
+  <data name="Diagnostics_NoRunningGame" xml:space="preserve"><value>実行中のゲームが見つかりません。ゲーム（{0}）を起動してから、もう一度実行してください。</value></data>
+  <data name="Diagnostics_AttachDebugger" xml:space="preserve"><value>デバッガーをアタッチ</value></data>
+  <data name="Diagnostics_MeasureCpuUsage" xml:space="preserve"><value>CPU 使用率を計測...</value></data>
+  <data name="Diagnostics_MeasureDotNetAllocations" xml:space="preserve"><value>.NET のメモリ割り当てを計測...</value></data>
+  <data name="Diagnostics_StopMeasuring" xml:space="preserve"><value>計測を停止して結果を開く</value></data>
+  <data name="Diagnostics_ChooseTitle" xml:space="preserve"><value>ゲームを選択</value></data>
+  <data name="Diagnostics_ChoosePrompt" xml:space="preserve"><value>{0}: 対象の実行中のゲームを選んでください。</value></data>
+  <data name="Diagnostics_ProcessRow" xml:space="preserve"><value>{0}（PID {1}、{2} に起動）  {3}</value></data>
+  <data name="Diagnostics_Choose" xml:space="preserve"><value>選択</value></data>
+  <data name="Diagnostics_Cancel" xml:space="preserve"><value>キャンセル</value></data>
+  <data name="Diagnostics_Attached" xml:space="preserve"><value>{0}（PID {1}）にデバッガーをアタッチしました。</value></data>
+  <data name="Diagnostics_AttachFailed" xml:space="preserve"><value>{0} にデバッガーをアタッチできませんでした: {1}</value></data>
+  <data name="Diagnostics_ProcessGone" xml:space="preserve"><value>プロセスは終了しています。</value></data>
+  <data name="Diagnostics_CollectorMissing" xml:space="preserve"><value>Visual Studio のプロファイラーのコレクター（{0}）が見つかりません。Visual Studio インストーラーでプロファイリング ツールを入れてください。</value></data>
+  <data name="Diagnostics_CollectorFailed" xml:space="preserve"><value>プロファイラーのコレクターが失敗しました: {0}</value></data>
+  <data name="Diagnostics_MeasuringStarted" xml:space="preserve"><value>{1}（PID {2}）の{0}を計測しています。同じコマンドをもう一度実行すると、計測を止めて結果を開きます。</value></data>
+  <data name="Diagnostics_KindCpu" xml:space="preserve"><value>CPU 使用率</value></data>
+  <data name="Diagnostics_KindDotNet" xml:space="preserve"><value>.NET のメモリ割り当て</value></data>
+  <data name="Diagnostics_MeasuringStoppedOnExit" xml:space="preserve"><value>ゲームが終了したので計測を止め、結果を開きました: {0}</value></data>
+  <data name="Diagnostics_MeasuringStopped" xml:space="preserve"><value>計測の結果を開きました: {0}</value></data>
+  <data name="Diagnostics_GpuGuide" xml:space="preserve"><value>パフォーマンス プロファイラーを開きました。「GPU 使用率」に印を付け、「分析ターゲット」で実行中のゲームのプロセスを選んでください。</value></data>
+  <data name="Diagnostics_ProfilerUnavailable" xml:space="preserve"><value>パフォーマンス プロファイラーを開けませんでした: {0}</value></data>
 </root>

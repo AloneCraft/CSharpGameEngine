@@ -62,6 +62,16 @@ Every helper process the VSIX starts (the Preview Host and the resident bridges)
 
 Every visible failure includes a source/document identity, operation/request ID, protocol version, state transition, and recommended next action. Source edits include the originating snapshot version and conflict outcome. A failed validation, parse, host response, or artifact schema check rolls back predicted UI state only; it never rolls back unrelated text or creates an Undo entry that claims success.
 
+## Diagnostic tools (M0097)
+
+Extensions > C# Game Engine > Diagnostic Tools, and the same dropdown on the C# Game Engine toolbar, call Visual Studio's own tools for a game started as an exe. They replace the retired runtime diagnostics snapshot (F-L8-027, F-L8-030).
+
+- The candidates are the running processes named like a game project's assembly in the open solution. A game started from a build already has this Visual Studio's debugger, so Attach skips the processes it debugs.
+- **Attach Debugger** attaches the managed CoreCLR engine through the process's own transport, matching engines by id because their names are localized. Adding the native engine made Visual Studio stop responding when attaching to an engine process, so native debugging stays with Visual Studio's Attach to Process dialog.
+- **Measure CPU Usage** and **Measure .NET Allocations** run the standard collector `VSDiagnostics.exe` beside the running Visual Studio with `CpuUsageBase.json` or `DotNetObjectAllocBase.json`. The same command then stops the measurement and opens the `.diagsession` from the solution's `.artifacts/Diagnostics`. A measurement also stops when the game exits.
+- **Measure GPU Usage** has no collector configuration, so it opens the Performance Profiler (`Debug.DiagnosticsHub.Launch`) for the user to check GPU Usage and pick the game as the analysis target.
+- The toolbar carries every command of the Extensions menu, Options included.
+
 ## VSIX and runtime boundaries
 
 Runtime L0-L6 cannot reference Roslyn or Visual Studio SDK. L7 compiler/bake work runs outside Visual Studio. L8 is a frontend over those services. The renderer used by Preview is the Render Server from [Rendering](Rendering.md); VSIX-specific rendering code is removed when F-L8-018 is implemented.

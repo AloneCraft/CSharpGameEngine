@@ -53,6 +53,56 @@ public sealed class VsixMenuPlacementTests {
         Assert.Empty(ContextMenuParents);
     }
 
+    /// <summary>
+    /// M0097 (user request): the toolbar carries every command of Extensions &gt; C# Game Engine, including
+    /// Options and the Diagnostic Tools submenu, so nothing is reachable from the menu alone.
+    /// </summary>
+    [Theory]
+    [InlineData("OpenViewerCommandPackage.vsct")]
+    [InlineData("OpenViewerCommandPackage.ja-JP.vsct")]
+    public void EveryEngineMenuCommand_IsAlsoOnTheToolbar(string File){
+        var Document=Load(File);
+        var FromMenu=Reachable(Document,"CSharpGameEngineMenu");
+        var FromToolbar=Reachable(Document,"CSharpGameEngineToolbar");
+        Assert.Contains("OpenSceneEditorOptionsCommandId",FromMenu);
+        Assert.Contains("AttachDebuggerToGameCommandId",FromMenu);
+        Assert.Empty(FromMenu.Except(FromToolbar));
+    }
+
+    /// <summary>M0097: Visual Studio's debugger and profiler, offered for a game started as an exe.</summary>
+    [Fact]
+    public void DiagnosticToolsSubmenu_HoldsTheFourCommandsWithTheirIds(){
+        var Document=Load("OpenViewerCommandPackage.vsct");
+        var Commands=Reachable(Document,"CSharpGameEngineDiagnosticsMenu");
+        string[]Expected=["AttachDebuggerToGameCommandId","MeasureCpuUsageCommandId","MeasureDotNetAllocationsCommandId","MeasureGpuUsageCommandId"];
+        Assert.Equal(Expected.OrderBy(static Id=>Id,StringComparer.Ordinal),Commands.OrderBy(static Id=>Id,StringComparer.Ordinal));
+        int Value(string Name)=>Convert.ToInt32((string?)Assert.Single(Document.Descendants(Vsct+"IDSymbol"),
+            Element=>(string?)Element.Attribute("name")==Name).Attribute("value"),16);
+        Assert.Equal(GameDiagnosticsCommands.AttachDebuggerCommandId,Value("AttachDebuggerToGameCommandId"));
+        Assert.Equal(GameDiagnosticsCommands.MeasureCpuUsageCommandId,Value("MeasureCpuUsageCommandId"));
+        Assert.Equal(GameDiagnosticsCommands.MeasureDotNetAllocationsCommandId,Value("MeasureDotNetAllocationsCommandId"));
+        Assert.Equal(GameDiagnosticsCommands.MeasureGpuUsageCommandId,Value("MeasureGpuUsageCommandId"));
+        var Japanese=ById(Load("OpenViewerCommandPackage.ja-JP.vsct"),"Menu","CSharpGameEngineDiagnosticsMenu");
+        Assert.Equal("診断ツール",Japanese.Descendants(Vsct+"ButtonText").Single().Value);
+    }
+
+    /// <summary>The ids of the buttons under a menu or toolbar, through groups, submenus and command placements.</summary>
+    private static HashSet<string>Reachable(XDocument Document,string Root){
+        var ParentsOf=new Dictionary<string,List<string>>(StringComparer.Ordinal);
+        void Link(string?Id,string?Parent){
+            if(Id is null||Parent is null){ return; }
+            if(!ParentsOf.TryGetValue(Id,out var Parents)){ ParentsOf[Id]=Parents=[]; }
+            Parents.Add(Parent);
+        }
+        foreach(var Element in Document.Descendants().Where(static Element=>Element.Name.LocalName is "Button" or "Menu" or "Group" or "CommandPlacement")){
+            Link((string?)Element.Attribute("id"),(string?)Element.Element(Vsct+"Parent")?.Attribute("id"));
+        }
+        var Buttons=Document.Descendants(Vsct+"Button").Select(static Element=>(string)Element.Attribute("id")!).ToHashSet(StringComparer.Ordinal);
+        bool Under(string Id,HashSet<string>Seen)=>Id==Root
+            ||(Seen.Add(Id)&&ParentsOf.TryGetValue(Id,out var Parents)&&Parents.Any(Parent=>Under(Parent,Seen)));
+        return Buttons.Where(Id=>ParentsOf.ContainsKey(Id)&&ParentsOf[Id].Any(Parent=>Under(Parent,new HashSet<string>(StringComparer.Ordinal)))).ToHashSet(StringComparer.Ordinal);
+    }
+
     [Fact]
     public void OptionsCommand_OpensFromTheEngineMenuWithLocalizedText(){
         var Document=Load("OpenViewerCommandPackage.vsct");

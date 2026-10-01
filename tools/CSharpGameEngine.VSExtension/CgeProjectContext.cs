@@ -96,6 +96,18 @@ internal sealed class CgeProjectContext {
             .FirstOrDefault();
     }
 
+    /// <summary>
+    /// Every game project of the open solution (or, without one, of the repository this extension was built from),
+    /// found as <see cref="FromSearchRoot"/> finds one; with the folder the search ran in.
+    /// </summary>
+    internal static IReadOnlyList<CgeProjectContext>FindAll(out string?Root){
+        var Solution=SolutionPath;
+        Root=!string.IsNullOrWhiteSpace(Solution)?Path.GetDirectoryName(Path.GetFullPath(Solution)):RepoLocator.ResolveRepoRoot();
+        List<CgeProjectContext>Found=[];
+        if(Root is not null){ Collect(Root,0,Found); }
+        return Found;
+    }
+
     private static void Collect(string Directory,int Depth,List<CgeProjectContext>Found){
         if(Depth>4||!System.IO.Directory.Exists(Directory)){
             return;

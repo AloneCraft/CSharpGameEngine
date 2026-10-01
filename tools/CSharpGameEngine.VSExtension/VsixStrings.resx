@@ -515,4 +515,29 @@ Discard unsaved edits and reload it?</value></data>
   <data name="LightConversionConflict" xml:space="preserve"><value>The light changed or cannot be converted. Refresh and try again.</value></data>
   <data name="LightPhysicalValueLabel" xml:space="preserve"><value>{0} ({1}; {2})</value></data>
   <data name="LightConversionDefault" xml:space="preserve"><value>Suggested default: {0}. Enter the value explicitly to accept it.</value></data>
+  <data name="Diagnostics_Title" xml:space="preserve"><value>C# Game Engine diagnostic tools</value></data>
+  <data name="Diagnostics_NoGameProject" xml:space="preserve"><value>No game project was found in the open solution.</value></data>
+  <data name="Diagnostics_AlreadyDebugged" xml:space="preserve"><value>The running game is already being debugged by this Visual Studio. A game started from a build has the debugger attached by default.</value></data>
+  <data name="Diagnostics_NoRunningGame" xml:space="preserve"><value>No running game was found. Start the game ({0}) and run the command again.</value></data>
+  <data name="Diagnostics_AttachDebugger" xml:space="preserve"><value>Attach the debugger</value></data>
+  <data name="Diagnostics_MeasureCpuUsage" xml:space="preserve"><value>Measure CPU Usage...</value></data>
+  <data name="Diagnostics_MeasureDotNetAllocations" xml:space="preserve"><value>Measure .NET Allocations...</value></data>
+  <data name="Diagnostics_StopMeasuring" xml:space="preserve"><value>Stop Measuring and Open the Result</value></data>
+  <data name="Diagnostics_ChooseTitle" xml:space="preserve"><value>Choose the game</value></data>
+  <data name="Diagnostics_ChoosePrompt" xml:space="preserve"><value>{0}: choose the running game.</value></data>
+  <data name="Diagnostics_ProcessRow" xml:space="preserve"><value>{0} (PID {1}, started {2})  {3}</value></data>
+  <data name="Diagnostics_Choose" xml:space="preserve"><value>Select</value></data>
+  <data name="Diagnostics_Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Diagnostics_Attached" xml:space="preserve"><value>Attached the debugger to {0} (PID {1}).</value></data>
+  <data name="Diagnostics_AttachFailed" xml:space="preserve"><value>Could not attach the debugger to {0}: {1}</value></data>
+  <data name="Diagnostics_ProcessGone" xml:space="preserve"><value>the process has exited.</value></data>
+  <data name="Diagnostics_CollectorMissing" xml:space="preserve"><value>Visual Studio's profiler collector was not found ({0}). Install the profiling tools with the Visual Studio Installer.</value></data>
+  <data name="Diagnostics_CollectorFailed" xml:space="preserve"><value>The profiler collector failed: {0}</value></data>
+  <data name="Diagnostics_MeasuringStarted" xml:space="preserve"><value>Measuring {0} of {1} (PID {2}). Run the same command again to stop and open the result.</value></data>
+  <data name="Diagnostics_KindCpu" xml:space="preserve"><value>CPU usage</value></data>
+  <data name="Diagnostics_KindDotNet" xml:space="preserve"><value>.NET allocations</value></data>
+  <data name="Diagnostics_MeasuringStoppedOnExit" xml:space="preserve"><value>The game exited, so the measurement stopped. Opened the result: {0}</value></data>
+  <data name="Diagnostics_MeasuringStopped" xml:space="preserve"><value>Opened the measurement: {0}</value></data>
+  <data name="Diagnostics_GpuGuide" xml:space="preserve"><value>Opened the Performance Profiler. Check GPU Usage, and choose the running game as the Analysis Target.</value></data>
+  <data name="Diagnostics_ProfilerUnavailable" xml:space="preserve"><value>The Performance Profiler could not be opened: {0}</value></data>
 </root>

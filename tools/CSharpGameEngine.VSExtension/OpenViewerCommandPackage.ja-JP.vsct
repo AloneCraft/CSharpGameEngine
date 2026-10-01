@@ -22,6 +22,14 @@
           <CommandName>C# Game Engine</CommandName>
         </Strings>
       </Menu>
+      <!-- M0097: Visual Studio's debugger and profiler for a running game, also on the toolbar. -->
+      <Menu guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineDiagnosticsMenu" priority="0x0100" type="Menu">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineDiagnosticsGroup" />
+        <Strings>
+          <ButtonText>診断ツール</ButtonText>
+          <CommandName>診断ツール</CommandName>
+        </Strings>
+      </Menu>
     </Menus>
 
     <Groups>
@@ -35,6 +43,18 @@
         <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineMenu" />
       </Group>
       <Group guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarGroup" priority="0x0000">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbar" />
+      </Group>
+      <Group guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineDiagnosticsGroup" priority="0x0800">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineMenu" />
+      </Group>
+      <Group guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineDiagnosticsCommandsGroup" priority="0x0100">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineDiagnosticsMenu" />
+      </Group>
+      <Group guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarDiagnosticsGroup" priority="0x0800">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbar" />
+      </Group>
+      <Group guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarOptionsGroup" priority="0x0F00">
         <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbar" />
       </Group>
     </Groups>
@@ -124,6 +144,40 @@
           <ButtonText>シーン デザイナーで開く</ButtonText>
         </Strings>
       </Button>
+      <Button guid="guidOpenViewerCommandPackageCmdSet" id="AttachDebuggerToGameCommandId" priority="0x0100" type="Button">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineDiagnosticsCommandsGroup" />
+        <Icon guid="ImageCatalogGuid" id="DebugSelection" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>実行中のゲームにデバッガーをアタッチ...</ButtonText>
+        </Strings>
+      </Button>
+      <Button guid="guidOpenViewerCommandPackageCmdSet" id="MeasureCpuUsageCommandId" priority="0x0100" type="Button">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineDiagnosticsCommandsGroup" />
+        <Icon guid="ImageCatalogGuid" id="Processor" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>TextChanges</CommandFlag>
+        <Strings>
+          <ButtonText>CPU 使用率を計測...</ButtonText>
+        </Strings>
+      </Button>
+      <Button guid="guidOpenViewerCommandPackageCmdSet" id="MeasureDotNetAllocationsCommandId" priority="0x0100" type="Button">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineDiagnosticsCommandsGroup" />
+        <Icon guid="ImageCatalogGuid" id="Memory" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <CommandFlag>TextChanges</CommandFlag>
+        <Strings>
+          <ButtonText>.NET のメモリ割り当てを計測...</ButtonText>
+        </Strings>
+      </Button>
+      <Button guid="guidOpenViewerCommandPackageCmdSet" id="MeasureGpuUsageCommandId" priority="0x0100" type="Button">
+        <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineDiagnosticsCommandsGroup" />
+        <Icon guid="ImageCatalogGuid" id="GaugeRound" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>GPU 使用率を計測...</ButtonText>
+        </Strings>
+      </Button>
     </Buttons>
   </Commands>
 
@@ -152,7 +206,13 @@
     <CommandPlacement guid="guidOpenViewerCommandPackageCmdSet" id="ShowComponentPaletteToolWindowCommandId" priority="0x0009">
       <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarGroup" />
     </CommandPlacement>
-
+    <!-- M0097: the toolbar carries every command of the Extensions menu: the Diagnostic Tools dropdown and Options. -->
+    <CommandPlacement guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineDiagnosticsMenu" priority="0x0100">
+      <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarDiagnosticsGroup" />
+    </CommandPlacement>
+    <CommandPlacement guid="guidOpenViewerCommandPackageCmdSet" id="OpenSceneEditorOptionsCommandId" priority="0x0100">
+      <Parent guid="guidOpenViewerCommandPackageCmdSet" id="CSharpGameEngineToolbarOptionsGroup" />
+    </CommandPlacement>
   </CommandPlacements>
 
   <Symbols>
@@ -197,11 +257,21 @@
            0x0130 (overflow) and 0x1024 (SceneDesignerContextMenuGroup) are retired with the code-editor
            and Solution Explorer context menus: a scene JSON opens in the Scene Editor by double-click.
            Do not reuse them (installed Visual Studio instances keep key bindings and customizations). -->
-      <!-- 2026-10-01: Extensions > C# Game Engine menu. The next free command ID is 0x0133. -->
+      <!-- 2026-10-01: Extensions > C# Game Engine menu. M0097 took 0x0133-0x0136 and 0x102A-0x102E; the next free
+           command ID is 0x0137. -->
       <IDSymbol name="CSharpGameEngineMenu" value="0x1027" />
       <IDSymbol name="CSharpGameEngineExtensionsGroup" value="0x1028" />
       <IDSymbol name="CSharpGameEngineOptionsGroup" value="0x1029" />
       <IDSymbol name="OpenSceneEditorOptionsCommandId" value="0x0132" />
+      <IDSymbol name="CSharpGameEngineDiagnosticsMenu" value="0x102A" />
+      <IDSymbol name="CSharpGameEngineDiagnosticsGroup" value="0x102B" />
+      <IDSymbol name="CSharpGameEngineDiagnosticsCommandsGroup" value="0x102C" />
+      <IDSymbol name="CSharpGameEngineToolbarDiagnosticsGroup" value="0x102D" />
+      <IDSymbol name="CSharpGameEngineToolbarOptionsGroup" value="0x102E" />
+      <IDSymbol name="AttachDebuggerToGameCommandId" value="0x0133" />
+      <IDSymbol name="MeasureCpuUsageCommandId" value="0x0134" />
+      <IDSymbol name="MeasureDotNetAllocationsCommandId" value="0x0135" />
+      <IDSymbol name="MeasureGpuUsageCommandId" value="0x0136" />
       <!-- 0x010A (OpenSceneDesignerSubmenuCommandId) / 0x1026 (SceneDesignerDynamicItemsGroup) /
            0x1025 (SceneDesignerSubmenu、宣言のみで未使用のまま残っていた) は「複数 Scene を入れ子の
            サブメニューで見せる」設計と一緒に退役した。<Menu> の可視性は QueryStatus に応答する
