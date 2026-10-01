@@ -383,6 +383,11 @@ internal sealed class SceneHwndHost:HwndHost {
 
         this.CurrentRenderObjects=Updated;
         this.PreviewFrameDirty=true;
+        // A runtime view draws the game's own world, not these render objects: a value edit reaches it
+        // only as the edited document (ADR-0070 B1 step 4), so send it as the full path does.
+        if(this.PreviewIsRuntime&&!this.TryReplacePreviewScene()){
+            return false;
+        }
         (this.SceneBoundsCenter,this.SceneBoundsRadius)=SceneCameraFraming.ComputeBounds(Updated);
         if(this.ViewState is { }State){
             State.LastKnownBoundsRadius=this.SceneBoundsRadius;
