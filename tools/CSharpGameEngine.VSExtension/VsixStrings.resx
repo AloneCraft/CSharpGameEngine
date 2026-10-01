@@ -246,6 +246,7 @@
     <value>Starting the scene system...</value>
   </data>
   <data name="SceneDesigner_Analyzing" xml:space="preserve"><value>Analyzing the Scene...</value></data>
+  <data name="SceneFileOutsideScenes" xml:space="preserve"><value>{0} is outside the project's Scenes folder, so it is not a scene: the build ignores it and it opens as plain JSON. Move it under Scenes to make it a scene.</value></data>
   <data name="SceneDesigner_NoScene" xml:space="preserve"><value>Open a scene: a .json file in the project's Scenes folder.</value></data>
   <data name="SceneDesigner_SelectedSceneMissing" xml:space="preserve"><value>This file does not contain one valid scene. Check the errors in its JSON view.</value></data>
   <data name="SceneDesigner_FallbackOpened" xml:space="preserve"><value>{0} could not be opened in the Scene Editor ({1}). The Scene Designer panel was opened instead.</value></data>

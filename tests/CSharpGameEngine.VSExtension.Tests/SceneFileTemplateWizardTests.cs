@@ -15,6 +15,18 @@ public sealed class SceneFileTemplateWizardTests {
     public void SchemaReference_IsRelativeToTheItemFolder(string ItemPath,string Expected){
         Assert.Equal(Expected,SceneFileTemplateWizard.SchemaReference(ItemPath,Project));
     }
+    /// <summary>
+    /// M0095: only JSON under the project's Scenes folder is a scene (ADR-0070), so an item added elsewhere
+    /// is neither built nor opened in the Scene Editor; the wizard says so instead of failing silently.
+    /// </summary>
+    [Theory]
+    [InlineData(@"C:\Games\My Game\Scenes\Level.json",false)]
+    [InlineData(@"C:\Games\My Game\Scenes\Stages\Level.json",false)]
+    [InlineData(@"C:\Games\My Game\Level.json",true)]
+    [InlineData(@"C:\Games\My Game\Assets\Level.json",true)]
+    public void IsOutsideScenes_WarnsOnlyForItemsTheBuildDoesNotTreatAsScenes(string ItemPath,bool Expected){
+        Assert.Equal(Expected,SceneFileTemplateWizard.IsOutsideScenes(ItemPath,Project));
+    }
     [Fact]
     public void Template_WithItsTokensReplaced_IsACompleteSceneDocument(){
         var Template=File.ReadAllText(Path.Combine(RepositoryRoot(),"tools","CSharpGameEngine.VSExtension","ItemTemplates","CSharp","GameEngine","SceneFile","Scene.json"));

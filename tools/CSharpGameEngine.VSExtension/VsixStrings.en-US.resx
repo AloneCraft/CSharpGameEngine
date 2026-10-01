@@ -246,6 +246,7 @@
     <value>Starting the scene system...</value>
   </data>
   <data name="SceneDesigner_Analyzing" xml:space="preserve"><value>Sceneを解析しています...</value></data>
+  <data name="SceneFileOutsideScenes" xml:space="preserve"><value>{0} はプロジェクトの Scenes フォルダーの外にあるため、シーンとして扱われません（ビルド対象外で、通常の JSON として開きます）。シーンにするには Scenes の下へ移動してください。</value></data>
   <data name="SceneDesigner_NoScene" xml:space="preserve"><value>シーン（プロジェクトの Scenes フォルダーにある .json ファイル）を開いてください。</value></data>
   <data name="SceneDesigner_SelectedSceneMissing" xml:space="preserve"><value>このファイルには有効なシーンが1つもありません。JSON ビューのエラーを確認してください。</value></data>
   <data name="SceneDesigner_FallbackOpened" xml:space="preserve"><value>{0} could not be opened in the Scene Editor ({1}). The Scene Designer panel was opened instead.</value></data>
