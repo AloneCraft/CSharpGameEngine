@@ -91,6 +91,11 @@ internal sealed class SceneHwndHost:HwndHost {
     private string?EditorPreviewSceneName;
     private string?EditorPreviewTempDirectory;
     private bool PreviewIsRuntime;
+    /// <summary>M0095 3-4: the runtime view open in flight off the UI thread; a newer request or a disposal bumps the generation.</summary>
+    private long RuntimeOpenGeneration;
+    private bool RuntimeOpenPending;
+    /// <summary>Held so the open stays observable and joinable by Visual Studio's shutdown.</summary>
+    private Microsoft.VisualStudio.Threading.JoinableTask?RuntimeOpenTask;
     // The game build a JSON scene's runtime view is made from, and the write time of the one shown
     // (MinValue when the scene preview stands in for it): a newer build replaces the view.
     private string?WatchedBuild;
@@ -621,7 +626,7 @@ internal sealed class SceneHwndHost:HwndHost {
     /// ADR-0070 B1: a runtime view of the built game for a JSON scene, so the Scene view shows what
     /// the game renders. Null (the scene preview) when the scene is not JSON or the game is not built.
     /// </summary>
-    private RenderPreviewRuntimeView?TryCreateRuntimeView(){
+    private RuntimeViewPlan?TryPrepareRuntimeView(){
         this.WatchedBuild=null;
         this.ShownBuildTime=DateTime.MinValue;
         if(!SceneJsonCommitPlanner.IsJsonDocument(this.TargetFilePath)
@@ -637,25 +642,104 @@ internal sealed class SceneHwndHost:HwndHost {
         if(!File.Exists(Build)){
             return null;
         }
-        DateTime BuildTime=File.GetLastWriteTimeUtc(Build);
-        string Copy;
+        this.ShownBuildTime=File.GetLastWriteTimeUtc(Build);
+        return new RuntimeViewPlan(Build,SceneName,
+            string.Equals(Environment.GetEnvironmentVariable("CGE_GRAPHICS_ADAPTER"),"warp",StringComparison.OrdinalIgnoreCase));
+    }
+
+    private sealed record RuntimeViewPlan(string Build,string SceneName,bool UseWarp);
+
+    /// <summary>The outcome of an off-thread runtime view open; exactly one of Client and Error is set.</summary>
+    private sealed record RuntimeViewOpening(RenderPreviewHostClient?Client,string?TempDirectory,RenderPreviewHostResponse?Response,Exception?Error,bool BuildStillWriting);
+
+    /// <summary>
+    /// M0095 3-4: copies the game build, starts the preview host and opens the runtime view off the UI
+    /// thread; together they took 0.6 to 1.9 s and froze Visual Studio on every scene open and game build.
+    /// The view shows the pending state meanwhile, and <see cref="CompleteRuntimeViewOpen"/> takes the
+    /// result unless a newer request or a disposal superseded it.
+    /// </summary>
+    private void BeginRuntimeViewOpen(RuntimeViewPlan Plan,long SurfaceHandle,string HostPath,string ShaderArtifactPath,RenderPreviewScene Scene){
+        long Generation=++this.RuntimeOpenGeneration;
+        this.RuntimeOpenPending=true;
+        int Width=this.SurfaceWidth;
+        int Height=this.SurfaceHeight;
+        string SceneJson=this.LiveSceneJson();
+        this.RuntimeOpenTask=ThreadHelper.JoinableTaskFactory.RunAsync(async ()=>{
+            RuntimeViewOpening Opening=await Task.Run(()=>OpenRuntimeView(Plan,SurfaceHandle,Width,Height,HostPath,ShaderArtifactPath,Scene,SceneJson));
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            this.CompleteRuntimeViewOpen(Generation,Opening);
+        });
+    }
+
+    private static RuntimeViewOpening OpenRuntimeView(
+        RuntimeViewPlan Plan,long SurfaceHandle,int Width,int Height,string HostPath,string ShaderArtifactPath,RenderPreviewScene Scene,string SceneJson){
         string?TempDirectory=null;
+        string Copy;
         try{
-            Copy=CopyGameBuild(Build,out string CopyDirectory);
+            Copy=CopyGameBuild(Plan.Build,out string CopyDirectory);
             TempDirectory=CopyDirectory;
         }catch(Exception Error)when(Error is IOException or UnauthorizedAccessException){
             // A build still writing its output: the scene preview until the build settles.
             DeleteEditorPreviewTempDirectory(TempDirectory);
-            return null;
+            return new RuntimeViewOpening(null,null,null,Error,BuildStillWriting:true);
         }
-        this.RuntimeViewTempDirectory=TempDirectory;
-        this.ShownBuildTime=BuildTime;
-        return new RenderPreviewRuntimeView {
-            AssemblyPath=Copy,
-            ContentDirectory=Path.GetDirectoryName(Build)!,
-            SceneName=SceneName,
-            UseWarp=string.Equals(Environment.GetEnvironmentVariable("CGE_GRAPHICS_ADAPTER"),"warp",StringComparison.OrdinalIgnoreCase),
-        };
+        RenderPreviewHostClient?Client=null;
+        try {
+            var Clock=Stopwatch.StartNew();
+            Client=RenderPreviewHostClient.Start(HostPath,TimeSpan.FromSeconds(120));
+            RenderPreviewHostResponse Opened=Client.Open(SurfaceHandle,Width,Height,ShaderArtifactPath,Scene,
+                new RenderPreviewRuntimeView {
+                    AssemblyPath=Copy,ContentDirectory=Path.GetDirectoryName(Plan.Build)!,SceneName=Plan.SceneName,UseWarp=Plan.UseWarp,
+                },SceneJson);
+            ActivityLog.LogInformation(nameof(SceneHwndHost),$"Runtime view of '{Plan.SceneName}' opened on '{Plan.Build}' in {Clock.ElapsedMilliseconds} ms, off the UI thread.");
+            return new RuntimeViewOpening(Client,TempDirectory,Opened,null,BuildStillWriting:false);
+        } catch(Exception Error)when(Error is RenderPreviewHostException or IOException or InvalidOperationException or TimeoutException){
+            Client?.Dispose();
+            DeleteEditorPreviewTempDirectory(TempDirectory);
+            return new RuntimeViewOpening(null,null,null,Error,BuildStillWriting:false);
+        }
+    }
+
+    /// <summary>Runs on the UI thread (<see cref="BeginRuntimeViewOpen"/> switches to it first).</summary>
+    private void CompleteRuntimeViewOpen(long Generation,RuntimeViewOpening Opening){
+        if(Generation!=this.RuntimeOpenGeneration||this.Surface is null||this.PreviewClient is not null){
+            // Superseded by a newer open or a disposal: the result is nobody's.
+            if(Opening.Client is { }Stale){
+                string?StaleTemp=Opening.TempDirectory;
+                _=ThreadPool.QueueUserWorkItem(_=>{
+                    Stale.Dispose();
+                    DeleteEditorPreviewTempDirectory(StaleTemp);
+                });
+            }
+            return;
+        }
+        this.RuntimeOpenPending=false;
+        if(Opening.Client is not { }Client){
+            if(Opening.BuildStillWriting){
+                this.ShownBuildTime=DateTime.MinValue;
+            } else {
+                ActivityLog.LogWarning(nameof(SceneHwndHost),Opening.Error?.ToString()??"The runtime view did not open.");
+                this.ShowRuntimeViewNote(VsixText.Format("SceneRuntimeViewUnavailable",Opening.Error?.Message??string.Empty));
+            }
+            try {
+                this.OpenScenePreview();
+            } catch(Exception Error){
+                this.HandleRenderFailure(Error);
+                return;
+            }
+        } else {
+            this.PreviewClient=Client;
+            this.PreviewIsRuntime=true;
+            this.RuntimeViewTempDirectory=Opening.TempDirectory;
+            this.ShowRuntimeViewState(Opening.Response!);
+        }
+        // Catch up with what changed while the view opened: the scene, the camera and the document.
+        if(!this.TryReplacePreviewScene()){
+            return;
+        }
+        this.RefreshCameraPreviews();
+        this.UpdateMoveGizmo();
+        this.SetStatus(this.RuntimeViewNote??VsixText.Format("SceneStatusDisplayed",this.TargetClassName??string.Empty));
     }
 
     /// <summary>
@@ -673,6 +757,7 @@ internal sealed class SceneHwndHost:HwndHost {
         if(BuildTime==DateTime.MinValue||BuildTime==this.ShownBuildTime||!Settled){
             return;
         }
+        ActivityLog.LogInformation(nameof(SceneHwndHost),$"The game build '{Build}' changed; reopening the runtime view.");
         try {
             this.DisposePreviewClient(ClearScene:false);
             this.OpenOrReplacePreviewScene();
@@ -2346,7 +2431,9 @@ internal sealed class SceneHwndHost:HwndHost {
             this.PreviewFrameDirty=true;
             this.RefreshCameraPreviews();
             this.UpdateMoveGizmo();
-            this.SetStatus(this.RuntimeViewNote??VsixText.Format("SceneStatusDisplayed",Result.Request.ClassName));
+            if(!this.RuntimeOpenPending){
+                this.SetStatus(this.RuntimeViewNote??VsixText.Format("SceneStatusDisplayed",Result.Request.ClassName));
+            }
         } catch(Exception Ex){
             this.HasFatalRenderFailure=true;
             ActivityLog.LogError(nameof(SceneHwndHost),Ex.ToString());
@@ -2358,6 +2445,9 @@ internal sealed class SceneHwndHost:HwndHost {
     private void DisposePreviewClient(bool ClearScene,bool DisposeInBackground=false){
         RenderPreviewHostClient?Client=this.PreviewClient;
         this.PreviewClient=null;
+        // An open still in flight belongs to the view being disposed.
+        this.RuntimeOpenGeneration++;
+        this.RuntimeOpenPending=false;
         string?RuntimeTemp=this.RuntimeViewTempDirectory;
         this.RuntimeViewTempDirectory=null;
         this.PreviewIsRuntime=false;
@@ -2396,34 +2486,36 @@ internal sealed class SceneHwndHost:HwndHost {
             this.ShowRuntimeViewState(this.PreviewClient.ReplaceScene(Scene,this.PreviewIsRuntime?this.LiveSceneJson():string.Empty));
             return;
         }
+        if(this.RuntimeOpenPending){
+            // The runtime view is opening off the UI thread; it catches up with this scene when it lands.
+            return;
+        }
+        (string HostPath,string ShaderArtifactPath)=this.ResolvePreviewHost();
+        // ADR-0070 B1: the game's own runtime when the game is built; the scene preview otherwise.
+        this.RuntimeViewNote=null;
+        if(this.TryPrepareRuntimeView() is { }Plan){
+            this.BeginRuntimeViewOpen(Plan,Surface.Handle.ToInt64(),HostPath,ShaderArtifactPath,Scene);
+            return;
+        }
+        this.OpenScenePreview();
+    }
 
+    private (string HostPath,string ShaderArtifactPath)ResolvePreviewHost(){
         this.RepoRoot??=CgeProjectContext.Resolve(this.TargetFilePath)?.WorkspaceRoot;
         if(this.RepoRoot is null){
             throw new InvalidOperationException(VsixText.Get("Common_GameProjectNotFound"));
         }
-        string HostPath=RenderPreviewSceneBuilder.ResolveHostPath(this.RepoRoot);
-        string ShaderArtifactPath=
-            RenderPreviewSceneBuilder.ResolveShaderArtifactPath(this.RepoRoot);
-        // ADR-0070 B1: the game's own runtime when the game is built; the scene preview otherwise.
-        this.RuntimeViewNote=null;
-        if(this.TryCreateRuntimeView() is { }RuntimeView){
-            RenderPreviewHostClient Runtime=RenderPreviewHostClient.Start(HostPath,TimeSpan.FromSeconds(120));
-            try {
-                RenderPreviewHostResponse Opened=Runtime.Open(
-                    Surface.Handle.ToInt64(),this.SurfaceWidth,this.SurfaceHeight,
-                    ShaderArtifactPath,Scene,RuntimeView,this.LiveSceneJson());
-                this.PreviewClient=Runtime;
-                this.PreviewIsRuntime=true;
-                this.ShowRuntimeViewState(Opened);
-                return;
-            } catch(Exception Error)when(Error is RenderPreviewHostException or IOException or InvalidOperationException or TimeoutException){
-                Runtime.Dispose();
-                DeleteEditorPreviewTempDirectory(this.RuntimeViewTempDirectory);
-                this.RuntimeViewTempDirectory=null;
-                ActivityLog.LogWarning(nameof(SceneHwndHost),Error.ToString());
-                this.ShowRuntimeViewNote(VsixText.Format("SceneRuntimeViewUnavailable",Error.Message));
-            }
-        }
+        return (RenderPreviewSceneBuilder.ResolveHostPath(this.RepoRoot),RenderPreviewSceneBuilder.ResolveShaderArtifactPath(this.RepoRoot));
+    }
+
+    /// <summary>The scene preview (the designer's render objects), when there is no runtime view of a built game.</summary>
+    private void OpenScenePreview(){
+        RenderSurfaceWindow Surface=this.Surface
+            ??throw new InvalidOperationException("Scene preview surface is unavailable.");
+        RenderPreviewScene Scene=RenderPreviewSceneBuilder.FromScene(
+            this.GetPreviewRoster(),this.CurrentView,this.CurrentProjection,
+            this.CurrentCameraPosition,this.ViewState?.FovYRadians??SceneCameraFraming.DefaultFovYRadians);
+        (string HostPath,string ShaderArtifactPath)=this.ResolvePreviewHost();
         RenderPreviewHostClient Client=RenderPreviewHostClient.Start(HostPath);
         try {
             Client.Open(
