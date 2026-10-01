@@ -69,7 +69,8 @@
       <None Include="@(_CgeEngineAssembly)" Pack="true" PackagePath="lib\$(TargetFramework)\" />
       <None Include="@(_CgeAnalyzerAssembly)" Pack="true" PackagePath="analyzers\dotnet\cs\" />
       <None Include="$(_CgeShaderCliDirectory)**\*" Exclude="$(_CgeShaderCliDirectory)**\*.pdb" Pack="true" PackagePath="tools\ShaderGraph\%(RecursiveDir)" />
-      <None Include="$(_CgeSceneSchemaCliDirectory)**\*" Exclude="$(_CgeSceneSchemaCliDirectory)**\*.pdb" Pack="true" PackagePath="tools\SceneSchema\%(RecursiveDir)" />
+      <!-- Top level only: the CLI has no dependencies, and an x64 test run of the solution leaves a win-x64\ copy below it that would be packed twice. -->
+      <None Include="$(_CgeSceneSchemaCliDirectory)*" Exclude="$(_CgeSceneSchemaCliDirectory)*.pdb" Pack="true" PackagePath="tools\SceneSchema\" />
       <None Include="$(CgeRepositoryRoot)src\CSharpGameEngine.Entities\*.cs" Pack="true" PackagePath="src\CSharpGameEngine.Entities\" />
       <None Include="$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Simulation\**\*" Exclude="$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Simulation\bin\**;$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Simulation\obj\**" Pack="true" PackagePath="src\CSharpGameEngine.Runtime.Simulation\%(RecursiveDir)" />
       <None Include="$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Physics\**\*" Exclude="$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Physics\bin\**;$(CgeRepositoryRoot)src\CSharpGameEngine.Runtime.Physics\obj\**" Pack="true" PackagePath="src\CSharpGameEngine.Runtime.Physics\%(RecursiveDir)" />
