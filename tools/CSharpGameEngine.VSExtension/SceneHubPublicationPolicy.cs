@@ -1,7 +1,7 @@
 namespace CSharpGameEngine.VSExtension;
 
 /// <summary>
-/// M0051 Step 1-4: 再解析(実C#由来)のモデルを<see cref="SceneEditorHub"/>へ流してよいかの純粋な判定。
+/// M0051 Step 1-4: 再解析(シーン JSON 由来、ADR-0070)のモデルを<see cref="SceneEditorHub"/>へ流してよいかの純粋な判定。
 ///
 /// <para>
 /// <b>解決する不具合</b>: Hierarchyで編集した直後にファイル保存等で再解析が走ると、Hubが
@@ -33,7 +33,9 @@ namespace CSharpGameEngine.VSExtension;
 ///
 /// <para>
 /// pinの解除は<c>SceneEditorSessionService.ClearPin</c>だけが行い、それはシーン デザイナー内の
-/// 明示的な操作(対象の選択解除・解決不能・例外)からしか呼ばれない。よって
+/// 明示的な操作(対象の選択解除・解決不能・例外)と、pin中Sceneのタブを閉じたとき(M0095)だけ呼ばれる。
+/// pin中はHubのモデルが常にpin中Sceneなので、Hierarchy/Inspectorの編集(<c>EnsurePinned</c>)が
+/// 別Sceneへpinを移すことはない。よって
 /// 「シーン デザイナーを閉じたらHierarchyも空になる」はこの規則でも保たれる。
 /// </para>
 /// </summary>
