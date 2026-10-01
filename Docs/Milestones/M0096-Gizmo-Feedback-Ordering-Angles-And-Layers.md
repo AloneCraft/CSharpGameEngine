@@ -58,7 +58,8 @@ M0095 の後にユーザーから受けた不具合報告と設計判断を、M0
 - **`[RunsBefore]` を追加した（指示は `[RunsAfter]` だったが、それだけでは書けない順序があった）**:
   - ThirdPerson テンプレートの `ThirdPersonAnimation` は `LocomotionAnimator` を書き、エンジンの `LocomotionAnimation` がそれを読む。エンジンはゲームの型を参照できないので、ゲーム側から「前」と書くしかない。名前順では `CSharpGameEngine.…` が `CgeThirdPerson.…` より前になり、1 フレーム遅れる。
   - Runtime.Physics / Character / Animation から Runtime.Windows の型を参照しないため（G）。
-  - 代わりの案（`ThirdPersonAnimation` を PostPhysics に移す）は、この例では同じ結果になるが一般的な手段にならない。不要なら `[RunsBefore]` を外してこの案に戻せる。
+  - 代わりの案（`ThirdPersonAnimation` を PostPhysics に移す）は、この例では同じ結果になるが一般的な手段にならない。
+  - 報告の後、ユーザーは損得を確認して残すと決めた（2026-10-01「残す」）。
 - 移行:
   - エンジンは移行前の順序を鎖として書いた。物理: `PhysicsSyncBegin` → `PhysicsBodySync` → `StaticMeshColliderSync` → `PhysicsStep` → `PhysicsTransformWriteback` → `CharacterMovementUpdate`。Presentation: `SpringArmUpdate` → `RuntimeSystems.cs` の宣言順 → `SkeletalMeshSetup` → `LocomotionAnimation` → `SkinnedMeshSync` → 音 → `Present`。
   - ゲームは実際の依存を書いた: `ShowcaseControls` / `ThirdPersonControls` は `Window` の後、`ThirdPersonAnimation` は `LocomotionAnimation` の前、`ShowcaseDashboard` は `LevelLoad` の後。

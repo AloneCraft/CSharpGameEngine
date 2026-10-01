@@ -1,5 +1,5 @@
 # ADR-0073 — System の実行順序を相対指定（`[RunsAfter]` / `[RunsBefore]`）にする
-- 状態: Accepted（2026-10-01、ユーザー承認: 「[RunsAfter] による相対順序にして」、同着は「案1: 全部 RunsAfter + 名前順」、`[SystemOrder]` は廃止）
+- 状態: Accepted（2026-10-01、ユーザー承認: 「[RunsAfter] による相対順序にして」、同着は「案1: 全部 RunsAfter + 名前順」、`[SystemOrder]` は廃止。`[RunsBefore]` は損得を確認して「残す」）
 - 置き換え: ADR-0036（`[SystemOrder]`）。ADR-0072 決定 3 の「相対指定はユーザーの判断事項」はこの ADR で決着した。
 - 関連: ADR-0033（静的 Archetype ECS）、ADR-0070（シーン JSON の起動シーン）、M0096
 
@@ -28,6 +28,10 @@
   - エンジンはゲームの型を参照できない。ThirdPerson テンプレートの `ThirdPersonAnimation` は `LocomotionAnimator` の速度と落下を書き、エンジンの `LocomotionAnimation` がそれを読む。後に動くのはエンジン側なので、ゲーム側から「`LocomotionAnimation` の前」と書くしかない。名前順では `CSharpGameEngine.…` が `CgeThirdPerson.…` より前になり、1 フレーム遅れる。
   - 層の向き: Runtime.Physics / Character / Animation は Runtime.Windows の型を参照しない（M0096 G で移植可能にする）。Windows の System を下位の層の System より前に置くには、Windows 側から `[RunsBefore]` と書く。
 - **代わりの案**（採らなかった）: `ThirdPersonAnimation` を PostPhysics に移す。この例では同じ結果になるが、ゲームの System をエンジンの System の前に置く一般的な手段にならない。
+- **ユーザーの判断**（2026-10-01）: 損得を確認したうえで残す。
+  - 損: 同じ順序を 2 通りに書ける。ある System の制約が、その System と相手の System の両方に散らばるので、読むときに逆方向の検索が要る。
+  - 得: ゲームの System をエンジンの System の前に置ける。
+- 2026-10-01 に確認した事実: エンジン内の `EmissiveMeshLightSync` → `SkeletalMeshSetup` の `[RunsBefore]` は、移行前の実効順を保つためだけのもの。2 つはデータを共有しないので、この順序に意味は無い。
 
 ### 4. 起動シーンは FrameInput の先頭
 - シーン JSON の起動シーン（ADR-0070）から作る合成 System は、FrameInput の他のすべての System より前に、`startupOrder` → 完全修飾名の順で動く。プレビューのブリッジ（`GeneratedEditorPreviewBridge`）の生成順も同じ規則。
