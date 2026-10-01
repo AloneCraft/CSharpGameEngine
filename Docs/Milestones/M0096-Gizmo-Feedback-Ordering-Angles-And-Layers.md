@@ -9,8 +9,8 @@ M0095 の後にユーザーから受けた不具合報告と設計判断を、M0
 | 項目 | 内容 | 状態 |
 |---|---|---|
 | A | ランタイムビューで、選択したギズモを操作しても確定まで画面のオブジェクトが動かない | 完了（82bf9b0、SDK 0.1.5 は d3b6c4e） |
-| B | Options の上下反転（Look / Orbit）: チェックを入れたときの今の挙動を、チェックなしの既定にする | 完了（本コミット） |
-| C | 実行時に使われない `VsixStrings.en-US.resx`、obj だけ残った旧ディレクトリ、`UserEcsProject/Generated/` の削除 | 未着手 |
+| B | Options の上下反転（Look / Orbit）: チェックを入れたときの今の挙動を、チェックなしの既定にする | 完了（8589960） |
+| C | 実行時に使われない `VsixStrings.en-US.resx`、obj だけ残った旧ディレクトリ、`UserEcsProject/Generated/` の削除 | 完了（本コミット） |
 | D | 整数 `[SystemOrder]` を廃止し `[RunsAfter]` の相対順序に一本化（同着は完全修飾名順） | 未着手 |
 | E | シーン JSON の角度を turns（1 = 1 回転）で保存し、Inspector は度で表示 | 未着手 |
 | F | Scene ビューの 2 プロセス（ランタイムビューと編集ワールド）の統合 | 未着手 |
@@ -40,3 +40,13 @@ M0095 の後にユーザーから受けた不具合報告と設計判断を、M0
 - 設定の移行は版 3。値は基準に対する反転のまま変換しない。チェックの無い利用者は新しい既定の向きに、チェックを入れていた利用者はそれまでの既定の向きになる。版 1→2 の変換は版 1 のときだけ行う。
 - テスト: 基準の向き（Look と Orbit）とピクセル一致の条件は修正前に失敗、修正後に成功する。版 2 の設定は変換されないことを固定した。
 - Options の文言は「上下回転を反転する」で、向きを書いていないので変更しない。
+
+## C. 削除
+- `VsixStrings.en-US.resx`: 中身は日本語で、実行時には使われていなかった。アセンブリの `NeutralLanguage` が en-US なので、`ResourceManager` は en-US を要求されても本体の既定リソース（`VsixStrings.resx`、英語）を返し、en-US のサテライトを参照しない。参照箇所もテストも無い。
+- obj だけ残った旧ディレクトリ: 承認時は 16 個と数えていたが、同じ基準（追跡ファイルなし、中身は 2026-08-21 の NuGet 復元の中間ファイル 5 個だけ、gitignore 対象）で 24 個あった。数え違いと判断し、24 個とも削除した。
+  - `src/` の `Compiler.Hlsl`、`Geometry`、`Graphics.D3D12`、`Import.Fbx`、`Import.Gltf`、`Platform.Windows`、`Scene`、`Spatial.Abstractions`、`Spatial.Blender`、`Spatial.Fbx`、`Spatial.Gltf`、`Spatial.Unity`、`Spatial.Unreal`
+  - `tests/` の `Compiler.Hlsl.Tests`、`Geometry.Tests`、`Graphics.D3D12.Tests`、`Import.Fbx.Tests`、`Import.Gltf.Tests`、`Scene.Tests`、`SceneAuthoring.Cli.Tests`、`Spatial.Tests`、`UserGameProject.Tests`
+  - `tools/CSharpGameEngine.SceneAuthoring.Cli`、`UserGameProject/`
+- `UserEcsProject/Generated/`: 2026-08-21 の生成物（存在しない `TransformPrecisionGenerator` の出力を含む）。プロジェクトはここへ出力していない。
+- 文書: `Architecture.md` が `UserGameProject/` を実在の `.csproj`、`SceneAuthoring.Cli` を現役のブリッジとして書いていたので、現在のもの（`UserEcsProject/`、ThirdPerson テンプレート、現在の CLI ブリッジ）に直した。`UserEcsProject/README.md` の `Generated/` への参照も直した。README の他の部分は以前から古い（別タスクとして提案）。
+- 全テスト成功。ビルド後も削除したディレクトリは再作成されない。

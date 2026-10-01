@@ -74,10 +74,10 @@ Roslynにロードされない。
   いずれも `--verify` でピクセル検証まで行うため、CI/スモークのレンダリング経路検証に使う。
   Visual Studio 拡張の本体は別プロジェクト `tools/CSharpGameEngine.VSExtension`(net472、
   実際に`.vsix`を生成する)であり、重い処理は`Import.Gltf.Cli`/`Import.Fbx.Cli`/
-  `SceneAuthoring.Cli`への別プロセスブリッジへ逃がしている(ADR-0010/0019/0023)。
-- `UserGameProject/` はエンドユーザーのゲームプロジェクトを模擬する**実際の`.csproj`**であり、
-  購入済みで手動配置される Fab アセットの置き場(`UserGameProject/Assets/Fab/`)を持つ。
-  ECS の唯一の実証場所でもある。
+  `Import.AssetAuthoring.Cli`/`Primitive.Cli`/`Physics.Cli`/`ShaderGraph.Cli`への別プロセスブリッジへ
+  逃がしている(ADR-0010/0019/0023)。
+- `UserEcsProject/` はエンドユーザーのゲームプロジェクトを模擬する**実際の`.csproj`**で、ECS と
+  シーン JSON の実証場所である。新規プロジェクトの雛形は`templates/CSharpGameEngine.Templates.ThirdPerson`。
 - L3の唯一のECSランタイムは `src/CSharpGameEngine.Entities`(SoA専業、**閉集合(静的)Archetype**)
   である。ユーザーはComponent型(`struct`)と`ISystem`を実装する`struct`だけを書き、
   `src/CSharpGameEngine.CodeAnalysis` の `GameSystemGenerator` が`Update`/`Spawn`メソッドの
@@ -121,7 +121,7 @@ Roslynにロードされない。
   Convention型は残っているので、実行時に選択して使うことは引き続きできる。
 - エンジンのRUF規約は`UnityCoordinateConvention`(左手系)に固定されている(ADR-0026)。
   `CSharpGameEngine.Graphics.D3D12`(Camera)・`CSharpGameEngine.Geometry`
-  (ProceduralMeshFactory)・`UserGameProject/Systems`(PlayerControlSystem/CameraSystem)の内部実装は
+  (ProceduralMeshFactory)の内部実装は
   RUF型経由で計算する(ADR-0026、ADR-0028)。`CSharpGameEngine.Import.Gltf`/`.Fbx`は
   `Spatial.Gltf`/`Spatial.Fbx`の各Conventionを使い、Import境界でソース形式の座標系からエンジン
   空間へ変換する(ADR-0027) — この変換により、ADR-0017が当初宣言していた「エンジン空間=glTF空間
