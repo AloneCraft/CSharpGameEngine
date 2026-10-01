@@ -1,5 +1,13 @@
 # Conformance
 
+## 2026-10-01 M0095 — テンプレート・シーンエディター・プログラミングモデルの探索的改善
+- 意図: テンプレート、編集フロー、シーンエディター、ゲームコード API の不具合と設計負債を、再現 → 最小修正 → 回帰確認の順に解消する（[M0095](Milestones/M0095-Editor-And-Programming-Model-Hardening.md)、[ADR-0072](Decisions/ADR-0072-Game-Code-Api-Simplification.md)）。
+- 観測: ランタイムビューへの値編集、複数タブでの Ctrl+Z / Ctrl+Y / Ctrl+S、閉じたタブのピン、手書き JSON の書式、起動時の Design ビュー、ランタイムビューを開く処理の UI スレッド占有、編集ワールドの再ビルド追従と停止の不具合を修正した。`void Update` と `State.FrameDeltaSeconds` を導入した。
+- 自動化された証拠: 各修正に修正前に失敗するテストを追加（キー持ち主の判定、ピン解除、書式保持、テキストマージ、オービット中心、ギズモの表示、経過時間、`void Update`、編集ワールドの停止）。全テストプロジェクトが成功。
+- 実機の証拠（CgeAutomation ハイブ、DTE と UI Automation のみ）: ランタイムビューの値編集（修正前 864 px → 修正後 334,711 px の変化）、タブを閉じた後の Hierarchy、NuGet 復元中の Design ビュー、ランタイムビューの非同期オープン（ActivityLog）、再ビルド後の編集ワールドの入れ替わり。
+- 結果: 自動化された契約と実装は一致する。ADR-0072 の決定 3 は既存のユーザー判断と衝突するため取り下げ、決定 5 はユーザー判断として保留。
+- 検証の限界: キーボード・マウス入力を伴う確認（Ctrl+Z の回数、Alt+LMB のオービット、Design ビューでの VS 標準 Undo との二重実行）は、ユーザーのフォーカスを奪わない方針のため手動確認として残す。UI 停止の `WM_NULL` 計測は STA の待機中のメッセージ処理のため判別できず、ActivityLog とコード経路で判断した。
+
 ## 2026-09-08 M0088 — Typed lighting
 - Intended: applicable-only light/physical-unit/optional-shadow contracts through source editing, importing, renderer submission and recovery.
 - Observed: portable typed ECS components, validated value structs, typed imports/submissions, reusable ordered replay, static physical-value editors and explicit source conversions follow ADR-0064.
@@ -79,16 +87,6 @@
 - Verification: Debug WARP, Release WARP, and Release RTX 4060 Ti Stages pass. Release WARP visibility is 5.086 ms median/6.650 ms p95; hardware frame is 8.344 ms median/8.691 ms p95; hardware visibility is 4.710 ms median/5.694 ms p95; all report allocation p95 zero.
 - Adversarial result: review rejected a loose 67 ms budget, product-wide JIT attributes, and WARP-as-hardware claims. A canonical multiple-batch regression uses the actual StableId comparison contract, and changed product code contains no `double` or `BigInteger`.
 - Result: Matches F-L7-023. F-L7-024 remains responsible for the bounded Rendering release aggregate.
-
-## 2026-09-01 M0079 Platform release evidence
-
-- Intended specification: F-L7-035 in Audio/Input/Platform, consuming the implemented F-L7-034 contract without taking over product-wide packaging or manifest ownership.
-- Implementation: PlatformReleaseEvidence re-executes platform.compatibility with the dedicated platform-release-prerequisite profile, then emits one canonical SHA-256 report over the matching configuration/Git/Warp result, 18 source and verification inputs, Windows x64 target, required QPC/synthetic/Silent/WARP modes, machine fingerprint, and current optional hardware rows.
-- Ownership: Stage files remain execution truth; matrix/workflow/ledger/source remain their own truths; the report is an immutable track snapshot. It creates no device owner, package, signature, SPDX document, installer, or second product release manifest.
-- Failure behavior: generation removes partial output. Revalidation rejects changed or escaped inputs/results, invalid Stage hash/assertions/timing, stale or non-release-profile provenance, noncanonical bytes, payload/machine hash mismatch, non-x64 capture, changed optional rows, and extra evidence files.
-- Verification: focused tests pass 25/25 in Debug and Release. platform.release passed Debug (20260901T135955088Z-full-dbd3216597ae47fc9accafb6fa8d5bf9) and Release (20260901T135955011Z-full-a0dae41606384a91a49b3fc0d67a9752); report hashes are 822f1feb7633f7ce2fcd9ef74ee0a45f27f0f28106788e70b6c23f9bbb1f9901 and 2b26dc75d215bf15f36dc89c790c0bb9b897767a66337b8a7160592e63bfe4d1.
-- Adversarial result: review required a dedicated prerequisite profile and independently verified captured OS/process x64 architecture. An ordinary full result cannot substitute. Overengineering review retained one scoped report and deferred package/sign/SBOM/global-manifest work to F-L7-045 through F-L7-048.
-- Result: Matches F-L7-035; optional hardware remains explicit Pending evidence rather than a fabricated pass.
 
 ## 2026-09-01 M0079 Platform release evidence
 
