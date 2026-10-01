@@ -7,29 +7,31 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace CSharpGameEngine.CodeAnalysis;
 
 /// <summary>
-/// <c>ISystem</c>を実装するstructと<c>IScene</c>を実装するクラスから、閉じた集合として列挙される
+/// <c>ISystem</c>を実装するstructとシーン JSON(<c>Scenes\**\*.json</c>、ADR-0070)から、閉じた集合として列挙される
 /// Archetype群・<c>World</c>の構造変更API・メインループ・Sceneの<c>Instantiate</c>、そして条件を満たす
-/// 場合はエントリポイントまで生成する(ADR-0033/ADR-0040、エントリポイントは
+/// 場合はエントリポイントまで生成する(ADR-0033/ADR-0070、エントリポイントは
 /// <see cref="GameSystemEntryPointEmitter"/>)。
 ///
 /// <para>
-/// 属性を一切使わない設計(Component/Systemはいずれもマーカー無しの構造的推論)のため、System検出には
+/// Systemはマーカー属性を持たない(役割は引数の形から構造的に推論する。Phaseや順序だけは
+/// <c>[SystemPhase]</c>/<c>[SystemOrder]</c>などの属性で受け取る)ため、System検出には
 /// <c>ForAttributeWithMetadataName</c>が使えず、<c>CreateSyntaxProvider</c>でbase listを持つ型宣言を
 /// 拾って意味解析で<c>ISystem</c>実装を確認する(struct限定にすると「classで書いてしまった」という
-/// SYSGEN001自体が到達不能になるため、あえてstruct限定にしない)。<c>IScene</c>も属性を持たないため
-/// 同じ形で検出する(<see cref="SceneModelBridge"/>)。
+/// SYSGEN001自体が到達不能になるため、あえてstruct限定にしない)。<c>Update</c>は<c>void</c>が標準(ADR-0072)。
+/// シーンはC#のクラスではなく、AdditionalFilesのシーン JSONから読む。
 /// </para>
 ///
 /// <para>
-/// Scene DSLがこのGeneratorへ統合されているのは必然的な設計判断である: Sceneのノード形状とSystemの
+/// シーンがこのGeneratorへ統合されているのは必然的な設計判断である: Sceneのノード形状とSystemの
 /// Update/Spawn形状は<b>同一のArchetype空間</b>に入る必要があり(両方が単一の<c>partial struct World</c>/
 /// <c>enum Archetype</c>を作るため、生成は1回しか行えない)、2つのGeneratorが独立に同じレジストリを
 /// 再導出する案はズレたときに「型が見つからない」という診断困難なビルド破壊になる。
 /// </para>
 ///
 /// <para>
-/// <b>Scene DSLの診断(SCENE1xx)はここでは報告しない。</b>報告するのは<see cref="SceneDslAnalyzer"/>だけで、
-/// このGeneratorは同じ解析結果を生成可否の判定にしか使わない(二重スクイグルの防止、ADR-0040)。
+/// <b>シーンの診断はここでは報告しない。</b>シーン JSON の診断(SCENE2xx)は<see cref="SceneJsonDslAnalyzer"/>が、
+/// C#のシーンクラスが残っていないかの検査(SCENE206)は<see cref="SceneDslAnalyzer"/>が報告し、
+/// このGeneratorは同じ解析結果を生成可否の判定にしか使わない(二重スクイグルの防止)。
 /// </para>
 ///
 /// <para>
