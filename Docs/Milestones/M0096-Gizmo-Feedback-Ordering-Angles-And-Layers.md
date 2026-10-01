@@ -15,7 +15,7 @@ M0095 の後にユーザーから受けた不具合報告と設計判断を、M0
 | E | シーン JSON の角度を turns（1 = 1 回転）で保存し、Inspector は度で表示 | 完了（d63ef02、ADR-0074、SDK 0.1.7 は 21e9b6f） |
 | F | Scene ビューの 2 プロセス（ランタイムビューと編集ワールド）の統合 | 完了（9b17de6、ADR-0047 に追記、SDK 0.1.8 は 1688528） |
 | G | Runtime.Physics / Character の Windows 依存の解消と、`Physics.Cli` の UserEcsProject 依存の除去 | 完了（6f8b056、SDK 0.1.9 は b22dcdd） |
-| H | 角度の JSON のキーから C# の単位の語を外す（ユーザー判断「JSON のキーだけ別名」） | 完了（本コミット、ADR-0074 決定 5） |
+| H | 角度の JSON のキーから C# の単位の語を外す（ユーザー判断「JSON のキーだけ別名」） | 完了（b7e6b1b、ADR-0074 決定 5、SDK 0.1.10 は e14259d） |
 
 ## A. ギズモ操作をランタイムビューに反映
 - 原因: ドラッグ中、VSIX は動かしたオブジェクトの行列を `RenderPreviewFrame.Objects[].World` で送るが、ランタイムビュー（`RenderPreviewRuntimeSession.UpdateFrame`）は `Objects` を選択表示にしか使わない。ゲームのワールドは文書の値で描くので、テキストに書き込まれる確定までオブジェクトは動かず、ギズモだけが動いていた。
