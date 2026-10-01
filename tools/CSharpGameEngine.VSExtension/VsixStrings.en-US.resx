@@ -15,7 +15,7 @@
   <data name="ComponentPaletteEmpty" xml:space="preserve"><value>追加できるComponent型が見つかりません。Sceneを開いてください。</value></data>
   <data name="ComponentPaletteCount" xml:space="preserve"><value>{0} / {1} 件。ダブルクリックまたは Enter で、選択中のノードに追加します。</value></data>
   <data name="HierarchyExpandCollapse" xml:space="preserve"><value>展開または折りたたみ</value></data>
-  <data name="HierarchyEmpty" xml:space="preserve"><value>IScene を宣言する C# ファイルを開いてください。</value></data>
+  <data name="HierarchyEmpty" xml:space="preserve"><value>シーン（プロジェクトの Scenes フォルダーにある .json ファイル）を開いてください。</value></data>
   <data name="InspectorEmpty" xml:space="preserve"><value>Scene Viewまたはヒエラルキーでノードを選択してください。</value></data>
   <data name="InspectorRemoveComponentToolTip" xml:space="preserve"><value>このComponentを削除</value></data>
   <data name="InspectorAnalysisPending" xml:space="preserve"><value>解析待ち…</value></data>
@@ -246,7 +246,8 @@
     <value>Starting the scene system...</value>
   </data>
   <data name="SceneDesigner_Analyzing" xml:space="preserve"><value>Sceneを解析しています...</value></data>
-  <data name="SceneDesigner_SelectedSceneMissing" xml:space="preserve"><value>選択したIScene実装クラスは編集後に見つからなくなりました。</value></data>
+  <data name="SceneDesigner_NoScene" xml:space="preserve"><value>シーン（プロジェクトの Scenes フォルダーにある .json ファイル）を開いてください。</value></data>
+  <data name="SceneDesigner_SelectedSceneMissing" xml:space="preserve"><value>このファイルには有効なシーンが1つもありません。JSON ビューのエラーを確認してください。</value></data>
   <data name="SceneDesigner_FallbackOpened" xml:space="preserve"><value>{0} could not be opened in the Scene Editor ({1}). The Scene Designer panel was opened instead.</value></data>
   <data name="SceneDesigner_OpenFailed" xml:space="preserve"><value>{0} could not be opened ({1}: {2}). See ActivityLog.xml for details.</value></data>
   <data name="SceneDesigner_FallbackWindowUnavailable" xml:space="preserve"><value>Scene DesignerのフォールバックToolWindowを作成できませんでした。</value></data>

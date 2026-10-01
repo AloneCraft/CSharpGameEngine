@@ -252,7 +252,7 @@ public partial class SceneDesignerToolWindowControl:UserControl,IDisposable {
             }
             if(Snapshot is null){
                 this.CancelSceneSelectionRequest();
-                this.ShowEmpty(VsixText.Get("SceneDesigner_SelectedSceneMissing"));
+                this.ShowEmpty(VsixText.Get("SceneDesigner_NoScene"));
             } else {
                 this.ShowSnapshot(Snapshot);
                 this.TryRestoreDuplicateSelection(Snapshot);

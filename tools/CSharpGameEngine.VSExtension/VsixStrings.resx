@@ -15,7 +15,7 @@
   <data name="ComponentPaletteEmpty" xml:space="preserve"><value>No Component types are available. Open a Scene.</value></data>
   <data name="ComponentPaletteCount" xml:space="preserve"><value>{0} / {1} items. Double-click or press Enter to add to the selected node.</value></data>
   <data name="HierarchyExpandCollapse" xml:space="preserve"><value>Expand or collapse</value></data>
-  <data name="HierarchyEmpty" xml:space="preserve"><value>Open a C# file that declares an IScene.</value></data>
+  <data name="HierarchyEmpty" xml:space="preserve"><value>Open a scene: a .json file in the project's Scenes folder.</value></data>
   <data name="InspectorEmpty" xml:space="preserve"><value>Select a node in the Scene View or Hierarchy.</value></data>
   <data name="InspectorRemoveComponentToolTip" xml:space="preserve"><value>Remove this Component</value></data>
   <data name="InspectorAnalysisPending" xml:space="preserve"><value>Waiting for analysis…</value></data>
@@ -246,7 +246,8 @@
     <value>Starting the scene system...</value>
   </data>
   <data name="SceneDesigner_Analyzing" xml:space="preserve"><value>Analyzing the Scene...</value></data>
-  <data name="SceneDesigner_SelectedSceneMissing" xml:space="preserve"><value>The selected IScene implementation class was not found after the edit.</value></data>
+  <data name="SceneDesigner_NoScene" xml:space="preserve"><value>Open a scene: a .json file in the project's Scenes folder.</value></data>
+  <data name="SceneDesigner_SelectedSceneMissing" xml:space="preserve"><value>This file does not contain one valid scene. Check the errors in its JSON view.</value></data>
   <data name="SceneDesigner_FallbackOpened" xml:space="preserve"><value>{0} could not be opened in the Scene Editor ({1}). The Scene Designer panel was opened instead.</value></data>
   <data name="SceneDesigner_OpenFailed" xml:space="preserve"><value>{0} could not be opened ({1}: {2}). See ActivityLog.xml for details.</value></data>
   <data name="SceneDesigner_FallbackWindowUnavailable" xml:space="preserve"><value>The Scene Designer fallback ToolWindow could not be created.</value></data>
