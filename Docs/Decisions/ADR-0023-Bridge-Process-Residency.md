@@ -64,7 +64,7 @@ ADR-0010追記(本ADRの直前の変更)で、`ExternalBridgeProcess.RunProcess`
   バージョン)が起動したブリッジには接続しない。
 - アイドルタイムアウト(15分)はそのまま残る。
 
-**`FbxBridgeWorker`のみ`SemaphoreSlim(1, 1)`で`FbxImporter.Import`呼び出しを排他する**:
+**`FbxImporter.Import`の呼び出しを排他する**（2026-10-04 の追記で、排他は`FbxImporter`自身へ移した）:
 `FbxImporter.Import`(`src/CSharpGameEngine.Import.Fbx/FbxImporter.cs`)は呼び出しのたびに
 AssimpNetの`LogStream.Attach()`/`Detach()`を呼んでおり、これはプロセス全体で共有される
 ネイティブロギング登録である。一発モードでは1プロセスにつき1回しか呼ばれないため問題に
@@ -72,6 +72,8 @@ AssimpNetの`LogStream.Attach()`/`Detach()`を呼んでおり、これはプロ�
 参照するシーンを`SceneHwndHost`が並列ロードする場合)。Attach/Detachの競合は診断メッセージの
 混線、最悪ネイティブ層の状態破壊につながりうるため、実際のインポート呼び出しだけをセマフォで
 直列化した(常駐化によるプロセス起動コスト削減という効果自体は失わない)。
+
+追記（2026-10-04）: `FbxImporter`は公開 API で、`ProviderNeutralImport`、Extension、テストもブリッジを通さずに呼ぶ。`ProviderNeutralImportTests`と`FbxImporterTests`が並列に動いた clean build で、テストホストがアクセス違反（0xC0000005）で落ちた。並列の`FbxImporter.Import`は毎回落ち、ログストリームなしの並列`AssimpContext.ImportFile`は落ちなかったので、原因はプロセス全体のログストリームの Attach/Detach の競合と確かめた。排他は`FbxImporter`の中（ログストリームを持つ区間）へ移し、ブリッジのセマフォは外した。
 
 ### 3. VSIX側`ResidentBridgeClient`(net472、`tools/CSharpGameEngine.VSExtension/`)
 

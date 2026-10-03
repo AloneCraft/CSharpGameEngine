@@ -67,4 +67,30 @@ public class FbxImporterTests {
             File.Delete(TempPath);
         }
     }
+
+    [Fact]
+    public void ConcurrentImports_KeepTheProcessAndTheirOwnDiagnostics(){
+        // Assimp's log stream is process-wide; attaching and detaching it from parallel imports crashed the test host
+        // (ProviderNeutralImportTests imports FBX in parallel with this class), and a stream sees every import's messages.
+        var Box=FixturePath("Box.fbx");
+        var Malformed=Path.Combine(Path.GetTempPath(),$"malformed-{Guid.NewGuid():N}.fbx");
+        File.WriteAllText(Malformed,"this is not a valid FBX file");
+        try {
+            // Assimp's lines name the thread ("T1234:"), which differs between imports.
+            static string[]Lines(FbxImportResult Result)=>[.. Result.Diagnostics.Select(D=>System.Text.RegularExpressions.Regex.Replace(D.ToString()??"",@"\bT\d+:","T:"))];
+            var Alone=Lines(FbxImporter.Import(Box));
+            var Results=new FbxImportResult[64];
+            Parallel.For(0,Results.Length,new ParallelOptions { MaxDegreeOfParallelism=8 },Index=>
+                Results[Index]=FbxImporter.Import(Index%2==0?Box:Malformed));
+
+            for(var Index=0;Index<Results.Length;Index++){
+                Assert.Equal(Index%2==0,Results[Index].Success);
+                if(Index%2==0){
+                    Assert.Equal(Alone,Lines(Results[Index]));
+                }
+            }
+        } finally {
+            File.Delete(Malformed);
+        }
+    }
 }

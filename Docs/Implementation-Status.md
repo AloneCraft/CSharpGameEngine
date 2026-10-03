@@ -1034,8 +1034,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
   - tools/CSharpGameEngine.Bridge.Hosting/BridgeServerHost.cs
   - tools/CSharpGameEngine.Bridge.Hosting/BridgeWireMessage.cs
   - tools/CSharpGameEngine.Import.Gltf.Cli/Program.cs、GltfBridgeWorker.cs
-  - tools/CSharpGameEngine.Import.Fbx.Cli/Program.cs、FbxBridgeWorker.cs(`SemaphoreSlim`による
-    AssimpNetの`LogStream`排他制御含む)
+  - tools/CSharpGameEngine.Import.Fbx.Cli/Program.cs、FbxBridgeWorker.cs(AssimpNetの`LogStream`の
+    排他は`FbxImporter`自身が持つ)
   - tools/CSharpGameEngine.Primitive.Cli/Program.cs、PrimitiveBridgeWorker.cs
   - tools/CSharpGameEngine.VSExtension/ResidentBridgeClient.cs
   - tools/CSharpGameEngine.VSExtension/ExternalBridgeProcess.cs(3段フォールバックの調停役)
@@ -1064,8 +1064,8 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
     `JoinableTaskFactory`が正しく機能しなかった。生の`Thread`+`ManualResetEventSlim`による
     待機に置き換えて解決した(VSTHRD002の対象にもならず、VSホスト依存も無い)。
   - `FbxImporter.Import`がAssimpNetの`LogStream.Attach`/`Detach`(プロセス全体で共有される
-    ネイティブ状態)を呼び出しているため、`FbxBridgeWorker`のみ`SemaphoreSlim(1, 1)`で
-    インポート呼び出し自体を排他制御している。
+    ネイティブ状態)を呼び出しているため、`FbxImporter`自身がその区間を排他制御している
+    (並列の呼び出しはアクセス違反でプロセスを落としていた。ADR-0023 の 2026-10-04 追記)。
   - 実測(`Box.glb`、`ExternalBridgeProcess.RunAndReadJson`を同一プロセス内で3回連続呼び出し):
     1回目(コールド、サーバー新規起動)約222ms、2回目(再利用)約2ms、3回目(再利用)約1ms -
     ADR-0010追記の直接exe起動(~150-180ms)と比べてさらに約100〜150倍、当初の

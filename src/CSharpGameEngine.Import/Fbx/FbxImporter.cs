@@ -9,6 +9,13 @@ namespace CSharpGameEngine.Import.Fbx;
 /// <c>CSharpGameEngine.Import.Gltf.GltfImporter</c>'s scope for glTF.
 /// </summary>
 public static class FbxImporter {
+    /// <summary>
+    /// Assimp's log is process-wide: attaching or detaching a log stream while another import runs crashed the process
+    /// (access violation; parallel imports without a log stream did not), and every attached stream would receive the
+    /// other import's messages. One import holds the log at a time.
+    /// </summary>
+    private static readonly Lock NativeImportGate=new();
+
     public static FbxImportResult Import(string FilePath){
         ArgumentException.ThrowIfNullOrWhiteSpace(FilePath);
 
@@ -24,27 +31,29 @@ public static class FbxImporter {
         // import failed overall (confirmed empirically); only Import()'s own explicit checks
         // below (empty scene, no vertices, no triangles) are treated as fatal.
         List<FbxImportDiagnostic>Diagnostics=[];
-        LogStream LogStream=new((Msg,_)=>{
-            var Trimmed=Msg.Trim();
-            if(Trimmed.StartsWith("Error",StringComparison.OrdinalIgnoreCase)||
-                Trimmed.StartsWith("Warn",StringComparison.OrdinalIgnoreCase)){
-                Diagnostics.Add(new FbxImportDiagnostic(FbxImportDiagnosticSeverity.Warning, $"Assimp: {Trimmed}"));
-            }
-        });
-        LogStream.Attach();
-
-        using AssimpContext Context=new();
         Scene Scene;
-        try {
-            Scene=Context.ImportFile(
-                FullPath,
-                PostProcessSteps.Triangulate|PostProcessSteps.GenerateSmoothNormals|PostProcessSteps.JoinIdenticalVertices);
-        } catch(Exception Ex){
-            // Assimp has no single documented exhaustive exception list for malformed input; a
-            // bad file must never escape as an unhandled exception from this importer.
-            return Failed($"Failed to parse FBX file '{FullPath}': {Ex.Message}");
-        } finally {
-            LogStream.Detach();
+        lock(NativeImportGate){
+            LogStream LogStream=new((Msg,_)=>{
+                var Trimmed=Msg.Trim();
+                if(Trimmed.StartsWith("Error",StringComparison.OrdinalIgnoreCase)||
+                    Trimmed.StartsWith("Warn",StringComparison.OrdinalIgnoreCase)){
+                    Diagnostics.Add(new FbxImportDiagnostic(FbxImportDiagnosticSeverity.Warning, $"Assimp: {Trimmed}"));
+                }
+            });
+            LogStream.Attach();
+
+            using AssimpContext Context=new();
+            try {
+                Scene=Context.ImportFile(
+                    FullPath,
+                    PostProcessSteps.Triangulate|PostProcessSteps.GenerateSmoothNormals|PostProcessSteps.JoinIdenticalVertices);
+            } catch(Exception Ex){
+                // Assimp has no single documented exhaustive exception list for malformed input; a
+                // bad file must never escape as an unhandled exception from this importer.
+                return Failed($"Failed to parse FBX file '{FullPath}': {Ex.Message}");
+            } finally {
+                LogStream.Detach();
+            }
         }
 
         if(Scene is null||Scene.MeshCount==0){

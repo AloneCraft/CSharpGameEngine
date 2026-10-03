@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — 並列の FBX 読み込みでテストホストが落ちていた
+- 意図: `FbxImporter`「壊れた入力でも例外を外へ出さない」と ADR-0023（AssimpNet の `LogStream` はプロセス全体の状態）。
+- 観測（Fact）: きれいな worktree の `verification.clean-build` で、`Import.Tests` のテストホストが `FbxImporterTests.Import_MalformedFile_ReturnsFailedNotException` の途中で落ちた（その前の実行では合格）。並列の `FbxImporter.Import`（正しいファイルだけでも）は 3 回とも 0xC0000005 で落ち、ログストリームなしの並列 `AssimpContext.ImportFile` は落ちなかった。排他はブリッジ（`FbxBridgeWorker`）にだけあり、`ProviderNeutralImportTests` は `FbxImporterTests` と並列に FBX を読む。
+- 実装: `FbxImporter` がログストリームを持つ区間を `Lock` で排他し、ブリッジの重複したセマフォを外した。
+- 自動化された証拠: `FbxImporterTests.ConcurrentImports_KeepTheProcessAndTheirOwnDiagnostics`（64 件を 8 並列。修正前はテストホストが落ち、修正後は各結果と、単独で読んだときと同じ診断を確かめる）。
+- 結果: Matches（ADR-0023 に追記）。
+
 ## 2026-10-04 探索 — 対数のサムネイルの値ひとつで Scene ビュー全体が止まりえた
 - 意図: Editor-VSIX の「カメラの値が使えないときは、そのカードがエラーを示す」（FovY・NearZ/FarZ・正射影の大きさと同じ）と、プロトコル 8 の検証。
 - 観測（Fact、コードの経路から）: M0100 からサムネイルは `RadialTransitionMeters` をプレビューホストへ送る。VSIX の検証はこれを見ていなかった。プロトコルは不正なカメラが 1 台あると `UpdateFrame` 全体を拒み、ホストは作れない radial の投影で例外を投げる。そのため、Inspector で T に 0 を入力する途中や 0 を保存した状態では、Scene ビューのフレーム全体が失敗しえた。
