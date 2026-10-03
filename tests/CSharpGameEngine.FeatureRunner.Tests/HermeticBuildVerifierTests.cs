@@ -25,8 +25,9 @@ public sealed class HermeticBuildVerifierTests {
         Assert.Contains(Plan.PackageRoot,Restore.Arguments);
         // Nested restores during the build (tools the build runs) must use the same isolated folder.
         Assert.Equal(Plan.PackageRoot,Plan.Environment["NUGET_PACKAGES"]);
+        // The root starts empty; a Rebuild would clean tools that projects built for their own use (AUD-004).
         Assert.All(Plan.Commands.Where(Command=>Command.Phase.StartsWith("build",StringComparison.Ordinal)),
-            Command=>Assert.Contains("--no-incremental",Command.Arguments));
+            Command=>Assert.DoesNotContain("--no-incremental",Command.Arguments));
         Assert.All(Plan.Commands.Where(Command=>Command.Phase.StartsWith("test",StringComparison.Ordinal)),
             Command=>Assert.Contains("--no-build",Command.Arguments));
         Assert.False(Directory.Exists(Plan.WorkRoot));

@@ -40,9 +40,12 @@ public sealed record HermeticBuildPlan(
             ]),
         };
         foreach(string Configuration in new[]{"Debug","Release"}){
+            // A plain build: the owned artifacts root starts empty, so there is nothing to be incremental against, and a
+            // Rebuild (--no-incremental) cleans the tools that projects build for their own use (shader compiler, scene
+            // schema writer, Feature Runner) after those projects built them (audit AUD-004).
             Commands.Add(new($"build-{Configuration}",[
                 "build",Solution,"--configuration",Configuration,
-                "--artifacts-path",Artifacts,"--no-restore","--no-incremental",
+                "--artifacts-path",Artifacts,"--no-restore",
                 "--disable-build-servers","--nologo","--verbosity","minimal",
             ]));
             Commands.Add(new($"test-{Configuration}",[

@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — Rebuild で消費側が使うツールの出力が消えていた（監査 AUD-004）
+- 意図: F-L7-039（隔離した clean build）と、監査 AUD-004「正規ビルドが自身のツール出力を利用中に競合なく生成できる」。
+- 観測（Fact）: きれいな worktree の `verify-clean-build` で、Debug ビルドがまれに失敗した（CLI の exe が無く 9009、`ShaderGraph.Cli` の参照 DLL が無く CS0006）。消費側（TestHost）の Build の後に、同じセッションで `ShaderGraph.Cli` を Rebuild すると、exe は毎回消えた（消費側なしでは残った）。詳細ログでは、ソリューションと各消費側の入れ子の Build が CLI の同じ構成 ID に集まる。そのため Rebuild の Clean だけが、後から走る。
+- 実装: 隔離クリーンビルドは空の専用ルートを Rebuild せず、通常のビルドで作る（`HermeticBuildPlan`）。消費側の Clean の前にツールを Clean する target も試したが、`Platform` を外す SceneSchema CLI では別インスタンスになり、出力を消して悪化させたので採らなかった（監査.md の AUD-004 に追記）。
+- 自動化された証拠: `HermeticBuildVerifierTests`（ビルド段に `--no-incremental` がない）と、上の MSBuild プロジェクトの実験。
+- 結果: Partial。開発者の Rebuild にはこの順序の失敗が残り、構造的な対処は判断を待つ。
+
 ## 2026-10-04 探索 — 並列の FBX 読み込みでテストホストが落ちていた
 - 意図: `FbxImporter`「壊れた入力でも例外を外へ出さない」と ADR-0023（AssimpNet の `LogStream` はプロセス全体の状態）。
 - 観測（Fact）: きれいな worktree の `verification.clean-build` で、`Import.Tests` のテストホストが `FbxImporterTests.Import_MalformedFile_ReturnsFailedNotException` の途中で落ちた（その前の実行では合格）。並列の `FbxImporter.Import`（正しいファイルだけでも）は 3 回とも 0xC0000005 で落ち、ログストリームなしの並列 `AssimpContext.ImportFile` は落ちなかった。排他はブリッジ（`FbxBridgeWorker`）にだけあり、`ProviderNeutralImportTests` は `FbxImporterTests` と並列に FBX を読む。
