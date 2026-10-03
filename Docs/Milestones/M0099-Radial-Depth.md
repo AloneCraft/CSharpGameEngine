@@ -19,7 +19,7 @@ Unity URP 用の対数（Radial）レンダリング資産 Omni（`D:\Unity\6.6\
 | Phase 5 | Camera コンポーネント、Scene JSON、エディタの追従 | 完了 |
 | Phase 6 | 観察ビュー | 完了 |
 | Phase 7 | FeatureRunner の `rendering.radial-depth` と文書の照合 | 完了 |
-| SDK | 対数深度（Phase 2〜7）に合わせて SDK パッケージを 0.1.14 に上げた | 完了 |
+| SDK | 対数深度（Phase 2〜7 と保守的深度の追補）に合わせて SDK パッケージを 0.1.14 に上げた | 完了 |
 
 ## Phase 0. グリッドと旧フォグのカメラ相対化
 ### 観測した事実（Fact）
