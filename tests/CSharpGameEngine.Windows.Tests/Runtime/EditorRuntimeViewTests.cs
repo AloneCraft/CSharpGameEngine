@@ -178,6 +178,42 @@ public sealed class EditorRuntimeViewTests {
         Assert.Equal(Loaded,Edited);
     }
 
+    [WindowsOnlyTheory]
+    [InlineData(nameof(Camera.NearZ),false)]
+    [InlineData(nameof(Camera.RadialTransitionMeters),false)]
+    [InlineData(nameof(Camera.NearZ),true)]
+    [InlineData(nameof(Camera.RadialTransitionMeters),true)]
+    public void SceneCamera_LoadedWithAnUnusableValue_NamesItAndRendersOnceItIsFixed(string Member,bool WithEditorCamera){
+        // A saved scene can hold a value the renderer cannot use (a zero near plane typed into the Inspector). The load
+        // names the member and keeps the default projection, as an edit on a later frame does, instead of failing the
+        // load of the game or of the Scene Designer's view (whose radial range includes the scene camera's near plane).
+        var Invalid=Member==nameof(Camera.NearZ)?RadialCamera with { NearZ=0f }:RadialCamera with { RadialTransitionMeters=-1f };
+        using var Surface=CreateSurface();
+        EngineHost NewHost(){
+            var Host=new EngineHost();
+            Host.UseExternalSurface(Surface.Handle,Surface.ClientWidth,Surface.ClientHeight,Warp);
+            if(WithEditorCamera){
+                Host.SetEditorCamera(new EditorCameraPose(Near,RadialCamera.FovYRadians,0.5f,5000f));
+            }
+            return Host;
+        }
+        string?ReportedAtLoad=null;
+        string Fixed,Direct;
+        using(var Host=NewHost()){
+            Render(Host,SceneCamera:Near,Component:Invalid,AfterFrames:Runtime=>ReportedAtLoad=Runtime.InvalidCameraProperty);
+            Assert.Equal(0,Host.Renderer!.ErrorOrWorseMessageCount);
+        }
+        using(var Host=NewHost()){
+            Fixed=Render(Host,SceneCamera:Near,Component:Invalid,Frames:2,EditedComponent:RadialCamera,
+                AfterFrames:Runtime=>Assert.Null(Runtime.InvalidCameraProperty));
+        }
+        using(var Host=NewHost()){
+            Direct=Render(Host,SceneCamera:Near,Component:RadialCamera,Frames:2);
+        }
+        Assert.Equal(Member,ReportedAtLoad);
+        Assert.Equal(Direct,Fixed);
+    }
+
     [WindowsOnlyFact]
     public void EditorCamera_OnARadialSceneCamera_SeesBothItsOwnRangeAndTheScenes(){
         // M0100: radial depth covers any range, so the editor view keeps what the designer frames beyond the scene

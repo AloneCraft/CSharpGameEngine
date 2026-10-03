@@ -168,6 +168,20 @@ internal struct LevelLoad:ISystem {
         }
     }
 
+    /// <summary>
+    /// Applies the projection (<see cref="ApplyProjection"/>) to <paramref name="View"/> unless <paramref name="Renderer"/> cannot use
+    /// the result, which keeps <paramref name="View"/>'s current one. Returns the first unusable member, or null.
+    /// </summary>
+    private static string?ProjectIfUsable(ref RenderCamera View,EditorCameraPose?Editor,bool HasSceneCamera,in Camera SceneCamera,RenderServer?Renderer){
+        var Projected=View;
+        ApplyProjection(ref Projected,Editor,HasSceneCamera,SceneCamera);
+        var Invalid=Renderer is null?null:InvalidProjectionProperty(Projected,Renderer.SurfaceWidth/(float)Renderer.SurfaceHeight);
+        if(Invalid is null){
+            View=Projected;
+        }
+        return Invalid;
+    }
+
     /// <summary>The first member of <paramref name="View"/>'s projection the renderer cannot use, or null.</summary>
     private static string?InvalidProjectionProperty(in RenderCamera View,float AspectRatio){
         if(!(View.FovYRadians>0f&&View.FovYRadians<MathF.PI)){ return nameof(Camera.FovYRadians); }
@@ -214,16 +228,9 @@ internal struct LevelLoad:ISystem {
                 LevelRuntime.LastCameraTransformStatus=CameraStatus;
                 // A value edit (the Scene Designer's or the game's) replaces the scene camera's component, so the
                 // projection is taken again every frame. Like the lights, an unusable value keeps the last good one.
-                var Projected=ActiveRenderCamera;
                 Camera SceneCamera=default;
                 var HasSceneCamera=this.ActiveCameraCount>0&&State.World.TryGetComponent(this.PendingCameraEntity,out SceneCamera);
-                ApplyProjection(ref Projected,Host.EditorCamera,HasSceneCamera,SceneCamera);
-                LevelRuntime.InvalidCameraProperty=Host.Renderer is { }ActiveRenderer
-                    ?InvalidProjectionProperty(Projected,ActiveRenderer.SurfaceWidth/(float)ActiveRenderer.SurfaceHeight)
-                    :null;
-                if(LevelRuntime.InvalidCameraProperty is null){
-                    ActiveRenderCamera=Projected;
-                }
+                LevelRuntime.InvalidCameraProperty=ProjectIfUsable(ref ActiveRenderCamera,Host.EditorCamera,HasSceneCamera,SceneCamera,Host.Renderer);
                 if(CameraStatus==FixedTransformStatus.Success){
                     // Presentation runs system-major. Refresh before later Renderable/light
                     // archetype executes so every GPU submission in this frame uses one camera origin.
@@ -292,7 +299,9 @@ internal struct LevelLoad:ISystem {
                 $"The active camera Transform basis cannot produce a renderer view: {InitialCameraStatus}.");
         }
 
-        ApplyProjection(ref Camera,Host.EditorCamera,this.ActiveCameraCount>0,this.PendingCamera);
+        // As on later frames, a scene value the renderer cannot use is named and keeps the default projection
+        // instead of failing the load (a saved zero near plane used to end the game and the Scene Designer's view).
+        LevelRuntime.InvalidCameraProperty=ProjectIfUsable(ref Camera,Host.EditorCamera,this.ActiveCameraCount>0,this.PendingCamera,Renderer);
         Host.AttachRenderer(Renderer,Camera,InitialCameraWorld,InitialCameraFrame);
         Host.RegisterWorldGridMaterials(Scene.Materials);
         LevelRuntime.HasLastCameraWorldPose=true;

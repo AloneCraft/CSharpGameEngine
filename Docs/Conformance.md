@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — 使えない値を保存したシーンカメラで読み込みが落ちていた
+- 意図: [Omni 仕様](Specifications/Omni.md) と `LevelLoad` の方針「使えない値は直前の使える投影を保ち、メンバー名を `LevelRuntime.InvalidCameraProperty` に残す」（ライトの `InvalidProperty` と同じく、フレームを落とさない）。
+- 観測（Fact）: 毎フレームの経路はこの方針どおりだったが、読み込みは `ApplyProjection` の結果を検査せずにレンダラーへ渡していた。NearZ 0 または RadialTransitionMeters −1 のシーンカメラでは、ゲームでも Scene Designer のランタイムビューでも、読み込みが `ArgumentException`（A radial camera needs ...）で失敗した。ランタイムビューでは、エディタ自身の範囲は正しくても、対数の範囲がシーンカメラの近い面を含むので失敗する。
+- 実装: 読み込みと毎フレームで同じ `ProjectIfUsable` を使う。読み込みで使えない値は、既定の投影（`RenderCamera.CreateFirstPerson`）のまま名前を残し、値が直った次のフレームからシーンカメラの投影を使う。
+- 自動化された証拠: `EditorRuntimeViewTests.SceneCamera_LoadedWithAnUnusableValue_NamesItAndRendersOnceItIsFixed`（ゲーム・エディタ × NearZ・RadialTransitionMeters の 4 件。修正前は 4 件とも `ArgumentException` で失敗）。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — きれいなチェックアウトで VSIX のテストと隔離クリーンビルドが通らなかった
 - 意図: F-L7-039（隔離した restore・artifacts のルートで、通常の `bin/obj` を消費しない）と、Roadmap の clean checkout 再現性。
 - 観測（Fact）: HEAD の新しい git worktree でスイートを回すと、VSExtension.Tests を含む 15 ステージ（`vsix.*` 全部、`rigid.physics`、`rendering.radial-depth` など）と、`ecs.performance`、`verification.clean-build`、それらに依存するリリースのステージが失敗した。
