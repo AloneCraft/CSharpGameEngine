@@ -83,6 +83,12 @@ public sealed class RenderPreviewRuntimeSessionTests {
         Assert.False(Session.BuildRequired);
         Session.ReplaceScene(Open.Scene!,"{ not json");
         Assert.False(Session.BuildRequired);
+        // A value the component's own type rejects while the author is typing (beyond the Q64.64 range) keeps the
+        // last good value instead of failing the command, which would end the session.
+        var OutOfRange=Original.Replace("\"Position\": { \"R\": 3, \"U\": 0.5, \"F\": 0 }","\"Position\": { \"R\": 3e30, \"U\": 0.5, \"F\": 0 }");
+        Assert.NotEqual(Original,OutOfRange);
+        Session.ReplaceScene(Open.Scene!,OutOfRange);
+        Assert.Equal(Before,Frame());
     }
 
     /// <summary>

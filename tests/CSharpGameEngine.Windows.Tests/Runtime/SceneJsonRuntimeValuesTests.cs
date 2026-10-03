@@ -68,6 +68,17 @@ public sealed class SceneJsonRuntimeValuesTests {
         Assert.True(Compared>0);
     }
 
+    [Theory]
+    [InlineData(typeof(Transform),"""{ "Position": { "R": 1e30, "U": 0, "F": 0 } }""")]
+    [InlineData(typeof(CSharpGameEngine.Runtime.Lighting.PointLight),"""{ "Color": { "R": -1, "G": 0, "B": 0 } }""")]
+    public void ValuesTheTypeItselfRejects_DoNotFit(Type Type,string Json){
+        // A position beyond the Q64.64 range or a negative light colour is rejected by the type's own conversion or
+        // constructor. Like any other mismatch it must surface as InvalidOperationException, which the runtime view
+        // skips (keeping the last good value), and not as the reflection wrapper.
+        var Error=Assert.Throws<InvalidOperationException>(()=>SceneJsonRuntimeValues.Component(Type,SceneJsonReader.Parse(Json),Type.Name));
+        Assert.Contains("does not fit",Error.Message,StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Camera_ReadsTheDepthMappingAndIsRadialWhenAbsent(){
         // M0100: radial is the default, so a scene without a DepthMapping member renders radial; standard is written out.

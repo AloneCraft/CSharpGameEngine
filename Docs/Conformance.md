@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — 範囲外の値を入力するとランタイムビューが終わっていた
+- 意図: `RenderPreviewRuntimeSession.ApplySceneDocument`「文書の誤りは生成器が報告し、ビューは最後の正しい値を保つ」。
+- 観測（Fact）: `SceneJsonRuntimeValues.Component` は、型そのものが拒否する値（位置 1e30 で `LogicalScalar` の変換が `OverflowException`、ライトの色 −1 でコンストラクタが `ArgumentOutOfRangeException`）を、リフレクションの `TargetInvocationException` のまま投げた。`ApplySceneDocument` は `InvalidOperationException` しか捕まえないので `ReplaceScene` が失敗し、セッション表はそのセッションを削除・破棄していた。つまり Scene Designer で入力途中に範囲外の値を打つとランタイムビューが終わる。
+- 実装: 変換・コンストラクタ・プロパティの代入が投げた例外を、ほかの不一致と同じ `InvalidOperationException`（does not fit）にする。
+- 自動化された証拠: `SceneJsonRuntimeValuesTests.ValuesTheTypeItselfRejects_DoNotFit`（2 件）、`RenderPreviewRuntimeSessionTests.SceneDocument_EditsValuesLiveAndFlagsStructureForABuild`（範囲外の位置を受けてもセッションが続き、画像は最後の正しい値のまま）。いずれも修正前に失敗した。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — きれいなチェックアウトで Feature Runner がビルドできなかった
 - 意図: ADR-0061（Pending は明示的な未合格、失効はリリースの検証だけを止める）、Roadmap の clean checkout 再現性、CI の最初の手順（Feature Runner の `verify-ci-matrix`）。
 - 観測（Fact）: HEAD の git worktree でスイートを回すと多くのステージが失敗した。原因は Feature Runner のビルド後検証の `verify-vsix-compatibility` で、`VSIX-Experimental-Baseline.json` の Passed の行が、追跡外の `.artifacts/VsixObservations/...` にある証拠ファイルを要求していた（「evidence does not exist」6 件）。この機械にしかないファイルなので、新しいクローンや CI では Feature Runner がビルドできない。既存のテストは一時ディレクトリへ写した台帳で特定のエラーの有無だけを見ていて、気付かなかった。

@@ -88,7 +88,7 @@ internal static class SceneJsonRuntimeValues {
             if(Conversion.Name=="op_Implicit"&&Conversion.ReturnType==Type
                 &&Conversion.GetParameters() is [{ }Only]
                 &&Type.GetTypeCode(Only.ParameterType) is TypeCode.Single or TypeCode.Double){
-                return Conversion.Invoke(null,[Convert.ChangeType(float.Parse(Text,Culture),Only.ParameterType,Culture)])!;
+                return Invoke(Where,Type,()=>Conversion.Invoke(null,[Convert.ChangeType(float.Parse(Text,Culture),Only.ParameterType,Culture)])!);
             }
         }
         throw Mismatch(Where,Type,"a number needs a numeric member or a type convertible from float");
@@ -134,7 +134,7 @@ internal static class SceneJsonRuntimeValues {
                 }
                 return Parameter.DefaultValue;
             }).ToArray();
-            Instance=Constructor.Invoke(Arguments);
+            Instance=Invoke(Where,Type,()=>Constructor.Invoke(Arguments));
         } else {
             // A struct's parameterless constructor runs its field initializers, as `new T { ... }` does.
             Instance=Activator.CreateInstance(Type)
@@ -146,9 +146,11 @@ internal static class SceneJsonRuntimeValues {
                 case FieldInfo Field:
                     Field.SetValue(Instance,Create(Field.FieldType,Property.Value,Where+"."+Property.Name,Reading,Unit??AngleUnitOf(Field.CustomAttributes)));
                     break;
-                case PropertyInfo Member:
-                    Member.SetValue(Instance,Create(Member.PropertyType,Property.Value,Where+"."+Property.Name,Reading,Unit??AngleUnitOf(Member.CustomAttributes)));
+                case PropertyInfo Member:{
+                    var MemberValue=Create(Member.PropertyType,Property.Value,Where+"."+Property.Name,Reading,Unit??AngleUnitOf(Member.CustomAttributes));
+                    Invoke(Where+"."+Property.Name,Member.PropertyType,()=>{ Member.SetValue(Instance,MemberValue);return MemberValue; });
                     break;
+                }
                 default:
                     throw Mismatch(Where,Type,$"'{Property.Name}' is not a settable member or constructor parameter");
             }
@@ -203,4 +205,16 @@ internal static class SceneJsonRuntimeValues {
 
     private static InvalidOperationException Mismatch(string Where,Type Type,string Reason)=>
         new($"The value for '{Where}' does not fit '{Type.FullName}': {Reason}.");
+
+    /// <summary>
+    /// Calls a conversion, constructor or setter of the game's type. A value the type itself rejects (a position beyond
+    /// the Q64.64 range, a negative light colour) does not fit either, so the caller can keep the last good value.
+    /// </summary>
+    private static T Invoke<T>(string Where,Type Type,Func<T>Call){
+        try {
+            return Call();
+        } catch(TargetInvocationException Error)when(Error.InnerException is { }Rejection){
+            throw Mismatch(Where,Type,Rejection.Message);
+        }
+    }
 }
