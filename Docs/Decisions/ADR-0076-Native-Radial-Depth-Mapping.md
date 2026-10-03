@@ -37,7 +37,7 @@
 - 既存のカメラプレビュー矩形（最大 3 枚）の 1 パスとして、ゲームのランタイムでだけ描く。
 
 ### 6. 標準の経路を変えない構造
-- 既定は標準。`VSMain`/`PSMain` と標準の PSO は変更しない。対数用は別のエントリー（`RadialPSMain`、`PreviewRadialPSMain`、`PreviewCleanRadialPSMain`、`RadialObserverVSMain`）と別の PSO にする。
+- 既定は標準（追記「対数を既定にする」で対数に変えた）。`VSMain`/`PSMain` と標準の PSO は変更しない。対数用は別のエントリー（`RadialPSMain`、`PreviewRadialPSMain`、`PreviewCleanRadialPSMain`、`RadialObserverVSMain`）と別の PSO にする。
 - 深度方式のパケットは FrameCB の末尾に 32 バイト足す（標準のエントリーは読まない）。
 - 標準モードのフレームは M0099 Phase 1 で SHA-256 に固定した（`StandardModeGoldenFrameTests`）。
 
