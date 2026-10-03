@@ -209,6 +209,8 @@ public struct LevelRuntime:IRuntimeComponent<Level> {
     public FixedTransformStatus LastCameraTransformStatus;
     /// <summary>Whether a valid Camera origin and view have been established.</summary>
     public bool HasLastCameraWorldPose;
+    /// <summary>The active Camera's member the renderer cannot use (the view keeps the last usable projection), or null.</summary>
+    public string?InvalidCameraProperty;
     public string?ShaderSemanticHash;
     public bool ShaderArtifactLoaded;
     public int ShaderArtifactDiagnosticCount;

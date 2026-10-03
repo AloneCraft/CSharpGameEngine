@@ -102,7 +102,84 @@ public sealed class EditorRuntimeViewTests {
         Assert.Equal(Game,Editor);
     }
 
+    [WindowsOnlyFact]
+    public void EditorCamera_TakesAValueEditOfTheSceneCameraOnTheNextFrame(){
+        // The Scene Designer applies a value edit by replacing the component in the running world
+        // (RenderPreviewRuntimeSession.ReplaceScene); the view must show it like any other value edit.
+        using var Surface=CreateSurface();
+        string Edited,Loaded;
+        using(var Host=new EngineHost()){
+            Host.UseExternalSurface(Surface.Handle,Surface.ClientWidth,Surface.ClientHeight,Warp);
+            Host.SetEditorCamera(new EditorCameraPose(Near,RadialCamera.FovYRadians,0.5f,20f));
+            Edited=Render(Host,SceneCamera:Far,Component:new Camera(),Frames:2,EditedComponent:BrightRadialCamera);
+            Assert.Equal(RenderDepthMapping.Radial,Host.RenderCamera.DepthMapping);
+            Assert.Equal(BrightRadialCamera.NearZ,Host.RenderCamera.NearZ);
+            Assert.Equal(BrightRadialCamera.FarZ,Host.RenderCamera.FarZ);
+            Assert.Equal(BrightRadialCamera.ExposureEv100,Host.RenderCamera.ExposureEv100);
+        }
+        using(var Host=new EngineHost()){
+            Host.UseExternalSurface(Surface.Handle,Surface.ClientWidth,Surface.ClientHeight,Warp);
+            Host.SetEditorCamera(new EditorCameraPose(Near,RadialCamera.FovYRadians,0.5f,20f));
+            Loaded=Render(Host,SceneCamera:Far,Component:BrightRadialCamera,Frames:2);
+        }
+        Assert.Equal(Loaded,Edited);
+    }
+
+    [WindowsOnlyFact]
+    public void SceneCamera_TakesAValueEditOnTheNextFrameInTheGame(){
+        // A game changes its camera through the component too (a zoom, an exposure change, switching to radial).
+        using var Surface=CreateSurface();
+        string Edited,Loaded;
+        var Zoomed=BrightRadialCamera with { FovYRadians=0.5f };
+        using(var Host=new EngineHost()){
+            Host.UseExternalSurface(Surface.Handle,Surface.ClientWidth,Surface.ClientHeight,Warp);
+            Edited=Render(Host,SceneCamera:Near,Component:new Camera(),Frames:2,EditedComponent:Zoomed);
+            Assert.Equal(RenderDepthMapping.Radial,Host.RenderCamera.DepthMapping);
+            Assert.Equal(0.5f,Host.RenderCamera.FovYRadians);
+            Assert.Equal(Zoomed.ExposureEv100,Host.RenderCamera.ExposureEv100);
+        }
+        using(var Host=new EngineHost()){
+            Host.UseExternalSurface(Surface.Handle,Surface.ClientWidth,Surface.ClientHeight,Warp);
+            Loaded=Render(Host,SceneCamera:Near,Component:Zoomed,Frames:2);
+        }
+        Assert.Equal(Loaded,Edited);
+    }
+
+    [WindowsOnlyTheory]
+    [InlineData(nameof(Camera.FovYRadians))]
+    [InlineData(nameof(Camera.NearZ))]
+    [InlineData(nameof(Camera.FarZ))]
+    [InlineData(nameof(Camera.ExposureEv100))]
+    [InlineData(nameof(Camera.RadialTransitionMeters))]
+    public void SceneCamera_KeepsTheLastUsableProjectionWhileAnEditIsInvalid(string Member){
+        // Typing into the Inspector passes through values such as a zero near plane. Like the lights, the view keeps
+        // the last usable projection and names the member instead of failing the frame.
+        var Invalid=Member switch {
+            nameof(Camera.FovYRadians)=>RadialCamera with { FovYRadians=0f },
+            nameof(Camera.NearZ)=>RadialCamera with { NearZ=0f },
+            nameof(Camera.FarZ)=>RadialCamera with { FarZ=RadialCamera.NearZ },
+            nameof(Camera.ExposureEv100)=>RadialCamera with { ExposureEv100=float.NaN },
+            _=>RadialCamera with { RadialTransitionMeters=-1f },
+        };
+        using var Surface=CreateSurface();
+        string Edited,Loaded;
+        string?Reported=null;
+        using(var Host=new EngineHost()){
+            Host.UseExternalSurface(Surface.Handle,Surface.ClientWidth,Surface.ClientHeight,Warp);
+            Edited=Render(Host,SceneCamera:Near,Component:RadialCamera,Frames:2,EditedComponent:Invalid,
+                AfterFrames:Runtime=>Reported=Runtime.InvalidCameraProperty);
+            Assert.Equal(0,Host.Renderer!.ErrorOrWorseMessageCount);
+        }
+        using(var Host=new EngineHost()){
+            Host.UseExternalSurface(Surface.Handle,Surface.ClientWidth,Surface.ClientHeight,Warp);
+            Loaded=Render(Host,SceneCamera:Near,Component:RadialCamera,Frames:2,AfterFrames:Runtime=>Assert.Null(Runtime.InvalidCameraProperty));
+        }
+        Assert.Equal(Member,Reported);
+        Assert.Equal(Loaded,Edited);
+    }
+
     private static Camera RadialCamera=>new() { DepthMapping=CameraDepthMapping.Radial,RadialTransitionMeters=2f,NearZ=0.01f,FarZ=1e12f };
+    private static Camera BrightRadialCamera=>RadialCamera with { ExposureEv100=-1.5f };
 
     private static GraphicsDeviceOptions Warp=>new() { UseWarp=true,EnableDebugLayer=true };
 
@@ -110,8 +187,12 @@ public sealed class EditorRuntimeViewTests {
         Title="CSharpGameEngine Editor Runtime View Test",Width=128,Height=128,Visible=false,
     });
 
-    /// <summary>Loads a level with one box (and a scene camera when given) and captures one frame.</summary>
-    private static string Render(EngineHost Host,Transform?SceneCamera,Camera?Component=null,int Frames=1){
+    /// <summary>
+    /// Loads a level with one box (and a scene camera when given) and captures one frame. <paramref name="EditedComponent"/>
+    /// replaces the scene camera's component after the load, as a value edit does.
+    /// </summary>
+    private static string Render(EngineHost Host,Transform?SceneCamera,Camera?Component=null,int Frames=1,Camera?EditedComponent=null,
+        Action<LevelRuntime>?AfterFrames=null){
         ref var World=ref Host.World;
         var App=new AppHost();
         var AppRuntime=new AppHostRuntime();
@@ -124,20 +205,25 @@ public sealed class EditorRuntimeViewTests {
         var State=Host.CreateState();
         var Load=new LevelLoad();
         Load.Update(BoxEntity,ref BoxTransform,ref Box,ref State);
+        Entity CameraEntity=default;
         if(SceneCamera is { }CameraPose){
             var CameraTransform=CameraPose;
             var Camera=Component??new Camera();
-            var CameraEntity=World.Create(CameraTransform,Camera);
+            CameraEntity=World.Create(CameraTransform,Camera);
             Load.Update(CameraEntity,ref CameraTransform,ref Camera,ref State);
         }
         Load.Update(LevelEntity,ref App,ref AppRuntime,ref Level,ref LevelRuntime,Host,ref State);
         Assert.True(LevelRuntime.Loaded);
         Host.Present();
+        if(EditedComponent is { }Edit){
+            Assert.True(Host.World.TrySetComponent(CameraEntity,Edit));
+        }
         for(var Frame=1;Frame<Frames;Frame++){
             // Later frames take LevelLoad's per-frame path, where the editor camera is applied again.
             Load.Update(LevelEntity,ref App,ref AppRuntime,ref Level,ref LevelRuntime,Host,ref State);
             Host.Present();
         }
+        AfterFrames?.Invoke(LevelRuntime);
         Host.Renderer!.RenderFrame(CaptureForVerification:true);
         return Convert.ToHexString(SHA256.HashData(Host.Renderer.LastCapturedFrame!.Pixels));
     }

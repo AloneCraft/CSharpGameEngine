@@ -43,7 +43,7 @@ One camera sees from millimetres to the Q64.64 range (about 9.2e18 m) with corre
 ## Authoring and editor
 
 - The scene `Camera` component has `DepthMapping` (`Standard` default, `Radial`) and `RadialTransitionMeters` (default 1). Scene JSON stores only changed values, so existing scenes stay standard.
-- `LevelLoad` copies them into the render camera when the level loads (like the exposure). The editor runtime view follows the scene camera: a radial scene camera makes the editor view radial and replaces the editor's focus-based near/far with the scene camera's NearZ/FarZ on every frame.
+- `LevelLoad` copies them into the render camera on every frame, with the exposure, so a value edit (the Scene Designer's or the game's) shows on the next frame; an unusable value keeps the last usable projection and is named in `LevelRuntime.InvalidCameraProperty`. The editor runtime view follows the scene camera: a radial scene camera makes the editor view radial and replaces the editor's focus-based near/far with the scene camera's NearZ/FarZ.
 - Camera thumbnails are drawn only by the isolated preview of an unbuilt game, which stays standard (non-goal); the renderer's per-preview depth mapping serves the observer view.
 
 ## Precision budget

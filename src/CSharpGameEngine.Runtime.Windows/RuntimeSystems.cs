@@ -140,17 +140,44 @@ internal struct LevelLoad:ISystem {
     }
 
     /// <summary>
-    /// M0099: the depth mapping is the scene camera's, in the editor too. A radial view also keeps the scene camera's
-    /// near and far planes, because the editor's focus-based range would undo what radial depth is for. Like the
-    /// exposure, it is read when the level loads.
+    /// The projection the view is seen with: the field of view and clip range of the editor camera when the Scene
+    /// Designer supplies one (ADR-0070 B1), otherwise the scene camera's. The exposure and the depth mapping are the
+    /// scene camera's in the editor too, so the view looks like the game (M0099: a radial view also keeps the scene
+    /// camera's clip range, because the editor's focus-based range would undo what radial depth is for).
     /// </summary>
-    private static void ApplyDepthMapping(ref RenderCamera View,in Camera SceneCamera){
+    private static void ApplyProjection(ref RenderCamera View,EditorCameraPose?Editor,bool HasSceneCamera,in Camera SceneCamera){
+        if(Editor is { }EditorCamera){
+            View.FovYRadians=EditorCamera.FovYRadians;
+            View.NearZ=EditorCamera.NearZ;
+            View.FarZ=EditorCamera.FarZ;
+        } else if(HasSceneCamera){
+            View.FovYRadians=SceneCamera.FovYRadians;
+            View.NearZ=SceneCamera.NearZ;
+            View.FarZ=SceneCamera.FarZ;
+        }
+        if(!HasSceneCamera){
+            return;
+        }
+        View.ExposureEv100=SceneCamera.ExposureEv100;
         View.DepthMapping=SceneCamera.DepthMapping==CameraDepthMapping.Radial?RenderDepthMapping.Radial:RenderDepthMapping.Standard;
         View.RadialTransitionMeters=SceneCamera.RadialTransitionMeters;
         if(View.DepthMapping==RenderDepthMapping.Radial){
             View.NearZ=SceneCamera.NearZ;
             View.FarZ=SceneCamera.FarZ;
         }
+    }
+
+    /// <summary>The first member of <paramref name="View"/>'s projection the renderer cannot use, or null.</summary>
+    private static string?InvalidProjectionProperty(in RenderCamera View,float AspectRatio){
+        if(!(View.FovYRadians>0f&&View.FovYRadians<MathF.PI)){ return nameof(Camera.FovYRadians); }
+        if(!(float.IsFinite(View.NearZ)&&View.NearZ>0f)){ return nameof(Camera.NearZ); }
+        if(!(float.IsFinite(View.FarZ)&&View.FarZ>View.NearZ)){ return nameof(Camera.FarZ); }
+        if(!float.IsFinite(View.ExposureEv100)){ return nameof(Camera.ExposureEv100); }
+        if(View.DepthMapping==RenderDepthMapping.Radial){
+            if(!RadialDepthCurve.TryCreate(View.RadialTransitionMeters,out var Curve)){ return nameof(Camera.RadialTransitionMeters); }
+            if(!RadialDepthProjection.TryCreate(Curve,View.NearZ,View.FarZ,View.FovYRadians,AspectRatio,out _)){ return nameof(Camera.FarZ); }
+        }
+        return null;
     }
 
     public void Update(Entity Entity,ref Transform Transform,ref PrimitiveMesh Mesh,ref State State){
@@ -184,13 +211,17 @@ internal struct LevelLoad:ISystem {
                 FixedTransformStatus CameraStatus=CameraTransform.TryApplyWorldOrientation(
                     CameraWorld,ref ActiveRenderCamera,out _);
                 LevelRuntime.LastCameraTransformStatus=CameraStatus;
-                if(Host.EditorCamera is { }Editor){
-                    ActiveRenderCamera.FovYRadians=Editor.FovYRadians;
-                    ActiveRenderCamera.NearZ=Editor.NearZ;
-                    ActiveRenderCamera.FarZ=Editor.FarZ;
-                    if(this.ActiveCameraCount>0){
-                        ApplyDepthMapping(ref ActiveRenderCamera,this.PendingCamera);
-                    }
+                // A value edit (the Scene Designer's or the game's) replaces the scene camera's component, so the
+                // projection is taken again every frame. Like the lights, an unusable value keeps the last good one.
+                var Projected=ActiveRenderCamera;
+                Camera SceneCamera=default;
+                var HasSceneCamera=this.ActiveCameraCount>0&&State.World.TryGetComponent(this.PendingCameraEntity,out SceneCamera);
+                ApplyProjection(ref Projected,Host.EditorCamera,HasSceneCamera,SceneCamera);
+                LevelRuntime.InvalidCameraProperty=Host.Renderer is { }ActiveRenderer
+                    ?InvalidProjectionProperty(Projected,ActiveRenderer.SurfaceWidth/(float)ActiveRenderer.SurfaceHeight)
+                    :null;
+                if(LevelRuntime.InvalidCameraProperty is null){
+                    ActiveRenderCamera=Projected;
                 }
                 if(CameraStatus==FixedTransformStatus.Success){
                     // Presentation runs system-major. Refresh before later Renderable/light
@@ -260,20 +291,7 @@ internal struct LevelLoad:ISystem {
                 $"The active camera Transform basis cannot produce a renderer view: {InitialCameraStatus}.");
         }
 
-        if(Host.EditorCamera is { }EditorCamera){
-            Camera.FovYRadians=EditorCamera.FovYRadians;
-            Camera.NearZ=EditorCamera.NearZ;
-            Camera.FarZ=EditorCamera.FarZ;
-        } else {
-            Camera.FovYRadians= this.PendingCamera.FovYRadians;
-            Camera.NearZ= this.PendingCamera.NearZ;
-            Camera.FarZ= this.PendingCamera.FarZ;
-        }
-        // Exposure is the scene's in the editor too: the view must look like the game.
-        Camera.ExposureEv100=this.ActiveCameraCount>0?this.PendingCamera.ExposureEv100:new Camera().ExposureEv100;
-        if(this.ActiveCameraCount>0){
-            ApplyDepthMapping(ref Camera,this.PendingCamera);
-        }
+        ApplyProjection(ref Camera,Host.EditorCamera,this.ActiveCameraCount>0,this.PendingCamera);
         Host.AttachRenderer(Renderer,Camera,InitialCameraWorld,InitialCameraFrame);
         Host.RegisterWorldGridMaterials(Scene.Materials);
         LevelRuntime.HasLastCameraWorldPose=true;

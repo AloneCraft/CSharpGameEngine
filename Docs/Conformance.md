@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 M0099 探索 — シーンの Camera の値の編集がビューに届かなかった
+- 意図: [Rendering 仕様](Specifications/Rendering.md) の Scene ビューのランタイムビュー「編集は動作中の世界の部品の値を変える」。`RenderPreviewRuntimeSession.ReplaceScene` は値の編集を `TrySetComponent` で部品ごと差し替え、他の部品は Presentation のシステムが毎フレームレンダラーへ運ぶ。
+- 観測（Fact）: `LevelLoad` はシーンカメラの部品を読み込み時に一度だけ写していた（露出、M0099 で足した深度方式と T、ゲームでは FovY/NearZ/FarZ）。読み込み後に部品を差し替えても、エディタでもゲームでも描画カメラは標準・元の露出のままだった（`EditorRuntimeViewTests` の 2 件で再現、修正前に失敗）。部品は存在するので `BuildRequired` も立たず、ビューは黙って古い値で描き続けていた。M0099 の「露出と同じく読み込み時に読む」は前例に合わせただけで、根拠は無かった。
+- 実装: `LevelLoad.ApplyProjection` を読み込みと毎フレームの両方で使い、毎フレームは世界からシーンカメラの部品を読み直す。使えない値（入力途中の NearZ 0 など）はライトの `InvalidProperty` と同じく最後に使えた投影を保ち、`LevelRuntime.InvalidCameraProperty` に部品の名前を出す。
+- 自動化された証拠: `EditorRuntimeViewTests.EditorCamera_TakesAValueEditOfTheSceneCameraOnTheNextFrame`、`SceneCamera_TakesAValueEditOnTheNextFrameInTheGame`（編集後の画像が、その値で読み込んだ画像と一致）、`SceneCamera_KeepsTheLastUsableProjectionWhileAnEditIsInvalid`（5 件。検証を外すと 5 件とも失敗することを確かめた）。
+- 結果: Matches。アクティブなカメラの選び直し（`Active` の切り替え）は今も読み込み時だけ。
+
 ## 2026-10-04 M0099 探索 — 対数の境界条件
 - 探索した条件: 表示モード（基本色・法線・ワイヤ・選択ありの Lit）、極小スケール（near 1e-7 m、マイクロメートルの場面）、標準と対数を毎フレーム切り替える、リサイズ、ワイヤ表示での観察者の小窓（`RadialDepthEdgeCaseTests`、8 件）。
 - 見つかった差: ワイヤ表示だけ、対数で 16 画素の色が標準と違った（例 23,3,3 対 157,46,23）。差の位置は箱と壁の面どうしが共有する辺だけだった。共有辺は 2 つの三角形から完全に同じ深度で描かれ、標準は先に描いた面が残る。対数は画素ごとに計算した深度の丸めで決まる。塗りつぶしでは共有辺の画素はフィルルールで一方の三角形にだけ属するので起きない。遮蔽の誤りではないので、仕様（Omni 不変条件 3）に既知の差として記録し、テストはワイヤ表示だけ差が 1% 以下であることを確かめる。

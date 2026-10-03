@@ -91,7 +91,7 @@ Unity URP 用の対数（Radial）レンダリング資産 Omni（`D:\Unity\6.6\
 
 ## Phase 5. Camera コンポーネント、Scene JSON、エディタの追従
 - シーンの `Camera` コンポーネントに `CameraDepthMapping DepthMapping`（既定 Standard）と `RadialTransitionMeters`（既定 1）を足した。Scene JSON は既定と違う値だけを書くので、既存のシーンは無変更で標準のまま。生成コードとエディタは列挙型と数値を汎用の規則で読む。
-- `LevelLoad.ApplyDepthMapping`: 読み込み時に（露出と同じく）シーンカメラの方式と T を描画カメラへ写す。対数ならシーンカメラの NearZ/FarZ も使う。エディタのランタイムビューでは毎フレームの経路でもエディタの near/far を上書きした後にこれを当て直す。
+- `LevelLoad.ApplyProjection`: シーンカメラの方式と T を（露出とともに）描画カメラへ写す。対数ならシーンカメラの NearZ/FarZ も使う。エディタのランタイムビューではエディタの near/far を上書きした後にこれを当てる。毎フレーム、シーンカメラの部品を読み直す（探索で見つけた不具合の修正。下の「探索」を参照）。
 - カメラのサムネイル: 描くのは未ビルドのゲームの分離プレビューだけで、そこでの対数は非目標なので標準のまま（計画の「サムネイルも追従」は、ランタイムビューがサムネイルを描かないことが分かったので取りやめた）。
 - テスト: `SceneCameraTests`（既定値）、`SceneJsonRuntimeValuesTests.Camera_ReadsTheRadialDepthMappingAndKeepsStandardWhenAbsent`、`EditorRuntimeViewTests` の 2 件（ゲームが対数になりシーンの範囲を使う。エディタカメラが同じ姿勢のゲームと同じ画素を描き、2 フレーム目の経路でも対数とシーンの範囲を保つ）。毎フレームの経路での当て直しを外すとエディタのテストが失敗することを確かめた。
 
@@ -119,3 +119,6 @@ Unity URP 用の対数（Radial）レンダリング資産 Omni（`D:\Unity\6.6\
 - 対策: 保守的深度（ADR-0076 追記）。対数 0.171 ms（標準 0.124 ms の 1.4 倍）。WARP は変わらない。
 - 調べて分かったこと: 深度クリップを無効にすると near 面をまたぐ三角形の補間が変わった（1 階調）。標準の near/far を `SV_ClipDistance` で出すと箱の差は消えたが、床に散らばった 60 画素・最大 1 階調の差が残った。クリップの無い場面ではビット一致したので、クリップ距離による切断の丸めと確定し、不変条件を「クリップされない三角形はビット一致、クリップされる三角形は 1 階調以内」に改めた。
 - 計測した前提の事実: `SV_DepthGreaterEqual` を出す画素シェーダーは DXIL の検証で `SV_Position` を centroid・no-perspective で受ける必要があった。
+
+## 探索（2026-10-04）
+- シーンの Camera の値の編集（露出、深度方式、T、対数の範囲）がエディタのビューにもゲームにも届かなかった。`LevelLoad` が部品を読み込み時に一度だけ写していたため。毎フレーム読み直し、使えない値は最後に使えた投影を保つように直した（[Conformance](../Conformance.md) の同日の項）。
