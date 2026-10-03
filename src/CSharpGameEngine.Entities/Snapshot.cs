@@ -126,6 +126,7 @@ public static class EcsSnapshotComponentCodec<T>where T:struct {
         Result.Converters.Add(new Hash256JsonConverter());
         Result.Converters.Add(new AssetIdJsonConverter());
         Result.Converters.Add(new SubAssetIdJsonConverter());
+        Result.Converters.Add(new ConstructedValueJsonConverterFactory());
         return Result;
     }
     private static string Describe(Type Type,HashSet<Type>Stack){
@@ -136,9 +137,14 @@ public static class EcsSnapshotComponentCodec<T>where T:struct {
         if(!Type.IsValueType){ throw new NotSupportedException($"Snapshot component field type {CanonicalTypeId(Type)} must be a string or value type."); }
         if(!Stack.Add(Type)){ throw new NotSupportedException($"Snapshot component field type {CanonicalTypeId(Type)} is recursive."); }
         var Members=new List<(string Name,Type Type)>();
-        foreach(FieldInfo Field in Type.GetFields(BindingFlags.Instance|BindingFlags.Public)){ Members.Add((Field.Name,Field.FieldType)); }
-        foreach(PropertyInfo Property in Type.GetProperties(BindingFlags.Instance|BindingFlags.Public)){
-            if(Property.GetMethod is not null&&Property.GetIndexParameters().Length==0){ Members.Add((Property.Name,Property.PropertyType)); }
+        if(ConstructedValueShape.TryGet(Type,out var Constructed)){
+            // A validated value type's state is its constructor's parameters; computed properties such as IsValid are not.
+            foreach(PropertyInfo Property in Constructed.Properties){ Members.Add((Property.Name,Property.PropertyType)); }
+        } else {
+            foreach(FieldInfo Field in Type.GetFields(BindingFlags.Instance|BindingFlags.Public)){ Members.Add((Field.Name,Field.FieldType)); }
+            foreach(PropertyInfo Property in Type.GetProperties(BindingFlags.Instance|BindingFlags.Public)){
+                if(Property.GetMethod is not null&&Property.GetIndexParameters().Length==0){ Members.Add((Property.Name,Property.PropertyType)); }
+            }
         }
         string Result=CanonicalTypeId(Type)+"{"+string.Join(";",Members.OrderBy(static Member=>Member.Name,StringComparer.Ordinal).Select(Member=>Member.Name+":"+Describe(Member.Type,Stack)))+"}";
         Stack.Remove(Type);
@@ -326,3 +332,81 @@ internal sealed class PersistentEntityIdJsonConverter:StringValueJsonConverter<P
 internal sealed class Hash256JsonConverter:StringValueJsonConverter<Hash256>{protected override Hash256 Parse(string Value)=>Hash256.Parse(Value);protected override string Format(Hash256 Value)=>Value.ToString();}
 internal sealed class AssetIdJsonConverter:StringValueJsonConverter<AssetId>{protected override AssetId Parse(string Value)=>AssetId.Parse(Value);protected override string Format(AssetId Value)=>Value.ToString();}
 internal sealed class SubAssetIdJsonConverter:StringValueJsonConverter<SubAssetId>{protected override SubAssetId Parse(string Value)=>SubAssetId.Parse(Value);protected override string Format(SubAssetId Value)=>Value.ToString();}
+
+/// <summary>
+/// A validated value type (audit AUD-001): a struct with no public fields and only properties without setters, whose state
+/// is the parameters of its one public constructor, each naming a property of its type. The typed light quantities are
+/// such types. System.Text.Json alone cannot set their properties, so the snapshot codec rebuilds them through the
+/// constructor, whose range check then guards a restore too; properties no parameter names (IsValid) are not state.
+/// </summary>
+internal sealed class ConstructedValueShape {
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type,ConstructedValueShape?>Shapes=new();
+    private ConstructedValueShape(ConstructorInfo Constructor,PropertyInfo[]Properties){
+        this.Constructor=Constructor;
+        this.Properties=Properties;
+    }
+    internal ConstructorInfo Constructor{get;}
+    /// <summary>The properties holding the state, in constructor parameter order.</summary>
+    internal PropertyInfo[]Properties{get;}
+    internal static bool TryGet(Type Type,out ConstructedValueShape Shape){
+        Shape=Shapes.GetOrAdd(Type,Find)!;
+        return Shape is not null;
+    }
+    private static ConstructedValueShape?Find(Type Type){
+        if(!Type.IsValueType||Type.IsPrimitive||Type.IsEnum||Nullable.GetUnderlyingType(Type) is not null){ return null; }
+        if(Type.GetFields(BindingFlags.Instance|BindingFlags.Public).Length!=0){ return null; }
+        PropertyInfo[]Properties=[.. Type.GetProperties(BindingFlags.Instance|BindingFlags.Public).Where(static Property=>Property.GetIndexParameters().Length==0)];
+        if(Properties.Any(static Property=>Property.SetMethod is not null)){ return null; }
+        ConstructorInfo[]Constructors=Type.GetConstructors(BindingFlags.Instance|BindingFlags.Public);
+        if(Constructors.Length!=1){ return null; }
+        ParameterInfo[]Parameters=Constructors[0].GetParameters();
+        if(Parameters.Length==0){ return null; }
+        var State=new PropertyInfo[Parameters.Length];
+        for(var Index=0;Index<Parameters.Length;Index++){
+            ParameterInfo Parameter=Parameters[Index];
+            PropertyInfo?Property=Properties.FirstOrDefault(Candidate=>string.Equals(Candidate.Name,Parameter.Name,StringComparison.OrdinalIgnoreCase)
+                &&Candidate.PropertyType==Parameter.ParameterType);
+            if(Property is null){ return null; }
+            State[Index]=Property;
+        }
+        return new ConstructedValueShape(Constructors[0],State);
+    }
+}
+internal sealed class ConstructedValueJsonConverterFactory:JsonConverterFactory {
+    public override bool CanConvert(Type TypeToConvert)=>ConstructedValueShape.TryGet(TypeToConvert,out _);
+    public override JsonConverter CreateConverter(Type TypeToConvert,JsonSerializerOptions Options){
+        ConstructedValueShape.TryGet(TypeToConvert,out var Shape);
+        return (JsonConverter)Activator.CreateInstance(typeof(ConstructedValueJsonConverter<>).MakeGenericType(TypeToConvert),Shape)!;
+    }
+}
+internal sealed class ConstructedValueJsonConverter<T>(ConstructedValueShape Shape):JsonConverter<T> {
+    /// <summary>Written in ordinal name order, as the codec orders every other member.</summary>
+    private readonly PropertyInfo[]Ordered=[.. Shape.Properties.OrderBy(static Property=>Property.Name,StringComparer.Ordinal)];
+    public override T Read(ref Utf8JsonReader Reader,Type TypeToConvert,JsonSerializerOptions Options){
+        if(Reader.TokenType!=JsonTokenType.StartObject){ throw new JsonException($"{typeof(T).FullName} must be an object."); }
+        var Values=new object?[Shape.Properties.Length];
+        var Seen=new bool[Values.Length];
+        while(Reader.Read()&&Reader.TokenType!=JsonTokenType.EndObject){
+            string?Name=Reader.TokenType==JsonTokenType.PropertyName?Reader.GetString():null;
+            int Index=Array.FindIndex(Shape.Properties,Property=>Property.Name==Name);
+            if(Index<0||Seen[Index]){ throw new JsonException($"{typeof(T).FullName} has no member {Name} or repeats it."); }
+            Reader.Read();
+            Values[Index]=JsonSerializer.Deserialize(ref Reader,Shape.Properties[Index].PropertyType,Options);
+            Seen[Index]=true;
+        }
+        if(Reader.TokenType!=JsonTokenType.EndObject||Seen.Contains(false)){ throw new JsonException($"{typeof(T).FullName} is missing a member."); }
+        try {
+            return (T)Shape.Constructor.Invoke(Values);
+        } catch(TargetInvocationException Ex)when(Ex.InnerException is ArgumentException Invalid){
+            throw new JsonException($"{typeof(T).FullName}: {Invalid.Message}",Invalid);
+        }
+    }
+    public override void Write(Utf8JsonWriter Writer,T Value,JsonSerializerOptions Options){
+        Writer.WriteStartObject();
+        foreach(PropertyInfo Property in this.Ordered){
+            Writer.WritePropertyName(Property.Name);
+            JsonSerializer.Serialize(Writer,Property.GetValue(Value),Property.PropertyType,Options);
+        }
+        Writer.WriteEndObject();
+    }
+}

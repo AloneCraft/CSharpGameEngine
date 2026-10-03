@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — ライトを含むスナップショットが復元できなかった（監査 AUD-001）
+- 意図: [ECS 仕様](Specifications/Ecs-Runtime.md) のスナップショット契約（現在の Schema で取得した正規の Component 値を同じ World に復元できる）。
+- 観測（Fact）: 監査（2026-09-08）の P1 の項目が HEAD でも再現した。`DirectionalLight`・`PointLight`・`SpotLight`・`RectAreaLight`・`LightShadow` の codec 往復はすべて `payload is not canonical` になり、ライトと影を持つ `EngineShowcaseScene` をストリーミングした Cell は、Capture 直後の Restore に失敗した。原因は、System.Text.Json が読み取り専用の物理量（get のみのプロパティ）を設定できず既定値になり、再シリアライズとの正規バイト比較が一致しないこと。
+- 実装: 公開フィールドが無く setter の無いプロパティだけを持ち、唯一の公開コンストラクターの引数が状態のプロパティを名指す値型を、そのプロパティで書き、コンストラクターで読む（範囲外はコンストラクターの検査で codec のエラー）。記述子も同じ規則で、`IsValid` などの計算プロパティを含めない。init を持つ `LogicalVector3` などは従来どおり。
+- 自動化された証拠: `LightComponentSnapshotTests`（3 件。修正前は 3 件とも失敗）、Entities・CodeAnalysis・Windows のスナップショット関連テスト、`ecs.snapshot` ステージ。
+- 結果: Matches（監査.md の AUD-001 に追記）。
+
 ## 2026-10-04 探索 — Rebuild で消費側が使うツールの出力が消えていた（監査 AUD-004）
 - 意図: F-L7-039（隔離した clean build）と、監査 AUD-004「正規ビルドが自身のツール出力を利用中に競合なく生成できる」。
 - 観測（Fact）: きれいな worktree の `verify-clean-build` で、Debug ビルドがまれに失敗した（CLI の exe が無く 9009、`ShaderGraph.Cli` の参照 DLL が無く CS0006）。消費側（TestHost）の Build の後に、同じセッションで `ShaderGraph.Cli` を Rebuild すると、exe は毎回消えた（消費側なしでは残った）。詳細ログでは、ソリューションと各消費側の入れ子の Build が CLI の同じ構成 ID に集まる。そのため Rebuild の Clean だけが、後から走る。
