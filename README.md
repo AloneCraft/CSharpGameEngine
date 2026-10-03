@@ -186,8 +186,9 @@ Viewerのオプションは`triangle`コマンドと同様（`--frames` / `--wid
   `tools/CSharpGameEngine.Extension`はヘッドレスのモデルビューア実行ファイルで、
   `--verify`によるピクセル検証を伴うレンダリング経路のスモークに使います（VSIXではありません）。
 - エンジン本体は Visual Studio から独立して実行できる設計方針です。
-- `src/`は5プロジェクトです（詳細:
-  [Docs/Decisions/ADR-0034-Project-Consolidation.md](Docs/Decisions/ADR-0034-Project-Consolidation.md)）。
+- `src/`は14のプロジェクトと6の共有プロジェクトです。一覧の正本は`CSharpGameEngine.slnx`、構成と層の境界は
+  [Docs/Architecture.md](Docs/Architecture.md)「プロジェクト構成」にあります。次の表は
+  [ADR-0034](Docs/Decisions/ADR-0034-Project-Consolidation.md)で決めた中核の5つです。
   **アセンブリ名と名前空間は意図的に一致していません** — 名前空間は統合前のまま維持されています。
 
   | プロジェクト | TFM | 含む名前空間 |
