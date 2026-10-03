@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — 負の環境光で画面が白くなっていた
+- 意図: 型付きのライトとカメラの方針「使えない値は直前の使える値を保つ」、ADR-0069 の環境（使えない設定は Legacy に戻し `InvalidReason` に名前を残す）。
+- 観測（Fact）: 旧来の `AmbientLight` だけは検証を通らずにレンダラーへ渡っていた。強度 −1 の箱は暗くならず、中心が (255,255,255) になった。ACES の有理式は負の入力に正の値を返す（x = −1 で 1.25）。`HeightFog` の負の値は、シェーダーの `saturate` で「フォグなし」になるだけだった。
+- 実装: `AmbientLightSync` は、色と強度が負でなく、積が有限のときだけ送る。それ以外は直前の値を保ち、`InvalidReason` に `AmbientLight` を残す。
+- 自動化された証拠: `AmbientLightSyncTests.UnusableValue_KeepsTheLastUsableAmbient`（負の強度・負の色・あふれの 3 件。修正前は 3 件とも失敗）。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — 使えない値を保存したシーンカメラで読み込みが落ちていた
 - 意図: [Omni 仕様](Specifications/Omni.md) と `LevelLoad` の方針「使えない値は直前の使える投影を保ち、メンバー名を `LevelRuntime.InvalidCameraProperty` に残す」（ライトの `InvalidProperty` と同じく、フレームを落とさない）。
 - 観測（Fact）: 毎フレームの経路はこの方針どおりだったが、読み込みは `ApplyProjection` の結果を検査せずにレンダラーへ渡していた。NearZ 0 または RadialTransitionMeters −1 のシーンカメラでは、ゲームでも Scene Designer のランタイムビューでも、読み込みが `ArgumentException`（A radial camera needs ...）で失敗した。ランタイムビューでは、エディタ自身の範囲は正しくても、対数の範囲がシーンカメラの近い面を含むので失敗する。

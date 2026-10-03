@@ -519,8 +519,15 @@ internal struct DirectionalLightSync:ISystem {
 [RunsAfter(typeof(DirectionalLightSync))]
 internal struct AmbientLightSync:ISystem {
     public void Update(ref AmbientLight Light,EngineHost Host,ref State State){
-        Host.Renderer?.SetAmbientLight(
-            new Vector3(Light.ColorR,Light.ColorG,Light.ColorB)*Light.Intensity);
+        var Ambient=new Vector3(Light.ColorR,Light.ColorG,Light.ColorB)*Light.Intensity;
+        // Like the typed lights, a value the renderer cannot use keeps the last usable one: negative radiance (the tone
+        // mapper turns it white) or an overflowing one.
+        if(Light.ColorR>=0f&&Light.ColorG>=0f&&Light.ColorB>=0f&&Light.Intensity>=0f
+            &&float.IsFinite(Ambient.X)&&float.IsFinite(Ambient.Y)&&float.IsFinite(Ambient.Z)){
+            Host.Renderer?.SetAmbientLight(Ambient);
+        } else {
+            Host.Environment.InvalidReason=nameof(AmbientLight);
+        }
         Host.Environment.AmbientSubmitted=true;
     }
 }
