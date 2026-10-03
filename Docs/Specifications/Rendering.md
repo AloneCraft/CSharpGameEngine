@@ -118,6 +118,19 @@ Each feature implementation cuts over in its own change. It removes the replaced
 
 Rendering performance stages use exactly five warm-up iterations and thirty measured samples in an isolated process whose Tiered JIT mode is explicitly disabled and recorded, preventing compilation transitions from contaminating the sample set. The required WARP pass records a hidden 1280x720 frame, triangle readback oracle, zero debug-layer errors, allocation, median, p95, MAD, build identity, raw-report SHA-256, and machine fingerprint; WARP elapsed time is correctness evidence, not a hardware performance claim. The same run measures camera-relative selection and deterministic batching for 100,000 active instances. Debug records timing but gates correctness and allocation only because its non-optimized code generation is not a shipping-performance oracle. Release gates that CPU workload at median 6 ms, nearest-rank p95 8.33 ms, and allocation p95 zero. An optional Release hardware pass gates 1280x720 presentation p95 at 16.67 ms. Release evidence includes dependency closure, shader/artifact provenance, required WARP output, and unresolved diagnostic count.
 
+## Radial (logarithmic) depth
+ADR-0076 / M0099 ([Omni](Omni.md)): a camera may select `RenderDepthMapping.Radial`. The image is the standard one; the depth becomes `min(log2(1 + r/T) / log2(1 + rMax/T), 0.99999994)` of the physical distance `r`, so one D32 depth buffer orders surfaces from millimetres to the Q64.64 range.
+
+| Pass | Radial camera |
+|---|---|
+| Main (Lit, Presentation, Selection, Wireframe) | Radial pipeline family: the standard `VSMain` plus `RadialPSMain`/`PreviewRadialPSMain`, which call the unchanged pixel entries and add `SV_Depth`; fragments beyond `FarZ·(1 + 1/1024)` of physical view depth are discarded |
+| Camera previews | Per preview: standard, radial (`PreviewCleanRadialPSMain`) or radial observer (`RadialObserverVSMain` + `PreviewCleanPSMain`) |
+| Shadow atlas, GI capture, overlay | Unchanged (standard) |
+| Sky direction, sun cascades, AO prepass | The camera rotation with the auxiliary planes near `max(NearZ, min(0.01 m, FarZ/2))`, far `min(FarZ, near·65536)`; for an ordinary range this is exactly the camera projection |
+| Sky composite, Forward+ | Unchanged (radial depth stays below the 1.0 clear; Forward+ uses clip W and XY only) |
+
+Invariants: a standard camera's frames are unchanged (`StandardModeGoldenFrameTests`); a radial camera renders the standard pixels wherever the same surface wins, including the full environment path; depth order is correct at relative gaps of a few 1e-6 up to 5e18 m; the depth equals the CPU encoding; far planes of 1e7 m and 1e18 m keep the sky, cascades and AO finite; frame slots, hot reload and device recovery keep the radial state. Verified by `RadialDepthGpuIntegrationTests`, `ShaderArtifactHotReloadTests.RenderServer_DebugHotReload_RebuildsTheRadialPipelines` and `RadialDepthTests`. Early-Z does not apply to the radial pipelines because they write `SV_Depth`.
+
 ## Skeletal meshes and animation
 ADR-0066 adds skinned meshes. A `SkeletalMesh` Component names a glTF with exactly one skin. The roster gives each placement its own copy of the meshes, and `StageMeshCreateInfo.Skin` carries eight 16-bit joint/weight pairs per vertex.
 

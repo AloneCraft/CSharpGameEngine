@@ -1,5 +1,6 @@
 using System.Numerics;
 using CSharpGameEngine.Authoring;
+using CSharpGameEngine.Rendering;
 using CSharpGameEngine.Spatial.Abstractions;
 using CSharpGameEngine.Spatial.Unity;
 
@@ -37,6 +38,10 @@ public struct Camera {
     public float FarZ;
     /// <summary>HDR radiance to display exposure in EV100. Zero preserves the legacy exposure.</summary>
     public float ExposureEv100;
+    /// <summary>How the view turns distance into depth (M0099, ADR-0076). Standard keeps the projection's depth.</summary>
+    public RenderDepthMapping DepthMapping;
+    /// <summary>Transition length T of the radial depth curve in metres; read only when <see cref="DepthMapping"/> is Radial.</summary>
+    public float RadialTransitionMeters;
 
 
     /// <summary>Pitch clamp range applied by <see cref="ApplyMouseDelta"/>. Set by the <c>Create*</c> factories; <see cref="MinPitchRadians"/>/<see cref="MaxPitchRadians"/> remain the orbit-camera default values callers may still compare against directly.</summary>
@@ -60,6 +65,7 @@ public struct Camera {
             NearZ=0.1f,
             FarZ=1000f,
             ExposureEv100=0f,
+            RadialTransitionMeters=RadialDepthCurve.DefaultTransitionMeters,
             PitchClampMinRadians=MinPitchRadians,
             PitchClampMaxRadians=MaxPitchRadians,
         };
@@ -91,6 +97,7 @@ public struct Camera {
             NearZ=0.1f,
             FarZ=300f,
             ExposureEv100=0f,
+            RadialTransitionMeters=RadialDepthCurve.DefaultTransitionMeters,
             PitchClampMinRadians=MinPitchRadiansFirstPerson,
             PitchClampMaxRadians=MaxPitchRadiansFirstPerson,
         };
@@ -133,6 +140,7 @@ public struct Camera {
             NearZ=0.1f,
             FarZ=Distance+(Radius*4f),
             ExposureEv100=0f,
+            RadialTransitionMeters=RadialDepthCurve.DefaultTransitionMeters,
             PitchClampMinRadians=MinPitchRadians,
             PitchClampMaxRadians=MaxPitchRadians,
         };

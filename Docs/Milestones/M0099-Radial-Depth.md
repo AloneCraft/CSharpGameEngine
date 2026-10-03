@@ -15,7 +15,7 @@ Unity URP 用の対数（Radial）レンダリング資産 Omni（`D:\Unity\6.6\
 | Phase 1 | 標準モードの基準フレーム（SHA-256）を固定する | 完了 |
 | Phase 2 | CPU 側の数式（`RadialDepthCurve`、`RadialDepthProjection`）、ADR-0076、Omni 仕様 | 完了 |
 | Phase 3 | シェーダー ABI（対数用のエントリー、FrameCB の深度方式パケット） | 完了 |
-| Phase 4 | レンダラー（対数 PSO、補助 VP、プレビューごとの深度方式） | 未着手 |
+| Phase 4 | レンダラー（対数 PSO、補助 VP、プレビューごとの深度方式） | 完了 |
 | Phase 5 | Camera コンポーネント、Scene JSON、エディタの追従 | 未着手 |
 | Phase 6 | 観察ビュー | 未着手 |
 | Phase 7 | FeatureRunner の `rendering.radial-depth` と文書の照合 | 未着手 |
@@ -74,3 +74,16 @@ Unity URP 用の対数（Radial）レンダリング資産 Omni（`D:\Unity\6.6\
 - `ShaderArtifactAbi`: `stage-v8`、エントリー 9 → 13。`ShaderGraphCompilerTests`（エントリー数、存在、対数の画素エントリーが `SV_Depth` を書く構造体を返すこと、ゴールデンの SHA-256 を意図して更新）。`Shader-Graph.md` の古くなっていたエントリー一覧を直した。
 - 描画は変わらない: `Windows.Tests` 369/369（`StandardModeGoldenFrameTests` を含む）、ShaderArtifacts 7/7、ShaderGraph 19/19、ShaderGraph.Cli 13/13、VSExtension 1079/1080（失敗はユーザーが作業中の未追跡の探索用テスト `GizmoVisibleHitConsistencyTests.Exploration_PrintMoveArrowPixelsThatHitNothing` だけで、この変更とは無関係）。
 - 互換性: 以前の Stage グラフを複製した独自のグラフは FrameCB に `DepthMapping0/1` が無く、接尾辞がコンパイルできない（Phase 7 で CHANGELOG に書く）。
+
+## Phase 4. レンダラー
+- `Graphics/Camera` に `DepthMapping` と `RadialTransitionMeters`（既定 1 m）。`RenderCameraPreview` に `DepthMapping`・`Radial`・`RadialCenter`。
+- `StageRenderer`:
+  - 対数 PSO 7 つ（Shipping / Presentation / Wireframe / CameraPreview / CameraPreviewWireframe / Observer / ObserverWireframe）を列挙型で添字を付けた配列にまとめ、生成・ホットリロードのロールバック・破棄を一か所で扱う。標準の PSO のコードは変えていない（`CreateMeshPipelineState` に省略可能な頂点シェーダーの引数を足しただけ）。
+  - `SetCamera` が対数のパラメーターを検証して `RadialDepthProjection` と補助のビュー投影を作る。不正な値と観察者のカメラは例外。`SetViewProjection` は標準へ戻す。
+  - `WriteDepthMapping` が毎フレーム（露出と同じ扱い）パケットを書く。破棄の深さは `FarZ·(1 + 1/1024)`（投影の far が残した画素を丸めで捨てないため。`RadialDepthProjection.FarDiscardDepth`）。
+  - 空の方向・太陽のカスケード・AO 前パスは `InvertibleViewProjection`（標準ならカメラの行列そのもの）。GI 取込みの写しは方式を標準に戻す。
+  - プレビューごとにパケットと PSO を選ぶ。テスト用に `ReadDepthForTesting`。
+- テスト: `RadialDepthGpuIntegrationTests`（11 件）、`ShaderArtifactHotReloadTests.RenderServer_DebugHotReload_RebuildsTheRadialPipelines`、テスト補助 `WindowsOnlyTheoryAttribute`。
+- 調べて捨てた前提:
+  - 「標準深度は 20 km 先の 0.5 m 差を区別できない」は WARP では成り立たなかった（全面が赤で正しく描けた）。標準が 1.0 に丸めて何も描けない 1e15 m と 5e18 m を判別に使い、20 km は対数側だけを確かめる。
+  - 環境の場面で標準と対数の画素が違ったのは、同じレンダラーで続けて描いたため GI のプローブの履歴（ヒステリシス）が引き継がれたからだった。描画ごとに新しいレンダラーを使うとビット一致した。

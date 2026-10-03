@@ -266,6 +266,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 ## F-L0-002 — `StageRenderer`(複数オブジェクト・テクスチャ付きPBR・データ駆動ライティング)
 
 - M0098: a material may carry a `StageWorldGrid` (main/sub grid lines drawn per pixel from the world position, projected along the dominant world axes; ADR-0075). `ObjectCB` grew 112 → 160 bytes (`WorldGridParams`, `WorldGridColor`, `WorldSubGridColor`; the slot stride is 512) and materials without a grid keep their output. WorldGridGpuIntegrationTests (WARP: floor main/sub line hierarchy, independence from mesh UVs, no grid means one flat colour, wall lines).
+- M0099 Phase 4: radial depth mode (F-L5-038, ADR-0076). Seven radial pipeline states share the standard root signature; `SetCamera` validates the radial parameters, `WriteDepthMapping` appends the 32-byte packet every frame, and the sky, cascade and AO passes take `InvertibleViewProjection` (the camera matrix for a standard camera). Standard pipeline states and their frames are unchanged (`StandardModeGoldenFrameTests`).
 - M0099 Phase 0: the grid and the simplified height fog add the render origin back, because the runtime renders camera-relative. `ObjectCB.WorldGridAnchor` (176 bytes; the render origin modulo the grid size, set per material by `SetWorldGridAnchor`) and `FogParams0.z` (render origin altitude, `SetRenderOriginAltitude`) are zero for world-coordinate callers. `EngineHost` computes the anchor exactly in Q64.64 every frame; `RenderFrameState` carries both forward for device recovery. RenderOriginTests (EngineHost end to end), WorldGridGpuIntegrationTests camera-relative cases, RenderFrameStatePersistenceTests.
 
 - Layer: L0 — Platform / Native Backends
@@ -3572,10 +3573,10 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Verification: TestVerified (CPU math only)
 - Intended specification: `Docs/Specifications/Omni.md`, `Docs/Decisions/ADR-0076-Native-Radial-Depth-Mapping.md`
 - Milestone: `Docs/Milestones/M0099-Radial-Depth.md`
-- Implementation evidence: `src/CSharpGameEngine.Rendering/RadialDepth.cs` (`RenderDepthMapping`, `RadialDepthCurve`, `RadialDepthProjection`); Stage ABI `stage-v8` with `RadialPSMain`/`PreviewRadialPSMain`/`PreviewCleanRadialPSMain`/`RadialObserverVSMain` in `StagePresentationShaderSource` and `FrameCB.DepthMapping0/1` (`radial_depth_2026_10_04.py`).
-- Current delta: the CPU math and the compiled shader entries exist. No pipeline state uses them yet; the Camera component fields and the editor runtime view do not exist (M0099 Phases 4–5).
-- Conformance: `RadialDepthTests` (double oracle, monotonicity, eye slope, depth below the clear, invalid input, precision budget, observer radius, auxiliary projection); `ShaderGraphCompilerTests` (13 Stage entries, radial pixel entries write `SV_Depth`). Standard frames are pinned by `StandardModeGoldenFrameTests`.
-- Next action: M0099 Phase 4 (radial pipeline states, depth-mapping packet writes, auxiliary projection, per-preview mapping).
+- Implementation evidence: `src/CSharpGameEngine.Rendering/RadialDepth.cs` (`RenderDepthMapping`, `RadialDepthCurve`, `RadialDepthProjection`); Stage ABI `stage-v8` with `RadialPSMain`/`PreviewRadialPSMain`/`PreviewCleanRadialPSMain`/`RadialObserverVSMain` in `StagePresentationShaderSource` and `FrameCB.DepthMapping0/1` (`radial_depth_2026_10_04.py`); `Graphics/Camera.DepthMapping`/`RadialTransitionMeters`; `StageRenderer` (radial pipeline family, `WriteDepthMapping`, `InvertibleViewProjection`, per-preview mapping, `ReadDepthForTesting`); `RenderCameraPreview.DepthMapping`/`Radial`/`RadialCenter`.
+- Current delta: the renderer renders radial cameras and radial or observer previews. The Camera component fields, the editor runtime view and the observer component do not exist yet (M0099 Phases 5–6).
+- Conformance: `RadialDepthTests`; `ShaderGraphCompilerTests` (13 Stage entries, radial pixel entries write `SV_Depth`); `RadialDepthGpuIntegrationTests` (standard pixels in legacy and environment scenes, coplanar pairs at 2e4/1e15/5e18 m, depth equals the CPU encoding, extreme far planes, frame slots, radial thumbnails, invalid input, device recovery); `ShaderArtifactHotReloadTests.RenderServer_DebugHotReload_RebuildsTheRadialPipelines`. Standard frames stay pinned by `StandardModeGoldenFrameTests`.
+- Next action: M0099 Phase 5 (Camera component fields, Scene JSON, editor runtime view follows the scene camera).
 
 ## F-L5-039 — Radial observer view
 

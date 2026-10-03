@@ -32,7 +32,7 @@ One camera sees from millimetres to the Q64.64 range (about 9.2e18 m) with corre
 3. Along every pixel ray, depth order equals physical distance order at all scales; radial depth stays below the 1.0 clear.
 4. Every pass that writes a radial view's depth uses the same depth function.
 5. Lighting, shadows, fog, GI and normals use physical values; no Jacobian is applied to normals.
-6. Fragments beyond the camera's FarZ (physical view depth) are discarded; NearZ is clipped by the standard projection.
+6. Fragments beyond `FarZ · (1 + 1/1024)` of physical view depth are discarded (the margin keeps every fragment the projection's own far plane kept); NearZ is clipped by the standard projection.
 7. Passes that invert the camera view-projection (sky direction, sun cascades, AO prepass) receive in radial mode a finite projection with near `max(NearZ, min(0.01 m, FarZ/2))` and far `min(FarZ, near · 65536)`; for an ordinary range it is exactly the camera projection.
 8. Shadow atlas, GI capture and overlay passes are standard in every mode.
 9. Device recovery replays the depth mapping with the camera.

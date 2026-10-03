@@ -72,6 +72,11 @@ public readonly record struct RadialDepthProjection {
     public float NearZ { get; }
     /// <summary>The camera's far plane, enforced per fragment because the raster far plane becomes infinite in float.</summary>
     public float FarZ { get; }
+    /// <summary>
+    /// The physical view depth beyond which a radial fragment is discarded: <see cref="FarZ"/> plus 1/1024, so rounding
+    /// never removes a fragment that the projection's own far plane kept.
+    /// </summary>
+    public float FarDiscardDepth=>this.FarZ*(1f+1f/1024f);
     /// <summary>Distance from the eye to a corner of the far plane: the farthest visible point.</summary>
     public float FrustumCornerDistance { get; }
     /// <summary><c>1 / G(FrustumCornerDistance)</c>: depth is <c>G(r)</c> times this.</summary>

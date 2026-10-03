@@ -54,6 +54,7 @@ public sealed class RadialDepthTests {
         var Corner=Projection.EncodeDepth(Projection.FrustumCornerDistance);
         Assert.True(Corner<=RadialDepthProjection.MaximumDepth&&Corner>0.9999f,$"corner depth {Corner:R}");
         Assert.True(Projection.EncodeDepth(Projection.FrustumCornerDistance*1e6f)<1f);
+        Assert.True(Projection.FarDiscardDepth>Far&&Projection.FarDiscardDepth<=Far*1.001f);
         var Previous=0f;
         foreach(var Distance in LogSpaced(1e-9,Projection.FrustumCornerDistance,300)){
             var Depth=Projection.EncodeDepth((float)Distance);

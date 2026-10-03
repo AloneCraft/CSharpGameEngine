@@ -294,6 +294,15 @@
 - Observed state model: static compatibility and dynamic evidence are not duplicated. Detailed checks remain `Pending`, `Passed`, or `Failed` in the Experimental ledger; the manual summary must equal their aggregate. Normal validation accepts explicit Pending for pre-release work, while strict release validation rejects every required non-passing or expired check.
 - Result: Matches F-L8-028 without fabricating Visual Studio, DPI, focus, accessibility, or long-run observations from headless package tests.
 
+## RE-M0099 — Radial (logarithmic) depth
+
+- Confidence: High for the curve, the encoding, pipeline selection and the WARP pixel/depth oracles; Medium for performance (Early-Z is lost on radial pipelines; not measured).
+- Evidence: `RadialDepth.cs`, `StagePresentationShaderSource` radial entries, `radial_depth_2026_10_04.py`, `StageRenderer.SetCamera`/`WriteDepthMapping`/`InvertibleViewProjection`/`CreateRadialPipelineStates`/`PrepareCameraPreviewConstants`/`RenderCameraPreviews`, `RadialDepthTests`, `RadialDepthGpuIntegrationTests`, `ShaderArtifactHotReloadTests`.
+- Observed behavior: `Camera.DepthMapping = Radial` selects radial pipeline states that run the unchanged `VSMain` and wrap `PSMain`/`PreviewPSMain` (colour unchanged) with `SV_Depth = min(G(r)·InverseMaximumG, 0.99999994)`, where `G(r) = log2(1 + r/T)` uses a log1p correction and `r` a largest-component length. Fragments whose physical view depth exceeds `FarZ·(1 + 1/1024)` are discarded. Invalid radial parameters throw at `SetCamera`; a `RadialObserver` camera throws; `SetViewProjection` returns to standard.
+- Observed behavior: in radial mode the sky direction, sun cascades and AO prepass use the camera rotation with near `max(NearZ, min(0.01, FarZ/2))` and far `min(FarZ, near·65536)`; with near 0.1 m and far up to 6553.6 m that matrix equals the camera's, and the environment frame is bit-identical to the standard one. GI capture, shadow atlas and overlay are standard.
+- Observed behavior: a preview's `DepthMapping` selects standard, radial (`PreviewCleanRadialPSMain`) or observer (`RadialObserverVSMain` maps `T·G(|P − C|)` around `RadialCenter`) pipelines and writes its own packet; incomplete radial previews throw.
+- Result: Matches ADR-0076 for the renderer. Not yet present: Camera component fields, editor runtime view, observer component (M0099 Phases 5–6).
+
 ## RE-M0098 — World-space procedural grid material
 
 - Confidence: High for importer, converter, constants and WARP pixels; Medium for the match to Unreal's own filtering (observed by eye against one reference capture).
