@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — 範囲外の値を持つシーンがビルドを通り、起動時に落ちていた
+- 意図: ADR-0070「生成できないシーンを、値を黙って落としてビルドしない」と「Scene Designer はビルドが拒むものを拒む」。C# シーンの時代の `SceneDeclarationAnalyzer` は不正な物理量を診断していた。
+- 観測（Fact）: ThirdPerson の DirectionalLight の色を `R: -1` にするとビルドはエラー 0 で通り、ゲームは起動時のシーン生成で `LinearLightColor` の `ArgumentOutOfRangeException`（未処理）で落ちた。JSON の解析器（`SceneJsonSceneAnalyzer`）は物理量の範囲も `LogicalScalar` の範囲も見ておらず、float に収まらない数（1e39）は生成ファイルのコンパイルエラー（CS0594）として JSON ではない位置に出ていた。
+- 実装: 解析器が、物理量の型（`LightValueContract`）のコンストラクタ引数を同じ規則で、`LogicalScalar` への数を ±2^63 で、float への数を float の範囲で検査し、SCENE203 を JSON の位置に出す。
+- 自動化された証拠: `SceneJsonGeneratorTests.ValuesTheRuntimeOrTheCompilerWouldReject_AreErrorsAtTheirJsonPosition`（3 件、検査を外すと 3 件とも失敗）。ThirdPerson に負の色を入れると `Lvl_ThirdPerson.json(1502,24): error SCENE203` でビルドが止まることを確かめた。リポジトリの全シーンはこの検査を通る（ソリューションのビルドがエラー 0）。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — 範囲外の値を入力するとランタイムビューが終わっていた
 - 意図: `RenderPreviewRuntimeSession.ApplySceneDocument`「文書の誤りは生成器が報告し、ビューは最後の正しい値を保つ」。
 - 観測（Fact）: `SceneJsonRuntimeValues.Component` は、型そのものが拒否する値（位置 1e30 で `LogicalScalar` の変換が `OverflowException`、ライトの色 −1 でコンストラクタが `ArgumentOutOfRangeException`）を、リフレクションの `TargetInvocationException` のまま投げた。`ApplySceneDocument` は `InvalidOperationException` しか捕まえないので `ReplaceScene` が失敗し、セッション表はそのセッションを削除・破棄していた。つまり Scene Designer で入力途中に範囲外の値を打つとランタイムビューが終わる。

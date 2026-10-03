@@ -315,6 +315,26 @@ internal static class SceneJsonSceneAnalyzer {
                 Arguments.Add(Parameter.Name+": "+ValueExpression(Parameter.Type,Property.Value,DisplayName+"."+Property.Name,Compilation,Problems,
                     Angles,Unit??AngleUnitOf(Parameter)));
             }
+            // A physical light value's constructor rejects values outside its range when the scene is instantiated,
+            // so the build reports them here, as the Scene DSL analyzer does for the editor's model.
+            if(Value is not null&&LightValueContract.Find(Type) is { }Physical&&Physical.MatchesConstructor(Constructor)){
+                var Numbers=new float[Constructor.Parameters.Length];
+                var Complete=true;
+                for(var Index=0;Index<Numbers.Length&&Complete;Index++){
+                    var Parameter=Constructor.Parameters[Index];
+                    var Key=KeyOf(Parameter);
+                    var Property=Properties.FirstOrDefault(Candidate=>Candidate.Name==Parameter.Name||Candidate.Name==Key);
+                    if(Property is not null&&NumberIn(Property.Value,Angles,Unit??AngleUnitOf(Parameter)) is { }Number){
+                        Numbers[Index]=Number;
+                    } else {
+                        Complete=false;
+                    }
+                }
+                if(Complete&&!Physical.Validate(Numbers)){
+                    Problems.Add(new SceneJsonProblem(SceneJsonDiagnostics.ValueMismatch,Value.Start,Value.End,DisplayName,Type.ToDisplayString(),
+                        $"a {Physical.Name} needs {Physical.Requirement}"));
+                }
+            }
         }
         var Assignments=new List<string>();
         var IncompleteConstructorReported=false;
@@ -462,7 +482,7 @@ internal static class SceneJsonSceneAnalyzer {
                 return Value.Kind==SceneJsonKind.True?"true":Value.Kind==SceneJsonKind.False?"false":Mismatch("expected true or false");
             case SpecialType.System_String:
                 return Value.Kind==SceneJsonKind.String?SymbolDisplay.FormatLiteral(Value.Text!,quote:true):Mismatch("expected a string");
-            case SpecialType.System_Single:return RealLiteral(AngleText(Value,Angles,Unit),Value,"f",Mismatch);
+            case SpecialType.System_Single:return FloatRange(Value,Mismatch)??RealLiteral(AngleText(Value,Angles,Unit),Value,"f",Mismatch);
             case SpecialType.System_Double:return RealLiteral(AngleText(Value,Angles,Unit),Value,"d",Mismatch);
             case SpecialType.System_Decimal:return RealLiteral(AngleText(Value,Angles,Unit),Value,"m",Mismatch);
             case SpecialType.System_SByte:return IntegerLiteral(Value,sbyte.MinValue,(ulong)sbyte.MaxValue,"(sbyte)",Mismatch);
@@ -478,9 +498,16 @@ internal static class SceneJsonSceneAnalyzer {
             // Every emitted position (named argument, initializer, array or collection element) is
             // target-typed, so the implicit conversion applies without a cast. A cast would also make
             // the value unreadable to the Scene DSL analyzer that the editor runs over this text.
-            return Compilation.ClassifyConversion(Single,Type).IsImplicit
-                ?AngleText(Value,Angles,Unit)+"f"
-                :Mismatch("a number needs a numeric member or a type convertible from float");
+            if(!Compilation.ClassifyConversion(Single,Type).IsImplicit){
+                return Mismatch("a number needs a numeric member or a type convertible from float");
+            }
+            if(FloatRange(Value,Mismatch) is { }OutOfFloat){ return OutOfFloat; }
+            // LogicalScalar's conversion from float throws beyond Q64.64 when the scene is instantiated.
+            if(SceneTypePredicates.ToFullyQualifiedName(Type)=="global::CSharpGameEngine.Numerics.LogicalScalar"
+                &&NumberIn(Value,Angles,Unit) is { }Scalar&&!(Math.Abs(Scalar)<LogicalScalarLimit)){
+                return Mismatch("the number is beyond the Q64.64 range of about ±9.2e18");
+            }
+            return AngleText(Value,Angles,Unit)+"f";
         }
         if(Value.Kind==SceneJsonKind.Array){
             var Element=Type is IArrayTypeSymbol Array?Array.ElementType:ElementTypeOf(Type,Compilation);
@@ -514,6 +541,20 @@ internal static class SceneJsonSceneAnalyzer {
             if(SymbolEqualityComparer.Default.Equals(Interface.OriginalDefinition,Enumerable)){ return Interface.TypeArguments[0]; }
         }
         return null;
+    }
+    /// <summary>2^63, the magnitude where a float stops fitting Q64.64's integer part (<c>LogicalScalar.TryFromSingle</c>).</summary>
+    private const float LogicalScalarLimit=9.223372e18f;
+    /// <summary>A mismatch for a number a float cannot hold (its literal would not compile), or null.</summary>
+    private static string?FloatRange(SceneJsonValue Value,Func<string,string>Mismatch)=>
+        Value.Kind==SceneJsonKind.Number&&float.TryParse(Value.Text,NumberStyles.Float,CultureInfo.InvariantCulture,out var Number)&&float.IsInfinity(Number)
+            ?Mismatch("the number is beyond the range of float")
+            :null;
+    /// <summary>A number in its member's unit (a turns document's angle converted, as the emitted literal is), or null.</summary>
+    private static float?NumberIn(SceneJsonValue Value,AngleReading Angles,SceneAngleUnit?Unit){
+        if(Value.Kind!=SceneJsonKind.Number||!SceneJsonAngles.IsNumber(Value.Text)){ return null; }
+        return Unit is { }AngleUnit&&Angles.Turns
+            ?SceneJsonAngles.FromTurns(Value.Text!,AngleUnit)
+            :float.Parse(Value.Text!,NumberStyles.Float,CultureInfo.InvariantCulture);
     }
     private static string RealLiteral(string Text,SceneJsonValue Value,string Suffix,Func<string,string>Mismatch)=>
         Value.Kind==SceneJsonKind.Number?Text+Suffix:Mismatch("expected a number");

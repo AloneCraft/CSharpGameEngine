@@ -310,8 +310,58 @@ public sealed class SceneJsonGeneratorTests {
         Walk(Model.Root!);
         return Builder.ToString();
     }
-    private static ImmutableArray<Diagnostic>Analyze(string Json){
-        var Compilation=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,Components]);
+    /// <summary>Stand-ins with the engine's names: a validating physical light value and Q64.64's scalar.</summary>
+    private const string RangedComponents="""
+        namespace CSharpGameEngine.Lighting {
+            public readonly struct LinearLightColor {
+                public LinearLightColor(float R,float G,float B){ this.R=R; this.G=G; this.B=B; }
+                public float R { get; }
+                public float G { get; }
+                public float B { get; }
+            }
+        }
+        namespace CSharpGameEngine.Numerics {
+            public readonly struct LogicalScalar {
+                public static implicit operator LogicalScalar(float Value)=>default;
+            }
+        }
+        namespace Sample {
+            public struct Lamp { public CSharpGameEngine.Lighting.LinearLightColor Color; public CSharpGameEngine.Numerics.LogicalScalar Height; public float Scale; }
+            internal struct KeepGeneratorAlive : CSharpGameEngine.Entities.ISystem {
+                public bool Update(ref Lamp lamp, ref CSharpGameEngine.Entities.State state) => true;
+            }
+        }
+        """;
+    private const string RangedScene="""
+        {
+          "schemaVersion": 1,
+          "namespace": "Game",
+          "className": "MainScene",
+          "root": {
+            "id": "7c0c2c9e-6c56-4f46-9d0f-0c6f2c8f0001",
+            "name": "Root",
+            "components": [
+              { "type": "Sample.Lamp", "members": { "Color": { "R": 1, "G": 0.5, "B": 0 }, "Height": 9e18, "Scale": 3e38 } }
+            ],
+            "children": []
+          }
+        }
+        """;
+    [Theory]
+    [InlineData("\"R\": 1,","\"R\": -1,","a LinearLightColor needs finite non-negative values")]
+    [InlineData("\"Height\": 9e18","\"Height\": 1e19","beyond the Q64.64 range")]
+    [InlineData("\"Scale\": 3e38","\"Scale\": 1e39","beyond the range of float")]
+    public void ValuesTheRuntimeOrTheCompilerWouldReject_AreErrorsAtTheirJsonPosition(string Original,string Replacement,string Reason){
+        // These build, then throw when the scene is instantiated (a light value's constructor, LogicalScalar's
+        // conversion) or fail to compile in the generated file (a float literal beyond float), so the build reports them.
+        Assert.Empty(Analyze(RangedScene,RangedComponents));
+        Assert.Contains(Original,RangedScene);
+        var Diagnostic=Assert.Single(Analyze(RangedScene.Replace(Original,Replacement),RangedComponents));
+        Assert.Equal("SCENE203",Diagnostic.Id);
+        Assert.Contains(Reason,Diagnostic.GetMessage(),StringComparison.Ordinal);
+    }
+    private static ImmutableArray<Diagnostic>Analyze(string Json,string ComponentSource=Components){
+        var Compilation=GameSystemGeneratorTestHelper.CreateCompilation([.. GameSystemGeneratorTestHelper.SceneDslSources,ComponentSource]);
         var Options=SceneProjectOptions.Analyzer([new InMemoryAdditionalText(@"C:\Game\Scenes\MainScene.json",Json)]);
         return Compilation.WithAnalyzers([new SceneJsonDslAnalyzer()],Options).GetAnalyzerDiagnosticsAsync().GetAwaiter().GetResult();
     }

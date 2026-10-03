@@ -16,6 +16,10 @@ internal sealed class LightValueContract {
     internal string[]Parameters{get;}
     private bool Positive{get;}
     internal string TypeName=>"global::CSharpGameEngine.Lighting."+this.Name;
+    /// <summary>What <see cref="Validate"/> requires, for a diagnostic.</summary>
+    internal string Requirement=>this.Name=="SpotConeAngles"
+        ?"positive angles with the inner one at most the outer one and the outer one at most 180 degrees"
+        :this.Positive?"finite positive values":"finite non-negative values";
     private static readonly LightValueContract[]All={
         new("LuminousFlux","lm",new[]{"Lumens"},false),
         new("Illuminance","lux",new[]{"Lux"},false),
