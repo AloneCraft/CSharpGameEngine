@@ -1,6 +1,6 @@
 # M0100 — 対数深度を既定にする
 - 日付: 2026-10-04
-- 状態: 進行中
+- 状態: 完了（2026-10-04）
 
 ## 目的
 ユーザーの指示（2026-10-04）「最終的には対数になるように順々にテスト、修正していって」（期限 24 時間）。M0099 で選択式として入れた対数（放射）深度を、すべての描画経路の既定にする。標準は明示的な選択として残す（標準の基準フレームと、対数のテストで比べる相手）。決定は [ADR-0076 追記](../Decisions/ADR-0076-Native-Radial-Depth-Mapping.md)、契約は [Omni 仕様](../Specifications/Omni.md)。
@@ -21,7 +21,7 @@
 | 2 | シーンの Camera コンポーネントの既定を対数にする | 完了 |
 | 3a | 行列で渡されるビューを対数で描くレンダラーの入口 | 完了 |
 | 3b | エディタの分離プレビュー、Asset Preview、カメラのサムネイルを対数にする（プロトコル、プレビューホスト、VSIX） | 完了 |
-| 4 | 文書、SDK の版 | 未着手 |
+| 4 | 文書、SDK の版 | 完了 |
 
 ## 段階 1. 描画カメラのファクトリー
 - 実験: `Camera.CreateDefault`/`CreateFirstPerson`/`CreateBoundsFit` の既定を対数にして Windows.Tests を全件流した。失敗は 407 件中 4 件で、どれも標準を前提か比べる相手として使うテストだった（`StandardModeGoldenFrameTests`、`Radial_SeparatesNearlyCoplanarSurfacesFarAway` の「標準なら潰れる」側の 2 件、`RadialObserverTests.Preview_IsOnlyMadeForARadialCamera`）。
@@ -48,3 +48,13 @@
 ## 探索. 実機の GPU での精度
 - 対数が既定になったので、WARP では見えない Early-Z と GPU の演算を実機（RTX 4060 Ti）で確かめた。対数の GPU テストを一時的に実機で流すと 2 件が失敗し、原因はシェーダーの `log2` がハードウェアの近似命令だったこと（[Conformance](../Conformance.md) の同日の項、ADR-0076 追記）。`log2(1 + x)` を float の四則演算だけの級数にして、実機でも 25 件が全件合格した。
 - 回帰の防止: `StagePresentationShaderSourceTests`（表示用のエントリーに超越関数を使わない）と `RadialDepthPrecisionEvidence`（オンデマンド、実機でも中心 4 ulp 以内）。
+
+## 段階 4. 文書と SDK の版
+- 文書: ADR-0076 追記（既定を対数に、段階 1〜3、GPU の log2）、Omni 仕様（状態、深度方式の表、エディタ、曲線、精度予算）、Rendering 仕様（分離プレビューの深度）、Editor-VSIX 仕様、Architecture、Implementation-Status、Reverse-Engineered-Spec、Conformance、CHANGELOG。
+- SDK の版: 0.1.14 はまだどのフィードにも NuGet のキャッシュにも展開されていないので、M0100 も 0.1.14 に含め、版は上げない（M0099 の保守的深度と同じ判断）。
+- 実機: ThirdPerson を RTX 4060 Ti で 90 フレーム動かした（対数と標準、D3D12 エラー 0、`.artifacts/M0100/hardware/`）。実機ではシミュレーションが実時間で進むので、二つの実行で歩いた距離が違い、画素の比較はできない（WARP では軌跡も画像も一致した）。対数の画像に前後の誤りや Z ファイティングは無い。
+
+## 完了の判定
+- 対数で描くもの: ゲームとエディタのランタイムビュー（シーンの Camera の既定）、エディタの分離プレビューと Asset Preview の透視のビュー、対数のシーンカメラのサムネイル、描画カメラのファクトリーを使うコード（ビューア、TestHost、テスト）。
+- 標準のまま残すもの: 明示的に Standard を選んだカメラ、正射影のビュー（対数は透視が要る）、標準の基準フレーム、影・GI の取込み・overlay のパス（カメラのビューではない）、テストと基礎の描画器 `ModelRenderer`/`TriangleRenderer`。
+- 意図と観測の一致: Matches。
