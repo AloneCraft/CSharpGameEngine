@@ -150,7 +150,8 @@
   </PropertyGroup>
   <Target Name="SelectActiveVsixPackageForTests" BeforeTargets="AssignTargetPaths">
     <ItemGroup>
-      <_LegacyVsixPackage Include="@(None)" Condition="'%(None.Link)' == 'TestAssets/CSharpGameEngine.VSExtension.vsix'" />
+      <!-- The static item above spells its Link with a backslash; MSBuild compares metadata as plain text. -->
+      <_LegacyVsixPackage Include="@(None)" Condition="'%(None.Link)' == 'TestAssets\CSharpGameEngine.VSExtension.vsix' or '%(None.Link)' == 'TestAssets/CSharpGameEngine.VSExtension.vsix'" />
       <None Remove="@(_LegacyVsixPackage)" />
       <None Include="$(CgeActiveVsixPackagePath)" Link="TestAssets/CSharpGameEngine.VSExtension.vsix" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>

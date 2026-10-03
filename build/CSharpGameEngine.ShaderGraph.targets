@@ -1,15 +1,27 @@
 <Project>
   <PropertyGroup>
     <CgeShaderGraphCliProject>$(MSBuildThisFileDirectory)..\tools\CSharpGameEngine.ShaderGraph.Cli\CSharpGameEngine.ShaderGraph.Cli.csproj</CgeShaderGraphCliProject>
-    <!-- PackageMode (ADR-0065) predefines the CLI shipped in the SDK package; SourceMode builds it from the repository. -->
+    <!-- PackageMode (ADR-0065) predefines the CLI shipped in the SDK package; SourceMode builds it from the repository
+         and BuildCgeShaderGraphCli replaces this with the path the build produced (an artifacts path moves it). -->
     <CgeShaderGraphCliExe Condition="'$(CgeShaderGraphCliExe)' == ''">$(MSBuildThisFileDirectory)..\tools\CSharpGameEngine.ShaderGraph.Cli\bin\x64\$(Configuration)\net10.0-windows10.0.19041.0\CSharpGameEngine.ShaderGraph.Cli.exe</CgeShaderGraphCliExe>
     <CgeShaderGraphIntermediateDirectory>$(IntermediateOutputPath)ShaderGraph\</CgeShaderGraphIntermediateDirectory>
   </PropertyGroup>
   <Target Name="BuildCgeShaderGraphCli" BeforeTargets="CompileCgeShaderGraphs;CompileCgeComputeShaders" Condition="('@(CgeShaderGraph)' != '' or '@(CgeComputeShader)' != '') and '$(CgeEngineMode)' != 'Package'">
+    <!-- A project built on its own does not restore this tool; restore in a separate evaluation first. -->
+    <MSBuild Projects="$(CgeShaderGraphCliProject)" Targets="Restore"
+             Properties="Configuration=$(Configuration);Platform=x64;MSBuildRestoreSessionId=$([System.Guid]::NewGuid())"
+             RemoveProperties="RuntimeIdentifier;SelfContained;PublishDir"
+             BuildInParallel="false" />
     <MSBuild Projects="$(CgeShaderGraphCliProject)" Targets="Build"
              Properties="Configuration=$(Configuration);Platform=x64"
              RemoveProperties="RuntimeIdentifier;SelfContained;PublishDir"
-             BuildInParallel="false" />
+             BuildInParallel="false">
+      <Output TaskParameter="TargetOutputs" ItemName="_CgeShaderGraphCliAssembly" />
+    </MSBuild>
+    <PropertyGroup>
+      <!-- The apphost beside the built assembly. -->
+      <CgeShaderGraphCliExe>@(_CgeShaderGraphCliAssembly->'%(RootDir)%(Directory)%(Filename).exe')</CgeShaderGraphCliExe>
+    </PropertyGroup>
   </Target>
   <Target Name="CompileCgeComputeShaders" BeforeTargets="PrepareForBuild" DependsOnTargets="BuildCgeShaderGraphCli" Condition="'@(CgeComputeShader)' != ''" Inputs="@(CgeComputeShader);$(CgeShaderGraphCliExe)" Outputs="@(CgeComputeShader->'$(CgeShaderGraphIntermediateDirectory)%(Filename).cgeshaderartifact')">
     <MakeDir Directories="$(CgeShaderGraphIntermediateDirectory)" />

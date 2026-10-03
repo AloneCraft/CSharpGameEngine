@@ -292,6 +292,12 @@
     </PropertyGroup>
     <RemoveDir Directories="$(CgeEditorPreviewHostStageDirectory)" />
     <MakeDir Directories="$(CgeEditorPreviewHostStageDirectory)" />
+    <!-- Not a ProjectReference, so building this project (or its tests) on its own does not restore the host;
+         restore in a separate evaluation first. -->
+    <MSBuild Projects="$(CgeEditorPreviewHostProject)"
+             Targets="Restore"
+             Properties="Configuration=$(Configuration);Platform=x64;MSBuildRestoreSessionId=$([System.Guid]::NewGuid())"
+             BuildInParallel="false" />
     <MSBuild Projects="$(CgeEditorPreviewHostProject)"
              Targets="Publish"
              Properties="Configuration=$(Configuration);Platform=x64;SelfContained=false;PublishDir=$(CgeEditorPreviewHostStageDirectory)"
@@ -325,7 +331,8 @@
   </PropertyGroup>
   <Target Name="StageProjectTemplateContentForVsix" BeforeTargets="GetVsixSourceItems">
     <PropertyGroup>
-      <CgeSdkPackageStageDirectory>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/$(IntermediateOutputPath)Packages/'))</CgeSdkPackageStageDirectory>
+      <CgeSdkPackageStageDirectory Condition="$([System.IO.Path]::IsPathRooted('$(IntermediateOutputPath)'))">$(IntermediateOutputPath)Packages\</CgeSdkPackageStageDirectory>
+      <CgeSdkPackageStageDirectory Condition="'$(CgeSdkPackageStageDirectory)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/$(IntermediateOutputPath)Packages/'))</CgeSdkPackageStageDirectory>
     </PropertyGroup>
     <RemoveDir Directories="$(CgeSdkPackageStageDirectory)" />
     <MSBuild Projects="$(CgeSdkPackageProject)" Targets="Restore;Pack" Properties="Configuration=$(Configuration);PackageOutputPath=$(CgeSdkPackageStageDirectory)" BuildInParallel="false" />
@@ -348,6 +355,11 @@
       <CgeBridgeStageDirectory Condition="'$(CgeBridgeStageDirectory)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/$(IntermediateOutputPath)Bridges/'))</CgeBridgeStageDirectory>
     </PropertyGroup>
     <RemoveDir Directories="$(CgeBridgeStageDirectory)" />
+    <!-- The bridges are not ProjectReferences either; restore each in a separate evaluation before publishing it. -->
+    <MSBuild Projects="@(CgeVsixBridge)"
+             Targets="Restore"
+             Properties="Configuration=$(Configuration);Platform=%(CgeVsixBridge.Platform);MSBuildRestoreSessionId=$([System.Guid]::NewGuid())"
+             BuildInParallel="false" />
     <MSBuild Projects="@(CgeVsixBridge)"
              Targets="Publish"
              Properties="Configuration=$(Configuration);Platform=%(CgeVsixBridge.Platform);SelfContained=false;PublishDir=$(CgeBridgeStageDirectory)%(CgeVsixBridge.Filename)\"

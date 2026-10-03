@@ -1,5 +1,15 @@
 # Conformance
 
+## 2026-10-04 探索 — きれいなチェックアウトで VSIX のテストと隔離クリーンビルドが通らなかった
+- 意図: F-L7-039（隔離した restore・artifacts のルートで、通常の `bin/obj` を消費しない）と、Roadmap の clean checkout 再現性。
+- 観測（Fact）: HEAD の新しい git worktree でスイートを回すと、VSExtension.Tests を含む 15 ステージ（`vsix.*` 全部、`rigid.physics`、`rendering.radial-depth` など）と、`ecs.performance`、`verification.clean-build`、それらに依存するリリースのステージが失敗した。
+  - `dotnet build tests/CSharpGameEngine.VSExtension.Tests` が NETSDK1004（ShaderGraph.Cli、次にブリッジの `project.assets.json` が無い）。ビルド中に動かすツール（ShaderGraph CLI、Preview Host、VSIX のブリッジ、Feature Runner）はどのテストの参照グラフにも無く、Restore なしで Build/Publish していた。主ツリーではソリューションの restore 済みなので見えなかった。
+  - `ecs.performance` はベンチマークを `dotnet run --no-restore` で起動し、誰も restore していなかった。
+  - `verification.clean-build`（主ツリーで最後に動いたのは 2026-08-31）は `--artifacts-path` で出力が移るのに、ShaderGraph・SceneSchema・Feature Runner の実行ファイルのパスが通常の `bin` を指していた。主ツリーには通常の `bin` に古い実行ファイルが残っているので、それを黙って使っていた（隔離の漏れ）。ほかに、VSIX のテンプレート用パッケージの置き場所が絶対パスの `IntermediateOutputPath` を連結して壊れていた。VSExtension.Tests の古い VSIX の項目を除く条件は、Link の区切り文字（`\` と `/`）が違って一度も一致せず、主ツリーでは通常の `bin` の VSIX をコピーしていた。32 文字の実行 ID は、VSIX が zip にするブリッジのファイルのパスを MAX_PATH の 1 文字先（深さ 40 文字のチェックアウトで 261 文字）へ押し出した。ビルド中の入れ子の restore には `--packages` が届かない。
+- 実装: ビルド中に動かすツールは、別の評価で先に Restore する（`SceneSchema.targets` の前例と同じ）。実行ファイルのパスはビルドの出力（`TargetOutputs`）から取る。`IsPathRooted` の場合分けを足し、古い VSIX の条件は両方の区切り文字に一致させる。clean-build は `NUGET_PACKAGES` を全コマンドに渡し、実行 ID を 12 文字にした。ベンチマークはキャプチャの前に一度 restore する。主ツリーの入れ子の restore はすべて no-op（`project.assets.json` を書き換えない）。
+- 自動化された証拠: `HermeticBuildVerifierTests`（入れ子の restore の packages、artifacts のルートの深さ）。新しい worktree で、VSExtension.Tests を単体でビルドすると 1081 件が合格した。`verify-clean-build` は restore と Debug・Release の build・test をすべて通過し（VSExtension 1081 件、Windows 417 件ほか）、`ecs.performance` は restore から合格した。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — 範囲外の値を持つシーンがビルドを通り、起動時に落ちていた
 - 意図: ADR-0070「生成できないシーンを、値を黙って落としてビルドしない」と「Scene Designer はビルドが拒むものを拒む」。C# シーンの時代の `SceneDeclarationAnalyzer` は不正な物理量を診断していた。
 - 観測（Fact）: ThirdPerson の DirectionalLight の色を `R: -1` にするとビルドはエラー 0 で通り、ゲームは起動時のシーン生成で `LinearLightColor` の `ArgumentOutOfRangeException`（未処理）で落ちた。JSON の解析器（`SceneJsonSceneAnalyzer`）は物理量の範囲も `LogicalScalar` の範囲も見ておらず、float に収まらない数（1e39）は生成ファイルのコンパイルエラー（CS0594）として JSON ではない位置に出ていた。
