@@ -266,6 +266,7 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 ## F-L0-002 — `StageRenderer`(複数オブジェクト・テクスチャ付きPBR・データ駆動ライティング)
 
 - M0098: a material may carry a `StageWorldGrid` (main/sub grid lines drawn per pixel from the world position, projected along the dominant world axes; ADR-0075). `ObjectCB` grew 112 → 160 bytes (`WorldGridParams`, `WorldGridColor`, `WorldSubGridColor`; the slot stride is 512) and materials without a grid keep their output. WorldGridGpuIntegrationTests (WARP: floor main/sub line hierarchy, independence from mesh UVs, no grid means one flat colour, wall lines).
+- M0099 Phase 0: the grid and the simplified height fog add the render origin back, because the runtime renders camera-relative. `ObjectCB.WorldGridAnchor` (176 bytes; the render origin modulo the grid size, set per material by `SetWorldGridAnchor`) and `FogParams0.z` (render origin altitude, `SetRenderOriginAltitude`) are zero for world-coordinate callers. `EngineHost` computes the anchor exactly in Q64.64 every frame; `RenderFrameState` carries both forward for device recovery. RenderOriginTests (EngineHost end to end), WorldGridGpuIntegrationTests camera-relative cases, RenderFrameStatePersistenceTests.
 
 - Layer: L0 — Platform / Native Backends
 - Parent capability: ECS駆動ステージ

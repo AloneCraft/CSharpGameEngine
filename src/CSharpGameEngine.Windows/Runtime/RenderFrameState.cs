@@ -26,6 +26,7 @@ internal sealed class RenderFrameState {
     private readonly List<RectAreaLightSubmission>RectLights=[];
     private readonly List<EmissiveCommand>EmissiveLights=[];
     private readonly List<LightCommandIndex>LightOrder=[];
+    private readonly Dictionary<int,Vector3>WorldGridAnchors=[];
     private RenderCamera Camera;
     private Matrix4x4 ViewProjection;
     private Vector3 ViewProjectionCameraPosition;
@@ -34,8 +35,10 @@ internal sealed class RenderFrameState {
     private FogParams Fog;
     private EnvironmentLightingSettings Environment;
     private float CameraAltitude;
+    private float RenderOriginAltitude;
     private bool HasEnvironment;
     private bool HasCameraAltitude;
+    private bool HasRenderOriginAltitude;
     private RenderPresentationMode PresentationMode;
     private bool HasCamera;
     private bool HasViewProjection;
@@ -61,7 +64,8 @@ internal sealed class RenderFrameState {
 
     public bool IsEmpty=>
         !this.HasCamera&&!this.HasViewProjection&&!this.HasAmbientLight&&!this.HasFog
-        &&!this.HasEnvironment&&!this.HasCameraAltitude
+        &&!this.HasEnvironment&&!this.HasCameraAltitude&&!this.HasRenderOriginAltitude
+        &&this.WorldGridAnchors.Count==0
         &&!this.HasPresentationMode
         &&!this.HasOverlay
         &&!this.HasCameraPreviews
@@ -110,6 +114,15 @@ internal sealed class RenderFrameState {
     public void RecordCameraAltitude(float Meters){
         this.CameraAltitude=Meters;
         this.HasCameraAltitude=true;
+    }
+
+    public void RecordRenderOriginAltitude(float Meters){
+        this.RenderOriginAltitude=Meters;
+        this.HasRenderOriginAltitude=true;
+    }
+
+    public void RecordWorldGridAnchor(int MaterialIndex,Vector3 Anchor){
+        this.WorldGridAnchors[MaterialIndex]=Anchor;
     }
 
     public void RecordPoint(in PointLightSubmission Value){
@@ -195,9 +208,10 @@ internal sealed class RenderFrameState {
 
     /// <summary>
     /// Carries the renderer's persistent settings forward from the previous completed frame when this
-    /// frame did not set them. StageRenderer keeps ambient, fog, environment, camera altitude and
-    /// presentation mode until they change, so a recovery replay must restore a value set once (the
-    /// Scene view sets its ambient only when the preview is created) and not only the last frame's.
+    /// frame did not set them. StageRenderer keeps ambient, fog, environment, camera and render origin
+    /// altitudes, world grid anchors and presentation mode until they change, so a recovery replay must
+    /// restore a value set once (the Scene view sets its ambient only when the preview is created) and
+    /// not only the last frame's.
     /// </summary>
     public void InheritPersistentSettings(RenderFrameState Previous){
         ArgumentNullException.ThrowIfNull(Previous);
@@ -205,6 +219,10 @@ internal sealed class RenderFrameState {
         if(!this.HasFog&&Previous.HasFog){ this.RecordFog(Previous.Fog); }
         if(!this.HasEnvironment&&Previous.HasEnvironment){ this.RecordEnvironment(Previous.Environment); }
         if(!this.HasCameraAltitude&&Previous.HasCameraAltitude){ this.RecordCameraAltitude(Previous.CameraAltitude); }
+        if(!this.HasRenderOriginAltitude&&Previous.HasRenderOriginAltitude){ this.RecordRenderOriginAltitude(Previous.RenderOriginAltitude); }
+        foreach(var (MaterialIndex,Anchor) in Previous.WorldGridAnchors){
+            this.WorldGridAnchors.TryAdd(MaterialIndex,Anchor);
+        }
         if(!this.HasPresentationMode&&Previous.HasPresentationMode){ this.RecordPresentationMode(Previous.PresentationMode); }
     }
 
@@ -218,6 +236,14 @@ internal sealed class RenderFrameState {
         return this.HasFog;
     }
 
+    internal bool TryGetRenderOriginAltitude(out float Meters){
+        Meters=this.RenderOriginAltitude;
+        return this.HasRenderOriginAltitude;
+    }
+
+    internal bool TryGetWorldGridAnchor(int MaterialIndex,out Vector3 Anchor)=>
+        this.WorldGridAnchors.TryGetValue(MaterialIndex,out Anchor);
+
     public void Replay(StageRenderer Renderer){
         ArgumentNullException.ThrowIfNull(Renderer);
         if(this.HasViewProjection){
@@ -230,6 +256,10 @@ internal sealed class RenderFrameState {
         if(this.HasFog){ Renderer.SetFog(this.Fog); }
         if(this.HasEnvironment){ Renderer.SetEnvironmentLighting(this.Environment); }
         if(this.HasCameraAltitude){ Renderer.SetCameraAltitude(this.CameraAltitude); }
+        if(this.HasRenderOriginAltitude){ Renderer.SetRenderOriginAltitude(this.RenderOriginAltitude); }
+        foreach(var (MaterialIndex,Anchor) in this.WorldGridAnchors){
+            Renderer.SetWorldGridAnchor(MaterialIndex,Anchor);
+        }
         foreach(var Command in this.LightOrder){
             switch(Command.Kind){
                 case LightCommandKind.SetDirectional:Renderer.SetLight(this.DirectionalLights[Command.Index]);break;
@@ -274,6 +304,8 @@ internal sealed class RenderFrameState {
         this.HasFog=false;
         this.HasEnvironment=false;
         this.HasCameraAltitude=false;
+        this.HasRenderOriginAltitude=false;
+        this.WorldGridAnchors.Clear();
         this.HasPresentationMode=false;
         this.HasOverlay=false;
         this.HasCameraPreviews=false;

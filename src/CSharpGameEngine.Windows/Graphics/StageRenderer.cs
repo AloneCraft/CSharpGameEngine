@@ -136,7 +136,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     private const uint FrameCameraPositionOffset=64;  // float4 (xyz used)
     private const uint FrameDirectionalLightsOffset=80; // MaxDirectionalLights * DirectionalLightStride bytes
     private const uint FrameAmbientColorOffset=FrameDirectionalLightsOffset+(MaxDirectionalLights*DirectionalLightStride);
-    private const uint FrameFogParamsOffset=FrameAmbientColorOffset+16; // float4: x=density, y=heightFalloff
+    private const uint FrameFogParamsOffset=FrameAmbientColorOffset+16; // float4: x=density, y=heightFalloff, z=render origin altitude
     private const uint FrameFogColorOffset=FrameFogParamsOffset+16;     // float4 (xyz used)
     private const uint FrameExposureOffset=FrameFogColorOffset+16;      // float4: x=2^-EV100
     private const uint FrameLightCountsOffset=FrameExposureOffset+16;   // int4: x=local, y=shadow directional index, z=directional count, w=spot projections
@@ -174,6 +174,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     private const uint ObjectWorldGridParamsOffset=112; // float4: x=grid size (m, 0 = no grid), y=sub grid divisions, z=wire half width
     private const uint ObjectWorldGridColorOffset=128;  // float4: xyz=main grid line colour
     private const uint ObjectWorldSubGridColorOffset=144; // float4: xyz=sub grid line colour
+    private const uint ObjectWorldGridAnchorOffset=160; // float4: xyz=render origin modulo the grid size (zero in world coordinates)
 
     // HDR clear values are the inverse ACES values for the public LDR ClearColor. This keeps the
     // empty-scene background stable across the new post-process pass while geometry still benefits
@@ -340,6 +341,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     private EnvironmentLightingSettings EnvironmentSettings=EnvironmentLightingSettings.Legacy;
     private AtmosphereFrame CurrentAtmosphereFrame;
     private float CameraAltitudeMeters;
+    private float RenderOriginAltitudeMeters;
     private float CurrentCameraEv100;
     private Vector3 CurrentAmbientColor=DefaultAmbientColor;
     private FogParams CurrentFog=FogParams.None;
@@ -375,6 +377,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     private float[]MaterialMetallicFactors=[];
     private Vector3[]MaterialEmissiveNits=[];
     private StageWorldGrid?[]MaterialWorldGrids=[];
+    private Vector3[]MaterialWorldGridAnchors=[];
 
     // Per-object (indexed by objectIndex).
     private int ObjectCount;
@@ -1547,6 +1550,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.MaterialMetallicFactors=new float[this.MaterialCount];
         this.MaterialEmissiveNits=new Vector3[this.MaterialCount];
         this.MaterialWorldGrids=new StageWorldGrid?[this.MaterialCount];
+        this.MaterialWorldGridAnchors=new Vector3[this.MaterialCount];
         Dictionary<Hash256,nint>ResidentTextures=[];
         List<nint>OwnedTextures=[];
 
@@ -2061,6 +2065,39 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             throw new ArgumentOutOfRangeException(nameof(Meters),"The camera altitude must be finite.");
         }
         this.CameraAltitudeMeters=Meters;
+    }
+
+    /// <summary>
+    /// Height above the world origin, in metres, of the render-space origin. The simplified height fog adds it to
+    /// the receiver's render-space height. Callers that render in world coordinates leave it at zero; the
+    /// camera-relative runtime passes the camera's altitude. Persists until changed.
+    /// </summary>
+    public void SetRenderOriginAltitude(float Meters){
+        this.ThrowIfDisposed();
+        if(!float.IsFinite(Meters)){
+            throw new ArgumentOutOfRangeException(nameof(Meters),"The render origin altitude must be finite.");
+        }
+        this.RenderOriginAltitudeMeters=Meters;
+        this.WriteFog(this.FrameIndex,this.CurrentFog);
+    }
+
+    /// <summary>
+    /// The render-space origin's world position reduced modulo the material's grid size, so the world-space grid
+    /// stays on the world lattice when the frame is rendered camera-relative. Each component lies in
+    /// [0, <see cref="StageWorldGrid.GridSizeMeters"/>]. Callers that render in world coordinates leave it at
+    /// zero. Persists until changed.
+    /// </summary>
+    public void SetWorldGridAnchor(int MaterialIndex,Vector3 Anchor){
+        this.ThrowIfDisposed();
+        ArgumentOutOfRangeException.ThrowIfNegative(MaterialIndex);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(MaterialIndex,this.MaterialCount);
+        if(this.MaterialWorldGrids[MaterialIndex] is not{ }Grid){
+            throw new ArgumentException($"Material {MaterialIndex} has no world grid.",nameof(MaterialIndex));
+        }
+        if(!(Anchor.X>=0f&&Anchor.X<=Grid.GridSizeMeters&&Anchor.Y>=0f&&Anchor.Y<=Grid.GridSizeMeters&&Anchor.Z>=0f&&Anchor.Z<=Grid.GridSizeMeters)){
+            throw new ArgumentOutOfRangeException(nameof(Anchor),"The world grid anchor must lie within one grid cell.");
+        }
+        this.MaterialWorldGridAnchors[MaterialIndex]=Anchor;
     }
 
     private Vector3 AttenuateForAtmosphere(Vector3 DirectionTowardLight,Vector3 ColorTimesIntensity)=>
@@ -2635,7 +2672,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     private void WriteFog(uint FrameIndex,FogParams Fog){
-        Vector4 FogParams0=new(Fog.Density,Fog.HeightFalloff,0f,0f);
+        Vector4 FogParams0=new(Fog.Density,Fog.HeightFalloff,this.RenderOriginAltitudeMeters,0f);
         Vector4 FogColor=new(Fog.Color,0f);
         Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameFogParamsOffset,&FogParams0,(uint)sizeof(Vector4));
         Unsafe.CopyBlock(this.FrameSlot(FrameIndex)+FrameFogColorOffset,&FogColor,(uint)sizeof(Vector4));
@@ -3273,6 +3310,8 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         Unsafe.CopyBlock(Destination+ObjectWorldGridParamsOffset,&WorldGridParams,(uint)sizeof(Vector4));
         Unsafe.CopyBlock(Destination+ObjectWorldGridColorOffset,&WorldGridColor,(uint)sizeof(Vector4));
         Unsafe.CopyBlock(Destination+ObjectWorldSubGridColorOffset,&WorldSubGridColor,(uint)sizeof(Vector4));
+        Vector4 WorldGridAnchor=new(this.MaterialWorldGridAnchors[MaterialIndex],0f);
+        Unsafe.CopyBlock(Destination+ObjectWorldGridAnchorOffset,&WorldGridAnchor,(uint)sizeof(Vector4));
     }
 
     private ulong GetFrameConstantsAddress(uint FrameIndex,int PassIndex=0){

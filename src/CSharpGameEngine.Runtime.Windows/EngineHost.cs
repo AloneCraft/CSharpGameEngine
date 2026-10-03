@@ -5,6 +5,7 @@ using CSharpGameEngine.Audio.XAudio2;
 using CSharpGameEngine.Entities;
 using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Input;
+using CSharpGameEngine.Numerics;
 using CSharpGameEngine.Platform.Windows;
 using CSharpGameEngine.Runtime.Physics;
 using CSharpGameEngine.Runtime.Simulation;
@@ -48,6 +49,7 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
     private bool HasAudioListener;
     private readonly Dictionary<Entity,int[]>SkinnedMeshIndices=[];
     private readonly Dictionary<Entity,List<int>>RenderObjectsBySource=[];
+    private (int MaterialIndex,LogicalScalar CellMeters)[]WorldGridMaterials=[];
 
     internal Win32Window?Window { get;private set; }
     internal ExternalRenderSurface?ExternalSurface { get;private set; }
@@ -191,6 +193,33 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
         this.HasCameraPose=true;
     }
 
+    /// <summary>
+    /// Remembers the materials with a world-space grid, so every frame can anchor their lines to the world lattice
+    /// although the renderer works camera-relative.
+    /// </summary>
+    internal void RegisterWorldGridMaterials(IReadOnlyList<StageMaterialCreateInfo>Materials){
+        List<(int,LogicalScalar)>Grids=[];
+        for(var Index=0;Index<Materials.Count;Index++){
+            if(Materials[Index].WorldGrid is{ }Grid&&LogicalScalar.TryFromSingle(Grid.GridSizeMeters,out var CellMeters)&&CellMeters.Raw>0){
+                Grids.Add((Index,CellMeters));
+            }
+        }
+        this.WorldGridMaterials=[.. Grids];
+    }
+
+    /// <summary>
+    /// The position modulo one grid cell, in [0, cell]. The remainder is exact in Q64.64 and is rounded to float
+    /// once, so the anchor keeps full float precision however far the camera is from the world origin.
+    /// </summary>
+    internal static float ReduceToGridCell(LogicalScalar Position,LogicalScalar CellMeters){
+        var Remainder=Position.Raw%CellMeters.Raw;
+        if(Remainder<0){
+            Remainder+=CellMeters.Raw;
+        }
+        LogicalScalar.FromRaw(Remainder).TryToSingle(out var Reduced);
+        return Reduced;
+    }
+
     /// <summary>Records which renderer object an authored entity's mesh became, for the editor's selection.</summary>
     internal void RegisterRenderObject(Entity Source,int ObjectIndex){
         if(!this.RenderObjectsBySource.TryGetValue(Source,out var Objects)){
@@ -257,6 +286,16 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
         Renderer.SetEnvironmentLighting(Settings);
         if(this.HasCameraPose&&this.CameraFrameLocalOrigin.M42.TryToSingle(out var Altitude)){
             Renderer.SetCameraAltitude(Altitude);
+            // The camera is the render-space origin, so it is also where render-space heights start.
+            Renderer.SetRenderOriginAltitude(Altitude);
+        }
+        if(this.HasCameraPose){
+            foreach(var (MaterialIndex,CellMeters) in this.WorldGridMaterials){
+                Renderer.SetWorldGridAnchor(MaterialIndex,new Vector3(
+                    ReduceToGridCell(this.CameraFrameLocalOrigin.M41,CellMeters),
+                    ReduceToGridCell(this.CameraFrameLocalOrigin.M42,CellMeters),
+                    ReduceToGridCell(this.CameraFrameLocalOrigin.M43,CellMeters)));
+            }
         }
         if(Settings.SkyLight is not null&&!Collected.AmbientSubmitted){
             // The flat ambient term is a stand-in for sky light; a captured sky light replaces it.

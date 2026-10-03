@@ -179,6 +179,16 @@ public sealed class RenderServer:IDisposable {
         this.Backend.SetCameraAltitude(Meters);
         this.PendingFrame.RecordCameraAltitude(Meters);
     }
+    /// <summary>Height above the world origin of the render-space origin, for the simplified height fog (zero in world coordinates).</summary>
+    public void SetRenderOriginAltitude(float Meters){
+        this.Backend.SetRenderOriginAltitude(Meters);
+        this.PendingFrame.RecordRenderOriginAltitude(Meters);
+    }
+    /// <summary>The render-space origin reduced modulo a grid material's cell size, so the world-space grid stays on the world lattice.</summary>
+    public void SetWorldGridAnchor(int MaterialIndex,Vector3 Anchor){
+        this.Backend.SetWorldGridAnchor(MaterialIndex,Anchor);
+        this.PendingFrame.RecordWorldGridAnchor(MaterialIndex,Anchor);
+    }
 
     public void AddPointLight(in PointLightSubmission Value){
         Value.Validate();

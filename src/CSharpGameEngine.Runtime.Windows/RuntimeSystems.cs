@@ -255,6 +255,7 @@ internal struct LevelLoad:ISystem {
         // Exposure is the scene's in the editor too: the view must look like the game.
         Camera.ExposureEv100=this.ActiveCameraCount>0?this.PendingCamera.ExposureEv100:new Camera().ExposureEv100;
         Host.AttachRenderer(Renderer,Camera,InitialCameraWorld,InitialCameraFrame);
+        Host.RegisterWorldGridMaterials(Scene.Materials);
         LevelRuntime.HasLastCameraWorldPose=true;
         LevelRuntime.Loaded=true;
         LevelRuntime.ShaderSemanticHash=Renderer.ShaderSemanticHash;

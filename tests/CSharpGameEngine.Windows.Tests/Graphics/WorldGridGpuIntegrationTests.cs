@@ -60,22 +60,70 @@ public sealed class WorldGridGpuIntegrationTests {
         Assert.True(HorizontalLine<Reference*0.5f,Diagnostic);
         Scene.AssertNoDebugLayerErrors();
     }
+    [WindowsOnlyFact]
+    [Trait("Category","GPU")]
+    public void WorldGrid_Warp_CameraRelativeRenderingKeepsTheLinesOnTheWorldGrid(){
+        // The runtime renders camera-relative: the camera sits at the render origin and every object is moved
+        // by minus the camera position, so the lines must still fall on the world grid (not on a grid that
+        // follows the camera).
+        using var Scene=GridScene.Create(PrototypeGrid,FloorUvs.Zero,RenderOrigin:new Vector3(0.7f,1.5f,0.5f));
+        Scene.Render();
+        var Surface=Scene.Luminance(new Vector3(0.1f,0f,0.3f));
+        var SubLine=Scene.Luminance(new Vector3(0.4f,0f,0.3f));
+        var MainLineX=Scene.Luminance(new Vector3(1f,0f,0.3f));
+        var MainLineZ=Scene.Luminance(new Vector3(0.5f,0f,1f));
+        var Diagnostic=$"surface={Surface} sub={SubLine} mainX={MainLineX} mainZ={MainLineZ}";
+        Assert.True(MainLineX<Surface*0.5f,Diagnostic);
+        Assert.True(MainLineZ<Surface*0.5f,Diagnostic);
+        Assert.True(SubLine<Surface*0.97f,Diagnostic);
+        Assert.True(MainLineX<SubLine,Diagnostic);
+        Scene.AssertNoDebugLayerErrors();
+    }
+    [WindowsOnlyFact]
+    [Trait("Category","GPU")]
+    public void LegacyFog_Warp_CameraRelativeRenderingThinsWithTheWorldHeight(){
+        // The simplified height fog thins with the receiver's world height. A floor 3 m above the world origin,
+        // seen from 1.5 m above it, must look the same whether the frame is rendered in world coordinates or
+        // camera-relative (as the runtime does).
+        var Fog=new FogParams(0.1f,0.5f,new Vector3(0.8f,0.8f,0.8f));
+        var Eye=new Vector3(0.7f,4.5f,0.5f);
+        using var World=GridScene.Create(null,FloorUvs.Zero,FloorHeight:3f,Fog:Fog,Eye:Eye,PitchDegrees:-20f);
+        using var CameraRelative=GridScene.Create(null,FloorUvs.Zero,FloorHeight:3f,Fog:Fog,Eye:Eye,PitchDegrees:-20f,RenderOrigin:Eye);
+        World.Render();
+        CameraRelative.Render();
+        var Expected=World.Pixels();
+        var Actual=CameraRelative.Pixels();
+        var Largest=0;
+        for(var Index=0;Index<Expected.Length;Index++){
+            Largest=Math.Max(Largest,Math.Abs(Expected[Index]-Actual[Index]));
+        }
+        Assert.True(Largest<=2,$"largest channel difference {Largest}");
+        CameraRelative.AssertNoDebugLayerErrors();
+    }
     private enum FloorUvs {
         Zero,
         Scrambled,
     }
     private sealed class GridScene:IDisposable {
-        private GridScene(Win32Window Window,StageRenderer Renderer,Camera Camera,bool HasWall){
+        private GridScene(Win32Window Window,StageRenderer Renderer,Camera Camera,bool HasWall,Vector3 RenderOrigin,float FloorHeight,FogParams?Fog){
             this.Window=Window;
             this.Renderer=Renderer;
             this.Camera=Camera;
             this.HasWall=HasWall;
+            this.RenderOrigin=RenderOrigin;
+            this.FloorHeight=FloorHeight;
+            this.Fog=Fog;
         }
         public Win32Window Window { get; }
         public StageRenderer Renderer { get; }
+        /// <summary>The camera in world coordinates; it is also used to find the pixel of a world point.</summary>
         public Camera Camera { get; }
         public bool HasWall { get; }
-        public static GridScene Create(StageWorldGrid?Grid,FloorUvs Uvs,bool Wall=false){
+        /// <summary>World position of the render-space origin: zero renders in world coordinates, the eye renders camera-relative.</summary>
+        public Vector3 RenderOrigin { get; }
+        public float FloorHeight { get; }
+        public FogParams?Fog { get; }
+        public static GridScene Create(StageWorldGrid?Grid,FloorUvs Uvs,bool Wall=false,Vector3 RenderOrigin=default,float FloorHeight=0f,FogParams?Fog=null,Vector3?Eye=null,float PitchDegrees=-85f){
             var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine World Grid GPU Test",Width=320,Height=180,Visible=false });
             StageMeshCreateInfo ToMesh(ProceduralMeshData Data){
                 var Tangents=new Vector4[Data.Positions.Length];
@@ -96,24 +144,35 @@ public sealed class WorldGridGpuIntegrationTests {
                 Objects.Add(new StageObjectCreateInfo { MeshIndex=1,MaterialIndex=0 });
             }
             var Renderer=StageRenderer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,[.. Meshes],[Material],[.. Objects]);
+            // What the runtime does (EngineHost): the render origin's altitude, and the render origin modulo the grid size.
+            Renderer.SetRenderOriginAltitude(RenderOrigin.Y);
+            if(Grid is{ }WorldGrid){
+                static float Reduce(float Value,float Cell)=>((Value%Cell)+Cell)%Cell;
+                Renderer.SetWorldGridAnchor(0,new Vector3(Reduce(RenderOrigin.X,WorldGrid.GridSizeMeters),Reduce(RenderOrigin.Y,WorldGrid.GridSizeMeters),Reduce(RenderOrigin.Z,WorldGrid.GridSizeMeters)));
+            }
             Assert.True(Renderer.ShaderArtifactLoaded,string.Join(Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
             // Floor scene: straight down at 1.5 m (about 0.7 cm per pixel); wall scene: facing the wall's -Z face.
             var View=Wall
                 ?Camera.CreateFirstPerson(new Vector3(1f,1f,0f))
-                :Camera.CreateFirstPerson(new Vector3(0.7f,1.5f,0.5f));
+                :Camera.CreateFirstPerson(Eye??new Vector3(0.7f,1.5f,0.5f));
             if(!Wall){
-                View.Pitch=-85f*MathF.PI/180f;
+                View.Pitch=PitchDegrees*MathF.PI/180f;
             }
-            return new GridScene(Window,Renderer,View,Wall);
+            return new GridScene(Window,Renderer,View,Wall,RenderOrigin,FloorHeight,Fog);
         }
         public void Render(){
+            var RenderCamera=this.Camera;
+            RenderCamera.Target-=this.RenderOrigin;
             for(var Frame=0;Frame<2;Frame++){
                 this.Renderer.SetAmbientLight(new Vector3(0.4f,0.4f,0.4f));
-                this.Renderer.SetCamera(this.Camera);
+                this.Renderer.SetCamera(RenderCamera);
                 this.Renderer.SetDirectionalLight(Vector3.Normalize(new Vector3(0.3f,0.8f,-0.4f)),Vector3.One,2f);
-                this.Renderer.SetObjectTransform(0,Matrix4x4.Identity);
+                if(this.Fog is{ }Fog){
+                    this.Renderer.SetFog(Fog);
+                }
+                this.Renderer.SetObjectTransform(0,Matrix4x4.CreateTranslation(new Vector3(0f,this.FloorHeight,0f)-this.RenderOrigin));
                 if(this.HasWall){
-                    this.Renderer.SetObjectTransform(1,Matrix4x4.CreateTranslation(1f,2.5f,2.75f));
+                    this.Renderer.SetObjectTransform(1,Matrix4x4.CreateTranslation(new Vector3(1f,2.5f,2.75f)-this.RenderOrigin));
                 }
                 this.Renderer.RenderFrame(CaptureForVerification:Frame==1);
             }

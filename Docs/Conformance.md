@@ -1,5 +1,15 @@
 # Conformance
 
+## 2026-10-03 M0099 Phase 0 — ランタイムでワールドグリッドと旧フォグがカメラに付いて動いていた
+- 意図: ADR-0075 決定 2「ピクセルごとにワールド座標から線を計算する」。旧（簡易）高さフォグは受け手のワールドの高さで薄くなる。
+- 観測した原因（Fact）: ランタイムはカメラを描画空間の原点に置き（`LevelLoad`）、物体をカメラ相対で渡すので、シェーダーの `input.WorldPosition` はワールド座標ではない。グリッドの線と旧フォグの高さがそれをワールド座標として使っていた。`WorldGridGpuIntegrationTests` はワールド座標で `StageRenderer` を直接呼ぶので気付かず、M0098 の実機確認はカメラを動かさない静止画 1 枚だった。
+- 再現: カメラ相対で描いた床では、主線の位置の画素が暗くならず（主線 126、面 99）、旧フォグはワールド座標の描画と最大 56 階調ずれた（修正前に失敗することを確認）。
+- 実装: `ObjectCB.WorldGridAnchor`（描画原点をグリッドの間隔で割った余り）と `FogParams0.z`（描画原点の高度）をシェーダーへ足し（`render_origin_2026_10_03.py`）、`StageRenderer.SetWorldGridAnchor`/`SetRenderOriginAltitude`、`RenderServer` の同名 API と復旧用の引き継ぎを追加した。`EngineHost` が毎フレーム、カメラのフレーム内位置から余りを Q64.64 で正確に求めて渡す。ワールド座標で描く呼び出し側は 0 のままで出力が変わらない。
+- 自動化された証拠: `WorldGridGpuIntegrationTests` の 2 件（カメラ相対の床の線、旧フォグがワールド座標の描画と 2 階調以内）、`RenderOriginTests`（`EngineHost` を通した端から端: 0.75 m と 10000.75 m の視点で画素一致、半セルずらすと変化、高度 3 m の差でフォグが変化、余りの正確さ 6 件）、`RenderFrameStatePersistenceTests` の 1 件。`EngineHost` からの送信を外すと端から端の 2 件が失敗することを確かめた。ゴールデンの Stage HLSL ハッシュを更新した。
+- 実機の証拠: ThirdPerson を WARP で 40 フレーム歩かせて撮影した。修正前のビルドでは同じ位置で床の主線がカメラの真下（画面中央）を通り、修正後はワールドの格子に乗る（`.artifacts/M0099/phase0/walked_before_after_floor.png`）。
+- 結果: Matches（ADR-0075 決定 2 に一致）。
+- 既知の差: 余りはカメラの参照フレームで求めるので、別の参照フレームに置いた物体の格子はカメラのフレームの格子に揃う。
+
 ## 2026-10-02 M0098 — ThirdPerson の地面のグリッドを UE と同じにする
 - 意図: ユーザーのスクリーンショット（床に崩れた模様）を受け、UE の参照画像と同じ 1m グリッドにする（[M0098](Milestones/M0098-ThirdPerson-World-Grid.md)、[ADR-0075](Decisions/ADR-0075-World-Space-Procedural-Grid-Material.md)）。
 - 観測した原因: UE の `M_PrototypeGrid` の焼き付け（4 つの GLB）。床の GLB は TEXCOORD_1 用の画像で、インポーターが TEXCOORD_0 で読んでいた。1024px の焼き付けでは UV1 で読めても床全体がぼやける。

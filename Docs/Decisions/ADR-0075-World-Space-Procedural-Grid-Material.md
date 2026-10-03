@@ -70,5 +70,12 @@
 - `WorldGridGpuIntegrationTests`（WARP。床の主線・副線の階層、UV に依存しないこと、グリッド無しなら 1 色、壁の縦横の線）。実際の画像でも確認した。
 - ThirdPerson ゲームを WARP で起動して撮影し、UE の参照画像と見比べた。
 
+## 追記（2026-10-03、M0099 Phase 0）: カメラ相対の描画でも線をワールドに固定する
+- 観測した事実: ランタイムはカメラを描画空間の原点に置き（`LevelLoad`）、物体をカメラ相対で渡す。シェーダーの `input.WorldPosition` はワールド座標ではなかったため、ゲームとエディタのランタイムビューでは線がカメラに付いて動いていた。`WorldGridGpuIntegrationTests` はワールド座標で `StageRenderer` を直接呼ぶので気付かず、M0098 の実機確認は静止画 1 枚だった。
+- 決定 2 の補足: 線は `WorldPosition + ObjectCB.WorldGridAnchor` から計算する。`WorldGridAnchor` は描画原点（ランタイムではカメラ）のワールド位置をグリッドの間隔で割った余りで、`EngineHost` が Q64.64 で正確に求めて材質ごとに渡す（`StageRenderer.SetWorldGridAnchor`）。ワールド座標で描く呼び出し側（エディタの分離プレビュー、レンダラーを直接使うテスト）は 0 のままで、出力は変わらない。副線の間隔は主線の間隔を割り切るので、同じ余りで副線も連続する。
+- `ObjectCB` は 160 → 176 バイト（スロット幅 512 は不変）。
+- 制約: 余りはカメラの参照フレームで求める。別の参照フレームに置いた物体の格子は、カメラのフレームの格子に揃う。
+- 検証の追加: `WorldGridGpuIntegrationTests.WorldGrid_Warp_CameraRelativeRenderingKeepsTheLinesOnTheWorldGrid`、`RenderOriginTests`（`EngineHost` を通し、セルの整数倍だけ離れた 2 か所の視点で画素が一致し、半セルずらすと変わる。0.75 m と 10000.75 m）。
+
 ## 関連する機能
 - F-L0-002（StageRenderer）、F-L0-005（GltfImporter.ImportScene）、F-L7-005（UE レベル取り込み）、F-L8-032（ThirdPerson テンプレート）
