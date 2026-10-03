@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — 最後のアセットを読む間の取消が無視されていた（監査 AUD-002）
+- 意図: [Asset / Content 仕様](Specifications/Asset-Content-Pipeline.md)「失敗または取消は以前の Manifest を唯一の last-known-good として残す」。
+- 観測（Fact）: 最後の候補 artifact を読み終えた直後に呼出元が取消すと、`TryUpdateManifestAsync` は新 Manifest を有効にして成功を返した。取消の確認は各読み取りの前にしかなく、検証の後から公開までの間に無かった。
+- 実装: 公開のロックの中で取消を確かめ、旧 Manifest を保った取消結果を返す（他の取消の経路と同じ結果）。
+- 自動化された証拠: `RuntimeAssetStoreTests.ManifestUpdate_CancelledWhileItsLastArtifactIsRead_KeepsTheOldManifest`（修正前は失敗）。
+- 結果: Matches（監査.md の AUD-002 に追記）。
+
 ## 2026-10-04 探索 — ライトを含むスナップショットが復元できなかった（監査 AUD-001）
 - 意図: [ECS 仕様](Specifications/Ecs-Runtime.md) のスナップショット契約（現在の Schema で取得した正規の Component 値を同じ World に復元できる）。
 - 観測（Fact）: 監査（2026-09-08）の P1 の項目が HEAD でも再現した。`DirectionalLight`・`PointLight`・`SpotLight`・`RectAreaLight`・`LightShadow` の codec 往復はすべて `payload is not canonical` になり、ライトと影を持つ `EngineShowcaseScene` をストリーミングした Cell は、Capture 直後の Restore に失敗した。原因は、System.Text.Json が読み取り専用の物理量（get のみのプロパティ）を設定できず既定値になり、再シリアライズとの正規バイト比較が一致しないこと。

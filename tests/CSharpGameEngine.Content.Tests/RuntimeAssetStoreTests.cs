@@ -102,6 +102,28 @@ public sealed class RuntimeAssetStoreTests:IDisposable {
     }
 
     [Fact]
+    public async Task ManifestUpdate_CancelledWhileItsLastArtifactIsRead_KeepsTheOldManifest(){
+        // Audit AUD-002: the caller cancels after the last candidate artifact was read and validated, before the update
+        // commits. The cancellation wins: the old manifest stays the authority and the result says so.
+        var First=await this.CreateManifestAsync("first");
+        var Second=await this.CreateManifestAsync("second",First.Key,First.Store);
+        using var Cancel=new CancellationTokenSource();
+        var Reader=new CancelAfterReadReader(First.Store,Second.Manifest.Entries[^1].Address,Cancel);
+        var Codec=new RuntimeAssetCodec<string>(
+            static _=>true,
+            static(Artifact,_)=>ValueTask.FromResult(Encoding.UTF8.GetString(Artifact.Payload.AsSpan())));
+        await using var Runtime=new RuntimeAssetStore(Reader,First.Manifest,[Codec]);
+
+        RuntimeAssetManifestUpdateResult Result=await Runtime.TryUpdateManifestAsync(Second.Manifest,Cancel.Token);
+
+        Assert.True(Reader.Cancelled);
+        Assert.False(Result.Succeeded);
+        Assert.True(Result.Cancelled);
+        Assert.True(Result.UsedLastKnownGood);
+        Assert.Equal(First.Manifest.Fingerprint,Runtime.ActiveManifestFingerprint);
+    }
+
+    [Fact]
     public async Task UnsupportedTypeAndDecodeFailure_DoNotLeakOwnership(){
         var Fixture=await this.CreateManifestAsync("broken");
         var Codec=new RuntimeAssetCodec<string>(
@@ -287,6 +309,17 @@ public sealed class RuntimeAssetStoreTests:IDisposable {
         public ValueTask<ReadOnlyMemory<byte>>ReadAsync(Hash256 Address,CancellationToken CancellationToken=default){
             if(this.FailAddress==Address){ return ValueTask.FromException<ReadOnlyMemory<byte>>(new InvalidDataException("simulated corruption")); }
             return Inner.ReadAsync(Address,CancellationToken);
+        }
+    }
+    private sealed class CancelAfterReadReader(IContentArtifactReader Inner,Hash256 Address,CancellationTokenSource Cancel):IContentArtifactReader {
+        public bool Cancelled{get;private set;}
+        public async ValueTask<ReadOnlyMemory<byte>>ReadAsync(Hash256 Read,CancellationToken CancellationToken=default){
+            ReadOnlyMemory<byte>Bytes=await Inner.ReadAsync(Read,CancellationToken);
+            if(Read==Address){
+                Cancel.Cancel();
+                this.Cancelled=true;
+            }
+            return Bytes;
         }
     }
     private sealed class BoundedObservationReader(IContentArtifactReader Inner,int ExpectedBound):IContentArtifactReader {
