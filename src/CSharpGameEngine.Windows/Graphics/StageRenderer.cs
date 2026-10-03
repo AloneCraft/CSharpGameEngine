@@ -161,8 +161,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     private const uint FrameAmbientOcclusionOffset=FrameGiAtlasSizeOffset+16; // float4: x enabled, y intensity, zw = 1 / viewport size
     private const uint FrameDepthMapping0Offset=FrameAmbientOcclusionOffset+16; // float4: x mode (RenderDepthMapping), y radial transition m, z 1/G(rMax), w far discard depth m
     private const uint FrameDepthMapping1Offset=FrameDepthMapping0Offset+16; // float4: xyz observer centre (render space)
-    private const uint FrameRadialRasterViewProjectionOffset=FrameDepthMapping1Offset+16; // float4x4: radial main pass with the conservative depth row
-    private const uint FrameConstantsSize=FrameRadialRasterViewProjectionOffset+64;
+    private const uint FrameConstantsSize=FrameDepthMapping1Offset+16;
 
     /// <summary>
     /// FrameConstantsBuffer専用のフレームスロット幅。FrameConstantsSize以上、かつD3D12のroot CBV
@@ -182,6 +181,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     private const uint ObjectWorldGridColorOffset=128;  // float4: xyz=main grid line colour
     private const uint ObjectWorldSubGridColorOffset=144; // float4: xyz=sub grid line colour
     private const uint ObjectWorldGridAnchorOffset=160; // float4: xyz=render origin modulo the grid size (zero in world coordinates)
+    private const uint ObjectRadialRasterDepthOffset=176; // float4: xy=(a, b) of the object's conservative radial raster depth a - b/w (M0100)
 
     // HDR clear values are the inverse ACES values for the public LDR ClearColor. This keeps the
     // empty-scene background stable across the new post-process pass while geometry still benefits
@@ -362,7 +362,6 @@ public sealed unsafe class StageRenderer:IDisposable {
     /// <summary>The camera's rotation with the radial projection's finite auxiliary planes (radial mode only).</summary>
     private Matrix4x4 CurrentAuxiliaryViewProjection=Matrix4x4.Identity;
     /// <summary>The radial main pass's view-projection: the camera's, with the conservative depth row (radial mode only).</summary>
-    private Matrix4x4 CurrentRadialRasterViewProjection=Matrix4x4.Identity;
     /// <summary>The camera basis and field of view of the last <see cref="SetCamera"/>, for observer markers.</summary>
     private bool HasCameraBasis;
     /// <summary>Test-only GPU timestamps around the main pass's draws (performance evidence); null unless enabled.</summary>
@@ -414,6 +413,8 @@ public sealed unsafe class StageRenderer:IDisposable {
     // Per-object (indexed by objectIndex).
     private int ObjectCount;
     private int[]ObjectMeshIndices=[];
+    /// <summary>Each mesh's bounds centre, where an object's conservative radial raster depth touches (M0100).</summary>
+    private Vector3[]MeshBoundsCentres=[];
     private int[]ObjectMaterialIndices=[];
     private Matrix4x4[]ObjectTransforms=[];
     private float[]ObjectSelectionWeights=[];
@@ -1577,8 +1578,10 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.IndexBufferViews=new D3D12_INDEX_BUFFER_VIEW[this.MeshCount];
         this.IndexCounts=new uint[this.MeshCount];
 
+        this.MeshBoundsCentres=new Vector3[this.MeshCount];
         for(var I=0;I< this.MeshCount;I++){
             StageMeshCreateInfo Mesh=Meshes[I];
+            this.MeshBoundsCentres[I]=BoundsCentre(Mesh.Positions);
             this.CreateVertexBuffer(I,Mesh.Positions,Mesh.Normals,Mesh.Tangents,Mesh.Uvs);
             this.CreateIndexBuffer(I,Mesh.Indices);
             if(Mesh.Skin is{ }Skin){
@@ -1586,6 +1589,18 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
                 this.VertexBufferViews[I]=this.Skinning!.AddMesh(I,this.VertexBuffers[I],(uint)Mesh.Positions.Count,(uint)sizeof(Vertex),Skin.JointCount,Skin.JointIndices,Skin.Weights);
             }
         }
+    }
+
+    /// <summary>The centre of a mesh's axis-aligned bounds (its rest pose for a skinned mesh).</summary>
+    private static Vector3 BoundsCentre(IReadOnlyList<Vector3>Positions){
+        if(Positions.Count==0){ return Vector3.Zero; }
+        var Minimum=Positions[0];
+        var Maximum=Positions[0];
+        for(var I=1;I<Positions.Count;I++){
+            Minimum=Vector3.Min(Minimum,Positions[I]);
+            Maximum=Vector3.Max(Maximum,Positions[I]);
+        }
+        return (Minimum+Maximum)*0.5f;
     }
 
     private void CreateVertexBuffer(int MeshIndex,IReadOnlyList<Vector3>Positions,IReadOnlyList<Vector3>Normals,IReadOnlyList<Vector4>Tangents,IReadOnlyList<Vector2>Uvs){
@@ -1954,9 +1969,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CurrentAuxiliaryViewProjection=DepthMapping==RenderDepthMapping.Radial
             ?View*RadialProjection.CreateAuxiliaryProjection(Camera.FovYRadians,AspectRatio)
             :Matrix4x4.Identity;
-        this.CurrentRadialRasterViewProjection=DepthMapping==RenderDepthMapping.Radial
-            ?View*RadialProjection.CreateConservativeRasterProjection(Camera.FovYRadians,AspectRatio)
-            :Matrix4x4.Identity;
         this.WriteDepthMapping(this.FrameIndex);
         // Right-handed look-at: the view matrix's columns are the camera's right, up and backward axes.
         this.CurrentCameraRight=new Vector3(View.M11,View.M21,View.M31);
@@ -1981,11 +1993,25 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             ?new((float)RenderDepthMapping.Radial,this.CurrentRadialProjection.Curve.TransitionMeters,this.CurrentRadialProjection.InverseMaximumG,this.CurrentRadialProjection.FarDiscardDepth)
             :Vector4.Zero;
         Vector4 DepthMapping1=Vector4.Zero;
-        Matrix4x4 RasterViewProjection=this.CurrentRadialRasterViewProjection;
         var Slot=this.FrameSlot(FrameIndex);
         Unsafe.CopyBlock(Slot+FrameDepthMapping0Offset,&DepthMapping0,(uint)sizeof(Vector4));
         Unsafe.CopyBlock(Slot+FrameDepthMapping1Offset,&DepthMapping1,(uint)sizeof(Vector4));
-        Unsafe.CopyBlock(Slot+FrameRadialRasterViewProjectionOffset,&RasterViewProjection,(uint)sizeof(Matrix4x4));
+    }
+
+    /// <summary>
+    /// M0100: each object's conservative radial raster depth, tangent at the view depth of its mesh's bounds centre
+    /// (the view-projection's W), so hidden fragments are rejected early at every distance and not only near one.
+    /// </summary>
+    private void WriteRadialRasterDepths(uint FrameIndex){
+        var ViewProjection=this.CurrentViewProjection;
+        for(var ObjectIndex=0;ObjectIndex<this.ObjectCount;ObjectIndex++){
+            var Centre=Vector3.Transform(this.MeshBoundsCentres[this.ObjectMeshIndices[ObjectIndex]],this.ObjectTransforms[ObjectIndex]);
+            var ViewDepth=Centre.X*ViewProjection.M14+Centre.Y*ViewProjection.M24+Centre.Z*ViewProjection.M34+ViewProjection.M44;
+            var Depth=this.CurrentRadialProjection.ConservativeDepthAt(ViewDepth);
+            Vector4 Packet=new(Depth.Limit,Depth.Slope,0f,0f);
+            var Slot=((ulong)FrameIndex*(ulong)this.ObjectCount)+(ulong)ObjectIndex;
+            Unsafe.CopyBlock(this.ObjectConstantsMapped+(Slot*ConstantAlignment)+ObjectRadialRasterDepthOffset,&Packet,(uint)sizeof(Vector4));
+        }
     }
 
     /// <summary>
@@ -2018,15 +2044,14 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CurrentDepthMapping=RenderDepthMapping.Standard;
         this.CurrentRadialProjection=default;
         this.CurrentAuxiliaryViewProjection=Matrix4x4.Identity;
-        this.CurrentRadialRasterViewProjection=Matrix4x4.Identity;
         this.WriteDepthMapping(this.FrameIndex);
         this.HasCameraBasis=false;
     }
 
     /// <summary>
     /// M0100: an isolated preview's camera-relative perspective matrix drawn with radial depth. The matrix is used as
-    /// given, so coverage, overlays and picking stay those of the caller's matrix; the radial packet, the conservative
-    /// raster matrix and the auxiliary matrix are derived from it and <paramref name="Radial"/>.
+    /// given, so coverage, overlays and picking stay those of the caller's matrix; the radial packet, the
+    /// auxiliary matrix and each object's conservative raster depth are derived from it and <paramref name="Radial"/>.
     /// </summary>
     internal void SetViewProjection(
         in Matrix4x4 ViewProjection,in Vector3 CameraPosition,in RadialViewParameters Radial){
@@ -2040,7 +2065,6 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CurrentDepthMapping=RenderDepthMapping.Radial;
         this.CurrentRadialProjection=Projection;
         this.CurrentAuxiliaryViewProjection=Projection.CreateAuxiliaryViewProjection(ViewProjection);
-        this.CurrentRadialRasterViewProjection=Projection.CreateConservativeRasterViewProjection(ViewProjection);
         this.WriteDepthMapping(this.FrameIndex);
     }
 
@@ -3974,6 +3998,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.WriteAmbientLight(this.FrameIndex,this.CurrentAmbientColor);
         this.WriteFog(this.FrameIndex,this.CurrentFog);
         this.WriteDepthMapping(this.FrameIndex);
+        if(Radial){
+            this.WriteRadialRasterDepths(this.FrameIndex);
+        }
         this.PrepareCameraPreviewConstants(this.FrameIndex);
         this.WriteExposure(this.FrameIndex,this.CurrentCameraEv100);
         this.PrepareEnvironment(this.FrameIndex);

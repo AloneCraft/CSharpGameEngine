@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 M0100 探索 — 遠景で対数の Early-Z が効いていなかった
+- 意図: [Omni 仕様](Specifications/Omni.md) 不変条件 2a（保守的深度で早期の深度棄却を保つ）。
+- 観測（Fact）: 100〜1020 m の 24 層を手前から奥へ描くと、標準 0.097 ms に対し対数 1.738 ms（RTX 4060 Ti）。2〜48 m では 0.133 対 0.173 ms。単一の接点（8 m）の双曲線が遠くで低い一定値になるため。接点を約 500 m に移す実験で 0.262 ms になり、原因を確かめた。
+- 実装: 接点を物体ごとにした（ObjectCB `RadialRasterDepth`、ABI `stage-v10`、ADR-0076 追記）。
+- 自動化された証拠: `RadialDepthTests.ConservativeRasterDepth_NeverExceedsTheEncodedDepthWhereverItTouches`（9 つの接点で全域が下界、接点で 0.1 % 以内）、対数の GPU テスト（WARP と実機で全件合格）、`RadialDepthPerformanceEvidence`（遠い層 0.123 ms）。
+- 結果: Matches。
+
 ## 2026-10-04 M0100 探索 — 実機の GPU で対数の前後判定が崩れていた
 - 意図: [Omni 仕様](Specifications/Omni.md) 不変条件 3（全スケールで前後が物理距離の順）と精度予算。
 - 観測（Fact）: 対数の GPU テストを一時的に RTX 4060 Ti で流すと 25 件中 2 件が失敗した（20 km・5 cm の 2 枚で赤が 99.5 %、4 µm の場面で標準と違う面）。WARP では合格。深度の誤差は実機で最大 52 万 ulp（4 µm）、WARP は 4 ulp 以下。

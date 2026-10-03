@@ -11,7 +11,8 @@ namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// M0099 performance evidence (ADR-0076): the radial pixel entries compute their depth, so only the conservative
 /// raster depth (SV_DepthGreaterEqual) lets Early-Z reject hidden fragments before the Stage pixel shader runs. This
 /// measures the main pass's GPU time with timestamps for a scene of full-screen layers drawn front to back (the case
-/// Early-Z helps most) and back to front, in the standard and the radial depth mode, and writes the samples to
+/// Early-Z helps most) and back to front, near (2 to 48 m) and far (100 to 1020 m; each object's raster depth touches at
+/// its own distance, M0100), in the standard and the radial depth mode, and writes the samples to
 /// <c>.artifacts/M0099/performance</c>. It records, never gates: timing depends on the adapter. Run with <c>CGE_PERFORMANCE_EVIDENCE=1</c> (and
 /// <c>CGE_PERFORMANCE_ADAPTER=hardware</c> for the GPU instead of WARP).
 /// </summary>
@@ -33,14 +34,15 @@ public sealed class RadialDepthPerformanceEvidence(ITestOutputHelper Output) {
         Report.Append("{\n  \"schema\": \"cge-radial-performance-evidence/1\",\n");
         string?Adapter=null;
         var Results=new List<string>();
+        foreach(var (Range,FirstMeters,StepMeters,FarZ) in new[]{("near",2f,2f,1000f),("far",100f,40f,2000f)})
         foreach(var Mapping in new[]{RenderDepthMapping.Standard,RenderDepthMapping.Radial}){
             foreach(var FrontToBack in new[]{true,false}){
-                var (Times,Description)=Measure(Hardware,Mapping,FrontToBack);
+                var (Times,Description)=Measure(Hardware,Mapping,FrontToBack,FirstMeters,StepMeters,FarZ);
                 Adapter??=Description;
                 Array.Sort(Times);
                 var Median=Times[Times.Length/2];
                 var P95=Times[(int)MathF.Ceiling(Times.Length*0.95f)-1];
-                var Name=$"{Mapping}-{(FrontToBack?"front-to-back":"back-to-front")}";
+                var Name=$"{Mapping}-{Range}-{(FrontToBack?"front-to-back":"back-to-front")}";
                 Output.WriteLine($"{Name}: median {Median:F3} ms, p95 {P95:F3} ms");
                 Results.Add(string.Create(CultureInfo.InvariantCulture,
                     $"    {{ \"case\": \"{Name}\", \"medianMilliseconds\": {Median:R}, \"p95Milliseconds\": {P95:R}, \"samples\": [{string.Join(", ",Times.Select(static Time=>Time.ToString("R",CultureInfo.InvariantCulture)))}] }}"));
@@ -55,7 +57,7 @@ public sealed class RadialDepthPerformanceEvidence(ITestOutputHelper Output) {
         Output.WriteLine($"Adapter: {Adapter}");
         Output.WriteLine($"Report: {Path_}");
     }
-    private static (float[]Times,string Adapter)Measure(bool Hardware,RenderDepthMapping Mapping,bool FrontToBack){
+    private static (float[]Times,string Adapter)Measure(bool Hardware,RenderDepthMapping Mapping,bool FrontToBack,float FirstMeters,float StepMeters,float FarZ){
         using var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine Radial Performance",Width=Width,Height=Height,Visible=false });
         var Plane=ProceduralMeshFactory.CreatePlane(Width:1f,Depth:1f);
         var Tangents=new Vector4[Plane.Positions.Length];
@@ -68,7 +70,7 @@ public sealed class RadialDepthPerformanceEvidence(ITestOutputHelper Output) {
             new GraphicsDeviceOptions { UseWarp=!Hardware,EnableDebugLayer=false },ShaderArtifactPath,Meshes,Materials,Objects);
         Renderer.EnableMainPassTimingForTesting();
         var View=Camera.CreateFirstPerson(Vector3.Zero);
-        View.FarZ=1000f;
+        View.FarZ=FarZ;
         View.DepthMapping=Mapping;
         var Times=new float[Samples];
         for(var Frame=0;Frame<Warmup+Samples;Frame++){
@@ -79,8 +81,8 @@ public sealed class RadialDepthPerformanceEvidence(ITestOutputHelper Output) {
                 Renderer.Submit(new PointLightSubmission(new Vector3(-3f+2f*Light,1f,1.5f),new(1f,0.8f,0.6f),new(300f),new(40f)));
             }
             for(var Index=0;Index<Layers;Index++){
-                // Layer k sits at 2 + 2k metres; drawing order follows the object index.
-                var Depth=FrontToBack?2f+2f*Index:2f+2f*(Layers-1-Index);
+                // Layer k sits at First + k * Step metres; drawing order follows the object index.
+                var Depth=FirstMeters+StepMeters*(FrontToBack?Index:Layers-1-Index);
                 var Size=Depth*2f;
                 Renderer.SetObjectTransform(Index,Matrix4x4.CreateScale(Size,1f,Size)*Matrix4x4.CreateRotationX(-MathF.PI/2f)*Matrix4x4.CreateTranslation(0f,0f,Depth));
             }

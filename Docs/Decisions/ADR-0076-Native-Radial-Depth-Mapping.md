@@ -66,7 +66,7 @@
 ## 追記（2026-10-04）: 保守的深度で Early-Z を取り戻す
 - 観測した事実: GPU のタイムスタンプで主パスを測ると（全画面の板 24 枚、1280×720、RTX 4060 Ti）、`SV_Depth` を書く対数の主パスは、手前から奥へ描く場面で標準の約 22 倍（0.132 ms 対 2.972 ms）だった。奥から手前では同じ（2.98 ms）で、コストは Early-Z を失った分だけだった（`RadialDepthPerformanceEvidence`）。
 - 決定: 主パスのラスタ深度を、符号化した深度の下界になる双曲線 `a − b/w`（w はビューの深さ）にし、画素シェーダーは `SV_DepthGreaterEqual` を宣言する。ハードウェアはラスタ深度で早期に棄却でき、棄却した画素は書く深度でも必ず失敗する。
-  - 双曲線は `G(w)/G(rMax)` に `w0 = 8·max(T, NearZ)` で接する。差 `G(w)/G(rMax) − (a − b/w)` は `w²/(T + w)` が増加するので w0 だけで最小値 0 を取り、全域で下界になる。画素の距離 r は w 以上なので、`G(r)` に対しても下界。丸めのために a を 1/4096 下げる（`RadialDepthProjection.ConservativeDepthLimit/Slope`、`RadialDepthTests.ConservativeRasterDepth_NeverExceedsTheEncodedDepth`）。
+  - 双曲線は `G(w)/G(rMax)` に `w0 = 8·max(T, NearZ)` で接する（追記「物体ごとの接点」で、物体ごとの接点に置き換えた）。差 `G(w)/G(rMax) − (a − b/w)` は `w²/(T + w)` が増加するので w0 だけで最小値 0 を取り、全域で下界になる。画素の距離 r は w 以上なので、`G(r)` に対しても下界。丸めのために a を 1/4096 下げる（`RadialDepthProjection.ConservativeDepthLimit/Slope`、`RadialDepthTests.ConservativeRasterDepth_NeverExceedsTheEncodedDepth`）。
   - この深度は near 面より遠くで 0 に達するので、主パスは深度クリップを無効にし、代わりに標準の投影の near/far の距離を `SV_ClipDistance` に出す（`RadialVSMain`、FrameCB `RadialRasterViewProjection`）。`SV_DepthGreaterEqual` を出す画素シェーダーは `SV_Position` を centroid・no-perspective で受ける必要があるので、専用の入力構造体 `RadialPixelInput` から `VertexOutput` へ写して `PSMain` を呼ぶ。
 - 結果: 同じ計測で対数の主パスは 0.171 ms（標準 0.124 ms の 1.4 倍、以前の約 17 倍速）。WARP は深度を書くシェーダーで Early-Z を使わないので変わらない（正しさの確認用）。
 - 帰結: クリップされる三角形では、クリップ距離による切断の丸めが視錐台の z 面と変わり、色が 8 ビットで最大 1 階調ずれることがある。クリップされない三角形は標準とビット一致のまま（`Radial_RendersTheStandardPixelsBitForBitOnTrianglesItDoesNotClip`、`..._WithinRoundingOnClippedTriangles`）。Stage ABI は `stage-v9`（14 エントリー）、FrameCB は 1008 バイト。
@@ -85,6 +85,11 @@
 - 決定: `log2(1 + x)` を float の四則演算だけで求める（`ln(1 + x) = 2 atanh(s)` の奇数次の級数を `s⁹` まで。`s = x / (2 + x)`、または `1 + x` をビットで `m · 2^e` に分けて `s = (m − 1) / (m + 1)`、`|s| ≤ 0.1716`）。CPU の `RadialDepthCurve.Log2OnePlus` も同じ式にする。
 - 結果: 実機でも画面中心の誤差は 4 ulp 以内（4 µm の誤差は 52 万 → 2.6 ulp）になり、対数の GPU テスト 25 件が実機で全件合格した。残る誤差は画面の端ほど大きく（4 µm で 41 ulp、20 km で 6 ulp）、中心ではほぼ 0 なので、シェーダーの計算ではなくラスタライザーが頂点をサブピクセル格子に丸めることによる（深度の勾配 × 1/256 画素）。標準の深度も同じ丸めた頂点から補間される。
 - ハードウェアの `log2` は WARP では見えないので、`StagePresentationShaderSourceTests` が表示用のエントリーから超越関数を締め出し、`RadialDepthPrecisionEvidence`（`CGE_PERFORMANCE_EVIDENCE=1`、`CGE_PERFORMANCE_ADAPTER=hardware`）が実機での精度を測る（旧実装に戻すと両方とも失敗することを確かめた）。
+
+## 追記（2026-10-04）: 物体ごとの接点
+- 観測した事実: 対数が既定になったので遠景の重なりを測ると（RTX 4060 Ti、全画面の板 24 枚を手前から奥へ）、100〜1020 m の層で標準 0.097 ms に対し対数 1.738 ms だった（2〜48 m では 0.133 対 0.173 ms）。保守的深度の双曲線は 8 m の接点の近くでしか符号化した深度に近づかず、遠くでは低い一定値になるので、早期の棄却が起きない。接点を一時的に約 500 m へ移すと遠い層は 0.262 ms になり、接点の位置が原因と確かめた。
+- 決定: 接点を物体ごとにする。双曲線はどの w0 > 0 で接しても全域で下界なので（上の導出は w0 によらない）、各物体の `(a, b)` をそのメッシュの境界の中心のビューの深さ（ビュー投影の W から求めるので、カメラでも行列で渡されたビューでも同じ）で接するように毎フレーム求め、`ObjectCB.RadialRasterDepth` に書く（`RadialDepthProjection.ConservativeDepthAt`、`StageRenderer.WriteRadialRasterDepths`）。`RadialVSMain` は標準のクリップ座標の深度だけを `a·w − b` に置き換える（X・Y・W は標準のまま）。FrameCB の `RadialRasterViewProjection` は無くなり、Stage ABI は `stage-v10`（FrameCB 944 バイト）。
+- 結果: 遠い層 1.738 → 0.123 ms（標準 0.091 ms）、近い層 0.171 ms（標準 0.133 ms）。対数の GPU テストは WARP でも実機でも全件合格し、標準の基準フレームは不変。
 
 ## 関連する機能
 - F-L5-038（対数深度カメラ）、F-L5-039（観察ビュー）、F-L0-002（StageRenderer）、F-L4-002（RenderServer）

@@ -93,30 +93,30 @@ public sealed class RadialDepthTests {
     [InlineData(1f,0.1f,300f)]
     [InlineData(1f,1e-6f,1e18f)]
     [InlineData(50f,0.01f,1e12f)]
-    public void ConservativeRasterDepth_NeverExceedsTheEncodedDepth(float Transition,float Near,float Far){
+    public void ConservativeRasterDepth_NeverExceedsTheEncodedDepthWhereverItTouches(float Transition,float Near,float Far){
         // Early depth rejection with SV_DepthGreaterEqual is safe only if the raster depth a - b/w is a lower bound of
-        // the encoded depth of every fragment: view depth w and distance r >= w (off-axis pixels).
+        // the encoded depth of every fragment: view depth w and distance r >= w (off-axis pixels). M0100 gives each
+        // object the tangent at its own view depth, so the bound must hold for a tangent anywhere in the view.
         Assert.True(RadialDepthCurve.TryCreate(Transition,out var Curve));
         Assert.True(RadialDepthProjection.TryCreate(Curve,Near,Far,FovY,Aspect,out var Projection));
-        var Touches=0;
-        foreach(var ViewDepth in LogSpaced(Near,Far,500)){
-            foreach(var Spread in new[]{1d,1.0001d,1.2d,1.8d}){
-                var Bound=Projection.ConservativeDepth((float)ViewDepth);
-                var Encoded=Projection.EncodeDepth((float)(ViewDepth*Spread));
-                Assert.True(Bound<=Encoded,$"w={ViewDepth:R} r={ViewDepth*Spread:R} bound={Bound:R} encoded={Encoded:R}");
-                if(Spread==1d&&Bound>Encoded*0.999f){ Touches++; }
+        foreach(var TangentDepth in LogSpaced(Near,Projection.FrustumCornerDistance,9)){
+            var Depth=Projection.ConservativeDepthAt((float)TangentDepth);
+            foreach(var ViewDepth in LogSpaced(Near,Far,300)){
+                foreach(var Spread in new[]{1d,1.0001d,1.2d,1.8d}){
+                    var Bound=Depth.At((float)ViewDepth);
+                    var Encoded=Projection.EncodeDepth((float)(ViewDepth*Spread));
+                    Assert.True(Bound<=Encoded,$"tangent={TangentDepth:R} w={ViewDepth:R} r={ViewDepth*Spread:R} bound={Bound:R} encoded={Encoded:R}");
+                }
             }
+            // The bound is tight at its tangent point, not a uselessly low constant.
+            var AtTangent=Depth.At((float)TangentDepth);
+            var EncodedAtTangent=Projection.EncodeDepth((float)TangentDepth);
+            Assert.True(AtTangent>EncodedAtTangent*0.999f,$"tangent={TangentDepth:R}: bound {AtTangent:R} against {EncodedAtTangent:R}");
         }
-        // The bound is tight near the tangent point, not a uselessly low constant.
-        Assert.True(Touches>0,"The bound must come within 0.1% of the depth near its tangent point.");
-        // The raster projection reproduces the bound (x, y and w are the standard projection's).
-        var Matrix=Projection.CreateConservativeRasterProjection(FovY,Aspect);
-        var Standard=Matrix4x4.CreatePerspectiveFieldOfView(FovY,Aspect,Near,Far);
-        Assert.Equal((Standard.M11,Standard.M22,Standard.M34),(Matrix.M11,Matrix.M22,Matrix.M34));
-        var Tangent=Projection.ConservativeTangentMeters;
-        Assert.Equal(RadialDepthProjection.ConservativeTangentRatio*MathF.Max(Transition,Near),Tangent);
-        var Clip=Vector4.Transform(new Vector4(0f,0f,-Tangent,1f),Matrix);
-        Assert.Equal(Projection.ConservativeDepth(Tangent),Clip.Z/Clip.W,1e-5f);
+        // Tangents outside the view are clamped to it; an unusable one falls back to the near plane.
+        Assert.Equal(Projection.ConservativeDepthAt(Near),Projection.ConservativeDepthAt(-5f));
+        Assert.Equal(Projection.ConservativeDepthAt(Near),Projection.ConservativeDepthAt(float.NaN));
+        Assert.Equal(Projection.ConservativeDepthAt(Projection.FrustumCornerDistance),Projection.ConservativeDepthAt(float.PositiveInfinity));
     }
     [Fact]
     public void Observer_CompressesDistancesToTheTransitionTimesG(){
@@ -167,9 +167,9 @@ public sealed class RadialDepthTests {
     [InlineData(1f,0.001f,1e12f)]
     [InlineData(2f,0.5f,40f)]
     [InlineData(1e-3f,1e-7f,5e-5f)]
-    public void ViewProjectionOnly_RebuildsTheMatricesACameraWouldBuild(float Transition,float Near,float Far){
-        // M0100: an editor hands the renderer one perspective view-projection. Rebuilding the raster and auxiliary
-        // depth columns from it must give what View · Projection gives, with X, Y and W untouched.
+    public void ViewProjectionOnly_RebuildsTheAuxiliaryMatrixACameraWouldBuild(float Transition,float Near,float Far){
+        // M0100: an editor hands the renderer one perspective view-projection. Rebuilding the auxiliary depth column
+        // from it must give what View · Projection gives, with X, Y and W untouched.
         Assert.True(RadialDepthCurve.TryCreate(Transition,out var Curve));
         Assert.True(RadialDepthProjection.TryCreate(Curve,Near,Far,FovY,Aspect,out var Projection));
         foreach(var (Eye,Target,Up) in new[]{
@@ -179,9 +179,8 @@ public sealed class RadialDepthTests {
             var View=Matrix4x4.CreateLookAt(Eye,Target,Up);
             var ViewProjection=View*Matrix4x4.CreatePerspectiveFieldOfView(FovY,Aspect,Near,Far);
             Assert.True(RadialDepthProjection.IsPerspective(ViewProjection));
-            var Raster=Projection.CreateConservativeRasterViewProjection(ViewProjection);
-            Assert.Equal(View*Projection.CreateConservativeRasterProjection(FovY,Aspect),Raster);
-            Assert.Equal(View*Projection.CreateAuxiliaryProjection(FovY,Aspect),Projection.CreateAuxiliaryViewProjection(ViewProjection));
+            var Raster=Projection.CreateAuxiliaryViewProjection(ViewProjection);
+            Assert.Equal(View*Projection.CreateAuxiliaryProjection(FovY,Aspect),Raster);
             Assert.Equal((ViewProjection.M11,ViewProjection.M21,ViewProjection.M31,ViewProjection.M41),(Raster.M11,Raster.M21,Raster.M31,Raster.M41));
             Assert.Equal((ViewProjection.M12,ViewProjection.M22,ViewProjection.M32,ViewProjection.M42),(Raster.M12,Raster.M22,Raster.M32,Raster.M42));
             Assert.Equal((ViewProjection.M14,ViewProjection.M24,ViewProjection.M34,ViewProjection.M44),(Raster.M14,Raster.M24,Raster.M34,Raster.M44));

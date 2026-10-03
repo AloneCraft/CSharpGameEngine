@@ -6,8 +6,8 @@ namespace CSharpGameEngine.ShaderArtifacts;
 /// this source. MaterialParams.z carries the presentation mode and EmissiveNits.w carries the
 /// selection weight. The shipping Stage entries intentionally ignore both components.
 /// The radial entries (M0099, ADR-0076) wrap the standard pixel entries unchanged and add the
-/// radial depth; FrameCB.DepthMapping0/1 carry their packet and FrameCB.RadialRasterViewProjection the
-/// main pass's conservative raster depth, which the standard entries never read.
+/// radial depth; FrameCB.DepthMapping0/1 carry their packet and ObjectCB.RadialRasterDepth each object's
+/// conservative raster depth for the main pass, which the standard entries never read.
 /// </summary>
 public static class StagePresentationShaderSource {
     public const string Source="""
@@ -125,8 +125,8 @@ struct RadialConservativePixelOutput
     float Depth : SV_DepthGreaterEqual;
 };
 
-// The radial main pass rasterizes its conservative depth without depth clipping (that depth reaches zero beyond the
-// near plane), so it clips with the standard projection's own near and far distances instead. Clip distances round a
+// The radial main pass rasterizes its conservative depth without depth clipping (that depth reaches zero nearer than
+// its tangent), so it clips with the standard projection's own near and far distances instead. Clip distances round a
 // clipped vertex differently from the depth planes, so values interpolated on a clipped triangle may differ from the
 // standard ones by one 8-bit level; unclipped triangles keep them exactly. The members mirror VertexOutput
 // (ShaderGraphCompilerTests keeps them in step).
@@ -170,7 +170,9 @@ RadialVertexOutput RadialVSMain(VertexInput input)
 {
     VertexOutput standard = VSMain(input);
     RadialVertexOutput output;
-    output.Position = mul(float4(standard.WorldPosition, 1.0), RadialRasterViewProjection);
+    // (a, b) = ObjectCB.RadialRasterDepth is tangent at this object's own view depth (M0100), so hidden fragments are
+    // rejected early at every distance; X, Y and W are the standard ones.
+    output.Position = float4(standard.Position.xy, RadialRasterDepth.x * standard.Position.w - RadialRasterDepth.y, standard.Position.w);
     output.WorldPosition = standard.WorldPosition;
     output.Normal = standard.Normal;
     output.Tangent = standard.Tangent;

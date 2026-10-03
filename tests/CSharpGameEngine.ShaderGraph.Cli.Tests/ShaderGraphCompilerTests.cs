@@ -102,7 +102,7 @@ public sealed class ShaderGraphCompilerTests {
         // procedural grid), M0099 Phase 0 (grid anchor and fog altitude of the render origin), M0099 Phase 3 (FrameCB
         // depth-mapping packet) and the M0099 conservative raster matrix intentionally changed the Stage program; the
         // migrate/extract round trip was verified byte-identical before those edits.
-        Assert.Equal("22583966BBEA1F11FC4A490C2DB3333CF6D77845DED4C7557318DDD9A6535BBE",Hash);
+        Assert.Equal("06838A472BE0005545DEFE4DF113F093B9FD153F5DD446974BD44262DAEB6D63",Hash);
     }
     [Fact]
     public void DependencySemanticChange_ChangesOnlyDependencyHash() {
