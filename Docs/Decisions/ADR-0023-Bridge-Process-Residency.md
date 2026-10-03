@@ -60,6 +60,8 @@ ADR-0010追記(本ADRの直前の変更)で、`ExternalBridgeProcess.RunProcess`
 - `ResidentBridgeClient`は自分のプロセスIDを`--parent-process-id`で渡す。
 - `BridgeServerHost`は`ParentProcessLifetime`(プレビューホストと共通、`Bridge.Hosting`)で所有者を監視し、
   所有者が終了するとアイドルタイムアウトと同じ経路で受け付けを止め、処理中の要求を片付けて終了する。
+  (2026-10-04追記、監査AUD-003)要求の受信はサーバーの寿命と30秒の受信期限で終わる(`BridgeWireMessage.ReadRequestAsync`)。
+  以前は受信にトークンが無く、要求を途中まで送って接続を保ったクライアントがいると、片付けが終わらずブリッジが残った。
 - パイプ名とスポーン用Mutexは所有者のプロセスIDも含めて決める。別のVS(別のインストール先・別の
   バージョン)が起動したブリッジには接続しない。
 - アイドルタイムアウト(15分)はそのまま残る。

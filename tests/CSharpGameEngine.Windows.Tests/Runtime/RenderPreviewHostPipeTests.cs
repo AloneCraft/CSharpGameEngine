@@ -36,6 +36,45 @@ public sealed class RenderPreviewHostPipeTests {
         Assert.True(Owned.Disposed);
     }
 
+    [Fact]
+    public async Task NamedPipe_StopsWhileAClientIsMidRequest(){
+        // Audit AUD-003: after the connection the request read used no token, so a client that sent part of a request
+        // and kept the pipe open kept the host from stopping.
+        string PipeName=$"CSharpGameEngine.Preview.Test.{Guid.NewGuid():N}";
+        using CancellationTokenSource Stop=new();
+        Task Server=RenderPreviewHostServer.RunAsync(PipeName,_=>new FakeSession(),Stop.Token);
+        using NamedPipeClientStream Stalled=await ConnectAndSendPartOfARequestAsync(PipeName);
+
+        Stop.Cancel();
+
+        await Server.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public async Task NamedPipe_DropsAClientThatDoesNotFinishItsRequestInTime(){
+        // The host has one pipe instance, so a stalled client must not hold it past the receive deadline.
+        string PipeName=$"CSharpGameEngine.Preview.Test.{Guid.NewGuid():N}";
+        using CancellationTokenSource Stop=new();
+        Task Server=RenderPreviewHostServer.RunAsync(PipeName,_=>new FakeSession(),TimeSpan.FromMilliseconds(200),Stop.Token);
+        using NamedPipeClientStream Stalled=await ConnectAndSendPartOfARequestAsync(PipeName);
+
+        RenderPreviewHostRequest Open=RenderPreviewHostSessionTableTests.CreateOpenForPipe();
+        RenderPreviewHostResponse Opened=await SendAsync(PipeName,Open).WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(RenderPreviewHostResultState.Succeeded,Opened.State);
+        Stop.Cancel();
+        await Server.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    private static async Task<NamedPipeClientStream>ConnectAndSendPartOfARequestAsync(string PipeName){
+        NamedPipeClientStream Pipe=new(".",PipeName,PipeDirection.InOut,PipeOptions.Asynchronous);
+        await Pipe.ConnectAsync(5_000);
+        await Pipe.WriteAsync(new byte[]{1});
+        await Pipe.FlushAsync();
+        await Task.Delay(100);
+        return Pipe;
+    }
+
     private static async Task<RenderPreviewHostResponse>SendAsync(
         string PipeName,RenderPreviewHostRequest Request){
         using NamedPipeClientStream Pipe=new(".",PipeName,PipeDirection.InOut,PipeOptions.Asynchronous);

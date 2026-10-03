@@ -46,7 +46,7 @@ Preview, Import, and Bake use a single versioned out-of-process protocol. The VS
 
 Protocol version mismatch fails before source mutation. Host crash and timeout are not auto-successfully retried. A fresh request may start after terminal cleanup.
 
-Every helper process the VSIX starts (the Preview Host and the resident bridges) is owned by the Visual Studio process that started it. It receives `--parent-process-id` and exits when that process exits, so it never keeps the extension's install folder locked against the next deployment. Resident bridge pipes are per owner: a Visual Studio never connects to another instance's bridges.
+Every helper process the VSIX starts (the Preview Host and the resident bridges) is owned by the Visual Studio process that started it. It receives `--parent-process-id` and exits when that process exits, so it never keeps the extension's install folder locked against the next deployment. Resident bridge pipes are per owner: a Visual Studio never connects to another instance's bridges. Both servers read each request with their own lifetime and a 30-second receive deadline (`BridgeWireMessage.ReadRequestAsync`), so a client that stops mid-request neither keeps a stopping helper alive nor holds the Preview Host's single pipe instance; such a connection is dropped without a response.
 
 ## Editing contracts
 

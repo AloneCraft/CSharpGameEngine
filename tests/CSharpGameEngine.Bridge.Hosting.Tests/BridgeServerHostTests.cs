@@ -131,6 +131,24 @@ public class BridgeServerHostTests {
     }
 
     [Fact]
+    public async Task Stop_EndsAConnectionThatStoppedMidRequest(){
+        // Audit AUD-003: the server drains accepted connections before it exits, so a client that sent part of a
+        // request and kept the pipe open used to keep the bridge (and the extension's locked files) alive.
+        var PipeName=UniquePipeName();
+        using var Stop=new CancellationTokenSource();
+        Task ServerTask=BridgeServerHost.RunAsync(PipeName,(_,_)=>(0,""),TimeSpan.FromSeconds(30),Stop.Token);
+        using var Client=new NamedPipeClientStream(".",PipeName,PipeDirection.InOut,PipeOptions.Asynchronous);
+        await Client.ConnectAsync((int)TimeSpan.FromSeconds(5).TotalMilliseconds);
+        await Client.WriteAsync(new byte[]{1});
+        await Client.FlushAsync();
+        await Task.Delay(100);
+
+        Stop.Cancel();
+
+        await ServerTask.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
     public async Task IdleTimeout_ExitsAcceptLoop(){
         var PipeName=UniquePipeName();
         Task ServerTask=BridgeServerHost.RunAsync(PipeName,(_,_)=>(0,""),TimeSpan.FromMilliseconds(200));

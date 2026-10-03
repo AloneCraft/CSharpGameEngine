@@ -27,6 +27,20 @@ public static class BridgeWireMessage {
         await Stream.FlushAsync(CancellationToken);
     }
 
+    /// <summary>The longest a server waits for a connected client to send its whole request (audit AUD-003).</summary>
+    public static readonly TimeSpan RequestReceiveTimeout=TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Reads one request on a server. It ends with <see cref="OperationCanceledException"/> when the server stops
+    /// (<paramref name="Lifetime"/>) or the client has not sent the whole request within <paramref name="Timeout"/>, so a
+    /// client that stops mid-request cannot keep the server running or hold its pipe.
+    /// </summary>
+    public static async Task<T>ReadRequestAsync<T>(Stream Stream,TimeSpan Timeout,CancellationToken Lifetime){
+        using var Receive=CancellationTokenSource.CreateLinkedTokenSource(Lifetime);
+        Receive.CancelAfter(Timeout);
+        return await ReadAsync<T>(Stream,Receive.Token).ConfigureAwait(false);
+    }
+
     public static async Task<T>ReadAsync<T>(Stream Stream,CancellationToken CancellationToken){
         var LengthPrefix=new byte[4];
         await Stream.ReadExactlyAsync(LengthPrefix,CancellationToken);

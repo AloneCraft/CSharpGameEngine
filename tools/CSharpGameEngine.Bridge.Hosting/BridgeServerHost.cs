@@ -63,7 +63,7 @@ public static class BridgeServerHost {
             // first.
             IdleCts.CancelAfter(IdleTimeout);
 
-            var RequestTask=HandleConnectionAsync(Pipe,Handler);
+            var RequestTask=HandleConnectionAsync(Pipe,Handler,IdleCts.Token);
             ActiveRequests.TryAdd(RequestTask,0);
             _=RequestTask.ContinueWith(
                 Completed=>ActiveRequests.TryRemove(Completed,out _),
@@ -75,10 +75,22 @@ public static class BridgeServerHost {
 
     private static async Task HandleConnectionAsync(
         NamedPipeServerStream Pipe,
-        Func<string[],CancellationToken,(int ExitCode,string Output)>Handler){
+        Func<string[],CancellationToken,(int ExitCode,string Output)>Handler,
+        CancellationToken Lifetime){
         await using(Pipe){
+            AuthoringHostRequest Request;
             try {
-                var Request=await BridgeWireMessage.ReadAsync<AuthoringHostRequest>(Pipe,CancellationToken.None);
+                // The accept loop drains accepted connections before it exits, so receiving must end with the server
+                // or after a deadline (audit AUD-003); a request still incomplete then has no one to answer.
+                Request=await BridgeWireMessage.ReadRequestAsync<AuthoringHostRequest>(
+                    Pipe,BridgeWireMessage.RequestReceiveTimeout,Lifetime);
+            } catch(OperationCanceledException){
+                return;
+            } catch(Exception Ex){
+                await TryWriteFailureAsync(Pipe,Ex.Message);
+                return;
+            }
+            try {
                 using CancellationTokenSource ClientConnection=new();
                 _=CancelWhenClientDisconnectsAsync(Pipe,ClientConnection);
                 var Response=await AuthoringHostSession.RunAsync(
@@ -93,21 +105,25 @@ public static class BridgeServerHost {
                 // A handler exception (bad input file etc.) must not take the resident process down -
                 // report it as a normal failure response instead, exactly like the one-shot bridge's
                 // non-zero exit code + stderr text.
-                try {
-                    await BridgeWireMessage.WriteAsync(Pipe,new AuthoringHostResult {
-                        State=AuthoringHostTerminalState.Failed,
-                        ExitCode=1,
-                        Output=Ex.Message,
-                        Diagnostics=[new AuthoringHostDiagnostic {
-                            Severity=AuthoringHostDiagnosticSeverity.Error,
-                            Code="HOST_PROTOCOL_FAILURE",
-                            Message=Ex.Message,
-                        }],
-                    },CancellationToken.None);
-                } catch {
-                    // Client already gone / pipe broken - nothing more to do for this connection.
-                }
+                await TryWriteFailureAsync(Pipe,Ex.Message);
             }
+        }
+    }
+
+    private static async Task TryWriteFailureAsync(NamedPipeServerStream Pipe,string Message){
+        try {
+            await BridgeWireMessage.WriteAsync(Pipe,new AuthoringHostResult {
+                State=AuthoringHostTerminalState.Failed,
+                ExitCode=1,
+                Output=Message,
+                Diagnostics=[new AuthoringHostDiagnostic {
+                    Severity=AuthoringHostDiagnosticSeverity.Error,
+                    Code="HOST_PROTOCOL_FAILURE",
+                    Message=Message,
+                }],
+            },CancellationToken.None);
+        } catch {
+            // Client already gone / pipe broken - nothing more to do for this connection.
         }
     }
 

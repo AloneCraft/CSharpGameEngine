@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — 要求の途中で止まったクライアントがホストの停止を妨げていた（監査 AUD-003）
+- 意図: Editor / VSIX 仕様「Host boundary and protocol」（所有者の終了とともに終わる）と、監査 AUD-003「通信途中でも期限・取消が有効」。
+- 観測（Fact）: 要求の長さの 1 バイトだけを送って接続を保つと、Preview Host も常駐ブリッジも、停止を要求してから 5 秒以内に終わらなかった。接続後の受信に `CancellationToken.None` を渡していた。ブリッジは停止の前に処理中の要求を待つので、そのまま残る。
+- 実装: `BridgeWireMessage.ReadRequestAsync`（サーバーの寿命と 30 秒の受信期限）を両方のサーバーで使う。期限を過ぎた接続は応答せずに切る。
+- 自動化された証拠: `BridgeServerHostTests.Stop_EndsAConnectionThatStoppedMidRequest`、`RenderPreviewHostPipeTests.NamedPipe_StopsWhileAClientIsMidRequest`・`NamedPipe_DropsAClientThatDoesNotFinishItsRequestInTime`（修正前はいずれも失敗）。
+- 結果: Matches（監査.md の AUD-003、ADR-0023 に追記）。
+
 ## 2026-10-04 探索 — 最後のアセットを読む間の取消が無視されていた（監査 AUD-002）
 - 意図: [Asset / Content 仕様](Specifications/Asset-Content-Pipeline.md)「失敗または取消は以前の Manifest を唯一の last-known-good として残す」。
 - 観測（Fact）: 最後の候補 artifact を読み終えた直後に呼出元が取消すと、`TryUpdateManifestAsync` は新 Manifest を有効にして成功を返した。取消の確認は各読み取りの前にしかなく、検証の後から公開までの間に無かった。
