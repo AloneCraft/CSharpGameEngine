@@ -30,6 +30,7 @@ internal sealed class RenderFrameState {
     private RenderCamera Camera;
     private Matrix4x4 ViewProjection;
     private Vector3 ViewProjectionCameraPosition;
+    private RadialViewParameters?ViewProjectionRadial;
     private float CameraAspectRatioOverride;
     private Vector3 AmbientLight;
     private FogParams Fog;
@@ -81,9 +82,10 @@ internal sealed class RenderFrameState {
     }
 
     public void RecordViewProjection(
-        in Matrix4x4 ViewProjection,in Vector3 CameraPosition){
+        in Matrix4x4 ViewProjection,in Vector3 CameraPosition,RadialViewParameters?Radial=null){
         this.ViewProjection=ViewProjection;
         this.ViewProjectionCameraPosition=CameraPosition;
+        this.ViewProjectionRadial=Radial;
         this.HasViewProjection=true;
         this.HasCamera=false;
     }
@@ -246,7 +248,10 @@ internal sealed class RenderFrameState {
 
     public void Replay(StageRenderer Renderer){
         ArgumentNullException.ThrowIfNull(Renderer);
-        if(this.HasViewProjection){
+        if(this.HasViewProjection&&this.ViewProjectionRadial is { }Radial){
+            Renderer.SetViewProjection(
+                this.ViewProjection,this.ViewProjectionCameraPosition,Radial);
+        } else if(this.HasViewProjection){
             Renderer.SetViewProjection(
                 this.ViewProjection,this.ViewProjectionCameraPosition);
         } else if(this.HasCamera){

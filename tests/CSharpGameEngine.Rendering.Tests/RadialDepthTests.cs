@@ -162,4 +162,30 @@ public sealed class RadialDepthTests {
         Assert.True(RadialDepthProjection.TryCreate(RadialDepthCurve.Default,0.1f,300f,FovY,Aspect,out var Projection));
         Assert.Equal(Matrix4x4.CreatePerspectiveFieldOfView(FovY,Aspect,0.1f,300f),Projection.CreateAuxiliaryProjection(FovY,Aspect));
     }
+    [Theory]
+    [InlineData(1f,0.1f,300f)]
+    [InlineData(1f,0.001f,1e12f)]
+    [InlineData(2f,0.5f,40f)]
+    [InlineData(1e-3f,1e-7f,5e-5f)]
+    public void ViewProjectionOnly_RebuildsTheMatricesACameraWouldBuild(float Transition,float Near,float Far){
+        // M0100: an editor hands the renderer one perspective view-projection. Rebuilding the raster and auxiliary
+        // depth columns from it must give what View · Projection gives, with X, Y and W untouched.
+        Assert.True(RadialDepthCurve.TryCreate(Transition,out var Curve));
+        Assert.True(RadialDepthProjection.TryCreate(Curve,Near,Far,FovY,Aspect,out var Projection));
+        foreach(var (Eye,Target,Up) in new[]{
+            (new Vector3(0f,1.6f,-4f),new Vector3(0.3f,1f,2f),Vector3.UnitY),
+            (new Vector3(12.5f,-3f,7f),new Vector3(-4f,2f,-9f),Vector3.Normalize(new Vector3(0.2f,1f,0.1f))),
+            (new Vector3(-1e3f,2e2f,5e2f),new Vector3(1e3f,-1e2f,-2e3f),Vector3.UnitY)}){
+            var View=Matrix4x4.CreateLookAt(Eye,Target,Up);
+            var ViewProjection=View*Matrix4x4.CreatePerspectiveFieldOfView(FovY,Aspect,Near,Far);
+            Assert.True(RadialDepthProjection.IsPerspective(ViewProjection));
+            var Raster=Projection.CreateConservativeRasterViewProjection(ViewProjection);
+            Assert.Equal(View*Projection.CreateConservativeRasterProjection(FovY,Aspect),Raster);
+            Assert.Equal(View*Projection.CreateAuxiliaryProjection(FovY,Aspect),Projection.CreateAuxiliaryViewProjection(ViewProjection));
+            Assert.Equal((ViewProjection.M11,ViewProjection.M21,ViewProjection.M31,ViewProjection.M41),(Raster.M11,Raster.M21,Raster.M31,Raster.M41));
+            Assert.Equal((ViewProjection.M12,ViewProjection.M22,ViewProjection.M32,ViewProjection.M42),(Raster.M12,Raster.M22,Raster.M32,Raster.M42));
+            Assert.Equal((ViewProjection.M14,ViewProjection.M24,ViewProjection.M34,ViewProjection.M44),(Raster.M14,Raster.M24,Raster.M34,Raster.M44));
+        }
+        Assert.False(RadialDepthProjection.IsPerspective(Matrix4x4.CreateLookAt(Vector3.Zero,Vector3.UnitZ,Vector3.UnitY)*Matrix4x4.CreateOrthographic(10f,10f,0.1f,100f)));
+    }
 }

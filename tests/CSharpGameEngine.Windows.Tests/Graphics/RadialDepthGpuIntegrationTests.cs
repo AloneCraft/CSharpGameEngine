@@ -175,6 +175,81 @@ public sealed class RadialDepthGpuIntegrationTests {
             new RenderCameraPreview(0,0,16,16,Matrix4x4.Identity,Vector3.Zero,DepthMapping:RenderDepthMapping.Radial),
         ]));
     }
+    /// <summary>The view-projection matrix and radial parameters an editor would hand over for <paramref name="View"/>.</summary>
+    private static (Matrix4x4 ViewProjection,Vector3 Eye,RadialViewParameters Radial)AsMatrix(Camera View,float Aspect)=>
+        (View.GetView()*View.GetProjection(Aspect),View.GetEyePosition(),new RadialViewParameters(View.FovYRadians,View.NearZ,View.FarZ,View.RadialTransitionMeters));
+    [WindowsOnlyFact]
+    [Trait("Category","GPU")]
+    public void RadialViewProjection_RendersWhatTheRadialCameraRenders(){
+        // M0100: an editor hands the renderer its camera as one perspective matrix. Drawn radial from that matrix, the
+        // frame and its depth equal the radial camera's.
+        using var Scene=FloatingScene.Create(Environment:false);
+        var View=Radial(Standard(new Vector3(0f,1.6f,-4f),PitchDegrees:-10f,FarZ:40f));
+        var CameraPixels=Scene.Render(View);
+        var CameraDepth=Scene.Renderer.ReadDepthForTesting();
+        var (ViewProjection,Eye,Parameters)=AsMatrix(View,(float)Scene.Window.ClientWidth/Scene.Window.ClientHeight);
+        var MatrixPixels=Scene.Render(Renderer=>Renderer.SetViewProjection(ViewProjection,Eye,Parameters));
+        Assert.Equal(CameraPixels,MatrixPixels);
+        Assert.Equal(CameraDepth,Scene.Renderer.ReadDepthForTesting());
+        // The same matrix drawn standard writes another depth, so the comparison above went through the radial path.
+        Scene.Render(Renderer=>Renderer.SetViewProjection(ViewProjection,Eye));
+        Assert.NotEqual(CameraDepth,Scene.Renderer.ReadDepthForTesting());
+        Scene.AssertNoDebugLayerErrors();
+    }
+    [WindowsOnlyFact]
+    [Trait("Category","GPU")]
+    public void RadialViewProjection_WithAnExtremeRange_RendersWhatTheRadialCameraRenders(){
+        // Near 1 mm and far 1e7 m: the sky, the sun cascades and the AO prepass take the auxiliary matrix, which the
+        // matrix path rebuilds from the matrix's own view depth.
+        var View=Radial(Standard(new Vector3(0f,1.6f,-4f),PitchDegrees:-10f,NearZ:0.001f,FarZ:1e7f));
+        var (ViewProjection,Eye,Parameters)=AsMatrix(View,160f/90f);
+        Assert.Equal(FloatingScene.RenderFresh(View,Environment:true),
+            FloatingScene.RenderFresh(Renderer=>Renderer.SetViewProjection(ViewProjection,Eye,Parameters),Environment:true));
+    }
+    [WindowsOnlyFact]
+    [Trait("Category","GPU")]
+    public void RadialViewProjection_RejectsOrthographicMatricesAndInvalidParameters(){
+        using var Scene=FloatingScene.Create(Environment:false);
+        var (ViewProjection,Eye,Parameters)=AsMatrix(Radial(Standard(new Vector3(0f,1.6f,-4f))),160f/90f);
+        var Orthographic=Matrix4x4.CreateLookAt(Eye,Vector3.Zero,Vector3.UnitY)*Matrix4x4.CreateOrthographic(10f,10f,0.1f,100f);
+        Assert.Throws<ArgumentException>(()=>Scene.Renderer.SetViewProjection(Orthographic,Eye,Parameters));
+        Assert.Throws<ArgumentException>(()=>Scene.Renderer.SetViewProjection(ViewProjection,Eye,Parameters with { NearZ=0f }));
+        Assert.Throws<ArgumentException>(()=>Scene.Renderer.SetViewProjection(ViewProjection,Eye,Parameters with { FarZ=Parameters.NearZ }));
+        Assert.Throws<ArgumentException>(()=>Scene.Renderer.SetViewProjection(ViewProjection,Eye,Parameters with { TransitionMeters=float.NaN }));
+        Assert.Throws<ArgumentException>(()=>Scene.Renderer.SetViewProjection(ViewProjection,Eye,Parameters with { FovYRadians=0f }));
+        Scene.AssertNoDebugLayerErrors();
+    }
+    [WindowsOnlyFact]
+    [Trait("Category","GPU")]
+    public void RadialViewProjection_SurvivesDeviceRecovery(){
+        var Task=System.Threading.Tasks.Task.Run(static()=>{
+            var Roster=RenderServer.BuildPrimitiveRoster([PrimitiveType.Box],0,0);
+            using var Window=new Win32Window(new Win32WindowOptions { Title="Radial matrix recovery",Width=128,Height=128,Visible=false });
+            using var Renderer=RenderServer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,
+                new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,Roster.Meshes,Roster.Materials,Roster.Objects);
+            var View=Camera.CreateDefault(Vector3.Zero);
+            View.FarZ=1e12f;
+            var (ViewProjection,Eye,Parameters)=AsMatrix(View,1f);
+            Renderer.SetViewProjection(ViewProjection,Eye,Parameters);
+            Renderer.SetAmbientLight(new Vector3(0.1f));
+            Renderer.AddDirectionalLight(new DirectionalLightSubmission(Vector3.Normalize(new Vector3(1f,-1f,1f)),White,new(100f),Shadow));
+            Renderer.SetObjectTransform(0,Matrix4x4.Identity);
+            Renderer.RenderFrame(CaptureForVerification:true);
+            var Before=Renderer.LastCapturedFrame!.Pixels.ToArray();
+            var DepthBefore=Renderer.ReadDepthForTesting();
+            Renderer.RemoveDeviceForTesting();
+            Renderer.RenderFrame(CaptureForVerification:true);
+            Assert.Equal(2u,Renderer.DeviceSnapshot.Generation);
+            Assert.Equal(Before,Renderer.LastCapturedFrame!.Pixels);
+            Assert.Equal(DepthBefore,Renderer.ReadDepthForTesting());
+            // The box 4.5 m away: radial depth log2(1 + 4.5) / log2(1 + rMax) is about 0.06; standard depth with a 1e12 m
+            // far plane would be about 0.98.
+            var Center=DepthBefore[64*128+64];
+            Assert.True(Center>0f&&Center<0.2f,$"centre depth {Center}");
+            Assert.Equal(0,Renderer.ErrorOrWorseMessageCount);
+        });
+        Assert.True(Task.Wait(TimeSpan.FromSeconds(60)));
+    }
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
     public void RadialCamera_RendersIdenticalPixelsAfterDeviceRecovery(){
@@ -307,15 +382,19 @@ public sealed class RadialDepthGpuIntegrationTests {
             return new FloatingScene(Window,Renderer,Environment,Clipped);
         }
         /// <summary>Renders from a new renderer, so temporal state (GI history) cannot leak between compared frames.</summary>
-        public static byte[]RenderFresh(Camera View,bool Environment,int Frames=4,bool Clipped=true){
+        public static byte[]RenderFresh(Camera View,bool Environment,int Frames=4,bool Clipped=true)=>
+            RenderFresh(Renderer=>Renderer.SetCamera(View),Environment,Frames,Clipped);
+        public static byte[]RenderFresh(Action<StageRenderer>SetView,bool Environment,int Frames=4,bool Clipped=true){
             using var Scene=Create(Environment,Clipped);
-            var Pixels=Scene.Render(View,Frames);
+            var Pixels=Scene.Render(SetView,Frames);
             Scene.AssertNoDebugLayerErrors();
             return Pixels;
         }
-        public byte[]Render(Camera View,int Frames=2){
+        public byte[]Render(Camera View,int Frames=2)=>this.Render(Renderer=>Renderer.SetCamera(View),Frames);
+        /// <summary>Renders with the view <paramref name="SetView"/> sets each frame (a camera or a view-projection).</summary>
+        public byte[]Render(Action<StageRenderer>SetView,int Frames=2){
             for(var Frame=0;Frame<Frames;Frame++){
-                this.Renderer.SetCamera(View);
+                SetView(this.Renderer);
                 if(this.Environment){
                     this.Renderer.SetEnvironmentLighting(new EnvironmentLightingSettings(
                         SkyAtmosphereSettings.Earth,new SkyLightSettings(1f,Vector3.Zero),

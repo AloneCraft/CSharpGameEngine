@@ -2024,6 +2024,27 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     /// <summary>
+    /// M0100: an isolated preview's camera-relative perspective matrix drawn with radial depth. The matrix is used as
+    /// given, so coverage, overlays and picking stay those of the caller's matrix; the radial packet, the conservative
+    /// raster matrix and the auxiliary matrix are derived from it and <paramref name="Radial"/>.
+    /// </summary>
+    internal void SetViewProjection(
+        in Matrix4x4 ViewProjection,in Vector3 CameraPosition,in RadialViewParameters Radial){
+        this.ThrowIfDisposed();
+        if(!RadialDepthProjection.IsPerspective(ViewProjection)
+            ||!RadialDepthCurve.TryCreate(Radial.TransitionMeters,out var Curve)
+            ||!RadialDepthProjection.TryCreate(Curve,Radial.NearZ,Radial.FarZ,Radial.FovYRadians,(float)this.Width/ this.Height,out var Projection)){
+            throw new ArgumentException("A radial view-projection must be a perspective one with a finite positive transition length, 0 < NearZ < FarZ (finite) and a valid field of view.",nameof(Radial));
+        }
+        this.SetViewProjection(ViewProjection,CameraPosition);
+        this.CurrentDepthMapping=RenderDepthMapping.Radial;
+        this.CurrentRadialProjection=Projection;
+        this.CurrentAuxiliaryViewProjection=Projection.CreateAuxiliaryViewProjection(ViewProjection);
+        this.CurrentRadialRasterViewProjection=Projection.CreateConservativeRasterViewProjection(ViewProjection);
+        this.WriteDepthMapping(this.FrameIndex);
+    }
+
+    /// <summary>
     /// Backward-compatible singleton setter. It replaces this frame's additive Directional list
     /// with exactly one light. <paramref name="DirectionTowardLight"/> points from the scene
     /// toward the light, not the direction light travels.

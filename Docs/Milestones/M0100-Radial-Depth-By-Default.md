@@ -19,7 +19,8 @@
 |---|---|---|
 | 1 | 描画カメラのファクトリーの既定を対数にする | 完了 |
 | 2 | シーンの Camera コンポーネントの既定を対数にする | 完了 |
-| 3 | エディタの分離プレビュー、Asset Preview、カメラのサムネイルを対数にする | 未着手 |
+| 3a | 行列で渡されるビューを対数で描くレンダラーの入口 | 完了 |
+| 3b | エディタの分離プレビュー、Asset Preview、カメラのサムネイルを対数にする（プロトコル、プレビューホスト、VSIX） | 未着手 |
 | 4 | 文書、SDK の版 | 未着手 |
 
 ## 段階 1. 描画カメラのファクトリー
@@ -32,3 +33,8 @@
 - テスト: `SceneCameraTests`、`SceneJsonRuntimeValuesTests.Camera_ReadsTheDepthMappingAndIsRadialWhenAbsent`（キーが無ければ対数、`"Standard"` なら標準）、`EditorRuntimeViewTests.EditorCamera_OnARadialSceneCamera_SeesBothItsOwnRangeAndTheScenes`。
 - 結果: Windows.Tests 408/408、CodeAnalysis 175/175、SceneModel 175/175、FeatureRunner 154/154、VSExtension 1079/1080（失敗はユーザーが作業中の未追跡テスト 1 件で無関係）。
 - 実機: ThirdPerson を WARP で 90 フレーム（W で歩いてジャンプ）動かし、既定（対数）と、シーンに一時的に `"DepthMapping": "Standard"` を足した標準を撮影した。D3D12 エラーは両方 0、カメラの最終位置は同じ。画像は 99.98% の画素でビット一致し、違う 167 画素も最大 2 階調（`.artifacts/M0100/step2/`）。撮影後にシーンを元に戻した。
+
+## 段階 3a. 行列で渡されるビュー
+- 分離プレビューは VSIX が作ったビュー投影の行列を渡す（`SetViewProjection`）。ギズモやピッキングとずれないよう、この行列はそのまま使う。
+- 実装: `RadialViewParameters`（FovY、NearZ、FarZ、T）と `StageRenderer`/`RenderServer.SetViewProjection(行列, 位置, RadialViewParameters)`。透視の行列では W がビューの深さなので、保守的深度と補助の行列は深度の列だけを `M33·z + M43`（z = −W）で作り直す（`RadialDepthProjection.CreateConservativeRasterViewProjection`/`CreateAuxiliaryViewProjection`）。逆行列は要らず、X・Y・W の列は元の行列とビット一致する。`RenderFrameState` が記録し、デバイス復旧で再生する。
+- テスト: `RadialDepthTests.ViewProjectionOnly_RebuildsTheMatricesACameraWouldBuild`（4 つの範囲・3 つの姿勢で `View · Projection` と完全一致、正射影は透視でないと判定）。`RadialDepthGpuIntegrationTests` の 4 件（行列で描いた画像と深度が対数カメラとビット一致、near 1 mm・far 1e7 m の環境ありの場面でも一致、正射影と不正な値を拒否、デバイス復旧後も同じ画像と深度で、深度が対数の値）。Windows.Tests 412/412、Rendering 65/65。

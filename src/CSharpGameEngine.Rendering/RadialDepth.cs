@@ -49,6 +49,12 @@ public readonly record struct RadialDepthCurve {
 }
 
 /// <summary>
+/// What a radial view handed over as a view-projection matrix (an editor's camera, M0100) needs besides the matrix: its
+/// vertical field of view, clip range and transition length. The matrix stays authoritative for coverage.
+/// </summary>
+public readonly record struct RadialViewParameters(float FovYRadians,float NearZ,float FarZ,float TransitionMeters=RadialDepthCurve.DefaultTransitionMeters);
+
+/// <summary>
 /// Everything a radial view derives from its camera (M0099): the depth normaliser, the far plane kept per fragment,
 /// the finite view-projection for the passes that invert it, and the observer view's compressed-world radius.
 /// </summary>
@@ -118,6 +124,34 @@ public readonly record struct RadialDepthProjection {
         Projection.M33=-this.ConservativeDepthLimit;
         Projection.M43=-this.ConservativeDepthSlope;
         return Projection;
+    }
+    /// <summary>
+    /// <see cref="CreateConservativeRasterProjection"/> for a view handed over as one perspective view-projection (an
+    /// editor's camera, M0100): only the depth column changes, so X, Y and W stay bit-identical to the given matrix.
+    /// </summary>
+    public Matrix4x4 CreateConservativeRasterViewProjection(in Matrix4x4 PerspectiveViewProjection)=>
+        WithDepthColumn(PerspectiveViewProjection,-this.ConservativeDepthLimit,-this.ConservativeDepthSlope);
+    /// <summary><see cref="CreateAuxiliaryProjection"/> for a view handed over as one perspective view-projection.</summary>
+    public Matrix4x4 CreateAuxiliaryViewProjection(in Matrix4x4 PerspectiveViewProjection){
+        // The same expressions as Matrix4x4.CreatePerspectiveFieldOfView, so an unchanged range rebuilds the given matrix.
+        var Range=this.AuxiliaryFarZ/(this.AuxiliaryNearZ-this.AuxiliaryFarZ);
+        return WithDepthColumn(PerspectiveViewProjection,Range,Range*this.AuxiliaryNearZ);
+    }
+    /// <summary>Whether a view-projection is a perspective one: its W (the view depth) depends on the position.</summary>
+    public static bool IsPerspective(in Matrix4x4 ViewProjection)=>
+        ViewProjection.M14!=0f||ViewProjection.M24!=0f||ViewProjection.M34!=0f;
+    /// <summary>
+    /// Replaces the depth column of a perspective view-projection by <c>M33 · z + M43</c> (z: view-space z). A perspective's
+    /// W is <c>−z</c>, so the view's z column is the negated fourth column and nothing has to be inverted; the products are
+    /// the ones <c>View · Projection</c> forms, so the result equals building the projection with these entries.
+    /// </summary>
+    private static Matrix4x4 WithDepthColumn(in Matrix4x4 ViewProjection,float M33,float M43){
+        var Result=ViewProjection;
+        Result.M13=-M33*ViewProjection.M14;
+        Result.M23=-M33*ViewProjection.M24;
+        Result.M33=-M33*ViewProjection.M34;
+        Result.M43=-M33*ViewProjection.M44+M43;
+        return Result;
     }
     /// <summary>Radius of the compressed world seen by an observer: <c>T · G(FrustumCornerDistance)</c>.</summary>
     public float ObservedWorldRadius=>this.Curve.Map(this.FrustumCornerDistance);

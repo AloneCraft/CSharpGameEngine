@@ -88,6 +88,7 @@ public sealed class RenderServer:IDisposable {
     public int SurfaceHeight=>this.Height;
 
     internal void RemoveDeviceForTesting()=>this.Backend.RemoveDeviceForTesting();
+    internal float[]ReadDepthForTesting()=>this.Backend.ReadDepthForTesting();
 
     private StageRenderer Backend{
         get{
@@ -149,6 +150,16 @@ public sealed class RenderServer:IDisposable {
         in Matrix4x4 ViewProjection,in Vector3 CameraPosition){
         this.Backend.SetViewProjection(ViewProjection,CameraPosition);
         this.PendingFrame.RecordViewProjection(ViewProjection,CameraPosition);
+    }
+
+    /// <summary>
+    /// M0100: an isolated preview's perspective matrix drawn with radial depth; <paramref name="Radial"/> carries the
+    /// camera's field of view, clip range and transition length. Device recovery replays it.
+    /// </summary>
+    public void SetViewProjection(
+        in Matrix4x4 ViewProjection,in Vector3 CameraPosition,in RadialViewParameters Radial){
+        this.Backend.SetViewProjection(ViewProjection,CameraPosition,Radial);
+        this.PendingFrame.RecordViewProjection(ViewProjection,CameraPosition,Radial);
     }
 
     public void SetDirectionalLight(in DirectionalLightSubmission Value){
