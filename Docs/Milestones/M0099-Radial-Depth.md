@@ -105,13 +105,13 @@ Unity URP 用の対数（Radial）レンダリング資産 Omni（`D:\Unity\6.6\
 ## Phase 7. ステージ、実機の確認、照合
 - Visual Stage `rendering.radial-depth`（WARP 必須）: `RadialDepthTests`、`ShaderGraphCompilerTests`、Windows.Tests の対数・標準基準・観察者・エディタ・シーン・ホットリロードのテスト、Rendering パックの参照シーン。Roadmap の Rendering 表に F-L5-038（レベル 6）と F-L5-039（レベル 7）を足し、`FeatureStageCatalogTests` を更新した。`dotnet run --project tools/CSharpGameEngine.FeatureRunner -- run rendering.radial-depth --adapter warp` が合格した（`.artifacts/FeatureStages/20261003T154551274Z-single-b6d439afb5e14c29867861b963d5fa05.run-result.json`）。
 - 実機: ThirdPerson テンプレートのシーンを一時的に対数カメラ（near 0.01 m・far 1e12 m）と観察者に変えて WARP で 40 フレーム歩かせ、撮影した（D3D12 エラー 0）。メインビューは標準の撮影とほぼ同じ（小窓の外で平均 0.2 階調）で、小窓には圧縮したレベルと中央カメラの模型が写った（`.artifacts/M0099/phase7/radial_walked.png`、`radial_inset_zoom.png`）。撮影後にシーンを元に戻した。
-- 文書: Rendering 仕様のステージ表、Architecture、CHANGELOG（ABI `stage-v8` で古い Stage グラフの複製が読めなくなること、Early-Z を失うこと）、Conformance、Implementation-Status（F-L5-038/039 は Implemented、TestVerified と RuntimeVerified (WARP)）。
+- 文書: Rendering 仕様のステージ表、Architecture、CHANGELOG（ABI の更新で古い Stage グラフの複製が読めなくなること）、Conformance、Implementation-Status（F-L5-038/039 は Implemented、TestVerified と RuntimeVerified (WARP)）。
 
 ## 完了の判定
 - 実装したもの: Phase 0〜7（上記）。
-- 除外したもの: [Omni 仕様](../Specifications/Omni.md) の非目標（Threshold 曲線、通常カメラの頂点の写像、カリング、モーションベクトル、正射影の対数グリッド、エディタの切替 UI、天文規模のエディタのナビゲーション、分離プレビューでの対数、観察者の全画面表示とその中のピッキング・ギズモ、天体間の影、保守的深度）。
+- 除外したもの: [Omni 仕様](../Specifications/Omni.md) の非目標（Threshold 曲線、通常カメラの頂点の写像、カリング、モーションベクトル、正射影の対数グリッド、エディタの切替 UI、天文規模のエディタのナビゲーション、分離プレビューでの対数、観察者の全画面表示とその中のピッキング・ギズモ、天体間の影、対数のサムネイルの Early-Z）。
 - 意図と観測の一致: Matches（F-L5-038、F-L5-039）。標準モードは `StandardModeGoldenFrameTests` の 7 場面が全フェーズで不変。
-- 残っていること: 対数 PSO の性能の計測（Early-Z が効かない）。
+- 残っていること: なし（性能の計測と対策は下の追補）。
 
 ## 追補（2026-10-04）. 対数の主パスで Early-Z を取り戻す
 - 残っていた「性能の計測」を行った。`StageRenderer` にテスト用の GPU タイムスタンプ（主パスの描画の前後、有効にしない限り命令を積まない）を足し、`RadialDepthPerformanceEvidence`（`CGE_PERFORMANCE_EVIDENCE=1` のときだけ動く。`PerformanceEvidenceFactAttribute`）で測った。
