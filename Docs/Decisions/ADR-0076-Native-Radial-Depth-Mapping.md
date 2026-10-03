@@ -20,7 +20,7 @@
 ### 2. 曲線は Omni の Smooth だけ（メートルで表す）
 - `G(r) = log2(1 + r / T)`。`T` は `RadialTransitionMeters`（既定 1 m）。正規化した深度では Omni の view scale `M` と倍率 `S` が打ち消し合うので持たない。
 - Threshold は採らない（ユーザー指示 2026-10-03）。曲線の種類を選ぶ欄は作らない。
-- `log2(1 + x)` は丸めた和 `u = 1 + x` の対数を `x / (u − 1)` で補正する（Kahan の log1p）。CPU（`RadialDepthCurve.Log2OnePlus`）とシェーダーで同じ式を使う。
+- `log2(1 + x)` は float の四則演算だけで求め、CPU（`RadialDepthCurve.Log2OnePlus`）とシェーダーで同じ式を使う（追記「GPU の log2 を使わない」。当初は丸めた和の対数を Kahan の補正で直していたが、GPU の `log2` が近似だったため置き換えた）。
 
 ### 3. 精度予算
 - D32 float の 1 付近の刻みは 2^-24。2 つの面を見分けられる相対距離はおよそ `2^-24 · ln2 · log2(rMax / T) · (1 + T / r)`。near 0.1 m・far 1e18 m で約 3e-6（`RadialDepthTests.Encoding_SeparatesSurfacesAtTheBudgetedRelativeDistanceOnEveryScale`）。`r ≪ T` では float の相対精度がそのまま効く。
@@ -78,6 +78,13 @@
 - 段階 2（シーンの Camera コンポーネント）: 既定を Radial にした。Scene JSON は既定と違う値だけを書くので、キーの無い既存のシーン（ThirdPerson、UserEcsProject）は対数になり、標準にするには `"DepthMapping": "Standard"` を書く。エディタのランタイムビューの範囲は、対数ではエディタの範囲とシーンカメラの範囲の両方を含む（近い方の near、遠い方の far）。M0099 では対数のシーンカメラの範囲に置き換えていたが、既定が対数になるとエディタで引いたときにシーンカメラの far（既定 300 m）より先が切れるので、両方を含めることにした（対数ではどんな範囲も精度を失わない）。
   - 観測: Windows.Tests は変更なし（新しい範囲のテストを除く）で全件合格した。
 - 段階 3（エディタの分離プレビューとカメラのサムネイル）: 分離プレビューはエディタが作ったビュー投影の行列をそのまま使い、対数に要る行列は深度の列だけを行列自身の W から作り直す（ギズモ・ピッキングとずれない）。プロトコルは 8 にし、カメラに深度方式と T を載せる。VSIX は透視のビューを Radial、正射影を Standard にし、サムネイルはシーンカメラの `DepthMapping`（既定 Radial）に従う。ThirdPerson を WARP で 90 フレーム動かして（W で歩いてジャンプ）撮影すると、対数と標準の画像は 99.98% の画素でビット一致し、違う画素も最大 2 階調だった（`.artifacts/M0100/step2/`）。
+
+## 追記（2026-10-04）: GPU の log2 を使わない
+- 観測した事実: 対数の GPU テストを一時的に実機（RTX 4060 Ti）で流すと 25 件中 2 件が失敗した。20 km 先で 5 cm 離れた 2 枚で 0.5 % の画素に奥の面が見え、4 µm の場面で標準と違う面が勝った。WARP ではどちらも合格する。深度を画素ごとに倍精度の基準と比べると、実機の誤差は最大 7.7（20 km）・11.4（50 m）・35.8（0.5 m）・52 万 ulp（4 µm、中心の深度が 3 % ずれる）、WARP は 4 ulp 以下だった。
+- 原因: シェーダーの `log2` はハードウェアの近似命令で、`1 + x` が 1 に近いと絶対誤差が値そのものを覆い、そうでなくても数 ulp ずれる。Kahan の補正は `log2` が正確なことを前提にしている。
+- 決定: `log2(1 + x)` を float の四則演算だけで求める（`ln(1 + x) = 2 atanh(s)` の奇数次の級数を `s⁹` まで。`s = x / (2 + x)`、または `1 + x` をビットで `m · 2^e` に分けて `s = (m − 1) / (m + 1)`、`|s| ≤ 0.1716`）。CPU の `RadialDepthCurve.Log2OnePlus` も同じ式にする。
+- 結果: 実機でも画面中心の誤差は 4 ulp 以内（4 µm の誤差は 52 万 → 2.6 ulp）になり、対数の GPU テスト 25 件が実機で全件合格した。残る誤差は画面の端ほど大きく（4 µm で 41 ulp、20 km で 6 ulp）、中心ではほぼ 0 なので、シェーダーの計算ではなくラスタライザーが頂点をサブピクセル格子に丸めることによる（深度の勾配 × 1/256 画素）。標準の深度も同じ丸めた頂点から補間される。
+- ハードウェアの `log2` は WARP では見えないので、`StagePresentationShaderSourceTests` が表示用のエントリーから超越関数を締め出し、`RadialDepthPrecisionEvidence`（`CGE_PERFORMANCE_EVIDENCE=1`、`CGE_PERFORMANCE_ADAPTER=hardware`）が実機での精度を測る（旧実装に戻すと両方とも失敗することを確かめた）。
 
 ## 関連する機能
 - F-L5-038（対数深度カメラ）、F-L5-039（観察ビュー）、F-L0-002（StageRenderer）、F-L4-002（RenderServer）

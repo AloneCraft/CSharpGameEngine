@@ -1,5 +1,13 @@
 # Conformance
 
+## 2026-10-04 M0100 探索 — 実機の GPU で対数の前後判定が崩れていた
+- 意図: [Omni 仕様](Specifications/Omni.md) 不変条件 3（全スケールで前後が物理距離の順）と精度予算。
+- 観測（Fact）: 対数の GPU テストを一時的に RTX 4060 Ti で流すと 25 件中 2 件が失敗した（20 km・5 cm の 2 枚で赤が 99.5 %、4 µm の場面で標準と違う面）。WARP では合格。深度の誤差は実機で最大 52 万 ulp（4 µm）、WARP は 4 ulp 以下。
+- 切り分け: (1) 保守的深度の約束違反は、20 km ではラスタの下界（約 0.27）が深度（約 0.86）よりずっと小さく起こり得ない。(2) `log2` を float の級数に替えると 4 µm の誤差が 52 万 → 41.5 ulp、中心の深度が WARP と一致した。(3) 距離の大きさをラスタライザーの `SV_Position.w` から取っても誤差は変わらず、補間した位置の大きさの誤差ではなかった。(4) 残る誤差は画面の中心で 1.2〜2.6 ulp、端で 6〜41 ulp で、頂点のサブピクセルへの丸めと深度の勾配による。
+- 実装: シェーダーと CPU の `log2(1 + x)` を float の四則演算だけの級数にした（ADR-0076 追記）。
+- 自動化された証拠: `StagePresentationShaderSourceTests.PresentationEntries_AvoidTheHardwareLogarithmAndExponent`、`RadialDepthPrecisionEvidence`（実機・WARP とも中心 4 ulp 以内）。旧実装に戻すと両方とも失敗することを確かめた。修正後は対数の GPU テスト 25 件が実機でも全件合格した。
+- 結果: Matches。精度予算に、実機ではラスタライザーの丸めが画面の端の誤差を増やすことを書き足した。
+
 ## 2026-10-04 M0099 探索 — シーンの Camera の値の編集がビューに届かなかった
 - 意図: [Rendering 仕様](Specifications/Rendering.md) の Scene ビューのランタイムビュー「編集は動作中の世界の部品の値を変える」。`RenderPreviewRuntimeSession.ReplaceScene` は値の編集を `TrySetComponent` で部品ごと差し替え、他の部品は Presentation のシステムが毎フレームレンダラーへ運ぶ。
 - 観測（Fact）: `LevelLoad` はシーンカメラの部品を読み込み時に一度だけ写していた（露出、M0099 で足した深度方式と T、ゲームでは FovY/NearZ/FarZ）。読み込み後に部品を差し替えても、エディタでもゲームでも描画カメラは標準・元の露出のままだった（`EditorRuntimeViewTests` の 2 件で再現、修正前に失敗）。部品は存在するので `BuildRequired` も立たず、ビューは黙って古い値で描き続けていた。M0099 の「露出と同じく読み込み時に読む」は前例に合わせただけで、根拠は無かった。

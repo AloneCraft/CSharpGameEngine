@@ -20,7 +20,7 @@ One camera sees from millimetres to the Q64.64 range (about 9.2e18 m) with corre
 ## Curve
 
 - `G(r) = log2(1 + r / T)`, `T = RadialTransitionMeters` (default 1 m, finite and positive). Omni's Smooth curve; no other curve exists.
-- `log2(1 + x)` is evaluated as `u = 1 + x; u == 1 ? x / ln2 : log2(u) · x / (u − 1)` on the CPU (`RadialDepthCurve.Log2OnePlus`) and in the shader.
+- `log2(1 + x)` is evaluated with float arithmetic only, the same on the CPU (`RadialDepthCurve.Log2OnePlus`) and in the shader (`RadialLog2OnePlus`): `ln(1 + x) = 2 atanh(s)` by its odd series to `s⁹`, with `s = x / (2 + x)` below `√2 − 1` and, above it, `1 + x = m · 2^e` (bit split, `m` in `(√½, √2]`) and `s = (m − 1) / (m + 1)`. The shader never calls the hardware `log2`, an approximation (on an RTX 4060 Ti it put a 4 µm surface's depth 3 % off); `StagePresentationShaderSourceTests` keeps transcendental intrinsics out of the presentation entries.
 - `r` is the length of the camera-relative physical position, computed after dividing by the largest component.
 - `rMax = FarZ · sqrt(1 + tan²(fovY/2) · (1 + aspect²))` (the far-plane corner); `InverseMaximumG = 1 / G(rMax)`.
 - Observer compression: `F(d) = T · G(d)` metres; the compressed world has radius `T · G(rMax)`.
@@ -49,7 +49,7 @@ One camera sees from millimetres to the Q64.64 range (about 9.2e18 m) with corre
 
 ## Precision budget
 
-With 32-bit float depth, two surfaces are distinguished once their relative distance exceeds about `2^-24 · ln2 · log2(rMax / T) · (1 + T / r)` (about 3e-6 for near 0.1 m and far 1e18 m). Below `T` the float's own relative precision applies.
+With 32-bit float depth, two surfaces are distinguished once their relative distance exceeds about `2^-24 · ln2 · log2(rMax / T) · (1 + T / r)` (about 3e-6 for near 0.1 m and far 1e18 m). Below `T` the float's own relative precision applies. On a GPU the rasterizer adds error of its own: vertices snap to its sub-pixel grid, so the interpolated position moves by up to the distance gradient times 1/256 pixel. In the middle of a view the written depth is within 4 ulps of the double oracle on WARP and on an RTX 4060 Ti; near the edges of a 160 × 90 view the GPU reached 6 ulps at 20 km and 41 ulps at 4 µm (`RadialDepthPrecisionEvidence`, on demand). Standard depth is interpolated from the same snapped vertices.
 
 ## Observer view
 

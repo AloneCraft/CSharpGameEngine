@@ -39,12 +39,32 @@ public readonly record struct RadialDepthCurve {
     /// <summary>The compressed distance in metres, <c>T · G(r)</c>, used by the observer view.</summary>
     public float Map(float DistanceMeters)=>this.TransitionMeters*this.G(DistanceMeters);
     /// <summary>
-    /// <c>log2(1 + x)</c> without losing small arguments to the rounding of <c>1 + x</c>: the rounded sum's
-    /// logarithm is rescaled by <c>x / (u − 1)</c> (Kahan's log1p). The shader uses the same expression.
+    /// <c>log2(1 + x)</c> for <c>x ≥ 0</c> with float arithmetic only, so the shader (whose hardware <c>log2</c> is an
+    /// approximation, M0100) evaluates the same expression: <c>ln(1 + x) = 2 atanh(s)</c>, with <c>s = x / (2 + x)</c>
+    /// below <c>√2 − 1</c> and, above it, <c>1 + x = m · 2^e</c> (<c>m</c> in <c>(√½, √2]</c>) and
+    /// <c>s = (m − 1) / (m + 1)</c>. <c>|s| ≤ 0.1716</c>, so the odd series to <c>s⁹</c> is exact to float precision.
     /// </summary>
     public static float Log2OnePlus(float X){
-        var U=1f+X;
-        return U==1f?X/MathF.Log(2f):MathF.Log2(U)*(X/(U-1f));
+        if(!float.IsFinite(X)){
+            return X;
+        }
+        var Exponent=0f;
+        float S;
+        if(X<0.41421356f){
+            S=X/(2f+X);
+        } else {
+            var Bits=BitConverter.SingleToUInt32Bits(1f+X);
+            Exponent=(int)(Bits>>23)-127;
+            var M=BitConverter.UInt32BitsToSingle((Bits&0x007FFFFFu)|0x3F800000u);
+            if(M>1.41421356f){
+                M*=0.5f;
+                Exponent+=1f;
+            }
+            S=(M-1f)/(M+1f);
+        }
+        var S2=S*S;
+        var Series=S*(2f+S2*(0.6666667f+S2*(0.4f+S2*(0.2857143f+S2*0.2222222f))));
+        return Exponent+Series*1.4426950f;
     }
 }
 

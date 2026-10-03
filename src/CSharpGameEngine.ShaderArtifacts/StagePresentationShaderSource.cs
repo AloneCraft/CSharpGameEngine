@@ -61,10 +61,33 @@ float4 PreviewCleanPSMain(VertexOutput input) : SV_Target
 
 static const float RadialMaximumDepth = 0.99999994;
 
+// log2(1 + x) for x >= 0 without the hardware log2, whose approximation error swamps small arguments and costs
+// several ulps elsewhere (M0100, measured on an RTX 4060 Ti). ln(1 + x) = 2 atanh(s): below sqrt(2) - 1 with
+// s = x / (2 + x); above it 1 + x = m * 2^e with m in (sqrt(1/2), sqrt(2)] and s = (m - 1) / (m + 1). |s| <= 0.1716,
+// so the odd series to s^9 is exact to float precision. RadialDepthCurve.Log2OnePlus is the same expression.
 float RadialLog2OnePlus(float x)
 {
-    float u = 1.0 + x;
-    return u == 1.0 ? x * 1.4426950408889634 : log2(u) * (x / (u - 1.0));
+    float exponent = 0.0;
+    float s;
+    if (x < 0.41421356)
+    {
+        s = x / (2.0 + x);
+    }
+    else
+    {
+        uint bits = asuint(1.0 + x);
+        exponent = float(int(bits >> 23) - 127);
+        float m = asfloat((bits & 0x007FFFFFu) | 0x3F800000u);
+        if (m > 1.41421356)
+        {
+            m *= 0.5;
+            exponent += 1.0;
+        }
+        s = (m - 1.0) / (m + 1.0);
+    }
+    float s2 = s * s;
+    float series = s * (2.0 + s2 * (0.6666667 + s2 * (0.4 + s2 * (0.2857143 + s2 * 0.2222222))));
+    return exponent + series * 1.4426950;
 }
 
 float RadialSafeLength(float3 value)

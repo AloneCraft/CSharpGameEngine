@@ -44,3 +44,7 @@
 - VSIX: カメラはすべて `RenderPreviewSceneBuilder.DescribePose` を通るので、そこで透視なら Radial、正射影なら Standard にする（Scene ビュー、Asset Preview、フレーム）。サムネイルはシーンカメラの `DepthMapping` と `RadialTransitionMeters` をシーンモデルから読み（`SceneCameraPreviewBinding`、無ければコンポーネントの既定 Radial と 1）、`DescribePose` で投影を載せる。
 - プレビューホスト: 対数のカメラは `RenderServer.SetViewProjection(行列, 位置, RadialViewParameters)`、対数のサムネイルは矩形の縦横比で `RadialDepthProjection` を作って `RenderCameraPreview` に渡す。
 - テスト: `RenderPreviewHostProtocolTests.ProtocolV8_ValidatesRadialCameras`、`RenderPreviewRenderSessionTests.WARP_RadialCameraDrawsTheStandardImageWithRadialDepth`（箱の画像は標準とビット一致し、中心の深度は標準 0.98 超・対数 0.2 未満。サムネイルも標準と同じ画像）、`RenderPreviewCameraPoseTests.Pose_ChoosesRadialDepthForAPerspectiveViewAndStandardForAnOrthographicOne`、`SceneCameraPreviewPolicyTests.Build_ReadsTheDepthMappingAndIsRadialByDefault`。Windows.Tests 413/413、VSExtension 1081/1082（失敗はユーザーの作業中の未追跡テスト）、Contracts 21/21、FeatureRunner 154/154。
+
+## 探索. 実機の GPU での精度
+- 対数が既定になったので、WARP では見えない Early-Z と GPU の演算を実機（RTX 4060 Ti）で確かめた。対数の GPU テストを一時的に実機で流すと 2 件が失敗し、原因はシェーダーの `log2` がハードウェアの近似命令だったこと（[Conformance](../Conformance.md) の同日の項、ADR-0076 追記）。`log2(1 + x)` を float の四則演算だけの級数にして、実機でも 25 件が全件合格した。
+- 回帰の防止: `StagePresentationShaderSourceTests`（表示用のエントリーに超越関数を使わない）と `RadialDepthPrecisionEvidence`（オンデマンド、実機でも中心 4 ulp 以内）。
