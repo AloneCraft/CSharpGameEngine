@@ -9,6 +9,7 @@ namespace CSharpGameEngine.Rendering;
 /// <see cref="DepthMapping"/> selects the pass's depth (M0099): Radial needs <see cref="Radial"/>;
 /// RadialObserver also needs <see cref="RadialCenter"/>, the compressed world's centre in render space,
 /// and then <see cref="ViewProjection"/> is the observer's rotation-only view times its projection.
+/// <see cref="MarkRadialCenter"/> draws the main camera's frustum at the observer's centre.
 /// </summary>
 public readonly record struct RenderCameraPreview(
     int X,int Y,int Width,int Height,
@@ -16,7 +17,8 @@ public readonly record struct RenderCameraPreview(
     int ExcludedObjectIndex=-1,
     RenderDepthMapping DepthMapping=RenderDepthMapping.Standard,
     RadialDepthProjection Radial=default,
-    Vector3 RadialCenter=default){
+    Vector3 RadialCenter=default,
+    bool MarkRadialCenter=false){
     public const int MaximumCount=3;
 }
 

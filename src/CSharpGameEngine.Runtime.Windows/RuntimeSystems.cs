@@ -401,6 +401,64 @@ internal struct CameraOriginSync:ISystem {
     }
 }
 
+/// <summary>
+/// M0099 (ADR-0076): turns each enabled <see cref="RadialObserver"/> into an observer camera preview while the active
+/// camera is radial. Game runtime only: with an editor camera the previews are the editor's.
+/// </summary>
+[SystemPhase(SystemPhase.Presentation)]
+[RunsAfter(typeof(CameraOriginSync))]
+internal struct RadialObserverSync:ISystem {
+    public void Update(Entity Entity,ref Transform Transform,ref RadialObserver Observer,EngineHost Host,ref State State){
+        if(!Observer.Enabled||Host.EditorCamera is not null||Host.Renderer is not{ }Renderer){
+            return;
+        }
+        if(LightTransform.TryGetRectanglePose(Entity,State.World,Host,out var Eye,out var Forward,out var Up,out _)!=FixedTransformStatus.Success){
+            return;
+        }
+        if(RadialObserverView.TryCreatePreview(Host.RenderCamera,Renderer.SurfaceWidth,Renderer.SurfaceHeight,Observer,Eye,Forward,Up,out var Preview)){
+            Host.AddRadialObserverPreview(Preview);
+        }
+    }
+}
+
+/// <summary>The observer preview of a radial camera (M0099, Omni specification "Observer view").</summary>
+internal static class RadialObserverView {
+    /// <summary>
+    /// Builds the inset: the world compressed around the radial camera <paramref name="Center"/> (the render origin),
+    /// seen from <paramref name="EyeFromCenter"/> along <paramref name="Forward"/>/<paramref name="Up"/>. The far plane
+    /// encloses the compressed world. Returns false when the camera is not radial or a value is unusable.
+    /// </summary>
+    internal static bool TryCreatePreview(in RenderCamera Center,int SurfaceWidth,int SurfaceHeight,in RadialObserver Observer,
+        Vector3 EyeFromCenter,Vector3 Forward,Vector3 Up,out RenderCameraPreview Preview){
+        Preview=default;
+        if(Center.DepthMapping!=RenderDepthMapping.Radial||SurfaceWidth<=0||SurfaceHeight<=0
+            ||!RadialDepthCurve.TryCreate(Center.RadialTransitionMeters,out var Curve)
+            ||!RadialDepthProjection.TryCreate(Curve,Center.NearZ,Center.FarZ,Center.FovYRadians,SurfaceWidth/(float)SurfaceHeight,out var Projection)){
+            return false;
+        }
+        var X=(int)MathF.Round(Observer.ViewportX*SurfaceWidth);
+        var Y=(int)MathF.Round(Observer.ViewportY*SurfaceHeight);
+        var Width=(int)MathF.Round(Observer.ViewportWidth*SurfaceWidth);
+        var Height=(int)MathF.Round(Observer.ViewportHeight*SurfaceHeight);
+        if(Width<1||Height<1||!float.IsFinite(Observer.NearZ)||Observer.NearZ<=0f
+            ||!(Observer.FovYRadians>0f&&Observer.FovYRadians<MathF.PI)){
+            return false;
+        }
+        var Far=EyeFromCenter.Length()+1.05f*Projection.ObservedWorldRadius;
+        if(!float.IsFinite(Far)||Far<=Observer.NearZ){
+            return false;
+        }
+        var View=RenderCamera.CreateFirstPerson(Vector3.Zero);
+        if(!RenderCamera.IsIdentityWorldOrientation(Forward,Up)&&!View.TrySetWorldOrientation(Forward,Up)){
+            return false;
+        }
+        var ViewProjection=View.GetView()*Matrix4x4.CreatePerspectiveFieldOfView(Observer.FovYRadians,Width/(float)Height,Observer.NearZ,Far);
+        Preview=new RenderCameraPreview(X,Y,Width,Height,ViewProjection,EyeFromCenter,
+            DepthMapping:RenderDepthMapping.RadialObserver,Radial:Projection,RadialCenter:Vector3.Zero,MarkRadialCenter:Observer.ShowCenterCamera);
+        return true;
+    }
+}
+
 [SystemPhase(SystemPhase.Presentation)]
 [RunsAfter(typeof(CameraOriginSync))]
 internal struct DirectionalLightSync:ISystem {

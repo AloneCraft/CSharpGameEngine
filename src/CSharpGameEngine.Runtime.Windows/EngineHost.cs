@@ -7,6 +7,7 @@ using CSharpGameEngine.Graphics.D3D12;
 using CSharpGameEngine.Input;
 using CSharpGameEngine.Numerics;
 using CSharpGameEngine.Platform.Windows;
+using CSharpGameEngine.Rendering;
 using CSharpGameEngine.Runtime.Physics;
 using CSharpGameEngine.Runtime.Simulation;
 using CSharpGameEngine.World;
@@ -50,6 +51,9 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
     private readonly Dictionary<Entity,int[]>SkinnedMeshIndices=[];
     private readonly Dictionary<Entity,List<int>>RenderObjectsBySource=[];
     private (int MaterialIndex,LogicalScalar CellMeters)[]WorldGridMaterials=[];
+    private readonly RenderCameraPreview[]RadialObserverPreviews=new RenderCameraPreview[RenderCameraPreview.MaximumCount];
+    private int RadialObserverPreviewCount;
+    private bool RadialObserverPreviewsSubmitted;
 
     internal Win32Window?Window { get;private set; }
     internal ExternalRenderSurface?ExternalSurface { get;private set; }
@@ -220,6 +224,13 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
         return Reduced;
     }
 
+    /// <summary>Queues an observer inset (M0099) for this frame; previews beyond the renderer's maximum are dropped.</summary>
+    internal void AddRadialObserverPreview(in RenderCameraPreview Preview){
+        if(this.RadialObserverPreviewCount<this.RadialObserverPreviews.Length){
+            this.RadialObserverPreviews[this.RadialObserverPreviewCount++]=Preview;
+        }
+    }
+
     /// <summary>Records which renderer object an authored entity's mesh became, for the editor's selection.</summary>
     internal void RegisterRenderObject(Entity Source,int ObjectIndex){
         if(!this.RenderObjectsBySource.TryGetValue(Source,out var Objects)){
@@ -297,6 +308,13 @@ public sealed class EngineHost:IDisposable,IPhysicsHost {
                     ReduceToGridCell(this.CameraFrameLocalOrigin.M43,CellMeters)));
             }
         }
+        // M0099: the observer insets queued this frame; an empty list clears the previous frame's. The editor owns
+        // the camera previews, so its view never gets observer insets.
+        if(this.EditorCamera is null&&(this.RadialObserverPreviewCount>0||this.RadialObserverPreviewsSubmitted)){
+            Renderer.SetCameraPreviews(this.RadialObserverPreviews.AsSpan(0,this.RadialObserverPreviewCount));
+            this.RadialObserverPreviewsSubmitted=this.RadialObserverPreviewCount>0;
+        }
+        this.RadialObserverPreviewCount=0;
         if(Settings.SkyLight is not null&&!Collected.AmbientSubmitted){
             // The flat ambient term is a stand-in for sky light; a captured sky light replaces it.
             Renderer.SetAmbientLight(Vector3.Zero);

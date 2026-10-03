@@ -51,10 +51,11 @@ With 32-bit float depth, two surfaces are distinguished once their relative dist
 
 ## Observer view
 
+- Authoring: a `RadialObserver` component (Enabled, inset rectangle as fractions of the surface, FovYRadians, NearZ, ShowCenterCamera) on a node whose Transform is the observer. `RadialObserverSync` turns each enabled one into a camera preview (at most three) while the active camera is radial; `EngineHost` submits the frame's list and clears it when none remain.
 - Centre: the active radial camera `C`. Eye: the observer's Transform `E`, made camera-relative through the runtime's single Q64.64-to-float conversion.
 - Clip position: `mul(float4(dir · F(|P − C|) − (E − C), 1), ObserverRotationProjection)`. Lighting uses the physical position and the physical observer eye; interpolation is perspective in the mapped space (an approximation for visualization).
 - Projection far: `|E − C| + 1.05 · T · G(rMax)`.
-- Drawn in the game runtime only, as one camera preview pass with a wire marker at the centre camera. Not drawn when an editor camera owns the previews.
+- Drawn in the game runtime only, as one camera preview pass. With `ShowCenterCamera` the overlay pass draws the centre camera's view frustum (5 % of the compressed world's radius long) inside the inset with the observer's view-projection. Not drawn when an editor camera owns the previews.
 
 ## Non-goals
 

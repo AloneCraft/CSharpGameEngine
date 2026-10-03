@@ -17,7 +17,7 @@ Unity URP 用の対数（Radial）レンダリング資産 Omni（`D:\Unity\6.6\
 | Phase 3 | シェーダー ABI（対数用のエントリー、FrameCB の深度方式パケット） | 完了 |
 | Phase 4 | レンダラー（対数 PSO、補助 VP、プレビューごとの深度方式） | 完了 |
 | Phase 5 | Camera コンポーネント、Scene JSON、エディタの追従 | 完了 |
-| Phase 6 | 観察ビュー | 未着手 |
+| Phase 6 | 観察ビュー | 完了 |
 | Phase 7 | FeatureRunner の `rendering.radial-depth` と文書の照合 | 未着手 |
 
 ## Phase 0. グリッドと旧フォグのカメラ相対化
@@ -93,3 +93,10 @@ Unity URP 用の対数（Radial）レンダリング資産 Omni（`D:\Unity\6.6\
 - `LevelLoad.ApplyDepthMapping`: 読み込み時に（露出と同じく）シーンカメラの方式と T を描画カメラへ写す。対数ならシーンカメラの NearZ/FarZ も使う。エディタのランタイムビューでは毎フレームの経路でもエディタの near/far を上書きした後にこれを当て直す。
 - カメラのサムネイル: 描くのは未ビルドのゲームの分離プレビューだけで、そこでの対数は非目標なので標準のまま（計画の「サムネイルも追従」は、ランタイムビューがサムネイルを描かないことが分かったので取りやめた）。
 - テスト: `SceneCameraTests`（既定値）、`SceneJsonRuntimeValuesTests.Camera_ReadsTheRadialDepthMappingAndKeepsStandardWhenAbsent`、`EditorRuntimeViewTests` の 2 件（ゲームが対数になりシーンの範囲を使う。エディタカメラが同じ姿勢のゲームと同じ画素を描き、2 フレーム目の経路でも対数とシーンの範囲を保つ）。毎フレームの経路での当て直しを外すとエディタのテストが失敗することを確かめた。
+
+## Phase 6. 観察ビュー
+- `RadialObserver` コンポーネント（有効、小窓の矩形を画面に対する割合で、FovY、NearZ、中央カメラの模型を描くか）。既定は右下の小窓。
+- `RadialObserverSync`（Presentation、`CameraOriginSync` の後）: 観察者のノードの姿勢をカメラ相対で取り（`LightTransform.TryGetRectanglePose`、Q64.64 からの唯一の変換経路）、アクティブなカメラが対数でエディタカメラが無いときだけ `RadialObserverView.TryCreatePreview` でプレビューを作る。far は `|E − C| + 1.05·T·G(rMax)`。
+- `EngineHost`: そのフレームのプレビュー（最大 3 枚）を `SetCameraPreviews` へ出す。観察者がいなくなったら空のリストを一度出して消す。
+- `StageRenderer`: overlay のフレームごとの容量に模型の領域（プレビューごとに 16 頂点）を足し、`SetCamera` で中央カメラの向きと画角を保持して、`PrepareObserverMarkers` が観察者のプレビューごとに錐台の線を書く。overlay のパスでプレビューの矩形と観察者の定数で描く。
+- テスト: `RadialObserverTests`（4 件）、`RadialDepthGpuIntegrationTests.ObserverPreview_DrawsTheCompressedWorldAndMarksTheCentre`。画像を書き出して、1e6 m 先の半径 3e5 m の球が放射方向に強く圧縮された縦長の形で写り、小窓の中央に中央カメラの模型が出ることを目で確かめた。

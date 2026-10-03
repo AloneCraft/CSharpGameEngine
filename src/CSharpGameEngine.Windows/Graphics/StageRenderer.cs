@@ -86,6 +86,10 @@ public sealed unsafe class StageRenderer:IDisposable {
     /// <summary>Maximum local lights accepted per frame across point and spot submissions.</summary>
     public const int MaxLocalLights=1024;
     public const int MaxOverlayVertices=32_768;
+    /// <summary>Line vertices of the centre-camera marker drawn over one observer preview (M0099): a frustum of 8 lines.</summary>
+    private const int ObserverMarkerVertexCount=16;
+    /// <summary>Overlay vertices per frame slot: the caller's overlay, then one marker per camera preview.</summary>
+    private const int OverlayFrameVertexCapacity=MaxOverlayVertices+ObserverMarkerVertexCount*RenderCameraPreview.MaximumCount;
 
     /// <summary>Legacy public cap retained for source compatibility. Point and spot now share the 1024-light StructuredBuffer.</summary>
     public const int MaxPointLights=MaxLocalLights;
@@ -356,6 +360,13 @@ public sealed unsafe class StageRenderer:IDisposable {
     private RadialDepthProjection CurrentRadialProjection;
     /// <summary>The camera's rotation with the radial projection's finite auxiliary planes (radial mode only).</summary>
     private Matrix4x4 CurrentAuxiliaryViewProjection=Matrix4x4.Identity;
+    /// <summary>The camera basis and field of view of the last <see cref="SetCamera"/>, for observer markers.</summary>
+    private bool HasCameraBasis;
+    private Vector3 CurrentCameraForward;
+    private Vector3 CurrentCameraUp;
+    private Vector3 CurrentCameraRight;
+    private float CurrentCameraTanHalfFovY;
+    private float CurrentCameraAspectRatio;
     private Vector3 AtmosphereSunIlluminance;
     private ID3D12PipelineState*PostProcessPipelineState;
     private byte[]ShadowVertexShaderBytecode=[];
@@ -1822,7 +1833,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CreateUploadBuffer(ObjectBufferSize,out this.ObjectConstantsBuffer,out this.ObjectConstantsMapped,"creating the object constant buffer");
 
         uint OverlayBufferSize=checked(
-            (uint)(Unsafe.SizeOf<OverlayVertexGpu>()*MaxOverlayVertices*FrameCount));
+            (uint)(Unsafe.SizeOf<OverlayVertexGpu>()*OverlayFrameVertexCapacity*FrameCount));
         this.CreateUploadBuffer(
             OverlayBufferSize,out this.OverlayVertexBuffer,
             out this.OverlayVertexMapped,"creating the overlay vertex buffer");
@@ -1929,6 +1940,13 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             ?View*RadialProjection.CreateAuxiliaryProjection(Camera.FovYRadians,AspectRatio)
             :Matrix4x4.Identity;
         this.WriteDepthMapping(this.FrameIndex);
+        // Right-handed look-at: the view matrix's columns are the camera's right, up and backward axes.
+        this.CurrentCameraRight=new Vector3(View.M11,View.M21,View.M31);
+        this.CurrentCameraUp=new Vector3(View.M12,View.M22,View.M32);
+        this.CurrentCameraForward=-new Vector3(View.M13,View.M23,View.M33);
+        this.CurrentCameraTanHalfFovY=MathF.Tan(Camera.FovYRadians*0.5f);
+        this.CurrentCameraAspectRatio=AspectRatio;
+        this.HasCameraBasis=true;
     }
 
     /// <summary>
@@ -1981,6 +1999,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CurrentRadialProjection=default;
         this.CurrentAuxiliaryViewProjection=Matrix4x4.Identity;
         this.WriteDepthMapping(this.FrameIndex);
+        this.HasCameraBasis=false;
     }
 
     /// <summary>
@@ -2588,7 +2607,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         }
         int Stride=Unsafe.SizeOf<OverlayVertexGpu>();
         byte*Destination=this.OverlayVertexMapped+
-            ((nuint)this.FrameIndex*(nuint)MaxOverlayVertices*(nuint)Stride);
+            ((nuint)this.FrameIndex*(nuint)OverlayFrameVertexCapacity*(nuint)Stride);
         int OutputIndex=0;
         foreach(RenderOverlayVertex Vertex in Triangles){
             WriteOverlayVertex(Destination,Stride,OutputIndex++,Vertex);
@@ -3619,10 +3638,11 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     private void RenderOverlay(){
         int TotalCount=
             this.OverlayTriangleVertexCount+this.OverlayLineVertexCount;
-        if(TotalCount==0){ return; }
+        int MarkerCount=this.PrepareObserverMarkers();
+        if(TotalCount==0&&MarkerCount==0){ return; }
         int Stride=Unsafe.SizeOf<OverlayVertexGpu>();
         ulong FrameOffset=checked(
-            (ulong)this.FrameIndex*(ulong)MaxOverlayVertices*(ulong)Stride);
+            (ulong)this.FrameIndex*(ulong)OverlayFrameVertexCapacity*(ulong)Stride);
         ulong BaseAddress=this.OverlayVertexBuffer->GetGPUVirtualAddress()+FrameOffset;
         this.CommandList->SetGraphicsRootSignature(this.RootSignature);
         this.CommandList->SetGraphicsRootConstantBufferView(
@@ -3662,6 +3682,65 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.CommandList->DrawInstanced(
                 (uint)this.OverlayLineVertexCount,1,0,0);
         }
+        if(MarkerCount>0){
+            // Each marker is drawn inside its observer preview with that preview's constants (observer view-projection).
+            this.CommandList->SetPipelineState(this.OverlayLinePipelineState);
+            this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
+            for(int PreviewIndex=0;PreviewIndex<this.CameraPreviewCount;PreviewIndex++){
+                RenderCameraPreview Preview=this.EffectiveCameraPreviews[PreviewIndex];
+                if(!IsMarkedObserver(Preview)){ continue; }
+                D3D12_VERTEX_BUFFER_VIEW View=new(){
+                    BufferLocation=BaseAddress+(ulong)((MaxOverlayVertices+PreviewIndex*ObserverMarkerVertexCount)*Stride),
+                    SizeInBytes=(uint)(ObserverMarkerVertexCount*Stride),
+                    StrideInBytes=(uint)Stride,
+                };
+                RECT Rect=new(){ left=Preview.X,top=Preview.Y,right=Preview.X+Preview.Width,bottom=Preview.Y+Preview.Height };
+                D3D12_VIEWPORT Viewport=new(){ TopLeftX=Preview.X,TopLeftY=Preview.Y,Width=Preview.Width,Height=Preview.Height,MinDepth=0f,MaxDepth=1f };
+                this.CommandList->SetGraphicsRootConstantBufferView(0,this.GetFrameConstantsAddress(this.FrameIndex,PreviewIndex+1));
+                this.CommandList->RSSetViewports(1,&Viewport);
+                this.CommandList->RSSetScissorRects(1,&Rect);
+                this.CommandList->IASetVertexBuffers(0,1,&View);
+                this.CommandList->DrawInstanced(ObserverMarkerVertexCount,1,0,0);
+            }
+        }
+    }
+
+    private bool IsMarkedObserver(in RenderCameraPreview Preview)=>
+        Preview.DepthMapping==RenderDepthMapping.RadialObserver&&Preview.MarkRadialCenter&&this.HasCameraBasis;
+
+    /// <summary>
+    /// Writes the centre-camera marker of every marked observer preview into its overlay slot: the main camera's view
+    /// frustum with its apex at the compressed world's centre, 5 % of that world's radius long, in observer-relative
+    /// coordinates. Returns how many markers were written.
+    /// </summary>
+    private int PrepareObserverMarkers(){
+        int Count=0;
+        int Stride=Unsafe.SizeOf<OverlayVertexGpu>();
+        byte*Destination=this.OverlayVertexMapped+((nuint)this.FrameIndex*(nuint)OverlayFrameVertexCapacity*(nuint)Stride);
+        Vector4 Color=new(1f,0.85f,0.1f,1f);
+        Span<Vector3>Corners=stackalloc Vector3[4];
+        for(int PreviewIndex=0;PreviewIndex<this.CameraPreviewCount;PreviewIndex++){
+            RenderCameraPreview Preview=this.EffectiveCameraPreviews[PreviewIndex];
+            if(!IsMarkedObserver(Preview)){ continue; }
+            float Length=0.05f*Preview.Radial.ObservedWorldRadius;
+            Vector3 Apex=Preview.RadialCenter-Preview.CameraPosition;
+            Vector3 HalfUp=this.CurrentCameraUp*(Length*this.CurrentCameraTanHalfFovY);
+            Vector3 HalfRight=this.CurrentCameraRight*(Length*this.CurrentCameraTanHalfFovY*this.CurrentCameraAspectRatio);
+            Vector3 BaseCenter=Apex+this.CurrentCameraForward*Length;
+            Corners[0]=BaseCenter-HalfRight-HalfUp;
+            Corners[1]=BaseCenter+HalfRight-HalfUp;
+            Corners[2]=BaseCenter+HalfRight+HalfUp;
+            Corners[3]=BaseCenter-HalfRight+HalfUp;
+            int Output=MaxOverlayVertices+PreviewIndex*ObserverMarkerVertexCount;
+            for(int Corner=0;Corner<4;Corner++){
+                WriteOverlayVertex(Destination,Stride,Output++,new RenderOverlayVertex(Apex,Color));
+                WriteOverlayVertex(Destination,Stride,Output++,new RenderOverlayVertex(Corners[Corner],Color));
+                WriteOverlayVertex(Destination,Stride,Output++,new RenderOverlayVertex(Corners[Corner],Color));
+                WriteOverlayVertex(Destination,Stride,Output++,new RenderOverlayVertex(Corners[(Corner+1)%4],Color));
+            }
+            Count++;
+        }
+        return Count;
     }
 
     private void PrepareCameraPreviewConstants(uint FrameIndex){

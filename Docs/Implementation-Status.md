@@ -3582,13 +3582,14 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 
 - Layer: L5 — Integrated Runtime
 - Parent capability: World Scale
-- Status: Planned
-- Verification: Unverified
+- Status: Implemented
+- Verification: TestVerified
 - Intended specification: `Docs/Specifications/Omni.md#observer-view`
 - Milestone: `Docs/Milestones/M0099-Radial-Depth.md`
-- Implementation evidence: `RadialDepthCurve.Map` and `RadialDepthProjection.ObservedWorldRadius` only.
-- Current delta: no observer component, system, vertex entry or preview pass yet (M0099 Phase 6).
-- Next action: after F-L5-038 renders, add `RadialObserver` and `RadialObserverSync` and the observer preview pass.
+- Implementation evidence: `RadialObserver` (`RuntimeComponents.cs`), `RadialObserverSync` and `RadialObserverView` (`RuntimeSystems.cs`), `EngineHost.AddRadialObserverPreview` and its submission in `SubmitEnvironment`, `RadialObserverVSMain`, the observer pipeline states and `PrepareObserverMarkers` in `StageRenderer`, `RenderCameraPreview.MarkRadialCenter`.
+- Current delta: game runtime only (not in the editor runtime view, whose previews belong to the editor); at most three insets; picking and gizmos inside the inset and a full-screen observer view are non-goals. Interpolation inside the inset is perspective in the compressed space (an approximation for visualization).
+- Conformance: `RadialObserverTests` (radial-only, inset placement, centre at the inset middle, far plane beyond the compressed world, unusable values, one inset in the game and none with a standard camera or an editor camera), `RadialDepthGpuIntegrationTests.ObserverPreview_DrawsTheCompressedWorldAndMarksTheCentre` (the sphere appears where `T·G(r)` puts it, the main view outside the inset is unchanged, the marker is drawn).
+- Next action: show it in the Visual Stage `rendering.radial-depth` (M0099 Phase 7).
 
 ## F-L5-006 — Character Controller
 

@@ -60,6 +60,40 @@ public struct AmbientLight {
     }
 }
 
+/// <summary>
+/// M0099 (ADR-0076): an inset that shows the world compressed around the active radial camera, seen from outside
+/// through this node's Transform (Omni's RadialObserverRig). Drawn in the game only, while the active camera is
+/// radial; in the editor the camera previews belong to the editor.
+/// </summary>
+[SceneComponentOrder(SceneComponentCategory.Camera,1)]
+[SceneComponentIcon("Assets/Editor/ComponentIcons/Camera.svg")]
+public struct RadialObserver {
+    public bool Enabled;
+    /// <summary>Left edge of the inset as a fraction of the surface width.</summary>
+    public float ViewportX;
+    /// <summary>Top edge of the inset as a fraction of the surface height.</summary>
+    public float ViewportY;
+    public float ViewportWidth;
+    public float ViewportHeight;
+    [CSharpGameEngine.Contracts.Angle(CSharpGameEngine.Contracts.AngleUnit.Radians)]
+    public float FovYRadians;
+    public float NearZ;
+    /// <summary>Draws the active camera's frustum at the centre of the compressed world.</summary>
+    public bool ShowCenterCamera;
+
+    /// <summary>A bottom-right inset with the active camera marked.</summary>
+    public RadialObserver(){
+        this.Enabled=true;
+        this.ViewportX=0.68f;
+        this.ViewportY=0.64f;
+        this.ViewportWidth=0.3f;
+        this.ViewportHeight=0.33f;
+        this.FovYRadians=MathF.PI/4f;
+        this.NearZ=0.1f;
+        this.ShowCenterCamera=true;
+    }
+}
+
 /// <summary>UEのExponentialHeightFogから取り込む単純な指数高さFog。</summary>
 [SceneComponentOrder(SceneComponentCategory.LightingEnvironment,1)]
 [SceneComponentIcon("Assets/Editor/ComponentIcons/HeightFog.svg")]

@@ -171,6 +171,60 @@ public sealed class RadialDepthGpuIntegrationTests {
         });
         Assert.True(Task.Wait(TimeSpan.FromSeconds(60)));
     }
+    [WindowsOnlyFact]
+    [Trait("Category","GPU")]
+    public void ObserverPreview_DrawsTheCompressedWorldAndMarksTheCentre(){
+        // A sphere of radius 3e5 m, 1e6 m to the side of the radial camera. The observer inset must show it where the
+        // CPU compression T·G(r) puts it; the main view outside the inset must not change; the marker is optional.
+        using var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine Radial Observer",Width=256,Height=144,Visible=false });
+        using var Renderer=StageRenderer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,
+            [ToMesh(ProceduralMeshFactory.CreateSphere(0.5f))],[new StageMaterialCreateInfo { BaseColorFactor=Red,RoughnessFactor=1f,MetallicFactor=0f }],[new StageObjectCreateInfo { MeshIndex=0,MaterialIndex=0 }]);
+        var Center=Radial(Standard(Vector3.Zero,FarZ:1e7f));
+        Assert.True(RadialDepthProjection.TryCreate(RadialDepthCurve.Default,Center.NearZ,Center.FarZ,Center.FovYRadians,256f/144f,out var Projection));
+        var Eye=new Vector3(0f,0f,-60f);
+        var ObserverView=Camera.CreateFirstPerson(Vector3.Zero).GetView()*Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI/3f,1f,0.1f,60f+1.05f*Projection.ObservedWorldRadius);
+        (int X,int Y,int Size)Inset=(128,0,128);
+        byte[]Render(RenderCameraPreview[]Previews){
+            for(var Frame=0;Frame<2;Frame++){
+                Renderer.SetCamera(Center);
+                Renderer.SetAmbientLight(new Vector3(1f));
+                Renderer.SetObjectTransform(0,Matrix4x4.CreateScale(6e5f)*Matrix4x4.CreateTranslation(1e6f,0f,0f));
+                Renderer.SetCameraPreviews(Previews);
+                Renderer.RenderFrame(CaptureForVerification:Frame==1);
+            }
+            return Renderer.LastCapturedFrame!.Pixels.ToArray();
+        }
+        RenderCameraPreview Observer(bool Mark)=>new(Inset.X,Inset.Y,Inset.Size,Inset.Size,ObserverView,Eye,
+            DepthMapping:RenderDepthMapping.RadialObserver,Radial:Projection,RadialCenter:Vector3.Zero,MarkRadialCenter:Mark);
+        var Without=Render([]);
+        var Marked=Render([Observer(true)]);
+        var Unmarked=Render([Observer(false)]);
+        var RowPitch=(int)Renderer.LastCapturedFrame!.RowPitch;
+        // The sphere centre compresses to T·G(1e6) metres along +X; project it through the observer view.
+        var Mapped=new Vector3(Projection.Curve.Map(1e6f),0f,0f)-Eye;
+        var Clip=Vector4.Transform(new Vector4(Mapped,1f),ObserverView);
+        var PixelX=Inset.X+(int)((Clip.X/Clip.W*0.5f+0.5f)*Inset.Size);
+        var PixelY=Inset.Y+(int)((0.5f-Clip.Y/Clip.W*0.5f)*Inset.Size);
+        var Offset=PixelY*RowPitch+PixelX*4;
+        Assert.True(Unmarked[Offset]>Unmarked[Offset+1]+40,$"pixel ({PixelX},{PixelY}) = {Unmarked[Offset]},{Unmarked[Offset+1]},{Unmarked[Offset+2]}");
+        var OutsideChanged=false;
+        var MarkerPixels=0;
+        for(var Y=0;Y<144;Y++){
+            for(var X=0;X<256;X++){
+                var Index=Y*RowPitch+X*4;
+                var InInset=X>=Inset.X&&X<Inset.X+Inset.Size&&Y>=Inset.Y&&Y<Inset.Y+Inset.Size;
+                if(!InInset&&(Without[Index]!=Marked[Index]||Without[Index+1]!=Marked[Index+1]||Without[Index+2]!=Marked[Index+2])){
+                    OutsideChanged=true;
+                }
+                if(InInset&&Marked[Index]>200&&Marked[Index+1]>150&&Marked[Index+2]<100&&!(Unmarked[Index]>200&&Unmarked[Index+1]>150&&Unmarked[Index+2]<100)){
+                    MarkerPixels++;
+                }
+            }
+        }
+        Assert.False(OutsideChanged);
+        Assert.True(MarkerPixels>0,"The centre-camera marker must be drawn.");
+        Assert.DoesNotContain(Renderer.DebugMessages,static Message=>Message.IsErrorOrWorse);
+    }
     private static StageMeshCreateInfo ToMesh(ProceduralMeshData Data){
         var Tangents=new Vector4[Data.Positions.Length];
         for(var Index=0;Index<Tangents.Length;Index++){

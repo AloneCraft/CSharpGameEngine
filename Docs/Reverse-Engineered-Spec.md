@@ -302,7 +302,8 @@
 - Observed behavior: in radial mode the sky direction, sun cascades and AO prepass use the camera rotation with near `max(NearZ, min(0.01, FarZ/2))` and far `min(FarZ, near·65536)`; with near 0.1 m and far up to 6553.6 m that matrix equals the camera's, and the environment frame is bit-identical to the standard one. GI capture, shadow atlas and overlay are standard.
 - Observed behavior: a preview's `DepthMapping` selects standard, radial (`PreviewCleanRadialPSMain`) or observer (`RadialObserverVSMain` maps `T·G(|P − C|)` around `RadialCenter`) pipelines and writes its own packet; incomplete radial previews throw.
 - Observed behavior: the scene `Camera` component's `DepthMapping` (`Standard` default) and `RadialTransitionMeters` (1 m default) are copied into the render camera by `LevelLoad` at load; scene JSON without them stays standard. With an editor camera, the runtime view keeps the editor pose and field of view, and for a radial scene camera it takes the scene camera's NearZ/FarZ on every frame.
-- Result: Matches ADR-0076 for the renderer, the scene camera and the editor runtime view. Not yet present: observer component (M0099 Phase 6).
+- Observed behavior: an enabled `RadialObserver` on a node with a Transform becomes, while the active camera is radial and no editor camera exists, an observer camera preview: inset rectangle rounded from the surface fractions, rotation-only view from the node's camera-relative +Z/+Y, perspective with the component's FovY/NearZ and far `|E − C| + 1.05·T·G(rMax)`. `EngineHost` submits up to three per frame and an empty list once they disappear. With `ShowCenterCamera` the overlay pass draws the centre camera's frustum, 5 % of the compressed world's radius long, inside the inset.
+- Result: Matches ADR-0076 for the renderer, the scene camera, the editor runtime view and the observer view.
 
 ## RE-M0098 — World-space procedural grid material
 
