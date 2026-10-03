@@ -6,9 +6,10 @@
 
 ## Build
 ```bash
-dotnet restore
-dotnet build
+dotnet restore CSharpGameEngine.slnx
+dotnet build CSharpGameEngine.slnx
 ```
+リポジトリ直下には補助の`UserEcsProject.slnx`もあるので、ソリューションを指定します（指定しないとMSB1011で止まります）。
 
 ## Visual Studio VSIX
 
@@ -28,13 +29,13 @@ Visual StudioからF5を実行する場合も、起動構成は`CSharpGameEngine
 
 ## Test
 ```bash
-dotnet test
+dotnet test CSharpGameEngine.slnx
 ```
 
 GPU統合テスト（`CSharpGameEngine.Windows.Tests`内、`Category=GPU`）はWARPアダプタに対して実行され、
 非Windows環境では明示的にSkipされます。CPU側のみ実行する場合:
 ```bash
-dotnet test --filter "Category!=GPU"
+dotnet test CSharpGameEngine.slnx --filter "Category!=GPU"
 ```
 
 ## VS Code
