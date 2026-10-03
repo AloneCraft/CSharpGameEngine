@@ -8,11 +8,11 @@ using CSharpGameEngine.Rendering;
 using Xunit.Abstractions;
 namespace CSharpGameEngine.Graphics.D3D12.Tests;
 /// <summary>
-/// M0099 performance evidence (ADR-0076): the radial pipelines write SV_Depth, so Early-Z cannot reject hidden
-/// fragments before the Stage pixel shader runs. This measures the main pass's GPU time with timestamps for a scene
-/// of full-screen layers drawn front to back (the case Early-Z helps most) and back to front, in the standard and
-/// the radial depth mode, and writes the samples to <c>.artifacts/M0099/performance</c>. It records, never gates:
-/// timing depends on the adapter. Run with <c>CGE_PERFORMANCE_EVIDENCE=1</c> (and
+/// M0099 performance evidence (ADR-0076): the radial pixel entries compute their depth, so only the conservative
+/// raster depth (SV_DepthGreaterEqual) lets Early-Z reject hidden fragments before the Stage pixel shader runs. This
+/// measures the main pass's GPU time with timestamps for a scene of full-screen layers drawn front to back (the case
+/// Early-Z helps most) and back to front, in the standard and the radial depth mode, and writes the samples to
+/// <c>.artifacts/M0099/performance</c>. It records, never gates: timing depends on the adapter. Run with <c>CGE_PERFORMANCE_EVIDENCE=1</c> (and
 /// <c>CGE_PERFORMANCE_ADAPTER=hardware</c> for the GPU instead of WARP).
 /// </summary>
 [Collection(D3D12GpuCollection.Name)]

@@ -103,9 +103,10 @@ struct RadialConservativePixelOutput
 };
 
 // The radial main pass rasterizes its conservative depth without depth clipping (that depth reaches zero beyond the
-// near plane), so it clips with the standard projection's own near and far distances instead: the clipped triangles,
-// and every interpolated value, stay exactly the standard ones. The members mirror VertexOutput (ShaderGraphCompilerTests
-// keeps them in step).
+// near plane), so it clips with the standard projection's own near and far distances instead. Clip distances round a
+// clipped vertex differently from the depth planes, so values interpolated on a clipped triangle may differ from the
+// standard ones by one 8-bit level; unclipped triangles keep them exactly. The members mirror VertexOutput
+// (ShaderGraphCompilerTests keeps them in step).
 struct RadialVertexOutput
 {
     float4 Position : SV_Position;
