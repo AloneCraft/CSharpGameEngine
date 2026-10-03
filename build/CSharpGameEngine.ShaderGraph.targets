@@ -26,10 +26,13 @@
   <Target Name="CompileCgeComputeShaders" BeforeTargets="PrepareForBuild" DependsOnTargets="BuildCgeShaderGraphCli" Condition="'@(CgeComputeShader)' != ''" Inputs="@(CgeComputeShader);$(CgeShaderGraphCliExe)" Outputs="@(CgeComputeShader->'$(CgeShaderGraphIntermediateDirectory)%(Filename).cgeshaderartifact')">
     <MakeDir Directories="$(CgeShaderGraphIntermediateDirectory)" />
     <Exec Command="&quot;$(CgeShaderGraphCliExe)&quot; build-compute &quot;%(CgeComputeShader.FullPath)&quot; &quot;$(CgeShaderGraphIntermediateDirectory)%(CgeComputeShader.Filename).cgeshaderartifact&quot; &quot;$(Configuration)&quot;" />
+    <!-- The CLI leaves an identical artifact untouched; mark it current so a rebuilt CLI does not rerun DXC on every build. -->
+    <Touch Files="@(CgeComputeShader->'$(CgeShaderGraphIntermediateDirectory)%(Filename).cgeshaderartifact')" />
   </Target>
   <Target Name="CompileCgeShaderGraphs" BeforeTargets="PrepareForBuild" DependsOnTargets="BuildCgeShaderGraphCli" Condition="'@(CgeShaderGraph)' != ''" Inputs="@(CgeShaderGraph);@(CgeShaderSubgraph);$(CgeShaderGraphCliExe)" Outputs="@(CgeShaderGraph->'$(CgeShaderGraphIntermediateDirectory)%(Filename).cgeshaderartifact')">
     <MakeDir Directories="$(CgeShaderGraphIntermediateDirectory)" />
     <Exec Command="&quot;$(CgeShaderGraphCliExe)&quot; build &quot;%(CgeShaderGraph.FullPath)&quot; &quot;$(CgeShaderGraphIntermediateDirectory)%(CgeShaderGraph.Filename).cgeshaderartifact&quot; &quot;$(CgeShaderGraphIntermediateDirectory)%(CgeShaderGraph.Filename).generated.hlsl&quot; &quot;$(Configuration)&quot;" />
+    <Touch Files="@(CgeShaderGraph->'$(CgeShaderGraphIntermediateDirectory)%(Filename).cgeshaderartifact')" />
   </Target>
   <Target Name="PublishCgeShaderArtifacts" AfterTargets="Build" DependsOnTargets="CompileCgeShaderGraphs" Condition="'@(CgeShaderGraph)' != ''">
     <MakeDir Directories="$(TargetDir)Shaders" />
