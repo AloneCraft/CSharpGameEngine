@@ -3572,10 +3572,10 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Verification: TestVerified (CPU math only)
 - Intended specification: `Docs/Specifications/Omni.md`, `Docs/Decisions/ADR-0076-Native-Radial-Depth-Mapping.md`
 - Milestone: `Docs/Milestones/M0099-Radial-Depth.md`
-- Implementation evidence: `src/CSharpGameEngine.Rendering/RadialDepth.cs` (`RenderDepthMapping`, `RadialDepthCurve`, `RadialDepthProjection`).
-- Current delta: the curve, depth encoding, far-plane corner, auxiliary projection and observer radius exist on the CPU. The Stage entries, renderer pipeline states, Camera component fields and editor runtime view do not exist yet (M0099 Phases 3–5).
-- Conformance: `RadialDepthTests` (double oracle, monotonicity, eye slope, depth below the clear, invalid input, precision budget, observer radius, auxiliary projection). Standard frames are pinned by `StandardModeGoldenFrameTests`.
-- Next action: M0099 Phase 3 (Stage ABI: radial entries and the FrameCB depth-mapping packet).
+- Implementation evidence: `src/CSharpGameEngine.Rendering/RadialDepth.cs` (`RenderDepthMapping`, `RadialDepthCurve`, `RadialDepthProjection`); Stage ABI `stage-v8` with `RadialPSMain`/`PreviewRadialPSMain`/`PreviewCleanRadialPSMain`/`RadialObserverVSMain` in `StagePresentationShaderSource` and `FrameCB.DepthMapping0/1` (`radial_depth_2026_10_04.py`).
+- Current delta: the CPU math and the compiled shader entries exist. No pipeline state uses them yet; the Camera component fields and the editor runtime view do not exist (M0099 Phases 4–5).
+- Conformance: `RadialDepthTests` (double oracle, monotonicity, eye slope, depth below the clear, invalid input, precision budget, observer radius, auxiliary projection); `ShaderGraphCompilerTests` (13 Stage entries, radial pixel entries write `SV_Depth`). Standard frames are pinned by `StandardModeGoldenFrameTests`.
+- Next action: M0099 Phase 4 (radial pipeline states, depth-mapping packet writes, auxiliary projection, per-preview mapping).
 
 ## F-L5-039 — Radial observer view
 

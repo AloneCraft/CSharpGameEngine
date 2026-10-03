@@ -3,7 +3,7 @@ using CSharpGameEngine.ShaderGraph;
 using CSharpGameEngine.ShaderGraph.Cli;
 namespace CSharpGameEngine.ShaderGraph.Cli.Tests;
 public sealed class ShaderGraphCompilerTests {
-    public static TheoryData<string,ShaderArtifactTargetKind,int>ProductionGraphs=>new() { { "Triangle",ShaderArtifactTargetKind.Triangle,2 },{ "Model",ShaderArtifactTargetKind.Model,2 },{ "Stage",ShaderArtifactTargetKind.Stage,9 } };
+    public static TheoryData<string,ShaderArtifactTargetKind,int>ProductionGraphs=>new() { { "Triangle",ShaderArtifactTargetKind.Triangle,2 },{ "Model",ShaderArtifactTargetKind.Model,2 },{ "Stage",ShaderArtifactTargetKind.Stage,13 } };
     [Theory]
     [MemberData(nameof(ProductionGraphs))]
     public void ProductionGraph_ExportsDeterministicallyWithNodeSourceMap(string Name,ShaderArtifactTargetKind Target,int EntryCount) {
@@ -49,6 +49,13 @@ public sealed class ShaderGraphCompilerTests {
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="PreviewCleanPSMain");
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="OverlayVSMain");
                 Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="OverlayPSMain");
+                // M0099 / ADR-0076: the radial entries exist and every radial pixel entry writes the radial depth.
+                foreach(var Entry in new[]{"RadialPSMain","PreviewRadialPSMain","PreviewCleanRadialPSMain"}) {
+                    Assert.Contains(Artifact.Entries,Artifact=>Artifact.LogicalName==Entry);
+                    Assert.Contains($"RadialPixelOutput {Entry}(VertexOutput input)",BuiltSource,StringComparison.Ordinal);
+                }
+                Assert.Contains("float Depth : SV_Depth;",BuiltSource,StringComparison.Ordinal);
+                Assert.Contains(Artifact.Entries,Entry=>Entry.LogicalName=="RadialObserverVSMain");
             }
         } finally { Directory.Delete(DirectoryPath,true); }
     }
@@ -79,9 +86,10 @@ public sealed class ShaderGraphCompilerTests {
         Assert.Contains(Export.SourceMap.Entries,Entry=>Entry.NodeId==PbrDeclarationId.ToString());
         var Hash=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(Export.Hlsl)));
         // ADR-0069 (sky light SH, physical fog, Unreal filmic output, cascaded sun shadows), ADR-0075 (world-space
-        // procedural grid) and M0099 Phase 0 (grid anchor and fog altitude of the render origin) intentionally
-        // changed the Stage program; the migrate/extract round trip was verified byte-identical before those edits.
-        Assert.Equal("1B39B385C312A0B9270DEF12F76CFF1B35B4127A154B2A99553976E773632C58",Hash);
+        // procedural grid), M0099 Phase 0 (grid anchor and fog altitude of the render origin) and M0099 Phase 3
+        // (FrameCB depth-mapping packet) intentionally changed the Stage program; the migrate/extract round trip was
+        // verified byte-identical before those edits.
+        Assert.Equal("BDEE67933FE212C3C77DD1BDAA4DD88F57D77CC3B977029F069B02FC780848B5",Hash);
     }
     [Fact]
     public void DependencySemanticChange_ChangesOnlyDependencyHash() {

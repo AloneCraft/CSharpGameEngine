@@ -14,7 +14,7 @@ Unity URP 用の対数（Radial）レンダリング資産 Omni（`D:\Unity\6.6\
 | SDK | Phase 0（エンジンの修正）に合わせて SDK パッケージを 0.1.13 に上げた | 完了 |
 | Phase 1 | 標準モードの基準フレーム（SHA-256）を固定する | 完了 |
 | Phase 2 | CPU 側の数式（`RadialDepthCurve`、`RadialDepthProjection`）、ADR-0076、Omni 仕様 | 完了 |
-| Phase 3 | シェーダー ABI（対数用のエントリー、FrameCB の深度方式パケット） | 未着手 |
+| Phase 3 | シェーダー ABI（対数用のエントリー、FrameCB の深度方式パケット） | 完了 |
 | Phase 4 | レンダラー（対数 PSO、補助 VP、プレビューごとの深度方式） | 未着手 |
 | Phase 5 | Camera コンポーネント、Scene JSON、エディタの追従 | 未着手 |
 | Phase 6 | 観察ビュー | 未着手 |
@@ -65,3 +65,12 @@ Unity URP 用の対数（Radial）レンダリング資産 Omni（`D:\Unity\6.6\
 - `RadialDepthTests`（19 件）: 倍精度の基準と 6e-7 以内（1e-30〜1e30）、単調性と原点の傾き、錐台の角で 1 未満、不正な入力、精度予算（near 0.1 m・far 1e18 m で約 3e-6）、観察者の半径、補助の投影が逆行列を持つこと、通常の範囲では標準と同じ行列。
 - 事実として確かめた前提: far 1e18 m の標準の投影は NDC z = 1 を逆投影できない（`StandardProjection_WithAHugeFar_CannotBeUnprojected`）。これが補助の投影の理由。
 - ADR-0076 と `Docs/Specifications/Omni.md` を書き、Implementation-Status に F-L5-038（Implementing）と F-L5-039（Planned）を登録した。
+
+## Phase 3. シェーダー ABI
+- FrameCB の末尾に `DepthMapping0 = (mode, T, 1/G(rMax), FarZ)` と `DepthMapping1 = (観察者の中心, 予約)` を足した（`tools/ShaderGraphMaintenance/edits/radial_depth_2026_10_04.py`、912 → 944 バイト、スロット幅 1024 は不変）。
+- `StagePresentationShaderSource` に `RadialLog2OnePlus`（CPU と同じ Kahan の log1p）、`RadialSafeLength`、`RadialG`、`EncodeRadialDepth`、`IsBeyondRadialFarPlane`（物理のビュー投影の w が FarZ を超える画素を捨てる）と 4 エントリーを足した。
+  - `RadialPSMain` / `PreviewRadialPSMain` / `PreviewCleanRadialPSMain`: それぞれ既存の `PSMain` / `PreviewPSMain` / `PreviewCleanPSMain` をそのまま呼び、`SV_Depth` を足す。
+  - `RadialObserverVSMain`: `VSMain` を呼び、`SV_Position` だけを写像後の位置で置き換える。
+- `ShaderArtifactAbi`: `stage-v8`、エントリー 9 → 13。`ShaderGraphCompilerTests`（エントリー数、存在、対数の画素エントリーが `SV_Depth` を書く構造体を返すこと、ゴールデンの SHA-256 を意図して更新）。`Shader-Graph.md` の古くなっていたエントリー一覧を直した。
+- 描画は変わらない: `Windows.Tests` 369/369（`StandardModeGoldenFrameTests` を含む）、ShaderArtifacts 7/7、ShaderGraph 19/19、ShaderGraph.Cli 13/13、VSExtension 1079/1080（失敗はユーザーが作業中の未追跡の探索用テスト `GizmoVisibleHitConsistencyTests.Exploration_PrintMoveArrowPixelsThatHitNothing` だけで、この変更とは無関係）。
+- 互換性: 以前の Stage グラフを複製した独自のグラフは FrameCB に `DepthMapping0/1` が無く、接尾辞がコンパイルできない（Phase 7 で CHANGELOG に書く）。
