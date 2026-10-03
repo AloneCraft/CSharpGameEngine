@@ -41,7 +41,8 @@ static int RunViewer(string[]Args){
     IReadOnlyList<uint>Indices;
     byte[]?BaseColorTextureBytes;
     Vector4 BaseColorFactor;
-    Vector3 BoundsCenter;
+    Vector3 BoundsMin;
+    Vector3 BoundsMax;
     float BoundsRadius;
 
     var Extension=Path.GetExtension(ModelPath);
@@ -63,7 +64,8 @@ static int RunViewer(string[]Args){
         Indices=FbxMesh.Indices;
         BaseColorTextureBytes=FbxMesh.BaseColorTextureBytes;
         BaseColorFactor=FbxMesh.BaseColorFactor;
-        BoundsCenter=FbxMesh.Bounds.Center;
+        BoundsMin=FbxMesh.Bounds.Min;
+        BoundsMax=FbxMesh.Bounds.Max;
         BoundsRadius=FbxMesh.Bounds.BoundingSphereRadius;
     } else {
         var GltfResult=GltfImporter.Import(ModelPath);
@@ -83,7 +85,8 @@ static int RunViewer(string[]Args){
         Indices=GltfMesh.Indices;
         BaseColorTextureBytes=GltfMesh.BaseColorTextureBytes;
         BaseColorFactor=GltfMesh.BaseColorFactor;
-        BoundsCenter=GltfMesh.Bounds.Center;
+        BoundsMin=GltfMesh.Bounds.Min;
+        BoundsMax=GltfMesh.Bounds.Max;
         BoundsRadius=GltfMesh.Bounds.BoundingSphereRadius;
     }
 
@@ -127,9 +130,8 @@ static int RunViewer(string[]Args){
         Renderer=RenderServer.Create(
             Window.Handle,Window.ClientWidth,Window.ClientHeight,DeviceOptions,
             ShaderArtifactPath,Meshes,Materials,Objects);
-        Vector3 Extent=new(BoundsRadius);
-        Renderer.SetCamera(Camera.CreateBoundsFit(
-            BoundsCenter-Extent,BoundsCenter+Extent));
+        // The mesh's own bounds: wrapping its bounding sphere in a cube would frame a sphere sqrt(3) times larger.
+        Renderer.SetCamera(Camera.CreateBoundsFit(BoundsMin,BoundsMax));
         Renderer.SetAmbientLight(new Vector3(0.35f));
         Renderer.SetDirectionalLight(
             new CSharpGameEngine.Rendering.DirectionalLightSubmission(Vector3.Normalize(new Vector3(1f,-1f,1f)),new CSharpGameEngine.Lighting.LinearLightColor(1f,1f,1f),new CSharpGameEngine.Lighting.Illuminance(50_000f),new CSharpGameEngine.Lighting.LightShadowSettings(0,new CSharpGameEngine.Lighting.ShadowBias(0.0015f))));
