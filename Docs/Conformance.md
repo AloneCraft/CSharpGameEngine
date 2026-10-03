@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — 対数のサムネイルの値ひとつで Scene ビュー全体が止まりえた
+- 意図: Editor-VSIX の「カメラの値が使えないときは、そのカードがエラーを示す」（FovY・NearZ/FarZ・正射影の大きさと同じ）と、プロトコル 8 の検証。
+- 観測（Fact、コードの経路から）: M0100 からサムネイルは `RadialTransitionMeters` をプレビューホストへ送る。VSIX の検証はこれを見ていなかった。プロトコルは不正なカメラが 1 台あると `UpdateFrame` 全体を拒み、ホストは作れない radial の投影で例外を投げる。そのため、Inspector で T に 0 を入力する途中や 0 を保存した状態では、Scene ビューのフレーム全体が失敗しえた。
+- 実装: `SceneCameraPreviewBinding` は radial の透視カメラについて、T が正で有限か、錐台の角の距離が有限か（ホストの `RadialDepthProjection.TryCreate` と同じ条件）を確かめ、だめならそのカードに `SceneCameraRadialTransitionInvalid` を出して送らない。
+- 自動化された証拠: `SceneCameraPreviewPolicyTests.Build_ReportsARadialCameraThePreviewHostCannotDraw`（修正前は失敗。standard と正射影は T を使わないので対象外）。
+- 結果: Matches。
+
 ## 2026-10-04 探索 — 負の環境光で画面が白くなっていた
 - 意図: 型付きのライトとカメラの方針「使えない値は直前の使える値を保つ」、ADR-0069 の環境（使えない設定は Legacy に戻し `InvalidReason` に名前を残す）。
 - 観測（Fact）: 旧来の `AmbientLight` だけは検証を通らずにレンダラーへ渡っていた。強度 −1 の箱は暗くならず、中心が (255,255,255) になった。ACES の有理式は負の入力に正の値を返す（x = −1 で 1.25）。`HeightFog` の負の値は、シェーダーの `saturate` で「フォグなし」になるだけだった。

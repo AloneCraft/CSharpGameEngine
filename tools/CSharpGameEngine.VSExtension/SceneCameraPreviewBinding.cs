@@ -187,7 +187,8 @@ internal static class SceneCameraPreviewBinding {
         float OrthographicSize = ReadFloat(Camera, "OrthographicSize", DefaultOrthographicSize);
         bool RadialDepth = ReadRadialDepth(Camera);
         float RadialTransitionMeters = ReadFloat(Camera, "RadialTransitionMeters", DefaultRadialTransitionMeters);
-        string? Error=Validate(Culture,World,ProjectionMode,AspectRatio,FovY,NearZ,FarZ,OrthographicSize);
+        string? Error=Validate(Culture,World,ProjectionMode,AspectRatio,FovY,NearZ,FarZ,OrthographicSize,
+            RadialDepth,RadialTransitionMeters);
 
         if (Error is not null) {
             return new SceneCameraPreview(Node.Path, Node.DisplayName, ProjectionMode,
@@ -259,7 +260,9 @@ internal static class SceneCameraPreviewBinding {
         float FovY,
         float NearZ,
         float FarZ,
-        float OrthographicSize) {
+        float OrthographicSize,
+        bool RadialDepth,
+        float RadialTransitionMeters) {
         if (!IsFinite(World) || !IsFinite(AspectRatio) || AspectRatio <= 0f) {
             return VsixText.Get("SceneCameraNonFiniteTransformOrAspect",Culture);
         }
@@ -282,6 +285,16 @@ internal static class SceneCameraPreviewBinding {
         if (ProjectionMode == SceneProjectionMode.Orthographic &&
             (!IsFinite(OrthographicSize) || OrthographicSize <= 0f)) {
             return VsixText.Get("SceneCameraOrthographicSizeInvalid",Culture);
+        }
+
+        // M0100: the preview host draws a radial thumbnail only when its depth curve exists
+        // (RadialDepthProjection.TryCreate); a camera it cannot draw fails the whole frame, so the card reports it.
+        if (ProjectionMode == SceneProjectionMode.Perspective && RadialDepth) {
+            float TanHalfFov = FloatMath.Tan(FovY * 0.5f);
+            float Corner = FarZ * FloatMath.Sqrt(1f + TanHalfFov * TanHalfFov * (1f + AspectRatio * AspectRatio));
+            if (!IsFinite(RadialTransitionMeters) || RadialTransitionMeters <= 0f || !IsFinite(Corner)) {
+                return VsixText.Get("SceneCameraRadialTransitionInvalid",Culture);
+            }
         }
 
         return null;

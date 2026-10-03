@@ -358,6 +358,9 @@ Fab自体へのログイン・ダウンロードはこのウィンドウでは�
   <data name="SceneCameraNearFarInvalid" xml:space="preserve">
     <value>CameraのNearZ/FarZの値が無効です。</value>
   </data>
+  <data name="SceneCameraRadialTransitionInvalid" xml:space="preserve">
+    <value>CameraのRadialTransitionMetersは正の値である必要があり、対数深度には有限の遠い面が必要です。</value>
+  </data>
   <data name="SceneCameraFovInvalid" xml:space="preserve">
     <value>CameraのFovYRadiansは0より大きくπ未満である必要があります。</value>
   </data>

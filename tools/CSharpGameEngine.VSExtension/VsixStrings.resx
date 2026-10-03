@@ -358,6 +358,9 @@ Discard unsaved edits and reload it?</value></data>
   <data name="SceneCameraNearFarInvalid" xml:space="preserve">
     <value>Camera NearZ/FarZ values are invalid.</value>
   </data>
+  <data name="SceneCameraRadialTransitionInvalid" xml:space="preserve">
+    <value>Camera RadialTransitionMeters must be positive, and the radial depth needs a finite far plane.</value>
+  </data>
   <data name="SceneCameraFovInvalid" xml:space="preserve">
     <value>Camera FovYRadians must be between 0 and π.</value>
   </data>

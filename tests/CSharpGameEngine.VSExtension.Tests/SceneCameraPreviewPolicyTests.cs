@@ -104,6 +104,44 @@ public sealed class SceneCameraPreviewPolicyTests {
     }
 
     [Fact]
+    public void Build_ReportsARadialCameraThePreviewHostCannotDraw() {
+        // A radial thumbnail with no depth curve (a transition length typed as 0 on its way to 0.5, a far plane at the
+        // float limit) would make the preview host reject the whole frame, so its card reports it instead.
+        SceneModel Model = SceneAnalysisTestHelper.Analyze([Components, """
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Runtime.Windows;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() { Name="Root", Children=[
+                    new Node { Name="ZeroTransition", Components=[
+                        new Transform { RotationW=1f, ScaleX=1f, ScaleY=1f, ScaleZ=1f },
+                        new Camera { FovYRadians=1f, NearZ=0.1f, FarZ=100f, DepthMapping=CameraDepthMapping.Radial, RadialTransitionMeters=0f } ]},
+                    new Node { Name="FloatLimit", Components=[
+                        new Transform { RotationW=1f, ScaleX=1f, ScaleY=1f, ScaleZ=1f },
+                        new Camera { FovYRadians=1f, NearZ=0.1f, FarZ=3e38f, DepthMapping=CameraDepthMapping.Radial, RadialTransitionMeters=1f } ]},
+                    new Node { Name="Standard", Components=[
+                        new Transform { RotationW=1f, ScaleX=1f, ScaleY=1f, ScaleZ=1f },
+                        new Camera { FovYRadians=1f, NearZ=0.1f, FarZ=100f, DepthMapping=CameraDepthMapping.Standard, RadialTransitionMeters=0f } ]},
+                    new Node { Name="Orthographic", Components=[
+                        new Transform { RotationW=1f, ScaleX=1f, ScaleY=1f, ScaleZ=1f },
+                        new Camera { Projection=CameraProjection.Orthographic, OrthographicSize=5f, NearZ=0.1f, FarZ=100f,
+                            DepthMapping=CameraDepthMapping.Radial, RadialTransitionMeters=0f } ]}] };
+            }
+            """]);
+
+        IReadOnlyList<SceneCameraPreview> Cameras = SceneCameraPreviewBinding.Build(
+            Model, [NodePath.Root.Append(0), NodePath.Root.Append(1), NodePath.Root.Append(2), NodePath.Root.Append(3)], 16f / 9f, 4);
+
+        SceneCameraPreview Zero = Cameras.Single(Camera => Camera.DisplayName == "ZeroTransition");
+        Assert.False(Zero.IsAvailable);
+        Assert.Contains("RadialTransitionMeters", Zero.ErrorMessage, StringComparison.Ordinal);
+        Assert.False(Cameras.Single(Camera => Camera.DisplayName == "FloatLimit").IsAvailable);
+        // Only a radial perspective camera uses the transition length.
+        Assert.True(Cameras.Single(Camera => Camera.DisplayName == "Standard").IsAvailable);
+        Assert.True(Cameras.Single(Camera => Camera.DisplayName == "Orthographic").IsAvailable);
+    }
+
+    [Fact]
     public void Build_ReportsInvalidCameraValuesWithoutThrowing() {
         SceneModel Model = SceneAnalysisTestHelper.Analyze([Components, """
             using CSharpGameEngine.Entities;
