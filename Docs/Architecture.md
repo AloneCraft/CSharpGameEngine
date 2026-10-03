@@ -149,7 +149,7 @@ Roslynにロードされない。
   ワイルドカードではなく `.projitems` に明示すること。
 - プロジェクトまたは共有プロジェクトファイルの追加・削除・移動・改名を行う際は、同じ変更の中で
   `CSharpGameEngine.slnx` を更新し、登録整合性テストを実行すること。
-- ソリューションが宣言しているプラットフォームは **x64 のみ**である。
+- ソリューションが宣言しているプラットフォームは **x64 と AnyCPU** である。x64 専用の Windows 依存プロジェクト（`CSharpGameEngine.Windows`、`Windows.Tests`、`TestHost`、`EditorPreview.Host`、`FeatureRunner` など）は x64 に、VSIX や `World` など一部は AnyCPU に、`CSharpGameEngine.slnx` の `<Platform Project=...>` でプロジェクトごとに対応付けている。
 - `UserGameProject.slnx`(2つ目のソリューションファイル)は ADR-0034 で削除した。
   M0009 で消えた `CSharpGameEngine.Ecs` 等を参照しており、読み込み不能な状態で放置されていた。
 
@@ -171,7 +171,7 @@ Editor PreviewはVSIX内の複製実装ではなく、生成済みRuntimeアセ�
 
 ## Shared Windows ECS Runtime
 
-`CSharpGameEngine.Runtime.Windows` is a source-shared L5 runtime module. Its `.projitems` is compiled into the user ECS compilation together with Entities, the analyzer, and the selected fixed-precision profile. This keeps generated World/State APIs, hierarchy resolution, stage rendering, XAudio2 selection, and runtime companion components on one concrete Logical type.
+`CSharpGameEngine.Runtime.Windows` is a source-shared L5 runtime module. Its `.projitems` is compiled into the user ECS compilation together with Entities and the analyzer, on the single Q64.64 `LogicalScalar` of ADR-0063 (the former selectable precision profiles are gone). This keeps generated World/State APIs, hierarchy resolution, stage rendering, XAudio2 selection, and runtime companion components on one concrete Logical type.
 
 UserEcsProject remains an L9 composition root for scenes, gameplay components, assets, and precision selection. Runtime systems do not depend on a scene class name or on `PlayerStart`; one active Camera is required and its Transform is authoritative.
 

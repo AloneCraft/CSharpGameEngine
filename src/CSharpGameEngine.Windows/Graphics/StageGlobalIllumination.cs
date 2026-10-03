@@ -122,11 +122,20 @@ internal sealed unsafe class StageGlobalIllumination:IDisposable {
         this.Cursor=(this.Cursor+Count)%ProbeCount;
         this.ScheduledCount=Count;
     }
-    /// <summary>View-projection of one capture face; left-handed like the main camera, 90 degree square frustum.</summary>
+    /// <summary>
+    /// View-projection of one capture face: a 90 degree square frustum. It is left-handed (unlike the right-handed main
+    /// camera), so a face's screen +X is <c>Up × Forward</c>, the <see cref="FaceBasis"/> right vector that
+    /// GlobalIllumination.hlsl uses to turn a capture texel back into a direction.
+    /// </summary>
     internal static Matrix4x4 FaceViewProjection(Vector3 ProbePosition,int Face){
         var (Forward,Up)=Faces[Face];
         return Matrix4x4.CreateLookAtLeftHanded(ProbePosition,ProbePosition+Forward,Up)
             *Matrix4x4.CreatePerspectiveFieldOfViewLeftHanded(MathF.PI/2f,1f,CaptureNearMeters,CaptureFarMeters);
+    }
+    /// <summary>The direction a capture face looks along and the directions of its screen +X and +Y.</summary>
+    internal static (Vector3 Forward,Vector3 Right,Vector3 Up)FaceBasis(int Face){
+        var (Forward,Up)=Faces[Face];
+        return (Forward,Vector3.Cross(Up,Forward),Up);
     }
     internal byte*CaptureFrameSlot(uint FrameIndex,int Capture)=>
         this.MappedCaptureFrameConstants+(FrameIndex*(uint)CaptureSliceCount+(uint)Capture)*this.FrameConstantsStride;
@@ -221,8 +230,7 @@ internal sealed unsafe class StageGlobalIllumination:IDisposable {
         var Slot=FrameIndex*ConstantSlotsPerFrame+(uint)Index;
         var Target=(float*)(this.MappedConstants+Slot*ConstantsStride);
         for(var Face=0;Face<6;Face++){
-            var (Forward,Up)=Faces[Face];
-            var Right=Vector3.Cross(Up,Forward);
+            var (Forward,Right,Up)=FaceBasis(Face);
             Store(Target,Face,Right,0f);
             Store(Target,6+Face,Up,0f);
             Store(Target,12+Face,Forward,0f);
