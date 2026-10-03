@@ -20,7 +20,7 @@
 | 1 | 描画カメラのファクトリーの既定を対数にする | 完了 |
 | 2 | シーンの Camera コンポーネントの既定を対数にする | 完了 |
 | 3a | 行列で渡されるビューを対数で描くレンダラーの入口 | 完了 |
-| 3b | エディタの分離プレビュー、Asset Preview、カメラのサムネイルを対数にする（プロトコル、プレビューホスト、VSIX） | 未着手 |
+| 3b | エディタの分離プレビュー、Asset Preview、カメラのサムネイルを対数にする（プロトコル、プレビューホスト、VSIX） | 完了 |
 | 4 | 文書、SDK の版 | 未着手 |
 
 ## 段階 1. 描画カメラのファクトリー
@@ -38,3 +38,9 @@
 - 分離プレビューは VSIX が作ったビュー投影の行列を渡す（`SetViewProjection`）。ギズモやピッキングとずれないよう、この行列はそのまま使う。
 - 実装: `RadialViewParameters`（FovY、NearZ、FarZ、T）と `StageRenderer`/`RenderServer.SetViewProjection(行列, 位置, RadialViewParameters)`。透視の行列では W がビューの深さなので、保守的深度と補助の行列は深度の列だけを `M33·z + M43`（z = −W）で作り直す（`RadialDepthProjection.CreateConservativeRasterViewProjection`/`CreateAuxiliaryViewProjection`）。逆行列は要らず、X・Y・W の列は元の行列とビット一致する。`RenderFrameState` が記録し、デバイス復旧で再生する。
 - テスト: `RadialDepthTests.ViewProjectionOnly_RebuildsTheMatricesACameraWouldBuild`（4 つの範囲・3 つの姿勢で `View · Projection` と完全一致、正射影は透視でないと判定）。`RadialDepthGpuIntegrationTests` の 4 件（行列で描いた画像と深度が対数カメラとビット一致、near 1 mm・far 1e7 m の環境ありの場面でも一致、正射影と不正な値を拒否、デバイス復旧後も同じ画像と深度で、深度が対数の値）。Windows.Tests 412/412、Rendering 65/65。
+
+## 段階 3b. 分離プレビューとサムネイル
+- プロトコル 8: `RenderPreviewCamera` に `DepthMapping`（`RenderPreviewDepthMapping`）と `RadialTransitionMeters`（既定 1）を足した。対数のカメラは、透視の行列、(0, π) の FovY、0 < NearZ < FarZ、正の T を持たなければ拒否する（標準へ黙って戻さない）。
+- VSIX: カメラはすべて `RenderPreviewSceneBuilder.DescribePose` を通るので、そこで透視なら Radial、正射影なら Standard にする（Scene ビュー、Asset Preview、フレーム）。サムネイルはシーンカメラの `DepthMapping` と `RadialTransitionMeters` をシーンモデルから読み（`SceneCameraPreviewBinding`、無ければコンポーネントの既定 Radial と 1）、`DescribePose` で投影を載せる。
+- プレビューホスト: 対数のカメラは `RenderServer.SetViewProjection(行列, 位置, RadialViewParameters)`、対数のサムネイルは矩形の縦横比で `RadialDepthProjection` を作って `RenderCameraPreview` に渡す。
+- テスト: `RenderPreviewHostProtocolTests.ProtocolV8_ValidatesRadialCameras`、`RenderPreviewRenderSessionTests.WARP_RadialCameraDrawsTheStandardImageWithRadialDepth`（箱の画像は標準とビット一致し、中心の深度は標準 0.98 超・対数 0.2 未満。サムネイルも標準と同じ画像）、`RenderPreviewCameraPoseTests.Pose_ChoosesRadialDepthForAPerspectiveViewAndStandardForAnOrthographicOne`、`SceneCameraPreviewPolicyTests.Build_ReadsTheDepthMappingAndIsRadialByDefault`。Windows.Tests 413/413、VSExtension 1081/1082（失敗はユーザーの作業中の未追跡テスト）、Contracts 21/21、FeatureRunner 154/154。

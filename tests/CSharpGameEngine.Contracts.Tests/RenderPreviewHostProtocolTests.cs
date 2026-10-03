@@ -5,15 +5,50 @@ namespace CSharpGameEngine.Contracts.Tests;
 public sealed class RenderPreviewHostProtocolTests {
     /// <summary>
     /// M0097: version 7 removed the runtime diagnostics snapshot. The command is gone, so a request that still
-    /// carries its old value is an unknown command.
+    /// carries its old value is an unknown command. M0100: version 8 adds the camera's depth mapping.
     /// </summary>
     [Fact]
-    public void ProtocolV7_HasNoDiagnosticsSnapshotCommand(){
-        Assert.Equal(7,RenderPreviewHostProtocol.CurrentVersion);
+    public void Protocol_HasNoDiagnosticsSnapshotCommand(){
+        Assert.Equal(8,RenderPreviewHostProtocol.CurrentVersion);
         Assert.DoesNotContain("Snapshot",Enum.GetNames(typeof(RenderPreviewHostCommand)));
         Assert.Null(typeof(RenderPreviewHostResponse).GetProperty("DebugSnapshot"));
         RenderPreviewHostRequest Request=CreateCommand((RenderPreviewHostCommand)6);
         Assert.Contains("unknown",Assert.IsType<string>(RenderPreviewHostProtocol.Validate(Request)),StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ProtocolV8_ValidatesRadialCameras(){
+        // M0100: a radial camera needs a perspective matrix (its W is the view depth) and a usable projection; an
+        // orthographic or incomplete one is rejected rather than drawn standard.
+        var Perspective=System.Numerics.Matrix4x4.CreateLookAt(new(0f,1f,-4f),System.Numerics.Vector3.Zero,System.Numerics.Vector3.UnitY)
+            *System.Numerics.Matrix4x4.CreatePerspectiveFieldOfView(0.8f,1.5f,0.1f,300f);
+        RenderPreviewHostRequest Request=CreateCommand(RenderPreviewHostCommand.UpdateFrame);
+        RenderPreviewCamera Camera=new(){
+            ViewProjection=new RenderPreviewMatrix4x4 { Values=[
+                Perspective.M11,Perspective.M12,Perspective.M13,Perspective.M14,
+                Perspective.M21,Perspective.M22,Perspective.M23,Perspective.M24,
+                Perspective.M31,Perspective.M32,Perspective.M33,Perspective.M34,
+                Perspective.M41,Perspective.M42,Perspective.M43,Perspective.M44] },
+            FovYRadians=0.8f,NearZ=0.1f,FarZ=300f,
+            DepthMapping=RenderPreviewDepthMapping.Radial,
+        };
+        Request.Frame=new RenderPreviewFrame { Camera=Camera };
+        Assert.Equal(1f,Camera.RadialTransitionMeters);
+        Assert.Null(RenderPreviewHostProtocol.Validate(Request));
+        void AssertRejected(Action<RenderPreviewCamera>Change){
+            var Saved=(Camera.ViewProjection,Camera.FovYRadians,Camera.NearZ,Camera.RadialTransitionMeters,Camera.DepthMapping);
+            Change(Camera);
+            Assert.Contains("depth",Assert.IsType<string>(RenderPreviewHostProtocol.Validate(Request)),StringComparison.OrdinalIgnoreCase);
+            (Camera.ViewProjection,Camera.FovYRadians,Camera.NearZ,Camera.RadialTransitionMeters,Camera.DepthMapping)=Saved;
+        }
+        AssertRejected(static Value=>Value.ViewProjection=RenderPreviewMatrix4x4.Identity);
+        AssertRejected(static Value=>Value.FovYRadians=0f);
+        AssertRejected(static Value=>Value.NearZ=0f);
+        AssertRejected(static Value=>Value.RadialTransitionMeters=0f);
+        AssertRejected(static Value=>Value.DepthMapping=(RenderPreviewDepthMapping)7);
+        Camera.DepthMapping=RenderPreviewDepthMapping.Standard;
+        Camera.ViewProjection=RenderPreviewMatrix4x4.Identity;
+        Assert.Null(RenderPreviewHostProtocol.Validate(Request));
     }
 
     [Fact]

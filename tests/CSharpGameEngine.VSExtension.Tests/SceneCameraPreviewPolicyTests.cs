@@ -17,12 +17,47 @@ public sealed class SceneCameraPreviewPolicyTests {
                 public float ScaleX; public float ScaleY; public float ScaleZ;
             }
             public enum CameraProjection { Perspective, Orthographic }
+            public enum CameraDepthMapping { Standard, Radial }
             public struct Camera {
                 public CameraProjection Projection; public float FovYRadians;
                 public float NearZ; public float FarZ; public float OrthographicSize;
+                public CameraDepthMapping DepthMapping; public float RadialTransitionMeters;
             }
         }
         """;
+
+    [Fact]
+    public void Build_ReadsTheDepthMappingAndIsRadialByDefault() {
+        // M0100: the thumbnail follows the scene camera's DepthMapping, whose default is Radial.
+        SceneModel Model = SceneAnalysisTestHelper.Analyze([Components, """
+            using CSharpGameEngine.Entities;
+            using CSharpGameEngine.Runtime.Windows;
+            namespace Game;
+            public partial class MainScene:IScene {
+                public Node Root=>new() { Name="Root", Children=[
+                    new Node { Name="Default", Components=[
+                        new Transform { RotationW=1f, ScaleX=1f, ScaleY=1f, ScaleZ=1f }, new Camera { FovYRadians=1f, NearZ=0.2f, FarZ=50f } ]},
+                    new Node { Name="Standard", Components=[
+                        new Transform { RotationW=1f, ScaleX=1f, ScaleY=1f, ScaleZ=1f }, new Camera { DepthMapping=CameraDepthMapping.Standard } ]},
+                    new Node { Name="Wide", Components=[
+                        new Transform { RotationW=1f, ScaleX=1f, ScaleY=1f, ScaleZ=1f }, new Camera { DepthMapping=CameraDepthMapping.Radial, RadialTransitionMeters=4f } ]}] };
+            }
+            """]);
+
+        IReadOnlyList<SceneCameraPreview> Cameras = SceneCameraPreviewBinding.Build(
+            Model, [NodePath.Root.Append(0), NodePath.Root.Append(1), NodePath.Root.Append(2)], 16f / 9f);
+
+        Assert.Equal(3, Cameras.Count);
+        SceneCameraPreview Default = Cameras.Single(Camera => Camera.DisplayName == "Default");
+        Assert.True(Default.RadialDepth);
+        Assert.Equal(1f, Default.RadialTransitionMeters);
+        Assert.False(Cameras.Single(Camera => Camera.DisplayName == "Standard").RadialDepth);
+        SceneCameraPreview Wide = Cameras.Single(Camera => Camera.DisplayName == "Wide");
+        Assert.True(Wide.RadialDepth);
+        Assert.Equal(4f, Wide.RadialTransitionMeters);
+        Assert.True(Wide.WithAspectRatio(1f).RadialDepth);
+        Assert.Equal(4f, Wide.WithAspectRatio(1f).RadialTransitionMeters);
+    }
 
     [Fact]
     public void Build_UsesSelectedCameraAndComposesParentTransform() {

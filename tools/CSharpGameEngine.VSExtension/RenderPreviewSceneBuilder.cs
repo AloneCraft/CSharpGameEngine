@@ -234,7 +234,8 @@ internal static class RenderPreviewSceneBuilder {
     /// camera's right, up and backward axes; the runtime camera takes its forward (local +F) and up (+U)
     /// from an RUF rotation whose rows are right, up and forward.
     /// </summary>
-    internal static void DescribePose(RenderPreviewCamera Camera,in Matrix4x4 View,in Matrix4x4 Projection,float FovYRadians){
+    internal static void DescribePose(RenderPreviewCamera Camera,in Matrix4x4 View,in Matrix4x4 Projection,float FovYRadians,
+        bool RadialDepth=true,float RadialTransitionMeters=1f){
         Vector3 Up=Vector3.Normalize(new Vector3(View.M12,View.M22,View.M32));
         Vector3 Forward=-Vector3.Normalize(new Vector3(View.M13,View.M23,View.M33));
         Vector3 Right=Vector3.Cross(Up,Forward);
@@ -248,6 +249,9 @@ internal static class RenderPreviewSceneBuilder {
         // Perspective (M34=-1): M33=f/(n-f), M43=nf/(n-f). Orthographic (M34=0): M33=1/(n-f), M43=n/(n-f).
         Camera.NearZ=Projection.M43/Projection.M33;
         Camera.FarZ=Projection.M34==0f?(Projection.M43-1f)/Projection.M33:Projection.M43/(Projection.M33+1f);
+        // M0100: radial depth is the default of every perspective view; an orthographic one keeps the standard depth.
+        Camera.DepthMapping=RadialDepth&&Projection.M34!=0f?RenderPreviewDepthMapping.Radial:RenderPreviewDepthMapping.Standard;
+        Camera.RadialTransitionMeters=RadialTransitionMeters;
     }
 
     private static RenderPreviewOverlayVertex OverlayVertex(in GizmoOverlayVertex Vertex)=>new(){

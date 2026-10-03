@@ -121,8 +121,7 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
                 $"Frame contains {Frame.Objects.Length} objects; session roster contains {this.ObjectIndices.Count}.");
         }
         RenderServer Active=this.Active;
-        Active.SetViewProjection(
-            ToMatrix(Frame.Camera!.ViewProjection),ToVector3(Frame.Camera.Position));
+        SetView(Active,Frame.Camera!);
         Active.SetPresentationMode(Frame.PresentationMode switch {
             RenderPreviewPresentationMode.Lit=>RenderPresentationMode.Lit,
             RenderPreviewPresentationMode.BaseColor=>RenderPresentationMode.BaseColor,
@@ -151,10 +150,7 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
                 throw new InvalidOperationException(
                     $"Camera preview excluded object is not in the session roster: {Source.ExcludedObjectId}.");
             }
-            this.CameraPreviewBuffer[Index]=new RenderCameraPreview(
-                Source.X,Source.Y,Source.Width,Source.Height,
-                ToMatrix(Source.Camera!.ViewProjection),
-                ToVector3(Source.Camera.Position),ExcludedObjectIndex);
+            this.CameraPreviewBuffer[Index]=CameraPreview(Source,ExcludedObjectIndex);
         }
         Active.SetCameraPreviews(
             this.CameraPreviewBuffer.AsSpan(0,Frame.CameraPreviews.Length));
@@ -241,8 +237,7 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
             SurfaceHandle,Width,Height,DeviceOptions,ShaderArtifactPath,
             Meshes,Materials,Objects);
         try {
-            Server.SetViewProjection(
-                ToMatrix(Scene.Camera!.ViewProjection),ToVector3(Scene.Camera.Position));
+            SetView(Server,Scene.Camera!);
             Server.SetAmbientLight(new Vector3(0.4f));
             Server.SetDirectionalLight(new CSharpGameEngine.Rendering.DirectionalLightSubmission(Vector3.UnitY,new CSharpGameEngine.Lighting.LinearLightColor(1f,1f,1f),new CSharpGameEngine.Lighting.Illuminance(2f),new CSharpGameEngine.Lighting.LightShadowSettings(0,new CSharpGameEngine.Lighting.ShadowBias(0.0015f))));
             for(int Index=0;Index<Scene.Objects.Length;Index++){
@@ -254,6 +249,37 @@ public sealed class RenderPreviewRenderSession:IRenderPreviewSession {
             throw;
         }
     }
+
+    /// <summary>M0100: a radial camera draws with radial depth from its own matrix; a standard one as before.</summary>
+    private static void SetView(RenderServer Server,RenderPreviewCamera Camera){
+        Matrix4x4 ViewProjection=ToMatrix(Camera.ViewProjection);
+        Vector3 Position=ToVector3(Camera.Position);
+        if(Camera.DepthMapping==RenderPreviewDepthMapping.Radial){
+            Server.SetViewProjection(ViewProjection,Position,
+                new RadialViewParameters(Camera.FovYRadians,Camera.NearZ,Camera.FarZ,Camera.RadialTransitionMeters));
+        } else {
+            Server.SetViewProjection(ViewProjection,Position);
+        }
+    }
+
+    /// <summary>A camera thumbnail; a radial scene camera's thumbnail writes radial depth (its rectangle sets the aspect).</summary>
+    private static RenderCameraPreview CameraPreview(RenderPreviewCameraPass Source,int ExcludedObjectIndex){
+        RenderPreviewCamera Camera=Source.Camera!;
+        Matrix4x4 ViewProjection=ToMatrix(Camera.ViewProjection);
+        Vector3 Position=ToVector3(Camera.Position);
+        if(Camera.DepthMapping!=RenderPreviewDepthMapping.Radial){
+            return new RenderCameraPreview(Source.X,Source.Y,Source.Width,Source.Height,ViewProjection,Position,ExcludedObjectIndex);
+        }
+        if(!RadialDepthCurve.TryCreate(Camera.RadialTransitionMeters,out var Curve)
+            ||!RadialDepthProjection.TryCreate(Curve,Camera.NearZ,Camera.FarZ,Camera.FovYRadians,Source.Width/(float)Source.Height,out var Projection)){
+            throw new ArgumentException("A radial camera preview needs a valid field of view, clip range and transition length.",nameof(Source));
+        }
+        return new RenderCameraPreview(Source.X,Source.Y,Source.Width,Source.Height,ViewProjection,Position,ExcludedObjectIndex,
+            DepthMapping:RenderDepthMapping.Radial,Radial:Projection);
+    }
+
+    /// <summary>Test-only access to the active Render Server (its depth buffer, for instance).</summary>
+    internal RenderServer ActiveServerForTesting=>this.Active;
 
     private static StageMeshCreateInfo CreateEmptySentinelMesh()=>new(){
         Positions=[Vector3.Zero,Vector3.Zero,Vector3.Zero],

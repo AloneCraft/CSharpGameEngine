@@ -881,14 +881,18 @@ internal sealed class SceneHwndHost:HwndHost {
             SceneCameraPreview Camera=Item.Camera.WithAspectRatio(CardAspect);
             EffectiveLayout.Add(new SceneCameraPreviewLayoutItem(Camera,Rect,Item.Index));
             string CameraObjectId=Camera.NodePath.ToDisplayString();
+            RenderPreviewCamera PassCamera=new(){
+                ViewProjection=RenderPreviewSceneBuilder.Matrix(Camera.View*Camera.Projection),
+                Position=[Camera.World.M41,Camera.World.M42,Camera.World.M43],
+            };
+            // M0100: the thumbnail shows the scene camera's depth mapping (radial unless it chose standard).
+            RenderPreviewSceneBuilder.DescribePose(PassCamera,Camera.View,Camera.Projection,Camera.FovYRadians,
+                Camera.RadialDepth,Camera.RadialTransitionMeters);
             Passes.Add(new RenderPreviewCameraPass {
                 X=(int)FloatMath.Round(Rect.X),Y=(int)FloatMath.Round(Rect.Y),
                 Width=Math.Max(1,(int)FloatMath.Round(Rect.Width)),
                 Height=Math.Max(1,(int)FloatMath.Round(Rect.Height)),
-                Camera=new RenderPreviewCamera {
-                    ViewProjection=RenderPreviewSceneBuilder.Matrix(Camera.View*Camera.Projection),
-                    Position=[Camera.World.M41,Camera.World.M42,Camera.World.M43],
-                },
+                Camera=PassCamera,
                 ExcludedObjectId=this.GetPreviewRoster().Any(
                     Object=>Object.NodeId.Equals(Camera.NodePath))
                     ?CameraObjectId

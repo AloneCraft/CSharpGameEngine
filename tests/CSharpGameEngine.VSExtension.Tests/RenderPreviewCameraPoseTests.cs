@@ -37,6 +37,25 @@ public sealed class RenderPreviewCameraPoseTests {
         Assert.InRange(Camera.FarZ,79.99f,80.01f);
     }
 
+    [Fact]
+    public void Pose_ChoosesRadialDepthForAPerspectiveViewAndStandardForAnOrthographicOne(){
+        // M0100: radial depth is the default of every perspective view; radial depth needs a perspective.
+        var View=Matrix4x4.CreateLookAt(Vector3.Zero,Vector3.UnitZ,Vector3.UnitY);
+        var Perspective=new RenderPreviewCamera();
+        RenderPreviewSceneBuilder.DescribePose(Perspective,View,Matrix4x4.CreatePerspectiveFieldOfView(0.8f,1.5f,0.25f,120f),0.8f);
+        Assert.Equal(RenderPreviewDepthMapping.Radial,Perspective.DepthMapping);
+        Assert.Equal(1f,Perspective.RadialTransitionMeters);
+        var Orthographic=new RenderPreviewCamera();
+        RenderPreviewSceneBuilder.DescribePose(Orthographic,View,Matrix4x4.CreateOrthographic(10f,6f,0.5f,80f),0.8f);
+        Assert.Equal(RenderPreviewDepthMapping.Standard,Orthographic.DepthMapping);
+        var Chosen=new RenderPreviewCamera();
+        RenderPreviewSceneBuilder.DescribePose(Chosen,View,Matrix4x4.CreatePerspectiveFieldOfView(0.8f,1.5f,0.25f,120f),0.8f,RadialDepth:false);
+        Assert.Equal(RenderPreviewDepthMapping.Standard,Chosen.DepthMapping);
+        var Transition=new RenderPreviewCamera();
+        RenderPreviewSceneBuilder.DescribePose(Transition,View,Matrix4x4.CreatePerspectiveFieldOfView(0.8f,1.5f,0.25f,120f),0.8f,RadialTransitionMeters:3f);
+        Assert.Equal(3f,Transition.RadialTransitionMeters);
+    }
+
     private static void AssertNear(Vector3 Expected,Vector3 Actual)=>
         Assert.True(Vector3.Distance(Expected,Actual)<0.0001f,$"Expected {Expected}, got {Actual}.");
 }

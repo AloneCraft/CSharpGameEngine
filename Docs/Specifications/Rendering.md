@@ -97,6 +97,8 @@ The device state set is fixed: `Ready`, `Suspended`, `Recovering`, `Faulted`, an
 
 **Scene view runtime view (ADR-0070).** For a built game the Scene view is drawn by the game's own `EngineHost` and `RenderServer` inside the preview host, so it uses the runtime's environment, lights, materials, skinning, exposure and GI. One session keeps its device and swap chain from Open to Close: an edit changes component values in the running world and never rebuilds device state. A gizmo drag sends the dragged roots' local transforms with each frame (`RenderPreviewFrame.TransformOverrides`), applied to their `Transform` the same way. The editor camera replaces the scene camera at the point where `LevelLoad` applies it, and the designer's selection and gizmos are drawn over the image. The view keeps the scene camera's exposure and depth mapping, read on every frame like the other components, so editing them changes the view; while an edited value is unusable (a zero near plane while typing) the last usable projection stays and `LevelRuntime.InvalidCameraProperty` names the member.
 
+**Isolated preview depth (M0100).** The isolated preview (Scene view of an unbuilt game, Asset Preview) draws a perspective camera with radial depth from the editor's own view-projection (`RenderServer.SetViewProjection` with `RadialViewParameters`), so coverage, gizmos and picking stay those of the editor's matrix; an orthographic view stays standard. A camera thumbnail follows its scene camera's depth mapping.
+
 Preview/Import/Bake calls use the versioned host protocol described in [Editor-VSIX](Editor-VSIX.md). Cancellation, timeout, host crash, and version mismatch are visible state transitions, not retries that can appear successful.
 
 ## Visual and quality policy
