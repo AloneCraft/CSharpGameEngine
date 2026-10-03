@@ -13,7 +13,7 @@ Unity URP 用の対数（Radial）レンダリング資産 Omni（`D:\Unity\6.6\
 | Phase 0 | 既存バグ: ワールドグリッドと旧フォグがランタイムでカメラに付いて動く | 完了 |
 | SDK | Phase 0（エンジンの修正）に合わせて SDK パッケージを 0.1.13 に上げた | 完了 |
 | Phase 1 | 標準モードの基準フレーム（SHA-256）を固定する | 完了 |
-| Phase 2 | CPU 側の数式（`RadialDepthCurve`） | 未着手 |
+| Phase 2 | CPU 側の数式（`RadialDepthCurve`、`RadialDepthProjection`）、ADR-0076、Omni 仕様 | 完了 |
 | Phase 3 | シェーダー ABI（対数用のエントリー、FrameCB の深度方式パケット） | 未着手 |
 | Phase 4 | レンダラー（対数 PSO、補助 VP、プレビューごとの深度方式） | 未着手 |
 | Phase 5 | Camera コンポーネント、Scene JSON、エディタの追従 | 未着手 |
@@ -56,3 +56,12 @@ Unity URP 用の対数（Radial）レンダリング資産 Omni（`D:\Unity\6.6\
   - `selection`、`base-color`、`normal`、`wireframe`: 表示モード。
   - `previews-and-overlay`: カメラのサムネイル 2 枚（1 枚は物体を除外）と overlay の三角形・線。
 - 固定する前に全場面の画像を書き出して確かめた。テストのメッシュの接線を全頂点 (1,0,0) にしていたため ±X 面で TBN が壊れて斑点が出ていた（テスト側の誤り）ので、法線に直交する接線を作るよう直した。2 回続けて実行して一致した。
+
+## Phase 2. CPU 側の数式
+- `src/CSharpGameEngine.Rendering/RadialDepth.cs`（float だけ。ADR-0063）:
+  - `RenderDepthMapping`（Standard / Radial / RadialObserver）。
+  - `RadialDepthCurve`: `G(r) = log2(1 + r/T)`（Kahan の log1p で `1 + x` の丸めを補正）、観察者の `Map = T·G`。
+  - `RadialDepthProjection`: 錐台の角の距離、`InverseMaximumG`、`EncodeDepth`（0.99999994 で頭打ち）、補助の near/far と投影、観察者の世界半径。
+- `RadialDepthTests`（19 件）: 倍精度の基準と 6e-7 以内（1e-30〜1e30）、単調性と原点の傾き、錐台の角で 1 未満、不正な入力、精度予算（near 0.1 m・far 1e18 m で約 3e-6）、観察者の半径、補助の投影が逆行列を持つこと、通常の範囲では標準と同じ行列。
+- 事実として確かめた前提: far 1e18 m の標準の投影は NDC z = 1 を逆投影できない（`StandardProjection_WithAHugeFar_CannotBeUnprojected`）。これが補助の投影の理由。
+- ADR-0076 と `Docs/Specifications/Omni.md` を書き、Implementation-Status に F-L5-038（Implementing）と F-L5-039（Planned）を登録した。

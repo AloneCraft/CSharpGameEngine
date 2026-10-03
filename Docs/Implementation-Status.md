@@ -3564,6 +3564,31 @@ C#構文(`IScene`)からJSON(`*.scene.json`)へ切り替わったことを記録
 - Conformance: `ContentAddressedStoreTests`, `WorldCellRuntimeTests`, `WorldCellStreamingTests`, `WorldCellSpatialIndexTests`, `WorldCellEntityPayloadTests`, `CellUnloadAtPlaybackInvalidatesRuntimeAndPersistentHandles`, Scene generator E2E, and `GeneratedWorldCellActivationTests`.
 - Next action: consume the published active-cell snapshot from F-L4-006 visibility and package the reachable CAS closure in F-L6-006.
 
+## F-L5-038 — Radial (logarithmic) depth camera
+
+- Layer: L5 — Integrated Runtime
+- Parent capability: World Scale
+- Status: Implementing
+- Verification: TestVerified (CPU math only)
+- Intended specification: `Docs/Specifications/Omni.md`, `Docs/Decisions/ADR-0076-Native-Radial-Depth-Mapping.md`
+- Milestone: `Docs/Milestones/M0099-Radial-Depth.md`
+- Implementation evidence: `src/CSharpGameEngine.Rendering/RadialDepth.cs` (`RenderDepthMapping`, `RadialDepthCurve`, `RadialDepthProjection`).
+- Current delta: the curve, depth encoding, far-plane corner, auxiliary projection and observer radius exist on the CPU. The Stage entries, renderer pipeline states, Camera component fields and editor runtime view do not exist yet (M0099 Phases 3–5).
+- Conformance: `RadialDepthTests` (double oracle, monotonicity, eye slope, depth below the clear, invalid input, precision budget, observer radius, auxiliary projection). Standard frames are pinned by `StandardModeGoldenFrameTests`.
+- Next action: M0099 Phase 3 (Stage ABI: radial entries and the FrameCB depth-mapping packet).
+
+## F-L5-039 — Radial observer view
+
+- Layer: L5 — Integrated Runtime
+- Parent capability: World Scale
+- Status: Planned
+- Verification: Unverified
+- Intended specification: `Docs/Specifications/Omni.md#observer-view`
+- Milestone: `Docs/Milestones/M0099-Radial-Depth.md`
+- Implementation evidence: `RadialDepthCurve.Map` and `RadialDepthProjection.ObservedWorldRadius` only.
+- Current delta: no observer component, system, vertex entry or preview pass yet (M0099 Phase 6).
+- Next action: after F-L5-038 renders, add `RadialObserver` and `RadialObserverSync` and the observer preview pass.
+
 ## F-L5-006 — Character Controller
 
 - Layer: L5 — Integrated Runtime

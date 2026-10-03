@@ -1,0 +1,67 @@
+# ADR-0076 — 対数（放射）深度をアダプターではなくカメラの性質として描画経路に組み込む
+- 状態: Accepted（2026-10-03、ユーザーの依頼:「Omni を参考にネイティブに実現する設計をして。回帰しないようにして」。計画はユーザーが承認）
+- 関連: ADR-0063（正準数値と階層 World）、ADR-0064（型付きライト）、ADR-0069（物理的な環境照明）、ADR-0075（ワールド空間のグリッド）、M0099、[Omni 仕様](../Specifications/Omni.md)
+
+## 背景
+- Omni（`D:\Unity\6.6\Omni\Assets\Omni`、Unity 6000.6 / URP 17.6）は、高精度の Logical 座標から写像中心（通常はカメラ）への相対ベクトルを、方向を保ったまま距離だけ圧縮して描く。曲線は Smooth `F(q) = S·log2(1 + q/S)`（`q = d·M`）と Threshold の 2 つ。方向が保たれるので画面上の位置は標準描画と同じで、変わるのは深度だけ。
+- Omni の実装の大半は URP への「アダプター」である: Shader／Shader Graph／VFX の変換と注入、Material の差し替えと復元台帳、MaterialPropertyBlock の配布、BRG の sidecar、Unity のカリングと float の world 座標の回避策。テスト約 2,800 件の多くがこの変換と台帳を検証している。
+- Omni が頂点を写像するのは、Unity の投影・カリング・float の world 座標の制約のためで、写像した三角形の補間を物理へ戻すために `(pos·w, w)` の同次補間を、深度のためにフラグメントでの物理点の復元と `SV_Depth` を使う。
+- このエンジンは Stage という単一の固定 ABI シェーダーを自前で持つ（独自の材質シェーダーは無い）。物体は Q64.64 からカメラ相対の float へ一度だけ変換され（`FixedTransform.TryToCameraRelativeMatrix`）、カメラは描画空間の原点にある。標準 VS は物理のカメラ相対座標を透視補間するので、補間は最初から物理的に正しい。
+- 標準の深度は D32 float・1.0 クリア・LESS の非 reversed-Z で、far が近く以外は精度が足りない。far/near が約 2^24 を超えると float の投影行列の深度項が丸まり、NDC z = 1 の逆投影が w = 0 になる（`RadialDepthTests.StandardProjection_WithAHugeFar_CannotBeUnprojected`）。
+
+## 決定
+
+### 1. 通常の対数カメラは頂点を写像せず、画素ごとに対数距離を深度へ書く
+- 標準の `VSMain` をそのまま使う。新しい `RadialPSMain` は色を既存の `PSMain` に任せ（勝った面が同じ画素は標準とビット一致）、`SV_Depth = min(G(r) / G(rMax), 0.99999994)` を書く。`r` はカメラ相対の物理位置の長さ（最大成分で割ってから長さを取り、二乗の桁あふれを避ける）。
+- 1 画素のレイの上では物理距離の順序が深度の順序と一致するので、遮蔽は全スケールで正確。0.99999994 は 1 未満の最大の float で、1.0 のクリアと空の合成（depth < 1 の判定）がそのまま動く。
+- 論理の far（カメラの FarZ）は `SV_Position.w`（物理の視線方向の深度）で画素ごとに捨てる。near は標準の投影がそのまま正しくクリップする。
+- 採らなかった頂点の写像: このエンジンでは補間もクリップも標準 VS で正しく、写像は何も足さない。写像した三角形の弦から深度を取ると、大きな床と近くの小物体の前後が崩れる。
+
+### 2. 曲線は Omni の Smooth だけ（メートルで表す）
+- `G(r) = log2(1 + r / T)`。`T` は `RadialTransitionMeters`（既定 1 m）。正規化した深度では Omni の view scale `M` と倍率 `S` が打ち消し合うので持たない。
+- Threshold は採らない（ユーザー指示 2026-10-03）。曲線の種類を選ぶ欄は作らない。
+- `log2(1 + x)` は丸めた和 `u = 1 + x` の対数を `x / (u − 1)` で補正する（Kahan の log1p）。CPU（`RadialDepthCurve.Log2OnePlus`）とシェーダーで同じ式を使う。
+
+### 3. 精度予算
+- D32 float の 1 付近の刻みは 2^-24。2 つの面を見分けられる相対距離はおよそ `2^-24 · ln2 · log2(rMax / T) · (1 + T / r)`。near 0.1 m・far 1e18 m で約 3e-6（`RadialDepthTests.Encoding_SeparatesSurfacesAtTheBudgetedRelativeDistanceOnEveryScale`）。`r ≪ T` では float の相対精度がそのまま効く。
+- 標準 Z の float 深度（far 付近で数 %）より桁違いに良いので、reversed-Z への全体の変更はしない。
+
+### 4. 逆行列を取るパスには補助のビュー投影を渡す
+- 空の方向、太陽のカスケード（`DirectionalShadowCascades.Build`）、AO の深度前パスは、カメラのビュー投影の逆行列を使う。対数モードに限り、同じ回転と FOV で near = max(NearZ, min(0.01 m, FarZ/2))、far = min(FarZ, near · 65536) の投影を渡す（`RadialDepthProjection.CreateAuxiliaryProjection`）。
+- ゲームの通常の範囲（near ≥ 0.01 m、far ≤ near · 65536）では補助の投影はカメラの投影と完全に同じなので、空・影・AO は標準と同じ。1 cm より手前の面には AO が掛からない。
+- 標準モードは今の `CurrentViewProjection` を渡し続ける（ビット一致のため）。
+
+### 5. 外から見る観察ビューだけが頂点を写像する
+- Omni の RadialObserverRig 相当。中央カメラの位置 `C` を写像中心にし、観察者の目 `E` から `dir · T·G(|P − C|) − (E − C)` を見る（Omni の比較表示と同じ式。`F(P−C) − F(E−C)` は大きさが膨らむので採らない）。
+- 写像後の平らな三角形を通常のラスタ深度で描く。写像後の世界は半径 `T · G(rMax)` の有限の大きさなので標準の near/far で足りる。照明は物理の値だが、補間は写像空間での透視補間になる（可視化用の近似。Omni の観察者も同じ）。
+- 既存のカメラプレビュー矩形（最大 3 枚）の 1 パスとして、ゲームのランタイムでだけ描く。
+
+### 6. 標準の経路を変えない構造
+- 既定は標準。`VSMain`/`PSMain` と標準の PSO は変更しない。対数用は別のエントリー（`RadialPSMain`、`PreviewRadialPSMain`、`PreviewCleanRadialPSMain`、`RadialObserverVSMain`）と別の PSO にする。
+- 深度方式のパケットは FrameCB の末尾に 32 バイト足す（標準のエントリーは読まない）。
+- 標準モードのフレームは M0099 Phase 1 で SHA-256 に固定した（`StandardModeGoldenFrameTests`）。
+
+## Omni との対応
+| Omni | このエンジン |
+|---|---|
+| Logical 座標（Q95.32）、仮数／指数のパケット | Q64.64 からカメラ相対 float へ一度だけ変換（ADR-0063）。範囲内は float で表せるので仮数／指数は不要 |
+| 頂点の写像と `(pos·w, w)` の同次補間 | 不要（標準 VS が物理を正しく補間する） |
+| フラグメントで物理点を写像して `SV_Depth`、全パスで同じ関数 | 物理距離の `G` を `SV_Depth` に。対数で深度を書くパスは同じ関数 |
+| 照明・影・フォグは物理空間、法線にヤコビアンを掛けない | 同じ（`PSMain` をそのまま使う） |
+| Smooth / Threshold | Smooth だけ |
+| 深度を読む画面空間効果（SSAO 等）を逆写像に書き換える | AO は独自の物理の深度前パスを使うので不要。主深度を読むのは空の合成の depth < 1 だけ |
+| Shader・Material の変換、復元台帳、MPB、BRG sidecar | 不要（固定 ABI の Stage を自前で持つ） |
+| RadialObserverRig | 観察ビュー（カメラプレビュー矩形） |
+
+## 帰結
+- 対数モードの PSO は `SV_Depth` を書くので Early-Z が効かない（対数モードだけの性能コスト）。保守的深度による最適化は非目標。
+- Stage の ABI にエントリーが 4 つ増え、FrameCB が 912 → 944 バイトになる。複製した独自の Stage グラフは読めなくなる（CHANGELOG に書く）。
+- 非目標: カリング（Stage は今も全物体を描く。将来の可視性経路では near/far を放射距離で判定し、判定できなければ表示する）、モーションベクトル（将来 TAA を入れるときは前後のフレームの深度方式パケットが要る）、正射影の対数グリッド、エディタの切替 UI、天文規模でのエディタのナビゲーション、観察者の全画面表示とその中のピッキング・ギズモ、天体間の影。
+
+## 検証
+- CPU: `RadialDepthTests`（倍精度の基準との一致、単調性と原点の傾き、錐台の角で 1 未満、不正な入力、精度予算、観察者の半径、補助の投影が逆行列を持つこと、通常の範囲では標準と同じ行列）。
+- 標準の回帰: `StandardModeGoldenFrameTests` と既存の厳密画素テスト。
+- 以後のフェーズで GPU（標準とのビット一致、全スケールのほぼ同一平面、深度の読み戻し、復旧）、ランタイム、エディタ、観察ビュー、FeatureRunner の `rendering.radial-depth` を足す（M0099）。
+
+## 関連する機能
+- F-L5-038（対数深度カメラ）、F-L5-039（観察ビュー）、F-L0-002（StageRenderer）、F-L4-002（RenderServer）
