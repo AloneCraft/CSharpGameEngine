@@ -589,17 +589,3 @@ public sealed class EntityLooseOctree:IEntitySpatialIndex {
     private static LogicalScalar Clamp(LogicalScalar Value,LogicalScalar Min,LogicalScalar Max)=>Value<Min?Min:Value>Max?Max:Value;
     private static LogicalScalar Max(LogicalScalar Left,LogicalScalar Right)=>Left>Right?Left:Right;
 }
-
-/// <summary>
-/// Shared implementation anchor for generated precision profiles. The public EntityLooseOctree
-/// facade remains the stable API while generated consumers select the concrete scalar/vector profile.
-/// </summary>
-internal sealed class LooseOctreeCore<TEntity,TScalar,TVector,TProfile> where TProfile:struct {
-    private readonly EntityLooseOctree Index=new();
-    internal int Count => this.Index.Count;
-    internal SpatialUpdateStatus Upsert(Entity Entity,SpatialAabb Bounds,byte Layer)=>this.Index.Upsert(Entity,Bounds,new SpatialLayer(Layer));
-    internal bool Remove(Entity Entity)=>this.Index.Remove(Entity);
-    internal void Clear()=>this.Index.Clear();
-    internal void Compact()=>this.Index.Compact();
-    internal IReadOnlyEntitySpatialIndex AsReadOnly()=>this.Index;
-}
