@@ -90,7 +90,7 @@ Unity URP 用の対数（Radial）レンダリング資産 Omni（`D:\Unity\6.6\
   - 環境の場面で標準と対数の画素が違ったのは、同じレンダラーで続けて描いたため GI のプローブの履歴（ヒステリシス）が引き継がれたからだった。描画ごとに新しいレンダラーを使うとビット一致した。
 
 ## Phase 5. Camera コンポーネント、Scene JSON、エディタの追従
-- シーンの `Camera` コンポーネントに `CameraDepthMapping DepthMapping`（既定 Standard）と `RadialTransitionMeters`（既定 1）を足した。Scene JSON は既定と違う値だけを書くので、既存のシーンは無変更で標準のまま。生成コードとエディタは列挙型と数値を汎用の規則で読む。
+- シーンの `Camera` コンポーネントに `CameraDepthMapping DepthMapping`（既定 Standard。M0100 で既定を Radial に変えた）と `RadialTransitionMeters`（既定 1）を足した。Scene JSON は既定と違う値だけを書くので、既存のシーンは無変更で標準のまま。生成コードとエディタは列挙型と数値を汎用の規則で読む。
 - `LevelLoad.ApplyProjection`: シーンカメラの方式と T を（露出とともに）描画カメラへ写す。対数ならシーンカメラの NearZ/FarZ も使う。エディタのランタイムビューではエディタの near/far を上書きした後にこれを当てる。毎フレーム、シーンカメラの部品を読み直す（探索で見つけた不具合の修正。下の「探索」を参照）。
 - カメラのサムネイル: 描くのは未ビルドのゲームの分離プレビューだけで、そこでの対数は非目標なので標準のまま（計画の「サムネイルも追従」は、ランタイムビューがサムネイルを描かないことが分かったので取りやめた）。
 - テスト: `SceneCameraTests`（既定値）、`SceneJsonRuntimeValuesTests.Camera_ReadsTheRadialDepthMappingAndKeepsStandardWhenAbsent`、`EditorRuntimeViewTests` の 2 件（ゲームが対数になりシーンの範囲を使う。エディタカメラが同じ姿勢のゲームと同じ画素を描き、2 フレーム目の経路でも対数とシーンの範囲を保つ）。毎フレームの経路での当て直しを外すとエディタのテストが失敗することを確かめた。

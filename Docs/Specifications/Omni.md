@@ -13,8 +13,8 @@ One camera sees from millimetres to the Q64.64 range (about 9.2e18 m) with corre
 
 | Mapping | Where | Vertex | Depth |
 |---|---|---|---|
-| `Radial` (default) | every render camera made by `Camera.CreateDefault`/`CreateFirstPerson`/`CreateBoundsFit` (the viewer, the test host, direct `StageRenderer` users); a scene Camera with `DepthMapping = Radial` (game and editor runtime view); a camera preview that asks for it | standard `VSMain` | `SV_Depth = min(G(r) · InverseMaximumG, 0.99999994)` |
-| `Standard` | an explicit choice: a scene Camera's `DepthMapping` default, the editor's isolated previews and camera thumbnails (they hand the renderer a matrix), and the pinned standard frames | standard `VSMain` | hyperbolic depth of the perspective projection |
+| `Radial` (default) | every scene Camera unless it chooses Standard (game and editor runtime view); every render camera made by `Camera.CreateDefault`/`CreateFirstPerson`/`CreateBoundsFit` (the viewer, the test host, direct `StageRenderer` users); a camera preview that asks for it | standard `VSMain` | `SV_Depth = min(G(r) · InverseMaximumG, 0.99999994)` |
+| `Standard` | an explicit choice: a scene Camera with `DepthMapping = Standard`, the editor's isolated previews and camera thumbnails (they hand the renderer a matrix), and the pinned standard frames | standard `VSMain` | hyperbolic depth of the perspective projection |
 | `RadialObserver` | an observer inset (camera preview pass) | `RadialObserverVSMain` maps positions around the centre camera | raster depth of the mapped triangles |
 
 ## Curve
@@ -42,8 +42,8 @@ One camera sees from millimetres to the Q64.64 range (about 9.2e18 m) with corre
 
 ## Authoring and editor
 
-- The scene `Camera` component has `DepthMapping` (`Standard` default, `Radial`) and `RadialTransitionMeters` (default 1). Scene JSON stores only changed values, so existing scenes stay standard.
-- `LevelLoad` copies them into the render camera on every frame, with the exposure, so a value edit (the Scene Designer's or the game's) shows on the next frame; an unusable value keeps the last usable projection and is named in `LevelRuntime.InvalidCameraProperty`. The editor runtime view follows the scene camera: a radial scene camera makes the editor view radial and replaces the editor's focus-based near/far with the scene camera's NearZ/FarZ.
+- The scene `Camera` component has `DepthMapping` (`Radial` default, `Standard`) and `RadialTransitionMeters` (default 1). Scene JSON stores only changed values, so a scene without the member renders radial; `"DepthMapping": "Standard"` keeps the hyperbolic depth.
+- `LevelLoad` copies them into the render camera on every frame, with the exposure, so a value edit (the Scene Designer's or the game's) shows on the next frame; an unusable value keeps the last usable projection and is named in `LevelRuntime.InvalidCameraProperty`. The editor runtime view follows the scene camera: a radial scene camera makes the editor view radial, and its clip range covers both the editor's focus-based near/far and the scene camera's NearZ/FarZ (nearer near, farther far), so it sees what the game sees and what the designer frames.
 - Camera thumbnails are drawn only by the isolated preview of an unbuilt game, which stays standard (non-goal); the renderer's per-preview depth mapping serves the observer view.
 
 ## Precision budget

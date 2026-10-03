@@ -178,6 +178,22 @@ public sealed class EditorRuntimeViewTests {
         Assert.Equal(Loaded,Edited);
     }
 
+    [WindowsOnlyFact]
+    public void EditorCamera_OnARadialSceneCamera_SeesBothItsOwnRangeAndTheScenes(){
+        // M0100: radial depth covers any range, so the editor view keeps what the designer frames beyond the scene
+        // camera's far plane (a zoomed-out view of a large level) and what the game sees.
+        using var Surface=CreateSurface();
+        using var Host=new EngineHost();
+        Host.UseExternalSurface(Surface.Handle,Surface.ClientWidth,Surface.ClientHeight,Warp);
+        var Scene=new Camera();
+        Host.SetEditorCamera(new EditorCameraPose(Near,Scene.FovYRadians,0.5f,5000f));
+        Render(Host,SceneCamera:Far,Component:Scene,Frames:2);
+        Assert.Equal(RenderDepthMapping.Radial,Host.RenderCamera.DepthMapping);
+        Assert.Equal(Scene.NearZ,Host.RenderCamera.NearZ);
+        Assert.Equal(5000f,Host.RenderCamera.FarZ);
+        Assert.Equal(0,Host.Renderer!.ErrorOrWorseMessageCount);
+    }
+
     private static Camera RadialCamera=>new() { DepthMapping=CameraDepthMapping.Radial,RadialTransitionMeters=2f,NearZ=0.01f,FarZ=1e12f };
     private static Camera BrightRadialCamera=>RadialCamera with { ExposureEv100=-1.5f };
 

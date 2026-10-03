@@ -33,8 +33,11 @@ public struct Camera() {
     public float OrthographicSize=10f;
     /// <summary>物理照明をHDRへ写像する露出補正[EV100]。</summary>
     public float ExposureEv100=0f;
-    /// <summary>深度方式。Radialでは<see cref="NearZ"/>と<see cref="FarZ"/>をどれだけ離してもよい(エディタのビューもこの値を使う)。</summary>
-    public CameraDepthMapping DepthMapping=CameraDepthMapping.Standard;
+    /// <summary>
+    /// 深度方式。既定はRadialで、<see cref="NearZ"/>と<see cref="FarZ"/>をどれだけ離してもよい(エディタのビューもこの範囲を含む)。
+    /// Standardは明示的な選択(ADR-0076 追記、M0100)。
+    /// </summary>
+    public CameraDepthMapping DepthMapping=CameraDepthMapping.Radial;
     /// <summary>Radialの曲線 log2(1 + r/T) が線形から対数へ移る距離T[m]。</summary>
     public float RadialTransitionMeters=1f;
 }

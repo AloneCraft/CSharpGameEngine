@@ -69,8 +69,8 @@ public sealed class SceneJsonRuntimeValuesTests {
     }
 
     [Fact]
-    public void Camera_ReadsTheRadialDepthMappingAndKeepsStandardWhenAbsent(){
-        // M0099: scenes written before radial depth have no DepthMapping member and stay standard.
+    public void Camera_ReadsTheDepthMappingAndIsRadialWhenAbsent(){
+        // M0100: radial is the default, so a scene without a DepthMapping member renders radial; standard is written out.
         var Radial=(CSharpGameEngine.Runtime.Windows.Camera)SceneJsonRuntimeValues.Component(typeof(CSharpGameEngine.Runtime.Windows.Camera),
             SceneJsonReader.Parse("""{ "DepthMapping": "Radial", "RadialTransitionMeters": 2, "NearZ": 0.001, "FarZ": 1e18 }"""),"Camera");
         Assert.Equal(CSharpGameEngine.Runtime.Windows.CameraDepthMapping.Radial,Radial.DepthMapping);
@@ -78,8 +78,11 @@ public sealed class SceneJsonRuntimeValuesTests {
         Assert.Equal(1e18f,Radial.FarZ);
         var Existing=(CSharpGameEngine.Runtime.Windows.Camera)SceneJsonRuntimeValues.Component(typeof(CSharpGameEngine.Runtime.Windows.Camera),
             SceneJsonReader.Parse("""{ "FarZ": 500 }"""),"Camera");
-        Assert.Equal(CSharpGameEngine.Runtime.Windows.CameraDepthMapping.Standard,Existing.DepthMapping);
+        Assert.Equal(CSharpGameEngine.Runtime.Windows.CameraDepthMapping.Radial,Existing.DepthMapping);
         Assert.Equal(1f,Existing.RadialTransitionMeters);
+        var Standard=(CSharpGameEngine.Runtime.Windows.Camera)SceneJsonRuntimeValues.Component(typeof(CSharpGameEngine.Runtime.Windows.Camera),
+            SceneJsonReader.Parse("""{ "DepthMapping": "Standard" }"""),"Camera");
+        Assert.Equal(CSharpGameEngine.Runtime.Windows.CameraDepthMapping.Standard,Standard.DepthMapping);
     }
 
     [Fact]

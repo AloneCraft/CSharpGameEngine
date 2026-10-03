@@ -142,8 +142,9 @@ internal struct LevelLoad:ISystem {
     /// <summary>
     /// The projection the view is seen with: the field of view and clip range of the editor camera when the Scene
     /// Designer supplies one (ADR-0070 B1), otherwise the scene camera's. The exposure and the depth mapping are the
-    /// scene camera's in the editor too, so the view looks like the game (M0099: a radial view also keeps the scene
-    /// camera's clip range, because the editor's focus-based range would undo what radial depth is for).
+    /// scene camera's in the editor too, so the view looks like the game. A radial view covers any range at no cost, so
+    /// it sees at least what the scene camera sees (M0099: the editor's focus-based range alone would undo what radial
+    /// depth is for) and, in the editor, also what the designer frames (M0100).
     /// </summary>
     private static void ApplyProjection(ref RenderCamera View,EditorCameraPose?Editor,bool HasSceneCamera,in Camera SceneCamera){
         if(Editor is { }EditorCamera){
@@ -162,8 +163,8 @@ internal struct LevelLoad:ISystem {
         View.DepthMapping=SceneCamera.DepthMapping==CameraDepthMapping.Radial?RenderDepthMapping.Radial:RenderDepthMapping.Standard;
         View.RadialTransitionMeters=SceneCamera.RadialTransitionMeters;
         if(View.DepthMapping==RenderDepthMapping.Radial){
-            View.NearZ=SceneCamera.NearZ;
-            View.FarZ=SceneCamera.FarZ;
+            View.NearZ=Editor is { }RadialEditor?MathF.Min(RadialEditor.NearZ,SceneCamera.NearZ):SceneCamera.NearZ;
+            View.FarZ=Editor is { }WideEditor?MathF.Max(WideEditor.FarZ,SceneCamera.FarZ):SceneCamera.FarZ;
         }
     }
 

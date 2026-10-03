@@ -13,7 +13,7 @@ public sealed class SceneCameraTests {
         Assert.True(Camera.NearZ>0f);
         Assert.True(Camera.FarZ>Camera.NearZ);
         Assert.Equal(0f,Camera.ExposureEv100);
-        Assert.Equal(CameraDepthMapping.Standard,Camera.DepthMapping);
+        Assert.Equal(CameraDepthMapping.Radial,Camera.DepthMapping);
         Assert.Equal(1f,Camera.RadialTransitionMeters);
     }
 }
