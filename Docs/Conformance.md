@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 探索 — きれいなチェックアウトで Feature Runner がビルドできなかった
+- 意図: ADR-0061（Pending は明示的な未合格、失効はリリースの検証だけを止める）、Roadmap の clean checkout 再現性、CI の最初の手順（Feature Runner の `verify-ci-matrix`）。
+- 観測（Fact）: HEAD の git worktree でスイートを回すと多くのステージが失敗した。原因は Feature Runner のビルド後検証の `verify-vsix-compatibility` で、`VSIX-Experimental-Baseline.json` の Passed の行が、追跡外の `.artifacts/VsixObservations/...` にある証拠ファイルを要求していた（「evidence does not exist」6 件）。この機械にしかないファイルなので、新しいクローンや CI では Feature Runner がビルドできない。既存のテストは一時ディレクトリへ写した台帳で特定のエラーの有無だけを見ていて、気付かなかった。
+- 実装: 証拠ファイルの存在は、失効と同じくリリースの検証（`--require-passing-evidence`）だけが要求する。
+- 自動化された証拠: `VsixCompatibilityMatrixValidatorTests.PreReleaseValidationAcceptsPassedEvidenceThisCheckoutDoesNotHave`（修正前に失敗）。worktree で Feature Runner がビルドできることも確かめた。
+- 結果: Matches（ADR-0061 に追記）。
+
 ## 2026-10-04 探索 — 自動実行が描画の速さに依存していた
 - 意図: ADR-0067 決定 7（フレーム番号で入力を与え、各フレームのカメラ位置を観測する）と、`rigid.character-controller` の「実機は任意の追加パス」。
 - 観測（Fact）: `rigid.character-controller --adapter hardware` が「頂点から 0.005 m しか降りていない（0.3 m 以上が必要）」で失敗した（RTX 4060 Ti）。WARP では合格。実機で同じ自動実行を 2 回撮ると、30 フレーム目の位置が 5.87 m と −3.12 m のように食い違った。

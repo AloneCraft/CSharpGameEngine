@@ -100,7 +100,7 @@ Runtime L0-L6 cannot reference Roslyn or Visual Studio SDK. L7 compiler/bake wor
 
 ## Manual and automated evidence
 
-Experimental Instance evidence remains explicit. `VSIX-Experimental-Baseline.json` permits Pending but validates owner, evidence existence, observation, and expiry before Passed can count. `CSharpGameEngine.Vsix.Automation` runs only against the exact `CgeAutomation` suffix, classifies exit code 2 as InfrastructureError, records package/build/installed DLL hashes, and never closes a pre-existing PID. The Experimental stages are `vsix` profile only and retain a 3600-second Feature Runner timeout.
+Experimental Instance evidence remains explicit. `VSIX-Experimental-Baseline.json` permits Pending but validates owner, observation and expiry before Passed can count; release validation also requires the evidence file (kept under the untracked `.artifacts` root) and unexpired evidence. `CSharpGameEngine.Vsix.Automation` runs only against the exact `CgeAutomation` suffix, classifies exit code 2 as InfrastructureError, records package/build/installed DLL hashes, and never closes a pre-existing PID. The Experimental stages are `vsix` profile only and retain a 3600-second Feature Runner timeout.
 
 ## Stage oracle matrix
 

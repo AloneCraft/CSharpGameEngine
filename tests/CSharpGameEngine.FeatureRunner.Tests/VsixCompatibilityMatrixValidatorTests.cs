@@ -64,6 +64,21 @@ public sealed class VsixCompatibilityMatrixValidatorTests {
     }
 
     [Fact]
+    public void PreReleaseValidationAcceptsPassedEvidenceThisCheckoutDoesNotHave(){
+        // Experimental evidence lives under the untracked .artifacts root (ADR-0061), so a fresh checkout has none of
+        // it. An ordinary build (the Feature Runner's post-build verification, CI's first step) must still pass; only
+        // release validation demands the evidence, as it alone demands freshness.
+        string Root=CopyContractFiles();
+        try {
+            DateTimeOffset Now=new(2026,9,1,0,0,0,TimeSpan.Zero);
+            IReadOnlyList<string>PreRelease=VsixCompatibilityMatrixValidator.Validate(Root,FeatureStageCatalog.CreateDefault(),"Debug",false,Now);
+            Assert.DoesNotContain(PreRelease,Error=>Error.Contains("evidence does not exist",StringComparison.Ordinal));
+            IReadOnlyList<string>Release=VsixCompatibilityMatrixValidator.Validate(Root,FeatureStageCatalog.CreateDefault(),"Release",true,Now);
+            Assert.Contains(Release,Error=>Error.Contains("evidence does not exist",StringComparison.Ordinal));
+        } finally { Directory.Delete(Root,true); }
+    }
+
+    [Fact]
     public void ReleaseValidationFailsClosedWhileExperimentalEvidenceIsExpired(){
         string Root=CopyContractFilesWithExpiredSceneDesignerEvidence();
         try {
