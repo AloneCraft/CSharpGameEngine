@@ -209,11 +209,24 @@ internal static class SceneCameraPreviewBinding {
             RadialDepth, RadialTransitionMeters);
     }
 
+    /// <summary>
+    /// The scene camera's <c>DepthMapping</c>: an absent member is the component's default (Radial); <c>default</c>
+    /// and numeric constants are the enum's value (Standard = 0).
+    /// </summary>
     private static bool ReadRadialDepth(SceneComponent Camera) {
-        string? Name = Camera.FindMember("DepthMapping")?.Value?.ReferencedSymbol?.Name;
-        return Name is null
-            ? DefaultRadialDepth
-            : !string.Equals(Name, "Standard", StringComparison.Ordinal);
+        SceneValue? Value = Camera.FindMember("DepthMapping")?.Value;
+        if (Value is null) {
+            return DefaultRadialDepth;
+        }
+        if (Value.ReferencedSymbol?.Name is { } Name) {
+            return !string.Equals(Name, "Standard", StringComparison.Ordinal);
+        }
+        if (Value.Kind == SceneValueKind.Default) {
+            return false;
+        }
+        return Value.ConstantValue is { } Constant
+            ? Convert.ToInt64(Constant, CultureInfo.InvariantCulture) != 0
+            : DefaultRadialDepth;
     }
 
     private static SceneProjectionMode ReadProjection(SceneComponent Camera) {

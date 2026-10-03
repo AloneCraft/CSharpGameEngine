@@ -40,14 +40,16 @@ public sealed class SceneCameraPreviewPolicyTests {
                     new Node { Name="Standard", Components=[
                         new Transform { RotationW=1f, ScaleX=1f, ScaleY=1f, ScaleZ=1f }, new Camera { DepthMapping=CameraDepthMapping.Standard } ]},
                     new Node { Name="Wide", Components=[
-                        new Transform { RotationW=1f, ScaleX=1f, ScaleY=1f, ScaleZ=1f }, new Camera { DepthMapping=CameraDepthMapping.Radial, RadialTransitionMeters=4f } ]}] };
+                        new Transform { RotationW=1f, ScaleX=1f, ScaleY=1f, ScaleZ=1f }, new Camera { DepthMapping=CameraDepthMapping.Radial, RadialTransitionMeters=4f } ]},
+                    new Node { Name="Zero", Components=[
+                        new Transform { RotationW=1f, ScaleX=1f, ScaleY=1f, ScaleZ=1f }, new Camera { DepthMapping=default } ]}] };
             }
             """]);
 
         IReadOnlyList<SceneCameraPreview> Cameras = SceneCameraPreviewBinding.Build(
-            Model, [NodePath.Root.Append(0), NodePath.Root.Append(1), NodePath.Root.Append(2)], 16f / 9f);
+            Model, [NodePath.Root.Append(0), NodePath.Root.Append(1), NodePath.Root.Append(2), NodePath.Root.Append(3)], 16f / 9f, 4);
 
-        Assert.Equal(3, Cameras.Count);
+        Assert.Equal(4, Cameras.Count);
         SceneCameraPreview Default = Cameras.Single(Camera => Camera.DisplayName == "Default");
         Assert.True(Default.RadialDepth);
         Assert.Equal(1f, Default.RadialTransitionMeters);
@@ -57,6 +59,8 @@ public sealed class SceneCameraPreviewPolicyTests {
         Assert.Equal(4f, Wide.RadialTransitionMeters);
         Assert.True(Wide.WithAspectRatio(1f).RadialDepth);
         Assert.Equal(4f, Wide.WithAspectRatio(1f).RadialTransitionMeters);
+        // `default` is the enum's zero, Standard (what the palette writes when it cannot read the initializers).
+        Assert.False(Cameras.Single(Camera => Camera.DisplayName == "Zero").RadialDepth);
     }
 
     [Fact]
