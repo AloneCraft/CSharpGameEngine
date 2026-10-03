@@ -90,6 +90,8 @@ dotnet pack packaging/CSharpGameEngine.Sdk -c Release
 
 `.artifacts/packages/CSharpGameEngine.Sdk.<version>.nupkg`が出力されます。パッケージの構成は[ADR-0065](Docs/Decisions/ADR-0065-Engine-Sdk-Package-And-Project-Context.md)を参照してください。
 
+NuGetは一度展開したバージョンを`%USERPROFILE%\.nuget\packages\csharpgameengine.sdk\<version>`から使い続けます。バージョンを変えずに作り直したパッケージ（新しいVSIXに同梱されたものを含む）を生成済みのゲームへ反映するには、バージョンを上げるか、そのフォルダーを消してから復元し直します（`vsix.project-template`ステージは後者を行います）。
+
 ゲームのcsprojには次の3つを書きます。
 
 - `TargetFramework`（`net10.0-windows10.0.19041.0`）
