@@ -28,6 +28,7 @@ public static class ShaderArtifactAbi {
         new ShaderArtifactEntryContract("PreviewRadialPSMain","ps_6_0",ShaderArtifactEntryStage.Pixel),
         new ShaderArtifactEntryContract("PreviewCleanRadialPSMain","ps_6_0",ShaderArtifactEntryStage.Pixel),
         new ShaderArtifactEntryContract("RadialObserverVSMain","vs_6_0",ShaderArtifactEntryStage.Vertex),
+        new ShaderArtifactEntryContract("RadialVSMain","vs_6_0",ShaderArtifactEntryStage.Vertex),
     };
     private static readonly IReadOnlyList<ShaderArtifactEntryContract>ModelEntries=new[] {
         new ShaderArtifactEntryContract("VSMain","vs_6_0",ShaderArtifactEntryStage.Vertex),
@@ -43,8 +44,8 @@ public static class ShaderArtifactAbi {
     public static string GetHash(ShaderArtifactTargetKind Target) {
         var Contract=Target switch {
             ShaderArtifactTargetKind.Stage=>
-                "stage-v8:b0-frame-depth-mapping,b1-object,t0-base,t1-normal,t2-metalrough,t3-emissive,t4-shadow,t5-lights,t6-tiles,t7-spot,t8-point,t9-area-meta,t10-area-projection,t11-sky-irradiance-sh,t12-gi-irradiance,t13-gi-distance,t14-ambient-occlusion,t15-exposure-state,s0-linear,s1-shadow,post-b0-params:"
-                +"VSMain,PSMain,VSShadowMain,FullscreenVS,PostProcessPS,PreviewPSMain,PreviewCleanPSMain,OverlayVSMain,OverlayPSMain,RadialPSMain,PreviewRadialPSMain,PreviewCleanRadialPSMain,RadialObserverVSMain:"
+                "stage-v9:b0-frame-depth-mapping-conservative,b1-object,t0-base,t1-normal,t2-metalrough,t3-emissive,t4-shadow,t5-lights,t6-tiles,t7-spot,t8-point,t9-area-meta,t10-area-projection,t11-sky-irradiance-sh,t12-gi-irradiance,t13-gi-distance,t14-ambient-occlusion,t15-exposure-state,s0-linear,s1-shadow,post-b0-params:"
+                +"VSMain,PSMain,VSShadowMain,FullscreenVS,PostProcessPS,PreviewPSMain,PreviewCleanPSMain,OverlayVSMain,OverlayPSMain,RadialPSMain,PreviewRadialPSMain,PreviewCleanRadialPSMain,RadialObserverVSMain,RadialVSMain:"
                 +ComputeHash(StagePresentationShaderSource.Source),
             ShaderArtifactTargetKind.Model=>"model-v1:b0-transform,t0-base,s0-base:VSMain,PSMain",
             ShaderArtifactTargetKind.Triangle=>"triangle-v1:no-resources:VSMain,PSMain",

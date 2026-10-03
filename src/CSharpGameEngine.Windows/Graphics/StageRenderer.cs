@@ -161,7 +161,8 @@ public sealed unsafe class StageRenderer:IDisposable {
     private const uint FrameAmbientOcclusionOffset=FrameGiAtlasSizeOffset+16; // float4: x enabled, y intensity, zw = 1 / viewport size
     private const uint FrameDepthMapping0Offset=FrameAmbientOcclusionOffset+16; // float4: x mode (RenderDepthMapping), y radial transition m, z 1/G(rMax), w far discard depth m
     private const uint FrameDepthMapping1Offset=FrameDepthMapping0Offset+16; // float4: xyz observer centre (render space)
-    private const uint FrameConstantsSize=FrameDepthMapping1Offset+16;
+    private const uint FrameRadialRasterViewProjectionOffset=FrameDepthMapping1Offset+16; // float4x4: radial main pass with the conservative depth row
+    private const uint FrameConstantsSize=FrameRadialRasterViewProjectionOffset+64;
 
     /// <summary>
     /// FrameConstantsBuffer専用のフレームスロット幅。FrameConstantsSize以上、かつD3D12のroot CBV
@@ -360,8 +361,15 @@ public sealed unsafe class StageRenderer:IDisposable {
     private RadialDepthProjection CurrentRadialProjection;
     /// <summary>The camera's rotation with the radial projection's finite auxiliary planes (radial mode only).</summary>
     private Matrix4x4 CurrentAuxiliaryViewProjection=Matrix4x4.Identity;
+    /// <summary>The radial main pass's view-projection: the camera's, with the conservative depth row (radial mode only).</summary>
+    private Matrix4x4 CurrentRadialRasterViewProjection=Matrix4x4.Identity;
     /// <summary>The camera basis and field of view of the last <see cref="SetCamera"/>, for observer markers.</summary>
     private bool HasCameraBasis;
+    /// <summary>Test-only GPU timestamps around the main pass's draws (performance evidence); null unless enabled.</summary>
+    private ID3D12QueryHeap*MainPassTimestampHeap;
+    private ID3D12Resource*MainPassTimestampReadback;
+    private ulong MainPassTimestampFrequency;
+    private uint LastTimedFrameIndex=uint.MaxValue;
     private Vector3 CurrentCameraForward;
     private Vector3 CurrentCameraUp;
     private Vector3 CurrentCameraRight;
@@ -380,6 +388,7 @@ public sealed unsafe class StageRenderer:IDisposable {
     private byte[]PreviewRadialPixelShaderBytecode=[];
     private byte[]PreviewCleanRadialPixelShaderBytecode=[];
     private byte[]RadialObserverVertexShaderBytecode=[];
+    private byte[]RadialVertexShaderBytecode=[];
 
     // Per-mesh (indexed by meshIndex).
     private int MeshCount;
@@ -933,6 +942,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.PreviewRadialPixelShaderBytecode=Package.GetBytecode("PreviewRadialPSMain");
         this.PreviewCleanRadialPixelShaderBytecode=Package.GetBytecode("PreviewCleanRadialPSMain");
         this.RadialObserverVertexShaderBytecode=Package.GetBytecode("RadialObserverVSMain");
+        this.RadialVertexShaderBytecode=Package.GetBytecode("RadialVSMain");
     }
     private void CommitShaderArtifact(ShaderArtifactPackage Package){
         this.LastKnownGoodShaderPackage=Package;
@@ -961,6 +971,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         var OldPreviewRadialPixelShader=this.PreviewRadialPixelShaderBytecode;
         var OldPreviewCleanRadialPixelShader=this.PreviewCleanRadialPixelShaderBytecode;
         var OldRadialObserverVertexShader=this.RadialObserverVertexShaderBytecode;
+        var OldRadialVertexShader=this.RadialVertexShaderBytecode;
         var OldRadialPipelineStates=this.RadialPipelineStates;
         var OldPipelineState=this.PipelineState;
         var OldPresentationPipelineState=this.PresentationPipelineState;
@@ -1004,6 +1015,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.PreviewRadialPixelShaderBytecode=OldPreviewRadialPixelShader;
             this.PreviewCleanRadialPixelShaderBytecode=OldPreviewCleanRadialPixelShader;
             this.RadialObserverVertexShaderBytecode=OldRadialObserverVertexShader;
+            this.RadialVertexShaderBytecode=OldRadialVertexShader;
             if(this.RadialPipelineStates!=OldRadialPipelineStates){
                 ReleaseRadialPipelineStates(this.RadialPipelineStates);
                 this.RadialPipelineStates=OldRadialPipelineStates;
@@ -1314,12 +1326,14 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     private void CreateRadialPipelineStates(){
         var Created=new ID3D12PipelineState*[(int)RadialPipeline.Count];
         try {
+            // The main pass rasterizes the conservative depth (RadialVSMain), which reaches zero beyond the near plane, so
+            // it runs without depth clipping and clips with the standard projection's distances (SV_ClipDistance).
             Created[(int)RadialPipeline.Shipping]=this.CreateMeshPipelineState(
-                this.RadialPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID);
+                this.RadialPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID,this.RadialVertexShaderBytecode,DepthClip:false);
             Created[(int)RadialPipeline.Presentation]=this.CreateMeshPipelineState(
-                this.PreviewRadialPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID);
+                this.PreviewRadialPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID,this.RadialVertexShaderBytecode,DepthClip:false);
             Created[(int)RadialPipeline.Wireframe]=this.CreateMeshPipelineState(
-                this.PreviewRadialPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_WIREFRAME);
+                this.PreviewRadialPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_WIREFRAME,this.RadialVertexShaderBytecode,DepthClip:false);
             Created[(int)RadialPipeline.CameraPreview]=this.CreateMeshPipelineState(
                 this.PreviewCleanRadialPixelShaderBytecode,D3D12_FILL_MODE.D3D12_FILL_MODE_SOLID);
             Created[(int)RadialPipeline.CameraPreviewWireframe]=this.CreateMeshPipelineState(
@@ -1345,7 +1359,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
     }
 
     private ID3D12PipelineState*CreateMeshPipelineState(
-        byte[]PixelShaderBytecode,D3D12_FILL_MODE FillMode,byte[]?VertexShaderBytecode=null){
+        byte[]PixelShaderBytecode,D3D12_FILL_MODE FillMode,byte[]?VertexShaderBytecode=null,bool DepthClip=true){
         var VertexShader=VertexShaderBytecode??this.VertexShaderBytecode;
         fixed(byte*PPosition="POSITION\0"u8)
         fixed(byte*PNormal="NORMAL\0"u8)
@@ -1399,6 +1413,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             // Real backface culling is deferred, same rationale as ModelRenderer (ADR-0004).
             PsoDesc.RasterizerState.CullMode=D3D12_CULL_MODE_NONE;
             PsoDesc.RasterizerState.FillMode=FillMode;
+            PsoDesc.RasterizerState.DepthClipEnable=DepthClip?TRUE:FALSE;
             PsoDesc.RTVFormats[0]=HdrColorFormat;
 
             ID3D12PipelineState*PipelineState;
@@ -1939,6 +1954,9 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CurrentAuxiliaryViewProjection=DepthMapping==RenderDepthMapping.Radial
             ?View*RadialProjection.CreateAuxiliaryProjection(Camera.FovYRadians,AspectRatio)
             :Matrix4x4.Identity;
+        this.CurrentRadialRasterViewProjection=DepthMapping==RenderDepthMapping.Radial
+            ?View*RadialProjection.CreateConservativeRasterProjection(Camera.FovYRadians,AspectRatio)
+            :Matrix4x4.Identity;
         this.WriteDepthMapping(this.FrameIndex);
         // Right-handed look-at: the view matrix's columns are the camera's right, up and backward axes.
         this.CurrentCameraRight=new Vector3(View.M11,View.M21,View.M31);
@@ -1963,9 +1981,11 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             ?new((float)RenderDepthMapping.Radial,this.CurrentRadialProjection.Curve.TransitionMeters,this.CurrentRadialProjection.InverseMaximumG,this.CurrentRadialProjection.FarDiscardDepth)
             :Vector4.Zero;
         Vector4 DepthMapping1=Vector4.Zero;
+        Matrix4x4 RasterViewProjection=this.CurrentRadialRasterViewProjection;
         var Slot=this.FrameSlot(FrameIndex);
         Unsafe.CopyBlock(Slot+FrameDepthMapping0Offset,&DepthMapping0,(uint)sizeof(Vector4));
         Unsafe.CopyBlock(Slot+FrameDepthMapping1Offset,&DepthMapping1,(uint)sizeof(Vector4));
+        Unsafe.CopyBlock(Slot+FrameRadialRasterViewProjectionOffset,&RasterViewProjection,(uint)sizeof(Matrix4x4));
     }
 
     /// <summary>
@@ -1998,6 +2018,7 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.CurrentDepthMapping=RenderDepthMapping.Standard;
         this.CurrentRadialProjection=default;
         this.CurrentAuxiliaryViewProjection=Matrix4x4.Identity;
+        this.CurrentRadialRasterViewProjection=Matrix4x4.Identity;
         this.WriteDepthMapping(this.FrameIndex);
         this.HasCameraBasis=false;
     }
@@ -3839,6 +3860,49 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
         this.Skinning!.SetPalette(MeshIndex,Palette);
     }
 
+    /// <summary>
+    /// Test-only: from the next frame on, brackets the main pass's draws with GPU timestamps so performance evidence
+    /// measures GPU time rather than presentation pacing (M0099).
+    /// </summary>
+    internal void EnableMainPassTimingForTesting(){
+        this.ThrowIfDisposed();
+        if(this.MainPassTimestampHeap!=null){ return; }
+        D3D12_QUERY_HEAP_DESC Desc=new(){ Type=D3D12_QUERY_HEAP_TYPE.D3D12_QUERY_HEAP_TYPE_TIMESTAMP,Count=FrameCount*2 };
+        ID3D12QueryHeap*Heap;
+        D3D12Diagnostics.EnsureSuccess(this.Device!.Device->CreateQueryHeap(&Desc,__uuidof<ID3D12QueryHeap>(),(void**)&Heap),
+            "ID3D12Device::CreateQueryHeap","creating the main-pass timestamp heap");
+        D3D12_HEAP_PROPERTIES ReadbackHeap=new(D3D12_HEAP_TYPE_READBACK);
+        var BufferDesc=D3D12_RESOURCE_DESC.Buffer(FrameCount*2*sizeof(ulong));
+        ID3D12Resource*Readback;
+        D3D12Diagnostics.EnsureSuccess(this.Device.Device->CreateCommittedResource(&ReadbackHeap,D3D12_HEAP_FLAG_NONE,&BufferDesc,D3D12_RESOURCE_STATE_COPY_DEST,null,__uuidof<ID3D12Resource>(),(void**)&Readback),
+            "ID3D12Device::CreateCommittedResource","creating the main-pass timestamp readback");
+        ulong Frequency;
+        D3D12Diagnostics.EnsureSuccess(this.Device.CommandQueue->GetTimestampFrequency(&Frequency),"ID3D12CommandQueue::GetTimestampFrequency","reading the timestamp frequency");
+        this.MainPassTimestampHeap=Heap;
+        this.MainPassTimestampReadback=Readback;
+        this.MainPassTimestampFrequency=Frequency;
+    }
+
+    /// <summary>Test-only: GPU milliseconds of the last timed frame's main-pass draws, after the GPU is idle.</summary>
+    internal float ReadMainPassGpuMillisecondsForTesting(){
+        this.ThrowIfDisposed();
+        if(this.MainPassTimestampReadback==null||this.LastTimedFrameIndex==uint.MaxValue){
+            throw new InvalidOperationException("Main-pass timing is not enabled or no frame has been timed yet.");
+        }
+        this.WaitForGpuIdle();
+        ulong*Mapped;
+        D3D12_RANGE Range=new(){ Begin=(nuint)(this.LastTimedFrameIndex*2*sizeof(ulong)),End=(nuint)((this.LastTimedFrameIndex*2+2)*sizeof(ulong)) };
+        D3D12Diagnostics.EnsureSuccess(this.MainPassTimestampReadback->Map(0,&Range,(void**)&Mapped),"ID3D12Resource::Map","reading the main-pass timestamps");
+        try {
+            var Start=Mapped[this.LastTimedFrameIndex*2];
+            var End=Mapped[this.LastTimedFrameIndex*2+1];
+            return End>=Start?(End-Start)*1000f/this.MainPassTimestampFrequency:0f;
+        } finally {
+            D3D12_RANGE NoWrite=new();
+            this.MainPassTimestampReadback->Unmap(0,&NoWrite);
+        }
+    }
+
     /// <summary>Test-only copy of the main depth buffer after the GPU is idle (row-major, width x height).</summary>
     internal float[]ReadDepthForTesting(){
         this.ThrowIfDisposed();
@@ -3925,7 +3989,16 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
 
         this.CommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
+        if(this.MainPassTimestampHeap!=null){
+            this.CommandList->EndQuery(this.MainPassTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,this.FrameIndex*2);
+        }
         this.DrawObjects(ExcludedObjectIndex:-1);
+        if(this.MainPassTimestampHeap!=null){
+            this.CommandList->EndQuery(this.MainPassTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,this.FrameIndex*2+1);
+            this.CommandList->ResolveQueryData(this.MainPassTimestampHeap,D3D12_QUERY_TYPE.D3D12_QUERY_TYPE_TIMESTAMP,
+                this.FrameIndex*2,2,this.MainPassTimestampReadback,(ulong)this.FrameIndex*2*sizeof(ulong));
+            this.LastTimedFrameIndex=this.FrameIndex;
+        }
         var RanComputeAfterMainPass=false;
         if(this.EnvironmentSettings.Atmosphere is not null){
             this.Atmosphere!.CompositeSky(this.CommandList,this.FrameIndex,this.CurrentAtmosphereFrame,this.DepthBuffer,this.HdrColorBuffer,this.Width,this.Height,this.AutoExposureActive);
@@ -4274,6 +4347,14 @@ private void LoadShaderArtifact(string ShaderArtifactPath){
             this.OverlayLinePipelineState=null;
         }
         ReleaseRadialPipelineStates(this.RadialPipelineStates);
+        if(this.MainPassTimestampHeap!=null){
+            _=this.MainPassTimestampHeap->Release();
+            this.MainPassTimestampHeap=null;
+        }
+        if(this.MainPassTimestampReadback!=null){
+            _=this.MainPassTimestampReadback->Release();
+            this.MainPassTimestampReadback=null;
+        }
 
         if(this.ShadowPipelineState!=null){
             _= this.ShadowPipelineState->Release();

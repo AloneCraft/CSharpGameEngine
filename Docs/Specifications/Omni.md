@@ -28,7 +28,8 @@ One camera sees from millimetres to the Q64.64 range (about 9.2e18 m) with corre
 ## Invariants
 
 1. Standard views are bit-identical to the pre-M0099 renderer (`StandardModeGoldenFrameTests`).
-2. A radial view's colour comes from the unchanged `PSMain`; wherever the same surface wins, the pixel equals the standard pixel.
+2. A radial view's colour comes from the unchanged `PSMain`; wherever the same surface wins, the pixel equals the standard pixel bit for bit on triangles that need no clipping, and within one 8-bit level on clipped triangles (the radial main pass clips with clip distances).
+2a. The radial main pass rasterizes the conservative depth `a − b/w`, tangent to the encoded depth at `8·max(T, NearZ)` and below it everywhere, and declares `SV_DepthGreaterEqual`, so the hardware keeps rejecting hidden fragments early. It runs without depth clipping and clips with the standard projection's near/far distances (`SV_ClipDistance`).
 3. Along every pixel ray, depth order equals physical distance order at all scales; radial depth stays below the 1.0 clear.
 4. Every pass that writes a radial view's depth uses the same depth function.
 5. Lighting, shadows, fog, GI and normals use physical values; no Jacobian is applied to normals.
@@ -59,7 +60,7 @@ With 32-bit float depth, two surfaces are distinguished once their relative dist
 
 ## Non-goals
 
-Omni's Threshold curve; vertex warping for ordinary cameras; mantissa/exponent constant packets; shader/material conversion and restore ledgers; BRG sidecars; culling (Stage draws every object; a future visibility path must test near/far on radial distance and keep undecidable objects visible); motion vectors (a future TAA needs current and previous depth-mapping packets); the orthographic log grid; an editor toggle; editor navigation at astronomical scale; full-screen observer views and picking or gizmos inside them; interplanetary shadows; conservative-depth Early-Z.
+Omni's Threshold curve; vertex warping for ordinary cameras; mantissa/exponent constant packets; shader/material conversion and restore ledgers; BRG sidecars; culling (Stage draws every object; a future visibility path must test near/far on radial distance and keep undecidable objects visible); motion vectors (a future TAA needs current and previous depth-mapping packets); the orthographic log grid; an editor toggle; editor navigation at astronomical scale; full-screen observer views and picking or gizmos inside them; interplanetary shadows; Early-Z for radial camera thumbnails (they still write plain `SV_Depth`).
 
 ## Verification
 

@@ -30,10 +30,10 @@ public sealed class RadialDepthGpuIntegrationTests {
     }
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
-    public void Radial_RendersTheStandardPixelsWhereTheSameSurfacesWin(){
-        // Objects float apart in depth (no contact lines), one straddles the near plane and one lies beyond the far
-        // plane: the radial image must equal the standard image bit for bit.
-        using var Scene=FloatingScene.Create(Environment:false);
+    public void Radial_RendersTheStandardPixelsBitForBitOnTrianglesItDoesNotClip(){
+        // Objects float apart in depth (no contact lines) and lie wholly inside the clip range or wholly outside it:
+        // no triangle is clipped, so the radial image must equal the standard image bit for bit.
+        using var Scene=FloatingScene.Create(Environment:false,Clipped:false);
         var View=Standard(new Vector3(0f,1.6f,-4f),PitchDegrees:-10f,FarZ:40f);
         var StandardPixels=Scene.Render(View);
         var RadialPixels=Scene.Render(Radial(View));
@@ -42,12 +42,40 @@ public sealed class RadialDepthGpuIntegrationTests {
     }
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
+    public void Radial_RendersTheStandardPixelsWithinRoundingOnClippedTriangles(){
+        // A floor crossing the eye plane and the far plane and a box straddling the near plane: the radial main pass
+        // clips with the standard projection's distances (SV_ClipDistance, because its conservative depth row runs
+        // without depth clipping), which may round the clipped vertices differently, so interpolated values may differ
+        // by one 8-bit level on those triangles.
+        using var Scene=FloatingScene.Create(Environment:false);
+        var View=Standard(new Vector3(0f,1.6f,-4f),PitchDegrees:-10f,FarZ:40f);
+        AssertWithinOneLevel(Scene.Render(View),Scene.Render(Radial(View)));
+        Scene.AssertNoDebugLayerErrors();
+    }
+    /// <summary>Every channel within one 8-bit level, and at most 1 % of the pixels different at all.</summary>
+    private static void AssertWithinOneLevel(byte[]Expected,byte[]Actual){
+        Assert.Equal(Expected.Length,Actual.Length);
+        var Largest=0;
+        var Different=0;
+        for(var Index=0;Index<Expected.Length;Index+=4){
+            var PixelLargest=0;
+            for(var Channel=0;Channel<3;Channel++){
+                PixelLargest=Math.Max(PixelLargest,Math.Abs(Expected[Index+Channel]-Actual[Index+Channel]));
+            }
+            Largest=Math.Max(Largest,PixelLargest);
+            if(PixelLargest>0){ Different++; }
+        }
+        Assert.True(Largest<=1&&Different<=Expected.Length/4/100,$"largest difference {Largest}, {Different} of {Expected.Length/4} pixels differ");
+    }
+    [WindowsOnlyFact]
+    [Trait("Category","GPU")]
     public void Radial_RendersTheStandardEnvironmentPixels(){
         // Sky composite, sun cascades, GI and AO: a radial camera with a game-sized range hands the inverting passes
-        // the camera projection itself, so the whole frame equals the standard one. GI keeps history between frames,
-        // so each mode renders from a fresh renderer.
+        // the camera projection itself, so the frame equals the standard one (within rounding on the clipped floor).
+        // GI keeps history between frames, so each mode renders from a fresh renderer.
         var View=Standard(new Vector3(0f,1.6f,-4f),PitchDegrees:-10f,FarZ:40f);
-        Assert.Equal(FloatingScene.RenderFresh(View,Environment:true),FloatingScene.RenderFresh(Radial(View),Environment:true));
+        AssertWithinOneLevel(FloatingScene.RenderFresh(View,Environment:true),FloatingScene.RenderFresh(Radial(View),Environment:true));
+        Assert.Equal(FloatingScene.RenderFresh(View,Environment:true,Clipped:false),FloatingScene.RenderFresh(Radial(View),Environment:true,Clipped:false));
     }
     [WindowsOnlyFact]
     [Trait("Category","GPU")]
@@ -236,15 +264,21 @@ public sealed class RadialDepthGpuIntegrationTests {
     }
     /// <summary>A grid floor, floating objects, one straddling the near plane and one beyond a 40 m far plane.</summary>
     private sealed class FloatingScene:IDisposable {
-        private FloatingScene(Win32Window Window,StageRenderer Renderer,bool Environment){
+        private FloatingScene(Win32Window Window,StageRenderer Renderer,bool Environment,bool Clipped){
             this.Window=Window;
             this.Renderer=Renderer;
             this.Environment=Environment;
+            this.Clipped=Clipped;
         }
         public Win32Window Window { get; }
         public StageRenderer Renderer { get; }
         public bool Environment { get; }
-        public static FloatingScene Create(bool Environment){
+        /// <summary>
+        /// True keeps the floor (crossing the eye and far planes) and the box straddling the near plane; false moves the
+        /// floor behind the camera and the box into view, so no triangle is clipped.
+        /// </summary>
+        public bool Clipped { get; }
+        public static FloatingScene Create(bool Environment,bool Clipped=true){
             var Window=new Win32Window(new Win32WindowOptions { Title="CSharpGameEngine Radial Depth Test",Width=192,Height=108,Visible=false });
             StageMeshCreateInfo[]Meshes=[
                 ToMesh(ProceduralMeshFactory.CreatePlane(Width:400f,Depth:400f)),
@@ -269,11 +303,11 @@ public sealed class RadialDepthGpuIntegrationTests {
             ];
             var Renderer=StageRenderer.Create(Window.Handle,Window.ClientWidth,Window.ClientHeight,new GraphicsDeviceOptions { UseWarp=true,EnableDebugLayer=true },ShaderArtifactPath,Meshes,Materials,Objects);
             Assert.True(Renderer.ShaderArtifactLoaded,string.Join(System.Environment.NewLine,Renderer.ShaderArtifactDiagnostics));
-            return new FloatingScene(Window,Renderer,Environment);
+            return new FloatingScene(Window,Renderer,Environment,Clipped);
         }
         /// <summary>Renders from a new renderer, so temporal state (GI history) cannot leak between compared frames.</summary>
-        public static byte[]RenderFresh(Camera View,bool Environment,int Frames=4){
-            using var Scene=Create(Environment);
+        public static byte[]RenderFresh(Camera View,bool Environment,int Frames=4,bool Clipped=true){
+            using var Scene=Create(Environment,Clipped);
             var Pixels=Scene.Render(View,Frames);
             Scene.AssertNoDebugLayerErrors();
             return Pixels;
@@ -295,12 +329,12 @@ public sealed class RadialDepthGpuIntegrationTests {
                     this.Renderer.Submit(new DirectionalLightSubmission(Vector3.Normalize(new Vector3(0.4f,-0.8f,0.5f)),White,new(3f),Shadow));
                     this.Renderer.Submit(new PointLightSubmission(new Vector3(-1.5f,1.6f,-1f),new(1f,0.5f,0.2f),new(600f),new(8f),Shadow));
                 }
-                this.Renderer.SetObjectTransform(0,Matrix4x4.Identity);
+                this.Renderer.SetObjectTransform(0,this.Clipped?Matrix4x4.Identity:Matrix4x4.CreateTranslation(0f,-1000f,-1000f));
                 this.Renderer.SetObjectTransform(1,Matrix4x4.CreateRotationY(0.5f)*Matrix4x4.CreateTranslation(-0.9f,1.2f,0f));
                 this.Renderer.SetObjectTransform(2,Matrix4x4.CreateTranslation(0.9f,0.9f,-0.6f));
                 this.Renderer.SetObjectTransform(3,Matrix4x4.CreateTranslation(0f,2.5f,3f));
                 // Straddles the near plane at the right edge of the view.
-                this.Renderer.SetObjectTransform(4,Matrix4x4.CreateTranslation(0.6f,1.3f,-3.6f));
+                this.Renderer.SetObjectTransform(4,Matrix4x4.CreateTranslation(0.6f,1.3f,this.Clipped?-3.6f:-1.5f));
                 // Beyond the 40 m far plane.
                 this.Renderer.SetObjectTransform(5,Matrix4x4.CreateTranslation(0f,2f,60f));
                 this.Renderer.RenderFrame(CaptureForVerification:Frame==Frames-1);

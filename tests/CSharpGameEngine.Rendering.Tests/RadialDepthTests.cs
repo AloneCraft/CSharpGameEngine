@@ -88,6 +88,36 @@ public sealed class RadialDepthTests {
         }
         Assert.True(Steps*Math.Log(2d)*Math.Pow(2d,-24d)<3.2e-6);
     }
+    [Theory]
+    [InlineData(1e-3f,0.1f,300f)]
+    [InlineData(1f,0.1f,300f)]
+    [InlineData(1f,1e-6f,1e18f)]
+    [InlineData(50f,0.01f,1e12f)]
+    public void ConservativeRasterDepth_NeverExceedsTheEncodedDepth(float Transition,float Near,float Far){
+        // Early depth rejection with SV_DepthGreaterEqual is safe only if the raster depth a - b/w is a lower bound of
+        // the encoded depth of every fragment: view depth w and distance r >= w (off-axis pixels).
+        Assert.True(RadialDepthCurve.TryCreate(Transition,out var Curve));
+        Assert.True(RadialDepthProjection.TryCreate(Curve,Near,Far,FovY,Aspect,out var Projection));
+        var Touches=0;
+        foreach(var ViewDepth in LogSpaced(Near,Far,500)){
+            foreach(var Spread in new[]{1d,1.0001d,1.2d,1.8d}){
+                var Bound=Projection.ConservativeDepth((float)ViewDepth);
+                var Encoded=Projection.EncodeDepth((float)(ViewDepth*Spread));
+                Assert.True(Bound<=Encoded,$"w={ViewDepth:R} r={ViewDepth*Spread:R} bound={Bound:R} encoded={Encoded:R}");
+                if(Spread==1d&&Bound>Encoded*0.999f){ Touches++; }
+            }
+        }
+        // The bound is tight near the tangent point, not a uselessly low constant.
+        Assert.True(Touches>0,"The bound must come within 0.1% of the depth near its tangent point.");
+        // The raster projection reproduces the bound (x, y and w are the standard projection's).
+        var Matrix=Projection.CreateConservativeRasterProjection(FovY,Aspect);
+        var Standard=Matrix4x4.CreatePerspectiveFieldOfView(FovY,Aspect,Near,Far);
+        Assert.Equal((Standard.M11,Standard.M22,Standard.M34),(Matrix.M11,Matrix.M22,Matrix.M34));
+        var Tangent=Projection.ConservativeTangentMeters;
+        Assert.Equal(RadialDepthProjection.ConservativeTangentRatio*MathF.Max(Transition,Near),Tangent);
+        var Clip=Vector4.Transform(new Vector4(0f,0f,-Tangent,1f),Matrix);
+        Assert.Equal(Projection.ConservativeDepth(Tangent),Clip.Z/Clip.W,1e-5f);
+    }
     [Fact]
     public void Observer_CompressesDistancesToTheTransitionTimesG(){
         Assert.True(RadialDepthCurve.TryCreate(2f,out var Curve));

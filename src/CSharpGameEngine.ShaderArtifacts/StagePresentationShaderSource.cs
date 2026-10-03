@@ -6,7 +6,8 @@ namespace CSharpGameEngine.ShaderArtifacts;
 /// this source. MaterialParams.z carries the presentation mode and EmissiveNits.w carries the
 /// selection weight. The shipping Stage entries intentionally ignore both components.
 /// The radial entries (M0099, ADR-0076) wrap the standard pixel entries unchanged and add the
-/// radial depth; FrameCB.DepthMapping0/1 carry their packet, which the standard entries never read.
+/// radial depth; FrameCB.DepthMapping0/1 carry their packet and FrameCB.RadialRasterViewProjection the
+/// main pass's conservative raster depth, which the standard entries never read.
 /// </summary>
 public static class StagePresentationShaderSource {
     public const string Source="""
@@ -93,26 +94,88 @@ struct RadialPixelOutput
     float Depth : SV_Depth;
 };
 
-RadialPixelOutput RadialPSMain(VertexOutput input)
+// RadialVSMain rasterizes the depth a - b/w, which never exceeds the encoded depth, so the shader promises a depth at
+// least the rasterized one and the hardware may still reject hidden fragments before running it.
+struct RadialConservativePixelOutput
+{
+    float4 Color : SV_Target;
+    float Depth : SV_DepthGreaterEqual;
+};
+
+// The radial main pass rasterizes its conservative depth without depth clipping (that depth reaches zero beyond the
+// near plane), so it clips with the standard projection's own near and far distances instead: the clipped triangles,
+// and every interpolated value, stay exactly the standard ones. The members mirror VertexOutput (ShaderGraphCompilerTests
+// keeps them in step).
+struct RadialVertexOutput
+{
+    float4 Position : SV_Position;
+    float3 WorldPosition : TEXCOORD0;
+    float3 Normal : NORMAL;
+    float4 Tangent : TANGENT;
+    float2 Uv : TEXCOORD1;
+    float4 ShadowPosition : TEXCOORD2;
+    float2 ClipDistance : SV_ClipDistance0;
+};
+
+// A pixel shader that declares SV_DepthGreaterEqual must read SV_Position with centroid, no-perspective interpolation;
+// the other members mirror VertexOutput and are handed to the standard pixel entries unchanged. Without MSAA the
+// centroid is the pixel centre, so SV_Position keeps its value.
+struct RadialPixelInput
+{
+    noperspective centroid float4 Position : SV_Position;
+    float3 WorldPosition : TEXCOORD0;
+    float3 Normal : NORMAL;
+    float4 Tangent : TANGENT;
+    float2 Uv : TEXCOORD1;
+    float4 ShadowPosition : TEXCOORD2;
+};
+
+VertexOutput ToVertexOutput(RadialPixelInput input)
+{
+    VertexOutput output;
+    output.Position = input.Position;
+    output.WorldPosition = input.WorldPosition;
+    output.Normal = input.Normal;
+    output.Tangent = input.Tangent;
+    output.Uv = input.Uv;
+    output.ShadowPosition = input.ShadowPosition;
+    return output;
+}
+
+RadialVertexOutput RadialVSMain(VertexInput input)
+{
+    VertexOutput standard = VSMain(input);
+    RadialVertexOutput output;
+    output.Position = mul(float4(standard.WorldPosition, 1.0), RadialRasterViewProjection);
+    output.WorldPosition = standard.WorldPosition;
+    output.Normal = standard.Normal;
+    output.Tangent = standard.Tangent;
+    output.Uv = standard.Uv;
+    output.ShadowPosition = standard.ShadowPosition;
+    output.ClipDistance = float2(standard.Position.z, standard.Position.w - standard.Position.z);
+    return output;
+}
+
+RadialConservativePixelOutput RadialPSMain(RadialPixelInput input)
 {
     if (IsBeyondRadialFarPlane(input.WorldPosition))
     {
         discard;
     }
-    RadialPixelOutput output;
-    output.Color = PSMain(input);
+    RadialConservativePixelOutput output;
+    output.Color = PSMain(ToVertexOutput(input));
     output.Depth = EncodeRadialDepth(input.WorldPosition - CameraPositionWS.xyz);
     return output;
 }
 
-RadialPixelOutput PreviewRadialPSMain(VertexOutput input)
+RadialConservativePixelOutput PreviewRadialPSMain(RadialPixelInput input)
 {
     if (IsBeyondRadialFarPlane(input.WorldPosition))
     {
         discard;
     }
-    RadialPixelOutput output;
-    output.Color = PreviewPSMain(input);
+    RadialConservativePixelOutput output;
+    output.Color = PreviewPSMain(ToVertexOutput(input));
     output.Depth = EncodeRadialDepth(input.WorldPosition - CameraPositionWS.xyz);
     return output;
 }

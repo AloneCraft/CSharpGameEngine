@@ -54,7 +54,7 @@
 | RadialObserverRig | 観察ビュー（カメラプレビュー矩形） |
 
 ## 帰結
-- 対数モードの PSO は `SV_Depth` を書くので Early-Z が効かない（対数モードだけの性能コスト）。保守的深度による最適化は非目標。
+- 対数の主パスは保守的深度（`SV_DepthGreaterEqual`）で早期の深度棄却を保つ（追記）。サムネイルの対数パスは `SV_Depth` のままで Early-Z が効かない。
 - Stage の ABI にエントリーが 4 つ増え、FrameCB が 912 → 944 バイトになる。複製した独自の Stage グラフは読めなくなる（CHANGELOG に書く）。
 - 非目標: カリング（Stage は今も全物体を描く。将来の可視性経路では near/far を放射距離で判定し、判定できなければ表示する）、モーションベクトル（将来 TAA を入れるときは前後のフレームの深度方式パケットが要る）、正射影の対数グリッド、エディタの切替 UI、天文規模でのエディタのナビゲーション、観察者の全画面表示とその中のピッキング・ギズモ、天体間の影。
 
@@ -62,6 +62,14 @@
 - CPU: `RadialDepthTests`（倍精度の基準との一致、単調性と原点の傾き、錐台の角で 1 未満、不正な入力、精度予算、観察者の半径、補助の投影が逆行列を持つこと、通常の範囲では標準と同じ行列）。
 - 標準の回帰: `StandardModeGoldenFrameTests` と既存の厳密画素テスト。
 - 以後のフェーズで GPU（標準とのビット一致、全スケールのほぼ同一平面、深度の読み戻し、復旧）、ランタイム、エディタ、観察ビュー、FeatureRunner の `rendering.radial-depth` を足す（M0099）。
+
+## 追記（2026-10-04）: 保守的深度で Early-Z を取り戻す
+- 観測した事実: GPU のタイムスタンプで主パスを測ると（全画面の板 24 枚、1280×720、RTX 4060 Ti）、`SV_Depth` を書く対数の主パスは、手前から奥へ描く場面で標準の約 22 倍（0.132 ms 対 2.972 ms）だった。奥から手前では同じ（2.98 ms）で、コストは Early-Z を失った分だけだった（`RadialDepthPerformanceEvidence`）。
+- 決定: 主パスのラスタ深度を、符号化した深度の下界になる双曲線 `a − b/w`（w はビューの深さ）にし、画素シェーダーは `SV_DepthGreaterEqual` を宣言する。ハードウェアはラスタ深度で早期に棄却でき、棄却した画素は書く深度でも必ず失敗する。
+  - 双曲線は `G(w)/G(rMax)` に `w0 = 8·max(T, NearZ)` で接する。差 `G(w)/G(rMax) − (a − b/w)` は `w²/(T + w)` が増加するので w0 だけで最小値 0 を取り、全域で下界になる。画素の距離 r は w 以上なので、`G(r)` に対しても下界。丸めのために a を 1/4096 下げる（`RadialDepthProjection.ConservativeDepthLimit/Slope`、`RadialDepthTests.ConservativeRasterDepth_NeverExceedsTheEncodedDepth`）。
+  - この深度は near 面より遠くで 0 に達するので、主パスは深度クリップを無効にし、代わりに標準の投影の near/far の距離を `SV_ClipDistance` に出す（`RadialVSMain`、FrameCB `RadialRasterViewProjection`）。`SV_DepthGreaterEqual` を出す画素シェーダーは `SV_Position` を centroid・no-perspective で受ける必要があるので、専用の入力構造体 `RadialPixelInput` から `VertexOutput` へ写して `PSMain` を呼ぶ。
+- 結果: 同じ計測で対数の主パスは 0.171 ms（標準 0.124 ms の 1.4 倍、以前の約 17 倍速）。WARP は深度を書くシェーダーで Early-Z を使わないので変わらない（正しさの確認用）。
+- 帰結: クリップされる三角形では、クリップ距離による切断の丸めが視錐台の z 面と変わり、色が 8 ビットで最大 1 階調ずれることがある。クリップされない三角形は標準とビット一致のまま（`Radial_RendersTheStandardPixelsBitForBitOnTrianglesItDoesNotClip`、`..._WithinRoundingOnClippedTriangles`）。Stage ABI は `stage-v9`（14 エントリー）、FrameCB は 1008 バイト。
 
 ## 関連する機能
 - F-L5-038（対数深度カメラ）、F-L5-039（観察ビュー）、F-L0-002（StageRenderer）、F-L4-002（RenderServer）

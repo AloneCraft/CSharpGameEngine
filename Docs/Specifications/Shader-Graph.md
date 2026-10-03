@@ -11,7 +11,7 @@
 
 Canonical serialization orders identities and argument names. Semantic hashing removes node positions and region layout. Connection types must match exactly; conversions are explicit nodes. Unknown JSON node data survives load/save and validator diagnostics identify unsupported node types.
 
-The fixed root target is Stage, Model, or Triangle. The Stage graph defines VSMain, PSMain, VSShadowMain, FullscreenVS, and PostProcessPS; the engine-owned `StagePresentationShaderSource` suffix adds PreviewPSMain, PreviewCleanPSMain, OverlayVSMain, OverlayPSMain and the radial depth entries RadialPSMain, PreviewRadialPSMain, PreviewCleanRadialPSMain and RadialObserverVSMain (M0099, ADR-0076), 13 entries in the `stage-v8` contract. Model and Triangle each have VSMain and PSMain.
+The fixed root target is Stage, Model, or Triangle. The Stage graph defines VSMain, PSMain, VSShadowMain, FullscreenVS, and PostProcessPS; the engine-owned `StagePresentationShaderSource` suffix adds PreviewPSMain, PreviewCleanPSMain, OverlayVSMain, OverlayPSMain and the radial depth entries RadialPSMain, PreviewRadialPSMain, PreviewCleanRadialPSMain, RadialObserverVSMain and RadialVSMain (M0099, ADR-0076), 14 entries in the `stage-v9` contract. Model and Triangle each have VSMain and PSMain.
 
 Dependencies resolve relative to their owning document and may be recursive. Resolution validates document identity and rejects missing files, recursion, node collisions, and top-level declaration-slot collisions. Production Stage owns PBR, Shadow, PCSS, and ACES as external typed-syntax Subgraphs whose original declaration slots are preserved during composition.
 

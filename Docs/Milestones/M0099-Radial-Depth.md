@@ -112,3 +112,10 @@ Unity URP 用の対数（Radial）レンダリング資産 Omni（`D:\Unity\6.6\
 - 除外したもの: [Omni 仕様](../Specifications/Omni.md) の非目標（Threshold 曲線、通常カメラの頂点の写像、カリング、モーションベクトル、正射影の対数グリッド、エディタの切替 UI、天文規模のエディタのナビゲーション、分離プレビューでの対数、観察者の全画面表示とその中のピッキング・ギズモ、天体間の影、保守的深度）。
 - 意図と観測の一致: Matches（F-L5-038、F-L5-039）。標準モードは `StandardModeGoldenFrameTests` の 7 場面が全フェーズで不変。
 - 残っていること: 対数 PSO の性能の計測（Early-Z が効かない）。
+
+## 追補（2026-10-04）. 対数の主パスで Early-Z を取り戻す
+- 残っていた「性能の計測」を行った。`StageRenderer` にテスト用の GPU タイムスタンプ（主パスの描画の前後、有効にしない限り命令を積まない）を足し、`RadialDepthPerformanceEvidence`（`CGE_PERFORMANCE_EVIDENCE=1` のときだけ動く。`PerformanceEvidenceFactAttribute`）で測った。
+- 結果（RTX 4060 Ti、全画面の板 24 枚、1280×720）: 手前から奥で標準 0.132 ms、`SV_Depth` の対数 2.972 ms。奥から手前ではどちらも約 2.98 ms。コストは Early-Z の喪失だけだった。
+- 対策: 保守的深度（ADR-0076 追記）。対数 0.171 ms（標準 0.124 ms の 1.4 倍）。WARP は変わらない。
+- 調べて分かったこと: 深度クリップを無効にすると near 面をまたぐ三角形の補間が変わった（1 階調）。標準の near/far を `SV_ClipDistance` で出すと箱の差は消えたが、床に散らばった 60 画素・最大 1 階調の差が残った。クリップの無い場面ではビット一致したので、クリップ距離による切断の丸めと確定し、不変条件を「クリップされない三角形はビット一致、クリップされる三角形は 1 階調以内」に改めた。
+- 計測した前提の事実: `SV_DepthGreaterEqual` を出す画素シェーダーは DXIL の検証で `SV_Position` を centroid・no-perspective で受ける必要があった。

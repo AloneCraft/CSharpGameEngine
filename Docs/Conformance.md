@@ -1,5 +1,12 @@
 # Conformance
 
+## 2026-10-04 M0099 追補 — 対数の主パスで Early-Z を取り戻す
+- 観測（GPU タイムスタンプ、`RadialDepthPerformanceEvidence`、RTX 4060 Ti）: `SV_Depth` を書く対数の主パスは、手前から奥へ描く 24 枚の全画面の板で標準の約 22 倍（2.972 ms 対 0.132 ms）。奥から手前では同じで、コストは Early-Z の喪失だけ。
+- 実装: 保守的深度（[ADR-0076 追記](Decisions/ADR-0076-Native-Radial-Depth-Mapping.md)）。接線双曲線のラスタ深度、`SV_DepthGreaterEqual`、深度クリップ無効と標準の near/far の `SV_ClipDistance`、`RadialPixelInput`。
+- 証拠: 下界の性質テスト（全域で符号化した深度以下、接点で 0.1% 以内）、対数の GPU テスト 13 件、`ShaderGraphCompilerTests`（構造体が `VertexOutput` と一致し、空どうしで素通りしないこと）、標準の基準フレームは不変。計測は対数 0.171 ms、標準 0.124 ms。
+- 調べて分かったこと: 最初は near 面をまたぐ箱の補間が原因と仮説を立てたが、クリップ距離で切ると差は床（目の後ろから far 面の先まで広がる三角形）に散らばった 60 画素・最大 1 階調に移った。クリップの無い場面ではビット一致したので、クリップ距離による切断の丸めが原因と確定した。
+- 結果: Matches（不変条件 2 を「クリップされない三角形はビット一致、クリップされる三角形は 1 階調以内」に改めた。意図した仕様の変更として ADR に記録）。
+
 ## 2026-10-04 M0099 Phase 5–7 — Camera コンポーネント、エディタの追従、観察ビュー、ステージ
 - 意図: [Omni 仕様](Specifications/Omni.md) の「Authoring and editor」と「Observer view」。
 - 実装: シーンの `Camera.DepthMapping`/`RadialTransitionMeters`、`LevelLoad.ApplyDepthMapping`（エディタのランタイムビューは毎フレームの経路でもシーンカメラの範囲を当て直す）、`RadialObserver`/`RadialObserverSync`/`RadialObserverView`、overlay での中央カメラの模型、Visual Stage `rendering.radial-depth`。

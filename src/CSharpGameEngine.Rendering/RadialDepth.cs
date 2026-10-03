@@ -59,6 +59,12 @@ public readonly record struct RadialDepthProjection {
     public const float AuxiliaryDepthRatio=65536f;
     /// <summary>Lower bound of the auxiliary near plane: surfaces nearer than this get no ambient occlusion.</summary>
     public const float AuxiliaryNearFloorMeters=0.01f;
+    /// <summary>
+    /// Where the conservative raster bound touches the curve, as a multiple of the larger of the transition length and
+    /// the near plane (so the touch is always in view). Occluders up to about 2.6 times this distance can reject hidden
+    /// fragments early; fragments nearer than about 0.3 times it are never rejected early.
+    /// </summary>
+    public const float ConservativeTangentRatio=8f;
     private RadialDepthProjection(RadialDepthCurve Curve,float NearZ,float FarZ,float FrustumCornerDistance){
         this.Curve=Curve;
         this.NearZ=NearZ;
@@ -67,6 +73,12 @@ public readonly record struct RadialDepthProjection {
         this.InverseMaximumG=1f/Curve.G(FrustumCornerDistance);
         this.AuxiliaryNearZ=MathF.Max(NearZ,MathF.Min(AuxiliaryNearFloorMeters,FarZ*0.5f));
         this.AuxiliaryFarZ=MathF.Min(FarZ,this.AuxiliaryNearZ*AuxiliaryDepthRatio);
+        // The hyperbola a - b/w tangent to G(w)/G(rMax) at w0 stays below it for every w > 0: their difference has
+        // its only minimum, zero, at w0 because w^2/(T + w) increases. A 1/4096 margin covers rounding.
+        var Tangent=this.ConservativeTangentMeters;
+        var Slope=1f/(MathF.Log(2f)*(Curve.TransitionMeters+Tangent));
+        this.ConservativeDepthSlope=Tangent*Tangent*Slope*this.InverseMaximumG;
+        this.ConservativeDepthLimit=(Curve.G(Tangent)+Tangent*Slope)*this.InverseMaximumG*(1f-1f/4096f);
     }
     public RadialDepthCurve Curve { get; }
     public float NearZ { get; }
@@ -85,6 +97,28 @@ public readonly record struct RadialDepthProjection {
     public float AuxiliaryNearZ { get; }
     /// <summary>Far plane of that view-projection: <c>min(FarZ, AuxiliaryNearZ · 65536)</c>.</summary>
     public float AuxiliaryFarZ { get; }
+    /// <summary>
+    /// <c>a</c> of the conservative raster depth <c>a − b/w</c> (w: view depth), a lower bound of the encoded depth, so
+    /// a radial pixel shader can declare SV_DepthGreaterEqual and keep early depth rejection (ADR-0076).
+    /// </summary>
+    public float ConservativeDepthLimit { get; }
+    /// <summary>Where the conservative raster bound touches the encoded depth's curve: 8 · max(T, NearZ).</summary>
+    public float ConservativeTangentMeters=>ConservativeTangentRatio*MathF.Max(this.Curve.TransitionMeters,this.NearZ);
+    /// <summary><c>b</c> of the conservative raster depth <c>a − b/w</c>.</summary>
+    public float ConservativeDepthSlope { get; }
+    /// <summary>The conservative raster depth at view depth <paramref name="ViewDepth"/>, clamped at zero like the rasterizer.</summary>
+    public float ConservativeDepth(float ViewDepth)=>MathF.Max(this.ConservativeDepthLimit-this.ConservativeDepthSlope/ViewDepth,0f);
+    /// <summary>
+    /// The camera's perspective with its depth row replaced by the conservative bound. X, Y and W are the standard ones,
+    /// so coverage is unchanged; the pipeline must disable depth clipping, because the bound reaches zero beyond the near
+    /// plane, and enforce NearZ per fragment.
+    /// </summary>
+    public Matrix4x4 CreateConservativeRasterProjection(float FovYRadians,float AspectRatio){
+        var Projection=Matrix4x4.CreatePerspectiveFieldOfView(FovYRadians,AspectRatio,this.NearZ,this.FarZ);
+        Projection.M33=-this.ConservativeDepthLimit;
+        Projection.M43=-this.ConservativeDepthSlope;
+        return Projection;
+    }
     /// <summary>Radius of the compressed world seen by an observer: <c>T · G(FrustumCornerDistance)</c>.</summary>
     public float ObservedWorldRadius=>this.Curve.Map(this.FrustumCornerDistance);
     public static bool TryCreate(RadialDepthCurve Curve,float NearZ,float FarZ,float FovYRadians,float AspectRatio,out RadialDepthProjection Projection){
